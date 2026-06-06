@@ -1,4 +1,4 @@
-package com.aicourse.controller;
+﻿package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.service.SystemService;
@@ -42,7 +42,7 @@ public class SystemAdminController {
 
     @PostMapping("/backup")
     public ApiResponse<String> createBackup() {
-        return ApiResponse.success("备份创建成功", systemService.createBackup());
+        return ApiResponse.success("备份成功", systemService.createBackup());
     }
 
     @GetMapping("/backup")

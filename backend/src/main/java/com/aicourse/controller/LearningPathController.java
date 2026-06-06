@@ -40,14 +40,14 @@ public class LearningPathController {
     public ApiResponse<LearningPath> create(@RequestBody LearningPath path, Authentication auth) {
         path.setStudentId((Long) auth.getPrincipal());
         learningPathService.save(path);
-        return ApiResponse.success("鍒涘缓鎴愬姛", path);
+        return ApiResponse.success("创建成功", path);
     }
 
     @PutMapping("/{id}")
     public ApiResponse<LearningPath> update(@PathVariable Long id, @RequestBody LearningPath path) {
         path.setId(id);
         learningPathService.updateById(path);
-        return ApiResponse.success("鏇存柊鎴愬姛", learningPathService.getById(id));
+        return ApiResponse.success("更新成功", learningPathService.getById(id));
     }
 
     @GetMapping("/{id}/nodes")
@@ -60,14 +60,14 @@ public class LearningPathController {
     public ApiResponse<LearningPathNode> addNode(@PathVariable Long id, @RequestBody LearningPathNode node) {
         node.setLearningPathId(id);
         learningPathNodeService.save(node);
-        return ApiResponse.success("娣诲姞鎴愬姛", node);
+        return ApiResponse.success("添加成功", node);
     }
 
     @PutMapping("/nodes/{nodeId}")
     public ApiResponse<LearningPathNode> updateNode(@PathVariable Long nodeId, @RequestBody LearningPathNode node) {
         node.setId(nodeId);
         learningPathNodeService.updateById(node);
-        return ApiResponse.success("鏇存柊鎴愬姛", learningPathNodeService.getById(nodeId));
+        return ApiResponse.success("更新成功", learningPathNodeService.getById(nodeId));
     }
 
     @GetMapping("/generate")
@@ -75,7 +75,7 @@ public class LearningPathController {
         Long userId = (Long) auth.getPrincipal();
         // Simple auto-generation logic
         List<LearningPathNode> nodes = new ArrayList<>();
-        String[] topics = {"鍩虹姒傚康", "鏍稿績鍘熺悊", "杩涢樁搴旂敤", "缁煎悎瀹炶返"};
+        String[] topics = {"基础知识学习", "核心概念掌握", "实践应用练习", "综合测试评估"};
         for (int i = 0; i < topics.length; i++) {
             LearningPathNode node = new LearningPathNode();
             node.setTitle(topics[i]);

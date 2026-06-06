@@ -1,4 +1,4 @@
-package com.aicourse.enums;
+﻿package com.aicourse.enums;
 
 public enum SubmissionStatus {
     SUBMITTED, GRADED, RETURNED, LATE

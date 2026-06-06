@@ -1,4 +1,4 @@
-package com.aicourse.controller;
+﻿package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import com.aicourse.exception.BusinessException;
 
 import java.util.Map;
 
@@ -29,7 +30,7 @@ public class CourseEnrollmentController {
         enrollment.setIsActive(true);
         enrollment.setProgress(java.math.BigDecimal.ZERO);
         enrollmentService.save(enrollment);
-        return ApiResponse.success("已退课成功闁顕抽幋鎰", enrollment);
+        return ApiResponse.success("报名成功", enrollment);
     }
 
     @GetMapping("/my")
@@ -42,7 +43,10 @@ public class CourseEnrollmentController {
     public ApiResponse<Void> unenroll(@PathVariable Long id, Authentication auth) {
         CourseEnrollment enrollment = enrollmentService.getById(id);
         if (enrollment != null && enrollment.getStudentId().equals((Long) auth.getPrincipal())) {
-            enrollmentService.removeById(id);
+            enrollment.setIsActive(false);
+            enrollmentService.updateById(enrollment);
+        } else {
+            throw new BusinessException("您没有权限退课或该退课记录不存在");
         }
         return ApiResponse.success("退课成功", null);
     }

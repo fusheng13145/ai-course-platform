@@ -1,4 +1,4 @@
-package com.aicourse.util;
+﻿package com.aicourse.util;
 
 import eu.bitwalker.useragentutils.UserAgent;
 import jakarta.servlet.http.HttpServletRequest;

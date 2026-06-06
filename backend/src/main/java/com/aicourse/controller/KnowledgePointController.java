@@ -1,4 +1,4 @@
-package com.aicourse.controller;
+﻿package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.service.KnowledgePointService;
@@ -40,20 +40,20 @@ public class KnowledgePointController {
     @PostMapping("/points")
     public ApiResponse<KnowledgePoint> create(@RequestBody KnowledgePoint point) {
         knowledgePointService.save(point);
-        return ApiResponse.success("创建成功", point);
+        return ApiResponse.success("鍒涘缓鎴愬姛", point);
     }
 
     @PutMapping("/points/{id}")
     public ApiResponse<KnowledgePoint> update(@PathVariable Long id, @RequestBody KnowledgePoint point) {
         point.setId(id);
         knowledgePointService.updateById(point);
-        return ApiResponse.success("更新成功", knowledgePointService.getById(id));
+        return ApiResponse.success("鏇存柊鎴愬姛", knowledgePointService.getById(id));
     }
 
     @DeleteMapping("/points/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         knowledgePointService.removeById(id);
-        return ApiResponse.success("删除成功", null);
+        return ApiResponse.success("鍒犻櫎鎴愬姛", null);
     }
 
     @GetMapping("/points/{id}/relations")
@@ -80,13 +80,13 @@ public class KnowledgePointController {
     @PostMapping("/relations")
     public ApiResponse<Void> createRelation(@RequestBody KnowledgePointRelation relation) {
         relationService.save(relation);
-        return ApiResponse.success("创建成功", null);
+        return ApiResponse.success("鍒涘缓鎴愬姛", null);
     }
 
     @DeleteMapping("/relations/{id}")
     public ApiResponse<Void> deleteRelation(@PathVariable Long id) {
         relationService.removeById(id);
-        return ApiResponse.success("删除成功", null);
+        return ApiResponse.success("鍒犻櫎鎴愬姛", null);
     }
 
     @GetMapping("/overview")

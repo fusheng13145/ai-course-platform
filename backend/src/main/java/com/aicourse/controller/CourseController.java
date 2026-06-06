@@ -1,4 +1,4 @@
-package com.aicourse.controller;
+﻿package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
@@ -48,7 +48,7 @@ public class CourseController {
         Long userId = (Long) auth.getPrincipal();
         course.setTeacherId(userId);
         courseService.save(course);
-        return ApiResponse.success("创建成功", course);
+        return ApiResponse.success("鍒涘缓鎴愬姛", course);
     }
 
     @PutMapping("/{id}")
@@ -56,14 +56,14 @@ public class CourseController {
     public ApiResponse<Course> update(@PathVariable Long id, @RequestBody Course course) {
         course.setId(id);
         courseService.updateById(course);
-        return ApiResponse.success("更新成功", courseService.getById(id));
+        return ApiResponse.success("鏇存柊鎴愬姛", courseService.getById(id));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         courseService.removeById(id);
-        return ApiResponse.success("删除成功", null);
+        return ApiResponse.success("鍒犻櫎鎴愬姛", null);
     }
 
     @PostMapping("/{id}/approve")
@@ -73,7 +73,7 @@ public class CourseController {
         course.setApprovalStatus((String) body.get("status"));
         course.setApprovalComment((String) body.get("comment"));
         courseService.updateById(course);
-        return ApiResponse.success("审核完成", course);
+        return ApiResponse.success("瀹℃牳瀹屾垚", course);
     }
 
     @GetMapping("/enrolled")

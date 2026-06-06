@@ -1,4 +1,4 @@
-package com.aicourse.service.impl;
+﻿package com.aicourse.service.impl;
 
 import com.aicourse.service.AIService;
 import org.slf4j.Logger;
@@ -44,7 +44,7 @@ public class AIServiceImpl implements AIService {
 
     @Override
     public String generateContent(String type, String params) {
-        return callDeepSeek(buildMessages("请生成" + type + "内容：" + params, null));
+        return callDeepSeek(buildMessages("请生成" + type + "内容，" + params, null));
     }
 
     @Override
@@ -60,7 +60,7 @@ public class AIServiceImpl implements AIService {
 
     @Override
     public String ragAsk(String question, Long courseId) {
-        return callDeepSeek(buildMessages(question, "请基于课程知识回答问题"));
+        return callDeepSeek(buildMessages(question, "请基于课程知识回答问题。"));
     }
 
     @SuppressWarnings("unchecked")

@@ -1,4 +1,4 @@
-package com.aicourse.exception;
+﻿package com.aicourse.exception;
 
 public class BusinessException extends RuntimeException {
     private int code;

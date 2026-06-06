@@ -1,4 +1,4 @@
-package com.aicourse.config;
+﻿package com.aicourse.config;
 
 import com.aicourse.security.JwtAuthenticationEntryPoint;
 import com.aicourse.security.JwtRequestFilter;
@@ -52,25 +52,23 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
             .authorizeHttpRequests(auth -> auth
-                // 公开接口
+                // 鍏紑鎺ュ彛
                 .requestMatchers("/auth/**", "/common/captcha", "/common/verify-code",
                     "/common/verification-code", "/common/upload",
                     "/common/feature-roadmap", "/health", "/uploads/**",
                     "/swagger-ui/**", "/api-docs/**", "/mock/**").permitAll()
-                // 管理员接口
-                .requestMatchers("/admin/**").hasRole("ADMIN")
+                // 绠＄悊鍛樻帴鍙?                .requestMatchers("/admin/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/users/**").hasRole("ADMIN")
-                // 教师接口
+                // 鏁欏笀鎺ュ彛
                 .requestMatchers("/teacher/**").hasAnyRole("TEACHER", "ADMIN")
                 .requestMatchers("/exam-papers/**", "/questions/**").hasAnyRole("TEACHER", "ADMIN")
                 .requestMatchers("/tasks/**", "/submissions/**").hasAnyRole("TEACHER", "ADMIN")
                 .requestMatchers("/knowledge-points/**").hasAnyRole("TEACHER", "ADMIN")
-                // 学生接口
+                // 瀛︾敓鎺ュ彛
                 .requestMatchers("/student/**").hasAnyRole("STUDENT", "TEACHER", "ADMIN")
                 .requestMatchers("/enrollments/**", "/learning-paths/**").hasAnyRole("STUDENT", "TEACHER", "ADMIN")
                 .requestMatchers("/wrong-questions/**", "/video-records/**").hasAnyRole("STUDENT", "TEACHER", "ADMIN")
-                // 其他接口需要认证
-                .anyRequest().authenticated()
+                // 鍏朵粬鎺ュ彛闇€瑕佽璇?                .anyRequest().authenticated()
             )
             .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

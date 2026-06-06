@@ -1,4 +1,4 @@
-package com.aicourse.service.impl;
+﻿package com.aicourse.service.impl;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.User;
@@ -153,7 +153,7 @@ public class AuthServiceImpl implements AuthService {
             if (vc == null) {
                 throw new BusinessException("验证码无效或已过期");
             }
-            vc.setUsed(true);
+            vc.setIsUsed(true);
             verificationCodeService.updateById(vc);
         }
 
@@ -209,6 +209,18 @@ public class AuthServiceImpl implements AuthService {
 
     @Override
     @Transactional
+    public ApiResponse<Void> logout(Long userId, HttpServletRequest request) {
+        userSessionService.lambdaUpdate()
+            .eq(UserSession::getUserId, userId)
+            .eq(UserSession::getIsActive, true)
+            .set(UserSession::getIsActive, false)
+            .set(UserSession::getIsCurrent, false)
+            .update();
+        saveLoginLog(userId, null, "LOGOUT", request, "瀹夊叏鍏?閫€鍑?");
+        return ApiResponse.success("退出成功", null);
+    }
+
+    @Override    @Transactional
     public ApiResponse<Void> resetPassword(String phone, String code, String newPassword) {
         VerificationCode vc = verificationCodeService.getOne(new LambdaQueryWrapper<VerificationCode>()
                 .eq(VerificationCode::getPhone, phone)
@@ -221,7 +233,7 @@ public class AuthServiceImpl implements AuthService {
         if (vc == null) {
             throw new BusinessException("验证码无效或已过期");
         }
-        vc.setUsed(true);
+        vc.setIsUsed(true);
         verificationCodeService.updateById(vc);
 
         User user = userService.getOne(new LambdaQueryWrapper<User>().eq(User::getPhone, phone));

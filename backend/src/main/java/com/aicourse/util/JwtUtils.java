@@ -1,4 +1,4 @@
-package com.aicourse.util;
+﻿package com.aicourse.util;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;

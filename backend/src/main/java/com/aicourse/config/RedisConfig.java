@@ -1,4 +1,4 @@
-package com.aicourse.config;
+﻿package com.aicourse.config;
 
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
