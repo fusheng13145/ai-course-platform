@@ -1,4 +1,4 @@
-package com.aicourse.controller;
+﻿package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.ExamSession;
@@ -28,7 +28,7 @@ public class ExamSessionController {
         session.setStartTime(LocalDateTime.now());
         session.setAttemptNumber(1);
         examSessionService.save(session);
-        return ApiResponse.success("考试开始", session);
+        return ApiResponse.success("考试开始成功", session);
     }
 
     @PostMapping("/{id}/submit")
@@ -38,7 +38,7 @@ public class ExamSessionController {
         session.setSubmitTime(LocalDateTime.now());
         session.setAnswers(body.get("answers").toString());
         examSessionService.updateById(session);
-        return ApiResponse.success("提交成功", session);
+        return ApiResponse.success("鎻愪氦鎴愬姛", session);
     }
 
     @GetMapping("/{id}/result")

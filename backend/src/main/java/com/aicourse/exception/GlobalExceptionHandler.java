@@ -1,4 +1,4 @@
-package com.aicourse.exception;
+﻿package com.aicourse.exception;
 
 import com.aicourse.common.ApiResponse;
 import org.slf4j.Logger;
@@ -33,7 +33,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BadCredentialsException.class)
     public ResponseEntity<ApiResponse<Void>> handleBadCredentials(BadCredentialsException e) {
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(ApiResponse.error(401, "用户名或密码错误"));
+                .body(ApiResponse.error(401, "未授权"));
     }
 
     @ExceptionHandler(AccessDeniedException.class)

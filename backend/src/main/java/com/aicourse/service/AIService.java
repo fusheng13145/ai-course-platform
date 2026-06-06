@@ -1,4 +1,4 @@
-package com.aicourse.service;
+﻿package com.aicourse.service;
 
 public interface AIService {
     String chat(String message, String context, Long userId);

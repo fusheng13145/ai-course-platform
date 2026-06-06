@@ -1,4 +1,4 @@
-package com.aicourse.controller;
+﻿package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
@@ -73,7 +73,7 @@ public class UserController {
             user.setIsActive(body.getOrDefault("active", !user.getIsActive()));
             userService.updateById(user);
         }
-        return ApiResponse.success("状态已更新", null);
+        return ApiResponse.success("鐘舵€佸凡鏇存柊", null);
     }
 
     @GetMapping("/profile")
@@ -93,6 +93,6 @@ public class UserController {
         if (updates.getAvatarUrl() != null) user.setAvatarUrl(updates.getAvatarUrl());
         if (updates.getBio() != null) user.setBio(updates.getBio());
         userService.updateById(user);
-        return ApiResponse.success("更新成功", userService.getById(userId));
+        return ApiResponse.success("鏇存柊鎴愬姛", userService.getById(userId));
     }
 }

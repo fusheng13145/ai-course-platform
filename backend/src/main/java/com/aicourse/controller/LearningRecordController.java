@@ -1,4 +1,4 @@
-package com.aicourse.controller;
+﻿package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.LearningRecord;
@@ -22,7 +22,7 @@ public class LearningRecordController {
     public ApiResponse<LearningRecord> record(@RequestBody LearningRecord record, Authentication auth) {
         record.setUserId((Long) auth.getPrincipal());
         learningRecordService.save(record);
-        return ApiResponse.success("记录成功", record);
+        return ApiResponse.success("璁板綍鎴愬姛", record);
     }
 
     @GetMapping

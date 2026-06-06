@@ -1,4 +1,4 @@
-package com.aicourse;
+﻿package com.aicourse;
 
 import org.mybatis.spring.annotation.MapperScan;
 import org.springframework.boot.SpringApplication;

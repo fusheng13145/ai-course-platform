@@ -1,4 +1,4 @@
-package com.aicourse.entity;
+﻿package com.aicourse.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 
@@ -122,7 +122,7 @@ public class UserSession {
         this.isActive = isActive;
     }
 
-    public Boolean isIsCurrent() {
+    public Boolean getIsCurrent() {
         return isCurrent;
     }
 

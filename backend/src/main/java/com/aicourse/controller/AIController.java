@@ -1,4 +1,4 @@
-package com.aicourse.controller;
+﻿package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.service.AIService;

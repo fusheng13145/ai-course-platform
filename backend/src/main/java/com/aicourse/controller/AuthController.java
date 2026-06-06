@@ -1,9 +1,9 @@
-package com.aicourse.controller;
+﻿package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.service.AuthService;
+import com.aicourse.service.PermissionService;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,9 +13,11 @@ import java.util.Map;
 @RequestMapping("/auth")
 public class AuthController {
     private final AuthService authService;
+    private final PermissionService permissionService;
 
-    public AuthController(AuthService authService) {
+    public AuthController(AuthService authService, PermissionService permissionService) {
         this.authService = authService;
+        this.permissionService = permissionService;
     }
 
     @PostMapping("/login")
@@ -29,14 +31,10 @@ public class AuthController {
     @PostMapping("/register")
     public ApiResponse<Map<String, Object>> register(@RequestBody Map<String, Object> body, HttpServletRequest request) {
         return authService.register(
-            (String) body.get("email"),
-            (String) body.get("username"),
-            (String) body.get("password"),
-            (String) body.get("fullName"),
-            (String) body.get("role"),
-            (String) body.get("phone"),
-            (String) body.get("code"),
-            request);
+            (String) body.get("email"), (String) body.get("username"),
+            (String) body.get("password"), (String) body.get("fullName"),
+            (String) body.get("role"), (String) body.get("phone"),
+            (String) body.get("code"), request);
     }
 
     @PostMapping("/refresh")
@@ -44,19 +42,28 @@ public class AuthController {
         return authService.refreshToken((String) body.get("refreshToken"));
     }
 
-    @PostMapping("/reset-password")
-    public ApiResponse<Void> resetPassword(@RequestBody Map<String, Object> body) {
-        return authService.resetPassword(
-            (String) body.get("phone"),
-            (String) body.get("code"),
-            (String) body.get("newPassword"));
+    @PostMapping("/logout")
+    public ApiResponse<Void> logout(Authentication auth, HttpServletRequest request) {
+        Long userId = (Long) auth.getPrincipal();
+        return authService.logout(userId, request);
     }
 
-    @PutMapping("/password")
+    @PostMapping("/change-password")
     public ApiResponse<Void> changePassword(Authentication auth, @RequestBody Map<String, Object> body) {
         Long userId = (Long) auth.getPrincipal();
         return authService.changePassword(userId,
-            (String) body.get("oldPassword"),
+            (String) body.get("oldPassword"), (String) body.get("newPassword"));
+    }
+
+    @PutMapping("/password")
+    public ApiResponse<Void> altChangePassword(Authentication auth, @RequestBody Map<String, Object> body) {
+        return changePassword(auth, body);
+    }
+
+    @PostMapping("/reset-password")
+    public ApiResponse<Void> resetPassword(@RequestBody Map<String, Object> body) {
+        return authService.resetPassword(
+            (String) body.get("phone"), (String) body.get("code"),
             (String) body.get("newPassword"));
     }
 
@@ -64,5 +71,11 @@ public class AuthController {
     public ApiResponse<Map<String, Object>> getCurrentUser(Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         return authService.getCurrentUser(userId);
+    }
+
+    @GetMapping("/permissions")
+    public ApiResponse<Map<String, Object>> getPermissions(Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        return ApiResponse.success("获取成功", permissionService.getUserPermissions(userId));
     }
 }

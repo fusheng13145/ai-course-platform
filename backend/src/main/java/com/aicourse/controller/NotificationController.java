@@ -1,10 +1,9 @@
-package com.aicourse.controller;
+﻿package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.Notification;
 import com.aicourse.service.NotificationService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -51,7 +50,7 @@ public class NotificationController {
             n.setIsRead(true);
             notificationService.updateById(n);
         }
-        return ApiResponse.success("已标记已读", null);
+        return ApiResponse.success("标记已读成功", null);
     }
 
     @PostMapping("/send")
