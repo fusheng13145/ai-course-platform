@@ -93,10 +93,4 @@ public class AuthController {
         updated.setPassword(null);
         return ApiResponse.success("更新成功", updated);
     }
-
-    @GetMapping("/permissions")
-    public ApiResponse<Map<String, Object>> getPermissions(Authentication auth) {
-        Long userId = (Long) auth.getPrincipal();
-        return ApiResponse.success("获取成功", permissionService.getUserPermissions(userId));
-    }
 }

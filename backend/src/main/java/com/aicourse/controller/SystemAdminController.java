@@ -28,23 +28,22 @@ public class SystemAdminController {
     }
 
     @PostMapping("/admin/system/configs")
-    public ApiResponse<Void> saveConfig(@RequestParam String key, @RequestParam String value,
-                                         @RequestParam(required = false) String group) {
-        systemService.saveConfig(key, value, group);
+    public ApiResponse<Void> saveConfig(@RequestBody Map<String, String> body) {
+        systemService.saveConfig(body.get("key"), body.get("value"), body.get("group"));
         return ApiResponse.success("保存成功", null);
     }
 
-    @GetMapping("/admin/monitoring/health")
+    @GetMapping("/admin/system/health")
     public ApiResponse<Map<String, Object>> health() {
         return ApiResponse.success(systemService.getHealth());
     }
 
-    @PostMapping("/admin/system/backup")
+    @PostMapping("/admin/backup")
     public ApiResponse<String> createBackup() {
         return ApiResponse.success("备份成功", systemService.createBackup());
     }
 
-    @GetMapping("/admin/system/backup")
+    @GetMapping("/admin/backup")
     public ApiResponse<List<Map<String, Object>>> getBackups() {
         return ApiResponse.success(systemService.getBackups());
     }

@@ -32,16 +32,21 @@ public class UserController {
                                                   @RequestParam(required = false) String keyword) {
         LambdaQueryWrapper<User> wrapper = new LambdaQueryWrapper<User>()
             .eq(role != null && !role.isEmpty(), User::getRole, role)
-            .like(keyword != null && !keyword.isEmpty(), User::getUsername, keyword)
-            .or().like(keyword != null && !keyword.isEmpty(), User::getFullName, keyword)
-            .or().like(keyword != null && !keyword.isEmpty(), User::getEmail, keyword)
+            .and(keyword != null && !keyword.isEmpty(), w -> w
+                .like(User::getUsername, keyword)
+                .or().like(User::getFullName, keyword)
+                .or().like(User::getEmail, keyword))
             .orderByDesc(User::getCreatedAt);
-        return ApiResponse.success(PagedResponse.of(userService.page(Page.of(page, size), wrapper)));
+        Page<User> result = userService.page(Page.of(page, size), wrapper);
+        result.getRecords().forEach(u -> u.setPassword(null));
+        return ApiResponse.success(PagedResponse.of(result));
     }
 
     @GetMapping("/{id}")
     public ApiResponse<User> getById(@PathVariable Long id) {
-        return ApiResponse.success(userService.getById(id));
+        User user = userService.getById(id);
+        if (user != null) user.setPassword(null);
+        return ApiResponse.success(user);
     }
 
     @PostMapping
@@ -49,6 +54,7 @@ public class UserController {
     public ApiResponse<User> create(@RequestBody User user) {
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         userService.save(user);
+        user.setPassword(null);
         return ApiResponse.success("创建成功", user);
     }
 
@@ -56,7 +62,9 @@ public class UserController {
     public ApiResponse<User> update(@PathVariable Long id, @RequestBody User user) {
         user.setId(id);
         userService.updateById(user);
-        return ApiResponse.success("更新成功", userService.getById(id));
+        User updated = userService.getById(id);
+        if (updated != null) updated.setPassword(null);
+        return ApiResponse.success("更新成功", updated);
     }
 
     @DeleteMapping("/{id}")
@@ -73,7 +81,7 @@ public class UserController {
         if (user == null) {
             throw new BusinessException("用户不存在");
         }
-        user.setIsActive(body.getOrDefault("active", !user.getIsActive()));
+        user.setIsActive(body.getOrDefault("status", !user.getIsActive()));
         userService.updateById(user);
         return ApiResponse.success("状态已更新", null);
     }

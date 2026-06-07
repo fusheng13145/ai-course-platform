@@ -146,7 +146,7 @@ public class ExamPaper {
         this.questionCount = questionCount;
     }
 
-    public Boolean isShuffleQuestions() {
+    public Boolean getShuffleQuestions() {
         return shuffleQuestions;
     }
 
@@ -154,7 +154,7 @@ public class ExamPaper {
         this.shuffleQuestions = shuffleQuestions;
     }
 
-    public Boolean isShuffleOptions() {
+    public Boolean getShuffleOptions() {
         return shuffleOptions;
     }
 
@@ -162,7 +162,7 @@ public class ExamPaper {
         this.shuffleOptions = shuffleOptions;
     }
 
-    public Boolean isShowScore() {
+    public Boolean getShowScore() {
         return showScore;
     }
 
@@ -170,7 +170,7 @@ public class ExamPaper {
         this.showScore = showScore;
     }
 
-    public Boolean isShowCorrectAnswer() {
+    public Boolean getShowCorrectAnswer() {
         return showCorrectAnswer;
     }
 
@@ -194,7 +194,7 @@ public class ExamPaper {
         this.timeLimit = timeLimit;
     }
 
-    public Boolean isAllowReview() {
+    public Boolean getAllowReview() {
         return allowReview;
     }
 

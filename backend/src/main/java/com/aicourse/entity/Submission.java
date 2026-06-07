@@ -175,7 +175,7 @@ public class Submission {
         this.attemptNumber = attemptNumber;
     }
 
-    public Boolean isIsLate() {
+    public Boolean getIsLate() {
         return isLate;
     }
 

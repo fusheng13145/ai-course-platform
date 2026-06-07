@@ -26,8 +26,16 @@ public class TaskController {
         this.submissionService = submissionService;
     }
 
+    @GetMapping
+    public ApiResponse<PagedResponse<Task>> listByParams(@RequestParam(defaultValue = "1") long page,
+                                                   @RequestParam(defaultValue = "10") long size,
+                                                   @RequestParam(required = false) Long courseId) {
+        return ApiResponse.success(PagedResponse.of(taskService.page(Page.of(page, size),
+            new LambdaQueryWrapper<Task>().eq(courseId != null, Task::getCourseId, courseId))));
+    }
+
     @GetMapping("/course/{courseId}")
-    public ApiResponse<PagedResponse<Task>> list(@PathVariable Long courseId,
+    public ApiResponse<PagedResponse<Task>> listByCourse(@PathVariable Long courseId,
                                                    @RequestParam(defaultValue = "1") long page,
                                                    @RequestParam(defaultValue = "10") long size) {
         return ApiResponse.success(PagedResponse.of(taskService.page(Page.of(page, size),

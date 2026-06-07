@@ -106,7 +106,7 @@ public class User {
         this.isActive = isActive;
     }
 
-    public Boolean isIsVerified() {
+    public Boolean getIsVerified() {
         return isVerified;
     }
 

@@ -89,8 +89,8 @@ public class KnowledgePointController {
         return ApiResponse.success("删除成功", null);
     }
 
-    @GetMapping("/graph/{courseId}")
-    public ApiResponse<Map<String, Object>> graph(@PathVariable Long courseId) {
+    @GetMapping("/graph")
+    public ApiResponse<Map<String, Object>> graph(@RequestParam Long courseId) {
         List<KnowledgePoint> points = knowledgePointService.list(
             new LambdaQueryWrapper<KnowledgePoint>().eq(KnowledgePoint::getCourseId, courseId));
         List<KnowledgePointRelation> relations = relationService.list(
