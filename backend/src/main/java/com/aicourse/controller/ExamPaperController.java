@@ -30,8 +30,19 @@ public class ExamPaperController {
         this.examSessionService = examSessionService;
     }
 
+    @GetMapping
+    public ApiResponse<PagedResponse<ExamPaper>> listByParams(@RequestParam(defaultValue = "1") long page,
+                                                       @RequestParam(defaultValue = "10") long size,
+                                                       @RequestParam(required = false) Long courseId) {
+        LambdaQueryWrapper<ExamPaper> wrapper = new LambdaQueryWrapper<>();
+        if (courseId != null) {
+            wrapper.eq(ExamPaper::getCourseId, courseId);
+        }
+        return ApiResponse.success(PagedResponse.of(examPaperService.page(Page.of(page, size), wrapper)));
+    }
+
     @GetMapping("/course/{courseId}")
-    public ApiResponse<PagedResponse<ExamPaper>> list(@PathVariable Long courseId,
+    public ApiResponse<PagedResponse<ExamPaper>> listByCourse(@PathVariable Long courseId,
                                                        @RequestParam(defaultValue = "1") long page,
                                                        @RequestParam(defaultValue = "10") long size) {
         return ApiResponse.success(PagedResponse.of(examPaperService.page(Page.of(page, size),

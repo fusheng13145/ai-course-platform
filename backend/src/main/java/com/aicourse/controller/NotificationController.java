@@ -53,6 +53,23 @@ public class NotificationController {
         return ApiResponse.success("标记已读成功", null);
     }
 
+    @PutMapping("/read-all")
+    public ApiResponse<Void> markAllAsRead(Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        notificationService.lambdaUpdate()
+            .eq(Notification::getUserId, userId)
+            .eq(Notification::getIsRead, false)
+            .set(Notification::getIsRead, true)
+            .update();
+        return ApiResponse.success("全部标记已读成功", null);
+    }
+
+    @DeleteMapping("/{id}")
+    public ApiResponse<Void> delete(@PathVariable Long id) {
+        notificationService.removeById(id);
+        return ApiResponse.success("删除成功", null);
+    }
+
     @PostMapping("/send")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<Notification> send(@RequestBody Notification notification, Authentication auth) {

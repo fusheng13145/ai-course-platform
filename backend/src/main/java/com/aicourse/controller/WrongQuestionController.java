@@ -8,6 +8,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/wrong-questions")
@@ -43,5 +44,25 @@ public class WrongQuestionController {
     public ApiResponse<Void> delete(@PathVariable Long id) {
         wrongQuestionService.removeById(id);
         return ApiResponse.success("删除成功", null);
+    }
+
+    @PutMapping("/{id}/reviewed")
+    public ApiResponse<WrongQuestion> markAsReviewed(@PathVariable Long id) {
+        WrongQuestion wq = wrongQuestionService.getById(id);
+        if (wq != null) {
+            wq.setMastered(true);
+            wrongQuestionService.updateById(wq);
+        }
+        return ApiResponse.success("标记已复习成功", wq);
+    }
+
+    @GetMapping("/stats")
+    public ApiResponse<Map<String, Object>> stats(Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        long total = wrongQuestionService.count(
+            new LambdaQueryWrapper<WrongQuestion>().eq(WrongQuestion::getStudentId, userId));
+        long mastered = wrongQuestionService.count(
+            new LambdaQueryWrapper<WrongQuestion>().eq(WrongQuestion::getStudentId, userId).eq(WrongQuestion::isMastered, true));
+        return ApiResponse.success(Map.of("total", total, "mastered", mastered));
     }
 }

@@ -53,26 +53,39 @@ public class SecurityConfig {
             .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
             .authorizeHttpRequests(auth -> auth
                 // 公开接口
-                .requestMatchers("/auth/**", "/common/captcha", "/common/verify-code",
-                    "/common/verification-code",
-                    "/common/feature-roadmap", "/health", "/uploads/**",
+                .requestMatchers("/auth/**", "/common/**", "/health", "/uploads/**",
                     "/swagger-ui/**", "/api-docs/**", "/mock/**").permitAll()
                 // 管理员接口
                 .requestMatchers("/admin/**").hasRole("ADMIN")
-                .requestMatchers(HttpMethod.DELETE, "/users/**").hasRole("ADMIN")
-                // 教师接口
-                .requestMatchers("/teacher/**").hasAnyRole("TEACHER", "ADMIN")
-                .requestMatchers("/exam-papers/**", "/questions/**").hasAnyRole("TEACHER", "ADMIN")
+                // 教师/管理员的写操作
+                .requestMatchers(HttpMethod.POST, "/courses/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/courses/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/courses/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.PATCH, "/courses/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/exam-papers/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/exam-papers/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/exam-papers/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/questions/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/questions/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/questions/**").hasAnyRole("TEACHER", "ADMIN")
                 .requestMatchers(HttpMethod.POST, "/tasks/**").hasAnyRole("TEACHER", "ADMIN")
                 .requestMatchers(HttpMethod.PUT, "/tasks/**").hasAnyRole("TEACHER", "ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/tasks/**").hasAnyRole("TEACHER", "ADMIN")
-                .requestMatchers(HttpMethod.GET, "/tasks/**").hasAnyRole("STUDENT", "TEACHER", "ADMIN")
-                .requestMatchers("/submissions/**").hasAnyRole("STUDENT", "TEACHER", "ADMIN")
-                .requestMatchers("/knowledge-points/**").hasAnyRole("TEACHER", "ADMIN")
-                // 学生接口
-                .requestMatchers("/student/**").hasAnyRole("STUDENT", "TEACHER", "ADMIN")
-                .requestMatchers("/enrollments/**", "/learning-paths/**").hasAnyRole("STUDENT", "TEACHER", "ADMIN")
-                .requestMatchers("/wrong-questions/**", "/video-records/**").hasAnyRole("STUDENT", "TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/knowledge-points/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/knowledge-points/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/knowledge-points/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/chapters/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/chapters/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/chapters/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/resources/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/resources/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/resources/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/classrooms/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/classrooms/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/classrooms/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/enrollments/*/approve").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/enrollments/*/reject").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/submissions/*/grade").hasAnyRole("TEACHER", "ADMIN")
                 // 其他接口需要认证
                 .anyRequest().authenticated()
             )

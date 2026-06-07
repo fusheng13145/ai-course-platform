@@ -173,6 +173,23 @@ public class AuthServiceImpl implements AuthService {
         String token = jwtUtils.generateToken(user.getId(), user.getUsername(), user.getRole(), false);
         String refreshToken = UUID.randomUUID().toString().replace("-", "");
 
+        // Create session for registered user
+        UserSession session = new UserSession();
+        session.setUserId(user.getId());
+        session.setSessionToken(token);
+        session.setRefreshToken(refreshToken);
+        session.setIsActive(true);
+        session.setIsCurrent(true);
+        session.setIpAddress(ipUtil.getClientIp(request));
+        session.setDeviceName(userAgentUtil.getDeviceName(request));
+        session.setBrowser(userAgentUtil.getBrowser(request));
+        session.setOperatingSystem(userAgentUtil.getOperatingSystem(request));
+        session.setUserAgent(request.getHeader("User-Agent"));
+        session.setLoginTime(LocalDateTime.now());
+        session.setLastActivity(LocalDateTime.now());
+        session.setExpiresAt(LocalDateTime.now().plusDays(1));
+        userSessionService.save(session);
+
         Map<String, Object> data = new HashMap<>();
         data.put("token", token);
         data.put("refreshToken", refreshToken);

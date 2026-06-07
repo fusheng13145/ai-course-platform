@@ -54,7 +54,16 @@ public class CourseController {
 
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Course> update(@PathVariable Long id, @RequestBody Course course) {
+    public ApiResponse<Course> update(@PathVariable Long id, @RequestBody Course course, Authentication auth) {
+        Course existing = courseService.getById(id);
+        if (existing == null) {
+            throw new BusinessException("课程不存在");
+        }
+        Long userId = (Long) auth.getPrincipal();
+        // Check permission: only admin or the course owner can update
+        if (!userId.equals(existing.getTeacherId()) && !"ADMIN".equals(auth.getAuthorities().iterator().next().getAuthority())) {
+            throw new BusinessException("无权修改该课程");
+        }
         course.setId(id);
         courseService.updateById(course);
         return ApiResponse.success("更新成功", courseService.getById(id));
@@ -69,12 +78,13 @@ public class CourseController {
 
     @PostMapping("/{id}/approve")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Course> approve(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+    public ApiResponse<Course> approve(@PathVariable Long id) {
         Course course = courseService.getById(id);
         if (course == null) {
             throw new BusinessException("课程不存在");
         }
-        course.setApprovalStatus((String) body.get("status"));
+        course.setApprovalStatus("APPROVED");
+        course.setStatus("ACTIVE");
         courseService.updateById(course);
         return ApiResponse.success("审批成功", course);
     }

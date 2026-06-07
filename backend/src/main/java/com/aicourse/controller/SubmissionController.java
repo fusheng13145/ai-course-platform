@@ -31,6 +31,15 @@ public class SubmissionController {
         return ApiResponse.success("提交成功", submission);
     }
 
+    @GetMapping
+    public ApiResponse<PagedResponse<Submission>> mySubmissions(Authentication auth,
+                                                                  @RequestParam(defaultValue = "1") long page,
+                                                                  @RequestParam(defaultValue = "10") long size) {
+        Long userId = (Long) auth.getPrincipal();
+        return ApiResponse.success(PagedResponse.of(submissionService.page(Page.of(page, size),
+            new LambdaQueryWrapper<Submission>().eq(Submission::getStudentId, userId).orderByDesc(Submission::getCreatedAt))));
+    }
+
     @GetMapping("/{id}")
     public ApiResponse<Submission> getById(@PathVariable Long id) {
         return ApiResponse.success(submissionService.getById(id));
@@ -45,6 +54,7 @@ public class SubmissionController {
     }
 
     @PostMapping("/{id}/grade")
+    @org.springframework.security.access.prepost.PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<Submission> grade(@PathVariable Long id, @RequestBody Submission grade, Authentication auth) {
         Submission submission = submissionService.getById(id);
         if (submission == null) {

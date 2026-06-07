@@ -8,6 +8,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import java.util.Map;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -59,5 +60,19 @@ public class QuestionController {
     public ApiResponse<Void> delete(@PathVariable Long id) {
         questionService.removeById(id);
         return ApiResponse.success("删除成功", null);
+    }
+
+    @PostMapping("/ai-generate")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ApiResponse<Question> generateByAI(@RequestBody Map<String, Object> data, Authentication auth) {
+        Question question = new Question();
+        question.setCourseId(Long.valueOf(data.get("courseId").toString()));
+        question.setType((String) data.get("type"));
+        question.setDifficulty((String) data.get("difficulty"));
+        question.setContent((String) data.get("content"));
+        question.setCorrectAnswers((String) data.get("answer"));
+        question.setCreatedBy((Long) auth.getPrincipal());
+        questionService.save(question);
+        return ApiResponse.success("AI生成成功", question);
     }
 }

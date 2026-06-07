@@ -33,10 +33,14 @@ public class ExamSessionController {
     }
 
     @PostMapping("/{id}/submit")
-    public ApiResponse<ExamSession> submit(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+    public ApiResponse<ExamSession> submit(@PathVariable Long id, @RequestBody Map<String, Object> body, Authentication auth) {
         ExamSession session = examSessionService.getById(id);
         if (session == null) {
             throw new BusinessException("考试会话不存在");
+        }
+        Long userId = (Long) auth.getPrincipal();
+        if (!session.getStudentId().equals(userId)) {
+            throw new BusinessException("无权提交他人考试");
         }
         session.setStatus("SUBMITTED");
         session.setSubmitTime(LocalDateTime.now());
