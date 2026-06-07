@@ -1,4 +1,4 @@
-﻿package com.aicourse.controller;
+package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.CourseChapter;
@@ -10,7 +10,6 @@ import java.util.List;
 import java.util.stream.Collectors;
 
 @RestController
-@RequestMapping("/chapters")
 public class CourseChapterController {
     private final CourseChapterService chapterService;
 
@@ -18,7 +17,7 @@ public class CourseChapterController {
         this.chapterService = chapterService;
     }
 
-    @GetMapping("/course/{courseId}")
+    @GetMapping("/chapters/course/{courseId}")
     public ApiResponse<List<CourseChapter>> getByCourse(@PathVariable Long courseId) {
         List<CourseChapter> all = chapterService.list(
             new LambdaQueryWrapper<CourseChapter>().eq(CourseChapter::getCourseId, courseId));
@@ -29,25 +28,30 @@ public class CourseChapterController {
         return ApiResponse.success(tree);
     }
 
-    @GetMapping("/{id}")
+    @GetMapping("/courses/{courseId}/chapters")
+    public ApiResponse<List<CourseChapter>> getByCourseAlt(@PathVariable Long courseId) {
+        return getByCourse(courseId);
+    }
+
+    @GetMapping("/chapters/{id}")
     public ApiResponse<CourseChapter> getById(@PathVariable Long id) {
         return ApiResponse.success(chapterService.getById(id));
     }
 
-    @PostMapping
+    @PostMapping("/chapters")
     public ApiResponse<CourseChapter> create(@RequestBody CourseChapter chapter) {
         chapterService.save(chapter);
         return ApiResponse.success("创建成功", chapter);
     }
 
-    @PutMapping("/{id}")
+    @PutMapping("/chapters/{id}")
     public ApiResponse<CourseChapter> update(@PathVariable Long id, @RequestBody CourseChapter chapter) {
         chapter.setId(id);
         chapterService.updateById(chapter);
         return ApiResponse.success("更新成功", chapterService.getById(id));
     }
 
-    @DeleteMapping("/{id}")
+    @DeleteMapping("/chapters/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         chapterService.removeById(id);
         return ApiResponse.success("删除成功", null);

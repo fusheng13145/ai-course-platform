@@ -1,4 +1,4 @@
-﻿package com.aicourse.service.impl;
+package com.aicourse.service.impl;
 
 import com.aicourse.entity.UserSession;
 import com.aicourse.mapper.UserSessionMapper;

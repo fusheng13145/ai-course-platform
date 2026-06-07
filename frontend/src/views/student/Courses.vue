@@ -22,18 +22,26 @@
   </div>
 </template>
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
+import courseApi from '@/api/course'
+
 const search = ref('')
 const category = ref('')
-const courseList = ref([
-  { id: 1, name: "Python编程入门", category: "编程开发", description: "零基础学习Python编程，从变量到面向对象" },
-  { id: 2, name: "机器学习基础", category: "人工智能", description: "机器学习核心算法与实战" },
-  { id: 3, name: "数据分析实战", category: "数据分析", description: "使用Python进行数据分析与可视化" }
-])
+const courseList = ref([])
+
 const filteredList = computed(() => {
   let list = courseList.value
   if (category.value) list = list.filter(c => c.category === category.value)
   if (search.value) { const q = search.value.toLowerCase(); list = list.filter(c => c.name.toLowerCase().includes(q)) }
   return list
+})
+
+onMounted(async () => {
+  try {
+    const res = await courseApi.getCourseList()
+    courseList.value = res.data?.list || res.data || res || []
+  } catch (e) {
+    console.error('Failed to load courses:', e)
+  }
 })
 </script>

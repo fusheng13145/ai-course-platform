@@ -1,7 +1,8 @@
-﻿package com.aicourse.controller;
+package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.ExamSession;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.service.ExamSessionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.security.core.Authentication;
@@ -34,11 +35,14 @@ public class ExamSessionController {
     @PostMapping("/{id}/submit")
     public ApiResponse<ExamSession> submit(@PathVariable Long id, @RequestBody Map<String, Object> body) {
         ExamSession session = examSessionService.getById(id);
+        if (session == null) {
+            throw new BusinessException("考试会话不存在");
+        }
         session.setStatus("SUBMITTED");
         session.setSubmitTime(LocalDateTime.now());
         session.setAnswers(body.get("answers").toString());
         examSessionService.updateById(session);
-        return ApiResponse.success("鎻愪氦鎴愬姛", session);
+        return ApiResponse.success("提交成功", session);
     }
 
     @GetMapping("/{id}/result")

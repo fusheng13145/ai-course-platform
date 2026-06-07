@@ -1,4 +1,4 @@
-﻿package com.aicourse.controller;
+package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
@@ -15,7 +15,7 @@ import java.time.LocalDateTime;
 import java.util.*;
 
 @RestController
-@RequestMapping("/exams")
+@RequestMapping("/exam-papers")
 public class ExamPaperController {
     private final ExamPaperService examPaperService;
     private final ExamQuestionService examQuestionService;
@@ -48,7 +48,7 @@ public class ExamPaperController {
     public ApiResponse<ExamPaper> create(@RequestBody ExamPaper exam, Authentication auth) {
         exam.setCreatorId((Long) auth.getPrincipal());
         examPaperService.save(exam);
-        return ApiResponse.success("鍒涘缓鎴愬姛", exam);
+        return ApiResponse.success("创建成功", exam);
     }
 
     @PutMapping("/{id}")
@@ -56,14 +56,14 @@ public class ExamPaperController {
     public ApiResponse<ExamPaper> update(@PathVariable Long id, @RequestBody ExamPaper exam) {
         exam.setId(id);
         examPaperService.updateById(exam);
-        return ApiResponse.success("鏇存柊鎴愬姛", examPaperService.getById(id));
+        return ApiResponse.success("更新成功", examPaperService.getById(id));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         examPaperService.removeById(id);
-        return ApiResponse.success("鍒犻櫎鎴愬姛", null);
+        return ApiResponse.success("删除成功", null);
     }
 
     @GetMapping("/{id}/questions")

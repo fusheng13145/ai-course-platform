@@ -1,4 +1,4 @@
-﻿package com.aicourse.exception;
+package com.aicourse.exception;
 
 import com.aicourse.common.ApiResponse;
 import org.slf4j.Logger;

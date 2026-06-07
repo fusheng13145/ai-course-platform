@@ -1,4 +1,4 @@
-﻿package com.aicourse.service.impl;
+package com.aicourse.service.impl;
 
 import com.aicourse.entity.PlagiarismMatch;
 import com.aicourse.mapper.PlagiarismMatchMapper;

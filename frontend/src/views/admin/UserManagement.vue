@@ -82,13 +82,9 @@ const filteredList = computed(() => {
 onMounted(async () => {
   try {
     const res = await userApi.getUserList()
-    userList.value = res.data || res || []
-  } catch (e) { /* demo data */
-    userList.value = [
-      { id: 1, username: 'admin', fullName: '管理员', email: 'admin@test.com', role: 'ADMIN', isActive: true },
-      { id: 2, username: 'teacher', fullName: '李老师', email: 'teacher@test.com', role: 'TEACHER', isActive: true },
-      { id: 3, username: 'student', fullName: '张三', email: 'student@test.com', role: 'STUDENT', isActive: true }
-    ]
+    userList.value = res.data?.list || res.data || res || []
+  } catch (e) {
+    console.error('Failed to load users:', e)
   }
 })
 

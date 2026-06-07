@@ -20,8 +20,20 @@
   </div>
 </template>
 <script setup>
-import { ref, computed } from 'vue'
-const courseList = ref([{ id: 1, name: "Python编程入门", category: "编程开发", studentCount: 45, approvalStatus: "APPROVED" }, { id: 2, name: "数据分析基础", category: "数据分析", studentCount: 32, approvalStatus: "PENDING" }, { id: 3, name: "机器学习实践", category: "人工智能", studentCount: 28, approvalStatus: "APPROVED" }])
+import { ref, computed, onMounted } from 'vue'
+import courseApi from '@/api/course'
+
+const courseList = ref([])
 const search = ref('')
+
 const filteredList = computed(() => search.value ? courseList.value.filter(c => c.name.includes(search.value)) : courseList.value)
+
+onMounted(async () => {
+  try {
+    const res = await courseApi.getCourseList()
+    courseList.value = res.data?.list || res.data || res || []
+  } catch (e) {
+    console.error('Failed to load courses:', e)
+  }
+})
 </script>

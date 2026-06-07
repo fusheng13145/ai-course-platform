@@ -1,4 +1,4 @@
-﻿package com.aicourse.common;
+package com.aicourse.common;
 
 
 import java.time.LocalDateTime;

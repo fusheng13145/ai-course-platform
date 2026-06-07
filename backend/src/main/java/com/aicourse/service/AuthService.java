@@ -1,4 +1,4 @@
-﻿package com.aicourse.service;
+package com.aicourse.service;
 
 import com.aicourse.common.ApiResponse;
 import jakarta.servlet.http.HttpServletRequest;

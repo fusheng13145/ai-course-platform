@@ -1,4 +1,4 @@
-﻿package com.aicourse.entity;
+package com.aicourse.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 
@@ -9,22 +9,34 @@ import java.time.LocalDateTime;
 public class CourseEnrollment {
     @TableId(type = IdType.AUTO)
     private Long id;
+    @TableField("student_id")
     private Long studentId;
+    @TableField("course_id")
     private Long courseId;
+    @TableField("approval_status")
     private String approvalStatus;
-    private LocalDateTime approvalTime;
-    private Long approvedBy;
-    private String approvalComment;
     
     @TableField("is_active")
     private Boolean isActive;
     
+    @TableField("final_score")
     private BigDecimal finalScore;
+    @TableField("attendance_score")
     private BigDecimal attendanceScore;
+    @TableField("assignment_score")
     private BigDecimal assignmentScore;
+    @TableField("exam_score")
     private BigDecimal examScore;
     private BigDecimal progress;
+    @TableField("total_study_time")
     private Integer totalStudyTime;
+    @TableField("approval_time")
+    private LocalDateTime approvalTime;
+    @TableField("approved_by")
+    private Long approvedBy;
+    @TableField("approval_comment")
+    private String approvalComment;
+    @TableField("enrolled_at")
     private LocalDateTime enrolledAt;
     
     @TableField(fill = FieldFill.INSERT)
@@ -63,30 +75,6 @@ public class CourseEnrollment {
 
     public void setApprovalStatus(String approvalStatus) {
         this.approvalStatus = approvalStatus;
-    }
-
-    public LocalDateTime getApprovalTime() {
-        return approvalTime;
-    }
-
-    public void setApprovalTime(LocalDateTime approvalTime) {
-        this.approvalTime = approvalTime;
-    }
-
-    public Long getApprovedBy() {
-        return approvedBy;
-    }
-
-    public void setApprovedBy(Long approvedBy) {
-        this.approvedBy = approvedBy;
-    }
-
-    public String getApprovalComment() {
-        return approvalComment;
-    }
-
-    public void setApprovalComment(String approvalComment) {
-        this.approvalComment = approvalComment;
     }
 
     public Boolean getIsActive() {
@@ -143,6 +131,30 @@ public class CourseEnrollment {
 
     public void setTotalStudyTime(Integer totalStudyTime) {
         this.totalStudyTime = totalStudyTime;
+    }
+
+    public LocalDateTime getApprovalTime() {
+        return approvalTime;
+    }
+
+    public void setApprovalTime(LocalDateTime approvalTime) {
+        this.approvalTime = approvalTime;
+    }
+
+    public Long getApprovedBy() {
+        return approvedBy;
+    }
+
+    public void setApprovedBy(Long approvedBy) {
+        this.approvedBy = approvedBy;
+    }
+
+    public String getApprovalComment() {
+        return approvalComment;
+    }
+
+    public void setApprovalComment(String approvalComment) {
+        this.approvalComment = approvalComment;
     }
 
     public LocalDateTime getEnrolledAt() {

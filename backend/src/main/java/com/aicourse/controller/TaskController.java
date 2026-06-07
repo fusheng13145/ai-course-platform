@@ -1,9 +1,10 @@
-﻿package com.aicourse.controller;
+package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.Task;
 import com.aicourse.entity.Submission;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.service.TaskService;
 import com.aicourse.service.SubmissionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -65,6 +66,9 @@ public class TaskController {
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<Task> publish(@PathVariable Long id) {
         Task task = taskService.getById(id);
+        if (task == null) {
+            throw new BusinessException("任务不存在");
+        }
         task.setIsPublished(true);
         task.setStatus("PUBLISHED");
         taskService.updateById(task);

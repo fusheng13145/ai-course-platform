@@ -1,4 +1,4 @@
-﻿package com.aicourse.mapper;
+package com.aicourse.mapper;
 
 import com.aicourse.entity.LearningPathNode;
 import com.baomidou.mybatisplus.core.mapper.BaseMapper;

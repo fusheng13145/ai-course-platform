@@ -1,4 +1,4 @@
-﻿package com.aicourse.entity;
+package com.aicourse.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 
@@ -27,12 +27,16 @@ public class User {
     private String grade;
     private String className;
     private Long classId;
-    private String teacherId;
     private String department;
     private String title;
     private String bio;
+
+    @TableField("teacher_id")
+    private String teacherId;
+
+    @TableField("notification_settings")
     private String notificationSettings;
-    
+
     @TableField("failed_login_attempts")
     private Integer failedLoginAttempts;
     
@@ -166,14 +170,6 @@ public class User {
         this.classId = classId;
     }
 
-    public String getTeacherId() {
-        return teacherId;
-    }
-
-    public void setTeacherId(String teacherId) {
-        this.teacherId = teacherId;
-    }
-
     public String getDepartment() {
         return department;
     }
@@ -196,6 +192,14 @@ public class User {
 
     public void setBio(String bio) {
         this.bio = bio;
+    }
+
+    public String getTeacherId() {
+        return teacherId;
+    }
+
+    public void setTeacherId(String teacherId) {
+        this.teacherId = teacherId;
     }
 
     public String getNotificationSettings() {

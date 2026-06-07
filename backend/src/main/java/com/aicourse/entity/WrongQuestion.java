@@ -1,4 +1,4 @@
-﻿package com.aicourse.entity;
+package com.aicourse.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 
@@ -14,7 +14,7 @@ public class WrongQuestion {
     private String wrongAnswer;
     private String reason;
     
-    @TableField("is_mastered")
+    @TableField("mastered")
     private Boolean mastered;
     
     private String sourceType;

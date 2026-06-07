@@ -55,13 +55,9 @@ const filteredList = computed(() => {
 onMounted(async () => {
   try {
     const res = await courseApi.getCourseList()
-    courseList.value = res.data || res || []
+    courseList.value = res.data?.list || res.data || res || []
   } catch (e) {
-    courseList.value = [
-      { id: 1, name: 'Python编程入门', category: '编程开发', teacherName: '李老师', approvalStatus: 'APPROVED', isActive: true },
-      { id: 2, name: '机器学习基础', category: '人工智能', teacherName: '王老师', approvalStatus: 'PENDING', isActive: true },
-      { id: 3, name: '数据分析实战', category: '数据分析', teacherName: '张老师', approvalStatus: 'APPROVED', isActive: true }
-    ]
+    console.error('Failed to load courses:', e)
   }
 })
 

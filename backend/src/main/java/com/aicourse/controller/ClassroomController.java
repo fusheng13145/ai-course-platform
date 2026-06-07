@@ -1,21 +1,26 @@
-﻿package com.aicourse.controller;
+package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.Classroom;
+import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.service.ClassroomService;
+import com.aicourse.service.CourseEnrollmentService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
-@RequestMapping("/classes")
+@RequestMapping("/classrooms")
 public class ClassroomController {
     private final ClassroomService classroomService;
+    private final CourseEnrollmentService enrollmentService;
 
-    public ClassroomController(ClassroomService classroomService) {
+    public ClassroomController(ClassroomService classroomService, CourseEnrollmentService enrollmentService) {
         this.classroomService = classroomService;
+        this.enrollmentService = enrollmentService;
     }
 
     @GetMapping
@@ -50,5 +55,33 @@ public class ClassroomController {
     public ApiResponse<Void> delete(@PathVariable Long id) {
         classroomService.removeById(id);
         return ApiResponse.success("删除成功", null);
+    }
+
+    @GetMapping("/{id}/students")
+    public ApiResponse<List<CourseEnrollment>> getStudents(@PathVariable Long id) {
+        return ApiResponse.success(enrollmentService.list(
+            new LambdaQueryWrapper<CourseEnrollment>().eq(CourseEnrollment::getCourseId, id)));
+    }
+
+    @PostMapping("/{id}/students")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ApiResponse<CourseEnrollment> addStudent(@PathVariable Long id, @RequestBody Map<String, Long> body) {
+        CourseEnrollment enrollment = new CourseEnrollment();
+        enrollment.setCourseId(id);
+        enrollment.setStudentId(body.get("studentId"));
+        enrollment.setApprovalStatus("APPROVED");
+        enrollment.setIsActive(true);
+        enrollment.setProgress(java.math.BigDecimal.ZERO);
+        enrollmentService.save(enrollment);
+        return ApiResponse.success("添加成功", enrollment);
+    }
+
+    @DeleteMapping("/{id}/students/{studentId}")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ApiResponse<Void> removeStudent(@PathVariable Long id, @PathVariable Long studentId) {
+        enrollmentService.remove(new LambdaQueryWrapper<CourseEnrollment>()
+            .eq(CourseEnrollment::getCourseId, id)
+            .eq(CourseEnrollment::getStudentId, studentId));
+        return ApiResponse.success("移除成功", null);
     }
 }
