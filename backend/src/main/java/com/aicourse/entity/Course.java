@@ -1,9 +1,8 @@
-﻿package com.aicourse.entity;
+package com.aicourse.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 
 import java.math.BigDecimal;
-import java.time.LocalDate;
 import java.time.LocalDateTime;
 
 @TableName("courses")
@@ -14,15 +13,16 @@ public class Course {
     private String code;
     private String description;
     private BigDecimal credits;
+    @TableField("teacher_id")
     private Long teacherId;
     private String semester;
     private Integer year;
     private String status;
+    @TableField("approval_status")
     private String approvalStatus;
-    private LocalDateTime approvalTime;
-    private Long approvedBy;
-    private String approvalComment;
+    @TableField("enrollment_type")
     private String enrollmentType;
+    @TableField("max_students")
     private Integer maxStudents;
     
     @TableField("is_active")
@@ -32,9 +32,19 @@ public class Course {
     private String difficulty;
     private BigDecimal price;
     private String tags;
-    private LocalDate startDate;
-    private LocalDate endDate;
+    @TableField("start_date")
+    private LocalDateTime startDate;
+    @TableField("end_date")
+    private LocalDateTime endDate;
+    @TableField("cover_image")
     private String coverImage;
+    @TableField("approval_time")
+    private LocalDateTime approvalTime;
+    @TableField("approved_by")
+    private Long approvedBy;
+    @TableField("approval_comment")
+    private String approvalComment;
+    @TableField("syllabus_url")
     private String syllabusUrl;
     
     @TableField(fill = FieldFill.INSERT)
@@ -123,30 +133,6 @@ public class Course {
         this.approvalStatus = approvalStatus;
     }
 
-    public LocalDateTime getApprovalTime() {
-        return approvalTime;
-    }
-
-    public void setApprovalTime(LocalDateTime approvalTime) {
-        this.approvalTime = approvalTime;
-    }
-
-    public Long getApprovedBy() {
-        return approvedBy;
-    }
-
-    public void setApprovedBy(Long approvedBy) {
-        this.approvedBy = approvedBy;
-    }
-
-    public String getApprovalComment() {
-        return approvalComment;
-    }
-
-    public void setApprovalComment(String approvalComment) {
-        this.approvalComment = approvalComment;
-    }
-
     public String getEnrollmentType() {
         return enrollmentType;
     }
@@ -203,19 +189,19 @@ public class Course {
         this.tags = tags;
     }
 
-    public LocalDate getStartDate() {
+    public LocalDateTime getStartDate() {
         return startDate;
     }
 
-    public void setStartDate(LocalDate startDate) {
+    public void setStartDate(LocalDateTime startDate) {
         this.startDate = startDate;
     }
 
-    public LocalDate getEndDate() {
+    public LocalDateTime getEndDate() {
         return endDate;
     }
 
-    public void setEndDate(LocalDate endDate) {
+    public void setEndDate(LocalDateTime endDate) {
         this.endDate = endDate;
     }
 
@@ -225,6 +211,30 @@ public class Course {
 
     public void setCoverImage(String coverImage) {
         this.coverImage = coverImage;
+    }
+
+    public LocalDateTime getApprovalTime() {
+        return approvalTime;
+    }
+
+    public void setApprovalTime(LocalDateTime approvalTime) {
+        this.approvalTime = approvalTime;
+    }
+
+    public Long getApprovedBy() {
+        return approvedBy;
+    }
+
+    public void setApprovedBy(Long approvedBy) {
+        this.approvedBy = approvedBy;
+    }
+
+    public String getApprovalComment() {
+        return approvalComment;
+    }
+
+    public void setApprovalComment(String approvalComment) {
+        this.approvalComment = approvalComment;
     }
 
     public String getSyllabusUrl() {

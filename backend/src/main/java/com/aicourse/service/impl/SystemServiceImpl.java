@@ -1,4 +1,4 @@
-﻿package com.aicourse.service.impl;
+package com.aicourse.service.impl;
 
 import com.aicourse.entity.SystemConfig;
 import com.aicourse.exception.BusinessException;
@@ -177,7 +177,7 @@ public class SystemServiceImpl implements SystemService {
             List<String> resultLines = allLines.subList(start, allLines.size());
             return String.join("\n", resultLines);
         } catch (IOException e) {
-            throw new BusinessException("璇诲彇鏃ュ織鏂囦欢澶辫触");
+            throw new BusinessException("读取日志文件失败");
         }
     }
 }

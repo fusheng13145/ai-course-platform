@@ -1,9 +1,10 @@
-﻿package com.aicourse.controller;
+package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseEnrollment;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.CourseEnrollmentService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -48,7 +49,7 @@ public class CourseController {
         Long userId = (Long) auth.getPrincipal();
         course.setTeacherId(userId);
         courseService.save(course);
-        return ApiResponse.success("鍒涘缓鎴愬姛", course);
+        return ApiResponse.success("创建成功", course);
     }
 
     @PutMapping("/{id}")
@@ -56,24 +57,57 @@ public class CourseController {
     public ApiResponse<Course> update(@PathVariable Long id, @RequestBody Course course) {
         course.setId(id);
         courseService.updateById(course);
-        return ApiResponse.success("鏇存柊鎴愬姛", courseService.getById(id));
+        return ApiResponse.success("更新成功", courseService.getById(id));
     }
 
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         courseService.removeById(id);
-        return ApiResponse.success("鍒犻櫎鎴愬姛", null);
+        return ApiResponse.success("删除成功", null);
     }
 
     @PostMapping("/{id}/approve")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<Course> approve(@PathVariable Long id, @RequestBody Map<String, Object> body) {
         Course course = courseService.getById(id);
+        if (course == null) {
+            throw new BusinessException("课程不存在");
+        }
         course.setApprovalStatus((String) body.get("status"));
-        course.setApprovalComment((String) body.get("comment"));
         courseService.updateById(course);
-        return ApiResponse.success("瀹℃牳瀹屾垚", course);
+        return ApiResponse.success("审批成功", course);
+    }
+
+    @PatchMapping("/{id}/toggle")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ApiResponse<Course> toggle(@PathVariable Long id) {
+        Course course = courseService.getById(id);
+        if (course == null) {
+            throw new BusinessException("课程不存在");
+        }
+        if ("ACTIVE".equals(course.getStatus())) {
+            course.setStatus("INACTIVE");
+        } else {
+            course.setStatus("ACTIVE");
+        }
+        courseService.updateById(course);
+        return ApiResponse.success("状态切换成功", course);
+    }
+
+    @PostMapping("/{id}/reject")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<Course> reject(@PathVariable Long id, @RequestBody(required = false) Map<String, String> body) {
+        Course course = courseService.getById(id);
+        if (course == null) {
+            throw new BusinessException("课程不存在");
+        }
+        course.setApprovalStatus("REJECTED");
+        if (body != null && body.get("reason") != null) {
+            course.setApprovalComment(body.get("reason"));
+        }
+        courseService.updateById(course);
+        return ApiResponse.success("已拒绝", course);
     }
 
     @GetMapping("/enrolled")

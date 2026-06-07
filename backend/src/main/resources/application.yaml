@@ -1,4 +1,4 @@
-spring:
+﻿spring:
   application:
     name: ai-course-platform
 
@@ -19,6 +19,11 @@ spring:
       database: 0
       timeout: 3000
 
+
+  sql:
+    init:
+      mode: always
+      continue-on-error: true
   jackson:
     time-zone: Asia/Shanghai
     date-format: yyyy-MM-dd HH:mm:ss
@@ -48,7 +53,7 @@ mybatis-plus:
       logic-not-delete-value: 0
 
 jwt:
-  secret: 09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7
+  secret: 09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7   # [可选修改] JWT签名密钥，生产环境建议更换
   expiration: 604800000
   session-expiration: 86400000
 
@@ -61,7 +66,7 @@ cors:
 
 ai:
   deepseek:
-    api-key: ${DEEPSEEK_API_KEY:}
+    api-key: ${DEEPSEEK_API_KEY:}   # [需配置] DeepSeek API密钥，留空时AI功能不可用
     base-url: https://api.deepseek.com/v1
     model: deepseek-chat
 

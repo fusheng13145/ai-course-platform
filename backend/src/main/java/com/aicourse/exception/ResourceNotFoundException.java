@@ -1,4 +1,4 @@
-﻿package com.aicourse.exception;
+package com.aicourse.exception;
 
 public class ResourceNotFoundException extends RuntimeException {
     public ResourceNotFoundException(String message) {

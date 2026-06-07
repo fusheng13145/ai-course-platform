@@ -1,4 +1,4 @@
-﻿package com.aicourse.service.impl;
+package com.aicourse.service.impl;
 
 import com.aicourse.entity.CourseChapter;
 import com.aicourse.mapper.CourseChapterMapper;

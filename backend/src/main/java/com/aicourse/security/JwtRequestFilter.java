@@ -1,4 +1,4 @@
-﻿package com.aicourse.security;
+package com.aicourse.security;
 
 import com.aicourse.util.JwtUtils;
 import jakarta.servlet.FilterChain;
@@ -33,7 +33,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             String username = jwtUtils.getUsernameFromToken(token);
             String role = jwtUtils.getRoleFromToken(token);
 
-            List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority(role));
+            List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
             UsernamePasswordAuthenticationToken auth =
                     new UsernamePasswordAuthenticationToken(userId, username, authorities);
             SecurityContextHolder.getContext().setAuthentication(auth);

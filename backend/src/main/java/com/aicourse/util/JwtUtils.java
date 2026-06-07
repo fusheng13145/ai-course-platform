@@ -1,4 +1,4 @@
-﻿package com.aicourse.util;
+package com.aicourse.util;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
@@ -28,7 +28,7 @@ public class JwtUtils {
         return Jwts.builder()
                 .subject(userId.toString())
                 .claim("username", username)
-                .claim("role", "ROLE_" + role)
+                .claim("role", role)
                 .issuedAt(new Date())
                 .expiration(new Date(System.currentTimeMillis() + exp))
                 .signWith(key)

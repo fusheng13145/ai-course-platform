@@ -1,4 +1,4 @@
-﻿package com.aicourse.entity;
+package com.aicourse.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 
@@ -13,7 +13,7 @@ public class VerificationCode {
     private String code;
     private String type;
 
-    @TableField("is_used")
+    @TableField("used")
     private Boolean isUsed;
 
     private LocalDateTime expiresAt;

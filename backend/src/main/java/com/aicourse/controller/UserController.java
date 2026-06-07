@@ -1,8 +1,9 @@
-﻿package com.aicourse.controller;
+package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.User;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.service.UserService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -69,17 +70,21 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<Void> toggleStatus(@PathVariable Long id, @RequestBody Map<String, Boolean> body) {
         User user = userService.getById(id);
-        if (user != null) {
-            user.setIsActive(body.getOrDefault("active", !user.getIsActive()));
-            userService.updateById(user);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
         }
-        return ApiResponse.success("鐘舵€佸凡鏇存柊", null);
+        user.setIsActive(body.getOrDefault("active", !user.getIsActive()));
+        userService.updateById(user);
+        return ApiResponse.success("状态已更新", null);
     }
 
     @GetMapping("/profile")
     public ApiResponse<User> profile(Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         User user = userService.getById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
         user.setPassword(null);
         return ApiResponse.success(user);
     }
@@ -88,11 +93,14 @@ public class UserController {
     public ApiResponse<User> updateProfile(Authentication auth, @RequestBody User updates) {
         Long userId = (Long) auth.getPrincipal();
         User user = userService.getById(userId);
+        if (user == null) {
+            throw new BusinessException("用户不存在");
+        }
         if (updates.getFullName() != null) user.setFullName(updates.getFullName());
         if (updates.getPhone() != null) user.setPhone(updates.getPhone());
         if (updates.getAvatarUrl() != null) user.setAvatarUrl(updates.getAvatarUrl());
         if (updates.getBio() != null) user.setBio(updates.getBio());
         userService.updateById(user);
-        return ApiResponse.success("鏇存柊鎴愬姛", userService.getById(userId));
+        return ApiResponse.success("更新成功", userService.getById(userId));
     }
 }

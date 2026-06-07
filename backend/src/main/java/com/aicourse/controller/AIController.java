@@ -1,4 +1,4 @@
-﻿package com.aicourse.controller;
+package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.service.AIService;
@@ -21,7 +21,7 @@ public class AIController {
         return ApiResponse.success(Map.of("response", response));
     }
 
-    @PostMapping("/generate-question")
+    @PostMapping("/generate/question")
     public ApiResponse<Map<String, String>> generateQuestion(@RequestBody Map<String, Object> body) {
         String response = aiService.generateQuestion(
             Long.valueOf(body.get("courseId").toString()),
@@ -31,13 +31,13 @@ public class AIController {
         return ApiResponse.success(Map.of("questions", response));
     }
 
-    @PostMapping("/generate-summary")
+    @PostMapping("/summary")
     public ApiResponse<Map<String, String>> generateSummary(@RequestBody Map<String, String> body) {
         String response = aiService.generateSummary(body.get("content"));
         return ApiResponse.success(Map.of("summary", response));
     }
 
-    @PostMapping("/check-plagiarism")
+    @PostMapping("/plagiarism")
     public ApiResponse<Map<String, String>> checkPlagiarism(@RequestBody Map<String, String> body) {
         String response = aiService.checkPlagiarism(body.get("text1"), body.get("text2"));
         return ApiResponse.success(Map.of("result", response));

@@ -63,10 +63,12 @@ onMounted(async () => {
     const res = await analyticsApi.getDashboardStats()
     if (res.data) stats.value = res.data
   } catch (e) { /* use defaults */ }
-  recentLogs.value = [
-    { id: 1, level: 'INFO', message: '系统运行正常', time: '10:30' },
-    { id: 2, level: 'INFO', message: '用户 admin 登录', time: '10:28' },
-    { id: 3, level: 'WARN', message: '磁盘使用率 75%', time: '10:25' }
-  ]
+  try {
+    const logRes = await import('@/api/system').then(m => m.default.getSystemLogs({ limit: 5 }))
+    const logData = logRes.data?.list || logRes.data || logRes || []
+    recentLogs.value = Array.isArray(logData) ? logData.slice(0, 5) : []
+  } catch (e) {
+    recentLogs.value = []
+  }
 })
 </script>

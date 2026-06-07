@@ -1,4 +1,4 @@
-﻿package com.aicourse.service.impl;
+package com.aicourse.service.impl;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.User;
@@ -216,7 +216,7 @@ public class AuthServiceImpl implements AuthService {
             .set(UserSession::getIsActive, false)
             .set(UserSession::getIsCurrent, false)
             .update();
-        saveLoginLog(userId, null, "LOGOUT", request, "瀹夊叏鍏?閫€鍑?");
+        saveLoginLog(userId, null, "LOGOUT", request, "安全退出");
         return ApiResponse.success("退出成功", null);
     }
 

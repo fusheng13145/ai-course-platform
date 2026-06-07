@@ -1,4 +1,4 @@
-﻿package com.aicourse.config;
+package com.aicourse.config;
 
 import com.aicourse.security.JwtAuthenticationEntryPoint;
 import com.aicourse.security.JwtRequestFilter;
@@ -52,23 +52,29 @@ public class SecurityConfig {
             .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint))
             .authorizeHttpRequests(auth -> auth
-                // 鍏紑鎺ュ彛
+                // 公开接口
                 .requestMatchers("/auth/**", "/common/captcha", "/common/verify-code",
-                    "/common/verification-code", "/common/upload",
+                    "/common/verification-code",
                     "/common/feature-roadmap", "/health", "/uploads/**",
                     "/swagger-ui/**", "/api-docs/**", "/mock/**").permitAll()
-                // 绠＄悊鍛樻帴鍙?                .requestMatchers("/admin/**").hasRole("ADMIN")
+                // 管理员接口
+                .requestMatchers("/admin/**").hasRole("ADMIN")
                 .requestMatchers(HttpMethod.DELETE, "/users/**").hasRole("ADMIN")
-                // 鏁欏笀鎺ュ彛
+                // 教师接口
                 .requestMatchers("/teacher/**").hasAnyRole("TEACHER", "ADMIN")
                 .requestMatchers("/exam-papers/**", "/questions/**").hasAnyRole("TEACHER", "ADMIN")
-                .requestMatchers("/tasks/**", "/submissions/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.POST, "/tasks/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.PUT, "/tasks/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.DELETE, "/tasks/**").hasAnyRole("TEACHER", "ADMIN")
+                .requestMatchers(HttpMethod.GET, "/tasks/**").hasAnyRole("STUDENT", "TEACHER", "ADMIN")
+                .requestMatchers("/submissions/**").hasAnyRole("STUDENT", "TEACHER", "ADMIN")
                 .requestMatchers("/knowledge-points/**").hasAnyRole("TEACHER", "ADMIN")
-                // 瀛︾敓鎺ュ彛
+                // 学生接口
                 .requestMatchers("/student/**").hasAnyRole("STUDENT", "TEACHER", "ADMIN")
                 .requestMatchers("/enrollments/**", "/learning-paths/**").hasAnyRole("STUDENT", "TEACHER", "ADMIN")
                 .requestMatchers("/wrong-questions/**", "/video-records/**").hasAnyRole("STUDENT", "TEACHER", "ADMIN")
-                // 鍏朵粬鎺ュ彛闇€瑕佽璇?                .anyRequest().authenticated()
+                // 其他接口需要认证
+                .anyRequest().authenticated()
             )
             .addFilterBefore(jwtRequestFilter, UsernamePasswordAuthenticationFilter.class);
         return http.build();

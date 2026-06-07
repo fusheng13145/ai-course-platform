@@ -1,8 +1,9 @@
-﻿package com.aicourse.controller;
+package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.Submission;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.service.SubmissionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -46,6 +47,9 @@ public class SubmissionController {
     @PostMapping("/{id}/grade")
     public ApiResponse<Submission> grade(@PathVariable Long id, @RequestBody Submission grade, Authentication auth) {
         Submission submission = submissionService.getById(id);
+        if (submission == null) {
+            throw new BusinessException("提交记录不存在");
+        }
         submission.setScore(grade.getScore());
         submission.setFeedback(grade.getFeedback());
         submission.setStatus("GRADED");

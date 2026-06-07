@@ -1,4 +1,4 @@
-﻿package com.aicourse.service.impl;
+package com.aicourse.service.impl;
 
 import com.aicourse.service.AIService;
 import org.slf4j.Logger;

@@ -14,12 +14,6 @@ export const useAuthStore = defineStore('auth', () => {
   const userName = computed(() => user.value?.fullName || user.value?.username || '')
   const userAvatar = computed(() => user.value?.avatarUrl || '')
 
-  const mockPermissions = {
-    ADMIN: { menus: ['dashboard', 'users', 'courses', 'analytics', 'exams', 'grades', 'notifications', 'questions', 'permissions', 'system'], buttons: {} },
-    TEACHER: { menus: ['dashboard', 'courses', 'analytics', 'exams', 'grades'], buttons: {} },
-    STUDENT: { menus: ['dashboard', 'courses', 'knowledge-graph', 'learning-path', 'ai-assistant', 'exams', 'grades', 'wrong-questions', 'learning-calendar', 'profile', 'notifications'], buttons: {} }
-  }
-
   function saveToStorage(persistent) {
     const storage = persistent ? localStorage : sessionStorage
     storage.setItem('token', token.value)
@@ -41,6 +35,33 @@ export const useAuthStore = defineStore('auth', () => {
     }
   }
 
+  const fetchPermissions = async () => {
+    try {
+      const response = await authApi.getPermissions()
+      const data = response.data || response
+      if (data) {
+        permissions.value = data
+        const storage = localStorage.getItem('token') ? localStorage : sessionStorage
+        storage.setItem('permissions', JSON.stringify(data))
+      }
+    } catch (error) {
+      console.error('Failed to fetch permissions:', error)
+    }
+  }
+
+  const hasMenuPermission = (menuKey) => {
+    if (!permissions.value) return true
+    const menus = permissions.value.menus || []
+    return menus.includes(menuKey)
+  }
+
+  const hasButtonPermission = (buttonKey) => {
+    if (!permissions.value) return true
+    const buttons = permissions.value.buttons || {}
+    if (Object.keys(buttons).length === 0) return true
+    return !!buttons[buttonKey]
+  }
+
   const login = async (credentials) => {
     try {
       isLoading.value = true
@@ -56,9 +77,7 @@ export const useAuthStore = defineStore('auth', () => {
         user.value = data.user
         clearAllStorage()
         saveToStorage(remember)
-        if (user.value?.role && mockPermissions[user.value.role]) {
-          permissions.value = mockPermissions[user.value.role]
-        }
+        await fetchPermissions()
         return { success: true, user: user.value }
       }
       throw new Error('登录失败')
@@ -95,6 +114,7 @@ export const useAuthStore = defineStore('auth', () => {
   return {
     token, user, permissions, isLoading,
     isLoggedIn, userId, userRole, userName, userAvatar,
-    login, register, logout, getDefaultRoute
+    login, register, logout, getDefaultRoute,
+    fetchPermissions, hasMenuPermission, hasButtonPermission
   }
 })

@@ -1,7 +1,8 @@
-﻿package com.aicourse.controller;
+package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
 import java.util.Map;
 
@@ -17,6 +18,21 @@ public class CommonController {
     @PostMapping("/verify-code")
     public ApiResponse<Void> sendVerifyCode(@RequestBody Map<String, String> body) {
         return ApiResponse.success("验证码发送成功", null);
+    }
+
+    @PostMapping("/verification-code")
+    public ApiResponse<Void> sendVerificationCode(@RequestBody Map<String, String> body) {
+        return sendVerifyCode(body);
+    }
+
+    @PostMapping("/upload")
+    public ApiResponse<Map<String, String>> uploadFile(@RequestParam("file") MultipartFile file) {
+        String fileName = file.getOriginalFilename();
+        return ApiResponse.success(Map.of(
+            "url", "/uploads/" + fileName,
+            "fileName", fileName,
+            "size", String.valueOf(file.getSize())
+        ));
     }
 
     @GetMapping("/feature-roadmap")

@@ -1,4 +1,4 @@
-﻿package com.aicourse.controller;
+package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.service.AnalyticsService;
@@ -20,17 +20,17 @@ public class AnalyticsController {
         return ApiResponse.success(analyticsService.getDashboard());
     }
 
-    @GetMapping("/user/{userId}")
-    public ApiResponse<Map<String, Object>> userDashboard(@PathVariable Long userId) {
-        return ApiResponse.success(analyticsService.getUserDashboard(userId));
+    @GetMapping("/students/{studentId}")
+    public ApiResponse<Map<String, Object>> studentDashboard(@PathVariable Long studentId) {
+        return ApiResponse.success(analyticsService.getUserDashboard(studentId));
     }
 
-    @GetMapping("/learning-trends/{userId}")
-    public ApiResponse<Object> learningTrends(@PathVariable Long userId) {
+    @GetMapping("/trends")
+    public ApiResponse<Object> learningTrends(@RequestParam(required = false) Long userId) {
         return ApiResponse.success(analyticsService.getLearningTrends(userId));
     }
 
-    @GetMapping("/course/{courseId}")
+    @GetMapping("/courses/{courseId}")
     public ApiResponse<Map<String, Object>> courseAnalysis(@PathVariable Long courseId) {
         return ApiResponse.success(analyticsService.getCourseAnalysis(courseId));
     }

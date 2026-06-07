@@ -1,4 +1,4 @@
-﻿package com.aicourse.entity;
+package com.aicourse.entity;
 
 import com.baomidou.mybatisplus.annotation.*;
 
