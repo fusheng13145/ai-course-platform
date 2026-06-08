@@ -3,7 +3,7 @@ package com.aicourse.controller;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.Notification;
 import com.aicourse.service.NotificationService;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -14,6 +14,7 @@ import java.util.Map;
 
 /**
  * 消息通知接口控制器
+ * 提供通知列表查询、未读数量、已读标记、删除及手动发送等API
  */
 @RestController
 @RequestMapping("/notifications")
@@ -26,100 +27,108 @@ public class NotificationController {
     }
 
     /**
-     * 分页查询消息列表
+     * 分页获取通知列表（支持分类和已读状态筛选）
      * @param auth 认证信息
-     * @param skip 偏移量
-     * @param limit 每页条数
-     * @param unreadOnly 是否仅查询未读消息
-     * @param category 消息分类
-     * @return 消息列表
+     * @param category 消息分类（可选）
+     * @param isRead 是否已读（可选）
+     * @param page 页码（从1开始）
+     * @param size 每页大小
+     * @return 分页通知列表
      */
-    @GetMapping
-    public ApiResponse<List<Notification>> list(
+    @GetMapping("")
+    public ApiResponse<Page<Notification>> getUserNotifications(
             Authentication auth,
-            @RequestParam(defaultValue = "0") int skip,
-            @RequestParam(defaultValue = "20") int limit,
-            @RequestParam(required = false) Boolean unreadOnly,
-            @RequestParam(required = false) String category) {
+            @RequestParam(required = false) String category,
+            @RequestParam(required = false) Boolean isRead,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
         Long userId = (Long) auth.getPrincipal();
-        LambdaQueryWrapper<Notification> queryWrapper = new LambdaQueryWrapper<Notification>()
-                .eq(Notification::getUserId, userId)
-                .eq(unreadOnly != null && unreadOnly, Notification::getIsRead, false)
-                .eq(category != null, Notification::getCategory, category)
-                .orderByDesc(Notification::getCreatedAt)
-                .last("LIMIT " + limit + " OFFSET " + skip);
-        List<Notification> notificationList = notificationService.list(queryWrapper);
-        return ApiResponse.success(notificationList);
+        Page<Notification> result = notificationService.getUserNotifications(userId, category, isRead, page, size);
+        return ApiResponse.success(result);
     }
 
     /**
-     * 查询消息统计摘要
+     * 获取当前用户未读通知数量
      * @param auth 认证信息
-     * @return 未读消息数量
+     * @return 未读数量
      */
-    @GetMapping("/summary")
-    public ApiResponse<Object> summary(Authentication auth) {
+    @GetMapping("/unread-count")
+    public ApiResponse<Long> getUnreadCount(Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        LambdaQueryWrapper<Notification> queryWrapper = new LambdaQueryWrapper<Notification>()
-                .eq(Notification::getUserId, userId)
-                .eq(Notification::getIsRead, false);
-        long unreadCount = notificationService.count(queryWrapper);
-        return ApiResponse.success(Map.of("unreadCount", unreadCount));
+        Long count = notificationService.getUnreadCount(userId);
+        return ApiResponse.success(count);
     }
 
     /**
-     * 单条消息标记为已读
-     * @param id 消息ID
-     * @return 操作结果
-     */
-    @PutMapping("/{id}/read")
-    public ApiResponse<Void> markRead(@PathVariable Long id) {
-        Notification notification = notificationService.getById(id);
-        if (notification != null) {
-            notification.setIsRead(true);
-            notificationService.updateById(notification);
-        }
-        return ApiResponse.success("标记已读成功", null);
-    }
-
-    /**
-     * 全部消息标记为已读
+     * 标记单条通知为已读
+     * @param id 通知ID
      * @param auth 认证信息
      * @return 操作结果
      */
-    @PutMapping("/read-all")
+    @PatchMapping("/{id}/read")
+    public ApiResponse<Void> markAsRead(@PathVariable Long id, Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        notificationService.markAsRead(id, userId);
+        return ApiResponse.success("标记已读成功");
+    }
+
+    /**
+     * 将所有未读通知标记为已读
+     * @param auth 认证信息
+     * @return 操作结果
+     */
+    @PatchMapping("/read-all")
     public ApiResponse<Void> markAllAsRead(Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        notificationService.lambdaUpdate()
-                .eq(Notification::getUserId, userId)
-                .eq(Notification::getIsRead, false)
-                .set(Notification::getIsRead, true)
-                .update();
-        return ApiResponse.success("全部标记已读成功", null);
+        notificationService.markAllAsRead(userId);
+        return ApiResponse.success("全部标记已读成功");
     }
 
     /**
-     * 删除单条消息
-     * @param id 消息ID
+     * 删除单条通知
+     * @param id 通知ID
+     * @param auth 认证信息
      * @return 操作结果
      */
     @DeleteMapping("/{id}")
-    public ApiResponse<Void> delete(@PathVariable Long id) {
-        notificationService.removeById(id);
-        return ApiResponse.success("删除成功", null);
+    public ApiResponse<Void> deleteNotification(@PathVariable Long id, Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        notificationService.deleteNotification(id, userId);
+        return ApiResponse.success("删除成功");
     }
 
     /**
-     * 发送消息（仅管理员）
-     * @param notification 消息内容
-     * @param auth 认证信息
-     * @return 发送后的消息数据
+     * 手动发送通知（仅管理员）
+     * @param params 请求参数（包含 userIds, title, content, category, type, priority, actionUrl, data）
+     * @return 发送结果
      */
     @PostMapping("/send")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Notification> send(@RequestBody Notification notification, Authentication auth) {
-        notification.setCreatedAt(LocalDateTime.now());
-        notificationService.save(notification);
-        return ApiResponse.success("发送成功", notification);
+    public ApiResponse<Void> sendNotification(@RequestBody Map<String, Object> params) {
+        @SuppressWarnings("unchecked")
+        List<Long> userIds = (List<Long>) params.get("userIds");
+        String title = (String) params.get("title");
+        String content = (String) params.get("content");
+        String category = (String) params.get("category");
+        String type = (String) params.get("type");
+        String priority = (String) params.get("priority");
+        String actionUrl = (String) params.get("actionUrl");
+        String data = (String) params.get("data");
+
+        if (userIds == null || userIds.isEmpty()) {
+            return ApiResponse.error(400, "接收用户列表不能为空");
+        }
+        if (title == null || title.isEmpty()) {
+            return ApiResponse.error(400, "通知标题不能为空");
+        }
+        if (content == null || content.isEmpty()) {
+            return ApiResponse.error(400, "通知内容不能为空");
+        }
+
+        notificationService.batchSendNotifications(userIds, title, content, category,
+                type != null ? type : "SYSTEM",
+                priority != null ? priority : "MEDIUM",
+                actionUrl, data);
+        return ApiResponse.success("发送成功");
     }
 }

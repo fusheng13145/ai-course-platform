@@ -10,8 +10,10 @@ import com.aicourse.service.TaskService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -117,74 +119,68 @@ public class TaskController {
     }
 
     /**
-     * 发布任务（教师/管理员权限）
+     * 发布任务（教师/管理员权限）- 使用增强版Service方法
      * @param id 任务ID
      * @return 发布后任务信息
      */
     @PostMapping("/{id}/publish")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<Task> publish(@PathVariable Long id) {
-        Task task = taskService.getById(id);
-        if (task == null) {
-            throw new BusinessException("任务不存在");
-        }
-        task.setIsPublished(true);
-        task.setStatus("PUBLISHED");
-        taskService.updateById(task);
+        Task task = taskService.publishTask(id);
         return ApiResponse.success("发布成功", task);
     }
 
     /**
-     * 查询任务对应的所有提交记录
+     * 延长截止日期（教师/管理员权限）
      * @param id 任务ID
-     * @param page 当前页码
-     * @param size 每页条数
-     * @return 分页提交记录
+     * @param body 包含新的截止日期和原因
+     * @return 更新后的任务信息
      */
-    @GetMapping("/{id}/submissions")
-    public ApiResponse<PagedResponse<Submission>> submissions(
-            @PathVariable Long id,
-            @RequestParam(defaultValue = "1") long page,
-            @RequestParam(defaultValue = "10") long size) {
-        LambdaQueryWrapper<Submission> queryWrapper = new LambdaQueryWrapper<Submission>()
-                .eq(Submission::getTaskId, id);
-        Page<Submission> submissionPage = submissionService.page(Page.of(page, size), queryWrapper);
-        return ApiResponse.success(PagedResponse.of(submissionPage));
+    @PostMapping("/{id}/extend-deadline")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ApiResponse<Task> extendDeadline(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+        String newDueDateStr = body.get("newDueDate").toString();
+        String reason = body.get("reason") != null ? body.get("reason").toString() : null;
+        LocalDateTime newDueDate = LocalDateTime.parse(newDueDateStr);
+        Task task = taskService.extendDeadline(id, newDueDate, reason);
+        return ApiResponse.success("截止日期已延长", task);
     }
 
     /**
-     * 统计任务提交数据
-     * @param id 任务ID
-     * @return 统计信息：总提交数、已评分数、平均分
+     * 复制任务（教师/管理员权限）
+     * @param id 源任务ID
+     * @param body 包含新标题
+     * @return 新任务信息
      */
-    @GetMapping("/{id}/statistics")
-    public ApiResponse<Map<String, Object>> statistics(@PathVariable Long id) {
-        LambdaQueryWrapper<Submission> totalWrapper = new LambdaQueryWrapper<Submission>()
-                .eq(Submission::getTaskId, id);
-        long total = submissionService.count(totalWrapper);
+    @PostMapping("/{id}/copy")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ApiResponse<Task> copy(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        String newTitle = body.get("newTitle");
+        Task newTask = taskService.copyTask(id, newTitle);
+        return ApiResponse.success("复制成功", newTask);
+    }
 
-        LambdaQueryWrapper<Submission> gradedWrapper = new LambdaQueryWrapper<Submission>()
-                .eq(Submission::getTaskId, id)
-                .eq(Submission::getStatus, "GRADED");
-        long graded = submissionService.count(gradedWrapper);
+    /**
+     * 获取待批阅的任务列表（教师权限）
+     * @param auth 认证信息
+     * @return 待批阅任务列表
+     */
+    @GetMapping("/pending-grading")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ApiResponse<List<Task>> pendingGrading(Authentication auth) {
+        Long teacherId = (Long) auth.getPrincipal();
+        List<Task> tasks = taskService.getPendingGradingTasks(teacherId);
+        return ApiResponse.success(tasks);
+    }
 
-        LambdaQueryWrapper<Submission> scoreWrapper = new LambdaQueryWrapper<Submission>()
-                .eq(Submission::getTaskId, id)
-                .isNotNull(Submission::getScore);
-        List<Submission> scoreList = submissionService.list(scoreWrapper);
-
-        // 修复 BigDecimal 到 double 的转换
-        double avgScore = scoreList.stream()
-                .mapToDouble(s -> s.getScore() != null ? s.getScore().doubleValue() : 0.0)
-                .average()
-                .orElse(0.0);
-        double averageScore = Math.round(avgScore * 100.0) / 100.0;
-
-        Map<String, Object> result = Map.of(
-                "total", total,
-                "graded", graded,
-                "averageScore", averageScore
-        );
-        return ApiResponse.success(result);
+    /**
+     * 获取任务完成率统计（增强版）
+     * @param id 任务ID
+     * @return 完成率统计数据
+     */
+    @GetMapping("/{id}/completion-stats")
+    public ApiResponse<Map<String, Object>> completionStats(@PathVariable Long id) {
+        Map<String, Object> stats = taskService.getTaskCompletionStats(id);
+        return ApiResponse.success(stats);
     }
 }

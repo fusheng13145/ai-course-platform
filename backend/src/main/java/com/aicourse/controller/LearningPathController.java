@@ -11,8 +11,10 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 学习路线接口控制器
@@ -157,5 +159,99 @@ public class LearningPathController {
 
     public CourseEnrollmentService getEnrollmentService() {
         return enrollmentService;
+    }
+
+    // ==================== 学习路径体系增强API ====================
+
+    /**
+     * 获取当前活跃的学习路径
+     * @param courseId 课程ID
+     * @param auth 认证信息
+     * @return 活跃学习路径
+     */
+    @GetMapping("/active/{courseId}")
+    public ApiResponse<LearningPath> getActivePath(@PathVariable Long courseId, Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        LearningPath activePath = learningPathService.getActivePath(userId, courseId);
+        return ApiResponse.success(activePath);
+    }
+
+    /**
+     * 进入下一阶段
+     * @param id 路径ID
+     * @return 操作结果
+     */
+    @PostMapping("/{id}/advance")
+    public ApiResponse<Void> advanceToNextStage(@PathVariable Long id) {
+        learningPathService.advanceToNextStage(id);
+        return ApiResponse.success("已进入下一阶段", null);
+    }
+
+    /**
+     * 完成学习路径
+     * @param id 路径ID
+     * @return 操作结果
+     */
+    @PostMapping("/{id}/complete")
+    public ApiResponse<Void> completePath(@PathVariable Long id) {
+        learningPathService.completePath(id);
+        return ApiResponse.success("路径已完成", null);
+    }
+
+    /**
+     * 暂停学习路径
+     * @param id 路径ID
+     * @return 操作结果
+     */
+    @PostMapping("/{id}/pause")
+    public ApiResponse<Void> pausePath(@PathVariable Long id) {
+        learningPathService.pausePath(id);
+        return ApiResponse.success("路径已暂停", null);
+    }
+
+    /**
+     * 恢复学习路径
+     * @param id 路径ID
+     * @return 操作结果
+     */
+    @PostMapping("/{id}/resume")
+    public ApiResponse<Void> resumePath(@PathVariable Long id) {
+        learningPathService.resumePath(id);
+        return ApiResponse.success("路径已恢复", null);
+    }
+
+    /**
+     * 获取每日任务清单
+     * @param id 路径ID
+     * @return 每日任务列表
+     */
+    @GetMapping("/{id}/daily-tasks")
+    public ApiResponse<List<Map<String, Object>>> getDailyTasks(@PathVariable Long id) {
+        List<Map<String, Object>> dailyTasks = learningPathService.getDailyTasks(id);
+        return ApiResponse.success(dailyTasks);
+    }
+
+    /**
+     * 获取学习路径完整详情（含节点列表及统计信息）
+     * @param id 路径ID
+     * @return 详情数据（path + nodes + statusStats）
+     */
+    @GetMapping("/{id}/detail")
+    public ApiResponse<Map<String, Object>> getPathDetail(@PathVariable Long id) {
+        Map<String, Object> detail = learningPathService.getPathDetail(id);
+        return ApiResponse.success(detail);
+    }
+
+    /**
+     * 获取进度详情（重新计算并返回最新进度）
+     * @param id 路径ID
+     * @return 进度详情
+     */
+    @GetMapping("/{id}/progress")
+    public ApiResponse<Map<String, Object>> getProgress(@PathVariable Long id) {
+        // 先更新进度，再返回详情
+        learningPathService.updateProgress(id);
+        Map<String, Object> detail = learningPathService.getPathDetail(id);
+        return ApiResponse.success(detail);
     }
 }

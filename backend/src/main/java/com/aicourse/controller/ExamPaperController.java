@@ -159,6 +159,55 @@ public class ExamPaperController {
         return ApiResponse.success(resultList);
     }
 
+    /**
+     * 查询试卷完整详情（含题目列表）
+     * @param id 试卷ID
+     * @return 试卷详情（包含题目信息）
+     */
+    @GetMapping("/{id}/detail")
+    public ApiResponse<Map<String, Object>> getDetail(@PathVariable Long id) {
+        Map<String, Object> detail = examPaperService.getExamPaperDetail(id);
+        return ApiResponse.success(detail);
+    }
+
+    /**
+     * 发布试卷（教师/管理员权限）
+     * @param id 试卷ID
+     * @return 发布后试卷信息
+     */
+    @PostMapping("/{id}/publish")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ApiResponse<ExamPaper> publish(@PathVariable Long id) {
+        examPaperService.publishExamPaper(id);
+        ExamPaper paper = examPaperService.getById(id);
+        return ApiResponse.success("发布成功", paper);
+    }
+
+    /**
+     * 复制试卷（教师/管理员权限）
+     * @param id 源试卷ID
+     * @param body 包含新标题
+     * @return 新试卷信息
+     */
+    @PostMapping("/{id}/copy")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ApiResponse<ExamPaper> copy(@PathVariable Long id, @RequestBody Map<String, String> body) {
+        String newTitle = body.get("newTitle");
+        ExamPaper newPaper = examPaperService.copyExamPaper(id, newTitle);
+        return ApiResponse.success("复制成功", newPaper);
+    }
+
+    /**
+     * 获取试卷统计（题型分布、分值分布）
+     * @param id 试卷ID
+     * @return 统计数据
+     */
+    @GetMapping("/{id}/statistics")
+    public ApiResponse<Map<String, Object>> statistics(@PathVariable Long id) {
+        Map<String, Object> stats = examPaperService.getPaperStatistics(id);
+        return ApiResponse.success(stats);
+    }
+
     public ExamSessionService getExamSessionService() {
         return examSessionService;
     }

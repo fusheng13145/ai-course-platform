@@ -5,17 +5,18 @@ import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.UserService;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 /**
  * 用户管理接口控制器
+ * 提供用户CRUD、资料管理、班级同学、统计、搜索等RESTful API
  */
 @RestController
 @RequestMapping("/users")
@@ -43,15 +44,7 @@ public class UserController {
             @RequestParam(defaultValue = "10") long size,
             @RequestParam(required = false) String role,
             @RequestParam(required = false) String keyword) {
-        LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<User>()
-                .eq(role != null && !role.isEmpty(), User::getRole, role)
-                .and(keyword != null && !keyword.isEmpty(), w -> w
-                        .like(User::getUsername, keyword)
-                        .or().like(User::getFullName, keyword)
-                        .or().like(User::getEmail, keyword))
-                .orderByDesc(User::getCreatedAt);
-        Page<User> userPage = userService.page(Page.of(page, size), queryWrapper);
-        userPage.getRecords().forEach(u -> u.setPassword(null));
+        Page<User> userPage = userService.searchUsers(keyword, role, (int) page, (int) size);
         return ApiResponse.success(PagedResponse.of(userPage));
     }
 
@@ -67,6 +60,68 @@ public class UserController {
             user.setPassword(null);
         }
         return ApiResponse.success(user);
+    }
+
+    /**
+     * 获取用户详细资料（含关联查询）
+     * @param id 用户ID
+     * @return 用户完整信息
+     */
+    @GetMapping("/{id}/profile")
+    public ApiResponse<User> getProfile(@PathVariable Long id) {
+        User user = userService.getUserProfile(id);
+        return ApiResponse.success(user);
+    }
+
+    /**
+     * 获取同班同学列表
+     * @param id 用户ID
+     * @return 同班同学列表
+     */
+    @GetMapping("/{id}/classmates")
+    public ApiResponse<List<User>> getClassmates(@PathVariable Long id) {
+        List<User> classmates = userService.getClassmates(id);
+        return ApiResponse.success(classmates);
+    }
+
+    /**
+     * 获取教师的学生列表
+     * @param teacherId 教师ID
+     * @return 学生列表
+     */
+    @GetMapping("/teacher/students")
+    public ApiResponse<List<User>> getTeacherStudents(@RequestParam Long teacherId) {
+        List<User> students = userService.getTeacherStudents(teacherId);
+        return ApiResponse.success(students);
+    }
+
+    /**
+     * 获取用户统计数据
+     * @param id 用户ID
+     * @return 统计信息
+     */
+    @GetMapping("/{id}/stats")
+    public ApiResponse<Map<String, Object>> getUserStats(@PathVariable Long id) {
+        Map<String, Object> stats = userService.getUserStats(id);
+        return ApiResponse.success(stats);
+    }
+
+    /**
+     * 搜索用户
+     * @param keyword 关键词
+     * @param role 角色筛选（可选）
+     * @param page 页码
+     * @param size 每页大小
+     * @return 分页搜索结果
+     */
+    @GetMapping("/search")
+    public ApiResponse<PagedResponse<User>> search(
+            @RequestParam String keyword,
+            @RequestParam(required = false) String role,
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        Page<User> result = userService.searchUsers(keyword, role, page, size);
+        return ApiResponse.success(PagedResponse.of(result));
     }
 
     /**
@@ -140,11 +195,7 @@ public class UserController {
     @GetMapping("/profile")
     public ApiResponse<User> profile(Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        User user = userService.getById(userId);
-        if (user == null) {
-            throw new BusinessException("用户不存在");
-        }
-        user.setPassword(null);
+        User user = userService.getUserProfile(userId);
         return ApiResponse.success(user);
     }
 
@@ -157,25 +208,8 @@ public class UserController {
     @PutMapping("/profile")
     public ApiResponse<User> updateProfile(Authentication auth, @RequestBody User updates) {
         Long userId = (Long) auth.getPrincipal();
-        User user = userService.getById(userId);
-        if (user == null) {
-            throw new BusinessException("用户不存在");
-        }
-        if (updates.getFullName() != null) {
-            user.setFullName(updates.getFullName());
-        }
-        if (updates.getPhone() != null) {
-            user.setPhone(updates.getPhone());
-        }
-        if (updates.getAvatarUrl() != null) {
-            user.setAvatarUrl(updates.getAvatarUrl());
-        }
-        if (updates.getBio() != null) {
-            user.setBio(updates.getBio());
-        }
-        userService.updateById(user);
-        User updatedUser = userService.getById(userId);
-        updatedUser.setPassword(null);
+        userService.updateProfile(userId, updates);
+        User updatedUser = userService.getUserProfile(userId);
         return ApiResponse.success("更新成功", updatedUser);
     }
 }

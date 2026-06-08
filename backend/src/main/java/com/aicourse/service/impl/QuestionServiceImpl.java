@@ -1,11 +1,300 @@
 package com.aicourse.service.impl;
 
 import com.aicourse.entity.Question;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.QuestionMapper;
+import com.aicourse.service.AIService;
 import com.aicourse.service.QuestionService;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.math.BigDecimal;
+import java.math.RoundingMode;
+import java.util.*;
+
+/**
+ * 题库题目服务实现类
+ * 实现题目的创建、AI生成、审核、搜索、统计等核心业务逻辑
+ */
 @Service
 public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> implements QuestionService {
+
+    private final AIService aiService;
+    private final ObjectMapper objectMapper;
+
+    public QuestionServiceImpl(AIService aiService) {
+        this.aiService = aiService;
+        this.objectMapper = new ObjectMapper();
+    }
+
+    /**
+     * 创建题目（含知识点关联处理）
+     * 初始化使用次数和正确率，设置默认启用状态
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Question createQuestion(Question question) {
+        // 设置初始值
+        if (question.getUsageCount() == null) {
+            question.setUsageCount(0);
+        }
+        if (question.getCorrectRate() == null) {
+            question.setCorrectRate(BigDecimal.ZERO);
+        }
+        if (question.getIsActive() == null) {
+            question.setIsActive(true);
+        }
+        this.save(question);
+        return question;
+    }
+
+    /**
+     * AI生成题目（对接AIService）
+     * 调用AIService生成题目内容并保存到数据库
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Question generateByAI(Long courseId, String type, String difficulty, String knowledgePointNames) {
+        // 调用AI服务生成题目JSON
+        String generatedContent = aiService.generateQuestion(courseId, type, difficulty, 1);
+
+        try {
+            // 解析AI生成的题目内容
+            Map<String, Object> questionData = objectMapper.readValue(generatedContent,
+                    new TypeReference<Map<String, Object>>() {});
+
+            Question question = new Question();
+            question.setCourseId(courseId);
+            question.setType(type);
+            question.setDifficulty(difficulty);
+            question.setContent(questionData.get("content") != null ? questionData.get("content").toString() : "");
+            question.setOptions(questionData.get("options") != null ? objectMapper.writeValueAsString(questionData.get("options")) : null);
+            question.setCorrectAnswers(questionData.get("correctAnswers") != null ? questionData.get("correctAnswers").toString() : "");
+            question.setExplanation(questionData.get("explanation") != null ? questionData.get("explanation").toString() : "");
+            question.setScore(questionData.get("score") != null ?
+                    new BigDecimal(questionData.get("score").toString()) : new BigDecimal("5"));
+            question.setKnowledgePoints(knowledgePointNames);
+            question.setUsageCount(0);
+            question.setCorrectRate(BigDecimal.ZERO);
+            question.setIsActive(true);
+
+            this.save(question);
+            return question;
+        } catch (Exception e) {
+            throw new BusinessException("AI生成题目解析失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 题目审核
+     * 通过或拒绝题目，更新启用状态
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void reviewQuestion(Long questionId, boolean approved) {
+        Question question = this.getById(questionId);
+        if (question == null) {
+            throw new BusinessException("题目不存在");
+        }
+        question.setIsActive(approved);
+        this.updateById(question);
+    }
+
+    /**
+     * 复制题目（创建变式题）
+     * 复制源题目所有字段，生成新ID的变式题
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Question copyQuestion(Long sourceQuestionId) {
+        Question source = this.getById(sourceQuestionId);
+        if (source == null) {
+            throw new BusinessException("源题目不存在");
+        }
+
+        Question copy = new Question();
+        copy.setCourseId(source.getCourseId());
+        copy.setType(source.getType());
+        copy.setContent(source.getContent());
+        copy.setOptions(source.getOptions());
+        copy.setCorrectAnswers(source.getCorrectAnswers());
+        copy.setDifficulty(source.getDifficulty());
+        copy.setScore(source.getScore());
+        copy.setKnowledgePoints(source.getKnowledgePoints());
+        copy.setExplanation(source.getExplanation());
+        copy.setCreatedBy(source.getCreatedBy());
+        copy.setUsageCount(0);
+        copy.setCorrectRate(BigDecimal.ZERO);
+        copy.setIsActive(true);
+
+        this.save(copy);
+        return copy;
+    }
+
+    /**
+     * 智能搜索（全文检索+筛选）
+     * 支持按课程、类型、难度、关键词多条件动态查询
+     */
+    @Override
+    public Page<Question> searchQuestions(Long courseId, String type, String difficulty, String keyword, int page, int size) {
+        LambdaQueryWrapper<Question> queryWrapper = new LambdaQueryWrapper<Question>()
+                .eq(courseId != null, Question::getCourseId, courseId)
+                .eq(type != null && !type.isEmpty(), Question::getType, type)
+                .eq(difficulty != null && !difficulty.isEmpty(), Question::getDifficulty, difficulty)
+                .like(keyword != null && !keyword.isEmpty(), Question::getContent, keyword)
+                .orderByDesc(Question::getCreatedAt);
+
+        return this.page(Page.of(page, size), queryWrapper);
+    }
+
+    /**
+     * 获取题目详情（含选项解析后的结构化数据）
+     * 返回题目基本信息及解析后的选项列表
+     */
+    @Override
+    public Map<String, Object> getQuestionDetail(Long questionId) {
+        Question question = this.getById(questionId);
+        if (question == null) {
+            throw new BusinessException("题目不存在");
+        }
+
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("id", question.getId());
+        detail.put("type", question.getType());
+        detail.put("content", question.getContent());
+        detail.put("difficulty", question.getDifficulty());
+        detail.put("score", question.getScore());
+        detail.put("correctAnswers", question.getCorrectAnswers());
+        detail.put("explanation", question.getExplanation());
+        detail.put("usageCount", question.getUsageCount());
+        detail.put("correctRate", question.getCorrectRate());
+        detail.put("courseId", question.getCourseId());
+
+        // 解析选项JSON
+        try {
+            if (question.getOptions() != null && !question.getOptions().isEmpty()) {
+                List<Map<String, Object>> optionsList = objectMapper.readValue(question.getOptions(),
+                        new TypeReference<List<Map<String, Object>>>() {});
+                detail.put("options", optionsList);
+            }
+        } catch (Exception e) {
+            // JSON解析失败时返回原始字符串
+            detail.put("options", question.getOptions());
+        }
+
+        return detail;
+    }
+
+    /**
+     * 随机抽取题目（用于组卷）
+     * 使用ORDER BY RAND()实现随机抽取
+     */
+    @Override
+    public List<Question> randomSelect(Long courseId, String type, String difficulty, int count) {
+        LambdaQueryWrapper<Question> queryWrapper = new LambdaQueryWrapper<Question>()
+                .eq(Question::getCourseId, courseId)
+                .eq(type != null && !type.isEmpty(), Question::getType, type)
+                .eq(difficulty != null && !difficulty.isEmpty(), Question::getDifficulty, difficulty)
+                .eq(Question::getIsActive, true)
+                .last("ORDER BY RAND() LIMIT " + count);
+
+        return this.list(queryWrapper);
+    }
+
+    /**
+     * 按知识点获取题目
+     * 根据知识点ID查询关联的所有题目
+     */
+    @Override
+    public List<Question> getByKnowledgePoint(Long knowledgePointId) {
+        // 知识点存储为JSON/逗号分隔ID，使用LIKE模糊匹配
+        String kpIdStr = knowledgePointId.toString();
+        LambdaQueryWrapper<Question> queryWrapper = new LambdaQueryWrapper<Question>()
+                .like(Question::getKnowledgePoints, kpIdStr)
+                .eq(Question::getIsActive, true)
+                .orderByDesc(Question::getCreatedAt);
+
+        return this.list(queryWrapper);
+    }
+
+    /**
+     * 更新正确率（批阅后回调）
+     * 正确时: correctRate = (原正确数+1)/(usageCount+1)
+     * 错误时: correctRate = 原正确数/(usageCount+1)
+     * 同时 usageCount++
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void updateCorrectRate(Long questionId, boolean isCorrect) {
+        Question question = this.getById(questionId);
+        if (question == null) {
+            throw new BusinessException("题目不存在");
+        }
+
+        int usageCount = question.getUsageCount() != null ? question.getUsageCount() : 0;
+        BigDecimal currentRate = question.getCorrectRate() != null ? question.getCorrectRate() : BigDecimal.ZERO;
+
+        // 计算原有正确答题数
+        double correctCount = currentRate.doubleValue() * usageCount;
+
+        // 更新使用次数
+        usageCount++;
+        question.setUsageCount(usageCount);
+
+        // 计算新的正确率
+        if (isCorrect) {
+            correctCount++;
+        }
+        BigDecimal newRate = BigDecimal.valueOf(correctCount / usageCount)
+                .setScale(4, RoundingMode.HALF_UP);
+        question.setCorrectRate(newRate);
+
+        this.updateById(question);
+    }
+
+    /**
+     * 获取题目使用统计
+     * 返回使用次数、正确率等统计数据
+     */
+    @Override
+    public Map<String, Object> getQuestionStats(Long questionId) {
+        Question question = this.getById(questionId);
+        if (question == null) {
+            throw new BusinessException("题目不存在");
+        }
+
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("questionId", question.getId());
+        stats.put("usageCount", question.getUsageCount());
+        stats.put("correctRate", question.getCorrectRate());
+        stats.put("difficulty", question.getDifficulty());
+        stats.put("type", question.getType());
+        stats.put("score", question.getScore());
+        stats.put("isActive", question.getIsActive());
+        stats.put("createdAt", question.getCreatedAt());
+
+        return stats;
+    }
+
+    /**
+     * 获取易错题TOP N
+     * 按正确率升序、使用次数降序排序取前N条
+     */
+    @Override
+    public List<Question> getErrorProneQuestions(Long courseId, int limit) {
+        LambdaQueryWrapper<Question> queryWrapper = new LambdaQueryWrapper<Question>()
+                .eq(courseId != null, Question::getCourseId, courseId)
+                .eq(Question::getIsActive, true)
+                .gt(Question::getUsageCount, 0)  // 至少被使用过
+                .orderByAsc(Question::getCorrectRate)   // 正确率低的排前面
+                .orderByDesc(Question::getUsageCount)   // 使用次数多的优先
+                .last("LIMIT " + limit);
+
+        return this.list(queryWrapper);
+    }
 }

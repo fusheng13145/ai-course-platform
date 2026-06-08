@@ -12,6 +12,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.List;
+import java.util.Map;
 
 /**
  * 作业提交与评分接口控制器
@@ -115,5 +117,81 @@ public class SubmissionController {
         submission.setGraderId((Long) auth.getPrincipal());
         submissionService.updateById(submission);
         return ApiResponse.success("评分成功", submission);
+    }
+
+    /**
+     * 重新提交作业
+     * @param id 提交记录ID
+     * @param body 提交数据（content, fileUrls）
+     * @return 重新提交记录
+     */
+    @PostMapping("/{id}/resubmit")
+    public ApiResponse<Submission> resubmit(@PathVariable Long id,
+                                            @RequestBody Map<String, Object> body) {
+        String content = body.get("content") != null ? body.get("content").toString() : null;
+        List<String> fileUrls = body.get("fileUrls") != null ? (List<String>) body.get("fileUrls") : null;
+        Submission submission = submissionService.resubmit(id, content, fileUrls);
+        return ApiResponse.success("重新提交成功", submission);
+    }
+
+    /**
+     * 退回作业（教师/管理员权限）
+     * @param id 提交记录ID
+     * @param body 包含退回原因
+     * @return 退回后的提交记录
+     */
+    @PostMapping("/{id}/return")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ApiResponse<Submission> returnSubmission(@PathVariable Long id,
+                                                     @RequestBody Map<String, String> body) {
+        String reason = body.get("reason");
+        Submission submission = submissionService.returnSubmission(id, reason);
+        return ApiResponse.success("退回成功", submission);
+    }
+
+    /**
+     * AI智能评分（教师/管理员权限）
+     * @param id 提交记录ID
+     * @return AI评分结果
+     */
+    @PostMapping("/{id}/ai-grade")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ApiResponse<Submission> aiGrade(@PathVariable Long id) {
+        Submission submission = submissionService.aiGradeSubmission(id);
+        return ApiResponse.success("AI评分完成", submission);
+    }
+
+    /**
+     * 查询查重检测结果
+     * @param id 提交记录ID
+     * @return 查重检测结果
+     */
+    @GetMapping("/{id}/plagiarism")
+    public ApiResponse<Object> getPlagiarismResult(@PathVariable Long id) {
+        // 简化处理：返回提示信息，实际应查询PlagiarismCheck表
+        return ApiResponse.success("请使用 POST /check-plagiarism 接口触发查重检测");
+    }
+
+    /**
+     * 手动触发查重检测（教师/管理员权限）
+     * @param id 提交记录ID
+     * @return 查重检测结果
+     */
+    @PostMapping("/{id}/check-plagiarism")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ApiResponse<Object> checkPlagiarism(@PathVariable Long id) {
+        Object result = submissionService.triggerPlagiarismCheck(id);
+        return ApiResponse.success("查重检测完成", result);
+    }
+
+    /**
+     * 记录查看次数
+     * @param id 提交记录ID
+     * @return 操作结果
+     */
+    @PostMapping("/{id}/view")
+    public ApiResponse<Void> recordView(@PathVariable Long id) {
+        submissionService.incrementViewCount(id);
+        return ApiResponse.success(null);
     }
 }
