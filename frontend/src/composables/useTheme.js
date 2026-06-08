@@ -1,25 +1,40 @@
-import { ref, watch } from 'vue'
+import { ref, watch, onMounted } from "vue"
 
-const theme = ref(localStorage.getItem('theme') || 'system')
+const THEME_KEY = "fz-theme"
 
-function applyTheme(val) {
-  if (val === 'system') {
-    const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
-    document.documentElement.setAttribute('data-theme', prefersDark ? 'dark' : 'light')
-  } else {
-    document.documentElement.setAttribute('data-theme', val)
-  }
-  localStorage.setItem('theme', val)
+const theme = ref(localStorage.getItem(THEME_KEY) || "system")
+
+function applyTheme() {
+  const effective = theme.value === "system"
+    ? (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+    : theme.value
+  document.documentElement.setAttribute("data-theme", effective)
 }
 
-watch(theme, applyTheme, { immediate: true })
-
 export function useTheme() {
-  function cycleTheme() {
-    const order = ['light', 'dark', 'system']
+  const cycleTheme = () => {
+    const order = ["light", "dark", "system"]
     const idx = order.indexOf(theme.value)
     theme.value = order[(idx + 1) % order.length]
+    localStorage.setItem(THEME_KEY, theme.value)
+    applyTheme()
   }
-  function setTheme(val) { theme.value = val }
-  return { theme, cycleTheme, setTheme }
+  
+  const setTheme = (val) => {
+    theme.value = val
+    localStorage.setItem(THEME_KEY, val)
+    applyTheme()
+  }
+  
+  onMounted(() => {
+    applyTheme()
+  })
+  
+  watch(theme, applyTheme)
+  
+  return {
+    theme,
+    cycleTheme,
+    setTheme
+  }
 }

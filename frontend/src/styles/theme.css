@@ -1,41 +1,74 @@
 :root {
-  --ac-primary: #4F46E5; --ac-primary-light: #6366F1; --ac-primary-dark: #3730A3; --ac-primary-rgb: 79,70,229;
-  --ac-success: #059669; --ac-danger: #DC2626; --ac-warning: #D97706; --ac-info: #2563EB;
-  --ac-bg: #F8FAFC; --ac-bg-elevated: #FFFFFF; --ac-bg-sunken: #F1F5F9;
-  --ac-text-primary: #0F172A; --ac-text-secondary: #475569; --ac-text-muted: #94A3B8;
-  --ac-border: #E2E8F0; --ac-divider: #E2E8F0;
-  --ac-shadow-sm: 0 1px 3px rgba(0,0,0,0.06); --ac-shadow-md: 0 4px 6px rgba(0,0,0,0.07);
-  --ac-shadow-lg: 0 10px 15px rgba(0,0,0,0.08);
-  --ac-radius-sm: 6px; --ac-radius-md: 10px; --ac-radius-lg: 14px;
-  color-scheme: light;
+  /* 主色调 - 优雅靛蓝 */
+  --ac-primary: #4F46E5;
+  --ac-primary-light: #6366F1;
+  --ac-primary-dark: #4338CA;
+  --ac-primary-bg: rgba(79, 70, 229, 0.08);
+  
+  /* 辅助色 - 青绿 */
+  --ac-secondary: #0EA5E9;
+  --ac-secondary-light: #38BDF8;
+  
+  /* 成功/警告/危险 */
+  --ac-success: #10B981;
+  --ac-warning: #F59E0B;
+  --ac-danger: #EF4444;
+  
+  /* 中性色 - 黑白系 */
+  --ac-text-primary: #000000;
+  --ac-text-secondary: #333333;
+  --ac-text-muted: #666666;
+  --ac-border: #E0E0E0;
+  --ac-bg: #F5F5F5;
+  --ac-bg-elevated: #FFFFFF;
+  
+  /* 渐变 */
+  --ac-gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  --ac-gradient-secondary: linear-gradient(135deg, #4F46E5 0%, #0EA5E9 100%);
+  --ac-gradient-sidebar: linear-gradient(180deg, #4F46E5 0%, #7C3AED 100%);
+  --ac-gradient-card: linear-gradient(135deg, rgba(79, 70, 229, 0.05) 0%, rgba(14, 165, 233, 0.05) 100%);
+  
+  /* 阴影 */
+  --ac-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+  --ac-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
+  --ac-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --ac-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --ac-shadow-colored: 0 4px 14px 0 rgba(79, 70, 229, 0.25);
+  
+  /* 圆角 */
+  --ac-radius-sm: 6px;
+  --ac-radius-md: 10px;
+  --ac-radius-lg: 16px;
+  --ac-radius-xl: 20px;
+  
+  /* 间距 */
+  --ac-spacing-xs: 4px;
+  --ac-spacing-sm: 8px;
+  --ac-spacing-md: 16px;
+  --ac-spacing-lg: 24px;
+  --ac-spacing-xl: 32px;
+  
+  /* 动画 */
+  --ac-transition-fast: 0.15s ease;
+  --ac-transition-normal: 0.25s ease;
+  --ac-transition-slow: 0.35s ease;
 }
+
+/* 暗色主题 */
 [data-theme="dark"] {
-  --ac-primary: #818CF8; --ac-primary-light: #A5B4FC; --ac-primary-dark: #C7D2FE; --ac-primary-rgb: 129,140,248;
-  --ac-success: #34D399; --ac-danger: #F87171; --ac-warning: #FBBF24; --ac-info: #60A5FA;
-  --ac-bg: #0F172A; --ac-bg-elevated: #1E293B; --ac-bg-sunken: #0F172A;
-  --ac-text-primary: #F1F5F9; --ac-text-secondary: #CBD5E1; --ac-text-muted: #64748B;
-  --ac-border: rgba(255,255,255,0.08); --ac-divider: rgba(255,255,255,0.08);
-  --ac-shadow-sm: 0 1px 3px rgba(0,0,0,0.25); --ac-shadow-md: 0 4px 6px rgba(0,0,0,0.3);
-  --ac-shadow-lg: 0 10px 15px rgba(0,0,0,0.35);
-  color-scheme: dark;
+  --ac-text-primary: #FFFFFF;
+  --ac-text-secondary: #E0E0E0;
+  --ac-text-muted: #A0A0A0;
+  --ac-border: #404040;
+  --ac-bg: #1A1A1A;
+  --ac-bg-elevated: #2D2D2D;
+  
+  --ac-primary-bg: rgba(79, 70, 229, 0.15);
+  
+  --ac-gradient-card: linear-gradient(135deg, rgba(79, 70, 229, 0.1) 0%, rgba(14, 165, 233, 0.1) 100%);
+  
+  --ac-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
+  --ac-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
+  --ac-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.5);
+  --ac-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.6);
 }
-body { background: var(--ac-bg); color: var(--ac-text-primary); transition: background .35s, color .35s; }
-.sidebar { background: #1e293b !important; }
-[data-theme="dark"] .sidebar { background: #0f172a !important; }
-.sidebar .el-menu { background: transparent !important; }
-.sidebar .el-menu-item, .sidebar .el-sub-menu__title { color: rgba(255,255,255,0.65) !important; }
-.sidebar .el-menu-item:hover, .sidebar .el-sub-menu__title:hover { background: rgba(255,255,255,0.05) !important; color: #fff !important; }
-.sidebar .el-menu-item.is-active { color: #818CF8 !important; background: rgba(129,140,248,0.1) !important; }
-.main-area { background: var(--ac-bg); }
-.header { background: var(--ac-bg-elevated) !important; border-bottom: 1px solid var(--ac-border) !important; }
-.content-card { background: var(--ac-bg-elevated) !important; border-radius: var(--ac-radius-md); box-shadow: var(--ac-shadow-sm); }
-.stat-card, .chart-card, .stat-cards .stat-card { background: var(--ac-bg-elevated) !important; }
-.el-table { --el-table-bg-color: var(--ac-bg-elevated); --el-table-tr-bg-color: var(--ac-bg-elevated); --el-table-header-bg-color: var(--ac-bg-sunken); --el-table-border-color: var(--ac-border); color: var(--ac-text-primary); }
-.el-dialog { --el-dialog-bg-color: var(--ac-bg-elevated); }
-.el-form-item__label { color: var(--ac-text-secondary) !important; }
-@keyframes fadeInUp { from { opacity:0; transform:translateY(20px); } to { opacity:1; transform:translateY(0); } }
-@keyframes fadeIn { from { opacity:0; } to { opacity:1; } }
-@keyframes slideInLeft { from { opacity:0; transform:translateX(-20px); } to { opacity:1; transform:translateX(0); } }
-.animate-fade-in { animation: fadeIn .4s ease-out both; }
-.animate-fade-in-up { animation: fadeInUp .5s ease-out both; }
-.animate-slide-left { animation: slideInLeft .4s ease-out both; }

@@ -1,52 +1,137 @@
 package com.aicourse.entity;
 
-import com.baomidou.mybatisplus.annotation.*;
+import com.baomidou.mybatisplus.annotation.FieldFill;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * 试卷实体类
+ * 对应数据表：exam_papers
+ */
 @TableName("exam_papers")
 public class ExamPaper {
+
+    /**
+     * 主键ID
+     */
     @TableId(type = IdType.AUTO)
     private Long id;
+
+    /**
+     * 试卷标题
+     */
     private String title;
+
+    /**
+     * 试卷描述
+     */
     private String description;
+
+    /**
+     * 所属课程ID
+     */
     private Long courseId;
+
+    /**
+     * 创建人ID
+     */
     private Long creatorId;
+
+    /**
+     * 试卷状态
+     */
     private String status;
+
+    /**
+     * 考试须知
+     */
     private String instructions;
+
+    /**
+     * 考试开始时间
+     */
     private LocalDateTime startTime;
+
+    /**
+     * 考试结束时间
+     */
     private LocalDateTime endTime;
+
+    /**
+     * 试卷总分
+     */
     private BigDecimal totalScore;
+
+    /**
+     * 考试时长（分钟）
+     */
     private Integer duration;
+
+    /**
+     * 题目总数
+     */
     private Integer questionCount;
-    
-    @TableField("shuffle_questions")
+
+    /**
+     * 是否打乱题目顺序
+     */
     private Boolean shuffleQuestions;
-    
-    @TableField("shuffle_options")
+
+    /**
+     * 是否打乱选项顺序
+     */
     private Boolean shuffleOptions;
-    
-    @TableField("show_score")
+
+    /**
+     * 是否展示分数
+     */
     private Boolean showScore;
-    
-    @TableField("show_correct_answer")
+
+    /**
+     * 是否展示正确答案
+     */
     private Boolean showCorrectAnswer;
-    
+
+    /**
+     * 最大作答次数
+     */
     private Integer maxAttempts;
+
+    /**
+     * 作答限时
+     */
     private Integer timeLimit;
-    
-    @TableField("allow_review")
+
+    /**
+     * 是否允许查看试卷回顾
+     */
     private Boolean allowReview;
-    
+
+    /**
+     * 题目生成规则
+     */
     private String generationRules;
-    
+
+    /**
+     * 是否启用
+     */
     @TableField("is_active")
     private Boolean isActive;
-    
+
+    /**
+     * 创建时间（自动填充）
+     */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
-    
+
+    /**
+     * 更新时间（自动填充）
+     */
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 
@@ -214,8 +299,8 @@ public class ExamPaper {
         return isActive;
     }
 
-    public void setIsActive(Boolean isActive) {
-        this.isActive = isActive;
+    public void setIsActive(Boolean active) {
+        isActive = active;
     }
 
     public LocalDateTime getCreatedAt() {

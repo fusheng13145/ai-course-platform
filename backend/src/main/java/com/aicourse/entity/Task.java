@@ -1,37 +1,106 @@
 package com.aicourse.entity;
 
-import com.baomidou.mybatisplus.annotation.*;
+import com.baomidou.mybatisplus.annotation.FieldFill;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * 作业任务实体类
+ * 对应数据表：tasks
+ */
 @TableName("tasks")
 public class Task {
+
+    /**
+     * 主键ID
+     */
     @TableId(type = IdType.AUTO)
     private Long id;
+
+    /**
+     * 作业标题
+     */
     private String title;
+
+    /**
+     * 作业描述
+     */
     private String description;
+
+    /**
+     * 作业类型
+     */
     private String taskType;
+
+    /**
+     * 所属课程ID
+     */
     private Long courseId;
+
+    /**
+     * 创建人ID
+     */
     private Long creatorId;
+
+    /**
+     * 截止时间
+     */
     private LocalDateTime dueDate;
+
+    /**
+     * 满分分值
+     */
     private BigDecimal maxScore;
+
+    /**
+     * 状态
+     */
     private String status;
-    
+
+    /**
+     * 是否发布
+     */
     @TableField("is_published")
     private Boolean isPublished;
-    
+
+    /**
+     * 提交格式
+     */
     private String submissionFormat;
+
+    /**
+     * 作业要求
+     */
     private String requirements;
+
+    /**
+     * 附件地址
+     */
     private String attachmentUrl;
+
+    /**
+     * 开始时间
+     */
     private LocalDateTime startDate;
-    
+
+    /**
+     * 创建时间（自动填充）
+     */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
-    
+
+    /**
+     * 更新时间（自动填充）
+     */
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 
+    // ====================== Getter & Setter ======================
     public Long getId() {
         return id;
     }
@@ -104,7 +173,7 @@ public class Task {
         this.status = status;
     }
 
-    public Boolean isIsPublished() {
+    public Boolean getIsPublished() {
         return isPublished;
     }
 

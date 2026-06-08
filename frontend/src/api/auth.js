@@ -6,4 +6,6 @@ export const getCurrentUser = () => request.get('/auth/me')
 export const updateCurrentUser = data => request.put('/auth/me', data)
 export const changePassword = data => request.post('/auth/change-password', data)
 export const getPermissions = () => request.get('/auth/permissions')
-export default { login, register, logout, getCurrentUser, updateCurrentUser, changePassword, getPermissions }
+export const sendVerificationCode = data => request.post('/auth/send-code', data)
+export const resetPasswordByEmail = data => request.post('/auth/reset-password-by-email', data)
+export default { login, register, logout, getCurrentUser, updateCurrentUser, changePassword, getPermissions, sendVerificationCode, resetPasswordByEmail }

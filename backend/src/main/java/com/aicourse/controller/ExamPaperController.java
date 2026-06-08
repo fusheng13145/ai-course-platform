@@ -2,58 +2,101 @@ package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
-import com.aicourse.entity.*;
-import com.aicourse.service.*;
+import com.aicourse.entity.ExamPaper;
+import com.aicourse.entity.ExamQuestion;
+import com.aicourse.entity.Question;
+import com.aicourse.service.ExamPaperService;
+import com.aicourse.service.ExamQuestionService;
+import com.aicourse.service.ExamSessionService;
+import com.aicourse.service.QuestionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
-import java.time.LocalDateTime;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
+/**
+ * 试卷管理接口控制器
+ */
 @RestController
 @RequestMapping("/exam-papers")
 public class ExamPaperController {
+
     private final ExamPaperService examPaperService;
     private final ExamQuestionService examQuestionService;
     private final QuestionService questionService;
     private final ExamSessionService examSessionService;
 
-    public ExamPaperController(ExamPaperService examPaperService, ExamQuestionService examQuestionService,
-                               QuestionService questionService, ExamSessionService examSessionService) {
+    public ExamPaperController(ExamPaperService examPaperService,
+                               ExamQuestionService examQuestionService,
+                               QuestionService questionService,
+                               ExamSessionService examSessionService) {
         this.examPaperService = examPaperService;
         this.examQuestionService = examQuestionService;
         this.questionService = questionService;
         this.examSessionService = examSessionService;
     }
 
+    /**
+     * 分页查询试卷列表（支持课程筛选）
+     * @param page 当前页码
+     * @param size 每页条数
+     * @param courseId 课程ID
+     * @return 分页试卷数据
+     */
     @GetMapping
-    public ApiResponse<PagedResponse<ExamPaper>> listByParams(@RequestParam(defaultValue = "1") long page,
-                                                       @RequestParam(defaultValue = "10") long size,
-                                                       @RequestParam(required = false) Long courseId) {
-        LambdaQueryWrapper<ExamPaper> wrapper = new LambdaQueryWrapper<>();
+    public ApiResponse<PagedResponse<ExamPaper>> listByParams(
+            @RequestParam(defaultValue = "1") long page,
+            @RequestParam(defaultValue = "10") long size,
+            @RequestParam(required = false) Long courseId) {
+        LambdaQueryWrapper<ExamPaper> queryWrapper = new LambdaQueryWrapper<>();
         if (courseId != null) {
-            wrapper.eq(ExamPaper::getCourseId, courseId);
+            queryWrapper.eq(ExamPaper::getCourseId, courseId);
         }
-        return ApiResponse.success(PagedResponse.of(examPaperService.page(Page.of(page, size), wrapper)));
+        Page<ExamPaper> examPaperPage = examPaperService.page(Page.of(page, size), queryWrapper);
+        return ApiResponse.success(PagedResponse.of(examPaperPage));
     }
 
+    /**
+     * 根据课程ID分页查询试卷
+     * @param courseId 课程ID
+     * @param page 当前页码
+     * @param size 每页条数
+     * @return 分页试卷数据
+     */
     @GetMapping("/course/{courseId}")
-    public ApiResponse<PagedResponse<ExamPaper>> listByCourse(@PathVariable Long courseId,
-                                                       @RequestParam(defaultValue = "1") long page,
-                                                       @RequestParam(defaultValue = "10") long size) {
-        return ApiResponse.success(PagedResponse.of(examPaperService.page(Page.of(page, size),
-            new LambdaQueryWrapper<ExamPaper>().eq(ExamPaper::getCourseId, courseId))));
+    public ApiResponse<PagedResponse<ExamPaper>> listByCourse(
+            @PathVariable Long courseId,
+            @RequestParam(defaultValue = "1") long page,
+            @RequestParam(defaultValue = "10") long size) {
+        LambdaQueryWrapper<ExamPaper> queryWrapper = new LambdaQueryWrapper<ExamPaper>()
+                .eq(ExamPaper::getCourseId, courseId);
+        Page<ExamPaper> examPaperPage = examPaperService.page(Page.of(page, size), queryWrapper);
+        return ApiResponse.success(PagedResponse.of(examPaperPage));
     }
 
+    /**
+     * 根据ID查询试卷详情
+     * @param id 试卷ID
+     * @return 试卷信息
+     */
     @GetMapping("/{id}")
     public ApiResponse<ExamPaper> getById(@PathVariable Long id) {
-        return ApiResponse.success(examPaperService.getById(id));
+        ExamPaper examPaper = examPaperService.getById(id);
+        return ApiResponse.success(examPaper);
     }
 
+    /**
+     * 新增试卷（教师/管理员权限）
+     * @param exam 试卷信息
+     * @param auth 认证信息
+     * @return 新增试卷数据
+     */
     @PostMapping
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<ExamPaper> create(@RequestBody ExamPaper exam, Authentication auth) {
@@ -62,14 +105,26 @@ public class ExamPaperController {
         return ApiResponse.success("创建成功", exam);
     }
 
+    /**
+     * 修改试卷（教师/管理员权限）
+     * @param id 试卷ID
+     * @param exam 待更新试卷数据
+     * @return 更新后试卷信息
+     */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<ExamPaper> update(@PathVariable Long id, @RequestBody ExamPaper exam) {
         exam.setId(id);
         examPaperService.updateById(exam);
-        return ApiResponse.success("更新成功", examPaperService.getById(id));
+        ExamPaper updatedExam = examPaperService.getById(id);
+        return ApiResponse.success("更新成功", updatedExam);
     }
 
+    /**
+     * 删除试卷（教师/管理员权限）
+     * @param id 试卷ID
+     * @return 操作结果
+     */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<Void> delete(@PathVariable Long id) {
@@ -77,22 +132,34 @@ public class ExamPaperController {
         return ApiResponse.success("删除成功", null);
     }
 
+    /**
+     * 查询试卷关联的题目列表
+     * @param id 试卷ID
+     * @return 题目详情集合
+     */
     @GetMapping("/{id}/questions")
     public ApiResponse<List<Map<String, Object>>> getQuestions(@PathVariable Long id) {
-        List<ExamQuestion> eqs = examQuestionService.list(
-            new LambdaQueryWrapper<ExamQuestion>().eq(ExamQuestion::getExamPaperId, id));
-        List<Map<String, Object>> result = new ArrayList<>();
-        for (ExamQuestion eq : eqs) {
-            Question q = questionService.getById(eq.getQuestionId());
-            if (q != null) {
-                Map<String, Object> item = new HashMap<>();
-                item.put("id", eq.getId());
-                item.put("orderIndex", eq.getOrderIndex());
-                item.put("points", eq.getPoints());
-                item.put("question", q);
-                result.add(item);
+        LambdaQueryWrapper<ExamQuestion> queryWrapper = new LambdaQueryWrapper<ExamQuestion>()
+                .eq(ExamQuestion::getExamPaperId, id);
+        List<ExamQuestion> examQuestionList = examQuestionService.list(queryWrapper);
+        List<Map<String, Object>> resultList = new ArrayList<>();
+
+        for (ExamQuestion examQuestion : examQuestionList) {
+            Question question = questionService.getById(examQuestion.getQuestionId());
+            if (question == null) {
+                continue;
             }
+            Map<String, Object> item = new HashMap<>();
+            item.put("id", examQuestion.getId());
+            item.put("orderIndex", examQuestion.getOrderIndex());
+            item.put("points", examQuestion.getPoints());
+            item.put("question", question);
+            resultList.add(item);
         }
-        return ApiResponse.success(result);
+        return ApiResponse.success(resultList);
+    }
+
+    public ExamSessionService getExamSessionService() {
+        return examSessionService;
     }
 }

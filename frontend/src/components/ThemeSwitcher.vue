@@ -11,22 +11,46 @@
         <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
       </svg>
       <svg v-else class="theme-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>
+        <rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
       </svg>
     </div>
   </el-tooltip>
 </template>
+
 <script setup>
 import { computed } from 'vue'
 import { useTheme } from '@/composables/useTheme'
+
 const { theme, cycleTheme } = useTheme()
+
 const themeTooltip = computed(() => {
-  const map = { light: '切换暗色', dark: '跟随系统', system: '切换亮色' }
-  return `${theme.value === 'light' ? '亮色' : theme.value === 'dark' ? '暗色' : '跟随系统'}模式（点击${map[theme.value]}）`
+  const current = theme.value === 'light' ? '亮色' : theme.value === 'dark' ? '暗色' : '跟随系统'
+  const next = theme.value === 'light' ? '暗色' : theme.value === 'dark' ? '跟随系统' : '亮色'
+  return `${current}模式（点击切换${next}）`
 })
 </script>
+
 <style scoped>
-.theme-switcher { display:flex; align-items:center; justify-content:center; width:36px; height:36px; border-radius:10px; cursor:pointer; transition:all .25s; color:var(--el-text-color-secondary); }
-.theme-switcher:hover { background:var(--el-color-primary-light-9); color:var(--el-color-primary); transform:rotate(15deg); }
-.theme-icon { width:18px; height:18px; }
+.theme-switcher {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.25s;
+  color: var(--ac-text-secondary);
+}
+
+.theme-switcher:hover {
+  background: var(--ac-primary-bg);
+  color: var(--ac-primary);
+  transform: rotate(15deg);
+}
+
+.theme-icon {
+  width: 18px;
+  height: 18px;
+}
 </style>

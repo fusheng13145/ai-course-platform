@@ -1,7 +1,23 @@
-﻿spring:
+# ===================== AI智能课程平台后端 - 全局配置 =====================
+spring:
+  # 应用名称
   application:
     name: ai-course-platform
+  # ===================== 邮件配置（QQ邮箱） =====================
+  mail:
+    host: smtp.qq.com
+    port: 587
+    username: 3039613979@qq.com
+    password: dnhovhvfvudkdgbc # QQ邮箱授权码，非登录密码
+    properties:
+      mail:
+        smtp:
+          auth: true
+          starttls:
+            enable: true
+            required: true
 
+  # 数据库数据源 & Hikari连接池
   datasource:
     url: jdbc:mysql://localhost:3306/ai_course_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true
     driver-class-name: com.mysql.cj.jdbc.Driver
@@ -12,6 +28,7 @@
       minimum-idle: 5
       connection-timeout: 30000
 
+  # Redis 缓存配置
   data:
     redis:
       host: localhost
@@ -19,67 +36,82 @@
       database: 0
       timeout: 3000
 
-
+  # 数据库初始化脚本
   sql:
     init:
       mode: always
       continue-on-error: true
+
+  # Jackson 全局序列化：时区、日期格式、空值处理
   jackson:
     time-zone: Asia/Shanghai
     date-format: yyyy-MM-dd HH:mm:ss
     default-property-inclusion: non_null
 
+  # 文件上传大小限制
   servlet:
     multipart:
       max-file-size: 50MB
       max-request-size: 50MB
 
+# 服务端口 & 统一接口前缀
 server:
   port: 8080
   servlet:
     context-path: /api
 
+# ===================== MyBatis-Plus 配置 =====================
 mybatis-plus:
+  # Mapper XML文件路径
   mapper-locations: classpath*:mapper/**/*.xml
+  # 实体类别名包
   type-aliases-package: com.aicourse.entity
   configuration:
+    # 下划线转驼峰
     map-underscore-to-camel-case: true
+    # 开启SQL日志打印（开发环境使用，生产建议关闭）
     log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
   global-config:
     db-config:
       id-type: auto
+      # 逻辑删除配置
       logic-delete-field: deleted
       logic-delete-value: 1
       logic-not-delete-value: 0
 
+# ===================== JWT 认证配置 =====================
 jwt:
-  secret: 09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7   # [可选修改] JWT签名密钥，生产环境建议更换
+  # 【重要】生产环境必须替换为高强度随机密钥，禁止使用默认值
+  secret: 09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7
+  # Token 有效期：7天(毫秒)
   expiration: 604800000
+  # 会话缓存有效期：1天(毫秒)
   session-expiration: 86400000
 
+# 跨域允许域名白名单
 cors:
   allowed-origins:
     - http://localhost:5173
     - http://localhost:5174
+    - http://localhost:5175
     - http://127.0.0.1:5173
     - http://127.0.0.1:5174
+    - http://127.0.0.1:5175
 
+# ===================== DeepSeek AI 接口配置 =====================
 ai:
   deepseek:
-    api-key: ${DEEPSEEK_API_KEY:}   # [需配置] DeepSeek API密钥，留空时AI功能不可用
+    # 优先读取系统环境变量 DEEPSEEK_API_KEY，未配置则为空
+    api-key: ${DEEPSEEK_API_KEY:}
     base-url: https://api.deepseek.com/v1
     model: deepseek-chat
 
+# 本地文件上传路径与大小
 file:
   upload-dir: uploads/
   max-size: 52428800
 
-springdoc:
-  api-docs:
-    path: /api-docs
-  swagger-ui:
-    path: /swagger-ui.html
-
+# 日志级别
 logging:
   level:
     com.aicourse: DEBUG

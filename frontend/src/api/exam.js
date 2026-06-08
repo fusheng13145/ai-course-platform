@@ -9,4 +9,5 @@ export const startExam = examPaperId => request.post('/exam-sessions/start', { e
 export const submitExam = (sessionId, data) => request.post(`/exam-sessions/${sessionId}/submit`, data)
 export const getExamResult = sessionId => request.get(`/exam-sessions/${sessionId}/result`)
 export const getMyExamSession = examPaperId => request.get(`/exam-sessions/paper/${examPaperId}`)
-export default { getExamPaperList, getExamPaperById, createExamPaper, updateExamPaper, deleteExamPaper, getExamQuestions, startExam, submitExam, getExamResult, getMyExamSession }
+export const getMyExamSessions = () => request.get('/exam-sessions/my')
+export default { getExamPaperList, getExamPaperById, createExamPaper, updateExamPaper, deleteExamPaper, getExamQuestions, startExam, submitExam, getExamResult, getMyExamSession, getMyExamSessions }
