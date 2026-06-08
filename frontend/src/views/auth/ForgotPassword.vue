@@ -187,7 +187,7 @@ onUnmounted(() => {
 /* 左侧品牌区 */
 .brand-section {
   flex: 1;
-  background: var(--ac-gradient-primary);
+  background: linear-gradient(135deg, #7A8BA5 0%, #B89A8A 100%);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -258,6 +258,10 @@ onUnmounted(() => {
 .feature-item .el-icon {
   font-size: 20px;
 }
+
+.feature-item:nth-child(1) .el-icon { color: #7A8BA5; }
+.feature-item:nth-child(2) .el-icon { color: #B89A8A; }
+.feature-item:nth-child(3) .el-icon { color: #CBB58A; }
 
 /* 右侧表单区 */
 .form-section {

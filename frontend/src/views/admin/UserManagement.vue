@@ -1,5 +1,22 @@
 <template>
-  <div>
+  <div class="fade-in user-management">
+    <!-- 页面头部 -->
+    <div class="page-header">
+      <div class="header-left">
+        <h2 class="page-title">用户管理</h2>
+        <p class="page-desc">平台用户账户管理与权限控制</p>
+      </div>
+    </div>
+
+    <!-- 统计概览 -->
+    <div class="stats-row">
+      <div v-for="(stat, idx) in userStats" :key="idx" class="stat-mini-card" :class="stat.class">
+        <span class="label">{{ stat.label }}</span>
+        <span class="value">{{ stat.value }}</span>
+      </div>
+    </div>
+
+    <!-- 工具栏 -->
     <div class="table-toolbar">
       <div class="toolbar-left">
         <el-button type="primary" @click="showAdd = true"><el-icon><Plus /></el-icon>添加用户</el-button>
@@ -59,6 +76,14 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import userApi from '@/api/user'
 
+// 用户统计数据
+const userStats = ref([
+  { label: '总用户数', value: 0, class: '' },
+  { label: '管理员', value: 0, class: 'admin' },
+  { label: '教师', value: 0, class: 'teacher' },
+  { label: '学生', value: 0, class: 'student' }
+])
+
 const userList = ref([])
 const search = ref('')
 const showAdd = ref(false)
@@ -83,6 +108,12 @@ onMounted(async () => {
   try {
     const res = await userApi.getUserList()
     userList.value = res.data?.list || res.data || res || []
+
+    // 更新统计数据
+    userStats.value[0].value = userList.value.length
+    userStats.value[1].value = userList.value.filter(u => u.role === 'ADMIN').length
+    userStats.value[2].value = userList.value.filter(u => u.role === 'TEACHER').length
+    userStats.value[3].value = userList.value.filter(u => u.role === 'STUDENT').length
   } catch (e) {
     console.error('Failed to load users:', e)
   }
@@ -135,3 +166,80 @@ async function saveUser() {
   })
 }
 </script>
+
+<style scoped>
+.user-management {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+
+/* 页面头部 */
+.page-header {
+  margin-bottom: var(--ac-spacing-lg);
+}
+
+.page-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ac-text-primary);
+  letter-spacing: -0.3px;
+}
+
+.page-desc {
+  font-size: 13px;
+  color: var(--ac-text-muted);
+  margin-top: 4px;
+}
+
+/* 统计行 */
+.stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: var(--ac-spacing-md);
+  margin-bottom: var(--ac-spacing-lg);
+}
+
+.stat-mini-card {
+  background: var(--ac-bg-elevated);
+  border-radius: var(--ac-radius-md);
+  border: 1px solid var(--ac-border);
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all var(--ac-transition-normal);
+}
+
+.stat-mini-card:hover {
+  box-shadow: var(--ac-shadow-md);
+  transform: translateY(-2px);
+}
+
+.stat-mini-card .label {
+  font-size: 13px;
+  color: var(--ac-text-muted);
+  font-weight: 500;
+}
+
+.stat-mini-card .value {
+  font-size: 26px;
+  font-weight: 700;
+  color: var(--ac-text-primary);
+}
+
+.stat-mini-card.admin .value { color: var(--ac-danger); }
+.stat-mini-card.teacher .value { color: var(--ac-success); }
+.stat-mini-card.student .value { color: var(--ac-primary); }
+
+/* 响应式 */
+@media (max-width: 768px) {
+  .stats-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .table-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+}
+</style>

@@ -1,5 +1,5 @@
 <template>
-  <div class="content-card" style="max-width:800px;margin:0 auto">
+  <div class="fade-in content-card" style="max-width:800px;margin:0 auto">
     <h2 style="margin-bottom:24px">创建课程</h2>
     <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
       <el-form-item label="课程名称" prop="name"><el-input v-model="form.name" placeholder="输入课程名称" /></el-form-item>
