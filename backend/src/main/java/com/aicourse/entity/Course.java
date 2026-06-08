@@ -1,55 +1,152 @@
 package com.aicourse.entity;
 
-import com.baomidou.mybatisplus.annotation.*;
+import com.baomidou.mybatisplus.annotation.FieldFill;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * 课程实体类
+ * 对应数据表：courses
+ */
 @TableName("courses")
 public class Course {
+
+    /**
+     * 主键ID
+     */
     @TableId(type = IdType.AUTO)
     private Long id;
+
+    /**
+     * 课程名称
+     */
     private String name;
+
+    /**
+     * 课程编号
+     */
     private String code;
+
+    /**
+     * 课程描述
+     */
     private String description;
+
+    /**
+     * 学分
+     */
     private BigDecimal credits;
-    @TableField("teacher_id")
+
+    /**
+     * 授课教师ID
+     */
     private Long teacherId;
+
+    /**
+     * 学期
+     */
     private String semester;
+
+    /**
+     * 学年
+     */
     private Integer year;
+
+    /**
+     * 课程状态
+     */
     private String status;
-    @TableField("approval_status")
+
+    /**
+     * 审核状态
+     */
     private String approvalStatus;
-    @TableField("enrollment_type")
+
+    /**
+     * 选课类型
+     */
     private String enrollmentType;
-    @TableField("max_students")
+
+    /**
+     * 最大选课人数
+     */
     private Integer maxStudents;
-    
+
+    /**
+     * 是否启用
+     */
     @TableField("is_active")
     private Boolean isActive;
-    
+
+    /**
+     * 课程分类
+     */
     private String category;
+
+    /**
+     * 难度等级
+     */
     private String difficulty;
+
+    /**
+     * 课程价格
+     */
     private BigDecimal price;
+
+    /**
+     * 课程标签
+     */
     private String tags;
-    @TableField("start_date")
+
+    /**
+     * 开课时间
+     */
     private LocalDateTime startDate;
-    @TableField("end_date")
+
+    /**
+     * 结课时间
+     */
     private LocalDateTime endDate;
-    @TableField("cover_image")
+
+    /**
+     * 封面图片地址
+     */
     private String coverImage;
-    @TableField("approval_time")
+
+    /**
+     * 审核时间
+     */
     private LocalDateTime approvalTime;
-    @TableField("approved_by")
+
+    /**
+     * 审核人ID
+     */
     private Long approvedBy;
-    @TableField("approval_comment")
+
+    /**
+     * 审核意见
+     */
     private String approvalComment;
-    @TableField("syllabus_url")
+
+    /**
+     * 课程大纲链接
+     */
     private String syllabusUrl;
-    
+
+    /**
+     * 创建时间（自动填充）
+     */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
-    
+
+    /**
+     * 更新时间（自动填充）
+     */
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 
@@ -153,8 +250,8 @@ public class Course {
         return isActive;
     }
 
-    public void setIsActive(Boolean isActive) {
-        this.isActive = isActive;
+    public void setIsActive(Boolean active) {
+        isActive = active;
     }
 
     public String getCategory() {

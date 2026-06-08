@@ -7,4 +7,7 @@ export const deleteCourse = id => request.delete(`/courses/${id}`)
 export const approveCourse = id => request.post(`/courses/${id}/approve`)
 export const rejectCourse = (id, reason) => request.post(`/courses/${id}/reject`, { reason })
 export const toggleCourseStatus = id => request.patch(`/courses/${id}/toggle`)
-export default { getCourseList, getCourseById, createCourse, updateCourse, deleteCourse, approveCourse, rejectCourse, toggleCourseStatus }
+export const getMyCourses = params => request.get('/courses/my', { params })
+export const getEnrolledCourses = params => request.get('/courses/enrolled', { params })
+export const getStudents = (id, params) => request.get(`/courses/${id}/students`, { params })
+export default { getCourseList, getCourseById, createCourse, updateCourse, deleteCourse, approveCourse, rejectCourse, toggleCourseStatus, getMyCourses, getEnrolledCourses, getStudents }

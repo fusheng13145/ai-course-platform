@@ -1,55 +1,84 @@
 package com.aicourse.entity;
 
-import com.baomidou.mybatisplus.annotation.*;
+import com.baomidou.mybatisplus.annotation.FieldFill;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.time.LocalDateTime;
 
+/**
+ * 用户实体
+ * 表名：users
+ */
 @TableName("users")
 public class User {
+
     @TableId(type = IdType.AUTO)
     private Long id;
+
     private String email;
+
     private String username;
+
     private String password;
+
     private String fullName;
+
     private String role;
-    
+
+    /** 布尔is前缀，建议显式映射 */
     @TableField("is_active")
     private Boolean isActive;
-    
+
+    /** 布尔is前缀，建议显式映射 */
     @TableField("is_verified")
     private Boolean isVerified;
-    
+
     private String avatarUrl;
+
     private String phone;
+
     private String studentId;
+
     private String major;
+
     private String grade;
-    private String className;
+
     private Long classId;
+
     private String department;
+
     private String title;
+
     private String bio;
 
-    @TableField("teacher_id")
     private String teacherId;
 
-    @TableField("notification_settings")
     private String notificationSettings;
 
-    @TableField("failed_login_attempts")
     private Integer failedLoginAttempts;
-    
+
     private LocalDateTime lockedUntil;
+
     private String registerIp;
+
     private LocalDateTime lastLogin;
-    
+
+    /** 自动填充创建时间 */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
-    
+
+    /** 自动填充更新时间 */
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 
+    /** 非数据库字段 */
+    @TableField(exist = false)
+    private String className;
+
+    // ====================== Getter & Setter ======================
     public Long getId() {
         return id;
     }
@@ -154,14 +183,6 @@ public class User {
         this.grade = grade;
     }
 
-    public String getClassName() {
-        return className;
-    }
-
-    public void setClassName(String className) {
-        this.className = className;
-    }
-
     public Long getClassId() {
         return classId;
     }
@@ -256,5 +277,13 @@ public class User {
 
     public void setUpdatedAt(LocalDateTime updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getClassName() {
+        return className;
+    }
+
+    public void setClassName(String className) {
+        this.className = className;
     }
 }

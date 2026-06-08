@@ -14,37 +14,55 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+/**
+ * 权限服务实现类
+ * 提供用户权限、角色权限查询及菜单权限筛选功能
+ */
 @Service
 public class PermissionServiceImpl extends ServiceImpl<RolePermissionMapper, RolePermission> implements PermissionService {
+
     private final UserService userService;
 
     public PermissionServiceImpl(UserService userService) {
         this.userService = userService;
     }
 
+    /**
+     * 获取用户权限集合（按钮权限 + 菜单权限）
+     * @param userId 用户ID
+     * @return 权限与菜单标识集合
+     */
     @Override
     public Map<String, Object> getUserPermissions(Long userId) {
         User user = userService.getById(userId);
         if (user == null) {
-            Map<String, Object> empty = new HashMap<>();
-            empty.put("permissions", List.of());
-            empty.put("menus", List.of());
-            return empty;
+            Map<String, Object> emptyMap = new HashMap<>(2);
+            emptyMap.put("permissions", List.of());
+            emptyMap.put("menus", List.of());
+            return emptyMap;
         }
-        List<RolePermission> perms = getRolePermissions(user.getRole());
-        Map<String, Object> result = new HashMap<>();
-        result.put("permissions", perms);
-        result.put("menus", perms.stream()
-            .filter(p -> "MENU".equals(p.getPermissionType()))
-            .map(RolePermission::getPermissionKey)
-            .collect(Collectors.toList()));
+
+        List<RolePermission> rolePermissionList = getRolePermissions(user.getRole());
+        List<String> menuKeyList = rolePermissionList.stream()
+                .filter(perm -> "MENU".equals(perm.getPermissionType()))
+                .map(RolePermission::getPermissionKey)
+                .collect(Collectors.toList());
+
+        Map<String, Object> result = new HashMap<>(2);
+        result.put("permissions", rolePermissionList);
+        result.put("menus", menuKeyList);
         return result;
     }
 
+    /**
+     * 根据角色查询已启用的权限列表
+     * @param role 角色标识
+     * @return 权限集合
+     */
     @Override
     public List<RolePermission> getRolePermissions(String role) {
         return list(new LambdaQueryWrapper<RolePermission>()
-            .eq(RolePermission::getRole, role)
-            .eq(RolePermission::getIsActive, true));
+                .eq(RolePermission::getRole, role)
+                .eq(RolePermission::getIsActive, Boolean.TRUE));
     }
 }

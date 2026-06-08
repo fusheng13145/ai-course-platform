@@ -18,13 +18,38 @@
   </div>
 </template>
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import examApi from '@/api/exam'
+import { useRouter } from 'vue-router'
+
+const router = useRouter()
 const search = ref('')
-const examList = ref([
-  { id: 1, title: "Python期末考试", courseName: "Python编程入门", totalScore: 100, duration: 120, completed: false },
-  { id: 2, title: "机器学习期中", courseName: "机器学习基础", totalScore: 100, duration: 90, completed: true }
-])
-const filteredList = computed(() => search.value ? examList.value.filter(e => e.title.includes(search.value)) : examList.value)
-function startExam(exam) { ElMessage.info("开始考试：" + exam.title + "（功能开发中）") }
+const examList = ref([])
+
+const filteredList = computed(() => {
+  if (!search.value) return examList.value
+  return examList.value.filter(e => e.title?.includes(search.value))
+})
+
+onMounted(async () => {
+  try {
+    const res = await examApi.getExamPaperList()
+    examList.value = res.data?.list || res.data || res || []
+  } catch (e) {
+    console.error('Failed to load exams:', e)
+  }
+})
+
+async function startExam(exam) {
+  try {
+    const res = await examApi.startExam(exam.id)
+    const sessionId = res.data?.id || res?.id
+    if (sessionId) {
+      ElMessage.success('考试已开始')
+    }
+  } catch (e) {
+    ElMessage.info('开始考试：' + exam.title + '（功能开发中）')
+  }
+}
 </script>

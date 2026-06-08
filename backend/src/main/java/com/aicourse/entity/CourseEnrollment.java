@@ -1,47 +1,107 @@
 package com.aicourse.entity;
 
-import com.baomidou.mybatisplus.annotation.*;
+import com.baomidou.mybatisplus.annotation.FieldFill;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+/**
+ * 课程选课记录实体类
+ * 对应数据表：course_enrollments
+ */
 @TableName("course_enrollments")
 public class CourseEnrollment {
+
+    /**
+     * 主键ID
+     */
     @TableId(type = IdType.AUTO)
     private Long id;
-    @TableField("student_id")
+
+    /**
+     * 学生ID
+     */
     private Long studentId;
-    @TableField("course_id")
+
+    /**
+     * 课程ID
+     */
     private Long courseId;
-    @TableField("approval_status")
+
+    /**
+     * 选课审核状态
+     */
     private String approvalStatus;
-    
+
+    /**
+     * 是否有效
+     */
     @TableField("is_active")
     private Boolean isActive;
-    
-    @TableField("final_score")
+
+    /**
+     * 总成绩
+     */
     private BigDecimal finalScore;
-    @TableField("attendance_score")
+
+    /**
+     * 考勤成绩
+     */
     private BigDecimal attendanceScore;
-    @TableField("assignment_score")
+
+    /**
+     * 作业成绩
+     */
     private BigDecimal assignmentScore;
-    @TableField("exam_score")
+
+    /**
+     * 考试成绩
+     */
     private BigDecimal examScore;
+
+    /**
+     * 学习进度
+     */
     private BigDecimal progress;
-    @TableField("total_study_time")
+
+    /**
+     * 累计学习时长（单位：分钟）
+     */
     private Integer totalStudyTime;
-    @TableField("approval_time")
+
+    /**
+     * 审核时间
+     */
     private LocalDateTime approvalTime;
-    @TableField("approved_by")
+
+    /**
+     * 审核人ID
+     */
     private Long approvedBy;
-    @TableField("approval_comment")
+
+    /**
+     * 审核意见
+     */
     private String approvalComment;
-    @TableField("enrolled_at")
+
+    /**
+     * 选课时间
+     */
     private LocalDateTime enrolledAt;
-    
+
+    /**
+     * 创建时间（自动填充）
+     */
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
-    
+
+    /**
+     * 更新时间（自动填充）
+     */
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 
@@ -81,8 +141,8 @@ public class CourseEnrollment {
         return isActive;
     }
 
-    public void setIsActive(Boolean isActive) {
-        this.isActive = isActive;
+    public void setIsActive(Boolean active) {
+        isActive = active;
     }
 
     public BigDecimal getFinalScore() {

@@ -1,10 +1,22 @@
 <template>
   <div>
     <div class="stat-cards">
-      <div class="stat-card"><div class="stat-icon" style="background:#409eff"><el-icon :size="24"><User /></el-icon></div><div class="stat-info"><h3>{{ stats.userCount }}</h3><p>用户总数</p></div></div>
-      <div class="stat-card"><div class="stat-icon" style="background:#67c23a"><el-icon :size="24"><Reading /></el-icon></div><div class="stat-info"><h3>{{ stats.courseCount }}</h3><p>课程总数</p></div></div>
-      <div class="stat-card"><div class="stat-icon" style="background:#e6a23c"><el-icon :size="24"><Document /></el-icon></div><div class="stat-info"><h3>{{ stats.examCount }}</h3><p>考试总数</p></div></div>
-      <div class="stat-card"><div class="stat-icon" style="background:#f56c6c"><el-icon :size="24"><TrophyBase /></el-icon></div><div class="stat-info"><h3>{{ stats.submissionCount }}</h3><p>提交总数</p></div></div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:var(--ac-primary)"><el-icon :size="24"><User /></el-icon></div>
+        <div class="stat-info"><h3>{{ stats.userCount }}</h3><p>用户总数</p></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:var(--ac-success)"><el-icon :size="24"><Reading /></el-icon></div>
+        <div class="stat-info"><h3>{{ stats.courseCount }}</h3><p>课程总数</p></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:var(--ac-warning)"><el-icon :size="24"><Document /></el-icon></div>
+        <div class="stat-info"><h3>{{ stats.examCount }}</h3><p>考试总数</p></div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon" style="background:var(--ac-danger)"><el-icon :size="24"><TrophyBase /></el-icon></div>
+        <div class="stat-info"><h3>{{ stats.submissionCount }}</h3><p>提交总数</p></div>
+      </div>
     </div>
 
     <div class="dashboard-grid">
@@ -18,11 +30,12 @@
       </div>
       <div class="chart-card">
         <div class="chart-title">系统动态</div>
-        <div v-for="log in recentLogs" :key="log.id" style="padding:8px 0;border-bottom:1px solid #f0f0f0;font-size:13px;">
-          <el-tag size="small" :type="log.level === 'ERROR' ? 'danger' : 'info'" style="margin-right:8px">{{ log.level }}</el-tag>
-          <span style="color:#606266">{{ log.message }}</span>
-          <span style="color:#c0c4cc;float:right;font-size:12px">{{ log.time }}</span>
+        <div v-for="log in recentLogs" :key="log.id" class="log-item">
+          <el-tag size="small" :type="log.level === 'ERROR' ? 'danger' : 'info'" class="log-tag">{{ log.level }}</el-tag>
+          <span class="log-message">{{ log.message }}</span>
+          <span class="log-time">{{ log.time }}</span>
         </div>
+        <el-empty v-if="recentLogs.length === 0" description="暂无动态" />
       </div>
     </div>
   </div>
@@ -72,3 +85,67 @@ onMounted(async () => {
   }
 })
 </script>
+
+<style scoped>
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: var(--ac-spacing-md);
+}
+
+.chart-card {
+  padding: var(--ac-spacing-lg);
+  background: var(--ac-bg-elevated);
+  border-radius: var(--ac-radius-lg);
+  box-shadow: var(--ac-shadow-md);
+  border: 1px solid var(--ac-border);
+}
+
+.chart-card.full-width {
+  grid-column: 1 / -1;
+}
+
+.chart-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ac-text-primary);
+  margin-bottom: var(--ac-spacing-md);
+}
+
+.log-item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--ac-border);
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.log-item:last-child {
+  border-bottom: none;
+}
+
+.log-tag {
+  flex-shrink: 0;
+}
+
+.log-message {
+  flex: 1;
+  color: var(--ac-text-secondary);
+}
+
+.log-time {
+  color: var(--ac-text-muted);
+  font-size: 12px;
+}
+
+@media (max-width: 768px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .chart-card.full-width {
+    grid-column: 1;
+  }
+}
+</style>
