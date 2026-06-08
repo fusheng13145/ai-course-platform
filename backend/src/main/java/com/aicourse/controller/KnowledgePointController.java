@@ -9,6 +9,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.math.BigDecimal;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
@@ -169,5 +170,74 @@ public class KnowledgePointController {
         dataMap.put("totalPoints", pointList.size());
         dataMap.put("totalRelations", relationList.size());
         return ApiResponse.success(dataMap);
+    }
+
+    // ==================== 知识图谱体系增强API ====================
+
+    /**
+     * 获取课程的完整知识树（层级结构）
+     * @param courseId 课程ID
+     * @return 树形结构知识点数据
+     */
+    @GetMapping("/tree/{courseId}")
+    public ApiResponse<List<Map<String, Object>>> getKnowledgeTree(@PathVariable Long courseId) {
+        List<Map<String, Object>> tree = knowledgePointService.getKnowledgeTree(courseId);
+        return ApiResponse.success(tree);
+    }
+
+    /**
+     * 获取某知识点的直接子节点
+     * @param id 父知识点ID
+     * @return 子节点列表
+     */
+    @GetMapping("/{id}/children")
+    public ApiResponse<List<KnowledgePoint>> getChildPoints(@PathVariable Long id) {
+        List<KnowledgePoint> children = knowledgePointService.getChildPoints(id);
+        return ApiResponse.success(children);
+    }
+
+    /**
+     * 获取知识点的前置依赖
+     * @param id 知识点ID
+     * @return 前置依赖知识点列表
+     */
+    @GetMapping("/{id}/prerequisites")
+    public ApiResponse<List<KnowledgePoint>> getPrerequisites(@PathVariable Long id) {
+        List<KnowledgePoint> prerequisites = knowledgePointService.getPrerequisites(id);
+        return ApiResponse.success(prerequisites);
+    }
+
+    /**
+     * 获取知识点的后续知识点（被谁依赖）
+     * @param id 知识点ID
+     * @return 后续知识点列表
+     */
+    @GetMapping("/{id}/subsequent")
+    public ApiResponse<List<KnowledgePoint>> getSubsequentPoints(@PathVariable Long id) {
+        List<KnowledgePoint> subsequent = knowledgePointService.getSubsequentPoints(id);
+        return ApiResponse.success(subsequent);
+    }
+
+    /**
+     * 计算学生对某知识点的掌握度
+     * @param id 知识点ID
+     * @param userId 学生ID
+     * @return 掌握度百分比
+     */
+    @GetMapping("/{id}/mastery/{userId}")
+    public ApiResponse<BigDecimal> calculateMastery(@PathVariable Long id, @PathVariable Long userId) {
+        BigDecimal mastery = knowledgePointService.calculateMastery(id, userId);
+        return ApiResponse.success(mastery);
+    }
+
+    /**
+     * 获取课程的根级知识点
+     * @param courseId 课程ID
+     * @return 根级知识点列表
+     */
+    @GetMapping("/root/{courseId}")
+    public ApiResponse<List<KnowledgePoint>> getRootPoints(@PathVariable Long courseId) {
+        List<KnowledgePoint> rootPoints = knowledgePointService.getRootPoints(courseId);
+        return ApiResponse.success(rootPoints);
     }
 }
