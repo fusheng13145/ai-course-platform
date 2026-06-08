@@ -18,7 +18,7 @@
       </div>
     </div>
     <div class="content-card">
-      <el-table :data="filteredList" stripe style="width:100%" v-loading="loading">
+      <el-table :data="filteredList" style="width:100%" v-loading="loading">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="name" label="课程名称" min-width="160" />
         <el-table-column prop="category" label="分类" width="100"><template #default="{row}">{{ row.category || '未分类' }}</template></el-table-column>

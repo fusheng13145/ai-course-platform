@@ -1,74 +1,86 @@
+/* ============================================
+ * 莫兰迪色系主题 - Morandi Color Palette
+ * 特点：低饱和、暖调灰、高级感、不刺眼
+ * 适合：教育平台、长时间使用场景
+ * ============================================ */
+
 :root {
-  /* 主色调 - 优雅靛蓝 */
-  --ac-primary: #4F46E5;
-  --ac-primary-light: #6366F1;
-  --ac-primary-dark: #4338CA;
-  --ac-primary-bg: rgba(79, 70, 229, 0.08);
-  
-  /* 辅助色 - 青绿 */
-  --ac-secondary: #0EA5E9;
-  --ac-secondary-light: #38BDF8;
-  
-  /* 成功/警告/危险 */
-  --ac-success: #10B981;
-  --ac-warning: #F59E0B;
-  --ac-danger: #EF4444;
-  
-  /* 中性色 - 黑白系 */
-  --ac-text-primary: #000000;
-  --ac-text-secondary: #333333;
-  --ac-text-muted: #666666;
-  --ac-border: #E0E0E0;
-  --ac-bg: #F5F5F5;
-  --ac-bg-elevated: #FFFFFF;
-  
-  /* 渐变 */
-  --ac-gradient-primary: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  --ac-gradient-secondary: linear-gradient(135deg, #4F46E5 0%, #0EA5E9 100%);
-  --ac-gradient-sidebar: linear-gradient(180deg, #4F46E5 0%, #7C3AED 100%);
-  --ac-gradient-card: linear-gradient(135deg, rgba(79, 70, 229, 0.05) 0%, rgba(14, 165, 233, 0.05) 100%);
-  
-  /* 阴影 */
-  --ac-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
-  --ac-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
-  --ac-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -4px rgba(0, 0, 0, 0.1);
-  --ac-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
-  --ac-shadow-colored: 0 4px 14px 0 rgba(79, 70, 229, 0.25);
-  
-  /* 圆角 */
-  --ac-radius-sm: 6px;
-  --ac-radius-md: 10px;
+  /* ---- 主色调：莫兰迪蓝灰（沉稳知性）---- */
+  --ac-primary: #7A8BA5;
+  --ac-primary-light: #95A5BE;
+  --ac-primary-dark: #5E7089;
+  --ac-primary-bg: rgba(122, 139, 165, 0.10);
+
+  /* ---- 辅助色：莫兰迪陶土粉（温暖亲和）---- */
+  --ac-secondary: #B89A8A;
+  --ac-secondary-light: #D1B5A5;
+
+  /* ---- 功能色系（全部低饱和）---- */
+  --ac-success: #8BA888;       /* 鼠尾草绿 */
+  --ac-warning: #CBB58A;       /* 暖沙金 */
+  --ac-danger: #C48080;        /* 灰玫瑰红 */
+
+  /* ---- 中性色：暖调灰阶 ---- */
+  --ac-text-primary: #3D3835;   /* 深炭棕 */
+  --ac-text-secondary: #5E574F; /* 暖中灰 */
+  --ac-text-muted: #928B83;     /* 浅驼色 */
+  --ac-border: #E2DCD4;         /* 暖白边框 */
+  --ac-bg: #F5F1EC;             /* 米白底 */
+  --ac-bg-elevated: #FFFCF8;    /* 微暖白卡 */
+  --ac-bg-hover: #EBE5DD;       /* 悬停底 */
+
+  /* ---- 渐变（柔和过渡，无强烈对比）---- */
+  --ac-gradient-primary: linear-gradient(135deg, #7A8BA5 0%, #9B8AA5 100%);
+  --ac-gradient-secondary: linear-gradient(135deg, #B89A8A 0%, #8BA888 100%);
+  --ac-gradient-sidebar: linear-gradient(180deg, #7A8BA5 0%, #9B8AAA 50%, #B89A8A 100%);
+  --ac-gradient-card: linear-gradient(135deg, rgba(122,139,165,0.06) 0%, rgba(184,154,138,0.06) 100%);
+  --ac-gradient-warm: linear-gradient(135deg, rgba(184,154,138,0.08) 0%, rgba(203,181,138,0.08) 100%);
+
+  /* ---- 阴影（偏暖色调，柔和不生硬）---- */
+  --ac-shadow-sm: 0 1px 3px rgba(61, 56, 53, 0.06);
+  --ac-shadow-md: 0 4px 12px rgba(61, 56, 53, 0.08), 0 1px 3px rgba(61, 56, 53, 0.05);
+  --ac-shadow-lg: 0 8px 24px rgba(61, 56, 53, 0.10), 0 2px 6px rgba(61, 56, 53, 0.06);
+  --ac-shadow-xl: 0 16px 40px rgba(61, 56, 53, 0.12), 0 4px 12px rgba(61, 56, 53, 0.08);
+  --ac-shadow-colored: 0 4px 16px rgba(122, 139, 165, 0.20);
+
+  /* ---- 圆角（适度圆润，不过度）---- */
+  --ac-radius-sm: 8px;
+  --ac-radius-md: 12px;
   --ac-radius-lg: 16px;
   --ac-radius-xl: 20px;
-  
-  /* 间距 */
+
+  /* ---- 间距 ---- */
   --ac-spacing-xs: 4px;
   --ac-spacing-sm: 8px;
   --ac-spacing-md: 16px;
   --ac-spacing-lg: 24px;
   --ac-spacing-xl: 32px;
-  
-  /* 动画 */
-  --ac-transition-fast: 0.15s ease;
-  --ac-transition-normal: 0.25s ease;
-  --ac-transition-slow: 0.35s ease;
+
+  /* ---- 动画（舒缓节奏）---- */
+  --ac-transition-fast: 0.18s cubic-bezier(0.4, 0, 0.2, 1);
+  --ac-transition-normal: 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  --ac-transition-slow: 0.40s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-/* 暗色主题 */
+/* ============================================
+ * 暗色莫兰迪主题
+ * 保持低饱和，深色背景带微蓝调
+ * ============================================ */
 [data-theme="dark"] {
-  --ac-text-primary: #FFFFFF;
-  --ac-text-secondary: #E0E0E0;
-  --ac-text-muted: #A0A0A0;
-  --ac-border: #404040;
-  --ac-bg: #1A1A1A;
-  --ac-bg-elevated: #2D2D2D;
-  
-  --ac-primary-bg: rgba(79, 70, 229, 0.15);
-  
-  --ac-gradient-card: linear-gradient(135deg, rgba(79, 70, 229, 0.1) 0%, rgba(14, 165, 233, 0.1) 100%);
-  
-  --ac-shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.3);
-  --ac-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.4), 0 2px 4px -2px rgba(0, 0, 0, 0.4);
-  --ac-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.5), 0 4px 6px -4px rgba(0, 0, 0, 0.5);
-  --ac-shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.6), 0 8px 10px -6px rgba(0, 0, 0, 0.6);
+  --ac-text-primary: #EDEAE6;
+  --ac-text-secondary: #BFB9B2;
+  --ac-text-muted: #8A847D;
+  --ac-border: #3A3633;
+  --ac-bg: #1C1A18;
+  --ac-bg-elevated: #262320;
+  --ac-bg-hover: #302C29;
+
+  --ac-primary-bg: rgba(122, 139, 165, 0.15);
+
+  --ac-gradient-card: linear-gradient(135deg, rgba(122,139,165,0.08) 0%, rgba(184,154,138,0.08) 100%);
+
+  --ac-shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.25);
+  --ac-shadow-md: 0 4px 12px rgba(0, 0, 0, 0.35), 0 1px 3px rgba(0, 0, 0, 0.25);
+  --ac-shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.30);
+  --ac-shadow-xl: 0 16px 40px rgba(0, 0, 0, 0.55), 0 4px 12px rgba(0, 0, 0, 0.35);
 }
