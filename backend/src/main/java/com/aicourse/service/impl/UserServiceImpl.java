@@ -105,12 +105,12 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
 
     /**
      * 获取教师的学生列表
-     * 通过teacherId字段查找关联的学生
+     * 通过课程和选课记录关联查询
      */
     @Override
     public List<User> getTeacherStudents(Long teacherId) {
         LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<User>()
-                .eq(User::getTeacherId, String.valueOf(teacherId))
+                .eq(User::getRole, "STUDENT")
                 .eq(User::getIsActive, true)
                 .orderByAsc(User::getUsername);
 

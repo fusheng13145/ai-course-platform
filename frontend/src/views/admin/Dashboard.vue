@@ -1,4 +1,4 @@
-<template>
+﻿﻿﻿﻿<template>
   <div class="fade-in admin-dashboard">
     <!-- 统计卡片区域 -->
     <div class="stat-cards">
@@ -84,7 +84,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, markRaw } from 'vue'
 import {
   User,
   Reading,
@@ -100,6 +100,7 @@ import {
 } from '@element-plus/icons-vue'
 import analyticsApi from '@/api/analytics'
 import systemApi from '@/api/system'
+import loginLogApi from '@/api/loginLog'
 
 // 统计数据
 const stats = reactive({
@@ -114,31 +115,31 @@ const stats = reactive({
 // 统计卡片配置
 const statCards = ref([
   {
-    icon: User,
+    icon: markRaw(User),
     label: '用户总数',
     value: 0,
-    color: 'var(--ac-primary)',
+    color: '#7A8BA5',
     trend: 12.5
   },
   {
-    icon: Reading,
+    icon: markRaw(Reading),
     label: '课程总数',
     value: 0,
-    color: 'var(--ac-success)',
+    color: '#8BA888',
     trend: 8.2
   },
   {
-    icon: Document,
+    icon: markRaw(Document),
     label: '考试总数',
     value: 0,
-    color: 'var(--ac-warning)',
+    color: '#CBB58A',
     trend: -2.1
   },
   {
-    icon: TrophyBase,
+    icon: markRaw(TrophyBase),
     label: '提交总数',
     value: 0,
-    color: 'var(--ac-danger)',
+    color: '#C48080',
     trend: 15.6
   }
 ])
@@ -151,22 +152,22 @@ const trendOption = ref({
   tooltip: {
     trigger: 'axis',
     backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: 'var(--ac-border)',
-    textStyle: { color: 'var(--ac-text-primary)' }
+    borderColor: '#DDD6CE',
+    textStyle: { color: '#3D3835' }
   },
   grid: { left: 50, right: 20, bottom: 30, top: 20 },
   xAxis: {
     type: 'category',
     data: [],
-    axisLine: { lineStyle: { color: 'var(--ac-border)' } },
-    axisLabel: { color: 'var(--ac-text-muted)', fontSize: 12 }
+    axisLine: { lineStyle: { color: '#DDD6CE' } },
+    axisLabel: { color: '#928B83', fontSize: 12 }
   },
   yAxis: {
     type: 'value',
     axisLine: { show: false },
     axisTick: { show: false },
-    splitLine: { lineStyle: { color: 'var(--ac-border)', type: 'dashed' } },
-    axisLabel: { color: 'var(--ac-text-muted)' }
+    splitLine: { lineStyle: { color: '#DDD6CE', type: 'dashed' } },
+    axisLabel: { color: '#928B83' }
   },
   series: [
     {
@@ -175,7 +176,7 @@ const trendOption = ref({
       smooth: true,
       symbol: 'circle',
       symbolSize: 6,
-      lineStyle: { width: 2.5, color: 'var(--ac-primary)' },
+      lineStyle: { width: 2.5, color: '#7A8BA5' },
       areaStyle: {
         color: {
           type: 'linear',
@@ -186,7 +187,7 @@ const trendOption = ref({
           ]
         }
       },
-      itemStyle: { color: 'var(--ac-primary)' }
+      itemStyle: { color: '#7A8BA5' }
     }
   ]
 })
@@ -197,13 +198,13 @@ const pieOption = ref({
     trigger: 'item',
     formatter: '{b}: {c} ({d}%)',
     backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: 'var(--ac-border)'
+    borderColor: '#DDD6CE'
   },
   legend: {
     orient: 'vertical',
     right: 10,
     top: 'center',
-    textStyle: { color: 'var(--ac-text-secondary)', fontSize: 12 }
+    textStyle: { color: '#5E574F', fontSize: 12 }
   },
   series: [{
     type: 'pie',
@@ -221,7 +222,7 @@ const pieOption = ref({
     },
     data: []
   }],
-  color: ['var(--ac-primary)', 'var(--ac-secondary)', 'var(--ac-success)', 'var(--ac-warning)', 'var(--ac-danger)']
+  color: ['#7A8BA5', '#B89A8A', '#8BA888', '#CBB58A', '#C48080']
 })
 
 // 系统日志
@@ -229,12 +230,12 @@ const recentLogs = ref([])
 
 // 快捷操作列表
 const quickActions = [
-  { icon: Plus, label: '添加用户', path: '/admin/users', bg: 'rgba(122, 139, 165, 0.12)' },
-  { icon: Document, label: '考试管理', path: '/admin/exams', bg: 'rgba(139, 168, 136, 0.12)' },
-  { icon: Bell, label: '发送通知', path: '/admin/notifications', bg: 'rgba(184, 154, 138, 0.12)' },
-  { icon: Setting, label: '系统设置', path: '/admin/system', bg: 'rgba(203, 181, 138, 0.12)' },
-  { icon: DataLine, label: '数据分析', path: '/admin/analytics', bg: 'rgba(196, 128, 128, 0.12)' },
-  { icon: Monitor, label: '题库管理', path: '/admin/questions', bg: 'rgba(122, 139, 165, 0.08)' }
+  { icon: markRaw(Plus), label: '添加用户', path: '/admin/users', bg: 'rgba(122, 139, 165, 0.12)' },
+  { icon: markRaw(Document), label: '考试管理', path: '/admin/exams', bg: 'rgba(139, 168, 136, 0.12)' },
+  { icon: markRaw(Bell), label: '发送通知', path: '/admin/notifications', bg: 'rgba(184, 154, 138, 0.12)' },
+  { icon: markRaw(Setting), label: '系统设置', path: '/admin/system', bg: 'rgba(203, 181, 138, 0.12)' },
+  { icon: markRaw(DataLine), label: '数据分析', path: '/admin/analytics', bg: 'rgba(196, 128, 128, 0.12)' },
+  { icon: markRaw(Monitor), label: '题库管理', path: '/admin/questions', bg: 'rgba(122, 139, 165, 0.08)' }
 ]
 
 /**
@@ -246,55 +247,67 @@ async function fetchDashboardStats() {
     const data = res.data || res
 
     // 更新统计卡片数值
-    if (data.userCount !== undefined) {
-      statCards.value[0].value = formatNumber(data.userCount)
-      stats.userCount = data.userCount
-    }
-    if (data.courseCount !== undefined) {
-      statCards.value[1].value = formatNumber(data.courseCount)
-      stats.courseCount = data.courseCount
-    }
-    if (data.examCount !== undefined) {
-      statCards.value[2].value = formatNumber(data.examCount)
-      stats.examCount = data.examCount
-    }
-    if (data.submissionCount !== undefined) {
-      statCards.value[3].value = formatNumber(data.submissionCount)
-      stats.submissionCount = data.submissionCount
-    }
+    statCards.value[0].value = formatNumber(data.userCount ?? data.totalUsers ?? 0)
+    stats.userCount = data.userCount ?? data.totalUsers ?? 0
+
+    statCards.value[1].value = formatNumber(data.courseCount ?? data.totalCourses ?? 0)
+    stats.courseCount = data.courseCount ?? data.totalCourses ?? 0
+
+    statCards.value[2].value = formatNumber(data.examCount ?? data.totalExams ?? 0)
+    stats.examCount = data.examCount ?? data.totalExams ?? 0
+
+    statCards.value[3].value = formatNumber(data.submissionCount ?? 0)
+    stats.submissionCount = data.submissionCount ?? 0
 
     // 更新课程分布饼图
-    if (data.categoryDistribution) {
+    if (data.categoryDistribution && Object.keys(data.categoryDistribution).length > 0) {
       pieOption.value.series[0].data = Object.entries(data.categoryDistribution).map(([name, value]) => ({
         name,
-        value
+        value: Number(value) || 0
       }))
+    } else {
+      pieOption.value.series[0].data = []
     }
   } catch (error) {
     console.warn('加载仪表盘数据失败，使用默认值:', error)
-    // 使用模拟数据作为后备
     setMockData()
   }
 }
 
 /**
- * 获取趋势数据
+ * 获取趋势数据（增强：优先使用登录日志趋势 API）
  */
 async function fetchTrendData() {
   try {
-    const res = await analyticsApi.getTrendData({ days: trendRange.value })
+    const days = parseInt(trendRange.value) || 7
+    // 优先从登录日志 API 获取用户增长趋势
+    const res = await loginLogApi.getTrends({ days })
     const data = res.data || res
 
     if (Array.isArray(data)) {
-      trendOption.value.xAxis.data = data.map(item => item.date || item.label)
-      trendOption.value.series[0].data = data.map(item => item.count || item.value)
+      trendOption.value.xAxis.data = data.map(item => item.date || item.label || item.day)
+      trendOption.value.series[0].data = data.map(item => item.count || item.userCount || item.value || 0)
     } else if (data.dates && data.values) {
       trendOption.value.xAxis.data = data.dates
       trendOption.value.series[0].data = data.values
+    } else if (data.list && Array.isArray(data.list)) {
+      trendOption.value.xAxis.data = data.list.map(item => item.date || item.label)
+      trendOption.value.series[0].data = data.list.map(item => item.count || item.value || 0)
     }
   } catch (error) {
-    console.warn('加载趋势数据失败:', error)
-    setMockTrendData()
+    // 登录日志 API 不可用时，回退到 analytics API
+    try {
+      const res = await analyticsApi.getTrendData({ days: parseInt(trendRange.value) || 7 })
+      const data = res.data || res
+      if (Array.isArray(data)) {
+        trendOption.value.xAxis.data = data.map(item => item.date || item.label)
+        trendOption.value.series[0].data = data.map(item => item.count || item.value || 0)
+      }
+    } catch (e2) {
+      console.warn('加载趋势数据失败（所有源均不可用）:', e2)
+      trendOption.value.xAxis.data = []
+      trendOption.value.series[0].data = []
+    }
   }
 }
 
@@ -359,37 +372,15 @@ function getLogType(level) {
 }
 
 /**
- * 设置模拟数据（API失败时的后备）
+ * 设置空数据（API失败时的后备，不再使用硬编码模拟数据）
  */
 function setMockData() {
-  statCards.value[0].value = '1,256'
-  statCards.value[1].value = '86'
-  statCards.value[2].value = '142'
-  statCards.value[3].value = '3,847'
+  statCards.value[0].value = '0'
+  statCards.value[1].value = '0'
+  statCards.value[2].value = '0'
+  statCards.value[3].value = '0'
 
-  pieOption.value.series[0].data = [
-    { name: '编程开发', value: 28 },
-    { name: '人工智能', value: 22 },
-    { name: '数据分析', value: 18 },
-    { name: '设计创意', value: 13 },
-    { name: '其他', value: 9 }
-  ]
-}
-
-function setMockTrendData() {
-  const days = parseInt(trendRange.value)
-  const dates = []
-  const values = []
-
-  for (let i = days - 1; i >= 0; i--) {
-    const date = new Date()
-    date.setDate(date.getDate() - i)
-    dates.push(date.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }))
-    values.push(Math.floor(Math.random() * 100) + 50)
-  }
-
-  trendOption.value.xAxis.data = dates
-  trendOption.value.series[0].data = values
+  pieOption.value.series[0].data = []
 }
 
 // 页面加载时获取数据

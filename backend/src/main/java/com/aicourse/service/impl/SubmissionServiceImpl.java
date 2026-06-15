@@ -11,7 +11,6 @@ import com.aicourse.service.SubmissionService;
 import com.aicourse.service.TaskService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -20,8 +19,9 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
-import java.util.stream.Collectors;
+import java.util.Map;
 
 @Service
 public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submission> implements SubmissionService {
@@ -30,7 +30,6 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
     private final PlagiarismCheckService plagiarismCheckService;
     private final AIService aiService;
 
-    @Autowired
     public SubmissionServiceImpl(@Lazy TaskService taskService,
                                   PlagiarismCheckService plagiarismCheckService,
                                   AIService aiService) {
@@ -161,7 +160,7 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
     }
 
     /**
-     * 退回作业
+     * 退回作业（记录退回原因到feedback字段）
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -175,8 +174,15 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
         }
 
         submission.setStatus("RETURNED");
-        submission.setFeedback(reason);
+        // 将退回原因写入feedback字段作为returnReason
+        String returnReason = reason != null ? reason : "未填写退回原因";
+        submission.setFeedback(returnReason);
         submission.setReturnedAt(LocalDateTime.now());
+        // 在submissionData中记录退回元数据
+        String existingData = submission.getSubmissionData() != null ? submission.getSubmissionData() : "{}";
+        String updatedData = updateJsonField(existingData, "returnReason", returnReason);
+        updatedData = updateJsonField(updatedData, "returnedAt", LocalDateTime.now().toString());
+        submission.setSubmissionData(updatedData);
         this.updateById(submission);
 
         return submission;
@@ -216,6 +222,14 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
                     .setScale(2, RoundingMode.HALF_UP);
             submission.setPercentage(percentage);
         }
+
+        // 在submissionData中记录批阅次数（reviewCount）
+        String existingData = submission.getSubmissionData() != null ? submission.getSubmissionData() : "{}";
+        int currentReviewCount = extractIntFromJson(existingData, "reviewCount");
+        String updatedData = updateJsonField(existingData, "reviewCount", String.valueOf(currentReviewCount + 1));
+        updatedData = updateJsonField(updatedData, "lastReviewAt", LocalDateTime.now().toString());
+        updatedData = updateJsonField(updatedData, "lastGraderId", String.valueOf(graderId));
+        submission.setSubmissionData(updatedData);
 
         this.updateById(submission);
         return submission;
@@ -390,5 +404,185 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
                 .orderByDesc(Submission::getCreatedAt)
                 .last("LIMIT 1");
         return this.getOne(wrapper);
+    }
+
+    /**
+     * 获取提交的查重摘要信息
+     * 查询该提交关联的所有查重记录，汇总相似度、详情等
+     */
+    @Override
+    public Map<String, Object> getPlagiarismSummary(Long submissionId) {
+        Submission submission = this.getById(submissionId);
+        if (submission == null) {
+            throw new BusinessException("提交记录不存在");
+        }
+
+        Map<String, Object> summary = new HashMap<>();
+        summary.put("submissionId", submissionId);
+
+        // 查询该提交的所有查重记录
+        List<PlagiarismCheck> checks = plagiarismCheckService.list(
+                new LambdaQueryWrapper<PlagiarismCheck>()
+                        .eq(PlagiarismCheck::getSubmissionId, submissionId)
+                        .orderByDesc(PlagiarismCheck::getCreatedAt)
+        );
+
+        if (checks.isEmpty()) {
+            summary.put("hasCheck", false);
+            summary.put("message", "暂无查重记录");
+            return summary;
+        }
+
+        // 取最新一次查重结果
+        PlagiarismCheck latestCheck = checks.get(0);
+        summary.put("hasCheck", true);
+        summary.put("latestCheckId", latestCheck.getId());
+        summary.put("similarityScore", latestCheck.getSimilarityScore());
+        summary.put("status", latestCheck.getStatus());
+        summary.put("resultSummary", latestCheck.getResultSummary());
+        summary.put("checkedAt", latestCheck.getCheckedAt());
+        summary.put("highSimilarityCount", latestCheck.getHighSimilarityCount());
+
+        // 风险等级判定
+        String riskLevel;
+        if (latestCheck.getSimilarityScore() != null) {
+            double score = latestCheck.getSimilarityScore().doubleValue();
+            if (score >= 0.7) riskLevel = "HIGH_RISK";
+            else if (score >= 0.4) riskLevel = "MEDIUM_RISK";
+            else if (score >= 0.2) riskLevel = "LOW_RISK";
+            else riskLevel = "SAFE";
+        } else {
+            riskLevel = "UNKNOWN";
+        }
+        summary.put("riskLevel", riskLevel);
+
+        // 查重历史次数
+        summary.put("totalCheckCount", checks.size());
+
+        // 将查重详情（checkDetail）写入摘要
+        if (latestCheck.getCheckDetail() != null && !latestCheck.getCheckDetail().isEmpty()) {
+            summary.put("checkDetail", latestCheck.getCheckDetail());
+        }
+
+        return summary;
+    }
+
+    /**
+     * 获取提交完整详细信息（含批阅次数、查重、逾期等扩展数据）
+     */
+    @Override
+    public Map<String, Object> getSubmissionDetail(Long submissionId) {
+        Submission submission = this.getById(submissionId);
+        if (submission == null) {
+            throw new BusinessException("提交记录不存在");
+        }
+
+        Map<String, Object> detail = new HashMap<>();
+        detail.put("id", submission.getId());
+        detail.put("taskId", submission.getTaskId());
+        detail.put("studentId", submission.getStudentId());
+        detail.put("status", submission.getStatus());
+        detail.put("score", submission.getScore());
+        detail.put("maxScore", submission.getMaxScore());
+        detail.put("percentage", submission.getPercentage());
+        detail.put("feedback", submission.getFeedback());
+        detail.put("aiFeedback", submission.getAiFeedback());
+        detail.put("submittedAt", submission.getSubmittedAt());
+        detail.put("gradedAt", submission.getGradedAt());
+        detail.put("isLate", submission.getIsLate());
+        detail.put("latePenalty", submission.getLatePenalty());
+        detail.put("attemptNumber", submission.getAttemptNumber());
+
+        // 从submissionData中解析扩展数据
+        if (submission.getSubmissionData() != null && !submission.getSubmissionData().isEmpty()) {
+            int reviewCount = extractIntFromJson(submission.getSubmissionData(), "reviewCount");
+            detail.put("reviewCount", reviewCount);
+            String returnReason = extractStringFromJson(submission.getSubmissionData(), "returnReason");
+            if (returnReason != null && !returnReason.isEmpty()) {
+                detail.put("returnReason", returnReason);
+            }
+        } else {
+            detail.put("reviewCount", 0);
+        }
+
+        // 附加查重摘要
+        try {
+            Map<String, Object> plagiarismSummary = getPlagiarismSummary(submissionId);
+            detail.put("plagiarismInfo", plagiarismSummary);
+        } catch (Exception e) {
+            // 查重信息获取失败不影响主流程
+        }
+
+        return detail;
+    }
+
+    // ==================== 私有JSON辅助方法 ====================
+
+    /**
+     * 简单更新JSON字符串中的字段值
+     */
+    private String updateJsonField(String json, String fieldKey, String fieldValue) {
+        if (json == null || json.isEmpty()) json = "{}";
+        String content = json.trim();
+        if (!content.startsWith("{")) content = "{" + content;
+        if (!content.endsWith("}")) content = content + "}";
+        // 如果字段已存在则替换，否则追加
+        String searchStr = "\"" + fieldKey + "\":";
+        if (content.contains(searchStr)) {
+            // 简单替换：找到字段后的值部分进行替换
+            int keyStart = content.indexOf(searchStr);
+            int colonPos = keyStart + searchStr.length();
+            // 找到下一个逗号或结尾符来确定值的范围
+            int valueEnd = content.indexOf(",", colonPos);
+            if (valueEnd < 0) valueEnd = content.lastIndexOf("}");
+            return content.substring(0, colonPos) + "\"" + fieldValue + "\"" + content.substring(valueEnd);
+        } else {
+            // 追加新字段：替换最后一个 } 为新字段+}
+            int lastBrace = content.lastIndexOf("}");
+            return content.substring(0, lastBrace) + ",\"" + fieldKey + "\":\"" + fieldValue + "\"}";
+        }
+    }
+
+    /**
+     * 从简单JSON中提取整数值
+     */
+    private int extractIntFromJson(String json, String fieldKey) {
+        if (json == null || json.isEmpty()) return 0;
+        try {
+            String searchStr = "\"" + fieldKey + "\":";
+            int keyStart = json.indexOf(searchStr);
+            if (keyStart < 0) return 0;
+            int valueStart = keyStart + searchStr.length();
+            StringBuilder valueSb = new StringBuilder();
+            for (int i = valueStart; i < json.length(); i++) {
+                char c = json.charAt(i);
+                if (Character.isDigit(c)) {
+                    valueSb.append(c);
+                } else if (valueSb.length() > 0) {
+                    break;
+                }
+            }
+            return valueSb.length() > 0 ? Integer.parseInt(valueSb.toString()) : 0;
+        } catch (Exception e) {
+            return 0;
+        }
+    }
+
+    /**
+     * 从简单JSON中提取字符串值
+     */
+    private String extractStringFromJson(String json, String fieldKey) {
+        if (json == null || json.isEmpty()) return null;
+        try {
+            String searchStr = "\"" + fieldKey + "\":\"";
+            int keyStart = json.indexOf(searchStr);
+            if (keyStart < 0) return null;
+            int valueStart = keyStart + searchStr.length();
+            int valueEnd = json.indexOf("\"", valueStart);
+            if (valueEnd < 0) return null;
+            return json.substring(valueStart, valueEnd);
+        } catch (Exception e) {
+            return null;
+        }
     }
 }

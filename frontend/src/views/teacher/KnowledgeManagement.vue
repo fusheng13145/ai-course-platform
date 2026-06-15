@@ -186,6 +186,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search, Plus, Delete } from '@element-plus/icons-vue'
 import knowledgeApi from '@/api/knowledge'
 import courseApi from '@/api/course'
+import knowledgeRelationApi from '@/api/knowledgePointRelation'
 
 // 课程选择
 const selectedCourseId = ref(null)
@@ -281,15 +282,15 @@ async function loadAllData() {
   await Promise.all([loadKnowledgeTree(), loadKnowledgeList(), loadKnowledgeGraph()])
 }
 
-// 加载知识树
+// 加载知识树（增强：优先使用 getTree API）
 async function loadKnowledgeTree() {
   treeLoading.value = true
   try {
-    const res = await request.get(`/knowledge-points/tree/${selectedCourseId.value}`)
+    const res = await knowledgeApi.getTree(selectedCourseId.value)
     const data = res.data?.data || res.data || res || []
-    knowledgeTree.value = Array.isArray(data) ? data : [data].filter(Boolean)
+    knowledgeTree.value = Array.isArray(data) ? data : (data ? [data] : [])
   } catch (e) {
-    // 如果 tree 接口不存在，从列表构建树
+    // getTree 接口不可用时回退到从列表构建
     try {
       const res = await knowledgeApi.getKnowledgePoints(selectedCourseId.value)
       const list = res.data?.list || res.data || res || []
@@ -321,14 +322,15 @@ async function loadKnowledgeList() {
   }
 }
 
-// 加载知识图谱数据
+// 加载知识图谱数据（增强：使用 knowledgeRelationApi.getGraphData）
 async function loadKnowledgeGraph() {
   try {
-    const res = await knowledgeApi.getKnowledgeGraph(selectedCourseId.value)
-    updateForceGraph(res.data?.nodes || [], res.data?.links || [])
+    const res = await knowledgeRelationApi.getGraphData(selectedCourseId.value)
+    const data = res.data || res || {}
+    updateForceGraph(data.nodes || [], data.links || data.edges || [])
   } catch (e) {
     console.error('加载图谱数据失败:', e)
-    // 使用列表数据生成默认图谱
+    // 使用知识点列表生成默认图谱
     updateForceGraph(
       knowledgeList.value.map(k => ({ id: k.id, name: k.name, difficulty: k.difficulty, importance: k.importance })),
       []
@@ -444,15 +446,15 @@ async function handleDelete(row) {
   }
 }
 
-// 打开关联关系对话框
+// 打开关联关系对话框（增强：使用 knowledgeApi.getPrerequisites）
 async function openRelationDialog(row) {
   currentKpForRelation.value = row
   newPrereqId.value = null
   relationDialogVisible.value = true
 
-  // 加载前置依赖
+  // 加载前置依赖（使用 API 方法）
   try {
-    const res = await request.get(`/knowledge-points/${row.id}/prerequisites`)
+    const res = await knowledgeApi.getPrerequisites(row.id)
     const data = res.data?.data || res.data || res || []
     prerequisitesList.value = Array.isArray(data) ? data : []
   } catch (e) {
@@ -477,11 +479,10 @@ async function addPrerequisite() {
   }
 }
 
-// 移除前置依赖
+// 移除前置依赖（增强：使用 knowledgeRelationApi）
 async function removePrerequisite(prereqId) {
   try {
-    // 调用删除关联API
-    await request.delete(`/knowledge-relations/${currentKpForRelation.value.id}/${prereqId}`)
+    await knowledgeRelationApi.delete(prereqId)
     ElMessage.success('移除关联成功')
     await openRelationDialog(currentKpForRelation.value)
     await loadKnowledgeGraph()
@@ -633,10 +634,6 @@ function getDifficultyLabel(difficulty) {
   const map = { EASY: '简单', MEDIUM: '中等', HARD: '困难' }
   return map[difficulty] || '-'
 }
-</script>
-
-<script>
-import request from '@/api/request'
 </script>
 
 <style scoped>

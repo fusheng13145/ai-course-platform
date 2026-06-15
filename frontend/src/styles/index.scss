@@ -497,3 +497,187 @@ html, body, #app {
   /* Descriptions 暗色 */
   .el-descriptions__label { background: var(--ac-bg) !important; }
 }
+
+/* ============================================
+ * 移动端响应式适配 (≤1024px 平板, ≤768px 手机)
+ * ============================================ */
+
+/* 平板适配 (768px - 1024px) */
+@media screen and (max-width: 1024px) {
+  .sidebar {
+    width: 200px;
+  }
+
+  .stat-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+
+  .content {
+    padding: var(--ac-spacing-md);
+  }
+
+  /* 表格横向滚动 */
+  .el-table { font-size: 13px; }
+  .content-card { padding: var(--ac-spacing-md); }
+}
+
+/* 手机适配 (≤768px) */
+@media screen and (max-width: 768px) {
+  .sidebar {
+    position: fixed;
+    left: -250px;
+    top: 0;
+    bottom: 0;
+    z-index: 1000;
+    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+
+    &.is-open {
+      left: 0;
+      box-shadow: 4px 0 20px rgba(0,0,0,0.15);
+    }
+  }
+
+  .main-area {
+    width: 100%;
+  }
+
+  .header {
+    padding: 0 var(--ac-spacing-md);
+    height: 56px;
+  }
+
+  .content {
+    padding: var(--ac-spacing-sm);
+  }
+
+  /* 统计卡片单列 */
+  .stat-cards {
+    grid-template-columns: 1fr;
+    gap: var(--ac-spacing-sm);
+  }
+
+  .stat-card {
+    padding: 16px;
+  }
+
+  .stat-card .stat-icon {
+    width: 40px;
+    height: 40px;
+    font-size: 18px;
+  }
+
+  .stat-card .stat-info h3 {
+    font-size: 22px;
+  }
+
+  /* 表格工具栏竖排 */
+  .table-toolbar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: var(--ac-spacing-sm);
+  }
+
+  .table-toolbar .toolbar-left,
+  .table-toolbar .toolbar-right {
+    justify-content: space-between;
+  }
+
+  /* 搜索表单 */
+  .search-form {
+    flex-direction: column;
+  }
+
+  .search-form .el-input,
+  .search-form .el-select {
+    width: 100% !important;
+  }
+
+  /* 内容卡片 */
+  .content-card {
+    padding: var(--ac-spacing-md);
+    border-radius: var(--ac-radius-md);
+  }
+
+  /* el-dialog 全屏化 */
+  .el-dialog {
+    width: 95% !important;
+    margin: 10px auto !important;
+    border-radius: var(--ac-radius-lg);
+  }
+
+  /* 表格横向滚动容器 */
+  .table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+
+    .el-table {
+      min-width: 600px;
+    }
+  }
+
+  /* el-row 在手机上单列 */
+  .el-row {
+    flex-direction: column;
+  }
+
+  .el-col {
+    max-width: 100% !important;
+    flex: 0 0 100% !important;
+  }
+
+  /* 图表区域 */
+  .chart-container {
+    height: 250px !important;
+  }
+
+  /* 分页居中 */
+  .el-pagination {
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  /* 对话框表单单列 */
+  .el-dialog .el-form-item {
+    margin-bottom: 16px;
+  }
+
+  /* 头部标题缩小 */
+  .header .page-title {
+    font-size: 15px;
+  }
+
+  /* 日历组件 */
+  .el-calendar {
+    .el-calendar-table {
+      td {
+        padding: 2px 0;
+      }
+    }
+  }
+}
+
+/* 超小屏 (≤480px) */
+@media screen and (max-width: 480px) {
+  .header .page-title {
+    font-size: 14px;
+  }
+
+  .stat-card {
+    padding: 12px;
+    flex-direction: column;
+    text-align: center;
+    gap: 8px;
+  }
+
+  .el-button {
+    padding: 8px 12px;
+    font-size: 13px;
+  }
+}
+
+/* 自动给直接子元素是 el-table 的容器加滚动（替代逐页面包裹） */
+.el-card:has(> .el-table),
+.content-card:has(> .el-table) {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}

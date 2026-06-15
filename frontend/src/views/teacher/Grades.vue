@@ -179,6 +179,7 @@ import { Search, Download, TrendCharts, Top, Bottom, EditPen } from '@element-pl
 import submissionApi from '@/api/submission'
 import examApi from '@/api/exam'
 import courseApi from '@/api/course'
+import taskApi from '@/api/task'
 
 const loading = ref(false)
 const searchText = ref('')
@@ -241,18 +242,24 @@ async function loadCourseOptions() {
   }
 }
 
-// 加载成绩数据
+// 加载成绩数据（增强：多源聚合 + 待批改 API）
 async function loadGradeData() {
   loading.value = true
   try {
     const params = {}
     if (selectedCourseId.value) params.courseId = selectedCourseId.value
 
-    // 加载总览统计（从 analytics 获取）
-    const [statsRes] = await Promise.allSettled([
-      import('@/api/analytics').then(m => m.default.getDashboardStats(params))
+    const teacherId = undefined // auth.userId (如 store 中有)
+
+    // 并行加载：统计 + 考试会话 + 作业提交 + 待批改任务列表
+    const [statsRes, sessionRes, submitRes, pendingRes] = await Promise.allSettled([
+      import('@/api/analytics').then(m => m.default.getDashboardStats(params)),
+      examApi.getMyExamSessions(),
+      submissionApi.getMySubmissions({ role: 'teacher', courseId: selectedCourseId.value }),
+      taskApi.getPendingGrading(teacherId)
     ])
 
+    // 处理总览统计
     if (statsRes.status === 'fulfilled') {
       const data = statsRes.value.data?.data || statsRes.value.data || {}
       overview.value = {
@@ -262,12 +269,6 @@ async function loadGradeData() {
         pendingCount: data.pendingCount ?? data.pendingGradeCount ?? 0
       }
     }
-
-    // 加载成绩列表 - 从考试会话和提交记录获取
-    const [sessionRes, submitRes] = await Promise.allSettled([
-      examApi.getMyExamSessions(),
-      submissionApi.getMySubmissions({ role: 'teacher', courseId: selectedCourseId.value })
-    ])
 
     // 处理考试成绩
     const sessionData = sessionRes.status === 'fulfilled' ? (sessionRes.value.data?.list || sessionRes.value.data || []) : []
@@ -329,13 +330,30 @@ async function loadGradeData() {
 
     gradeList.value = Array.from(studentMap.values())
 
-    // 填充待批阅任务
-    pendingTasks.value = (submitData.filter(s => s.status !== 'graded' && s.status !== 'reviewed') || [])
-      .map(s => ({
-        id: s.id,
-        taskName: s.taskName || s.title || '未命名任务',
-        pendingCount: 1
-      }))
+    // 增强：从 taskApi 获取待批阅任务（优先于从提交记录推导）
+    if (pendingRes.status === 'fulfilled') {
+      const pData = pendingRes.value.data?.list || pendingRes.value.data || pendingRes.value || []
+      const pendingList = Array.isArray(pData) ? pData : []
+      if (pendingList.length > 0) {
+        pendingTasks.value = pendingList.map(t => ({
+          id: t.id,
+          taskName: t.title || t.name || t.taskName || '未命名任务',
+          pendingCount: t.pendingCount ?? t.count ?? 1
+        }))
+        // 更新待批阅计数
+        overview.value.pendingCount = pendingList.length
+      }
+    }
+
+    // 回退：如果没有待批改任务数据，从提交记录推导
+    if (pendingTasks.value.length === 0) {
+      pendingTasks.value = (submitData.filter(s => s.status !== 'graded' && s.status !== 'reviewed') || [])
+        .map(s => ({
+          id: s.id,
+          taskName: s.taskName || s.title || '未命名任务',
+          pendingCount: 1
+        }))
+    }
 
     // 更新分布图
     updateDistribution(gradeList.value.map(g => g.totalScore))
@@ -362,11 +380,19 @@ function handleExport() {
   console.log('导出成绩:', filteredGradeList.value)
 }
 
-// 查看学生详情
+// 查看学生详情（增强：从已有成绩数据构建，不再使用模拟数据）
 function viewStudentDetail(row) {
+  const details = []
+  if (row.homeworkScore != null) {
+    details.push({ taskName: '平时作业', type: 'homework', score: row.homeworkScore, fullScore: 100, status: row.needsGrading ? 'pending' : 'graded', submitTime: row.submitTime })
+  }
+  if (row.examScore != null) {
+    details.push({ taskName: '期末考试', type: 'exam', score: row.examScore, fullScore: 100, status: 'graded', submitTime: row.submitTime })
+  }
+
   currentStudent.value = {
     ...row,
-    details: generateMockDetails(row)
+    details
   }
   detailDialogVisible.value = true
 }
@@ -378,11 +404,11 @@ function openGradeDialog(row) {
   gradeDialogVisible.value = true
 }
 
-// AI评分
+// AI评分（增强：使用 submissionApi.aiGrade）
 async function aiGrade(row) {
   try {
     await ElMessageBox.confirm(`确定使用AI自动评分「${row.studentName}」的作业？`, 'AI评分确认')
-    await request.post(`/submissions/${row.id}/ai-grade`)
+    await submissionApi.aiGrade(row.id)
     ElMessage.success('AI评分完成')
     loadGradeData()
   } catch (e) {
@@ -439,18 +465,6 @@ function getScoreColor(score) {
   return '#C48080'
 }
 
-// 生成模拟明细（实际应从API获取）
-function generateMockDetails(row) {
-  const details = []
-  if (row.homeworkScore != null) {
-    details.push({ taskName: '平时作业', type: 'homework', score: row.homeworkScore, fullScore: 100, status: 'graded', submitTime: row.submitTime })
-  }
-  if (row.examScore != null) {
-    details.push({ taskName: '期末考试', type: 'exam', score: row.examScore, fullScore: 100, status: 'graded', submitTime: row.submitTime })
-  }
-  return details
-}
-
 // 更新成绩分布图
 const distributionOption = ref({
   tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: '{b}: {c}人' },
@@ -494,10 +508,6 @@ function updateDistribution(scores) {
   }
   distributionOption.value.series[0].data = buckets
 }
-</script>
-
-<script>
-import request from '@/api/request'
 </script>
 
 <style scoped>

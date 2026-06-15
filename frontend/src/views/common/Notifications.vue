@@ -22,19 +22,45 @@
   </div>
 </template>
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import notificationApi from '@/api/notification'
+import { on as wsOn, off as wsOff } from '@/utils/websocket'
 
 const notifications = ref([])
+const unreadCount = ref(0)
+let unlisten = null // WebSocket 取消订阅函数
 
 onMounted(async () => {
+  // 加载历史通知列表
   try {
     const res = await notificationApi.getNotificationList({ limit: 50 })
-    notifications.value = res.data?.list || res.data || res || []
+    // 后端返回 MyBatis-Plus Page 对象，数据在 .records 中
+    const rawData = res.data?.records || res.data?.list || res.data || res
+    notifications.value = Array.isArray(rawData) ? rawData : []
+    // 统计未读数量
+    unreadCount.value = notifications.value.filter(n => !n.isRead).length
   } catch (e) {
     console.error('Failed to load notifications:', e)
+    notifications.value = []
   }
+
+  // 监听 WebSocket 实时通知推送
+  unlisten = wsOn('notification.new', (data) => {
+    // 新通知到达时插入列表顶部
+    notifications.value.unshift({
+      ...data,
+      isRead: false
+    })
+    unreadCount.value++
+    ElMessage.info(`新通知: ${data.title}`)
+  })
+})
+
+onUnmounted(() => {
+  // 组件卸载时取消订阅，避免内存泄漏
+  if (unlisten) unlisten()
+  wsOff('notification.new')
 })
 
 async function markRead(n) {

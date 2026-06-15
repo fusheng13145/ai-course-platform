@@ -23,5 +23,9 @@ export const autoGrade = sessionId => request.post(`/exam-sessions/${sessionId}/
 export const getScoreReport = sessionId => request.get(`/exam-sessions/${sessionId}/report`)
 export const getActiveExams = () => request.get('/exam-sessions/active')
 export const manualGrade = (sessionId, data) => request.post(`/exam-sessions/${sessionId}/manual-grade`, data)
+export const approveExamPaper = id => request.patch(`/exam-papers/${id}/approve`)
+export const rejectExamPaper = (id, data) => request.post(`/exam-papers/${id}/reject`, data)
+export const getCheatingDetect = sessionId => request.get(`/exam-sessions/${sessionId}/cheating-detect`)
+export const exportGrades = (params) => request.post('/grades/export', params, { responseType: 'blob' })
 
-export default { getExamPaperList, getExamPaperById, createExamPaper, updateExamPaper, deleteExamPaper, getExamQuestions, startExam, submitExam, getExamResult, getMyExamSession, getMyExamSessions, getExamDetail, publishExam, copyExam, getExamStatistics, autoSaveAnswers, forceSubmit, getRemainingTime, autoGrade, getScoreReport, getActiveExams, manualGrade }
+export default { getExamPaperList, getExamPaperById, createExamPaper, updateExamPaper, deleteExamPaper, getExamQuestions, startExam, submitExam, getExamResult, getMyExamSession, getMyExamSessions, getExamDetail, publishExam, copyExam, getExamStatistics, autoSaveAnswers, forceSubmit, getRemainingTime, autoGrade, getScoreReport, getActiveExams, manualGrade, approveExamPaper, rejectExamPaper, getCheatingDetect, exportGrades }

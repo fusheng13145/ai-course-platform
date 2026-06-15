@@ -6,6 +6,7 @@ import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 public interface SubmissionService extends IService<Submission> {
 
@@ -80,4 +81,18 @@ public interface SubmissionService extends IService<Submission> {
      * @return 提交记录（最新一条）
      */
     Submission getByTaskAndStudent(Long taskId, Long studentId);
+
+    /**
+     * 获取提交的查重摘要信息
+     * @param submissionId 提交记录ID
+     * @return 查重摘要（包含相似度、详情、风险等级等）
+     */
+    Map<String, Object> getPlagiarismSummary(Long submissionId);
+
+    /**
+     * 获取提交的完整详细信息（含批阅次数、查重、逾期等扩展数据）
+     * @param submissionId 提交记录ID
+     * @return 完整详情Map
+     */
+    Map<String, Object> getSubmissionDetail(Long submissionId);
 }

@@ -73,6 +73,8 @@
 import { ref, onMounted } from 'vue'
 import { useAuthStore } from '@/stores/auth'
 import analyticsApi from '@/api/analytics'
+import taskApi from '@/api/task'
+import courseApi from '@/api/course'
 
 const auth = useAuthStore()
 
@@ -154,41 +156,71 @@ onMounted(async () => {
 
 async function loadDashboardData() {
   try {
-    const res = await analyticsApi.getDashboardStats()
-    const data = res.data || res || {}
+    const teacherId = auth.userId
+    const baseParams = teacherId ? { teacherId } : {}
 
-    // 填充统计卡片
-    stats.value = {
-      courseCount: data.courseCount || data.totalCourses || 0,
-      studentCount: data.studentCount || data.totalStudents || 0,
-      pendingGradeCount: data.pendingGradeCount || data.pendingGrading || 0,
-      avgScore: data.avgScore != null ? (Math.round(data.avgScore * 10) / 10) : '--'
+    // 并行加载：仪表盘统计 + 待批改数量 + 我的课程
+    const [statsRes, pendingRes, courseRes] = await Promise.allSettled([
+      analyticsApi.getDashboardStats(baseParams),
+      taskApi.getPendingGrading(teacherId),
+      courseApi.getMyCourses()
+    ])
+
+    // 处理仪表盘统计数据
+    if (statsRes.status === 'fulfilled') {
+      const data = statsRes.value.data || statsRes.value || {}
+
+      // 填充统计卡片
+      stats.value = {
+        courseCount: data.courseCount || data.totalCourses || 0,
+        studentCount: data.studentCount || data.totalStudents || 0,
+        pendingGradeCount: data.pendingGradeCount || data.pendingGrading || 0,
+        avgScore: data.avgScore != null ? (Math.round(data.avgScore * 10) / 10) : '--'
+      }
+
+      // 填充趋势图
+      if (data.trendData && Array.isArray(data.trendData)) {
+        const labels = data.trendData.map(d => d.label || d.date || d.name)
+        const values = data.trendData.map(d => d.value || d.count || 0)
+        lineOption.value.xAxis.data = labels.length > 0 ? labels : []
+        lineOption.value.series[0].data = values.length > 0 ? values : []
+      }
+
+      // 填充课程分布饼图
+      if (data.courseDistribution && Array.isArray(data.courseDistribution)) {
+        pieOption.value.series[0].data = data.courseDistribution.map(c => ({
+          name: c.name || c.courseName || '未知',
+          value: c.value || c.studentCount || 0
+        }))
+      }
+
+      // 填充近期动态
+      if (data.activities && Array.isArray(data.activities)) {
+        activities.value = data.activities.map(a => ({
+          id: a.id || Math.random(),
+          text: a.text || a.content || a.description || '',
+          time: a.time || a.createdAt || '',
+          type: a.type || 'info'
+        }))
+      }
     }
 
-    // 填充趋势图
-    if (data.trendData && Array.isArray(data.trendData)) {
-      const labels = data.trendData.map(d => d.label || d.date || d.name)
-      const values = data.trendData.map(d => d.value || d.count || 0)
-      lineOption.value.xAxis.data = labels.length > 0 ? labels : []
-      lineOption.value.series[0].data = values.length > 0 ? values : [0, 0, 0, 0, 0, 0]
+    // 处理待批改数量（增强：直接从 taskApi 获取）
+    if (pendingRes.status === 'fulfilled') {
+      const pData = pendingRes.value.data?.list || pendingRes.value.data || pendingRes.value || []
+      const pendingCount = Array.isArray(pData) ? pData.length : (pData.count ?? pData.total ?? 0)
+      if (pendingCount > 0) {
+        stats.value.pendingGradeCount = pendingCount
+      }
     }
 
-    // 填充课程分布饼图
-    if (data.courseDistribution && Array.isArray(data.courseDistribution)) {
-      pieOption.value.series[0].data = data.courseDistribution.map(c => ({
-        name: c.name || c.courseName || '未知',
-        value: c.value || c.studentCount || 0
-      }))
-    }
-
-    // 填充近期动态
-    if (data.activities && Array.isArray(data.activities)) {
-      activities.value = data.activities.map(a => ({
-        id: a.id || Math.random(),
-        text: a.text || a.content || a.description || '',
-        time: a.time || a.createdAt || '',
-        type: a.type || 'info'
-      }))
+    // 处理课程统计（增强：从 courseApi 获取课程数）
+    if (courseRes.status === 'fulfilled') {
+      const cData = courseRes.value.data?.list || courseRes.value.data || courseRes.value || []
+      const courseCount = Array.isArray(cData) ? cData.length : 0
+      if (courseCount > 0) {
+        stats.value.courseCount = courseCount
+      }
     }
   } catch (e) {
     console.error('加载仪表盘数据失败:', e)

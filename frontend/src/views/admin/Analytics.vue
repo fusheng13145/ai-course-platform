@@ -142,29 +142,29 @@ const userTrendOption = ref({
   tooltip: {
     trigger: 'axis',
     backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: 'var(--ac-border)',
-    textStyle: { color: 'var(--ac-text-primary)', fontSize: 12 },
+    borderColor: '#DDD6CE',
+    textStyle: { color: '#3D3835', fontSize: 12 },
     axisPointer: { type: 'cross' }
   },
   legend: {
     data: ['新增用户', '活跃用户'],
     top: 0,
-    textStyle: { color: 'var(--ac-text-secondary)', fontSize: 12 }
+    textStyle: { color: '#5E574F', fontSize: 12 }
   },
   grid: { left: 50, right: 20, bottom: 30, top: 40 },
   xAxis: {
     type: 'category',
     data: [],
     boundaryGap: false,
-    axisLine: { lineStyle: { color: 'var(--ac-border)' } },
-    axisLabel: { color: 'var(--ac-text-muted)', fontSize: 11 }
+    axisLine: { lineStyle: { color: '#DDD6CE' } },
+    axisLabel: { color: '#928B83', fontSize: 11 }
   },
   yAxis: {
     type: 'value',
     axisLine: { show: false },
     axisTick: { show: false },
-    splitLine: { lineStyle: { color: 'var(--ac-border)', type: 'dashed' } },
-    axisLabel: { color: 'var(--ac-text-muted)' }
+    splitLine: { lineStyle: { color: '#DDD6CE', type: 'dashed' } },
+    axisLabel: { color: '#928B83' }
   },
   series: [
     {
@@ -174,7 +174,7 @@ const userTrendOption = ref({
       smooth: true,
       symbol: 'circle',
       symbolSize: 5,
-      lineStyle: { width: 2.5, color: 'var(--ac-primary)' },
+      lineStyle: { width: 2.5, color: '#7A8BA5' },
       areaStyle: {
         color: {
           type: 'linear',
@@ -185,7 +185,7 @@ const userTrendOption = ref({
           ]
         }
       },
-      itemStyle: { color: 'var(--ac-primary)' }
+      itemStyle: { color: '#7A8BA5' }
     },
     {
       name: '活跃用户',
@@ -194,7 +194,7 @@ const userTrendOption = ref({
       smooth: true,
       symbol: 'circle',
       symbolSize: 5,
-      lineStyle: { width: 2.5, color: 'var(--ac-success)' },
+      lineStyle: { width: 2.5, color: '#8BA888' },
       areaStyle: {
         color: {
           type: 'linear',
@@ -205,7 +205,7 @@ const userTrendOption = ref({
           ]
         }
       },
-      itemStyle: { color: 'var(--ac-success)' }
+      itemStyle: { color: '#8BA888' }
     }
   ]
 })
@@ -216,13 +216,13 @@ const categoryPieOption = ref({
     trigger: 'item',
     formatter: '{b}: {c} 门 ({d}%)',
     backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: 'var(--ac-border)'
+    borderColor: '#DDD6CE'
   },
   legend: {
     orient: 'vertical',
     right: 15,
     top: 'center',
-    textStyle: { color: 'var(--ac-text-secondary)', fontSize: 12 }
+    textStyle: { color: '#5E574F', fontSize: 12 }
   },
   series: [{
     type: 'pie',
@@ -240,7 +240,7 @@ const categoryPieOption = ref({
     },
     data: []
   }],
-  color: ['var(--ac-primary)', 'var(--ac-secondary)', 'var(--ac-success)', 'var(--ac-warning)', 'var(--ac-danger)', 'var(--ac-primary-light)']
+  color: ['#7A8BA5', '#B89A8A', '#8BA888', '#CBB58A', '#C48080', '#9BA8C5']
 })
 
 // 热力图颜色梯度
@@ -258,7 +258,7 @@ const heatmapOption = ref({
     position: 'top',
     formatter: (params) => `${params.data[0]}<br/>学习时长: ${params.data[2]} 小时`,
     backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: 'var(--ac-border)',
+    borderColor: '#DDD6CE',
     textStyle: { fontSize: 12 }
   },
   grid: {
@@ -271,13 +271,13 @@ const heatmapOption = ref({
     type: 'category',
     data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
     splitArea: { show: true },
-    axisLabel: { color: 'var(--ac-text-muted)', fontSize: 11 }
+    axisLabel: { color: '#928B83', fontSize: 11 }
   },
   yAxis: {
     type: 'category',
     data: ['0-6时', '6-12时', '12-18时', '18-24时'],
     splitArea: { show: true },
-    axisLabel: { color: 'var(--ac-text-muted)', fontSize: 11 }
+    axisLabel: { color: '#928B83', fontSize: 11 }
   },
   visualMap: {
     min: 0,
@@ -289,7 +289,7 @@ const heatmapOption = ref({
     inRange: {
       color: heatmapColors.map(c => c.replace('rgba', 'rgb').replace(/[\d.]+\)$/, '1)'))
     },
-    textStyle: { color: 'var(--ac-text-muted)', fontSize: 11 },
+    textStyle: { color: '#928B83', fontSize: 11 },
     show: false
   },
   series: [{
@@ -312,26 +312,26 @@ const roleActivityOption = ref({
   tooltip: {
     trigger: 'axis',
     backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: 'var(--ac-border)',
+    borderColor: '#DDD6CE',
     axisPointer: { type: 'shadow' }
   },
   legend: {
     data: ['登录次数', '操作频次'],
     top: 0,
-    textStyle: { color: 'var(--ac-text-secondary)', fontSize: 12 }
+    textStyle: { color: '#5E574F', fontSize: 12 }
   },
   grid: { left: 50, right: 20, bottom: 30, top: 40 },
   xAxis: {
     type: 'category',
     data: ['管理员', '教师', '学生'],
-    axisLine: { lineStyle: { color: 'var(--ac-border)' } },
-    axisLabel: { color: 'var(--ac-text-muted)' }
+    axisLine: { lineStyle: { color: '#DDD6CE' } },
+    axisLabel: { color: '#928B83' }
   },
   yAxis: {
     type: 'value',
     axisLine: { show: false },
-    splitLine: { lineStyle: { color: 'var(--ac-border)', type: 'dashed' } },
-    axisLabel: { color: 'var(--ac-text-muted)' }
+    splitLine: { lineStyle: { color: '#DDD6CE', type: 'dashed' } },
+    axisLabel: { color: '#928B83' }
   },
   series: [
     {
@@ -344,7 +344,7 @@ const roleActivityOption = ref({
           type: 'linear',
           x: 0, y: 0, x2: 0, y2: 1,
           colorStops: [
-            { offset: 0, color: 'var(--ac-primary)' },
+            { offset: 0, color: '#7A8BA5' },
             { offset: 1, color: 'rgba(122, 139, 165, 0.4)' }
           ]
         }
@@ -361,7 +361,7 @@ const roleActivityOption = ref({
           type: 'linear',
           x: 0, y: 0, x2: 0, y2: 1,
           colorStops: [
-            { offset: 0, color: 'var(--ac-success)' },
+            { offset: 0, color: '#8BA888' },
             { offset: 1, color: 'rgba(139, 168, 136, 0.4)' }
           ]
         }
@@ -376,7 +376,7 @@ const gradeDistOption = ref({
   tooltip: {
     trigger: 'axis',
     backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: 'var(--ac-border)',
+    borderColor: '#DDD6CE',
     formatter: '{b}分区间: {c} 人'
   },
   grid: { left: 55, right: 25, bottom: 35, top: 20 },
@@ -384,17 +384,17 @@ const gradeDistOption = ref({
     type: 'category',
     data: ['0-59', '60-69', '70-79', '80-89', '90-100'],
     name: '分数段',
-    nameTextStyle: { color: 'var(--ac-text-muted)', padding: [0, 0, 0, 0] },
-    axisLine: { lineStyle: { color: 'var(--ac-border)' } },
-    axisLabel: { color: 'var(--ac-text-muted)' }
+    nameTextStyle: { color: '#928B83', padding: [0, 0, 0, 0] },
+    axisLine: { lineStyle: { color: '#DDD6CE' } },
+    axisLabel: { color: '#928B83' }
   },
   yAxis: {
     type: 'value',
     name: '人数',
-    nameTextStyle: { color: 'var(--ac-text-muted)' },
+    nameTextStyle: { color: '#928B83' },
     axisLine: { show: false },
-    splitLine: { lineStyle: { color: 'var(--ac-border)', type: 'dashed' } },
-    axisLabel: { color: 'var(--ac-text-muted)' }
+    splitLine: { lineStyle: { color: '#DDD6CE', type: 'dashed' } },
+    axisLabel: { color: '#928B83' }
   },
   series: [{
     type: 'bar',
@@ -405,7 +405,7 @@ const gradeDistOption = ref({
         type: 'linear',
         x: 0, y: 0, x2: 0, y2: 1,
         colorStops: [
-          { offset: 0, color: 'var(--ac-secondary)' },
+          { offset: 0, color: '#B89A8A' },
           { offset: 1, color: 'rgba(184, 154, 138, 0.3)' }
         ]
       }
@@ -420,7 +420,7 @@ const topCoursesOption = ref({
     trigger: 'axis',
     axisPointer: { type: 'shadow' },
     backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: 'var(--ac-border)',
+    borderColor: '#DDD6CE',
     formatter: (params) => `${params[0].name}<br/>学习人数: ${params[0].value}`
   },
   grid: { left: 120, right: 40, bottom: 20, top: 10 },
@@ -428,8 +428,8 @@ const topCoursesOption = ref({
     type: 'value',
     axisLine: { show: false },
     axisTick: { show: false },
-    splitLine: { lineStyle: { color: 'var(--ac-border)', type: 'dashed' } },
-    axisLabel: { color: 'var(--ac-text-muted)' }
+    splitLine: { lineStyle: { color: '#DDD6CE', type: 'dashed' } },
+    axisLabel: { color: '#928B83' }
   },
   yAxis: {
     type: 'category',
@@ -438,7 +438,7 @@ const topCoursesOption = ref({
     axisLine: { show: false },
     axisTick: { show: false },
     axisLabel: {
-      color: 'var(--ac-text-secondary)',
+      color: '#5E574F',
       fontSize: 13,
       width: 110,
       overflow: 'truncate'
@@ -451,11 +451,11 @@ const topCoursesOption = ref({
       borderRadius: [0, 6, 6, 0],
       color: (params) => {
         const colors = [
-          'var(--ac-primary)',
-          'var(--ac-secondary)',
-          'var(--ac-success)',
-          'var(--ac-warning)',
-          'var(--ac-danger)'
+          '#7A8BA5',
+          '#B89A8A',
+          '#8BA888',
+          '#CBB58A',
+          '#C48080'
         ]
         const idx = params.dataIndex % colors.length
         return colors[idx]
@@ -464,7 +464,7 @@ const topCoursesOption = ref({
     label: {
       show: true,
       position: 'right',
-      color: 'var(--ac-text-secondary)',
+      color: '#5E574F',
       fontSize: 12,
       fontWeight: 500
     },
@@ -473,127 +473,103 @@ const topCoursesOption = ref({
 })
 
 /**
- * 获取平台总览数据
+ * 获取平台总览数据（统一加载：仪表盘统计 + 用户增长趋势 + 课程排行 + 平台热力图）
  */
 async function fetchAnalyticsData() {
   try {
-    // 获取仪表盘统计数据
-    const statsRes = await analyticsApi.getDashboardStats(dateRange.value[0]?.toISOString(), dateRange.value[1]?.toISOString())
-    const statsData = statsRes.data || statsRes
+    // 并行获取：仪表盘统计 + 用户增长趋势 + 课程排行 + 平台热力图
+    const [statsRes, trendRes, courseRes, heatmapRes] = await Promise.allSettled([
+      analyticsApi.getDashboardStats(),
+      analyticsApi.getUserGrowth(30),
+      analyticsApi.getCourseRanking(),
+      analyticsApi.getPlatformHeatmap({ days: 30 })
+    ])
 
-    // 更新核心指标
-    if (statsData.totalUsers !== undefined) {
-      coreMetrics.value[0].value = formatNumber(statsData.totalUsers)
-      coreMetrics.value[0].change = statsData.userGrowth || 0
-    }
-    if (statsData.totalCourses !== undefined) {
-      coreMetrics.value[1].value = formatNumber(statsData.totalCourses)
-      coreMetrics.value[1].change = statsData.courseGrowth || 0
-    }
-    if (statsData.dailyActiveUsers !== undefined) {
-      coreMetrics.value[2].value = formatNumber(statsData.dailyActiveUsers)
-      coreMetrics.value[2].change = statsData.dauGrowth || 0
-    }
-    if (statsData.completionRate !== undefined) {
-      coreMetrics.value[3].value = (statsData.completionRate * 100).toFixed(1) + '%'
-      coreMetrics.value[3].change = statsData.completionRateChange || 0
-    }
-    if (statsData.growthRate !== undefined) {
-      coreMetrics.value[4].value = (statsData.growthRate * 100).toFixed(1) + '%'
-      coreMetrics.value[4].change = statsData.growthRateChange || 0
+    // 处理仪表盘统计数据
+    if (statsRes.status === 'fulfilled') {
+      const statsData = statsRes.value.data || statsRes.value
+
+      // 核心指标卡片
+      if (statsData.totalUsers !== undefined) {
+        coreMetrics.value[0].value = formatNumber(statsData.totalUsers)
+        coreMetrics.value[0].change = statsData.userGrowth ? Math.round(statsData.userGrowth * 100) : 0
+      }
+      if (statsData.totalCourses !== undefined) {
+        coreMetrics.value[1].value = formatNumber(statsData.totalCourses)
+        coreMetrics.value[1].change = statsData.courseGrowth || 0
+      }
+      if (statsData.dailyActiveUsers !== undefined) {
+        coreMetrics.value[2].value = formatNumber(statsData.dailyActiveUsers)
+      }
+      if (statsData.completionRate !== undefined) {
+        coreMetrics.value[3].value = (statsData.completionRate * 100).toFixed(1) + '%'
+      }
+      if (statsData.growthRate !== undefined) {
+        coreMetrics.value[4].value = (statsData.growthRate * 100).toFixed(1) + '%'
+      }
+
+      // 课程分类饼图
+      if (statsData.categoryDistribution) {
+        categoryPieOption.value.series[0].data = Object.entries(statsData.categoryDistribution).map(
+          ([name, value]) => ({ name, value })
+        )
+      }
+
+      // 成绩分布直方图
+      if (statsData.gradeDistribution && Array.isArray(statsData.gradeDistribution)) {
+        gradeDistOption.value.series[0].data = statsData.gradeDistribution.map(v => Number(v) || 0)
+      }
+
+      // 角色活跃度柱状图
+      if (statsData.roleActivity && Array.isArray(statsData.roleActivity)) {
+        roleActivityOption.value.series[0].data = statsData.roleActivity.map(r => r.loginCount || 0)
+        roleActivityOption.value.series[1].data = statsData.roleActivity.map(r => r.actionCount || 0)
+      }
     }
 
-    // 更新课程分类分布
-    if (statsData.categoryDistribution) {
-      categoryPieOption.value.series[0].data = Object.entries(statsData.categoryDistribution).map(
-        ([name, value]) => ({ name, value })
-      )
+    // 处理用户增长趋势（用于用户注册趋势图）
+    if (trendRes.status === 'fulfilled') {
+      const trendData = trendRes.value.data || trendRes.value
+      if (Array.isArray(trendData) && trendData.length > 0) {
+        userTrendOption.value.xAxis.data = trendData.map(d => d.date || d.label || '')
+        userTrendOption.value.series[0].data = trendData.map(d => d.newUsers || d.count || 0)
+        userTrendOption.value.series[1].data = trendData.map(d => d.cumulativeUsers || d.activeUsers || 0)
+      }
     }
 
-    // 更新成绩分布
-    if (statsData.gradeDistribution) {
-      gradeDistOption.value.series[0].data = statsData.gradeDistribution
+    // 处理热门课程排行
+    if (courseRes.status === 'fulfilled') {
+      const courseData = courseRes.value.data || courseRes.value
+      let courses = []
+      if (Array.isArray(courseData)) {
+        courses = courseData.slice(0, 10).map(c => ({
+          name: c.courseName || c.name,
+          value: c.enrollmentCount || c.studentCount || c.popularity || 0
+        }))
+      }
+      courses.sort((a, b) => b.value - a.value)
+      topCoursesOption.value.yAxis.data = courses.map(c => c.name)
+      topCoursesOption.value.series[0].data = courses.map(c => c.value)
     }
 
-    // 更新角色活跃度
-    if (statsData.roleActivity) {
-      roleActivityOption.value.series[0].data = statsData.roleActivity.map(r => r.loginCount || 0)
-      roleActivityOption.value.series[1].data = statsData.roleActivity.map(r => r.actionCount || 0)
+    // 处理平台热力图数据
+    if (heatmapRes.status === 'fulfilled') {
+      const data = heatmapRes.value.data || heatmapRes.value || []
+      if (Array.isArray(data) && data.length > 0) {
+        const heatmapData = data.map(item => [
+          item.dayOfWeek ?? item.day ?? item.x ?? 0,
+          item.hour ?? item.y ?? 0,
+          Math.round(item.value ?? item.count ?? 0)
+        ]).filter(d => d[0] >= 0 && d[0] < 7 && d[1] >= 0)
+        if (heatmapData.length > 0) {
+          heatmapOption.value.series[0].data = heatmapData
+        }
+      }
     }
   } catch (error) {
     console.warn('加载分析数据失败:', error)
     setMockData()
   }
-}
-
-/**
- * 获取趋势数据
- */
-async function fetchTrendData() {
-  try {
-    const trendRes = await analyticsApi.getTrendData({ days: 30 })
-    const trendData = trendRes.data || trendRes
-
-    if (Array.isArray(trendData)) {
-      userTrendOption.value.xAxis.data = trendData.map(d => d.date || d.label)
-      userTrendOption.value.series[0].data = trendData.map(d => d.newUsers || d.count || 0)
-      userTrendOption.value.series[1].data = trendData.map(d => d.activeUsers || 0)
-    }
-  } catch (error) {
-    console.warn('加载趋势数据失败:', error)
-    setMockTrendData()
-  }
-}
-
-/**
- * 获取热门课程数据
- */
-async function fetchTopCourses() {
-  try {
-    const courseRes = await analyticsApi.getCourseAnalytics(null)
-    const courseData = courseRes.data || courseRes
-
-    let courses = []
-    if (Array.isArray(courseData)) {
-      courses = courseData.slice(0, 10).map(c => ({
-        name: c.title || c.name || c.courseName,
-        value: c.studentCount || c.enrollmentCount || c.popularity || 0
-      }))
-    } else if (courseData.topCourses) {
-      courses = courseData.topCourses.slice(0, 10)
-    }
-
-    // 按学习人数排序
-    courses.sort((a, b) => b.value - a.value)
-
-    topCoursesOption.value.yAxis.data = courses.map(c => c.name)
-    topCoursesOption.value.series[0].data = courses.map(c => c.value)
-  } catch (error) {
-    console.warn('加载热门课程失败:', error)
-    setMockTopCourses()
-  }
-}
-
-/**
- * 生成模拟热力图数据
- */
-function generateHeatmapData() {
-  const days = ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
-  const hours = ['0-6时', '6-12时', '12-18时', '18-24时']
-  const data = []
-
-  for (let i = 0; i < hours.length; i++) {
-    for (let j = 0; j < days.length; j++) {
-      // 工作日白天学习时长更高，周末晚上学习时长更高
-      let baseValue = Math.random() * 40 + 10
-      if ((j < 5 && i === 2) || (j >= 5 && i === 3)) {
-        baseValue += 30 + Math.random() * 40
-      }
-      data.push([j, i, Math.round(baseValue)])
-    }
-  }
-
-  heatmapOption.value.series[0].data = data
 }
 
 /**
@@ -628,74 +604,26 @@ function formatNumber(num) {
 }
 
 /**
- * 设置模拟数据（API不可用时的后备方案）
+ * 设置空数据（API不可用时的后备，不再使用硬编码模拟数据）
  */
 function setMockData() {
   coreMetrics.value = [
-    { label: '总用户数', value: '1,256', change: 12.5 },
-    { label: '总课程数', value: '86', change: 8.3 },
-    { label: '日活用户', value: '342', change: 5.7 },
-    { label: '完成率', value: '78.5%', change: 3.2 },
-    { label: '增长率', value: '+15.2%', change: 2.8 }
+    { label: '总用户数', value: '--', change: 0 },
+    { label: '总课程数', value: '--', change: 0 },
+    { label: '日活用户', value: '--', change: 0 },
+    { label: '完成率', value: '--', change: 0 },
+    { label: '增长率', value: '--', change: 0 }
   ]
 
-  categoryPieOption.value.series[0].data = [
-    { name: '编程开发', value: 28 },
-    { name: '人工智能', value: 22 },
-    { name: '数据分析', value: 16 },
-    { name: '设计创意', value: 12 },
-    { name: '其他', value: 8 }
-  ]
-
-  gradeDistOption.value.series[0].data = [23, 67, 145, 198, 112]
-
-  roleActivityOption.value.series[0].data = [156, 892, 2341]
-  roleActivityOption.value.series[1].data = [1245, 3678, 8934]
-}
-
-function setMockTrendData() {
-  const dates = []
-  const now = new Date()
-
-  for (let i = 29; i >= 0; i--) {
-    const date = new Date(now)
-    date.setDate(date.getDate() - i)
-    dates.push(date.toLocaleDateString('zh-CN', { month: 'numeric', day: 'numeric' }))
-  }
-
-  userTrendOption.value.xAxis.data = dates
-  userTrendOption.value.series[0].data = Array.from({ length: 30 }, () =>
-    Math.floor(Math.random() * 30) + 5
-  )
-  userTrendOption.value.series[1].data = Array.from({ length: 30 }, () =>
-    Math.floor(Math.random() * 150) + 80
-  )
-}
-
-function setMockTopCourses() {
-  const mockCourses = [
-    { name: 'Python编程入门实战', value: 486 },
-    { name: '机器学习基础与应用', value: 392 },
-    { name: '深度学习神经网络', value: 358 },
-    { name: '数据分析与可视化', value: 321 },
-    { name: '自然语言处理入门', value: 287 },
-    { name: '计算机视觉基础', value: 256 },
-    { name: '数据结构与算法', value: 234 },
-    { name: 'Web前端开发进阶', value: 212 },
-    { name: '数据库原理与实践', value: 189 },
-    { name: '云计算与DevOps', value: 167 }
-  ]
-
-  topCoursesOption.value.yAxis.data = mockCourses.map(c => c.name)
-  topCoursesOption.value.series[0].data = mockCourses.map(c => c.value)
+  categoryPieOption.value.series[0].data = []
+  gradeDistOption.value.series[0].data = []
+  roleActivityOption.value.series[0].data = []
+  roleActivityOption.value.series[1].data = []
 }
 
 // 初始化加载数据
 onMounted(() => {
-  generateHeatmapData() // 热力图使用生成的模拟数据
-  fetchAnalyticsData()
-  fetchTrendData()
-  fetchTopCourses()
+  fetchAnalyticsData()  // 统一加载所有数据
 })
 </script>
 

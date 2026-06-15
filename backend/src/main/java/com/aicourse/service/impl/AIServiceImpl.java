@@ -9,6 +9,7 @@ import org.springframework.web.client.RestClient;
 
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 /**
  * AI 服务实现类
@@ -120,47 +121,73 @@ public class AIServiceImpl implements AIService {
     }
 
     /**
-     * 调用 DeepSeek 接口统一入口
+     * 调用 DeepSeek 接口统一入口（带重试机制）
      *
      * @param requestBody 请求消息体
      * @return 模型返回文本
      */
     @SuppressWarnings("unchecked")
     private String callDeepSeek(Object requestBody) {
-        // 未配置密钥，返回模拟数据
         if (apiKey == null || apiKey.isBlank()) {
             log.warn("DeepSeek API Key 未配置，返回模拟响应");
             return MOCK_RESPONSE;
         }
 
-        try {
-            Map<String, Object> response = restClient.post()
-                    .uri("/chat/completions")
-                    .body(Map.of(
-                            "model", model,
-                            "messages", requestBody,
-                            "temperature", 0.7
-                    ))
-                    .retrieve()
-                    .body(Map.class);
+        int retryCount = 0;
+        final int maxRetries = 2;
+        Exception lastException = null;
+        long baseDelayMs = 1000;
 
-            if (response == null || !response.containsKey("choices")) {
-                log.warn("DeepSeek 接口返回数据异常，无 choices 字段");
-                return PARSE_FAIL_MSG;
+        while (retryCount < maxRetries) {
+            try {
+                Map<String, Object> response = restClient.post()
+                        .uri("/chat/completions")
+                        .body(Map.of(
+                                "model", model,
+                                "messages", requestBody,
+                                "temperature", 0.7
+                        ))
+                        .retrieve()
+                        .body(Map.class);
+
+                if (response == null || !response.containsKey("choices")) {
+                    log.warn("DeepSeek 接口返回数据异常，无 choices 字段");
+                    return PARSE_FAIL_MSG;
+                }
+
+                List<Map<String, Object>> choices = (List<Map<String, Object>>) response.get("choices");
+                if (choices.isEmpty()) {
+                    log.warn("DeepSeek 接口返回 choices 列表为空");
+                    return PARSE_FAIL_MSG;
+                }
+
+                Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
+                String content = (String) message.get("content");
+                if (content == null || content.isEmpty()) {
+                    log.warn("DeepSeek 接口返回内容为空");
+                    return PARSE_FAIL_MSG;
+                }
+                return content;
+
+            } catch (Exception e) {
+                lastException = e;
+                retryCount++;
+                log.warn("AI请求失败，重试第{}次: {}", retryCount, e.getMessage());
+
+                if (retryCount < maxRetries) {
+                    try {
+                        long delay = baseDelayMs * (long) Math.pow(2, retryCount - 1);
+                        TimeUnit.MILLISECONDS.sleep(delay);
+                    } catch (InterruptedException ie) {
+                        Thread.currentThread().interrupt();
+                        break;
+                    }
+                }
             }
-
-            List<Map<String, Object>> choices = (List<Map<String, Object>>) response.get("choices");
-            if (choices.isEmpty()) {
-                log.warn("DeepSeek 接口返回 choices 列表为空");
-                return PARSE_FAIL_MSG;
-            }
-
-            Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
-            return (String) message.get("content");
-        } catch (Exception e) {
-            log.error("调用 DeepSeek AI 接口异常", e);
-            return SERVICE_ERROR_MSG;
         }
+
+        log.error("AI请求多次失败，已达到最大重试次数", lastException);
+        return SERVICE_ERROR_MSG;
     }
 
     /**

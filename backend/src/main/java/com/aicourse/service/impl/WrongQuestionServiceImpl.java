@@ -209,21 +209,44 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
                 ));
         stats.put("sourceTypeStats", sourceTypeStats);
 
+        // 按错因（reason）分组统计
+        Map<String, Long> reasonStats = allWrongQuestions.stream()
+                .filter(wq -> wq.getReason() != null && !wq.getReason().isEmpty())
+                .collect(Collectors.groupingBy(
+                        WrongQuestion::getReason,
+                        Collectors.counting()
+                ));
+        stats.put("reasonDistribution", reasonStats);
+
+        // 练习次数分布统计
+        long neverPracticed = allWrongQuestions.stream()
+                .filter(wq -> wq.getPracticeCount() == null || wq.getPracticeCount() <= 1)
+                .count();
+        long practicedMultiple = allWrongQuestions.stream()
+                .filter(wq -> wq.getPracticeCount() != null && wq.getPracticeCount() > 1)
+                .count();
+        Map<String, Long> practiceDist = new HashMap<>();
+        practiceDist.put("neverOrOnce", neverPracticed);
+        practiceDist.put("multipleTimes", practicedMultiple);
+        stats.put("practiceDistribution", practiceDist);
+
         return stats;
     }
 
     /**
-     * 生成错题练习卷（随机选取N道未掌握错题对应的题目）
+     * 生成错题练习卷（优先选择practiceCount低/练习不足的错题）
      */
     @Override
     public List<Question> generatePracticePaper(Long studentId, Long courseId, int count) {
-        // 查询未掌握的错题
+        // 查询未掌握的错题，按练习次数升序排列（优先选练习不足的）
         List<WrongQuestion> unmasteredList = getUnmastered(studentId, courseId);
+
+        // 按practiceCount升序排序（练习次数少的优先练习）
+        unmasteredList.sort(Comparator.comparingInt(wq ->
+                wq.getPracticeCount() != null ? wq.getPracticeCount() : 0));
 
         // 限制数量
         if (unmasteredList.size() > count) {
-            // 随机打乱并取前N个
-            Collections.shuffle(unmasteredList);
             unmasteredList = unmasteredList.subList(0, count);
         }
 
@@ -286,5 +309,29 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
                 .last("LIMIT 10");
 
         return questionService.list(questionWrapper);
+    }
+
+    /**
+     * 添加错题（支持可选填写错因分析）
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public WrongQuestion addWrongQuestion(Long studentId, Long questionId, Long courseId,
+                                           String wrongAnswer, String sourceType, String reason) {
+        // 复用recordWrongAnswer逻辑，额外设置reason字段
+        WrongQuestion result = recordWrongAnswer(studentId, questionId, courseId, wrongAnswer, sourceType);
+        // 如果提供了错因分析，更新到记录中（仅在新建时或reason为空时写入）
+        if (reason != null && !reason.isEmpty()) {
+            LambdaQueryWrapper<WrongQuestion> queryWrapper = new LambdaQueryWrapper<WrongQuestion>()
+                    .eq(WrongQuestion::getStudentId, studentId)
+                    .eq(WrongQuestion::getQuestionId, questionId);
+            WrongQuestion existing = this.getOne(queryWrapper);
+            if (existing != null) {
+                existing.setReason(reason);
+                this.updateById(existing);
+                return existing;
+            }
+        }
+        return result;
     }
 }

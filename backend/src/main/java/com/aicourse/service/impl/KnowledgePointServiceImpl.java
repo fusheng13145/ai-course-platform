@@ -14,6 +14,7 @@ import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
@@ -145,6 +146,91 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
                 .map(KnowledgePointRelation::getTargetId)
                 .collect(Collectors.toList());
         return listByIds(targetIds);
+    }
+
+    /**
+     * 创建知识点（校验difficultyLevel和importance的取值范围）
+     * difficultyLevel: EASY/MEDIUM/HARD
+     * importance: 1-5
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public KnowledgePoint createWithValidation(KnowledgePoint knowledgePoint) {
+        // 校验必填字段
+        if (knowledgePoint.getName() == null || knowledgePoint.getName().trim().isEmpty()) {
+            throw new BusinessException("知识点名称不能为空");
+        }
+        if (knowledgePoint.getCourseId() == null) {
+            throw new BusinessException("必须指定所属课程");
+        }
+
+        // 校验难度等级（如果提供了）
+        if (knowledgePoint.getDifficultyLevel() != null && !knowledgePoint.getDifficultyLevel().isEmpty()) {
+            String level = knowledgePoint.getDifficultyLevel().toUpperCase();
+            if (!"EASY".equals(level) && !"MEDIUM".equals(level) && !"HARD".equals(level)) {
+                throw new BusinessException("难度等级必须是EASY、MEDIUM或HARD");
+            }
+            knowledgePoint.setDifficultyLevel(level);
+        }
+
+        // 校验重要度（1-5）
+        if (knowledgePoint.getImportance() != null) {
+            int importance = knowledgePoint.getImportance();
+            if (importance < 1 || importance > 5) {
+                throw new BusinessException("重要度必须在1-5之间");
+            }
+        } else {
+            // 默认设置为3
+            knowledgePoint.setImportance(3);
+        }
+
+        this.save(knowledgePoint);
+        return knowledgePoint;
+    }
+
+    /**
+     * 获取知识点列表（支持按难度等级和重要度排序/筛选）
+     * getTree()时将importance映射到节点大小
+     */
+    @Override
+    public List<KnowledgePoint> getListWithFilters(Long courseId, String difficultyLevel,
+                                                     Integer minImportance, Integer maxImportance,
+                                                     String sortBy, boolean isAsc) {
+        LambdaQueryWrapper<KnowledgePoint> wrapper = new LambdaQueryWrapper<KnowledgePoint>()
+                .eq(KnowledgePoint::getCourseId, courseId);
+
+        // 按难度等级筛选
+        if (difficultyLevel != null && !difficultyLevel.isEmpty()) {
+            wrapper.eq(KnowledgePoint::getDifficultyLevel, difficultyLevel.toUpperCase());
+        }
+
+        // 按重要度范围筛选
+        if (minImportance != null) {
+            wrapper.ge(KnowledgePoint::getImportance, minImportance);
+        }
+        if (maxImportance != null) {
+            wrapper.le(KnowledgePoint::getImportance, maxImportance);
+        }
+
+        // 排序
+        if ("importance".equals(sortBy)) {
+            if (isAsc) {
+                wrapper.orderByAsc(KnowledgePoint::getImportance);
+            } else {
+                wrapper.orderByDesc(KnowledgePoint::getImportance);
+            }
+        } else if ("difficultyLevel".equals(sortBy)) {
+            if (isAsc) {
+                wrapper.orderByAsc(KnowledgePoint::getDifficultyLevel);
+            } else {
+                wrapper.orderByDesc(KnowledgePoint::getDifficultyLevel);
+            }
+        } else {
+            // 默认按orderIndex排序
+            wrapper.orderByAsc(KnowledgePoint::getOrderIndex);
+        }
+
+        return list(wrapper);
     }
 
     /**

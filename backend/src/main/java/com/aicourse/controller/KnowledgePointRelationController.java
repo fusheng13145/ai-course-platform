@@ -1,8 +1,10 @@
 package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
+import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.service.KnowledgePointRelationService;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -75,5 +77,43 @@ public class KnowledgePointRelationController {
     public ApiResponse<Map<String, Object>> getGraphData(@PathVariable Long courseId) {
         Map<String, Object> graphData = relationService.getGraphData(courseId);
         return ApiResponse.success(graphData);
+    }
+
+    /**
+     * 获取关联关系列表（分页，支持课程筛选）
+     * @param page 页码
+     * @param size 每页大小
+     * @param courseId 课程ID筛选（可选）
+     * @return 分页关联关系列表
+     */
+    @GetMapping
+    public ApiResponse<PagedResponse<KnowledgePointRelation>> getList(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) Long courseId) {
+        Page<KnowledgePointRelation> result = relationService.getRelationList(page, size, courseId);
+        return ApiResponse.success(PagedResponse.of(result));
+    }
+
+    /**
+     * 获取某知识点的出边（作为源节点的关联关系）
+     * @param sourceId 源知识点ID
+     * @return 出边关联关系列表
+     */
+    @GetMapping("/source/{sourceId}")
+    public ApiResponse<List<KnowledgePointRelation>> getSourceRelations(@PathVariable Long sourceId) {
+        List<KnowledgePointRelation> relations = relationService.getSourceRelations(sourceId);
+        return ApiResponse.success(relations);
+    }
+
+    /**
+     * 获取某知识点的入边（作为目标节点的关联关系）
+     * @param targetId 目标知识点ID
+     * @return 入边关联关系列表
+     */
+    @GetMapping("/target/{targetId}")
+    public ApiResponse<List<KnowledgePointRelation>> getTargetRelations(@PathVariable Long targetId) {
+        List<KnowledgePointRelation> relations = relationService.getTargetRelations(targetId);
+        return ApiResponse.success(relations);
     }
 }

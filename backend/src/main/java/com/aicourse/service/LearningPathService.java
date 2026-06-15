@@ -77,4 +77,14 @@ public interface LearningPathService extends IService<LearningPath> {
      * @param pathId 学习路径ID
      */
     void estimateCompletionDate(Long pathId);
+
+    /**
+     * 生成学习路径（根据课程知识点自动生成，初始化stages和dailyTasks的JSON结构）
+     * @param studentId 学生ID
+     * @param courseId 课程ID
+     * @param pathName 路线名称
+     * @param learningGoal 学习目标
+     * @return 新创建的学习路径
+     */
+    LearningPath generatePath(Long studentId, Long courseId, String pathName, String learningGoal);
 }

@@ -53,4 +53,19 @@ public interface LearningPathNodeService extends IService<LearningPathNode> {
      * @return 各状态节点数量统计（NOT_STARTED/IN_PROGRESS/COMPLETED/SKIPPED）
      */
     Map<String, Long> getNodeStatusStats(Long pathId);
+
+    /**
+     * 更新节点状态（通用方法，支持任意状态切换）
+     * @param nodeId 节点ID
+     * @param status 目标状态
+     * @param actualTime 实际耗时（分钟，可选）
+     */
+    void updateNodeStatus(Long nodeId, String status, Integer actualTime);
+
+    /**
+     * 记录节点得分
+     * @param nodeId 节点ID
+     * @param score 得分
+     */
+    void recordScore(Long nodeId, BigDecimal score);
 }

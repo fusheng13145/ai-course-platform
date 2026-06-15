@@ -7,6 +7,7 @@ import com.aicourse.mapper.KnowledgePointRelationMapper;
 import com.aicourse.service.KnowledgePointRelationService;
 import com.aicourse.service.KnowledgePointService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
@@ -137,5 +138,50 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
         graphData.put("nodes", nodes);
         graphData.put("links", links);
         return graphData;
+    }
+
+    /**
+     * 获取关联关系列表（分页，支持课程筛选）
+     */
+    @Override
+    public Page<KnowledgePointRelation> getRelationList(int page, int size, Long courseId) {
+        LambdaQueryWrapper<KnowledgePointRelation> wrapper = new LambdaQueryWrapper<KnowledgePointRelation>();
+        if (courseId != null) {
+            // 通过知识点ID关联课程：查询课程下所有知识点，再查这些知识点的关联
+            List<KnowledgePoint> points = knowledgePointService.list(
+                    new LambdaQueryWrapper<KnowledgePoint>().eq(KnowledgePoint::getCourseId, courseId)
+            );
+            if (points.isEmpty()) {
+                return Page.of(page, size);
+            }
+            Set<Long> pointIds = points.stream()
+                    .map(KnowledgePoint::getId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            wrapper.in(KnowledgePointRelation::getSourceId, pointIds)
+                    .or(w -> w.in(KnowledgePointRelation::getTargetId, pointIds));
+        }
+        wrapper.orderByDesc(KnowledgePointRelation::getCreatedAt);
+        return this.page(Page.of(page, size), wrapper);
+    }
+
+    /**
+     * 获取某知识点的出边（作为源节点的关联关系）
+     */
+    @Override
+    public List<KnowledgePointRelation> getSourceRelations(Long sourceId) {
+        return this.list(new LambdaQueryWrapper<KnowledgePointRelation>()
+                .eq(KnowledgePointRelation::getSourceId, sourceId)
+                .orderByDesc(KnowledgePointRelation::getCreatedAt));
+    }
+
+    /**
+     * 获取某知识点的入边（作为目标节点的关联关系）
+     */
+    @Override
+    public List<KnowledgePointRelation> getTargetRelations(Long targetId) {
+        return this.list(new LambdaQueryWrapper<KnowledgePointRelation>()
+                .eq(KnowledgePointRelation::getTargetId, targetId)
+                .orderByDesc(KnowledgePointRelation::getCreatedAt));
     }
 }

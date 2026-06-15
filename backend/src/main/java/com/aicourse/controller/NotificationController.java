@@ -1,6 +1,7 @@
 package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
+import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.Notification;
 import com.aicourse.service.NotificationService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -8,7 +9,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
@@ -36,7 +36,7 @@ public class NotificationController {
      * @return 分页通知列表
      */
     @GetMapping("")
-    public ApiResponse<Page<Notification>> getUserNotifications(
+    public ApiResponse<PagedResponse<Notification>> getUserNotifications(
             Authentication auth,
             @RequestParam(required = false) String category,
             @RequestParam(required = false) Boolean isRead,
@@ -44,7 +44,7 @@ public class NotificationController {
             @RequestParam(defaultValue = "10") int size) {
         Long userId = (Long) auth.getPrincipal();
         Page<Notification> result = notificationService.getUserNotifications(userId, category, isRead, page, size);
-        return ApiResponse.success(result);
+        return ApiResponse.success(PagedResponse.of(result));
     }
 
     /**

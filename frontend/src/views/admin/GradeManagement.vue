@@ -1,4 +1,4 @@
-<template>
+﻿﻿﻿﻿<template>
   <div class="fade-in grade-management">
     <!-- 页面头部 -->
     <div class="page-header">
@@ -182,7 +182,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, onMounted, markRaw } from 'vue'
 import { Download, Search, Warning, DataAnalysis, TrendCharts, TrophyBase } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import examApi from '@/api/exam'
@@ -215,10 +215,10 @@ const abnormalGrades = ref([])
 
 // 概览统计数据
 const overviewStats = ref([
-  { icon: DataAnalysis, label: '平均分', value: '--', bg: 'rgba(122, 139, 165, 0.12)' },
-  { icon: TrendCharts, label: '标准差', value: '--', bg: 'rgba(139, 168, 136, 0.12)' },
-  { icon: TrophyBase, label: '及格率', value: '--', bg: 'rgba(203, 181, 138, 0.12)' },
-  { icon: Warning, label: '异常数', value: 0, bg: 'rgba(196, 128, 128, 0.12)' }
+  { icon: markRaw(DataAnalysis), label: '平均分', value: '--', bg: 'rgba(122, 139, 165, 0.12)' },
+  { icon: markRaw(TrendCharts), label: '标准差', value: '--', bg: 'rgba(139, 168, 136, 0.12)' },
+  { icon: markRaw(TrophyBase), label: '及格率', value: '--', bg: 'rgba(203, 181, 138, 0.12)' },
+  { icon: markRaw(Warning), label: '异常数', value: 0, bg: 'rgba(196, 128, 128, 0.12)' }
 ])
 
 // 对话框
@@ -230,24 +230,24 @@ const distributionOption = ref({
   tooltip: {
     trigger: 'axis',
     backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: 'var(--ac-border)'
+    borderColor: '#DDD6CE'
   },
   grid: { left: 45, right: 15, bottom: 25, top: 15 },
   xAxis: {
     type: 'category',
     data: ['0-59', '60-69', '70-79', '80-89', '90-100'],
-    axisLine: { lineStyle: { color: 'var(--ac-border)' } },
-    axisLabel: { fontSize: 11, color: 'var(--ac-text-muted)' }
+    axisLine: { lineStyle: { color: '#DDD6CE' } },
+    axisLabel: { fontSize: 11, color: '#928B83' }
   },
-  yAxis: { type: 'value', splitLine: { lineStyle: { color: 'var(--ac-border)', type: 'dashed' } }, axisLabel: { fontSize: 11, color: 'var(--ac-text-muted)' } },
+  yAxis: { type: 'value', splitLine: { lineStyle: { color: '#DDD6CE', type: 'dashed' } }, axisLabel: { fontSize: 11, color: '#928B83' } },
   series: [{
     type: 'bar',
     barWidth: '55%',
     itemStyle: {
       borderRadius: [4, 4, 0, 0],
       color: (params) => {
-        const colors = ['var(--ac-danger)', '#CBB58A', 'var(--ac-secondary)', 'var(--ac-success)', 'var(--ac-primary)']
-        return colors[params.dataIndex] || 'var(--ac-primary)'
+        const colors = ['#C48080', '#CBB58A', '#B89A8A', '#8BA888', '#7A8BA5']
+        return colors[params.dataIndex] || '#7A8BA5'
       }
     },
     data: []
@@ -259,18 +259,18 @@ const courseCompareOption = ref({
   tooltip: {
     trigger: 'axis',
     backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: 'var(--ac-border)',
+    borderColor: '#DDD6CE',
     formatter: '{b}: {c}分'
   },
   grid: { left: 100, right: 20, bottom: 20, top: 10 },
-  xAxis: { type: 'value', min: 0, max: 100, splitLine: { lineStyle: { color: 'var(--ac-border)', type: 'dashed' } }, axisLabel: { color: 'var(--ac-text-muted)', fontSize: 11 } },
+  xAxis: { type: 'value', min: 0, max: 100, splitLine: { lineStyle: { color: '#DDD6CE', type: 'dashed' } }, axisLabel: { color: '#928B83', fontSize: 11 } },
   yAxis: {
     type: 'category',
     data: [],
     inverse: true,
     axisLine: { show: false },
     axisTick: { show: false },
-    axisLabel: { color: 'var(--ac-text-secondary)', fontSize: 11, width: 90, overflow: 'truncate' }
+    axisLabel: { color: '#5E574F', fontSize: 11, width: 90, overflow: 'truncate' }
   },
   series: [{
     type: 'bar',
@@ -281,12 +281,12 @@ const courseCompareOption = ref({
         type: 'linear',
         x: 0, y: 0, x2: 1, y2: 0,
         colorStops: [
-          { offset: 0, color: 'var(--ac-primary)' },
-          { offset: 1, color: 'var(--ac-secondary)' }
+          { offset: 0, color: '#7A8BA5' },
+          { offset: 1, color: '#B89A8A' }
         ]
       }
     },
-    label: { show: true, position: 'right', color: 'var(--ac-text-secondary)', fontSize: 11 },
+    label: { show: true, position: 'right', color: '#5E574F', fontSize: 11 },
     data: []
   }]
 })
@@ -297,7 +297,7 @@ const courseCompareOption = ref({
 async function fetchCourses() {
   try {
     const res = await courseApi.getCourseList({ page: 0, size: 100 })
-    const data = res.data?.list || res.data || res || []
+    const data = res.data?.records || res.data?.list || res.data || res || []
     courseList.value = Array.isArray(data) ? data : []
   } catch (error) {
     console.warn('获取课程列表失败:', error)
@@ -322,7 +322,8 @@ async function fetchGrades() {
     if (filters.keyword) params.keyword = filters.keyword
 
     const res = await examApi.getMyExamSessions(params)
-    let data = res.data?.list || res.data || res || []
+    let rawData = res.data?.records || res.data?.list || res.data || res || []
+    let data = Array.isArray(rawData) ? rawData : (rawData?.records ?? rawData?.grades ?? rawData?.items ?? [])
 
     if (!Array.isArray(data)) {
       // 如果返回的是对象，尝试提取数组
@@ -453,11 +454,35 @@ function resetFilters() {
 /**
  * 导出成绩报表
  */
-function exportGrades() {
-  ElMessage.success('正在生成成绩报表，请稍候...')
-  setTimeout(() => {
-    ElMessage.success('报表已生成并开始下载')
-  }, 1500)
+async function exportGrades() {
+  try {
+    ElMessage.loading({ message: '正在生成成绩报表，请稍候...', duration: 0 })
+    // 尝试调用后端导出接口
+    const params = {}
+    if (filters.courseId) params.courseId = filters.courseId
+    if (filters.semester) params.semester = filters.semester
+    if (filters.keyword) params.keyword = filters.keyword
+
+    const res = await examApi.exportGrades(params)
+    ElMessage.closeAll()
+
+    // 处理文件下载
+    if (res.data instanceof Blob) {
+      const url = window.URL.createObjectURL(res.data)
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `成绩报表_${new Date().toLocaleDateString('zh-CN')}.xlsx`
+      link.click()
+      window.URL.revokeObjectURL(url)
+      ElMessage.success('报表已开始下载')
+    } else {
+      ElMessage.success('报表已生成')
+    }
+  } catch (e) {
+    ElMessage.closeAll()
+    console.error('导出成绩失败:', e)
+    ElMessage.error('导出失败，请稍后重试')
+  }
 }
 
 /**

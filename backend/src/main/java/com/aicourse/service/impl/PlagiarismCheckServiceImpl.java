@@ -144,6 +144,11 @@ public class PlagiarismCheckServiceImpl extends ServiceImpl<PlagiarismCheckMappe
             }
             // 生成检测结果摘要
             String summary = generateResultSummary(maxSimilarity, highSimCount, otherSubmissions.size());
+
+            // 将详细匹配结果序列化为JSON存入checkDetail字段（含算法版本信息）
+            String checkDetailJson = buildCheckDetailJson(allMatches, maxSimilarity, highSimCount, otherSubmissions.size());
+            check.setCheckDetail(checkDetailJson);
+
             // 更新查重任务结果
             check.setSimilarityScore(maxSimilarity.setScale(4, RoundingMode.HALF_UP));
             check.setHighSimilarityCount(highSimCount);
@@ -187,6 +192,16 @@ public class PlagiarismCheckServiceImpl extends ServiceImpl<PlagiarismCheckMappe
                 .orderByDesc(PlagiarismMatch::getSimilarity);
         List<PlagiarismMatch> matches = plagiarismMatchService.list(matchWrapper);
         result.put("matches", matches);
+
+        // 解析checkDetail JSON返回结构化数据
+        if (check.getCheckDetail() != null && !check.getCheckDetail().isEmpty()) {
+            result.put("checkDetailRaw", check.getCheckDetail());
+            // 提取算法版本信息
+            if (check.getCheckDetail().contains("algorithmVersion")) {
+                result.put("algorithmVersion", "Jaccard-v1.0");
+            }
+        }
+
         return result;
     }
 
@@ -302,5 +317,37 @@ public class PlagiarismCheckServiceImpl extends ServiceImpl<PlagiarismCheckMappe
             sb.append("未发现明显的高相似度匹配，原创性较好。");
         }
         return sb.toString();
+    }
+
+    /**
+     * 构建查重详细结果JSON（含算法版本、匹配明细等结构化数据）
+     */
+    private String buildCheckDetailJson(List<Map<String, Object>> allMatches,
+                                         BigDecimal maxSimilarity, int highSimCount, int totalCompared) {
+        StringBuilder json = new StringBuilder();
+        json.append("{");
+        // 算法版本信息
+        json.append("\"algorithmVersion\":\"Jaccard-v1.0\",");
+        json.append("\"algorithm\":\"Jaccard_Similarity\",");
+        json.append("\"checkedAt\":\"").append(LocalDateTime.now().toString()).append("\",");
+        // 统计信息
+        json.append("\"totalCompared\":").append(totalCompared).append(",");
+        json.append("\"maxSimilarity\":").append(maxSimilarity.setScale(4, RoundingMode.HALF_UP)).append(",");
+        json.append("\"highSimilarityCount\":").append(highSimCount).append(",");
+        // 匹配详情列表
+        json.append("\"matches\":[");
+        for (int i = 0; i < allMatches.size(); i++) {
+            if (i > 0) json.append(",");
+            Map<String, Object> match = allMatches.get(i);
+            json.append("{");
+            json.append("\"matchedSubmissionId\":").append(match.get("matchedSubmissionId")).append(",");
+            json.append("\"matchedSource\":\"").append(match.get("matchedSource")).append("\",");
+            json.append("\"similarity\":").append(match.get("similarity")).append(",");
+            json.append("\"matchType\":\"").append(match.get("matchType")).append("\"");
+            json.append("}");
+        }
+        json.append("]");
+        json.append("}");
+        return json.toString();
     }
 }

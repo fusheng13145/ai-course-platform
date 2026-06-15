@@ -6,7 +6,6 @@ import com.aicourse.mapper.ExamSessionMapper;
 import com.aicourse.service.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,7 +23,6 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
     private final QuestionService questionService;
     private final WrongQuestionService wrongQuestionService;
 
-    @Autowired
     public ExamSessionServiceImpl(ExamPaperService examPaperService,
                                    ExamQuestionService examQuestionService,
                                    QuestionService questionService,
@@ -499,6 +497,66 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
         }
 
         return suspicions;
+    }
+
+    /**
+     * 作弊检测与标记（综合检测IP变化、异常行为等，记录检测结果）
+     * 检测项包括：IP地址变化、浏览器/设备变化、异常短时答题、超时提交等
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Map<String, Object> checkCheating(Long sessionId) {
+        ExamSession session = this.getById(sessionId);
+        if (session == null) {
+            throw new BusinessException("考试会话不存在");
+        }
+
+        List<String> suspicions = detectCheating(sessionId);
+        boolean hasSuspicion = !suspicions.isEmpty();
+
+        // 将作弊检测结果序列化为JSON存入answers字段的扩展区域（复用已有字段存储标记信息）
+        // 构建作弊标记摘要
+        StringBuilder cheatingFlags = new StringBuilder();
+        if (hasSuspicion) {
+            cheatingFlags.append("{\"detectedAt\":\"").append(java.time.LocalDateTime.now().toString()).append("\"");
+            cheatingFlags.append(",\"flagCount\":").append(suspicions.size());
+            cheatingFlags.append(",\"details\":[");
+            for (int i = 0; i < suspicions.size(); i++) {
+                if (i > 0) cheatingFlags.append(",");
+                cheatingFlags.append("\"").append(suspicions.get(i).replace("\"", "'")).append("\"");
+            }
+            cheatingFlags.append("]}");
+            // 将标记信息追加到现有答案JSON中（作为元数据）
+            String existingAnswers = session.getAnswers() != null ? session.getAnswers() : "{}";
+            if (!existingAnswers.isEmpty() && !"{".equals(existingAnswers.trim())) {
+                // 追加cheatingFlags到答案中
+                String markedAnswers = existingAnswers.replace("}", ",\"cheatingFlags\":" + cheatingFlags.toString() + "}");
+                session.setAnswers(markedAnswers);
+            } else {
+                session.setAnswers("{\"cheatingFlags\":" + cheatingFlags.toString() + "}");
+            }
+            this.updateById(session);
+        }
+
+        // 构建返回结果
+        Map<String, Object> result = new HashMap<>();
+        result.put("sessionId", sessionId);
+        result.put("hasSuspicion", hasSuspicion);
+        result.put("suspicionCount", suspicions.size());
+        result.put("suspicions", suspicions);
+        result.put("riskLevel", determineRiskLevel(suspicions));
+        result.put("checkedAt", java.time.LocalDateTime.now());
+
+        return result;
+    }
+
+    /**
+     * 根据可疑项数量判定风险等级
+     */
+    private String determineRiskLevel(List<String> suspicions) {
+        if (suspicions.size() >= 3) return "HIGH";
+        if (suspicions.size() >= 1) return "MEDIUM";
+        return "LOW";
     }
 
     /**

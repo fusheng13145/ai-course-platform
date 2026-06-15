@@ -129,6 +129,7 @@ public class SubmissionController {
     public ApiResponse<Submission> resubmit(@PathVariable Long id,
                                             @RequestBody Map<String, Object> body) {
         String content = body.get("content") != null ? body.get("content").toString() : null;
+        @SuppressWarnings("unchecked")
         List<String> fileUrls = body.get("fileUrls") != null ? (List<String>) body.get("fileUrls") : null;
         Submission submission = submissionService.resubmit(id, content, fileUrls);
         return ApiResponse.success("重新提交成功", submission);

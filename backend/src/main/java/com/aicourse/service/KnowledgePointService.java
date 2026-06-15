@@ -55,4 +55,25 @@ public interface KnowledgePointService extends IService<KnowledgePoint> {
      * @return 根级知识点列表
      */
     List<KnowledgePoint> getRootPoints(Long courseId);
+
+    /**
+     * 创建知识点（校验difficultyLevel和importance的取值范围）
+     * @param knowledgePoint 知识点实体（需包含courseId、name等必填字段）
+     * @return 创建后的知识点
+     */
+    KnowledgePoint createWithValidation(KnowledgePoint knowledgePoint);
+
+    /**
+     * 获取知识点列表（支持按难度等级和重要度排序/筛选）
+     * @param courseId 课程ID
+     * @param difficultyLevel 难度等级筛选（可选，如"EASY"/"MEDIUM"/"HARD"）
+     * @param minImportance 最小重要度（可选）
+     * @param maxImportance 最大重要度（可选）
+     * @param sortBy 排序字段（可选：importance/difficultyLevel/orderIndex）
+     * @param isAsc 是否升序
+     * @return 筛选排序后的知识点列表
+     */
+    List<KnowledgePoint> getListWithFilters(Long courseId, String difficultyLevel,
+                                              Integer minImportance, Integer maxImportance,
+                                              String sortBy, boolean isAsc);
 }

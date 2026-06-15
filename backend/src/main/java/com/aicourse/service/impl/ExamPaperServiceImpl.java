@@ -10,12 +10,10 @@ import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.QuestionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.time.LocalDateTime;
 import java.util.*;
 
 @Service
@@ -24,7 +22,6 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
     private final ExamQuestionService examQuestionService;
     private final QuestionService questionService;
 
-    @Autowired
     public ExamPaperServiceImpl(ExamQuestionService examQuestionService, QuestionService questionService) {
         this.examQuestionService = examQuestionService;
         this.questionService = questionService;

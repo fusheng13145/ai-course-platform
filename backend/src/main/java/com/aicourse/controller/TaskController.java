@@ -2,13 +2,14 @@ package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
-import com.aicourse.entity.Submission;
 import com.aicourse.entity.Task;
-import com.aicourse.exception.BusinessException;
 import com.aicourse.service.SubmissionService;
 import com.aicourse.service.TaskService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -19,12 +20,15 @@ import java.util.Map;
 
 /**
  * 作业任务接口控制器
+ * 提供作业任务的增删改查、发布、截止日期管理、批改等RESTful API
  */
 @RestController
 @RequestMapping("/tasks")
+@Tag(name = "任务管理", description = "提供作业任务的创建、查询、发布、截止日期延长、复制、批改等功能")
 public class TaskController {
 
     private final TaskService taskService;
+    @SuppressWarnings("unused")
     private final SubmissionService submissionService;
 
     public TaskController(TaskService taskService, SubmissionService submissionService) {
@@ -34,16 +38,13 @@ public class TaskController {
 
     /**
      * 分页查询任务（支持课程筛选）
-     * @param page 当前页码
-     * @param size 每页条数
-     * @param courseId 课程ID（可选）
-     * @return 分页任务数据
      */
     @GetMapping
+    @Operation(summary = "分页查询任务列表", description = "支持按课程ID筛选的分页查询")
     public ApiResponse<PagedResponse<Task>> listByParams(
-            @RequestParam(defaultValue = "1") long page,
-            @RequestParam(defaultValue = "10") long size,
-            @RequestParam(required = false) Long courseId) {
+            @Parameter(description = "当前页码") @RequestParam(defaultValue = "1") long page,
+            @Parameter(description = "每页条数") @RequestParam(defaultValue = "10") long size,
+            @Parameter(description = "课程ID（可选）") @RequestParam(required = false) Long courseId) {
         LambdaQueryWrapper<Task> queryWrapper = new LambdaQueryWrapper<Task>()
                 .eq(courseId != null, Task::getCourseId, courseId);
         Page<Task> taskPage = taskService.page(Page.of(page, size), queryWrapper);
@@ -52,16 +53,13 @@ public class TaskController {
 
     /**
      * 根据课程ID分页查询任务
-     * @param courseId 课程ID
-     * @param page 当前页码
-     * @param size 每页条数
-     * @return 分页任务数据
      */
     @GetMapping("/course/{courseId}")
+    @Operation(summary = "按课程查询任务", description = "返回指定课程下的所有任务列表")
     public ApiResponse<PagedResponse<Task>> listByCourse(
-            @PathVariable Long courseId,
-            @RequestParam(defaultValue = "1") long page,
-            @RequestParam(defaultValue = "10") long size) {
+            @Parameter(description = "课程ID") @PathVariable Long courseId,
+            @Parameter(description = "当前页码") @RequestParam(defaultValue = "1") long page,
+            @Parameter(description = "每页条数") @RequestParam(defaultValue = "10") long size) {
         LambdaQueryWrapper<Task> queryWrapper = new LambdaQueryWrapper<Task>()
                 .eq(Task::getCourseId, courseId);
         Page<Task> taskPage = taskService.page(Page.of(page, size), queryWrapper);
@@ -70,36 +68,37 @@ public class TaskController {
 
     /**
      * 根据ID查询任务详情
-     * @param id 任务ID
-     * @return 任务信息
      */
     @GetMapping("/{id}")
-    public ApiResponse<Task> getById(@PathVariable Long id) {
+    @Operation(summary = "获取任务详情", description = "根据任务ID返回完整任务信息，包含要求、附件等")
+    public ApiResponse<Task> getById(@Parameter(description = "任务ID") @PathVariable Long id) {
         Task task = taskService.getById(id);
         return ApiResponse.success(task);
     }
 
     /**
      * 新增任务（教师/管理员权限）
-     * @param task 任务信息
-     * @return 新增任务数据
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Task> create(@RequestBody Task task) {
+    @Operation(summary = "创建新任务", description = "教师或管理员创建新的作业/测验/项目任务")
+    public ApiResponse<Task> create(@io.swagger.v3.oas.annotations.parameters.RequestBody(
+            description = "任务创建信息"
+    ) @RequestBody Task task) {
         taskService.save(task);
         return ApiResponse.success("创建成功", task);
     }
 
     /**
      * 修改任务（教师/管理员权限）
-     * @param id 任务ID
-     * @param task 待更新任务数据
-     * @return 更新后任务信息
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Task> update(@PathVariable Long id, @RequestBody Task task) {
+    @Operation(summary = "更新任务信息", description = "教师或管理员可修改任务内容、截止日期等")
+    public ApiResponse<Task> update(@Parameter(description = "任务ID") @PathVariable Long id,
+                                    @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                                            description = "待更新的任务数据"
+                                    ) @RequestBody Task task) {
         task.setId(id);
         taskService.updateById(task);
         Task updatedTask = taskService.getById(id);
@@ -108,37 +107,37 @@ public class TaskController {
 
     /**
      * 删除任务（教师/管理员权限）
-     * @param id 任务ID
-     * @return 操作结果
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Void> delete(@PathVariable Long id) {
+    @Operation(summary = "删除任务", description = "教师或管理员可删除任务")
+    public ApiResponse<Void> delete(@Parameter(description = "任务ID") @PathVariable Long id) {
         taskService.removeById(id);
         return ApiResponse.success("删除成功", null);
     }
 
     /**
-     * 发布任务（教师/管理员权限）- 使用增强版Service方法
-     * @param id 任务ID
-     * @return 发布后任务信息
+     * 发布任务（教师/管理员权限）
      */
     @PostMapping("/{id}/publish")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Task> publish(@PathVariable Long id) {
+    @Operation(summary = "发布任务", description = "将草稿状态的任务发布给学生可见")
+    public ApiResponse<Task> publish(@Parameter(description = "任务ID") @PathVariable Long id) {
         Task task = taskService.publishTask(id);
         return ApiResponse.success("发布成功", task);
     }
 
     /**
      * 延长截止日期（教师/管理员权限）
-     * @param id 任务ID
-     * @param body 包含新的截止日期和原因
-     * @return 更新后的任务信息
      */
     @PostMapping("/{id}/extend-deadline")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Task> extendDeadline(@PathVariable Long id, @RequestBody Map<String, Object> body) {
+    @Operation(summary = "延长截止日期", description = "延长任务的截止时间并记录原因")
+    public ApiResponse<Task> extendDeadline(
+            @Parameter(description = "任务ID") @PathVariable Long id,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "包含新截止日期(newDueDate)和原因(reason)的JSON对象"
+            ) @RequestBody Map<String, Object> body) {
         String newDueDateStr = body.get("newDueDate").toString();
         String reason = body.get("reason") != null ? body.get("reason").toString() : null;
         LocalDateTime newDueDate = LocalDateTime.parse(newDueDateStr);
@@ -148,13 +147,15 @@ public class TaskController {
 
     /**
      * 复制任务（教师/管理员权限）
-     * @param id 源任务ID
-     * @param body 包含新标题
-     * @return 新任务信息
      */
     @PostMapping("/{id}/copy")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Task> copy(@PathVariable Long id, @RequestBody Map<String, String> body) {
+    @Operation(summary = "复制任务", description = "基于已有任务快速创建副本，可自定义新标题")
+    public ApiResponse<Task> copy(
+            @Parameter(description = "源任务ID") @PathVariable Long id,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "包含新标题(newTitle)的JSON对象"
+            ) @RequestBody Map<String, String> body) {
         String newTitle = body.get("newTitle");
         Task newTask = taskService.copyTask(id, newTitle);
         return ApiResponse.success("复制成功", newTask);
@@ -162,11 +163,10 @@ public class TaskController {
 
     /**
      * 获取待批阅的任务列表（教师权限）
-     * @param auth 认证信息
-     * @return 待批阅任务列表
      */
     @GetMapping("/pending-grading")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "获取待批阅任务列表", description = "返回当前教师有待批阅提交的任务列表")
     public ApiResponse<List<Task>> pendingGrading(Authentication auth) {
         Long teacherId = (Long) auth.getPrincipal();
         List<Task> tasks = taskService.getPendingGradingTasks(teacherId);
@@ -175,11 +175,10 @@ public class TaskController {
 
     /**
      * 获取任务完成率统计（增强版）
-     * @param id 任务ID
-     * @return 完成率统计数据
      */
     @GetMapping("/{id}/completion-stats")
-    public ApiResponse<Map<String, Object>> completionStats(@PathVariable Long id) {
+    @Operation(summary = "获取任务完成率统计", description = "返回指定任务的提交完成情况统计")
+    public ApiResponse<Map<String, Object>> completionStats(@Parameter(description = "任务ID") @PathVariable Long id) {
         Map<String, Object> stats = taskService.getTaskCompletionStats(id);
         return ApiResponse.success(stats);
     }

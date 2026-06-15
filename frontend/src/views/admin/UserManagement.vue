@@ -1,4 +1,4 @@
-<template>
+﻿﻿﻿﻿<template>
   <div class="fade-in user-management">
     <!-- 页面头部 -->
     <div class="page-header">
@@ -107,7 +107,8 @@ const filteredList = computed(() => {
 onMounted(async () => {
   try {
     const res = await userApi.getUserList()
-    userList.value = res.data?.list || res.data || res || []
+        const rawData = res.data?.records || res.data?.list || res.data || res
+    userList.value = Array.isArray(rawData) ? rawData : []
 
     // 更新统计数据
     userStats.value[0].value = userList.value.length
@@ -116,6 +117,7 @@ onMounted(async () => {
     userStats.value[3].value = userList.value.filter(u => u.role === 'STUDENT').length
   } catch (e) {
     console.error('Failed to load users:', e)
+    userList.value = []
   }
 })
 

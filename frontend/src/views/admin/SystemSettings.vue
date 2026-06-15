@@ -280,6 +280,7 @@ import {
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import systemApi from '@/api/system'
+import { systemConfigApi } from '@/api/systemConfig'
 
 // 当前激活的Tab
 const activeTab = ref('basic')
@@ -358,8 +359,9 @@ const inputValue = reactive({ image: '', doc: '' })
  */
 async function loadConfigGroup(group) {
   try {
-    const res = await systemApi.getSystemConfig(group)
-    const data = res.data || res
+    // 优先使用 systemConfigApi 按分组获取
+    const res = await systemConfigApi.getByGroup(group)
+    const data = res.data?.data || res.data || res
 
     if (data && typeof data === 'object') {
       // 合并到对应表单
@@ -368,7 +370,16 @@ async function loadConfigGroup(group) {
       }
     }
   } catch (error) {
-    console.warn(`加载${group}配置失败:`, error)
+    // 回退到 systemApi
+    try {
+      const res = await systemApi.getSystemConfig(group)
+      const fallbackData = res.data || res
+      if (fallbackData && typeof fallbackData === 'object' && forms[group]) {
+        Object.assign(forms[group], fallbackData)
+      }
+    } catch (e) {
+      console.warn(`加载${group}配置失败:`, e)
+    }
   }
 }
 
@@ -391,8 +402,8 @@ async function saveSettings(group) {
 
       saving[group] = true
       try {
-        // 尝试批量更新
-        await request.post('/system-configs/batch-update', { group, configs: forms[group] })
+        // 优先使用 systemConfigApi 批量更新接口
+        await systemConfigApi.batchUpdate({ group, configs: forms[group] })
         ElMessage.success(`${getGroupName(group)}保存成功`)
       } catch (error) {
         console.error('保存配置失败:', error)
@@ -448,7 +459,7 @@ function getGroupName(group) {
 async function sendTestEmail() {
   ElMessage.info('正在发送测试邮件...')
   try {
-    await request.post('/system-configs/test-email')
+    await systemConfigApi.testEmail()
     ElMessage.success('测试邮件已发送，请查收')
   } catch (error) {
     ElMessage.error('发送失败，请检查邮件配置')

@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 消息通知服务实现类
@@ -251,7 +252,28 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
                     "/submissions/" + submissionId,
                 null,
                 submissionId,
-                "SUBMISSION"
+                    "SUBMISSION"
         );
+    }
+
+    /**
+     * 按分类分组获取用户未读通知数
+     */
+    @Override
+    public Map<String, Long> getUnreadGroupedByCategory(Long userId) {
+        // 查询用户所有未读通知
+        LambdaQueryWrapper<Notification> queryWrapper = new LambdaQueryWrapper<Notification>()
+                .eq(Notification::getUserId, userId)
+                .eq(Notification::getIsRead, false);
+        List<Notification> unreadNotifications = this.list(queryWrapper);
+
+        // 按category分组统计
+        Map<String, Long> grouped = unreadNotifications.stream()
+                .collect(Collectors.groupingBy(
+                        n -> n.getCategory() != null ? n.getCategory() : "OTHER",
+                        Collectors.counting()
+                ));
+
+        return grouped;
     }
 }

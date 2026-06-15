@@ -234,16 +234,19 @@ async function selectPath(pathId) {
   }
 }
 
-/* ---- 加载每日任务 ---- */
+/* ---- 加载每日任务（增强：使用 learningPathApi） ---- */
 async function loadDailyTasks(pathId) {
   try {
-    const res = await fetch(`/api/learning-paths/${pathId}/daily-tasks`, {
-      headers: { Authorization: `Bearer ${localStorage.getItem('token')}` }
-    }).then(r => r.json()).catch(() => null)
-    if (res?.data) {
-      dailyTasks.value = res.data
-    }
-  } catch {
+    const res = await learningPathApi.getDailyTasks(pathId)
+    const data = res.data || res || []
+    dailyTasks.value = Array.isArray(data) ? data.map(t => ({
+      id: t.id,
+      title: t.title || t.name || t.content || '任务',
+      completed: t.completed ?? false,
+      priority: t.priority || 'MEDIUM',
+      knowledgePointName: t.knowledgePointName || ''
+    })) : []
+  } catch (e) {
     // API 可能不存在，忽略错误
     dailyTasks.value = []
   }

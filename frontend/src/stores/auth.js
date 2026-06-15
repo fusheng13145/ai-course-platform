@@ -1,6 +1,7 @@
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import authApi from '@/api/auth'
+import { connect as wsConnect, disconnect as wsDisconnect } from '@/utils/websocket'
 
 export const useAuthStore = defineStore('auth', () => {
   const token = ref(localStorage.getItem('token') || sessionStorage.getItem('token') || '')
@@ -78,6 +79,10 @@ export const useAuthStore = defineStore('auth', () => {
         clearAllStorage()
         saveToStorage(remember)
         await fetchPermissions()
+        // 登录成功后自动连接 WebSocket（失败不影响主流程）
+        wsConnect(data.token).catch(() => {
+          console.warn('WebSocket 连接失败，实时功能已禁用')
+        })
         return { success: true, user: user.value }
       }
       throw new Error('登录失败')

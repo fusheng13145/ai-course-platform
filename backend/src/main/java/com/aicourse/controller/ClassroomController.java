@@ -1,7 +1,6 @@
 package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
-import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.Classroom;
 import com.aicourse.entity.User;
 import com.aicourse.service.ClassroomService;

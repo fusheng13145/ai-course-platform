@@ -1,4 +1,4 @@
-<template>
+﻿﻿﻿﻿<template>
   <div class="fade-in question-management">
     <!-- 页面头部 -->
     <div class="page-header">
@@ -394,6 +394,7 @@ import {
 import { ElMessage, ElMessageBox } from 'element-plus'
 import questionApi from '@/api/question'
 import courseApi from '@/api/course'
+import request from '@/api/request'
 
 // 加载状态
 const loading = ref(false)
@@ -509,14 +510,14 @@ async function fetchQuestions() {
     if (filters.courseId) params.courseId = filters.courseId
 
     const res = await questionApi.getQuestionList(params)
-    const data = res.data?.list || res.data || res || []
+    const rawData = res.data?.records || res.data?.list || res.data || res
 
-    if (Array.isArray(data)) {
-      questionList.value = data
-      pagination.total = data.length
-    } else if (data?.records || data?.items) {
-      questionList.value = data.records || data.items
-      pagination.total = data.total || questionList.value.length
+    if (Array.isArray(rawData)) {
+      questionList.value = rawData
+      pagination.total = rawData.length
+    } else if (rawData?.records || rawData?.items) {
+      questionList.value = rawData.records || rawData.items
+      pagination.total = rawData.total || questionList.value.length
     }
 
     // 更新统计
@@ -715,12 +716,12 @@ async function viewStats(row) {
     currentStats.value = res.data || res
   } catch (error) {
     console.warn('获取题目统计失败:', error)
-    // 使用模拟数据
+    // API 不可用时使用空数据，不再伪造统计值
     currentStats.value = {
-      usageCount: Math.floor(Math.random() * 50) + 5,
-      correctRate: Math.random() * 0.4 + 0.4,
-      avgTime: Math.floor(Math.random() * 180) + 30,
-      errorCount: Math.floor(Math.random() * 20),
+      usageCount: 0,
+      correctRate: null,
+      avgTime: '--',
+      errorCount: 0,
       recentUsage: []
     }
   }
@@ -732,10 +733,17 @@ async function viewStats(row) {
 async function viewErrorProne() {
   ElMessage.info('正在加载易错题榜单...')
   try {
-    const res = await request.get('/questions/error-prone?limit=10')
-    console.log('易错题数据:', res.data)
+    const res = await questionApi.getErrorProne({ limit: 10 })
+    const list = res.data?.list || res.data || res || []
+    if (Array.isArray(list) && list.length > 0) {
+      ElMessage.success(`获取到 ${list.length} 道易错题`)
+      console.log('易错题数据:', list)
+    } else {
+      ElMessage.info('暂无易错题数据')
+    }
   } catch (error) {
     console.warn('获取易错题失败:', error)
+    ElMessage.error('获取易错题失败，请稍后重试')
   }
 }
 

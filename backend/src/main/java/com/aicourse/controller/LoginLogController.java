@@ -67,7 +67,80 @@ public class LoginLogController {
     }
 
     /**
+     * 获取登录日志列表（支持分页、状态筛选）
+     * @param page 页码
+     * @param size 每页大小
+     * @param status 登录状态筛选（可选）
+     * @param userId 用户ID筛选（可选）
+     * @return 分页登录日志列表
+     */
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<PagedResponse<LoginLog>> getList(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long userId) {
+        Page<LoginLog> result = loginLogService.getLoginLogList(page, size, status, userId);
+        return ApiResponse.success(PagedResponse.of(result));
+    }
+
+    /**
+     * 获取全局登录统计数据
+     * @return 统计信息（总登录次数、成功/失败次数等）
+     */
+    @GetMapping("/stats")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<Map<String, Object>> getGlobalStats() {
+        Map<String, Object> stats = loginLogService.getGlobalLoginStats();
+        return ApiResponse.success(stats);
+    }
+
+    /**
+     * 获取最近登录记录
+     * @param limit 返回条数上限
+     * @return 最近登录记录列表
+     */
+    @GetMapping("/recent")
+    public ApiResponse<List<LoginLog>> getRecentLogs(
+            @RequestParam(defaultValue = "10") int limit) {
+        List<LoginLog> recentLogs = loginLogService.getRecentLogs(limit);
+        return ApiResponse.success(recentLogs);
+    }
+
+    /**
+     * 获取失败登录记录（支持分页和用户筛选）
+     * @param page 页码
+     * @param size 每页大小
+     * @param userId 用户ID筛选（可选）
+     * @return 失败登录记录分页列表
+     */
+    @GetMapping("/failures")
+    @PreAuthorize("hasAnyRole('ADMIN') or hasRole('TEACHER')")
+    public ApiResponse<PagedResponse<LoginLog>> getFailureLogs(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) Long userId) {
+        Page<LoginLog> result = loginLogService.getFailureLogs(page, size, userId);
+        return ApiResponse.success(PagedResponse.of(result));
+    }
+
+    /**
+     * 异常登录检测（同账号短时间内多地登录 → 异常标记）
+     * @param userId 用户ID
+     * @return 异常检测结果
+     */
+    @GetMapping("/abnormal/{userId}")
+    @PreAuthorize("hasAnyRole('ADMIN') or #userId == authentication.principal")
+    public ApiResponse<Map<String, Object>> getAbnormalLogin(@PathVariable Long userId) {
+        Map<String, Object> result = loginLogService.detectAbnormalLogin(userId);
+        return ApiResponse.success(result);
+    }
+
+    /**
      * 获取登录趋势数据（按日期统计）
+     * 支持两种模式：传入 days=N 自动计算日期范围，或传入 start+end 指定范围
+     * @param days 最近N天（与start/end二选一）
      * @param start 开始日期
      * @param end 结束日期
      * @return 每日登录统计数据列表
@@ -75,8 +148,18 @@ public class LoginLogController {
     @GetMapping("/trends")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<List<Map<String, Object>>> getLoginTrends(
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end) {
+            @RequestParam(required = false) Integer days,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end) {
+        // 优先使用 days 参数计算日期范围
+        if (days != null && days > 0) {
+            end = LocalDate.now();
+            start = end.minusDays(days - 1);
+        } else if (start == null || end == null) {
+            // 默认近7天
+            end = LocalDate.now();
+            start = end.minusDays(6);
+        }
         List<Map<String, Object>> trends = loginLogService.getLoginTrends(start, end);
         return ApiResponse.success(trends);
     }

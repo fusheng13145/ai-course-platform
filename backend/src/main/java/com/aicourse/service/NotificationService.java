@@ -90,4 +90,11 @@ public interface NotificationService extends IService<Notification> {
      * @param eventData 事件关联数据
      */
     void onEvent(String eventType, Map<String, Object> eventData);
+
+    /**
+     * 按分类分组获取用户未读通知数
+     * @param userId 用户ID
+     * @return 按category分组的未读数量Map（如 {"ASSIGNMENT":3, "EXAM":1, "SYSTEM":5}）
+     */
+    Map<String, Long> getUnreadGroupedByCategory(Long userId);
 }

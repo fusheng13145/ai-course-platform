@@ -135,6 +135,7 @@ import {
   EditPen, Link, RefreshRight, ArrowDown
 } from '@element-plus/icons-vue'
 import wrongQuestionApi from '@/api/wrongQuestion'
+import { wrongQuestionEnhancedApi } from '@/api/wrongQuestionEnhanced'
 
 /* ---- 数据状态 ---- */
 const loading = ref(false)
@@ -169,26 +170,54 @@ const knowledgePointTags = computed(() => {
 async function loadData() {
   loading.value = true
   try {
-    const [statsRes, listRes] = await Promise.all([
+    const [statsRes, listRes, kpRes] = await Promise.allSettled([
       wrongQuestionApi.getWrongQuestionStats(),
-      wrongQuestionApi.getWrongQuestions()
+      wrongQuestionApi.getWrongQuestions(),
+      wrongQuestionEnhancedApi.getByKnowledgePoints()
     ])
 
-    const statsData = statsRes.data || statsRes || {}
-    stats.value = {
-      total: statsData.total || 0,
-      mastered: statsData.mastered || 0
+    // 统计数据
+    if (statsRes.status === 'fulfilled') {
+      const statsData = statsRes.value.data || statsRes.value || {}
+      stats.value = {
+        total: statsData.total || 0,
+        mastered: statsData.mastered || 0
+      }
     }
 
-    const list = listRes.data || listRes || []
-    questions.value = Array.isArray(list) ? list.map(q => ({
-      ...q,
-      mastered: !!q.mastered || q.reviewStatus === 'MASTERED',
-      questionContent: q.questionContent || q.content,
-      wrongAnswer: q.wrongAnswer || q.studentAnswer,
-      correctAnswer: q.correctAnswer || q.answer,
-      analysis: q.analysis || q.explanation
-    })) : []
+    // 错题列表
+    if (listRes.status === 'fulfilled') {
+      const list = listRes.value.data || listRes.value || []
+      questions.value = Array.isArray(list) ? list.map(q => ({
+        ...q,
+        mastered: !!q.mastered || q.reviewStatus === 'MASTERED',
+        questionContent: q.questionContent || q.content,
+        wrongAnswer: q.wrongAnswer || q.studentAnswer,
+        correctAnswer: q.correctAnswer || q.answer,
+        analysis: q.analysis || q.explanation
+      })) : []
+    }
+
+    // 知识点分组数据（增强源）
+    if (kpRes.status === 'fulfilled') {
+      const kpData = kpRes.value?.data?.data || kpRes.value?.data || kpRes.value || []
+      if (Array.isArray(kpData) && kpData.length > 0) {
+        // 将知识点分组信息合并到现有题目中（补充 knowledgePointName/knowledgePointId）
+        const kpMap = {}
+        kpData.forEach(group => {
+          if (group.knowledgePointId && group.questions) {
+            kpMap[group.knowledgePointId] = group.knowledgePointName || group.name
+            group.questions.forEach(q => {
+              const existing = questions.value.find(eq => eq.id === q.id)
+              if (existing && !existing.knowledgePointName) {
+                existing.knowledgePointName = group.knowledgePointName || group.name
+                existing.knowledgePointId = group.knowledgePointId
+              }
+            })
+          }
+        })
+      }
+    }
   } catch (e) {
     console.error('加载错题失败:', e)
   } finally {
@@ -226,15 +255,57 @@ async function unmarkMastered(q) {
 }
 
 /* ---- 再次练习 ---- */
-function handlePractice(q) {
-  ElMessage.info(`正在生成「${(q.questionContent || '').substring(0, 20)}...」的练习题`)
-  // 实际调用 POST /wrong-questions/practice-paper
+async function handlePractice(q) {
+  try {
+    ElMessage.info(`正在生成「${(q.questionContent || '').substring(0, 20)}...」的练习题`)
+    const res = await wrongQuestionEnhancedApi.generatePracticePaper({
+      questionIds: [q.id],
+      type: 'single'
+    })
+    const paper = res.data?.data || res.data || res || {}
+    if (paper.id || paper.questions) {
+      ElMessage.success('练习题已生成，准备跳转...')
+      // 实际项目中跳转到练习页面
+      console.log('生成的练习卷:', paper)
+    } else {
+      ElMessage.warning('未生成有效练习内容')
+    }
+  } catch (e) {
+    console.error('生成练习失败:', e)
+    ElMessage.error('生成练习失败，请稍后重试')
+  }
 }
 
 /* ---- 相关推荐 ---- */
-function handleRelated(q) {
-  if (q.knowledgePointName) {
-    ElMessage.info(`正在查找「${q.knowledgePointName}」相关的其他题目`)
+async function handleRelated(q) {
+  try {
+    if (!q.id) return
+    ElMessage.loading({ message: '正在查找相关题目...', duration: 0 })
+    const res = await wrongQuestionEnhancedApi.getRelated(q.id)
+    const related = res.data?.data || res.data || res || []
+    ElMessage.closeAll()
+    if (Array.isArray(related) && related.length > 0) {
+      ElMessage.success(`找到 ${related.length} 道相关题目`)
+      // 将相关题目追加到列表中（去重）
+      const existingIds = new Set(questions.value.map(eq => eq.id))
+      related.forEach(rq => {
+        if (!existingIds.has(rq.id)) {
+          questions.value.push({
+            ...rq,
+            mastered: false,
+            questionContent: rq.questionContent || rq.content,
+            correctAnswer: rq.correctAnswer || rq.answer,
+            analysis: rq.analysis || rq.explanation
+          })
+        }
+      })
+    } else {
+      ElMessage.info('暂无相关推荐题目')
+    }
+  } catch (e) {
+    ElMessage.closeAll()
+    console.error('获取相关推荐失败:', e)
+    ElMessage.error('获取推荐失败，请稍后重试')
   }
 }
 
@@ -242,10 +313,27 @@ function handleRelated(q) {
 async function generatePracticePaper() {
   try {
     const ids = filteredQuestions.value.filter(q => !q.mastered).map(q => q.id)
-    ElMessage.success(`正在基于 ${ids.length} 道错题生成练习卷...`)
-    // 实际调用 POST /wrong-questions/practice-paper
+    if (ids.length === 0) {
+      ElMessage.warning('没有需要复习的错题')
+      return
+    }
+    ElMessage.loading({ message: `正在基于 ${ids.length} 道错题生成练习卷...`, duration: 0 })
+    const res = await wrongQuestionEnhancedApi.generatePracticePaper({
+      questionIds: ids,
+      type: 'batch'
+    })
+    ElMessage.closeAll()
+    const paper = res.data?.data || res.data || res || {}
+    if (paper.id || paper.questions) {
+      ElMessage.success(`练习卷已生成，共 ${paper.questions?.length || ids.length} 道题`)
+      console.log('生成的练习卷:', paper)
+    } else {
+      ElMessage.warning('未生成有效练习卷内容')
+    }
   } catch (e) {
-    ElMessage.error('生成失败')
+    ElMessage.closeAll()
+    console.error('生成练习卷失败:', e)
+    ElMessage.error('生成练习卷失败，请稍后重试')
   }
 }
 
