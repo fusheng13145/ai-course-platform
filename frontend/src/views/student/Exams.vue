@@ -1,4 +1,4 @@
-<template>
+﻿﻿﻿﻿<template>
   <div class="fade-in">
     <!-- ===== 考试列表视图 ===== -->
     <div v-if="viewMode === 'list'">
@@ -326,8 +326,8 @@ async function loadExamList() {
   listLoading.value = true
   try {
     const res = await examApi.getExamPaperList()
-    const data = res.data?.list || res.data || res || []
-    examList.value = Array.isArray(data) ? data : []
+    const rawData = res.data?.records || res.data?.list || res.data || res
+    examList.value = Array.isArray(rawData) ? rawData : []
 
     // 标记已完成状态（检查是否有提交记录）
     try {
@@ -531,10 +531,16 @@ async function autoSaveAnswers() {
   if (!sessionId.value) return
   try {
     const answerData = collectAnswers()
-    // 如果后端支持 auto-save 接口则调用
-    await examApi.submitExam(sessionId.value, { answers: answerData, autoSave: true })
+    // 使用专用的自动保存 API
+    await examApi.autoSaveAnswers(sessionId.value, { answers: answerData })
   } catch (e) {
-    console.warn('自动保存失败:', e)
+    // autoSave 接口不可用时回退到 submit（兼容模式）
+    console.warn('自动保存失败，尝试回退:', e)
+    try {
+      await examApi.submitExam(sessionId.value, { answers: collectAnswers(), autoSave: true })
+    } catch (e2) {
+      console.warn('回退保存也失败:', e2)
+    }
   }
 }
 
@@ -632,8 +638,17 @@ function backToList() {
   resetExamState()
 }
 
-function viewDetailResult() {
-  ElMessage.info('成绩详情功能开发中...')
+async function viewDetailResult() {
+  if (!sessionId.value) return
+  try {
+    const res = await examApi.getScoreReport(sessionId.value)
+    const report = res.data || res || {}
+    ElMessage.info(`详细报告：得分 ${report.score ?? '--'} / ${report.totalScore ?? 100}`)
+    // TODO: 可扩展为弹窗展示完整报告
+  } catch (e) {
+    console.error('获取成绩报告失败:', e)
+    ElMessage.info('成绩详情加载失败')
+  }
 }
 
 function resetExamState() {

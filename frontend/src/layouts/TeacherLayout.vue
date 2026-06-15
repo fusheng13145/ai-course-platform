@@ -1,6 +1,9 @@
 <template>
   <div class="layout-container">
-    <div class="sidebar">
+    <!-- 移动端遮罩层 -->
+    <div class="sidebar-overlay" v-show="sidebarOpen" @click="toggleSidebar"></div>
+
+    <div class="sidebar" :class="{ 'is-open': sidebarOpen }">
       <div class="logo"><el-icon :size="20"><Reading /></el-icon><span>教师工作台</span></div>
       <el-menu :default-active="activeMenu" router background-color="transparent" text-color="rgba(255,255,255,0.65)" active-text-color="#818CF8">
         <el-menu-item index="/teacher/dashboard"><el-icon><Monitor /></el-icon><span>仪表盘</span></el-menu-item>
@@ -13,7 +16,13 @@
     </div>
     <div class="main-area">
       <div class="header">
-        <div><span class="page-title">{{ route.meta?.title || "教师工作台" }}</span></div>
+        <div style="display:flex;align-items:center;gap:8px;">
+          <!-- 移动端菜单切换按钮 -->
+          <el-button class="menu-toggle is-hidden-desktop" text @click="toggleSidebar">
+            <el-icon :size="20"><Menu /></el-icon>
+          </el-button>
+          <span class="page-title">{{ route.meta?.title || "教师工作台" }}</span>
+        </div>
         <div style="display:flex;align-items:center;gap:12px;">
           <ThemeSwitcher />
           <span style="font-size:14px">{{ auth.userName }}</span>
@@ -26,11 +35,40 @@
   </div>
 </template>
 <script setup>
-import { computed } from 'vue'
+import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { Menu } from '@element-plus/icons-vue'
 import ThemeSwitcher from '@/components/ThemeSwitcher.vue'
+
 const route = useRoute(); const router = useRouter(); const auth = useAuthStore()
 const activeMenu = computed(() => route.path)
+
+/* 移动端侧边栏开关 */
+const sidebarOpen = ref(false)
+function toggleSidebar() {
+  sidebarOpen.value = !sidebarOpen.value
+}
+
 function handleLogout() { auth.logout().then(() => router.push('/login')) }
 </script>
+
+<style scoped>
+/* 遮罩层 */
+.sidebar-overlay {
+  display: none;
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background: rgba(0,0,0,0.3);
+  z-index: 999;
+}
+
+@media screen and (max-width: 768px) {
+  .sidebar-overlay { display: block; }
+  .menu-toggle { display: flex !important; }
+}
+.is-hidden-desktop { display: none; }
+@media screen and (max-width: 768px) {
+  .is-hidden-desktop { display: flex !important; }
+}
+</style>

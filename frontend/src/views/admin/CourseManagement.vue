@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div>
     <div class="table-toolbar">
       <div class="toolbar-left">
@@ -116,7 +116,8 @@ onMounted(async () => {
   loading.value = true
   try {
     const res = await courseApi.getCourseList()
-    courseList.value = res.data?.list || res.data || res || []
+        const rawData = res.data?.records || res.data?.list || res.data || res
+    courseList.value = Array.isArray(rawData) ? rawData : []
   } catch (e) {
     console.error('Failed to load courses:', e)
     ElMessage.error('加载课程列表失败')

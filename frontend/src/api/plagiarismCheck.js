@@ -8,3 +8,5 @@ export const plagiarismCheckApi = {
   getMatches(id, threshold) { return request.get(`/plagiarism-checks/${id}/matches`, { params: { threshold } }) },
   getSubmissionChecks(submissionId) { return request.get(`/plagiarism-checks/submission/${submissionId}`) },
 }
+
+export default plagiarismCheckApi

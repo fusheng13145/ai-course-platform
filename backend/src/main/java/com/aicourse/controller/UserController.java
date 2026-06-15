@@ -86,11 +86,12 @@ public class UserController {
 
     /**
      * 获取教师的学生列表
-     * @param teacherId 教师ID
+     * @param auth 认证信息
      * @return 学生列表
      */
     @GetMapping("/teacher/students")
-    public ApiResponse<List<User>> getTeacherStudents(@RequestParam Long teacherId) {
+    public ApiResponse<List<User>> getTeacherStudents(Authentication auth) {
+        Long teacherId = (Long) auth.getPrincipal();
         List<User> students = userService.getTeacherStudents(teacherId);
         return ApiResponse.success(students);
     }

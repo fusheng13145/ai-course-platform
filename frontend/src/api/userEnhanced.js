@@ -8,3 +8,5 @@ export const userEnhancedApi = {
   searchUsers(params) { return request.get('/users/search', { params }) },
   getTeacherStudents() { return request.get('/users/teacher/students') },
 }
+
+export default userEnhancedApi

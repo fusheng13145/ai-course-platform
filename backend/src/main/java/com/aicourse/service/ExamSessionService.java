@@ -98,4 +98,11 @@ public interface ExamSessionService extends IService<ExamSession> {
      * @return 最新会话
      */
     ExamSession getLatestSession(Long examPaperId, Long studentId);
+
+    /**
+     * 作弊检测与标记（检查IP变化、异常行为等，将检测结果写入记录）
+     * @param sessionId 会话ID
+     * @return 作弊检测结果（包含检测到的可疑项列表和综合判定）
+     */
+    Map<String, Object> checkCheating(Long sessionId);
 }

@@ -1,6 +1,5 @@
 package com.aicourse.service.impl;
 
-import com.aicourse.entity.Notification;
 import com.aicourse.entity.Reminder;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ReminderMapper;

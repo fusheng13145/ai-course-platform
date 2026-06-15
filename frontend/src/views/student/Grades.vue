@@ -1,4 +1,4 @@
-<template>
+﻿﻿﻿﻿<template>
   <div class="fade-in">
     <!-- 顶部统计卡片 -->
     <div class="stat-cards">
@@ -208,25 +208,25 @@ const radarOption = computed(() => {
   return {
     tooltip: {
       trigger: 'item',
-      backgroundColor: 'var(--ac-bg-elevated)',
-      borderColor: 'var(--ac-border)',
-      textStyle: { color: 'var(--ac-text-primary)', fontSize: 13 }
+      backgroundColor: '#FFFCF8',
+      borderColor: '#DDD6CE',
+      textStyle: { color: '#3D3835', fontSize: 13 }
     },
     legend: {
       data: ['我的成绩'],
       bottom: 0,
-      textStyle: { fontSize: 12, color: 'var(--ac-text-muted)' }
+      textStyle: { fontSize: 12, color: '#928B83' }
     },
     radar: {
       indicator: dimensions,
       shape: 'polygon',
       splitNumber: 4,
       axisName: {
-        color: 'var(--ac-text-secondary)',
+        color: '#5E574F',
         fontSize: 11
       },
       splitLine: {
-        lineStyle: { color: 'var(--ac-border)' }
+        lineStyle: { color: '#DDD6CE' }
       },
       splitArea: {
         areaStyle: {
@@ -234,7 +234,7 @@ const radarOption = computed(() => {
         }
       },
       axisLine: {
-        lineStyle: { color: 'var(--ac-border)' }
+        lineStyle: { color: '#DDD6CE' }
       }
     },
     series: [{
@@ -268,24 +268,24 @@ const radarOption = computed(() => {
 const trendOption = computed(() => ({
   tooltip: {
     trigger: 'axis',
-    backgroundColor: 'var(--ac-bg-elevated)',
-    borderColor: 'var(--ac-border)',
-    textStyle: { color: 'var(--ac-text-primary)' }
+    backgroundColor: '#FFFCF8',
+    borderColor: '#DDD6CE',
+    textStyle: { color: '#3D3835' }
   },
   grid: { left: 48, right: 20, bottom: 36, top: 20 },
   xAxis: {
     type: 'category',
     data: list.value.map((_, i) => `第${i + 1}次`),
-    axisLine: { lineStyle: { color: 'var(--ac-border)' } },
-    axisLabel: { color: 'var(--ac-text-muted)', fontSize: 11 }
+    axisLine: { lineStyle: { color: '#DDD6CE' } },
+    axisLabel: { color: '#928B83', fontSize: 11 }
   },
   yAxis: {
     type: 'value',
     min: 0,
     max: 100,
     axisLine: { show: false },
-    splitLine: { lineStyle: { color: 'var(--ac-border)', type: 'dashed' } },
-    axisLabel: { color: 'var(--ac-text-muted)', fontSize: 11 }
+    splitLine: { lineStyle: { color: '#DDD6CE', type: 'dashed' } },
+    axisLabel: { color: '#928B83', fontSize: 11 }
   },
   series: [{
     name: '成绩',
@@ -304,8 +304,8 @@ const trendOption = computed(() => ({
     },
     markLine: {
       silent: true,
-      lineStyle: { color: 'var(--ac-danger)', type: 'dashed', width: 1 },
-      data: [{ yAxis: 60, label: { formatter: '及格线', color: 'var(--ac-text-muted)', fontSize: 11 } }]
+      lineStyle: { color: '#C48080', type: 'dashed', width: 1 },
+      data: [{ yAxis: 60, label: { formatter: '及格线', color: '#928B83', fontSize: 11 } }]
     }
   }]
 }))
@@ -358,7 +358,7 @@ onMounted(async () => {
       examApi.getMyExamSessions()
     ])
 
-    const courses = courseRes.data?.list || courseRes.data || courseRes || []
+    const courses = courseRes.data?.records || courseRes.data?.list || courseRes.data || courseRes || []
     courses.forEach(c => { courseMap.value[c.id] = c.name })
 
     const exams = examRes.data?.list || examRes.data || examRes || []

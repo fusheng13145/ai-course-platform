@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div>
     <el-page-header :title="course.name" @back="$router.push('/teacher/courses')" style="margin-bottom:20px" />
     <el-tabs v-model="activeTab">
@@ -152,7 +152,8 @@ async function loadChapters() {
   chaptersLoading.value = true
   try {
     const res = await chapterApi.getChapters(course.id)
-    chapters.value = res.data || res || []
+        const rawData = res.data?.records || res.data?.list || res.data || res
+    chapters.value = Array.isArray(rawData) ? rawData : []
   } catch (e) {
     console.error('Failed to load chapters:', e)
   } finally {
@@ -164,8 +165,8 @@ async function loadStudents() {
   studentsLoading.value = true
   try {
     const res = await courseApi.getStudents(course.id)
-    const list = res.data?.list || res.data || res || []
-    students.value = list
+    const list = res.data?.records || res.data?.list || res.data || res || []
+    students.value = Array.isArray(list) ? list : []
   } catch (e) {
     console.error('Failed to load students:', e)
   } finally {

@@ -1,4 +1,4 @@
-<template>
+﻿﻿﻿﻿<template>
   <div class="fade-in exam-management">
     <!-- 页面头部 -->
     <div class="page-header">
@@ -179,7 +179,6 @@ import { ref, reactive, onMounted } from 'vue'
 import { Search, Timer } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import examApi from '@/api/exam'
-import request from '@/api/request'
 
 // 加载状态
 const loading = ref(false)
@@ -226,16 +225,16 @@ const gradeChartOption = ref({
   tooltip: {
     trigger: 'axis',
     backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: 'var(--ac-border)'
+    borderColor: '#DDD6CE'
   },
   grid: { left: 50, right: 20, bottom: 30, top: 20 },
   xAxis: {
     type: 'category',
     data: ['0-59', '60-69', '70-79', '80-89', '90-100'],
-    axisLine: { lineStyle: { color: 'var(--ac-border)' } },
-    axisLabel: { color: 'var(--ac-text-muted)' }
+    axisLine: { lineStyle: { color: '#DDD6CE' } },
+    axisLabel: { color: '#928B83' }
   },
-  yAxis: { type: 'value', splitLine: { lineStyle: { color: 'var(--ac-border)', type: 'dashed' } }, axisLabel: { color: 'var(--ac-text-muted)' } },
+  yAxis: { type: 'value', splitLine: { lineStyle: { color: '#DDD6CE', type: 'dashed' } }, axisLabel: { color: '#928B83' } },
   series: [{
     type: 'bar',
     barWidth: '45%',
@@ -245,7 +244,7 @@ const gradeChartOption = ref({
         type: 'linear',
         x: 0, y: 0, x2: 0, y2: 1,
         colorStops: [
-          { offset: 0, color: 'var(--ac-primary)' },
+          { offset: 0, color: '#7A8BA5' },
           { offset: 1, color: 'rgba(122, 139, 165, 0.3)' }
         ]
       }
@@ -270,18 +269,11 @@ async function fetchExamList() {
     if (filters.keyword) params.keyword = filters.keyword
 
     const res = await examApi.getExamPaperList(params)
-    const data = res.data
+    const rawData = res.data?.records || res.data?.list || res.data || res
 
-    if (Array.isArray(data)) {
-      examList.value = data
-      pagination.total = data.length
-    } else if (data?.list) {
-      examList.value = data.list
-      pagination.total = data.total || data.list.length
-    } else {
-      examList.value = []
-      pagination.total = 0
-    }
+    const data = Array.isArray(rawData) ? rawData : (rawData?.list ? rawData.list : [])
+    examList.value = Array.isArray(data) ? data : []
+    pagination.total = rawData?.total ?? rawData?.count ?? data.length
 
     // 更新概览数据
     overview.totalPapers = pagination.total
@@ -299,7 +291,7 @@ async function fetchExamList() {
 async function fetchActiveSessions() {
   loadingSessions.value = true
   try {
-    const res = await request.get('/exam-sessions/active')
+    const res = await examApi.getActiveExams()
     const data = res.data?.list || res.data || res || []
     activeSessions.value = Array.isArray(data) ? data : []
     overview.activeExams = activeSessions.value.length
@@ -400,7 +392,7 @@ async function forceSubmit(session) {
       }
     )
 
-    await request.post(`/exam-sessions/${session.id}/force-submit`)
+    await examApi.forceSubmit(session.id)
     ElMessage.success('已强制交卷')
     fetchActiveSessions()
   } catch (e) {
@@ -416,7 +408,7 @@ async function forceSubmit(session) {
 async function viewCheating(session) {
   showCheatingDialog.value = true
   try {
-    const res = await request.get(`/exam-sessions/${session.id}/cheating-detect`)
+    const res = await examApi.getCheatingDetect(session.id)
     const data = res.data?.list || res.data || res || []
     cheatingLogs.value = Array.isArray(data) ? data : []
 
@@ -454,7 +446,7 @@ function viewDetail(row) {
 async function viewStatistics(row) {
   showStatsDialog.value = true
   try {
-    const res = await request.get(`/exam-papers/${row.id}/statistics`)
+    const res = await examApi.getExamStatistics(row.id)
     statistics.value = res.data || res
 
     // 更新成绩分布图
@@ -466,8 +458,7 @@ async function viewStatistics(row) {
   } catch (error) {
     console.warn('获取统计数据失败:', error)
     statistics.value = null
-    // 使用模拟数据
-    gradeChartOption.value.series[0].data = [12, 28, 56, 78, 34]
+    gradeChartOption.value.series[0].data = []
   }
 }
 

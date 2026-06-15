@@ -5,7 +5,10 @@ export const systemConfigApi = {
   getList() { return request.get('/system-configs') },
   getByGroup(group) { return request.get(`/system-configs/group/${group}`) },
   getPublic() { return request.get('/system-configs/public') },
-  updateByKey(key, value) { return request.put(`/system-configs/key/${key}`, { configValue: value }) },
+  updateByKey(key, value) { return request.put(`/system-configs/key/${key}`, { value: value }) },
   batchUpdate(configs) { return request.post('/system-configs/batch-update', configs) },
   search(keyword) { return request.get('/system-configs/search', { params: { keyword } }) },
+  testEmail() { return request.post('/system-configs/test-email') },
 }
+
+export default systemConfigApi

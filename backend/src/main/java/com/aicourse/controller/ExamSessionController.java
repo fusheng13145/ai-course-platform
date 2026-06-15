@@ -2,9 +2,11 @@ package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.ExamSession;
-import com.aicourse.exception.BusinessException;
 import com.aicourse.service.ExamSessionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -16,9 +18,11 @@ import java.util.Map;
 
 /**
  * 考试会话接口控制器
+ * 提供考试的开始、自动保存、提交、阅卷、成绩报告等RESTful API
  */
 @RestController
 @RequestMapping("/exam-sessions")
+@Tag(name = "考试会话管理", description = "提供考试开始、答案保存、试卷提交、自动/人工阅卷、成绩报告等功能")
 public class ExamSessionController {
 
     private final ExamSessionService examSessionService;
@@ -29,15 +33,15 @@ public class ExamSessionController {
 
     /**
      * 开始一场考试（增强版，含完整校验）
-     * @param body 请求参数
-     * @param auth 认证信息
-     * @param request HTTP请求
-     * @return 考试会话信息
      */
     @PostMapping("/start")
-    public ApiResponse<ExamSession> start(@RequestBody Map<String, Long> body,
-                                          Authentication auth,
-                                          HttpServletRequest request) {
+    @Operation(summary = "开始考试", description = "学生开始一场新的考试，系统会校验时间窗口和尝试次数限制")
+    public ApiResponse<ExamSession> start(
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "包含examPaperId（试卷ID）的JSON对象"
+            ) @RequestBody Map<String, Long> body,
+            Authentication auth,
+            HttpServletRequest request) {
         Long examPaperId = body.get("examPaperId");
         Long studentId = (Long) auth.getPrincipal();
         String ipAddress = request.getRemoteAddr();
@@ -49,13 +53,15 @@ public class ExamSessionController {
 
     /**
      * 自动保存作答答案
-     * @param id 会话ID
-     * @param body 答案数据
-     * @return 操作结果
      */
     @PostMapping("/{id}/auto-save")
-    public ApiResponse<Void> autoSave(@PathVariable Long id,
-                                       @RequestBody Map<String, Object> body) {
+    @Operation(summary = "自动保存答案", description = "在考试过程中定时或手动自动保存作答进度，防止意外丢失")
+    public ApiResponse<Void> autoSave(
+            @Parameter(description = "考试会话ID") @PathVariable Long id,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "包含answers（答案Map）的JSON对象"
+            ) @RequestBody Map<String, Object> body) {
+        @SuppressWarnings("unchecked")
         Map<String, Object> answers = (Map<String, Object>) body.get("answers");
         examSessionService.autoSaveAnswers(id, answers);
         return ApiResponse.success("答案保存成功", null);
@@ -63,13 +69,15 @@ public class ExamSessionController {
 
     /**
      * 提交考试答卷（增强版）
-     * @param id 会话ID
-     * @param body 答卷数据
-     * @return 提交后的会话信息
      */
     @PostMapping("/{id}/submit")
-    public ApiResponse<ExamSession> submit(@PathVariable Long id,
-                                           @RequestBody Map<String, Object> body) {
+    @Operation(summary = "提交试卷", description = "学生正式提交考试答卷，提交后不可修改")
+    public ApiResponse<ExamSession> submit(
+            @Parameter(description = "考试会话ID") @PathVariable Long id,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "包含最终答案(answers)的JSON对象"
+            ) @RequestBody Map<String, Object> body) {
+        @SuppressWarnings("unchecked")
         Map<String, Object> answers = (Map<String, Object>) body.get("answers");
         ExamSession session = examSessionService.submitExam(id, answers);
         return ApiResponse.success("提交成功", session);
@@ -77,49 +85,47 @@ public class ExamSessionController {
 
     /**
      * 强制交卷（管理员操作）
-     * @param id 会话ID
-     * @return 强制提交后的会话信息
      */
     @PostMapping("/{id}/force-submit")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<ExamSession> forceSubmit(@PathVariable Long id) {
+    @Operation(summary = "强制交卷", description = "管理员可强制结束学生的考试并收卷")
+    public ApiResponse<ExamSession> forceSubmit(@Parameter(description = "考试会话ID") @PathVariable Long id) {
         ExamSession session = examSessionService.forceSubmit(id);
         return ApiResponse.success("强制交卷成功", session);
     }
 
     /**
      * 获取考试剩余时间(秒)
-     * @param id 会话ID
-     * @return 剩余秒数
      */
     @GetMapping("/{id}/time-remaining")
-    public ApiResponse<Long> timeRemaining(@PathVariable Long id) {
+    @Operation(summary = "获取剩余时间", description = "返回当前考试会话的剩余可用时间（秒）")
+    public ApiResponse<Long> timeRemaining(@Parameter(description = "考试会话ID") @PathVariable Long id) {
         Long remainingTime = examSessionService.getRemainingTime(id);
         return ApiResponse.success(remainingTime);
     }
 
     /**
      * 触发自动阅卷
-     * @param id 会话ID
-     * @return 阅卷结果
      */
     @PostMapping("/{id}/auto-grade")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Map<String, Object>> autoGrade(@PathVariable Long id) {
+    @Operation(summary = "自动阅卷", description = "对客观题（单选/多选/判断）进行自动判分，生成成绩报告")
+    public ApiResponse<Map<String, Object>> autoGrade(@Parameter(description = "考试会话ID") @PathVariable Long id) {
         Map<String, Object> result = examSessionService.autoGrade(id);
         return ApiResponse.success("自动阅卷完成", result);
     }
 
     /**
      * 人工评分（教师对主观题评分）
-     * @param id 会话ID
-     * @param body 包含questionId、score、comment
-     * @return 操作结果
      */
     @PostMapping("/{id}/manual-grade")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Void> manualGrade(@PathVariable Long id,
-                                         @RequestBody Map<String, Object> body) {
+    @Operation(summary = "人工评分", description = "教师对主观题进行人工打分和评语填写")
+    public ApiResponse<Void> manualGrade(
+            @Parameter(description = "考试会话ID") @PathVariable Long id,
+            @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                    description = "包含questionId（题目ID）、score（得分）、comment（评语）的JSON对象"
+            ) @RequestBody Map<String, Object> body) {
         Long questionId = Long.valueOf(body.get("questionId").toString());
         BigDecimal score = new BigDecimal(body.get("score").toString());
         String comment = body.get("comment") != null ? body.get("comment").toString() : "";
@@ -129,44 +135,52 @@ public class ExamSessionController {
 
     /**
      * 查询成绩报告
-     * @param id 会话ID
-     * @return 成绩报告详情
      */
     @GetMapping("/{id}/report")
-    public ApiResponse<Map<String, Object>> report(@PathVariable Long id) {
+    @Operation(summary = "获取成绩报告", description = "返回详细的考试成绩分析报告，包含各题得分、排名等")
+    public ApiResponse<Map<String, Object>> report(@Parameter(description = "考试会话ID") @PathVariable Long id) {
         Map<String, Object> report = examSessionService.generateScoreReport(id);
         return ApiResponse.success(report);
     }
 
     /**
      * 查询考试结果
-     * @param id 会话ID
-     * @return 会话详情（含成绩/结果）
      */
     @GetMapping("/{id}/result")
-    public ApiResponse<ExamSession> result(@PathVariable Long id) {
+    @Operation(summary = "获取考试结果", description = "返回考试会话详情，包含成绩和状态信息")
+    public ApiResponse<ExamSession> result(@Parameter(description = "考试会话ID") @PathVariable Long id) {
         ExamSession session = examSessionService.getById(id);
         return ApiResponse.success(session);
     }
 
     /**
      * 检测作弊嫌疑
-     * @param id 会话ID
-     * @return 作弊嫌疑列表
      */
     @GetMapping("/{id}/cheating-detect")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<List<String>> detectCheating(@PathVariable Long id) {
+    @Operation(summary = "检测作弊嫌疑", description = "基于行为数据检测可能的作弊行为，返回可疑点列表")
+    public ApiResponse<List<String>> detectCheating(@Parameter(description = "考试会话ID") @PathVariable Long id) {
         List<String> suspicions = examSessionService.detectCheating(id);
         return ApiResponse.success(suspicions);
     }
 
     /**
+     * 作弊检测与标记（综合检测并记录结果）
+     */
+    @PostMapping("/{id}/check-cheating")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "作弊检测与标记", description = "执行全面作弊检测，将检测结果标记到会话记录中")
+    public ApiResponse<Map<String, Object>> checkCheating(@Parameter(description = "考试会话ID") @PathVariable Long id) {
+        Map<String, Object> result = examSessionService.checkCheating(id);
+        return ApiResponse.success(result);
+    }
+
+    /**
      * 获取正在进行的考试列表（管理员）
-     * @return 进行中的考试会话列表
      */
     @GetMapping("/active")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "获取进行中的考试列表", description = "返回所有正在进行中的考试会话，用于监控管理")
     public ApiResponse<List<ExamSession>> activeExams() {
         List<ExamSession> activeExams = examSessionService.getActiveExams();
         return ApiResponse.success(activeExams);
@@ -174,12 +188,12 @@ public class ExamSessionController {
 
     /**
      * 查询用户在指定试卷上的最新一次考试会话
-     * @param examPaperId 试卷ID
-     * @param auth 认证信息
-     * @return 最新会话信息
      */
     @GetMapping("/paper/{examPaperId}")
-    public ApiResponse<Object> mySession(@PathVariable Long examPaperId, Authentication auth) {
+    @Operation(summary = "获取最新考试会话", description = "返回当前用户在指定试卷上的最新一次考试记录")
+    public ApiResponse<Object> mySession(
+            @Parameter(description = "试卷ID") @PathVariable Long examPaperId,
+            Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         ExamSession session = examSessionService.getLatestSession(examPaperId, userId);
         return ApiResponse.success(session);
@@ -187,10 +201,9 @@ public class ExamSessionController {
 
     /**
      * 查询用户所有考试会话记录
-     * @param auth 认证信息
-     * @return 会话列表
      */
     @GetMapping("/my")
+    @Operation(summary = "获取我的考试记录", description = "返回当前用户的所有历史考试会话记录列表")
     public ApiResponse<Object> mySessions(Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         LambdaQueryWrapper<ExamSession> queryWrapper = new LambdaQueryWrapper<ExamSession>()

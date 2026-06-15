@@ -5,3 +5,5 @@ export const notificationEnhancedApi = {
   getUnreadCount() { return request.get('/notifications/unread-count') },
   sendNotification(data) { return request.post('/notifications/send', data) },
 }
+
+export default notificationEnhancedApi

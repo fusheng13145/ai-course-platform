@@ -7,3 +7,5 @@ export const wrongQuestionEnhancedApi = {
   generatePracticePaper(data) { return request.post('/wrong-questions/practice-paper', data) },
   getRelated(questionId) { return request.get(`/wrong-questions/${questionId}/related`) },
 }
+
+export default wrongQuestionEnhancedApi

@@ -9,6 +9,9 @@ import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import io.swagger.v3.oas.annotations.Operation;
+import io.swagger.v3.oas.annotations.Parameter;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -17,9 +20,11 @@ import java.util.Map;
 
 /**
  * 课程管理接口控制器
+ * 提供课程的增删改查、审批、选课管理等RESTful API
  */
 @RestController
 @RequestMapping("/courses")
+@Tag(name = "课程管理", description = "提供课程的新增、查询、修改、删除、审批、选课统计等功能")
 public class CourseController {
 
     private final CourseService courseService;
@@ -32,18 +37,14 @@ public class CourseController {
 
     /**
      * 分页查询课程列表（支持状态、关键词筛选）
-     * @param page 当前页码
-     * @param size 每页条数
-     * @param keyword 搜索关键词
-     * @param status 课程状态
-     * @return 分页课程数据
      */
     @GetMapping
+    @Operation(summary = "分页查询课程列表", description = "支持按关键词搜索和状态筛选的分页查询")
     public ApiResponse<PagedResponse<Course>> list(
-            @RequestParam(defaultValue = "1") long page,
-            @RequestParam(defaultValue = "10") long size,
-            @RequestParam(required = false) String keyword,
-            @RequestParam(required = false) String status) {
+            @Parameter(description = "当前页码") @RequestParam(defaultValue = "1") long page,
+            @Parameter(description = "每页条数") @RequestParam(defaultValue = "10") long size,
+            @Parameter(description = "搜索关键词（匹配课程名称）") @RequestParam(required = false) String keyword,
+            @Parameter(description = "课程状态筛选") @RequestParam(required = false) String status) {
         LambdaQueryWrapper<Course> queryWrapper = new LambdaQueryWrapper<Course>()
                 .eq(status != null, Course::getStatus, status)
                 .like(keyword != null, Course::getName, keyword)
@@ -54,24 +55,23 @@ public class CourseController {
 
     /**
      * 根据ID查询课程详情
-     * @param id 课程ID
-     * @return 课程信息
      */
     @GetMapping("/{id}")
-    public ApiResponse<Course> getById(@PathVariable Long id) {
+    @Operation(summary = "获取课程详情", description = "根据课程ID返回完整课程信息")
+    public ApiResponse<Course> getById(@Parameter(description = "课程ID") @PathVariable Long id) {
         Course course = courseService.getById(id);
         return ApiResponse.success(course);
     }
 
     /**
      * 新增课程（教师/管理员权限）
-     * @param course 课程信息
-     * @param auth 认证信息
-     * @return 新增课程数据
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Course> create(@RequestBody Course course, Authentication auth) {
+    @Operation(summary = "创建新课程", description = "教师或管理员创建新课程，自动关联当前登录用户为授课教师")
+    public ApiResponse<Course> create(@io.swagger.v3.oas.annotations.parameters.RequestBody(
+            description = "课程信息"
+    ) @RequestBody Course course, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         course.setTeacherId(userId);
         courseService.save(course);
@@ -80,15 +80,14 @@ public class CourseController {
 
     /**
      * 修改课程信息（课程创建者/管理员权限）
-     * @param id 课程ID
-     * @param course 待更新课程数据
-     * @param auth 认证信息
-     * @return 更新后课程数据
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Course> update(@PathVariable Long id,
-                                      @RequestBody Course course,
+    @Operation(summary = "更新课程信息", description = "课程创建者或管理员可修改课程信息")
+    public ApiResponse<Course> update(@Parameter(description = "课程ID") @PathVariable Long id,
+                                      @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                                              description = "待更新的课程数据"
+                                      ) @RequestBody Course course,
                                       Authentication auth) {
         Course existCourse = courseService.getById(id);
         if (existCourse == null) {
@@ -110,24 +109,22 @@ public class CourseController {
 
     /**
      * 删除课程（教师/管理员权限）
-     * @param id 课程ID
-     * @return 操作结果
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Void> delete(@PathVariable Long id) {
+    @Operation(summary = "删除课程", description = "教师或管理员可删除课程（软删除）")
+    public ApiResponse<Void> delete(@Parameter(description = "课程ID") @PathVariable Long id) {
         courseService.removeById(id);
         return ApiResponse.success("删除成功", null);
     }
 
     /**
      * 课程审批通过（仅管理员）
-     * @param id 课程ID
-     * @return 审批后课程信息
      */
     @PostMapping("/{id}/approve")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Course> approve(@PathVariable Long id) {
+    @Operation(summary = "审批通过课程", description = "管理员审批通过课程申请，将状态设为ACTIVE")
+    public ApiResponse<Course> approve(@Parameter(description = "课程ID") @PathVariable Long id) {
         Course course = courseService.getById(id);
         if (course == null) {
             throw new BusinessException("课程不存在");
@@ -140,12 +137,11 @@ public class CourseController {
 
     /**
      * 切换课程启用/禁用状态（教师/管理员权限）
-     * @param id 课程ID
-     * @return 状态切换后课程信息
      */
     @PatchMapping("/{id}/toggle")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Course> toggle(@PathVariable Long id) {
+    @Operation(summary = "切换课程状态", description = "在ACTIVE和INACTIVE之间切换课程状态")
+    public ApiResponse<Course> toggle(@Parameter(description = "课程ID") @PathVariable Long id) {
         Course course = courseService.getById(id);
         if (course == null) {
             throw new BusinessException("课程不存在");
@@ -161,14 +157,14 @@ public class CourseController {
 
     /**
      * 课程审批驳回（仅管理员）
-     * @param id 课程ID
-     * @param body 驳回原因
-     * @return 驳回后课程信息
      */
     @PostMapping("/{id}/reject")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Course> reject(@PathVariable Long id,
-                                      @RequestBody(required = false) Map<String, String> body) {
+    @Operation(summary = "驳回课程审批", description = "管理员驳回课程申请，可填写驳回原因")
+    public ApiResponse<Course> reject(@Parameter(description = "课程ID") @PathVariable Long id,
+                                      @io.swagger.v3.oas.annotations.parameters.RequestBody(
+                                              description = "驳回原因（可选）"
+                                      ) @RequestBody(required = false) Map<String, String> body) {
         Course course = courseService.getById(id);
         if (course == null) {
             throw new BusinessException("课程不存在");
@@ -183,16 +179,13 @@ public class CourseController {
 
     /**
      * 查询当前用户已报名的课程
-     * @param auth 认证信息
-     * @param page 当前页码
-     * @param size 每页条数
-     * @return 分页报名记录
      */
     @GetMapping("/enrolled")
+    @Operation(summary = "获取我的已报名课程", description = "返回当前登录用户的课程选课记录列表")
     public ApiResponse<PagedResponse<CourseEnrollment>> enrolledCourses(
             Authentication auth,
-            @RequestParam(defaultValue = "1") long page,
-            @RequestParam(defaultValue = "10") long size) {
+            @Parameter(description = "当前页码") @RequestParam(defaultValue = "1") long page,
+            @Parameter(description = "每页条数") @RequestParam(defaultValue = "10") long size) {
         Long userId = (Long) auth.getPrincipal();
         LambdaQueryWrapper<CourseEnrollment> queryWrapper = new LambdaQueryWrapper<CourseEnrollment>()
                 .eq(CourseEnrollment::getStudentId, userId);
@@ -202,17 +195,14 @@ public class CourseController {
 
     /**
      * 查询当前教师创建的课程
-     * @param auth 认证信息
-     * @param page 当前页码
-     * @param size 每页条数
-     * @return 分页课程数据
      */
     @GetMapping("/my")
     @PreAuthorize("hasRole('TEACHER')")
+    @Operation(summary = "获取我创建的课程", description = "返回当前教师用户创建的所有课程列表")
     public ApiResponse<PagedResponse<Course>> myCourses(
             Authentication auth,
-            @RequestParam(defaultValue = "1") long page,
-            @RequestParam(defaultValue = "10") long size) {
+            @Parameter(description = "当前页码") @RequestParam(defaultValue = "1") long page,
+            @Parameter(description = "每页条数") @RequestParam(defaultValue = "10") long size) {
         Long userId = (Long) auth.getPrincipal();
         LambdaQueryWrapper<Course> queryWrapper = new LambdaQueryWrapper<Course>()
                 .eq(Course::getTeacherId, userId);
@@ -222,16 +212,13 @@ public class CourseController {
 
     /**
      * 查询课程下所有报名学生
-     * @param id 课程ID
-     * @param page 当前页码
-     * @param size 每页条数
-     * @return 分页报名记录
      */
     @GetMapping("/{id}/students")
+    @Operation(summary = "获取课程学生列表", description = "返回指定课程的所有选课学生记录")
     public ApiResponse<PagedResponse<CourseEnrollment>> students(
-            @PathVariable Long id,
-            @RequestParam(defaultValue = "1") long page,
-            @RequestParam(defaultValue = "10") long size) {
+            @Parameter(description = "课程ID") @PathVariable Long id,
+            @Parameter(description = "当前页码") @RequestParam(defaultValue = "1") long page,
+            @Parameter(description = "每页条数") @RequestParam(defaultValue = "10") long size) {
         LambdaQueryWrapper<CourseEnrollment> queryWrapper = new LambdaQueryWrapper<CourseEnrollment>()
                 .eq(CourseEnrollment::getCourseId, id);
         Page<CourseEnrollment> enrollmentPage = enrollmentService.page(Page.of(page, size), queryWrapper);
@@ -240,11 +227,10 @@ public class CourseController {
 
     /**
      * 获取课程统计数据
-     * @param id 课程ID
-     * @return 统计信息
      */
     @GetMapping("/{id}/stats")
-    public ApiResponse<Map<String, Object>> getStats(@PathVariable Long id) {
+    @Operation(summary = "获取课程统计数据", description = "返回课程的学生数、待审核数、状态等统计信息")
+    public ApiResponse<Map<String, Object>> getStats(@Parameter(description = "课程ID") @PathVariable Long id) {
         Course course = courseService.getById(id);
         if (course == null) {
             throw new BusinessException("课程不存在");

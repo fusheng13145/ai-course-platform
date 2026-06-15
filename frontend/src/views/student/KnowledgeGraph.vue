@@ -148,6 +148,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Search, ArrowLeft, ArrowRight, Reading, Share } from '@element-plus/icons-vue'
 import knowledgeApi from '@/api/knowledge'
+import knowledgeRelationApi from '@/api/knowledgePointRelation'
 import courseApi from '@/api/course'
 
 const route = useRoute()
@@ -198,9 +199,9 @@ const subsequentNodes = computed(() => {
 const graphOption = ref({
   tooltip: {
     trigger: 'item',
-    backgroundColor: 'var(--ac-bg-elevated)',
-    borderColor: 'var(--ac-border)',
-    textStyle: { color: 'var(--ac-text-primary)', fontSize: 13 },
+    backgroundColor: '#FFFCF8',
+    borderColor: '#DDD6CE',
+    textStyle: { color: '#3D3835', fontSize: 13 },
     formatter: (params) => {
       if (params.dataType === 'node') {
         const d = params.data
@@ -281,13 +282,13 @@ async function loadCourseList() {
   }
 }
 
-/* ---- 方法：加载图谱数据 ---- */
+/* ---- 方法：加载图谱数据（增强：优先使用 knowledgeRelationApi） ---- */
 async function loadGraphData() {
   if (!selectedCourseId.value) return
   graphLoading.value = true
   try {
-    // 调用知识图谱API
-    const res = await knowledgeApi.getKnowledgeGraph(selectedCourseId.value)
+    // 优先使用知识关联 API 获取图谱数据
+    const res = await knowledgeRelationApi.getGraphData(selectedCourseId.value)
     const data = res.data || res || {}
 
     // 解析节点
@@ -316,8 +317,28 @@ async function loadGraphData() {
     updateChartOption()
   } catch (e) {
     console.error('加载知识图谱失败:', e)
-    // 使用示例数据兜底
-    loadDemoData()
+    // 回退到基础 knowledgeApi
+    try {
+      const fallbackRes = await knowledgeApi.getKnowledgeGraph(selectedCourseId.value)
+      const fData = fallbackRes.data || fallbackRes || {}
+      if (fData.nodes || fData.points) {
+        const fnodes = Array.isArray(fData.nodes) ? fData.nodes : (Array.isArray(fData.points) ? fData.points : [])
+        rawNodes.value = fnodes.map(n => ({
+          id: n.id, name: n.name || n.title || '未知', description: n.description || '',
+          difficultyLevel: n.difficultyLevel || n.difficulty || 'MEDIUM',
+          mastery: n.mastery ?? 0, importance: 3, categoryIndex: getCategoryIndex('MEDIUM')
+        }))
+        const flinks = Array.isArray(fData.links) ? fData.links : []
+        rawLinks.value = flinks.map(l => ({ source: l.source, target: l.target, relationType: 'RELATED', lineStyle: getLineStyle('RELATED') }))
+        updateChartOption()
+      } else {
+        rawNodes.value = []
+        rawLinks.value = []
+      }
+    } catch (e2) {
+      rawNodes.value = []
+      rawLinks.value = []
+    }
   } finally {
     graphLoading.value = false
   }
@@ -354,16 +375,7 @@ function filterNodes() {
   updateChartOption()
 }
 
-/* ---- 方法：节点点击事件 ---- */
-function handleNodeClick(params) {
-  if (params.dataType !== 'node') return
-  const clickedNode = rawNodes.value.find(n => n.id === params.data.id)
-  if (clickedNode) {
-    selectedNode.value = { ...clickedNode }
-  }
-}
-
-/* ---- 方法：通过ID选择节点 ---- */
+/* ---- 通过ID选择节点 ---- */
 function selectNodeById(nodeId) {
   const node = rawNodes.value.find(n => n.id === nodeId)
   if (node) {
@@ -413,33 +425,37 @@ function getLineStyle(relationType) {
   return { type: 'solid', color: '#B89A8A', opacity: 0.5 }
 }
 
-/* ---- 示例数据（API不可用时兜底）---- */
+/* ---- 空数据（API不可用时不再使用硬编码模拟数据） ---- */
 function loadDemoData() {
-  const demoNodes = [
-    { id: 1, name: '变量与数据类型', description: '编程的基础概念，包括变量声明、赋值和基本数据类型', difficultyLevel: 'EASY', mastery: 85, importance: 4 },
-    { id: 2, name: '运算符与表达式', description: '算术、比较、逻辑等运算符的使用', difficultyLevel: 'EASY', mastery: 70, importance: 3 },
-    { id: 3, name: '条件判断', description: 'if-else 分支结构，控制程序执行流程', difficultyLevel: 'MEDIUM', mastery: 55, importance: 4 },
-    { id: 4, name: '循环结构', description: 'for、while 循环，迭代处理数据集合', difficultyLevel: 'MEDIUM', mastery: 40, importance: 5 },
-    { id: 5, name: '函数定义与调用', description: '模块化编程的核心，函数的参数与返回值', difficultyLevel: 'HARD', mastery: 20, importance: 5 },
-    { id: 6, name: '数组与集合', description: '数据的有序存储与遍历操作', difficultyLevel: 'MEDIUM', mastery: 35, importance: 4 },
-    { id: 7, name: '面向对象基础', description: '类与对象、封装、继承的概念', difficultyLevel: 'HARD', mastery: 10, importance: 5 },
-    { id: 8, name: '异常处理', description: 'try-catch 结构，程序健壮性保障', difficultyLevel: 'HARD', mastery: 15, importance: 3 }
-  ]
-
-  const demoLinks = [
-    { source: 1, target: 2, relationType: 'PREREQUISITE' },
-    { source: 2, target: 3, relationType: 'PREREQUISITE' },
-    { source: 3, target: 4, relationType: 'PREREQUISITE' },
-    { source: 4, target: 5, relationType: 'PREREQUISITE' },
-    { source: 1, target: 6, relationType: 'RELATED' },
-    { source: 4, target: 6, relationType: 'RELATED' },
-    { source: 5, target: 7, relationType: 'PREREQUISITE' },
-    { source: 5, target: 8, relationType: 'RELATED' }
-  ]
-
-  rawNodes.value = demoNodes.map(n => ({ ...n, categoryIndex: getCategoryIndex(n.difficultyLevel) }))
-  rawLinks.value = demoLinks.map(l => ({ ...l, lineStyle: getLineStyle(l.relationType) }))
+  rawNodes.value = []
+  rawLinks.value = []
   updateChartOption()
+}
+
+/* ---- 节点点击事件（增强：加载真实掌握度） ---- */
+async function handleNodeClick(params) {
+  if (params.dataType !== 'node') return
+  const clickedNode = rawNodes.value.find(n => n.id === params.data.id)
+  if (clickedNode) {
+    selectedNode.value = { ...clickedNode }
+    // 尝试从 API 获取该知识点的掌握度
+    try {
+      const res = await knowledgeApi.getMastery(clickedNode.id, undefined)
+      const mData = res.data || res
+      if (mData != null && typeof mData === 'number') {
+        selectedNode.value.mastery = Math.round(mData)
+      } else if (mData?.masteryPercent != null) {
+        selectedNode.value.mastery = Math.round(mData.masteryPercent)
+      }
+      // 更新原始节点中的掌握度
+      const origIdx = rawNodes.value.findIndex(n => n.id === clickedNode.id)
+      if (origIdx >= 0) {
+        rawNodes.value[origIdx].mastery = selectedNode.value.mastery
+      }
+    } catch (e) {
+      // 掌握度 API 不可用时使用图谱中已有的值
+    }
+  }
 }
 
 /* ---- 初始化 ---- */

@@ -91,4 +91,17 @@ public interface WrongQuestionService extends com.baomidou.mybatisplus.extension
      * @return 推荐的相关题目列表
      */
     List<Question> recommendRelatedQuestions(Long wrongQuestionId);
+
+    /**
+     * 添加错题（支持可选填写错因分析）
+     * @param studentId 学生ID
+     * @param questionId 题目ID
+     * @param courseId 课程ID
+     * @param wrongAnswer 错误答案
+     * @param sourceType 来源类型
+     * @param reason 错因分析（可选）
+     * @return 错题记录
+     */
+    WrongQuestion addWrongQuestion(Long studentId, Long questionId, Long courseId,
+                                    String wrongAnswer, String sourceType, String reason);
 }

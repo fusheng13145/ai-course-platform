@@ -1,4 +1,4 @@
-<template>
+﻿<template>
   <div>
     <el-tabs v-model="activeTab" style="margin-bottom:20px">
       <el-tab-pane label="我的课程" name="my">
@@ -140,9 +140,9 @@ onMounted(async () => {
       courseApi.getCourseList(),
       enrollmentApi.getMyEnrollments()
     ])
-    const list = courseRes.data?.list || courseRes.data || courseRes || []
-    courseList.value = list
-    myEnrollments.value = enrollRes.data?.list || enrollRes.data || enrollRes || []
+    const list = courseRes.data?.records || courseRes.data?.list || courseRes.data || courseRes || []
+    courseList.value = Array.isArray(list) ? list : []
+    myEnrollments.value = Array.isArray(enrollRes.data?.records ?? enrollRes.data?.list ?? enrollRes.data ?? enrollRes) ? (enrollRes.data?.records ?? enrollRes.data?.list ?? enrollRes.data ?? enrollRes) : []
     
     // Extract unique categories from courses
     const cats = [...new Set(list.map(c => c.category).filter(Boolean))]

@@ -60,11 +60,11 @@
 
           <!-- 快捷操作 -->
           <div class="quick-actions">
-            <div class="quick-btn" @click="sendQuickMessage('请帮我总结当前课程的核心知识点')">
+            <div class="quick-btn" @click="handleGenerateSummary">
               <el-icon><Document /></el-icon>
               <span>总结课程</span>
             </div>
-            <div class="quick-btn" @click="sendQuickMessage('请根据当前知识点生成几道练习题')">
+            <div class="quick-btn" @click="handleGenerateQuestion">
               <el-icon><EditPen /></el-icon>
               <span>生成练习题</span>
             </div>
@@ -171,6 +171,7 @@ import {
   Document, EditPen, QuestionFilled, Calendar,
   User, CopyDocument, RefreshRight, Promotion
 } from '@element-plus/icons-vue'
+import DOMPurify from 'dompurify'
 import aiApi from '@/api/ai'
 import courseApi from '@/api/course'
 
@@ -201,7 +202,7 @@ async function loadCourses() {
   }
 }
 
-/* ---- 发送消息 ---- */
+/* ---- 发送消息（支持打字机流式效果）---- */
 async function handleSend() {
   const content = inputMessage.value.trim()
   if (!content || loading.value) return
@@ -219,6 +220,15 @@ async function handleSend() {
 
   await scrollToBottom()
 
+  // 预留 AI 消息位置（用于流式输出）
+  const aiMsgIdx = messages.value.length
+  messages.value.push({
+    role: 'assistant',
+    content: '',
+    time: formatTimeFull(new Date()),
+    loading: true
+  })
+
   try {
     // 调用 AI 聊天 API
     const res = await aiApi.aiChat(content, '', selectedCourseId.value)
@@ -227,22 +237,42 @@ async function handleSend() {
                    res.data?.content || res?.content ||
                    '感谢您的提问！我正在学习中，稍后会有更完善的回答。'
 
-    messages.value.push({
-      role: 'assistant',
-      content: reply,
-      time: formatTimeFull(new Date())
-    })
+    // 使用打字机效果逐字显示 AI 回复
+    await typewriterEffect(aiMsgIdx, reply)
   } catch (e) {
     console.error('AI 聊天失败:', e)
-    messages.value.push({
-      role: 'assistant',
-      content: '抱歉，AI 服务暂时不可用，请稍后再试。',
-      time: formatTimeFull(new Date())
-    })
+    messages.value[aiMsgIdx].content = '抱歉，AI 服务暂时不可用，请稍后再试。'
+    messages.value[aiMsgIdx].error = true
   } finally {
-    loading.value = false
+    messages.value[aiMsgIdx].loading = false
     await scrollToBottom()
   }
+}
+
+/**
+ * 打字机效果 - 逐字显示文本，模拟流式输出体验
+ * @param {number} msgIndex 消息在列表中的索引
+ * @param {string} text 要显示的完整文本
+ */
+function typewriterEffect(msgIndex, text) {
+  return new Promise(resolve => {
+    let i = 0
+    messages.value[msgIndex].content = ''
+
+    const interval = setInterval(() => {
+      if (i < text.length) {
+        messages.value[msgIndex].content += text[i]
+        i++
+        // 每隔几个字符滚动一次到底部，保持阅读体验
+        if (i % 3 === 0) {
+          scrollToBottom()
+        }
+      } else {
+        clearInterval(interval)
+        resolve()
+      }
+    }, 20) // 每秒约50字，流畅的打字速度
+  })
 }
 
 /* ---- 快捷操作发送 ---- */
@@ -250,6 +280,98 @@ async function sendQuickMessage(text) {
   inputMessage.value = text
   await nextTick()
   handleSend()
+}
+
+/* ---- 专用快捷：AI 总结课程 ---- */
+async function handleGenerateSummary() {
+  if (!selectedCourseId.value) {
+    ElMessage.warning('请先选择一个课程')
+    return
+  }
+  // 添加用户消息
+  messages.value.push({
+    role: 'user',
+    content: '请帮我总结当前课程的核心知识点',
+    time: formatTimeFull(new Date())
+  })
+  loading.value = true
+  await scrollToBottom()
+
+  const aiMsgIdx = messages.value.length
+  messages.value.push({
+    role: 'assistant',
+    content: '',
+    time: formatTimeFull(new Date()),
+    loading: true
+  })
+
+  try {
+    const res = await aiApi.generateSummary({
+      courseId: selectedCourseId.value,
+      type: 'summary'
+    })
+    const reply = res.data?.content || res.data?.summary ||
+                   res.data?.response || res?.response || res?.content ||
+                   '正在为您生成课程总结，请稍候...'
+    await typewriterEffect(aiMsgIdx, reply)
+  } catch (e) {
+    console.error('生成总结失败:', e)
+    messages.value[aiMsgIdx].content = '抱歉，生成课程总结失败，请稍后再试。'
+    messages.value[aiMsgIdx].error = true
+  } finally {
+    messages.value[aiMsgIdx].loading = false
+    await scrollToBottom()
+  }
+}
+
+/* ---- 专用快捷：AI 生成练习题 ---- */
+async function handleGenerateQuestion() {
+  if (!selectedCourseId.value) {
+    ElMessage.warning('请先选择一个课程')
+    return
+  }
+  messages.value.push({
+    role: 'user',
+    content: '请根据当前知识点生成几道练习题',
+    time: formatTimeFull(new Date())
+  })
+  loading.value = true
+  await scrollToBottom()
+
+  const aiMsgIdx = messages.value.length
+  messages.value.push({
+    role: 'assistant',
+    content: '',
+    time: formatTimeFull(new Date()),
+    loading: true
+  })
+
+  try {
+    const res = await aiApi.generateQuestion({
+      courseId: selectedCourseId.value,
+      count: 5
+    })
+    const data = res.data?.data || res.data || res || {}
+    let reply = ''
+    if (Array.isArray(data.questions)) {
+      reply = data.questions.map((q, i) =>
+        `${i + 1}. ${q.content || q.questionText || q}\n${q.answer ? `   答案：${q.answer}` : ''}`
+      ).join('\n\n')
+    } else if (typeof data === 'string') {
+      reply = data
+    } else {
+      reply = JSON.stringify(data, null, 2)
+    }
+    if (!reply) reply = '已为您生成练习题，请查看详情。'
+    await typewriterEffect(aiMsgIdx, reply)
+  } catch (e) {
+    console.error('生成练习题失败:', e)
+    messages.value[aiMsgIdx].content = '抱歉，生成练习题失败，请稍后再试。'
+    messages.value[aiMsgIdx].error = true
+  } finally {
+    messages.value[aiMsgIdx].loading = false
+    await scrollToBottom()
+  }
 }
 
 /* ---- 处理换行 ---- */
@@ -267,7 +389,7 @@ function copyMessage(content) {
   })
 }
 
-/* ---- 重新生成最后一条AI回复 ---- */
+/* ---- 重新生成最后一条AI回复（支持打字机效果）---- */
 async function regenerateMessage(index) {
   // 找到对应的用户消息
   let lastUserMsg = ''
@@ -284,14 +406,20 @@ async function regenerateMessage(index) {
   messages.value.splice(index)
   loading.value = true
 
+  // 预留新的 AI 消息位置
+  const aiMsgIdx = messages.value.length
+  messages.value.push({
+    role: 'assistant',
+    content: '',
+    time: formatTimeFull(new Date()),
+    loading: true
+  })
+
   try {
     const res = await aiApi.aiChat(lastUserMsg, '', selectedCourseId.value)
     const reply = res.data?.response || res?.response || '已重新生成回复。'
-    messages.value.push({
-      role: 'assistant',
-      content: reply,
-      time: formatTimeFull(new Date())
-    })
+    // 使用打字机效果显示重新生成的回复
+    await typewriterEffect(aiMsgIdx, reply)
   } catch (e) {
     ElMessage.error('重新生成失败')
   } finally {
@@ -300,7 +428,7 @@ async function regenerateMessage(index) {
   }
 }
 
-/* ---- 简单 Markdown 渲染 ---- */
+/* ---- 简单 Markdown 渲染（XSS 安全） ---- */
 function renderMarkdown(text) {
   if (!text) return ''
   let html = escapeHtml(text)
@@ -312,7 +440,11 @@ function renderMarkdown(text) {
   html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
   // 换行
   html = html.replace(/\n/g, '<br/>')
-  return html
+  // DOMPurify 最终清理：防止任何 XSS 攻击
+  return DOMPurify.sanitize(html, {
+    ALLOWED_TAGS: ['pre', 'code', 'strong', 'br', 'p', 'em', 'ul', 'ol', 'li', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
+    ALLOWED_ATTR: ['class']
+  })
 }
 
 function escapeHtml(text) {

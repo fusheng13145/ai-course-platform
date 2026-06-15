@@ -1,4 +1,4 @@
-<template>
+﻿﻿﻿﻿<template>
   <div class="fade-in">
     <!-- 工具栏 -->
     <div class="table-toolbar">
@@ -306,8 +306,9 @@ async function loadExamList() {
       status: statusFilter.value || undefined
     }
     const res = await examApi.getExamPaperList(params)
-    const data = res.data || res || {}
-    examList.value = Array.isArray(data.list) ? data.list : Array.isArray(data) ? data : []
+    const rawData = res.data?.records || res.data?.list || res.data || res
+    const data = Array.isArray(rawData) ? { list: rawData } : (rawData || {})
+    examList.value = Array.isArray(data.list) ? data.list : Array.isArray(rawData) ? rawData : []
     total.value = data.total ?? data.count ?? examList.value.length
   } catch (e) {
     console.error('加载试卷列表失败:', e)
@@ -397,18 +398,33 @@ async function submitForm() {
   })
 }
 
-// 加载题库
+// 加载题库（增强：使用 searchQuestions API 支持关键词和类型筛选）
 async function loadQuestionBank() {
   questionLoading.value = true
   try {
-    const params = {}
+    const params = { size: 100 }
     if (questionSearch.value) params.keyword = questionSearch.value
     if (questionTypeFilter.value) params.type = questionTypeFilter.value
-    const res = await questionApi.getQuestionList(params)
+
+    // 优先使用搜索 API，回退到列表 API
+    let res
+    if (params.keyword || params.type) {
+      res = await questionApi.searchQuestions(params)
+    } else {
+      res = await questionApi.getQuestionList(params)
+    }
     const data = res.data?.list || res.data || res || []
     questionBank.value = Array.isArray(data) ? data : []
   } catch (e) {
     console.error('加载题库失败:', e)
+    // 搜索 API 失败时回退到基础列表
+    try {
+      const res = await questionApi.getQuestionList({ size: 100 })
+      const data = res.data?.list || res.data || res || []
+      questionBank.value = Array.isArray(data) ? data : []
+    } catch (e2) {
+      questionBank.value = []
+    }
   } finally {
     questionLoading.value = false
   }
@@ -465,7 +481,7 @@ async function viewDetail(row) {
 async function handlePublish(row) {
   try {
     await ElMessageBox.confirm(`确定发布试卷「${row.title}」？`, '发布确认', { type: 'info' })
-    await request.post(`/exam-papers/${row.id}/publish`)
+    await examApi.publishExam(row.id)
     ElMessage.success('发布成功')
     loadExamList()
     if (detailDialogVisible.value) detailDialogVisible.value = false
@@ -478,7 +494,7 @@ async function handlePublish(row) {
 async function handleCopy(row) {
   try {
     await ElMessageBox.confirm(`确定复制试卷「${row.title}」？`, '复制确认', { type: 'info' })
-    await request.post(`/exam-papers/${row.id}/copy`)
+    await examApi.copyExam(row.id, { title: `${row.title}(副本)` })
     ElMessage.success('复制成功，已创建副本')
     loadExamList()
   } catch (e) {
@@ -523,10 +539,6 @@ function getDifficultyText(diff) {
   const map = { EASY: '简单', MEDIUM: '中等', HARD: '困难' }
   return map[diff] || diff || '-'
 }
-</script>
-
-<script>
-import request from '@/api/request'
 </script>
 
 <style scoped>

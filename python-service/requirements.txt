@@ -1,0 +1,26 @@
+fastapi==0.110.0
+uvicorn==0.28.0
+pydantic==2.6.1
+requests==2.31.0
+python-dotenv==1.0.1
+
+# RAG依赖
+langchain==0.1.10
+sentence-transformers==2.6.1
+faiss-cpu==1.8.0
+chromadb==0.4.22
+
+# 知识图谱依赖
+networkx==3.2.1
+pyvis==0.3.2
+
+# 可选：Neo4j
+neo4j==5.19.0
+
+# 可选：大模型
+openai==1.13.3
+deepseek-chat==0.1.0
+
+# 开发工具
+pytest==7.4.4
+pytest-asyncio==0.23.2

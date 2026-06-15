@@ -3,12 +3,21 @@ spring:
   # 应用名称
   application:
     name: ai-course-platform
+
+  # ===================== 热部署配置 =====================
+  devtools:
+    restart:
+      enabled: true       # 开启热部署
+      additional-paths: src/main/java  # 监听目录
+    livereload:
+      enabled: true       # 开启页面的热重载（浏览器刷新）
+
   # ===================== 邮件配置（QQ邮箱） =====================
   mail:
     host: smtp.qq.com
     port: 587
-    username: 3039613979@qq.com
-    password: dnhovhvfvudkdgbc # QQ邮箱授权码，非登录密码
+    username: ${MAIL_USERNAME:}
+    password: ${MAIL_PASSWORD:}
     properties:
       mail:
         smtp:
@@ -70,7 +79,7 @@ mybatis-plus:
     # 下划线转驼峰
     map-underscore-to-camel-case: true
     # 开启SQL日志打印（开发环境使用，生产建议关闭）
-    log-impl: org.apache.ibatis.logging.stdout.StdOutImpl
+    log-impl: ${SQL_LOG_IMPL:org.apache.ibatis.logging.stdout.StdOutImpl}
   global-config:
     db-config:
       id-type: auto
@@ -81,8 +90,9 @@ mybatis-plus:
 
 # ===================== JWT 认证配置 =====================
 jwt:
-  # 【重要】生产环境必须替换为高强度随机密钥，禁止使用默认值
-  secret: 09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7
+  # 【重要】生产环境必须配置JWT_SECRET环境变量
+  # 开发环境使用默认密钥（仅用于本地开发，生产必须替换）
+  secret: ${JWT_SECRET:09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7}
   # Token 有效期：7天(毫秒)
   expiration: 604800000
   # 会话缓存有效期：1天(毫秒)
@@ -105,6 +115,20 @@ ai:
     api-key: ${DEEPSEEK_API_KEY:}
     base-url: https://api.deepseek.com/v1
     model: deepseek-chat
+
+# ===================== Python 知识图谱服务配置 =====================
+knowledge-graph:
+  # 是否启用知识图谱服务
+  enabled: ${KG_ENABLED:true}
+  # Python知识图谱服务地址
+  base-url: ${KG_BASE_URL:http://localhost:8000}
+
+# ===================== Python RAG 服务配置 =====================
+rag:
+  # 是否启用RAG服务
+  enabled: ${RAG_ENABLED:true}
+  # Python RAG服务地址
+  base-url: ${RAG_BASE_URL:http://localhost:8000}
 
 # 本地文件上传路径与大小
 file:

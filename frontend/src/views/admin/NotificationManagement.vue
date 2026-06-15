@@ -1,4 +1,4 @@
-<template>
+﻿﻿﻿﻿<template>
   <div class="fade-in notification-management">
     <!-- 页面头部 -->
     <div class="page-header">
@@ -247,7 +247,7 @@ import {
 import { ElMessage, ElMessageBox } from 'element-plus'
 import notificationApi from '@/api/notification'
 import userApi from '@/api/user'
-import request from '@/api/request'
+import { notificationEnhancedApi } from '@/api/notificationEnhanced'
 
 // 加载状态
 const loading = ref(false)
@@ -318,14 +318,14 @@ async function fetchNotifications() {
     if (filters.status) params.status = filters.status
 
     const res = await notificationApi.getNotificationList(params)
-    const data = res.data?.list || res.data || res || []
+    const rawData = res.data?.records || res.data?.list || res.data || res
 
-    if (Array.isArray(data)) {
-      notificationList.value = data
-      pagination.total = data.length
-    } else if (data?.records || data?.items) {
-      notificationList.value = data.records || data.items
-      pagination.total = data.total || notificationList.value.length
+    if (Array.isArray(rawData)) {
+      notificationList.value = rawData
+      pagination.total = rawData.length
+    } else if (rawData?.records || rawData?.items) {
+      notificationList.value = rawData.records || rawData.items
+      pagination.total = rawData.total || notificationList.value.length
     }
 
     // 更新统计
@@ -333,6 +333,7 @@ async function fetchNotifications() {
   } catch (error) {
     console.error('获取通知列表失败:', error)
     ElMessage.error('加载通知列表失败')
+    notificationList.value = []
   } finally {
     loading.value = false
   }
@@ -343,11 +344,11 @@ async function fetchNotifications() {
  */
 async function updateStats() {
   try {
-    // 尝试获取未读数量
-    const unreadRes = await request.get('/notifications/unread-count')
+    // 使用增强 API 获取未读数量
+    const unreadRes = await notificationEnhancedApi.getUnreadCount()
     stats.unread = unreadRes.data?.count ?? unreadRes.data ?? 0
   } catch (e) {
-    // 使用本地计算
+    // 回退到本地计算
     stats.unread = notificationList.value.filter(n => !n.isRead).length
   }
 
@@ -426,7 +427,7 @@ async function confirmSend() {
       scheduledAt: sendForm.scheduled ? sendForm.scheduleTime?.toISOString() : undefined
     }
 
-    await request.post('/notifications/send', payload)
+    await notificationEnhancedApi.sendNotification(payload)
     ElMessage.success('通知发送成功')
 
     // 重置表单
