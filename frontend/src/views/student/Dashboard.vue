@@ -1,4 +1,4 @@
-﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="fade-in">
     <!-- 统计卡片区域 -->
     <div class="stat-cards">
@@ -225,9 +225,9 @@ async function loadTrendData() {
   barLoading.value = true
   try {
     const userId = auth.userId
-    const res = await analyticsApi.getTrendData(userId)
+    const res = await analyticsApi.getTrendData({ days: 7 })
     const data = res.data || res || {}
-    const trendList = data.list ?? data.trends ?? data.dailyStats ?? (Array.isArray(data) ? data : [])
+    const trendList = Array.isArray(data) ? data : (data.list ?? data.trends ?? data.dailyStats ?? [])
 
     if (trendType.value === 'week') {
       // 本周数据：取最近7天

@@ -177,10 +177,25 @@ service.interceptors.response.use(
         break
 
       case 401:
-        /* 未授权：清除 token 并跳转登录页 */
+        /* 未授权：尝试刷新 token，失败则清除并跳转 */
         const authStore = useAuthStore()
-        localStorage.removeItem('token'); localStorage.removeItem('user')
-        sessionStorage.removeItem('token'); sessionStorage.removeItem('user')
+        const refreshTokenVal = localStorage.getItem('refreshToken') || sessionStorage.getItem('refreshToken')
+        if (refreshTokenVal && config && !config._retry) {
+          config._retry = true
+          try {
+            const res = await service.post('/auth/refresh', { refreshToken: refreshTokenVal })
+            const newToken = res.data?.token || res.data?.accessToken
+            if (newToken) {
+              localStorage.setItem('token', newToken)
+              config.headers.Authorization = `Bearer ${newToken}`
+              return service(config)
+            }
+          } catch (refreshErr) {
+            // 刷新失败，走登出逻辑
+          }
+        }
+        localStorage.removeItem('token'); localStorage.removeItem('refreshToken'); localStorage.removeItem('user')
+        sessionStorage.removeItem('token'); sessionStorage.removeItem('refreshToken'); sessionStorage.removeItem('user')
         authStore.token = ''; authStore.user = null
         ElMessage.error('登录已过期，请重新登录')
         router.push('/login')

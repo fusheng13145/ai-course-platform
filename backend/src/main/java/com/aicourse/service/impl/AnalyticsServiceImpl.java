@@ -906,4 +906,15 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         }
         return teacherData;
     }
+
+    /**
+     * 导出学情分析报告
+     */
+    @Override
+    public Map<String, Object> exportReport(Long courseId) {
+        Map<String, Object> report = getCourseAnalysis(courseId);
+        report.put("exportTime", LocalDateTime.now().toString());
+        report.put("reportType", "学情分析报告");
+        return report;
+    }
 }

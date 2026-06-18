@@ -68,6 +68,22 @@ public class PagedResponse<T> {
         return resp;
     }
 
+    /**
+     * 构建空的分页响应
+     * @return 空分页返回实体
+     */
+    public static <T> PagedResponse<T> empty() {
+        PagedResponse<T> resp = new PagedResponse<>();
+        resp.list = java.util.Collections.emptyList();
+        resp.total = 0;
+        resp.page = 1;
+        resp.pageSize = 10;
+        resp.totalPages = 0;
+        resp.hasNext = false;
+        resp.hasPrevious = false;
+        return resp;
+    }
+
     // ===================== Getter & Setter =====================
     public List<T> getList() {
         return list;

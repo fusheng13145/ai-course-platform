@@ -79,7 +79,12 @@ public class SecurityConfig {
                 "/knowledge-points/**",
                 "/chapters/**",
                 "/resources/**",
-                "/classrooms/**"
+                "/classrooms/**",
+                "/student/**",
+                "/teacher/**",
+                "/ai/**",
+                "/knowledge/**",
+                "/knowledge-graph/**"
         );
 
         http

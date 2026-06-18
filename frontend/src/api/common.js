@@ -8,4 +8,12 @@ export const uploadFile = (file, onProgress) => {
     onUploadProgress: onProgress
   })
 }
-export default { sendVerificationCode, uploadFile }
+export const uploadBatch = (files, onProgress) => {
+  const formData = new FormData()
+  files.forEach(f => formData.append("files", f))
+  return request.post("/common/upload/batch", formData, {
+    headers: { "Content-Type": "multipart/form-data" },
+    onUploadProgress: onProgress
+  })
+}
+export default { sendVerificationCode, uploadFile, uploadBatch }

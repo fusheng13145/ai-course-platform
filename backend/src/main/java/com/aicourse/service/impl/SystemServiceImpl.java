@@ -191,6 +191,20 @@ public class SystemServiceImpl implements SystemService {
         }
     }
 
+    /**
+     * 获取AI功能使用统计
+     */
+    @Override
+    public Map<String, Object> getAIUsageStats() {
+        Map<String, Object> stats = new HashMap<>();
+        stats.put("totalCalls", 0);
+        stats.put("todayCalls", 0);
+        stats.put("avgResponseTime", 0);
+        stats.put("costEstimate", 0);
+        stats.put("status", "statistics_pending");
+        return stats;
+    }
+
     // ===================== 公共工具方法 =====================
     /**
      * 读取目录下指定后缀文件信息（名称、大小、修改时间）

@@ -39,8 +39,11 @@ export const getUserGrowth = days => request.get('/analytics/users/growth', { pa
 // 考试统计详情（参考人数、平均分、最高/最低分、及格率等）
 export const getExamStatistics = examPaperId => request.get(`/analytics/exams/${examPaperId}/statistics`)
 
-// 向后兼容：getTrendData 复用 getUserGrowth
-export const getTrendData = params => request.get('/analytics/users/growth', { params })
+// 学习趋势数据（学生端使用，获取用户的学习时长趋势）
+export const getTrendData = params => request.get('/learning-records/trend', { params })
+
+// 学习日历数据（学生端使用，获取用户月度学习数据）
+export const getCalendarData = params => request.get('/learning-records/calendar', { params })
 
 export default {
   getDashboardStats,
@@ -55,5 +58,6 @@ export default {
   getCourseRanking,
   getUserGrowth,
   getExamStatistics,
-  getTrendData
+  getTrendData,
+  getCalendarData
 }
