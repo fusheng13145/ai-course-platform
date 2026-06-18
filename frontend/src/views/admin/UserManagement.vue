@@ -1,4 +1,4 @@
-﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="fade-in user-management">
     <!-- 页面头部 -->
     <div class="page-header">
@@ -74,7 +74,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import userApi from '@/api/user'
+import adminApi from '@/api/admin'
 
 // 用户统计数据
 const userStats = ref([
@@ -106,7 +106,7 @@ const filteredList = computed(() => {
 
 onMounted(async () => {
   try {
-    const res = await userApi.getUserList()
+    const res = await adminApi.getUsers()
         const rawData = res.data?.records || res.data?.list || res.data || res
     userList.value = Array.isArray(rawData) ? rawData : []
 
@@ -132,7 +132,7 @@ function toggleUser(row) {
   const action = row.isActive ? '禁用' : '启用'
   ElMessageBox.confirm(`确定${action}用户 ${row.username}？`, '提示').then(async () => {
     try {
-      await userApi.updateUserStatus(row.id, !row.isActive)
+      await adminApi.updateUser(row.id, { isActive: !row.isActive })
       row.isActive = !row.isActive
       ElMessage.success(`${action}成功`)
     } catch (e) { ElMessage.error('操作失败') }
@@ -142,7 +142,7 @@ function toggleUser(row) {
 function deleteUser(row) {
   ElMessageBox.confirm(`确定删除用户 ${row.username}？`, '提示', { type: 'warning' }).then(async () => {
     try {
-      await userApi.deleteUser(row.id)
+      await adminApi.deleteUser(row.id)
       userList.value = userList.value.filter(u => u.id !== row.id)
       ElMessage.success('删除成功')
     } catch (e) { ElMessage.error('删除失败') }
@@ -155,11 +155,11 @@ async function saveUser() {
     if (!valid) return
     try {
       if (editing.value) {
-        await userApi.updateUser(form._id, { username: form.username, fullName: form.fullName, email: form.email, role: form.role })
+        await adminApi.updateUser(form._id, { username: form.username, fullName: form.fullName, email: form.email, role: form.role })
         const u = userList.value.find(u => u.id === form._id)
         if (u) { Object.assign(u, { username: form.username, fullName: form.fullName, email: form.email, role: form.role }) }
       } else {
-        const res = await userApi.createUser({ ...form })
+        const res = await adminApi.createUser({ ...form })
         userList.value.push(res.data || res)
       }
       showAdd.value = false; editing.value = false

@@ -74,4 +74,10 @@ public interface SystemService {
      * @return 日志内容
      */
     String readLogFile(String fileName, int lines, String keyword);
+
+    /**
+     * 获取AI功能使用统计
+     * @return AI使用统计数据
+     */
+    Map<String, Object> getAIUsageStats();
 }

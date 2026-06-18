@@ -99,4 +99,11 @@ public interface AnalyticsService {
      * @return 教师统计数据（课程数、学生数、待批改数、平均分等）
      */
     Map<String, Object> getTeacherDashboard(Long teacherId);
+
+    /**
+     * 导出学情分析报告
+     * @param courseId 课程ID
+     * @return 报告数据
+     */
+    Map<String, Object> exportReport(Long courseId);
 }

@@ -114,16 +114,24 @@ public class AuthController {
     }
 
     /**
-     * 手机号 + 验证码 重置密码
-     * @param body 手机号、验证码、新密码
+     * 手机号/邮箱 + 验证码 重置密码
+     * 需求文档: POST /api/auth/reset-password
+     * @param body 手机号或邮箱、验证码、新密码
      * @return 操作结果
      */
     @PostMapping("/reset-password")
     public ApiResponse<Void> resetPassword(@RequestBody Map<String, Object> body) {
+        String email = (String) body.get("email");
         String phone = (String) body.get("phone");
         String code = (String) body.get("code");
         String newPassword = (String) body.get("newPassword");
-        return authService.resetPassword(phone, code, newPassword);
+        if (email != null && !email.isEmpty()) {
+            return authService.resetPasswordByEmail(email, code, newPassword);
+        }
+        if (phone != null && !phone.isEmpty()) {
+            return authService.resetPassword(phone, code, newPassword);
+        }
+        return ApiResponse.error(400, "请提供邮箱或手机号");
     }
 
     /**

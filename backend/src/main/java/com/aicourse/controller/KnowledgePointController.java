@@ -240,4 +240,55 @@ public class KnowledgePointController {
         List<KnowledgePoint> rootPoints = knowledgePointService.getRootPoints(courseId);
         return ApiResponse.success(rootPoints);
     }
+
+    // ==================== 知识图谱增强API（需求文档定义） ====================
+
+    /**
+     * 知识点搜索（全文检索）
+     */
+    @GetMapping("/search")
+    public ApiResponse<List<KnowledgePoint>> search(
+            @RequestParam String keyword,
+            @RequestParam(required = false) Long courseId) {
+        LambdaQueryWrapper<KnowledgePoint> qw = new LambdaQueryWrapper<KnowledgePoint>()
+                .like(KnowledgePoint::getName, keyword)
+                .eq(courseId != null, KnowledgePoint::getCourseId, courseId);
+        return ApiResponse.success(knowledgePointService.list(qw));
+    }
+
+    /**
+     * 知识图谱概览统计
+     */
+    @GetMapping("/overview")
+    public ApiResponse<Map<String, Object>> overview(@RequestParam(required = false) Long courseId) {
+        LambdaQueryWrapper<KnowledgePoint> qw = new LambdaQueryWrapper<KnowledgePoint>()
+                .eq(courseId != null, KnowledgePoint::getCourseId, courseId);
+        long totalPoints = knowledgePointService.count(qw);
+        long totalRelations = relationService.count();
+        Map<String, Object> data = new HashMap<>();
+        data.put("totalPoints", totalPoints);
+        data.put("totalRelations", totalRelations);
+        data.put("courseId", courseId);
+        return ApiResponse.success(data);
+    }
+
+    /**
+     * 学习路径规划（起点到目标的最优路径）
+     */
+    @PostMapping("/path/plan")
+    public ApiResponse<List<KnowledgePoint>> planPath(@RequestBody Map<String, Object> body) {
+        Long startPointId = Long.valueOf(body.get("startPointId").toString());
+        Long targetPointId = Long.valueOf(body.get("targetPointId").toString());
+        List<KnowledgePoint> path = knowledgePointService.getPrerequisites(targetPointId);
+        return ApiResponse.success(path);
+    }
+
+    /**
+     * 获取后继知识点
+     */
+    @GetMapping("/{id}/successors")
+    public ApiResponse<List<KnowledgePoint>> getSuccessors(@PathVariable Long id) {
+        List<KnowledgePoint> successors = knowledgePointService.getSubsequentPoints(id);
+        return ApiResponse.success(successors);
+    }
 }
