@@ -1,4 +1,4 @@
-﻿﻿﻿﻿<template>
+﻿﻿﻿<template>
   <div class="fade-in exam-management">
     <!-- 页面头部 -->
     <div class="page-header">
@@ -98,7 +98,7 @@
     </div>
 
     <!-- 进行中考试对话框 -->
-    <el-dialog v-model="showActiveSessions" title="进行中的考试" width="800px" destroy-on-close>
+    <el-dialog v-model="showActiveSessions" title="进行中的考试" width="800px" append-to-body destroy-on-close>
       <el-table :data="activeSessions" v-loading="loadingSessions" max-height="400">
         <el-table-column prop="paperTitle" label="试卷名称" min-width="180" show-overflow-tooltip />
         <el-table-column prop="courseName" label="课程" width="140" />
@@ -114,7 +114,7 @@
     </el-dialog>
 
     <!-- 作弊检测日志对话框 -->
-    <el-dialog v-model="showCheatingDialog" title="作弊检测记录" width="700px" destroy-on-close>
+    <el-dialog v-model="showCheatingDialog" title="作弊检测记录" width="700px" append-to-body destroy-on-close>
       <div v-if="cheatingLogs.length > 0">
         <div v-for="(log, idx) in cheatingLogs" :key="idx" class="cheating-item">
           <div class="cheating-header">
@@ -135,7 +135,7 @@
     </el-dialog>
 
     <!-- 试卷统计对话框 -->
-    <el-dialog v-model="showStatsDialog" title="试卷统计分析" width="650px" destroy-on-close>
+    <el-dialog v-model="showStatsDialog" title="试卷统计分析" width="650px" append-to-body destroy-on-close>
       <div v-if="statistics" class="stats-detail">
         <div class="stats-grid">
           <div class="stats-item">

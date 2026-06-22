@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="fade-in user-management">
     <!-- 页面头部 -->
     <div class="page-header">
@@ -26,32 +26,34 @@
       </div>
     </div>
     <div class="content-card">
-      <el-table :data="filteredList" stripe style="width:100%">
-        <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="username" label="用户名" />
-        <el-table-column prop="fullName" label="姓名" />
-        <el-table-column prop="email" label="邮箱" />
-        <el-table-column prop="role" label="角色" width="100">
+      <el-table :data="filteredList" style="width:100%">
+        <el-table-column prop="id" label="ID" width="55" />
+        <el-table-column prop="username" label="用户名" min-width="100" show-overflow-tooltip />
+        <el-table-column prop="fullName" label="姓名" min-width="90" show-overflow-tooltip />
+        <el-table-column prop="email" label="邮箱" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="role" label="角色" width="110" align="center" class-name="tag-col">
           <template #default="{ row }">
             <el-tag :type="row.role === 'ADMIN' ? 'danger' : row.role === 'TEACHER' ? 'success' : 'warning'" size="small">{{ row.role }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="isActive" label="状态" width="80">
+        <el-table-column prop="isActive" label="状态" width="90" align="center" class-name="tag-col">
           <template #default="{ row }">
             <el-tag :type="row.isActive ? 'success' : 'info'" size="small">{{ row.isActive ? '正常' : '禁用' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
+        <el-table-column label="操作" width="220" align="center">
           <template #default="{ row }">
-            <el-button text type="primary" @click="editUser(row)">编辑</el-button>
-            <el-button text type="warning" @click="toggleUser(row)">{{ row.isActive ? '禁用' : '启用' }}</el-button>
-            <el-button text type="danger" @click="deleteUser(row)">删除</el-button>
+            <div class="action-row">
+              <el-button text type="primary" @click="editUser(row)">编辑</el-button>
+              <el-button text type="warning" @click="toggleUser(row)">{{ row.isActive ? '禁用' : '启用' }}</el-button>
+              <el-button text type="danger" @click="deleteUser(row)">删除</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
     </div>
 
-    <el-dialog v-model="showAdd" :title="editing ? '编辑用户' : '添加用户'" width="500px">
+    <el-dialog v-model="showAdd" :title="editing ? '编辑用户' : '添加用户'" width="500px" append-to-body>
       <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
         <el-form-item label="用户名" prop="username"><el-input v-model="form.username" /></el-form-item>
         <el-form-item label="姓名" prop="fullName"><el-input v-model="form.fullName" /></el-form-item>
@@ -175,6 +177,31 @@ async function saveUser() {
   margin: 0 auto;
 }
 
+/* 标签列：flex 布局消除空白节点 */
+:deep(.tag-col .cell) {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 0;
+}
+
+/* 确保标签无额外 margin */
+:deep(.tag-col .cell .el-tag) {
+  margin: 0 !important;
+}
+
+/* 操作按钮：消除 Element Plus 默认间距，用 gap 统一控制 */
+:deep(.action-row .el-button) {
+  margin-left: 0 !important;
+}
+
+.action-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
 /* 页面头部 */
 .page-header {
   margin-bottom: var(--ac-spacing-lg);
@@ -232,6 +259,14 @@ async function saveUser() {
 .stat-mini-card.admin .value { color: var(--ac-danger); }
 .stat-mini-card.teacher .value { color: var(--ac-success); }
 .stat-mini-card.student .value { color: var(--ac-primary); }
+
+/* 操作按钮行 */
+.action-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
 
 /* 响应式 */
 @media (max-width: 768px) {

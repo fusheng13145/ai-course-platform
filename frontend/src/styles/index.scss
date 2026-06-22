@@ -308,19 +308,43 @@ html, body, #app {
   --el-table-border-color: var(--ac-border);
 }
 
+/* 表头：与数据行同色 */
 .el-table th.el-table__cell {
-  background: var(--ac-bg) !important;
+  background: var(--ac-bg-elevated) !important;
   color: var(--ac-text-secondary) !important;
   font-weight: 600 !important;
   font-size: 13px;
 }
 
+/* 数据单元格：防溢出（纯文本列生效） */
+.el-table td.el-table__cell {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* 标签：彻底消除边框 */
+.el-tag {
+  border: none !important;
+}
+
+/* 数据行背景（非斑马） */
+.el-table__body tr > td.el-table__cell {
+  background: var(--ac-bg-elevated);
+}
+
 .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-  background: var(--ac-bg) !important;
+  background: var(--ac-bg-elevated) !important;
 }
 
 .el-table .el-table__row:hover > td.el-table__cell {
   background: var(--ac-bg-hover) !important;
+}
+
+/* 覆盖 Element Plus 输入框背景色变量 */
+:root {
+  --el-input-bg-color: #fffcf8;
+  --el-fill-color-blank: #fffcf8;
 }
 
 /* 输入框：柔和聚焦环 */
@@ -328,6 +352,7 @@ html, body, #app {
   border-radius: var(--ac-radius-sm) !important;
   box-shadow: 0 0 0 1px var(--ac-border) inset !important;
   transition: all var(--ac-transition-fast) !important;
+  background-color: #fffcf8 !important;
 }
 
 .el-input__wrapper:hover {
@@ -336,6 +361,21 @@ html, body, #app {
 
 .el-input__wrapper.is-focus {
   box-shadow: 0 0 0 2px var(--ac-primary-bg), 0 0 0 1px var(--ac-primary) inset !important;
+}
+
+/* textarea、select 等输入类组件统一背景色（提升选择器权重覆盖 Element Plus 默认） */
+.el-textarea__inner,
+.el-select .el-input__wrapper,
+.el-select .el-input__inner,
+.el-date-editor .el-input__wrapper,
+.el-input-number .el-input__wrapper {
+  background-color: #fffcf8 !important;
+}
+
+/* 更深层覆盖：针对 Select 组件内部 wrapper */
+.el-select .el-input .el-input__wrapper,
+.el-select-dropdown__wrap {
+  background-color: #fffcf8 !important;
 }
 
 /* 对话框：大圆角+柔和阴影 */
@@ -426,6 +466,15 @@ html, body, #app {
 .fade-in { animation: fadeIn 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
 
 /* ============================================
+ * 模态框全局居中
+ * ============================================ */
+.el-overlay {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* ============================================
  * 暗色主题 Element Plus 莫兰迪覆盖
  * ============================================ */
 [data-theme="dark"] {
@@ -448,7 +497,7 @@ html, body, #app {
   .el-table {
     --el-table-bg-color: var(--ac-bg-elevated);
     --el-table-tr-bg-color: var(--ac-bg-elevated);
-    --el-table-header-bg-color: var(--ac-bg);
+    --el-table-header-bg-color: var(--ac-bg-elevated);
     --el-table-row-hover-bg-color: rgba(122, 139, 165, 0.08);
   }
 
@@ -675,9 +724,8 @@ html, body, #app {
   }
 }
 
-/* 自动给直接子元素是 el-table 的容器加滚动（替代逐页面包裹） */
+/* 自动给直接子元素是 el-table 的容器 */
 .el-card:has(> .el-table),
 .content-card:has(> .el-table) {
-  overflow-x: auto;
-  -webkit-overflow-scrolling: touch;
+  overflow-x: hidden;
 }

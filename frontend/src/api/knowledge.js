@@ -29,6 +29,7 @@ export const createKnowledgeRelation = data => request.post('/knowledge/relation
 export const planKnowledgePath = data => request.post('/knowledge/path/plan', data)
 export const searchKnowledge = params => request.get('/knowledge/search', { params })
 export const getKnowledgeOverview = params => request.get('/knowledge/overview', { params })
+export const extractKnowledgePoints = data => request.post('/knowledge/extract', data)
 
 export default {
   getKnowledgePoints, createKnowledgePoint, updateKnowledgePoint, deleteKnowledgePoint,
@@ -36,5 +37,5 @@ export default {
   getMastery, getRootPoints,
   getKnowledgePointsV2, getKnowledgePointDetail, createKnowledgePointV2, updateKnowledgePointV2,
   deleteKnowledgePointV2, getPointRelations, getPointPrerequisites, getPointSuccessors,
-  createKnowledgeRelation, planKnowledgePath, searchKnowledge, getKnowledgeOverview
+  createKnowledgeRelation, planKnowledgePath, searchKnowledge, getKnowledgeOverview, extractKnowledgePoints
 }

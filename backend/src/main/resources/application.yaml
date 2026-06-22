@@ -120,15 +120,48 @@ ai:
 knowledge-graph:
   # 是否启用知识图谱服务
   enabled: ${KG_ENABLED:true}
-  # Python知识图谱服务地址
-  base-url: ${KG_BASE_URL:http://localhost:8000}
+  # Python知识图谱服务地址（独立端口，与RAG服务隔离）
+  base-url: ${KG_BASE_URL:http://localhost:8001}
+  # HTTP 连接超时（秒）
+  connect-timeout: ${KG_CONNECT_TIMEOUT:5}
+  # HTTP 读取超时（秒）
+  read-timeout: ${KG_READ_TIMEOUT:30}
+  # 重试次数
+  max-retries: ${KG_MAX_RETRIES:2}
+  # 健康检查路径
+  health-path: ${KG_HEALTH_PATH:/api/v1/graph/health}
 
 # ===================== Python RAG 服务配置 =====================
 rag:
   # 是否启用RAG服务
   enabled: ${RAG_ENABLED:true}
-  # Python RAG服务地址
-  base-url: ${RAG_BASE_URL:http://localhost:8000}
+  # Python RAG服务地址（独立端口，与知识图谱服务隔离）
+  base-url: ${RAG_BASE_URL:http://localhost:8002}
+  # HTTP 连接超时（秒）
+  connect-timeout: ${RAG_CONNECT_TIMEOUT:5}
+  # HTTP 读取超时（秒）
+  read-timeout: ${RAG_READ_TIMEOUT:60}
+  # 重试次数
+  max-retries: ${RAG_MAX_RETRIES:2}
+  # 默认检索返回数量
+  default-top-k: ${RAG_DEFAULT_TOP_K:5}
+  # 健康检查路径
+  health-path: ${RAG_HEALTH_PATH:/api/v1/rag/health}
+
+# ===================== Python LoRA/微调 服务配置 =====================
+fine-tune:
+  # 是否启用微调服务
+  enabled: ${FT_ENABLED:false}
+  # Python微调服务地址
+  base-url: ${FT_BASE_URL:http://localhost:8003}
+  # HTTP 连接超时（秒）
+  connect-timeout: ${FT_CONNECT_TIMEOUT:5}
+  # HTTP 读取超时（秒，微调任务可能较长）
+  read-timeout: ${FT_READ_TIMEOUT:300}
+  # 重试次数
+  max-retries: ${FT_MAX_RETRIES:1}
+  # 健康检查路径
+  health-path: ${FT_HEALTH_PATH:/api/v1/fine-tune/health}
 
 # 本地文件上传路径与大小
 file:

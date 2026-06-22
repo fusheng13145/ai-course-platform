@@ -1,6 +1,7 @@
 package com.aicourse.service.impl;
 
 import com.aicourse.service.AIService;
+import com.aicourse.service.RAGService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,12 +27,15 @@ public class AIServiceImpl implements AIService {
     private final RestClient restClient;
     private final String apiKey;
     private final String model;
+    private final RAGService ragService;
 
     public AIServiceImpl(@Value("${ai.deepseek.api-key:}") String apiKey,
                          @Value("${ai.deepseek.base-url:https://api.deepseek.com/v1}") String baseUrl,
-                         @Value("${ai.deepseek.model:deepseek-chat}") String model) {
+                         @Value("${ai.deepseek.model:deepseek-chat}") String model,
+                         RAGService ragService) {
         this.apiKey = apiKey;
         this.model = model;
+        this.ragService = ragService;
         this.restClient = RestClient.builder()
                 .baseUrl(baseUrl)
                 .defaultHeader("Authorization", "Bearer " + apiKey)
@@ -108,15 +112,28 @@ public class AIServiceImpl implements AIService {
     }
 
     /**
-     * 基于课程知识库的 RAG 问答
+     * 基于课程知识库的 RAG 问答（分层检索增强）
+     * 优先调用 Python RAG 微服务，服务不可用时降级为纯 LLM 调用
      *
      * @param question 提问内容
      * @param courseId 课程ID
-     * @return 问答结果
+     * @return 问答结果（含引用来源）
      */
     @Override
     public String ragAsk(String question, Long courseId) {
-        String systemPrompt = "请基于课程知识回答问题。";
+        // 1. 尝试 RAG 服务（检索增强）
+        if (ragService.healthCheck()) {
+            try {
+                String ragResult = ragService.ask(question, courseId, 5);
+                if (ragResult != null && !ragResult.contains("\"code\":503")) {
+                    return ragResult;
+                }
+            } catch (Exception e) {
+                log.warn("RAG服务调用异常，降级为纯LLM调用: {}", e.getMessage());
+            }
+        }
+        // 2. 降级：纯 LLM 调用（无检索增强，可能产生幻觉）
+        String systemPrompt = "请基于课程知识回答问题。如果问题超出课程范围，请明确说明。";
         return callDeepSeek(buildMessages(question, systemPrompt));
     }
 

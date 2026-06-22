@@ -51,36 +51,36 @@
           <el-table :data="filteredGradeList" style="width:100%" v-loading="loading"
             :header-cell-style="{ background:'var(--ac-bg)', color:'var(--ac-text-secondary)', fontWeight:600 }"
             @row-click="viewStudentDetail">
-            <el-table-column prop="studentNo" label="学号" width="110" />
-            <el-table-column prop="studentName" label="姓名" width="90">
+            <el-table-column prop="studentNo" label="学号" width="100" />
+            <el-table-column prop="studentName" label="姓名" width="85">
               <template #default="{ row }"><span style="font-weight:500">{{ row.studentName }}</span></template>
             </el-table-column>
-            <el-table-column prop="homeworkScore" label="作业成绩" width="95" align="center">
+            <el-table-column prop="homeworkScore" label="作业成绩" width="85" align="center">
               <template #default="{ row }">
                 <span v-if="row.homeworkScore != null" :style="{ color: getScoreColor(row.homeworkScore) }">{{ row.homeworkScore }}</span>
                 <span v-else style="color:var(--ac-text-muted)">--</span>
               </template>
             </el-table-column>
-            <el-table-column prop="examScore" label="考试成绩" width="95" align="center">
+            <el-table-column prop="examScore" label="考试成绩" width="85" align="center">
               <template #default="{ row }">
                 <span v-if="row.examScore != null" :style="{ color: getScoreColor(row.examScore) }">{{ row.examScore }}</span>
                 <span v-else style="color:var(--ac-text-muted)">--</span>
               </template>
             </el-table-column>
-            <el-table-column prop="totalScore" label="总评" width="80" align="center">
+            <el-table-column prop="totalScore" label="总评" width="75" align="center">
               <template #default="{ row }">
                 <span v-if="row.totalScore != null" style="font-weight:600;color:var(--ac-text-primary)">{{ row.totalScore }}</span>
                 <span v-else style="color:var(--ac-text-muted)">--</span>
               </template>
             </el-table-column>
-            <el-table-column prop="gradeLevel" label="等级" width="70" align="center">
+            <el-table-column prop="gradeLevel" label="等级" width="65" align="center">
               <template #default="{ row }">
                 <el-tag v-if="row.gradeLevel" :type="getGradeTagType(row.gradeLevel)" size="small">{{ row.gradeLevel }}</el-tag>
                 <span v-else>--</span>
               </template>
             </el-table-column>
-            <el-table-column prop="submitTime" label="最后提交" width="160" />
-            <el-table-column label="操作" width="180" fixed="right">
+            <el-table-column prop="submitTime" label="最后提交" width="140" />
+            <el-table-column label="操作" width="170" align="center">
               <template #default="{ row }">
                 <el-button text type="primary" size="small" @click.stop="viewStudentDetail(row)">详情</el-button>
                 <el-button text type="warning" size="small" @click.stop="openGradeDialog(row)" v-if="row.needsGrading">批阅</el-button>
@@ -114,7 +114,7 @@
     </div>
 
     <!-- 学生成绩详情弹窗 -->
-    <el-dialog v-model="detailDialogVisible" title="学生成绩详情" width="600px">
+    <el-dialog v-model="detailDialogVisible" title="学生成绩详情" width="600px" append-to-body>
       <template v-if="currentStudent">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="学号">{{ currentStudent.studentNo || '-' }}</el-descriptions-item>
@@ -149,7 +149,7 @@
     </el-dialog>
 
     <!-- 批阅对话框 -->
-    <el-dialog v-model="gradeDialogVisible" title="批阅作业" width="480px">
+    <el-dialog v-model="gradeDialogVisible" title="批阅作业" width="480px" append-to-body>
       <el-form v-if="gradingStudent" label-width="80px">
         <el-form-item label="学生">
           <span>{{ gradingStudent.studentName }} ({{ gradingStudent.studentNo }})</span>

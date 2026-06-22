@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <div>
     <el-page-header :title="course.name" @back="$router.push('/teacher/courses')" style="margin-bottom:20px" />
     <el-tabs v-model="activeTab">
@@ -58,7 +58,7 @@
     </el-tabs>
 
     <!-- Add/Edit Chapter Dialog -->
-    <el-dialog v-model="chapterDialogVisible" :title="editingChapter ? '编辑章节' : '添加章节'" width="500px">
+    <el-dialog v-model="chapterDialogVisible" :title="editingChapter ? '编辑章节' : '添加章节'" width="500px" append-to-body>
       <el-form :model="chapterForm" label-width="80px">
         <el-form-item label="章节名称"><el-input v-model="chapterForm.title" placeholder="输入章节名称" /></el-form-item>
         <el-form-item label="时长(分钟)"><el-input-number v-model="chapterForm.duration" :min="0" /></el-form-item>
@@ -69,7 +69,7 @@
     </el-dialog>
 
     <!-- Edit Course Dialog -->
-    <el-dialog v-model="editDialogVisible" title="编辑课程" width="600px">
+    <el-dialog v-model="editDialogVisible" title="编辑课程" width="600px" append-to-body>
       <el-form :model="editForm" label-width="100px">
         <el-form-item label="课程名称"><el-input v-model="editForm.name" placeholder="输入课程名称" /></el-form-item>
         <el-form-item label="课程编码"><el-input v-model="editForm.code" placeholder="输入课程编码" /></el-form-item>

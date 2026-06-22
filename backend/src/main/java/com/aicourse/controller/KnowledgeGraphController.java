@@ -159,15 +159,79 @@ public class KnowledgeGraphController {
     }
 
     /**
-     * 学习路径规划（起点到目标的最优路径）
+     * 学习路径规划（起点到目标的最优路径，使用BFS算法）
      * POST /api/knowledge/path/plan
      */
     @PostMapping("/path/plan")
     public ApiResponse<List<KnowledgePoint>> planPath(@RequestBody Map<String, Object> body) {
         Long startPointId = Long.valueOf(body.get("startPointId").toString());
         Long targetPointId = Long.valueOf(body.get("targetPointId").toString());
-        List<KnowledgePoint> path = knowledgePointService.getPrerequisites(targetPointId);
-        return ApiResponse.success(path);
+
+        if (startPointId.equals(targetPointId)) {
+            KnowledgePoint point = knowledgePointService.getById(startPointId);
+            return ApiResponse.success("起点与目标相同", Collections.singletonList(point));
+        }
+
+        // 获取所有关联关系，构建有向邻接表
+        List<KnowledgePointRelation> allRelations = relationService.list();
+        Map<Long, List<Long>> adjacency = new HashMap<>();
+        for (KnowledgePointRelation rel : allRelations) {
+            adjacency.computeIfAbsent(rel.getSourceId(), k -> new ArrayList<>()).add(rel.getTargetId());
+        }
+
+        // BFS寻路
+        Queue<Long> queue = new LinkedList<>();
+        Map<Long, Long> parent = new HashMap<>();
+        Set<Long> visited = new HashSet<>();
+
+        queue.add(startPointId);
+        visited.add(startPointId);
+
+        boolean found = false;
+        while (!queue.isEmpty()) {
+            Long current = queue.poll();
+            if (current.equals(targetPointId)) {
+                found = true;
+                break;
+            }
+            List<Long> neighbors = adjacency.getOrDefault(current, Collections.emptyList());
+            for (Long neighbor : neighbors) {
+                if (!visited.contains(neighbor)) {
+                    visited.add(neighbor);
+                    parent.put(neighbor, current);
+                    queue.add(neighbor);
+                }
+            }
+        }
+
+        if (!found) {
+            return ApiResponse.success("未找到从起点到目标的学习路径，建议先学习相关知识再尝试", Collections.emptyList());
+        }
+
+        // 回溯重构路径
+        List<Long> pathIds = new ArrayList<>();
+        Long cur = targetPointId;
+        while (cur != null) {
+            pathIds.add(cur);
+            cur = parent.get(cur);
+        }
+        Collections.reverse(pathIds);
+
+        // 按路径顺序获取知识点
+        List<KnowledgePoint> allPoints = knowledgePointService.listByIds(pathIds);
+        Map<Long, KnowledgePoint> pointMap = new HashMap<>();
+        for (KnowledgePoint p : allPoints) {
+            pointMap.put(p.getId(), p);
+        }
+        List<KnowledgePoint> orderedPath = new ArrayList<>();
+        for (Long id : pathIds) {
+            KnowledgePoint p = pointMap.get(id);
+            if (p != null) {
+                orderedPath.add(p);
+            }
+        }
+
+        return ApiResponse.success("路径规划成功，共" + orderedPath.size() + "个知识点", orderedPath);
     }
 
     /**

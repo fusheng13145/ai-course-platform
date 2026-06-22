@@ -7,7 +7,7 @@ import 'nprogress/nprogress.css'
 import ECharts from 'vue-echarts'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import { LineChart, BarChart, PieChart, ScatterChart, HeatmapChart, RadarChart, GraphChart } from 'echarts/charts'
+import { LineChart, BarChart, PieChart, ScatterChart, HeatmapChart, RadarChart, GraphChart, TreeChart } from 'echarts/charts'
 import {
   GridComponent, TooltipComponent, LegendComponent, TitleComponent,
   ToolboxComponent, DataZoomComponent, VisualMapComponent
@@ -15,7 +15,7 @@ import {
 
 use([
   CanvasRenderer, LineChart, BarChart, PieChart, ScatterChart,
-  HeatmapChart, RadarChart, GraphChart,
+  HeatmapChart, RadarChart, GraphChart, TreeChart,
   GridComponent, TooltipComponent, LegendComponent, TitleComponent,
   ToolboxComponent, DataZoomComponent, VisualMapComponent
 ])

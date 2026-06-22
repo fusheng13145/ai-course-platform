@@ -286,9 +286,49 @@ public class SystemAdminController {
      * 导出数据报表
      */
     @GetMapping("/admin/statistics/export")
-    public ApiResponse<Map<String, String>> exportStatisticsReport() {
-        return ApiResponse.success("报表导出功能开发中",
-                Map.of("status", "pending", "message", "数据报表导出功能将在后续版本实现"));
+    public ApiResponse<Map<String, Object>> exportStatisticsReport() {
+        Map<String, Object> report = new HashMap<>();
+
+        // 获取平台仪表盘数据
+        Map<String, Object> dashboard = analyticsService.getDashboard();
+        report.put("dashboard", dashboard);
+
+        // 获取AI使用统计
+        Map<String, Object> aiUsage = systemService.getAIUsageStats();
+        report.put("aiUsage", aiUsage);
+
+        // 获取课程统计
+        List<Course> allCourses = courseService.list();
+        long activeCourses = allCourses.stream()
+                .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
+                .count();
+        Map<String, Long> categoryDistribution = allCourses.stream()
+                .filter(c -> c.getCategory() != null)
+                .collect(Collectors.groupingBy(Course::getCategory, Collectors.counting()));
+        Map<String, Object> courseStats = new HashMap<>();
+        courseStats.put("totalCourses", allCourses.size());
+        courseStats.put("activeCourses", activeCourses);
+        courseStats.put("categoryDistribution", categoryDistribution);
+        report.put("courseStatistics", courseStats);
+
+        // 获取用户统计
+        long totalUsers = userService.count();
+        long students = userService.count(
+                new LambdaQueryWrapper<User>().eq(User::getRole, "STUDENT"));
+        long teachers = userService.count(
+                new LambdaQueryWrapper<User>().eq(User::getRole, "TEACHER"));
+        Map<String, Object> userStats = new HashMap<>();
+        userStats.put("totalUsers", totalUsers);
+        userStats.put("students", students);
+        userStats.put("teachers", teachers);
+        report.put("userStatistics", userStats);
+
+        // 报表元信息
+        report.put("exportTime", java.time.LocalDateTime.now().toString());
+        report.put("reportType", "comprehensive");
+        report.put("status", "completed");
+
+        return ApiResponse.success("报表导出成功", report);
     }
 
     // ==================== 数据备份 ====================

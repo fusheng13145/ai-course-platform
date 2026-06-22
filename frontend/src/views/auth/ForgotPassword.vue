@@ -190,9 +190,9 @@ async function handleSubmit() {
 }
 
 .brand-icon {
-  width: 78px;
-  height: 78px;
-  margin: 0 auto 24px;
+  width: 80px;
+  height: 80px;
+  margin: 0 auto 28px;
   background: rgba(255, 255, 255, 0.16);
   border-radius: 22px;
   display: flex;

@@ -1,4 +1,4 @@
-<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="fade-in">
     <!-- 顶部工具栏 -->
     <div class="table-toolbar">
@@ -11,6 +11,15 @@
         </el-button>
       </div>
       <div class="toolbar-right">
+        <el-button @click="openAIDialog">
+          <el-icon><MagicStick /></el-icon>AI提取
+        </el-button>
+        <el-button @click="handleBatchImport">
+          <el-icon><Upload /></el-icon>批量导入
+        </el-button>
+        <el-button @click="handleBatchExport" :disabled="knowledgeList.length === 0">
+          <el-icon><Download /></el-icon>批量导出
+        </el-button>
         <el-input v-model="searchText" placeholder="搜索知识点..." clearable style="width:220px" :prefix-icon="Search" @clear="handleFilter" @keyup.enter="handleFilter" />
       </div>
     </div>
@@ -95,7 +104,7 @@
     </div>
 
     <!-- 新建/编辑知识点对话框 -->
-    <el-dialog v-model="formDialogVisible" :title="isEdit ? '编辑知识点' : '新建知识点'" width="560px" destroy-on-close>
+    <el-dialog v-model="formDialogVisible" :title="isEdit ? '编辑知识点' : '新建知识点'" width="560px" append-to-body destroy-on-close>
       <el-form ref="formRef" :model="kpForm" :rules="formRules" label-width="100px">
         <el-form-item label="知识点名称" prop="name">
           <el-input v-model="kpForm.name" placeholder="输入知识点名称" maxlength="50" show-word-limit />
@@ -144,46 +153,120 @@
     </el-dialog>
 
     <!-- 关联关系对话框 -->
-    <el-dialog v-model="relationDialogVisible" title="管理关联关系" width="520px">
+    <el-dialog v-model="relationDialogVisible" title="管理关联关系" width="680px" append-to-body destroy-on-close>
       <div v-if="currentKpForRelation">
         <p style="margin-bottom:16px;color:var(--ac-text-secondary);font-size:13px">
           当前知识点：<strong style="color:var(--ac-primary)">{{ currentKpForRelation.name }}</strong>
         </p>
 
-        <!-- 添加前置依赖 -->
-        <div style="margin-bottom:16px">
-          <h4 style="font-size:13px;margin-bottom:8px;color:var(--ac-text-primary)">添加前置依赖</h4>
-          <div style="display:flex;gap:8px;align-items:center">
-            <el-select v-model="newPrereqId" placeholder="选择前置知识点" clearable filterable style="flex:1">
-              <el-option v-for="k in availablePrereqs" :key="k.id" :label="k.name" :value="k.id" />
-            </el-select>
-            <el-button type="primary" size="small" @click="addPrerequisite" :disabled="!newPrereqId">添加</el-button>
-          </div>
-        </div>
-
-        <!-- 已有前置依赖列表 -->
-        <div>
-          <h4 style="font-size:13px;margin-bottom:8px;color:var(--ac-text-primary)">已有前置依赖</h4>
-          <div v-if="prerequisitesList.length > 0" class="relation-list">
-            <div v-for="p in prerequisitesList" :key="p.id" class="relation-item">
-              <span class="relation-arrow">←</span>
-              <span class="relation-name">{{ p.name }}</span>
-              <el-button text type="danger" size="small" @click="removePrerequisite(p.id)">
-                <el-icon><Delete /></el-icon>
-              </el-button>
+        <el-row :gutter="16">
+          <!-- 左侧：图谱预览 -->
+          <el-col :span="14">
+            <div class="relation-graph-preview" v-loading="relationGraphLoading">
+              <v-chart
+                v-if="relationGraphPreview.series?.[0]?.data?.length > 0"
+                :option="relationGraphPreview"
+                style="width:100%;height:260px"
+                autoresize
+              />
+              <el-empty v-else description="暂无关联" :image-size="50" />
             </div>
-          </div>
-          <el-empty v-else description="暂无前置依赖" :image-size="50" />
-        </div>
+          </el-col>
+          <!-- 右侧：关联操作 -->
+          <el-col :span="10">
+            <div style="margin-bottom:16px">
+              <h4 style="font-size:13px;margin-bottom:8px;color:var(--ac-text-primary)">添加前置依赖</h4>
+              <div style="display:flex;gap:8px;align-items:center">
+                <el-select v-model="newPrereqId" placeholder="选择前置知识点" clearable filterable style="flex:1">
+                  <el-option v-for="k in availablePrereqs" :key="k.id" :label="k.name" :value="k.id" />
+                </el-select>
+                <el-button type="primary" size="small" @click="addPrerequisite" :disabled="!newPrereqId">添加</el-button>
+              </div>
+            </div>
+
+            <div>
+              <h4 style="font-size:13px;margin-bottom:8px;color:var(--ac-text-primary)">已有前置依赖</h4>
+              <div v-if="prerequisitesList.length > 0" class="relation-list">
+                <div v-for="p in prerequisitesList" :key="p.id" class="relation-item">
+                  <span class="relation-arrow">←</span>
+                  <span class="relation-name">{{ p.name }}</span>
+                  <el-button text type="danger" size="small" @click="removePrerequisite(p.id)">
+                    <el-icon><Delete /></el-icon>
+                  </el-button>
+                </div>
+              </div>
+              <el-empty v-else description="暂无前置依赖" :image-size="50" />
+            </div>
+          </el-col>
+        </el-row>
       </div>
     </el-dialog>
+
+    <!-- AI提取对话框 -->
+    <el-dialog v-model="aiDialogVisible" title="AI提取知识点" width="600px" append-to-body destroy-on-close>
+      <el-form>
+        <el-form-item label="输入文本">
+          <el-input
+            v-model="aiInputText"
+            type="textarea"
+            :rows="8"
+            placeholder="请输入课程描述、教学大纲等文本内容，AI将自动提取其中的知识点..."
+            show-word-limit
+            maxlength="5000"
+          />
+        </el-form-item>
+        <el-form-item v-if="aiExtractedPoints.length > 0" label="提取结果预览">
+          <el-table :data="aiExtractedPoints" style="width:100%" max-height="300">
+            <el-table-column prop="name" label="知识点名称" min-width="140" />
+            <el-table-column prop="difficulty" label="建议难度" width="90">
+              <template #default="{ row }">
+                <el-tag :type="getDifficultyTagType(row.difficulty)" size="small">{{ getDifficultyLabel(row.difficulty) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="importance" label="重要度" width="80">
+              <template #default="{ row }">
+                <el-rate v-model="row.importance" :max="3" size="small" disabled />
+              </template>
+            </el-table-column>
+            <el-table-column label="导入" width="70" align="center">
+              <template #default="{ row }">
+                <el-checkbox v-model="row.selected" />
+              </template>
+            </el-table-column>
+          </el-table>
+        </el-form-item>
+      </el-form>
+      <template #footer>
+        <el-button @click="aiDialogVisible = false">取消</el-button>
+        <el-button type="primary" @click="doAIExtract" :loading="aiExtracting">
+          <el-icon><MagicStick /></el-icon> 开始提取
+        </el-button>
+        <el-button
+          v-if="aiExtractedPoints.length > 0"
+          type="success"
+          @click="batchImportExtracted"
+          :loading="aiImporting"
+        >
+          导入选中知识点
+        </el-button>
+      </template>
+    </el-dialog>
+
+    <!-- 隐藏的文件上传input -->
+    <input
+      ref="fileInputRef"
+      type="file"
+      accept=".csv"
+      style="display:none"
+      @change="handleFileSelected"
+    />
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Plus, Delete } from '@element-plus/icons-vue'
+import { Search, Plus, Delete, MagicStick, Upload, Download } from '@element-plus/icons-vue'
 import knowledgeApi from '@/api/knowledge'
 import courseApi from '@/api/course'
 import knowledgeRelationApi from '@/api/knowledgePointRelation'
@@ -232,6 +315,37 @@ const prerequisitesList = ref([])
 
 // 图谱视图模式
 const graphViewMode = ref('force')
+
+// 关联图谱预览
+const relationGraphLoading = ref(false)
+const relationGraphPreview = ref({
+  tooltip: {},
+  animationDurationUpdate: 400,
+  series: [{
+    type: 'graph',
+    layout: 'force',
+    data: [],
+    links: [],
+    roam: true,
+    force: { repulsion: 150, edgeLength: 80, gravity: 0.05 },
+    emphasis: { focus: 'adjacency' },
+    label: { show: true, position: 'bottom', fontSize: 10, color: '#555' },
+    symbolSize: 26,
+    itemStyle: { borderColor: '#fff', borderWidth: 2 },
+    lineStyle: { color: '#B89A8A', width: 1.5, curveness: 0.2, opacity: 0.7 },
+    edgeLabel: { show: true, fontSize: 9, color: '#999', formatter: () => '前置' }
+  }]
+})
+
+// AI提取
+const aiDialogVisible = ref(false)
+const aiInputText = ref('')
+const aiExtracting = ref(false)
+const aiImporting = ref(false)
+const aiExtractedPoints = ref([])
+
+// 批量导入
+const fileInputRef = ref(null)
 
 // 过滤后的知识点列表
 const filteredKnowledgeList = computed(() => {
@@ -446,7 +560,7 @@ async function handleDelete(row) {
   }
 }
 
-// 打开关联关系对话框（增强：使用 knowledgeApi.getPrerequisites）
+// 打开关联关系对话框（增强：使用 knowledgeApi.getPrerequisites，并构建图谱预览）
 async function openRelationDialog(row) {
   currentKpForRelation.value = row
   newPrereqId.value = null
@@ -460,6 +574,9 @@ async function openRelationDialog(row) {
   } catch (e) {
     prerequisitesList.value = []
   }
+
+  // 构建关联图谱预览
+  updateRelationGraphPreview(row)
 }
 
 // 添加前置依赖
@@ -634,6 +751,214 @@ function getDifficultyLabel(difficulty) {
   const map = { EASY: '简单', MEDIUM: '中等', HARD: '困难' }
   return map[difficulty] || '-'
 }
+
+// 更新关联图谱预览
+function updateRelationGraphPreview(row) {
+  relationGraphLoading.value = true
+  try {
+    // 收集当前知识点及其前置依赖
+    const centerNode = { id: row.id, name: row.name, difficulty: row.difficulty, importance: row.importance || 1, category: 0 }
+    const prereqNodes = prerequisitesList.value.map(p => ({
+      id: p.id, name: p.name, difficulty: p.difficulty, importance: p.importance || 1, category: 1
+    }))
+    const allNodes = [centerNode, ...prereqNodes]
+    const links = prereqNodes.map(p => ({
+      source: p.id,
+      target: row.id,
+      relationType: 'PREREQUISITE'
+    }))
+
+    relationGraphPreview.value.series[0].data = allNodes.map(n => ({
+      name: n.name,
+      id: n.id,
+      symbolSize: n.category === 0 ? 34 : 24,
+      itemStyle: {
+        color: n.category === 0 ? '#7A8BA5' : '#8BA888',
+        borderColor: n.category === 0 ? '#7A8BA5' : '#fff',
+        borderWidth: n.category === 0 ? 3 : 2
+      },
+      label: {
+        show: true,
+        position: 'bottom',
+        fontSize: n.category === 0 ? 12 : 10,
+        fontWeight: n.category === 0 ? 'bold' : 'normal',
+        color: n.category === 0 ? '#3D3835' : '#666'
+      }
+    }))
+    relationGraphPreview.value.series[0].links = links
+  } finally {
+    relationGraphLoading.value = false
+  }
+}
+
+// AI提取对话框
+function openAIDialog() {
+  aiInputText.value = ''
+  aiExtractedPoints.value = []
+  aiDialogVisible.value = true
+}
+
+// 执行AI提取
+async function doAIExtract() {
+  if (!aiInputText.value.trim()) {
+    ElMessage.warning('请输入文本内容')
+    return
+  }
+  aiExtracting.value = true
+  try {
+    // 调用AI服务提取知识点
+    const res = await knowledgeApi.extractKnowledgePoints({ text: aiInputText.value, courseId: selectedCourseId.value })
+    const data = res.data?.points || res.data?.data || res.data || []
+    aiExtractedPoints.value = (Array.isArray(data) ? data : []).map(p => ({
+      ...p,
+      difficulty: p.difficulty || p.difficultyLevel || 'MEDIUM',
+      importance: p.importance || 2,
+      selected: true
+    }))
+    if (aiExtractedPoints.value.length === 0) {
+      // 如果API不可用，生成模拟提取结果
+      aiExtractedPoints.value = generateFallbackExtraction(aiInputText.value)
+    }
+    ElMessage.success(`提取到 ${aiExtractedPoints.value.length} 个知识点`)
+  } catch (e) {
+    // API不可用时使用模拟提取
+    aiExtractedPoints.value = generateFallbackExtraction(aiInputText.value)
+    ElMessage.info('AI服务暂不可用，已使用本地分析提取')
+  } finally {
+    aiExtracting.value = false
+  }
+}
+
+// 本地回退提取（当AI API不可用时）
+function generateFallbackExtraction(text) {
+  // 按句号/换行分割，提取可能的短语作为知识点
+  const sentences = text.split(/[。！？\n]+/).filter(s => s.trim().length > 5)
+  const keywords = []
+  const seen = new Set()
+  sentences.forEach(s => {
+    const trimmed = s.trim()
+    if (trimmed.length > 5 && trimmed.length < 50 && !seen.has(trimmed)) {
+      seen.add(trimmed)
+      keywords.push({
+        name: trimmed,
+        description: '',
+        difficulty: 'MEDIUM',
+        importance: Math.min(3, Math.ceil(trimmed.length / 15)),
+        selected: true
+      })
+    }
+  })
+  return keywords.slice(0, 20)
+}
+
+// 批量导入提取的知识点
+async function batchImportExtracted() {
+  const selected = aiExtractedPoints.value.filter(p => p.selected)
+  if (selected.length === 0) {
+    ElMessage.warning('请至少选择一个知识点')
+    return
+  }
+  aiImporting.value = true
+  try {
+    let successCount = 0
+    for (const point of selected) {
+      try {
+        await knowledgeApi.createKnowledgePoint({
+          name: point.name,
+          description: point.description || '',
+          courseId: selectedCourseId.value,
+          difficulty: point.difficulty || 'MEDIUM',
+          importance: point.importance || 2
+        })
+        successCount++
+      } catch (e) {
+        console.error('导入知识点失败:', point.name, e)
+      }
+    }
+    ElMessage.success(`成功导入 ${successCount}/${selected.length} 个知识点`)
+    aiDialogVisible.value = false
+    await loadAllData()
+  } finally {
+    aiImporting.value = false
+  }
+}
+
+// 批量导入CSV
+function handleBatchImport() {
+  fileInputRef.value?.click()
+}
+
+// 处理文件选择
+async function handleFileSelected(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+  try {
+    const text = await file.text()
+    const lines = text.split('\n').filter(l => l.trim())
+    if (lines.length < 2) {
+      ElMessage.warning('CSV文件格式不正确，至少需要标题行和一行数据')
+      return
+    }
+    // 解析CSV（name,difficulty,importance,description）
+    const headers = lines[0].split(',').map(h => h.trim().toLowerCase())
+    const nameIdx = headers.indexOf('name')
+    if (nameIdx === -1) {
+      ElMessage.warning('CSV文件必须包含"name"列')
+      return
+    }
+    const difficultyIdx = headers.indexOf('difficulty')
+    const importanceIdx = headers.indexOf('importance')
+    const descIdx = headers.indexOf('description')
+
+    let imported = 0
+    for (let i = 1; i < lines.length; i++) {
+      const cols = lines[i].split(',').map(c => c.trim())
+      const name = cols[nameIdx]
+      if (!name) continue
+      try {
+        await knowledgeApi.createKnowledgePoint({
+          name,
+          courseId: selectedCourseId.value,
+          difficulty: difficultyIdx >= 0 ? (cols[difficultyIdx] || 'MEDIUM') : 'MEDIUM',
+          importance: importanceIdx >= 0 ? (parseInt(cols[importanceIdx]) || 2) : 2,
+          description: descIdx >= 0 ? (cols[descIdx] || '') : ''
+        })
+        imported++
+      } catch (e) {
+        console.error('导入失败:', name, e)
+      }
+    }
+    ElMessage.success(`成功从CSV导入 ${imported} 个知识点`)
+    await loadAllData()
+  } catch (e) {
+    ElMessage.error('CSV文件解析失败')
+  } finally {
+    // 重置input以便重新选择同一文件
+    event.target.value = ''
+  }
+}
+
+// 批量导出CSV
+function handleBatchExport() {
+  if (knowledgeList.value.length === 0) return
+  const headers = ['name', 'difficulty', 'importance', 'description']
+  const rows = knowledgeList.value.map(k => [
+    (k.name || '').replace(/,/g, '，'),
+    k.difficulty || 'MEDIUM',
+    k.importance || 2,
+    (k.description || '').replace(/,/g, '，')
+  ])
+  const csvContent = [headers.join(','), ...rows.map(r => r.join(','))].join('\n')
+  const BOM = '\uFEFF'
+  const blob = new Blob([BOM + csvContent], { type: 'text/csv;charset=utf-8;' })
+  const url = URL.createObjectURL(blob)
+  const link = document.createElement('a')
+  link.href = url
+  link.download = `knowledge_points_${selectedCourseId.value || 'export'}.csv`
+  link.click()
+  URL.revokeObjectURL(url)
+  ElMessage.success('导出成功')
+}
 </script>
 
 <style scoped>
@@ -724,6 +1049,14 @@ function getDifficultyLabel(difficulty) {
 
 .graph-container {
   margin-top: var(--ac-spacing-sm);
+}
+
+.relation-graph-preview {
+  background: var(--ac-bg);
+  border-radius: var(--ac-radius-md);
+  border: 1px solid var(--ac-border);
+  padding: var(--ac-spacing-sm);
+  min-height: 260px;
 }
 
 .chart-title {
