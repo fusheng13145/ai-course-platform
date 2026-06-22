@@ -1,4 +1,4 @@
-﻿﻿﻿﻿<template>
+﻿﻿﻿<template>
   <div class="fade-in question-management">
     <!-- 页面头部 -->
     <div class="page-header">
@@ -146,6 +146,7 @@
       v-model="showEditDialog"
       :title="isEditing ? '编辑题目' : '添加题目'"
       width="720px"
+      append-to-body
       destroy-on-close
     >
       <el-form ref="questionFormRef" :model="questionForm" :rules="questionRules" label-position="top">
@@ -268,7 +269,7 @@
     </el-dialog>
 
     <!-- AI智能出题对话框 -->
-    <el-dialog v-model="showAIDialog" title="AI 智能出题" width="650px" destroy-on-close>
+    <el-dialog v-model="showAIDialog" title="AI 智能出题" width="650px" append-to-body destroy-on-close>
       <el-alert
         title="AI将根据您提供的信息自动生成高质量题目，支持多种题型和难度级别"
         type="info"
@@ -340,7 +341,7 @@
     </el-dialog>
 
     <!-- 题目统计对话框 -->
-    <el-dialog v-model="showStatsDialog" title="题目统计分析" width="550px" destroy-on-close>
+    <el-dialog v-model="showStatsDialog" title="题目统计分析" width="550px" append-to-body destroy-on-close>
       <div v-if="currentStats" class="stats-content">
         <div class="stats-grid">
           <div class="stats-item">

@@ -908,13 +908,81 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     }
 
     /**
-     * 导出学情分析报告
+     * 导出学情分析报告（增强版，包含多维度分析）
      */
     @Override
     public Map<String, Object> exportReport(Long courseId) {
         Map<String, Object> report = getCourseAnalysis(courseId);
+        Course course = courseService.getById(courseId);
+        if (course == null) return report;
+
+        // 1. 成绩分布统计
+        List<CourseEnrollment> enrollments = enrollmentService.list(
+                new LambdaQueryWrapper<CourseEnrollment>().eq(CourseEnrollment::getCourseId, courseId)
+        );
+        Map<String, Long> scoreDistribution = new HashMap<>();
+        scoreDistribution.put("excellent", 0L);  // 90-100
+        scoreDistribution.put("good", 0L);       // 80-89
+        scoreDistribution.put("average", 0L);    // 60-79
+        scoreDistribution.put("fail", 0L);       // <60
+        for (CourseEnrollment e : enrollments) {
+            if (e.getFinalScore() == null) continue;
+            double s = e.getFinalScore().doubleValue();
+            if (s >= 90) scoreDistribution.merge("excellent", 1L, Long::sum);
+            else if (s >= 80) scoreDistribution.merge("good", 1L, Long::sum);
+            else if (s >= 60) scoreDistribution.merge("average", 1L, Long::sum);
+            else scoreDistribution.merge("fail", 1L, Long::sum);
+        }
+        report.put("scoreDistribution", scoreDistribution);
+
+        // 2. 作业提交率
+        List<Task> tasks = taskService.list(
+                new LambdaQueryWrapper<Task>().eq(Task::getCourseId, courseId)
+        );
+        long totalSubmissions = 0, expectedSubmissions = 0;
+        for (Task task : tasks) {
+            long count = submissionService.count(
+                    new LambdaQueryWrapper<Submission>().eq(Submission::getTaskId, task.getId())
+            );
+            totalSubmissions += count;
+            expectedSubmissions += enrollments.size();
+        }
+        double submissionRate = expectedSubmissions > 0
+                ? Math.round(totalSubmissions * 10000.0 / expectedSubmissions) / 100.0 : 0;
+        report.put("submissionRate", submissionRate);
+        report.put("totalTasks", tasks.size());
+        report.put("totalSubmissions", totalSubmissions);
+
+        // 3. 学习进度统计
+        double avgProgress = enrollments.stream()
+                .mapToDouble(e -> e.getProgress() != null ? e.getProgress().doubleValue() : 0D)
+                .average().orElse(0D);
+        long completedStudents = enrollments.stream()
+                .filter(e -> e.getProgress() != null && e.getProgress().doubleValue() >= 100D)
+                .count();
+        report.put("averageProgress", Math.round(avgProgress * 100.0) / 100.0);
+        report.put("completedStudents", completedStudents);
+        report.put("completionRate", enrollments.size() > 0
+                ? Math.round(completedStudents * 10000.0 / enrollments.size()) / 100.0 : 0);
+
+        // 4. 学生排名 Top10
+        List<Map<String, Object>> studentRanking = enrollments.stream()
+                .filter(e -> e.getFinalScore() != null)
+                .sorted((a, b) -> b.getFinalScore().compareTo(a.getFinalScore()))
+                .limit(10)
+                .map(e -> {
+                    Map<String, Object> item = new HashMap<>();
+                    item.put("studentId", e.getStudentId());
+                    item.put("score", e.getFinalScore());
+                    item.put("progress", e.getProgress());
+                    return item;
+                })
+                .collect(Collectors.toList());
+        report.put("studentRanking", studentRanking);
+
         report.put("exportTime", LocalDateTime.now().toString());
         report.put("reportType", "学情分析报告");
+        report.put("generatedBy", "AnalyticsService");
         return report;
     }
 }

@@ -2,14 +2,21 @@ package com.aicourse.service;
 
 /**
  * 知识图谱服务接口
- * 对接Python知识图谱微服务
+ * 对接Python知识图谱微服务（端口 8001）
+ * Python端需实现对应的 /api/v1/graph/* 接口
  */
 public interface KnowledgeGraphService {
 
     /**
+     * 健康检查
+     * @return true表示Python服务可达
+     */
+    boolean healthCheck();
+
+    /**
      * 查询知识图谱节点
      * @param courseId 课程ID
-     * @param nodeId 节点ID（可选）
+     * @param nodeId 节点ID（可选，为null则返回整张图）
      * @return 知识图谱数据JSON
      */
     String getGraph(Long courseId, Long nodeId);
@@ -17,7 +24,7 @@ public interface KnowledgeGraphService {
     /**
      * 查询节点关联关系
      * @param nodeId 节点ID
-     * @param depth 关联深度
+     * @param depth 关联深度（1-3）
      * @return 关联节点数据JSON
      */
     String getNodeRelations(Long nodeId, int depth);
@@ -27,7 +34,7 @@ public interface KnowledgeGraphService {
      * @param courseId 课程ID
      * @param name 节点名称
      * @param content 节点内容
-     * @param type 节点类型
+     * @param type 节点类型（CONCEPT/PRINCIPLE/METHOD/FACT）
      * @return 新建节点信息JSON
      */
     String addNode(Long courseId, String name, String content, String type);
@@ -36,7 +43,7 @@ public interface KnowledgeGraphService {
      * 添加节点关系
      * @param sourceId 源节点ID
      * @param targetId 目标节点ID
-     * @param relationType 关系类型
+     * @param relationType 关系类型（PREREQUISITE/INCLUDES/RELATED/EXTENDS）
      * @return 关系信息JSON
      */
     String addRelation(Long sourceId, Long targetId, String relationType);

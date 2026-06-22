@@ -2,9 +2,16 @@ package com.aicourse.service;
 
 /**
  * RAG服务接口
- * 对接Python RAG微服务，实现基于知识库的智能问答
+ * 对接Python RAG微服务（端口 8002），实现基于知识库的智能问答
+ * Python端需实现对应的 /api/v1/rag/* 接口
  */
 public interface RAGService {
+
+    /**
+     * 健康检查
+     * @return true表示Python服务可达
+     */
+    boolean healthCheck();
 
     /**
      * 基于知识库的问答

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿<template>
   <div class="fade-in notification-management">
     <!-- 页面头部 -->
     <div class="page-header">
@@ -7,7 +7,7 @@
         <p class="page-desc">系统公告与消息推送中心</p>
       </div>
       <div class="header-right">
-        <el-button @click="showSendDialog = true" type="primary">
+        <el-button @click="scrollToSendForm" type="primary">
           <el-icon><Plus /></el-icon>发送通知
         </el-button>
       </div>
@@ -36,7 +36,7 @@
     <!-- 主内容区 -->
     <div class="main-layout">
       <!-- 左侧：发送通知表单 -->
-      <div class="send-section card-base">
+      <div class="send-section card-base" ref="sendSectionRef">
         <h3 class="section-title">快速发送</h3>
 
         <el-form ref="sendFormRef" :model="sendForm" :rules="sendRules" label-position="top">
@@ -213,7 +213,7 @@
     </div>
 
     <!-- 发送确认对话框（复用） -->
-    <el-dialog v-model="showConfirmDialog" title="确认发送" width="450px" destroy-on-close>
+    <el-dialog v-model="showConfirmDialog" title="确认发送" width="450px" append-to-body destroy-on-close>
       <div class="confirm-content">
         <p>即将发送以下通知：</p>
         <div class="confirm-preview">
@@ -279,7 +279,13 @@ const notificationList = ref([])
 
 // 发送表单
 const sendFormRef = ref(null)
+const sendSectionRef = ref(null)
 const showSendDialog = ref(true) // 默认显示（作为页面的一部分）
+
+// 滚动到发送表单
+function scrollToSendForm() {
+  sendSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+}
 const showConfirmDialog = ref(false)
 
 const sendForm = reactive({

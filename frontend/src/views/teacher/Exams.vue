@@ -1,7 +1,7 @@
-﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
   <div class="exams-page">
     <!-- 工具栏 -->
-    <div class="toolbar">
+    <div class="table-toolbar">
       <div class="toolbar-left">
         <el-button type="primary" @click="openCreateDialog">
           <el-icon><Plus /></el-icon>创建试卷
@@ -21,7 +21,7 @@
 
     <!-- 试卷列表 -->
     <div class="content-card">
-      <el-table :data="examList" style="width:100%" v-loading="loading" stripe>
+      <el-table :data="examList" style="width:100%" v-loading="loading">
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="title" label="试卷标题" min-width="200" show-overflow-tooltip>
           <template #default="{ row }"><span class="title-cell">{{ row.title }}</span></template>
@@ -38,11 +38,13 @@
         <el-table-column prop="createdAt" label="创建时间" width="170" />
         <el-table-column label="操作" width="280" fixed="right" align="center">
           <template #default="{ row }">
-            <el-button link type="primary" size="small" @click="viewDetail(row)">详情</el-button>
-            <el-button link type="primary" size="small" @click="openEditDialog(row)" v-if="row.status === 'DRAFT'">编辑</el-button>
-            <el-button link type="success" size="small" @click="handlePublish(row)" v-if="row.status === 'DRAFT'">发布</el-button>
-            <el-button link type="warning" size="small" @click="handleCopy(row)">复制</el-button>
-            <el-button link type="danger" size="small" @click="handleDelete(row)" v-if="row.status === 'DRAFT'">删除</el-button>
+            <div class="action-row">
+              <el-button link type="primary" size="small" @click="viewDetail(row)">详情</el-button>
+              <el-button link type="primary" size="small" @click="openEditDialog(row)" v-if="row.status === 'DRAFT'">编辑</el-button>
+              <el-button link type="success" size="small" @click="handlePublish(row)" v-if="row.status === 'DRAFT'">发布</el-button>
+              <el-button link type="warning" size="small" @click="handleCopy(row)">复制</el-button>
+              <el-button link type="danger" size="small" @click="handleDelete(row)" v-if="row.status === 'DRAFT'">删除</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -53,7 +55,7 @@
     </div>
 
     <!-- 创建/编辑试卷对话框 -->
-    <el-dialog v-model="formDialogVisible" :title="isEdit ? '编辑试卷' : '创建试卷'" width="760px" destroy-on-close>
+    <el-dialog v-model="formDialogVisible" :title="isEdit ? '编辑试卷' : '创建试卷'" width="760px" append-to-body destroy-on-close>
       <el-form ref="formRef" :model="examForm" :rules="formRules" label-width="100px">
         <el-row :gutter="16">
           <el-col :span="12">
@@ -106,20 +108,20 @@
           <span class="question-stat">已选 {{ selectedQuestions.length }} 道题，共 {{ totalSelectedScore }} 分</span>
           <el-button size="small" type="primary" plain @click="questionPickerVisible = true">从题库选题</el-button>
         </div>
-        <el-table :data="selectedQuestions" style="width:100%" border v-if="selectedQuestions.length > 0" size="small">
-          <el-table-column type="index" label="序号" width="60" />
-          <el-table-column prop="content" label="题目内容" min-width="280" show-overflow-tooltip>
+        <el-table :data="selectedQuestions" style="width:100%;table-layout:fixed" border v-if="selectedQuestions.length > 0" size="small">
+          <el-table-column type="index" label="序号" width="50" />
+          <el-table-column prop="content" label="题目内容" min-width="180" show-overflow-tooltip>
             <template #default="{ row }"><span>{{ row.content || row.stem || row.title }}</span></template>
           </el-table-column>
-          <el-table-column prop="type" label="题型" width="90" align="center">
+          <el-table-column prop="type" label="题型" width="80" align="center">
             <template #default="{ row }"><el-tag size="small" type="info">{{ getQuestionTypeName(row.type) }}</el-tag></template>
           </el-table-column>
-          <el-table-column label="分值" width="130" align="center">
+          <el-table-column label="分值" width="100" align="center">
             <template #default="{ row }">
-              <el-input-number v-model="row.score" :min="1" :max="50" size="small" />
+              <el-input-number v-model="row.score" :min="1" :max="50" size="small" :controls="false" style="width:70px" />
             </template>
           </el-table-column>
-          <el-table-column label="操作" width="70" align="center">
+          <el-table-column label="操作" width="60" align="center">
             <template #default="{ $index }">
               <el-button link type="danger" size="small" @click="removeQuestion($index)">移除</el-button>
             </template>
@@ -165,18 +167,18 @@
         </el-select>
         <el-button type="primary" @click="loadQuestionBank">搜索</el-button>
       </div>
-      <el-table :data="questionBank" ref="questionTableRef" style="width:100%" max-height="360" v-loading="questionLoading" stripe @selection-change="handleSelectionChange">
-        <el-table-column type="selection" width="45" :selectable="row => !isQuestionSelected(row.id)" />
-        <el-table-column prop="content" label="题目内容" min-width="300" show-overflow-tooltip />
-        <el-table-column prop="type" label="题型" width="95" align="center">
+      <el-table :data="questionBank" ref="questionTableRef" style="width:100%;table-layout:fixed" max-height="360" v-loading="questionLoading" @selection-change="handleSelectionChange">
+        <el-table-column type="selection" width="40" :selectable="row => !isQuestionSelected(row.id)" />
+        <el-table-column prop="content" label="题目内容" min-width="200" show-overflow-tooltip />
+        <el-table-column prop="type" label="题型" width="80" align="center">
           <template #default="{ row }"><el-tag size="small" type="info">{{ getQuestionTypeName(row.type) }}</el-tag></template>
         </el-table-column>
-        <el-table-column prop="difficulty" label="难度" width="75" align="center">
+        <el-table-column prop="difficulty" label="难度" width="65" align="center">
           <template #default="{ row }">
             <span :style="{ color: getDifficultyColor(row.difficulty) }">{{ getDifficultyText(row.difficulty) }}</span>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="90" align="center">
+        <el-table-column label="操作" width="70" align="center">
           <template #default="{ row }">
             <el-button link type="primary" size="small" @click="addSingleQuestion(row)" :disabled="isQuestionSelected(row.id)">添加</el-button>
           </template>
@@ -189,7 +191,7 @@
     </el-dialog>
 
     <!-- 试卷详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="试卷详情" width="720px">
+    <el-dialog v-model="detailDialogVisible" title="试卷详情" width="720px" append-to-body>
       <template v-if="currentExam">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="试卷标题">{{ currentExam.title }}</el-descriptions-item>
@@ -546,14 +548,14 @@ function getDifficultyText(diff) {
   min-height: calc(100vh - 40px);
 }
 
-.toolbar {
+.table-toolbar {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  padding: 12px 16px;
+  padding: var(--ac-spacing-md) var(--ac-spacing-lg);
   background: var(--ac-bg-elevated);
-  border-radius: 8px;
-  margin-bottom: 16px;
+  border-radius: var(--ac-radius-lg);
+  margin-bottom: var(--ac-spacing-lg);
 }
 
 .toolbar-left, .toolbar-right {
@@ -562,9 +564,17 @@ function getDifficultyText(diff) {
   gap: 8px;
 }
 
+.action-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  flex-wrap: nowrap;
+}
+
 .content-card {
   background: var(--ac-bg-elevated);
-  border-radius: 8px;
+  border-radius: var(--ac-radius-lg);
   padding: 16px;
 }
 
