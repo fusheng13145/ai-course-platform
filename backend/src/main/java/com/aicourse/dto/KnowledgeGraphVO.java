@@ -1,5 +1,7 @@
 package com.aicourse.dto;
 
+import lombok.Data;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.util.List;
@@ -9,6 +11,7 @@ import java.util.List;
  * 用于返回给前端的知识图谱完整数据，包含节点、边和元数据统计信息
  */
 @Schema(description = "知识图谱数据响应")
+@Data
 public class KnowledgeGraphVO {
 
     @Schema(description = "图谱节点列表")
@@ -35,22 +38,6 @@ public class KnowledgeGraphVO {
         @Schema(description = "最大层级深度", example = "5")
         private Integer maxDepth;
 
-        // ====================== Getter & Setter ======================
-
-        public Integer getTotalNodes() { return totalNodes; }
-        public void setTotalNodes(Integer totalNodes) { this.totalNodes = totalNodes; }
-        public Integer getTotalEdges() { return totalEdges; }
-        public void setTotalEdges(Integer totalEdges) { this.totalEdges = totalEdges; }
-        public Integer getMaxDepth() { return maxDepth; }
-        public void setMaxDepth(Integer maxDepth) { this.maxDepth = maxDepth; }
     }
 
-    // ====================== Getter & Setter ======================
-
-    public List<KnowledgeGraphNodeVO> getNodes() { return nodes; }
-    public void setNodes(List<KnowledgeGraphNodeVO> nodes) { this.nodes = nodes; }
-    public List<KnowledgeGraphEdgeVO> getEdges() { return edges; }
-    public void setEdges(List<KnowledgeGraphEdgeVO> edges) { this.edges = edges; }
-    public GraphMetadata getMetadata() { return metadata; }
-    public void setMetadata(GraphMetadata metadata) { this.metadata = metadata; }
 }

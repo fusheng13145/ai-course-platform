@@ -1,21 +1,27 @@
 package com.aicourse.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.common.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.common.PagedResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.entity.Notification;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.service.NotificationService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.List;
-import java.util.Map;
+import com.aicourse.common.ApiCode;
+import com.aicourse.dto.NotificationSendDTO;
+import jakarta.validation.Valid;
 
 /**
  * 消息通知接口控制器
  * 提供通知列表查询、未读数量、已读标记、删除及手动发送等API
  */
+@Tag(name = "通知管理", description = "通知列表、未读计数、发送通知")
 @RestController
 @RequestMapping("/notifications")
 public class NotificationController {
@@ -99,36 +105,27 @@ public class NotificationController {
 
     /**
      * 手动发送通知（仅管理员）
-     * @param params 请求参数（包含 userIds, title, content, category, type, priority, actionUrl, data）
+     * @param dto 通知发送请求DTO
      * @return 发送结果
      */
     @PostMapping("/send")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Void> sendNotification(@RequestBody Map<String, Object> params) {
-        @SuppressWarnings("unchecked")
-        List<Long> userIds = (List<Long>) params.get("userIds");
-        String title = (String) params.get("title");
-        String content = (String) params.get("content");
-        String category = (String) params.get("category");
-        String type = (String) params.get("type");
-        String priority = (String) params.get("priority");
-        String actionUrl = (String) params.get("actionUrl");
-        String data = (String) params.get("data");
-
-        if (userIds == null || userIds.isEmpty()) {
-            return ApiResponse.error(400, "接收用户列表不能为空");
+    public ApiResponse<Void> sendNotification(@Valid @RequestBody NotificationSendDTO dto) {
+        if (dto.getTargetUserIds() == null || dto.getTargetUserIds().isEmpty()) {
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "接收用户列表不能为空");
         }
-        if (title == null || title.isEmpty()) {
-            return ApiResponse.error(400, "通知标题不能为空");
+        if (dto.getTitle() == null || dto.getTitle().isEmpty()) {
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "通知标题不能为空");
         }
-        if (content == null || content.isEmpty()) {
-            return ApiResponse.error(400, "通知内容不能为空");
+        if (dto.getContent() == null || dto.getContent().isEmpty()) {
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "通知内容不能为空");
         }
 
-        notificationService.batchSendNotifications(userIds, title, content, category,
-                type != null ? type : "SYSTEM",
-                priority != null ? priority : "MEDIUM",
-                actionUrl, data);
+        notificationService.batchSendNotifications(dto.getTargetUserIds(), dto.getTitle(), dto.getContent(),
+                dto.getCategory(),
+                dto.getType() != null ? dto.getType() : "SYSTEM",
+                dto.getPriority() != null ? dto.getPriority() : "MEDIUM",
+                dto.getActionUrl(), dto.getData());
         return ApiResponse.success("发送成功");
     }
 }

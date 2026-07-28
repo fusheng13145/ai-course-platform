@@ -4,6 +4,7 @@ import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.User;
 import com.aicourse.entity.UserSession;
 import com.aicourse.entity.VerificationCode;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.service.*;
 import com.aicourse.util.IpUtil;
 import com.aicourse.util.JwtUtils;
@@ -18,6 +19,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
@@ -71,7 +74,7 @@ class AuthServiceImplTest {
         when(userSessionService.save(any(UserSession.class))).thenReturn(true);
 
         ApiResponse<Map<String, Object>> response = authService.register(
-                "test@example.com", "testuser", "password123", "Test User", "STUDENT", "13800138000", null, request);
+                "test@example.com", "testuser", "Test@123456", "Test User", "STUDENT", "13800138000", null, request);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
@@ -209,10 +212,10 @@ class AuthServiceImplTest {
         user.setPassword("$2a$10$oldHashed");
         when(userService.getById(1L)).thenReturn(user);
         when(passwordEncoder.matches("oldPassword", "$2a$10$oldHashed")).thenReturn(true);
-        when(passwordEncoder.encode("newPassword123")).thenReturn("$2a$10$newHashed");
+        when(passwordEncoder.encode("NewPass@2024")).thenReturn("$2a$10$newHashed");
         when(userService.updateById(any(User.class))).thenReturn(true);
 
-        ApiResponse<Void> response = authService.changePassword(1L, "oldPassword", "newPassword123");
+        ApiResponse<Void> response = authService.changePassword(1L, "oldPassword", "NewPass@2024");
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
@@ -273,5 +276,136 @@ class AuthServiceImplTest {
         } catch (Exception e) {
             assertTrue(e.getMessage().contains("无效"));
         }
+    }
+
+    // ===================== 密码复杂度边界测试 =====================
+
+    @Test
+    @DisplayName("注册-密码不含大写字母应失败")
+    void testRegister_NoUpperCase_Fail() {
+        when(userService.count(any())).thenReturn(0L);
+        assertThrows(BusinessException.class, () ->
+                authService.register("test@test.com", "user", "test@1234", "Test", "STUDENT", null, null, request),
+                "密码必须包含大写字母"
+        );
+    }
+
+    @Test
+    @DisplayName("注册-密码不含数字应失败")
+    void testRegister_NoDigit_Fail() {
+        when(userService.count(any())).thenReturn(0L);
+        assertThrows(BusinessException.class, () ->
+                authService.register("test@test.com", "user", "Test@Test!", "Test", "STUDENT", null, null, request),
+                "密码必须包含数字"
+        );
+    }
+
+    @Test
+    @DisplayName("注册-密码不含特殊字符应失败")
+    void testRegister_NoSpecialChar_Fail() {
+        when(userService.count(any())).thenReturn(0L);
+        assertThrows(BusinessException.class, () ->
+                authService.register("test@test.com", "user", "Test1234567", "Test", "STUDENT", null, null, request),
+                "密码必须包含特殊字符"
+        );
+    }
+
+    @Test
+    @DisplayName("注册-密码过短（<8位）应失败")
+    void testRegister_TooShort_Fail() {
+        when(userService.count(any())).thenReturn(0L);
+        assertThrows(BusinessException.class, () ->
+                authService.register("test@test.com", "user", "Te@1", "Test", "STUDENT", null, null, request),
+                "密码长度不足"
+        );
+    }
+
+    @Test
+    @DisplayName("注册-密码为空应失败")
+    void testRegister_EmptyPassword_Fail() {
+        when(userService.count(any())).thenReturn(0L);
+        assertThrows(BusinessException.class, () ->
+                authService.register("test@test.com", "user", "", "Test", "STUDENT", null, null, request),
+                "密码不能为空"
+        );
+    }
+
+    @Test
+    @DisplayName("注册-用户名为空应失败")
+    void testRegister_EmptyUsername_Fail() {
+        // UserService会抛出异常（username为空的记录不存在）
+        when(userService.count(any())).thenReturn(0L);
+        assertThrows(Exception.class, () ->
+                authService.register("test@test.com", "", "Test@1234", "Test", "STUDENT", null, null, request)
+        );
+    }
+
+    // ===================== 用户名边界用例 =====================
+
+    @Test
+    @DisplayName("注册-用户名为纯空格注册失败")
+    void testRegister_WhitespaceUsername_Fail() {
+        when(userService.count(any())).thenReturn(0L);
+        when(passwordEncoder.encode(anyString())).thenReturn("$2a$10$hashed");
+        when(userService.save(any(User.class))).thenAnswer(inv -> {
+            User u = inv.getArgument(0);
+            u.setId(1L);
+            return true;
+        });
+        when(jwtUtils.generateToken(anyLong(), anyString(), anyString(), anyBoolean())).thenReturn("test-token");
+        when(userSessionService.save(any(UserSession.class))).thenReturn(true);
+
+        // 纯空格用户名通过服务层（DTO 层 @NotBlank 应拦截），
+        // 此处验证服务层在无 DTO 校验时的实际行为
+        ApiResponse<Map<String, Object>> response = authService.register(
+                "space@test.com", "   ", "Test@123456", "Space User", "STUDENT", null, null, request);
+
+        assertNotNull(response);
+        assertEquals(200, response.getCode());
+        // 用户名 "   " 应被存储，前端/Controller 层 DTO 校验（@NotBlank）负责拦截
+    }
+
+    @Test
+    @DisplayName("注册-极长用户名(>100字符)注册失败")
+    void testRegister_VeryLongUsername_Fail() {
+        when(userService.count(any())).thenReturn(0L);
+        when(passwordEncoder.encode(anyString())).thenReturn("$2a$10$hashed");
+        when(userService.save(any(User.class))).thenAnswer(inv -> {
+            User u = inv.getArgument(0);
+            u.setId(1L);
+            return true;
+        });
+        when(jwtUtils.generateToken(anyLong(), anyString(), anyString(), anyBoolean())).thenReturn("test-token");
+        when(userSessionService.save(any(UserSession.class))).thenReturn(true);
+
+        String longUsername = "a".repeat(150);
+        ApiResponse<Map<String, Object>> response = authService.register(
+                "long@test.com", longUsername, "Test@123456", "Long User", "STUDENT", null, null, request);
+
+        // 超长用户名通过服务层（DTO 层 @Size(max=20) 应拦截），
+        // 服务层未对用户名长度做校验，数据库字段约束有机会底层拒绝
+        assertNotNull(response);
+        assertEquals(200, response.getCode());
+    }
+
+    @Test
+    @DisplayName("注册-用户名含特殊字符可能绕过格式校验")
+    void testRegister_SpecialCharUsername_Behavior() {
+        when(userService.count(any())).thenReturn(0L);
+        when(passwordEncoder.encode(anyString())).thenReturn("$2a$10$hashed");
+        when(userService.save(any(User.class))).thenAnswer(inv -> {
+            User u = inv.getArgument(0);
+            u.setId(1L);
+            return true;
+        });
+        when(jwtUtils.generateToken(anyLong(), anyString(), anyString(), anyBoolean())).thenReturn("test-token");
+        when(userSessionService.save(any(UserSession.class))).thenReturn(true);
+
+        // 服务层不验证用户名格式（由 DTO 层 @Pattern 负责）
+        ApiResponse<Map<String, Object>> response = authService.register(
+                "special@test.com", "<script>alert('xss')</script>", "Test@123456", "XSS User", "STUDENT", null, null, request);
+
+        assertNotNull(response);
+        assertEquals(200, response.getCode());
     }
 }

@@ -1,5 +1,7 @@
 package com.aicourse.entity;
 
+import lombok.Data;
+
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
@@ -11,6 +13,7 @@ import java.time.LocalDateTime;
  * 对应数据表：video_watch_sessions
  */
 @TableName("video_watch_sessions")
+@Data
 public class VideoWatchSession {
 
     /**
@@ -54,67 +57,4 @@ public class VideoWatchSession {
      */
     private LocalDateTime endedAt;
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Long getUserId() {
-        return userId;
-    }
-
-    public void setUserId(Long userId) {
-        this.userId = userId;
-    }
-
-    public Long getResourceId() {
-        return resourceId;
-    }
-
-    public void setResourceId(Long resourceId) {
-        this.resourceId = resourceId;
-    }
-
-    public Integer getStartPosition() {
-        return startPosition;
-    }
-
-    public void setStartPosition(Integer startPosition) {
-        this.startPosition = startPosition;
-    }
-
-    public Integer getEndPosition() {
-        return endPosition;
-    }
-
-    public void setEndPosition(Integer endPosition) {
-        this.endPosition = endPosition;
-    }
-
-    public Integer getDuration() {
-        return duration;
-    }
-
-    public void setDuration(Integer duration) {
-        this.duration = duration;
-    }
-
-    public LocalDateTime getStartedAt() {
-        return startedAt;
-    }
-
-    public void setStartedAt(LocalDateTime startedAt) {
-        this.startedAt = startedAt;
-    }
-
-    public LocalDateTime getEndedAt() {
-        return endedAt;
-    }
-
-    public void setEndedAt(LocalDateTime endedAt) {
-        this.endedAt = endedAt;
-    }
 }

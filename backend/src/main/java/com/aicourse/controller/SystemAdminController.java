@@ -1,20 +1,30 @@
 package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
+import com.aicourse.common.JsonUtils;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.Course;
+import com.aicourse.entity.LoginLog;
+import com.aicourse.entity.OperationLog;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
-
 import java.time.LocalDate;
 import java.util.*;
+import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
+import com.aicourse.common.RoleConstants;
 
 /**
  * 系统管理接口控制器（仅管理员可访问）
@@ -23,6 +33,8 @@ import java.util.stream.Collectors;
  */
 @RestController
 @PreAuthorize("hasRole('ADMIN')")
+@Slf4j
+@Tag(name = "系统管理", description = "用户、配置、统计、备份、健康检查等管理功能")
 public class SystemAdminController {
 
     private final SystemService systemService;
@@ -31,20 +43,30 @@ public class SystemAdminController {
     private final AnalyticsService analyticsService;
     private final CourseEnrollmentService enrollmentService;
     private final PasswordEncoder passwordEncoder;
+    private final AIService aiService;
+    private final LoginLogService loginLogService;
+    private final OperationLogService operationLogService;
 
     public SystemAdminController(SystemService systemService,
                                   UserService userService,
                                   CourseService courseService,
                                   AnalyticsService analyticsService,
                                   CourseEnrollmentService enrollmentService,
-                                  PasswordEncoder passwordEncoder) {
+                                  PasswordEncoder passwordEncoder,
+                                  AIService aiService,
+                                  LoginLogService loginLogService,
+                                  OperationLogService operationLogService) {
         this.systemService = systemService;
         this.userService = userService;
         this.courseService = courseService;
         this.analyticsService = analyticsService;
         this.enrollmentService = enrollmentService;
         this.passwordEncoder = passwordEncoder;
+        this.aiService = aiService;
+        this.loginLogService = loginLogService;
+        this.operationLogService = operationLogService;
     }
+
 
     // ==================== 用户管理（7个接口） ====================
 
@@ -225,11 +247,11 @@ public class SystemAdminController {
         // 统计各角色用户数量
         Map<String, Object> roleDistribution = new HashMap<>();
         roleDistribution.put("student", userService.count(
-                new LambdaQueryWrapper<User>().eq(User::getRole, "STUDENT")));
+                new LambdaQueryWrapper<User>().eq(User::getRole, RoleConstants.STUDENT)));
         roleDistribution.put("teacher", userService.count(
-                new LambdaQueryWrapper<User>().eq(User::getRole, "TEACHER")));
+                new LambdaQueryWrapper<User>().eq(User::getRole, RoleConstants.TEACHER)));
         roleDistribution.put("admin", userService.count(
-                new LambdaQueryWrapper<User>().eq(User::getRole, "ADMIN")));
+                new LambdaQueryWrapper<User>().eq(User::getRole, RoleConstants.ADMIN)));
         overview.put("roleDistribution", roleDistribution);
         // 活跃课程统计
         long activeCourses = courseService.count(
@@ -314,9 +336,9 @@ public class SystemAdminController {
         // 获取用户统计
         long totalUsers = userService.count();
         long students = userService.count(
-                new LambdaQueryWrapper<User>().eq(User::getRole, "STUDENT"));
+                new LambdaQueryWrapper<User>().eq(User::getRole, RoleConstants.STUDENT));
         long teachers = userService.count(
-                new LambdaQueryWrapper<User>().eq(User::getRole, "TEACHER"));
+                new LambdaQueryWrapper<User>().eq(User::getRole, RoleConstants.TEACHER));
         Map<String, Object> userStats = new HashMap<>();
         userStats.put("totalUsers", totalUsers);
         userStats.put("students", students);
@@ -418,5 +440,84 @@ public class SystemAdminController {
             @RequestParam(required = false) String keyword) {
         String logContent = systemService.readLogFile(fileName, lines, keyword);
         return ApiResponse.success(logContent);
+    }
+
+    // ==================== AI 智能监控 ====================
+
+    /**
+     * AI 异常监控：汇总最近登录/操作日志，调用 LLM 检测异常（暴力破解、成绩异动等）
+     * GET /admin/ai-monitor
+     */
+    @GetMapping("/admin/ai-monitor")
+    public Callable<ApiResponse<Map<String, Object>>> aiMonitor() {
+        return () -> {
+            Map<String, Object> result = new LinkedHashMap<>();
+            try {
+                List<LoginLog> loginLogs = loginLogService.getRecentLogs(50);
+                List<OperationLog> operationLogs = operationLogService.list(
+                        new LambdaQueryWrapper<OperationLog>()
+                                .orderByDesc(OperationLog::getCreatedAt)
+                                .last("LIMIT 50"));
+
+                List<Map<String, Object>> loginView = loginLogs.stream().map(l -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("username", l.getUsername());
+                    m.put("status", l.getLoginStatus());
+                    m.put("ip", l.getIpAddress());
+                    m.put("failureReason", l.getFailureReason());
+                    m.put("time", l.getCreatedAt());
+                    return m;
+                }).collect(Collectors.toList());
+
+                List<Map<String, Object>> opView = operationLogs.stream().map(o -> {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("username", o.getUsername());
+                    m.put("module", o.getModule());
+                    m.put("action", o.getAction());
+                    m.put("target", o.getTarget());
+                    m.put("status", o.getStatus());
+                    m.put("errorMsg", o.getErrorMsg());
+                    m.put("time", o.getCreatedAt());
+                    return m;
+                }).collect(Collectors.toList());
+
+                Map<String, Object> payload = new LinkedHashMap<>();
+                payload.put("loginLogs", loginView);
+                payload.put("operationLogs", opView);
+                String logsJson = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(payload);
+
+                String aiRaw = aiService.analyzeAnomaliesJson(logsJson);
+                String raw = JsonUtils.extractJsonObject(aiRaw);
+                List<Map<String, Object>> alerts = new ArrayList<>();
+                if (raw != null) {
+                    com.fasterxml.jackson.databind.JsonNode root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(raw);
+                    if (root.has("alerts") && root.get("alerts").isArray()) {
+                        for (com.fasterxml.jackson.databind.JsonNode a : root.get("alerts")) {
+                            Map<String, Object> m = new LinkedHashMap<>();
+                            String lvl = a.has("level") ? a.get("level").asText().toUpperCase() : "MEDIUM";
+                            if (!"HIGH".equals(lvl) && !"MEDIUM".equals(lvl) && !"LOW".equals(lvl)) lvl = "MEDIUM";
+                            m.put("level", lvl);
+                            m.put("title", a.has("title") ? a.get("title").asText() : "");
+                            m.put("detail", a.has("detail") ? a.get("detail").asText() : "");
+                            alerts.add(m);
+                        }
+                    }
+                } else {
+                    result.put("parseError", "AI 未返回有效洞察");
+                }
+
+                result.put("alerts", alerts);
+                result.put("loginCount", loginView.size());
+                result.put("operationCount", opView.size());
+                result.put("generatedAt", new Date().toString());
+            } catch (Exception e) {
+                log.warn("AI 监控分析失败: {}", e.getMessage());
+                result.put("alerts", new ArrayList<>());
+                result.put("parseError", "AI 分析暂时不可用，请稍后重试");
+                result.put("loginCount", 0);
+                result.put("operationCount", 0);
+            }
+            return ApiResponse.success(result);
+        };
     }
 }

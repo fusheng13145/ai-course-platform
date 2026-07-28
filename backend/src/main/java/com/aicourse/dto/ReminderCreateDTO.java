@@ -1,5 +1,7 @@
 package com.aicourse.dto;
 
+import lombok.Data;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 
@@ -8,6 +10,7 @@ import jakarta.validation.constraints.*;
  * 用于接收前端创建定时提醒时的请求数据，支持多种提醒类型和触发条件
  */
 @Schema(description = "创建提醒请求")
+@Data
 public class ReminderCreateDTO {
 
     @NotBlank(message = "提醒标题不能为空")
@@ -16,10 +19,8 @@ public class ReminderCreateDTO {
             requiredMode = Schema.RequiredMode.REQUIRED)
     private String title;
 
-    @NotBlank(message = "提醒内容不能为空")
     @Size(max = 2000, message = "提醒内容不能超过2000个字符")
-    @Schema(description = "提醒内容/消息", example = "您的《第一次编程作业》将于明天截止，请尽快提交！",
-            requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "提醒内容/消息", example = "您的《第一次编程作业》将于明天截止，请尽快提交！")
     private String content;
 
     @Pattern(regexp = "^(BEFORE_DEADLINE|DAILY_STUDY|NEW_CONTENT)$", message = "提醒类型不合法")
@@ -42,53 +43,28 @@ public class ReminderCreateDTO {
             "- NEW_CONTENT: 不适用", example = "60")
     private Integer remindBefore;
 
-    // ====================== Getter & Setter ======================
+    @Schema(description = "接收用户ID", example = "1001")
+    private Long userId;
 
-    public String getTitle() {
-        return title;
-    }
+    @Schema(description = "提醒类型（前端传值）", example = "BEFORE_DEADLINE")
+    private String reminderType;
 
-    public void setTitle(String title) {
-        this.title = title;
-    }
+    @Schema(description = "关联任务ID", example = "500")
+    private Long taskId;
 
-    public String getContent() {
-        return content;
-    }
+    @Schema(description = "关联课程ID", example = "1")
+    private Long courseId;
 
-    public void setContent(String content) {
-        this.content = content;
-    }
+    @Schema(description = "提醒消息内容", example = "作业即将截止")
+    private String message;
 
-    public String getRemindType() {
-        return remindType;
-    }
+    @Schema(description = "截止时间")
+    private String dueDate;
 
-    public void setRemindType(String remindType) {
-        this.remindType = remindType;
-    }
+    @Schema(description = "提前触发天数", example = "3")
+    private Integer triggerDay;
 
-    public String getRelatedType() {
-        return relatedType;
-    }
+    @Schema(description = "新的计划发送时间（改期用）", example = "2025-01-15T10:00:00")
+    private String newScheduledAt;
 
-    public void setRelatedType(String relatedType) {
-        this.relatedType = relatedType;
-    }
-
-    public Long getRelatedId() {
-        return relatedId;
-    }
-
-    public void setRelatedId(Long relatedId) {
-        this.relatedId = relatedId;
-    }
-
-    public Integer getRemindBefore() {
-        return remindBefore;
-    }
-
-    public void setRemindBefore(Integer remindBefore) {
-        this.remindBefore = remindBefore;
-    }
 }

@@ -1,4 +1,4 @@
-﻿﻿﻿<template>
+﻿﻿<template>
   <div class="fade-in permission-management">
     <!-- 页面头部 -->
     <div class="page-header">
@@ -100,7 +100,6 @@
       v-model="dialogVisible"
       :title="isEdit ? '编辑权限' : '添加权限'"
       width="520px"
-      append-to-body
       :close-on-click-modal="false"
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="110px">

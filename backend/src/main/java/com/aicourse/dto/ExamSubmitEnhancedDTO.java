@@ -1,7 +1,10 @@
 package com.aicourse.dto;
 
+import lombok.Data;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Min;
+import jakarta.validation.constraints.NotNull;
 
 import java.util.Map;
 
@@ -10,9 +13,11 @@ import java.util.Map;
  * 用于接收学生提交考试答案时的请求数据，支持多种题型答案格式
  */
 @Schema(description = "考试提交请求")
+@Data
 public class ExamSubmitEnhancedDTO {
 
-    @Schema(description = "答案集合（key=题目序号，value=答案）\n" +
+    @NotNull(message = "答案不能为空")
+    @Schema(description = "答案���合（key=题目序号，value=答案）\n" +
             "- 单选题：String (如 \"A\")\n" +
             "- 多选题：List<String> (如 [\"A\",\"C\"])\n" +
             "- 判断题：Boolean\n" +
@@ -27,29 +32,4 @@ public class ExamSubmitEnhancedDTO {
     @Schema(description = "客户端IP地址（可选，服务端也可自动获取）", example = "192.168.1.100")
     private String ipAddress;
 
-    // ====================== Getter & Setter ======================
-
-    public Map<Integer, Object> getAnswers() {
-        return answers;
-    }
-
-    public void setAnswers(Map<Integer, Object> answers) {
-        this.answers = answers;
-    }
-
-    public Integer getTimeSpent() {
-        return timeSpent;
-    }
-
-    public void setTimeSpent(Integer timeSpent) {
-        this.timeSpent = timeSpent;
-    }
-
-    public String getIpAddress() {
-        return ipAddress;
-    }
-
-    public void setIpAddress(String ipAddress) {
-        this.ipAddress = ipAddress;
-    }
 }

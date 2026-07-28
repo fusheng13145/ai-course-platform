@@ -1,6 +1,7 @@
 package com.aicourse.service;
 
 import com.aicourse.entity.ExamPaper;
+import com.aicourse.dto.AutoComposeDTO;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.util.Map;
@@ -34,4 +35,13 @@ public interface ExamPaperService extends IService<ExamPaper> {
      * @return 统计数据
      */
     Map<String, Object> getPaperStatistics(Long paperId);
+
+    /**
+     * 自动组卷：按题型数量和难度比例从题库随机抽取题目生成试卷
+     * @param dto 组卷参数（课程ID、题型规则、难度比例、分值规则等）
+     * @param creatorId 创建人ID
+     * @return 生成的试卷
+     */
+    ExamPaper autoComposeExamPaper(AutoComposeDTO dto, Long creatorId);
+
 }

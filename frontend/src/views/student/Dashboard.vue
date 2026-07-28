@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿<template>
   <div class="fade-in">
     <!-- 统计卡片区域 -->
     <div class="stat-cards">
@@ -225,9 +225,9 @@ async function loadTrendData() {
   barLoading.value = true
   try {
     const userId = auth.userId
-    const res = await analyticsApi.getTrendData({ days: 7 })
+    const res = await analyticsApi.getTrendData(userId)
     const data = res.data || res || {}
-    const trendList = Array.isArray(data) ? data : (data.list ?? data.trends ?? data.dailyStats ?? [])
+    const trendList = data.list ?? data.trends ?? data.dailyStats ?? (Array.isArray(data) ? data : [])
 
     if (trendType.value === 'week') {
       // 本周数据：取最近7天
@@ -299,55 +299,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-/* ---- 统计卡片区域 ---- */
-.stat-cards {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--ac-spacing-md);
-  margin-bottom: var(--ac-spacing-lg);
-}
-
-.stat-card {
-  background: var(--ac-bg-elevated);
-  border-radius: var(--ac-radius-lg);
-  border: 1px solid var(--ac-border);
-  padding: 20px 24px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  transition: all var(--ac-transition-normal);
-}
-
-.stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--ac-shadow-md);
-}
-
-.stat-icon {
-  width: 52px;
-  height: 52px;
-  border-radius: var(--ac-radius-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  flex-shrink: 0;
-}
-
-.stat-info h3 {
-  font-size: 26px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-  margin: 0;
-  line-height: 1.2;
-}
-
-.stat-info p {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-  margin-top: 4px;
-}
-
 .dashboard-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -431,15 +382,6 @@ onMounted(async () => {
 
 @media (max-width: 900px) {
   .dashboard-grid {
-    grid-template-columns: 1fr;
-  }
-  .stat-cards {
-    grid-template-columns: repeat(2, 1fr);
-  }
-}
-
-@media (max-width: 600px) {
-  .stat-cards {
     grid-template-columns: 1fr;
   }
 }

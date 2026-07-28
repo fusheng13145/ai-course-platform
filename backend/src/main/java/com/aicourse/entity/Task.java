@@ -1,5 +1,7 @@
 package com.aicourse.entity;
 
+import lombok.Data;
+
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -14,6 +16,7 @@ import java.time.LocalDateTime;
  * 对应数据表：tasks
  */
 @TableName("tasks")
+@Data
 public class Task {
 
     /**
@@ -48,6 +51,12 @@ public class Task {
     private Long creatorId;
 
     /**
+     * 关联章节ID（章节任务点绑定，PRD 4.3）
+     */
+    @TableField("chapter_id")
+    private Long chapterId;
+
+    /**
      * 截止时间
      */
     private LocalDateTime dueDate;
@@ -56,6 +65,17 @@ public class Task {
      * 满分分值
      */
     private BigDecimal maxScore;
+
+    /**
+     * 逾期每天扣分比例（百分比，如 10 表示 10%/天；null 表示使用默认 10%）
+     * 替代原先硬编码的 10%/天，支持按课程/教师配置（对标超星可配逾期策略）
+     */
+    private BigDecimal latePenaltyPerDay;
+
+    /**
+     * 最大提交次数（0 或 null 表示不限；>0 时超过即禁止再提交，对标超星提交次数上限）
+     */
+    private Integer maxSubmissions;
 
     /**
      * 状态
@@ -100,132 +120,4 @@ public class Task {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 
-    // ====================== Getter & Setter ======================
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public String getTaskType() {
-        return taskType;
-    }
-
-    public void setTaskType(String taskType) {
-        this.taskType = taskType;
-    }
-
-    public Long getCourseId() {
-        return courseId;
-    }
-
-    public void setCourseId(Long courseId) {
-        this.courseId = courseId;
-    }
-
-    public Long getCreatorId() {
-        return creatorId;
-    }
-
-    public void setCreatorId(Long creatorId) {
-        this.creatorId = creatorId;
-    }
-
-    public LocalDateTime getDueDate() {
-        return dueDate;
-    }
-
-    public void setDueDate(LocalDateTime dueDate) {
-        this.dueDate = dueDate;
-    }
-
-    public BigDecimal getMaxScore() {
-        return maxScore;
-    }
-
-    public void setMaxScore(BigDecimal maxScore) {
-        this.maxScore = maxScore;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public Boolean getIsPublished() {
-        return isPublished;
-    }
-
-    public void setIsPublished(Boolean isPublished) {
-        this.isPublished = isPublished;
-    }
-
-    public String getSubmissionFormat() {
-        return submissionFormat;
-    }
-
-    public void setSubmissionFormat(String submissionFormat) {
-        this.submissionFormat = submissionFormat;
-    }
-
-    public String getRequirements() {
-        return requirements;
-    }
-
-    public void setRequirements(String requirements) {
-        this.requirements = requirements;
-    }
-
-    public String getAttachmentUrl() {
-        return attachmentUrl;
-    }
-
-    public void setAttachmentUrl(String attachmentUrl) {
-        this.attachmentUrl = attachmentUrl;
-    }
-
-    public LocalDateTime getStartDate() {
-        return startDate;
-    }
-
-    public void setStartDate(LocalDateTime startDate) {
-        this.startDate = startDate;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
 }

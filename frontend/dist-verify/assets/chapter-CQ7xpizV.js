@@ -1,0 +1,1 @@
+import{o as e}from"./index-BLtK5JIz.js";var t={getChapters:t=>e.get(`/chapters/course/${t}`),getChapterById:t=>e.get(`/chapters/${t}`),createChapter:t=>e.post(`/chapters`,t),updateChapter:(t,n)=>e.put(`/chapters/${t}`,n),deleteChapter:t=>e.delete(`/chapters/${t}`),batchReorder:t=>e.put(`/chapters/batch-reorder`,t)};export{t};

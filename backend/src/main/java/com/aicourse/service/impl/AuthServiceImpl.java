@@ -19,9 +19,12 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
+import java.util.regex.Pattern;
+import com.aicourse.common.RoleConstants;
 
 /**
  * 认证授权服务实现类
@@ -37,13 +40,28 @@ public class AuthServiceImpl implements AuthService {
     private static final String TYPE_REGISTER = "REGISTER";
     private static final String TYPE_RESET_PASSWORD = "RESET_PASSWORD";
     private static final String TYPE_FORGOT_PASSWORD = "FORGOT_PASSWORD";
-    private static final String DEFAULT_ROLE_STUDENT = "STUDENT";
+    private static final String DEFAULT_ROLE_STUDENT = RoleConstants.STUDENT;
     private static final int LOCK_MINUTES = 15;
     private static final int MAX_FAILED_ATTEMPTS = 5;
     private static final int CODE_EXPIRE_MINUTES = 5;
     private static final int RATE_LIMIT_MINUTES = 1;
     private static final int SESSION_EXPIRE_DAY_NORMAL = 1;
     private static final int SESSION_EXPIRE_DAY_REMEMBER = 7;
+
+    // ===================== 密码复杂度验证 =====================
+    // 规则：8-32位，必须包含大写字母、小写字母、数字、特殊字符
+    private static final Pattern PASSWORD_PATTERN =
+            Pattern.compile("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[~!@#$%^&*()_+\\-={}\\[\\]:;\"'<>,.?/\\\\|`]).{8,32}$");
+
+    private void validatePasswordComplexity(String password) {
+        if (password == null || password.isEmpty()) {
+            throw new BusinessException("密码不能为空");
+        }
+        if (!PASSWORD_PATTERN.matcher(password).matches()) {
+            throw new BusinessException(
+                    "密码必须包含大写字母、小写字母、数字和特殊字符，且长度为8-32位");
+        }
+    }
 
     // ===================== 配置注入 =====================
     @Value("${app.frontend-url:http://localhost:5173}")
@@ -122,8 +140,8 @@ public class AuthServiceImpl implements AuthService {
         String token = jwtUtils.generateToken(user.getId(), user.getUsername(), user.getRole(), remember);
         String refreshToken = UUID.randomUUID().toString().replace("-", "");
 
-        // 构建会话
-        UserSession session = buildUserSession(user, token, refreshToken, remember, now, request);
+        // 刷新令牌仅向客户端返回明文；入库前做 SHA-256 哈希存储，降低数据库泄漏风险
+        UserSession session = buildUserSession(user, token, jwtUtils.sha256Hex(refreshToken), remember, now, request);
         userSessionService.save(session);
 
         saveLoginLog(user.getId(), user.getUsername(), STATUS_SUCCESS, request, null);
@@ -164,6 +182,9 @@ public class AuthServiceImpl implements AuthService {
             throw new BusinessException("手机号已被注册");
         }
 
+        // 密码复杂度校验
+        validatePasswordComplexity(password);
+
         // 验证码校验
         if (code != null) {
             VerificationCode vc = verificationCodeService.getOne(new LambdaQueryWrapper<VerificationCode>()
@@ -187,7 +208,8 @@ public class AuthServiceImpl implements AuthService {
         user.setUsername(username);
         user.setPassword(passwordEncoder.encode(password));
         user.setFullName(fullName);
-        user.setRole(role == null ? DEFAULT_ROLE_STUDENT : role);
+        // 安全加固：公开注册端点不允许调用方指定角色，强制默认为学生，防止越权提权（如注册即 ADMIN）
+        user.setRole(DEFAULT_ROLE_STUDENT);
         user.setPhone(phone);
         user.setIsActive(true);
         user.setIsVerified(false);
@@ -199,8 +221,8 @@ public class AuthServiceImpl implements AuthService {
         String token = jwtUtils.generateToken(user.getId(), user.getUsername(), user.getRole(), false);
         String refreshToken = UUID.randomUUID().toString().replace("-", "");
 
-        // 创建会话
-        UserSession session = buildUserSession(user, token, refreshToken, false, now, request);
+        // 创建会话（刷新令牌哈希存储）
+        UserSession session = buildUserSession(user, token, jwtUtils.sha256Hex(refreshToken), false, now, request);
         userSessionService.save(session);
 
         Map<String, Object> data = new HashMap<>(5);
@@ -216,8 +238,10 @@ public class AuthServiceImpl implements AuthService {
     // ===================== 刷新令牌 =====================
     @Override
     public ApiResponse<Map<String, Object>> refreshToken(String refreshToken) {
+        // 对传入明文刷新令牌做哈希后再比对，库内仅存哈希值
+        String refreshTokenHash = jwtUtils.sha256Hex(refreshToken);
         UserSession session = userSessionService.getOne(new LambdaQueryWrapper<UserSession>()
-                .eq(UserSession::getRefreshToken, refreshToken)
+                .eq(UserSession::getRefreshToken, refreshTokenHash)
                 .eq(UserSession::getIsActive, true));
         if (session == null) {
             throw new BusinessException("刷新令牌无效");
@@ -229,6 +253,8 @@ public class AuthServiceImpl implements AuthService {
         }
 
         String newToken = jwtUtils.generateToken(user.getId(), user.getUsername(), user.getRole(), true);
+        // 吊销旧访问令牌缓存，避免轮换后旧令牌仍在缓存 TTL 内可用
+        userSessionService.evictSessionCache(session.getSessionToken());
         session.setSessionToken(newToken);
         session.setLastActivity(LocalDateTime.now());
         userSessionService.updateById(session);
@@ -244,12 +270,18 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ApiResponse<Void> logout(Long userId, HttpServletRequest request) {
+        // 先取出该用户当前有效会话的令牌，便于随后立即使其缓存失效
+        List<UserSession> activeSessions = userSessionService.list(new LambdaQueryWrapper<UserSession>()
+                .eq(UserSession::getUserId, userId)
+                .eq(UserSession::getIsActive, true));
         userSessionService.lambdaUpdate()
                 .eq(UserSession::getUserId, userId)
                 .eq(UserSession::getIsActive, true)
                 .set(UserSession::getIsActive, false)
                 .set(UserSession::getIsCurrent, false)
                 .update();
+        // 立即使每个会话令牌的缓存失效，避免旧令牌在缓存 TTL 内仍被判定为有效
+        activeSessions.forEach(s -> userSessionService.evictSessionCache(s.getSessionToken()));
 
         saveLoginLog(userId, null, STATUS_LOGOUT, request, "安全退出");
         return ApiResponse.success("退出成功", null);
@@ -277,6 +309,8 @@ public class AuthServiceImpl implements AuthService {
         if (user == null) {
             throw new BusinessException("手机号未注册");
         }
+        // 密码复杂度校验
+        validatePasswordComplexity(newPassword);
         user.setPassword(passwordEncoder.encode(newPassword));
         userService.updateById(user);
         return ApiResponse.success("密码重置成功", null);
@@ -293,6 +327,8 @@ public class AuthServiceImpl implements AuthService {
         if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
             throw new BusinessException("原密码错误");
         }
+        // 密码复杂度校验
+        validatePasswordComplexity(newPassword);
         user.setPassword(passwordEncoder.encode(newPassword));
         userService.updateById(user);
         return ApiResponse.success("密码修改成功", null);
@@ -374,6 +410,9 @@ public class AuthServiceImpl implements AuthService {
         if (user == null) {
             throw new BusinessException("该邮箱未注册");
         }
+
+        // 密码复杂度校验
+        validatePasswordComplexity(newPassword);
 
         user.setPassword(passwordEncoder.encode(newPassword));
         user.setFailedLoginAttempts(0);

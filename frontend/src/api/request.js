@@ -1,19 +1,110 @@
+import logger from '@/utils/logger'
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '@/router'
 import { useAuthStore } from '@/stores/auth'
 
+// ==================== 全局 Loading 进度条 ====================
+let requestCount = 0
+let loadingTimer = null
+
+function showLoading() {
+  requestCount++
+  const bar = document.getElementById('global-loading-bar')
+  if (bar) {
+    bar.style.display = 'block'
+    bar.style.width = '0%'
+    bar.style.transition = 'none'
+    // 强制回流后启动动画
+    void bar.offsetWidth
+    bar.style.width = '85%'
+    bar.style.transition = 'width 8s cubic-bezier(0.1, 0.05, 0, 1)'
+  }
+  // 安全兜底：30s 后自动隐藏
+  clearTimeout(loadingTimer)
+  loadingTimer = setTimeout(() => hideLoading(true), 30000)
+}
+
+function hideLoading(force = false) {
+  if (!force) {
+    requestCount = Math.max(0, requestCount - 1)
+    if (requestCount > 0) return
+  } else {
+    requestCount = 0
+  }
+  clearTimeout(loadingTimer)
+  const bar = document.getElementById('global-loading-bar')
+  if (bar) {
+    bar.style.width = '100%'
+    bar.style.transition = 'width 0.3s ease-out'
+    setTimeout(() => {
+      bar.style.display = 'none'
+      bar.style.width = '0%'
+    }, 350)
+  }
+}
+
+// ==================== 消息去重（防连续弹窗堆叠） ====================
+const messageCache = new Map()
+const MESSAGE_THROTTLE_MS = 2000
+
+/**
+ * 节流消息提示：相同内容在 2s 内只弹一次
+ */
+function showThrottledMessage(type, message) {
+  const key = `${type}:${message}`
+  const lastTime = messageCache.get(key)
+  const now = Date.now()
+  if (lastTime && now - lastTime < MESSAGE_THROTTLE_MS) return
+  messageCache.set(key, now)
+  // 定期清理过期缓存
+  if (messageCache.size > 50) {
+    const cutoff = now - MESSAGE_THROTTLE_MS * 2
+    for (const [k, t] of messageCache) {
+      if (t < cutoff) messageCache.delete(k)
+    }
+  }
+  ElMessage[type](message)
+}
+
+/**
+ * 创建并配置 Axios 实例
+ *
+ * 核心配置：
+ * - baseURL: `/api` —— 所有请求统一代理到后端 API 根路径，由 Vite dev server 或 Nginx 反向代理转发
+ * - timeout: 30000ms —— 单次请求超时阈值，超时触发网络错误重试机制（响应拦截器中自动重试一次）
+ * - withCredentials: true —— 开启跨域 Cookie 携带，后端 JWT 令牌以 HttpOnly Cookie 下发，
+ *   浏览器随请求自动携带，前端 JS 不可读令牌内容（防 XSS 窃取）
+ * - CSRF 双提交：后端 DoubleSubmitCsrfFilter 下发可读的 XSRF-TOKEN Cookie，
+ *   axios 自动读取并在写请求（POST/PUT/DELETE/PATCH）上回填 X-XSRF-TOKEN 请求头
+ *
+ * 拦截器行为：
+ * - 请求拦截：将每个未完成请求注册到 AbortController 管理器，页面切换时统一取消；
+ *   不手动注入 Authorization 头（令牌存于 HttpOnly Cookie，由 withCredentials 自动携带）
+ * - 响应拦截（成功）：移出待取消列表，根据业务状态码 code !== 200 提示错误
+ * - 响应拦截（失败）：按状态码分类处理（401 静默刷新 → 403/404/422/429→500/502/503/504）；
+ *   网络错误（无 response）自动重试一次；502/503/504 也自动重试一次
+ *
+ * @type {import('axios').AxiosInstance}
+ */
 const service = axios.create({
   baseURL: '/api',
-  timeout: 30000
+  timeout: 30000,
+  // 认证令牌已改为 HttpOnly Cookie 下发，浏览器随请求自动携带，必须开启 withCredentials
+  // 才能把 Cookie 发送到跨域（同源/同站）的后端接口；前端 JS 无法读取该 Cookie。
+  withCredentials: true,
+  // CSRF 双提交：后端 DoubleSubmitCsrfFilter 会下发可读的 XSRF-TOKEN Cookie，
+  // axios 自动读取并在写请求上回填 X-XSRF-TOKEN 请求头。显式声明避免不同 axios 版本的默认差异。
+  xsrfCookieName: 'XSRF-TOKEN',
+  xsrfHeaderName: 'X-XSRF-TOKEN',
+  withXSRFToken: true,
 })
 
 /* ============================================
  * 请求重试配置
  * ============================================ */
-const MAX_RETRY = 1 // 最大重试次数
-const RETRY_STATUS_CODES = [502, 503, 504] // 需要重试的状态码
-const retryCache = new Map() // 记录已重试的请求，避免无限循环
+// 记录已重试的请求，避免无限循环（实际重试判定由 generateReqKey + retryCache 完成）
+const retryCache = new Map()
 
 /* AbortController 管理器：页面切换时取消未完成请求 */
 const pendingRequests = new Map()
@@ -26,7 +117,7 @@ function getRequestKey(config) {
 
 // 取消所有未完成请求（路由切换时调用）
 export function cancelAllPendingRequests() {
-  pendingRequests.forEach((cancel, key) => {
+  pendingRequests.forEach((cancel) => {
     cancel('页面切换，取消未完成请求')
   })
   pendingRequests.clear()
@@ -79,7 +170,7 @@ function getStatusMessage(status) {
     501: '服务器不支持此功能',
     502: '网关错误，服务暂时不可用',
     503: '服务维护中，请稍后访问',
-    504: '网关超时，请稍后重试'
+    504: '网关超时，请稍后重试',
   }
   return messages[status] || `请求失败 (${status})`
 }
@@ -88,44 +179,45 @@ function getStatusMessage(status) {
  * 请求拦截器
  * ============================================ */
 service.interceptors.request.use(
-  config => {
+  (config) => {
     /* 添加请求到取消列表 */
     addPendingRequest(config)
-
-    /* 注入认证 token */
-    const token = localStorage.getItem('token') || sessionStorage.getItem('token')
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`
-    }
+    /* 全局 loading 进度条 */
+    showLoading()
+    /* 认证令牌存于 HttpOnly Cookie，浏览器经 withCredentials 自动携带，
+       无需（也不应在）前端手动注入 Authorization 头，避免令牌暴露给 JS 上下文。 */
 
     return config
   },
-  error => {
+  (error) => {
     removePendingRequest(error.config)
+    hideLoading()
     return Promise.reject(error)
-  }
+  },
 )
 
 /* ============================================
  * 响应拦截器 - 增强版错误处理
  * ============================================ */
 service.interceptors.response.use(
-  response => {
+  (response) => {
     /* 移除已完成请求 */
     removePendingRequest(response.config)
-    
+    /* 隐藏 loading */
+    hideLoading()
+
     const data = response.data
 
     /* 业务状态码判断 */
-    if (data.code !== undefined && data.code !== 200 && data.code !== 0) {
-      ElMessage.error(data.message || '请求失败')
+    if (data.code !== undefined && data.code !== 200) {
+      showThrottledMessage('error', data.message || '请求失败')
       return Promise.reject(new Error(data.message || '请求失败'))
     }
 
     return data
   },
 
-  async error => {
+  async (error) => {
     const config = error.config
 
     /* 移除已完成/失败请求 */
@@ -133,12 +225,18 @@ service.interceptors.response.use(
 
     /* 被主动取消的请求不提示 */
     if (axios.isCancel(error)) {
-      console.log('[axios]', error.message)
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        logger.log('[axios] 请求被取消:', error.message)
+      }
       return Promise.reject(error)
     }
 
     const status = error.response?.status
     const serverMsg = error.response?.data?.message
+
+    /* 隐藏 loading */
+    hideLoading()
 
     /* ---- 网络错误处理（无响应）---- */
     if (isNetworkError(error)) {
@@ -152,7 +250,7 @@ service.interceptors.response.use(
         networkMsg = '网络已断开，请连接后重试'
       }
 
-      ElMessage.error(networkMsg)
+      showThrottledMessage('error', networkMsg)
 
       /* 网络抖动自动重试一次 */
       if (config && !retryCache.get(generateReqKey(config))) {
@@ -173,60 +271,67 @@ service.interceptors.response.use(
     /* ---- HTTP 状态码分类处理 ---- */
     switch (status) {
       case 400:
-        ElMessage.error(serverMsg || '请求参数有误，请检查输入')
+        showThrottledMessage('error', serverMsg || '请求参数有误，请检查输入')
         break
 
       case 401:
-        /* 未授权：尝试刷新 token，失败则清除并跳转 */
+        /* 未授权：尝试用 HttpOnly 刷新 Cookie 静默刷新访问令牌（前端不可读该 Cookie）。
+           刷新成功后后端会写入新的访问 Cookie，直接重试原请求即可；无需在前端暂存令牌。 */
         const authStore = useAuthStore()
-        const refreshTokenVal = localStorage.getItem('refreshToken') || sessionStorage.getItem('refreshToken')
-        if (refreshTokenVal && config && !config._retry) {
+        if (config && !config._retry) {
           config._retry = true
           try {
-            const res = await service.post('/auth/refresh', { refreshToken: refreshTokenVal })
-            const newToken = res.data?.token || res.data?.accessToken
-            if (newToken) {
-              localStorage.setItem('token', newToken)
-              config.headers.Authorization = `Bearer ${newToken}`
-              return service(config)
-            }
+            // 刷新 Cookie 随请求自动携带（withCredentials），请求体为空
+            await service.post('/auth/refresh', {})
+            return service(config)
           } catch (refreshErr) {
-            // 刷新失败，走登出逻辑
+            // 刷新失败：尽力清除后端会话 Cookie，避免残留脏会话
+            try {
+              await service.post('/auth/logout')
+            } catch (logoutErr) {
+              // 登出接口失败不影响主流程（令牌已失效），仅开发环境记录
+              if (import.meta.env.DEV) {
+                // eslint-disable-next-line no-console
+                logger.warn('登出失败:', logoutErr)
+              }
+            }
           }
         }
-        localStorage.removeItem('token'); localStorage.removeItem('refreshToken'); localStorage.removeItem('user')
-        sessionStorage.removeItem('token'); sessionStorage.removeItem('refreshToken'); sessionStorage.removeItem('user')
-        authStore.token = ''; authStore.user = null
-        ElMessage.error('登录已过期，请重新登录')
+        // 刷新失败或已重试过：清空前端登录态并跳转登录页
+        authStore.resetAuthState()
+        showThrottledMessage('error', '登录已过期，请重新登录')
         router.push('/login')
         break
 
       case 403:
-        ElMessage.error(serverMsg || '抱歉，您没有权限执行此操作')
+        showThrottledMessage('error', serverMsg || '抱歉，您没有权限执行此操作')
         break
 
       case 404:
-        ElMessage.error(serverMsg || '请求的资源不存在')
+        showThrottledMessage('error', serverMsg || '请求的资源不存在')
         break
 
       case 422: {
         /* 校验失败：尝试提取字段级错误信息 */
         const detail = error.response?.data?.detail
         if (Array.isArray(detail) && detail.length > 0) {
-          const fieldErrors = detail.map(d => d?.msg || d?.message).filter(Boolean).join('; ')
-          ElMessage.error(fieldErrors || '数据校验失败')
+          const fieldErrors = detail
+            .map((d) => d?.msg || d?.message)
+            .filter(Boolean)
+            .join('; ')
+          showThrottledMessage('error', fieldErrors || '数据校验失败')
         } else {
-          ElMessage.error(serverMsg || '数据校验失败，请检查输入')
+          showThrottledMessage('error', serverMsg || '数据校验失败，请检查输入')
         }
         break
       }
 
       case 429:
-        ElMessage.error(serverMsg || '操作过于频繁，请稍后再试')
+        showThrottledMessage('error', serverMsg || '操作过于频繁，请稍后再试')
         break
 
       case 500:
-        ElMessage.error(serverMsg || '服务器内部错误，请稍后重试')
+        showThrottledMessage('error', serverMsg || '服务器内部错误，请稍后重试')
         break
 
       case 502:
@@ -235,27 +340,27 @@ service.interceptors.response.use(
         /* 服务端临时故障：自动重试一次 */
         if (config && !retryCache.get(generateReqKey(config))) {
           retryCache.set(generateReqKey(config), true)
-          ElMessage.warning('服务暂时不可用，正在重试...')
+          showThrottledMessage('warning', '服务暂时不可用，正在重试...')
           try {
             const res = await service(config)
             retryCache.delete(generateReqKey(config))
             return res
           } catch (retryErr) {
             retryCache.delete(generateReqKey(config))
-            ElMessage.error(getStatusMessage(status))
+            showThrottledMessage('error', getStatusMessage(status))
             return Promise.reject(retryErr)
           }
         }
-        ElMessage.error(getStatusMessage(status))
+        showThrottledMessage('error', getStatusMessage(status))
         break
       }
 
       default:
-        ElMessage.error(serverMsg || getStatusMessage(status) || '请求失败')
+        showThrottledMessage('error', serverMsg || getStatusMessage(status) || '请求失败')
     }
 
     return Promise.reject(error)
-  }
+  },
 )
 
 export default service

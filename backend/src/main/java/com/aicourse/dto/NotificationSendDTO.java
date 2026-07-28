@@ -1,5 +1,7 @@
 package com.aicourse.dto;
 
+import lombok.Data;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 
@@ -11,6 +13,7 @@ import java.util.List;
  * 用于接收管理员/教师发送系统通知时的请求数据
  */
 @Schema(description = "发送通知请求")
+@Data
 public class NotificationSendDTO {
 
     @NotBlank(message = "通知标题不能为空")
@@ -43,28 +46,17 @@ public class NotificationSendDTO {
     @Schema(description = "点击通知后的跳转链接", example = "/courses/1/exams/5")
     private String actionUrl;
 
+    @Schema(description = "通知类型", example = "SYSTEM",
+            allowableValues = {"SYSTEM", "TASK", "EXAM", "GRADE", "REMINDER", "ANNOUNCEMENT"})
+    private String type;
+
+    @Schema(description = "附加数据（JSON格式字符串）", example = "{\"redirectId\": 123}")
+    private String data;
+
     @Schema(description = "定时发送时间（null或省略表示立即发送）", example = "2024-12-20T09:00:00")
     private LocalDateTime scheduledAt;
 
     @Schema(description = "过期时间（过期后通知不再展示）", example = "2025-01-20T23:59:59")
     private LocalDateTime expireAt;
 
-    // ====================== Getter & Setter ======================
-
-    public String getTitle() { return title; }
-    public void setTitle(String title) { this.title = title; }
-    public String getContent() { return content; }
-    public void setContent(String content) { this.content = content; }
-    public List<Long> getTargetUserIds() { return targetUserIds; }
-    public void setTargetUserIds(List<Long> targetUserIds) { this.targetUserIds = targetUserIds; }
-    public String getCategory() { return category; }
-    public void setCategory(String category) { this.category = category; }
-    public String getPriority() { return priority; }
-    public void setPriority(String priority) { this.priority = priority; }
-    public String getActionUrl() { return actionUrl; }
-    public void setActionUrl(String actionUrl) { this.actionUrl = actionUrl; }
-    public LocalDateTime getScheduledAt() { return scheduledAt; }
-    public void setScheduledAt(LocalDateTime scheduledAt) { this.scheduledAt = scheduledAt; }
-    public LocalDateTime getExpireAt() { return expireAt; }
-    public void setExpireAt(LocalDateTime expireAt) { this.expireAt = expireAt; }
 }

@@ -345,30 +345,35 @@ public class LoginLogServiceImpl extends ServiceImpl<LoginLogMapper, LoginLog> i
     @Override
     public Map<String, Object> getGlobalLoginStats() {
         Map<String, Object> stats = new HashMap<>();
-        List<LoginLog> allLogs = this.list();
-        long totalCount = allLogs.size();
+        // 安全的聚合查询：用 count 替代全表 list()
+        long totalCount = this.count();
         stats.put("totalCount", totalCount);
 
-        long successCount = allLogs.stream()
-                .filter(log -> log != null && "SUCCESS".equals(log.getLoginStatus()))
-                .count();
+        long successCount = this.count(new LambdaQueryWrapper<LoginLog>()
+                .eq(LoginLog::getLoginStatus, "SUCCESS"));
         stats.put("successCount", successCount);
         stats.put("failedCount", totalCount - successCount);
         stats.put("successRate", totalCount > 0 ? Math.round(successCount * 100.0 / totalCount * 100.0) / 100.0 : 0);
 
-        // 今日登录数
         LocalDateTime todayStart = LocalDate.now().atStartOfDay();
-        long todayCount = allLogs.stream()
-                .filter(log -> log != null && log.getCreatedAt() != null && !log.getCreatedAt().isBefore(todayStart))
-                .count();
+        long todayCount = this.count(new LambdaQueryWrapper<LoginLog>()
+                .ge(LoginLog::getCreatedAt, todayStart));
         stats.put("todayCount", todayCount);
 
-        // 本周登录数
         LocalDateTime weekAgo = LocalDateTime.now().minusDays(7);
-        long weekCount = allLogs.stream()
-                .filter(log -> log != null && log.getCreatedAt() != null && !log.getCreatedAt().isBefore(weekAgo))
-                .count();
+        long weekCount = this.count(new LambdaQueryWrapper<LoginLog>()
+                .ge(LoginLog::getCreatedAt, weekAgo));
         stats.put("weekCount", weekCount);
+
+        // 各登录状态分布
+        Map<String, Long> statusDist = new HashMap<>();
+        String[] statuses = {"SUCCESS", "FAILED", "LOCKED", "EXPIRED"};
+        for (String st : statuses) {
+            long cnt = this.count(new LambdaQueryWrapper<LoginLog>()
+                    .eq(LoginLog::getLoginStatus, st));
+            if (cnt > 0) statusDist.put(st, cnt);
+        }
+        stats.put("statusDistribution", statusDist);
 
         return stats;
     }

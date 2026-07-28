@@ -1,7 +1,10 @@
 package com.aicourse.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.common.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.entity.Reminder;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.service.ReminderService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -9,12 +12,16 @@ import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
+
+import com.aicourse.common.ApiCode;
+import com.aicourse.dto.ReminderCreateDTO;
+import jakarta.validation.Valid;
 
 /**
  * 提醒管理控制器
  * 提供提醒的创建、待办查询、取消、改期及定时发送等API
  */
+@Tag(name = "催交提醒", description = "作业催交提醒的创建与管理")
 @RestController
 @RequestMapping("/reminders")
 public class ReminderController {
@@ -27,36 +34,35 @@ public class ReminderController {
 
     /**
      * 创建提醒
-     * @param params 请求参数（包含 userId, reminderType, taskId, courseId, title, message, dueDate, triggerDay）
+     * @param dto 提醒创建请求DTO
      * @return 创建的提醒
      */
     @PostMapping("")
-    public ApiResponse<Reminder> createReminder(@RequestBody Map<String, Object> params) {
-        Long userId = params.get("userId") != null ? Long.valueOf(params.get("userId").toString()) : null;
-        String reminderType = (String) params.get("reminderType");
-        Long taskId = params.get("taskId") != null ? Long.valueOf(params.get("taskId").toString()) : null;
-        Long courseId = params.get("courseId") != null ? Long.valueOf(params.get("courseId").toString()) : null;
-        String title = (String) params.get("title");
-        String message = (String) params.get("message");
-        LocalDateTime dueDate = params.get("dueDate") != null ?
-                LocalDateTime.parse(params.get("dueDate").toString()) : null;
-        Integer triggerDay = params.get("triggerDay") != null ?
-                Integer.valueOf(params.get("triggerDay").toString()) : null;
+    public ApiResponse<Reminder> createReminder(@Valid @RequestBody ReminderCreateDTO dto) {
+        Long userId = dto.getUserId();
+        String reminderType = dto.getReminderType();
+        Long taskId = dto.getTaskId();
+        Long courseId = dto.getCourseId();
+        String title = dto.getTitle();
+        String message = dto.getMessage();
+        LocalDateTime dueDate = dto.getDueDate() != null ?
+                LocalDateTime.parse(dto.getDueDate()) : null;
+        Integer triggerDay = dto.getTriggerDay();
 
         if (userId == null) {
-            return ApiResponse.error(400, "接收用户ID不能为空");
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "接收用户ID不能为空");
         }
         if (reminderType == null || reminderType.isEmpty()) {
-            return ApiResponse.error(400, "提醒类型不能为空");
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "提醒类型不能为空");
         }
         if (title == null || title.isEmpty()) {
-            return ApiResponse.error(400, "提醒标题不能为空");
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "提醒标题不能为空");
         }
         if (dueDate == null) {
-            return ApiResponse.error(400, "截止时间不能为空");
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "截止时间不能为空");
         }
         if (triggerDay == null) {
-            return ApiResponse.error(400, "提前触发天数不能为空");
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "提前触发天数不能为空");
         }
 
         Reminder reminder = reminderService.createReminder(userId, reminderType, taskId, courseId,
@@ -90,15 +96,15 @@ public class ReminderController {
     /**
      * 修改提醒的计划发送时间（改期）
      * @param id 提醒ID
-     * @param params 请求参数（包含 newScheduledAt）
+     * @param dto 提醒创建请求DTO（仅使用newScheduledAt字段）
      * @return 操作结果
      */
     @PatchMapping("/{id}/reschedule")
-    public ApiResponse<Void> rescheduleReminder(@PathVariable Long id, @RequestBody Map<String, Object> params) {
-        LocalDateTime newScheduledAt = params.get("newScheduledAt") != null ?
-                LocalDateTime.parse(params.get("newScheduledAt").toString()) : null;
+    public ApiResponse<Void> rescheduleReminder(@PathVariable Long id, @Valid @RequestBody ReminderCreateDTO dto) {
+        LocalDateTime newScheduledAt = dto.getNewScheduledAt() != null ?
+                LocalDateTime.parse(dto.getNewScheduledAt()) : null;
         if (newScheduledAt == null) {
-            return ApiResponse.error(400, "新的计划发送时间不能为空");
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "新的计划发送时间不能为空");
         }
         reminderService.rescheduleReminder(id, newScheduledAt);
         return ApiResponse.success("改期成功");

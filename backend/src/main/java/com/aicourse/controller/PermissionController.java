@@ -1,7 +1,10 @@
 package com.aicourse.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.common.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.entity.RolePermission;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.service.PermissionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -12,6 +15,7 @@ import java.util.List;
 /**
  * 权限管理接口控制器（仅管理员可访问）
  */
+@Tag(name = "权限管理", description = "角色权限的增删改查")
 @RestController
 @RequestMapping("/admin/permissions")
 @PreAuthorize("hasRole('ADMIN')")

@@ -1,0 +1,12 @@
+# 构建上下文忽略项（减小 docker build 上下文体积）
+node_modules
+dist
+.git
+.gitignore
+.vscode
+.idea
+*.log
+npm-debug.log*
+coverage
+.DS_Store
+README.md

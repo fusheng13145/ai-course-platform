@@ -17,6 +17,11 @@ import java.util.Date;
 @Component
 public class JwtUtils {
 
+    /** 访问令牌 Cookie 名（HttpOnly，JS 不可读，本质消除 XSS 窃取令牌风险） */
+    public static final String ACCESS_TOKEN_COOKIE = "ai_course_token";
+    /** 刷新令牌 Cookie 名（HttpOnly，path 收窄至刷新端点，进一步降低暴露面） */
+    public static final String REFRESH_TOKEN_COOKIE = "ai_course_refresh";
+
     /** JWT 加密密钥 */
     private final SecretKey secretKey;
     /** 记住我 - Token 有效期(毫秒) */
@@ -92,6 +97,23 @@ public class JwtUtils {
     }
 
     /**
+     * 计算令牌剩余有效期（秒）。
+     * 用于 HttpOnly Cookie 的 maxAge 与 JWT 真实过期时间严格对齐，
+     * 避免 Cookie 比令牌更久存在导致的安全隐患。
+     * @param token JWT令牌
+     * @return 剩余秒数（已过期或非法返回 0）
+     */
+    public long getRemainingSeconds(String token) {
+        try {
+            Date expiration = getClaims(token).getExpiration();
+            long seconds = (expiration.getTime() - System.currentTimeMillis()) / 1000;
+            return seconds > 0 ? seconds : 0;
+        } catch (JwtException | IllegalArgumentException e) {
+            return 0;
+        }
+    }
+
+    /**
      * 校验 Token 是否合法有效
      * @param token JWT令牌
      * @return true=合法，false=非法/过期/格式错误
@@ -132,5 +154,29 @@ public class JwtUtils {
             return header.substring(7).trim();
         }
         return null;
+    }
+
+    /**
+     * 对敏感令牌（如刷新令牌）进行 SHA-256 哈希，用于数据库存储。
+     * 刷新令牌为高强度随机值，单向哈希后即便数据库泄漏也无法被还原利用，
+     * 校验时仅需对传入明文再次哈希后等值比对。
+     * @param input 待哈希明文
+     * @return 小写十六进制 SHA-256 摘要
+     */
+    public static String sha256Hex(String input) {
+        if (input == null) {
+            return null;
+        }
+        try {
+            java.security.MessageDigest digest = java.security.MessageDigest.getInstance("SHA-256");
+            byte[] hash = digest.digest(input.getBytes(StandardCharsets.UTF_8));
+            StringBuilder hex = new StringBuilder(hash.length * 2);
+            for (byte b : hash) {
+                hex.append(String.format("%02x", b));
+            }
+            return hex.toString();
+        } catch (java.security.NoSuchAlgorithmException e) {
+            throw new IllegalStateException("SHA-256 算法不可用", e);
+        }
     }
 }

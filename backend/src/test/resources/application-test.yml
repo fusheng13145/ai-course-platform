@@ -1,0 +1,93 @@
+# ===================== 测试环境配置（Testcontainers 集成测试） =====================
+# 数据源与 Redis 的连接坐标由 AbstractIntegrationTest 的 @DynamicPropertySource 动态注入，
+# 此处仅覆盖测试相关的行为开关，禁用会阻塞上下文启动或产生外部副作用的组件。
+spring:
+  # 关闭热部署（测试环境无意义，且会干扰类加载）
+  devtools:
+    restart:
+      enabled: false
+    livereload:
+      enabled: false
+
+  # 数据库初始化：在容器空库上执行完整 schema 与种子数据脚本
+  # index.sql 含 CREATE DATABASE / USE / 建表 / 种子数据；容器库名与脚本一致，
+  # 少量 DDL（如 CREATE DATABASE）在已存在时报错，由 continue-on-error 容忍。
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:index.sql
+      continue-on-error: true
+
+  # 邮件：测试不发送真实邮件，占位配置避免自动配置连接
+  mail:
+    host: localhost
+    port: 3025
+    username: test
+    password: test
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+            required: false
+
+# MyBatis-Plus：测试环境关闭 SQL 控制台打印，降低日志噪声
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+
+# 禁用依赖外部 Python 服务的组件，避免上下文启动时的健康检查/连接失败
+knowledge-graph:
+  enabled: false
+rag:
+  enabled: false
+fine-tune:
+  enabled: false
+
+# 限流依赖 Redis（已由容器提供），保持开启即可；如需可在此关闭
+ratelimit:
+  enabled: false
+
+# 测试日志级别：仅保留必要输出
+logging:
+  level:
+    com.aicourse: INFO
+    org.testcontainers: INFO
+    com.github.dockerjava: WARN
+
+# ===================== 测试环境可观测性配置 =====================
+# 暴露全部 Actuator 端点，便于集成测试断言健康检查/指标/自定义 HealthIndicator；
+# 关闭 prometheus 等端点的访问鉴权（app.actuator.secured=false），
+# 避免测试因缺少 ADMIN 凭证而失败。
+app:
+  actuator:
+    secured: false
+  # 测试用 MockMvc 走明文 http，需关闭 HTTPS 强制与 Secure Cookie，否则请求被 302 重定向至 https 而断言失败。
+  cookie:
+    secure: false
+  security:
+    require-https: false
+    # MockMvc 不运行前端 axios，无法回填 X-XSRF-TOKEN 头；关闭 CSRF 以免写请求被 403。
+    # CSRF 过滤器逻辑由 DoubleSubmitCsrfFilterTest 专项覆盖。
+    csrf:
+      enabled: false
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+  health:
+    # 使用自定义 Database/Redis HealthIndicator；这里重新打开 db/redis 自动检查亦可，
+    # 但测试更关注自定义指示器，保持与默认一致即可（自定义指示器始终注册）。
+    db:
+      enabled: false
+    redis:
+      enabled: false
+
+# 测试专用 JWT 签名密钥（仅 test profile，供集成测试上下文启动；非生产，切勿用于生产）
+jwt:
+  secret: test-only-signing-key-for-integration-tests-0123456789abcdef

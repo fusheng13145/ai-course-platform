@@ -4,21 +4,20 @@ import com.aicourse.service.EmailService;
 import jakarta.mail.*;
 import jakarta.mail.internet.InternetAddress;
 import jakarta.mail.internet.MimeMessage;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.util.Properties;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 邮件服务实现类
  * 支持发送验证码邮件、密码重置链接邮件，基于SMTP协议实现HTML格式邮件推送
  */
 @Service
+@Slf4j
 public class EmailServiceImpl implements EmailService {
 
-    private static final Logger logger = LoggerFactory.getLogger(EmailServiceImpl.class);
 
     // 邮件配置项
     @Value("${mail.host:smtp.qq.com}")
@@ -93,8 +92,8 @@ public class EmailServiceImpl implements EmailService {
     private void sendHtmlEmail(String to, String subject, String htmlContent) {
         // 校验账号密码配置
         if (username == null || username.isBlank() || password == null || password.isBlank()) {
-            logger.warn("邮件服务账号未配置，终止发送，收件人：{}", to);
-            logger.info("【模拟发送】收件人：{}，主题：{}", to, subject);
+            log.warn("邮件服务账号未配置，终止发送，收件人：{}", to);
+            log.info("【模拟发送】收件人：{}，主题：{}", to, subject);
             return;
         }
 
@@ -112,9 +111,9 @@ public class EmailServiceImpl implements EmailService {
             message.setContent(htmlContent, CONTENT_TYPE_HTML);
 
             Transport.send(message);
-            logger.info("邮件发送成功，收件人：{}，主题：{}", to, subject);
+            log.info("邮件发送成功，收件人：{}，主题：{}", to, subject);
         } catch (Exception e) {
-            logger.error("邮件发送失败，收件人：{}，异常信息：{}", to, e.getMessage(), e);
+            log.error("邮件发送失败，收件人：{}，异常信息：{}", to, e.getMessage(), e);
             throw new RuntimeException("邮件发送失败：" + e.getMessage(), e);
         }
     }

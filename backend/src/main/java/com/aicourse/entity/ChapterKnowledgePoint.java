@@ -1,5 +1,7 @@
 package com.aicourse.entity;
 
+import lombok.Data;
+
 import com.baomidou.mybatisplus.annotation.*;
 
 import java.time.LocalDateTime;
@@ -9,6 +11,7 @@ import java.time.LocalDateTime;
  * 对应数据表：chapter_knowledge_points
  */
 @TableName("chapter_knowledge_points")
+@Data
 public class ChapterKnowledgePoint {
 
     /**
@@ -33,36 +36,4 @@ public class ChapterKnowledgePoint {
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 
-    // ====================== Getter & Setter ======================
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Long getChapterId() {
-        return chapterId;
-    }
-
-    public void setChapterId(Long chapterId) {
-        this.chapterId = chapterId;
-    }
-
-    public Long getKnowledgePointId() {
-        return knowledgePointId;
-    }
-
-    public void setKnowledgePointId(Long knowledgePointId) {
-        this.knowledgePointId = knowledgePointId;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
 }

@@ -2,17 +2,28 @@ package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
+import com.aicourse.dto.QuestionVO;
+import com.aicourse.dto.QuestionGenerateDTO;
 import com.aicourse.entity.Question;
+import com.aicourse.entity.KnowledgePoint;
+import jakarta.validation.Valid;
+import com.aicourse.security.RoleUtil;
 import com.aicourse.service.AIService;
+import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.QuestionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.core.Authentication;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 题目管理接口控制器
@@ -20,14 +31,18 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/questions")
+@Tag(name = "题库管理", description = "题目CRUD、AI生成、随机选题、批量导入")
 public class QuestionController {
 
     private final QuestionService questionService;
     private final AIService aiService;
+    private final KnowledgePointService knowledgePointService;
 
-    public QuestionController(QuestionService questionService, AIService aiService) {
+    public QuestionController(QuestionService questionService, AIService aiService,
+                              KnowledgePointService knowledgePointService) {
         this.questionService = questionService;
         this.aiService = aiService;
+        this.knowledgePointService = knowledgePointService;
     }
 
     /**
@@ -40,19 +55,29 @@ public class QuestionController {
      * @return 分页题目数据
      */
     @GetMapping
-    public ApiResponse<PagedResponse<Question>> list(
+    public ApiResponse<?> list(
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size,
             @RequestParam(required = false) Long courseId,
             @RequestParam(required = false) String type,
-            @RequestParam(required = false) String difficulty) {
+            @RequestParam(required = false) String difficulty,
+            Authentication auth) {
+        boolean privileged = RoleUtil.isTeacherOrAdmin(auth);
         LambdaQueryWrapper<Question> queryWrapper = new LambdaQueryWrapper<Question>()
                 .eq(courseId != null, Question::getCourseId, courseId)
                 .eq(type != null, Question::getType, type)
                 .eq(difficulty != null, Question::getDifficulty, difficulty)
                 .orderByDesc(Question::getCreatedAt);
         Page<Question> questionPage = questionService.page(Page.of(page, size), queryWrapper);
-        return ApiResponse.success(PagedResponse.of(questionPage));
+        if (questionPage == null) {
+            questionPage = Page.of(page, size);
+        }
+        if (privileged) {
+            return ApiResponse.success(PagedResponse.of(questionPage));
+        }
+        // 学生不可见答案与解析
+        List<QuestionVO> vos = questionPage.getRecords().stream().map(QuestionVO::from).toList();
+        return ApiResponse.success(PagedResponse.of(vos, questionPage.getTotal(), questionPage.getCurrent(), questionPage.getSize()));
     }
 
     /**
@@ -61,9 +86,13 @@ public class QuestionController {
      * @return 题目信息
      */
     @GetMapping("/{id}")
-    public ApiResponse<Question> getById(@PathVariable Long id) {
+    public ApiResponse<?> getById(@PathVariable Long id, Authentication auth) {
         Question question = questionService.getById(id);
-        return ApiResponse.success(question);
+        if (RoleUtil.isTeacherOrAdmin(auth)) {
+            return ApiResponse.success(question);
+        }
+        // 学生不可见答案与解析
+        return ApiResponse.success(QuestionVO.from(question));
     }
 
     /**
@@ -136,15 +165,24 @@ public class QuestionController {
      * @return 分页搜索结果
      */
     @GetMapping("/search")
-    public ApiResponse<PagedResponse<Question>> search(
+    public ApiResponse<?> search(
             @RequestParam(required = false) Long courseId,
             @RequestParam(required = false) String type,
             @RequestParam(required = false) String difficulty,
             @RequestParam(required = false) String keyword,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            Authentication auth) {
+        boolean privileged = RoleUtil.isTeacherOrAdmin(auth);
         Page<Question> result = questionService.searchQuestions(courseId, type, difficulty, keyword, page, size);
-        return ApiResponse.success(PagedResponse.of(result));
+        if (result == null) {
+            result = new Page<>();
+        }
+        if (privileged) {
+            return ApiResponse.success(PagedResponse.of(result));
+        }
+        List<QuestionVO> vos = result.getRecords().stream().map(QuestionVO::from).toList();
+        return ApiResponse.success(PagedResponse.of(vos, result.getTotal(), result.getCurrent(), result.getSize()));
     }
 
     /**
@@ -156,13 +194,21 @@ public class QuestionController {
      * @return 随机题目列表
      */
     @GetMapping("/random")
-    public ApiResponse<List<Question>> randomSelect(
+    public ApiResponse<?> randomSelect(
             @RequestParam Long courseId,
             @RequestParam(required = false) String type,
             @RequestParam(required = false) String difficulty,
-            @RequestParam(defaultValue = "10") int count) {
+            @RequestParam(defaultValue = "10") int count,
+            Authentication auth) {
+        boolean privileged = RoleUtil.isTeacherOrAdmin(auth);
         List<Question> questions = questionService.randomSelect(courseId, type, difficulty, count);
-        return ApiResponse.success(questions);
+        if (questions == null) {
+            questions = java.util.Collections.emptyList();
+        }
+        if (privileged) {
+            return ApiResponse.success(questions);
+        }
+        return ApiResponse.success(questions.stream().map(QuestionVO::from).toList());
     }
 
     /**
@@ -171,9 +217,16 @@ public class QuestionController {
      * @return 题目列表
      */
     @GetMapping("/kp/{kpId}")
-    public ApiResponse<List<Question>> getByKnowledgePoint(@PathVariable Long kpId) {
+    public ApiResponse<?> getByKnowledgePoint(@PathVariable Long kpId, Authentication auth) {
+        boolean privileged = RoleUtil.isTeacherOrAdmin(auth);
         List<Question> questions = questionService.getByKnowledgePoint(kpId);
-        return ApiResponse.success(questions);
+        if (questions == null) {
+            questions = java.util.Collections.emptyList();
+        }
+        if (privileged) {
+            return ApiResponse.success(questions);
+        }
+        return ApiResponse.success(questions.stream().map(QuestionVO::from).toList());
     }
 
     /**
@@ -194,11 +247,19 @@ public class QuestionController {
      * @return 易错题列表
      */
     @GetMapping("/error-prone")
-    public ApiResponse<List<Question>> errorProne(
+    public ApiResponse<?> errorProne(
             @RequestParam(required = false) Long courseId,
-            @RequestParam(defaultValue = "20") int limit) {
+            @RequestParam(defaultValue = "20") int limit,
+            Authentication auth) {
+        boolean privileged = RoleUtil.isTeacherOrAdmin(auth);
         List<Question> questions = questionService.getErrorProneQuestions(courseId, limit);
-        return ApiResponse.success(questions);
+        if (questions == null) {
+            questions = java.util.Collections.emptyList();
+        }
+        if (privileged) {
+            return ApiResponse.success(questions);
+        }
+        return ApiResponse.success(questions.stream().map(QuestionVO::from).toList());
     }
 
     /**
@@ -244,18 +305,63 @@ public class QuestionController {
 
     /**
      * AI 智能生成题目（基础版，仅返回内容不保存）
-     * @param data 生成参数
+     * @param dto 生成参数
      * @return 生成的题目内容
      */
     @PostMapping("/ai-generate")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Map<String, String>> generateByAIBasic(@RequestBody Map<String, Object> data) {
-        Long courseId = Long.valueOf(data.get("courseId").toString());
-        String type = (String) data.get("type");
-        String difficulty = (String) data.get("difficulty");
-        int count = data.containsKey("count") ? Integer.parseInt(data.get("count").toString()) : 1;
+    public ApiResponse<Map<String, String>> generateByAIBasic(@Valid @RequestBody QuestionGenerateDTO dto) {
+        Long courseId = dto.getCourseId();
+        String type = dto.getType();
+        String difficulty = dto.getDifficulty();
+        int count = dto.getCount() != null ? dto.getCount() : 1;
 
         String result = aiService.generateQuestion(courseId, type, difficulty, count);
         return ApiResponse.success("AI生成成功", Map.of("questions", result));
+    }
+
+    /**
+     * AI 批量生成题目（进阶：一次生成多题并直接入库）
+     * @param dto courseId / type / difficulty / knowledgePointNames / count
+     * @return 已保存的题目列表
+     */
+    @PostMapping("/generate-by-ai/batch")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ApiResponse<List<Question>> generateBatchByAI(@Valid @RequestBody QuestionGenerateDTO dto, Authentication auth) {
+        Long courseId = dto.getCourseId();
+        String type = dto.getType();
+        String difficulty = dto.getDifficulty();
+        String kp = dto.getKnowledgePointNames();
+        int count = dto.getCount() != null ? dto.getCount() : 5;
+
+        // 知识点感知增强：用户未指定知识点时，自动从课程知识图谱中提取
+        if ((kp == null || kp.isBlank()) && courseId != null) {
+            List<KnowledgePoint> kps = knowledgePointService.list(
+                    new LambdaQueryWrapper<KnowledgePoint>()
+                            .eq(KnowledgePoint::getCourseId, courseId));
+            if (!kps.isEmpty()) {
+                kp = kps.stream().map(KnowledgePoint::getName)
+                        .limit(15).collect(Collectors.joining("、"));
+            }
+        }
+
+        List<Question> questions = questionService.generateBatchByAI(
+                courseId, type, difficulty, kp, count, (Long) auth.getPrincipal());
+        return ApiResponse.success("AI批量生成成功（" + (kp != null ? "知识点感知" : "通用模式") + "）", questions);
+    }
+
+    /**
+     * 批量导入题目（进阶：一次性导入多题，自动跳过无效项）
+     * @param questions 题目列表
+     * @return 导入结果（成功数 / 总数）
+     */
+    @PostMapping("/batch-import")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ApiResponse<Map<String, Object>> batchImport(@RequestBody List<Question> questions, Authentication auth) {
+        int imported = questionService.batchImport(questions, (Long) auth.getPrincipal());
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("imported", imported);
+        result.put("total", questions.size());
+        return ApiResponse.success("导入完成", result);
     }
 }

@@ -3,7 +3,9 @@ package com.aicourse.controller;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.Task;
+import com.aicourse.dto.TaskCreateDTO;
 import com.aicourse.service.SubmissionService;
+import jakarta.validation.Valid;
 import com.aicourse.service.TaskService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -136,10 +138,10 @@ public class TaskController {
     public ApiResponse<Task> extendDeadline(
             @Parameter(description = "任务ID") @PathVariable Long id,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(
-                    description = "包含新截止日期(newDueDate)和原因(reason)的JSON对象"
-            ) @RequestBody Map<String, Object> body) {
-        String newDueDateStr = body.get("newDueDate").toString();
-        String reason = body.get("reason") != null ? body.get("reason").toString() : null;
+                    description = "包含新截止日期(newDueDate)和原因(reason)的任务创建DTO"
+            ) @Valid @RequestBody TaskCreateDTO dto) {
+        String newDueDateStr = dto.getNewDueDate();
+        String reason = dto.getReason();
         LocalDateTime newDueDate = LocalDateTime.parse(newDueDateStr);
         Task task = taskService.extendDeadline(id, newDueDate, reason);
         return ApiResponse.success("截止日期已延长", task);

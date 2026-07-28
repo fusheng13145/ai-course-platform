@@ -1,0 +1,22 @@
+# 环境变量文件（含敏感密钥，切勿提交）
+.env
+.env.local
+.env.*.local
+
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docker 运行时
+mysql_data/
+redis_data/
+
+# 构建产物
+target/
+dist/
+node_modules/

@@ -1,146 +1,186 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.entity.KnowledgePoint;
+import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.service.KnowledgeGraphService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import com.aicourse.service.KnowledgePointRelationService;
+import com.aicourse.service.KnowledgePointService;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
 
-import java.net.SocketTimeoutException;
-import java.time.Duration;
-import java.util.Map;
+import java.math.BigDecimal;
+import java.util.*;
+import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 /**
- * 知识图谱服务实现类
- * 通过HTTP调用Python知识图谱微服务（端口 8001）
+ * 知识图谱服务实现类（自包含版）
  * <p>
- * Python端需实现的API契约见 docs/Python接口契约-知识图谱.md
+ * 原设计通过 HTTP 调用 Python 知识图谱微服务（端口 8001），但该微服务并未随项目交付，
+ * 导致文档对齐的 12 个知识图谱 API 整体返回 503。为满足需求文档「知识可视化 / 知识库管理」
+ * 的硬性要求，本实现改为直接读写 MySQL 的 {@code knowledge_points} / {@code knowledge_point_relations}
+ * 表，复用既有的知识点 CRUD 与关联服务，使图谱真正可用，无需任何外部进程。
+ * <p>
+ * 图数据返回结构与前端可视化（ECharts/D3）保持一致：{@code {nodes:[{id,name,category}], links:[{source,target,value,relationType}]}}。
  */
 @Service
+@Slf4j
 public class KnowledgeGraphServiceImpl implements KnowledgeGraphService {
 
-    private static final Logger log = LoggerFactory.getLogger(KnowledgeGraphServiceImpl.class);
-    private static final String SERVICE_UNAVAILABLE = "{\"error\":\"知识图谱服务暂不可用\",\"code\":503}";
 
-    private final RestClient restClient;
-    private final boolean enabled;
-    private final int maxRetries;
-    private final String healthPath;
+    private final KnowledgePointService knowledgePointService;
+    private final KnowledgePointRelationService relationService;
+    private final ObjectMapper objectMapper;
 
-    public KnowledgeGraphServiceImpl(
-            @Value("${knowledge-graph.enabled:true}") boolean enabled,
-            @Value("${knowledge-graph.base-url:http://localhost:8001}") String baseUrl,
-            @Value("${knowledge-graph.connect-timeout:5}") int connectTimeout,
-            @Value("${knowledge-graph.read-timeout:30}") int readTimeout,
-            @Value("${knowledge-graph.max-retries:2}") int maxRetries,
-            @Value("${knowledge-graph.health-path:/api/v1/graph/health}") String healthPath) {
-        this.enabled = enabled;
-        this.maxRetries = maxRetries;
-        this.healthPath = healthPath;
-
-        var factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofSeconds(connectTimeout));
-        factory.setReadTimeout(Duration.ofSeconds(readTimeout));
-
-        this.restClient = RestClient.builder()
-                .baseUrl(baseUrl)
-                .requestFactory(factory)
-                .defaultHeader("Content-Type", "application/json")
-                .build();
+    public KnowledgeGraphServiceImpl(KnowledgePointService knowledgePointService,
+                                    KnowledgePointRelationService relationService,
+                                    ObjectMapper objectMapper) {
+        this.knowledgePointService = knowledgePointService;
+        this.relationService = relationService;
+        this.objectMapper = objectMapper;
     }
 
     @Override
     public boolean healthCheck() {
-        if (!enabled) return false;
-        try {
-            restClient.get().uri(healthPath).retrieve().toBodilessEntity();
-            return true;
-        } catch (Exception e) {
-            log.debug("知识图谱服务健康检查失败: {}", e.getMessage());
-            return false;
-        }
+        // 自包含实现，始终可用
+        return true;
     }
 
     @Override
     public String getGraph(Long courseId, Long nodeId) {
-        if (!enabled) return SERVICE_UNAVAILABLE;
-        return executeWithRetry(() -> {
-            String uri = nodeId != null
-                    ? "/api/v1/graph/nodes/" + nodeId
-                    : "/api/v1/graph/course/" + courseId;
-            return restClient.get().uri(uri).retrieve().body(String.class);
-        }, "查询知识图谱");
+        if (courseId != null) {
+            // 课程全量图谱，直接复用可视化图数据构建逻辑
+            Map<String, Object> data = buildCourseGraph(courseId);
+            return toJson(data);
+        }
+        if (nodeId != null) {
+            // 单节点图谱：该节点 + 直接关联节点与边
+            KnowledgePoint point = knowledgePointService.getById(nodeId);
+            if (point == null) {
+                return toJson(Map.of("nodes", Collections.emptyList(), "links", Collections.emptyList()));
+            }
+            List<KnowledgePointRelation> relations = relationService.getRelationsByPoint(nodeId);
+            Set<Long> ids = new HashSet<>();
+            ids.add(nodeId);
+            for (KnowledgePointRelation r : relations) {
+                ids.add(r.getSourceId());
+                ids.add(r.getTargetId());
+            }
+            List<KnowledgePoint> points = knowledgePointService.listByIds(ids);
+            Map<String, Object> data = toGraph(points, relations);
+            return toJson(data);
+        }
+        return toJson(Map.of("nodes", Collections.emptyList(), "links", Collections.emptyList()));
     }
 
     @Override
     public String getNodeRelations(Long nodeId, int depth) {
-        if (!enabled) return SERVICE_UNAVAILABLE;
-        return executeWithRetry(() ->
-                restClient.get()
-                        .uri("/api/v1/graph/nodes/{nodeId}/relations?depth={depth}", nodeId, depth)
-                        .retrieve().body(String.class), "获取节点关系");
+        int d = depth <= 0 ? 1 : Math.min(depth, 4);
+        Set<Long> visited = new HashSet<>();
+        Set<Long> current = new HashSet<>();
+        current.add(nodeId);
+        visited.add(nodeId);
+        List<KnowledgePointRelation> edges = new ArrayList<>();
+        for (int i = 0; i < d; i++) {
+            Set<Long> next = new HashSet<>();
+            for (Long id : current) {
+                List<KnowledgePointRelation> rels = relationService.getRelationsByPoint(id);
+                for (KnowledgePointRelation r : rels) {
+                    edges.add(r);
+                    if (r.getSourceId() != null && !visited.contains(r.getSourceId())) next.add(r.getSourceId());
+                    if (r.getTargetId() != null && !visited.contains(r.getTargetId())) next.add(r.getTargetId());
+                }
+            }
+            visited.addAll(next);
+            current = next;
+            if (current.isEmpty()) break;
+        }
+        List<KnowledgePoint> points = knowledgePointService.listByIds(visited);
+        Map<String, Object> data = toGraph(points, edges);
+        return toJson(data);
     }
 
     @Override
     public String addNode(Long courseId, String name, String content, String type) {
-        if (!enabled) return SERVICE_UNAVAILABLE;
-        return executeWithRetry(() ->
-                restClient.post()
-                        .uri("/api/v1/graph/nodes")
-                        .body(Map.of("course_id", courseId, "name", name, "content", content, "type", type))
-                        .retrieve().body(String.class), "添加知识节点");
+        KnowledgePoint kp = new KnowledgePoint();
+        kp.setCourseId(courseId);
+        kp.setName(name);
+        kp.setDescription(content);
+        kp.setPointType(type != null && !type.isBlank() ? type.toUpperCase() : "CONCEPT");
+        knowledgePointService.save(kp);
+        return toJson(kp);
     }
 
     @Override
     public String addRelation(Long sourceId, Long targetId, String relationType) {
-        if (!enabled) return SERVICE_UNAVAILABLE;
-        return executeWithRetry(() ->
-                restClient.post()
-                        .uri("/api/v1/graph/relations")
-                        .body(Map.of("source_id", sourceId, "target_id", targetId, "relation_type", relationType))
-                        .retrieve().body(String.class), "添加节点关系");
+        KnowledgePointRelation rel = relationService.createRelation(
+                sourceId, targetId, relationType, BigDecimal.ONE, null);
+        return toJson(rel);
     }
 
     @Override
     public String deleteNode(Long nodeId) {
-        if (!enabled) return SERVICE_UNAVAILABLE;
-        return executeWithRetry(() ->
-                restClient.delete().uri("/api/v1/graph/nodes/{nodeId}", nodeId).retrieve().body(String.class),
-                "删除知识节点");
+        knowledgePointService.removeById(nodeId);
+        // 级联删除关联边
+        relationService.remove(new LambdaQueryWrapper<KnowledgePointRelation>()
+                .eq(KnowledgePointRelation::getSourceId, nodeId)
+                .or(w -> w.eq(KnowledgePointRelation::getTargetId, nodeId)));
+        return toJson(Map.of("deleted", nodeId));
     }
 
     @Override
     public String deleteRelation(Long relationId) {
-        if (!enabled) return SERVICE_UNAVAILABLE;
-        return executeWithRetry(() ->
-                restClient.delete().uri("/api/v1/graph/relations/{relationId}", relationId).retrieve().body(String.class),
-                "删除节点关系");
+        relationService.removeById(relationId);
+        return toJson(Map.of("deleted", relationId));
     }
 
-    /**
-     * 带重试的HTTP调用执行器
-     */
-    private String executeWithRetry(HttpCall call, String operation) {
-        Exception lastException = null;
-        for (int i = 0; i <= maxRetries; i++) {
-            try {
-                return call.execute();
-            } catch (Exception e) {
-                lastException = e;
-                if (i < maxRetries && !(e instanceof SocketTimeoutException)) {
-                    log.warn("{}失败，第{}次重试: {}", operation, i + 1, e.getMessage());
-                    try { Thread.sleep(500L * (i + 1)); } catch (InterruptedException ignored) {}
-                }
-            }
+    // ===================== 内部工具 =====================
+
+    private Map<String, Object> buildCourseGraph(Long courseId) {
+        List<KnowledgePoint> points = knowledgePointService.list(
+                new LambdaQueryWrapper<KnowledgePoint>().eq(KnowledgePoint::getCourseId, courseId));
+        Set<Long> ids = points.stream().map(KnowledgePoint::getId).collect(Collectors.toSet());
+        List<KnowledgePointRelation> relations = Collections.emptyList();
+        if (!ids.isEmpty()) {
+            relations = relationService.list(new LambdaQueryWrapper<KnowledgePointRelation>()
+                    .in(KnowledgePointRelation::getSourceId, ids)
+                    .in(KnowledgePointRelation::getTargetId, ids));
         }
-        log.error("{}多次失败，已达最大重试次数", operation, lastException);
-        return SERVICE_UNAVAILABLE;
+        return toGraph(points, relations);
     }
 
-    @FunctionalInterface
-    private interface HttpCall {
-        String execute() throws Exception;
+    private Map<String, Object> toGraph(List<KnowledgePoint> points, List<KnowledgePointRelation> relations) {
+        List<Map<String, Object>> nodes = new ArrayList<>();
+        for (KnowledgePoint p : points) {
+            Map<String, Object> node = new LinkedHashMap<>();
+            node.put("id", p.getId());
+            node.put("name", p.getName());
+            node.put("category", p.getPointType() != null ? p.getPointType() : "default");
+            node.put("description", p.getDescription());
+            nodes.add(node);
+        }
+        List<Map<String, Object>> links = new ArrayList<>();
+        for (KnowledgePointRelation r : relations) {
+            Map<String, Object> link = new LinkedHashMap<>();
+            link.put("source", r.getSourceId());
+            link.put("target", r.getTargetId());
+            link.put("value", r.getStrength());
+            link.put("relationType", r.getRelationType());
+            links.add(link);
+        }
+        Map<String, Object> graph = new LinkedHashMap<>();
+        graph.put("nodes", nodes);
+        graph.put("links", links);
+        return graph;
+    }
+
+    private String toJson(Object obj) {
+        try {
+            return objectMapper.writeValueAsString(obj);
+        } catch (Exception e) {
+            log.warn("知识图谱 JSON 序列化失败: {}", e.getMessage());
+            return "{\"error\":\"序列化失败\",\"code\":500}";
+        }
     }
 }

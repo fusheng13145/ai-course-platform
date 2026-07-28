@@ -3,6 +3,7 @@ package com.aicourse.controller;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.UserSession;
 import com.aicourse.service.UserSessionService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,6 +17,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/user-sessions")
+@Tag(name = "用户会话")
 public class UserSessionController {
 
     private final UserSessionService userSessionService;

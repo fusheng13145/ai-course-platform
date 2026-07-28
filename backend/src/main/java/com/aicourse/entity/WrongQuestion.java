@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.Data;
 
 import java.time.LocalDateTime;
 
@@ -13,6 +14,7 @@ import java.time.LocalDateTime;
  * 对应数据表：wrong_questions
  */
 @TableName("wrong_questions")
+@Data
 public class WrongQuestion {
 
     /**
@@ -47,6 +49,27 @@ public class WrongQuestion {
     private String reason;
 
     /**
+     * AI 错因分析（错题产生时由 AI 自动生成，支撑"错题→AI分析→推送练习"闭环）
+     */
+    private String aiAnalysis;
+
+    // ===== 以下为联表派生的展示字段（不入库，仅用于错题本列表展示题干/答案/解析） =====
+    @TableField(exist = false)
+    private String questionContent;
+
+    @TableField(exist = false)
+    private String questionOptions;
+
+    @TableField(exist = false)
+    private String correctAnswer;
+
+    @TableField(exist = false)
+    private String questionAnalysis;
+
+    @TableField(exist = false)
+    private String knowledgePointName;
+
+    /**
      * 是否已掌握
      */
     private Boolean mastered;
@@ -78,99 +101,4 @@ public class WrongQuestion {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Long getStudentId() {
-        return studentId;
-    }
-
-    public void setStudentId(Long studentId) {
-        this.studentId = studentId;
-    }
-
-    public Long getQuestionId() {
-        return questionId;
-    }
-
-    public void setQuestionId(Long questionId) {
-        this.questionId = questionId;
-    }
-
-    public Long getCourseId() {
-        return courseId;
-    }
-
-    public void setCourseId(Long courseId) {
-        this.courseId = courseId;
-    }
-
-    public String getWrongAnswer() {
-        return wrongAnswer;
-    }
-
-    public void setWrongAnswer(String wrongAnswer) {
-        this.wrongAnswer = wrongAnswer;
-    }
-
-    public String getReason() {
-        return reason;
-    }
-
-    public void setReason(String reason) {
-        this.reason = reason;
-    }
-
-    public Boolean getMastered() {
-        return mastered;
-    }
-
-    public void setMastered(Boolean mastered) {
-        this.mastered = mastered;
-    }
-
-    public String getSourceType() {
-        return sourceType;
-    }
-
-    public void setSourceType(String sourceType) {
-        this.sourceType = sourceType;
-    }
-
-    public Integer getPracticeCount() {
-        return practiceCount;
-    }
-
-    public void setPracticeCount(Integer practiceCount) {
-        this.practiceCount = practiceCount;
-    }
-
-    public LocalDateTime getLastPracticedAt() {
-        return lastPracticedAt;
-    }
-
-    public void setLastPracticedAt(LocalDateTime lastPracticedAt) {
-        this.lastPracticedAt = lastPracticedAt;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
 }

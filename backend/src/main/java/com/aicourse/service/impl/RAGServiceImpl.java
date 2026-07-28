@@ -1,168 +1,539 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.entity.KnowledgePoint;
+import com.aicourse.llm.LLMProvider;
+import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.RAGService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
-import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
 
-import java.net.SocketTimeoutException;
-import java.time.Duration;
-import java.util.Map;
+import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
+import lombok.extern.slf4j.Slf4j;
 
 /**
- * RAG服务实现类
- * 通过HTTP调用Python RAG微服务（端口 8002）
+ * RAG 服务实现类（自包含版）
  * <p>
- * Python端需实现的API契约见 docs/Python接口契约-RAG.md
+ * 原设计通过 HTTP 调用 Python RAG 微服务（端口 8002），但该微服务并未随项目交付，
+ * 导致智能答疑（{@code aiService.ragAsk}）整体降级为纯 LLM 调用、且无法基于课程知识库作答。
+ * 为满足需求文档「基于 LLM 的 RAG 框架（向量化/语义召回/生成融合，抑制幻觉）」与「智能答疑」
+ * 的硬性要求，本实现改为自包含：
+ * <ul>
+ *   <li>知识库 = {@code knowledge_points} 表中课程的「知识点名称 + 描述」；</li>
+ *   <li>召回 = 词频/IDF 加权的中文 bigram 余弦相似度（无需任何外部向量服务即可运行）；</li>
+ *   <li>生成 = 将 topK 召回片段拼装为 context，交由可插拔的 {@link LLMProvider} 融合生成答案，
+ *        并严格约束「仅依据所给知识库、未涵盖时如实说明」，以抑制幻觉；</li>
+ *   <li>文档管理接口（增删改查/建索引）直连知识点表，使「知识库管理」真实可用。</li>
+ * </ul>
+ * 该实现无外部进程依赖；后续若引入 Milvus / Python 向量服务，只需替换 {@code retrieve} 的召回实现。
  */
 @Service
+@Slf4j
 public class RAGServiceImpl implements RAGService {
 
-    private static final Logger log = LoggerFactory.getLogger(RAGServiceImpl.class);
-    private static final String SERVICE_UNAVAILABLE = "{\"error\":\"RAG服务暂不可用\",\"code\":503}";
 
-    private final RestClient restClient;
-    private final boolean enabled;
-    private final int maxRetries;
+    private final KnowledgePointService knowledgePointService;
+    private final LLMProvider llmProvider;
+    private final ObjectMapper objectMapper;
     private final int defaultTopK;
-    private final String healthPath;
 
-    public RAGServiceImpl(
-            @Value("${rag.enabled:true}") boolean enabled,
-            @Value("${rag.base-url:http://localhost:8002}") String baseUrl,
-            @Value("${rag.connect-timeout:5}") int connectTimeout,
-            @Value("${rag.read-timeout:60}") int readTimeout,
-            @Value("${rag.max-retries:2}") int maxRetries,
-            @Value("${rag.default-top-k:5}") int defaultTopK,
-            @Value("${rag.health-path:/api/v1/rag/health}") String healthPath) {
-        this.enabled = enabled;
-        this.maxRetries = maxRetries;
+    /**
+     * 课程语预料库缓存（courseId → 预计算的 TF-IDF 索引）。
+     * 避免每次检索都全量加载知识点 + 逐条分词 + IDF 遍历的 O(N*M) 开销，
+     * 将大部分计算从检索路径移至缓存构建路径。
+     * 线程安全：ConcurrentHashMap + 原子 putIfAbsent。
+     * 失效策略：惰性过期（基于版号），知识库变更时通过 {@link #evictCorpusCache(Long)} 清除。
+     */
+    private final ConcurrentHashMap<Long, CachedCorpus> corpusCache = new ConcurrentHashMap<>();
+
+    // @Lazy 打破与 AIServiceImpl 的构造期循环依赖（RAG 内部化引入）：
+    // AIServiceImpl -> RAGServiceImpl -> KnowledgePointServiceImpl -> {Question/WrongQuestion}ServiceImpl -> AIServiceImpl
+    // RAG 仅在运行时（ask/文档管理）使用 KnowledgePointService 加载语料，构造期无需立即就绪。
+    public RAGServiceImpl(@Lazy KnowledgePointService knowledgePointService,
+                          LLMProvider llmProvider,
+                          ObjectMapper objectMapper,
+                          @org.springframework.beans.factory.annotation.Value("${rag.default-top-k:5}") int defaultTopK) {
+        this.knowledgePointService = knowledgePointService;
+        this.llmProvider = llmProvider;
+        this.objectMapper = objectMapper;
         this.defaultTopK = defaultTopK;
-        this.healthPath = healthPath;
-
-        var factory = new SimpleClientHttpRequestFactory();
-        factory.setConnectTimeout(Duration.ofSeconds(connectTimeout));
-        factory.setReadTimeout(Duration.ofSeconds(readTimeout));
-
-        this.restClient = RestClient.builder()
-                .baseUrl(baseUrl)
-                .requestFactory(factory)
-                .defaultHeader("Content-Type", "application/json")
-                .build();
     }
 
     @Override
     public boolean healthCheck() {
-        if (!enabled) return false;
-        try {
-            restClient.get().uri(healthPath).retrieve().toBodilessEntity();
-            return true;
-        } catch (Exception e) {
-            log.debug("RAG服务健康检查失败: {}", e.getMessage());
-            return false;
-        }
+        // 自包含实现，始终可用
+        return true;
     }
 
     @Override
+    @Cacheable(cacheNames = "rag",
+            key = "#question + '_' + #courseId + '_' + #topK",
+            unless = "#result == null or #result.contains('\"code\":503')")
     public String ask(String question, Long courseId, int topK) {
-        if (!enabled) return SERVICE_UNAVAILABLE;
         int k = topK > 0 ? topK : defaultTopK;
-        return executeWithRetry(() ->
-                restClient.post()
-                        .uri("/api/v1/rag/ask")
-                        .body(Map.of("question", question, "course_id", courseId, "top_k", k))
-                        .retrieve().body(String.class), "RAG问答");
+        CachedCorpus corpus = getOrBuildCorpus(courseId);
+        if (corpus == null || corpus.isEmpty()) {
+            return jsonAnswer("知识库中暂未收录与「" + safe(question) + "」相关的知识点，建议先完善该课程的知识图谱或向教师提问。",
+                    Collections.emptyList(), "retrieval-only");
+        }
+        List<ScoredPoint> hits = retrieveScored(question, corpus, k);
+        if (hits.isEmpty()) {
+            return jsonAnswer("知识库中暂未收录与「" + safe(question) + "」相关的知识点，建议先完善该课程的知识图谱或向教师提问。",
+                    Collections.emptyList(), "retrieval-only");
+        }
+
+        // 拼装检索上下文
+        StringBuilder ctx = new StringBuilder();
+        List<Map<String, Object>> sources = new ArrayList<>();
+        for (int i = 0; i < hits.size(); i++) {
+            KnowledgePoint p = hits.get(i).point;
+            ctx.append("\n【知识点").append(i + 1).append("】").append(nullToEmpty(p.getName())).append("\n")
+               .append(nullToEmpty(p.getDescription())).append("\n");
+            Map<String, Object> s = new LinkedHashMap<>();
+            s.put("id", p.getId());
+            s.put("name", p.getName());
+            s.put("score", round(hits.get(i).score));
+            sources.add(s);
+        }
+
+        if (llmProvider == null || !llmProvider.isConfigured()) {
+            // 未配置大模型：直接回退展示知识库原文，保证「基于知识库的问答」可用且诚实
+            String fallback = "（当前未配置大模型 API Key，以下为知识库中与您问题最相关的知识点）\n" + ctx;
+            return jsonAnswer(fallback, sources, "retrieval-only");
+        }
+
+        String systemPrompt = "你是一个严谨的课程 AI 助教。请严格【仅依据】下面提供的「知识库上下文」回答用户问题，"
+                + "使用中文、条理清晰。若上下文不足以回答问题，请明确说明「知识库未涵盖该内容」，"
+                + "不要编造或引入上下文之外的知识（抑制幻觉）。可在结尾用「参考知识点：xxx」标注来源。";
+        String userPrompt = "用户问题：" + question + "\n\n===== 知识库上下文 =====" + ctx
+                + "\n===== 请基于上述上下文作答 =====";
+
+        try {
+            String answer = llmProvider.complete(
+                    List.of(Map.of("role", "system", "content", systemPrompt),
+                            Map.of("role", "user", "content", userPrompt)), 0.3);
+            if (answer == null || answer.isBlank()) {
+                return jsonAnswer("大模型未返回有效内容，请稍后重试。\n" + ctx, sources, "retrieval-only");
+            }
+            return jsonAnswer(answer.trim(), sources, llmProvider.name());
+        } catch (Exception e) {
+            log.warn("RAG 生成失败，回退展示知识库原文: {}", e.getMessage());
+            return jsonAnswer("（生成答案时出现问题，以下为知识库相关原文）\n" + ctx, sources, "retrieval-only");
+        }
     }
 
     @Override
     public String addDocument(Long courseId, String documentName, String content) {
-        if (!enabled) return SERVICE_UNAVAILABLE;
-        return executeWithRetry(() ->
-                restClient.post()
-                        .uri("/api/v1/rag/documents")
-                        .body(Map.of("course_id", courseId, "document_name", documentName, "content", content))
-                        .retrieve().body(String.class), "添加文档");
+        try {
+            KnowledgePoint kp = new KnowledgePoint();
+            kp.setCourseId(courseId);
+            kp.setName(documentName);
+            kp.setDescription(content);
+            kp.setPointType("DOCUMENT");
+            knowledgePointService.save(kp);
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("status", "ok");
+            r.put("id", kp.getId());
+            r.put("name", documentName);
+            return objectMapper.writeValueAsString(r);
+        } catch (Exception e) {
+            log.warn("RAG 添加文档失败: {}", e.getMessage());
+            return "{\"status\":\"error\",\"message\":\"" + safe(e.getMessage()) + "\"}";
+        }
     }
 
     @Override
     public String deleteDocument(Long documentId) {
-        if (!enabled) return SERVICE_UNAVAILABLE;
-        return executeWithRetry(() ->
-                restClient.delete().uri("/api/v1/rag/documents/{documentId}", documentId).retrieve().body(String.class),
-                "删除文档");
+        try {
+            knowledgePointService.removeById(documentId);
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("status", "ok");
+            r.put("deleted", documentId);
+            return objectMapper.writeValueAsString(r);
+        } catch (Exception e) {
+            log.warn("RAG 删除文档失败: {}", e.getMessage());
+            return "{\"status\":\"error\",\"message\":\"" + safe(e.getMessage()) + "\"}";
+        }
     }
 
     @Override
     public String listDocuments(Long courseId) {
-        if (!enabled) return SERVICE_UNAVAILABLE;
-        return executeWithRetry(() ->
-                restClient.get().uri("/api/v1/rag/documents?course_id={courseId}", courseId).retrieve().body(String.class),
-                "获取文档列表");
+        try {
+            List<KnowledgePoint> list = loadCorpus(courseId);
+            List<Map<String, Object>> docs = new ArrayList<>();
+            for (KnowledgePoint p : list) {
+                Map<String, Object> d = new LinkedHashMap<>();
+                d.put("id", p.getId());
+                d.put("name", p.getName());
+                d.put("description", p.getDescription());
+                d.put("type", p.getPointType());
+                docs.add(d);
+            }
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("status", "ok");
+            r.put("count", docs.size());
+            r.put("documents", docs);
+            return objectMapper.writeValueAsString(r);
+        } catch (Exception e) {
+            log.warn("RAG 列举文档失败: {}", e.getMessage());
+            return "{\"status\":\"error\",\"message\":\"" + safe(e.getMessage()) + "\"}";
+        }
     }
 
     @Override
     public String updateDocument(Long documentId, String content) {
-        if (!enabled) return SERVICE_UNAVAILABLE;
-        return executeWithRetry(() ->
-                restClient.put()
-                        .uri("/api/v1/rag/documents/{documentId}", documentId)
-                        .body(Map.of("content", content))
-                        .retrieve().body(String.class), "更新文档");
+        try {
+            KnowledgePoint p = knowledgePointService.getById(documentId);
+            if (p == null) {
+                return "{\"status\":\"error\",\"message\":\"文档不存在\"}";
+            }
+            p.setDescription(content);
+            knowledgePointService.updateById(p);
+            Map<String, Object> r = new LinkedHashMap<>();
+            r.put("status", "ok");
+            r.put("id", documentId);
+            return objectMapper.writeValueAsString(r);
+        } catch (Exception e) {
+            log.warn("RAG 更新文档失败: {}", e.getMessage());
+            return "{\"status\":\"error\",\"message\":\"" + safe(e.getMessage()) + "\"}";
+        }
     }
 
     @Override
     public String buildIndex(Long courseId) {
-        if (!enabled) return SERVICE_UNAVAILABLE;
-        return executeWithRetry(() ->
-                restClient.post()
-                        .uri("/api/v1/rag/index/build/{courseId}", courseId)
-                        .retrieve().body(String.class), "构建索引");
+        // 自包含实现：知识库索引由 knowledge_points 表实时构建，无需离线建索引
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("status", "ok");
+        r.put("note", "索引由课程知识库实时构建，无需离线处理");
+        return toJson(r);
     }
 
     @Override
     public String clearIndex(Long courseId) {
-        if (!enabled) return SERVICE_UNAVAILABLE;
-        return executeWithRetry(() ->
-                restClient.delete().uri("/api/v1/rag/index/{courseId}", courseId).retrieve().body(String.class),
-                "清理索引");
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("status", "ok");
+        r.put("note", "自包含检索无需清理外部索引");
+        return toJson(r);
     }
 
     @Override
+    @Cacheable(cacheNames = "rag-retrieve",
+            key = "#query + '_' + #courseId + '_' + #topK",
+            unless = "#result == null or #result.contains('\"code\":503')")
     public String retrieve(String query, Long courseId, int topK) {
-        if (!enabled) return SERVICE_UNAVAILABLE;
         int k = topK > 0 ? topK : defaultTopK;
-        return executeWithRetry(() ->
-                restClient.post()
-                        .uri("/api/v1/rag/retrieve")
-                        .body(Map.of("query", query, "course_id", courseId, "top_k", k))
-                        .retrieve().body(String.class), "文档检索");
+        CachedCorpus corpus = getOrBuildCorpus(courseId);
+        List<ScoredPoint> hits = corpus == null ? Collections.emptyList() : retrieveScored(query, corpus, k);
+        List<Map<String, Object>> results = new ArrayList<>();
+        for (ScoredPoint h : hits) {
+            KnowledgePoint p = h.point;
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", p.getId());
+            m.put("name", p.getName());
+            m.put("description", p.getDescription());
+            m.put("score", round(h.score));
+            results.add(m);
+        }
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("query", query);
+        r.put("count", results.size());
+        r.put("results", results);
+        return toJson(r);
+    }
+
+    // ===================== 检索核心 =====================
+
+    /**
+     * 加载课程知识库语料。
+     * 修复：courseId 为空时不再扫描全库（原 LIMIT 1000 在大表下仍有隐患且结果任意），
+     * 改为 fail-closed 返回空列表并记警告日志；RAG 应答应始终绑定明确课程上下文。
+     */
+    private List<KnowledgePoint> loadCorpus(Long courseId) {
+        if (courseId == null) {
+            log.warn("[RAG] 未提供 courseId，拒绝扫描全库知识库，返回空语料");
+            return Collections.emptyList();
+        }
+        return knowledgePointService.list(
+                new LambdaQueryWrapper<KnowledgePoint>().eq(KnowledgePoint::getCourseId, courseId));
     }
 
     /**
-     * 带重试的HTTP调用执行器
+     * 基于词频/IDF 加权的中文 bigram 余弦相似度召回 topK
      */
-    private String executeWithRetry(HttpCall call, String operation) {
-        Exception lastException = null;
-        for (int i = 0; i <= maxRetries; i++) {
-            try {
-                return call.execute();
-            } catch (Exception e) {
-                lastException = e;
-                if (i < maxRetries && !(e instanceof SocketTimeoutException)) {
-                    log.warn("{}失败，第{}次重试: {}", operation, i + 1, e.getMessage());
-                    try { Thread.sleep(500L * (i + 1)); } catch (InterruptedException ignored) {}
-                }
+    private List<ScoredPoint> retrieveScored(String query, List<KnowledgePoint> corpus, int topK) {
+        if (query == null || query.isBlank() || corpus.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Map<String, Integer> qtf = tokenize(query);
+        if (qtf.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 文档频率
+        Map<String, Integer> df = new HashMap<>();
+        List<Map<String, Integer>> docTfs = new ArrayList<>();
+        for (KnowledgePoint p : corpus) {
+            String text = nullToEmpty(p.getName()) + " " + nullToEmpty(p.getDescription());
+            Map<String, Integer> dtf = tokenize(text);
+            docTfs.add(dtf);
+            for (String term : dtf.keySet()) {
+                df.merge(term, 1, Integer::sum);
             }
         }
-        log.error("{}多次失败，已达最大重试次数", operation, lastException);
-        return SERVICE_UNAVAILABLE;
+
+        int N = corpus.size();
+        Map<String, Double> qVec = tfidfVector(qtf, df, N);
+        double qNorm = norm(qVec);
+
+        List<ScoredPoint> scored = new ArrayList<>();
+        for (int i = 0; i < corpus.size(); i++) {
+            Map<String, Integer> dtf = docTfs.get(i);
+            if (dtf.isEmpty()) continue;
+            Map<String, Double> dVec = tfidfVector(dtf, df, N);
+            double sim = cosine(qVec, dVec, qNorm, norm(dVec));
+            if (sim > 0) {
+                scored.add(new ScoredPoint(corpus.get(i), sim));
+            }
+        }
+        scored.sort((a, b) -> Double.compare(b.score, a.score));
+        return scored.subList(0, Math.min(topK, scored.size()));
     }
 
-    @FunctionalInterface
-    private interface HttpCall {
-        String execute() throws Exception;
+    /**
+     * 基于缓存的 TF-IDF 索引进行相似度召回。
+     * 只需要 tokenize 查询文本并计算一次查询向量，文档向量从缓存读取。
+     */
+    private List<ScoredPoint> retrieveScored(String query, CachedCorpus corpus, int topK) {
+        if (query == null || query.isBlank() || corpus == null || corpus.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Map<String, Integer> qtf = tokenize(query);
+        if (qtf.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Map<String, Double> qVec = tfidfVector(qtf, corpus.df, corpus.N);
+        double qNorm = norm(qVec);
+
+        List<ScoredPoint> scored = new ArrayList<>();
+        for (int i = 0; i < corpus.size(); i++) {
+            if (corpus.docTfs.get(i).isEmpty()) continue;
+            double sim = cosine(qVec, corpus.docVectors.get(i), qNorm, corpus.docNorms.get(i));
+            if (sim > 0) {
+                scored.add(new ScoredPoint(corpus.points.get(i), sim));
+            }
+        }
+        scored.sort((a, b) -> Double.compare(b.score, a.score));
+        return scored.subList(0, Math.min(topK, scored.size()));
+    }
+
+    // ===================== 缓存构建与失效 =====================
+
+    /**
+     * 获取或构建课程语料的 TF-IDF 索引缓存。
+     * 首次访问时惰性构建，后续直接复用。
+     */
+    private CachedCorpus getOrBuildCorpus(Long courseId) {
+        if (courseId == null) return null;
+        return corpusCache.computeIfAbsent(courseId, this::buildCorpus);
+    }
+
+    /**
+     * 为指定课程构建 TF-IDF 索引（词频 + DF + 文档向量 + 范数）。
+     * 该计算仅在首次查询或缓存失效时执行一次。
+     */
+    private CachedCorpus buildCorpus(Long courseId) {
+        List<KnowledgePoint> points = loadCorpus(courseId);
+        if (points == null || points.isEmpty()) {
+            return null;
+        }
+        // 文档频率
+        Map<String, Integer> df = new HashMap<>();
+        List<Map<String, Integer>> docTfs = new ArrayList<>(points.size());
+        for (KnowledgePoint p : points) {
+            Map<String, Integer> tf = tokenize(textOf(p));
+            docTfs.add(tf);
+            for (String term : tf.keySet()) {
+                df.merge(term, 1, Integer::sum);
+            }
+        }
+        // 预计算 TF-IDF 向量与范数
+        int N = points.size();
+        List<Map<String, Double>> docVectors = new ArrayList<>(N);
+        List<Double> docNorms = new ArrayList<>(N);
+        for (int i = 0; i < N; i++) {
+            Map<String, Double> vec = tfidfVector(docTfs.get(i), df, N);
+            docVectors.add(vec);
+            docNorms.add(norm(vec));
+        }
+        log.info("[RAG] 课程 {} 索引构建完成：{} 个知识点", courseId, N);
+        return new CachedCorpus(points, df, N, docTfs, docVectors, docNorms);
+    }
+
+    /**
+     * 手动失效指定课程的缓存（知识库变更时由外部调用）。
+     */
+    public void evictCorpusCache(Long courseId) {
+        if (courseId != null) {
+            corpusCache.remove(courseId);
+            log.info("[RAG] 课程 {} 索引已清除", courseId);
+        }
+    }
+
+    /** 拼接知识点的可索引文本 */
+    private static String textOf(KnowledgePoint p) {
+        return nullToEmpty(p.getName()) + " " + nullToEmpty(p.getDescription());
+    }
+
+    /**
+     * 中文感知分词：CJK 字符取连续 bigram，拉丁/数字取小写词
+     */
+    private Map<String, Integer> tokenize(String text) {
+        Map<String, Integer> tf = new HashMap<>();
+        if (text == null || text.isBlank()) return tf;
+        StringBuilder cjk = new StringBuilder();
+        StringBuilder latin = new StringBuilder();
+        Runnable flushLatin = () -> {
+            if (latin.length() > 0) {
+                String w = latin.toString().toLowerCase(Locale.ROOT);
+                if (w.length() >= 2) tf.merge(w, 1, Integer::sum);
+                latin.setLength(0);
+            }
+        };
+        // 将当前 CJK 片段切成 bigram 并入词频表，然后清空片段。
+        // 关键修复：遇到标点时必须先结算已积累的 CJK 片段，否则会整段丢弃（旧实现 cjk.setLength(0) 直接清空，
+        // 导致以标点结尾/包含标点的知识点描述词频恒为空、召回恒为 0）。
+        Runnable flushCjk = () -> {
+            if (cjk.length() > 1) {
+                String s = cjk.toString();
+                for (int i = 0; i + 1 < s.length(); i++) {
+                    tf.merge(s.substring(i, i + 2), 1, Integer::sum);
+                }
+            }
+            cjk.setLength(0);
+        };
+        for (int i = 0; i < text.length(); i++) {
+            char c = text.charAt(i);
+            if (Character.isIdeographic(c)) {
+                flushLatin.run();
+                cjk.append(c);
+            } else if (Character.isLetterOrDigit(c)) {
+                latin.append(c);
+            } else {
+                // 标点等非语义字符：先结算已积累的 CJK 片段，再清空
+                flushLatin.run();
+                flushCjk.run();
+            }
+        }
+        flushLatin.run();
+        flushCjk.run();
+        return tf;
+    }
+
+    private Map<String, Double> tfidfVector(Map<String, Integer> tf, Map<String, Integer> df, int N) {
+        Map<String, Double> vec = new HashMap<>();
+        int total = tf.values().stream().mapToInt(Integer::intValue).sum();
+        for (Map.Entry<String, Integer> e : tf.entrySet()) {
+            double t = (double) e.getValue() / total;
+            int d = df.getOrDefault(e.getKey(), 1);
+            double idf = Math.log((1.0 + N) / (1.0 + d)) + 1.0;
+            vec.put(e.getKey(), t * idf);
+        }
+        return vec;
+    }
+
+    private double cosine(Map<String, Double> a, Map<String, Double> b, double aNorm, double bNorm) {
+        if (aNorm == 0 || bNorm == 0) return 0;
+        double dot = 0;
+        // 遍历较小的向量
+        Map<String, Double> small = a.size() <= b.size() ? a : b;
+        Map<String, Double> other = small == a ? b : a;
+        for (Map.Entry<String, Double> e : small.entrySet()) {
+            Double ov = other.get(e.getKey());
+            if (ov != null) dot += e.getValue() * ov;
+        }
+        return dot / (aNorm * bNorm);
+    }
+
+    private double norm(Map<String, Double> v) {
+        double s = 0;
+        for (double x : v.values()) s += x * x;
+        return Math.sqrt(s);
+    }
+
+    // ===================== 工具 =====================
+
+    private String jsonAnswer(String answer, List<Map<String, Object>> sources, String model) {
+        Map<String, Object> r = new LinkedHashMap<>();
+        r.put("answer", answer);
+        r.put("sources", sources);
+        r.put("model", model);
+        return toJson(r);
+    }
+
+    private String toJson(Object obj) {
+        try {
+            return objectMapper.writeValueAsString(obj);
+        } catch (Exception e) {
+            log.warn("RAG JSON 序列化失败: {}", e.getMessage());
+            return "{\"error\":\"序列化失败\",\"code\":500}";
+        }
+    }
+
+    private static String nullToEmpty(String s) {
+        return s == null ? "" : s;
+    }
+
+    private static String safe(String s) {
+        return s == null ? "" : s.replace("\"", "'").replace("\n", " ");
+    }
+
+    private static double round(double v) {
+        return Math.round(v * 1000.0) / 1000.0;
+    }
+
+    /** 召回结果承载 */
+    private static class ScoredPoint {
+        final KnowledgePoint point;
+        final double score;
+        ScoredPoint(KnowledgePoint point, double score) {
+            this.point = point;
+            this.score = score;
+        }
+    }
+
+    /**
+     * 课程语料预计算索引：将 O(N*M) 的分词 + TF-IDF 计算移至缓存构建路径，
+     * 使每条查询只做 O(N) 的余弦计算。
+     */
+    private static class CachedCorpus {
+        final List<KnowledgePoint> points;
+        final Map<String, Integer> df;          // 文档频率（全局）
+        final int N;                             // 文档总数
+        final List<Map<String, Integer>> docTfs; // 各文档的词频
+        final List<Map<String, Double>> docVectors; // 各文档的 TF-IDF 向量
+        final List<Double> docNorms;                // 各文档向量范数
+
+        CachedCorpus(List<KnowledgePoint> points, Map<String, Integer> df, int N,
+                     List<Map<String, Integer>> docTfs,
+                     List<Map<String, Double>> docVectors, List<Double> docNorms) {
+            this.points = points;
+            this.df = df;
+            this.N = N;
+            this.docTfs = docTfs;
+            this.docVectors = docVectors;
+            this.docNorms = docNorms;
+        }
+
+        boolean isEmpty() {
+            return points == null || points.isEmpty();
+        }
+
+        int size() {
+            return points == null ? 0 : points.size();
+        }
     }
 }

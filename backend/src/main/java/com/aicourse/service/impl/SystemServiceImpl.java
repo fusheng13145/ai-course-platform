@@ -10,8 +10,6 @@ import com.aicourse.mapper.SystemConfigMapper;
 import com.aicourse.mapper.UserMapper;
 import com.aicourse.service.SystemService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.RedisTemplate;
 import org.springframework.stereotype.Service;
@@ -38,12 +36,14 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 系统服务实现类
  * 系统概览、配置管理、健康检查、备份、日志读取等功能
  */
 @Service
+@Slf4j
 public class SystemServiceImpl implements SystemService {
 
     // ===================== 常量定义 =====================
@@ -61,7 +61,6 @@ public class SystemServiceImpl implements SystemService {
     private static final DateTimeFormatter TIMESTAMP_FORMATTER = DateTimeFormatter.ofPattern(TIMESTAMP_PATTERN);
     private static final ZoneId SYSTEM_ZONE = ZoneId.systemDefault();
 
-    private static final Logger log = LoggerFactory.getLogger(SystemServiceImpl.class);
 
     private final SystemConfigMapper systemConfigMapper;
     private final UserMapper userMapper;
@@ -241,39 +240,57 @@ public class SystemServiceImpl implements SystemService {
                 }
             }
 
-            // 执行 mysqldump
-            ProcessBuilder pb = new ProcessBuilder(
-                    "mysqldump",
-                    "-h", host,
-                    "-P", port,
-                    "-u", username,
-                    "-p" + password,
-                    "--single-transaction",
-                    "--routines",
-                    "--triggers",
-                    database
-            );
-            pb.redirectErrorStream(true);
-            pb.directory(dir);
-            Process process = pb.start();
+            // 【安全加固】使用 --defaults-extra-file 临时配置文件传递密码，
+            // 避免 -p密码/MYSQL_PWD 被 ps aux、/proc/PID/environ 等系统接口暴露数据库凭据。
+            // 临时文件设置 0600 权限且在 finally 块中立即删除。
+            // 生产环境建议禁用应用内备份功能，改用外部编排工具（crontab / Task Scheduler）。
+            File tempConfig = null;
+            try {
+                tempConfig = File.createTempFile("mysqldump-backup-", ".cnf");
+                // MySQL 5.6+ 安全要求：凭证文件必须仅 owner 可读写，否则报 "World-writable... ignored"
+                if (!tempConfig.setReadable(false, false)) { log.debug("tmp cnf setReadable"); }
+                if (!tempConfig.setWritable(false, false))   { log.debug("tmp cnf setWritable"); }
+                tempConfig.setReadable(true, true);
+                tempConfig.setWritable(true, true);
 
-            // 读取输出并写入文件
-            StringBuilder output = new StringBuilder();
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    output.append(line).append("\n");
+                Files.writeString(tempConfig.toPath(),
+                        "[client]\nhost=" + host + "\nport=" + port
+                                + "\nuser=" + username + "\npassword=" + password + "\n");
+
+                ProcessBuilder pb = new ProcessBuilder(
+                        "mysqldump",
+                        "--defaults-extra-file=" + tempConfig.getAbsolutePath(),
+                        "--single-transaction",
+                        "--routines",
+                        "--triggers",
+                        database
+                );
+                pb.redirectErrorStream(true);
+                pb.directory(dir);
+                Process process = pb.start();
+
+                // 读取输出并写入文件
+                StringBuilder output = new StringBuilder();
+                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                    String line;
+                    while ((line = reader.readLine()) != null) {
+                        output.append(line).append("\n");
+                    }
                 }
-            }
 
-            int exitCode = process.waitFor();
-            if (exitCode == 0) {
-                Files.writeString(backupFile.toPath(), output.toString(),
-                        StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
-                log.info("数据库备份成功: {}", backupFileName);
-                return backupFileName;
-            } else {
-                log.warn("mysqldump执行失败 (exitCode={}), 回退到仅文件名方式", exitCode);
+                int exitCode = process.waitFor();
+                if (exitCode == 0) {
+                    Files.writeString(backupFile.toPath(), output.toString(),
+                            StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
+                    log.info("数据库备份成功: {}", backupFileName);
+                    return backupFileName;
+                } else {
+                    log.warn("mysqldump执行失败 (exitCode={}), 回退到仅文件名方式", exitCode);
+                }
+            } finally {
+                if (tempConfig != null && tempConfig.exists()) {
+                    tempConfig.delete();
+                }
             }
         } catch (Exception e) {
             log.warn("mysqldump不可用或执行失败, 回退到仅文件名方式: {}", e.getMessage());
@@ -290,12 +307,27 @@ public class SystemServiceImpl implements SystemService {
 
     @Override
     public void restoreBackup(String fileName) {
-        // 路径防穿越校验
-        if (fileName.contains(File.separator) || fileName.contains("..")) {
-            throw new BusinessException("非法文件名");
+        // ---- 路径遍历防护 ----
+        // 1. 禁止目录分隔符（含 Unix / 与 Windows \）
+        if (fileName.contains("/") || fileName.contains("\\")) {
+            throw new BusinessException("非法文件名：禁止路径分隔符");
         }
-        File backupFile = new File(BACKUP_DIR, fileName);
-        if (!backupFile.exists()) {
+        // 2. 禁止父目录引用
+        if (fileName.contains("..")) {
+            throw new BusinessException("非法文件名：禁止父目录引用");
+        }
+        // 3. 禁止绝对路径
+        if (new File(fileName).isAbsolute()) {
+            throw new BusinessException("非法文件名：禁止绝对路径");
+        }
+        // 4. Path.normalize() + startsWith 校验（防止符号链接等方法绕过）
+        Path backupDir = Paths.get(BACKUP_DIR).toAbsolutePath().normalize();
+        Path filePath = backupDir.resolve(fileName).normalize();
+        if (!filePath.startsWith(backupDir)) {
+            throw new BusinessException("非法文件路径：文件不在备份目录内");
+        }
+        // 5. 文件存在性校验
+        if (!Files.exists(filePath)) {
             throw new BusinessException("备份文件不存在");
         }
     }

@@ -20,6 +20,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import com.aicourse.common.ApiCode;
 
 /**
  * 查重检测服务实现类
@@ -31,6 +32,7 @@ public class PlagiarismCheckServiceImpl extends ServiceImpl<PlagiarismCheckMappe
     private final SubmissionService submissionService;
     private final SubmissionMapper submissionMapper;
     private final PlagiarismMatchService plagiarismMatchService;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
 
     /** 高相似度判定阈值（默认0.3即30%） */
     private static final BigDecimal HIGH_SIMILARITY_THRESHOLD = new BigDecimal("0.3");
@@ -38,11 +40,13 @@ public class PlagiarismCheckServiceImpl extends ServiceImpl<PlagiarismCheckMappe
     public PlagiarismCheckServiceImpl(PlagiarismCheckMapper plagiarismCheckMapper,
                                       @Lazy SubmissionService submissionService,
                                       SubmissionMapper submissionMapper,
-                                      PlagiarismMatchService plagiarismMatchService) {
+                                      PlagiarismMatchService plagiarismMatchService,
+                                      com.fasterxml.jackson.databind.ObjectMapper objectMapper) {
         this.baseMapper = plagiarismCheckMapper;
         this.submissionService = submissionService;
         this.submissionMapper = submissionMapper;
         this.plagiarismMatchService = plagiarismMatchService;
+        this.objectMapper = objectMapper;
     }
 
     /**
@@ -167,7 +171,7 @@ public class PlagiarismCheckServiceImpl extends ServiceImpl<PlagiarismCheckMappe
             check.setStatus("FAILED");
             check.setErrorMessage("查重执行异常: " + e.getMessage());
             this.updateById(check);
-            throw new BusinessException(500, "查重执行失败: " + e.getMessage(), e);
+            throw new BusinessException(ApiCode.INTERNAL_SERVER_ERROR, "查重执行失败: " + e.getMessage(), e);
         }
     }
 
@@ -321,33 +325,34 @@ public class PlagiarismCheckServiceImpl extends ServiceImpl<PlagiarismCheckMappe
 
     /**
      * 构建查重详细结果JSON（含算法版本、匹配明细等结构化数据）
+     * 使用 Jackson ObjectMapper 序列化，替代手写字符串拼接以防止转义/格式错误。
      */
     private String buildCheckDetailJson(List<Map<String, Object>> allMatches,
                                          BigDecimal maxSimilarity, int highSimCount, int totalCompared) {
-        StringBuilder json = new StringBuilder();
-        json.append("{");
-        // 算法版本信息
-        json.append("\"algorithmVersion\":\"Jaccard-v1.0\",");
-        json.append("\"algorithm\":\"Jaccard_Similarity\",");
-        json.append("\"checkedAt\":\"").append(LocalDateTime.now().toString()).append("\",");
-        // 统计信息
-        json.append("\"totalCompared\":").append(totalCompared).append(",");
-        json.append("\"maxSimilarity\":").append(maxSimilarity.setScale(4, RoundingMode.HALF_UP)).append(",");
-        json.append("\"highSimilarityCount\":").append(highSimCount).append(",");
-        // 匹配详情列表
-        json.append("\"matches\":[");
-        for (int i = 0; i < allMatches.size(); i++) {
-            if (i > 0) json.append(",");
-            Map<String, Object> match = allMatches.get(i);
-            json.append("{");
-            json.append("\"matchedSubmissionId\":").append(match.get("matchedSubmissionId")).append(",");
-            json.append("\"matchedSource\":\"").append(match.get("matchedSource")).append("\",");
-            json.append("\"similarity\":").append(match.get("similarity")).append(",");
-            json.append("\"matchType\":\"").append(match.get("matchType")).append("\"");
-            json.append("}");
+        try {
+            com.fasterxml.jackson.databind.node.ObjectNode root = objectMapper.createObjectNode();
+            root.put("algorithmVersion", "Jaccard-v1.0");
+            root.put("algorithm", "Jaccard_Similarity");
+            root.put("checkedAt", LocalDateTime.now().toString());
+            root.put("totalCompared", totalCompared);
+            root.put("maxSimilarity", maxSimilarity.setScale(4, RoundingMode.HALF_UP));
+            root.put("highSimilarityCount", highSimCount);
+
+            com.fasterxml.jackson.databind.node.ArrayNode matchesArray = root.putArray("matches");
+            for (Map<String, Object> match : allMatches) {
+                com.fasterxml.jackson.databind.node.ObjectNode matchNode = matchesArray.addObject();
+                matchNode.put("matchedSubmissionId", match.get("matchedSubmissionId") != null
+                        ? ((Number) match.get("matchedSubmissionId")).longValue() : 0);
+                matchNode.put("matchedSource", String.valueOf(match.get("matchedSource")));
+                matchNode.put("similarity", match.get("similarity") != null
+                        ? ((BigDecimal) match.get("similarity")).doubleValue() : 0.0);
+                matchNode.put("matchType", String.valueOf(match.get("matchType")));
+            }
+
+            return objectMapper.writeValueAsString(root);
+        } catch (Exception e) {
+            log.warn("查重结果JSON序列化失败，回退到安全默认值");
+            return "{\"algorithmVersion\":\"Jaccard-v1.0\",\"algorithm\":\"Jaccard_Similarity\",\"error\":\"序列化失败\"}";
         }
-        json.append("]");
-        json.append("}");
-        return json.toString();
     }
 }

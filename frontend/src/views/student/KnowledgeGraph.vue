@@ -21,10 +21,6 @@
         />
       </div>
       <div class="toolbar-right">
-        <el-radio-group v-model="layoutMode" size="small" @change="onLayoutChange">
-          <el-radio-button value="force">力导向</el-radio-button>
-          <el-radio-button value="circular">环形</el-radio-button>
-        </el-radio-group>
         <el-radio-group v-model="difficultyFilter" size="small" @change="filterNodes">
           <el-radio-button value="">全部</el-radio-button>
           <el-radio-button value="EASY">简单</el-radio-button>
@@ -40,39 +36,7 @@
       <div class="graph-panel">
         <div class="panel-header">
           <h3 class="panel-title">知识图谱</h3>
-          <div class="panel-actions">
-            <el-tooltip content="聚焦模式" placement="bottom">
-              <el-button
-                :type="focusMode ? 'warning' : 'default'"
-                size="small"
-                circle
-                @click="toggleFocusMode"
-              >
-                <el-icon><Aim /></el-icon>
-              </el-button>
-            </el-tooltip>
-            <el-tooltip content="缩小" placement="bottom">
-              <el-button size="small" circle @click="zoomOut">
-                <el-icon><ZoomOut /></el-icon>
-              </el-button>
-            </el-tooltip>
-            <el-tooltip content="重置" placement="bottom">
-              <el-button size="small" circle @click="zoomReset">
-                <el-icon><RefreshRight /></el-icon>
-              </el-button>
-            </el-tooltip>
-            <el-tooltip content="放大" placement="bottom">
-              <el-button size="small" circle @click="zoomIn">
-                <el-icon><ZoomIn /></el-icon>
-              </el-button>
-            </el-tooltip>
-            <el-tooltip :content="isFullscreen ? '退出全屏' : '全屏'" placement="bottom">
-              <el-button size="small" circle @click="toggleFullscreen">
-                <el-icon><FullScreen /></el-icon>
-              </el-button>
-            </el-tooltip>
-            <span class="node-count">{{ filteredNodeCount }} 个知识点</span>
-          </div>
+          <span class="node-count">{{ filteredNodeCount }} 个知识点</span>
         </div>
         <div class="graph-container" v-loading="graphLoading">
           <v-chart
@@ -90,13 +54,8 @@
         </div>
         <!-- 图例说明 -->
         <div class="graph-legend">
-          <span class="legend-item"><i class="legend-dot" style="background: #7A8BA5"></i> 前置关系（虚线）</span>
-          <span class="legend-item"><i class="legend-dot solid" style="background: #B89A8A"></i> 关联关系（实线）</span>
-          <span class="legend-item"><i class="legend-dot solid" style="background: #8BA888"></i> 包含关系</span>
-          <span class="legend-item"><i class="legend-dot solid" style="background: #C48080"></i> 等价关系</span>
-          <span class="legend-item" v-if="focusMode" style="color: var(--ac-warning); font-weight: 600">
-            <el-icon style="font-size:12px"><WarningFilled /></el-icon> 聚焦模式已开启
-          </span>
+          <span class="legend-item"><i class="legend-dot" style="background: var(--ac-primary)"></i> 前置关系（虚线）</span>
+          <span class="legend-item"><i class="legend-dot solid" style="background: var(--ac-secondary)"></i> 关联关系（实线）</span>
         </div>
       </div>
 
@@ -165,25 +124,6 @@
             </div>
           </div>
 
-          <!-- 前置依赖链 -->
-          <div class="relation-section" v-if="prerequisiteChain.length > 0">
-            <h5 class="relation-title">
-              <el-icon><Connection /></el-icon> 前置依赖链
-            </h5>
-            <div class="chain-container">
-              <span
-                v-for="(node, idx) in prerequisiteChain"
-                :key="node.id"
-                class="chain-node"
-                :class="{ 'chain-current': idx === prerequisiteChain.length - 1 }"
-                @click="selectNodeById(node.id)"
-              >
-                {{ node.name }}
-                <el-icon v-if="idx < prerequisiteChain.length - 1" class="chain-arrow"><ArrowRight /></el-icon>
-              </span>
-            </div>
-          </div>
-
           <!-- 操作按钮 -->
           <div class="detail-actions">
             <el-button type="primary" size="small" @click="startLearningNode">
@@ -206,7 +146,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { Search, ArrowLeft, ArrowRight, Reading, Share, Aim, ZoomOut, ZoomIn, RefreshRight, FullScreen, Connection, WarningFilled } from '@element-plus/icons-vue'
+import { Search, ArrowLeft, ArrowRight, Reading, Share } from '@element-plus/icons-vue'
 import knowledgeApi from '@/api/knowledge'
 import knowledgeRelationApi from '@/api/knowledgePointRelation'
 import courseApi from '@/api/course'
@@ -225,11 +165,6 @@ const graphLoading = ref(false)
 const rawNodes = ref([])       // 原始节点数据
 const rawLinks = ref([])       // 原始连线数据
 const selectedNode = ref(null) // 当前选中的节点
-const layoutMode = ref('force')       // 布局模式：force / circular
-const focusMode = ref(false)          // 聚焦模式
-const isFullscreen = ref(false)       // 全屏状态
-const zoomLevel = ref(1)              // 当前缩放级别
-const prerequisiteChain = ref([])     // 前置依赖链
 
 /* ---- 莫兰迪色系 ---- */
 const morandiColors = {
@@ -292,13 +227,7 @@ const graphOption = ref({
     },
     emphasis: {
       focus: 'adjacency',
-      lineStyle: { width: 3 },
-      label: { fontWeight: 'bold', fontSize: 14 }
-    },
-    blur: {
-      itemStyle: { opacity: 0.15 },
-      lineStyle: { opacity: 0.1 },
-      label: { opacity: 0.2 }
+      lineStyle: { width: 3 }
     },
     label: {
       show: true,
@@ -307,14 +236,6 @@ const graphOption = ref({
       fontWeight: 500,
       color: '#3D3835',
       formatter: '{b}'
-    },
-    edgeLabel: {
-      show: true,
-      fontSize: 10,
-      color: '#999',
-      formatter: (params) => {
-        return params.data?.relationType === 'PREREQUISITE' ? '前置' : '关联'
-      }
     },
     symbolSize: (val) => {
       const importance = val?.importance || val?.[2] || 3
@@ -433,74 +354,12 @@ function updateChartOption() {
     l => nodeIdSet.has(l.source) && nodeIdSet.has(l.target)
   )
 
-  // 计算度中心性（连接数）
-  const degreeMap = new Map()
-  filteredLinks.forEach(l => {
-    degreeMap.set(l.source, (degreeMap.get(l.source) || 0) + 1)
-    degreeMap.set(l.target, (degreeMap.get(l.target) || 0) + 1)
-  })
-
-  graphOption.value.series[0].layout = layoutMode.value
-  if (layoutMode.value === 'circular') {
-    graphOption.value.series[0].force = null
-    graphOption.value.series[0].roam = true
-  } else {
-    graphOption.value.series[0].force = {
-      repulsion: 300,
-      edgeLength: [120, 200],
-      gravity: 0.1
-    }
-  }
-
-  graphOption.value.series[0].data = filtered.map(n => {
-    const degree = degreeMap.get(n.id) || 0
-    const baseSize = Math.max(24, Math.min(56, (n.importance || 3) * 14))
-    const degreeSize = Math.min(baseSize + degree * 6, 64)
-    return {
-      ...n,
-      symbolSize: degreeSize,
-      itemStyle: {
-        color: getDifficultyColor(n.difficultyLevel),
-        borderColor: '#fff',
-        borderWidth: 2,
-        shadowBlur: 6,
-        shadowColor: 'rgba(61,56,53,0.12)'
-      },
-      category: getCategoryIndex(n.difficultyLevel)
-    }
-  })
-  graphOption.value.series[0].links = filteredLinks.map(l => {
-    const lineStyle = getLineStyle(l.relationType)
-    return {
-      ...l,
-      lineStyle
-    }
-  })
-
-  // 聚焦模式：如果选中了节点，高亮其邻接节点
-  if (focusMode.value && selectedNode.value) {
-    const focusId = selectedNode.value.id
-    const adjacentIds = new Set()
-    filteredLinks.forEach(l => {
-      if (l.source === focusId) adjacentIds.add(l.target)
-      if (l.target === focusId) adjacentIds.add(l.source)
-    })
-    graphOption.value.series[0].data = graphOption.value.series[0].data.map(n => {
-      if (n.id === focusId) {
-        return { ...n, itemStyle: { ...n.itemStyle, shadowBlur: 20, shadowColor: 'rgba(122,139,165,0.5)', borderWidth: 3 } }
-      }
-      if (adjacentIds.has(n.id)) {
-        return { ...n, itemStyle: { ...n.itemStyle, opacity: 0.9 } }
-      }
-      return { ...n, itemStyle: { ...n.itemStyle, opacity: 0.2 } }
-    })
-    graphOption.value.series[0].links = graphOption.value.series[0].links.map(l => {
-      if (l.source === focusId || l.target === focusId) {
-        return { ...l, lineStyle: { ...l.lineStyle, opacity: 0.9, width: 2.5 } }
-      }
-      return { ...l, lineStyle: { ...l.lineStyle, opacity: 0.08 } }
-    })
-  }
+  graphOption.value.series[0].data = filtered.map(n => ({
+    ...n,
+    itemStyle: { color: getDifficultyColor(n.difficultyLevel) },
+    category: getCategoryIndex(n.difficultyLevel)
+  }))
+  graphOption.value.series[0].links = filteredLinks
 }
 
 /* ---- 方法：过滤逻辑 ---- */
@@ -573,14 +432,12 @@ function loadDemoData() {
   updateChartOption()
 }
 
-/* ---- 节点点击事件（增强：加载真实掌握度，计算前置依赖链） ---- */
+/* ---- 节点点击事件（增强：加载真实掌握度） ---- */
 async function handleNodeClick(params) {
   if (params.dataType !== 'node') return
   const clickedNode = rawNodes.value.find(n => n.id === params.data.id)
   if (clickedNode) {
     selectedNode.value = { ...clickedNode }
-    // 计算前置依赖链（从根节点到当前节点的路径）
-    computePrerequisiteChain(clickedNode.id)
     // 尝试从 API 获取该知识点的掌握度
     try {
       const res = await knowledgeApi.getMastery(clickedNode.id, undefined)
@@ -598,130 +455,7 @@ async function handleNodeClick(params) {
     } catch (e) {
       // 掌握度 API 不可用时使用图谱中已有的值
     }
-    // 聚焦模式下重新渲染
-    if (focusMode.value) {
-      updateChartOption()
-    }
   }
-}
-
-/* ---- 计算前置依赖链（BFS回溯） ---- */
-function computePrerequisiteChain(nodeId) {
-  const chain = []
-  const visited = new Set()
-
-  // 构建反向邻接表（target -> sources）
-  const reverseAdj = new Map()
-  rawLinks.value.forEach(l => {
-    if (!reverseAdj.has(l.target)) reverseAdj.set(l.target, [])
-    reverseAdj.get(l.target).push(l.source)
-  })
-
-  // BFS向上追溯
-  const queue = [nodeId]
-  visited.add(nodeId)
-  while (queue.length > 0) {
-    const current = queue.shift()
-    const sources = reverseAdj.get(current) || []
-    for (const src of sources) {
-      if (!visited.has(src)) {
-        visited.add(src)
-        queue.push(src)
-      }
-    }
-  }
-
-  // 从根节点开始排序
-  const allVisited = [...visited]
-  const ordered = []
-  const inDegree = new Map()
-  allVisited.forEach(id => {
-    inDegree.set(id, 0)
-  })
-  allVisited.forEach(id => {
-    const sources = reverseAdj.get(id) || []
-    sources.forEach(src => {
-      if (inDegree.has(src)) {
-        inDegree.set(id, (inDegree.get(id) || 0) + 1)
-      }
-    })
-  })
-  // 拓扑排序
-  const topoQueue = []
-  allVisited.forEach(id => {
-    if ((inDegree.get(id) || 0) === 0) topoQueue.push(id)
-  })
-  while (topoQueue.length > 0) {
-    const current = topoQueue.shift()
-    ordered.push(current)
-    const sources = reverseAdj.get(current) || []
-    sources.forEach(src => {
-      if (inDegree.has(src)) {
-        inDegree.set(src, (inDegree.get(src) || 0) - 1)
-        if (inDegree.get(src) === 0) topoQueue.push(src)
-      }
-    })
-  }
-
-  // 映射为节点对象
-  prerequisiteChain.value = ordered
-    .filter(id => id !== nodeId)
-    .map(id => rawNodes.value.find(n => n.id === id))
-    .filter(Boolean)
-    .concat([rawNodes.value.find(n => n.id === nodeId)].filter(Boolean))
-}
-
-/* ---- 布局切换 ---- */
-function onLayoutChange() {
-  updateChartOption()
-}
-
-/* ---- 聚焦模式切换 ---- */
-function toggleFocusMode() {
-  focusMode.value = !focusMode.value
-  if (!focusMode.value) {
-    // 退出聚焦模式，恢复所有节点
-    updateChartOption()
-  } else if (selectedNode.value) {
-    updateChartOption()
-  }
-}
-
-/* ---- 缩放控制 ---- */
-function zoomIn() {
-  zoomLevel.value = Math.min(zoomLevel.value + 0.2, 3)
-  graphOption.value.series[0].zoom = zoomLevel.value
-}
-
-function zoomOut() {
-  zoomLevel.value = Math.max(zoomLevel.value - 0.2, 0.3)
-  graphOption.value.series[0].zoom = zoomLevel.value
-}
-
-function zoomReset() {
-  zoomLevel.value = 1
-  graphOption.value.series[0].zoom = 1
-}
-
-/* ---- 全屏切换 ---- */
-function toggleFullscreen() {
-  const graphPanel = document.querySelector('.graph-panel')
-  if (!graphPanel) return
-  if (!isFullscreen.value) {
-    if (graphPanel.requestFullscreen) {
-      graphPanel.requestFullscreen()
-    }
-    isFullscreen.value = true
-  } else {
-    if (document.exitFullscreen) {
-      document.exitFullscreen()
-    }
-    isFullscreen.value = false
-  }
-  // 监听全屏变化
-  document.addEventListener('fullscreenchange', () => {
-    isFullscreen.value = !!document.fullscreenElement
-  }, { once: true })
 }
 
 /* ---- 初始化 ---- */
@@ -748,7 +482,7 @@ onMounted(() => {
 
 .kg-main {
   display: grid;
-  grid-template-columns: 1fr minmax(300px, 360px);
+  grid-template-columns: 1fr 360px;
   gap: var(--ac-spacing-md);
   min-height: 600px;
 }
@@ -766,12 +500,6 @@ onMounted(() => {
   align-items: center;
   padding: var(--ac-spacing-md) var(--ac-spacing-lg);
   border-bottom: 1px solid var(--ac-border);
-}
-
-.panel-actions {
-  display: flex;
-  align-items: center;
-  gap: 4px;
 }
 
 .panel-title {
@@ -919,44 +647,6 @@ onMounted(() => {
 .relation-tag.subsequent:hover {
   background: var(--ac-secondary);
   color: #fff;
-}
-
-.chain-container {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 4px;
-}
-
-.chain-node {
-  display: inline-flex;
-  align-items: center;
-  gap: 2px;
-  padding: 3px 10px;
-  border-radius: 999px;
-  font-size: 11px;
-  background: rgba(122,139,165,0.08);
-  color: var(--ac-text-secondary);
-  cursor: pointer;
-  transition: all var(--ac-transition-fast);
-  white-space: nowrap;
-}
-
-.chain-node:hover {
-  background: var(--ac-primary-light);
-  color: #fff;
-}
-
-.chain-node.chain-current {
-  background: var(--ac-primary-bg);
-  color: var(--ac-primary-dark);
-  font-weight: 600;
-}
-
-.chain-arrow {
-  font-size: 10px;
-  color: var(--ac-text-muted);
-  margin: 0 2px;
 }
 
 .detail-actions {

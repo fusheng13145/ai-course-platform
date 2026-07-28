@@ -10,7 +10,9 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
@@ -27,7 +29,10 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     private final AIService aiService;
     private final ObjectMapper objectMapper;
 
-    public QuestionServiceImpl(AIService aiService) {
+    // @Lazy 打破与 AIServiceImpl 的构造期循环依赖：
+    // AIServiceImpl -> RAGServiceImpl -> KnowledgePointServiceImpl -> QuestionServiceImpl -> AIServiceImpl
+    // 本类仅在运行时方法（generateQuestion）中使用 AIService，构造期无需立即就绪。
+    public QuestionServiceImpl(@Lazy AIService aiService) {
         this.aiService = aiService;
         this.objectMapper = new ObjectMapper();
     }
@@ -91,6 +96,110 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     }
 
     /**
+     * AI 批量生成题目（进阶：解析 JSON 数组，一次生成多题）
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public List<Question> generateBatchByAI(Long courseId, String type, String difficulty,
+                                            String knowledgePointNames, int count, Long createdBy) {
+        String generated = aiService.generateQuestion(courseId, type, difficulty, count);
+        List<Map<String, Object>> list;
+        try {
+            list = parseQuestionList(generated);
+        } catch (Exception e) {
+            throw new BusinessException("AI批量生成题目解析失败: " + e.getMessage());
+        }
+        List<Question> saved = new ArrayList<>();
+        for (Map<String, Object> qd : list) {
+            Question q = new Question();
+            q.setCourseId(courseId);
+            q.setType(type);
+            q.setDifficulty(difficulty);
+            q.setContent(qd.get("content") != null ? qd.get("content").toString() : "");
+            q.setOptions(toJsonOrString(qd.get("options")));
+            q.setCorrectAnswers(toJsonOrString(qd.get("correctAnswers")));
+            q.setExplanation(qd.get("explanation") != null ? qd.get("explanation").toString() : "");
+            q.setScore(qd.get("score") != null ? new BigDecimal(qd.get("score").toString()) : new BigDecimal("5"));
+            q.setKnowledgePoints(knowledgePointNames);
+            q.setUsageCount(0);
+            q.setCorrectRate(BigDecimal.ZERO);
+            q.setIsActive(true);
+            q.setCreatedBy(createdBy);
+            this.save(q);
+            saved.add(q);
+        }
+        return saved;
+    }
+
+    /**
+     * 批量导入题目（跳过无效项，落库并设置默认值）
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int batchImport(List<Question> questions, Long createdBy) {
+        int imported = 0;
+        for (Question q : questions) {
+            if (q.getContent() == null || q.getContent().isBlank()) {
+                continue;
+            }
+            if (q.getType() == null || q.getType().isBlank()) {
+                q.setType("single");
+            }
+            if (q.getDifficulty() == null || q.getDifficulty().isBlank()) {
+                q.setDifficulty("medium");
+            }
+            if (q.getScore() == null) {
+                q.setScore(new BigDecimal("5"));
+            }
+            if (q.getUsageCount() == null) {
+                q.setUsageCount(0);
+            }
+            if (q.getCorrectRate() == null) {
+                q.setCorrectRate(BigDecimal.ZERO);
+            }
+            if (q.getIsActive() == null) {
+                q.setIsActive(true);
+            }
+            q.setCreatedBy(createdBy);
+            this.save(q);
+            imported++;
+        }
+        return imported;
+    }
+
+    /** 将 AI 返回的 options/correctAnswers 规范化为 JSON 字符串或 null */
+    private String toJsonOrString(Object o) {
+        if (o == null) {
+            return null;
+        }
+        if (o instanceof String) {
+            return (String) o;
+        }
+        try {
+            return objectMapper.writeValueAsString(o);
+        } catch (Exception e) {
+            return o.toString();
+        }
+    }
+
+    /** 健壮解析 AI 返回的题目列表（支持直接数组 / {questions:[...]} / 单个对象） */
+    private List<Map<String, Object>> parseQuestionList(String json) throws Exception {
+        try {
+            return objectMapper.readValue(json, new TypeReference<List<Map<String, Object>>>() {});
+        } catch (Exception e) {
+            Map<String, Object> m = objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+            if (m.get("questions") instanceof List) {
+                @SuppressWarnings("unchecked")
+                List<Map<String, Object>> nested = (List<Map<String, Object>>) m.get("questions");
+                return nested;
+            }
+            List<Map<String, Object>> one = new ArrayList<>();
+            one.add(m);
+            return one;
+        }
+    }
+
+    /**
      * 题目审核
      * 通过或拒绝题目，更新启用状态
      */
@@ -141,6 +250,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      * 支持按课程、类型、难度、关键词多条件动态查询
      */
     @Override
+    @Cacheable(value = "questions", key = "'search_' + #courseId + '_' + #type + '_' + #difficulty + '_' + #keyword + '_' + #page + '_' + #size")
     public Page<Question> searchQuestions(Long courseId, String type, String difficulty, String keyword, int page, int size) {
         LambdaQueryWrapper<Question> queryWrapper = new LambdaQueryWrapper<Question>()
                 .eq(courseId != null, Question::getCourseId, courseId)
@@ -157,6 +267,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      * 返回题目基本信息及解析后的选项列表
      */
     @Override
+    @Cacheable(value = "questions", key = "'detail_' + #questionId")
     public Map<String, Object> getQuestionDetail(Long questionId) {
         Question question = this.getById(questionId);
         if (question == null) {
@@ -192,18 +303,34 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
 
     /**
      * 随机抽取题目（用于组卷）
-     * 使用ORDER BY RAND()实现随机抽取
+     * 修复大表 ORDER BY RAND() 性能陷阱：先仅查 id（索引覆盖扫描），在内存中随机洗牌后按 id 回查，
+     * 时间复杂度由 O(N log N) 降至 O(N) 且避免全记录排序。
      */
     @Override
     public List<Question> randomSelect(Long courseId, String type, String difficulty, int count) {
-        LambdaQueryWrapper<Question> queryWrapper = new LambdaQueryWrapper<Question>()
+        if (count <= 0) {
+            return Collections.emptyList();
+        }
+        LambdaQueryWrapper<Question> idWrapper = new LambdaQueryWrapper<Question>()
+                .select(Question::getId)
                 .eq(Question::getCourseId, courseId)
                 .eq(type != null && !type.isEmpty(), Question::getType, type)
                 .eq(difficulty != null && !difficulty.isEmpty(), Question::getDifficulty, difficulty)
-                .eq(Question::getIsActive, true)
-                .last("ORDER BY RAND() LIMIT " + count);
-
-        return this.list(queryWrapper);
+                .eq(Question::getIsActive, true);
+        List<Long> candidateIds = this.listObjs(idWrapper, id -> (Long) id);
+        if (candidateIds == null || candidateIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Collections.shuffle(candidateIds);
+        int limit = Math.min(count, candidateIds.size());
+        List<Long> selectedIds = new ArrayList<>(candidateIds.subList(0, limit));
+        if (selectedIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        List<Question> selected = this.listByIds(selectedIds);
+        // listByIds 不保证顺序，业务要求随机顺序则再次打乱
+        Collections.shuffle(selected);
+        return selected;
     }
 
     /**

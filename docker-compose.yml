@@ -1,0 +1,121 @@
+# ============================================================
+# AI 课程平台 - Docker Compose 编排
+# ------------------------------------------------------------
+# 服务：mysql / redis / backend / frontend
+# 说明：
+#   1) 通过同级 .env 注入密钥与密码（参考 .env.example），
+#      切勿使用默认值上线。用法：cp .env.example .env 后修改。
+#   2) 后端监听 8080，统一接口前缀 /api（见 application.yaml）。
+#      application.yaml 已通过 ${SPRING_DATA_REDIS_HOST/PORT} 读取
+#      下方注入的 redis 地址，故容器内可正确连到 redis 服务。
+#   3) 前端由 nginx 监听 80，/api 反向代理至 backend:8080
+#      （context-path /api 由 Spring 侧处理，proxy_pass 不再重复加 /api）。
+#   4) 统一时区 Asia/Shanghai，避免日志/时间错乱。
+# ============================================================
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: aicourse-mysql
+    environment:
+      # 生产环境务必在 .env 中设置 MYSQL_ROOT_PASSWORD（参考 .env.example）
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-1234}
+      MYSQL_DATABASE: ai_course_platform
+      TZ: Asia/Shanghai
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      # 初始化 SQL（只读挂载，避免被容器写回修改）
+      - ./backend/src/main/resources/index.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    networks:
+      - aicourse-net
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    container_name: aicourse-redis
+    environment:
+      TZ: Asia/Shanghai
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    networks:
+      - aicourse-net
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  backend:
+    build: ./backend
+    container_name: aicourse-backend
+    ports:
+      - "8080:8080"
+    environment:
+      TZ: Asia/Shanghai
+      # 数据源（与 mysql 服务名、库名保持一致）
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ai_course_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true
+      SPRING_DATASOURCE_USERNAME: root
+      # 与上方 MYSQL_ROOT_PASSWORD 保持一致，统一由 .env 注入
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-1234}
+      # Redis（application.yaml 通过 ${SPRING_DATA_REDIS_HOST/PORT} 读取）
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      # ↓↓↓ 以下密钥/密码严禁留空，生产部署前必须在 .env 中配置 ↓↓↓
+      JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-sk-your-deepseek-api-key}
+      MAIL_USERNAME: ${MAIL_USERNAME:-your-email@qq.com}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-your-smtp-auth-code}
+    # 健康探针：结合 server.servlet.context-path=/api，实际健康端点为 /api/actuator/health
+    # 该端点已配置为公开（permitAll），无需鉴权即可探活。
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/api/actuator/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 5
+      start_period: 60s
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    volumes:
+      # 用户上传文件持久化，避免容器重建后丢失
+      - backend_uploads:/app/uploads
+    networks:
+      - aicourse-net
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    container_name: aicourse-frontend
+    ports:
+      - "80:80"
+    environment:
+      TZ: Asia/Shanghai
+    depends_on:
+      backend:
+        condition: service_healthy
+    networks:
+      - aicourse-net
+    restart: unless-stopped
+
+volumes:
+  mysql_data:
+  redis_data:
+  backend_uploads:
+
+networks:
+  aicourse-net:
+    driver: bridge

@@ -12,6 +12,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -71,7 +72,7 @@ public class CourseController {
     @Operation(summary = "创建新课程", description = "教师或管理员创建新课程，自动关联当前登录用户为授课教师")
     public ApiResponse<Course> create(@io.swagger.v3.oas.annotations.parameters.RequestBody(
             description = "课程信息"
-    ) @RequestBody Course course, Authentication auth) {
+    ) @Valid @RequestBody Course course, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         course.setTeacherId(userId);
         courseService.save(course);
@@ -87,7 +88,7 @@ public class CourseController {
     public ApiResponse<Course> update(@Parameter(description = "课程ID") @PathVariable Long id,
                                       @io.swagger.v3.oas.annotations.parameters.RequestBody(
                                               description = "待更新的课程数据"
-                                      ) @RequestBody Course course,
+                                      ) @Valid @RequestBody Course course,
                                       Authentication auth) {
         Course existCourse = courseService.getById(id);
         if (existCourse == null) {

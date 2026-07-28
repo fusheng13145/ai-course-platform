@@ -1,9 +1,11 @@
 package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
+import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.LearningPath;
 import com.aicourse.entity.LearningPathNode;
 import com.aicourse.service.CourseEnrollmentService;
+import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.LearningPathNodeService;
 import com.aicourse.service.LearningPathService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -14,24 +16,30 @@ import org.springframework.web.bind.annotation.*;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import com.aicourse.common.ApiCode;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * 学习路线接口控制器
  */
 @RestController
 @RequestMapping("/learning-paths")
+@Tag(name = "学习路径")
 public class LearningPathController {
 
     private final LearningPathService learningPathService;
     private final LearningPathNodeService learningPathNodeService;
     private final CourseEnrollmentService enrollmentService;
+    private final KnowledgePointService knowledgePointService;
 
     public LearningPathController(LearningPathService learningPathService,
                                   LearningPathNodeService learningPathNodeService,
-                                  CourseEnrollmentService enrollmentService) {
+                                  CourseEnrollmentService enrollmentService,
+                                  KnowledgePointService knowledgePointService) {
         this.learningPathService = learningPathService;
         this.learningPathNodeService = learningPathNodeService;
         this.enrollmentService = enrollmentService;
+        this.knowledgePointService = knowledgePointService;
     }
 
     /**
@@ -138,21 +146,32 @@ public class LearningPathController {
     public ApiResponse<List<LearningPathNode>> generate(@RequestParam Long courseId, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         if (userId == null) {
-            return ApiResponse.error(400, "用户ID不能为空");
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "用户ID不能为空");
         }
+
+        // 数据驱动：以课程知识库（按重要度排序）生成学习节点。
+        // 无知识点时返回空列表并提示用户先完善课程知识库。
+        List<KnowledgePoint> points = knowledgePointService.list(
+                new LambdaQueryWrapper<KnowledgePoint>()
+                        .eq(KnowledgePoint::getCourseId, courseId)
+                        .orderByDesc(KnowledgePoint::getImportance)
+                        .last("LIMIT 8"));
 
         List<LearningPathNode> nodes = new ArrayList<>();
-        String[] topics = {"基础知识学习", "核心概念掌握", "实践应用练习", "综合测试评估"};
-
-        for (int i = 0; i < topics.length; i++) {
-            LearningPathNode node = new LearningPathNode();
-            node.setTitle(topics[i]);
-            node.setNodeType("study");
-            node.setStatus("PENDING");
-            node.setOrderIndex(i);
-            node.setEstimatedTime(60);
-            nodes.add(node);
+        if (!points.isEmpty()) {
+            for (int i = 0; i < points.size(); i++) {
+                KnowledgePoint p = points.get(i);
+                LearningPathNode node = new LearningPathNode();
+                node.setTitle(p.getName());
+                node.setNodeType("study");
+                node.setStatus("PENDING");
+                node.setOrderIndex(i);
+                node.setEstimatedTime(p.getEstimatedTime() != null ? p.getEstimatedTime() : 60);
+                node.setDescription(p.getDescription());
+                nodes.add(node);
+            }
         }
+        // 无知识点时不再返回硬编码主题，以空列表 + 提示信息替代
         return ApiResponse.success(nodes);
     }
 

@@ -23,7 +23,8 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     private final CourseService courseService;
     private final CourseEnrollmentService enrollmentService;
     private final TaskService taskService;
-    private final SubmissionService submissionService;
+    @SuppressWarnings("unused")
+private final SubmissionService submissionService;
     private final LearningRecordService learningRecordService;
     private final ExamSessionService examSessionService;
     private final ExamPaperService examPaperService;
@@ -48,37 +49,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         this.examPaperService = examPaperService;
     }
 
-    private long countActiveUsers() {
-        return userService.count(new LambdaQueryWrapper<User>().eq(User::getIsActive, Boolean.TRUE));
-    }
 
-    private long countActiveCourses() {
-        return courseService.count(new LambdaQueryWrapper<Course>().eq(Course::getIsActive, Boolean.TRUE));
-    }
-
-    private double calculateRate(long numerator, long denominator) {
-        return denominator > 0 ? Math.round(numerator * 100.0 / denominator * 100.0) / 100.0 : 0;
-    }
-
-    private long countRecentActiveUsers(int days) {
-        LocalDateTime cutoff = LocalDateTime.now().minusDays(days);
-        return learningRecordService.count(new LambdaQueryWrapper<LearningRecord>().ge(LearningRecord::getCreatedAt, cutoff));
-    }
-
-    private long countNewUsers(int days) {
-        LocalDateTime cutoff = LocalDateTime.now().minusDays(days);
-        return userService.count(new LambdaQueryWrapper<User>().ge(User::getCreatedAt, cutoff));
-    }
-
-    private Map<String, Long> getGradeDistribution(List<CourseEnrollment> enrollments) {
-        Map<String, Long> distribution = new LinkedHashMap<>();
-        distribution.put("excellent", enrollments.stream().filter(e -> e.getFinalScore() != null && e.getFinalScore().doubleValue() >= 90).count());
-        distribution.put("good", enrollments.stream().filter(e -> e.getFinalScore() != null && e.getFinalScore().doubleValue() >= 80 && e.getFinalScore().doubleValue() < 90).count());
-        distribution.put("medium", enrollments.stream().filter(e -> e.getFinalScore() != null && e.getFinalScore().doubleValue() >= 70 && e.getFinalScore().doubleValue() < 80).count());
-        distribution.put("pass", enrollments.stream().filter(e -> e.getFinalScore() != null && e.getFinalScore().doubleValue() >= 60 && e.getFinalScore().doubleValue() < 70).count());
-        distribution.put("fail", enrollments.stream().filter(e -> e.getFinalScore() != null && e.getFinalScore().doubleValue() < 60).count());
-        return distribution;
-    }
 
     @Override
     public Map<String, Object> getDashboard() {
@@ -905,84 +876,5 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             teacherData.putIfAbsent("trendData", new ArrayList<>());
         }
         return teacherData;
-    }
-
-    /**
-     * 导出学情分析报告（增强版，包含多维度分析）
-     */
-    @Override
-    public Map<String, Object> exportReport(Long courseId) {
-        Map<String, Object> report = getCourseAnalysis(courseId);
-        Course course = courseService.getById(courseId);
-        if (course == null) return report;
-
-        // 1. 成绩分布统计
-        List<CourseEnrollment> enrollments = enrollmentService.list(
-                new LambdaQueryWrapper<CourseEnrollment>().eq(CourseEnrollment::getCourseId, courseId)
-        );
-        Map<String, Long> scoreDistribution = new HashMap<>();
-        scoreDistribution.put("excellent", 0L);  // 90-100
-        scoreDistribution.put("good", 0L);       // 80-89
-        scoreDistribution.put("average", 0L);    // 60-79
-        scoreDistribution.put("fail", 0L);       // <60
-        for (CourseEnrollment e : enrollments) {
-            if (e.getFinalScore() == null) continue;
-            double s = e.getFinalScore().doubleValue();
-            if (s >= 90) scoreDistribution.merge("excellent", 1L, Long::sum);
-            else if (s >= 80) scoreDistribution.merge("good", 1L, Long::sum);
-            else if (s >= 60) scoreDistribution.merge("average", 1L, Long::sum);
-            else scoreDistribution.merge("fail", 1L, Long::sum);
-        }
-        report.put("scoreDistribution", scoreDistribution);
-
-        // 2. 作业提交率
-        List<Task> tasks = taskService.list(
-                new LambdaQueryWrapper<Task>().eq(Task::getCourseId, courseId)
-        );
-        long totalSubmissions = 0, expectedSubmissions = 0;
-        for (Task task : tasks) {
-            long count = submissionService.count(
-                    new LambdaQueryWrapper<Submission>().eq(Submission::getTaskId, task.getId())
-            );
-            totalSubmissions += count;
-            expectedSubmissions += enrollments.size();
-        }
-        double submissionRate = expectedSubmissions > 0
-                ? Math.round(totalSubmissions * 10000.0 / expectedSubmissions) / 100.0 : 0;
-        report.put("submissionRate", submissionRate);
-        report.put("totalTasks", tasks.size());
-        report.put("totalSubmissions", totalSubmissions);
-
-        // 3. 学习进度统计
-        double avgProgress = enrollments.stream()
-                .mapToDouble(e -> e.getProgress() != null ? e.getProgress().doubleValue() : 0D)
-                .average().orElse(0D);
-        long completedStudents = enrollments.stream()
-                .filter(e -> e.getProgress() != null && e.getProgress().doubleValue() >= 100D)
-                .count();
-        report.put("averageProgress", Math.round(avgProgress * 100.0) / 100.0);
-        report.put("completedStudents", completedStudents);
-        report.put("completionRate", enrollments.size() > 0
-                ? Math.round(completedStudents * 10000.0 / enrollments.size()) / 100.0 : 0);
-
-        // 4. 学生排名 Top10
-        List<Map<String, Object>> studentRanking = enrollments.stream()
-                .filter(e -> e.getFinalScore() != null)
-                .sorted((a, b) -> b.getFinalScore().compareTo(a.getFinalScore()))
-                .limit(10)
-                .map(e -> {
-                    Map<String, Object> item = new HashMap<>();
-                    item.put("studentId", e.getStudentId());
-                    item.put("score", e.getFinalScore());
-                    item.put("progress", e.getProgress());
-                    return item;
-                })
-                .collect(Collectors.toList());
-        report.put("studentRanking", studentRanking);
-
-        report.put("exportTime", LocalDateTime.now().toString());
-        report.put("reportType", "学情分析报告");
-        report.put("generatedBy", "AnalyticsService");
-        return report;
     }
 }

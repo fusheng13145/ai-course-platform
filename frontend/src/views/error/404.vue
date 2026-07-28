@@ -8,8 +8,25 @@
   </div>
 </template>
 <style scoped>
-.error-page { height:100vh; display:flex; align-items:center; justify-content:center; background:#f0f2f5; }
-.error-card { text-align:center; }
-.error-card h1 { font-size:120px; color:#409eff; margin:0; line-height:1; }
-.error-card p { font-size:16px; color:#909399; margin:16px 0 24px; }
+.error-page {
+  height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--ac-bg);
+}
+.error-card {
+  text-align: center;
+}
+.error-card h1 {
+  font-size: 120px;
+  color: var(--ac-primary);
+  margin: 0;
+  line-height: 1;
+}
+.error-card p {
+  font-size: 16px;
+  color: var(--ac-text-muted);
+  margin: 16px 0 24px;
+}
 </style>

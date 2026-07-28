@@ -1,8 +1,6 @@
 package com.aicourse.service.impl;
 
 import com.aicourse.service.LLMFineTuneService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
@@ -11,6 +9,7 @@ import org.springframework.web.client.RestClient;
 import java.net.SocketTimeoutException;
 import java.time.Duration;
 import java.util.Map;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * 大模型微调（LoRA/PEFT）服务实现类
@@ -19,9 +18,9 @@ import java.util.Map;
  * Python端需实现的API契约见 docs/Python接口契约-微调服务.md
  */
 @Service
+@Slf4j
 public class LLMFineTuneServiceImpl implements LLMFineTuneService {
 
-    private static final Logger log = LoggerFactory.getLogger(LLMFineTuneServiceImpl.class);
     private static final String SERVICE_UNAVAILABLE = "{\"error\":\"微调服务暂不可用\",\"code\":503}";
 
     private final RestClient restClient;
@@ -142,7 +141,10 @@ public class LLMFineTuneServiceImpl implements LLMFineTuneService {
                 lastException = e;
                 if (i < maxRetries && !(e instanceof SocketTimeoutException)) {
                     log.warn("{}失败，第{}次重试: {}", operation, i + 1, e.getMessage());
-                    try { Thread.sleep(1000L * (i + 1)); } catch (InterruptedException ignored) {}
+                    try { Thread.sleep(1000L * (i + 1)); } catch (InterruptedException ie) {
+                        log.warn("重试等待被中断", ie);
+                        Thread.currentThread().interrupt();
+                    }
                 }
             }
         }

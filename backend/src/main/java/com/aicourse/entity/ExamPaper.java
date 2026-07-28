@@ -1,5 +1,7 @@
 package com.aicourse.entity;
 
+import lombok.Data;
+
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -14,6 +16,7 @@ import java.time.LocalDateTime;
  * 对应数据表：exam_papers
  */
 @TableName("exam_papers")
+@Data
 public class ExamPaper {
 
     /**
@@ -135,187 +138,8 @@ public class ExamPaper {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public Long getCourseId() {
-        return courseId;
-    }
-
-    public void setCourseId(Long courseId) {
-        this.courseId = courseId;
-    }
-
-    public Long getCreatorId() {
-        return creatorId;
-    }
-
-    public void setCreatorId(Long creatorId) {
-        this.creatorId = creatorId;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public String getInstructions() {
-        return instructions;
-    }
-
-    public void setInstructions(String instructions) {
-        this.instructions = instructions;
-    }
-
-    public LocalDateTime getStartTime() {
-        return startTime;
-    }
-
-    public void setStartTime(LocalDateTime startTime) {
-        this.startTime = startTime;
-    }
-
-    public LocalDateTime getEndTime() {
-        return endTime;
-    }
-
-    public void setEndTime(LocalDateTime endTime) {
-        this.endTime = endTime;
-    }
-
-    public BigDecimal getTotalScore() {
-        return totalScore;
-    }
-
-    public void setTotalScore(BigDecimal totalScore) {
-        this.totalScore = totalScore;
-    }
-
-    public Integer getDuration() {
-        return duration;
-    }
-
-    public void setDuration(Integer duration) {
-        this.duration = duration;
-    }
-
-    public Integer getQuestionCount() {
-        return questionCount;
-    }
-
-    public void setQuestionCount(Integer questionCount) {
-        this.questionCount = questionCount;
-    }
-
-    public Boolean getShuffleQuestions() {
-        return shuffleQuestions;
-    }
-
-    public void setShuffleQuestions(Boolean shuffleQuestions) {
-        this.shuffleQuestions = shuffleQuestions;
-    }
-
-    public Boolean getShuffleOptions() {
-        return shuffleOptions;
-    }
-
-    public void setShuffleOptions(Boolean shuffleOptions) {
-        this.shuffleOptions = shuffleOptions;
-    }
-
-    public Boolean getShowScore() {
-        return showScore;
-    }
-
-    public void setShowScore(Boolean showScore) {
-        this.showScore = showScore;
-    }
-
-    public Boolean getShowCorrectAnswer() {
-        return showCorrectAnswer;
-    }
-
-    public void setShowCorrectAnswer(Boolean showCorrectAnswer) {
-        this.showCorrectAnswer = showCorrectAnswer;
-    }
-
-    public Integer getMaxAttempts() {
-        return maxAttempts;
-    }
-
-    public void setMaxAttempts(Integer maxAttempts) {
-        this.maxAttempts = maxAttempts;
-    }
-
-    public Integer getTimeLimit() {
-        return timeLimit;
-    }
-
-    public void setTimeLimit(Integer timeLimit) {
-        this.timeLimit = timeLimit;
-    }
-
-    public Boolean getAllowReview() {
-        return allowReview;
-    }
-
-    public void setAllowReview(Boolean allowReview) {
-        this.allowReview = allowReview;
-    }
-
-    public String getGenerationRules() {
-        return generationRules;
-    }
-
-    public void setGenerationRules(String generationRules) {
-        this.generationRules = generationRules;
-    }
-
-    public Boolean getIsActive() {
-        return isActive;
-    }
-
     public void setIsActive(Boolean active) {
         isActive = active;
     }
 
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
 }

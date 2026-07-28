@@ -1,6 +1,7 @@
 package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
+import com.aicourse.dto.ResourceVisibilityDTO;
 import com.aicourse.entity.Resource;
 import com.aicourse.service.ResourceService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -21,6 +22,9 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import jakarta.validation.Valid;
+import com.aicourse.common.ApiCode;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * 课程资源控制器
@@ -28,6 +32,7 @@ import java.util.UUID;
  */
 @RestController
 @RequestMapping("/resources")
+@Tag(name = "教学资源")
 public class ResourceController {
 
     // 全局常量：上传目录、文件大小限制(50MB)、允许的文件类型
@@ -116,13 +121,9 @@ public class ResourceController {
      */
     @PatchMapping("/{id}/visibility")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Void> toggleVisibility(@PathVariable Long id, @RequestBody Map<String, Object> params) {
-        Boolean visibleToAll = params.get("visibleToAll") != null ?
-                Boolean.valueOf(params.get("visibleToAll").toString()) : null;
-        if (visibleToAll == null) {
-            return ApiResponse.error(400, "可见性参数不能为空");
-        }
-        resourceService.toggleVisibility(id, visibleToAll);
+    public ApiResponse<Void> toggleVisibility(@PathVariable Long id,
+                                              @Valid @RequestBody ResourceVisibilityDTO params) {
+        resourceService.toggleVisibility(id, params.getVisibleToAll());
         return ApiResponse.success("可见性切换成功");
     }
 
@@ -150,10 +151,10 @@ public class ResourceController {
             @RequestParam Long courseId,
             @RequestParam(required = false) String description) {
         if (file.isEmpty()) {
-            return ApiResponse.error(400, "上传文件不能为空");
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "上传文件不能为空");
         }
         if (file.getSize() > MAX_FILE_SIZE) {
-            return ApiResponse.error(400, "文件大小不能超过50MB");
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "文件大小不能超过50MB");
         }
         String contentType = file.getContentType();
         boolean typeValid = false;
@@ -161,12 +162,12 @@ public class ResourceController {
             if (type.equals(contentType)) { typeValid = true; break; }
         }
         if (!typeValid) {
-            return ApiResponse.error(400, "不支持该文件格式上传");
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "不支持该文件格式上传");
         }
 
         File dir = new File(UPLOAD_BASE_DIR);
         if (!dir.exists() && !dir.mkdirs()) {
-            return ApiResponse.error(500, "上传目录创建失败");
+            return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "上传目录创建失败");
         }
 
         String originalFilename = file.getOriginalFilename();
@@ -193,7 +194,7 @@ public class ResourceController {
 
             return ApiResponse.success("文件上传成功", resource);
         } catch (IOException e) {
-            return ApiResponse.error(500, "文件上传异常：" + e.getMessage());
+            return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "文件上传异常：" + e.getMessage());
         }
     }
 
@@ -233,7 +234,7 @@ public class ResourceController {
     public ApiResponse<Void> deleteResource(@PathVariable Long id) {
         Resource resource = resourceService.getById(id);
         if (resource == null) {
-            return ApiResponse.error(404, "资源不存在");
+            return ApiResponse.error(ApiCode.NOT_FOUND, "资源不存在");
         }
 
         String fileRelativePath = resource.getUrl().substring(1);
@@ -243,7 +244,7 @@ public class ResourceController {
                 Files.delete(filePath);
             }
         } catch (IOException e) {
-            return ApiResponse.error(500, "文件删除失败：" + e.getMessage());
+            return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "文件删除失败：" + e.getMessage());
         }
 
         resourceService.removeById(id);

@@ -1,0 +1,174 @@
+name: CI
+
+# 触发条件：主干推送、对主干的 PR、以及手动触发
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:
+
+# 最小权限原则：CI 仅需读取仓库内容
+permissions:
+  contents: read
+
+# 同一分支上的重复运行只保留最新一次，避免资源浪费
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ------------------------------------------------------------------
+  # 前端：代码质量门禁（ESLint + Prettier + 依赖安全审计）
+  # 与构建 job 并行，加速 PR 反馈
+  # ------------------------------------------------------------------
+  frontend-quality:
+    name: Frontend Quality (lint + format + audit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Lint (ESLint)
+        run: npm run lint
+
+      - name: Format check (Prettier)
+        run: npm run format:check
+
+      # 仅高危级别漏洞阻断构建，中低危仅作信息提示，避免误伤常规依赖
+      - name: Dependency audit
+        run: npm audit --audit-level=high
+
+  # ------------------------------------------------------------------
+  # 前端：生产构建（验证可打包、无致命编译/导入错误）
+  # ------------------------------------------------------------------
+  frontend-build:
+    name: Frontend Build (Vite)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+  # ------------------------------------------------------------------
+  # 后端：编译 + 单元测试 + Testcontainers 集成测试（Java 21，与 backend/Dockerfile 的 temurin-21 对齐）
+  # ------------------------------------------------------------------
+  backend:
+    name: Backend (Maven + JUnit)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Build, unit & integration tests with coverage gate
+        # mvn verify -> surefire 运行单元测试，failsafe 在 verify 阶段运行 Testcontainers 集成测试；
+        # 同时触发 jacoco: prepare-agent(探针) -> report(生成 target/site/jacoco) -> check(覆盖率门禁)。
+        # 若 JaCoCo 行/分支覆盖率低于阈值，check 失败使 verify 失败 -> 本 job 失败。
+        # GitHub 托管 runner（ubuntu-latest）自带 Docker 守护进程，Testcontainers 可直接拉起容器。
+        run: mvn -B verify jacoco:report
+
+      - name: Upload JaCoCo coverage report
+        # 即便覆盖率门禁不达标（verify 失败），也保留报告供排查趋势
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: jacoco-coverage-report
+          path: |
+            backend/target/site/jacoco
+            backend/target/jacoco.exec
+          retention-days: 14
+
+  # ------------------------------------------------------------------
+  # 后端：软件成分分析（SCA）—— OSV-Scanner 已知漏洞门禁
+  # 独立 job，避免拖慢单测反馈；命中已知漏洞（OSV.dev / GitHub Advisory）将中断构建。
+  # 无需 NVD_API_KEY 等外部密钥；直接解析 pom.xml 及其 Maven 传递依赖。
+  # ------------------------------------------------------------------
+  backend-security:
+    name: Backend Security (OSV-Scanner)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: OSV-Scanner (fail on known vulnerabilities)
+        # 无需 API Key：基于 OSV.dev + GitHub Advisory 数据库扫描 pom.xml 及传递依赖
+        uses: google/osv-scanner-action@v2
+        with:
+          scan-args: |-
+            --format sarif
+            --output osv-scan.sarif
+            ./pom.xml
+
+      - name: Upload OSV-Scanner report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: osv-scanner-report
+          path: backend/osv-scan.sarif
+          retention-days: 14
+
+  # ------------------------------------------------------------------
+  # Docker：镜像构建校验（仅主干推送 / 手动触发，避免每个 PR 都做长耗时构建）
+  # 验证 backend/Dockerfile 与 frontend/Dockerfile 在干净环境中可成功构建
+  # ------------------------------------------------------------------
+  docker:
+    name: Docker Images Build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build images (no push)
+        run: docker compose -f docker-compose.yml build

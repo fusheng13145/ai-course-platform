@@ -1,4 +1,4 @@
-﻿﻿﻿﻿<template>
+﻿﻿<template>
   <div class="fade-in">
     <!-- ===== 考试列表视图 ===== -->
     <div v-if="viewMode === 'list'">

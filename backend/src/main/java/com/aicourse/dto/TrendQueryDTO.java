@@ -1,5 +1,7 @@
 package com.aicourse.dto;
 
+import lombok.Data;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.*;
 
@@ -10,6 +12,7 @@ import java.time.LocalDate;
  * 用于接收前端查询数据趋势时的筛选和时间范围参数
  */
 @Schema(description = "趋势查询参数")
+@Data
 public class TrendQueryDTO {
 
     @Schema(description = "查询起始日期", example = "2024-11-01")
@@ -31,45 +34,4 @@ public class TrendQueryDTO {
     @Schema(description = "实体ID（按特定用户/课程/学科筛选时使用）", example = "1001")
     private Long entityId;
 
-    // ====================== Getter & Setter ======================
-
-    public LocalDate getStartDate() {
-        return startDate;
-    }
-
-    public void setStartDate(LocalDate startDate) {
-        this.startDate = startDate;
-    }
-
-    public LocalDate getEndDate() {
-        return endDate;
-    }
-
-    public void setEndDate(LocalDate endDate) {
-        this.endDate = endDate;
-    }
-
-    public String getGranularity() {
-        return granularity;
-    }
-
-    public void setGranularity(String granularity) {
-        this.granularity = granularity;
-    }
-
-    public String getDimension() {
-        return dimension;
-    }
-
-    public void setDimension(String dimension) {
-        this.dimension = dimension;
-    }
-
-    public Long getEntityId() {
-        return entityId;
-    }
-
-    public void setEntityId(Long entityId) {
-        this.entityId = entityId;
-    }
 }

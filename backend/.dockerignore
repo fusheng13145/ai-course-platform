@@ -1,0 +1,11 @@
+# 构建上下文忽略项（减小 docker build 上下文体积）
+target
+.mvn
+.git
+.gitignore
+.idea
+*.iml
+*.log
+.vscode
+uploads
+.DS_Store
