@@ -49,6 +49,9 @@ public class UserRegisterDTO {
     @Schema(description = "是否同意用户协议", example = "true")
     private Boolean agreement;
 
+    @Schema(description = "注册验证码", example = "123456")
+    private String code;
+
     // ====================== Getter & Setter ======================
 
     public String getUsername() {
@@ -114,4 +117,7 @@ public class UserRegisterDTO {
     public void setAgreement(Boolean agreement) {
         this.agreement = agreement;
     }
+
+    public String getCode() { return code; }
+    public void setCode(String code) { this.code = code; }
 }

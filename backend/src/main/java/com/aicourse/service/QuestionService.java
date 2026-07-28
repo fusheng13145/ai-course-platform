@@ -99,4 +99,25 @@ public interface QuestionService extends com.baomidou.mybatisplus.extension.serv
      * @return 易错题列表
      */
     List<Question> getErrorProneQuestions(Long courseId, int limit);
+
+    /**
+     * AI批量生成题目
+     * @param courseId 课程ID
+     * @param type 题目类型
+     * @param difficulty 难度等级
+     * @param knowledgePointNames 知识点名称（逗号分隔）
+     * @param count 生成数量
+     * @param createdBy 创建者ID
+     * @return 生成的题目列表
+     */
+    List<Question> generateBatchByAI(Long courseId, String type, String difficulty,
+                                     String knowledgePointNames, int count, Long createdBy);
+
+    /**
+     * 批量导入题目
+     * @param questions 题目列表
+     * @param createdBy 创建者ID
+     * @return 成功导入数量
+     */
+    int batchImport(List<Question> questions, Long createdBy);
 }

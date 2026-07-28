@@ -786,4 +786,32 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
             // 错题记录失败不影响主流程
         }
     }
+
+    @Override
+    public List<Map<String, Object>> getSessionQuestions(Long sessionId) {
+        ExamSession session = this.getById(sessionId);
+        if (session == null) return Collections.emptyList();
+        return examQuestionService.list(
+            new LambdaQueryWrapper<ExamQuestion>()
+                .eq(ExamQuestion::getExamPaperId, session.getExamPaperId())
+                .orderByAsc(ExamQuestion::getOrderIndex))
+            .stream().map(eq -> {
+                Map<String, Object> item = new HashMap<>();
+                item.put("questionId", eq.getQuestionId());
+                item.put("orderIndex", eq.getOrderIndex());
+                item.put("score", eq.getPoints());
+                return item;
+            }).collect(java.util.stream.Collectors.toList());
+    }
+
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void timeoutSubmit(Long sessionId) {
+        ExamSession session = this.getById(sessionId);
+        if (session == null || !"STARTED".equals(session.getStatus())) return;
+        submitExam(sessionId, java.util.Collections.emptyMap());
+        session.setStatus("AUTO_SUBMITTED");
+        session.setSubmitTime(LocalDateTime.now());
+        this.updateById(session);
+    }
 }

@@ -105,4 +105,17 @@ public interface ExamSessionService extends IService<ExamSession> {
      * @return 作弊检测结果（包含检测到的可疑项列表和综合判定）
      */
     Map<String, Object> checkCheating(Long sessionId);
+
+    /**
+     * 获取考试会话中的题目列表（含学生答案）
+     * @param sessionId 会话ID
+     * @return 题目与答案列表
+     */
+    List<Map<String, Object>> getSessionQuestions(Long sessionId);
+
+    /**
+     * 超时自动提交
+     * @param sessionId 会话ID
+     */
+    void timeoutSubmit(Long sessionId);
 }

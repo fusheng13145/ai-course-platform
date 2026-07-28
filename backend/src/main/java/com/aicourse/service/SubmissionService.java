@@ -95,4 +95,14 @@ public interface SubmissionService extends IService<Submission> {
      * @return 完整详情Map
      */
     Map<String, Object> getSubmissionDetail(Long submissionId);
+
+    /**
+     * 保存作业草稿（对标超星：可先存草稿再正式提交）
+     * @param taskId 任务ID
+     * @param studentId 学生ID
+     * @param content 文字内容
+     * @param fileUrls 附件URL列表
+     * @return 提交记录
+     */
+    Submission saveDraft(Long taskId, Long studentId, String content, List<String> fileUrls);
 }

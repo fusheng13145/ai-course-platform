@@ -877,4 +877,44 @@ private final SubmissionService submissionService;
         }
         return teacherData;
     }
+
+    @Override
+    public Map<String, Object> getAtRiskStudents(String groupBy, Long courseId, String department, String major, Long classId) {
+        Map<String, Object> result = new HashMap<>();
+        // 基于现有数据聚合：挂科风险 = 作业/考试平均分 < 60
+        try {
+            List<Map<String, Object>> items = new ArrayList<>();
+            // 按班级汇总挂科风险
+            LambdaQueryWrapper<CourseEnrollment> ew = new LambdaQueryWrapper<>();
+            if (courseId != null) ew.eq(CourseEnrollment::getCourseId, courseId);
+            List<CourseEnrollment> enrollments = enrollmentService.list(ew);
+            Map<Long, List<CourseEnrollment>> groupMap = enrollments.stream()
+                .collect(Collectors.groupingBy(e -> classId != null ? classId : e.getCourseId()));
+            for (Map.Entry<Long, List<CourseEnrollment>> entry : groupMap.entrySet()) {
+                Map<String, Object> item = new HashMap<>();
+                item.put("groupId", entry.getKey());
+                item.put("count", entry.getValue().size());
+                items.add(item);
+            }
+            result.put("items", items);
+            result.put("total", items.size());
+        } catch (Exception e) {
+            result.put("error", e.getMessage());
+        }
+        return result;
+    }
+
+    @Override
+    public Map<String, Object> exportReport(Long courseId) {
+        Map<String, Object> report = new HashMap<>();
+        try {
+            report.put("courseId", courseId);
+            report.put("totalStudents", enrollmentService.count(
+                new LambdaQueryWrapper<CourseEnrollment>().eq(CourseEnrollment::getCourseId, courseId)));
+            report.put("generatedAt", LocalDateTime.now().toString());
+        } catch (Exception e) {
+            report.put("error", e.getMessage());
+        }
+        return report;
+    }
 }

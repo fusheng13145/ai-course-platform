@@ -99,4 +99,22 @@ public interface AnalyticsService {
      * @return 教师统计数据（课程数、学生数、待批改数、平均分等）
      */
     Map<String, Object> getTeacherDashboard(Long teacherId);
+
+    /**
+     * 获取挂科风险学生列表（管理员/教师）
+     * @param groupBy 分组维度（class/department/major）
+     * @param courseId 课程ID（可选）
+     * @param department 院系（可选）
+     * @param major 专业（可选）
+     * @param classId 班级ID（可选）
+     * @return 挂科风险数据
+     */
+    Map<String, Object> getAtRiskStudents(String groupBy, Long courseId, String department, String major, Long classId);
+
+    /**
+     * 导出教学报告
+     * @param courseId 课程ID
+     * @return 报告数据
+     */
+    Map<String, Object> exportReport(Long courseId);
 }

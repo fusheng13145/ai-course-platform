@@ -10,6 +10,19 @@ import java.util.List;
 public interface UserSessionService extends com.baomidou.mybatisplus.extension.service.IService<UserSession> {
 
     /**
+     * 检查会话是否活跃（根据 token 判定）
+     * @param token 会话令牌
+     * @return true 如果会话有效且未过期
+     */
+    boolean isSessionActive(String token);
+
+    /**
+     * 失效会话缓存（令牌轮换/强制下线后清除缓存）
+     * @param token 会话令牌
+     */
+    void evictSessionCache(String token);
+
+    /**
      * 获取用户当前有效会话
      * @param userId 用户ID
      * @return 当前有效会话，无则返回null
