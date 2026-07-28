@@ -26,13 +26,14 @@ html, body, #app {
   background: var(--ac-bg);
 }
 
-/* ---- 侧边栏：莫兰迪渐变 + 极简风格 ---- */
+/* ---- 侧边栏：浅色专业风 ---- */
 .sidebar {
   width: 250px;
   display: flex;
   flex-direction: column;
   flex-shrink: 0;
-  background: var(--ac-gradient-sidebar);
+  background: var(--ac-sidebar-bg);
+  border-right: 1px solid var(--ac-border);
   position: relative;
   z-index: 100;
 }
@@ -41,15 +42,13 @@ html, body, #app {
   height: 64px;
   display: flex;
   align-items: center;
-  justify-content: center;
+  padding: 0 20px;
   gap: 10px;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 600;
-  color: rgba(255, 255, 255, 0.92);
-  background: rgba(255, 255, 255, 0.08);
-  backdrop-filter: blur(12px);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-  letter-spacing: 1px;
+  color: var(--ac-sidebar-text-hover);
+  border-bottom: 1px solid var(--ac-border);
+  letter-spacing: 0.3px;
 }
 
 /* ---- 主内容区 ---- */
@@ -70,7 +69,7 @@ html, body, #app {
   padding: 0 var(--ac-spacing-lg);
   flex-shrink: 0;
   background: var(--ac-bg-elevated);
-  border-bottom: 1px solid rgba(226, 220, 212, 0.5);
+  border-bottom: 1px solid var(--ac-border);
 }
 
 .header .page-title {
@@ -124,9 +123,8 @@ html, body, #app {
 }
 
 .stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--ac-shadow-lg);
-  border-color: transparent;
+  box-shadow: var(--ac-shadow-md);
+  border-color: var(--ac-border-strong);
 }
 
 .stat-card:hover::before { opacity: 1; }
@@ -197,7 +195,7 @@ html, body, #app {
  * 去除鲜艳默认色，替换为莫兰迪色调
  * ============================================ */
 
-/* 菜单：侧边栏内 */
+/* 菜单：浅色侧边栏 */
 .el-menu {
   border-right: none !important;
   background: transparent !important;
@@ -205,24 +203,24 @@ html, body, #app {
 }
 
 .el-menu-item {
-  height: 46px !important;
-  line-height: 46px !important;
-  margin: 3px 14px !important;
+  height: 44px !important;
+  line-height: 44px !important;
+  margin: 2px 12px !important;
   border-radius: var(--ac-radius-sm) !important;
-  transition: all var(--ac-transition-normal) !important;
+  transition: all var(--ac-transition-fast) !important;
   font-size: 13.5px !important;
   font-weight: 500;
-  color: rgba(255, 255, 255, 0.72) !important;
+  color: var(--ac-sidebar-text) !important;
 }
 
 .el-menu-item:hover {
-  background: rgba(255, 255, 255, 0.10) !important;
-  color: #fff !important;
+  background: var(--ac-bg-hover) !important;
+  color: var(--ac-sidebar-text-hover) !important;
 }
 
 .el-menu-item.is-active {
-  background: rgba(255, 255, 255, 0.18) !important;
-  color: #fff !important;
+  background: var(--ac-sidebar-active-bg) !important;
+  color: var(--ac-sidebar-active-text) !important;
   font-weight: 600;
 }
 
@@ -288,7 +286,7 @@ html, body, #app {
   border-radius: var(--ac-radius-sm) !important;
 }
 
-/* 标签：低饱和圆角 */
+/* 标签：语义色浅底 */
 .el-tag {
   border-radius: 6px !important;
   font-weight: 500 !important;
@@ -297,10 +295,10 @@ html, body, #app {
 }
 
 .el-tag--primary { background: var(--ac-primary-bg); color: var(--ac-primary-dark); }
-.el-tag--success { background: rgba(139,168,136,0.15); color: #5E7A5B; }
-.el-tag--warning { background: rgba(203,181,138,0.18); color: #8A7845; }
-.el-tag--danger { background: rgba(196,128,128,0.15); color: #A05A5A; }
-.el-tag--info { background: rgba(146,139,131,0.12); color: var(--ac-text-muted); }
+.el-tag--success { background: var(--ac-success-bg); color: var(--ac-success); }
+.el-tag--warning { background: var(--ac-warning-bg); color: var(--ac-warning); }
+.el-tag--danger { background: var(--ac-danger-bg); color: var(--ac-danger); }
+.el-tag--info { background: var(--ac-bg-hover); color: var(--ac-text-muted); }
 
 /* 表格：简洁无干扰线 */
 .el-table {
@@ -308,43 +306,19 @@ html, body, #app {
   --el-table-border-color: var(--ac-border);
 }
 
-/* 表头：与数据行同色 */
 .el-table th.el-table__cell {
-  background: var(--ac-bg-elevated) !important;
+  background: var(--ac-bg) !important;
   color: var(--ac-text-secondary) !important;
   font-weight: 600 !important;
   font-size: 13px;
 }
 
-/* 数据单元格：防溢出（纯文本列生效） */
-.el-table td.el-table__cell {
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-/* 标签：彻底消除边框 */
-.el-tag {
-  border: none !important;
-}
-
-/* 数据行背景（非斑马） */
-.el-table__body tr > td.el-table__cell {
-  background: var(--ac-bg-elevated);
-}
-
 .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-  background: var(--ac-bg-elevated) !important;
+  background: var(--ac-bg) !important;
 }
 
 .el-table .el-table__row:hover > td.el-table__cell {
   background: var(--ac-bg-hover) !important;
-}
-
-/* 覆盖 Element Plus 输入框背景色变量 */
-:root {
-  --el-input-bg-color: #fffcf8;
-  --el-fill-color-blank: #fffcf8;
 }
 
 /* 输入框：柔和聚焦环 */
@@ -352,7 +326,6 @@ html, body, #app {
   border-radius: var(--ac-radius-sm) !important;
   box-shadow: 0 0 0 1px var(--ac-border) inset !important;
   transition: all var(--ac-transition-fast) !important;
-  background-color: #fffcf8 !important;
 }
 
 .el-input__wrapper:hover {
@@ -361,21 +334,6 @@ html, body, #app {
 
 .el-input__wrapper.is-focus {
   box-shadow: 0 0 0 2px var(--ac-primary-bg), 0 0 0 1px var(--ac-primary) inset !important;
-}
-
-/* textarea、select 等输入类组件统一背景色（提升选择器权重覆盖 Element Plus 默认） */
-.el-textarea__inner,
-.el-select .el-input__wrapper,
-.el-select .el-input__inner,
-.el-date-editor .el-input__wrapper,
-.el-input-number .el-input__wrapper {
-  background-color: #fffcf8 !important;
-}
-
-/* 更深层覆盖：针对 Select 组件内部 wrapper */
-.el-select .el-input .el-input__wrapper,
-.el-select-dropdown__wrap {
-  background-color: #fffcf8 !important;
 }
 
 /* 对话框：大圆角+柔和阴影 */
@@ -402,9 +360,9 @@ html, body, #app {
 /* 分页 */
 .el-pagination { margin-top: var(--ac-spacing-md) !important; }
 
-/* 进度条：莫兰迪渐变 */
+/* 进度条：品牌蓝纯色 */
 .el-progress-bar__inner {
-  background: var(--ac-gradient-secondary) !important;
+  background: var(--ac-primary) !important;
   border-radius: 999px !important;
 }
 
@@ -466,15 +424,6 @@ html, body, #app {
 .fade-in { animation: fadeIn 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
 
 /* ============================================
- * 模态框全局居中
- * ============================================ */
-.el-overlay {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-}
-
-/* ============================================
  * 暗色主题 Element Plus 莫兰迪覆盖
  * ============================================ */
 [data-theme="dark"] {
@@ -497,7 +446,7 @@ html, body, #app {
   .el-table {
     --el-table-bg-color: var(--ac-bg-elevated);
     --el-table-tr-bg-color: var(--ac-bg-elevated);
-    --el-table-header-bg-color: var(--ac-bg-elevated);
+    --el-table-header-bg-color: var(--ac-bg);
     --el-table-row-hover-bg-color: rgba(122, 139, 165, 0.08);
   }
 
@@ -724,8 +673,9 @@ html, body, #app {
   }
 }
 
-/* 自动给直接子元素是 el-table 的容器 */
+/* 自动给直接子元素是 el-table 的容器加滚动（替代逐页面包裹） */
 .el-card:has(> .el-table),
 .content-card:has(> .el-table) {
-  overflow-x: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }

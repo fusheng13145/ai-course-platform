@@ -1,0 +1,179 @@
+/* ============================================================
+ * 设计系统 · 统一表现层（简洁专业版）
+ * 仅保留克制的品牌化细节：无点阵纹理、无发光阴影、无悬浮位移
+ * ============================================================ */
+
+:root {
+  /* 字体（界面 + 数据） */
+  --ac-font-sans: 'Inter', 'PingFang SC', 'Microsoft YaHei', system-ui, -apple-system, 'Segoe UI',
+    Roboto, sans-serif;
+  --ac-font-mono: 'JetBrains Mono', 'SFMono-Regular', ui-monospace, Consolas, 'Liberation Mono',
+    'Menlo', monospace;
+
+  /* 动效曲线 */
+  --ac-motion-fast: 0.15s ease;
+  --ac-motion: 0.25s ease;
+
+  /* 骨架屏微光 */
+  --ac-skeleton-shine: rgba(100, 116, 139, 0.12);
+}
+
+[data-theme='dark'] {
+  --ac-skeleton-shine: rgba(255, 255, 255, 0.06);
+}
+
+/* ============================================================
+ * 全局基底
+ * ============================================================ */
+body {
+  font-family: var(--ac-font-sans);
+  background: var(--ac-bg);
+  color: var(--ac-text-primary);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* ============================================================
+ * 品牌标记（侧边栏 logo 前的几何方块，纯色扁平）
+ * ============================================================ */
+.brand-mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  background: var(--ac-primary);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  font-weight: 700;
+  font-size: 14px;
+}
+
+.logo-text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.15;
+  text-align: left;
+}
+.logo-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ac-sidebar-text-hover);
+  letter-spacing: 0.3px;
+}
+.logo-kicker {
+  font-family: var(--ac-font-mono);
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 2.5px;
+  color: var(--ac-sidebar-text);
+  text-transform: uppercase;
+}
+
+/* kicker：统一的等宽小标签 */
+.ui-kicker {
+  font-family: var(--ac-font-mono);
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 2px;
+  text-transform: uppercase;
+  color: var(--ac-text-muted);
+  display: inline-block;
+  margin-bottom: 6px;
+}
+
+/* ============================================================
+ * 侧边栏激活项：左侧强调条 + 浅色激活底
+ * ============================================================ */
+.el-menu-item.is-active {
+  position: relative;
+  font-weight: 600;
+  color: var(--ac-sidebar-active-text) !important;
+  background: var(--ac-sidebar-active-bg) !important;
+  border-radius: var(--ac-radius-sm);
+}
+.el-menu-item.is-active::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 3px;
+  height: 20px;
+  border-radius: 0 3px 3px 0;
+  background: var(--ac-primary);
+}
+
+/* ============================================================
+ * 统计卡：左侧强调条（纯色）
+ * ============================================================ */
+.stat-card::before,
+.morandi-stat-card::before {
+  background: var(--ac-primary) !important;
+  opacity: 1 !important;
+}
+.stat-card::before {
+  width: 3px !important;
+}
+
+/* ============================================================
+ * 卡片统一：发丝边框 + 低存在感阴影，悬浮仅阴影加深
+ * ============================================================ */
+.ui-card,
+.el-card,
+.chart-card,
+.content-card,
+.card-base,
+.morandi-stat-card,
+.stat-card {
+  background: var(--ac-bg-elevated);
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-lg);
+  box-shadow: var(--ac-shadow-sm);
+  transition:
+    box-shadow var(--ac-motion),
+    border-color var(--ac-motion-fast);
+}
+.ui-card:hover,
+.chart-card:hover,
+.content-card:hover,
+.card-base:hover,
+.morandi-stat-card:hover,
+.stat-card:hover {
+  box-shadow: var(--ac-shadow-md);
+  border-color: var(--ac-border-strong);
+}
+
+/* ============================================================
+ * 骨架屏微光
+ * ============================================================ */
+.skeleton {
+  position: relative;
+  overflow: hidden;
+  background: var(--ac-bg-hover);
+  border-radius: var(--ac-radius-sm);
+}
+.skeleton::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 38%;
+  background: linear-gradient(90deg, transparent, var(--ac-skeleton-shine), transparent);
+  animation: skeleton-shine 1.5s ease-in-out infinite;
+}
+@keyframes skeleton-shine {
+  0% {
+    transform: translateX(-120%);
+  }
+  100% {
+    transform: translateX(360%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .skeleton::after {
+    animation: none;
+  }
+}
