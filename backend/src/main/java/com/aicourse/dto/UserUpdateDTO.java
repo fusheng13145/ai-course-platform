@@ -62,6 +62,9 @@ public class UserUpdateDTO {
         return avatar;
     }
 
+    /** 别名：前端兼容 getAvatarUrl() 调用 */
+    public String getAvatarUrl() { return getAvatar(); }
+
     public void setAvatar(String avatar) {
         this.avatar = avatar;
     }

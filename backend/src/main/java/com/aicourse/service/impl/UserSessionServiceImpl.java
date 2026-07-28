@@ -142,4 +142,31 @@ public class UserSessionServiceImpl extends ServiceImpl<UserSessionMapper, UserS
 
         return new ArrayList<>();
     }
+
+    /**
+     * 根据 token 查询会话并检查是否活跃
+     */
+    @Override
+    public boolean isSessionActive(String token) {
+        LambdaQueryWrapper<UserSession> wrapper = new LambdaQueryWrapper<UserSession>()
+                .eq(UserSession::getSessionToken, token)
+                .eq(UserSession::getIsActive, true)
+                .gt(UserSession::getExpiresAt, LocalDateTime.now());
+        return this.count(wrapper) > 0;
+    }
+
+    /**
+     * 使会话缓存失效（按 token 强制下线）
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void evictSessionCache(String token) {
+        LambdaQueryWrapper<UserSession> wrapper = new LambdaQueryWrapper<UserSession>()
+                .eq(UserSession::getSessionToken, token);
+        UserSession session = this.getOne(wrapper);
+        if (session != null) {
+            session.setIsActive(false);
+            this.updateById(session);
+        }
+    }
 }

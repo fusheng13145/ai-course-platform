@@ -1,5 +1,6 @@
 package com.aicourse.dto;
 
+import com.aicourse.entity.Question;
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
@@ -100,4 +101,40 @@ public class QuestionVO {
     public void setCorrectRate(BigDecimal correctRate) { this.correctRate = correctRate; }
     public String getCreatorName() { return creatorName; }
     public void setCreatorName(String creatorName) { this.creatorName = creatorName; }
+
+    // ====================== 工厂方法 ======================
+
+    /**
+     * 从实体转换为 VO（学生端脱敏版本，隐藏答案与解析）
+     * @param q 题目实体
+     * @return VO 对象
+     */
+    public static QuestionVO from(Question q) {
+        if (q == null) return null;
+        QuestionVO vo = new QuestionVO();
+        vo.setId(q.getId());
+        vo.setCourseId(q.getCourseId());
+        vo.setType(q.getType());
+        vo.setContent(q.getContent());
+        vo.setScore(q.getScore());
+        vo.setCorrectRate(q.getCorrectRate());
+        vo.setUsageCount(q.getUsageCount());
+        // 难度映射：String → Integer
+        String diff = q.getDifficulty();
+        if (diff != null) {
+            switch (diff.toUpperCase()) {
+                case "EASY": vo.setDifficulty(1); break;
+                case "MEDIUM": vo.setDifficulty(3); break;
+                case "HARD": vo.setDifficulty(5); break;
+                default: vo.setDifficulty(3);
+            }
+        }
+        // 选项 JSON 字符串 → List
+        String opts = q.getOptions();
+        if (opts != null && opts.startsWith("[")) {
+            vo.setOptions(java.util.Arrays.stream(opts.replaceAll("[\\[\\]\"]", "")
+                .split("\\s*,\\s*")).filter(s -> !s.isEmpty()).toList());
+        }
+        return vo;
+    }
 }
