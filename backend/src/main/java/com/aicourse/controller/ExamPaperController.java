@@ -2,15 +2,19 @@ package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
+import com.aicourse.dto.QuestionVO;
 import com.aicourse.entity.ExamPaper;
+import com.aicourse.dto.AutoComposeDTO;
 import com.aicourse.entity.ExamQuestion;
 import com.aicourse.entity.Question;
+import com.aicourse.security.RoleUtil;
 import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.ExamSessionService;
 import com.aicourse.service.QuestionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -23,6 +27,7 @@ import java.util.Map;
 /**
  * 试卷管理接口控制器
  */
+@Tag(name = "试卷管理", description = "试卷的新增、查询、修改、删除、发布、自动组卷等功能")
 @RestController
 @RequestMapping("/exam-papers")
 public class ExamPaperController {
@@ -182,6 +187,22 @@ public class ExamPaperController {
         ExamPaper paper = examPaperService.getById(id);
         return ApiResponse.success("发布成功", paper);
     }
+
+    /**
+     * 自动组卷（教师/管理员权限）
+     * 按题型数量和难度比例从题库随机抽取题目生成试卷
+     * @param dto 组卷参数
+     * @param auth 认证信息
+     * @return 生成的试卷
+     */
+    @PostMapping("/auto-compose")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ApiResponse<ExamPaper> autoCompose(@RequestBody AutoComposeDTO dto, Authentication auth) {
+        Long creatorId = (Long) auth.getPrincipal();
+        ExamPaper paper = examPaperService.autoComposeExamPaper(dto, creatorId);
+        return ApiResponse.success("自动组卷成功", paper);
+    }
+
 
     /**
      * 复制试卷（教师/管理员权限）

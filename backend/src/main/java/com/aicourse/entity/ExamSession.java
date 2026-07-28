@@ -5,6 +5,7 @@ import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
+import lombok.Data;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -14,6 +15,7 @@ import java.time.LocalDateTime;
  * 记录学生每一次试卷作答的全过程信息、成绩、作答环境等数据
  */
 @TableName("exam_sessions")
+@Data
 public class ExamSession {
 
     /**
@@ -78,6 +80,23 @@ public class ExamSession {
     private String questionScores;
 
     /**
+     * 作弊检测结果（JSON字符串存储，独立于 answers，绝不直接改写作答答案）
+     * 结构：{"detectedAt":"...","flagCount":n,"details":["...","..."],"riskLevel":"LOW|MEDIUM|HIGH"}
+     */
+    private String cheatingFlags;
+
+    /**
+     * 题目乱序：按展示顺序排列的 questionId 数组（JSON），每位学生独立随机生成，用于防作弊
+     */
+    private String questionOrder;
+
+    /**
+     * 选项乱序映射：{ questionId : [原题选项下标...] }，下标为展示位、值为原题选项下标（JSON）
+     * 阅卷时依据此映射把学生提交的"展示位标签"还原为"原题标签"再比对正确答案
+     */
+    private String optionOrders;
+
+    /**
      * 作答客户端IP地址
      */
     private String ipAddress;
@@ -99,131 +118,4 @@ public class ExamSession {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Long getExamPaperId() {
-        return examPaperId;
-    }
-
-    public void setExamPaperId(Long examPaperId) {
-        this.examPaperId = examPaperId;
-    }
-
-    public Long getStudentId() {
-        return studentId;
-    }
-
-    public void setStudentId(Long studentId) {
-        this.studentId = studentId;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public Integer getAttemptNumber() {
-        return attemptNumber;
-    }
-
-    public void setAttemptNumber(Integer attemptNumber) {
-        this.attemptNumber = attemptNumber;
-    }
-
-    public LocalDateTime getStartTime() {
-        return startTime;
-    }
-
-    public void setStartTime(LocalDateTime startTime) {
-        this.startTime = startTime;
-    }
-
-    public LocalDateTime getSubmitTime() {
-        return submitTime;
-    }
-
-    public void setSubmitTime(LocalDateTime submitTime) {
-        this.submitTime = submitTime;
-    }
-
-    public Integer getTimeSpent() {
-        return timeSpent;
-    }
-
-    public void setTimeSpent(Integer timeSpent) {
-        this.timeSpent = timeSpent;
-    }
-
-    public BigDecimal getTotalScore() {
-        return totalScore;
-    }
-
-    public void setTotalScore(BigDecimal totalScore) {
-        this.totalScore = totalScore;
-    }
-
-    public BigDecimal getPercentage() {
-        return percentage;
-    }
-
-    public void setPercentage(BigDecimal percentage) {
-        this.percentage = percentage;
-    }
-
-    public String getAnswers() {
-        return answers;
-    }
-
-    public void setAnswers(String answers) {
-        this.answers = answers;
-    }
-
-    public String getQuestionScores() {
-        return questionScores;
-    }
-
-    public void setQuestionScores(String questionScores) {
-        this.questionScores = questionScores;
-    }
-
-    public String getIpAddress() {
-        return ipAddress;
-    }
-
-    public void setIpAddress(String ipAddress) {
-        this.ipAddress = ipAddress;
-    }
-
-    public String getUserAgent() {
-        return userAgent;
-    }
-
-    public void setUserAgent(String userAgent) {
-        this.userAgent = userAgent;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
 }

@@ -1,5 +1,7 @@
 package com.aicourse.entity;
 
+import lombok.Data;
+
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -14,6 +16,7 @@ import java.time.LocalDateTime;
  * 对应数据表：video_learning_records
  */
 @TableName("video_learning_records")
+@Data
 public class VideoLearningRecord {
 
     /**
@@ -31,6 +34,11 @@ public class VideoLearningRecord {
      * 视频资源ID
      */
     private Long resourceId;
+
+    /**
+     * 课程ID（由 resourceId 关联 resources 解析，用于按课程统计视频完播，修复 P0-6）
+     */
+    private Long courseId;
 
     /**
      * 累计观看时长（单位：秒）
@@ -74,91 +82,4 @@ public class VideoLearningRecord {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Long getUserId() {
-        return userId;
-    }
-
-    public void setUserId(Long userId) {
-        this.userId = userId;
-    }
-
-    public Long getResourceId() {
-        return resourceId;
-    }
-
-    public void setResourceId(Long resourceId) {
-        this.resourceId = resourceId;
-    }
-
-    public Integer getWatchDuration() {
-        return watchDuration;
-    }
-
-    public void setWatchDuration(Integer watchDuration) {
-        this.watchDuration = watchDuration;
-    }
-
-    public Integer getTotalDuration() {
-        return totalDuration;
-    }
-
-    public void setTotalDuration(Integer totalDuration) {
-        this.totalDuration = totalDuration;
-    }
-
-    public BigDecimal getProgress() {
-        return progress;
-    }
-
-    public void setProgress(BigDecimal progress) {
-        this.progress = progress;
-    }
-
-    public Integer getLastPosition() {
-        return lastPosition;
-    }
-
-    public void setLastPosition(Integer lastPosition) {
-        this.lastPosition = lastPosition;
-    }
-
-    public Integer getCompleteCount() {
-        return completeCount;
-    }
-
-    public void setCompleteCount(Integer completeCount) {
-        this.completeCount = completeCount;
-    }
-
-    public LocalDateTime getLastWatchedAt() {
-        return lastWatchedAt;
-    }
-
-    public void setLastWatchedAt(LocalDateTime lastWatchedAt) {
-        this.lastWatchedAt = lastWatchedAt;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
 }

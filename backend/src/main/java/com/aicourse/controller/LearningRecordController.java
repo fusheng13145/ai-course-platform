@@ -4,6 +4,7 @@ import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.LearningRecord;
 import com.aicourse.service.LearningRecordService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -16,6 +17,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/learning-records")
+@Tag(name = "学习记录")
 public class LearningRecordController {
 
     private final LearningRecordService learningRecordService;

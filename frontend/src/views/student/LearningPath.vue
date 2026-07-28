@@ -342,7 +342,7 @@ onMounted(() => {
 
 .lp-main {
   display: grid;
-  grid-template-columns: minmax(240px, 280px) 1fr;
+  grid-template-columns: 280px 1fr;
   gap: var(--ac-spacing-md);
   min-height: 500px;
 }

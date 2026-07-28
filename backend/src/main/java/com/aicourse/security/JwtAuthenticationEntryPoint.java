@@ -2,6 +2,8 @@ package com.aicourse.security;
 
 import com.aicourse.common.ApiResponse;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.core.AuthenticationException;
@@ -9,6 +11,7 @@ import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.stereotype.Component;
 
 import java.io.IOException;
+import com.aicourse.common.ApiCode;
 
 /**
  * JWT 未认证统一异常处理器
@@ -19,6 +22,13 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
+    static {
+        // ApiResponse.timestamp 为 LocalDateTime，需注册 JavaTime 模块方可序列化，
+        // 否则未认证响应序列化时会抛出 InvalidDefinitionException，导致 401 体为空/报错。
+        OBJECT_MAPPER.registerModule(new JavaTimeModule());
+        OBJECT_MAPPER.disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
+    }
+
     @Override
     public void commence(HttpServletRequest request,
                          HttpServletResponse response,
@@ -28,7 +38,7 @@ public class JwtAuthenticationEntryPoint implements AuthenticationEntryPoint {
         response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
 
         // 构建统一返回结果
-        ApiResponse<Object> result = ApiResponse.error(401, "未授权，请先登录");
+        ApiResponse<Object> result = ApiResponse.error(ApiCode.UNAUTHORIZED, "未授权，请先登录");
         // 序列化并写出响应
         OBJECT_MAPPER.writeValue(response.getOutputStream(), result);
     }

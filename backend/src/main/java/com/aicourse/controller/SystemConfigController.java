@@ -1,9 +1,23 @@
 package com.aicourse.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.common.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.entity.SystemConfig;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import com.aicourse.entity.User;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import com.aicourse.exception.BusinessException;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import com.aicourse.common.ApiCode;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import com.aicourse.service.EmailService;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.service.SystemConfigService;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import com.aicourse.service.UserService;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -12,14 +26,21 @@ import java.util.Map;
 /**
  * 系统配置管理接口控制器
  */
+@Tag(name = "系统配置", description = "系统配置项的增删改查、分组查询、邮件测试")
 @RestController
 @RequestMapping("/system-configs")
 public class SystemConfigController {
 
     private final SystemConfigService systemConfigService;
+    private final EmailService emailService;
+    private final UserService userService;
 
-    public SystemConfigController(SystemConfigService systemConfigService) {
+    public SystemConfigController(SystemConfigService systemConfigService,
+                                  EmailService emailService,
+                                  UserService userService) {
         this.systemConfigService = systemConfigService;
+        this.emailService = emailService;
+        this.userService = userService;
     }
 
     /**
@@ -62,7 +83,7 @@ public class SystemConfigController {
     @GetMapping("/key/{key}")
     public ApiResponse<String> getValue(@PathVariable String key) {
         String value = systemConfigService.getConfigValue(key);
-        return ApiResponse.success(value);
+        return ApiResponse.success("获取成功", value);
     }
 
     /**
@@ -100,5 +121,22 @@ public class SystemConfigController {
     public ApiResponse<List<SystemConfig>> search(@RequestParam String keyword) {
         List<SystemConfig> configs = systemConfigService.searchConfigs(keyword);
         return ApiResponse.success(configs);
+    }
+
+    /**
+     * 发送测试邮件（验证邮件配置有效性，发送至当前管理员邮箱）
+     * @param auth 认证信息
+     * @return 操作结果
+     */
+    @PostMapping("/test-email")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<Void> testEmail(Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        User user = userService.getById(userId);
+        if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "当前管理员未配置邮箱，无法发送测试邮件");
+        }
+        emailService.sendVerificationCode(user.getEmail(), "888888", "TEST");
+        return ApiResponse.success("测试邮件已发送", null);
     }
 }

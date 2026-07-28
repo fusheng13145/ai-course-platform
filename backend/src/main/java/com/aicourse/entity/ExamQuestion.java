@@ -1,5 +1,7 @@
 package com.aicourse.entity;
 
+import lombok.Data;
+
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -14,6 +16,7 @@ import java.time.LocalDateTime;
  * 用于维护试卷与题库题目的关联关系，记录题目序号、分值等信息
  */
 @TableName("exam_questions")
+@Data
 public class ExamQuestion {
 
     /**
@@ -48,51 +51,4 @@ public class ExamQuestion {
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Long getExamPaperId() {
-        return examPaperId;
-    }
-
-    public void setExamPaperId(Long examPaperId) {
-        this.examPaperId = examPaperId;
-    }
-
-    public Long getQuestionId() {
-        return questionId;
-    }
-
-    public void setQuestionId(Long questionId) {
-        this.questionId = questionId;
-    }
-
-    public Integer getOrderIndex() {
-        return orderIndex;
-    }
-
-    public void setOrderIndex(Integer orderIndex) {
-        this.orderIndex = orderIndex;
-    }
-
-    public BigDecimal getPoints() {
-        return points;
-    }
-
-    public void setPoints(BigDecimal points) {
-        this.points = points;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
 }

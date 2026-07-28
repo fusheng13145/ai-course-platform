@@ -1,0 +1,1 @@
+import{o as e}from"./index-BLtK5JIz.js";var t={getUserList:t=>e.get(`/users`,{params:t}),getUserById:t=>e.get(`/users/${t}`),createUser:t=>e.post(`/users`,t),updateUser:(t,n)=>e.put(`/users/${t}`,n),deleteUser:t=>e.delete(`/users/${t}`),updateUserStatus:(t,n)=>e.patch(`/users/${t}/status`,{status:n})};export{t};

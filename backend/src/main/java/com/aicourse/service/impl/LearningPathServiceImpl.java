@@ -33,11 +33,10 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
     private final ObjectMapper objectMapper;
 
     public LearningPathServiceImpl(LearningPathNodeService nodeService,
-                                   KnowledgePointService knowledgePointService,
-                                   ObjectMapper objectMapper) {
+                                   KnowledgePointService knowledgePointService) {
         this.nodeService = nodeService;
         this.knowledgePointService = knowledgePointService;
-        this.objectMapper = objectMapper;
+        this.objectMapper = new ObjectMapper();
     }
 
     /**

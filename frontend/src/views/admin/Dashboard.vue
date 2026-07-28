@@ -1,4 +1,4 @@
-﻿﻿﻿﻿<template>
+﻿﻿<template>
   <div class="fade-in admin-dashboard">
     <!-- 统计卡片区域 -->
     <div class="stat-cards">

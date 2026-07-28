@@ -1,5 +1,7 @@
 package com.aicourse.dto;
 
+import lombok.Data;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
@@ -9,12 +11,17 @@ import jakarta.validation.constraints.Pattern;
  * 用于接收教师/系统发起作业查重检测时的参数配置
  */
 @Schema(description = "发起查重检测请求")
+@Data
 public class PlagiarismCheckCreateDTO {
 
     @NotNull(message = "提交记录ID不能为空")
     @Schema(description = "待检测的提交记录ID", example = "1001",
             requiredMode = Schema.RequiredMode.REQUIRED)
     private Long submissionId;
+
+    @Schema(description = "查重类型", example = "TEXT",
+            allowableValues = {"TEXT", "CODE", "STRUCTURE"})
+    private String checkType = "TEXT";
 
     @Pattern(regexp = "^(ALL|COURSE|SAME_TASK)$", message = "对比范围不合法")
     @Schema(description = "对比范围\n" +
@@ -30,29 +37,4 @@ public class PlagiarismCheckCreateDTO {
             allowableValues = {"LOW", "MEDIUM", "HIGH"})
     private String sensitivity = "MEDIUM";
 
-    // ====================== Getter & Setter ======================
-
-    public Long getSubmissionId() {
-        return submissionId;
-    }
-
-    public void setSubmissionId(Long submissionId) {
-        this.submissionId = submissionId;
-    }
-
-    public String getCompareAgainst() {
-        return compareAgainst;
-    }
-
-    public void setCompareAgainst(String compareAgainst) {
-        this.compareAgainst = compareAgainst;
-    }
-
-    public String getSensitivity() {
-        return sensitivity;
-    }
-
-    public void setSensitivity(String sensitivity) {
-        this.sensitivity = sensitivity;
-    }
 }

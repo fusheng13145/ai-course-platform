@@ -6,8 +6,6 @@ import com.aicourse.mapper.ExamSessionMapper;
 import com.aicourse.service.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
-import com.fasterxml.jackson.core.type.TypeReference;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,18 +22,15 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
     private final ExamQuestionService examQuestionService;
     private final QuestionService questionService;
     private final WrongQuestionService wrongQuestionService;
-    private final ObjectMapper objectMapper;
 
     public ExamSessionServiceImpl(ExamPaperService examPaperService,
                                    ExamQuestionService examQuestionService,
                                    QuestionService questionService,
-                                   WrongQuestionService wrongQuestionService,
-                                   ObjectMapper objectMapper) {
+                                   WrongQuestionService wrongQuestionService) {
         this.examPaperService = examPaperService;
         this.examQuestionService = examQuestionService;
         this.questionService = questionService;
         this.wrongQuestionService = wrongQuestionService;
-        this.objectMapper = objectMapper;
     }
 
     /**
@@ -627,11 +622,17 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
         if (map == null || map.isEmpty()) {
             return "{}";
         }
-        try {
-            return objectMapper.writeValueAsString(map);
-        } catch (Exception e) {
-            return "{}";
+        StringBuilder sb = new StringBuilder("{");
+        int i = 0;
+        for (Map.Entry<String, Object> entry : map.entrySet()) {
+            if (i++ > 0) {
+                sb.append(",");
+            }
+            sb.append("\"").append(entry.getKey()).append("\":\"")
+                    .append(entry.getValue() != null ? entry.getValue().toString() : "").append("\"");
         }
+        sb.append("}");
+        return sb.toString();
     }
 
     /**
@@ -643,10 +644,26 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
             return result;
         }
         try {
-            return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
+            // 去掉首尾大括号
+            String content = json.trim();
+            if (content.startsWith("{")) content = content.substring(1);
+            if (content.endsWith("}")) content = content.substring(0, content.length() - 1);
+            content = content.trim();
+
+            // 简单解析 key:value 对
+            String[] pairs = content.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
+            for (String pair : pairs) {
+                String[] kv = pair.split(":", 2);
+                if (kv.length == 2) {
+                    String key = kv[0].trim().replace("\"", "");
+                    String value = kv[1].trim().replace("\"", "");
+                    result.put(key, value);
+                }
+            }
         } catch (Exception e) {
-            return result;
+            // JSON解析失败返回空map
         }
+        return result;
     }
 
     /**
@@ -658,12 +675,24 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
             return set;
         }
         try {
-            return objectMapper.readValue(arrayStr, new TypeReference<Set<String>>() {});
+            String content = arrayStr.trim();
+            if (content.startsWith("[")) content = content.substring(1);
+            if (content.endsWith("]")) content = content.substring(0, content.length() - 1);
+            if (content.isEmpty()) {
+                return set;
+            }
+            String[] items = content.split(",");
+            for (String item : items) {
+                String trimmed = item.trim().replace("\"", "").replace("'", "").trim();
+                if (!trimmed.isEmpty()) {
+                    set.add(trimmed);
+                }
+            }
         } catch (Exception e) {
             // 解析失败时尝试直接添加
             set.add(arrayStr.replace("\"", "").replace("'", "").trim());
-            return set;
         }
+        return set;
     }
 
     /**
@@ -673,11 +702,17 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
         if (scores == null || scores.isEmpty()) {
             return "{}";
         }
-        try {
-            return objectMapper.writeValueAsString(scores);
-        } catch (Exception e) {
-            return "{}";
+        StringBuilder sb = new StringBuilder("{");
+        int i = 0;
+        for (Map.Entry<Long, BigDecimal> entry : scores.entrySet()) {
+            if (i++ > 0) {
+                sb.append(",");
+            }
+            sb.append("\"").append(entry.getKey()).append("\":")
+                    .append(entry.getValue() != null ? entry.getValue().toString() : "0");
         }
+        sb.append("}");
+        return sb.toString();
     }
 
     /**
@@ -689,10 +724,24 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
             return result;
         }
         try {
-            return objectMapper.readValue(json, new TypeReference<Map<Long, BigDecimal>>() {});
+            String content = json.trim();
+            if (content.startsWith("{")) content = content.substring(1);
+            if (content.endsWith("}")) content = content.substring(0, content.length() - 1);
+            content = content.trim();
+
+            String[] pairs = content.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
+            for (String pair : pairs) {
+                String[] kv = pair.split(":", 2);
+                if (kv.length == 2) {
+                    Long key = Long.parseLong(kv[0].trim().replace("\"", ""));
+                    BigDecimal value = new BigDecimal(kv[1].trim());
+                    result.put(key, value);
+                }
+            }
         } catch (Exception e) {
-            return result;
+            // 解析失败
         }
+        return result;
     }
 
     /**

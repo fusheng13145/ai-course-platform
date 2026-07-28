@@ -1,4 +1,4 @@
-﻿﻿﻿<template>
+﻿﻿<template>
   <div>
     <div class="table-toolbar">
       <div class="toolbar-left">
@@ -38,7 +38,7 @@
     </div>
 
     <!-- 课程详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="课程详情" width="700px" append-to-body>
+    <el-dialog v-model="detailDialogVisible" title="课程详情" width="700px">
       <el-descriptions :column="2" border v-if="currentCourse">
         <el-descriptions-item label="课程ID">{{ currentCourse.id }}</el-descriptions-item>
         <el-descriptions-item label="课程名称">{{ currentCourse.name }}</el-descriptions-item>

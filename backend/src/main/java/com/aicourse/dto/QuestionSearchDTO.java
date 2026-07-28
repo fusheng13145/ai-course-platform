@@ -1,5 +1,8 @@
 package com.aicourse.dto;
 
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 import jakarta.validation.constraints.Max;
 import jakarta.validation.constraints.Min;
@@ -10,6 +13,8 @@ import jakarta.validation.constraints.Pattern;
  * 用于接收前端搜索题库时的筛选和排序参数
  */
 @Schema(description = "题目搜索查询参数")
+@Data
+@EqualsAndHashCode(callSuper = true)
 public class QuestionSearchDTO extends PageQueryDTO {
 
     @Schema(description = "所属课程ID", example = "1")
@@ -45,72 +50,4 @@ public class QuestionSearchDTO extends PageQueryDTO {
     @Schema(description = "排序方式", example = "DIFFICULTY",
             allowableValues = {"CREATED", "DIFFICULTY", "USAGE", "CORRECT_RATE"})
     private String sortBy = "CREATED";
-
-    // ====================== Getter & Setter ======================
-
-    public Long getCourseId() {
-        return courseId;
-    }
-
-    public void setCourseId(Long courseId) {
-        this.courseId = courseId;
-    }
-
-    public String getKeyword() {
-        return keyword;
-    }
-
-    public void setKeyword(String keyword) {
-        this.keyword = keyword;
-    }
-
-    public String getType() {
-        return type;
-    }
-
-    public void setType(String type) {
-        this.type = type;
-    }
-
-    public Integer getDifficultyMin() {
-        return difficultyMin;
-    }
-
-    public void setDifficultyMin(Integer difficultyMin) {
-        this.difficultyMin = difficultyMin;
-    }
-
-    public Integer getDifficultyMax() {
-        return difficultyMax;
-    }
-
-    public void setDifficultyMax(Integer difficultyMax) {
-        this.difficultyMax = difficultyMax;
-    }
-
-    public Long getKnowledgePointId() {
-        return knowledgePointId;
-    }
-
-    public void setKnowledgePointId(Long knowledgePointId) {
-        this.knowledgePointId = knowledgePointId;
-    }
-
-    public String getTags() {
-        return tags;
-    }
-
-    public void setTags(String tags) {
-        this.tags = tags;
-    }
-
-    @Override
-    public String getSortBy() {
-        return sortBy;
-    }
-
-    @Override
-    public void setSortBy(String sortBy) {
-        this.sortBy = sortBy;
-    }
 }

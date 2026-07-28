@@ -10,6 +10,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -49,8 +50,15 @@ public class VideoWatchSessionServiceImpl extends ServiceImpl<VideoWatchSessionM
         if (session.getEndedAt() != null) {
             throw new BusinessException("该会话已结束，无法更新进度");
         }
+        // 修复 P0-5：防拖拽——本次观看时长受"真实经过时长"约束，快进/拖拽不计入
+        long realElapsedSec = session.getStartedAt() != null
+                ? Math.max(0, ChronoUnit.SECONDS.between(session.getStartedAt(), LocalDateTime.now()))
+                : 0;
+        int rawDuration = currentTime - (session.getStartPosition() != null ? session.getStartPosition() : 0);
+        int maxDuration = (int) (realElapsedSec + 3L); // 容差 3 秒
+        int duration = Math.max(0, Math.min(rawDuration, maxDuration));
         session.setEndPosition(currentTime);
-        session.setDuration(currentTime - (session.getStartPosition() != null ? session.getStartPosition() : 0));
+        session.setDuration(duration);
         this.updateById(session);
         return session;
     }

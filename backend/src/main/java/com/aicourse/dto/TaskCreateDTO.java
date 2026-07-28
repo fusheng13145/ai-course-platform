@@ -1,5 +1,7 @@
 package com.aicourse.dto;
 
+import lombok.Data;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 
 /**
@@ -7,6 +9,7 @@ import io.swagger.v3.oas.annotations.media.Schema;
  * 用于接收前端创建作业/任务时的请求数据
  */
 @Schema(description = "任务创建请求体")
+@Data
 public class TaskCreateDTO {
 
     @Schema(description = "任务标题", example = "第一次编程作业", requiredMode = Schema.RequiredMode.REQUIRED)
@@ -36,77 +39,10 @@ public class TaskCreateDTO {
     @Schema(description = "附件URL列表（JSON数组格式）", example = "[\"https://example.com/file1.pdf\"]")
     private String attachmentUrls;
 
-    // ====================== Getter & Setter ======================
+    @Schema(description = "新的截止日期（ISO格式，延长截止日期用）", example = "2025-01-15T23:59:59")
+    private String newDueDate;
 
-    public String getTitle() {
-        return title;
-    }
+    @Schema(description = "延长截止日期的原因", example = "因假期延长截止时间")
+    private String reason;
 
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public String getTaskType() {
-        return taskType;
-    }
-
-    public void setTaskType(String taskType) {
-        this.taskType = taskType;
-    }
-
-    public Long getCourseId() {
-        return courseId;
-    }
-
-    public void setCourseId(Long courseId) {
-        this.courseId = courseId;
-    }
-
-    public String getDueDate() {
-        return dueDate;
-    }
-
-    public void setDueDate(String dueDate) {
-        this.dueDate = dueDate;
-    }
-
-    public java.math.BigDecimal getMaxScore() {
-        return maxScore;
-    }
-
-    public void setMaxScore(java.math.BigDecimal maxScore) {
-        this.maxScore = maxScore;
-    }
-
-    public String getSubmissionFormat() {
-        return submissionFormat;
-    }
-
-    public void setSubmissionFormat(String submissionFormat) {
-        this.submissionFormat = submissionFormat;
-    }
-
-    public String getRequirements() {
-        return requirements;
-    }
-
-    public void setRequirements(String requirements) {
-        this.requirements = requirements;
-    }
-
-    public String getAttachmentUrls() {
-        return attachmentUrls;
-    }
-
-    public void setAttachmentUrls(String attachmentUrls) {
-        this.attachmentUrls = attachmentUrls;
-    }
 }

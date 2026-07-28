@@ -7,7 +7,11 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
+
+import com.aicourse.common.ApiCode;
+import com.aicourse.dto.ResourceVersionCreateDTO;
+import jakarta.validation.Valid;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * 资源版本管理控制器
@@ -15,6 +19,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/resource-versions")
+@Tag(name = "资源版本")
 public class ResourceVersionController {
 
     private final ResourceVersionService resourceVersionService;
@@ -37,28 +42,28 @@ public class ResourceVersionController {
     /**
      * 创建新版本
      * 权限：教师、管理员
-     * @param params 请求参数（包含 resourceId, fileName, fileType, url, description, fileSize）
+     * @param dto 版本创建请求DTO
      * @return 新创建的版本
      */
     @PostMapping("")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<ResourceVersion> createNewVersion(@RequestBody Map<String, Object> params) {
-        Long resourceId = params.get("resourceId") != null ? Long.valueOf(params.get("resourceId").toString()) : null;
-        String fileName = (String) params.get("fileName");
-        String fileType = (String) params.get("fileType");
-        String url = (String) params.get("url");
-        String description = (String) params.get("description");
-        Long uploaderId = params.get("uploaderId") != null ? Long.valueOf(params.get("uploaderId").toString()) : null;
-        Long fileSize = params.get("fileSize") != null ? Long.valueOf(params.get("fileSize").toString()) : null;
+    public ApiResponse<ResourceVersion> createNewVersion(@Valid @RequestBody ResourceVersionCreateDTO dto) {
+        Long resourceId = dto.getResourceId();
+        String fileName = dto.getFileName();
+        String fileType = dto.getFileType();
+        String url = dto.getUrl();
+        String description = dto.getDescription();
+        Long uploaderId = dto.getUploaderId();
+        Long fileSize = dto.getFileSize();
 
         if (resourceId == null) {
-            return ApiResponse.error(400, "资源ID不能为空");
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "资源ID不能为空");
         }
         if (fileName == null || fileName.isEmpty()) {
-            return ApiResponse.error(400, "文件名不能为空");
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "文件名不能为空");
         }
         if (url == null || url.isEmpty()) {
-            return ApiResponse.error(400, "资源地址不能为空");
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "资源地址不能为空");
         }
 
         ResourceVersion version = resourceVersionService.createNewVersion(
@@ -70,16 +75,15 @@ public class ResourceVersionController {
      * 回滚到指定版本
      * 权限：教师、管理员
      * @param id 资源ID
-     * @param params 请求参数（包含 versionNumber）
+     * @param dto 版本创建请求DTO（仅使用versionNumber字段）
      * @return 操作结果
      */
     @PostMapping("/{id}/rollback")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Void> rollbackToVersion(@PathVariable Long id, @RequestBody Map<String, Object> params) {
-        Integer versionNumber = params.get("versionNumber") != null ?
-                Integer.valueOf(params.get("versionNumber").toString()) : null;
+    public ApiResponse<Void> rollbackToVersion(@PathVariable Long id, @Valid @RequestBody ResourceVersionCreateDTO dto) {
+        Integer versionNumber = dto.getVersionNumber();
         if (versionNumber == null) {
-            return ApiResponse.error(400, "目标版本号不能为空");
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "目标版本号不能为空");
         }
         resourceVersionService.rollbackToVersion(id, versionNumber);
         return ApiResponse.success("回滚成功");

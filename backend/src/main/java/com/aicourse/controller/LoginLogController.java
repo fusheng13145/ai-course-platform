@@ -12,6 +12,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * 登录日志管理接口控制器
@@ -19,6 +20,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/login-logs")
+@Tag(name = "登录日志")
 public class LoginLogController {
 
     private final LoginLogService loginLogService;
@@ -35,6 +37,7 @@ public class LoginLogController {
      * @return 分页登录日志列表
      */
     @GetMapping("/user/{userId}")
+    @PreAuthorize("hasAnyRole('ADMIN') or #userId == authentication.principal")
     public ApiResponse<PagedResponse<LoginLog>> getUserLoginHistory(
             @PathVariable Long userId,
             @RequestParam(defaultValue = "1") int page,
@@ -49,6 +52,7 @@ public class LoginLogController {
      * @return 统计信息（成功/失败次数、最后登录时间等）
      */
     @GetMapping("/user/{userId}/stats")
+    @PreAuthorize("hasAnyRole('ADMIN') or #userId == authentication.principal")
     public ApiResponse<Map<String, Object>> getLoginStats(@PathVariable Long userId) {
         Map<String, Object> stats = loginLogService.getLoginStats(userId);
         return ApiResponse.success(stats);

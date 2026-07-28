@@ -6,7 +6,10 @@ import com.aicourse.entity.LearningPathNode;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.LearningPathMapper;
 import com.aicourse.service.KnowledgePointService;
+import com.aicourse.service.CourseChapterService;
 import com.aicourse.service.LearningPathNodeService;
+import com.aicourse.service.TaskService;
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -35,6 +38,8 @@ class LearningPathServiceImplTest {
     @Mock private KnowledgePointService knowledgePointService;
     @Mock private ObjectMapper objectMapper;
     @Mock private LearningPathMapper learningPathMapper;
+    @Mock private CourseChapterService courseChapterService;
+    @Mock private TaskService taskService;
 
     @InjectMocks private LearningPathServiceImpl learningPathService;
 
@@ -44,6 +49,10 @@ class LearningPathServiceImplTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(learningPathService, "baseMapper", learningPathMapper);
+        // generatePath 内部会调用 courseChapterService.list(...) 与 taskService.list(...)，
+        // 桩化为空列表避免 NPE；仅 generatePath 相关用例使用，故用 lenient 避免严格桩检查报错。
+        lenient().when(courseChapterService.list(any(Wrapper.class))).thenReturn(Collections.emptyList());
+        lenient().when(taskService.list(any(Wrapper.class))).thenReturn(Collections.emptyList());
 
         testPath = new LearningPath();
         testPath.setId(1L);

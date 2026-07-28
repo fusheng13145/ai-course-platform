@@ -163,12 +163,11 @@ async function loadMonthData() {
 
   loading.value = true
   try {
-    const now = new Date()
-    const res = await analyticsApi.getCalendarData({ year: now.getFullYear(), month: now.getMonth() + 1 })
+    const res = await analyticsApi.getTrendData(userId)
     const data = res?.data || res || {}
 
     // 处理学习天数数据 - 兼容多种格式
-    const rawStudyDays = data || []
+    const rawStudyDays = data.studyDays || data.days || []
     const newMap = new Map()
 
     // 支持数组格式：['2024-01-15', ...] 或对象格式：{'2024-01-15': {minutes: 60}, ...}

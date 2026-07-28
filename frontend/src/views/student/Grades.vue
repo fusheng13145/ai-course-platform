@@ -1,4 +1,4 @@
-﻿﻿﻿﻿<template>
+﻿﻿<template>
   <div class="fade-in">
     <!-- 顶部统计卡片 -->
     <div class="stat-cards">

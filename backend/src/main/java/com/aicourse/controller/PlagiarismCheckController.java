@@ -1,9 +1,15 @@
 package com.aicourse.controller;
 
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.common.ApiResponse;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.entity.PlagiarismCheck;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.entity.PlagiarismMatch;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.service.PlagiarismCheckService;
+import com.aicourse.dto.PlagiarismCheckCreateDTO;
+import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -14,6 +20,7 @@ import java.util.Map;
 /**
  * 查重检测接口控制器
  */
+@Tag(name = "查重检测", description = "作业查重检查与相似度匹配结果")
 @RestController
 @RequestMapping("/plagiarism-checks")
 public class PlagiarismCheckController {
@@ -31,9 +38,9 @@ public class PlagiarismCheckController {
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<PlagiarismCheck> create(@RequestBody Map<String, Object> body) {
-        Long submissionId = Long.valueOf(body.get("submissionId").toString());
-        String checkType = body.get("checkType") != null ? body.get("checkType").toString() : "TEXT";
+    public ApiResponse<PlagiarismCheck> create(@Valid @RequestBody PlagiarismCheckCreateDTO dto) {
+        Long submissionId = dto.getSubmissionId();
+        String checkType = dto.getCheckType() != null ? dto.getCheckType() : "TEXT";
         PlagiarismCheck check = plagiarismCheckService.createCheck(submissionId, checkType);
         return ApiResponse.success("查重任务创建成功", check);
     }

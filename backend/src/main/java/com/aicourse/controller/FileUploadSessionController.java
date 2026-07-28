@@ -1,8 +1,11 @@
 package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
+import com.aicourse.dto.FileUploadDTO;
 import com.aicourse.entity.FileUploadSession;
 import com.aicourse.service.FileUploadSessionService;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.Map;
@@ -11,6 +14,7 @@ import java.util.Map;
  * 文件分片上传会话控制器
  * 提供上传会话的创建、分片上传记录、合并、进度查询及取消等API
  */
+@Tag(name = "文件上传", description = "分片上传会话管理、进度查询")
 @RestController
 @RequestMapping("/upload-sessions")
 public class FileUploadSessionController {
@@ -28,24 +32,11 @@ public class FileUploadSessionController {
      */
     @PostMapping("")
     public ApiResponse<FileUploadSession> createUploadSession(
-            @RequestBody Map<String, Object> params,
+            @Valid @RequestBody FileUploadDTO params,
             org.springframework.security.core.Authentication auth) {
-        String filename = (String) params.get("filename");
-        Long fileSize = params.get("fileSize") != null ? Long.valueOf(params.get("fileSize").toString()) : null;
-        Long totalChunks = params.get("totalChunks") != null ? Long.valueOf(params.get("totalChunks").toString()) : null;
         Long uploaderId = (Long) auth.getPrincipal();
-
-        if (filename == null || filename.isEmpty()) {
-            return ApiResponse.error(400, "文件名不能为空");
-        }
-        if (fileSize == null || fileSize <= 0) {
-            return ApiResponse.error(400, "文件大小必须大于0");
-        }
-        if (totalChunks == null || totalChunks <= 0) {
-            return ApiResponse.error(400, "总分片数必须大于0");
-        }
-
-        FileUploadSession session = fileUploadSessionService.createUploadSession(filename, fileSize, totalChunks, uploaderId);
+        FileUploadSession session = fileUploadSessionService.createUploadSession(
+                params.getFilename(), params.getFileSize(), params.getTotalChunks(), uploaderId);
         return ApiResponse.success("会话创建成功", session);
     }
 

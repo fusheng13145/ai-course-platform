@@ -66,30 +66,37 @@ public class LearningRecordServiceImpl extends ServiceImpl<LearningRecordMapper,
     @Override
     public List<Map<String, Object>> getLearningTrend(Long userId, int days) {
         List<Map<String, Object>> trend = new ArrayList<>();
+        if (days <= 0) days = 7;
         LocalDate today = LocalDate.now();
-        
+        LocalDate startDate = today.minusDays(days - 1);
+
+        // 优化：仅一次范围查询拉取整个窗口的记录，再按日期分组（避免按天循环 N+1 单查）
+        LambdaQueryWrapper<LearningRecord> queryWrapper = new LambdaQueryWrapper<LearningRecord>()
+                .eq(LearningRecord::getUserId, userId)
+                .ge(LearningRecord::getCreatedAt, startDate.atStartOfDay())
+                .lt(LearningRecord::getCreatedAt, today.plusDays(1).atStartOfDay());
+
+        Map<LocalDate, List<LearningRecord>> groupedByDate = this.list(queryWrapper).stream()
+                .filter(r -> r.getCreatedAt() != null)
+                .collect(Collectors.groupingBy(r -> r.getCreatedAt().toLocalDate()));
+
         for (int i = days - 1; i >= 0; i--) {
             LocalDate date = today.minusDays(i);
             Map<String, Object> dayData = new HashMap<>();
             dayData.put("date", date.toString());
-            
-            LambdaQueryWrapper<LearningRecord> queryWrapper = new LambdaQueryWrapper<LearningRecord>()
-                    .eq(LearningRecord::getUserId, userId)
-                    .ge(LearningRecord::getCreatedAt, date.atStartOfDay())
-                    .lt(LearningRecord::getCreatedAt, date.plusDays(1).atStartOfDay());
-            
-            List<LearningRecord> dayRecords = this.list(queryWrapper);
+
+            List<LearningRecord> dayRecords = groupedByDate.getOrDefault(date, Collections.emptyList());
             int duration = dayRecords.stream()
                     .mapToInt(r -> r.getDuration() != null ? r.getDuration() : 0)
                     .sum();
             dayData.put("duration", duration);
-            
+
             // 学习次数
             dayData.put("count", dayRecords.size());
-            
+
             trend.add(dayData);
         }
-        
+
         return trend;
     }
 

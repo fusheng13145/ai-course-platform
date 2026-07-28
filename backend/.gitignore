@@ -31,3 +31,22 @@ build/
 
 ### VS Code ###
 .vscode/
+
+### Build logs ###
+build.log
+*.log
+
+### Local secret / profile config (never commit real keys) ###
+application-local.yaml
+*.local.yaml
+.env.local
+
+# 本地测试/调试残留（含登录态 JWT、refresh token，严禁提交）
+bearer.txt
+login_resp.json
+dash_resp.json
+r.json
+e2e_*.txt
+
+# 运行时用户上传目录（含用户文件，不入库）
+uploads/

@@ -1,0 +1,53 @@
+package com.aicourse.entity;
+
+import com.baomidou.mybatisplus.annotation.FieldFill;
+import com.baomidou.mybatisplus.annotation.IdType;
+import com.baomidou.mybatisplus.annotation.TableField;
+import com.baomidou.mybatisplus.annotation.TableId;
+import com.baomidou.mybatisplus.annotation.TableName;
+import java.math.BigDecimal;
+import java.time.LocalDateTime;
+import lombok.Data;
+
+/**
+ * 成绩明细项实体（某一学生某一维度的归一化得分）
+ * 对应数据表：grade_items
+ * score 为已归一化到 0-100 的分值；rawScore 为原始分（如百分制/五分制）
+ */
+@Data
+@TableName("grade_items")
+public class GradeItem {
+
+    @TableId(type = IdType.AUTO)
+    private Long id;
+
+    /** 所属成绩方案ID */
+    private Long policyId;
+
+    /** 学生ID */
+    private Long studentId;
+
+    /** 维度键（与 grade_policies.components[].key 对应） */
+    private String componentKey;
+
+    /** 归一化得分（0-100） */
+    private BigDecimal score;
+
+    /** 原始分 */
+    private BigDecimal rawScore;
+
+    /** 数据来源ID（如 submissionId / examSessionId / signInId） */
+    private Long sourceId;
+
+    /** 备注 */
+    private String remark;
+
+    /** 录入者ID */
+    private Long graderId;
+
+    @TableField(fill = FieldFill.INSERT)
+    private LocalDateTime createdAt;
+
+    @TableField(fill = FieldFill.INSERT_UPDATE)
+    private LocalDateTime updatedAt;
+}

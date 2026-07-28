@@ -5,6 +5,7 @@ import com.aicourse.entity.Classroom;
 import com.aicourse.entity.User;
 import com.aicourse.service.ClassroomService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -16,6 +17,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/classrooms")
+@Tag(name = "班级管理")
 public class ClassroomController {
 
     private final ClassroomService classroomService;

@@ -2,43 +2,79 @@
   <div>
     <div class="table-toolbar">
       <div class="toolbar-left">
-        <el-select v-model="statusFilter" placeholder="审核状态" clearable style="width:130px">
+        <el-select v-model="statusFilter" placeholder="审核状态" clearable style="width: 130px">
           <el-option label="待审核" value="PENDING" />
           <el-option label="已通过" value="APPROVED" />
           <el-option label="已拒绝" value="REJECTED" />
         </el-select>
-        <el-select v-model="activeFilter" placeholder="启用状态" clearable style="width:130px;margin-left:8px">
+        <el-select
+          v-model="activeFilter"
+          placeholder="启用状态"
+          clearable
+          style="width: 130px; margin-left: 8px"
+        >
           <el-option label="已启用" value="ACTIVE" />
           <el-option label="已停用" value="INACTIVE" />
         </el-select>
       </div>
       <div class="toolbar-right">
-        <el-input v-model="search" placeholder="搜索课程" clearable style="width:220px" />
+        <el-input v-model="search" placeholder="搜索课程" clearable style="width: 220px" />
       </div>
     </div>
     <div class="content-card">
-      <el-table :data="filteredList" stripe style="width:100%" v-loading="loading">
+      <el-table v-loading="loading" :data="filteredList" stripe style="width: 100%">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="name" label="课程名称" min-width="160" />
-        <el-table-column prop="category" label="分类" width="100"><template #default="{row}">{{ row.category || '未分类' }}</template></el-table-column>
-        <el-table-column label="教师" width="120"><template #default="{row}">{{ row.teacherName || `ID:${row.teacherId}` }}</template></el-table-column>
+        <el-table-column prop="category" label="分类" width="100"
+          ><template #default="{ row }">{{ row.category || '未分类' }}</template></el-table-column
+        >
+        <el-table-column label="教师" width="120"
+          ><template #default="{ row }">{{
+            row.teacherName || `ID:${row.teacherId}`
+          }}</template></el-table-column
+        >
         <el-table-column prop="approvalStatus" label="审核状态" width="100">
-          <template #default="{row}">
-            <el-tag :type="getApprovalType(row.approvalStatus)" size="small">{{ getApprovalText(row.approvalStatus) }}</el-tag>
+          <template #default="{ row }">
+            <el-tag :type="getApprovalType(row.approvalStatus)" size="small">{{
+              getApprovalText(row.approvalStatus)
+            }}</el-tag>
           </template>
         </el-table-column>
         <el-table-column prop="status" label="启用状态" width="100">
-          <template #default="{row}">
-            <el-tag :type="row.status === 'ACTIVE' ? 'success' : 'info'" size="small">{{ row.status === 'ACTIVE' ? '已启用' : '已停用' }}</el-tag>
+          <template #default="{ row }">
+            <span
+              class="status-dot"
+              :class="row.status === 'ACTIVE' ? 'status-dot--active' : 'status-dot--inactive'"
+              ><i></i>{{ row.status === 'ACTIVE' ? '已启用' : '已停用' }}</span
+            >
           </template>
         </el-table-column>
         <el-table-column label="操作" width="320" fixed="right">
-          <template #default="{row}">
-            <el-button text type="success" @click="handleApprove(row)" v-if="row.approvalStatus === 'PENDING'">通过</el-button>
-            <el-button text type="danger" @click="handleReject(row)" v-if="row.approvalStatus === 'PENDING'">拒绝</el-button>
-            <el-button text type="primary" @click="viewDetail(row)">查看</el-button>
-            <el-button text :type="row.status === 'ACTIVE' ? 'warning' : 'success'" @click="handleToggleStatus(row)">{{ row.status === 'ACTIVE' ? '停用' : '启用' }}</el-button>
-            <el-button text type="danger" @click="handleDelete(row)">删除</el-button>
+          <template #default="{ row }">
+            <div class="action-row">
+              <el-button
+                v-if="row.approvalStatus === 'PENDING'"
+                text
+                type="success"
+                @click="handleApprove(row)"
+                >通过</el-button
+              >
+              <el-button
+                v-if="row.approvalStatus === 'PENDING'"
+                text
+                type="danger"
+                @click="handleReject(row)"
+                >拒绝</el-button
+              >
+              <el-button text type="primary" @click="viewDetail(row)">查看</el-button>
+              <el-button
+                text
+                :type="row.status === 'ACTIVE' ? 'warning' : 'success'"
+                @click="handleToggleStatus(row)"
+                >{{ row.status === 'ACTIVE' ? '停用' : '启用' }}</el-button
+              >
+              <el-button text type="danger" @click="handleDelete(row)">删除</el-button>
+            </div>
           </template>
         </el-table-column>
       </el-table>
@@ -47,37 +83,58 @@
 
     <!-- 课程详情对话框 -->
     <el-dialog v-model="detailDialogVisible" title="课程详情" width="700px" append-to-body>
-      <el-descriptions :column="2" border v-if="currentCourse">
+      <el-descriptions v-if="currentCourse" :column="2" border>
         <el-descriptions-item label="课程ID">{{ currentCourse.id }}</el-descriptions-item>
         <el-descriptions-item label="课程名称">{{ currentCourse.name }}</el-descriptions-item>
-        <el-descriptions-item label="课程编码">{{ currentCourse.code || '无' }}</el-descriptions-item>
-        <el-descriptions-item label="分类">{{ currentCourse.category || '未分类' }}</el-descriptions-item>
+        <el-descriptions-item label="课程编码">{{
+          currentCourse.code || '无'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="分类">{{
+          currentCourse.category || '未分类'
+        }}</el-descriptions-item>
         <el-descriptions-item label="学分">{{ currentCourse.credits || 0 }}</el-descriptions-item>
-        <el-descriptions-item label="难度">{{ getDifficultyText(currentCourse.difficulty) }}</el-descriptions-item>
+        <el-descriptions-item label="难度">{{
+          getDifficultyText(currentCourse.difficulty)
+        }}</el-descriptions-item>
         <el-descriptions-item label="教师ID">{{ currentCourse.teacherId }}</el-descriptions-item>
-        <el-descriptions-item label="审核状态"><el-tag :type="getApprovalType(currentCourse.approvalStatus)" size="small">{{ getApprovalText(currentCourse.approvalStatus) }}</el-tag></el-descriptions-item>
-        <el-descriptions-item label="启用状态"><el-tag :type="currentCourse.status === 'ACTIVE' ? 'success' : 'info'" size="small">{{ currentCourse.status === 'ACTIVE' ? '已启用' : '已停用' }}</el-tag></el-descriptions-item>
-        <el-descriptions-item label="报名方式">{{ getEnrollmentTypeText(currentCourse.enrollmentType) }}</el-descriptions-item>
-        <el-descriptions-item label="最大人数">{{ currentCourse.maxStudents || '不限' }}</el-descriptions-item>
+        <el-descriptions-item label="审核状态"
+          ><el-tag :type="getApprovalType(currentCourse.approvalStatus)" size="small">{{
+            getApprovalText(currentCourse.approvalStatus)
+          }}</el-tag></el-descriptions-item
+        >
+        <el-descriptions-item label="启用状态"
+          ><el-tag :type="currentCourse.status === 'ACTIVE' ? 'success' : 'info'" size="small">{{
+            currentCourse.status === 'ACTIVE' ? '已启用' : '已停用'
+          }}</el-tag></el-descriptions-item
+        >
+        <el-descriptions-item label="报名方式">{{
+          getEnrollmentTypeText(currentCourse.enrollmentType)
+        }}</el-descriptions-item>
+        <el-descriptions-item label="最大人数">{{
+          currentCourse.maxStudents || '不限'
+        }}</el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ currentCourse.createdAt }}</el-descriptions-item>
-        <el-descriptions-item label="课程简介" :span="2">{{ currentCourse.description || '暂无简介' }}</el-descriptions-item>
-        <el-descriptions-item label="审核备注" :span="2" v-if="currentCourse.approvalComment">{{ currentCourse.approvalComment }}</el-descriptions-item>
+        <el-descriptions-item label="课程简介" :span="2">{{
+          currentCourse.description || '暂无简介'
+        }}</el-descriptions-item>
+        <el-descriptions-item v-if="currentCourse.approvalComment" label="审核备注" :span="2">{{
+          currentCourse.approvalComment
+        }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
         <el-button @click="detailDialogVisible = false">关闭</el-button>
-        <el-button type="primary" @click="goToCourseManage">管理课程</el-button>
+        <el-button type="primary" plain @click="goToCourseManage">管理课程</el-button>
       </template>
     </el-dialog>
   </div>
 </template>
 
 <script setup>
+import logger from '@/utils/logger'
 import { ref, computed, onMounted } from 'vue'
-import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import courseApi from '@/api/course'
 
-const router = useRouter()
 const courseList = ref([])
 const search = ref('')
 const statusFilter = ref('')
@@ -88,9 +145,12 @@ const currentCourse = ref(null)
 
 const filteredList = computed(() => {
   let list = courseList.value
-  if (statusFilter.value) list = list.filter(c => c.approvalStatus === statusFilter.value)
-  if (activeFilter.value) list = list.filter(c => c.status === activeFilter.value)
-  if (search.value) { const q = search.value.toLowerCase(); list = list.filter(c => c.name?.toLowerCase().includes(q)) }
+  if (statusFilter.value) list = list.filter((c) => c.approvalStatus === statusFilter.value)
+  if (activeFilter.value) list = list.filter((c) => c.status === activeFilter.value)
+  if (search.value) {
+    const q = search.value.toLowerCase()
+    list = list.filter((c) => c.name?.toLowerCase().includes(q))
+  }
   return list
 })
 
@@ -116,10 +176,10 @@ onMounted(async () => {
   loading.value = true
   try {
     const res = await courseApi.getCourseList()
-        const rawData = res.data?.records || res.data?.list || res.data || res
+    const rawData = res.data?.records || res.data?.list || res.data || res
     courseList.value = Array.isArray(rawData) ? rawData : []
   } catch (e) {
-    console.error('Failed to load courses:', e)
+    logger.error('Failed to load courses:', e)
     ElMessage.error('加载课程列表失败')
   } finally {
     loading.value = false
@@ -178,7 +238,7 @@ async function handleDelete(row) {
   try {
     await ElMessageBox.confirm('确定删除该课程？此操作不可恢复', '提示', { type: 'warning' })
     await courseApi.deleteCourse(row.id)
-    courseList.value = courseList.value.filter(c => c.id !== row.id)
+    courseList.value = courseList.value.filter((c) => c.id !== row.id)
     ElMessage.success('已删除')
   } catch (e) {
     if (e !== 'cancel') ElMessage.error('删除失败')

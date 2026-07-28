@@ -1,7 +1,9 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.entity.Resource;
 import com.aicourse.entity.VideoLearningRecord;
 import com.aicourse.mapper.VideoLearningRecordMapper;
+import com.aicourse.service.ResourceService;
 import com.aicourse.service.VideoLearningRecordService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -12,6 +14,7 @@ import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.time.temporal.ChronoUnit;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -23,68 +26,111 @@ import java.util.stream.Collectors;
 public class VideoLearningRecordServiceImpl extends ServiceImpl<VideoLearningRecordMapper, VideoLearningRecord> implements VideoLearningRecordService {
 
     /**
+     * 防拖拽容差：允许的"位置前进量"相对"真实经过时长"的额外秒数，避免正常播放的边界抖动被误判为作弊
+     */
+    private static final long SEEK_TOLERANCE_SEC = 3L;
+
+    private final ResourceService resourceService;
+
+    public VideoLearningRecordServiceImpl(ResourceService resourceService) {
+        this.resourceService = resourceService;
+    }
+
+    /**
      * 更新视频学习进度
      * 接收播放位置、总时长、播放速度等信息，自动检测完播并更新记录
+     * 修复 P0-5：引入"有效观看时长"与"防拖拽"——累计时长不再等于位置差，而是受真实经过时长约束，
+     *            完播判定基于有效观看时长 >= 90% 内容时长，而非仅看末位置（防止拖到 95% 即算完播）。
+     * 修复 P0-6 的数据基础：写入由 resource 解析出的 courseId，使按课程统计生效。
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public VideoLearningRecord updateProgress(Long userId, Long resourceId, Integer position,
                                                Integer totalDuration, Double playbackSpeed) {
+        Long courseId = resolveCourseId(resourceId);
+
         // 查询是否已有该用户+资源的记录
         LambdaQueryWrapper<VideoLearningRecord> queryWrapper = new LambdaQueryWrapper<VideoLearningRecord>()
                 .eq(VideoLearningRecord::getUserId, userId)
                 .eq(VideoLearningRecord::getResourceId, resourceId);
         VideoLearningRecord record = this.getOne(queryWrapper);
 
+        int currentPosition = position != null ? position : 0;
+
         if (record == null) {
             // 首次观看，创建新记录
             record = new VideoLearningRecord();
             record.setUserId(userId);
             record.setResourceId(resourceId);
-            record.setWatchDuration(position != null ? position : 0);
+            record.setCourseId(courseId);
             record.setTotalDuration(totalDuration);
-            record.setLastPosition(position != null ? position : 0);
+            record.setLastPosition(currentPosition);
+            record.setWatchDuration(0);
             record.setCompleteCount(0);
-            record.setProgress(calculateProgressPercent(position, totalDuration));
+            record.setProgress(calculateProgressPercent(currentPosition, totalDuration));
             record.setLastWatchedAt(LocalDateTime.now());
             this.save(record);
         } else {
-            // 更新已有记录
             int oldPosition = record.getLastPosition() != null ? record.getLastPosition() : 0;
 
-            // 更新最后播放位置
-            record.setLastPosition(position != null ? position : 0);
+            // 本次真实经过时长（以服务端时间戳为准，防客户端伪造）
+            LocalDateTime prevUpdate = record.getUpdatedAt() != null ? record.getUpdatedAt() : record.getCreatedAt();
+            long realElapsedSec = prevUpdate != null
+                    ? Math.max(0, ChronoUnit.SECONDS.between(prevUpdate, LocalDateTime.now()))
+                    : 0;
 
-            // 记录视频总时长
+            // 防拖拽/防快进：有效增量 = min(位置前进量, 真实经过时长 + 容差)，回退/快进不计入
+            int posDelta = currentPosition - oldPosition;
+            int validIncrement;
+            if (posDelta <= 0) {
+                validIncrement = 0; // 回退或暂停不动：不计观看时长
+            } else {
+                validIncrement = (int) Math.min(posDelta, realElapsedSec + SEEK_TOLERANCE_SEC);
+                if (validIncrement < 0) validIncrement = 0;
+            }
+
+            int currentWatchDuration = record.getWatchDuration() != null ? record.getWatchDuration() : 0;
+            int newWatchDuration = currentWatchDuration + validIncrement;
+
+            record.setCourseId(courseId);
+            record.setLastPosition(currentPosition);
             if (totalDuration != null && totalDuration > 0) {
                 record.setTotalDuration(totalDuration);
             }
+            record.setWatchDuration(newWatchDuration);
 
-            // 累计观看时长（增量计算：本次位置 - 上次位置的差值，最小为0）
-            int incrementalDuration = Math.max(0, (position != null ? position : 0) - oldPosition);
-            int currentWatchDuration = record.getWatchDuration() != null ? record.getWatchDuration() : 0;
-            record.setWatchDuration(currentWatchDuration + incrementalDuration);
-
-            // 完播检测：播放位置达到总时长的95%以上，且上次未完成过
-            if (totalDuration != null && totalDuration > 0 && position != null) {
-                double progressRatio = (double) position / totalDuration;
-                if (progressRatio >= 0.95) {
-                    // 检查是否是新的一次完播（避免同一位置重复计数）
-                    if (oldPosition < (int) (totalDuration * 0.9)) {
-                        int currentCompleteCount = record.getCompleteCount() != null ? record.getCompleteCount() : 0;
-                        record.setCompleteCount(currentCompleteCount + 1);
-                    }
+            // 完播检测（修复 P0-5）：基于"有效观看时长 >= 90% 内容时长"，每次跨过阈值计 1 次完播
+            if (totalDuration != null && totalDuration > 0) {
+                int threshold = (int) (totalDuration * 0.9);
+                boolean wasComplete = currentWatchDuration >= threshold;
+                boolean nowComplete = newWatchDuration >= threshold;
+                if (nowComplete && !wasComplete) {
+                    int currentCompleteCount = record.getCompleteCount() != null ? record.getCompleteCount() : 0;
+                    record.setCompleteCount(currentCompleteCount + 1);
                 }
             }
 
             // 更新进度百分比
-            record.setProgress(calculateProgressPercent(position, totalDuration));
+            record.setProgress(calculateProgressPercent(currentPosition, totalDuration));
             record.setLastWatchedAt(LocalDateTime.now());
 
             this.updateById(record);
         }
 
         return record;
+    }
+
+    /**
+     * 由 resourceId 解析课程ID（用于按课程统计视频完播，修复 P0-6 数据基础）
+     */
+    private Long resolveCourseId(Long resourceId) {
+        if (resourceId == null) return null;
+        try {
+            Resource resource = resourceService.getById(resourceId);
+            return resource != null ? resource.getCourseId() : null;
+        } catch (Exception e) {
+            return null;
+        }
     }
 
     /**
@@ -193,9 +239,12 @@ public class VideoLearningRecordServiceImpl extends ServiceImpl<VideoLearningRec
      */
     @Override
     public Map<String, Object> getCompletionStats(Long userId, Long courseId) {
-        // 查询该用户的所有视频学习记录
+        // 查询该用户的视频学习记录；修复 P0-6：courseId 非 null 时按课程过滤，否则跨全部课程
         LambdaQueryWrapper<VideoLearningRecord> baseQuery = new LambdaQueryWrapper<VideoLearningRecord>()
                 .eq(VideoLearningRecord::getUserId, userId);
+        if (courseId != null) {
+            baseQuery.eq(VideoLearningRecord::getCourseId, courseId);
+        }
 
         List<VideoLearningRecord> allRecords = this.list(baseQuery);
 

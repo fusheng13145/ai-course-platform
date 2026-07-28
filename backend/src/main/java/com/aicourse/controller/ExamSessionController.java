@@ -1,7 +1,10 @@
 package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
+import com.aicourse.dto.ExamManualGradeDTO;
+import com.aicourse.dto.ExamSubmitDTO;
 import com.aicourse.entity.ExamSession;
+import com.aicourse.security.ExamSessionAccessControl;
 import com.aicourse.service.ExamSessionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.swagger.v3.oas.annotations.Operation;
@@ -12,7 +15,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import jakarta.servlet.http.HttpServletRequest;
-import java.math.BigDecimal;
+import jakarta.validation.Valid;
 import java.util.List;
 import java.util.Map;
 
@@ -26,9 +29,12 @@ import java.util.Map;
 public class ExamSessionController {
 
     private final ExamSessionService examSessionService;
+    private final ExamSessionAccessControl examSessionAccessControl;
 
-    public ExamSessionController(ExamSessionService examSessionService) {
+    public ExamSessionController(ExamSessionService examSessionService,
+                                 ExamSessionAccessControl examSessionAccessControl) {
         this.examSessionService = examSessionService;
+        this.examSessionAccessControl = examSessionAccessControl;
     }
 
     /**
@@ -52,18 +58,28 @@ public class ExamSessionController {
     }
 
     /**
-     * 自动保存作答答案
+     * 获取本场考试的题目列表（含该会话独立的题目乱序与选项乱序）
      */
-    @PostMapping("/{id}/auto-save")
+    @GetMapping("/{id}/questions")
+    @Operation(summary = "获取考试题目", description = "返回本场考试会话的题目列表，已应用题目乱序与选项乱序（防作弊）")
+    public ApiResponse<List<Map<String, Object>>> questions(
+            @Parameter(description = "考试会话ID") @PathVariable Long id,
+            Authentication auth) {
+        examSessionAccessControl.assertReadable(id, auth);
+        List<Map<String, Object>> questions = examSessionService.getSessionQuestions(id);
+        return ApiResponse.success(questions);
+    }
+
+    /**
+     * 自动保存作答答案
+     */    @PostMapping("/{id}/auto-save")
     @Operation(summary = "自动保存答案", description = "在考试过程中定时或手动自动保存作答进度，防止意外丢失")
     public ApiResponse<Void> autoSave(
             @Parameter(description = "考试会话ID") @PathVariable Long id,
-            @io.swagger.v3.oas.annotations.parameters.RequestBody(
-                    description = "包含answers（答案Map）的JSON对象"
-            ) @RequestBody Map<String, Object> body) {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> answers = (Map<String, Object>) body.get("answers");
-        examSessionService.autoSaveAnswers(id, answers);
+            Authentication auth,
+            @Valid @RequestBody ExamSubmitDTO body) {
+        examSessionAccessControl.assertOwnedByStudent(id, auth);
+        examSessionService.autoSaveAnswers(id, body.getAnswers());
         return ApiResponse.success("答案保存成功", null);
     }
 
@@ -74,12 +90,10 @@ public class ExamSessionController {
     @Operation(summary = "提交试卷", description = "学生正式提交考试答卷，提交后不可修改")
     public ApiResponse<ExamSession> submit(
             @Parameter(description = "考试会话ID") @PathVariable Long id,
-            @io.swagger.v3.oas.annotations.parameters.RequestBody(
-                    description = "包含最终答案(answers)的JSON对象"
-            ) @RequestBody Map<String, Object> body) {
-        @SuppressWarnings("unchecked")
-        Map<String, Object> answers = (Map<String, Object>) body.get("answers");
-        ExamSession session = examSessionService.submitExam(id, answers);
+            Authentication auth,
+            @Valid @RequestBody ExamSubmitDTO body) {
+        examSessionAccessControl.assertOwnedByStudent(id, auth);
+        ExamSession session = examSessionService.submitExam(id, body.getAnswers());
         return ApiResponse.success("提交成功", session);
     }
 
@@ -99,7 +113,9 @@ public class ExamSessionController {
      */
     @GetMapping("/{id}/time-remaining")
     @Operation(summary = "获取剩余时间", description = "返回当前考试会话的剩余可用时间（秒）")
-    public ApiResponse<Long> timeRemaining(@Parameter(description = "考试会话ID") @PathVariable Long id) {
+    public ApiResponse<Long> timeRemaining(@Parameter(description = "考试会话ID") @PathVariable Long id,
+                                           Authentication auth) {
+        examSessionAccessControl.assertReadable(id, auth);
         Long remainingTime = examSessionService.getRemainingTime(id);
         return ApiResponse.success(remainingTime);
     }
@@ -123,13 +139,9 @@ public class ExamSessionController {
     @Operation(summary = "人工评分", description = "教师对主观题进行人工打分和评语填写")
     public ApiResponse<Void> manualGrade(
             @Parameter(description = "考试会话ID") @PathVariable Long id,
-            @io.swagger.v3.oas.annotations.parameters.RequestBody(
-                    description = "包含questionId（题目ID）、score（得分）、comment（评语）的JSON对象"
-            ) @RequestBody Map<String, Object> body) {
-        Long questionId = Long.valueOf(body.get("questionId").toString());
-        BigDecimal score = new BigDecimal(body.get("score").toString());
-        String comment = body.get("comment") != null ? body.get("comment").toString() : "";
-        examSessionService.manualGrade(id, questionId, score, comment);
+            @Valid @RequestBody ExamManualGradeDTO body) {
+        examSessionService.manualGrade(id, body.getQuestionId(), body.getScore(),
+                body.getComment() != null ? body.getComment() : "");
         return ApiResponse.success("人工评分完成", null);
     }
 
@@ -138,7 +150,9 @@ public class ExamSessionController {
      */
     @GetMapping("/{id}/report")
     @Operation(summary = "获取成绩报告", description = "返回详细的考试成绩分析报告，包含各题得分、排名等")
-    public ApiResponse<Map<String, Object>> report(@Parameter(description = "考试会话ID") @PathVariable Long id) {
+    public ApiResponse<Map<String, Object>> report(@Parameter(description = "考试会话ID") @PathVariable Long id,
+                                                   Authentication auth) {
+        examSessionAccessControl.assertReadable(id, auth);
         Map<String, Object> report = examSessionService.generateScoreReport(id);
         return ApiResponse.success(report);
     }
@@ -148,8 +162,10 @@ public class ExamSessionController {
      */
     @GetMapping("/{id}/result")
     @Operation(summary = "获取考试结果", description = "返回考试会话详情，包含成绩和状态信息")
-    public ApiResponse<ExamSession> result(@Parameter(description = "考试会话ID") @PathVariable Long id) {
-        ExamSession session = examSessionService.getById(id);
+    public ApiResponse<ExamSession> result(@Parameter(description = "考试会话ID") @PathVariable Long id,
+                                          Authentication auth) {
+        // 复用归属校验时加载的会话对象，避免重复查询
+        ExamSession session = examSessionAccessControl.assertReadable(id, auth);
         return ApiResponse.success(session);
     }
 

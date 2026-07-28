@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<template>
+﻿﻿<template>
   <div class="fade-in user-management">
     <!-- 页面头部 -->
     <div class="page-header">
@@ -26,34 +26,32 @@
       </div>
     </div>
     <div class="content-card">
-      <el-table :data="filteredList" style="width:100%">
-        <el-table-column prop="id" label="ID" width="55" />
-        <el-table-column prop="username" label="用户名" min-width="100" show-overflow-tooltip />
-        <el-table-column prop="fullName" label="姓名" min-width="90" show-overflow-tooltip />
-        <el-table-column prop="email" label="邮箱" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="role" label="角色" width="110" align="center" class-name="tag-col">
+      <el-table :data="filteredList" stripe style="width:100%">
+        <el-table-column prop="id" label="ID" width="60" />
+        <el-table-column prop="username" label="用户名" />
+        <el-table-column prop="fullName" label="姓名" />
+        <el-table-column prop="email" label="邮箱" />
+        <el-table-column prop="role" label="角色" width="100">
           <template #default="{ row }">
             <el-tag :type="row.role === 'ADMIN' ? 'danger' : row.role === 'TEACHER' ? 'success' : 'warning'" size="small">{{ row.role }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column prop="isActive" label="状态" width="90" align="center" class-name="tag-col">
+        <el-table-column prop="isActive" label="状态" width="80">
           <template #default="{ row }">
             <el-tag :type="row.isActive ? 'success' : 'info'" size="small">{{ row.isActive ? '正常' : '禁用' }}</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="220" align="center">
+        <el-table-column label="操作" width="200" fixed="right">
           <template #default="{ row }">
-            <div class="action-row">
-              <el-button text type="primary" @click="editUser(row)">编辑</el-button>
-              <el-button text type="warning" @click="toggleUser(row)">{{ row.isActive ? '禁用' : '启用' }}</el-button>
-              <el-button text type="danger" @click="deleteUser(row)">删除</el-button>
-            </div>
+            <el-button text type="primary" @click="editUser(row)">编辑</el-button>
+            <el-button text type="warning" @click="toggleUser(row)">{{ row.isActive ? '禁用' : '启用' }}</el-button>
+            <el-button text type="danger" @click="deleteUser(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
     </div>
 
-    <el-dialog v-model="showAdd" :title="editing ? '编辑用户' : '添加用户'" width="500px" append-to-body>
+    <el-dialog v-model="showAdd" :title="editing ? '编辑用户' : '添加用户'" width="500px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
         <el-form-item label="用户名" prop="username"><el-input v-model="form.username" /></el-form-item>
         <el-form-item label="姓名" prop="fullName"><el-input v-model="form.fullName" /></el-form-item>
@@ -76,7 +74,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import adminApi from '@/api/admin'
+import userApi from '@/api/user'
 
 // 用户统计数据
 const userStats = ref([
@@ -108,7 +106,7 @@ const filteredList = computed(() => {
 
 onMounted(async () => {
   try {
-    const res = await adminApi.getUsers()
+    const res = await userApi.getUserList()
         const rawData = res.data?.records || res.data?.list || res.data || res
     userList.value = Array.isArray(rawData) ? rawData : []
 
@@ -134,7 +132,7 @@ function toggleUser(row) {
   const action = row.isActive ? '禁用' : '启用'
   ElMessageBox.confirm(`确定${action}用户 ${row.username}？`, '提示').then(async () => {
     try {
-      await adminApi.updateUser(row.id, { isActive: !row.isActive })
+      await userApi.updateUserStatus(row.id, !row.isActive)
       row.isActive = !row.isActive
       ElMessage.success(`${action}成功`)
     } catch (e) { ElMessage.error('操作失败') }
@@ -144,7 +142,7 @@ function toggleUser(row) {
 function deleteUser(row) {
   ElMessageBox.confirm(`确定删除用户 ${row.username}？`, '提示', { type: 'warning' }).then(async () => {
     try {
-      await adminApi.deleteUser(row.id)
+      await userApi.deleteUser(row.id)
       userList.value = userList.value.filter(u => u.id !== row.id)
       ElMessage.success('删除成功')
     } catch (e) { ElMessage.error('删除失败') }
@@ -157,11 +155,11 @@ async function saveUser() {
     if (!valid) return
     try {
       if (editing.value) {
-        await adminApi.updateUser(form._id, { username: form.username, fullName: form.fullName, email: form.email, role: form.role })
+        await userApi.updateUser(form._id, { username: form.username, fullName: form.fullName, email: form.email, role: form.role })
         const u = userList.value.find(u => u.id === form._id)
         if (u) { Object.assign(u, { username: form.username, fullName: form.fullName, email: form.email, role: form.role }) }
       } else {
-        const res = await adminApi.createUser({ ...form })
+        const res = await userApi.createUser({ ...form })
         userList.value.push(res.data || res)
       }
       showAdd.value = false; editing.value = false
@@ -175,31 +173,6 @@ async function saveUser() {
 .user-management {
   max-width: 1400px;
   margin: 0 auto;
-}
-
-/* 标签列：flex 布局消除空白节点 */
-:deep(.tag-col .cell) {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  gap: 0;
-}
-
-/* 确保标签无额外 margin */
-:deep(.tag-col .cell .el-tag) {
-  margin: 0 !important;
-}
-
-/* 操作按钮：消除 Element Plus 默认间距，用 gap 统一控制 */
-:deep(.action-row .el-button) {
-  margin-left: 0 !important;
-}
-
-.action-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
 }
 
 /* 页面头部 */
@@ -259,14 +232,6 @@ async function saveUser() {
 .stat-mini-card.admin .value { color: var(--ac-danger); }
 .stat-mini-card.teacher .value { color: var(--ac-success); }
 .stat-mini-card.student .value { color: var(--ac-primary); }
-
-/* 操作按钮行 */
-.action-row {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: 4px;
-}
 
 /* 响应式 */
 @media (max-width: 768px) {

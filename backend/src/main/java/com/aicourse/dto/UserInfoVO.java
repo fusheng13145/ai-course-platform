@@ -1,14 +1,18 @@
 package com.aicourse.dto;
 
+import lombok.Data;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.time.LocalDateTime;
+import com.aicourse.common.RoleConstants;
 
 /**
  * 用户信息响应VO（View Object）
  * 用于返回给前端的用户详细信息，包含基础信息、关联班级和学习统计数据
  */
 @Schema(description = "用户信息响应")
+@Data
 public class UserInfoVO {
 
     @Schema(description = "用户ID", example = "1001")
@@ -23,8 +27,8 @@ public class UserInfoVO {
     @Schema(description = "头像URL地址", example = "https://example.com/avatar.jpg")
     private String avatar;
 
-    @Schema(description = "用户角色", example = "STUDENT",
-            allowableValues = {"STUDENT", "TEACHER", "ADMIN"})
+    @Schema(description = "用户角色", example = RoleConstants.STUDENT,
+            allowableValues = {RoleConstants.STUDENT, RoleConstants.TEACHER, RoleConstants.ADMIN})
     private String role;
 
     @Schema(description = "账户状态", example = "ACTIVE",
@@ -58,112 +62,6 @@ public class UserInfoVO {
         @Schema(description = "累计学习时长（小时）", example = "128.5")
         private Double totalStudyHours;
 
-        // ====================== Getter & Setter ======================
-
-        public Integer getCourseCount() {
-            return courseCount;
-        }
-
-        public void setCourseCount(Integer courseCount) {
-            this.courseCount = courseCount;
-        }
-
-        public Integer getCompletedCount() {
-            return completedCount;
-        }
-
-        public void setCompletedCount(Integer completedCount) {
-            this.completedCount = completedCount;
-        }
-
-        public Double getTotalStudyHours() {
-            return totalStudyHours;
-        }
-
-        public void setTotalStudyHours(Double totalStudyHours) {
-            this.totalStudyHours = totalStudyHours;
-        }
     }
 
-    // ====================== Getter & Setter ======================
-
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public String getUsername() {
-        return username;
-    }
-
-    public void setUsername(String username) {
-        this.username = username;
-    }
-
-    public String getFullName() {
-        return fullName;
-    }
-
-    public void setFullName(String fullName) {
-        this.fullName = fullName;
-    }
-
-    public String getAvatar() {
-        return avatar;
-    }
-
-    public void setAvatar(String avatar) {
-        this.avatar = avatar;
-    }
-
-    public String getRole() {
-        return role;
-    }
-
-    public void setRole(String role) {
-        this.role = role;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public LocalDateTime getLastLoginAt() {
-        return lastLoginAt;
-    }
-
-    public void setLastLoginAt(LocalDateTime lastLoginAt) {
-        this.lastLoginAt = lastLoginAt;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public String getClassName() {
-        return className;
-    }
-
-    public void setClassName(String className) {
-        this.className = className;
-    }
-
-    public UserStatsVO getStats() {
-        return stats;
-    }
-
-    public void setStats(UserStatsVO stats) {
-        this.stats = stats;
-    }
 }

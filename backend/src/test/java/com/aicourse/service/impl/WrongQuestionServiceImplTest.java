@@ -4,6 +4,7 @@ import com.aicourse.entity.Question;
 import com.aicourse.entity.WrongQuestion;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.WrongQuestionMapper;
+import com.aicourse.service.AIService;
 import com.aicourse.service.QuestionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -30,6 +31,7 @@ class WrongQuestionServiceImplTest {
 
     @Mock private QuestionService questionService;
     @Mock private WrongQuestionMapper wrongQuestionMapper;
+    @Mock private AIService aiService;
 
     @InjectMocks private WrongQuestionServiceImpl wrongQuestionService;
 
@@ -240,7 +242,6 @@ class WrongQuestionServiceImplTest {
         wq2.setPracticeCount(1);
 
         when(wrongQuestionMapper.selectList(any())).thenReturn(List.of(wq1, wq2));
-        when(wrongQuestionMapper.selectCount(any())).thenReturn(2L, 1L);
 
         Map<String, Object> stats = wrongQuestionService.getWrongQuestionStats(100L, 10L);
 
@@ -258,7 +259,6 @@ class WrongQuestionServiceImplTest {
     @DisplayName("错题统计 - 无错题时掌握率为0")
     void testGetWrongQuestionStats_Empty() {
         when(wrongQuestionMapper.selectList(any())).thenReturn(Collections.emptyList());
-        when(wrongQuestionMapper.selectCount(any())).thenReturn(0L, 0L);
 
         Map<String, Object> stats = wrongQuestionService.getWrongQuestionStats(100L, 10L);
 

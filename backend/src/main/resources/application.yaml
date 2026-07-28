@@ -4,10 +4,27 @@ spring:
   application:
     name: ai-course-platform
 
+  # ===================== 排除 springdoc UI 自动配置（修复启动失败） =====================
+  # springdoc-openapi 2.8.17 与 Spring Boot 3.4.4（spring-web 6.2）不兼容：其 UI 自动配置
+  # org.springdoc.webmvc.ui.SwaggerConfig（内含 @Bean SwaggerWebMvcConfigurer 及自身
+  # addResourceHandlers）在构建 swagger-initializer.js 的资源映射时，会在
+  # AbstractSwaggerConfigurer.combinePatterns 中把 "/swagger-ui/**" 与 "/*swagger-initializer.js"
+  # 两个 PathPattern 用 PathPattern.combine() 合并，而 6.2 的 combine 在 "**" 之后不允许再有
+  # 路径片段，直接抛 PatternParseException（Invalid mapping pattern detected），导致应用启动失败。
+  # 该解析发生在 springdoc 私有 PathPatternParser 中，spring.mvc.pathmatch.matching-strategy
+  # 与排除 SpringDocSecurityConfiguration 均无法规避。此处排除该 UI 自动配置后应用可正常启动；
+  # OpenAPI 描述 JSON（/v3/api-docs）由独立的 SpringDocConfiguration 提供，仍可用。
+  # 彻底恢复可视化 Swagger UI 需升级 springdoc 至 3.0.x（需 Spring Boot 3.5）或降级到 2.7.x
+  # （均依赖可访问的 Maven 仓库），届时可移除本排除项。
+  autoconfigure:
+    exclude:
+      - org.springdoc.webmvc.ui.SwaggerConfig
+      - org.springdoc.core.configuration.SpringDocSecurityConfiguration
+
   # ===================== 热部署配置 =====================
   devtools:
     restart:
-      enabled: true       # 开启热部署
+      enabled: false      # 生产环境禁用热部署（local profile 单独覆盖启用）
       additional-paths: src/main/java  # 监听目录
     livereload:
       enabled: true       # 开启页面的热重载（浏览器刷新）
@@ -27,21 +44,27 @@ spring:
             required: true
 
   # 数据库数据源 & Hikari连接池
+  # 生产环境通过环境变量注入，避免明文密码进入仓库（与 docker-compose 中的变量名保持一致）
+  # 【安全说明】生产环境必须使用 useSSL=true，以下默认 false 仅用于本地开发
   datasource:
-    url: jdbc:mysql://localhost:3306/ai_course_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true
+    # 【安全】生产环境 useSSL=true，requireSSL=true 强制加密传输。
+    # 本地开发(HTTP)可在 application-local.yaml 中覆盖为 useSSL=false&requireSSL=false。
+    url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/ai_course_platform?useSSL=true&requireSSL=true&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: root
-    password: 1234
+    username: ${SPRING_DATASOURCE_USERNAME:root}
+    # 生产必须通过环境变量 SPRING_DATASOURCE_PASSWORD 注入（无默认值，避免弱口令进入仓库）
+    password: ${SPRING_DATASOURCE_PASSWORD}
     hikari:
-      maximum-pool-size: 10
+      # 连接池大小：生产环境建议通过 SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE 调优
+      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:10}
       minimum-idle: 5
       connection-timeout: 30000
 
-  # Redis 缓存配置
+  # Redis 缓存配置（host/port 可由环境变量 SPRING_DATA_REDIS_HOST / SPRING_DATA_REDIS_PORT 覆盖，便于 Docker 编排）
   data:
     redis:
-      host: localhost
-      port: 6379
+      host: ${SPRING_DATA_REDIS_HOST:localhost}
+      port: ${SPRING_DATA_REDIS_PORT:6379}
       database: 0
       timeout: 3000
 
@@ -63,11 +86,29 @@ spring:
       max-file-size: 50MB
       max-request-size: 50MB
 
-# 服务端口 & 统一接口前缀
+# 服务端口 & 统一接口���缀
 server:
   port: 8080
   servlet:
     context-path: /api
+  # Gzip 压缩：减少 JSON 响应体大小 50-80%
+  compression:
+    enabled: true
+    mime-types: application/json,application/xml,text/html,text/plain,text/css,application/javascript
+    min-response-size: 1024
+  # Tomcat 线程池配置（根据 AI LLM 调用长连接场景调优）
+  tomcat:
+    threads:
+      # 最大工作线程数：考虑 AI 调用可达 60s 读取超时，提升至 500 避免线程耗尽
+      max: ${TOMCAT_THREADS_MAX:500}
+      # 最小空闲线程数
+      min-spare: ${TOMCAT_THREADS_MIN_SPARE:20}
+    # 连接超时：与 AI_READ_TIMEOUT(60s) 对齐
+    connection-timeout: ${TOMCAT_CONNECTION_TIMEOUT:60000}
+    # 最大连接数
+    max-connections: ${TOMCAT_MAX_CONNECTIONS:10000}
+    # 等待队列容量
+    accept-count: ${TOMCAT_ACCEPT_COUNT:100}
 
 # ===================== MyBatis-Plus 配置 =====================
 mybatis-plus:
@@ -78,8 +119,9 @@ mybatis-plus:
   configuration:
     # 下划线转驼峰
     map-underscore-to-camel-case: true
-    # 开启SQL日志打印（开发环境使用，生产建议关闭）
-    log-impl: ${SQL_LOG_IMPL:org.apache.ibatis.logging.stdout.StdOutImpl}
+    # SQL 日志实现：默认走 slf4j 并受日志级别约束（生产 INFO 下不打印 SQL），
+    # 需要排查时可经环境变量 SQL_LOG_IMPL=org.apache.ibatis.logging.stdout.StdOutImpl 临时开启
+    log-impl: ${SQL_LOG_IMPL:org.apache.ibatis.logging.slf4j.Slf4jImpl}
   global-config:
     db-config:
       id-type: auto
@@ -92,11 +134,31 @@ mybatis-plus:
 jwt:
   # 【重要】生产环境必须配置JWT_SECRET环境变量
   # 开发环境使用默认密钥（仅用于本地开发，生产必须替换）
-  secret: ${JWT_SECRET:09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7}
+  # 生产必须通过环境变量 JWT_SECRET 注入（无默认值，避免仓库泄露可用密钥）
+  secret: ${JWT_SECRET}
   # Token 有效期：7天(毫秒)
   expiration: 604800000
   # 会话缓存有效期：1天(毫秒)
   session-expiration: 86400000
+
+# ===================== HttpOnly Cookie 认证 & 传输安全配置 =====================
+# 【安全默认值】默认按生产姿态：Cookie Secure 开、强制 HTTPS 通道。
+# 本地 HTTP 联调请激活 local profile（start-backend.bat 已默认激活），
+# 由 application-local.yaml 显式关闭这两项——即「默认安全，开发显式放宽」，
+# 杜绝「忘记在生产打开 Secure」这类靠人肉运维的乐观假设。
+app:
+  cookie:
+    # 是否对认证 Cookie 标记 Secure（仅经 HTTPS 传输）。默认 true（安全优先）。
+    # 令牌 Cookie 若无 Secure，可经明文 HTTP 通道被中间人窃取。
+    secure: ${COOKIE_SECURE:true}
+  security:
+    # 是否在 Spring Security 层强制 HTTPS 通道（http 请求 302 跳转 https）。默认 true。
+    # 生产应始终为 true；本地 HTTP 联调由 local profile 关闭。
+    require-https: ${REQUIRE_HTTPS:true}
+    csrf:
+      # 双提交 Cookie CSRF 防护开关。默认 true（纵深防御，与 SameSite=Lax 正交叠加）。
+      # 前端 axios 同源自动读取 XSRF-TOKEN Cookie 并回填 X-XSRF-TOKEN 头，无需业务代码改动。
+      enabled: ${CSRF_ENABLED:true}
 
 # 跨域允许域名白名单
 cors:
@@ -107,14 +169,64 @@ cors:
     - http://127.0.0.1:5173
     - http://127.0.0.1:5174
     - http://127.0.0.1:5175
+    # 以下为 Docker 编排下 nginx(80) 提供前端时的同源来源，确保容器内前端可访问 /api
+    - http://localhost
+    - http://localhost:80
+    - http://127.0.0.1:80
 
-# ===================== DeepSeek AI 接口配置 =====================
+# ===================== AI 大模型供应商配置 =====================
+# 通过 ai.provider 切换底层大模型（deepseek / openai / qwen），业务层不感知具体供应商
 ai:
+  # 当前启用的供应商：deepseek（默认）/ openai / qwen
+  provider: ${AI_PROVIDER:deepseek}
+  # 所有 OpenAI 兼容供应商共用的超时与重试参数（秒）
+  connect-timeout: ${AI_CONNECT_TIMEOUT:5}
+  read-timeout: ${AI_READ_TIMEOUT:60}
+  max-retries: ${AI_MAX_RETRIES:2}
   deepseek:
     # 优先读取系统环境变量 DEEPSEEK_API_KEY，未配置则为空
     api-key: ${DEEPSEEK_API_KEY:}
     base-url: https://api.deepseek.com/v1
     model: deepseek-chat
+  openai:
+    api-key: ${OPENAI_API_KEY:}
+    base-url: https://api.openai.com/v1
+    model: gpt-4o-mini
+  qwen:
+    api-key: ${QWEN_API_KEY:}
+    base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
+    model: qwen-plus
+  # ---------- AI 用量配额（按认证 userId，防 LLM 成本型 DoS） ----------
+  # 与 ratelimit（按 IP）互补：IP 限流拦同源洪泛，本配额按登录身份拦「代理池轮换 IP 的刷量」。
+  # 单用户单日 LLM 成本数学上界：min(daily-request-limit × 单次 prompt 上限, daily-token-budget)。
+  # Redis 原子计数（集群一致），Redis 故障时降级本地内存计数——绝不因 Redis 不可用而放弃配额。
+  quota:
+    # 总开关（关闭后不做任何用户级配额，仅保留 IP 限流）
+    enabled: ${AI_QUOTA_ENABLED:true}
+    # 单用户每日 AI 调用次数上限
+    daily-request-limit: ${AI_QUOTA_DAILY_REQUESTS:100}
+    # 单用户每日 AI token 预算（prompt+响应估算值，字符按 1.5:1 折算 token）
+    daily-token-budget: ${AI_QUOTA_DAILY_TOKENS:200000}
+
+# ===================== 限流配置（IP 级，Redis 集群优先，本地内存兜底） =====================
+ratelimit:
+  # 总开关
+  enabled: ${RATELIMIT_ENABLED:true}
+  # Redis 集群限流开关：true 时优先使用 Redis 共享计数（多实例一致）；false 或 Redis 故障时回退本地内存
+  redis:
+    enabled: ${RATELIMIT_REDIS_ENABLED:true}
+  # 登录接口按 IP 限流：默认 60 秒内最多 10 次，缓解暴力破解
+  login:
+    limit: ${RATELIMIT_LOGIN_LIMIT:10}
+    window-seconds: ${RATELIMIT_LOGIN_WINDOW:60}
+  # AI 接口按 IP 限流：默认 60 秒内最多 20 次，作为大模型调用成本上限的代理防护
+  ai:
+    limit: ${RATELIMIT_AI_LIMIT:20}
+    window-seconds: ${RATELIMIT_AI_WINDOW:60}
+  # 验证码接口按 IP 限流：默认 60 秒内最多 5 次，防止邮件/短信轰炸
+  verify-code:
+    limit: ${RATELIMIT_VERIFY_LIMIT:5}
+    window-seconds: ${RATELIMIT_VERIFY_WINDOW:60}
 
 # ===================== Python 知识图谱服务配置 =====================
 knowledge-graph:
@@ -168,7 +280,48 @@ file:
   upload-dir: uploads/
   max-size: 52428800
 
+# ===================== 可观测性 / Actuator 配置 =====================
+# 暴露端点：health 默认公开（供 Docker/K8s 探针与负载均衡探活），
+# info/metrics/prometheus 供运维监控；prometheus 在 SecurityConfig 中限定 ADMIN。
+management:
+  endpoints:
+    web:
+      exposure:
+        # 仅暴露必要端点，遵循最小暴露原则
+        include: health,info,metrics,prometheus
+      # Actuator 基础路径（结合 server.servlet.context-path=/api，实际为 /api/actuator）
+      base-path: /actuator
+  endpoint:
+    health:
+      # 未授权请求仅返回 status（不泄露 DB/Redis 等内部详情）
+      show-details: when_authorized
+      # 探针（Kubernetes 等）使用 readiness/liveness 子端点
+      probes:
+        enabled: true
+    prometheus:
+      enabled: true
+  health:
+    # 关闭 Spring 默认 db / redis 兜底健康检查，改由自定义 HealthIndicator 显式实现
+    db:
+      enabled: false
+    redis:
+      enabled: false
+    # 保留磁盘空间健康检查（默认开启）
+    diskspace:
+      enabled: true
+
+# ===================== 应用元信息（info 端点展示） =====================
+# 直接读取 Maven 构建属性（spring-boot-starter-parent 已开启 @ 占位符过滤），
+# 保证版本与构建产物一致，无需手写；占位符不会被 ${...} 环境变量机制干扰。
+info:
+  app:
+    name: @project.name@
+    version: @project.version@
+
 # 日志级别
+# 生产默认 INFO，避免 DEBUG 泄露内部细节与拖慢性能；
+# 排查时可经环境变量 LOG_LEVEL_COM_AICOURSE=DEBUG 提级（配合 Spring 的
+# logging.level.com.aicourse 覆盖机制），无需改动代码与镜像。
 logging:
   level:
-    com.aicourse: DEBUG
+    com.aicourse: ${LOG_LEVEL_COM_AICOURSE:INFO}

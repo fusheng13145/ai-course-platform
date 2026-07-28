@@ -1,9 +1,12 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.Submission;
 import com.aicourse.entity.Task;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.TaskMapper;
+import com.aicourse.service.CourseEnrollmentService;
+import com.aicourse.service.NotificationService;
 import com.aicourse.service.SubmissionService;
 import com.aicourse.service.TaskService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -18,9 +21,15 @@ import java.util.*;
 public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements TaskService {
 
     private final SubmissionService submissionService;
+    private final CourseEnrollmentService courseEnrollmentService;
+    private final NotificationService notificationService;
 
-    public TaskServiceImpl(@Lazy SubmissionService submissionService) {
+    public TaskServiceImpl(@Lazy SubmissionService submissionService,
+                           CourseEnrollmentService courseEnrollmentService,
+                           NotificationService notificationService) {
         this.submissionService = submissionService;
+        this.courseEnrollmentService = courseEnrollmentService;
+        this.notificationService = notificationService;
     }
 
     /**
@@ -40,6 +49,17 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         task.setIsPublished(true);
         task.setStatus("PUBLISHED");
         this.updateById(task);
+
+        // 修复 P1-1：作业发布后自动推送通知给课程选课学生（事件驱动，铃铛不再失效）
+        try {
+            Map<String, Object> eventData = new HashMap<>();
+            eventData.put("courseId", task.getCourseId());
+            eventData.put("taskId", task.getId());
+            eventData.put("taskTitle", task.getTitle());
+            notificationService.onEvent("TASK_CREATED", eventData);
+        } catch (Exception e) {
+            // 通知失败不影响发布主流程
+        }
 
         return task;
     }
@@ -89,6 +109,8 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         newTask.setDescription(sourceTask.getDescription());
         newTask.setTaskType(sourceTask.getTaskType());
         newTask.setCourseId(sourceTask.getCourseId());
+        // 修复 P0-7：复制任务必须保留章节归属，否则复制出的任务从章节视图消失
+        newTask.setChapterId(sourceTask.getChapterId());
         newTask.setCreatorId(sourceTask.getCreatorId());
         // 新任务的截止日期默认为空，需要手动设置
         newTask.setMaxScore(sourceTask.getMaxScore());
@@ -185,11 +207,25 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
             avgScore = Math.round(avgScore * 100.0) / 100.0;
         }
 
-        // 计算完成率
+        // 计算完成率（修复 P0-7）：分母应为"应提交人数=课程选课人数"，分子为"已提交学生人数"
+        // 原实现用 gradedCount / totalSubmissions（实为已批改率且分母错误），现改为真实完成率。
+        long submittedStudentCount = submissionService.list(
+                new LambdaQueryWrapper<Submission>()
+                        .eq(Submission::getTaskId, taskId)
+                        .in(Submission::getStatus, "SUBMITTED", "RESUBMITTED", "GRADED", "RETURNED")
+        ).stream().map(Submission::getStudentId).distinct().count();
+
+        long enrolledCount = 0;
+        if (task.getCourseId() != null) {
+            enrolledCount = courseEnrollmentService.count(
+                    new LambdaQueryWrapper<CourseEnrollment>()
+                            .eq(CourseEnrollment::getCourseId, task.getCourseId())
+                            .eq(CourseEnrollment::getIsActive, true));
+        }
+
         double completionRate = 0.0;
-        // 这里假设通过课程注册表获取学生总数，简化处理用提交数作为参考
-        if (totalSubmissions > 0) {
-            completionRate = Math.round((double) gradedCount / totalSubmissions * 10000.0) / 100.0;
+        if (enrolledCount > 0) {
+            completionRate = Math.round((double) submittedStudentCount / enrolledCount * 10000.0) / 100.0;
         }
 
         Map<String, Object> stats = new HashMap<>();

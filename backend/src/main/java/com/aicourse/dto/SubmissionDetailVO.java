@@ -1,5 +1,8 @@
 package com.aicourse.dto;
 
+import lombok.Data;
+import lombok.EqualsAndHashCode;
+
 import io.swagger.v3.oas.annotations.media.Schema;
 
 import java.math.BigDecimal;
@@ -11,6 +14,8 @@ import java.util.List;
  * 继承提交列表基础信息，增加学生提交内容、评语、批改历史和查重报告等详情
  */
 @Schema(description = "提交详情（含批改界面数据）")
+@Data
+@EqualsAndHashCode(callSuper = true)
 public class SubmissionDetailVO extends SubmissionListVO {
 
     // ====================== 学生提交内容 ======================
@@ -63,20 +68,6 @@ public class SubmissionDetailVO extends SubmissionListVO {
         @Schema(description = "批改时间", example = "2024-12-31T09:30:00")
         private LocalDateTime gradedAt;
 
-        // ====================== Getter & Setter ======================
-
-        public Long getId() { return id; }
-        public void setId(Long id) { this.id = id; }
-        public Long getGraderId() { return graderId; }
-        public void setGraderId(Long graderId) { this.graderId = graderId; }
-        public String getGraderName() { return graderName; }
-        public void setGraderName(String graderName) { this.graderName = graderName; }
-        public BigDecimal getScore() { return score; }
-        public void setScore(BigDecimal score) { this.score = score; }
-        public String getComment() { return comment; }
-        public void setComment(String comment) { this.comment = comment; }
-        public LocalDateTime getGradedAt() { return gradedAt; }
-        public void setGradedAt(LocalDateTime gradedAt) { this.gradedAt = gradedAt; }
     }
 
     /**
@@ -103,34 +94,8 @@ public class SubmissionDetailVO extends SubmissionListVO {
             @Schema(description = "该来源相似度(0-100)", example = "35.2")
             private Double similarity;
 
-            // ====================== Getter & Setter ======================
-
-            public String getSource() { return source; }
-            public void setSource(String source) { this.source = source; }
-            public Double getSimilarity() { return similarity; }
-            public void setSimilarity(Double similarity) { this.similarity = similarity; }
         }
 
-        // ====================== Getter & Setter ======================
-
-        public Double getScore() { return score; }
-        public void setScore(Double score) { this.score = score; }
-        public List<MatchSource> getMatches() { return matches; }
-        public void setMatches(List<MatchSource> matches) { this.matches = matches; }
     }
 
-    // ====================== Getter & Setter ======================
-
-    public String getContent() { return content; }
-    public void setContent(String content) { this.content = content; }
-    public String getFileUrl() { return fileUrl; }
-    public void setFileUrl(String fileUrl) { this.fileUrl = fileUrl; }
-    public String getFeedback() { return feedback; }
-    public void setFeedback(String feedback) { this.feedback = feedback; }
-    public String getAiFeedbackFull() { return aiFeedbackFull; }
-    public void setAiFeedbackFull(String aiFeedbackFull) { this.aiFeedbackFull = aiFeedbackFull; }
-    public List<GradingRecord> getGradingHistory() { return gradingHistory; }
-    public void setGradingHistory(List<GradingRecord> gradingHistory) { this.gradingHistory = gradingHistory; }
-    public SimilarityReport getSimilarityReport() { return similarityReport; }
-    public void setSimilarityReport(SimilarityReport similarityReport) { this.similarityReport = similarityReport; }
 }

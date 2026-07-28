@@ -1,5 +1,7 @@
 package com.aicourse.entity;
 
+import lombok.Data;
+
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -14,6 +16,7 @@ import java.time.LocalDateTime;
  * 存储单次查重任务中，每一处相似片段的匹配来源、原文、相似文本及相似度信息
  */
 @TableName("plagiarism_matches")
+@Data
 public class PlagiarismMatch {
 
     /**
@@ -63,75 +66,4 @@ public class PlagiarismMatch {
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Long getPlagiarismCheckId() {
-        return plagiarismCheckId;
-    }
-
-    public void setPlagiarismCheckId(Long plagiarismCheckId) {
-        this.plagiarismCheckId = plagiarismCheckId;
-    }
-
-    public Long getMatchedSubmissionId() {
-        return matchedSubmissionId;
-    }
-
-    public void setMatchedSubmissionId(Long matchedSubmissionId) {
-        this.matchedSubmissionId = matchedSubmissionId;
-    }
-
-    public String getMatchedSource() {
-        return matchedSource;
-    }
-
-    public void setMatchedSource(String matchedSource) {
-        this.matchedSource = matchedSource;
-    }
-
-    public BigDecimal getSimilarity() {
-        return similarity;
-    }
-
-    public void setSimilarity(BigDecimal similarity) {
-        this.similarity = similarity;
-    }
-
-    public String getOriginalText() {
-        return originalText;
-    }
-
-    public void setOriginalText(String originalText) {
-        this.originalText = originalText;
-    }
-
-    public String getMatchedText() {
-        return matchedText;
-    }
-
-    public void setMatchedText(String matchedText) {
-        this.matchedText = matchedText;
-    }
-
-    public String getMatchType() {
-        return matchType;
-    }
-
-    public void setMatchType(String matchType) {
-        this.matchType = matchType;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
 }

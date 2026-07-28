@@ -1,4 +1,4 @@
-﻿﻿﻿﻿<template>
+﻿﻿<template>
   <div class="fade-in grade-management">
     <!-- 页面头部 -->
     <div class="page-header">
@@ -57,11 +57,11 @@
       <div class="grade-list-section">
         <div class="content-card">
           <el-table :data="gradeList" style="width:100%" v-loading="loading">
-            <el-table-column prop="studentName" label="学生姓名" width="95" show-overflow-tooltip />
-            <el-table-column prop="studentId" label="学号" width="110" />
-            <el-table-column prop="courseName" label="课程名称" min-width="120" show-overflow-tooltip />
-            <el-table-column prop="examTitle" label="考试名称" min-width="110" show-overflow-tooltip />
-            <el-table-column prop="score" label="成绩" width="70" align="center">
+            <el-table-column prop="studentName" label="学生姓名" width="110" />
+            <el-table-column prop="studentId" label="学号" width="120" />
+            <el-table-column prop="courseName" label="课程名称" min-width="150" show-overflow-tooltip />
+            <el-table-column prop="examTitle" label="考试名称" min-width="140" show-overflow-tooltip />
+            <el-table-column prop="score" label="成绩" width="80" align="center">
               <template #default="{ row }">
                 <span
                   class="score-badge"
@@ -69,9 +69,9 @@
                 >{{ row.score ?? '--' }}</span>
               </template>
             </el-table-column>
-            <el-table-column prop="rank" label="排名" width="60" align="center" />
-            <el-table-column prop="submitTime" label="提交时间" width="135" />
-            <el-table-column label="状态" width="80" align="center">
+            <el-table-column prop="rank" label="排名" width="70" align="center" />
+            <el-table-column prop="submitTime" label="提交时间" width="160" />
+            <el-table-column label="状态" width="90" align="center">
               <template #default="{ row }">
                 <el-tag
                   v-if="row.isAbnormal"
@@ -82,7 +82,7 @@
                 <span v-else class="text-muted">正常</span>
               </template>
             </el-table-column>
-            <el-table-column label="操作" width="90" align="center">
+            <el-table-column label="操作" width="100" fixed="right">
               <template #default="{ row }">
                 <el-button text type="primary" size="small" @click="viewGradeDetail(row)">详情</el-button>
               </template>
@@ -143,7 +143,7 @@
     </div>
 
     <!-- 成绩详情对话框 -->
-    <el-dialog v-model="showDetailDialog" title="成绩详情" width="600px" append-to-body destroy-on-close>
+    <el-dialog v-model="showDetailDialog" title="成绩详情" width="600px" destroy-on-close>
       <div v-if="selectedGrade" class="grade-detail">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="学生姓名">{{ selectedGrade.studentName }}</el-descriptions-item>

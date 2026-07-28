@@ -2,10 +2,13 @@ package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
+import com.aicourse.dto.WrongQuestionPracticeDTO;
 import com.aicourse.entity.Question;
 import com.aicourse.entity.WrongQuestion;
 import com.aicourse.service.WrongQuestionService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -19,6 +22,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/wrong-questions")
+@Tag(name = "错题本")
 public class WrongQuestionController {
 
     private final WrongQuestionService wrongQuestionService;
@@ -139,12 +143,12 @@ public class WrongQuestionController {
      * @return 练习题目列表
      */
     @PostMapping("/practice-paper")
-    public ApiResponse<List<Question>> generatePracticePaper(@RequestBody Map<String, Object> params, Authentication auth) {
+    public ApiResponse<List<Question>> generatePracticePaper(
+            @Valid @RequestBody WrongQuestionPracticeDTO params, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        Long courseId = params.get("courseId") != null ? Long.valueOf(params.get("courseId").toString()) : null;
-        int count = params.containsKey("count") ? Integer.parseInt(params.get("count").toString()) : 10;
-
-        List<Question> questions = wrongQuestionService.generatePracticePaper(userId, courseId, count);
+        int count = params.getCount() != null ? params.getCount() : 10;
+        List<Question> questions = wrongQuestionService.generatePracticePaper(
+                userId, params.getCourseId(), count);
         return ApiResponse.success(questions);
     }
 

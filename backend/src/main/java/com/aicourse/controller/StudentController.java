@@ -2,11 +2,14 @@ package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
+import com.aicourse.dto.AssignmentSubmitDTO;
+import com.aicourse.dto.PracticeGenerateDTO;
 import com.aicourse.entity.*;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -14,6 +17,7 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
+import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
  * 学生端接口控制器
@@ -22,6 +26,7 @@ import java.util.stream.Collectors;
 @RestController
 @RequestMapping("/student")
 @PreAuthorize("hasRole('STUDENT')")
+@Tag(name = "学生端")
 public class StudentController {
 
     private final CourseService courseService;
@@ -92,28 +97,8 @@ public class StudentController {
         return ApiResponse.success(result);
     }
 
-    /**
-     * 更新学习进度
-     */
-    @PostMapping("/courses/{courseId}/progress")
-    public ApiResponse<Void> updateProgress(
-            @PathVariable Long courseId,
-            @RequestBody Map<String, Object> body,
-            Authentication auth) {
-        Long userId = (Long) auth.getPrincipal();
-        CourseEnrollment enrollment = enrollmentService.getOne(
-                new LambdaQueryWrapper<CourseEnrollment>()
-                        .eq(CourseEnrollment::getStudentId, userId)
-                        .eq(CourseEnrollment::getCourseId, courseId));
-        if (enrollment == null) {
-            throw new BusinessException("未加入该课程");
-        }
-        if (body.containsKey("progress")) {
-            enrollment.setProgress(java.math.BigDecimal.valueOf(Double.parseDouble(body.get("progress").toString())));
-        }
-        enrollmentService.updateById(enrollment);
-        return ApiResponse.success("进度更新成功", null);
-    }
+    // 进度不再由客户端写入（安全修复 P0-1）：学生可把任意课程进度改成 100%。
+    // 进度改由后端基于任务点完成度聚合，详见 StudentLearningController GET /courses/{courseId}/progress-summary。
 
     /**
      * 加入课程
@@ -227,25 +212,15 @@ public class StudentController {
     }
 
     /**
-     * 提交作业
+     * 提交作业（统一收口到 SubmissionService，含发布校验/逾期扣分/查重触发，修复 P0-8 双轨问题）
      */
     @PostMapping("/assignments/{assignmentId}/submit")
     public ApiResponse<Submission> submitAssignment(
             @PathVariable Long assignmentId,
-            @RequestBody Map<String, Object> body,
+            @Valid @RequestBody AssignmentSubmitDTO dto,
             Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        Task task = taskService.getById(assignmentId);
-        if (task == null) {
-            throw new BusinessException("作业不存在");
-        }
-        Submission submission = new Submission();
-        submission.setTaskId(assignmentId);
-        submission.setStudentId(userId);
-        submission.setContent(body.get("content") != null ? body.get("content").toString() : null);
-        submission.setStatus("SUBMITTED");
-        submission.setSubmittedAt(LocalDateTime.now());
-        submissionService.save(submission);
+        Submission submission = submissionService.submitAssignment(assignmentId, userId, dto.getContent(), dto.getFileUrls());
         return ApiResponse.success("提交成功", submission);
     }
 
@@ -317,10 +292,10 @@ public class StudentController {
      */
     @PostMapping("/wrong-questions/practice")
     public ApiResponse<List<Question>> generatePractice(
-            @RequestBody Map<String, Object> params, Authentication auth) {
+            @Valid @RequestBody PracticeGenerateDTO dto, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        Long courseId = params.get("courseId") != null ? Long.valueOf(params.get("courseId").toString()) : null;
-        int count = params.containsKey("count") ? Integer.parseInt(params.get("count").toString()) : 10;
+        Long courseId = dto.getCourseId();
+        int count = dto.getCount() != null ? dto.getCount() : 10;
         List<Question> questions = wrongQuestionService.generatePracticePaper(userId, courseId, count);
         return ApiResponse.success(questions);
     }

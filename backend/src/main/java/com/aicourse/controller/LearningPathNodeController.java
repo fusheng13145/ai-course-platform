@@ -1,13 +1,14 @@
 package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
+import com.aicourse.dto.LearningPathNodeCompleteDTO;
 import com.aicourse.entity.LearningPathNode;
 import com.aicourse.service.LearningPathNodeService;
+import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 学习路线节点接口控制器
@@ -15,6 +16,7 @@ import java.util.Map;
  */
 @RestController
 @RequestMapping("/learning-path-nodes")
+@Tag(name = "学习路径节点")
 public class LearningPathNodeController {
 
     private final LearningPathNodeService nodeService;
@@ -52,10 +54,9 @@ public class LearningPathNodeController {
      * @return 操作结果
      */
     @PostMapping("/{id}/complete")
-    public ApiResponse<Void> completeNode(@PathVariable Long id, @RequestBody Map<String, Object> params) {
-        BigDecimal score = new BigDecimal(params.get("score").toString());
-        Integer actualTime = Integer.valueOf(params.get("actualTime").toString());
-        nodeService.completeNode(id, score, actualTime);
+    public ApiResponse<Void> completeNode(@PathVariable Long id,
+                                          @Valid @RequestBody LearningPathNodeCompleteDTO params) {
+        nodeService.completeNode(id, params.getScore(), params.getActualTime());
         return ApiResponse.success("节点已完成", null);
     }
 

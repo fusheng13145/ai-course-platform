@@ -7,12 +7,14 @@ import com.aicourse.service.UserService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import com.aicourse.common.RoleConstants;
 
 /**
  * 用户服务实现类
@@ -26,6 +28,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      * 密码字段置空返回以保护隐私
      */
     @Override
+    @Cacheable(value = "users", key = "'profile_' + #userId")
     public User getUserProfile(Long userId) {
         User user = this.getById(userId);
         if (user == null) {
@@ -110,7 +113,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Override
     public List<User> getTeacherStudents(Long teacherId) {
         LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<User>()
-                .eq(User::getRole, "STUDENT")
+                .eq(User::getRole, RoleConstants.STUDENT)
                 .eq(User::getIsActive, true)
                 .orderByAsc(User::getUsername);
 

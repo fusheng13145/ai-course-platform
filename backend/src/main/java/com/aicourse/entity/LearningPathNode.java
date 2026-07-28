@@ -1,5 +1,7 @@
 package com.aicourse.entity;
 
+import lombok.Data;
+
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -14,6 +16,7 @@ import java.time.LocalDateTime;
  * 记录学习路线下每个阶段/任务的学习进度、耗时与完成情况
  */
 @TableName("learning_path_nodes")
+@Data
 public class LearningPathNode {
 
     /**
@@ -31,6 +34,16 @@ public class LearningPathNode {
      * 关联知识点ID
      */
     private Long knowledgePointId;
+
+    /**
+     * 关联真实任务点ID（修复 P1-4：学习路径节点挂载课程真实任务点，而非仅知识点）
+     */
+    private Long taskId;
+
+    /**
+     * 关联章节ID（任务点所属章节）
+     */
+    private Long chapterId;
 
     /**
      * 节点标题
@@ -89,115 +102,4 @@ public class LearningPathNode {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 
-    public Long getId() {
-        return id;
-    }
-
-    public void setId(Long id) {
-        this.id = id;
-    }
-
-    public Long getLearningPathId() {
-        return learningPathId;
-    }
-
-    public void setLearningPathId(Long learningPathId) {
-        this.learningPathId = learningPathId;
-    }
-
-    public Long getKnowledgePointId() {
-        return knowledgePointId;
-    }
-
-    public void setKnowledgePointId(Long knowledgePointId) {
-        this.knowledgePointId = knowledgePointId;
-    }
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public String getDescription() {
-        return description;
-    }
-
-    public void setDescription(String description) {
-        this.description = description;
-    }
-
-    public String getNodeType() {
-        return nodeType;
-    }
-
-    public void setNodeType(String nodeType) {
-        this.nodeType = nodeType;
-    }
-
-    public String getStatus() {
-        return status;
-    }
-
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    public Integer getOrderIndex() {
-        return orderIndex;
-    }
-
-    public void setOrderIndex(Integer orderIndex) {
-        this.orderIndex = orderIndex;
-    }
-
-    public Integer getEstimatedTime() {
-        return estimatedTime;
-    }
-
-    public void setEstimatedTime(Integer estimatedTime) {
-        this.estimatedTime = estimatedTime;
-    }
-
-    public Integer getActualTime() {
-        return actualTime;
-    }
-
-    public void setActualTime(Integer actualTime) {
-        this.actualTime = actualTime;
-    }
-
-    public BigDecimal getScore() {
-        return score;
-    }
-
-    public void setScore(BigDecimal score) {
-        this.score = score;
-    }
-
-    public LocalDateTime getCompletedAt() {
-        return completedAt;
-    }
-
-    public void setCompletedAt(LocalDateTime completedAt) {
-        this.completedAt = completedAt;
-    }
-
-    public LocalDateTime getCreatedAt() {
-        return createdAt;
-    }
-
-    public void setCreatedAt(LocalDateTime createdAt) {
-        this.createdAt = createdAt;
-    }
-
-    public LocalDateTime getUpdatedAt() {
-        return updatedAt;
-    }
-
-    public void setUpdatedAt(LocalDateTime updatedAt) {
-        this.updatedAt = updatedAt;
-    }
 }

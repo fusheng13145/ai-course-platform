@@ -1,11 +1,25 @@
-# Python 微服务接口契约
+# Python 微服务接口契约（更新版 · 2026-07-23）
 
-> 本文档定义 Java 后端（Spring Boot）与 Python 微服务之间的 HTTP API 契约。
-> **Python 端需严格按照本文档实现所有接口。**
+> 本文档定义 Java 后端（Spring Boot）与可选的 Python 微服务之间的 HTTP API 契约。
+> **状态说明（重要）**：经统一重构后，知识图谱（8001）与 RAG（8002）的 Python 微服务**并未随项目交付**，其能力已由 Java 端**自包含实现**接管，当前**不再调用**外部 Python 进程。仅 **LoRA 微调（8003）** 仍保留真实 Python 集成（默认关闭，启用时调用）。
+>
+> 本文档保留 8001/8002 的完整契约作为**可选扩展基线**：若后续引入 Neo4j / Milvus / Python 向量服务，可按此契约实现并重新开启 `knowledge-graph` / `rag` 配置开关。
 
 ---
 
-## 1. 服务部署规格
+## 0. 当前实现状态总览
+
+| 服务 | 端口 | Java 当前实现 | 是否调用 Python | 配置开关 |
+|------|------|--------------|----------------|----------|
+| 知识图谱 (8001) | 8001 | `KnowledgeGraphServiceImpl` 直读 MySQL `knowledge_points` / `knowledge_point_relations`，返回 ECharts/D3 兼容图结构 | **否（自包含）** | `application.yaml` 中 `knowledge-graph.base-url` 配置键保留但**当前未使用** |
+| RAG 检索增强 (8002) | 8002 | `RAGServiceImpl`：语料取自 `knowledge_points` 表，召回用「词频/IDF 加权中文 bigram 余弦相似度」，生成交由可插拔 `LLMProvider`（DeepSeek/Qwen/OpenAI），未配 Key 时回退展示知识库原文 | **否（自包含）** | `application.yaml` 中 `rag.base-url` 配置键保留但**当前未使用** |
+| LoRA 微调 (8003) | 8003 | `LLMFineTuneServiceImpl` 经 `RestClient` 调用 Python | **是（启用时）** | `fine-tune.enabled`（默认 `false`） |
+
+**设计意图**：需求文档中的「分层 RAG（Neo4j + Milvus + Elasticsearch）」与「知识图谱微服务」为规划能力；当前以零外部依赖的自包含实现保证功能可用，后续可无痛替换为 Python 链路（只需替换 `RAGServiceImpl.retrieve` 的召回实现 / 接入 `KnowledgeGraphServiceImpl` 的向量召回）。
+
+---
+
+## 1. 服务部署规格（契约基线）
 
 | 服务 | 端口 | 健康检查路径 | 基路径 |
 |------|------|-------------|--------|
@@ -20,7 +34,9 @@
 
 ---
 
-## 2. 知识图谱服务（端口 8001）
+## 2. 知识图谱服务（端口 8001）— 可选契约
+
+> 当前 Java 端不调用此服务。以下为若启用 Python KG 微服务时应实现的契约。
 
 ### 2.1 健康检查
 ```
@@ -33,14 +49,8 @@ Response: 200 OK {}
 GET /api/v1/graph/course/{course_id}
 Response: {
   "nodes": [
-    {
-      "id": 1,
-      "name": "线性回归",
-      "type": "CONCEPT",
-      "content": "线性回归是一种统计方法...",
-      "course_id": 1,
-      "properties": {"difficulty": "medium", "importance": "high"}
-    }
+    {"id": 1, "name": "线性回归", "type": "CONCEPT", "content": "...", "course_id": 1,
+     "properties": {"difficulty": "medium", "importance": "high"}}
   ],
   "edges": [
     {"source_id": 1, "target_id": 2, "relation_type": "PREREQUISITE"}
@@ -69,31 +79,18 @@ Response: {
 ### 2.5 添加知识节点
 ```
 POST /api/v1/graph/nodes
-Body: {
-  "course_id": 1,
-  "name": "线性回归",
-  "content": "线性回归是一种统计方法，用于建模因变量与一个或多个自变量之间的线性关系。",
-  "type": "CONCEPT"
-}
+Body: {"course_id": 1, "name": "线性回归", "content": "...", "type": "CONCEPT"}
 Response: {"id": 1, "name": "线性回归", "created_at": "2026-06-18T10:00:00"}
 ```
 
 ### 2.6 添加节点关系
 ```
 POST /api/v1/graph/relations
-Body: {
-  "source_id": 1,
-  "target_id": 2,
-  "relation_type": "PREREQUISITE"
-}
+Body: {"source_id": 1, "target_id": 2, "relation_type": "PREREQUISITE"}
 Response: {"id": 1, "source_id": 1, "target_id": 2, "relation_type": "PREREQUISITE"}
 ```
 
-**关系类型枚举：**
-- `PREREQUISITE` — 前置依赖（必须先学A才能学B）
-- `INCLUDES` — 包含关系（A包含B）
-- `RELATED` — 相关关系（A和B相关）
-- `EXTENDS` — 扩展关系（B是A的扩展/深化）
+**关系类型枚举：** `PREREQUISITE`（前置依赖）/ `INCLUDES`（包含）/ `RELATED`（相关）/ `EXTENDS`（扩展）。
 
 ### 2.7 删除节点
 ```
@@ -109,7 +106,9 @@ Response: {"success": true}
 
 ---
 
-## 3. RAG 检索增强服务（端口 8002）
+## 3. RAG 检索增强服务（端口 8002）— 可选契约
+
+> 当前 Java 端不调用此服务，改由 `RAGServiceImpl` 自包含实现（knowledge_points + TF-IDF 余弦 + LLMProvider）。以下为若启用 Python RAG 微服务时应实现的契约。
 
 ### 3.1 健康检查
 ```
@@ -120,18 +119,11 @@ Response: 200 OK {}
 ### 3.2 基于知识库的问答（核心接口）
 ```
 POST /api/v1/rag/ask
-Body: {
-  "question": "什么是梯度下降？",
-  "course_id": 1,
-  "top_k": 5
-}
+Body: {"question": "什么是梯度下降？", "course_id": 1, "top_k": 5}
 Response: {
-  "answer": "梯度下降是一种优化算法，用于最小化损失函数...",
-  "sources": [
-    {"document_id": 1, "document_name": "机器学习基础", "relevance_score": 0.95, "excerpt": "..."}
-  ],
-  "model": "deepseek-chat",
-  "tokens_used": 512
+  "answer": "梯度下降是一种优化算法...",
+  "sources": [{"document_id": 1, "document_name": "机器学习基础", "relevance_score": 0.95, "excerpt": "..."}],
+  "model": "deepseek-chat", "tokens_used": 512
 }
 ```
 
@@ -144,11 +136,7 @@ Response: {
 ### 3.3 添加文档到知识库
 ```
 POST /api/v1/rag/documents
-Body: {
-  "course_id": 1,
-  "document_name": "机器学习基础",
-  "content": "机器学习是人工智能的一个分支..."
-}
+Body: {"course_id": 1, "document_name": "机器学习基础", "content": "..."}
 Response: {"document_id": 1, "status": "indexed", "chunks": 5}
 ```
 
@@ -161,12 +149,7 @@ Response: {"success": true}
 ### 3.5 获取文档列表
 ```
 GET /api/v1/rag/documents?course_id={course_id}
-Response: {
-  "documents": [
-    {"id": 1, "name": "机器学习基础", "chunks": 5, "created_at": "2026-06-18"},
-    {"id": 2, "name": "深度学习入门", "chunks": 8, "created_at": "2026-06-18"}
-  ]
-}
+Response: {"documents": [{"id": 1, "name": "机器学习基础", "chunks": 5, "created_at": "2026-06-18"}]}
 ```
 
 ### 3.6 更新文档
@@ -191,21 +174,15 @@ Response: {"success": true}
 ### 3.9 纯检索（不生成答案）
 ```
 POST /api/v1/rag/retrieve
-Body: {
-  "query": "梯度下降",
-  "course_id": 1,
-  "top_k": 5
-}
-Response: {
-  "results": [
-    {"document_id": 1, "document_name": "...", "chunk_text": "...", "relevance_score": 0.95}
-  ]
-}
+Body: {"query": "梯度下降", "course_id": 1, "top_k": 5}
+Response: {"results": [{"document_id": 1, "document_name": "...", "chunk_text": "...", "relevance_score": 0.95}]}
 ```
 
 ---
 
-## 4. LoRA 微调服务（端口 8003）
+## 4. LoRA 微调服务（端口 8003）— 活跃契约
+
+> **当前唯一被 Java 端真实调用的 Python 服务**（`LLMFineTuneServiceImpl`）。默认 `fine-tune.enabled=false`，启用后通过 `RestClient` 调用以下接口。
 
 ### 4.1 健康检查
 ```
@@ -217,48 +194,23 @@ Response: 200 OK {}
 ```
 POST /api/v1/fine-tune/start
 Body: {
-  "course_id": 1,
-  "base_model": "deepseek-chat",
-  "config": {
-    "epochs": 3,
-    "learning_rate": 5e-5,
-    "lora_rank": 8,
-    "lora_alpha": 16,
-    "lora_dropout": 0.1,
-    "target_modules": ["q_proj", "v_proj"]
-  }
+  "course_id": 1, "base_model": "deepseek-chat",
+  "config": {"epochs": 3, "learning_rate": 5e-5, "lora_rank": 8, "lora_alpha": 16, "lora_dropout": 0.1, "target_modules": ["q_proj", "v_proj"]}
 }
-Response: {
-  "task_id": "ft_20260618_001",
-  "status": "pending",
-  "created_at": "2026-06-18T10:00:00"
-}
+Response: {"task_id": "ft_20260618_001", "status": "pending", "created_at": "2026-06-18T10:00:00"}
 ```
 
 ### 4.3 查询任务状态
 ```
 GET /api/v1/fine-tune/tasks/{task_id}/status
-Response: {
-  "task_id": "ft_20260618_001",
-  "status": "running",
-  "progress": 45.5,
-  "current_epoch": 2,
-  "total_epochs": 3,
-  "loss": 0.234,
-  "started_at": "2026-06-18T10:00:00",
-  "estimated_completion": "2026-06-18T10:30:00"
-}
+Response: {"task_id": "ft_20260618_001", "status": "running", "progress": 45.5, "current_epoch": 2, "total_epochs": 3, "loss": 0.234, "started_at": "...", "estimated_completion": "..."}
 ```
 
 ### 4.4 列出任务
 ```
 GET /api/v1/fine-tune/tasks
 GET /api/v1/fine-tune/tasks?course_id=1
-Response: {
-  "tasks": [
-    {"task_id": "ft_20260618_001", "status": "completed", "course_id": 1, "base_model": "deepseek-chat"}
-  ]
-}
+Response: {"tasks": [{"task_id": "ft_20260618_001", "status": "completed", "course_id": 1, "base_model": "deepseek-chat"}]}
 ```
 
 ### 4.5 取消任务
@@ -270,25 +222,14 @@ Response: {"success": true, "status": "cancelled"}
 ### 4.6 微调模型推理
 ```
 POST /api/v1/fine-tune/infer/{task_id}
-Body: {
-  "prompt": "请解释什么是梯度下降？",
-  "params": {"temperature": 0.7, "max_tokens": 2048}
-}
-Response: {
-  "answer": "梯度下降是...",
-  "tokens_used": 256,
-  "model": "deepseek-chat-lora-ft_20260618_001"
-}
+Body: {"prompt": "请解释什么是梯度下降？", "params": {"temperature": 0.7, "max_tokens": 2048}}
+Response: {"answer": "梯度下降是...", "tokens_used": 256, "model": "deepseek-chat-lora-ft_20260618_001"}
 ```
 
 ### 4.7 导出 LoRA 权重
 ```
 GET /api/v1/fine-tune/tasks/{task_id}/export
-Response: {
-  "download_url": "http://localhost:8003/weights/ft_20260618_001.zip",
-  "file_size": "15.2MB",
-  "format": "peft_lora"
-}
+Response: {"download_url": "http://localhost:8003/weights/ft_20260618_001.zip", "file_size": "15.2MB", "format": "peft_lora"}
 ```
 
 ### 4.8 删除任务及模型
@@ -301,39 +242,44 @@ Response: {"success": true}
 
 ## 5. 配置说明
 
-Java 后端通过 `application.yaml` 控制服务开关：
+Java 后端通过 `application.yaml` 控制服务地址（KG/RAG 配置键当前未使用，保留以备扩展）：
 
 ```yaml
-# 知识图谱服务
+# 知识图谱服务（当前 Java 自包含，配置键保留但未被读取）
 knowledge-graph:
-  enabled: true          # 设为 false 可禁用，Java端返回503
-  base-url: http://localhost:8001
+  base-url: ${KG_BASE_URL:http://localhost:8001}
 
-# RAG 服务
+# RAG 服务（当前 Java 自包含，配置键保留但未被读取）
 rag:
-  enabled: true
-  base-url: http://localhost:8002
+  base-url: ${RAG_BASE_URL:http://localhost:8002}
 
-# LoRA 微调服务
+# LoRA 微调服务（启用时真实调用）
 fine-tune:
-  enabled: false         # 默认关闭，需要时开启
-  base-url: http://localhost:8003
+  enabled: ${FT_ENABLED:false}
+  base-url: ${FT_BASE_URL:http://localhost:8003}
+  connect-timeout: 5
+  read-timeout: 300
+  max-retries: 1
+  health-path: /api/v1/fine-tune/health
 ```
 
 **环境变量覆盖：**
-- `KG_BASE_URL` — 知识图谱服务地址
-- `RAG_BASE_URL` — RAG 服务地址
-- `FT_BASE_URL` — 微调服务地址
-- `KG_ENABLED` / `RAG_ENABLED` / `FT_ENABLED` — 启用开关
+- `KG_BASE_URL` / `RAG_BASE_URL` / `FT_BASE_URL` — 服务地址
+- `FT_ENABLED` — 微调服务启用开关（KG/RAG 无独立 enabled 开关，因其当前由 Java 自包含实现）
 
 ---
 
-## 6. 降级策略
+## 6. 降级策略（当前实际行为）
 
-当 Python 服务不可用时，Java 后端的行为：
+| 场景 | 实际行为 |
+|------|----------|
+| 知识图谱 | Java 自包含直读 MySQL，始终可用；不依赖 Python 8001 |
+| RAG 问答 | Java 自包含（knowledge_points + TF-IDF 召回 + LLMProvider）；未配 LLM Key 时回退展示知识库原文 |
+| 微调服务（8003）未启用/不可用 | `LLMFineTuneServiceImpl` 返回 `{"error":"微调服务暂不可用","code":503}` |
 
-| 场景 | 降级行为 |
-|------|---------|
-| 知识图谱不可用 | 返回 `{"error":"知识图谱服务暂不可用","code":503}` |
-| RAG 不可用 | `ragAsk()` 降级为纯 LLM 调用（无检索增强） |
-| 微调服务不可用 | 返回 `{"error":"微调服务暂不可用","code":503}` |
+---
+
+## 7. 关联文档
+
+- 需求基线：`docs/AI课程平台-产品需求文档.md`（合并权威版，含分层 RAG / 知识图谱规划与当前自包含实现的说明）
+- 交付清单：`docs/项目交付与完成度报告.md`

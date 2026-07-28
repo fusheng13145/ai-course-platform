@@ -1,226 +1,378 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.common.JsonUtils;
+import com.aicourse.llm.LLMProvider;
 import com.aicourse.service.AIService;
+import com.aicourse.service.PromptGuard;
 import com.aicourse.service.RAGService;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Value;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.RestClient;
 
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
+import lombok.extern.slf4j.Slf4j;
 
 /**
  * AI 服务实现类
- * 对接 DeepSeek 大模型接口，提供对话、出题、内容生成、查重、RAG 问答等能力
+ * 通过可插拔的 {@link LLMProvider} 对接各类大模型（DeepSeek/OpenAI/Qwen），提供对话、出题、
+ * 内容生成、查重、RAG 问答等能力。供应商由配置 {@code ai.provider} 决定，与业务解耦。
  */
 @Service
+@Slf4j
 public class AIServiceImpl implements AIService {
 
-    private static final Logger log = LoggerFactory.getLogger(AIServiceImpl.class);
-    private static final String MOCK_RESPONSE = "{\"content\":\"AI服务未配置，这是模拟回复。请配置DEEPSEEK_API_KEY环境变量。\"}";
-    private static final String PARSE_FAIL_MSG = "AI响应解析失败";
-    private static final String SERVICE_ERROR_MSG = "AI服务暂时不可用，请稍后再试。";
 
-    private final RestClient restClient;
-    private final String apiKey;
-    private final String model;
+    /** 未配置任何 LLM 供应商 Key 时返回的清晰业务提示（不再返回伪造 JSON） */
+    private static final String NO_PROVIDER_MSG = "AI 服务暂未配置（请联系管理员配置大模型 API Key 后重试）。";
+    private static final String SERVICE_ERROR_MSG = "AI 服务暂时不可用，请稍后再试。";
+
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
+
+    private final LLMProvider llmProvider;
     private final RAGService ragService;
+    private final PromptGuard promptGuard;
 
-    public AIServiceImpl(@Value("${ai.deepseek.api-key:}") String apiKey,
-                         @Value("${ai.deepseek.base-url:https://api.deepseek.com/v1}") String baseUrl,
-                         @Value("${ai.deepseek.model:deepseek-chat}") String model,
-                         RAGService ragService) {
-        this.apiKey = apiKey;
-        this.model = model;
+    public AIServiceImpl(LLMProvider llmProvider, RAGService ragService, PromptGuard promptGuard) {
+        this.llmProvider = llmProvider;
         this.ragService = ragService;
-        this.restClient = RestClient.builder()
-                .baseUrl(baseUrl)
-                .defaultHeader("Authorization", "Bearer " + apiKey)
-                .defaultHeader("Content-Type", "application/json")
-                .build();
+        this.promptGuard = promptGuard;
     }
 
     /**
      * AI 对话交互
-     *
-     * @param message  用户提问消息
-     * @param context 对话上下文/系统提示词
-     * @param userId   用户ID
-     * @return AI 回答内容
      */
     @Override
     public String chat(String message, String context, Long userId) {
-        return callDeepSeek(buildMessages(message, context));
+        return completeAndSanitize(buildMessages(message, context), 0.7);
+    }
+
+    /**
+     * 多轮对话：透传完整消息历史前，对 user 角色内容逐条做注入中和；输出统一清洗。
+     */
+    @Override
+    public String chat(List<Map<String, String>> messages, Long userId) {
+        if (messages == null || messages.isEmpty()) {
+            return SERVICE_ERROR_MSG;
+        }
+        return completeAndSanitize(neutralizeUserMessages(messages), 0.7);
     }
 
     /**
      * AI 自动生成课程题目
-     *
-     * @param courseId   课程ID
-     * @param type       题目类型
-     * @param difficulty 难度等级
-     * @param count      题目数量
-     * @return 题目 JSON 字符串
      */
     @Override
     public String generateQuestion(Long courseId, String type, String difficulty, int count) {
         String prompt = String.format(
                 "请生成%d道%s难度、类型为%s的课程题目，包含题目内容、选项和正确答案，以JSON格式返回。",
                 count, difficulty, type);
-        return callDeepSeek(buildMessages(prompt, null));
+        String raw = completeAndSanitize(buildMessages(prompt, null), 0.9);
+        return raw != null ? raw : SERVICE_ERROR_MSG;
     }
 
     /**
      * 通用内容生成
-     *
-     * @param type   内容类型
-     * @param params 扩展参数
-     * @return 生成内容
      */
     @Override
     public String generateContent(String type, String params) {
         String prompt = "请生成" + type + "内容，" + params;
-        return callDeepSeek(buildMessages(prompt, null));
+        String raw = completeAndSanitize(buildMessages(prompt, null), 0.7);
+        return raw != null ? raw : SERVICE_ERROR_MSG;
     }
 
     /**
      * 文本内容摘要总结
-     *
-     * @param content 原始文本
-     * @return 摘要结果
      */
     @Override
     public String generateSummary(String content) {
         String prompt = "请总结以下内容：\n" + content;
-        return callDeepSeek(buildMessages(prompt, null));
+        String raw = completeAndSanitize(buildMessages(prompt, null), 0.3);
+        return raw != null ? raw : SERVICE_ERROR_MSG;
     }
 
     /**
      * 文本相似度/抄袭检测
-     *
-     * @param text1 文本1
-     * @param text2 文本2
-     * @return 相似度分析结果
      */
     @Override
     public String checkPlagiarism(String text1, String text2) {
         String prompt = "请对比以下两段文本的相似度，返回相似百分比和重复内容分析：\n文本1：" + text1 + "\n文本2：" + text2;
-        return callDeepSeek(buildMessages(prompt, null));
+        String raw = completeAndSanitize(buildMessages(prompt, null), 0.2);
+        return raw != null ? raw : SERVICE_ERROR_MSG;
     }
 
     /**
-     * 基于课程知识库的 RAG 问答（分层检索增强）
-     * 优先调用 Python RAG 微服务，服务不可用时降级为纯 LLM 调用
-     *
-     * @param question 提问内容
-     * @param courseId 课程ID
-     * @return 问答结果（含引用来源）
+     * 基于课程知识库的 RAG 问答（自包含检索增强）
+     * <p>
+     * 直接调用自包含的 {@link RAGService}（内部以 {@code knowledge_points} 为知识库做召回 + LLM 生成融合），
+     * 解析其返回的 JSON 取出纯文本答案下发；当 RAG 不可用时降级为纯 LLM 调用。
      */
     @Override
     public String ragAsk(String question, Long courseId) {
-        // 1. 尝试 RAG 服务（检索增强）
-        if (ragService.healthCheck()) {
-            try {
-                String ragResult = ragService.ask(question, courseId, 5);
-                if (ragResult != null && !ragResult.contains("\"code\":503")) {
-                    return ragResult;
+        try {
+            String ragResult = ragService.ask(question, courseId, 5);
+            if (ragResult != null && !ragResult.contains("\"code\":503")) {
+                String answer = extractRagAnswer(ragResult);
+                if (answer != null && !answer.isBlank()) {
+                    return promptGuard.sanitizeOutput(answer);
                 }
-            } catch (Exception e) {
-                log.warn("RAG服务调用异常，降级为纯LLM调用: {}", e.getMessage());
             }
+        } catch (Exception e) {
+            log.warn("RAG 服务调用异常，降级为纯 LLM 调用: {}", e.getMessage());
         }
-        // 2. 降级：纯 LLM 调用（无检索增强，可能产生幻觉）
         String systemPrompt = "请基于课程知识回答问题。如果问题超出课程范围，请明确说明。";
-        return callDeepSeek(buildMessages(question, systemPrompt));
+        String raw = completeAndSanitize(buildMessages(question, systemPrompt), 0.5);
+        return raw != null ? raw : SERVICE_ERROR_MSG;
     }
 
     /**
-     * 调用 DeepSeek 接口统一入口（带重试机制）
-     *
-     * @param requestBody 请求消息体
-     * @return 模型返回文本
+     * 从 RAG 返回的 JSON（{@code {"answer":...,"sources":...}}）中提取纯文本答案；
+     * 若非 JSON 或缺少 answer 字段，则原样返回（兼容历史格式）。
      */
-    @SuppressWarnings("unchecked")
-    private String callDeepSeek(Object requestBody) {
-        if (apiKey == null || apiKey.isBlank()) {
-            log.warn("DeepSeek API Key 未配置，返回模拟响应");
-            return MOCK_RESPONSE;
+    private String extractRagAnswer(String ragJson) {
+        String json = JsonUtils.extractJsonObject(ragJson);
+        if (json == null) {
+            return ragJson;
+        }
+        try {
+            JsonNode node = OBJECT_MAPPER.readTree(json);
+            if (node.has("answer") && node.get("answer").isTextual()
+                    && !node.get("answer").asText().isBlank()) {
+                return node.get("answer").asText();
+            }
+        } catch (Exception e) {
+            log.debug("RAG 答案 JSON 解析失败，原样返回: {}", e.getMessage());
+        }
+        return ragJson;
+    }
+
+    // ===================== 结构化输出（健壮性增强） =====================
+
+    /**
+     * 个性化学习建议（结构化 JSON 输出，便于前端直接渲染）
+     */
+    @Override
+    public String recommendLearningJson(String courseList) {
+        String schema = "{\"recommendations\": [{\"resource\": \"资源名\", \"reason\": \"推荐理由\"}]}";
+        String prompt = "我目前在学习以下课程：" + courseList + "。请为我推荐个性化的学习资源和学习建议。";
+        return callLlm(buildMessages(prompt, null), 0.7, schema);
+    }
+
+    /**
+     * 基于真实学情数据的学习推荐（增强版）：
+     * <p>将学生的知识掌握度、课程进度、薄弱项等真实数据注入提示词，使 LLM 在数据驱动基础上做解释生成。
+     * 不会凭空推荐，只会基于实际薄弱项给出针对性建议。
+     */
+    @Override
+    public String recommendLearningWithContext(Map<String, Object> context) {
+        StringBuilder sb = new StringBuilder("【学生学情画像】\n");
+
+        // 课程列表
+        if (context.containsKey("courseList")) {
+            sb.append("已选课程：").append(context.get("courseList")).append("\n");
         }
 
-        int retryCount = 0;
-        final int maxRetries = 2;
-        Exception lastException = null;
-        long baseDelayMs = 1000;
+        // 课程进度
+        if (context.containsKey("progress")) {
+            sb.append("课程平均进度：").append(context.get("progress")).append("%\n");
+        }
 
-        while (retryCount < maxRetries) {
-            try {
-                Map<String, Object> response = restClient.post()
-                        .uri("/chat/completions")
-                        .body(Map.of(
-                                "model", model,
-                                "messages", requestBody,
-                                "temperature", 0.7
-                        ))
-                        .retrieve()
-                        .body(Map.class);
+        // 薄弱项（按掌握度升序排列，最弱的在前）
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> weakPoints = context.containsKey("weakPoints")
+                ? (List<Map<String, Object>>) context.get("weakPoints") : Collections.emptyList();
+        if (!weakPoints.isEmpty()) {
+            // 按掌握度升序排列（最弱 → 最强）
+            List<Map<String, Object>> sorted = new ArrayList<>(weakPoints);
+            sorted.sort(Comparator.comparingDouble(
+                    m -> ((Number) m.getOrDefault("mastery", 100)).doubleValue()));
+            sb.append("薄弱知识点（按掌握度排序，越靠前越需强化）：\n");
+            for (int i = 0; i < Math.min(sorted.size(), 8); i++) {
+                Map<String, Object> wp = sorted.get(i);
+                sb.append("  ").append(i + 1).append(". ").append(wp.getOrDefault("name", "未知"))
+                        .append("（掌握度：").append(wp.getOrDefault("mastery", "N/A")).append("）\n");
+            }
+        } else {
+            sb.append("（暂无薄弱项数据，请完成更多学习任务以获取精准推荐）\n");
+        }
 
-                if (response == null || !response.containsKey("choices")) {
-                    log.warn("DeepSeek 接口返回数据异常，无 choices 字段");
-                    return PARSE_FAIL_MSG;
-                }
+        // 近期成绩
+        if (context.containsKey("recentScores")) {
+            sb.append("近期成绩：").append(context.get("recentScores")).append("\n");
+        }
 
-                List<Map<String, Object>> choices = (List<Map<String, Object>>) response.get("choices");
-                if (choices.isEmpty()) {
-                    log.warn("DeepSeek 接口返回 choices 列表为空");
-                    return PARSE_FAIL_MSG;
-                }
+        sb.append("\n请根据以上真实学情数据，生成个性化学习推荐方案，优先针对薄弱项给出具体可操作的建议。");
+        sb.append("\n只返回纯JSON：{\"recommendations\":[{\"resource\":\"推荐资源或行动\",\"reason\":\"基于数据的具体理由\",\"priority\":\"HIGH|MEDIUM|LOW\"}]}");
 
-                Map<String, Object> message = (Map<String, Object>) choices.get(0).get("message");
-                String content = (String) message.get("content");
-                if (content == null || content.isEmpty()) {
-                    log.warn("DeepSeek 接口返回内容为空");
-                    return PARSE_FAIL_MSG;
-                }
-                return content;
+        String schema = "{\"recommendations\":[{\"resource\":\"资源名\",\"reason\":\"推荐理由\",\"priority\":\"HIGH|MEDIUM|LOW\"}]}";
+        return callLlm(buildMessages(sb.toString(), null), 0.6, schema);
+    }
 
-            } catch (Exception e) {
-                lastException = e;
-                retryCount++;
-                log.warn("AI请求失败，重试第{}次: {}", retryCount, e.getMessage());
+    /**
+     * 知识图谱 AI 抽取：从课程内容中抽取知识点与关系（结构化 JSON）
+     */
+    public String extractKnowledgeGraphJson(String content) {
+        String schema = "{\"nodes\":[{\"name\":\"知识点名称\",\"content\":\"要点说明\",\"type\":\"CONCEPT|PRINCIPLE|METHOD|FACT\"}],"
+                + "\"relations\":[{\"source\":\"源节点名称\",\"target\":\"目标节点名称\",\"relationType\":\"PREREQUISITE|INCLUDES|RELATED|EXTENDS\"}]}";
+        String prompt = "请从以下课程内容中抽取知识结构（知识点及其关系），仅返回符合 schema 的 JSON，不要额外说明：\n" + content;
+        return callLlm(buildMessages(prompt, null), 0.3, schema);
+    }
 
-                if (retryCount < maxRetries) {
-                    try {
-                        long delay = baseDelayMs * (long) Math.pow(2, retryCount - 1);
-                        TimeUnit.MILLISECONDS.sleep(delay);
-                    } catch (InterruptedException ie) {
-                        Thread.currentThread().interrupt();
-                        break;
-                    }
+    /**
+     * 学情 AI 建议：聚合学情统计与薄弱点，生成结构化学习建议
+     */
+    public String generateLearningAdviceJson(String statsJson, String weakPointsJson) {
+        String schema = "{\"summary\":\"一句话总体建议\",\"items\":[{\"title\":\"建议标题\",\"detail\":\"具体做法\",\"level\":\"HIGH|MEDIUM|LOW\"}]}";
+        String prompt = "以下是某学习者的学情统计：" + statsJson
+                + "\n以及 AI 分析出的薄弱项：" + weakPointsJson
+                + "\n请结合两者给出可落地的学习建议，按优先级排列。";
+        return callLlm(buildMessages(prompt, null), 0.6, schema);
+    }
+
+    /**
+     * 管理员 AI 监控：基于日志文本检测异常，返回结构化洞察
+     */
+    public String analyzeAnomaliesJson(String logsJson) {
+        String schema = "{\"alerts\":[{\"level\":\"HIGH|MEDIUM|LOW\",\"title\":\"问题标题\",\"detail\":\"风险说明与建议\"}]}";
+        String prompt = "以下是系统近期的登录与操作日志：\n" + logsJson
+                + "\n请检测其中的异常行为（如暴力破解、异常高频操作、成绩异动等），仅返回符合 schema 的 JSON。";
+        return callLlm(buildMessages(prompt, null), 0.3, schema);
+    }
+
+    /**
+     * 知识点薄弱项分析（结构化 JSON 输出）
+     * 返回格式：{"weakPoints": [{"description": "薄弱项描述", "severity": "HIGH|MEDIUM|LOW"}]}
+     */
+    public String analyzeWeakPointsJson(String statsJson) {
+        String schema = "{\"weakPoints\": [{\"description\": \"薄弱项描述\", \"severity\": \"HIGH 或 MEDIUM 或 LOW\"}]}";
+        String prompt = "请根据以下学习统计数据，分析学习者的知识薄弱项：" + statsJson;
+        return callLlm(buildMessages(prompt, null), 0.4, schema);
+    }
+
+    /**
+     * 题目推荐（结构化 JSON 输出）
+     * 返回格式：{"questions": [{"content": "题目内容", "type": "SINGLE_CHOICE", "difficulty": "..."}]}
+     */
+    public String recommendQuestionsJson(Long courseId, String difficulty, int count) {
+        String schema = "{\"questions\": [{\"content\": \"题目内容\", \"type\": \"SINGLE_CHOICE\", \"difficulty\": \""
+                + (difficulty != null ? difficulty : "MEDIUM") + "\"}]}";
+        String prompt = String.format("请为课程(courseId=%d)生成%d道%s难度的练习题。", courseId, count, difficulty);
+        return callLlm(buildMessages(prompt, null), 0.8, schema);
+    }
+
+    /**
+     * 解析薄弱点 JSON 为列表（健壮：解析失败回退为单条文本）
+     */
+    public List<Map<String, String>> parseWeakPoints(String jsonText) {
+        List<Map<String, String>> result = new ArrayList<>();
+        String json = JsonUtils.extractJsonObject(jsonText);
+        if (json == null) {
+            if (jsonText != null && !jsonText.isBlank()) {
+                result.add(Map.of("description", jsonText.trim(), "severity", "MEDIUM"));
+            }
+            return result;
+        }
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(json);
+            JsonNode arr = root.has("weakPoints") ? root.get("weakPoints") : root;
+            if (arr.isArray()) {
+                for (JsonNode n : arr) {
+                    String desc = n.has("description") ? n.get("description").asText() : n.asText();
+                    String sev = n.has("severity") ? n.get("severity").asText().toUpperCase() : "MEDIUM";
+                    if (!"HIGH".equals(sev) && !"MEDIUM".equals(sev) && !"LOW".equals(sev)) sev = "MEDIUM";
+                    result.add(Map.of("description", desc, "severity", sev));
                 }
             }
+        } catch (Exception e) {
+            log.warn("薄弱点 JSON 解析失败，回退文本: {}", e.getMessage());
+            result.add(Map.of("description", json, "severity", "MEDIUM"));
         }
-
-        log.error("AI请求多次失败，已达到最大重试次数", lastException);
-        return SERVICE_ERROR_MSG;
+        if (result.isEmpty()) {
+            result.add(Map.of("description", "AI 暂未返回具体分析，请稍后重试", "severity", "LOW"));
+        }
+        return result;
     }
 
     /**
-     * 组装对话消息体
-     *
-     * @param userMessage   用户消息
-     * @param systemPrompt  系统提示词（可为空）
-     * @return 消息列表
+     * 判断当前是否有可用的 LLM 供应商（已配置 Key）
      */
+    public boolean isProviderConfigured() {
+        return llmProvider != null;
+    }
+
+    /**
+     * 流式 AI 对话：将用户问题经 PromptGuard 注入中和后，委托至 LLM 供应商流式接口，
+     * 以 Flux 逐 token 推送内容增量，供 SSE 端点使用。
+     */
+    @Override
+    public reactor.core.publisher.Flux<String> streamChat(String question) {
+        if (!llmProvider.isConfigured()) {
+            return reactor.core.publisher.Flux.just(NO_PROVIDER_MSG);
+        }
+        String safeQuestion = promptGuard.neutralizeInjection(question);
+        List<Map<String, String>> messages = List.of(Map.of("role", "user", "content", safeQuestion));
+        return llmProvider.stream(messages, 0.7)
+                .map(promptGuard::sanitizeOutput);
+    }
+
+    /**
+     * 当供应商未配置 Key 时返回的统一提示
+     */
+    public String noProviderMessage() {
+        return NO_PROVIDER_MSG;
+    }
+
     private List<Map<String, String>> buildMessages(String userMessage, String systemPrompt) {
+        // 输入侧护栏：中和用户内容中的对话模板控制符与伪角色标记，防止从 user 角色「越狱」为系统指令
+        String safeUser = promptGuard.neutralizeInjection(userMessage);
         if (systemPrompt != null && !systemPrompt.isBlank()) {
             return List.of(
                     Map.of("role", "system", "content", systemPrompt),
-                    Map.of("role", "user", "content", userMessage)
+                    Map.of("role", "user", "content", safeUser)
             );
         }
-        return List.of(Map.of("role", "user", "content", userMessage));
+        return List.of(Map.of("role", "user", "content", safeUser));
+    }
+
+    /**
+     * 对多轮消息历史逐条中和 user 角色内容（system/assistant 由服务端可信构造，不做改写）。
+     */
+    private List<Map<String, String>> neutralizeUserMessages(List<Map<String, String>> messages) {
+        List<Map<String, String>> safe = new ArrayList<>(messages.size());
+        for (Map<String, String> msg : messages) {
+            if (msg == null) {
+                continue;
+            }
+            String role = msg.get("role");
+            String content = msg.get("content");
+            if ("user".equalsIgnoreCase(role) && content != null) {
+                safe.add(Map.of("role", role, "content", promptGuard.neutralizeInjection(content)));
+            } else {
+                safe.add(msg);
+            }
+        }
+        return safe;
+    }
+
+    /**
+     * 直连出口：调用供应商后对输出统一做活动内容清洗（null 透传，交由上层判空）。
+     */
+    private String completeAndSanitize(List<Map<String, String>> messages, double temperature) {
+        return promptGuard.sanitizeOutput(llmProvider.complete(messages, temperature));
+    }
+
+    /**
+     * 统一调用入口：未配置供应商时返回清晰提示，调用失败返回通用错误文案；成功结果统一清洗后下发
+     */
+    private String callLlm(List<Map<String, String>> messages, Double temperature, String jsonSchema) {
+        if (!llmProvider.isConfigured()) {
+            return NO_PROVIDER_MSG;
+        }
+        String result = jsonSchema != null
+                ? llmProvider.completeJson(messages, temperature, jsonSchema)
+                : llmProvider.complete(messages, temperature);
+        return result != null ? promptGuard.sanitizeOutput(result) : SERVICE_ERROR_MSG;
     }
 }
