@@ -133,7 +133,7 @@ export const useAuthStore = defineStore('auth', () => {
       isLoading.value = true
       const remember = credentials.remember !== false
       const response = await authApi.login({
-        account: credentials.username,
+        username: credentials.username,
         password: credentials.password,
         rememberMe: remember,
       })
