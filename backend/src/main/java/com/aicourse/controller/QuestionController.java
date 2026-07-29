@@ -13,6 +13,7 @@ import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.QuestionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -55,6 +56,7 @@ public class QuestionController {
      * @return 分页题目数据
      */
     @GetMapping
+    @Operation(summary = "分页查询题目列表")
     public ApiResponse<?> list(
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size,
@@ -86,6 +88,7 @@ public class QuestionController {
      * @return 题目信息
      */
     @GetMapping("/{id}")
+    @Operation(summary = "根据ID查询题目详情")
     public ApiResponse<?> getById(@PathVariable Long id, Authentication auth) {
         Question question = questionService.getById(id);
         if (RoleUtil.isTeacherOrAdmin(auth)) {
@@ -103,6 +106,7 @@ public class QuestionController {
      */
     @PostMapping("/create")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "创建题目")
     public ApiResponse<Question> create(@RequestBody Question question, Authentication auth) {
         question.setCreatedBy((Long) auth.getPrincipal());
         Question created = questionService.createQuestion(question);
@@ -117,6 +121,7 @@ public class QuestionController {
      */
     @PostMapping("/generate-by-ai")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "AI智能生成题目")
     public ApiResponse<Question> generateByAI(@RequestBody Map<String, String> params, Authentication auth) {
         Long courseId = Long.valueOf(params.get("courseId"));
         String type = params.get("type");
@@ -136,6 +141,7 @@ public class QuestionController {
      */
     @PostMapping("/{id}/review")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "审核题目")
     public ApiResponse<Void> review(@PathVariable Long id, @RequestBody Map<String, Boolean> body) {
         boolean approved = body.getOrDefault("approved", true);
         questionService.reviewQuestion(id, approved);
@@ -149,6 +155,7 @@ public class QuestionController {
      */
     @PostMapping("/{id}/copy")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "复制题目")
     public ApiResponse<Question> copy(@PathVariable Long id) {
         Question copied = questionService.copyQuestion(id);
         return ApiResponse.success("复制成功", copied);
@@ -165,6 +172,7 @@ public class QuestionController {
      * @return 分页搜索结果
      */
     @GetMapping("/search")
+    @Operation(summary = "智能搜索题目")
     public ApiResponse<?> search(
             @RequestParam(required = false) Long courseId,
             @RequestParam(required = false) String type,
@@ -194,6 +202,7 @@ public class QuestionController {
      * @return 随机题目列表
      */
     @GetMapping("/random")
+    @Operation(summary = "随机抽取题目")
     public ApiResponse<?> randomSelect(
             @RequestParam Long courseId,
             @RequestParam(required = false) String type,
@@ -217,6 +226,7 @@ public class QuestionController {
      * @return 题目列表
      */
     @GetMapping("/kp/{kpId}")
+    @Operation(summary = "按知识点查询题目")
     public ApiResponse<?> getByKnowledgePoint(@PathVariable Long kpId, Authentication auth) {
         boolean privileged = RoleUtil.isTeacherOrAdmin(auth);
         List<Question> questions = questionService.getByKnowledgePoint(kpId);
@@ -235,6 +245,7 @@ public class QuestionController {
      * @return 统计信息
      */
     @GetMapping("/{id}/stats")
+    @Operation(summary = "获取题目使用统计")
     public ApiResponse<Map<String, Object>> getStats(@PathVariable Long id) {
         Map<String, Object> stats = questionService.getQuestionStats(id);
         return ApiResponse.success(stats);
@@ -247,6 +258,7 @@ public class QuestionController {
      * @return 易错题列表
      */
     @GetMapping("/error-prone")
+    @Operation(summary = "获取易错题TOP N")
     public ApiResponse<?> errorProne(
             @RequestParam(required = false) Long courseId,
             @RequestParam(defaultValue = "20") int limit,
@@ -270,6 +282,7 @@ public class QuestionController {
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "新增题目")
     public ApiResponse<Question> createBasic(@RequestBody Question question, Authentication auth) {
         question.setCreatedBy((Long) auth.getPrincipal());
         questionService.save(question);
@@ -284,6 +297,7 @@ public class QuestionController {
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "修改题目")
     public ApiResponse<Question> update(@PathVariable Long id, @RequestBody Question question) {
         question.setId(id);
         questionService.updateById(question);
@@ -298,6 +312,7 @@ public class QuestionController {
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "删除题目")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         questionService.removeById(id);
         return ApiResponse.success("删除成功", null);
@@ -310,6 +325,7 @@ public class QuestionController {
      */
     @PostMapping("/ai-generate")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "AI生成题目")
     public ApiResponse<Map<String, String>> generateByAIBasic(@Valid @RequestBody QuestionGenerateDTO dto) {
         Long courseId = dto.getCourseId();
         String type = dto.getType();
@@ -327,6 +343,7 @@ public class QuestionController {
      */
     @PostMapping("/generate-by-ai/batch")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "AI批量生成题目")
     public ApiResponse<List<Question>> generateBatchByAI(@Valid @RequestBody QuestionGenerateDTO dto, Authentication auth) {
         Long courseId = dto.getCourseId();
         String type = dto.getType();
@@ -357,6 +374,7 @@ public class QuestionController {
      */
     @PostMapping("/batch-import")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "批量导入题目")
     public ApiResponse<Map<String, Object>> batchImport(@RequestBody List<Question> questions, Authentication auth) {
         int imported = questionService.batchImport(questions, (Long) auth.getPrincipal());
         Map<String, Object> result = new LinkedHashMap<>();

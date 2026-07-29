@@ -13,10 +13,31 @@
         </span>
       </div>
       <div class="menu-scroll">
-        <el-menu :default-active="activeMenu" router background-color="transparent">
-          <template v-for="(item, idx) in menus" :key="item.path || idx">
-            <div v-if="item.group" class="menu-group-label">{{ item.group }}</div>
-            <el-menu-item v-else :index="item.path">
+        <el-menu
+          :default-active="activeMenu"
+          :default-openeds="openedGroups"
+          router
+          background-color="transparent"
+          class="sidebar-menu"
+        >
+          <template v-for="(item, idx) in menus" :key="item.path || item.group || idx">
+            <!-- 可展开分组 -->
+            <el-sub-menu v-if="item.children" :index="`group-${idx}`">
+              <template #title>
+                <el-icon><component :is="item.icon" /></el-icon>
+                <span>{{ item.group }}</span>
+              </template>
+              <el-menu-item
+                v-for="child in item.children"
+                :key="child.path"
+                :index="child.path"
+              >
+                <el-icon><component :is="child.icon" /></el-icon>
+                <span>{{ child.title }}</span>
+              </el-menu-item>
+            </el-sub-menu>
+            <!-- 顶层单项 -->
+            <el-menu-item v-else-if="item.path" :index="item.path">
               <el-icon><component :is="item.icon" /></el-icon>
               <span>{{ item.title }}</span>
             </el-menu-item>
@@ -32,7 +53,19 @@
           <el-button class="menu-toggle" text aria-label="打开导航菜单" @click="toggleSidebar">
             <el-icon :size="20"><Menu /></el-icon>
           </el-button>
-          <span class="page-title">{{ route.meta?.title || roleMeta.brand }}</span>
+          <!-- 面包屑导航 -->
+          <el-breadcrumb separator="/" class="breadcrumb">
+            <el-breadcrumb-item :to="{ path: defaultHome }">
+              <el-icon style="vertical-align: middle"><HomeFilled /></el-icon>
+            </el-breadcrumb-item>
+            <el-breadcrumb-item
+              v-for="(crumb, ci) in breadcrumbs"
+              :key="ci"
+              :to="ci < breadcrumbs.length - 1 ? crumb.path : undefined"
+            >
+              {{ crumb.title }}
+            </el-breadcrumb-item>
+          </el-breadcrumb>
         </div>
 
         <div class="header-right">
@@ -133,7 +166,7 @@
 import { ref, computed, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import { ArrowDown, Bell, Menu, SwitchButton, User } from '@element-plus/icons-vue'
+import { ArrowDown, Bell, HomeFilled, Menu, SwitchButton, User } from '@element-plus/icons-vue'
 import dayjs from 'dayjs'
 import { useAuthStore } from '@/stores/auth'
 import { unwrap } from '@/utils/response'
@@ -142,7 +175,7 @@ import ThemeSwitcher from '@/components/ThemeSwitcher.vue'
 import { ROLE_META } from './menus'
 
 const props = defineProps({
-  /** 菜单配置：{ path, title, icon } 或 { group } 分组标签 */
+  /** 菜单配置：树形结构，group+children 或 path+icon 叶子节点 */
   menus: { type: Array, required: true },
   /** 角色标识：ADMIN / TEACHER / STUDENT */
   role: { type: String, required: true },
@@ -159,6 +192,60 @@ const auth = useAuthStore()
 const roleMeta = computed(() => ROLE_META[props.role] || ROLE_META.STUDENT)
 const activeMenu = computed(() => route.path)
 const avatarText = computed(() => (auth.userName || 'U').slice(0, 1).toUpperCase())
+const defaultHome = computed(() => `/${props.role.toLowerCase()}/dashboard`)
+
+/* ---------- 面包屑 ---------- */
+const breadcrumbs = computed(() => {
+  const crumbs = []
+  const matched = route.matched.filter((r) => r.meta?.title)
+
+  for (const record of matched) {
+    const title = record.meta.breadcrumb || record.meta.title
+    if (title) {
+      crumbs.push({ title, path: record.path || route.path })
+    }
+  }
+
+  // 如果当前路由在某个菜单分组下，追加分组名作为前置面包屑
+  if (crumbs.length <= 1) {
+    const group = findMenuGroup(route.path)
+    if (group) {
+      crumbs.unshift({ title: group.group, path: '' })
+    }
+  }
+
+  return crumbs
+})
+
+function findMenuGroup(path) {
+  for (const item of props.menus) {
+    if (item.children) {
+      for (const child of item.children) {
+        if (child.path === path) return item
+      }
+    }
+  }
+  return null
+}
+
+/* ---------- 侧边栏展开分组 ---------- */
+const openedGroups = computed(() => {
+  const groups = []
+  const currentPath = route.path
+  // 展开包含当前激活菜单项的分组
+  for (let i = 0; i < props.menus.length; i++) {
+    const item = props.menus[i]
+    if (item.children) {
+      for (const child of item.children) {
+        if (currentPath === child.path || currentPath.startsWith(child.path + '/')) {
+          groups.push(`group-${i}`)
+          break
+        }
+      }
+    }
+  }
+  return groups
+})
 
 /* ---------- 移动端侧边栏 ---------- */
 const sidebarOpen = ref(false)
@@ -249,12 +336,20 @@ onBeforeUnmount(() => clearInterval(pollTimer))
   overflow-x: hidden;
 }
 
-.menu-group-label {
-  padding: 14px 24px 4px;
-  font-size: 11px;
+.sidebar-menu {
+  border-right: none !important;
+}
+
+.breadcrumb {
+  font-size: 13px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.breadcrumb :deep(.el-breadcrumb__item:last-child .el-breadcrumb__inner) {
+  color: var(--ac-text-primary);
   font-weight: 600;
-  letter-spacing: 1px;
-  color: var(--ac-text-muted);
 }
 
 .header-left {
@@ -262,6 +357,7 @@ onBeforeUnmount(() => clearInterval(pollTimer))
   align-items: center;
   gap: 8px;
   min-width: 0;
+  flex: 1;
 }
 
 .header-right {

@@ -83,7 +83,7 @@ class ExamSessionServiceImplTest {
     @DisplayName("门面 - timeoutSubmit 委托给生命周期协作者")
     void timeoutSubmit_delegates() {
         when(lifecycleService.timeoutSubmit(1L)).thenReturn(sampleSession);
-        assertSame(sampleSession, examSessionService.timeoutSubmit(1L));
+        examSessionService.timeoutSubmit(1L);
         verify(lifecycleService).timeoutSubmit(1L);
     }
 

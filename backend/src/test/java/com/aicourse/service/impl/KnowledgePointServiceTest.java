@@ -11,14 +11,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.test.util.ReflectionTestUtils;
 
-import java.math.BigDecimal;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -44,6 +43,7 @@ class KnowledgePointServiceTest {
 
     @BeforeEach
     void setUp() {
+        ReflectionTestUtils.setField(service, "baseMapper", mapper);
         rootPoint = new KnowledgePoint();
         rootPoint.setId(1L);
         rootPoint.setName("Root Point");
@@ -65,15 +65,11 @@ class KnowledgePointServiceTest {
         childPoint.setPointType("SKILL");
     }
 
-    // ===================== getById 测试 =====================
-
     @Test
     @DisplayName("根据ID查询-成功")
     void testGetById() {
         when(mapper.selectById(1L)).thenReturn(rootPoint);
-
         KnowledgePoint result = service.getById(1L);
-
         assertNotNull(result);
         assertEquals(1L, result.getId());
         assertEquals("Root Point", result.getName());
@@ -84,28 +80,21 @@ class KnowledgePointServiceTest {
     @DisplayName("根据ID查询-不存在返回null")
     void testGetById_NotFound() {
         when(mapper.selectById(999L)).thenReturn(null);
-
         KnowledgePoint result = service.getById(999L);
-
         assertNull(result);
     }
-
-    // ===================== getKnowledgeTree 测试 =====================
 
     @Test
     @DisplayName("获取知识树-成功构建层级结构")
     void testGetKnowledgeTree() {
         List<KnowledgePoint> allPoints = Arrays.asList(rootPoint, childPoint);
         when(mapper.selectList(any())).thenReturn(allPoints);
-
         List<Map<String, Object>> tree = service.getKnowledgeTree(100L);
-
         assertNotNull(tree);
         assertEquals(1, tree.size());
         Map<String, Object> rootNode = tree.get(0);
         assertEquals(1L, rootNode.get("id"));
         assertEquals("Root Point", rootNode.get("name"));
-
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> children = (List<Map<String, Object>>) rootNode.get("children");
         assertNotNull(children);
@@ -117,23 +106,17 @@ class KnowledgePointServiceTest {
     @DisplayName("获取知识树-课程无知识点返回空列表")
     void testGetKnowledgeTree_Empty() {
         when(mapper.selectList(any())).thenReturn(Collections.emptyList());
-
         List<Map<String, Object>> tree = service.getKnowledgeTree(999L);
-
         assertNotNull(tree);
         assertTrue(tree.isEmpty());
     }
-
-    // ===================== getChildPoints 测试 =====================
 
     @Test
     @DisplayName("获取子知识点-成功")
     void testGetChildPoints() {
         List<KnowledgePoint> children = Collections.singletonList(childPoint);
         when(mapper.selectList(any())).thenReturn(children);
-
         List<KnowledgePoint> result = service.getChildPoints(1L);
-
         assertNotNull(result);
         assertEquals(1, result.size());
         assertEquals("Child Point", result.get(0).getName());
@@ -143,14 +126,10 @@ class KnowledgePointServiceTest {
     @DisplayName("获取子知识点-无子节点返回空列表")
     void testGetChildPoints_Empty() {
         when(mapper.selectList(any())).thenReturn(Collections.emptyList());
-
         List<KnowledgePoint> result = service.getChildPoints(999L);
-
         assertNotNull(result);
         assertTrue(result.isEmpty());
     }
-
-    // ===================== getPrerequisites 测试 =====================
 
     @Test
     @DisplayName("获取前置依赖-成功")
@@ -159,12 +138,9 @@ class KnowledgePointServiceTest {
         relation.setSourceId(1L);
         relation.setTargetId(2L);
         relation.setRelationType("PREREQUISITE");
-
         when(relationService.list(any(Wrapper.class))).thenReturn(Collections.singletonList(relation));
         when(mapper.selectBatchIds(anyList())).thenReturn(Collections.singletonList(rootPoint));
-
         List<KnowledgePoint> result = service.getPrerequisites(2L);
-
         assertNotNull(result);
         assertEquals(1, result.size());
         assertEquals("Root Point", result.get(0).getName());
@@ -174,14 +150,10 @@ class KnowledgePointServiceTest {
     @DisplayName("获取前置依赖-无依赖返回空列表")
     void testGetPrerequisites_Empty() {
         when(relationService.list(any(Wrapper.class))).thenReturn(Collections.emptyList());
-
         List<KnowledgePoint> result = service.getPrerequisites(999L);
-
         assertNotNull(result);
         assertTrue(result.isEmpty());
     }
-
-    // ===================== getSubsequentPoints 测试 =====================
 
     @Test
     @DisplayName("获取后续知识点-成功")
@@ -190,18 +162,13 @@ class KnowledgePointServiceTest {
         relation.setSourceId(1L);
         relation.setTargetId(2L);
         relation.setRelationType("PREREQUISITE");
-
         when(relationService.list(any(Wrapper.class))).thenReturn(Collections.singletonList(relation));
         when(mapper.selectBatchIds(anyList())).thenReturn(Collections.singletonList(childPoint));
-
         List<KnowledgePoint> result = service.getSubsequentPoints(1L);
-
         assertNotNull(result);
         assertEquals(1, result.size());
         assertEquals("Child Point", result.get(0).getName());
     }
-
-    // ===================== createWithValidation 测试 =====================
 
     @Test
     @DisplayName("创建知识点-校验通过成功创建")
@@ -211,16 +178,12 @@ class KnowledgePointServiceTest {
         input.setCourseId(100L);
         input.setDifficultyLevel("HARD");
         input.setImportance(4);
-
-        when(mapper.insert(any(KnowledgePoint.class))).thenReturn(1);
         doAnswer(invocation -> {
             KnowledgePoint p = invocation.getArgument(0);
             p.setId(3L);
             return 1;
         }).when(mapper).insert(any(KnowledgePoint.class));
-
         KnowledgePoint result = service.createWithValidation(input);
-
         assertNotNull(result);
         assertEquals("New Point", result.getName());
         assertEquals("HARD", result.getDifficultyLevel());
@@ -233,7 +196,6 @@ class KnowledgePointServiceTest {
         KnowledgePoint input = new KnowledgePoint();
         input.setName("");
         input.setCourseId(100L);
-
         try {
             service.createWithValidation(input);
             fail("Expected BusinessException");
@@ -247,7 +209,6 @@ class KnowledgePointServiceTest {
     void testCreateWithValidation_NullCourseId() {
         KnowledgePoint input = new KnowledgePoint();
         input.setName("Test Point");
-
         try {
             service.createWithValidation(input);
             fail("Expected BusinessException");
@@ -263,7 +224,6 @@ class KnowledgePointServiceTest {
         input.setName("Test Point");
         input.setCourseId(100L);
         input.setDifficultyLevel("IMPOSSIBLE");
-
         try {
             service.createWithValidation(input);
             fail("Expected BusinessException");
@@ -272,30 +232,22 @@ class KnowledgePointServiceTest {
         }
     }
 
-    // ===================== getRootPoints 测试 =====================
-
     @Test
     @DisplayName("获取根级知识点-成功")
     void testGetRootPoints() {
         when(mapper.selectList(any())).thenReturn(Collections.singletonList(rootPoint));
-
         List<KnowledgePoint> result = service.getRootPoints(100L);
-
         assertNotNull(result);
         assertEquals(1, result.size());
         assertEquals("Root Point", result.get(0).getName());
         assertNull(result.get(0).getParentId());
     }
 
-    // ===================== getListWithFilters 测试 =====================
-
     @Test
     @DisplayName("按条件筛选知识点-默认排序")
     void testGetListWithFilters_Default() {
         when(mapper.selectList(any())).thenReturn(Collections.singletonList(rootPoint));
-
         List<KnowledgePoint> result = service.getListWithFilters(100L, null, null, null, null, true);
-
         assertNotNull(result);
         assertEquals(1, result.size());
     }
@@ -304,9 +256,7 @@ class KnowledgePointServiceTest {
     @DisplayName("按条件筛选知识点-按重要度降序")
     void testGetListWithFilters_ByImportance() {
         when(mapper.selectList(any())).thenReturn(Collections.singletonList(rootPoint));
-
         List<KnowledgePoint> result = service.getListWithFilters(100L, "EASY", 1, 5, "importance", false);
-
         assertNotNull(result);
         assertEquals(1, result.size());
     }

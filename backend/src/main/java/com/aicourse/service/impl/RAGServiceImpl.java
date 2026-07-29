@@ -24,7 +24,7 @@ import lombok.extern.slf4j.Slf4j;
  * 的硬性要求，本实现改为自包含：
  * <ul>
  *   <li>知识库 = {@code knowledge_points} 表中课程的「知识点名称 + 描述」；</li>
- *   <li>召回 = 词频/IDF 加权的中文 bigram 余弦相似度（无需任何外部向量服务即可运行）；</li>
+ *   <li>召回 = Okapi BM25 算法（中文 bigram 分词，无需外部向量服务）；</li>
  *   <li>生成 = 将 topK 召回片段拼装为 context，交由可插拔的 {@link LLMProvider} 融合生成答案，
  *        并严格约束「仅依据所给知识库、未涵盖时如实说明」，以抑制幻觉；</li>
  *   <li>文档管理接口（增删改查/建索引）直连知识点表，使「知识库管理」真实可用。</li>
@@ -41,12 +41,17 @@ public class RAGServiceImpl implements RAGService {
     private final ObjectMapper objectMapper;
     private final int defaultTopK;
 
+    /** BM25 k1 参数：控制词频饱和度，默认 1.5（标准 Okapi 值） */
+    private final double bm25K1;
+    /** BM25 b 参数：控制文档长度归一化强度，默认 0.75（标准 Okapi 值） */
+    private final double bm25B;
+
     /**
-     * 课程语预料库缓存（courseId → 预计算的 TF-IDF 索引）。
-     * 避免每次检索都全量加载知识点 + 逐条分词 + IDF 遍历的 O(N*M) 开销，
+     * 课程语料预计算索引缓存（courseId → 预计算的 BM25 索引）。
+     * 避免每次检索都全量加载知识点 + 逐条分词 + DF 遍历的 O(N*M) 开销，
      * 将大部分计算从检索路径移至缓存构建路径。
-     * 线程安全：ConcurrentHashMap + 原子 putIfAbsent。
-     * 失效策略：惰性过期（基于版号），知识库变更时通过 {@link #evictCorpusCache(Long)} 清除。
+     * 线程安全：ConcurrentHashMap + 原子 computeIfAbsent。
+     * 失效策略：知识库变更时通过 {@link #evictCorpusCache(Long)} 清除。
      */
     private final ConcurrentHashMap<Long, CachedCorpus> corpusCache = new ConcurrentHashMap<>();
 
@@ -56,11 +61,15 @@ public class RAGServiceImpl implements RAGService {
     public RAGServiceImpl(@Lazy KnowledgePointService knowledgePointService,
                           LLMProvider llmProvider,
                           ObjectMapper objectMapper,
-                          @org.springframework.beans.factory.annotation.Value("${rag.default-top-k:5}") int defaultTopK) {
+                          @org.springframework.beans.factory.annotation.Value("${rag.default-top-k:5}") int defaultTopK,
+                          @org.springframework.beans.factory.annotation.Value("${rag.bm25.k1:1.5}") double bm25K1,
+                          @org.springframework.beans.factory.annotation.Value("${rag.bm25.b:0.75}") double bm25B) {
         this.knowledgePointService = knowledgePointService;
         this.llmProvider = llmProvider;
         this.objectMapper = objectMapper;
         this.defaultTopK = defaultTopK;
+        this.bm25K1 = bm25K1;
+        this.bm25B = bm25B;
     }
 
     @Override
@@ -262,7 +271,7 @@ public class RAGServiceImpl implements RAGService {
     }
 
     /**
-     * 基于词频/IDF 加权的中文 bigram 余弦相似度召回 topK
+     * 基于 Okapi BM25 算法召回 topK（无缓存版本，直接对原始语料计算）。
      */
     private List<ScoredPoint> retrieveScored(String query, List<KnowledgePoint> corpus, int topK) {
         if (query == null || query.isBlank() || corpus.isEmpty()) {
@@ -273,30 +282,31 @@ public class RAGServiceImpl implements RAGService {
             return Collections.emptyList();
         }
 
-        // 文档频率
+        // 文档频率 + 文档长度
+        int N = corpus.size();
         Map<String, Integer> df = new HashMap<>();
         List<Map<String, Integer>> docTfs = new ArrayList<>();
+        List<Integer> docLengths = new ArrayList<>();
+        int totalLen = 0;
         for (KnowledgePoint p : corpus) {
             String text = nullToEmpty(p.getName()) + " " + nullToEmpty(p.getDescription());
             Map<String, Integer> dtf = tokenize(text);
             docTfs.add(dtf);
+            int len = dtf.values().stream().mapToInt(Integer::intValue).sum();
+            docLengths.add(len);
+            totalLen += len;
             for (String term : dtf.keySet()) {
                 df.merge(term, 1, Integer::sum);
             }
         }
-
-        int N = corpus.size();
-        Map<String, Double> qVec = tfidfVector(qtf, df, N);
-        double qNorm = norm(qVec);
+        double avgDL = N > 0 ? (double) totalLen / N : 1.0;
 
         List<ScoredPoint> scored = new ArrayList<>();
-        for (int i = 0; i < corpus.size(); i++) {
-            Map<String, Integer> dtf = docTfs.get(i);
-            if (dtf.isEmpty()) continue;
-            Map<String, Double> dVec = tfidfVector(dtf, df, N);
-            double sim = cosine(qVec, dVec, qNorm, norm(dVec));
-            if (sim > 0) {
-                scored.add(new ScoredPoint(corpus.get(i), sim));
+        for (int i = 0; i < N; i++) {
+            if (docTfs.get(i).isEmpty()) continue;
+            double score = bm25Score(qtf, docTfs.get(i), i, df, N, docLengths, avgDL);
+            if (score > 0) {
+                scored.add(new ScoredPoint(corpus.get(i), score));
             }
         }
         scored.sort((a, b) -> Double.compare(b.score, a.score));
@@ -304,8 +314,8 @@ public class RAGServiceImpl implements RAGService {
     }
 
     /**
-     * 基于缓存的 TF-IDF 索引进行相似度召回。
-     * 只需要 tokenize 查询文本并计算一次查询向量，文档向量从缓存读取。
+     * 基于缓存的 BM25 索引进行相似度召回。
+     * 只需要 tokenize 查询文本，文档索引已预计算完毕。
      */
     private List<ScoredPoint> retrieveScored(String query, CachedCorpus corpus, int topK) {
         if (query == null || query.isBlank() || corpus == null || corpus.isEmpty()) {
@@ -315,15 +325,14 @@ public class RAGServiceImpl implements RAGService {
         if (qtf.isEmpty()) {
             return Collections.emptyList();
         }
-        Map<String, Double> qVec = tfidfVector(qtf, corpus.df, corpus.N);
-        double qNorm = norm(qVec);
 
         List<ScoredPoint> scored = new ArrayList<>();
         for (int i = 0; i < corpus.size(); i++) {
             if (corpus.docTfs.get(i).isEmpty()) continue;
-            double sim = cosine(qVec, corpus.docVectors.get(i), qNorm, corpus.docNorms.get(i));
-            if (sim > 0) {
-                scored.add(new ScoredPoint(corpus.points.get(i), sim));
+            double score = bm25Score(qtf, corpus.docTfs.get(i), i, corpus.df, corpus.N,
+                    corpus.docLengths, corpus.avgDL);
+            if (score > 0) {
+                scored.add(new ScoredPoint(corpus.points.get(i), score));
             }
         }
         scored.sort((a, b) -> Double.compare(b.score, a.score));
@@ -342,7 +351,7 @@ public class RAGServiceImpl implements RAGService {
     }
 
     /**
-     * 为指定课程构建 TF-IDF 索引（词频 + DF + 文档向量 + 范数）。
+     * 为指定课程构建 BM25 索引（词频 + 文档频率 + 文档长度统计）。
      * 该计算仅在首次查询或缓存失效时执行一次。
      */
     private CachedCorpus buildCorpus(Long courseId) {
@@ -350,27 +359,25 @@ public class RAGServiceImpl implements RAGService {
         if (points == null || points.isEmpty()) {
             return null;
         }
-        // 文档频率
+        // 文档频率 + 词频 + 文档长度
         Map<String, Integer> df = new HashMap<>();
         List<Map<String, Integer>> docTfs = new ArrayList<>(points.size());
+        List<Integer> docLengths = new ArrayList<>(points.size());
+        int totalLen = 0;
         for (KnowledgePoint p : points) {
             Map<String, Integer> tf = tokenize(textOf(p));
             docTfs.add(tf);
+            int len = tf.values().stream().mapToInt(Integer::intValue).sum();
+            docLengths.add(len);
+            totalLen += len;
             for (String term : tf.keySet()) {
                 df.merge(term, 1, Integer::sum);
             }
         }
-        // 预计算 TF-IDF 向量与范数
         int N = points.size();
-        List<Map<String, Double>> docVectors = new ArrayList<>(N);
-        List<Double> docNorms = new ArrayList<>(N);
-        for (int i = 0; i < N; i++) {
-            Map<String, Double> vec = tfidfVector(docTfs.get(i), df, N);
-            docVectors.add(vec);
-            docNorms.add(norm(vec));
-        }
-        log.info("[RAG] 课程 {} 索引构建完成：{} 个知识点", courseId, N);
-        return new CachedCorpus(points, df, N, docTfs, docVectors, docNorms);
+        double avgDL = N > 0 ? (double) totalLen / N : 1.0;
+        log.info("[RAG] 课程 {} BM25 索引构建完成：{} 个知识点，平均文档长度 {:.1f}", courseId, N, avgDL);
+        return new CachedCorpus(points, df, N, docTfs, docLengths, avgDL);
     }
 
     /**
@@ -433,35 +440,44 @@ public class RAGServiceImpl implements RAGService {
         return tf;
     }
 
-    private Map<String, Double> tfidfVector(Map<String, Integer> tf, Map<String, Integer> df, int N) {
-        Map<String, Double> vec = new HashMap<>();
-        int total = tf.values().stream().mapToInt(Integer::intValue).sum();
-        for (Map.Entry<String, Integer> e : tf.entrySet()) {
-            double t = (double) e.getValue() / total;
-            int d = df.getOrDefault(e.getKey(), 1);
-            double idf = Math.log((1.0 + N) / (1.0 + d)) + 1.0;
-            vec.put(e.getKey(), t * idf);
-        }
-        return vec;
-    }
+    // ===================== BM25 评分 =====================
 
-    private double cosine(Map<String, Double> a, Map<String, Double> b, double aNorm, double bNorm) {
-        if (aNorm == 0 || bNorm == 0) return 0;
-        double dot = 0;
-        // 遍历较小的向量
-        Map<String, Double> small = a.size() <= b.size() ? a : b;
-        Map<String, Double> other = small == a ? b : a;
-        for (Map.Entry<String, Double> e : small.entrySet()) {
-            Double ov = other.get(e.getKey());
-            if (ov != null) dot += e.getValue() * ov;
+    /**
+     * Okapi BM25 评分：对查询中的每个词项计算 IDF * TF 归一化得分并求和。
+     *
+     * @param queryTerms  查询词项 → 频率
+     * @param docTf       文档词项 → 频率
+     * @param docIdx      文档索引（用于获取文档长度）
+     * @param df          全局文档频率
+     * @param N           文档总数
+     * @param docLengths  各文档长度
+     * @param avgDL       平均文档长度
+     * @return BM25 得分（非归一化，仅用于排序）
+     */
+    private double bm25Score(Map<String, Integer> queryTerms,
+                              Map<String, Integer> docTf,
+                              int docIdx,
+                              Map<String, Integer> df,
+                              int N,
+                              List<Integer> docLengths,
+                              double avgDL) {
+        double score = 0;
+        double docLen = docLengths.get(docIdx);
+        for (Map.Entry<String, Integer> qe : queryTerms.entrySet()) {
+            String term = qe.getKey();
+            int tf = docTf.getOrDefault(term, 0);
+            if (tf == 0) continue;
+            int d = df.getOrDefault(term, 0);
+            if (d == 0) continue;
+            // BM25 IDF: log((N - df + 0.5) / (df + 0.5) + 1)
+            double idf = Math.log((N - d + 0.5) / (d + 0.5) + 1.0);
+            // 文档长度归一化
+            double lengthNorm = 1.0 - bm25B + bm25B * docLen / avgDL;
+            double numerator = tf * (bm25K1 + 1.0);
+            double denominator = tf + bm25K1 * lengthNorm;
+            score += idf * numerator / denominator;
         }
-        return dot / (aNorm * bNorm);
-    }
-
-    private double norm(Map<String, Double> v) {
-        double s = 0;
-        for (double x : v.values()) s += x * x;
-        return Math.sqrt(s);
+        return score;
     }
 
     // ===================== 工具 =====================
@@ -506,26 +522,25 @@ public class RAGServiceImpl implements RAGService {
     }
 
     /**
-     * 课程语料预计算索引：将 O(N*M) 的分词 + TF-IDF 计算移至缓存构建路径，
-     * 使每条查询只做 O(N) 的余弦计算。
+     * 课程语料预计算索引：存储 BM25 召回所需的全部预计算数据。
+     * 文档频率、各文档词频与长度在缓存构建时一次性计算，查询阶段仅做 BM25 评分。
      */
     private static class CachedCorpus {
         final List<KnowledgePoint> points;
         final Map<String, Integer> df;          // 文档频率（全局）
         final int N;                             // 文档总数
         final List<Map<String, Integer>> docTfs; // 各文档的词频
-        final List<Map<String, Double>> docVectors; // 各文档的 TF-IDF 向量
-        final List<Double> docNorms;                // 各文档向量范数
+        final List<Integer> docLengths;          // 各文档的 term 总数
+        final double avgDL;                      // 平均文档长度（BM25 长度归一化用）
 
         CachedCorpus(List<KnowledgePoint> points, Map<String, Integer> df, int N,
-                     List<Map<String, Integer>> docTfs,
-                     List<Map<String, Double>> docVectors, List<Double> docNorms) {
+                     List<Map<String, Integer>> docTfs, List<Integer> docLengths, double avgDL) {
             this.points = points;
             this.df = df;
             this.N = N;
             this.docTfs = docTfs;
-            this.docVectors = docVectors;
-            this.docNorms = docNorms;
+            this.docLengths = docLengths;
+            this.avgDL = avgDL;
         }
 
         boolean isEmpty() {

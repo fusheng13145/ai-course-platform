@@ -1,40 +1,33 @@
 package com.aicourse.controller;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.service.AuthService;
+import com.aicourse.service.FileStorageService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
-import org.springframework.web.bind.annotation.*;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.File;
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.UUID;
-import java.util.ArrayList;
 import java.util.Set;
-import com.aicourse.common.ApiCode;
+import java.util.UUID;
 
 /**
- * 公共通用接口控制器
+ * 公共通用接口控制器。
+ * <p>文件上传通过 {@link FileStorageService} 抽象，支持本地磁盘 / MinIO 透明切换。</p>
  */
+@Slf4j
 @RestController
 @RequestMapping("/common")
 @Tag(name = "通用服务")
 public class CommonController {
 
-    private static final String UPLOAD_DIR = "uploads/";
-
-    /**
-     * 允许上传的文件扩展名白名单（小写）。
-     * 仅放行常见文档/图片/音视频/压缩包，杜绝 .html/.svg/.js/.jsp/.php 等
-     * 可被浏览器执行或造成存储型 XSS /  Webshell 风险的类型。
-     */
+    /** 允许上传的文件扩展名白名单（小写），杜绝 .html/.svg/.js 等存储型 XSS / Webshell 风险。 */
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
             ".jpg", ".jpeg", ".png", ".gif", ".webp", ".bmp",
             ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx",
@@ -46,17 +39,23 @@ public class CommonController {
         return ext != null && ALLOWED_EXTENSIONS.contains(ext.toLowerCase());
     }
 
-    private final AuthService authService;
+    /** 从原始文件名中提取扩展名，不合法返回空字符串。 */
+    private static String extractSafeExt(String originalName) {
+        if (originalName == null || !originalName.contains(".")) return "";
+        String ext = originalName.substring(originalName.lastIndexOf("."));
+        return isAllowedExtension(ext) ? ext : "";
+    }
 
-    public CommonController(AuthService authService) {
+    private final AuthService authService;
+    private final FileStorageService fileStorageService;
+
+    public CommonController(AuthService authService, FileStorageService fileStorageService) {
         this.authService = authService;
+        this.fileStorageService = fileStorageService;
     }
 
     /**
-     * 发送验证码（需求文档定义: POST /api/common/verify-code）
-     * @param body 请求参数: email, type
-     * @param request 请求对象
-     * @return 操作结果
+     * 发送验证码
      */
     @PostMapping("/verify-code")
     public ApiResponse<Void> sendVerifyCode(@RequestBody Map<String, String> body,
@@ -70,109 +69,76 @@ public class CommonController {
     }
 
     /**
-     * 批量文件上传
-     * @param files 上传文件列表
-     * @return 文件访问地址列表
+     * 单文件上传（委托 FileStorageService，支持本地/MinIO 透明切换）。
+     */
+    @PreAuthorize("isAuthenticated()")
+    @PostMapping("/upload")
+    public ApiResponse<Map<String, String>> uploadFile(@RequestParam("file") MultipartFile file) {
+        if (file.isEmpty()) {
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "上传文件不能为空");
+        }
+
+        String originalName = file.getOriginalFilename();
+        String safeName = originalName != null ? originalName : "未命名文件";
+        String ext = extractSafeExt(originalName);
+        if (ext.isEmpty()) {
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "不支持的文件类型: " +
+                    (originalName != null && originalName.contains(".")
+                            ? originalName.substring(originalName.lastIndexOf(".")) : "无后缀"));
+        }
+
+        String objectName = UUID.randomUUID() + ext;
+        try {
+            String stored = fileStorageService.upload(objectName,
+                    file.getInputStream(), file.getContentType(), file.getSize());
+            log.info("文件上传成功: {} (original={}, size={})", stored, safeName, file.getSize());
+            return ApiResponse.success(Map.of(
+                    "url", "/uploads/" + stored,
+                    "fileName", safeName,
+                    "size", String.valueOf(file.getSize())
+            ));
+        } catch (Exception e) {
+            log.error("文件上传失败: {}", objectName, e);
+            return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "上传失败: " + e.getMessage());
+        }
+    }
+
+    /**
+     * 批量文件上传。
      */
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/upload/batch")
     public ApiResponse<List<Map<String, String>>> uploadBatch(@RequestParam("files") List<MultipartFile> files) {
-        List<Map<String, String>> results = new java.util.ArrayList<>();
+        List<Map<String, String>> results = new ArrayList<>();
         for (MultipartFile file : files) {
             if (file.isEmpty()) continue;
-            File dir = new File(UPLOAD_DIR);
-            if (!dir.exists()) dir.mkdirs();
+
             String originalName = file.getOriginalFilename();
-            String safeOriginalName = originalName == null ? "未命名文件" : originalName;
-            String ext = "";
-            if (originalName != null && originalName.contains(".")) {
-                ext = originalName.substring(originalName.lastIndexOf("."));
-            }
-            if (!isAllowedExtension(ext)) {
-                results.add(Map.of(
-                        "url", "",
-                        "fileName", safeOriginalName,
-                        "size", "0",
-                        "error", "不支持的文件类型: " + ext
-                ));
+            String safeName = originalName != null ? originalName : "未命名文件";
+            String ext = extractSafeExt(originalName);
+            if (ext.isEmpty()) {
+                results.add(Map.of("url", "", "fileName", safeName, "size", "0",
+                        "error", "不支持的文件类型"));
                 continue;
             }
-            String fileName = UUID.randomUUID() + ext;
-            Path filePath = Paths.get(UPLOAD_DIR + fileName);
+
+            String objectName = UUID.randomUUID() + ext;
             try {
-                Files.write(filePath, file.getBytes());
-                results.add(Map.of(
-                        "url", "/uploads/" + fileName,
-                        "fileName", safeOriginalName,
-                        "size", String.valueOf(file.getSize())
-                ));
-            } catch (IOException e) {
-                results.add(Map.of(
-                        "url", "",
-                        "fileName", safeOriginalName,
-                        "size", "0",
-                        "error", "上传失败: " + e.getMessage()
-                ));
+                String stored = fileStorageService.upload(objectName,
+                        file.getInputStream(), file.getContentType(), file.getSize());
+                results.add(Map.of("url", "/uploads/" + stored,
+                        "fileName", safeName, "size", String.valueOf(file.getSize())));
+            } catch (Exception e) {
+                log.error("批量上传失败: {}", objectName, e);
+                results.add(Map.of("url", "", "fileName", safeName, "size", "0",
+                        "error", "上传失败: " + e.getMessage()));
             }
         }
         return ApiResponse.success(results);
     }
 
     /**
-     * 文件上传
-     * @param file 上传文件
-     * @return 文件访问地址、原名、大小
-     */
-    @PreAuthorize("isAuthenticated()")
-    @PostMapping("/upload")
-    public ApiResponse<Map<String, String>> uploadFile(@RequestParam("file") MultipartFile file) {
-        // 1. 校验文件是否为空
-        if (file.isEmpty()) {
-            return ApiResponse.error(ApiCode.BAD_REQUEST, "上传文件不能为空");
-        }
-
-        // 2. 创建上传目录并校验结果
-        File dir = new File(UPLOAD_DIR);
-        if (!dir.exists()) {
-            boolean created = dir.mkdirs();
-            if (!created) {
-                return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "上传目录创建失败");
-            }
-        }
-
-        // 3. 处理文件名与后缀，处理 null 情况
-        String originalName = file.getOriginalFilename();
-        String safeOriginalName = originalName == null ? "未命名文件" : originalName;
-
-        String ext = "";
-        if (originalName != null && originalName.contains(".")) {
-            ext = originalName.substring(originalName.lastIndexOf("."));
-        }
-        if (!isAllowedExtension(ext)) {
-            return ApiResponse.error(ApiCode.BAD_REQUEST, "不支持的文件类型: " + ext);
-        }
-
-        String fileName = UUID.randomUUID() + ext;
-        Path filePath = Paths.get(UPLOAD_DIR + fileName);
-
-        try {
-            // 4. 写入文件
-            Files.write(filePath, file.getBytes());
-
-            // 5. 返回结果
-            return ApiResponse.success(Map.of(
-                    "url", "/uploads/" + fileName,
-                    "fileName", safeOriginalName,
-                    "size", String.valueOf(file.getSize())
-            ));
-        } catch (IOException e) {
-            return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "上传失败: " + e.getMessage());
-        }
-    }
-
-    /**
-     * 获取功能路线图
-     * @return 版本及功能进度信息
+     * 获取功能路线图。
      */
     @GetMapping("/feature-roadmap")
     public ApiResponse<Map<String, Object>> featureRoadmap() {

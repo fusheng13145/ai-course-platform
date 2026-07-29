@@ -1,0 +1,87 @@
+# ===================== Service 单元测试配置（H2 内存数据库） =====================
+# 提供最小化的 Spring 上下文，使 MyBatis-Plus ServiceImpl 可以正常初始化。
+# 实际数据库 I/O 不执行，因为 @MockitoBean 已将 Mapper 全部替换为 Mock。
+
+spring:
+  # 禁用 DevTools（测试环境不需要）
+  devtools:
+    restart:
+      enabled: false
+    livereload:
+      enabled: false
+
+  # H2 内存数据库 - 仅用于满足 Spring/MyBatis-Plus 自动配置的 DataSource 依赖
+  datasource:
+    url: jdbc:h2:mem:servicetest;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    driver-class-name: org.h2.Driver
+    username: sa
+    password:
+  h2:
+    console:
+      enabled: false
+
+  # SQL 初始化：不执行
+  sql:
+    init:
+      mode: never
+
+  # Redis：禁用
+  autoconfigure:
+    exclude:
+      - org.springframework.boot.autoconfigure.data.redis.RedisAutoConfiguration
+      - org.springframework.boot.autoconfigure.data.redis.RedisRepositoriesAutoConfiguration
+
+  # 邮件：禁用
+  mail:
+    host: localhost
+
+  # 文件上传：禁用 Multipart 自动配置
+  servlet:
+    multipart:
+      enabled: false
+
+  # 缓存：使用内置简单缓存（避免 Redis 依赖）
+  cache:
+    type: simple
+
+# MyBatis-Plus：关闭 SQL 日志以减少测试噪声
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# 禁用依赖外部服务的组件
+knowledge-graph:
+  enabled: false
+rag:
+  enabled: false
+fine-tune:
+  enabled: false
+ratelimit:
+  enabled: false
+
+# 安全/HTTPS/Cookie 配置（测试环境用 HTTP）
+app:
+  actuator:
+    secured: false
+  cookie:
+    secure: false
+  security:
+    require-https: false
+    csrf:
+      enabled: false
+
+# JWT 测试密钥
+jwt:
+  secret: test-only-jwt-key-for-service-unit-tests-do-not-use-in-prod
+
+# 测试日志级别
+logging:
+  level:
+    com.aicourse: WARN
+    org.springframework.boot.test: WARN

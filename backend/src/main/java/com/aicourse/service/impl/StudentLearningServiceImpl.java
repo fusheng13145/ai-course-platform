@@ -6,6 +6,7 @@ import com.aicourse.mapper.TaskCompletionMapper;
 import com.aicourse.service.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import jakarta.annotation.PostConstruct;
 import java.math.BigDecimal;
@@ -102,6 +103,7 @@ public class StudentLearningServiceImpl implements StudentLearningService {
     // ===================== 学生首页/学习空间驾驶舱 =====================
 
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> getStudentDashboard(Long userId) {
         Map<String, Object> result = new LinkedHashMap<>();
 
@@ -250,6 +252,7 @@ public class StudentLearningServiceImpl implements StudentLearningService {
     // ===================== 章节任务点学习中心 =====================
 
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> getCourseLearningCenter(Long userId, Long courseId) {
         assertEnrolled(userId, courseId);
         Course course = courseService.getById(courseId);
@@ -360,6 +363,7 @@ public class StudentLearningServiceImpl implements StudentLearningService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> getCourseProgressSummary(Long userId, Long courseId) {
         assertEnrolled(userId, courseId);
         Map<String, Object> center = getCourseLearningCenter(userId, courseId);
@@ -411,6 +415,7 @@ public class StudentLearningServiceImpl implements StudentLearningService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> getVideoState(Long userId, Long courseId, Long taskId) {
         TaskCompletion tc = getOneCompletion(taskId, userId);
         Map<String, Object> r = new LinkedHashMap<>();
@@ -548,6 +553,7 @@ public class StudentLearningServiceImpl implements StudentLearningService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> getGrades(Long userId) {
         Map<String, Object> result = new LinkedHashMap<>();
         List<Map<String, Object>> courses = new ArrayList<>();

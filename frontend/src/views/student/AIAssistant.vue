@@ -164,14 +164,14 @@
 </template>
 
 <script setup>
-import { ref, nextTick, onMounted } from 'vue'
+import { ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
   Plus, ChatDotRound, Fold, MagicStick,
   Document, EditPen, QuestionFilled, Calendar,
   User, CopyDocument, RefreshRight, Promotion
 } from '@element-plus/icons-vue'
-import DOMPurify from 'dompurify'
+import { sanitizeHtml } from '@/utils/sanitize'
 import aiApi from '@/api/ai'
 import courseApi from '@/api/course'
 
@@ -191,6 +191,10 @@ const messages = ref([])         // 当前对话的消息
 const inputMessage = ref('')
 const loading = ref(false)
 
+/* ---- 资源清理跟踪 ---- */
+const activeIntervals = ref([])
+const sseController = ref(null)
+
 /* ---- 加载课程列表 ---- */
 async function loadCourses() {
   try {
@@ -202,12 +206,30 @@ async function loadCourses() {
   }
 }
 
-/* ---- 发送消息（支持打字机流式效果）---- */
+/* ---- 加载对话历史 ---- */
+async function loadConversations() {
+  try {
+    const res = await aiApi.getSessions()
+    const list = res.data?.list || res.data?.records || res.data || []
+    if (Array.isArray(list) && list.length > 0) {
+      conversations.value = list.map(s => ({
+        id: s.id || s.sessionId,
+        title: s.title || s.summary || `对话 ${new Date(s.createdAt || Date.now()).toLocaleDateString()}`,
+        time: s.updatedAt || s.createdAt || '',
+        messages: s.messages || [],
+        courseName: s.courseName || '',
+      }))
+    }
+  } catch (e) {
+    console.warn('加载对话历史失败:', e)
+  }
+}
+
+/* ---- 发送消息（对接真实 API：qaAsk 非流式 + qaStream SSE 流式）---- */
 async function handleSend() {
   const content = inputMessage.value.trim()
   if (!content || loading.value) return
 
-  // 添加用户消息
   const now = new Date()
   messages.value.push({
     role: 'user',
@@ -217,10 +239,8 @@ async function handleSend() {
 
   inputMessage.value = ''
   loading.value = true
-
   await scrollToBottom()
 
-  // 预留 AI 消息位置（用于流式输出）
   const aiMsgIdx = messages.value.length
   messages.value.push({
     role: 'assistant',
@@ -229,28 +249,62 @@ async function handleSend() {
     loading: true
   })
 
+  // 优先使用 SSE 流式（真逐 token 推送）
   try {
-    // 调用 AI 聊天 API
-    const res = await aiApi.aiChat(content, '', selectedCourseId.value)
-    const reply = res.data?.response || res?.response ||
-                   res.data?.reply || res?.reply ||
-                   res.data?.content || res?.content ||
-                   '感谢您的提问！我正在学习中，稍后会有更完善的回答。'
-
-    // 使用打字机效果逐字显示 AI 回复
-    await typewriterEffect(aiMsgIdx, reply)
-  } catch (e) {
-    console.error('AI 聊天失败:', e)
-    messages.value[aiMsgIdx].content = '抱歉，AI 服务暂时不可用，请稍后再试。'
-    messages.value[aiMsgIdx].error = true
+    await handleSendStream(aiMsgIdx, content)
+  } catch {
+    // SSE 降级：回退到非流式 qaAsk
+    try {
+      await handleSendFallback(aiMsgIdx, content)
+    } catch (e) {
+      console.error('AI 聊天失败:', e)
+      messages.value[aiMsgIdx].content = '抱歉，AI 服务暂时不可用，请稍后再试。'
+      messages.value[aiMsgIdx].error = true
+    }
   } finally {
     messages.value[aiMsgIdx].loading = false
+    loading.value = false
     await scrollToBottom()
   }
 }
 
+/** SSE 流式发送：真实逐 token 打字机效果 */
+function handleSendStream(aiMsgIdx, question) {
+  return new Promise((resolve, reject) => {
+    const params = { question }
+    if (selectedCourseId.value) params.courseId = selectedCourseId.value
+
+    const controller = aiApi.qaStream(params, {
+      onToken(token) {
+        messages.value[aiMsgIdx].content += token
+      },
+      onError(err) {
+        reject(err)
+      },
+      onDone() {
+        sseController.value = null
+        resolve()
+      }
+    })
+    sseController.value = controller
+  })
+}
+
+/** 非流式兜底：调用 qaAsk 获取完整回复后前端逐字渲染 */
+async function handleSendFallback(aiMsgIdx, question) {
+  const payload = { question }
+  if (selectedCourseId.value) payload.courseId = selectedCourseId.value
+
+  const res = await aiApi.qaAsk(payload)
+  const reply = res.data?.response || res.data?.reply ||
+                 res.data?.content || res?.content ||
+                 '感谢您的提问！我正在学习中，稍后会有更完善的回答。'
+  // 前端逐字渲染保持交互体验
+  await typewriterEffect(aiMsgIdx, reply)
+}
+
 /**
- * 打字机效果 - 逐字显示文本，模拟流式输出体验
+ * 打字机效果 - 逐字显示文本（非流式兜底用）
  * @param {number} msgIndex 消息在列表中的索引
  * @param {string} text 要显示的完整文本
  */
@@ -258,20 +312,18 @@ function typewriterEffect(msgIndex, text) {
   return new Promise(resolve => {
     let i = 0
     messages.value[msgIndex].content = ''
-
     const interval = setInterval(() => {
       if (i < text.length) {
         messages.value[msgIndex].content += text[i]
         i++
-        // 每隔几个字符滚动一次到底部，保持阅读体验
-        if (i % 3 === 0) {
-          scrollToBottom()
-        }
+        if (i % 3 === 0) scrollToBottom()
       } else {
         clearInterval(interval)
+        activeIntervals.value = activeIntervals.value.filter(t => t !== interval)
         resolve()
       }
-    }, 20) // 每秒约50字，流畅的打字速度
+    }, 20)
+    activeIntervals.value.push(interval)
   })
 }
 
@@ -288,7 +340,6 @@ async function handleGenerateSummary() {
     ElMessage.warning('请先选择一个课程')
     return
   }
-  // 添加用户消息
   messages.value.push({
     role: 'user',
     content: '请帮我总结当前课程的核心知识点',
@@ -306,12 +357,12 @@ async function handleGenerateSummary() {
   })
 
   try {
-    const res = await aiApi.generateSummary({
-      courseId: selectedCourseId.value,
-      type: 'summary'
+    const res = await aiApi.qaAsk({
+      question: '请为当前课程生成一份全面的学习总结，包括课程核心知识点、学习重点、难点分析以及学习建议。',
+      courseId: selectedCourseId.value
     })
-    const reply = res.data?.content || res.data?.summary ||
-                   res.data?.response || res?.response || res?.content ||
+    const reply = res.data?.response || res.data?.reply ||
+                   res.data?.content || res?.response || res?.content ||
                    '正在为您生成课程总结，请稍候...'
     await typewriterEffect(aiMsgIdx, reply)
   } catch (e) {
@@ -347,7 +398,7 @@ async function handleGenerateQuestion() {
   })
 
   try {
-    const res = await aiApi.generateQuestion({
+    const res = await aiApi.questionRecommendations({
       courseId: selectedCourseId.value,
       count: 5
     })
@@ -389,9 +440,8 @@ function copyMessage(content) {
   })
 }
 
-/* ---- 重新生成最后一条AI回复（支持打字机效果）---- */
+/* ---- 重新生成最后一条AI回复 ---- */
 async function regenerateMessage(index) {
-  // 找到对应的用户消息
   let lastUserMsg = ''
   for (let i = index - 1; i >= 0; i--) {
     if (messages.value[i].role === 'user') {
@@ -399,14 +449,11 @@ async function regenerateMessage(index) {
       break
     }
   }
-
   if (!lastUserMsg) return
 
-  // 移除当前回复和之后的消息
   messages.value.splice(index)
   loading.value = true
 
-  // 预留新的 AI 消息位置
   const aiMsgIdx = messages.value.length
   messages.value.push({
     role: 'assistant',
@@ -416,9 +463,10 @@ async function regenerateMessage(index) {
   })
 
   try {
-    const res = await aiApi.aiChat(lastUserMsg, '', selectedCourseId.value)
+    const payload = { question: lastUserMsg }
+    if (selectedCourseId.value) payload.courseId = selectedCourseId.value
+    const res = await aiApi.qaAsk(payload)
     const reply = res.data?.response || res?.response || '已重新生成回复。'
-    // 使用打字机效果显示重新生成的回复
     await typewriterEffect(aiMsgIdx, reply)
   } catch (e) {
     ElMessage.error('重新生成失败')
@@ -428,23 +476,15 @@ async function regenerateMessage(index) {
   }
 }
 
-/* ---- 简单 Markdown 渲染（XSS 安全） ---- */
+/* ---- 简单 Markdown 渲染（XSS 安全，统一经 sanitize.js） ---- */
 function renderMarkdown(text) {
   if (!text) return ''
   let html = escapeHtml(text)
-  // 代码块 ```code```
   html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre class="code-block"><code>$2</code></pre>')
-  // 行内代码 `code`
   html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>')
-  // 粗体 **text**
   html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
-  // 换行
   html = html.replace(/\n/g, '<br/>')
-  // DOMPurify 最终清理：防止任何 XSS 攻击
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ['pre', 'code', 'strong', 'br', 'p', 'em', 'ul', 'ol', 'li', 'blockquote', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6'],
-    ALLOWED_ATTR: ['class']
-  })
+  return sanitizeHtml(html)
 }
 
 function escapeHtml(text) {
@@ -504,6 +544,19 @@ function formatTimeFull(date) {
 /* ---- 初始化 ---- */
 onMounted(() => {
   loadCourses()
+  loadConversations()
+})
+
+/* ---- 清理 ---- */
+onBeforeUnmount(() => {
+  // 清理所有正在运行的打字机定时器
+  activeIntervals.value.forEach(t => clearInterval(t))
+  activeIntervals.value = []
+  // 中断正在进行的 SSE 流式请求
+  if (sseController.value) {
+    sseController.value.abort()
+    sseController.value = null
+  }
 })
 </script>
 

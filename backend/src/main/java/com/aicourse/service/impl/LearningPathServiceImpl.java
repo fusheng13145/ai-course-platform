@@ -43,6 +43,7 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
      * 获取学生的活跃学习路径（状态为ACTIVE）
      */
     @Override
+    @Transactional(readOnly = true)
     public LearningPath getActivePath(Long studentId, Long courseId) {
         LambdaQueryWrapper<LearningPath> wrapper = new LambdaQueryWrapper<LearningPath>()
                 .eq(LearningPath::getStudentId, studentId)
@@ -166,6 +167,7 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
      * 获取每日任务清单（从dailyTasks JSON解析）
      */
     @Override
+    @Transactional(readOnly = true)
     public List<Map<String, Object>> getDailyTasks(Long pathId) {
         LearningPath path = getById(pathId);
         if (path == null || path.getDailyTasks() == null || path.getDailyTasks().isEmpty()) {
@@ -185,6 +187,7 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
      * 解析stages和dailyTasks的JSON字段并返回结构化数据
      */
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> getPathDetail(Long pathId) {
         LearningPath path = getById(pathId);
         if (path == null) {
@@ -347,6 +350,164 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
     }
 
     /**
+     * 掌握度驱动的个性化学习路径生成。
+     * 复用标准生成流程，在此基础上做三个维度的个性化调整。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public LearningPath generatePathPersonalized(Long studentId, Long courseId, String pathName,
+                                                  String learningGoal, Map<String, Double> masteryData) {
+        // 无掌握度数据时退化为标准路径
+        if (masteryData == null || masteryData.isEmpty()) {
+            return generatePath(studentId, courseId, pathName, learningGoal);
+        }
+
+        // 检查是否已有活跃的学习路径
+        LearningPath existingActive = getActivePath(studentId, courseId);
+        if (existingActive != null) {
+            throw new BusinessException("该课程已有进行中的学习路径，请先完成或暂停后再创建新的");
+        }
+
+        // 查询课程下全部知识点
+        List<KnowledgePoint> rootPoints = knowledgePointService.getRootPoints(courseId);
+        if (rootPoints.isEmpty()) {
+            throw new BusinessException("课程下暂无知识点，无法生成学习路径");
+        }
+
+        // ===== 个性化调整（三阶段） =====
+
+        // 阶段 1: 按掌握度排序根知识点（薄弱 → 掌握）
+        List<KnowledgePoint> sortedRoots = new ArrayList<>(rootPoints);
+        sortedRoots.sort(Comparator.comparingDouble(kp -> {
+            Double mastery = masteryData.getOrDefault(kp.getName(), 50.0); // 默认 50（未评估）
+            return mastery; // mastery 越低排在越前
+        }));
+
+        // 阶段 2: 创建学习路径实体
+        LearningPath path = new LearningPath();
+        path.setStudentId(studentId);
+        path.setCourseId(courseId);
+        path.setPathName(pathName != null ? pathName : "个性化学习路线");
+        path.setDescription("基于掌握度诊断的个性化学习路线（薄弱优先）");
+        path.setLearningGoal(learningGoal != null ? learningGoal : "针对性补强薄弱点，完成课程全部内容学习");
+        path.setStatus("ACTIVE");
+        path.setCurrentStage(1);
+        path.setTotalStages(sortedRoots.size());
+        path.setCompletionRate(BigDecimal.ZERO.setScale(2, RoundingMode.HALF_UP));
+        this.save(path);
+
+        // 阶段 3: 构建 stages（含个性化时间分配）
+        List<Map<String, Object>> stagesList = new ArrayList<>();
+        int nodeOrderIndex = 0;
+        for (int i = 0; i < sortedRoots.size(); i++) {
+            KnowledgePoint kp = sortedRoots.get(i);
+            List<KnowledgePoint> childPoints = knowledgePointService.getChildPoints(kp.getId());
+
+            // 个性化 estimatedTime：掌握度越低，分配时间越多（1.0x ~ 2.0x）
+            Double rootMastery = masteryData.getOrDefault(kp.getName(), 50.0);
+            double timeMultiplier = 2.0 - (rootMastery / 100.0); // mastery=0 → 2.0x, mastery=100 → 1.0x
+            int baseTime = kp.getEstimatedTime() != null ? kp.getEstimatedTime() : 60;
+            int personalizedTime = Math.max(15, (int) (baseTime * timeMultiplier));
+
+            Map<String, Object> stage = new LinkedHashMap<>();
+            stage.put("stageNumber", i + 1);
+            stage.put("stageName", kp.getName());
+            stage.put("stageDescription", kp.getDescription() != null ? kp.getDescription() : "");
+            stage.put("knowledgePointId", kp.getId());
+            stage.put("estimatedTime", personalizedTime);
+            stage.put("masteryLevel", rootMastery.intValue());
+            stage.put("status", i == 0 ? "IN_PROGRESS" : "NOT_STARTED");
+
+            // 子知识点按难度排序（简单 → 困难），保证渐进式学习
+            List<KnowledgePoint> sortedChildren = new ArrayList<>(childPoints);
+            sortedChildren.sort(Comparator.comparing(cp -> {
+                String diff = cp.getDifficultyLevel();
+                if (diff == null) return 2;
+                return switch (diff.toUpperCase()) {
+                    case "EASY", "简单" -> 0;
+                    case "MEDIUM", "中等" -> 1;
+                    case "HARD", "困难" -> 2;
+                    default -> 2;
+                };
+            }));
+
+            List<Long> childNodeIds = new ArrayList<>();
+            for (KnowledgePoint childKp : sortedChildren) {
+                LearningPathNode node = new LearningPathNode();
+                node.setLearningPathId(path.getId());
+                node.setKnowledgePointId(childKp.getId());
+                node.setTitle(childKp.getName());
+                node.setDescription(childKp.getDescription());
+                node.setNodeType(determineNodeType(childKp.getPointType()));
+                node.setStatus(i == 0 && nodeOrderIndex == 0 ? "IN_PROGRESS" : "NOT_STARTED");
+                node.setOrderIndex(++nodeOrderIndex);
+
+                // 子节点同样按掌握度调时间
+                Double childMastery = masteryData.getOrDefault(childKp.getName(), 50.0);
+                double childMultiplier = 2.0 - (childMastery / 100.0);
+                int childBase = childKp.getEstimatedTime() != null ? childKp.getEstimatedTime() : 30;
+                node.setEstimatedTime(Math.max(10, (int) (childBase * childMultiplier)));
+
+                nodeService.save(node);
+                childNodeIds.add(node.getId());
+            }
+
+            if (childNodeIds.isEmpty()) {
+                LearningPathNode node = new LearningPathNode();
+                node.setLearningPathId(path.getId());
+                node.setKnowledgePointId(kp.getId());
+                node.setTitle(kp.getName());
+                node.setDescription(kp.getDescription());
+                node.setNodeType(determineNodeType(kp.getPointType()));
+                node.setStatus(i == 0 ? "IN_PROGRESS" : "NOT_STARTED");
+                node.setOrderIndex(++nodeOrderIndex);
+                node.setEstimatedTime(personalizedTime);
+                nodeService.save(node);
+                childNodeIds.add(node.getId());
+            }
+
+            stage.put("nodeIds", childNodeIds);
+            stage.put("nodeCount", childNodeIds.size());
+            stagesList.add(stage);
+        }
+
+        // 序列化 JSON
+        try {
+            path.setStages(objectMapper.writeValueAsString(stagesList));
+        } catch (Exception e) {
+            path.setStages("[{\"error\":\"序列化失败\"}]");
+        }
+
+        List<Map<String, Object>> dailyTasksList = generateDailyTasksPlan(stagesList);
+        try {
+            path.setDailyTasks(objectMapper.writeValueAsString(dailyTasksList));
+        } catch (Exception e) {
+            path.setDailyTasks("[]");
+        }
+
+        Map<String, Object> planDetailMap = new LinkedHashMap<>();
+        planDetailMap.put("totalStages", sortedRoots.size());
+        planDetailMap.put("totalNodes", nodeOrderIndex);
+        planDetailMap.put("generatedAt", LocalDateTime.now().toString());
+        planDetailMap.put("strategy", "mastery_driven_personalized");
+        planDetailMap.put("hasMasteryData", true);
+        try {
+            path.setPlanDetail(objectMapper.writeValueAsString(planDetailMap));
+        } catch (Exception e) {
+            path.setPlanDetail("{}");
+        }
+
+        // 自适应完成时间：总 estimatedTime / 日均学习 60 分钟
+        int totalMinutes = stagesList.stream()
+                .mapToInt(s -> (Integer) s.getOrDefault("estimatedTime", 60))
+                .sum();
+        path.setEstimatedCompletionDate(LocalDateTime.now().plusDays(Math.max(7, totalMinutes / 60)));
+
+        updateById(path);
+        return path;
+    }
+
+    /**
      * 根据知识点类型确定节点类型
      */
     private String determineNodeType(String pointType) {
@@ -400,6 +561,7 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
      * 获取学生的学习路径列表（指定课程下）
      */
     @Override
+    @Transactional(readOnly = true)
     public List<LearningPath> getStudentPaths(Long studentId, Long courseId) {
         LambdaQueryWrapper<LearningPath> wrapper = new LambdaQueryWrapper<LearningPath>()
                 .eq(LearningPath::getStudentId, studentId)

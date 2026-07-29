@@ -14,6 +14,7 @@ import com.aicourse.service.ExamSessionService;
 import com.aicourse.service.QuestionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -55,6 +56,7 @@ public class ExamPaperController {
      * @return 分页试卷数据
      */
     @GetMapping
+    @Operation(summary = "分页查询试卷列表")
     public ApiResponse<PagedResponse<ExamPaper>> listByParams(
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size,
@@ -75,6 +77,7 @@ public class ExamPaperController {
      * @return 分页试卷数据
      */
     @GetMapping("/course/{courseId}")
+    @Operation(summary = "根据课程ID分页查询试卷")
     public ApiResponse<PagedResponse<ExamPaper>> listByCourse(
             @PathVariable Long courseId,
             @RequestParam(defaultValue = "1") long page,
@@ -91,6 +94,7 @@ public class ExamPaperController {
      * @return 试卷信息
      */
     @GetMapping("/{id}")
+    @Operation(summary = "根据ID查询试卷详情")
     public ApiResponse<ExamPaper> getById(@PathVariable Long id) {
         ExamPaper examPaper = examPaperService.getById(id);
         return ApiResponse.success(examPaper);
@@ -104,6 +108,7 @@ public class ExamPaperController {
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "新增试卷")
     public ApiResponse<ExamPaper> create(@RequestBody ExamPaper exam, Authentication auth) {
         exam.setCreatorId((Long) auth.getPrincipal());
         examPaperService.save(exam);
@@ -118,6 +123,7 @@ public class ExamPaperController {
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "修改试卷")
     public ApiResponse<ExamPaper> update(@PathVariable Long id, @RequestBody ExamPaper exam) {
         exam.setId(id);
         examPaperService.updateById(exam);
@@ -132,6 +138,7 @@ public class ExamPaperController {
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "删除试卷")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         examPaperService.removeById(id);
         return ApiResponse.success("删除成功", null);
@@ -143,6 +150,7 @@ public class ExamPaperController {
      * @return 题目详情集合
      */
     @GetMapping("/{id}/questions")
+    @Operation(summary = "查询试卷关联的题目列表")
     public ApiResponse<List<Map<String, Object>>> getQuestions(@PathVariable Long id) {
         LambdaQueryWrapper<ExamQuestion> queryWrapper = new LambdaQueryWrapper<ExamQuestion>()
                 .eq(ExamQuestion::getExamPaperId, id);
@@ -170,6 +178,7 @@ public class ExamPaperController {
      * @return 试卷详情（包含题目信息）
      */
     @GetMapping("/{id}/detail")
+    @Operation(summary = "查询试卷完整详情")
     public ApiResponse<Map<String, Object>> getDetail(@PathVariable Long id) {
         Map<String, Object> detail = examPaperService.getExamPaperDetail(id);
         return ApiResponse.success(detail);
@@ -182,6 +191,7 @@ public class ExamPaperController {
      */
     @PostMapping("/{id}/publish")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "发布试卷")
     public ApiResponse<ExamPaper> publish(@PathVariable Long id) {
         examPaperService.publishExamPaper(id);
         ExamPaper paper = examPaperService.getById(id);
@@ -197,6 +207,7 @@ public class ExamPaperController {
      */
     @PostMapping("/auto-compose")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "自动组卷")
     public ApiResponse<ExamPaper> autoCompose(@RequestBody AutoComposeDTO dto, Authentication auth) {
         Long creatorId = (Long) auth.getPrincipal();
         ExamPaper paper = examPaperService.autoComposeExamPaper(dto, creatorId);
@@ -212,6 +223,7 @@ public class ExamPaperController {
      */
     @PostMapping("/{id}/copy")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "复制试卷")
     public ApiResponse<ExamPaper> copy(@PathVariable Long id, @RequestBody Map<String, String> body) {
         String newTitle = body.get("newTitle");
         ExamPaper newPaper = examPaperService.copyExamPaper(id, newTitle);
@@ -224,6 +236,7 @@ public class ExamPaperController {
      * @return 统计数据
      */
     @GetMapping("/{id}/statistics")
+    @Operation(summary = "获取试卷统计")
     public ApiResponse<Map<String, Object>> statistics(@PathVariable Long id) {
         Map<String, Object> stats = examPaperService.getPaperStatistics(id);
         return ApiResponse.success(stats);

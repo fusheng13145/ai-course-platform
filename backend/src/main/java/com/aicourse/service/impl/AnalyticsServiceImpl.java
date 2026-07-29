@@ -4,6 +4,7 @@ import com.aicourse.entity.*;
 import com.aicourse.service.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -52,6 +53,7 @@ private final SubmissionService submissionService;
 
 
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> getDashboard() {
         Map<String, Object> dashboard = new HashMap<>(24);
         try {
@@ -89,6 +91,7 @@ private final SubmissionService submissionService;
             dashboard.put("publishedTasks", publishedTasks);
 
             // ---- 课程分类分布（Admin 饼图）----
+            // TODO: 生产环境建议改为 SQL GROUP BY 聚合，避免全表加载
             List<Course> allCourses = courseService.list();
             Map<String, Long> categoryDist = allCourses.stream()
                     .filter(c -> c.getCategory() != null && !c.getCategory().isEmpty())
@@ -104,6 +107,7 @@ private final SubmissionService submissionService;
             dashboard.put("dailyActiveUsers", dau);
 
             // ---- 完成率：进度>=100%的选课记录占比 ----
+            // TODO: 生产环境建议 count + condition 替代全表加载
             List<CourseEnrollment> allEnrollments = enrollmentService.list();
             long completedCount = allEnrollments.stream()
                     .filter(e -> e.getProgress() != null && e.getProgress().compareTo(BigDecimal.valueOf(100)) >= 0)
@@ -171,6 +175,7 @@ private final SubmissionService submissionService;
      * 包含用户数、课程数、活跃度、完成率等多维度数据
      */
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> getPlatformOverview() {
         Map<String, Object> overview = new HashMap<>(12);
 
@@ -223,6 +228,7 @@ private final SubmissionService submissionService;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> getUserDashboard(Long userId) {
         Map<String, Object> userData = new HashMap<>(12);
         try {
@@ -329,6 +335,7 @@ private final SubmissionService submissionService;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Map<String, Object>> getLearningTrends(Long userId) {
         List<LearningRecord> recordList = learningRecordService.list(
                 new LambdaQueryWrapper<LearningRecord>()
@@ -360,6 +367,7 @@ private final SubmissionService submissionService;
      * 支持按日期范围筛选，返回每日学习时长用于前端热力图展示
      */
     @Override
+    @Transactional(readOnly = true)
     public List<Map<String, Object>> getLearningHeatmap(Long userId, LocalDate startDate, LocalDate endDate) {
         // 构建查询条件
         LambdaQueryWrapper<LearningRecord> wrapper = new LambdaQueryWrapper<LearningRecord>()
@@ -415,6 +423,7 @@ private final SubmissionService submissionService;
      * 聚合所有用户的学习记录，按星期几(0-6)+时段(0-3:0-6时/6-12时/12-18时/18-24时)统计活跃度
      */
     @Override
+    @Transactional(readOnly = true)
     public List<Map<String, Object>> getPlatformHeatmap(int days) {
         if (days <= 0) days = 30;
 
@@ -457,6 +466,7 @@ private final SubmissionService submissionService;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> getGradeDistribution(Long courseId) {
         List<CourseEnrollment> enrollmentList = enrollmentService.list(
                 new LambdaQueryWrapper<CourseEnrollment>().eq(CourseEnrollment::getCourseId, courseId)
@@ -487,6 +497,7 @@ private final SubmissionService submissionService;
      * 按分数段（0-59, 60-69, 70-79, 80-89, 90-100）统计人数分布
      */
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> getGradeDistributionHistogram(Long courseId) {
         List<CourseEnrollment> enrollmentList = enrollmentService.list(
                 new LambdaQueryWrapper<CourseEnrollment>()
@@ -539,6 +550,7 @@ private final SubmissionService submissionService;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> getCourseAnalysis(Long courseId) {
         Course course = courseService.getById(courseId);
         if (course == null) {
@@ -579,6 +591,7 @@ private final SubmissionService submissionService;
      * 按选课人数降序排列，返回前20门课程
      */
     @Override
+    @Transactional(readOnly = true)
     public List<Map<String, Object>> getCourseRanking() {
         // 获取所有活跃课程
         List<Course> courses = courseService.list(
@@ -614,6 +627,7 @@ private final SubmissionService submissionService;
      * 按天统计最近N天的新增注册用户数
      */
     @Override
+    @Transactional(readOnly = true)
     public List<Map<String, Object>> getUserGrowthTrend(int days) {
         // 默认统计最近30天
         if (days <= 0) {
@@ -668,6 +682,7 @@ private final SubmissionService submissionService;
      * 包含参考人数、平均分、最高/最低分、及格率、分数分布等
      */
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> getExamStatistics(Long examPaperId) {
         ExamPaper examPaper = examPaperService.getById(examPaperId);
         if (examPaper == null) {
@@ -759,6 +774,7 @@ private final SubmissionService submissionService;
      * 包含课程数、学生数、待批改作业数、平均分、趋势数据等
      */
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> getTeacherDashboard(Long teacherId) {
         Map<String, Object> teacherData = new HashMap<>(16);
         try {
@@ -879,6 +895,7 @@ private final SubmissionService submissionService;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> getAtRiskStudents(String groupBy, Long courseId, String department, String major, Long classId) {
         Map<String, Object> result = new HashMap<>();
         // 基于现有数据聚合：挂科风险 = 作业/考试平均分 < 60
@@ -905,6 +922,7 @@ private final SubmissionService submissionService;
     }
 
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> exportReport(Long courseId) {
         Map<String, Object> report = new HashMap<>();
         try {

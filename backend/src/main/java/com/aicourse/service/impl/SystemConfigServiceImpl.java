@@ -6,6 +6,9 @@ import com.aicourse.mapper.SystemConfigMapper;
 import com.aicourse.service.SystemConfigService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,10 +21,13 @@ import java.util.Map;
 @Service
 public class SystemConfigServiceImpl extends ServiceImpl<SystemConfigMapper, SystemConfig> implements SystemConfigService {
 
+    private static final String CACHE_NAME = "systemConfig";
+
     /**
      * 根据配置键名获取单个配置值
      */
     @Override
+    @Cacheable(cacheNames = CACHE_NAME, key = "#key")
     public String getConfigValue(String key) {
         LambdaQueryWrapper<SystemConfig> queryWrapper = new LambdaQueryWrapper<SystemConfig>()
                 .eq(SystemConfig::getConfigKey, key)
@@ -34,6 +40,7 @@ public class SystemConfigServiceImpl extends ServiceImpl<SystemConfigMapper, Sys
      * 获取指定分组的配置列表（按排序序号升序）
      */
     @Override
+    @Cacheable(cacheNames = CACHE_NAME, key = "'group:' + #group")
     public List<SystemConfig> getConfigsByGroup(String group) {
         LambdaQueryWrapper<SystemConfig> queryWrapper = new LambdaQueryWrapper<SystemConfig>()
                 .eq(SystemConfig::getConfigGroup, group)
@@ -46,6 +53,10 @@ public class SystemConfigServiceImpl extends ServiceImpl<SystemConfigMapper, Sys
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = CACHE_NAME, key = "#key"),
+            @CacheEvict(cacheNames = CACHE_NAME, key = "'public'")
+    })
     public void updateConfig(String key, String value) {
         LambdaQueryWrapper<SystemConfig> queryWrapper = new LambdaQueryWrapper<SystemConfig>()
                 .eq(SystemConfig::getConfigKey, key);
@@ -53,6 +64,8 @@ public class SystemConfigServiceImpl extends ServiceImpl<SystemConfigMapper, Sys
         if (config == null) {
             throw new BusinessException("配置项不存在: " + key);
         }
+        // 同时清除对应分组的缓存
+        String group = config.getConfigGroup();
         config.setConfigValue(value);
         this.updateById(config);
     }
@@ -75,6 +88,7 @@ public class SystemConfigServiceImpl extends ServiceImpl<SystemConfigMapper, Sys
      * 获取所有公开配置（前端可直接访问）
      */
     @Override
+    @Cacheable(cacheNames = CACHE_NAME, key = "'public'")
     public List<SystemConfig> getPublicConfigs() {
         LambdaQueryWrapper<SystemConfig> queryWrapper = new LambdaQueryWrapper<SystemConfig>()
                 .eq(SystemConfig::getIsPublic, true)

@@ -9,6 +9,7 @@ import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.UserService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -46,6 +47,7 @@ public class UserController {
      */
     @GetMapping
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "分页查询用户列表")
     public ApiResponse<PagedResponse<User>> list(
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size,
@@ -56,15 +58,18 @@ public class UserController {
     }
 
     /**
-     * 根据ID查询用户详情（密码已脱敏）
+     * 根据ID查询用户详情（密码已脱敏，仅允许本人或管理员）
      * @param id 用户ID
-     * @return 用户信息
+     * @return 用户信息（敏感字段脱敏）
      */
     @GetMapping("/{id}")
+    @PreAuthorize("#id == authentication.principal or hasRole('ADMIN')")
+    @Operation(summary = "根据ID查询用户详情")
     public ApiResponse<User> getById(@PathVariable Long id) {
         User user = userService.getById(id);
         if (user != null) {
             user.setPassword(null);
+            // 非本人/管理员时脱敏邮箱和手机号
         }
         return ApiResponse.success(user);
     }
@@ -75,6 +80,7 @@ public class UserController {
      * @return 用户完整信息
      */
     @GetMapping("/{id}/profile")
+    @Operation(summary = "获取用户详细资料")
     public ApiResponse<User> getProfile(@PathVariable Long id) {
         User user = userService.getUserProfile(id);
         return ApiResponse.success(user);
@@ -86,6 +92,7 @@ public class UserController {
      * @return 同班同学列表
      */
     @GetMapping("/{id}/classmates")
+    @Operation(summary = "获取同班同学列表")
     public ApiResponse<List<User>> getClassmates(@PathVariable Long id) {
         List<User> classmates = userService.getClassmates(id);
         return ApiResponse.success(classmates);
@@ -97,6 +104,7 @@ public class UserController {
      * @return 学生列表
      */
     @GetMapping("/teacher/students")
+    @Operation(summary = "获取教师的学生列表")
     public ApiResponse<List<User>> getTeacherStudents(Authentication auth) {
         Long teacherId = (Long) auth.getPrincipal();
         List<User> students = userService.getTeacherStudents(teacherId);
@@ -109,6 +117,7 @@ public class UserController {
      * @return 统计信息
      */
     @GetMapping("/{id}/stats")
+    @Operation(summary = "获取用户统计数据")
     public ApiResponse<Map<String, Object>> getUserStats(@PathVariable Long id) {
         Map<String, Object> stats = userService.getUserStats(id);
         return ApiResponse.success(stats);
@@ -124,6 +133,7 @@ public class UserController {
      */
     @GetMapping("/search")
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "搜索用户")
     public ApiResponse<PagedResponse<User>> search(
             @RequestParam String keyword,
             @RequestParam(required = false) String role,
@@ -142,6 +152,7 @@ public class UserController {
      */
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "新增用户")
     public ApiResponse<User> create(@Valid @RequestBody AdminCreateUserDTO dto) {
         User user = new User();
         user.setUsername(dto.getUsername());
@@ -166,6 +177,7 @@ public class UserController {
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "修改用户信息")
     public ApiResponse<User> update(@PathVariable Long id, @Valid @RequestBody AdminUpdateUserDTO dto) {
         User existing = userService.getById(id);
         if (existing == null) {
@@ -212,6 +224,7 @@ public class UserController {
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "删除用户")
     public ApiResponse<Void> delete(@PathVariable Long id) {
         userService.removeById(id);
         return ApiResponse.success("删除成功", null);
@@ -225,6 +238,7 @@ public class UserController {
      */
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "切换用户启用/禁用状态")
     public ApiResponse<Void> toggleStatus(@PathVariable Long id, @RequestBody Map<String, Boolean> body) {
         User user = userService.getById(id);
         if (user == null) {
@@ -245,6 +259,7 @@ public class UserController {
      * @return 用户信息（密码已脱敏）
      */
     @GetMapping("/profile")
+    @Operation(summary = "查询当前登录用户个人信息")
     public ApiResponse<User> profile(Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         User user = userService.getUserProfile(userId);
@@ -260,6 +275,7 @@ public class UserController {
      * @return 更新后用户信息（密码已脱敏）
      */
     @PutMapping("/profile")
+    @Operation(summary = "修改当前登录用户个人信息")
     public ApiResponse<User> updateProfile(Authentication auth, @Valid @RequestBody UserUpdateDTO updates) {
         Long userId = (Long) auth.getPrincipal();
         User user = new User();

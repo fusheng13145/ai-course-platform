@@ -40,6 +40,7 @@ public class CacheConfig {
                 .withCacheConfiguration("analytics", config.entryTtl(Duration.ofMinutes(5)))
                 .withCacheConfiguration("examPapers", config.entryTtl(Duration.ofMinutes(30)))
                 .withCacheConfiguration("rag", config.entryTtl(Duration.ofMinutes(10)))
+                .withCacheConfiguration("permissions", config.entryTtl(Duration.ofMinutes(30)))
                 .build();
     }
 }

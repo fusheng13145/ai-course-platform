@@ -1,76 +1,112 @@
 @echo off
-setlocal enabledelayedexpansion
+title AI Course Platform - Frontend
+setlocal
 
-rem ============================================================
-rem  AI Course Platform - Frontend One-Click Startup Script
-rem  Auto-detects Node.js (including WorkBuddy managed node)
-rem  and starts Vite dev server.
-rem ============================================================
+set PROJECT_ROOT=%~dp0
+set FRONTEND_DIR=%PROJECT_ROOT%frontend
 
-rem Defensive: disable WorkBuddy agent safe-delete shim for this
-rem child process so Vite's optimizer can clean its .vite temp dirs.
-rem (No-op in a normal double-click cmd; only matters inside agents.)
-set "CODEBUDDY_SESSION_ID="
-set "CLAUDE_SESSION_ID="
-set "CODEBUDDY_SAFE_DELETE_BULK_STATE_DIR="
-set "CODEBUDDY_TOOL_CALL_ID="
+echo ============================================================
+echo  AI Course Platform - Frontend Launcher
+echo  Project: %PROJECT_ROOT%
+echo ============================================================
+echo.
 
-rem --- Node.js auto-detection ---
-rem Try system PATH first, then fall back to WorkBuddy managed Node.
-where node >nul 2>nul
-if errorlevel 1 (
-    set "NODE_FOUND="
-    for /d %%D in ("%USERPROFILE%\.workbuddy\binaries\node\versions\*") do (
-        if exist "%%D\node.exe" if not defined NODE_FOUND (
-            set "NODE_PATH=%%D"
-            set "NODE_FOUND=1"
-        )
-    )
-    if defined NODE_FOUND (
-        echo INFO: Node.js not on system PATH. Using WorkBuddy managed Node at !NODE_PATH!
-        set "PATH=!NODE_PATH!;%PATH%"
-    ) else (
-        echo ERROR: Node.js not found. Install Node.js ^>= 20.19 or ensure it is on PATH.
-        echo        WorkBuddy managed Node was also not found.
-        pause
-        exit /b 1
-    )
-)
+REM ---- Step 1: Locate Node.js ----
+echo [1/4] Locating Node.js...
 
-for /f "delims=" %%i in ('node -v') do set "NODE_VER=%%i"
-set "NV=%NODE_VER:~1%"
-for /f "tokens=1 delims=." %%m in ("%NV%") do set "NODE_MAJOR=%%m"
-if %NODE_MAJOR% LSS 20 (
-    echo ERROR: Node.js %NODE_VER% is too old. Vite 8 requires ^>= 20.19.
-    pause
-    exit /b 1
-)
-echo INFO: Using Node.js %NODE_VER%
+set NODE_EXE=
+set NPM_CLI_JS=
 
-cd /d "%~dp0frontend"
-if errorlevel 1 (
-    echo ERROR: Cannot find the frontend directory next to this script.
-    pause
-    exit /b 1
-)
-
-if not exist "node_modules" (
-    echo === node_modules not found, installing dependencies (may take a while) ===
-    call npm install
+set MANAGED_NODE_DIR=C:\Users\ASUS\.workbuddy\binaries\node\versions\22.22.2
+if exist "%MANAGED_NODE_DIR%\node.exe" (
+    set NODE_EXE=%MANAGED_NODE_DIR%\node.exe
+    set NPM_CLI_JS=%MANAGED_NODE_DIR%\node_modules\npm\bin\npm-cli.js
+    echo [OK] Using managed Node.js at %MANAGED_NODE_DIR%
+) else (
+    where node >nul 2>&1
     if errorlevel 1 (
-        echo === npm install failed! See errors above. ===
+        echo [ERROR] Node.js not found. Please install Node.js v20+.
         pause
         exit /b 1
     )
+    for /f "delims=" %%i in ('where node') do set NODE_EXE=%%i
+    echo [OK] Using system Node.js at %NODE_EXE%
 )
+
+if "%NODE_EXE%"=="" (
+    echo [ERROR] node.exe not found.
+    pause
+    exit /b 1
+)
+
+REM Get Node.js version via absolute path (safe - no npm.cmd involved)
+"%NODE_EXE%" -v >"%TEMP%\node_ver.txt" 2>&1
+if errorlevel 1 (
+    type "%TEMP%\node_ver.txt"
+    echo [ERROR] node -v failed.
+    del "%TEMP%\node_ver.txt" 2>nul
+    pause
+    exit /b 1
+)
+set /p NODE_VER=<"%TEMP%\node_ver.txt"
+del "%TEMP%\node_ver.txt" 2>nul
+echo [OK] Node.js %NODE_VER%
+
+REM Locate npm-cli.js to confirm npm is available (NO execution, just file check)
+if "%NPM_CLI_JS%"=="" (
+    REM For system Node.js, derive npm-cli.js from node.exe location
+    for %%i in ("%NODE_EXE%") do set NODE_DIR=%%~dpi
+    set NPM_CLI_JS=!NODE_DIR!node_modules\npm\bin\npm-cli.js
+)
+
+if not exist "%NPM_CLI_JS%" (
+    echo [ERROR] npm-cli.js not found at: %NPM_CLI_JS%
+    echo         Please reinstall Node.js or run 'npm install -g npm'.
+    pause
+    exit /b 1
+)
+echo [OK] npm available at %NPM_CLI_JS%
+
+REM ---- Step 2: Install dependencies ----
+echo [2/4] Installing dependencies...
+cd /d "%FRONTEND_DIR%"
+if not exist "node_modules" (
+    echo Running npm install (first time may take 2-5 minutes)...
+    REM Use node + npm-cli.js directly (avoids npm.cmd hang)
+    "%NODE_EXE%" "%NPM_CLI_JS%" install
+    if errorlevel 1 (
+        echo [ERROR] npm install failed.
+        pause
+        exit /b 1
+    )
+    echo [OK] Dependencies installed
+) else (
+    echo [OK] node_modules exists, skipping install
+)
+
+REM ---- Step 3: Check backend health ----
+echo [3/4] Checking backend health...
+curl -s -o nul http://127.0.0.1:8080/api/actuator/health 2>nul
+if errorlevel 1 (
+    echo [INFO] Backend http://127.0.0.1:8080 is not ready yet.
+    echo         Please ensure start-backend.bat is running.
+    echo         Frontend can still start but API calls will fail.
+) else (
+    echo [OK] Backend is running
+)
+
+REM ---- Step 4: Start Vite ----
+echo [4/4] Starting Vite dev server...
+echo ============================================================
+echo  Dev server:    http://localhost:5173
+echo  API proxy:     http://localhost:5173/api -^> http://127.0.0.1:8080/api
+echo  Press Ctrl+C to stop
+echo ============================================================
+echo.
+
+REM Use node + npm-cli.js directly for dev script
+"%NODE_EXE%" "%NPM_CLI_JS%" run dev
 
 echo.
-echo ========================================
-echo  Frontend:  http://localhost:5173
-echo  Backend required at http://localhost:8080
-echo  Make sure start-backend.bat is running first.
-echo  Press Ctrl+C to stop.
-echo ========================================
-
-call npx vite --host 0.0.0.0 --port 5173
+echo [INFO] Vite dev server stopped.
 pause

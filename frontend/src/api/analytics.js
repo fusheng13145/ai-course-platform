@@ -42,6 +42,9 @@ export const getExamStatistics = examPaperId => request.get(`/analytics/exams/${
 // 向后兼容：getTrendData 复用 getUserGrowth
 export const getTrendData = params => request.get('/analytics/users/growth', { params })
 
+// 导出统计报表（映射后端 GET /admin/statistics/export）
+export const exportReport = () => request.get('/admin/statistics/export')
+
 export default {
   getDashboardStats,
   getPlatformOverview,
@@ -55,5 +58,6 @@ export default {
   getCourseRanking,
   getUserGrowth,
   getExamStatistics,
-  getTrendData
+  getTrendData,
+  exportReport
 }

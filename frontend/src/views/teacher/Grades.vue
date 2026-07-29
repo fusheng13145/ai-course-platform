@@ -180,6 +180,7 @@ import submissionApi from '@/api/submission'
 import examApi from '@/api/exam'
 import courseApi from '@/api/course'
 import taskApi from '@/api/task'
+import * as XLSX from 'xlsx'
 
 const loading = ref(false)
 const searchText = ref('')
@@ -375,9 +376,31 @@ function handleSearch() {
 }
 
 function handleExport() {
-  ElMessage.info('正在导出成绩Excel...')
-  // 实际项目中调用导出API
-  console.log('导出成绩:', filteredGradeList.value)
+  const data = filteredGradeList.value
+  if (data.length === 0) {
+    ElMessage.warning('暂无可导出的成绩数据')
+    return
+  }
+  try {
+    const exportData = data.map((item, idx) => ({
+      '序号': idx + 1,
+      '学号': item.studentNo || '-',
+      '姓名': item.studentName || '-',
+      '作业成绩': item.homeworkScore ?? '-',
+      '考试成绩': item.examScore ?? '-',
+      '总评成绩': item.totalScore ?? '-',
+      '评级': item.gradeLevel || '-',
+      '提交时间': item.submitTime || '-',
+    }))
+    const ws = XLSX.utils.json_to_sheet(exportData)
+    const wb = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(wb, ws, '学生成绩')
+    XLSX.writeFile(wb, `学生成绩_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.xlsx`)
+    ElMessage.success('导出成功')
+  } catch (e) {
+    console.error('导出失败:', e)
+    ElMessage.error('导出失败')
+  }
 }
 
 // 查看学生详情（增强：从已有成绩数据构建，不再使用模拟数据）

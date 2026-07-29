@@ -102,7 +102,7 @@ public class StudentLearningController {
                 try {
                     parsed.put(Long.valueOf(e.getKey()), e.getValue());
                 } catch (NumberFormatException ignore) {
-                    log.warn("解析答案键失败: key={}", e.getKey());
+                    log.warn("解析答案键失败: key={}", e.getKey(), ignore);
                 }
             }
         }
