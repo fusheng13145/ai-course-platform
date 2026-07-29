@@ -17,11 +17,11 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.security.SecureRandom;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Random;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import com.aicourse.common.RoleConstants;
@@ -370,7 +370,7 @@ public class AuthServiceImpl implements AuthService {
         }
 
         // 生成6位数字验证码
-        String code = String.format("%06d", new Random().nextInt(1000000));
+        String code = String.format("%06d", new SecureRandom().nextInt(1000000));
         LocalDateTime now = LocalDateTime.now();
 
         // 保存验证码

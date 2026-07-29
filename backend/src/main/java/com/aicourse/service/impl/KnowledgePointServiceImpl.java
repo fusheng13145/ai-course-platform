@@ -12,10 +12,13 @@ import com.aicourse.service.QuestionService;
 import com.aicourse.service.WrongQuestionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.*;
@@ -27,6 +30,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper, KnowledgePoint> implements KnowledgePointService {
+
+    private static final String CACHE_NAME = "knowledgePoints";
 
     private final KnowledgePointRelationService relationService;
     private final QuestionService questionService;
@@ -44,6 +49,7 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
      * 获取课程的完整知识树（递归构建层级结构）
      */
     @Override
+    @Cacheable(cacheNames = CACHE_NAME, key = "'tree:' + #courseId")
     public List<Map<String, Object>> getKnowledgeTree(Long courseId) {
         // 查询课程下所有知识点
         LambdaQueryWrapper<KnowledgePoint> wrapper = new LambdaQueryWrapper<KnowledgePoint>()
@@ -97,6 +103,7 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
      * 获取某知识点的直接子节点（按orderIndex排序）
      */
     @Override
+    @Cacheable(cacheNames = CACHE_NAME, key = "'children:' + #parentId")
     public List<KnowledgePoint> getChildPoints(Long parentId) {
         LambdaQueryWrapper<KnowledgePoint> wrapper = new LambdaQueryWrapper<KnowledgePoint>()
                 .eq(KnowledgePoint::getParentId, parentId)
@@ -108,6 +115,7 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
      * 获取知识点的前置依赖（通过关联关系中relationType=PREREQUISITE查询）
      */
     @Override
+    @Cacheable(cacheNames = CACHE_NAME, key = "'prerequisites:' + #pointId")
     public List<KnowledgePoint> getPrerequisites(Long pointId) {
         // 查询以当前知识点为target且类型为PREREQUISITE的关联关系
         LambdaQueryWrapper<KnowledgePointRelation> wrapper = new LambdaQueryWrapper<KnowledgePointRelation>()
@@ -130,6 +138,7 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
      * 获取知识点的后续知识点（被谁作为前置依赖）
      */
     @Override
+    @Cacheable(cacheNames = CACHE_NAME, key = "'subsequent:' + #pointId")
     public List<KnowledgePoint> getSubsequentPoints(Long pointId) {
         // 查询以当前知识点为source且类型为PREREQUISITE的关联关系
         LambdaQueryWrapper<KnowledgePointRelation> wrapper = new LambdaQueryWrapper<KnowledgePointRelation>()
@@ -155,6 +164,7 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(cacheNames = CACHE_NAME, allEntries = true)
     public KnowledgePoint createWithValidation(KnowledgePoint knowledgePoint) {
         // 校验必填字段
         if (knowledgePoint.getName() == null || knowledgePoint.getName().trim().isEmpty()) {
@@ -279,11 +289,32 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
      * 获取课程的根级知识点（parentId为null）
      */
     @Override
+    @Cacheable(cacheNames = CACHE_NAME, key = "'roots:' + #courseId")
     public List<KnowledgePoint> getRootPoints(Long courseId) {
         LambdaQueryWrapper<KnowledgePoint> wrapper = new LambdaQueryWrapper<KnowledgePoint>()
                 .eq(KnowledgePoint::getCourseId, courseId)
                 .isNull(KnowledgePoint::getParentId)
                 .orderByAsc(KnowledgePoint::getOrderIndex);
         return list(wrapper);
+    }
+
+    // ===== IService 写操作覆写，添加缓存失效 =====
+
+    @Override
+    @CacheEvict(cacheNames = CACHE_NAME, allEntries = true)
+    public boolean save(KnowledgePoint entity) {
+        return super.save(entity);
+    }
+
+    @Override
+    @CacheEvict(cacheNames = CACHE_NAME, allEntries = true)
+    public boolean updateById(KnowledgePoint entity) {
+        return super.updateById(entity);
+    }
+
+    @Override
+    @CacheEvict(cacheNames = CACHE_NAME, allEntries = true)
+    public boolean removeById(Serializable id) {
+        return super.removeById(id);
     }
 }

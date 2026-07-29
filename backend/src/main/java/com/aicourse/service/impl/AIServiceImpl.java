@@ -3,6 +3,8 @@ package com.aicourse.service.impl;
 import com.aicourse.common.JsonUtils;
 import com.aicourse.llm.LLMProvider;
 import com.aicourse.service.AIService;
+import com.aicourse.service.GraphRAGService;
+import com.aicourse.service.KnowledgeRecommendationService;
 import com.aicourse.service.PromptGuard;
 import com.aicourse.service.RAGService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -14,6 +16,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 
 /**
@@ -35,11 +38,17 @@ public class AIServiceImpl implements AIService {
     private final LLMProvider llmProvider;
     private final RAGService ragService;
     private final PromptGuard promptGuard;
+    private final GraphRAGService graphRagService;
+    private final KnowledgeRecommendationService knowledgeRecommendationService;
 
-    public AIServiceImpl(LLMProvider llmProvider, RAGService ragService, PromptGuard promptGuard) {
+    public AIServiceImpl(LLMProvider llmProvider, RAGService ragService, PromptGuard promptGuard,
+                         GraphRAGService graphRagService,
+                         KnowledgeRecommendationService knowledgeRecommendationService) {
         this.llmProvider = llmProvider;
         this.ragService = ragService;
         this.promptGuard = promptGuard;
+        this.graphRagService = graphRagService;
+        this.knowledgeRecommendationService = knowledgeRecommendationService;
     }
 
     /**
@@ -104,15 +113,34 @@ public class AIServiceImpl implements AIService {
     }
 
     /**
-     * 基于课程知识库的 RAG 问答（自包含检索增强）
+     * 基于课程知识库的 GraphRAG 问答（自包含：BM25 检索 + 图谱增强 + LLM 生成）
      * <p>
-     * 直接调用自包含的 {@link RAGService}（内部以 {@code knowledge_points} 为知识库做召回 + LLM 生成融合），
-     * 解析其返回的 JSON 取出纯文本答案下发；当 RAG 不可用时降级为纯 LLM 调用。
+     * 流程：
+     * <ol>
+     *   <li>从 {@link GraphRAGService} 获取问句相关的图谱子图（实体链接 + BFS 出发）；</li>
+     *   <li>将图谱上下文作为前置信息注入问题，交由 {@link RAGService} 做 BM25 检索 + LLM 生成；</li>
+     *   <li>当图谱数据为空时自动降级为纯文本 RAG，不影响正常问答。</li>
+     * </ol>
      */
     @Override
     public String ragAsk(String question, Long courseId) {
+        // 先尝试获取图谱上下文（若图谱有数据）
+        String graphContext = "";
         try {
-            String ragResult = ragService.ask(question, courseId, 5);
+            Map<String, Object> ctx = graphRagService.retrieveGraphContext(question, courseId, 2);
+            if (ctx != null && !ctx.isEmpty()) {
+                graphContext = graphRagService.formatGraphContextForPrompt(ctx);
+            }
+        } catch (Exception e) {
+            log.debug("[GraphRAG] 图谱上下文获取失败，降级为纯文本 RAG: {}", e.getMessage());
+        }
+
+        // 将图谱上下文前置注入问题（让 RAG 检索和 LLM 生成都能感知图谱结构）
+        String enhancedQuestion = graphContext.isEmpty() ? question
+                : graphContext + "\n用户问题：" + question;
+
+        try {
+            String ragResult = ragService.ask(enhancedQuestion, courseId, 5);
             if (ragResult != null && !ragResult.contains("\"code\":503")) {
                 String answer = extractRagAnswer(ragResult);
                 if (answer != null && !answer.isBlank()) {
@@ -161,9 +189,11 @@ public class AIServiceImpl implements AIService {
     }
 
     /**
-     * 基于真实学情数据的学习推荐（增强版）：
-     * <p>将学生的知识掌握度、课程进度、薄弱项等真实数据注入提示词，使 LLM 在数据驱动基础上做解释生成。
-     * 不会凭空推荐，只会基于实际薄弱项给出针对性建议。
+     * 基于真实学情数据 + 知识图谱的学习推荐（双引擎增强版）：
+     * <p>
+     * 引擎一（算法）：{@link KnowledgeRecommendationService} 基于图谱关系做薄弱点关联推荐；
+     * 引擎二（LLM）：将算法推荐结果 + 学情画像注入提示词，生成可解释的自然语言建议。
+     * 若图谱数据为空（团队 Python 侧尚未灌入），自动降级为纯 LLM 推荐。
      */
     @Override
     public String recommendLearningWithContext(Map<String, Object> context) {
@@ -184,7 +214,6 @@ public class AIServiceImpl implements AIService {
         List<Map<String, Object>> weakPoints = context.containsKey("weakPoints")
                 ? (List<Map<String, Object>>) context.get("weakPoints") : Collections.emptyList();
         if (!weakPoints.isEmpty()) {
-            // 按掌握度升序排列（最弱 → 最强）
             List<Map<String, Object>> sorted = new ArrayList<>(weakPoints);
             sorted.sort(Comparator.comparingDouble(
                     m -> ((Number) m.getOrDefault("mastery", 100)).doubleValue()));
@@ -198,12 +227,42 @@ public class AIServiceImpl implements AIService {
             sb.append("（暂无薄弱项数据，请完成更多学习任务以获取精准推荐）\n");
         }
 
+        // ====== 图谱推荐引擎（引擎一） ======
+        if (context.containsKey("courseId") && !weakPoints.isEmpty()) {
+            try {
+                Long courseId = ((Number) context.get("courseId")).longValue();
+                // 将 weakPoints List<Map> 转换为 Map<String, Double>
+                Map<String, Double> weakMap = weakPoints.stream()
+                        .filter(m -> m.containsKey("name") && m.containsKey("mastery"))
+                        .collect(Collectors.toMap(
+                                m -> (String) m.get("name"),
+                                m -> ((Number) m.get("mastery")).doubleValue(),
+                                (a, b) -> a));
+                if (!weakMap.isEmpty()) {
+                    List<Map<String, Object>> kgRecs = knowledgeRecommendationService
+                            .recommendFromWeakPoints(courseId, weakMap, 5);
+                    if (!kgRecs.isEmpty()) {
+                        sb.append("\n【知识图谱关联推荐】（基于知识点关系的算法推荐）：\n");
+                        for (int i = 0; i < kgRecs.size(); i++) {
+                            Map<String, Object> rec = kgRecs.get(i);
+                            sb.append("  ").append(i + 1).append(". ")
+                                    .append(rec.getOrDefault("recommendType", "推荐")).append("：")
+                                    .append(rec.getOrDefault("name", "")).append(" — ")
+                                    .append(rec.getOrDefault("reason", "")).append("\n");
+                        }
+                    }
+                }
+            } catch (Exception e) {
+                log.debug("[推荐引擎] 图谱推荐失败，降级为纯 LLM 推荐: {}", e.getMessage());
+            }
+        }
+
         // 近期成绩
         if (context.containsKey("recentScores")) {
             sb.append("近期成绩：").append(context.get("recentScores")).append("\n");
         }
 
-        sb.append("\n请根据以上真实学情数据，生成个性化学习推荐方案，优先针对薄弱项给出具体可操作的建议。");
+        sb.append("\n请根据以上真实学情数据和图谱推荐，生成个性化学习推荐方案，优先针对薄弱项给出具体可操作的建议。");
         sb.append("\n只返回纯JSON：{\"recommendations\":[{\"resource\":\"推荐资源或行动\",\"reason\":\"基于数据的具体理由\",\"priority\":\"HIGH|MEDIUM|LOW\"}]}");
 
         String schema = "{\"recommendations\":[{\"resource\":\"资源名\",\"reason\":\"推荐理由\",\"priority\":\"HIGH|MEDIUM|LOW\"}]}";
@@ -211,13 +270,39 @@ public class AIServiceImpl implements AIService {
     }
 
     /**
-     * 知识图谱 AI 抽取：从课程内容中抽取知识点与关系（结构化 JSON）
+     * 知识图谱 AI 抽取（两阶段法，对齐 IPA 框架）。
+     * 第一阶段：模拟学习者阅读理解，识别文本中的核心概念与结构；
+     * 第二阶段：以专家身份归纳总结，输出结构化知识点与关系。
      */
     public String extractKnowledgeGraphJson(String content) {
         String schema = "{\"nodes\":[{\"name\":\"知识点名称\",\"content\":\"要点说明\",\"type\":\"CONCEPT|PRINCIPLE|METHOD|FACT\"}],"
                 + "\"relations\":[{\"source\":\"源节点名称\",\"target\":\"目标节点名称\",\"relationType\":\"PREREQUISITE|INCLUDES|RELATED|EXTENDS\"}]}";
-        String prompt = "请从以下课程内容中抽取知识结构（知识点及其关系），仅返回符合 schema 的 JSON，不要额外说明：\n" + content;
-        return callLlm(buildMessages(prompt, null), 0.3, schema);
+
+        // 阶段一：阅读理解
+        String stage1Prompt = "你是一位正在学习以下课程内容的学生。请仔细阅读，识别文中的核心概念、"
+                + "关键原理和方法，并用自己的话整理出主要内容框架。只需陈述理解，不要输出 JSON。\n\n" + content;
+
+        String readingResult;
+        try {
+            readingResult = llmProvider.complete(
+                    List.of(Map.of("role", "user", "content", stage1Prompt)), 0.3);
+            if (readingResult == null || readingResult.isBlank()) {
+                // 退化为单阶段
+                String prompt = "请从以下课程内容中抽取知识结构（知识点及其关系），仅返回符合 schema 的 JSON，不要额外说明：\n" + content;
+                return callLlm(buildMessages(prompt, null), 0.3, schema);
+            }
+        } catch (Exception e) {
+            log.debug("[IPA] 阶段一失败，降级为单阶段抽取: {}", e.getMessage());
+            String prompt = "请从以下课程内容中抽取知识结构（知识点及其关系），仅返回符合 schema 的 JSON，不要额外说明：\n" + content;
+            return callLlm(buildMessages(prompt, null), 0.3, schema);
+        }
+
+        // 阶段二：专家归纳
+        String stage2Prompt = "你是一位领域专家。以下是学生对课程内容的理解摘要：\n\n" + readingResult
+                + "\n\n基于以上理解，请精确抽取知识点及其关系，"
+                + "仅返回符合以下 schema 的 JSON，不要额外说明：\n" + schema;
+
+        return callLlm(buildMessages(stage2Prompt, null), 0.3, schema);
     }
 
     /**

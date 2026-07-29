@@ -44,7 +44,7 @@ class RAGServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new RAGServiceImpl(knowledgePointService, llmProvider, objectMapper, 5);
+        service = new RAGServiceImpl(knowledgePointService, llmProvider, objectMapper, 5, 1.5, 0.75);
 
         KnowledgePoint kp1 = new KnowledgePoint();
         kp1.setId(1L); kp1.setName("反向传播");

@@ -2,7 +2,7 @@ import logger from '@/utils/logger'
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
 import authApi from '@/api/auth'
-import { connect as wsConnect } from '@/utils/websocket'
+import { connect as wsConnect, disconnect as wsDisconnect } from '@/utils/websocket'
 import { unwrap } from '@/utils/response'
 
 export const useAuthStore = defineStore('auth', () => {
@@ -191,6 +191,7 @@ export const useAuthStore = defineStore('auth', () => {
     } catch (e) {
       /* ignore */
     } finally {
+      wsDisconnect()
       resetAuthState()
     }
   }

@@ -68,6 +68,7 @@ public class AuthController {
      * @return 注册结果
      */
     @PostMapping("/register")
+    @Operation(summary = "用户注册")
     public ApiResponse<Map<String, Object>> register(@Valid @RequestBody UserRegisterDTO body,
                                                     HttpServletRequest request, HttpServletResponse response) {
         // 注意：角色由服务端强制为 STUDENT（见 AuthServiceImpl.register 安全加固），
@@ -88,6 +89,7 @@ public class AuthController {
      * @return 新令牌信息（已剥离响应体中的令牌字段）
      */
     @PostMapping("/refresh")
+    @Operation(summary = "刷新访问令牌")
     public ApiResponse<Map<String, Object>> refreshToken(HttpServletRequest request, HttpServletResponse response) {
         String refreshToken = cookieUtils.readCookie(request, JwtUtils.REFRESH_TOKEN_COOKIE);
         if (refreshToken == null || refreshToken.isBlank()) {
@@ -112,6 +114,7 @@ public class AuthController {
      * @return 操作结果
      */
     @PostMapping("/logout")
+    @Operation(summary = "退出登录")
     public ApiResponse<Void> logout(Authentication auth, HttpServletRequest request, HttpServletResponse response) {
         Long userId = (Long) auth.getPrincipal();
         ApiResponse<Void> result = authService.logout(userId, request);
@@ -143,6 +146,7 @@ public class AuthController {
      * @return 操作结果
      */
     @PostMapping("/change-password")
+    @Operation(summary = "修改登录密码")
     public ApiResponse<Void> changePassword(Authentication auth, @Valid @RequestBody ChangePasswordDTO body) {
         Long userId = (Long) auth.getPrincipal();
         return authService.changePassword(userId, body.getOldPassword(), body.getNewPassword());
@@ -155,6 +159,7 @@ public class AuthController {
      * @return 操作结果
      */
     @PutMapping("/password")
+    @Operation(summary = "修改登录密码（备用接口）")
     public ApiResponse<Void> altChangePassword(Authentication auth, @Valid @RequestBody ChangePasswordDTO body) {
         return changePassword(auth, body);
     }
@@ -166,6 +171,7 @@ public class AuthController {
      * @return 操作结果
      */
     @PostMapping("/reset-password")
+    @Operation(summary = "重置密码")
     public ApiResponse<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest body) {
         if (body.getEmail() != null && !body.getEmail().isEmpty()) {
             return authService.resetPasswordByEmail(body.getEmail(), body.getCode(), body.getNewPassword());
@@ -182,6 +188,7 @@ public class AuthController {
      * @return 用户基础信息
      */
     @GetMapping("/me")
+    @Operation(summary = "获取当前登录用户信息")
     public ApiResponse<?> getCurrentUser(Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         return authService.getCurrentUser(userId);
@@ -194,6 +201,7 @@ public class AuthController {
      * @return 更新后的用户信息（密码已脱敏）
      */
     @PutMapping("/me")
+    @Operation(summary = "更新当前用户个人资料")
     public ApiResponse<User> updateCurrentUser(Authentication auth, @Valid @RequestBody UserUpdateDTO updates) {
         Long userId = (Long) auth.getPrincipal();
         User user = userService.getById(userId);
@@ -233,6 +241,7 @@ public class AuthController {
      * @return 权限集合
      */
     @GetMapping("/permissions")
+    @Operation(summary = "获取当前用户权限列表")
     public ApiResponse<?> getPermissions(Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         return ApiResponse.success(permissionService.getUserPermissions(userId));
@@ -245,6 +254,7 @@ public class AuthController {
      * @return 操作结果
      */
     @PostMapping("/send-code")
+    @Operation(summary = "发送邮箱验证码")
     public ApiResponse<Void> sendVerificationCode(@Valid @RequestBody SendCodeRequest body,
                                                   HttpServletRequest request) {
         return authService.sendVerificationCode(body.getEmail(), body.getType(), request);
@@ -256,6 +266,7 @@ public class AuthController {
      * @return 操作结果
      */
     @PostMapping("/reset-password-by-email")
+    @Operation(summary = "邮箱验证码重置密码")
     public ApiResponse<Void> resetPasswordByEmail(@Valid @RequestBody ResetPasswordByEmailRequest body) {
         return authService.resetPasswordByEmail(body.getEmail(), body.getCode(), body.getNewPassword());
     }

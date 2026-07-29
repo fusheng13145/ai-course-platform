@@ -66,6 +66,7 @@ public class TeacherController {
     // ==================== 课程管理（8个接口，已加归属校验） ====================
 
     @PostMapping("/courses")
+    @Operation(summary = "创建课程")
     public ApiResponse<Course> createCourse(@RequestBody Course course, Authentication auth) {
         course.setTeacherId((Long) auth.getPrincipal());
         courseService.save(course);
@@ -73,6 +74,7 @@ public class TeacherController {
     }
 
     @GetMapping("/courses")
+    @Operation(summary = "获取我的课程列表")
     public ApiResponse<PagedResponse<Course>> getCourses(
             Authentication auth,
             @RequestParam(defaultValue = "1") long page,
@@ -84,6 +86,7 @@ public class TeacherController {
     }
 
     @GetMapping("/courses/{courseId}")
+    @Operation(summary = "获取课程详情")
     public ApiResponse<Course> getCourseDetail(@PathVariable Long courseId, Authentication auth) {
         assertCourseOwner(courseId, auth);
         Course course = courseService.getById(courseId);
@@ -92,6 +95,7 @@ public class TeacherController {
     }
 
     @PutMapping("/courses/{courseId}")
+    @Operation(summary = "更新课程")
     public ApiResponse<Course> updateCourse(@PathVariable Long courseId, @RequestBody Course course, Authentication auth) {
         assertCourseOwner(courseId, auth);
         course.setId(courseId);
@@ -100,6 +104,7 @@ public class TeacherController {
     }
 
     @DeleteMapping("/courses/{courseId}")
+    @Operation(summary = "删除课程")
     public ApiResponse<Void> deleteCourse(@PathVariable Long courseId, Authentication auth) {
         assertCourseOwner(courseId, auth);
         courseService.removeById(courseId);
@@ -107,6 +112,7 @@ public class TeacherController {
     }
 
     @PostMapping("/courses/{courseId}/chapters")
+    @Operation(summary = "添加课程章节")
     public ApiResponse<CourseChapter> addChapter(@PathVariable Long courseId,
                                                   @RequestBody CourseChapter chapter,
                                                   Authentication auth) {
@@ -117,6 +123,7 @@ public class TeacherController {
     }
 
     @PutMapping("/courses/{courseId}/chapters/{chapterId}")
+    @Operation(summary = "更新课程章节")
     public ApiResponse<CourseChapter> updateChapter(@PathVariable Long courseId,
                                                      @PathVariable Long chapterId,
                                                      @RequestBody CourseChapter chapter,
@@ -129,6 +136,7 @@ public class TeacherController {
     }
 
     @DeleteMapping("/courses/{courseId}/chapters/{chapterId}")
+    @Operation(summary = "删除课程章节")
     public ApiResponse<Void> deleteChapter(@PathVariable Long courseId,
                                             @PathVariable Long chapterId,
                                             Authentication auth) {
@@ -140,6 +148,7 @@ public class TeacherController {
     // ==================== 作业管理（8个接口，已加归属校验） ====================
 
     @PostMapping("/assignments")
+    @Operation(summary = "创建作业")
     public ApiResponse<Task> createAssignment(@RequestBody Task task, Authentication auth) {
         if (task.getCourseId() != null) assertCourseOwner(task.getCourseId(), auth);
         taskService.save(task);
@@ -147,6 +156,7 @@ public class TeacherController {
     }
 
     @GetMapping("/assignments")
+    @Operation(summary = "分页查询作业列表")
     public ApiResponse<PagedResponse<Task>> getAssignments(
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size,
@@ -158,6 +168,7 @@ public class TeacherController {
     }
 
     @GetMapping("/assignments/{assignmentId}")
+    @Operation(summary = "获取作业详情")
     public ApiResponse<Task> getAssignmentDetail(@PathVariable Long assignmentId, Authentication auth) {
         assertTaskOwner(assignmentId, auth);
         Task task = taskService.getById(assignmentId);
@@ -166,6 +177,7 @@ public class TeacherController {
     }
 
     @PutMapping("/assignments/{assignmentId}")
+    @Operation(summary = "更新作业")
     public ApiResponse<Task> updateAssignment(@PathVariable Long assignmentId, @RequestBody Task task, Authentication auth) {
         assertTaskOwner(assignmentId, auth);
         task.setId(assignmentId);
@@ -174,6 +186,7 @@ public class TeacherController {
     }
 
     @DeleteMapping("/assignments/{assignmentId}")
+    @Operation(summary = "删除作业")
     public ApiResponse<Void> deleteAssignment(@PathVariable Long assignmentId, Authentication auth) {
         assertTaskOwner(assignmentId, auth);
         taskService.removeById(assignmentId);
@@ -181,6 +194,7 @@ public class TeacherController {
     }
 
     @GetMapping("/assignments/{assignmentId}/submissions")
+    @Operation(summary = "获取作业提交列表")
     public ApiResponse<PagedResponse<Submission>> getSubmissions(
             @PathVariable Long assignmentId,
             @RequestParam(defaultValue = "1") long page,
@@ -193,6 +207,7 @@ public class TeacherController {
     }
 
     @PutMapping("/assignments/{assignmentId}/submissions/{submissionId}")
+    @Operation(summary = "批改作业")
     public ApiResponse<Submission> gradeSubmission(
             @PathVariable Long assignmentId,
             @PathVariable Long submissionId,
@@ -201,6 +216,9 @@ public class TeacherController {
         assertTaskOwner(assignmentId, auth);
         Submission submission = submissionService.getById(submissionId);
         if (submission == null) throw new BusinessException("提交记录不存在");
+        if (!assignmentId.equals(submission.getTaskId())) {
+            throw new BusinessException(403, "提交记录不属于该作业");
+        }
         submission.setScore(grade.getScore());
         submission.setFeedback(grade.getFeedback());
         submission.setStatus("GRADED");
@@ -211,6 +229,7 @@ public class TeacherController {
     }
 
     @PutMapping("/assignments/{assignmentId}/publish")
+    @Operation(summary = "发布作业")
     public ApiResponse<Task> publishAssignment(@PathVariable Long assignmentId, Authentication auth) {
         assertTaskOwner(assignmentId, auth);
         Task task = taskService.publishTask(assignmentId);
@@ -220,6 +239,7 @@ public class TeacherController {
     // ==================== 题库管理（7个接口，已加归属校验） ====================
 
     @PostMapping("/questions")
+    @Operation(summary = "创建题目")
     public ApiResponse<Question> createQuestion(@RequestBody Question question, Authentication auth) {
         if (question.getCourseId() != null) assertCourseOwner(question.getCourseId(), auth);
         question.setCreatedBy((Long) auth.getPrincipal());
@@ -228,6 +248,7 @@ public class TeacherController {
     }
 
     @GetMapping("/questions")
+    @Operation(summary = "分页查询题目列表")
     public ApiResponse<PagedResponse<Question>> getQuestions(
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size,
@@ -245,12 +266,14 @@ public class TeacherController {
     }
 
     @GetMapping("/questions/{questionId}")
+    @Operation(summary = "获取题目详情")
     public ApiResponse<Question> getQuestionDetail(@PathVariable Long questionId, Authentication auth) {
         assertQuestionOwner(questionId, auth);
         return ApiResponse.success(questionService.getById(questionId));
     }
 
     @PutMapping("/questions/{questionId}")
+    @Operation(summary = "更新题目")
     public ApiResponse<Question> updateQuestion(@PathVariable Long questionId, @RequestBody Question question, Authentication auth) {
         assertQuestionOwner(questionId, auth);
         question.setId(questionId);
@@ -259,6 +282,7 @@ public class TeacherController {
     }
 
     @DeleteMapping("/questions/{questionId}")
+    @Operation(summary = "删除题目")
     public ApiResponse<Void> deleteQuestion(@PathVariable Long questionId, Authentication auth) {
         assertQuestionOwner(questionId, auth);
         questionService.removeById(questionId);
@@ -266,6 +290,7 @@ public class TeacherController {
     }
 
     @PostMapping("/questions/import")
+    @Operation(summary = "批量导入题目")
     public ApiResponse<Map<String, Object>> importQuestions(@RequestBody List<Question> questions) {
         int count = 0;
         for (Question q : questions) {
@@ -276,6 +301,7 @@ public class TeacherController {
     }
 
     @GetMapping("/questions/export")
+    @Operation(summary = "导出题库")
     public ApiResponse<List<Question>> exportQuestions(@RequestParam(required = false) Long courseId, Authentication auth) {
         if (courseId != null) assertCourseOwner(courseId, auth);
         LambdaQueryWrapper<Question> qw = new LambdaQueryWrapper<Question>()
@@ -286,6 +312,7 @@ public class TeacherController {
     // ==================== 学情分析（5个接口，课程/作业级已加归属校验） ====================
 
     @GetMapping("/analytics/class/{courseId}")
+    @Operation(summary = "获取班级学情分析")
     public ApiResponse<Map<String, Object>> getClassAnalytics(@PathVariable Long courseId, Authentication auth) {
         assertCourseOwner(courseId, auth);
         Map<String, Object> data = analyticsService.getCourseAnalysis(courseId);
@@ -293,12 +320,14 @@ public class TeacherController {
     }
 
     @GetMapping("/analytics/students/{studentId}")
+    @Operation(summary = "获取学生学情分析")
     public ApiResponse<Map<String, Object>> getStudentAnalytics(@PathVariable Long studentId) {
         Map<String, Object> data = analyticsService.getUserDashboard(studentId);
         return ApiResponse.success(data);
     }
 
     @GetMapping("/analytics/assignments/{assignmentId}")
+    @Operation(summary = "获取作业学情分析")
     public ApiResponse<Map<String, Object>> getAssignmentAnalytics(@PathVariable Long assignmentId, Authentication auth) {
         assertTaskOwner(assignmentId, auth);
         Map<String, Object> stats = taskService.getTaskCompletionStats(assignmentId);
@@ -306,6 +335,7 @@ public class TeacherController {
     }
 
     @GetMapping("/analytics/knowledge-points")
+    @Operation(summary = "获取知识点分析")
     public ApiResponse<Map<String, Object>> getKnowledgePointAnalytics(
             @RequestParam(required = false) Long courseId, Authentication auth) {
         if (courseId != null) assertCourseOwner(courseId, auth);
@@ -314,6 +344,7 @@ public class TeacherController {
     }
 
     @GetMapping("/analytics/report/export")
+    @Operation(summary = "导出学情报告")
     public ApiResponse<Map<String, Object>> exportReport(@RequestParam Long courseId, Authentication auth) {
         assertCourseOwner(courseId, auth);
         Map<String, Object> report = analyticsService.exportReport(courseId);

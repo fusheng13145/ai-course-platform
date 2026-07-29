@@ -1,5 +1,5 @@
 <template>
-  <div class="fade-in">
+  <div v-loading="loading" class="fade-in">
     <!-- 统计卡片 -->
     <div class="stat-cards">
       <div class="stat-card">
@@ -71,6 +71,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import analyticsApi from '@/api/analytics'
 import taskApi from '@/api/task'
@@ -85,6 +86,7 @@ const stats = ref({
   pendingGradeCount: 0,
   avgScore: '--'
 })
+const loading = ref(false)
 
 // 近期动态
 const activities = ref([])
@@ -155,6 +157,7 @@ onMounted(async () => {
 })
 
 async function loadDashboardData() {
+  loading.value = true
   try {
     const teacherId = auth.userId
     const baseParams = teacherId ? { teacherId } : {}
@@ -224,6 +227,9 @@ async function loadDashboardData() {
     }
   } catch (e) {
     console.error('加载仪表盘数据失败:', e)
+    ElMessage.error('仪表盘数据加载失败，请刷新重试')
+  } finally {
+    loading.value = false
   }
 }
 </script>

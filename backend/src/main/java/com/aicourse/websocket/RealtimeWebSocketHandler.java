@@ -2,6 +2,8 @@ package com.aicourse.websocket;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.web.socket.CloseStatus;
 import org.springframework.web.socket.SubProtocolCapable;
@@ -21,6 +23,8 @@ import java.util.Map;
 @Component
 public class RealtimeWebSocketHandler extends TextWebSocketHandler implements SubProtocolCapable {
 
+    private static final Logger log = LoggerFactory.getLogger(RealtimeWebSocketHandler.class);
+
     private final WebSocketSessionManager sessionManager;
     private final ObjectMapper objectMapper;
 
@@ -31,8 +35,18 @@ public class RealtimeWebSocketHandler extends TextWebSocketHandler implements Su
 
     @Override
     public void afterConnectionEstablished(WebSocketSession session) {
-        Long userId = (Long) session.getAttributes().get("userId");
-        sessionManager.register(userId, session);
+        Object userIdObj = session.getAttributes().get("userId");
+        if (userIdObj instanceof Long userId) {
+            sessionManager.register(userId, session);
+            log.debug("WebSocket 连接已建立: userId={}, sessionId={}", userId, session.getId());
+        } else {
+            log.warn("WebSocket 连接缺少有效 userId，已拒绝: sessionId={}", session.getId());
+            try {
+                session.close(CloseStatus.POLICY_VIOLATION);
+            } catch (Exception ignored) {
+                log.warn("关闭无效WebSocket连接异常", ignored);
+            }
+        }
     }
 
     @Override
@@ -49,20 +63,34 @@ public class RealtimeWebSocketHandler extends TextWebSocketHandler implements Su
             }
             // 其它业务消息类型（如 AI 流式输入）可在此后扩展
         } catch (Exception e) {
-            // 忽略格式错误的客户端消息，避免单条脏数据中断连接
+            // 记录异常日志但不中断连接：单条脏数据不应导致通道断开，但必须可被运维观察到。
+            // WARN 级别确保在默认日志配置下可见，同时避免单客户端畸形数据刷满 ERROR 日志。
+            Object userIdObj = session.getAttributes().get("userId");
+            log.warn("WebSocket 消息处理异常: userId={}, sessionId={}, payload={}",
+                    userIdObj, session.getId(),
+                    message.getPayloadLength() > 200
+                            ? message.getPayload().substring(0, 200) + "..."
+                            : message.getPayload(),
+                    e);
         }
     }
 
     @Override
     public void afterConnectionClosed(WebSocketSession session, CloseStatus status) {
-        Long userId = (Long) session.getAttributes().get("userId");
-        sessionManager.unregister(userId, session);
+        Object userIdObj = session.getAttributes().get("userId");
+        if (userIdObj instanceof Long userId) {
+            sessionManager.unregister(userId, session);
+            log.debug("WebSocket 连接已关闭: userId={}, sessionId={}, closeStatus={}", userId, session.getId(), status);
+        }
     }
 
     @Override
     public void handleTransportError(WebSocketSession session, Throwable exception) {
-        Long userId = (Long) session.getAttributes().get("userId");
-        sessionManager.unregister(userId, session);
+        Object userIdObj = session.getAttributes().get("userId");
+        if (userIdObj instanceof Long userId) {
+            sessionManager.unregister(userId, session);
+        }
+        log.warn("WebSocket 传输异常: userId={}, sessionId={}", userIdObj, session.getId(), exception);
     }
 
     /**

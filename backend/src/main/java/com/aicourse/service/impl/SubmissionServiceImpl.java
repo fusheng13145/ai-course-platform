@@ -446,6 +446,7 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
      * 计算逾期扣分
      */
     @Override
+    @Transactional(readOnly = true)
     public BigDecimal calculateLatePenalty(Long submissionId) {
         Submission submission = this.getById(submissionId);
         if (submission == null) {
@@ -537,7 +538,7 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
                             maxSimilarity = similarity;
                         }
                     } catch (NumberFormatException ignored) {
-                        log.warn("查重相似度解析失败: submissionId={}, result={}", submissionId, result);
+                        log.warn("查重相似度解析失败: submissionId={}, result={}", submissionId, result, ignored);
                     }
                 }
             }
@@ -564,6 +565,7 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
      * 获取学生的任务提交记录
      */
     @Override
+    @Transactional(readOnly = true)
     public Submission getByTaskAndStudent(Long taskId, Long studentId) {
         LambdaQueryWrapper<Submission> wrapper = new LambdaQueryWrapper<Submission>()
                 .eq(Submission::getTaskId, taskId)
@@ -578,6 +580,7 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
      * 查询该提交关联的所有查重记录，汇总相似度、详情等
      */
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> getPlagiarismSummary(Long submissionId) {
         Submission submission = this.getById(submissionId);
         if (submission == null) {
@@ -638,6 +641,7 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
      * 获取提交完整详细信息（含批阅次数、查重、逾期等扩展数据）
      */
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> getSubmissionDetail(Long submissionId) {
         Submission submission = this.getById(submissionId);
         if (submission == null) {

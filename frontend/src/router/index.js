@@ -43,237 +43,257 @@ const routes = [
       {
         path: 'dashboard',
         component: () => import('@/views/admin/Dashboard.vue'),
-        meta: { title: '仪表盘' },
+        meta: { title: '仪表盘', breadcrumb: '数据看板' },
       },
+
+      // ---- 用户与权限 (views/admin/user/) ----
       {
         path: 'users',
-        component: () => import('@/views/admin/UserManagement.vue'),
-        meta: { title: '用户管理' },
-      },
-      {
-        path: 'classes',
-        component: () => import('@/views/admin/ClassManagement.vue'),
-        meta: { title: '组织与班级' },
-      },
-      {
-        path: 'courses',
-        component: () => import('@/views/admin/CourseManagement.vue'),
-        meta: { title: '课程管理' },
-      },
-      {
-        path: 'resources',
-        component: () => import('@/views/admin/ResourceManagement.vue'),
-        meta: { title: '资源库' },
-      },
-      {
-        path: 'analytics',
-        component: () => import('@/views/admin/Analytics.vue'),
-        meta: { title: '数据分析' },
-      },
-      {
-        path: 'exams',
-        component: () => import('@/views/admin/ExamManagement.vue'),
-        meta: { title: '考试管理' },
-      },
-      {
-        path: 'grades',
-        component: () => import('@/views/admin/GradeManagement.vue'),
-        meta: { title: '成绩管理' },
-      },
-      {
-        path: 'notifications',
-        component: () => import('@/views/admin/NotificationManagement.vue'),
-        meta: { title: '通知管理' },
-      },
-      {
-        path: 'questions',
-        component: () => import('@/views/admin/QuestionManagement.vue'),
-        meta: { title: '题库管理' },
+        component: () => import('@/views/admin/user/UserManagement.vue'),
+        meta: { title: '用户管理', breadcrumb: '用户管理' },
       },
       {
         path: 'permissions',
-        component: () => import('@/views/admin/PermissionManagement.vue'),
-        meta: { title: '权限管理' },
+        component: () => import('@/views/admin/user/PermissionManagement.vue'),
+        meta: { title: '权限管理', breadcrumb: '权限配置' },
       },
       {
-        path: 'logs',
-        component: () => import('@/views/admin/OperationLogs.vue'),
-        meta: { title: '操作审计日志' },
+        path: 'classes',
+        component: () => import('@/views/admin/user/ClassManagement.vue'),
+        meta: { title: '组织与班级', breadcrumb: '班级管理' },
+      },
+
+      // ---- 教学管理 (views/admin/teaching/) ----
+      {
+        path: 'courses',
+        component: () => import('@/views/admin/teaching/CourseManagement.vue'),
+        meta: { title: '课程管理', breadcrumb: '课程管理' },
       },
       {
-        path: 'system',
-        component: () => import('@/views/admin/SystemSettings.vue'),
-        meta: { title: '系统设置' },
+        path: 'questions',
+        component: () => import('@/views/admin/teaching/QuestionManagement.vue'),
+        meta: { title: '题库管理', breadcrumb: '题库管理' },
       },
+      {
+        path: 'resources',
+        component: () => import('@/views/admin/teaching/ResourceManagement.vue'),
+        meta: { title: '资源库', breadcrumb: '资源管理' },
+      },
+      {
+        path: 'exams',
+        component: () => import('@/views/admin/teaching/ExamManagement.vue'),
+        meta: { title: '考试管理', breadcrumb: '考试管理' },
+      },
+      {
+        path: 'grades',
+        component: () => import('@/views/admin/teaching/GradeManagement.vue'),
+        meta: { title: '成绩管理', breadcrumb: '成绩管理' },
+      },
+      // ---- 新增教学管理页面 ----
+      {
+        path: 'plagiarism',
+        component: () => import('@/views/admin/teaching/PlagiarismCheckManage.vue'),
+        meta: { title: '查重管理', breadcrumb: '查重管理' },
+      },
+      {
+        path: 'resource-versions',
+        component: () => import('@/views/admin/teaching/ResourceVersionManage.vue'),
+        meta: { title: '资源版本', breadcrumb: '资源管理' },
+      },
+
+      // ---- 监管与分析 (views/admin/governance/) ----
       {
         path: 'supervision',
-        component: () => import('@/views/admin/TeachingSupervision.vue'),
-        meta: { title: '教学运行监管' },
+        component: () => import('@/views/admin/governance/TeachingSupervision.vue'),
+        meta: { title: '教学运行监管', breadcrumb: '教学监督' },
       },
       {
         path: 'exam-governance',
-        component: () => import('@/views/admin/ExamGovernance.vue'),
-        meta: { title: '考试防作弊治理' },
+        component: () => import('@/views/admin/governance/ExamGovernance.vue'),
+        meta: { title: '考试防作弊治理', breadcrumb: '考试治理' },
+      },
+      {
+        path: 'analytics',
+        component: () => import('@/views/admin/governance/Analytics.vue'),
+        meta: { title: '数据分析', breadcrumb: '数据统计' },
+      },
+
+      // ---- 系统配置 (views/admin/system/) ----
+      {
+        path: 'knowledge-base',
+        component: () => import('@/views/admin/system/KnowledgeBase.vue'),
+        meta: { title: '知识库管理', breadcrumb: '知识库' },
+      },
+      {
+        path: 'notifications',
+        component: () => import('@/views/admin/system/NotificationManagement.vue'),
+        meta: { title: '通知管理', breadcrumb: '通知公告' },
       },
       {
         path: 'ai-supplier',
-        component: () => import('@/views/admin/AISupplierConfig.vue'),
-        meta: { title: 'AI 供应商配置' },
+        component: () => import('@/views/admin/system/AISupplierConfig.vue'),
+        meta: { title: 'AI 供应商配置', breadcrumb: 'AI服务' },
       },
       {
-        path: 'knowledge-base',
-        component: () => import('@/views/admin/KnowledgeBase.vue'),
-        meta: { title: '知识库管理' },
+        path: 'system',
+        component: () => import('@/views/admin/system/SystemSettings.vue'),
+        meta: { title: '系统设置', breadcrumb: '系统设置' },
       },
+      {
+        path: 'logs',
+        component: () => import('@/views/admin/system/OperationLogs.vue'),
+        meta: { title: '操作审计日志', breadcrumb: '日志审计' },
+      },
+      // ---- 新增系统管理页面 ----
+      {
+        path: 'user-sessions',
+        component: () => import('@/views/admin/system/UserSessionManage.vue'),
+        meta: { title: '会话管理', breadcrumb: '安全审计' },
+      },
+      {
+        path: 'file-upload',
+        component: () => import('@/views/admin/system/FileUploadManage.vue'),
+        meta: { title: '上传管理', breadcrumb: '文件管理' },
+      },
+      {
+        path: 'reminders',
+        component: () => import('@/views/admin/system/ReminderManage.vue'),
+        meta: { title: '提醒管理', breadcrumb: '系统管理' },
+      },
+
+      // ---- 个人 (views/common/) ----
       {
         path: 'profile',
         component: () => import('@/views/common/Profile.vue'),
-        meta: { title: '个人中心' },
+        meta: { title: '个人中心', breadcrumb: '个人中心' },
       },
       {
         path: 'message-center',
         component: () => import('@/views/common/Notifications.vue'),
-        meta: { title: '通知中心' },
+        meta: { title: '通知中心', breadcrumb: '通知中心' },
       },
     ],
   },
 
+  // ==================== 教师端 ====================
   {
     path: '/teacher',
     component: () => import('@/layouts/TeacherLayout.vue'),
     meta: { requiresAuth: true, role: 'TEACHER' },
     children: [
       { path: '', redirect: '/teacher/dashboard' },
-      // 教师驾驶舱（增强仪表盘 v2）
       {
         path: 'dashboard',
         component: () => import('@/views/teacher/Dashboard.vue'),
-        meta: { title: '教师驾驶舱' },
+        meta: { title: '教师驾驶舱', breadcrumb: '驾驶舱' },
       },
-      // 我的课程
       {
         path: 'courses',
         component: () => import('@/views/teacher/Courses.vue'),
-        meta: { title: '我的课程' },
+        meta: { title: '我的课程', breadcrumb: '我的课程' },
       },
       {
         path: 'courses/create',
         component: () => import('@/views/teacher/CreateCourse.vue'),
-        meta: { title: '新建课程' },
+        meta: { title: '新建课程', breadcrumb: '新建课程' },
       },
-      // 课程驾驶舱（二级嵌套：概览/章节/作业/题库/考试/监考/成绩/学情/互动/讨论）
+      {
+        path: 'courses/:id/detail',
+        component: () => import('@/views/teacher/CourseDetail.vue'),
+        meta: { title: '课程详情', breadcrumb: '课程详情' },
+      },
+      // 课程驾驶舱（views/teacher/cockpit/）
       {
         path: 'courses/:id',
         component: () => import('@/views/teacher/cockpit/CourseCockpit.vue'),
-        meta: { title: '课程驾驶舱' },
+        meta: { title: '课程驾驶舱', breadcrumb: '课程驾驶舱' },
         children: [
           { path: '', redirect: 'overview' },
-          {
-            path: 'overview',
-            component: () => import('@/views/teacher/cockpit/CourseOverview.vue'),
-            meta: { title: '课程概览' },
-          },
-          {
-            path: 'chapters',
-            component: () => import('@/views/teacher/cockpit/CourseChapters.vue'),
-            meta: { title: '章节与任务点' },
-          },
-          {
-            path: 'tasks',
-            component: () => import('@/views/teacher/cockpit/CourseTasks.vue'),
-            meta: { title: '作业任务' },
-          },
-          {
-            path: 'submissions',
-            component: () => import('@/views/teacher/cockpit/CourseSubmissions.vue'),
-            meta: { title: '作业批改' },
-          },
-          {
-            path: 'bank',
-            component: () => import('@/views/teacher/cockpit/CourseQuestionBank.vue'),
-            meta: { title: '课程题库' },
-          },
-          {
-            path: 'exams',
-            component: () => import('@/views/teacher/cockpit/CourseExams.vue'),
-            meta: { title: '试卷与考试' },
-          },
-          {
-            path: 'proctor',
-            component: () => import('@/views/teacher/cockpit/CourseProctor.vue'),
-            meta: { title: '在线监考' },
-          },
-          {
-            path: 'grades',
-            component: () => import('@/views/teacher/cockpit/CourseGrades.vue'),
-            meta: { title: '过程性成绩' },
-          },
-          {
-            path: 'analytics',
-            component: () => import('@/views/teacher/cockpit/CourseAnalytics.vue'),
-            meta: { title: '学情统计' },
-          },
-          {
-            path: 'interaction',
-            component: () => import('@/views/teacher/cockpit/CourseInteraction.vue'),
-            meta: { title: '课堂互动' },
-          },
-          {
-            path: 'discussion',
-            component: () => import('@/views/teacher/cockpit/CourseDiscussion.vue'),
-            meta: { title: '课程讨论' },
-          },
+          { path: 'overview', component: () => import('@/views/teacher/cockpit/CourseOverview.vue'), meta: { title: '课程概览' } },
+          { path: 'chapters', component: () => import('@/views/teacher/cockpit/CourseChapters.vue'), meta: { title: '章节与任务点' } },
+          { path: 'tasks', component: () => import('@/views/teacher/cockpit/CourseTasks.vue'), meta: { title: '作业任务' } },
+          { path: 'submissions', component: () => import('@/views/teacher/cockpit/CourseSubmissions.vue'), meta: { title: '作业批改' } },
+          { path: 'bank', component: () => import('@/views/teacher/cockpit/CourseQuestionBank.vue'), meta: { title: '课程题库' } },
+          { path: 'exams', component: () => import('@/views/teacher/cockpit/CourseExams.vue'), meta: { title: '试卷与考试' } },
+          { path: 'proctor', component: () => import('@/views/teacher/cockpit/CourseProctor.vue'), meta: { title: '在线监考' } },
+          { path: 'grades', component: () => import('@/views/teacher/cockpit/CourseGrades.vue'), meta: { title: '过程性成绩' } },
+          { path: 'analytics', component: () => import('@/views/teacher/cockpit/CourseAnalytics.vue'), meta: { title: '学情统计' } },
+          { path: 'interaction', component: () => import('@/views/teacher/cockpit/CourseInteraction.vue'), meta: { title: '课堂互动' } },
+          { path: 'discussion', component: () => import('@/views/teacher/cockpit/CourseDiscussion.vue'), meta: { title: '课程讨论' } },
         ],
       },
-      // 跨课程功能域
+
+      // ---- 作业考试 (views/teacher/assessment/) ----
       {
         path: 'bank',
-        component: () => import('@/views/teacher/QuestionBank.vue'),
-        meta: { title: '题库管理' },
+        component: () => import('@/views/teacher/assessment/QuestionBank.vue'),
+        meta: { title: '题库管理', breadcrumb: '题库管理' },
       },
       {
         path: 'exams',
-        component: () => import('@/views/teacher/ExamPapers.vue'),
-        meta: { title: '试卷库' },
+        component: () => import('@/views/teacher/assessment/ExamPapers.vue'),
+        meta: { title: '试卷库', breadcrumb: '试卷库' },
+      },
+
+      // ---- 考试管理（教师个人视角，非课程级） ----
+      {
+        path: 'exams-manage',
+        component: () => import('@/views/teacher/Exams.vue'),
+        meta: { title: '考试管理', breadcrumb: '考试管理' },
       },
       {
+        path: 'grades-manage',
+        component: () => import('@/views/teacher/Grades.vue'),
+        meta: { title: '成绩管理', breadcrumb: '成绩管理' },
+      },
+
+      // ---- 教学工具 (views/teacher/tools/) ----
+      {
         path: 'analytics',
-        component: () => import('@/views/teacher/Analytics.vue'),
-        meta: { title: '学情统计' },
+        component: () => import('@/views/teacher/tools/Analytics.vue'),
+        meta: { title: '学情统计', breadcrumb: '学情统计' },
       },
       {
         path: 'interaction',
-        component: () => import('@/views/teacher/Interaction.vue'),
-        meta: { title: '课堂互动' },
+        component: () => import('@/views/teacher/tools/Interaction.vue'),
+        meta: { title: '课堂互动', breadcrumb: '课堂互动' },
       },
       {
         path: 'discussion',
-        component: () => import('@/views/teacher/Discussion.vue'),
-        meta: { title: '课程讨论' },
+        component: () => import('@/views/teacher/tools/Discussion.vue'),
+        meta: { title: '课程讨论', breadcrumb: '课程讨论' },
       },
       {
         path: 'knowledge',
-        component: () => import('@/views/teacher/KnowledgeGraph.vue'),
-        meta: { title: '知识图谱' },
+        component: () => import('@/views/teacher/tools/KnowledgeGraph.vue'),
+        meta: { title: '知识图谱', breadcrumb: '知识图谱' },
+      },
+      {
+        path: 'knowledge-management',
+        component: () => import('@/views/teacher/tools/KnowledgeManagement.vue'),
+        meta: { title: '知识管理', breadcrumb: '知识管理' },
       },
       {
         path: 'ai',
-        component: () => import('@/views/teacher/AICenter.vue'),
-        meta: { title: 'AI 教学中心' },
+        component: () => import('@/views/teacher/tools/AICenter.vue'),
+        meta: { title: 'AI 教学中心', breadcrumb: 'AI教学' },
       },
+
+      // ---- 个人 (views/common/) ----
       {
         path: 'profile',
         component: () => import('@/views/common/Profile.vue'),
-        meta: { title: '个人中心' },
+        meta: { title: '个人中心', breadcrumb: '个人中心' },
       },
       {
         path: 'notifications',
         component: () => import('@/views/common/Notifications.vue'),
-        meta: { title: '通知中心' },
+        meta: { title: '通知中心', breadcrumb: '通知中心' },
       },
     ],
   },
 
+  // ==================== 学生端 ====================
   {
     path: '/student',
     component: () => import('@/layouts/StudentLayout.vue'),
@@ -283,72 +303,87 @@ const routes = [
       {
         path: 'dashboard',
         component: () => import('@/views/student/Dashboard.vue'),
-        meta: { title: '仪表盘' },
+        meta: { title: '仪表盘', breadcrumb: '学习首页' },
       },
       {
         path: 'courses',
         component: () => import('@/views/student/Courses.vue'),
-        meta: { title: '我的课程' },
+        meta: { title: '我的课程', breadcrumb: '我的课程' },
       },
+      // 课程学习壳（views/student/course/）：将 CourseDetail + LearningCenter 嵌套到 Tab 导航中
       {
         path: 'courses/:id',
-        component: () => import('@/views/student/CourseDetail.vue'),
-        meta: { title: '课程详情' },
-      },
-      {
-        path: 'courses/:id/learning-center',
-        component: () => import('@/views/student/LearningCenter.vue'),
-        meta: { title: '学习中心' },
-      },
-      {
-        path: 'knowledge-graph',
-        component: () => import('@/views/student/KnowledgeGraph.vue'),
-        meta: { title: '知识图谱' },
-      },
-      {
-        path: 'learning-path',
-        component: () => import('@/views/student/LearningPath.vue'),
-        meta: { title: '学习路径' },
+        component: () => import('@/views/student/course/CourseShell.vue'),
+        meta: { title: '课程详情', breadcrumb: '课程详情' },
+        children: [
+          { path: '', redirect: 'overview' },
+          {
+            path: 'overview',
+            component: () => import('@/views/student/course/CourseDetail.vue'),
+            meta: { title: '课程概览', breadcrumb: '课程概览' },
+          },
+          {
+            path: 'learning-center',
+            component: () => import('@/views/student/course/LearningCenter.vue'),
+            meta: { title: '学习中心', breadcrumb: '学习中心' },
+          },
+        ],
       },
       {
         path: 'ai-assistant',
         component: () => import('@/views/student/AIAssistant.vue'),
-        meta: { title: 'AI助手' },
+        meta: { title: 'AI助手', breadcrumb: 'AI助手' },
+      },
+
+      // ---- 学习工具 (views/student/study/) ----
+      {
+        path: 'knowledge-graph',
+        component: () => import('@/views/student/study/KnowledgeGraph.vue'),
+        meta: { title: '知识图谱', breadcrumb: '知识图谱' },
       },
       {
-        path: 'exams',
-        component: () => import('@/views/student/Exams.vue'),
-        meta: { title: '模拟考试' },
-      },
-      {
-        path: 'grades',
-        component: () => import('@/views/student/Grades.vue'),
-        meta: { title: '我的成绩' },
-      },
-      {
-        path: 'wrong-questions',
-        component: () => import('@/views/student/WrongQuestions.vue'),
-        meta: { title: '错题本' },
-      },
-      {
-        path: 'discussion',
-        component: () => import('@/views/student/Discussion.vue'),
-        meta: { title: '课程讨论' },
+        path: 'learning-path',
+        component: () => import('@/views/student/study/LearningPath.vue'),
+        meta: { title: '学习路径', breadcrumb: '学习路径' },
       },
       {
         path: 'learning-calendar',
-        component: () => import('@/views/student/LearningCalendar.vue'),
-        meta: { title: '学习日历' },
+        component: () => import('@/views/student/study/LearningCalendar.vue'),
+        meta: { title: '学习日历', breadcrumb: '学习日历' },
       },
+
+      // ---- 课业中心 (views/student/academic/) ----
+      {
+        path: 'exams',
+        component: () => import('@/views/student/academic/Exams.vue'),
+        meta: { title: '模拟考试', breadcrumb: '作业考试' },
+      },
+      {
+        path: 'grades',
+        component: () => import('@/views/student/academic/Grades.vue'),
+        meta: { title: '我的成绩', breadcrumb: '成绩查询' },
+      },
+      {
+        path: 'wrong-questions',
+        component: () => import('@/views/student/academic/WrongQuestions.vue'),
+        meta: { title: '错题本', breadcrumb: '错题本' },
+      },
+      {
+        path: 'discussion',
+        component: () => import('@/views/student/academic/Discussion.vue'),
+        meta: { title: '课程讨论', breadcrumb: '讨论区' },
+      },
+
+      // ---- 个人 (views/common/) ----
       {
         path: 'profile',
         component: () => import('@/views/common/Profile.vue'),
-        meta: { title: '个人中心' },
+        meta: { title: '个人中心', breadcrumb: '个人中心' },
       },
       {
         path: 'notifications',
         component: () => import('@/views/common/Notifications.vue'),
-        meta: { title: '通知中心' },
+        meta: { title: '通知中心', breadcrumb: '通知中心' },
       },
     ],
   },

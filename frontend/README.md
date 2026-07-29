@@ -1,73 +1,122 @@
-# AI 课程平台 - 前端
+# AI 助教系统 — 前端
+
+> 基于 Vue 3 + Vite 8 + Element Plus 的智能在线教育平台前端
 
 ## 技术栈
 
-- **Vue 3.4** / Composition API + `<script setup>`
-- **Vite 5** / Element Plus / Pinia / Axios / ECharts
-- **Vitest** + jsdom 单元测试
-- **三套布局**：StudentLayout / TeacherLayout / AdminLayout
-
-## 快速启动
-
-### 前提
-
-- Node.js ≥ 18（项目使用 22.22.2）
-- 后端已启动（`http://localhost:8080/api`）
-
-### 安装与运行
-
-```bash
-cd frontend
-npm install
-npm run dev     # → http://localhost:5173
-```
-
-Vite 开发服务器自动代理 `/api` 至后端（见 `vite.config.js` 的 proxy 配置）。
+| 组件 | 技术 | 版本 |
+|------|------|------|
+| 框架 | Vue 3 (Composition API) | 3.5.x |
+| 构建 | Vite | 8.x |
+| UI 库 | Element Plus | 2.4.x |
+| 图表 | ECharts + vue-echarts | 5.x / 6.x |
+| 状态管理 | Pinia | 2.1.x |
+| 路由 | Vue Router | 4.2.x |
+| 请求库 | Axios | 1.7.x |
+| 测试 | Vitest + @vue/test-utils | 1.6.x / 2.4.x |
+| E2E | Playwright | — |
+| 表格处理 | SheetJS (xlsx) | 0.20.x |
 
 ## 目录结构
 
 ```
-frontend/src/
-├── api/              # Axios 实例 + 33 个 API 模块（auth/course/exam/ai/...）
-│   ├── request.js    # 核心拦截器：全局loading、消息去重、自动重试、401刷新
-│   └── __tests__/
-├── stores/           # Pinia 状态管理（auth + 模块内联）
-├── router/           # Vue Router 4（~60 条路由，全部懒加载）
-├── views/
-│   ├── student/      # 学生端视图（Dashboard/Courses/LearningCenter/AIAssistant/Exams/...）
-│   │   └── __tests__/
-│   ├── teacher/      # 教师端视图（课程管理/作业批阅/学情分析/...）
-│   ├── admin/        # 管理员视图（用户管理/系统监控/...）
-│   └── auth/         # 登录/注册
-├── components/       # 公用组件（ThemeSwitcher/PageHeader/...）
-├── composables/      # 组合式函数（useTheme/...）
-├── utils/            # 工具函数（logger/websocket/response）
-└── layouts/          # 布局组件（学生/教师/管理员三套）
+frontend/
+├── src/
+│   ├── api/                  # 37 个 API 模块（~380 个导出函数）
+│   │   ├── request.js        # Axios 封装（拦截器/重试/去重）
+│   │   ├── auth.js           # 认证相关
+│   │   ├── exam.js           # 考试/试卷 API
+│   │   ├── course.js         # 课程 API
+│   │   ├── ai.js             # AI 问答/流式 API
+│   │   └── ...
+│   ├── views/                # 66 个页面
+│   │   ├── auth/             # 登录/注册/找回密码
+│   │   ├── student/          # 学生端（Dashboard/学习/AI助手/考试）
+│   │   ├── teacher/          # 教师端（驾驶舱/课程/题库/学情）
+│   │   └── admin/            # 管理端（用户/课程/系统配置/审计）
+│   ├── router/               # 路由配置（62 条路由，含懒加载）
+│   ├── stores/               # Pinia 状态管理
+│   ├── composables/          # 组合式函数（图表主题/提交防重）
+│   ├── components/           # 通用组件
+│   ├── layouts/              # 三端布局（AppShell/TeacherLayout/AdminLayout）
+│   ├── utils/                # 工具函数（Sanitize/WebSocket/日期格式）
+│   └── styles/               # 全局样式（CSS 变量/设计令牌/暗色主题）
+├── public/                   # 静态资源
+├── dist/                     # 构建输出
+├── vitest.config.ts          # 测试配置
+└── package.json
 ```
+
+## 快速启动
+
+### 1. 环境要求
+- Node.js 20.19+（Vite 8 要求）
+- 后端服务运行中（`:8080` 或配置代理）
+
+### 2. 安装依赖
+```bash
+npm install
+```
+
+### 3. 启动开发服务器
+```bash
+npm run dev
+```
+开发服务器默认启动在 `http://localhost:5173`，API 请求通过 Vite proxy 代理至 `http://localhost:8080/api`。
+
+### 4. 构建生产版本
+```bash
+npm run build
+```
+构建产物输出至 `dist/` 目录，可直接部署至 Nginx 等静态服务器。
 
 ## 关键约定
 
-- **认证**：JWT 以 HttpOnly Cookie 下发，前端不可读令牌；`withCredentials: true` 自动携带
-- **路由守卫**：`router.beforeEach` 校验 `meta.requiresAuth` + `meta.role`，未登录跳 `/login?redirect`
-- **权限控制**：`v-if="hasPermission('xxx')"` 或 `v-if="isRole('ADMIN')"`
-- **错误处理**：axios 响应拦截器按 10+ 状态码分类中文提示，自动重试，401 静默刷新
-- **API 调用**：所有 API 归于 `src/api/` 模块，View 不直接发请求
-- **UI 组件**：全量 Element Plus（按需引入），禁止混用其他 UI 库
-- **样式**：优先 Element Plus 内置主题变量，`@/assets/styles` 仅放全局覆盖
+### 认证与路由
+- 未登录用户自动重定向至 `/login`（保留目标 URL，登录后跳回）
+- 越权访问（角色不匹配）跳转 `/403`
+- JWT 存放于 HttpOnly Cookie，前端不持有令牌
 
-## 测试
+### API 调用
+- 统一通过 `@/api/` 模块调用，不直接使用 Axios
+- 响应拦截器按状态码分类提示（401 静默刷新、5xx 自动重试）
+- 相同消息 2s 内去重弹出
 
+### 样式
+- 全局设计令牌：`--ac-primary` / `--ac-text-primary` / `--ac-bg` 等 CSS 变量
+- 暗色模式：`[data-theme='dark']` 选择器驱动
+- 布局：`AppShell.vue` 提供侧边栏 + 头部 + 内容三段式结构
+
+### 测试
 ```bash
-npm test               # vitest run（~120 用例）
-npm run test:watch     # 监听模式
+# 运行单元测试
+npm run test
+
+# 监听模式
+npm run test:watch
+
+# E2E 测试（需 Playwright）
+npm run test:e2e
 ```
 
-测试文件放在对应模块的 `__tests__/` 目录下，适用于 stores / api / views / composables / components。
+## 部署
 
-## 构建部署
+构建后将 `dist/` 目录部署至 Nginx，参考 `nginx.conf`：
 
-```bash
-npm run build          # → dist/
+```nginx
+server {
+    listen 80;
+    server_name your-domain.com;
+
+    root /path/to/dist;
+    index index.html;
+
+    location /api/ {
+        proxy_pass http://backend:8080;
+    }
+
+    location / {
+        try_files $uri $uri/ /index.html;
+    }
+}
 ```
-
-生产环境由 Nginx 反向代理，`/api` 转发至后端 8080。Docker Compose 编排见项目根 `docker-compose.yml`。

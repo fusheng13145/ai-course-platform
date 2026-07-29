@@ -2,25 +2,33 @@ package com.aicourse.controller;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.controller.CommonController;
 import com.aicourse.service.AuthService;
+import com.aicourse.service.FileStorageService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+
+import java.io.InputStream;
+
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 /**
  * CommonController 接口测试。
- * 升级自生成器产出的弱断言（status != 401 && status != 403），改为真实业务断言：
- * 对 service 方法打桩并用 jsonPath 校验响应体关键字段透传，verify 确认路由委托与参数透传。
  */
 @WebMvcTest(CommonController.class)
 class CommonControllerTest extends ControllerTestBase {
 
     @MockitoBean
-    private com.aicourse.service.AuthService authService;
+    private AuthService authService;
+
+    @MockitoBean
+    private FileStorageService fileStorageService;
+
+    // ==================== 验证码 ====================
 
     @Test
     @DisplayName("POST /common/verify-code - 发送验证码成功并返回 code=200")
@@ -35,6 +43,78 @@ class CommonControllerTest extends ControllerTestBase {
         verify(authService).sendVerificationCode(eq("student@example.com"), eq("FORGOT_PASSWORD"), any());
     }
 
+    @Test
+    @DisplayName("POST /common/verify-code - 邮箱为空返回 400")
+    void sendVerifyCode_emptyEmail_returns400() throws Exception {
+        mockMvc.perform(post("/common/verify-code").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"email\":\"\",\"type\":\"FORGOT_PASSWORD\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.message").value("邮箱不能为空"));
+    }
+
+    // ==================== 文件上传 ====================
+
+    @Test
+    @DisplayName("POST /common/upload - 上传合法图片文件成功")
+    void uploadFile_validPng_success() throws Exception {
+        when(fileStorageService.upload(anyString(), any(InputStream.class), any(), anyLong()))
+                .thenReturn("test-uuid.png");
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "test.png", "image/png", "fake-image-bytes".getBytes());
+
+        mockMvc.perform(multipart("/common/upload").file(file))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.url").value("/uploads/test-uuid.png"))
+                .andExpect(jsonPath("$.data.fileName").value("test.png"));
+    }
+
+    @Test
+    @DisplayName("POST /common/upload - 上传非法扩展名被拒绝")
+    void uploadFile_invalidExt_returns400() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "evil.html", "text/html", "<script>alert(1)</script>".getBytes());
+
+        mockMvc.perform(multipart("/common/upload").file(file))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("不支持的文件类型")));
+
+        verify(fileStorageService, never()).upload(anyString(), any(), any(), anyLong());
+    }
+
+    @Test
+    @DisplayName("POST /common/upload - 空文件返回错误")
+    void uploadFile_emptyFile_returns400() throws Exception {
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "empty.txt", "text/plain", new byte[0]);
+
+        mockMvc.perform(multipart("/common/upload").file(file))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.message").value("上传文件不能为空"));
+
+        verify(fileStorageService, never()).upload(anyString(), any(), any(), anyLong());
+    }
+
+    @Test
+    @DisplayName("POST /common/upload - FileStorageService 异常返回 500")
+    void uploadFile_storageError_returns500() throws Exception {
+        when(fileStorageService.upload(anyString(), any(InputStream.class), any(), anyLong()))
+                .thenThrow(new RuntimeException("磁盘已满"));
+
+        MockMultipartFile file = new MockMultipartFile(
+                "file", "test.png", "image/png", "test".getBytes());
+
+        mockMvc.perform(multipart("/common/upload").file(file))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(500))
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("上传失败")));
+    }
+
+    // ==================== 功能路线图 ====================
 
     @Test
     @DisplayName("GET /common/feature-roadmap - 返回功能路线图且 code=200")

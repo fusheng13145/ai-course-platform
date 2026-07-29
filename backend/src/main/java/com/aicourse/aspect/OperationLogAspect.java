@@ -75,8 +75,8 @@ public class OperationLogAspect {
                 String params = objectMapper.writeValueAsString(args);
                 if (params.length() > 1000) params = params.substring(0, 1000) + "...";
                 log.setParams(params);
-            } catch (Exception ignored) {
-                // 序列化失败时静默忽略，不影响主流程
+            } catch (Exception e) {
+                org.slf4j.LoggerFactory.getLogger(OperationLogAspect.class).warn("序列化操作日志参数失败", e);
             }
 
             // 解析模块名

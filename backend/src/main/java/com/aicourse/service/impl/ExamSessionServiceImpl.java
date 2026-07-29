@@ -5,6 +5,7 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ExamSessionMapper;
 import com.aicourse.service.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -129,26 +130,24 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
             throw new BusinessException("考试会话不存在");
         }
 
-        // 防重复提交：只有STARTED状态可提交
-        if (!"STARTED".equals(session.getStatus())) {
+        // 防止时钟回调导致时间倒退
+        LocalDateTime now = LocalDateTime.now();
+
+        // 原子更新：仅当状态为 STARTED 时才允许提交（消除 TOCTOU 竞态）
+        LambdaUpdateWrapper<ExamSession> updateWrapper = new LambdaUpdateWrapper<ExamSession>()
+                .eq(ExamSession::getId, sessionId)
+                .eq(ExamSession::getStatus, "STARTED")
+                .set(ExamSession::getAnswers, mapToJson(answers))
+                .set(ExamSession::getTimeSpent, (int) ChronoUnit.SECONDS.between(session.getStartTime(), now))
+                .set(ExamSession::getStatus, "SUBMITTED")
+                .set(ExamSession::getSubmitTime, now);
+        boolean updated = this.update(updateWrapper);
+        if (!updated) {
             throw new BusinessException("该试卷已提交或已结束，无法重复提交");
         }
 
-        // 保存最终答案
-        String answersJson = mapToJson(answers);
-        session.setAnswers(answersJson);
-
-        // 计算考试用时
-        LocalDateTime now = LocalDateTime.now();
-        long secondsSpent = ChronoUnit.SECONDS.between(session.getStartTime(), now);
-        session.setTimeSpent((int) secondsSpent);
-
-        // 更新状态
-        session.setStatus("SUBMITTED");
-        session.setSubmitTime(now);
-        this.updateById(session);
-
-        return session;
+        // 重新读取最新状态返回
+        return this.getById(sessionId);
     }
 
     /**
@@ -378,6 +377,7 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
      * 计算试卷总分
      */
     @Override
+    @Transactional(readOnly = true)
     public BigDecimal calculateTotalScore(Long sessionId) {
         ExamSession session = this.getById(sessionId);
         if (session == null) {
@@ -395,6 +395,7 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
      * 生成成绩报告
      */
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> generateScoreReport(Long sessionId) {
         ExamSession session = this.getById(sessionId);
         if (session == null) {
@@ -447,6 +448,7 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
      * 获取正在进行的考试列表
      */
     @Override
+    @Transactional(readOnly = true)
     public List<ExamSession> getActiveExams() {
         return this.list(new LambdaQueryWrapper<ExamSession>()
                 .eq(ExamSession::getStatus, "STARTED")
@@ -457,6 +459,7 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
      * 检测作弊嫌疑
      */
     @Override
+    @Transactional(readOnly = true)
     public List<String> detectCheating(Long sessionId) {
         ExamSession session = this.getById(sessionId);
         if (session == null) {
@@ -563,6 +566,7 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
      * 获取考试剩余时间(秒)
      */
     @Override
+    @Transactional(readOnly = true)
     public Long getRemainingTime(Long sessionId) {
         ExamSession session = this.getById(sessionId);
         if (session == null) {
@@ -604,6 +608,7 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
      * 获取学生某试卷的最新会话
      */
     @Override
+    @Transactional(readOnly = true)
     public ExamSession getLatestSession(Long examPaperId, Long studentId) {
         LambdaQueryWrapper<ExamSession> wrapper = new LambdaQueryWrapper<ExamSession>()
                 .eq(ExamSession::getExamPaperId, examPaperId)
@@ -788,6 +793,7 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Map<String, Object>> getSessionQuestions(Long sessionId) {
         ExamSession session = this.getById(sessionId);
         if (session == null) return Collections.emptyList();

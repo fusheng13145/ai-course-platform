@@ -6,6 +6,7 @@ import com.aicourse.service.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
@@ -82,6 +83,7 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
     // ===================== 1. 单课程教学驾驶舱 =====================
 
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> getCourseTeachingDashboard(Long courseId, Long operatorId) {
         Course course = courseService.getById(courseId);
         if (course == null) throw new BusinessException("课程不存在");
@@ -201,6 +203,7 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
     }
 
     @Override
+    @Transactional(readOnly = true)
     public List<Map<String, Object>> computeAtRisk(List<CourseEnrollment> enrollments) {
         return buildAtRisk(enrollments, null);
     }
@@ -294,6 +297,7 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
     // ===================== 2. AI 智能建课大纲 =====================
 
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> generateCourseOutlineByAI(String topic, String category, String level,
                                                          int chapterCount, Long operatorId) {
         Map<String, Object> result = new LinkedHashMap<>();
@@ -411,6 +415,7 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
     // ===================== 4. 我的课程聚合指标 =====================
 
     @Override
+    @Transactional(readOnly = true)
     public List<Map<String, Object>> getMyCourseSummaries(Long teacherId) {
         List<Course> courses = courseService.list(
                 new LambdaQueryWrapper<Course>().eq(Course::getTeacherId, teacherId)
@@ -454,6 +459,7 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
     // ===================== 5. 增强版教师仪表盘 =====================
 
     @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> getTeacherDashboardV2(Long teacherId) {
         Map<String, Object> dashboard = new LinkedHashMap<>();
         try {
@@ -612,6 +618,7 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
     // ===================== 6. 完整章节树 =====================
 
     @Override
+    @Transactional(readOnly = true)
     public List<Map<String, Object>> getFullChapterTree(Long courseId) {
         List<CourseChapter> all = chapterService.list(new LambdaQueryWrapper<CourseChapter>()
                 .eq(CourseChapter::getCourseId, courseId).orderByAsc(CourseChapter::getOrderIndex));

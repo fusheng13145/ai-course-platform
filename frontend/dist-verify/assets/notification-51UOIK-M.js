@@ -1,1 +1,0 @@
-import{o as e}from"./index-BLtK5JIz.js";var t={getNotificationList:t=>e.get(`/notifications`,{params:t}),markAsRead:t=>e.patch(`/notifications/${t}/read`),markAllAsRead:()=>e.patch(`/notifications/read-all`),deleteNotification:t=>e.delete(`/notifications/${t}`)};export{t};

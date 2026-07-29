@@ -13,6 +13,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -41,6 +42,8 @@ class CourseServiceTest {
 
     @BeforeEach
     void setUp() {
+        // 显式注入 baseMapper，使 MyBatis-Plus ServiceImpl 的内部方法可用
+        ReflectionTestUtils.setField(courseService, "baseMapper", courseMapper);
         sampleCourse = new Course();
         sampleCourse.setId(1L);
         sampleCourse.setName("Java高级编程");
@@ -123,7 +126,7 @@ class CourseServiceTest {
         inactiveCourse.setStatus("INACTIVE");
 
         List<Course> allCourses = Arrays.asList(activeCourse1, activeCourse2, inactiveCourse);
-        when(courseMapper.selectList(any(Wrapper.class))).thenReturn(allCourses);
+        lenient().when(courseMapper.selectList(any(Wrapper.class))).thenReturn(allCourses);
 
         // 调用 list() 返回所有课程，在应用层过滤活跃课程
         LambdaQueryWrapper<Course> queryWrapper = new LambdaQueryWrapper<>();

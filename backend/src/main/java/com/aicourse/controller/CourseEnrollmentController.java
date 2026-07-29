@@ -45,7 +45,7 @@ public class CourseEnrollmentController {
         Long studentId = (Long) auth.getPrincipal();
         Long courseId = body.get("courseId");
 
-        // 校验是否已报名
+        // 校验是否已有有效报名
         LambdaQueryWrapper<CourseEnrollment> existWrapper = new LambdaQueryWrapper<CourseEnrollment>()
                 .eq(CourseEnrollment::getStudentId, studentId)
                 .eq(CourseEnrollment::getCourseId, courseId)
@@ -53,6 +53,20 @@ public class CourseEnrollmentController {
         long existCount = enrollmentService.count(existWrapper);
         if (existCount > 0) {
             throw new BusinessException("您已报名该课程");
+        }
+
+        // 检查是否存在软退课记录（is_active=false），若存在则直接恢复
+        LambdaQueryWrapper<CourseEnrollment> inactiveWrapper = new LambdaQueryWrapper<CourseEnrollment>()
+                .eq(CourseEnrollment::getStudentId, studentId)
+                .eq(CourseEnrollment::getCourseId, courseId)
+                .eq(CourseEnrollment::getIsActive, false);
+        CourseEnrollment inactiveEnrollment = enrollmentService.getOne(inactiveWrapper);
+        if (inactiveEnrollment != null) {
+            inactiveEnrollment.setIsActive(true);
+            inactiveEnrollment.setApprovalStatus("APPROVED");
+            inactiveEnrollment.setProgress(BigDecimal.ZERO);
+            enrollmentService.updateById(inactiveEnrollment);
+            return ApiResponse.success("报名成功", inactiveEnrollment);
         }
 
         // 组装报名数据

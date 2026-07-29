@@ -4,18 +4,10 @@ spring:
   application:
     name: ai-course-platform
 
-  # ===================== 排除 springdoc UI 自动配置（修复启动失败） =====================
-  # springdoc-openapi 2.8.17 与 Spring Boot 3.4.4（spring-web 6.2）不兼容：其 UI 自动配置
-  # org.springdoc.webmvc.ui.SwaggerConfig（内含 @Bean SwaggerWebMvcConfigurer 及自身
-  # addResourceHandlers）在构建 swagger-initializer.js 的资源映射时，会在
-  # AbstractSwaggerConfigurer.combinePatterns 中把 "/swagger-ui/**" 与 "/*swagger-initializer.js"
-  # 两个 PathPattern 用 PathPattern.combine() 合并，而 6.2 的 combine 在 "**" 之后不允许再有
-  # 路径片段，直接抛 PatternParseException（Invalid mapping pattern detected），导致应用启动失败。
-  # 该解析发生在 springdoc 私有 PathPatternParser 中，spring.mvc.pathmatch.matching-strategy
-  # 与排除 SpringDocSecurityConfiguration 均无法规避。此处排除该 UI 自动配置后应用可正常启动；
-  # OpenAPI 描述 JSON（/v3/api-docs）由独立的 SpringDocConfiguration 提供，仍可用。
-  # 彻底恢复可视化 Swagger UI 需升级 springdoc 至 3.0.x（需 Spring Boot 3.5）或降级到 2.7.x
-  # （均依赖可访问的 Maven 仓库），届时可移除本排除项。
+  # ===================== springdoc-openapi 自动配置 =====================
+  # springdoc-openapi 2.8.17 与 Spring Web 6.2 的 PathPattern.combine() 不兼容，
+  # 需排除 Swagger UI 自动配置（不影响 /v3/api-docs JSON）。Swagger UI 可视化恢复
+  # 需待 springdoc 发布兼容新版本（或升级 Spring Boot 至 3.5+ 并使用 springdoc 3.x）。
   autoconfigure:
     exclude:
       - org.springdoc.webmvc.ui.SwaggerConfig
@@ -229,9 +221,11 @@ ratelimit:
     window-seconds: ${RATELIMIT_VERIFY_WINDOW:60}
 
 # ===================== Python 知识图谱服务配置 =====================
+# 注意：当前版本已使用 Java 自包含实现（MySQL 实体 + BM25 + GraphRAG）。
+# 以下配置仅为未来可能重启 Python 知识图谱微服务的预留占位，默认关闭。
 knowledge-graph:
-  # 是否启用知识图谱服务
-  enabled: ${KG_ENABLED:true}
+  # 是否启用 Python 知识图谱服务（当前版本由 Java 自包含实现，默认关闭）
+  enabled: ${KG_ENABLED:false}
   # Python知识图谱服务地址（独立端口，与RAG服务隔离）
   base-url: ${KG_BASE_URL:http://localhost:8001}
   # HTTP 连接超时（秒）
@@ -242,11 +236,17 @@ knowledge-graph:
   max-retries: ${KG_MAX_RETRIES:2}
   # 健康检查路径
   health-path: ${KG_HEALTH_PATH:/api/v1/graph/health}
+  # ---------- GraphRAG 参数 ----------
+  rag:
+    # 子图 BFS 最大跳数（1=直接邻居, 2=邻居的邻居）
+    max-hops: ${KG_RAG_MAX_HOPS:2}
 
 # ===================== Python RAG 服务配置 =====================
+# 注意：当前版本已使用 Java 自包含 RAG 实现（BM25 检索 + LLMProvider）。
+# 以下配置仅为未来可能重启 Python RAG 微服务的预留占位，默认关闭。
 rag:
-  # 是否启用RAG服务
-  enabled: ${RAG_ENABLED:true}
+  # 是否启用 Python RAG 服务（当前版本由 Java 自包含实现，默认关闭）
+  enabled: ${RAG_ENABLED:false}
   # Python RAG服务地址（独立端口，与知识图谱服务隔离）
   base-url: ${RAG_BASE_URL:http://localhost:8002}
   # HTTP 连接超时（秒）
@@ -259,6 +259,12 @@ rag:
   default-top-k: ${RAG_DEFAULT_TOP_K:5}
   # 健康检查路径
   health-path: ${RAG_HEALTH_PATH:/api/v1/rag/health}
+  # ---------- BM25 检索参数 ----------
+  bm25:
+    # k1：词频饱和度（1.2=经典值, 1.5=标准Okapi, 2.0=高频词更大权重）
+    k1: ${RAG_BM25_K1:1.5}
+    # b：文档长度归一化强度（0=无归一化, 0.75=标准Okapi, 1.0=完全归一化）
+    b: ${RAG_BM25_B:0.75}
 
 # ===================== Python LoRA/微调 服务配置 =====================
 fine-tune:
@@ -279,6 +285,17 @@ fine-tune:
 file:
   upload-dir: uploads/
   max-size: 52428800
+
+# ===================== MinIO 对象存储配置（默认禁用） =====================
+# 启用后将使用 MinIO 替代本地磁盘作为文件存储后端。
+# 设置 minio.enabled=true 并提供正确的 endpoint/access-key/secret-key 即可激活。
+# 注意：启用前请确保 MinIO 服务已启动且网络可达。
+minio:
+  enabled: false
+  endpoint: http://localhost:9000
+  access-key: minioadmin
+  secret-key: minioadmin
+  bucket: aicourse-uploads
 
 # ===================== 可观测性 / Actuator 配置 =====================
 # 暴露端点：health 默认公开（供 Docker/K8s 探针与负载均衡探活），

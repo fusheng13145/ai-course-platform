@@ -87,4 +87,23 @@ public interface LearningPathService extends IService<LearningPath> {
      * @return 新创建的学习路径
      */
     LearningPath generatePath(Long studentId, Long courseId, String pathName, String learningGoal);
+
+    /**
+     * 生成个性化学习路径（掌握度驱动版）。
+     * 在标准知识结构基础上，根据学生各知识点掌握度动态调整：
+     * <ul>
+     *   <li>薄弱知识点分配更多学习时间（掌握度越低 → estimatedTime 越高）；</li>
+     *   <li>难度梯度排序（简单→困难）确保渐进式学习；</li>
+     *   <li>前置依赖检查：若所在阶段的根知识点前置依赖未达标，降低阶段优先级。</li>
+     * </ul>
+     *
+     * @param studentId   学生 ID
+     * @param courseId    课程 ID
+     * @param pathName    路线名称
+     * @param learningGoal 学习目标
+     * @param masteryData 知识点掌握度数据（知识点名称 → 掌握度 0~100），可为空（退化到标准算法）
+     * @return 新创建的学习路径
+     */
+    LearningPath generatePathPersonalized(Long studentId, Long courseId, String pathName,
+                                          String learningGoal, Map<String, Double> masteryData);
 }

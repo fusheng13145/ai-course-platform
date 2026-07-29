@@ -1,9 +1,14 @@
 <!doctype html>
-<html lang="en">
+<html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Content Security Policy（前端兜底层）：与后端 SecurityConfig 策略一致。
+         当应用不经过 Spring 后端直接由 Nginx/CDN 分发时，后端 CSP 头不可用，
+         此 meta 标签作为第二道防线。后端 CSP 响应头优先级高于 meta 标签。 -->
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'" />
     <title>AI智能课程平台</title>
   </head>
   <body>

@@ -20,7 +20,7 @@ module.exports = {
   rules: {
     // 与 Prettier 协作：关闭会与其冲突或过度侵入的规则
     'vue/multi-word-component-names': 'off',
-    'vue/no-v-html': 'off',
+    'vue/no-v-html': 'warn', // ⚠ 安全关键规则：v-html 绕过 XSS 防护，仅在有 DOMPurify 清洗的必要时使用
     'vue/no-unused-vars': 'off',
     // 关键质量规则：重新启用（批判性评估报告要求）
     'no-console': 'warn', // 生产错误不再静默 console，改用用户可见反馈/日志服务；开发调试处保留并加 eslint-disable

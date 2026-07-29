@@ -6,12 +6,10 @@ import com.aicourse.entity.Course;
 import com.aicourse.entity.AiChatMessage;
 import com.aicourse.entity.AiChatSession;
 import com.aicourse.entity.CourseEnrollment;
-import com.aicourse.entity.LearningRecord;
 import com.aicourse.dto.EssayRequest;
 import com.aicourse.dto.LearningPathRequest;
 import com.aicourse.dto.QaAskRequest;
 import com.aicourse.dto.QaContinueRequest;
-import com.aicourse.dto.QuestionGenerateDTO;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.AIService;
 import com.aicourse.service.AiChatSessionService;
@@ -20,7 +18,6 @@ import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.LearningPathService;
-import com.aicourse.service.LearningRecordService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -35,7 +32,6 @@ import org.springframework.http.MediaType;
 import reactor.core.publisher.Flux;
 import lombok.extern.slf4j.Slf4j;
 import com.aicourse.common.ApiCode;
-import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.util.HtmlUtils;
 
@@ -43,11 +39,13 @@ import org.springframework.web.util.HtmlUtils;
  * AI 功能接口控制器（需求文档对齐版）
  * 基础路径: /api/ai
  * <p>
- * 优化点：
- * 1) AI 接口统一返回 Callable，由 MVC 异步线程池执行，释放 Tomcat 请求线程（避免长耗时 LLM 调用阻塞 Web 容器）。
+ * 设计要点：
+ * 1) AI 接口统一返回 Callable，由 MVC 异步线程池执行，释放 Tomcat 请求线程。
  * 2) 请求参数采用 DTO + jakarta.validation 校验，取代裸 Map。
- * 3) 薄弱点分析 / 题目推荐改用结构化 JSON 输出 + 健壮解析，避免按换行脆弱切分。
- * 4) 旧版兼容接口已标记 @Deprecated，请勿在新前端中使用。
+ * 3) 薄弱点分析 / 题目推荐改用结构化 JSON 输出 + 健壮解析。
+ * 4) 历史遗留的 /chat /generate-question /generate-summary /check-plagiarism /rag/ask
+ *    五个端点已于 2026.07 彻底删除，请使用 /qa/ask /recommendations/questions /essay/correct
+ *    等新端点。
  */
 @RestController
 @RequestMapping("/ai")
@@ -60,7 +58,6 @@ public class AIController {
     private final AnalyticsService analyticsService;
     private final LearningPathService learningPathService;
     private final CourseEnrollmentService courseEnrollmentService;
-    private final LearningRecordService learningRecordService;
     private final CourseService courseService;
     private final KnowledgePointService knowledgePointService;
     private final AiChatSessionService aiChatSessionService;
@@ -69,7 +66,6 @@ public class AIController {
                         AnalyticsService analyticsService,
                         LearningPathService learningPathService,
                         CourseEnrollmentService courseEnrollmentService,
-                        LearningRecordService learningRecordService,
                         CourseService courseService,
                         KnowledgePointService knowledgePointService,
                         AiChatSessionService aiChatSessionService) {
@@ -77,7 +73,6 @@ public class AIController {
         this.analyticsService = analyticsService;
         this.learningPathService = learningPathService;
         this.courseEnrollmentService = courseEnrollmentService;
-        this.learningRecordService = learningRecordService;
         this.courseService = courseService;
         this.knowledgePointService = knowledgePointService;
         this.aiChatSessionService = aiChatSessionService;
@@ -295,7 +290,9 @@ public class AIController {
                     if (stats != null && stats.containsKey("avgScore")) {
                         context.put("recentScores", "平均成绩：" + stats.get("avgScore"));
                     }
-                } catch (Exception ignore) {}
+                } catch (Exception e) {
+                    log.warn("获取用户成绩统计失败，推荐降级为纯LLM模式: userId={}", userId, e);
+                }
 
                 String recommendation = aiService.recommendLearningWithContext(context);
                 result.put("recommendation", recommendation);
@@ -478,88 +475,49 @@ public class AIController {
         };
     }
 
-    // ==================== 已废弃的兼容旧接口（请勿在新前端中使用） ====================
-    // 计划于 2026.09 大版本移除。前端已实现 v2 替代接口（qaAsk/continue, essayCorrect/polish, 
-    // recommendations/questions 等），旧前端应尽快迁移。
-
     /**
-     * @deprecated 请使用 {@link #qaAsk(QaAskRequest, Authentication)}。将在 2026.09 移除。
+     * 个性化学习路径规划 - 掌握度驱动版
+     * POST /api/ai/learning-path/generate-personalized
+     * 接收学生的知识点掌握度数据，生成薄弱优先 + 难度梯度排序的个性化路径。
      */
-    @Deprecated(since = "2026.07", forRemoval = true)
-    @PostMapping("/chat")
-    @Operation(summary = "AI 对话（已废弃）", description = "旧版 AI 聊天接口，已废弃，请使用 /ai/qa/ask 替代")
-    public Callable<ApiResponse<Map<String, String>>> chat(@RequestBody Map<String, String> body,
-                                                          Authentication auth) {
-        final String message = body.get("message");
-        final String context = body.get("context");
-        final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
+    @PostMapping("/learning-path/generate-personalized")
+    public Callable<ApiResponse<Map<String, Object>>> generatePersonalizedLearningPath(
+            @Valid @RequestBody LearningPathRequest body,
+            Authentication auth) {
+        final Long userId = (Long) auth.getPrincipal();
+        final String courseId = body.getCourseId();
+        final String goal = body.getGoal() != null ? body.getGoal() : "针对性补强薄弱点";
+        final Long cid = courseId != null ? Long.valueOf(courseId) : null;
+        // 掌握度数据：{知识点名称: 掌握度(0-100)}
+        final Map<String, Double> mastery;
+        if (body.getMasteryData() != null && !body.getMasteryData().isEmpty()) {
+            mastery = new HashMap<>();
+            for (Map.Entry<String, Object> e : body.getMasteryData().entrySet()) {
+                if (e.getValue() instanceof Number) {
+                    mastery.put(e.getKey(), ((Number) e.getValue()).doubleValue());
+                }
+            }
+        } else {
+            mastery = null;
+        }
         return () -> {
-            String response = aiService.chat(message, context, userId);
-            return ApiResponse.success(Map.of("response", HtmlUtils.htmlEscape(response != null ? response : "")));
+            Map<String, Object> result = new HashMap<>();
+            if (cid != null && userId != null) {
+                try {
+                    String pathName = mastery != null && !mastery.isEmpty()
+                            ? "个性化学习路径（掌握度驱动）" : "AI学习路径";
+                    learningPathService.generatePathPersonalized(userId, cid, pathName, goal, mastery);
+                    result.put("status", "created");
+                    result.put("message", "个性化学习路径已生成");
+                    result.put("personalized", mastery != null && !mastery.isEmpty());
+                } catch (Exception e) {
+                    throw new BusinessException("学习路径生成失败: " + e.getMessage());
+                }
+            } else {
+                throw new BusinessException("缺少必要参数：userId或courseId");
+            }
+            return ApiResponse.success(result);
         };
     }
 
-    /**
-     * @deprecated 请使用 {@link #questionRecommendations(Long, String)}。将在 2026.09 移除。
-     */
-    @Deprecated(since = "2026.07", forRemoval = true)
-    @PostMapping("/generate-question")
-    @Operation(summary = "AI 智能出题（已废弃）", description = "旧版 AI 出题接口，已废弃，请使用 /ai/recommendations/questions 替代")
-    public Callable<ApiResponse<Map<String, String>>> generateQuestion(
-            @Valid @RequestBody QuestionGenerateDTO body) {
-        final Long courseId = body.getCourseId();
-        final String type = body.getType();
-        final String difficulty = body.getDifficulty();
-        final Integer count = body.getCount() != null ? body.getCount() : 5;
-        return () -> {
-            String response = aiService.generateQuestion(courseId, type, difficulty, count);
-            return ApiResponse.success(Map.of("questions", response));
-        };
-    }
-
-    /**
-     * @deprecated 请使用 {@link #essayCorrect(EssayRequest)}。将在 2026.09 移除。
-     */
-    @Deprecated(since = "2026.07", forRemoval = true)
-    @PostMapping("/generate-summary")
-    @Operation(summary = "AI 摘要（已废弃）", description = "旧版 AI 摘要接口，已废弃，请使用 /ai/essay/correct 替代")
-    public Callable<ApiResponse<Map<String, String>>> generateSummary(@RequestBody Map<String, String> body) {
-        final String content = body.get("content");
-        return () -> {
-            String summary = aiService.generateSummary(content);
-            return ApiResponse.success(Map.of("summary", summary));
-        };
-    }
-
-    /**
-     * @deprecated 请使用独立的查重接口 POST /submissions/{id}/check-plagiarism。将在 2026.09 移除。
-     */
-    @Deprecated(since = "2026.07", forRemoval = true)
-    @PostMapping("/check-plagiarism")
-    @Operation(summary = "AI 查重（已废弃）", description = "旧版查重接口，已废弃，请使用 /submissions/{id}/check-plagiarism 替代")
-    public Callable<ApiResponse<Map<String, String>>> checkPlagiarism(@RequestBody Map<String, String> body) {
-        final String text1 = body.get("text1");
-        final String text2 = body.get("text2");
-        return () -> {
-            String result = aiService.checkPlagiarism(text1, text2);
-            return ApiResponse.success(Map.of("result", result));
-        };
-    }
-
-    /**
-     * @deprecated 请使用 {@link #qaAsk(QaAskRequest, Authentication)}。将在 2026.09 移除。
-     */
-    @Deprecated(since = "2026.07", forRemoval = true)
-    @GetMapping("/rag/ask")
-    @Operation(summary = "RAG 问答（已废弃）", description = "旧版 RAG 问答接口，已废弃，请使用 /ai/qa/ask 替代")
-    public Callable<ApiResponse<Map<String, String>>> ragAsk(
-            @RequestParam @NotBlank(message = "提问内容不能为空") String question,
-            @RequestParam(required = false) Long courseId) {
-        final String q = question;
-        final Long cid = courseId;
-        return () -> {
-            String answer = aiService.ragAsk(q, cid);
-            return ApiResponse.success(Map.of("answer", answer));
-        };
-    }
 }
