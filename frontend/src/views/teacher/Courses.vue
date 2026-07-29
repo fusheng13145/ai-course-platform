@@ -1,4 +1,4 @@
-﻿﻿<template>
+﻿﻿﻿﻿<template>
   <div>
     <div class="table-toolbar">
       <div class="toolbar-left">
