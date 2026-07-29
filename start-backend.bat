@@ -13,13 +13,8 @@ echo ============================================================
 echo.
 
 :step1_load_env
-echo [1/5] Loading environment variables...
-if not exist "%ENV_FILE%" (
-    echo [ERROR] .env file not found: %ENV_FILE%
-    echo Please copy .env.example to .env and configure it.
-    pause
-    exit /b 1
-)
+echo [1/4] Loading environment variables...
+if not exist "%ENV_FILE%" goto err_no_env
 for /f "usebackq delims=" %%a in (`type "%ENV_FILE%" ^| findstr /v "^#" ^| findstr /v "^$"`) do (
     set "%%a" 2>nul
 )
@@ -37,92 +32,45 @@ set "CSRF_ENABLED=false"
 echo [OK] Environment variables loaded
 
 :step2_check_jdk
-echo [2/5] Checking JDK 21...
+echo [2/4] Checking JDK 21...
 set JAVA_HOME_21=C:\Program Files\Java\jdk-21
-if not exist "%JAVA_HOME_21%" (
-    echo [ERROR] JDK 21 not found at %JAVA_HOME_21%
-    echo Please install JDK 21.
-    pause
-    exit /b 1
-)
+if not exist "%JAVA_HOME_21%\bin\java.exe" goto err_no_jdk
 set "JAVA_HOME=%JAVA_HOME_21%"
 set "Path=%JAVA_HOME%\bin;%Path%"
 "%JAVA_HOME%\bin\java" -version >%TEMP%\java_ver.txt 2>&1
 findstr "21" %TEMP%\java_ver.txt >nul
-if errorlevel 1 (
-    type %TEMP%\java_ver.txt
-    echo [WARN] JDK version check failed, expected 21. Continuing...
-) else (
-    echo [OK] JDK 21 ready
-)
+if errorlevel 1 goto warn_jdk_ver
+echo [OK] JDK 21 ready
+del %TEMP%\java_ver.txt 2>nul
+goto step3_check_services
+
+:warn_jdk_ver
+type %TEMP%\java_ver.txt
+echo [WARN] JDK version check failed, expected 21. Continuing...
 del %TEMP%\java_ver.txt 2>nul
 
-:step3_start_docker
-echo [3/5] Starting Docker containers...
-docker info >nul 2>&1
-if errorlevel 1 (
-    echo [INFO] Docker Desktop not running, attempting to start...
-    start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe"
-    timeout /t 30 /nobreak >nul
-)
-docker info >nul 2>&1
-if errorlevel 1 (
-    echo [ERROR] Failed to start Docker Desktop. Please start it manually.
-    pause
-    exit /b 1
-)
-echo [OK] Docker Desktop is running
+:step3_check_services
+echo [3/4] Checking local MySQL and Redis services...
 
-cd /d "%PROJECT_ROOT%"
-docker compose down --remove-orphans >nul 2>&1
+:: MySQL on port 3306 is REQUIRED
+netstat -ano | findstr ":3306 " | findstr "LISTENING" >nul 2>&1
+if errorlevel 1 goto err_no_mysql
+echo [OK] MySQL is listening on port 3306
 
-:: Check if port 3306 is already in use and try to free it
-netstat -ano | findstr ":3306 " >%TEMP%\port_check.txt 2>nul
-set PORT_BUSY=0
-findstr "LISTENING" %TEMP%\port_check.txt >nul && set PORT_BUSY=1
-del %TEMP%\port_check.txt 2>nul
-if !PORT_BUSY! EQU 1 (
-    echo [WARN] Port 3306 is already in use. Attempting to stop conflicting processes...
-    for /f "tokens=5" %%p in ('netstat -ano ^| findstr ":3306 " ^| findstr "LISTENING"') do (
-        echo Stopping PID: %%p
-        taskkill /f /pid %%p >nul 2>&1
-    )
-    timeout /t 3 /nobreak >nul
-)
+:: Redis on port 6379 is OPTIONAL (backend degrades gracefully without it)
+netstat -ano | findstr ":6379 " | findstr "LISTENING" >nul 2>&1
+if errorlevel 1 goto warn_no_redis
+echo [OK] Redis is listening on port 6379
+goto step4_start_backend
 
-docker compose up -d mysql redis
-if errorlevel 1 (
-    echo [ERROR] Failed to start Docker containers.
-    echo Possible causes:
-    echo   1. Port 3306 is still in use - run: netstat -ano ^| findstr :3306
-    echo   2. Docker Desktop engine not fully started - restart Docker Desktop
-    pause
-    exit /b 1
-)
-echo [OK] MySQL and Redis containers started
+:warn_no_redis
+echo [WARN] Redis is not listening on port 6379. Backend can still run,
+echo        but caching will be disabled. To start Redis run:
+echo          net start redis
+echo        or: docker run -d -p 6379:6379 redis:7
 
-:step4_wait_mysql
-echo [4/5] Waiting for MySQL to be ready (up to 90s)...
-set max_attempts=30
-set attempt=0
-:wait_mysql_loop
-set /a attempt+=1
-if !attempt! gtr !max_attempts! (
-    echo [ERROR] MySQL startup timeout. Check docker logs:
-    docker compose logs mysql --tail 20
-    pause
-    exit /b 1
-)
-docker compose exec -T mysql mysqladmin ping --silent >nul 2>&1
-if errorlevel 1 (
-    echo Waiting for MySQL... (attempt !attempt!/!max_attempts!)
-    timeout /t 3 /nobreak >nul
-    goto wait_mysql_loop
-)
-echo [OK] MySQL is ready
-
-:step5_start_backend
-echo [5/5] Starting Spring Boot backend...
+:step4_start_backend
+echo [4/4] Starting Spring Boot backend...
 cd /d "%BACKEND_DIR%"
 echo.
 echo Backend URL: http://localhost:8080/api/actuator/health
@@ -134,3 +82,25 @@ echo.
 echo [INFO] Backend service stopped.
 pause
 exit /b 0
+
+:err_no_env
+echo [ERROR] .env file not found: %ENV_FILE%
+echo Please copy .env.example to .env and configure it.
+pause
+exit /b 1
+
+:err_no_jdk
+echo [ERROR] JDK 21 not found at %JAVA_HOME_21%
+echo Please install JDK 21. NOTE: JDK 25+ is incompatible with the current Lombok version.
+pause
+exit /b 1
+
+:err_no_mysql
+echo [ERROR] MySQL is not listening on port 3306.
+echo        This project uses a LOCAL MySQL instance, not Docker.
+echo        Please start the MySQL Windows service:
+echo          net start MySQL84
+echo        Or install MySQL 8.0+ and import the schema:
+echo          mysql -u root -p ai_course_platform ^< backend\src\main\resources\index.sql
+pause
+exit /b 1
