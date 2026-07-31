@@ -1,32 +1,39 @@
 <template>
   <div class="course-analytics fade-in">
+    <PageHeader compact title="课程分析" subtitle="成绩分布、及格率与优秀率一览" icon="chart" />
     <div v-loading="loading">
       <!-- 指标卡片 -->
-      <div class="stat-grid">
-        <div v-for="m in metrics" :key="m.key" class="stat-card">
-          <div class="stat-icon" :style="{ background: m.bg, color: m.color }">
-            <el-icon :size="22"><component :is="m.icon" /></el-icon>
-          </div>
-          <div class="stat-info">
-            <h3>{{ m.value }}</h3>
-            <p>{{ m.label }}</p>
-          </div>
-        </div>
+      <div class="stat-grid animate-in">
+        <StatCard
+          v-for="m in metrics"
+          :key="m.key"
+          :label="m.label"
+          :value="m.value"
+          :icon="m.icon"
+          :tone="m.tone"
+          :tone-color="m.toneColor"
+        />
       </div>
 
       <!-- 成绩分布直方图 + 比率 -->
       <div class="grid-2">
-        <div class="chart-card">
-          <div class="chart-title">
-            <el-icon><Histogram /></el-icon> 成绩分布直方图
+        <div class="l1-card">
+          <div class="l1-head">
+            <span class="l1-ico"><el-icon><Histogram /></el-icon></span>
+            <div><div class="l1-title">成绩分布直方图</div></div>
           </div>
-          <v-chart :option="histogramOption" style="height: 320px" autoresize />
+          <div class="l1-body">
+            <v-chart v-if="buckets.length" :option="histogramOption" class="dist-chart" autoresize />
+            <el-empty v-else-if="!loading" description="暂无成绩分布数据" :image-size="72" />
+          </div>
         </div>
-        <div class="chart-card">
-          <div class="chart-title">
-            <el-icon><TrendCharts /></el-icon> 及格率 / 优秀率
+        <div class="l1-card">
+          <div class="l1-head">
+            <span class="l1-ico"><el-icon><TrendCharts /></el-icon></span>
+            <div><div class="l1-title">及格率 / 优秀率</div></div>
           </div>
-          <div class="rate-wrap">
+          <div class="l1-body">
+            <div class="rate-wrap">
             <div class="rate-item">
               <div class="rate-head">
                 <span>及格率</span><b>{{ pctData(passRate) }}</b>
@@ -67,6 +74,7 @@
                 ><span>最低分</span>
               </div>
             </div>
+            </div>
           </div>
         </div>
       </div>
@@ -80,7 +88,9 @@ import { ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import analyticsApi from '@/api/analytics'
 import { getChartTheme, getMonoSeries } from '@/utils/chartTheme'
-import { User, Histogram, TrendCharts, DataLine, Medal, CircleCheck } from '@element-plus/icons-vue'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
+import { Histogram, TrendCharts } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const courseId = route.params.id
@@ -155,33 +165,33 @@ async function load() {
         key: 'totalStudents',
         label: '选课学生',
         value: a.totalStudents ?? a.studentCount ?? 0,
-        icon: User,
-        color: 'var(--ac-primary)',
-        bg: 'var(--ac-primary-bg)',
+        icon: 'users',
+        tone: 'var(--accent-soft)',
+        toneColor: 'var(--accent)',
       },
       {
         key: 'activeStudents',
         label: '活跃学生',
         value: a.activeStudents ?? 0,
-        icon: DataLine,
-        color: 'var(--ac-info)',
-        bg: 'var(--ac-info-bg)',
+        icon: 'chart',
+        tone: 'var(--info-soft)',
+        toneColor: 'var(--info)',
       },
       {
         key: 'avgScore',
         label: '平均分',
         value: a.avgScore ?? '--',
-        icon: Medal,
-        color: 'var(--ac-warning)',
-        bg: 'var(--ac-warning-bg)',
+        icon: 'award',
+        tone: 'var(--warn-soft)',
+        toneColor: 'var(--warn)',
       },
       {
         key: 'completionRate',
         label: '完成率',
         value: pctData(a.completionRate),
-        icon: CircleCheck,
-        color: 'var(--ac-success)',
-        bg: 'var(--ac-success-bg)',
+        icon: 'check',
+        tone: 'var(--ok-soft)',
+        toneColor: 'var(--ok)',
       },
     ]
 
@@ -215,64 +225,14 @@ watch(() => route.params.id, load)
 </script>
 
 <style scoped>
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--ac-spacing-md);
-  margin-bottom: var(--ac-spacing-md);
-}
-.stat-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 18px 20px;
-  background: var(--ac-bg-elevated);
-  border: 1px solid var(--ac-border);
-  border-radius: var(--ac-radius-lg);
-  box-shadow: var(--ac-shadow-sm);
-}
-.stat-icon {
-  width: 46px;
-  height: 46px;
-  border-radius: 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.stat-info h3 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 680;
-  color: var(--ac-text-primary);
-}
-.stat-info p {
-  margin: 2px 0 0;
-  font-size: 12.5px;
-  color: var(--ac-text-secondary);
-}
-
 .grid-2 {
   display: grid;
   grid-template-columns: 1.4fr 1fr;
   gap: var(--ac-spacing-md);
   margin-bottom: var(--ac-spacing-md);
 }
-.chart-card {
-  padding: var(--ac-spacing-lg);
-  background: var(--ac-bg-elevated);
-  border: 1px solid var(--ac-border);
-  border-radius: var(--ac-radius-lg);
-  box-shadow: var(--ac-shadow-sm);
-}
-.chart-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ac-text-primary);
-  margin-bottom: var(--ac-spacing-md);
+.dist-chart {
+  height: 320px;
 }
 
 .rate-wrap {
@@ -317,7 +277,6 @@ watch(() => route.params.id, load)
 }
 
 @media (max-width: 1100px) {
-  .stat-grid,
   .grid-2 {
     grid-template-columns: 1fr;
   }

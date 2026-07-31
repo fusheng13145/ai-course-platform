@@ -171,6 +171,11 @@ public class AuthServiceImpl implements AuthService {
     public ApiResponse<Map<String, Object>> register(String email, String username, String password,
                                                     String fullName, String role, String phone,
                                                     String code, HttpServletRequest request) {
+        // 用户名空值兜底校验（Controller 层 @Valid 已拦截，此处为服务层双保险；
+        // 纯空格用户名按既定契约放行，由 DTO 层 @NotBlank 拦截）
+        if (username == null || username.isEmpty()) {
+            throw new BusinessException("用户名不能为空");
+        }
         // 重复性校验
         if (userService.count(new LambdaQueryWrapper<User>().eq(User::getUsername, username)) > 0) {
             throw new BusinessException("用户名已存在");

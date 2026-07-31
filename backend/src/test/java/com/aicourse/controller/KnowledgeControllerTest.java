@@ -92,7 +92,7 @@ class KnowledgeControllerTest extends ControllerTestBase {
     @DisplayName("POST /knowledge/points - TEACHER角色返回200且data透传创建对象")
     void createPoint_authorized_returns_success() throws Exception {
         when(knowledgePointService.save(any())).thenReturn(true);
-        mockMvc.perform(post("/knowledge/points").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(1L, "TEACHER")))
+        mockMvc.perform(post("/knowledge/points").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"知识点\"}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists());
@@ -118,7 +118,7 @@ class KnowledgeControllerTest extends ControllerTestBase {
     void updatePoint_authorized_returns_success() throws Exception {
         when(knowledgePointService.updateById(any())).thenReturn(true);
         when(knowledgePointService.getById(any())).thenReturn(samplePoint());
-        mockMvc.perform(put("/knowledge/points/1").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(1L, "TEACHER")))
+        mockMvc.perform(put("/knowledge/points/1").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"知识点\"}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
@@ -496,14 +496,15 @@ class KnowledgeControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /knowledge/path/plan - 返回200且data为规划路径列表")
     void planPath_authorized_returns_success() throws Exception {
-        when(relationService.list()).thenReturn(List.of());
-        when(knowledgePointService.listByIds(any())).thenReturn(List.of(samplePoint()));
+        // 路径规划（BFS）已下沉至 KnowledgeGraphService，Controller 仅做委托
+        when(knowledgeGraphService.planLearningPath(anyLong(), anyLong()))
+                .thenReturn(List.of(samplePoint(), samplePoint()));
         mockMvc.perform(post("/knowledge/path/plan").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"startPointId\":1,\"targetPointId\":2}").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").isArray());
-        verify(relationService).list();
+        verify(knowledgeGraphService).planLearningPath(1L, 2L);
     }
 
     @Test

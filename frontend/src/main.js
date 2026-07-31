@@ -23,12 +23,13 @@ use([
 import App from './App.vue'
 import router from './router'
 import './styles/index.scss'
+import './styles/design-system.css'
 
 const app = createApp(App)
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
   app.component(key, component)
 }
-app.component('v-chart', ECharts)
+app.component('VChart', ECharts)
 app.use(createPinia())
 app.use(router)
 // Element Plus 组件已通过 unplugin-vue-components 自动按需注册，无需手动 app.use()

@@ -1,12 +1,22 @@
-﻿﻿﻿﻿<template>
+<template>
   <div class="fade-in">
+    <PageHeader title="试卷管理" subtitle="创建、发布与管理考试试卷" icon="doc" icon-bg="warn">
+      <el-button type="primary" @click="openCreateDialog">
+        <el-icon><Plus /></el-icon>创建试卷
+      </el-button>
+    </PageHeader>
+
+    <div class="stat-grid">
+      <StatCard label="试卷总数" :value="total" icon="layers" tone="var(--accent-soft)" tone-color="var(--accent)" />
+      <StatCard label="本页条数" :value="examList.length" icon="list" tone="var(--info-soft)" tone-color="var(--info)" />
+      <StatCard label="本页草稿" :value="draftCount" icon="edit" tone="var(--warn-soft)" tone-color="var(--warn)" />
+      <StatCard label="本页已发布" :value="publishedCount" icon="checks" tone="var(--ok-soft)" tone-color="var(--ok)" />
+    </div>
+
     <!-- 工具栏 -->
     <div class="table-toolbar">
       <div class="toolbar-left">
-        <el-button type="primary" @click="openCreateDialog">
-          <el-icon><Plus /></el-icon>创建试卷
-        </el-button>
-        <el-select v-model="statusFilter" placeholder="状态筛选" clearable style="width:130px;margin-left:8px" @change="loadExamList">
+        <el-select v-model="statusFilter" placeholder="状态筛选" clearable class="filter-select" @change="loadExamList">
           <el-option label="全部" value="" />
           <el-option label="草稿" value="DRAFT" />
           <el-option label="已发布" value="PUBLISHED" />
@@ -14,18 +24,25 @@
         </el-select>
       </div>
       <div class="toolbar-right">
-        <el-input v-model="searchText" placeholder="搜索试卷标题..." clearable style="width:240px" :prefix-icon="Search" @clear="loadExamList" @keyup.enter="loadExamList" />
+        <el-input v-model="searchText" placeholder="搜索试卷标题..." clearable class="search-input" :prefix-icon="Search" @clear="loadExamList" @keyup.enter="loadExamList" />
         <el-button :icon="Search" @click="loadExamList">搜索</el-button>
       </div>
     </div>
 
     <!-- 试卷列表 -->
-    <div class="content-card">
-      <el-table :data="examList" style="width:100%" v-loading="loading"
-        :header-cell-style="{ background:'var(--ac-bg)', color:'var(--ac-text-secondary)', fontWeight:600 }">
+    <section class="l1-card">
+      <div class="l1-head">
+        <span class="l1-ico l1-ico--warn">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2zM14 2v6h6"/></svg>
+        </span>
+        <div><div class="l1-title">试卷列表</div><div class="l1-sub">支持按状态筛选、搜索与发布管理</div></div>
+      </div>
+      <div class="l1-body">
+        <div class="content-card">
+          <el-table v-loading="loading" :data="examList">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="title" label="试卷标题" min-width="180" show-overflow-tooltip>
-          <template #default="{ row }"><span style="font-weight:500;color:var(--ac-text-primary)">{{ row.title }}</span></template>
+          <template #default="{ row }"><span class="exam-title">{{ row.title }}</span></template>
         </el-table-column>
         <el-table-column prop="courseName" label="所属课程" min-width="120" show-overflow-tooltip />
         <el-table-column prop="status" label="状态" width="90" align="center">
@@ -41,18 +58,22 @@
         <el-table-column label="操作" width="260" fixed="right">
           <template #default="{ row }">
             <el-button text type="primary" size="small" @click="viewDetail(row)">详情</el-button>
-            <el-button text type="primary" size="small" @click="openEditDialog(row)" v-if="row.status === 'DRAFT'">编辑</el-button>
-            <el-button text type="success" size="small" @click="handlePublish(row)" v-if="row.status === 'DRAFT'">发布</el-button>
+            <el-button v-if="row.status === 'DRAFT'" text type="primary" size="small" @click="openEditDialog(row)">编辑</el-button>
+            <el-button v-if="row.status === 'DRAFT'" text type="success" size="small" @click="handlePublish(row)">发布</el-button>
             <el-button text type="warning" size="small" @click="handleCopy(row)">复制</el-button>
-            <el-button text type="danger" size="small" @click="handleDelete(row)" v-if="row.status === 'DRAFT'">删除</el-button>
+            <el-button v-if="row.status === 'DRAFT'" text type="danger" size="small" @click="handleDelete(row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="!loading && examList.length === 0" description="暂无试卷数据" />
-      <div class="pagination-wrap" v-if="total > pageSize">
+      <el-empty v-if="!loading && examList.length === 0" description="暂无试卷数据">
+        <template #image><div class="empty-deco">📝</div></template>
+      </el-empty>
+      <div v-if="total > pageSize" class="pagination-wrap">
         <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :total="total" layout="total, prev, pager, next" @current-change="loadExamList" />
       </div>
-    </div>
+        </div>
+      </div>
+    </section>
 
     <!-- 创建/编辑试卷对话框 -->
     <el-dialog v-model="formDialogVisible" :title="isEdit ? '编辑试卷' : '创建试卷'" width="720px" destroy-on-close>
@@ -65,7 +86,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="所属课程" prop="courseId">
-              <el-select v-model="examForm.courseId" placeholder="选择课程" style="width:100%" filterable>
+              <el-select v-model="examForm.courseId" placeholder="选择课程" class="w-100" filterable>
                 <el-option v-for="c in courseOptions" :key="c.id" :label="c.name" :value="c.id" />
               </el-select>
             </el-form-item>
@@ -89,20 +110,20 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="开始时间">
-              <el-date-picker v-model="examForm.startTime" type="datetime" placeholder="选择开始时间" style="width:100%" value-format="YYYY-MM-DD HH:mm:ss" />
+              <el-date-picker v-model="examForm.startTime" type="datetime" placeholder="选择开始时间" class="w-100" value-format="YYYY-MM-DD HH:mm:ss" />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="截止时间">
-              <el-date-picker v-model="examForm.endTime" type="datetime" placeholder="选择截止时间" style="width:100%" value-format="YYYY-MM-DD HH:mm:ss" />
+              <el-date-picker v-model="examForm.endTime" type="datetime" placeholder="选择截止时间" class="w-100" value-format="YYYY-MM-DD HH:mm:ss" />
             </el-form-item>
           </el-col>
         </el-row>
 
         <!-- 题目管理 -->
         <el-divider content-position="left">题目管理</el-divider>
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px">
-          <span style="font-size:13px;color:var(--ac-text-muted)">已选 {{ selectedQuestions.length }} 道题，共 {{ totalSelectedScore }} 分</span>
+        <div class="question-bar">
+          <span class="q-bar-info">已选 {{ selectedQuestions.length }} 道题，共 {{ totalSelectedScore }} 分</span>
           <el-button size="small" type="primary" plain @click="questionPickerVisible = true">从题库选题</el-button>
         </div>
         <div v-if="selectedQuestions.length > 0" class="selected-questions">
@@ -112,7 +133,7 @@
               <span class="q-type-tag" :class="'type-' + (q.type || 'choice')">{{ getQuestionTypeName(q.type) }}</span>
               <span class="q-text">{{ q.content || q.stem || q.title || '未命名题目' }}</span>
             </div>
-            <el-input-number v-model="q.score" :min="1" :max="50" size="small" style="width:90px" />
+            <el-input-number v-model="q.score" :min="1" :max="50" size="small" class="q-score-input" />
             <el-button text type="danger" size="small" @click="removeQuestion(idx)">
               <el-icon><Delete /></el-icon>
             </el-button>
@@ -146,15 +167,15 @@
 
       <template #footer>
         <el-button @click="formDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitForm" :loading="submitting">{{ isEdit ? '保存修改' : '创建试卷' }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitForm">{{ isEdit ? '保存修改' : '创建试卷' }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 题库选题弹窗 -->
     <el-dialog v-model="questionPickerVisible" title="从题库选择题目" width="760px" append-to-body>
       <div class="search-form">
-        <el-input v-model="questionSearch" placeholder="搜索题目内容..." clearable style="width:260px" :prefix-icon="Search" />
-        <el-select v-model="questionTypeFilter" placeholder="题型筛选" clearable style="width:140px">
+        <el-input v-model="questionSearch" placeholder="搜索题目内容..." clearable class="qk-search" :prefix-icon="Search" />
+        <el-select v-model="questionTypeFilter" placeholder="题型筛选" clearable class="qk-type">
           <el-option label="单选题" value="SINGLE_CHOICE" />
           <el-option label="多选题" value="MULTIPLE_CHOICE" />
           <el-option label="判断题" value="TRUE_FALSE" />
@@ -163,8 +184,7 @@
         </el-select>
         <el-button type="primary" @click="loadQuestionBank">搜索</el-button>
       </div>
-      <el-table :data="filteredQuestionBank" style="width:100%" max-height="360" v-loading="questionLoading"
-        @selection-change="handleQuestionSelectionChange" :header-cell-style="{ background:'var(--ac-bg)', color:'var(--ac-text-secondary)', fontWeight:600 }">
+      <el-table v-loading="questionLoading" :data="filteredQuestionBank" max-height="360" @selection-change="handleQuestionSelectionChange">
         <el-table-column type="selection" width="45" :selectable="row => !isQuestionSelected(row.id)" />
         <el-table-column prop="content" label="题目内容" min-width="280" show-overflow-tooltip />
         <el-table-column prop="type" label="题型" width="95" align="center">
@@ -177,7 +197,7 @@
         </el-table-column>
         <el-table-column label="操作" width="80" align="center">
           <template #default="{ row }">
-            <el-button text type="primary" size="small" @click="addSingleQuestion(row)" :disabled="isQuestionSelected(row.id)">添加</el-button>
+            <el-button text type="primary" size="small" :disabled="isQuestionSelected(row.id)" @click="addSingleQuestion(row)">添加</el-button>
           </template>
         </el-table-column>
       </el-table>
@@ -204,8 +224,8 @@
         </el-descriptions>
 
         <!-- 题目预览 -->
-        <div style="margin-top:20px">
-          <h4 style="margin-bottom:12px;font-size:14px;color:var(--ac-text-primary)">题目预览</h4>
+        <div class="detail-questions">
+          <h4 class="dq-title">题目预览</h4>
           <div v-if="examDetailQuestions && examDetailQuestions.length > 0">
             <div v-for="(q, i) in examDetailQuestions" :key="i" class="detail-question-item">
               <span class="q-num">{{ i + 1 }}.</span>
@@ -219,7 +239,7 @@
       </template>
       <template #footer>
         <el-button @click="detailDialogVisible = false">关闭</el-button>
-        <el-button type="success" @click="handlePublish(currentExam)" v-if="currentExam?.status === 'DRAFT'">发布试卷</el-button>
+        <el-button v-if="currentExam?.status === 'DRAFT'" type="success" @click="handlePublish(currentExam)">发布试卷</el-button>
         <el-button type="warning" @click="handleCopy(currentExam)">复制试卷</el-button>
       </template>
     </el-dialog>
@@ -233,6 +253,9 @@ import { Search, Plus, Delete } from '@element-plus/icons-vue'
 import examApi from '@/api/exam'
 import questionApi from '@/api/question'
 import courseApi from '@/api/course'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
+import { getMonoStatus } from '@/utils/chartTheme'
 
 // 列表状态
 const loading = ref(false)
@@ -276,6 +299,10 @@ const formRules = {
 // 已选题目
 const selectedQuestions = ref([])
 const totalSelectedScore = computed(() => selectedQuestions.value.reduce((sum, q) => sum + (q.score || 0), 0))
+
+// 顶部统计（基于现有分页数据）
+const draftCount = computed(() => examList.value.filter((e) => e.status === 'DRAFT').length)
+const publishedCount = computed(() => examList.value.filter((e) => e.status === 'PUBLISHED').length)
 
 // 题库选择器
 const questionPickerVisible = ref(false)
@@ -531,8 +558,7 @@ function getQuestionTypeName(type) {
 }
 
 function getDifficultyColor(diff) {
-  const map = { EASY: '#8BA888', MEDIUM: '#CBB58A', HARD: '#C48080' }
-  return map[diff] || '#928B83'
+  return getMonoStatus()[diff] || 'var(--ink-2)'
 }
 
 function getDifficultyText(diff) {
@@ -542,11 +568,18 @@ function getDifficultyText(diff) {
 </script>
 
 <style scoped>
+.l1-ico--warn {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+
 .pagination-wrap {
   display: flex;
   justify-content: center;
   padding-top: var(--ac-spacing-md);
 }
+
+.empty-deco { font-size: 38px; filter: grayscale(.2); }
 
 .selected-questions {
   max-height: 280px;
@@ -605,11 +638,11 @@ function getDifficultyText(diff) {
   flex-shrink: 0;
 }
 
-.type-SINGLE_CHOICE { background: rgba(122,139,165,0.12); color: #7A8BA5; }
-.type-MULTIPLE_CHOICE { background: rgba(184,154,138,0.12); color: #B89A8A; }
-.type-TRUE_FALSE { background: rgba(139,168,136,0.12); color: #8BA888; }
-.type-FILL_BLANK { background: rgba(203,181,138,0.12); color: #CBB58A; }
-.type-ESSAY { background: rgba(196,128,128,0.12); color: #C48080; }
+.type-SINGLE_CHOICE { background: var(--info-soft); color: var(--info); }
+.type-MULTIPLE_CHOICE { background: var(--violet-soft); color: var(--violet); }
+.type-TRUE_FALSE { background: var(--ok-soft); color: var(--ok); }
+.type-FILL_BLANK { background: var(--warn-soft); color: var(--warn); }
+.type-ESSAY { background: var(--accent-soft); color: var(--accent); }
 
 .q-text {
   font-size: 13px;
@@ -642,7 +675,7 @@ function getDifficultyText(diff) {
   font-size: 11px;
   padding: 1px 6px;
   border-radius: 4px;
-  background: rgba(122,139,165,0.12);
+  background: var(--info-soft);
   color: var(--ac-primary);
   flex-shrink: 0;
 }
@@ -659,5 +692,47 @@ function getDifficultyText(diff) {
   color: var(--ac-warning);
   font-weight: 500;
   flex-shrink: 0;
+}
+
+.filter-select {
+  width: 130px;
+  margin-left: 8px;
+}
+.search-input {
+  width: 240px;
+}
+.exam-title {
+  font-weight: 500;
+  color: var(--ac-text-primary);
+}
+.w-100 {
+  width: 100%;
+}
+.question-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.q-bar-info {
+  font-size: 13px;
+  color: var(--ac-text-muted);
+}
+.q-score-input {
+  width: 90px;
+}
+.qk-search {
+  width: 260px;
+}
+.qk-type {
+  width: 140px;
+}
+.detail-questions {
+  margin-top: 20px;
+}
+.dq-title {
+  margin-bottom: 12px;
+  font-size: 14px;
+  color: var(--ac-text-primary);
 }
 </style>

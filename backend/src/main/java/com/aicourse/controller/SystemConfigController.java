@@ -1,20 +1,15 @@
 package com.aicourse.controller;
 
+import jakarta.validation.Valid;
+
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.common.ApiResponse;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.entity.SystemConfig;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.entity.User;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.exception.BusinessException;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.common.ApiCode;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.service.EmailService;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.service.SystemConfigService;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.service.UserService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -94,7 +89,7 @@ public class SystemConfigController {
      */
     @PutMapping("/key/{key}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Void> updateByKey(@PathVariable String key, @RequestBody Map<String, String> body) {
+    public ApiResponse<Void> updateByKey(@PathVariable String key, @Valid @RequestBody Map<String, String> body) {
         String value = body.get("value");
         systemConfigService.updateConfig(key, value);
         return ApiResponse.success("更新成功", null);
@@ -107,7 +102,7 @@ public class SystemConfigController {
      */
     @PostMapping("/batch-update")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Void> batchUpdate(@RequestBody Map<String, String> configs) {
+    public ApiResponse<Void> batchUpdate(@Valid @RequestBody Map<String, String> configs) {
         systemConfigService.batchUpdateConfigs(configs);
         return ApiResponse.success("批量更新成功", null);
     }

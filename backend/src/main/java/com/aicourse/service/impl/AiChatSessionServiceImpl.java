@@ -8,6 +8,7 @@ import com.aicourse.service.AiChatSessionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Collections;
 import java.util.List;
@@ -23,6 +24,7 @@ public class AiChatSessionServiceImpl extends ServiceImpl<AiChatSessionMapper, A
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public AiChatSession createSession(Long userId, String title) {
         AiChatSession session = new AiChatSession();
         session.setSessionId(UUID.randomUUID().toString());
@@ -35,6 +37,7 @@ public class AiChatSessionServiceImpl extends ServiceImpl<AiChatSessionMapper, A
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void appendMessage(String sessionId, String role, String content) {
         // 1. 持久化消息
         aiChatMessageService.saveMessage(sessionId, role, content);

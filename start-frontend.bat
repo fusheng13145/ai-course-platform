@@ -1,6 +1,6 @@
 @echo off
 title AI Course Platform - Frontend
-setlocal
+setlocal enabledelayedexpansion
 
 set PROJECT_ROOT=%~dp0
 set FRONTEND_DIR=%PROJECT_ROOT%frontend
@@ -71,7 +71,7 @@ REM ---- Step 2: Install dependencies ----
 echo [2/4] Installing dependencies...
 cd /d "%FRONTEND_DIR%"
 if not exist "node_modules" (
-    echo Running npm install (first time may take 2-5 minutes)...
+    echo Running npm install, first time may take 2-5 minutes...
     REM Use node + npm-cli.js directly (avoids npm.cmd hang)
     "%NODE_EXE%" "%NPM_CLI_JS%" install
     if errorlevel 1 (

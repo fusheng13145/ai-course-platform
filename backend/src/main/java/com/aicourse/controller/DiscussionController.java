@@ -1,5 +1,7 @@
 package com.aicourse.controller;
 
+import jakarta.validation.Valid;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.DiscussionPost;
 import com.aicourse.entity.DiscussionTopic;
@@ -41,7 +43,7 @@ public class DiscussionController {
 
     @PostMapping("/topic")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
-    public ApiResponse<DiscussionTopic> createTopic(@RequestBody DiscussionTopic topic, Authentication auth) {
+    public ApiResponse<DiscussionTopic> createTopic(@Valid @RequestBody DiscussionTopic topic, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         return ApiResponse.success("发布成功", discussionService.createTopic(topic, userId, roleOf(auth)));
     }
@@ -62,7 +64,7 @@ public class DiscussionController {
     @PostMapping("/topic/{id}/reply")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
     public ApiResponse<DiscussionPost> reply(@PathVariable Long id,
-                                             @RequestBody DiscussionPost post,
+                                             @Valid @RequestBody DiscussionPost post,
                                              Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         return ApiResponse.success("回复成功", discussionService.reply(id, post, userId, roleOf(auth)));

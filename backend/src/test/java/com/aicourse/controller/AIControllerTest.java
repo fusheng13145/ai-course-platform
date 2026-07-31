@@ -1,8 +1,6 @@
 package com.aicourse.controller;
 import com.aicourse.controller.AIController;
 import com.aicourse.entity.AiChatSession;
-import com.aicourse.entity.Course;
-import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.LearningPath;
 import com.aicourse.service.AIService;
 import com.aicourse.service.AiChatSessionService;
@@ -18,6 +16,7 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MvcResult;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import static org.mockito.ArgumentMatchers.*;
@@ -49,6 +48,10 @@ class AIControllerTest extends ControllerTestBase {
     private com.aicourse.service.CourseService courseService;
     @MockitoBean
     private com.aicourse.service.AiChatSessionService aiChatSessionService;
+    @MockitoBean
+    private com.aicourse.service.KnowledgePointService knowledgePointService;
+    @MockitoBean
+    private com.aicourse.service.LearningRecommendationService learningRecommendationService;
 
     // ==================== 智能问答 ====================
 
@@ -233,24 +236,21 @@ class AIControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /ai/recommendations/learning - STUDENT 学习推荐返回 code=200 且字段透传")
     void learningRecommendations_authorized_passes_security() throws Exception {
-        CourseEnrollment enrollment = new CourseEnrollment();
-        enrollment.setCourseId(5L);
-        when(courseEnrollmentService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class))).thenReturn(List.of(enrollment));
-        Course course = new Course();
-        course.setId(5L);
-        course.setName("数学");
-        when(courseService.listByIds(any())).thenReturn(List.of(course));
-        when(aiService.recommendLearningJson(anyString())).thenReturn("推荐文本");
+        // 业务编排已下沉至 LearningRecommendationService，Controller 仅做委托
+        Map<String, Object> recommendationResult = new HashMap<>();
+        recommendationResult.put("recommendation", "推荐文本");
+        recommendationResult.put("dataDriven", true);
+        when(learningRecommendationService.recommendLearning(anyLong())).thenReturn(recommendationResult);
 
         MvcResult mvc = mockMvc.perform(get("/ai/recommendations/learning").with(withUser(1L, "STUDENT")))
                 .andExpect(request().asyncStarted()).andReturn();
         mockMvc.perform(asyncDispatch(mvc))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.recommendation").value("推荐文本"));
+                .andExpect(jsonPath("$.data.recommendation").value("推荐文本"))
+                .andExpect(jsonPath("$.data.dataDriven").value(true));
 
-        verify(courseEnrollmentService).list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class));
-        verify(aiService).recommendLearningJson(anyString());
+        verify(learningRecommendationService).recommendLearning(anyLong());
     }
 
 
@@ -267,6 +267,8 @@ class AIControllerTest extends ControllerTestBase {
     void questionRecommendations_authorized_passes_security() throws Exception {
         when(aiService.recommendQuestionsJson(anyLong(), anyString(), anyInt()))
                 .thenReturn("{\"questions\":[{\"content\":\"Q1\",\"type\":\"SINGLE_CHOICE\",\"difficulty\":\"EASY\"}]}");
+        when(aiService.parseQuestions(anyString(), any()))
+                .thenReturn(List.of(Map.of("content", "Q1", "type", "SINGLE_CHOICE", "difficulty", "EASY")));
 
         MvcResult mvc = mockMvc.perform(get("/ai/recommendations/questions?courseId=5&difficulty=EASY").with(withUser(1L, "STUDENT")))
                 .andExpect(request().asyncStarted()).andReturn();
@@ -277,6 +279,7 @@ class AIControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.data.recommendations[0].content").value("Q1"));
 
         verify(aiService).recommendQuestionsJson(eq(5L), eq("EASY"), eq(3));
+        verify(aiService).parseQuestions(anyString(), eq("EASY"));
     }
 
 
@@ -294,8 +297,7 @@ class AIControllerTest extends ControllerTestBase {
     @DisplayName("GET /ai/analysis/weak-points - STUDENT 薄弱点分析返回 code=200 且字段透传")
     void weakPointsAnalysis_authorized_passes_security() throws Exception {
         when(analyticsService.getUserDashboard(anyLong())).thenReturn(Map.of("score", 80));
-        when(aiService.analyzeWeakPointsJson(anyString())).thenReturn("weakjson");
-        when(aiService.parseWeakPoints(anyString()))
+        when(aiService.analyzeWeakPoints(any()))
                 .thenReturn(List.of(Map.of("description", "薄弱点描述", "severity", "LOW")));
 
         MvcResult mvc = mockMvc.perform(get("/ai/analysis/weak-points?courseId=5").with(withUser(1L, "STUDENT")))
@@ -306,7 +308,7 @@ class AIControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.data.weakPoints[0].description").value("薄弱点描述"));
 
         verify(analyticsService).getUserDashboard(eq(1L));
-        verify(aiService).parseWeakPoints(anyString());
+        verify(aiService).analyzeWeakPoints(any());
     }
 
 
@@ -322,9 +324,9 @@ class AIControllerTest extends ControllerTestBase {
     @DisplayName("GET /ai/advice/learning - STUDENT 学习建议返回 code=200 且字段透传")
     void learningAdvice_authorized_passes_security() throws Exception {
         when(analyticsService.getUserDashboard(anyLong())).thenReturn(Map.of("score", 80));
-        when(aiService.analyzeWeakPointsJson(anyString())).thenReturn("weak");
-        when(aiService.generateLearningAdviceJson(anyString(), anyString()))
-                .thenReturn("{\"summary\":\"学习建议\",\"items\":[{\"title\":\"标题1\",\"detail\":\"详情1\",\"level\":\"HIGH\"}]}");
+        when(aiService.generateLearningAdvice(any())).thenReturn(Map.of(
+                "summary", "学习建议",
+                "items", List.of(Map.of("title", "标题1", "detail", "详情1", "level", "HIGH"))));
 
         MvcResult mvc = mockMvc.perform(get("/ai/advice/learning?courseId=5").with(withUser(1L, "STUDENT")))
                 .andExpect(request().asyncStarted()).andReturn();
@@ -334,7 +336,7 @@ class AIControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.data.summary").value("学习建议"))
                 .andExpect(jsonPath("$.data.items[0].title").value("标题1"));
 
-        verify(aiService).generateLearningAdviceJson(anyString(), anyString());
+        verify(aiService).generateLearningAdvice(any());
     }
 
 
@@ -353,7 +355,8 @@ class AIControllerTest extends ControllerTestBase {
     void generateLearningPath_authorized_passes_security() throws Exception {
         LearningPath lp = new LearningPath();
         lp.setId(99L);
-        when(learningPathService.generatePath(anyLong(), anyLong(), anyString(), anyString())).thenReturn(lp);
+        when(learningPathService.generatePathPersonalized(eq(1L), eq(5L), anyString(), anyString(), isNull()))
+                .thenReturn(lp);
 
         MvcResult mvc = mockMvc.perform(post("/ai/learning-path/generate").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"courseId\":\"5\",\"goal\":\"掌握核心\"}").with(withUser(1L, "TEACHER")))
@@ -363,7 +366,7 @@ class AIControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.status").value("created"));
 
-        verify(learningPathService).generatePath(eq(1L), eq(5L), anyString(), eq("掌握核心"));
+        verify(learningPathService).generatePathPersonalized(eq(1L), eq(5L), anyString(), eq("掌握核心"), isNull());
     }
 
 
@@ -383,24 +386,10 @@ class AIControllerTest extends ControllerTestBase {
     }
 
 
-    // ==================== 已废弃兼容接口 ====================
-
-    @Test
-    @DisplayName("POST /ai/chat - TEACHER 对话返回 code=200 且字段透传")
-    void chat_authorized_passes_security() throws Exception {
-        when(aiService.chat(anyString(), anyString(), anyLong())).thenReturn("回复");
-
-        MvcResult mvc = mockMvc.perform(post("/ai/chat").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"message\":\"hi\",\"context\":\"ctx\"}").with(withUser(1L, "TEACHER")))
-                .andExpect(request().asyncStarted()).andReturn();
-        mockMvc.perform(asyncDispatch(mvc))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.response").value("回复"));
-
-        verify(aiService).chat(eq("hi"), eq("ctx"), eq(1L));
-    }
-
+    // ==================== 已废弃兼容接口（端点已移除，仅保留安全行为断言） ====================
+    // 历史遗留端点 /chat /generate-question /generate-summary /check-plagiarism /rag/ask
+    // 已从 AIController 移除（见类注释），对应成功路径测试一并删除；
+    // 未认证 401 / 越权 403 断言仍有效（安全过滤器先于路由匹配生效）。
 
     @Test
     @DisplayName("POST /ai/chat - 未认证返回401")
@@ -415,24 +404,6 @@ class AIControllerTest extends ControllerTestBase {
     void chat_student_forbidden_403() throws Exception {
         mockMvc.perform(post("/ai/chat").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
-    }
-
-
-    @Test
-    @DisplayName("POST /ai/generate-question - TEACHER 生成题目返回 code=200 且字段透传")
-    void generateQuestion_authorized_passes_security() throws Exception {
-        when(aiService.generateQuestion(anyLong(), any(), any(), anyInt())).thenReturn("题目JSON");
-
-        MvcResult mvc = mockMvc.perform(post("/ai/generate-question").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"courseId\":5,\"type\":\"SINGLE_CHOICE\",\"difficulty\":\"EASY\",\"count\":5}")
-                        .with(withUser(1L, "TEACHER")))
-                .andExpect(request().asyncStarted()).andReturn();
-        mockMvc.perform(asyncDispatch(mvc))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.questions").value("题目JSON"));
-
-        verify(aiService).generateQuestion(eq(5L), any(), any(), eq(5));
     }
 
 
@@ -453,23 +424,6 @@ class AIControllerTest extends ControllerTestBase {
 
 
     @Test
-    @DisplayName("POST /ai/generate-summary - TEACHER 生成摘要返回 code=200 且字段透传")
-    void generateSummary_authorized_passes_security() throws Exception {
-        when(aiService.generateSummary(anyString())).thenReturn("摘要");
-
-        MvcResult mvc = mockMvc.perform(post("/ai/generate-summary").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"长文\"}").with(withUser(1L, "TEACHER")))
-                .andExpect(request().asyncStarted()).andReturn();
-        mockMvc.perform(asyncDispatch(mvc))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.summary").value("摘要"));
-
-        verify(aiService).generateSummary(eq("长文"));
-    }
-
-
-    @Test
     @DisplayName("POST /ai/generate-summary - 未认证返回401")
     void generateSummary_unauthorized_returns_401() throws Exception {
         mockMvc.perform(post("/ai/generate-summary").contentType(MediaType.APPLICATION_JSON).content("{}"))
@@ -486,23 +440,6 @@ class AIControllerTest extends ControllerTestBase {
 
 
     @Test
-    @DisplayName("POST /ai/check-plagiarism - TEACHER 查重返回 code=200 且字段透传")
-    void checkPlagiarism_authorized_passes_security() throws Exception {
-        when(aiService.checkPlagiarism(anyString(), anyString())).thenReturn("相似度0.2");
-
-        MvcResult mvc = mockMvc.perform(post("/ai/check-plagiarism").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"text1\":\"a\",\"text2\":\"b\"}").with(withUser(1L, "TEACHER")))
-                .andExpect(request().asyncStarted()).andReturn();
-        mockMvc.perform(asyncDispatch(mvc))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.result").value("相似度0.2"));
-
-        verify(aiService).checkPlagiarism(eq("a"), eq("b"));
-    }
-
-
-    @Test
     @DisplayName("POST /ai/check-plagiarism - 未认证返回401")
     void checkPlagiarism_unauthorized_returns_401() throws Exception {
         mockMvc.perform(post("/ai/check-plagiarism").contentType(MediaType.APPLICATION_JSON).content("{}"))
@@ -515,22 +452,6 @@ class AIControllerTest extends ControllerTestBase {
     void checkPlagiarism_student_forbidden_403() throws Exception {
         mockMvc.perform(post("/ai/check-plagiarism").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
-    }
-
-
-    @Test
-    @DisplayName("GET /ai/rag/ask - STUDENT RAG问答返回 code=200 且字段透传")
-    void ragAsk_authorized_passes_security() throws Exception {
-        when(aiService.ragAsk(anyString(), any())).thenReturn("raganswer");
-
-        MvcResult mvc = mockMvc.perform(get("/ai/rag/ask?courseId=5&question=q").with(withUser(1L, "STUDENT")))
-                .andExpect(request().asyncStarted()).andReturn();
-        mockMvc.perform(asyncDispatch(mvc))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.answer").value("raganswer"));
-
-        verify(aiService).ragAsk(eq("q"), eq(5L));
     }
 
 

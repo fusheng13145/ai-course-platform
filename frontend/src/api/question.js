@@ -12,11 +12,6 @@ export const deleteQuestion = id => request.delete(`/questions/${id}`)
 /** AI 生成题目 */
 export const generateByAI = data => request.post('/questions/ai-generate', data)
 
-// 题目增强 API
-/** 增强创建题目 */
-export const createQuestionEnhanced = data => request.post('/questions/create', data)
-/** 增强 AI 生成题目 */
-export const generateByAIEnhanced = data => request.post('/questions/generate-by-ai', data)
 /** 审核题目 */
 export const reviewQuestion = (id, data) => request.post(`/questions/${id}/review`, data)
 /** 复制题目 */
@@ -32,4 +27,4 @@ export const getQuestionStats = id => request.get(`/questions/${id}/stats`)
 /** 获取易错题目 */
 export const getErrorProne = params => request.get('/questions/error-prone', { params })
 
-export default { getQuestionList, getQuestionById, createQuestion, updateQuestion, deleteQuestion, generateByAI, createQuestionEnhanced, generateByAIEnhanced, reviewQuestion, copyQuestion, searchQuestions, randomSelect, getByKnowledgePoint, getQuestionStats, getErrorProne }
+export default { getQuestionList, getQuestionById, createQuestion, updateQuestion, deleteQuestion, generateByAI, reviewQuestion, copyQuestion, searchQuestions, randomSelect, getByKnowledgePoint, getQuestionStats, getErrorProne }

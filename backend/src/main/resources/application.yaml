@@ -52,13 +52,19 @@ spring:
       minimum-idle: 5
       connection-timeout: 30000
 
-  # Redis 缓存配置（host/port 可由环境变量 SPRING_DATA_REDIS_HOST / SPRING_DATA_REDIS_PORT 覆盖，便于 Docker 编排）
+  # Redis 配置【必选基础设施】：缓存 / IP 限流 / AI 配额 / 验证码 / 调度锁均依赖 Redis。
+  # 应用启动时由 RedisStartupValidator 强校验连通性，连接失败将中止启动（fail-fast）。
+  # host/port 可由环境变量 SPRING_DATA_REDIS_HOST / SPRING_DATA_REDIS_PORT 覆盖，便于 Docker 编排。
   data:
     redis:
       host: ${SPRING_DATA_REDIS_HOST:localhost}
       port: ${SPRING_DATA_REDIS_PORT:6379}
       database: 0
       timeout: 3000
+
+  # 缓存实现显式声明为 Redis（避免类路径变化时静默退化为 simple 内存缓存）
+  cache:
+    type: redis
 
   # 数据库初始化脚本
   sql:
@@ -139,6 +145,13 @@ jwt:
 # 由 application-local.yaml 显式关闭这两项——即「默认安全，开发显式放宽」，
 # 杜绝「忘记在生产打开 Secure」这类靠人肉运维的乐观假设。
 app:
+  # Redis 必选开关：true 时启动强校验 Redis 连通性（RedisStartupValidator），失败即中止启动。
+  # 仅单元测试（无 Redis 环境）允许置 false；生产/开发环境保持 true。
+  redis:
+    required: ${REDIS_REQUIRED:true}
+    startup-check:
+      max-retries: ${REDIS_STARTUP_MAX_RETRIES:10}
+      retry-interval-ms: ${REDIS_STARTUP_RETRY_INTERVAL_MS:3000}
   cookie:
     # 是否对认证 Cookie 标记 Secure（仅经 HTTPS 传输）。默认 true（安全优先）。
     # 令牌 Cookie 若无 Secure，可经明文 HTTP 通道被中间人窃取。
@@ -293,8 +306,8 @@ file:
 minio:
   enabled: false
   endpoint: http://localhost:9000
-  access-key: minioadmin
-  secret-key: minioadmin
+  access-key: ${MINIO_ACCESS_KEY:minioadmin}
+  secret-key: ${MINIO_SECRET_KEY:minioadmin}
   bucket: aicourse-uploads
 
 # ===================== 可观测性 / Actuator 配置 =====================

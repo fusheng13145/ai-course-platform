@@ -1,31 +1,22 @@
 <template>
   <div class="kg-page fade-in">
     <!-- 顶部课程选择器 -->
-    <div class="page-head">
-      <div class="page-title">
-        <el-icon :size="20" class="ttl-icon"><Share /></el-icon>
-        <div>
-          <h3>知识图谱</h3>
-          <p>管理课程知识点、AI 智能抽取并可视化知识关系</p>
-        </div>
-      </div>
-      <div class="head-right">
-        <el-button @click="openExtractDialog">
-          <el-icon><MagicStick /></el-icon>AI 抽取知识点
-        </el-button>
-        <el-select
-          v-model="courseId"
-          placeholder="请选择课程"
-          filterable
-          clearable
-          style="width: 240px"
-          :loading="courseLoading"
-          @change="onCourseChange"
-        >
-          <el-option v-for="c in courseOptions" :key="c.id" :label="c.name" :value="c.id" />
-        </el-select>
-      </div>
-    </div>
+    <PageHeader title="知识图谱" subtitle="管理课程知识点、AI 智能抽取并可视化知识关系" icon="link">
+      <el-button @click="openExtractDialog">
+        <el-icon><MagicStick /></el-icon>AI 抽取知识点
+      </el-button>
+      <el-select
+        v-model="courseId"
+        placeholder="请选择课程"
+        filterable
+        clearable
+        class="course-select"
+        :loading="courseLoading"
+        @change="onCourseChange"
+      >
+        <el-option v-for="c in courseOptions" :key="c.id" :label="c.name" :value="c.id" />
+      </el-select>
+    </PageHeader>
 
     <div v-loading="loading">
       <el-alert v-if="!courseId" title="请选择课程" type="info" :closable="false" show-icon>
@@ -34,52 +25,11 @@
 
       <template v-else>
         <!-- 概览统计 -->
-        <div class="stat-grid">
-          <div class="stat-card">
-            <div
-              class="stat-icon"
-              style="background: var(--ac-primary-bg); color: var(--ac-primary)"
-            >
-              <el-icon :size="22"><Collection /></el-icon>
-            </div>
-            <div class="stat-info">
-              <h3>{{ overview.totalPoints || 0 }}</h3>
-              <p>知识点总数</p>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div
-              class="stat-icon"
-              style="background: var(--ac-success-bg); color: var(--ac-success)"
-            >
-              <el-icon :size="22"><Connection /></el-icon>
-            </div>
-            <div class="stat-info">
-              <h3>{{ overview.totalRelations || 0 }}</h3>
-              <p>关系总数</p>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div
-              class="stat-icon"
-              style="background: var(--ac-warning-bg); color: var(--ac-warning)"
-            >
-              <el-icon :size="22"><Star /></el-icon>
-            </div>
-            <div class="stat-info">
-              <h3>{{ overview.corePoints || 0 }}</h3>
-              <p>核心知识点</p>
-            </div>
-          </div>
-          <div class="stat-card">
-            <div class="stat-icon" style="background: var(--ac-info-bg); color: var(--ac-info)">
-              <el-icon :size="22"><DataAnalysis /></el-icon>
-            </div>
-            <div class="stat-info">
-              <h3>{{ overview.coverageRate ? pct(overview.coverageRate) : '0%' }}</h3>
-              <p>覆盖度</p>
-            </div>
-          </div>
+        <div class="stat-grid animate-in">
+          <StatCard label="知识点总数" :value="overview.totalPoints || 0" icon="tag" tone="var(--accent-soft)" tone-color="var(--accent)" />
+          <StatCard label="关系总数" :value="overview.totalRelations || 0" icon="link" tone="var(--ok-soft)" tone-color="var(--ok)" />
+          <StatCard label="核心知识点" :value="overview.corePoints || 0" icon="star" tone="var(--warn-soft)" tone-color="var(--warn)" />
+          <StatCard label="覆盖度" :value="overview.coverageRate ? pct(overview.coverageRate) : '0%'" icon="target" tone="var(--info-soft)" tone-color="var(--info)" />
         </div>
 
         <div class="kg-grid">
@@ -92,7 +42,7 @@
                 text
                 type="primary"
                 size="small"
-                style="margin-left: auto"
+                class="ml-auto"
                 @click="openForm()"
               >
                 <el-icon><Plus /></el-icon>新建
@@ -135,7 +85,7 @@
                 text
                 type="primary"
                 size="small"
-                style="margin-left: auto"
+                class="ml-auto"
                 :loading="graphLoading"
                 @click="loadGraph"
               >
@@ -199,7 +149,7 @@
           />
         </el-form-item>
         <el-form-item label="难度">
-          <el-select v-model="kpForm.difficulty" style="width: 100%">
+          <el-select v-model="kpForm.difficulty" class="w-100">
             <el-option label="简单" value="EASY" />
             <el-option label="中等" value="MEDIUM" />
             <el-option label="困难" value="HARD" />
@@ -274,12 +224,10 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import courseApi from '@/api/course'
 import knowledgeApi from '@/api/knowledge'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 import {
   Share,
-  Collection,
-  Connection,
-  Star,
-  DataAnalysis,
   Files,
   Plus,
   Refresh,
@@ -543,75 +491,14 @@ onMounted(() => {
 </script>
 
 <style scoped>
-.page-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  margin-bottom: var(--ac-spacing-lg);
-  flex-wrap: wrap;
+.course-select {
+  width: 240px;
 }
-.head-right {
-  display: flex;
-  gap: 10px;
-  align-items: center;
-  flex-wrap: wrap;
+.ml-auto {
+  margin-left: auto;
 }
-.page-title {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.ttl-icon {
-  color: var(--ac-primary);
-}
-.page-title h3 {
-  margin: 0;
-  font-size: 18px;
-  font-weight: 640;
-  color: var(--ac-text-primary);
-}
-.page-title p {
-  margin: 2px 0 0;
-  font-size: 12.5px;
-  color: var(--ac-text-muted);
-}
-
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--ac-spacing-md);
-  margin-bottom: var(--ac-spacing-md);
-}
-.stat-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 18px 20px;
-  background: var(--ac-bg-elevated);
-  border: 1px solid var(--ac-border);
-  border-radius: var(--ac-radius-lg);
-  box-shadow: var(--ac-shadow-sm);
-}
-.stat-icon {
-  width: 46px;
-  height: 46px;
-  border-radius: 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.stat-info h3 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 680;
-  color: var(--ac-text-primary);
-}
-.stat-info p {
-  margin: 2px 0 0;
-  font-size: 12.5px;
-  color: var(--ac-text-secondary);
+.w-100 {
+  width: 100%;
 }
 
 .kg-grid {
@@ -697,7 +584,7 @@ onMounted(() => {
   stroke-width: 1.5;
 }
 .kg-node {
-  stroke: #fff;
+  stroke: var(--ac-on-primary);
   stroke-width: 2;
   transition: fill 0.2s ease;
 }
@@ -773,13 +660,8 @@ onMounted(() => {
 }
 
 @media (max-width: 1100px) {
-  .stat-grid,
   .kg-grid {
     grid-template-columns: 1fr;
-  }
-  .page-head {
-    flex-direction: column;
-    align-items: stretch;
   }
 }
 </style>

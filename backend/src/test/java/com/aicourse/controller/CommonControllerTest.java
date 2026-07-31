@@ -64,7 +64,8 @@ class CommonControllerTest extends ControllerTestBase {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "test.png", "image/png", "fake-image-bytes".getBytes());
 
-        mockMvc.perform(multipart("/common/upload").file(file))
+        mockMvc.perform(multipart("/common/upload").file(file)
+                        .with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.url").value("/uploads/test-uuid.png"))
@@ -77,7 +78,8 @@ class CommonControllerTest extends ControllerTestBase {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "evil.html", "text/html", "<script>alert(1)</script>".getBytes());
 
-        mockMvc.perform(multipart("/common/upload").file(file))
+        mockMvc.perform(multipart("/common/upload").file(file)
+                        .with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(400))
                 .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("不支持的文件类型")));
@@ -91,7 +93,8 @@ class CommonControllerTest extends ControllerTestBase {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "empty.txt", "text/plain", new byte[0]);
 
-        mockMvc.perform(multipart("/common/upload").file(file))
+        mockMvc.perform(multipart("/common/upload").file(file)
+                        .with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(400))
                 .andExpect(jsonPath("$.message").value("上传文件不能为空"));
@@ -108,7 +111,8 @@ class CommonControllerTest extends ControllerTestBase {
         MockMultipartFile file = new MockMultipartFile(
                 "file", "test.png", "image/png", "test".getBytes());
 
-        mockMvc.perform(multipart("/common/upload").file(file))
+        mockMvc.perform(multipart("/common/upload").file(file)
+                        .with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(500))
                 .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("上传失败")));

@@ -190,6 +190,10 @@ public class AuthController {
     @GetMapping("/me")
     @Operation(summary = "获取当前登录用户信息")
     public ApiResponse<?> getCurrentUser(Authentication auth) {
+        // /auth/** 为 permitAll，未登录请求会以 null Authentication 到达此处，须显式拒绝而非 NPE
+        if (auth == null || !(auth.getPrincipal() instanceof Long)) {
+            return ApiResponse.error(ApiCode.UNAUTHORIZED, "未授权，请先登录");
+        }
         Long userId = (Long) auth.getPrincipal();
         return authService.getCurrentUser(userId);
     }

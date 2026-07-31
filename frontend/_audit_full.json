@@ -1,0 +1,4116 @@
+{
+  "total_views": 70,
+  "no_api_call": [
+    "auth/Agreement.vue",
+    "auth/Login.vue",
+    "auth/Privacy.vue",
+    "auth/Register.vue",
+    "error/403.vue",
+    "error/404.vue"
+  ],
+  "not_routed": [],
+  "math_random_risk": [
+    [
+      "auth/ForgotPassword.vue",
+      5
+    ],
+    [
+      "auth/Login.vue",
+      5
+    ],
+    [
+      "auth/Register.vue",
+      5
+    ],
+    [
+      "teacher/Dashboard.vue",
+      1
+    ]
+  ],
+  "fake_keyword_risk": [
+    [
+      "admin/Dashboard.vue",
+      1
+    ],
+    [
+      "admin/governance/Analytics.vue",
+      1
+    ],
+    [
+      "student/study/KnowledgeGraph.vue",
+      1
+    ]
+  ],
+  "broken_endpoint_links": [],
+  "backend_endpoint_count": 385,
+  "details": [
+    {
+      "imported_modules": [
+        "analytics",
+        "loginLog",
+        "system"
+      ],
+      "api_calls": [
+        [
+          "analytics",
+          "getDashboardStats"
+        ],
+        [
+          "analytics",
+          "getTrendData"
+        ],
+        [
+          "loginLog",
+          "getTrends"
+        ],
+        [
+          "system",
+          "getSystemLogs"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "admin/system/logs"
+        ],
+        [
+          "GET",
+          "analytics/dashboard"
+        ],
+        [
+          "GET",
+          "analytics/users/growth"
+        ],
+        [
+          "GET",
+          "login-logs/trends"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 1,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/Dashboard.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "analytics"
+      ],
+      "api_calls": [
+        [
+          "analytics",
+          "exportReport"
+        ],
+        [
+          "analytics",
+          "getCourseRanking"
+        ],
+        [
+          "analytics",
+          "getDashboardStats"
+        ],
+        [
+          "analytics",
+          "getPlatformHeatmap"
+        ],
+        [
+          "analytics",
+          "getUserGrowth"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "admin/statistics/export"
+        ],
+        [
+          "GET",
+          "admin/statistics/user-growth"
+        ],
+        [
+          "GET",
+          "analytics/courses/ranking"
+        ],
+        [
+          "GET",
+          "analytics/dashboard"
+        ],
+        [
+          "GET",
+          "analytics/heatmap/platform"
+        ],
+        [
+          "GET",
+          "analytics/users/growth"
+        ],
+        [
+          "GET",
+          "teacher/analytics/report/export"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 1,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/governance/Analytics.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "exam",
+        "proctor"
+      ],
+      "api_calls": [
+        [
+          "exam",
+          "getActiveExams"
+        ],
+        [
+          "proctor",
+          "getExamRisk"
+        ],
+        [
+          "proctor",
+          "getSessionEvents"
+        ],
+        [
+          "proctor",
+          "getStudentSession"
+        ],
+        [
+          "proctor",
+          "getThresholds"
+        ],
+        [
+          "proctor",
+          "reviewEvent"
+        ],
+        [
+          "proctor",
+          "updateThresholds"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "exam-sessions/active"
+        ],
+        [
+          "GET",
+          "proctor/exam//risk"
+        ],
+        [
+          "GET",
+          "proctor/exam//student//session"
+        ],
+        [
+          "GET",
+          "proctor/session//events"
+        ],
+        [
+          "GET",
+          "proctor/thresholds"
+        ],
+        [
+          "POST",
+          "proctor/events//review"
+        ],
+        [
+          "PUT",
+          "proctor/thresholds"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/governance/ExamGovernance.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "admin",
+        "analytics"
+      ],
+      "api_calls": [
+        [
+          "admin",
+          "getAIMonitor"
+        ],
+        [
+          "admin",
+          "getCourseStats"
+        ],
+        [
+          "admin",
+          "getOverview"
+        ],
+        [
+          "analytics",
+          "getPlatformHeatmap"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "admin/ai-monitor"
+        ],
+        [
+          "GET",
+          "admin/statistics/courses"
+        ],
+        [
+          "GET",
+          "admin/statistics/overview"
+        ],
+        [
+          "GET",
+          "analytics/heatmap/platform"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/governance/TeachingSupervision.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "aiSupplier"
+      ],
+      "api_calls": [
+        [
+          "aiSupplier",
+          "getConfigs"
+        ],
+        [
+          "aiSupplier",
+          "getCurrent"
+        ],
+        [
+          "aiSupplier",
+          "saveConfig"
+        ],
+        [
+          "aiSupplier",
+          "switchProvider"
+        ],
+        [
+          "aiSupplier",
+          "testConnection"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "admin/configs"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/system/AISupplierConfig.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "fileUpload"
+      ],
+      "api_calls": [
+        [
+          "fileUpload",
+          "cancelUpload"
+        ],
+        [
+          "fileUpload",
+          "getProgress"
+        ],
+        [
+          "fileUpload",
+          "mergeChunks"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "upload-sessions//cancel"
+        ],
+        [
+          "GET",
+          "upload-sessions//progress"
+        ],
+        [
+          "POST",
+          "upload-sessions//merge"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/system/FileUploadManage.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "course",
+        "rag"
+      ],
+      "api_calls": [
+        [
+          "course",
+          "getCourseList"
+        ],
+        [
+          "rag",
+          "ragAddDocument"
+        ],
+        [
+          "rag",
+          "ragAsk"
+        ],
+        [
+          "rag",
+          "ragBuildIndex"
+        ],
+        [
+          "rag",
+          "ragClearIndex"
+        ],
+        [
+          "rag",
+          "ragDeleteDocument"
+        ],
+        [
+          "rag",
+          "ragListDocuments"
+        ],
+        [
+          "rag",
+          "ragRetrieve"
+        ],
+        [
+          "rag",
+          "ragUpdateDocument"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "rag/documents"
+        ],
+        [
+          "DELETE",
+          "rag/index"
+        ],
+        [
+          "GET",
+          "courses"
+        ],
+        [
+          "GET",
+          "rag/documents"
+        ],
+        [
+          "POST",
+          "rag/ask"
+        ],
+        [
+          "POST",
+          "rag/documents"
+        ],
+        [
+          "POST",
+          "rag/index/build"
+        ],
+        [
+          "POST",
+          "rag/retrieve"
+        ],
+        [
+          "PUT",
+          "rag/documents"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/system/KnowledgeBase.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "notification",
+        "notificationEnhanced",
+        "user"
+      ],
+      "api_calls": [
+        [
+          "notification",
+          "deleteNotification"
+        ],
+        [
+          "notification",
+          "getNotificationList"
+        ],
+        [
+          "notification",
+          "markAllAsRead"
+        ],
+        [
+          "notificationEnhanced",
+          "getUnreadCount"
+        ],
+        [
+          "notificationEnhanced",
+          "sendNotification"
+        ],
+        [
+          "user",
+          "getUserList"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "notifications"
+        ],
+        [
+          "GET",
+          "notifications"
+        ],
+        [
+          "GET",
+          "notifications/unread-count"
+        ],
+        [
+          "GET",
+          "users"
+        ],
+        [
+          "PATCH",
+          "notifications/read-all"
+        ],
+        [
+          "POST",
+          "notifications/send"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/system/NotificationManagement.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "loginLog",
+        "operationLog"
+      ],
+      "api_calls": [
+        [
+          "loginLog",
+          "getList"
+        ],
+        [
+          "loginLog",
+          "getStats"
+        ],
+        [
+          "operationLog",
+          "getOperationLogStatistics"
+        ],
+        [
+          "operationLog",
+          "getOperationLogs"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "admin/operation-logs"
+        ],
+        [
+          "GET",
+          "admin/operation-logs/statistics"
+        ],
+        [
+          "GET",
+          "classrooms//stats"
+        ],
+        [
+          "GET",
+          "courses//stats"
+        ],
+        [
+          "GET",
+          "knowledge/relations"
+        ],
+        [
+          "GET",
+          "login-logs"
+        ],
+        [
+          "GET",
+          "login-logs/stats"
+        ],
+        [
+          "GET",
+          "system-configs"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/system/OperationLogs.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "reminder"
+      ],
+      "api_calls": [
+        [
+          "reminder",
+          "createReminder"
+        ],
+        [
+          "reminder",
+          "getTodos"
+        ],
+        [
+          "reminder",
+          "sendDue"
+        ],
+        [
+          "reminder",
+          "updateReminder"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "reminders/todos"
+        ],
+        [
+          "POST",
+          "reminders"
+        ],
+        [
+          "POST",
+          "reminders/send-due"
+        ],
+        [
+          "PUT",
+          "reminders"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/system/ReminderManage.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "system",
+        "systemConfig"
+      ],
+      "api_calls": [
+        [
+          "system",
+          "getSystemConfig"
+        ],
+        [
+          "system",
+          "updateSystemConfig"
+        ],
+        [
+          "systemConfig",
+          "batchUpdate"
+        ],
+        [
+          "systemConfig",
+          "getByGroup"
+        ],
+        [
+          "systemConfig",
+          "testEmail"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "admin/system/configs"
+        ],
+        [
+          "GET",
+          "system-configs/group"
+        ],
+        [
+          "POST",
+          "admin/system/configs"
+        ],
+        [
+          "POST",
+          "system-configs/batch-update"
+        ],
+        [
+          "POST",
+          "system-configs/test-email"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/system/SystemSettings.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "userSession"
+      ],
+      "api_calls": [
+        [
+          "userSession",
+          "forceLogout"
+        ],
+        [
+          "userSession",
+          "getOnlineUsers"
+        ],
+        [
+          "userSession",
+          "getSessionStats"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "user-sessions//force-logout"
+        ],
+        [
+          "GET",
+          "user-sessions/online"
+        ],
+        [
+          "GET",
+          "user-sessions/stats"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/system/UserSessionManage.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "course"
+      ],
+      "api_calls": [
+        [
+          "course",
+          "approveCourse"
+        ],
+        [
+          "course",
+          "deleteCourse"
+        ],
+        [
+          "course",
+          "getCourseList"
+        ],
+        [
+          "course",
+          "rejectCourse"
+        ],
+        [
+          "course",
+          "toggleCourseStatus"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "courses"
+        ],
+        [
+          "DELETE",
+          "teacher/courses"
+        ],
+        [
+          "GET",
+          "courses"
+        ],
+        [
+          "PATCH",
+          "courses//toggle"
+        ],
+        [
+          "POST",
+          "courses//approve"
+        ],
+        [
+          "POST",
+          "courses//reject"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/teaching/CourseManagement.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "exam"
+      ],
+      "api_calls": [
+        [
+          "exam",
+          "forceSubmit"
+        ],
+        [
+          "exam",
+          "getActiveExams"
+        ],
+        [
+          "exam",
+          "getCheatingDetect"
+        ],
+        [
+          "exam",
+          "getExamPaperList"
+        ],
+        [
+          "exam",
+          "getExamStatistics"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "analytics/exams//statistics"
+        ],
+        [
+          "GET",
+          "exam-papers"
+        ],
+        [
+          "GET",
+          "exam-papers//statistics"
+        ],
+        [
+          "GET",
+          "exam-sessions//cheating-detect"
+        ],
+        [
+          "GET",
+          "exam-sessions/active"
+        ],
+        [
+          "POST",
+          "exam-sessions//force-submit"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 2,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/teaching/ExamManagement.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "course",
+        "exam",
+        "user"
+      ],
+      "api_calls": [
+        [
+          "course",
+          "getCourseList"
+        ],
+        [
+          "exam",
+          "getMyExamSessions"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "courses"
+        ],
+        [
+          "GET",
+          "exam-sessions/my"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/teaching/GradeManagement.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "plagiarismCheck"
+      ],
+      "api_calls": [
+        [
+          "plagiarismCheck",
+          "createCheck"
+        ],
+        [
+          "plagiarismCheck",
+          "executeCheck"
+        ],
+        [
+          "plagiarismCheck",
+          "getCheckHistory"
+        ],
+        [
+          "plagiarismCheck",
+          "getCheckMatches"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "plagiarism-checks"
+        ],
+        [
+          "GET",
+          "plagiarism-checks//matches"
+        ],
+        [
+          "GET",
+          "plagiarism-checks/student"
+        ],
+        [
+          "POST",
+          "plagiarism-checks"
+        ],
+        [
+          "POST",
+          "plagiarism-checks//execute"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/teaching/PlagiarismCheckManage.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "course",
+        "question",
+        "request"
+      ],
+      "api_calls": [
+        [
+          "course",
+          "getCourseList"
+        ],
+        [
+          "question",
+          "createQuestion"
+        ],
+        [
+          "question",
+          "deleteQuestion"
+        ],
+        [
+          "question",
+          "generateByAI"
+        ],
+        [
+          "question",
+          "getErrorProne"
+        ],
+        [
+          "question",
+          "getQuestionList"
+        ],
+        [
+          "question",
+          "updateQuestion"
+        ],
+        [
+          "request",
+          "get"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "questions"
+        ],
+        [
+          "DELETE",
+          "teacher/questions"
+        ],
+        [
+          "GET",
+          "courses"
+        ],
+        [
+          "GET",
+          "questions"
+        ],
+        [
+          "GET",
+          "questions/error-prone"
+        ],
+        [
+          "POST",
+          "questions"
+        ],
+        [
+          "POST",
+          "questions/ai-generate"
+        ],
+        [
+          "POST",
+          "teacher/questions"
+        ],
+        [
+          "PUT",
+          "questions"
+        ],
+        [
+          "PUT",
+          "teacher/questions"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 1,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/teaching/QuestionManagement.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "course",
+        "resource"
+      ],
+      "api_calls": [
+        [
+          "course",
+          "getCourseList"
+        ],
+        [
+          "resource",
+          "deleteResource"
+        ],
+        [
+          "resource",
+          "downloadResource"
+        ],
+        [
+          "resource",
+          "getResourceList"
+        ],
+        [
+          "resource",
+          "toggleVisibility"
+        ],
+        [
+          "resource",
+          "uploadResource"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "resources"
+        ],
+        [
+          "GET",
+          "courses"
+        ],
+        [
+          "GET",
+          "resources/course"
+        ],
+        [
+          "GET",
+          "resources/download"
+        ],
+        [
+          "PATCH",
+          "resources//visibility"
+        ],
+        [
+          "POST",
+          "resources/upload"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/teaching/ResourceManagement.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "resource",
+        "resourceVersion"
+      ],
+      "api_calls": [
+        [
+          "resourceVersion",
+          "createVersion"
+        ],
+        [
+          "resourceVersion",
+          "getActiveVersion"
+        ],
+        [
+          "resourceVersion",
+          "getVersionHistory"
+        ],
+        [
+          "resourceVersion",
+          "rollbackVersion"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "resource-versions/active"
+        ],
+        [
+          "GET",
+          "resource-versions/resource"
+        ],
+        [
+          "POST",
+          "resource-versions"
+        ],
+        [
+          "POST",
+          "resource-versions//rollback"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/teaching/ResourceVersionManage.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "admin",
+        "classroom"
+      ],
+      "api_calls": [
+        [
+          "admin",
+          "getUsers"
+        ],
+        [
+          "classroom",
+          "addStudent"
+        ],
+        [
+          "classroom",
+          "createClassroom"
+        ],
+        [
+          "classroom",
+          "deleteClassroom"
+        ],
+        [
+          "classroom",
+          "getClassroomList"
+        ],
+        [
+          "classroom",
+          "getStudents"
+        ],
+        [
+          "classroom",
+          "removeStudent"
+        ],
+        [
+          "classroom",
+          "updateClassroom"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "classrooms"
+        ],
+        [
+          "DELETE",
+          "classrooms//students"
+        ],
+        [
+          "GET",
+          "admin/users"
+        ],
+        [
+          "GET",
+          "classrooms"
+        ],
+        [
+          "GET",
+          "classrooms//students"
+        ],
+        [
+          "GET",
+          "courses//students"
+        ],
+        [
+          "POST",
+          "classrooms"
+        ],
+        [
+          "POST",
+          "classrooms//students"
+        ],
+        [
+          "PUT",
+          "classrooms"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/user/ClassManagement.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "permission"
+      ],
+      "api_calls": [
+        [
+          "permission",
+          "createPermission"
+        ],
+        [
+          "permission",
+          "deletePermission"
+        ],
+        [
+          "permission",
+          "getAllPermissions"
+        ],
+        [
+          "permission",
+          "togglePermission"
+        ],
+        [
+          "permission",
+          "updatePermission"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "admin/permissions/delete"
+        ],
+        [
+          "GET",
+          "admin/permissions/all"
+        ],
+        [
+          "PATCH",
+          "admin/permissions/toggle"
+        ],
+        [
+          "POST",
+          "admin/permissions/create"
+        ],
+        [
+          "PUT",
+          "admin/permissions/update"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/user/PermissionManagement.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "user"
+      ],
+      "api_calls": [
+        [
+          "user",
+          "createUser"
+        ],
+        [
+          "user",
+          "deleteUser"
+        ],
+        [
+          "user",
+          "getUserList"
+        ],
+        [
+          "user",
+          "updateUser"
+        ],
+        [
+          "user",
+          "updateUserStatus"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "admin/users"
+        ],
+        [
+          "DELETE",
+          "users"
+        ],
+        [
+          "GET",
+          "users"
+        ],
+        [
+          "PATCH",
+          "users//status"
+        ],
+        [
+          "POST",
+          "admin/users"
+        ],
+        [
+          "POST",
+          "users"
+        ],
+        [
+          "PUT",
+          "admin/users"
+        ],
+        [
+          "PUT",
+          "users"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "admin/user/UserManagement.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [],
+      "api_calls": [],
+      "resolved_http": [],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": false,
+      "routed": true,
+      "rel": "auth/Agreement.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "auth"
+      ],
+      "api_calls": [
+        [
+          "auth",
+          "resetPasswordByEmail"
+        ],
+        [
+          "auth",
+          "sendVerificationCode"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "POST",
+          "auth/send-code"
+        ]
+      ],
+      "math_random_count": 5,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "auth/ForgotPassword.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [],
+      "api_calls": [],
+      "resolved_http": [],
+      "math_random_count": 5,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": false,
+      "routed": true,
+      "rel": "auth/Login.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [],
+      "api_calls": [],
+      "resolved_http": [],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": false,
+      "routed": true,
+      "rel": "auth/Privacy.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [],
+      "api_calls": [],
+      "resolved_http": [],
+      "math_random_count": 5,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": false,
+      "routed": true,
+      "rel": "auth/Register.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "notification"
+      ],
+      "api_calls": [
+        [
+          "notification",
+          "getNotificationList"
+        ],
+        [
+          "notification",
+          "markAsRead"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "notifications"
+        ],
+        [
+          "PATCH",
+          "notifications//read"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "common/Notifications.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "auth",
+        "student"
+      ],
+      "api_calls": [
+        [
+          "auth",
+          "changePassword"
+        ],
+        [
+          "auth",
+          "updateCurrentUser"
+        ],
+        [
+          "student",
+          "getStudentDashboard"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "student/dashboard"
+        ],
+        [
+          "PUT",
+          "auth/me"
+        ],
+        [
+          "PUT",
+          "auth/password"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "common/Profile.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [],
+      "api_calls": [],
+      "resolved_http": [],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": false,
+      "routed": true,
+      "rel": "error/403.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [],
+      "api_calls": [],
+      "resolved_http": [],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": false,
+      "routed": true,
+      "rel": "error/404.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "ai",
+        "course"
+      ],
+      "api_calls": [
+        [
+          "ai",
+          "getSessions"
+        ],
+        [
+          "ai",
+          "qaAsk"
+        ],
+        [
+          "ai",
+          "qaStream"
+        ],
+        [
+          "ai",
+          "questionRecommendations"
+        ],
+        [
+          "course",
+          "getCourseList"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "ai/qa/sessions"
+        ],
+        [
+          "GET",
+          "ai/recommendations/questions"
+        ],
+        [
+          "GET",
+          "courses"
+        ],
+        [
+          "POST",
+          "ai/qa/ask"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "student/AIAssistant.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "course",
+        "enrollment"
+      ],
+      "api_calls": [
+        [
+          "course",
+          "getCourseList"
+        ],
+        [
+          "enrollment",
+          "getMyEnrollments"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "courses"
+        ],
+        [
+          "GET",
+          "enrollments/my"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "student/Courses.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "analytics",
+        "course",
+        "enrollment",
+        "learningRecord"
+      ],
+      "api_calls": [
+        [
+          "analytics",
+          "getStudentAnalytics"
+        ],
+        [
+          "analytics",
+          "getTrendData"
+        ],
+        [
+          "course",
+          "getCourseList"
+        ],
+        [
+          "enrollment",
+          "getMyEnrollments"
+        ],
+        [
+          "learningRecord",
+          "getLearningStats"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "analytics/students"
+        ],
+        [
+          "GET",
+          "analytics/users/growth"
+        ],
+        [
+          "GET",
+          "courses"
+        ],
+        [
+          "GET",
+          "enrollments/my"
+        ],
+        [
+          "GET",
+          "learning-records/stats"
+        ],
+        [
+          "GET",
+          "teacher/analytics/students"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "student/Dashboard.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "course",
+        "discussion"
+      ],
+      "api_calls": [
+        [
+          "course",
+          "getCourseList"
+        ],
+        [
+          "discussion",
+          "createTopic"
+        ],
+        [
+          "discussion",
+          "deletePost"
+        ],
+        [
+          "discussion",
+          "getTopicDetail"
+        ],
+        [
+          "discussion",
+          "getTopics"
+        ],
+        [
+          "discussion",
+          "likePost"
+        ],
+        [
+          "discussion",
+          "replyTopic"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "discussion/post"
+        ],
+        [
+          "GET",
+          "courses"
+        ],
+        [
+          "GET",
+          "discussion/topic"
+        ],
+        [
+          "GET",
+          "discussion/topic/course"
+        ],
+        [
+          "POST",
+          "discussion/post//like"
+        ],
+        [
+          "POST",
+          "discussion/topic"
+        ],
+        [
+          "POST",
+          "discussion/topic//reply"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "student/academic/Discussion.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "exam"
+      ],
+      "api_calls": [
+        [
+          "exam",
+          "autoSaveAnswers"
+        ],
+        [
+          "exam",
+          "getExamPaperList"
+        ],
+        [
+          "exam",
+          "getExamQuestions"
+        ],
+        [
+          "exam",
+          "getExamResult"
+        ],
+        [
+          "exam",
+          "getMyExamSessions"
+        ],
+        [
+          "exam",
+          "getScoreReport"
+        ],
+        [
+          "exam",
+          "startExam"
+        ],
+        [
+          "exam",
+          "submitExam"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "exam-papers"
+        ],
+        [
+          "GET",
+          "exam-papers//questions"
+        ],
+        [
+          "GET",
+          "exam-sessions//report"
+        ],
+        [
+          "GET",
+          "exam-sessions//result"
+        ],
+        [
+          "GET",
+          "exam-sessions/my"
+        ],
+        [
+          "POST",
+          "exam-sessions//auto-save"
+        ],
+        [
+          "POST",
+          "exam-sessions//submit"
+        ],
+        [
+          "POST",
+          "exam-sessions/start"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "student/academic/Exams.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "course",
+        "exam"
+      ],
+      "api_calls": [
+        [
+          "course",
+          "getCourseList"
+        ],
+        [
+          "exam",
+          "getExamPaperList"
+        ],
+        [
+          "exam",
+          "getMyExamSessions"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "courses"
+        ],
+        [
+          "GET",
+          "exam-papers"
+        ],
+        [
+          "GET",
+          "exam-sessions/my"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "student/academic/Grades.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "wrongQuestion",
+        "wrongQuestionEnhanced"
+      ],
+      "api_calls": [
+        [
+          "wrongQuestion",
+          "getWrongQuestionStats"
+        ],
+        [
+          "wrongQuestion",
+          "getWrongQuestions"
+        ],
+        [
+          "wrongQuestion",
+          "markAsReviewed"
+        ],
+        [
+          "wrongQuestionEnhanced",
+          "generatePracticePaper"
+        ],
+        [
+          "wrongQuestionEnhanced",
+          "getByKnowledgePoints"
+        ],
+        [
+          "wrongQuestionEnhanced",
+          "getRelated"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "student/wrong-questions"
+        ],
+        [
+          "GET",
+          "wrong-questions"
+        ],
+        [
+          "GET",
+          "wrong-questions//related"
+        ],
+        [
+          "GET",
+          "wrong-questions/by-kp"
+        ],
+        [
+          "GET",
+          "wrong-questions/stats"
+        ],
+        [
+          "POST",
+          "wrong-questions/practice-paper"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "student/academic/WrongQuestions.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "chapter",
+        "course",
+        "enrollment",
+        "learningRecord"
+      ],
+      "api_calls": [
+        [
+          "chapter",
+          "getChapters"
+        ],
+        [
+          "course",
+          "getCourseById"
+        ],
+        [
+          "enrollment",
+          "enrollCourse"
+        ],
+        [
+          "enrollment",
+          "getMyEnrollments"
+        ],
+        [
+          "learningRecord",
+          "createLearningRecord"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "chapters/course"
+        ],
+        [
+          "GET",
+          "courses"
+        ],
+        [
+          "GET",
+          "enrollments/my"
+        ],
+        [
+          "POST",
+          "enrollments"
+        ],
+        [
+          "POST",
+          "learning-records"
+        ],
+        [
+          "POST",
+          "student/courses//enroll"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "student/course/CourseDetail.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "course"
+      ],
+      "api_calls": [
+        [
+          "course",
+          "getCourseById"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "courses"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "student/course/CourseShell.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "question",
+        "student",
+        "task"
+      ],
+      "api_calls": [
+        [
+          "question",
+          "randomSelect"
+        ],
+        [
+          "student",
+          "getLearningCenter"
+        ],
+        [
+          "student",
+          "getVideoState"
+        ],
+        [
+          "student",
+          "markTaskComplete"
+        ],
+        [
+          "student",
+          "reportVideoHeartbeat"
+        ],
+        [
+          "student",
+          "submitQuiz"
+        ],
+        [
+          "task",
+          "getTaskById"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "questions/random"
+        ],
+        [
+          "GET",
+          "student/courses//learning-center"
+        ],
+        [
+          "GET",
+          "student/courses//tasks//video-state"
+        ],
+        [
+          "GET",
+          "tasks"
+        ],
+        [
+          "POST",
+          "student/courses//tasks//complete"
+        ],
+        [
+          "POST",
+          "student/courses//tasks//quiz-submit"
+        ],
+        [
+          "POST",
+          "student/courses//tasks//video-heartbeat"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "student/course/LearningCenter.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "course",
+        "knowledge",
+        "knowledgePointRelation"
+      ],
+      "api_calls": [
+        [
+          "course",
+          "getCourseList"
+        ],
+        [
+          "knowledge",
+          "getKnowledgeGraph"
+        ],
+        [
+          "knowledge",
+          "getMastery"
+        ],
+        [
+          "knowledgePointRelation",
+          "getGraphData"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "courses"
+        ],
+        [
+          "GET",
+          "knowledge/points//mastery"
+        ],
+        [
+          "GET",
+          "knowledge/points/graph"
+        ],
+        [
+          "GET",
+          "knowledge/relations/graph"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 1,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "student/study/KnowledgeGraph.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "analytics"
+      ],
+      "api_calls": [
+        [
+          "analytics",
+          "getTrendData"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "analytics/users/growth"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "student/study/LearningCalendar.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "learningPath"
+      ],
+      "api_calls": [
+        [
+          "learningPath",
+          "generatePath"
+        ],
+        [
+          "learningPath",
+          "getDailyTasks"
+        ],
+        [
+          "learningPath",
+          "getMyPaths"
+        ],
+        [
+          "learningPath",
+          "getPathNodes"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "learning-paths"
+        ],
+        [
+          "GET",
+          "learning-paths//daily-tasks"
+        ],
+        [
+          "GET",
+          "learning-paths//nodes"
+        ],
+        [
+          "GET",
+          "learning-paths/generate"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "student/study/LearningPath.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "chapter",
+        "course",
+        "enrollment",
+        "exam",
+        "notification",
+        "resource",
+        "task"
+      ],
+      "api_calls": [
+        [
+          "chapter",
+          "batchReorder"
+        ],
+        [
+          "chapter",
+          "createChapter"
+        ],
+        [
+          "chapter",
+          "deleteChapter"
+        ],
+        [
+          "chapter",
+          "getChapters"
+        ],
+        [
+          "chapter",
+          "updateChapter"
+        ],
+        [
+          "course",
+          "getCourseById"
+        ],
+        [
+          "course",
+          "getStats"
+        ],
+        [
+          "course",
+          "getStudents"
+        ],
+        [
+          "course",
+          "updateCourse"
+        ],
+        [
+          "enrollment",
+          "approveEnrollment"
+        ],
+        [
+          "enrollment",
+          "rejectEnrollment"
+        ],
+        [
+          "exam",
+          "listByCourse"
+        ],
+        [
+          "notification",
+          "deleteNotification"
+        ],
+        [
+          "notification",
+          "getNotifications"
+        ],
+        [
+          "notification",
+          "sendNotification"
+        ],
+        [
+          "resource",
+          "getResourceList"
+        ],
+        [
+          "task",
+          "listByCourse"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "chapters"
+        ],
+        [
+          "DELETE",
+          "notifications"
+        ],
+        [
+          "DELETE",
+          "teacher/courses//chapters"
+        ],
+        [
+          "GET",
+          "chapters/course"
+        ],
+        [
+          "GET",
+          "classrooms//stats"
+        ],
+        [
+          "GET",
+          "classrooms//students"
+        ],
+        [
+          "GET",
+          "courses"
+        ],
+        [
+          "GET",
+          "courses//stats"
+        ],
+        [
+          "GET",
+          "courses//students"
+        ],
+        [
+          "GET",
+          "login-logs/stats"
+        ],
+        [
+          "GET",
+          "resources/course"
+        ],
+        [
+          "POST",
+          "chapters"
+        ],
+        [
+          "POST",
+          "enrollments//approve"
+        ],
+        [
+          "POST",
+          "enrollments//reject"
+        ],
+        [
+          "POST",
+          "notifications/send"
+        ],
+        [
+          "PUT",
+          "batch-reorder"
+        ],
+        [
+          "PUT",
+          "chapters"
+        ],
+        [
+          "PUT",
+          "courses"
+        ],
+        [
+          "PUT",
+          "teacher/courses"
+        ],
+        [
+          "PUT",
+          "teacher/courses//chapters"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/CourseDetail.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "course"
+      ],
+      "api_calls": [
+        [
+          "course",
+          "deleteCourse"
+        ],
+        [
+          "course",
+          "getMyCourses"
+        ],
+        [
+          "course",
+          "toggleCourseStatus"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "courses"
+        ],
+        [
+          "DELETE",
+          "teacher/courses"
+        ],
+        [
+          "GET",
+          "courses/my"
+        ],
+        [
+          "GET",
+          "student/courses"
+        ],
+        [
+          "GET",
+          "teacher/courses"
+        ],
+        [
+          "PATCH",
+          "courses//toggle"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/Courses.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "course"
+      ],
+      "api_calls": [
+        [
+          "course",
+          "createCourse"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "POST",
+          "courses"
+        ],
+        [
+          "POST",
+          "teacher/courses"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/CreateCourse.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "analytics",
+        "course",
+        "task"
+      ],
+      "api_calls": [
+        [
+          "analytics",
+          "getDashboardStats"
+        ],
+        [
+          "course",
+          "getMyCourses"
+        ],
+        [
+          "task",
+          "getPendingGrading"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "analytics/dashboard"
+        ],
+        [
+          "GET",
+          "courses/my"
+        ],
+        [
+          "GET",
+          "student/courses"
+        ],
+        [
+          "GET",
+          "tasks/pending-grading"
+        ],
+        [
+          "GET",
+          "teacher/courses"
+        ]
+      ],
+      "math_random_count": 1,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/Dashboard.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "course",
+        "exam",
+        "question"
+      ],
+      "api_calls": [
+        [
+          "course",
+          "getMyCourses"
+        ],
+        [
+          "exam",
+          "copyExam"
+        ],
+        [
+          "exam",
+          "createExamPaper"
+        ],
+        [
+          "exam",
+          "deleteExamPaper"
+        ],
+        [
+          "exam",
+          "getExamPaperList"
+        ],
+        [
+          "exam",
+          "getExamQuestions"
+        ],
+        [
+          "exam",
+          "publishExam"
+        ],
+        [
+          "exam",
+          "updateExamPaper"
+        ],
+        [
+          "question",
+          "getQuestionList"
+        ],
+        [
+          "question",
+          "searchQuestions"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "exam-papers"
+        ],
+        [
+          "GET",
+          "courses/my"
+        ],
+        [
+          "GET",
+          "exam-papers"
+        ],
+        [
+          "GET",
+          "exam-papers//questions"
+        ],
+        [
+          "GET",
+          "questions"
+        ],
+        [
+          "GET",
+          "questions/search"
+        ],
+        [
+          "GET",
+          "student/courses"
+        ],
+        [
+          "GET",
+          "teacher/courses"
+        ],
+        [
+          "POST",
+          "exam-papers"
+        ],
+        [
+          "POST",
+          "exam-papers//copy"
+        ],
+        [
+          "POST",
+          "exam-papers//publish"
+        ],
+        [
+          "PUT",
+          "exam-papers"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/Exams.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "course",
+        "exam",
+        "submission",
+        "task"
+      ],
+      "api_calls": [
+        [
+          "course",
+          "getMyCourses"
+        ],
+        [
+          "exam",
+          "getMyExamSessions"
+        ],
+        [
+          "submission",
+          "aiGrade"
+        ],
+        [
+          "submission",
+          "getMySubmissions"
+        ],
+        [
+          "submission",
+          "gradeSubmission"
+        ],
+        [
+          "task",
+          "getPendingGrading"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "courses/my"
+        ],
+        [
+          "GET",
+          "exam-sessions/my"
+        ],
+        [
+          "GET",
+          "student/courses"
+        ],
+        [
+          "GET",
+          "submissions"
+        ],
+        [
+          "GET",
+          "tasks/pending-grading"
+        ],
+        [
+          "GET",
+          "teacher/courses"
+        ],
+        [
+          "POST",
+          "submissions//ai-grade"
+        ],
+        [
+          "POST",
+          "submissions//grade"
+        ],
+        [
+          "PUT",
+          "teacher/assignments//submissions"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/Grades.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "course",
+        "exam"
+      ],
+      "api_calls": [
+        [
+          "course",
+          "getMyCourses"
+        ],
+        [
+          "exam",
+          "createExam"
+        ],
+        [
+          "exam",
+          "deleteExam"
+        ],
+        [
+          "exam",
+          "getExamPaperList"
+        ],
+        [
+          "exam",
+          "getExamQuestions"
+        ],
+        [
+          "exam",
+          "getExamStatistics"
+        ],
+        [
+          "exam",
+          "publishExam"
+        ],
+        [
+          "exam",
+          "updateExam"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "analytics/exams//statistics"
+        ],
+        [
+          "GET",
+          "courses/my"
+        ],
+        [
+          "GET",
+          "exam-papers"
+        ],
+        [
+          "GET",
+          "exam-papers//questions"
+        ],
+        [
+          "GET",
+          "exam-papers//statistics"
+        ],
+        [
+          "GET",
+          "student/courses"
+        ],
+        [
+          "GET",
+          "teacher/courses"
+        ],
+        [
+          "POST",
+          "exam-papers//publish"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/assessment/ExamPapers.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "course",
+        "question"
+      ],
+      "api_calls": [
+        [
+          "course",
+          "getMyCourses"
+        ],
+        [
+          "question",
+          "copyQuestion"
+        ],
+        [
+          "question",
+          "createQuestion"
+        ],
+        [
+          "question",
+          "deleteQuestion"
+        ],
+        [
+          "question",
+          "generateAndSaveByAI"
+        ],
+        [
+          "question",
+          "getQuestionList"
+        ],
+        [
+          "question",
+          "reviewQuestion"
+        ],
+        [
+          "question",
+          "updateQuestion"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "questions"
+        ],
+        [
+          "DELETE",
+          "teacher/questions"
+        ],
+        [
+          "GET",
+          "courses/my"
+        ],
+        [
+          "GET",
+          "questions"
+        ],
+        [
+          "GET",
+          "student/courses"
+        ],
+        [
+          "GET",
+          "teacher/courses"
+        ],
+        [
+          "POST",
+          "questions"
+        ],
+        [
+          "POST",
+          "questions//copy"
+        ],
+        [
+          "POST",
+          "questions//review"
+        ],
+        [
+          "POST",
+          "teacher/questions"
+        ],
+        [
+          "PUT",
+          "questions"
+        ],
+        [
+          "PUT",
+          "teacher/questions"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/assessment/QuestionBank.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "analytics"
+      ],
+      "api_calls": [
+        [
+          "analytics",
+          "getCourseAnalytics"
+        ],
+        [
+          "analytics",
+          "getGradeHistogram"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "analytics/courses"
+        ],
+        [
+          "GET",
+          "analytics/courses//grades/histogram"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/cockpit/CourseAnalytics.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "chapter",
+        "teacher"
+      ],
+      "api_calls": [
+        [
+          "chapter",
+          "createChapter"
+        ],
+        [
+          "chapter",
+          "deleteChapter"
+        ],
+        [
+          "chapter",
+          "updateChapter"
+        ],
+        [
+          "teacher",
+          "getChapterTree"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "chapters"
+        ],
+        [
+          "DELETE",
+          "teacher/courses//chapters"
+        ],
+        [
+          "GET",
+          "teacher/courses//chapters/tree"
+        ],
+        [
+          "POST",
+          "chapters"
+        ],
+        [
+          "PUT",
+          "chapters"
+        ],
+        [
+          "PUT",
+          "teacher/courses//chapters"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/cockpit/CourseChapters.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "course",
+        "teacher"
+      ],
+      "api_calls": [
+        [
+          "course",
+          "getCourseById"
+        ],
+        [
+          "teacher",
+          "cloneCourse"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "courses"
+        ],
+        [
+          "POST",
+          "teacher/courses//clone"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/cockpit/CourseCockpit.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "discussion"
+      ],
+      "api_calls": [
+        [
+          "discussion",
+          "closeTopic"
+        ],
+        [
+          "discussion",
+          "createTopic"
+        ],
+        [
+          "discussion",
+          "deletePost"
+        ],
+        [
+          "discussion",
+          "getTopicDetail"
+        ],
+        [
+          "discussion",
+          "getTopics"
+        ],
+        [
+          "discussion",
+          "likePost"
+        ],
+        [
+          "discussion",
+          "pinTopic"
+        ],
+        [
+          "discussion",
+          "replyTopic"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "discussion/post"
+        ],
+        [
+          "GET",
+          "discussion/topic"
+        ],
+        [
+          "GET",
+          "discussion/topic/course"
+        ],
+        [
+          "POST",
+          "discussion/post//like"
+        ],
+        [
+          "POST",
+          "discussion/topic"
+        ],
+        [
+          "POST",
+          "discussion/topic//close"
+        ],
+        [
+          "POST",
+          "discussion/topic//pin"
+        ],
+        [
+          "POST",
+          "discussion/topic//reply"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/cockpit/CourseDiscussion.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "exam"
+      ],
+      "api_calls": [
+        [
+          "exam",
+          "copyExam"
+        ],
+        [
+          "exam",
+          "createExam"
+        ],
+        [
+          "exam",
+          "deleteExam"
+        ],
+        [
+          "exam",
+          "getExamQuestions"
+        ],
+        [
+          "exam",
+          "getExamStatistics"
+        ],
+        [
+          "exam",
+          "listByCourse"
+        ],
+        [
+          "exam",
+          "publishExam"
+        ],
+        [
+          "exam",
+          "updateExam"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "analytics/exams//statistics"
+        ],
+        [
+          "GET",
+          "exam-papers//questions"
+        ],
+        [
+          "GET",
+          "exam-papers//statistics"
+        ],
+        [
+          "POST",
+          "exam-papers//copy"
+        ],
+        [
+          "POST",
+          "exam-papers//publish"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/cockpit/CourseExams.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "grade"
+      ],
+      "api_calls": [
+        [
+          "grade",
+          "computeFinal"
+        ],
+        [
+          "grade",
+          "getCourseReport"
+        ],
+        [
+          "grade",
+          "getGradePolicy"
+        ],
+        [
+          "grade",
+          "saveGradeItem"
+        ],
+        [
+          "grade",
+          "saveGradePolicy"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "grade/final//student"
+        ],
+        [
+          "GET",
+          "grade/policy/course"
+        ],
+        [
+          "GET",
+          "grade/report/course"
+        ],
+        [
+          "POST",
+          "grade/item"
+        ],
+        [
+          "POST",
+          "grade/policy"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/cockpit/CourseGrades.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "interaction"
+      ],
+      "api_calls": [
+        [
+          "interaction",
+          "closeSignIn"
+        ],
+        [
+          "interaction",
+          "closeVote"
+        ],
+        [
+          "interaction",
+          "createSignIn"
+        ],
+        [
+          "interaction",
+          "createVote"
+        ],
+        [
+          "interaction",
+          "getSignInList"
+        ],
+        [
+          "interaction",
+          "getSignInRecords"
+        ],
+        [
+          "interaction",
+          "getVoteList"
+        ],
+        [
+          "interaction",
+          "getVoteResult"
+        ],
+        [
+          "interaction",
+          "markSignIn"
+        ],
+        [
+          "interaction",
+          "publishSignIn"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "interaction/sign-in//records"
+        ],
+        [
+          "GET",
+          "interaction/sign-in/course"
+        ],
+        [
+          "GET",
+          "interaction/vote//result"
+        ],
+        [
+          "GET",
+          "interaction/vote/course"
+        ],
+        [
+          "POST",
+          "interaction/sign-in"
+        ],
+        [
+          "POST",
+          "interaction/sign-in//close"
+        ],
+        [
+          "POST",
+          "interaction/sign-in//manual"
+        ],
+        [
+          "POST",
+          "interaction/sign-in//publish"
+        ],
+        [
+          "POST",
+          "interaction/vote"
+        ],
+        [
+          "POST",
+          "interaction/vote//close"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/cockpit/CourseInteraction.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "teacher"
+      ],
+      "api_calls": [
+        [
+          "teacher",
+          "getCourseDashboard"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "teacher/courses//dashboard"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/cockpit/CourseOverview.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "exam",
+        "proctor"
+      ],
+      "api_calls": [
+        [
+          "exam",
+          "getActiveExams"
+        ],
+        [
+          "exam",
+          "getExamPaperById"
+        ],
+        [
+          "proctor",
+          "getExamRisk"
+        ],
+        [
+          "proctor",
+          "getSessionEvents"
+        ],
+        [
+          "proctor",
+          "getStudentSession"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "exam-papers"
+        ],
+        [
+          "GET",
+          "exam-sessions/active"
+        ],
+        [
+          "GET",
+          "proctor/exam//risk"
+        ],
+        [
+          "GET",
+          "proctor/exam//student//session"
+        ],
+        [
+          "GET",
+          "proctor/session//events"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/cockpit/CourseProctor.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "question"
+      ],
+      "api_calls": [
+        [
+          "question",
+          "copyQuestion"
+        ],
+        [
+          "question",
+          "createQuestion"
+        ],
+        [
+          "question",
+          "deleteQuestion"
+        ],
+        [
+          "question",
+          "generateAndSaveByAI"
+        ],
+        [
+          "question",
+          "getQuestionList"
+        ],
+        [
+          "question",
+          "reviewQuestion"
+        ],
+        [
+          "question",
+          "updateQuestion"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "questions"
+        ],
+        [
+          "DELETE",
+          "teacher/questions"
+        ],
+        [
+          "GET",
+          "questions"
+        ],
+        [
+          "POST",
+          "questions"
+        ],
+        [
+          "POST",
+          "questions//copy"
+        ],
+        [
+          "POST",
+          "questions//review"
+        ],
+        [
+          "POST",
+          "teacher/questions"
+        ],
+        [
+          "PUT",
+          "questions"
+        ],
+        [
+          "PUT",
+          "teacher/questions"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/cockpit/CourseQuestionBank.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "submission",
+        "task"
+      ],
+      "api_calls": [
+        [
+          "submission",
+          "aiGrade"
+        ],
+        [
+          "submission",
+          "getTaskSubmissions"
+        ],
+        [
+          "submission",
+          "gradeSubmission"
+        ],
+        [
+          "submission",
+          "returnSubmission"
+        ],
+        [
+          "task",
+          "listByCourse"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "submissions/task"
+        ],
+        [
+          "POST",
+          "submissions//ai-grade"
+        ],
+        [
+          "POST",
+          "submissions//grade"
+        ],
+        [
+          "POST",
+          "submissions//return"
+        ],
+        [
+          "PUT",
+          "teacher/assignments//submissions"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/cockpit/CourseSubmissions.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "task"
+      ],
+      "api_calls": [
+        [
+          "task",
+          "createTask"
+        ],
+        [
+          "task",
+          "deleteTask"
+        ],
+        [
+          "task",
+          "extendDeadline"
+        ],
+        [
+          "task",
+          "listByCourse"
+        ],
+        [
+          "task",
+          "publishTask"
+        ],
+        [
+          "task",
+          "updateTask"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "tasks"
+        ],
+        [
+          "POST",
+          "tasks"
+        ],
+        [
+          "POST",
+          "tasks//extend-deadline"
+        ],
+        [
+          "POST",
+          "tasks//publish"
+        ],
+        [
+          "PUT",
+          "tasks"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/cockpit/CourseTasks.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "ai",
+        "course"
+      ],
+      "api_calls": [
+        [
+          "ai",
+          "essayCorrect"
+        ],
+        [
+          "ai",
+          "essayPolish"
+        ],
+        [
+          "ai",
+          "generateLearningPath"
+        ],
+        [
+          "ai",
+          "learningAdvice"
+        ],
+        [
+          "ai",
+          "qaAsk"
+        ],
+        [
+          "ai",
+          "qaContinue"
+        ],
+        [
+          "ai",
+          "weakPointsAnalysis"
+        ],
+        [
+          "course",
+          "getMyCourses"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "ai/advice/learning"
+        ],
+        [
+          "GET",
+          "ai/analysis/weak-points"
+        ],
+        [
+          "GET",
+          "courses/my"
+        ],
+        [
+          "GET",
+          "student/courses"
+        ],
+        [
+          "GET",
+          "teacher/courses"
+        ],
+        [
+          "POST",
+          "ai/essay/correct"
+        ],
+        [
+          "POST",
+          "ai/essay/polish"
+        ],
+        [
+          "POST",
+          "ai/learning-path/generate"
+        ],
+        [
+          "POST",
+          "ai/qa/ask"
+        ],
+        [
+          "POST",
+          "ai/qa/continue"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/tools/AICenter.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "analytics",
+        "course",
+        "submission",
+        "userEnhanced"
+      ],
+      "api_calls": [
+        [
+          "analytics",
+          "getDashboardStats"
+        ],
+        [
+          "course",
+          "getMyCourses"
+        ],
+        [
+          "submission",
+          "getMySubmissions"
+        ],
+        [
+          "userEnhanced",
+          "getTeacherStudents"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "analytics/dashboard"
+        ],
+        [
+          "GET",
+          "courses/my"
+        ],
+        [
+          "GET",
+          "student/courses"
+        ],
+        [
+          "GET",
+          "submissions"
+        ],
+        [
+          "GET",
+          "teacher/courses"
+        ],
+        [
+          "GET",
+          "users/teacher/students"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/tools/Analytics.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "course",
+        "discussion"
+      ],
+      "api_calls": [
+        [
+          "course",
+          "getMyCourses"
+        ],
+        [
+          "discussion",
+          "closeTopic"
+        ],
+        [
+          "discussion",
+          "createTopic"
+        ],
+        [
+          "discussion",
+          "deletePost"
+        ],
+        [
+          "discussion",
+          "getTopicDetail"
+        ],
+        [
+          "discussion",
+          "getTopics"
+        ],
+        [
+          "discussion",
+          "likePost"
+        ],
+        [
+          "discussion",
+          "pinTopic"
+        ],
+        [
+          "discussion",
+          "replyTopic"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "discussion/post"
+        ],
+        [
+          "GET",
+          "courses/my"
+        ],
+        [
+          "GET",
+          "discussion/topic"
+        ],
+        [
+          "GET",
+          "discussion/topic/course"
+        ],
+        [
+          "GET",
+          "student/courses"
+        ],
+        [
+          "GET",
+          "teacher/courses"
+        ],
+        [
+          "POST",
+          "discussion/post//like"
+        ],
+        [
+          "POST",
+          "discussion/topic"
+        ],
+        [
+          "POST",
+          "discussion/topic//close"
+        ],
+        [
+          "POST",
+          "discussion/topic//pin"
+        ],
+        [
+          "POST",
+          "discussion/topic//reply"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/tools/Discussion.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "course",
+        "interaction"
+      ],
+      "api_calls": [
+        [
+          "course",
+          "getMyCourses"
+        ],
+        [
+          "interaction",
+          "closeSignIn"
+        ],
+        [
+          "interaction",
+          "closeVote"
+        ],
+        [
+          "interaction",
+          "createSignIn"
+        ],
+        [
+          "interaction",
+          "createVote"
+        ],
+        [
+          "interaction",
+          "getSignInList"
+        ],
+        [
+          "interaction",
+          "getSignInRecords"
+        ],
+        [
+          "interaction",
+          "getVoteList"
+        ],
+        [
+          "interaction",
+          "getVoteResult"
+        ],
+        [
+          "interaction",
+          "markSignIn"
+        ],
+        [
+          "interaction",
+          "publishSignIn"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "GET",
+          "courses/my"
+        ],
+        [
+          "GET",
+          "interaction/sign-in//records"
+        ],
+        [
+          "GET",
+          "interaction/sign-in/course"
+        ],
+        [
+          "GET",
+          "interaction/vote//result"
+        ],
+        [
+          "GET",
+          "interaction/vote/course"
+        ],
+        [
+          "GET",
+          "student/courses"
+        ],
+        [
+          "GET",
+          "teacher/courses"
+        ],
+        [
+          "POST",
+          "interaction/sign-in"
+        ],
+        [
+          "POST",
+          "interaction/sign-in//close"
+        ],
+        [
+          "POST",
+          "interaction/sign-in//manual"
+        ],
+        [
+          "POST",
+          "interaction/sign-in//publish"
+        ],
+        [
+          "POST",
+          "interaction/vote"
+        ],
+        [
+          "POST",
+          "interaction/vote//close"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/tools/Interaction.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "course",
+        "knowledge"
+      ],
+      "api_calls": [
+        [
+          "course",
+          "getMyCourses"
+        ],
+        [
+          "knowledge",
+          "createKnowledgePoint"
+        ],
+        [
+          "knowledge",
+          "deleteKnowledgePoint"
+        ],
+        [
+          "knowledge",
+          "extractKnowledgePoints"
+        ],
+        [
+          "knowledge",
+          "getKnowledgeOverview"
+        ],
+        [
+          "knowledge",
+          "getKnowledgePoints"
+        ],
+        [
+          "knowledge",
+          "getRelationGraphData"
+        ],
+        [
+          "knowledge",
+          "updateKnowledgePoint"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "knowledge/points"
+        ],
+        [
+          "GET",
+          "courses/my"
+        ],
+        [
+          "GET",
+          "knowledge/points"
+        ],
+        [
+          "GET",
+          "student/courses"
+        ],
+        [
+          "GET",
+          "teacher/courses"
+        ],
+        [
+          "POST",
+          "knowledge/points"
+        ],
+        [
+          "PUT",
+          "knowledge/points"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/tools/KnowledgeGraph.vue",
+      "missing_backend": []
+    },
+    {
+      "imported_modules": [
+        "course",
+        "knowledge",
+        "knowledgePointRelation"
+      ],
+      "api_calls": [
+        [
+          "course",
+          "getMyCourses"
+        ],
+        [
+          "knowledge",
+          "addRelation"
+        ],
+        [
+          "knowledge",
+          "createKnowledgePoint"
+        ],
+        [
+          "knowledge",
+          "deleteKnowledgePoint"
+        ],
+        [
+          "knowledge",
+          "getKnowledgePoints"
+        ],
+        [
+          "knowledge",
+          "getPrerequisites"
+        ],
+        [
+          "knowledge",
+          "getTree"
+        ],
+        [
+          "knowledge",
+          "updateKnowledgePoint"
+        ],
+        [
+          "knowledgePointRelation",
+          "delete"
+        ],
+        [
+          "knowledgePointRelation",
+          "getGraphData"
+        ]
+      ],
+      "resolved_http": [
+        [
+          "DELETE",
+          "knowledge/points"
+        ],
+        [
+          "DELETE",
+          "knowledge/relations"
+        ],
+        [
+          "GET",
+          "courses/my"
+        ],
+        [
+          "GET",
+          "knowledge/points"
+        ],
+        [
+          "GET",
+          "knowledge/points//prerequisites"
+        ],
+        [
+          "GET",
+          "knowledge/points/tree"
+        ],
+        [
+          "GET",
+          "knowledge/relations/graph"
+        ],
+        [
+          "GET",
+          "student/courses"
+        ],
+        [
+          "GET",
+          "teacher/courses"
+        ],
+        [
+          "POST",
+          "knowledge/points"
+        ],
+        [
+          "POST",
+          "knowledge/relations"
+        ],
+        [
+          "PUT",
+          "knowledge/points"
+        ]
+      ],
+      "math_random_count": 0,
+      "fake_kw_count": 0,
+      "direct_request": 0,
+      "has_api": true,
+      "routed": true,
+      "rel": "teacher/tools/KnowledgeManagement.vue",
+      "missing_backend": []
+    }
+  ]
+}

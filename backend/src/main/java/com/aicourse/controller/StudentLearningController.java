@@ -9,9 +9,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.LinkedHashMap;
 import java.util.Map;
-import lombok.extern.slf4j.Slf4j;
 
 /**
  * 学生端学习核心控制器
@@ -27,7 +25,6 @@ import lombok.extern.slf4j.Slf4j;
 @RequestMapping("/student")
 @PreAuthorize("hasRole('STUDENT')")
 @Tag(name = "学生学习")
-@Slf4j
 public class StudentLearningController {
 
     private final StudentLearningService studentLearningService;
@@ -61,7 +58,7 @@ public class StudentLearningController {
     @PostMapping("/courses/{courseId}/tasks/{taskId}/complete")
     public ApiResponse<Map<String, Object>> completeTask(@PathVariable Long courseId,
                                                          @PathVariable Long taskId,
-                                                         @RequestBody(required = false) Map<String, String> body,
+                                                         @Valid @RequestBody(required = false) Map<String, String> body,
                                                          Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         String completionType = body != null ? body.get("completionType") : null;
@@ -93,20 +90,10 @@ public class StudentLearningController {
     @PostMapping("/courses/{courseId}/tasks/{taskId}/quiz-submit")
     public ApiResponse<Map<String, Object>> quizSubmit(@PathVariable Long courseId,
                                                        @PathVariable Long taskId,
-                                                       @RequestBody Map<String, String> answers,
+                                                       @Valid @RequestBody Map<String, String> answers,
                                                        Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        Map<Long, String> parsed = new LinkedHashMap<>();
-        if (answers != null) {
-            for (Map.Entry<String, String> e : answers.entrySet()) {
-                try {
-                    parsed.put(Long.valueOf(e.getKey()), e.getValue());
-                } catch (NumberFormatException ignore) {
-                    log.warn("解析答案键失败: key={}", e.getKey(), ignore);
-                }
-            }
-        }
-        return ApiResponse.success(studentLearningService.submitQuiz(userId, courseId, taskId, parsed));
+        return ApiResponse.success(studentLearningService.submitQuiz(userId, courseId, taskId, answers));
     }
 
     /** 学生成绩总览（按课程聚合作业/考试/总评） */

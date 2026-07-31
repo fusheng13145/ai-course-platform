@@ -91,7 +91,7 @@ public class KnowledgeController {
      */
     @PostMapping("/points")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<KnowledgePoint> createPoint(@RequestBody KnowledgePoint point) {
+    public ApiResponse<KnowledgePoint> createPoint(@Valid @RequestBody KnowledgePoint point) {
         knowledgePointService.save(point);
         return ApiResponse.success("创建成功", point);
     }
@@ -102,7 +102,7 @@ public class KnowledgeController {
      */
     @PutMapping("/points/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<KnowledgePoint> updatePoint(@PathVariable Long id, @RequestBody KnowledgePoint point) {
+    public ApiResponse<KnowledgePoint> updatePoint(@PathVariable Long id, @Valid @RequestBody KnowledgePoint point) {
         point.setId(id);
         knowledgePointService.updateById(point);
         return ApiResponse.success("更新成功", knowledgePointService.getById(id));
@@ -332,7 +332,7 @@ public class KnowledgeController {
     }
 
     /**
-     * 学习路径规划（起点到目标的最优路径，使用 BFS 算法）
+     * 学习路径规划（起点到目标的最优路径，BFS 算法由 KnowledgeGraphService 提供）
      * POST /api/knowledge/path/plan
      */
     @PostMapping("/path/plan")
@@ -340,67 +340,16 @@ public class KnowledgeController {
         Long startPointId = dto.getStartPointId();
         Long targetPointId = dto.getTargetPointId();
 
-        if (startPointId.equals(targetPointId)) {
-            KnowledgePoint point = knowledgePointService.getById(startPointId);
-            return ApiResponse.success("起点与目标相同", Collections.singletonList(point));
-        }
+        List<KnowledgePoint> path = knowledgeGraphService.planLearningPath(startPointId, targetPointId);
 
-        List<KnowledgePointRelation> allRelations = relationService.list();
-        Map<Long, List<Long>> adjacency = new HashMap<>();
-        for (KnowledgePointRelation rel : allRelations) {
-            adjacency.computeIfAbsent(rel.getSourceId(), k -> new ArrayList<>()).add(rel.getTargetId());
-        }
-
-        Queue<Long> queue = new LinkedList<>();
-        Map<Long, Long> parent = new HashMap<>();
-        Set<Long> visited = new HashSet<>();
-
-        queue.add(startPointId);
-        visited.add(startPointId);
-
-        boolean found = false;
-        while (!queue.isEmpty()) {
-            Long current = queue.poll();
-            if (current.equals(targetPointId)) {
-                found = true;
-                break;
-            }
-            List<Long> neighbors = adjacency.getOrDefault(current, Collections.emptyList());
-            for (Long neighbor : neighbors) {
-                if (!visited.contains(neighbor)) {
-                    visited.add(neighbor);
-                    parent.put(neighbor, current);
-                    queue.add(neighbor);
-                }
-            }
-        }
-
-        if (!found) {
+        if (path.isEmpty()) {
+            // 起点与目标相同时服务层返回单点；此处为空说明两点不可达
             return ApiResponse.success("未找到从起点到目标的学习路径，建议先学习相关知识再尝试", Collections.emptyList());
         }
-
-        List<Long> pathIds = new ArrayList<>();
-        Long cur = targetPointId;
-        while (cur != null) {
-            pathIds.add(cur);
-            cur = parent.get(cur);
+        if (path.size() == 1 && startPointId.equals(targetPointId)) {
+            return ApiResponse.success("起点与目标相同", path);
         }
-        Collections.reverse(pathIds);
-
-        List<KnowledgePoint> allPoints = knowledgePointService.listByIds(pathIds);
-        Map<Long, KnowledgePoint> pointMap = new HashMap<>();
-        for (KnowledgePoint p : allPoints) {
-            pointMap.put(p.getId(), p);
-        }
-        List<KnowledgePoint> orderedPath = new ArrayList<>();
-        for (Long id : pathIds) {
-            KnowledgePoint p = pointMap.get(id);
-            if (p != null) {
-                orderedPath.add(p);
-            }
-        }
-
-        return ApiResponse.success("路径规划成功，共" + orderedPath.size() + "个知识点", orderedPath);
+        return ApiResponse.success("路径规划成功，共" + path.size() + "个知识点", path);
     }
 
     /**

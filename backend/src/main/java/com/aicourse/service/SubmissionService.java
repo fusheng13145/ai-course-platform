@@ -48,6 +48,20 @@ public interface SubmissionService extends IService<Submission> {
     Submission gradeSubmission(Long submissionId, BigDecimal score, String feedback, Long graderId);
 
     /**
+     * 教师端批改作业（/teacher/assignments/{id}/submissions/{sid} 接口业务下沉）：
+     * 校验提交记录存在且属于指定作业，然后置分/评语/状态为GRADED并落库。
+     * 与 {@link #gradeSubmission} 的差异：不含逾期扣分/百分比/reviewCount 等增强逻辑，
+     * 行为与原 TeacherController 内联实现完全一致。
+     *
+     * @param assignmentId 作业ID（用于归属一致性校验）
+     * @param submissionId 提交记录ID
+     * @param grade        评分数据（score/feedback）
+     * @param graderId     批阅人ID
+     * @return 批改后的提交记录
+     */
+    Submission gradeSubmissionByTeacher(Long assignmentId, Long submissionId, Submission grade, Long graderId);
+
+    /**
      * AI智能评分
      * @param submissionId 提交记录ID
      * @return AI评分后的提交记录

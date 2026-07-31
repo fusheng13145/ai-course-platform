@@ -90,7 +90,16 @@ public class ProctorServiceImpl extends ServiceImpl<ProctorSessionMapper, Procto
         e.setStatus(ProctorEvent.STATUS_PENDING);
         eventMapper.insert(e);
 
-        int score = (s.getRiskScore() == null ? 0 : s.getRiskScore()) + severityWeight(severity);
+        int weight = severityWeight(severity);
+        // 突发升级规则：同一会话同类型事件在近60秒内达到3次及以上，视为持续异常行为，权重+1
+        Long recentSameType = eventMapper.selectCount(new LambdaQueryWrapper<ProctorEvent>()
+                .eq(ProctorEvent::getProctorSessionId, sessionId)
+                .eq(ProctorEvent::getType, type)
+                .ge(ProctorEvent::getCapturedAt, LocalDateTime.now().minusSeconds(60)));
+        if (recentSameType != null && recentSameType >= 3) {
+            weight += 1;
+        }
+        int score = (s.getRiskScore() == null ? 0 : s.getRiskScore()) + weight;
         s.setRiskScore(score);
         s.setRiskLevel(computeLevel(score));
         if (ProctorSession.LEVEL_HIGH.equals(s.getRiskLevel())
@@ -196,7 +205,39 @@ public class ProctorServiceImpl extends ServiceImpl<ProctorSessionMapper, Procto
         e.setReviewedAt(LocalDateTime.now());
         e.setReviewerId(reviewerId);
         eventMapper.updateById(e);
+
+        // 豁免事件时同步回撤风险分：重算该会话全部未豁免事件的加权总分与风险等级
+        if (ProctorEvent.STATUS_EXEMPTED.equals(status)) {
+            recalcSessionRisk(e.getProctorSessionId());
+        }
         return e;
+    }
+
+    /**
+     * 重算会话风险分（仅计入未豁免事件），并同步修正风险等级与标记状态。
+     * 用于教师复核豁免误报事件后，风险分不再虚高。
+     */
+    private void recalcSessionRisk(Long sessionId) {
+        ProctorSession s = this.getById(sessionId);
+        if (s == null) {
+            return;
+        }
+        List<ProctorEvent> events = eventMapper.selectList(new LambdaQueryWrapper<ProctorEvent>()
+                .eq(ProctorEvent::getProctorSessionId, sessionId)
+                .ne(ProctorEvent::getStatus, ProctorEvent.STATUS_EXEMPTED));
+        int score = 0;
+        for (ProctorEvent ev : events) {
+            score += severityWeight(ev.getSeverity());
+        }
+        s.setRiskScore(score);
+        s.setRiskLevel(computeLevel(score));
+        // 若降级脱离高风险且此前被标记，恢复为进行中/已结束的正常状态
+        if (!ProctorSession.LEVEL_HIGH.equals(s.getRiskLevel())
+                && ProctorSession.STATUS_FLAGGED.equals(s.getStatus())) {
+            s.setStatus(s.getEndedAt() != null
+                    ? ProctorSession.STATUS_ENDED : ProctorSession.STATUS_IN_PROGRESS);
+        }
+        this.updateById(s);
     }
 
     @Override

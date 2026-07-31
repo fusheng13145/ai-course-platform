@@ -39,6 +39,22 @@ describe('ErrorBoundary 错误边界', () => {
     expect(wrapper.find('.error-boundary').exists()).toBe(false)
   })
 
+  it('无错误时默认插槽内容被完整渲染', () => {
+    const withSlot = mount(AppErrorBoundary, {
+      global: {
+        stubs: {
+          ElButton: {
+            template: '<button @click="$emit(\'click\')"><slot /></button>',
+            emits: ['click'],
+          },
+        },
+      },
+      slots: { default: '<div class="slot-content">正常内容</div>' },
+    })
+    expect(withSlot.find('.slot-content').exists()).toBe(true)
+    expect(withSlot.text()).toContain('正常内容')
+  })
+
   it('有错误时显示错误提示信息', async () => {
     const error = new Error('测试错误消息')
     wrapper.vm.captureError(error)
@@ -87,8 +103,11 @@ describe('ErrorBoundary 错误边界', () => {
     wrapper.vm.captureError(new Error('错误'))
     await nextTick()
 
+    // 错误态渲染 3 个按钮：重试 / 返回首页 / 查看详情
     const buttons = wrapper.findAll('button')
-    expect(buttons.length).toBe(2)
+    expect(buttons.length).toBe(3)
+    expect(buttons[0].text()).toContain('重试')
+    expect(buttons[1].text()).toContain('返回首页')
   })
 
   it('未知错误显示默认消息', async () => {

@@ -1,5 +1,7 @@
 package com.aicourse.controller;
 
+import jakarta.validation.Valid;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.dto.QuestionVO;
@@ -109,7 +111,7 @@ public class ExamPaperController {
     @PostMapping
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "新增试卷")
-    public ApiResponse<ExamPaper> create(@RequestBody ExamPaper exam, Authentication auth) {
+    public ApiResponse<ExamPaper> create(@Valid @RequestBody ExamPaper exam, Authentication auth) {
         exam.setCreatorId((Long) auth.getPrincipal());
         examPaperService.save(exam);
         return ApiResponse.success("创建成功", exam);
@@ -124,7 +126,7 @@ public class ExamPaperController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "修改试卷")
-    public ApiResponse<ExamPaper> update(@PathVariable Long id, @RequestBody ExamPaper exam) {
+    public ApiResponse<ExamPaper> update(@PathVariable Long id, @Valid @RequestBody ExamPaper exam) {
         exam.setId(id);
         examPaperService.updateById(exam);
         ExamPaper updatedExam = examPaperService.getById(id);
@@ -208,7 +210,7 @@ public class ExamPaperController {
     @PostMapping("/auto-compose")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "自动组卷")
-    public ApiResponse<ExamPaper> autoCompose(@RequestBody AutoComposeDTO dto, Authentication auth) {
+    public ApiResponse<ExamPaper> autoCompose(@Valid @RequestBody AutoComposeDTO dto, Authentication auth) {
         Long creatorId = (Long) auth.getPrincipal();
         ExamPaper paper = examPaperService.autoComposeExamPaper(dto, creatorId);
         return ApiResponse.success("自动组卷成功", paper);
@@ -224,7 +226,7 @@ public class ExamPaperController {
     @PostMapping("/{id}/copy")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "复制试卷")
-    public ApiResponse<ExamPaper> copy(@PathVariable Long id, @RequestBody Map<String, String> body) {
+    public ApiResponse<ExamPaper> copy(@PathVariable Long id, @Valid @RequestBody Map<String, String> body) {
         String newTitle = body.get("newTitle");
         ExamPaper newPaper = examPaperService.copyExamPaper(id, newTitle);
         return ApiResponse.success("复制成功", newPaper);

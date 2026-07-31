@@ -1,8 +1,7 @@
 <template>
-  <AppShell :menus="TEACHER_MENUS" role="TEACHER" />
+  <AppShell role="TEACHER" notification-path="/teacher/notifications" profile-path="/teacher/profile" />
 </template>
 
 <script setup>
 import AppShell from './AppShell.vue'
-import { TEACHER_MENUS } from './menus'
 </script>

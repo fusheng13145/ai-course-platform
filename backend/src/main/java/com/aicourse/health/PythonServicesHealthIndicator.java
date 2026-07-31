@@ -82,7 +82,8 @@ public class PythonServicesHealthIndicator implements HealthIndicator {
         anyChecked |= ft.checked();
         allUp &= !ft.checked() || ft.up();
 
-        Health.Builder builder = allUp && anyChecked ? Health.up() : Health.down();
+        // 全部未启用时视为 UP（无 Python 服务依赖），任一已启用服务 DOWN 才判 DOWN
+        Health.Builder builder = (!anyChecked || allUp) ? Health.up() : Health.down();
         details.forEach(builder::withDetail);
         return builder.build();
     }
@@ -93,7 +94,9 @@ public class PythonServicesHealthIndicator implements HealthIndicator {
         detail.put("baseUrl", baseUrl);
         if (!enabled) {
             detail.put("status", "DISABLED");
-            return new HealthStatus(false, true, false, detail);
+            // 未启用的服务不参与健康判定：既不算"已检查"也不算"故障"，
+            // 避免所有 Python 服务都关闭时整体健康状态被误判为 DOWN。
+            return new HealthStatus(true, false, false, detail);
         }
         try {
             restClient.get()

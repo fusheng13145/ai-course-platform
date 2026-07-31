@@ -1,101 +1,116 @@
 <template>
   <div class="fade-in analytics-page">
-    <!-- 页面头部：时间范围选择 + 导出按钮 -->
-    <div class="page-header">
-      <div class="header-left">
-        <h2 class="page-title">数据分析中心</h2>
-        <span class="page-subtitle">平台运营数据总览与趋势分析</span>
-      </div>
-      <div class="header-right">
-        <el-date-picker
-          v-model="dateRange"
-          type="daterange"
-          range-separator="至"
-          start-placeholder="开始日期"
-          end-placeholder="结束日期"
-          size="default"
-          :shortcuts="dateShortcuts"
-          @change="handleDateChange"
-          style="width: 280px;"
+    <PageHeader title="数据分析中心" subtitle="平台运营数据总览与趋势分析" icon="chart">
+      <el-date-picker
+        v-model="dateRange"
+        type="daterange"
+        range-separator="至"
+        start-placeholder="开始日期"
+        end-placeholder="结束日期"
+        size="default"
+        :shortcuts="dateShortcuts"
+        class="date-range"
+        @change="handleDateChange"
+      />
+      <el-button type="primary" @click="exportReport">
+        <el-icon><Download /></el-icon>
+        导出报告
+      </el-button>
+    </PageHeader>
+
+    <div v-loading="loading">
+      <!-- 核心指标卡片 -->
+      <div class="stat-grid animate-in d1">
+        <StatCard
+          v-for="(metric, index) in coreMetrics"
+          :key="index"
+          :label="metric.label"
+          :value="metric.value"
+          :icon="metric.icon"
+          :tone="metric.tone"
+          :tone-color="metric.toneColor"
+          :foot="metricFoot(metric)"
         />
-        <el-button type="primary" @click="exportReport">
-          <el-icon><Download /></el-icon>
-          导出报告
-        </el-button>
       </div>
-    </div>
 
-    <!-- 核心指标卡片 -->
-    <div class="metrics-row">
-      <div
-        v-for="(metric, index) in coreMetrics"
-        :key="index"
-        class="metric-card"
-      >
-        <div class="metric-label">{{ metric.label }}</div>
-        <div class="metric-value">{{ metric.value }}</div>
-        <div class="metric-trend" :class="metric.change >= 0 ? 'positive' : 'negative'">
-          <el-icon :size="12"><Top v-if="metric.change >= 0" /><Bottom v-else /></el-icon>
-          {{ Math.abs(metric.change) }}% 较上期
+      <!-- 图表区域第一行：用户趋势 + 课程分布 -->
+      <div class="charts-grid charts-2col animate-in d2">
+        <div class="chart-card">
+          <div class="chart-title">用户注册趋势</div>
+          <v-chart v-if="hasUserTrend" :option="userTrendOption" style="height: 340px" autoresize />
+          <el-empty v-else description="暂无用户注册趋势数据" :image-size="80" />
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">课程类别分布</div>
+          <v-chart v-if="hasCategory" :option="categoryPieOption" style="height: 340px" autoresize />
+          <el-empty v-else description="暂无课程类别数据" :image-size="80" />
         </div>
       </div>
-    </div>
 
-    <!-- 图表区域第一行：用户趋势 + 课程分布 -->
-    <div class="charts-grid charts-2col">
-      <div class="chart-card">
-        <div class="chart-title">用户注册趋势</div>
-        <v-chart :option="userTrendOption" style="height: 340px" autoresize />
-      </div>
-      <div class="chart-card">
-        <div class="chart-title">课程类别分布</div>
-        <v-chart :option="categoryPieOption" style="height: 340px" autoresize />
-      </div>
-    </div>
-
-    <!-- 学习时长热力图（类似GitHub贡献图） -->
-    <div class="chart-card full-width">
-      <div class="chart-title">学习时长热力图</div>
-      <div class="heatmap-container">
-        <v-chart :option="heatmapOption" style="height: 200px" autoresize />
-        <div class="heatmap-legend">
-          <span>少</span>
-          <div class="legend-colors">
-            <span v-for="(color, i) in heatmapColors" :key="i" :style="{ background: color }"></span>
+      <!-- 学习时长热力图（类似GitHub贡献图） -->
+      <div class="chart-card full-width animate-in d2">
+        <div class="chart-title">学习时长热力图</div>
+        <template v-if="hasHeatmap">
+          <div class="heatmap-container">
+            <v-chart :option="heatmapOption" style="height: 200px" autoresize />
+            <div class="heatmap-legend">
+              <span>少</span>
+              <div class="legend-colors">
+                <span v-for="(color, i) in heatmapColors" :key="i" :style="{ background: color }"></span>
+              </div>
+              <span>多</span>
+            </div>
           </div>
-          <span>多</span>
+        </template>
+        <el-empty v-else description="暂无学习时长热力图数据" :image-size="80" />
+      </div>
+
+      <!-- 图表区域第二行：角色活跃度 + 成绩分布 -->
+      <div class="charts-grid charts-2col">
+        <div class="chart-card">
+          <div class="chart-title">各角色活跃度对比</div>
+          <v-chart v-if="hasRoleActivity" :option="roleActivityOption" style="height: 320px" autoresize />
+          <el-empty v-else description="暂无角色活跃度数据" :image-size="80" />
+        </div>
+        <div class="chart-card">
+          <div class="chart-title">成绩分布直方图</div>
+          <v-chart v-if="hasGradeDist" :option="gradeDistOption" style="height: 320px" autoresize />
+          <el-empty v-else description="暂无成绩分布数据" :image-size="80" />
         </div>
       </div>
-    </div>
 
-    <!-- 图表区域第二行：角色活跃度 + 成绩分布 -->
-    <div class="charts-grid charts-2col">
-      <div class="chart-card">
-        <div class="chart-title">各角色活跃度对比</div>
-        <v-chart :option="roleActivityOption" style="height: 320px" autoresize />
+      <!-- 热门课程TOP10 -->
+      <div class="chart-card full-width animate-in d3">
+        <div class="chart-title">热门课程 TOP10</div>
+        <v-chart v-if="hasTopCourses" :option="topCoursesOption" style="height: 420px" autoresize />
+        <el-empty v-else description="暂无热门课程数据" :image-size="80" />
       </div>
-      <div class="chart-card">
-        <div class="chart-title">成绩分布直方图</div>
-        <v-chart :option="gradeDistOption" style="height: 320px" autoresize />
-      </div>
-    </div>
-
-    <!-- 热门课程TOP10 -->
-    <div class="chart-card full-width">
-      <div class="chart-title">热门课程 TOP10</div>
-      <v-chart :option="topCoursesOption" style="height: 420px" autoresize />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { Download, Top, Bottom } from '@element-plus/icons-vue'
+import { ref, computed, onMounted } from 'vue'
+import { Download } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import analyticsApi from '@/api/analytics'
+import { getChartTheme, getMonoSeries } from '@/utils/chartTheme'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 // 日期范围选择器
 const dateRange = ref([])
+
+// 加载状态
+const loading = ref(false)
+
+// 图表数据是否可用（用于空状态）
+const hasUserTrend = ref(false)
+const hasCategory = ref(false)
+const hasHeatmap = ref(false)
+const hasRoleActivity = ref(false)
+const hasGradeDist = ref(false)
+const hasTopCourses = ref(false)
 
 // 日期快捷选项
 const dateShortcuts = [
@@ -130,352 +145,392 @@ const dateShortcuts = [
 
 // 核心指标数据
 const coreMetrics = ref([
-  { label: '总用户数', value: '--', change: 0 },
-  { label: '总课程数', value: '--', change: 0 },
-  { label: '日活用户', value: '--', change: 0 },
-  { label: '完成率', value: '--', change: 0 },
-  { label: '增长率', value: '--', change: 0 }
+  { label: '总用户数', value: '--', change: 0, icon: 'users', tone: 'var(--accent-soft)', toneColor: 'var(--accent)' },
+  { label: '总课程数', value: '--', change: 0, icon: 'book', tone: 'var(--info-soft)', toneColor: 'var(--info)' },
+  { label: '日活用户', value: '--', change: 0, icon: 'monitor', tone: 'var(--ok-soft)', toneColor: 'var(--ok)' },
+  { label: '完成率', value: '--', change: 0, icon: 'check', tone: 'var(--warn-soft)', toneColor: 'var(--warn)' },
+  { label: '增长率', value: '--', change: 0, icon: 'chart', tone: 'var(--violet-soft)', toneColor: 'var(--violet)' },
 ])
 
+function metricFoot(m) {
+  const cls = m.change >= 0 ? 'trend-up' : 'trend-down'
+  return `<span class="${cls}">${Math.abs(m.change)}%</span> 较上期`
+}
+
+// hex → rgba 工具（图表渐变用）
+function rgba(hex, a) {
+  const n = parseInt(hex.slice(1), 16)
+  return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${a})`
+}
+
 // 用户注册趋势图配置
-const userTrendOption = ref({
-  tooltip: {
-    trigger: 'axis',
-    backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: '#DDD6CE',
-    textStyle: { color: '#3D3835', fontSize: 12 },
-    axisPointer: { type: 'cross' }
-  },
-  legend: {
-    data: ['新增用户', '活跃用户'],
-    top: 0,
-    textStyle: { color: '#5E574F', fontSize: 12 }
-  },
-  grid: { left: 50, right: 20, bottom: 30, top: 40 },
-  xAxis: {
-    type: 'category',
-    data: [],
-    boundaryGap: false,
-    axisLine: { lineStyle: { color: '#DDD6CE' } },
-    axisLabel: { color: '#928B83', fontSize: 11 }
-  },
-  yAxis: {
-    type: 'value',
-    axisLine: { show: false },
-    axisTick: { show: false },
-    splitLine: { lineStyle: { color: '#DDD6CE', type: 'dashed' } },
-    axisLabel: { color: '#928B83' }
-  },
-  series: [
-    {
-      name: '新增用户',
-      data: [],
-      type: 'line',
-      smooth: true,
-      symbol: 'circle',
-      symbolSize: 5,
-      lineStyle: { width: 2.5, color: '#7A8BA5' },
-      areaStyle: {
-        color: {
-          type: 'linear',
-          x: 0, y: 0, x2: 0, y2: 1,
-          colorStops: [
-            { offset: 0, color: 'rgba(122, 139, 165, 0.20)' },
-            { offset: 1, color: 'rgba(122, 139, 165, 0.02)' }
-          ]
-        }
-      },
-      itemStyle: { color: '#7A8BA5' }
+const userTrendOption = ref(buildUserTrendOption())
+function buildUserTrendOption() {
+  const t = getChartTheme()
+  const mono = getMonoSeries()
+  return {
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: t.tooltipBg,
+      borderColor: t.tooltipBorder,
+      textStyle: { color: t.tooltipText, fontSize: 12 },
+      axisPointer: { type: 'cross' }
     },
-    {
-      name: '活跃用户',
+    legend: {
+      data: ['新增用户', '活跃用户'],
+      top: 0,
+      textStyle: { color: t.subText, fontSize: 12 }
+    },
+    grid: { left: 50, right: 20, bottom: 30, top: 40 },
+    xAxis: {
+      type: 'category',
       data: [],
-      type: 'line',
-      smooth: true,
-      symbol: 'circle',
-      symbolSize: 5,
-      lineStyle: { width: 2.5, color: '#8BA888' },
-      areaStyle: {
-        color: {
-          type: 'linear',
-          x: 0, y: 0, x2: 0, y2: 1,
-          colorStops: [
-            { offset: 0, color: 'rgba(139, 168, 136, 0.18)' },
-            { offset: 1, color: 'rgba(139, 168, 136, 0.02)' }
-          ]
-        }
+      boundaryGap: false,
+      axisLine: { lineStyle: { color: t.axis } },
+      axisLabel: { color: t.subText, fontSize: 11 }
+    },
+    yAxis: {
+      type: 'value',
+      axisLine: { show: false },
+      axisTick: { show: false },
+      splitLine: { lineStyle: { color: t.axis, type: 'dashed' } },
+      axisLabel: { color: t.subText }
+    },
+    series: [
+      {
+        name: '新增用户',
+        data: [],
+        type: 'line',
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 5,
+        lineStyle: { width: 2.5, color: mono[1] },
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: rgba(mono[1], 0.20) },
+              { offset: 1, color: rgba(mono[1], 0.02) }
+            ]
+          }
+        },
+        itemStyle: { color: mono[1] }
       },
-      itemStyle: { color: '#8BA888' }
-    }
-  ]
-})
+      {
+        name: '活跃用户',
+        data: [],
+        type: 'line',
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 5,
+        lineStyle: { width: 2.5, color: mono[2] },
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: rgba(mono[2], 0.18) },
+              { offset: 1, color: rgba(mono[2], 0.02) }
+            ]
+          }
+        },
+        itemStyle: { color: mono[2] }
+      }
+    ]
+  }
+}
 
 // 课程类别分布饼图
-const categoryPieOption = ref({
-  tooltip: {
-    trigger: 'item',
-    formatter: '{b}: {c} 门 ({d}%)',
-    backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: '#DDD6CE'
-  },
-  legend: {
-    orient: 'vertical',
-    right: 15,
-    top: 'center',
-    textStyle: { color: '#5E574F', fontSize: 12 }
-  },
-  series: [{
-    type: 'pie',
-    radius: ['42%', '68%'],
-    center: ['38%', '52%'],
-    avoidLabelOverlap: false,
-    itemStyle: {
-      borderRadius: 6,
-      borderColor: '#fff',
-      borderWidth: 2
+const categoryPieOption = ref(buildCategoryPieOption())
+function buildCategoryPieOption() {
+  const t = getChartTheme()
+  return {
+    tooltip: {
+      trigger: 'item',
+      formatter: '{b}: {c} 门 ({d}%)',
+      backgroundColor: t.tooltipBg,
+      borderColor: t.tooltipBorder,
+      textStyle: { color: t.tooltipText }
     },
-    label: { show: false },
-    emphasis: {
-      label: { show: true, fontSize: 13, fontWeight: 'bold' }
+    legend: {
+      orient: 'vertical',
+      right: 15,
+      top: 'center',
+      textStyle: { color: t.subText, fontSize: 12 }
     },
-    data: []
-  }],
-  color: ['#7A8BA5', '#B89A8A', '#8BA888', '#CBB58A', '#C48080', '#9BA8C5']
-})
-
-// 热力图颜色梯度
-const heatmapColors = [
-  'rgba(139, 168, 136, 0.08)',
-  'rgba(139, 168, 136, 0.25)',
-  'rgba(184, 154, 138, 0.45)',
-  'rgba(203, 181, 138, 0.65)',
-  'rgba(196, 128, 128, 0.85)'
-]
-
-// 学习时长热力图配置
-const heatmapOption = ref({
-  tooltip: {
-    position: 'top',
-    formatter: (params) => `${params.data[0]}<br/>学习时长: ${params.data[2]} 小时`,
-    backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: '#DDD6CE',
-    textStyle: { fontSize: 12 }
-  },
-  grid: {
-    left: 60,
-    right: 30,
-    bottom: 50,
-    top: 10
-  },
-  xAxis: {
-    type: 'category',
-    data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
-    splitArea: { show: true },
-    axisLabel: { color: '#928B83', fontSize: 11 }
-  },
-  yAxis: {
-    type: 'category',
-    data: ['0-6时', '6-12时', '12-18时', '18-24时'],
-    splitArea: { show: true },
-    axisLabel: { color: '#928B83', fontSize: 11 }
-  },
-  visualMap: {
-    min: 0,
-    max: 100,
-    calculable: true,
-    orient: 'horizontal',
-    left: 'center',
-    bottom: 0,
-    inRange: {
-      color: heatmapColors.map(c => c.replace('rgba', 'rgb').replace(/[\d.]+\)$/, '1)'))
-    },
-    textStyle: { color: '#928B83', fontSize: 11 },
-    show: false
-  },
-  series: [{
-    type: 'heatmap',
-    data: [],
-    label: { show: false },
-    emphasis: {
-      itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0, 0, 0, 0.15)' }
-    },
-    itemStyle: {
-      borderRadius: 4,
-      borderColor: '#fff',
-      borderWidth: 2
-    }
-  }]
-})
-
-// 角色活跃度柱状图
-const roleActivityOption = ref({
-  tooltip: {
-    trigger: 'axis',
-    backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: '#DDD6CE',
-    axisPointer: { type: 'shadow' }
-  },
-  legend: {
-    data: ['登录次数', '操作频次'],
-    top: 0,
-    textStyle: { color: '#5E574F', fontSize: 12 }
-  },
-  grid: { left: 50, right: 20, bottom: 30, top: 40 },
-  xAxis: {
-    type: 'category',
-    data: ['管理员', '教师', '学生'],
-    axisLine: { lineStyle: { color: '#DDD6CE' } },
-    axisLabel: { color: '#928B83' }
-  },
-  yAxis: {
-    type: 'value',
-    axisLine: { show: false },
-    splitLine: { lineStyle: { color: '#DDD6CE', type: 'dashed' } },
-    axisLabel: { color: '#928B83' }
-  },
-  series: [
-    {
-      name: '登录次数',
-      type: 'bar',
-      barWidth: '28%',
+    series: [{
+      type: 'pie',
+      radius: ['42%', '68%'],
+      center: ['38%', '52%'],
+      avoidLabelOverlap: false,
       itemStyle: {
-        borderRadius: [6, 6, 0, 0],
-        color: {
-          type: 'linear',
-          x: 0, y: 0, x2: 0, y2: 1,
-          colorStops: [
-            { offset: 0, color: '#7A8BA5' },
-            { offset: 1, color: 'rgba(122, 139, 165, 0.4)' }
-          ]
-        }
+        borderRadius: 6,
+        borderColor: t.sliceBorder,
+        borderWidth: 2
+      },
+      label: { show: false },
+      emphasis: {
+        label: { show: true, fontSize: 13, fontWeight: 'bold' }
       },
       data: []
-    },
-    {
-      name: '操作频次',
-      type: 'bar',
-      barWidth: '28%',
-      itemStyle: {
-        borderRadius: [6, 6, 0, 0],
-        color: {
-          type: 'linear',
-          x: 0, y: 0, x2: 0, y2: 1,
-          colorStops: [
-            { offset: 0, color: '#8BA888' },
-            { offset: 1, color: 'rgba(139, 168, 136, 0.4)' }
-          ]
-        }
-      },
-      data: []
-    }
+    }],
+    color: getMonoSeries()
+  }
+}
+
+// 热力图颜色梯度（随主题色板）
+const heatmapColors = computed(() => {
+  const mono = getMonoSeries()
+  return [
+    rgba(mono[2], 0.08),
+    rgba(mono[2], 0.25),
+    rgba(mono[4], 0.45),
+    rgba(mono[3], 0.65),
+    rgba(mono[0], 0.85)
   ]
 })
 
-// 成绩分布直方图
-const gradeDistOption = ref({
-  tooltip: {
-    trigger: 'axis',
-    backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: '#DDD6CE',
-    formatter: '{b}分区间: {c} 人'
-  },
-  grid: { left: 55, right: 25, bottom: 35, top: 20 },
-  xAxis: {
-    type: 'category',
-    data: ['0-59', '60-69', '70-79', '80-89', '90-100'],
-    name: '分数段',
-    nameTextStyle: { color: '#928B83', padding: [0, 0, 0, 0] },
-    axisLine: { lineStyle: { color: '#DDD6CE' } },
-    axisLabel: { color: '#928B83' }
-  },
-  yAxis: {
-    type: 'value',
-    name: '人数',
-    nameTextStyle: { color: '#928B83' },
-    axisLine: { show: false },
-    splitLine: { lineStyle: { color: '#DDD6CE', type: 'dashed' } },
-    axisLabel: { color: '#928B83' }
-  },
-  series: [{
-    type: 'bar',
-    barWidth: '50%',
-    itemStyle: {
-      borderRadius: [6, 6, 0, 0],
-      color: {
-        type: 'linear',
-        x: 0, y: 0, x2: 0, y2: 1,
-        colorStops: [
-          { offset: 0, color: '#B89A8A' },
-          { offset: 1, color: 'rgba(184, 154, 138, 0.3)' }
-        ]
-      }
+// 学习时长热力图配置
+const heatmapOption = ref(buildHeatmapOption())
+function buildHeatmapOption() {
+  const t = getChartTheme()
+  return {
+    tooltip: {
+      position: 'top',
+      formatter: (params) => `${params.data[0]}<br/>学习时长: ${params.data[2]} 小时`,
+      backgroundColor: t.tooltipBg,
+      borderColor: t.tooltipBorder,
+      textStyle: { color: t.tooltipText, fontSize: 12 }
     },
-    data: []
-  }]
-})
+    grid: {
+      left: 60,
+      right: 30,
+      bottom: 50,
+      top: 10
+    },
+    xAxis: {
+      type: 'category',
+      data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
+      splitArea: { show: true },
+      axisLabel: { color: t.subText, fontSize: 11 }
+    },
+    yAxis: {
+      type: 'category',
+      data: ['0-6时', '6-12时', '12-18时', '18-24时'],
+      splitArea: { show: true },
+      axisLabel: { color: t.subText, fontSize: 11 }
+    },
+    visualMap: {
+      min: 0,
+      max: 100,
+      calculable: true,
+      orient: 'horizontal',
+      left: 'center',
+      bottom: 0,
+      inRange: {
+        color: heatmapColors.value.map(c => c.replace('rgba', 'rgb').replace(/[\d.]+\)$/, '1)'))
+      },
+      textStyle: { color: t.subText, fontSize: 11 },
+      show: false
+    },
+    series: [{
+      type: 'heatmap',
+      data: [],
+      label: { show: false },
+      emphasis: {
+        itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0, 0, 0, 0.15)' }
+      },
+      itemStyle: {
+        borderRadius: 4,
+        borderColor: t.sliceBorder,
+        borderWidth: 2
+      }
+    }]
+  }
+}
+
+// 角色活跃度柱状图
+const roleActivityOption = ref(buildRoleActivityOption())
+function buildRoleActivityOption() {
+  const t = getChartTheme()
+  const mono = getMonoSeries()
+  return {
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: t.tooltipBg,
+      borderColor: t.tooltipBorder,
+      textStyle: { color: t.tooltipText },
+      axisPointer: { type: 'shadow' }
+    },
+    legend: {
+      data: ['登录次数', '操作频次'],
+      top: 0,
+      textStyle: { color: t.subText, fontSize: 12 }
+    },
+    grid: { left: 50, right: 20, bottom: 30, top: 40 },
+    xAxis: {
+      type: 'category',
+      data: ['管理员', '教师', '学生'],
+      axisLine: { lineStyle: { color: t.axis } },
+      axisLabel: { color: t.subText }
+    },
+    yAxis: {
+      type: 'value',
+      axisLine: { show: false },
+      splitLine: { lineStyle: { color: t.axis, type: 'dashed' } },
+      axisLabel: { color: t.subText }
+    },
+    series: [
+      {
+        name: '登录次数',
+        type: 'bar',
+        barWidth: '28%',
+        itemStyle: {
+          borderRadius: [6, 6, 0, 0],
+          color: {
+            type: 'linear',
+            x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: mono[1] },
+              { offset: 1, color: rgba(mono[1], 0.4) }
+            ]
+          }
+        },
+        data: []
+      },
+      {
+        name: '操作频次',
+        type: 'bar',
+        barWidth: '28%',
+        itemStyle: {
+          borderRadius: [6, 6, 0, 0],
+          color: {
+            type: 'linear',
+            x: 0, y: 0, x2: 0, y2: 1,
+            colorStops: [
+              { offset: 0, color: mono[2] },
+              { offset: 1, color: rgba(mono[2], 0.4) }
+            ]
+          }
+        },
+        data: []
+      }
+    ]
+  }
+}
+
+// 成绩分布直方图
+const gradeDistOption = ref(buildGradeDistOption())
+function buildGradeDistOption() {
+  const t = getChartTheme()
+  const mono = getMonoSeries()
+  return {
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: t.tooltipBg,
+      borderColor: t.tooltipBorder,
+      textStyle: { color: t.tooltipText },
+      formatter: '{b}分区间: {c} 人'
+    },
+    grid: { left: 55, right: 25, bottom: 35, top: 20 },
+    xAxis: {
+      type: 'category',
+      data: ['0-59', '60-69', '70-79', '80-89', '90-100'],
+      name: '分数段',
+      nameTextStyle: { color: t.subText, padding: [0, 0, 0, 0] },
+      axisLine: { lineStyle: { color: t.axis } },
+      axisLabel: { color: t.subText }
+    },
+    yAxis: {
+      type: 'value',
+      name: '人数',
+      nameTextStyle: { color: t.subText },
+      axisLine: { show: false },
+      splitLine: { lineStyle: { color: t.axis, type: 'dashed' } },
+      axisLabel: { color: t.subText }
+    },
+    series: [{
+      type: 'bar',
+      barWidth: '50%',
+      itemStyle: {
+        borderRadius: [6, 6, 0, 0],
+        color: {
+          type: 'linear',
+          x: 0, y: 0, x2: 0, y2: 1,
+          colorStops: [
+            { offset: 0, color: mono[0] },
+            { offset: 1, color: rgba(mono[0], 0.3) }
+          ]
+        }
+      },
+      data: []
+    }]
+  }
+}
 
 // 热门课程TOP10横向柱状图
-const topCoursesOption = ref({
-  tooltip: {
-    trigger: 'axis',
-    axisPointer: { type: 'shadow' },
-    backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: '#DDD6CE',
-    formatter: (params) => `${params[0].name}<br/>学习人数: ${params[0].value}`
-  },
-  grid: { left: 120, right: 40, bottom: 20, top: 10 },
-  xAxis: {
-    type: 'value',
-    axisLine: { show: false },
-    axisTick: { show: false },
-    splitLine: { lineStyle: { color: '#DDD6CE', type: 'dashed' } },
-    axisLabel: { color: '#928B83' }
-  },
-  yAxis: {
-    type: 'category',
-    data: [],
-    inverse: true,
-    axisLine: { show: false },
-    axisTick: { show: false },
-    axisLabel: {
-      color: '#5E574F',
-      fontSize: 13,
-      width: 110,
-      overflow: 'truncate'
-    }
-  },
-  series: [{
-    type: 'bar',
-    barWidth: '60%',
-    itemStyle: {
-      borderRadius: [0, 6, 6, 0],
-      color: (params) => {
-        const colors = [
-          '#7A8BA5',
-          '#B89A8A',
-          '#8BA888',
-          '#CBB58A',
-          '#C48080'
-        ]
-        const idx = params.dataIndex % colors.length
-        return colors[idx]
+const topCoursesOption = ref(buildTopCoursesOption())
+function buildTopCoursesOption() {
+  const t = getChartTheme()
+  return {
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      backgroundColor: t.tooltipBg,
+      borderColor: t.tooltipBorder,
+      textStyle: { color: t.tooltipText },
+      formatter: (params) => `${params[0].name}<br/>学习人数: ${params[0].value}`
+    },
+    grid: { left: 120, right: 40, bottom: 20, top: 10 },
+    xAxis: {
+      type: 'value',
+      axisLine: { show: false },
+      axisTick: { show: false },
+      splitLine: { lineStyle: { color: t.axis, type: 'dashed' } },
+      axisLabel: { color: t.subText }
+    },
+    yAxis: {
+      type: 'category',
+      data: [],
+      inverse: true,
+      axisLine: { show: false },
+      axisTick: { show: false },
+      axisLabel: {
+        color: t.subText,
+        fontSize: 13,
+        width: 110,
+        overflow: 'truncate'
       }
     },
-    label: {
-      show: true,
-      position: 'right',
-      color: '#5E574F',
-      fontSize: 12,
-      fontWeight: 500
-    },
-    data: []
-  }]
-})
+    series: [{
+      type: 'bar',
+      barWidth: '60%',
+      itemStyle: {
+        borderRadius: [0, 6, 6, 0],
+        color: (params) => {
+          const colors = getMonoSeries()
+          const idx = params.dataIndex % colors.length
+          return colors[idx]
+        }
+      },
+      label: {
+        show: true,
+        position: 'right',
+        color: t.subText,
+        fontSize: 12,
+        fontWeight: 500
+      },
+      data: []
+    }]
+  }
+}
 
 /**
  * 获取平台总览数据（统一加载：仪表盘统计 + 用户增长趋势 + 课程排行 + 平台热力图）
  */
 async function fetchAnalyticsData() {
+  loading.value = true
   try {
     // 并行获取：仪表盘统计 + 用户增长趋势 + 课程排行 + 平台热力图
     const [statsRes, trendRes, courseRes, heatmapRes] = await Promise.allSettled([
@@ -510,18 +565,22 @@ async function fetchAnalyticsData() {
 
       // 课程分类饼图
       if (statsData.categoryDistribution) {
-        categoryPieOption.value.series[0].data = Object.entries(statsData.categoryDistribution).map(
+        const entries = Object.entries(statsData.categoryDistribution)
+        hasCategory.value = entries.length > 0
+        categoryPieOption.value.series[0].data = entries.map(
           ([name, value]) => ({ name, value })
         )
       }
 
       // 成绩分布直方图
       if (statsData.gradeDistribution && Array.isArray(statsData.gradeDistribution)) {
+        hasGradeDist.value = statsData.gradeDistribution.length > 0
         gradeDistOption.value.series[0].data = statsData.gradeDistribution.map(v => Number(v) || 0)
       }
 
       // 角色活跃度柱状图
       if (statsData.roleActivity && Array.isArray(statsData.roleActivity)) {
+        hasRoleActivity.value = statsData.roleActivity.length > 0
         roleActivityOption.value.series[0].data = statsData.roleActivity.map(r => r.loginCount || 0)
         roleActivityOption.value.series[1].data = statsData.roleActivity.map(r => r.actionCount || 0)
       }
@@ -531,6 +590,7 @@ async function fetchAnalyticsData() {
     if (trendRes.status === 'fulfilled') {
       const trendData = trendRes.value.data || trendRes.value
       if (Array.isArray(trendData) && trendData.length > 0) {
+        hasUserTrend.value = true
         userTrendOption.value.xAxis.data = trendData.map(d => d.date || d.label || '')
         userTrendOption.value.series[0].data = trendData.map(d => d.newUsers || d.count || 0)
         userTrendOption.value.series[1].data = trendData.map(d => d.cumulativeUsers || d.activeUsers || 0)
@@ -548,6 +608,7 @@ async function fetchAnalyticsData() {
         }))
       }
       courses.sort((a, b) => b.value - a.value)
+      hasTopCourses.value = courses.length > 0
       topCoursesOption.value.yAxis.data = courses.map(c => c.name)
       topCoursesOption.value.series[0].data = courses.map(c => c.value)
     }
@@ -562,6 +623,7 @@ async function fetchAnalyticsData() {
           Math.round(item.value ?? item.count ?? 0)
         ]).filter(d => d[0] >= 0 && d[0] < 7 && d[1] >= 0)
         if (heatmapData.length > 0) {
+          hasHeatmap.value = true
           heatmapOption.value.series[0].data = heatmapData
         }
       }
@@ -569,6 +631,8 @@ async function fetchAnalyticsData() {
   } catch (error) {
     console.warn('加载分析数据失败:', error)
     setMockData()
+  } finally {
+    loading.value = false
   }
 }
 
@@ -606,14 +670,12 @@ async function exportReport() {
 }
 
 /**
- * 格式化数字显示
+ * 格式化数字显示（与全站 toLocaleString 一致）
  */
 function formatNumber(num) {
   if (typeof num === 'string') return num
   if (!num && num !== 0) return '--'
-  if (num >= 10000) return (num / 10000).toFixed(1) + 'w'
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'k'
-  return num.toString()
+  return Number(num).toLocaleString('zh-CN')
 }
 
 /**
@@ -621,12 +683,19 @@ function formatNumber(num) {
  */
 function setMockData() {
   coreMetrics.value = [
-    { label: '总用户数', value: '--', change: 0 },
-    { label: '总课程数', value: '--', change: 0 },
-    { label: '日活用户', value: '--', change: 0 },
-    { label: '完成率', value: '--', change: 0 },
-    { label: '增长率', value: '--', change: 0 }
+    { label: '总用户数', value: '--', change: 0, icon: 'users', tone: 'var(--accent-soft)', toneColor: 'var(--accent)' },
+    { label: '总课程数', value: '--', change: 0, icon: 'book', tone: 'var(--info-soft)', toneColor: 'var(--info)' },
+    { label: '日活用户', value: '--', change: 0, icon: 'monitor', tone: 'var(--ok-soft)', toneColor: 'var(--ok)' },
+    { label: '完成率', value: '--', change: 0, icon: 'check', tone: 'var(--warn-soft)', toneColor: 'var(--warn)' },
+    { label: '增长率', value: '--', change: 0, icon: 'chart', tone: 'var(--violet-soft)', toneColor: 'var(--violet)' },
   ]
+
+  hasCategory.value = false
+  hasGradeDist.value = false
+  hasRoleActivity.value = false
+  hasUserTrend.value = false
+  hasHeatmap.value = false
+  hasTopCourses.value = false
 
   categoryPieOption.value.series[0].data = []
   gradeDistOption.value.series[0].data = []
@@ -646,113 +715,8 @@ onMounted(() => {
   margin: 0 auto;
 }
 
-/* 页面头部 */
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: var(--ac-spacing-lg);
-  gap: var(--ac-spacing-md);
-  flex-wrap: wrap;
-}
-
-.header-left {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.page-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-  letter-spacing: -0.3px;
-}
-
-.page-subtitle {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  gap: var(--ac-spacing-sm);
-}
-
-/* 核心指标卡片行 */
-.metrics-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--ac-spacing-md);
-  margin-bottom: var(--ac-spacing-lg);
-}
-
-.metric-card {
-  background: var(--ac-bg-elevated);
-  border-radius: var(--ac-radius-lg);
-  border: 1px solid var(--ac-border);
-  padding: 20px 22px;
-  transition: all var(--ac-transition-normal);
-  position: relative;
-  overflow: hidden;
-}
-
-.metric-card::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 4px;
-  height: 100%;
-  opacity: 0;
-  transition: opacity var(--ac-transition-normal);
-}
-
-.metric-card:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--ac-shadow-lg);
-  border-color: transparent;
-}
-
-.metric-card:hover::before {
-  opacity: 1;
-  background: var(--ac-primary);
-}
-
-.metric-label {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-  margin-bottom: 8px;
-  font-weight: 500;
-}
-
-.metric-value {
-  font-size: 26px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-  line-height: 1.2;
-  margin-bottom: 6px;
-}
-
-.metric-trend {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 3px 8px;
-  border-radius: 6px;
-}
-
-.metric-trend.positive {
-  color: var(--ac-success);
-  background: rgba(139, 168, 136, 0.12);
-}
-
-.metric-trend.negative {
-  color: var(--ac-danger);
-  background: rgba(196, 128, 128, 0.12);
+.date-range {
+  width: 280px;
 }
 
 /* 图表网格布局 */
@@ -823,25 +787,6 @@ onMounted(() => {
 
   .chart-card.full-width {
     grid-column: 1;
-  }
-
-  .page-header {
-    flex-direction: column;
-  }
-
-  .header-right {
-    width: 100%;
-    justify-content: flex-start;
-  }
-}
-
-@media (max-width: 768px) {
-  .metrics-row {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .page-title {
-    font-size: 19px;
   }
 }
 </style>

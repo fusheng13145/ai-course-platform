@@ -1,31 +1,26 @@
-﻿﻿<template>
+﻿<template>
   <div class="fade-in exam-management">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <h2 class="page-title">考试管理</h2>
-      <p class="page-desc">全校考试监管与异常处理</p>
+    <PageHeader title="考试管理" subtitle="全校考试监管与异常处理" icon="doc" icon-bg="accent">
+      <el-button @click="showActiveSessions = true">
+        <el-icon><Timer /></el-icon>进行中考试
+      </el-button>
+    </PageHeader>
+
+    <div class="stat-grid">
+      <StatCard label="总试卷数" :value="overview.totalPapers || 0" icon="doc" tone="var(--accent-soft)" tone-color="var(--accent)" />
+      <StatCard label="进行中" :value="overview.activeExams || 0" icon="play" tone="var(--ok-soft)" tone-color="var(--ok)" />
+      <StatCard label="待审核" :value="overview.pendingReview || 0" icon="warn" tone="var(--warn-soft)" tone-color="var(--warn)" />
+      <StatCard label="作弊嫌疑" :value="overview.cheatingCases || 0" icon="shield" tone="var(--info-soft)" tone-color="var(--info)" />
     </div>
 
-    <!-- 统计概览卡片 -->
-    <div class="stats-row">
-      <div class="stat-mini">
-        <span class="stat-label">总试卷数</span>
-        <span class="stat-num">{{ overview.totalPapers || '--' }}</span>
+    <section class="l1-card">
+      <div class="l1-head">
+        <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2zM14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+        </span>
+        <div><div class="l1-title">试卷列表</div><div class="l1-sub">筛选、审核试卷并查看统计分析</div></div>
       </div>
-      <div class="stat-mini">
-        <span class="stat-label">进行中</span>
-        <span class="stat-num active">{{ overview.activeExams || 0 }}</span>
-      </div>
-      <div class="stat-mini">
-        <span class="stat-label">待审核</span>
-        <span class="stat-num warning">{{ overview.pendingReview || 0 }}</span>
-      </div>
-      <div class="stat-mini">
-        <span class="stat-label">作弊嫌疑</span>
-        <span class="stat-num danger">{{ overview.cheatingCases || 0 }}</span>
-      </div>
-    </div>
-
+      <div class="l1-body">
     <!-- 工具栏 -->
     <div class="table-toolbar">
       <div class="toolbar-left">
@@ -39,16 +34,11 @@
         <el-input v-model="filters.keyword" placeholder="搜索试卷名称/课程" clearable style="width:220px" @keyup.enter="fetchExamList" />
         <el-button type="primary" @click="fetchExamList"><el-icon><Search /></el-icon>搜索</el-button>
       </div>
-      <div class="toolbar-right">
-        <el-button @click="showActiveSessions = true">
-          <el-icon><Timer /></el-icon>进行中考试
-        </el-button>
-      </div>
     </div>
 
     <!-- 试卷列表 -->
     <div class="content-card">
-      <el-table :data="examList" style="width:100%" v-loading="loading">
+      <el-table v-loading="loading" :data="examList" style="width:100%">
         <el-table-column prop="id" label="ID" width="70" />
         <el-table-column prop="title" label="试卷名称" min-width="200" show-overflow-tooltip />
         <el-table-column prop="courseName" label="所属课程" min-width="150" show-overflow-tooltip />
@@ -95,11 +85,13 @@
           @current-change="fetchExamList"
         />
       </div>
-    </div>
+      </div>
+      </div>
+    </section>
 
     <!-- 进行中考试对话框 -->
     <el-dialog v-model="showActiveSessions" title="进行中的考试" width="800px" destroy-on-close>
-      <el-table :data="activeSessions" v-loading="loadingSessions" max-height="400">
+      <el-table v-loading="loadingSessions" :data="activeSessions" max-height="400">
         <el-table-column prop="paperTitle" label="试卷名称" min-width="180" show-overflow-tooltip />
         <el-table-column prop="courseName" label="课程" width="140" />
         <el-table-column prop="studentCount" label="参考人数" width="90" align="center" />
@@ -131,7 +123,9 @@
           </div>
         </div>
       </div>
-      <el-empty v-else description="暂无作弊检测记录" />
+      <el-empty v-else description="暂无作弊检测记录">
+        <template #image><div class="empty-deco">🛡️</div></template>
+      </el-empty>
     </el-dialog>
 
     <!-- 试卷统计对话框 -->
@@ -179,6 +173,8 @@ import { ref, reactive, onMounted } from 'vue'
 import { Search, Timer } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import examApi from '@/api/exam'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 // 加载状态
 const loading = ref(false)
@@ -648,6 +644,8 @@ onMounted(() => {
   color: var(--ac-text-primary);
   margin-bottom: 12px;
 }
+
+.empty-deco { font-size: 38px; filter: grayscale(.2); }
 
 /* 响应式 */
 @media (max-width: 768px) {

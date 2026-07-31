@@ -23,7 +23,9 @@ module.exports = {
     'vue/no-v-html': 'warn', // ⚠ 安全关键规则：v-html 绕过 XSS 防护，仅在有 DOMPurify 清洗的必要时使用
     'vue/no-unused-vars': 'off',
     // 关键质量规则：重新启用（批判性评估报告要求）
-    'no-console': 'warn', // 生产错误不再静默 console，改用用户可见反馈/日志服务；开发调试处保留并加 eslint-disable
+    // 保留 error/warn 错误日志（全局错误处理器与 catch 降级路径需要），
+    // 禁止 log/info/debug 调试残留；开发调试处保留并加 eslint-disable
+    'no-console': ['warn', { allow: ['error', 'warn'] }],
     'no-empty': 'error', // 禁止空代码块（含空 catch），必须显式处理或记录
     // 按 typescript-eslint 官方规范：使用 TS 版本时必须关闭基础规则，否则同一处会被双重误报。
     // @typescript-eslint/no-unused-vars 在本配置下对 .js/.vue/.ts 均生效，覆盖无缺口。

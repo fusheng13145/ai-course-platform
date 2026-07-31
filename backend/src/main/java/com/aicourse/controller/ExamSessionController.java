@@ -45,7 +45,7 @@ public class ExamSessionController {
     public ApiResponse<ExamSession> start(
             @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     description = "包含examPaperId（试卷ID）的JSON对象"
-            ) @RequestBody Map<String, Long> body,
+            ) @Valid @RequestBody Map<String, Long> body,
             Authentication auth,
             HttpServletRequest request) {
         Long examPaperId = body.get("examPaperId");

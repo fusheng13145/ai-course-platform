@@ -8,6 +8,8 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
+import jakarta.validation.constraints.NotBlank;
+
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
@@ -28,6 +30,7 @@ public class ExamPaper {
     /**
      * 试卷标题
      */
+    @NotBlank(message = "试卷标题不能为空")
     private String title;
 
     /**

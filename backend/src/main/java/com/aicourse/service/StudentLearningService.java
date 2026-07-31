@@ -71,10 +71,14 @@ public interface StudentLearningService {
 
     /**
      * 测验任务点即时判分
-     * @param answers 题目ID -> 学生作答
+     * <p>
+     * 统一收口原始表单解析：由服务层将题目ID字符串键转为 {@code Long}（非法键跳过并告警），
+     * 控制器不再手写 Map 解析逻辑。
+     *
+     * @param answers 原始表单：题目ID(字符串) -> 学生作答
      * @return {total, correct, score, details:[{questionId, correct, correctAnswer, explanation}]}
      */
-    Map<String, Object> submitQuiz(Long userId, Long courseId, Long taskId, Map<Long, String> answers);
+    Map<String, Object> submitQuiz(Long userId, Long courseId, Long taskId, Map<String, String> answers);
 
     /**
      * 学生成绩总览（按课程聚合作业/考试/总评）

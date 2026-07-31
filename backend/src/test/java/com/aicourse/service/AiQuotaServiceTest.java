@@ -4,6 +4,7 @@ import com.aicourse.common.ApiCode;
 import com.aicourse.exception.BusinessException;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.dao.DataAccessException;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -123,7 +124,7 @@ class AiQuotaServiceTest {
     void requestQuota_redisFailure_fallsBackToLocal() {
         StringRedisTemplate redis = mock(StringRedisTemplate.class);
         when(redis.execute(any(RedisScript.class), anyList(), any(Object[].class)))
-                .thenThrow(new RuntimeException("redis down"));
+                .thenThrow(new DataAccessException("redis down") {});
 
         AiQuotaService service = new AiQuotaService(providerReturning(redis));
         service.configureForTest(true, 2, 1_000_000L);
@@ -140,10 +141,10 @@ class AiQuotaServiceTest {
         StringRedisTemplate redis = mock(StringRedisTemplate.class);
         ValueOperations<String, String> ops = mock(ValueOperations.class);
         when(redis.opsForValue()).thenReturn(ops);
-        when(ops.get(anyString())).thenThrow(new RuntimeException("redis down"));
+        when(ops.get(anyString())).thenThrow(new DataAccessException("redis down") {});
         // 写路径也走本地
         when(redis.execute(any(RedisScript.class), anyList(), any(Object[].class)))
-                .thenThrow(new RuntimeException("redis down"));
+                .thenThrow(new DataAccessException("redis down") {});
 
         AiQuotaService service = new AiQuotaService(providerReturning(redis));
         service.configureForTest(true, 1_000_000, 100L);

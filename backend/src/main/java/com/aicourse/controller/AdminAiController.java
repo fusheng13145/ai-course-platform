@@ -1,15 +1,15 @@
 package com.aicourse.controller;
 
+import jakarta.validation.Valid;
+
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.common.ApiResponse;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.llm.RoutingLLMProvider;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
 import java.util.Map;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.common.ApiCode;
 
 /**
@@ -47,7 +47,7 @@ public class AdminAiController {
      * POST /api/admin/ai/provider  body: { "provider": "deepseek" | "openai" | "qwen" }
      */
     @PostMapping("/provider")
-    public ApiResponse<Map<String, Object>> switchProvider(@RequestBody Map<String, String> body) {
+    public ApiResponse<Map<String, Object>> switchProvider(@Valid @RequestBody Map<String, String> body) {
         String provider = body.get("provider");
         if (provider == null || provider.isBlank()) {
             return ApiResponse.error(ApiCode.BAD_REQUEST, "provider 不能为空");

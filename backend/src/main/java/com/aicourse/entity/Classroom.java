@@ -6,6 +6,8 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
+import jakarta.validation.constraints.NotBlank;
+
 import java.time.LocalDateTime;
 import lombok.Data;
 
@@ -26,6 +28,7 @@ public class Classroom {
     /**
      * 班级名称
      */
+    @NotBlank(message = "班级名称不能为空")
     private String name;
 
     /**

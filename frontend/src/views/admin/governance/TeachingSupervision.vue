@@ -1,40 +1,27 @@
 <template>
   <div class="fade-in teaching-supervision">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-left">
-        <h2 class="page-title">教学运行监管</h2>
-        <p class="page-desc">开课运行、学习行为与异常监控的整体视图</p>
-      </div>
+    <PageHeader title="教学运行监管" subtitle="开课运行、学习行为与异常监控的整体视图" icon="monitor" icon-bg="accent">
       <el-button :loading="loading" @click="loadAll">
         <el-icon><Refresh /></el-icon>刷新
       </el-button>
+    </PageHeader>
+
+    <div class="stat-grid">
+      <StatCard label="课程总数" :value="overview.totalCourses ?? '—'" icon="layers" tone="var(--accent-soft)" tone-color="var(--accent)" />
+      <StatCard label="活跃课程" :value="overview.activeCourses ?? '—'" icon="play" tone="var(--ok-soft)" tone-color="var(--ok)" />
+      <StatCard label="在校学生" :value="overview.roleDistribution?.student ?? '—'" icon="users" tone="var(--info-soft)" tone-color="var(--info)" />
+      <StatCard label="授课教师" :value="overview.roleDistribution?.teacher ?? '—'" icon="user" tone="var(--info-soft)" tone-color="var(--info)" />
+      <StatCard label="选课总人次" :value="overview.totalEnrollments ?? '—'" icon="list" tone="var(--accent-soft)" tone-color="var(--accent)" />
     </div>
 
-    <!-- 核心指标 -->
-    <div class="stats-row">
-      <div class="stat-mini-card">
-        <span class="label">课程总数</span>
-        <span class="value">{{ overview.totalCourses ?? '—' }}</span>
+    <section class="l1-card">
+      <div class="l1-head">
+        <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        </span>
+        <div><div class="l1-title">教学运行全景</div><div class="l1-sub">开课统计、学习行为热力与风险预警</div></div>
       </div>
-      <div class="stat-mini-card teacher">
-        <span class="label">活跃课程</span>
-        <span class="value">{{ overview.activeCourses ?? '—' }}</span>
-      </div>
-      <div class="stat-mini-card student">
-        <span class="label">在校学生</span>
-        <span class="value">{{ overview.roleDistribution?.student ?? '—' }}</span>
-      </div>
-      <div class="stat-mini-card admin">
-        <span class="label">授课教师</span>
-        <span class="value">{{ overview.roleDistribution?.teacher ?? '—' }}</span>
-      </div>
-      <div class="stat-mini-card">
-        <span class="label">选课总人次</span>
-        <span class="value">{{ overview.totalEnrollments ?? '—' }}</span>
-      </div>
-    </div>
-
+      <div class="l1-body">
     <div class="grid-2">
       <!-- 开课统计：分类分布 + 热门课程 -->
       <div class="content-card">
@@ -189,6 +176,8 @@
         />
       </div>
     </div>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -206,6 +195,8 @@ import {
 } from '@element-plus/icons-vue'
 import adminApi from '@/api/admin'
 import analyticsApi from '@/api/analytics'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 const loading = ref(false)
 const overview = reactive({})
@@ -326,66 +317,6 @@ onMounted(() => {
 .teaching-supervision {
   max-width: 1400px;
   margin: 0 auto;
-}
-
-.page-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  margin-bottom: var(--ac-spacing-lg);
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.page-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-  letter-spacing: -0.3px;
-}
-.page-desc {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-  margin-top: 4px;
-}
-
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: var(--ac-spacing-md);
-  margin-bottom: var(--ac-spacing-lg);
-}
-.stat-mini-card {
-  background: var(--ac-bg-elevated);
-  border-radius: var(--ac-radius-md);
-  border: 1px solid var(--ac-border);
-  padding: 16px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  transition: all var(--ac-transition-normal);
-}
-.stat-mini-card:hover {
-  box-shadow: var(--ac-shadow-md);
-  transform: translateY(-2px);
-}
-.stat-mini-card .label {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-  font-weight: 500;
-}
-.stat-mini-card .value {
-  font-size: 26px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-}
-.stat-mini-card.admin .value {
-  color: #7f1d1d;
-}
-.stat-mini-card.teacher .value {
-  color: #166534;
-}
-.stat-mini-card.student .value {
-  color: #1e40af;
 }
 
 .grid-2 {
@@ -740,11 +671,6 @@ onMounted(() => {
 @media (max-width: 960px) {
   .grid-2 {
     grid-template-columns: 1fr;
-  }
-}
-@media (max-width: 768px) {
-  .stats-row {
-    grid-template-columns: repeat(2, 1fr);
   }
 }
 </style>

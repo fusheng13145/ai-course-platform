@@ -1,17 +1,12 @@
 <template>
   <div class="course-tasks fade-in">
     <div v-loading="loading">
-      <!-- 头部 + 新建 -->
-      <div class="section-bar">
-        <div class="chart-title">
-          <el-icon><List /></el-icon> 课程任务
-          <el-tag size="small" type="info" effect="light" round>{{ tasks.length }} 个</el-tag>
-        </div>
+      <PageHeader compact title="课程任务" subtitle="任务发布、截止日期与状态管理" icon="list">
         <el-button type="primary" :icon="Plus" @click="openCreate()">新建任务</el-button>
-      </div>
+      </PageHeader>
 
-      <div class="chart-card">
-        <el-table :data="pagedTasks" size="small" empty-text="暂无任务" style="width: 100%">
+      <div class="l1-card animate-in d1">
+        <el-table v-if="tasks.length" :data="pagedTasks" size="small" empty-text="暂无任务">
           <el-table-column prop="title" label="标题" min-width="180" show-overflow-tooltip>
             <template #default="{ row }">{{ row.title }}</template>
           </el-table-column>
@@ -55,8 +50,9 @@
             </template>
           </el-table-column>
         </el-table>
+        <el-empty v-else-if="!loading" description="暂无任务，点击右上角新建" :image-size="72" />
 
-        <div class="pager">
+        <div v-if="tasks.length" class="pager">
           <el-pagination
             v-model:current-page="page"
             v-model:page-size="size"
@@ -88,7 +84,7 @@
           />
         </el-form-item>
         <el-form-item label="类型">
-          <el-select v-model="form.taskType" placeholder="选择任务类型" style="width: 100%">
+          <el-select v-model="form.taskType" placeholder="选择任务类型" class="w-100">
             <el-option v-for="t in taskTypes" :key="t" :label="t" :value="t" />
           </el-select>
         </el-form-item>
@@ -105,7 +101,7 @@
             v-model="form.dueDate"
             type="datetime"
             placeholder="选择截止时间"
-            style="width: 100%"
+            class="w-100"
             value-format="YYYY-MM-DD HH:mm:ss"
           />
         </el-form-item>
@@ -115,7 +111,7 @@
             :min="0"
             :controls="false"
             placeholder="可选"
-            style="width: 160px"
+            class="w-160"
           />
           <span class="hint">留空表示不绑定章节</span>
         </el-form-item>
@@ -136,7 +132,7 @@
             v-model="extendForm.newDueDate"
             type="datetime"
             placeholder="选择新的截止时间"
-            style="width: 100%"
+            class="w-100"
             value-format="YYYY-MM-DD HH:mm:ss"
           />
         </el-form-item>
@@ -164,7 +160,8 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import taskApi from '@/api/task'
-import { Plus, Edit, Delete, Calendar, List } from '@element-plus/icons-vue'
+import PageHeader from '@/components/PageHeader.vue'
+import { Plus, Edit, Delete, Calendar } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const courseId = route.params.id
@@ -340,35 +337,17 @@ watch(() => route.params.id, load)
 </script>
 
 <style scoped>
-.section-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--ac-spacing-md);
-}
-.chart-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ac-text-primary);
-}
-.chart-title .el-tag {
-  margin-left: 2px;
-}
-
-.chart-card {
-  padding: var(--ac-spacing-lg);
-  background: var(--ac-bg-elevated);
-  border: 1px solid var(--ac-border);
-  border-radius: var(--ac-radius-lg);
-  box-shadow: var(--ac-shadow-sm);
-}
 .hint {
   margin-left: 10px;
   font-size: 12px;
   color: var(--ac-text-muted);
+}
+
+.w-100 {
+  width: 100%;
+}
+.w-160 {
+  width: 160px;
 }
 
 .pager {

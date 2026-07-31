@@ -1,5 +1,7 @@
 package com.aicourse.controller;
 
+import jakarta.validation.Valid;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.ProctorEvent;
 import com.aicourse.entity.ProctorSession;
@@ -39,7 +41,7 @@ public class ProctorController {
     @PostMapping("/session/{id}/event")
     @PreAuthorize("hasRole('STUDENT')")
     public ApiResponse<ProctorEvent> logEvent(@PathVariable Long id,
-                                              @RequestBody ProctorEvent event,
+                                              @Valid @RequestBody ProctorEvent event,
                                               Authentication auth) {
         Long studentId = (Long) auth.getPrincipal();
         ProctorSession session = proctorService.getById(id);
@@ -101,7 +103,7 @@ public class ProctorController {
      */
     @PutMapping("/thresholds")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Void> updateThresholds(@RequestBody Map<String, Integer> thresholds) {
+    public ApiResponse<Void> updateThresholds(@Valid @RequestBody Map<String, Integer> thresholds) {
         proctorService.updateThresholds(thresholds);
         return ApiResponse.success("阈值已更新", null);
     }
@@ -123,7 +125,7 @@ public class ProctorController {
     @PostMapping("/events/{eventId}/review")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<ProctorEvent> reviewEvent(@PathVariable Long eventId,
-                                                @RequestBody Map<String, String> body,
+                                                @Valid @RequestBody Map<String, String> body,
                                                 Authentication auth) {
         String status = body.get("status");
         String note = body.get("reviewNote");

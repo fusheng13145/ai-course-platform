@@ -1,7 +1,6 @@
-// 图表主题工具 - 高级感 (Premium)
+// 图表主题工具 · 云枢教学平台
 // ECharts 不读取 CSS 变量，故按主题返回协调的系列配色。
-// 中性基底之上使用克制、协调的多彩系列（indigo/blue/cyan/violet/teal/amber/rose），
-// 既高级又不花哨。
+// 色板对齐校园赭红设计体系。
 
 function resolveTheme() {
   const t = document.documentElement.getAttribute('data-theme')
@@ -10,77 +9,52 @@ function resolveTheme() {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
-// 图表文字 / 坐标轴 / 提示框（随主题切换）
 export function getChartTheme() {
   const dark = resolveTheme() === 'dark'
   return {
-    text: dark ? '#E8EDF6' : '#0F172A',
-    subText: dark ? '#A9B4C6' : '#64748B',
-    axis: dark ? 'rgba(255,255,255,0.10)' : '#E2E8F0',
-    split: dark ? 'rgba(255,255,255,0.06)' : 'rgba(15,23,42,0.05)',
-    tooltipBg: dark ? '#1B212E' : '#FFFFFF',
-    tooltipBorder: dark ? 'rgba(255,255,255,0.12)' : '#E2E8F0',
-    tooltipText: dark ? '#E8EDF6' : '#0F172A',
-    sliceBorder: dark ? '#141922' : '#FFFFFF', // 饼图描边 = 卡片底色
+    text: dark ? '#eef1f6' : '#1f2733',
+    subText: dark ? '#b7bec9' : '#8b94a3',
+    axis: dark ? 'rgba(255,255,255,0.10)' : '#e3e6ec',
+    split: dark ? 'rgba(255,255,255,0.06)' : 'rgba(24,32,48,0.05)',
+    tooltipBg: dark ? '#1c2330' : '#ffffff',
+    tooltipBorder: dark ? 'rgba(255,255,255,0.12)' : '#e3e6ec',
+    tooltipText: dark ? '#eef1f6' : '#1f2733',
+    sliceBorder: dark ? '#0f1419' : '#ffffff',
   }
 }
 
-// 协调多彩系列色板（深浅主题各一套，饱和度克制、明度分层）
-const SERIES_LIGHT = [
-  '#3B6EF6',
-  '#6366F1',
-  '#06B6D4',
-  '#8B5CF6',
-  '#10B981',
-  '#F59E0B',
-  '#F43F5E',
-  '#64748B',
-]
-const SERIES_DARK = [
-  '#6B8EF8',
-  '#8B9CFB',
-  '#34D0E8',
-  '#A78BFA',
-  '#34D399',
-  '#FBBF24',
-  '#FB7185',
-  '#94A3B8',
-]
+const PALETTE_LIGHT = ['#c13b30', '#2563a8', '#2e7d4f', '#b57908', '#6d4fa1', '#0f766e', '#c2602e', '#4d6a8a']
+const PALETTE_DARK  = ['#d45b50', '#4d8ad6', '#4a9e6e', '#d59a2a', '#8b6cc0', '#2fb5a8', '#d97a4c', '#6d8a9a']
 export function getMonoSeries() {
-  return resolveTheme() === 'dark' ? SERIES_DARK : SERIES_LIGHT
+  return resolveTheme() === 'dark' ? PALETTE_DARK : PALETTE_LIGHT
 }
 
-// 语义色（协调的蓝/青/琥珀/红/紫系）
 export function getMonoStatus() {
   const d = resolveTheme() === 'dark'
   return {
-    EASY: d ? '#34D399' : '#10B981',
-    MEDIUM: d ? '#6B8EF8' : '#3B6EF6',
-    HARD: d ? '#FB7185' : '#F43F5E',
-    SUCCESS: d ? '#34D399' : '#10B981',
-    WARNING: d ? '#FBBF24' : '#F59E0B',
-    DANGER: d ? '#FB7185' : '#F43F5E',
-    INFO: d ? '#34D0E8' : '#06B6D4',
+    EASY: d ? '#4a9e6e' : '#2e7d4f',
+    MEDIUM: d ? '#4d8ad6' : '#2563a8',
+    HARD: d ? '#d45b50' : '#c13b30',
+    SUCCESS: d ? '#4a9e6e' : '#2e7d4f',
+    WARNING: d ? '#d59a2a' : '#b57908',
+    DANGER: d ? '#d45b50' : '#c13b30',
+    INFO: d ? '#4d8ad6' : '#2563a8',
   }
 }
 
-// 按分值返回协调色（越高越"好"——青绿；越低越"警"——玫红）
 export function monoScore(v) {
   const d = resolveTheme() === 'dark'
-  if (v >= 90) return d ? '#34D399' : '#10B981'
-  if (v >= 80) return d ? '#6B8EF8' : '#3B6EF6'
-  if (v >= 70) return d ? '#8B9CFB' : '#6366F1'
-  if (v >= 60) return d ? '#FBBF24' : '#F59E0B'
-  return d ? '#FB7185' : '#F43F5E'
+  if (v >= 90) return d ? '#4a9e6e' : '#2e7d4f'
+  if (v >= 80) return d ? '#4d8ad6' : '#2563a8'
+  if (v >= 70) return d ? '#8b6cc0' : '#6d4fa1'
+  if (v >= 60) return d ? '#d59a2a' : '#b57908'
+  return d ? '#d45b50' : '#c13b30'
 }
 
-// 主题变更事件
 export const THEME_CHANGE_EVENT = 'ac-theme-change'
 const listeners = []
-export function onThemeChange(cb) {
-  if (!listeners.includes(cb)) listeners.push(cb)
-}
+export function onThemeChange(cb) { if (!listeners.includes(cb)) listeners.push(cb) }
 export function emitThemeChange() {
   window.dispatchEvent(new CustomEvent(THEME_CHANGE_EVENT))
-  listeners.forEach((cb) => cb())
+  listeners.forEach(cb => cb())
 }

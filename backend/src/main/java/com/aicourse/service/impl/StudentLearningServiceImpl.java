@@ -495,13 +495,24 @@ public class StudentLearningServiceImpl implements StudentLearningService {
     }
 
     @Override
-    public Map<String, Object> submitQuiz(Long userId, Long courseId, Long taskId, Map<Long, String> answers) {
+    public Map<String, Object> submitQuiz(Long userId, Long courseId, Long taskId, Map<String, String> rawAnswers) {
         assertEnrolled(userId, courseId);
         Task task = taskService.getById(taskId);
         if (task == null) throw new BusinessException("任务点不存在");
         int total = 0, correct = 0;
         List<Map<String, Object>> details = new ArrayList<>();
-        if (answers != null) {
+        // 原始表单解析收口：题目ID字符串键 -> Long；非法键跳过并告警（原控制器内手写逻辑下沉）
+        Map<Long, String> answers = new LinkedHashMap<>();
+        if (rawAnswers != null) {
+            for (Map.Entry<String, String> e : rawAnswers.entrySet()) {
+                try {
+                    answers.put(Long.valueOf(e.getKey()), e.getValue());
+                } catch (NumberFormatException ignore) {
+                    log.warn("解析答案键失败: key={}", e.getKey(), ignore);
+                }
+            }
+        }
+        if (!answers.isEmpty()) {
             // 批量预取题目信息，消除 N+1（原每次循环 getById）
             Set<Long> qids = answers.keySet();
             Map<Long, Question> questionMap = qids.isEmpty() ? Collections.emptyMap()

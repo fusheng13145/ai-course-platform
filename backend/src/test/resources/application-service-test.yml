@@ -67,6 +67,9 @@ ratelimit:
 
 # 安全/HTTPS/Cookie 配置（测试环境用 HTTP）
 app:
+  # 单元测试无 Redis 环境：关闭 Redis 启动强校验（生产/集成测试保持开启）
+  redis:
+    required: false
   actuator:
     secured: false
   cookie:

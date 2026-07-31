@@ -1,5 +1,7 @@
 package com.aicourse.controller;
 
+import jakarta.validation.Valid;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.service.RAGService;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -43,7 +45,7 @@ public class RAGController {
     public ApiResponse<JsonNode> addDocument(
             @RequestParam Long courseId,
             @RequestParam String documentName,
-            @RequestBody String content) {
+            @Valid @RequestBody String content) {
         return ApiResponse.success(toJson(ragService.addDocument(courseId, documentName, content)));
     }
 
@@ -56,7 +58,7 @@ public class RAGController {
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
     public ApiResponse<JsonNode> updateDocument(
             @PathVariable Long documentId,
-            @RequestBody String content) {
+            @Valid @RequestBody String content) {
         return ApiResponse.success(toJson(ragService.updateDocument(documentId, content)));
     }
 

@@ -30,13 +30,100 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
 
     private final LearningPathNodeService nodeService;
     private final KnowledgePointService knowledgePointService;
+    private final com.aicourse.service.WrongQuestionService wrongQuestionService;
     private final ObjectMapper objectMapper;
 
     public LearningPathServiceImpl(LearningPathNodeService nodeService,
-                                   KnowledgePointService knowledgePointService) {
+                                   KnowledgePointService knowledgePointService,
+                                   com.aicourse.service.WrongQuestionService wrongQuestionService) {
         this.nodeService = nodeService;
         this.knowledgePointService = knowledgePointService;
+        this.wrongQuestionService = wrongQuestionService;
         this.objectMapper = new ObjectMapper();
+    }
+
+    /**
+     * 从学生错题本自动推导知识点掌握度（0~100）。
+     * 规则：以知识点为单位统计错题，未掌握错题扣 25 分/道、已掌握错题扣 5 分/道，
+     * 下限 10 分；无错题的知识点不进入结果（由调用方按默认值 50 处理）。
+     *
+     * @param studentId 学生ID
+     * @param courseId  课程ID
+     * @return 知识点名称 → 掌握度；无学情数据时返回空 Map
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, Double> deriveMastery(Long studentId, Long courseId) {
+        return deriveMasteryFromWrongQuestions(studentId, courseId);
+    }
+
+    private Map<String, Double> deriveMasteryFromWrongQuestions(Long studentId, Long courseId) {
+        Map<String, Double> mastery = new HashMap<>();
+        try {
+            Map<String, List<com.aicourse.entity.WrongQuestion>> grouped =
+                    wrongQuestionService.getByKnowledgePoints(studentId, courseId);
+            if (grouped == null) return mastery;
+            for (Map.Entry<String, List<com.aicourse.entity.WrongQuestion>> e : grouped.entrySet()) {
+                String kpName = e.getKey();
+                if (kpName == null || kpName.isBlank()) continue;
+                long unmastered = e.getValue().stream()
+                        .filter(w -> w.getMastered() == null || !w.getMastered()).count();
+                long masteredCnt = e.getValue().size() - unmastered;
+                double score = 100.0 - unmastered * 25.0 - masteredCnt * 5.0;
+                mastery.put(kpName, Math.max(10.0, score));
+            }
+        } catch (Exception ignore) {
+            // 学情数据不可用时静默降级（返回空 Map，走标准路径）
+        }
+        return mastery;
+    }
+
+    /**
+     * 自动生成学习节点（数据驱动版）：掌握度推导 → 知识点查询 → 薄弱优先排序 → 节点构建。
+     * 由 Controller 内联实现下沉，行为保持一致。
+     */
+    @Override
+    @Transactional(readOnly = true)
+    public List<LearningPathNode> generateLearningPath(Long studentId, Long courseId) {
+        // 学情个性化：从错题本推导各知识点掌握度（无学情时为空 Map）
+        Map<String, Double> mastery = deriveMastery(studentId, courseId);
+
+        // 数据驱动：取课程知识库知识点，按「薄弱优先 → 重要度」双关键字排序
+        List<KnowledgePoint> points = new ArrayList<>(knowledgePointService.list(
+                new LambdaQueryWrapper<KnowledgePoint>()
+                        .eq(KnowledgePoint::getCourseId, courseId)
+                        .orderByDesc(KnowledgePoint::getImportance)
+                        .last("LIMIT 16")));
+
+        points.sort(java.util.Comparator
+                .comparingDouble((KnowledgePoint p) -> mastery.getOrDefault(p.getName(), 50.0))
+                .thenComparing(p -> p.getImportance() == null ? 0 : -p.getImportance()));
+        if (points.size() > 8) {
+            points = points.subList(0, 8);
+        }
+
+        List<LearningPathNode> nodes = new ArrayList<>();
+        for (int i = 0; i < points.size(); i++) {
+            KnowledgePoint p = points.get(i);
+            LearningPathNode node = new LearningPathNode();
+            node.setTitle(p.getName());
+            node.setNodeType("study");
+            node.setStatus("PENDING");
+            node.setOrderIndex(i);
+            // 掌握度加权时长：mastery=0 → 2.0x，mastery=100 → 1.0x，未评估默认 1.5x
+            double m = mastery.getOrDefault(p.getName(), 50.0);
+            int baseTime = p.getEstimatedTime() != null ? p.getEstimatedTime() : 60;
+            node.setEstimatedTime(Math.max(15, (int) (baseTime * (2.0 - m / 100.0))));
+            String desc = p.getDescription();
+            if (mastery.containsKey(p.getName())) {
+                desc = (desc == null ? "" : desc + " ")
+                        + "[学情诊断：掌握度约" + (int) m + "%，建议优先补强]";
+            }
+            node.setDescription(desc);
+            nodes.add(node);
+        }
+        // 无知识点时返回空列表（不再返回硬编码主题）
+        return nodes;
     }
 
     /**
@@ -357,9 +444,16 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
     @Transactional(rollbackFor = Exception.class)
     public LearningPath generatePathPersonalized(Long studentId, Long courseId, String pathName,
                                                   String learningGoal, Map<String, Double> masteryData) {
-        // 无掌握度数据时退化为标准路径
+        // 无外部掌握度数据时，先尝试从错题学情自动推导；仍为空才退化为标准路径
+        final Map<String, Double> effectiveMastery;
         if (masteryData == null || masteryData.isEmpty()) {
-            return generatePath(studentId, courseId, pathName, learningGoal);
+            Map<String, Double> derived = deriveMasteryFromWrongQuestions(studentId, courseId);
+            if (derived.isEmpty()) {
+                return generatePath(studentId, courseId, pathName, learningGoal);
+            }
+            effectiveMastery = derived;
+        } else {
+            effectiveMastery = masteryData;
         }
 
         // 检查是否已有活跃的学习路径
@@ -379,7 +473,7 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
         // 阶段 1: 按掌握度排序根知识点（薄弱 → 掌握）
         List<KnowledgePoint> sortedRoots = new ArrayList<>(rootPoints);
         sortedRoots.sort(Comparator.comparingDouble(kp -> {
-            Double mastery = masteryData.getOrDefault(kp.getName(), 50.0); // 默认 50（未评估）
+            Double mastery = effectiveMastery.getOrDefault(kp.getName(), 50.0); // 默认 50（未评估）
             return mastery; // mastery 越低排在越前
         }));
 
@@ -404,7 +498,7 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
             List<KnowledgePoint> childPoints = knowledgePointService.getChildPoints(kp.getId());
 
             // 个性化 estimatedTime：掌握度越低，分配时间越多（1.0x ~ 2.0x）
-            Double rootMastery = masteryData.getOrDefault(kp.getName(), 50.0);
+            Double rootMastery = effectiveMastery.getOrDefault(kp.getName(), 50.0);
             double timeMultiplier = 2.0 - (rootMastery / 100.0); // mastery=0 → 2.0x, mastery=100 → 1.0x
             int baseTime = kp.getEstimatedTime() != null ? kp.getEstimatedTime() : 60;
             int personalizedTime = Math.max(15, (int) (baseTime * timeMultiplier));
@@ -443,7 +537,7 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
                 node.setOrderIndex(++nodeOrderIndex);
 
                 // 子节点同样按掌握度调时间
-                Double childMastery = masteryData.getOrDefault(childKp.getName(), 50.0);
+                Double childMastery = effectiveMastery.getOrDefault(childKp.getName(), 50.0);
                 double childMultiplier = 2.0 - (childMastery / 100.0);
                 int childBase = childKp.getEstimatedTime() != null ? childKp.getEstimatedTime() : 30;
                 node.setEstimatedTime(Math.max(10, (int) (childBase * childMultiplier)));

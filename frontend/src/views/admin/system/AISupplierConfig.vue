@@ -1,21 +1,17 @@
 <template>
   <div class="fade-in ai-supplier">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-left">
-        <h2 class="page-title">AI 供应商配置</h2>
-        <p class="page-desc">管理大模型供应商、密钥与调用额度，配置持久化于服务端系统配置表</p>
-      </div>
+    <PageHeader title="AI 供应商配置" subtitle="管理大模型供应商、密钥与调用额度，配置持久化于服务端系统配置表" icon="brain">
       <el-button type="primary" :loading="saving" @click="handleSave">
         <el-icon><Check /></el-icon>保存配置
       </el-button>
       <el-button type="success" :loading="switching" @click="handleSwitch">
         <el-icon><Switch /></el-icon>应用并热切换
       </el-button>
-    </div>
+    </PageHeader>
 
+    <div v-loading="loading">
     <!-- 说明横幅 -->
-    <div class="banner">
+    <div class="banner animate-in d1">
       <el-icon class="banner-icon"><InfoFilled /></el-icon>
       <div class="banner-text">
         <strong>配置已支持服务端持久化 + 运行时热切换</strong>
@@ -32,7 +28,7 @@
     </div>
 
     <!-- 基础设置 -->
-    <div class="content-card">
+    <div class="content-card animate-in d2">
       <div class="card-title">
         <el-icon><Setting /></el-icon>基础设置
       </div>
@@ -66,7 +62,7 @@
     </div>
 
     <!-- 供应商凭据 -->
-    <div class="provider-cards">
+    <div class="provider-cards animate-in d3">
       <div v-for="p in providers" :key="p.key" class="content-card provider-card">
         <div class="provider-head">
           <span class="provider-dot" :style="{ background: p.color }"></span>
@@ -103,6 +99,7 @@
         </el-button>
       </div>
     </div>
+    </div>
   </div>
 </template>
 
@@ -111,18 +108,20 @@ import logger from '@/utils/logger'
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Check, InfoFilled, Setting, Connection, Switch } from '@element-plus/icons-vue'
+import PageHeader from '@/components/PageHeader.vue'
 import aiSupplierApi from '@/api/aiSupplier'
 
 const saving = ref(false)
 const switching = ref(false)
 const testing = ref(false)
+const loading = ref(false)
 const currentProvider = ref('')
 const currentLlm = ref('')
 
 const providers = [
-  { key: 'deepseek', name: 'DeepSeek', color: '#4f46e5' },
-  { key: 'openai', name: 'OpenAI', color: '#10a37f' },
-  { key: 'qwen', name: '通义千问 Qwen', color: '#615ced' },
+  { key: 'deepseek', name: 'DeepSeek', color: 'var(--violet)' },
+  { key: 'openai', name: 'OpenAI', color: 'var(--ok)' },
+  { key: 'qwen', name: '通义千问 Qwen', color: 'var(--info)' },
 ]
 
 const SCHEMA = [
@@ -252,8 +251,10 @@ async function loadCurrent() {
 
 onMounted(() => {
   resetForm()
-  loadConfigs()
-  loadCurrent()
+  loading.value = true
+  Promise.all([loadConfigs(), loadCurrent()]).finally(() => {
+    loading.value = false
+  })
 })
 </script>
 
@@ -261,26 +262,6 @@ onMounted(() => {
 .ai-supplier {
   max-width: 1400px;
   margin: 0 auto;
-}
-
-.page-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  margin-bottom: var(--ac-spacing-lg);
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.page-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-  letter-spacing: -0.3px;
-}
-.page-desc {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-  margin-top: 4px;
 }
 
 .banner {

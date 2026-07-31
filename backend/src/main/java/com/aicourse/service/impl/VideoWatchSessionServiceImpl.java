@@ -8,6 +8,7 @@ import com.aicourse.service.VideoWatchSessionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
@@ -42,6 +43,7 @@ public class VideoWatchSessionServiceImpl extends ServiceImpl<VideoWatchSessionM
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public VideoWatchSession updateProgress(Long sessionId, int currentTime, int totalDuration) {
         VideoWatchSession session = this.getById(sessionId);
         if (session == null) {
@@ -64,6 +66,7 @@ public class VideoWatchSessionServiceImpl extends ServiceImpl<VideoWatchSessionM
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public VideoWatchSession endSession(Long sessionId) {
         VideoWatchSession session = this.getById(sessionId);
         if (session == null) {

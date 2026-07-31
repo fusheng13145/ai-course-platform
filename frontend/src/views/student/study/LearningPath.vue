@@ -1,13 +1,26 @@
 <template>
   <div class="fade-in">
-    <!-- 顶部工具栏 -->
-    <div class="lp-toolbar">
-      <h2 class="page-title">学习路径</h2>
-      <el-button type="primary" @click="handleGeneratePath" :loading="generating">
+    <PageHeader title="学习路径" subtitle="AI 生成的个性化学习路线，循序渐进掌握知识" icon="compass" icon-bg="accent">
+      <el-button type="primary" :loading="generating" @click="handleGeneratePath">
         <el-icon><MagicStick /></el-icon> AI 生成路径
       </el-button>
+    </PageHeader>
+
+    <div class="stat-grid">
+      <StatCard label="路径总数" :value="paths.length" icon="layers" tone="var(--accent-soft)" tone-color="var(--accent)" />
+      <StatCard label="已完成节点" :value="completedNodeCount" icon="check" tone="var(--ok-soft)" tone-color="var(--ok)" />
+      <StatCard label="总节点数" :value="pathNodes.length" icon="list" tone="var(--info-soft)" tone-color="var(--info)" />
+      <StatCard label="整体进度" :value="overallProgressText" icon="target" tone="var(--warn-soft)" tone-color="var(--warn)" />
     </div>
 
+    <section class="l1-card">
+      <div class="l1-head">
+        <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM16 8l-2 6-6 2 2-6z"/></svg>
+        </span>
+        <div><div class="l1-title">学习路径详情</div><div class="l1-sub">选择路径查看节点进度与每日任务</div></div>
+      </div>
+      <div class="l1-body">
     <!-- 主内容区：路径列表 + 路径详情 -->
     <div v-if="paths.length > 0" class="lp-main">
       <!-- 左侧：推荐路径选择 -->
@@ -42,7 +55,7 @@
       <!-- 右侧：当前路径详情（Timeline） -->
       <div class="path-detail">
         <!-- 路径概览卡片 -->
-        <div class="overview-card" v-if="currentPath">
+        <div v-if="currentPath" class="overview-card">
           <div class="overview-grid">
             <div class="overview-item">
               <span class="overview-value">{{ currentPath.name || '学习路径' }}</span>
@@ -92,7 +105,7 @@
                 <p class="node-desc">{{ node.content || node.detail || '' }}</p>
 
                 <!-- 进度环形指示器 -->
-                <div class="node-progress-row" v-if="node.progress !== undefined">
+                <div v-if="node.progress !== undefined" class="node-progress-row">
                   <span class="progress-text">完成度 {{ node.progress }}%</span>
                 </div>
 
@@ -121,7 +134,7 @@
         </div>
 
         <!-- 每日任务面板 -->
-        <div class="daily-tasks-panel" v-if="dailyTasks.length > 0">
+        <div v-if="dailyTasks.length > 0" class="daily-tasks-panel">
           <h3 class="section-label">
             <el-icon><Calendar /></el-icon> 今日任务
           </h3>
@@ -137,7 +150,7 @@
               </div>
               <div class="task-content">
                 <span class="task-title">{{ task.title }}</span>
-                <span class="task-hint" v-if="task.knowledgePointName">{{ task.knowledgePointName }}</span>
+                <span v-if="task.knowledgePointName" class="task-hint">{{ task.knowledgePointName }}</span>
               </div>
               <el-tag size="small" :type="task.priority === 'HIGH' ? 'danger' : task.priority === 'MEDIUM' ? 'warning' : 'info'">
                 {{ task.priority === 'HIGH' ? '重要' : (task.priority === 'MEDIUM' ? '一般' : '可选') }}
@@ -151,11 +164,14 @@
     <!-- 空状态 -->
     <div v-else class="empty-state">
       <el-empty description="暂无学习路径">
+        <template #image><div class="empty-deco">🧭</div></template>
         <el-button type="primary" @click="handleGeneratePath">
           <el-icon><MagicStick /></el-icon> AI 为我生成学习路径
         </el-button>
       </el-empty>
     </div>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -164,6 +180,8 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { MagicStick, Calendar, Select } from '@element-plus/icons-vue'
 import learningPathApi from '@/api/learningPath'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 /* ---- 数据状态 ---- */
 const paths = ref([])
@@ -183,6 +201,8 @@ const overallProgress = computed(() => {
   if (pathNodes.value.length === 0) return 0
   return Math.round((completedNodeCount.value / pathNodes.value.length) * 100)
 })
+
+const overallProgressText = computed(() => overallProgress.value + '%')
 
 /* ---- 加载学习路径列表 ---- */
 async function loadPaths() {
@@ -277,7 +297,7 @@ function getNodeSize(node) {
 }
 
 /* ---- 操作方法 ---- */
-function handleNodeClick(node) {
+function handleNodeClick(_node) {
   // 可以展开更多操作
 }
 
@@ -306,7 +326,7 @@ async function handleGeneratePath() {
 
     generating.value = true
     // 调用生成API（需要 courseId 参数）
-    const res = await learningPathApi.generatePath(null)
+    await learningPathApi.generatePath(null)
     ElMessage.success('学习路径已生成')
     await loadPaths()
   } catch (e) {
@@ -615,6 +635,8 @@ onMounted(() => {
   border-radius: var(--ac-radius-lg);
   border: 1px solid var(--ac-border);
 }
+
+.empty-deco { font-size: 38px; filter: grayscale(.2); }
 
 @media (max-width: 900px) {
   .lp-main {

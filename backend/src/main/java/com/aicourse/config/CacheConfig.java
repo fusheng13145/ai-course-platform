@@ -41,6 +41,11 @@ public class CacheConfig {
                 .withCacheConfiguration("examPapers", config.entryTtl(Duration.ofMinutes(30)))
                 .withCacheConfiguration("rag", config.entryTtl(Duration.ofMinutes(10)))
                 .withCacheConfiguration("permissions", config.entryTtl(Duration.ofMinutes(30)))
+                // 以下缓存名此前在服务层已使用但未显式注册（走默认 30min），现统一显式声明 TTL
+                .withCacheConfiguration("users", config.entryTtl(Duration.ofMinutes(30)))
+                .withCacheConfiguration("questions", config.entryTtl(Duration.ofMinutes(10)))
+                .withCacheConfiguration("proctor-config", config.entryTtl(Duration.ofHours(1)))
+                .withCacheConfiguration("rag-retrieve", config.entryTtl(Duration.ofMinutes(10)))
                 .build();
     }
 }

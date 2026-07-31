@@ -1,195 +1,104 @@
 <template>
-  <div class="course-cockpit fade-in">
-    <!-- 课程驾驶舱页头 -->
-    <div class="cockpit-header">
-      <div class="cockpit-header__left">
-        <el-button text class="back-btn" @click="$router.push('/teacher/courses')">
-          <el-icon><ArrowLeft /></el-icon> 返回课程列表
-        </el-button>
-        <div class="cockpit-title">
-          <h2>{{ courseName || '课程驾驶舱' }}</h2>
-          <span v-if="courseCode" class="cockpit-sub">课程代码 · {{ courseCode }}</span>
+  <div>
+    <!-- 课程头卡 -->
+    <section class="l1-card" style="margin-bottom:14px">
+      <div class="l1-body" style="display:flex;gap:18px;align-items:center">
+        <div :style="{ width:'86px',height:'86px',borderRadius:'14px',background:`linear-gradient(135deg,${coverColors[coverIdx]})`,display:'grid',placeItems:'center',color:'#fff',flexShrink:0 }">
+          <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z"/></svg>
+        </div>
+        <div style="flex:1">
+          <div class="flex gap-8">
+            <span style="font-size:18px;font-weight:700;letter-spacing:-.3px">{{ courseName || '计算机网络' }}</span>
+            <span class="tag outline mono">{{ courseCode || 'CS3101' }}</span>
+            <span class="tag green">进行中</span>
+            <router-link to="/teacher/courses" class="btn btn-ghost btn-sm" style="margin-left:auto">← 返回课程列表</router-link>
+          </div>
+          <div class="small muted mt-8">2025-2026-2 · 4 学分 · 共 {{ classes.length }} 个班级 {{ totalStudents }} 名学生</div>
         </div>
       </div>
-      <div class="cockpit-header__right">
-        <el-button type="primary" plain @click="handleClone">
-          <el-icon><CopyDocument /></el-icon> 克隆课程
-        </el-button>
-        <el-button @click="$router.push('/teacher/courses')">
-          <el-icon><Plus /></el-icon> 新建课程
-        </el-button>
+      <!-- 班级 Tab —— 一级隔离维度 -->
+      <div class="tabs-line">
+        <div v-for="(cls, i) in classes" :key="cls.key" class="tab-i" :class="{ active: activeClass === cls.key }" @click="activeClass = cls.key">
+          <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"/></svg>
+          {{ cls.name }}
+          <span class="tab-badge">{{ cls.students }}</span>
+          <span v-if="cls.pending" class="tab-badge" style="background:var(--accent-soft);color:var(--accent)">{{ cls.pending }} 待批</span>
+        </div>
       </div>
+    </section>
+
+    <!-- 模块子 Tab + 内容 -->
+    <div class="mb-12 flex between">
+      <div class="tabs-pill">
+        <div v-for="tab in cockpitTabs" :key="tab.path" class="tab-i" :class="{ active: activeCockpit === tab.path }" @click="activeCockpit = tab.path">
+          {{ tab.label }}
+          <span v-if="tab.badge != null" class="tab-badge" :style="{ background: tab.badge ? 'var(--accent-soft)' : '', color: tab.badge ? 'var(--accent)' : '' }">{{ tab.badge }}</span>
+        </div>
+      </div>
+      <span class="tag blue">当前班级：{{ currentClass?.name || '—' }} · {{ currentClass?.schedule || '' }}</span>
     </div>
 
-    <!-- 二级导航 -->
-    <div class="cockpit-tabs">
-      <router-link
-        v-for="tab in tabs"
-        :key="tab.path"
-        :to="`/teacher/courses/${courseId}/${tab.path}`"
-        class="cockpit-tab"
-        :class="{ 'is-active': activeTab === tab.path }"
-      >
-        <el-icon v-if="tab.icon"><component :is="tab.icon" /></el-icon>
-        <span>{{ tab.label }}</span>
-      </router-link>
-    </div>
-
-    <!-- 嵌套视图 -->
-    <div class="cockpit-body">
+    <div>
       <router-view />
     </div>
   </div>
 </template>
 
 <script setup>
-import { unwrap } from '@/utils/response'
-import { ref, computed, onMounted } from 'vue'
-import { useRoute } from 'vue-router'
+import { ref, computed, watch, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import courseApi from '@/api/course'
-import teachingApi from '@/api/teacher'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import {
-  ArrowLeft,
-  CopyDocument,
-  Plus,
-  DataLine,
-  Files,
-  List,
-  DocumentChecked,
-  Collection,
-  Medal,
-  Trophy,
-  TrendCharts,
-  Pointer,
-  ChatDotRound,
-} from '@element-plus/icons-vue'
+import { unwrap } from '@/utils/response'
 
 const route = useRoute()
+const router = useRouter()
 const courseId = computed(() => route.params.id)
 
 const courseName = ref('')
 const courseCode = ref('')
+const coverIdx = ref(0)
+const coverColors = ['#8f2a21,#c13b30', '#1a4a80,#2563a8', '#1f5c39,#2e7d4f', '#6d4fa1,#8b6cc0']
 
-const tabs = [
-  { path: 'overview', label: '课程概览', icon: DataLine },
-  { path: 'chapters', label: '章节与任务点', icon: Files },
-  { path: 'tasks', label: '作业任务', icon: List },
-  { path: 'submissions', label: '作业批改', icon: DocumentChecked },
-  { path: 'bank', label: '课程题库', icon: Collection },
-  { path: 'exams', label: '试卷与考试', icon: Medal },
-  { path: 'proctor', label: '在线监考', icon: Trophy },
-  { path: 'grades', label: '过程性成绩', icon: TrendCharts },
-  { path: 'analytics', label: '学情统计', icon: TrendCharts },
-  { path: 'interaction', label: '课堂互动', icon: Pointer },
-  { path: 'discussion', label: '课程讨论', icon: ChatDotRound },
+const classes = ref([
+  { key: 'cs2301', name: '计科2301', students: 46, pending: 8, schedule: '周一 3-4节 · 笃学楼B204' },
+  { key: 'cs2302', name: '计科2302', students: 45, pending: 11, schedule: '周二 5-6节 · 笃学楼B206' },
+  { key: 'cs2303', name: '计科2303', students: 47, pending: 5, schedule: '周四 1-2节 · 明德楼C301' },
+])
+const activeClass = ref(classes.value[0]?.key || '')
+const currentClass = computed(() => classes.value.find(c => c.key === activeClass.value))
+const totalStudents = computed(() => classes.value.reduce((s, c) => s + c.students, 0))
+
+const cockpitTabs = [
+  { path: 'chapters', label: '课程章节' },
+  { path: 'overview', label: '课程资料' },
+  { path: 'tasks', label: '作业管理', badge: 8 },
+  { path: 'exams', label: '考试管理' },
+  { path: 'submissions', label: '成员管理' },
+  { path: 'grades', label: '成绩统计' },
 ]
+const activeCockpit = ref('chapters')
 
-const activeTab = computed(() => {
-  const seg = route.path.split('/').filter(Boolean)
-  return seg[seg.length - 1] || 'overview'
+// Navigate to selected cockpit tab
+watch(activeCockpit, (tab) => {
+  router.push(`/teacher/courses/${courseId.value}/${tab}`)
 })
 
-async function loadCourse() {
+// Initialize from route
+onMounted(async () => {
+  const segments = route.path.split('/')
+  const last = segments[segments.length - 1]
+  // Check if last segment matches a tab key
+  const match = cockpitTabs.find(t => t.path === last)
+  if (match) activeCockpit.value = last
+  else activeCockpit.value = 'chapters'
+  // Try to load course info from API
   try {
-    const res = await courseApi.getCourseById(courseId.value)
-    const c = unwrap(res)
-    courseName.value = c?.name || ''
-    courseCode.value = c?.code || ''
-  } catch (e) {
-    courseName.value = ''
-  }
-}
-
-async function handleClone() {
-  try {
-    const newName = await ElMessageBox.prompt('请输入克隆后的课程名称', '克隆课程', {
-      inputValue: courseName.value ? `${courseName.value}（副本）` : '',
-      confirmButtonText: '克隆',
-      cancelButtonText: '取消',
-    })
-      .then((r) => r.value)
-      .catch(() => null)
-    if (!newName) return
-    await teachingApi.cloneCourse(courseId.value, newName)
-    ElMessage.success('课程已克隆，状态为草稿')
-    $router.push('/teacher/courses')
-  } catch (e) {
-    if (e !== 'cancel') ElMessage.error('克隆失败：' + (e.message || e))
-  }
-}
-
-onMounted(loadCourse)
+    const res = await courseApi.getDetail(courseId.value)
+    const data = unwrap(res)
+    if (data) {
+      courseName.value = data.name || data.courseName || courseName.value
+      courseCode.value = data.code || data.courseCode || courseCode.value
+    }
+  } catch { /* use defaults */ }
+})
 </script>
-
-<style scoped>
-.course-cockpit {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ac-spacing-md);
-}
-
-.cockpit-header {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.cockpit-header__left {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-.back-btn {
-  color: var(--ac-text-secondary);
-}
-.cockpit-title h2 {
-  margin: 0;
-  font-size: 20px;
-  font-weight: 650;
-  color: var(--ac-text-primary);
-}
-.cockpit-sub {
-  font-size: 12.5px;
-  color: var(--ac-text-muted);
-}
-
-/* 二级导航 */
-.cockpit-tabs {
-  display: flex;
-  gap: 6px;
-  overflow-x: auto;
-  padding: 6px;
-  background: var(--ac-bg-elevated);
-  border: 1px solid var(--ac-border);
-  border-radius: var(--ac-radius-lg);
-  box-shadow: var(--ac-shadow-sm);
-  scrollbar-width: thin;
-}
-.cockpit-tab {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  padding: 8px 14px;
-  border-radius: var(--ac-radius-md);
-  font-size: 13.5px;
-  font-weight: 500;
-  color: var(--ac-text-secondary);
-  white-space: nowrap;
-  text-decoration: none;
-  transition: all var(--ac-transition-fast);
-}
-.cockpit-tab:hover {
-  background: var(--ac-bg-hover);
-  color: var(--ac-text-primary);
-}
-.cockpit-tab.is-active {
-  background: var(--ac-sidebar-active-bg);
-  color: var(--ac-sidebar-active-text);
-  font-weight: 600;
-}
-.cockpit-body {
-  min-height: 320px;
-}
-</style>

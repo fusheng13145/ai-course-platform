@@ -1,653 +1,216 @@
-﻿﻿﻿﻿<template>
-  <div class="fade-in admin-dashboard">
-    <!-- 统计卡片区域 -->
-    <div class="stat-cards">
-      <div class="stat-card" v-for="(item, index) in statCards" :key="index">
-        <div class="stat-icon" :style="{ background: item.color }">
-          <el-icon :size="24"><component :is="item.icon" /></el-icon>
-        </div>
-        <div class="stat-info">
-          <h3>{{ item.value }}</h3>
-          <p>{{ item.label }}</p>
-        </div>
-        <div class="stat-trend" :class="item.trend > 0 ? 'up' : 'down'" v-if="item.trend !== undefined">
-          <el-icon :size="14"><Top v-if="item.trend > 0" /><Bottom v-else /></el-icon>
-          {{ Math.abs(item.trend) }}%
-        </div>
-      </div>
+﻿<template>
+  <div>
+    <PageHeader title="管理总览" subtitle="平台核心运营指标与常用管理入口" icon="dashboard" />
+    <div v-loading="loading">
+    <!-- 统计卡片 -->
+    <div class="stat-grid animate-in d1">
+      <StatCard label="平台总用户" icon="users" tone="var(--accent-soft)" tone-color="var(--accent)" :foot="`教师 ${fmt(overview.roleDistribution?.teacher)} · 学生 ${fmt(overview.roleDistribution?.student)}`"><template #value><CountUp :value="Number(overview.totalUsers ?? 0)" /></template></StatCard>
+      <StatCard label="课程总数" icon="book" tone="var(--info-soft)" tone-color="var(--info)" :foot="`${overview.activeCourses ?? 0} 门活跃课程`"><template #value><CountUp :value="Number(overview.totalCourses ?? 0)" /></template></StatCard>
+      <StatCard label="选课总人次" icon="send" tone="var(--ok-soft)" tone-color="var(--ok)"><template #value><CountUp :value="Number(overview.totalEnrollments ?? 0)" /></template></StatCard>
+      <StatCard label="作业提交率" :value="submitRate" icon="chart" tone="var(--warn-soft)" tone-color="var(--warn)" :foot="`成绩优良率 ${excellentRate}%`" />
     </div>
 
-    <!-- 主内容区域 -->
-    <div class="dashboard-grid">
-      <!-- 用户增长趋势图 -->
-      <div class="chart-card full-width">
-        <div class="chart-header">
-          <span class="chart-title">用户增长趋势</span>
-          <div class="time-switcher">
-            <el-radio-group v-model="trendRange" size="small" @change="fetchTrendData">
-              <el-radio-button value="7">近7天</el-radio-button>
-              <el-radio-button value="30">近30天</el-radio-button>
-            </el-radio-group>
+    <!-- 系统管理快捷入口 -->
+    <section class="l1-card animate-in d1">
+      <div class="l1-head">
+        <span class="l1-ico"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></span>
+        <div><div class="l1-title">系统管理</div><div class="l1-sub">用户权限 / 角色管理 / 系统设置</div></div>
+        <div class="l1-extra"><router-link to="/admin/users" class="btn btn-primary btn-sm">进入用户管理</router-link></div>
+      </div>
+      <div class="l1-body">
+        <div class="grid-3">
+          <div class="l3-block hoverable" @click="$router.push('/admin/users')">
+            <div class="l3-title"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg> 用户权限</div>
+            <div class="entry-desc">平台全部用户账号管理<br/>按角色分组折叠 · 权限树配置</div>
+            <div class="flex gap-8 mt-8"><span class="tag violet">{{ fmt(overview.totalUsers) }} 用户</span><span class="tag green">{{ fmt(overview.roleDistribution?.teacher) }} 教师</span><span class="tag blue">{{ fmt(overview.roleDistribution?.student) }} 学生</span></div>
+          </div>
+          <div class="l3-block hoverable" @click="$router.push('/admin/permissions')">
+            <div class="l3-title"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> 角色管理</div>
+            <div class="entry-desc">角色权限矩阵配置<br/>内置角色 + 自定义角色</div>
+            <div class="flex gap-8 mt-8"><span class="tag violet">管理员</span><span class="tag blue">教师</span><span class="tag">学生</span><span class="tag outline">自定义</span></div>
+          </div>
+          <div class="l3-block hoverable" @click="$router.push('/admin/system')">
+            <div class="l3-title"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 21v-7M4 10V3M12 21v-9M12 8V3M20 21v-5M20 12V3M1 14h6M9 8h6M17 16h6"/></svg> 系统设置</div>
+            <div class="entry-desc">基础设置 / 安全策略<br/>存储配额 / 在线预览配置</div>
+            <div class="flex gap-8 mt-8"><span class="tag green">运行中</span></div>
           </div>
         </div>
-        <v-chart :option="trendOption" style="height: 320px" autoresize />
       </div>
+    </section>
 
-      <!-- 课程分类分布 + 快捷操作 -->
-      <div class="chart-card">
-        <div class="chart-title">课程分类分布</div>
-        <v-chart :option="pieOption" style="height: 300px" autoresize />
+    <!-- 教学管理快捷入口 -->
+    <section class="l1-card">
+      <div class="l1-head">
+        <span class="l1-ico ico-info"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20M4 19.5A2.5 2.5 0 0 0 6.5 22H20V2H6.5A2.5 2.5 0 0 0 4 4.5v15z"/></svg></span>
+        <div><div class="l1-title">教学管理</div><div class="l1-sub">课程库 / 专业班级 / 排课分配</div></div>
+        <div class="l1-extra"><router-link to="/admin/courses" class="btn btn-primary btn-sm">课程库总览</router-link></div>
       </div>
-
-      <!-- 系统动态日志 -->
-      <div class="chart-card">
-        <div class="chart-header">
-          <span class="chart-title">系统动态</span>
-          <el-button text type="primary" size="small" @click="refreshLogs">刷新</el-button>
-        </div>
-        <div class="log-list">
-          <div v-for="log in recentLogs" :key="log.id" class="log-item">
-            <el-tag
-              size="small"
-              :type="getLogType(log.level)"
-              effect="light"
-              class="log-tag"
-            >
-              {{ log.level }}
-            </el-tag>
-            <span class="log-message">{{ log.message }}</span>
-            <span class="log-time">{{ formatTime(log.createdAt || log.time) }}</span>
+      <div class="l1-body">
+        <div class="grid-3">
+          <div class="l3-block hoverable" @click="$router.push('/admin/courses')">
+            <div class="l3-title"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/></svg> 课程库总览</div>
+            <div class="entry-text"><b>{{ fmt(overview.totalCourses) }}</b> 门 · 活跃 <b>{{ fmt(overview.activeCourses) }}</b></div>
           </div>
-          <el-empty v-if="recentLogs.length === 0" description="暂无系统动态" :image-size="60" />
+          <div class="l3-block hoverable" @click="$router.push('/admin/classes')">
+            <div class="l3-title"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 8.5 4.7L12 11.4 3.5 6.7 12 2z"/></svg> 专业班级管理</div>
+            <div class="entry-text">院系 → 专业 → 班级 三级树</div>
+          </div>
+          <div class="l3-block hoverable" @click="$router.push('/admin/supervision')">
+            <div class="l3-title"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4M3 8h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></svg> 排课与课程分配</div>
+            <div class="entry-text">教师 → 课程 → 班级级联</div>
+          </div>
         </div>
       </div>
+    </section>
 
-      <!-- 快捷操作面板 -->
-      <div class="quick-actions card-base">
-        <div class="card-title">快捷操作</div>
-        <div class="action-grid">
-          <router-link
-            v-for="action in quickActions"
-            :key="action.path"
-            :to="action.path"
-            class="action-item"
-          >
-            <div class="action-icon" :style="{ background: action.bg }">
-              <el-icon :size="20"><component :is="action.icon" /></el-icon>
-            </div>
-            <span>{{ action.label }}</span>
-          </router-link>
+    <!-- 数据看板 + 图表区 -->
+    <div class="grid-32 animate-in d2">
+      <section class="l1-card">
+        <div class="l1-head">
+          <span class="l1-ico ico-ok"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18M18 17V9M13 17V5M8 17v-3"/></svg></span>
+          <div><div class="l1-title">近 30 天用户增长趋势</div></div>
         </div>
+        <div class="l1-body">
+          <div class="flex gap-12 wrap mb-12">
+            <span class="tag blue">新增注册</span><span class="tag outline">按天统计</span>
+          </div>
+          <BarChart :data="trendData" :w="540" :h="190" />
+        </div>
+      </section>
+      <section class="l1-card">
+        <div class="l1-head">
+          <span class="l1-ico ico-info"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21.21 15.89A10 10 0 1 1 8 2.83M22 12A10 10 0 0 0 12 2v10z"/></svg></span>
+          <div><div class="l1-title">全校成绩分布</div></div>
+        </div>
+        <div class="l1-body"><DonutChart :data="gradeDist" center-label="人次" :size="160" /></div>
+      </section>
+    </div>
+
+    <!-- 院系对比 + 进度表 -->
+    <section class="l1-card">
+      <div class="l1-head">
+        <span class="l1-ico ico-violet"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18z"/></svg></span>
+        <div><div class="l1-title">课程运营数据</div></div>
+        <div class="l1-extra"><router-link to="/admin/analytics" class="btn btn-plain btn-sm">查看详情</router-link></div>
       </div>
+      <div class="l1-body">
+        <CollapsePanel title="课程分类分布" icon="chart" :open="true">
+          <BarChart :data="deptData" :horizontal="true" :w="540" :h="190" />
+        </CollapsePanel>
+        <CollapsePanel title="热门课程 TOP5（按选课人数）" icon="list" :open="false" flush>
+          <div v-if="topCourses.length" class="tbl-wrap">
+            <table class="tbl">
+              <thead><tr><th>课程</th><th>课程号</th><th>分类</th><th>选课人数</th></tr></thead>
+              <tbody>
+                <tr v-for="(p, i) in topCourses" :key="p.courseId || i">
+                  <td class="cell-main">{{ p.courseName }}</td><td class="mono">{{ p.courseCode || '—' }}</td>
+                  <td><span class="tag outline">{{ p.category || '未分类' }}</span></td>
+                  <td class="num">{{ p.enrollmentCount ?? 0 }}</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+          <el-empty v-else description="暂无热门课程数据" :image-size="80" />
+        </CollapsePanel>
+      </div>
+    </section>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, markRaw } from 'vue'
-import {
-  User,
-  Reading,
-  Document,
-  TrophyBase,
-  Top,
-  Bottom,
-  Monitor,
-  Plus,
-  Setting,
-  Bell,
-  DataLine
-} from '@element-plus/icons-vue'
+import { ref, computed, onMounted } from 'vue'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
+import CountUp from '@/components/CountUp.vue'
+import CollapsePanel from '@/components/ui/CollapsePanel.vue'
+import BarChart from '@/components/charts/BarChart.vue'
+import DonutChart from '@/components/charts/DonutChart.vue'
+import { getMonoSeries } from '@/utils/chartTheme'
+import adminApi from '@/api/admin'
 import analyticsApi from '@/api/analytics'
-import systemApi from '@/api/system'
-import loginLogApi from '@/api/loginLog'
+import { toast } from '@/composables/useToast'
 
-// 统计数据
-const stats = reactive({
-  userCount: 0,
-  courseCount: 0,
-  examCount: 0,
-  submissionCount: 0,
-  activeUsers: 0,
-  completionRate: 0
+const overview = ref({})
+const dash = ref({})
+const trendData = ref([])
+const gradeDist = ref([])
+const deptData = ref([])
+const topCourses = ref([])
+const loading = ref(false)
+
+function fmt(n) {
+  return (n ?? 0).toLocaleString('zh-CN')
+}
+
+const submitRate = computed(() => {
+  const v = dash.value.completionRate
+  return v != null ? v + '%' : '—'
+})
+const excellentRate = computed(() => {
+  const g = dash.value.gradeDistribution
+  if (!Array.isArray(g) || g.length < 5) return '—'
+  const total = g.reduce((s, x) => s + (Number(x) || 0), 0)
+  if (!total) return '0'
+  return Math.round(((Number(g[0]) || 0) + (Number(g[1]) || 0)) * 100 / total)
 })
 
-// 统计卡片配置
-const statCards = ref([
-  {
-    icon: markRaw(User),
-    label: '用户总数',
-    value: 0,
-    color: '#7A8BA5',
-    trend: 12.5
-  },
-  {
-    icon: markRaw(Reading),
-    label: '课程总数',
-    value: 0,
-    color: '#8BA888',
-    trend: 8.2
-  },
-  {
-    icon: markRaw(Document),
-    label: '考试总数',
-    value: 0,
-    color: '#CBB58A',
-    trend: -2.1
-  },
-  {
-    icon: markRaw(TrophyBase),
-    label: '提交总数',
-    value: 0,
-    color: '#C48080',
-    trend: 15.6
-  }
-])
+function fmtDate(d) {
+  const [y, m, day] = String(d).split('-')
+  return y ? `${m}-${day}` : d
+}
 
-// 趋势图时间范围
-const trendRange = ref('7')
-
-// 趋势图配置
-const trendOption = ref({
-  tooltip: {
-    trigger: 'axis',
-    backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: '#DDD6CE',
-    textStyle: { color: '#3D3835' }
-  },
-  grid: { left: 50, right: 20, bottom: 30, top: 20 },
-  xAxis: {
-    type: 'category',
-    data: [],
-    axisLine: { lineStyle: { color: '#DDD6CE' } },
-    axisLabel: { color: '#928B83', fontSize: 12 }
-  },
-  yAxis: {
-    type: 'value',
-    axisLine: { show: false },
-    axisTick: { show: false },
-    splitLine: { lineStyle: { color: '#DDD6CE', type: 'dashed' } },
-    axisLabel: { color: '#928B83' }
-  },
-  series: [
-    {
-      data: [],
-      type: 'line',
-      smooth: true,
-      symbol: 'circle',
-      symbolSize: 6,
-      lineStyle: { width: 2.5, color: '#7A8BA5' },
-      areaStyle: {
-        color: {
-          type: 'linear',
-          x: 0, y: 0, x2: 0, y2: 1,
-          colorStops: [
-            { offset: 0, color: 'rgba(122, 139, 165, 0.25)' },
-            { offset: 1, color: 'rgba(122, 139, 165, 0.02)' }
-          ]
-        }
-      },
-      itemStyle: { color: '#7A8BA5' }
-    }
-  ]
-})
-
-// 饼图配置（课程分布）
-const pieOption = ref({
-  tooltip: {
-    trigger: 'item',
-    formatter: '{b}: {c} ({d}%)',
-    backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: '#DDD6CE'
-  },
-  legend: {
-    orient: 'vertical',
-    right: 10,
-    top: 'center',
-    textStyle: { color: '#5E574F', fontSize: 12 }
-  },
-  series: [{
-    type: 'pie',
-    radius: ['45%', '70%'],
-    center: ['40%', '50%'],
-    avoidLabelOverlap: false,
-    itemStyle: {
-      borderRadius: 6,
-      borderColor: '#fff',
-      borderWidth: 2
-    },
-    label: { show: false },
-    emphasis: {
-      label: { show: true, fontSize: 14, fontWeight: 'bold' }
-    },
-    data: []
-  }],
-  color: ['#7A8BA5', '#B89A8A', '#8BA888', '#CBB58A', '#C48080']
-})
-
-// 系统日志
-const recentLogs = ref([])
-
-// 快捷操作列表
-const quickActions = [
-  { icon: markRaw(Plus), label: '添加用户', path: '/admin/users', bg: 'rgba(122, 139, 165, 0.12)' },
-  { icon: markRaw(Document), label: '考试管理', path: '/admin/exams', bg: 'rgba(139, 168, 136, 0.12)' },
-  { icon: markRaw(Bell), label: '发送通知', path: '/admin/notifications', bg: 'rgba(184, 154, 138, 0.12)' },
-  { icon: markRaw(Setting), label: '系统设置', path: '/admin/system', bg: 'rgba(203, 181, 138, 0.12)' },
-  { icon: markRaw(DataLine), label: '数据分析', path: '/admin/analytics', bg: 'rgba(196, 128, 128, 0.12)' },
-  { icon: markRaw(Monitor), label: '题库管理', path: '/admin/questions', bg: 'rgba(122, 139, 165, 0.08)' }
-]
-
-/**
- * 获取仪表盘统计数据
- */
-async function fetchDashboardStats() {
+async function load() {
+  loading.value = true
   try {
-    const res = await analyticsApi.getDashboardStats()
-    const data = res.data || res
+    const [ovRes, dashRes, growthRes, courseRes] = await Promise.all([
+      adminApi.getOverview(),
+      analyticsApi.getDashboardStats(),
+      adminApi.getUserGrowth({ days: 30 }),
+      adminApi.getCourseStats(),
+    ])
+    const ov = ovRes?.data?.data || ovRes?.data || {}
+    const dc = dashRes?.data?.data || dashRes?.data || {}
+    const growth = growthRes?.data?.data || growthRes?.data || []
+    const cs = courseRes?.data?.data || courseRes?.data || {}
 
-    // 更新统计卡片数值
-    statCards.value[0].value = formatNumber(data.userCount ?? data.totalUsers ?? 0)
-    stats.userCount = data.userCount ?? data.totalUsers ?? 0
+    overview.value = ov
+    dash.value = dc
 
-    statCards.value[1].value = formatNumber(data.courseCount ?? data.totalCourses ?? 0)
-    stats.courseCount = data.courseCount ?? data.totalCourses ?? 0
+    const mono = getMonoSeries()
+    trendData.value = growth.map(item => ({
+      label: fmtDate(item.date),
+      value: item.newUsers ?? 0,
+      color: mono[1],
+    }))
 
-    statCards.value[2].value = formatNumber(data.examCount ?? data.totalExams ?? 0)
-    stats.examCount = data.examCount ?? data.totalExams ?? 0
+    const gLabels = ['优秀(90+)', '良好(80-89)', '中等(70-79)', '及格(60-69)', '不及格']
+    gradeDist.value = (dc.gradeDistribution || []).slice(0, 5).map((v, i) => ({
+      label: gLabels[i] || '分段' + (i + 1),
+      value: Number(v) || 0,
+      color: mono[i % mono.length],
+    }))
 
-    statCards.value[3].value = formatNumber(data.submissionCount ?? 0)
-    stats.submissionCount = data.submissionCount ?? 0
+    const catMap = cs.categoryDistribution || {}
+    deptData.value = Object.entries(catMap).map(([label, value], i) => ({
+      label, value: Number(value) || 0, color: mono[i % mono.length],
+    }))
 
-    // 更新课程分布饼图
-    if (data.categoryDistribution && Object.keys(data.categoryDistribution).length > 0) {
-      pieOption.value.series[0].data = Object.entries(data.categoryDistribution).map(([name, value]) => ({
-        name,
-        value: Number(value) || 0
-      }))
-    } else {
-      pieOption.value.series[0].data = []
-    }
-  } catch (error) {
-    console.warn('加载仪表盘数据失败，使用默认值:', error)
-    setMockData()
+    topCourses.value = cs.topCourses || []
+  } catch (e) {
+    toast.show('看板数据加载失败', 'error')
+  } finally {
+    loading.value = false
   }
 }
 
-/**
- * 获取趋势数据（增强：优先使用登录日志趋势 API）
- */
-async function fetchTrendData() {
-  try {
-    const days = parseInt(trendRange.value) || 7
-    // 优先从登录日志 API 获取用户增长趋势
-    const res = await loginLogApi.getTrends({ days })
-    const data = res.data || res
-
-    if (Array.isArray(data)) {
-      trendOption.value.xAxis.data = data.map(item => item.date || item.label || item.day)
-      trendOption.value.series[0].data = data.map(item => item.count || item.userCount || item.value || 0)
-    } else if (data.dates && data.values) {
-      trendOption.value.xAxis.data = data.dates
-      trendOption.value.series[0].data = data.values
-    } else if (data.list && Array.isArray(data.list)) {
-      trendOption.value.xAxis.data = data.list.map(item => item.date || item.label)
-      trendOption.value.series[0].data = data.list.map(item => item.count || item.value || 0)
-    }
-  } catch (error) {
-    // 登录日志 API 不可用时，回退到 analytics API
-    try {
-      const res = await analyticsApi.getTrendData({ days: parseInt(trendRange.value) || 7 })
-      const data = res.data || res
-      if (Array.isArray(data)) {
-        trendOption.value.xAxis.data = data.map(item => item.date || item.label)
-        trendOption.value.series[0].data = data.map(item => item.count || item.value || 0)
-      }
-    } catch (e2) {
-      console.warn('加载趋势数据失败（所有源均不可用）:', e2)
-      trendOption.value.xAxis.data = []
-      trendOption.value.series[0].data = []
-    }
-  }
-}
-
-/**
- * 获取系统日志
- */
-async function fetchSystemLogs() {
-  try {
-    const res = await systemApi.getSystemLogs({ limit: 8 })
-    const data = res.data?.list || res.data || res || []
-    recentLogs.value = Array.isArray(data) ? data.slice(0, 8) : []
-  } catch (error) {
-    console.warn('加载系统日志失败:', error)
-    recentLogs.value = []
-  }
-}
-
-/**
- * 刷新日志
- */
-function refreshLogs() {
-  fetchSystemLogs()
-}
-
-/**
- * 格式化数字显示
- */
-function formatNumber(num) {
-  if (num >= 10000) return (num / 10000).toFixed(1) + 'w'
-  if (num >= 1000) return (num / 1000).toFixed(1) + 'k'
-  return num.toString()
-}
-
-/**
- * 格式化时间
- */
-function formatTime(time) {
-  if (!time) return ''
-  const date = new Date(time)
-  const now = new Date()
-  const diff = now - date
-
-  if (diff < 60000) return '刚刚'
-  if (diff < 3600000) return Math.floor(diff / 60000) + '分钟前'
-  if (diff < 86400000) return Math.floor(diff / 3600000) + '小时前'
-
-  return date.toLocaleDateString('zh-CN', { month: 'short', day: 'numeric' }) +
-    ' ' + date.toLocaleTimeString('zh-CN', { hour: '2-digit', minute: '2-digit' })
-}
-
-/**
- * 根据日志级别获取标签类型
- */
-function getLogType(level) {
-  const levelMap = {
-    ERROR: 'danger',
-    WARN: 'warning',
-    INFO: '',
-    DEBUG: 'info'
-  }
-  return levelMap[level] || 'info'
-}
-
-/**
- * 设置空数据（API失败时的后备，不再使用硬编码模拟数据）
- */
-function setMockData() {
-  statCards.value[0].value = '0'
-  statCards.value[1].value = '0'
-  statCards.value[2].value = '0'
-  statCards.value[3].value = '0'
-
-  pieOption.value.series[0].data = []
-}
-
-// 页面加载时获取数据
-onMounted(() => {
-  fetchDashboardStats()
-  fetchTrendData()
-  fetchSystemLogs()
-})
+onMounted(load)
 </script>
 
 <style scoped>
-.admin-dashboard {
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-/* 统计卡片区域 */
-.stat-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: var(--ac-spacing-md);
-  margin-bottom: var(--ac-spacing-lg);
-}
-
-.stat-card {
-  padding: 22px 24px;
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  background: var(--ac-bg-elevated);
-  border-radius: var(--ac-radius-lg);
-  border: 1px solid var(--ac-border);
-  transition: all var(--ac-transition-normal);
-  position: relative;
-  overflow: hidden;
-}
-
-.stat-card::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  width: 4px;
-  height: 100%;
-  opacity: 0;
-  transition: opacity var(--ac-transition-normal);
-}
-
-.stat-card:hover {
-  transform: translateY(-3px);
-  box-shadow: var(--ac-shadow-lg);
-  border-color: transparent;
-}
-
-.stat-card:hover::before {
-  opacity: 1;
-}
-
-.stat-icon {
-  width: 52px;
-  height: 52px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--ac-radius-md);
-  flex-shrink: 0;
-  color: #fff;
-}
-
-.stat-info h3 {
-  font-size: 26px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-  line-height: 1.2;
-}
-
-.stat-info p {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-  margin-top: 4px;
-}
-
-.stat-trend {
-  margin-left: auto;
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 6px;
-  display: flex;
-  align-items: center;
-  gap: 2px;
-}
-
-.stat-trend.up {
-  color: var(--ac-success);
-  background: rgba(139, 168, 136, 0.12);
-}
-
-.stat-trend.down {
-  color: var(--ac-danger);
-  background: rgba(196, 128, 128, 0.12);
-}
-
-/* 主内容网格布局 */
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--ac-spacing-md);
-}
-
-.chart-card {
-  background: var(--ac-bg-elevated);
-  border-radius: var(--ac-radius-lg);
-  border: 1px solid var(--ac-border);
-  padding: var(--ac-spacing-lg);
-  transition: all var(--ac-transition-normal);
-}
-
-.chart-card:hover {
-  box-shadow: var(--ac-shadow-md);
-}
-
-.chart-card.full-width {
-  grid-column: 1 / -1;
-}
-
-.chart-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--ac-spacing-md);
-}
-
-.chart-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ac-text-primary);
-}
-
-.time-switcher {
-  display: flex;
-  gap: 8px;
-}
-
-/* 日志列表 */
-.log-list {
-  max-height: 300px;
-  overflow-y: auto;
-}
-
-.log-item {
-  padding: 10px 0;
-  border-bottom: 1px solid var(--ac-border);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  font-size: 13px;
-  transition: background var(--ac-transition-fast);
-}
-
-.log-item:hover {
-  background: var(--ac-bg);
-  margin: 0 calc(-1 * var(--ac-spacing-lg));
-  padding-left: var(--ac-spacing-lg);
-  padding-right: var(--ac-spacing-lg);
-}
-
-.log-item:last-child {
-  border-bottom: none;
-}
-
-.log-tag {
-  flex-shrink: 0;
-  font-size: 11px;
-}
-
-.log-message {
-  flex: 1;
-  color: var(--ac-text-secondary);
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.log-time {
-  color: var(--ac-text-muted);
-  font-size: 12px;
-  flex-shrink: 0;
-}
-
-/* 快捷操作面板 */
-.quick-actions {
-  grid-column: 1 / -1;
-}
-
-.card-base {
-  background: var(--ac-bg-elevated);
-  border-radius: var(--ac-radius-lg);
-  border: 1px solid var(--ac-border);
-  padding: var(--ac-spacing-lg);
-}
-
-.card-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ac-text-primary);
-  margin-bottom: var(--ac-spacing-md);
-}
-
-.action-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
-  gap: var(--ac-spacing-sm);
-}
-
-.action-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 10px;
-  padding: 18px 12px;
-  border-radius: var(--ac-radius-md);
-  background: var(--ac-bg);
-  border: 1px solid var(--ac-border);
-  transition: all var(--ac-transition-normal);
-  text-decoration: none;
-  color: var(--ac-text-secondary);
-  font-size: 13px;
-  font-weight: 500;
-}
-
-.action-item:hover {
-  transform: translateY(-2px);
-  box-shadow: var(--ac-shadow-md);
-  border-color: var(--ac-primary-light);
-  color: var(--ac-primary);
-}
-
-.action-icon {
-  width: 44px;
-  height: 44px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: var(--ac-radius-sm);
-  color: var(--ac-primary);
-}
-
-/* 响应式适配 */
-@media (max-width: 1024px) {
-  .dashboard-grid {
-    grid-template-columns: 1fr;
-  }
-
-  .chart-card.full-width,
-  .quick-actions {
-    grid-column: 1;
-  }
-}
-
-@media (max-width: 768px) {
-  .stat-cards {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .action-grid {
-    grid-template-columns: repeat(3, 1fr);
-  }
-}
+.entry-desc { font-size: 12px; color: var(--ink-3); line-height: 1.6; }
+.entry-text { font-size: 12px; color: var(--ink-3); }
+.ico-info { background: var(--info-soft); color: var(--info); }
+.ico-ok { background: var(--ok-soft); color: var(--ok); }
+.ico-violet { background: var(--violet-soft); color: var(--violet); }
 </style>

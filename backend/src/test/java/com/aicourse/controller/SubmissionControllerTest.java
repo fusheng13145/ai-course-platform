@@ -30,6 +30,9 @@ class SubmissionControllerTest extends ControllerTestBase {
     @MockitoBean
     private com.aicourse.security.SubmissionAccessControl accessControl;
 
+    @MockitoBean
+    private com.aicourse.service.PlagiarismCheckService plagiarismCheckService;
+
     private Page<Submission> submissionPageWith(Long id) {
         Submission s = new Submission();
         s.setId(id);

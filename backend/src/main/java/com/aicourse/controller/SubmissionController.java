@@ -174,7 +174,7 @@ public class SubmissionController {
     @PostMapping("/{id}/return")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<Submission> returnSubmission(@PathVariable Long id,
-                                                     @RequestBody java.util.Map<String, String> body,
+                                                     @Valid @RequestBody java.util.Map<String, String> body,
                                                      Authentication auth) {
         accessControl.assertManageable(id, auth);
         String reason = body.get("reason");

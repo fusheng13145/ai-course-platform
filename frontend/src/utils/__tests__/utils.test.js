@@ -1,40 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 
-// ==================== permission.js 测试 ====================
-describe('permission.js', () => {
-  let hasPermission, hasAnyPermission, hasAllPermissions
-
-  beforeEach(async () => {
-    const mod = await import('@/utils/permission')
-    hasPermission = mod.hasPermission
-    hasAnyPermission = mod.hasAnyPermission
-    hasAllPermissions = mod.hasAllPermissions
-  })
-
-  it('hasPermission - 有权限返回 true', () => {
-    const permissions = ['user:read', 'course:write']
-    expect(hasPermission(permissions, 'user:read')).toBe(true)
-    expect(hasPermission(permissions, 'unknown:perm')).toBe(false)
-  })
-
-  it('hasAnyPermission - 任意匹配返回 true', () => {
-    const permissions = ['user:read']
-    expect(hasAnyPermission(permissions, ['user:read', 'user:write'])).toBe(true)
-    expect(hasAnyPermission(permissions, ['admin:access'])).toBe(false)
-  })
-
-  it('hasAllPermissions - 全部匹配返回 true', () => {
-    const permissions = ['user:read', 'course:write', 'exam:manage']
-    expect(hasAllPermissions(permissions, ['user:read', 'course:write'])).toBe(true)
-    expect(hasAllPermissions(permissions, ['user:read', 'unknown'])).toBe(false)
-  })
-
-  it('空权限列表返回 false', () => {
-    expect(hasPermission([], 'any')).toBe(false)
-    expect(hasAnyPermission([], ['any'])).toBe(false)
-    expect(hasAllPermissions([], [])).toBe(true)
-  })
-})
+// 注意：permission.js 的 getDefaultRouteByRole / canAccessRoute 测试
+// 已由 permission.test.js 独立完整覆盖，此处不再重复。
 
 // ==================== response.js 测试 ====================
 describe('response.js', () => {
@@ -44,10 +11,22 @@ describe('response.js', () => {
     expect(result).toEqual({ id: 1 })
   })
 
-  it('unwrap - code 非200返回原始值', async () => {
+  it('unwrap - data 为 null 时返回 null（不返回原对象）', async () => {
     const { unwrap } = await import('@/utils/response')
     const result = unwrap({ data: null, code: 500, message: '错误' })
-    expect(result).toEqual({ data: null, code: 500, message: '错误' })
+    expect(result).toBeNull()
+  })
+
+  it('unwrap - null/undefined 原样返回', async () => {
+    const { unwrap } = await import('@/utils/response')
+    expect(unwrap(null)).toBeNull()
+    expect(unwrap(undefined)).toBeUndefined()
+  })
+
+  it('unwrap - 无 data 字段时返回原对象', async () => {
+    const { unwrap } = await import('@/utils/response')
+    const result = unwrap({ code: 200 })
+    expect(result).toEqual({ code: 200 })
   })
 })
 

@@ -1,25 +1,38 @@
 <template>
   <div class="fade-in plagiarism-check-manage">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-left">
-        <h2 class="page-title">查重管理</h2>
-        <p class="page-desc">创建、执行与查看作业查重任务</p>
-      </div>
-      <div class="header-right">
-        <el-button type="primary" @click="showCreateDialog = true">
-          <el-icon><Plus /></el-icon>创建查重任务
-        </el-button>
-      </div>
+    <PageHeader
+      title="查重管理"
+      subtitle="创建、执行与查看作业查重任务"
+      icon="shield"
+      icon-bg="accent"
+    >
+      <el-button type="primary" @click="showCreateDialog = true">
+        <el-icon><Plus /></el-icon>创建查重任务
+      </el-button>
+    </PageHeader>
+
+    <div class="stat-grid">
+      <StatCard label="任务总数" :value="taskTotal" icon="list" tone="accent" />
+      <StatCard label="执行中" :value="runningCount" icon="play" tone="warn" />
+      <StatCard label="已完成" :value="completedCount" icon="check" tone="ok" />
+      <StatCard label="待执行" :value="pendingCount" icon="clock" tone="info" />
     </div>
 
     <!-- 上半部分：查重任务列表 -->
+    <section class="l1-card">
+      <div class="l1-head">
+        <span class="l1-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg></span>
+        <div>
+          <h3 class="l1-title">查重任务与匹配</h3>
+        </div>
+      </div>
+      <div class="l1-body">
     <div class="section-header">
       <h3 class="section-title">查重任务</h3>
     </div>
 
     <div class="content-card">
-      <el-table :data="taskList" style="width:100%" v-loading="loadingTasks" stripe>
+      <el-table v-loading="loadingTasks" :data="taskList" style="width:100%" stripe>
         <el-table-column prop="id" label="任务ID" width="90" />
         <el-table-column prop="assignmentTitle" label="作业名称" min-width="180" show-overflow-tooltip />
         <el-table-column prop="status" label="状态" width="100" align="center">
@@ -63,6 +76,11 @@
             </el-button>
           </template>
         </el-table-column>
+        <template #empty>
+          <el-empty description="暂无查重任务">
+            <template #image><div class="empty-deco">🔍</div></template>
+          </el-empty>
+        </template>
       </el-table>
 
       <div class="pagination-wrapper">
@@ -91,7 +109,7 @@
     </div>
 
     <div v-if="selectedTask" class="content-card">
-      <el-table :data="matchList" style="width:100%" v-loading="loadingMatches" stripe>
+      <el-table v-loading="loadingMatches" :data="matchList" style="width:100%" stripe>
         <el-table-column prop="studentA" label="学生A" min-width="160" show-overflow-tooltip />
         <el-table-column prop="studentB" label="学生B" min-width="160" show-overflow-tooltip />
         <el-table-column label="相似度" width="140" align="center">
@@ -127,6 +145,8 @@
         />
       </div>
     </div>
+    </div>
+    </section>
 
     <!-- 创建查重任务对话框 -->
     <el-dialog v-model="showCreateDialog" title="创建查重任务" width="480px" destroy-on-close>
@@ -151,10 +171,12 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
+import { ref, reactive, computed, onMounted } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import plagiarismApi from '@/api/plagiarismCheck'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 // ========== 状态 ==========
 const loadingTasks = ref(false)
@@ -177,6 +199,12 @@ const createRules = {
 // 分页
 const taskPage = reactive({ page: 1, size: 10, total: 0 })
 const matchPage = reactive({ page: 1, size: 10, total: 0 })
+
+// 统计概览
+const taskTotal = computed(() => taskList.value.length)
+const runningCount = computed(() => taskList.value.filter(r => r.status === 'RUNNING').length)
+const completedCount = computed(() => taskList.value.filter(r => r.status === 'COMPLETED').length)
+const pendingCount = computed(() => taskList.value.filter(r => r.status === 'PENDING').length)
 
 // ========== API 方法 ==========
 
@@ -384,6 +412,12 @@ onMounted(() => {
   color: var(--ac-text-muted);
   margin-top: -8px;
   line-height: 1.5;
+}
+
+/* 空状态装饰 */
+.empty-deco {
+  font-size: 38px;
+  filter: grayscale(.2);
 }
 
 /* 响应式 */

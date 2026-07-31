@@ -80,4 +80,11 @@ public interface SystemService {
      * @return AI使用统计数据
      */
     Map<String, Object> getAIUsageStats();
+
+    /**
+     * AI 异常监控：汇总最近登录/操作日志，调用 LLM 检测异常（暴力破解、成绩异动等）。
+     * 失败时返回包含降级提示的监控结果（不抛异常，与原 HTTP 行为一致）。
+     * @return {"alerts":[{level,title,detail}],"loginCount":N,"operationCount":N,"generatedAt":...}
+     */
+    Map<String, Object> aiMonitor();
 }

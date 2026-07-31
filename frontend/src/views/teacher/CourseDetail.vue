@@ -35,35 +35,11 @@
     </div>
 
     <!-- 统计卡（带容错，不暴露后端错误） -->
-    <div class="stats-row">
-      <div class="stat-card">
-        <div class="stat-icon stat-icon--blue"><User :size="20" /></div>
-        <div class="stat-info">
-          <span class="stat-value">{{ stats.totalStudents ?? '-' }}</span
-          ><span class="stat-label">学生人数</span>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon stat-icon--green"><FolderOpened :size="20" /></div>
-        <div class="stat-info">
-          <span class="stat-value">{{ resourceCount ?? '-' }}</span
-          ><span class="stat-label">资料</span>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon stat-icon--orange"><Document :size="20" /></div>
-        <div class="stat-info">
-          <span class="stat-value">{{ taskCount ?? '-' }}</span
-          ><span class="stat-label">作业</span>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon stat-icon--purple"><Notebook :size="20" /></div>
-        <div class="stat-info">
-          <span class="stat-value">{{ examCount ?? '-' }}</span
-          ><span class="stat-label">考试</span>
-        </div>
-      </div>
+    <div class="stat-grid animate-in">
+      <StatCard label="学生人数" :value="stats.totalStudents ?? '-'" icon="users" tone="var(--info-soft)" tone-color="var(--info)" />
+      <StatCard label="资料" :value="resourceCount ?? '-'" icon="folder" tone="var(--ok-soft)" tone-color="var(--ok)" />
+      <StatCard label="作业" :value="taskCount ?? '-'" icon="edit" tone="var(--warn-soft)" tone-color="var(--warn)" />
+      <StatCard label="考试" :value="examCount ?? '-'" icon="doc" tone="var(--violet-soft)" tone-color="var(--violet)" />
     </div>
 
     <!-- 主 Tab 区 -->
@@ -118,12 +94,17 @@
         </div>
       </el-tab-pane>
 
-      <!-- 2) 教学分析 -->
-      <el-tab-pane label="教学分析" name="analytics">
-        <CourseAnalyticsTab :course-id="course.id" />
+      <!-- 2) 授课进度 -->
+      <el-tab-pane label="授课进度" name="progress">
+        <CourseProgressTab :course-id="course.id" />
       </el-tab-pane>
 
-      <!-- 3) 章节管理 -->
+      <!-- 3) 学习情况 -->
+      <el-tab-pane label="学习情况" name="learningStatus">
+        <CourseLearningStatusTab :course-id="course.id" />
+      </el-tab-pane>
+
+      <!-- 4) 章节管理 -->
       <el-tab-pane label="章节管理" name="chapters">
         <div class="tab-card">
           <div class="tab-toolbar">
@@ -132,7 +113,7 @@
             >
             <span v-if="dragChanged" class="drag-hint">排序已变更，请保存</span>
           </div>
-          <el-table v-loading="chaptersLoading" :data="chapters" row-key="id" style="width: 100%">
+          <el-table v-loading="chaptersLoading" :data="chapters" row-key="id">
             <el-table-column width="46" align="center"
               ><template #default><Rank class="drag-handle" /></template
             ></el-table-column>
@@ -171,33 +152,38 @@
         </div>
       </el-tab-pane>
 
-      <!-- 3) 资料管理 -->
-      <el-tab-pane label="资料管理" name="resources">
+      <!-- 5) 课程资料上传 -->
+      <el-tab-pane label="课程资料上传" name="resources">
         <CourseResourcePanel
           :course-id="Number(course.id)"
           @resource-updated="updateResourceCount"
         />
       </el-tab-pane>
 
-      <!-- 4) 作业管理 -->
+      <!-- 6) 作业管理 -->
       <el-tab-pane label="作业管理" name="tasks">
         <CourseTaskPanel :course-id="Number(course.id)" @task-updated="updateTaskCount" />
       </el-tab-pane>
 
-      <!-- 5) 考试管理 -->
+      <!-- 7) 作业完成情况 -->
+      <el-tab-pane label="作业完成情况" name="completion">
+        <CourseCompletionTab :course-id="course.id" />
+      </el-tab-pane>
+
+      <!-- 8) 考试管理 -->
       <el-tab-pane label="考试管理" name="exams">
         <CourseExamPanel :course-id="Number(course.id)" @exam-updated="updateExamCount" />
       </el-tab-pane>
 
-      <!-- 6) 成绩管理 -->
+      <!-- 9) 成绩管理 -->
       <el-tab-pane label="成绩管理" name="grades">
         <CourseGradesTab :course-id="course.id" />
       </el-tab-pane>
 
-      <!-- 7) 学生管理 -->
+      <!-- 10) 学生管理 -->
       <el-tab-pane label="学生管理" name="students">
         <div class="tab-card">
-          <el-table v-loading="studentsLoading" :data="students" style="width: 100%">
+          <el-table v-loading="studentsLoading" :data="students">
             <el-table-column prop="studentId" label="学号" width="120" />
             <el-table-column prop="studentName" label="姓名" min-width="110" />
             <el-table-column label="进度" width="140">
@@ -206,9 +192,9 @@
                   :percentage="Math.round((row.progress || 0) * 100)"
                   :stroke-width="6"
                   :show-text="false"
-                  style="width: 100px; vertical-align: middle"
+                  class="prog-cell"
                 />
-                <span style="font-size: 12px; color: var(--ac-text-secondary); margin-left: 6px"
+                <span class="prog-text"
                   >{{ Math.round((row.progress || 0) * 100) }}%</span
                 >
               </template>
@@ -247,12 +233,12 @@
         </div>
       </el-tab-pane>
 
-      <!-- 8) 知识管理 -->
+      <!-- 11) 知识管理 -->
       <el-tab-pane label="知识管理" name="knowledge">
         <CourseKnowledgeTab :course-id="course.id" />
       </el-tab-pane>
 
-      <!-- 9) 通知管理 -->
+      <!-- 12) 通知管理 -->
       <el-tab-pane label="通知管理" name="notifications">
         <div class="tab-card">
           <div class="tab-toolbar">
@@ -260,7 +246,7 @@
               ><Plus :size="14" /> 发送通知</el-button
             >
           </div>
-          <el-table v-loading="notificationsLoading" :data="notifications" style="width: 100%">
+          <el-table v-loading="notificationsLoading" :data="notifications">
             <el-table-column prop="title" label="标题" min-width="180" />
             <el-table-column prop="content" label="内容" min-width="280" show-overflow-tooltip />
             <el-table-column prop="createdAt" label="发送时间" width="170">
@@ -287,7 +273,7 @@
       append-to-body
       destroy-on-close
     >
-      <el-form :model="editForm" label-width="100px" style="padding-right: 12px">
+      <el-form :model="editForm" label-width="100px" class="edit-form">
         <el-form-item label="课程名称"
           ><el-input v-model="editForm.name" placeholder="输入课程名称" maxlength="64"
         /></el-form-item>
@@ -295,12 +281,12 @@
           ><el-input v-model="editForm.code" placeholder="可选，如 CS101" maxlength="24"
         /></el-form-item>
         <el-form-item label="分类">
-          <el-select v-model="editForm.category" placeholder="选择分类" style="width: 100%">
+          <el-select v-model="editForm.category" placeholder="选择分类" class="w-100">
             <el-option v-for="c in categories" :key="c" :label="c" :value="c" />
           </el-select>
         </el-form-item>
         <el-form-item label="难度">
-          <el-select v-model="editForm.difficulty" style="width: 100%">
+          <el-select v-model="editForm.difficulty" class="w-100">
             <el-option label="入门(BEGINNER)" value="BEGINNER" /><el-option
               label="初级(EASY)"
               value="EASY"
@@ -316,7 +302,7 @@
           ><el-input-number v-model="editForm.credits" :min="0" :max="10" :precision="1"
         /></el-form-item>
         <el-form-item label="报名方式">
-          <el-select v-model="editForm.enrollmentType" style="width: 100%">
+          <el-select v-model="editForm.enrollmentType" class="w-100">
             <el-option label="开放报名" value="OPEN" /><el-option
               label="需审核"
               value="APPROVAL"
@@ -407,17 +393,8 @@ import logger from '@/utils/logger'
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import {
-  ArrowLeft,
-  Edit,
-  Bell,
-  Plus,
-  Rank,
-  User,
-  FolderOpened,
-  Document,
-  Notebook,
-} from '@element-plus/icons-vue'
+import { ArrowLeft, Edit, Bell, Plus, Rank } from '@element-plus/icons-vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 import courseApi from '@/api/course'
 import chapterApi from '@/api/chapter'
@@ -430,9 +407,11 @@ import examApi from '@/api/exam'
 import CourseResourcePanel from '@/components/CourseResourcePanel.vue'
 import CourseTaskPanel from '@/components/CourseTaskPanel.vue'
 import CourseExamPanel from '@/components/CourseExamPanel.vue'
-import CourseAnalyticsTab from '@/components/CourseAnalyticsTab.vue'
 import CourseGradesTab from '@/components/CourseGradesTab.vue'
 import CourseKnowledgeTab from '@/components/CourseKnowledgeTab.vue'
+import CourseProgressTab from '@/components/CourseProgressTab.vue'
+import CourseLearningStatusTab from '@/components/CourseLearningStatusTab.vue'
+import CourseCompletionTab from '@/components/CourseCompletionTab.vue'
 
 const route = useRoute()
 const activeTab = ref('info')
@@ -852,7 +831,18 @@ async function deleteNotification(row) {
   justify-content: space-between;
   margin-bottom: 22px;
   padding-bottom: 18px;
-  border-bottom: 1px solid var(--ac-border);
+  border-bottom: 1px solid var(--line);
+  position: relative;
+}
+.detail-header::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  bottom: -1px;
+  width: 64px;
+  height: 3px;
+  border-radius: 3px;
+  background: linear-gradient(90deg, var(--accent), rgba(193, 59, 48, 0.15));
 }
 .header-left {
   display: flex;
@@ -868,7 +858,7 @@ async function deleteNotification(row) {
 .header-title {
   font-size: 20px;
   font-weight: 700;
-  color: var(--ac-text-primary);
+  color: var(--ink);
   margin: 0;
   line-height: 1.3;
 }
@@ -876,66 +866,6 @@ async function deleteNotification(row) {
   display: flex;
   align-items: center;
   gap: 8px;
-}
-
-/* ====== 统计卡（4 列） ====== */
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 16px;
-  margin-bottom: 22px;
-}
-.stat-card {
-  background: var(--ac-bg-elevated);
-  border: 1px solid var(--ac-border);
-  border-radius: var(--ac-radius-md, 10px);
-  padding: 16px 18px;
-  display: flex;
-  align-items: center;
-  gap: 13px;
-  transition: box-shadow 0.2s ease;
-}
-.stat-card:hover {
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.05);
-}
-.stat-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 11px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  flex-shrink: 0;
-}
-.stat-icon--blue {
-  background: linear-gradient(135deg, #3b82f6, #60a5fa);
-}
-.stat-icon--green {
-  background: linear-gradient(135deg, #10b981, #34d399);
-}
-.stat-icon--orange {
-  background: linear-gradient(135deg, #f59e0b, #fbbf24);
-}
-.stat-icon--purple {
-  background: linear-gradient(135deg, #8b5cf6, #a78bfa);
-}
-.stat-info {
-  flex: 1;
-  min-width: 0;
-}
-.stat-value {
-  display: block;
-  font-size: 23px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-  line-height: 1.2;
-}
-.stat-label {
-  display: block;
-  font-size: 12.5px;
-  color: var(--ac-text-secondary, #64748b);
-  margin-top: 2px;
 }
 
 /* ====== 主 Tabs ====== */
@@ -978,7 +908,7 @@ async function deleteNotification(row) {
 }
 .drag-hint {
   font-size: 12.5px;
-  color: var(--ac-warning, #b45309);
+  color: var(--warn);
   font-weight: 500;
 }
 .order-actions {
@@ -1000,11 +930,11 @@ async function deleteNotification(row) {
   align-items: center;
   gap: 10px;
   padding: 8px 0;
-  border-bottom: 1px dashed rgba(148, 163, 184, 0.25);
+  border-bottom: 1px dashed var(--line);
 }
 .info-label {
   font-size: 13px;
-  color: var(--ac-text-secondary, #64748b);
+  color: var(--ink-2);
   white-space: nowrap;
   min-width: 72px;
 }
@@ -1034,17 +964,31 @@ async function deleteNotification(row) {
 /* ====== 拖拽手柄 ====== */
 .drag-handle {
   cursor: grab;
-  color: var(--ac-text-tertiary, #94a3b8);
+  color: var(--ink-3);
 }
 .drag-handle:active {
   cursor: grabbing;
 }
 
+/* ====== 表格进度单元格 ====== */
+.prog-cell {
+  width: 100px;
+  vertical-align: middle;
+}
+.prog-text {
+  font-size: 12px;
+  color: var(--ink-2);
+  margin-left: 6px;
+}
+.edit-form {
+  padding-right: 12px;
+}
+.w-100 {
+  width: 100%;
+}
+
 /* ====== 响应式 ====== */
 @media (max-width: 1024px) {
-  .stats-row {
-    grid-template-columns: repeat(2, 1fr);
-  }
   .info-grid {
     grid-template-columns: 1fr;
   }
@@ -1058,18 +1002,6 @@ async function deleteNotification(row) {
   }
   .header-actions .el-button {
     flex: 1;
-  }
-}
-@media (max-width: 640px) {
-  .stats-row {
-    grid-template-columns: 1fr 1fr;
-    gap: 10px;
-  }
-  .stat-card {
-    padding: 12px;
-  }
-  .stat-value {
-    font-size: 19px;
   }
 }
 </style>

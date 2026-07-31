@@ -47,7 +47,7 @@ class AuthControllerTest extends ControllerTestBase {
                 .thenReturn(ApiResponse.success(loginData));
         mockMvc.perform(post("/auth/login")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"account\":\"test@example.com\",\"password\":\"password123\"}"))
+                        .content("{\"username\":\"test@example.com\",\"password\":\"password123\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 // 令牌不应再出现在响应体（已迁移到 HttpOnly Cookie）

@@ -241,6 +241,8 @@ class WrongQuestionServiceImplTest {
         wq2.setSourceType("PRACTICE");
         wq2.setPracticeCount(1);
 
+        // count() 两次调用：先 total(2) 再 mastered(1)；list() 用于分组统计
+        when(wrongQuestionMapper.selectCount(any())).thenReturn(2L, 1L);
         when(wrongQuestionMapper.selectList(any())).thenReturn(List.of(wq1, wq2));
 
         Map<String, Object> stats = wrongQuestionService.getWrongQuestionStats(100L, 10L);

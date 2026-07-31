@@ -202,7 +202,7 @@ public class PlagiarismCheckServiceImpl extends ServiceImpl<PlagiarismCheckMappe
             result.put("checkDetailRaw", check.getCheckDetail());
             // 提取算法版本信息
             if (check.getCheckDetail().contains("algorithmVersion")) {
-                result.put("algorithmVersion", "Jaccard-v1.0");
+                result.put("algorithmVersion", "Jaccard-CJKBigram-v2.0");
             }
         }
 
@@ -264,35 +264,67 @@ public class PlagiarismCheckServiceImpl extends ServiceImpl<PlagiarismCheckMappe
     }
 
     /**
-     * 简单分词：将文本按非字母数字字符切分为单词集合
+     * 中英文混合分词（v2.0，与 RAG 检索的 bigram 策略一致）：
+     * <ul>
+     *   <li>中文（CJK）连续段：滑窗生成 bigram（二字词元），显著提升中文改写/复制的召回率；
+     *       旧版按标点切分会把整个中文子句当作单一词元，导致中文查重几乎失效。</li>
+     *   <li>英文/数字：按非字母数字切分，小写化，保留长度&gt;1 的词。</li>
+     * </ul>
      */
     private Set<String> tokenize(String text) {
-        // 使用正则表达式拆分文本为词语（支持中英文混合）
-        String[] tokens = text.split("[\\s\\p{Punct}]+");
-        return Arrays.stream(tokens)
-                .filter(t -> t.length() > 1)  // 过滤掉单字符
-                .map(String::toLowerCase)
-                .collect(Collectors.toSet());
-    }
-
-    /**
-     * 从原文中提取包含公共词汇的片段
-     */
-    private String extractCommonFragment(String fullText, Set<String> allWords, Set<String> commonWords) {
-        List<String> commonList = new ArrayList<>(commonWords);
-        // 取前几个公共词作为展示片段（最多显示200字符）
-        StringBuilder fragment = new StringBuilder();
-        int charCount = 0;
-        for (String word : commonList) {
-            if (fullText.contains(word)) {
-                fragment.append(word).append(" ");
-                charCount += word.length() + 1;
-                if (charCount > 200) {
-                    break;
+        Set<String> tokens = new HashSet<>();
+        if (text == null || text.isEmpty()) {
+            return tokens;
+        }
+        // 1) 提取 CJK 连续段并生成 bigram
+        java.util.regex.Matcher cjk = java.util.regex.Pattern
+                .compile("[\\u4E00-\\u9FFF]+").matcher(text);
+        while (cjk.find()) {
+            String run = cjk.group();
+            if (run.length() == 1) {
+                tokens.add(run);
+            } else {
+                for (int i = 0; i < run.length() - 1; i++) {
+                    tokens.add(run.substring(i, i + 2));
                 }
             }
         }
-        return fragment.toString().trim();
+        // 2) 非 CJK 部分：按非字母数字切分
+        String nonCjk = text.replaceAll("[\\u4E00-\\u9FFF]+", " ");
+        for (String t : nonCjk.split("[^a-zA-Z0-9]+")) {
+            if (t.length() > 1) {
+                tokens.add(t.toLowerCase());
+            }
+        }
+        return tokens;
+    }
+
+    /**
+     * 从原文中提取包含公共词元的片段。
+     * v2.0：定位公共词元在原文中的首个命中位置，截取其前后共约100字符的上下文，
+     * 比旧版罗列词元更利于人工比对；最多拼接两处命中，合计不超过200字符。
+     */
+    private String extractCommonFragment(String fullText, Set<String> allWords, Set<String> commonWords) {
+        StringBuilder fragment = new StringBuilder();
+        int segments = 0;
+        int lastEnd = -1;
+        for (String word : commonWords) {
+            int idx = fullText.indexOf(word);
+            if (idx < 0 || (lastEnd >= 0 && idx < lastEnd)) {
+                continue; // 未命中或与上一片段重叠
+            }
+            int start = Math.max(0, idx - 30);
+            int end = Math.min(fullText.length(), idx + word.length() + 70);
+            if (fragment.length() > 0) {
+                fragment.append(" ... ");
+            }
+            fragment.append(fullText, start, end);
+            lastEnd = end;
+            if (++segments >= 2 || fragment.length() > 200) {
+                break;
+            }
+        }
+        return fragment.length() > 200 ? fragment.substring(0, 200) : fragment.toString();
     }
 
     /**
@@ -331,7 +363,7 @@ public class PlagiarismCheckServiceImpl extends ServiceImpl<PlagiarismCheckMappe
                                          BigDecimal maxSimilarity, int highSimCount, int totalCompared) {
         try {
             com.fasterxml.jackson.databind.node.ObjectNode root = objectMapper.createObjectNode();
-            root.put("algorithmVersion", "Jaccard-v1.0");
+            root.put("algorithmVersion", "Jaccard-CJKBigram-v2.0");
             root.put("algorithm", "Jaccard_Similarity");
             root.put("checkedAt", LocalDateTime.now().toString());
             root.put("totalCompared", totalCompared);
@@ -352,7 +384,7 @@ public class PlagiarismCheckServiceImpl extends ServiceImpl<PlagiarismCheckMappe
             return objectMapper.writeValueAsString(root);
         } catch (Exception e) {
             log.warn("查重结果JSON序列化失败，回退到安全默认值");
-            return "{\"algorithmVersion\":\"Jaccard-v1.0\",\"algorithm\":\"Jaccard_Similarity\",\"error\":\"序列化失败\"}";
+            return "{\"algorithmVersion\":\"Jaccard-CJKBigram-v2.0\",\"algorithm\":\"Jaccard_Similarity\",\"error\":\"序列化失败\"}";
         }
     }
 }

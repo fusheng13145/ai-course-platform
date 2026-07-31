@@ -1,37 +1,32 @@
 <template>
   <div class="fade-in operation-logs">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-left">
-        <h2 class="page-title">日志审计</h2>
-        <p class="page-desc">操作日志与登录日志统一审计，可回溯到人 / 时间 / 模块 / 结果</p>
-      </div>
-    </div>
+    <PageHeader
+      title="日志审计"
+      subtitle="操作日志与登录日志统一审计，可回溯到人 / 时间 / 模块 / 结果"
+      icon="list"
+      icon-bg="accent"
+    />
 
     <el-tabs v-model="activeTab" class="log-tabs">
       <!-- ================= 操作日志 ================= -->
       <el-tab-pane label="操作日志" name="operation">
     <!-- 统计概览 -->
-    <div class="stats-row">
-      <div class="stat-mini-card">
-        <span class="label">日志总数</span>
-        <span class="value">{{ stats.totalCount || 0 }}</span>
-      </div>
-      <div class="stat-mini-card student">
-        <span class="label">成功操作</span>
-        <span class="value">{{ stats.successCount || 0 }}</span>
-      </div>
-      <div class="stat-mini-card admin">
-        <span class="label">失败操作</span>
-        <span class="value">{{ stats.failedCount || 0 }}</span>
-      </div>
-      <div class="stat-mini-card teacher">
-        <span class="label">成功率</span>
-        <span class="value">{{ successRate }}%</span>
-      </div>
+    <div class="stat-grid">
+      <StatCard label="日志总数" :value="stats.totalCount || 0" icon="list" tone="var(--accent-soft)" tone-color="var(--accent)" />
+      <StatCard label="成功操作" :value="stats.successCount || 0" icon="check" tone="var(--ok-soft)" tone-color="var(--ok)" />
+      <StatCard label="失败操作" :value="stats.failedCount || 0" icon="warn" tone="var(--warn-soft)" tone-color="var(--warn)" />
+      <StatCard label="成功率" :value="successRate + '%'" icon="chart" tone="var(--violet-soft)" tone-color="var(--violet)" />
     </div>
 
     <!-- 筛选工具栏 -->
+    <section class="l1-card">
+      <div class="l1-head">
+        <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        </span>
+        <div><div class="l1-title">操作日志</div><div class="l1-sub">按操作人 / 模块 / 结果检索审计</div></div>
+      </div>
+      <div class="l1-body">
     <div class="content-card filter-card">
       <div class="filter-row">
         <el-input
@@ -89,14 +84,18 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="时间" width="170">
-          <template #default="{ row }">{{ formatTime(row.createdAt || row.createTime) }}</template>
+          <template #default="{ row }">{{ formatDateTime(row.createdAt || row.createTime, '—') }}</template>
         </el-table-column>
         <el-table-column label="操作" width="80" align="center">
           <template #default="{ row }">
             <button class="act-btn--edit" @click="viewDetail(row)">详情</button>
           </template>
         </el-table-column>
-        <template #empty><el-empty description="暂无操作日志" /></template>
+        <template #empty>
+          <el-empty description="暂无操作日志">
+            <template #image><div class="empty-deco">📋</div></template>
+          </el-empty>
+        </template>
       </el-table>
 
       <div class="pager">
@@ -111,31 +110,29 @@
         />
       </div>
     </div>
+    </div>
+    </section>
       </el-tab-pane>
 
       <!-- ================= 登录日志 ================= -->
       <el-tab-pane label="登录日志" name="login" lazy>
         <!-- 统计概览 -->
-        <div class="stats-row">
-          <div class="stat-mini-card">
-            <span class="label">登录总次数</span>
-            <span class="value">{{ loginStats.totalCount || 0 }}</span>
-          </div>
-          <div class="stat-mini-card student">
-            <span class="label">成功登录</span>
-            <span class="value">{{ loginStats.successCount || 0 }}</span>
-          </div>
-          <div class="stat-mini-card admin">
-            <span class="label">失败登录</span>
-            <span class="value">{{ loginStats.failedCount || 0 }}</span>
-          </div>
-          <div class="stat-mini-card teacher">
-            <span class="label">今日活跃</span>
-            <span class="value">{{ loginStats.todayCount || 0 }}</span>
-          </div>
+        <div class="stat-grid">
+          <StatCard label="登录总次数" :value="loginStats.totalCount || 0" icon="list" tone="var(--accent-soft)" tone-color="var(--accent)" />
+          <StatCard label="成功登录" :value="loginStats.successCount || 0" icon="check" tone="var(--ok-soft)" tone-color="var(--ok)" />
+          <StatCard label="失败登录" :value="loginStats.failedCount || 0" icon="warn" tone="var(--warn-soft)" tone-color="var(--warn)" />
+          <StatCard label="今日活跃" :value="loginStats.todayCount || 0" icon="clock" tone="var(--violet-soft)" tone-color="var(--violet)" />
         </div>
 
         <!-- 筛选工具栏 -->
+        <section class="l1-card">
+        <div class="l1-head">
+          <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
+            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          </span>
+          <div><div class="l1-title">登录日志</div><div class="l1-sub">按用户名 / 结果检索登录审计</div></div>
+        </div>
+          <div class="l1-body">
         <div class="content-card filter-card">
           <div class="filter-row">
             <el-input
@@ -195,9 +192,13 @@
               <template #default="{ row }">{{ row.failureReason || '—' }}</template>
             </el-table-column>
             <el-table-column prop="createdAt" label="登录时间" width="170">
-              <template #default="{ row }">{{ formatTime(row.createdAt) }}</template>
+              <template #default="{ row }">{{ formatDateTime(row.createdAt, '—') }}</template>
             </el-table-column>
-            <template #empty><el-empty description="暂无登录日志" /></template>
+            <template #empty>
+              <el-empty description="暂无登录日志">
+                <template #image><div class="empty-deco">🔐</div></template>
+              </el-empty>
+            </template>
           </el-table>
 
           <div class="pager">
@@ -212,6 +213,8 @@
             />
           </div>
         </div>
+        </div>
+        </section>
       </el-tab-pane>
     </el-tabs>
 
@@ -250,7 +253,7 @@
           currentLog.costTime != null ? currentLog.costTime + ' ms' : '—'
         }}</el-descriptions-item>
         <el-descriptions-item label="时间">{{
-          formatTime(currentLog.createdAt || currentLog.createTime)
+          formatDateTime(currentLog.createdAt || currentLog.createTime, '—')
         }}</el-descriptions-item>
       </el-descriptions>
       <template #footer
@@ -262,11 +265,14 @@
 
 <script setup>
 import logger from '@/utils/logger'
+import { formatDateTime } from '@/utils/datetime'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import operationLogApi from '@/api/operationLog'
 import loginLogApi from '@/api/loginLog'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 const activeTab = ref('operation')
 const loading = ref(false)
@@ -318,18 +324,6 @@ function isSuccess(row) {
   const s = row.status
   if (s == null) return true
   return s === 'SUCCESS' || s === 1 || s === '1' || s === true || s === 'success'
-}
-
-function formatTime(t) {
-  if (!t) return '—'
-  try {
-    const d = new Date(t)
-    if (isNaN(d.getTime())) return t
-    const p = (n) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
-  } catch {
-    return t
-  }
 }
 
 async function loadLogs() {
@@ -489,61 +483,6 @@ onMounted(() => {
   overflow: visible;
 }
 
-.page-header {
-  margin-bottom: var(--ac-spacing-lg);
-}
-.page-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-  letter-spacing: -0.3px;
-}
-.page-desc {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-  margin-top: 4px;
-}
-
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: var(--ac-spacing-md);
-  margin-bottom: var(--ac-spacing-lg);
-}
-.stat-mini-card {
-  background: var(--ac-bg-elevated);
-  border-radius: var(--ac-radius-md);
-  border: 1px solid var(--ac-border);
-  padding: 16px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  transition: all var(--ac-transition-normal);
-}
-.stat-mini-card:hover {
-  box-shadow: var(--ac-shadow-md);
-  transform: translateY(-2px);
-}
-.stat-mini-card .label {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-  font-weight: 500;
-}
-.stat-mini-card .value {
-  font-size: 26px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-}
-.stat-mini-card.admin .value {
-  color: #b05045;
-}
-.stat-mini-card.teacher .value {
-  color: #166534;
-}
-.stat-mini-card.student .value {
-  color: #15803d;
-}
-
 .content-card {
   background: var(--ac-bg-elevated);
   border-radius: var(--ac-radius-md);
@@ -621,9 +560,9 @@ onMounted(() => {
   transform: translateY(-1px);
 }
 
-@media (max-width: 768px) {
-  .stats-row {
-    grid-template-columns: repeat(2, 1fr);
-  }
+/* 空状态装饰 */
+.empty-deco {
+  font-size: 38px;
+  filter: grayscale(.2);
 }
 </style>

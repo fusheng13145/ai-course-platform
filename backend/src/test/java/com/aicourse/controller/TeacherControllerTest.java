@@ -96,14 +96,19 @@ class TeacherControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /teacher/courses - 真实业务断言：创建课程并透传 teacherId")
     void createCourse_authorized_passes_security() throws Exception {
-        when(courseService.save(any(Course.class))).thenReturn(true);
+        when(courseService.createCourse(any(Course.class), eq(1L))).thenAnswer(inv -> {
+            Course arg = inv.getArgument(0);
+            arg.setId(1L);
+            arg.setTeacherId(1L);
+            return arg;
+        });
         mockMvc.perform(post("/teacher/courses").contentType(MediaType.APPLICATION_JSON).content("{}")
                         .with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
                 .andExpect(jsonPath("$.data.teacherId").value(1));
-        verify(courseService).save(any(Course.class));
+        verify(courseService).createCourse(any(Course.class), eq(1L));
     }
 
     @Test
@@ -178,13 +183,13 @@ class TeacherControllerTest extends ControllerTestBase {
     @DisplayName("PUT /teacher/courses/1 - 真实业务断言：更新课程并透传字段")
     void updateCourse_authorized_passes_security() throws Exception {
         when(courseService.getById(eq(1L))).thenReturn(ownerCourse());
-        when(courseService.updateById(any(Course.class))).thenReturn(true);
+        when(courseService.updateCourseById(eq(1L), any(Course.class))).thenReturn(ownerCourse());
         mockMvc.perform(put("/teacher/courses/1").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
                 .andExpect(jsonPath("$.data.id").value(1));
-        verify(courseService).updateById(any(Course.class));
+        verify(courseService).updateCourseById(eq(1L), any(Course.class));
         verify(courseService, atLeastOnce()).getById(eq(1L));
     }
 
@@ -206,12 +211,11 @@ class TeacherControllerTest extends ControllerTestBase {
     @DisplayName("DELETE /teacher/courses/1 - 真实业务断言：归属校验通过并委托 delete")
     void deleteCourse_authorized_passes_security() throws Exception {
         when(courseService.getById(eq(1L))).thenReturn(ownerCourse());
-        when(courseService.removeById(any(Long.class))).thenReturn(true);
         mockMvc.perform(delete("/teacher/courses/1").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.message").exists());
-        verify(courseService).removeById(eq(1L));
+        verify(courseService).deleteCourseById(eq(1L));
     }
 
     @Test
@@ -233,7 +237,7 @@ class TeacherControllerTest extends ControllerTestBase {
     void addChapter_authorized_passes_security() throws Exception {
         when(courseService.getById(eq(1L))).thenReturn(ownerCourse());
         when(chapterService.save(any(CourseChapter.class))).thenReturn(true);
-        mockMvc.perform(post("/teacher/courses/1/chapters").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(1L, "TEACHER")))
+        mockMvc.perform(post("/teacher/courses/1/chapters").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"章节\"}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
@@ -265,7 +269,7 @@ class TeacherControllerTest extends ControllerTestBase {
         ch.setCourseId(1L);
         when(chapterService.getById(eq(1L))).thenReturn(ch);
         when(chapterService.updateById(any(CourseChapter.class))).thenReturn(true);
-        mockMvc.perform(put("/teacher/courses/1/chapters/1").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(1L, "TEACHER")))
+        mockMvc.perform(put("/teacher/courses/1/chapters/1").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"章节\"}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
@@ -404,13 +408,13 @@ class TeacherControllerTest extends ControllerTestBase {
     void updateAssignment_authorized_passes_security() throws Exception {
         when(taskService.getById(eq(1L))).thenReturn(ownerTask());
         when(courseService.getById(eq(1L))).thenReturn(ownerCourse());
-        when(taskService.updateById(any(Task.class))).thenReturn(true);
+        when(taskService.updateTaskById(eq(1L), any(Task.class))).thenReturn(ownerTask());
         mockMvc.perform(put("/teacher/assignments/1").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
                 .andExpect(jsonPath("$.data.id").value(1));
-        verify(taskService).updateById(any(Task.class));
+        verify(taskService).updateTaskById(eq(1L), any(Task.class));
         verify(taskService, atLeastOnce()).getById(eq(1L));
         verify(courseService).getById(eq(1L));
     }
@@ -494,9 +498,9 @@ class TeacherControllerTest extends ControllerTestBase {
     void gradeSubmission_authorized_passes_security() throws Exception {
         when(taskService.getById(eq(1L))).thenReturn(ownerTask());
         when(courseService.getById(eq(1L))).thenReturn(ownerCourse());
-        Submission s = ownerSubmission();
-        when(submissionService.getById(eq(1L))).thenReturn(s);
-        when(submissionService.updateById(any(Submission.class))).thenReturn(true);
+        Submission graded = ownerSubmission();
+        graded.setStatus("GRADED");
+        when(submissionService.gradeSubmissionByTeacher(eq(1L), eq(1L), any(Submission.class), eq(1L))).thenReturn(graded);
         mockMvc.perform(put("/teacher/assignments/1/submissions/1").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"score\":90,\"feedback\":\"good\"}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
@@ -504,7 +508,7 @@ class TeacherControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.data").exists())
                 .andExpect(jsonPath("$.data.id").value(1))
                 .andExpect(jsonPath("$.data.status").value("GRADED"));
-        verify(submissionService).updateById(any(Submission.class));
+        verify(submissionService).gradeSubmissionByTeacher(eq(1L), eq(1L), any(Submission.class), eq(1L));
         verify(taskService).getById(eq(1L));
         verify(courseService).getById(eq(1L));
     }
@@ -564,7 +568,7 @@ class TeacherControllerTest extends ControllerTestBase {
             arg.setId(1L);
             return arg;
         });
-        mockMvc.perform(post("/teacher/questions").contentType(MediaType.APPLICATION_JSON).content("{\"id\":1}").with(withUser(1L, "TEACHER")))
+        mockMvc.perform(post("/teacher/questions").contentType(MediaType.APPLICATION_JSON).content("{\"id\":1,\"content\":\"题干\"}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
@@ -650,7 +654,7 @@ class TeacherControllerTest extends ControllerTestBase {
         when(questionService.getById(eq(1L))).thenReturn(ownerQuestion());
         when(courseService.getById(eq(1L))).thenReturn(ownerCourse());
         when(questionService.updateById(any(Question.class))).thenReturn(true);
-        mockMvc.perform(put("/teacher/questions/1").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(1L, "TEACHER")))
+        mockMvc.perform(put("/teacher/questions/1").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"题干\"}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())

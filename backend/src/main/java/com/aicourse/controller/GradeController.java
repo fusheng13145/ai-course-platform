@@ -1,5 +1,7 @@
 package com.aicourse.controller;
 
+import jakarta.validation.Valid;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.GradeItem;
 import com.aicourse.entity.GradePolicy;
@@ -29,7 +31,7 @@ public class GradeController {
 
     @PostMapping("/policy")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<GradePolicy> savePolicy(@RequestBody GradePolicy policy, Authentication auth) {
+    public ApiResponse<GradePolicy> savePolicy(@Valid @RequestBody GradePolicy policy, Authentication auth) {
         return ApiResponse.success("方案已保存",
                 gradeService.savePolicy(policy, (Long) auth.getPrincipal()));
     }
@@ -42,7 +44,7 @@ public class GradeController {
 
     @PostMapping("/item")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<GradeItem> upsertItem(@RequestBody GradeItem item, Authentication auth) {
+    public ApiResponse<GradeItem> upsertItem(@Valid @RequestBody GradeItem item, Authentication auth) {
         Long uid = (Long) auth.getPrincipal();
         return ApiResponse.success("成绩已保存",
                 gradeService.upsertItem(item.getPolicyId(), item.getStudentId(), item.getComponentKey(),

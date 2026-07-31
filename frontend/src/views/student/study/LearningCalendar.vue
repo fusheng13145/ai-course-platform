@@ -1,9 +1,26 @@
 <template>
-  <div class="fade-in" v-loading="loading">
+  <div v-loading="loading" class="fade-in">
+    <PageHeader title="学习日历" subtitle="记录每日学习轨迹，热力图呈现学习强度" icon="calendar" icon-bg="accent" />
+
+    <div class="stat-grid animate-in d1">
+      <StatCard label="本月学习天数" :value="stats[0].value" icon="calendar" tone="var(--accent-soft)" tone-color="var(--accent)" />
+      <StatCard label="总学习时长" :value="stats[1].value" icon="clock" tone="var(--info-soft)" tone-color="var(--info)" />
+      <StatCard label="完成课程" :value="stats[2].value" icon="check" tone="var(--ok-soft)" tone-color="var(--ok)" />
+      <StatCard label="最高连续" :value="stats[3].value" icon="target" tone="var(--warn-soft)" tone-color="var(--warn)" />
+    </div>
+
+    <section class="l1-card animate-in d2">
+      <div class="l1-head">
+        <span class="l1-ico">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2v4M16 2v4M3 8h18M5 4h14a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2z"/></svg>
+        </span>
+        <div><div class="l1-title">学习日历</div><div class="l1-sub">点击日期查看当日学习详情</div></div>
+      </div>
+      <div class="l1-body">
     <!-- 今日学习概要 -->
-    <div class="content-card today-summary" style="margin-bottom:var(--ac-spacing-md)">
+    <div class="content-card today-summary">
       <h4 class="section-subtitle">📅 今日学习概要</h4>
-      <div class="today-content" v-if="todaySummary.studyMinutes > 0 || todaySummary.completedCourses > 0">
+      <div v-if="todaySummary.studyMinutes > 0 || todaySummary.completedCourses > 0" class="today-content">
         <div class="today-item">
           <span class="today-label">今日学习时长</span>
           <span class="today-value">{{ formatDuration(todaySummary.studyMinutes) }}</span>
@@ -19,18 +36,18 @@
           <span class="today-value">{{ todaySummary.progressPercent }}%</span>
         </div>
       </div>
-      <div class="empty-state" v-else>
+      <div v-else class="empty-state">
         <p>🌱 今天还没有学习记录，开始今天的学习吧！</p>
       </div>
     </div>
 
     <!-- 学习日历 -->
-    <div class="content-card calendar-card" style="margin-bottom:var(--ac-spacing-md)">
+    <div class="content-card calendar-card">
       <div class="calendar-header">
         <h3 class="section-title">{{ currentMonth }} 学习日历</h3>
         <div class="month-nav">
-          <el-button @click="prevMonth" :icon="ArrowLeft" circle size="small" />
-          <el-button @click="nextMonth" :icon="ArrowRight" circle size="small" />
+          <el-button :icon="ArrowLeft" circle size="small" @click="prevMonth" />
+          <el-button :icon="ArrowRight" circle size="small" @click="nextMonth" />
         </div>
       </div>
 
@@ -50,13 +67,13 @@
       </el-calendar>
 
       <!-- 空状态提示 -->
-      <div class="empty-state calendar-empty" v-if="!loading && studyDaysMap.size === 0">
+      <div v-if="!loading && studyDaysMap.size === 0" class="empty-state calendar-empty">
         <p>📭 本月暂无学习记录</p>
         <p class="empty-hint">坚持每天学习，日历会越来越丰富哦～</p>
       </div>
 
       <!-- 热力图图例 -->
-      <div class="heatmap-legend" v-if="studyDaysMap.size > 0">
+      <div v-if="studyDaysMap.size > 0" class="heatmap-legend">
         <span class="legend-label">学习强度：</span>
         <div class="legend-colors">
           <span class="legend-item"><span class="color-box level-1"></span>少</span>
@@ -66,22 +83,8 @@
         </div>
       </div>
     </div>
-
-    <!-- 学习统计卡片 -->
-    <div class="content-card stats-section">
-      <h4 class="section-subtitle">📊 学习统计</h4>
-      <el-row :gutter="16">
-        <el-col :xs="12" :sm="12" :md="6" v-for="(stat, index) in stats" :key="stat.label">
-          <div class="stat-card" :class="'stat-card-' + (index + 1)">
-            <div class="stat-icon">{{ stat.icon }}</div>
-            <div class="stat-info">
-              <div class="stat-value">{{ stat.value }}</div>
-              <div class="stat-label">{{ stat.label }}</div>
-            </div>
-          </div>
-        </el-col>
-      </el-row>
-    </div>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -91,6 +94,8 @@ import dayjs from 'dayjs'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
 import { useAuthStore } from '@/stores/auth'
 import analyticsApi from '@/api/analytics'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 const auth = useAuthStore()
 const loading = ref(false)
@@ -135,19 +140,18 @@ function getDayStudyInfo(dayStr) {
   }
 }
 
-// 根据学习时长获取热力图颜色
+// 热力图色阶：accent 令牌浅→深（accent-softer → accent-soft → accent-line → accent）
 function getHeatmapStyle(dayStr) {
   const info = getDayStudyInfo(dayStr)
   if (!info.hasStudy) return {}
 
-  // 莫兰迪色系热力图：浅→深
-  let bgColor = '#f0ebe3' // 默认最浅
+  let bgColor = 'var(--accent-softer)' // 默认最浅
   if (info.minutes >= 120) {
-    bgColor = '#7a8ba5' // 高强度
+    bgColor = 'var(--accent)' // 高强度
   } else if (info.minutes >= 60) {
-    bgColor = '#b89a8a' // 中高强度
+    bgColor = 'var(--accent-line)' // 中高强度
   } else if (info.minutes >= 30) {
-    bgColor = '#d4c4b0' // 中等强度
+    bgColor = 'var(--accent-soft)' // 中等强度
   }
 
   return {
@@ -266,8 +270,9 @@ function nextMonth() {
 
 /* 今日概要面板 */
 .today-summary {
-  background: linear-gradient(135deg, #f5f0eb 0%, #e8e0d8 100%);
-  border-left: 4px solid var(--ac-primary);
+  margin-bottom: var(--ac-spacing-md);
+  background: linear-gradient(135deg, var(--accent-softer) 0%, var(--accent-soft) 100%);
+  border-left: 4px solid var(--accent);
 }
 
 .today-content {
@@ -300,10 +305,14 @@ function nextMonth() {
 .today-divider {
   width: 1px;
   height: 40px;
-  background: rgba(122, 139, 165, 0.2);
+  background: var(--line-2);
 }
 
 /* 日历卡片 */
+.calendar-card {
+  margin-bottom: var(--ac-spacing-md);
+}
+
 .calendar-header {
   display: flex;
   align-items: center;
@@ -362,7 +371,7 @@ function nextMonth() {
 
 .study-duration {
   font-size: 10px;
-  color: #7a8ba5;
+  color: var(--ink-3);
   font-weight: 600;
   line-height: 1;
 }
@@ -391,7 +400,7 @@ function nextMonth() {
   gap: 12px;
   margin-top: 16px;
   padding-top: 16px;
-  border-top: 1px solid rgba(122, 139, 165, 0.1);
+  border-top: 1px solid var(--line);
 }
 
 .legend-label {
@@ -419,74 +428,8 @@ function nextMonth() {
   display: inline-block;
 }
 
-.color-box.level-1 { background-color: #f0ebe3; border: 1px solid #e0d9d0; }
-.color-box.level-2 { background-color: #d4c4b0; }
-.color-box.level-3 { background-color: #b89a8a; }
-.color-box.level-4 { background-color: #7a8ba5; }
-
-/* 莫兰迪风格统计卡片 */
-.stat-card {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  padding: 20px;
-  border-radius: var(--ac-radius-lg);
-  margin-bottom: 16px;
-  transition: all 0.3s ease;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
-}
-
-.stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.08);
-}
-
-.stat-card-1 {
-  background: linear-gradient(135deg, #f5f0eb 0%, #ebe4dc 100%);
-}
-
-.stat-card-2 {
-  background: linear-gradient(135deg, #e8e4ea 0%, #ddd6df 100%);
-}
-
-.stat-card-3 {
-  background: linear-gradient(135deg, #e4e8ed 0%, #d9dde4 100%);
-}
-
-.stat-card-4 {
-  background: linear-gradient(135deg, #ede8e4 0%, #e2dbd5 100%);
-}
-
-.stat-icon {
-  font-size: 28px;
-  width: 48px;
-  height: 48px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  background: rgba(255, 255, 255, 0.6);
-  border-radius: 12px;
-  flex-shrink: 0;
-}
-
-.stat-info {
-  flex: 1;
-}
-
-.stat-value {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-  line-height: 1.2;
-}
-
-.stat-label {
-  font-size: 13px;
-  color: var(--ac-text-secondary);
-  margin-top: 4px;
-}
-
-.stats-section {
-  background: var(--ac-bg-base);
-}
+.color-box.level-1 { background: var(--accent-softer); border: 1px solid var(--line); }
+.color-box.level-2 { background: var(--accent-soft); }
+.color-box.level-3 { background: var(--accent-line); }
+.color-box.level-4 { background: var(--accent); }
 </style>

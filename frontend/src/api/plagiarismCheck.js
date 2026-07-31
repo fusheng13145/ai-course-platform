@@ -8,7 +8,8 @@ export const executeCheck = id => request.post(`/plagiarism-checks/${id}/execute
 export const getCheckDetail = id => request.get(`/plagiarism-checks/${id}`)
 // 匹配列表
 export const getCheckMatches = id => request.get(`/plagiarism-checks/${id}/matches`)
-// 查重历史
-export const getCheckHistory = studentId => request.get(`/plagiarism-checks/student/${studentId}`)
+// 查重历史（传 studentId 查该生历史；不传则返回全部查重任务列表，供管理端使用）
+export const getCheckHistory = studentId =>
+  studentId ? request.get(`/plagiarism-checks/student/${studentId}`) : request.get('/plagiarism-checks')
 
 export default { createCheck, executeCheck, getCheckDetail, getCheckMatches, getCheckHistory }

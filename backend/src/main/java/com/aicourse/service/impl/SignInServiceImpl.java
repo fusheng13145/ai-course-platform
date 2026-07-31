@@ -13,6 +13,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -86,6 +87,7 @@ public class SignInServiceImpl extends ServiceImpl<SignInMapper, SignIn> impleme
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public SignInRecord sign(Long id, SignInRecord record, Long userId, String ip, String ua) {
         SignIn signIn = this.getById(id);
         if (signIn == null || !SignIn.STATUS_ONGOING.equals(signIn.getStatus())) {
@@ -139,6 +141,7 @@ public class SignInServiceImpl extends ServiceImpl<SignInMapper, SignIn> impleme
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public SignInRecord manualMark(Long id, Long studentId, String status, Long userId, Authentication auth) {
         SignIn signIn = getDetail(id);
         assertCourseOwner(signIn.getCourseId(), userId, auth);

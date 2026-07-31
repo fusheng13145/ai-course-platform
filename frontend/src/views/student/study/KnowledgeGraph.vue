@@ -1,9 +1,25 @@
 <template>
   <div class="fade-in">
+    <PageHeader title="知识图谱" subtitle="可视化课程知识点关联，定位学习路径" icon="brain" icon-bg="accent" />
+
+    <div class="stat-grid animate-in d1">
+      <StatCard label="知识点总数" :value="nodeCount" icon="layers" tone="var(--accent-soft)" tone-color="var(--accent)" />
+      <StatCard label="已掌握" :value="masteredCount" icon="check" tone="var(--ok-soft)" tone-color="var(--ok)" />
+      <StatCard label="平均掌握度" :value="avgMasteryText" icon="target" tone="var(--info-soft)" tone-color="var(--info)" />
+    </div>
+
+    <section class="l1-card animate-in d2">
+      <div class="l1-head">
+        <span class="l1-ico">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 8.5 4.7L12 11.4 3.5 6.7 12 2zM3.5 12l8.5 4.7 8.5-4.7M3.5 17.3l8.5 4.7 8.5-4.7"/></svg>
+        </span>
+        <div><div class="l1-title">知识图谱</div><div class="l1-sub">点击节点查看详情，按难度与关键词筛选</div></div>
+      </div>
+      <div class="l1-body">
     <!-- 工具栏 -->
     <div class="kg-toolbar">
       <div class="toolbar-left">
-        <el-select v-model="selectedCourseId" placeholder="选择课程" style="width: 220px" @change="loadGraphData">
+        <el-select v-model="selectedCourseId" placeholder="选择课程" class="course-select" @change="loadGraphData">
           <el-option
             v-for="c in courseList"
             :key="c.id"
@@ -16,7 +32,7 @@
           placeholder="搜索知识点..."
           clearable
           :prefix-icon="Search"
-          style="width: 200px"
+          class="search-input"
           @input="filterNodes"
         />
       </div>
@@ -38,11 +54,11 @@
           <h3 class="panel-title">知识图谱</h3>
           <span class="node-count">{{ filteredNodeCount }} 个知识点</span>
         </div>
-        <div class="graph-container" v-loading="graphLoading">
+        <div v-loading="graphLoading" class="graph-container">
           <v-chart
             v-if="!graphLoading && graphOption.series?.[0]?.data?.length > 0"
             :option="graphOption"
-            style="width: 100%; height: 520px"
+            class="graph-chart"
             autoresize
             @click="handleNodeClick"
           />
@@ -50,12 +66,14 @@
             v-else-if="!graphLoading && (!graphOption.series?.[0]?.data || graphOption.series[0].data.length === 0)"
             description="请选择课程查看知识图谱"
             :image-size="100"
-          />
+          >
+            <template #image><div class="empty-deco">🕸️</div></template>
+          </el-empty>
         </div>
         <!-- 图例说明 -->
         <div class="graph-legend">
-          <span class="legend-item"><i class="legend-dot" style="background: var(--ac-primary)"></i> 前置关系（虚线）</span>
-          <span class="legend-item"><i class="legend-dot solid" style="background: var(--ac-secondary)"></i> 关联关系（实线）</span>
+          <span class="legend-item"><i class="legend-dot"></i> 前置关系（虚线）</span>
+          <span class="legend-item"><i class="legend-dot solid"></i> 关联关系（实线）</span>
         </div>
       </div>
 
@@ -91,7 +109,7 @@
           </div>
 
           <!-- 前置知识点 -->
-          <div class="relation-section" v-if="prerequisiteNodes.length > 0">
+          <div v-if="prerequisiteNodes.length > 0" class="relation-section">
             <h5 class="relation-title">
               <el-icon><ArrowLeft /></el-icon> 前置知识点
             </h5>
@@ -108,7 +126,7 @@
           </div>
 
           <!-- 后续知识点 -->
-          <div class="relation-section" v-if="subsequentNodes.length > 0">
+          <div v-if="subsequentNodes.length > 0" class="relation-section">
             <h5 class="relation-title">
               后续知识点<el-icon><ArrowRight /></el-icon>
             </h5>
@@ -139,6 +157,8 @@
         </div>
       </div>
     </div>
+      </div>
+    </section>
   </div>
 </template>
 
@@ -150,6 +170,9 @@ import { Search, ArrowLeft, ArrowRight, Reading, Share } from '@element-plus/ico
 import knowledgeApi from '@/api/knowledge'
 import knowledgeRelationApi from '@/api/knowledgePointRelation'
 import courseApi from '@/api/course'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
+import { getChartTheme, getMonoStatus } from '@/utils/chartTheme'
 
 const route = useRoute()
 const router = useRouter()
@@ -166,17 +189,22 @@ const rawNodes = ref([])       // 原始节点数据
 const rawLinks = ref([])       // 原始连线数据
 const selectedNode = ref(null) // 当前选中的节点
 
-/* ---- 莫兰迪色系 ---- */
-const morandiColors = {
-  EASY: '#8BA888',     // 鼠尾草绿 - 简单
-  MEDIUM: '#7A8BA5',   // 蓝灰 - 中等
-  HARD: '#C48080'      // 灰玫瑰红 - 困难
-}
-
 /* ---- 计算属性：过滤后的节点数量 ---- */
 const filteredNodeCount = computed(() => {
   return rawNodes.value.filter(n => matchFilter(n)).length
 })
+
+/** 知识点总数 */
+const nodeCount = computed(() => rawNodes.value.length)
+/** 已掌握（掌握度≥60%）节点数 */
+const masteredCount = computed(() => rawNodes.value.filter(n => (n.mastery ?? 0) >= 60).length)
+/** 平均掌握度 */
+const avgMastery = computed(() => {
+  if (!rawNodes.value.length) return 0
+  const sum = rawNodes.value.reduce((s, n) => s + (n.mastery ?? 0), 0)
+  return Math.round(sum / rawNodes.value.length)
+})
+const avgMasteryText = computed(() => avgMastery.value + '%')
 
 /* ---- 前置/后续节点 ---- */
 const prerequisiteNodes = computed(() => {
@@ -195,71 +223,77 @@ const subsequentNodes = computed(() => {
     .filter(Boolean)
 })
 
-/* ---- ECharts 图表配置 ---- */
-const graphOption = ref({
-  tooltip: {
-    trigger: 'item',
-    backgroundColor: '#FFFCF8',
-    borderColor: '#DDD6CE',
-    textStyle: { color: '#3D3835', fontSize: 13 },
-    formatter: (params) => {
-      if (params.dataType === 'node') {
-        const d = params.data
-        return `<strong>${d.name}</strong><br/>难度：${getDifficultyLabel(d.difficultyLevel)}<br/>掌握度：${d.mastery ?? 0}%`
+/* ---- ECharts 图表配置（setup 内按当前主题构建，随主题变化） ---- */
+function createGraphOption() {
+  const t = getChartTheme()
+  const status = getMonoStatus()
+  return {
+    tooltip: {
+      trigger: 'item',
+      backgroundColor: t.tooltipBg,
+      borderColor: t.tooltipBorder,
+      textStyle: { color: t.tooltipText, fontSize: 13 },
+      formatter: (params) => {
+        if (params.dataType === 'node') {
+          const d = params.data
+          return `<strong>${d.name}</strong><br/>难度：${getDifficultyLabel(d.difficultyLevel)}<br/>掌握度：${d.mastery ?? 0}%`
+        }
+        const link = params.data
+        return `${link.relationType === 'PREREQUISITE' ? '前置依赖' : '关联'}`
       }
-      const link = params.data
-      return `${link.relationType === 'PREREQUISITE' ? '前置依赖' : '关联'}`
-    }
-  },
-  animationDurationUpdate: 500,
-  animationEasingUpdate: 'quarticIn',
-  series: [{
-    type: 'graph',
-    layout: 'force',
-    data: [],
-    links: [],
-    roam: true,
-    draggable: true,
-    force: {
-      repulsion: 300,
-      edgeLength: [120, 200],
-      gravity: 0.1
     },
-    emphasis: {
-      focus: 'adjacency',
-      lineStyle: { width: 3 }
-    },
-    label: {
-      show: true,
-      position: 'bottom',
-      fontSize: 12,
-      fontWeight: 500,
-      color: '#3D3835',
-      formatter: '{b}'
-    },
-    symbolSize: (val) => {
-      const importance = val?.importance || val?.[2] || 3
-      return Math.max(24, Math.min(56, importance * 14))
-    },
-    itemStyle: {
-      borderColor: '#fff',
-      borderWidth: 2,
-      shadowBlur: 6,
-      shadowColor: 'rgba(61,56,53,0.12)'
-    },
-    lineStyle: {
-      color: 'source',
-      curveness: 0.15,
-      width: 1.5,
-      opacity: 0.6
-    },
-    categories: [
-      { name: '简单', itemStyle: { color: morandiColors.EASY } },
-      { name: '中等', itemStyle: { color: morandiColors.MEDIUM } },
-      { name: '困难', itemStyle: { color: morandiColors.HARD } }
-    ]
-  }]
-})
+    animationDurationUpdate: 500,
+    animationEasingUpdate: 'quarticIn',
+    series: [{
+      type: 'graph',
+      layout: 'force',
+      data: [],
+      links: [],
+      roam: true,
+      draggable: true,
+      force: {
+        repulsion: 300,
+        edgeLength: [120, 200],
+        gravity: 0.1
+      },
+      emphasis: {
+        focus: 'adjacency',
+        lineStyle: { width: 3 }
+      },
+      label: {
+        show: true,
+        position: 'bottom',
+        fontSize: 12,
+        fontWeight: 500,
+        color: t.text,
+        formatter: '{b}'
+      },
+      symbolSize: (val) => {
+        const importance = val?.importance || val?.[2] || 3
+        return Math.max(24, Math.min(56, importance * 14))
+      },
+      itemStyle: {
+        borderColor: t.sliceBorder,
+        borderWidth: 2,
+        shadowBlur: 6,
+        shadowColor: 'rgba(24,32,48,0.12)'
+      },
+      lineStyle: {
+        color: 'source',
+        curveness: 0.15,
+        width: 1.5,
+        opacity: 0.6
+      },
+      categories: [
+        { name: '简单', itemStyle: { color: status.EASY } },
+        { name: '中等', itemStyle: { color: status.MEDIUM } },
+        { name: '困难', itemStyle: { color: status.HARD } }
+      ]
+    }]
+  }
+}
+
+const graphOption = ref(createGraphOption())
 
 /* ---- 方法：加载课程列表 ---- */
 async function loadCourseList() {
@@ -393,7 +427,8 @@ function startLearningNode() {
 /* ---- 辅助方法 ---- */
 
 function getDifficultyColor(level) {
-  return morandiColors[level] || morandiColors.MEDIUM
+  const status = getMonoStatus()
+  return status[level] || status.MEDIUM
 }
 
 function getDifficultyLabel(level) {
@@ -419,17 +454,11 @@ function getMasteryColor(mastery) {
 }
 
 function getLineStyle(relationType) {
+  const status = getMonoStatus()
   if (relationType === 'PREREQUISITE') {
-    return { type: 'dashed', color: '#7A8BA5', opacity: 0.5 }
+    return { type: 'dashed', color: status.MEDIUM, opacity: 0.5 }
   }
-  return { type: 'solid', color: '#B89A8A', opacity: 0.5 }
-}
-
-/* ---- 空数据（API不可用时不再使用硬编码模拟数据） ---- */
-function loadDemoData() {
-  rawNodes.value = []
-  rawLinks.value = []
-  updateChartOption()
+  return { type: 'solid', color: status.WARNING, opacity: 0.5 }
 }
 
 /* ---- 节点点击事件（增强：加载真实掌握度） ---- */
@@ -479,6 +508,10 @@ onMounted(() => {
   align-items: center;
   gap: var(--ac-spacing-sm);
 }
+
+.course-select { width: 220px; }
+.search-input { width: 200px; }
+.graph-chart { width: 100%; height: 520px; }
 
 .kg-main {
   display: grid;
@@ -543,11 +576,11 @@ onMounted(() => {
   width: 16px;
   height: 3px;
   border-radius: 2px;
-  background: var(--ac-primary);
+  background: var(--info);
 }
 
 .legend-dot.solid {
-  height: 3px;
+  background: var(--warn);
 }
 
 /* ---- 详情面板 ---- */
@@ -640,12 +673,12 @@ onMounted(() => {
 }
 
 .relation-tag.subsequent {
-  background: rgba(184,154,138,0.12);
-  color: #9A8070;
+  background: var(--violet-soft);
+  color: var(--violet);
 }
 
 .relation-tag.subsequent:hover {
-  background: var(--ac-secondary);
+  background: var(--violet);
   color: #fff;
 }
 
@@ -670,6 +703,8 @@ onMounted(() => {
   font-size: 14px;
   line-height: 1.6;
 }
+
+.empty-deco { font-size: 38px; filter: grayscale(.2); }
 
 @media (max-width: 1024px) {
   .kg-main {

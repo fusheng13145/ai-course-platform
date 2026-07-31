@@ -17,6 +17,14 @@ public interface TaskService extends IService<Task> {
     Task publishTask(Long taskId);
 
     /**
+     * 仅执行写操作的任务更新（权限已由调用方校验），返回更新后任务。
+     * @param id    任务ID
+     * @param task  待更新数据
+     * @return 更新后的任务
+     */
+    Task updateTaskById(Long id, Task task);
+
+    /**
      * 延长截止日期
      * @param taskId 任务ID
      * @param newDueDate 新的截止日期

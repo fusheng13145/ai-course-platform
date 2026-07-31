@@ -6,6 +6,8 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
+import jakarta.validation.constraints.NotBlank;
+
 import java.time.LocalDateTime;
 import lombok.Data;
 
@@ -36,6 +38,7 @@ public class CourseChapter {
     /**
      * 章节标题
      */
+    @NotBlank(message = "章节标题不能为空")
     private String title;
 
     /**

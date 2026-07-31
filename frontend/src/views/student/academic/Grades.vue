@@ -1,38 +1,32 @@
-﻿﻿<template>
+﻿<template>
   <div class="fade-in">
-    <!-- 顶部统计卡片 -->
-    <div class="stat-cards">
-      <div class="stat-card">
-        <div class="stat-icon" style="background: var(--ac-primary-bg); color: var(--ac-primary)">
-          <el-icon :size="24"><TrophyBase /></el-icon>
-        </div>
-        <div class="stat-info"><h3>{{ avgScore }}</h3><p>平均分</p></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background: rgba(139,168,136,0.15); color: var(--ac-success)">
-          <el-icon :size="24"><TrendCharts /></el-icon>
-        </div>
-        <div class="stat-info"><h3>{{ rankDisplay }}</h3><p>班级排名</p></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background: rgba(203,181,138,0.18); color: var(--ac-warning)">
-          <el-icon :size="24"><Document /></el-icon>
-        </div>
-        <div class="stat-info"><h3>{{ list.length }}</h3><p>已完成考试</p></div>
-      </div>
+    <PageHeader title="我的成绩" subtitle="多维成绩分析与学习趋势跟踪" icon="chart" icon-bg="accent" />
+
+    <div class="stat-grid animate-in d1">
+      <StatCard label="平均分" :value="avgScore" icon="chart" tone="var(--accent-soft)" tone-color="var(--accent)" />
+      <StatCard label="已完成考试" :value="list.length" icon="doc" tone="var(--info-soft)" tone-color="var(--info)" />
+      <StatCard label="班级排名" :value="rankDisplay" icon="award" tone="var(--ok-soft)" tone-color="var(--ok)" />
     </div>
 
-    <!-- 图表区域：雷达图 + 趋势图 -->
-    <div class="charts-row">
+    <section class="l1-card animate-in d2">
+      <div class="l1-head">
+        <span class="l1-ico">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18M18 17V9M13 17V5M8 17v-3"/></svg>
+        </span>
+        <div><div class="l1-title">成绩分析</div><div class="l1-sub">成绩维度雷达图、历次趋势与课程明细</div></div>
+      </div>
+      <div class="l1-body">
+        <!-- 图表区域：雷达图 + 趋势图 -->
+        <div class="charts-row">
       <!-- 成绩分布雷达图 -->
       <div class="chart-card">
         <div class="chart-header">
           <span class="chart-title">成绩维度分析</span>
         </div>
-        <v-chart v-if="!loading && groupedByCourse && Object.keys(groupedByCourse).length >= 3" :option="radarOption" style="height: 320px" autoresize />
+        <v-chart v-if="!loading && groupedByCourse && Object.keys(groupedByCourse).length >= 3" :option="radarOption" class="chart-fixed" autoresize />
         <el-empty v-else-if="!loading && (!groupedByCourse || Object.keys(groupedByCourse).length < 3)" description="选课不足（至少3门），暂无法生成多维对比分析" :image-size="80" />
-        <div v-else style="height: 320px; display: flex; align-items: center; justify-content: center;">
-          <span style="color: var(--ac-text-muted)">加载中...</span>
+        <div v-else class="chart-loading">
+          <span class="muted">加载中...</span>
         </div>
       </div>
 
@@ -41,7 +35,7 @@
         <div class="chart-header">
           <span class="chart-title">历次考试成绩趋势</span>
         </div>
-        <v-chart v-if="!loading && list.length > 0" :option="trendOption" style="height: 320px" autoresize />
+        <v-chart v-if="!loading && list.length > 0" :option="trendOption" class="chart-fixed" autoresize />
         <el-empty v-else-if="!loading && list.length === 0" description="暂无考试记录" :image-size="80" />
       </div>
     </div>
@@ -69,7 +63,7 @@
           </div>
 
           <!-- 排名信息 -->
-          <div class="rank-info" v-if="group.rank">
+          <div v-if="group.rank" class="rank-info">
             <span class="rank-label">排名：</span>
             <span class="rank-value">{{ group.rank }} / {{ group.totalStudents || '--' }}</span>
           </div>
@@ -84,27 +78,29 @@
               >
                 {{ exam.score }} 分
               </el-tag>
-              <span class="mini-time">{{ formatTime(exam.submitTime) }}</span>
+              <span class="mini-time">{{ formatTime(exam.submitTime, '--') }}</span>
             </div>
           </div>
         </div>
       </div>
 
-      <el-empty v-if="!loading && Object.keys(groupedByCourse).length === 0" description="暂无成绩记录" :image-size="100" />
+      <el-empty v-if="!loading && Object.keys(groupedByCourse).length === 0" description="暂无成绩记录" :image-size="100">
+        <template #image><div class="empty-deco">📉</div></template>
+      </el-empty>
 
       <!-- 完整表格（折叠） -->
-      <div class="table-section" v-if="list.length > 0">
-        <el-button text @click="showTable = !showTable" style="margin-bottom: var(--ac-spacing-sm)">
+      <div v-if="list.length > 0" class="table-section">
+        <el-button text class="table-toggle" @click="showTable = !showTable">
           {{ showTable ? '收起' : '展开' }}完整成绩表
           <el-icon><ArrowDown :class="{ rotated: showTable }" /></el-icon>
         </el-button>
         <transition name="expand-fade">
           <el-table
             v-if="showTable"
+            v-loading="loading"
             :data="list"
             stripe
-            style="width: 100%"
-            v-loading="loading"
+            class="grade-table"
             row-class-name="grade-table-row"
           >
             <el-table-column prop="examTitle" label="考试名称" min-width="160" />
@@ -116,7 +112,7 @@
             </el-table-column>
             <el-table-column prop="totalScore" label="总分" width="70" align="center" />
             <el-table-column prop="submitTime" label="提交时间" width="160">
-              <template #default="{ row }">{{ formatTime(row.submitTime) }}</template>
+              <template #default="{ row }">{{ formatTime(row.submitTime, '--') }}</template>
             </el-table-column>
             <el-table-column label="等级" width="80" align="center">
               <template #default="{ row }">
@@ -129,15 +125,20 @@
         </transition>
       </div>
     </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
-import { TrophyBase, TrendCharts, Document, ArrowDown } from '@element-plus/icons-vue'
+import { formatTime } from '@/utils/datetime'
+import { ArrowDown } from '@element-plus/icons-vue'
 import examApi from '@/api/exam'
 import courseApi from '@/api/course'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
+import { getChartTheme, getMonoSeries, monoScore } from '@/utils/chartTheme'
 
 /* ---- 数据状态 ---- */
 const loading = ref(false)
@@ -184,9 +185,9 @@ const groupedByCourse = computed(() => {
 })
 
 /* ---- 雷达图配置 ---- */
-const morandiColors = ['#7A8BA5', '#B89A8A', '#8BA888', '#CBB58A', '#9B8AA5']
-
 const radarOption = computed(() => {
+  const t = getChartTheme()
+  const mono = getMonoSeries()
   // 从各课程平均分构建维度数据
   const dimensions = []
   const values = []
@@ -195,7 +196,7 @@ const radarOption = computed(() => {
     .sort((a, b) => b[1].avgScore - a[1].avgScore)
     .slice(0, 6)
 
-  sortedCourses.forEach(([name, g], idx) => {
+  sortedCourses.forEach(([name, g], _idx) => {
     dimensions.push({ name: name.length > 6 ? name.substring(0, 6) + '..' : name, max: 100 })
     values.push(g.avgScore)
   })
@@ -203,33 +204,33 @@ const radarOption = computed(() => {
   return {
     tooltip: {
       trigger: 'item',
-      backgroundColor: '#FFFCF8',
-      borderColor: '#DDD6CE',
-      textStyle: { color: '#3D3835', fontSize: 13 }
+      backgroundColor: t.tooltipBg,
+      borderColor: t.tooltipBorder,
+      textStyle: { color: t.tooltipText, fontSize: 13 }
     },
     legend: {
       data: ['我的成绩'],
       bottom: 0,
-      textStyle: { fontSize: 12, color: '#928B83' }
+      textStyle: { fontSize: 12, color: t.subText }
     },
     radar: {
       indicator: dimensions,
       shape: 'polygon',
       splitNumber: 4,
       axisName: {
-        color: '#5E574F',
+        color: t.text,
         fontSize: 11
       },
       splitLine: {
-        lineStyle: { color: '#DDD6CE' }
+        lineStyle: { color: t.split }
       },
       splitArea: {
         areaStyle: {
-          color: ['rgba(122,139,165,0.04)', 'rgba(122,139,165,0.08)', 'rgba(122,139,165,0.04)', 'rgba(122,139,165,0.02)']
+          color: [`${mono[0]}0A`, `${mono[0]}14`, `${mono[0]}0A`, `${mono[0]}05`]
         }
       },
       axisLine: {
-        lineStyle: { color: '#DDD6CE' }
+        lineStyle: { color: t.axis }
       }
     },
     series: [{
@@ -241,69 +242,73 @@ const radarOption = computed(() => {
         symbolSize: 6,
         lineStyle: {
           width: 2,
-          color: morandiColors[0]
+          color: mono[0]
         },
         areaStyle: {
           color: {
             type: 'linear',
             x: 0, y: 0, x2: 0, y2: 1,
             colorStops: [
-              { offset: 0, color: 'rgba(122,139,165,0.35)' },
-              { offset: 1, color: 'rgba(122,139,165,0.05)' }
+              { offset: 0, color: `${mono[0]}59` },
+              { offset: 1, color: `${mono[0]}0D` }
             ]
           }
         },
-        itemStyle: { color: morandiColors[0] }
+        itemStyle: { color: mono[0] }
       }]
     }]
   }
 })
 
 /* ---- 趋势图配置 ---- */
-const trendOption = computed(() => ({
-  tooltip: {
-    trigger: 'axis',
-    backgroundColor: '#FFFCF8',
-    borderColor: '#DDD6CE',
-    textStyle: { color: '#3D3835' }
-  },
-  grid: { left: 48, right: 20, bottom: 36, top: 20 },
-  xAxis: {
-    type: 'category',
-    data: list.value.map((_, i) => `第${i + 1}次`),
-    axisLine: { lineStyle: { color: '#DDD6CE' } },
-    axisLabel: { color: '#928B83', fontSize: 11 }
-  },
-  yAxis: {
-    type: 'value',
-    min: 0,
-    max: 100,
-    axisLine: { show: false },
-    splitLine: { lineStyle: { color: '#DDD6CE', type: 'dashed' } },
-    axisLabel: { color: '#928B83', fontSize: 11 }
-  },
-  series: [{
-    name: '成绩',
-    type: 'line',
-    data: list.value.map(r => Number(r.score) || 0),
-    smooth: true,
-    symbol: 'circle',
-    symbolSize: 8,
-    lineStyle: { width: 2.5, color: morandiColors[0] },
-    itemStyle: { color: morandiColors[0] },
-    areaStyle: {
-      color: {
-        type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-        colorStops: [{ offset: 0, color: 'rgba(122,139,165,0.25)' }, { offset: 1, color: 'rgba(122,139,165,0.02)' }]
-      }
+const trendOption = computed(() => {
+  const t = getChartTheme()
+  const mono = getMonoSeries()
+  return {
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: t.tooltipBg,
+      borderColor: t.tooltipBorder,
+      textStyle: { color: t.tooltipText }
     },
-    markLine: {
-      silent: true,
-      lineStyle: { color: '#C48080', type: 'dashed', width: 1 },
-      data: [{ yAxis: 60, label: { formatter: '及格线', color: '#928B83', fontSize: 11 } }]
-    }
-  }]
-}))
+    grid: { left: 48, right: 20, bottom: 36, top: 20 },
+    xAxis: {
+      type: 'category',
+      data: list.value.map((_, i) => `第${i + 1}次`),
+      axisLine: { lineStyle: { color: t.axis } },
+      axisLabel: { color: t.subText, fontSize: 11 }
+    },
+    yAxis: {
+      type: 'value',
+      min: 0,
+      max: 100,
+      axisLine: { show: false },
+      splitLine: { lineStyle: { color: t.split, type: 'dashed' } },
+      axisLabel: { color: t.subText, fontSize: 11 }
+    },
+    series: [{
+      name: '成绩',
+      type: 'line',
+      data: list.value.map(r => Number(r.score) || 0),
+      smooth: true,
+      symbol: 'circle',
+      symbolSize: 8,
+      lineStyle: { width: 2.5, color: mono[0] },
+      itemStyle: { color: mono[0] },
+      areaStyle: {
+        color: {
+          type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
+          colorStops: [{ offset: 0, color: `${mono[0]}40` }, { offset: 1, color: `${mono[0]}05` }]
+        }
+      },
+      markLine: {
+        silent: true,
+        lineStyle: { color: monoScore(60), type: 'dashed', width: 1 },
+        data: [{ yAxis: 60, label: { formatter: '及格线', color: t.subText, fontSize: 11 } }]
+      }
+    }]
+  }
+})
 
 /* ---- 辅助方法 ---- */
 function getGradeLevelTag(score) {
@@ -332,15 +337,6 @@ function getGradeClass(score) {
   if (score >= 75) return 'good'
   if (score >= 60) return 'pass'
   return 'fail'
-}
-
-function formatTime(timeStr) {
-  if (!timeStr) return '--'
-  return timeStr.replace('T', ' ').substring(0, 16)
-}
-
-function viewDetail(row) {
-  ElMessage.info('成绩详情：' + (row.examTitle || ''))
 }
 
 /* ---- 加载数据 ---- */
@@ -533,8 +529,27 @@ onMounted(async () => {
   transition: transform var(--ac-transition-fast);
 }
 
+.table-toggle {
+  margin-bottom: var(--ac-spacing-sm);
+}
+
+.grade-table {
+  width: 100%;
+}
+
 .table-section .el-icon.rotated {
   transform: rotate(180deg);
+}
+
+.chart-fixed {
+  height: 320px;
+}
+
+.chart-loading {
+  height: 320px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .level-text {
@@ -544,10 +559,12 @@ onMounted(async () => {
   border-radius: 999px;
 }
 
-.level-excellent { background: rgba(139,168,136,0.15); color: #5E7A5B; }
-.level-good { background: var(--ac-primary-bg); color: var(--ac-primary-dark); }
-.level-pass { background: rgba(203,181,138,0.18); color: #8A7845; }
-.level-fail { background: rgba(196,128,128,0.15); color: #A05A5A; }
+.level-excellent { background: var(--ok-soft); color: var(--ok); }
+.level-good { background: var(--accent-soft); color: var(--accent-strong); }
+.level-pass { background: var(--warn-soft); color: var(--warn); }
+.level-fail { background: var(--accent-soft); color: var(--accent-strong); }
+
+.empty-deco { font-size: 38px; filter: grayscale(.2); }
 
 .expand-fade-enter-active { transition: all 0.25s ease; }
 .expand-fade-leave-active { transition: all 0.15s ease; }

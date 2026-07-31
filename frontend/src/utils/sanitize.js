@@ -18,6 +18,9 @@ const ALLOWED_TAGS = [
   'small', 'sub', 'sup', 'mark',
   // 链接与图片（href/src 由 ALLOWED_ATTR 控制协议白名单）
   'a', 'img',
+  // SVG 图标（图标/图表渲染场景；图形属性见 ALLOWED_ATTR）
+  'svg', 'g', 'path', 'circle', 'rect', 'line', 'polyline', 'polygon',
+  'text', 'title', 'defs', 'use',
 ]
 
 /**
@@ -33,12 +36,22 @@ const ALLOWED_ATTR = [
   'colspan', 'rowspan',
   // 通用
   'target',
+  // SVG 图形属性（不含任何 on* 事件属性；DOMPurify 会拦截
+  // url(...) 形式的危险引用，fill/stroke 仅允许颜色与 CSS 变量值）
+  'd', 'viewBox', 'width', 'height', 'fill', 'stroke',
+  'stroke-width', 'stroke-linecap', 'stroke-linejoin',
+  'cx', 'cy', 'r', 'x', 'y', 'transform',
+  'text-anchor', 'font-size', 'font-weight',
+  'stroke-dasharray', 'stroke-dashoffset',
+  'points', 'x1', 'y1', 'x2', 'y2',
+  'fill-rule', 'clip-rule',
 ]
 
 /**
- * 创建 DOMPurify 实例并应用白名单配置
+ * DOMPurify 3.x ESM 默认导出为命名空间对象（含 sanitize 方法），不可作为函数调用。
+ * 直接引用该对象即可，避免 TypeError: default is not a function。
  */
-const purify = DOMPurify()
+const purify = DOMPurify
 
 /**
  * HTML 净化函数

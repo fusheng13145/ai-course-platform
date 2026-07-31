@@ -344,6 +344,28 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
     }
 
     /**
+     * 教师端批改作业（TeacherController.gradeSubmission 业务下沉，行为保持一致）
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Submission gradeSubmissionByTeacher(Long assignmentId, Long submissionId, Submission grade, Long graderId) {
+        Submission submission = this.getById(submissionId);
+        if (submission == null) {
+            throw new BusinessException("提交记录不存在");
+        }
+        if (!assignmentId.equals(submission.getTaskId())) {
+            throw new BusinessException(403, "提交记录不属于该作业");
+        }
+        submission.setScore(grade.getScore());
+        submission.setFeedback(grade.getFeedback());
+        submission.setStatus("GRADED");
+        submission.setGradedAt(LocalDateTime.now());
+        submission.setGraderId(graderId);
+        this.updateById(submission);
+        return submission;
+    }
+
+    /**
      * AI智能评分（增强版：LLM 返回评分+评语并解析结构化分数）
      * <p>
      * 1) 构建结构化提示词要求 LLM 输出 JSON：{ "score": 85, "feedback": "...", "highlights": "...", "suggestions": "..." }

@@ -1,5 +1,7 @@
 package com.aicourse.controller;
 
+import jakarta.validation.Valid;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.LearningRecord;
 import com.aicourse.service.LearningRecordService;
@@ -34,7 +36,7 @@ public class LearningRecordController {
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('STUDENT','ADMIN')")
-    public ApiResponse<LearningRecord> record(@RequestBody LearningRecord record, Authentication auth) {
+    public ApiResponse<LearningRecord> record(@Valid @RequestBody LearningRecord record, Authentication auth) {
         record.setUserId((Long) auth.getPrincipal());
         learningRecordService.save(record);
         return ApiResponse.success("记录成功", record);

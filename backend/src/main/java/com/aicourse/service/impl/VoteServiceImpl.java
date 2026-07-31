@@ -14,6 +14,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
@@ -80,6 +81,7 @@ public class VoteServiceImpl extends ServiceImpl<VoteMapper, Vote> implements Vo
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public VoteRecord vote(Long id, VoteRecord record, Long userId, String ip, String ua) {
         Vote vote = getDetail(id);
         if (!Vote.STATUS_ONGOING.equals(vote.getStatus())) {

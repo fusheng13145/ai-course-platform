@@ -65,6 +65,17 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     }
 
     /**
+     * 仅执行写操作的任务更新（权限已由调用方校验）
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Task updateTaskById(Long id, Task task) {
+        task.setId(id);
+        this.updateById(task);
+        return this.getById(id);
+    }
+
+    /**
      * 延长截止日期
      */
     @Override

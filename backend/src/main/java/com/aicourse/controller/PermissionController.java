@@ -1,10 +1,10 @@
 package com.aicourse.controller;
 
+import jakarta.validation.Valid;
+
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.common.ApiResponse;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.entity.RolePermission;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.service.PermissionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -56,7 +56,7 @@ public class PermissionController {
      * @return 新增权限数据
      */
     @PostMapping("/create")
-    public ApiResponse<RolePermission> create(@RequestBody RolePermission permission) {
+    public ApiResponse<RolePermission> create(@Valid @RequestBody RolePermission permission) {
         permissionService.save(permission);
         return ApiResponse.success("创建成功", permission);
     }
@@ -68,7 +68,7 @@ public class PermissionController {
      * @return 更新后权限数据
      */
     @PutMapping("/update/{id}")
-    public ApiResponse<RolePermission> update(@PathVariable Long id, @RequestBody RolePermission permission) {
+    public ApiResponse<RolePermission> update(@PathVariable Long id, @Valid @RequestBody RolePermission permission) {
         permission.setId(id);
         permissionService.updateById(permission);
         RolePermission updatedPermission = permissionService.getById(id);

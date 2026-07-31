@@ -61,7 +61,7 @@ class ResourceVersionControllerTest extends ControllerTestBase {
                 .thenReturn(sampleVersion(1L, 2));
         mockMvc.perform(post("/resource-versions")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"resourceId\":1,\"fileName\":\"v.pdf\",\"url\":\"/x\"}")
+                        .content("{\"resourceId\":1,\"fileName\":\"v.pdf\",\"url\":\"/x\",\"fileUrl\":\"/x\"}")
                         .with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
@@ -75,7 +75,7 @@ class ResourceVersionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /resource-versions - STUDENT 越权返回403")
     void createNewVersion_student_forbidden_403() throws Exception {
-        mockMvc.perform(post("/resource-versions").contentType(MediaType.APPLICATION_JSON).content("{\"resourceId\":1,\"fileName\":\"v.pdf\",\"url\":\"/x\"}").with(withUser(2L, "STUDENT")))
+        mockMvc.perform(post("/resource-versions").contentType(MediaType.APPLICATION_JSON).content("{\"resourceId\":1,\"fileName\":\"v.pdf\",\"url\":\"/x\",\"fileUrl\":\"/x\"}").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
     }
 
@@ -93,7 +93,7 @@ class ResourceVersionControllerTest extends ControllerTestBase {
     void rollbackToVersion_authorized_returns_200() throws Exception {
         mockMvc.perform(post("/resource-versions/1/rollback")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"versionNumber\":2}")
+                        .content("{\"resourceId\":1,\"fileUrl\":\"/x\",\"versionNumber\":2}")
                         .with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
@@ -104,7 +104,7 @@ class ResourceVersionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /resource-versions/1/rollback - STUDENT 越权返回403")
     void rollbackToVersion_student_forbidden_403() throws Exception {
-        mockMvc.perform(post("/resource-versions/1/rollback").contentType(MediaType.APPLICATION_JSON).content("{\"versionNumber\":2}").with(withUser(2L, "STUDENT")))
+        mockMvc.perform(post("/resource-versions/1/rollback").contentType(MediaType.APPLICATION_JSON).content("{\"resourceId\":1,\"fileUrl\":\"/x\",\"versionNumber\":2}").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
     }
 

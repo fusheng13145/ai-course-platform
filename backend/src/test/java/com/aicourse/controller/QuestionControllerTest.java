@@ -29,6 +29,8 @@ class QuestionControllerTest extends ControllerTestBase {
     private QuestionService questionService;
     @MockitoBean
     private AIService aiService;
+    @MockitoBean
+    private com.aicourse.service.KnowledgePointService knowledgePointService;
 
     private Question sampleQuestion() {
         Question q = new Question();
@@ -77,7 +79,7 @@ class QuestionControllerTest extends ControllerTestBase {
     @DisplayName("POST /questions/create - TEACHER角色返回200且data透传创建题目")
     void create_authorized_returns_success() throws Exception {
         when(questionService.createQuestion(any())).thenReturn(sampleQuestion());
-        mockMvc.perform(post("/questions/create").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(1L, "TEACHER")))
+        mockMvc.perform(post("/questions/create").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"题干\"}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
@@ -268,7 +270,7 @@ class QuestionControllerTest extends ControllerTestBase {
     @DisplayName("POST /questions - TEACHER角色返回200且正确委托save")
     void createBasic_authorized_returns_success() throws Exception {
         when(questionService.save(any())).thenReturn(true);
-        mockMvc.perform(post("/questions").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(1L, "TEACHER")))
+        mockMvc.perform(post("/questions").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"题干\"}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists());
@@ -294,7 +296,7 @@ class QuestionControllerTest extends ControllerTestBase {
     void update_authorized_returns_success() throws Exception {
         when(questionService.updateById(any())).thenReturn(true);
         when(questionService.getById(any())).thenReturn(sampleQuestion());
-        mockMvc.perform(put("/questions/1").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(1L, "TEACHER")))
+        mockMvc.perform(put("/questions/1").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"题干\"}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));

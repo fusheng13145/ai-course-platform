@@ -1,4 +1,5 @@
 import request from './request'
+import { addRelation } from './knowledge'
 
 /**
  * 知识点关联关系 API
@@ -7,8 +8,8 @@ import request from './request'
 export const knowledgeRelationApi = {
   /** 获取关联列表 */
   getList(params) { return request.get('/knowledge/relations', { params }) },
-  /** 创建关联 */
-  create(data) { return request.post('/knowledge/relations', data) },
+  /** 创建关联（复用 knowledge.js addRelation，避免重复定义） */
+  create: addRelation,
   /** 删除关联 */
   delete(id) { return request.delete(`/knowledge/relations/${id}`) },
   /** 获取课程知识图谱图数据 */

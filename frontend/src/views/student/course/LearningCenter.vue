@@ -108,7 +108,7 @@
             <el-icon :size="40" color="var(--ac-danger)"><Files /></el-icon>
             <h3>{{ activeTask.title }}</h3>
             <p v-if="activeTask.dueDate" class="muted">
-              截止：{{ formatTime(activeTask.dueDate) }}
+              截止：{{ formatTime(activeTask.dueDate, '--') }}
             </p>
             <p class="muted">作业请在「待办 / 作业」区域提交，提交后本任务点自动完成。</p>
             <el-button type="primary" @click="goAssignments">前往作业区</el-button>
@@ -222,6 +222,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Select, VideoPlay, Files, InfoFilled, Check, Close } from '@element-plus/icons-vue'
 import { unwrap } from '@/utils/response'
+import { formatTime } from '@/utils/datetime'
 import studentApi from '@/api/student'
 import taskApi from '@/api/task'
 import questionApi from '@/api/question'
@@ -550,10 +551,6 @@ function taskTypeLabel(t) {
       ASSIGNMENT: '作业',
     }[t] || '任务'
   )
-}
-function formatTime(t) {
-  if (!t) return '--'
-  return String(t).replace('T', ' ').substring(0, 16)
 }
 
 function onDrawerClosed() {

@@ -1,48 +1,17 @@
 <template>
   <div class="course-overview">
+    <PageHeader compact title="课程总览" subtitle="教学数据、学习进度与风险学生一览" icon="grid" />
     <div v-loading="loading">
       <!-- 概览 + 内容 + 学习 指标卡 -->
-      <div class="stat-grid">
-        <div class="stat-card">
-          <div class="stat-icon" style="background: var(--ac-primary-bg); color: var(--ac-primary)">
-            <el-icon :size="22"><User /></el-icon>
-          </div>
-          <div class="stat-info">
-            <h3>{{ ov.totalStudents || 0 }}</h3>
-            <p>选课学生</p>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon" style="background: var(--ac-success-bg); color: var(--ac-success)">
-            <el-icon :size="22"><Histogram /></el-icon>
-          </div>
-          <div class="stat-info">
-            <h3>{{ ov.activeStudents || 0 }}</h3>
-            <p>活跃学生</p>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon" style="background: var(--ac-warning-bg); color: var(--ac-warning)">
-            <el-icon :size="22"><Bell /></el-icon>
-          </div>
-          <div class="stat-info">
-            <h3>{{ ov.pendingApproval || 0 }}</h3>
-            <p>待审批</p>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon" style="background: var(--ac-danger-bg); color: var(--ac-danger)">
-            <el-icon :size="22"><EditPen /></el-icon>
-          </div>
-          <div class="stat-info">
-            <h3>{{ grading.pendingGrading || 0 }}</h3>
-            <p>待批改</p>
-          </div>
-        </div>
+      <div class="stat-grid animate-in d1">
+        <StatCard label="选课学生" :value="ov.totalStudents || 0" icon="users" tone="var(--accent-soft)" tone-color="var(--accent)" />
+        <StatCard label="活跃学生" :value="ov.activeStudents || 0" icon="chart" tone="var(--ok-soft)" tone-color="var(--ok)" />
+        <StatCard label="待审批" :value="ov.pendingApproval || 0" icon="bell" tone="var(--warn-soft)" tone-color="var(--warn)" />
+        <StatCard label="待批改" :value="grading.pendingGrading || 0" icon="edit" tone="var(--info-soft)" tone-color="var(--info)" />
       </div>
 
       <!-- 内容与学习指标 -->
-      <div class="stat-grid stat-grid--sm">
+      <div class="stat-grid">
         <div class="mini-stat">
           <span class="mini-num">{{ ct.chapterCount || 0 }}</span
           ><span class="mini-label">章节</span>
@@ -92,56 +61,70 @@
 
       <!-- 趋势 + 风险学生 -->
       <div class="grid-2">
-        <div class="chart-card">
-          <div class="chart-title">近 14 天教学活动趋势</div>
-          <v-chart :option="trendOption" style="height: 300px" autoresize />
-        </div>
-        <div class="chart-card">
-          <div class="chart-title">
-            学习风险学生
-            <el-tag size="small" type="danger" effect="light" round>{{ atRisk.length }}</el-tag>
+        <div class="l1-card">
+          <div class="l1-head">
+            <div class="l1-title">近 14 天教学活动趋势</div>
           </div>
-          <el-table :data="atRisk" size="small" max-height="300" empty-text="暂无风险学生">
-            <el-table-column prop="studentName" label="学生" min-width="90" />
-            <el-table-column label="进度" width="72">
-              <template #default="{ row }">{{ pct(row.progress) }}</template>
-            </el-table-column>
-            <el-table-column label="成绩" width="64">
-              <template #default="{ row }">{{ row.finalScore ?? '--' }}</template>
-            </el-table-column>
-            <el-table-column label="等级" width="80">
-              <template #default="{ row }">
-                <el-tag
-                  size="small"
-                  :type="row.level === 'HIGH' ? 'danger' : 'warning'"
-                  effect="light"
-                >
-                  {{ row.level === 'HIGH' ? '高危' : '关注' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-          </el-table>
+          <div class="l1-body">
+            <v-chart :option="trendOption" class="trend-chart" autoresize />
+          </div>
+        </div>
+        <div class="l1-card">
+          <div class="l1-head">
+            <div class="l1-title">
+              学习风险学生
+              <el-tag size="small" type="danger" effect="light" round>{{ atRisk.length }}</el-tag>
+            </div>
+          </div>
+          <div class="l1-body">
+            <el-table :data="atRisk" size="small" max-height="300" empty-text="暂无风险学生">
+              <el-table-column prop="studentName" label="学生" min-width="90" />
+              <el-table-column label="进度" width="72">
+                <template #default="{ row }">{{ pct(row.progress) }}</template>
+              </el-table-column>
+              <el-table-column label="成绩" width="64">
+                <template #default="{ row }">{{ row.finalScore ?? '--' }}</template>
+              </el-table-column>
+              <el-table-column label="等级" width="80">
+                <template #default="{ row }">
+                  <el-tag
+                    size="small"
+                    :type="row.level === 'HIGH' ? 'danger' : 'warning'"
+                    effect="light"
+                  >
+                    {{ row.level === 'HIGH' ? '高危' : '关注' }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+            </el-table>
+          </div>
         </div>
       </div>
 
       <!-- AI 学情解读 -->
-      <div v-if="aiInsight" class="chart-card ai-card">
-        <div class="chart-title">
-          <el-icon><MagicStick /></el-icon> AI 学情解读
+      <div v-if="aiInsight" class="l1-card ai-card">
+        <div class="l1-head">
+          <span class="l1-ico"><el-icon><MagicStick /></el-icon></span>
+          <div><div class="l1-title">AI 学情解读</div></div>
         </div>
-        <p class="ai-summary">{{ aiInsight.summary }}</p>
-        <ul v-if="aiInsight.items && aiInsight.items.length" class="ai-items">
-          <li v-for="(it, i) in aiInsight.items" :key="i">
-            <strong>{{ it.title }}</strong
-            ><span>{{ it.detail }}</span>
-          </li>
-        </ul>
+        <div class="l1-body">
+          <p class="ai-summary">{{ aiInsight.summary }}</p>
+          <ul v-if="aiInsight.items && aiInsight.items.length" class="ai-items">
+            <li v-for="(it, i) in aiInsight.items" :key="i">
+              <strong>{{ it.title }}</strong
+              ><span>{{ it.detail }}</span>
+            </li>
+          </ul>
+        </div>
       </div>
 
       <!-- 章节树（含任务点） -->
-      <div class="chart-card">
-        <div class="chart-title">章节与任务点</div>
-        <div v-if="chapterTree.length" class="tree">
+      <div class="l1-card">
+        <div class="l1-head">
+          <div class="l1-title">章节与任务点</div>
+        </div>
+        <div class="l1-body">
+          <div v-if="chapterTree.length" class="tree">
           <div v-for="node in chapterTree" :key="node.id" class="tree-node">
             <div class="tree-row">
               <span class="tree-title">{{ node.title }}</span>
@@ -171,8 +154,9 @@
               </div>
             </div>
           </div>
+          </div>
+          <el-empty v-else description="暂无章节" :image-size="70" />
         </div>
-        <el-empty v-else description="暂无章节" :image-size="70" />
       </div>
     </div>
   </div>
@@ -185,7 +169,9 @@ import { ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import teachingApi from '@/api/teacher'
 import { getChartTheme, getMonoSeries } from '@/utils/chartTheme'
-import { User, Histogram, Bell, EditPen, MagicStick } from '@element-plus/icons-vue'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
+import { MagicStick } from '@element-plus/icons-vue'
 
 const route = useRoute()
 const courseId = route.params.id
@@ -205,40 +191,53 @@ function pct(v) {
   return typeof v === 'number' && v <= 1.0001 && v > 0 ? Math.round(v * 100) + '%' : v + '%'
 }
 
-const trendOption = ref({
-  tooltip: { trigger: 'axis' },
-  legend: { data: ['活跃学生', '提交数'], textStyle: { color: getChartTheme().subText } },
-  grid: { left: 44, right: 20, bottom: 28, top: 36 },
-  xAxis: {
-    type: 'category',
-    data: [],
-    axisLabel: { color: getChartTheme().subText, fontSize: 11 },
-    axisLine: { lineStyle: { color: getChartTheme().axis } },
-  },
-  yAxis: {
-    type: 'value',
-    axisLabel: { color: getChartTheme().subText, fontSize: 11 },
-    splitLine: { lineStyle: { color: getChartTheme().axis, type: 'dashed' } },
-  },
-  series: [
-    {
-      name: '活跃学生',
-      type: 'line',
-      smooth: true,
-      symbolSize: 5,
-      itemStyle: { color: getMonoSeries()[0] },
-      lineStyle: { width: 2.5, color: getMonoSeries()[0] },
-      areaStyle: { color: 'rgba(59,110,246,0.12)' },
-      data: [],
+// 近 14 天趋势（主题化配置，跟随明暗主题）
+function buildTrendOption() {
+  const t = getChartTheme()
+  const mono = getMonoSeries()
+  const n = parseInt(mono[0].slice(1), 16)
+  const areaColor = `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, 0.12)`
+  return {
+    tooltip: {
+      trigger: 'axis',
+      backgroundColor: t.tooltipBg,
+      borderColor: t.tooltipBorder,
+      textStyle: { color: t.tooltipText },
     },
-    {
-      name: '提交数',
-      type: 'bar',
-      itemStyle: { color: getMonoSeries()[1] || getMonoSeries()[0], borderRadius: [4, 4, 0, 0] },
+    legend: { data: ['活跃学生', '提交数'], textStyle: { color: t.subText } },
+    grid: { left: 44, right: 20, bottom: 28, top: 36 },
+    xAxis: {
+      type: 'category',
       data: [],
+      axisLabel: { color: t.subText, fontSize: 11 },
+      axisLine: { lineStyle: { color: t.axis } },
     },
-  ],
-})
+    yAxis: {
+      type: 'value',
+      axisLabel: { color: t.subText, fontSize: 11 },
+      splitLine: { lineStyle: { color: t.split, type: 'dashed' } },
+    },
+    series: [
+      {
+        name: '活跃学生',
+        type: 'line',
+        smooth: true,
+        symbolSize: 5,
+        itemStyle: { color: mono[0] },
+        lineStyle: { width: 2.5, color: mono[0] },
+        areaStyle: { color: areaColor },
+        data: [],
+      },
+      {
+        name: '提交数',
+        type: 'bar',
+        itemStyle: { color: mono[1] || mono[0], borderRadius: [4, 4, 0, 0] },
+        data: [],
+      },
+    ],
+  }
+}
+const trendOption = ref(buildTrendOption())
 
 async function load() {
   loading.value = true
@@ -269,46 +268,6 @@ watch(() => route.params.id, load)
 </script>
 
 <style scoped>
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: var(--ac-spacing-md);
-  margin-bottom: var(--ac-spacing-md);
-}
-.stat-grid--sm {
-  grid-template-columns: repeat(11, 1fr);
-}
-.stat-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 18px 20px;
-  background: var(--ac-bg-elevated);
-  border: 1px solid var(--ac-border);
-  border-radius: var(--ac-radius-lg);
-  box-shadow: var(--ac-shadow-sm);
-}
-.stat-icon {
-  width: 46px;
-  height: 46px;
-  border-radius: 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.stat-info h3 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 680;
-  color: var(--ac-text-primary);
-}
-.stat-info p {
-  margin: 2px 0 0;
-  font-size: 12.5px;
-  color: var(--ac-text-secondary);
-}
-
 .mini-stat {
   display: flex;
   flex-direction: column;
@@ -336,21 +295,8 @@ watch(() => route.params.id, load)
   gap: var(--ac-spacing-md);
   margin-bottom: var(--ac-spacing-md);
 }
-.chart-card {
-  padding: var(--ac-spacing-lg);
-  background: var(--ac-bg-elevated);
-  border: 1px solid var(--ac-border);
-  border-radius: var(--ac-radius-lg);
-  box-shadow: var(--ac-shadow-sm);
-}
-.chart-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ac-text-primary);
-  margin-bottom: var(--ac-spacing-md);
+.trend-chart {
+  height: 300px;
 }
 
 .ai-card {
@@ -431,10 +377,6 @@ watch(() => route.params.id, load)
 }
 
 @media (max-width: 1100px) {
-  .stat-grid,
-  .stat-grid--sm {
-    grid-template-columns: repeat(2, 1fr);
-  }
   .grid-2 {
     grid-template-columns: 1fr;
   }

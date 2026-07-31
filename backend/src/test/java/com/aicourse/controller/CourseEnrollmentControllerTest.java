@@ -1,8 +1,6 @@
 package com.aicourse.controller;
 import com.aicourse.controller.CourseEnrollmentController;
 import com.aicourse.service.CourseEnrollmentService;
-import com.aicourse.service.CourseService;
-import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseEnrollment;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.DisplayName;
@@ -18,8 +16,9 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 /**
  * CourseEnrollmentController 接口测试（升级版）。
  * 原生成器弱断言（status != 401 && status != 403）已全部替换为真实业务断言：
- * 对依赖的 CourseEnrollmentService / CourseService 方法打桩返回合理业务对象，断言 200/code=200，
+ * 对依赖的 CourseEnrollmentService 方法打桩返回合理业务对象，断言 200/code=200，
  * 并校验关键字段透传、verify 路由委托。
+ * enroll/unenroll 业务逻辑已下沉至服务层（enroll/enrollStudent/unenroll 事务化方法）。
  * 仅 approve/reject 带 @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")，新增 STUDENT 越权 403 测试。
  */
 @WebMvcTest(CourseEnrollmentController.class)
@@ -27,8 +26,6 @@ class CourseEnrollmentControllerTest extends ControllerTestBase {
 
     @MockitoBean
     private com.aicourse.service.CourseEnrollmentService enrollmentService;
-    @MockitoBean
-    private com.aicourse.service.CourseService courseService;
 
     private CourseEnrollment sampleEnrollment(Long id, Long studentId, Long courseId) {
         CourseEnrollment e = new CourseEnrollment();
@@ -42,12 +39,7 @@ class CourseEnrollmentControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /enrollments - 返回200且报名记录透传")
     void enroll_authorized_returns_200() throws Exception {
-        when(enrollmentService.count(any())).thenReturn(0L);
-        Course course = new Course();
-        course.setId(1L);
-        course.setEnrollmentType("OPEN");
-        when(courseService.getById(1L)).thenReturn(course);
-        when(enrollmentService.save(any())).thenReturn(true);
+        when(enrollmentService.enroll(eq(1L), eq(1L))).thenReturn(sampleEnrollment(1L, 1L, 1L));
         mockMvc.perform(post("/enrollments")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"courseId\":1}")
@@ -57,8 +49,7 @@ class CourseEnrollmentControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.data").exists())
                 .andExpect(jsonPath("$.data.courseId").value(1))
                 .andExpect(jsonPath("$.data.approvalStatus").value("APPROVED"));
-        verify(enrollmentService).save(any(CourseEnrollment.class));
-        verify(courseService).getById(eq(1L));
+        verify(enrollmentService).enroll(eq(1L), eq(1L));
     }
 
 
@@ -99,13 +90,10 @@ class CourseEnrollmentControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("DELETE /enrollments/1 - 返回200且退课委托被调用")
     void unenroll_authorized_returns_200() throws Exception {
-        when(enrollmentService.getById(1L)).thenReturn(sampleEnrollment(1L, 1L, 1L));
-        when(enrollmentService.updateById(any())).thenReturn(true);
         mockMvc.perform(delete("/enrollments/1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
-        verify(enrollmentService).getById(eq(1L));
-        verify(enrollmentService).updateById(any(CourseEnrollment.class));
+        verify(enrollmentService).unenroll(eq(1L), eq(1L));
     }
 
 

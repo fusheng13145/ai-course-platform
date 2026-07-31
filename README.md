@@ -2,7 +2,7 @@
 
 > 一个基于 Spring Boot + MyBatis-Plus + Vue 3 的智能在线教育平台
 
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.x-green)](https://spring.io/projects/spring-boot)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.x-green)](https://spring.io/projects/spring-boot)
 [![Vue](https://img.shields.io/badge/Vue-3.5.x-brightgreen)](https://vuejs.org/)
 [![Element Plus](https://img.shields.io/badge/Element%20Plus-2.4.x-blue)](https://element-plus.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](https://opensource.org/licenses/MIT)
@@ -25,11 +25,11 @@
 
 | 层级 | 技术 | 版本 |
 |------|------|------|
-| 后端框架 | Spring Boot | 3.5.15 |
+| 后端框架 | Spring Boot | 3.4.4 |
 | ORM | MyBatis-Plus | 3.5.7 |
 | 安全 | Spring Security + JWT | 6.x / jjwt 0.12.6 |
 | 数据库 | MySQL | 8.0+ |
-| 缓存 | Redis | 7.x（可选） |
+| 缓存 | Redis | 7.x（**必选**） |
 | 前端框架 | Vue 3 | 3.5.x |
 | 构建工具 | Vite | 8.x |
 | UI库 | Element Plus | 2.4.x |
@@ -40,17 +40,21 @@
 
 ## 快速开始
 
-### 环境要求
+项目提供两条启动路径：**本地开发**（默认，推荐——直接使用本机安装的 MySQL / Redis，Docker 仅作兜底）与 **容器化部署**（备用/上线——全套 Docker）。日常开发请走方式一。
+
+### 方式一：本地开发（推荐，使用本机 MySQL / Redis）
 
 | 环境 | 版本要求 |
 |------|---------|
-| JDK | **21**（项目构建/运行目标；`pom.xml` 编译 `release=21`，CI 与 Docker 均使用 Temurin 21。注意：当前 Lombok 版本与 JDK 25 不兼容会导致编译失败，本机须使用 JDK 21，切勿使用 25 或更高版本，如需可指定 `C:/PROGRA~1/Java/jdk-21`） |
+| JDK | **21**（项目唯一目标版本：`pom.xml` 编译 `release=21`；系统 `JAVA_HOME` 与 `PATH` 已统一指向 `C:\Program Files\Java\jdk-21`，`start-backend.bat` 启动时亦强制校验） |
 | Maven | 3.8+ |
-| MySQL | 8.0+ |
+| MySQL | 8.0+（**本机服务**，端口 3306；日常开发使用本机实例） |
 | Node.js | 20.19+（Vite 8 要求；CI 与 Docker 使用 Node 20） |
-| Redis | 7.x（可选） |
+| Redis | 7.x（**本机服务**，端口 6379；必选：缓存/限流/AI配额/验证码依赖，启动时强校验连通性） |
 
-### 数据库初始化
+> 本机未安装 MySQL / Redis 时不必自己装：直接 `docker compose up -d` 拉起编排中的基础设施容器（MySQL 宿主端口 3307），`start-backend.bat` 会自动检测并切换数据源，其余开发流程不变。
+
+#### 数据库初始化（首次）
 
 ```bash
 # 1. 创建数据库
@@ -60,7 +64,7 @@ mysql -u root -p -e "CREATE DATABASE ai_course_platform CHARACTER SET utf8mb4 CO
 mysql -u root -p ai_course_platform < backend/src/main/resources/index.sql
 ```
 
-### 环境变量配置
+#### 环境变量配置
 
 在启动前配置以下环境变量（生产环境必需）：
 
@@ -71,23 +75,26 @@ mysql -u root -p ai_course_platform < backend/src/main/resources/index.sql
 | MAIL_PASSWORD | 邮箱授权码 | - |
 | DEEPSEEK_API_KEY | DeepSeek API密钥（已配置本地开发 Key；生产请通过此变量注入） | - |
 
-### 后端启动
+#### 启动后端
 
 ```bash
-cd backend
-# 开发模式（含热部署）
-./mvnw.cmd spring-boot:run
+# 首选：一键脚本（自动加载 .env、校验 JDK 21、检测 MySQL/Redis，缺 Redis 会报错并提示）
+start-backend.bat        # Windows 根目录双击或命令行执行
 
-# 或打包运行
-mvn clean package
-java -jar target/ai-course-platform-backend-0.0.1-SNAPSHOT.jar
+# 或手动命令
+cd backend
+./mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=local   # local 配置含本地开发用 DeepSeek Key
 ```
 
-> 本地一键启动：直接运行根目录 `start-backend.bat` 即可，脚本会自动激活 `local` 配置（`backend/src/main/resources/application-local.yaml`，含本地开发用 DeepSeek Key，已被 `.gitignore` 忽略），无需手动设置环境变量即可体验真实 AI 对话。生产环境请改用 `docker compose` 并通过 `DEEPSEEK_API_KEY` 注入密钥。
+> `local` 配置来自 `backend/src/main/resources/application-local.yaml`（已被 `.gitignore` 忽略），无需手动设置环境变量即可体验真实 AI 对话。生产环境请改用方式二并通过 `DEEPSEEK_API_KEY` 注入密钥。
 
-### 前端启动
+#### 启动前端
 
 ```bash
+# 首选：一键脚本（自动安装依赖并启动 Vite dev server）
+start-frontend.bat       # Windows 根目录
+
+# 或手动命令
 cd frontend
 npm install
 npm run dev
@@ -95,32 +102,39 @@ npm run dev
 
 > 前端已通读审计并修复：教师端「学情分析 / 考试管理 / 成绩管理 / 知识图谱管理」与学生端「我的成绩 / 在线考试 / 知识图谱」等页面已接入路由与侧边栏菜单，均可直接访问；另修复了考试管理审批崩溃、验证码接口路径错位，并移除图表中的模拟数据。`npm run build` 已验证通过（Vite + Rolldown，无 broken import）。前后端本地联调已跑通（学生端「我的成绩 / 知识图谱」、教师端「学情分析」数据拉取正常）；联调中发现并修复了教师学情看板因 `submissions` 实体多出的 `max_score` / `percentage` 列导致聚合失败的后端缺陷。
 
-### 访问地址
+#### 访问地址
 
 - 前端: http://localhost:5173
 - API: http://localhost:8080/api
 - Swagger: http://localhost:8080/api/swagger-ui.html
 
-> 本地联调与演示账号（见下表，密码均为 `123456`）。生产环境请勿使用这些账号，并务必通过环境变量注入强密钥。
+> 本地联调与演示账号（见下方表格，密码均为 `123456`）。生产环境请勿使用这些账号，并务必通过环境变量注入强密钥。
 
-### Redis 说明（本地开发可选，容器部署内置）
+#### Redis 说明（必选）
 
-Redis 用于会话缓存和性能优化。
+Redis 是本系统的**必选组件**，承担四类职责：
 
-- **本地开发（`mvnw spring-boot:run`）**：可选。不启动 Redis 时应用仍可正常启动运行，会话管理走数据库存储，仅部分缓存功能（如验证码）不生效。
-- **容器化部署（`docker compose up`）**：Redis 由 `docker-compose.yml` 随容器启动并启用缓存，属于该模式下的必要组件。
+| 职责 | 载体 | 说明 |
+|------|------|------|
+| 业务缓存 | `RedisCacheManager` + `@Cacheable` | 课程/知识点/题库/用户资料/学情聚合/RAG 检索等 12 组缓存，各自独立 TTL |
+| IP 限流 | `RateLimitFilter` | 登录/AI/验证码接口 Redis 原子计数（Redis 瞬断时降级本地内存兜底，不放弃限流） |
+| AI 用量配额 | `AiQuotaService` | 按用户日请求数/token 预算原子计数 |
+| 验证码/调度锁 | 缓存 `verificationCode` / ShedLock | 找回密码验证码 5min TTL；多实例定时任务互斥 |
 
-**本地启动 Redis：**
+**启动强校验（fail-fast）**：应用启动时 `RedisStartupValidator` 主动 PING Redis，默认重试 10 次（间隔 3s，容忍容器冷启动）；全部失败则中止启动，避免"半可用"状态。开关 `REDIS_REQUIRED`（默认 `true`，仅单元测试允许关闭）。
+
+**启动 Redis（优先本机服务，无则 Docker 兜底）：**
 ```bash
-# Windows / Linux / Mac
-redis-server
-# 或 Docker
-docker run -d -p 6379:6379 redis:7
+# 首选：本机已安装的 Redis 服务
+net start Redis          # Windows 服务（本机 D:\Redis 已注册为服务）
+
+# 兜底：无本机 Redis 时用 Docker 容器（与 start-backend.bat 同款编排）
+docker compose up -d redis
 ```
 
-## Docker 容器化部署
+### 方式二：Docker 容器化部署（备用 / 上线）
 
-使用 `docker-compose.yml` 一键拉起 MySQL、Redis、后端、前端四个服务。敏感配置（数据库密码、JWT 密钥、大模型 API Key、邮件凭据）通过同级 `.env` 注入，**请勿留空或使用默认值上线**。
+用于**上线部署、给他人快速体验、或本机未安装 MySQL / Redis** 的场景；日常本地开发请用方式一。`docker-compose.yml` 可一键拉起 MySQL、Redis、后端、前端四个服务。敏感配置（数据库密码、JWT 密钥、大模型 API Key、邮件凭据）通过同级 `.env` 注入，**请勿留空或使用默认值上线**。
 
 ### 1. 准备环境变量
 
@@ -136,8 +150,11 @@ copy .env.example .env
 ### 2. 构建并启动
 
 ```bash
-docker compose up -d --build
+# 后端/前端容器归入 full profile：加 --profile full 才会构建并启动全部四个服务
+docker compose --profile full up -d --build
 ```
+
+> 仅需数据层（本地跑后端源码、本机无 MySQL/Redis 时）：`docker compose up -d mysql redis` 拉两个基础设施容器即可；`start-backend.bat` 会检测到 MySQL 容器（宿主 3307）自动切换数据源，Redis 复用 6379。
 
 启动后访问：前端 http://localhost （容器 80 端口），API http://localhost:8080/api 。
 
@@ -226,15 +243,15 @@ ai-course-platform/
 
 | 功能 | 当前状态 | 扩展方向 |
 |------|---------|---------|
-| 作业查重 | 占位引导文案（`GET /submissions/{id}/plagiarism`）；本地查重逻辑已有单测 | 接入真实查重服务 |
-| 学习路径自动生成 | 占位（`GET /learning-paths/generate` 返回 4 个硬编码主题） | 接入 AI + 数据库 |
-| 知识点路径规划 | 部分实现（`POST /knowledge-points/path/plan` 未使用 startPointId） | 补全起止路径裁剪 |
-| 催交提醒 | 表结构已建 | 实现定时任务自动催交 |
+| 作业查重 | ✅ 已实装（`PlagiarismCheckServiceImpl`，CJK bigram 分词 + Jaccard 相似度，算法版本 Jaccard-CJKBigram-v2.0；查询端点 `GET /plagiarism-checks` 等已接通） | 引入语义嵌入相似度提升改写检测 |
+| 学习路径自动生成 | ✅ 已实装（`GET /learning-paths/generate` 数据驱动：错题本推导掌握度 `deriveMastery` + 薄弱优先排序 + 掌握度加权时长） | 引入学习行为序列做深度个性化 |
+| 知识点路径规划 | ✅ 已实装（`POST /knowledge-points/path/plan` BFS 路径规划，startPointId 参与裁剪） | 多目标路径优化 |
+| 催交提醒 | 表结构已建，`GET /reminders/todos` 已接通 | 实现定时任务自动催交 |
 | 视频学习 | 表结构已建 | 实现视频播放进度追踪 |
-| RAG 检索增强 | Java 自包含实现（knowledge_points + TF-IDF 余弦召回 + LLMProvider），无需外部 Python | 可选：接入 Milvus / Python 向量检索链路以增强召回 |
+| RAG 检索增强 | Java 自包含实现（knowledge_points + Okapi BM25 召回（中文 bigram 分词）+ LLMProvider），无需外部 Python | 可选：接入 Milvus / FAISS 向量检索做混合召回 |
 | Redis缓存 | ✅ 已启用 | 学情聚合 @Cacheable（5min TTL，评分失效） |
 
-> 注：前端 `teacher/KnowledgeManagement.vue` 在 AI 抽取不可用时由 `generateFallbackExtraction()` 本地构造示例知识点作为兜底展示（仅展示不入库），接入稳定 AI 后可移除。
+> 注：教师端 AI 图谱抽取已迁至 `teacher/tools/KnowledgeGraph.vue`（真实调用后端抽取接口）；早期 `generateFallbackExtraction()` 本地兜底逻辑已移除，全仓无 mock 业务数据。
 
 ## 架构优化与可扩展点落地
 
@@ -256,6 +273,28 @@ ai-course-platform/
 ## 开发规范
 
 编码与部署规范见 [docs/项目交付与完成度报告.md](docs/项目交付与完成度报告.md)（安全机制、部署指南等章节）。
+
+## 测试
+
+### 前端（vitest + ESLint）
+
+```bash
+cd frontend
+npm run lint      # ESLint 检查（errors 应为 0）
+npx vitest run    # 单元测试全量执行
+npm run build     # 构建校验（Vite）
+```
+
+### 后端（JUnit5 + Mockito + Testcontainers）
+
+```bash
+cd backend
+mvn test -Dtest='!*IT,!Phase1Phase3IntegrationTest' -DfailIfNoTests=false
+```
+
+- 单元测试（Controller 层 MockMvc / Service 层 Mockito）**无需 Docker**，但契约与鉴权类用例依赖 `JWT_SECRET` 与 `MYSQL_ROOT_PASSWORD`（或本机 MySQL root 凭据匹配）环境变量；未设置时对应用例报环境类错误（Access denied / WeakKeyException），属环境依赖而非代码缺陷。
+- 集成测试（`*IT`、`Phase1Phase3IntegrationTest`）基于 Testcontainers，**需要 Docker daemon**；本机无 Docker 时用上面的 `-Dtest` 排除项跳过。
+- 质量门禁：JaCoCo 覆盖率（LINE ≥ 65% / BRANCH ≥ 50%，报告在 `backend/target/site/jacoco`）、SpotBugs 静态扫描、ArchUnit 架构约束，均随 `mvn test` 执行。
 
 ## 详细文档
 

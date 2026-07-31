@@ -2,6 +2,8 @@
  * E2E 测试辅助工具
  */
 
+import type { Page, Route } from '@playwright/test'
+
 export const API_BASE = '/api'
 
 /**
@@ -47,12 +49,12 @@ export function createMockPermissionsResponse() {
 /**
  * 设置登录 Mock（拦截 login API 并设置 localStorage）
  */
-export async function setupMockLogin(page: any, role: string = 'STUDENT') {
+export async function setupMockLogin(page: Page, role: string = 'STUDENT') {
   const loginResponse = createMockLoginResponse(role)
   const permissionsResponse = createMockPermissionsResponse()
 
   // Mock login API
-  await page.route(`${API_BASE}/auth/login`, async (route: any) => {
+  await page.route(`${API_BASE}/auth/login`, async (route: Route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -61,7 +63,7 @@ export async function setupMockLogin(page: any, role: string = 'STUDENT') {
   })
 
   // Mock permissions API
-  await page.route(`${API_BASE}/auth/permissions`, async (route: any) => {
+  await page.route(`${API_BASE}/auth/permissions`, async (route: Route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -70,7 +72,7 @@ export async function setupMockLogin(page: any, role: string = 'STUDENT') {
   })
 
   // Mock refresh token API
-  await page.route(`${API_BASE}/auth/refresh`, async (route: any) => {
+  await page.route(`${API_BASE}/auth/refresh`, async (route: Route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -79,7 +81,7 @@ export async function setupMockLogin(page: any, role: string = 'STUDENT') {
   })
 
   // Mock me API
-  await page.route(`${API_BASE}/auth/me`, async (route: any) => {
+  await page.route(`${API_BASE}/auth/me`, async (route: Route) => {
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -95,7 +97,7 @@ export async function setupMockLogin(page: any, role: string = 'STUDENT') {
 /**
  * 通过 localStorage 直接设置登录状态
  */
-export async function setLocalStorageAuth(page: any, role: string = 'STUDENT') {
+export async function setLocalStorageAuth(page: Page, role: string = 'STUDENT') {
   const user = {
     id: 1,
     username: 'testuser',
@@ -109,7 +111,10 @@ export async function setLocalStorageAuth(page: any, role: string = 'STUDENT') {
   }
 
   await page.evaluate(
-    ({ user, permissions }: { user: any; permissions: any }) => {
+    ({ user, permissions }: {
+      user: { id: number; username: string; fullName: string; role: string; email: string }
+      permissions: { permissions: unknown[]; menus: string[] }
+    }) => {
       localStorage.setItem('user', JSON.stringify(user))
       localStorage.setItem('permissions', JSON.stringify(permissions))
     },

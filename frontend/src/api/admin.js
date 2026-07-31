@@ -1,4 +1,9 @@
 import request from './request'
+import { exportReport } from './analytics'
+import { createBackup } from './system'
+
+// re-export：与 analytics.js / system.js 保持一致，避免重复定义
+export { exportReport, createBackup }
 
 // 管理员端 - 用户管理
 export const getUsers = (params) => request.get('/admin/users', { params })
@@ -21,8 +26,6 @@ export const getOverview = () => request.get('/admin/statistics/overview')
 export const getUserGrowth = (params) => request.get('/admin/statistics/user-growth', { params })
 export const getCourseStats = () => request.get('/admin/statistics/courses')
 export const getAIUsage = () => request.get('/admin/statistics/ai-usage')
-export const exportReport = () => request.get('/admin/statistics/export')
-export const createBackup = () => request.post('/admin/backup')
 export const getAIMonitor = () => request.get('/admin/ai-monitor')
 
 export default {

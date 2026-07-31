@@ -12,7 +12,7 @@
 | 服务 | 端口 | Java 当前实现 | 是否调用 Python | 配置开关 |
 |------|------|--------------|----------------|----------|
 | 知识图谱 (8001) | 8001 | `KnowledgeGraphServiceImpl` 直读 MySQL `knowledge_points` / `knowledge_point_relations`，返回 ECharts/D3 兼容图结构 | **否（自包含）** | `application.yaml` 中 `knowledge-graph.base-url` 配置键保留但**当前未使用** |
-| RAG 检索增强 (8002) | 8002 | `RAGServiceImpl`：语料取自 `knowledge_points` 表，召回用「词频/IDF 加权中文 bigram 余弦相似度」，生成交由可插拔 `LLMProvider`（DeepSeek/Qwen/OpenAI），未配 Key 时回退展示知识库原文 | **否（自包含）** | `application.yaml` 中 `rag.base-url` 配置键保留但**当前未使用** |
+| RAG 检索增强 (8002) | 8002 | `RAGServiceImpl`：语料取自 `knowledge_points` 表，召回用「Okapi BM25 算法（中文 bigram 分词，k1=1.5/b=0.75）」，生成交由可插拔 `LLMProvider`（DeepSeek/Qwen/OpenAI），未配 Key 时回退展示知识库原文 | **否（自包含）** | `application.yaml` 中 `rag.base-url` 配置键保留但**当前未使用** |
 | LoRA 微调 (8003) | 8003 | `LLMFineTuneServiceImpl` 经 `RestClient` 调用 Python | **是（启用时）** | `fine-tune.enabled`（默认 `false`） |
 
 **设计意图**：需求文档中的「分层 RAG（Neo4j + Milvus + Elasticsearch）」与「知识图谱微服务」为规划能力；当前以零外部依赖的自包含实现保证功能可用，后续可无痛替换为 Python 链路（只需替换 `RAGServiceImpl.retrieve` 的召回实现 / 接入 `KnowledgeGraphServiceImpl` 的向量召回）。
@@ -108,7 +108,7 @@ Response: {"success": true}
 
 ## 3. RAG 检索增强服务（端口 8002）— 可选契约
 
-> 当前 Java 端不调用此服务，改由 `RAGServiceImpl` 自包含实现（knowledge_points + TF-IDF 余弦 + LLMProvider）。以下为若启用 Python RAG 微服务时应实现的契约。
+> 当前 Java 端不调用此服务，改由 `RAGServiceImpl` 自包含实现（knowledge_points + Okapi BM25 召回 + LLMProvider）。以下为若启用 Python RAG 微服务时应实现的契约。
 
 ### 3.1 健康检查
 ```
@@ -274,7 +274,7 @@ fine-tune:
 | 场景 | 实际行为 |
 |------|----------|
 | 知识图谱 | Java 自包含直读 MySQL，始终可用；不依赖 Python 8001 |
-| RAG 问答 | Java 自包含（knowledge_points + TF-IDF 召回 + LLMProvider）；未配 LLM Key 时回退展示知识库原文 |
+| RAG 问答 | Java 自包含（knowledge_points + Okapi BM25 召回 + LLMProvider）；未配 LLM Key 时回退展示知识库原文 |
 | 微调服务（8003）未启用/不可用 | `LLMFineTuneServiceImpl` 返回 `{"error":"微调服务暂不可用","code":503}` |
 
 ---

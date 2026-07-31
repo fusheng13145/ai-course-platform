@@ -1,7 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { nextTick, ref } from 'vue'
+import { nextTick } from 'vue'
 
 // Mock DOMPurify (markdown rendering)
 vi.mock('dompurify', () => ({

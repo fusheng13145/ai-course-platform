@@ -108,7 +108,7 @@ class ExamPaperControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /exam-papers - 教师创建试卷返回200，creatorId透传")
     void create_authorized_passes_security() throws Exception {
-        mockMvc.perform(post("/exam-papers").contentType(MediaType.APPLICATION_JSON).content("{}")
+        mockMvc.perform(post("/exam-papers").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"测试试卷\"}")
                         .with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
@@ -136,7 +136,7 @@ class ExamPaperControllerTest extends ControllerTestBase {
         ExamPaper paper = new ExamPaper();
         paper.setId(1L);
         when(examPaperService.getById(eq(1L))).thenReturn(paper);
-        mockMvc.perform(put("/exam-papers/1").contentType(MediaType.APPLICATION_JSON).content("{}")
+        mockMvc.perform(put("/exam-papers/1").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"测试试卷\"}")
                         .with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))

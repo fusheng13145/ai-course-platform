@@ -2,9 +2,7 @@ package com.aicourse.controller;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.common.ApiResponse;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.entity.Reminder;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.service.ReminderService;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -80,6 +78,28 @@ public class ReminderController {
         Long userId = (Long) auth.getPrincipal();
         List<Reminder> reminders = reminderService.getPendingReminders(userId);
         return ApiResponse.success(reminders);
+    }
+
+    /**
+     * 获取待办提醒列表（管理端）
+     * 管理员返回全部未取消提醒（按计划时间倒序，最多500条）；普通用户返回本人待办
+     * @param auth 认证信息
+     * @return 待办提醒列表
+     */
+    @GetMapping("/todos")
+    public ApiResponse<List<Reminder>> getTodos(Authentication auth) {
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        if (isAdmin) {
+            List<Reminder> reminders = reminderService.lambdaQuery()
+                    .ne(Reminder::getStatus, "CANCELLED")
+                    .orderByDesc(Reminder::getScheduledAt)
+                    .last("LIMIT 500")
+                    .list();
+            return ApiResponse.success(reminders);
+        }
+        Long userId = (Long) auth.getPrincipal();
+        return ApiResponse.success(reminderService.getPendingReminders(userId));
     }
 
     /**

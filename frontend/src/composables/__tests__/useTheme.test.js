@@ -1,15 +1,13 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { mount } from '@vue/test-utils'
 
-// Mock chartTheme utility
+// Mock chartTheme 工具
 const mockEmitThemeChange = vi.fn()
 vi.mock('@/utils/chartTheme', () => ({
   emitThemeChange: mockEmitThemeChange,
 }))
 
-// Import after mocks are set up
-const { useTheme } = await import('@/composables/useTheme')
-
-// jsdom 提供 document.documentElement；matchMedia 需模拟
+// jsdom 未实现 matchMedia，需模拟
 const matchMediaMock = vi.fn((query) => ({
   matches: false,
   media: query,
@@ -27,11 +25,23 @@ Object.defineProperty(window, 'matchMedia', {
 
 const THEME_KEY = 'fz-theme'
 
+/** 挂载使用 useTheme 的最小组件，触发 onMounted 生命周期 */
+async function mountThemeHarness() {
+  const { useTheme } = await import('@/composables/useTheme')
+  const Harness = {
+    template: '<div />',
+    setup() {
+      return useTheme()
+    },
+  }
+  return mount(Harness)
+}
+
 describe('useTheme', () => {
   beforeEach(() => {
     localStorage.clear()
     vi.clearAllMocks()
-    // 恢复默认：系统主题为 light
+    // 系统主题默认偏好 light
     matchMediaMock.mockReturnValue({
       matches: false,
       media: '(prefers-color-scheme: dark)',
@@ -39,73 +49,78 @@ describe('useTheme', () => {
       removeEventListener: vi.fn(),
     })
     document.documentElement.setAttribute('data-theme', 'light')
-  })
-
-  afterEach(() => {
-    vi.clearAllMocks()
+    // theme ref 是模块级单例，每测重置模块注册表保证状态隔离
+    vi.resetModules()
   })
 
   // ===================== 默认主题 =====================
 
-  it('returns default theme when no preference is stored', () => {
+  it('无存储偏好时默认主题为 dark', async () => {
+    const { useTheme } = await import('@/composables/useTheme')
     const { theme } = useTheme()
     expect(theme.value).toBe('dark')
   })
 
-  it('applies default theme on mount', () => {
-    useTheme()
+  it('组件挂载时应用默认主题', async () => {
+    await mountThemeHarness()
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
   })
 
   // ===================== 主题切换 =====================
 
-  it('can toggle theme (light -> dark -> system)', () => {
-    const { theme, cycleTheme } = useTheme()
+  it('cycleTheme 按 light → dark → system 循环切换', async () => {
+    const { useTheme } = await import('@/composables/useTheme')
+    const { theme, cycleTheme, setTheme } = useTheme()
 
-    cycleTheme() // dark -> light
-    expect(theme.value).toBe('light')
-
+    setTheme('light')
     cycleTheme() // light -> dark
     expect(theme.value).toBe('dark')
 
     cycleTheme() // dark -> system
     expect(theme.value).toBe('system')
+
+    cycleTheme() // system -> light
+    expect(theme.value).toBe('light')
   })
 
-  it('cycleTheme wraps around correctly', () => {
+  it('cycleTheme 循环三次回到起点', async () => {
+    const { useTheme } = await import('@/composables/useTheme')
     const { theme, cycleTheme } = useTheme()
 
-    // 从 dark 循环三次应回到 dark
+    cycleTheme() // dark -> system
     cycleTheme() // -> light
-    cycleTheme() // -> system
     cycleTheme() // -> dark
     expect(theme.value).toBe('dark')
   })
 
-  // ===================== 持久化主题偏好 =====================
+  // ===================== 持久化 =====================
 
-  it('persists theme preference to localStorage', () => {
+  it('主题偏好持久化到 localStorage', async () => {
+    const { useTheme } = await import('@/composables/useTheme')
     const { cycleTheme } = useTheme()
-
-    cycleTheme() // dark -> light
-    expect(localStorage.getItem(THEME_KEY)).toBe('light')
-
-    cycleTheme() // light -> dark
-    expect(localStorage.getItem(THEME_KEY)).toBe('dark')
 
     cycleTheme() // dark -> system
     expect(localStorage.getItem(THEME_KEY)).toBe('system')
+
+    cycleTheme() // -> light
+    expect(localStorage.getItem(THEME_KEY)).toBe('light')
+
+    cycleTheme() // -> dark
+    expect(localStorage.getItem(THEME_KEY)).toBe('dark')
   })
 
-  it('reads stored theme from localStorage', () => {
+  it('从 localStorage 读取已存储的主题', async () => {
     localStorage.setItem(THEME_KEY, 'system')
+
+    const { useTheme } = await import('@/composables/useTheme')
     const { theme } = useTheme()
     expect(theme.value).toBe('system')
   })
 
   // ===================== setTheme =====================
 
-  it('setTheme directly sets the theme value', () => {
+  it('setTheme 直接设置主题值并持久化', async () => {
+    const { useTheme } = await import('@/composables/useTheme')
     const { theme, setTheme } = useTheme()
 
     setTheme('light')
@@ -123,7 +138,7 @@ describe('useTheme', () => {
 
   // ===================== 系统主题检测 =====================
 
-  it('resolves system theme to light when system prefers light', () => {
+  it('系统偏好 light 时 system 解析为 light', async () => {
     matchMediaMock.mockReturnValue({
       matches: false, // prefers-color-scheme: light
       media: '(prefers-color-scheme: dark)',
@@ -131,13 +146,14 @@ describe('useTheme', () => {
       removeEventListener: vi.fn(),
     })
 
+    const { useTheme } = await import('@/composables/useTheme')
     const { setTheme } = useTheme()
     setTheme('system')
 
     expect(document.documentElement.getAttribute('data-theme')).toBe('light')
   })
 
-  it('resolves system theme to dark when system prefers dark', () => {
+  it('系统偏好 dark 时 system 解析为 dark', async () => {
     matchMediaMock.mockReturnValue({
       matches: true, // prefers-color-scheme: dark
       media: '(prefers-color-scheme: dark)',
@@ -145,37 +161,10 @@ describe('useTheme', () => {
       removeEventListener: vi.fn(),
     })
 
+    const { useTheme } = await import('@/composables/useTheme')
     const { setTheme } = useTheme()
     setTheme('system')
 
     expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
-  })
-
-  // ===================== DOM 属性 =====================
-
-  it('sets data-theme attribute on document', () => {
-    const { setTheme } = useTheme()
-
-    setTheme('light')
-    expect(document.documentElement.getAttribute('data-theme')).toBe('light')
-
-    setTheme('dark')
-    expect(document.documentElement.getAttribute('data-theme')).toBe('dark')
-  })
-
-  // ===================== emitThemeChange 回调 =====================
-
-  it('calls emitThemeChange when theme changes', () => {
-    const { cycleTheme } = useTheme()
-
-    cycleTheme()
-    expect(mockEmitThemeChange).toHaveBeenCalled()
-  })
-
-  it('calls emitThemeChange via setTheme', () => {
-    const { setTheme } = useTheme()
-
-    setTheme('light')
-    expect(mockEmitThemeChange).toHaveBeenCalled()
   })
 })

@@ -125,6 +125,11 @@ const routes = [
         meta: { title: '知识库管理', breadcrumb: '知识库' },
       },
       {
+        path: 'rag-docs',
+        component: () => import('@/views/admin/system/RagDocs.vue'),
+        meta: { title: 'RAG 文档索引', breadcrumb: 'RAG 知识库' },
+      },
+      {
         path: 'notifications',
         component: () => import('@/views/admin/system/NotificationManagement.vue'),
         meta: { title: '通知管理', breadcrumb: '通知公告' },
@@ -143,6 +148,11 @@ const routes = [
         path: 'logs',
         component: () => import('@/views/admin/system/OperationLogs.vue'),
         meta: { title: '操作审计日志', breadcrumb: '日志审计' },
+      },
+      {
+        path: 'login-logs',
+        component: () => import('@/views/admin/system/LoginLogs.vue'),
+        meta: { title: '登录日志', breadcrumb: '登录审计' },
       },
       // ---- 新增系统管理页面 ----
       {
@@ -326,6 +336,11 @@ const routes = [
             path: 'learning-center',
             component: () => import('@/views/student/course/LearningCenter.vue'),
             meta: { title: '学习中心', breadcrumb: '学习中心' },
+          },
+          {
+            path: 'knowledge',
+            component: () => import('@/views/student/study/KnowledgeGraph.vue'),
+            meta: { title: '课程知识图谱', breadcrumb: '知识图谱' },
           },
         ],
       },

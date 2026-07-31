@@ -1,12 +1,12 @@
 package com.aicourse.controller;
 
+import jakarta.validation.Valid;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
-import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.CourseEnrollmentService;
-import com.aicourse.service.CourseService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -14,7 +14,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.Map;
 
@@ -27,11 +26,9 @@ import java.util.Map;
 public class CourseEnrollmentController {
 
     private final CourseEnrollmentService enrollmentService;
-    private final CourseService courseService;
 
-    public CourseEnrollmentController(CourseEnrollmentService enrollmentService, CourseService courseService) {
+    public CourseEnrollmentController(CourseEnrollmentService enrollmentService) {
         this.enrollmentService = enrollmentService;
-        this.courseService = courseService;
     }
 
     /**
@@ -41,51 +38,11 @@ public class CourseEnrollmentController {
      * @return 报名记录
      */
     @PostMapping
-    public ApiResponse<CourseEnrollment> enroll(Authentication auth, @RequestBody Map<String, Long> body) {
+    public ApiResponse<CourseEnrollment> enroll(Authentication auth, @Valid @RequestBody Map<String, Long> body) {
         Long studentId = (Long) auth.getPrincipal();
         Long courseId = body.get("courseId");
-
-        // 校验是否已有有效报名
-        LambdaQueryWrapper<CourseEnrollment> existWrapper = new LambdaQueryWrapper<CourseEnrollment>()
-                .eq(CourseEnrollment::getStudentId, studentId)
-                .eq(CourseEnrollment::getCourseId, courseId)
-                .eq(CourseEnrollment::getIsActive, true);
-        long existCount = enrollmentService.count(existWrapper);
-        if (existCount > 0) {
-            throw new BusinessException("您已报名该课程");
-        }
-
-        // 检查是否存在软退课记录（is_active=false），若存在则直接恢复
-        LambdaQueryWrapper<CourseEnrollment> inactiveWrapper = new LambdaQueryWrapper<CourseEnrollment>()
-                .eq(CourseEnrollment::getStudentId, studentId)
-                .eq(CourseEnrollment::getCourseId, courseId)
-                .eq(CourseEnrollment::getIsActive, false);
-        CourseEnrollment inactiveEnrollment = enrollmentService.getOne(inactiveWrapper);
-        if (inactiveEnrollment != null) {
-            inactiveEnrollment.setIsActive(true);
-            inactiveEnrollment.setApprovalStatus("APPROVED");
-            inactiveEnrollment.setProgress(BigDecimal.ZERO);
-            enrollmentService.updateById(inactiveEnrollment);
-            return ApiResponse.success("报名成功", inactiveEnrollment);
-        }
-
-        // 组装报名数据
-        CourseEnrollment enrollment = new CourseEnrollment();
-        enrollment.setStudentId(studentId);
-        enrollment.setCourseId(courseId);
-
-        // 根据课程报名类型设置审核状态
-        Course course = courseService.getById(courseId);
-        String enrollmentType = course != null ? course.getEnrollmentType() : "OPEN";
-        if ("APPROVAL".equals(enrollmentType) || "RESTRICTED".equals(enrollmentType)) {
-            enrollment.setApprovalStatus("PENDING");
-        } else {
-            enrollment.setApprovalStatus("APPROVED");
-        }
-        enrollment.setIsActive(true);
-        enrollment.setProgress(BigDecimal.ZERO);
-
-        enrollmentService.save(enrollment);
+        // 查重/软退课恢复/审批状态判定等业务下沉至服务层（事务化）
+        CourseEnrollment enrollment = enrollmentService.enroll(studentId, courseId);
         return ApiResponse.success("报名成功", enrollment);
     }
 
@@ -111,13 +68,9 @@ public class CourseEnrollmentController {
      */
     @DeleteMapping("/{id}")
     public ApiResponse<Void> unenroll(@PathVariable Long id, Authentication auth) {
-        CourseEnrollment enrollment = enrollmentService.getById(id);
         Long userId = (Long) auth.getPrincipal();
-        if (enrollment == null || !userId.equals(enrollment.getStudentId())) {
-            throw new BusinessException("您没有权限退课或该退课记录不存在");
-        }
-        enrollment.setIsActive(false);
-        enrollmentService.updateById(enrollment);
+        // 归属校验与软退课落库下沉至服务层（事务化）
+        enrollmentService.unenroll(id, userId);
         return ApiResponse.success("退课成功", null);
     }
 
@@ -155,7 +108,7 @@ public class CourseEnrollmentController {
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<CourseEnrollment> reject(
             @PathVariable Long id,
-            @RequestBody(required = false) Map<String, String> body,
+            @Valid @RequestBody(required = false) Map<String, String> body,
             Authentication auth) {
         CourseEnrollment enrollment = enrollmentService.getById(id);
         if (enrollment == null) {
