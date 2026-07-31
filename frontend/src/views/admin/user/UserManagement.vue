@@ -1,247 +1,325 @@
-﻿﻿<template>
-  <div class="fade-in user-management">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-left">
-        <h2 class="page-title">用户管理</h2>
-        <p class="page-desc">平台用户账户管理与权限控制</p>
-      </div>
+﻿<template>
+  <div>
+    <PageHeader title="用户管理" subtitle="平台账号总览 · 按角色分组维护账号与权限" icon="users">
+      <input v-model="search" class="input search-input" placeholder="搜索姓名 / 账号 / 邮箱" @input="onSearchInput" />
+      <button class="btn btn-primary btn-sm" @click="showCreate = true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> 新增用户</button>
+    </PageHeader>
+
+    <!-- 统计卡片 -->
+    <div class="stat-grid animate-in d1">
+      <StatCard label="平台总用户" :value="overview.totalUsers ?? 0" icon="users" />
+      <StatCard label="教师账号" :value="overview.roleDistribution?.teacher ?? 0" icon="grad" tone="var(--info-soft)" tone-color="var(--info)" />
+      <StatCard label="学生账号" :value="overview.roleDistribution?.student ?? 0" icon="user" tone="var(--ok-soft)" tone-color="var(--ok)" />
+      <StatCard label="管理员账号" :value="overview.roleDistribution?.admin ?? 0" icon="shield" tone="var(--warn-soft)" tone-color="var(--warn)" />
     </div>
 
-    <!-- 统计概览 -->
-    <div class="stats-row">
-      <div v-for="(stat, idx) in userStats" :key="idx" class="stat-mini-card" :class="stat.class">
-        <span class="label">{{ stat.label }}</span>
-        <span class="value">{{ stat.value }}</span>
+    <!-- 用户管理主卡片 -->
+    <section class="l1-card animate-in d2">
+      <div class="l1-body">
+        <CollapsePanel v-for="g in groups" :key="g.key" :title="`${g.label}（${g.rows.length}）`" :desc="g.desc" icon="shield" :open="g.open">
+          <div v-if="loading" class="empty-state"><div class="e-title">加载中…</div></div>
+          <div v-else-if="g.rows.length === 0" class="empty-state"><div class="e-title">暂无{{ g.label }}</div><div class="e-desc">可点击右上角「新增用户」创建</div></div>
+          <div v-else class="tbl-wrap">
+            <table class="tbl">
+              <thead><tr><th>用户</th><th>账号</th><th>邮箱</th><th>所属单位</th><th>最近登录</th><th>状态</th><th></th></tr></thead>
+              <tbody>
+                <tr v-for="u in g.rows" :key="u.id" class="clickable" @click="openDetail(u)">
+                  <td><div class="u-cell"><span class="avatar sm" :style="avStyle(u.fullName || u.username)">{{ (u.fullName || u.username).slice(-2) }}</span><div><div class="cell-main">{{ u.fullName || '—' }}</div><div class="cell-sub mono">#{{ u.id }}</div></div></div></td>
+                  <td class="mono">{{ u.username }}</td>
+                  <td class="small muted">{{ u.email || '—' }}</td>
+                  <td>{{ u.department || '—' }}</td>
+                  <td class="muted small">{{ fmtTime(u.lastLogin) }}</td>
+                  <td><span class="tag" :class="statusOf(u).cls"><span class="t-dot"></span>{{ statusOf(u).text }}</span></td>
+                  <td>
+                    <div class="row-ops">
+                      <span class="op-link" @click.stop="openDetail(u)">详情</span>
+                      <span class="op-link" @click.stop="openReset(u)">重置密码</span>
+                      <span v-if="u.role !== 'ADMIN'" class="op-link danger" @click.stop="openDelete(u)">删除</span>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </CollapsePanel>
       </div>
-    </div>
+    </section>
 
-    <!-- 工具栏 -->
-    <div class="table-toolbar">
-      <div class="toolbar-left">
-        <el-button type="primary" @click="showAdd = true"><el-icon><Plus /></el-icon>添加用户</el-button>
+    <!-- 用户详情弹窗（内嵌 Tab + 权限树） -->
+    <Modal v-if="detailUser" wide @close="detailUser = null">
+      <template #title>用户详情 · {{ detailUser.fullName || detailUser.username }}</template>
+      <template #sub>#{{ detailUser.id }} · {{ roleLabel(detailUser.role) }}</template>
+      <div>
+        <TabGroup :tabs="detailTabs" :active="detailTab" style="pill" @change="detailTab = $event" />
+        <div class="mt-16">
+          <!-- 基本信息 -->
+          <div v-if="detailTab === 'info'" class="desc-grid">
+            <div v-for="(v, k) in infoItems" :key="k" class="desc-item">
+              <span class="d-label">{{ k }}</span><span class="d-value">{{ v }}</span>
+            </div>
+          </div>
+          <!-- 权限配置（角色权限，来自权限表） -->
+          <div v-if="detailTab === 'perm'">
+            <div class="l3-block">
+              <div class="l3-title"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m21 2-2 2m-7.61 7.61a5.5 5.5 0 1 1-7.778 7.778 5.5 5.5 0 0 1 7.777-7.777zm0 0L15.5 7.5m0 0 3 3L22 7l-3-3m-3.5 3.5L19 4"/></svg> 角色「{{ roleLabel(detailUser.role) }}」权限配置</div>
+              <div v-if="permLoading" class="empty-state"><div class="e-title">加载中…</div></div>
+              <div v-else-if="permNodes.length === 0" class="empty-state"><div class="e-title">该角色暂无权限配置</div></div>
+              <TreeView v-else :nodes="permNodes" @select="() => {}" />
+            </div>
+          </div>
+        </div>
       </div>
-      <div class="toolbar-right">
-        <el-input v-model="search" placeholder="搜索用户名/邮箱" clearable style="width:220px" />
-      </div>
-    </div>
-    <div class="content-card">
-      <el-table :data="filteredList" stripe style="width:100%">
-        <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="username" label="用户名" />
-        <el-table-column prop="fullName" label="姓名" />
-        <el-table-column prop="email" label="邮箱" />
-        <el-table-column prop="role" label="角色" width="100">
-          <template #default="{ row }">
-            <el-tag :type="row.role === 'ADMIN' ? 'danger' : row.role === 'TEACHER' ? 'success' : 'warning'" size="small">{{ row.role }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="isActive" label="状态" width="80">
-          <template #default="{ row }">
-            <el-tag :type="row.isActive ? 'success' : 'info'" size="small">{{ row.isActive ? '正常' : '禁用' }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="200" fixed="right">
-          <template #default="{ row }">
-            <el-button text type="primary" @click="editUser(row)">编辑</el-button>
-            <el-button text type="warning" @click="toggleUser(row)">{{ row.isActive ? '禁用' : '启用' }}</el-button>
-            <el-button text type="danger" @click="deleteUser(row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-    </div>
-
-    <el-dialog v-model="showAdd" :title="editing ? '编辑用户' : '添加用户'" width="500px">
-      <el-form ref="formRef" :model="form" :rules="rules" label-width="80px">
-        <el-form-item label="用户名" prop="username"><el-input v-model="form.username" /></el-form-item>
-        <el-form-item label="姓名" prop="fullName"><el-input v-model="form.fullName" /></el-form-item>
-        <el-form-item label="邮箱" prop="email"><el-input v-model="form.email" /></el-form-item>
-        <el-form-item label="角色" prop="role">
-          <el-select v-model="form.role" style="width:100%">
-            <el-option label="管理员" value="ADMIN" /><el-option label="教师" value="TEACHER" /><el-option label="学生" value="STUDENT" />
-          </el-select>
-        </el-form-item>
-        <el-form-item label="密码" prop="password" v-if="!editing"><el-input v-model="form.password" type="password" /></el-form-item>
-      </el-form>
       <template #footer>
-        <el-button @click="showAdd = false">取消</el-button>
-        <el-button type="primary" @click="saveUser">保存</el-button>
+        <button class="btn btn-plain" @click="detailUser = null">关闭</button>
       </template>
-    </el-dialog>
+    </Modal>
+
+    <!-- 重置密码弹窗 -->
+    <Modal v-if="resetUser" narrow @close="resetUser = null">
+      <template #title>重置密码 · {{ resetUser.username }}</template>
+      <template #sub>重置后旧密码立即失效</template>
+      <div class="form-grid">
+        <div class="field span-2"><label>新密码<span class="req">*</span></label><input v-model="newPassword" class="input" type="password" placeholder="至少 6 位" @keyup.enter="doReset()" /></div>
+      </div>
+      <template #footer>
+        <button class="btn btn-plain" @click="resetUser = null">取消</button>
+        <button class="btn btn-primary" :disabled="resetting" @click="doReset()">{{ resetting ? '提交中…' : '确认重置' }}</button>
+      </template>
+    </Modal>
+
+    <!-- 删除确认弹窗 -->
+    <Modal v-if="deleteUser" narrow @close="deleteUser = null">
+      <template #title>删除用户</template>
+      <template #sub>删除后不可恢复，请谨慎操作</template>
+      <div class="confirm-text">确认删除用户「{{ deleteUser.fullName || deleteUser.username }}」（账号 {{ deleteUser.username }}）吗？其选课与关联数据将一并删除。</div>
+      <template #footer>
+        <button class="btn btn-plain" @click="deleteUser = null">取消</button>
+        <button class="btn btn-primary" :disabled="deleting" @click="doDelete()">{{ deleting ? '删除中…' : '确认删除' }}</button>
+      </template>
+    </Modal>
+
+    <!-- 新增用户弹窗 -->
+    <Modal v-if="showCreate" wide @close="showCreate = false">
+      <template #title>新增用户</template>
+      <template #sub>创建后用户即可使用管理员设定的密码登录</template>
+      <div class="form-grid">
+        <div class="field"><label>登录账号<span class="req">*</span></label><input v-model="createForm.username" class="input" placeholder="工号 / 学号" /></div>
+        <div class="field"><label>姓名<span class="req">*</span></label><input v-model="createForm.fullName" class="input" placeholder="真实姓名" /></div>
+        <div class="field"><label>邮箱<span class="req">*</span></label><input v-model="createForm.email" class="input" placeholder="name@example.com" /></div>
+        <div class="field"><label>初始密码<span class="req">*</span></label><input v-model="createForm.password" class="input" type="password" placeholder="至少 6 位" /></div>
+        <div class="field"><label>角色<span class="req">*</span></label><select v-model="createForm.role" class="select"><option value="STUDENT">学生</option><option value="TEACHER">教师</option><option value="ADMIN">管理员</option></select></div>
+        <div class="field"><label>所属单位</label><input v-model="createForm.department" class="input" placeholder="如：计算机学院" /></div>
+        <div class="field span-2"><label>手机号</label><input v-model="createForm.phone" class="input" placeholder="选填" /></div>
+      </div>
+      <template #footer>
+        <button class="btn btn-plain" @click="showCreate = false">取消</button>
+        <button class="btn btn-primary" :disabled="creating" @click="doCreate()">{{ creating ? '创建中…' : '创建用户' }}</button>
+      </template>
+    </Modal>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import userApi from '@/api/user'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
+import CollapsePanel from '@/components/ui/CollapsePanel.vue'
+import TreeView from '@/components/ui/TreeView.vue'
+import TabGroup from '@/components/ui/TabGroup.vue'
+import Modal from '@/components/ui/Modal.vue'
+import { toast } from '@/composables/useToast'
+import adminApi from '@/api/admin'
+import permissionApi from '@/api/permission'
 
-// 用户统计数据
-const userStats = ref([
-  { label: '总用户数', value: 0, class: '' },
-  { label: '管理员', value: 0, class: 'admin' },
-  { label: '教师', value: 0, class: 'teacher' },
-  { label: '学生', value: 0, class: 'student' }
+const ROLE_LABELS = { ADMIN: '管理员', TEACHER: '教师', STUDENT: '学生' }
+const GRADIENTS = [
+  'linear-gradient(135deg,#c13b30,#8f2a21)', 'linear-gradient(135deg,#2563a8,#1a4a80)',
+  'linear-gradient(135deg,#2e7d4f,#1f5c39)', 'linear-gradient(135deg,#b57908,#8a5d06)',
+  'linear-gradient(135deg,#6d4fa1,#4f3877)', 'linear-gradient(135deg,#0f766e,#0a544f)',
+]
+
+const overview = ref({})
+const search = ref('')
+const loading = ref(true)
+const groups = ref([
+  { key: 'admin', label: '管理员', role: 'ADMIN', desc: '系统管理员与教务管理员', open: true, rows: [] },
+  { key: 'teacher', label: '教师', role: 'TEACHER', desc: '开课教师账号', open: true, rows: [] },
+  { key: 'student', label: '学生', role: 'STUDENT', desc: '在读学生账号', open: false, rows: [] },
 ])
 
-const userList = ref([])
-const search = ref('')
-const showAdd = ref(false)
-const editing = ref(false)
-const formRef = ref(null)
+const detailUser = ref(null)
+const detailTab = ref('info')
+const permLoading = ref(false)
+const permNodes = ref([])
+const detailTabs = [{ key: 'info', label: '基本信息' }, { key: 'perm', label: '权限配置' }]
 
-const form = reactive({ username: '', fullName: '', email: '', role: 'STUDENT', password: '' })
-const rules = {
-  username: [{ required: true, message: '请输入用户名', trigger: 'blur' }],
-  fullName: [{ required: true, message: '请输入姓名', trigger: 'blur' }],
-  email: [{ required: true, type: 'email', message: '请输入有效邮箱', trigger: 'blur' }],
-  role: [{ required: true, message: '请选择角色', trigger: 'change' }]
-}
+const showCreate = ref(false)
+const creating = ref(false)
+const createForm = reactive({ username: '', fullName: '', email: '', password: '', role: 'STUDENT', department: '', phone: '' })
+const resetUser = ref(null)
+const resetting = ref(false)
+const newPassword = ref('')
+const deleteUser = ref(null)
+const deleting = ref(false)
 
-const filteredList = computed(() => {
-  if (!search.value) return userList.value
-  const q = search.value.toLowerCase()
-  return userList.value.filter(u => u.username?.toLowerCase().includes(q) || u.email?.toLowerCase().includes(q))
-})
-
-onMounted(async () => {
-  try {
-    const res = await userApi.getUserList()
-        const rawData = res.data?.records || res.data?.list || res.data || res
-    userList.value = Array.isArray(rawData) ? rawData : []
-
-    // 更新统计数据
-    userStats.value[0].value = userList.value.length
-    userStats.value[1].value = userList.value.filter(u => u.role === 'ADMIN').length
-    userStats.value[2].value = userList.value.filter(u => u.role === 'TEACHER').length
-    userStats.value[3].value = userList.value.filter(u => u.role === 'STUDENT').length
-  } catch (e) {
-    console.error('Failed to load users:', e)
-    userList.value = []
+const infoItems = computed(() => {
+  const u = detailUser.value || {}
+  const st = statusOf(u)
+  return {
+    '姓名': u.fullName || '—',
+    '登录账号': u.username || '—',
+    '用户编号': u.id != null ? '#' + u.id : '—',
+    '角色': roleLabel(u.role),
+    '所属单位': u.department || '—',
+    '邮箱': u.email || '—',
+    '手机号': u.phone || '—',
+    '账号状态': st.text,
+    '最近登录': fmtTime(u.lastLogin),
+    '注册时间': fmtTime(u.createdAt),
   }
 })
 
-function editUser(row) {
-  editing.value = true
-  Object.assign(form, { username: row.username, fullName: row.fullName, email: row.email, role: row.role, password: '' })
-  form._id = row.id
-  showAdd.value = true
+function roleLabel(r) { return ROLE_LABELS[r] || r || '—' }
+function fmtTime(t) { return t ? String(t).replace('T', ' ').slice(0, 16) : '—' }
+function statusOf(u) {
+  if (u.lockedUntil && new Date(u.lockedUntil) > new Date()) return { text: '锁定', cls: 'amber' }
+  if (u.isActive === false) return { text: '停用', cls: 'red' }
+  return { text: '正常', cls: 'green' }
 }
 
-function toggleUser(row) {
-  const action = row.isActive ? '禁用' : '启用'
-  ElMessageBox.confirm(`确定${action}用户 ${row.username}？`, '提示').then(async () => {
-    try {
-      await userApi.updateUserStatus(row.id, !row.isActive)
-      row.isActive = !row.isActive
-      ElMessage.success(`${action}成功`)
-    } catch (e) { ElMessage.error('操作失败') }
-  }).catch(() => {})
+async function load() {
+  loading.value = true
+  try {
+    const [ovRes, ...roleRes] = await Promise.all([
+      adminApi.getOverview(),
+      ...groups.value.map(g => adminApi.getUsers({ page: 1, size: 100, role: g.role, keyword: search.value.trim() || undefined })),
+    ])
+    overview.value = ovRes?.data?.data || ovRes?.data || {}
+    roleRes.forEach((res, i) => {
+      const p = res?.data?.data || res?.data || {}
+      groups.value[i].rows = p.list || []
+    })
+  } catch (e) {
+    toast.show('用户数据加载失败', 'error')
+  } finally {
+    loading.value = false
+  }
 }
 
-function deleteUser(row) {
-  ElMessageBox.confirm(`确定删除用户 ${row.username}？`, '提示', { type: 'warning' }).then(async () => {
-    try {
-      await userApi.deleteUser(row.id)
-      userList.value = userList.value.filter(u => u.id !== row.id)
-      ElMessage.success('删除成功')
-    } catch (e) { ElMessage.error('删除失败') }
-  }).catch(() => {})
+let searchTimer = null
+function onSearchInput() {
+  clearTimeout(searchTimer)
+  searchTimer = setTimeout(load, 350)
 }
 
-async function saveUser() {
-  if (!formRef.value) return
-  await formRef.value.validate(async (valid) => {
-    if (!valid) return
-    try {
-      if (editing.value) {
-        await userApi.updateUser(form._id, { username: form.username, fullName: form.fullName, email: form.email, role: form.role })
-        const u = userList.value.find(u => u.id === form._id)
-        if (u) { Object.assign(u, { username: form.username, fullName: form.fullName, email: form.email, role: form.role }) }
-      } else {
-        const res = await userApi.createUser({ ...form })
-        userList.value.push(res.data || res)
-      }
-      showAdd.value = false; editing.value = false
-      ElMessage.success('保存成功')
-    } catch (e) { ElMessage.error('保存失败') }
-  })
+async function openDetail(u) {
+  detailUser.value = u
+  detailTab.value = 'info'
+  permLoading.value = true
+  permNodes.value = []
+  try {
+    const res = await permissionApi.getRolePermissions(u.role)
+    const perms = res?.data?.data || res?.data || []
+    const byId = {}
+    perms.forEach(p => { byId[p.id] = { ...p, children: [] } })
+    const roots = []
+    Object.values(byId).forEach(p => {
+      if (p.parentId && byId[p.parentId]) byId[p.parentId].children.push(p)
+      else roots.push(p)
+    })
+    permNodes.value = roots.map(toNode)
+  } catch (e) {
+    permNodes.value = []
+  } finally {
+    permLoading.value = false
+  }
 }
+function toNode(p) {
+  return {
+    key: p.id,
+    label: p.permissionName + (p.resourcePath ? ` · ${p.resourcePath}` : ''),
+    icon: 'file',
+    children: p.children.map(toNode),
+  }
+}
+
+async function doCreate() {
+  if (!createForm.username.trim() || !createForm.fullName.trim() || !createForm.email.trim() || !createForm.password) {
+    toast.show('请填写账号、姓名、邮箱与初始密码', 'warning')
+    return
+  }
+  creating.value = true
+  try {
+    const res = await adminApi.createUser({ ...createForm })
+    if (res?.data?.code === 200 || res?.data?.data) {
+      toast.show('用户已创建', 'ok')
+      showCreate.value = false
+      Object.assign(createForm, { username: '', fullName: '', email: '', password: '', role: 'STUDENT', department: '', phone: '' })
+      load()
+    } else {
+      toast.show(res?.data?.message || '创建失败', 'error')
+    }
+  } catch (e) {
+    toast.show('创建失败', 'error')
+  } finally {
+    creating.value = false
+  }
+}
+
+function openReset(u) { resetUser.value = u; newPassword.value = '' }
+async function doReset() {
+  if (!newPassword.value || newPassword.value.length < 6) { toast.show('新密码至少 6 位', 'warning'); return }
+  resetting.value = true
+  try {
+    const res = await adminApi.resetUserPassword(resetUser.value.id, { newPassword: newPassword.value })
+    if (res?.data?.code === 200 || res?.data?.data) {
+      toast.show('密码已重置', 'ok')
+      resetUser.value = null
+    } else {
+      toast.show(res?.data?.message || '重置失败', 'error')
+    }
+  } catch (e) {
+    toast.show('重置失败', 'error')
+  } finally {
+    resetting.value = false
+  }
+}
+
+function openDelete(u) { deleteUser.value = u }
+async function doDelete() {
+  deleting.value = true
+  try {
+    const res = await adminApi.deleteUser(deleteUser.value.id)
+    if (res?.data?.code === 200 || res?.data?.data) {
+      toast.show('用户已删除', 'ok')
+      deleteUser.value = null
+      load()
+    } else {
+      toast.show(res?.data?.message || '删除失败', 'error')
+    }
+  } catch (e) {
+    toast.show('删除失败', 'error')
+  } finally {
+    deleting.value = false
+  }
+}
+
+function avStyle(name) {
+  const i = [...(name || '')].reduce((s, c) => s + c.charCodeAt(0), 0) % GRADIENTS.length
+  return { background: GRADIENTS[i] }
+}
+
+onMounted(load)
 </script>
 
 <style scoped>
-.user-management {
-  max-width: 1400px;
-  margin: 0 auto;
+.search-input {
+  width: 220px;
+  height: 32px;
 }
 
-/* 页面头部 */
-.page-header {
-  margin-bottom: var(--ac-spacing-lg);
-}
-
-.page-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-  letter-spacing: -0.3px;
-}
-
-.page-desc {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-  margin-top: 4px;
-}
-
-/* 统计行 */
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: var(--ac-spacing-md);
-  margin-bottom: var(--ac-spacing-lg);
-}
-
-.stat-mini-card {
-  background: var(--ac-bg-elevated);
-  border-radius: var(--ac-radius-md);
-  border: 1px solid var(--ac-border);
-  padding: 16px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  transition: all var(--ac-transition-normal);
-}
-
-.stat-mini-card:hover {
-  box-shadow: var(--ac-shadow-md);
-  transform: translateY(-2px);
-}
-
-.stat-mini-card .label {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-  font-weight: 500;
-}
-
-.stat-mini-card .value {
-  font-size: 26px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-}
-
-.stat-mini-card.admin .value { color: var(--ac-danger); }
-.stat-mini-card.teacher .value { color: var(--ac-success); }
-.stat-mini-card.student .value { color: var(--ac-primary); }
-
-/* 响应式 */
-@media (max-width: 768px) {
-  .stats-row {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .table-toolbar {
-    flex-direction: column;
-    align-items: stretch;
-  }
+.confirm-text {
+  line-height: 1.8;
+  color: var(--ink-2);
 }
 </style>

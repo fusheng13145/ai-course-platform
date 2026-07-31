@@ -102,6 +102,74 @@ public class KnowledgeGraphServiceImpl implements KnowledgeGraphService {
     }
 
     @Override
+    public List<KnowledgePoint> planLearningPath(Long startPointId, Long targetPointId) {
+        if (startPointId == null || targetPointId == null) {
+            return Collections.emptyList();
+        }
+        // 起点与目标相同：直接返回该知识点
+        if (startPointId.equals(targetPointId)) {
+            KnowledgePoint point = knowledgePointService.getById(startPointId);
+            return point == null ? Collections.emptyList() : Collections.singletonList(point);
+        }
+
+        // 以知识关系为有向边构建邻接表
+        List<KnowledgePointRelation> allRelations = relationService.list();
+        Map<Long, List<Long>> adjacency = new HashMap<>();
+        for (KnowledgePointRelation rel : allRelations) {
+            if (rel.getSourceId() != null) {
+                adjacency.computeIfAbsent(rel.getSourceId(), k -> new ArrayList<>()).add(rel.getTargetId());
+            }
+        }
+
+        // BFS 求最短路径
+        Queue<Long> queue = new LinkedList<>();
+        Map<Long, Long> parent = new HashMap<>();
+        Set<Long> visited = new HashSet<>();
+        queue.add(startPointId);
+        visited.add(startPointId);
+
+        boolean found = false;
+        while (!queue.isEmpty()) {
+            Long current = queue.poll();
+            if (current.equals(targetPointId)) {
+                found = true;
+                break;
+            }
+            List<Long> neighbors = adjacency.getOrDefault(current, Collections.emptyList());
+            for (Long neighbor : neighbors) {
+                if (neighbor != null && !visited.contains(neighbor)) {
+                    visited.add(neighbor);
+                    parent.put(neighbor, current);
+                    queue.add(neighbor);
+                }
+            }
+        }
+        if (!found) {
+            return Collections.emptyList();
+        }
+
+        // 从目标回溯重建路径并保持起点→目标顺序
+        List<Long> pathIds = new ArrayList<>();
+        Long cur = targetPointId;
+        while (cur != null) {
+            pathIds.add(cur);
+            cur = parent.get(cur);
+        }
+        Collections.reverse(pathIds);
+
+        Map<Long, KnowledgePoint> pointMap = knowledgePointService.listByIds(pathIds).stream()
+                .collect(Collectors.toMap(KnowledgePoint::getId, p -> p, (a, b) -> a));
+        List<KnowledgePoint> orderedPath = new ArrayList<>();
+        for (Long id : pathIds) {
+            KnowledgePoint p = pointMap.get(id);
+            if (p != null) {
+                orderedPath.add(p);
+            }
+        }
+        return orderedPath;
+    }
+
+    @Override
     public String addNode(Long courseId, String name, String content, String type) {
         KnowledgePoint kp = new KnowledgePoint();
         kp.setCourseId(courseId);

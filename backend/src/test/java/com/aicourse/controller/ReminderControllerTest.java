@@ -94,7 +94,7 @@ class ReminderControllerTest extends ControllerTestBase {
     void rescheduleReminder_authorized_returns_success() throws Exception {
         doNothing().when(reminderService).rescheduleReminder(any(), any());
         mockMvc.perform(patch("/reminders/1/reschedule").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"newScheduledAt\":\"2025-01-02T10:00:00\"}").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
+                        .content("{\"title\":\"提醒\",\"newScheduledAt\":\"2025-01-02T10:00:00\"}").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
         verify(reminderService).rescheduleReminder(eq(1L), any());

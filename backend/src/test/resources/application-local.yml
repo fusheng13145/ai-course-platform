@@ -1,0 +1,41 @@
+# ===================== local profile 测试覆盖（仅 test 类路径） =====================
+# 测试类路径下的 application-local.yml 会覆盖 main 中的同名文件，
+# 使 AuthFlowIntegrationTest（@ActiveProfiles("local")）无需外部环境变量即可运行：
+#   - jwt.secret 固定为测试密钥（main 版读 ${JWT_SECRET:} 为空 → WeakKeyException）
+#   - datasource password 回退 1234（main 版无默认值 → Access denied）
+# 仅存在于 src/test/resources，绝不进入生产构建。
+
+ai:
+  deepseek:
+    api-key: test-dummy-key
+
+jwt:
+  secret: test-only-jwt-key-for-auth-flow-tests-do-not-use-in-prod
+
+spring:
+  datasource:
+    password: ${MYSQL_ROOT_PASSWORD:1234}
+    hikari:
+      maximum-pool-size: 20
+
+logging:
+  level:
+    com.aicourse: WARN
+
+app:
+  actuator:
+    secured: false
+  cookie:
+    secure: false
+  security:
+    require-https: false
+  swagger:
+    enabled: true
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always

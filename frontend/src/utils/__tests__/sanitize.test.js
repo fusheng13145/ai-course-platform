@@ -86,6 +86,45 @@ describe('sanitize.js - DOMPurify HTML 净化', () => {
       expect(result).not.toContain('style=')
       expect(result).toContain('class="my-class"')
     })
+
+    it('保留 SVG 图标标签与图形属性', () => {
+      const input =
+        '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor"><path d="M20 6 9 17l-5-5"/></svg>'
+      const result = sanitizeHtml(input)
+      expect(result).toContain('<svg')
+      expect(result).toContain('viewBox="0 0 24 24"')
+      expect(result).toContain('width="18"')
+      expect(result).toContain('stroke="currentColor"')
+      expect(result).toContain('<path d="M20 6 9 17l-5-5">')
+    })
+
+    it('SVG 内嵌 script 与事件属性被移除', () => {
+      const input =
+        '<svg viewBox="0 0 24 24" onload="alert(1)"><script>evil()</script><circle cx="12" cy="12" r="8" onclick="hack()"/></svg>'
+      const result = sanitizeHtml(input)
+      expect(result).not.toContain('onload')
+      expect(result).not.toContain('<script>')
+      expect(result).not.toContain('evil')
+      expect(result).not.toContain('onclick')
+      expect(result).toContain('<circle')
+    })
+
+    it('SVG title 文本中的注入内容被净化', () => {
+      const input =
+        '<svg viewBox="0 0 24 24"><title>数据</title><text x="10" y="10">正常</text></svg>'
+      const result = sanitizeHtml(input)
+      expect(result).toContain('<title>')
+      expect(result).toContain('数据')
+      expect(result).toContain('<text ')
+    })
+
+    it('净化 HTML 中的 SVG 标签', () => {
+      const input = '<div>内容</div><svg><path d="M0 0"/></svg>'
+      const result = sanitizeHtml(input)
+      expect(result).toContain('<svg>')
+      expect(result).toContain('<path d="M0 0">')
+      expect(result).toContain('内容')
+    })
   })
 
   describe('sanitizeObject', () => {

@@ -39,6 +39,8 @@ class SubmissionControllerSecurityTest extends ControllerTestBase {
     private TaskMapper taskMapper;
     @MockitoBean
     private CourseMapper courseMapper;
+    @MockitoBean
+    private com.aicourse.service.PlagiarismCheckService plagiarismCheckService;
 
     private Submission submission(Long id, Long studentId, Long taskId) {
         Submission s = new Submission();

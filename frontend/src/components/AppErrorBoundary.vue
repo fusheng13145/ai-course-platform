@@ -26,8 +26,11 @@
 import { ref, onErrorCaptured } from 'vue'
 import { useRouter } from 'vue-router'
 
-const props = defineProps({
-  fallbackRender: Function
+defineProps({
+  fallbackRender: {
+    type: Function,
+    default: null
+  }
 })
 
 const router = useRouter()

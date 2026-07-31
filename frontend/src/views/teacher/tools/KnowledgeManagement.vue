@@ -1,9 +1,10 @@
 <template>
   <div class="fade-in">
+    <PageHeader title="知识管理" subtitle="维护课程知识点结构、关联关系与知识图谱" icon="brain" />
     <!-- 顶部工具栏 -->
     <div class="table-toolbar">
       <div class="toolbar-left">
-        <el-select v-model="selectedCourseId" placeholder="选择课程" clearable style="width:200px" @change="loadAllData">
+        <el-select v-model="selectedCourseId" placeholder="选择课程" clearable class="w-200" @change="loadAllData">
           <el-option v-for="c in courseList" :key="c.id" :label="c.name" :value="c.id" />
         </el-select>
         <el-button type="primary" @click="openCreateDialog">
@@ -11,19 +12,19 @@
         </el-button>
       </div>
       <div class="toolbar-right">
-        <el-input v-model="searchText" placeholder="搜索知识点..." clearable style="width:220px" :prefix-icon="Search" @clear="handleFilter" @keyup.enter="handleFilter" />
+        <el-input v-model="searchText" placeholder="搜索知识点..." clearable class="w-220" :prefix-icon="Search" @clear="handleFilter" @keyup.enter="handleFilter" />
       </div>
     </div>
 
     <!-- 主内容区：知识树 + 知识点列表 -->
-    <div class="km-main-grid">
+    <div class="km-main-grid animate-in d1">
       <!-- 左侧：知识树 -->
       <div class="tree-panel">
         <div class="panel-header">
-          <span class="chart-title" style="margin-bottom:0">知识结构</span>
+          <span class="chart-title">知识结构</span>
           <el-button text size="small" type="primary" @click="expandAll">展开全部</el-button>
         </div>
-        <div class="tree-container" v-loading="treeLoading">
+        <div v-loading="treeLoading" class="tree-container">
           <el-tree
             ref="treeRef"
             :data="knowledgeTree"
@@ -32,13 +33,13 @@
             default-expand-all
             highlight-current
             :expand-on-click-node="false"
-            @node-click="handleNodeClick"
             empty-text="请先选择课程加载知识点"
+            @node-click="handleNodeClick"
           >
             <template #default="{ node, data }">
               <span class="tree-node-label">
                 <span class="node-name">{{ node.label }}</span>
-                <el-tag size="small" :type="getDifficultyTagType(data.difficulty)" style="margin-left:6px">{{ getDifficultyLabel(data.difficulty) }}</el-tag>
+                <el-tag size="small" :type="getDifficultyTagType(data.difficulty)" class="tree-tag">{{ getDifficultyLabel(data.difficulty) }}</el-tag>
               </span>
             </template>
           </el-tree>
@@ -50,8 +51,8 @@
       <div class="right-panel">
         <!-- 知识点列表表格 -->
         <div class="content-card list-card">
-          <el-table :data="filteredKnowledgeList" style="width:100%" v-loading="tableLoading"
-            :header-cell-style="{ background:'var(--ac-bg)', color:'var(--ac-text-secondary)', fontWeight:600 }">
+          <el-table
+v-loading="tableLoading" :data="filteredKnowledgeList">
             <el-table-column prop="name" label="知识点名称" min-width="160" show-overflow-tooltip />
             <el-table-column prop="difficulty" label="难度" width="80" align="center">
               <template #default="{ row }">
@@ -80,15 +81,15 @@
         <!-- 知识图谱可视化 -->
         <div class="graph-card">
           <div class="panel-header">
-            <span class="chart-title" style="margin-bottom:0">知识图谱</span>
+            <span class="chart-title">知识图谱</span>
             <el-radio-group v-model="graphViewMode" size="small">
               <el-radio-button value="force">力导向</el-radio-button>
               <el-radio-button value="tree">树形</el-radio-button>
             </el-radio-group>
           </div>
           <div class="graph-container">
-            <v-chart v-if="graphViewMode === 'force'" :option="forceGraphOption" style="width:100%;height:340px" autoresize />
-            <v-chart v-else :option="treeGraphOption" style="width:100%;height:340px" autoresize />
+            <v-chart v-if="graphViewMode === 'force'" :option="forceGraphOption" class="graph-chart" autoresize />
+            <v-chart v-else :option="treeGraphOption" class="graph-chart" autoresize />
           </div>
         </div>
       </div>
@@ -101,7 +102,7 @@
           <el-input v-model="kpForm.name" placeholder="输入知识点名称" maxlength="50" show-word-limit />
         </el-form-item>
         <el-form-item label="所属课程" prop="courseId">
-          <el-select v-model="kpForm.courseId" placeholder="选择课程" style="width:100%" filterable>
+          <el-select v-model="kpForm.courseId" placeholder="选择课程" class="w-100" filterable>
             <el-option v-for="c in courseList" :key="c.id" :label="c.name" :value="c.id" />
           </el-select>
         </el-form-item>
@@ -113,14 +114,14 @@
             check-strictly
             clearable
             placeholder="选择父级（可选）"
-            style="width:100%"
+            class="w-100"
             filterable
           />
         </el-form-item>
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="难度" prop="difficulty">
-              <el-select v-model="kpForm.difficulty" style="width:100%">
+              <el-select v-model="kpForm.difficulty" class="w-100">
                 <el-option label="简单" value="EASY" />
                 <el-option label="中等" value="MEDIUM" />
                 <el-option label="困难" value="HARD" />
@@ -139,31 +140,31 @@
       </el-form>
       <template #footer>
         <el-button @click="formDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitForm" :loading="submitting">{{ isEdit ? '保存修改' : '创建' }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitForm">{{ isEdit ? '保存修改' : '创建' }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 关联关系对话框 -->
     <el-dialog v-model="relationDialogVisible" title="管理关联关系" width="520px">
       <div v-if="currentKpForRelation">
-        <p style="margin-bottom:16px;color:var(--ac-text-secondary);font-size:13px">
-          当前知识点：<strong style="color:var(--ac-primary)">{{ currentKpForRelation.name }}</strong>
+        <p class="rel-desc">
+          当前知识点：<strong>{{ currentKpForRelation.name }}</strong>
         </p>
 
         <!-- 添加前置依赖 -->
-        <div style="margin-bottom:16px">
-          <h4 style="font-size:13px;margin-bottom:8px;color:var(--ac-text-primary)">添加前置依赖</h4>
-          <div style="display:flex;gap:8px;align-items:center">
-            <el-select v-model="newPrereqId" placeholder="选择前置知识点" clearable filterable style="flex:1">
+        <div class="rel-section">
+          <h4 class="rel-heading">添加前置依赖</h4>
+          <div class="rel-row">
+            <el-select v-model="newPrereqId" placeholder="选择前置知识点" clearable filterable class="rel-select">
               <el-option v-for="k in availablePrereqs" :key="k.id" :label="k.name" :value="k.id" />
             </el-select>
-            <el-button type="primary" size="small" @click="addPrerequisite" :disabled="!newPrereqId">添加</el-button>
+            <el-button type="primary" size="small" :disabled="!newPrereqId" @click="addPrerequisite">添加</el-button>
           </div>
         </div>
 
         <!-- 已有前置依赖列表 -->
         <div>
-          <h4 style="font-size:13px;margin-bottom:8px;color:var(--ac-text-primary)">已有前置依赖</h4>
+          <h4 class="rel-heading">已有前置依赖</h4>
           <div v-if="prerequisitesList.length > 0" class="relation-list">
             <div v-for="p in prerequisitesList" :key="p.id" class="relation-item">
               <span class="relation-arrow">←</span>
@@ -187,6 +188,8 @@ import { Search, Plus, Delete } from '@element-plus/icons-vue'
 import knowledgeApi from '@/api/knowledge'
 import courseApi from '@/api/course'
 import knowledgeRelationApi from '@/api/knowledgePointRelation'
+import PageHeader from '@/components/PageHeader.vue'
+import { getChartTheme, getMonoStatus } from '@/utils/chartTheme'
 
 // 课程选择
 const selectedCourseId = ref(null)
@@ -376,7 +379,7 @@ function expandAll() {
   }
 }
 
-function handleNodeClick(data) {
+function handleNodeClick(_data) {
   // 点击节点时高亮或定位到列表
 }
 
@@ -492,90 +495,108 @@ async function removePrerequisite(prereqId) {
 }
 
 // 力导向图配置
-const forceGraphOption = ref({
-  tooltip: {},
-  animationDurationUpdate: 500,
-  animationEasingUpdate: 'quinticInOut',
-  series: [{
-    type: 'graph',
-    layout: 'force',
-    data: [],
-    links: [],
-    roam: true,
-    draggable: true,
-    force: {
-      repulsion: 200,
-      edgeLength: 120,
-      gravity: 0.1
+function buildForceGraphOption() {
+  const t = getChartTheme()
+  const st = getMonoStatus()
+  return {
+    tooltip: {
+      backgroundColor: t.tooltipBg,
+      borderColor: t.tooltipBorder,
+      textStyle: { color: t.tooltipText },
     },
-    emphasis: {
-      focus: 'adjacency',
-      lineStyle: { width: 3 }
-    },
-    lineStyle: {
-      color: '#B89A8A',
-      width: 1.5,
-      curveness: 0.2,
-      opacity: 0.7
-    },
-    label: {
-      show: true,
-      position: 'bottom',
-      fontSize: 11,
-      color: '#3D3835',
-      formatter: '{b}'
-    },
-    symbolSize: (val) => {
-      const importance = val?.[2] || 1
-      return 16 + importance * 10
-    },
-    itemStyle: {
-      borderColor: '#FFFCF8',
-      borderWidth: 2
-    },
-    color: (params) => {
-      const difficulty = params.data?.difficulty
-      const colors = { EASY: '#8BA888', MEDIUM: '#7A8BA5', HARD: '#C48080' }
-      return colors[difficulty] || '#B89A8A'
-    }
-  }]
-})
+    animationDurationUpdate: 500,
+    animationEasingUpdate: 'quinticInOut',
+    series: [{
+      type: 'graph',
+      layout: 'force',
+      data: [],
+      links: [],
+      roam: true,
+      draggable: true,
+      force: {
+        repulsion: 200,
+        edgeLength: 120,
+        gravity: 0.1
+      },
+      emphasis: {
+        focus: 'adjacency',
+        lineStyle: { width: 3 }
+      },
+      lineStyle: {
+        color: t.axis,
+        width: 1.5,
+        curveness: 0.2,
+        opacity: 0.7
+      },
+      label: {
+        show: true,
+        position: 'bottom',
+        fontSize: 11,
+        color: t.text,
+        formatter: '{b}'
+      },
+      symbolSize: (val) => {
+        const importance = val?.[2] || 1
+        return 16 + importance * 10
+      },
+      itemStyle: {
+        borderColor: t.sliceBorder,
+        borderWidth: 2
+      },
+      color: (params) => {
+        const difficulty = params.data?.difficulty
+        const colors = { EASY: st.EASY, MEDIUM: st.MEDIUM, HARD: st.HARD }
+        return colors[difficulty] || st.INFO
+      }
+    }]
+  }
+}
+const forceGraphOption = ref(buildForceGraphOption())
 
 // 树形图配置
-const treeGraphOption = ref({
-  tooltip: {},
-  series: [{
-    type: 'tree',
-    data: [],
-    orient: 'LR',
-    symbol: 'circle',
-    symbolSize: 12,
-    initialTreeDepth: -1,
-    roam: true,
-    label: {
-      position: 'top',
-      verticalAlign: 'middle',
-      align: 'right',
-      fontSize: 11,
-      color: '#3D3835'
+function buildTreeGraphOption() {
+  const t = getChartTheme()
+  const st = getMonoStatus()
+  return {
+    tooltip: {
+      backgroundColor: t.tooltipBg,
+      borderColor: t.tooltipBorder,
+      textStyle: { color: t.tooltipText },
     },
-    leaves: {
-      label: { position: 'bottom', verticalAlign: 'middle', align: 'left' }
-    },
-    expandAndCollapse: true,
-    animationDuration: 550,
-    animationDurationUpdate: 750,
-    itemStyle: {
-      color: (params) => {
-        const d = params.data?.difficulty
-        return d === 'HARD' ? '#C48080' : d === 'EASY' ? '#8BA888' : '#7A8BA5'
+    series: [{
+      type: 'tree',
+      data: [],
+      orient: 'LR',
+      symbol: 'circle',
+      symbolSize: 12,
+      initialTreeDepth: -1,
+      roam: true,
+      label: {
+        position: 'top',
+        verticalAlign: 'middle',
+        align: 'right',
+        fontSize: 11,
+        color: t.text
       },
-      borderColor: '#FFFCF8',
-      borderWidth: 2
-    },
-    lineStyle: { color: '#E2DCD4', width: 1.5, curveness: 0.3 }
-  }]
-})
+      leaves: {
+        label: { position: 'bottom', verticalAlign: 'middle', align: 'left' }
+      },
+      expandAndCollapse: true,
+      animationDuration: 550,
+      animationDurationUpdate: 750,
+      itemStyle: {
+        color: (params) => {
+          const d = params.data?.difficulty
+          return d === 'HARD' ? st.HARD : d === 'EASY' ? st.EASY : st.MEDIUM
+        },
+        borderColor: t.sliceBorder,
+        borderWidth: 2
+      },
+      lineStyle: { color: t.axis, width: 1.5, curveness: 0.3 }
+    }]
+  }
+}
+const treeGraphOption = ref(buildTreeGraphOption())
 
 // 更新力导向图数据
 function updateForceGraph(nodes, links) {
@@ -621,8 +642,9 @@ function transformToTreeData(node) {
 }
 
 function getNodeColor(difficulty) {
-  const map = { EASY: '#8BA888', MEDIUM: '#7A8BA5', HARD: '#C48080' }
-  return map[difficulty] || '#B89A8A'
+  const st = getMonoStatus()
+  const map = { EASY: st.EASY, MEDIUM: st.MEDIUM, HARD: st.HARD }
+  return map[difficulty] || st.INFO
 }
 
 function getDifficultyTagType(difficulty) {
@@ -683,7 +705,7 @@ function getDifficultyLabel(difficulty) {
 }
 
 .tree-container :deep(.is-current > .el-tree-node__content) {
-  background: rgba(122,139,165,0.10);
+  background: var(--ac-primary-bg);
   font-weight: 600;
 }
 
@@ -763,6 +785,48 @@ function getDifficultyLabel(difficulty) {
 .relation-name {
   font-size: 13px;
   color: var(--ac-text-secondary);
+  flex: 1;
+}
+
+/* ====== 提取的内联样式 ====== */
+.w-200 {
+  width: 200px;
+}
+.w-220 {
+  width: 220px;
+}
+.w-100 {
+  width: 100%;
+}
+.tree-tag {
+  margin-left: 6px;
+}
+.graph-chart {
+  width: 100%;
+  height: 340px;
+}
+.rel-desc {
+  margin-bottom: 16px;
+  color: var(--ac-text-secondary);
+  font-size: 13px;
+}
+.rel-desc strong {
+  color: var(--ac-primary);
+}
+.rel-section {
+  margin-bottom: 16px;
+}
+.rel-heading {
+  font-size: 13px;
+  margin-bottom: 8px;
+  color: var(--ac-text-primary);
+}
+.rel-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+.rel-select {
   flex: 1;
 }
 

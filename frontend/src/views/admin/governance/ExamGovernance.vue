@@ -1,36 +1,26 @@
 <template>
   <div class="fade-in exam-governance">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-left">
-        <h2 class="page-title">考试防作弊治理</h2>
-        <p class="page-desc">监考会话风险看板、违规事件核查与复核工作流</p>
-      </div>
+    <PageHeader title="考试防作弊治理" subtitle="监考会话风险看板、违规事件核查与复核工作流" icon="shield" icon-bg="accent">
       <el-button :loading="loading" @click="loadSessions">
         <el-icon><Refresh /></el-icon>刷新
       </el-button>
+    </PageHeader>
+
+    <div class="stat-grid">
+      <StatCard label="进行中监考会话" :value="sessions.length" icon="video" tone="var(--accent-soft)" tone-color="var(--accent)" />
+      <StatCard label="高风险会话" :value="highRiskCount" icon="warn" tone="var(--warn-soft)" tone-color="var(--warn)" />
+      <StatCard label="已触发标记(FLAGGED)" :value="flaggedCount" icon="bell" tone="var(--info-soft)" tone-color="var(--info)" />
+      <StatCard label="累计违规事件" :value="totalEvents" icon="megaphone" tone="var(--warn-soft)" tone-color="var(--warn)" />
     </div>
 
-    <!-- 核心指标 -->
-    <div class="stats-row">
-      <div class="stat-mini-card">
-        <span class="label">进行中监考会话</span>
-        <span class="value">{{ sessions.length }}</span>
+    <section class="l1-card">
+      <div class="l1-head">
+        <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        </span>
+        <div><div class="l1-title">监考治理看板</div><div class="l1-sub">风险会话、违规事件与阈值规则</div></div>
       </div>
-      <div class="stat-mini-card admin">
-        <span class="label">高风险会话</span>
-        <span class="value">{{ highRiskCount }}</span>
-      </div>
-      <div class="stat-mini-card teacher">
-        <span class="label">已触发标记(FLAGGED)</span>
-        <span class="value">{{ flaggedCount }}</span>
-      </div>
-      <div class="stat-mini-card student">
-        <span class="label">累计违规事件</span>
-        <span class="value">{{ totalEvents }}</span>
-      </div>
-    </div>
-
+      <div class="l1-body">
     <div class="grid-main">
       <!-- 监考会话列表 -->
       <div class="content-card session-list-card">
@@ -50,7 +40,7 @@
               <span class="session-stu">学生 #{{ s.studentId }}</span>
             </div>
             <div class="session-sub">
-              <span class="session-time">{{ formatTime(s.startTime) }}</span>
+              <span class="session-time">{{ formatTime(s.startTime, '—') }}</span>
               <el-tag v-if="s.riskLevel" size="small" :type="riskTag(s.riskLevel)" effect="light">
                 {{ levelText(s.riskLevel) }} · {{ s.riskScore }}
               </el-tag>
@@ -200,6 +190,8 @@
         class="thr-readonly"
       />
     </div>
+      </div>
+    </section>
 
     <!-- 事件核查抽屉 -->
     <el-drawer v-model="drawer" title="违规事件核查" size="460px" append-to-body>
@@ -217,7 +209,7 @@
               <el-tag v-if="e.status" size="small" :type="statusTag(e.status)" effect="dark">{{
                 statusText(e.status)
               }}</el-tag>
-              <span class="event-time">{{ formatTime(e.capturedAt) }}</span>
+              <span class="event-time">{{ formatTime(e.capturedAt, '—') }}</span>
             </div>
             <div v-if="e.detail" class="event-detail">{{ e.detail }}</div>
             <div v-if="e.reviewNote" class="event-review-note">
@@ -259,6 +251,7 @@
 
 <script setup>
 import logger from '@/utils/logger'
+import { formatTime } from '@/utils/datetime'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
@@ -272,6 +265,8 @@ import {
 import examApi from '@/api/exam'
 import proctorApi from '@/api/proctor'
 import { useAuthStore } from '@/stores/auth'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 const loading = ref(false)
 const sessions = ref([])
@@ -309,18 +304,6 @@ const TYPE_TEXT = {
 const typeText = (t) => TYPE_TEXT[t] || t
 const levelText = (l) => ({ LOW: '低风险', MEDIUM: '中风险', HIGH: '高风险' })[l] || l || '—'
 const riskTag = (l) => (l === 'HIGH' ? 'danger' : l === 'MEDIUM' ? 'warning' : 'info')
-
-function formatTime(t) {
-  if (!t) return '—'
-  try {
-    const d = new Date(t)
-    if (isNaN(d.getTime())) return t
-    const p = (n) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
-  } catch {
-    return t
-  }
-}
 
 async function loadSessions() {
   loading.value = true
@@ -453,66 +436,6 @@ onMounted(() => {
 .exam-governance {
   max-width: 1400px;
   margin: 0 auto;
-}
-
-.page-header {
-  display: flex;
-  align-items: flex-end;
-  justify-content: space-between;
-  margin-bottom: var(--ac-spacing-lg);
-  gap: 16px;
-  flex-wrap: wrap;
-}
-.page-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-  letter-spacing: -0.3px;
-}
-.page-desc {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-  margin-top: 4px;
-}
-
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: var(--ac-spacing-md);
-  margin-bottom: var(--ac-spacing-lg);
-}
-.stat-mini-card {
-  background: var(--ac-bg-elevated);
-  border-radius: var(--ac-radius-md);
-  border: 1px solid var(--ac-border);
-  padding: 16px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  transition: all var(--ac-transition-normal);
-}
-.stat-mini-card:hover {
-  box-shadow: var(--ac-shadow-md);
-  transform: translateY(-2px);
-}
-.stat-mini-card .label {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-  font-weight: 500;
-}
-.stat-mini-card .value {
-  font-size: 26px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-}
-.stat-mini-card.admin .value {
-  color: #7f1d1d;
-}
-.stat-mini-card.teacher .value {
-  color: #166534;
-}
-.stat-mini-card.student .value {
-  color: #1e40af;
 }
 
 .grid-main {

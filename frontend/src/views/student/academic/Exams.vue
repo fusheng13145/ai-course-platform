@@ -1,7 +1,17 @@
-﻿﻿<template>
+﻿<template>
   <div class="fade-in">
     <!-- ===== 考试列表视图 ===== -->
     <div v-if="viewMode === 'list'">
+      <PageHeader title="我的考试" subtitle="查看并参与课程考试，跟踪学习成果" icon="doc" icon-bg="accent" />
+
+      <div class="stat-grid animate-in d1">
+        <StatCard label="考试总数" :value="totalExams" icon="doc" tone="var(--accent-soft)" tone-color="var(--accent)" />
+        <StatCard label="可参加" :value="availableExams" icon="play" tone="var(--ok-soft)" tone-color="var(--ok)" />
+        <StatCard label="已完成" :value="completedExams" icon="checks" tone="var(--info-soft)" tone-color="var(--info)" />
+      </div>
+
+      <section class="l1-card animate-in d2">
+        <div class="l1-body">
       <!-- 搜索工具栏 -->
       <div class="search-toolbar">
         <el-input
@@ -9,9 +19,9 @@
           placeholder="搜索考试名称..."
           clearable
           :prefix-icon="Search"
-          style="width: 260px"
+          class="search-input"
         />
-        <el-select v-model="statusFilter" placeholder="状态筛选" clearable style="width: 140px">
+        <el-select v-model="statusFilter" placeholder="状态筛选" clearable class="status-select">
           <el-option label="可参加" value="available" />
           <el-option label="已完成" value="completed" />
           <el-option label="已过期" value="expired" />
@@ -51,7 +61,7 @@
               <el-icon><Timer /></el-icon>
               <span>{{ exam.duration || exam.timeLimit || 60 }} 分钟</span>
             </div>
-            <div class="meta-item" v-if="exam.questionCount">
+            <div v-if="exam.questionCount" class="meta-item">
               <el-icon><List /></el-icon>
               <span>{{ exam.questionCount }} 题</span>
             </div>
@@ -60,13 +70,13 @@
           <p class="exam-desc">{{ exam.description || '暂无描述' }}</p>
 
           <div class="exam-card-footer">
-            <span class="exam-time" v-if="exam.startTime">
-              {{ formatTime(exam.startTime) }} ~ {{ formatTime(exam.endTime) }}
+            <span v-if="exam.startTime" class="exam-time">
+              {{ formatTime(exam.startTime, '') }} ~ {{ formatTime(exam.endTime, '') }}
             </span>
             <el-button
               type="primary"
-              @click="enterExam(exam)"
               :disabled="exam.completed || exam.status === 'EXPIRED'"
+              @click="enterExam(exam)"
             >
               {{ exam.completed ? '已完成' : (exam.status === 'EXPIRED' ? '已过期' : '开始考试') }}
             </el-button>
@@ -74,7 +84,11 @@
         </div>
       </div>
 
-      <el-empty v-if="!listLoading && filteredExams.length === 0" description="暂无考试" :image-size="120" />
+      <el-empty v-if="!listLoading && filteredExams.length === 0" description="暂无考试" :image-size="120">
+        <template #image><div class="empty-deco">📝</div></template>
+      </el-empty>
+        </div>
+      </section>
     </div>
 
     <!-- ===== 答题视图（全屏模式）===== -->
@@ -115,7 +129,7 @@
       </div>
 
       <!-- 题目区域 -->
-      <div class="exam-body" v-loading="questionsLoading">
+      <div v-loading="questionsLoading" class="exam-body">
         <div v-if="currentQuestion" class="question-area">
           <!-- 题号和类型 -->
           <div class="question-label-row">
@@ -165,17 +179,17 @@
             <div class="judge-buttons">
               <el-button
                 :type="answers[currentIndex] === true ? 'primary' : ''"
-                @click="answers[currentIndex] = true"
                 size="large"
                 class="judge-btn"
+                @click="answers[currentIndex] = true"
               >
                 <el-icon><CircleCheck /></el-icon> 正确
               </el-button>
               <el-button
                 :type="answers[currentIndex] === false ? 'danger' : ''"
-                @click="answers[currentIndex] = false"
                 size="large"
                 class="judge-btn"
+                @click="answers[currentIndex] = false"
               >
                 <el-icon><CircleClose /></el-icon> 错误
               </el-button>
@@ -195,7 +209,7 @@
 
           <!-- 底部导航按钮 -->
           <div class="question-nav-buttons">
-            <el-button @click="prevQuestion" :disabled="currentIndex === 0">
+            <el-button :disabled="currentIndex === 0" @click="prevQuestion">
               <el-icon><ArrowLeft /></el-icon> 上一题
             </el-button>
             <span class="question-counter">{{ currentIndex + 1 }} / {{ questions.length }}</span>
@@ -232,7 +246,7 @@
         <p class="result-message">{{ resultMessage }}</p>
         <div class="result-actions">
           <el-button type="primary" @click="backToList">返回考试列表</el-button>
-          <el-button @click="viewDetailResult" v-if="examResult.id">查看详情</el-button>
+          <el-button v-if="examResult.id" @click="viewDetailResult">查看详情</el-button>
         </div>
       </div>
     </div>
@@ -240,7 +254,8 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { formatTime } from '@/utils/datetime'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   Search, Collection, Document, Timer, List,
@@ -248,6 +263,8 @@ import {
   CircleCheck, CircleClose, TrophyBase
 } from '@element-plus/icons-vue'
 import examApi from '@/api/exam'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 /* ---- 视图模式：list / exam / result ---- */
 const viewMode = ref('list')
@@ -296,6 +313,13 @@ const filteredExams = computed(() => {
   }
   return list
 })
+
+/** 考试总数 */
+const totalExams = computed(() => examList.value.length)
+/** 可参加：未完成且未过期 */
+const availableExams = computed(() => examList.value.filter(e => !e.completed && e.status !== 'EXPIRED').length)
+/** 已完成 */
+const completedExams = computed(() => examList.value.filter(e => e.completed).length)
 
 /** 当前题目 */
 const currentQuestion = computed(() => questions.value[currentIndex.value] || null)
@@ -359,11 +383,6 @@ function getExamStatusLabel(exam) {
   if (exam.completed) return '已完成'
   if (exam.status === 'EXPIRED') return '已过期'
   return '进行中'
-}
-
-function formatTime(timeStr) {
-  if (!timeStr) return ''
-  return timeStr.replace('T', ' ').substring(0, 16)
 }
 
 /* ---- 方法：进入考试 ---- */
@@ -695,6 +714,9 @@ onUnmounted(() => {
   margin-bottom: var(--ac-spacing-lg);
 }
 
+.search-input { width: 260px; }
+.status-select { width: 140px; }
+
 /* ---- 考试卡片网格 ---- */
 .exam-grid {
   display: grid;
@@ -854,9 +876,9 @@ onUnmounted(() => {
 .nav-dot:hover { border-color: var(--ac-primary); color: var(--ac-primary); }
 .nav-dot.active { background: var(--ac-primary); color: #fff; border-color: var(--ac-primary); }
 .nav-dot.answered:not(.active) {
-  background: rgba(139,168,136,0.15);
-  border-color: var(--ac-success);
-  color: var(--ac-success);
+  background: var(--ok-soft);
+  border-color: var(--ok);
+  color: var(--ok);
 }
 .nav-dot.current { box-shadow: 0 0 0 2px var(--ac-primary-light); }
 
@@ -882,8 +904,8 @@ onUnmounted(() => {
 }
 
 .countdown-box.warning {
-  background: rgba(196,128,128,0.12);
-  color: var(--ac-danger);
+  background: var(--accent-soft);
+  color: var(--accent);
   animation: blink 1s infinite;
 }
 
@@ -995,8 +1017,8 @@ onUnmounted(() => {
 }
 
 .option-checkbox.is-checked {
-  background: rgba(184,154,138,0.08);
-  border-color: var(--ac-secondary);
+  background: var(--violet-soft);
+  border-color: var(--violet);
 }
 
 .judge-buttons {
@@ -1056,10 +1078,10 @@ onUnmounted(() => {
   margin: 0 auto var(--ac-spacing-lg);
 }
 
-.result-icon-wrapper.excellent { background: rgba(139,168,136,0.15); color: var(--ac-success); }
-.result-icon-wrapper.good { background: var(--ac-primary-bg); color: var(--ac-primary); }
-.result-icon-wrapper.pass { background: rgba(203,181,138,0.18); color: var(--ac-warning); }
-.result-icon-wrapper.fail { background: rgba(196,128,128,0.15); color: var(--ac-danger); }
+.result-icon-wrapper.excellent { background: var(--ok-soft); color: var(--ok); }
+.result-icon-wrapper.good { background: var(--accent-soft); color: var(--accent); }
+.result-icon-wrapper.pass { background: var(--warn-soft); color: var(--warn); }
+.result-icon-wrapper.fail { background: var(--accent-soft); color: var(--accent); }
 
 .result-title {
   font-size: 22px;
@@ -1097,6 +1119,8 @@ onUnmounted(() => {
   gap: var(--ac-spacing-md);
   justify-content: center;
 }
+
+.empty-deco { font-size: 38px; filter: grayscale(.2); }
 
 @media (max-width: 900px) {
   .exam-topbar {

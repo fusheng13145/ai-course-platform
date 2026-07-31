@@ -1,4 +1,5 @@
 import request from './request'
+import { updateSystemConfig } from './system'
 
 // AI 供应商配置
 // 复用系统通用配置 KV 存储（system_configs 表，config_group = 'AI'）。
@@ -10,9 +11,9 @@ export const aiSupplierApi = {
     return request.get('/system-configs/group/AI')
   },
   // 保存单项配置（upsert 到 system_configs，group = 'AI'）
-  // 对应后端 POST /admin/system/configs  { key, value, group }
+  // 复用 system.js updateSystemConfig（POST /admin/system/configs { key, value, group }）
   saveConfig(key, value) {
-    return request.post('/admin/system/configs', { key, value, group: 'AI' })
+    return updateSystemConfig(key, value, { group: 'AI' })
   },
   // 查询当前运行时供应商与配置状态（无需重启）
   getCurrent() {

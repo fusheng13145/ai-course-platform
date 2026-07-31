@@ -1,36 +1,40 @@
 <template>
   <div class="course-grades fade-in">
+    <PageHeader compact title="课程成绩" subtitle="成绩方案配置与成绩报告" icon="award">
+      <template v-if="policy">
+        <el-button :icon="Edit" @click="openPolicyDialog(policy)">编辑方案</el-button>
+        <el-button type="primary" :icon="Refresh" :loading="reportLoading" @click="loadReport"
+          >刷新报告</el-button
+        >
+      </template>
+    </PageHeader>
     <div v-loading="loading">
       <!-- 无成绩方案：空状态 + 新建 -->
-      <div v-if="!policy" class="chart-card">
-        <el-empty description="该课程尚未配置成绩方案">
-          <el-button type="primary" :icon="Plus" @click="openPolicyDialog()"
-            >新建成绩方案</el-button
-          >
-        </el-empty>
+      <div v-if="!policy" class="l1-card">
+        <div class="l1-body">
+          <el-empty description="该课程尚未配置成绩方案">
+            <el-button type="primary" :icon="Plus" @click="openPolicyDialog()"
+              >新建成绩方案</el-button
+            >
+          </el-empty>
+        </div>
       </div>
 
       <!-- 有方案：报告表格 -->
       <template v-else>
-        <div class="toolbar">
-          <div class="policy-meta">
-            <el-tag size="small" type="primary" effect="light" round>{{ policy.name }}</el-tag>
-            <span class="muted">构成项 {{ policy.components.length }} 项</span>
+        <div v-loading="reportLoading" class="l1-card">
+          <div class="l1-head">
+            <span class="l1-ico"><el-icon><DataAnalysis /></el-icon></span>
+            <div>
+              <div class="l1-title">
+                课程成绩报告
+                <el-tag size="small" type="primary" effect="light" round>{{ policy.name }}</el-tag>
+              </div>
+              <div v-if="report.length" class="l1-sub">共 {{ report.length }} 名学生</div>
+            </div>
           </div>
-          <div class="toolbar-actions">
-            <el-button :icon="Edit" @click="openPolicyDialog(policy)">编辑方案</el-button>
-            <el-button type="primary" :icon="Refresh" :loading="reportLoading" @click="loadReport"
-              >刷新报告</el-button
-            >
-          </div>
-        </div>
-
-        <div v-loading="reportLoading" class="chart-card">
-          <div class="chart-title">
-            <el-icon><DataAnalysis /></el-icon> 课程成绩报告
-            <span v-if="report.length" class="muted">共 {{ report.length }} 名学生</span>
-          </div>
-          <el-table :data="report" size="small" border max-height="560" empty-text="暂无学生成绩">
+          <div class="l1-body">
+            <el-table v-if="report.length" :data="report" size="small" border max-height="560">
             <el-table-column prop="studentName" label="学生" min-width="110" fixed />
             <el-table-column
               v-for="c in policy.components"
@@ -58,6 +62,8 @@
               </template>
             </el-table-column>
           </el-table>
+          <el-empty v-else description="暂无学生成绩" :image-size="72" />
+          </div>
         </div>
       </template>
     </div>
@@ -110,7 +116,7 @@
         <el-descriptions-item label="学生">{{ scoreTarget.studentName }}</el-descriptions-item>
         <el-descriptions-item label="构成项">{{ scoreTarget.componentName }}</el-descriptions-item>
       </el-descriptions>
-      <el-form label-width="80px" style="margin-top: 16px">
+      <el-form label-width="80px" class="form-top">
         <el-form-item label="分数" required>
           <el-input-number
             v-model="scoreTarget.score"
@@ -118,7 +124,7 @@
             :max="100"
             :precision="1"
             :step="1"
-            style="width: 100%"
+            class="w-100"
           />
         </el-form-item>
       </el-form>
@@ -152,6 +158,7 @@ import { ref, reactive, onMounted, computed, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import gradeApi from '@/api/grade'
+import PageHeader from '@/components/PageHeader.vue'
 import { Plus, Edit, Refresh, Delete, View, DataAnalysis } from '@element-plus/icons-vue'
 
 const route = useRoute()
@@ -342,51 +349,6 @@ watch(
 </script>
 
 <style scoped>
-.toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  margin-bottom: var(--ac-spacing-md);
-  flex-wrap: wrap;
-}
-.policy-meta {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.policy-meta .muted {
-  font-size: 12.5px;
-  color: var(--ac-text-muted);
-}
-.toolbar-actions {
-  display: flex;
-  gap: 10px;
-}
-
-.chart-card {
-  padding: var(--ac-spacing-lg);
-  background: var(--ac-bg-elevated);
-  border: 1px solid var(--ac-border);
-  border-radius: var(--ac-radius-lg);
-  box-shadow: var(--ac-shadow-sm);
-  margin-bottom: var(--ac-spacing-md);
-}
-.chart-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ac-text-primary);
-  margin-bottom: var(--ac-spacing-md);
-}
-.chart-title .muted {
-  font-size: 12.5px;
-  color: var(--ac-text-muted);
-  font-weight: 400;
-}
-
 .score-cell {
   display: inline-block;
   min-width: 44px;
@@ -405,6 +367,13 @@ watch(
 .final-score {
   font-weight: 700;
   color: var(--ac-text-primary);
+}
+
+.form-top {
+  margin-top: 16px;
+}
+.w-100 {
+  width: 100%;
 }
 
 .comp-list {

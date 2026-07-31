@@ -1,11 +1,8 @@
 package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
-import com.aicourse.common.JsonUtils;
-import com.aicourse.entity.Course;
 import com.aicourse.entity.AiChatMessage;
 import com.aicourse.entity.AiChatSession;
-import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.dto.EssayRequest;
 import com.aicourse.dto.LearningPathRequest;
 import com.aicourse.dto.QaAskRequest;
@@ -18,7 +15,7 @@ import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.LearningPathService;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.aicourse.service.LearningRecommendationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.security.core.Authentication;
@@ -26,8 +23,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.*;
 import java.util.concurrent.Callable;
-import java.util.stream.Collectors;
-import java.math.BigDecimal;
 import org.springframework.http.MediaType;
 import reactor.core.publisher.Flux;
 import lombok.extern.slf4j.Slf4j;
@@ -61,6 +56,7 @@ public class AIController {
     private final CourseService courseService;
     private final KnowledgePointService knowledgePointService;
     private final AiChatSessionService aiChatSessionService;
+    private final LearningRecommendationService learningRecommendationService;
 
     public AIController(AIService aiService,
                         AnalyticsService analyticsService,
@@ -68,7 +64,8 @@ public class AIController {
                         CourseEnrollmentService courseEnrollmentService,
                         CourseService courseService,
                         KnowledgePointService knowledgePointService,
-                        AiChatSessionService aiChatSessionService) {
+                        AiChatSessionService aiChatSessionService,
+                        LearningRecommendationService learningRecommendationService) {
         this.aiService = aiService;
         this.analyticsService = analyticsService;
         this.learningPathService = learningPathService;
@@ -76,6 +73,7 @@ public class AIController {
         this.courseService = courseService;
         this.knowledgePointService = knowledgePointService;
         this.aiChatSessionService = aiChatSessionService;
+        this.learningRecommendationService = learningRecommendationService;
     }
 
     // ==================== 智能问答（3个接口） ====================
@@ -228,80 +226,9 @@ public class AIController {
      */
     @GetMapping("/recommendations/learning")
     public Callable<ApiResponse<Map<String, Object>>> learningRecommendations(Authentication auth) {
+        // 业务编排已下沉至 LearningRecommendationService（学情聚合 + 数据驱动上下文 + LLM 推荐）
         final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
-        return () -> {
-            Map<String, Object> result = new HashMap<>();
-            if (userId != null) {
-                List<CourseEnrollment> enrollments = courseEnrollmentService.list(
-                        new LambdaQueryWrapper<CourseEnrollment>()
-                                .eq(CourseEnrollment::getStudentId, userId)
-                                .eq(CourseEnrollment::getIsActive, true)
-                );
-                Set<Long> courseIds = enrollments.stream()
-                        .map(CourseEnrollment::getCourseId).filter(Objects::nonNull).collect(Collectors.toSet());
-                if (courseIds.isEmpty()) {
-                    result.put("recommendation", "您尚未加入任何课程，请先选课以获取个性化推荐。");
-                    return ApiResponse.success(result);
-                }
-
-                // 构建数据驱动推荐上下文
-                Map<String, Object> context = new LinkedHashMap<>();
-
-                // 1) 课程列表
-                Map<Long, String> nameMap = courseService.listByIds(courseIds).stream()
-                        .collect(Collectors.toMap(Course::getId, Course::getName, (a, b) -> a));
-                String courseList = enrollments.stream()
-                        .map(e -> nameMap.getOrDefault(e.getCourseId(), ""))
-                        .filter(n -> !n.isEmpty()).collect(Collectors.joining("、"));
-                context.put("courseList", courseList);
-
-                // 2) 课程进度
-                Double avgProgress = enrollments.stream()
-                        .map(CourseEnrollment::getProgress)
-                        .filter(Objects::nonNull)
-                        .mapToDouble(p -> p.doubleValue()).average().orElse(0);
-                context.put("progress", String.format("%.0f", avgProgress));
-
-                // 3) 薄弱知识点（按掌握度升序，取前8最弱项）
-                try {
-                    List<Map<String, Object>> weakPoints = new ArrayList<>();
-                    for (Long cid : courseIds) {
-                        var kps = knowledgePointService.list(
-                                new LambdaQueryWrapper<com.aicourse.entity.KnowledgePoint>()
-                                        .eq(com.aicourse.entity.KnowledgePoint::getCourseId, cid));
-                        for (var kp : kps) {
-                            BigDecimal mastery = knowledgePointService.calculateMastery(kp.getId(), userId);
-                            if (mastery != null && mastery.compareTo(new BigDecimal("70")) < 0) {
-                                Map<String, Object> wp = new LinkedHashMap<>();
-                                wp.put("name", kp.getName());
-                                wp.put("mastery", mastery);
-                                weakPoints.add(wp);
-                            }
-                        }
-                    }
-                    context.put("weakPoints", weakPoints);
-                } catch (Exception e) {
-                    log.debug("获取薄弱知识点失败（不影响推荐）: {}", e.getMessage());
-                }
-
-                // 4) 近期成绩
-                try {
-                    var stats = analyticsService.getUserDashboard(userId);
-                    if (stats != null && stats.containsKey("avgScore")) {
-                        context.put("recentScores", "平均成绩：" + stats.get("avgScore"));
-                    }
-                } catch (Exception e) {
-                    log.warn("获取用户成绩统计失败，推荐降级为纯LLM模式: userId={}", userId, e);
-                }
-
-                String recommendation = aiService.recommendLearningWithContext(context);
-                result.put("recommendation", recommendation);
-                result.put("dataDriven", true);
-            } else {
-                result.put("recommendation", "请先登录");
-            }
-            return ApiResponse.success(result);
-        };
+        return () -> ApiResponse.success(learningRecommendationService.recommendLearning(userId));
     }
 
     /**
@@ -322,7 +249,7 @@ public class AIController {
             if (cid != null) {
                 try {
                     String json = aiService.recommendQuestionsJson(cid, diff != null ? diff : "MEDIUM", 3);
-                    recommendations = parseQuestions(json, diff);
+                    recommendations = aiService.parseQuestions(json, diff);
                 } catch (Exception e) {
                     throw new BusinessException("题目生成失败: " + e.getMessage());
                 }
@@ -330,36 +257,6 @@ public class AIController {
             result.put("recommendations", recommendations);
             return ApiResponse.success(result);
         };
-    }
-
-    /**
-     * 将题目推荐 JSON 健壮解析为列表（兼容 ```json ``` 代码块 / 裸 JSON）
-     */
-    private List<Map<String, Object>> parseQuestions(String jsonText, String diff) {
-        List<Map<String, Object>> list = new ArrayList<>();
-        String json = JsonUtils.extractJsonObject(jsonText);
-        if (json == null) return list;
-        try {
-            com.fasterxml.jackson.databind.JsonNode root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(json);
-            com.fasterxml.jackson.databind.JsonNode arr = root.has("questions") ? root.get("questions") : root;
-            if (arr.isArray()) {
-                for (com.fasterxml.jackson.databind.JsonNode n : arr) {
-                    Map<String, Object> rec = new LinkedHashMap<>();
-                    rec.put("content", n.has("content") ? n.get("content").asText() : n.asText());
-                    rec.put("type", n.has("type") ? n.get("type").asText() : "SINGLE_CHOICE");
-                    rec.put("difficulty", n.has("difficulty") ? n.get("difficulty").asText() : (diff != null ? diff : "MEDIUM"));
-                    list.add(rec);
-                }
-            }
-        } catch (Exception e) {
-            log.warn("题目推荐 JSON 解析失败: {}", e.getMessage());
-            Map<String, Object> rec = new LinkedHashMap<>();
-            rec.put("content", jsonText);
-            rec.put("type", "SINGLE_CHOICE");
-            rec.put("difficulty", diff != null ? diff : "MEDIUM");
-            list.add(rec);
-        }
-        return list;
     }
 
     // ==================== 学情分析（1个接口） ====================
@@ -381,16 +278,7 @@ public class AIController {
             if (userId != null) {
                 Map<String, Object> userStats = analyticsService.getUserDashboard(userId);
                 result.put("userStats", userStats);
-                try {
-                    String statsJson = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(userStats);
-                    String json = aiService.analyzeWeakPointsJson(statsJson);
-                    weakPoints = aiService.parseWeakPoints(json);
-                } catch (Exception e) {
-                    Map<String, String> wp = new LinkedHashMap<>();
-                    wp.put("description", "AI分析暂时不可用，请稍后重试");
-                    wp.put("severity", "LOW");
-                    weakPoints.add(wp);
-                }
+                weakPoints = aiService.analyzeWeakPoints(userStats);
             }
             result.put("weakPoints", weakPoints);
             return ApiResponse.success(result);
@@ -407,39 +295,16 @@ public class AIController {
             Authentication auth) {
         final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
         return () -> {
-            Map<String, Object> result = new LinkedHashMap<>();
             if (userId == null) {
                 throw new BusinessException(ApiCode.UNAUTHORIZED, "未登录");
             }
             try {
                 Map<String, Object> userStats = analyticsService.getUserDashboard(userId);
-                String statsJson = new com.fasterxml.jackson.databind.ObjectMapper().writeValueAsString(userStats);
-                String weakJson = aiService.analyzeWeakPointsJson(statsJson);
-                String adviceJson = aiService.generateLearningAdviceJson(statsJson, weakJson);
-                String raw = JsonUtils.extractJsonObject(adviceJson);
-                if (raw != null) {
-                    com.fasterxml.jackson.databind.JsonNode root = new com.fasterxml.jackson.databind.ObjectMapper().readTree(raw);
-                    result.put("summary", root.has("summary") ? root.get("summary").asText() : "");
-                    List<Map<String, Object>> items = new ArrayList<>();
-                    if (root.has("items") && root.get("items").isArray()) {
-                        for (com.fasterxml.jackson.databind.JsonNode it : root.get("items")) {
-                            Map<String, Object> m = new LinkedHashMap<>();
-                            m.put("title", it.has("title") ? it.get("title").asText() : "");
-                            m.put("detail", it.has("detail") ? it.get("detail").asText() : "");
-                            String lvl = it.has("level") ? it.get("level").asText().toUpperCase() : "MEDIUM";
-                            if (!"HIGH".equals(lvl) && !"MEDIUM".equals(lvl) && !"LOW".equals(lvl)) lvl = "MEDIUM";
-                            m.put("level", lvl);
-                            items.add(m);
-                        }
-                    }
-                    result.put("items", items);
-                } else {
-                    throw new BusinessException("AI 未返回有效建议");
-                }
+                Map<String, Object> advice = aiService.generateLearningAdvice(userStats);
+                return ApiResponse.success(advice);
             } catch (Exception e) {
                 throw new BusinessException("生成学习建议失败: " + e.getMessage());
             }
-            return ApiResponse.success(result);
         };
     }
 
@@ -462,7 +327,8 @@ public class AIController {
             if (cid != null && userId != null) {
                 try {
                     String pathName = "AI学习路径";
-                    learningPathService.generatePath(userId, cid, pathName, goal);
+                    // 传 null 掌握度 → 服务层自动从错题学情推导；无学情时退化为标准路径
+                    learningPathService.generatePathPersonalized(userId, cid, pathName, goal, null);
                     result.put("status", "created");
                     result.put("message", "学习路径已生成");
                 } catch (Exception e) {

@@ -40,7 +40,7 @@ export const getUserGrowth = days => request.get('/analytics/users/growth', { pa
 export const getExamStatistics = examPaperId => request.get(`/analytics/exams/${examPaperId}/statistics`)
 
 // 向后兼容：getTrendData 复用 getUserGrowth
-export const getTrendData = params => request.get('/analytics/users/growth', { params })
+export const getTrendData = params => getUserGrowth(params)
 
 // 导出统计报表（映射后端 GET /admin/statistics/export）
 export const exportReport = () => request.get('/admin/statistics/export')

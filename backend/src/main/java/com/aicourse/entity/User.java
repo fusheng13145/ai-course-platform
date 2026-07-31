@@ -7,6 +7,8 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 
+import jakarta.validation.constraints.NotBlank;
+
 import java.time.LocalDateTime;
 
 import lombok.Data;
@@ -24,9 +26,11 @@ public class User {
 
     private String email;
 
+    @NotBlank(message = "用户名不能为空")
     private String username;
 
     @JsonIgnore
+    @NotBlank(message = "密码不能为空")
     private String password;
 
     private String fullName;

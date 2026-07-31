@@ -1,10 +1,9 @@
 import request from './request'
+import { unwrap } from '@/utils/response'
 
 // RAG 知识库接口
 // 后端 context-path 已为 /api，RAGController 映射为 /rag，故完整路径为 /api/rag/*
 // RAGController 统一返回 ApiResponse 信封，业务数据位于 res.data（已是结构化对象）。
-
-const unwrap = (res) => res?.data
 
 // 智能问答（需登录，任何已登录角色均可调用）
 export const ragAsk = (params) => request.post('/rag/ask', null, { params }).then(unwrap)

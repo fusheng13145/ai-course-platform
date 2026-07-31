@@ -137,7 +137,7 @@ class NotificationControllerTest extends ControllerTestBase {
     void sendNotification_authorized_returns_200() throws Exception {
         mockMvc.perform(post("/notifications/send")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"userIds\":[1,2],\"title\":\"hi\",\"content\":\"hello\"}")
+                        .content("{\"targetUserIds\":[1,2],\"title\":\"hi\",\"content\":\"hello\"}")
                         .with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));

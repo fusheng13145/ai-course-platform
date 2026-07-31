@@ -13,6 +13,8 @@ public final class ApiCode {
     public static final int UNAUTHORIZED = 401;
     public static final int FORBIDDEN = 403;
     public static final int NOT_FOUND = 404;
+    /** 请求方法不支持（对应 HTTP 405），用于错误方法调用端点等场景。 */
+    public static final int METHOD_NOT_ALLOWED = 405;
     /** 触发限流 / 配额上限（对应 HTTP 429），用于 AI 用量配额熔断等场景。 */
     public static final int TOO_MANY_REQUESTS = 429;
     public static final int INTERNAL_SERVER_ERROR = 500;

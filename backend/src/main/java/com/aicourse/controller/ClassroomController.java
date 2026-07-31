@@ -1,5 +1,7 @@
 package com.aicourse.controller;
 
+import jakarta.validation.Valid;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.Classroom;
 import com.aicourse.entity.User;
@@ -66,7 +68,7 @@ public class ClassroomController {
      */
     @PostMapping
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Classroom> create(@RequestBody Classroom classroom) {
+    public ApiResponse<Classroom> create(@Valid @RequestBody Classroom classroom) {
         classroomService.save(classroom);
         return ApiResponse.success("创建成功", classroom);
     }
@@ -79,7 +81,7 @@ public class ClassroomController {
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Classroom> update(@PathVariable Long id, @RequestBody Classroom classroom) {
+    public ApiResponse<Classroom> update(@PathVariable Long id, @Valid @RequestBody Classroom classroom) {
         classroom.setId(id);
         classroomService.updateById(classroom);
         Classroom updatedClassroom = classroomService.getById(id);

@@ -1,5 +1,7 @@
 package com.aicourse.controller;
 
+import jakarta.validation.Valid;
+
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.service.AuthService;
@@ -58,7 +60,7 @@ public class CommonController {
      * 发送验证码
      */
     @PostMapping("/verify-code")
-    public ApiResponse<Void> sendVerifyCode(@RequestBody Map<String, String> body,
+    public ApiResponse<Void> sendVerifyCode(@Valid @RequestBody Map<String, String> body,
                                             HttpServletRequest request) {
         String email = body.get("email");
         String type = body.getOrDefault("type", "FORGOT_PASSWORD");

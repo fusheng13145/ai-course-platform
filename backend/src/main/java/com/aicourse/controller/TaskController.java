@@ -86,7 +86,7 @@ public class TaskController {
     @Operation(summary = "创建新任务", description = "教师或管理员创建新的作业/测验/项目任务")
     public ApiResponse<Task> create(@io.swagger.v3.oas.annotations.parameters.RequestBody(
             description = "任务创建信息"
-    ) @RequestBody Task task) {
+    ) @Valid @RequestBody Task task) {
         taskService.save(task);
         return ApiResponse.success("创建成功", task);
     }
@@ -100,7 +100,7 @@ public class TaskController {
     public ApiResponse<Task> update(@Parameter(description = "任务ID") @PathVariable Long id,
                                     @io.swagger.v3.oas.annotations.parameters.RequestBody(
                                             description = "待更新的任务数据"
-                                    ) @RequestBody Task task) {
+                                    ) @Valid @RequestBody Task task) {
         task.setId(id);
         taskService.updateById(task);
         Task updatedTask = taskService.getById(id);
@@ -157,7 +157,7 @@ public class TaskController {
             @Parameter(description = "源任务ID") @PathVariable Long id,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     description = "包含新标题(newTitle)的JSON对象"
-            ) @RequestBody Map<String, String> body) {
+            ) @Valid @RequestBody Map<String, String> body) {
         String newTitle = body.get("newTitle");
         Task newTask = taskService.copyTask(id, newTitle);
         return ApiResponse.success("复制成功", newTask);

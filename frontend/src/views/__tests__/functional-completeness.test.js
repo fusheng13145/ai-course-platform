@@ -1,6 +1,5 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { ElMessage, ElMessageBox } from 'element-plus'
 
 // Mock axios and element-plus
 vi.mock('element-plus', () => ({
@@ -73,19 +72,12 @@ describe('API 模块：resourceVersion', () => {
 
 describe('teacher/Dashboard.vue — Loading 状态', () => {
   const factory = async () => {
-    // Mock stores
-    vi.mock('@/stores/auth', () => ({
-      useAuthStore: () => ({ userId: 1 }),
-    }))
-    // Mock APIs
-    vi.mock('@/api/analytics', () => ({
-      default: { getDashboardStats: vi.fn(() => ({ data: {} })) }
-    }))
-    vi.mock('@/api/task', () => ({
-      default: { getPendingGrading: vi.fn(() => ({ data: { list: [] } })) }
-    }))
-    vi.mock('@/api/course', () => ({
-      default: { getMyCourses: vi.fn(() => ({ data: { list: [] } })) }
+    // Mock APIs（与页面真实依赖对齐：teacherApi）
+    vi.mock('@/api/teacher', () => ({
+      default: {
+        getTeacherDashboardV2: vi.fn(() => ({ data: { stats: {}, courses: [] } })),
+        createCourse: vi.fn(() => ({ data: {} })),
+      }
     }))
     const Dashboard = (await import('@/views/teacher/Dashboard.vue')).default
     return mount(Dashboard, { global: { stubs: ['v-chart', 'el-icon'] } })
@@ -93,7 +85,8 @@ describe('teacher/Dashboard.vue — Loading 状态', () => {
 
   it('应渲染统计卡片', async () => {
     const wrapper = await factory()
-    expect(wrapper.find('.stat-cards').exists()).toBe(true)
+    // 统计卡片容器使用设计系统全局类 stat-grid（design-system.css）
+    expect(wrapper.find('.stat-grid').exists()).toBe(true)
   })
 })
 

@@ -57,7 +57,7 @@ public class WrongQuestionController {
      * @return 错题记录
      */
     @PostMapping
-    public ApiResponse<WrongQuestion> record(@RequestBody Map<String, String> params, Authentication auth) {
+    public ApiResponse<WrongQuestion> record(@Valid @RequestBody Map<String, String> params, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         Long questionId = Long.valueOf(params.get("questionId"));
         Long courseId = params.get("courseId") != null ? Long.valueOf(params.get("courseId")) : null;
@@ -171,7 +171,7 @@ public class WrongQuestionController {
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('STUDENT','ADMIN')")
-    public ApiResponse<WrongQuestion> update(@PathVariable Long id, @RequestBody WrongQuestion wq) {
+    public ApiResponse<WrongQuestion> update(@PathVariable Long id, @Valid @RequestBody WrongQuestion wq) {
         wq.setId(id);
         wrongQuestionService.updateById(wq);
         WrongQuestion updatedWq = wrongQuestionService.getById(id);

@@ -1,5 +1,7 @@
 package com.aicourse.controller;
 
+import jakarta.validation.Valid;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.SignIn;
 import com.aicourse.entity.SignInRecord;
@@ -37,7 +39,7 @@ public class InteractionController {
 
     @PostMapping("/sign-in")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<SignIn> createSignIn(@RequestBody SignIn signIn, Authentication auth) {
+    public ApiResponse<SignIn> createSignIn(@Valid @RequestBody SignIn signIn, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         return ApiResponse.success("发起签到成功", signInService.createSignIn(signIn, userId, auth));
     }
@@ -73,7 +75,7 @@ public class InteractionController {
     @PostMapping("/sign-in/{id}/manual")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<SignInRecord> manualMark(@PathVariable Long id,
-                                               @RequestBody Map<String, String> body,
+                                               @Valid @RequestBody Map<String, String> body,
                                                Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         Long studentId = Long.valueOf(body.get("studentId"));
@@ -86,7 +88,7 @@ public class InteractionController {
     @PostMapping("/sign-in/{id}/sign")
     @PreAuthorize("hasRole('STUDENT')")
     public ApiResponse<SignInRecord> sign(@PathVariable Long id,
-                                       @RequestBody SignInRecord record,
+                                       @Valid @RequestBody SignInRecord record,
                                        Authentication auth,
                                        HttpServletRequest request) {
         Long userId = (Long) auth.getPrincipal();
@@ -105,7 +107,7 @@ public class InteractionController {
 
     @PostMapping("/vote")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Vote> createVote(@RequestBody Vote vote, Authentication auth) {
+    public ApiResponse<Vote> createVote(@Valid @RequestBody Vote vote, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         return ApiResponse.success("发起投票成功", voteService.createVote(vote, userId, auth));
     }
@@ -134,7 +136,7 @@ public class InteractionController {
     @PostMapping("/vote/{id}/vote")
     @PreAuthorize("hasRole('STUDENT')")
     public ApiResponse<VoteRecord> vote(@PathVariable Long id,
-                                     @RequestBody VoteRecord record,
+                                     @Valid @RequestBody VoteRecord record,
                                      Authentication auth,
                                      HttpServletRequest request) {
         Long userId = (Long) auth.getPrincipal();

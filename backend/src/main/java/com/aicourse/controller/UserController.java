@@ -239,7 +239,7 @@ public class UserController {
     @PatchMapping("/{id}/status")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "切换用户启用/禁用状态")
-    public ApiResponse<Void> toggleStatus(@PathVariable Long id, @RequestBody Map<String, Boolean> body) {
+    public ApiResponse<Void> toggleStatus(@PathVariable Long id, @Valid @RequestBody Map<String, Boolean> body) {
         User user = userService.getById(id);
         if (user == null) {
             throw new BusinessException("用户不存在");

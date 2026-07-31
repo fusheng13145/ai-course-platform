@@ -1,34 +1,32 @@
 <template>
   <div class="fade-in resource-management">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-left">
-        <h2 class="page-title">校本资源库</h2>
-        <p class="page-desc">按课程管理教学资源，支持上传、检索、授权与下载统计</p>
-      </div>
-    </div>
+    <PageHeader
+      title="校本资源库"
+      subtitle="按课程管理教学资源，支持上传、检索、授权与下载统计"
+      icon="doc"
+      icon-bg="accent"
+    >
+      <el-button type="primary" :disabled="!selectedCourseId" @click="openUpload">
+        <el-icon><Upload /></el-icon>上传资源
+      </el-button>
+    </PageHeader>
 
-    <!-- 统计概览 -->
-    <div class="stats-row">
-      <div class="stat-mini-card">
-        <span class="label">资源总数</span>
-        <span class="value">{{ resStats.total }}</span>
-      </div>
-      <div class="stat-mini-card teacher">
-        <span class="label">公开资源</span>
-        <span class="value">{{ resStats.publicCount }}</span>
-      </div>
-      <div class="stat-mini-card student">
-        <span class="label">文档类</span>
-        <span class="value">{{ resStats.docCount }}</span>
-      </div>
-      <div class="stat-mini-card admin">
-        <span class="label">音视频</span>
-        <span class="value">{{ resStats.mediaCount }}</span>
-      </div>
+    <div class="stat-grid">
+      <StatCard label="资源总数" :value="resStats.total" icon="grid" tone="var(--accent-soft)" tone-color="var(--accent)" />
+      <StatCard label="公开资源" :value="resStats.publicCount" icon="check" tone="var(--ok-soft)" tone-color="var(--ok)" />
+      <StatCard label="文档类" :value="resStats.docCount" icon="doc" tone="var(--info-soft)" tone-color="var(--info)" />
+      <StatCard label="音视频" :value="resStats.mediaCount" icon="play" tone="var(--violet-soft)" tone-color="var(--violet)" />
     </div>
 
     <!-- 工具栏 -->
+    <section class="l1-card">
+      <div class="l1-head">
+        <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        </span>
+        <div><div class="l1-title">资源列表</div><div class="l1-sub">按课程检索、授权与下载统计</div></div>
+      </div>
+      <div class="l1-body">
     <div class="content-card filter-card">
       <div class="filter-row">
         <el-select
@@ -101,7 +99,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="uploadTime" label="上传时间" width="170">
-          <template #default="{ row }">{{ formatTime(row.uploadTime || row.createdAt) }}</template>
+          <template #default="{ row }">{{ formatTime(row.uploadTime || row.createdAt, '—') }}</template>
         </el-table-column>
         <el-table-column label="操作" width="160" align="center">
           <template #default="{ row }">
@@ -112,10 +110,14 @@
           </template>
         </el-table-column>
         <template #empty>
-          <el-empty :description="selectedCourseId ? '该课程暂无资源' : '请先选择课程'" />
+          <el-empty :description="selectedCourseId ? '该课程暂无资源' : '请先选择课程'">
+            <template #image><div class="empty-deco">📁</div></template>
+          </el-empty>
         </template>
       </el-table>
     </div>
+    </div>
+    </section>
 
     <!-- 上传弹窗 -->
     <el-dialog v-model="showUpload" title="上传资源" width="520px" append-to-body>
@@ -159,6 +161,7 @@
 
 <script setup>
 import logger from '@/utils/logger'
+import { formatTime } from '@/utils/datetime'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -172,6 +175,8 @@ import {
 } from '@element-plus/icons-vue'
 import resourceApi from '@/api/resource'
 import courseApi from '@/api/course'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 const loading = ref(false)
 const courseList = ref([])
@@ -223,17 +228,7 @@ const filteredResources = computed(() => {
   return list
 })
 
-function formatTime(t) {
-  if (!t) return '—'
-  try {
-    const d = new Date(t)
-    if (isNaN(d.getTime())) return t
-    const p = (n) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}`
-  } catch {
-    return t
-  }
-}
+/* ---- 数据加载 ---- */
 
 async function loadCourses() {
   try {
@@ -372,61 +367,6 @@ onMounted(loadCourses)
   margin: 0 auto;
 }
 
-.page-header {
-  margin-bottom: var(--ac-spacing-lg);
-}
-.page-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-  letter-spacing: -0.3px;
-}
-.page-desc {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-  margin-top: 4px;
-}
-
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-  gap: var(--ac-spacing-md);
-  margin-bottom: var(--ac-spacing-lg);
-}
-.stat-mini-card {
-  background: var(--ac-bg-elevated);
-  border-radius: var(--ac-radius-md);
-  border: 1px solid var(--ac-border);
-  padding: 16px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  transition: all var(--ac-transition-normal);
-}
-.stat-mini-card:hover {
-  box-shadow: var(--ac-shadow-md);
-  transform: translateY(-2px);
-}
-.stat-mini-card .label {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-  font-weight: 500;
-}
-.stat-mini-card .value {
-  font-size: 26px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-}
-.stat-mini-card.admin .value {
-  color: #7f1d1d;
-}
-.stat-mini-card.teacher .value {
-  color: #166534;
-}
-.stat-mini-card.student .value {
-  color: #1e40af;
-}
-
 .content-card {
   background: var(--ac-bg-elevated);
   border-radius: var(--ac-radius-md);
@@ -509,9 +449,9 @@ onMounted(loadCourses)
   align-items: center;
 }
 
-@media (max-width: 768px) {
-  .stats-row {
-    grid-template-columns: repeat(2, 1fr);
-  }
+/* 空状态装饰 */
+.empty-deco {
+  font-size: 38px;
+  filter: grayscale(.2);
 }
 </style>

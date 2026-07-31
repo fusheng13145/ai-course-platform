@@ -1,20 +1,28 @@
 <template>
   <div class="fade-in file-upload-manage">
-    <div class="page-header">
-      <div class="header-left">
-        <h2 class="page-title">分片上传管理</h2>
-        <p class="page-desc">监控大文件分片上传会话进度，支持取消与管理操作</p>
-      </div>
+    <PageHeader
+      title="分片上传管理"
+      subtitle="监控大文件分片上传会话进度，支持取消与管理操作"
+      icon="upload"
+      icon-bg="accent"
+    >
+      <el-button type="primary" @click="refreshList">
+        <el-icon><Refresh /></el-icon>刷新列表
+      </el-button>
+    </PageHeader>
+
+    <div class="stat-grid">
+      <StatCard label="总会话数" :value="sessionTotal" icon="list" tone="accent" />
+      <StatCard label="上传中" :value="uploadingCount" icon="play" tone="warn" />
+      <StatCard label="已合并" :value="mergedCount" icon="check" tone="ok" />
     </div>
 
-    <div class="content-card filter-card">
-      <div class="filter-row">
-        <el-button type="primary" @click="refreshList">
-          <el-icon><Refresh /></el-icon>刷新列表
-        </el-button>
+    <section class="l1-card">
+      <div class="l1-head">
+        <span class="l1-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" /></svg></span>
+        <div><h3 class="l1-title">上传会话列表</h3></div>
       </div>
-    </div>
-
+      <div class="l1-body">
     <div class="content-card">
       <el-table v-loading="loading" :data="sessions" style="width:100%" empty-text="暂无上传会话">
         <el-table-column prop="id" label="ID" width="70" />
@@ -46,8 +54,15 @@
             <el-button v-else size="small" @click="viewProgress(row)">查看进度</el-button>
           </template>
         </el-table-column>
+        <template #empty>
+          <el-empty description="暂无上传会话">
+            <template #image><div class="empty-deco">📤</div></template>
+          </el-empty>
+        </template>
       </el-table>
     </div>
+    </div>
+    </section>
 
     <!-- 进度弹窗 -->
     <el-dialog v-model="progressVisible" title="上传进度" width="520px" append-to-body>
@@ -65,13 +80,18 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Document, Close } from '@element-plus/icons-vue'
 import uploadApi from '@/api/fileUpload'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 const loading = ref(false)
 const sessions = ref([])
+const sessionTotal = computed(() => sessions.value.length)
+const uploadingCount = computed(() => sessions.value.filter(s => s.status === 'UPLOADING').length)
+const mergedCount = computed(() => sessions.value.filter(s => s.status === 'MERGED' || s.status === 'COMPLETED').length)
 const progressVisible = ref(false)
 const currentSession = ref(null)
 
@@ -150,4 +170,10 @@ onMounted(refreshList)
 .file-name { display: inline-flex; align-items: center; gap: 6px; }
 .progress-detail p { margin: 8px 0; }
 .progress-hint { font-size: 12px; color: var(--ac-text-muted); margin-top: 6px; }
+
+/* 空状态装饰 */
+.empty-deco {
+  font-size: 38px;
+  filter: grayscale(.2);
+}
 </style>

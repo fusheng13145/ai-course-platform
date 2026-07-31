@@ -1,20 +1,31 @@
 <template>
   <div class="fade-in reminder-manage">
-    <div class="page-header">
-      <div class="header-left">
-        <h2 class="page-title">提醒管理</h2>
-        <p class="page-desc">管理系统待办提醒和到期通知</p>
-      </div>
-      <div class="header-right">
-        <el-button type="primary" @click="openCreate">
-          <el-icon><Plus /></el-icon>新建提醒
-        </el-button>
-        <el-button @click="handleSendDue">
-          <el-icon><AlarmClock /></el-icon>触发到期提醒
-        </el-button>
-      </div>
+    <PageHeader
+      title="提醒管理"
+      subtitle="管理系统待办提醒和到期通知"
+      icon="clock"
+      icon-bg="accent"
+    >
+      <el-button type="primary" @click="openCreate">
+        <el-icon><Plus /></el-icon>新建提醒
+      </el-button>
+      <el-button @click="handleSendDue">
+        <el-icon><AlarmClock /></el-icon>触发到期提醒
+      </el-button>
+    </PageHeader>
+
+    <div class="stat-grid">
+      <StatCard label="总提醒" :value="totalCount" icon="list" tone="accent" />
+      <StatCard label="待处理" :value="pendingCount" icon="clock" tone="warn" />
+      <StatCard label="已完成" :value="completedCount" icon="check" tone="ok" />
     </div>
 
+    <section class="l1-card">
+      <div class="l1-head">
+        <span class="l1-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" /></svg></span>
+        <div><h3 class="l1-title">提醒列表</h3></div>
+      </div>
+      <div class="l1-body">
     <div class="content-card">
       <el-table v-loading="loading" :data="todos" style="width:100%" empty-text="暂无待办提醒">
         <el-table-column prop="id" label="ID" width="60" />
@@ -45,8 +56,15 @@
             </el-popconfirm>
           </template>
         </el-table-column>
+        <template #empty>
+          <el-empty description="暂无待办提醒">
+            <template #image><div class="empty-deco">🔔</div></template>
+          </el-empty>
+        </template>
       </el-table>
     </div>
+    </div>
+    </section>
 
     <!-- 新建/编辑弹窗 -->
     <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑提醒' : '新建提醒'" width="520px" append-to-body>
@@ -73,14 +91,19 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus, AlarmClock } from '@element-plus/icons-vue'
 import reminderApi from '@/api/reminder'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 const loading = ref(false)
 const saving = ref(false)
 const todos = ref([])
+const totalCount = computed(() => todos.value.length)
+const pendingCount = computed(() => todos.value.filter(t => t.status === 'PENDING').length)
+const completedCount = computed(() => todos.value.filter(t => t.status === 'COMPLETED').length)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const form = ref({ title: '', content: '', remindAt: null, targetUserId: '' })
@@ -166,4 +189,10 @@ onMounted(loadTodos)
 .page-title { font-size: 22px; font-weight: 700; color: var(--ac-text-primary); }
 .page-desc { font-size: 13px; color: var(--ac-text-muted); margin-top: 4px; }
 .content-card { background: var(--ac-bg-elevated); border-radius: var(--ac-radius-md); border: 1px solid var(--ac-border); padding: 16px; }
+
+/* 空状态装饰 */
+.empty-deco {
+  font-size: 38px;
+  filter: grayscale(.2);
+}
 </style>

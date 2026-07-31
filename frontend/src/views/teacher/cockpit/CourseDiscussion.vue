@@ -1,7 +1,10 @@
 <template>
   <div class="course-discussion fade-in">
+    <PageHeader compact title="课程讨论" subtitle="话题浏览、发起与回复互动" icon="message">
+      <el-button type="primary" :icon="Plus" @click="openTopicDialog">发起话题</el-button>
+    </PageHeader>
     <div v-loading="loading">
-      <!-- 筛选 + 发起 -->
+      <!-- 筛选 -->
       <div class="toolbar">
         <div class="filters">
           <el-input
@@ -23,16 +26,19 @@
           />
           <el-button :icon="Search" @click="loadTopics">筛选</el-button>
         </div>
-        <el-button type="primary" :icon="Plus" @click="openTopicDialog">发起话题</el-button>
       </div>
 
       <!-- 话题列表 -->
-      <div class="chart-card">
-        <div class="chart-title">
-          <el-icon><ChatLineSquare /></el-icon> 课程讨论话题
-          <span class="muted">{{ topics.length }} 个</span>
+      <div class="l1-card">
+        <div class="l1-head">
+          <span class="l1-ico"><el-icon><ChatLineSquare /></el-icon></span>
+          <div>
+            <div class="l1-title">课程讨论话题</div>
+            <div class="l1-sub">{{ topics.length }} 个</div>
+          </div>
         </div>
-        <div v-if="topics.length" class="topic-list">
+        <div class="l1-body">
+          <div v-if="topics.length" class="topic-list">
           <div
             v-for="t in topics"
             :key="t.id"
@@ -68,6 +74,7 @@
           </div>
         </div>
         <el-empty v-else description="暂无讨论话题" />
+        </div>
       </div>
     </div>
 
@@ -155,7 +162,7 @@
             type="primary"
             :icon="Promotion"
             :loading="replyLoading"
-            style="margin-top: 10px"
+            class="reply-send"
             @click="sendReply"
             >发送回复</el-button
           >
@@ -172,6 +179,7 @@ import { ref, reactive, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import discussionApi from '@/api/discussion'
+import PageHeader from '@/components/PageHeader.vue'
 import {
   Plus,
   Search,
@@ -375,28 +383,6 @@ watch(
   width: 180px;
 }
 
-.chart-card {
-  padding: var(--ac-spacing-lg);
-  background: var(--ac-bg-elevated);
-  border: 1px solid var(--ac-border);
-  border-radius: var(--ac-radius-lg);
-  box-shadow: var(--ac-shadow-sm);
-}
-.chart-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ac-text-primary);
-  margin-bottom: var(--ac-spacing-md);
-}
-.chart-title .muted {
-  font-size: 12.5px;
-  color: var(--ac-text-muted);
-  font-weight: 400;
-}
-
 .topic-list {
   display: flex;
   flex-direction: column;
@@ -517,6 +503,9 @@ watch(
 
 .reply-box {
   margin-top: 16px;
+}
+.reply-send {
+  margin-top: 10px;
 }
 .time {
   color: var(--ac-text-muted);

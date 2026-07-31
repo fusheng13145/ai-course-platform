@@ -1,5 +1,5 @@
 <template>
-  <div class="fade-in" v-loading="pageLoading">
+  <div v-loading="pageLoading" class="fade-in">
     <!-- 页面头部：课程信息 -->
     <div class="course-header-card">
       <el-page-header :title="'返回课程列表'" @back="$router.push('/student/courses')">
@@ -56,7 +56,7 @@
           </section>
 
           <div v-if="!enrollment.id" class="action-section">
-            <el-button type="primary" size="large" @click="handleEnroll" :loading="enrolling">
+            <el-button type="primary" size="large" :loading="enrolling" @click="handleEnroll">
               <el-icon><Plus /></el-icon>
               加入课程学习
             </el-button>
@@ -113,19 +113,27 @@
               </el-button>
               <h3 class="learning-chapter-title">{{ currentChapter.title }}</h3>
               <div class="learning-actions">
-                <el-button type="success" @click="markChapterComplete" :loading="completing">
+                <el-button type="success" :loading="completing" @click="markChapterComplete">
                   <el-icon><Select /></el-icon> 标记完成
                 </el-button>
               </div>
             </div>
 
             <div class="learning-body">
-              <!-- 视频播放区域（占位） -->
-              <div class="video-placeholder">
-                <div class="video-inner">
+              <!-- 视频播放区域：播放当前章节关联的视频资源（fileType 以 video/ 开头） -->
+              <div class="video-player-area">
+                <video
+                  v-if="currentChapterVideo"
+                  :key="currentChapterVideo.id"
+                  class="chapter-video"
+                  :src="videoSrc(currentChapterVideo)"
+                  controls
+                  preload="metadata"
+                ></video>
+                <div v-else class="video-empty">
                   <el-icon :size="48" color="var(--ac-text-muted)"><VideoPlay /></el-icon>
-                  <p>视频播放器区域</p>
-                  <p class="video-hint">（集成视频播放组件后替换此占位）</p>
+                  <p>本章暂无视频资源</p>
+                  <p class="video-hint">可阅读下方章节内容学习</p>
                 </div>
               </div>
 
@@ -161,7 +169,7 @@
 <script setup>
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import {
   Plus, ArrowRight, Select, Timer, ArrowLeft, VideoPlay
 } from '@element-plus/icons-vue'
@@ -169,6 +177,7 @@ import courseApi from '@/api/course'
 import chapterApi from '@/api/chapter'
 import enrollmentApi from '@/api/enrollment'
 import learningRecordApi from '@/api/learningRecord'
+import resourceApi from '@/api/resource'
 
 const route = useRoute()
 
@@ -202,9 +211,30 @@ const chapters = ref([])
 /* ---- 学习模式状态 ---- */
 const learningMode = ref(false)
 const currentChapter = reactive({ id: null, title: '', description: '', content: '', duration: 0 })
+const currentChapterVideo = ref(null)
 const learningStartTime = ref(null)
 const learningSeconds = ref(0)
 let learningTimer = null
+
+/* ---- 视频资源 ---- */
+function videoSrc(res) {
+  if (!res?.url) return ''
+  // 后端存储的相对路径 /uploads/xx 需经 /api 前缀转发（dev: Vite 代理；prod: Nginx /api location）
+  return res.url.startsWith('/uploads') ? `/api${res.url}` : res.url
+}
+
+async function loadChapterVideo(chapterId) {
+  currentChapterVideo.value = null
+  if (!chapterId) return
+  try {
+    const res = await resourceApi.getChapterResources(chapterId)
+    const list = res.data || res || []
+    const arr = Array.isArray(list) ? list : []
+    currentChapterVideo.value = arr.find((r) => (r.fileType || '').startsWith('video/')) || null
+  } catch {
+    currentChapterVideo.value = null
+  }
+}
 
 /* ---- 计算属性 ---- */
 const estimatedDuration = computed(() => {
@@ -247,7 +277,7 @@ onMounted(async () => {
 
     // 章节信息
     const chapterList = chapterRes.data || chapterRes || []
-    chapters.value = chapterList.map((ch, idx) => ({
+    chapters.value = chapterList.map((ch, _idx) => ({
       ...ch,
       completed: ch.status === 'COMPLETED',
       current: ch.status === 'IN_PROGRESS',
@@ -299,6 +329,7 @@ function enterLearning(chapter) {
   learningMode.value = true
   learningStartTime.value = Date.now()
   learningSeconds.value = 0
+  loadChapterVideo(chapter.id)
 
   // 启动计时器
   if (learningTimer) clearInterval(learningTimer)
@@ -318,6 +349,7 @@ function enterLearning(chapter) {
 function exitLearning() {
   // 退出前保存学习记录
   autoSaveRecord()
+  currentChapterVideo.value = null
 
   if (learningTimer) {
     clearInterval(learningTimer)
@@ -627,20 +659,30 @@ async function markChapterComplete() {
   min-height: 400px;
 }
 
-.video-placeholder {
-  background: var(--ac-bg);
+.video-player-area {
+  background: #0f1420;
   display: flex;
   align-items: center;
   justify-content: center;
   border-right: 1px solid var(--ac-border);
+  min-height: 300px;
 }
 
-.video-inner {
+.chapter-video {
+  width: 100%;
+  height: 100%;
+  max-height: 480px;
+  object-fit: contain;
+  background: #0f1420;
+}
+
+.video-empty {
   text-align: center;
   color: var(--ac-text-muted);
+  padding: 40px 20px;
 }
 
-.video-inner p {
+.video-empty p {
   margin-top: var(--ac-spacing-sm);
   font-size: 14px;
 }
@@ -681,7 +723,7 @@ async function markChapterComplete() {
   .learning-body {
     grid-template-columns: 1fr;
   }
-  .video-placeholder {
+  .video-player-area {
     min-height: 220px;
     border-right: none;
     border-bottom: 1px solid var(--ac-border);

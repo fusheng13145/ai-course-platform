@@ -42,11 +42,11 @@ describe('API 模块 - auth.js', () => {
 })
 
 describe('API 模块 - course.js', () => {
-  it('getCourses 调用 GET /courses', async () => {
+  it('getCourseList 调用 GET /courses', async () => {
     const courseApi = (await import('@/api/course')).default
     mockRequest.get.mockResolvedValue({ data: [{ id: 1, name: '计算机网络' }] })
 
-    const result = await courseApi.getCourses({ page: 1 })
+    const result = await courseApi.getCourseList({ page: 1 })
     expect(mockRequest.get).toHaveBeenCalledWith('/courses', { params: { page: 1 } })
     expect(result.data[0].name).toBe('计算机网络')
   })
@@ -92,53 +92,53 @@ describe('API 模块 - ai.js (v2 接口)', () => {
 })
 
 describe('API 模块 - exam.js', () => {
-  it('getExams 调用 GET /exams', async () => {
+  it('getExamPaperList 调用 GET /exam-papers', async () => {
     const examApi = (await import('@/api/exam')).default
     mockRequest.get.mockResolvedValue({ data: [] })
 
-    await examApi.getExams({ courseId: 1 })
-    expect(mockRequest.get).toHaveBeenCalledWith('/exams', { params: { courseId: 1 } })
+    await examApi.getExamPaperList({ courseId: 1 })
+    expect(mockRequest.get).toHaveBeenCalledWith('/exam-papers', { params: { courseId: 1 } })
   })
 })
 
 describe('API 模块 - submission.js', () => {
-  it('getSubmissions 调用 GET /submissions', async () => {
+  it('getMySubmissions 调用 GET /submissions', async () => {
     const subApi = (await import('@/api/submission')).default
     mockRequest.get.mockResolvedValue({ data: [] })
 
-    await subApi.getSubmissions({ taskId: 1 })
+    await subApi.getMySubmissions({ taskId: 1 })
     expect(mockRequest.get).toHaveBeenCalledWith('/submissions', { params: { taskId: 1 } })
   })
 })
 
 describe('API 模块 - notification.js', () => {
-  it('getNotifications 调用 GET /notifications', async () => {
+  it('getNotificationList 调用 GET /notifications', async () => {
     const notifApi = (await import('@/api/notification')).default
     mockRequest.get.mockResolvedValue({ data: [] })
 
-    await notifApi.getNotifications({ page: 1 })
+    await notifApi.getNotificationList({ page: 1 })
     expect(mockRequest.get).toHaveBeenCalledWith('/notifications', { params: { page: 1 } })
   })
 })
 
 describe('API 模块 - user.js', () => {
-  it('getUserProfile 调用 GET /users/profile', async () => {
+  it('getUserList 调用 GET /users', async () => {
     const userApi = (await import('@/api/user')).default
-    mockRequest.get.mockResolvedValue({ data: { id: 1, username: 'test' } })
+    mockRequest.get.mockResolvedValue({ data: [{ id: 1, username: 'test' }] })
 
-    const result = await userApi.getUserProfile()
-    expect(mockRequest.get).toHaveBeenCalledWith('/users/profile')
-    expect(result.data.username).toBe('test')
+    const result = await userApi.getUserList({ page: 1 })
+    expect(mockRequest.get).toHaveBeenCalledWith('/users', { params: { page: 1 } })
+    expect(result.data[0].username).toBe('test')
   })
 })
 
 describe('API 模块 - analytics.js', () => {
-  it('getDashboard 调用 GET /analytics/dashboard', async () => {
+  it('getDashboardStats 调用 GET /analytics/dashboard', async () => {
     const analyticsApi = (await import('@/api/analytics')).default
     mockRequest.get.mockResolvedValue({ data: { totalCourses: 5 } })
 
-    const result = await analyticsApi.getDashboard()
-    expect(mockRequest.get).toHaveBeenCalledWith('/analytics/dashboard')
+    const result = await analyticsApi.getDashboardStats({ days: 30 })
+    expect(mockRequest.get).toHaveBeenCalledWith('/analytics/dashboard', { params: { days: 30 } })
     expect(result.data.totalCourses).toBe(5)
   })
 })

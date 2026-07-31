@@ -1,6 +1,7 @@
 package com.aicourse.service;
 
 import com.aicourse.entity.LearningPath;
+import com.aicourse.entity.LearningPathNode;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.util.List;
@@ -106,4 +107,25 @@ public interface LearningPathService extends IService<LearningPath> {
      */
     LearningPath generatePathPersonalized(Long studentId, Long courseId, String pathName,
                                           String learningGoal, Map<String, Double> masteryData);
+
+    /**
+     * 从学生错题学情自动推导知识点掌握度。
+     * 以知识点为单位统计错题：未掌握错题扣 25 分/道、已掌握错题扣 5 分/道，下限 10 分。
+     *
+     * @param studentId 学生ID
+     * @param courseId  课程ID
+     * @return 知识点名称 → 掌握度（0~100）；无学情数据时返回空 Map
+     */
+    Map<String, Double> deriveMastery(Long studentId, Long courseId);
+
+    /**
+     * 自动生成学习节点（数据驱动版）：从错题学情推导掌握度，取课程知识库知识点，
+     * 按「薄弱优先 → 重要度」双关键字排序并截取前 8 个，生成带掌握度加权时长的节点列表。
+     * 由 Controller 内联实现下沉，行为保持一致。
+     *
+     * @param studentId 学生ID
+     * @param courseId  课程ID
+     * @return 生成的节点列表（无知识点时为空列表）
+     */
+    List<LearningPathNode> generateLearningPath(Long studentId, Long courseId);
 }

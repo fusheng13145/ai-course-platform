@@ -1,388 +1,199 @@
-﻿﻿﻿﻿<template>
-  <div class="fade-in">
-    <!-- 统计卡片区域 -->
-    <div class="stat-cards">
-      <div class="stat-card">
-        <div class="stat-icon" style="background: var(--ac-primary-bg); color: var(--ac-primary)">
-          <el-icon :size="24"><Reading /></el-icon>
-        </div>
-        <div class="stat-info">
-          <h3>{{ stats.courseCount }}</h3>
-          <p>在学课程</p>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background: rgba(139,168,136,0.15); color: var(--ac-success)">
-          <el-icon :size="24"><TrophyBase /></el-icon>
-        </div>
-        <div class="stat-info">
-          <h3>{{ stats.avgScore }}</h3>
-          <p>平均分</p>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background: rgba(203,181,138,0.18); color: var(--ac-warning)">
-          <el-icon :size="24"><Calendar /></el-icon>
-        </div>
-        <div class="stat-info">
-          <h3>{{ stats.streakDays }}</h3>
-          <p>连续学习天数</p>
-        </div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background: rgba(196,128,128,0.15); color: var(--ac-danger)">
-          <el-icon :size="24"><WarningFilled /></el-icon>
-        </div>
-        <div class="stat-info">
-          <h3>{{ stats.todoCount }}</h3>
-          <p>待办事项</p>
-        </div>
-      </div>
+﻿<template>
+  <div>
+    <PageHeader title="学习首页" subtitle="课程进度、待办任务与未读通知概览" icon="dashboard" />
+    <div class="stat-grid animate-in d1">
+      <StatCard label="在修课程" icon="book"><template #value><CountUp :value="Number(summary.courseCount ?? courses.length)" /></template></StatCard>
+      <StatCard label="平均进度" icon="chart" tone="var(--info-soft)" tone-color="var(--info)"><template #value><CountUp :value="Number(avgProgress) || 0" suffix="%" /></template></StatCard>
+      <StatCard label="待办任务" icon="clock" tone="var(--warn-soft)" tone-color="var(--warn)" :foot="`${todos.assignments.length} 作业 · ${todos.exams.length} 考试`"><template #value><CountUp :value="Number(pendingCount)" /></template></StatCard>
+      <StatCard label="未读通知" icon="award" tone="var(--ok-soft)" tone-color="var(--ok)"><template #value><CountUp :value="Number(summary.unreadCount ?? 0)" /></template></StatCard>
     </div>
 
-    <!-- 图表与进度区域 -->
-    <div class="dashboard-grid">
-      <!-- 学习趋势折线图 -->
-      <div class="chart-card">
-        <div class="chart-header">
-          <span class="chart-title">学习趋势</span>
-          <el-radio-group v-model="trendType" size="small" @change="loadTrendData">
-            <el-radio-button value="week">本周</el-radio-button>
-            <el-radio-button value="month">本月</el-radio-button>
-          </el-radio-group>
+    <section class="l1-card animate-in d2">
+      <div class="l1-head">
+        <span class="l1-ico"><svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/></svg></span>
+        <div><div class="l1-title">课程大厅</div><div class="l1-sub">我加入的课程 · 点击卡片进入学习</div></div>
+        <div class="l1-extra">
+          <button class="btn btn-primary" @click="showJoin = true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> 加入课程</button>
         </div>
-        <v-chart v-loading="chartLoading" :option="lineOption" style="height: 300px" autoresize />
       </div>
-
-      <!-- 课程进度列表 -->
-      <div class="chart-card progress-card">
-        <div class="chart-header">
-          <span class="chart-title">最近学习的课程</span>
-          <el-button text type="primary" size="small" @click="$router.push('/student/courses')">
-            查看全部
-            <el-icon><ArrowRight /></el-icon>
-          </el-button>
+      <div class="l1-body">
+        <div v-if="loading" class="empty-state"><div class="e-title">加载中…</div></div>
+        <div v-else-if="courses.length === 0" class="empty-state">
+          <div class="e-title">还没有课程</div>
+          <div class="e-desc">点击右上角「加入课程」输入课程 ID 加入</div>
         </div>
-        <div v-loading="courseLoading" class="progress-list">
-          <div v-for="c in recentCourses" :key="c.id" class="progress-item" @click="$router.push(`/student/courses/${c.id}`)">
-            <div class="progress-header">
-              <div class="course-name">
-                <el-icon class="course-icon"><Document /></el-icon>
-                <span>{{ c.name }}</span>
-              </div>
-              <span class="progress-percent">{{ c.progress }}%</span>
+        <div v-else class="course-grid">
+          <div v-for="c in courses" :key="c.courseId" class="course-card" @click="$router.push(`/student/courses/${c.courseId}/overview`)">
+            <div class="course-cover" :style="{ background: coverOf(c.cover) }">
+              <span class="cc-code mono">#{{ c.courseId }}</span>
+              <span class="cc-name">{{ c.name }}</span>
             </div>
-            <el-progress
-              :percentage="c.progress"
-              :stroke-width="8"
-              :show-text="false"
-              :color="getProgressColor(c.progress)"
-            />
+            <div class="course-meta">
+              <div class="cm-row"><span class="avatar sm" :style="avatarStyle(c.name)">{{ c.name.slice(-2) }}</span> {{ c.name }}</div>
+              <div><div class="flex between mb-8"><span class="cf-label">学习进度</span><span class="cf-num">{{ c.progress }}%</span></div>
+                <span class="mini-progress"><i :style="{ width: c.progress + '%' }"></i></span>
+              </div>
+              <div class="course-foot">
+                <span class="cf-label flex gap-4"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2"/></svg> {{ c.nextTask }}</span>
+                <span class="op-link">进入学习</span>
+              </div>
+            </div>
           </div>
-          <el-empty v-if="!courseLoading && recentCourses.length === 0" description="暂无课程进度" :image-size="80" />
+          <div class="course-card join-card" @click="showJoin = true">
+            <div class="join-card-inner">
+              <div class="join-card-icon">
+                <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>
+              </div>
+              <div class="join-card-title">加入新课程</div>
+              <div class="small">凭选课码加入</div>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
+    </section>
 
-    <!-- 学习时长柱状图 -->
-    <div class="chart-card bar-card">
-      <div class="chart-header">
-        <span class="chart-title">本周学习时长（分钟）</span>
+    <!-- 加入课程弹窗 -->
+    <Modal v-if="showJoin" narrow @close="showJoin = false">
+      <template #title>加入新课程</template>
+      <template #sub>输入课程 ID（可在教师端课程列表查看）</template>
+      <div class="form-grid">
+        <div class="field span-2"><label>课程 ID<span class="req">*</span></label>
+          <input v-model="joinCourseId" class="input mono join-input" placeholder="如：1" />
+        </div>
       </div>
-      <v-chart v-loading="barLoading" :option="barOption" style="height: 260px" autoresize />
-    </div>
+      <template #footer>
+        <button class="btn btn-plain" @click="showJoin = false">取消</button>
+        <button class="btn btn-primary" :disabled="joining" @click="doJoin()">{{ joining ? '加入中…' : '加入课程' }}</button>
+      </template>
+    </Modal>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
-import { Reading, TrophyBase, Calendar, WarningFilled, Document, ArrowRight } from '@element-plus/icons-vue'
-import analyticsApi from '@/api/analytics'
-import enrollmentApi from '@/api/enrollment'
-import courseApi from '@/api/course'
-import learningRecordApi from '@/api/learningRecord'
+import { ref, computed, onMounted } from 'vue'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
+import CountUp from '@/components/CountUp.vue'
+import Modal from '@/components/ui/Modal.vue'
+import { toast } from '@/composables/useToast'
+import studentApi from '@/api/student'
 
-const auth = useAuthStore()
+// 渐变对齐 AppShell avatarStyle 6 色渐变风格（令牌色系：赭红/蓝/绿/琥珀/紫/青）
+const GRADIENTS = [
+  'linear-gradient(135deg,#c13b30,#8f2a21)',
+  'linear-gradient(135deg,#2563a8,#1a4a80)',
+  'linear-gradient(135deg,#2e7d4f,#1f5c39)',
+  'linear-gradient(135deg,#b57908,#8a5d06)',
+  'linear-gradient(135deg,#6d4fa1,#4f3877)',
+  'linear-gradient(135deg,#0f766e,#0a544f)',
+]
+const AVATARS = GRADIENTS
 
-/* ---- 数据状态 ---- */
-const stats = ref({ courseCount: 0, avgScore: 0, streakDays: 0, todoCount: 0 })
-const recentCourses = ref([])
-const trendType = ref('week')
-const chartLoading = ref(false)
-const courseLoading = ref(false)
-const barLoading = ref(false)
+const courses = ref([])
+const todos = ref({ assignments: [], exams: [], signIns: [] })
+const summary = ref({})
+const loading = ref(true)
+const showJoin = ref(false)
+const joinCourseId = ref('')
+const joining = ref(false)
 
-/* ---- 莫兰迪色系图表配色 ---- */
-const morandiColors = ['#7A8BA5', '#B89A8A', '#8BA888', '#CBB58A']
-
-/* ---- 折线图配置：学习趋势 ---- */
-const lineOption = ref({
-  tooltip: { trigger: 'axis', backgroundColor: '#FFFCF8', borderColor: '#DDD6CE', textStyle: { color: '#3D3835' } },
-  grid: { left: 48, right: 20, bottom: 30, top: 20 },
-  xAxis: { type: 'category', data: [], axisLine: { lineStyle: { color: '#DDD6CE' } }, axisLabel: { color: '#928B83', fontSize: 12 } },
-  yAxis: { type: 'value', axisLine: { show: false }, splitLine: { lineStyle: { color: '#DDD6CE', type: 'dashed' } }, axisLabel: { color: '#928B83', fontSize: 12 } },
-  series: [
-    {
-      name: '学习时长',
-      type: 'line',
-      data: [],
-      smooth: true,
-      symbol: 'circle',
-      symbolSize: 8,
-      lineStyle: { width: 2.5, color: morandiColors[0] },
-      itemStyle: { color: morandiColors[0] },
-      areaStyle: {
-        color: {
-          type: 'linear',
-          x: 0, y: 0, x2: 0, y2: 1,
-          colorStops: [{ offset: 0, color: 'rgba(122,139,165,0.25)' }, { offset: 1, color: 'rgba(122,139,165,0.02)' }]
-        }
-      }
-    }
-  ]
+const avgProgress = computed(() => {
+  if (!courses.value.length) return 0
+  return Math.round(courses.value.reduce((s, c) => s + c.progress, 0) / courses.value.length)
 })
+const pendingCount = computed(() => todos.value.assignments.length + todos.value.exams.length)
 
-/* ---- 柱状图配置：每日学习时长 ---- */
-const barOption = ref({
-  tooltip: { trigger: 'axis', backgroundColor: '#FFFCF8', borderColor: '#DDD6CE', textStyle: { color: '#3D3835' } },
-  grid: { left: 48, right: 20, bottom: 30, top: 20 },
-  xAxis: {
-    type: 'category',
-    data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
-    axisLine: { lineStyle: { color: '#DDD6CE' } },
-    axisLabel: { color: '#928B83', fontSize: 12 }
-  },
-  yAxis: {
-    type: 'value',
-    axisLine: { show: false },
-    splitLine: { lineStyle: { color: '#DDD6CE', type: 'dashed' } },
-    axisLabel: { color: '#928B83', fontSize: 12 }
-  },
-  series: [{
-    type: 'bar',
-    data: [0, 0, 0, 0, 0, 0, 0],
-    itemStyle: {
-      borderRadius: [6, 6, 0, 0],
-      color: {
-        type: 'linear',
-        x: 0, y: 0, x2: 0, y2: 1,
-        colorStops: [{ offset: 0, color: morandiColors[0] }, { offset: 1, color: 'rgba(122,139,165,0.4)' }]
-      }
-    },
-    barWidth: '40%'
-  }]
-})
-
-/* ---- 根据进度返回颜色 ---- */
-function getProgressColor(progress) {
-  if (progress >= 80) return '#8BA888'
-  if (progress >= 50) return '#7A8BA5'
-  if (progress >= 30) return '#CBB58A'
-  return '#C48080'
+function hashOf(str) {
+  return [...(str || '')].reduce((s, c) => s + c.charCodeAt(0), 0)
+}
+function coverOf(cover) {
+  // 后端 coverImage 可能是颜色/渐变/URL；无法识别时按名称哈希取渐变，保证视觉稳定
+  if (typeof cover === 'string' && (cover.startsWith('#') || cover.startsWith('linear-gradient') || cover.startsWith('http'))) return cover
+  return GRADIENTS[hashOf(cover) % GRADIENTS.length]
+}
+function avatarStyle(name) {
+  return { background: AVATARS[hashOf(name) % AVATARS.length] }
 }
 
-/* ---- 加载学习统计（增强） ---- */
-async function loadLearningStats() {
-  try {
-    const res = await learningRecordApi.getLearningStats()
-    const data = res.data || res || {}
-    // 用学习统计补充/覆盖统计数据
-    if (data.totalStudyTime != null && stats.value.streakDays === 0) {
-      stats.value.streakDays = data.consecutiveDays ?? data.streakDays ?? stats.value.streakDays
-    }
-    if (data.todoCount != null) {
-      stats.value.todoCount = data.todoCount
-    }
-  } catch (e) {
-    console.warn('加载学习统计失败（非关键）:', e)
-  }
+function nextTaskText(courseId) {
+  const todo = todos.value.assignments.find(t => Number(t.courseId) === Number(courseId))
+  if (todo) return todo.dueDate ? `作业「${todo.title}」 ${String(todo.dueDate).slice(0, 10)} 截止` : `作业「${todo.title}」待提交`
+  const exam = todos.value.exams.find(e => Number(e.courseId) === Number(courseId))
+  if (exam) return exam.startTime ? `考试「${exam.title}」 ${String(exam.startTime).slice(0, 10)} 开考` : `考试「${exam.title}」已发布`
+  return '暂无待办'
 }
 
-/* ---- 加载统计数据 ---- */
-async function loadStats() {
+async function load() {
+  loading.value = true
   try {
-    const userId = auth.userId
-    if (!userId) return
-    const res = await analyticsApi.getStudentAnalytics(userId)
-    const data = res.data || res || {}
-    stats.value = {
-      courseCount: data.enrolledCourses ?? data.courseCount ?? 0,
-      avgScore: data.averageScore != null ? Math.round(data.averageScore) : (data.avgScore ?? 0),
-      streakDays: data.streakDays ?? data.consecutiveDays ?? 0,
-      todoCount: data.pendingTasks ?? data.todoCount ?? 0
-    }
+    const res = await studentApi.getStudentDashboard()
+    const d = res?.data?.data || res?.data || {}
+    courses.value = (d.courses || []).map(c => ({
+      courseId: c.courseId,
+      name: c.courseName || `课程 #${c.courseId}`,
+      cover: c.cover,
+      progress: Math.round(c.progress || 0),
+    }))
+    courses.value.forEach(c => { c.nextTask = nextTaskText(c.courseId) })
+    todos.value = d.todos || { assignments: [], exams: [], signIns: [] }
+    summary.value = d.summary || {}
   } catch (e) {
-    console.error('加载统计数据失败:', e)
-    // 确保显示默认值而非空白
-    stats.value = { courseCount: 0, avgScore: 0, streakDays: 0, todoCount: 0 }
-  }
-}
-
-/* ---- 加载趋势数据 ---- */
-async function loadTrendData() {
-  chartLoading.value = true
-  barLoading.value = true
-  try {
-    const userId = auth.userId
-    const res = await analyticsApi.getTrendData(userId)
-    const data = res.data || res || {}
-    const trendList = data.list ?? data.trends ?? data.dailyStats ?? (Array.isArray(data) ? data : [])
-
-    if (trendType.value === 'week') {
-      // 本周数据：取最近7天
-      const labels = trendList.length > 0
-        ? trendList.slice(-7).map(item => item.date || item.label || '')
-        : ['周一', '周二', '周三', '周四', '周五', '周六', '周日']
-      const values = trendList.length > 0
-        ? trendList.slice(-7).map(item => item.duration ?? item.studyTime ?? item.value ?? 0)
-        : [0, 0, 0, 0, 0, 0, 0]
-      lineOption.value.xAxis.data = labels
-      lineOption.value.series[0].data = values
-      // 同步更新柱状图
-      barOption.value.xAxis.data = labels
-      barOption.value.series[0].data = values
-    } else {
-      // 本月数据
-      if (trendList.length > 0) {
-        lineOption.value.xAxis.data = trendList.map(item => item.date || item.label || '')
-        lineOption.value.series[0].data = trendList.map(item => item.duration ?? item.studyTime ?? item.value ?? 0)
-      } else {
-        // 无数据时显示空图表（不显示模拟数据）
-        lineOption.value.xAxis.data = []
-        lineOption.value.series[0].data = []
-      }
-    }
-  } catch (e) {
-    console.error('加载趋势数据失败:', e)
-    lineOption.value.series[0].data = []
-    barOption.value.series[0].data = []
+    toast.show('课程数据加载失败：' + (e?.message || '网络错误'), 'error')
   } finally {
-    chartLoading.value = false
-    barLoading.value = false
+    loading.value = false
   }
 }
 
-/* ---- 加载课程进度 ---- */
-async function loadCourseProgress() {
-  courseLoading.value = true
+async function doJoin() {
+  const courseId = Number(joinCourseId.value)
+  if (!courseId) { toast.show('请输入有效的课程 ID', 'error'); return }
+  joining.value = true
   try {
-    const [enrollRes, courseRes] = await Promise.all([
-      enrollmentApi.getMyEnrollments(),
-      courseApi.getCourseList()
-    ])
-    const enrollData = enrollRes.data?.list || enrollRes.data || enrollRes || []
-    const courseList = courseRes.data?.list || courseRes.data || courseRes || []
-    const courseMap = {}
-    courseList.forEach(c => { courseMap[c.id] = c.name })
-
-    // 取最近学习的5门课程，按进度或最近活动排序
-    recentCourses.value = enrollData
-      .slice(0, 5)
-      .map(e => ({
-        id: e.courseId,
-        name: courseMap[e.courseId] || `课程 #${e.courseId}`,
-        progress: e.progress ? Math.round(Number(e.progress)) : 0,
-        lastActive: e.lastActiveAt || e.updatedAt
-      }))
+    await studentApi.enrollCourse(courseId)
+    toast.show('已加入课程', 'ok')
+    showJoin.value = false
+    joinCourseId.value = ''
+    await load()
   } catch (e) {
-    console.error('加载课程进度失败:', e)
+    toast.show(e?.response?.data?.message || '加入失败，请确认课程 ID 是否正确', 'error')
   } finally {
-    courseLoading.value = false
+    joining.value = false
   }
 }
 
-/* ---- 初始化加载 ---- */
-onMounted(async () => {
-  await Promise.all([loadStats(), loadTrendData(), loadCourseProgress(), loadLearningStats()])
-})
+onMounted(load)
 </script>
 
 <style scoped>
-.dashboard-grid {
+.join-card {
+  align-items: center;
+  justify-content: center;
+  border: 1.5px dashed var(--line-strong);
+  background: var(--surface-2);
+  box-shadow: none;
+  min-height: 220px;
+}
+.join-card-inner {
+  text-align: center;
+  color: var(--ink-3);
+}
+.join-card-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 50%;
+  background: var(--surface);
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: var(--ac-spacing-md);
-  margin-bottom: var(--ac-spacing-md);
+  place-items: center;
+  margin: 0 auto 10px;
+  box-shadow: var(--sh-l2);
 }
-
-.chart-card {
-  padding: var(--ac-spacing-lg);
-  background: var(--ac-bg-elevated);
-  border-radius: var(--ac-radius-lg);
-  box-shadow: var(--ac-shadow-sm);
-  border: 1px solid var(--ac-border);
-  transition: all var(--ac-transition-normal);
-}
-
-.chart-card:hover {
-  box-shadow: var(--ac-shadow-md);
-}
-
-.bar-card {
-  margin-top: var(--ac-spacing-md);
-}
-
-.chart-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: var(--ac-spacing-md);
-}
-
-.chart-title {
-  font-size: 15px;
+.join-card-title {
   font-weight: 600;
-  color: var(--ac-text-primary);
+  color: var(--ink-2);
 }
-
-.progress-list {
-  max-height: 340px;
-  overflow-y: auto;
-}
-
-.progress-item {
-  padding: var(--ac-spacing-sm) 0;
-  cursor: pointer;
-  border-radius: var(--ac-radius-sm);
-  transition: background var(--ac-transition-fast);
-  margin-bottom: var(--ac-spacing-xs);
-}
-
-.progress-item:hover {
-  background: var(--ac-bg-hover);
-}
-
-.progress-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin-bottom: 8px;
-}
-
-.course-name {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  color: var(--ac-text-primary);
-}
-
-.course-icon {
-  color: var(--ac-text-muted);
+.join-input {
+  letter-spacing: 2px;
+  text-align: center;
   font-size: 16px;
-}
-
-.progress-percent {
-  font-size: 13px;
-  font-weight: 600;
-  color: var(--ac-primary);
-}
-
-@media (max-width: 900px) {
-  .dashboard-grid {
-    grid-template-columns: 1fr;
-  }
 }
 </style>

@@ -8,6 +8,8 @@ import com.baomidou.mybatisplus.annotation.TableField;
 import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 
+import jakarta.validation.constraints.NotBlank;
+
 import java.time.LocalDateTime;
 
 /**
@@ -27,6 +29,7 @@ public class KnowledgePoint {
     /**
      * 知识点名称
      */
+    @NotBlank(message = "知识点名称不能为空")
     private String name;
 
     /**

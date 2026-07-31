@@ -1,6 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
-import { nextTick } from 'vue'
 
 // Mock useTheme composable with a reactive ref we can control
 const mockTheme = { value: 'dark' }

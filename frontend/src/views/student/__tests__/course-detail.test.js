@@ -12,6 +12,13 @@ vi.mock('vue-router', () => ({
   createWebHistory: vi.fn(),
 }))
 
+// Mock @/router：组件依赖链中的 request.js 会 import '@/router'，
+// 若求值真实 router/index.js，其 createRouter 已被上方 mock 为 vi.fn()（返回 undefined），
+// 会在 router.beforeEach 处崩溃；此处直接 mock 掉该模块避免求值。
+vi.mock('@/router', () => ({
+  default: { beforeEach: vi.fn(), afterEach: vi.fn(), push: vi.fn() },
+}))
+
 // Mock course API
 const mockGetCourseById = vi.fn()
 vi.mock('@/api/course', () => ({
@@ -86,7 +93,7 @@ describe('CourseDetail 课程详情页', () => {
       },
     })
 
-    const mod = await import('../CourseDetail.vue')
+    const mod = await import('../course/CourseDetail.vue')
     CourseDetail = mod.default
   })
 

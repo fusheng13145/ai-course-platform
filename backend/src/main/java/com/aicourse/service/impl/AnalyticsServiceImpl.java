@@ -3,6 +3,7 @@ package com.aicourse.service.impl;
 import com.aicourse.entity.*;
 import com.aicourse.service.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,6 +30,7 @@ private final SubmissionService submissionService;
     private final LearningRecordService learningRecordService;
     private final ExamSessionService examSessionService;
     private final ExamPaperService examPaperService;
+    private final TeachingAnalyticsComponent teachingAnalyticsComponent;
 
     public AnalyticsServiceImpl(
             UserService userService,
@@ -38,7 +40,8 @@ private final SubmissionService submissionService;
             SubmissionService submissionService,
             LearningRecordService learningRecordService,
             ExamSessionService examSessionService,
-            ExamPaperService examPaperService
+            ExamPaperService examPaperService,
+            TeachingAnalyticsComponent teachingAnalyticsComponent
     ) {
         this.userService = userService;
         this.courseService = courseService;
@@ -48,6 +51,7 @@ private final SubmissionService submissionService;
         this.learningRecordService = learningRecordService;
         this.examSessionService = examSessionService;
         this.examPaperService = examPaperService;
+        this.teachingAnalyticsComponent = teachingAnalyticsComponent;
     }
 
 
@@ -91,11 +95,19 @@ private final SubmissionService submissionService;
             dashboard.put("publishedTasks", publishedTasks);
 
             // ---- 课程分类分布（Admin 饼图）----
-            // TODO: 生产环境建议改为 SQL GROUP BY 聚合，避免全表加载
-            List<Course> allCourses = courseService.list();
-            Map<String, Long> categoryDist = allCourses.stream()
-                    .filter(c -> c.getCategory() != null && !c.getCategory().isEmpty())
-                    .collect(Collectors.groupingBy(Course::getCategory, Collectors.counting()));
+            // SQL GROUP BY 聚合，避免全表加载
+            Map<String, Long> categoryDist = new LinkedHashMap<>();
+            QueryWrapper<Course> categoryQw = new QueryWrapper<>();
+            categoryQw.select("category", "COUNT(*) AS cnt")
+                    .isNotNull("category").ne("category", "")
+                    .groupBy("category");
+            for (Map<String, Object> row : courseService.listMaps(categoryQw)) {
+                Object cat = row.get("category");
+                Object cnt = row.get("cnt");
+                if (cat != null && cnt != null) {
+                    categoryDist.put(cat.toString(), ((Number) cnt).longValue());
+                }
+            }
             dashboard.put("categoryDistribution", categoryDist);
 
             // ---- 活跃度统计（近7天有学习记录的用户数）----
@@ -106,12 +118,30 @@ private final SubmissionService submissionService;
             );
             dashboard.put("dailyActiveUsers", dau);
 
-            // ---- 完成率：进度>=100%的选课记录占比 ----
-            // TODO: 生产环境建议 count + condition 替代全表加载
-            List<CourseEnrollment> allEnrollments = enrollmentService.list();
-            long completedCount = allEnrollments.stream()
-                    .filter(e -> e.getProgress() != null && e.getProgress().compareTo(BigDecimal.valueOf(100)) >= 0)
-                    .count();
+            // ---- 完成率 + 成绩分布：单条 SQL 聚合查询，避免全表加载 ----
+            // SUM(progress >= 100) 在 MySQL 中布尔比较结果为 1/0，可直接求和
+            QueryWrapper<CourseEnrollment> enrollAgg = new QueryWrapper<>();
+            enrollAgg.select(
+                    "COUNT(*) AS total",
+                    "COALESCE(SUM(progress >= 100), 0) AS completed",
+                    "COALESCE(SUM(finalScore >= 90), 0) AS excellent",
+                    "COALESCE(SUM(finalScore >= 80 AND finalScore < 90), 0) AS good",
+                    "COALESCE(SUM(finalScore >= 70 AND finalScore < 80), 0) AS medium",
+                    "COALESCE(SUM(finalScore >= 60 AND finalScore < 70), 0) AS pass",
+                    "COALESCE(SUM(finalScore < 60), 0) AS fail"
+            );
+            long completedCount = 0;
+            long excellent = 0, good = 0, medium = 0, pass = 0, fail = 0;
+            List<Map<String, Object>> enrollAggRows = enrollmentService.listMaps(enrollAgg);
+            if (!enrollAggRows.isEmpty()) {
+                Map<String, Object> row = enrollAggRows.get(0);
+                if (row.get("completed") != null) completedCount = ((Number) row.get("completed")).longValue();
+                if (row.get("excellent") != null) excellent = ((Number) row.get("excellent")).longValue();
+                if (row.get("good") != null) good = ((Number) row.get("good")).longValue();
+                if (row.get("medium") != null) medium = ((Number) row.get("medium")).longValue();
+                if (row.get("pass") != null) pass = ((Number) row.get("pass")).longValue();
+                if (row.get("fail") != null) fail = ((Number) row.get("fail")).longValue();
+            }
             double completionRate = totalEnrollments > 0 ?
                     Math.round(completedCount * 100.0 / totalEnrollments * 100.0) / 100.0 : 0;
             dashboard.put("completionRate", completionRate);
@@ -126,26 +156,8 @@ private final SubmissionService submissionService;
             dashboard.put("growthRate", growthRate);
             dashboard.put("userGrowth", growthRate);
 
-            // ---- 成绩分布（从所有选课记录的finalScore计算）----
-            List<CourseEnrollment> enrollsWithScore = allEnrollments.stream()
-                    .filter(e -> e.getFinalScore() != null)
-                    .collect(Collectors.toList());
-            if (!enrollsWithScore.isEmpty()) {
-                long excellent = enrollsWithScore.stream().filter(e -> e.getFinalScore().doubleValue() >= 90).count();
-                long good = enrollsWithScore.stream().filter(e -> {
-                    double s = e.getFinalScore().doubleValue(); return s >= 80 && s < 90;
-                }).count();
-                long medium = enrollsWithScore.stream().filter(e -> {
-                    double s = e.getFinalScore().doubleValue(); return s >= 70 && s < 80;
-                }).count();
-                long pass = enrollsWithScore.stream().filter(e -> {
-                    double s = e.getFinalScore().doubleValue(); return s >= 60 && s < 70;
-                }).count();
-                long fail = enrollsWithScore.stream().filter(e -> e.getFinalScore().doubleValue() < 60).count();
-                dashboard.put("gradeDistribution", java.util.Arrays.asList(excellent, good, medium, pass, fail));
-            } else {
-                dashboard.put("gradeDistribution", java.util.Arrays.asList(0L, 0L, 0L, 0L, 0L));
-            }
+            // ---- 成绩分布（来自上方单条 SQL 聚合的分数段计数）----
+            dashboard.put("gradeDistribution", java.util.Arrays.asList(excellent, good, medium, pass, fail));
 
             // ---- 角色活跃度（按用户角色分组统计登录/操作次数，简化版用用户数代替）----
             long studentCount = userService.count(new LambdaQueryWrapper<User>().eq(User::getRole, "STUDENT"));
@@ -897,28 +909,9 @@ private final SubmissionService submissionService;
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getAtRiskStudents(String groupBy, Long courseId, String department, String major, Long classId) {
-        Map<String, Object> result = new HashMap<>();
-        // 基于现有数据聚合：挂科风险 = 作业/考试平均分 < 60
-        try {
-            List<Map<String, Object>> items = new ArrayList<>();
-            // 按班级汇总挂科风险
-            LambdaQueryWrapper<CourseEnrollment> ew = new LambdaQueryWrapper<>();
-            if (courseId != null) ew.eq(CourseEnrollment::getCourseId, courseId);
-            List<CourseEnrollment> enrollments = enrollmentService.list(ew);
-            Map<Long, List<CourseEnrollment>> groupMap = enrollments.stream()
-                .collect(Collectors.groupingBy(e -> classId != null ? classId : e.getCourseId()));
-            for (Map.Entry<Long, List<CourseEnrollment>> entry : groupMap.entrySet()) {
-                Map<String, Object> item = new HashMap<>();
-                item.put("groupId", entry.getKey());
-                item.put("count", entry.getValue().size());
-                items.add(item);
-            }
-            result.put("items", items);
-            result.put("total", items.size());
-        } catch (Exception e) {
-            result.put("error", e.getMessage());
-        }
-        return result;
+        // 委托给 TeachingAnalyticsComponent 的完整实现（进度<40% 或 成绩<60 判定 + 多维下钻聚合），
+        // 异常直接向上传播，由全局异常处理器统一响应，不再吞异常后返回 200 + error 字段。
+        return teachingAnalyticsComponent.getAtRiskStudents(groupBy, courseId, department, major, classId);
     }
 
     @Override

@@ -1,830 +1,229 @@
-﻿﻿<template>
-  <div class="fade-in notification-management">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-left">
-        <h2 class="page-title">通知管理</h2>
-        <p class="page-desc">系统公告与消息推送中心</p>
-      </div>
-      <div class="header-right">
-        <el-button @click="showSendDialog = true" type="primary">
-          <el-icon><Plus /></el-icon>发送通知
-        </el-button>
-      </div>
-    </div>
+<template>
+  <div>
+    <PageHeader title="通知公告" subtitle="按已读状态分组 · 管理员可向指定角色批量发送" icon="bell">
+      <button class="btn btn-primary" @click="drawerOpen = true"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> 发布通知</button>
+    </PageHeader>
 
-    <!-- 统计卡片 -->
-    <div class="stats-row">
-      <div class="stat-card-mini">
-        <span class="label">总通知数</span>
-        <span class="value">{{ stats.total || 0 }}</span>
-      </div>
-      <div class="stat-card-mini unread">
-        <span class="label">未读数</span>
-        <span class="value">{{ stats.unread || 0 }}</span>
-      </div>
-      <div class="stat-card-mini today">
-        <span class="label">今日发送</span>
-        <span class="value">{{ stats.todaySent || 0 }}</span>
-      </div>
-      <div class="stat-card-mini read-rate">
-        <span class="label">阅读率</span>
-        <span class="value">{{ stats.readRate ? (stats.readRate * 100).toFixed(1) + '%' : '--' }}</span>
-      </div>
-    </div>
-
-    <!-- 主内容区 -->
-    <div class="main-layout">
-      <!-- 左侧：发送通知表单 -->
-      <div class="send-section card-base">
-        <h3 class="section-title">快速发送</h3>
-
-        <el-form ref="sendFormRef" :model="sendForm" :rules="sendRules" label-position="top">
-          <el-form-item label="通知标题" prop="title">
-            <el-input v-model="sendForm.title" placeholder="请输入通知标题" maxlength="100" show-word-limit />
-          </el-form-item>
-
-          <el-form-item label="通知内容" prop="content">
-            <el-input
-              v-model="sendForm.content"
-              type="textarea"
-              placeholder="请输入通知内容"
-              :rows="5"
-              maxlength="2000"
-              show-word-limit
-            />
-          </el-form-item>
-
-          <el-form-item label="目标用户">
-            <el-radio-group v-model="sendForm.targetType">
-              <el-radio value="ALL">全员推送</el-radio>
-              <el-radio value="STUDENT">仅学生</el-radio>
-              <el-radio value="TEACHER">仅教师</el-radio>
-              <el-radio value="SPECIFIC">指定用户</el-radio>
-            </el-radio-group>
-          </el-form-item>
-
-          <el-form-item v-if="sendForm.targetType === 'SPECIFIC'" label="选择用户">
-            <el-select
-              v-model="sendForm.targetUsers"
-              multiple
-              filterable
-              remote
-              reserve-keyword
-              placeholder="搜索并选择用户"
-              :remote-method="searchUsers"
-              style="width:100%"
-            >
-              <el-option
-                v-for="user in userSearchResults"
-                :key="user.id"
-                :label="`${user.fullName} (${user.username})`"
-                :value="user.id"
-              />
-            </el-select>
-          </el-form-item>
-
-          <el-form-item label="通知类型" prop="type">
-            <el-select v-model="sendForm.type" style="width:100%">
-              <el-option label="系统公告" value="SYSTEM" />
-              <el-option label="课程通知" value="COURSE" />
-              <el-option label="考试提醒" value="EXAM" />
-              <el-option label="活动通知" value="ACTIVITY" />
-              <el-option label="其他" value="OTHER" />
-            </el-select>
-          </el-form-item>
-
-          <el-form-item label="优先级" prop="priority">
-            <el-radio-group v-model="sendForm.priority">
-              <el-radio value="LOW">
-                <el-tag size="small" effect="plain" type="info">低</el-tag>
-              </el-radio>
-              <el-radio value="NORMAL">
-                <el-tag size="small" effect="plain">普通</el-tag>
-              </el-radio>
-              <el-radio value="HIGH">
-                <el-tag size="small" effect="plain" type="warning">高</el-tag>
-              </el-radio>
-              <el-radio value="URGENT">
-                <el-tag size="small" effect="plain" type="danger">紧急</el-tag>
-              </el-radio>
-            </el-radio-group>
-          </el-form-item>
-
-          <el-form-item label="定时发送">
-            <el-switch v-model="sendForm.scheduled" active-text="是" inactive-text="否" />
-          </el-form-item>
-
-          <el-form-item v-if="sendForm.scheduled" label="发送时间">
-            <el-date-picker
-              v-model="sendForm.scheduleTime"
-              type="datetime"
-              placeholder="选择发送时间"
-              style="width:100%"
-            />
-          </el-form-item>
-
-          <el-form-item>
-            <el-button type="primary" :loading="sending" @click="handleSendNotification" style="width:100%">
-              <el-icon><Promotion /></el-icon>立即发送
-            </el-button>
-          </el-form-item>
-        </el-form>
-      </div>
-
-      <!-- 右侧：通知历史列表 -->
-      <div class="history-section">
-        <div class="card-base history-header">
-          <h3 class="section-title">通知历史</h3>
-          <div class="header-actions">
-            <el-button text type="primary" size="small" @click="markAllRead">全部标为已读</el-button>
-          </div>
-        </div>
-
-        <div class="card-base notification-list" v-loading="loading">
-          <!-- 筛选栏 -->
-          <div class="list-filter">
-            <el-select v-model="filters.type" placeholder="类型筛选" clearable size="small" style="width:120px" @change="fetchNotifications">
-              <el-option label="全部" value="" />
-              <el-option label="系统公告" value="SYSTEM" />
-              <el-option label="课程通知" value="COURSE" />
-              <el-option label="考试提醒" value="EXAM" />
-              <el-option label="活动通知" value="ACTIVITY" />
-            </el-select>
-            <el-select v-model="filters.status" placeholder="状态筛选" clearable size="small" style="width:110px" @change="fetchNotifications">
-              <el-option label="全部" value="" />
-              <el-option label="未读" value="UNREAD" />
-              <el-option label="已读" value="READ" />
-            </el-select>
-          </div>
-
-          <!-- 通知列表 -->
-          <div v-if="notificationList.length > 0" class="notification-items">
-            <div
-              v-for="item in notificationList"
-              :key="item.id"
-              class="notification-item"
-              :class="{ unread: !item.isRead }"
-            >
-              <div class="notif-header">
-                <el-tag :type="getTypeColor(item.type)" size="small" effect="light">{{ getTypeText(item.type) }}</el-tag>
-                <el-tag
-                  v-if="item.priority === 'HIGH' || item.priority === 'URGENT'"
-                  :type="item.priority === 'URGENT' ? 'danger' : 'warning'"
-                  size="small"
-                  effect="dark"
-                >{{ item.priority === 'URGENT' ? '紧急' : '重要' }}</el-tag>
-                <span class="notif-time">{{ formatTime(item.createdAt) }}</span>
-              </div>
-              <h4 class="notif-title">{{ item.title }}</h4>
-              <p class="notif-content">{{ item.content }}</p>
-              <div class="notif-footer">
-                <span class="target-info">
-                  <el-icon><User /></el-icon>
-                  {{ getTargetText(item.targetType) }}
-                </span>
-                <span class="read-count">
-                  <el-icon><View /></el-icon>
-                  {{ item.readCount || 0 }} 人已读
-                </span>
-                <el-button text type="danger" size="small" @click="deleteNotification(item)">删除</el-button>
+    <section class="l1-card animate-in d1">
+      <div class="l1-body">
+        <div v-if="loading" class="empty-state"><div class="e-title">加载中…</div></div>
+        <CollapsePanel v-for="g in noticeGroups" :key="g.key" :title="`${g.label}（${g.rows.length}）`" :open="g.open" :icon="g.icon">
+          <div v-if="g.rows.length === 0" class="empty-state"><div class="e-title">暂无内容</div></div>
+          <div v-for="n in g.rows" :key="n.id" class="row-card" @click="openNotice(n)">
+            <span class="rc-ico" :style="{ background: g.icoBg, color: g.icoColor }">
+              <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path :d="g.icoPath"/></svg>
+            </span>
+            <div class="rc-main">
+              <div class="rc-title">{{ n.title }} <span class="tag" :class="catCls(n.category)">{{ catLabel(n.category) }}</span> <span v-if="n.priority === 'HIGH'" class="tag red">高优先级</span></div>
+              <div class="rc-sub">
+                <span class="s-item"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2"/></svg> {{ fmtTime(n.createdAt) }}</span>
+                <span class="s-item"><svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"/></svg> {{ typeLabel(n.type) }}</span>
               </div>
             </div>
+            <div class="rc-side">
+              <span class="tag" :class="n.isRead ? 'green' : 'amber'">{{ n.isRead ? '已读' : '未读' }}</span>
+              <button v-if="!n.isRead" class="btn btn-sm btn-soft" @click.stop="doRead(n)">标记已读</button>
+              <button class="t-icon-btn" @click.stop="openMenu($event, n)">
+                <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM19 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM5 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"/></svg>
+              </button>
+            </div>
           </div>
+        </CollapsePanel>
+      </div>
+    </section>
 
-          <el-empty v-else description="暂无通知记录" :image-size="80" />
-
-          <!-- 分页 -->
-          <div v-if="pagination.total > 0" class="pagination-wrapper">
-            <el-pagination
-              v-model:current-page="pagination.page"
-              v-model:page-size="pagination.size"
-              :total="pagination.total"
-              :page-sizes="[10, 20, 30]"
-              layout="total, prev, pager, next"
-              small
-              background
-              @size-change="fetchNotifications"
-              @current-change="fetchNotifications"
-            />
-          </div>
+    <!-- 通知详情弹窗 -->
+    <Modal v-if="detailNotice" wide @close="detailNotice = null">
+      <template #title>通知详情</template>
+      <template #sub>#{{ detailNotice.id }}</template>
+      <div>
+        <div class="l3-block">
+          <div class="strong notice-title">{{ detailNotice.title }}</div>
+          <div class="small muted mb-12">{{ catLabel(detailNotice.category) }} · {{ priorityLabel(detailNotice.priority) }} · {{ fmtTime(detailNotice.createdAt) }}</div>
+          <div class="notice-content">{{ detailNotice.content }}</div>
         </div>
       </div>
-    </div>
+    </Modal>
 
-    <!-- 发送确认对话框（复用） -->
-    <el-dialog v-model="showConfirmDialog" title="确认发送" width="450px" destroy-on-close>
-      <div class="confirm-content">
-        <p>即将发送以下通知：</p>
-        <div class="confirm-preview">
-          <p><strong>标题：</strong>{{ sendForm.title }}</p>
-          <p><strong>目标：</strong>{{ getTargetText(sendForm.targetType) }}</p>
-          <p><strong>类型：</strong>{{ getTypeText(sendForm.type) }}</p>
-          <p><strong>优先级：</strong>{{ getPriorityText(sendForm.priority) }}</p>
+    <!-- 发布通知抽屉 -->
+    <Drawer v-if="drawerOpen" wide @close="drawerOpen = false">
+      <template #title>发布通知</template>
+      <template #sub>选择接收对象后由系统批量写入通知</template>
+      <div class="form-grid">
+        <div class="field span-2"><label>通知标题<span class="req">*</span></label><input v-model="sendForm.title" class="input" placeholder="请输入标题" /></div>
+        <div class="field span-2"><label>接收对象</label>
+          <div class="radio-cards">
+            <div v-for="s in scopes" :key="s.key" class="radio-card" :class="{ checked: sendForm.scope === s.key }" @click="sendForm.scope = s.key">
+              <div class="rc-title">{{ s.label }}</div>
+              <div class="rc-desc">{{ s.desc }}</div>
+            </div>
+          </div>
         </div>
-        <p class="confirm-warning" v-if="sendForm.targetType === 'ALL'">
-          ⚠️ 此操作将向所有注册用户推送该通知，请确认内容无误。
-        </p>
+        <div v-if="sendForm.scope === 'custom'" class="field span-2">
+          <label>用户 ID 列表（逗号分隔）</label>
+          <input v-model="sendForm.customIds" class="input" placeholder="如：1, 2, 3" />
+        </div>
+        <div class="field"><label>分类</label><select v-model="sendForm.category" class="select"><option value="SYSTEM">系统公告</option><option value="ASSIGNMENT">作业提醒</option><option value="EXAM">考试通知</option></select></div>
+        <div class="field"><label>优先级</label><select v-model="sendForm.priority" class="select"><option value="LOW">低</option><option value="MEDIUM">中</option><option value="HIGH">高</option></select></div>
+        <div class="field span-2"><label>正文内容<span class="req">*</span></label><textarea v-model="sendForm.content" class="textarea send-textarea" placeholder="请输入通知正文…"></textarea></div>
       </div>
       <template #footer>
-        <el-button @click="showConfirmDialog = false">取消</el-button>
-        <el-button type="primary" :loading="sending" @click="confirmSend">确认发送</el-button>
+        <button class="btn btn-plain" @click="drawerOpen = false">取消</button>
+        <button class="btn btn-primary" :disabled="sending" @click="doSend()">{{ sending ? '发送中…' : '确认发布' }}</button>
       </template>
-    </el-dialog>
+    </Drawer>
+
+    <!-- 更多菜单 -->
+    <DropdownMenu v-if="ctx.visible" :items="ctx.items" :x="ctx.x" :y="ctx.y" @close="ctx.visible = false" />
   </div>
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue'
-import {
-  Plus,
-  Promotion,
-  User,
-  View,
-  Bell,
-  Message
-} from '@element-plus/icons-vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, computed, onMounted } from 'vue'
+import PageHeader from '@/components/PageHeader.vue'
+import CollapsePanel from '@/components/ui/CollapsePanel.vue'
+import Modal from '@/components/ui/Modal.vue'
+import Drawer from '@/components/ui/Drawer.vue'
+import DropdownMenu from '@/components/ui/DropdownMenu.vue'
+import { toast } from '@/composables/useToast'
 import notificationApi from '@/api/notification'
-import userApi from '@/api/user'
-import { notificationEnhancedApi } from '@/api/notificationEnhanced'
+import adminApi from '@/api/admin'
 
-// 加载状态
-const loading = ref(false)
+const CAT_LABELS = { SYSTEM: '系统公告', ASSIGNMENT: '作业提醒', EXAM: '考试通知' }
+const CAT_CLS = { SYSTEM: 'red', ASSIGNMENT: 'blue', EXAM: 'violet' }
+const PRIORITY_LABELS = { HIGH: '高优先级', MEDIUM: '中优先级', LOW: '低优先级' }
+const TYPE_LABELS = { COURSE: '课程通知', TASK: '作业通知', EXAM: '考试通知', SYSTEM: '系统消息' }
+
+const loading = ref(true)
+const unread = ref([])
+const read = ref([])
+
+const detailNotice = ref(null)
+const drawerOpen = ref(false)
 const sending = ref(false)
+const sendForm = ref({ title: '', content: '', scope: 'teachers', customIds: '', category: 'SYSTEM', priority: 'MEDIUM' })
+const scopes = [
+  { key: 'teachers', label: '全体教师', desc: '向所有教师账号发送' },
+  { key: 'students', label: '全体学生', desc: '向所有学生账号发送' },
+  { key: 'admins', label: '全体管理员', desc: '向所有管理员账号发送' },
+  { key: 'custom', label: '指定用户', desc: '输入用户 ID 列表' },
+]
+const ctx = ref({ visible: false, x: 0, y: 0, items: [], notice: null })
 
-// 统计数据
-const stats = reactive({
-  total: 0,
-  unread: 0,
-  todaySent: 0,
-  readRate: 0
-})
+const noticeGroups = computed(() => [
+  { key: 'unread', label: '未读', icon: 'clock', open: true, icoBg: 'var(--warn-soft)', icoColor: 'var(--warn)', icoPath: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2', rows: unread.value },
+  { key: 'read', label: '已读', icon: 'checks', open: false, icoBg: 'var(--ok-soft)', icoColor: 'var(--ok)', icoPath: 'M18 6 7 17l-5-5M22 10 11 21l-2.5-2.5', rows: read.value },
+])
 
-// 筛选条件
-const filters = reactive({
-  type: '',
-  status: ''
-})
+function catLabel(c) { return CAT_LABELS[c] || c || '其他' }
+function catCls(c) { return CAT_CLS[c] || '' }
+function priorityLabel(p) { return PRIORITY_LABELS[p] || p || '—' }
+function typeLabel(t) { return TYPE_LABELS[t] || t || '—' }
+function fmtTime(t) { return t ? String(t).replace('T', ' ').slice(0, 16) : '—' }
 
-// 分页
-const pagination = reactive({
-  page: 1,
-  size: 10,
-  total: 0
-})
-
-// 数据列表
-const notificationList = ref([])
-
-// 发送表单
-const sendFormRef = ref(null)
-const showSendDialog = ref(true) // 默认显示（作为页面的一部分）
-const showConfirmDialog = ref(false)
-
-const sendForm = reactive({
-  title: '',
-  content: '',
-  targetType: 'ALL',
-  targetUsers: [],
-  type: 'SYSTEM',
-  priority: 'NORMAL',
-  scheduled: false,
-  scheduleTime: null
-})
-
-// 表单验证规则
-const sendRules = {
-  title: [{ required: true, message: '请输入通知标题', trigger: 'blur' }],
-  content: [{ required: true, message: '请输入通知内容', trigger: 'blur' }],
-  type: [{ required: true, message: '请选择通知类型', trigger: 'change' }]
-}
-
-// 用户搜索结果
-const userSearchResults = ref([])
-
-/**
- * 获取通知列表
- */
-async function fetchNotifications() {
+async function load() {
   loading.value = true
   try {
-    const params = {
-      page: pagination.page - 1,
-      size: pagination.size
-    }
-
-    if (filters.type) params.type = filters.type
-    if (filters.status) params.status = filters.status
-
-    const res = await notificationApi.getNotificationList(params)
-    const rawData = res.data?.records || res.data?.list || res.data || res
-
-    if (Array.isArray(rawData)) {
-      notificationList.value = rawData
-      pagination.total = rawData.length
-    } else if (rawData?.records || rawData?.items) {
-      notificationList.value = rawData.records || rawData.items
-      pagination.total = rawData.total || notificationList.value.length
-    }
-
-    // 更新统计
-    updateStats()
-  } catch (error) {
-    console.error('获取通知列表失败:', error)
-    ElMessage.error('加载通知列表失败')
-    notificationList.value = []
+    const [unreadRes, readRes] = await Promise.all([
+      notificationApi.getNotificationList({ page: 1, size: 50, isRead: false }),
+      notificationApi.getNotificationList({ page: 1, size: 50, isRead: true }),
+    ])
+    unread.value = unreadRes?.data?.data?.list || unreadRes?.data?.list || []
+    read.value = readRes?.data?.data?.list || readRes?.data?.list || []
+  } catch (e) {
+    toast.show('通知加载失败', 'error')
   } finally {
     loading.value = false
   }
 }
 
-/**
- * 更新统计数据
- */
-async function updateStats() {
+function openNotice(n) { detailNotice.value = n }
+
+async function doRead(n) {
   try {
-    // 使用增强 API 获取未读数量
-    const unreadRes = await notificationEnhancedApi.getUnreadCount()
-    stats.unread = unreadRes.data?.count ?? unreadRes.data ?? 0
+    await notificationApi.markAsRead(n.id)
+    n.isRead = true
+    unread.value = unread.value.filter(x => x.id !== n.id)
+    read.value.unshift(n)
   } catch (e) {
-    // 回退到本地计算
-    stats.unread = notificationList.value.filter(n => !n.isRead).length
+    toast.show('操作失败', 'error')
   }
-
-  stats.total = notificationList.value.length
-  stats.todaySent = notificationList.value.filter(isToday).length
-
-  const readCount = notificationList.value.filter(n => n.isRead).length
-  stats.readRate = stats.total > 0 ? readCount / stats.total : 0
 }
 
-/**
- * 判断是否为今天
- */
-function isToday(item) {
-  if (!item.createdAt) return false
-  const date = new Date(item.createdAt)
-  const today = new Date()
-  return (
-    date.getFullYear() === today.getFullYear() &&
-    date.getMonth() === today.getMonth() &&
-    date.getDate() === today.getDate()
-  )
-}
-
-/**
- * 搜索用户
- */
-async function searchUsers(query) {
-  if (!query || query.length < 2) {
-    userSearchResults.value = []
-    return
-  }
-
+async function doDelete(n) {
   try {
-    const res = await userApi.getUserList({ keyword: query, size: 10 })
-    const data = res.data?.list || res.data || res || []
-    userSearchResults.value = Array.isArray(data) ? data : []
-  } catch (error) {
-    console.warn('搜索用户失败:', error)
-    userSearchResults.value = []
+    await notificationApi.deleteNotification(n.id)
+    const src = n.isRead ? read.value : unread.value
+    const i = src.findIndex(x => x.id === n.id)
+    if (i > -1) src.splice(i, 1)
+    toast.show('通知已删除', 'ok')
+  } catch (e) {
+    toast.show('删除失败', 'error')
   }
 }
 
-/**
- * 处理发送通知
- */
-async function handleSendNotification() {
-  if (!sendFormRef.value) return
-
-  await sendFormRef.value.validate(async (valid) => {
-    if (!valid) return
-
-    // 如果是指定用户但未选择任何用户
-    if (sendForm.targetType === 'SPECIFIC' && sendForm.targetUsers.length === 0) {
-      ElMessage.warning('请至少选择一个目标用户')
-      return
-    }
-
-    showConfirmDialog.value = true
-  })
-}
-
-/**
- * 确认发送
- */
-async function confirmSend() {
+async function doSend() {
+  const f = sendForm.value
+  if (!f.title.trim() || !f.content.trim()) { toast.show('请填写标题与正文', 'warning'); return }
   sending.value = true
   try {
-    const payload = {
-      title: sendForm.title,
-      content: sendForm.content,
-      type: sendForm.type,
-      priority: sendForm.priority,
-      targetType: sendForm.targetType,
-      targetUserIds: sendForm.targetType === 'SPECIFIC' ? sendForm.targetUsers : undefined,
-      scheduledAt: sendForm.scheduled ? sendForm.scheduleTime?.toISOString() : undefined
+    let targetUserIds = []
+    if (f.scope === 'custom') {
+      targetUserIds = f.customIds.split(/[,，\s]+/).map(s => Number(s.trim())).filter(n => Number.isFinite(n) && n > 0)
+      if (!targetUserIds.length) { toast.show('请输入有效的用户 ID', 'warning'); sending.value = false; return }
+    } else {
+      const roleMap = { teachers: 'TEACHER', students: 'STUDENT', admins: 'ADMIN' }
+      const res = await adminApi.getUsers({ page: 1, size: 500, role: roleMap[f.scope] })
+      const p = res?.data?.data || res?.data || {}
+      targetUserIds = (p.list || []).map(u => u.id).filter(Boolean)
+      if (!targetUserIds.length) { toast.show('该角色暂无用户', 'warning'); sending.value = false; return }
     }
-
-    await notificationEnhancedApi.sendNotification(payload)
-    ElMessage.success('通知发送成功')
-
-    // 重置表单
-    resetSendForm()
-    showConfirmDialog.value = false
-
-    // 刷新列表
-    fetchNotifications()
-  } catch (error) {
-    console.error('发送通知失败:', error)
-    ElMessage.error('发送失败，请稍后重试')
+    const sendRes = await notificationApi.sendNotification({
+      title: f.title.trim(),
+      content: f.content.trim(),
+      category: f.category,
+      priority: f.priority,
+      targetUserIds,
+    })
+    if (sendRes?.data?.code === 200 || sendRes?.data?.data) {
+      toast.show(`已向 ${targetUserIds.length} 个用户发送`, 'ok')
+      drawerOpen.value = false
+      sendForm.value = { title: '', content: '', scope: 'teachers', customIds: '', category: 'SYSTEM', priority: 'MEDIUM' }
+    } else {
+      toast.show(sendRes?.data?.message || '发送失败', 'error')
+    }
+  } catch (e) {
+    toast.show('发送失败', 'error')
   } finally {
     sending.value = false
   }
 }
 
-/**
- * 重置发送表单
- */
-function resetSendForm() {
-  Object.assign(sendForm, {
-    title: '',
-    content: '',
-    targetType: 'ALL',
-    targetUsers: [],
-    type: 'SYSTEM',
-    priority: 'NORMAL',
-    scheduled: false,
-    scheduleTime: null
-  })
-
-  if (sendFormRef.value) {
-    sendFormRef.value.resetFields()
-  }
+function openMenu(e, n) {
+  const r = e.currentTarget.getBoundingClientRect()
+  const ops = [{ text: '查看详情', icon: 'eye', onClick: () => openNotice(n) }]
+  if (!n.isRead) ops.push({ text: '标记已读', icon: 'check', onClick: () => doRead(n) })
+  ops.push('-', { text: '删除', icon: 'trash', danger: true, onClick: () => doDelete(n) })
+  ctx.value = { visible: true, x: r.left, y: r.bottom + 4, items: ops }
 }
 
-/**
- * 全部标为已读
- */
-async function markAllRead() {
-  try {
-    await notificationApi.markAllAsRead()
-    ElMessage.success('已将所有通知标记为已读')
-    fetchNotifications()
-  } catch (error) {
-    ElMessage.error('操作失败')
-  }
-}
-
-/**
- * 删除通知
- */
-async function deleteNotification(item) {
-  try {
-    await ElMessageBox.confirm(`确定删除通知「${item.title}」？`, '确认删除', { type: 'warning' })
-
-    await notificationApi.deleteNotification(item.id)
-    ElMessage.success('删除成功')
-    fetchNotifications()
-  } catch (e) {
-    if (e !== 'cancel') {
-      ElMessage.error('删除失败')
-    }
-  }
-}
-
-/**
- * 获取类型对应的标签颜色
- */
-function getTypeColor(type) {
-  const map = {
-    SYSTEM: '',
-    COURSE: 'success',
-    EXAM: 'warning',
-    ACTIVITY: 'danger',
-    OTHER: 'info'
-  }
-  return map[type] || ''
-}
-
-/**
- * 获取类型文本
- */
-function getTypeText(type) {
-  const map = {
-    SYSTEM: '系统公告',
-    COURSE: '课程通知',
-    EXAM: '考试提醒',
-    ACTIVITY: '活动通知',
-    OTHER: '其他'
-  }
-  return map[type] || type
-}
-
-/**
- * 获取目标文本
- */
-function getTargetText(targetType) {
-  const map = {
-    ALL: '全员',
-    STUDENT: '学生',
-    TEACHER: '教师',
-    SPECIFIC: `指定用户 (${sendForm.targetUsers.length}人)`
-  }
-  return map[targetType] || targetType
-}
-
-/**
- * 获取优先级文本
- */
-function getPriorityText(priority) {
-  const map = {
-    LOW: '低',
-    NORMAL: '普通',
-    HIGH: '高',
-    URGENT: '紧急'
-  }
-  return map[priority] || priority
-}
-
-/**
- * 格式化时间
- */
-function formatTime(time) {
-  if (!time) return '--'
-  const date = new Date(time)
-  return date.toLocaleDateString('zh-CN', {
-    year: 'numeric',
-    month: '2-digit',
-    day: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit'
-  })
-}
-
-// 初始化
-onMounted(() => {
-  fetchNotifications()
-})
+onMounted(load)
 </script>
 
 <style scoped>
-.notification-management {
-  max-width: 1400px;
-  margin: 0 auto;
-}
-
-/* 页面头部 */
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: var(--ac-spacing-lg);
-  gap: var(--ac-spacing-md);
-  flex-wrap: wrap;
-}
-
-.header-left {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.page-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-  letter-spacing: -0.3px;
-}
-
-.page-desc {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-}
-
-/* 统计行 */
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: var(--ac-spacing-md);
-  margin-bottom: var(--ac-spacing-lg);
-}
-
-.stat-card-mini {
-  background: var(--ac-bg-elevated);
-  border-radius: var(--ac-radius-md);
-  border: 1px solid var(--ac-border);
-  padding: 16px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  transition: all var(--ac-transition-normal);
-}
-
-.stat-card-mini:hover {
-  box-shadow: var(--ac-shadow-md);
-  transform: translateY(-2px);
-}
-
-.stat-card-mini .label {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-  font-weight: 500;
-}
-
-.stat-card-mini .value {
-  font-size: 26px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-}
-
-.stat-card-mini.unread .value { color: var(--ac-primary); }
-.stat-card-mini.today .value { color: var(--ac-success); }
-.stat-card-mini.read-rate .value { color: var(--ac-secondary); }
-
-/* 主布局 */
-.main-layout {
-  display: grid;
-  grid-template-columns: 400px 1fr;
-  gap: var(--ac-spacing-md);
-  align-items: start;
-}
-
-/* 卡片基础样式 */
-.card-base {
-  background: var(--ac-bg-elevated);
-  border-radius: var(--ac-radius-lg);
-  border: 1px solid var(--ac-border);
-  padding: var(--ac-spacing-lg);
-}
-
-.section-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: var(--ac-text-primary);
-  margin-bottom: var(--ac-spacing-md);
-}
-
-/* 发送区域 */
-.send-section {
-  position: sticky;
-  top: 0;
-}
-
-/* 历史区域 */
-.history-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ac-spacing-sm);
-}
-
-.history-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 18px var(--ac-spacing-lg);
-}
-
-.history-header .section-title {
-  margin-bottom: 0;
-}
-
-/* 通知列表 */
-.notification-list {
-  display: flex;
-  flex-direction: column;
-  min-height: 500px;
-}
-
-.list-filter {
-  display: flex;
-  gap: var(--ac-spacing-sm);
-  margin-bottom: var(--ac-spacing-md);
-  padding-bottom: var(--ac-spacing-md);
-  border-bottom: 1px solid var(--ac-border);
-}
-
-.notification-items {
-  display: flex;
-  flex-direction: column;
-  gap: var(--ac-spacing-md);
-}
-
-.notification-item {
-  padding: 18px 20px;
-  border-radius: var(--ac-radius-md);
-  background: var(--ac-bg);
-  border: 1px solid transparent;
-  transition: all var(--ac-transition-normal);
-  cursor: default;
-}
-
-.notification-item:hover {
-  border-color: var(--ac-border);
-  box-shadow: var(--ac-shadow-sm);
-}
-
-.notification-item.unread {
-  border-left: 3px solid var(--ac-primary);
-}
-
-.notif-header {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-bottom: 10px;
-}
-
-.notif-time {
-  margin-left: auto;
-  font-size: 12px;
-  color: var(--ac-text-muted);
-}
-
-.notif-title {
+.notice-title {
   font-size: 15px;
-  font-weight: 600;
-  color: var(--ac-text-primary);
   margin-bottom: 6px;
-  line-height: 1.4;
 }
 
-.notif-content {
-  font-size: 13px;
-  color: var(--ac-text-secondary);
-  line-height: 1.6;
-  display: -webkit-box;
-  -webkit-line-clamp: 2;
-  -webkit-box-orient: vertical;
-  overflow: hidden;
-  margin-bottom: 12px;
+.notice-content {
+  line-height: 1.9;
+  color: var(--ink-2);
+  font-size: 13.5px;
+  white-space: pre-wrap;
 }
 
-.notif-footer {
-  display: flex;
-  align-items: center;
-  gap: 16px;
-  font-size: 12px;
-  color: var(--ac-text-muted);
-}
-
-.target-info,
-.read-count {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-/* 分页 */
-.pagination-wrapper {
-  margin-top: var(--ac-spacing-md);
-  display: flex;
-  justify-content: center;
-  padding-top: var(--ac-spacing-md);
-  border-top: 1px solid var(--ac-border);
-}
-
-/* 确认对话框 */
-.confirm-content p {
-  margin-bottom: 12px;
-  color: var(--ac-text-secondary);
-}
-
-.confirm-preview {
-  background: var(--ac-bg);
-  border-radius: var(--ac-radius-sm);
-  padding: 14px 18px;
-  margin: 12px 0;
-}
-
-.confirm-preview p {
-  margin-bottom: 6px;
-  font-size: 13px;
-  color: var(--ac-text-primary);
-}
-
-.confirm-preview p:last-child {
-  margin-bottom: 0;
-}
-
-.confirm-warning {
-  color: var(--ac-danger) !important;
-  font-weight: 500;
-  background: rgba(196, 128, 128, 0.08);
-  padding: 10px 14px;
-  border-radius: var(--ac-radius-sm);
-  margin-top: 12px !important;
-}
-
-/* 响应式 */
-@media (max-width: 1024px) {
-  .main-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .send-section {
-    position: static;
-  }
+.send-textarea {
+  min-height: 140px;
 }
 </style>

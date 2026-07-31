@@ -16,9 +16,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.core.Authentication;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.LinkedHashMap;
@@ -107,7 +105,7 @@ public class QuestionController {
     @PostMapping("/create")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "创建题目")
-    public ApiResponse<Question> create(@RequestBody Question question, Authentication auth) {
+    public ApiResponse<Question> create(@Valid @RequestBody Question question, Authentication auth) {
         question.setCreatedBy((Long) auth.getPrincipal());
         Question created = questionService.createQuestion(question);
         return ApiResponse.success("创建成功", created);
@@ -122,7 +120,7 @@ public class QuestionController {
     @PostMapping("/generate-by-ai")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "AI智能生成题目")
-    public ApiResponse<Question> generateByAI(@RequestBody Map<String, String> params, Authentication auth) {
+    public ApiResponse<Question> generateByAI(@Valid @RequestBody Map<String, String> params, Authentication auth) {
         Long courseId = Long.valueOf(params.get("courseId"));
         String type = params.get("type");
         String difficulty = params.get("difficulty");
@@ -142,7 +140,7 @@ public class QuestionController {
     @PostMapping("/{id}/review")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "审核题目")
-    public ApiResponse<Void> review(@PathVariable Long id, @RequestBody Map<String, Boolean> body) {
+    public ApiResponse<Void> review(@PathVariable Long id, @Valid @RequestBody Map<String, Boolean> body) {
         boolean approved = body.getOrDefault("approved", true);
         questionService.reviewQuestion(id, approved);
         return ApiResponse.success(approved ? "审核通过" : "已拒绝", null);
@@ -283,7 +281,7 @@ public class QuestionController {
     @PostMapping
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "新增题目")
-    public ApiResponse<Question> createBasic(@RequestBody Question question, Authentication auth) {
+    public ApiResponse<Question> createBasic(@Valid @RequestBody Question question, Authentication auth) {
         question.setCreatedBy((Long) auth.getPrincipal());
         questionService.save(question);
         return ApiResponse.success("创建成功", question);
@@ -298,7 +296,7 @@ public class QuestionController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "修改题目")
-    public ApiResponse<Question> update(@PathVariable Long id, @RequestBody Question question) {
+    public ApiResponse<Question> update(@PathVariable Long id, @Valid @RequestBody Question question) {
         question.setId(id);
         questionService.updateById(question);
         Question updatedQuestion = questionService.getById(id);
@@ -375,7 +373,7 @@ public class QuestionController {
     @PostMapping("/batch-import")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "批量导入题目")
-    public ApiResponse<Map<String, Object>> batchImport(@RequestBody List<Question> questions, Authentication auth) {
+    public ApiResponse<Map<String, Object>> batchImport(@Valid @RequestBody List<Question> questions, Authentication auth) {
         int imported = questionService.batchImport(questions, (Long) auth.getPrincipal());
         Map<String, Object> result = new LinkedHashMap<>();
         result.put("imported", imported);

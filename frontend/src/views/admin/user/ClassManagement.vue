@@ -1,21 +1,22 @@
 <template>
   <div class="fade-in class-management">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-left">
-        <h2 class="page-title">组织与班级管理</h2>
-        <p class="page-desc">按院系 / 专业 / 年级维度组织班级，管理班级成员与班主任</p>
-      </div>
+    <PageHeader title="组织与班级管理" subtitle="按院系 / 专业 / 年级维度组织班级，管理班级成员与班主任" icon="building" icon-bg="accent" />
+
+    <div class="stat-grid">
+      <StatCard label="班级总数" :value="classStats[0].value" icon="grid" tone="var(--accent-soft)" tone-color="var(--accent)" />
+      <StatCard label="专业数" :value="classStats[1].value" icon="layers" tone="var(--info-soft)" tone-color="var(--info)" />
+      <StatCard label="在册学生" :value="classStats[2].value" icon="users" tone="var(--ok-soft)" tone-color="var(--ok)" />
+      <StatCard label="平均班额" :value="classStats[3].value" icon="chart" tone="var(--warn-soft)" tone-color="var(--warn)" />
     </div>
 
-    <!-- 统计概览 -->
-    <div class="stats-row">
-      <div v-for="(stat, idx) in classStats" :key="idx" class="stat-mini-card" :class="stat.class">
-        <span class="label">{{ stat.label }}</span>
-        <span class="value">{{ stat.value }}</span>
+    <section class="l1-card">
+      <div class="l1-head">
+        <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18zM2 22h20M9 6h1M14 6h1M9 10h1M14 10h1M9 14h1M14 14h1M10 22v-3h4v3"/></svg>
+        </span>
+        <div><div class="l1-title">班级列表</div><div class="l1-sub">选择组织维度筛选，新建或维护班级</div></div>
       </div>
-    </div>
-
+      <div class="l1-body">
     <div class="layout-split">
       <!-- 左侧：组织树 -->
       <div class="org-panel content-card">
@@ -112,7 +113,9 @@
               </template>
             </el-table-column>
             <template #empty>
-              <el-empty description="暂无班级数据" />
+              <el-empty description="暂无班级数据">
+                <template #image><div class="empty-deco">🏫</div></template>
+              </el-empty>
             </template>
           </el-table>
 
@@ -127,7 +130,9 @@
           </div>
         </div>
       </div>
-    </div>
+      </div>
+      </div>
+    </section>
 
     <!-- 新建/编辑班级 -->
     <el-dialog
@@ -199,7 +204,7 @@
             <button class="act-btn--del" @click="removeStudentFromClass(row)">移除</button>
           </template>
         </el-table-column>
-        <template #empty><el-empty description="该班级暂无学生" :image-size="80" /></template>
+        <template #empty><el-empty description="该班级暂无学生" :image-size="80"><template #image><div class="empty-deco">👥</div></template></el-empty></template>
       </el-table>
     </el-dialog>
 
@@ -227,7 +232,7 @@
             <button class="act-btn act-btn--approve" @click="addStudentToClass(row)">添加</button>
           </template>
         </el-table-column>
-        <template #empty><el-empty description="无可添加学生" :image-size="80" /></template>
+        <template #empty><el-empty description="无可添加学生" :image-size="80"><template #image><div class="empty-deco">🧑‍🎓</div></template></el-empty></template>
       </el-table>
     </el-dialog>
   </div>
@@ -240,6 +245,8 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { School, Collection, UserFilled, Plus, Search } from '@element-plus/icons-vue'
 import classroomApi from '@/api/classroom'
 import adminApi from '@/api/admin'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -820,4 +827,6 @@ onMounted(loadClassrooms)
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+.empty-deco { font-size: 38px; filter: grayscale(.2); }
 </style>

@@ -74,9 +74,9 @@ public class CourseController {
             description = "课程信息"
     ) @Valid @RequestBody Course course, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        course.setTeacherId(userId);
-        courseService.save(course);
-        return ApiResponse.success("创建成功", course);
+        // 绑定授课教师与落库下沉至服务层（事务化）
+        Course saved = courseService.createCourse(course, userId);
+        return ApiResponse.success("创建成功", saved);
     }
 
     /**
@@ -90,21 +90,11 @@ public class CourseController {
                                               description = "待更新的课程数据"
                                       ) @Valid @RequestBody Course course,
                                       Authentication auth) {
-        Course existCourse = courseService.getById(id);
-        if (existCourse == null) {
-            throw new BusinessException("课程不存在");
-        }
-
         Long userId = (Long) auth.getPrincipal();
         boolean isAdmin = auth.getAuthorities().stream()
                 .anyMatch(granted -> granted.getAuthority().equals("ROLE_ADMIN"));
-        if (!userId.equals(existCourse.getTeacherId()) && !isAdmin) {
-            throw new BusinessException("无权修改该课程");
-        }
-
-        course.setId(id);
-        courseService.updateById(course);
-        Course updatedCourse = courseService.getById(id);
+        // 存在性校验/权限校验/更新落库下沉至服务层（事务化）
+        Course updatedCourse = courseService.updateCourse(id, course, userId, isAdmin);
         return ApiResponse.success("更新成功", updatedCourse);
     }
 
@@ -115,7 +105,7 @@ public class CourseController {
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "删除课程", description = "教师或管理员可删除课程（软删除）")
     public ApiResponse<Void> delete(@Parameter(description = "课程ID") @PathVariable Long id) {
-        courseService.removeById(id);
+        courseService.deleteCourseById(id);
         return ApiResponse.success("删除成功", null);
     }
 
@@ -126,13 +116,7 @@ public class CourseController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "审批通过课程", description = "管理员审批通过课程申请，将状态设为ACTIVE")
     public ApiResponse<Course> approve(@Parameter(description = "课程ID") @PathVariable Long id) {
-        Course course = courseService.getById(id);
-        if (course == null) {
-            throw new BusinessException("课程不存在");
-        }
-        course.setApprovalStatus("APPROVED");
-        course.setStatus("ACTIVE");
-        courseService.updateById(course);
+        Course course = courseService.approveCourse(id);
         return ApiResponse.success("审批成功", course);
     }
 
@@ -143,16 +127,7 @@ public class CourseController {
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "切换课程状态", description = "在ACTIVE和INACTIVE之间切换课程状态")
     public ApiResponse<Course> toggle(@Parameter(description = "课程ID") @PathVariable Long id) {
-        Course course = courseService.getById(id);
-        if (course == null) {
-            throw new BusinessException("课程不存在");
-        }
-        if ("ACTIVE".equals(course.getStatus())) {
-            course.setStatus("INACTIVE");
-        } else {
-            course.setStatus("ACTIVE");
-        }
-        courseService.updateById(course);
+        Course course = courseService.toggleCourseStatus(id);
         return ApiResponse.success("状态切换成功", course);
     }
 
@@ -165,16 +140,9 @@ public class CourseController {
     public ApiResponse<Course> reject(@Parameter(description = "课程ID") @PathVariable Long id,
                                       @io.swagger.v3.oas.annotations.parameters.RequestBody(
                                               description = "驳回原因（可选）"
-                                      ) @RequestBody(required = false) Map<String, String> body) {
-        Course course = courseService.getById(id);
-        if (course == null) {
-            throw new BusinessException("课程不存在");
-        }
-        course.setApprovalStatus("REJECTED");
-        if (body != null && body.get("reason") != null) {
-            course.setApprovalComment(body.get("reason"));
-        }
-        courseService.updateById(course);
+                                      ) @Valid @RequestBody(required = false) Map<String, String> body) {
+        String reason = body != null ? body.get("reason") : null;
+        Course course = courseService.rejectCourse(id, reason);
         return ApiResponse.success("已拒绝", course);
     }
 

@@ -1,5 +1,9 @@
 package com.aicourse.service;
 
+import com.aicourse.entity.KnowledgePoint;
+
+import java.util.List;
+
 /**
  * 知识图谱服务接口
  * 对接Python知识图谱微服务（端口 8001）
@@ -61,4 +65,12 @@ public interface KnowledgeGraphService {
      * @return 操作结果
      */
     String deleteRelation(Long relationId);
+
+    /**
+     * 学习路径规划（基于知识关系图的最短路径 BFS）
+     * @param startPointId 起点知识点ID
+     * @param targetPointId 目标知识点ID
+     * @return 有序路径上的知识点列表；起点与目标相同时返回该单点；无法到达时返回空列表
+     */
+    List<KnowledgePoint> planLearningPath(Long startPointId, Long targetPointId);
 }

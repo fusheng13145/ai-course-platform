@@ -4,7 +4,6 @@ import com.aicourse.common.ApiResponse;
 import com.aicourse.dto.ChapterReorderDTO;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseChapter;
-import com.aicourse.exception.BusinessException;
 import com.aicourse.service.CourseChapterService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.TeacherCourseService;
@@ -76,12 +75,10 @@ public class CourseChapterController {
      */
     @PostMapping("/chapters")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<CourseChapter> create(@RequestBody CourseChapter chapter, Authentication auth) {
-        if (canManageCourse(chapter.getCourseId(), auth)) {
-            throw new BusinessException("无权管理该课程");
-        }
-        chapterService.save(chapter);
-        return ApiResponse.success("创建成功", chapter);
+    public ApiResponse<CourseChapter> create(@Valid @RequestBody CourseChapter chapter, Authentication auth) {
+        // 课程管理权限校验与落库下沉至服务层（事务化）
+        CourseChapter saved = chapterService.createChapter(chapter, (Long) auth.getPrincipal(), isAdmin(auth));
+        return ApiResponse.success("创建成功", saved);
     }
 
     /**
@@ -94,18 +91,10 @@ public class CourseChapterController {
     @PutMapping("/chapters/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<CourseChapter> update(@PathVariable Long id,
-                                             @RequestBody CourseChapter chapter,
+                                             @Valid @RequestBody CourseChapter chapter,
                                              Authentication auth) {
-        CourseChapter existingChapter = chapterService.getById(id);
-        if (existingChapter == null) {
-            throw new BusinessException("章节不存在");
-        }
-        if (canManageCourse(existingChapter.getCourseId(), auth)) {
-            throw new BusinessException("无权管理该课程");
-        }
-        chapter.setId(id);
-        chapterService.updateById(chapter);
-        CourseChapter updatedChapter = chapterService.getById(id);
+        // 章节存在性/权限校验与更新落库下沉至服务层（事务化）
+        CourseChapter updatedChapter = chapterService.updateChapter(id, chapter, (Long) auth.getPrincipal(), isAdmin(auth));
         return ApiResponse.success("更新成功", updatedChapter);
     }
 
@@ -118,14 +107,8 @@ public class CourseChapterController {
     @DeleteMapping("/chapters/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<Void> delete(@PathVariable Long id, Authentication auth) {
-        CourseChapter existingChapter = chapterService.getById(id);
-        if (existingChapter == null) {
-            throw new BusinessException("章节不存在");
-        }
-        if (canManageCourse(existingChapter.getCourseId(), auth)) {
-            throw new BusinessException("无权管理该课程");
-        }
-        chapterService.removeById(id);
+        // 章节存在性/权限校验与删除落库下沉至服务层（事务化）
+        chapterService.deleteChapter(id, (Long) auth.getPrincipal(), isAdmin(auth));
         return ApiResponse.success("删除成功", null);
     }
 
@@ -146,6 +129,14 @@ public class CourseChapterController {
             chapterService.updateById(chapter);
         }
         return ApiResponse.success("排序更新成功", null);
+    }
+
+    /**
+     * 判断当前用户是否为管理员
+     */
+    private boolean isAdmin(Authentication auth) {
+        return auth.getAuthorities().stream()
+                .anyMatch(granted -> granted.getAuthority().equals("ROLE_ADMIN"));
     }
 
     /**

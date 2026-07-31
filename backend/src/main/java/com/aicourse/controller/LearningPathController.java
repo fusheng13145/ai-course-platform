@@ -1,11 +1,11 @@
 package com.aicourse.controller;
 
+import jakarta.validation.Valid;
+
 import com.aicourse.common.ApiResponse;
-import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.LearningPath;
 import com.aicourse.entity.LearningPathNode;
 import com.aicourse.service.CourseEnrollmentService;
-import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.LearningPathNodeService;
 import com.aicourse.service.LearningPathService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -13,7 +13,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import com.aicourse.common.ApiCode;
@@ -30,16 +29,13 @@ public class LearningPathController {
     private final LearningPathService learningPathService;
     private final LearningPathNodeService learningPathNodeService;
     private final CourseEnrollmentService enrollmentService;
-    private final KnowledgePointService knowledgePointService;
 
     public LearningPathController(LearningPathService learningPathService,
                                   LearningPathNodeService learningPathNodeService,
-                                  CourseEnrollmentService enrollmentService,
-                                  KnowledgePointService knowledgePointService) {
+                                  CourseEnrollmentService enrollmentService) {
         this.learningPathService = learningPathService;
         this.learningPathNodeService = learningPathNodeService;
         this.enrollmentService = enrollmentService;
-        this.knowledgePointService = knowledgePointService;
     }
 
     /**
@@ -75,7 +71,7 @@ public class LearningPathController {
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('STUDENT','ADMIN')")
-    public ApiResponse<LearningPath> create(@RequestBody LearningPath path, Authentication auth) {
+    public ApiResponse<LearningPath> create(@Valid @RequestBody LearningPath path, Authentication auth) {
         path.setStudentId((Long) auth.getPrincipal());
         learningPathService.save(path);
         return ApiResponse.success("创建成功", path);
@@ -89,7 +85,7 @@ public class LearningPathController {
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('STUDENT','ADMIN')")
-    public ApiResponse<LearningPath> update(@PathVariable Long id, @RequestBody LearningPath path) {
+    public ApiResponse<LearningPath> update(@PathVariable Long id, @Valid @RequestBody LearningPath path) {
         path.setId(id);
         learningPathService.updateById(path);
         LearningPath updatedPath = learningPathService.getById(id);
@@ -116,7 +112,7 @@ public class LearningPathController {
      * @return 新增节点数据
      */
     @PostMapping("/{id}/nodes")
-    public ApiResponse<LearningPathNode> addNode(@PathVariable Long id, @RequestBody LearningPathNode node) {
+    public ApiResponse<LearningPathNode> addNode(@PathVariable Long id, @Valid @RequestBody LearningPathNode node) {
         node.setLearningPathId(id);
         learningPathNodeService.save(node);
         return ApiResponse.success("添加成功", node);
@@ -129,7 +125,7 @@ public class LearningPathController {
      * @return 更新后节点信息
      */
     @PutMapping("/nodes/{nodeId}")
-    public ApiResponse<LearningPathNode> updateNode(@PathVariable Long nodeId, @RequestBody LearningPathNode node) {
+    public ApiResponse<LearningPathNode> updateNode(@PathVariable Long nodeId, @Valid @RequestBody LearningPathNode node) {
         node.setId(nodeId);
         learningPathNodeService.updateById(node);
         LearningPathNode updatedNode = learningPathNodeService.getById(nodeId);
@@ -148,30 +144,8 @@ public class LearningPathController {
         if (userId == null) {
             return ApiResponse.error(ApiCode.BAD_REQUEST, "用户ID不能为空");
         }
-
-        // 数据驱动：以课程知识库（按重要度排序）生成学习节点。
-        // 无知识点时返回空列表并提示用户先完善课程知识库。
-        List<KnowledgePoint> points = knowledgePointService.list(
-                new LambdaQueryWrapper<KnowledgePoint>()
-                        .eq(KnowledgePoint::getCourseId, courseId)
-                        .orderByDesc(KnowledgePoint::getImportance)
-                        .last("LIMIT 8"));
-
-        List<LearningPathNode> nodes = new ArrayList<>();
-        if (!points.isEmpty()) {
-            for (int i = 0; i < points.size(); i++) {
-                KnowledgePoint p = points.get(i);
-                LearningPathNode node = new LearningPathNode();
-                node.setTitle(p.getName());
-                node.setNodeType("study");
-                node.setStatus("PENDING");
-                node.setOrderIndex(i);
-                node.setEstimatedTime(p.getEstimatedTime() != null ? p.getEstimatedTime() : 60);
-                node.setDescription(p.getDescription());
-                nodes.add(node);
-            }
-        }
-        // 无知识点时不再返回硬编码主题，以空列表 + 提示信息替代
+        // 掌握度推导、排序规则、节点构建等业务逻辑下沉至 Service
+        List<LearningPathNode> nodes = learningPathService.generateLearningPath(userId, courseId);
         return ApiResponse.success(nodes);
     }
 

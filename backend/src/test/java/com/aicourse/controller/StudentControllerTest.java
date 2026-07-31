@@ -125,17 +125,11 @@ class StudentControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /student/courses/1/enroll - STUDENT 加入课程返回 code=200")
     void enrollCourse_authorized_passes_security() throws Exception {
-        Course course = new Course();
-        course.setId(1L);
-        when(courseService.getById(any())).thenReturn(course);
-        when(enrollmentService.getOne(any())).thenReturn(null);
-
         mockMvc.perform(post("/student/courses/1/enroll").with(withUser(1L, "STUDENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
-        verify(courseService).getById(eq(1L));
-        verify(enrollmentService).save(any());
+        verify(enrollmentService).enrollStudent(eq(1L), eq(1L));
     }
 
 

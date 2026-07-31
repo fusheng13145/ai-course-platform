@@ -1,35 +1,12 @@
 <template>
   <div class="course-proctor fade-in">
+    <PageHeader compact title="在线监考" subtitle="进行中考试会话、风险汇总与监考事件" icon="shield" />
     <div v-loading="loading">
       <!-- 指标卡 -->
-      <div class="stat-grid">
-        <div class="stat-card">
-          <div class="stat-icon" style="background: var(--ac-primary-bg); color: var(--ac-primary)">
-            <el-icon :size="22"><VideoCamera /></el-icon>
-          </div>
-          <div class="stat-info">
-            <h3>{{ sessions.length || 0 }}</h3>
-            <p>进行中考试</p>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon" style="background: var(--ac-warning-bg); color: var(--ac-warning)">
-            <el-icon :size="22"><Warning /></el-icon>
-          </div>
-          <div class="stat-info">
-            <h3>{{ riskTotal || 0 }}</h3>
-            <p>风险事件</p>
-          </div>
-        </div>
-        <div class="stat-card">
-          <div class="stat-icon" style="background: var(--ac-success-bg); color: var(--ac-success)">
-            <el-icon :size="22"><Select /></el-icon>
-          </div>
-          <div class="stat-info">
-            <h3>{{ eventsTotal || 0 }}</h3>
-            <p>监考事件</p>
-          </div>
-        </div>
+      <div class="stat-grid animate-in">
+        <StatCard label="进行中考试" :value="sessions.length || 0" icon="video" tone="var(--accent-soft)" tone-color="var(--accent)" />
+        <StatCard label="风险事件" :value="riskTotal || 0" icon="warn" tone="var(--warn-soft)" tone-color="var(--warn)" />
+        <StatCard label="监考事件" :value="eventsTotal || 0" icon="list" tone="var(--ok-soft)" tone-color="var(--ok)" />
       </div>
 
       <!-- 进行中考试 -->
@@ -48,8 +25,8 @@
           type="info"
           :closable="false"
           show-icon
+          class="alert-gap"
           title="未关联到具体课程，已列出全部进行中的考试会话"
-          style="margin-bottom: var(--ac-spacing-md)"
         />
 
         <el-table
@@ -177,7 +154,8 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import examApi from '@/api/exam'
 import proctorApi from '@/api/proctor'
-import { VideoCamera, Warning, Select } from '@element-plus/icons-vue'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 const route = useRoute()
 const courseId = ref(route.params.id)
@@ -356,57 +334,6 @@ watch(
 </script>
 
 <style scoped>
-.fade-in {
-  animation: acFadeIn 0.3s ease;
-}
-@keyframes acFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-.stat-grid {
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: var(--ac-spacing-md);
-  margin-bottom: var(--ac-spacing-md);
-}
-.stat-card {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  padding: 18px 20px;
-  background: var(--ac-bg-elevated);
-  border: 1px solid var(--ac-border);
-  border-radius: var(--ac-radius-lg);
-  box-shadow: var(--ac-shadow-sm);
-}
-.stat-icon {
-  width: 46px;
-  height: 46px;
-  border-radius: 12px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  flex-shrink: 0;
-}
-.stat-info h3 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: 680;
-  color: var(--ac-text-primary);
-}
-.stat-info p {
-  margin: 2px 0 0;
-  font-size: 12.5px;
-  color: var(--ac-text-secondary);
-}
-
 .chart-card {
   padding: var(--ac-spacing-lg);
   background: var(--ac-bg-elevated);
@@ -438,9 +365,7 @@ watch(
   cursor: pointer;
 }
 
-@media (max-width: 1100px) {
-  .stat-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
+.alert-gap {
+  margin-bottom: var(--ac-spacing-md);
 }
 </style>

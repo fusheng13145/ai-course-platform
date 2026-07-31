@@ -36,6 +36,7 @@ class LearningPathServiceImplTest {
 
     @Mock private LearningPathNodeService nodeService;
     @Mock private KnowledgePointService knowledgePointService;
+    @Mock private com.aicourse.service.WrongQuestionService wrongQuestionService;
     @Mock private ObjectMapper objectMapper;
     @Mock private LearningPathMapper learningPathMapper;
     @Mock private CourseChapterService courseChapterService;
@@ -82,7 +83,7 @@ class LearningPathServiceImplTest {
         when(learningPathMapper.selectOne(any(), anyBoolean())).thenReturn(null);
         when(knowledgePointService.getRootPoints(10L)).thenReturn(List.of(testKnowledgePoint));
         when(knowledgePointService.getChildPoints(1L)).thenReturn(Collections.emptyList());
-        when(objectMapper.writeValueAsString(any())).thenReturn("[]", "[]", "{}");
+        lenient().when(objectMapper.writeValueAsString(any())).thenReturn("[]", "[]", "{}");
         when(nodeService.save(any(LearningPathNode.class))).thenReturn(true);
         when(learningPathMapper.insert(any(LearningPath.class))).thenReturn(1);
         when(learningPathMapper.updateById(any(LearningPath.class))).thenReturn(1);

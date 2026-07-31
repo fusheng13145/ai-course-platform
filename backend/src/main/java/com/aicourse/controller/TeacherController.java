@@ -1,5 +1,7 @@
 package com.aicourse.controller;
 
+import jakarta.validation.Valid;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.*;
@@ -14,7 +16,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -67,10 +68,10 @@ public class TeacherController {
 
     @PostMapping("/courses")
     @Operation(summary = "创建课程")
-    public ApiResponse<Course> createCourse(@RequestBody Course course, Authentication auth) {
-        course.setTeacherId((Long) auth.getPrincipal());
-        courseService.save(course);
-        return ApiResponse.success("创建成功", course);
+    public ApiResponse<Course> createCourse(@Valid @RequestBody Course course, Authentication auth) {
+        // 绑定授课教师与落库下沉至服务层（事务化）
+        Course saved = courseService.createCourse(course, (Long) auth.getPrincipal());
+        return ApiResponse.success("创建成功", saved);
     }
 
     @GetMapping("/courses")
@@ -96,25 +97,26 @@ public class TeacherController {
 
     @PutMapping("/courses/{courseId}")
     @Operation(summary = "更新课程")
-    public ApiResponse<Course> updateCourse(@PathVariable Long courseId, @RequestBody Course course, Authentication auth) {
+    public ApiResponse<Course> updateCourse(@PathVariable Long courseId, @Valid @RequestBody Course course, Authentication auth) {
         assertCourseOwner(courseId, auth);
-        course.setId(courseId);
-        courseService.updateById(course);
-        return ApiResponse.success("更新成功", courseService.getById(courseId));
+        // 写操作下沉至服务层（事务化）
+        Course updated = courseService.updateCourseById(courseId, course);
+        return ApiResponse.success("更新成功", updated);
     }
 
     @DeleteMapping("/courses/{courseId}")
     @Operation(summary = "删除课程")
     public ApiResponse<Void> deleteCourse(@PathVariable Long courseId, Authentication auth) {
         assertCourseOwner(courseId, auth);
-        courseService.removeById(courseId);
+        // 写操作下沉至服务层（事务化）
+        courseService.deleteCourseById(courseId);
         return ApiResponse.success("删除成功", null);
     }
 
     @PostMapping("/courses/{courseId}/chapters")
     @Operation(summary = "添加课程章节")
     public ApiResponse<CourseChapter> addChapter(@PathVariable Long courseId,
-                                                  @RequestBody CourseChapter chapter,
+                                                  @Valid @RequestBody CourseChapter chapter,
                                                   Authentication auth) {
         assertCourseOwner(courseId, auth);
         chapter.setCourseId(courseId);
@@ -126,7 +128,7 @@ public class TeacherController {
     @Operation(summary = "更新课程章节")
     public ApiResponse<CourseChapter> updateChapter(@PathVariable Long courseId,
                                                      @PathVariable Long chapterId,
-                                                     @RequestBody CourseChapter chapter,
+                                                     @Valid @RequestBody CourseChapter chapter,
                                                      Authentication auth) {
         assertCourseOwner(courseId, auth);
         chapter.setId(chapterId);
@@ -149,7 +151,7 @@ public class TeacherController {
 
     @PostMapping("/assignments")
     @Operation(summary = "创建作业")
-    public ApiResponse<Task> createAssignment(@RequestBody Task task, Authentication auth) {
+    public ApiResponse<Task> createAssignment(@Valid @RequestBody Task task, Authentication auth) {
         if (task.getCourseId() != null) assertCourseOwner(task.getCourseId(), auth);
         taskService.save(task);
         return ApiResponse.success("创建成功", task);
@@ -178,11 +180,11 @@ public class TeacherController {
 
     @PutMapping("/assignments/{assignmentId}")
     @Operation(summary = "更新作业")
-    public ApiResponse<Task> updateAssignment(@PathVariable Long assignmentId, @RequestBody Task task, Authentication auth) {
+    public ApiResponse<Task> updateAssignment(@PathVariable Long assignmentId, @Valid @RequestBody Task task, Authentication auth) {
         assertTaskOwner(assignmentId, auth);
-        task.setId(assignmentId);
-        taskService.updateById(task);
-        return ApiResponse.success("更新成功", taskService.getById(assignmentId));
+        // 写操作下沉至服务层（事务化）
+        Task updated = taskService.updateTaskById(assignmentId, task);
+        return ApiResponse.success("更新成功", updated);
     }
 
     @DeleteMapping("/assignments/{assignmentId}")
@@ -211,20 +213,12 @@ public class TeacherController {
     public ApiResponse<Submission> gradeSubmission(
             @PathVariable Long assignmentId,
             @PathVariable Long submissionId,
-            @RequestBody Submission grade,
+            @Valid @RequestBody Submission grade,
             Authentication auth) {
         assertTaskOwner(assignmentId, auth);
-        Submission submission = submissionService.getById(submissionId);
-        if (submission == null) throw new BusinessException("提交记录不存在");
-        if (!assignmentId.equals(submission.getTaskId())) {
-            throw new BusinessException(403, "提交记录不属于该作业");
-        }
-        submission.setScore(grade.getScore());
-        submission.setFeedback(grade.getFeedback());
-        submission.setStatus("GRADED");
-        submission.setGradedAt(LocalDateTime.now());
-        submission.setGraderId((Long) auth.getPrincipal());
-        submissionService.updateById(submission);
+        // 提交记录存在性/归属一致性校验与批改落库下沉至服务层（事务化）
+        Submission submission = submissionService.gradeSubmissionByTeacher(
+                assignmentId, submissionId, grade, (Long) auth.getPrincipal());
         return ApiResponse.success("批改完成", submission);
     }
 
@@ -240,7 +234,7 @@ public class TeacherController {
 
     @PostMapping("/questions")
     @Operation(summary = "创建题目")
-    public ApiResponse<Question> createQuestion(@RequestBody Question question, Authentication auth) {
+    public ApiResponse<Question> createQuestion(@Valid @RequestBody Question question, Authentication auth) {
         if (question.getCourseId() != null) assertCourseOwner(question.getCourseId(), auth);
         question.setCreatedBy((Long) auth.getPrincipal());
         questionService.createQuestion(question);
@@ -274,7 +268,7 @@ public class TeacherController {
 
     @PutMapping("/questions/{questionId}")
     @Operation(summary = "更新题目")
-    public ApiResponse<Question> updateQuestion(@PathVariable Long questionId, @RequestBody Question question, Authentication auth) {
+    public ApiResponse<Question> updateQuestion(@PathVariable Long questionId, @Valid @RequestBody Question question, Authentication auth) {
         assertQuestionOwner(questionId, auth);
         question.setId(questionId);
         questionService.updateById(question);
@@ -291,7 +285,7 @@ public class TeacherController {
 
     @PostMapping("/questions/import")
     @Operation(summary = "批量导入题目")
-    public ApiResponse<Map<String, Object>> importQuestions(@RequestBody List<Question> questions) {
+    public ApiResponse<Map<String, Object>> importQuestions(@Valid @RequestBody List<Question> questions) {
         int count = 0;
         for (Question q : questions) {
             questionService.save(q);

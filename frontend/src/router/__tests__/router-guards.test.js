@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
 // Mock NProgress
@@ -86,7 +86,6 @@ vi.mock('@/views/student/study/LearningCalendar.vue', () => ({ default: { name: 
 
 describe('路由守卫', () => {
   let router
-  let guardFn
 
   beforeEach(async () => {
     setActivePinia(createPinia())
@@ -109,7 +108,6 @@ describe('路由守卫', () => {
 
   describe('不需要认证的路由', () => {
     it('/login 路由 meta.requiresAuth 为 false', () => {
-      const route = router.resolve('/login')
       const matched = router.getRoutes().find(r => r.path === '/login')
       expect(matched).toBeDefined()
       expect(matched.meta.requiresAuth).toBeFalsy()
@@ -238,10 +236,6 @@ describe('路由守卫', () => {
 
     it('管理员路由元数据包含角色 ADMIN', () => {
       // 查找 /admin 开头的路由，meta.role 在父路由上
-      const adminRoute = router.getRoutes().find(r =>
-        r.path === '/admin' || (r.path.startsWith('/admin') && r.meta.role)
-      )
-      // 如果没有找到带 role 的路由，至少在路由列表中
       const allAdminRoutes = router.getRoutes().filter(r => r.path.startsWith('/admin'))
       expect(allAdminRoutes.length).toBeGreaterThan(0)
     })

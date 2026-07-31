@@ -1,14 +1,11 @@
 <template>
   <div class="fade-in knowledge-base">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-left">
-        <h2 class="page-title">知识库管理</h2>
-        <p class="page-desc">
-          按课程维护 RAG 知识库：导入文档语料、召回测试、智能问答联调，支撑「基于知识库的 AI 助教」
-        </p>
-      </div>
-    </div>
+    <PageHeader
+      title="知识库管理"
+      subtitle="按课程维护 RAG 知识库：导入文档语料、召回测试、智能问答联调，支撑「基于知识库的 AI 助教」"
+      icon="layers"
+      icon-bg="accent"
+    />
 
     <!-- 模型状态横幅 -->
     <div class="model-banner" :class="bannerClass">
@@ -16,34 +13,29 @@
       <span>{{ bannerText }}</span>
     </div>
 
-    <!-- 统计概览 -->
-    <div class="stats-row">
-      <div class="stat-mini-card">
-        <span class="label">知识库文档数</span>
-        <span class="value">{{ docs.length }}</span>
-      </div>
-      <div class="stat-mini-card teacher">
-        <span class="label">当前课程</span>
-        <span class="value" style="font-size: 18px">{{ currentCourseName || '未选择' }}</span>
-      </div>
-      <div class="stat-mini-card student">
-        <span class="label">可管理课程</span>
-        <span class="value">{{ courseList.length }}</span>
-      </div>
-      <div class="stat-mini-card admin">
-        <span class="label">生成模型</span>
-        <span class="value" style="font-size: 18px">{{ modelLabel }}</span>
-      </div>
+    <div class="stat-grid animate-in d1">
+      <StatCard label="知识库文档数" :value="docs.length" icon="doc" tone="var(--accent-soft)" tone-color="var(--accent)" />
+      <StatCard label="当前课程" :value="currentCourseName || '未选择'" icon="building" tone="var(--info-soft)" tone-color="var(--info)" />
+      <StatCard label="可管理课程" :value="courseList.length" icon="list" tone="var(--violet-soft)" tone-color="var(--violet)" />
+      <StatCard label="生成模型" :value="modelLabel" icon="info" tone="var(--ok-soft)" tone-color="var(--ok)" />
     </div>
 
     <!-- 工具栏 -->
+    <section class="l1-card animate-in d2">
+      <div class="l1-head">
+        <span class="l1-ico ico-accent">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        </span>
+        <div><div class="l1-title">知识库文档</div><div class="l1-sub">按课程检索与维护文档语料</div></div>
+      </div>
+      <div class="l1-body">
     <div class="content-card filter-card">
       <div class="filter-row">
         <el-select
           v-model="selectedCourseId"
           placeholder="选择课程"
           filterable
-          style="width: 260px"
+          class="w-260"
           @change="onCourseChange"
         >
           <el-option v-for="c in courseList" :key="c.id" :label="c.name || c.title" :value="c.id" />
@@ -62,7 +54,7 @@
           v-model="keyword"
           placeholder="搜索文档名称"
           clearable
-          style="width: 200px"
+          class="w-200"
           @keyup.enter="loadDocs"
         />
       </div>
@@ -102,15 +94,28 @@
         <el-table-column label="操作" width="160" align="center">
           <template #default="{ row }">
             <div class="action-row">
-              <button class="act-btn act-btn--edit" @click="openEdit(row)">编辑</button>
-              <button class="act-btn--del" @click="removeDoc(row)">删除</button>
+              <el-button text type="primary" size="small" @click="openEdit(row)">编辑</el-button>
+              <el-button text type="danger" size="small" @click="removeDoc(row)">删除</el-button>
             </div>
           </template>
         </el-table-column>
+        <template #empty>
+          <el-empty description="请选择课程后查看知识库文档">
+            <template #image><div class="empty-deco">📚</div></template>
+          </el-empty>
+        </template>
       </el-table>
     </div>
+    </div>
+    </section>
 
     <!-- RAG 联调面板 -->
+    <section class="l1-card animate-in d3">
+      <div class="l1-head">
+        <span class="l1-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v1a3 3 0 0 0-3 3 3 3 0 0 0 0 6 3 3 0 0 0 3 3v1a3 3 0 0 0 3 3 3 3 0 0 0 3-3v-1a3 3 0 0 0 3-3 3 3 0 0 0 0-6 3 3 0 0 0-3-3V5a3 3 0 0 0-3-3z" /></svg></span>
+        <div><h3 class="l1-title">RAG 联调测试</h3></div>
+      </div>
+      <div class="l1-body">
     <div class="playground">
       <div class="content-card playground-card">
         <div class="card-title">
@@ -130,7 +135,7 @@
             :min="1"
             :max="10"
             controls-position="right"
-            style="width: 110px"
+            class="w-110"
           />
           <el-button type="primary" :loading="asking" :disabled="!selectedCourseId" @click="doAsk"
             >提问</el-button
@@ -166,7 +171,7 @@
             :min="1"
             :max="10"
             controls-position="right"
-            style="width: 110px"
+            class="w-110"
           />
           <el-button
             type="primary"
@@ -189,10 +194,14 @@
             v-if="!retrieveResult.count"
             description="未召回相关知识点，建议补充知识库语料"
             :image-size="80"
-          />
+          >
+            <template #image><div class="empty-deco">🔍</div></template>
+          </el-empty>
         </div>
       </div>
     </div>
+    </div>
+    </section>
 
     <!-- 新增 / 编辑弹窗 -->
     <el-dialog
@@ -242,6 +251,8 @@ import {
 } from '@element-plus/icons-vue'
 import ragApi from '@/api/rag'
 import courseApi from '@/api/course'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 const loading = ref(false)
 const indexing = ref(false)
@@ -508,21 +519,6 @@ onMounted(loadCourses)
   margin: 0 auto;
 }
 
-.page-header {
-  margin-bottom: var(--ac-spacing-lg);
-}
-.page-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-  letter-spacing: -0.3px;
-}
-.page-desc {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-  margin-top: 4px;
-}
-
 .model-banner {
   display: flex;
   align-items: center;
@@ -537,59 +533,28 @@ onMounted(loadCourses)
   font-size: 16px;
 }
 .banner--warn {
-  background: rgba(217, 119, 6, 0.08);
-  border-color: rgba(217, 119, 6, 0.3);
-  color: #b45309;
+  background: var(--warn-soft);
+  border-color: var(--warn);
+  color: var(--warn);
 }
 .banner--ok {
-  background: rgba(22, 101, 52, 0.08);
-  border-color: rgba(22, 101, 52, 0.3);
-  color: #166534;
+  background: var(--ok-soft);
+  border-color: var(--ok);
+  color: var(--ok);
 }
 .banner--unknown {
   background: var(--ac-bg-elevated);
   color: var(--ac-text-muted);
 }
 
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
-  gap: var(--ac-spacing-md);
-  margin-bottom: var(--ac-spacing-lg);
+.ico-accent {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
-.stat-mini-card {
-  background: var(--ac-bg-elevated);
-  border-radius: var(--ac-radius-md);
-  border: 1px solid var(--ac-border);
-  padding: 16px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  transition: all var(--ac-transition-normal);
-}
-.stat-mini-card:hover {
-  box-shadow: var(--ac-shadow-md);
-  transform: translateY(-2px);
-}
-.stat-mini-card .label {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-  font-weight: 500;
-}
-.stat-mini-card .value {
-  font-size: 26px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-}
-.stat-mini-card.admin .value {
-  color: #7f1d1d;
-}
-.stat-mini-card.teacher .value {
-  color: #166534;
-}
-.stat-mini-card.student .value {
-  color: #1e40af;
-}
+
+.w-260 { width: 260px; }
+.w-200 { width: 200px; }
+.w-110 { width: 110px; }
 
 .content-card {
   background: var(--ac-bg-elevated);
@@ -624,36 +589,6 @@ onMounted(loadCourses)
   align-items: center;
   justify-content: center;
   gap: 8px;
-}
-.act-btn,
-.act-btn--edit,
-.act-btn--del {
-  font-size: 13px;
-  padding: 4px 10px;
-  border-radius: 6px;
-  border: none;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  font-weight: 500;
-  background: transparent;
-  white-space: nowrap;
-}
-.act-btn:hover,
-.act-btn--edit:hover,
-.act-btn--del:hover {
-  transform: translateY(-1px);
-}
-.act-btn--edit {
-  color: var(--ac-primary, #3b82f6);
-}
-.act-btn--edit:hover {
-  background: rgba(59, 130, 246, 0.08);
-}
-.act-btn--del {
-  color: #b05045;
-}
-.act-btn--del:hover {
-  background: rgba(176, 80, 69, 0.08);
 }
 
 .playground {
@@ -748,13 +683,19 @@ onMounted(loadCourses)
 }
 .retrieve-score {
   font-size: 12px;
-  color: var(--ac-primary, #3b82f6);
+  color: var(--info);
 }
 .retrieve-desc {
   font-size: 12px;
   color: var(--ac-text-muted);
   margin-top: 4px;
   line-height: 1.5;
+}
+
+/* 空状态装饰 */
+.empty-deco {
+  font-size: 38px;
+  filter: grayscale(.2);
 }
 
 @media (max-width: 900px) {

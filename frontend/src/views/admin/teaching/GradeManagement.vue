@@ -1,35 +1,30 @@
-﻿﻿<template>
+﻿<template>
   <div class="fade-in grade-management">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-left">
-        <h2 class="page-title">成绩管理</h2>
-        <p class="page-desc">全校成绩查询、分析与导出</p>
-      </div>
-      <div class="header-right">
-        <el-button type="primary" @click="exportGrades">
-          <el-icon><Download /></el-icon>导出报表
-        </el-button>
-      </div>
+    <PageHeader title="成绩管理" subtitle="全校成绩查询、分析与导出" icon="chart" icon-bg="accent">
+      <el-button type="primary" @click="exportGrades">
+        <el-icon><Download /></el-icon>导出报表
+      </el-button>
+    </PageHeader>
+
+    <div class="stat-grid animate-in d1">
+      <StatCard label="平均分" :value="overviewStats[0].value" icon="chart" tone="var(--accent-soft)" tone-color="var(--accent)" />
+      <StatCard label="标准差" :value="overviewStats[1].value" icon="list" tone="var(--info-soft)" tone-color="var(--info)" />
+      <StatCard label="及格率" :value="overviewStats[2].value" icon="check" tone="var(--ok-soft)" tone-color="var(--ok)" />
+      <StatCard label="异常数" :value="overviewStats[3].value" icon="warn" tone="var(--warn-soft)" tone-color="var(--warn)" />
     </div>
 
-    <!-- 成绩概览卡片 -->
-    <div class="overview-cards">
-      <div v-for="(item, idx) in overviewStats" :key="idx" class="overview-card">
-        <div class="overview-icon" :style="{ background: item.bg }">
-          <el-icon :size="22"><component :is="item.icon" /></el-icon>
-        </div>
-        <div class="overview-info">
-          <span class="overview-value">{{ item.value }}</span>
-          <span class="overview-label">{{ item.label }}</span>
-        </div>
+    <section class="l1-card animate-in d2">
+      <div class="l1-head">
+        <span class="l1-ico ico-accent">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18M18 17V9M13 17V5M8 17v-3"/></svg>
+        </span>
+        <div><div class="l1-title">成绩总览</div><div class="l1-sub">按课程与学期筛选，查看分布与异常预警</div></div>
       </div>
-    </div>
-
+      <div class="l1-body">
     <!-- 筛选工具栏 -->
     <div class="filter-bar">
       <div class="filter-left">
-        <el-select v-model="filters.courseId" placeholder="选择课程" clearable style="width:180px" @change="fetchGrades">
+        <el-select v-model="filters.courseId" placeholder="选择课程" clearable class="w-180" @change="fetchGrades">
           <el-option
             v-for="course in courseList"
             :key="course.id"
@@ -37,12 +32,12 @@
             :value="course.id"
           />
         </el-select>
-        <el-select v-model="filters.semester" placeholder="学期" clearable style="width:140px" @change="fetchGrades">
+        <el-select v-model="filters.semester" placeholder="学期" clearable class="w-140" @change="fetchGrades">
           <el-option label="2026春季" value="2026-SPRING" />
           <el-option label="2025秋季" value="2025-FALL" />
           <el-option label="2025春季" value="2025-SPRING" />
         </el-select>
-        <el-input v-model="filters.keyword" placeholder="搜索学生姓名/学号" clearable style="width:200px" @keyup.enter="fetchGrades" />
+        <el-input v-model="filters.keyword" placeholder="搜索学生姓名/学号" clearable class="w-200" @keyup.enter="fetchGrades" />
         <el-button type="primary" @click="fetchGrades"><el-icon><Search /></el-icon>搜索</el-button>
         <el-button @click="resetFilters">重置</el-button>
       </div>
@@ -56,7 +51,7 @@
       <!-- 左侧：成绩列表 -->
       <div class="grade-list-section">
         <div class="content-card">
-          <el-table :data="gradeList" style="width:100%" v-loading="loading">
+          <el-table v-loading="loading" :data="gradeList" style="width:100%">
             <el-table-column prop="studentName" label="学生姓名" width="110" />
             <el-table-column prop="studentId" label="学号" width="120" />
             <el-table-column prop="courseName" label="课程名称" min-width="150" show-overflow-tooltip />
@@ -87,6 +82,9 @@
                 <el-button text type="primary" size="small" @click="viewGradeDetail(row)">详情</el-button>
               </template>
             </el-table-column>
+            <template #empty>
+              <el-empty description="暂无成绩数据，请调整筛选条件" :image-size="80" />
+            </template>
           </el-table>
 
           <!-- 分页 -->
@@ -110,13 +108,13 @@
         <!-- 成绩分布图 -->
         <div class="panel-card">
           <div class="panel-title">成绩分布</div>
-          <v-chart :option="distributionOption" style="height: 220px" autoresize />
+          <v-chart :option="distributionOption" class="chart-sm" autoresize />
         </div>
 
         <!-- 各课程对比 -->
         <div class="panel-card">
           <div class="panel-title">各课程平均分对比</div>
-          <v-chart :option="courseCompareOption" style="height: 260px" autoresize />
+          <v-chart :option="courseCompareOption" class="chart-md" autoresize />
         </div>
 
         <!-- 异常成绩预警 -->
@@ -137,10 +135,14 @@
               <span class="course">{{ item.courseName }}</span>
             </div>
           </div>
-          <el-empty v-else description="暂无异常成绩" :image-size="50" />
+          <el-empty v-else description="暂无异常成绩" :image-size="50">
+            <template #image><div class="empty-deco">⚠️</div></template>
+          </el-empty>
         </div>
       </div>
     </div>
+      </div>
+    </section>
 
     <!-- 成绩详情对话框 -->
     <el-dialog v-model="showDetailDialog" title="成绩详情" width="600px" destroy-on-close>
@@ -182,13 +184,15 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, markRaw } from 'vue'
-import { Download, Search, Warning, DataAnalysis, TrendCharts, TrophyBase } from '@element-plus/icons-vue'
+import { ref, reactive, onMounted } from 'vue'
+import { Download, Search, Warning } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import examApi from '@/api/exam'
 import courseApi from '@/api/course'
-import userApi from '@/api/user'
 import * as XLSX from 'xlsx'
+import { getChartTheme, getMonoSeries } from '@/utils/chartTheme'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 // 加载状态
 const loading = ref(false)
@@ -216,10 +220,10 @@ const abnormalGrades = ref([])
 
 // 概览统计数据
 const overviewStats = ref([
-  { icon: markRaw(DataAnalysis), label: '平均分', value: '--', bg: 'rgba(122, 139, 165, 0.12)' },
-  { icon: markRaw(TrendCharts), label: '标准差', value: '--', bg: 'rgba(139, 168, 136, 0.12)' },
-  { icon: markRaw(TrophyBase), label: '及格率', value: '--', bg: 'rgba(203, 181, 138, 0.12)' },
-  { icon: markRaw(Warning), label: '异常数', value: 0, bg: 'rgba(196, 128, 128, 0.12)' }
+  { label: '平均分', value: '--' },
+  { label: '标准差', value: '--' },
+  { label: '及格率', value: '--' },
+  { label: '异常数', value: 0 }
 ])
 
 // 对话框
@@ -227,51 +231,52 @@ const showDetailDialog = ref(false)
 const selectedGrade = ref(null)
 
 // 成绩分布图配置
+const distTheme = getChartTheme()
+const distMono = getMonoSeries()
 const distributionOption = ref({
   tooltip: {
     trigger: 'axis',
-    backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: '#DDD6CE'
+    backgroundColor: distTheme.tooltipBg,
+    borderColor: distTheme.tooltipBorder
   },
   grid: { left: 45, right: 15, bottom: 25, top: 15 },
   xAxis: {
     type: 'category',
     data: ['0-59', '60-69', '70-79', '80-89', '90-100'],
-    axisLine: { lineStyle: { color: '#DDD6CE' } },
-    axisLabel: { fontSize: 11, color: '#928B83' }
+    axisLine: { lineStyle: { color: distTheme.axis } },
+    axisLabel: { fontSize: 11, color: distTheme.subText }
   },
-  yAxis: { type: 'value', splitLine: { lineStyle: { color: '#DDD6CE', type: 'dashed' } }, axisLabel: { fontSize: 11, color: '#928B83' } },
+  yAxis: { type: 'value', splitLine: { lineStyle: { color: distTheme.split, type: 'dashed' } }, axisLabel: { fontSize: 11, color: distTheme.subText } },
   series: [{
     type: 'bar',
     barWidth: '55%',
     itemStyle: {
       borderRadius: [4, 4, 0, 0],
-      color: (params) => {
-        const colors = ['#C48080', '#CBB58A', '#B89A8A', '#8BA888', '#7A8BA5']
-        return colors[params.dataIndex] || '#7A8BA5'
-      }
+      color: (params) => distMono[params.dataIndex % distMono.length]
     },
     data: []
   }]
 })
 
 // 各课程平均分对比配置
+const cmpTheme = getChartTheme()
+const cmpMono = getMonoSeries()
 const courseCompareOption = ref({
   tooltip: {
     trigger: 'axis',
-    backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: '#DDD6CE',
+    backgroundColor: cmpTheme.tooltipBg,
+    borderColor: cmpTheme.tooltipBorder,
     formatter: '{b}: {c}分'
   },
   grid: { left: 100, right: 20, bottom: 20, top: 10 },
-  xAxis: { type: 'value', min: 0, max: 100, splitLine: { lineStyle: { color: '#DDD6CE', type: 'dashed' } }, axisLabel: { color: '#928B83', fontSize: 11 } },
+  xAxis: { type: 'value', min: 0, max: 100, splitLine: { lineStyle: { color: cmpTheme.split, type: 'dashed' } }, axisLabel: { color: cmpTheme.subText, fontSize: 11 } },
   yAxis: {
     type: 'category',
     data: [],
     inverse: true,
     axisLine: { show: false },
     axisTick: { show: false },
-    axisLabel: { color: '#5E574F', fontSize: 11, width: 90, overflow: 'truncate' }
+    axisLabel: { color: cmpTheme.text, fontSize: 11, width: 90, overflow: 'truncate' }
   },
   series: [{
     type: 'bar',
@@ -282,12 +287,12 @@ const courseCompareOption = ref({
         type: 'linear',
         x: 0, y: 0, x2: 1, y2: 0,
         colorStops: [
-          { offset: 0, color: '#7A8BA5' },
-          { offset: 1, color: '#B89A8A' }
+          { offset: 0, color: cmpMono[0] },
+          { offset: 1, color: cmpMono[6] }
         ]
       }
     },
-    label: { show: true, position: 'right', color: '#5E574F', fontSize: 11 },
+    label: { show: true, position: 'right', color: cmpTheme.text, fontSize: 11 },
     data: []
   }]
 })
@@ -323,7 +328,7 @@ async function fetchGrades() {
     if (filters.keyword) params.keyword = filters.keyword
 
     const res = await examApi.getMyExamSessions(params)
-    let rawData = res.data?.records || res.data?.list || res.data || res || []
+    const rawData = res.data?.records || res.data?.list || res.data || res || []
     let data = Array.isArray(rawData) ? rawData : (rawData?.records ?? rawData?.grades ?? rawData?.items ?? [])
 
     if (!Array.isArray(data)) {
@@ -503,81 +508,17 @@ onMounted(() => {
   margin: 0 auto;
 }
 
-/* 页面头部 */
-.page-header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: var(--ac-spacing-lg);
-  gap: var(--ac-spacing-md);
-  flex-wrap: wrap;
+.ico-accent {
+  background: var(--accent-soft);
+  color: var(--accent);
 }
 
-.page-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-  letter-spacing: -0.3px;
-}
+.w-180 { width: 180px; }
+.w-140 { width: 140px; }
+.w-200 { width: 200px; }
 
-.page-desc {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-  margin-top: 4px;
-}
-
-/* 概览卡片 */
-.overview-cards {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--ac-spacing-md);
-  margin-bottom: var(--ac-spacing-lg);
-}
-
-.overview-card {
-  background: var(--ac-bg-elevated);
-  border-radius: var(--ac-radius-md);
-  border: 1px solid var(--ac-border);
-  padding: 18px 20px;
-  display: flex;
-  align-items: center;
-  gap: 14px;
-  transition: all var(--ac-transition-normal);
-}
-
-.overview-card:hover {
-  box-shadow: var(--ac-shadow-md);
-  transform: translateY(-2px);
-}
-
-.overview-icon {
-  width: 46px;
-  height: 46px;
-  border-radius: var(--ac-radius-sm);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: var(--ac-primary);
-  flex-shrink: 0;
-}
-
-.overview-info {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
-
-.overview-value {
-  font-size: 24px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-  line-height: 1.2;
-}
-
-.overview-label {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-}
+.chart-sm { height: 220px; }
+.chart-md { height: 260px; }
 
 /* 筛选栏 */
 .filter-bar {
@@ -634,11 +575,11 @@ onMounted(() => {
   font-size: 13px;
 }
 
-.score-badge.excellent { background: rgba(139, 168, 136, 0.15); color: #5E7A5B; }
-.score-badge.good { background: rgba(122, 139, 165, 0.15); color: #5E7089; }
-.score-badge.medium { background: rgba(184, 154, 138, 0.15); color: #8A7845; }
-.score-badge.pass { background: rgba(203, 181, 138, 0.15); color: #8A7845; }
-.score-badge.fail { background: rgba(196, 128, 128, 0.15); color: #A05A5A; }
+.score-badge.excellent { background: var(--ok-soft); color: var(--ok); }
+.score-badge.good { background: var(--info-soft); color: var(--info); }
+.score-badge.medium { background: var(--violet-soft); color: var(--violet); }
+.score-badge.pass { background: var(--warn-soft); color: var(--warn); }
+.score-badge.fail { background: var(--accent-soft); color: var(--accent); }
 .score-badge.large { font-size: 20px; padding: 6px 16px; }
 
 .text-muted {
@@ -672,7 +613,7 @@ onMounted(() => {
 
 /* 异常成绩卡片 */
 .abnormal-card .panel-title {
-  color: var(--ac-danger);
+  color: var(--accent);
 }
 
 .abnormal-list {
@@ -717,13 +658,13 @@ onMounted(() => {
 }
 
 .abnormal-info .score.low {
-  color: var(--ac-danger);
-  background: rgba(196, 128, 128, 0.12);
+  color: var(--accent);
+  background: var(--accent-soft);
 }
 
 .abnormal-info .score.high {
-  color: var(--ac-warning);
-  background: rgba(203, 181, 138, 0.12);
+  color: var(--warn);
+  background: var(--warn-soft);
 }
 
 .abnormal-item .course {
@@ -747,6 +688,8 @@ onMounted(() => {
   margin-top: 16px;
 }
 
+.empty-deco { font-size: 38px; filter: grayscale(.2); }
+
 /* 响应式 */
 @media (max-width: 1024px) {
   .main-content {
@@ -761,10 +704,6 @@ onMounted(() => {
 }
 
 @media (max-width: 768px) {
-  .overview-cards {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .filter-bar {
     flex-direction: column;
     align-items: stretch;

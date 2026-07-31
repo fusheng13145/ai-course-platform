@@ -141,7 +141,7 @@
 | AI 服务 | DeepSeek API + 基础 RAG | DeepSeek + LangChain + 分层 RAG | 85% | 升级为分层检索增强架构 |
 | 部署 | Docker + Nginx + SLF4J + Logback | Docker + Nginx + SLF4J + Logback + Prometheus | 100% | 补充监控能力 |
 
-> 当前实际落地的技术栈（重构后）：后端 Spring Boot 3.5 + MyBatis-Plus 3.5 + Java 21 + Lombok + JWT(jjwt) + springdoc；前端 Vue 3 + Vite + Element Plus + Pinia + axios + echarts + xlsx + dompurify。后端 context `/api`，前端 baseURL `/api`；前端端口 5173，后端端口 8080。
+> 当前实际落地的技术栈（重构后）：后端 Spring Boot 3.4.4 + MyBatis-Plus 3.5 + Java 21 + Lombok + JWT(jjwt) + springdoc；前端 Vue 3 + Vite + Element Plus + Pinia + axios + echarts + xlsx + dompurify。后端 context `/api`，前端 baseURL `/api`；前端端口 5173，后端端口 8080。
 
 ### 3.3 专业知识图谱构建方案
 

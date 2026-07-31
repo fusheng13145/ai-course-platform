@@ -1,34 +1,28 @@
 <template>
   <div class="fade-in user-session-manage">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-left">
-        <h2 class="page-title">会话管理</h2>
-        <p class="page-desc">在线用户监控、会话统计与异常检测，支持强制下线操作</p>
-      </div>
-    </div>
+    <PageHeader
+      title="会话管理"
+      subtitle="在线用户监控、会话统计与异常检测，支持强制下线操作"
+      icon="users"
+      icon-bg="accent"
+    />
 
-    <!-- 统计卡片 -->
-    <div class="stats-row">
-      <div class="stat-mini-card">
-        <span class="label">在线用户数</span>
-        <span class="value">{{ stats.active || 0 }}</span>
-      </div>
-      <div class="stat-mini-card student">
-        <span class="label">总会话数</span>
-        <span class="value">{{ stats.total || 0 }}</span>
-      </div>
-      <div class="stat-mini-card admin">
-        <span class="label">异常会话</span>
-        <span class="value">{{ stats.abnormalCount || 0 }}</span>
-      </div>
-      <div class="stat-mini-card teacher">
-        <span class="label">游客会话</span>
-        <span class="value">{{ stats.guestCount || 0 }}</span>
-      </div>
+    <div class="stat-grid">
+      <StatCard label="在线用户数" :value="stats.active || 0" icon="users" tone="var(--accent-soft)" tone-color="var(--accent)" />
+      <StatCard label="总会话数" :value="stats.total || 0" icon="list" tone="var(--info-soft)" tone-color="var(--info)" />
+      <StatCard label="异常会话" :value="stats.abnormalCount || 0" icon="shield" tone="var(--warn-soft)" tone-color="var(--warn)" />
+      <StatCard label="游客会话" :value="stats.guestCount || 0" icon="clock" tone="var(--violet-soft)" tone-color="var(--violet)" />
     </div>
 
     <!-- 在线用户表格 -->
+    <section class="l1-card">
+      <div class="l1-head">
+        <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        </span>
+        <div><div class="l1-title">在线用户与会话</div><div class="l1-sub">实时监控在线用户，支持强制下线与会话统计</div></div>
+      </div>
+      <div class="l1-body">
     <div class="content-card">
       <div class="section-header">
         <span class="section-title">在线用户列表</span>
@@ -51,10 +45,10 @@
           <template #default="{ row }">{{ row.ip || row.ipAddress || '—' }}</template>
         </el-table-column>
         <el-table-column prop="loginTime" label="登录时间" width="170">
-          <template #default="{ row }">{{ formatTime(row.loginTime) }}</template>
+          <template #default="{ row }">{{ formatDateTime(row.loginTime, '—') }}</template>
         </el-table-column>
         <el-table-column prop="lastActiveTime" label="最后活跃时间" width="170">
-          <template #default="{ row }">{{ formatTime(row.lastActiveTime) }}</template>
+          <template #default="{ row }">{{ formatDateTime(row.lastActiveTime, '—') }}</template>
         </el-table-column>
         <el-table-column label="操作" width="120" align="center">
           <template #default="{ row }">
@@ -68,7 +62,11 @@
             </el-button>
           </template>
         </el-table-column>
-        <template #empty><el-empty description="暂无在线用户" /></template>
+        <template #empty>
+          <el-empty description="暂无在线用户">
+            <template #image><div class="empty-deco">👥</div></template>
+          </el-empty>
+        </template>
       </el-table>
     </div>
 
@@ -86,13 +84,18 @@
         <el-descriptions-item label="昨日新增会话">{{ stats.yesterdayNew || 0 }}</el-descriptions-item>
       </el-descriptions>
     </div>
+    </div>
+    </section>
   </div>
 </template>
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
+import { formatDateTime } from '@/utils/datetime'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import userSessionApi from '@/api/userSession'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 const loading = ref(false)
 const onlineUsers = ref([])
@@ -128,18 +131,6 @@ function roleTagType(role) {
       return 'info'
     default:
       return ''
-  }
-}
-
-function formatTime(t) {
-  if (!t) return '—'
-  try {
-    const d = new Date(t)
-    if (isNaN(d.getTime())) return t
-    const p = (n) => String(n).padStart(2, '0')
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())} ${p(d.getHours())}:${p(d.getMinutes())}:${p(d.getSeconds())}`
-  } catch {
-    return t
   }
 }
 
@@ -208,61 +199,6 @@ onMounted(() => {
   margin: 0 auto;
 }
 
-.page-header {
-  margin-bottom: var(--ac-spacing-lg);
-}
-.page-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-  letter-spacing: -0.3px;
-}
-.page-desc {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-  margin-top: 4px;
-}
-
-.stats-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
-  gap: var(--ac-spacing-md);
-  margin-bottom: var(--ac-spacing-lg);
-}
-.stat-mini-card {
-  background: var(--ac-bg-elevated);
-  border-radius: var(--ac-radius-md);
-  border: 1px solid var(--ac-border);
-  padding: 16px 20px;
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  transition: all var(--ac-transition-normal);
-}
-.stat-mini-card:hover {
-  box-shadow: var(--ac-shadow-md);
-  transform: translateY(-2px);
-}
-.stat-mini-card .label {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-  font-weight: 500;
-}
-.stat-mini-card .value {
-  font-size: 26px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-}
-.stat-mini-card.admin .value {
-  color: #b05045;
-}
-.stat-mini-card.teacher .value {
-  color: #166534;
-}
-.stat-mini-card.student .value {
-  color: #15803d;
-}
-
 .content-card {
   background: var(--ac-bg-elevated);
   border-radius: var(--ac-radius-md);
@@ -290,9 +226,9 @@ onMounted(() => {
   font-size: 13px;
 }
 
-@media (max-width: 768px) {
-  .stats-row {
-    grid-template-columns: repeat(2, 1fr);
-  }
+/* 空状态装饰 */
+.empty-deco {
+  font-size: 38px;
+  filter: grayscale(.2);
 }
 </style>

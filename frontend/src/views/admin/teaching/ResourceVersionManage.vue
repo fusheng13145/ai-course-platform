@@ -1,12 +1,29 @@
 <template>
   <div class="fade-in version-manage">
-    <div class="page-header">
-      <div class="header-left">
-        <h2 class="page-title">资源版本管理</h2>
-        <p class="page-desc">管理课程资源的版本历史，支持创建新版本与回滚</p>
-      </div>
+    <PageHeader
+      title="资源版本管理"
+      subtitle="管理课程资源的版本历史，支持创建新版本与回滚"
+      icon="layers"
+      icon-bg="accent"
+    >
+      <el-button type="primary" :disabled="!selectedResourceId" @click="openCreateVersion">
+        <el-icon><Plus /></el-icon>新建版本
+      </el-button>
+    </PageHeader>
+
+    <div class="stat-grid">
+      <StatCard label="版本总数" :value="versionCount" icon="list" tone="accent" />
+      <StatCard label="当前版本" :value="currentVersion" icon="check" tone="ok" />
     </div>
 
+    <section class="l1-card">
+      <div class="l1-head">
+        <span class="l1-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 8.5 4.7L12 11.4 3.5 6.7 12 2zM3.5 12l8.5 4.7 8.5-4.7M3.5 17.3l8.5 4.7 8.5-4.7" /></svg></span>
+        <div>
+          <h3 class="l1-title">版本历史</h3>
+        </div>
+      </div>
+      <div class="l1-body">
     <div class="content-card filter-card">
       <div class="filter-row">
         <el-select v-model="selectedResourceId" placeholder="选择资源" filterable style="width:320px" @change="loadVersions">
@@ -21,7 +38,7 @@
       </div>
     </div>
 
-    <div class="content-card" v-if="selectedResourceId">
+    <div v-if="selectedResourceId" class="content-card">
       <el-table v-loading="loading" :data="versions" style="width:100%" empty-text="暂无版本记录">
         <el-table-column prop="id" label="版本ID" width="80" />
         <el-table-column label="版本号" width="120">
@@ -42,9 +59,18 @@
             </el-button>
           </template>
         </el-table-column>
+        <template #empty>
+          <el-empty description="暂无版本记录">
+            <template #image><div class="empty-deco">🗂️</div></template>
+          </el-empty>
+        </template>
       </el-table>
     </div>
-    <el-empty v-else description="请先选择资源" :image-size="80" />
+    <el-empty v-else description="请先选择资源" :image-size="80">
+      <template #image><div class="empty-deco">🗂️</div></template>
+    </el-empty>
+    </div>
+    </section>
 
     <!-- 新建版本弹窗 -->
     <el-dialog v-model="dialogVisible" title="新建版本" width="520px" append-to-body>
@@ -80,6 +106,8 @@ import { ElMessage } from 'element-plus'
 import { Plus, Refresh } from '@element-plus/icons-vue'
 import versionApi from '@/api/resourceVersion'
 import resourceApi from '@/api/resource'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -96,6 +124,12 @@ const form = ref({ changeLog: '' })
 const selectedResourceName = computed(() => {
   const r = resources.value.find(x => x.id === selectedResourceId.value)
   return r ? r.name || r.title : ''
+})
+
+const versionCount = computed(() => versions.value.length)
+const currentVersion = computed(() => {
+  const v = versions.value.find(x => x.id === activeVersionId.value)
+  return v ? (v.versionNumber || v.version || '—') : '—'
 })
 
 async function loadResources() {
@@ -189,4 +223,10 @@ onMounted(loadResources)
 .content-card { background: var(--ac-bg-elevated); border-radius: var(--ac-radius-md); border: 1px solid var(--ac-border); padding: 16px; }
 .filter-card { margin-bottom: var(--ac-spacing-md); }
 .filter-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+
+/* 空状态装饰 */
+.empty-deco {
+  font-size: 38px;
+  filter: grayscale(.2);
+}
 </style>

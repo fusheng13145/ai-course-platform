@@ -12,6 +12,7 @@ import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,6 +44,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(value = "questions", allEntries = true)
     public Question createQuestion(Question question) {
         // 设置初始值
         if (question.getUsageCount() == null) {
@@ -64,6 +66,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(value = "questions", allEntries = true)
     public Question generateByAI(Long courseId, String type, String difficulty, String knowledgePointNames) {
         // 调用AI服务生成题目JSON
         String generatedContent = aiService.generateQuestion(courseId, type, difficulty, 1);
@@ -100,6 +103,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(value = "questions", allEntries = true)
     public List<Question> generateBatchByAI(Long courseId, String type, String difficulty,
                                             String knowledgePointNames, int count, Long createdBy) {
         String generated = aiService.generateQuestion(courseId, type, difficulty, count);
@@ -136,6 +140,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(value = "questions", allEntries = true)
     public int batchImport(List<Question> questions, Long createdBy) {
         int imported = 0;
         for (Question q : questions) {
@@ -205,6 +210,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(value = "questions", allEntries = true)
     public void reviewQuestion(Long questionId, boolean approved) {
         Question question = this.getById(questionId);
         if (question == null) {
@@ -220,6 +226,7 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(value = "questions", allEntries = true)
     public Question copyQuestion(Long sourceQuestionId) {
         Question source = this.getById(sourceQuestionId);
         if (source == null) {
@@ -357,6 +364,9 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    // 仅精准失效该题详情缓存：正确率随每次批阅高频更新，allEntries 会让搜索缓存完全失效；
+    // 搜索列表中的 correctRate 允许 ≤10min（questions TTL）的短暂滞后
+    @CacheEvict(value = "questions", key = "'detail_' + #questionId")
     public void updateCorrectRate(Long questionId, boolean isCorrect) {
         Question question = this.getById(questionId);
         if (question == null) {
@@ -414,13 +424,15 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      */
     @Override
     public List<Question> getErrorProneQuestions(Long courseId, int limit) {
+        // 钳制 limit 到 [1, 100]，避免非法参数导致 SQL 注入或全表扫描
+        int safeLimit = Math.max(1, Math.min(limit, 100));
         LambdaQueryWrapper<Question> queryWrapper = new LambdaQueryWrapper<Question>()
                 .eq(courseId != null, Question::getCourseId, courseId)
                 .eq(Question::getIsActive, true)
                 .gt(Question::getUsageCount, 0)  // 至少被使用过
                 .orderByAsc(Question::getCorrectRate)   // 正确率低的排前面
                 .orderByDesc(Question::getUsageCount)   // 使用次数多的优先
-                .last("LIMIT " + limit);
+                .last("LIMIT " + safeLimit);
 
         return this.list(queryWrapper);
     }

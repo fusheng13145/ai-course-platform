@@ -1,8 +1,8 @@
 import request from './request'
 export const getSystemConfig = (group) =>
   request.get('/admin/system/configs', { params: { group } })
-export const updateSystemConfig = (key, value) =>
-  request.post('/admin/system/configs', { key, value })
+export const updateSystemConfig = (key, value, options = {}) =>
+  request.post('/admin/system/configs', { key, value, ...options })
 export const getSystemLogs = (params) => request.get('/admin/system/logs', { params })
 export const getSystemHealth = () => request.get('/admin/system/health')
 export const createBackup = () => request.post('/admin/backup')

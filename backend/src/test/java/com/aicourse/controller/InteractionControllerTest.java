@@ -58,7 +58,7 @@ class InteractionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /interaction/sign-in - 学生越权返回403")
     void createSignIn_forbidden_for_student() throws Exception {
-        mockMvc.perform(post("/interaction/sign-in").contentType(MediaType.APPLICATION_JSON).content("{}")
+        mockMvc.perform(post("/interaction/sign-in").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"签到\"}")
                         .with(withUser(1L, "STUDENT")))
                 .andExpect(status().isForbidden());
     }
@@ -269,7 +269,7 @@ class InteractionControllerTest extends ControllerTestBase {
         Vote vote = new Vote();
         vote.setId(1L);
         when(voteService.createVote(any(), eq(1L), any())).thenReturn(vote);
-        mockMvc.perform(post("/interaction/vote").contentType(MediaType.APPLICATION_JSON).content("{}")
+        mockMvc.perform(post("/interaction/vote").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"投票\"}")
                         .with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
@@ -287,7 +287,7 @@ class InteractionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /interaction/vote - 学生越权返回403")
     void createVote_forbidden_for_student() throws Exception {
-        mockMvc.perform(post("/interaction/vote").contentType(MediaType.APPLICATION_JSON).content("{}")
+        mockMvc.perform(post("/interaction/vote").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"投票\"}")
                         .with(withUser(1L, "STUDENT")))
                 .andExpect(status().isForbidden());
     }

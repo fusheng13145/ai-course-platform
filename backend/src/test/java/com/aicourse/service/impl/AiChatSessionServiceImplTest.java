@@ -21,8 +21,8 @@ import static org.mockito.Mockito.*;
 
 /**
  * AI 聊天会话服务单元测试。
- * 注意：ServiceImpl.getOne() 在不同 MP 版本中可能调用 selectList 或 selectOne，
- * 因此同时 stub 两者以保证兼容。
+ * 注意：MyBatis-Plus 3.5.x 的 ServiceImpl.getOne(qw, false) 调用两参 selectOne(Wrapper, boolean)，
+ * 故对会话查询只需 stub selectOne(any(Wrapper.class), anyBoolean())。
  */
 @ExtendWith(MockitoExtension.class)
 class AiChatSessionServiceImplTest {
@@ -49,7 +49,7 @@ class AiChatSessionServiceImplTest {
     void testAppendMessage() {
         lenient().doNothing().when(aiChatMessageService).saveMessage("s1", "user", "你好");
         AiChatSession session = new AiChatSession(); session.setId(1L); session.setSessionId("s1"); session.setMessageCount(0);
-        when(aiChatSessionMapper.selectList(any(Wrapper.class))).thenReturn(List.of(session));
+        when(aiChatSessionMapper.selectOne(any(Wrapper.class), anyBoolean())).thenReturn(session);
         aiChatSessionService.appendMessage("s1", "user", "你好");
         verify(aiChatMessageService).saveMessage("s1", "user", "你好");
     }
@@ -66,9 +66,8 @@ class AiChatSessionServiceImplTest {
     @DisplayName("查会话")
     void testGetBySessionId() {
         AiChatSession s = new AiChatSession(); s.setSessionId("s1");
-        // getOne(qw, false) 内部可能走 selectList 或 selectOne，同时 stub 两者
-        when(aiChatSessionMapper.selectList(any(Wrapper.class))).thenReturn(List.of(s));
-        when(aiChatSessionMapper.selectOne(any(Wrapper.class))).thenReturn(s);
+        // getOne(qw, false) 内部走 selectOne(qw, false)
+        when(aiChatSessionMapper.selectOne(any(Wrapper.class), anyBoolean())).thenReturn(s);
         assertNotNull(aiChatSessionService.getBySessionId("s1"));
     }
 
@@ -86,9 +85,8 @@ class AiChatSessionServiceImplTest {
     @DisplayName("删除会话 - 逻辑删除")
     void testDeleteSession() {
         AiChatSession s = new AiChatSession(); s.setId(1L); s.setSessionId("s1"); s.setDeleted(0);
-        // deleteSession 中调用 getBySessionId，内部走 selectList
-        lenient().when(aiChatSessionMapper.selectList(any(Wrapper.class))).thenReturn(List.of(s));
-        lenient().when(aiChatSessionMapper.selectOne(any(Wrapper.class))).thenReturn(s);
+        // deleteSession 中调用 getBySessionId，内部走 selectOne(qw, false)
+        when(aiChatSessionMapper.selectOne(any(Wrapper.class), anyBoolean())).thenReturn(s);
         aiChatSessionService.deleteSession("s1");
         assertEquals(1, s.getDeleted().intValue());
     }

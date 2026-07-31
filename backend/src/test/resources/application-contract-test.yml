@@ -1,0 +1,96 @@
+# ===================== API 契约测试配置（contract-test profile） =====================
+# ApiContractTest 使用本地 MySQL/Redis 而非 Testcontainers（该类不继承 AbstractIntegrationTest，
+# 原 test profile 会退化为主配置的 localhost 数据源但密码为空 → Access denied）。
+# 本 profile 显式指向本机开发库，且 sql.init.mode=never 防止 index.sql 的 DROP TABLE 破坏数据。
+spring:
+  devtools:
+    restart:
+      enabled: false
+    livereload:
+      enabled: false
+
+  datasource:
+    # 本地开发库（与 start-backend.bat 同款凭据；无环境变量时回退 1234）
+    url: jdbc:mysql://localhost:3306/ai_course_platform?useSSL=false&requireSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    username: root
+    password: ${SPRING_DATASOURCE_PASSWORD:1234}
+    hikari:
+      maximum-pool-size: 10
+
+  data:
+    redis:
+      host: localhost
+      port: 6379
+      database: 0
+      timeout: 3000
+
+  # 关键：绝不执行 index.sql（含 47 条 DROP TABLE），否则会清空本地开发库
+  sql:
+    init:
+      mode: never
+
+  # 邮件：账号密码留空 → EmailServiceImpl 走「模拟发送」分支，不发真实邮件
+  mail:
+    host: localhost
+    port: 3025
+    username:
+    password:
+    properties:
+      mail:
+        smtp:
+          auth: false
+          starttls:
+            enable: false
+            required: false
+
+# MyBatis-Plus：关闭 SQL 控制台打印，降低日志噪声
+mybatis-plus:
+  configuration:
+    log-impl: org.apache.ibatis.logging.nologging.NoLoggingImpl
+  global-config:
+    db-config:
+      id-type: auto
+      logic-delete-field: deleted
+      logic-delete-value: 1
+      logic-not-delete-value: 0
+
+# 禁用依赖外部 Python 服务的组件，避免上下文启动时的健康检查/连接失败
+knowledge-graph:
+  enabled: false
+rag:
+  enabled: false
+fine-tune:
+  enabled: false
+
+# 限流依赖 Redis（本机已运行），保持开启
+
+# 测试环境 HTTP 访问：关闭 HTTPS 强制 / Secure Cookie / CSRF
+app:
+  actuator:
+    secured: false
+  cookie:
+    secure: false
+  security:
+    require-https: false
+    csrf:
+      enabled: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: "*"
+  endpoint:
+    health:
+      show-details: always
+
+# 测试专用 JWT 签名密钥（仅测试使用，切勿用于生产）
+jwt:
+  secret: test-only-signing-key-for-contract-tests-0123456789abcdef
+  expiration: 604800000
+  session-expiration: 86400000
+
+logging:
+  level:
+    com.aicourse: INFO

@@ -1,9 +1,27 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
+import { readdirSync, existsSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
 import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
+
+/**
+ * 枚举 element-plus 全部按需样式入口，加入 optimizeDeps.include。
+ * 背景：unplugin-vue-components 在「转换时」注入 `element-plus/es/components/x/style/css`
+ * 导入，Vite 启动扫描无法预知全部组件 → 运行时发现新依赖会触发重新预构建 + 整页刷新
+ * （症状：切换页面卡顿数秒后自动 reload 且路由跳转丢失）。
+ * Vite 8(Rolldown) 下 include 的 glob 写法未展开，这里改用文件系统确定性枚举。
+ */
+function elementPlusStyleDeps() {
+  const root = dirname(fileURLToPath(new URL(import.meta.url)))
+  const compDir = join(root, 'node_modules', 'element-plus', 'es', 'components')
+  if (!existsSync(compDir)) return []
+  return readdirSync(compDir)
+    .filter((name) => existsSync(join(compDir, name, 'style', 'css.mjs')))
+    .map((name) => `element-plus/es/components/${name}/style/css`)
+}
 
 export default defineConfig(({ mode }) => ({
   plugins: [
@@ -20,14 +38,41 @@ export default defineConfig(({ mode }) => ({
       '@': fileURLToPath(new URL('./src', import.meta.url))
     }
   },
+  // 依赖预构建：显式列出全部重依赖，避免懒加载路由首次打开时
+  // 触发 Vite 运行时"发现新依赖 → 重新预构建 → 强制整页刷新"的问题
+  // （症状：切换标签页卡顿数秒后页面自动 reload，且路由跳转丢失）
+  optimizeDeps: {
+    include: [
+      'vue',
+      'vue-router',
+      'pinia',
+      'axios',
+      'dayjs',
+      'nprogress',
+      'dompurify',
+      'echarts',
+      'vue-echarts',
+      '@element-plus/icons-vue',
+      'element-plus/es',
+      // unplugin 按需导入的组件样式是独立依赖入口，必须全量预构建（确定性枚举，非 glob）
+      ...elementPlusStyleDeps(),
+    ],
+  },
   server: {
     port: 5173,
     strictPort: true,
     host: true,
     // 热更新配置
     hmr: {
-      overlay: true,  // 显示错误遮罩层
-      wait: 1000       // 等待时间(ms)
+      overlay: true  // 显示错误遮罩层
+    },
+    // 预热高频页面模块，降低首次导航延迟
+    warmup: {
+      clientFiles: [
+        './src/main.js',
+        './src/layouts/*.vue',
+        './src/views/*/Dashboard.vue',
+      ],
     },
     proxy: {
       '/api': {
@@ -36,12 +81,9 @@ export default defineConfig(({ mode }) => ({
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, '')
       }
-    },
-    // 文件监视配置
-    watch: {
-      usePolling: true,  // 使用轮询模式（Windows环境推荐）
-      interval: 100      // 轮询间隔(ms)
     }
+    // 注意：不要开启 watch.usePolling —— 100ms 全量轮询数千文件会拖垮 dev server，
+    // Windows 下 Vite 原生文件事件工作正常，无需轮询
   },
   // 生产构建剥离 console/debugger：确保线上产物无调试输出（安全/性能/专业度），
   // 与 src/utils/logger.js 的环境门控形成纵深防御。仅在 production 模式生效，dev 不受影响。

@@ -90,7 +90,7 @@ class ClassroomControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /classrooms - 管理员创建班级返回200")
     void create_authorized_passes_security() throws Exception {
-        mockMvc.perform(post("/classrooms").contentType(MediaType.APPLICATION_JSON).content("{}")
+        mockMvc.perform(post("/classrooms").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"测试班级\"}")
                         .with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
@@ -118,7 +118,7 @@ class ClassroomControllerTest extends ControllerTestBase {
         Classroom c = new Classroom();
         c.setId(1L);
         when(classroomService.getById(eq(1L))).thenReturn(c);
-        mockMvc.perform(put("/classrooms/1").contentType(MediaType.APPLICATION_JSON).content("{}")
+        mockMvc.perform(put("/classrooms/1").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"测试班级\"}")
                         .with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))

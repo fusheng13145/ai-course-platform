@@ -1,26 +1,31 @@
-﻿﻿<template>
+﻿<template>
   <div class="fade-in permission-management">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-left">
-        <h2 class="page-title">权限管理</h2>
-        <p class="page-desc">系统角色权限配置与菜单按钮控制</p>
-      </div>
-    </div>
+    <PageHeader
+      title="权限管理"
+      subtitle="系统角色权限配置与菜单按钮控制"
+      icon="shield"
+      icon-bg="accent"
+    >
+      <el-button type="primary" @click="openAddDialog"><el-icon><Plus /></el-icon>添加权限</el-button>
+    </PageHeader>
 
-    <!-- 统计概览 -->
-    <div class="stats-row">
-      <div v-for="(stat, idx) in permissionStats" :key="idx" class="stat-mini-card" :class="stat.class">
-        <span class="label">{{ stat.label }}</span>
-        <span class="value">{{ stat.value }}</span>
-      </div>
+    <div class="stat-grid">
+      <StatCard label="总权限数" :value="permissionStats[0].value" icon="shield" tone="var(--accent-soft)" tone-color="var(--accent)" />
+      <StatCard label="已启用" :value="permissionStats[1].value" icon="check" tone="var(--ok-soft)" tone-color="var(--ok)" />
+      <StatCard label="已停用" :value="permissionStats[2].value" icon="warn" tone="var(--warn-soft)" tone-color="var(--warn)" />
+      <StatCard label="管理员专用" :value="permissionStats[3].value" icon="lock" tone="var(--info-soft)" tone-color="var(--info)" />
     </div>
 
     <!-- 工具栏 -->
-    <div class="table-toolbar">
-      <div class="toolbar-left">
-        <el-button type="primary" @click="openAddDialog"><el-icon><Plus /></el-icon>添加权限</el-button>
+    <section class="l1-card">
+      <div class="l1-head">
+        <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        </span>
+        <div><div class="l1-title">权限列表</div><div class="l1-sub">按角色筛选，维护菜单与按钮级权限</div></div>
       </div>
+      <div class="l1-body">
+    <div class="table-toolbar">
       <div class="toolbar-right">
         <el-select v-model="roleFilter" placeholder="角色筛选" clearable style="width:140px">
           <el-option label="全部角色" value="" />
@@ -39,7 +44,7 @@
     </div>
 
     <!-- 权限列表表格 -->
-    <div class="content-card" v-loading="loading">
+    <div v-loading="loading" class="content-card">
       <el-table
         :data="filteredList"
         style="width:100%"
@@ -91,9 +96,15 @@
           </template>
         </el-table-column>
         <!-- 空状态 -->
-        <template #empty><el-empty description="暂无权限数据" /></template>
+        <template #empty>
+          <el-empty description="暂无权限数据">
+            <template #image><div class="empty-deco">🔐</div></template>
+          </el-empty>
+        </template>
       </el-table>
     </div>
+      </div>
+    </section>
 
     <!-- 添加/编辑对话框 -->
     <el-dialog
@@ -130,7 +141,7 @@
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="handleSubmit" :loading="submitting">保存</el-button>
+        <el-button type="primary" :loading="submitting" @click="handleSubmit">保存</el-button>
       </template>
     </el-dialog>
   </div>
@@ -138,9 +149,12 @@
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue'
+import { formatTime } from '@/utils/datetime'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import permissionApi from '@/api/permission'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 /* ==================== 数据定义 ==================== */
 
@@ -222,14 +236,6 @@ function roleLabel(role) {
 function roleTagType(role) {
   const map = { ADMIN: 'danger', TEACHER: 'success', STUDENT: 'warning' }
   return map[role] || 'info'
-}
-
-/** 格式化时间 */
-function formatTime(time) {
-  if (!time) return '-'
-  const d = new Date(time)
-  const pad = n => String(n).padStart(2, '0')
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())} ${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
 /* ==================== 数据加载 ==================== */
@@ -483,6 +489,12 @@ function handleDelete(row) {
     opacity: 1;
     transform: translateY(0);
   }
+}
+
+/* 空状态装饰 */
+.empty-deco {
+  font-size: 38px;
+  filter: grayscale(.2);
 }
 
 /* 响应式适配 */

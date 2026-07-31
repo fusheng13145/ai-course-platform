@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest'
+import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
 
 // 使用 vi.hoisted 确保 mock 工厂中的变量在 hoisting 时可用
@@ -11,7 +11,7 @@ const { mockLogin, mockLogout, mockGetPermissions } = vi.hoisted(() => ({
 // 模拟所有依赖
 vi.mock('@/utils/logger', () => ({ default: { log: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
 vi.mock('@/utils/response', () => ({ unwrap: vi.fn((r) => (r && r.data !== undefined ? r.data : r)) }))
-vi.mock('@/utils/websocket', () => ({ connect: vi.fn(() => Promise.resolve()) }))
+vi.mock('@/utils/websocket', () => ({ connect: vi.fn(() => Promise.resolve()), disconnect: vi.fn() }))
 vi.mock('@/api/auth', () => ({ default: { login: mockLogin, logout: mockLogout, getPermissions: mockGetPermissions } }))
 
 // 动态导入 auth store（在 mock 之后）

@@ -91,12 +91,16 @@ class CourseControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /courses - 教师创建课程返回200，teacherId透传")
     void create_authorized_passes_security() throws Exception {
+        Course created = new Course();
+        created.setId(1L);
+        created.setTeacherId(1L);
+        when(courseService.createCourse(any(), eq(1L))).thenReturn(created);
         mockMvc.perform(post("/courses").contentType(MediaType.APPLICATION_JSON).content("{}")
                         .with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.teacherId").value(1));
-        verify(courseService).save(any());
+        verify(courseService).createCourse(any(), eq(1L));
     }
 
     @Test
@@ -119,13 +123,13 @@ class CourseControllerTest extends ControllerTestBase {
         Course course = new Course();
         course.setId(1L);
         course.setTeacherId(1L);
-        when(courseService.getById(eq(1L))).thenReturn(course);
+        when(courseService.updateCourse(eq(1L), any(), eq(1L), anyBoolean())).thenReturn(course);
         mockMvc.perform(put("/courses/1").contentType(MediaType.APPLICATION_JSON).content("{}")
                         .with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
-        verify(courseService).updateById(any());
+        verify(courseService).updateCourse(eq(1L), any(), eq(1L), anyBoolean());
     }
 
     @Test
@@ -148,7 +152,7 @@ class CourseControllerTest extends ControllerTestBase {
         mockMvc.perform(delete("/courses/1").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
-        verify(courseService).removeById(eq(1L));
+        verify(courseService).deleteCourseById(eq(1L));
     }
 
     @Test
@@ -170,12 +174,12 @@ class CourseControllerTest extends ControllerTestBase {
     void approve_authorized_passes_security() throws Exception {
         Course course = new Course();
         course.setId(1L);
-        when(courseService.getById(eq(1L))).thenReturn(course);
+        when(courseService.approveCourse(eq(1L))).thenReturn(course);
         mockMvc.perform(post("/courses/1/approve").with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
-        verify(courseService).updateById(any());
+        verify(courseService).approveCourse(eq(1L));
     }
 
     @Test
@@ -197,12 +201,12 @@ class CourseControllerTest extends ControllerTestBase {
     void toggle_authorized_passes_security() throws Exception {
         Course course = new Course();
         course.setId(1L);
-        when(courseService.getById(eq(1L))).thenReturn(course);
+        when(courseService.toggleCourseStatus(eq(1L))).thenReturn(course);
         mockMvc.perform(patch("/courses/1/toggle").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
-        verify(courseService).updateById(any());
+        verify(courseService).toggleCourseStatus(eq(1L));
     }
 
     @Test
@@ -224,13 +228,13 @@ class CourseControllerTest extends ControllerTestBase {
     void reject_authorized_passes_security() throws Exception {
         Course course = new Course();
         course.setId(1L);
-        when(courseService.getById(eq(1L))).thenReturn(course);
+        when(courseService.rejectCourse(eq(1L), any())).thenReturn(course);
         mockMvc.perform(post("/courses/1/reject").contentType(MediaType.APPLICATION_JSON).content("{}")
                         .with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
-        verify(courseService).updateById(any());
+        verify(courseService).rejectCourse(eq(1L), any());
     }
 
     @Test

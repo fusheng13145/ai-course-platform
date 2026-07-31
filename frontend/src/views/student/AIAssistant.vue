@@ -29,7 +29,7 @@
     <main class="chat-main">
       <!-- 聊天头部 -->
       <header class="chat-header">
-        <el-button text @click="showSidebar = !showSidebar" class="toggle-sidebar">
+        <el-button text class="toggle-sidebar" @click="showSidebar = !showSidebar">
           <el-icon :size="18"><Fold /></el-icon>
         </el-button>
         <div class="header-center">
@@ -49,7 +49,7 @@
       </header>
 
       <!-- 消息列表区域 -->
-      <div class="messages-container" ref="messagesRef">
+      <div ref="messagesRef" class="messages-container">
         <!-- 欢迎消息 -->
         <div v-if="messages.length === 0 && !loading" class="welcome-area">
           <div class="welcome-icon">
@@ -104,6 +104,8 @@
                 <el-icon :size="20"><MagicStick /></el-icon>
               </div>
               <div class="message-bubble ai-bubble">
+                <!-- Markdown 已转义并经 sanitize.js 净化，无需再净化 -->
+                <!-- eslint-disable-next-line vue/no-v-html -->
                 <div class="message-text markdown-body" v-html="renderMarkdown(msg.content)"></div>
                 <span class="message-time">{{ msg.time }}</span>
                 <!-- 操作按钮 -->
@@ -153,8 +155,8 @@
             circle
             :loading="loading"
             :disabled="!inputMessage.trim()"
-            @click="handleSend"
             class="send-btn"
+            @click="handleSend"
           />
         </div>
         <p class="input-hint">AI 助手基于课程内容提供学习建议，回答仅供参考</p>
@@ -426,7 +428,7 @@ async function handleGenerateQuestion() {
 }
 
 /* ---- 处理换行 ---- */
-function handleNewLine(e) {
+function handleNewLine(_e) {
   // Shift+Enter 默认行为就是换行，不需要额外处理
   // 但我们需要阻止默认的发送行为（已在 keydown.enter.exact 中处理）
 }

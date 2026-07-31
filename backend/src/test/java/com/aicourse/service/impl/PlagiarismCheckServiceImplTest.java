@@ -159,7 +159,7 @@ class PlagiarismCheckServiceImplTest {
         testCheck.setSimilarityScore(new BigDecimal("0.4500"));
         testCheck.setHighSimilarityCount(2);
         testCheck.setResultSummary("查重结果摘要");
-        testCheck.setCheckDetail("{\"algorithmVersion\":\"Jaccard-v1.0\"}");
+        testCheck.setCheckDetail("{\"algorithmVersion\":\"Jaccard-CJKBigram-v2.0\"}");
 
         when(plagiarismCheckMapper.selectById(1L)).thenReturn(testCheck);
 
@@ -176,7 +176,7 @@ class PlagiarismCheckServiceImplTest {
         assertEquals(testCheck.getSimilarityScore(), result.get("similarityScore"));
         assertEquals(2, result.get("highSimilarityCount"));
         assertNotNull(result.get("matches"));
-        assertEquals("Jaccard-v1.0", result.get("algorithmVersion"));
+        assertEquals("Jaccard-CJKBigram-v2.0", result.get("algorithmVersion"));
     }
 
     @Test

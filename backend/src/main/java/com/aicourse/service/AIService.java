@@ -111,6 +111,33 @@ public interface AIService {
     String analyzeAnomaliesJson(String logsJson);
 
     /**
+     * 将题目推荐 JSON 健壮解析为列表（兼容 ```json ``` 代码块 / 裸 JSON）。
+     * 解析失败时回退为单条文本记录（与原 Controller 内联实现行为一致）。
+     * @param jsonText LLM 返回的题目推荐 JSON 文本
+     * @param diff 默认难度（单条记录未携带难度时使用）
+     * @return 题目推荐列表 [{content, type, difficulty}]
+     */
+    java.util.List<java.util.Map<String, Object>> parseQuestions(String jsonText, String diff);
+
+    /**
+     * 知识点薄弱项分析：基于用户学情统计生成薄弱点列表。
+     * 内部完成学情 JSON 序列化、LLM 分析调用与健壮解析；
+     * 失败时返回单条降级提示（不抛异常，与原 HTTP 行为一致）。
+     * @param userStats 用户学情统计数据（AnalyticsService.getUserDashboard 的结果）
+     * @return 薄弱点列表 [{description, severity}]
+     */
+    java.util.List<java.util.Map<String, String>> analyzeWeakPoints(java.util.Map<String, Object> userStats);
+
+    /**
+     * 学情 AI 建议：基于学情统计生成结构化学习建议 {"summary","items"}。
+     * 内部完成学情 JSON 序列化、薄弱点分析与学习建议生成、结果健壮解析；
+     * LLM 未返回有效内容时抛出 {@link com.aicourse.exception.BusinessException}（与原 HTTP 行为一致）。
+     * @param userStats 用户学情统计数据
+     * @return 结构化建议 {"summary": String, "items": [{title, detail, level}]}
+     */
+    java.util.Map<String, Object> generateLearningAdvice(java.util.Map<String, Object> userStats);
+
+    /**
      * 当前是否有可用的 LLM 供应商（已配置 Key）；未配置时调用结构化方法会返回清晰提示而非崩溃
      */
     boolean isProviderConfigured();

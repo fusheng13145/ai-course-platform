@@ -93,12 +93,16 @@ class CourseChapterControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /chapters - 管理员创建章节返回200")
     void create_authorized_passes_security() throws Exception {
-        mockMvc.perform(post("/chapters").contentType(MediaType.APPLICATION_JSON).content("{\"courseId\":1}")
+        CourseChapter saved = new CourseChapter();
+        saved.setId(1L);
+        when(chapterService.createChapter(any(), eq(1L), anyBoolean())).thenReturn(saved);
+        mockMvc.perform(post("/chapters").contentType(MediaType.APPLICATION_JSON).content("{\"courseId\":1,\"title\":\"测试章节\"}")
                         .with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data").exists());
-        verify(chapterService).save(any());
+                .andExpect(jsonPath("$.data").exists())
+                .andExpect(jsonPath("$.data.id").value(1));
+        verify(chapterService).createChapter(any(), eq(1L), anyBoolean());
     }
 
     @Test
@@ -122,13 +126,13 @@ class CourseChapterControllerTest extends ControllerTestBase {
         CourseChapter chapter = new CourseChapter();
         chapter.setId(1L);
         chapter.setCourseId(1L);
-        when(chapterService.getById(eq(1L))).thenReturn(chapter);
-        mockMvc.perform(put("/chapters/1").contentType(MediaType.APPLICATION_JSON).content("{\"courseId\":1}")
+        when(chapterService.updateChapter(eq(1L), any(), eq(1L), anyBoolean())).thenReturn(chapter);
+        mockMvc.perform(put("/chapters/1").contentType(MediaType.APPLICATION_JSON).content("{\"courseId\":1,\"title\":\"测试章节\"}")
                         .with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
-        verify(chapterService).updateById(any());
+        verify(chapterService).updateChapter(eq(1L), any(), eq(1L), anyBoolean());
     }
 
     @Test
@@ -149,13 +153,10 @@ class CourseChapterControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("DELETE /chapters/1 - 管理员删除章节返回200")
     void delete_authorized_passes_security() throws Exception {
-        CourseChapter chapter = new CourseChapter();
-        chapter.setId(1L);
-        when(chapterService.getById(eq(1L))).thenReturn(chapter);
         mockMvc.perform(delete("/chapters/1").with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
-        verify(chapterService).removeById(eq(1L));
+        verify(chapterService).deleteChapter(eq(1L), eq(1L), anyBoolean());
     }
 
     @Test

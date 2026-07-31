@@ -1,15 +1,19 @@
 <template>
   <div class="course-exams fade-in">
+    <PageHeader compact title="课程试卷" subtitle="试卷管理、发布与统计" icon="document">
+      <el-button type="primary" :icon="Plus" @click="openCreate">新建试卷</el-button>
+    </PageHeader>
     <div v-loading="loading">
       <!-- 试卷表格 -->
-      <div class="chart-card">
-        <div class="chart-title">
-          课程试卷
-          <el-tag size="small" type="info" effect="light" round>{{ total }}</el-tag>
-          <span class="spacer" />
-          <el-button type="primary" :icon="Plus" @click="openCreate">新建试卷</el-button>
+      <div class="l1-card">
+        <div class="l1-head">
+          <div class="l1-title">
+            课程试卷
+            <el-tag size="small" type="info" effect="light" round>{{ total }}</el-tag>
+          </div>
         </div>
-        <el-table :data="list" size="small" empty-text="暂无试卷" @row-dblclick="openEdit">
+        <div class="l1-body">
+          <el-table v-if="list.length" :data="list" size="small" @row-dblclick="openEdit">
           <el-table-column prop="title" label="标题" min-width="180" />
           <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip />
           <el-table-column label="时长" width="90">
@@ -56,8 +60,9 @@
             </template>
           </el-table-column>
         </el-table>
+        <el-empty v-else description="暂无试卷，点击右上角新建" :image-size="72" />
 
-        <div class="pager">
+        <div v-if="list.length" class="pager">
           <el-pagination
             v-model:current-page="page"
             v-model:page-size="size"
@@ -68,6 +73,7 @@
             @current-change="applyPage"
             @size-change="onSizeChange"
           />
+        </div>
         </div>
       </div>
     </div>
@@ -97,7 +103,7 @@
             :min="1"
             :max="600"
             controls-position="right"
-            style="width: 100%"
+            class="w-100"
           />
         </el-form-item>
         <el-form-item label="总分">
@@ -106,7 +112,7 @@
             :min="1"
             :max="1000"
             controls-position="right"
-            style="width: 100%"
+            class="w-100"
           />
         </el-form-item>
       </el-form>
@@ -142,7 +148,7 @@
 
     <!-- 统计 对话框 -->
     <el-dialog v-model="stat.visible" v-loading="stat.loading" title="试卷统计" width="620px">
-      <div v-if="stat.items.length" class="stat-grid stat-grid--sm">
+      <div v-if="stat.items.length" class="stat-grid">
         <div v-for="(it, i) in stat.items" :key="i" class="mini-stat">
           <span class="mini-num">{{ it.value }}</span>
           <span class="mini-label">{{ it.label }}</span>
@@ -160,6 +166,7 @@ import { ref, reactive, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import examApi from '@/api/exam'
+import PageHeader from '@/components/PageHeader.vue'
 import {
   Plus,
   Promotion,
@@ -391,46 +398,6 @@ watch(
 </script>
 
 <style scoped>
-.fade-in {
-  animation: acFadeIn 0.3s ease;
-}
-@keyframes acFadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-  to {
-    opacity: 1;
-    transform: none;
-  }
-}
-
-.chart-card {
-  padding: var(--ac-spacing-lg);
-  background: var(--ac-bg-elevated);
-  border: 1px solid var(--ac-border);
-  border-radius: var(--ac-radius-lg);
-  box-shadow: var(--ac-shadow-sm);
-  margin-bottom: var(--ac-spacing-md);
-}
-.chart-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ac-text-primary);
-  margin-bottom: var(--ac-spacing-md);
-}
-.chart-title .spacer {
-  flex: 1;
-}
-
-.stat-grid--sm {
-  display: grid;
-  grid-template-columns: repeat(4, 1fr);
-  gap: 12px;
-}
 .mini-stat {
   display: flex;
   flex-direction: column;
@@ -452,15 +419,13 @@ watch(
   color: var(--ac-text-muted);
 }
 
+.w-100 {
+  width: 100%;
+}
+
 .pager {
   display: flex;
   justify-content: flex-end;
   margin-top: var(--ac-spacing-md);
-}
-
-@media (max-width: 1100px) {
-  .stat-grid--sm {
-    grid-template-columns: repeat(2, 1fr);
-  }
 }
 </style>

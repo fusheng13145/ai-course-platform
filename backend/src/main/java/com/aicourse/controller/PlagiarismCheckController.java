@@ -2,11 +2,8 @@ package com.aicourse.controller;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.common.ApiResponse;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.entity.PlagiarismCheck;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.entity.PlagiarismMatch;
-import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.service.PlagiarismCheckService;
 import com.aicourse.dto.PlagiarismCheckCreateDTO;
 import jakarta.validation.Valid;
@@ -90,6 +87,35 @@ public class PlagiarismCheckController {
     @GetMapping("/submission/{submissionId}")
     public ApiResponse<List<PlagiarismCheck>> getSubmissionHistory(@PathVariable Long submissionId) {
         List<PlagiarismCheck> checks = plagiarismCheckService.getSubmissionChecks(submissionId);
+        return ApiResponse.success(checks);
+    }
+
+    /**
+     * 获取全部查重任务列表（管理端），按创建时间倒序，最多返回最近500条
+     * @return 查重任务列表
+     */
+    @GetMapping
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ApiResponse<List<PlagiarismCheck>> listAll() {
+        List<PlagiarismCheck> checks = plagiarismCheckService.lambdaQuery()
+                .orderByDesc(PlagiarismCheck::getCreatedAt)
+                .last("LIMIT 500")
+                .list();
+        return ApiResponse.success(checks);
+    }
+
+    /**
+     * 获取某学生的查重历史记录
+     * @param studentId 学生ID
+     * @return 该学生的查重历史列表（按创建时间倒序）
+     */
+    @GetMapping("/student/{studentId}")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ApiResponse<List<PlagiarismCheck>> getStudentHistory(@PathVariable Long studentId) {
+        List<PlagiarismCheck> checks = plagiarismCheckService.lambdaQuery()
+                .eq(PlagiarismCheck::getStudentId, studentId)
+                .orderByDesc(PlagiarismCheck::getCreatedAt)
+                .list();
         return ApiResponse.success(checks);
     }
 }

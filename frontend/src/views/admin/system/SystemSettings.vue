@@ -1,14 +1,8 @@
 <template>
   <div class="fade-in system-settings">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-left">
-        <h2 class="page-title">系统设置</h2>
-        <p class="page-desc">平台全局配置与参数管理</p>
-      </div>
-    </div>
+    <PageHeader title="系统设置" subtitle="平台全局配置与参数管理" icon="settings" />
 
-    <div class="settings-container card-base">
+    <div class="settings-container card-base animate-in d1">
       <el-tabs v-model="activeTab" type="border-card" class="settings-tabs">
         <!-- 基础设置 -->
         <el-tab-pane label="基础设置" name="basic">
@@ -45,7 +39,7 @@
             </el-form-item>
 
             <el-form-item label="默认角色" prop="defaultRole">
-              <el-select v-model="forms.basic.defaultRole" style="width:200px">
+              <el-select v-model="forms.basic.defaultRole" class="w-200">
                 <el-option label="学生" value="STUDENT" />
                 <el-option label="教师" value="TEACHER" />
               </el-select>
@@ -115,14 +109,14 @@
         <!-- 邮件配置 -->
         <el-tab-pane label="邮件配置" name="email">
           <el-form ref="emailFormRef" :model="forms.email" label-width="150px" class="settings-form">
-            <el-alert title="配置完成后可使用「发送测试邮件」验证连通性" type="info" show-icon :closable="false" style="margin-bottom:20px" />
+            <el-alert title="配置完成后可使用「发送测试邮件」验证连通性" type="info" show-icon :closable="false" class="alert-mb" />
 
             <el-form-item label="SMTP服务器地址" prop="smtpHost">
               <el-input v-model="forms.email.smtpHost" placeholder="例如: smtp.example.com" />
             </el-form-item>
 
             <el-form-item label="SMTP端口" prop="smtpPort">
-              <el-input-number v-model="forms.email.smtpPort" :min="1" :max="65535" style="width:200px" />
+              <el-input-number v-model="forms.email.smtpPort" :min="1" :max="65535" class="w-200" />
               <span class="form-tip ml-8">常用: 25, 465, 587</span>
             </el-form-item>
 
@@ -157,7 +151,7 @@
             <el-divider content-position="left"><el-icon><Upload /></el-icon>文件大小限制</el-divider>
 
             <el-form-item label="单文件最大(MB)" prop="maxFileSize">
-              <el-slider v-model="forms.upload.maxFileSize" :min="1" :max="100" :step="1" show-input input-size="small" style="width:400px" />
+              <el-slider v-model="forms.upload.maxFileSize" :min="1" :max="100" :step="1" show-input input-size="small" class="w-400" />
             </el-form-item>
 
             <el-form-item label="总存储配额(GB)" prop="totalQuota">
@@ -171,14 +165,14 @@
                 v-for="fmt in forms.upload.imageFormats"
                 :key="fmt"
                 closable
-                @close="removeFormat('image', fmt)"
                 class="format-tag"
+                @close="removeFormat('image', fmt)"
               >{{ fmt }}</el-tag>
               <el-input
                 v-if="inputVisible.image"
                 v-model="inputValue.image"
                 size="small"
-                style="width:100px"
+                class="w-100"
                 @keyup.enter="confirmFormat('image')"
                 @blur="confirmFormat('image')"
               />
@@ -194,14 +188,14 @@
                 v-for="fmt in forms.upload.docFormats"
                 :key="fmt"
                 closable
-                @close="removeFormat('doc', fmt)"
                 class="format-tag"
+                @close="removeFormat('doc', fmt)"
               >{{ fmt }}</el-tag>
               <el-input
                 v-if="inputVisible.doc"
                 v-model="inputValue.doc"
                 size="small"
-                style="width:100px"
+                class="w-100"
                 @keyup.enter="confirmFormat('doc')"
                 @blur="confirmFormat('doc')"
               />
@@ -279,6 +273,7 @@ import {
   Plus
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
+import PageHeader from '@/components/PageHeader.vue'
 import systemApi from '@/api/system'
 import { systemConfigApi } from '@/api/systemConfig'
 
@@ -512,23 +507,11 @@ onMounted(() => {
   margin: 0 auto;
 }
 
-/* 页面头部 */
-.page-header {
-  margin-bottom: var(--ac-spacing-lg);
-}
-
-.page-title {
-  font-size: 22px;
-  font-weight: 700;
-  color: var(--ac-text-primary);
-  letter-spacing: -0.3px;
-}
-
-.page-desc {
-  font-size: 13px;
-  color: var(--ac-text-muted);
-  margin-top: 4px;
-}
+/* 宽度工具类（内联样式提取） */
+.w-200 { width: 200px; }
+.w-400 { width: 400px; }
+.w-100 { width: 100px; }
+.alert-mb { margin-bottom: 20px; }
 
 /* 设置容器 */
 .settings-container {

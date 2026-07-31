@@ -1,28 +1,25 @@
 <template>
   <div class="fade-in">
-    <!-- 统计卡片 -->
-    <div class="stat-cards">
-      <div class="stat-card">
-        <div class="stat-icon" style="background: rgba(196,128,128,0.15); color: var(--ac-danger)">
-          <el-icon :size="24"><WarningFilled /></el-icon>
-        </div>
-        <div class="stat-info"><h3>{{ stats.total }}</h3><p>错题总数</p></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background: rgba(203,181,138,0.18); color: var(--ac-warning)">
-          <el-icon :size="24"><Reading /></el-icon>
-        </div>
-        <div class="stat-info"><h3>{{ stats.total - stats.mastered }}</h3><p>待复习</p></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background: rgba(139,168,136,0.15); color: var(--ac-success)">
-          <el-icon :size="24"><Select /></el-icon>
-        </div>
-        <div class="stat-info"><h3>{{ stats.mastered }}</h3><p>已掌握</p></div>
-      </div>
+    <PageHeader title="我的错题" subtitle="集中收录答错题目，针对性复习巩固" icon="warn" icon-bg="warn">
+      <el-button type="primary" size="small" :disabled="filteredQuestions.length === 0" @click="generatePracticePaper">
+        <el-icon><EditPen /></el-icon> 生成练习卷
+      </el-button>
+    </PageHeader>
+
+    <div class="stat-grid">
+      <StatCard label="错题总数" :value="stats.total" icon="warn" tone="var(--warn-soft)" tone-color="var(--warn)" />
+      <StatCard label="待复习" :value="stats.total - stats.mastered" icon="clock" tone="var(--info-soft)" tone-color="var(--info)" />
+      <StatCard label="已掌握" :value="stats.mastered" icon="check" tone="var(--ok-soft)" tone-color="var(--ok)" />
     </div>
 
-    <!-- 工具栏：筛选 + 操作 -->
+    <section class="l1-card">
+      <div class="l1-head">
+        <span class="l1-ico" style="background:var(--warn-soft);color:var(--warn)">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01"/></svg>
+        </span>
+        <div><div class="l1-title">错题列表</div><div class="l1-sub">按知识点筛选，点击卡片展开查看解析</div></div>
+      </div>
+      <div class="l1-body">
     <div class="wq-toolbar">
       <div class="toolbar-left">
         <!-- 知识点分类筛选标签 -->
@@ -39,15 +36,10 @@
           <span v-if="knowledgePointTags.length === 0" class="filter-tag-hint">暂无分类数据</span>
         </div>
       </div>
-      <div class="toolbar-right">
-        <el-button type="primary" size="small" @click="generatePracticePaper" :disabled="filteredQuestions.length === 0">
-          <el-icon><EditPen /></el-icon> 生成练习卷
-        </el-button>
-      </div>
     </div>
 
     <!-- 错题列表 -->
-    <div class="wrong-questions-list" v-loading="loading">
+    <div v-loading="loading" class="wrong-questions-list">
       <transition-group name="list-fade" tag="div">
         <div
           v-for="q in filteredQuestions"
@@ -64,10 +56,10 @@
               <span v-if="q.knowledgePointName" class="q-kp-tag">{{ q.knowledgePointName }}</span>
             </div>
             <div class="q-header-right">
-              <el-button text size="small" @click.stop="handleRelated(q)" v-if="!q.mastered">
+              <el-button v-if="!q.mastered" text size="small" @click.stop="handleRelated(q)">
                 <el-icon><Link /></el-icon> 相关推荐
               </el-button>
-              <el-button text size="small" @click.stop="handlePractice(q)" v-if="!q.mastered">
+              <el-button v-if="!q.mastered" text size="small" @click.stop="handlePractice(q)">
                 <el-icon><RefreshRight /></el-icon> 再次练习
               </el-button>
               <el-icon class="expand-icon" :class="{ expanded: expandedId === q.id }"><ArrowDown /></el-icon>
@@ -90,7 +82,7 @@
                 <span class="detail-label correct">正确答案：</span>
                 <span class="detail-value correct">{{ q.correctAnswer || q.answer || '--' }}</span>
               </div>
-              <div class="detail-section" v-if="q.analysis || q.explanation">
+              <div v-if="q.analysis || q.explanation" class="detail-section">
                 <span class="detail-label">解析：</span>
                 <p class="analysis-text">{{ q.analysis || q.explanation }}</p>
               </div>
@@ -122,20 +114,25 @@
         v-if="!loading && filteredQuestions.length === 0"
         description="暂无错题记录，继续保持！"
         :image-size="100"
-      />
-    </div>
+      >
+        <template #image><div class="empty-deco">📕</div></template>
+      </el-empty>
+      </div>
+      </div>
+    </section>
   </div>
 </template>
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import {
-  WarningFilled, Reading, Select,
+  Select,
   EditPen, Link, RefreshRight, ArrowDown
 } from '@element-plus/icons-vue'
 import wrongQuestionApi from '@/api/wrongQuestion'
-import { wrongQuestionEnhancedApi } from '@/api/wrongQuestionEnhanced'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 /* ---- 数据状态 ---- */
 const loading = ref(false)
@@ -173,7 +170,7 @@ async function loadData() {
     const [statsRes, listRes, kpRes] = await Promise.allSettled([
       wrongQuestionApi.getWrongQuestionStats(),
       wrongQuestionApi.getWrongQuestions(),
-      wrongQuestionEnhancedApi.getByKnowledgePoints()
+      wrongQuestionApi.getByKnowledgePoints()
     ])
 
     // 统计数据
@@ -258,15 +255,13 @@ async function unmarkMastered(q) {
 async function handlePractice(q) {
   try {
     ElMessage.info(`正在生成「${(q.questionContent || '').substring(0, 20)}...」的练习题`)
-    const res = await wrongQuestionEnhancedApi.generatePracticePaper({
+    const res = await wrongQuestionApi.generatePracticePaper({
       questionIds: [q.id],
       type: 'single'
     })
     const paper = res.data?.data || res.data || res || {}
     if (paper.id || paper.questions) {
       ElMessage.success('练习题已生成，准备跳转...')
-      // 实际项目中跳转到练习页面
-      console.log('生成的练习卷:', paper)
     } else {
       ElMessage.warning('未生成有效练习内容')
     }
@@ -281,7 +276,7 @@ async function handleRelated(q) {
   try {
     if (!q.id) return
     ElMessage.loading({ message: '正在查找相关题目...', duration: 0 })
-    const res = await wrongQuestionEnhancedApi.getRelated(q.id)
+    const res = await wrongQuestionApi.getRelated(q.id)
     const related = res.data?.data || res.data || res || []
     ElMessage.closeAll()
     if (Array.isArray(related) && related.length > 0) {
@@ -318,7 +313,7 @@ async function generatePracticePaper() {
       return
     }
     ElMessage.loading({ message: `正在基于 ${ids.length} 道错题生成练习卷...`, duration: 0 })
-    const res = await wrongQuestionEnhancedApi.generatePracticePaper({
+    const res = await wrongQuestionApi.generatePracticePaper({
       questionIds: ids,
       type: 'batch'
     })
@@ -326,7 +321,6 @@ async function generatePracticePaper() {
     const paper = res.data?.data || res.data || res || {}
     if (paper.id || paper.questions) {
       ElMessage.success(`练习卷已生成，共 ${paper.questions?.length || ids.length} 道题`)
-      console.log('生成的练习卷:', paper)
     } else {
       ElMessage.warning('未生成有效练习卷内容')
     }
@@ -576,6 +570,8 @@ onMounted(() => {
   max-height: 0;
   overflow: hidden;
 }
+
+.empty-deco { font-size: 38px; filter: grayscale(.2); }
 
 @media (max-width: 768px) {
   .q-header {

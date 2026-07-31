@@ -1,157 +1,91 @@
 @import "./theme.css";
 
 /* ============================================
- * 全局样式 - 莫兰迪设计语言
- * 关键词：克制、留白、呼吸感
- * ============================================ */
+   全局样式 · 云枢教学平台
+   布局由 AppShell.vue + design-system.css 提供
+   本文件保留：Element Plus 覆写 / 响应式
+   ============================================ */
 
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
 html, body, #app {
   height: 100%;
-  font-family: -apple-system, "SF Pro Display", "PingFang SC", "Noto Sans SC", "Microsoft YaHei", sans-serif;
-  background: var(--ac-bg);
-  color: var(--ac-text-primary);
+  font-family: var(--font);
+  background: var(--bg);
+  color: var(--ink);
   font-size: 14px;
   line-height: 1.7;
   -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
-/* ---- 布局容器 ---- */
-.layout-container {
-  display: flex;
-  height: 100vh;
-  overflow: hidden;
-  background: var(--ac-bg);
-}
-
-/* ---- 侧边栏：浅色专业风 ---- */
-.sidebar {
-  width: 250px;
-  display: flex;
-  flex-direction: column;
-  flex-shrink: 0;
-  background: var(--ac-sidebar-bg);
-  border-right: 1px solid var(--ac-border);
-  position: relative;
-  z-index: 100;
-}
-
-.sidebar .logo {
-  height: 64px;
-  display: flex;
-  align-items: center;
-  padding: 0 20px;
-  gap: 10px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ac-sidebar-text-hover);
-  border-bottom: 1px solid var(--ac-border);
-  letter-spacing: 0.3px;
-}
-
-/* ---- 主内容区 ---- */
-.main-area {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  overflow: hidden;
-  background: var(--ac-bg);
-}
-
-/* ---- 头部：极简无边框 ---- */
-.header {
-  height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 var(--ac-spacing-lg);
-  flex-shrink: 0;
-  background: var(--ac-bg-elevated);
-  border-bottom: 1px solid var(--ac-border);
-}
-
-.header .page-title {
-  font-size: 17px;
-  font-weight: 600;
-  color: var(--ac-text-primary);
-  letter-spacing: -0.2px;
-}
-
-/* ---- 内容区：充足留白 ---- */
-.content {
-  flex: 1;
-  padding: var(--ac-spacing-lg) calc(var(--ac-spacing-lg) + 4px);
-  overflow-y: auto;
-  background: var(--ac-bg);
 }
 
 /* ============================================
- * 统计卡片：莫兰迪风格
- * 柔和背景色块，无强烈边框
- * ============================================ */
+   统计卡片（兼容旧版 .stat-cards 容器）
+   新版标准卡片（.stat-grid + ui/StatCard.vue）见 design-system.css
+   选择器限定 .stat-cards 容器内，避免与新版同名 .stat-card 冲突
+   ============================================ */
 .stat-cards {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: var(--ac-spacing-md);
-  margin-bottom: var(--ac-spacing-lg);
+  gap: 14px;
+  margin-bottom: 18px;
 }
 
-.stat-card {
+.stat-cards .stat-card {
   padding: 22px 24px;
   display: flex;
   align-items: center;
   gap: 18px;
-  background: var(--ac-bg-elevated);
-  border-radius: var(--ac-radius-lg);
-  border: 1px solid var(--ac-border);
-  transition: all var(--ac-transition-normal);
+  background: var(--surface);
+  border-radius: var(--r-l1);
+  border: 1px solid var(--line);
+  transition: all .25s ease;
   position: relative;
   overflow: hidden;
 }
 
-.stat-card::before {
+.stat-cards .stat-card::before {
   content: '';
   position: absolute;
   top: 0; left: 0;
   width: 4px;
   height: 100%;
-  background: var(--ac-primary);
+  background: var(--accent);
   opacity: 0;
-  transition: opacity var(--ac-transition-normal);
+  transition: opacity .25s;
 }
 
-.stat-card:hover {
-  box-shadow: var(--ac-shadow-md);
-  border-color: var(--ac-border-strong);
+.stat-cards .stat-card:hover {
+  box-shadow: var(--sh-l1-hover);
+  border-color: var(--line-strong);
 }
 
-.stat-card:hover::before { opacity: 1; }
+.stat-cards .stat-card:hover::before { opacity: 1; }
 
-.stat-card .stat-icon {
+.stat-cards .stat-card .stat-icon {
   width: 48px;
   height: 48px;
   display: flex;
   align-items: center;
   justify-content: center;
-  border-radius: var(--ac-radius-md);
-  background: var(--ac-primary-bg);
-  color: var(--ac-primary);
+  border-radius: var(--r-l2);
+  background: var(--accent-softer);
+  color: var(--accent);
   font-size: 20px;
   flex-shrink: 0;
 }
 
-.stat-card .stat-info h3 {
+.stat-cards .stat-card .stat-info h3 {
   font-size: 26px;
   font-weight: 700;
-  color: var(--ac-text-primary);
+  color: var(--ink);
   line-height: 1.2;
+  font-family: var(--num);
+  font-variant-numeric: tabular-nums;
 }
 
-.stat-card .stat-info p {
+.stat-cards .stat-card .stat-info p {
   font-size: 13px;
-  color: var(--ac-text-muted);
+  color: var(--ink-3);
   margin-top: 3px;
   font-weight: 400;
 }
@@ -286,6 +220,14 @@ html, body, #app {
   border-radius: var(--ac-radius-sm) !important;
 }
 
+.el-button:not(.is-text):not(.is-link):active { transform: scale(.97); }
+
+.el-button:focus-visible,
+.t-icon-btn:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 /* 标签：语义色浅底 */
 .el-tag {
   border-radius: 6px !important;
@@ -311,7 +253,14 @@ html, body, #app {
   color: var(--ac-text-secondary) !important;
   font-weight: 600 !important;
   font-size: 13px;
+  letter-spacing: .3px;
 }
+
+.el-table td.el-table__cell { padding: 13px 0; }
+
+.el-table .el-table__body tr { transition: background .12s ease; }
+
+.el-table .el-table__row .cell { line-height: 1.6; }
 
 .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
   background: var(--ac-bg) !important;
@@ -343,6 +292,35 @@ html, body, #app {
   overflow: hidden;
 }
 
+/* 抽屉：贴边圆角 */
+.el-drawer.rtl { border-radius: var(--ac-radius-xl) 0 0 var(--ac-radius-xl); }
+.el-drawer.ltr { border-radius: 0 var(--ac-radius-xl) var(--ac-radius-xl) 0; }
+
+/* 弹层 / 下拉菜单：莫兰迪柔和质感 */
+.el-popper.is-light {
+  border-radius: 10px;
+  border-color: var(--ac-border);
+  box-shadow: var(--ac-shadow-lg);
+}
+.el-dropdown-menu { border-radius: 10px; padding: 5px; }
+.el-dropdown-menu__item { border-radius: 7px; margin: 0 3px; }
+.el-dropdown-menu__item:not(.is-disabled):hover,
+.el-dropdown-menu__item:not(.is-disabled):focus {
+  background: var(--ac-bg-hover);
+  color: var(--ac-text-primary);
+}
+
+/* 加载遮罩：毛玻璃降噪 */
+.el-loading-mask { background: rgba(247,248,250,.72) !important; backdrop-filter: blur(2px); }
+.el-loading-spinner .path { stroke: var(--accent); }
+
+/* 提示条 */
+.el-alert { border-radius: var(--ac-radius-md); }
+
+/* 空状态：图标柔和 */
+.el-empty__image { opacity: .8; }
+.el-empty__image svg { width: 88px; height: 88px; }
+
 .el-dialog__header {
   border-bottom: 1px solid var(--ac-border) !important;
   padding: 20px 24px !important;
@@ -359,6 +337,16 @@ html, body, #app {
 
 /* 分页 */
 .el-pagination { margin-top: var(--ac-spacing-md) !important; }
+.el-pagination button,
+.el-pagination .el-pager li {
+  border-radius: 6px;
+  transition: all var(--ac-transition-fast);
+}
+.el-pagination .el-pager li:hover { color: var(--ac-primary); }
+.el-pagination .el-pager li.is-active {
+  background: var(--ac-primary) !important;
+  border-radius: 6px;
+}
 
 /* 进度条：品牌蓝纯色 */
 .el-progress-bar__inner {
@@ -450,6 +438,24 @@ html, body, #app {
     --el-table-row-hover-bg-color: rgba(122, 139, 165, 0.08);
   }
 
+  /* 骨架屏 / 加载 / 空状态暗色 */
+  .el-skeleton__item {
+    --el-skeleton-color: var(--ac-bg-hover);
+    --el-skeleton-to-color: var(--ac-bg);
+  }
+  .el-loading-mask { background: rgba(10,14,19,.7) !important; }
+  .el-empty__image { opacity: .7; }
+
+  /* body 氛围背景暗色化 */
+  body, #app {
+    background-image:
+      radial-gradient(1100px 560px at 88% -10%, rgba(193,59,48,.07), transparent 60%),
+      radial-gradient(900px 480px at -6% 2%, rgba(37,99,168,.05), transparent 58%),
+      linear-gradient(rgba(238,241,246,.026) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(238,241,246,.026) 1px, transparent 1px);
+    background-size: auto, auto, 28px 28px, 28px 28px;
+  }
+
   /* 卡片暗色 */
   .el-card { --el-card-bg-color: var(--ac-bg-elevated); }
 
@@ -497,74 +503,35 @@ html, body, #app {
 }
 
 /* ============================================
- * 移动端响应式适配 (≤1024px 平板, ≤768px 手机)
- * ============================================ */
-
-/* 平板适配 (768px - 1024px) */
+   移动端响应式适配 (≤1024px 平板, ≤768px 手机)
+   ============================================ */
 @media screen and (max-width: 1024px) {
-  .sidebar {
-    width: 200px;
-  }
-
-  .stat-cards {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .content {
-    padding: var(--ac-spacing-md);
-  }
-
-  /* 表格横向滚动 */
+  .stat-cards { grid-template-columns: repeat(2, 1fr); }
+  .content { padding: 16px; }
   .el-table { font-size: 13px; }
-  .content-card { padding: var(--ac-spacing-md); }
 }
 
-/* 手机适配 (≤768px) */
 @media screen and (max-width: 768px) {
-  .sidebar {
-    position: fixed;
-    left: -250px;
-    top: 0;
-    bottom: 0;
-    z-index: 1000;
-    transition: left 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  .topbar { padding: 0 14px; height: 52px; }
+  .content { padding: 12px; }
 
-    &.is-open {
-      left: 0;
-      box-shadow: 4px 0 20px rgba(0,0,0,0.15);
-    }
-  }
-
-  .main-area {
-    width: 100%;
-  }
-
-  .header {
-    padding: 0 var(--ac-spacing-md);
-    height: 56px;
-  }
-
-  .content {
-    padding: var(--ac-spacing-sm);
-  }
-
-  /* 统计卡片单列 */
+  /* 统计卡片单列（旧版 .stat-cards 容器内） */
   .stat-cards {
     grid-template-columns: 1fr;
     gap: var(--ac-spacing-sm);
   }
 
-  .stat-card {
+  .stat-cards .stat-card {
     padding: 16px;
   }
 
-  .stat-card .stat-icon {
+  .stat-cards .stat-card .stat-icon {
     width: 40px;
     height: 40px;
     font-size: 18px;
   }
 
-  .stat-card .stat-info h3 {
+  .stat-cards .stat-card .stat-info h3 {
     font-size: 22px;
   }
 
@@ -660,7 +627,7 @@ html, body, #app {
     font-size: 14px;
   }
 
-  .stat-card {
+  .stat-cards .stat-card {
     padding: 12px;
     flex-direction: column;
     text-align: center;

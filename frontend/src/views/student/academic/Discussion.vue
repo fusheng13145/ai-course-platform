@@ -1,14 +1,7 @@
 <template>
   <div class="discussion-page fade-in">
-    <!-- 顶部：标题 + 课程选择 -->
-    <div class="page-head">
-      <div class="page-title">
-        <el-icon :size="20" class="ttl-icon"><ChatDotRound /></el-icon>
-        <div>
-          <h3>课程讨论</h3>
-          <p>参与话题讨论、向老师和同学提问，精华内容由老师标记</p>
-        </div>
-      </div>
+    <!-- 顶部：标题 + 课程选择 + 发起 -->
+    <PageHeader title="课程讨论" subtitle="参与话题讨论、向老师和同学提问，精华内容由老师标记" icon="message" icon-bg="accent">
       <el-select
         v-model="courseId"
         placeholder="选择课程"
@@ -20,8 +13,25 @@
       >
         <el-option v-for="c in courseOptions" :key="c.id" :label="c.name" :value="c.id" />
       </el-select>
+      <el-button type="primary" @click="openCreateDialog">
+        <el-icon><Plus /></el-icon>发起讨论
+      </el-button>
+    </PageHeader>
+
+    <div class="stat-grid">
+      <StatCard label="话题总数" :value="topics.length" icon="message" tone="var(--accent-soft)" tone-color="var(--accent)" />
+      <StatCard label="精华话题" :value="essenceCount" icon="star" tone="var(--warn-soft)" tone-color="var(--warn)" />
+      <StatCard label="总回复数" :value="totalReplies" icon="comment" tone="var(--info-soft)" tone-color="var(--info)" />
     </div>
 
+    <section class="l1-card">
+      <div class="l1-head">
+        <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        </span>
+        <div><div class="l1-title">话题列表</div><div class="l1-sub">按精华筛选或搜索，点击进入话题详情参与讨论</div></div>
+      </div>
+      <div class="l1-body">
     <div v-loading="loading">
       <el-alert v-if="!courseId" title="请选择课程" type="info" :closable="false" show-icon>
         <template #default>选择一门课程后，即可查看该课程的讨论话题。</template>
@@ -45,9 +55,6 @@
           />
           <el-button :disabled="topicLoading" @click="loadTopics">
             <el-icon><Refresh /></el-icon>刷新
-          </el-button>
-          <el-button type="primary" @click="openCreateDialog">
-            <el-icon><Plus /></el-icon>发起讨论
           </el-button>
         </div>
 
@@ -92,10 +99,14 @@
               <el-icon class="ti-arrow"><ArrowRight /></el-icon>
             </div>
           </div>
-          <el-empty v-else description="暂无话题，点击「发起讨论」开始吧" :image-size="70" />
+          <el-empty v-else description="暂无话题，点击「发起讨论」开始吧" :image-size="70">
+            <template #image><div class="empty-deco">💬</div></template>
+          </el-empty>
         </div>
       </template>
     </div>
+      </div>
+    </section>
 
     <!-- 发起话题 -->
     <el-dialog v-model="createDialog" title="发起讨论" width="560px" append-to-body>
@@ -181,7 +192,9 @@
           v-if="!postLoading && posts.length === 0"
           description="暂无回复，来抢沙发"
           :image-size="56"
-        />
+        >
+          <template #image><div class="empty-deco">💬</div></template>
+        </el-empty>
       </div>
 
       <!-- 回复框（话题关闭后禁用） -->
@@ -235,8 +248,9 @@ import { unwrap } from '@/utils/response'
 import { useAuthStore } from '@/stores/auth'
 import courseApi from '@/api/course'
 import discussionApi from '@/api/discussion'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 import {
-  ChatDotRound,
   Plus,
   Refresh,
   Search,
@@ -284,6 +298,11 @@ const topicLoading = ref(false)
 const topics = ref([])
 const keyword = ref('')
 const essenceFilter = ref('') // '' = 全部, true = 精华
+
+/** 精华话题数 */
+const essenceCount = computed(() => topics.value.filter(t => t.isEssence).length)
+/** 总回复数 */
+const totalReplies = computed(() => topics.value.reduce((s, t) => s + (t.postCount || 0), 0))
 
 async function loadTopics() {
   if (!courseId.value) return
@@ -663,6 +682,8 @@ onMounted(() => {
 .reply-input .el-input {
   flex: 1;
 }
+
+.empty-deco { font-size: 38px; filter: grayscale(.2); }
 
 @media (max-width: 1100px) {
   .page-head {

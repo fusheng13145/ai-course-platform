@@ -1,6 +1,7 @@
 package com.aicourse.service.impl;
 
 import com.aicourse.common.JsonUtils;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.llm.LLMProvider;
 import com.aicourse.service.AIService;
 import com.aicourse.service.GraphRAGService;
@@ -14,6 +15,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -378,6 +380,94 @@ public class AIServiceImpl implements AIService {
             result.add(Map.of("description", "AI 暂未返回具体分析，请稍后重试", "severity", "LOW"));
         }
         return result;
+    }
+
+    /**
+     * 将题目推荐 JSON 健壮解析为列表（兼容 ```json ``` 代码块 / 裸 JSON）。
+     * 解析失败时回退为单条文本记录（由 Controller 内联实现下沉，行为保持一致）。
+     */
+    @Override
+    public List<Map<String, Object>> parseQuestions(String jsonText, String diff) {
+        List<Map<String, Object>> list = new ArrayList<>();
+        String json = JsonUtils.extractJsonObject(jsonText);
+        if (json == null) return list;
+        try {
+            JsonNode root = OBJECT_MAPPER.readTree(json);
+            JsonNode arr = root.has("questions") ? root.get("questions") : root;
+            if (arr.isArray()) {
+                for (JsonNode n : arr) {
+                    Map<String, Object> rec = new LinkedHashMap<>();
+                    rec.put("content", n.has("content") ? n.get("content").asText() : n.asText());
+                    rec.put("type", n.has("type") ? n.get("type").asText() : "SINGLE_CHOICE");
+                    rec.put("difficulty", n.has("difficulty") ? n.get("difficulty").asText() : (diff != null ? diff : "MEDIUM"));
+                    list.add(rec);
+                }
+            }
+        } catch (Exception e) {
+            log.warn("题目推荐 JSON 解析失败: {}", e.getMessage());
+            Map<String, Object> rec = new LinkedHashMap<>();
+            rec.put("content", jsonText);
+            rec.put("type", "SINGLE_CHOICE");
+            rec.put("difficulty", diff != null ? diff : "MEDIUM");
+            list.add(rec);
+        }
+        return list;
+    }
+
+    /**
+     * 知识点薄弱项分析：基于用户学情统计生成薄弱点列表。
+     * 失败时返回单条降级提示（不抛异常），与原有 HTTP 行为一致。
+     */
+    @Override
+    public List<Map<String, String>> analyzeWeakPoints(Map<String, Object> userStats) {
+        try {
+            String statsJson = OBJECT_MAPPER.writeValueAsString(userStats);
+            String json = analyzeWeakPointsJson(statsJson);
+            return parseWeakPoints(json);
+        } catch (Exception e) {
+            log.warn("薄弱点分析失败，返回降级提示: {}", e.getMessage());
+            List<Map<String, String>> fallback = new ArrayList<>();
+            fallback.add(Map.of("description", "AI分析暂时不可用，请稍后重试", "severity", "LOW"));
+            return fallback;
+        }
+    }
+
+    /**
+     * 学情 AI 建议：基于学情统计生成结构化学习建议 {"summary","items"}。
+     * LLM 未返回有效内容或解析失败时抛出 BusinessException（由调用方统一包装，与原 HTTP 行为一致）。
+     */
+    @Override
+    public Map<String, Object> generateLearningAdvice(Map<String, Object> userStats) {
+        try {
+            String statsJson = OBJECT_MAPPER.writeValueAsString(userStats);
+            String weakJson = analyzeWeakPointsJson(statsJson);
+            String adviceJson = generateLearningAdviceJson(statsJson, weakJson);
+            String raw = JsonUtils.extractJsonObject(adviceJson);
+            if (raw == null) {
+                throw new BusinessException("AI 未返回有效建议");
+            }
+            JsonNode root = OBJECT_MAPPER.readTree(raw);
+            Map<String, Object> result = new LinkedHashMap<>();
+            result.put("summary", root.has("summary") ? root.get("summary").asText() : "");
+            List<Map<String, Object>> items = new ArrayList<>();
+            if (root.has("items") && root.get("items").isArray()) {
+                for (JsonNode it : root.get("items")) {
+                    Map<String, Object> m = new LinkedHashMap<>();
+                    m.put("title", it.has("title") ? it.get("title").asText() : "");
+                    m.put("detail", it.has("detail") ? it.get("detail").asText() : "");
+                    String lvl = it.has("level") ? it.get("level").asText().toUpperCase() : "MEDIUM";
+                    if (!"HIGH".equals(lvl) && !"MEDIUM".equals(lvl) && !"LOW".equals(lvl)) lvl = "MEDIUM";
+                    m.put("level", lvl);
+                    items.add(m);
+                }
+            }
+            result.put("items", items);
+            return result;
+        } catch (Exception e) {
+            // 原控制器将本段整体 try/catch 并重抛 BusinessException("生成学习建议失败: " + msg)；
+            // 此处去前缀重抛，由控制器 catch(Exception) 统一加前缀，保证最终消息与原来一致。
+            throw new BusinessException(e.getMessage());
+        }
     }
 
     /**

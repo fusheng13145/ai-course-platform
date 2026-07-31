@@ -1,110 +1,51 @@
 <template>
-  <div class="course-chapters fade-in">
-    <div v-loading="loading">
-      <!-- 头部 + 新增 -->
-      <div class="section-bar">
-        <div class="chart-title">
-          <el-icon><Files /></el-icon> 章节结构
-          <el-tag size="small" type="info" effect="light" round>{{ flatCount }} 章</el-tag>
-        </div>
-        <el-button type="primary" :icon="Plus" @click="openCreate()">新增顶级章节</el-button>
-      </div>
-
-      <!-- 章节树 -->
-      <div class="chart-card">
+  <div>
+    <PageHeader compact title="章节结构" :subtitle="`${flatCount} 章 · 点击编辑节点信息`" icon="list">
+      <button class="btn btn-primary btn-sm" @click="openCreate()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> 新增顶级章节</button>
+    </PageHeader>
+    <section class="l1-card">
+      <div class="l1-body">
         <div v-if="tree.length" class="tree">
           <div v-for="node in tree" :key="node.id" class="tree-node">
-            <!-- 父章节行 -->
-            <div class="tree-row">
-              <span class="tree-toggle" @click="toggle(node.id)">
-                <el-icon :class="{ 'is-open': isOpen(node.id) }"><ArrowRight /></el-icon>
-              </span>
+            <div class="tree-row tree-row--main">
+              <span class="tree-toggle" @click="toggle(node.id)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="isOpen(node.id) ? 'is-open' : ''"><path d="m9 18 6-6-6-6"/></svg></span>
               <span class="tree-title">{{ node.title }}</span>
-              <span class="tree-meta">
-                任务点 {{ node.taskCount || 0 }} · 提交 {{ node.submittedCount || 0 }} · 完成率
-                {{ pct(node.completionRate) }}
-              </span>
-              <el-tag size="small" :type="node.isPublished ? 'success' : 'info'" effect="light">
-                {{ node.isPublished ? '已发布' : '草稿' }}
-              </el-tag>
-              <span class="tree-actions">
-                <el-button link type="primary" :icon="Edit" @click="openEdit(node)">编辑</el-button>
-                <el-button link type="danger" :icon="Delete" @click="remove(node)">删除</el-button>
-              </span>
+              <span class="muted tree-meta--main">任务点 {{ node.taskCount || 0 }} · 完成率 {{ pct(node.completionRate) }}</span>
+              <span class="tag" :class="node.isPublished ? 'green' : ''">{{ node.isPublished ? '已发布' : '草稿' }}</span>
+              <span class="tree-actions"><span class="op-link" @click="openEdit(node)">编辑</span><span class="op-link danger" @click="remove(node)">删除</span></span>
             </div>
-
-            <!-- 子章节 -->
-            <div
-              v-if="node.children && node.children.length && isOpen(node.id)"
-              class="tree-children"
-            >
-              <div v-for="c in node.children" :key="c.id" class="tree-node tree-node--child">
-                <div class="tree-row">
+            <div v-if="node.children && node.children.length && isOpen(node.id)" class="tree-children-pad">
+              <div v-for="c in node.children" :key="c.id">
+                <div class="tree-row tree-row--child">
                   <span class="tree-title tree-title--child">{{ c.title }}</span>
-                  <span class="tree-meta">
-                    任务点 {{ c.taskCount || 0 }} · 完成率 {{ pct(c.completionRate) }}
-                  </span>
-                  <el-tag size="small" :type="c.isPublished ? 'success' : 'info'" effect="light">
-                    {{ c.isPublished ? '已发布' : '草稿' }}
-                  </el-tag>
-                  <span class="tree-actions">
-                    <el-button link type="primary" :icon="Edit" @click="openEdit(c)"
-                      >编辑</el-button
-                    >
-                    <el-button link type="danger" :icon="Delete" @click="remove(c)">删除</el-button>
-                  </span>
+                  <span class="muted tree-meta--child">任务点 {{ c.taskCount || 0 }} · 完成率 {{ pct(c.completionRate) }}</span>
+                  <span class="tag" :class="c.isPublished ? 'green' : ''">{{ c.isPublished ? '已发布' : '草稿' }}</span>
+                  <span class="tree-actions"><span class="op-link" @click="openEdit(c)">编辑</span><span class="op-link danger" @click="remove(c)">删除</span></span>
                 </div>
-                <div v-if="c.taskPoints && c.taskPoints.length" class="tree-tasks">
-                  <span v-for="tp in c.taskPoints" :key="tp.id" class="task-chip">
-                    {{ tp.title }} <em>{{ tp.taskType }}</em>
-                  </span>
+                <div v-if="c.taskPoints && c.taskPoints.length" class="task-tags">
+                  <span v-for="tp in c.taskPoints" :key="tp.id" class="tag outline task-tag">{{ tp.title }} <em>{{ tp.taskType }}</em></span>
                 </div>
               </div>
             </div>
           </div>
         </div>
-        <el-empty v-else description="暂无章节，点击右上角新增" :image-size="70" />
+        <div v-else class="empty-state"><div class="e-ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/></svg></div><div class="e-title">暂无章节</div><div class="e-desc">点击右上角新增章节</div></div>
       </div>
-    </div>
+    </section>
 
-    <!-- 新增 / 编辑对话框 -->
-    <el-dialog
-      v-model="dialogVisible"
-      :title="dialogMode === 'create' ? '新增章节' : '编辑章节'"
-      width="480px"
-      @closed="resetForm"
-    >
-      <el-form :model="form" label-width="88px">
-        <el-form-item label="标题">
-          <el-input
-            v-model="form.title"
-            placeholder="请输入章节标题"
-            maxlength="60"
-            show-word-limit
-          />
-        </el-form-item>
-        <el-form-item label="内容">
-          <el-input
-            v-model="form.content"
-            type="textarea"
-            :rows="4"
-            placeholder="章节简介 / 教学目标（可选）"
-          />
-        </el-form-item>
-        <el-form-item label="排序">
-          <el-input-number v-model="form.orderIndex" :min="0" :max="999" />
-        </el-form-item>
-        <el-form-item label="时长(分钟)">
-          <el-input-number v-model="form.duration" :min="0" :max="9999" :step="5" />
-        </el-form-item>
-      </el-form>
+    <!-- 新增/编辑对话框 -->
+    <Modal v-if="dialogVisible" narrow @close="dialogVisible = false; resetForm()">
+      <template #title>{{ dialogMode === 'create' ? '新增章节' : '编辑章节' }}</template>
+      <div class="form-grid">
+        <div class="field span-2"><label>标题<span class="req">*</span></label><input v-model="form.title" class="input" /></div>
+        <div class="field"><label>排序</label><input v-model="form.sortOrder" class="input" type="number" /></div>
+        <div class="field"><label>发布状态</label><select v-model="form.isPublished" class="select"><option :value="true">已发布</option><option :value="false">草稿</option></select></div>
+      </div>
       <template #footer>
-        <el-button @click="dialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="saving" @click="save">{{
-          dialogMode === 'create' ? '创建' : '保存'
-        }}</el-button>
+        <button class="btn btn-plain" @click="dialogVisible = false">取消</button>
+        <button class="btn btn-primary" :disabled="saving" @click="save">保存</button>
       </template>
-    </el-dialog>
+    </Modal>
   </div>
 </template>
 
@@ -114,9 +55,10 @@ import { unwrap } from '@/utils/response'
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import teachingApi from '@/api/teacher'
 import chapterApi from '@/api/chapter'
-import { Plus, Edit, Delete, ArrowRight, Files } from '@element-plus/icons-vue'
+import teachingApi from '@/api/teacher'
+import Modal from '@/components/ui/Modal.vue'
+import PageHeader from '@/components/PageHeader.vue'
 
 const route = useRoute()
 const courseId = route.params.id
@@ -251,32 +193,6 @@ watch(() => route.params.id, load)
 </script>
 
 <style scoped>
-.section-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: var(--ac-spacing-md);
-}
-.chart-title {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ac-text-primary);
-}
-.chart-title .el-tag {
-  margin-left: 2px;
-}
-
-.chart-card {
-  padding: var(--ac-spacing-lg);
-  background: var(--ac-bg-elevated);
-  border: 1px solid var(--ac-border);
-  border-radius: var(--ac-radius-lg);
-  box-shadow: var(--ac-shadow-sm);
-}
-
 .tree {
   display: flex;
   flex-direction: column;
@@ -288,17 +204,21 @@ watch(() => route.params.id, load)
   border-radius: var(--ac-radius-md);
   background: var(--ac-surface-2);
 }
-.tree-node--child {
-  background: transparent;
-  border-style: dashed;
-  margin-left: 22px;
-  margin-top: 8px;
-}
 .tree-row {
   display: flex;
   align-items: center;
   gap: 12px;
   flex-wrap: wrap;
+}
+.tree-row--main {
+  padding: 10px 12px;
+  margin-bottom: 2px;
+}
+.tree-row--child {
+  padding: 8px 12px;
+  margin-bottom: 2px;
+  background: var(--surface-3);
+  border-radius: 7px;
 }
 .tree-toggle {
   display: inline-flex;
@@ -310,10 +230,10 @@ watch(() => route.params.id, load)
   color: var(--ac-text-muted);
   transition: transform var(--ac-transition-fast);
 }
-.tree-toggle .el-icon {
+.tree-toggle svg {
   transition: transform var(--ac-transition-fast);
 }
-.tree-toggle .el-icon.is-open {
+.tree-toggle svg.is-open {
   transform: rotate(90deg);
 }
 .tree-title {
@@ -322,48 +242,32 @@ watch(() => route.params.id, load)
   font-size: 14px;
 }
 .tree-title--child {
-  font-weight: 500;
-  font-size: 13.5px;
+  font-size: 13px;
+  color: var(--ink-2);
 }
-.tree-meta {
-  font-size: 12px;
-  color: var(--ac-text-muted);
+.tree-meta--main {
+  font-size: 11.5px;
+  margin-left: auto;
+}
+.tree-meta--child {
+  font-size: 11px;
+  margin-left: auto;
 }
 .tree-actions {
   margin-left: auto;
   display: flex;
   gap: 4px;
 }
-
-.tree-tasks {
+.tree-children-pad {
+  padding-left: 18px;
+}
+.task-tags {
   display: flex;
   flex-wrap: wrap;
-  gap: 6px;
-  margin-top: 8px;
+  gap: 4px;
+  padding: 4px 0 8px 12px;
 }
-.task-chip {
-  font-size: 12px;
-  padding: 3px 9px;
-  border-radius: 999px;
-  background: var(--ac-primary-bg);
-  color: var(--ac-primary);
-}
-.task-chip em {
-  font-style: normal;
-  opacity: 0.7;
-  margin-left: 4px;
-}
-
-.tree-children {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-top: 10px;
-}
-
-@media (max-width: 1100px) {
-  .tree-children {
-    gap: 6px;
-  }
+.task-tag {
+  font-size: 10px;
 }
 </style>

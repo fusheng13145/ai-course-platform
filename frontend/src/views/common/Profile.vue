@@ -119,7 +119,7 @@
                   <el-tag size="small" :type="a.color" effect="light">{{ a.type }}</el-tag>
                   <span class="activity-name">{{ a.title }}</span>
                 </div>
-                <div v-if="a.due" class="activity-due">截止 {{ formatTime(a.due) }}</div>
+                <div v-if="a.due" class="activity-due">截止 {{ formatTime(a.due, '—') }}</div>
               </div>
               <el-icon class="activity-go"><ArrowRight /></el-icon>
             </div>
@@ -235,6 +235,7 @@
 <script setup>
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
+import { formatTime, formatDate } from '@/utils/datetime'
 import { ref, reactive, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
@@ -298,26 +299,17 @@ const avatarText = computed(() => {
   return name.trim().charAt(0).toUpperCase()
 })
 
-/* ---- 时间格式化 ---- */
-function formatDate(s) {
-  if (!s) return '—'
-  return String(s).replace('T', ' ').substring(0, 10)
-}
-function formatTime(t) {
-  if (!t) return '—'
-  return String(t).replace('T', ' ').substring(0, 16)
-}
-const memberSince = formatDate(u.createdAt)
-const lastLogin = formatTime(u.lastLoginAt) || '刚刚'
+const memberSince = formatDate(u.createdAt, '—')
+const lastLogin = formatTime(u.lastLoginAt, '—') || '刚刚'
 
-/* ---- 课程封面配色（克制、协调的淡彩） ---- */
+/* ---- 课程封面配色（克制、协调的淡彩 · 令牌色系） ---- */
 const coursePalette = [
-  { bg: 'linear-gradient(135deg,#EEF2FF,#E0E7FF)', fg: '#3B6EF6' },
-  { bg: 'linear-gradient(135deg,#ECFDF5,#D1FAE5)', fg: '#0D7955' },
-  { bg: 'linear-gradient(135deg,#FFF7ED,#FED7AA)', fg: '#B45309' },
-  { bg: 'linear-gradient(135deg,#FEF2F2,#FECACA)', fg: '#B91C1C' },
-  { bg: 'linear-gradient(135deg,#F0F9FF,#BAE6FD)', fg: '#0369A1' },
-  { bg: 'linear-gradient(135deg,#FAF5FF,#E9D5FF)', fg: '#7C3AED' },
+  { bg: 'linear-gradient(135deg,var(--accent-soft),var(--accent-line))', fg: 'var(--accent-strong)' },
+  { bg: 'linear-gradient(135deg,var(--info-soft),var(--line-2))', fg: 'var(--info)' },
+  { bg: 'linear-gradient(135deg,var(--ok-soft),var(--line-2))', fg: 'var(--ok)' },
+  { bg: 'linear-gradient(135deg,var(--warn-soft),var(--line-2))', fg: 'var(--warn)' },
+  { bg: 'linear-gradient(135deg,var(--violet-soft),var(--line-2))', fg: 'var(--violet)' },
+  { bg: 'linear-gradient(135deg,var(--surface-3),var(--line))', fg: 'var(--ink-2)' },
 ]
 function courseInitial(name) {
   return (name || '?').trim().charAt(0).toUpperCase()
@@ -481,7 +473,7 @@ onMounted(loadDashboard)
   height: 128px;
   background: radial-gradient(circle at 16% 28%, rgba(255, 255, 255, 0.2), transparent 42%),
     radial-gradient(circle at 84% 72%, rgba(255, 255, 255, 0.12), transparent 46%),
-    linear-gradient(120deg, var(--ac-primary) 0%, #6366f1 100%);
+    linear-gradient(120deg, var(--ac-primary) 0%, var(--accent-strong) 100%);
   overflow: hidden;
 }
 .hero-blob {
@@ -517,7 +509,7 @@ onMounted(loadDashboard)
 }
 .hero-avatar__img {
   border: 4px solid var(--ac-bg-elevated);
-  background: linear-gradient(135deg, var(--ac-primary), #6366f1) !important;
+  background: linear-gradient(135deg, var(--ac-primary), var(--accent-strong)) !important;
   color: #fff !important;
   font-size: 34px;
   font-weight: 700;

@@ -197,12 +197,13 @@ class LearningPathControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /learning-paths/generate?courseId=1 - 返回200且data为节点列表")
     void generate_authorized_returns_success() throws Exception {
-        when(knowledgePointService.list(any(com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper.class))).thenReturn(List.of(new KnowledgePoint()));
+        when(learningPathService.generateLearningPath(anyLong(), anyLong()))
+                .thenReturn(List.of(new LearningPathNode()));
         mockMvc.perform(get("/learning-paths/generate?courseId=1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").isArray());
-        verify(knowledgePointService).list(any(com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper.class));
+        verify(learningPathService).generateLearningPath(eq(1L), eq(1L));
     }
 
     @Test

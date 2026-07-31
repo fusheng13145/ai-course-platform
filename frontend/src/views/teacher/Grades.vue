@@ -1,76 +1,63 @@
 <template>
   <div class="fade-in">
-    <!-- 顶部统计 -->
-    <div class="stat-cards">
-      <div class="stat-card">
-        <div class="stat-icon" style="background:var(--ac-primary-bg);color:var(--ac-primary)">
-          <el-icon :size="24"><TrendCharts /></el-icon>
-        </div>
-        <div class="stat-info"><h3>{{ overview.avgScore ?? '--' }}</h3><p>平均分</p></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(139,168,136,0.15);color:var(--ac-success)">
-          <el-icon :size="24"><Top /></el-icon>
-        </div>
-        <div class="stat-info"><h3>{{ overview.maxScore ?? '--' }}</h3><p>最高分</p></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(196,128,128,0.15);color:var(--ac-danger)">
-          <el-icon :size="24"><Bottom /></el-icon>
-        </div>
-        <div class="stat-info"><h3>{{ overview.minScore ?? '--' }}</h3><p>最低分</p></div>
-      </div>
-      <div class="stat-card">
-        <div class="stat-icon" style="background:rgba(203,181,138,0.18);color:var(--ac-warning)">
-          <el-icon :size="24"><EditPen /></el-icon>
-        </div>
-        <div class="stat-info"><h3>{{ overview.pendingCount ?? '--' }}</h3><p>待批阅</p></div>
-      </div>
+    <PageHeader title="成绩管理" subtitle="查看与导出学生成绩，支持 AI 评分与批阅" icon="chart" icon-bg="accent">
+      <el-button type="success" plain :disabled="gradeList.length === 0" @click="handleExport">
+        <el-icon><Download /></el-icon>导出成绩
+      </el-button>
+    </PageHeader>
+
+    <div class="stat-grid">
+      <StatCard label="平均分" :value="overview.avgScore ?? '--'" icon="chart" tone="var(--accent-soft)" tone-color="var(--accent)" />
+      <StatCard label="最高分" :value="overview.maxScore ?? '--'" icon="star" tone="var(--ok-soft)" tone-color="var(--ok)" />
+      <StatCard label="最低分" :value="overview.minScore ?? '--'" icon="warn" tone="var(--info-soft)" tone-color="var(--info)" />
+      <StatCard label="待批阅" :value="overview.pendingCount ?? 0" icon="edit" tone="var(--warn-soft)" tone-color="var(--warn)" />
     </div>
 
     <!-- 工具栏 -->
     <div class="table-toolbar">
       <div class="toolbar-left">
-        <el-select v-model="selectedCourseId" placeholder="选择课程" clearable style="width:200px" @change="loadGradeData">
+        <el-select v-model="selectedCourseId" placeholder="选择课程" clearable class="course-select" @change="loadGradeData">
           <el-option v-for="c in courseList" :key="c.id" :label="c.name" :value="c.id" />
         </el-select>
-        <el-button type="success" plain size="default" @click="handleExport" :disabled="gradeList.length === 0">
-          <el-icon><Download /></el-icon>导出成绩
-        </el-button>
       </div>
       <div class="toolbar-right">
-        <el-input v-model="searchText" placeholder="搜索学号/姓名..." clearable style="width:220px" :prefix-icon="Search" @clear="handleSearch" @keyup.enter="handleSearch" />
+        <el-input v-model="searchText" placeholder="搜索学号/姓名..." clearable class="search-input" :prefix-icon="Search" @clear="handleSearch" @keyup.enter="handleSearch" />
       </div>
     </div>
 
-    <!-- 主内容区：成绩表格 + 分布图 -->
-    <div class="main-content-grid">
+    <section class="l1-card">
+      <div class="l1-head">
+        <span class="l1-ico l1-ico--accent">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18M18 17V9M13 17V5M8 17v-3"/></svg>
+        </span>
+        <div><div class="l1-title">成绩总览</div><div class="l1-sub">成绩表格与分布一览，支持按课程筛选与搜索</div></div>
+      </div>
+      <div class="l1-body">
+        <div class="main-content-grid">
       <!-- 成绩表格 -->
       <div class="table-section">
-        <div class="content-card" style="padding:0;overflow:hidden">
-          <el-table :data="filteredGradeList" style="width:100%" v-loading="loading"
-            :header-cell-style="{ background:'var(--ac-bg)', color:'var(--ac-text-secondary)', fontWeight:600 }"
-            @row-click="viewStudentDetail">
+        <div class="content-card content-card--flush">
+          <el-table v-loading="loading" :data="filteredGradeList" @row-click="viewStudentDetail">
             <el-table-column prop="studentNo" label="学号" width="110" />
             <el-table-column prop="studentName" label="姓名" width="90">
-              <template #default="{ row }"><span style="font-weight:500">{{ row.studentName }}</span></template>
+              <template #default="{ row }"><span class="student-name">{{ row.studentName }}</span></template>
             </el-table-column>
             <el-table-column prop="homeworkScore" label="作业成绩" width="95" align="center">
               <template #default="{ row }">
-                <span v-if="row.homeworkScore != null" :style="{ color: getScoreColor(row.homeworkScore) }">{{ row.homeworkScore }}</span>
-                <span v-else style="color:var(--ac-text-muted)">--</span>
+                <span v-if="row.homeworkScore != null" :style="{ color: monoScore(row.homeworkScore) }">{{ row.homeworkScore }}</span>
+                <span v-else class="cell-muted">--</span>
               </template>
             </el-table-column>
             <el-table-column prop="examScore" label="考试成绩" width="95" align="center">
               <template #default="{ row }">
-                <span v-if="row.examScore != null" :style="{ color: getScoreColor(row.examScore) }">{{ row.examScore }}</span>
-                <span v-else style="color:var(--ac-text-muted)">--</span>
+                <span v-if="row.examScore != null" :style="{ color: monoScore(row.examScore) }">{{ row.examScore }}</span>
+                <span v-else class="cell-muted">--</span>
               </template>
             </el-table-column>
             <el-table-column prop="totalScore" label="总评" width="80" align="center">
               <template #default="{ row }">
-                <span v-if="row.totalScore != null" style="font-weight:600;color:var(--ac-text-primary)">{{ row.totalScore }}</span>
-                <span v-else style="color:var(--ac-text-muted)">--</span>
+                <span v-if="row.totalScore != null" class="cell-strong">{{ row.totalScore }}</span>
+                <span v-else class="cell-muted">--</span>
               </template>
             </el-table-column>
             <el-table-column prop="gradeLevel" label="等级" width="70" align="center">
@@ -83,35 +70,47 @@
             <el-table-column label="操作" width="180" fixed="right">
               <template #default="{ row }">
                 <el-button text type="primary" size="small" @click.stop="viewStudentDetail(row)">详情</el-button>
-                <el-button text type="warning" size="small" @click.stop="openGradeDialog(row)" v-if="row.needsGrading">批阅</el-button>
-                <el-button text type="success" size="small" @click.stop="aiGrade(row)" v-if="row.needsGrading">AI评分</el-button>
+                <el-button v-if="row.needsGrading" text type="warning" size="small" @click.stop="openGradeDialog(row)">批阅</el-button>
+                <el-button v-if="row.needsGrading" text type="success" size="small" @click.stop="aiGrade(row)">AI评分</el-button>
               </template>
             </el-table-column>
           </el-table>
-          <el-empty v-if="!loading && filteredGradeList.length === 0" description="暂无成绩数据" />
+          <el-empty v-if="!loading && filteredGradeList.length === 0" description="暂无成绩数据">
+            <template #image><div class="empty-deco">📊</div></template>
+          </el-empty>
         </div>
       </div>
 
       <!-- 成绩分布图 -->
       <div class="chart-section">
-        <div class="chart-card">
-          <div class="chart-title">成绩分布</div>
-          <v-chart :option="distributionOption" style="height:320px" autoresize />
+        <div class="l1-card">
+          <div class="l1-head">
+            <div class="l1-title">成绩分布</div>
+          </div>
+          <div class="l1-body">
+            <v-chart :option="distributionOption" class="dist-chart" autoresize />
+          </div>
         </div>
 
         <!-- 待批阅快捷入口 -->
-        <div class="chart-card pending-card">
-          <div class="chart-title">待批阅任务</div>
-          <div v-if="pendingTasks.length > 0" class="pending-list">
-            <div v-for="task in pendingTasks.slice(0, 5)" :key="task.id" class="pending-item" @click="goToGrading(task)">
-              <span class="pending-name">{{ task.taskName || task.title || '未命名任务' }}</span>
-              <el-tag type="warning" size="small">{{ task.pendingCount || 0 }}份</el-tag>
-            </div>
+        <div class="l1-card pending-card">
+          <div class="l1-head">
+            <div class="l1-title">待批阅任务</div>
           </div>
-          <el-empty v-else description="暂无待批阅任务" :image-size="60" />
+          <div class="l1-body">
+            <div v-if="pendingTasks.length > 0" class="pending-list">
+              <div v-for="task in pendingTasks.slice(0, 5)" :key="task.id" class="pending-item" @click="goToGrading(task)">
+                <span class="pending-name">{{ task.taskName || task.title || '未命名任务' }}</span>
+                <el-tag type="warning" size="small">{{ task.pendingCount || 0 }}份</el-tag>
+              </div>
+            </div>
+            <el-empty v-else description="暂无待批阅任务" :image-size="60" />
+          </div>
         </div>
       </div>
     </div>
+      </div>
+    </section>
 
     <!-- 学生成绩详情弹窗 -->
     <el-dialog v-model="detailDialogVisible" title="学生成绩详情" width="600px">
@@ -121,13 +120,13 @@
           <el-descriptions-item label="姓名">{{ currentStudent.studentName || '-' }}</el-descriptions-item>
           <el-descriptions-item label="课程">{{ currentStudent.courseName || selectedCourseName }}</el-descriptions-item>
           <el-descriptions-item label="总评">
-            <span style="font-weight:700;font-size:18px;color:var(--ac-primary)">{{ currentStudent.totalScore || '--' }}</span>
+            <span class="score-big">{{ currentStudent.totalScore || '--' }}</span>
           </el-descriptions-item>
         </el-descriptions>
 
-        <div style="margin-top:20px">
-          <h4 style="font-size:14px;color:var(--ac-text-primary);margin-bottom:12px">各项明细</h4>
-          <el-table :data="currentStudent.details || []" size="small" style="width:100%">
+        <div class="detail-block">
+          <h4 class="detail-h4">各项明细</h4>
+          <el-table :data="currentStudent.details || []" size="small">
             <el-table-column prop="taskName" label="任务/考试" />
             <el-table-column prop="type" label="类型" width="80" align="center">
               <template #default="{ row }">
@@ -158,7 +157,7 @@
           <span>{{ gradingStudent.taskName || currentTaskName }}</span>
         </el-form-item>
         <el-form-item label="分数" required>
-          <el-input-number v-model="gradeForm.score" :min="0" :max="gradeForm.fullScore || 100" style="width:100%" /> / {{ gradeForm.fullScore || 100 }}
+          <el-input-number v-model="gradeForm.score" :min="0" :max="gradeForm.fullScore || 100" class="w-100" /> / {{ gradeForm.fullScore || 100 }}
         </el-form-item>
         <el-form-item label="评语">
           <el-input v-model="gradeForm.comment" type="textarea" :rows="3" placeholder="输入评语（可选）" />
@@ -166,7 +165,7 @@
       </el-form>
       <template #footer>
         <el-button @click="gradeDialogVisible = false">取消</el-button>
-        <el-button type="primary" @click="submitGrade" :loading="gradingLoading">确认评分</el-button>
+        <el-button type="primary" :loading="gradingLoading" @click="submitGrade">确认评分</el-button>
       </template>
     </el-dialog>
   </div>
@@ -175,12 +174,15 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import { Search, Download, TrendCharts, Top, Bottom, EditPen } from '@element-plus/icons-vue'
+import { Search, Download } from '@element-plus/icons-vue'
 import submissionApi from '@/api/submission'
 import examApi from '@/api/exam'
 import courseApi from '@/api/course'
 import taskApi from '@/api/task'
 import * as XLSX from 'xlsx'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
+import { getChartTheme, monoScore } from '@/utils/chartTheme'
 
 const loading = ref(false)
 const searchText = ref('')
@@ -479,45 +481,39 @@ function getGradeTagType(level) {
   return map[level] || 'info'
 }
 
-// 分数颜色
-function getScoreColor(score) {
-  if (score >= 90) return '#8BA888'
-  if (score >= 80) return '#7A8BA5'
-  if (score >= 70) return '#CBB58A'
-  if (score >= 60) return '#B89A8A'
-  return '#C48080'
+// 更新成绩分布图
+function buildDistributionOption() {
+  const t = getChartTheme()
+  const bandScores = [95, 85, 75, 65, 50]
+  return {
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: '{b}: {c}人' },
+    grid: { left: 50, right: 20, bottom: 30, top: 20 },
+    xAxis: {
+      type: 'category',
+      data: ['90-100', '80-89', '70-79', '60-69', '60以下'],
+      axisLine: { lineStyle: { color: t.axis } },
+      axisLabel: { color: t.text, fontSize: 12 }
+    },
+    yAxis: {
+      type: 'value',
+      axisLine: { show: false },
+      splitLine: { lineStyle: { color: t.split, type: 'dashed' } },
+      axisLabel: { color: t.text, fontSize: 12 }
+    },
+    series: [{
+      type: 'bar',
+      data: [0, 0, 0, 0, 0],
+      barWidth: '50%',
+      itemStyle: {
+        borderRadius: [6, 6, 0, 0],
+        color: (params) => monoScore(bandScores[params.dataIndex] ?? 0)
+      },
+      label: { show: true, position: 'top', fontSize: 11, color: t.text }
+    }]
+  }
 }
 
-// 更新成绩分布图
-const distributionOption = ref({
-  tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' }, formatter: '{b}: {c}人' },
-  grid: { left: 50, right: 20, bottom: 30, top: 20 },
-  xAxis: {
-    type: 'category',
-    data: ['90-100', '80-89', '70-79', '60-69', '60以下'],
-    axisLine: { lineStyle: { color: '#E2DCD4' } },
-    axisLabel: { color: '#928B83', fontSize: 12 }
-  },
-  yAxis: {
-    type: 'value',
-    axisLine: { show: false },
-    splitLine: { lineStyle: { color: '#E2DCD4', type: 'dashed' } },
-    axisLabel: { color: '#928B83', fontSize: 12 }
-  },
-  series: [{
-    type: 'bar',
-    data: [0, 0, 0, 0, 0],
-    barWidth: '50%',
-    itemStyle: {
-      borderRadius: [6, 6, 0, 0],
-      color: (params) => {
-        const colors = ['#8BA888', '#7A8BA5', '#CBB58A', '#B89A8A', '#C48080']
-        return colors[params.dataIndex] || '#7A8BA5'
-      }
-    },
-    label: { show: true, position: 'top', fontSize: 11, color: '#5E574F' }
-  }]
-})
+const distributionOption = ref(buildDistributionOption())
 
 function updateDistribution(scores) {
   const buckets = [0, 0, 0, 0, 0]
@@ -534,6 +530,13 @@ function updateDistribution(scores) {
 </script>
 
 <style scoped>
+.l1-ico--accent {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+
+.empty-deco { font-size: 38px; filter: grayscale(.2); }
+
 .main-content-grid {
   display: grid;
   grid-template-columns: 1fr 360px;
@@ -548,26 +551,6 @@ function updateDistribution(scores) {
   display: flex;
   flex-direction: column;
   gap: var(--ac-spacing-md);
-}
-
-.chart-card {
-  padding: var(--ac-spacing-lg);
-  background: var(--ac-bg-elevated);
-  border-radius: var(--ac-radius-lg);
-  border: 1px solid var(--ac-border);
-  transition: all var(--ac-transition-normal);
-}
-
-.chart-card:hover {
-  box-shadow: var(--ac-shadow-md);
-}
-
-.chart-title {
-  font-size: 15px;
-  font-weight: 600;
-  color: var(--ac-text-primary);
-  margin-bottom: var(--ac-spacing-md);
-  letter-spacing: -0.2px;
 }
 
 .pending-card {
@@ -601,6 +584,46 @@ function updateDistribution(scores) {
   font-size: 13px;
   color: var(--ac-text-secondary);
   font-weight: 500;
+}
+
+.course-select {
+  width: 200px;
+}
+.search-input {
+  width: 220px;
+}
+.content-card--flush {
+  padding: 0;
+  overflow: hidden;
+}
+.student-name {
+  font-weight: 500;
+}
+.cell-muted {
+  color: var(--ac-text-muted);
+}
+.cell-strong {
+  font-weight: 600;
+  color: var(--ac-text-primary);
+}
+.dist-chart {
+  height: 320px;
+}
+.score-big {
+  font-weight: 700;
+  font-size: 18px;
+  color: var(--ac-primary);
+}
+.detail-block {
+  margin-top: 20px;
+}
+.detail-h4 {
+  font-size: 14px;
+  color: var(--ac-text-primary);
+  margin-bottom: 12px;
+}
+.w-100 {
+  width: 100%;
 }
 
 @media (max-width: 1024px) {

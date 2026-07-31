@@ -14,7 +14,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -106,24 +105,8 @@ public class StudentController {
     @PostMapping("/courses/{courseId}/enroll")
     public ApiResponse<Void> enrollCourse(@PathVariable Long courseId, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        Course course = courseService.getById(courseId);
-        if (course == null) {
-            throw new BusinessException("课程不存在");
-        }
-        CourseEnrollment existing = enrollmentService.getOne(
-                new LambdaQueryWrapper<CourseEnrollment>()
-                        .eq(CourseEnrollment::getStudentId, userId)
-                        .eq(CourseEnrollment::getCourseId, courseId));
-        if (existing != null) {
-            throw new BusinessException("已加入该课程");
-        }
-        CourseEnrollment enrollment = new CourseEnrollment();
-        enrollment.setStudentId(userId);
-        enrollment.setCourseId(courseId);
-        enrollment.setIsActive(true);
-        enrollment.setApprovalStatus("APPROVED");
-        enrollment.setEnrolledAt(LocalDateTime.now());
-        enrollmentService.save(enrollment);
+        // 课程存在性校验、重复加入校验与报名落库下沉至服务层（事务化）
+        enrollmentService.enrollStudent(userId, courseId);
         return ApiResponse.success("加入成功", null);
     }
 
@@ -259,7 +242,7 @@ public class StudentController {
      */
     @PostMapping("/wrong-questions")
     public ApiResponse<WrongQuestion> addWrongQuestion(
-            @RequestBody Map<String, String> params, Authentication auth) {
+            @Valid @RequestBody Map<String, String> params, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         Long questionId = Long.valueOf(params.get("questionId"));
         Long courseId = params.get("courseId") != null ? Long.valueOf(params.get("courseId")) : null;

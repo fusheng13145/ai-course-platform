@@ -7,13 +7,13 @@ import com.aicourse.mapper.NotificationMapper;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.websocket.WebSocketSessionManager;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.extension.conditions.update.LambdaUpdateChainWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
-import org.mockito.Spy;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.List;
@@ -35,10 +35,14 @@ class NotificationServiceImplTest {
     @Mock private NotificationMapper notificationMapper;
     @Mock private CourseEnrollmentService courseEnrollmentService;
     @Mock private WebSocketSessionManager webSocketSessionManager;
-    @Spy private NotificationServiceImpl notificationService;
+    private NotificationServiceImpl notificationService;
 
     @BeforeEach
     void setUp() {
+        // NotificationServiceImpl 无无参构造器，@Spy 无法直接初始化，
+        // 改为在 setUp 中用 mocked 依赖手动创建 spy。
+        notificationService = spy(new NotificationServiceImpl(courseEnrollmentService, webSocketSessionManager));
+
         // 通过反射将 mock mapper 注入到 ServiceImpl 的 baseMapper 字段，
         // 使 selectById / selectList / selectPage 等简单委托方法可用。
         org.springframework.test.util.ReflectionTestUtils.setField(notificationService, "baseMapper", notificationMapper);
@@ -66,6 +70,9 @@ class NotificationServiceImplTest {
     @DisplayName("批量发送 - 空列表安全")
     void testBatchSend_empty() {
         notificationService.batchSendNotifications(List.of(), "t", "c", "C", "T", "L", "/u", null);
+        // 空列表应直接返回：不触发批量落库，也不做任何 WebSocket 推送
+        verify(notificationService, never()).saveBatch(any());
+        verify(webSocketSessionManager, never()).sendToUser(anyLong(), anyMap());
     }
 
     @Test
@@ -91,15 +98,23 @@ class NotificationServiceImplTest {
     }
 
     @Test
-    @DisplayName("全标已读 - 跳过 lambdaUpdate（Spy 已 stub）")
+    @DisplayName("全标已读 - 构建更新链并执行 update")
     void testMarkAllAsRead() {
-        // lambdaUpdate 需要 MyBatis 实体缓存；此处验证方法不抛异常即可。
-        // 实际 lambdaUpdate 由 Spy 的默认返回值（null → NullPointerException 风险）处理，
-        // 因此需额外 stub chain。
-        doReturn(0).when(notificationService).lambdaUpdate();
-        // 注意：lambdaUpdate() 返回 LambdaUpdateChainWrapper，stub 返回值后链式调用仍会失败。
-        // 此处改为直接使用 lenient 忽略调用。
+        // lambdaUpdate 链需要 MyBatis-Plus 实体缓存，无法在纯 Mockito 环境真实执行；
+        // 用 mock 的 LambdaUpdateChainWrapper 验证条件与更新动作被正确组装并执行。
+        @SuppressWarnings("unchecked")
+        LambdaUpdateChainWrapper<Notification> chain = mock(LambdaUpdateChainWrapper.class);
+        doReturn(chain).when(notificationService).lambdaUpdate();
+        when(chain.eq(any(), any())).thenReturn(chain);
+        when(chain.set(any(), any())).thenReturn(chain);
+        when(chain.update()).thenReturn(true);
+
         notificationService.markAllAsRead(100L);
+
+        verify(chain).eq(any(), eq(100L));
+        verify(chain).eq(any(), eq(false));
+        verify(chain).set(any(), eq(true));
+        verify(chain).update();
     }
 
     @Test

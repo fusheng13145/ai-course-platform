@@ -1,30 +1,35 @@
-﻿﻿<template>
+﻿<template>
   <div class="fade-in question-management">
-    <!-- 页面头部 -->
-    <div class="page-header">
-      <div class="header-left">
-        <h2 class="page-title">题库管理</h2>
-        <p class="page-desc">题目库维护与AI智能出题</p>
-      </div>
-      <div class="header-right">
-        <el-button @click="showAIDialog = true" type="primary" plain>
-          <el-icon><MagicStick /></el-icon>AI 智能出题
-        </el-button>
-        <el-button @click="openCreateDialog" type="primary">
-          <el-icon><Plus /></el-icon>添加题目
-        </el-button>
-      </div>
-    </div>
+    <PageHeader
+      title="题库管理"
+      subtitle="题目库维护与AI智能出题"
+      icon="doc"
+      icon-bg="accent"
+    >
+      <el-button type="primary" plain @click="showAIDialog = true">
+        <el-icon><MagicStick /></el-icon>AI 智能出题
+      </el-button>
+      <el-button type="primary" @click="openCreateDialog">
+        <el-icon><Plus /></el-icon>添加题目
+      </el-button>
+    </PageHeader>
 
-    <!-- 统计概览 -->
-    <div class="stats-row">
-      <div v-for="(stat, idx) in questionStats" :key="idx" class="stat-mini-card">
-        <span class="label">{{ stat.label }}</span>
-        <span class="value">{{ stat.value }}</span>
-      </div>
+    <div class="stat-grid">
+      <StatCard label="总题目数" :value="questionStats[0].value" icon="doc" tone="var(--accent-soft)" tone-color="var(--accent)" />
+      <StatCard label="今日新增" :value="questionStats[1].value" icon="clock" tone="var(--info-soft)" tone-color="var(--info)" />
+      <StatCard label="待审核" :value="questionStats[2].value" icon="warn" tone="var(--warn-soft)" tone-color="var(--warn)" />
+      <StatCard label="易错题数" :value="questionStats[3].value" icon="chart" tone="var(--ok-soft)" tone-color="var(--ok)" />
     </div>
 
     <!-- 筛选工具栏 -->
+    <section class="l1-card">
+      <div class="l1-head">
+        <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        </span>
+        <div><div class="l1-title">题目列表</div><div class="l1-sub">筛选题型与难度，维护题目库</div></div>
+      </div>
+      <div class="l1-body">
     <div class="filter-bar">
       <div class="filter-left">
         <el-input
@@ -70,7 +75,7 @@
 
     <!-- 题目列表 -->
     <div class="content-card">
-      <el-table :data="questionList" style="width:100%" v-loading="loading">
+      <el-table v-loading="loading" :data="questionList" style="width:100%">
         <el-table-column prop="id" label="ID" width="70" />
 
         <el-table-column label="题型" width="90" align="center">
@@ -124,6 +129,12 @@
             <el-button text type="danger" size="small" @click="deleteQuestion(row)">删除</el-button>
           </template>
         </el-table-column>
+        <!-- 空状态 -->
+        <template #empty>
+          <el-empty description="暂无题目数据">
+            <template #image><div class="empty-deco">📚</div></template>
+          </el-empty>
+        </template>
       </el-table>
 
       <!-- 分页 -->
@@ -140,6 +151,8 @@
         />
       </div>
     </div>
+    </div>
+    </section>
 
     <!-- 创建/编辑题目对话框 -->
     <el-dialog
@@ -381,20 +394,19 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import {
   Plus,
   Search,
   MagicStick,
-  Delete,
-  DataAnalysis,
-  EditPen,
-  TrendCharts
+  Delete
 } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import questionApi from '@/api/question'
 import courseApi from '@/api/course'
 import request from '@/api/request'
+import PageHeader from '@/components/PageHeader.vue'
+import StatCard from '@/components/ui/StatCard.vue'
 
 // 加载状态
 const loading = ref(false)
@@ -737,7 +749,6 @@ async function viewErrorProne() {
     const list = res.data?.list || res.data || res || []
     if (Array.isArray(list) && list.length > 0) {
       ElMessage.success(`获取到 ${list.length} 道易错题`)
-      console.log('易错题数据:', list)
     } else {
       ElMessage.info('暂无易错题数据')
     }
@@ -1050,6 +1061,12 @@ onMounted(() => {
   font-weight: 600;
   color: var(--ac-text-primary);
   margin-bottom: 12px;
+}
+
+/* 空状态装饰 */
+.empty-deco {
+  font-size: 38px;
+  filter: grayscale(.2);
 }
 
 /* 响应式 */

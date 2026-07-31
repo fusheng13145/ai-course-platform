@@ -1,84 +1,66 @@
-import { describe, it, expect, beforeEach, vi } from 'vitest'
+import { describe, it, expect } from 'vitest'
 import { mount } from '@vue/test-utils'
-
-// We need to mock Element Plus icon component
-vi.mock('element-plus', () => ({
-  ElIcon: {
-    name: 'ElIcon',
-    template: '<span class="el-icon-mock"><slot /></span>',
-  },
-}))
 
 const PageHeader = (await import('@/components/PageHeader.vue')).default
 
 describe('PageHeader', () => {
-  it('renders title prop', () => {
-    const wrapper = mount(PageHeader, {
-      props: { title: 'Test Page' },
-    })
-    expect(wrapper.find('.page-header__title').text()).toBe('Test Page')
+  it('渲染页面头部容器', () => {
+    const wrapper = mount(PageHeader, { props: { title: 'Test Page' } })
+    expect(wrapper.find('.pg-head').exists()).toBe(true)
   })
 
-  it('renders subtitle when provided', () => {
+  it('渲染 title 文本', () => {
+    const wrapper = mount(PageHeader, { props: { title: 'Test Page' } })
+    expect(wrapper.find('.pg-title').text()).toBe('Test Page')
+  })
+
+  it('提供 subtitle 时渲染副标题', () => {
     const wrapper = mount(PageHeader, {
       props: { title: 'Test Page', subtitle: 'This is a subtitle' },
     })
-    expect(wrapper.find('.page-header__subtitle').exists()).toBe(true)
-    expect(wrapper.find('.page-header__subtitle').text()).toBe('This is a subtitle')
+    expect(wrapper.find('.pg-sub').exists()).toBe(true)
+    expect(wrapper.find('.pg-sub').text()).toBe('This is a subtitle')
   })
 
-  it('does not render subtitle when not provided', () => {
+  it('未提供 subtitle 时不渲染副标题', () => {
+    const wrapper = mount(PageHeader, { props: { title: 'Test Page' } })
+    expect(wrapper.find('.pg-sub').exists()).toBe(false)
+  })
+
+  it('始终渲染图标块（默认 grid 图标，未知图标回退 dot）', () => {
+    const wrapper = mount(PageHeader, { props: { title: 'Test Page' } })
+    expect(wrapper.find('.pg-ico').exists()).toBe(true)
+    expect(wrapper.find('.pg-ico').html()).toContain('<svg')
+
+    const emptyIcon = mount(PageHeader, { props: { title: 'Test Page', icon: '' } })
+    expect(emptyIcon.find('.pg-ico').exists()).toBe(true)
+  })
+
+  it('渲染 actions 插槽内容', () => {
     const wrapper = mount(PageHeader, {
       props: { title: 'Test Page' },
+      slots: { default: '<button class="action-btn">Create</button>' },
     })
-    expect(wrapper.find('.page-header__subtitle').exists()).toBe(false)
+    const action = wrapper.find('.pg-actions .action-btn')
+    expect(action.exists()).toBe(true)
+    expect(action.text()).toBe('Create')
   })
 
-  it('renders icon element when icon prop is provided', () => {
-    const wrapper = mount(PageHeader, {
-      props: { title: 'Test Page', icon: 'Document' },
-    })
-    // The icon container should be present
-    expect(wrapper.find('.page-header__icon').exists()).toBe(true)
+  it('默认带渐变分隔线（rule），rule=false 时移除', () => {
+    const wrapper = mount(PageHeader, { props: { title: 'Test Page' } })
+    expect(wrapper.find('.pg-head.no-rule').exists()).toBe(false)
+
+    const noRule = mount(PageHeader, { props: { title: 'Test Page', rule: false } })
+    expect(noRule.find('.pg-head.no-rule').exists()).toBe(true)
   })
 
-  it('does not render icon when icon prop is empty', () => {
-    const wrapper = mount(PageHeader, {
-      props: { title: 'Test Page', icon: '' },
-    })
-    expect(wrapper.find('.page-header__icon').exists()).toBe(false)
+  it('compact 模式添加 compact 类', () => {
+    const wrapper = mount(PageHeader, { props: { title: 'Test Page', compact: true } })
+    expect(wrapper.find('.pg-head.compact').exists()).toBe(true)
   })
 
-  it('renders actions slot content', () => {
-    const wrapper = mount(PageHeader, {
-      props: { title: 'Test Page' },
-      slots: {
-        actions: '<button class="action-btn">Create</button>',
-      },
-    })
-    expect(wrapper.find('.action-btn').exists()).toBe(true)
-    expect(wrapper.find('.action-btn').text()).toBe('Create')
-  })
-
-  it('does not render actions area when no slot content', () => {
-    const wrapper = mount(PageHeader, {
-      props: { title: 'Test Page' },
-    })
-    expect(wrapper.find('.page-header__actions').exists()).toBe(false)
-  })
-
-  it('renders header structure correctly', () => {
-    const wrapper = mount(PageHeader, {
-      props: { title: 'Dashboard', subtitle: 'Overview' },
-    })
-    expect(wrapper.find('.page-header').exists()).toBe(true)
-    expect(wrapper.find('.page-header__main').exists()).toBe(true)
-  })
-
-  it('handles empty string title', () => {
-    const wrapper = mount(PageHeader, {
-      props: { title: '' },
-    })
-    expect(wrapper.find('.page-header__title').text()).toBe('')
+  it('空 title 正常渲染', () => {
+    const wrapper = mount(PageHeader, { props: { title: '' } })
+    expect(wrapper.find('.pg-title').text()).toBe('')
   })
 })
