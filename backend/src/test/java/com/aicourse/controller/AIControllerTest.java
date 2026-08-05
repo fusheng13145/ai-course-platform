@@ -28,8 +28,8 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 升级自生成器产出的弱断言（status != 401 && status != 403），改为真实业务断言：
  * 对 service 方法打桩并用 jsonPath 校验响应体关键字段透传，verify 确认路由委托与参数透传。
  * 所有接口返回 Callable（异步），故采用 asyncDispatch 解析最终响应。
- * 安全规则（SecurityConfig）：POST/PUT/DELETE /ai/** 需 TEACHER/ADMIN；GET /ai/** 任意已认证角色。
- * 既有 401/403 测试保持不变（POST 接口 STUDENT 越权 403 符合 URL 级安全规则）。
+ * 安全规则（SecurityConfig）：POST /ai/qa/ask、/ai/qa/continue、/ai/essay/correct、/ai/essay/polish
+ * 放行给任意已登录角色（学生可用 AI 助教）；其余 POST/PUT/DELETE /ai/** 需 TEACHER/ADMIN；GET /ai/** 任意已认证角色。
  */
 @WebMvcTest(AIController.class)
 class AIControllerTest extends ControllerTestBase {
@@ -87,10 +87,23 @@ class AIControllerTest extends ControllerTestBase {
 
 
     @Test
-    @DisplayName("POST /ai/qa/ask - STUDENT角色返回403")
-    void qaAsk_student_forbidden_403() throws Exception {
-        mockMvc.perform(post("/ai/qa/ask").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(2L, "STUDENT")))
-                .andExpect(status().isForbidden());
+    @DisplayName("POST /ai/qa/ask - STUDENT角色可访问（AI助教对学生开放）")
+    void qaAsk_student_authorized_200() throws Exception {
+        AiChatSession session = new AiChatSession();
+        session.setSessionId("sess-1");
+        when(aiChatSessionService.createSession(anyLong(), any())).thenReturn(session);
+        when(aiChatSessionService.getMessages(anyString())).thenReturn(Collections.emptyList());
+        when(aiService.ragAsk(anyString(), any())).thenReturn("RAG答案");
+
+        MvcResult mvc = mockMvc.perform(post("/ai/qa/ask").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"question\":\"什么是闭包\",\"courseId\":\"2\"}").with(withUser(2L, "STUDENT")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.answer").value("RAG答案"));
+
+        verify(aiService).ragAsk(eq("什么是闭包"), eq(2L));
     }
 
 
@@ -126,10 +139,24 @@ class AIControllerTest extends ControllerTestBase {
 
 
     @Test
-    @DisplayName("POST /ai/qa/continue - STUDENT角色返回403")
-    void qaContinue_student_forbidden_403() throws Exception {
-        mockMvc.perform(post("/ai/qa/continue").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(2L, "STUDENT")))
-                .andExpect(status().isForbidden());
+    @DisplayName("POST /ai/qa/continue - STUDENT角色可访问（AI助教对学生开放）")
+    void qaContinue_student_authorized_200() throws Exception {
+        AiChatSession session = new AiChatSession();
+        session.setSessionId("sess-1");
+        when(aiChatSessionService.getBySessionId(anyString())).thenReturn(session);
+        when(aiChatSessionService.getMessages(anyString())).thenReturn(Collections.emptyList());
+        when(aiService.chat(anyList(), anyLong())).thenReturn("继续答案");
+
+        MvcResult mvc = mockMvc.perform(post("/ai/qa/continue").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"message\":\"继续\",\"sessionId\":\"sess-1\"}").with(withUser(2L, "STUDENT")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.answer").value("继续答案"));
+
+        verify(aiChatSessionService).getBySessionId(eq("sess-1"));
+        verify(aiService).chat(anyList(), eq(2L));
     }
 
 
@@ -191,10 +218,19 @@ class AIControllerTest extends ControllerTestBase {
 
 
     @Test
-    @DisplayName("POST /ai/essay/correct - STUDENT角色返回403")
-    void essayCorrect_student_forbidden_403() throws Exception {
-        mockMvc.perform(post("/ai/essay/correct").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(2L, "STUDENT")))
-                .andExpect(status().isForbidden());
+    @DisplayName("POST /ai/essay/correct - STUDENT角色可访问（AI助教对学生开放）")
+    void essayCorrect_student_authorized_200() throws Exception {
+        when(aiService.generateContent(anyString(), anyString())).thenReturn("批改结果");
+
+        MvcResult mvc = mockMvc.perform(post("/ai/essay/correct").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"我的作文\"}").with(withUser(2L, "STUDENT")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.result").value("批改结果"));
+
+        verify(aiService).generateContent(eq("correct"), eq("我的作文"));
     }
 
 
@@ -224,10 +260,19 @@ class AIControllerTest extends ControllerTestBase {
 
 
     @Test
-    @DisplayName("POST /ai/essay/polish - STUDENT角色返回403")
-    void essayPolish_student_forbidden_403() throws Exception {
-        mockMvc.perform(post("/ai/essay/polish").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(2L, "STUDENT")))
-                .andExpect(status().isForbidden());
+    @DisplayName("POST /ai/essay/polish - STUDENT角色可访问（AI助教对学生开放）")
+    void essayPolish_student_authorized_200() throws Exception {
+        when(aiService.generateContent(anyString(), anyString())).thenReturn("润色结果");
+
+        MvcResult mvc = mockMvc.perform(post("/ai/essay/polish").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"我的作文\"}").with(withUser(2L, "STUDENT")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.result").value("润色结果"));
+
+        verify(aiService).generateContent(eq("polish"), any());
     }
 
 

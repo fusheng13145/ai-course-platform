@@ -76,22 +76,30 @@ public class UserController {
 
     /**
      * 获取用户详细资料（含关联查询）
+     * 仅允许本人或管理员访问；管理员查看他人资料时邮箱/手机号脱敏
      * @param id 用户ID
+     * @param auth 认证信息
      * @return 用户完整信息
      */
     @GetMapping("/{id}/profile")
+    @PreAuthorize("#id == authentication.principal or hasRole('ADMIN')")
     @Operation(summary = "获取用户详细资料")
-    public ApiResponse<User> getProfile(@PathVariable Long id) {
+    public ApiResponse<User> getProfile(@PathVariable Long id, Authentication auth) {
         User user = userService.getUserProfile(id);
+        if (!id.equals((Long) auth.getPrincipal())) {
+            maskSensitive(user);
+        }
         return ApiResponse.success(user);
     }
 
     /**
      * 获取同班同学列表
+     * 仅允许本人或管理员访问
      * @param id 用户ID
      * @return 同班同学列表
      */
     @GetMapping("/{id}/classmates")
+    @PreAuthorize("#id == authentication.principal or hasRole('ADMIN')")
     @Operation(summary = "获取同班同学列表")
     public ApiResponse<List<User>> getClassmates(@PathVariable Long id) {
         List<User> classmates = userService.getClassmates(id);
@@ -100,10 +108,12 @@ public class UserController {
 
     /**
      * 获取教师的学生列表
+     * 仅允许教师或管理员访问
      * @param auth 认证信息
      * @return 学生列表
      */
     @GetMapping("/teacher/students")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "获取教师的学生列表")
     public ApiResponse<List<User>> getTeacherStudents(Authentication auth) {
         Long teacherId = (Long) auth.getPrincipal();
@@ -113,14 +123,45 @@ public class UserController {
 
     /**
      * 获取用户统计数据
+     * 仅允许本人或管理员访问；管理员查看他人数据时邮箱脱敏
      * @param id 用户ID
+     * @param auth 认证信息
      * @return 统计信息
      */
     @GetMapping("/{id}/stats")
+    @PreAuthorize("#id == authentication.principal or hasRole('ADMIN')")
     @Operation(summary = "获取用户统计数据")
-    public ApiResponse<Map<String, Object>> getUserStats(@PathVariable Long id) {
+    public ApiResponse<Map<String, Object>> getUserStats(@PathVariable Long id, Authentication auth) {
         Map<String, Object> stats = userService.getUserStats(id);
+        if (!id.equals((Long) auth.getPrincipal()) && stats.get("email") != null) {
+            stats.put("email", maskEmail((String) stats.get("email")));
+        }
         return ApiResponse.success(stats);
+    }
+
+    /**
+     * 敏感字段脱敏：邮箱打码（保留首字符与域名）、手机号中间四位打码
+     */
+    private void maskSensitive(User user) {
+        if (user == null) {
+            return;
+        }
+        user.setEmail(maskEmail(user.getEmail()));
+        if (user.getPhone() != null && user.getPhone().length() == 11) {
+            user.setPhone(user.getPhone().substring(0, 3) + "****" + user.getPhone().substring(7));
+        }
+    }
+
+    private String maskEmail(String email) {
+        if (email == null || !email.contains("@")) {
+            return email;
+        }
+        String[] parts = email.split("@", 2);
+        String name = parts[0];
+        if (name.length() <= 1) {
+            return "*@" + parts[1];
+        }
+        return name.charAt(0) + "***@" + parts[1];
     }
 
     /**

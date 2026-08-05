@@ -24,6 +24,11 @@ public interface GradeService extends IService<GradePolicy> {
     GradePolicy getPolicy(Long courseId);
 
     /**
+     * 按方案ID加载成绩方案（控制器归属校验用）
+     */
+    GradePolicy getPolicyById(Long policyId);
+
+    /**
      * 录入/更新某学生某一维度成绩（按 policyId+studentId+componentKey 幂等）
      */
     GradeItem upsertItem(Long policyId, Long studentId, String componentKey,

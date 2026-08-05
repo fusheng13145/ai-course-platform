@@ -1,16 +1,19 @@
 package com.aicourse.controller;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.dto.WrongQuestionPracticeDTO;
 import com.aicourse.entity.Question;
 import com.aicourse.entity.WrongQuestion;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.service.WrongQuestionService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -75,7 +78,8 @@ public class WrongQuestionController {
      * @return 操作结果
      */
     @PatchMapping("/{id}/mastered")
-    public ApiResponse<Void> markMastered(@PathVariable Long id) {
+    public ApiResponse<Void> markMastered(@PathVariable Long id, Authentication auth) {
+        requireOwnedWrongQuestion(id, auth);
         wrongQuestionService.markMastered(id);
         return ApiResponse.success("已标记为掌握", null);
     }
@@ -86,7 +90,8 @@ public class WrongQuestionController {
      * @return 操作结果
      */
     @PatchMapping("/{id}/unmaster")
-    public ApiResponse<Void> unmarkMastered(@PathVariable Long id) {
+    public ApiResponse<Void> unmarkMastered(@PathVariable Long id, Authentication auth) {
+        requireOwnedWrongQuestion(id, auth);
         wrongQuestionService.unmarkMastered(id);
         return ApiResponse.success("已取消掌握标记", null);
     }
@@ -171,9 +176,16 @@ public class WrongQuestionController {
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('STUDENT','ADMIN')")
-    public ApiResponse<WrongQuestion> update(@PathVariable Long id, @Valid @RequestBody WrongQuestion wq) {
-        wq.setId(id);
-        wrongQuestionService.updateById(wq);
+    public ApiResponse<WrongQuestion> update(@PathVariable Long id, @Valid @RequestBody WrongQuestion wq,
+                                             Authentication auth) {
+        requireOwnedWrongQuestion(id, auth);
+        // 白名单更新：仅允许学生修正错因/AI分析/知识点，杜绝通过请求体注入 studentId/courseId 等字段
+        WrongQuestion update = new WrongQuestion();
+        update.setId(id);
+        update.setReason(wq.getReason());
+        update.setAiAnalysis(wq.getAiAnalysis());
+        update.setKnowledgePointName(wq.getKnowledgePointName());
+        wrongQuestionService.updateById(update);
         WrongQuestion updatedWq = wrongQuestionService.getById(id);
         return ApiResponse.success("更新成功", updatedWq);
     }
@@ -185,8 +197,25 @@ public class WrongQuestionController {
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('STUDENT','ADMIN')")
-    public ApiResponse<Void> delete(@PathVariable Long id) {
+    public ApiResponse<Void> delete(@PathVariable Long id, Authentication auth) {
+        requireOwnedWrongQuestion(id, auth);
         wrongQuestionService.removeById(id);
         return ApiResponse.success("删除成功", null);
+    }
+
+    // ===================== 对象级授权 =====================
+
+    private WrongQuestion requireOwnedWrongQuestion(Long id, Authentication auth) {
+        WrongQuestion wq = wrongQuestionService.getById(id);
+        if (wq == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "错题记录不存在");
+        }
+        Long userId = (Long) auth.getPrincipal();
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(g -> g.getAuthority().equals("ROLE_ADMIN"));
+        if (!isAdmin && !userId.equals(wq.getStudentId())) {
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权操作他人错题");
+        }
+        return wq;
     }
 }

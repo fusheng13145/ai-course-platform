@@ -2,11 +2,14 @@ package com.aicourse.controller;
 
 import jakarta.validation.Valid;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
+import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.CourseEnrollmentService;
+import com.aicourse.service.CourseService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -26,9 +29,11 @@ import java.util.Map;
 public class CourseEnrollmentController {
 
     private final CourseEnrollmentService enrollmentService;
+    private final CourseService courseService;
 
-    public CourseEnrollmentController(CourseEnrollmentService enrollmentService) {
+    public CourseEnrollmentController(CourseEnrollmentService enrollmentService, CourseService courseService) {
         this.enrollmentService = enrollmentService;
+        this.courseService = courseService;
     }
 
     /**
@@ -87,6 +92,7 @@ public class CourseEnrollmentController {
         if (enrollment == null) {
             throw new BusinessException("选课记录不存在");
         }
+        assertEnrollmentCourseOwner(enrollment, auth);
         Long approverId = (Long) auth.getPrincipal();
         enrollment.setApprovalStatus("APPROVED");
         enrollment.setApprovedBy(approverId);
@@ -114,6 +120,7 @@ public class CourseEnrollmentController {
         if (enrollment == null) {
             throw new BusinessException("选课记录不存在");
         }
+        assertEnrollmentCourseOwner(enrollment, auth);
         Long approverId = (Long) auth.getPrincipal();
         enrollment.setApprovalStatus("REJECTED");
         enrollment.setApprovedBy(approverId);
@@ -124,5 +131,18 @@ public class CourseEnrollmentController {
         }
         enrollmentService.updateById(enrollment);
         return ApiResponse.success("已拒绝", enrollment);
+    }
+
+    /**
+     * 选课归属校验：管理员放行；教师仅能审批自己课程的选课记录
+     */
+    private void assertEnrollmentCourseOwner(CourseEnrollment enrollment, Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(g -> g.getAuthority().equals("ROLE_ADMIN"));
+        if (isAdmin) return;
+        Course course = courseService.getById(enrollment.getCourseId());
+        if (course == null) throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+        if (!userId.equals(course.getTeacherId())) throw new BusinessException(ApiCode.FORBIDDEN, "无权审批该课程的选课记录");
     }
 }

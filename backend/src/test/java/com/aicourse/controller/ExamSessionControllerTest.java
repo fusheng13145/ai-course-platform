@@ -1,6 +1,8 @@
 package com.aicourse.controller;
 import com.aicourse.controller.ExamSessionController;
+import com.aicourse.common.ApiCode;
 import com.aicourse.entity.ExamSession;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.service.ExamSessionService;
 import com.aicourse.security.ExamSessionAccessControl;
 import org.junit.jupiter.api.DisplayName;
@@ -121,6 +123,18 @@ class ExamSessionControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
         verify(examSessionService).forceSubmit(eq(1L));
+        verify(examSessionAccessControl).assertManageable(eq(1L), any());
+    }
+
+    @Test
+    @DisplayName("POST /exam-sessions/1/force-submit - 教师越权收其他教师课程的考试返回403")
+    void forceSubmit_otherTeachersCourse_forbidden_403() throws Exception {
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权管理其他教师的考试"))
+                .when(examSessionAccessControl).assertManageable(eq(1L), any());
+        mockMvc.perform(post("/exam-sessions/1/force-submit").with(withUser(2L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(examSessionService, never()).forceSubmit(anyLong());
     }
 
     @Test
@@ -165,6 +179,18 @@ class ExamSessionControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.data").exists())
                 .andExpect(jsonPath("$.data.score").value(90));
         verify(examSessionService).autoGrade(eq(1L));
+        verify(examSessionAccessControl).assertManageable(eq(1L), any());
+    }
+
+    @Test
+    @DisplayName("POST /exam-sessions/1/auto-grade - 教师越权阅其他教师课程的考试返回403")
+    void autoGrade_otherTeachersCourse_forbidden_403() throws Exception {
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权管理其他教师的考试"))
+                .when(examSessionAccessControl).assertManageable(eq(1L), any());
+        mockMvc.perform(post("/exam-sessions/1/auto-grade").with(withUser(2L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(examSessionService, never()).autoGrade(anyLong());
     }
 
     @Test
@@ -190,6 +216,20 @@ class ExamSessionControllerTest extends ControllerTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
         verify(examSessionService).manualGrade(eq(1L), eq(99L), any(), any());
+        verify(examSessionAccessControl).assertManageable(eq(1L), any());
+    }
+
+    @Test
+    @DisplayName("POST /exam-sessions/1/manual-grade - 教师越权评其他教师课程的考试返回403")
+    void manualGrade_otherTeachersCourse_forbidden_403() throws Exception {
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权管理其他教师的考试"))
+                .when(examSessionAccessControl).assertManageable(eq(1L), any());
+        mockMvc.perform(post("/exam-sessions/1/manual-grade").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"questionId\":99,\"score\":10,\"comment\":\"good\"}")
+                        .with(withUser(2L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(examSessionService, never()).manualGrade(anyLong(), any(), any(), any());
     }
 
     @Test
@@ -206,6 +246,28 @@ class ExamSessionControllerTest extends ControllerTestBase {
                         .content("{\"questionId\":99,\"score\":10,\"comment\":\"good\"}")
                         .with(withUser(1L, "STUDENT")))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("GET /exam-sessions/1/cheating-detect - 教师越权检测其他教师课程的考试返回403")
+    void detectCheating_otherTeachersCourse_forbidden_403() throws Exception {
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权管理其他教师的考试"))
+                .when(examSessionAccessControl).assertManageable(eq(1L), any());
+        mockMvc.perform(get("/exam-sessions/1/cheating-detect").with(withUser(2L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(examSessionService, never()).detectCheating(anyLong());
+    }
+
+    @Test
+    @DisplayName("POST /exam-sessions/1/check-cheating - 教师越权检测其他教师课程的考试返回403")
+    void checkCheating_otherTeachersCourse_forbidden_403() throws Exception {
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权管理其他教师的考试"))
+                .when(examSessionAccessControl).assertManageable(eq(1L), any());
+        mockMvc.perform(post("/exam-sessions/1/check-cheating").with(withUser(2L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(examSessionService, never()).checkCheating(anyLong());
     }
 
     @Test

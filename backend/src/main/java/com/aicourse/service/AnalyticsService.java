@@ -117,4 +117,19 @@ public interface AnalyticsService {
      * @return 报告数据
      */
     Map<String, Object> exportReport(Long courseId);
+
+    /**
+     * 获取课程下全体学生的学情进度列表（教师端按课程查看每个学生的学习情况）
+     * @param courseId 课程ID
+     * @return 学生学情列表：姓名、学号、学习进度、任务点完成数、作业均分、考试均分、最后活跃时间
+     */
+    List<Map<String, Object>> getStudentCourseProgressList(Long courseId);
+
+    /**
+     * 获取某学生在指定课程下的个体学情明细（任务点完成情况 + 作业成绩 + 考试成绩）
+     * @param courseId 课程ID
+     * @param studentId 学生ID
+     * @return 个体学情明细
+     */
+    Map<String, Object> getStudentCourseDetail(Long courseId, Long studentId);
 }

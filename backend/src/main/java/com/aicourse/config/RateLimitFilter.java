@@ -65,6 +65,14 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Value("${ratelimit.redis.enabled:true}")
     private boolean redisEnabled;
 
+    /**
+     * 是否信任反向代理传递的 X-Forwarded-For 头。
+     * 默认 false：限流以 TCP 对端地址（getRemoteAddr）为准，防止客户端伪造 XFF 头绕过 IP 限流；
+     * 仅在部署于受信任反向代理（nginx/网关）之后且代理已覆写该头时才可显式开启。
+     */
+    @Value("${ratelimit.trust-proxy-header:false}")
+    private boolean trustProxyHeader;
+
     @Value("${ratelimit.login.limit:10}")
     private int loginLimit;
 
@@ -186,9 +194,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private String resolveClientIp(HttpServletRequest request) {
-        String xff = request.getHeader("X-Forwarded-For");
-        if (xff != null && !xff.isBlank()) {
-            return xff.split(",")[0].trim();
+        // 安全默认：不信任客户端可伪造的 X-Forwarded-For，使用 TCP 对端地址
+        if (trustProxyHeader) {
+            String xff = request.getHeader("X-Forwarded-For");
+            if (xff != null && !xff.isBlank()) {
+                return xff.split(",")[0].trim();
+            }
         }
         return request.getRemoteAddr();
     }

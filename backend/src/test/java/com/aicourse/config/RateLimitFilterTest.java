@@ -13,12 +13,15 @@ import org.springframework.mock.web.MockHttpServletResponse;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
+import org.mockito.ArgumentCaptor;
 
 /**
  * {@link RateLimitFilter} 单元测试：覆盖 Redis 集群限流、Redis 异常降级本地限流、
@@ -155,5 +158,40 @@ class RateLimitFilterTest {
             filter.doFilterInternal(request, r, chain);
             assertEquals(200, r.getStatus());
         }
+    }
+
+    @Test
+    void forgedXffHeader_notTrustedByDefault_keyUsesRemoteAddr() throws Exception {
+        request.setRequestURI("/api/auth/login");
+        request.setRemoteAddr("192.168.1.9");
+        request.addHeader("X-Forwarded-For", "1.2.3.4");
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), any()))
+                .thenReturn(1L);
+
+        filter.doFilterInternal(request, response, chain);
+
+        // 限流 key 必须以 TCP 对端地址计算，伪造 XFF 不应影响计数
+        ArgumentCaptor<List<String>> keysCaptor = ArgumentCaptor.forClass(List.class);
+        verify(redisTemplate).execute(any(RedisScript.class), keysCaptor.capture(), any());
+        String key = keysCaptor.getValue().get(0);
+        assertTrue(key.startsWith("ratelimit:login:192.168.1.9:"));
+        assertFalse(key.contains("1.2.3.4"));
+    }
+
+    @Test
+    void trustProxyHeader_enabled_keyUsesXffFirstSegment() throws Exception {
+        ReflectionTestUtils.setField(filter, "trustProxyHeader", true);
+        request.setRequestURI("/api/auth/login");
+        request.setRemoteAddr("192.168.1.9");
+        request.addHeader("X-Forwarded-For", "1.2.3.4, 10.0.0.1");
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), any()))
+                .thenReturn(1L);
+
+        filter.doFilterInternal(request, response, chain);
+
+        ArgumentCaptor<List<String>> keysCaptor = ArgumentCaptor.forClass(List.class);
+        verify(redisTemplate).execute(any(RedisScript.class), keysCaptor.capture(), any());
+        String key = keysCaptor.getValue().get(0);
+        assertTrue(key.startsWith("ratelimit:login:1.2.3.4:"));
     }
 }

@@ -47,6 +47,7 @@ DROP TABLE IF EXISTS notifications;
 DROP TABLE IF EXISTS video_watch_sessions;
 DROP TABLE IF EXISTS video_learning_records;
 DROP TABLE IF EXISTS learning_records;
+DROP TABLE IF EXISTS notes;
 DROP TABLE IF EXISTS learning_path_nodes;
 DROP TABLE IF EXISTS learning_paths;
 DROP TABLE IF EXISTS wrong_questions;
@@ -701,6 +702,23 @@ CREATE TABLE learning_records (
   KEY idx_learning_records_course_id (course_id) COMMENT '课程ID索引，用于查询课程学习记录',
   CONSTRAINT fk_learning_records_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='学习记录表';;
+
+-- notes（笔记与收藏）
+CREATE TABLE notes (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '笔记ID，主键自增',
+  user_id BIGINT NOT NULL COMMENT '用户ID，关联users表',
+  course_id BIGINT NULL COMMENT '课程ID，关联courses表',
+  chapter_id BIGINT NULL COMMENT '章节ID，关联course_chapters表',
+  knowledge_point_id BIGINT NULL COMMENT '知识点ID，关联knowledge_points表',
+  title VARCHAR(255) NULL COMMENT '笔记标题',
+  content TEXT NOT NULL COMMENT '笔记正文（Markdown 文本）',
+  is_favorite TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否收藏：0-否，1-是',
+  created_at DATETIME NULL COMMENT '创建时间',
+  updated_at DATETIME NULL COMMENT '更新时间',
+  PRIMARY KEY (id),
+  KEY idx_notes_user_id (user_id) COMMENT '用户ID索引，用于查询用户所有笔记',
+  KEY idx_notes_knowledge_point_id (knowledge_point_id) COMMENT '知识点ID索引，用于查询知识点相关笔记'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户笔记与收藏表';
 
 -- video_learning_records
 CREATE TABLE video_learning_records (

@@ -76,11 +76,20 @@ java -jar target/ai-course-platform-backend-*.jar --spring.profiles.active=local
 服务启动后访问 `http://localhost:8080/api/actuator/health` 确认运行状态。
 
 ### 5. 演示账号
-| 角色 | 用户名 | 密码 |
-|------|--------|------|
-| 管理员 | admin | 123456 |
-| 教师 | teacher | 123456 |
-| 学生 | student1 | 123456 |
+
+> 以下账号由 `backend/src/main/resources/index.sql` 初始化，密码统一为 `123456`（BCrypt 加密）。
+> 与项目根目录 `README.md` 的「演示账号」章节保持一致；生产环境必须更换。
+
+| 角色 | 用户名 | 密码 | 说明 |
+|------|--------|------|------|
+| 管理员 | admin | 123456 | 系统管理员，拥有全部权限 |
+| 教师 | teacher | 123456 | 张教授，可管理课程、作业、考试 |
+| 教师 | teacher2 | 123456 | 李副教授，数学学院教师 |
+| 学生 | student | 123456 | 王同学，已选3门课 |
+| 学生 | student2 | 123456 | 赵同学 |
+| 学生 | student3 | 123456 | 刘同学 |
+| 学生 | student4 | 123456 | 陈同学 |
+| 学生 | student5 | 123456 | 杨同学 |
 
 > ⚠️ 演示密码仅限本地开发，**生产环境必须更换**。
 

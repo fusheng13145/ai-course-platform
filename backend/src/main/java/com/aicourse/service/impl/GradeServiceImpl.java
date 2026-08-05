@@ -63,6 +63,11 @@ public class GradeServiceImpl extends ServiceImpl<GradePolicyMapper, GradePolicy
     }
 
     @Override
+    public GradePolicy getPolicyById(Long policyId) {
+        return policyMapper.selectById(policyId);
+    }
+
+    @Override
     @Transactional(rollbackFor = Exception.class)
     public GradeItem upsertItem(Long policyId, Long studentId, String componentKey,
                                BigDecimal score, BigDecimal rawScore, Long sourceId,

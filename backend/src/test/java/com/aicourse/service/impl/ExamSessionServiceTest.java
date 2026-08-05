@@ -8,11 +8,13 @@ import com.aicourse.entity.ExamPaper;
 import com.aicourse.entity.ExamQuestion;
 import com.aicourse.entity.ExamSession;
 import com.aicourse.entity.Question;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ExamSessionMapper;
 import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.QuestionService;
 import com.aicourse.service.WrongQuestionService;
+import com.aicourse.service.impl.exam.ExamSessionGradingService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -38,8 +40,8 @@ import static org.mockito.Mockito.*;
 /**
  * 考试会话服务单元测试
  * 测试 ExamSessionServiceImpl 的考试开始、答案提交和自动评分核心流程。
- * <p>实现为直算模式：直接使用 ExamSessionMapper（baseMapper）与 ExamPaperService /
- * ExamQuestionService / QuestionService / WrongQuestionService，不依赖门面协作者。</p>
+ * <p>阅卷逻辑（autoGrade 等）已统一收口到 {@link ExamSessionGradingService}，
+ * 逻辑细节由 ExamSessionGradingServiceTest 覆盖，本类验证门面委托行为与异常传播。</p>
  */
 @ExtendWith(MockitoExtension.class)
 class ExamSessionServiceTest {
@@ -48,6 +50,7 @@ class ExamSessionServiceTest {
     @Mock private ExamQuestionService examQuestionService;
     @Mock private QuestionService questionService;
     @Mock private WrongQuestionService wrongQuestionService;
+    @Mock private ExamSessionGradingService gradingService;
     @Mock private ExamSessionMapper examSessionMapper;
 
     @InjectMocks private ExamSessionServiceImpl examSessionService;
@@ -194,162 +197,38 @@ class ExamSessionServiceTest {
         verify(examSessionMapper).update(isNull(), any());
     }
 
-    // ===================== 自动评分测试 =====================
-
-    private ExamQuestion examQuestion(Long questionId, int order) {
-        ExamQuestion eq = new ExamQuestion();
-        eq.setQuestionId(questionId);
-        eq.setExamPaperId(examPaperId);
-        eq.setOrderIndex(order);
-        eq.setPoints(new BigDecimal("10"));
-        return eq;
-    }
-
-    private Question singleChoice(Long id, String correct) {
-        Question q = new Question();
-        q.setId(id);
-        q.setType("SINGLE_CHOICE");
-        q.setCorrectAnswers(correct);
-        return q;
-    }
-
-    /**
-     * 构建 10 道题：6 道单选全对 + 1 道多选超选（部分分 5 分）+ 3 道单选全错
-     * -> totalScore 65, fullScore 100, percentage 65.00, correct 6, wrong 4
-     */
-    private void stubGrading(List<ExamQuestion> eqs, List<Question> qs) {
-        startedSubmittedSession();
-        when(examSessionMapper.selectById(sessionId)).thenReturn(sampleSession);
-        when(examQuestionService.list(any(LambdaQueryWrapper.class))).thenReturn(eqs);
-        for (int i = 0; i < qs.size(); i++) {
-            when(questionService.getById(qs.get(i).getId())).thenReturn(qs.get(i));
-        }
-        // 全对场景不会触达错题记录，故使用 lenient 避免严格桩校验报错
-        lenient().when(wrongQuestionService.count(any())).thenReturn(0L);
-        lenient().when(wrongQuestionService.save(any())).thenReturn(true);
-    }
-
-    private void startedSubmittedSession() {
-        sampleSession.setStatus("SUBMITTED");
-    }
+    // ===================== autoGrade（委托 GradingService） =====================
 
     @Test
-    @DisplayName("自动评分-客观题完全正确得满分")
-    void testAutoGrade_AllCorrect() {
-        List<ExamQuestion> eqs = new ArrayList<>();
-        List<Question> qs = new ArrayList<>();
-        StringBuilder answersJson = new StringBuilder("{");
-        String[] corrects = {"A", "B", "C", "D", "E", "F"};
-        for (int i = 0; i < 6; i++) {
-            long qid = 101L + i;
-            eqs.add(examQuestion(qid, i + 1));
-            qs.add(singleChoice(qid, corrects[i]));
-            if (i > 0) answersJson.append(",");
-            answersJson.append("\"").append(qid).append("\":\"").append(corrects[i]).append("\"");
-        }
-        answersJson.append("}");
-        sampleSession.setAnswers(answersJson.toString());
-        stubGrading(eqs, qs);
+    @DisplayName("自动评分-委托 GradingService 并原样返回结果")
+    void testAutoGrade_Delegates() {
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("sessionId", sessionId);
+        expected.put("totalScore", new BigDecimal("65.00"));
+        expected.put("fullScore", new BigDecimal("100"));
+        expected.put("percentage", new BigDecimal("65.00"));
+        expected.put("correctCount", 6);
+        expected.put("wrongCount", 4);
+        expected.put("pendingReviewCount", 0);
+        expected.put("status", "GRADED");
+        when(gradingService.autoGrade(sessionId)).thenReturn(expected);
 
         Map<String, Object> result = examSessionService.autoGrade(sessionId);
 
-        assertNotNull(result);
-        assertEquals(sessionId, result.get("sessionId"));
-        assertEquals(new BigDecimal("60"), result.get("totalScore"));
-        assertEquals(new BigDecimal("60"), result.get("fullScore"));
-        assertEquals(new BigDecimal("100.00"), result.get("percentage"));
-        assertEquals(6, result.get("correctCount"));
-        assertEquals(0, result.get("wrongCount"));
-        assertEquals(0, result.get("pendingReviewCount"));
-        assertEquals("GRADED", result.get("status"));
+        assertSame(expected, result);
+        verify(gradingService).autoGrade(sessionId);
     }
 
     @Test
-    @DisplayName("自动评分-部分正确返回混合结果")
-    void testAutoGrade_PartialCorrect() {
-        List<ExamQuestion> eqs = new ArrayList<>();
-        List<Question> qs = new ArrayList<>();
-        String[] corrects = {"A", "B", "C", "D", "E", "F"};
-        StringBuilder answersJson = new StringBuilder("{");
-        for (int i = 0; i < 6; i++) {
-            long qid = 101L + i;
-            eqs.add(examQuestion(qid, i + 1));
-            qs.add(singleChoice(qid, corrects[i]));
-            if (i > 0) answersJson.append(",");
-            answersJson.append("\"").append(qid).append("\":\"").append(corrects[i]).append("\"");
-        }
-        // 第 7 题：多选超选（答 [A,B,C,D]，正确答案 [A,B,C]）-> 部分分 10 * 1.0 * 0.5 = 5
-        long partialQid = 107L;
-        eqs.add(examQuestion(partialQid, 7));
-        Question multi = new Question();
-        multi.setId(partialQid);
-        multi.setType("MULTIPLE_CHOICE");
-        multi.setCorrectAnswers("[\"A\",\"B\",\"C\"]");
-        qs.add(multi);
-        answersJson.append(",\"").append(partialQid).append("\":\"[A, B, C, D]\"");
-        // 第 8-10 题：全错
-        for (int i = 0; i < 3; i++) {
-            long qid = 108L + i;
-            eqs.add(examQuestion(qid, 8 + i));
-            qs.add(singleChoice(qid, "Z"));
-            answersJson.append(",\"").append(qid).append("\":\"X\"");
-        }
-        answersJson.append("}");
-        sampleSession.setAnswers(answersJson.toString());
-        stubGrading(eqs, qs);
+    @DisplayName("自动评分-GradingService 校验失败异常原样传播")
+    void testAutoGrade_PropagatesBusinessException() {
+        when(gradingService.autoGrade(sessionId))
+                .thenThrow(new BusinessException("试卷尚未提交，无法进行自动阅卷"));
 
-        Map<String, Object> result = examSessionService.autoGrade(sessionId);
-
-        assertNotNull(result);
-        assertEquals(new BigDecimal("65.00"), result.get("totalScore"));
-        assertEquals(new BigDecimal("100"), result.get("fullScore"));
-        assertEquals(new BigDecimal("65.00"), result.get("percentage"));
-        assertEquals(6, result.get("correctCount"));
-        assertEquals(4, result.get("wrongCount"));
-        assertEquals(0, result.get("pendingReviewCount"));
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> examSessionService.autoGrade(sessionId));
+        assertEquals("试卷尚未提交，无法进行自动阅卷", ex.getMessage());
+        verify(gradingService).autoGrade(sessionId);
     }
 
-    @Test
-    @DisplayName("自动评分-含主观题标记待人工评分")
-    void testAutoGrade_WithPendingReview() {
-        List<ExamQuestion> eqs = new ArrayList<>();
-        List<Question> qs = new ArrayList<>();
-        String[] corrects = {"A", "B", "C", "D", "E", "F", "G"};
-        StringBuilder answersJson = new StringBuilder("{");
-        for (int i = 0; i < 7; i++) {
-            long qid = 101L + i;
-            eqs.add(examQuestion(qid, i + 1));
-            qs.add(singleChoice(qid, corrects[i]));
-            if (i > 0) answersJson.append(",");
-            answersJson.append("\"").append(qid).append("\":\"").append(corrects[i]).append("\"");
-        }
-        // 第 8 题：单选答错
-        eqs.add(examQuestion(108L, 8));
-        qs.add(singleChoice(108L, "Z"));
-        answersJson.append(",\"108\":\"X\"");
-        // 第 9-10 题：主观题，待人工评分
-        for (int i = 0; i < 2; i++) {
-            long qid = 109L + i;
-            eqs.add(examQuestion(qid, 9 + i));
-            Question essay = new Question();
-            essay.setId(qid);
-            essay.setType("SHORT_ANSWER");
-            essay.setCorrectAnswers(null);
-            qs.add(essay);
-            answersJson.append(",\"").append(qid).append("\":\"essay\"");
-        }
-        answersJson.append("}");
-        sampleSession.setAnswers(answersJson.toString());
-        stubGrading(eqs, qs);
-
-        Map<String, Object> result = examSessionService.autoGrade(sessionId);
-
-        assertNotNull(result);
-        assertEquals(new BigDecimal("70"), result.get("totalScore"));
-        assertEquals(new BigDecimal("100"), result.get("fullScore"));
-        assertEquals(new BigDecimal("70.00"), result.get("percentage"));
-        assertEquals(7, result.get("correctCount"));
-        assertEquals(1, result.get("wrongCount"));
-        assertEquals(2, result.get("pendingReviewCount"));
-    }
 }

@@ -428,6 +428,7 @@ public class StudentLearningServiceImpl implements StudentLearningService {
     }
 
     @Override
+    @Transactional
     public Map<String, Object> reportVideoHeartbeat(Long userId, Long courseId, Long taskId, Long resourceId,
                                                     Integer position, Integer watchedDuration,
                                                     Integer totalDuration, Double playbackSpeed) {
@@ -495,6 +496,7 @@ public class StudentLearningServiceImpl implements StudentLearningService {
     }
 
     @Override
+    @Transactional
     public Map<String, Object> submitQuiz(Long userId, Long courseId, Long taskId, Map<String, String> rawAnswers) {
         assertEnrolled(userId, courseId);
         Task task = taskService.getById(taskId);

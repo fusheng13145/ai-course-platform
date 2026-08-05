@@ -1,6 +1,8 @@
 package com.aicourse.controller;
 import com.aicourse.controller.CourseEnrollmentController;
+import com.aicourse.entity.Course;
 import com.aicourse.service.CourseEnrollmentService;
+import com.aicourse.service.CourseService;
 import com.aicourse.entity.CourseEnrollment;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.DisplayName;
@@ -26,6 +28,16 @@ class CourseEnrollmentControllerTest extends ControllerTestBase {
 
     @MockitoBean
     private com.aicourse.service.CourseEnrollmentService enrollmentService;
+
+    @MockitoBean
+    private CourseService courseService;
+
+    private Course course(Long id, Long teacherId) {
+        Course c = new Course();
+        c.setId(id);
+        c.setTeacherId(teacherId);
+        return c;
+    }
 
     private CourseEnrollment sampleEnrollment(Long id, Long studentId, Long courseId) {
         CourseEnrollment e = new CourseEnrollment();
@@ -126,6 +138,17 @@ class CourseEnrollmentControllerTest extends ControllerTestBase {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    @DisplayName("POST /enrollments/1/approve - 教师审批其他教师课程的选课返回403")
+    void approve_otherTeachersCourse_forbidden_403() throws Exception {
+        when(enrollmentService.getById(1L)).thenReturn(sampleEnrollment(1L, 1L, 1L));
+        when(courseService.getById(1L)).thenReturn(course(1L, 20L));
+        mockMvc.perform(post("/enrollments/1/approve").with(withUser(21L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(enrollmentService, never()).updateById(any());
+    }
+
 
     @Test
     @DisplayName("POST /enrollments/1/approve - 未认证返回401")
@@ -157,6 +180,18 @@ class CourseEnrollmentControllerTest extends ControllerTestBase {
     void reject_student_forbidden_403() throws Exception {
         mockMvc.perform(post("/enrollments/1/reject").contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"x\"}").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("POST /enrollments/1/reject - 教师驳回其他教师课程的选课返回403")
+    void reject_otherTeachersCourse_forbidden_403() throws Exception {
+        when(enrollmentService.getById(1L)).thenReturn(sampleEnrollment(1L, 1L, 1L));
+        when(courseService.getById(1L)).thenReturn(course(1L, 20L));
+        mockMvc.perform(post("/enrollments/1/reject").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"reason\":\"x\"}").with(withUser(21L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(enrollmentService, never()).updateById(any());
     }
 
 

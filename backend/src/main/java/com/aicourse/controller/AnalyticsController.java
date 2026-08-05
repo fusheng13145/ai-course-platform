@@ -140,6 +140,31 @@ public class AnalyticsController {
     }
 
     /**
+     * 课程学生学情进度列表（教师端：按课程查看每个学生的学习情况）
+     */
+    @GetMapping("/courses/{courseId}/student-progress")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "课程学生学情进度列表", description = "返回该课程全部选课学生的姓名、学号、学习进度、任务点完成数、作业均分、考试均分、最后活跃时间")
+    public ApiResponse<List<Map<String, Object>>> studentCourseProgressList(
+            @Parameter(description = "课程ID") @PathVariable Long courseId) {
+        List<Map<String, Object>> data = analyticsService.getStudentCourseProgressList(courseId);
+        return ApiResponse.success(data);
+    }
+
+    /**
+     * 学生在指定课程的个体学情明细（任务点完成情况 + 作业成绩 + 考试成绩）
+     */
+    @GetMapping("/courses/{courseId}/students/{studentId}")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "学生在课程的个体学情明细", description = "返回某学生在指定课程下的章节任务点完成明细、作业成绩列表与考试成绩列表")
+    public ApiResponse<Map<String, Object>> studentCourseDetail(
+            @Parameter(description = "课程ID") @PathVariable Long courseId,
+            @Parameter(description = "学生ID") @PathVariable Long studentId) {
+        Map<String, Object> data = analyticsService.getStudentCourseDetail(courseId, studentId);
+        return ApiResponse.success(data);
+    }
+
+    /**
      * 热门课程排行
      */
     @GetMapping("/courses/ranking")

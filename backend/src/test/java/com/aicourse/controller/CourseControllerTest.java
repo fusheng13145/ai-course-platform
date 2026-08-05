@@ -170,6 +170,19 @@ class CourseControllerTest extends ControllerTestBase {
     }
 
     @Test
+    @DisplayName("DELETE /courses/1 - 教师删除其他教师课程返回403")
+    void delete_otherTeachersCourse_forbidden_403() throws Exception {
+        Course course = new Course();
+        course.setId(1L);
+        course.setTeacherId(20L);
+        when(courseService.getById(eq(1L))).thenReturn(course);
+        mockMvc.perform(delete("/courses/1").with(withUser(21L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(courseService, never()).deleteCourseById(anyLong());
+    }
+
+    @Test
     @DisplayName("POST /courses/1/approve - 管理员审批返回200，ID透传")
     void approve_authorized_passes_security() throws Exception {
         Course course = new Course();
@@ -221,6 +234,19 @@ class CourseControllerTest extends ControllerTestBase {
     void toggle_student_forbidden_403() throws Exception {
         mockMvc.perform(patch("/courses/1/toggle").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("PATCH /courses/1/toggle - 教师切换其他教师课程状态返回403")
+    void toggle_otherTeachersCourse_forbidden_403() throws Exception {
+        Course course = new Course();
+        course.setId(1L);
+        course.setTeacherId(20L);
+        when(courseService.getById(eq(1L))).thenReturn(course);
+        mockMvc.perform(patch("/courses/1/toggle").with(withUser(21L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(courseService, never()).toggleCourseStatus(anyLong());
     }
 
     @Test
@@ -316,6 +342,19 @@ class CourseControllerTest extends ControllerTestBase {
     }
 
     @Test
+    @DisplayName("GET /courses/1/students - 教师查看其他教师课程学生列表返回403")
+    void students_otherTeachersCourse_forbidden_403() throws Exception {
+        Course course = new Course();
+        course.setId(1L);
+        course.setTeacherId(20L);
+        when(courseService.getById(eq(1L))).thenReturn(course);
+        mockMvc.perform(get("/courses/1/students?page=1&size=1").with(withUser(21L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(enrollmentService, never()).page(any(), any());
+    }
+
+    @Test
     @DisplayName("GET /courses/1/stats - 查询课程统计返回200，字段透传")
     void getStats_authorized_passes_security() throws Exception {
         Course course = new Course();
@@ -338,5 +377,17 @@ class CourseControllerTest extends ControllerTestBase {
     void getStats_unauthorized_returns_401() throws Exception {
         mockMvc.perform(get("/courses/1/stats"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("GET /courses/1/stats - 教师查看其他教师课程统计返回403")
+    void getStats_otherTeachersCourse_forbidden_403() throws Exception {
+        Course course = new Course();
+        course.setId(1L);
+        course.setTeacherId(20L);
+        when(courseService.getById(eq(1L))).thenReturn(course);
+        mockMvc.perform(get("/courses/1/stats").with(withUser(21L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
     }
 }

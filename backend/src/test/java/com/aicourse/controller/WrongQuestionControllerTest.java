@@ -31,6 +31,7 @@ class WrongQuestionControllerTest extends ControllerTestBase {
     private WrongQuestion sampleWq() {
         WrongQuestion wq = new WrongQuestion();
         wq.setId(1L);
+        wq.setStudentId(1L);
         return wq;
     }
 
@@ -80,11 +81,22 @@ class WrongQuestionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("PATCH /wrong-questions/1/mastered - 返回200且正确委托markMastered")
     void markMastered_authorized_returns_success() throws Exception {
+        when(wrongQuestionService.getById(eq(1L))).thenReturn(sampleWq());
         doNothing().when(wrongQuestionService).markMastered(any());
         mockMvc.perform(patch("/wrong-questions/1/mastered").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
         verify(wrongQuestionService).markMastered(eq(1L));
+    }
+
+    @Test
+    @DisplayName("PATCH /wrong-questions/1/mastered - 学生标记他人错题返回403")
+    void markMastered_othersWrongQuestion_forbidden_403() throws Exception {
+        when(wrongQuestionService.getById(eq(1L))).thenReturn(sampleWq());
+        mockMvc.perform(patch("/wrong-questions/1/mastered").with(withUser(2L, "STUDENT")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(wrongQuestionService, never()).markMastered(anyLong());
     }
 
     @Test
@@ -97,11 +109,22 @@ class WrongQuestionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("PATCH /wrong-questions/1/unmaster - 返回200且正确委托unmarkMastered")
     void unmarkMastered_authorized_returns_success() throws Exception {
+        when(wrongQuestionService.getById(eq(1L))).thenReturn(sampleWq());
         doNothing().when(wrongQuestionService).unmarkMastered(any());
         mockMvc.perform(patch("/wrong-questions/1/unmaster").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
         verify(wrongQuestionService).unmarkMastered(eq(1L));
+    }
+
+    @Test
+    @DisplayName("PATCH /wrong-questions/1/unmaster - 学生操作他人错题返回403")
+    void unmarkMastered_othersWrongQuestion_forbidden_403() throws Exception {
+        when(wrongQuestionService.getById(eq(1L))).thenReturn(sampleWq());
+        mockMvc.perform(patch("/wrong-questions/1/unmaster").with(withUser(2L, "STUDENT")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(wrongQuestionService, never()).unmarkMastered(anyLong());
     }
 
     @Test
@@ -206,13 +229,24 @@ class WrongQuestionControllerTest extends ControllerTestBase {
     @DisplayName("PUT /wrong-questions/1 - STUDENT角色返回200且data透传更新错题")
     void update_authorized_returns_success() throws Exception {
         when(wrongQuestionService.updateById(any())).thenReturn(true);
-        when(wrongQuestionService.getById(any())).thenReturn(sampleWq());
+        when(wrongQuestionService.getById(eq(1L))).thenReturn(sampleWq());
         mockMvc.perform(put("/wrong-questions/1").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(1L, "STUDENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
         verify(wrongQuestionService).updateById(any(WrongQuestion.class));
-        verify(wrongQuestionService).getById(eq(1L));
+        verify(wrongQuestionService, times(2)).getById(eq(1L));
+    }
+
+    @Test
+    @DisplayName("PUT /wrong-questions/1 - 学生修改他人错题返回403")
+    void update_othersWrongQuestion_forbidden_403() throws Exception {
+        when(wrongQuestionService.getById(eq(1L))).thenReturn(sampleWq());
+        mockMvc.perform(put("/wrong-questions/1").contentType(MediaType.APPLICATION_JSON).content("{}")
+                        .with(withUser(2L, "STUDENT")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(wrongQuestionService, never()).updateById(any());
     }
 
     @Test
@@ -232,11 +266,22 @@ class WrongQuestionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("DELETE /wrong-questions/1 - STUDENT角色返回200且正确委托removeById")
     void delete_authorized_returns_success() throws Exception {
+        when(wrongQuestionService.getById(eq(1L))).thenReturn(sampleWq());
         when(wrongQuestionService.removeById(any(Long.class))).thenReturn(true);
         mockMvc.perform(delete("/wrong-questions/1").with(withUser(1L, "STUDENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
         verify(wrongQuestionService).removeById(eq(1L));
+    }
+
+    @Test
+    @DisplayName("DELETE /wrong-questions/1 - 学生删除他人错题返回403")
+    void delete_othersWrongQuestion_forbidden_403() throws Exception {
+        when(wrongQuestionService.getById(eq(1L))).thenReturn(sampleWq());
+        mockMvc.perform(delete("/wrong-questions/1").with(withUser(2L, "STUDENT")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(wrongQuestionService, never()).removeById(anyLong());
     }
 
     @Test

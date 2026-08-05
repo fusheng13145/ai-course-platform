@@ -8,12 +8,18 @@ import com.aicourse.entity.Course;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.*;
+import com.aicourse.util.ExcelUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
+import java.io.IOException;
 import java.util.*;
 import java.util.concurrent.Callable;
 import java.util.stream.Collectors;
@@ -153,6 +159,7 @@ public class SystemAdminController {
     /**
      * 批量导入用户
      */
+    @Operation(summary = "批量导入用户", description = "JSON 批量导入（兼容保留）；Excel(.xlsx) 批量导入请使用 /admin/users/import-excel")
     @PostMapping("/admin/users/import")
     public ApiResponse<Map<String, Object>> importUsers(@Valid @RequestBody List<User> users) {
         int successCount = 0;
@@ -161,6 +168,42 @@ public class SystemAdminController {
             try {
                 user.setPassword(passwordEncoder.encode(user.getPassword()));
                 user.setIsActive(true);
+                userService.save(user);
+                successCount++;
+            } catch (Exception e) {
+                failCount++;
+            }
+        }
+        return ApiResponse.success("导入完成",
+                Map.of("successCount", successCount, "failCount", failCount, "total", users.size()));
+    }
+
+    /**
+     * Excel 批量导入用户
+     */
+    @Operation(summary = "Excel 批量导入用户",
+            description = "上传 .xlsx 文件批量导入用户（表头：用户名/姓名/邮箱/角色/初始密码/手机号/学号/专业/年级/院系，初始密码缺省为 123456）")
+    @PostMapping(value = "/admin/users/import-excel", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    public ApiResponse<Map<String, Object>> importUsersExcel(
+            @RequestParam("file") MultipartFile file) throws IOException {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException("请选择要上传的 Excel 文件");
+        }
+        if (!ExcelUtil.isExcelFile(file.getOriginalFilename())) {
+            throw new BusinessException("仅支持 .xlsx 格式的 Excel 文件");
+        }
+        List<User> users = ExcelUtil.readUsers(file);
+        if (users.isEmpty()) {
+            throw new BusinessException("文件中没有可导入的用户数据");
+        }
+        int successCount = 0;
+        int failCount = 0;
+        for (User user : users) {
+            try {
+                user.setId(null);
+                user.setPassword(passwordEncoder.encode(user.getPassword()));
+                user.setIsActive(true);
+                user.setIsVerified(false);
                 userService.save(user);
                 successCount++;
             } catch (Exception e) {
@@ -290,8 +333,17 @@ public class SystemAdminController {
     /**
      * 导出数据报表
      */
+    @Operation(summary = "导出数据报表", description = "导出平台综合数据报表为 Excel(.xlsx) 文件（多 Sheet：平台概览/AI使用统计/课程统计/用户统计等）")
     @GetMapping("/admin/statistics/export")
-    public ApiResponse<Map<String, Object>> exportStatisticsReport() {
+    public void exportStatisticsReport(HttpServletResponse response) throws IOException {
+        ExcelUtil.setDownloadHeaders(response, "平台数据报表.xlsx");
+        ExcelUtil.writeReport(response.getOutputStream(), buildStatisticsReport());
+    }
+
+    /**
+     * 构建平台综合数据报表（供导出与接口复用）。
+     */
+    private Map<String, Object> buildStatisticsReport() {
         Map<String, Object> report = new HashMap<>();
 
         // 获取平台仪表盘数据
@@ -333,7 +385,7 @@ public class SystemAdminController {
         report.put("reportType", "comprehensive");
         report.put("status", "completed");
 
-        return ApiResponse.success("报表导出成功", report);
+        return report;
     }
 
     // ==================== 数据备份 ====================

@@ -3,13 +3,17 @@ package com.aicourse.service.impl;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.aicourse.entity.Course;
+import com.aicourse.entity.CourseChapter;
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.ExamPaper;
 import com.aicourse.entity.ExamSession;
 import com.aicourse.entity.LearningRecord;
 import com.aicourse.entity.Submission;
 import com.aicourse.entity.Task;
+import com.aicourse.entity.TaskCompletion;
 import com.aicourse.entity.User;
+import com.aicourse.mapper.TaskCompletionMapper;
+import com.aicourse.service.CourseChapterService;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.ExamPaperService;
@@ -56,6 +60,8 @@ class AnalyticsServiceImplTest {
     @Mock private LearningRecordService learningRecordService;
     @Mock private ExamSessionService examSessionService;
     @Mock private ExamPaperService examPaperService;
+    @Mock private TaskCompletionMapper taskCompletionMapper;
+    @Mock private CourseChapterService courseChapterService;
 
     private AnalyticsServiceImpl analyticsService;
 
@@ -67,7 +73,8 @@ class AnalyticsServiceImplTest {
                 courseService, enrollmentService, taskService, submissionService, userService, null);
         analyticsService = new AnalyticsServiceImpl(
                 userService, courseService, enrollmentService, taskService,
-                submissionService, learningRecordService, examSessionService, examPaperService, component);
+                submissionService, learningRecordService, examSessionService, examPaperService,
+                component, taskCompletionMapper, courseChapterService);
     }
 
     private Course course(Long id, String name, String code, String category, String difficulty,
@@ -677,14 +684,218 @@ class AnalyticsServiceImplTest {
     }
 
     @Test
-    @DisplayName("exportReport - 返回课程报名人数与生成时间")
+    @DisplayName("exportReport - 返回课程概览、选课人数、作业数与生成时间")
     void testExportReport_ContainsCourseStats() {
+        Course course = new Course();
+        course.setId(3L);
+        course.setName("测试课程");
+        when(courseService.getById(3L)).thenReturn(course);
         when(enrollmentService.count(any())).thenReturn(5L);
+        when(taskService.count(any())).thenReturn(7L);
+        when(enrollmentService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
+                .thenReturn(List.of());
 
         Map<String, Object> report = analyticsService.exportReport(3L);
 
         assertEquals(3L, report.get("courseId"));
-        assertEquals(5L, report.get("totalStudents"));
+        assertEquals(5L, report.get("enrollmentCount"));
+        assertEquals(7L, report.get("taskCount"));
         assertNotNull(report.get("generatedAt"));
+        assertNull(report.get("error"));
+        assertNotNull(report.get("gradeHistogram"));
+
+        // 课程不存在时返回错误标记
+        when(courseService.getById(99L)).thenReturn(null);
+        assertEquals("课程不存在", analyticsService.exportReport(99L).get("error"));
+    }
+
+    @Test
+    @DisplayName("getStudentCourseProgressList - 按课程聚合每位学生学习进度与成绩")
+    void testGetStudentCourseProgressList_AggregatesPerStudent() {
+        when(enrollmentService.list(any(LambdaQueryWrapper.class))).thenReturn(Arrays.asList(
+                enrollment(1L, 101L, new BigDecimal("100"), null),
+                enrollment(1L, 102L, new BigDecimal("50"), null)
+        ));
+        User u1 = new User();
+        u1.setId(101L);
+        u1.setFullName("张三");
+        u1.setStudentId("20260001");
+        User u2 = new User();
+        u2.setId(102L);
+        u2.setFullName("李四");
+        u2.setStudentId("20260002");
+        when(userService.listByIds(any())).thenReturn(Arrays.asList(u1, u2));
+
+        Task t1 = new Task();
+        t1.setId(11L);
+        t1.setCourseId(1L);
+        t1.setTaskType("VIDEO");
+        Task t2 = new Task();
+        t2.setId(12L);
+        t2.setCourseId(1L);
+        t2.setTaskType("DOC");
+        Task t3 = new Task();
+        t3.setId(13L);
+        t3.setCourseId(1L);
+        t3.setTaskType("ASSIGNMENT");
+        when(taskService.list(any(LambdaQueryWrapper.class))).thenReturn(Arrays.asList(t1, t2, t3));
+
+        TaskCompletion c1 = new TaskCompletion();
+        c1.setStudentId(101L);
+        c1.setTaskId(11L);
+        c1.setCompleted(true);
+        when(taskCompletionMapper.selectList(any())).thenReturn(Collections.singletonList(c1));
+
+        Submission s1 = new Submission(); // 张三 作业已提交有分 → 计入完成与均分
+        s1.setTaskId(13L);
+        s1.setStudentId(101L);
+        s1.setStatus("SUBMITTED");
+        s1.setScore(new BigDecimal("80"));
+        Submission s2 = new Submission(); // 李四 作业已批改 → 计入完成与均分
+        s2.setTaskId(13L);
+        s2.setStudentId(102L);
+        s2.setStatus("GRADED");
+        s2.setScore(new BigDecimal("90"));
+        Submission s3 = new Submission(); // 张三 草稿不计入完成/均分
+        s3.setTaskId(12L);
+        s3.setStudentId(101L);
+        s3.setStatus("DRAFT");
+        s3.setScore(new BigDecimal("10"));
+        when(submissionService.list(any(LambdaQueryWrapper.class))).thenReturn(Arrays.asList(s1, s2, s3));
+
+        ExamSession es1 = new ExamSession();
+        es1.setStudentId(101L);
+        es1.setPercentage(new BigDecimal("85"));
+        es1.setCreatedAt(LocalDateTime.of(2026, 7, 30, 9, 30));
+        when(examSessionService.list(any(LambdaQueryWrapper.class))).thenReturn(Collections.singletonList(es1));
+
+        List<Map<String, Object>> list = analyticsService.getStudentCourseProgressList(1L);
+
+        assertEquals(2, list.size());
+        // 进度 100 的张三排第一
+        assertEquals(101L, list.get(0).get("studentId"));
+        assertEquals("张三", list.get(0).get("studentName"));
+        assertEquals("20260001", list.get(0).get("studentNo"));
+        assertEquals(3L, list.get(0).get("totalTasks"));
+        // 完成 = 视频完成 + 作业提交 = 2（草稿不计）
+        assertEquals(2, list.get(0).get("completedTasks"));
+        assertEquals(80.0, (Double) list.get(0).get("avgAssignmentScore"), 0.001);
+        assertEquals(85.0, (Double) list.get(0).get("avgExamScore"), 0.001);
+        // 李四：仅作业完成
+        assertEquals(102L, list.get(1).get("studentId"));
+        assertEquals(1, list.get(1).get("completedTasks"));
+        assertEquals(90.0, (Double) list.get(1).get("avgAssignmentScore"), 0.001);
+        assertNull(list.get(1).get("avgExamScore"));
+        assertNotNull(list.get(0).get("lastActiveAt"));
+    }
+
+    @Test
+    @DisplayName("getStudentCourseProgressList - 无选课学生返回空列表")
+    void testGetStudentCourseProgressList_NoEnrollment() {
+        when(enrollmentService.list(any(LambdaQueryWrapper.class)))
+                .thenReturn(Collections.emptyList());
+        assertTrue(analyticsService.getStudentCourseProgressList(1L).isEmpty());
+    }
+
+    @Test
+    @DisplayName("getStudentCourseDetail - 章节任务点/作业成绩/考试成绩明细")
+    void testGetStudentCourseDetail_BuildsDetail() {
+        User u = new User();
+        u.setId(101L);
+        u.setFullName("张三");
+        u.setStudentId("20260001");
+        when(userService.getById(101L)).thenReturn(u);
+        when(enrollmentService.getOne(any(LambdaQueryWrapper.class)))
+                .thenReturn(enrollment(1L, 101L, new BigDecimal("100"), new BigDecimal("88")));
+
+        CourseChapter ch1 = new CourseChapter();
+        ch1.setId(1L);
+        ch1.setCourseId(1L);
+        ch1.setTitle("第一章 计算机网络概述");
+        ch1.setOrderIndex(1);
+        CourseChapter ch2 = new CourseChapter();
+        ch2.setId(2L);
+        ch2.setCourseId(1L);
+        ch2.setTitle("第二章 物理层");
+        ch2.setOrderIndex(2);
+        when(courseChapterService.list(any(LambdaQueryWrapper.class))).thenReturn(Arrays.asList(ch1, ch2));
+
+        Task t1 = new Task();
+        t1.setId(11L);
+        t1.setCourseId(1L);
+        t1.setChapterId(1L);
+        t1.setTaskType("VIDEO");
+        t1.setTitle("第一节 视频");
+        Task t2 = new Task();
+        t2.setId(12L);
+        t2.setCourseId(1L);
+        t2.setChapterId(1L);
+        t2.setTaskType("QUIZ");
+        t2.setTitle("小测验");
+        Task t3 = new Task();
+        t3.setId(13L);
+        t3.setCourseId(1L);
+        t3.setChapterId(2L);
+        t3.setTaskType("ASSIGNMENT");
+        t3.setTitle("作业一");
+        when(taskService.list(any(LambdaQueryWrapper.class))).thenReturn(Arrays.asList(t1, t2, t3));
+
+        TaskCompletion c1 = new TaskCompletion();
+        c1.setStudentId(101L);
+        c1.setTaskId(11L);
+        c1.setCompleted(true);
+        when(taskCompletionMapper.selectList(any())).thenReturn(Collections.singletonList(c1));
+
+        Submission s1 = new Submission();
+        s1.setTaskId(13L);
+        s1.setStudentId(101L);
+        s1.setStatus("GRADED");
+        s1.setScore(new BigDecimal("80"));
+        s1.setMaxScore(new BigDecimal("100"));
+        when(submissionService.list(any(LambdaQueryWrapper.class))).thenReturn(Collections.singletonList(s1));
+
+        ExamPaper paper = new ExamPaper();
+        paper.setId(21L);
+        paper.setCourseId(1L);
+        paper.setTitle("期末考试");
+        paper.setTotalScore(new BigDecimal("100"));
+        ExamSession es = new ExamSession();
+        es.setId(31L);
+        es.setStudentId(101L);
+        es.setExamPaperId(21L);
+        es.setStatus("GRADED");
+        es.setPercentage(new BigDecimal("92"));
+        when(examSessionService.list(any(LambdaQueryWrapper.class))).thenReturn(Collections.singletonList(es));
+        when(examPaperService.listByIds(any())).thenReturn(Collections.singletonList(paper));
+
+        Map<String, Object> detail = analyticsService.getStudentCourseDetail(1L, 101L);
+
+        assertEquals("张三", detail.get("studentName"));
+        assertEquals(new BigDecimal("100"), detail.get("progress"));
+        assertEquals(new BigDecimal("88"), detail.get("finalScore"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> chapters = (List<Map<String, Object>>) detail.get("chapters");
+        assertEquals(2, chapters.size());
+        assertEquals("第一章 计算机网络概述", chapters.get(0).get("title"));
+        // 第一章：视频完成 + 测验未完成 = 1/2；作业提交也算完成 → 第二章 1/1
+        assertEquals(2, chapters.get(0).get("totalTasks"));
+        assertEquals(1, chapters.get(0).get("completedTasks"));
+        assertEquals(1, chapters.get(1).get("completedTasks"));
+        assertEquals(3, detail.get("totalTasks"));
+        assertEquals(2, detail.get("completedTasks"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> assignments = (List<Map<String, Object>>) detail.get("assignments");
+        assertEquals(1, assignments.size());
+        assertEquals("作业一", assignments.get(0).get("title"));
+        assertEquals(new BigDecimal("80"), assignments.get(0).get("score"));
+
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> exams = (List<Map<String, Object>>) detail.get("exams");
+        assertEquals(1, exams.size());
+        assertEquals("期末考试", exams.get(0).get("title"));
+        assertEquals(new BigDecimal("92"), exams.get(0).get("percentage"));
+        assertEquals(21L, exams.get(0).get("examPaperId"));
     }
 }

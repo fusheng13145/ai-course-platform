@@ -89,7 +89,17 @@ public class AIServiceImpl implements AIService {
      */
     @Override
     public String generateContent(String type, String params) {
-        String prompt = "请生成" + type + "内容，" + params;
+        // 纠错 / 润色使用专门提示词，确保返回内容对学生笔记场景真正可用
+        String prompt;
+        if ("correct".equals(type)) {
+            prompt = "你是一位严谨的批改老师。请检查以下文本中的错别字、语法错误、标点误用与逻辑不通之处，"
+                    + "先逐条指出问题，再给出修改后的完整文本。若文本无明显问题，也请明确说明。\n文本内容：\n" + params;
+        } else if ("polish".equals(type)) {
+            prompt = "请在不改变原意的前提下，润色以下文本，使其表达更流畅、专业、优美，"
+                    + "保留原有的 Markdown 结构（如标题、列表）。直接返回润色后的文本。\n文本内容：\n" + params;
+        } else {
+            prompt = "请生成" + type + "内容，" + params;
+        }
         String raw = completeAndSanitize(buildMessages(prompt, null), 0.7);
         return raw != null ? raw : SERVICE_ERROR_MSG;
     }

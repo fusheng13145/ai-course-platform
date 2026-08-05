@@ -116,6 +116,11 @@ public class AuthController {
     @PostMapping("/logout")
     @Operation(summary = "退出登录")
     public ApiResponse<Void> logout(Authentication auth, HttpServletRequest request, HttpServletResponse response) {
+        // /auth/** 为 permitAll，未登录请求可能以匿名身份（principal="anonymousUser"）抵达此处，
+        // 此时强转 Long 会抛 ClassCastException → 全局兜底返回 500。显式拒绝，返回 401 而非崩溃。
+        if (auth == null || !(auth.getPrincipal() instanceof Long)) {
+            return ApiResponse.error(ApiCode.UNAUTHORIZED, "未授权，请先登录");
+        }
         Long userId = (Long) auth.getPrincipal();
         ApiResponse<Void> result = authService.logout(userId, request);
         cookieUtils.clearAuthCookies(response);

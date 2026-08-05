@@ -14,6 +14,7 @@ import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.QuestionService;
 import com.aicourse.service.WrongQuestionService;
+import com.aicourse.service.impl.exam.ExamSessionGradingService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -37,11 +38,10 @@ import static org.mockito.Mockito.*;
 
 /**
  * 考试会话服务单元测试。
- * <p>实现为直算模式：{@link ExamSessionServiceImpl} 直接基于
- * ExamSessionMapper（ServiceImpl 的 baseMapper）与 ExamPaperService /
- * ExamQuestionService / QuestionService / WrongQuestionService 完成全部业务逻辑，
- * 不依赖任何门面协作者。本测试注入真实依赖并显式注入 baseMapper，
- * 验证各接口方法的实际行为（正常路径 + 关键分支），风格与 CourseServiceTest 一致。</p>
+ * <p>本测试验证门面各接口方法的实际行为（正常路径 + 关键分支）。
+ * 阅卷逻辑（autoGrade / manualGrade / calculateTotalScore）已统一收口到
+ * {@link ExamSessionGradingService}（逻辑细节由 ExamSessionGradingServiceTest 覆盖），
+ * 此处验证门面委托行为与异常传播。</p>
  */
 @ExtendWith(MockitoExtension.class)
 class ExamSessionServiceImplTest {
@@ -50,6 +50,7 @@ class ExamSessionServiceImplTest {
     @Mock private ExamQuestionService examQuestionService;
     @Mock private QuestionService questionService;
     @Mock private WrongQuestionService wrongQuestionService;
+    @Mock private ExamSessionGradingService gradingService;
     @Mock private ExamSessionMapper examSessionMapper;
 
     @InjectMocks private ExamSessionServiceImpl examSessionService;
@@ -349,161 +350,80 @@ class ExamSessionServiceImplTest {
         verify(examSessionMapper, never()).update(isNull(), any());
         verify(examSessionMapper, never()).updateById(any(ExamSession.class));
     }
-
-    // ===================== autoGrade =====================
-
-    private ExamQuestion examQuestion(Long questionId, int order, String points) {
-        ExamQuestion eq = new ExamQuestion();
-        eq.setQuestionId(questionId);
-        eq.setExamPaperId(1L);
-        eq.setOrderIndex(order);
-        eq.setPoints(new BigDecimal(points));
-        return eq;
-    }
-
-    private Question question(Long id, String type, String correctAnswers) {
-        Question q = new Question();
-        q.setId(id);
-        q.setType(type);
-        q.setCorrectAnswers(correctAnswers);
-        return q;
-    }
+    // ===================== autoGrade（委托 GradingService） =====================
 
     @Test
-    @DisplayName("autoGrade - 客观题完全正确得满分")
-    void testAutoGrade_AllCorrect() {
-        startedSession.setStatus("SUBMITTED");
-        startedSession.setAnswers("{\"101\":\"B\"}");
-        when(examSessionMapper.selectById(1L)).thenReturn(startedSession);
-        when(examQuestionService.list(any(LambdaQueryWrapper.class))).thenReturn(Collections.singletonList(examQuestion(101L, 1, "5")));
-        when(questionService.getById(101L)).thenReturn(question(101L, "SINGLE_CHOICE", "B"));
+    @DisplayName("autoGrade - 委托 GradingService 并原样返回结果")
+    void testAutoGrade_Delegates() {
+        Map<String, Object> expected = new HashMap<>();
+        expected.put("sessionId", 1L);
+        expected.put("totalScore", new BigDecimal("5"));
+        when(gradingService.autoGrade(1L)).thenReturn(expected);
 
         Map<String, Object> result = examSessionService.autoGrade(1L);
 
-        assertEquals(1L, result.get("sessionId"));
-        assertEquals(new BigDecimal("5"), result.get("totalScore"));
-        assertEquals(new BigDecimal("5"), result.get("fullScore"));
-        assertEquals(new BigDecimal("100.00"), result.get("percentage"));
-        assertEquals(1, result.get("correctCount"));
-        assertEquals(0, result.get("wrongCount"));
-        assertEquals(0, result.get("pendingReviewCount"));
-        assertEquals("GRADED", result.get("status"));
-        assertEquals("GRADED", startedSession.getStatus());
-        verify(examSessionMapper).updateById(startedSession);
+        assertSame(expected, result);
+        verify(gradingService).autoGrade(1L);
     }
 
     @Test
-    @DisplayName("autoGrade - 多选题部分匹配得一半分并计错题")
-    void testAutoGrade_PartialMultipleChoice() {
-        startedSession.setStatus("SUBMITTED");
-        startedSession.setAnswers("{\"101\":\"[A, B]\"}");
-        when(examSessionMapper.selectById(1L)).thenReturn(startedSession);
-        when(examQuestionService.list(any(LambdaQueryWrapper.class))).thenReturn(Collections.singletonList(examQuestion(101L, 1, "10")));
-        when(questionService.getById(101L))
-                .thenReturn(question(101L, "MULTIPLE_CHOICE", "[\"A\",\"B\",\"C\"]"));
-        when(wrongQuestionService.count(any())).thenReturn(0L);
-        when(wrongQuestionService.save(any())).thenReturn(true);
-
-        Map<String, Object> result = examSessionService.autoGrade(1L);
-
-        // 交集 2/3 * 0.5 * 10 = 3.33
-        assertEquals(new BigDecimal("3.33"), result.get("totalScore"));
-        assertEquals(new BigDecimal("10"), result.get("fullScore"));
-        assertEquals(new BigDecimal("33.30"), result.get("percentage"));
-        assertEquals(0, result.get("correctCount"));
-        assertEquals(1, result.get("wrongCount"));
-        assertEquals(0, result.get("pendingReviewCount"));
-        verify(wrongQuestionService).save(any());
-    }
-
-    @Test
-    @DisplayName("autoGrade - 主观题标记待人工评分")
-    void testAutoGrade_WithPendingReview() {
-        startedSession.setStatus("SUBMITTED");
-        startedSession.setAnswers("{\"101\":\"A\",\"102\":\"essay\"}");
-        when(examSessionMapper.selectById(1L)).thenReturn(startedSession);
-        when(examQuestionService.list(any(LambdaQueryWrapper.class))).thenReturn(java.util.Arrays.asList(
-                examQuestion(101L, 1, "5"), examQuestion(102L, 2, "10")));
-        when(questionService.getById(101L)).thenReturn(question(101L, "SINGLE_CHOICE", "A"));
-        when(questionService.getById(102L)).thenReturn(question(102L, "SHORT_ANSWER", null));
-
-        Map<String, Object> result = examSessionService.autoGrade(1L);
-
-        assertEquals(new BigDecimal("5"), result.get("totalScore"));
-        assertEquals(new BigDecimal("15"), result.get("fullScore"));
-        assertEquals(new BigDecimal("33.33"), result.get("percentage"));
-        assertEquals(1, result.get("correctCount"));
-        assertEquals(0, result.get("wrongCount"));
-        assertEquals(1, result.get("pendingReviewCount"));
-
-        @SuppressWarnings("unchecked")
-        Map<Long, BigDecimal> questionScores = (Map<Long, BigDecimal>) result.get("questionScores");
-        assertEquals(new BigDecimal("-1"), questionScores.get(102L));
-    }
-
-    @Test
-    @DisplayName("autoGrade - 未提交状态不可阅卷")
-    void testAutoGrade_NotSubmitted() {
-        when(examSessionMapper.selectById(1L)).thenReturn(startedSession);
+    @DisplayName("autoGrade - GradingService 校验失败异常原样传播")
+    void testAutoGrade_PropagatesBusinessException() {
+        when(gradingService.autoGrade(1L))
+                .thenThrow(new BusinessException("试卷尚未提交，无法进行自动阅卷"));
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> examSessionService.autoGrade(1L));
         assertEquals("试卷尚未提交，无法进行自动阅卷", ex.getMessage());
+        verify(gradingService).autoGrade(1L);
     }
 
-    // ===================== manualGrade =====================
+    // ===================== manualGrade（委托 GradingService） =====================
 
     @Test
-    @DisplayName("manualGrade - 人工评分并重算总分与百分比")
-    void testManualGrade_Success() {
-        startedSession.setStatus("GRADED");
-        startedSession.setQuestionScores("{\"101\":5}");
-        when(examSessionMapper.selectById(1L)).thenReturn(startedSession);
-        ExamPaper paper = new ExamPaper();
-        paper.setId(1L);
-        paper.setTotalScore(new BigDecimal("100"));
-        when(examPaperService.getById(1L)).thenReturn(paper);
-
+    @DisplayName("manualGrade - 委托 GradingService")
+    void testManualGrade_Delegates() {
         examSessionService.manualGrade(1L, 102L, new BigDecimal("8"), "评语");
 
-        assertEquals(new BigDecimal("13"), startedSession.getTotalScore());
-        assertEquals(new BigDecimal("13.00"), startedSession.getPercentage());
-        assertTrue(startedSession.getQuestionScores().contains("\"101\":5"));
-        assertTrue(startedSession.getQuestionScores().contains("\"102\":8"));
-        verify(examSessionMapper).updateById(startedSession);
+        verify(gradingService).manualGrade(1L, 102L, new BigDecimal("8"), "评语");
     }
 
     @Test
-    @DisplayName("manualGrade - 未完成自动阅卷不可人工评分")
-    void testManualGrade_NotGraded() {
-        when(examSessionMapper.selectById(1L)).thenReturn(startedSession);
+    @DisplayName("manualGrade - GradingService 校验失败异常原样传播")
+    void testManualGrade_PropagatesBusinessException() {
+        doThrow(new BusinessException("请先完成自动阅卷"))
+                .when(gradingService).manualGrade(eq(1L), eq(102L), any(BigDecimal.class), anyString());
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> examSessionService.manualGrade(1L, 102L, BigDecimal.TEN, "评语"));
         assertEquals("请先完成自动阅卷", ex.getMessage());
+        verify(gradingService).manualGrade(eq(1L), eq(102L), any(BigDecimal.class), anyString());
     }
 
-    // ===================== calculateTotalScore =====================
+    // ===================== calculateTotalScore（委托 GradingService） =====================
 
     @Test
-    @DisplayName("calculateTotalScore - 汇总已评分数（排除待评阅 -1）")
-    void testCalculateTotalScore_SumsScores() {
-        startedSession.setQuestionScores("{\"101\":5,\"102\":-1}");
-        when(examSessionMapper.selectById(1L)).thenReturn(startedSession);
+    @DisplayName("calculateTotalScore - 委托 GradingService 并原样返回结果")
+    void testCalculateTotalScore_Delegates() {
+        when(gradingService.calculateTotalScore(1L)).thenReturn(new BigDecimal("5"));
 
         BigDecimal total = examSessionService.calculateTotalScore(1L);
 
         assertEquals(new BigDecimal("5"), total);
+        verify(gradingService).calculateTotalScore(1L);
     }
 
     @Test
-    @DisplayName("calculateTotalScore - 无评分数据返回0")
-    void testCalculateTotalScore_NoScores() {
-        startedSession.setQuestionScores(null);
-        when(examSessionMapper.selectById(1L)).thenReturn(startedSession);
+    @DisplayName("calculateTotalScore - GradingService 异常原样传播")
+    void testCalculateTotalScore_PropagatesBusinessException() {
+        when(gradingService.calculateTotalScore(999L))
+                .thenThrow(new BusinessException("考试会话不存在"));
 
-        assertEquals(BigDecimal.ZERO, examSessionService.calculateTotalScore(1L));
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> examSessionService.calculateTotalScore(999L));
+        assertEquals("考试会话不存在", ex.getMessage());
     }
+
 
     // ===================== generateScoreReport =====================
 

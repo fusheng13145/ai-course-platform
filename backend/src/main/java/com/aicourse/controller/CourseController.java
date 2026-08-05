@@ -1,5 +1,6 @@
 package com.aicourse.controller;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.Course;
@@ -99,12 +100,13 @@ public class CourseController {
     }
 
     /**
-     * 删除课程（教师/管理员权限）
+     * 删除课程（教师/管理员权限，教师仅能删除自己创建的课程）
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "删除课程", description = "教师或管理员可删除课程（软删除）")
-    public ApiResponse<Void> delete(@Parameter(description = "课程ID") @PathVariable Long id) {
+    @Operation(summary = "删除课程", description = "教师或管理员可删除课程（软删除），教师仅能删除自己创建的课程")
+    public ApiResponse<Void> delete(@Parameter(description = "课程ID") @PathVariable Long id, Authentication auth) {
+        assertCourseOwner(id, auth);
         courseService.deleteCourseById(id);
         return ApiResponse.success("删除成功", null);
     }
@@ -121,12 +123,13 @@ public class CourseController {
     }
 
     /**
-     * 切换课程启用/禁用状态（教师/管理员权限）
+     * 切换课程启用/禁用状态（教师/管理员权限，教师仅能操作自己创建的课程）
      */
     @PatchMapping("/{id}/toggle")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "切换课程状态", description = "在ACTIVE和INACTIVE之间切换课程状态")
-    public ApiResponse<Course> toggle(@Parameter(description = "课程ID") @PathVariable Long id) {
+    @Operation(summary = "切换课程状态", description = "在ACTIVE和INACTIVE之间切换课程状态，教师仅能操作自己创建的课程")
+    public ApiResponse<Course> toggle(@Parameter(description = "课程ID") @PathVariable Long id, Authentication auth) {
+        assertCourseOwner(id, auth);
         Course course = courseService.toggleCourseStatus(id);
         return ApiResponse.success("状态切换成功", course);
     }
@@ -180,14 +183,17 @@ public class CourseController {
     }
 
     /**
-     * 查询课程下所有报名学生
+     * 查询课程下所有报名学生（教师/管理员权限，教师仅能查看自己课程的学生名单）
      */
     @GetMapping("/{id}/students")
-    @Operation(summary = "获取课程学生列表", description = "返回指定课程的所有选课学生记录")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "获取课程学生列表", description = "返回指定课程的所有选课学生记录，教师仅能查看自己课程的学生名单")
     public ApiResponse<PagedResponse<CourseEnrollment>> students(
             @Parameter(description = "课程ID") @PathVariable Long id,
             @Parameter(description = "当前页码") @RequestParam(defaultValue = "1") long page,
-            @Parameter(description = "每页条数") @RequestParam(defaultValue = "10") long size) {
+            @Parameter(description = "每页条数") @RequestParam(defaultValue = "10") long size,
+            Authentication auth) {
+        assertCourseOwner(id, auth);
         LambdaQueryWrapper<CourseEnrollment> queryWrapper = new LambdaQueryWrapper<CourseEnrollment>()
                 .eq(CourseEnrollment::getCourseId, id);
         Page<CourseEnrollment> enrollmentPage = enrollmentService.page(Page.of(page, size), queryWrapper);
@@ -195,11 +201,13 @@ public class CourseController {
     }
 
     /**
-     * 获取课程统计数据
+     * 获取课程统计数据（仅课程教师或管理员可见）
      */
     @GetMapping("/{id}/stats")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "获取课程统计数据", description = "返回课程的学生数、待审核数、状态等统计信息")
-    public ApiResponse<Map<String, Object>> getStats(@Parameter(description = "课程ID") @PathVariable Long id) {
+    public ApiResponse<Map<String, Object>> getStats(@Parameter(description = "课程ID") @PathVariable Long id, Authentication auth) {
+        assertCourseOwner(id, auth);
         Course course = courseService.getById(id);
         if (course == null) {
             throw new BusinessException("课程不存在");
@@ -226,5 +234,18 @@ public class CourseController {
                 "status", course.getStatus(),
                 "approvalStatus", course.getApprovalStatus()
         ));
+    }
+
+    /**
+     * 课程归属校验：管理员放行；教师仅能操作自己创建的课程
+     */
+    private void assertCourseOwner(Long courseId, Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(g -> g.getAuthority().equals("ROLE_ADMIN"));
+        if (isAdmin) return;
+        Course course = courseService.getById(courseId);
+        if (course == null) throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+        if (!userId.equals(course.getTeacherId())) throw new BusinessException(ApiCode.FORBIDDEN, "无权操作该课程");
     }
 }

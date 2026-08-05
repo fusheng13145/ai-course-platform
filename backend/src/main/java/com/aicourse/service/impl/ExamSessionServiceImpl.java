@@ -4,6 +4,7 @@ import com.aicourse.entity.*;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ExamSessionMapper;
 import com.aicourse.service.*;
+import com.aicourse.service.impl.exam.ExamSessionGradingService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -11,7 +12,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
-import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -23,15 +23,18 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
     private final ExamQuestionService examQuestionService;
     private final QuestionService questionService;
     private final WrongQuestionService wrongQuestionService;
+    private final ExamSessionGradingService gradingService;
 
     public ExamSessionServiceImpl(ExamPaperService examPaperService,
                                    ExamQuestionService examQuestionService,
                                    QuestionService questionService,
-                                   WrongQuestionService wrongQuestionService) {
+                                   WrongQuestionService wrongQuestionService,
+                                   ExamSessionGradingService gradingService) {
         this.examPaperService = examPaperService;
         this.examQuestionService = examQuestionService;
         this.questionService = questionService;
         this.wrongQuestionService = wrongQuestionService;
+        this.gradingService = gradingService;
     }
 
     /**
@@ -176,220 +179,28 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
         return session;
     }
 
-    /**
-     * 自动阅卷（客观题：单选/多选/判断）
-     */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> autoGrade(Long sessionId) {
-        ExamSession session = this.getById(sessionId);
-        if (session == null) {
-            throw new BusinessException("考试会话不存在");
-        }
-        if (!"SUBMITTED".equals(session.getStatus()) && !"FORCE_SUBMITTED".equals(session.getStatus())) {
-            throw new BusinessException("试卷尚未提交，无法进行自动阅卷");
-        }
-
-        // 解析学生答案
-        Map<String, Object> studentAnswers = parseJsonToMap(session.getAnswers());
-        if (studentAnswers == null || studentAnswers.isEmpty()) {
-            throw new BusinessException("未找到学生作答记录");
-        }
-
-        // 查询试卷关联的所有题目
-        List<ExamQuestion> examQuestions = examQuestionService.list(
-                new LambdaQueryWrapper<ExamQuestion>()
-                        .eq(ExamQuestion::getExamPaperId, session.getExamPaperId())
-                        .orderByAsc(ExamQuestion::getOrderIndex)
-        );
-
-        // 每题得分记录
-        Map<Long, BigDecimal> questionScoreMap = new LinkedHashMap<>();
-        BigDecimal totalScore = BigDecimal.ZERO;
-        BigDecimal fullScore = BigDecimal.ZERO;
-        int correctCount = 0;
-        int wrongCount = 0;
-        int pendingReviewCount = 0;
-        List<Long> wrongQuestionIds = new ArrayList<>();
-
-        for (ExamQuestion eq : examQuestions) {
-            Question question = questionService.getById(eq.getQuestionId());
-            if (question == null) {
-                continue;
-            }
-
-            BigDecimal points = eq.getPoints() != null ? eq.getPoints() : BigDecimal.ZERO;
-            fullScore = fullScore.add(points);
-
-            String questionKey = String.valueOf(eq.getQuestionId());
-            String studentAnswer = studentAnswers.get(questionKey) != null ?
-                    studentAnswers.get(questionKey).toString().trim() : "";
-            String correctAnswer = question.getCorrectAnswers();
-
-            BigDecimal score = BigDecimal.ZERO;
-            boolean isCorrect = false;
-
-            switch (question.getType()) {
-                case "SINGLE_CHOICE":
-                    // 单选题：完全匹配得满分
-                    isCorrect = studentAnswer.equalsIgnoreCase(correctAnswer);
-                    score = isCorrect ? points : BigDecimal.ZERO;
-                    break;
-
-                case "MULTIPLE_CHOICE":
-                    // 多选题：完全匹配得满分，部分匹配得一半分
-                    if (correctAnswer != null && !correctAnswer.isEmpty()) {
-                        Set<String> correctSet = parseArrayToStringSet(correctAnswer);
-                        Set<String> answerSet = parseArrayToStringSet(studentAnswer);
-                        if (answerSet.equals(correctSet)) {
-                            // 完全匹配
-                            isCorrect = true;
-                            score = points;
-                        } else {
-                            // 部分匹配：计算交集比例
-                            Set<String> intersection = new HashSet<>(answerSet);
-                            intersection.retainAll(correctSet);
-                            if (!intersection.isEmpty()) {
-                                double ratio = (double) intersection.size() / correctSet.size();
-                                score = points.multiply(BigDecimal.valueOf(ratio * 0.5))
-                                        .setScale(2, RoundingMode.HALF_UP);
-                            } else {
-                                score = BigDecimal.ZERO;
-                            }
-                        }
-                    }
-                    break;
-
-                case "TRUE_FALSE":
-                    // 判断题：忽略大小写比较
-                    isCorrect = studentAnswer.equalsIgnoreCase(correctAnswer);
-                    score = isCorrect ? points : BigDecimal.ZERO;
-                    break;
-
-                case "SHORT_ANSWER":
-                case "ESSAY":
-                    // 主观题：不自动评分，标记为待人工批阅
-                    pendingReviewCount++;
-                    score = BigDecimal.valueOf(-1); // -1表示待人工评分
-                    break;
-
-                default:
-                    // 其他题型暂不自动评分
-                    pendingReviewCount++;
-                    score = BigDecimal.valueOf(-1);
-                    break;
-            }
-
-            questionScoreMap.put(eq.getQuestionId(), score);
-            totalScore = totalScore.add(score.compareTo(BigDecimal.ZERO) < 0 ? BigDecimal.ZERO : score);
-
-            if (isCorrect) {
-                correctCount++;
-            } else if (score.compareTo(BigDecimal.ZERO) > 0) {
-                // 部分正确也算错误
-                wrongCount++;
-                wrongQuestionIds.add(question.getId());
-            } else if (score.equals(BigDecimal.ZERO) && !studentAnswer.isEmpty()) {
-                wrongCount++;
-                wrongQuestionIds.add(question.getId());
-            }
-        }
-
-        // 计算百分比
-        BigDecimal percentage = BigDecimal.ZERO;
-        if (fullScore.compareTo(BigDecimal.ZERO) > 0) {
-            percentage = totalScore.divide(fullScore, 4, RoundingMode.HALF_UP)
-                    .multiply(new BigDecimal("100"))
-                    .setScale(2, RoundingMode.HALF_UP);
-        }
-
-        // 将每题得分写入JSON
-        String questionScoresJson = scoresMapToJson(questionScoreMap);
-        session.setQuestionScores(questionScoresJson);
-        session.setTotalScore(totalScore);
-        session.setPercentage(percentage);
-        session.setStatus("GRADED");
-        this.updateById(session);
-
-        // 记录错题到错题本（可选）
-        for (Long qId : wrongQuestionIds) {
-            saveWrongQuestion(session.getStudentId(), qId, session.getExamPaperId());
-        }
-
-        // 构建返回结果
-        Map<String, Object> result = new HashMap<>();
-        result.put("sessionId", session.getId());
-        result.put("totalScore", totalScore);
-        result.put("fullScore", fullScore);
-        result.put("percentage", percentage);
-        result.put("correctCount", correctCount);
-        result.put("wrongCount", wrongCount);
-        result.put("pendingReviewCount", pendingReviewCount);
-        result.put("questionScores", questionScoreMap);
-        result.put("status", "GRADED");
-
-        return result;
+        // 阅卷逻辑统一收口到 ExamSessionGradingService（含 TIMEOUT 状态支持与批量取题），
+        // 本门面仅做委托，避免双份实现漂移
+        return gradingService.autoGrade(sessionId);
     }
 
-    /**
-     * 人工阅卷（主观题）
-     */
+
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void manualGrade(Long sessionId, Long questionId, BigDecimal score, String comment) {
-        ExamSession session = this.getById(sessionId);
-        if (session == null) {
-            throw new BusinessException("考试会话不存在");
-        }
-        if (!"GRADED".equals(session.getStatus())) {
-            throw new BusinessException("请先完成自动阅卷");
-        }
-
-        // 解析现有的questionScores
-        Map<Long, BigDecimal> currentScores = parseScoresJson(session.getQuestionScores());
-        if (currentScores == null) {
-            currentScores = new HashMap<>();
-        }
-
-        // 更新该题分数
-        currentScores.put(questionId, score);
-        String updatedScoresJson = scoresMapToJson(currentScores);
-        session.setQuestionScores(updatedScoresJson);
-
-        // 重新计算总分
-        BigDecimal newTotalScore = calculateTotalScoreFromScores(currentScores);
-        session.setTotalScore(newTotalScore);
-
-        // 重新计算百分比
-        ExamPaper paper = examPaperService.getById(session.getExamPaperId());
-        if (paper != null && paper.getTotalScore() != null &&
-                paper.getTotalScore().compareTo(BigDecimal.ZERO) > 0) {
-            BigDecimal newPercentage = newTotalScore.divide(paper.getTotalScore(), 4, RoundingMode.HALF_UP)
-                    .multiply(new BigDecimal("100"))
-                    .setScale(2, RoundingMode.HALF_UP);
-            session.setPercentage(newPercentage);
-        }
-
-        this.updateById(session);
+        gradingService.manualGrade(sessionId, questionId, score, comment);
     }
 
-    /**
-     * 计算试卷总分
-     */
+
     @Override
     @Transactional(readOnly = true)
     public BigDecimal calculateTotalScore(Long sessionId) {
-        ExamSession session = this.getById(sessionId);
-        if (session == null) {
-            throw new BusinessException("考试会话不存在");
-        }
-        if (session.getQuestionScores() == null || session.getQuestionScores().isEmpty()) {
-            return BigDecimal.ZERO;
-        }
-
-        Map<Long, BigDecimal> scores = parseScoresJson(session.getQuestionScores());
-        return calculateTotalScoreFromScores(scores);
+        return gradingService.calculateTotalScore(sessionId);
     }
+
 
     /**
      * 生成成绩报告
@@ -641,86 +452,6 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
     }
 
     /**
-     * 解析简单JSON字符串为Map
-     */
-    private Map<String, Object> parseJsonToMap(String json) {
-        Map<String, Object> result = new HashMap<>();
-        if (json == null || json.isEmpty() || "{}".equals(json.trim())) {
-            return result;
-        }
-        try {
-            // 去掉首尾大括号
-            String content = json.trim();
-            if (content.startsWith("{")) content = content.substring(1);
-            if (content.endsWith("}")) content = content.substring(0, content.length() - 1);
-            content = content.trim();
-
-            // 简单解析 key:value 对
-            String[] pairs = content.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
-            for (String pair : pairs) {
-                String[] kv = pair.split(":", 2);
-                if (kv.length == 2) {
-                    String key = kv[0].trim().replace("\"", "");
-                    String value = kv[1].trim().replace("\"", "");
-                    result.put(key, value);
-                }
-            }
-        } catch (Exception e) {
-            // JSON解析失败返回空map
-        }
-        return result;
-    }
-
-    /**
-     * 解析JSON数组字符串为Set
-     */
-    private Set<String> parseArrayToStringSet(String arrayStr) {
-        Set<String> set = new HashSet<>();
-        if (arrayStr == null || arrayStr.isEmpty()) {
-            return set;
-        }
-        try {
-            String content = arrayStr.trim();
-            if (content.startsWith("[")) content = content.substring(1);
-            if (content.endsWith("]")) content = content.substring(0, content.length() - 1);
-            if (content.isEmpty()) {
-                return set;
-            }
-            String[] items = content.split(",");
-            for (String item : items) {
-                String trimmed = item.trim().replace("\"", "").replace("'", "").trim();
-                if (!trimmed.isEmpty()) {
-                    set.add(trimmed);
-                }
-            }
-        } catch (Exception e) {
-            // 解析失败时尝试直接添加
-            set.add(arrayStr.replace("\"", "").replace("'", "").trim());
-        }
-        return set;
-    }
-
-    /**
-     * 将题目得分Map转换为JSON字符串
-     */
-    private String scoresMapToJson(Map<Long, BigDecimal> scores) {
-        if (scores == null || scores.isEmpty()) {
-            return "{}";
-        }
-        StringBuilder sb = new StringBuilder("{");
-        int i = 0;
-        for (Map.Entry<Long, BigDecimal> entry : scores.entrySet()) {
-            if (i++ > 0) {
-                sb.append(",");
-            }
-            sb.append("\"").append(entry.getKey()).append("\":")
-                    .append(entry.getValue() != null ? entry.getValue().toString() : "0");
-        }
-        sb.append("}");
-        return sb.toString();
-    }
-
-    /**
      * 解析题目得分JSON字符串为Map
      */
     private Map<Long, BigDecimal> parseScoresJson(String json) {
@@ -747,19 +478,6 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
             // 解析失败
         }
         return result;
-    }
-
-    /**
-     * 从得分Map中计算总分（排除-1的待评阅项）
-     */
-    private BigDecimal calculateTotalScoreFromScores(Map<Long, BigDecimal> scores) {
-        BigDecimal total = BigDecimal.ZERO;
-        for (BigDecimal score : scores.values()) {
-            if (score != null && score.compareTo(BigDecimal.ZERO) >= 0) {
-                total = total.add(score);
-            }
-        }
-        return total;
     }
 
     /**

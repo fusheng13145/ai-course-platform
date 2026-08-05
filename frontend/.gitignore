@@ -16,6 +16,9 @@ dist-ssr
 .env
 .env.*
 
+# Vite auto-generated (unplugin: dts at root would become untracked after git rm)
+auto-imports.d.ts
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
