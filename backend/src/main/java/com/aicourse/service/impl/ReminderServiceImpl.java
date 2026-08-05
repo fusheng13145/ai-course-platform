@@ -2,6 +2,7 @@ package com.aicourse.service.impl;
 
 import com.aicourse.entity.Reminder;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.dto.ReminderUpdateDTO;
 import com.aicourse.mapper.ReminderMapper;
 import com.aicourse.service.NotificationService;
 import com.aicourse.service.ReminderService;
@@ -11,6 +12,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.time.format.DateTimeParseException;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -137,5 +139,39 @@ public class ReminderServiceImpl extends ServiceImpl<ReminderMapper, Reminder> i
         }
         reminder.setScheduledAt(newScheduledAt);
         this.updateById(reminder);
+    }
+
+    /**
+     * 更新提醒（局部更新）
+     * 仅更新调用方提供的字段；已发送/已取消的提醒不可再编辑。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Reminder updateReminder(Long id, ReminderUpdateDTO dto) {
+        Reminder reminder = this.getById(id);
+        if (reminder == null) {
+            throw new BusinessException("提醒不存在");
+        }
+        if ("SENT".equals(reminder.getStatus()) || "CANCELLED".equals(reminder.getStatus())) {
+            throw new BusinessException("该提醒已发送或已取消，无法编辑");
+        }
+        if (dto.getTitle() != null) {
+            reminder.setTitle(dto.getTitle());
+        }
+        if (dto.getContent() != null) {
+            reminder.setMessage(dto.getContent());
+        }
+        if (dto.getTargetUserId() != null) {
+            reminder.setUserId(dto.getTargetUserId());
+        }
+        if (dto.getRemindAt() != null) {
+            try {
+                reminder.setScheduledAt(LocalDateTime.parse(dto.getRemindAt()));
+            } catch (DateTimeParseException e) {
+                throw new BusinessException("时间格式不合法，应为 ISO-8601（如 2025-01-15T10:00:00）");
+            }
+        }
+        this.updateById(reminder);
+        return reminder;
     }
 }

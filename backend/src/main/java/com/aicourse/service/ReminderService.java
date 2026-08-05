@@ -1,6 +1,7 @@
 package com.aicourse.service;
 
 import com.aicourse.entity.Reminder;
+import com.aicourse.dto.ReminderUpdateDTO;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.time.LocalDateTime;
@@ -54,4 +55,12 @@ public interface ReminderService extends IService<Reminder> {
      * @param newScheduledAt 新的计划发送时间
      */
     void rescheduleReminder(Long reminderId, LocalDateTime newScheduledAt);
+
+    /**
+     * 更新提醒（局部更新：标题/内容/计划时间/接收人）
+     * @param id 提醒ID
+     * @param dto 更新字段（仅更新非 null 字段）
+     * @return 更新后的提醒
+     */
+    Reminder updateReminder(Long id, ReminderUpdateDTO dto);
 }

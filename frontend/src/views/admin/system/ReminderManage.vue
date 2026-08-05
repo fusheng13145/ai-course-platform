@@ -163,7 +163,7 @@ async function handleSave() {
 }
 
 function handleDelete(row) {
-  reminderApi.updateReminder(row.id, { status: 'CANCELLED' })
+  reminderApi.cancelReminder(row.id)
     .then(() => {
       ElMessage.success('已删除')
       loadTodos()
