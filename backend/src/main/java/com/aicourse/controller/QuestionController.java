@@ -372,7 +372,7 @@ public class QuestionController {
      */
     @PostMapping("/batch-import")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "批量导入题目")
+    @Operation(summary = "批量导入题目", description = "JSON 批量导入（兼容保留，自动跳过无效项）；Excel(.xlsx) 批量导入请使用 /teacher/questions/import-excel")
     public ApiResponse<Map<String, Object>> batchImport(@Valid @RequestBody List<Question> questions, Authentication auth) {
         int imported = questionService.batchImport(questions, (Long) auth.getPrincipal());
         Map<String, Object> result = new LinkedHashMap<>();

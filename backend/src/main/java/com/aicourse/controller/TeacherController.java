@@ -7,15 +7,20 @@ import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.*;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.*;
+import com.aicourse.util.ExcelUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import jakarta.servlet.http.HttpServletResponse;
+import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.*;
 import java.util.stream.Collectors;
 
@@ -284,7 +289,7 @@ public class TeacherController {
     }
 
     @PostMapping("/questions/import")
-    @Operation(summary = "批量导入题目")
+    @Operation(summary = "批量导入题目", description = "JSON 批量导入（兼容保留）；Excel(.xlsx) 批量导入请使用 /teacher/questions/import-excel")
     public ApiResponse<Map<String, Object>> importQuestions(@Valid @RequestBody List<Question> questions) {
         int count = 0;
         for (Question q : questions) {
@@ -294,13 +299,51 @@ public class TeacherController {
         return ApiResponse.success("导入完成", Map.of("importedCount", count));
     }
 
+    @PostMapping(value = "/questions/import-excel", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
+    @Operation(summary = "Excel 批量导入题目",
+            description = "上传 .xlsx 文件批量导入题目（表头：题型/题干/选项(JSON)/正确答案/难度/分值/知识点/解析），courseId 可指定归属课程")
+    public ApiResponse<Map<String, Object>> importQuestionsExcel(
+            @Parameter(description = "Excel 文件(.xlsx)") @RequestParam("file") MultipartFile file,
+            @Parameter(description = "归属课程ID（可选）") @RequestParam(required = false) Long courseId,
+            Authentication auth) throws IOException {
+        if (file == null || file.isEmpty()) {
+            throw new BusinessException("请选择要上传的 Excel 文件");
+        }
+        if (!ExcelUtil.isExcelFile(file.getOriginalFilename())) {
+            throw new BusinessException("仅支持 .xlsx 格式的 Excel 文件");
+        }
+        if (courseId != null) {
+            assertCourseOwner(courseId, auth);
+        }
+        List<Question> questions = ExcelUtil.readQuestions(file);
+        if (questions.isEmpty()) {
+            throw new BusinessException("文件中没有可导入的题目数据");
+        }
+        int imported = 0;
+        for (Question q : questions) {
+            q.setId(null);
+            q.setCourseId(courseId);
+            q.setCreatedBy((Long) auth.getPrincipal());
+            q.setIsActive(true);
+            if (questionService.save(q)) {
+                imported++;
+            }
+        }
+        return ApiResponse.success("导入完成", Map.of("importedCount", imported, "total", questions.size()));
+    }
+
     @GetMapping("/questions/export")
-    @Operation(summary = "导出题库")
-    public ApiResponse<List<Question>> exportQuestions(@RequestParam(required = false) Long courseId, Authentication auth) {
-        if (courseId != null) assertCourseOwner(courseId, auth);
+    @Operation(summary = "导出题库", description = "导出题库为 Excel(.xlsx) 文件，可按课程筛选")
+    public void exportQuestions(@RequestParam(required = false) Long courseId, Authentication auth,
+                                HttpServletResponse response) throws IOException {
+        if (courseId != null) {
+            assertCourseOwner(courseId, auth);
+        }
         LambdaQueryWrapper<Question> qw = new LambdaQueryWrapper<Question>()
                 .eq(courseId != null, Question::getCourseId, courseId);
-        return ApiResponse.success(questionService.list(qw));
+        List<Question> questions = questionService.list(qw);
+        ExcelUtil.setDownloadHeaders(response, "题库导出.xlsx");
+        ExcelUtil.writeQuestions(response.getOutputStream(), questions);
     }
 
     // ==================== 学情分析（5个接口，课程/作业级已加归属校验） ====================
@@ -338,7 +381,7 @@ public class TeacherController {
     }
 
     @GetMapping("/analytics/report/export")
-    @Operation(summary = "导出学情报告")
+    @Operation(summary = "导出学情报告", description = "返回学情报告 JSON 数据（含报告各章节内容），前端基于该数据生成 PDF 文件下载")
     public ApiResponse<Map<String, Object>> exportReport(@RequestParam Long courseId, Authentication auth) {
         assertCourseOwner(courseId, auth);
         Map<String, Object> report = analyticsService.exportReport(courseId);

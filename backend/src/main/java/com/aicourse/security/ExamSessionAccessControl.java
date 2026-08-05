@@ -2,8 +2,12 @@ package com.aicourse.security;
 
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.RoleConstants;
+import com.aicourse.entity.Course;
+import com.aicourse.entity.ExamPaper;
 import com.aicourse.entity.ExamSession;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.service.CourseService;
+import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamSessionService;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
@@ -15,15 +19,19 @@ import java.util.List;
  * 考试会话对象级授权（防 IDOR / BOLA / 水平越权）。
  *
  * <p>原 {@code ExamSessionController} 仅按路径 {@code {id}} 操作，未校验资源归属，
- * 任意登录学生可枚举会话 ID 篡改/读取他人考试（替考、偷看成绩）。本组件在 Controller 入口统一执行
- * 归属校验，作为后端权威兜底（即使前端伪边界被绕过也安全）。</p>
+ * 任意登录学生可枚举会话 ID 篡改/读取他人考试（替考、偷看成绩）；教师亦可对其他教师
+ * 课程的考试收卷/阅卷。本组件在 Controller 入口统一执行归属校验，作为后端权威兜底
+ * （即使前端伪边界被绕过也安全）。</p>
  *
  * <p>归属规则：
  * <ul>
  *   <li>读权限（questions/time-remaining/report/result）：学生仅可访问本人会话；
  *       教师/管理员可访问任意会话（批卷、查阅成绩需要）；</li>
  *   <li>作答权限（auto-save/submit）：仅考生本人可操作，教师/管理员亦不可代答
- *       （替学生收卷应走既有的 force-submit）。</li>
+ *       （替学生收卷应走既有的 force-submit）；</li>
+ *   <li>管理权限（force-submit/auto-grade/manual-grade/cheating-detect/check-cheating）：
+ *       学生一律拒绝；管理员放行；教师须为会话所属试卷对应课程的授课教师
+ *       （链路：exam_sessions.exam_paper_id → exam_papers.course_id → courses.teacher_id）。</li>
  * </ul>
  * </p>
  */
@@ -31,9 +39,15 @@ import java.util.List;
 public class ExamSessionAccessControl {
 
     private final ExamSessionService examSessionService;
+    private final ExamPaperService examPaperService;
+    private final CourseService courseService;
 
-    public ExamSessionAccessControl(ExamSessionService examSessionService) {
+    public ExamSessionAccessControl(ExamSessionService examSessionService,
+                                    ExamPaperService examPaperService,
+                                    CourseService courseService) {
         this.examSessionService = examSessionService;
+        this.examPaperService = examPaperService;
+        this.courseService = courseService;
     }
 
     /**
@@ -61,6 +75,38 @@ public class ExamSessionAccessControl {
         ExamSession session = requireSession(sessionId);
         if (!principalId(auth).equals(session.getStudentId())) {
             throw new BusinessException(ApiCode.FORBIDDEN, "仅考生本人可操作该考试会话");
+        }
+        return session;
+    }
+
+    /**
+     * 管理权限校验（force-submit / auto-grade / manual-grade / cheating-detect / check-cheating）。
+     * 学生一律拒绝；管理员放行；教师须为会话所属试卷对应课程的授课教师，
+     * 防止教师 A 对教师 B 课程的考试收卷/阅卷/作弊检测。
+     *
+     * @throws BusinessException 会话不存在时 code=404；学生或无归属教师时 code=403
+     */
+    public ExamSession assertManageable(Long sessionId, Authentication auth) {
+        ExamSession session = requireSession(sessionId);
+        Long userId = principalId(auth);
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(g -> g.getAuthority().equals("ROLE_" + RoleConstants.ADMIN));
+        if (isAdmin) {
+            return session;
+        }
+        if (RoleConstants.STUDENT.equals(roleOf(auth))) {
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权管理该考试会话");
+        }
+        ExamPaper paper = examPaperService.getById(session.getExamPaperId());
+        if (paper == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "试卷不存在");
+        }
+        Course course = courseService.getById(paper.getCourseId());
+        if (course == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+        }
+        if (!userId.equals(course.getTeacherId())) {
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权管理其他教师的考试");
         }
         return session;
     }

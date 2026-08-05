@@ -10,8 +10,9 @@ spring:
       enabled: false
 
   datasource:
-    # 本地开发库（与 start-backend.bat 同款凭据；无环境变量时回退 1234）
-    url: jdbc:mysql://localhost:3306/ai_course_platform?useSSL=false&requireSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true
+    # 独立测试库（createDatabaseIfNotExist 自动创建），与开发库 ai_course_platform 完全隔离，
+    # 由 sql.init 在上下文启动时用 index.sql 重建 schema + 种子数据，测试不依赖开发库数据状态
+    url: jdbc:mysql://localhost:3306/ai_course_platform_test?createDatabaseIfNotExist=true&useSSL=false&requireSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: root
     password: ${SPRING_DATASOURCE_PASSWORD:1234}
@@ -25,10 +26,13 @@ spring:
       database: 0
       timeout: 3000
 
-  # 关键：绝不执行 index.sql（含 47 条 DROP TABLE），否则会清空本地开发库
+  # 测试库专用：上下文启动时执行 index.sql（DROP+CREATE+种子），保证库结构/种子自愈。
+  # 测试库与开发库分离，index.sql 的 DROP TABLE 不会影响开发数据。
   sql:
     init:
-      mode: never
+      mode: always
+      schema-locations: classpath:index.sql
+      continue-on-error: false
 
   # 邮件：账号密码留空 → EmailServiceImpl 走「模拟发送」分支，不发真实邮件
   mail:

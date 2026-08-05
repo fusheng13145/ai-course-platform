@@ -14,6 +14,8 @@ export const deleteUser = (userId) => request.delete(`/admin/users/${userId}`)
 export const resetUserPassword = (userId, data) =>
   request.put(`/admin/users/${userId}/reset-password`, data)
 export const importUsers = (data) => request.post('/admin/users/import', data)
+// Excel 批量导入（multipart 上传 .xlsx 文件）
+export const importUsersExcel = (data) => request.post('/admin/users/import-excel', data)
 
 // 管理员端 - 系统配置
 export const getConfigs = (params) => request.get('/admin/configs', { params })
@@ -36,6 +38,7 @@ export default {
   deleteUser,
   resetUserPassword,
   importUsers,
+  importUsersExcel,
   getConfigs,
   updateConfig,
   getLogs,

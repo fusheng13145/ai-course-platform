@@ -14,9 +14,16 @@ jwt:
 
 spring:
   datasource:
+    # 独立测试库，与开发库隔离；上下文启动时由 sql.init 用 index.sql 重建 schema+种子
+    url: jdbc:mysql://localhost:3306/ai_course_platform_test?createDatabaseIfNotExist=true&useSSL=false&requireSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true
     password: ${MYSQL_ROOT_PASSWORD:1234}
     hikari:
       maximum-pool-size: 20
+  sql:
+    init:
+      mode: always
+      schema-locations: classpath:index.sql
+      continue-on-error: false
 
 logging:
   level:

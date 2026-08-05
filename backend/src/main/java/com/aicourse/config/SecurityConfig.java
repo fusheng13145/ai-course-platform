@@ -164,6 +164,13 @@ public class SecurityConfig {
                         auth.requestMatchers("/actuator/**").permitAll();
                     }
 
+                    // 学生可用的 AI 交互端点（智能问答 / 纠错 / 润色）：任意已登录角色均可调用，
+                    // 不受下方「资源写操作限教师/管理员」规则约束，否则学生无法使用 AI 助教与笔记润色。
+                    auth.requestMatchers(HttpMethod.POST,
+                                    "/ai/qa/ask", "/ai/qa/continue",
+                                    "/ai/essay/correct", "/ai/essay/polish")
+                            .authenticated();
+
                     // 课程/试卷/题目等资源：POST、PUT、DELETE、PATCH 仅教师、管理员可操作
                     auth.requestMatchers(HttpMethod.POST, commonResourcePaths.toArray(new String[0]))
                             .hasAnyRole(RoleConstants.TEACHER, RoleConstants.ADMIN);

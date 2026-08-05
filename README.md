@@ -180,10 +180,10 @@ ai-course-platform/
 ├── backend/                    # Spring Boot 后端
 │   ├── src/main/java/com/aicourse/
 │   │   ├── Application.java    # 启动类
-│   │   ├── controller/         # 40 个控制器（端点以 springdoc 为准）
-│   │   ├── service/            # 50个 Service Impl
-│   │   ├── mapper/             # 47个 Mapper接口
-│   │   ├── entity/             # 47个实体类
+│   │   ├── controller/         # 41 个控制器（端点以 springdoc 为准）
+│   │   ├── service/            # 63个 Service 实现类
+│   │   ├── mapper/             # 48个 Mapper接口
+│   │   ├── entity/             # 48个实体类
 │   │   ├── security/           # JWT认证过滤器
 │   │   ├── config/             # 配置类
 │   │   └── util/               # 工具类
@@ -193,8 +193,8 @@ ai-course-platform/
 │
 ├── frontend/                   # Vue 3 前端
 │   ├── src/
-│   │   ├── api/                # 34个API模块（含 request.js 请求封装）
-│   │   ├── views/              # 65个页面组件（三端）
+│   │   ├── api/                # 41个API模块（含 request.js 请求封装）
+│   │   ├── views/              # 75个页面组件（三端）
 │   │   ├── layouts/            # 布局组件
 │   │   ├── stores/             # Pinia状态管理
 │   │   ├── router/             # 路由配置
@@ -202,10 +202,11 @@ ai-course-platform/
 │   ├── vite.config.js          # Vite配置
 │   └── package.json            # 依赖配置
 │
-├── docs/                       # 项目文档
+├── docs/                       # 项目文档（2026-08-02 合并为 4 份）
 │   ├── AI课程平台-产品需求文档.md  # 合并权威版需求基线（含三端 PRD / AI 专题 / 接口矩阵 / 数据表）
-│   ├── Python接口契约文档.md   # Java ↔ Python 微服务接口契约（KG/RAG 可选，微调 8003 活跃）
-│   └── 项目交付与完成度报告.md # 交付清单 + 完成度 + 进度计划
+│   ├── 软件产品路线图.md        # 战略规划（架构演进 + 产品路线图 + 功能扩展可行性分析）
+│   ├── 项目交付与完成度报告.md # 交付清单 + 完成度 + 审查记录
+│   └── 运维手册.md             # 部署运维 + Python 微服务接口契约（KG/RAG 可选，微调 8003 活跃）
 └── README.md                   # 项目说明
 ```
 
@@ -272,7 +273,7 @@ ai-course-platform/
 
 ## 开发规范
 
-编码与部署规范见 [docs/项目交付与完成度报告.md](docs/项目交付与完成度报告.md)（安全机制、部署指南等章节）。
+编码与部署规范见 [docs/运维手册.md](docs/运维手册.md)（部署指南、备份恢复、故障处理等章节）；交付口径见 [docs/项目交付与完成度报告.md](docs/项目交付与完成度报告.md)。
 
 ## 测试
 
@@ -292,15 +293,16 @@ cd backend
 mvn test -Dtest='!*IT,!Phase1Phase3IntegrationTest' -DfailIfNoTests=false
 ```
 
-- 单元测试（Controller 层 MockMvc / Service 层 Mockito）**无需 Docker**，但契约与鉴权类用例依赖 `JWT_SECRET` 与 `MYSQL_ROOT_PASSWORD`（或本机 MySQL root 凭据匹配）环境变量；未设置时对应用例报环境类错误（Access denied / WeakKeyException），属环境依赖而非代码缺陷。
+- 单元测试（Controller 层 MockMvc / Service 层 Mockito）**无需 Docker、无需设置环境变量**（2026-07-31 起通过测试专用 profile `application-contract-test.yml` / `application-local.yml` 根治环境依赖，复用本机 MySQL/Redis）。
 - 集成测试（`*IT`、`Phase1Phase3IntegrationTest`）基于 Testcontainers，**需要 Docker daemon**；本机无 Docker 时用上面的 `-Dtest` 排除项跳过。
 - 质量门禁：JaCoCo 覆盖率（LINE ≥ 65% / BRANCH ≥ 50%，报告在 `backend/target/site/jacoco`）、SpotBugs 静态扫描、ArchUnit 架构约束，均随 `mvn test` 执行。
 
 ## 详细文档
 
 - 需求基线（合并权威版）：[docs/AI课程平台-产品需求文档.md](docs/AI课程平台-产品需求文档.md)
-- 交付与完成度：[docs/项目交付与完成度报告.md](docs/项目交付与完成度报告.md)
-- Python 微服务契约：[docs/Python接口契约文档.md](docs/Python接口契约文档.md)
+- 战略规划（含功能扩展可行性分析）：[docs/软件产品路线图.md](docs/软件产品路线图.md)
+- 交付与完成度（含审查记录）：[docs/项目交付与完成度报告.md](docs/项目交付与完成度报告.md)
+- 部署运维与 Python 微服务契约：[docs/运维手册.md](docs/运维手册.md)
 
 ## 生产部署检查清单
 

@@ -14,15 +14,21 @@ import com.aicourse.service.SubmissionService;
 import com.aicourse.service.TaskService;
 import com.aicourse.service.TeacherCourseService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.apache.poi.ss.usermodel.Row;
+import org.apache.poi.ss.usermodel.Sheet;
+import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
+import java.io.ByteArrayOutputStream;
 import java.util.List;
 import java.util.Map;
 
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -74,6 +80,30 @@ class TeacherControllerTest extends ControllerTestBase {
         q.setId(1L);
         q.setCourseId(1L);
         return q;
+    }
+
+    /** 生成与导出列头一致的题库 xlsx 上传文件（表头 + 若干行题干） */
+    private MockMultipartFile excelQuestionFile(String... contents) throws Exception {
+        try (XSSFWorkbook wb = new XSSFWorkbook()) {
+            Sheet sheet = wb.createSheet("题库");
+            String[] heads = {"题型", "题干", "选项(JSON)", "正确答案", "难度", "分值", "知识点", "解析"};
+            Row header = sheet.createRow(0);
+            for (int i = 0; i < heads.length; i++) {
+                header.createCell(i).setCellValue(heads[i]);
+            }
+            for (int r = 0; r < contents.length; r++) {
+                Row row = sheet.createRow(r + 1);
+                row.createCell(0).setCellValue("SINGLE_CHOICE");
+                row.createCell(1).setCellValue(contents[r]);
+                row.createCell(3).setCellValue("A");
+                row.createCell(4).setCellValue("MEDIUM");
+                row.createCell(5).setCellValue("5");
+            }
+            ByteArrayOutputStream bos = new ByteArrayOutputStream();
+            wb.write(bos);
+            return new MockMultipartFile("file", "questions.xlsx",
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", bos.toByteArray());
+        }
     }
 
     private Submission ownerSubmission() {
@@ -733,17 +763,48 @@ class TeacherControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("GET /teacher/questions/export - 真实业务断言：课程归属校验通过并列表返回题目")
+    @DisplayName("GET /teacher/questions/export - 真实业务断言：课程归属校验通过并导出 xlsx 文件流")
     void exportQuestions_authorized_passes_security() throws Exception {
         when(courseService.getById(eq(1L))).thenReturn(ownerCourse());
         when(questionService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class))).thenReturn(List.of(ownerQuestion()));
         mockMvc.perform(get("/teacher/questions/export?courseId=1").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data[0].id").value(1));
+                .andExpect(header().string("Content-Type",
+                        "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"))
+                .andExpect(header().string("Content-Disposition",
+                        org.hamcrest.Matchers.containsString("attachment; filename*=UTF-8''")))
+                .andExpect(mvcResult -> {
+                    byte[] body = mvcResult.getResponse().getContentAsByteArray();
+                    assertTrue(body.length > 4, "导出内容不应为空");
+                    // xlsx 本质是 ZIP 容器，魔数为 PK\x03\x04
+                    assertTrue(body[0] == 'P' && body[1] == 'K' && body[2] == 3 && body[3] == 4,
+                            "响应体应为 xlsx(ZIP) 字节流");
+                });
         verify(questionService).list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class));
         verify(courseService).getById(eq(1L));
+    }
+
+    @Test
+    @DisplayName("POST /teacher/questions/import-excel - 真实业务断言：解析 xlsx 逐题入库并统计")
+    void importQuestionsExcel_authorized_passes_security() throws Exception {
+        when(questionService.save(any(Question.class))).thenReturn(true);
+        MockMultipartFile file = excelQuestionFile("单选题题干示例一", "单选题题干示例二");
+        mockMvc.perform(multipart("/teacher/questions/import-excel").file(file).with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.importedCount").value(2))
+                .andExpect(jsonPath("$.data.total").value(2));
+        verify(questionService, times(2)).save(any(Question.class));
+    }
+
+    @Test
+    @DisplayName("POST /teacher/questions/import-excel - 非 xlsx 文件返回业务错误400")
+    void importQuestionsExcel_badFormat_returns_400() throws Exception {
+        MockMultipartFile file = new MockMultipartFile("file", "bad.csv", "text/csv", "a,b,c".getBytes());
+        mockMvc.perform(multipart("/teacher/questions/import-excel").file(file).with(withUser(1L, "TEACHER")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+        verify(questionService, never()).save(any(Question.class));
     }
 
     @Test

@@ -103,7 +103,9 @@ public class ExamSessionController {
     @PostMapping("/{id}/force-submit")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "强制交卷", description = "管理员可强制结束学生的考试并收卷")
-    public ApiResponse<ExamSession> forceSubmit(@Parameter(description = "考试会话ID") @PathVariable Long id) {
+    public ApiResponse<ExamSession> forceSubmit(@Parameter(description = "考试会话ID") @PathVariable Long id,
+                                                Authentication auth) {
+        examSessionAccessControl.assertManageable(id, auth);
         ExamSession session = examSessionService.forceSubmit(id);
         return ApiResponse.success("强制交卷成功", session);
     }
@@ -126,7 +128,9 @@ public class ExamSessionController {
     @PostMapping("/{id}/auto-grade")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "自动阅卷", description = "对客观题（单选/多选/判断）进行自动判分，生成成绩报告")
-    public ApiResponse<Map<String, Object>> autoGrade(@Parameter(description = "考试会话ID") @PathVariable Long id) {
+    public ApiResponse<Map<String, Object>> autoGrade(@Parameter(description = "考试会话ID") @PathVariable Long id,
+                                                      Authentication auth) {
+        examSessionAccessControl.assertManageable(id, auth);
         Map<String, Object> result = examSessionService.autoGrade(id);
         return ApiResponse.success("自动阅卷完成", result);
     }
@@ -139,7 +143,9 @@ public class ExamSessionController {
     @Operation(summary = "人工评分", description = "教师对主观题进行人工打分和评语填写")
     public ApiResponse<Void> manualGrade(
             @Parameter(description = "考试会话ID") @PathVariable Long id,
-            @Valid @RequestBody ExamManualGradeDTO body) {
+            @Valid @RequestBody ExamManualGradeDTO body,
+            Authentication auth) {
+        examSessionAccessControl.assertManageable(id, auth);
         examSessionService.manualGrade(id, body.getQuestionId(), body.getScore(),
                 body.getComment() != null ? body.getComment() : "");
         return ApiResponse.success("人工评分完成", null);
@@ -175,7 +181,9 @@ public class ExamSessionController {
     @GetMapping("/{id}/cheating-detect")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "检测作弊嫌疑", description = "基于行为数据检测可能的作弊行为，返回可疑点列表")
-    public ApiResponse<List<String>> detectCheating(@Parameter(description = "考试会话ID") @PathVariable Long id) {
+    public ApiResponse<List<String>> detectCheating(@Parameter(description = "考试会话ID") @PathVariable Long id,
+                                                    Authentication auth) {
+        examSessionAccessControl.assertManageable(id, auth);
         List<String> suspicions = examSessionService.detectCheating(id);
         return ApiResponse.success(suspicions);
     }
@@ -186,7 +194,9 @@ public class ExamSessionController {
     @PostMapping("/{id}/check-cheating")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "作弊检测与标记", description = "执行全面作弊检测，将检测结果标记到会话记录中")
-    public ApiResponse<Map<String, Object>> checkCheating(@Parameter(description = "考试会话ID") @PathVariable Long id) {
+    public ApiResponse<Map<String, Object>> checkCheating(@Parameter(description = "考试会话ID") @PathVariable Long id,
+                                                          Authentication auth) {
+        examSessionAccessControl.assertManageable(id, auth);
         Map<String, Object> result = examSessionService.checkCheating(id);
         return ApiResponse.success(result);
     }

@@ -23,14 +23,21 @@ goto after_load_env
 
 :warn_no_env
 echo [WARN] .env file not found: %ENV_FILE%
-echo        Using built-in defaults (MYSQL_ROOT_PASSWORD=1234, built-in JWT key).
-echo        The built-in JWT key is FOR LOCAL DEVELOPMENT ONLY - do NOT deploy
-echo        with it; create .env from .env.example with strong random values.
+echo        MYSQL_ROOT_PASSWORD will use built-in default (1234, local dev only).
+if defined JWT_SECRET goto after_load_env
 echo.
+echo [ERROR] JWT_SECRET is not defined.
+echo        JWT_SECRET is REQUIRED (signing key for authentication tokens).
+echo        Create .env from .env.example with a strong random value, e.g.:
+echo          copy .env.example .env
+echo        Then edit JWT_SECRET (openssl rand -base64 48).
+pause
+exit /b 1
 
 :after_load_env
 if not defined MYSQL_ROOT_PASSWORD set "MYSQL_ROOT_PASSWORD=1234"
-if not defined JWT_SECRET set "JWT_SECRET=oZQ-8qgNx7hVMFMAdvLxb4NsXhGOOp0Qva9WsOr1CLLdpov-4mddh7by2qA0vhlM"
+rem JWT_SECRET 为安全敏感密钥：不做内置兜底（内置默认密钥可被伪造 JWT），缺失则 fail-fast
+if not defined JWT_SECRET goto err_no_jwt
 
 set "SPRING_DATASOURCE_PASSWORD=%MYSQL_ROOT_PASSWORD%"
 set "SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3306/ai_course_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true"
@@ -76,6 +83,14 @@ if errorlevel 1 goto err_no_mysql
 echo [OK] MySQL: docker container on port 3307 (local MySQL not running, using docker fallback)
 set "SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3307/ai_course_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true"
 goto check_redis
+
+:err_no_jwt
+echo [ERROR] JWT_SECRET is not defined in environment or %ENV_FILE%.
+echo        JWT_SECRET is REQUIRED (authentication token signing key).
+echo        Fix: copy .env.example to .env, then set JWT_SECRET to a strong
+echo        random value (e.g. openssl rand -base64 48). Never use a default key.
+pause
+exit /b 1
 
 :err_no_mysql
 echo [ERROR] No MySQL listening on port 3306 (local) or 3307 (docker).

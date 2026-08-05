@@ -178,6 +178,38 @@ class UserControllerTest extends ControllerTestBase {
 
 
     @Test
+    @DisplayName("GET /users/2/profile - 非本人（STUDENT访问他人）返回403")
+    void getProfile_otherUser_forbidden_403() throws Exception {
+        mockMvc.perform(get("/users/2/profile").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isForbidden());
+    }
+
+
+    @Test
+    @DisplayName("GET /users/2/classmates - 非本人（STUDENT访问他人）返回403")
+    void getClassmates_otherUser_forbidden_403() throws Exception {
+        mockMvc.perform(get("/users/2/classmates").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isForbidden());
+    }
+
+
+    @Test
+    @DisplayName("GET /users/2/stats - 非本人（STUDENT访问他人）返回403")
+    void getUserStats_otherUser_forbidden_403() throws Exception {
+        mockMvc.perform(get("/users/2/stats").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isForbidden());
+    }
+
+
+    @Test
+    @DisplayName("GET /users/teacher/students - 纯STUDENT角色返回403")
+    void getTeacherStudents_student_forbidden_403() throws Exception {
+        mockMvc.perform(get("/users/teacher/students").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isForbidden());
+    }
+
+
+    @Test
     @DisplayName("GET /users/search - 返回200且分页搜索结果透传")
     void search_authorized_returns_200() throws Exception {
         User u = sampleUser(2L, "zhaoliu");

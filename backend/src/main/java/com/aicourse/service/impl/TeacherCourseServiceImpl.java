@@ -336,6 +336,7 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
     // ===================== 3. 课程克隆 =====================
 
     @Override
+    @Transactional
     public Map<String, Object> cloneCourse(Long sourceCourseId, String newName, Long operatorId) {
         Course src = courseService.getById(sourceCourseId);
         if (src == null) throw new BusinessException("源课程不存在");

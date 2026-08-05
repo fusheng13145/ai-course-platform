@@ -131,9 +131,12 @@ public class StudentController {
 
     /**
      * 获取待完成作业
+     * @param courseId 课程ID（可选，指定时仅返回该课程的待完成作业）
      */
     @GetMapping("/assignments/pending")
-    public ApiResponse<List<Task>> getPendingAssignments(Authentication auth) {
+    public ApiResponse<List<Task>> getPendingAssignments(
+            @RequestParam(required = false) Long courseId,
+            Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         List<CourseEnrollment> enrollments = enrollmentService.list(
                 new LambdaQueryWrapper<CourseEnrollment>()
@@ -146,7 +149,9 @@ public class StudentController {
                 .map(CourseEnrollment::getCourseId).collect(Collectors.toList());
         List<Task> tasks = taskService.list(
                 new LambdaQueryWrapper<Task>()
-                        .in(Task::getCourseId, courseIds)
+                        // 指定课程时按课程精确过滤，否则在已加入课程范围内查询
+                        .eq(courseId != null, Task::getCourseId, courseId)
+                        .in(courseId == null, Task::getCourseId, courseIds)
                         .eq(Task::getStatus, "PUBLISHED")
                         .orderByDesc(Task::getCreatedAt));
         // 过滤已提交的
@@ -162,14 +167,27 @@ public class StudentController {
 
     /**
      * 获取已完成作业
+     * @param courseId 课程ID（可选，指定时仅返回该课程的已提交作业）
      */
     @GetMapping("/assignments/completed")
-    public ApiResponse<List<Submission>> getCompletedAssignments(Authentication auth) {
+    public ApiResponse<List<Submission>> getCompletedAssignments(
+            @RequestParam(required = false) Long courseId,
+            Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         List<Submission> submissions = submissionService.list(
                 new LambdaQueryWrapper<Submission>()
                         .eq(Submission::getStudentId, userId)
                         .orderByDesc(Submission::getCreatedAt));
+        // 指定课程时按作业归属课程过滤（作业→课程）
+        if (courseId != null && !submissions.isEmpty()) {
+            Set<Long> taskIds = submissions.stream()
+                    .map(Submission::getTaskId).collect(Collectors.toSet());
+            Map<Long, Long> taskCourseMap = taskService.listByIds(taskIds).stream()
+                    .collect(Collectors.toMap(Task::getId, Task::getCourseId, (a, b) -> a));
+            submissions = submissions.stream()
+                    .filter(s -> courseId.equals(taskCourseMap.get(s.getTaskId())))
+                    .collect(Collectors.toList());
+        }
         return ApiResponse.success(submissions);
     }
 
