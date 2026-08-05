@@ -131,4 +131,30 @@ class ReminderControllerTest extends ControllerTestBase {
         mockMvc.perform(post("/reminders/send-due").with(withUser(1L, "STUDENT")))
                 .andExpect(status().isForbidden());
     }
+
+    @Test
+    @DisplayName("PUT /reminders/1 - 返回200且正确委托updateReminder（修复前端断链）")
+    void updateReminder_authorized_returns_success() throws Exception {
+        when(reminderService.updateReminder(any(), any())).thenReturn(sampleReminder());
+        mockMvc.perform(put("/reminders/1").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"新标题\",\"content\":\"新内容\",\"remindAt\":\"2025-01-02T10:00:00\",\"targetUserId\":2}")
+                        .with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+        verify(reminderService).updateReminder(eq(1L), any());
+    }
+
+    @Test
+    @DisplayName("PUT /reminders/1 - 未认证返回401")
+    void updateReminder_unauthorized_returns_401() throws Exception {
+        mockMvc.perform(put("/reminders/1").contentType(MediaType.APPLICATION_JSON).content("{}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("POST /reminders/batch-trigger - 无对应 POST 端点（命中 PUT /{id} 模板返回405，杜绝死代码断链）")
+    void batchTrigger_endpoint_not_found_405() throws Exception {
+        mockMvc.perform(post("/reminders/batch-trigger").with(withUser(1L, "ADMIN")))
+                .andExpect(status().isMethodNotAllowed());
+    }
 }

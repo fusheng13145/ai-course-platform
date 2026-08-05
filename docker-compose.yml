@@ -5,8 +5,8 @@
 # 【Redis 必选】backend 通过 depends_on.condition=service_healthy
 # 强依赖 MySQL 与 Redis 两者；Redis 未就绪时 backend 不会启动，
 # 与应用内 RedisStartupValidator（启动 PING 强校验）双重保障。
-# Redis 认证：.env 设置 REDIS_PASSWORD 后自动启用 requirepass 并同步到后端；
-# 留空仅限本地开发（无认证）。
+# Redis 认证：REDIS_PASSWORD 现为必填项（docker compose 缺失即拒绝启动），
+# 设置后自动启用 requirepass 并同步到后端。
 #
 # 【使用路径】
 # 1) 本地开发（默认，推荐）：start-backend.bat 优先使用本机 MySQL(3306) / Redis(6379)；
@@ -24,7 +24,7 @@ services:
     container_name: aicourse-mysql
     restart: unless-stopped
     environment:
-      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-1234}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD 必须设置（请 cp .env.example .env 后填入至少16位强密码）}
       MYSQL_DATABASE: ai_course_platform
       TZ: Asia/Shanghai
     command:
@@ -36,7 +36,7 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD:-1234}"]
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -46,10 +46,10 @@ services:
     image: redis:7-alpine
     container_name: aicourse-redis
     restart: unless-stopped
-    # 密码安全：设置 REDIS_PASSWORD 后自动启用 requirepass（生产环境必设）；
-    # 留空则不带密码启动（仅限本地开发），后端经 SPRING_DATA_REDIS_PASSWORD 同步连接。
+    # 密码安全：REDIS_PASSWORD 现为必填项（见 docker-compose 顶层 required 约束）；
+    # 设置后自动启用 requirepass，后端经 SPRING_DATA_REDIS_PASSWORD 同步连接。
     environment:
-      REDIS_PASSWORD: ${REDIS_PASSWORD:-}
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD 必须设置（请 cp .env.example .env 后填入强密码）}
     command: ["sh", "-c", "if [ -n \"$REDIS_PASSWORD\" ]; then exec redis-server --appendonly yes --requirepass \"$REDIS_PASSWORD\"; else exec redis-server --appendonly yes; fi"]
     ports:
       - "6379:6379"
@@ -76,11 +76,11 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ai_course_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true
       SPRING_DATASOURCE_USERNAME: root
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD:-1234}
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
-      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD:-}
-      JWT_SECRET: ${JWT_SECRET:-change_me_in_production}
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET 必须设置（请 cp .env.example .env 后填入至少32位随机密钥）}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}

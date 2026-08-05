@@ -13,6 +13,7 @@ import java.util.List;
 
 import com.aicourse.common.ApiCode;
 import com.aicourse.dto.ReminderCreateDTO;
+import com.aicourse.dto.ReminderUpdateDTO;
 import jakarta.validation.Valid;
 
 /**
@@ -139,5 +140,18 @@ public class ReminderController {
     public ApiResponse<List<Reminder>> sendDueReminders() {
         List<Reminder> sentReminders = reminderService.sendDueReminders(LocalDateTime.now());
         return ApiResponse.success("发送完成", sentReminders);
+    }
+
+    /**
+     * 更新提醒（局部更新）
+     * 字段命名与前端编辑表单对齐：title/content/remindAt/targetUserId。
+     * @param id 提醒ID
+     * @param dto 更新字段（仅更新非 null 字段）
+     * @return 更新后的提醒
+     */
+    @PutMapping("/{id}")
+    public ApiResponse<Reminder> updateReminder(@PathVariable Long id, @Valid @RequestBody ReminderUpdateDTO dto) {
+        Reminder updated = reminderService.updateReminder(id, dto);
+        return ApiResponse.success("更新成功", updated);
     }
 }

@@ -97,12 +97,15 @@ export default defineConfig(({ mode }) => ({
     rollupOptions: {
       output: {
         manualChunks(id) {
-          if (id.includes('element-plus')) return 'element-plus'
-          if (id.includes('echarts') || id.includes('zrender')) return 'echarts'
-          if (id.includes('axios')) return 'axios'
           if (id.includes('node_modules')) {
+            if (id.includes('element-plus')) return 'element-plus'
+            if (id.includes('echarts') || id.includes('zrender')) return 'echarts'
+            if (id.includes('exceljs')) return 'exceljs'
+            if (id.includes('pdfjs-dist') || id.includes('jspdf') || id.includes('html2canvas')) return 'pdf'
+            if (id.includes('marked') || id.includes('dompurify') || id.includes('markdown')) return 'markdown'
             if (id.includes('vue') || id.includes('pinia') || id.includes('vue-router')) return 'vue-vendor'
-            // 其余 node_modules 归入 vendor
+            if (id.includes('axios')) return 'axios'
+            // 其余 node_modules 归入 vendor，避免单一巨块
             return 'vendor'
           }
         }

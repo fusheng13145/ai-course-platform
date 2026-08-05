@@ -51,7 +51,7 @@ describe('API 模块：reminder', () => {
     expect(api.createReminder).toBeDefined()
     expect(api.getTodos).toBeDefined()
     expect(api.updateReminder).toBeDefined()
-    expect(api.batchTrigger).toBeDefined()
+    expect(api.cancelReminder).toBeDefined()
     expect(api.sendDue).toBeDefined()
   })
 })

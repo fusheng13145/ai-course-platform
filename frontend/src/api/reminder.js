@@ -4,11 +4,11 @@ import request from './request'
 export const createReminder = data => request.post('/reminders', data)
 // 待办列表
 export const getTodos = () => request.get('/reminders/todos')
-// 更新提醒
+// 更新提醒（局部更新，对应后端 PUT /reminders/{id}）
 export const updateReminder = (id, data) => request.put(`/reminders/${id}`, data)
-// 批量触发
-export const batchTrigger = data => request.post('/reminders/batch-trigger', data)
+// 取消提醒（对应后端 PATCH /reminders/{id}/cancel）
+export const cancelReminder = (id) => request.patch(`/reminders/${id}/cancel`)
 // 发送到期提醒
 export const sendDue = () => request.post('/reminders/send-due')
 
-export default { createReminder, getTodos, updateReminder, batchTrigger, sendDue }
+export default { createReminder, getTodos, updateReminder, cancelReminder, sendDue }
