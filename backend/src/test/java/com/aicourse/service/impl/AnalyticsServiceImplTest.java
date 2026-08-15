@@ -71,10 +71,12 @@ class AnalyticsServiceImplTest {
         // 因此这里手动装配，保证委托链路在单测中可执行。
         TeachingAnalyticsComponent component = new TeachingAnalyticsComponent(
                 courseService, enrollmentService, taskService, submissionService, userService, null);
+        // 修复：构造器新增 ObjectProvider<StringRedisTemplate>（无 Redis 时降级直算）与 ObjectMapper
         analyticsService = new AnalyticsServiceImpl(
                 userService, courseService, enrollmentService, taskService,
                 submissionService, learningRecordService, examSessionService, examPaperService,
-                component, taskCompletionMapper, courseChapterService);
+                component, taskCompletionMapper, courseChapterService,
+                null, new com.fasterxml.jackson.databind.ObjectMapper());
     }
 
     private Course course(Long id, String name, String code, String category, String difficulty,

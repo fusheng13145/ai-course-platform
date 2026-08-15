@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.PlagiarismCheck;
@@ -21,6 +24,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/plagiarism-checks")
 public class PlagiarismCheckController {
+
+    private static final Logger log = LoggerFactory.getLogger(PlagiarismCheckController.class);
 
     private final PlagiarismCheckService plagiarismCheckService;
 

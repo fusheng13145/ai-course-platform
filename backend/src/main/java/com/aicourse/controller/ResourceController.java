@@ -1,14 +1,23 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.dto.ResourceVisibilityDTO;
+import com.aicourse.entity.Course;
+import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.Resource;
+import com.aicourse.service.CourseEnrollmentService;
+import com.aicourse.service.CourseService;
 import com.aicourse.service.ResourceService;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.core.io.UrlResource;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.util.StringUtils;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
@@ -35,6 +44,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "教学资源")
 public class ResourceController {
 
+    private static final Logger log = LoggerFactory.getLogger(ResourceController.class);
+
     // 全局常量：上传目录、文件大小限制(50MB)、允许的文件类型
     private static final String UPLOAD_BASE_DIR = "uploads/";
     private static final long MAX_FILE_SIZE = 50 * 1024 * 1024;
@@ -46,10 +57,24 @@ public class ResourceController {
             "video/mp4", "audio/mpeg"
     };
 
-    private final ResourceService resourceService;
+    // 常见文件魔数（修复 P1-6：Content-Type 可伪造，必须以文件内容校验真实类型）
+    private static final byte[] MAGIC_PDF = {'%', 'P', 'D', 'F'};
+    private static final byte[] MAGIC_PNG = {(byte) 0x89, 'P', 'N', 'G'};
+    private static final byte[] MAGIC_JPEG = {(byte) 0xFF, (byte) 0xD8, (byte) 0xFF};
+    private static final byte[] MAGIC_GIF = {'G', 'I', 'F', '8'};
+    private static final byte[] MAGIC_ZIP = {'P', 'K', 0x03, 0x04};
+    private static final byte[] MAGIC_OLE2 = {(byte) 0xD0, (byte) 0xCF, 0x11, (byte) 0xE0};
 
-    public ResourceController(ResourceService resourceService) {
+    private final ResourceService resourceService;
+    private final CourseService courseService;
+    private final CourseEnrollmentService courseEnrollmentService;
+
+    public ResourceController(ResourceService resourceService,
+                              CourseService courseService,
+                              CourseEnrollmentService courseEnrollmentService) {
         this.resourceService = resourceService;
+        this.courseService = courseService;
+        this.courseEnrollmentService = courseEnrollmentService;
     }
 
     /**
@@ -68,8 +93,14 @@ public class ResourceController {
      * 根据资源ID查询详情
      */
     @GetMapping("/{id}")
-    public ApiResponse<Resource> getResourceById(@PathVariable Long id) {
+    public ApiResponse<Resource> getResourceById(@PathVariable Long id, Authentication auth) {
         Resource resource = resourceService.getById(id);
+        if (resource == null) {
+            return ApiResponse.error(ApiCode.NOT_FOUND, "资源不存在");
+        }
+        if (!canAccessResource(resource, auth)) {
+            return ApiResponse.error(ApiCode.FORBIDDEN, "无权访问该资源");
+        }
         return ApiResponse.success(resource);
     }
 
@@ -122,7 +153,15 @@ public class ResourceController {
     @PatchMapping("/{id}/visibility")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<Void> toggleVisibility(@PathVariable Long id,
-                                              @Valid @RequestBody ResourceVisibilityDTO params) {
+                                              @Valid @RequestBody ResourceVisibilityDTO params,
+                                              Authentication auth) {
+        Resource resource = resourceService.getById(id);
+        if (resource == null) {
+            return ApiResponse.error(ApiCode.NOT_FOUND, "资源不存在");
+        }
+        if (!canAccessResource(resource, auth)) {
+            return ApiResponse.error(ApiCode.FORBIDDEN, "无权操作该课程资源");
+        }
         resourceService.toggleVisibility(id, params.getVisibleToAll());
         return ApiResponse.success("可见性切换成功");
     }
@@ -165,6 +204,20 @@ public class ResourceController {
             return ApiResponse.error(ApiCode.BAD_REQUEST, "不支持该文件格式上传");
         }
 
+        byte[] bytes;
+        try {
+            bytes = file.getBytes();
+        } catch (IOException e) {
+            log.error("读取上传文件失败: {}", e.getMessage(), e);
+            return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "读取上传文件失败：" + e.getMessage());
+        }
+        // 修复 P1-6：Content-Type 由客户端声明可伪造，必须以文件魔数校验真实内容，
+        // 阻断"伪装成图片的可执行/HTML/脚本文件"入库（防存储型 XSS / 恶意文件分发）。
+        String magic = detectMagicType(bytes);
+        if (!magicMatchesContentType(contentType, magic)) {
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "文件内容与声明类型不符，已拒绝上传");
+        }
+
         File dir = new File(UPLOAD_BASE_DIR);
         if (!dir.exists() && !dir.mkdirs()) {
             return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "上传目录创建失败");
@@ -180,7 +233,7 @@ public class ResourceController {
         Path targetPath = Paths.get(UPLOAD_BASE_DIR, uniqueFileName);
 
         try {
-            Files.write(targetPath, file.getBytes());
+            Files.write(targetPath, bytes);
 
             Resource resource = new Resource();
             resource.setFileName(safeFileName);
@@ -194,18 +247,24 @@ public class ResourceController {
 
             return ApiResponse.success("文件上传成功", resource);
         } catch (IOException e) {
+            log.error("写入上传文件失败: {}", e.getMessage(), e);
             return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "文件上传异常：" + e.getMessage());
         }
     }
 
     /**
-     * 下载资源文件
+     * 下载资源文件（修复 P1-6：下载必须校验资源访问权限——
+     * ADMIN 放行；教师仅限本课程；学生必须已选该课程，否则 403）
      */
     @GetMapping("/download/{id}")
-    public ResponseEntity<org.springframework.core.io.Resource> downloadResource(@PathVariable Long id) {
+    public ResponseEntity<org.springframework.core.io.Resource> downloadResource(@PathVariable Long id,
+                                                                                 Authentication auth) {
         Resource resource = resourceService.getById(id);
         if (resource == null) {
             return ResponseEntity.notFound().build();
+        }
+        if (!canAccessResource(resource, auth)) {
+            return ResponseEntity.status(org.springframework.http.HttpStatus.FORBIDDEN).build();
         }
 
         try {
@@ -214,27 +273,119 @@ public class ResourceController {
             UrlResource fileResource = new UrlResource(filePath.toUri());
 
             if (fileResource.exists() && fileResource.isFile()) {
+                // 修复 P1-6：文件名中的 CRLF/引号会污染 Content-Disposition 头（头注入），统一清洗
+                String safeFileName = sanitizeHeaderValue(resource.getFileName());
                 return ResponseEntity.ok()
                         .contentType(MediaType.APPLICATION_OCTET_STREAM)
-                        .header("Content-Disposition", "attachment; filename=\"" + resource.getFileName() + "\"")
+                        .header("Content-Disposition", "attachment; filename=\"" + safeFileName + "\"")
                         .body(fileResource);
             }
         } catch (Exception e) {
             // 捕获路径、IO 异常，统一返回404
+            log.warn("下载资源文件异常，返回404: id={}", id, e);
         }
         return ResponseEntity.notFound().build();
     }
 
     /**
+     * 资源访问权限校验（修复 P1-6）
+     */
+    private boolean canAccessResource(Resource resource, Authentication auth) {
+        if (auth == null || !(auth.getPrincipal() instanceof Long)) {
+            return false;
+        }
+        Long userId = (Long) auth.getPrincipal();
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+        boolean isTeacher = auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_TEACHER".equals(a.getAuthority()));
+        if (isAdmin) {
+            return true;
+        }
+        if (isTeacher) {
+            Course course = resource.getCourseId() != null ? courseService.getById(resource.getCourseId()) : null;
+            return course != null && userId.equals(course.getTeacherId());
+        }
+        // 学生：必须已选该资源所属课程
+        if (resource.getCourseId() == null) {
+            return false;
+        }
+        return courseEnrollmentService.count(new LambdaQueryWrapper<CourseEnrollment>()
+                .eq(CourseEnrollment::getStudentId, userId)
+                .eq(CourseEnrollment::getCourseId, resource.getCourseId())
+                .eq(CourseEnrollment::getIsActive, true)) > 0;
+    }
+
+    /**
+     * 清洗响应头中的文件名：移除 CR/LF 与引号（防 HTTP 头注入）
+     */
+    private String sanitizeHeaderValue(String value) {
+        if (value == null) {
+            return "file";
+        }
+        return value.replaceAll("[\\r\\n\"]", "_");
+    }
+
+    /**
+     * 识别文件魔数（读取文件头 8 字节）
+     */
+    private String detectMagicType(byte[] b) {
+        if (b == null || b.length < 8) {
+            return null;
+        }
+        if (startsWith(b, MAGIC_PDF)) return "pdf";
+        if (startsWith(b, MAGIC_PNG)) return "png";
+        if (startsWith(b, MAGIC_JPEG)) return "jpeg";
+        if (startsWith(b, MAGIC_GIF)) return "gif";
+        if (startsWith(b, MAGIC_ZIP)) return "zip";
+        if (startsWith(b, MAGIC_OLE2)) return "ole2";
+        if (b[4] == 'f' && b[5] == 't' && b[6] == 'y' && b[7] == 'p') return "mp4";
+        return null;
+    }
+
+    private boolean startsWith(byte[] data, byte[] magic) {
+        if (data.length < magic.length) return false;
+        for (int i = 0; i < magic.length; i++) {
+            if (data[i] != magic[i]) return false;
+        }
+        return true;
+    }
+
+    /**
+     * 声明 Content-Type 与魔数一致性校验（修复 P1-6）
+     */
+    private boolean magicMatchesContentType(String contentType, String magic) {
+        if (magic == null) {
+            return false;
+        }
+        if ("application/pdf".equals(contentType)) return "pdf".equals(magic);
+        if ("image/png".equals(contentType)) return "png".equals(magic);
+        if ("image/jpeg".equals(contentType)) return "jpeg".equals(magic);
+        if ("image/gif".equals(contentType)) return "gif".equals(magic);
+        if ("video/mp4".equals(contentType)) return "mp4".equals(magic);
+        // MP3 帧头（FFFx）不统一，仅对声明类型放行
+        if ("audio/mpeg".equals(contentType)) return true;
+        // Word/Excel 新格式（docx/xlsx/pptx）为 ZIP 容器；旧格式（doc/xls）为 OLE2 复合文档
+        if (contentType != null
+                && (contentType.contains("word") || contentType.contains("excel"))) {
+            return "zip".equals(magic) || "ole2".equals(magic);
+        }
+        return false;
+    }
+
+    /**
      * 删除资源
-     * 权限：教师、管理员
+     * 权限：教师、管理员（修复 P1-6：教师仅能删除本课程资源）
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Void> deleteResource(@PathVariable Long id) {
+    public ApiResponse<Void> deleteResource(@PathVariable Long id, Authentication auth) {
         Resource resource = resourceService.getById(id);
         if (resource == null) {
             return ApiResponse.error(ApiCode.NOT_FOUND, "资源不存在");
+        }
+        if (!canAccessResource(resource, auth)) {
+            return ApiResponse.error(ApiCode.FORBIDDEN, "无权删除该课程资源");
         }
 
         String fileRelativePath = resource.getUrl().substring(1);
@@ -244,6 +395,7 @@ public class ResourceController {
                 Files.delete(filePath);
             }
         } catch (IOException e) {
+            log.error("删除资源文件失败: {}", e.getMessage(), e);
             return ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "文件删除失败：" + e.getMessage());
         }
 

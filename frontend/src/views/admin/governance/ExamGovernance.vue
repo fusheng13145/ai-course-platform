@@ -1,195 +1,248 @@
 <template>
   <div class="fade-in exam-governance">
-    <PageHeader title="考试防作弊治理" subtitle="监考会话风险看板、违规事件核查与复核工作流" icon="shield" icon-bg="accent">
+    <PageHeader
+      title="考试防作弊治理"
+      subtitle="监考会话风险看板、违规事件核查与复核工作流"
+      icon="shield"
+      icon-bg="accent"
+    >
       <el-button :loading="loading" @click="loadSessions">
         <el-icon><Refresh /></el-icon>刷新
       </el-button>
     </PageHeader>
 
     <div class="stat-grid">
-      <StatCard label="进行中监考会话" :value="sessions.length" icon="video" tone="var(--accent-soft)" tone-color="var(--accent)" />
-      <StatCard label="高风险会话" :value="highRiskCount" icon="warn" tone="var(--warn-soft)" tone-color="var(--warn)" />
-      <StatCard label="已触发标记(FLAGGED)" :value="flaggedCount" icon="bell" tone="var(--info-soft)" tone-color="var(--info)" />
-      <StatCard label="累计违规事件" :value="totalEvents" icon="megaphone" tone="var(--warn-soft)" tone-color="var(--warn)" />
+      <StatCard
+        label="进行中监考会话"
+        :value="sessions.length"
+        icon="video"
+        tone="var(--accent-soft)"
+        tone-color="var(--accent)"
+      />
+      <StatCard
+        label="高风险会话"
+        :value="highRiskCount"
+        icon="warn"
+        tone="var(--warn-soft)"
+        tone-color="var(--warn)"
+      />
+      <StatCard
+        label="已触发标记(FLAGGED)"
+        :value="flaggedCount"
+        icon="bell"
+        tone="var(--info-soft)"
+        tone-color="var(--info)"
+      />
+      <StatCard
+        label="累计违规事件"
+        :value="totalEvents"
+        icon="megaphone"
+        tone="var(--warn-soft)"
+        tone-color="var(--warn)"
+      />
     </div>
 
     <section class="l1-card">
       <div class="l1-head">
-        <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        <span class="l1-ico" style="background: var(--accent-soft); color: var(--accent)">
+          <svg
+            viewBox="0 0 24 24"
+            width="17"
+            height="17"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.9"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+          </svg>
         </span>
-        <div><div class="l1-title">监考治理看板</div><div class="l1-sub">风险会话、违规事件与阈值规则</div></div>
+        <div>
+          <div class="l1-title">监考治理看板</div>
+          <div class="l1-sub">风险会话、违规事件与阈值规则</div>
+        </div>
       </div>
       <div class="l1-body">
-    <div class="grid-main">
-      <!-- 监考会话列表 -->
-      <div class="content-card session-list-card">
-        <div class="card-title">
-          <el-icon><VideoCamera /></el-icon>监考会话
-        </div>
-        <div class="session-list">
-          <div
-            v-for="s in sessions"
-            :key="s.id"
-            class="session-item"
-            :class="{ active: selectedId === s.id }"
-            @click="selectSession(s)"
-          >
-            <div class="session-main">
-              <span class="session-id">试卷 #{{ s.examPaperId }}</span>
-              <span class="session-stu">学生 #{{ s.studentId }}</span>
+        <div class="grid-main">
+          <!-- 监考会话列表 -->
+          <div class="content-card session-list-card">
+            <div class="card-title">
+              <el-icon><VideoCamera /></el-icon>监考会话
             </div>
-            <div class="session-sub">
-              <span class="session-time">{{ formatTime(s.startTime, '—') }}</span>
-              <el-tag v-if="s.riskLevel" size="small" :type="riskTag(s.riskLevel)" effect="light">
-                {{ levelText(s.riskLevel) }} · {{ s.riskScore }}
-              </el-tag>
+            <div class="session-list">
+              <div
+                v-for="s in sessions"
+                :key="s.id"
+                class="session-item"
+                :class="{ active: selectedId === s.id }"
+                @click="selectSession(s)"
+              >
+                <div class="session-main">
+                  <span class="session-id">试卷 #{{ s.examPaperId }}</span>
+                  <span class="session-stu">学生 #{{ s.studentId }}</span>
+                </div>
+                <div class="session-sub">
+                  <span class="session-time">{{ formatTime(s.startTime, '—') }}</span>
+                  <el-tag
+                    v-if="s.riskLevel"
+                    size="small"
+                    :type="riskTag(s.riskLevel)"
+                    effect="light"
+                  >
+                    {{ levelText(s.riskLevel) }} · {{ s.riskScore }}
+                  </el-tag>
+                </div>
+              </div>
+              <el-empty
+                v-if="!sessions.length"
+                :description="loading ? '加载中…' : '当前无进行中的监考会话'"
+                :image-size="70"
+              />
             </div>
           </div>
-          <el-empty
-            v-if="!sessions.length"
-            :description="loading ? '加载中…' : '当前无进行中的监考会话'"
-            :image-size="70"
-          />
-        </div>
-      </div>
 
-      <!-- 风险详情 + 事件 -->
-      <div class="content-card">
-        <div class="card-title">
-          <el-icon><DataAnalysis /></el-icon>会话风险详情
+          <!-- 风险详情 + 事件 -->
+          <div class="content-card">
+            <div class="card-title">
+              <el-icon><DataAnalysis /></el-icon>会话风险详情
+            </div>
+            <div v-if="current" class="detail">
+              <div class="detail-row">
+                <span class="d-label">监考会话</span
+                ><span class="d-val"
+                  >试卷 #{{ current.examPaperId }} / 学生 #{{ current.studentId }}</span
+                >
+              </div>
+              <div class="detail-row">
+                <span class="d-label">风险评分</span>
+                <span class="d-val"
+                  ><b :class="'score-' + (current.riskLevel || 'LOW')">{{
+                    current.riskScore ?? 0
+                  }}</b></span
+                >
+              </div>
+              <div class="detail-row">
+                <span class="d-label">风险等级</span>
+                <span class="d-val">
+                  <el-tag size="small" :type="riskTag(current.riskLevel)" effect="dark">{{
+                    levelText(current.riskLevel)
+                  }}</el-tag>
+                  <el-tag
+                    v-if="current.status === 'FLAGGED'"
+                    size="small"
+                    type="danger"
+                    effect="plain"
+                    style="margin-left: 6px"
+                    >已标记</el-tag
+                  >
+                </span>
+              </div>
+              <div class="detail-row">
+                <span class="d-label">事件分布</span>
+                <span class="d-val type-chips">
+                  <span v-for="(c, t) in current.typeCounts" :key="t" class="type-chip"
+                    >{{ typeText(t) }} ×{{ c }}</span
+                  >
+                  <span
+                    v-if="!current.typeCounts || !Object.keys(current.typeCounts).length"
+                    class="muted"
+                    >无</span
+                  >
+                </span>
+              </div>
+              <el-button class="view-events" type="primary" plain @click="openEvents(current)">
+                <el-icon><Document /></el-icon>查看违规事件（{{ current.eventCount ?? 0 }}）
+              </el-button>
+            </div>
+            <el-empty v-else description="请选择左侧监考会话查看风险详情" :image-size="70" />
+          </div>
         </div>
-        <div v-if="current" class="detail">
-          <div class="detail-row">
-            <span class="d-label">监考会话</span
-            ><span class="d-val"
-              >试卷 #{{ current.examPaperId }} / 学生 #{{ current.studentId }}</span
-            >
-          </div>
-          <div class="detail-row">
-            <span class="d-label">风险评分</span>
-            <span class="d-val"
-              ><b :class="'score-' + (current.riskLevel || 'LOW')">{{
-                current.riskScore ?? 0
-              }}</b></span
-            >
-          </div>
-          <div class="detail-row">
-            <span class="d-label">风险等级</span>
-            <span class="d-val">
-              <el-tag size="small" :type="riskTag(current.riskLevel)" effect="dark">{{
-                levelText(current.riskLevel)
-              }}</el-tag>
-              <el-tag
-                v-if="current.status === 'FLAGGED'"
-                size="small"
-                type="danger"
-                effect="plain"
-                style="margin-left: 6px"
-                >已标记</el-tag
-              >
-            </span>
-          </div>
-          <div class="detail-row">
-            <span class="d-label">事件分布</span>
-            <span class="d-val type-chips">
-              <span v-for="(c, t) in current.typeCounts" :key="t" class="type-chip"
-                >{{ typeText(t) }} ×{{ c }}</span
-              >
-              <span
-                v-if="!current.typeCounts || !Object.keys(current.typeCounts).length"
-                class="muted"
-                >无</span
-              >
-            </span>
-          </div>
-          <el-button class="view-events" type="primary" plain @click="openEvents(current)">
-            <el-icon><Document /></el-icon>查看违规事件（{{ current.eventCount ?? 0 }}）
-          </el-button>
-        </div>
-        <el-empty v-else description="请选择左侧监考会话查看风险详情" :image-size="70" />
-      </div>
-    </div>
 
-    <!-- 阈值规则（管理员可调控） -->
-    <div class="content-card" style="margin-top: var(--ac-spacing-lg)">
-      <div class="card-title">
-        <el-icon><Operation /></el-icon>风险判定规则（管理员可调控）
-        <el-button
-          v-if="isAdmin"
-          size="small"
-          type="primary"
-          plain
-          class="save-thr"
-          :loading="thrSaving"
-          @click="saveThresholds"
-        >
-          <el-icon><Check /></el-icon>保存阈值
-        </el-button>
-      </div>
-      <div class="rules">
-        <div class="rule">
-          <b>评分</b> = Σ 事件严重度（LOW ×{{ thresholds.weightLow }} / MEDIUM ×{{
-            thresholds.weightMedium
-          }}
-          / HIGH ×{{ thresholds.weightHigh }}）
-        </div>
-        <div class="rule">
-          <b>等级</b>：评分 ≥ {{ thresholds.high }} → HIGH；≥ {{ thresholds.medium }} → MEDIUM；其余
-          LOW
-        </div>
-        <div class="rule"><b>自动处置</b>：达到 HIGH 时监考会话状态自动置为 FLAGGED</div>
-      </div>
-      <div v-if="isAdmin" class="thr-form">
-        <div class="thr-item">
-          <label>高风险阈值 (HIGH)</label>
-          <el-input-number v-model="thresholds.high" :min="1" :max="50" controls-position="right" />
-        </div>
-        <div class="thr-item">
-          <label>中风险阈值 (MEDIUM)</label>
-          <el-input-number
-            v-model="thresholds.medium"
-            :min="1"
-            :max="50"
-            controls-position="right"
+        <!-- 阈值规则（管理员可调控） -->
+        <div class="content-card" style="margin-top: var(--ac-spacing-lg)">
+          <div class="card-title">
+            <el-icon><Operation /></el-icon>风险判定规则（管理员可调控）
+            <el-button
+              v-if="isAdmin"
+              size="small"
+              type="primary"
+              plain
+              class="save-thr"
+              :loading="thrSaving"
+              @click="saveThresholds"
+            >
+              <el-icon><Check /></el-icon>保存阈值
+            </el-button>
+          </div>
+          <div class="rules">
+            <div class="rule">
+              <b>评分</b> = Σ 事件严重度（LOW ×{{ thresholds.weightLow }} / MEDIUM ×{{
+                thresholds.weightMedium
+              }}
+              / HIGH ×{{ thresholds.weightHigh }}）
+            </div>
+            <div class="rule">
+              <b>等级</b>：评分 ≥ {{ thresholds.high }} → HIGH；≥ {{ thresholds.medium }} →
+              MEDIUM；其余 LOW
+            </div>
+            <div class="rule"><b>自动处置</b>：达到 HIGH 时监考会话状态自动置为 FLAGGED</div>
+          </div>
+          <div v-if="isAdmin" class="thr-form">
+            <div class="thr-item">
+              <label>高风险阈值 (HIGH)</label>
+              <el-input-number
+                v-model="thresholds.high"
+                :min="1"
+                :max="50"
+                controls-position="right"
+              />
+            </div>
+            <div class="thr-item">
+              <label>中风险阈值 (MEDIUM)</label>
+              <el-input-number
+                v-model="thresholds.medium"
+                :min="1"
+                :max="50"
+                controls-position="right"
+              />
+            </div>
+            <div class="thr-item">
+              <label>LOW 事件权重</label>
+              <el-input-number
+                v-model="thresholds.weightLow"
+                :min="0"
+                :max="10"
+                controls-position="right"
+              />
+            </div>
+            <div class="thr-item">
+              <label>MEDIUM 事件权重</label>
+              <el-input-number
+                v-model="thresholds.weightMedium"
+                :min="0"
+                :max="10"
+                controls-position="right"
+              />
+            </div>
+            <div class="thr-item">
+              <label>HIGH 事件权重</label>
+              <el-input-number
+                v-model="thresholds.weightHigh"
+                :min="0"
+                :max="10"
+                controls-position="right"
+              />
+            </div>
+          </div>
+          <el-alert
+            v-else
+            type="info"
+            :closable="false"
+            title="仅管理员可修改阈值，当前为只读视图"
+            class="thr-readonly"
           />
         </div>
-        <div class="thr-item">
-          <label>LOW 事件权重</label>
-          <el-input-number
-            v-model="thresholds.weightLow"
-            :min="0"
-            :max="10"
-            controls-position="right"
-          />
-        </div>
-        <div class="thr-item">
-          <label>MEDIUM 事件权重</label>
-          <el-input-number
-            v-model="thresholds.weightMedium"
-            :min="0"
-            :max="10"
-            controls-position="right"
-          />
-        </div>
-        <div class="thr-item">
-          <label>HIGH 事件权重</label>
-          <el-input-number
-            v-model="thresholds.weightHigh"
-            :min="0"
-            :max="10"
-            controls-position="right"
-          />
-        </div>
-      </div>
-      <el-alert
-        v-else
-        type="info"
-        :closable="false"
-        title="仅管理员可修改阈值，当前为只读视图"
-        class="thr-readonly"
-      />
-    </div>
       </div>
     </section>
 

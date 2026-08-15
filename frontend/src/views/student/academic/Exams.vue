@@ -2,91 +2,117 @@
   <div class="fade-in">
     <!-- ===== 考试列表视图 ===== -->
     <div v-if="viewMode === 'list'">
-      <PageHeader title="我的考试" subtitle="查看并参与课程考试，跟踪学习成果" icon="doc" icon-bg="accent" />
+      <PageHeader
+        title="我的考试"
+        subtitle="查看并参与课程考试，跟踪学习成果"
+        icon="doc"
+        icon-bg="accent"
+      />
 
       <div class="stat-grid animate-in d1">
-        <StatCard label="考试总数" :value="totalExams" icon="doc" tone="var(--accent-soft)" tone-color="var(--accent)" />
-        <StatCard label="可参加" :value="availableExams" icon="play" tone="var(--ok-soft)" tone-color="var(--ok)" />
-        <StatCard label="已完成" :value="completedExams" icon="checks" tone="var(--info-soft)" tone-color="var(--info)" />
+        <StatCard
+          label="考试总数"
+          :value="totalExams"
+          icon="doc"
+          tone="var(--accent-soft)"
+          tone-color="var(--accent)"
+        />
+        <StatCard
+          label="可参加"
+          :value="availableExams"
+          icon="play"
+          tone="var(--ok-soft)"
+          tone-color="var(--ok)"
+        />
+        <StatCard
+          label="已完成"
+          :value="completedExams"
+          icon="checks"
+          tone="var(--info-soft)"
+          tone-color="var(--info)"
+        />
       </div>
 
       <section class="l1-card animate-in d2">
         <div class="l1-body">
-      <!-- 搜索工具栏 -->
-      <div class="search-toolbar">
-        <el-input
-          v-model="searchKeyword"
-          placeholder="搜索考试名称..."
-          clearable
-          :prefix-icon="Search"
-          class="search-input"
-        />
-        <el-select v-model="statusFilter" placeholder="状态筛选" clearable class="status-select">
-          <el-option label="可参加" value="available" />
-          <el-option label="已完成" value="completed" />
-          <el-option label="已过期" value="expired" />
-        </el-select>
-      </div>
-
-      <!-- 考试卡片网格 -->
-      <div class="exam-grid">
-        <div
-          v-for="exam in filteredExams"
-          :key="exam.id"
-          class="exam-card"
-        >
-          <div class="exam-card-header">
-            <span class="exam-type-tag">{{ exam.type || '综合测试' }}</span>
-            <el-tag
-              :type="getExamStatusType(exam)"
-              size="small"
-              effect="light"
+          <!-- 搜索工具栏 -->
+          <div class="search-toolbar">
+            <el-input
+              v-model="searchKeyword"
+              placeholder="搜索考试名称..."
+              clearable
+              :prefix-icon="Search"
+              class="search-input"
+            />
+            <el-select
+              v-model="statusFilter"
+              placeholder="状态筛选"
+              clearable
+              class="status-select"
             >
-              {{ getExamStatusLabel(exam) }}
-            </el-tag>
+              <el-option label="可参加" value="available" />
+              <el-option label="已完成" value="completed" />
+              <el-option label="已过期" value="expired" />
+            </el-select>
           </div>
 
-          <h3 class="exam-card-title">{{ exam.title }}</h3>
+          <!-- 考试卡片网格 -->
+          <div class="exam-grid">
+            <div v-for="exam in filteredExams" :key="exam.id" class="exam-card">
+              <div class="exam-card-header">
+                <span class="exam-type-tag">{{ exam.type || '综合测试' }}</span>
+                <el-tag :type="getExamStatusType(exam)" size="small" effect="light">
+                  {{ getExamStatusLabel(exam) }}
+                </el-tag>
+              </div>
 
-          <div class="exam-meta-grid">
-            <div class="meta-item">
-              <el-icon><Collection /></el-icon>
-              <span>{{ exam.courseName || '未知课程' }}</span>
-            </div>
-            <div class="meta-item">
-              <el-icon><Document /></el-icon>
-              <span>{{ exam.totalScore || 100 }} 分</span>
-            </div>
-            <div class="meta-item">
-              <el-icon><Timer /></el-icon>
-              <span>{{ exam.duration || exam.timeLimit || 60 }} 分钟</span>
-            </div>
-            <div v-if="exam.questionCount" class="meta-item">
-              <el-icon><List /></el-icon>
-              <span>{{ exam.questionCount }} 题</span>
+              <h3 class="exam-card-title">{{ exam.title }}</h3>
+
+              <div class="exam-meta-grid">
+                <div class="meta-item">
+                  <el-icon><Collection /></el-icon>
+                  <span>{{ exam.courseName || '未知课程' }}</span>
+                </div>
+                <div class="meta-item">
+                  <el-icon><Document /></el-icon>
+                  <span>{{ exam.totalScore || 100 }} 分</span>
+                </div>
+                <div class="meta-item">
+                  <el-icon><Timer /></el-icon>
+                  <span>{{ exam.duration || exam.timeLimit || 60 }} 分钟</span>
+                </div>
+                <div v-if="exam.questionCount" class="meta-item">
+                  <el-icon><List /></el-icon>
+                  <span>{{ exam.questionCount }} 题</span>
+                </div>
+              </div>
+
+              <p class="exam-desc">{{ exam.description || '暂无描述' }}</p>
+
+              <div class="exam-card-footer">
+                <span v-if="exam.startTime" class="exam-time">
+                  {{ formatTime(exam.startTime, '') }} ~ {{ formatTime(exam.endTime, '') }}
+                </span>
+                <el-button
+                  type="primary"
+                  :disabled="exam.completed || exam.status === 'EXPIRED'"
+                  @click="enterExam(exam)"
+                >
+                  {{
+                    exam.completed ? '已完成' : exam.status === 'EXPIRED' ? '已过期' : '开始考试'
+                  }}
+                </el-button>
+              </div>
             </div>
           </div>
 
-          <p class="exam-desc">{{ exam.description || '暂无描述' }}</p>
-
-          <div class="exam-card-footer">
-            <span v-if="exam.startTime" class="exam-time">
-              {{ formatTime(exam.startTime, '') }} ~ {{ formatTime(exam.endTime, '') }}
-            </span>
-            <el-button
-              type="primary"
-              :disabled="exam.completed || exam.status === 'EXPIRED'"
-              @click="enterExam(exam)"
-            >
-              {{ exam.completed ? '已完成' : (exam.status === 'EXPIRED' ? '已过期' : '开始考试') }}
-            </el-button>
-          </div>
-        </div>
-      </div>
-
-      <el-empty v-if="!listLoading && filteredExams.length === 0" description="暂无考试" :image-size="120">
-        <template #image><div class="empty-deco">📝</div></template>
-      </el-empty>
+          <el-empty
+            v-if="!listLoading && filteredExams.length === 0"
+            description="暂无考试"
+            :image-size="120"
+          >
+            <template #image><div class="empty-deco">📝</div></template>
+          </el-empty>
         </div>
       </section>
     </div>
@@ -111,7 +137,7 @@
               :class="{
                 active: currentIndex === idx,
                 answered: isQuestionAnswered(idx),
-                current: currentIndex === idx
+                current: currentIndex === idx,
               }"
               @click="goToQuestion(idx)"
             >
@@ -220,13 +246,7 @@
             >
               下一题<el-icon><ArrowRight /></el-icon>
             </el-button>
-            <el-button
-              v-else
-              type="success"
-              @click="confirmSubmit"
-            >
-              提交试卷
-            </el-button>
+            <el-button v-else type="success" @click="confirmSubmit"> 提交试卷 </el-button>
           </div>
         </div>
       </div>
@@ -240,8 +260,8 @@
         </div>
         <h2 class="result-title">考试完成</h2>
         <div class="score-display">
-          <span class="score-number">{{ examResult.score ?? '--' }}</span>
-          <span class="score-total">/ {{ examResult.totalScore || currentExamPaper?.totalScore || 100 }}</span>
+          <span class="score-number">{{ examResult.totalScore ?? '--' }}</span>
+          <span class="score-total">/ {{ currentExamPaper?.totalScore || 100 }}</span>
         </div>
         <p class="result-message">{{ resultMessage }}</p>
         <div class="result-actions">
@@ -258,9 +278,17 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { formatTime } from '@/utils/datetime'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
-  Search, Collection, Document, Timer, List,
-  ArrowLeft, ArrowRight, AlarmClock,
-  CircleCheck, CircleClose, TrophyBase
+  Search,
+  Collection,
+  Document,
+  Timer,
+  List,
+  ArrowLeft,
+  ArrowRight,
+  AlarmClock,
+  CircleCheck,
+  CircleClose,
+  TrophyBase,
 } from '@element-plus/icons-vue'
 import examApi from '@/api/exam'
 import PageHeader from '@/components/PageHeader.vue'
@@ -281,9 +309,9 @@ const sessionId = ref(null)
 const questions = ref([])
 const questionsLoading = ref(false)
 const currentIndex = ref(0)
-const answers = ref({})           // 单选/判断答案
-const multiAnswers = ref({})     // 多选答案
-const textAnswers = ref({})      // 简答答案
+const answers = ref({}) // 单选/判断答案
+const multiAnswers = ref({}) // 多选答案
+const textAnswers = ref({}) // 简答答案
 const defaultScore = 10
 
 /* ---- 倒计时 ---- */
@@ -301,10 +329,10 @@ const autoSaveTimer = ref(null)
 const filteredExams = computed(() => {
   let list = examList.value
   if (searchKeyword.value) {
-    list = list.filter(e => e.title?.includes(searchKeyword.value))
+    list = list.filter((e) => e.title?.includes(searchKeyword.value))
   }
   if (statusFilter.value) {
-    list = list.filter(e => {
+    list = list.filter((e) => {
       if (statusFilter.value === 'completed') return e.completed
       if (statusFilter.value === 'available') return !e.completed && e.status !== 'EXPIRED'
       if (statusFilter.value === 'expired') return e.status === 'EXPIRED'
@@ -317,9 +345,11 @@ const filteredExams = computed(() => {
 /** 考试总数 */
 const totalExams = computed(() => examList.value.length)
 /** 可参加：未完成且未过期 */
-const availableExams = computed(() => examList.value.filter(e => !e.completed && e.status !== 'EXPIRED').length)
+const availableExams = computed(
+  () => examList.value.filter((e) => !e.completed && e.status !== 'EXPIRED').length,
+)
 /** 已完成 */
-const completedExams = computed(() => examList.value.filter(e => e.completed).length)
+const completedExams = computed(() => examList.value.filter((e) => e.completed).length)
 
 /** 当前题目 */
 const currentQuestion = computed(() => questions.value[currentIndex.value] || null)
@@ -334,9 +364,9 @@ const countdownDisplay = computed(() => {
   return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
 })
 
-/** 结果提示信息 */
+/** 结果提示信息（修复 P1-21：后端 result 返回 ExamSession，学生得分字段为 totalScore 而非 score） */
 const resultMessage = computed(() => {
-  const score = examResult.value.score
+  const score = examResult.value.totalScore
   if (score == null) return '成绩正在批阅中，请稍后查看...'
   if (score >= 90) return '表现优秀！继续保持！'
   if (score >= 75) return '良好水平，再接再厉！'
@@ -359,13 +389,15 @@ async function loadExamList() {
       const sessions = sessionRes.data || sessionRes || []
       const submittedIds = new Set(
         (Array.isArray(sessions) ? sessions : [])
-          .filter(s => s.status === 'SUBMITTED' || s.status === 'GRADED')
-          .map(s => s.examPaperId)
+          .filter((s) => s.status === 'SUBMITTED' || s.status === 'GRADED')
+          .map((s) => s.examPaperId),
       )
-      examList.value.forEach(e => {
+      examList.value.forEach((e) => {
         if (submittedIds.has(e.id)) e.completed = true
       })
-    } catch { /* 忽略 */ }
+    } catch {
+      /* 忽略 */
+    }
   } catch (e) {
     console.error('加载考试列表失败:', e)
   } finally {
@@ -397,35 +429,41 @@ async function enterExam(exam) {
     ElMessageBox.confirm(`确定开始「${exam.title}」吗？\n进入后将启动倒计时。`, '确认开始考试', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
-      type: 'info'
-    }).then(async () => {
-      // 调用 startExam API
-      const res = await examApi.startExam(exam.id)
-      const sid = res.data?.id || res?.id
-      sessionId.value = sid
+      type: 'info',
+    })
+      .then(async () => {
+        // 调用 startExam API
+        const res = await examApi.startExam(exam.id)
+        const sid = res.data?.id || res?.id
+        sessionId.value = sid
 
-      // 加载题目
-      await loadQuestions(exam.id)
+        // 加载题目
+        await loadQuestions(exam.id)
 
-      // 设置当前试卷信息
-      currentExamPaper.value = exam
+        // 设置当前试卷信息
+        currentExamPaper.value = exam
 
-      // 初始化倒计时
-      const duration = exam.duration || exam.timeLimit || 60
-      totalSeconds.value = duration * 60
-      remainingSeconds.value = totalSeconds.value
+        // 初始化倒计时
+        const duration = exam.duration || exam.timeLimit || 60
+        totalSeconds.value = duration * 60
+        remainingSeconds.value = totalSeconds.value
 
-      // 切换到答题视图
-      viewMode.value = 'exam'
+        // 切换到答题视图
+        viewMode.value = 'exam'
 
-      // 启动倒计时
-      startCountdown()
+        // 启动倒计时
+        startCountdown()
 
-      // 启动自动保存（每30秒）
-      startAutoSave()
+        // 启动自动保存（每30秒）
+        startAutoSave()
 
-      ElMessage.success('考试已开始，祝你好运！')
-    }).catch(() => {})
+        ElMessage.success('考试已开始，祝你好运！')
+      })
+      .catch((e) => {
+        // 修复 P1-22：开始考试失败不再静默吞掉，给出明确提示
+        console.error('开始考试失败:', e)
+        ElMessage.error(e?.response?.data?.message || '开始考试失败，请稍后重试')
+      })
   } catch (e) {
     console.error('开始考试失败:', e)
     ElMessage.error('无法开始考试，请稍后重试')
@@ -490,7 +528,7 @@ function getQuestionTypeName(type) {
     SINGLE_CHOICE: '单选题',
     MULTIPLE_CHOICE: '多选题',
     TRUE_FALSE: '判断题',
-    SHORT_ANSWER: '简答题'
+    SHORT_ANSWER: '简答题',
   }
   return map[type] || '未知题型'
 }
@@ -500,7 +538,7 @@ function getQuestionTypeTag(type) {
     SINGLE_CHOICE: '',
     MULTIPLE_CHOICE: 'warning',
     TRUE_FALSE: 'info',
-    SHORT_ANSWER: 'success'
+    SHORT_ANSWER: 'success',
   }
   return map[type] || ''
 }
@@ -529,8 +567,11 @@ function startCountdown() {
         ElMessage.warning(`剩余时间：${Math.ceil(remainingSeconds.value / 60)} 分钟`)
       }
     } else {
-      // 时间到，自动提交
+      // 时间到，自动提交（修复 P1-22：同时清理 autoSave 定时器，
+      // 否则考试已提交后自动保存仍每 30s 触发，向后端发送无效请求并反复报错）
       clearInterval(countdownTimer)
+      countdownTimer = null
+      stopAutoSave()
       ElMessage.warning('考试时间已到，将自动提交试卷')
       submitExam()
     }
@@ -544,6 +585,13 @@ function startAutoSave() {
   autoSaveTimer.value = setInterval(() => {
     autoSaveAnswers()
   }, 30000) // 每30秒
+}
+
+function stopAutoSave() {
+  if (autoSaveTimer.value) {
+    clearInterval(autoSaveTimer.value)
+    autoSaveTimer.value = null
+  }
 }
 
 async function autoSaveAnswers() {
@@ -577,7 +625,7 @@ function collectAnswers() {
     result.push({
       questionId: q.id,
       questionType: q.type,
-      answer: answer
+      answer: answer,
     })
   })
   return result
@@ -601,7 +649,7 @@ async function confirmSubmit() {
     await ElMessageBox.confirm(msg, '确认提交', {
       confirmButtonText: '确认提交',
       cancelButtonText: '继续答题',
-      type: 'warning'
+      type: 'warning',
     })
 
     // 清理定时器
@@ -623,7 +671,7 @@ async function submitExam() {
       const resultRes = await examApi.getExamResult(sessionId.value)
       examResult.value = resultRes.data || resultRes || result
     } catch {
-      examResult.value = { score: null, ...result }
+      examResult.value = { totalScore: null, ...result }
     }
 
     viewMode.value = 'result'
@@ -637,11 +685,11 @@ async function submitExam() {
 
 async function confirmExitExam() {
   try {
-    await ElMessageBox.confirm(
-      '确定要退出考试吗？\n已作答的进度将被保留。',
-      '退出确认',
-      { confirmButtonText: '确定退出', cancelButtonText: '继续答题', type: 'warning' }
-    )
+    await ElMessageBox.confirm('确定要退出考试吗？\n已作答的进度将被保留。', '退出确认', {
+      confirmButtonText: '确定退出',
+      cancelButtonText: '继续答题',
+      type: 'warning',
+    })
 
     // 先自动保存一次
     await autoSaveAnswers()
@@ -662,8 +710,10 @@ async function viewDetailResult() {
   try {
     const res = await examApi.getScoreReport(sessionId.value)
     const report = res.data || res || {}
-    ElMessage.info(`详细报告：得分 ${report.score ?? '--'} / ${report.totalScore ?? 100}`)
-    // TODO: 可扩展为弹窗展示完整报告
+    // 修复 P1-21：后端成绩报告字段为学生得分 totalScore（percentage 为百分制），原读 report.score 恒为 '--'
+    ElMessage.info(
+      `详细报告：得分 ${report.totalScore ?? '--'} / 百分制 ${report.percentage ?? '--'}`,
+    )
   } catch (e) {
     console.error('获取成绩报告失败:', e)
     ElMessage.info('成绩详情加载失败')
@@ -682,12 +732,18 @@ function resetExamState() {
 }
 
 function cleanupTimers() {
-  if (countdownTimer) { clearInterval(countdownTimer); countdownTimer = null }
-  if (autoSaveTimer.value) { clearInterval(autoSaveTimer.value); autoSaveTimer.value = null }
+  if (countdownTimer) {
+    clearInterval(countdownTimer)
+    countdownTimer = null
+  }
+  if (autoSaveTimer.value) {
+    clearInterval(autoSaveTimer.value)
+    autoSaveTimer.value = null
+  }
 }
 
 function getResultClass() {
-  const score = examResult.value.score
+  const score = examResult.value.totalScore
   if (score >= 90) return 'excellent'
   if (score >= 75) return 'good'
   if (score >= 60) return 'pass'
@@ -714,8 +770,12 @@ onUnmounted(() => {
   margin-bottom: var(--ac-spacing-lg);
 }
 
-.search-input { width: 260px; }
-.status-select { width: 140px; }
+.search-input {
+  width: 260px;
+}
+.status-select {
+  width: 140px;
+}
 
 /* ---- 考试卡片网格 ---- */
 .exam-grid {
@@ -806,7 +866,10 @@ onUnmounted(() => {
 /* ====== 答题视图样式 ====== */
 .exam-container {
   position: fixed;
-  top: 0; left: 0; right: 0; bottom: 0;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
   z-index: 1000;
   background: var(--ac-bg);
   display: flex;
@@ -873,14 +936,23 @@ onUnmounted(() => {
   justify-content: center;
 }
 
-.nav-dot:hover { border-color: var(--ac-primary); color: var(--ac-primary); }
-.nav-dot.active { background: var(--ac-primary); color: #fff; border-color: var(--ac-primary); }
+.nav-dot:hover {
+  border-color: var(--ac-primary);
+  color: var(--ac-primary);
+}
+.nav-dot.active {
+  background: var(--ac-primary);
+  color: #fff;
+  border-color: var(--ac-primary);
+}
 .nav-dot.answered:not(.active) {
   background: var(--ok-soft);
   border-color: var(--ok);
   color: var(--ok);
 }
-.nav-dot.current { box-shadow: 0 0 0 2px var(--ac-primary-light); }
+.nav-dot.current {
+  box-shadow: 0 0 0 2px var(--ac-primary-light);
+}
 
 .topbar-right {
   display: flex;
@@ -910,10 +982,14 @@ onUnmounted(() => {
 }
 
 @keyframes blink {
-  50% { opacity: 0.7; }
+  50% {
+    opacity: 0.7;
+  }
 }
 
-.countdown-text { letter-spacing: 1px; }
+.countdown-text {
+  letter-spacing: 1px;
+}
 
 /* ---- 答题主体 ---- */
 .exam-body {
@@ -1078,10 +1154,22 @@ onUnmounted(() => {
   margin: 0 auto var(--ac-spacing-lg);
 }
 
-.result-icon-wrapper.excellent { background: var(--ok-soft); color: var(--ok); }
-.result-icon-wrapper.good { background: var(--accent-soft); color: var(--accent); }
-.result-icon-wrapper.pass { background: var(--warn-soft); color: var(--warn); }
-.result-icon-wrapper.fail { background: var(--accent-soft); color: var(--accent); }
+.result-icon-wrapper.excellent {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.result-icon-wrapper.good {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
+.result-icon-wrapper.pass {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.result-icon-wrapper.fail {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
 
 .result-title {
   font-size: 22px;
@@ -1120,15 +1208,27 @@ onUnmounted(() => {
   justify-content: center;
 }
 
-.empty-deco { font-size: 38px; filter: grayscale(.2); }
+.empty-deco {
+  font-size: 38px;
+  filter: grayscale(0.2);
+}
 
 @media (max-width: 900px) {
   .exam-topbar {
     flex-wrap: wrap;
     padding: 10px 16px;
   }
-  .topbar-left, .topbar-right { min-width: auto; flex: 1; }
-  .exam-paper-title { max-width: 150px; font-size: 14px; }
-  .question-body { padding: var(--ac-spacing-md); }
+  .topbar-left,
+  .topbar-right {
+    min-width: auto;
+    flex: 1;
+  }
+  .exam-paper-title {
+    max-width: 150px;
+    font-size: 14px;
+  }
+  .question-body {
+    padding: var(--ac-spacing-md);
+  }
 }
 </style>

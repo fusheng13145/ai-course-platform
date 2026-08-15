@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
@@ -27,6 +30,8 @@ import java.util.Map;
 @RequestMapping("/wrong-questions")
 @Tag(name = "错题本")
 public class WrongQuestionController {
+
+    private static final Logger log = LoggerFactory.getLogger(WrongQuestionController.class);
 
     private final WrongQuestionService wrongQuestionService;
 

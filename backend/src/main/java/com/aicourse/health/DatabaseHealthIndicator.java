@@ -8,6 +8,8 @@ import javax.sql.DataSource;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.Statement;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 自定义 MySQL 健康指示器（显式实现 {@link HealthIndicator}）。
@@ -21,12 +23,17 @@ import java.sql.Statement;
 @Component
 public class DatabaseHealthIndicator implements HealthIndicator {
 
+    private static final Logger log = LoggerFactory.getLogger(DatabaseHealthIndicator.class);
+
     private final DataSource dataSource;
 
     public DatabaseHealthIndicator(DataSource dataSource) {
         this.dataSource = dataSource;
     }
 
+    /**
+     * 探测数据源连通性：获取连接并执行 {@code SELECT 1}，依据结果与异常返回 UP/DOWN。
+     */
     @Override
     public Health health() {
         try (Connection connection = dataSource.getConnection();
@@ -45,6 +52,7 @@ public class DatabaseHealthIndicator implements HealthIndicator {
                     .withDetail("status", "validation query returned no rows")
                     .build();
         } catch (Exception e) {
+            log.warn("[health] 数据库探测失败: {}", e.getMessage());
             return Health.down()
                     .withDetail("database", "MySQL")
                     .withDetail("error", e.getClass().getSimpleName())

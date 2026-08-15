@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import jakarta.validation.Valid;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -25,6 +28,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/system-configs")
 public class SystemConfigController {
+
+    private static final Logger log = LoggerFactory.getLogger(SystemConfigController.class);
 
     private final SystemConfigService systemConfigService;
     private final EmailService emailService;

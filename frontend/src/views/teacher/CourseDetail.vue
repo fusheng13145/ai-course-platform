@@ -36,10 +36,34 @@
 
     <!-- 统计卡（带容错，不暴露后端错误） -->
     <div class="stat-grid animate-in">
-      <StatCard label="学生人数" :value="stats.totalStudents ?? '-'" icon="users" tone="var(--info-soft)" tone-color="var(--info)" />
-      <StatCard label="资料" :value="resourceCount ?? '-'" icon="folder" tone="var(--ok-soft)" tone-color="var(--ok)" />
-      <StatCard label="作业" :value="taskCount ?? '-'" icon="edit" tone="var(--warn-soft)" tone-color="var(--warn)" />
-      <StatCard label="考试" :value="examCount ?? '-'" icon="doc" tone="var(--violet-soft)" tone-color="var(--violet)" />
+      <StatCard
+        label="学生人数"
+        :value="stats.totalStudents ?? '-'"
+        icon="users"
+        tone="var(--info-soft)"
+        tone-color="var(--info)"
+      />
+      <StatCard
+        label="资料"
+        :value="resourceCount ?? '-'"
+        icon="folder"
+        tone="var(--ok-soft)"
+        tone-color="var(--ok)"
+      />
+      <StatCard
+        label="作业"
+        :value="taskCount ?? '-'"
+        icon="edit"
+        tone="var(--warn-soft)"
+        tone-color="var(--warn)"
+      />
+      <StatCard
+        label="考试"
+        :value="examCount ?? '-'"
+        icon="doc"
+        tone="var(--violet-soft)"
+        tone-color="var(--violet)"
+      />
     </div>
 
     <!-- 主 Tab 区 -->
@@ -194,9 +218,7 @@
                   :show-text="false"
                   class="prog-cell"
                 />
-                <span class="prog-text"
-                  >{{ Math.round((row.progress || 0) * 100) }}%</span
-                >
+                <span class="prog-text">{{ Math.round((row.progress || 0) * 100) }}%</span>
               </template>
             </el-table-column>
             <el-table-column label="状态" width="96">
@@ -835,7 +857,7 @@ async function deleteNotification(row) {
   position: relative;
 }
 .detail-header::after {
-  content: "";
+  content: '';
   position: absolute;
   left: 0;
   bottom: -1px;

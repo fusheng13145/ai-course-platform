@@ -1,0 +1,141 @@
+# ============================================================
+# AI 课程平台 - Prometheus 告警规则
+# 挂载到 /etc/prometheus/alert_rules.yml（由 prometheus.yml 的 rule_files 加载）
+# 评估周期：与 global.evaluation_interval 一致（15s）
+#
+# 【指标来源】
+# - up：Prometheus 自动生成（抓取成功=1），无需业务埋点
+# - http_server_requests_seconds_*：Spring Boot Actuator 默认 timer（已启用 histogram）
+# - jvm_memory_* / process_cpu_usage：micrometer-registry-prometheus 自动注册
+# - aicourse_*：业务自定义指标（BusinessMetricsService / DimensionMetricsService / AIServiceImpl）
+#
+# 【阈值说明】以下阈值均为演示初值，生产须按实际容量压测后调整；
+# 告警经 Alertmanager 路由到通知渠道（见 alertmanager.yml）。
+# ============================================================
+
+groups:
+  # ---------------- 可用性 ----------------
+  - name: aicourse-availability
+    rules:
+      - alert: BackendDown
+        expr: 'up{job="aicourse-backend"} == 0'
+        for: 1m
+        labels:
+          severity: critical
+        annotations:
+          summary: "后端服务不可用"
+          description: "job=aicourse-backend 的 up 指标连续 1 分钟为 0，Prometheus 无法抓取 /api/actuator/prometheus。后端进程可能已宕机或网络隔离，请立即排查。"
+
+  # ---------------- HTTP 黄金信号（错误率 / 延迟） ----------------
+  - name: aicourse-http
+    rules:
+      - alert: HttpErrorRateHigh
+        expr: 'sum(rate(http_server_requests_seconds_count{job="aicourse-backend",status=~"5.."}[5m])) / sum(rate(http_server_requests_seconds_count{job="aicourse-backend"}[5m])) > 0.05'
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP 5xx 错误率过高"
+          description: "近 5 分钟 5xx 错误率 {{ $value | humanizePercentage }} 超过 5% 阈值并持续 5 分钟。请排查后端异常、上游依赖与数据库连接。"
+      - alert: HttpErrorRateCritical
+        expr: 'sum(rate(http_server_requests_seconds_count{job="aicourse-backend",status=~"5.."}[5m])) / sum(rate(http_server_requests_seconds_count{job="aicourse-backend"}[5m])) > 0.20'
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "HTTP 5xx 错误率严重"
+          description: "近 5 分钟 5xx 错误率 {{ $value | humanizePercentage }} 超过 20% 阈值并持续 2 分钟。系统可能大面积故障，请立即介入。"
+      - alert: HttpP99LatencyHigh
+        expr: 'histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job="aicourse-backend"}[5m])) by (le)) > 2'
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "HTTP P99 延迟过高"
+          description: "近 5 分钟 P99 延迟 {{ $value | humanizeDuration }} 超过 2s 阈值并持续 5 分钟。请排查慢查询、外部 LLM 调用超时或 GC 停顿。"
+
+  # ---------------- JVM 资源饱和度 ----------------
+  - name: aicourse-jvm
+    rules:
+      - alert: JvmHeapUsageHigh
+        expr: 'sum(jvm_memory_used_bytes{job="aicourse-backend",area="heap"}) / sum(jvm_memory_max_bytes{job="aicourse-backend",area="heap"}) > 0.85'
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "JVM 堆内存使用率过高"
+          description: "JVM 堆使用率 {{ $value | humanizePercentage }} 超过 85% 阈值并持续 5 分钟。关注内存泄漏迹象或考虑扩容。"
+      - alert: JvmHeapUsageCritical
+        expr: 'sum(jvm_memory_used_bytes{job="aicourse-backend",area="heap"}) / sum(jvm_memory_max_bytes{job="aicourse-backend",area="heap"}) > 0.95'
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "JVM 堆内存即将耗尽"
+          description: "JVM 堆使用率 {{ $value | humanizePercentage }} 超过 95% 阈值并持续 2 分钟，存在 OOM 风险，请立即介入（dump/重启/扩容）。"
+
+  # ---------------- 业务积压 ----------------
+  - name: aicourse-business
+    rules:
+      - alert: PendingSubmissionsBacklog
+        expr: 'aicourse_pending_submissions{job="aicourse-backend"} > 200'
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "待批改作业积压"
+          description: "待批改作业数 {{ $value }} 超过 200 并持续 10 分钟。请督促教师及时批改，避免影响学情反馈闭环。"
+
+  # ---------------- AI 核心链路健壮性 ----------------
+  - name: aicourse-ai
+    rules:
+      - alert: AiFailureRateHigh
+        expr: 'sum(rate(aicourse_ai_calls_failed_total{job="aicourse-backend"}[10m])) / sum(rate(aicourse_ai_calls_total{job="aicourse-backend"}[10m])) > 0.20'
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI 调用失败率过高"
+          description: "近 10 分钟 AI 调用失败率 {{ $value | humanizePercentage }} 超过 20% 阈值并持续 5 分钟。LLM 供应商可能不稳定或超时，请检查 API Key、配额与网络连通性。"
+
+  # ---------------- 日志异常（Logs → Alerting 闭环） ----------------
+  - name: aicourse-logging
+    rules:
+      - alert: LogErrorSpike
+        expr: 'rate(promtail_custom_log_lines_total{job="promtail",level="ERROR"}[5m]) > 0.5'
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "后端 ERROR 日志速率突增"
+          description: "backend 容器 ERROR 日志速率 {{ $value | humanize }} 条/秒，持续 5 分钟超过 0.5/s 阈值。可能存在异常/异常堆栈刷屏，请结合 Grafana「日志」面板下钻最近错误日志定位根因。"
+
+  # ---------------- 监控组件自监控（meta-monitoring） ----------------
+  # 监控链路自身可用性：任一组件宕机将导致监控/告警失效（尤其 Alertmanager 宕机
+  # 会使业务告警石沉大海）。本组依赖 prometheus.yml 中 prometheus/alertmanager/
+  # loki/grafana/promtail 五个 scrape job 提供 up 指标。
+  - name: aicourse-meta-monitoring
+    rules:
+      - alert: MonitoringComponentDown
+        expr: 'up{job=~"prometheus|alertmanager|loki|grafana|promtail"} == 0'
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "监控组件不可用"
+          description: "监控链路组件 {{ $labels.job }} 的 up 指标连续 1 分钟为 0，Prometheus 无法抓取该组件 /metrics。监控/告警自身可能已失效——尤其 Alertmanager 宕机将导致业务告警无法外发（石沉大海），请立即排查对应容器状态（docker compose ps / docker compose logs <组件>）。"
+
+  # ---------------- 业务依赖健康（health 探针指标化） ----------------
+  # 将 /actuator/health 暴露的 4 个自定义业务探针状态指标化（见 HealthMetricsService）：
+  # database / redis 为实际连通性探测；llmProvider 为 API Key 配置就绪度（静态，不探测，
+  # 避免 token 费用）；pythonServices 为 Python 微服务（8001/8002/8003）运行时 HTTP 健康探测。
+  - name: aicourse-dependencies
+    rules:
+      - alert: HealthDependencyDown
+        expr: 'min(aicourse_health_status{job="aicourse-backend",component=~"database|redis|llmProvider|pythonServices"}) == 0'
+        for: 2m
+        labels:
+          severity: critical
+        annotations:
+          summary: "业务依赖不可用"
+          description: "业务依赖组件 {{ $labels.component }} 健康检查状态为 DOWN（aicourse_health_status=0），持续 1 分钟。该依赖不可达将导致对应功能降级或故障：redis 断连影响会话/缓存与启动强校验；llmProvider 未配置（API Key 缺失）使 AI 能力整体不可用；pythonServices 不可达影响知识图谱/RAG。请立即排查对应依赖的连通性与配置（docker compose logs backend）。"

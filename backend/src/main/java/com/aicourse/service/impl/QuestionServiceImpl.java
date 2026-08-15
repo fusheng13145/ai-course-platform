@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.Question;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.QuestionMapper;
@@ -27,6 +30,8 @@ import java.util.*;
 @Service
 public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> implements QuestionService {
 
+    private static final Logger log = LoggerFactory.getLogger(QuestionServiceImpl.class);
+
     private final AIService aiService;
     private final ObjectMapper objectMapper;
 
@@ -46,6 +51,8 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     @Transactional(rollbackFor = Exception.class)
     @CacheEvict(value = "questions", allEntries = true)
     public Question createQuestion(Question question) {
+        log.info("创建题目");
+
         // 设置初始值
         if (question.getUsageCount() == null) {
             question.setUsageCount(0);
@@ -94,6 +101,8 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
             this.save(question);
             return question;
         } catch (Exception e) {
+            log.error("生成题目失败: {}", e.getMessage(), e);
+
             throw new BusinessException("AI生成题目解析失败: " + e.getMessage());
         }
     }
@@ -111,6 +120,8 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         try {
             list = parseQuestionList(generated);
         } catch (Exception e) {
+            log.error("生成题目失败: {}", e.getMessage(), e);
+
             throw new BusinessException("AI批量生成题目解析失败: " + e.getMessage());
         }
         List<Question> saved = new ArrayList<>();
@@ -183,6 +194,8 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         try {
             return objectMapper.writeValueAsString(o);
         } catch (Exception e) {
+            log.error("批量题目失败: {}", e.getMessage(), e);
+
             return o.toString();
         }
     }
@@ -192,6 +205,8 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         try {
             return objectMapper.readValue(json, new TypeReference<List<Map<String, Object>>>() {});
         } catch (Exception e) {
+            log.error("批量题目失败: {}", e.getMessage(), e);
+
             Map<String, Object> m = objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
             if (m.get("questions") instanceof List) {
                 @SuppressWarnings("unchecked")
@@ -228,6 +243,8 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     @Transactional(rollbackFor = Exception.class)
     @CacheEvict(value = "questions", allEntries = true)
     public Question copyQuestion(Long sourceQuestionId) {
+        log.info("复制题目");
+
         Question source = this.getById(sourceQuestionId);
         if (source == null) {
             throw new BusinessException("源题目不存在");
@@ -301,6 +318,8 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
                 detail.put("options", optionsList);
             }
         } catch (Exception e) {
+            log.error("查询题目失败: {}", e.getMessage(), e);
+
             // JSON解析失败时返回原始字符串
             detail.put("options", question.getOptions());
         }
@@ -368,6 +387,8 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     // 搜索列表中的 correctRate 允许 ≤10min（questions TTL）的短暂滞后
     @CacheEvict(value = "questions", key = "'detail_' + #questionId")
     public void updateCorrectRate(Long questionId, boolean isCorrect) {
+        log.info("更新题目");
+
         Question question = this.getById(questionId);
         if (question == null) {
             throw new BusinessException("题目不存在");

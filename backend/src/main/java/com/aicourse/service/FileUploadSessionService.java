@@ -27,30 +27,34 @@ public interface FileUploadSessionService extends IService<FileUploadSession> {
      * 将分片索引追加到已上传分片中，更新已上传数量
      * @param sessionId 会话ID
      * @param chunkIndex 分片索引
+     * @param uploaderId 当前登录用户ID（归属校验，修复 IDOR 越权）
      * @return 更新后的会话
      */
-    FileUploadSession uploadChunk(Long sessionId, Integer chunkIndex);
+    FileUploadSession uploadChunk(Long sessionId, Integer chunkIndex, Long uploaderId);
 
     /**
      * 合并所有分片
      * 检查已上传分片数是否等于总分片数，满足则标记为已完成
      * @param sessionId 会话ID
+     * @param uploaderId 当前登录用户ID（归属校验，修复 IDOR 越权）
      * @return 更新后的会话
      */
-    FileUploadSession mergeChunks(Long sessionId);
+    FileUploadSession mergeChunks(Long sessionId, Long uploaderId);
 
     /**
      * 获取上传进度信息
      * @param sessionId 会话ID
+     * @param uploaderId 当前登录用户ID（归属校验，修复 IDOR 越权）
      * @return 进度信息（包含 uploaded/total/percentage）
      */
-    Map<String, Object> getUploadProgress(Long sessionId);
+    Map<String, Object> getUploadProgress(Long sessionId, Long uploaderId);
 
     /**
      * 取消上传会话
      * @param sessionId 会话ID
+     * @param uploaderId 当前登录用户ID（归属校验，修复 IDOR 越权）
      */
-    void cancelUpload(Long sessionId);
+    void cancelUpload(Long sessionId, Long uploaderId);
 
     /**
      * 清理过期会话

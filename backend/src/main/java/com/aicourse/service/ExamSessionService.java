@@ -7,6 +7,10 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
+
+/**
+ * 考试会话接口：相关业务逻辑入口，提供增删改查与编排能力。
+ */
 public interface ExamSessionService extends IService<ExamSession> {
 
     /**

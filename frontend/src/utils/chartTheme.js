@@ -9,6 +9,9 @@ function resolveTheme() {
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
 }
 
+/**
+ * 导出函数 getChartTheme：获取/查询数据
+ */
 export function getChartTheme() {
   const dark = resolveTheme() === 'dark'
   return {
@@ -25,10 +28,16 @@ export function getChartTheme() {
 
 const PALETTE_LIGHT = ['#c13b30', '#2563a8', '#2e7d4f', '#b57908', '#6d4fa1', '#0f766e', '#c2602e', '#4d6a8a']
 const PALETTE_DARK  = ['#d45b50', '#4d8ad6', '#4a9e6e', '#d59a2a', '#8b6cc0', '#2fb5a8', '#d97a4c', '#6d8a9a']
+/**
+ * 导出函数 getMonoSeries：获取/查询数据
+ */
 export function getMonoSeries() {
   return resolveTheme() === 'dark' ? PALETTE_DARK : PALETTE_LIGHT
 }
 
+/**
+ * 导出函数 getMonoStatus：获取/查询数据
+ */
 export function getMonoStatus() {
   const d = resolveTheme() === 'dark'
   return {
@@ -42,6 +51,11 @@ export function getMonoStatus() {
   }
 }
 
+/**
+ * 导出函数 monoScore：业务逻辑处理
+ * @param {*} v - 参数
+ * @returns {*} - 返回值
+ */
 export function monoScore(v) {
   const d = resolveTheme() === 'dark'
   if (v >= 90) return d ? '#4a9e6e' : '#2e7d4f'
@@ -53,7 +67,15 @@ export function monoScore(v) {
 
 export const THEME_CHANGE_EVENT = 'ac-theme-change'
 const listeners = []
+/**
+ * 导出函数 onThemeChange：业务逻辑处理
+ * @param {*} cb - 参数
+ * @returns {*} - 返回值
+ */
 export function onThemeChange(cb) { if (!listeners.includes(cb)) listeners.push(cb) }
+/**
+ * 导出函数 emitThemeChange：业务逻辑处理
+ */
 export function emitThemeChange() {
   window.dispatchEvent(new CustomEvent(THEME_CHANGE_EVENT))
   listeners.forEach(cb => cb())

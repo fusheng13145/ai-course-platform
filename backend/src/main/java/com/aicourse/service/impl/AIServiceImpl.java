@@ -1,15 +1,16 @@
 package com.aicourse.service.impl;
 
+
 import com.aicourse.common.JsonUtils;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.llm.LLMProvider;
 import com.aicourse.service.AIService;
-import com.aicourse.service.GraphRAGService;
-import com.aicourse.service.KnowledgeRecommendationService;
 import com.aicourse.service.PromptGuard;
 import com.aicourse.service.RAGService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -18,17 +19,19 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * AI 服务实现类
  * 通过可插拔的 {@link LLMProvider} 对接各类大模型（DeepSeek/OpenAI/Qwen），提供对话、出题、
  * 内容生成、查重、RAG 问答等能力。供应商由配置 {@code ai.provider} 决定，与业务解耦。
+ * <p>已脱离 knowledge 模块：原 GraphRAG 多跳增强与基于图谱关系的算法推荐引擎（属另一成员负责的知识图谱
+ * 知识库范畴）不再内置，本端 AI 仅保留 RAG 问答与学情驱动的 LLM 推荐。</p>
  */
 @Service
 @Slf4j
 public class AIServiceImpl implements AIService {
+
 
 
     /** 未配置任何 LLM 供应商 Key 时返回的清晰业务提示（不再返回伪造 JSON） */
@@ -40,17 +43,95 @@ public class AIServiceImpl implements AIService {
     private final LLMProvider llmProvider;
     private final RAGService ragService;
     private final PromptGuard promptGuard;
-    private final GraphRAGService graphRagService;
-    private final KnowledgeRecommendationService knowledgeRecommendationService;
+    private final MeterRegistry meterRegistry;
+    /** 按业务类型分桶的 AI 调用计数器缓存：key=类型，value=对应 Counter（首次访问时懒注册）。 */
+    private final java.util.Map<String, Counter> aiCallCounters = new java.util.concurrent.ConcurrentHashMap<>();
+    /** 按业务类型分桶的 AI 输入 token 估算计数器缓存（与调用计数器对称，口径见 {@link #recordAiToken}）。 */
+    private final java.util.Map<String, Counter> aiTokenCounters = new java.util.concurrent.ConcurrentHashMap<>();
+    /** 按业务类型分桶的 AI 调用失败计数器缓存（与调用计数器对称，口径见 {@link #recordAiFailure}）。 */
+    private final java.util.Map<String, Counter> aiFailedCounters = new java.util.concurrent.ConcurrentHashMap<>();
 
     public AIServiceImpl(LLMProvider llmProvider, RAGService ragService, PromptGuard promptGuard,
-                         GraphRAGService graphRagService,
-                         KnowledgeRecommendationService knowledgeRecommendationService) {
+                         MeterRegistry meterRegistry) {
         this.llmProvider = llmProvider;
         this.ragService = ragService;
         this.promptGuard = promptGuard;
-        this.graphRagService = graphRagService;
-        this.knowledgeRecommendationService = knowledgeRecommendationService;
+        this.meterRegistry = meterRegistry;
+    }
+
+    /**
+     * LLM 调用埋点：每次实际发起大模型请求时，按业务类型递增对应 Counter，
+     * 使 Grafana 能按类型（chat/question/content/correct/rag/recommend/analyze/extract_graph）下钻统计。
+     *
+     * @param type 业务类型，取值见各公开方法的调用处
+     */
+    private void recordAiCall(String type) {
+        aiCallCounters
+                .computeIfAbsent(type, t -> Counter.builder("aicourse_ai_calls_total")
+                        .tag("type", t)
+                        .description("AI 大模型调用总次数（按业务类型分桶）")
+                        .register(meterRegistry))
+                .increment();
+    }
+
+    /**
+     * AI 输入 token 估算埋点：按业务类型累加本次调用的输入 token 估算量。
+     * <p>token 估算与目标供应商计费口径对齐项目既有约定（{@code AiQuotaService}）：
+     * 中英文混合场景下保守按 {@code 1 token ≈ 1.5 字符} 折算，仅统计 prompt 输入规模，
+     * 不含响应输出（响应长度在请求前不可知）；用于 Grafana 估算 AI 成本消耗趋势。</p>
+     *
+     * @param type  业务类型（与 {@link #recordAiCall} 一致）
+     * @param tokens 输入 token 估算量（≥0）
+     */
+    private void recordAiToken(String type, long tokens) {
+        if (tokens <= 0) {
+            return;
+        }
+        aiTokenCounters
+                .computeIfAbsent(type, t -> Counter.builder("aicourse_ai_tokens_estimate_total")
+                        .tag("type", t)
+                        .description("AI 大模型输入 token 估算总量（按业务类型分桶，1 token≈1.5 字符折算）")
+                        .register(meterRegistry))
+                .increment(tokens);
+    }
+
+    /**
+     * AI 调用失败埋点：按业务类型累加失败次数。
+     * <p>失败判定口径与 {@link #recordAiCall} 对齐（type 一致）：
+     * LLM 供应商调用抛出异常，或返回 null（统一降级为 {@code SERVICE_ERROR_MSG}）均计一次失败。
+     * 注意：未配置供应商（{@code NO_PROVIDER_MSG} 路径）不计入失败——那属于部署配置缺失，
+     * 而非调用失败，避免污染失败率。与调用计数配合可计算各类型失败率，
+     * 供 Prometheus 告警「AI 调用失败率突增」使用。</p>
+     *
+     * @param type 业务类型（与 {@link #recordAiCall} 一致）
+     */
+    private void recordAiFailure(String type) {
+        aiFailedCounters
+                .computeIfAbsent(type, t -> Counter.builder("aicourse_ai_calls_failed_total")
+                        .tag("type", t)
+                        .description("AI 大模型调用失败次数（按业务类型分桶，含异常与空响应降级）")
+                        .register(meterRegistry))
+                .increment();
+    }
+
+    /**
+     * 依据消息列表的总字符数估算输入 token 数（1 token ≈ 1.5 字符）。
+     */
+    private long estimateInputTokens(List<Map<String, String>> messages) {
+        if (messages == null || messages.isEmpty()) {
+            return 0L;
+        }
+        long chars = 0L;
+        for (Map<String, String> m : messages) {
+            if (m == null) {
+                continue;
+            }
+            String content = m.get("content");
+            if (content != null) {
+                chars += content.length();
+            }
+        }
+        return (long) (chars / 1.5);
     }
 
     /**
@@ -58,7 +139,7 @@ public class AIServiceImpl implements AIService {
      */
     @Override
     public String chat(String message, String context, Long userId) {
-        return completeAndSanitize(buildMessages(message, context), 0.7);
+        return completeAndSanitize(buildMessages(message, context), 0.7, "chat");
     }
 
     /**
@@ -69,7 +150,7 @@ public class AIServiceImpl implements AIService {
         if (messages == null || messages.isEmpty()) {
             return SERVICE_ERROR_MSG;
         }
-        return completeAndSanitize(neutralizeUserMessages(messages), 0.7);
+        return completeAndSanitize(neutralizeUserMessages(messages), 0.7, "chat");
     }
 
     /**
@@ -77,10 +158,12 @@ public class AIServiceImpl implements AIService {
      */
     @Override
     public String generateQuestion(Long courseId, String type, String difficulty, int count) {
+        log.info("生成AI");
+
         String prompt = String.format(
                 "请生成%d道%s难度、类型为%s的课程题目，包含题目内容、选项和正确答案，以JSON格式返回。",
                 count, difficulty, type);
-        String raw = completeAndSanitize(buildMessages(prompt, null), 0.9);
+        String raw = completeAndSanitize(buildMessages(prompt, null), 0.9, "question");
         return raw != null ? raw : SERVICE_ERROR_MSG;
     }
 
@@ -89,6 +172,8 @@ public class AIServiceImpl implements AIService {
      */
     @Override
     public String generateContent(String type, String params) {
+        log.info("生成AI");
+
         // 纠错 / 润色使用专门提示词，确保返回内容对学生笔记场景真正可用
         String prompt;
         if ("correct".equals(type)) {
@@ -100,7 +185,7 @@ public class AIServiceImpl implements AIService {
         } else {
             prompt = "请生成" + type + "内容，" + params;
         }
-        String raw = completeAndSanitize(buildMessages(prompt, null), 0.7);
+        String raw = completeAndSanitize(buildMessages(prompt, null), 0.7, "content");
         return raw != null ? raw : SERVICE_ERROR_MSG;
     }
 
@@ -109,8 +194,10 @@ public class AIServiceImpl implements AIService {
      */
     @Override
     public String generateSummary(String content) {
+        log.info("生成AI");
+
         String prompt = "请总结以下内容：\n" + content;
-        String raw = completeAndSanitize(buildMessages(prompt, null), 0.3);
+        String raw = completeAndSanitize(buildMessages(prompt, null), 0.3, "content");
         return raw != null ? raw : SERVICE_ERROR_MSG;
     }
 
@@ -120,36 +207,20 @@ public class AIServiceImpl implements AIService {
     @Override
     public String checkPlagiarism(String text1, String text2) {
         String prompt = "请对比以下两段文本的相似度，返回相似百分比和重复内容分析：\n文本1：" + text1 + "\n文本2：" + text2;
-        String raw = completeAndSanitize(buildMessages(prompt, null), 0.2);
+        String raw = completeAndSanitize(buildMessages(prompt, null), 0.2, "correct");
         return raw != null ? raw : SERVICE_ERROR_MSG;
     }
 
     /**
-     * 基于课程知识库的 GraphRAG 问答（自包含：BM25 检索 + 图谱增强 + LLM 生成）
+     * 基于课程知识库（课程章节文档）的 RAG 问答（自包含：BM25/向量检索 + LLM 生成）。
      * <p>
-     * 流程：
-     * <ol>
-     *   <li>从 {@link GraphRAGService} 获取问句相关的图谱子图（实体链接 + BFS 出发）；</li>
-     *   <li>将图谱上下文作为前置信息注入问题，交由 {@link RAGService} 做 BM25 检索 + LLM 生成；</li>
-     *   <li>当图谱数据为空时自动降级为纯文本 RAG，不影响正常问答。</li>
-     * </ol>
+     * 流程：将用户问题直接交由 {@link RAGService} 做混合检索 + LLM 生成；
+     * 检索失败时降级为纯 LLM 调用，保证问答链路不中断。
+     * <p>已脱离 knowledge 模块：原 GraphRAG 多跳增强由另一成员图谱服务负责，本端不再内置图谱检索。</p>
      */
     @Override
     public String ragAsk(String question, Long courseId) {
-        // 先尝试获取图谱上下文（若图谱有数据）
-        String graphContext = "";
-        try {
-            Map<String, Object> ctx = graphRagService.retrieveGraphContext(question, courseId, 2);
-            if (ctx != null && !ctx.isEmpty()) {
-                graphContext = graphRagService.formatGraphContextForPrompt(ctx);
-            }
-        } catch (Exception e) {
-            log.debug("[GraphRAG] 图谱上下文获取失败，降级为纯文本 RAG: {}", e.getMessage());
-        }
-
-        // 将图谱上下文前置注入问题（让 RAG 检索和 LLM 生成都能感知图谱结构）
-        String enhancedQuestion = graphContext.isEmpty() ? question
-                : graphContext + "\n用户问题：" + question;
+        String enhancedQuestion = question;
 
         try {
             String ragResult = ragService.ask(enhancedQuestion, courseId, 5);
@@ -163,7 +234,7 @@ public class AIServiceImpl implements AIService {
             log.warn("RAG 服务调用异常，降级为纯 LLM 调用: {}", e.getMessage());
         }
         String systemPrompt = "请基于课程知识回答问题。如果问题超出课程范围，请明确说明。";
-        String raw = completeAndSanitize(buildMessages(question, systemPrompt), 0.5);
+        String raw = completeAndSanitize(buildMessages(question, systemPrompt), 0.5, "rag");
         return raw != null ? raw : SERVICE_ERROR_MSG;
     }
 
@@ -197,15 +268,14 @@ public class AIServiceImpl implements AIService {
     public String recommendLearningJson(String courseList) {
         String schema = "{\"recommendations\": [{\"resource\": \"资源名\", \"reason\": \"推荐理由\"}]}";
         String prompt = "我目前在学习以下课程：" + courseList + "。请为我推荐个性化的学习资源和学习建议。";
-        return callLlm(buildMessages(prompt, null), 0.7, schema);
+        return callLlm(buildMessages(prompt, null), 0.7, schema, "recommend");
     }
 
     /**
-     * 基于真实学情数据 + 知识图谱的学习推荐（双引擎增强版）：
+     * 基于真实学情数据的学习推荐（LLM 引擎）：
      * <p>
-     * 引擎一（算法）：{@link KnowledgeRecommendationService} 基于图谱关系做薄弱点关联推荐；
-     * 引擎二（LLM）：将算法推荐结果 + 学情画像注入提示词，生成可解释的自然语言建议。
-     * 若图谱数据为空（团队 Python 侧尚未灌入），自动降级为纯 LLM 推荐。
+     * 将学情画像（课程、进度、薄弱项、成绩）注入提示词，由 LLM 生成可解释的结构化学习建议。
+     * <p>已脱离 knowledge 模块：原基于图谱关系的算法推荐引擎（另一成员负责）不再内置，本端仅做学情驱动的 LLM 推荐。</p>
      */
     @Override
     public String recommendLearningWithContext(Map<String, Object> context) {
@@ -239,52 +309,23 @@ public class AIServiceImpl implements AIService {
             sb.append("（暂无薄弱项数据，请完成更多学习任务以获取精准推荐）\n");
         }
 
-        // ====== 图谱推荐引擎（引擎一） ======
-        if (context.containsKey("courseId") && !weakPoints.isEmpty()) {
-            try {
-                Long courseId = ((Number) context.get("courseId")).longValue();
-                // 将 weakPoints List<Map> 转换为 Map<String, Double>
-                Map<String, Double> weakMap = weakPoints.stream()
-                        .filter(m -> m.containsKey("name") && m.containsKey("mastery"))
-                        .collect(Collectors.toMap(
-                                m -> (String) m.get("name"),
-                                m -> ((Number) m.get("mastery")).doubleValue(),
-                                (a, b) -> a));
-                if (!weakMap.isEmpty()) {
-                    List<Map<String, Object>> kgRecs = knowledgeRecommendationService
-                            .recommendFromWeakPoints(courseId, weakMap, 5);
-                    if (!kgRecs.isEmpty()) {
-                        sb.append("\n【知识图谱关联推荐】（基于知识点关系的算法推荐）：\n");
-                        for (int i = 0; i < kgRecs.size(); i++) {
-                            Map<String, Object> rec = kgRecs.get(i);
-                            sb.append("  ").append(i + 1).append(". ")
-                                    .append(rec.getOrDefault("recommendType", "推荐")).append("：")
-                                    .append(rec.getOrDefault("name", "")).append(" — ")
-                                    .append(rec.getOrDefault("reason", "")).append("\n");
-                        }
-                    }
-                }
-            } catch (Exception e) {
-                log.debug("[推荐引擎] 图谱推荐失败，降级为纯 LLM 推荐: {}", e.getMessage());
-            }
-        }
-
         // 近期成绩
         if (context.containsKey("recentScores")) {
             sb.append("近期成绩：").append(context.get("recentScores")).append("\n");
         }
 
-        sb.append("\n请根据以上真实学情数据和图谱推荐，生成个性化学习推荐方案，优先针对薄弱项给出具体可操作的建议。");
+        sb.append("\n请根据以上真实学情数据，生成个性化学习推荐方案，优先针对薄弱项给出具体可操作的建议。");
         sb.append("\n只返回纯JSON：{\"recommendations\":[{\"resource\":\"推荐资源或行动\",\"reason\":\"基于数据的具体理由\",\"priority\":\"HIGH|MEDIUM|LOW\"}]}");
 
         String schema = "{\"recommendations\":[{\"resource\":\"资源名\",\"reason\":\"推荐理由\",\"priority\":\"HIGH|MEDIUM|LOW\"}]}";
-        return callLlm(buildMessages(sb.toString(), null), 0.6, schema);
+        return callLlm(buildMessages(sb.toString(), null), 0.6, schema, "recommend");
     }
 
     /**
      * 知识图谱 AI 抽取（两阶段法，对齐 IPA 框架）。
      * 第一阶段：模拟学习者阅读理解，识别文本中的核心概念与结构；
      * 第二阶段：以专家身份归纳总结，输出结构化知识点与关系。
+     * <p>说明：本方法仅产出图谱结构 JSON（供图谱服务消费），属 LLM 抽取能力，不在本端图谱存储/查询实现内。</p>
      */
     public String extractKnowledgeGraphJson(String content) {
         String schema = "{\"nodes\":[{\"name\":\"知识点名称\",\"content\":\"要点说明\",\"type\":\"CONCEPT|PRINCIPLE|METHOD|FACT\"}],"
@@ -296,17 +337,17 @@ public class AIServiceImpl implements AIService {
 
         String readingResult;
         try {
-            readingResult = llmProvider.complete(
-                    List.of(Map.of("role", "user", "content", stage1Prompt)), 0.3);
+            readingResult = completeAndSanitize(
+                    List.of(Map.of("role", "user", "content", stage1Prompt)), 0.3, "extract_graph");
             if (readingResult == null || readingResult.isBlank()) {
                 // 退化为单阶段
                 String prompt = "请从以下课程内容中抽取知识结构（知识点及其关系），仅返回符合 schema 的 JSON，不要额外说明：\n" + content;
-                return callLlm(buildMessages(prompt, null), 0.3, schema);
+                return callLlm(buildMessages(prompt, null), 0.3, schema, "extract_graph");
             }
         } catch (Exception e) {
             log.debug("[IPA] 阶段一失败，降级为单阶段抽取: {}", e.getMessage());
             String prompt = "请从以下课程内容中抽取知识结构（知识点及其关系），仅返回符合 schema 的 JSON，不要额外说明：\n" + content;
-            return callLlm(buildMessages(prompt, null), 0.3, schema);
+            return callLlm(buildMessages(prompt, null), 0.3, schema, "extract_graph");
         }
 
         // 阶段二：专家归纳
@@ -314,18 +355,20 @@ public class AIServiceImpl implements AIService {
                 + "\n\n基于以上理解，请精确抽取知识点及其关系，"
                 + "仅返回符合以下 schema 的 JSON，不要额外说明：\n" + schema;
 
-        return callLlm(buildMessages(stage2Prompt, null), 0.3, schema);
+        return callLlm(buildMessages(stage2Prompt, null), 0.3, schema, "extract_graph");
     }
 
     /**
      * 学情 AI 建议：聚合学情统计与薄弱点，生成结构化学习建议
      */
     public String generateLearningAdviceJson(String statsJson, String weakPointsJson) {
+        log.info("生成AI");
+
         String schema = "{\"summary\":\"一句话总体建议\",\"items\":[{\"title\":\"建议标题\",\"detail\":\"具体做法\",\"level\":\"HIGH|MEDIUM|LOW\"}]}";
         String prompt = "以下是某学习者的学情统计：" + statsJson
                 + "\n以及 AI 分析出的薄弱项：" + weakPointsJson
                 + "\n请结合两者给出可落地的学习建议，按优先级排列。";
-        return callLlm(buildMessages(prompt, null), 0.6, schema);
+        return callLlm(buildMessages(prompt, null), 0.6, schema, "recommend");
     }
 
     /**
@@ -335,7 +378,7 @@ public class AIServiceImpl implements AIService {
         String schema = "{\"alerts\":[{\"level\":\"HIGH|MEDIUM|LOW\",\"title\":\"问题标题\",\"detail\":\"风险说明与建议\"}]}";
         String prompt = "以下是系统近期的登录与操作日志：\n" + logsJson
                 + "\n请检测其中的异常行为（如暴力破解、异常高频操作、成绩异动等），仅返回符合 schema 的 JSON。";
-        return callLlm(buildMessages(prompt, null), 0.3, schema);
+        return callLlm(buildMessages(prompt, null), 0.3, schema, "analyze");
     }
 
     /**
@@ -345,7 +388,7 @@ public class AIServiceImpl implements AIService {
     public String analyzeWeakPointsJson(String statsJson) {
         String schema = "{\"weakPoints\": [{\"description\": \"薄弱项描述\", \"severity\": \"HIGH 或 MEDIUM 或 LOW\"}]}";
         String prompt = "请根据以下学习统计数据，分析学习者的知识薄弱项：" + statsJson;
-        return callLlm(buildMessages(prompt, null), 0.4, schema);
+        return callLlm(buildMessages(prompt, null), 0.4, schema, "analyze");
     }
 
     /**
@@ -356,7 +399,7 @@ public class AIServiceImpl implements AIService {
         String schema = "{\"questions\": [{\"content\": \"题目内容\", \"type\": \"SINGLE_CHOICE\", \"difficulty\": \""
                 + (difficulty != null ? difficulty : "MEDIUM") + "\"}]}";
         String prompt = String.format("请为课程(courseId=%d)生成%d道%s难度的练习题。", courseId, count, difficulty);
-        return callLlm(buildMessages(prompt, null), 0.8, schema);
+        return callLlm(buildMessages(prompt, null), 0.8, schema, "question");
     }
 
     /**
@@ -474,6 +517,8 @@ public class AIServiceImpl implements AIService {
             result.put("items", items);
             return result;
         } catch (Exception e) {
+            log.error("生成AI失败: {}", e.getMessage(), e);
+
             // 原控制器将本段整体 try/catch 并重抛 BusinessException("生成学习建议失败: " + msg)；
             // 此处去前缀重抛，由控制器 catch(Exception) 统一加前缀，保证最终消息与原来一致。
             throw new BusinessException(e.getMessage());
@@ -496,8 +541,10 @@ public class AIServiceImpl implements AIService {
         if (!llmProvider.isConfigured()) {
             return reactor.core.publisher.Flux.just(NO_PROVIDER_MSG);
         }
+        recordAiCall("chat");
         String safeQuestion = promptGuard.neutralizeInjection(question);
         List<Map<String, String>> messages = List.of(Map.of("role", "user", "content", safeQuestion));
+        recordAiToken("chat", estimateInputTokens(messages));
         return llmProvider.stream(messages, 0.7)
                 .map(promptGuard::sanitizeOutput);
     }
@@ -544,20 +591,46 @@ public class AIServiceImpl implements AIService {
     /**
      * 直连出口：调用供应商后对输出统一做活动内容清洗（null 透传，交由上层判空）。
      */
-    private String completeAndSanitize(List<Map<String, String>> messages, double temperature) {
-        return promptGuard.sanitizeOutput(llmProvider.complete(messages, temperature));
+    private String completeAndSanitize(List<Map<String, String>> messages, double temperature, String type) {
+        recordAiCall(type);
+        recordAiToken(type, estimateInputTokens(messages));
+        try {
+            return promptGuard.sanitizeOutput(llmProvider.complete(messages, temperature));
+        } catch (Exception e) {
+            log.error("AI相关操作失败: {}", e.getMessage(), e);
+
+            recordAiFailure(type);
+            throw e;
+        }
     }
 
     /**
      * 统一调用入口：未配置供应商时返回清晰提示，调用失败返回通用错误文案；成功结果统一清洗后下发
      */
-    private String callLlm(List<Map<String, String>> messages, Double temperature, String jsonSchema) {
+    private String callLlm(List<Map<String, String>> messages, Double temperature, String jsonSchema, String type) {
         if (!llmProvider.isConfigured()) {
             return NO_PROVIDER_MSG;
         }
-        String result = jsonSchema != null
-                ? llmProvider.completeJson(messages, temperature, jsonSchema)
-                : llmProvider.complete(messages, temperature);
-        return result != null ? promptGuard.sanitizeOutput(result) : SERVICE_ERROR_MSG;
+        recordAiCall(type);
+        long inputTokens = estimateInputTokens(messages);
+        if (jsonSchema != null) {
+            inputTokens += (long) (jsonSchema.length() / 1.5);
+        }
+        recordAiToken(type, inputTokens);
+        try {
+            String result = jsonSchema != null
+                    ? llmProvider.completeJson(messages, temperature, jsonSchema)
+                    : llmProvider.complete(messages, temperature);
+            if (result == null) {
+                recordAiFailure(type);
+                return SERVICE_ERROR_MSG;
+            }
+            return promptGuard.sanitizeOutput(result);
+        } catch (Exception e) {
+            log.error("AI相关操作失败: {}", e.getMessage(), e);
+
+            recordAiFailure(type);
+            throw e;
+        }
     }
 }

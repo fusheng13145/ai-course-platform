@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.service.AnalyticsService;
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,6 +25,8 @@ import java.util.Map;
 @Tag(name = "数据统计分析", description = "提供平台总览、学习趋势、成绩分布、课程分析等统计功能")
 public class AnalyticsController {
 
+    private static final Logger log = LoggerFactory.getLogger(AnalyticsController.class);
+
     private final AnalyticsService analyticsService;
 
     public AnalyticsController(AnalyticsService analyticsService) {
@@ -35,6 +40,7 @@ public class AnalyticsController {
     @Operation(summary = "获取基础仪表盘数据", description = "返回用户数、课程数、选课数、任务数等基础统计")
     public ApiResponse<Map<String, Object>> dashboard(
             @Parameter(description = "教师ID（可选，传入时返回教师端数据）") @RequestParam(required = false) Long teacherId) {
+        log.debug("查询数据大盘 teacherId={}", teacherId);
         Map<String, Object> data;
         if (teacherId != null) {
             data = analyticsService.getTeacherDashboard(teacherId);

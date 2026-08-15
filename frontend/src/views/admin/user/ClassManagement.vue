@@ -1,136 +1,195 @@
 <template>
   <div class="fade-in class-management">
-    <PageHeader title="组织与班级管理" subtitle="按院系 / 专业 / 年级维度组织班级，管理班级成员与班主任" icon="building" icon-bg="accent" />
+    <PageHeader
+      title="组织与班级管理"
+      subtitle="按院系 / 专业 / 年级维度组织班级，管理班级成员与班主任"
+      icon="building"
+      icon-bg="accent"
+    />
 
     <div class="stat-grid">
-      <StatCard label="班级总数" :value="classStats[0].value" icon="grid" tone="var(--accent-soft)" tone-color="var(--accent)" />
-      <StatCard label="专业数" :value="classStats[1].value" icon="layers" tone="var(--info-soft)" tone-color="var(--info)" />
-      <StatCard label="在册学生" :value="classStats[2].value" icon="users" tone="var(--ok-soft)" tone-color="var(--ok)" />
-      <StatCard label="平均班额" :value="classStats[3].value" icon="chart" tone="var(--warn-soft)" tone-color="var(--warn)" />
+      <StatCard
+        label="班级总数"
+        :value="classStats[0].value"
+        icon="grid"
+        tone="var(--accent-soft)"
+        tone-color="var(--accent)"
+      />
+      <StatCard
+        label="专业数"
+        :value="classStats[1].value"
+        icon="layers"
+        tone="var(--info-soft)"
+        tone-color="var(--info)"
+      />
+      <StatCard
+        label="在册学生"
+        :value="classStats[2].value"
+        icon="users"
+        tone="var(--ok-soft)"
+        tone-color="var(--ok)"
+      />
+      <StatCard
+        label="平均班额"
+        :value="classStats[3].value"
+        icon="chart"
+        tone="var(--warn-soft)"
+        tone-color="var(--warn)"
+      />
     </div>
 
     <section class="l1-card">
       <div class="l1-head">
-        <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18zM2 22h20M9 6h1M14 6h1M9 10h1M14 10h1M9 14h1M14 14h1M10 22v-3h4v3"/></svg>
+        <span class="l1-ico" style="background: var(--accent-soft); color: var(--accent)">
+          <svg
+            viewBox="0 0 24 24"
+            width="17"
+            height="17"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.9"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18zM2 22h20M9 6h1M14 6h1M9 10h1M14 10h1M9 14h1M14 14h1M10 22v-3h4v3"
+            />
+          </svg>
         </span>
-        <div><div class="l1-title">班级列表</div><div class="l1-sub">选择组织维度筛选，新建或维护班级</div></div>
+        <div>
+          <div class="l1-title">班级列表</div>
+          <div class="l1-sub">选择组织维度筛选，新建或维护班级</div>
+        </div>
       </div>
       <div class="l1-body">
-    <div class="layout-split">
-      <!-- 左侧：组织树 -->
-      <div class="org-panel content-card">
-        <div class="org-panel-head">
-          <span class="org-title">组织维度</span>
-          <el-button text type="primary" size="small" @click="resetOrgFilter">重置</el-button>
-        </div>
-        <el-tree
-          ref="orgTreeRef"
-          :data="orgTree"
-          :props="{ label: 'label', children: 'children' }"
-          node-key="key"
-          highlight-current
-          :expand-on-click-node="false"
-          default-expand-all
-          @node-click="onOrgNodeClick"
-        >
-          <template #default="{ data }">
-            <span class="org-node">
-              <el-icon v-if="data.type === 'root'"><School /></el-icon>
-              <el-icon v-else-if="data.type === 'major'"><Collection /></el-icon>
-              <el-icon v-else><UserFilled /></el-icon>
-              <span class="org-label">{{ data.label }}</span>
-              <span v-if="data.count != null" class="org-count">{{ data.count }}</span>
-            </span>
-          </template>
-        </el-tree>
-      </div>
-
-      <!-- 右侧：班级列表 -->
-      <div class="list-panel">
-        <div class="table-toolbar">
-          <div class="toolbar-left">
-            <el-button type="primary" @click="openCreate"
-              ><el-icon><Plus /></el-icon>新建班级</el-button
+        <div class="layout-split">
+          <!-- 左侧：组织树 -->
+          <div class="org-panel content-card">
+            <div class="org-panel-head">
+              <span class="org-title">组织维度</span>
+              <el-button text type="primary" size="small" @click="resetOrgFilter">重置</el-button>
+            </div>
+            <el-tree
+              ref="orgTreeRef"
+              :data="orgTree"
+              :props="{ label: 'label', children: 'children' }"
+              node-key="key"
+              highlight-current
+              :expand-on-click-node="false"
+              default-expand-all
+              @node-click="onOrgNodeClick"
             >
-            <span v-if="activeOrgLabel" class="active-filter">
-              当前筛选：<b>{{ activeOrgLabel }}</b>
-            </span>
-          </div>
-          <div class="toolbar-right">
-            <el-input
-              v-model="keyword"
-              placeholder="搜索班级名称 / 编码"
-              clearable
-              style="width: 220px"
-              @keyup.enter="loadClassrooms"
-            >
-              <template #prefix
-                ><el-icon><Search /></el-icon
-              ></template>
-            </el-input>
-            <el-button @click="loadClassrooms">查询</el-button>
-          </div>
-        </div>
-
-        <div class="content-card">
-          <el-table v-loading="loading" :data="pagedList" style="width: 100%">
-            <el-table-column prop="id" label="ID" width="55" />
-            <el-table-column prop="name" label="班级名称" min-width="140" show-overflow-tooltip />
-            <el-table-column prop="code" label="班级编码" min-width="110" show-overflow-tooltip />
-            <el-table-column prop="major" label="专业" min-width="120" show-overflow-tooltip />
-            <el-table-column prop="gradeLevel" label="年级" width="90" align="center" />
-            <el-table-column label="人数" width="110" align="center">
-              <template #default="{ row }">
-                <span class="count-badge"
-                  >{{ row.studentCount || 0 }} / {{ row.maxStudents || '—' }}</span
-                >
-              </template>
-            </el-table-column>
-            <el-table-column
-              prop="isActive"
-              label="状态"
-              width="90"
-              align="center"
-              class-name="tag-col"
-            >
-              <template #default="{ row }">
-                <span
-                  class="status-dot"
-                  :class="row.isActive !== false ? 'status-dot--active' : 'status-dot--inactive'"
-                >
-                  <i></i>{{ row.isActive !== false ? '启用' : '停用' }}
+              <template #default="{ data }">
+                <span class="org-node">
+                  <el-icon v-if="data.type === 'root'"><School /></el-icon>
+                  <el-icon v-else-if="data.type === 'major'"><Collection /></el-icon>
+                  <el-icon v-else><UserFilled /></el-icon>
+                  <span class="org-label">{{ data.label }}</span>
+                  <span v-if="data.count != null" class="org-count">{{ data.count }}</span>
                 </span>
               </template>
-            </el-table-column>
-            <el-table-column label="操作" width="240" align="center">
-              <template #default="{ row }">
-                <div class="action-row">
-                  <button class="act-btn act-btn--edit" @click="manageStudents(row)">成员</button>
-                  <button class="act-btn act-btn--edit" @click="openEdit(row)">编辑</button>
-                  <button class="act-btn--del" @click="removeClassroom(row)">删除</button>
-                </div>
-              </template>
-            </el-table-column>
-            <template #empty>
-              <el-empty description="暂无班级数据">
-                <template #image><div class="empty-deco">🏫</div></template>
-              </el-empty>
-            </template>
-          </el-table>
+            </el-tree>
+          </div>
 
-          <div v-if="filteredList.length > pageSize" class="pager">
-            <el-pagination
-              layout="prev, pager, next, total"
-              :total="filteredList.length"
-              :page-size="pageSize"
-              :current-page="page"
-              @current-change="(p) => (page = p)"
-            />
+          <!-- 右侧：班级列表 -->
+          <div class="list-panel">
+            <div class="table-toolbar">
+              <div class="toolbar-left">
+                <el-button type="primary" @click="openCreate"
+                  ><el-icon><Plus /></el-icon>新建班级</el-button
+                >
+                <span v-if="activeOrgLabel" class="active-filter">
+                  当前筛选：<b>{{ activeOrgLabel }}</b>
+                </span>
+              </div>
+              <div class="toolbar-right">
+                <el-input
+                  v-model="keyword"
+                  placeholder="搜索班级名称 / 编码"
+                  clearable
+                  style="width: 220px"
+                  @keyup.enter="loadClassrooms"
+                >
+                  <template #prefix
+                    ><el-icon><Search /></el-icon
+                  ></template>
+                </el-input>
+                <el-button @click="loadClassrooms">查询</el-button>
+              </div>
+            </div>
+
+            <div class="content-card">
+              <el-table v-loading="loading" :data="pagedList" style="width: 100%">
+                <el-table-column prop="id" label="ID" width="55" />
+                <el-table-column
+                  prop="name"
+                  label="班级名称"
+                  min-width="140"
+                  show-overflow-tooltip
+                />
+                <el-table-column
+                  prop="code"
+                  label="班级编码"
+                  min-width="110"
+                  show-overflow-tooltip
+                />
+                <el-table-column prop="major" label="专业" min-width="120" show-overflow-tooltip />
+                <el-table-column prop="gradeLevel" label="年级" width="90" align="center" />
+                <el-table-column label="人数" width="110" align="center">
+                  <template #default="{ row }">
+                    <span class="count-badge"
+                      >{{ row.studentCount || 0 }} / {{ row.maxStudents || '—' }}</span
+                    >
+                  </template>
+                </el-table-column>
+                <el-table-column
+                  prop="isActive"
+                  label="状态"
+                  width="90"
+                  align="center"
+                  class-name="tag-col"
+                >
+                  <template #default="{ row }">
+                    <span
+                      class="status-dot"
+                      :class="
+                        row.isActive !== false ? 'status-dot--active' : 'status-dot--inactive'
+                      "
+                    >
+                      <i></i>{{ row.isActive !== false ? '启用' : '停用' }}
+                    </span>
+                  </template>
+                </el-table-column>
+                <el-table-column label="操作" width="240" align="center">
+                  <template #default="{ row }">
+                    <div class="action-row">
+                      <button class="act-btn act-btn--edit" @click="manageStudents(row)">
+                        成员
+                      </button>
+                      <button class="act-btn act-btn--edit" @click="openEdit(row)">编辑</button>
+                      <button class="act-btn--del" @click="removeClassroom(row)">删除</button>
+                    </div>
+                  </template>
+                </el-table-column>
+                <template #empty>
+                  <el-empty description="暂无班级数据">
+                    <template #image><div class="empty-deco">🏫</div></template>
+                  </el-empty>
+                </template>
+              </el-table>
+
+              <div v-if="filteredList.length > pageSize" class="pager">
+                <el-pagination
+                  layout="prev, pager, next, total"
+                  :total="filteredList.length"
+                  :page-size="pageSize"
+                  :current-page="page"
+                  @current-change="(p) => (page = p)"
+                />
+              </div>
+            </div>
           </div>
         </div>
-      </div>
-      </div>
       </div>
     </section>
 
@@ -204,7 +263,11 @@
             <button class="act-btn--del" @click="removeStudentFromClass(row)">移除</button>
           </template>
         </el-table-column>
-        <template #empty><el-empty description="该班级暂无学生" :image-size="80"><template #image><div class="empty-deco">👥</div></template></el-empty></template>
+        <template #empty
+          ><el-empty description="该班级暂无学生" :image-size="80"
+            ><template #image><div class="empty-deco">👥</div></template></el-empty
+          ></template
+        >
       </el-table>
     </el-dialog>
 
@@ -232,7 +295,11 @@
             <button class="act-btn act-btn--approve" @click="addStudentToClass(row)">添加</button>
           </template>
         </el-table-column>
-        <template #empty><el-empty description="无可添加学生" :image-size="80"><template #image><div class="empty-deco">🧑‍🎓</div></template></el-empty></template>
+        <template #empty
+          ><el-empty description="无可添加学生" :image-size="80"
+            ><template #image><div class="empty-deco">🧑‍🎓</div></template></el-empty
+          ></template
+        >
       </el-table>
     </el-dialog>
   </div>
@@ -828,5 +895,8 @@ onMounted(loadClassrooms)
   }
 }
 
-.empty-deco { font-size: 38px; filter: grayscale(.2); }
+.empty-deco {
+  font-size: 38px;
+  filter: grayscale(0.2);
+}
 </style>

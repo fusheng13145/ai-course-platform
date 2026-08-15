@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.dto.AssignmentSubmitDTO;
@@ -27,6 +30,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @PreAuthorize("hasRole('STUDENT')")
 @Tag(name = "学生端")
 public class StudentController {
+
+    private static final Logger log = LoggerFactory.getLogger(StudentController.class);
 
     private final CourseService courseService;
     private final CourseEnrollmentService enrollmentService;
@@ -271,20 +276,22 @@ public class StudentController {
     }
 
     /**
-     * 标记已掌握
+     * 标记已掌握（修复 P1-2：带归属校验，防止越权操作他人错题）
      */
     @PutMapping("/wrong-questions/{id}/mastered")
-    public ApiResponse<Void> markMastered(@PathVariable Long id) {
-        wrongQuestionService.markMastered(id);
+    public ApiResponse<Void> markMastered(@PathVariable Long id, Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        wrongQuestionService.markMasteredForStudent(id, userId);
         return ApiResponse.success("已标记为掌握", null);
     }
 
     /**
-     * 移除错题
+     * 移除错题（修复 P1-2：带归属校验，防止越权删除他人错题）
      */
     @DeleteMapping("/wrong-questions/{id}")
-    public ApiResponse<Void> removeWrongQuestion(@PathVariable Long id) {
-        wrongQuestionService.removeById(id);
+    public ApiResponse<Void> removeWrongQuestion(@PathVariable Long id, Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        wrongQuestionService.deleteForStudent(id, userId);
         return ApiResponse.success("已移除", null);
     }
 

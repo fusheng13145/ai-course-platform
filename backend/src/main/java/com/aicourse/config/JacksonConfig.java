@@ -9,6 +9,8 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.text.SimpleDateFormat;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 显式注册 Jackson JavaTimeModule，确保 java.time.* 类型（如 ApiResponse.timestamp）
@@ -18,11 +20,14 @@ import java.text.SimpleDateFormat;
 @Configuration
 public class JacksonConfig {
 
+    private static final Logger log = LoggerFactory.getLogger(JacksonConfig.class);
+
     @Autowired
     private JacksonProperties jacksonProperties;
 
     @Bean
     public Jackson2ObjectMapperBuilderCustomizer jacksonCustomizer() {
+        log.info("[JacksonConfig] 注册 Jackson 定制器：JavaTimeModule + date-format/time-zone（来自 application.yaml）");
         return builder -> {
             builder.modules(new JavaTimeModule());
             builder.featuresToDisable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);

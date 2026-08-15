@@ -27,6 +27,12 @@ class ResourceControllerTest extends ControllerTestBase {
     @MockitoBean
     private com.aicourse.service.ResourceService resourceService;
 
+    // 修复 P1-6：ResourceController 新增课程归属校验依赖，@WebMvcTest 需显式 mock
+    @MockitoBean
+    private com.aicourse.service.CourseService courseService;
+    @MockitoBean
+    private com.aicourse.service.CourseEnrollmentService courseEnrollmentService;
+
     private Resource sampleResource(Long id, String fileName) {
         Resource r = new Resource();
         r.setId(id);
@@ -151,6 +157,8 @@ class ResourceControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("PATCH /resources/1/visibility - 返回200且可见性切换委托被调用")
     void toggleVisibility_authorized_returns_200() throws Exception {
+        // 修复越权改造回归：toggleVisibility 先查资源存在性，需 stub getById
+        when(resourceService.getById(1L)).thenReturn(sampleResource(1L, "课件.pdf"));
         mockMvc.perform(patch("/resources/1/visibility")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"visibleToAll\":true}")

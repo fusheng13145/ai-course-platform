@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.*;
 import com.aicourse.service.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -22,6 +25,8 @@ import com.aicourse.common.RoleConstants;
  */
 @Component
 public class AdminAnalyticsComponent {
+
+    private static final Logger log = LoggerFactory.getLogger(AdminAnalyticsComponent.class);
 
     private final UserService userService;
     private final CourseService courseService;
@@ -183,6 +188,8 @@ public class AdminAnalyticsComponent {
             studentActivity.put("actionCount", studentCount * 20L);
             dashboard.put("roleActivity", java.util.Arrays.asList(adminActivity, teacherActivity, studentActivity));
         } catch (Exception e) {
+            log.error("查询管理员分析失败: {}", e.getMessage(), e);
+
             dashboard.put("error", "统计数据加载异常: " + e.getMessage());
             // 填充默认值防止前端空白
             dashboard.putIfAbsent("userCount", 0L);

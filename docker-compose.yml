@@ -1,6 +1,8 @@
 # ============================================================
 # AI 课程平台 - Docker Compose 编排
 # 服务：mysql / redis / backend / frontend
+#       + mysql-backup（备份守护，profiles: ops）
+#       + prometheus / grafana / loki / promtail（监控+日志，profiles: monitor）
 #
 # 【Redis 必选】backend 通过 depends_on.condition=service_healthy
 # 强依赖 MySQL 与 Redis 两者；Redis 未就绪时 backend 不会启动，
@@ -15,6 +17,14 @@
 # 2) 容器化部署（上线/给他人快速体验/本机无 MySQL、Redis 时）：
 #    docker compose --profile full up -d --build
 #    （backend/frontend 带 profiles:["full"]，不加 --profile 仅起 mysql + redis 两个基础设施）。
+# 3) 运维增强（可选，按需叠加 profile）：
+#    docker compose --profile full --profile ops up -d --build     # + MySQL 每日自动备份
+#    docker compose --profile full --profile monitor up -d --build # + Prometheus/Grafana 监控 + Alertmanager 告警 + Loki/Promtail 日志集中化
+#    （ops 与 monitor 可同时叠加：--profile full --profile ops --profile monitor）
+#    告警通知渠道：monitor profile 默认启动 Alertmanager，默认 webhook 占位端点；
+#    生产请在 .env 设置 ALERTMANAGER_WEBHOOK_URL 指向真实告警网关（企业微信/钉钉/飞书机器人等）。
+#    日志集中化：monitor profile 默认启动 Loki（存储）+ Promtail（采集 backend 容器日志），
+#    经 Grafana 的 Loki 数据源检索；Promtail 经 Docker socket 采集，无需改动应用代码。
 # 敏感配置经同级 .env 注入（见 .env.example），禁止默认值上线。
 # ============================================================
 
@@ -81,13 +91,24 @@ services:
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET 必须设置（请 cp .env.example .env 后填入至少32位随机密钥）}
+      # 种子 admin 初始口令（修复：index.sql 内置弱口令账号，生产必须注入强口令替换；
+      # 留空 = 不启用替换。见 AdminSeedPasswordInitializer）
+      APP_ADMIN_INITIAL_PASSWORD: ${APP_ADMIN_INITIAL_PASSWORD:-}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       # 安全开关：默认宽松（http://80 快速体验）；生产置于 TLS 反代之后时必须置 true
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       REQUIRE_HTTPS: ${REQUIRE_HTTPS:-false}
-      CSRF_ENABLED: ${CSRF_ENABLED:-false}
+      CSRF_ENABLED: ${CSRF_ENABLED:-true}
+      # 监控端点（/api/actuator/prometheus）鉴权：独立 Basic 鉴权链（与业务 JWT 链路隔离，非 ADMIN 角色）。
+      # 凭据为监控专用账号 APP_ACTUATOR_BASIC_USER / APP_ACTUATOR_BASIC_PASSWORD，口令留空则抓取 fail-closed；
+      # 启用 monitor profile 且无反向代理鉴权时（内网/演示），可置 false 放开 Prometheus 抓取。
+      APP_ACTUATOR_SECURED: ${APP_ACTUATOR_SECURED:-true}
+      # 监控抓取专用 Basic 账号（Prometheus 经 basic_auth 抓取 /api/actuator/prometheus）。
+      # 凭据须与下方 prometheus 服务的 ACTUATOR_BASIC_* 完全一致；口令留空则抓取 fail-closed。
+      APP_ACTUATOR_BASIC_USER: ${APP_ACTUATOR_BASIC_USER:-monitor}
+      APP_ACTUATOR_BASIC_PASSWORD: ${APP_ACTUATOR_BASIC_PASSWORD:-}
       TZ: Asia/Shanghai
     ports:
       - "8080:8080"
@@ -97,6 +118,153 @@ services:
       timeout: 5s
       retries: 12
       start_period: 60s
+    volumes:
+      # 上传文件持久化（修复：原未挂卷，容器重建后 uploads/ 下所有教学资源/附件丢失；
+      # 与 UploadResourceConfig 静态映射及 ResourceController 落盘目录 /app/uploads 对齐）
+      - uploads-data:/app/uploads
+      # 数据库备份持久化：应用内「系统管理→备份」生成的 backups/ 目录落盘到卷，
+      # 容器重建不丢失（配合 mysql-backup 服务的定时全量备份构成双保险）
+      - backups-data:/app/backups
+    logging:
+      # json-file 日志限额：单文件 10MB × 3 份，防止日志无限膨胀占满磁盘
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------- MySQL 定时备份守护（profiles: ops） ----------------
+  mysql-backup:
+    image: mysql:8.0
+    container_name: aicourse-mysql-backup
+    restart: unless-stopped
+    profiles: ["ops"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ai_course_platform
+      # 保留天数：超出即滚动清理
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      TZ: Asia/Shanghai
+    volumes:
+      - ./ops/mysql-backup/backup.sh:/backup.sh:ro
+      - mysql-backups:/backups
+    entrypoint:
+      - /bin/sh
+      - -c
+      - "chmod +x /backup.sh && exec /bin/sh /backup.sh"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  # ---------------- Prometheus 监控采集（profiles: monitor） ----------------
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: aicourse-prometheus
+    restart: unless-stopped
+    profiles: ["monitor"]
+    environment:
+      # 透传监控抓取账号给 Prometheus 进程（prometheus.yml 通过 ${VAR} 插值读取）。
+      # 须与 backend 的 APP_ACTUATOR_BASIC_* 完全一致。
+      ACTUATOR_BASIC_USER: ${APP_ACTUATOR_BASIC_USER:-monitor}
+      ACTUATOR_BASIC_PASSWORD: ${APP_ACTUATOR_BASIC_PASSWORD:-}
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  # ---------------- Alertmanager 告警分发（profiles: monitor） ----------------
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: aicourse-alertmanager
+    restart: unless-stopped
+    profiles: ["monitor"]
+    environment:
+      # 告警通知 webhook（企业微信/钉钉/飞书机器人等），留空则用占位 localhost:9000/alerts
+      ALERTMANAGER_WEBHOOK_URL: ${ALERTMANAGER_WEBHOOK_URL:-}
+    volumes:
+      - ./prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  # ---------------- Grafana 可视化面板（profiles: monitor） ----------------
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: aicourse-grafana
+    restart: unless-stopped
+    profiles: ["monitor"]
+    depends_on:
+      - prometheus
+    environment:
+      # 生产必须通过 .env 覆盖默认弱口令！
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      # 暴露 Grafana 自身 /metrics（Prometheus 抓取 grafana:3000/metrics，纳入监控组件存活告警）
+      GF_METRICS_ENABLED: "true"
+      TZ: Asia/Shanghai
+    volumes:
+      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  # ---------------- Loki 日志存储（profiles: monitor） ----------------
+  loki:
+    image: grafana/loki:2.9.8
+    container_name: aicourse-loki
+    restart: unless-stopped
+    profiles: ["monitor"]
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  # ---------------- Promtail 日志采集（profiles: monitor） ----------------
+  promtail:
+    image: grafana/promtail:2.9.8
+    container_name: aicourse-promtail
+    restart: unless-stopped
+    profiles: ["monitor"]
+    depends_on:
+      - loki
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./loki/promtail-config.yaml:/etc/promtail/config.yml:ro
+      # 经 Docker socket 服务发现后端容器日志（只读）；本地 Docker 桌面默认可用
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
 
   frontend:
     build:
@@ -109,7 +277,23 @@ services:
         condition: service_healthy
     ports:
       - "80:80"
+    logging:
+      # json-file 日志限额：与 backend 一致，防止日志膨胀
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
 
 volumes:
   mysql-data:
   redis-data:
+  uploads-data:
+  # 定时备份卷（mysql-backup 服务写入）
+  mysql-backups:
+  # 应用内手动备份卷（SystemServiceImpl backups/ 目录）
+  backups-data:
+  # 监控数据卷
+  prometheus-data:
+  grafana-data:
+  # Loki 日志数据卷
+  loki-data:

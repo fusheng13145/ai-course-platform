@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+
+import com.aicourse.constant.ExamSessionStatus;
+
 import com.aicourse.entity.*;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ExamSessionMapper;
@@ -8,6 +11,12 @@ import com.aicourse.service.impl.exam.ExamSessionGradingService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.node.ObjectNode;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,14 +25,21 @@ import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
 
+
+/**
+ * 考试会话服务实现：相关业务逻辑入口，提供增删改查与编排能力。
+ */
+@Slf4j
 @Service
 public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamSession> implements ExamSessionService {
+
 
     private final ExamPaperService examPaperService;
     private final ExamQuestionService examQuestionService;
     private final QuestionService questionService;
     private final WrongQuestionService wrongQuestionService;
     private final ExamSessionGradingService gradingService;
+    private final ObjectMapper objectMapper = new ObjectMapper();
 
     public ExamSessionServiceImpl(ExamPaperService examPaperService,
                                    ExamQuestionService examQuestionService,
@@ -67,7 +83,7 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
             LambdaQueryWrapper<ExamSession> countWrapper = new LambdaQueryWrapper<ExamSession>()
                     .eq(ExamSession::getExamPaperId, examPaperId)
                     .eq(ExamSession::getStudentId, studentId)
-                    .in(ExamSession::getStatus, "STARTED", "SUBMITTED", "GRADED", "TIMEOUT");
+                    .in(ExamSession::getStatus, ExamSessionStatus.STARTED, ExamSessionStatus.SUBMITTED, ExamSessionStatus.GRADED, ExamSessionStatus.TIMEOUT);
             long existingAttempts = this.count(countWrapper);
             if (existingAttempts >= maxAttempts) {
                 throw new BusinessException("已达到最大尝试次数限制（" + maxAttempts + "次）");
@@ -78,7 +94,7 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
         LambdaQueryWrapper<ExamSession> activeWrapper = new LambdaQueryWrapper<ExamSession>()
                 .eq(ExamSession::getExamPaperId, examPaperId)
                 .eq(ExamSession::getStudentId, studentId)
-                .eq(ExamSession::getStatus, "STARTED");
+                .eq(ExamSession::getStatus, ExamSessionStatus.STARTED);
         ExamSession activeSession = this.getOne(activeWrapper);
         if (activeSession != null) {
             throw new BusinessException("您有正在进行的考试，请先完成或结束当前考试");
@@ -92,7 +108,7 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
         ExamSession session = new ExamSession();
         session.setExamPaperId(examPaperId);
         session.setStudentId(studentId);
-        session.setStatus("STARTED");
+        session.setStatus(ExamSessionStatus.STARTED);
         session.setStartTime(LocalDateTime.now());
         session.setAttemptNumber(attemptNumber);
         session.setIpAddress(ipAddress);
@@ -112,7 +128,7 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
         if (session == null) {
             throw new BusinessException("考试会话不存在");
         }
-        if (!"STARTED".equals(session.getStatus())) {
+        if (!ExamSessionStatus.STARTED.equals(session.getStatus())) {
             throw new BusinessException("当前考试状态不允许保存答案");
         }
 
@@ -128,6 +144,8 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ExamSession submitExam(Long sessionId, Map<String, Object> answers) {
+        log.info("提交考试会话");
+
         ExamSession session = this.getById(sessionId);
         if (session == null) {
             throw new BusinessException("考试会话不存在");
@@ -139,10 +157,10 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
         // 原子更新：仅当状态为 STARTED 时才允许提交（消除 TOCTOU 竞态）
         LambdaUpdateWrapper<ExamSession> updateWrapper = new LambdaUpdateWrapper<ExamSession>()
                 .eq(ExamSession::getId, sessionId)
-                .eq(ExamSession::getStatus, "STARTED")
+                .eq(ExamSession::getStatus, ExamSessionStatus.STARTED)
                 .set(ExamSession::getAnswers, mapToJson(answers))
                 .set(ExamSession::getTimeSpent, (int) ChronoUnit.SECONDS.between(session.getStartTime(), now))
-                .set(ExamSession::getStatus, "SUBMITTED")
+                .set(ExamSession::getStatus, ExamSessionStatus.SUBMITTED)
                 .set(ExamSession::getSubmitTime, now);
         boolean updated = this.update(updateWrapper);
         if (!updated) {
@@ -163,7 +181,7 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
         if (session == null) {
             throw new BusinessException("考试会话不存在");
         }
-        if ("SUBMITTED".equals(session.getStatus()) || "GRADED".equals(session.getStatus())) {
+        if (ExamSessionStatus.SUBMITTED.equals(session.getStatus()) || ExamSessionStatus.GRADED.equals(session.getStatus())) {
             throw new BusinessException("该试卷已经提交，无需强制交卷");
         }
 
@@ -172,13 +190,15 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
         long secondsSpent = ChronoUnit.SECONDS.between(session.getStartTime(), now);
         session.setTimeSpent((int) secondsSpent);
 
-        session.setStatus("FORCE_SUBMITTED");
+        session.setStatus(ExamSessionStatus.FORCE_SUBMITTED);
         session.setSubmitTime(now);
         this.updateById(session);
 
         return session;
     }
 
+
+    /** 考试会话相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> autoGrade(Long sessionId) {
@@ -188,6 +208,8 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
     }
 
 
+
+    /** 考试会话相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void manualGrade(Long sessionId, Long questionId, BigDecimal score, String comment) {
@@ -195,6 +217,8 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
     }
 
 
+
+    /** 考试会话相关操作 */
     @Override
     @Transactional(readOnly = true)
     public BigDecimal calculateTotalScore(Long sessionId) {
@@ -208,6 +232,8 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> generateScoreReport(Long sessionId) {
+        log.info("生成考试会话");
+
         ExamSession session = this.getById(sessionId);
         if (session == null) {
             throw new BusinessException("考试会话不存在");
@@ -262,7 +288,7 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
     @Transactional(readOnly = true)
     public List<ExamSession> getActiveExams() {
         return this.list(new LambdaQueryWrapper<ExamSession>()
-                .eq(ExamSession::getStatus, "STARTED")
+                .eq(ExamSession::getStatus, ExamSessionStatus.STARTED)
                 .orderByDesc(ExamSession::getStartTime));
     }
 
@@ -328,28 +354,38 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
         List<String> suspicions = detectCheating(sessionId);
         boolean hasSuspicion = !suspicions.isEmpty();
 
-        // 将作弊检测结果序列化为JSON存入answers字段的扩展区域（复用已有字段存储标记信息）
-        // 构建作弊标记摘要
-        StringBuilder cheatingFlags = new StringBuilder();
+        // 将作弊检测结果以 JSON 树形式写入 answers 字段的扩展区域（复用已有字段存储标记信息）。
+        // 修复 P0-1：原实现用 String.replace("}", ...) 字符串级注入，会破坏答案 JSON 中
+        // 所有嵌套对象与含 "}" 的文本，导致该场考试无法自动阅卷。现改为 Jackson 树操作：
+        // 将现有 answers 解析为 JsonNode，向根对象 put("cheatingFlags", ...) 后重新序列化，
+        // 对任何合法 JSON 均幂等安全。
         if (hasSuspicion) {
-            cheatingFlags.append("{\"detectedAt\":\"").append(java.time.LocalDateTime.now().toString()).append("\"");
-            cheatingFlags.append(",\"flagCount\":").append(suspicions.size());
-            cheatingFlags.append(",\"details\":[");
-            for (int i = 0; i < suspicions.size(); i++) {
-                if (i > 0) cheatingFlags.append(",");
-                cheatingFlags.append("\"").append(suspicions.get(i).replace("\"", "'")).append("\"");
+            ObjectNode flags = objectMapper.createObjectNode();
+            flags.put("detectedAt", LocalDateTime.now().toString());
+            flags.put("flagCount", suspicions.size());
+            com.fasterxml.jackson.databind.node.ArrayNode details = flags.putArray("details");
+            for (String s : suspicions) {
+                details.add(s);
             }
-            cheatingFlags.append("]}");
-            // 将标记信息追加到现有答案JSON中（作为元数据）
-            String existingAnswers = session.getAnswers() != null ? session.getAnswers() : "{}";
-            if (!existingAnswers.isEmpty() && !"{".equals(existingAnswers.trim())) {
-                // 追加cheatingFlags到答案中
-                String markedAnswers = existingAnswers.replace("}", ",\"cheatingFlags\":" + cheatingFlags.toString() + "}");
-                session.setAnswers(markedAnswers);
-            } else {
-                session.setAnswers("{\"cheatingFlags\":" + cheatingFlags.toString() + "}");
+
+            try {
+                JsonNode root = objectMapper.readTree(session.getAnswers() != null ? session.getAnswers() : "{}");
+                ObjectNode merged;
+                if (root == null || root.isNull() || root.isMissingNode() || !root.isObject()) {
+                    merged = objectMapper.createObjectNode();
+                } else {
+                    merged = (ObjectNode) root;
+                }
+                merged.set("cheatingFlags", flags);
+                session.setAnswers(objectMapper.writeValueAsString(merged));
+                this.updateById(session);
+            } catch (JsonProcessingException e) {
+                // 答案数据损坏（历史遗留非法 JSON）时兜底：以作弊标记独立 JSON 保存，
+                // 不覆盖也无法修复原答案，但绝不能把损坏数据再次写回。
+                log.warn("checkCheating 解析 answers 失败，作弊标记将以独立 JSON 记录: sessionId={}", sessionId, e);
+                session.setAnswers("{\"cheatingFlags\":" + flags.toString() + "}");
+                this.updateById(session);
             }
-            this.updateById(session);
         }
 
         // 构建返回结果
@@ -383,7 +419,7 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
         if (session == null) {
             throw new BusinessException("考试会话不存在");
         }
-        if (!"STARTED".equals(session.getStatus())) {
+        if (!ExamSessionStatus.STARTED.equals(session.getStatus())) {
             return 0L;
         }
 
@@ -432,27 +468,25 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
     // ==================== 私有辅助方法 ====================
 
     /**
-     * 将Map转换为简单的JSON字符串
+     * 将Map转换为JSON字符串。
+     * 修复 P1-13：原手拼 StringBuilder 不转义引号/反斜杠/换行，答案含特殊字符即生成非法 JSON。
+     * 现委托 Jackson 序列化，任何值均可正确转义。
      */
     private String mapToJson(Map<String, Object> map) {
         if (map == null || map.isEmpty()) {
             return "{}";
         }
-        StringBuilder sb = new StringBuilder("{");
-        int i = 0;
-        for (Map.Entry<String, Object> entry : map.entrySet()) {
-            if (i++ > 0) {
-                sb.append(",");
-            }
-            sb.append("\"").append(entry.getKey()).append("\":\"")
-                    .append(entry.getValue() != null ? entry.getValue().toString() : "").append("\"");
+        try {
+            return objectMapper.writeValueAsString(map);
+        } catch (JsonProcessingException e) {
+            log.error("查询考试会话失败: {}", e.getMessage(), e);
+
+            throw new BusinessException("答案序列化失败");
         }
-        sb.append("}");
-        return sb.toString();
     }
 
     /**
-     * 解析题目得分JSON字符串为Map
+     * 解析题目得分JSON字符串为Map（Jackson 严格解析，替代原手写字符串分割）
      */
     private Map<Long, BigDecimal> parseScoresJson(String json) {
         Map<Long, BigDecimal> result = new HashMap<>();
@@ -460,22 +494,14 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
             return result;
         }
         try {
-            String content = json.trim();
-            if (content.startsWith("{")) content = content.substring(1);
-            if (content.endsWith("}")) content = content.substring(0, content.length() - 1);
-            content = content.trim();
-
-            String[] pairs = content.split(",(?=(?:[^\"]*\"[^\"]*\")*[^\"]*$)");
-            for (String pair : pairs) {
-                String[] kv = pair.split(":", 2);
-                if (kv.length == 2) {
-                    Long key = Long.parseLong(kv[0].trim().replace("\"", ""));
-                    BigDecimal value = new BigDecimal(kv[1].trim());
-                    result.put(key, value);
-                }
+            Map<Long, BigDecimal> parsed = objectMapper.readValue(json, new TypeReference<Map<Long, BigDecimal>>() {});
+            if (parsed != null) {
+                result.putAll(parsed);
             }
-        } catch (Exception e) {
-            // 解析失败
+        } catch (JsonProcessingException e) {
+            log.error("查询考试会话失败: {}", e.getMessage(), e);
+
+            // 历史非法数据容错：返回空集合，不向上抛导致成绩查询失败
         }
         return result;
     }
@@ -506,10 +532,14 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
                 wrongQuestionService.updateById(existing);
             }
         } catch (Exception e) {
+            log.error("查询考试会话失败: {}", e.getMessage(), e);
+
             // 错题记录失败不影响主流程
         }
     }
 
+
+    /** 查询考试会话 */
     @Override
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getSessionQuestions(Long sessionId) {
@@ -528,14 +558,24 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
             }).collect(java.util.stream.Collectors.toList());
     }
 
+
+    /** 考试会话相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void timeoutSubmit(Long sessionId) {
         ExamSession session = this.getById(sessionId);
-        if (session == null || !"STARTED".equals(session.getStatus())) return;
-        submitExam(sessionId, java.util.Collections.emptyMap());
-        session.setStatus("AUTO_SUBMITTED");
-        session.setSubmitTime(LocalDateTime.now());
-        this.updateById(session);
+        if (session == null || !ExamSessionStatus.STARTED.equals(session.getStatus())) return;
+
+        // 修复 P0-2：原实现调用 submitExam(emptyMap) 会把学生已保存的 answers 整体覆盖为 "{}"，
+        // 超时收卷即清空答案、阅卷按空卷给 0 分。超时收卷只应流转状态与提交时间，
+        // 保留学生考试过程中 autoSaveAnswers 已持久化的作答内容。
+        LocalDateTime now = LocalDateTime.now();
+        LambdaUpdateWrapper<ExamSession> updateWrapper = new LambdaUpdateWrapper<ExamSession>()
+                .eq(ExamSession::getId, sessionId)
+                .eq(ExamSession::getStatus, ExamSessionStatus.STARTED)
+                .set(ExamSession::getStatus, ExamSessionStatus.AUTO_SUBMITTED)
+                .set(ExamSession::getSubmitTime, now)
+                .set(ExamSession::getTimeSpent, (int) ChronoUnit.SECONDS.between(session.getStartTime(), now));
+        this.update(updateWrapper);
     }
 }

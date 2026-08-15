@@ -426,15 +426,15 @@ class StudentControllerTest extends ControllerTestBase {
 
 
     @Test
-    @DisplayName("PUT /student/wrong-questions/1/mastered - STUDENT 标记掌握返回 code=200")
+    @DisplayName("PUT /student/wrong-questions/1/mastered - STUDENT 标记掌握返回 code=200（带归属校验）")
     void markMastered_authorized_passes_security() throws Exception {
-        doNothing().when(wrongQuestionService).markMastered(anyLong());
+        doNothing().when(wrongQuestionService).markMasteredForStudent(anyLong(), anyLong());
 
         mockMvc.perform(put("/student/wrong-questions/1/mastered").with(withUser(1L, "STUDENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
-        verify(wrongQuestionService).markMastered(eq(1L));
+        verify(wrongQuestionService).markMasteredForStudent(eq(1L), eq(1L));
     }
 
 
@@ -455,15 +455,15 @@ class StudentControllerTest extends ControllerTestBase {
 
 
     @Test
-    @DisplayName("DELETE /student/wrong-questions/1 - STUDENT 移除错题返回 code=200")
+    @DisplayName("DELETE /student/wrong-questions/1 - STUDENT 移除错题返回 code=200（带归属校验）")
     void removeWrongQuestion_authorized_passes_security() throws Exception {
-        when(wrongQuestionService.removeById(anyLong())).thenReturn(true);
+        doNothing().when(wrongQuestionService).deleteForStudent(anyLong(), anyLong());
 
         mockMvc.perform(delete("/student/wrong-questions/1").with(withUser(1L, "STUDENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
-        verify(wrongQuestionService).removeById(eq(1L));
+        verify(wrongQuestionService).deleteForStudent(eq(1L), eq(1L));
     }
 
 

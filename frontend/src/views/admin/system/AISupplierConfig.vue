@@ -1,6 +1,10 @@
 <template>
   <div class="fade-in ai-supplier">
-    <PageHeader title="AI 供应商配置" subtitle="管理大模型供应商、密钥与调用额度，配置持久化于服务端系统配置表" icon="brain">
+    <PageHeader
+      title="AI 供应商配置"
+      subtitle="管理大模型供应商、密钥与调用额度，配置持久化于服务端系统配置表"
+      icon="brain"
+    >
       <el-button type="primary" :loading="saving" @click="handleSave">
         <el-icon><Check /></el-icon>保存配置
       </el-button>
@@ -10,95 +14,95 @@
     </PageHeader>
 
     <div v-loading="loading">
-    <!-- 说明横幅 -->
-    <div class="banner animate-in d1">
-      <el-icon class="banner-icon"><InfoFilled /></el-icon>
-      <div class="banner-text">
-        <strong>配置已支持服务端持久化 + 运行时热切换</strong>
-        <span
-          >所有项通过系统通用配置接口（upsert）写入 <code>system_configs</code> 表（分组
-          <code>AI</code>）。
-          点击「应用并热切换」即可<b>即时切换底层大模型，无需重启</b>；当前运行供应商：
-          <el-tag v-if="currentProvider" size="small" type="success" effect="dark">{{
-            currentProvider
-          }}</el-tag>
-          <el-tag v-else size="small" type="info" effect="plain">{{ currentLlm || '—' }}</el-tag>
-        </span>
+      <!-- 说明横幅 -->
+      <div class="banner animate-in d1">
+        <el-icon class="banner-icon"><InfoFilled /></el-icon>
+        <div class="banner-text">
+          <strong>配置已支持服务端持久化 + 运行时热切换</strong>
+          <span
+            >所有项通过系统通用配置接口（upsert）写入 <code>system_configs</code> 表（分组
+            <code>AI</code>）。
+            点击「应用并热切换」即可<b>即时切换底层大模型，无需重启</b>；当前运行供应商：
+            <el-tag v-if="currentProvider" size="small" type="success" effect="dark">{{
+              currentProvider
+            }}</el-tag>
+            <el-tag v-else size="small" type="info" effect="plain">{{ currentLlm || '—' }}</el-tag>
+          </span>
+        </div>
       </div>
-    </div>
 
-    <!-- 基础设置 -->
-    <div class="content-card animate-in d2">
-      <div class="card-title">
-        <el-icon><Setting /></el-icon>基础设置
+      <!-- 基础设置 -->
+      <div class="content-card animate-in d2">
+        <div class="card-title">
+          <el-icon><Setting /></el-icon>基础设置
+        </div>
+        <div class="form-grid">
+          <div class="form-item">
+            <label>当前启用供应商</label>
+            <el-select v-model="form['ai.provider']" style="width: 100%">
+              <el-option label="DeepSeek" value="deepseek" />
+              <el-option label="OpenAI" value="openai" />
+              <el-option label="通义千问 Qwen" value="qwen" />
+              <el-option label="自定义 OpenAI 兼容" value="custom" />
+            </el-select>
+          </div>
+          <div class="form-item">
+            <label>连接超时（秒）</label>
+            <el-input v-model="form['ai.connect-timeout']" type="number" />
+          </div>
+          <div class="form-item">
+            <label>读取超时（秒）</label>
+            <el-input v-model="form['ai.read-timeout']" type="number" />
+          </div>
+          <div class="form-item">
+            <label>最大重试次数</label>
+            <el-input v-model="form['ai.max-retries']" type="number" />
+          </div>
+          <div class="form-item">
+            <label>每日调用额度（次）</label>
+            <el-input v-model="form['ai.quota.daily']" type="number" />
+          </div>
+        </div>
       </div>
-      <div class="form-grid">
-        <div class="form-item">
-          <label>当前启用供应商</label>
-          <el-select v-model="form['ai.provider']" style="width: 100%">
-            <el-option label="DeepSeek" value="deepseek" />
-            <el-option label="OpenAI" value="openai" />
-            <el-option label="通义千问 Qwen" value="qwen" />
-            <el-option label="自定义 OpenAI 兼容" value="custom" />
-          </el-select>
-        </div>
-        <div class="form-item">
-          <label>连接超时（秒）</label>
-          <el-input v-model="form['ai.connect-timeout']" type="number" />
-        </div>
-        <div class="form-item">
-          <label>读取超时（秒）</label>
-          <el-input v-model="form['ai.read-timeout']" type="number" />
-        </div>
-        <div class="form-item">
-          <label>最大重试次数</label>
-          <el-input v-model="form['ai.max-retries']" type="number" />
-        </div>
-        <div class="form-item">
-          <label>每日调用额度（次）</label>
-          <el-input v-model="form['ai.quota.daily']" type="number" />
-        </div>
-      </div>
-    </div>
 
-    <!-- 供应商凭据 -->
-    <div class="provider-cards animate-in d3">
-      <div v-for="p in providers" :key="p.key" class="content-card provider-card">
-        <div class="provider-head">
-          <span class="provider-dot" :style="{ background: p.color }"></span>
-          <span class="provider-name">{{ p.name }}</span>
-          <el-tag
-            size="small"
-            :type="form['ai.provider'] === p.key ? 'success' : 'info'"
-            effect="light"
-          >
-            {{ form['ai.provider'] === p.key ? '启用中' : '未启用' }}
-          </el-tag>
+      <!-- 供应商凭据 -->
+      <div class="provider-cards animate-in d3">
+        <div v-for="p in providers" :key="p.key" class="content-card provider-card">
+          <div class="provider-head">
+            <span class="provider-dot" :style="{ background: p.color }"></span>
+            <span class="provider-name">{{ p.name }}</span>
+            <el-tag
+              size="small"
+              :type="form['ai.provider'] === p.key ? 'success' : 'info'"
+              effect="light"
+            >
+              {{ form['ai.provider'] === p.key ? '启用中' : '未启用' }}
+            </el-tag>
+          </div>
+          <div class="form-grid compact">
+            <div class="form-item">
+              <label>API Key</label>
+              <el-input
+                v-model="form[`ai.${p.key}.api-key`]"
+                type="password"
+                show-password
+                placeholder="sk-..."
+              />
+            </div>
+            <div class="form-item">
+              <label>Base URL</label>
+              <el-input v-model="form[`ai.${p.key}.base-url`]" placeholder="https://..." />
+            </div>
+            <div class="form-item">
+              <label>模型</label>
+              <el-input v-model="form[`ai.${p.key}.model`]" placeholder="model-name" />
+            </div>
+          </div>
+          <el-button class="test-btn" plain :loading="testing" @click="handleTest(p.key)">
+            <el-icon><Connection /></el-icon>测试连通性
+          </el-button>
         </div>
-        <div class="form-grid compact">
-          <div class="form-item">
-            <label>API Key</label>
-            <el-input
-              v-model="form[`ai.${p.key}.api-key`]"
-              type="password"
-              show-password
-              placeholder="sk-..."
-            />
-          </div>
-          <div class="form-item">
-            <label>Base URL</label>
-            <el-input v-model="form[`ai.${p.key}.base-url`]" placeholder="https://..." />
-          </div>
-          <div class="form-item">
-            <label>模型</label>
-            <el-input v-model="form[`ai.${p.key}.model`]" placeholder="model-name" />
-          </div>
-        </div>
-        <el-button class="test-btn" plain :loading="testing" @click="handleTest(p.key)">
-          <el-icon><Connection /></el-icon>测试连通性
-        </el-button>
       </div>
-    </div>
     </div>
   </div>
 </template>

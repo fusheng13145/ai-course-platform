@@ -33,6 +33,9 @@ export const ragBuildIndex = (courseId) => request.post(`/rag/index/build/${cour
 // 清理索引（ADMIN / TEACHER）
 export const ragClearIndex = (courseId) => request.delete(`/rag/index/${courseId}`).then(unwrap)
 
+/**
+ * 默认导出对象：模块/组件配置与导出内容
+ */
 export default {
   ragAsk,
   ragRetrieve,

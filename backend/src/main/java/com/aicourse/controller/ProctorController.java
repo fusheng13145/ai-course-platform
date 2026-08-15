@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import jakarta.validation.Valid;
 
 import com.aicourse.common.ApiResponse;
@@ -25,12 +28,15 @@ import java.util.Map;
 @Tag(name = "在线监考")
 public class ProctorController {
 
+    private static final Logger log = LoggerFactory.getLogger(ProctorController.class);
+
     private final ProctorService proctorService;
 
     public ProctorController(ProctorService proctorService) {
         this.proctorService = proctorService;
     }
 
+    /** 考生开始一场考试的监考会话 */
     @PostMapping("/session/start")
     @PreAuthorize("hasRole('STUDENT')")
     public ApiResponse<ProctorSession> start(@RequestParam Long examSessionId, Authentication auth) {
@@ -38,6 +44,7 @@ public class ProctorController {
                 proctorService.startSession(examSessionId, (Long) auth.getPrincipal()));
     }
 
+    /** 考生上报一条监考事件（越权上报会被拒绝） */
     @PostMapping("/session/{id}/event")
     @PreAuthorize("hasRole('STUDENT')")
     public ApiResponse<ProctorEvent> logEvent(@PathVariable Long id,
@@ -53,18 +60,21 @@ public class ProctorController {
                         event.getDetail(), event.getEvidenceUrl()));
     }
 
+    /** 考生结束监考会话 */
     @PostMapping("/session/{id}/end")
     @PreAuthorize("hasRole('STUDENT')")
     public ApiResponse<ProctorSession> end(@PathVariable Long id, Authentication auth) {
         return ApiResponse.success("监考已结束", proctorService.endSession(id));
     }
 
+    /** 教师/管理员查看某监考会话的全部事件 */
     @GetMapping("/session/{id}/events")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<List<ProctorEvent>> events(@PathVariable Long id) {
         return ApiResponse.success(proctorService.listEvents(id));
     }
 
+    /** 查询某考生在某场考试中的监考会话（学生仅可查本人） */
     @GetMapping("/exam/{examSessionId}/student/{studentId}/session")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
     public ApiResponse<ProctorSession> studentSession(@PathVariable Long examSessionId,
@@ -79,6 +89,7 @@ public class ProctorController {
         return ApiResponse.success(proctorService.getStudentSession(examSessionId, studentId));
     }
 
+    /** 教师/管理员获取某场考试的风险汇总 */
     @GetMapping("/exam/{examSessionId}/risk")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<List<Map<String, Object>>> risk(@PathVariable Long examSessionId) {

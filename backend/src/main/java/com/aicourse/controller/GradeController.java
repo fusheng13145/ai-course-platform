@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import jakarta.validation.Valid;
 
 import com.aicourse.common.ApiCode;
@@ -28,6 +31,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "成绩管理")
 public class GradeController {
 
+    private static final Logger log = LoggerFactory.getLogger(GradeController.class);
+
     private final GradeService gradeService;
     private final CourseService courseService;
 
@@ -36,6 +41,7 @@ public class GradeController {
         this.courseService = courseService;
     }
 
+    /** 保存（新增或更新）课程的过程性成绩方案 */
     @PostMapping("/policy")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<GradePolicy> savePolicy(@Valid @RequestBody GradePolicy policy, Authentication auth) {
@@ -44,6 +50,7 @@ public class GradeController {
                 gradeService.savePolicy(policy, (Long) auth.getPrincipal()));
     }
 
+    /** 获取某课程的成绩方案 */
     @GetMapping("/policy/course/{courseId}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<GradePolicy> getPolicy(@PathVariable Long courseId, Authentication auth) {
@@ -51,6 +58,7 @@ public class GradeController {
         return ApiResponse.success(gradeService.getPolicy(courseId));
     }
 
+    /** 新增或更新某学生的单项成绩记录 */
     @PostMapping("/item")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<GradeItem> upsertItem(@Valid @RequestBody GradeItem item, Authentication auth) {
@@ -62,6 +70,7 @@ public class GradeController {
                         item.getScore(), item.getRawScore(), item.getSourceId(), uid, item.getRemark()));
     }
 
+    /** 按成绩方案计算单个学生的最终总评成绩 */
     @GetMapping("/final/{policyId}/student/{studentId}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<Map<String, Object>> computeFinal(@PathVariable Long policyId,
@@ -72,6 +81,7 @@ public class GradeController {
         return ApiResponse.success(gradeService.computeFinal(policyId, studentId));
     }
 
+    /** 生成某课程的全班成绩报表 */
     @GetMapping("/report/course/{courseId}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<List<Map<String, Object>>> courseReport(@PathVariable Long courseId, Authentication auth) {

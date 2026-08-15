@@ -4,10 +4,34 @@
     <div v-loading="loading">
       <!-- 概览 + 内容 + 学习 指标卡 -->
       <div class="stat-grid animate-in d1">
-        <StatCard label="选课学生" :value="ov.totalStudents || 0" icon="users" tone="var(--accent-soft)" tone-color="var(--accent)" />
-        <StatCard label="活跃学生" :value="ov.activeStudents || 0" icon="chart" tone="var(--ok-soft)" tone-color="var(--ok)" />
-        <StatCard label="待审批" :value="ov.pendingApproval || 0" icon="bell" tone="var(--warn-soft)" tone-color="var(--warn)" />
-        <StatCard label="待批改" :value="grading.pendingGrading || 0" icon="edit" tone="var(--info-soft)" tone-color="var(--info)" />
+        <StatCard
+          label="选课学生"
+          :value="ov.totalStudents || 0"
+          icon="users"
+          tone="var(--accent-soft)"
+          tone-color="var(--accent)"
+        />
+        <StatCard
+          label="活跃学生"
+          :value="ov.activeStudents || 0"
+          icon="chart"
+          tone="var(--ok-soft)"
+          tone-color="var(--ok)"
+        />
+        <StatCard
+          label="待审批"
+          :value="ov.pendingApproval || 0"
+          icon="bell"
+          tone="var(--warn-soft)"
+          tone-color="var(--warn)"
+        />
+        <StatCard
+          label="待批改"
+          :value="grading.pendingGrading || 0"
+          icon="edit"
+          tone="var(--info-soft)"
+          tone-color="var(--info)"
+        />
       </div>
 
       <!-- 内容与学习指标 -->
@@ -104,7 +128,9 @@
       <!-- AI 学情解读 -->
       <div v-if="aiInsight" class="l1-card ai-card">
         <div class="l1-head">
-          <span class="l1-ico"><el-icon><MagicStick /></el-icon></span>
+          <span class="l1-ico"
+            ><el-icon><MagicStick /></el-icon
+          ></span>
           <div><div class="l1-title">AI 学情解读</div></div>
         </div>
         <div class="l1-body">
@@ -125,35 +151,35 @@
         </div>
         <div class="l1-body">
           <div v-if="chapterTree.length" class="tree">
-          <div v-for="node in chapterTree" :key="node.id" class="tree-node">
-            <div class="tree-row">
-              <span class="tree-title">{{ node.title }}</span>
-              <span class="tree-meta"
-                >任务点 {{ node.taskCount || 0 }} · 提交 {{ node.submittedCount || 0 }}/{{
-                  node.studentCount || 0
-                }}
-                · 完成率 {{ pct(node.completionRate) }}</span
-              >
-              <el-tag size="small" :type="node.isPublished ? 'success' : 'info'" effect="light">{{
-                node.isPublished ? '已发布' : '草稿'
-              }}</el-tag>
-            </div>
-            <div v-if="node.taskPoints && node.taskPoints.length" class="tree-tasks">
-              <span v-for="tp in node.taskPoints" :key="tp.id" class="task-chip">
-                {{ tp.title }} <em>{{ tp.taskType }}</em>
-              </span>
-            </div>
-            <div v-if="node.children && node.children.length" class="tree-children">
-              <div v-for="c in node.children" :key="c.id" class="tree-node tree-node--child">
-                <div class="tree-row">
-                  <span class="tree-title">{{ c.title }}</span>
-                  <span class="tree-meta"
-                    >任务点 {{ c.taskCount || 0 }} · 完成率 {{ pct(c.completionRate) }}</span
-                  >
+            <div v-for="node in chapterTree" :key="node.id" class="tree-node">
+              <div class="tree-row">
+                <span class="tree-title">{{ node.title }}</span>
+                <span class="tree-meta"
+                  >任务点 {{ node.taskCount || 0 }} · 提交 {{ node.submittedCount || 0 }}/{{
+                    node.studentCount || 0
+                  }}
+                  · 完成率 {{ pct(node.completionRate) }}</span
+                >
+                <el-tag size="small" :type="node.isPublished ? 'success' : 'info'" effect="light">{{
+                  node.isPublished ? '已发布' : '草稿'
+                }}</el-tag>
+              </div>
+              <div v-if="node.taskPoints && node.taskPoints.length" class="tree-tasks">
+                <span v-for="tp in node.taskPoints" :key="tp.id" class="task-chip">
+                  {{ tp.title }} <em>{{ tp.taskType }}</em>
+                </span>
+              </div>
+              <div v-if="node.children && node.children.length" class="tree-children">
+                <div v-for="c in node.children" :key="c.id" class="tree-node tree-node--child">
+                  <div class="tree-row">
+                    <span class="tree-title">{{ c.title }}</span>
+                    <span class="tree-meta"
+                      >任务点 {{ c.taskCount || 0 }} · 完成率 {{ pct(c.completionRate) }}</span
+                    >
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
           </div>
           <el-empty v-else description="暂无章节" :image-size="70" />
         </div>

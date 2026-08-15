@@ -5,6 +5,9 @@ import authApi from '@/api/auth'
 import { connect as wsConnect, disconnect as wsDisconnect } from '@/utils/websocket'
 import { unwrap } from '@/utils/response'
 
+/**
+ * 组合式函数 useAuthStore：封装可复用的响应式状态与逻辑
+ */
 export const useAuthStore = defineStore('auth', () => {
   // 访问令牌存于后端下发的 HttpOnly Cookie，前端不持有、不持久化、不可读。
   // token 仅作为内存态占位，用于兼容既有引用；绝不写入 localStorage/sessionStorage。
@@ -95,6 +98,7 @@ export const useAuthStore = defineStore('auth', () => {
         storage.setItem('permissions', JSON.stringify(data))
       }
     } catch (error) {
+      console.error('[auth.js] catch:', error);
       // fail-closed：加载失败时保持 permissionsLoaded=false，使权限判定统一拒绝，
       // 而非错误地放开全部按钮/菜单。仅记录日志，不静默放行。
       logger.error('Failed to fetch permissions:', error)
@@ -154,6 +158,7 @@ export const useAuthStore = defineStore('auth', () => {
       }
       throw new Error('登录失败')
     } catch (error) {
+      console.error('[auth.js] catch:', error);
       logger.error('Login error:', error)
       throw error
     } finally {
@@ -189,6 +194,7 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       if (token.value || user.value) await authApi.logout()
     } catch (e) {
+      console.error('[auth.js] catch:', e);
       /* ignore */
     } finally {
       wsDisconnect()

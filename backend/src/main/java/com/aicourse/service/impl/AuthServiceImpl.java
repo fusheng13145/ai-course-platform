@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.LoginLog;
 import com.aicourse.entity.User;
@@ -9,15 +12,19 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.service.*;
 import com.aicourse.util.IpUtil;
 import com.aicourse.util.JwtUtils;
+import com.aicourse.util.PasswordPolicy;
 import com.aicourse.util.UserAgentUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import jakarta.servlet.http.HttpServletRequest;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.security.SecureRandom;
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -32,6 +39,8 @@ import com.aicourse.common.RoleConstants;
  */
 @Service
 public class AuthServiceImpl implements AuthService {
+
+    private static final Logger log = LoggerFactory.getLogger(AuthServiceImpl.class);
 
     // ===================== 常量定义 =====================
     private static final String STATUS_SUCCESS = "SUCCESS";
@@ -48,19 +57,19 @@ public class AuthServiceImpl implements AuthService {
     private static final int SESSION_EXPIRE_DAY_NORMAL = 1;
     private static final int SESSION_EXPIRE_DAY_REMEMBER = 7;
 
-    // ===================== 密码复杂度验证 =====================
-    // 规则：8-32位，必须包含大写字母、小写字母、数字、特殊字符
-    private static final Pattern PASSWORD_PATTERN =
-            Pattern.compile("^(?=.*[a-z])(?=.*[A-Z])(?=.*\\d)(?=.*[~!@#$%^&*()_+\\-={}\\[\\]:;\"'<>,.?/\\\\|`]).{8,32}$");
+    // ===================== 验证码爆破防护（P1-4 修复） =====================
+    // 验证码为 6 位数字，若不限制尝试次数，攻击者可对已知邮箱暴力枚举重置任意用户密码。
+    // 现对「校验验证码」与「邮箱重置密码」两条路径共享 Redis 滑动计数：
+    // 同一邮箱 5 分钟窗口内最多尝试 5 次，超出即拒绝（HTTP 429）。
+    private static final String VC_ATTEMPT_KEY_PREFIX = "auth:vc:attempt:";
+    private static final Duration VC_ATTEMPT_WINDOW = Duration.ofMinutes(5);
+    private static final long VC_ATTEMPT_MAX = 5L;
 
+    // ===================== 密码复杂度验证 =====================
+    // 规则（统一收口到 com.aicourse.util.PasswordPolicy）：8-32位，大小写字母+数字+特殊字符。
+    // 注册/改密/重置（手机+邮箱）/管理端创建与重置用户密码均走同一策略，杜绝弱规则旁路。
     private void validatePasswordComplexity(String password) {
-        if (password == null || password.isEmpty()) {
-            throw new BusinessException("密码不能为空");
-        }
-        if (!PASSWORD_PATTERN.matcher(password).matches()) {
-            throw new BusinessException(
-                    "密码必须包含大写字母、小写字母、数字和特殊字符，且长度为8-32位");
-        }
+        PasswordPolicy.validate(password);
     }
 
     // ===================== 配置注入 =====================
@@ -77,11 +86,14 @@ public class AuthServiceImpl implements AuthService {
     private final PasswordEncoder passwordEncoder;
     private final IpUtil ipUtil;
     private final UserAgentUtil userAgentUtil;
+    /** 验证码尝试限流用 Redis（ObjectProvider 注入兼容无 Redis 的测试切片，缺省时降级不计数） */
+    private final StringRedisTemplate redisTemplate;
 
     public AuthServiceImpl(UserService userService, UserSessionService userSessionService,
                            LoginLogService loginLogService, VerificationCodeService verificationCodeService,
                            EmailService emailService, JwtUtils jwtUtils, PasswordEncoder passwordEncoder,
-                           IpUtil ipUtil, UserAgentUtil userAgentUtil) {
+                           IpUtil ipUtil, UserAgentUtil userAgentUtil,
+                           ObjectProvider<StringRedisTemplate> redisTemplateProvider) {
         this.userService = userService;
         this.userSessionService = userSessionService;
         this.loginLogService = loginLogService;
@@ -91,6 +103,25 @@ public class AuthServiceImpl implements AuthService {
         this.passwordEncoder = passwordEncoder;
         this.ipUtil = ipUtil;
         this.userAgentUtil = userAgentUtil;
+        this.redisTemplate = redisTemplateProvider != null ? redisTemplateProvider.getIfAvailable() : null;
+    }
+
+    /**
+     * 验证码尝试限流：同一邮箱 5 分钟窗口内最多尝试 {@value #VC_ATTEMPT_MAX} 次。
+     * 校验成功/失败均计数——成功一次无妨，失败计数可有效封死暴力枚举。
+     */
+    private void assertVerifyAttemptAllowed(String email) {
+        if (redisTemplate == null || email == null || email.isBlank()) {
+            return;
+        }
+        String key = VC_ATTEMPT_KEY_PREFIX + email.trim().toLowerCase();
+        Long count = redisTemplate.opsForValue().increment(key);
+        if (count != null && count == 1L) {
+            redisTemplate.expire(key, VC_ATTEMPT_WINDOW);
+        }
+        if (count != null && count > VC_ATTEMPT_MAX) {
+            throw new BusinessException(429, "验证码尝试次数过多，请5分钟后再试");
+        }
     }
 
     // ===================== 登录 =====================
@@ -98,6 +129,8 @@ public class AuthServiceImpl implements AuthService {
     @Transactional(rollbackFor = Exception.class)
     public ApiResponse<Map<String, Object>> login(String account, String password,
                                                   Boolean rememberMe, HttpServletRequest request) {
+                                                      log.info("登录认证");
+
         User user = userService.getOne(new LambdaQueryWrapper<User>()
                 .eq(User::getUsername, account)
                 .or().eq(User::getEmail, account)
@@ -171,6 +204,8 @@ public class AuthServiceImpl implements AuthService {
     public ApiResponse<Map<String, Object>> register(String email, String username, String password,
                                                     String fullName, String role, String phone,
                                                     String code, HttpServletRequest request) {
+                                                        log.info("注册认证");
+
         // 用户名空值兜底校验（Controller 层 @Valid 已拦截，此处为服务层双保险；
         // 纯空格用户名按既定契约放行，由 DTO 层 @NotBlank 拦截）
         if (username == null || username.isEmpty()) {
@@ -245,11 +280,14 @@ public class AuthServiceImpl implements AuthService {
     public ApiResponse<Map<String, Object>> refreshToken(String refreshToken) {
         // 对传入明文刷新令牌做哈希后再比对，库内仅存哈希值
         String refreshTokenHash = jwtUtils.sha256Hex(refreshToken);
+        // 修复 P1-12：服务端会话过期校验——refresh Cookie 过期（浏览器丢弃）后，
+        // 服务端必须同样拒绝该令牌，杜绝「Cookie 已失效但服务端仍放行」的会话劫持窗口。
         UserSession session = userSessionService.getOne(new LambdaQueryWrapper<UserSession>()
                 .eq(UserSession::getRefreshToken, refreshTokenHash)
-                .eq(UserSession::getIsActive, true));
+                .eq(UserSession::getIsActive, true)
+                .gt(UserSession::getExpiresAt, LocalDateTime.now()));
         if (session == null) {
-            throw new BusinessException("刷新令牌无效");
+            throw new BusinessException("刷新令牌无效或已过期");
         }
 
         User user = userService.getById(session.getUserId());
@@ -260,12 +298,17 @@ public class AuthServiceImpl implements AuthService {
         String newToken = jwtUtils.generateToken(user.getId(), user.getUsername(), user.getRole(), true);
         // 吊销旧访问令牌缓存，避免轮换后旧令牌仍在缓存 TTL 内可用
         userSessionService.evictSessionCache(session.getSessionToken());
+        // 修复 P1-12：刷新令牌轮换（rotation）——每次刷新生成全新 refreshToken 并作废旧值，
+        // 窃取的刷新令牌最多生效一次，无法无限期接管会话。
+        String newRefreshToken = UUID.randomUUID().toString().replace("-", "");
         session.setSessionToken(newToken);
+        session.setRefreshToken(jwtUtils.sha256Hex(newRefreshToken));
         session.setLastActivity(LocalDateTime.now());
         userSessionService.updateById(session);
 
-        Map<String, Object> data = new HashMap<>(3);
+        Map<String, Object> data = new HashMap<>(4);
         data.put("token", newToken);
+        data.put("refreshToken", newRefreshToken);
         data.put("userId", user.getId());
         data.put("role", user.getRole());
         return ApiResponse.success(data);
@@ -275,6 +318,8 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ApiResponse<Void> logout(Long userId, HttpServletRequest request) {
+        log.info("登出认证");
+
         // 先取出该用户当前有效会话的令牌，便于随后立即使其缓存失效
         List<UserSession> activeSessions = userSessionService.list(new LambdaQueryWrapper<UserSession>()
                 .eq(UserSession::getUserId, userId)
@@ -296,6 +341,8 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ApiResponse<Void> resetPassword(String phone, String code, String newPassword) {
+        log.info("重置认证");
+
         VerificationCode vc = verificationCodeService.getOne(new LambdaQueryWrapper<VerificationCode>()
                 .eq(VerificationCode::getPhone, phone)
                 .eq(VerificationCode::getCode, code)
@@ -364,6 +411,8 @@ public class AuthServiceImpl implements AuthService {
     // ===================== 发送邮箱验证码 =====================
     @Override
     public ApiResponse<Void> sendVerificationCode(String email, String type, HttpServletRequest request) {
+        log.info("发送认证");
+
         // 限流：1分钟内仅允许一次
         LocalDateTime oneMinuteAgo = LocalDateTime.now().minusMinutes(RATE_LIMIT_MINUTES);
         long recentCount = verificationCodeService.count(new LambdaQueryWrapper<VerificationCode>()
@@ -397,6 +446,11 @@ public class AuthServiceImpl implements AuthService {
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ApiResponse<Void> resetPasswordByEmail(String email, String code, String newPassword) {
+        log.info("重置认证");
+
+        // 修复 P1-4：验证码爆破防护——尝试计数前置，超限直接拒绝（429）
+        assertVerifyAttemptAllowed(email);
+
         VerificationCode vc = verificationCodeService.getOne(new LambdaQueryWrapper<VerificationCode>()
                 .eq(VerificationCode::getEmail, email)
                 .eq(VerificationCode::getCode, code)
@@ -425,6 +479,29 @@ public class AuthServiceImpl implements AuthService {
         userService.updateById(user);
 
         return ApiResponse.success("密码重置成功", null);
+    }
+
+    /**
+     * 校验邮箱验证码有效性（仅校验，不消费；供找回密码第二步「验证邮箱」使用）。
+     * 与 resetPasswordByEmail 共享同一 Redis 尝试限流，防止暴力枚举。
+     */
+    @Override
+    public ApiResponse<Void> verifyCode(String email, String code) {
+        // 修复 P1-4：验证码爆破防护——尝试计数前置，超限直接拒绝（429）
+        assertVerifyAttemptAllowed(email);
+
+        VerificationCode vc = verificationCodeService.getOne(new LambdaQueryWrapper<VerificationCode>()
+                .eq(VerificationCode::getEmail, email)
+                .eq(VerificationCode::getCode, code)
+                .eq(VerificationCode::getType, TYPE_FORGOT_PASSWORD)
+                .eq(VerificationCode::getIsUsed, false)
+                .gt(VerificationCode::getExpiresAt, LocalDateTime.now())
+                .orderByDesc(VerificationCode::getCreatedAt)
+                .last("LIMIT 1"));
+        if (vc == null) {
+            throw new BusinessException("验证码无效或已过期");
+        }
+        return ApiResponse.success("验证码有效", null);
     }
 
     // ===================== 私有工具方法 =====================

@@ -1,6 +1,8 @@
 package com.aicourse.config;
 
 import org.mybatis.spring.annotation.MapperScan;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.context.annotation.Configuration;
 
 /**
@@ -13,4 +15,10 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 @MapperScan("com.aicourse.mapper")
 public class MyBatisConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(MyBatisConfig.class);
+
+    public MyBatisConfig() {
+        log.debug("MyBatisConfig 已加载，Mapper 扫描包: com.aicourse.mapper");
+    }
 }

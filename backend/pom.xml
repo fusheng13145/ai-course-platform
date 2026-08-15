@@ -34,6 +34,8 @@
         <dependency-check.version>10.0.4</dependency-check.version>
         <jacoco.version>0.8.15</jacoco.version>
         <lombok.version>1.18.36</lombok.version>
+        <!-- Sentinel 流量控制与熔断降级（纯 core + 注解切面，无 servlet 依赖，兼容 JDK21/Spring Boot3，不引入 Spring Cloud） -->
+        <sentinel.version>1.8.9</sentinel.version>
     </properties>
 
     <dependencies>
@@ -176,6 +178,28 @@
             <groupId>io.minio</groupId>
             <artifactId>minio</artifactId>
             <version>8.5.14</version>
+        </dependency>
+
+        <!-- ===================== Sentinel 流量控制与熔断降级 ===================== -->
+        <!-- 设计取舍：本项目未引入 Spring Cloud，故不采用 spring-cloud-alibaba-sentinel 全家桶，
+             仅用 sentinel-core（纯 Java，无 servlet/jakarta 依赖，JDK21 安全）+ sentinel-annotation-aspectj
+             （@SentinelResource 注解支持），并自行编写 Jakarta servlet 过滤器接入，最小 footprint、与现有架构兼容。 -->
+        <dependency>
+            <groupId>com.alibaba.csp</groupId>
+            <artifactId>sentinel-core</artifactId>
+            <version>${sentinel.version}</version>
+        </dependency>
+        <dependency>
+            <groupId>com.alibaba.csp</groupId>
+            <artifactId>sentinel-annotation-aspectj</artifactId>
+            <version>${sentinel.version}</version>
+        </dependency>
+        <!-- 文件数据源：将规则持久化到本地 JSON 并支持运行期热刷新（为接入 Dashboard / Nacos 预留同一抽象）。
+             纯 Java，无 servlet 依赖，JDK21 安全。 -->
+        <dependency>
+            <groupId>com.alibaba.csp</groupId>
+            <artifactId>sentinel-datasource-extension</artifactId>
+            <version>${sentinel.version}</version>
         </dependency>
 
         <!-- 测试依赖 -->

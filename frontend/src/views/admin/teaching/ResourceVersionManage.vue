@@ -18,58 +18,99 @@
 
     <section class="l1-card">
       <div class="l1-head">
-        <span class="l1-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 2 8.5 4.7L12 11.4 3.5 6.7 12 2zM3.5 12l8.5 4.7 8.5-4.7M3.5 17.3l8.5 4.7 8.5-4.7" /></svg></span>
+        <span class="l1-ico"
+          ><svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="m12 2 8.5 4.7L12 11.4 3.5 6.7 12 2zM3.5 12l8.5 4.7 8.5-4.7M3.5 17.3l8.5 4.7 8.5-4.7"
+            /></svg
+        ></span>
         <div>
           <h3 class="l1-title">版本历史</h3>
         </div>
       </div>
       <div class="l1-body">
-    <div class="content-card filter-card">
-      <div class="filter-row">
-        <el-select v-model="selectedResourceId" placeholder="选择资源" filterable style="width:320px" @change="loadVersions">
-          <el-option v-for="r in resources" :key="r.id" :label="r.name || r.title" :value="r.id" />
-        </el-select>
-        <el-button type="primary" :disabled="!selectedResourceId" @click="openCreateVersion">
-          <el-icon><Plus /></el-icon>新建版本
-        </el-button>
-        <el-button :disabled="!selectedResourceId" @click="loadVersions">
-          <el-icon><Refresh /></el-icon>刷新
-        </el-button>
-      </div>
-    </div>
-
-    <div v-if="selectedResourceId" class="content-card">
-      <el-table v-loading="loading" :data="versions" style="width:100%" empty-text="暂无版本记录">
-        <el-table-column prop="id" label="版本ID" width="80" />
-        <el-table-column label="版本号" width="120">
-          <template #default="{ row }">v{{ row.versionNumber || row.version || 1 }}</template>
-        </el-table-column>
-        <el-table-column label="是否为当前版本" width="130" align="center">
-          <template #default="{ row }">
-            <el-tag v-if="row.id === activeVersionId" type="success" size="small">当前版本</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="changeLog" label="更新说明" min-width="260" show-overflow-tooltip />
-        <el-table-column prop="createdBy" label="操作人" width="120" />
-        <el-table-column prop="createdAt" label="创建时间" width="160" />
-        <el-table-column label="操作" width="120" align="center">
-          <template #default="{ row }">
-            <el-button v-if="row.id !== activeVersionId" size="small" type="warning" link @click="handleRollback(row)">
-              <el-icon><Refresh /></el-icon>回滚
+        <div class="content-card filter-card">
+          <div class="filter-row">
+            <el-select
+              v-model="selectedResourceId"
+              placeholder="选择资源"
+              filterable
+              style="width: 320px"
+              @change="loadVersions"
+            >
+              <el-option
+                v-for="r in resources"
+                :key="r.id"
+                :label="r.name || r.title"
+                :value="r.id"
+              />
+            </el-select>
+            <el-button type="primary" :disabled="!selectedResourceId" @click="openCreateVersion">
+              <el-icon><Plus /></el-icon>新建版本
             </el-button>
-          </template>
-        </el-table-column>
-        <template #empty>
-          <el-empty description="暂无版本记录">
-            <template #image><div class="empty-deco">🗂️</div></template>
-          </el-empty>
-        </template>
-      </el-table>
-    </div>
-    <el-empty v-else description="请先选择资源" :image-size="80">
-      <template #image><div class="empty-deco">🗂️</div></template>
-    </el-empty>
-    </div>
+            <el-button :disabled="!selectedResourceId" @click="loadVersions">
+              <el-icon><Refresh /></el-icon>刷新
+            </el-button>
+          </div>
+        </div>
+
+        <div v-if="selectedResourceId" class="content-card">
+          <el-table
+            v-loading="loading"
+            :data="versions"
+            style="width: 100%"
+            empty-text="暂无版本记录"
+          >
+            <el-table-column prop="id" label="版本ID" width="80" />
+            <el-table-column label="版本号" width="120">
+              <template #default="{ row }">v{{ row.versionNumber || row.version || 1 }}</template>
+            </el-table-column>
+            <el-table-column label="是否为当前版本" width="130" align="center">
+              <template #default="{ row }">
+                <el-tag v-if="row.id === activeVersionId" type="success" size="small"
+                  >当前版本</el-tag
+                >
+              </template>
+            </el-table-column>
+            <el-table-column
+              prop="changeLog"
+              label="更新说明"
+              min-width="260"
+              show-overflow-tooltip
+            />
+            <el-table-column prop="createdBy" label="操作人" width="120" />
+            <el-table-column prop="createdAt" label="创建时间" width="160" />
+            <el-table-column label="操作" width="120" align="center">
+              <template #default="{ row }">
+                <el-button
+                  v-if="row.id !== activeVersionId"
+                  size="small"
+                  type="warning"
+                  link
+                  @click="handleRollback(row)"
+                >
+                  <el-icon><Refresh /></el-icon>回滚
+                </el-button>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <el-empty description="暂无版本记录">
+                <template #image><div class="empty-deco">🗂️</div></template>
+              </el-empty>
+            </template>
+          </el-table>
+        </div>
+        <el-empty v-else description="请先选择资源" :image-size="80">
+          <template #image><div class="empty-deco">🗂️</div></template>
+        </el-empty>
+      </div>
     </section>
 
     <!-- 新建版本弹窗 -->
@@ -79,7 +120,12 @@
           <el-input :model-value="selectedResourceName" disabled />
         </el-form-item>
         <el-form-item label="更新说明">
-          <el-input v-model="form.changeLog" type="textarea" :rows="4" placeholder="描述本次更新内容" />
+          <el-input
+            v-model="form.changeLog"
+            type="textarea"
+            :rows="4"
+            placeholder="描述本次更新内容"
+          />
         </el-form-item>
       </el-form>
       <template #footer>
@@ -91,10 +137,12 @@
     <!-- 回滚确认 -->
     <el-dialog v-model="rollbackVisible" title="确认回滚" width="400px" append-to-body>
       <p>确定回滚到 v{{ rollbackTarget?.versionNumber || '?' }}？</p>
-      <p style="font-size:13px;color:var(--ac-text-muted)">当前版本将被替换为所选版本的内容。</p>
+      <p style="font-size: 13px; color: var(--ac-text-muted)">当前版本将被替换为所选版本的内容。</p>
       <template #footer>
         <el-button @click="rollbackVisible = false">取消</el-button>
-        <el-button type="warning" :loading="rollingBack" @click="confirmRollback">确认回滚</el-button>
+        <el-button type="warning" :loading="rollingBack" @click="confirmRollback"
+          >确认回滚</el-button
+        >
       </template>
     </el-dialog>
   </div>
@@ -122,19 +170,20 @@ const rollbackTarget = ref(null)
 const form = ref({ changeLog: '' })
 
 const selectedResourceName = computed(() => {
-  const r = resources.value.find(x => x.id === selectedResourceId.value)
+  const r = resources.value.find((x) => x.id === selectedResourceId.value)
   return r ? r.name || r.title : ''
 })
 
 const versionCount = computed(() => versions.value.length)
 const currentVersion = computed(() => {
-  const v = versions.value.find(x => x.id === activeVersionId.value)
-  return v ? (v.versionNumber || v.version || '—') : '—'
+  const v = versions.value.find((x) => x.id === activeVersionId.value)
+  return v ? v.versionNumber || v.version || '—' : '—'
 })
 
 async function loadResources() {
   try {
-    const res = await resourceApi.getResourceList?.({ size: 200 }) || await resourceApi.getList?.({ size: 200 }) || { data: [] }
+    const res = (await resourceApi.getResourceList?.({ size: 200 })) ||
+      (await resourceApi.getList?.({ size: 200 })) || { data: [] }
     const data = res.data?.list || res.data?.records || res.data || []
     resources.value = Array.isArray(data) ? data : []
   } catch (e) {
@@ -152,7 +201,12 @@ async function loadVersions() {
       versionApi.getActiveVersion(selectedResourceId.value),
     ])
     if (histRes.status === 'fulfilled') {
-      const data = histRes.value.data?.list || histRes.value.data?.records || histRes.value.data || histRes.value || []
+      const data =
+        histRes.value.data?.list ||
+        histRes.value.data?.records ||
+        histRes.value.data ||
+        histRes.value ||
+        []
       versions.value = Array.isArray(data) ? data : []
     }
     if (activeRes.status === 'fulfilled') {
@@ -216,17 +270,42 @@ onMounted(loadResources)
 </script>
 
 <style scoped>
-.version-manage { max-width: 1400px; margin: 0 auto; }
-.page-header { margin-bottom: var(--ac-spacing-lg); }
-.page-title { font-size: 22px; font-weight: 700; color: var(--ac-text-primary); }
-.page-desc { font-size: 13px; color: var(--ac-text-muted); margin-top: 4px; }
-.content-card { background: var(--ac-bg-elevated); border-radius: var(--ac-radius-md); border: 1px solid var(--ac-border); padding: 16px; }
-.filter-card { margin-bottom: var(--ac-spacing-md); }
-.filter-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.version-manage {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+.page-header {
+  margin-bottom: var(--ac-spacing-lg);
+}
+.page-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ac-text-primary);
+}
+.page-desc {
+  font-size: 13px;
+  color: var(--ac-text-muted);
+  margin-top: 4px;
+}
+.content-card {
+  background: var(--ac-bg-elevated);
+  border-radius: var(--ac-radius-md);
+  border: 1px solid var(--ac-border);
+  padding: 16px;
+}
+.filter-card {
+  margin-bottom: var(--ac-spacing-md);
+}
+.filter-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
 
 /* 空状态装饰 */
 .empty-deco {
   font-size: 38px;
-  filter: grayscale(.2);
+  filter: grayscale(0.2);
 }
 </style>

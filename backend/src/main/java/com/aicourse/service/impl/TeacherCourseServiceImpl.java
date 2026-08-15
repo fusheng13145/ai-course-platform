@@ -1,5 +1,10 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.aicourse.constant.SubmissionStatus;
+
 import com.aicourse.entity.*;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.*;
@@ -21,6 +26,8 @@ import java.util.stream.Collectors;
 @Service
 public class TeacherCourseServiceImpl implements TeacherCourseService {
 
+    private static final Logger log = LoggerFactory.getLogger(TeacherCourseServiceImpl.class);
+
     private final CourseService courseService;
     private final CourseChapterService chapterService;
     private final CourseEnrollmentService enrollmentService;
@@ -31,6 +38,7 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
     private final LearningRecordService learningRecordService;
     private final AIService aiService;
     private final UserService userService;
+    private final ClassroomService classroomService;
 
     private final ObjectMapper objectMapper = new ObjectMapper();
 
@@ -44,7 +52,8 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
             QuestionService questionService,
             LearningRecordService learningRecordService,
             AIService aiService,
-            UserService userService) {
+            UserService userService,
+            ClassroomService classroomService) {
         this.courseService = courseService;
         this.chapterService = chapterService;
         this.enrollmentService = enrollmentService;
@@ -55,6 +64,7 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
         this.learningRecordService = learningRecordService;
         this.aiService = aiService;
         this.userService = userService;
+        this.classroomService = classroomService;
     }
 
     // ===================== 工具方法 =====================
@@ -131,7 +141,7 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
             long pendingGrading = 0L;
             if (!taskIds.isEmpty()) {
                 pendingGrading = submissionService.count(new LambdaQueryWrapper<Submission>()
-                        .in(Submission::getTaskId, taskIds).eq(Submission::getStatus, "SUBMITTED"));
+                        .in(Submission::getTaskId, taskIds).eq(Submission::getStatus, SubmissionStatus.SUBMITTED));
             }
 
             // ---- 14 天趋势（活跃学生 + 提交数）----
@@ -197,11 +207,15 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
             dashboard.put("chapterTree", chapterTree);
             dashboard.put("aiInsight", aiInsight);
         } catch (Exception e) {
+            log.error("查询教师课程失败: {}", e.getMessage(), e);
+
             dashboard.put("error", "课程驾驶舱加载异常: " + e.getMessage());
         }
         return dashboard;
     }
 
+
+    /** 计算教师课程 */
     @Override
     @Transactional(readOnly = true)
     public List<Map<String, Object>> computeAtRisk(List<CourseEnrollment> enrollments) {
@@ -271,6 +285,8 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
             fallback.put("summary", advice);
             return fallback;
         } catch (Exception e) {
+            log.error("计算教师课程失败: {}", e.getMessage(), e);
+
             Map<String, Object> fallback = new LinkedHashMap<>(2);
             fallback.put("summary", "暂无可用的 AI 学情解读（模型未配置或调用失败）。");
             return fallback;
@@ -290,6 +306,8 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
         try {
             return objectMapper.readValue(cleaned, Map.class);
         } catch (Exception ex) {
+            log.error("计算教师课程失败: {}", ex.getMessage(), ex);
+
             return null;
         }
     }
@@ -327,6 +345,8 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
             result.put("outline", outline);
             result.put("applicableCourseCategory", category);
         } catch (Exception e) {
+            log.error("生成教师课程失败: {}", e.getMessage(), e);
+
             result.put("success", false);
             result.put("message", "AI 建课调用失败: " + e.getMessage());
         }
@@ -438,7 +458,7 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
             long pendingGrading = 0L;
             if (!taskIds.isEmpty()) {
                 pendingGrading = submissionService.count(new LambdaQueryWrapper<Submission>()
-                        .in(Submission::getTaskId, taskIds).eq(Submission::getStatus, "SUBMITTED"));
+                        .in(Submission::getTaskId, taskIds).eq(Submission::getStatus, SubmissionStatus.SUBMITTED));
             }
 
             Map<String, Object> item = new LinkedHashMap<>(10);
@@ -480,7 +500,7 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
                         .stream().map(Task::getId).filter(Objects::nonNull).collect(Collectors.toList());
                 if (!taskIds.isEmpty()) {
                     pendingGrading = submissionService.count(new LambdaQueryWrapper<Submission>()
-                            .in(Submission::getTaskId, taskIds).eq(Submission::getStatus, "SUBMITTED"));
+                            .in(Submission::getTaskId, taskIds).eq(Submission::getStatus, SubmissionStatus.SUBMITTED));
                 }
             }
 
@@ -569,6 +589,8 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
                     "trend", scoreGap >= 0 ? "ABOVE" : "BELOW"));
             dashboard.put("aiOverview", aiOverview);
         } catch (Exception e) {
+            log.error("查询教师课程失败: {}", e.getMessage(), e);
+
             dashboard.put("error", "教师仪表盘加载异常: " + e.getMessage());
             dashboard.putIfAbsent("courseCount", 0L);
             dashboard.putIfAbsent("studentCount", 0L);
@@ -610,6 +632,8 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
             fallback.put("summary", advice);
             return fallback;
         } catch (Exception e) {
+            log.error("查询教师课程失败: {}", e.getMessage(), e);
+
             Map<String, Object> fallback = new LinkedHashMap<>(2);
             fallback.put("summary", "暂无可用的 AI 教学总览（模型未配置或调用失败）。");
             return fallback;
@@ -639,7 +663,7 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
             if (!taskIds.isEmpty()) {
                 List<Submission> subs = submissionService.list(new LambdaQueryWrapper<Submission>()
                         .in(Submission::getTaskId, taskIds)
-                        .in(Submission::getStatus, "SUBMITTED", "GRADED"));
+                        .in(Submission::getStatus, SubmissionStatus.SUBMITTED, SubmissionStatus.GRADED));
                 submissionCountByTask = subs.stream()
                         .collect(Collectors.groupingBy(Submission::getTaskId, Collectors.counting()));
             } else {
@@ -698,5 +722,92 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
             }
         }
         return roots;
+    }
+
+    // ===================== 7. 课程关联班级列表 =====================
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getCourseClasses(Long courseId) {
+        List<CourseEnrollment> enrollments = enrollmentService.list(
+                new LambdaQueryWrapper<CourseEnrollment>().eq(CourseEnrollment::getCourseId, courseId));
+
+        List<Long> studentIds = enrollments.stream()
+                .map(CourseEnrollment::getStudentId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        // 批量查询学生所属班级
+        Map<Long, Long> studentClassMap = new HashMap<>();
+        if (!studentIds.isEmpty()) {
+            List<User> users = userService.list(new LambdaQueryWrapper<User>()
+                    .in(User::getId, studentIds)
+                    .select(User::getId, User::getClassId));
+            for (User u : users) {
+                if (u.getClassId() != null) {
+                    studentClassMap.put(u.getId(), u.getClassId());
+                }
+            }
+        }
+
+        // 按班级分组学生
+        Map<Long, List<Long>> classStudentIds = new LinkedHashMap<>();
+        for (CourseEnrollment e : enrollments) {
+            Long clsId = studentClassMap.get(e.getStudentId());
+            if (clsId != null) {
+                classStudentIds.computeIfAbsent(clsId, k -> new ArrayList<>()).add(e.getStudentId());
+            }
+        }
+
+        // 查询班级元信息
+        Map<Long, Classroom> classroomMap = new HashMap<>();
+        if (!classStudentIds.isEmpty()) {
+            List<Classroom> classrooms = classroomService.listByIds(new ArrayList<>(classStudentIds.keySet()));
+            for (Classroom c : classrooms) {
+                if (c != null) {
+                    classroomMap.put(c.getId(), c);
+                }
+            }
+        }
+
+        // 课程任务ID集合，用于统计各班待批改提交
+        List<Long> taskIds = taskService.list(new LambdaQueryWrapper<Task>().eq(Task::getCourseId, courseId))
+                .stream().map(Task::getId).filter(Objects::nonNull).collect(Collectors.toList());
+
+        Map<Long, Long> pendingByClass = new HashMap<>();
+        if (!taskIds.isEmpty()) {
+            for (Map.Entry<Long, List<Long>> entry : classStudentIds.entrySet()) {
+                Long pending = submissionService.count(new LambdaQueryWrapper<Submission>()
+                        .in(Submission::getTaskId, taskIds)
+                        .in(Submission::getStudentId, entry.getValue())
+                        .eq(Submission::getStatus, SubmissionStatus.SUBMITTED));
+                pendingByClass.put(entry.getKey(), pending);
+            }
+        }
+
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Map.Entry<Long, List<Long>> entry : classStudentIds.entrySet()) {
+            Classroom c = classroomMap.get(entry.getKey());
+            if (c == null) {
+                continue;
+            }
+            List<Long> students = entry.getValue();
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("key", String.valueOf(c.getId()));
+            item.put("name", c.getName());
+            item.put("code", c.getCode());
+            item.put("students", students.size());
+            item.put("pending", pendingByClass.getOrDefault(entry.getKey(), 0L));
+            item.put("schedule", c.getDescription() != null ? c.getDescription() : "");
+            result.add(item);
+        }
+
+        // 按班级编号排序，编号缺失则按名称排序
+        result.sort(Comparator.comparing(m -> {
+            String code = (String) m.get("code");
+            return code != null && !code.isBlank() ? code : String.valueOf(m.get("name"));
+        }));
+        return result;
     }
 }

@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.VideoWatchSession;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.VideoWatchSessionMapper;
@@ -17,8 +20,14 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+
+/**
+ * 视频观看会话服务实现：相关业务逻辑入口，提供增删改查与编排能力。
+ */
 @Service
 public class VideoWatchSessionServiceImpl extends ServiceImpl<VideoWatchSessionMapper, VideoWatchSession> implements VideoWatchSessionService {
+
+    private static final Logger log = LoggerFactory.getLogger(VideoWatchSessionServiceImpl.class);
 
     private final VideoWatchSessionMapper videoWatchSessionMapper;
     private final VideoLearningRecordService videoLearningRecordService;
@@ -29,6 +38,8 @@ public class VideoWatchSessionServiceImpl extends ServiceImpl<VideoWatchSessionM
         this.videoLearningRecordService = videoLearningRecordService;
     }
 
+
+    /** 启动视频观看会话 */
     @Override
     public VideoWatchSession startSession(Long userId, Long resourceId) {
         VideoWatchSession session = new VideoWatchSession();
@@ -42,9 +53,13 @@ public class VideoWatchSessionServiceImpl extends ServiceImpl<VideoWatchSessionM
         return session;
     }
 
+
+    /** 更新视频观看会话 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public VideoWatchSession updateProgress(Long sessionId, int currentTime, int totalDuration) {
+        log.info("更新视频观看会话");
+
         VideoWatchSession session = this.getById(sessionId);
         if (session == null) {
             throw new BusinessException("观看会话不存在");
@@ -65,6 +80,8 @@ public class VideoWatchSessionServiceImpl extends ServiceImpl<VideoWatchSessionM
         return session;
     }
 
+
+    /** 视频观看会话相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public VideoWatchSession endSession(Long sessionId) {
@@ -80,6 +97,8 @@ public class VideoWatchSessionServiceImpl extends ServiceImpl<VideoWatchSessionM
         return session;
     }
 
+
+    /** 查询视频观看会话 */
     @Override
     public List<VideoWatchSession> getActiveSessions(Long userId) {
         return this.list(new LambdaQueryWrapper<VideoWatchSession>()
@@ -88,6 +107,8 @@ public class VideoWatchSessionServiceImpl extends ServiceImpl<VideoWatchSessionM
                 .orderByDesc(VideoWatchSession::getStartedAt));
     }
 
+
+    /** 查询视频观看会话 */
     @Override
     public List<Map<String, Object>> getWatchHistory(Long userId, Long courseId) {
         List<Map<String, Object>> history = new ArrayList<>();

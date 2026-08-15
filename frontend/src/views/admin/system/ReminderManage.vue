@@ -22,52 +22,85 @@
 
     <section class="l1-card">
       <div class="l1-head">
-        <span class="l1-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" /></svg></span>
+        <span class="l1-ico"
+          ><svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9M13.73 21a2 2 0 0 1-3.46 0" /></svg
+        ></span>
         <div><h3 class="l1-title">提醒列表</h3></div>
       </div>
       <div class="l1-body">
-    <div class="content-card">
-      <el-table v-loading="loading" :data="todos" style="width:100%" empty-text="暂无待办提醒">
-        <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column label="标题" min-width="200" show-overflow-tooltip>
-          <template #default="{ row }">{{ row.title }}</template>
-        </el-table-column>
-        <el-table-column label="内容" min-width="280" show-overflow-tooltip>
-          <template #default="{ row }">{{ row.content || row.description || '-' }}</template>
-        </el-table-column>
-        <el-table-column label="提醒时间" width="160">
-          <template #default="{ row }">{{ row.remindAt || row.dueTime || row.scheduledAt || '-' }}</template>
-        </el-table-column>
-        <el-table-column label="状态" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag :type="row.status === 'COMPLETED' ? 'success' : row.status === 'PENDING' ? 'warning' : 'info'" size="small" effect="plain">
-              {{ row.status === 'COMPLETED' ? '已完成' : row.status === 'PENDING' ? '待处理' : row.status || '--' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="createdAt" label="创建时间" width="160" />
-        <el-table-column label="操作" width="120" align="center">
-          <template #default="{ row }">
-            <el-button size="small" type="primary" link @click="openEdit(row)">编辑</el-button>
-            <el-popconfirm title="确定删除?" @confirm="handleDelete(row)">
-              <template #reference>
-                <el-button size="small" type="danger" link>删除</el-button>
+        <div class="content-card">
+          <el-table v-loading="loading" :data="todos" style="width: 100%" empty-text="暂无待办提醒">
+            <el-table-column prop="id" label="ID" width="60" />
+            <el-table-column label="标题" min-width="200" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.title }}</template>
+            </el-table-column>
+            <el-table-column label="内容" min-width="280" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.content || row.description || '-' }}</template>
+            </el-table-column>
+            <el-table-column label="提醒时间" width="160">
+              <template #default="{ row }">{{
+                row.remindAt || row.dueTime || row.scheduledAt || '-'
+              }}</template>
+            </el-table-column>
+            <el-table-column label="状态" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag
+                  :type="
+                    row.status === 'COMPLETED'
+                      ? 'success'
+                      : row.status === 'PENDING'
+                        ? 'warning'
+                        : 'info'
+                  "
+                  size="small"
+                  effect="plain"
+                >
+                  {{
+                    row.status === 'COMPLETED'
+                      ? '已完成'
+                      : row.status === 'PENDING'
+                        ? '待处理'
+                        : row.status || '--'
+                  }}
+                </el-tag>
               </template>
-            </el-popconfirm>
-          </template>
-        </el-table-column>
-        <template #empty>
-          <el-empty description="暂无待办提醒">
-            <template #image><div class="empty-deco">🔔</div></template>
-          </el-empty>
-        </template>
-      </el-table>
-    </div>
-    </div>
+            </el-table-column>
+            <el-table-column prop="createdAt" label="创建时间" width="160" />
+            <el-table-column label="操作" width="120" align="center">
+              <template #default="{ row }">
+                <el-button size="small" type="primary" link @click="openEdit(row)">编辑</el-button>
+                <el-popconfirm title="确定删除?" @confirm="handleDelete(row)">
+                  <template #reference>
+                    <el-button size="small" type="danger" link>删除</el-button>
+                  </template>
+                </el-popconfirm>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <el-empty description="暂无待办提醒">
+                <template #image><div class="empty-deco">🔔</div></template>
+              </el-empty>
+            </template>
+          </el-table>
+        </div>
+      </div>
     </section>
 
     <!-- 新建/编辑弹窗 -->
-    <el-dialog v-model="dialogVisible" :title="isEdit ? '编辑提醒' : '新建提醒'" width="520px" append-to-body>
+    <el-dialog
+      v-model="dialogVisible"
+      :title="isEdit ? '编辑提醒' : '新建提醒'"
+      width="520px"
+      append-to-body
+    >
       <el-form label-width="80px">
         <el-form-item label="标题">
           <el-input v-model="form.title" placeholder="提醒标题" />
@@ -76,7 +109,12 @@
           <el-input v-model="form.content" type="textarea" :rows="4" placeholder="提醒详细内容" />
         </el-form-item>
         <el-form-item label="提醒时间">
-          <el-date-picker v-model="form.remindAt" type="datetime" placeholder="选择提醒时间" style="width:100%" />
+          <el-date-picker
+            v-model="form.remindAt"
+            type="datetime"
+            placeholder="选择提醒时间"
+            style="width: 100%"
+          />
         </el-form-item>
         <el-form-item label="接收人">
           <el-input v-model="form.targetUserId" placeholder="用户ID（可选，留空为全体）" />
@@ -102,8 +140,8 @@ const loading = ref(false)
 const saving = ref(false)
 const todos = ref([])
 const totalCount = computed(() => todos.value.length)
-const pendingCount = computed(() => todos.value.filter(t => t.status === 'PENDING').length)
-const completedCount = computed(() => todos.value.filter(t => t.status === 'COMPLETED').length)
+const pendingCount = computed(() => todos.value.filter((t) => t.status === 'PENDING').length)
+const completedCount = computed(() => todos.value.filter((t) => t.status === 'COMPLETED').length)
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const form = ref({ title: '', content: '', remindAt: null, targetUserId: '' })
@@ -163,7 +201,8 @@ async function handleSave() {
 }
 
 function handleDelete(row) {
-  reminderApi.cancelReminder(row.id)
+  reminderApi
+    .cancelReminder(row.id)
     .then(() => {
       ElMessage.success('已删除')
       loadTodos()
@@ -184,15 +223,36 @@ onMounted(loadTodos)
 </script>
 
 <style scoped>
-.reminder-manage { max-width: 1400px; margin: 0 auto; }
-.page-header { margin-bottom: var(--ac-spacing-lg); display: flex; justify-content: space-between; align-items: flex-start; }
-.page-title { font-size: 22px; font-weight: 700; color: var(--ac-text-primary); }
-.page-desc { font-size: 13px; color: var(--ac-text-muted); margin-top: 4px; }
-.content-card { background: var(--ac-bg-elevated); border-radius: var(--ac-radius-md); border: 1px solid var(--ac-border); padding: 16px; }
+.reminder-manage {
+  max-width: 1400px;
+  margin: 0 auto;
+}
+.page-header {
+  margin-bottom: var(--ac-spacing-lg);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+}
+.page-title {
+  font-size: 22px;
+  font-weight: 700;
+  color: var(--ac-text-primary);
+}
+.page-desc {
+  font-size: 13px;
+  color: var(--ac-text-muted);
+  margin-top: 4px;
+}
+.content-card {
+  background: var(--ac-bg-elevated);
+  border-radius: var(--ac-radius-md);
+  border: 1px solid var(--ac-border);
+  padding: 16px;
+}
 
 /* 空状态装饰 */
 .empty-deco {
   font-size: 38px;
-  filter: grayscale(.2);
+  filter: grayscale(0.2);
 }
 </style>

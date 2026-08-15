@@ -1,0 +1,64 @@
+# ============================================================
+# Promtail 配置（日志采集 → Loki）
+# 经 Docker socket 服务发现自动定位 backend 容器，零侵入应用（不改 Spring Boot 代码/依赖）。
+# pipeline 把 Docker 的 json-file 文本日志解析为结构化 label（level/logger/thread），
+# 既保留原始 message 供 Loki 全文检索，又支持按级别/组件下钻，与 Metrics/Alerts 联动。
+# ============================================================
+server:
+  http_listen_port: 9080
+  grpc_listen_port: 0
+
+positions:
+  # 断点续传文件位置（容器内路径，重启不丢采集位点）
+  filename: /tmp/positions.yaml
+
+clients:
+  - url: http://loki:3100/loki/api/v1/push
+
+scrape_configs:
+  - job_name: docker-backend
+    docker_sd_configs:
+      - host: unix:///var/run/docker.sock
+        refresh_interval: 5s
+        # 仅采集后端服务容器（compose service 名 backend），避免把 mysql/redis 等噪声纳入
+        filters:
+          - name: label
+            values: ["com.docker.compose.service=backend"]
+    relabel_configs:
+      # 用容器名作 label，便于在 Loki 中区分来源
+      - source_labels: ["__meta_docker_container_name"]
+        target_label: container
+    pipeline_stages:
+      # 1) Docker 驱动把 json-file 的 "log" 字段取出为日志行
+      - docker: {}
+      # 2) 多行合并：把 Java 异常堆栈（非时间戳开头的续行）归并到上一条日志
+      - multiline:
+          firstline: '^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}'
+          max_wait_time: 3s
+      # 3) 正则解析 Spring Boot 3.x 默认日志格式：
+      #    2026-08-14T23:00:00.123+08:00  INFO 1 --- [main] c.a.Application : message
+      - regex:
+          expression: '^(?P<timestamp>\d{4}-\d{2}-\d{2}T[^\s]+)\s+(?P<level>[A-Z]+)\s+\d+\s+---\s+\[(?P<thread>[^\]]+)\]\s+(?P<logger>[A-Za-z0-9_.]+)\s*:\s*(?P<message>.*)$'
+      # 4) 日志行按级别计数暴露为 Prometheus 指标（支撑「错误日志突增」告警）
+      #    经 Prometheus 抓取 promtail:9080/metrics 后纳入 Alertmanager 统一分发，
+      #    与业务指标告警形成「指标 + 日志」双引擎闭环（避免引入第二个告警引擎）。
+      - metrics:
+          log_lines_total:
+            type: Counter
+            description: "backend 容器日志行计数（按 level 分桶），支撑错误日志突增告警"
+            prefix: promtail_custom_
+            max_idle_duration: 24h
+            config:
+              match_all: true
+              action: inc
+            labels:
+              level: ""
+      # 5) 提取的命名组作为 Loki 索引 label（level/logger/thread 可检索可分组）
+      - labels:
+          level:
+          logger:
+          thread:
+      # 5) 时间戳归一（Spring 的 XXX 形如 +08:00 / Z，RFC3339Nano 可解析）
+      - timestamp:
+          source: timestamp
+          format: RFC3339Nano

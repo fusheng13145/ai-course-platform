@@ -8,6 +8,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.time.Duration;
 
@@ -20,6 +22,8 @@ import java.time.Duration;
  */
 @Component
 public class CookieUtils {
+
+    private static final Logger log = LoggerFactory.getLogger(CookieUtils.class);
 
     /** 生产环境必须为 true（Secure Cookie 仅经 HTTPS 传输），开发 HTTP 环境为 false 以便联调。 */
     private final boolean secure;
@@ -40,12 +44,19 @@ public class CookieUtils {
     public void addAuthCookies(HttpServletResponse response, String accessToken,
                                String refreshToken, boolean rememberMe) {
         if (accessToken != null) {
+            long accessMaxAgeSeconds;
+            try {
+                accessMaxAgeSeconds = jwtUtils.getRemainingSeconds(accessToken);
+            } catch (RuntimeException e) {
+                log.error("计算访问令牌剩余有效期失败, 跳过访问 Cookie 下发", e);
+                accessMaxAgeSeconds = 0;
+            }
             ResponseCookie accessCookie = ResponseCookie.from(JwtUtils.ACCESS_TOKEN_COOKIE, accessToken)
                     .httpOnly(true)
                     .secure(secure)
                     .sameSite("Lax")
                     .path("/")
-                    .maxAge(Duration.ofSeconds(jwtUtils.getRemainingSeconds(accessToken)))
+                    .maxAge(Duration.ofSeconds(accessMaxAgeSeconds))
                     .build();
             response.addHeader(HttpHeaders.SET_COOKIE, accessCookie.toString());
         }

@@ -1,5 +1,10 @@
 package com.aicourse.service.impl;
 
+
+import com.aicourse.constant.SubmissionStatus;
+
+import com.aicourse.constant.ExamSessionStatus;
+
 import com.aicourse.entity.*;
 import com.aicourse.service.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -15,6 +20,8 @@ import java.time.LocalTime;
 import java.util.*;
 import java.util.stream.Collectors;
 
+import org.springframework.data.redis.core.StringRedisTemplate;
+
 /**
  * 数据统计分析服务实现类
  * 提供平台总览、用户个人数据、学习趋势、成绩分布、课程分析、考试统计等全方位统计功能
@@ -22,6 +29,7 @@ import java.util.stream.Collectors;
 @Service
 @Slf4j
 public class AnalyticsServiceImpl implements AnalyticsService {
+
 
     private final UserService userService;
     private final CourseService courseService;
@@ -35,6 +43,12 @@ private final SubmissionService submissionService;
     private final TeachingAnalyticsComponent teachingAnalyticsComponent;
     private final com.aicourse.mapper.TaskCompletionMapper taskCompletionMapper;
     private final CourseChapterService courseChapterService;
+    /** Redis（ObjectProvider 注入兼容无 Redis 的测试切片，缺省时降级不缓存） */
+    private final StringRedisTemplate redisTemplate;
+    private final com.fasterxml.jackson.databind.ObjectMapper objectMapper;
+
+    /** 平台统计看板缓存 key（TTL 60s：读多写少 + 实时性要求低，短 TTL 自愈无需精确失效） */
+    private static final String DASHBOARD_CACHE_KEY = "analytics:dashboard:v1";
 
     public AnalyticsServiceImpl(
             UserService userService,
@@ -47,7 +61,9 @@ private final SubmissionService submissionService;
             ExamPaperService examPaperService,
             TeachingAnalyticsComponent teachingAnalyticsComponent,
             com.aicourse.mapper.TaskCompletionMapper taskCompletionMapper,
-            CourseChapterService courseChapterService
+            CourseChapterService courseChapterService,
+            org.springframework.beans.factory.ObjectProvider<StringRedisTemplate> redisProvider,
+            com.fasterxml.jackson.databind.ObjectMapper objectMapper
     ) {
         this.userService = userService;
         this.courseService = courseService;
@@ -60,14 +76,30 @@ private final SubmissionService submissionService;
         this.teachingAnalyticsComponent = teachingAnalyticsComponent;
         this.taskCompletionMapper = taskCompletionMapper;
         this.courseChapterService = courseChapterService;
+        this.redisTemplate = redisProvider != null ? redisProvider.getIfAvailable() : null;
+        this.objectMapper = objectMapper;
     }
 
 
 
+    /** 查询分析 */
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getDashboard() {
         Map<String, Object> dashboard = new HashMap<>(24);
+        // 修复：平台统计看板 60s 短缓存（读多写少、实时性要求低，TTL 自愈无需精确失效；
+        // 无 Redis 时降级直算）。统计聚合含 15+ 次 count，命中缓存可显著降低管理端打开/轮询压力。
+        if (redisTemplate != null) {
+            try {
+                String cached = redisTemplate.opsForValue().get(DASHBOARD_CACHE_KEY);
+                if (cached != null) {
+                    return objectMapper.readValue(cached,
+                            new com.fasterxml.jackson.core.type.TypeReference<Map<String, Object>>() {});
+                }
+            } catch (Exception e) {
+                log.warn("dashboard 缓存读取失败（降级直算）: {}", e.getMessage());
+            }
+        }
         try {
             // ---- 用户统计（Admin Dashboard statCards[0]）----
             long totalUsers = userService.count();
@@ -177,6 +209,8 @@ private final SubmissionService submissionService;
                     java.util.Map.of("loginCount", studentCount * 10L, "actionCount", studentCount * 20L)
             ));
         } catch (Exception e) {
+            log.error("查询分析失败: {}", e.getMessage(), e);
+
             dashboard.put("error", "统计数据加载异常: " + e.getMessage());
             // 填充默认值防止前端空白
             dashboard.putIfAbsent("userCount", 0L);
@@ -186,6 +220,16 @@ private final SubmissionService submissionService;
             dashboard.putIfAbsent("categoryDistribution", new HashMap<>());
             dashboard.putIfAbsent("gradeDistribution", java.util.Arrays.asList(0L, 0L, 0L, 0L, 0L));
             dashboard.putIfAbsent("roleActivity", new ArrayList<>());
+        }
+        // 仅缓存成功结果（含 error 的结果不入缓存，避免错误被持续命中 60s）
+        if (redisTemplate != null && !dashboard.containsKey("error")) {
+            try {
+                redisTemplate.opsForValue().set(DASHBOARD_CACHE_KEY,
+                        objectMapper.writeValueAsString(dashboard),
+                        java.time.Duration.ofSeconds(60));
+            } catch (Exception e) {
+                log.warn("dashboard 缓存写入失败（可忽略）: {}", e.getMessage());
+            }
         }
         return dashboard;
     }
@@ -247,6 +291,8 @@ private final SubmissionService submissionService;
         return overview;
     }
 
+
+    /** 查询分析 */
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getUserDashboard(Long userId) {
@@ -316,11 +362,13 @@ private final SubmissionService submissionService;
             long submittedCount = submissionService.count(
                     new LambdaQueryWrapper<Submission>()
                             .eq(Submission::getStudentId, userId)
-                            .in(Submission::getStatus, "SUBMITTED", "GRADED")
+                            .in(Submission::getStatus, SubmissionStatus.SUBMITTED, SubmissionStatus.GRADED)
             );
             userData.put("pendingTasks", Math.max(0, pendingTasks - submittedCount));
             userData.put("todoCount", Math.max(0, pendingTasks - submittedCount));
         } catch (Exception e) {
+            log.error("查询分析失败: {}", e.getMessage(), e);
+
             userData.put("error", "学生数据加载异常: " + e.getMessage());
             userData.putIfAbsent("enrolledCourses", 0L);
             userData.putIfAbsent("courseCount", 0L);
@@ -354,6 +402,8 @@ private final SubmissionService submissionService;
         return streak;
     }
 
+
+    /** 查询分析 */
     @Override
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getLearningTrends(Long userId) {
@@ -485,6 +535,8 @@ private final SubmissionService submissionService;
         return result;
     }
 
+
+    /** 查询分析 */
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getGradeDistribution(Long courseId) {
@@ -569,6 +621,8 @@ private final SubmissionService submissionService;
         return histogram;
     }
 
+
+    /** 查询分析 */
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getCourseAnalysis(Long courseId) {
@@ -720,7 +774,7 @@ private final SubmissionService submissionService;
         List<ExamSession> sessions = examSessionService.list(
                 new LambdaQueryWrapper<ExamSession>()
                         .eq(ExamSession::getExamPaperId, examPaperId)
-                        .in(ExamSession::getStatus, "SUBMITTED", "GRADED")
+                        .in(ExamSession::getStatus, ExamSessionStatus.SUBMITTED, ExamSessionStatus.GRADED)
         );
 
         statistics.put("totalParticipants", sessions.size());
@@ -833,7 +887,7 @@ private final SubmissionService submissionService;
                     pendingGradeCount = submissionService.count(
                             new LambdaQueryWrapper<Submission>()
                                     .in(Submission::getTaskId, taskIds)
-                                    .eq(Submission::getStatus, "SUBMITTED")
+                                    .eq(Submission::getStatus, SubmissionStatus.SUBMITTED)
                     );
                 }
             }
@@ -903,6 +957,8 @@ private final SubmissionService submissionService;
             }
             teacherData.put("trendData", trendData);
         } catch (Exception e) {
+            log.error("查询分析失败: {}", e.getMessage(), e);
+
             teacherData.put("error", "教师数据加载异常: " + e.getMessage());
             teacherData.putIfAbsent("courseCount", 0L);
             teacherData.putIfAbsent("studentCount", 0L);
@@ -914,6 +970,8 @@ private final SubmissionService submissionService;
         return teacherData;
     }
 
+
+    /** 查询分析 */
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getAtRiskStudents(String groupBy, Long courseId, String department, String major, Long classId) {
@@ -922,6 +980,8 @@ private final SubmissionService submissionService;
         return teachingAnalyticsComponent.getAtRiskStudents(groupBy, courseId, department, major, classId);
     }
 
+
+    /** 导出分析 */
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> exportReport(Long courseId) {
@@ -963,6 +1023,8 @@ private final SubmissionService submissionService;
 
             report.put("generatedAt", LocalDateTime.now().toString());
         } catch (Exception e) {
+            log.error("导出分析失败: {}", e.getMessage(), e);
+
             report.put("error", e.getMessage());
         }
         return report;
@@ -1085,6 +1147,8 @@ private final SubmissionService submissionService;
         return result;
     }
 
+
+    /** 查询分析 */
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getStudentCourseDetail(Long courseId, Long studentId) {
@@ -1207,7 +1271,7 @@ private final SubmissionService submissionService;
     }
 
     private boolean isSubmittedStatus(String status) {
-        return "SUBMITTED".equals(status) || "GRADED".equals(status) || "RETURNED".equals(status);
+        return SubmissionStatus.SUBMITTED.equals(status) || SubmissionStatus.GRADED.equals(status) || SubmissionStatus.RETURNED.equals(status);
     }
 
     private double toDouble(Object v) {

@@ -1,5 +1,10 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.aicourse.constant.SubmissionStatus;
+
 import com.aicourse.entity.*;
 import com.aicourse.service.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -21,6 +26,8 @@ import java.util.stream.Collectors;
  */
 @Component
 public class TeachingAnalyticsComponent {
+
+    private static final Logger log = LoggerFactory.getLogger(TeachingAnalyticsComponent.class);
 
     private final CourseService courseService;
     private final CourseEnrollmentService enrollmentService;
@@ -88,7 +95,7 @@ public class TeachingAnalyticsComponent {
                     pendingGradeCount = submissionService.count(
                             new LambdaQueryWrapper<Submission>()
                                     .in(Submission::getTaskId, taskIds)
-                                    .eq(Submission::getStatus, "SUBMITTED")
+                                    .eq(Submission::getStatus, SubmissionStatus.SUBMITTED)
                     );
                 }
             }
@@ -160,6 +167,8 @@ public class TeachingAnalyticsComponent {
             }
             teacherData.put("trendData", trendData);
         } catch (Exception e) {
+            log.error("查询Teaching分析失败: {}", e.getMessage(), e);
+
             teacherData.put("error", "教师数据加载异常: " + e.getMessage());
             teacherData.putIfAbsent("courseCount", 0L);
             teacherData.putIfAbsent("studentCount", 0L);
@@ -175,6 +184,8 @@ public class TeachingAnalyticsComponent {
      * 导出学情分析报告（增强版，包含多维度分析）
      */
     public Map<String, Object> exportReport(Long courseId) {
+        log.info("导出Teaching分析");
+
         Map<String, Object> report = courseAnalytics.getCourseAnalysis(courseId);
         Course course = courseService.getById(courseId);
         if (course == null) return report;

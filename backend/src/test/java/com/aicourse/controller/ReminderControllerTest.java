@@ -31,6 +31,8 @@ class ReminderControllerTest extends ControllerTestBase {
     private Reminder sampleReminder() {
         Reminder r = new Reminder();
         r.setId(1L);
+        // 归属校验（修复 P1-3）：提醒属于当前登录用户（withUser 1L）
+        r.setUserId(1L);
         return r;
     }
 
@@ -75,6 +77,7 @@ class ReminderControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("PATCH /reminders/1/cancel - 返回200且正确委托cancelReminder")
     void cancelReminder_authorized_returns_success() throws Exception {
+        when(reminderService.getById(any())).thenReturn(sampleReminder());
         doNothing().when(reminderService).cancelReminder(any());
         mockMvc.perform(patch("/reminders/1/cancel").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
@@ -92,6 +95,7 @@ class ReminderControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("PATCH /reminders/1/reschedule - 返回200且正确委托rescheduleReminder")
     void rescheduleReminder_authorized_returns_success() throws Exception {
+        when(reminderService.getById(any())).thenReturn(sampleReminder());
         doNothing().when(reminderService).rescheduleReminder(any(), any());
         mockMvc.perform(patch("/reminders/1/reschedule").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"提醒\",\"newScheduledAt\":\"2025-01-02T10:00:00\"}").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
@@ -135,6 +139,7 @@ class ReminderControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("PUT /reminders/1 - 返回200且正确委托updateReminder（修复前端断链）")
     void updateReminder_authorized_returns_success() throws Exception {
+        when(reminderService.getById(any())).thenReturn(sampleReminder());
         when(reminderService.updateReminder(any(), any())).thenReturn(sampleReminder());
         mockMvc.perform(put("/reminders/1").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"title\":\"新标题\",\"content\":\"新内容\",\"remindAt\":\"2025-01-02T10:00:00\",\"targetUserId\":2}")

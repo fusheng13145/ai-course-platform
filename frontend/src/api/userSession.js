@@ -11,4 +11,7 @@ export const getSessionStats = () => request.get('/user-sessions/stats')
 // 异常会话检测
 export const getAbnormalSessions = userId => request.get(`/user-sessions/abnormal/${userId}`)
 
+/**
+ * 默认导出对象：模块/组件配置与导出内容
+ */
 export default { getOnlineUsers, getUserSessions, forceLogout, getSessionStats, getAbnormalSessions }

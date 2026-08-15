@@ -1,11 +1,6 @@
 ﻿<template>
   <div class="fade-in question-management">
-    <PageHeader
-      title="题库管理"
-      subtitle="题目库维护与AI智能出题"
-      icon="doc"
-      icon-bg="accent"
-    >
+    <PageHeader title="题库管理" subtitle="题目库维护与AI智能出题" icon="doc" icon-bg="accent">
       <el-button type="primary" plain @click="showAIDialog = true">
         <el-icon><MagicStick /></el-icon>AI 智能出题
       </el-button>
@@ -15,143 +10,206 @@
     </PageHeader>
 
     <div class="stat-grid">
-      <StatCard label="总题目数" :value="questionStats[0].value" icon="doc" tone="var(--accent-soft)" tone-color="var(--accent)" />
-      <StatCard label="今日新增" :value="questionStats[1].value" icon="clock" tone="var(--info-soft)" tone-color="var(--info)" />
-      <StatCard label="待审核" :value="questionStats[2].value" icon="warn" tone="var(--warn-soft)" tone-color="var(--warn)" />
-      <StatCard label="易错题数" :value="questionStats[3].value" icon="chart" tone="var(--ok-soft)" tone-color="var(--ok)" />
+      <StatCard
+        label="总题目数"
+        :value="questionStats[0].value"
+        icon="doc"
+        tone="var(--accent-soft)"
+        tone-color="var(--accent)"
+      />
+      <StatCard
+        label="今日新增"
+        :value="questionStats[1].value"
+        icon="clock"
+        tone="var(--info-soft)"
+        tone-color="var(--info)"
+      />
+      <StatCard
+        label="待审核"
+        :value="questionStats[2].value"
+        icon="warn"
+        tone="var(--warn-soft)"
+        tone-color="var(--warn)"
+      />
+      <StatCard
+        label="易错题数"
+        :value="questionStats[3].value"
+        icon="chart"
+        tone="var(--ok-soft)"
+        tone-color="var(--ok)"
+      />
     </div>
 
     <!-- 筛选工具栏 -->
     <section class="l1-card">
       <div class="l1-head">
-        <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        <span class="l1-ico" style="background: var(--accent-soft); color: var(--accent)">
+          <svg
+            viewBox="0 0 24 24"
+            width="17"
+            height="17"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.9"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+          </svg>
         </span>
-        <div><div class="l1-title">题目列表</div><div class="l1-sub">筛选题型与难度，维护题目库</div></div>
+        <div>
+          <div class="l1-title">题目列表</div>
+          <div class="l1-sub">筛选题型与难度，维护题目库</div>
+        </div>
       </div>
       <div class="l1-body">
-    <div class="filter-bar">
-      <div class="filter-left">
-        <el-input
-          v-model="filters.keyword"
-          placeholder="搜索题目内容"
-          clearable
-          style="width:240px"
-          @keyup.enter="fetchQuestions"
-        >
-          <template #prefix><el-icon><Search /></el-icon></template>
-        </el-input>
-        <el-select v-model="filters.type" placeholder="题型筛选" clearable style="width:130px" @change="fetchQuestions">
-          <el-option label="全部" value="" />
-          <el-option label="单选题" value="SINGLE_CHOICE" />
-          <el-option label="多选题" value="MULTIPLE_CHOICE" />
-          <el-option label="判断题" value="TRUE_FALSE" />
-          <el-option label="填空题" value="FILL_BLANK" />
-          <el-option label="简答题" value="SHORT_ANSWER" />
-          <el-option label="编程题" value="CODING" />
-        </el-select>
-        <el-select v-model="filters.difficulty" placeholder="难度筛选" clearable style="width:120px" @change="fetchQuestions">
-          <el-option label="全部" value="" />
-          <el-option label="简单" value="EASY" />
-          <el-option label="中等" value="MEDIUM" />
-          <el-option label="困难" value="HARD" />
-        </el-select>
-        <el-select v-model="filters.courseId" placeholder="课程筛选" clearable style="width:160px" @change="fetchQuestions">
-          <el-option
-            v-for="course in courseList"
-            :key="course.id"
-            :label="course.title || course.name"
-            :value="course.id"
-          />
-        </el-select>
-        <el-button type="primary" @click="fetchQuestions"><el-icon><Search /></el-icon></el-button>
-      </div>
-      <div class="filter-right">
-        <el-button text type="primary" size="small" @click="viewErrorProne">易错题榜</el-button>
-        <el-button text type="primary" size="small" @click="handleExport">批量导出</el-button>
-        <el-button text type="primary" size="small" @click="handleImport">批量导入</el-button>
-      </div>
-    </div>
+        <div class="filter-bar">
+          <div class="filter-left">
+            <el-input
+              v-model="filters.keyword"
+              placeholder="搜索题目内容"
+              clearable
+              style="width: 240px"
+              @keyup.enter="fetchQuestions"
+            >
+              <template #prefix
+                ><el-icon><Search /></el-icon
+              ></template>
+            </el-input>
+            <el-select
+              v-model="filters.type"
+              placeholder="题型筛选"
+              clearable
+              style="width: 130px"
+              @change="fetchQuestions"
+            >
+              <el-option label="全部" value="" />
+              <el-option label="单选题" value="SINGLE_CHOICE" />
+              <el-option label="多选题" value="MULTIPLE_CHOICE" />
+              <el-option label="判断题" value="TRUE_FALSE" />
+              <el-option label="填空题" value="FILL_BLANK" />
+              <el-option label="简答题" value="SHORT_ANSWER" />
+              <el-option label="编程题" value="CODING" />
+            </el-select>
+            <el-select
+              v-model="filters.difficulty"
+              placeholder="难度筛选"
+              clearable
+              style="width: 120px"
+              @change="fetchQuestions"
+            >
+              <el-option label="全部" value="" />
+              <el-option label="简单" value="EASY" />
+              <el-option label="中等" value="MEDIUM" />
+              <el-option label="困难" value="HARD" />
+            </el-select>
+            <el-select
+              v-model="filters.courseId"
+              placeholder="课程筛选"
+              clearable
+              style="width: 160px"
+              @change="fetchQuestions"
+            >
+              <el-option
+                v-for="course in courseList"
+                :key="course.id"
+                :label="course.title || course.name"
+                :value="course.id"
+              />
+            </el-select>
+            <el-button type="primary" @click="fetchQuestions"
+              ><el-icon><Search /></el-icon
+            ></el-button>
+          </div>
+          <div class="filter-right">
+            <el-button text type="primary" size="small" @click="viewErrorProne">易错题榜</el-button>
+            <el-button text type="primary" size="small" @click="handleExport">批量导出</el-button>
+            <el-button text type="primary" size="small" @click="handleImport">批量导入</el-button>
+          </div>
+        </div>
 
-    <!-- 题目列表 -->
-    <div class="content-card">
-      <el-table v-loading="loading" :data="questionList" style="width:100%">
-        <el-table-column prop="id" label="ID" width="70" />
+        <!-- 题目列表 -->
+        <div class="content-card">
+          <el-table v-loading="loading" :data="questionList" style="width: 100%">
+            <el-table-column prop="id" label="ID" width="70" />
 
-        <el-table-column label="题型" width="90" align="center">
-          <template #default="{ row }">
-            <el-tag size="small" effect="light" :type="getTypeTagType(row.type)">
-              {{ getTypeText(row.type) }}
-            </el-tag>
-          </template>
-        </el-table-column>
+            <el-table-column label="题型" width="90" align="center">
+              <template #default="{ row }">
+                <el-tag size="small" effect="light" :type="getTypeTagType(row.type)">
+                  {{ getTypeText(row.type) }}
+                </el-tag>
+              </template>
+            </el-table-column>
 
-        <el-table-column prop="content" label="题目内容" min-width="300" show-overflow-tooltip>
-          <template #default="{ row }">
-            <span class="question-content">{{ row.content }}</span>
-          </template>
-        </el-table-column>
+            <el-table-column prop="content" label="题目内容" min-width="300" show-overflow-tooltip>
+              <template #default="{ row }">
+                <span class="question-content">{{ row.content }}</span>
+              </template>
+            </el-table-column>
 
-        <el-table-column label="难度" width="110" align="center">
-          <template #default="{ row }">
-            <el-rate
-              :model-value="getDifficultyValue(row.difficulty)"
-              disabled
-              size="small"
-              :colors="['#8BA888', '#CBB58A', '#C48080']"
-              show-text
-              :texts="['简单', '中等', '困难']"
+            <el-table-column label="难度" width="110" align="center">
+              <template #default="{ row }">
+                <el-rate
+                  :model-value="getDifficultyValue(row.difficulty)"
+                  disabled
+                  size="small"
+                  :colors="['#8BA888', '#CBB58A', '#C48080']"
+                  show-text
+                  :texts="['简单', '中等', '困难']"
+                />
+              </template>
+            </el-table-column>
+
+            <el-table-column prop="courseName" label="所属课程" width="140" show-overflow-tooltip />
+
+            <el-table-column label="使用次数" width="90" align="center">
+              <template #default="{ row }">
+                <span class="usage-count">{{ row.usageCount || 0 }}次</span>
+              </template>
+            </el-table-column>
+
+            <el-table-column label="正确率" width="90" align="center">
+              <template #default="{ row }">
+                <span class="accuracy" :class="getAccuracyClass(row.correctRate)">{{
+                  row.correctRate ? (row.correctRate * 100).toFixed(0) + '%' : '--'
+                }}</span>
+              </template>
+            </el-table-column>
+
+            <el-table-column label="操作" width="200" fixed="right">
+              <template #default="{ row }">
+                <el-button text type="primary" size="small" @click="editQuestion(row)"
+                  >编辑</el-button
+                >
+                <el-button text type="warning" size="small" @click="viewStats(row)">统计</el-button>
+                <el-button text type="danger" size="small" @click="deleteQuestion(row)"
+                  >删除</el-button
+                >
+              </template>
+            </el-table-column>
+            <!-- 空状态 -->
+            <template #empty>
+              <el-empty description="暂无题目数据">
+                <template #image><div class="empty-deco">📚</div></template>
+              </el-empty>
+            </template>
+          </el-table>
+
+          <!-- 分页 -->
+          <div class="pagination-wrapper">
+            <el-pagination
+              v-model:current-page="pagination.page"
+              v-model:page-size="pagination.size"
+              :total="pagination.total"
+              :page-sizes="[10, 20, 50]"
+              layout="total, sizes, prev, pager, next"
+              background
+              @size-change="fetchQuestions"
+              @current-change="fetchQuestions"
             />
-          </template>
-        </el-table-column>
-
-        <el-table-column prop="courseName" label="所属课程" width="140" show-overflow-tooltip />
-
-        <el-table-column label="使用次数" width="90" align="center">
-          <template #default="{ row }">
-            <span class="usage-count">{{ row.usageCount || 0 }}次</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="正确率" width="90" align="center">
-          <template #default="{ row }">
-            <span
-              class="accuracy"
-              :class="getAccuracyClass(row.correctRate)"
-            >{{ row.correctRate ? (row.correctRate * 100).toFixed(0) + '%' : '--' }}</span>
-          </template>
-        </el-table-column>
-
-        <el-table-column label="操作" width="200" fixed="right">
-          <template #default="{ row }">
-            <el-button text type="primary" size="small" @click="editQuestion(row)">编辑</el-button>
-            <el-button text type="warning" size="small" @click="viewStats(row)">统计</el-button>
-            <el-button text type="danger" size="small" @click="deleteQuestion(row)">删除</el-button>
-          </template>
-        </el-table-column>
-        <!-- 空状态 -->
-        <template #empty>
-          <el-empty description="暂无题目数据">
-            <template #image><div class="empty-deco">📚</div></template>
-          </el-empty>
-        </template>
-      </el-table>
-
-      <!-- 分页 -->
-      <div class="pagination-wrapper">
-        <el-pagination
-          v-model:current-page="pagination.page"
-          v-model:page-size="pagination.size"
-          :total="pagination.total"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next"
-          background
-          @size-change="fetchQuestions"
-          @current-change="fetchQuestions"
-        />
+          </div>
+        </div>
       </div>
-    </div>
-    </div>
     </section>
 
     <!-- 创建/编辑题目对话框 -->
@@ -161,11 +219,16 @@
       width="720px"
       destroy-on-close
     >
-      <el-form ref="questionFormRef" :model="questionForm" :rules="questionRules" label-position="top">
+      <el-form
+        ref="questionFormRef"
+        :model="questionForm"
+        :rules="questionRules"
+        label-position="top"
+      >
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="题型" prop="type">
-              <el-select v-model="questionForm.type" style="width:100%">
+              <el-select v-model="questionForm.type" style="width: 100%">
                 <el-option label="单选题" value="SINGLE_CHOICE" />
                 <el-option label="多选题" value="MULTIPLE_CHOICE" />
                 <el-option label="判断题" value="TRUE_FALSE" />
@@ -177,7 +240,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="难度" prop="difficulty">
-              <el-select v-model="questionForm.difficulty" style="width:100%">
+              <el-select v-model="questionForm.difficulty" style="width: 100%">
                 <el-option label="简单" value="EASY" />
                 <el-option label="中等" value="MEDIUM" />
                 <el-option label="困难" value="HARD" />
@@ -187,7 +250,12 @@
         </el-row>
 
         <el-form-item label="所属课程" prop="courseId">
-          <el-select v-model="questionForm.courseId" filterable style="width:100%" placeholder="选择课程">
+          <el-select
+            v-model="questionForm.courseId"
+            filterable
+            style="width: 100%"
+            placeholder="选择课程"
+          >
             <el-option
               v-for="course in courseList"
               :key="course.id"
@@ -210,11 +278,7 @@
         <template v-if="isChoiceType(questionForm.type)">
           <el-form-item label="选项设置">
             <div class="options-editor">
-              <div
-                v-for="(option, idx) in questionForm.options"
-                :key="idx"
-                class="option-item"
-              >
+              <div v-for="(option, idx) in questionForm.options" :key="idx" class="option-item">
                 <span class="option-label">{{ optionLabels[idx] }}</span>
                 <el-input v-model="option.content" placeholder="选项内容" />
                 <el-checkbox v-model="option.isCorrect">正确答案</el-checkbox>
@@ -234,7 +298,8 @@
                 type="primary"
                 size="small"
                 @click="addOption"
-              ><el-icon><Plus /></el-icon>添加选项</el-button>
+                ><el-icon><Plus /></el-icon>添加选项</el-button
+              >
             </div>
           </el-form-item>
         </template>
@@ -287,7 +352,7 @@
         type="info"
         :closable="false"
         show-icon
-        style="margin-bottom:20px"
+        style="margin-bottom: 20px"
       />
 
       <el-form ref="aiFormRef" :model="aiForm" :rules="aiRules" label-position="top">
@@ -298,7 +363,7 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="题型" prop="type">
-              <el-select v-model="aiForm.type" style="width:100%">
+              <el-select v-model="aiForm.type" style="width: 100%">
                 <el-option label="自动混合" value="MIXED" />
                 <el-option label="单选题" value="SINGLE_CHOICE" />
                 <el-option label="多选题" value="MULTIPLE_CHOICE" />
@@ -309,7 +374,7 @@
           </el-col>
           <el-col :span="12">
             <el-form-item label="难度" prop="difficulty">
-              <el-select v-model="aiForm.difficulty" style="width:100%">
+              <el-select v-model="aiForm.difficulty" style="width: 100%">
                 <el-option label="简单" value="EASY" />
                 <el-option label="中等" value="MEDIUM" />
                 <el-option label="困难" value="HARD" />
@@ -324,7 +389,13 @@
         </el-form-item>
 
         <el-form-item label="所属课程">
-          <el-select v-model="aiForm.courseId" filterable clearable style="width:100%" placeholder="选择关联课程（可选）">
+          <el-select
+            v-model="aiForm.courseId"
+            filterable
+            clearable
+            style="width: 100%"
+            placeholder="选择关联课程（可选）"
+          >
             <el-option
               v-for="course in courseList"
               :key="course.id"
@@ -362,7 +433,9 @@
           </div>
           <div class="stats-item">
             <span class="label">正确率</span>
-            <span class="value success">{{ currentStats.correctRate ? (currentStats.correctRate * 100).toFixed(1) + '%' : '--' }}</span>
+            <span class="value success">{{
+              currentStats.correctRate ? (currentStats.correctRate * 100).toFixed(1) + '%' : '--'
+            }}</span>
           </div>
           <div class="stats-item">
             <span class="label">平均用时</span>
@@ -395,12 +468,7 @@
 
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
-import {
-  Plus,
-  Search,
-  MagicStick,
-  Delete
-} from '@element-plus/icons-vue'
+import { Plus, Search, MagicStick, Delete } from '@element-plus/icons-vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import questionApi from '@/api/question'
 import courseApi from '@/api/course'
@@ -418,7 +486,7 @@ const questionStats = ref([
   { label: '总题目数', value: 0 },
   { label: '今日新增', value: 0 },
   { label: '待审核', value: 0 },
-  { label: '易错题数', value: 0 }
+  { label: '易错题数', value: 0 },
 ])
 
 // 筛选条件
@@ -426,14 +494,14 @@ const filters = reactive({
   keyword: '',
   type: '',
   difficulty: '',
-  courseId: ''
+  courseId: '',
 })
 
 // 分页
 const pagination = reactive({
   page: 1,
   size: 10,
-  total: 0
+  total: 0,
 })
 
 // 数据列表
@@ -462,18 +530,18 @@ const questionForm = reactive({
     { content: '', isCorrect: false },
     { content: '', isCorrect: false },
     { content: '', isCorrect: false },
-    { content: '', isCorrect: false }
+    { content: '', isCorrect: false },
   ],
   answer: '',
   explanation: '',
-  score: 5
+  score: 5,
 })
 
 const questionRules = {
   type: [{ required: true, message: '请选择题型', trigger: 'change' }],
   difficulty: [{ required: true, message: '请选择难度', trigger: 'change' }],
   content: [{ required: true, message: '请输入题目内容', trigger: 'blur' }],
-  score: [{ required: true, message: '请设置分值', trigger: 'blur' }]
+  score: [{ required: true, message: '请设置分值', trigger: 'blur' }],
 }
 
 // AI表单
@@ -484,11 +552,11 @@ const aiForm = reactive({
   difficulty: 'MIXED',
   count: 5,
   courseId: '',
-  requirements: ''
+  requirements: '',
 })
 
 const aiRules = {
-  topic: [{ required: true, message: '请输入知识点或主题', trigger: 'blur' }]
+  topic: [{ required: true, message: '请输入知识点或主题', trigger: 'blur' }],
 }
 
 /**
@@ -513,7 +581,7 @@ async function fetchQuestions() {
   try {
     const params = {
       page: pagination.page - 1,
-      size: pagination.size
+      size: pagination.size,
     }
 
     if (filters.keyword) params.keyword = filters.keyword
@@ -565,11 +633,11 @@ function openCreateDialog() {
       { content: '', isCorrect: false },
       { content: '', isCorrect: false },
       { content: '', isCorrect: false },
-      { content: '', isCorrect: false }
+      { content: '', isCorrect: false },
     ],
     answer: '',
     explanation: '',
-    score: 5
+    score: 5,
   })
   showEditDialog.value = true
 }
@@ -589,21 +657,21 @@ function editQuestion(row) {
     content: row.content || '',
     answer: row.answer || '',
     explanation: row.explanation || '',
-    score: row.score || 5
+    score: row.score || 5,
   })
 
   // 处理选择题选项
   if (row.options && Array.isArray(row.options)) {
-    questionForm.options = row.options.map(opt => ({
+    questionForm.options = row.options.map((opt) => ({
       content: opt.content || opt.text || '',
-      isCorrect: opt.isCorrect === true || opt.isAnswer === true
+      isCorrect: opt.isCorrect === true || opt.isAnswer === true,
     }))
   } else {
     questionForm.options = [
       { content: '', isCorrect: false },
       { content: '', isCorrect: false },
       { content: '', isCorrect: false },
-      { content: '', isCorrect: false }
+      { content: '', isCorrect: false },
     ]
   }
 
@@ -627,12 +695,12 @@ async function saveQuestion() {
         courseId: questionForm.courseId,
         content: questionForm.content,
         score: questionForm.score,
-        explanation: questionForm.explanation
+        explanation: questionForm.explanation,
       }
 
       // 根据题型处理答案
       if (isChoiceType(questionForm.type)) {
-        payload.options = questionForm.options.map(opt => opt.content)
+        payload.options = questionForm.options.map((opt) => opt.content)
         payload.answer = questionForm.options
           .map((opt, idx) => (opt.isCorrect ? optionLabels[idx] : null))
           .filter(Boolean)
@@ -667,7 +735,9 @@ async function saveQuestion() {
  */
 async function deleteQuestion(row) {
   try {
-    await ElMessageBox.confirm(`确定删除该题目？\n「${row.content.slice(0, 50)}...」`, '确认删除', { type: 'warning' })
+    await ElMessageBox.confirm(`确定删除该题目？\n「${row.content.slice(0, 50)}...」`, '确认删除', {
+      type: 'warning',
+    })
 
     await questionApi.deleteQuestion(row.id)
     ElMessage.success('删除成功')
@@ -694,7 +764,7 @@ async function generateByAI() {
         difficulty: aiForm.difficulty,
         count: aiForm.count,
         courseId: aiForm.courseId || undefined,
-        requirements: aiForm.requirements || undefined
+        requirements: aiForm.requirements || undefined,
       }
 
       const res = await questionApi.generateByAI(payload)
@@ -734,7 +804,7 @@ async function viewStats(row) {
       correctRate: null,
       avgTime: '--',
       errorCount: 0,
-      recentUsage: []
+      recentUsage: [],
     }
   }
 }
@@ -803,7 +873,7 @@ function getTypeText(type) {
     TRUE_FALSE: '判断',
     FILL_BLANK: '填空',
     SHORT_ANSWER: '简答',
-    CODING: '编程'
+    CODING: '编程',
   }
   return map[type] || type
 }
@@ -818,7 +888,7 @@ function getTypeTagType(type) {
     TRUE_FALSE: 'warning',
     FILL_BLANK: 'info',
     SHORT_ANSWER: '',
-    CODING: 'danger'
+    CODING: 'danger',
   }
   return map[type] || ''
 }
@@ -983,9 +1053,18 @@ onMounted(() => {
   border-radius: 4px;
 }
 
-.accuracy.high { color: var(--ac-success); background: rgba(139, 168, 136, 0.12); }
-.accuracy.medium { color: var(--ac-warning); background: rgba(203, 181, 138, 0.12); }
-.accuracy.low { color: var(--ac-danger); background: rgba(196, 128, 128, 0.12); }
+.accuracy.high {
+  color: var(--ac-success);
+  background: rgba(139, 168, 136, 0.12);
+}
+.accuracy.medium {
+  color: var(--ac-warning);
+  background: rgba(203, 181, 138, 0.12);
+}
+.accuracy.low {
+  color: var(--ac-danger);
+  background: rgba(196, 128, 128, 0.12);
+}
 
 /* 选项编辑器 */
 .options-editor {
@@ -1051,10 +1130,18 @@ onMounted(() => {
   color: var(--ac-text-primary);
 }
 
-.stats-item .value.primary { color: var(--ac-primary); }
-.stats-item .value.success { color: var(--ac-success); }
-.stats-item .value.warning { color: var(--ac-warning); }
-.stats-item .value.danger { color: var(--ac-danger); }
+.stats-item .value.primary {
+  color: var(--ac-primary);
+}
+.stats-item .value.success {
+  color: var(--ac-success);
+}
+.stats-item .value.warning {
+  color: var(--ac-warning);
+}
+.stats-item .value.danger {
+  color: var(--ac-danger);
+}
 
 .recent-usage h4 {
   font-size: 14px;
@@ -1066,7 +1153,7 @@ onMounted(() => {
 /* 空状态装饰 */
 .empty-deco {
   font-size: 38px;
-  filter: grayscale(.2);
+  filter: grayscale(0.2);
 }
 
 /* 响应式 */

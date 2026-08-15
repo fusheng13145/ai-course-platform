@@ -340,17 +340,17 @@ function onVideoMeta() {
   const v = videoEl.value
   if (!v) return
   videoDuration.value = v.duration || videoState.totalDuration || 0
-    if (videoState.positionSeconds > 0 && videoState.positionSeconds < v.duration) {
-      try {
-        v.currentTime = videoState.positionSeconds
-      } catch {
-        // 视频定位失败（元数据可能尚未就绪），忽略即可，仅开发环境记录
-        if (import.meta.env.DEV) {
-          // eslint-disable-next-line no-console
-          logger.warn('视频定位失败（元数据可能尚未就绪）')
-        }
+  if (videoState.positionSeconds > 0 && videoState.positionSeconds < v.duration) {
+    try {
+      v.currentTime = videoState.positionSeconds
+    } catch {
+      // 视频定位失败（元数据可能尚未就绪），忽略即可，仅开发环境记录
+      if (import.meta.env.DEV) {
+        // eslint-disable-next-line no-console
+        logger.warn('视频定位失败（元数据可能尚未就绪）')
       }
     }
+  }
 }
 
 function onVideoTime() {

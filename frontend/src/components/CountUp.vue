@@ -50,8 +50,14 @@ function animateTo(to) {
 }
 
 function dispose() {
-  if (observer) { observer.disconnect(); observer = null }
-  if (rafId) { cancelAnimationFrame(rafId); rafId = null }
+  if (observer) {
+    observer.disconnect()
+    observer = null
+  }
+  if (rafId) {
+    cancelAnimationFrame(rafId)
+    rafId = null
+  }
 }
 
 onMounted(() => {
@@ -67,7 +73,7 @@ onMounted(() => {
         dispose()
       }
     },
-    { threshold: 0.3 }
+    { threshold: 0.3 },
   )
   if (root.value) observer.observe(root.value)
 })
@@ -76,7 +82,7 @@ onBeforeUnmount(dispose)
 
 watch(
   () => props.value,
-  (v) => animateTo(v)
+  (v) => animateTo(v),
 )
 </script>
 

@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import jakarta.validation.Valid;
 
 import com.aicourse.common.ApiResponse;
@@ -24,6 +27,8 @@ import org.springframework.web.bind.annotation.*;
 @Tag(name = "知识库")
 public class RAGController {
 
+    private static final Logger log = LoggerFactory.getLogger(RAGController.class);
+
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final RAGService ragService;
@@ -32,6 +37,7 @@ public class RAGController {
         this.ragService = ragService;
     }
 
+    /** 基于知识库对指定问题进行智能问答 */
     @PostMapping("/ask")
     public ApiResponse<JsonNode> ask(
             @RequestParam String question,
@@ -40,6 +46,7 @@ public class RAGController {
         return ApiResponse.success(toJson(ragService.ask(question, courseId, topK)));
     }
 
+    /** 向指定课程的知识库新增一篇文档（教师/管理员） */
     @PostMapping("/documents")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
     public ApiResponse<JsonNode> addDocument(
@@ -49,11 +56,13 @@ public class RAGController {
         return ApiResponse.success(toJson(ragService.addDocument(courseId, documentName, content)));
     }
 
+    /** 列出课程知识库中的文档（可按课程筛选） */
     @GetMapping("/documents")
     public ApiResponse<JsonNode> listDocuments(@RequestParam(required = false) Long courseId) {
         return ApiResponse.success(toJson(ragService.listDocuments(courseId)));
     }
 
+    /** 更新知识库中指定文档的内容（教师/管理员） */
     @PutMapping("/documents/{documentId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
     public ApiResponse<JsonNode> updateDocument(
@@ -62,24 +71,28 @@ public class RAGController {
         return ApiResponse.success(toJson(ragService.updateDocument(documentId, content)));
     }
 
+    /** 删除知识库中指定文档（教师/管理员） */
     @DeleteMapping("/documents/{documentId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
     public ApiResponse<JsonNode> deleteDocument(@PathVariable Long documentId) {
         return ApiResponse.success(toJson(ragService.deleteDocument(documentId)));
     }
 
+    /** 为指定课程构建/重建向量索引（教师/管理员） */
     @PostMapping("/index/build/{courseId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
     public ApiResponse<JsonNode> buildIndex(@PathVariable Long courseId) {
         return ApiResponse.success(toJson(ragService.buildIndex(courseId)));
     }
 
+    /** 清空指定课程的向量索引（教师/管理员） */
     @DeleteMapping("/index/{courseId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
     public ApiResponse<JsonNode> clearIndex(@PathVariable Long courseId) {
         return ApiResponse.success(toJson(ragService.clearIndex(courseId)));
     }
 
+    /** 从知识库检索与查询最相关的文本片段 */
     @PostMapping("/retrieve")
     public ApiResponse<JsonNode> retrieve(
             @RequestParam String query,
@@ -99,6 +112,7 @@ public class RAGController {
         try {
             return OBJECT_MAPPER.readTree(raw);
         } catch (Exception e) {
+            log.warn("RAG响应解析为JSON失败，已回退为文本节点: {}", e.getMessage());
             return TextNode.valueOf(raw);
         }
     }

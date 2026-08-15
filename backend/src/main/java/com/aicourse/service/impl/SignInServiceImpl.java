@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.Course;
 import com.aicourse.entity.SignIn;
 import com.aicourse.entity.SignInRecord;
@@ -16,6 +19,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
+import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
@@ -25,6 +29,8 @@ import java.util.UUID;
 @Service
 public class SignInServiceImpl extends ServiceImpl<SignInMapper, SignIn> implements SignInService {
 
+    private static final Logger log = LoggerFactory.getLogger(SignInServiceImpl.class);
+
     private final CourseMapper courseMapper;
     private final SignInRecordMapper signInRecordMapper;
 
@@ -33,8 +39,12 @@ public class SignInServiceImpl extends ServiceImpl<SignInMapper, SignIn> impleme
         this.signInRecordMapper = signInRecordMapper;
     }
 
+
+    /** 创建签到 */
     @Override
     public SignIn createSignIn(SignIn signIn, Long userId, Authentication auth) {
+        log.info("创建签到");
+
         assertCourseOwner(signIn.getCourseId(), userId, auth);
         if (signIn.getType() == null || signIn.getType().isBlank()) {
             signIn.setType(SignIn.TYPE_NORMAL);
@@ -46,8 +56,12 @@ public class SignInServiceImpl extends ServiceImpl<SignInMapper, SignIn> impleme
         return signIn;
     }
 
+
+    /** 发布签到 */
     @Override
     public SignIn publish(Long id, Long userId, Authentication auth) {
+        log.info("发布签到");
+
         SignIn signIn = getDetail(id);
         assertCourseOwner(signIn.getCourseId(), userId, auth);
         if (!SignIn.STATUS_PENDING.equals(signIn.getStatus())) {
@@ -59,6 +73,8 @@ public class SignInServiceImpl extends ServiceImpl<SignInMapper, SignIn> impleme
         return signIn;
     }
 
+
+    /** 关闭签到 */
     @Override
     public SignIn close(Long id, Long userId, Authentication auth) {
         SignIn signIn = requireOngoingCheck(id, userId, auth, true);
@@ -68,6 +84,8 @@ public class SignInServiceImpl extends ServiceImpl<SignInMapper, SignIn> impleme
         return signIn;
     }
 
+
+    /** 查询签到 */
     @Override
     public SignIn getDetail(Long id) {
         SignIn signIn = this.getById(id);
@@ -77,6 +95,8 @@ public class SignInServiceImpl extends ServiceImpl<SignInMapper, SignIn> impleme
         return signIn;
     }
 
+
+    /** 查询签到 */
     @Override
     public List<SignIn> listByCourse(Long courseId, Long userId, Authentication auth) {
         assertCourseOwner(courseId, userId, auth);
@@ -86,6 +106,8 @@ public class SignInServiceImpl extends ServiceImpl<SignInMapper, SignIn> impleme
         return this.list(qw);
     }
 
+
+    /** 签到相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SignInRecord sign(Long id, SignInRecord record, Long userId, String ip, String ua) {
@@ -130,6 +152,8 @@ public class SignInServiceImpl extends ServiceImpl<SignInMapper, SignIn> impleme
         return record;
     }
 
+
+    /** 查询签到 */
     @Override
     public List<SignInRecord> listRecords(Long id, Long userId, Authentication auth) {
         SignIn signIn = getDetail(id);
@@ -140,6 +164,8 @@ public class SignInServiceImpl extends ServiceImpl<SignInMapper, SignIn> impleme
         return signInRecordMapper.selectList(qw);
     }
 
+
+    /** 签到相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public SignInRecord manualMark(Long id, Long studentId, String status, Long userId, Authentication auth) {
@@ -161,12 +187,25 @@ public class SignInServiceImpl extends ServiceImpl<SignInMapper, SignIn> impleme
         return record;
     }
 
+
+    /** 签到相关操作 */
     @Override
     public SignInRecord myRecord(Long id, Long userId) {
         LambdaQueryWrapper<SignInRecord> qw = new LambdaQueryWrapper<SignInRecord>()
                 .eq(SignInRecord::getSignInId, id)
                 .eq(SignInRecord::getStudentId, userId);
         return signInRecordMapper.selectOne(qw);
+    }
+
+
+    /** 查询签到 */
+    @Override
+    public List<SignInRecord> listMyRecords(Long userId) {
+        if (userId == null) {
+            return Collections.emptyList();
+        }
+        return signInRecordMapper.selectList(new LambdaQueryWrapper<SignInRecord>()
+                .eq(SignInRecord::getStudentId, userId));
     }
 
     // ===================== 私有辅助 =====================

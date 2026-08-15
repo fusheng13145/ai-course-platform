@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.FileUploadSession;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.FileUploadSessionMapper;
@@ -26,8 +29,18 @@ import java.util.UUID;
 @Service
 public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionMapper, FileUploadSession> implements FileUploadSessionService {
 
+    private static final Logger log = LoggerFactory.getLogger(FileUploadSessionServiceImpl.class);
+
     /** 上传会话默认过期时间：24小时 */
     private static final int SESSION_EXPIRE_HOURS = 24;
+
+    /**
+     * 单文件总大小上限（字节，默认 2GB）。
+     * 修复：原仅依赖 servlet.multipart 单次 50MB 限制，分片可无限累积拼出超大文件占满磁盘。
+     */
+    private static final long MAX_FILE_SIZE_BYTES = 2L * 1024 * 1024 * 1024;
+    /** 总分片数上限（默认 4096），防 totalChunks 声明巨大值被无限推进 */
+    private static final int MAX_TOTAL_CHUNKS = 4096;
 
     /** 允许上传的文件扩展名白名单（小写） */
     private static final Set<String> ALLOWED_EXTENSIONS = Set.of(
@@ -71,8 +84,17 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
     @Override
     @Transactional(rollbackFor = Exception.class)
     public FileUploadSession createUploadSession(String filename, Long fileSize, Long totalChunks, Long uploaderId) {
+        log.info("创建文件上传会话");
+
         // 安全清洗：防路径穿越 + 扩展名白名单
         String safeFilename = sanitizeFilename(filename);
+        // 总大小/总分片数上限（修复：防分片绕过单次 50MB 限制无限累积拼超大文件）
+        if (fileSize != null && fileSize > MAX_FILE_SIZE_BYTES) {
+            throw new BusinessException("文件过大，单文件上限 2GB");
+        }
+        if (totalChunks != null && totalChunks > MAX_TOTAL_CHUNKS) {
+            throw new BusinessException("总分片数超出上限（最多 4096 片）");
+        }
         // 生成唯一上传路径：uploads/{年}/{月}/{uuid}_{安全文件名}
         LocalDate now = LocalDate.now();
         String uuid = UUID.randomUUID().toString().replace("-", "");
@@ -93,16 +115,29 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
     }
 
     /**
+     * 归属校验（修复 P1-1 IDOR）：会话必须属于当前登录用户，否则 403 拒绝。
+     */
+    private void assertOwnership(FileUploadSession session, Long uploaderId) {
+        if (session.getUploaderId() == null || uploaderId == null
+                || !session.getUploaderId().equals(uploaderId)) {
+            throw new BusinessException(403, "无权操作该上传会话");
+        }
+    }
+
+    /**
      * 记录单个分片上传完成
      * 已上传分片数+1
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public FileUploadSession uploadChunk(Long sessionId, Integer chunkIndex) {
+    public FileUploadSession uploadChunk(Long sessionId, Integer chunkIndex, Long uploaderId) {
+        log.info("上传文件上传会话");
+
         FileUploadSession session = this.getById(sessionId);
         if (session == null) {
             throw new BusinessException("上传会话不存在");
         }
+        assertOwnership(session, uploaderId);
         if (!"UPLOADING".equals(session.getStatus())) {
             throw new BusinessException("当前会话状态不允许上传分片");
         }
@@ -118,11 +153,14 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public FileUploadSession mergeChunks(Long sessionId) {
+    public FileUploadSession mergeChunks(Long sessionId, Long uploaderId) {
+        log.info("合并文件上传会话");
+
         FileUploadSession session = this.getById(sessionId);
         if (session == null) {
             throw new BusinessException("上传会话不存在");
         }
+        assertOwnership(session, uploaderId);
         if (!"UPLOADING".equals(session.getStatus())) {
             throw new BusinessException("当前会话状态不允许合并");
         }
@@ -142,11 +180,12 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
      * 返回 uploaded/total/percentage
      */
     @Override
-    public Map<String, Object> getUploadProgress(Long sessionId) {
+    public Map<String, Object> getUploadProgress(Long sessionId, Long uploaderId) {
         FileUploadSession session = this.getById(sessionId);
         if (session == null) {
             throw new BusinessException("上传会话不存在");
         }
+        assertOwnership(session, uploaderId);
         int uploaded = session.getUploadedChunks() != null ? session.getUploadedChunks() : 0;
         int total = session.getTotalChunks() != null ? session.getTotalChunks() : 0;
         double percentage = total > 0 ? Math.round((double) uploaded / total * 10000) / 100.0 : 0.0;
@@ -164,11 +203,14 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public void cancelUpload(Long sessionId) {
+    public void cancelUpload(Long sessionId, Long uploaderId) {
+        log.info("取消文件上传会话");
+
         FileUploadSession session = this.getById(sessionId);
         if (session == null) {
             throw new BusinessException("上传会话不存在");
         }
+        assertOwnership(session, uploaderId);
         if ("COMPLETED".equals(session.getStatus()) || "CANCELLED".equals(session.getStatus())) {
             throw new BusinessException("该会话已完成或已取消，无法再次操作");
         }

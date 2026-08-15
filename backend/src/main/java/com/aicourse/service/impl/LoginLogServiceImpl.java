@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.LoginLog;
 import com.aicourse.mapper.LoginLogMapper;
 import com.aicourse.service.LoginLogService;
@@ -21,6 +24,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class LoginLogServiceImpl extends ServiceImpl<LoginLogMapper, LoginLog> implements LoginLogService {
+
+    private static final Logger log = LoggerFactory.getLogger(LoginLogServiceImpl.class);
 
     /**
      * 获取用户登录历史（分页）
@@ -173,6 +178,8 @@ public class LoginLogServiceImpl extends ServiceImpl<LoginLogMapper, LoginLog> i
                 current = current.plusDays(1);
             }
         } catch (Exception e) {
+            log.error("查询登录日志失败: {}", e.getMessage(), e);
+
             // 异常时返回空趋势数据
             trends.clear();
         }

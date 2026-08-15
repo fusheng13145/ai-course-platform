@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
@@ -28,6 +31,8 @@ import java.util.Map;
 @RequestMapping("/courses")
 @Tag(name = "课程管理", description = "提供课程的新增、查询、修改、删除、审批、选课统计等功能")
 public class CourseController {
+
+    private static final Logger log = LoggerFactory.getLogger(CourseController.class);
 
     private final CourseService courseService;
     private final CourseEnrollmentService enrollmentService;

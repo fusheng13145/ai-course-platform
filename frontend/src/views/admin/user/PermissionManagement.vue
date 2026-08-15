@@ -6,103 +6,136 @@
       icon="shield"
       icon-bg="accent"
     >
-      <el-button type="primary" @click="openAddDialog"><el-icon><Plus /></el-icon>添加权限</el-button>
+      <el-button type="primary" @click="openAddDialog"
+        ><el-icon><Plus /></el-icon>添加权限</el-button
+      >
     </PageHeader>
 
     <div class="stat-grid">
-      <StatCard label="总权限数" :value="permissionStats[0].value" icon="shield" tone="var(--accent-soft)" tone-color="var(--accent)" />
-      <StatCard label="已启用" :value="permissionStats[1].value" icon="check" tone="var(--ok-soft)" tone-color="var(--ok)" />
-      <StatCard label="已停用" :value="permissionStats[2].value" icon="warn" tone="var(--warn-soft)" tone-color="var(--warn)" />
-      <StatCard label="管理员专用" :value="permissionStats[3].value" icon="lock" tone="var(--info-soft)" tone-color="var(--info)" />
+      <StatCard
+        label="总权限数"
+        :value="permissionStats[0].value"
+        icon="shield"
+        tone="var(--accent-soft)"
+        tone-color="var(--accent)"
+      />
+      <StatCard
+        label="已启用"
+        :value="permissionStats[1].value"
+        icon="check"
+        tone="var(--ok-soft)"
+        tone-color="var(--ok)"
+      />
+      <StatCard
+        label="已停用"
+        :value="permissionStats[2].value"
+        icon="warn"
+        tone="var(--warn-soft)"
+        tone-color="var(--warn)"
+      />
+      <StatCard
+        label="管理员专用"
+        :value="permissionStats[3].value"
+        icon="lock"
+        tone="var(--info-soft)"
+        tone-color="var(--info)"
+      />
     </div>
 
     <!-- 工具栏 -->
     <section class="l1-card">
       <div class="l1-head">
-        <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        <span class="l1-ico" style="background: var(--accent-soft); color: var(--accent)">
+          <svg
+            viewBox="0 0 24 24"
+            width="17"
+            height="17"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.9"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
         </span>
-        <div><div class="l1-title">权限列表</div><div class="l1-sub">按角色筛选，维护菜单与按钮级权限</div></div>
+        <div>
+          <div class="l1-title">权限列表</div>
+          <div class="l1-sub">按角色筛选，维护菜单与按钮级权限</div>
+        </div>
       </div>
       <div class="l1-body">
-    <div class="table-toolbar">
-      <div class="toolbar-right">
-        <el-select v-model="roleFilter" placeholder="角色筛选" clearable style="width:140px">
-          <el-option label="全部角色" value="" />
-          <el-option label="管理员" value="ADMIN" />
-          <el-option label="教师" value="TEACHER" />
-          <el-option label="学生" value="STUDENT" />
-        </el-select>
-        <el-input
-          v-model="searchKeyword"
-          placeholder="搜索菜单/按钮标识"
-          clearable
-          style="width:220px"
-          :prefix-icon="Search"
-        />
-      </div>
-    </div>
+        <div class="table-toolbar">
+          <div class="toolbar-right">
+            <el-select v-model="roleFilter" placeholder="角色筛选" clearable style="width: 140px">
+              <el-option label="全部角色" value="" />
+              <el-option label="管理员" value="ADMIN" />
+              <el-option label="教师" value="TEACHER" />
+              <el-option label="学生" value="STUDENT" />
+            </el-select>
+            <el-input
+              v-model="searchKeyword"
+              placeholder="搜索菜单/按钮标识"
+              clearable
+              style="width: 220px"
+              :prefix-icon="Search"
+            />
+          </div>
+        </div>
 
-    <!-- 权限列表表格 -->
-    <div v-loading="loading" class="content-card">
-      <el-table
-        :data="filteredList"
-        style="width:100%"
-        empty-text="暂无权限数据"
-      >
-        <el-table-column prop="id" label="ID" width="70" />
-        <el-table-column prop="role" label="角色" width="110">
-          <template #default="{ row }">
-            <el-tag
-              :type="roleTagType(row.role)"
-              size="small"
-              effect="light"
-            >{{ roleLabel(row.role) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="menuKey" label="菜单权限名" min-width="160">
-          <template #default="{ row }">
-            <span class="menu-key-text">{{ row.menuKey || '-' }}</span>
-          </template>
-        </el-table-column>
-        <el-table-column prop="buttonKey" label="按钮权限标识" min-width="150">
-          <template #default="{ row }">
-            <code class="button-key-code">{{ row.buttonKey || '-' }}</code>
-          </template>
-        </el-table-column>
-        <el-table-column prop="isActive" label="状态" width="90">
-          <template #default="{ row }">
-            <el-tag
-              :type="row.isActive ? 'success' : 'info'"
-              size="small"
-              effect="light"
-            >{{ row.isActive ? '启用' : '停用' }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="createdAt" label="创建时间" width="170">
-          <template #default="{ row }">
-            {{ formatTime(row.createdAt) }}
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="220" fixed="right">
-          <template #default="{ row }">
-            <el-button text type="primary" @click="openEditDialog(row)">编辑</el-button>
-            <el-button
-              text
-              :type="row.isActive ? 'warning' : 'success'"
-              @click="handleToggle(row)"
-            >{{ row.isActive ? '停用' : '启用' }}</el-button>
-            <el-button text type="danger" @click="handleDelete(row)">删除</el-button>
-          </template>
-        </el-table-column>
-        <!-- 空状态 -->
-        <template #empty>
-          <el-empty description="暂无权限数据">
-            <template #image><div class="empty-deco">🔐</div></template>
-          </el-empty>
-        </template>
-      </el-table>
-    </div>
+        <!-- 权限列表表格 -->
+        <div v-loading="loading" class="content-card">
+          <el-table :data="filteredList" style="width: 100%" empty-text="暂无权限数据">
+            <el-table-column prop="id" label="ID" width="70" />
+            <el-table-column prop="role" label="角色" width="110">
+              <template #default="{ row }">
+                <el-tag :type="roleTagType(row.role)" size="small" effect="light">{{
+                  roleLabel(row.role)
+                }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="menuKey" label="菜单权限名" min-width="160">
+              <template #default="{ row }">
+                <span class="menu-key-text">{{ row.menuKey || '-' }}</span>
+              </template>
+            </el-table-column>
+            <el-table-column prop="buttonKey" label="按钮权限标识" min-width="150">
+              <template #default="{ row }">
+                <code class="button-key-code">{{ row.buttonKey || '-' }}</code>
+              </template>
+            </el-table-column>
+            <el-table-column prop="isActive" label="状态" width="90">
+              <template #default="{ row }">
+                <el-tag :type="row.isActive ? 'success' : 'info'" size="small" effect="light">{{
+                  row.isActive ? '启用' : '停用'
+                }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="createdAt" label="创建时间" width="170">
+              <template #default="{ row }">
+                {{ formatTime(row.createdAt) }}
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="220" fixed="right">
+              <template #default="{ row }">
+                <el-button text type="primary" @click="openEditDialog(row)">编辑</el-button>
+                <el-button
+                  text
+                  :type="row.isActive ? 'warning' : 'success'"
+                  @click="handleToggle(row)"
+                  >{{ row.isActive ? '停用' : '启用' }}</el-button
+                >
+                <el-button text type="danger" @click="handleDelete(row)">删除</el-button>
+              </template>
+            </el-table-column>
+            <!-- 空状态 -->
+            <template #empty>
+              <el-empty description="暂无权限数据">
+                <template #image><div class="empty-deco">🔐</div></template>
+              </el-empty>
+            </template>
+          </el-table>
+        </div>
       </div>
     </section>
 
@@ -115,7 +148,7 @@
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="110px">
         <el-form-item label="角色" prop="role">
-          <el-select v-model="form.role" placeholder="请选择角色" style="width:100%">
+          <el-select v-model="form.role" placeholder="请选择角色" style="width: 100%">
             <el-option label="管理员 (ADMIN)" value="ADMIN" />
             <el-option label="教师 (TEACHER)" value="TEACHER" />
             <el-option label="学生 (STUDENT)" value="STUDENT" />
@@ -181,13 +214,13 @@ const form = reactive({
   menuKey: '',
   buttonKey: '',
   description: '',
-  isActive: true
+  isActive: true,
 })
 
 // 表单校验规则
 const rules = {
   role: [{ required: true, message: '请选择角色', trigger: 'change' }],
-  menuKey: [{ required: true, message: '请输入菜单权限 Key', trigger: 'blur' }]
+  menuKey: [{ required: true, message: '请输入菜单权限 Key', trigger: 'blur' }],
 }
 
 /* ==================== 统计数据 ==================== */
@@ -197,9 +230,9 @@ const permissionStats = computed(() => {
   const list = permissionList.value
   return [
     { label: '总权限数', value: list.length, class: '' },
-    { label: '已启用', value: list.filter(p => p.isActive).length, class: 'active' },
-    { label: '已停用', value: list.filter(p => !p.isActive).length, class: 'inactive' },
-    { label: '管理员专用', value: list.filter(p => p.role === 'ADMIN').length, class: 'admin' }
+    { label: '已启用', value: list.filter((p) => p.isActive).length, class: 'active' },
+    { label: '已停用', value: list.filter((p) => !p.isActive).length, class: 'inactive' },
+    { label: '管理员专用', value: list.filter((p) => p.role === 'ADMIN').length, class: 'admin' },
   ]
 })
 
@@ -210,15 +243,15 @@ const filteredList = computed(() => {
   let list = permissionList.value
   // 角色筛选
   if (roleFilter.value) {
-    list = list.filter(p => p.role === roleFilter.value)
+    list = list.filter((p) => p.role === roleFilter.value)
   }
   // 关键词搜索（匹配 menuKey 或 buttonKey）
   if (searchKeyword.value) {
     const q = searchKeyword.value.toLowerCase()
     list = list.filter(
-      p =>
+      (p) =>
         (p.menuKey && p.menuKey.toLowerCase().includes(q)) ||
-        (p.buttonKey && p.buttonKey.toLowerCase().includes(q))
+        (p.buttonKey && p.buttonKey.toLowerCase().includes(q)),
     )
   }
   return list
@@ -249,7 +282,7 @@ async function fetchPermissionList() {
   loading.value = true
   try {
     const res = await permissionApi.getAllPermissions()
-        const rawData = res.data?.records || res.data?.list || res.data || res
+    const rawData = res.data?.records || res.data?.list || res.data || res
     permissionList.value = Array.isArray(rawData) ? rawData : []
   } catch (e) {
     console.error('获取权限列表失败:', e)
@@ -278,7 +311,7 @@ function openEditDialog(row) {
     menuKey: row.menuKey,
     buttonKey: row.buttonKey || '',
     description: row.description || '',
-    isActive: row.isActive ?? true
+    isActive: row.isActive ?? true,
   })
   dialogVisible.value = true
 }
@@ -309,13 +342,13 @@ async function handleSubmit() {
         menuKey: form.menuKey,
         buttonKey: form.buttonKey,
         description: form.description,
-        isActive: form.isActive
+        isActive: form.isActive,
       }
       if (isEdit.value) {
         // 编辑模式 — 调用更新接口
         await permissionApi.updatePermission(form.id, payload)
         // 更新本地列表中的对应项
-        const idx = permissionList.value.findIndex(p => p.id === form.id)
+        const idx = permissionList.value.findIndex((p) => p.id === form.id)
         if (idx !== -1) {
           Object.assign(permissionList.value[idx], payload)
         }
@@ -360,7 +393,7 @@ function handleDelete(row) {
     .then(async () => {
       try {
         await permissionApi.deletePermission(row.id)
-        permissionList.value = permissionList.value.filter(p => p.id !== row.id)
+        permissionList.value = permissionList.value.filter((p) => p.id !== row.id)
         ElMessage.success('删除成功')
       } catch (e) {
         console.error('删除失败:', e)
@@ -431,9 +464,15 @@ function handleDelete(row) {
   color: var(--ac-text-primary);
 }
 
-.stat-mini-card.active .value   { color: var(--ac-success); }
-.stat-mini-card.inactive .value { color: var(--ac-warning); }
-.stat-mini-card.admin .value    { color: var(--ac-danger); }
+.stat-mini-card.active .value {
+  color: var(--ac-success);
+}
+.stat-mini-card.inactive .value {
+  color: var(--ac-warning);
+}
+.stat-mini-card.admin .value {
+  color: var(--ac-danger);
+}
 
 /* 工具栏 */
 .table-toolbar {
@@ -494,7 +533,7 @@ function handleDelete(row) {
 /* 空状态装饰 */
 .empty-deco {
   font-size: 38px;
-  filter: grayscale(.2);
+  filter: grayscale(0.2);
 }
 
 /* 响应式适配 */

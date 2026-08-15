@@ -3,7 +3,6 @@ import com.aicourse.controller.KnowledgeController;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.service.AIService;
-import com.aicourse.service.KnowledgeGraphService;
 import com.aicourse.service.KnowledgePointRelationService;
 import com.aicourse.service.KnowledgePointService;
 import org.junit.jupiter.api.DisplayName;
@@ -34,8 +33,6 @@ class KnowledgeControllerTest extends ControllerTestBase {
     private KnowledgePointService knowledgePointService;
     @MockitoBean
     private KnowledgePointRelationService relationService;
-    @MockitoBean
-    private KnowledgeGraphService knowledgeGraphService;
     @MockitoBean
     private AIService aiService;
 
@@ -493,26 +490,6 @@ class KnowledgeControllerTest extends ControllerTestBase {
                 .andExpect(status().isUnauthorized());
     }
 
-    @Test
-    @DisplayName("POST /knowledge/path/plan - 返回200且data为规划路径列表")
-    void planPath_authorized_returns_success() throws Exception {
-        // 路径规划（BFS）已下沉至 KnowledgeGraphService，Controller 仅做委托
-        when(knowledgeGraphService.planLearningPath(anyLong(), anyLong()))
-                .thenReturn(List.of(samplePoint(), samplePoint()));
-        mockMvc.perform(post("/knowledge/path/plan").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"startPointId\":1,\"targetPointId\":2}").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data").isArray());
-        verify(knowledgeGraphService).planLearningPath(1L, 2L);
-    }
-
-    @Test
-    @DisplayName("POST /knowledge/path/plan - 未认证返回401")
-    void planPath_unauthorized_returns_401() throws Exception {
-        mockMvc.perform(post("/knowledge/path/plan").contentType(MediaType.APPLICATION_JSON).content("{}"))
-                .andExpect(status().isUnauthorized());
-    }
 
     @Test
     @DisplayName("POST /knowledge/extract - TEACHER角色返回200且委托AI抽取")
@@ -544,57 +521,4 @@ class KnowledgeControllerTest extends ControllerTestBase {
                 .andExpect(status().isForbidden());
     }
 
-    @Test
-    @DisplayName("GET /knowledge/graph/course/1 - 返回200且data透传图谱JSON")
-    void getGraphByCourse_authorized_returns_success() throws Exception {
-        when(knowledgeGraphService.getGraph(any(), any())).thenReturn("{\"nodes\":[]}");
-        mockMvc.perform(get("/knowledge/graph/course/1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data").value("{\"nodes\":[]}"));
-        verify(knowledgeGraphService).getGraph(eq(1L), isNull());
-    }
-
-    @Test
-    @DisplayName("GET /knowledge/graph/course/1 - 未认证返回401")
-    void getGraphByCourse_unauthorized_returns_401() throws Exception {
-        mockMvc.perform(get("/knowledge/graph/course/1"))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    @DisplayName("GET /knowledge/graph/nodes/1 - 返回200且data透传节点JSON")
-    void getNodeDetail_authorized_returns_success() throws Exception {
-        when(knowledgeGraphService.getGraph(any(), any())).thenReturn("{\"id\":1}");
-        mockMvc.perform(get("/knowledge/graph/nodes/1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data").value("{\"id\":1}"));
-        verify(knowledgeGraphService).getGraph(isNull(), eq(1L));
-    }
-
-    @Test
-    @DisplayName("GET /knowledge/graph/nodes/1 - 未认证返回401")
-    void getNodeDetail_unauthorized_returns_401() throws Exception {
-        mockMvc.perform(get("/knowledge/graph/nodes/1"))
-                .andExpect(status().isUnauthorized());
-    }
-
-    @Test
-    @DisplayName("GET /knowledge/graph/nodes/1/relations?depth=1 - 返回200且data透传关联JSON")
-    void getNodeRelations_authorized_returns_success() throws Exception {
-        when(knowledgeGraphService.getNodeRelations(any(), anyInt())).thenReturn("{\"relations\":[]}");
-        mockMvc.perform(get("/knowledge/graph/nodes/1/relations?depth=1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data").value("{\"relations\":[]}"));
-        verify(knowledgeGraphService).getNodeRelations(eq(1L), eq(1));
-    }
-
-    @Test
-    @DisplayName("GET /knowledge/graph/nodes/1/relations?depth=1 - 未认证返回401")
-    void getNodeRelations_unauthorized_returns_401() throws Exception {
-        mockMvc.perform(get("/knowledge/graph/nodes/1/relations?depth=1"))
-                .andExpect(status().isUnauthorized());
-    }
 }

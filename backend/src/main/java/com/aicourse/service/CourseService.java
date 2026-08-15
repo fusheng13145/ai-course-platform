@@ -3,6 +3,10 @@ package com.aicourse.service;
 import com.aicourse.entity.Course;
 import com.baomidou.mybatisplus.extension.service.IService;
 
+
+/**
+ * 课程接口：相关业务逻辑入口，提供增删改查与编排能力。
+ */
 public interface CourseService extends IService<Course> {
 
     /**

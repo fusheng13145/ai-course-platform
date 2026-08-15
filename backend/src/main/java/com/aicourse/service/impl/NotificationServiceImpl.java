@@ -1,5 +1,6 @@
 package com.aicourse.service.impl;
 
+
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.Notification;
 import com.aicourse.exception.BusinessException;
@@ -29,6 +30,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @Slf4j
 public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Notification> implements NotificationService {
+
 
     private final CourseEnrollmentService courseEnrollmentService;
     private final WebSocketSessionManager webSocketSessionManager;
@@ -71,6 +73,8 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
     public Notification sendNotification(Long userId, String title, String content, String category,
                                         String type, String priority, String actionUrl, String data,
                                         Long relatedId, String relatedType) {
+                                            log.info("发送通知");
+
         Notification notification = buildNotification(userId, title, content, category, type, priority, actionUrl, data, relatedId, relatedType);
         this.save(notification);
         pushRealtime(notification);
@@ -204,6 +208,8 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteNotification(Long notificationId, Long userId) {
+        log.info("删除通知");
+
         Notification notification = this.getById(notificationId);
         if (notification == null) {
             throw new BusinessException("通知不存在");

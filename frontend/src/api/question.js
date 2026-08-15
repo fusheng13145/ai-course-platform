@@ -27,4 +27,7 @@ export const getQuestionStats = id => request.get(`/questions/${id}/stats`)
 /** 获取易错题目 */
 export const getErrorProne = params => request.get('/questions/error-prone', { params })
 
+/**
+ * 默认导出对象：模块/组件配置与导出内容
+ */
 export default { getQuestionList, getQuestionById, createQuestion, updateQuestion, deleteQuestion, generateByAI, reviewQuestion, copyQuestion, searchQuestions, randomSelect, getByKnowledgePoint, getQuestionStats, getErrorProne }

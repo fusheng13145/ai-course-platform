@@ -20,6 +20,9 @@ export const getEvent = (eventId) => request.get(`/proctor/events/${eventId}`)
 export const reviewEvent = (eventId, data) =>
   request.post(`/proctor/events/${eventId}/review`, data)
 
+/**
+ * 默认导出对象：模块/组件配置与导出内容
+ */
 export default {
   getSessionEvents,
   getStudentSession,

@@ -9,6 +9,8 @@ import org.springframework.util.StringUtils;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * JWT 工具类
@@ -17,10 +19,17 @@ import java.util.Date;
 @Component
 public class JwtUtils {
 
+    private static final Logger log = LoggerFactory.getLogger(JwtUtils.class);
+
     /** 访问令牌 Cookie 名（HttpOnly，JS 不可读，本质消除 XSS 窃取令牌风险） */
     public static final String ACCESS_TOKEN_COOKIE = "ai_course_token";
     /** 刷新令牌 Cookie 名（HttpOnly，path 收窄至刷新端点，进一步降低暴露面） */
     public static final String REFRESH_TOKEN_COOKIE = "ai_course_refresh";
+
+    /** 令牌签发方（iss）——绑定本应用，防止令牌被跨服务/跨系统交叉接受 */
+    private static final String ISSUER = "ai-course-platform";
+    /** 令牌受众（aud）——绑定本应用 Web 端 */
+    private static final String AUDIENCE = "ai-course-platform-web";
 
     /** JWT 加密密钥 */
     private final SecretKey secretKey;
@@ -60,6 +69,8 @@ public class JwtUtils {
                 .subject(userId.toString())
                 .claim("username", username)
                 .claim("role", role)
+                .issuer(ISSUER)
+                .audience().add(AUDIENCE).and()
                 .issuedAt(now)
                 .expiration(expirationDate)
                 .signWith(secretKey)
@@ -133,12 +144,16 @@ public class JwtUtils {
 
     /**
      * 解析 Token 获取载荷信息
+     * 校验签名、有效期，并强制校验 iss/aud（修复：旧实现仅验签，令牌可被
+     * 其它使用同密钥的系统接受；现绑定本应用签发方与受众，跨系统令牌一律拒绝）。
      * @param token JWT令牌
      * @return 载荷对象 Claims
      */
     public Claims getClaims(String token) {
         return Jwts.parser()
                 .verifyWith(secretKey)
+                .requireIssuer(ISSUER)
+                .requireAudience(AUDIENCE)
                 .build()
                 .parseSignedClaims(token)
                 .getPayload();
@@ -176,6 +191,7 @@ public class JwtUtils {
             }
             return hex.toString();
         } catch (java.security.NoSuchAlgorithmException e) {
+            log.error("计算 SHA-256 摘要失败: {}", e.getMessage(), e);
             throw new IllegalStateException("SHA-256 算法不可用", e);
         }
     }

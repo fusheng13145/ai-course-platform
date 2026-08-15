@@ -1,8 +1,11 @@
 package com.aicourse.config;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
+import jakarta.annotation.PostConstruct;
 import java.util.List;
 
 /**
@@ -15,7 +18,15 @@ import java.util.List;
 @ConfigurationProperties(prefix = "cors")
 public class CorsProperties {
 
+    private static final Logger log = LoggerFactory.getLogger(CorsProperties.class);
+
     private List<String> allowedOrigins;
+
+    @PostConstruct
+    public void init() {
+        int size = allowedOrigins == null ? 0 : allowedOrigins.size();
+        log.debug("CORS allowed-origins 已绑定，共 {} 条: {}", size, allowedOrigins);
+    }
 
     public List<String> getAllowedOrigins() {
         return allowedOrigins;

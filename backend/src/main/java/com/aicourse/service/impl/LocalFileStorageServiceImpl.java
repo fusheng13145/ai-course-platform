@@ -1,5 +1,6 @@
 package com.aicourse.service.impl;
 
+
 import com.aicourse.service.FileStorageService;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,9 +25,12 @@ import java.nio.file.Paths;
 @Service
 public class LocalFileStorageServiceImpl implements FileStorageService {
 
+
     @Value("${file.upload-dir:uploads/}")
     private String uploadDir;
 
+
+    /** 上传本地文件存储 */
     @Override
     public String upload(String objectName, InputStream inputStream, String contentType, long size) {
         Path targetPath = Paths.get(uploadDir, objectName);
@@ -48,6 +52,8 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
         }
     }
 
+
+    /** 下载本地文件存储 */
     @Override
     public InputStream download(String objectName) {
         File file = new File(uploadDir, objectName);
@@ -63,6 +69,8 @@ public class LocalFileStorageServiceImpl implements FileStorageService {
         }
     }
 
+
+    /** 删除本地文件存储 */
     @Override
     public boolean delete(String objectName) {
         File file = new File(uploadDir, objectName);

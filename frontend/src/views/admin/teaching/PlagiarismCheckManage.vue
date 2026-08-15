@@ -21,150 +21,167 @@
     <!-- 上半部分：查重任务列表 -->
     <section class="l1-card">
       <div class="l1-head">
-        <span class="l1-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg></span>
+        <span class="l1-ico"
+          ><svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" /></svg
+        ></span>
         <div>
           <h3 class="l1-title">查重任务与匹配</h3>
         </div>
       </div>
       <div class="l1-body">
-    <div class="section-header">
-      <h3 class="section-title">查重任务</h3>
-    </div>
+        <div class="section-header">
+          <h3 class="section-title">查重任务</h3>
+        </div>
 
-    <div class="content-card">
-      <el-table v-loading="loadingTasks" :data="taskList" style="width:100%" stripe>
-        <el-table-column prop="id" label="任务ID" width="90" />
-        <el-table-column prop="assignmentTitle" label="作业名称" min-width="180" show-overflow-tooltip />
-        <el-table-column prop="status" label="状态" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag :type="statusTagType(row.status)" size="small" effect="light">
-              {{ statusText(row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="totalSubmissions" label="提交数" width="80" align="center" />
-        <el-table-column prop="matchCount" label="匹配数" width="80" align="center" />
-        <el-table-column prop="avgSimilarity" label="平均相似度" width="120" align="center">
-          <template #default="{ row }">
-            <el-progress
-              :percentage="Math.round((row.avgSimilarity ?? 0) * 100)"
-              :color="similarityColor(row.avgSimilarity)"
-              :stroke-width="14"
-              :text-inside="true"
+        <div class="content-card">
+          <el-table v-loading="loadingTasks" :data="taskList" style="width: 100%" stripe>
+            <el-table-column prop="id" label="任务ID" width="90" />
+            <el-table-column
+              prop="assignmentTitle"
+              label="作业名称"
+              min-width="180"
+              show-overflow-tooltip
             />
-          </template>
-        </el-table-column>
-        <el-table-column prop="createdAt" label="创建时间" width="170" />
-        <el-table-column label="操作" width="180" fixed="right">
-          <template #default="{ row }">
-            <el-button
-              text
-              type="warning"
-              size="small"
-              :disabled="row.status === 'RUNNING'"
-              @click="handleExecute(row)"
-            >
-              执行查重
-            </el-button>
-            <el-button
-              text
-              type="primary"
-              size="small"
-              @click="handleViewDetail(row)"
-            >
-              查看详情
-            </el-button>
-          </template>
-        </el-table-column>
-        <template #empty>
-          <el-empty description="暂无查重任务">
-            <template #image><div class="empty-deco">🔍</div></template>
-          </el-empty>
-        </template>
-      </el-table>
+            <el-table-column prop="status" label="状态" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag :type="statusTagType(row.status)" size="small" effect="light">
+                  {{ statusText(row.status) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="totalSubmissions" label="提交数" width="80" align="center" />
+            <el-table-column prop="matchCount" label="匹配数" width="80" align="center" />
+            <el-table-column prop="avgSimilarity" label="平均相似度" width="120" align="center">
+              <template #default="{ row }">
+                <el-progress
+                  :percentage="Math.round((row.avgSimilarity ?? 0) * 100)"
+                  :color="similarityColor(row.avgSimilarity)"
+                  :stroke-width="14"
+                  :text-inside="true"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column prop="createdAt" label="创建时间" width="170" />
+            <el-table-column label="操作" width="180" fixed="right">
+              <template #default="{ row }">
+                <el-button
+                  text
+                  type="warning"
+                  size="small"
+                  :disabled="row.status === 'RUNNING'"
+                  @click="handleExecute(row)"
+                >
+                  执行查重
+                </el-button>
+                <el-button text type="primary" size="small" @click="handleViewDetail(row)">
+                  查看详情
+                </el-button>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <el-empty description="暂无查重任务">
+                <template #image><div class="empty-deco">🔍</div></template>
+              </el-empty>
+            </template>
+          </el-table>
 
-      <div class="pagination-wrapper">
-        <el-pagination
-          v-model:current-page="taskPage.page"
-          v-model:page-size="taskPage.size"
-          :total="taskPage.total"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next"
-          background
-          @size-change="fetchTaskList"
-          @current-change="fetchTaskList"
-        />
-      </div>
-    </div>
-
-    <!-- 下半部分：查重匹配详情 -->
-    <div v-if="selectedTask" class="section-header" style="margin-top: 24px">
-      <h3 class="section-title">
-        查重匹配详情
-        <span class="section-subtitle">
-          — 任务 #{{ selectedTask.id }}
-          <template v-if="selectedTask.assignmentTitle">（{{ selectedTask.assignmentTitle }}）</template>
-        </span>
-      </h3>
-    </div>
-
-    <div v-if="selectedTask" class="content-card">
-      <el-table v-loading="loadingMatches" :data="matchList" style="width:100%" stripe>
-        <el-table-column prop="studentA" label="学生A" min-width="160" show-overflow-tooltip />
-        <el-table-column prop="studentB" label="学生B" min-width="160" show-overflow-tooltip />
-        <el-table-column label="相似度" width="140" align="center">
-          <template #default="{ row }">
-            <el-progress
-              :percentage="Math.round((row.similarity ?? 0) * 100)"
-              :color="similarityColor(row.similarity)"
-              :stroke-width="18"
-              :text-inside="true"
+          <div class="pagination-wrapper">
+            <el-pagination
+              v-model:current-page="taskPage.page"
+              v-model:page-size="taskPage.size"
+              :total="taskPage.total"
+              :page-sizes="[10, 20, 50]"
+              layout="total, sizes, prev, pager, next"
+              background
+              @size-change="fetchTaskList"
+              @current-change="fetchTaskList"
             />
-          </template>
-        </el-table-column>
-        <el-table-column prop="status" label="状态" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag :type="matchStatusTagType(row.status)" size="small" effect="light">
-              {{ matchStatusText(row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="matchedContent" label="匹配内容" min-width="220" show-overflow-tooltip />
-      </el-table>
+          </div>
+        </div>
 
-      <div class="pagination-wrapper">
-        <el-pagination
-          v-model:current-page="matchPage.page"
-          v-model:page-size="matchPage.size"
-          :total="matchPage.total"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next"
-          background
-          @size-change="fetchMatchList"
-          @current-change="fetchMatchList"
-        />
+        <!-- 下半部分：查重匹配详情 -->
+        <div v-if="selectedTask" class="section-header" style="margin-top: 24px">
+          <h3 class="section-title">
+            查重匹配详情
+            <span class="section-subtitle">
+              — 任务 #{{ selectedTask.id }}
+              <template v-if="selectedTask.assignmentTitle"
+                >（{{ selectedTask.assignmentTitle }}）</template
+              >
+            </span>
+          </h3>
+        </div>
+
+        <div v-if="selectedTask" class="content-card">
+          <el-table v-loading="loadingMatches" :data="matchList" style="width: 100%" stripe>
+            <el-table-column prop="studentA" label="学生A" min-width="160" show-overflow-tooltip />
+            <el-table-column prop="studentB" label="学生B" min-width="160" show-overflow-tooltip />
+            <el-table-column label="相似度" width="140" align="center">
+              <template #default="{ row }">
+                <el-progress
+                  :percentage="Math.round((row.similarity ?? 0) * 100)"
+                  :color="similarityColor(row.similarity)"
+                  :stroke-width="18"
+                  :text-inside="true"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column prop="status" label="状态" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag :type="matchStatusTagType(row.status)" size="small" effect="light">
+                  {{ matchStatusText(row.status) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column
+              prop="matchedContent"
+              label="匹配内容"
+              min-width="220"
+              show-overflow-tooltip
+            />
+          </el-table>
+
+          <div class="pagination-wrapper">
+            <el-pagination
+              v-model:current-page="matchPage.page"
+              v-model:page-size="matchPage.size"
+              :total="matchPage.total"
+              :page-sizes="[10, 20, 50]"
+              layout="total, sizes, prev, pager, next"
+              background
+              @size-change="fetchMatchList"
+              @current-change="fetchMatchList"
+            />
+          </div>
+        </div>
       </div>
-    </div>
-    </div>
     </section>
 
     <!-- 创建查重任务对话框 -->
     <el-dialog v-model="showCreateDialog" title="创建查重任务" width="480px" destroy-on-close>
-      <el-form ref="createFormRef" :model="createForm" :rules="createRules" label-width="100px" label-position="top">
+      <el-form
+        ref="createFormRef"
+        :model="createForm"
+        :rules="createRules"
+        label-width="100px"
+        label-position="top"
+      >
         <el-form-item label="作业 ID" prop="assignmentId">
-          <el-input
-            v-model="createForm.assignmentId"
-            placeholder="请输入作业 ID"
-            clearable
-          />
+          <el-input v-model="createForm.assignmentId" placeholder="请输入作业 ID" clearable />
         </el-form-item>
         <p class="form-tip">请输入需要查重的作业 ID，系统将基于该作业的全部提交进行相似度比对。</p>
       </el-form>
       <template #footer>
         <el-button @click="showCreateDialog = false">取消</el-button>
-        <el-button type="primary" :loading="creating" @click="handleCreate">
-          确认创建
-        </el-button>
+        <el-button type="primary" :loading="creating" @click="handleCreate"> 确认创建 </el-button>
       </template>
     </el-dialog>
   </div>
@@ -190,10 +207,10 @@ const selectedTask = ref(null)
 const showCreateDialog = ref(false)
 const createFormRef = ref(null)
 const createForm = reactive({
-  assignmentId: ''
+  assignmentId: '',
 })
 const createRules = {
-  assignmentId: [{ required: true, message: '请输入作业 ID', trigger: 'blur' }]
+  assignmentId: [{ required: true, message: '请输入作业 ID', trigger: 'blur' }],
 }
 
 // 分页
@@ -202,9 +219,9 @@ const matchPage = reactive({ page: 1, size: 10, total: 0 })
 
 // 统计概览
 const taskTotal = computed(() => taskList.value.length)
-const runningCount = computed(() => taskList.value.filter(r => r.status === 'RUNNING').length)
-const completedCount = computed(() => taskList.value.filter(r => r.status === 'COMPLETED').length)
-const pendingCount = computed(() => taskList.value.filter(r => r.status === 'PENDING').length)
+const runningCount = computed(() => taskList.value.filter((r) => r.status === 'RUNNING').length)
+const completedCount = computed(() => taskList.value.filter((r) => r.status === 'COMPLETED').length)
+const pendingCount = computed(() => taskList.value.filter((r) => r.status === 'PENDING').length)
 
 // ========== API 方法 ==========
 
@@ -277,15 +294,11 @@ async function handleCreate() {
  */
 async function handleExecute(row) {
   try {
-    await ElMessageBox.confirm(
-      `确定对任务 #${row.id} 执行查重？`,
-      '确认操作',
-      {
-        confirmButtonText: '确定执行',
-        cancelButtonText: '取消',
-        type: 'info'
-      }
-    )
+    await ElMessageBox.confirm(`确定对任务 #${row.id} 执行查重？`, '确认操作', {
+      confirmButtonText: '确定执行',
+      cancelButtonText: '取消',
+      type: 'info',
+    })
     await plagiarismApi.executeCheck(row.id)
     ElMessage.success('查重任务已开始执行')
     await fetchTaskList()
@@ -417,7 +430,7 @@ onMounted(() => {
 /* 空状态装饰 */
 .empty-deco {
   font-size: 38px;
-  filter: grayscale(.2);
+  filter: grayscale(0.2);
 }
 
 /* 响应式 */

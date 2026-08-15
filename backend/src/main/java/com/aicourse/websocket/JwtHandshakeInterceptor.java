@@ -9,6 +9,8 @@ import org.springframework.web.socket.server.HandshakeInterceptor;
 
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * WebSocket 握手拦截器：从 {@code Sec-WebSocket-Protocol} 子协议头中解析并校验 JWT。
@@ -19,12 +21,19 @@ import java.util.Map;
 @Component
 public class JwtHandshakeInterceptor implements HandshakeInterceptor {
 
+    private static final Logger log = LoggerFactory.getLogger(JwtHandshakeInterceptor.class);
+
     private final JwtUtils jwtUtils;
 
     public JwtHandshakeInterceptor(JwtUtils jwtUtils) {
         this.jwtUtils = jwtUtils;
     }
 
+    /**
+     * 握手前校验 JWT（优先 HttpOnly Cookie，回退子协议头），校验通过则写入用户身份属性。
+     *
+     * @return true 允许升级；令牌缺失/无效时返回 false 拒绝握手
+     */
     @Override
     public boolean beforeHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                    WebSocketHandler wsHandler, Map<String, Object> attributes) {
@@ -37,6 +46,7 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
             token = resolveToken(protocols);
         }
         if (token == null || !jwtUtils.validateToken(token)) {
+            log.warn("[ws-handshake] 握手失败：令牌缺失或无效，拒绝连接: {}", request.getRemoteAddress());
             return false; // 校验失败，拒绝握手
         }
 
@@ -49,6 +59,7 @@ public class JwtHandshakeInterceptor implements HandshakeInterceptor {
         if (protocols != null && !protocols.isEmpty()) {
             NegotiatedSubProtocol.set(protocols.get(0).trim());
         }
+        log.info("[ws-handshake] 握手成功: userId={}", attributes.get("userId"));
         return true;
     }
 

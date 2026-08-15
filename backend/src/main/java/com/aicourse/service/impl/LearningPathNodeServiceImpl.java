@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.LearningPathNode;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.LearningPathNodeMapper;
@@ -23,6 +26,8 @@ import java.util.Map;
 @Service
 public class LearningPathNodeServiceImpl extends ServiceImpl<LearningPathNodeMapper, LearningPathNode>
         implements LearningPathNodeService {
+
+    private static final Logger log = LoggerFactory.getLogger(LearningPathNodeServiceImpl.class);
 
     private final LearningPathService learningPathService;
 
@@ -145,6 +150,8 @@ public class LearningPathNodeServiceImpl extends ServiceImpl<LearningPathNodeMap
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateNodeStatus(Long nodeId, String status, Integer actualTime) {
+        log.info("更新学习路径节点");
+
         LearningPathNode node = getById(nodeId);
         if (node == null) {
             throw new BusinessException("学习节点不存在: " + nodeId);

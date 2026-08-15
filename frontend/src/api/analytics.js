@@ -45,6 +45,9 @@ export const getTrendData = params => getUserGrowth(params)
 // 导出统计报表（映射后端 GET /admin/statistics/export）
 export const exportReport = () => request.get('/admin/statistics/export')
 
+/**
+ * 默认导出对象：模块/组件配置与导出内容
+ */
 export default {
   getDashboardStats,
   getPlatformOverview,

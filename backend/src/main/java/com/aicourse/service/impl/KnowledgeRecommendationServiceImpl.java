@@ -1,5 +1,6 @@
 package com.aicourse.service.impl;
 
+
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.mapper.KnowledgePointMapper;
@@ -22,6 +23,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class KnowledgeRecommendationServiceImpl implements KnowledgeRecommendationService {
 
+
     private final KnowledgePointMapper knowledgePointMapper;
     private final KnowledgePointRelationMapper relationMapper;
 
@@ -31,6 +33,8 @@ public class KnowledgeRecommendationServiceImpl implements KnowledgeRecommendati
         this.relationMapper = relationMapper;
     }
 
+
+    /** 知识点推荐相关操作 */
     @Override
     public List<Map<String, Object>> recommendFromWeakPoints(Long courseId,
                                                               Map<String, Double> weakPoints,
@@ -106,6 +110,8 @@ public class KnowledgeRecommendationServiceImpl implements KnowledgeRecommendati
         return recommendations.subList(0, Math.min(limit, recommendations.size()));
     }
 
+
+    /** 知识点推荐相关操作 */
     @Override
     public List<Map<String, Object>> recommendNextSteps(Long courseId,
                                                          Map<String, Double> masteredPoints,
@@ -172,6 +178,8 @@ public class KnowledgeRecommendationServiceImpl implements KnowledgeRecommendati
         return recommendations.subList(0, Math.min(limit, recommendations.size()));
     }
 
+
+    /** 知识点推荐相关操作 */
     @Override
     public List<Map<String, Object>> recommendComprehensive(Long courseId,
                                                               Map<String, Double> weakPoints,

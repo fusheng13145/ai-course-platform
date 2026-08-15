@@ -325,18 +325,17 @@ class ExamSessionServiceImplTest {
     // ===================== timeoutSubmit =====================
 
     @Test
-    @DisplayName("timeoutSubmit - 超时自动提交并标记")
+    @DisplayName("timeoutSubmit - 超时自动收卷：仅流转状态，保留已存答案，不覆盖 answers")
     void testTimeoutSubmit_AutoSubmits() {
         when(examSessionMapper.selectById(1L)).thenReturn(startedSession);
         when(examSessionMapper.update(isNull(), any())).thenReturn(1);
-        when(examSessionMapper.updateById(any(ExamSession.class))).thenReturn(1);
 
         examSessionService.timeoutSubmit(1L);
 
-        assertEquals("AUTO_SUBMITTED", startedSession.getStatus());
-        assertNotNull(startedSession.getSubmitTime());
+        // 修复 P0-2：超时收卷只更新状态/提交时间（LambdaUpdateWrapper），
+        // 不得调用 submitExam 清空学生已保存的 answers，也不再二次 updateById
         verify(examSessionMapper).update(isNull(), any());
-        verify(examSessionMapper).updateById(startedSession);
+        verify(examSessionMapper, never()).updateById(any(ExamSession.class));
     }
 
     @Test

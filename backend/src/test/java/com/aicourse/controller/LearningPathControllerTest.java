@@ -7,6 +7,7 @@ import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.LearningPathNodeService;
 import com.aicourse.service.LearningPathService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -38,9 +39,16 @@ class LearningPathControllerTest extends ControllerTestBase {
     @MockitoBean
     private KnowledgePointService knowledgePointService;
 
+    @BeforeEach
+    void stubOwnerLookup() {
+        // owner 校验依赖 learningPathService.getById 返回归属当前用户(=1L)的路径
+        when(learningPathService.getById(any())).thenReturn(samplePath());
+    }
+
     private LearningPath samplePath() {
         LearningPath p = new LearningPath();
         p.setId(1L);
+        p.setStudentId(1L);
         return p;
     }
 

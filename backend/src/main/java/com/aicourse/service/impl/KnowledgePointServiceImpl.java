@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.entity.Question;
@@ -30,6 +33,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper, KnowledgePoint> implements KnowledgePointService {
+
+    private static final Logger log = LoggerFactory.getLogger(KnowledgePointServiceImpl.class);
 
     private static final String CACHE_NAME = "knowledgePoints";
 
@@ -166,6 +171,8 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
     @Transactional(rollbackFor = Exception.class)
     @CacheEvict(cacheNames = CACHE_NAME, allEntries = true)
     public KnowledgePoint createWithValidation(KnowledgePoint knowledgePoint) {
+        log.info("创建知识点点");
+
         // 校验必填字段
         if (knowledgePoint.getName() == null || knowledgePoint.getName().trim().isEmpty()) {
             throw new BusinessException("知识点名称不能为空");
@@ -303,18 +310,28 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
     @Override
     @CacheEvict(cacheNames = CACHE_NAME, allEntries = true)
     public boolean save(KnowledgePoint entity) {
+        log.info("保存知识点点");
+
         return super.save(entity);
     }
 
+
+    /** 更新知识点点 */
     @Override
     @CacheEvict(cacheNames = CACHE_NAME, allEntries = true)
     public boolean updateById(KnowledgePoint entity) {
+        log.info("更新知识点点");
+
         return super.updateById(entity);
     }
 
+
+    /** 移除知识点点 */
     @Override
     @CacheEvict(cacheNames = CACHE_NAME, allEntries = true)
     public boolean removeById(Serializable id) {
+        log.info("移除知识点点");
+
         return super.removeById(id);
     }
 }

@@ -1,0 +1,50 @@
+# ============================================================
+# AI 课程平台 - Alertmanager 配置
+# 挂载到 /etc/alertmanager/alertmanager.yml（docker-compose alertmanager 服务）
+#
+# 【通知渠道】本机无真实 SMTP，默认路由到 webhook 占位端点。
+# 生产请将 ALERTMANAGER_WEBHOOK_URL 指向真实告警网关
+# （企业微信/钉钉/飞书机器人、PagerDuty、自定义 webhook 等）；
+# 或使用下方注释的 email 路由（填入真实 SMTP）。
+# Alertmanager 原生支持配置文件内的 ${VAR} 环境变量插值（v0.20+）。
+# ============================================================
+
+global:
+  resolve_timeout: 5m
+
+route:
+  receiver: 'default-webhook'
+  group_by: ['alertname', 'severity']
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  routes:
+    # 严重告警缩短重复通知间隔，确保第一时间持续触达
+    - matchers:
+        - severity = "critical"
+      receiver: 'default-webhook'
+      repeat_interval: 1h
+
+receivers:
+  - name: 'default-webhook'
+    webhook_configs:
+      - url: '${ALERTMANAGER_WEBHOOK_URL:-http://localhost:9000/alerts}'
+        send_resolved: true
+
+  # 可选：邮件通知（需配置真实 SMTP，取消注释并填写以下变量于 .env）
+  # - name: 'email-admin'
+  #   email_configs:
+  #     - smarthost: '${SMTP_HOST:-smtp.example.com}:587'
+  #       from: '${SMTP_FROM:-alert@example.com}'
+  #       to: '${SMTP_TO:-admin@example.com}'
+  #       auth_username: '${SMTP_USER:-}'
+  #       auth_password: '${SMTP_PASSWORD:-}'
+  #       require_tls: true
+
+# 同实例的 critical 告警抑制其 warning 告警，避免噪音叠加
+inhibit_rules:
+  - source_matchers:
+      - severity = "critical"
+    target_matchers:
+      - severity = "warning"
+    equal: ['alertname', 'instance']

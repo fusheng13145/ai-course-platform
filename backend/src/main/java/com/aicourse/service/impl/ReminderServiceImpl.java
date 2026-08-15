@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.Reminder;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.dto.ReminderUpdateDTO;
@@ -23,6 +26,8 @@ import java.util.List;
 @Service
 public class ReminderServiceImpl extends ServiceImpl<ReminderMapper, Reminder> implements ReminderService {
 
+    private static final Logger log = LoggerFactory.getLogger(ReminderServiceImpl.class);
+
     private final NotificationService notificationService;
 
     public ReminderServiceImpl(NotificationService notificationService) {
@@ -37,6 +42,8 @@ public class ReminderServiceImpl extends ServiceImpl<ReminderMapper, Reminder> i
     @Transactional(rollbackFor = Exception.class)
     public Reminder createReminder(Long userId, String reminderType, Long taskId, Long courseId,
                                    String title, String message, LocalDateTime dueDate, Integer triggerDay) {
+                                       log.info("创建提醒");
+
         // 计算计划发送时间：截止时间减去提前天数
         LocalDateTime scheduledAt = dueDate.minusDays(triggerDay);
 
@@ -62,6 +69,8 @@ public class ReminderServiceImpl extends ServiceImpl<ReminderMapper, Reminder> i
     @Override
     @Transactional(rollbackFor = Exception.class)
     public List<Reminder> sendDueReminders(LocalDateTime now) {
+        log.info("发送提醒");
+
         // 查询状态为待发送且计划发送时间已到的提醒
         List<Reminder> dueReminders = this.list(
                 new LambdaQueryWrapper<Reminder>()
@@ -113,6 +122,8 @@ public class ReminderServiceImpl extends ServiceImpl<ReminderMapper, Reminder> i
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void cancelReminder(Long reminderId) {
+        log.info("取消提醒");
+
         Reminder reminder = this.getById(reminderId);
         if (reminder == null) {
             throw new BusinessException("提醒不存在");
@@ -168,6 +179,8 @@ public class ReminderServiceImpl extends ServiceImpl<ReminderMapper, Reminder> i
             try {
                 reminder.setScheduledAt(LocalDateTime.parse(dto.getRemindAt()));
             } catch (DateTimeParseException e) {
+                log.error("更新提醒失败: {}", e.getMessage(), e);
+
                 throw new BusinessException("时间格式不合法，应为 ISO-8601（如 2025-01-15T10:00:00）");
             }
         }

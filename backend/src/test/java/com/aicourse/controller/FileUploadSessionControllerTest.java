@@ -60,13 +60,13 @@ class FileUploadSessionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /upload-sessions/1/chunks/1 - 返回200且分片上传后会话透传")
     void uploadChunk_authorized_returns_200() throws Exception {
-        when(fileUploadSessionService.uploadChunk(1L, 1)).thenReturn(sampleSession(1L, "a.pdf"));
+        when(fileUploadSessionService.uploadChunk(1L, 1, 1L)).thenReturn(sampleSession(1L, "a.pdf"));
         mockMvc.perform(post("/upload-sessions/1/chunks/1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
                 .andExpect(jsonPath("$.data.id").value(1));
-        verify(fileUploadSessionService).uploadChunk(eq(1L), eq(1));
+        verify(fileUploadSessionService).uploadChunk(eq(1L), eq(1), eq(1L));
     }
 
 
@@ -83,14 +83,14 @@ class FileUploadSessionControllerTest extends ControllerTestBase {
     void mergeChunks_authorized_returns_200() throws Exception {
         FileUploadSession merged = sampleSession(1L, "a.pdf");
         merged.setStatus("COMPLETED");
-        when(fileUploadSessionService.mergeChunks(1L)).thenReturn(merged);
+        when(fileUploadSessionService.mergeChunks(1L, 1L)).thenReturn(merged);
         mockMvc.perform(post("/upload-sessions/1/merge").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
                 .andExpect(jsonPath("$.data.id").value(1))
                 .andExpect(jsonPath("$.data.status").value("COMPLETED"));
-        verify(fileUploadSessionService).mergeChunks(eq(1L));
+        verify(fileUploadSessionService).mergeChunks(eq(1L), eq(1L));
     }
 
 
@@ -105,13 +105,13 @@ class FileUploadSessionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /upload-sessions/1/progress - 返回200且进度透传")
     void getUploadProgress_authorized_returns_200() throws Exception {
-        when(fileUploadSessionService.getUploadProgress(1L)).thenReturn(Map.of("uploaded", 1, "total", 2, "percentage", 50));
+        when(fileUploadSessionService.getUploadProgress(1L, 1L)).thenReturn(Map.of("uploaded", 1, "total", 2, "percentage", 50));
         mockMvc.perform(get("/upload-sessions/1/progress").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
                 .andExpect(jsonPath("$.data.percentage").value(50));
-        verify(fileUploadSessionService).getUploadProgress(eq(1L));
+        verify(fileUploadSessionService).getUploadProgress(eq(1L), eq(1L));
     }
 
 
@@ -129,7 +129,7 @@ class FileUploadSessionControllerTest extends ControllerTestBase {
         mockMvc.perform(delete("/upload-sessions/1/cancel").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
-        verify(fileUploadSessionService).cancelUpload(eq(1L));
+        verify(fileUploadSessionService).cancelUpload(eq(1L), eq(1L));
     }
 
 

@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.Question;
 import com.aicourse.entity.WrongQuestion;
 import com.aicourse.exception.BusinessException;
@@ -22,6 +25,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, WrongQuestion> implements WrongQuestionService {
+
+    private static final Logger log = LoggerFactory.getLogger(WrongQuestionServiceImpl.class);
 
     private final QuestionService questionService;
 
@@ -80,6 +85,44 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
         }
         wrongQuestion.setMastered(true);
         this.updateById(wrongQuestion);
+    }
+
+    /**
+     * 标记已掌握（带归属校验，修复 P1-2 IDOR：错题必须属于该学生）
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void markMasteredForStudent(Long wrongQuestionId, Long studentId) {
+        WrongQuestion wrongQuestion = assertOwnedBy(wrongQuestionId, studentId);
+        wrongQuestion.setMastered(true);
+        this.updateById(wrongQuestion);
+    }
+
+    /**
+     * 删除错题（带归属校验，修复 P1-2 IDOR：错题必须属于该学生）
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteForStudent(Long wrongQuestionId, Long studentId) {
+        log.info("删除错题题目");
+
+        assertOwnedBy(wrongQuestionId, studentId);
+        this.removeById(wrongQuestionId);
+    }
+
+    /**
+     * 归属断言：错题记录必须属于该学生，否则 403 拒绝。
+     */
+    private WrongQuestion assertOwnedBy(Long wrongQuestionId, Long studentId) {
+        WrongQuestion wrongQuestion = this.getById(wrongQuestionId);
+        if (wrongQuestion == null) {
+            throw new BusinessException("错题记录不存在");
+        }
+        if (studentId == null || wrongQuestion.getStudentId() == null
+                || !wrongQuestion.getStudentId().equals(studentId)) {
+            throw new BusinessException(403, "无权操作该错题记录");
+        }
+        return wrongQuestion;
     }
 
     /**
@@ -238,6 +281,8 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
      */
     @Override
     public List<Question> generatePracticePaper(Long studentId, Long courseId, int count) {
+        log.info("生成错题题目");
+
         // 查询未掌握的错题，按练习次数升序排列（优先选练习不足的）
         List<WrongQuestion> unmasteredList = getUnmastered(studentId, courseId);
 
@@ -318,6 +363,8 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
     @Transactional(rollbackFor = Exception.class)
     public WrongQuestion addWrongQuestion(Long studentId, Long questionId, Long courseId,
                                            String wrongAnswer, String sourceType, String reason) {
+                                               log.info("新增错题题目");
+
         // 复用recordWrongAnswer逻辑，额外设置reason字段
         WrongQuestion result = recordWrongAnswer(studentId, questionId, courseId, wrongAnswer, sourceType);
         // 如果提供了错因分析，更新到记录中（仅在新建时或reason为空时写入）

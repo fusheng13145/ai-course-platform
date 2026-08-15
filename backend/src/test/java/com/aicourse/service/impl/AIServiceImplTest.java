@@ -3,6 +3,8 @@ package com.aicourse.service.impl;
 import com.aicourse.service.PromptGuard;
 import com.aicourse.service.RAGService;
 import com.aicourse.llm.LLMProvider;
+import io.micrometer.core.instrument.MeterRegistry;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -25,6 +27,8 @@ class AIServiceImplTest {
     @Mock private RAGService ragService;
     // 使用真实 PromptGuard（无外部依赖），既满足构造器注入又验证真实护栏行为
     @Spy private PromptGuard promptGuard = new PromptGuard();
+    // 真实 MeterRegistry（@Spy 包真实实例），保证 Counter.builder().register() 返回有效 Counter
+    @Spy private MeterRegistry meterRegistry = new SimpleMeterRegistry();
 
     @InjectMocks private AIServiceImpl aiService;
 

@@ -23,6 +23,9 @@ export const getEnrolledCourses = (params) => request.get('/courses/enrolled', {
 export const getStudents = (id, params) => request.get(`/courses/${id}/students`, { params })
 /** 获取课程统计数据 */
 export const getStats = (id) => request.get(`/courses/${id}/stats`)
+/**
+ * 默认导出对象：模块/组件配置与导出内容
+ */
 export default {
   getCourseList,
   getCourseById,

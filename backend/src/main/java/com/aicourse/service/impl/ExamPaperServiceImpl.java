@@ -1,5 +1,6 @@
 package com.aicourse.service.impl;
 
+
 import com.aicourse.entity.ExamPaper;
 import com.aicourse.entity.ExamQuestion;
 import com.aicourse.entity.Question;
@@ -22,9 +23,14 @@ import java.util.*;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 
+
+/**
+ * 考试试卷服务实现：相关业务逻辑入口，提供增删改查与编排能力。
+ */
 @Service
 @Slf4j
 public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper> implements ExamPaperService {
+
 
     private final ExamQuestionService examQuestionService;
     private final QuestionService questionService;
@@ -115,6 +121,8 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ExamPaper copyExamPaper(Long sourcePaperId, String newTitle) {
+        log.info("复制考试试卷");
+
         ExamPaper sourcePaper = this.getById(sourcePaperId);
         if (sourcePaper == null) {
             throw new BusinessException("源试卷不存在");

@@ -7,11 +7,11 @@
 
 :root {
   /* ========== 中性色阶（背景由浅入深，营造层级）========== */
-  --bg: #eef0f4;             /* L0 页面基底 */
-  --bg-deep: #e4e7ec;        /* 侧栏/凹陷区 */
-  --surface: #ffffff;        /* L1 一级模块卡片 */
-  --surface-2: #f7f8fa;      /* L2 二级分组面板 */
-  --surface-3: #eff1f5;      /* L3 三级内嵌区 */
+  --bg: #eef0f4; /* L0 页面基底 */
+  --bg-deep: #e4e7ec; /* 侧栏/凹陷区 */
+  --surface: #ffffff; /* L1 一级模块卡片 */
+  --surface-2: #f7f8fa; /* L2 二级分组面板 */
+  --surface-3: #eff1f5; /* L3 三级内嵌区 */
   --surface-invert: #1d2433;
 
   /* ========== 墨色阶 ========== */
@@ -28,10 +28,14 @@
   --accent-line: #ecc9c5;
 
   /* ========== 语义色 ========== */
-  --ok: #2e7d4f;       --ok-soft: #e8f4ec;
-  --warn: #b57908;     --warn-soft: #fbf2df;
-  --info: #2563a8;     --info-soft: #e9f1fa;
-  --violet: #6d4fa1;   --violet-soft: #f1edf8;
+  --ok: #2e7d4f;
+  --ok-soft: #e8f4ec;
+  --warn: #b57908;
+  --warn-soft: #fbf2df;
+  --info: #2563a8;
+  --info-soft: #e9f1fa;
+  --violet: #6d4fa1;
+  --violet-soft: #f1edf8;
 
   /* ========== 线条 ========== */
   --line: #e3e6ec;
@@ -45,12 +49,12 @@
   --r-chip: 999px;
 
   /* ========== 阴影（随浮层高度递增）========== */
-  --sh-l1: 0 1px 2px rgba(24,32,48,.05), 0 4px 14px rgba(24,32,48,.06);
-  --sh-l1-hover: 0 2px 4px rgba(24,32,48,.07), 0 10px 28px rgba(24,32,48,.10);
-  --sh-l2: 0 1px 2px rgba(24,32,48,.05);
-  --sh-pop: 0 8px 24px rgba(24,32,48,.14), 0 2px 6px rgba(24,32,48,.08);
-  --sh-drawer: -18px 0 56px rgba(24,32,48,.18);
-  --sh-modal: 0 32px 90px rgba(18,24,38,.30), 0 6px 18px rgba(18,24,38,.12);
+  --sh-l1: 0 1px 2px rgba(24, 32, 48, 0.05), 0 4px 14px rgba(24, 32, 48, 0.06);
+  --sh-l1-hover: 0 2px 4px rgba(24, 32, 48, 0.07), 0 10px 28px rgba(24, 32, 48, 0.1);
+  --sh-l2: 0 1px 2px rgba(24, 32, 48, 0.05);
+  --sh-pop: 0 8px 24px rgba(24, 32, 48, 0.14), 0 2px 6px rgba(24, 32, 48, 0.08);
+  --sh-drawer: -18px 0 56px rgba(24, 32, 48, 0.18);
+  --sh-modal: 0 32px 90px rgba(18, 24, 38, 0.3), 0 6px 18px rgba(18, 24, 38, 0.12);
 
   /* ========== z-index 规范 ========== */
   --z-sidebar: 40;
@@ -67,20 +71,22 @@
   --topbar-h: 58px;
 
   /* ========== 动效 ========== */
-  --ease-out: cubic-bezier(.16,1,.3,1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
   --t-fast: 150ms;
   --t-norm: 250ms;
   --t-slow: 400ms;
 
   /* ========== 焦点环 / 品牌光晕 ========== */
-  --focus-ring: 0 0 0 3px rgba(193,59,48,.14);
-  --accent-glow: 0 6px 18px rgba(193,59,48,.18);
+  --focus-ring: 0 0 0 3px rgba(193, 59, 48, 0.14);
+  --accent-glow: 0 6px 18px rgba(193, 59, 48, 0.18);
 
   /* ========== 字体 ========== */
-  --font: "PingFang SC","Microsoft YaHei","Source Han Sans SC","Noto Sans SC",system-ui,-apple-system,sans-serif;
-  --mono: "JetBrains Mono","SFMono-Regular",Consolas,"Liberation Mono",monospace;
+  --font:
+    'PingFang SC', 'Microsoft YaHei', 'Source Han Sans SC', 'Noto Sans SC', system-ui,
+    -apple-system, sans-serif;
+  --mono: 'JetBrains Mono', 'SFMono-Regular', Consolas, 'Liberation Mono', monospace;
   /* 数字专用：等宽数字栈（统计值/时间戳），配合 tabular-nums 防止跳动 */
-  --num: "Bahnschrift","DIN Alternate","Avenir Next","Segoe UI",var(--mono);
+  --num: 'Bahnschrift', 'DIN Alternate', 'Avenir Next', 'Segoe UI', var(--mono);
 
   /* ========== 侧边栏专用 ========== */
   --sidebar-bg-start: #232b3a;
@@ -88,10 +94,10 @@
   --sidebar-text: #c6cdd9;
   --sidebar-text-dim: #6b7488;
   --sidebar-text-hover: #eef1f6;
-  --sidebar-active-bg: linear-gradient(90deg, rgba(193,59,48,.92), rgba(193,59,48,.72));
+  --sidebar-active-bg: linear-gradient(90deg, rgba(193, 59, 48, 0.92), rgba(193, 59, 48, 0.72));
   --sidebar-active-text: #ffffff;
-  --sidebar-divider: rgba(255,255,255,.07);
-  --sidebar-hover-bg: rgba(255,255,255,.06);
+  --sidebar-divider: rgba(255, 255, 255, 0.07);
+  --sidebar-hover-bg: rgba(255, 255, 255, 0.06);
   --sidebar-sub-text: #98a2b4;
   --sidebar-sub-active: #ff8f84;
 
@@ -131,14 +137,14 @@
   --ac-sidebar-bg: var(--sidebar-bg-start);
   --ac-sidebar-text: var(--sidebar-text);
   --ac-sidebar-text-hover: var(--sidebar-text-hover);
-  --ac-sidebar-active-bg: rgba(193,59,48,.16);
+  --ac-sidebar-active-bg: rgba(193, 59, 48, 0.16);
   --ac-sidebar-active-text: var(--sidebar-sub-active);
 
   --ac-shadow-sm: var(--sh-l2);
   --ac-shadow-md: var(--sh-l1);
   --ac-shadow-lg: var(--sh-pop);
   --ac-shadow-xl: var(--sh-modal);
-  --ac-shadow-colored: 0 4px 14px rgba(193,59,48,.35);
+  --ac-shadow-colored: 0 4px 14px rgba(193, 59, 48, 0.35);
 
   --ac-radius-sm: 6px;
   --ac-radius-md: 8px;
@@ -210,17 +216,17 @@
   --line: #273244;
   --line-2: #364255;
   --line-strong: #4b5565;
-  --accent-soft: rgba(193,59,48,.18);
-  --accent-softer: rgba(193,59,48,.10);
-  --ok-soft: rgba(46,125,79,.18);
-  --warn-soft: rgba(181,121,8,.18);
-  --info-soft: rgba(37,99,168,.18);
-  --violet-soft: rgba(109,79,161,.18);
-  --sh-l1: 0 1px 2px rgba(0,0,0,.4), 0 4px 14px rgba(0,0,0,.5);
-  --sh-l1-hover: 0 2px 4px rgba(0,0,0,.6), 0 10px 28px rgba(0,0,0,.7);
-  --sh-l2: 0 1px 2px rgba(0,0,0,.3);
-  --sh-pop: 0 8px 24px rgba(0,0,0,.6);
-  --sh-modal: 0 32px 90px rgba(0,0,0,.7);
+  --accent-soft: rgba(193, 59, 48, 0.18);
+  --accent-softer: rgba(193, 59, 48, 0.1);
+  --ok-soft: rgba(46, 125, 79, 0.18);
+  --warn-soft: rgba(181, 121, 8, 0.18);
+  --info-soft: rgba(37, 99, 168, 0.18);
+  --violet-soft: rgba(109, 79, 161, 0.18);
+  --sh-l1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.5);
+  --sh-l1-hover: 0 2px 4px rgba(0, 0, 0, 0.6), 0 10px 28px rgba(0, 0, 0, 0.7);
+  --sh-l2: 0 1px 2px rgba(0, 0, 0, 0.3);
+  --sh-pop: 0 8px 24px rgba(0, 0, 0, 0.6);
+  --sh-modal: 0 32px 90px rgba(0, 0, 0, 0.7);
 
   --el-bg-color: var(--surface);
   --el-bg-color-page: var(--bg);

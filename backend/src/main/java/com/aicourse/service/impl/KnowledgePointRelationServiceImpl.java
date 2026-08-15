@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.exception.BusinessException;
@@ -25,6 +28,8 @@ import java.util.stream.Collectors;
 public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePointRelationMapper, KnowledgePointRelation>
         implements KnowledgePointRelationService {
 
+    private static final Logger log = LoggerFactory.getLogger(KnowledgePointRelationServiceImpl.class);
+
     private final KnowledgePointService knowledgePointService;
 
     public KnowledgePointRelationServiceImpl(@Lazy KnowledgePointService knowledgePointService) {
@@ -38,6 +43,8 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
     @Transactional(rollbackFor = Exception.class)
     public KnowledgePointRelation createRelation(Long sourceId, Long targetId, String relationType,
                                                   BigDecimal strength, String description) {
+                                                      log.info("创建知识点点关系");
+
         // 校验源知识点和目标知识点是否存在
         KnowledgePoint source = knowledgePointService.getById(sourceId);
         if (source == null) {
@@ -85,6 +92,8 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteRelation(Long relationId) {
+        log.info("删除知识点点关系");
+
         KnowledgePointRelation relation = getById(relationId);
         if (relation == null) {
             throw new BusinessException("关联关系不存在: " + relationId);

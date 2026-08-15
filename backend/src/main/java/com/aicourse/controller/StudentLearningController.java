@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.dto.VideoHeartbeatDTO;
 import com.aicourse.service.StudentLearningService;
@@ -26,6 +29,8 @@ import java.util.Map;
 @PreAuthorize("hasRole('STUDENT')")
 @Tag(name = "学生学习")
 public class StudentLearningController {
+
+    private static final Logger log = LoggerFactory.getLogger(StudentLearningController.class);
 
     private final StudentLearningService studentLearningService;
 

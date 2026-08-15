@@ -4,6 +4,8 @@ import com.aicourse.llm.LLMProvider;
 import org.springframework.boot.actuate.health.Health;
 import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 大模型供应商健康指示器。
@@ -17,12 +19,17 @@ import org.springframework.stereotype.Component;
 @Component
 public class LlmProviderHealthIndicator implements HealthIndicator {
 
+    private static final Logger log = LoggerFactory.getLogger(LlmProviderHealthIndicator.class);
+
     private final LLMProvider llmProvider;
 
     public LlmProviderHealthIndicator(LLMProvider llmProvider) {
         this.llmProvider = llmProvider;
     }
 
+    /**
+     * 静态配置检查当前 LLM 供应商是否已配置 API Key（不发起真实模型调用）。
+     */
     @Override
     public Health health() {
         String name = llmProvider.name();
@@ -32,6 +39,7 @@ public class LlmProviderHealthIndicator implements HealthIndicator {
                     .withDetail("configured", true)
                     .build();
         }
+        log.warn("[health] LLM 供应商 [{}] 未配置 API Key，AI 能力不可用", name);
         return Health.down()
                 .withDetail("provider", name)
                 .withDetail("configured", false)

@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.ResourceVersion;
 import com.aicourse.service.ResourceVersionService;
@@ -21,6 +24,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @RequestMapping("/resource-versions")
 @Tag(name = "资源版本")
 public class ResourceVersionController {
+
+    private static final Logger log = LoggerFactory.getLogger(ResourceVersionController.class);
 
     private final ResourceVersionService resourceVersionService;
 

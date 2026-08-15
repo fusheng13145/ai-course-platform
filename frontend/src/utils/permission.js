@@ -1,3 +1,8 @@
+/**
+ * 导出函数 getDefaultRouteByRole：获取/查询数据
+ * @param {*} role - 参数
+ * @returns {*} - 返回值
+ */
 export function getDefaultRouteByRole(role) {
   switch (role) {
     case 'ADMIN':

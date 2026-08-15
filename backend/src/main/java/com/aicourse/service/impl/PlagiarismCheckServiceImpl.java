@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.PlagiarismCheck;
 import com.aicourse.entity.PlagiarismMatch;
 import com.aicourse.entity.Submission;
@@ -29,6 +32,8 @@ import com.aicourse.common.ApiCode;
 @Service
 public class PlagiarismCheckServiceImpl extends ServiceImpl<PlagiarismCheckMapper, PlagiarismCheck> implements PlagiarismCheckService {
 
+    private static final Logger log = LoggerFactory.getLogger(PlagiarismCheckServiceImpl.class);
+
     private final SubmissionService submissionService;
     private final SubmissionMapper submissionMapper;
     private final PlagiarismMatchService plagiarismMatchService;
@@ -55,6 +60,8 @@ public class PlagiarismCheckServiceImpl extends ServiceImpl<PlagiarismCheckMappe
     @Override
     @Transactional(rollbackFor = Exception.class)
     public PlagiarismCheck createCheck(Long submissionId, String checkType) {
+        log.info("创建查重检查");
+
         // 验证提交记录是否存在
         Submission submission = submissionService.getById(submissionId);
         if (submission == null) {
@@ -161,12 +168,16 @@ public class PlagiarismCheckServiceImpl extends ServiceImpl<PlagiarismCheckMappe
             check.setCheckedAt(LocalDateTime.now());
             this.updateById(check);
         } catch (BusinessException e) {
+            log.error("执行查重检查失败: {}", e.getMessage(), e);
+
             // 业务异常直接抛出
             check.setStatus("FAILED");
             check.setErrorMessage(e.getMessage());
             this.updateById(check);
             throw e;
         } catch (Exception e) {
+            log.error("执行查重检查失败: {}", e.getMessage(), e);
+
             // 其他异常记录后抛出
             check.setStatus("FAILED");
             check.setErrorMessage("查重执行异常: " + e.getMessage());

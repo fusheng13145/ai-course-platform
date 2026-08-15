@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.Resource;
 import com.aicourse.entity.VideoLearningRecord;
 import com.aicourse.mapper.VideoLearningRecordMapper;
@@ -25,6 +28,8 @@ import java.util.stream.Collectors;
 @Service
 public class VideoLearningRecordServiceImpl extends ServiceImpl<VideoLearningRecordMapper, VideoLearningRecord> implements VideoLearningRecordService {
 
+    private static final Logger log = LoggerFactory.getLogger(VideoLearningRecordServiceImpl.class);
+
     /**
      * 防拖拽容差：允许的"位置前进量"相对"真实经过时长"的额外秒数，避免正常播放的边界抖动被误判为作弊
      */
@@ -47,6 +52,8 @@ public class VideoLearningRecordServiceImpl extends ServiceImpl<VideoLearningRec
     @Transactional(rollbackFor = Exception.class)
     public VideoLearningRecord updateProgress(Long userId, Long resourceId, Integer position,
                                                Integer totalDuration, Double playbackSpeed) {
+                                                   log.info("更新视频学习记录");
+
         Long courseId = resolveCourseId(resourceId);
 
         // 查询是否已有该用户+资源的记录
@@ -129,6 +136,8 @@ public class VideoLearningRecordServiceImpl extends ServiceImpl<VideoLearningRec
             Resource resource = resourceService.getById(resourceId);
             return resource != null ? resource.getCourseId() : null;
         } catch (Exception e) {
+            log.error("更新视频学习记录失败: {}", e.getMessage(), e);
+
             return null;
         }
     }

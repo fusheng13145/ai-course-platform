@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import jakarta.validation.Valid;
 
 import com.aicourse.common.ApiResponse;
@@ -9,6 +12,7 @@ import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.*;
 import com.aicourse.util.ExcelUtil;
+import com.aicourse.util.PasswordPolicy;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
@@ -34,6 +38,8 @@ import com.aicourse.common.RoleConstants;
 @PreAuthorize("hasRole('ADMIN')")
 @Tag(name = "系统管理", description = "用户、配置、统计、备份、健康检查等管理功能")
 public class SystemAdminController {
+
+    private static final Logger log = LoggerFactory.getLogger(SystemAdminController.class);
 
     private final SystemService systemService;
     private final UserService userService;
@@ -95,10 +101,11 @@ public class SystemAdminController {
     }
 
     /**
-     * 创建用户
+     * 创建用户（修复：密码复杂度统一走 PasswordPolicy，管理端入口不得放行弱口令）
      */
     @PostMapping("/admin/users")
     public ApiResponse<User> createUser(@Valid @RequestBody User user) {
+        PasswordPolicy.validate(user.getPassword());
         // 密码加密
         user.setPassword(passwordEncoder.encode(user.getPassword()));
         user.setIsActive(true);
@@ -151,6 +158,8 @@ public class SystemAdminController {
         if (newPassword == null || newPassword.isEmpty()) {
             throw new BusinessException("新密码不能为空");
         }
+        // 修复：重置密码同样必须满足统一复杂度策略，防止管理端设置弱口令
+        PasswordPolicy.validate(newPassword);
         user.setPassword(passwordEncoder.encode(newPassword));
         userService.updateById(user);
         return ApiResponse.success("密码重置成功", null);
@@ -171,6 +180,7 @@ public class SystemAdminController {
                 userService.save(user);
                 successCount++;
             } catch (Exception e) {
+                log.warn("批量导入用户失败，已跳过: {}", e.getMessage());
                 failCount++;
             }
         }
@@ -207,6 +217,7 @@ public class SystemAdminController {
                 userService.save(user);
                 successCount++;
             } catch (Exception e) {
+                log.warn("批量导入用户失败，已跳过: {}", e.getMessage());
                 failCount++;
             }
         }

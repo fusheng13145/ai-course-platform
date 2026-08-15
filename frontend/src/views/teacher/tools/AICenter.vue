@@ -168,7 +168,7 @@
                   >
                     <el-icon><MagicStick /></el-icon>AI 润色
                   </el-button>
-                  <el-button text @click="(essayText = ''), (essayResult = '')">清空</el-button>
+                  <el-button text @click="((essayText = ''), (essayResult = ''))">清空</el-button>
                 </div>
               </div>
               <div class="chart-card">

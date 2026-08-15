@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.Course;
 import com.aicourse.entity.Vote;
 import com.aicourse.entity.VoteRecord;
@@ -25,6 +28,8 @@ import java.util.*;
 @Service
 public class VoteServiceImpl extends ServiceImpl<VoteMapper, Vote> implements VoteService {
 
+    private static final Logger log = LoggerFactory.getLogger(VoteServiceImpl.class);
+
     private final CourseMapper courseMapper;
     private final VoteRecordMapper voteRecordMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -34,8 +39,12 @@ public class VoteServiceImpl extends ServiceImpl<VoteMapper, Vote> implements Vo
         this.voteRecordMapper = voteRecordMapper;
     }
 
+
+    /** 创建投票 */
     @Override
     public Vote createVote(Vote vote, Long userId, Authentication auth) {
+        log.info("创建投票");
+
         assertCourseOwner(vote.getCourseId(), userId, auth);
         if (vote.getVoteMode() == null || vote.getVoteMode().isBlank()) {
             vote.setVoteMode(Vote.MODE_SINGLE);
@@ -49,6 +58,8 @@ public class VoteServiceImpl extends ServiceImpl<VoteMapper, Vote> implements Vo
         return vote;
     }
 
+
+    /** 关闭投票 */
     @Override
     public Vote close(Long id, Long userId, Authentication auth) {
         Vote vote = getDetail(id);
@@ -62,6 +73,31 @@ public class VoteServiceImpl extends ServiceImpl<VoteMapper, Vote> implements Vo
         return vote;
     }
 
+    /**
+     * 发布投票（修复 P1-15）：PENDING → ONGOING，发布后学生方可投票。
+     * 仅课程所有者可发布；已发布/已结束的投票不可重复发布。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public Vote publish(Long id, Long userId, Authentication auth) {
+        log.info("发布投票");
+
+        Vote vote = getDetail(id);
+        assertCourseOwner(vote.getCourseId(), userId, auth);
+        if (Vote.STATUS_ONGOING.equals(vote.getStatus())) {
+            throw new BusinessException("投票已在进行中");
+        }
+        if (Vote.STATUS_CLOSED.equals(vote.getStatus())) {
+            throw new BusinessException("投票已结束，无法发布");
+        }
+        vote.setStatus(Vote.STATUS_ONGOING);
+        vote.setStartedAt(LocalDateTime.now());
+        this.updateById(vote);
+        return vote;
+    }
+
+
+    /** 查询投票 */
     @Override
     public Vote getDetail(Long id) {
         Vote vote = this.getById(id);
@@ -71,6 +107,8 @@ public class VoteServiceImpl extends ServiceImpl<VoteMapper, Vote> implements Vo
         return vote;
     }
 
+
+    /** 查询投票 */
     @Override
     public List<Vote> listByCourse(Long courseId, Long userId, Authentication auth) {
         assertCourseOwner(courseId, userId, auth);
@@ -80,6 +118,8 @@ public class VoteServiceImpl extends ServiceImpl<VoteMapper, Vote> implements Vo
         return this.list(qw);
     }
 
+
+    /** 投票相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public VoteRecord vote(Long id, VoteRecord record, Long userId, String ip, String ua) {
@@ -107,6 +147,8 @@ public class VoteServiceImpl extends ServiceImpl<VoteMapper, Vote> implements Vo
         return record;
     }
 
+
+    /** 投票相关操作 */
     @Override
     public Map<String, Object> result(Long id) {
         Vote vote = getDetail(id);
@@ -125,6 +167,8 @@ public class VoteServiceImpl extends ServiceImpl<VoteMapper, Vote> implements Vo
                         counts.merge(c, 1L, Long::sum);
                     }
                 } catch (Exception e) {
+                    log.error("投票相关操作失败: {}", e.getMessage(), e);
+
                     counts.merge(r.getChoice(), 1L, Long::sum);
                 }
             } else if (r.getChoice() != null) {
@@ -142,6 +186,8 @@ public class VoteServiceImpl extends ServiceImpl<VoteMapper, Vote> implements Vo
         return res;
     }
 
+
+    /** 投票相关操作 */
     @Override
     public VoteRecord myVote(Long id, Long userId) {
         LambdaQueryWrapper<VoteRecord> qw = new LambdaQueryWrapper<VoteRecord>()

@@ -17,6 +17,8 @@ import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * JWT 请求拦截过滤器
@@ -24,6 +26,8 @@ import java.util.List;
  */
 @Component
 public class JwtRequestFilter extends OncePerRequestFilter {
+
+    private static final Logger log = LoggerFactory.getLogger(JwtRequestFilter.class);
 
     private final JwtUtils jwtUtils;
     private final UserSessionService userSessionService;
@@ -44,6 +48,10 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         return false;
     }
 
+    /**
+     * 每个请求解析并校验 JWT，认证成功后写入 SecurityContext；任何解析异常均记录 ERROR 并放行
+     * （随后由匿名上下文落入 anyRequest().authenticated() 统一返回 401，不阻塞后续过滤器）。
+     */
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
                                     @NonNull HttpServletResponse response,
@@ -52,28 +60,32 @@ public class JwtRequestFilter extends OncePerRequestFilter {
         // 使前端在 withCredentials 下无需手动携带令牌，同时兼容非浏览器/接口工具经头部传参。
         String token = extractToken(request);
 
-        // Token 非空且签名校验通过，再校验会话是否仍有效（支持注销/强制下线吊销）
-        if (token != null && jwtUtils.validateToken(token)) {
-            // 二次校验：令牌对应的会话必须处于活跃且未过期状态。
-            // 用户主动登出或管理员强制下线会把会话 isActive 置 false，
-            // 此时即便令牌本身未过期，也视为失效，拒绝建立认证上下文，
-            // 请求将落入 anyRequest().authenticated() 被统一拒绝（401）。
-            if (!userSessionService.isSessionActive(token)) {
-                chain.doFilter(request, response);
-                return;
+        try {
+            // Token 非空且签名校验通过，再校验会话是否仍有效（支持注销/强制下线吊销）
+            if (token != null && jwtUtils.validateToken(token)) {
+                // 二次校验：令牌对应的会话必须处于活跃且未过期状态。
+                // 用户主动登出或管理员强制下线会把会话 isActive 置 false，
+                // 此时即便令牌本身未过期，也视为失效，拒绝建立认证上下文，
+                // 请求将落入 anyRequest().authenticated() 被统一拒绝（401）。
+                if (!userSessionService.isSessionActive(token)) {
+                    chain.doFilter(request, response);
+                    return;
+                }
+
+                Long userId = jwtUtils.getUserIdFromToken(token);
+                String username = jwtUtils.getUsernameFromToken(token);
+                String role = jwtUtils.getRoleFromToken(token);
+
+                // 封装角色权限（Spring Security 角色需前缀 ROLE_）
+                List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
+                // 构建认证对象，主体存入 userId，凭证存入 username
+                UsernamePasswordAuthenticationToken authentication =
+                        new UsernamePasswordAuthenticationToken(userId, username, authorities);
+                // 写入安全上下文，后续接口可直接获取登录用户信息
+                SecurityContextHolder.getContext().setAuthentication(authentication);
             }
-
-            Long userId = jwtUtils.getUserIdFromToken(token);
-            String username = jwtUtils.getUsernameFromToken(token);
-            String role = jwtUtils.getRoleFromToken(token);
-
-            // 封装角色权限（Spring Security 角色需前缀 ROLE_）
-            List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
-            // 构建认证对象，主体存入 userId，凭证存入 username
-            UsernamePasswordAuthenticationToken authentication =
-                    new UsernamePasswordAuthenticationToken(userId, username, authorities);
-            // 写入安全上下文，后续接口可直接获取登录用户信息
-            SecurityContextHolder.getContext().setAuthentication(authentication);
+        } catch (Exception e) {
+            log.error("[JwtRequestFilter] 解析/校验令牌异常（本次按未认证处理）: {}", e.getMessage(), e);
         }
 
         // 放行请求

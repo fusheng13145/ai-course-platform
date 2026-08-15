@@ -12,7 +12,9 @@
         </div>
       </div>
       <div class="shell-header__right">
-        <el-tag v-if="courseProgress > 0" type="success" effect="light">{{ courseProgress }}% 已完成</el-tag>
+        <el-tag v-if="courseProgress > 0" type="success" effect="light"
+          >{{ courseProgress }}% 已完成</el-tag
+        >
       </div>
     </div>
 

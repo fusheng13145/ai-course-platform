@@ -6,6 +6,10 @@ import com.baomidou.mybatisplus.extension.service.IService;
 import java.util.List;
 import java.util.Map;
 
+
+/**
+ * 视频观看会话接口：相关业务逻辑入口，提供增删改查与编排能力。
+ */
 public interface VideoWatchSessionService extends IService<VideoWatchSession> {
 
     /**

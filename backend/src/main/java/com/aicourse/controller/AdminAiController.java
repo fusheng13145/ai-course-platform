@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import jakarta.validation.Valid;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -22,6 +25,8 @@ import com.aicourse.common.ApiCode;
 @RequestMapping("/admin/ai")
 @PreAuthorize("hasRole('ADMIN')")
 public class AdminAiController {
+
+    private static final Logger log = LoggerFactory.getLogger(AdminAiController.class);
 
     private final RoutingLLMProvider routingLLMProvider;
 
@@ -49,6 +54,7 @@ public class AdminAiController {
     @PostMapping("/provider")
     public ApiResponse<Map<String, Object>> switchProvider(@Valid @RequestBody Map<String, String> body) {
         String provider = body.get("provider");
+        log.debug("切换AI供应商 provider={}", provider);
         if (provider == null || provider.isBlank()) {
             return ApiResponse.error(ApiCode.BAD_REQUEST, "provider 不能为空");
         }

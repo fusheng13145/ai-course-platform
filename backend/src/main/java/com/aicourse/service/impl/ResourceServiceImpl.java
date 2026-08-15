@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.Resource;
 import com.aicourse.entity.ResourceVersion;
 import com.aicourse.exception.BusinessException;
@@ -21,6 +24,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class ResourceServiceImpl extends ServiceImpl<ResourceMapper, Resource> implements ResourceService {
+
+    private static final Logger log = LoggerFactory.getLogger(ResourceServiceImpl.class);
 
     private final ResourceVersionService resourceVersionService;
 
@@ -129,6 +134,8 @@ public class ResourceServiceImpl extends ServiceImpl<ResourceMapper, Resource> i
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void toggleVisibility(Long resourceId, Boolean visibleToAll) {
+        log.info("切换资源");
+
         Resource resource = this.getById(resourceId);
         if (resource == null) {
             throw new BusinessException("资源不存在");

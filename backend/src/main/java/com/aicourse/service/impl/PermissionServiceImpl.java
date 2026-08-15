@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.RolePermission;
 import com.aicourse.entity.User;
 import com.aicourse.mapper.RolePermissionMapper;
@@ -23,6 +26,8 @@ import java.util.stream.Collectors;
  */
 @Service
 public class PermissionServiceImpl extends ServiceImpl<RolePermissionMapper, RolePermission> implements PermissionService {
+
+    private static final Logger log = LoggerFactory.getLogger(PermissionServiceImpl.class);
 
     private static final String CACHE_NAME = "permissions";
 
@@ -78,18 +83,28 @@ public class PermissionServiceImpl extends ServiceImpl<RolePermissionMapper, Rol
     @Override
     @CacheEvict(cacheNames = CACHE_NAME, allEntries = true)
     public boolean save(RolePermission entity) {
+        log.info("保存权限");
+
         return super.save(entity);
     }
 
+
+    /** 更新权限 */
     @Override
     @CacheEvict(cacheNames = CACHE_NAME, allEntries = true)
     public boolean updateById(RolePermission entity) {
+        log.info("更新权限");
+
         return super.updateById(entity);
     }
 
+
+    /** 移除权限 */
     @Override
     @CacheEvict(cacheNames = CACHE_NAME, allEntries = true)
     public boolean removeById(Serializable id) {
+        log.info("移除权限");
+
         return super.removeById(id);
     }
 }

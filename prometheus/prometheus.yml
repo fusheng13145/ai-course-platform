@@ -1,0 +1,58 @@
+# AI Course Platform - Prometheus 抓取配置
+# 挂载到 /etc/prometheus/prometheus.yml（docker compose monitor profile）
+#
+# 鉴权说明：
+# 生产环境 APP_ACTUATOR_SECURED=true 时，/api/actuator/prometheus 要求 HTTP Basic 鉴权
+# （具备 ACTUATOR 角色）。以下 basic_auth 凭据通过 Prometheus 进程环境变量注入
+# （ACTUATOR_BASIC_USER / ACTUATOR_BASIC_PASSWORD，由 docker-compose 从 .env 透传），
+# 与后端 APP_ACTUATOR_BASIC_USER/PASSWORD 必须完全一致。
+# 若未配置口令，抓取将因 401 失败（fail-closed），便于第一时间发现配置缺失。
+# Prometheus 原生支持配置文件内的 ${VAR} 环境变量插值（v2.24+）。
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+
+# 告警规则：由 alert_rules.yml 定义；评估周期同 evaluation_interval（15s）
+rule_files:
+  - '/etc/prometheus/alert_rules.yml'
+
+# 告警分发：推送至同网络内的 Alertmanager（docker-compose alertmanager 服务）。
+# 注意：Alertmanager 未启动时 Prometheus 仅无法外发告警，自身抓取与规则评估不受影响。
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets: ['alertmanager:9093']
+
+scrape_configs:
+  - job_name: 'aicourse-backend'
+    metrics_path: '/api/actuator/prometheus'
+    scheme: http
+    basic_auth:
+      username: '${ACTUATOR_BASIC_USER:-monitor}'
+      password: '${ACTUATOR_BASIC_PASSWORD:-}'
+    static_configs:
+      - targets: ['backend:8080']
+
+  - job_name: 'promtail'
+    # 抓取 Promtail 自身 metrics 端点（server.http_listen_port=9080），
+    # 获取 promtail_custom_log_lines_total{level} 用于错误日志突增告警。
+    static_configs:
+      - targets: ['promtail:9080']
+
+  # ---------------- 监控组件自监控（meta-monitoring） ----------------
+  # 抓取监控链路各组件自身 /metrics，使 up{job=~"prometheus|alertmanager|loki|grafana|promtail"}
+  # 全部纳入监控；任一组件宕机（尤其 Alertmanager）将触发 MonitoringComponentDown 告警。
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['prometheus:9090']
+  - job_name: 'alertmanager'
+    static_configs:
+      - targets: ['alertmanager:9093']
+  - job_name: 'loki'
+    static_configs:
+      - targets: ['loki:3100']
+  - job_name: 'grafana'
+    # 依赖 docker-compose grafana 服务的 GF_METRICS_ENABLED=true 暴露 /metrics
+    static_configs:
+      - targets: ['grafana:3000']

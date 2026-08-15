@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.dto.QuestionVO;
@@ -32,6 +35,8 @@ import java.util.stream.Collectors;
 @RequestMapping("/questions")
 @Tag(name = "题库管理", description = "题目CRUD、AI生成、随机选题、批量导入")
 public class QuestionController {
+
+    private static final Logger log = LoggerFactory.getLogger(QuestionController.class);
 
     private final QuestionService questionService;
     private final AIService aiService;

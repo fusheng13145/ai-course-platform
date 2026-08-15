@@ -5,6 +5,8 @@ import com.fasterxml.jackson.annotation.JsonTypeInfo;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.jsontype.BasicPolymorphicTypeValidator;
+import com.fasterxml.jackson.databind.jsontype.PolymorphicTypeValidator;
 import com.fasterxml.jackson.databind.jsontype.impl.LaissezFaireSubTypeValidator;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 
@@ -44,9 +46,19 @@ public final class RedisObjectMapperFactory {
         mapper.configure(SerializationFeature.FAIL_ON_EMPTY_BEANS, false);
         // 不序列化 null 字段，减小缓存体积
         mapper.setSerializationInclusion(JsonInclude.Include.NON_NULL);
-        // 关键：开启默认类型信息，使 List<Course> 等泛型集合可正确还原为具体实体类型
+        // 关键：开启默认类型信息，使 List<Course> 等泛型集合可正确还原为具体实体类型。
+        // 修复 P1-7（CWE-502）：原实现使用 LaissezFaireSubTypeValidator（全类型放行），
+        // 一旦攻击者可影响 Redis 缓存内容，即可经 @class 触发危险 gadget 反序列化。
+        // 现改为白名单校验：仅允许 com.aicourse.entity 包实体（本项目缓存的唯一类型来源），
+        // 业务不受影响，攻击面收敛到业务实体范围。
+        PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
+                .allowIfSubType("com.aicourse.entity.")
+                .allowIfSubType("java.util.")
+                .allowIfSubType("java.lang.")
+                .allowIfSubType("java.time.")
+                .build();
         mapper.activateDefaultTyping(
-                LaissezFaireSubTypeValidator.instance,
+                ptv,
                 ObjectMapper.DefaultTyping.NON_FINAL,
                 JsonTypeInfo.As.PROPERTY);
         mapper.configure(MapperFeature.DEFAULT_VIEW_INCLUSION, false);

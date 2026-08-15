@@ -66,10 +66,16 @@ spring:
   cache:
     type: redis
 
-  # 数据库初始化脚本
+  # ============ 数据库初始化脚本（安全加固：显式禁用，阻断误触地雷） ============
+  # ⚠⚠ 危险配置警告：index.sql 含 DROP TABLE + 全量重建 + 种子数据。
+  # 此前 mode: always 且未指定 schema-locations，一旦有人误加 schema-locations，
+  # 应用启动即清空整个数据库，不可恢复！
+  # 本配置显式 mode: never 强制禁用：即使有人添加 schema-locations 也不会执行。
+  # 仅测试 profile（application-contract-test.yml 等）为隔离测试库单独开启初始化。
+  # 生产/开发环境初始化请改用显式的数据库迁移工具（Flyway/Liquibase）或手动执行 SQL。
   sql:
     init:
-      mode: always
+      mode: never
       continue-on-error: true
 
   # Jackson 全局序列化：时区、日期格式、空值处理
@@ -233,11 +239,64 @@ ratelimit:
     limit: ${RATELIMIT_VERIFY_LIMIT:5}
     window-seconds: ${RATELIMIT_VERIFY_WINDOW:60}
 
+# ===================== Sentinel 流量控制与熔断降级 =====================
+# 与既有 ratelimit（IP 级、按来源防刷）分层协作：Sentinel 负责「资源/容量治理 + 下游熔断」。
+# 规则全部配置化（支持环境变量覆盖）；master switch sentinel.enabled=false 可整体降级为透传。
+sentinel:
+  enabled: ${SENTINEL_ENABLED:true}
+  # 规则持久化目录（相对进程工作目录或绝对路径）；启动时将 YAML 规则落盘为 flow-rules.json / degrade-rules.json，并支持运行期热刷新。
+  rules-dir: ${SENTINEL_RULES_DIR:sentinel-rules}
+  web:
+    # URL 级流控过滤器开关
+    enabled: ${SENTINEL_WEB_ENABLED:true}
+    # 全局入口限流（QPS）。默认 0=不启用（避免误伤开发/压测）；生产可按容量设为如 2000。
+    global-qps: ${SENTINEL_WEB_GLOBAL_QPS:0}
+    # 排除路径前缀（探活 / WebSocket / Swagger 不被限流）
+    exclude-paths:
+      - /api/actuator
+      - /actuator
+      - /api/ws
+      - /ws
+      - /swagger-ui
+      - /v3/api-docs
+      - /api-docs
+      - /api-docs.html
+  # 流控规则（按资源名 METHOD:path 或 @SentinelResource 指定值精确匹配）
+  flow-rules:
+    # 示例：AI 问答入口按 QPS 限流，保护昂贵的 LLM / RAG 下游调用
+    - resource: "POST:/api/ai/qa/ask"
+      grade: 1                      # 1=QPS，0=并发线程数
+      count: ${SENTINEL_FLOW_AI_QA_QPS:50}
+      limit-app: default
+      strategy: 0
+      control-behavior: 0
+      max-queueing-time-ms: 500
+    # 对 Python RAG 微服务（8002）下游调用做方法级 QPS 限制，防止打爆检索服务
+    - resource: "rag:http"
+      grade: 1
+      count: ${SENTINEL_FLOW_RAG_QPS:50}
+      limit-app: default
+      strategy: 0
+      control-behavior: 0
+      max-queueing-time-ms: 500
+  # 熔断降级规则（按资源名精确匹配）
+  degrade-rules:
+    # 对 RAG 下游：慢调用比例策略 —— 10s 窗口内慢调用(>3000ms)占比 >50% 且请求数≥5 时熔断 10s
+    - resource: "rag:http"
+      grade: 0                      # 0=慢调用比例，1=异常比例，2=异常数
+      count: 3000                   # 慢调用阈值(ms)
+      time-window: 10               # 熔断时长(s)
+      min-request-amount: 5
+      stat-interval-ms: 10000
+      slow-ratio-threshold: 0.5
+
 # ===================== Python 知识图谱服务配置 =====================
-# 注意：当前版本已使用 Java 自包含实现（MySQL 实体 + BM25 + GraphRAG）。
-# 以下配置仅为未来可能重启 Python 知识图谱微服务的预留占位，默认关闭。
+# 注意（2026-08-13 职责边界）：知识图谱引擎（图谱构建、多跳推理、GraphRAG）
+# 由团队另一成员负责；本端不再内置引擎实现，仅保留知识点的消费侧 CRUD、
+# 掌握度/关联查询与 /extract 摄取端点，并通过 HTTP 代理对接 Python 知识图谱服务。
+# 以下配置为未来可能接入独立 Python 知识图谱微服务的预留占位，默认关闭。
 knowledge-graph:
-  # 是否启用 Python 知识图谱服务（当前版本由 Java 自包含实现，默认关闭）
+  # 是否启用 Python 知识图谱服务（当前 Java 端仅保留消费侧与 HTTP 代理，默认关闭）
   enabled: ${KG_ENABLED:false}
   # Python知识图谱服务地址（独立端口，与RAG服务隔离）
   base-url: ${KG_BASE_URL:http://localhost:8001}
@@ -255,10 +314,11 @@ knowledge-graph:
     max-hops: ${KG_RAG_MAX_HOPS:2}
 
 # ===================== Python RAG 服务配置 =====================
-# 注意：当前版本已使用 Java 自包含 RAG 实现（BM25 检索 + LLMProvider）。
-# 以下配置仅为未来可能重启 Python RAG 微服务的预留占位，默认关闭。
+# 注意（2026-08-13 职责边界）：RAG 检索引擎（BM25 / 向量检索 / embedding / 融合）由团队另一成员负责，
+# 本端不再内置引擎实现，仅保留 RAGService 标准化接口 + 本 HTTP 代理；rag.enabled=true 时调用 Python 端
+# /api/v1/rag/* 契约（见 docs/运维手册.md §11.4），未启用或不可达时降级返回 {"code":503}（AI 问答自动回退纯 LLM）。
 rag:
-  # 是否启用 Python RAG 服务（当前版本由 Java 自包含实现，默认关闭）
+  # 是否启用 Python RAG 服务（默认关闭）
   enabled: ${RAG_ENABLED:false}
   # Python RAG服务地址（独立端口，与知识图谱服务隔离）
   base-url: ${RAG_BASE_URL:http://localhost:8002}
@@ -272,12 +332,8 @@ rag:
   default-top-k: ${RAG_DEFAULT_TOP_K:5}
   # 健康检查路径
   health-path: ${RAG_HEALTH_PATH:/api/v1/rag/health}
-  # ---------- BM25 检索参数 ----------
-  bm25:
-    # k1：词频饱和度（1.2=经典值, 1.5=标准Okapi, 2.0=高频词更大权重）
-    k1: ${RAG_BM25_K1:1.5}
-    # b：文档长度归一化强度（0=无归一化, 0.75=标准Okapi, 1.0=完全归一化）
-    b: ${RAG_BM25_B:0.75}
+  # （引擎参数——bm25.k1/b、embedding、retriever.mode、vector.index、hybrid 权重——已随引擎实现剥离移除：
+  #   RAG 检索引擎由团队另一成员负责，本端仅保留 RAGService 接口与上述 HTTP 代理配置）
 
 # ===================== Python LoRA/微调 服务配置 =====================
 fine-tune:
@@ -314,6 +370,11 @@ minio:
 # 暴露端点：health 默认公开（供 Docker/K8s 探针与负载均衡探活），
 # info/metrics/prometheus 供运维监控；prometheus 在 SecurityConfig 中限定 ADMIN。
 management:
+  metrics:
+    distribution:
+      # 启用 HTTP 请求直方图，暴露 _bucket 指标，支撑 P99 延迟告警（默认仅 count/sum）
+      percentiles-histogram:
+        http.server.requests: true
   endpoints:
     web:
       exposure:

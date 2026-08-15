@@ -4,7 +4,13 @@
     <!-- 顶部工具栏 -->
     <div class="table-toolbar">
       <div class="toolbar-left">
-        <el-select v-model="selectedCourseId" placeholder="选择课程" clearable class="w-200" @change="loadAllData">
+        <el-select
+          v-model="selectedCourseId"
+          placeholder="选择课程"
+          clearable
+          class="w-200"
+          @change="loadAllData"
+        >
           <el-option v-for="c in courseList" :key="c.id" :label="c.name" :value="c.id" />
         </el-select>
         <el-button type="primary" @click="openCreateDialog">
@@ -12,7 +18,15 @@
         </el-button>
       </div>
       <div class="toolbar-right">
-        <el-input v-model="searchText" placeholder="搜索知识点..." clearable class="w-220" :prefix-icon="Search" @clear="handleFilter" @keyup.enter="handleFilter" />
+        <el-input
+          v-model="searchText"
+          placeholder="搜索知识点..."
+          clearable
+          class="w-220"
+          :prefix-icon="Search"
+          @clear="handleFilter"
+          @keyup.enter="handleFilter"
+        />
       </div>
     </div>
 
@@ -39,11 +53,20 @@
             <template #default="{ node, data }">
               <span class="tree-node-label">
                 <span class="node-name">{{ node.label }}</span>
-                <el-tag size="small" :type="getDifficultyTagType(data.difficulty)" class="tree-tag">{{ getDifficultyLabel(data.difficulty) }}</el-tag>
+                <el-tag
+                  size="small"
+                  :type="getDifficultyTagType(data.difficulty)"
+                  class="tree-tag"
+                  >{{ getDifficultyLabel(data.difficulty) }}</el-tag
+                >
               </span>
             </template>
           </el-tree>
-          <el-empty v-if="!treeLoading && (!knowledgeTree || knowledgeTree.length === 0)" description="暂无知识树数据" :image-size="60" />
+          <el-empty
+            v-if="!treeLoading && (!knowledgeTree || knowledgeTree.length === 0)"
+            description="暂无知识树数据"
+            :image-size="60"
+          />
         </div>
       </div>
 
@@ -51,12 +74,13 @@
       <div class="right-panel">
         <!-- 知识点列表表格 -->
         <div class="content-card list-card">
-          <el-table
-v-loading="tableLoading" :data="filteredKnowledgeList">
+          <el-table v-loading="tableLoading" :data="filteredKnowledgeList">
             <el-table-column prop="name" label="知识点名称" min-width="160" show-overflow-tooltip />
             <el-table-column prop="difficulty" label="难度" width="80" align="center">
               <template #default="{ row }">
-                <el-tag :type="getDifficultyTagType(row.difficulty)" size="small">{{ getDifficultyLabel(row.difficulty) }}</el-tag>
+                <el-tag :type="getDifficultyTagType(row.difficulty)" size="small">{{
+                  getDifficultyLabel(row.difficulty)
+                }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column prop="importance" label="重要度" width="80" align="center">
@@ -65,17 +89,28 @@ v-loading="tableLoading" :data="filteredKnowledgeList">
               </template>
             </el-table-column>
             <el-table-column prop="questionCount" label="关联题目" width="90" align="center">
-              <template #default="{ row }"><span>{{ row.questionCount || 0 }}</span></template>
+              <template #default="{ row }"
+                ><span>{{ row.questionCount || 0 }}</span></template
+              >
             </el-table-column>
             <el-table-column label="操作" width="220" fixed="right">
               <template #default="{ row }">
-                <el-button text type="primary" size="small" @click="openEditDialog(row)">编辑</el-button>
-                <el-button text type="primary" size="small" @click="openRelationDialog(row)">关联</el-button>
-                <el-button text type="danger" size="small" @click="handleDelete(row)">删除</el-button>
+                <el-button text type="primary" size="small" @click="openEditDialog(row)"
+                  >编辑</el-button
+                >
+                <el-button text type="primary" size="small" @click="openRelationDialog(row)"
+                  >关联</el-button
+                >
+                <el-button text type="danger" size="small" @click="handleDelete(row)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>
-          <el-empty v-if="!tableLoading && filteredKnowledgeList.length === 0" description="暂无知识点数据" />
+          <el-empty
+            v-if="!tableLoading && filteredKnowledgeList.length === 0"
+            description="暂无知识点数据"
+          />
         </div>
 
         <!-- 知识图谱可视化 -->
@@ -88,7 +123,12 @@ v-loading="tableLoading" :data="filteredKnowledgeList">
             </el-radio-group>
           </div>
           <div class="graph-container">
-            <v-chart v-if="graphViewMode === 'force'" :option="forceGraphOption" class="graph-chart" autoresize />
+            <v-chart
+              v-if="graphViewMode === 'force'"
+              :option="forceGraphOption"
+              class="graph-chart"
+              autoresize
+            />
             <v-chart v-else :option="treeGraphOption" class="graph-chart" autoresize />
           </div>
         </div>
@@ -96,10 +136,20 @@ v-loading="tableLoading" :data="filteredKnowledgeList">
     </div>
 
     <!-- 新建/编辑知识点对话框 -->
-    <el-dialog v-model="formDialogVisible" :title="isEdit ? '编辑知识点' : '新建知识点'" width="560px" destroy-on-close>
+    <el-dialog
+      v-model="formDialogVisible"
+      :title="isEdit ? '编辑知识点' : '新建知识点'"
+      width="560px"
+      destroy-on-close
+    >
       <el-form ref="formRef" :model="kpForm" :rules="formRules" label-width="100px">
         <el-form-item label="知识点名称" prop="name">
-          <el-input v-model="kpForm.name" placeholder="输入知识点名称" maxlength="50" show-word-limit />
+          <el-input
+            v-model="kpForm.name"
+            placeholder="输入知识点名称"
+            maxlength="50"
+            show-word-limit
+          />
         </el-form-item>
         <el-form-item label="所属课程" prop="courseId">
           <el-select v-model="kpForm.courseId" placeholder="选择课程" class="w-100" filterable>
@@ -135,12 +185,21 @@ v-loading="tableLoading" :data="filteredKnowledgeList">
           </el-col>
         </el-row>
         <el-form-item label="描述">
-          <el-input v-model="kpForm.description" type="textarea" :rows="3" placeholder="知识点描述（可选）" maxlength="300" show-word-limit />
+          <el-input
+            v-model="kpForm.description"
+            type="textarea"
+            :rows="3"
+            placeholder="知识点描述（可选）"
+            maxlength="300"
+            show-word-limit
+          />
         </el-form-item>
       </el-form>
       <template #footer>
         <el-button @click="formDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitForm">{{ isEdit ? '保存修改' : '创建' }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitForm">{{
+          isEdit ? '保存修改' : '创建'
+        }}</el-button>
       </template>
     </el-dialog>
 
@@ -155,10 +214,18 @@ v-loading="tableLoading" :data="filteredKnowledgeList">
         <div class="rel-section">
           <h4 class="rel-heading">添加前置依赖</h4>
           <div class="rel-row">
-            <el-select v-model="newPrereqId" placeholder="选择前置知识点" clearable filterable class="rel-select">
+            <el-select
+              v-model="newPrereqId"
+              placeholder="选择前置知识点"
+              clearable
+              filterable
+              class="rel-select"
+            >
               <el-option v-for="k in availablePrereqs" :key="k.id" :label="k.name" :value="k.id" />
             </el-select>
-            <el-button type="primary" size="small" :disabled="!newPrereqId" @click="addPrerequisite">添加</el-button>
+            <el-button type="primary" size="small" :disabled="!newPrereqId" @click="addPrerequisite"
+              >添加</el-button
+            >
           </div>
         </div>
 
@@ -218,13 +285,13 @@ const kpForm = reactive({
   parentId: null,
   difficulty: 'MEDIUM',
   importance: 2,
-  description: ''
+  description: '',
 })
 
 const formRules = {
   name: [{ required: true, message: '请输入知识点名称', trigger: 'blur' }],
   courseId: [{ required: true, message: '请选择所属课程', trigger: 'change' }],
-  difficulty: [{ required: true, message: '请选择难度', trigger: 'change' }]
+  difficulty: [{ required: true, message: '请选择难度', trigger: 'change' }],
 }
 
 // 关联关系
@@ -240,9 +307,9 @@ const graphViewMode = ref('force')
 const filteredKnowledgeList = computed(() => {
   if (!searchText.value) return knowledgeList.value
   const kw = searchText.value.toLowerCase()
-  return knowledgeList.value.filter(k =>
-    (k.name || '').toLowerCase().includes(kw) ||
-    (k.description || '').toLowerCase().includes(kw)
+  return knowledgeList.value.filter(
+    (k) =>
+      (k.name || '').toLowerCase().includes(kw) || (k.description || '').toLowerCase().includes(kw),
   )
 })
 
@@ -255,9 +322,9 @@ const flatTreeOptions = computed(() => {
 // 可选的前置知识点（排除自身和已有的）
 const availablePrereqs = computed(() => {
   if (!currentKpForRelation.value) return []
-  const existingIds = new Set(prerequisitesList.value.map(p => p.id))
+  const existingIds = new Set(prerequisitesList.value.map((p) => p.id))
   existingIds.add(currentKpForRelation.value.id)
-  return knowledgeList.value.filter(k => !existingIds.has(k.id))
+  return knowledgeList.value.filter((k) => !existingIds.has(k.id))
 })
 
 onMounted(async () => {
@@ -291,7 +358,7 @@ async function loadKnowledgeTree() {
   try {
     const res = await knowledgeApi.getTree(selectedCourseId.value)
     const data = res.data?.data || res.data || res || []
-    knowledgeTree.value = Array.isArray(data) ? data : (data ? [data] : [])
+    knowledgeTree.value = Array.isArray(data) ? data : data ? [data] : []
   } catch (e) {
     // getTree 接口不可用时回退到从列表构建
     try {
@@ -313,9 +380,9 @@ async function loadKnowledgeList() {
   try {
     const res = await knowledgeApi.getKnowledgePoints(selectedCourseId.value)
     const data = res.data?.list || res.data || res || []
-    knowledgeList.value = (Array.isArray(data) ? data : []).map(k => ({
+    knowledgeList.value = (Array.isArray(data) ? data : []).map((k) => ({
       ...k,
-      importance: k.importance ?? k.weight ?? 1
+      importance: k.importance ?? k.weight ?? 1,
     }))
   } catch (e) {
     console.error('加载知识点列表失败:', e)
@@ -335,8 +402,13 @@ async function loadKnowledgeGraph() {
     console.error('加载图谱数据失败:', e)
     // 使用知识点列表生成默认图谱
     updateForceGraph(
-      knowledgeList.value.map(k => ({ id: k.id, name: k.name, difficulty: k.difficulty, importance: k.importance })),
-      []
+      knowledgeList.value.map((k) => ({
+        id: k.id,
+        name: k.name,
+        difficulty: k.difficulty,
+        importance: k.importance,
+      })),
+      [],
     )
   }
 }
@@ -364,9 +436,9 @@ function buildTreeFromList(list) {
 
 // 构建 el-tree-select 数据
 function buildTreeSelectData(tree) {
-  return tree.map(node => ({
+  return tree.map((node) => ({
     ...node,
-    children: node.children?.length ? buildTreeSelectData(node.children) : undefined
+    children: node.children?.length ? buildTreeSelectData(node.children) : undefined,
   }))
 }
 
@@ -375,7 +447,7 @@ function handleFilter() {}
 function expandAll() {
   const nodes = treeRef.value?.store?.nodesMap
   if (nodes) {
-    Object.values(nodes).forEach(node => node.expand())
+    Object.values(nodes).forEach((node) => node.expand())
   }
 }
 
@@ -393,7 +465,7 @@ function openCreateDialog() {
     parentId: null,
     difficulty: 'MEDIUM',
     importance: 2,
-    description: ''
+    description: '',
   })
   formDialogVisible.value = true
 }
@@ -408,7 +480,7 @@ function openEditDialog(row) {
     parentId: row.parentId || null,
     difficulty: row.difficulty || 'MEDIUM',
     importance: row.importance ?? 2,
-    description: row.description || ''
+    description: row.description || '',
   })
   formDialogVisible.value = true
 }
@@ -440,7 +512,9 @@ async function submitForm() {
 // 删除知识点
 async function handleDelete(row) {
   try {
-    await ElMessageBox.confirm(`确定删除知识点「${row.name}」？其子节点也将被删除`, '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(`确定删除知识点「${row.name}」？其子节点也将被删除`, '删除确认', {
+      type: 'warning',
+    })
     await knowledgeApi.deleteKnowledgePoint(row.id)
     ElMessage.success('删除成功')
     await loadAllData()
@@ -472,7 +546,7 @@ async function addPrerequisite() {
     await knowledgeApi.addRelation({
       sourceId: newPrereqId.value,
       targetId: currentKpForRelation.value.id,
-      type: 'prerequisite'
+      type: 'prerequisite',
     })
     ElMessage.success('添加关联成功')
     await openRelationDialog(currentKpForRelation.value)
@@ -506,49 +580,51 @@ function buildForceGraphOption() {
     },
     animationDurationUpdate: 500,
     animationEasingUpdate: 'quinticInOut',
-    series: [{
-      type: 'graph',
-      layout: 'force',
-      data: [],
-      links: [],
-      roam: true,
-      draggable: true,
-      force: {
-        repulsion: 200,
-        edgeLength: 120,
-        gravity: 0.1
+    series: [
+      {
+        type: 'graph',
+        layout: 'force',
+        data: [],
+        links: [],
+        roam: true,
+        draggable: true,
+        force: {
+          repulsion: 200,
+          edgeLength: 120,
+          gravity: 0.1,
+        },
+        emphasis: {
+          focus: 'adjacency',
+          lineStyle: { width: 3 },
+        },
+        lineStyle: {
+          color: t.axis,
+          width: 1.5,
+          curveness: 0.2,
+          opacity: 0.7,
+        },
+        label: {
+          show: true,
+          position: 'bottom',
+          fontSize: 11,
+          color: t.text,
+          formatter: '{b}',
+        },
+        symbolSize: (val) => {
+          const importance = val?.[2] || 1
+          return 16 + importance * 10
+        },
+        itemStyle: {
+          borderColor: t.sliceBorder,
+          borderWidth: 2,
+        },
+        color: (params) => {
+          const difficulty = params.data?.difficulty
+          const colors = { EASY: st.EASY, MEDIUM: st.MEDIUM, HARD: st.HARD }
+          return colors[difficulty] || st.INFO
+        },
       },
-      emphasis: {
-        focus: 'adjacency',
-        lineStyle: { width: 3 }
-      },
-      lineStyle: {
-        color: t.axis,
-        width: 1.5,
-        curveness: 0.2,
-        opacity: 0.7
-      },
-      label: {
-        show: true,
-        position: 'bottom',
-        fontSize: 11,
-        color: t.text,
-        formatter: '{b}'
-      },
-      symbolSize: (val) => {
-        const importance = val?.[2] || 1
-        return 16 + importance * 10
-      },
-      itemStyle: {
-        borderColor: t.sliceBorder,
-        borderWidth: 2
-      },
-      color: (params) => {
-        const difficulty = params.data?.difficulty
-        const colors = { EASY: st.EASY, MEDIUM: st.MEDIUM, HARD: st.HARD }
-        return colors[difficulty] || st.INFO
-      }
-    }]
+    ],
   }
 }
 const forceGraphOption = ref(buildForceGraphOption())
@@ -563,37 +639,39 @@ function buildTreeGraphOption() {
       borderColor: t.tooltipBorder,
       textStyle: { color: t.tooltipText },
     },
-    series: [{
-      type: 'tree',
-      data: [],
-      orient: 'LR',
-      symbol: 'circle',
-      symbolSize: 12,
-      initialTreeDepth: -1,
-      roam: true,
-      label: {
-        position: 'top',
-        verticalAlign: 'middle',
-        align: 'right',
-        fontSize: 11,
-        color: t.text
-      },
-      leaves: {
-        label: { position: 'bottom', verticalAlign: 'middle', align: 'left' }
-      },
-      expandAndCollapse: true,
-      animationDuration: 550,
-      animationDurationUpdate: 750,
-      itemStyle: {
-        color: (params) => {
-          const d = params.data?.difficulty
-          return d === 'HARD' ? st.HARD : d === 'EASY' ? st.EASY : st.MEDIUM
+    series: [
+      {
+        type: 'tree',
+        data: [],
+        orient: 'LR',
+        symbol: 'circle',
+        symbolSize: 12,
+        initialTreeDepth: -1,
+        roam: true,
+        label: {
+          position: 'top',
+          verticalAlign: 'middle',
+          align: 'right',
+          fontSize: 11,
+          color: t.text,
         },
-        borderColor: t.sliceBorder,
-        borderWidth: 2
+        leaves: {
+          label: { position: 'bottom', verticalAlign: 'middle', align: 'left' },
+        },
+        expandAndCollapse: true,
+        animationDuration: 550,
+        animationDurationUpdate: 750,
+        itemStyle: {
+          color: (params) => {
+            const d = params.data?.difficulty
+            return d === 'HARD' ? st.HARD : d === 'EASY' ? st.EASY : st.MEDIUM
+          },
+          borderColor: t.sliceBorder,
+          borderWidth: 2,
+        },
+        lineStyle: { color: t.axis, width: 1.5, curveness: 0.3 },
       },
-      lineStyle: { color: t.axis, width: 1.5, curveness: 0.3 }
-    }]
+    ],
   }
 }
 const treeGraphOption = ref(buildTreeGraphOption())
@@ -602,28 +680,28 @@ const treeGraphOption = ref(buildTreeGraphOption())
 function updateForceGraph(nodes, links) {
   if (nodes.length === 0) {
     // 从知识点列表生成节点
-    nodes = knowledgeList.value.map(k => ({
+    nodes = knowledgeList.value.map((k) => ({
       id: k.id,
       name: k.name,
       difficulty: k.difficulty,
       category: k.difficulty === 'HARD' ? 2 : k.difficulty === 'EASY' ? 0 : 1,
-      value: [k.importance || 1]
+      value: [k.importance || 1],
     }))
   }
 
-  forceGraphOption.value.series[0].data = nodes.map(n => ({
+  forceGraphOption.value.series[0].data = nodes.map((n) => ({
     name: n.name || n.label || '未知',
     id: n.id,
     difficulty: n.difficulty,
     value: n.value || [n.importance || 1],
     category: n.category ?? (n.difficulty === 'HARD' ? 2 : n.difficulty === 'EASY' ? 0 : 1),
-    symbolSize: 18 + ((n.importance || 1) * 8),
-    itemStyle: { color: getNodeColor(n.difficulty) }
+    symbolSize: 18 + (n.importance || 1) * 8,
+    itemStyle: { color: getNodeColor(n.difficulty) },
   }))
-  forceGraphOption.value.series[0].links = (links || []).map(l => ({
+  forceGraphOption.value.series[0].links = (links || []).map((l) => ({
     source: l.source || l.sourceName || l.sourceId,
     target: l.target || l.targetName || l.targetId,
-    value: l.type || 'related'
+    value: l.type || 'related',
   }))
 
   // 更新树形图数据
@@ -637,7 +715,7 @@ function transformToTreeData(node) {
     name: node.name,
     difficulty: node.difficulty,
     id: node.id,
-    children: (node.children || []).map(c => transformToTreeData(c))
+    children: (node.children || []).map((c) => transformToTreeData(c)),
   }
 }
 

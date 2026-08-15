@@ -1,23 +1,47 @@
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import * as ElementPlusIconsVue from '@element-plus/icons-vue'
-import 'element-plus/dist/index.css'  // 保留基础样式（莫兰迪主题覆盖依赖此文件）
+import 'element-plus/dist/index.css' // 保留基础样式（莫兰迪主题覆盖依赖此文件）
 import 'nprogress/nprogress.css'
 
 import ECharts from 'vue-echarts'
 import { use } from 'echarts/core'
 import { CanvasRenderer } from 'echarts/renderers'
-import { LineChart, BarChart, PieChart, ScatterChart, HeatmapChart, RadarChart, GraphChart } from 'echarts/charts'
 import {
-  GridComponent, TooltipComponent, LegendComponent, TitleComponent,
-  ToolboxComponent, DataZoomComponent, VisualMapComponent
+  LineChart,
+  BarChart,
+  PieChart,
+  ScatterChart,
+  HeatmapChart,
+  RadarChart,
+  GraphChart,
+} from 'echarts/charts'
+import {
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  TitleComponent,
+  ToolboxComponent,
+  DataZoomComponent,
+  VisualMapComponent,
 } from 'echarts/components'
 
 use([
-  CanvasRenderer, LineChart, BarChart, PieChart, ScatterChart,
-  HeatmapChart, RadarChart, GraphChart,
-  GridComponent, TooltipComponent, LegendComponent, TitleComponent,
-  ToolboxComponent, DataZoomComponent, VisualMapComponent
+  CanvasRenderer,
+  LineChart,
+  BarChart,
+  PieChart,
+  ScatterChart,
+  HeatmapChart,
+  RadarChart,
+  GraphChart,
+  GridComponent,
+  TooltipComponent,
+  LegendComponent,
+  TitleComponent,
+  ToolboxComponent,
+  DataZoomComponent,
+  VisualMapComponent,
 ])
 
 import App from './App.vue'

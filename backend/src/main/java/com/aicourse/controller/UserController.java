@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.dto.AdminCreateUserDTO;
@@ -28,6 +31,8 @@ import java.util.Map;
 @RequestMapping("/users")
 @Tag(name = "用户管理")
 public class UserController {
+
+    private static final Logger log = LoggerFactory.getLogger(UserController.class);
 
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;

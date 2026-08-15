@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.ProctorEvent;
 import com.aicourse.entity.ProctorSession;
 import com.aicourse.exception.BusinessException;
@@ -26,6 +29,8 @@ import java.util.Map;
 @Service
 public class ProctorServiceImpl extends ServiceImpl<ProctorSessionMapper, ProctorSession> implements ProctorService {
 
+    private static final Logger log = LoggerFactory.getLogger(ProctorServiceImpl.class);
+
     private final ProctorSessionMapper sessionMapper;
     private final ProctorEventMapper eventMapper;
     private final SystemConfigService systemConfigService;
@@ -51,6 +56,8 @@ public class ProctorServiceImpl extends ServiceImpl<ProctorSessionMapper, Procto
         this.systemConfigService = systemConfigService;
     }
 
+
+    /** 启动监考 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ProctorSession startSession(Long examSessionId, Long studentId) {
@@ -73,6 +80,8 @@ public class ProctorServiceImpl extends ServiceImpl<ProctorSessionMapper, Procto
         return s;
     }
 
+
+    /** 监考相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ProctorEvent logEvent(Long sessionId, String type, String severity, String detail, String evidenceUrl) {
@@ -110,6 +119,8 @@ public class ProctorServiceImpl extends ServiceImpl<ProctorSessionMapper, Procto
         return e;
     }
 
+
+    /** 监考相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ProctorSession endSession(Long sessionId) {
@@ -123,6 +134,8 @@ public class ProctorServiceImpl extends ServiceImpl<ProctorSessionMapper, Procto
         return s;
     }
 
+
+    /** 查询监考 */
     @Override
     public List<ProctorEvent> listEvents(Long sessionId) {
         return eventMapper.selectList(new LambdaQueryWrapper<ProctorEvent>()
@@ -130,6 +143,8 @@ public class ProctorServiceImpl extends ServiceImpl<ProctorSessionMapper, Procto
                 .orderByAsc(ProctorEvent::getCapturedAt));
     }
 
+
+    /** 查询监考 */
     @Override
     public ProctorSession getStudentSession(Long examSessionId, Long studentId) {
         List<ProctorSession> list = this.list(new LambdaQueryWrapper<ProctorSession>()
@@ -140,6 +155,8 @@ public class ProctorServiceImpl extends ServiceImpl<ProctorSessionMapper, Procto
         return list.isEmpty() ? null : list.get(0);
     }
 
+
+    /** 监考相关操作 */
     @Override
     public List<Map<String, Object>> riskSummary(Long examSessionId) {
         List<ProctorSession> sessions = this.list(new LambdaQueryWrapper<ProctorSession>()
@@ -164,6 +181,8 @@ public class ProctorServiceImpl extends ServiceImpl<ProctorSessionMapper, Procto
         return res;
     }
 
+
+    /** 查询监考 */
     @Override
     @Cacheable(cacheNames = "proctor-config", key = "'thresholds'")
     public Map<String, Object> getThresholds() {
@@ -176,10 +195,14 @@ public class ProctorServiceImpl extends ServiceImpl<ProctorSessionMapper, Procto
         return m;
     }
 
+
+    /** 更新监考 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     @CacheEvict(cacheNames = "proctor-config", key = "'thresholds'")
     public void updateThresholds(Map<String, Integer> thresholds) {
+        log.info("更新监考");
+
         if (thresholds == null || thresholds.isEmpty()) {
             return;
         }
@@ -190,6 +213,8 @@ public class ProctorServiceImpl extends ServiceImpl<ProctorSessionMapper, Procto
         upsert(CFG_W_HIGH, thresholds.get("weightHigh"), DEF_W_HIGH);
     }
 
+
+    /** 监考相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ProctorEvent reviewEvent(Long eventId, String status, String reviewNote, Long reviewerId) {
@@ -240,6 +265,8 @@ public class ProctorServiceImpl extends ServiceImpl<ProctorSessionMapper, Procto
         this.updateById(s);
     }
 
+
+    /** 查询监考 */
     @Override
     public ProctorEvent getEvent(Long eventId) {
         return eventMapper.selectById(eventId);
@@ -269,6 +296,8 @@ public class ProctorServiceImpl extends ServiceImpl<ProctorSessionMapper, Procto
         try {
             return Integer.parseInt(s.trim());
         } catch (Exception e) {
+            log.error("查询监考失败: {}", e.getMessage(), e);
+
             return 0;
         }
     }

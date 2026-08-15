@@ -7,85 +7,152 @@
     </PageHeader>
 
     <div class="stat-grid">
-      <StatCard label="总试卷数" :value="overview.totalPapers || 0" icon="doc" tone="var(--accent-soft)" tone-color="var(--accent)" />
-      <StatCard label="进行中" :value="overview.activeExams || 0" icon="play" tone="var(--ok-soft)" tone-color="var(--ok)" />
-      <StatCard label="待审核" :value="overview.pendingReview || 0" icon="warn" tone="var(--warn-soft)" tone-color="var(--warn)" />
-      <StatCard label="作弊嫌疑" :value="overview.cheatingCases || 0" icon="shield" tone="var(--info-soft)" tone-color="var(--info)" />
+      <StatCard
+        label="总试卷数"
+        :value="overview.totalPapers || 0"
+        icon="doc"
+        tone="var(--accent-soft)"
+        tone-color="var(--accent)"
+      />
+      <StatCard
+        label="进行中"
+        :value="overview.activeExams || 0"
+        icon="play"
+        tone="var(--ok-soft)"
+        tone-color="var(--ok)"
+      />
+      <StatCard
+        label="待审核"
+        :value="overview.pendingReview || 0"
+        icon="warn"
+        tone="var(--warn-soft)"
+        tone-color="var(--warn)"
+      />
+      <StatCard
+        label="作弊嫌疑"
+        :value="overview.cheatingCases || 0"
+        icon="shield"
+        tone="var(--info-soft)"
+        tone-color="var(--info)"
+      />
     </div>
 
     <section class="l1-card">
       <div class="l1-head">
-        <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2zM14 2v6h6M16 13H8M16 17H8M10 9H8"/></svg>
+        <span class="l1-ico" style="background: var(--accent-soft); color: var(--accent)">
+          <svg
+            viewBox="0 0 24 24"
+            width="17"
+            height="17"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.9"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2zM14 2v6h6M16 13H8M16 17H8M10 9H8"
+            />
+          </svg>
         </span>
-        <div><div class="l1-title">试卷列表</div><div class="l1-sub">筛选、审核试卷并查看统计分析</div></div>
+        <div>
+          <div class="l1-title">试卷列表</div>
+          <div class="l1-sub">筛选、审核试卷并查看统计分析</div>
+        </div>
       </div>
       <div class="l1-body">
-    <!-- 工具栏 -->
-    <div class="table-toolbar">
-      <div class="toolbar-left">
-        <el-select v-model="filters.status" placeholder="状态筛选" clearable style="width:130px" @change="fetchExamList">
-          <el-option label="全部" value="" />
-          <el-option label="草稿" value="DRAFT" />
-          <el-option label="待审核" value="PENDING" />
-          <el-option label="已发布" value="PUBLISHED" />
-          <el-option label="已结束" value="ENDED" />
-        </el-select>
-        <el-input v-model="filters.keyword" placeholder="搜索试卷名称/课程" clearable style="width:220px" @keyup.enter="fetchExamList" />
-        <el-button type="primary" @click="fetchExamList"><el-icon><Search /></el-icon>搜索</el-button>
-      </div>
-    </div>
+        <!-- 工具栏 -->
+        <div class="table-toolbar">
+          <div class="toolbar-left">
+            <el-select
+              v-model="filters.status"
+              placeholder="状态筛选"
+              clearable
+              style="width: 130px"
+              @change="fetchExamList"
+            >
+              <el-option label="全部" value="" />
+              <el-option label="草稿" value="DRAFT" />
+              <el-option label="待审核" value="PENDING" />
+              <el-option label="已发布" value="PUBLISHED" />
+              <el-option label="已结束" value="ENDED" />
+            </el-select>
+            <el-input
+              v-model="filters.keyword"
+              placeholder="搜索试卷名称/课程"
+              clearable
+              style="width: 220px"
+              @keyup.enter="fetchExamList"
+            />
+            <el-button type="primary" @click="fetchExamList"
+              ><el-icon><Search /></el-icon>搜索</el-button
+            >
+          </div>
+        </div>
 
-    <!-- 试卷列表 -->
-    <div class="content-card">
-      <el-table v-loading="loading" :data="examList" style="width:100%">
-        <el-table-column prop="id" label="ID" width="70" />
-        <el-table-column prop="title" label="试卷名称" min-width="200" show-overflow-tooltip />
-        <el-table-column prop="courseName" label="所属课程" min-width="150" show-overflow-tooltip />
-        <el-table-column prop="teacherName" label="创建教师" width="120" />
-        <el-table-column prop="totalScore" label="总分" width="70" align="center" />
-        <el-table-column prop="duration" label="时长(分钟)" width="100" align="center" />
-        <el-table-column prop="status" label="状态" width="100" align="center">
-          <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)" size="small" effect="light">
-              {{ getStatusText(row.status) }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="操作" width="260" fixed="right">
-          <template #default="{ row }">
-            <el-button text type="primary" size="small" @click="viewDetail(row)">详情</el-button>
-            <el-button
-              v-if="row.status === 'PENDING'"
-              text type="success"
-              size="small"
-              @click="handleApprove(row)"
-            >通过</el-button>
-            <el-button
-              v-if="row.status === 'PENDING'"
-              text type="danger"
-              size="small"
-              @click="handleReject(row)"
-            >拒绝</el-button>
-            <el-button text type="warning" size="small" @click="viewStatistics(row)">统计</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
+        <!-- 试卷列表 -->
+        <div class="content-card">
+          <el-table v-loading="loading" :data="examList" style="width: 100%">
+            <el-table-column prop="id" label="ID" width="70" />
+            <el-table-column prop="title" label="试卷名称" min-width="200" show-overflow-tooltip />
+            <el-table-column
+              prop="courseName"
+              label="所属课程"
+              min-width="150"
+              show-overflow-tooltip
+            />
+            <el-table-column prop="teacherName" label="创建教师" width="120" />
+            <el-table-column prop="totalScore" label="总分" width="70" align="center" />
+            <el-table-column prop="duration" label="时长(分钟)" width="100" align="center" />
+            <el-table-column prop="status" label="状态" width="100" align="center">
+              <template #default="{ row }">
+                <el-tag :type="getStatusType(row.status)" size="small" effect="light">
+                  {{ getStatusText(row.status) }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="操作" width="260" fixed="right">
+              <template #default="{ row }">
+                <el-button text type="primary" size="small" @click="viewDetail(row)"
+                  >详情</el-button
+                >
+                <el-button
+                  v-if="row.status === 'PENDING'"
+                  text
+                  type="success"
+                  size="small"
+                  @click="handleApprove(row)"
+                  >通过</el-button
+                >
+                <el-button
+                  v-if="row.status === 'PENDING'"
+                  text
+                  type="danger"
+                  size="small"
+                  @click="handleReject(row)"
+                  >拒绝</el-button
+                >
+                <el-button text type="warning" size="small" @click="viewStatistics(row)"
+                  >统计</el-button
+                >
+              </template>
+            </el-table-column>
+          </el-table>
 
-      <!-- 分页 -->
-      <div class="pagination-wrapper">
-        <el-pagination
-          v-model:current-page="pagination.page"
-          v-model:page-size="pagination.size"
-          :total="pagination.total"
-          :page-sizes="[10, 20, 50]"
-          layout="total, sizes, prev, pager, next"
-          background
-          @size-change="fetchExamList"
-          @current-change="fetchExamList"
-        />
-      </div>
-      </div>
+          <!-- 分页 -->
+          <div class="pagination-wrapper">
+            <el-pagination
+              v-model:current-page="pagination.page"
+              v-model:page-size="pagination.size"
+              :total="pagination.total"
+              :page-sizes="[10, 20, 50]"
+              layout="total, sizes, prev, pager, next"
+              background
+              @size-change="fetchExamList"
+              @current-change="fetchExamList"
+            />
+          </div>
+        </div>
       </div>
     </section>
 
@@ -98,8 +165,12 @@
         <el-table-column prop="startTime" label="开始时间" width="160" />
         <el-table-column label="操作" width="120" fixed="right">
           <template #default="{ row }">
-            <el-button text type="danger" size="small" @click="forceSubmit(row)">强制交卷</el-button>
-            <el-button text type="primary" size="small" @click="viewCheating(row)">作弊检测</el-button>
+            <el-button text type="danger" size="small" @click="forceSubmit(row)"
+              >强制交卷</el-button
+            >
+            <el-button text type="primary" size="small" @click="viewCheating(row)"
+              >作弊检测</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -117,8 +188,13 @@
           <div class="cheating-content">
             <p><strong>异常类型：</strong>{{ log.type || '未知' }}</p>
             <p><strong>详细描述：</strong>{{ log.description || log.detail }}</p>
-            <p><strong>风险等级：</strong>
-              <el-rate :model-value="getRiskLevel(log.riskLevel)" disabled :colors="['#8BA888', '#CBB58A', '#C48080']" />
+            <p>
+              <strong>风险等级：</strong>
+              <el-rate
+                :model-value="getRiskLevel(log.riskLevel)"
+                disabled
+                :colors="['#8BA888', '#CBB58A', '#C48080']"
+              />
             </p>
           </div>
         </div>
@@ -146,11 +222,15 @@
           </div>
           <div class="stats-item">
             <span class="label">参考率</span>
-            <span class="value warning">{{ statistics.attendanceRate ? (statistics.attendanceRate * 100).toFixed(1) + '%' : '--' }}</span>
+            <span class="value warning">{{
+              statistics.attendanceRate ? (statistics.attendanceRate * 100).toFixed(1) + '%' : '--'
+            }}</span>
           </div>
           <div class="stats-item">
             <span class="label">及格率</span>
-            <span class="value success">{{ statistics.passRate ? (statistics.passRate * 100).toFixed(1) + '%' : '--' }}</span>
+            <span class="value success">{{
+              statistics.passRate ? (statistics.passRate * 100).toFixed(1) + '%' : '--'
+            }}</span>
           </div>
           <div class="stats-item">
             <span class="label">作弊嫌疑数</span>
@@ -183,14 +263,14 @@ const loadingSessions = ref(false)
 // 筛选条件
 const filters = reactive({
   status: '',
-  keyword: ''
+  keyword: '',
 })
 
 // 分页
 const pagination = reactive({
   page: 1,
   size: 10,
-  total: 0
+  total: 0,
 })
 
 // 数据列表
@@ -202,7 +282,7 @@ const overview = reactive({
   totalPapers: 0,
   activeExams: 0,
   pendingReview: 0,
-  cheatingCases: 0
+  cheatingCases: 0,
 })
 
 // 对话框状态
@@ -221,32 +301,41 @@ const gradeChartOption = ref({
   tooltip: {
     trigger: 'axis',
     backgroundColor: 'rgba(255, 252, 248, 0.95)',
-    borderColor: '#DDD6CE'
+    borderColor: '#DDD6CE',
   },
   grid: { left: 50, right: 20, bottom: 30, top: 20 },
   xAxis: {
     type: 'category',
     data: ['0-59', '60-69', '70-79', '80-89', '90-100'],
     axisLine: { lineStyle: { color: '#DDD6CE' } },
-    axisLabel: { color: '#928B83' }
+    axisLabel: { color: '#928B83' },
   },
-  yAxis: { type: 'value', splitLine: { lineStyle: { color: '#DDD6CE', type: 'dashed' } }, axisLabel: { color: '#928B83' } },
-  series: [{
-    type: 'bar',
-    barWidth: '45%',
-    itemStyle: {
-      borderRadius: [6, 6, 0, 0],
-      color: {
-        type: 'linear',
-        x: 0, y: 0, x2: 0, y2: 1,
-        colorStops: [
-          { offset: 0, color: '#7A8BA5' },
-          { offset: 1, color: 'rgba(122, 139, 165, 0.3)' }
-        ]
-      }
+  yAxis: {
+    type: 'value',
+    splitLine: { lineStyle: { color: '#DDD6CE', type: 'dashed' } },
+    axisLabel: { color: '#928B83' },
+  },
+  series: [
+    {
+      type: 'bar',
+      barWidth: '45%',
+      itemStyle: {
+        borderRadius: [6, 6, 0, 0],
+        color: {
+          type: 'linear',
+          x: 0,
+          y: 0,
+          x2: 0,
+          y2: 1,
+          colorStops: [
+            { offset: 0, color: '#7A8BA5' },
+            { offset: 1, color: 'rgba(122, 139, 165, 0.3)' },
+          ],
+        },
+      },
+      data: [],
     },
-    data: []
-  }]
+  ],
 })
 
 /**
@@ -258,7 +347,7 @@ async function fetchExamList() {
     const params = {
       page: pagination.page - 1,
       size: pagination.size,
-      all: true // 获取全部试卷（管理员视角）
+      all: true, // 获取全部试卷（管理员视角）
     }
 
     if (filters.status) params.status = filters.status
@@ -267,7 +356,7 @@ async function fetchExamList() {
     const res = await examApi.getExamPaperList(params)
     const rawData = res.data?.records || res.data?.list || res.data || res
 
-    const data = Array.isArray(rawData) ? rawData : (rawData?.list ? rawData.list : [])
+    const data = Array.isArray(rawData) ? rawData : rawData?.list ? rawData.list : []
     examList.value = Array.isArray(data) ? data : []
     pagination.total = rawData?.total ?? rawData?.count ?? data.length
 
@@ -307,7 +396,7 @@ function getStatusType(status) {
     DRAFT: 'info',
     PENDING: 'warning',
     PUBLISHED: 'success',
-    ENDED: ''
+    ENDED: '',
   }
   return map[status] || 'info'
 }
@@ -320,7 +409,7 @@ function getStatusText(status) {
     DRAFT: '草稿',
     PENDING: '待审核',
     PUBLISHED: '已发布',
-    ENDED: '已结束'
+    ENDED: '已结束',
   }
   return map[status] || status
 }
@@ -333,7 +422,7 @@ async function handleApprove(row) {
     await ElMessageBox.confirm(`确定通过试卷「${row.title}」的审核？`, '确认操作', {
       confirmButtonText: '确定通过',
       cancelButtonText: '取消',
-      type: 'info'
+      type: 'info',
     })
 
     await request.patch(`/exam-papers/${row.id}/approve`)
@@ -358,8 +447,8 @@ async function handleReject(row) {
         confirmButtonText: '确定拒绝',
         cancelButtonText: '取消',
         inputPattern: /\S+/,
-        inputErrorMessage: '请输入拒绝原因'
-      }
+        inputErrorMessage: '请输入拒绝原因',
+      },
     )
 
     await request.post(`/exam-papers/${row.id}/reject`, { reason })
@@ -384,8 +473,8 @@ async function forceSubmit(session) {
         confirmButtonText: '确定强制交卷',
         cancelButtonText: '取消',
         type: 'warning',
-        confirmButtonClass: 'el-button--danger'
-      }
+        confirmButtonClass: 'el-button--danger',
+      },
     )
 
     await examApi.forceSubmit(session.id)
@@ -627,10 +716,18 @@ onMounted(() => {
   color: var(--ac-text-primary);
 }
 
-.stats-item .value.primary { color: var(--ac-primary); }
-.stats-item .value.success { color: var(--ac-success); }
-.stats-item .value.warning { color: var(--ac-warning); }
-.stats-item .value.danger { color: var(--ac-danger); }
+.stats-item .value.primary {
+  color: var(--ac-primary);
+}
+.stats-item .value.success {
+  color: var(--ac-success);
+}
+.stats-item .value.warning {
+  color: var(--ac-warning);
+}
+.stats-item .value.danger {
+  color: var(--ac-danger);
+}
 
 .chart-section {
   background: var(--ac-bg);
@@ -645,7 +742,10 @@ onMounted(() => {
   margin-bottom: 12px;
 }
 
-.empty-deco { font-size: 38px; filter: grayscale(.2); }
+.empty-deco {
+  font-size: 38px;
+  filter: grayscale(0.2);
+}
 
 /* 响应式 */
 @media (max-width: 768px) {

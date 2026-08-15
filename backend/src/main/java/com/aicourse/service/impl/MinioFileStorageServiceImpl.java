@@ -1,5 +1,6 @@
 package com.aicourse.service.impl;
 
+
 import com.aicourse.service.FileStorageService;
 import io.minio.GetObjectArgs;
 import io.minio.MinioClient;
@@ -23,6 +24,7 @@ import java.io.InputStream;
 @ConditionalOnProperty(name = "minio.enabled", havingValue = "true")
 public class MinioFileStorageServiceImpl implements FileStorageService {
 
+
     private final MinioClient minioClient;
 
     @Value("${minio.bucket:aicourse-uploads}")
@@ -32,6 +34,8 @@ public class MinioFileStorageServiceImpl implements FileStorageService {
         this.minioClient = minioClient;
     }
 
+
+    /** 上传对象存储文件存储 */
     @Override
     public String upload(String objectName, InputStream inputStream, String contentType, long size) {
         try {
@@ -49,6 +53,8 @@ public class MinioFileStorageServiceImpl implements FileStorageService {
         }
     }
 
+
+    /** 下载对象存储文件存储 */
     @Override
     public InputStream download(String objectName) {
         try {
@@ -62,6 +68,8 @@ public class MinioFileStorageServiceImpl implements FileStorageService {
         }
     }
 
+
+    /** 删除对象存储文件存储 */
     @Override
     public boolean delete(String objectName) {
         try {

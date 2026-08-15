@@ -87,6 +87,30 @@ jobs:
     defaults:
       run:
         working-directory: backend
+    # 修复：ApiContractTest（contract-test profile）直连 localhost:3306 MySQL 与 localhost:6379 Redis，
+    # CI runner 无基础设施导致上下文加载失败（11 errors）。提供 GitHub Actions service 容器。
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-test-password-8f3k
+          MYSQL_DATABASE: ai_course_platform_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-test-password-8f3k"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -103,6 +127,10 @@ jobs:
         # 同时触发 jacoco: prepare-agent(探针) -> report(生成 target/site/jacoco) -> check(覆盖率门禁)。
         # 若 JaCoCo 行/分支覆盖率低于阈值，check 失败使 verify 失败 -> 本 job 失败。
         # GitHub 托管 runner（ubuntu-latest）自带 Docker 守护进程，Testcontainers 可直接拉起容器。
+        # SPRING_DATASOURCE_PASSWORD 与上方 mysql service 的 MYSQL_ROOT_PASSWORD 对齐
+        # （application-contract-test.yml 中默认 1234，仅本地开发库使用）。
+        env:
+          SPRING_DATASOURCE_PASSWORD: ci-test-password-8f3k
         run: mvn -B verify jacoco:report
 
       - name: Upload JaCoCo coverage report
@@ -140,11 +168,15 @@ jobs:
 
       - name: OSV-Scanner (fail on known vulnerabilities)
         # 无需 API Key：基于 OSV.dev + GitHub Advisory 数据库扫描 pom.xml 及传递依赖
-        uses: google/osv-scanner-action@v2
+        # ⚠ osv-scanner-action 的 `uses:` 步骤不继承 defaults.run.working-directory，
+        # 必须在 step 内显式声明扫描目标目录，否则在仓库根目录找不到 ./pom.xml 而 4 秒速败。
+        # 修复：仓库仅维护 v2.x.x 具体版本 tag（无裸 v2 tag），@v2 无法解析导致 job 秒败。
+        uses: google/osv-scanner-action@v2.3.8
         with:
+          working-directory: ./backend
           scan-args: |-
-            --format sarif
-            --output osv-scan.sarif
+            --format=sarif
+            --output=osv-scan.sarif
             ./pom.xml
 
       - name: Upload OSV-Scanner report
@@ -171,4 +203,11 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build images (no push)
+        # 修复：docker-compose.yml 的 mysql/redis/backend 服务通过 ${VAR:?...} 强制要求
+        # MYSQL_ROOT_PASSWORD / REDIS_PASSWORD / JWT_SECRET，CI 未注入即 interpolate 失败。
+        # CI 仅构建镜像（不启动容器），使用 secrets 值（未配置时退化为 CI-only 构建值，不落盘）。
+        env:
+          MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD || 'ci-build-only-password-9f2k1m8x' }}
+          REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD || 'ci-build-only-redis-7q4w2e9r' }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-build-only-jwt-secret-0123456789abcdef0123456789abcdef' }}
         run: docker compose -f docker-compose.yml build

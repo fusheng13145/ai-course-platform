@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.ResourceVersion;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ResourceVersionMapper;
@@ -19,6 +22,8 @@ import java.util.List;
 @Service
 public class ResourceVersionServiceImpl extends ServiceImpl<ResourceVersionMapper, ResourceVersion> implements ResourceVersionService {
 
+    private static final Logger log = LoggerFactory.getLogger(ResourceVersionServiceImpl.class);
+
     /**
      * 创建新版本
      * 查询当前最大版本号+1作为新版本号，默认设为激活状态并将其他版本置为非激活
@@ -27,6 +32,8 @@ public class ResourceVersionServiceImpl extends ServiceImpl<ResourceVersionMappe
     @Transactional(rollbackFor = Exception.class)
     public ResourceVersion createNewVersion(Long resourceId, String fileName, String fileType,
                                             String url, String description, Long uploaderId, Long fileSize) {
+                                                log.info("创建资源版本");
+
         // 查询该资源当前最大版本号
         LambdaQueryWrapper<ResourceVersion> maxQuery = new LambdaQueryWrapper<ResourceVersion>()
                 .eq(ResourceVersion::getResourceId, resourceId)

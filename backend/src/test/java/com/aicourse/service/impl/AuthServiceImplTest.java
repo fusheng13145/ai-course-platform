@@ -21,6 +21,8 @@ import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
 
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
 import java.time.LocalDateTime;
@@ -47,11 +49,15 @@ class AuthServiceImplTest {
     @Mock private IpUtil ipUtil;
     @Mock private UserAgentUtil userAgentUtil;
     @Mock private HttpServletRequest request;
+    // 修复：AuthServiceImpl 构造器新增 ObjectProvider<StringRedisTemplate>（验证码爆破限流），
+    // 显式 mock 并提供 null（测试环境 Redis 降级）
+    @Mock private ObjectProvider<StringRedisTemplate> redisProvider;
 
     @InjectMocks private AuthServiceImpl authService;
 
     @BeforeEach
     void setUp() {
+        when(redisProvider.getIfAvailable()).thenReturn(null);
         when(ipUtil.getClientIp(any())).thenReturn("127.0.0.1");
         when(userAgentUtil.getDeviceName(any())).thenReturn("Desktop");
         when(userAgentUtil.getOperatingSystem(any())).thenReturn("Windows");

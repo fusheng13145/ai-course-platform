@@ -1,181 +1,237 @@
 <template>
   <div class="fade-in teaching-supervision">
-    <PageHeader title="教学运行监管" subtitle="开课运行、学习行为与异常监控的整体视图" icon="monitor" icon-bg="accent">
+    <PageHeader
+      title="教学运行监管"
+      subtitle="开课运行、学习行为与异常监控的整体视图"
+      icon="monitor"
+      icon-bg="accent"
+    >
       <el-button :loading="loading" @click="loadAll">
         <el-icon><Refresh /></el-icon>刷新
       </el-button>
     </PageHeader>
 
     <div class="stat-grid">
-      <StatCard label="课程总数" :value="overview.totalCourses ?? '—'" icon="layers" tone="var(--accent-soft)" tone-color="var(--accent)" />
-      <StatCard label="活跃课程" :value="overview.activeCourses ?? '—'" icon="play" tone="var(--ok-soft)" tone-color="var(--ok)" />
-      <StatCard label="在校学生" :value="overview.roleDistribution?.student ?? '—'" icon="users" tone="var(--info-soft)" tone-color="var(--info)" />
-      <StatCard label="授课教师" :value="overview.roleDistribution?.teacher ?? '—'" icon="user" tone="var(--info-soft)" tone-color="var(--info)" />
-      <StatCard label="选课总人次" :value="overview.totalEnrollments ?? '—'" icon="list" tone="var(--accent-soft)" tone-color="var(--accent)" />
+      <StatCard
+        label="课程总数"
+        :value="overview.totalCourses ?? '—'"
+        icon="layers"
+        tone="var(--accent-soft)"
+        tone-color="var(--accent)"
+      />
+      <StatCard
+        label="活跃课程"
+        :value="overview.activeCourses ?? '—'"
+        icon="play"
+        tone="var(--ok-soft)"
+        tone-color="var(--ok)"
+      />
+      <StatCard
+        label="在校学生"
+        :value="overview.roleDistribution?.student ?? '—'"
+        icon="users"
+        tone="var(--info-soft)"
+        tone-color="var(--info)"
+      />
+      <StatCard
+        label="授课教师"
+        :value="overview.roleDistribution?.teacher ?? '—'"
+        icon="user"
+        tone="var(--info-soft)"
+        tone-color="var(--info)"
+      />
+      <StatCard
+        label="选课总人次"
+        :value="overview.totalEnrollments ?? '—'"
+        icon="list"
+        tone="var(--accent-soft)"
+        tone-color="var(--accent)"
+      />
     </div>
 
     <section class="l1-card">
       <div class="l1-head">
-        <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        <span class="l1-ico" style="background: var(--accent-soft); color: var(--accent)">
+          <svg
+            viewBox="0 0 24 24"
+            width="17"
+            height="17"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.9"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+          </svg>
         </span>
-        <div><div class="l1-title">教学运行全景</div><div class="l1-sub">开课统计、学习行为热力与风险预警</div></div>
+        <div>
+          <div class="l1-title">教学运行全景</div>
+          <div class="l1-sub">开课统计、学习行为热力与风险预警</div>
+        </div>
       </div>
       <div class="l1-body">
-    <div class="grid-2">
-      <!-- 开课统计：分类分布 + 热门课程 -->
-      <div class="content-card">
-        <div class="card-title">
-          <el-icon><DataLine /></el-icon>开课统计
-        </div>
-        <div class="sub-label">课程分类分布</div>
-        <div class="cat-list">
-          <div v-for="(cnt, name) in categoryDistribution" :key="name" class="cat-row">
-            <span class="cat-name">{{ name || '未分类' }}</span>
-            <div class="cat-bar">
-              <div class="cat-bar-fill" :style="{ width: barWidth(cnt) }"></div>
+        <div class="grid-2">
+          <!-- 开课统计：分类分布 + 热门课程 -->
+          <div class="content-card">
+            <div class="card-title">
+              <el-icon><DataLine /></el-icon>开课统计
             </div>
-            <span class="cat-cnt">{{ cnt }}</span>
+            <div class="sub-label">课程分类分布</div>
+            <div class="cat-list">
+              <div v-for="(cnt, name) in categoryDistribution" :key="name" class="cat-row">
+                <span class="cat-name">{{ name || '未分类' }}</span>
+                <div class="cat-bar">
+                  <div class="cat-bar-fill" :style="{ width: barWidth(cnt) }"></div>
+                </div>
+                <span class="cat-cnt">{{ cnt }}</span>
+              </div>
+              <el-empty
+                v-if="!categoryKeys.length"
+                description="暂无课程分类数据"
+                :image-size="60"
+              />
+            </div>
+            <div class="sub-label" style="margin-top: 18px">热门课程 Top5</div>
+            <div class="top-list">
+              <div v-for="(c, i) in topCourses" :key="i" class="top-row">
+                <span class="rank">{{ i + 1 }}</span>
+                <span class="top-name">{{
+                  c.courseName || c.name || '课程 #' + (c.courseId || c.id)
+                }}</span>
+                <span class="top-cnt">{{ c.enrollmentCount ?? c.count ?? '—' }} 人选课</span>
+              </div>
+              <el-empty v-if="!topCourses.length" description="暂无热门课程" :image-size="60" />
+            </div>
           </div>
-          <el-empty v-if="!categoryKeys.length" description="暂无课程分类数据" :image-size="60" />
-        </div>
-        <div class="sub-label" style="margin-top: 18px">热门课程 Top5</div>
-        <div class="top-list">
-          <div v-for="(c, i) in topCourses" :key="i" class="top-row">
-            <span class="rank">{{ i + 1 }}</span>
-            <span class="top-name">{{
-              c.courseName || c.name || '课程 #' + (c.courseId || c.id)
-            }}</span>
-            <span class="top-cnt">{{ c.enrollmentCount ?? c.count ?? '—' }} 人选课</span>
-          </div>
-          <el-empty v-if="!topCourses.length" description="暂无热门课程" :image-size="60" />
-        </div>
-      </div>
 
-      <!-- 学习行为热力图 -->
-      <div class="content-card">
-        <div class="card-title">
-          <el-icon><Sunny /></el-icon>学习行为热力图（近 30 天）
-        </div>
-        <p class="sub-label">按星期 × 时段统计平台学习活跃度（记录数）</p>
-        <div class="heatmap">
-          <div class="heat-col-head"></div>
-          <div v-for="slot in timeSlots" :key="slot" class="heat-col-head">{{ slot }}</div>
-          <template v-for="d in dayOrder" :key="d">
-            <div class="heat-row-head">{{ dayLabel(d) }}</div>
-            <div
-              v-for="slot in [0, 1, 2, 3]"
-              :key="slot"
-              class="heat-cell"
-              :style="cellStyle(d, slot)"
-              :title="`${dayLabel(d)} ${timeSlots[slot]}：${heatValue(d, slot)} 条`"
-            ></div>
-          </template>
-        </div>
-        <div class="heat-legend">
-          <span>低</span>
-          <span v-for="n in 5" :key="n" class="legend-cell" :style="legendStyle(n - 1)"></span>
-          <span>高</span>
-        </div>
-      </div>
-    </div>
-
-    <!-- AI 异常监控 -->
-    <div class="content-card" style="margin-top: var(--ac-spacing-lg)">
-      <div class="card-title">
-        <el-icon><WarnTriangleFilled /></el-icon>AI 异常监控
-        <span class="card-meta"
-          >近 50 条登录 / 操作日志 · 登录 {{ aiMonitor.loginCount ?? 0 }} · 操作
-          {{ aiMonitor.operationCount ?? 0 }}</span
-        >
-      </div>
-      <div v-if="aiAlerts.length" class="alert-list">
-        <div v-for="(a, i) in aiAlerts" :key="i" class="alert-row" :class="'lv-' + a.level">
-          <el-tag size="small" :type="alertType(a.level)" effect="dark">{{ a.level }}</el-tag>
-          <div class="alert-body">
-            <div class="alert-title">{{ a.title }}</div>
-            <div v-if="a.detail" class="alert-detail">{{ a.detail }}</div>
+          <!-- 学习行为热力图 -->
+          <div class="content-card">
+            <div class="card-title">
+              <el-icon><Sunny /></el-icon>学习行为热力图（近 30 天）
+            </div>
+            <p class="sub-label">按星期 × 时段统计平台学习活跃度（记录数）</p>
+            <div class="heatmap">
+              <div class="heat-col-head"></div>
+              <div v-for="slot in timeSlots" :key="slot" class="heat-col-head">{{ slot }}</div>
+              <template v-for="d in dayOrder" :key="d">
+                <div class="heat-row-head">{{ dayLabel(d) }}</div>
+                <div
+                  v-for="slot in [0, 1, 2, 3]"
+                  :key="slot"
+                  class="heat-cell"
+                  :style="cellStyle(d, slot)"
+                  :title="`${dayLabel(d)} ${timeSlots[slot]}：${heatValue(d, slot)} 条`"
+                ></div>
+              </template>
+            </div>
+            <div class="heat-legend">
+              <span>低</span>
+              <span v-for="n in 5" :key="n" class="legend-cell" :style="legendStyle(n - 1)"></span>
+              <span>高</span>
+            </div>
           </div>
         </div>
-      </div>
-      <el-empty
-        v-else
-        :description="aiMonitor.error ? 'AI 分析暂不可用' : '未检测到异常'"
-        :image-size="70"
-      />
-    </div>
 
-    <!-- 学习预警（全校聚合 + 维度下钻） -->
-    <div class="content-card" style="margin-top: var(--ac-spacing-lg)">
-      <div class="card-title">
-        <el-icon><Bell /></el-icon>学习预警（全校掉队聚合）
-        <el-select v-model="riskDim" size="small" class="dim-sel" @change="loadRisk">
-          <el-option label="全校" value="school" />
-          <el-option label="按课程" value="course" />
-          <el-option label="按院系" value="department" />
-          <el-option label="按专业" value="major" />
-          <el-option label="按班级" value="class" />
-        </el-select>
-      </div>
-      <div class="warn-rules">
-        <div class="rule-item">
-          <el-icon><Warning /></el-icon>课程进度 &lt; 40% 标记为低进度预警
-        </div>
-        <div class="rule-item">
-          <el-icon><Warning /></el-icon>课程成绩 &lt; 60 分标记为成绩预警
-        </div>
-      </div>
-
-      <div v-if="riskTotal > 0" class="risk-summary">
-        <div class="rs-item">
-          <span class="rs-val">{{ riskTotal }}</span
-          ><span class="rs-lbl">学生选课人次</span>
-        </div>
-        <div class="rs-item danger">
-          <span class="rs-val">{{ riskCount }}</span
-          ><span class="rs-lbl">掉队预警人次</span>
-        </div>
-        <div class="rs-item">
-          <span class="rs-val">{{ riskRate }}%</span><span class="rs-lbl">预警占比</span>
-        </div>
-      </div>
-
-      <div v-if="riskGroups.length" class="risk-groups">
-        <div v-for="g in riskGroups" :key="g.key" class="rg-row">
-          <span class="rg-name">{{ g.label }}</span>
-          <div class="rg-bar">
-            <div class="rg-fill" :style="{ width: Math.min(100, g.atRiskRate) + '%' }"></div>
+        <!-- AI 异常监控 -->
+        <div class="content-card" style="margin-top: var(--ac-spacing-lg)">
+          <div class="card-title">
+            <el-icon><WarnTriangleFilled /></el-icon>AI 异常监控
+            <span class="card-meta"
+              >近 50 条登录 / 操作日志 · 登录 {{ aiMonitor.loginCount ?? 0 }} · 操作
+              {{ aiMonitor.operationCount ?? 0 }}</span
+            >
           </div>
-          <span class="rg-cnt">{{ g.atRisk }} / {{ g.total }}（{{ g.atRiskRate }}%）</span>
+          <div v-if="aiAlerts.length" class="alert-list">
+            <div v-for="(a, i) in aiAlerts" :key="i" class="alert-row" :class="'lv-' + a.level">
+              <el-tag size="small" :type="alertType(a.level)" effect="dark">{{ a.level }}</el-tag>
+              <div class="alert-body">
+                <div class="alert-title">{{ a.title }}</div>
+                <div v-if="a.detail" class="alert-detail">{{ a.detail }}</div>
+              </div>
+            </div>
+          </div>
+          <el-empty
+            v-else
+            :description="aiMonitor.error ? 'AI 分析暂不可用' : '未检测到异常'"
+            :image-size="70"
+          />
         </div>
-      </div>
 
-      <div v-loading="riskLoading" class="risk-table">
-        <div class="rt-head">
-          <span class="c-name">学生</span>
-          <span class="c-course">课程</span>
-          <span class="c-prog">进度</span>
-          <span class="c-score">成绩</span>
-          <span class="c-level">等级</span>
+        <!-- 学习预警（全校聚合 + 维度下钻） -->
+        <div class="content-card" style="margin-top: var(--ac-spacing-lg)">
+          <div class="card-title">
+            <el-icon><Bell /></el-icon>学习预警（全校掉队聚合）
+            <el-select v-model="riskDim" size="small" class="dim-sel" @change="loadRisk">
+              <el-option label="全校" value="school" />
+              <el-option label="按课程" value="course" />
+              <el-option label="按院系" value="department" />
+              <el-option label="按专业" value="major" />
+              <el-option label="按班级" value="class" />
+            </el-select>
+          </div>
+          <div class="warn-rules">
+            <div class="rule-item">
+              <el-icon><Warning /></el-icon>课程进度 &lt; 40% 标记为低进度预警
+            </div>
+            <div class="rule-item">
+              <el-icon><Warning /></el-icon>课程成绩 &lt; 60 分标记为成绩预警
+            </div>
+          </div>
+
+          <div v-if="riskTotal > 0" class="risk-summary">
+            <div class="rs-item">
+              <span class="rs-val">{{ riskTotal }}</span
+              ><span class="rs-lbl">学生选课人次</span>
+            </div>
+            <div class="rs-item danger">
+              <span class="rs-val">{{ riskCount }}</span
+              ><span class="rs-lbl">掉队预警人次</span>
+            </div>
+            <div class="rs-item">
+              <span class="rs-val">{{ riskRate }}%</span><span class="rs-lbl">预警占比</span>
+            </div>
+          </div>
+
+          <div v-if="riskGroups.length" class="risk-groups">
+            <div v-for="g in riskGroups" :key="g.key" class="rg-row">
+              <span class="rg-name">{{ g.label }}</span>
+              <div class="rg-bar">
+                <div class="rg-fill" :style="{ width: Math.min(100, g.atRiskRate) + '%' }"></div>
+              </div>
+              <span class="rg-cnt">{{ g.atRisk }} / {{ g.total }}（{{ g.atRiskRate }}%）</span>
+            </div>
+          </div>
+
+          <div v-loading="riskLoading" class="risk-table">
+            <div class="rt-head">
+              <span class="c-name">学生</span>
+              <span class="c-course">课程</span>
+              <span class="c-prog">进度</span>
+              <span class="c-score">成绩</span>
+              <span class="c-level">等级</span>
+            </div>
+            <div v-for="(d, i) in riskDetails" :key="i" class="rt-row">
+              <span class="c-name">{{ d.studentName }}</span>
+              <span class="c-course">{{ d.courseName || '—' }}</span>
+              <span class="c-prog">{{ d.progress }}%</span>
+              <span class="c-score">{{ d.finalScore ?? '—' }}</span>
+              <span class="c-level">
+                <el-tag
+                  size="small"
+                  :type="d.level === 'HIGH' ? 'danger' : 'warning'"
+                  effect="dark"
+                  >{{ d.level === 'HIGH' ? '高危' : '中危' }}</el-tag
+                >
+              </span>
+            </div>
+            <el-empty
+              v-if="!riskDetails.length"
+              description="当前维度下无掉队预警学生"
+              :image-size="60"
+            />
+          </div>
         </div>
-        <div v-for="(d, i) in riskDetails" :key="i" class="rt-row">
-          <span class="c-name">{{ d.studentName }}</span>
-          <span class="c-course">{{ d.courseName || '—' }}</span>
-          <span class="c-prog">{{ d.progress }}%</span>
-          <span class="c-score">{{ d.finalScore ?? '—' }}</span>
-          <span class="c-level">
-            <el-tag size="small" :type="d.level === 'HIGH' ? 'danger' : 'warning'" effect="dark">{{
-              d.level === 'HIGH' ? '高危' : '中危'
-            }}</el-tag>
-          </span>
-        </div>
-        <el-empty
-          v-if="!riskDetails.length"
-          description="当前维度下无掉队预警学生"
-          :image-size="60"
-        />
-      </div>
-    </div>
       </div>
     </section>
   </div>

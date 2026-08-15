@@ -42,7 +42,12 @@
         </div>
         <div class="chart-card">
           <div class="chart-title">课程类别分布</div>
-          <v-chart v-if="hasCategory" :option="categoryPieOption" style="height: 340px" autoresize />
+          <v-chart
+            v-if="hasCategory"
+            :option="categoryPieOption"
+            style="height: 340px"
+            autoresize
+          />
           <el-empty v-else description="暂无课程类别数据" :image-size="80" />
         </div>
       </div>
@@ -56,7 +61,11 @@
             <div class="heatmap-legend">
               <span>少</span>
               <div class="legend-colors">
-                <span v-for="(color, i) in heatmapColors" :key="i" :style="{ background: color }"></span>
+                <span
+                  v-for="(color, i) in heatmapColors"
+                  :key="i"
+                  :style="{ background: color }"
+                ></span>
               </div>
               <span>多</span>
             </div>
@@ -69,7 +78,12 @@
       <div class="charts-grid charts-2col">
         <div class="chart-card">
           <div class="chart-title">各角色活跃度对比</div>
-          <v-chart v-if="hasRoleActivity" :option="roleActivityOption" style="height: 320px" autoresize />
+          <v-chart
+            v-if="hasRoleActivity"
+            :option="roleActivityOption"
+            style="height: 320px"
+            autoresize
+          />
           <el-empty v-else description="暂无角色活跃度数据" :image-size="80" />
         </div>
         <div class="chart-card">
@@ -121,7 +135,7 @@ const dateShortcuts = [
       const start = new Date()
       start.setDate(start.getDate() - 7)
       return [start, end]
-    }
+    },
   },
   {
     text: '最近一个月',
@@ -130,7 +144,7 @@ const dateShortcuts = [
       const start = new Date()
       start.setMonth(start.getMonth() - 1)
       return [start, end]
-    }
+    },
   },
   {
     text: '最近三个月',
@@ -139,17 +153,52 @@ const dateShortcuts = [
       const start = new Date()
       start.setMonth(start.getMonth() - 3)
       return [start, end]
-    }
-  }
+    },
+  },
 ]
 
 // 核心指标数据
 const coreMetrics = ref([
-  { label: '总用户数', value: '--', change: 0, icon: 'users', tone: 'var(--accent-soft)', toneColor: 'var(--accent)' },
-  { label: '总课程数', value: '--', change: 0, icon: 'book', tone: 'var(--info-soft)', toneColor: 'var(--info)' },
-  { label: '日活用户', value: '--', change: 0, icon: 'monitor', tone: 'var(--ok-soft)', toneColor: 'var(--ok)' },
-  { label: '完成率', value: '--', change: 0, icon: 'check', tone: 'var(--warn-soft)', toneColor: 'var(--warn)' },
-  { label: '增长率', value: '--', change: 0, icon: 'chart', tone: 'var(--violet-soft)', toneColor: 'var(--violet)' },
+  {
+    label: '总用户数',
+    value: '--',
+    change: 0,
+    icon: 'users',
+    tone: 'var(--accent-soft)',
+    toneColor: 'var(--accent)',
+  },
+  {
+    label: '总课程数',
+    value: '--',
+    change: 0,
+    icon: 'book',
+    tone: 'var(--info-soft)',
+    toneColor: 'var(--info)',
+  },
+  {
+    label: '日活用户',
+    value: '--',
+    change: 0,
+    icon: 'monitor',
+    tone: 'var(--ok-soft)',
+    toneColor: 'var(--ok)',
+  },
+  {
+    label: '完成率',
+    value: '--',
+    change: 0,
+    icon: 'check',
+    tone: 'var(--warn-soft)',
+    toneColor: 'var(--warn)',
+  },
+  {
+    label: '增长率',
+    value: '--',
+    change: 0,
+    icon: 'chart',
+    tone: 'var(--violet-soft)',
+    toneColor: 'var(--violet)',
+  },
 ])
 
 function metricFoot(m) {
@@ -174,12 +223,12 @@ function buildUserTrendOption() {
       backgroundColor: t.tooltipBg,
       borderColor: t.tooltipBorder,
       textStyle: { color: t.tooltipText, fontSize: 12 },
-      axisPointer: { type: 'cross' }
+      axisPointer: { type: 'cross' },
     },
     legend: {
       data: ['新增用户', '活跃用户'],
       top: 0,
-      textStyle: { color: t.subText, fontSize: 12 }
+      textStyle: { color: t.subText, fontSize: 12 },
     },
     grid: { left: 50, right: 20, bottom: 30, top: 40 },
     xAxis: {
@@ -187,14 +236,14 @@ function buildUserTrendOption() {
       data: [],
       boundaryGap: false,
       axisLine: { lineStyle: { color: t.axis } },
-      axisLabel: { color: t.subText, fontSize: 11 }
+      axisLabel: { color: t.subText, fontSize: 11 },
     },
     yAxis: {
       type: 'value',
       axisLine: { show: false },
       axisTick: { show: false },
       splitLine: { lineStyle: { color: t.axis, type: 'dashed' } },
-      axisLabel: { color: t.subText }
+      axisLabel: { color: t.subText },
     },
     series: [
       {
@@ -208,14 +257,17 @@ function buildUserTrendOption() {
         areaStyle: {
           color: {
             type: 'linear',
-            x: 0, y: 0, x2: 0, y2: 1,
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
             colorStops: [
-              { offset: 0, color: rgba(mono[1], 0.20) },
-              { offset: 1, color: rgba(mono[1], 0.02) }
-            ]
-          }
+              { offset: 0, color: rgba(mono[1], 0.2) },
+              { offset: 1, color: rgba(mono[1], 0.02) },
+            ],
+          },
         },
-        itemStyle: { color: mono[1] }
+        itemStyle: { color: mono[1] },
       },
       {
         name: '活跃用户',
@@ -228,16 +280,19 @@ function buildUserTrendOption() {
         areaStyle: {
           color: {
             type: 'linear',
-            x: 0, y: 0, x2: 0, y2: 1,
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
             colorStops: [
               { offset: 0, color: rgba(mono[2], 0.18) },
-              { offset: 1, color: rgba(mono[2], 0.02) }
-            ]
-          }
+              { offset: 1, color: rgba(mono[2], 0.02) },
+            ],
+          },
         },
-        itemStyle: { color: mono[2] }
-      }
-    ]
+        itemStyle: { color: mono[2] },
+      },
+    ],
   }
 }
 
@@ -251,31 +306,33 @@ function buildCategoryPieOption() {
       formatter: '{b}: {c} 门 ({d}%)',
       backgroundColor: t.tooltipBg,
       borderColor: t.tooltipBorder,
-      textStyle: { color: t.tooltipText }
+      textStyle: { color: t.tooltipText },
     },
     legend: {
       orient: 'vertical',
       right: 15,
       top: 'center',
-      textStyle: { color: t.subText, fontSize: 12 }
+      textStyle: { color: t.subText, fontSize: 12 },
     },
-    series: [{
-      type: 'pie',
-      radius: ['42%', '68%'],
-      center: ['38%', '52%'],
-      avoidLabelOverlap: false,
-      itemStyle: {
-        borderRadius: 6,
-        borderColor: t.sliceBorder,
-        borderWidth: 2
+    series: [
+      {
+        type: 'pie',
+        radius: ['42%', '68%'],
+        center: ['38%', '52%'],
+        avoidLabelOverlap: false,
+        itemStyle: {
+          borderRadius: 6,
+          borderColor: t.sliceBorder,
+          borderWidth: 2,
+        },
+        label: { show: false },
+        emphasis: {
+          label: { show: true, fontSize: 13, fontWeight: 'bold' },
+        },
+        data: [],
       },
-      label: { show: false },
-      emphasis: {
-        label: { show: true, fontSize: 13, fontWeight: 'bold' }
-      },
-      data: []
-    }],
-    color: getMonoSeries()
+    ],
+    color: getMonoSeries(),
   }
 }
 
@@ -287,7 +344,7 @@ const heatmapColors = computed(() => {
     rgba(mono[2], 0.25),
     rgba(mono[4], 0.45),
     rgba(mono[3], 0.65),
-    rgba(mono[0], 0.85)
+    rgba(mono[0], 0.85),
   ]
 })
 
@@ -301,25 +358,25 @@ function buildHeatmapOption() {
       formatter: (params) => `${params.data[0]}<br/>学习时长: ${params.data[2]} 小时`,
       backgroundColor: t.tooltipBg,
       borderColor: t.tooltipBorder,
-      textStyle: { color: t.tooltipText, fontSize: 12 }
+      textStyle: { color: t.tooltipText, fontSize: 12 },
     },
     grid: {
       left: 60,
       right: 30,
       bottom: 50,
-      top: 10
+      top: 10,
     },
     xAxis: {
       type: 'category',
       data: ['周一', '周二', '周三', '周四', '周五', '周六', '周日'],
       splitArea: { show: true },
-      axisLabel: { color: t.subText, fontSize: 11 }
+      axisLabel: { color: t.subText, fontSize: 11 },
     },
     yAxis: {
       type: 'category',
       data: ['0-6时', '6-12时', '12-18时', '18-24时'],
       splitArea: { show: true },
-      axisLabel: { color: t.subText, fontSize: 11 }
+      axisLabel: { color: t.subText, fontSize: 11 },
     },
     visualMap: {
       min: 0,
@@ -329,24 +386,26 @@ function buildHeatmapOption() {
       left: 'center',
       bottom: 0,
       inRange: {
-        color: heatmapColors.value.map(c => c.replace('rgba', 'rgb').replace(/[\d.]+\)$/, '1)'))
+        color: heatmapColors.value.map((c) => c.replace('rgba', 'rgb').replace(/[\d.]+\)$/, '1)')),
       },
       textStyle: { color: t.subText, fontSize: 11 },
-      show: false
+      show: false,
     },
-    series: [{
-      type: 'heatmap',
-      data: [],
-      label: { show: false },
-      emphasis: {
-        itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0, 0, 0, 0.15)' }
+    series: [
+      {
+        type: 'heatmap',
+        data: [],
+        label: { show: false },
+        emphasis: {
+          itemStyle: { shadowBlur: 10, shadowColor: 'rgba(0, 0, 0, 0.15)' },
+        },
+        itemStyle: {
+          borderRadius: 4,
+          borderColor: t.sliceBorder,
+          borderWidth: 2,
+        },
       },
-      itemStyle: {
-        borderRadius: 4,
-        borderColor: t.sliceBorder,
-        borderWidth: 2
-      }
-    }]
+    ],
   }
 }
 
@@ -361,25 +420,25 @@ function buildRoleActivityOption() {
       backgroundColor: t.tooltipBg,
       borderColor: t.tooltipBorder,
       textStyle: { color: t.tooltipText },
-      axisPointer: { type: 'shadow' }
+      axisPointer: { type: 'shadow' },
     },
     legend: {
       data: ['登录次数', '操作频次'],
       top: 0,
-      textStyle: { color: t.subText, fontSize: 12 }
+      textStyle: { color: t.subText, fontSize: 12 },
     },
     grid: { left: 50, right: 20, bottom: 30, top: 40 },
     xAxis: {
       type: 'category',
       data: ['管理员', '教师', '学生'],
       axisLine: { lineStyle: { color: t.axis } },
-      axisLabel: { color: t.subText }
+      axisLabel: { color: t.subText },
     },
     yAxis: {
       type: 'value',
       axisLine: { show: false },
       splitLine: { lineStyle: { color: t.axis, type: 'dashed' } },
-      axisLabel: { color: t.subText }
+      axisLabel: { color: t.subText },
     },
     series: [
       {
@@ -390,14 +449,17 @@ function buildRoleActivityOption() {
           borderRadius: [6, 6, 0, 0],
           color: {
             type: 'linear',
-            x: 0, y: 0, x2: 0, y2: 1,
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
             colorStops: [
               { offset: 0, color: mono[1] },
-              { offset: 1, color: rgba(mono[1], 0.4) }
-            ]
-          }
+              { offset: 1, color: rgba(mono[1], 0.4) },
+            ],
+          },
         },
-        data: []
+        data: [],
       },
       {
         name: '操作频次',
@@ -407,16 +469,19 @@ function buildRoleActivityOption() {
           borderRadius: [6, 6, 0, 0],
           color: {
             type: 'linear',
-            x: 0, y: 0, x2: 0, y2: 1,
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
             colorStops: [
               { offset: 0, color: mono[2] },
-              { offset: 1, color: rgba(mono[2], 0.4) }
-            ]
-          }
+              { offset: 1, color: rgba(mono[2], 0.4) },
+            ],
+          },
         },
-        data: []
-      }
-    ]
+        data: [],
+      },
+    ],
   }
 }
 
@@ -431,7 +496,7 @@ function buildGradeDistOption() {
       backgroundColor: t.tooltipBg,
       borderColor: t.tooltipBorder,
       textStyle: { color: t.tooltipText },
-      formatter: '{b}分区间: {c} 人'
+      formatter: '{b}分区间: {c} 人',
     },
     grid: { left: 55, right: 25, bottom: 35, top: 20 },
     xAxis: {
@@ -440,7 +505,7 @@ function buildGradeDistOption() {
       name: '分数段',
       nameTextStyle: { color: t.subText, padding: [0, 0, 0, 0] },
       axisLine: { lineStyle: { color: t.axis } },
-      axisLabel: { color: t.subText }
+      axisLabel: { color: t.subText },
     },
     yAxis: {
       type: 'value',
@@ -448,24 +513,29 @@ function buildGradeDistOption() {
       nameTextStyle: { color: t.subText },
       axisLine: { show: false },
       splitLine: { lineStyle: { color: t.axis, type: 'dashed' } },
-      axisLabel: { color: t.subText }
+      axisLabel: { color: t.subText },
     },
-    series: [{
-      type: 'bar',
-      barWidth: '50%',
-      itemStyle: {
-        borderRadius: [6, 6, 0, 0],
-        color: {
-          type: 'linear',
-          x: 0, y: 0, x2: 0, y2: 1,
-          colorStops: [
-            { offset: 0, color: mono[0] },
-            { offset: 1, color: rgba(mono[0], 0.3) }
-          ]
-        }
+    series: [
+      {
+        type: 'bar',
+        barWidth: '50%',
+        itemStyle: {
+          borderRadius: [6, 6, 0, 0],
+          color: {
+            type: 'linear',
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: mono[0] },
+              { offset: 1, color: rgba(mono[0], 0.3) },
+            ],
+          },
+        },
+        data: [],
       },
-      data: []
-    }]
+    ],
   }
 }
 
@@ -480,7 +550,7 @@ function buildTopCoursesOption() {
       backgroundColor: t.tooltipBg,
       borderColor: t.tooltipBorder,
       textStyle: { color: t.tooltipText },
-      formatter: (params) => `${params[0].name}<br/>学习人数: ${params[0].value}`
+      formatter: (params) => `${params[0].name}<br/>学习人数: ${params[0].value}`,
     },
     grid: { left: 120, right: 40, bottom: 20, top: 10 },
     xAxis: {
@@ -488,7 +558,7 @@ function buildTopCoursesOption() {
       axisLine: { show: false },
       axisTick: { show: false },
       splitLine: { lineStyle: { color: t.axis, type: 'dashed' } },
-      axisLabel: { color: t.subText }
+      axisLabel: { color: t.subText },
     },
     yAxis: {
       type: 'category',
@@ -500,29 +570,31 @@ function buildTopCoursesOption() {
         color: t.subText,
         fontSize: 13,
         width: 110,
-        overflow: 'truncate'
-      }
+        overflow: 'truncate',
+      },
     },
-    series: [{
-      type: 'bar',
-      barWidth: '60%',
-      itemStyle: {
-        borderRadius: [0, 6, 6, 0],
-        color: (params) => {
-          const colors = getMonoSeries()
-          const idx = params.dataIndex % colors.length
-          return colors[idx]
-        }
+    series: [
+      {
+        type: 'bar',
+        barWidth: '60%',
+        itemStyle: {
+          borderRadius: [0, 6, 6, 0],
+          color: (params) => {
+            const colors = getMonoSeries()
+            const idx = params.dataIndex % colors.length
+            return colors[idx]
+          },
+        },
+        label: {
+          show: true,
+          position: 'right',
+          color: t.subText,
+          fontSize: 12,
+          fontWeight: 500,
+        },
+        data: [],
       },
-      label: {
-        show: true,
-        position: 'right',
-        color: t.subText,
-        fontSize: 12,
-        fontWeight: 500
-      },
-      data: []
-    }]
+    ],
   }
 }
 
@@ -537,7 +609,7 @@ async function fetchAnalyticsData() {
       analyticsApi.getDashboardStats(),
       analyticsApi.getUserGrowth(30),
       analyticsApi.getCourseRanking(),
-      analyticsApi.getPlatformHeatmap({ days: 30 })
+      analyticsApi.getPlatformHeatmap({ days: 30 }),
     ])
 
     // 处理仪表盘统计数据
@@ -547,7 +619,9 @@ async function fetchAnalyticsData() {
       // 核心指标卡片
       if (statsData.totalUsers !== undefined) {
         coreMetrics.value[0].value = formatNumber(statsData.totalUsers)
-        coreMetrics.value[0].change = statsData.userGrowth ? Math.round(statsData.userGrowth * 100) : 0
+        coreMetrics.value[0].change = statsData.userGrowth
+          ? Math.round(statsData.userGrowth * 100)
+          : 0
       }
       if (statsData.totalCourses !== undefined) {
         coreMetrics.value[1].value = formatNumber(statsData.totalCourses)
@@ -567,22 +641,26 @@ async function fetchAnalyticsData() {
       if (statsData.categoryDistribution) {
         const entries = Object.entries(statsData.categoryDistribution)
         hasCategory.value = entries.length > 0
-        categoryPieOption.value.series[0].data = entries.map(
-          ([name, value]) => ({ name, value })
-        )
+        categoryPieOption.value.series[0].data = entries.map(([name, value]) => ({ name, value }))
       }
 
       // 成绩分布直方图
       if (statsData.gradeDistribution && Array.isArray(statsData.gradeDistribution)) {
         hasGradeDist.value = statsData.gradeDistribution.length > 0
-        gradeDistOption.value.series[0].data = statsData.gradeDistribution.map(v => Number(v) || 0)
+        gradeDistOption.value.series[0].data = statsData.gradeDistribution.map(
+          (v) => Number(v) || 0,
+        )
       }
 
       // 角色活跃度柱状图
       if (statsData.roleActivity && Array.isArray(statsData.roleActivity)) {
         hasRoleActivity.value = statsData.roleActivity.length > 0
-        roleActivityOption.value.series[0].data = statsData.roleActivity.map(r => r.loginCount || 0)
-        roleActivityOption.value.series[1].data = statsData.roleActivity.map(r => r.actionCount || 0)
+        roleActivityOption.value.series[0].data = statsData.roleActivity.map(
+          (r) => r.loginCount || 0,
+        )
+        roleActivityOption.value.series[1].data = statsData.roleActivity.map(
+          (r) => r.actionCount || 0,
+        )
       }
     }
 
@@ -591,9 +669,11 @@ async function fetchAnalyticsData() {
       const trendData = trendRes.value.data || trendRes.value
       if (Array.isArray(trendData) && trendData.length > 0) {
         hasUserTrend.value = true
-        userTrendOption.value.xAxis.data = trendData.map(d => d.date || d.label || '')
-        userTrendOption.value.series[0].data = trendData.map(d => d.newUsers || d.count || 0)
-        userTrendOption.value.series[1].data = trendData.map(d => d.cumulativeUsers || d.activeUsers || 0)
+        userTrendOption.value.xAxis.data = trendData.map((d) => d.date || d.label || '')
+        userTrendOption.value.series[0].data = trendData.map((d) => d.newUsers || d.count || 0)
+        userTrendOption.value.series[1].data = trendData.map(
+          (d) => d.cumulativeUsers || d.activeUsers || 0,
+        )
       }
     }
 
@@ -602,26 +682,28 @@ async function fetchAnalyticsData() {
       const courseData = courseRes.value.data || courseRes.value
       let courses = []
       if (Array.isArray(courseData)) {
-        courses = courseData.slice(0, 10).map(c => ({
+        courses = courseData.slice(0, 10).map((c) => ({
           name: c.courseName || c.name,
-          value: c.enrollmentCount || c.studentCount || c.popularity || 0
+          value: c.enrollmentCount || c.studentCount || c.popularity || 0,
         }))
       }
       courses.sort((a, b) => b.value - a.value)
       hasTopCourses.value = courses.length > 0
-      topCoursesOption.value.yAxis.data = courses.map(c => c.name)
-      topCoursesOption.value.series[0].data = courses.map(c => c.value)
+      topCoursesOption.value.yAxis.data = courses.map((c) => c.name)
+      topCoursesOption.value.series[0].data = courses.map((c) => c.value)
     }
 
     // 处理平台热力图数据
     if (heatmapRes.status === 'fulfilled') {
       const data = heatmapRes.value.data || heatmapRes.value || []
       if (Array.isArray(data) && data.length > 0) {
-        const heatmapData = data.map(item => [
-          item.dayOfWeek ?? item.day ?? item.x ?? 0,
-          item.hour ?? item.y ?? 0,
-          Math.round(item.value ?? item.count ?? 0)
-        ]).filter(d => d[0] >= 0 && d[0] < 7 && d[1] >= 0)
+        const heatmapData = data
+          .map((item) => [
+            item.dayOfWeek ?? item.day ?? item.x ?? 0,
+            item.hour ?? item.y ?? 0,
+            Math.round(item.value ?? item.count ?? 0),
+          ])
+          .filter((d) => d[0] >= 0 && d[0] < 7 && d[1] >= 0)
         if (heatmapData.length > 0) {
           hasHeatmap.value = true
           heatmapOption.value.series[0].data = heatmapData
@@ -683,11 +765,46 @@ function formatNumber(num) {
  */
 function setMockData() {
   coreMetrics.value = [
-    { label: '总用户数', value: '--', change: 0, icon: 'users', tone: 'var(--accent-soft)', toneColor: 'var(--accent)' },
-    { label: '总课程数', value: '--', change: 0, icon: 'book', tone: 'var(--info-soft)', toneColor: 'var(--info)' },
-    { label: '日活用户', value: '--', change: 0, icon: 'monitor', tone: 'var(--ok-soft)', toneColor: 'var(--ok)' },
-    { label: '完成率', value: '--', change: 0, icon: 'check', tone: 'var(--warn-soft)', toneColor: 'var(--warn)' },
-    { label: '增长率', value: '--', change: 0, icon: 'chart', tone: 'var(--violet-soft)', toneColor: 'var(--violet)' },
+    {
+      label: '总用户数',
+      value: '--',
+      change: 0,
+      icon: 'users',
+      tone: 'var(--accent-soft)',
+      toneColor: 'var(--accent)',
+    },
+    {
+      label: '总课程数',
+      value: '--',
+      change: 0,
+      icon: 'book',
+      tone: 'var(--info-soft)',
+      toneColor: 'var(--info)',
+    },
+    {
+      label: '日活用户',
+      value: '--',
+      change: 0,
+      icon: 'monitor',
+      tone: 'var(--ok-soft)',
+      toneColor: 'var(--ok)',
+    },
+    {
+      label: '完成率',
+      value: '--',
+      change: 0,
+      icon: 'check',
+      tone: 'var(--warn-soft)',
+      toneColor: 'var(--warn)',
+    },
+    {
+      label: '增长率',
+      value: '--',
+      change: 0,
+      icon: 'chart',
+      tone: 'var(--violet-soft)',
+      toneColor: 'var(--violet)',
+    },
   ]
 
   hasCategory.value = false
@@ -705,7 +822,7 @@ function setMockData() {
 
 // 初始化加载数据
 onMounted(() => {
-  fetchAnalyticsData()  // 统一加载所有数据
+  fetchAnalyticsData() // 统一加载所有数据
 })
 </script>
 

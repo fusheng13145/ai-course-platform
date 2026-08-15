@@ -11,4 +11,7 @@ export const cancelReminder = (id) => request.patch(`/reminders/${id}/cancel`)
 // 发送到期提醒
 export const sendDue = () => request.post('/reminders/send-due')
 
+/**
+ * 默认导出对象：模块/组件配置与导出内容
+ */
 export default { createReminder, getTodos, updateReminder, cancelReminder, sendDue }

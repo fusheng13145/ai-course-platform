@@ -69,10 +69,12 @@ public class OperationLogAspect {
                 log.setUserAgent(request.getHeader("User-Agent"));
             }
 
-            // 记录请求参数
+            // 记录请求参数（修复 P1-5：登录/改密等接口的明文密码、验证码、令牌不得落入审计日志，
+            // 序列化后对敏感字段统一打码，防止日志库泄露即凭据泄露）
             Object[] args = joinPoint.getArgs();
             try {
                 String params = objectMapper.writeValueAsString(args);
+                params = maskSensitiveFields(params);
                 if (params.length() > 1000) params = params.substring(0, 1000) + "...";
                 log.setParams(params);
             } catch (Exception e) {
@@ -101,6 +103,29 @@ public class OperationLogAspect {
             operationLogService.save(log);
             throw e;
         }
+    }
+
+    /**
+     * 敏感字段脱敏（修复 P1-5）：对 JSON 文本中已知敏感字段的值替换为 ***。
+     * 兼容嵌套 DTO（登录/注册/改密/重置/验证码/令牌等请求体），值含转义引号亦可正确处理。
+     */
+    private static final String[] SENSITIVE_KEYS = {
+            "password", "oldPassword", "newPassword", "confirmPassword",
+            "code", "authorization", "accessToken", "refreshToken",
+            "token", "secret", "apiKey", "accessKey"
+    };
+
+    private String maskSensitiveFields(String json) {
+        if (json == null || json.isEmpty()) {
+            return json;
+        }
+        String masked = json;
+        for (String key : SENSITIVE_KEYS) {
+            masked = masked.replaceAll(
+                    "(?i)(\"" + java.util.regex.Pattern.quote(key) + "\"\\s*:\\s*)\"(?:[^\"\\\\]|\\\\.)*\"",
+                    "$1\"***\"");
+        }
+        return masked;
     }
 
     private HttpServletRequest getCurrentRequest() {

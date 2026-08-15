@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseChapter;
 import com.aicourse.exception.BusinessException;
@@ -10,8 +13,14 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+
+/**
+ * 课程章节服务实现：相关业务逻辑入口，提供增删改查与编排能力。
+ */
 @Service
 public class CourseChapterServiceImpl extends ServiceImpl<CourseChapterMapper, CourseChapter> implements CourseChapterService {
+
+    private static final Logger log = LoggerFactory.getLogger(CourseChapterServiceImpl.class);
 
     private final CourseService courseService;
 
@@ -33,17 +42,25 @@ public class CourseChapterServiceImpl extends ServiceImpl<CourseChapterMapper, C
         }
     }
 
+
+    /** 创建课程章节 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CourseChapter createChapter(CourseChapter chapter, Long operatorId, boolean isAdmin) {
+        log.info("创建课程章节");
+
         assertCanManageCourse(chapter.getCourseId(), operatorId, isAdmin);
         this.save(chapter);
         return chapter;
     }
 
+
+    /** 更新课程章节 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CourseChapter updateChapter(Long id, CourseChapter chapter, Long operatorId, boolean isAdmin) {
+        log.info("更新课程章节");
+
         CourseChapter existingChapter = this.getById(id);
         if (existingChapter == null) {
             throw new BusinessException("章节不存在");
@@ -54,9 +71,13 @@ public class CourseChapterServiceImpl extends ServiceImpl<CourseChapterMapper, C
         return this.getById(id);
     }
 
+
+    /** 删除课程章节 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deleteChapter(Long id, Long operatorId, boolean isAdmin) {
+        log.info("删除课程章节");
+
         CourseChapter existingChapter = this.getById(id);
         if (existingChapter == null) {
             throw new BusinessException("章节不存在");

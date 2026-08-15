@@ -89,4 +89,7 @@ export function sanitizeObject(obj) {
   return obj
 }
 
+/**
+ * 默认导出对象：模块/组件配置与导出内容
+ */
 export default { sanitizeHtml, sanitizeObject }

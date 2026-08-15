@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.dto.ExamManualGradeDTO;
 import com.aicourse.dto.ExamSubmitDTO;
@@ -27,6 +30,8 @@ import java.util.Map;
 @RequestMapping("/exam-sessions")
 @Tag(name = "考试会话管理", description = "提供考试开始、答案保存、试卷提交、自动/人工阅卷、成绩报告等功能")
 public class ExamSessionController {
+
+    private static final Logger log = LoggerFactory.getLogger(ExamSessionController.class);
 
     private final ExamSessionService examSessionService;
     private final ExamSessionAccessControl examSessionAccessControl;

@@ -25,7 +25,7 @@
           :percentage="enrollment.progress"
           :stroke-width="10"
           :color="getProgressColor(enrollment.progress)"
-          style="flex: 1; max-width: 300px;"
+          style="flex: 1; max-width: 300px"
         />
         <span class="progress-value">{{ enrollment.progress }}%</span>
       </div>
@@ -44,14 +44,22 @@
           <section class="info-section">
             <h3 class="section-title">课程详情</h3>
             <el-descriptions :column="2" border class="detail-desc">
-              <el-descriptions-item label="课程分类">{{ course.category || '未分类' }}</el-descriptions-item>
-              <el-descriptions-item label="授课教师">{{ course.teacherName || '未知' }}</el-descriptions-item>
+              <el-descriptions-item label="课程分类">{{
+                course.category || '未分类'
+              }}</el-descriptions-item>
+              <el-descriptions-item label="授课教师">{{
+                course.teacherName || '未知'
+              }}</el-descriptions-item>
               <el-descriptions-item label="学分">{{ course.credits || 0 }}</el-descriptions-item>
               <el-descriptions-item label="难度等级">
-                <el-tag size="small" :type="getDifficultyType(course.difficulty)">{{ course.difficulty || '未设置' }}</el-tag>
+                <el-tag size="small" :type="getDifficultyType(course.difficulty)">{{
+                  course.difficulty || '未设置'
+                }}</el-tag>
               </el-descriptions-item>
               <el-descriptions-item label="总章节数">{{ chapters.length }} 章</el-descriptions-item>
-              <el-descriptions-item label="预计时长">{{ estimatedDuration }} 分钟</el-descriptions-item>
+              <el-descriptions-item label="预计时长"
+                >{{ estimatedDuration }} 分钟</el-descriptions-item
+              >
             </el-descriptions>
           </section>
 
@@ -69,9 +77,17 @@
         <div class="tab-content-card">
           <!-- 章节列表视图 -->
           <div v-if="!learningMode" class="chapter-list">
-            <div v-for="(ch, index) in chapters" :key="ch.id" class="chapter-item" @click="enterLearning(ch)">
+            <div
+              v-for="(ch, index) in chapters"
+              :key="ch.id"
+              class="chapter-item"
+              @click="enterLearning(ch)"
+            >
               <div class="chapter-left">
-                <div class="chapter-index" :class="{ completed: ch.completed, current: ch.current }">
+                <div
+                  class="chapter-index"
+                  :class="{ completed: ch.completed, current: ch.current }"
+                >
                   <el-icon v-if="ch.completed"><Select /></el-icon>
                   <span v-else>{{ index + 1 }}</span>
                 </div>
@@ -97,7 +113,7 @@
                   style="width: 80px"
                 />
                 <el-button type="primary" text @click.stop="enterLearning(ch)">
-                  {{ ch.completed ? '重新学习' : (ch.current ? '继续学习' : '开始学习') }}
+                  {{ ch.completed ? '重新学习' : ch.current ? '继续学习' : '开始学习' }}
                   <el-icon><ArrowRight /></el-icon>
                 </el-button>
               </div>
@@ -141,19 +157,18 @@
               <div class="chapter-content-area">
                 <h4 class="content-subtitle">章节内容</h4>
                 <div class="content-text">
-                  {{ currentChapter.content || currentChapter.description || '本章节暂无详细内容，请观看视频学习。' }}
+                  {{
+                    currentChapter.content ||
+                    currentChapter.description ||
+                    '本章节暂无详细内容，请观看视频学习。'
+                  }}
                 </div>
               </div>
             </div>
 
             <!-- 学习记录自动上报提示 -->
             <div class="learning-footer">
-              <el-alert
-                title="学习记录将自动保存"
-                type="info"
-                :closable="false"
-                show-icon
-              >
+              <el-alert title="学习记录将自动保存" type="info" :closable="false" show-icon>
                 <template #default>
                   已学习 <strong>{{ learningTimeDisplay }}</strong> · 学习进度已同步记录
                 </template>
@@ -170,9 +185,7 @@
 import { ref, reactive, computed, onMounted, onUnmounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
-import {
-  Plus, ArrowRight, Select, Timer, ArrowLeft, VideoPlay
-} from '@element-plus/icons-vue'
+import { Plus, ArrowRight, Select, Timer, ArrowLeft, VideoPlay } from '@element-plus/icons-vue'
 import courseApi from '@/api/course'
 import chapterApi from '@/api/chapter'
 import enrollmentApi from '@/api/enrollment'
@@ -195,14 +208,14 @@ const course = reactive({
   category: '',
   teacherName: '',
   credits: 0,
-  difficulty: ''
+  difficulty: '',
 })
 
 /* ---- 选课状态 ---- */
 const enrollment = reactive({
   id: null,
   progress: 0,
-  isActive: false
+  isActive: false,
 })
 
 /* ---- 章节数据 ---- */
@@ -257,7 +270,7 @@ function getProgressColor(progress) {
 
 /* ---- 难度类型映射 ---- */
 function getDifficultyType(difficulty) {
-  const map = { '简单': 'success', '中等': 'warning', '困难': 'danger' }
+  const map = { 简单: 'success', 中等: 'warning', 困难: 'danger' }
   return map[difficulty] || 'info'
 }
 
@@ -269,7 +282,7 @@ onMounted(async () => {
     const [courseRes, chapterRes, enrollRes] = await Promise.all([
       courseApi.getCourseById(courseId),
       chapterApi.getChapters(courseId),
-      enrollmentApi.getMyEnrollments()
+      enrollmentApi.getMyEnrollments(),
     ])
 
     // 课程信息
@@ -281,13 +294,13 @@ onMounted(async () => {
       ...ch,
       completed: ch.status === 'COMPLETED',
       current: ch.status === 'IN_PROGRESS',
-      progress: ch.progress ? Math.round(Number(ch.progress)) : 0
+      progress: ch.progress ? Math.round(Number(ch.progress)) : 0,
     }))
 
     // 选课状态
     const enrollments = enrollRes.data?.list || enrollRes.data || enrollRes || []
-    const myEnrollment = enrollments.find(e =>
-      Number(e.courseId) === Number(courseId) && e.isActive
+    const myEnrollment = enrollments.find(
+      (e) => Number(e.courseId) === Number(courseId) && e.isActive,
     )
     if (myEnrollment) {
       enrollment.id = myEnrollment.id
@@ -362,6 +375,18 @@ function exitLearning() {
 /* ---- 清理定时器 ---- */
 onUnmounted(() => {
   if (learningTimer) clearInterval(learningTimer)
+  // 修复 P1-22：离开页面时保存最终学习时长记录（fire-and-forget），
+  // 原实现仅清定时器，中途退出导致本次学习数据全部丢失
+  if (learningSeconds.value > 0 && currentChapter.id) {
+    learningRecordApi
+      .createLearningRecord({
+        courseId: Number(route.params.id),
+        chapterId: currentChapter.id,
+        actionType: 'PROGRESS',
+        duration: learningSeconds.value,
+      })
+      .catch(() => {})
+  }
 })
 
 /* ---- 上报学习开始 ---- */
@@ -371,7 +396,7 @@ async function reportLearningStart() {
       courseId: Number(route.params.id),
       chapterId: currentChapter.id,
       actionType: 'START',
-      duration: 0
+      duration: 0,
     })
   } catch (e) {
     console.warn('学习记录上报失败:', e)
@@ -385,7 +410,7 @@ async function autoSaveRecord() {
       courseId: Number(route.params.id),
       chapterId: currentChapter.id,
       actionType: 'PROGRESS',
-      duration: learningSeconds.value
+      duration: learningSeconds.value,
     })
   } catch (e) {
     console.warn('自动保存学习记录失败:', e)
@@ -401,11 +426,11 @@ async function markChapterComplete() {
       courseId: Number(route.params.id),
       chapterId: currentChapter.id,
       actionType: 'COMPLETE',
-      duration: learningSeconds.value
+      duration: learningSeconds.value,
     })
 
     // 更新本地状态
-    const idx = chapters.value.findIndex(c => c.id === currentChapter.id)
+    const idx = chapters.value.findIndex((c) => c.id === currentChapter.id)
     if (idx !== -1) {
       chapters.value[idx].completed = true
       chapters.value[idx].current = false
@@ -415,7 +440,7 @@ async function markChapterComplete() {
     ElMessage.success(`「${currentChapter.title}」已完成`)
 
     // 自动进入下一章或返回列表
-    const nextIdx = chapters.value.findIndex(c => !c.completed)
+    const nextIdx = chapters.value.findIndex((c) => !c.completed)
     if (nextIdx !== -1) {
       enterLearning(chapters.value[nextIdx])
     } else {
@@ -573,7 +598,7 @@ async function markChapterComplete() {
 }
 
 .chapter-index.completed {
-  background: rgba(139,168,136,0.15);
+  background: rgba(139, 168, 136, 0.15);
   color: var(--ac-success);
   border-color: var(--ac-success);
 }
@@ -586,8 +611,13 @@ async function markChapterComplete() {
 }
 
 @keyframes pulse {
-  0%, 100% { box-shadow: 0 0 0 0 rgba(122,139,165,0.3); }
-  50% { box-shadow: 0 0 0 6px rgba(122,139,165,0); }
+  0%,
+  100% {
+    box-shadow: 0 0 0 0 rgba(122, 139, 165, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 0 6px rgba(122, 139, 165, 0);
+  }
 }
 
 .chapter-info {

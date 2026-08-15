@@ -372,7 +372,8 @@ CREATE TABLE task_completions (
   PRIMARY KEY (id),
   UNIQUE KEY uk_task_completion (student_id, task_id) COMMENT '学生-任务唯一，避免重复记录',
   KEY idx_tc_course (course_id) COMMENT '课程索引',
-  KEY idx_tc_chapter (chapter_id) COMMENT '章节索引'
+  KEY idx_tc_chapter (chapter_id) COMMENT '章节索引',
+  KEY idx_tc_student_course (student_id, course_id) COMMENT '学生-课程联合索引：课程进度聚合与学习中心查询'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='任务点完成记录表';;
 
 -- submissions
@@ -560,6 +561,7 @@ CREATE TABLE exam_sessions (
   PRIMARY KEY (id),
   KEY idx_exam_sessions_paper_id (exam_paper_id) COMMENT '试卷ID索引，用于查询试卷所有考试会话',
   KEY idx_exam_sessions_student_id (student_id) COMMENT '学生ID索引，用于查询学生所有考试会话',
+  KEY idx_exam_sessions_student_paper (student_id, exam_paper_id) COMMENT '学生-试卷联合索引：查询学生某卷最新会话与成绩列表',
   CONSTRAINT fk_exam_sessions_paper FOREIGN KEY (exam_paper_id) REFERENCES exam_papers(id) ON DELETE CASCADE,
   CONSTRAINT fk_exam_sessions_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='考试会话表';;
@@ -700,6 +702,7 @@ CREATE TABLE learning_records (
   PRIMARY KEY (id),
   KEY idx_learning_records_user_id (user_id) COMMENT '用户ID索引，用于查询用户所有学习记录',
   KEY idx_learning_records_course_id (course_id) COMMENT '课程ID索引，用于查询课程学习记录',
+  KEY idx_learning_records_created_at (created_at) COMMENT '时间索引：活跃度统计与时间范围查询（记录增长快，避免全表扫描）',
   CONSTRAINT fk_learning_records_user FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='学习记录表';;
 

@@ -10,6 +10,8 @@ import org.springframework.data.redis.serializer.GenericJackson2JsonRedisSeriali
 import org.springframework.data.redis.serializer.StringRedisSerializer;
 
 import com.aicourse.config.RedisObjectMapperFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Redis 序列化配置
@@ -17,6 +19,8 @@ import com.aicourse.config.RedisObjectMapperFactory;
  */
 @Configuration
 public class RedisConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(RedisConfig.class);
 
     /**
      * 自定义 RedisTemplate（JSON 值序列化，用于缓存对象）。
@@ -43,6 +47,7 @@ public class RedisConfig {
 
         // 初始化配置
         redisTemplate.afterPropertiesSet();
+        log.info("[RedisConfig] 主 RedisTemplate（JSON 值序列化）初始化完成");
         return redisTemplate;
     }
 
@@ -58,6 +63,7 @@ public class RedisConfig {
         StringRedisTemplate template = new StringRedisTemplate();
         template.setConnectionFactory(factory);
         template.afterPropertiesSet();
+        log.info("[RedisConfig] StringRedisTemplate（字符串值序列化）初始化完成");
         return template;
     }
 }

@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.exception.BusinessException;
@@ -14,8 +17,14 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 
+
+/**
+ * 课程选课服务实现：相关业务逻辑入口，提供增删改查与编排能力。
+ */
 @Service
 public class CourseEnrollmentServiceImpl extends ServiceImpl<CourseEnrollmentMapper, CourseEnrollment> implements CourseEnrollmentService {
+
+    private static final Logger log = LoggerFactory.getLogger(CourseEnrollmentServiceImpl.class);
 
     private final CourseService courseService;
 
@@ -23,6 +32,8 @@ public class CourseEnrollmentServiceImpl extends ServiceImpl<CourseEnrollmentMap
         this.courseService = courseService;
     }
 
+
+    /** 课程选课相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public CourseEnrollment enroll(Long studentId, Long courseId) {
@@ -70,6 +81,8 @@ public class CourseEnrollmentServiceImpl extends ServiceImpl<CourseEnrollmentMap
         return enrollment;
     }
 
+
+    /** 课程选课相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void enrollStudent(Long studentId, Long courseId) {
@@ -93,6 +106,8 @@ public class CourseEnrollmentServiceImpl extends ServiceImpl<CourseEnrollmentMap
         this.save(enrollment);
     }
 
+
+    /** 课程选课相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void unenroll(Long id, Long userId) {

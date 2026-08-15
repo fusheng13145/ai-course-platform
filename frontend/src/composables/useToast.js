@@ -41,6 +41,9 @@ function addToast(msg, type, ms) {
 
 export const toast = { show: addToast }
 
+/**
+ * 组合式函数 useToast：封装可复用的响应式状态与逻辑
+ */
 export function useToast() {
   return { show: addToast }
 }

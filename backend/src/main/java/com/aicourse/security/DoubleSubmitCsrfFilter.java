@@ -22,6 +22,8 @@ import java.time.Duration;
 import java.util.Base64;
 import java.util.Map;
 import java.util.Set;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 双提交 Cookie（Double-Submit Cookie）CSRF 防护过滤器——为「令牌走 Cookie 自动携带」补上纵深防御。
@@ -46,6 +48,8 @@ import java.util.Set;
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE + 10)
 public class DoubleSubmitCsrfFilter extends OncePerRequestFilter {
+
+    private static final Logger log = LoggerFactory.getLogger(DoubleSubmitCsrfFilter.class);
 
     /** JS 可读的 CSRF 令牌 Cookie 名（与 axios 默认 xsrfCookieName 对齐）。 */
     public static final String CSRF_COOKIE = "XSRF-TOKEN";
@@ -91,6 +95,8 @@ public class DoubleSubmitCsrfFilter extends OncePerRequestFilter {
         if (requiresCsrfCheck(request)) {
             String headerToken = request.getHeader(CSRF_HEADER);
             if (headerToken == null || !constantTimeEquals(headerToken, cookieToken)) {
+                log.warn("[Csrf] CSRF 令牌校验失败（缺失或不匹配），拒绝写请求: method={}, uri={}",
+                        request.getMethod(), request.getRequestURI());
                 writeForbidden(response);
                 return;
             }

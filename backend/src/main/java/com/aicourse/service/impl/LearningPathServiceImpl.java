@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.LearningPath;
 import com.aicourse.entity.LearningPathNode;
@@ -28,6 +31,8 @@ import java.util.stream.Collectors;
 @Service
 public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, LearningPath> implements LearningPathService {
 
+    private static final Logger log = LoggerFactory.getLogger(LearningPathServiceImpl.class);
+
     private final LearningPathNodeService nodeService;
     private final KnowledgePointService knowledgePointService;
     private final com.aicourse.service.WrongQuestionService wrongQuestionService;
@@ -44,8 +49,9 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
 
     /**
      * 从学生错题本自动推导知识点掌握度（0~100）。
-     * 规则：以知识点为单位统计错题，未掌握错题扣 25 分/道、已掌握错题扣 5 分/道，
-     * 下限 10 分；无错题的知识点不进入结果（由调用方按默认值 50 处理）。
+     * 优先复用 {@link KnowledgePointService#calculateMastery(Long, Long)} 的统计算法，
+     * 确保学习路径生成与知识点维度的掌握度口径一致；仅当知识点名称无法匹配课程内
+     * 知识点时才回退到旧扣分公式。无错题的知识点不进入结果（由调用方按默认值 50 处理）。
      *
      * @param studentId 学生ID
      * @param courseId  课程ID
@@ -62,17 +68,35 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
         try {
             Map<String, List<com.aicourse.entity.WrongQuestion>> grouped =
                     wrongQuestionService.getByKnowledgePoints(studentId, courseId);
-            if (grouped == null) return mastery;
+            if (grouped == null || grouped.isEmpty()) return mastery;
+
+            // 建立课程内知识点名称 -> ID 映射，优先复用 KnowledgePointService.calculateMastery 的统计算法
+            List<KnowledgePoint> coursePoints = knowledgePointService.list(
+                    new LambdaQueryWrapper<KnowledgePoint>().eq(KnowledgePoint::getCourseId, courseId));
+            Map<String, KnowledgePoint> pointByName = coursePoints.stream()
+                    .filter(p -> p.getName() != null && !p.getName().isBlank())
+                    .collect(Collectors.toMap(KnowledgePoint::getName, p -> p, (a, b) -> a));
+
             for (Map.Entry<String, List<com.aicourse.entity.WrongQuestion>> e : grouped.entrySet()) {
                 String kpName = e.getKey();
                 if (kpName == null || kpName.isBlank()) continue;
-                long unmastered = e.getValue().stream()
-                        .filter(w -> w.getMastered() == null || !w.getMastered()).count();
-                long masteredCnt = e.getValue().size() - unmastered;
-                double score = 100.0 - unmastered * 25.0 - masteredCnt * 5.0;
-                mastery.put(kpName, Math.max(10.0, score));
+                KnowledgePoint point = pointByName.get(kpName);
+                if (point != null) {
+                    // 与 KnowledgePointServiceImpl.calculateMastery 统一口径
+                    BigDecimal rate = knowledgePointService.calculateMastery(point.getId(), studentId);
+                    mastery.put(kpName, rate != null ? rate.doubleValue() : 50.0);
+                } else {
+                    // 知识点名称无法匹配时，使用兼容旧逻辑的兜底计算（保证不影响既有错题分组）
+                    long unmastered = e.getValue().stream()
+                            .filter(w -> w.getMastered() == null || !w.getMastered()).count();
+                    long masteredCnt = e.getValue().size() - unmastered;
+                    double score = 100.0 - unmastered * 25.0 - masteredCnt * 5.0;
+                    mastery.put(kpName, Math.max(10.0, score));
+                }
             }
         } catch (Exception ignore) {
+            log.warn("学习路径相关操作失败: {}", ignore.getMessage(), ignore);
+
             // 学情数据不可用时静默降级（返回空 Map，走标准路径）
         }
         return mastery;
@@ -85,6 +109,8 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
     @Override
     @Transactional(readOnly = true)
     public List<LearningPathNode> generateLearningPath(Long studentId, Long courseId) {
+        log.info("生成学习路径");
+
         // 学情个性化：从错题本推导各知识点掌握度（无学情时为空 Map）
         Map<String, Double> mastery = deriveMastery(studentId, courseId);
 
@@ -146,6 +172,8 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void updateProgress(Long pathId) {
+        log.info("更新学习路径");
+
         // 查询路径下所有节点
         List<LearningPathNode> nodes = nodeService.getPathNodes(pathId);
         if (nodes.isEmpty()) {
@@ -265,6 +293,8 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
             return objectMapper.readValue(path.getDailyTasks(),
                     new TypeReference<List<Map<String, Object>>>() {});
         } catch (Exception e) {
+            log.error("查询学习路径失败: {}", e.getMessage(), e);
+
             return Collections.emptyList();
         }
     }
@@ -300,6 +330,8 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
                         new TypeReference<List<Map<String, Object>>>() {});
                 detail.put("stagesParsed", stagesData);
             } catch (Exception e) {
+                log.error("查询学习路径失败: {}", e.getMessage(), e);
+
                 // JSON解析失败时返回原始字符串
                 detail.put("stagesRaw", path.getStages());
             }
@@ -312,6 +344,8 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
                         new TypeReference<Map<String, Object>>() {});
                 detail.put("planDetailParsed", planDetailData);
             } catch (Exception e) {
+                log.error("查询学习路径失败: {}", e.getMessage(), e);
+
                 detail.put("planDetailRaw", path.getPlanDetail());
             }
         }
@@ -406,6 +440,8 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
         try {
             path.setStages(objectMapper.writeValueAsString(stagesList));
         } catch (Exception e) {
+            log.error("生成学习路径失败: {}", e.getMessage(), e);
+
             path.setStages("[{\"error\":\"序列化失败\"}]");
         }
 
@@ -414,6 +450,8 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
         try {
             path.setDailyTasks(objectMapper.writeValueAsString(dailyTasksList));
         } catch (Exception e) {
+            log.error("生成学习路径失败: {}", e.getMessage(), e);
+
             path.setDailyTasks("[]");
         }
 
@@ -426,6 +464,8 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
         try {
             path.setPlanDetail(objectMapper.writeValueAsString(planDetailMap));
         } catch (Exception e) {
+            log.error("生成学习路径失败: {}", e.getMessage(), e);
+
             path.setPlanDetail("{}");
         }
 
@@ -569,6 +609,8 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
         try {
             path.setStages(objectMapper.writeValueAsString(stagesList));
         } catch (Exception e) {
+            log.error("生成学习路径失败: {}", e.getMessage(), e);
+
             path.setStages("[{\"error\":\"序列化失败\"}]");
         }
 
@@ -576,6 +618,8 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
         try {
             path.setDailyTasks(objectMapper.writeValueAsString(dailyTasksList));
         } catch (Exception e) {
+            log.error("生成学习路径失败: {}", e.getMessage(), e);
+
             path.setDailyTasks("[]");
         }
 
@@ -588,6 +632,8 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
         try {
             path.setPlanDetail(objectMapper.writeValueAsString(planDetailMap));
         } catch (Exception e) {
+            log.error("生成学习路径失败: {}", e.getMessage(), e);
+
             path.setPlanDetail("{}");
         }
 

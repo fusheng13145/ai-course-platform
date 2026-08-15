@@ -13,7 +13,13 @@
         <div class="stat-icon stat-icon--green">
           <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
             <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" />
-            <path d="M12 6v6l3.5 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            <path
+              d="M12 6v6l3.5 2"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
           </svg>
         </div>
         <div class="stat-info">
@@ -24,7 +30,13 @@
       <div class="stat-card">
         <div class="stat-icon stat-icon--orange">
           <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
-            <path d="M18 20V10M12 20V4M6 20v-6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            <path
+              d="M18 20V10M12 20V4M6 20v-6"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
           </svg>
         </div>
         <div class="stat-info">
@@ -35,7 +47,13 @@
       <div class="stat-card">
         <div class="stat-icon stat-icon--purple">
           <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
-            <path d="M9 12l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+            <path
+              d="M9 12l2 2 4-4"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
             <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="2" />
           </svg>
         </div>
@@ -79,7 +97,9 @@
           <el-table-column prop="studentId" label="学号" width="120" />
           <el-table-column label="在线时长" width="110" sortable prop="onlineHours">
             <template #default="{ row }">
-              <span class="metric-value">{{ row.onlineHours != null ? row.onlineHours + 'h' : '-' }}</span>
+              <span class="metric-value">{{
+                row.onlineHours != null ? row.onlineHours + 'h' : '-'
+              }}</span>
             </template>
           </el-table-column>
           <el-table-column label="参与度" width="130" sortable prop="engagement">
@@ -111,7 +131,13 @@
               <span v-else class="metric-value">-</span>
             </template>
           </el-table-column>
-          <el-table-column label="提交作业数" width="110" align="center" sortable prop="submissionCount">
+          <el-table-column
+            label="提交作业数"
+            width="110"
+            align="center"
+            sortable
+            prop="submissionCount"
+          >
             <template #default="{ row }">
               <span class="metric-value">{{ row.submissionCount ?? '-' }}</span>
             </template>
@@ -123,11 +149,7 @@
           </el-table-column>
           <el-table-column label="状态" width="90">
             <template #default="{ row }">
-              <el-tag
-                :type="getStatusTag(row)"
-                size="small"
-                effect="plain"
-              >
+              <el-tag :type="getStatusTag(row)" size="small" effect="plain">
                 {{ getStatusLabel(row) }}
               </el-tag>
             </template>
@@ -313,7 +335,12 @@ async function loadData() {
 
     // 学生数据
     if (studentsRes.status === 'fulfilled') {
-      const raw = studentsRes.value?.data?.records || studentsRes.value?.data?.list || studentsRes.value?.data || studentsRes.value || []
+      const raw =
+        studentsRes.value?.data?.records ||
+        studentsRes.value?.data?.list ||
+        studentsRes.value?.data ||
+        studentsRes.value ||
+        []
       const list = Array.isArray(raw) ? raw : []
       students.value = list.map((s) => ({
         ...s,
@@ -379,7 +406,9 @@ watch(() => props.courseId, loadData)
   gap: 12px;
   transition: box-shadow 0.2s;
 }
-.stat-card:hover { box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04); }
+.stat-card:hover {
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.04);
+}
 .stat-icon {
   width: 42px;
   height: 42px;
@@ -390,15 +419,39 @@ watch(() => props.courseId, loadData)
   flex-shrink: 0;
   color: #fff;
 }
-.stat-icon--blue { background: linear-gradient(135deg, #3b82f6, #60a5fa); }
-.stat-icon--green { background: linear-gradient(135deg, #10b981, #34d399); }
-.stat-icon--orange { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
-.stat-icon--purple { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
-.stat-info { flex: 1; min-width: 0; }
-.stat-val { display: block; font-size: 20px; font-weight: 700; color: var(--ac-text-primary); line-height: 1.2; }
-.stat-lbl { display: block; font-size: 12px; color: var(--ac-text-secondary); margin-top: 2px; }
+.stat-icon--blue {
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
+}
+.stat-icon--green {
+  background: linear-gradient(135deg, #10b981, #34d399);
+}
+.stat-icon--orange {
+  background: linear-gradient(135deg, #f59e0b, #fbbf24);
+}
+.stat-icon--purple {
+  background: linear-gradient(135deg, #8b5cf6, #a78bfa);
+}
+.stat-info {
+  flex: 1;
+  min-width: 0;
+}
+.stat-val {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ac-text-primary);
+  line-height: 1.2;
+}
+.stat-lbl {
+  display: block;
+  font-size: 12px;
+  color: var(--ac-text-secondary);
+  margin-top: 2px;
+}
 
-.chart-section { margin-bottom: 22px; }
+.chart-section {
+  margin-bottom: 22px;
+}
 .chart-row {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -417,7 +470,9 @@ watch(() => props.courseId, loadData)
   margin-bottom: 8px;
 }
 
-.table-section { margin-bottom: 10px; }
+.table-section {
+  margin-bottom: 10px;
+}
 .section-header {
   display: flex;
   align-items: center;
@@ -451,7 +506,11 @@ watch(() => props.courseId, loadData)
 }
 
 @media (max-width: 768px) {
-  .stats-row { grid-template-columns: repeat(2, 1fr); }
-  .chart-row { grid-template-columns: 1fr; }
+  .stats-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .chart-row {
+    grid-template-columns: 1fr;
+  }
 }
 </style>
