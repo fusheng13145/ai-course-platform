@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.dto.FileUploadDTO;
 import com.aicourse.entity.FileUploadSession;
@@ -18,6 +21,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/upload-sessions")
 public class FileUploadSessionController {
+
+    private static final Logger log = LoggerFactory.getLogger(FileUploadSessionController.class);
 
     private final FileUploadSessionService fileUploadSessionService;
 
@@ -47,8 +52,9 @@ public class FileUploadSessionController {
      * @return 更新后的会话
      */
     @PostMapping("/{id}/chunks/{index}")
-    public ApiResponse<FileUploadSession> uploadChunk(@PathVariable Long id, @PathVariable Integer index) {
-        FileUploadSession session = fileUploadSessionService.uploadChunk(id, index);
+    public ApiResponse<FileUploadSession> uploadChunk(@PathVariable Long id, @PathVariable Integer index,
+                                                      org.springframework.security.core.Authentication auth) {
+        FileUploadSession session = fileUploadSessionService.uploadChunk(id, index, (Long) auth.getPrincipal());
         return ApiResponse.success("分片上传成功", session);
     }
 
@@ -58,8 +64,9 @@ public class FileUploadSessionController {
      * @return 更新后的会话
      */
     @PostMapping("/{id}/merge")
-    public ApiResponse<FileUploadSession> mergeChunks(@PathVariable Long id) {
-        FileUploadSession session = fileUploadSessionService.mergeChunks(id);
+    public ApiResponse<FileUploadSession> mergeChunks(@PathVariable Long id,
+                                                      org.springframework.security.core.Authentication auth) {
+        FileUploadSession session = fileUploadSessionService.mergeChunks(id, (Long) auth.getPrincipal());
         return ApiResponse.success("合并成功", session);
     }
 
@@ -69,8 +76,9 @@ public class FileUploadSessionController {
      * @return 进度信息（uploaded/total/percentage）
      */
     @GetMapping("/{id}/progress")
-    public ApiResponse<Map<String, Object>> getUploadProgress(@PathVariable Long id) {
-        Map<String, Object> progress = fileUploadSessionService.getUploadProgress(id);
+    public ApiResponse<Map<String, Object>> getUploadProgress(@PathVariable Long id,
+                                                              org.springframework.security.core.Authentication auth) {
+        Map<String, Object> progress = fileUploadSessionService.getUploadProgress(id, (Long) auth.getPrincipal());
         return ApiResponse.success(progress);
     }
 
@@ -80,8 +88,9 @@ public class FileUploadSessionController {
      * @return 操作结果
      */
     @DeleteMapping("/{id}/cancel")
-    public ApiResponse<Void> cancelUpload(@PathVariable Long id) {
-        fileUploadSessionService.cancelUpload(id);
+    public ApiResponse<Void> cancelUpload(@PathVariable Long id,
+                                          org.springframework.security.core.Authentication auth) {
+        fileUploadSessionService.cancelUpload(id, (Long) auth.getPrincipal());
         return ApiResponse.success("取消成功");
     }
 }

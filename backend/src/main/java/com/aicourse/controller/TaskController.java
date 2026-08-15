@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.Task;
@@ -28,6 +31,8 @@ import java.util.Map;
 @RequestMapping("/tasks")
 @Tag(name = "任务管理", description = "提供作业任务的创建、查询、发布、截止日期延长、复制、批改等功能")
 public class TaskController {
+
+    private static final Logger log = LoggerFactory.getLogger(TaskController.class);
 
     private final TaskService taskService;
     @SuppressWarnings("unused")

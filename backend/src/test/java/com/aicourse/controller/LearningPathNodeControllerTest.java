@@ -1,7 +1,10 @@
 package com.aicourse.controller;
 import com.aicourse.controller.LearningPathNodeController;
+import com.aicourse.entity.LearningPath;
 import com.aicourse.entity.LearningPathNode;
 import com.aicourse.service.LearningPathNodeService;
+import com.aicourse.service.LearningPathService;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -26,11 +29,29 @@ class LearningPathNodeControllerTest extends ControllerTestBase {
 
     @MockitoBean
     private LearningPathNodeService nodeService;
+    @MockitoBean
+    private LearningPathService learningPathService;
 
     private LearningPathNode sampleNode() {
         LearningPathNode n = new LearningPathNode();
         n.setId(1L);
+        n.setLearningPathId(1L);
         return n;
+    }
+
+    private LearningPath samplePath() {
+        LearningPath p = new LearningPath();
+        p.setId(1L);
+        p.setStudentId(1L);
+        return p;
+    }
+
+    @BeforeEach
+    void stubOwnerLookup() {
+        // owner 校验依赖 learningPathService.getById 返回归属当前用户(=1L)的路径
+        when(learningPathService.getById(any())).thenReturn(samplePath());
+        // 节点归属校验（assertNodeOwner）先经 nodeService.getById 定位节点所属路径
+        when(nodeService.getById(any())).thenReturn(sampleNode());
     }
 
     @Test

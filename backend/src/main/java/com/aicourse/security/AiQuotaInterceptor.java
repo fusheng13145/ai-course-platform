@@ -1,5 +1,6 @@
 package com.aicourse.security;
 
+import com.aicourse.exception.BusinessException;
 import com.aicourse.service.AiQuotaService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
@@ -7,6 +8,8 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * AI 端点配额拦截器：把「没人会恶意刷 AI」这一乐观假设变成代码级保证。
@@ -29,6 +32,8 @@ import org.springframework.web.servlet.HandlerInterceptor;
 @Component
 public class AiQuotaInterceptor implements HandlerInterceptor {
 
+    private static final Logger log = LoggerFactory.getLogger(AiQuotaInterceptor.class);
+
     /**
      * 响应侧保守固定开销（token）。LLM 响应长度在请求前不可知，为使成本上界覆盖响应，
      * 对每次调用叠加一份保守估计，宁可高估也不低估。
@@ -41,6 +46,11 @@ public class AiQuotaInterceptor implements HandlerInterceptor {
         this.aiQuotaService = aiQuotaService;
     }
 
+    /**
+     * 在 Controller 之前对可计费的 AI 写请求执行 token 预算与请求次数双重熔断，并记账本次成本。
+     *
+     * @return true 放行；配额超限时由 {@link AiQuotaService} 抛出 429 并由全局异常处理器统一返回
+     */
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
         // 仅对会触发 LLM 调用的写操作计费；GET（如查询历史会话）不计入 AI 成本配额
@@ -55,12 +65,22 @@ public class AiQuotaInterceptor implements HandlerInterceptor {
         }
 
         // 1) 先判 token 预算是否已耗尽；2) 再占用一次请求次数配额。二者任一超限即抛 429 熔断。
-        aiQuotaService.assertTokenBudget(userId);
-        aiQuotaService.assertRequestQuota(userId);
+        try {
+            aiQuotaService.assertTokenBudget(userId);
+            aiQuotaService.assertRequestQuota(userId);
+        } catch (BusinessException e) {
+            log.warn("[AiQuotaInterceptor] 用户 {} AI 配额/预算超限被拦截: {}", userId, e.getMessage());
+            throw e;
+        }
 
         // 3) 记账：以请求体字节数近似 prompt 字符数折算 token，叠加响应侧保守开销
-        long promptTokens = estimatePromptTokens(request);
-        aiQuotaService.recordTokenUsage(userId, promptTokens + RESPONSE_TOKEN_OVERHEAD);
+        try {
+            long promptTokens = estimatePromptTokens(request);
+            aiQuotaService.recordTokenUsage(userId, promptTokens + RESPONSE_TOKEN_OVERHEAD);
+        } catch (BusinessException e) {
+            log.warn("[AiQuotaInterceptor] 用户 {} AI 额度记账异常: {}", userId, e.getMessage());
+            throw e;
+        }
         return true;
     }
 

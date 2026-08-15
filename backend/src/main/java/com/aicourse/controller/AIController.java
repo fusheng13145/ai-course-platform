@@ -13,7 +13,6 @@ import com.aicourse.service.AiChatSessionService;
 import com.aicourse.service.AnalyticsService;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
-import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.LearningPathService;
 import com.aicourse.service.LearningRecommendationService;
 import jakarta.validation.Valid;
@@ -54,7 +53,6 @@ public class AIController {
     private final LearningPathService learningPathService;
     private final CourseEnrollmentService courseEnrollmentService;
     private final CourseService courseService;
-    private final KnowledgePointService knowledgePointService;
     private final AiChatSessionService aiChatSessionService;
     private final LearningRecommendationService learningRecommendationService;
 
@@ -63,7 +61,6 @@ public class AIController {
                         LearningPathService learningPathService,
                         CourseEnrollmentService courseEnrollmentService,
                         CourseService courseService,
-                        KnowledgePointService knowledgePointService,
                         AiChatSessionService aiChatSessionService,
                         LearningRecommendationService learningRecommendationService) {
         this.aiService = aiService;
@@ -71,7 +68,6 @@ public class AIController {
         this.learningPathService = learningPathService;
         this.courseEnrollmentService = courseEnrollmentService;
         this.courseService = courseService;
-        this.knowledgePointService = knowledgePointService;
         this.aiChatSessionService = aiChatSessionService;
         this.learningRecommendationService = learningRecommendationService;
     }
@@ -251,6 +247,7 @@ public class AIController {
                     String json = aiService.recommendQuestionsJson(cid, diff != null ? diff : "MEDIUM", 3);
                     recommendations = aiService.parseQuestions(json, diff);
                 } catch (Exception e) {
+                    log.error("题目推荐生成失败: {}", e.getMessage(), e);
                     throw new BusinessException("题目生成失败: " + e.getMessage());
                 }
             }
@@ -303,6 +300,7 @@ public class AIController {
                 Map<String, Object> advice = aiService.generateLearningAdvice(userStats);
                 return ApiResponse.success(advice);
             } catch (Exception e) {
+                log.error("生成学习建议失败: {}", e.getMessage(), e);
                 throw new BusinessException("生成学习建议失败: " + e.getMessage());
             }
         };
@@ -332,6 +330,7 @@ public class AIController {
                     result.put("status", "created");
                     result.put("message", "学习路径已生成");
                 } catch (Exception e) {
+                    log.error("学习路径生成失败: {}", e.getMessage(), e);
                     throw new BusinessException("学习路径生成失败: " + e.getMessage());
                 }
             } else {
@@ -377,6 +376,7 @@ public class AIController {
                     result.put("message", "个性化学习路径已生成");
                     result.put("personalized", mastery != null && !mastery.isEmpty());
                 } catch (Exception e) {
+                    log.error("个性化学习路径生成失败: {}", e.getMessage(), e);
                     throw new BusinessException("学习路径生成失败: " + e.getMessage());
                 }
             } else {

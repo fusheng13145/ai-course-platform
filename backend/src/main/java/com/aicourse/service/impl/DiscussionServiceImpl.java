@@ -46,9 +46,13 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
         this.notificationService = notificationService;
     }
 
+
+    /** 创建讨论 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public DiscussionTopic createTopic(DiscussionTopic topic, Long userId, String role) {
+        log.info("创建讨论");
+
         // XSS防护：对用户输入的标题和内容进行HTML转义
         if (topic.getTitle() != null) {
             topic.setTitle(HtmlUtils.htmlEscape(topic.getTitle()));
@@ -65,6 +69,8 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
         return topic;
     }
 
+
+    /** 查询讨论 */
     @Override
     public List<DiscussionTopic> listTopics(Long courseId, Long chapterId, String keyword, Boolean essence) {
         LambdaQueryWrapper<DiscussionTopic> qw = new LambdaQueryWrapper<DiscussionTopic>()
@@ -107,6 +113,8 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
         }
     }
 
+
+    /** 查询讨论 */
     @Override
     public Map<String, Object> getTopicDetail(Long id) {
         DiscussionTopic topic = this.getById(id);
@@ -131,6 +139,8 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
         return res;
     }
 
+
+    /** 讨论相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public DiscussionPost reply(Long topicId, DiscussionPost post, Long userId, String role) {
@@ -234,6 +244,8 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
         }
     }
 
+
+    /** 讨论相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Map<String, Object> likePost(Long postId, Long userId) {
@@ -267,6 +279,8 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
         return result;
     }
 
+
+    /** 关闭讨论 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public DiscussionTopic closeTopic(Long id, Long userId, String role) {
@@ -276,6 +290,8 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
         return topic;
     }
 
+
+    /** 讨论相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public DiscussionTopic pinTopic(Long id, boolean pinned, Long userId, String role) {
@@ -285,6 +301,8 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
         return topic;
     }
 
+
+    /** 标记讨论 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public DiscussionTopic markEssence(Long id, boolean essence, Long userId, String role) {
@@ -302,9 +320,13 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
         return topic;
     }
 
+
+    /** 删除讨论 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void deletePost(Long postId, Long userId, String role) {
+        log.info("删除讨论");
+
         DiscussionPost post = postMapper.selectById(postId);
         if (post == null) {
             throw new BusinessException("回复不存在");

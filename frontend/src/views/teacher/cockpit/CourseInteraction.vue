@@ -1,20 +1,63 @@
 <template>
   <div class="course-interaction fade-in">
-    <PageHeader title="课堂互动" subtitle="发起签到与投票，实时掌握课堂参与情况" icon="megaphone" icon-bg="accent" />
+    <PageHeader
+      title="课堂互动"
+      subtitle="发起签到与投票，实时掌握课堂参与情况"
+      icon="megaphone"
+      icon-bg="accent"
+    />
 
     <div class="stat-grid">
-      <StatCard label="签到活动" :value="signIns.length" icon="check" tone="var(--accent-soft)" tone-color="var(--accent)" />
-      <StatCard label="投票活动" :value="votes.length" icon="megaphone" tone="var(--info-soft)" tone-color="var(--info)" />
-      <StatCard label="进行中" :value="activeCount" icon="play" tone="var(--ok-soft)" tone-color="var(--ok)" />
-      <StatCard label="已结束" :value="endedCount" icon="clock" tone="var(--warn-soft)" tone-color="var(--warn)" />
+      <StatCard
+        label="签到活动"
+        :value="signIns.length"
+        icon="check"
+        tone="var(--accent-soft)"
+        tone-color="var(--accent)"
+      />
+      <StatCard
+        label="投票活动"
+        :value="votes.length"
+        icon="megaphone"
+        tone="var(--info-soft)"
+        tone-color="var(--info)"
+      />
+      <StatCard
+        label="进行中"
+        :value="activeCount"
+        icon="play"
+        tone="var(--ok-soft)"
+        tone-color="var(--ok)"
+      />
+      <StatCard
+        label="已结束"
+        :value="endedCount"
+        icon="clock"
+        tone="var(--warn-soft)"
+        tone-color="var(--warn)"
+      />
     </div>
 
     <section class="l1-card">
       <div class="l1-head">
-        <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="m3 11 18-5v12L3 13v-2zM11.6 16.8a3 3 0 1 1-5.8-1.6"/></svg>
+        <span class="l1-ico" style="background: var(--accent-soft); color: var(--accent)">
+          <svg
+            viewBox="0 0 24 24"
+            width="17"
+            height="17"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.9"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="m3 11 18-5v12L3 13v-2zM11.6 16.8a3 3 0 1 1-5.8-1.6" />
+          </svg>
         </span>
-        <div><div class="l1-title">互动管理</div><div class="l1-sub">签到与投票活动一览，支持发布、结束与结果查看</div></div>
+        <div>
+          <div class="l1-title">互动管理</div>
+          <div class="l1-sub">签到与投票活动一览，支持发布、结束与结果查看</div>
+        </div>
       </div>
       <div class="l1-body">
         <el-tabs v-model="activeTab" class="it-tabs">
@@ -27,7 +70,11 @@
             <el-table :data="signIns" size="small" border empty-text="暂无签到">
               <el-table-column prop="title" label="标题" min-width="160" />
               <el-table-column label="状态" width="96" align="center">
-                <template #default="{ row }"><el-tag size="small" :type="statusType(row.status)" effect="light">{{ statusText(row.status) }}</el-tag></template>
+                <template #default="{ row }"
+                  ><el-tag size="small" :type="statusType(row.status)" effect="light">{{
+                    statusText(row.status)
+                  }}</el-tag></template
+                >
               </el-table-column>
               <el-table-column prop="type" label="方式" width="90" align="center">
                 <template #default="{ row }">{{ row.type || '普通' }}</template>
@@ -37,9 +84,25 @@
               </el-table-column>
               <el-table-column label="操作" min-width="240" align="center">
                 <template #default="{ row }">
-                  <el-button link type="success" :icon="Promotion" :disabled="row.status === 'PUBLISHED' || row.status === 'CLOSED'" @click="publish(row)">发布</el-button>
-                  <el-button link type="warning" :icon="SwitchButton" :disabled="row.status === 'CLOSED'" @click="closeSignIn(row)">结束</el-button>
-                  <el-button link type="primary" :icon="Document" @click="openRecords(row)">查看记录</el-button>
+                  <el-button
+                    link
+                    type="success"
+                    :icon="Promotion"
+                    :disabled="row.status === 'PUBLISHED' || row.status === 'CLOSED'"
+                    @click="publish(row)"
+                    >发布</el-button
+                  >
+                  <el-button
+                    link
+                    type="warning"
+                    :icon="SwitchButton"
+                    :disabled="row.status === 'CLOSED'"
+                    @click="closeSignIn(row)"
+                    >结束</el-button
+                  >
+                  <el-button link type="primary" :icon="Document" @click="openRecords(row)"
+                    >查看记录</el-button
+                  >
                 </template>
               </el-table-column>
             </el-table>
@@ -54,18 +117,35 @@
             <el-table :data="votes" size="small" border empty-text="暂无投票">
               <el-table-column prop="title" label="标题" min-width="180" />
               <el-table-column label="类型" width="100" align="center">
-                <template #default="{ row }"><el-tag size="small" :type="row.multiple ? 'warning' : 'info'" effect="light">{{ row.multiple ? '多选' : '单选' }}</el-tag></template>
+                <template #default="{ row }"
+                  ><el-tag size="small" :type="row.multiple ? 'warning' : 'info'" effect="light">{{
+                    row.multiple ? '多选' : '单选'
+                  }}</el-tag></template
+                >
               </el-table-column>
               <el-table-column label="状态" width="96" align="center">
-                <template #default="{ row }"><el-tag size="small" :type="statusType(row.status)" effect="light">{{ statusText(row.status) }}</el-tag></template>
+                <template #default="{ row }"
+                  ><el-tag size="small" :type="statusType(row.status)" effect="light">{{
+                    statusText(row.status)
+                  }}</el-tag></template
+                >
               </el-table-column>
               <el-table-column label="发起时间" min-width="150">
                 <template #default="{ row }">{{ row.createTime || '—' }}</template>
               </el-table-column>
               <el-table-column label="操作" min-width="200" align="center">
                 <template #default="{ row }">
-                  <el-button link type="warning" :icon="SwitchButton" :disabled="row.status === 'CLOSED'" @click="closeVote(row)">结束</el-button>
-                  <el-button link type="primary" :icon="DataAnalysis" @click="openVoteResult(row)">查看结果</el-button>
+                  <el-button
+                    link
+                    type="warning"
+                    :icon="SwitchButton"
+                    :disabled="row.status === 'CLOSED'"
+                    @click="closeVote(row)"
+                    >结束</el-button
+                  >
+                  <el-button link type="primary" :icon="DataAnalysis" @click="openVoteResult(row)"
+                    >查看结果</el-button
+                  >
                 </template>
               </el-table-column>
             </el-table>
@@ -103,7 +183,12 @@
         <el-table-column prop="studentName" label="学生" min-width="120" />
         <el-table-column label="状态" width="100" align="center">
           <template #default="{ row }">
-            <el-tag size="small" :type="row.status === 'SIGNED' ? 'success' : 'info'" effect="light">{{ row.status === 'SIGNED' ? '已签到' : row.status || '未签' }}</el-tag>
+            <el-tag
+              size="small"
+              :type="row.status === 'SIGNED' ? 'success' : 'info'"
+              effect="light"
+              >{{ row.status === 'SIGNED' ? '已签到' : row.status || '未签' }}</el-tag
+            >
           </template>
         </el-table-column>
         <el-table-column label="时间" min-width="150">
@@ -111,7 +196,14 @@
         </el-table-column>
         <el-table-column label="标记" width="100" align="center">
           <template #default="{ row }">
-            <el-button link type="primary" :icon="Check" :disabled="row.status === 'SIGNED'" @click="mark(row)">标记到</el-button>
+            <el-button
+              link
+              type="primary"
+              :icon="Check"
+              :disabled="row.status === 'SIGNED'"
+              @click="mark(row)"
+              >标记到</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -127,7 +219,13 @@
           <div class="opt-list">
             <div v-for="(o, i) in voteForm.options" :key="i" class="opt-row">
               <el-input v-model="voteForm.options[i]" placeholder="选项内容" />
-              <el-button :icon="Delete" circle plain type="danger" @click="voteForm.options.splice(i, 1)" />
+              <el-button
+                :icon="Delete"
+                circle
+                plain
+                type="danger"
+                @click="voteForm.options.splice(i, 1)"
+              />
             </div>
             <el-button :icon="Plus" plain @click="voteForm.options.push('')">添加选项</el-button>
           </div>
@@ -147,8 +245,15 @@
       <div v-if="voteResult" class="result-wrap">
         <div class="result-total">总票数：{{ voteResult.total ?? 0 }}</div>
         <div v-for="(o, i) in voteResult.options" :key="i" class="result-item">
-          <div class="result-head"><span>{{ o.text }}</span><b>{{ o.count }} 票</b></div>
-          <el-progress :percentage="pctOf(o.count, voteResult.total)" :stroke-width="12" :show-text="false" />
+          <div class="result-head">
+            <span>{{ o.text }}</span
+            ><b>{{ o.count }} 票</b>
+          </div>
+          <el-progress
+            :percentage="pctOf(o.count, voteResult.total)"
+            :stroke-width="12"
+            :show-text="false"
+          />
         </div>
       </div>
       <el-empty v-else description="暂无结果" />
@@ -187,11 +292,17 @@ const votes = ref([])
 
 const activeCount = computed(
   () =>
-    signIns.value.filter((r) => r.status === 'PUBLISHED' || r.status === 'OPEN' || r.status === 'ONGOING').length +
-    votes.value.filter((r) => r.status === 'PUBLISHED' || r.status === 'OPEN' || r.status === 'ONGOING').length,
+    signIns.value.filter(
+      (r) => r.status === 'PUBLISHED' || r.status === 'OPEN' || r.status === 'ONGOING',
+    ).length +
+    votes.value.filter(
+      (r) => r.status === 'PUBLISHED' || r.status === 'OPEN' || r.status === 'ONGOING',
+    ).length,
 )
 const endedCount = computed(
-  () => signIns.value.filter((r) => r.status === 'CLOSED').length + votes.value.filter((r) => r.status === 'CLOSED').length,
+  () =>
+    signIns.value.filter((r) => r.status === 'CLOSED').length +
+    votes.value.filter((r) => r.status === 'CLOSED').length,
 )
 
 /* 签到对话框 */
@@ -259,7 +370,12 @@ async function createSignIn() {
   }
   saving.value = true
   try {
-    const payload = { courseId, title: signInForm.title.trim(), duration: signInForm.duration, type: signInForm.type }
+    const payload = {
+      courseId,
+      title: signInForm.title.trim(),
+      duration: signInForm.duration,
+      type: signInForm.type,
+    }
     await interactionApi.createSignIn(payload)
     ElMessage.success('签到已发起')
     signInVisible.value = false
@@ -304,7 +420,10 @@ async function openRecords(row) {
 async function mark(row) {
   if (!currentSignInId.value) return
   try {
-    await interactionApi.markSignIn(currentSignInId.value, { studentId: row.studentId, status: 'SIGNED' })
+    await interactionApi.markSignIn(currentSignInId.value, {
+      studentId: row.studentId,
+      status: 'SIGNED',
+    })
     ElMessage.success('已标记签到')
     await openRecords({ id: currentSignInId.value })
   } catch (e) {
@@ -330,7 +449,12 @@ async function createVote() {
   }
   saving.value = true
   try {
-    const payload = { courseId, title: voteForm.title.trim(), options: opts, multiple: voteForm.multiple }
+    const payload = {
+      courseId,
+      title: voteForm.title.trim(),
+      options: opts,
+      multiple: voteForm.multiple,
+    }
     await interactionApi.createVote(payload)
     ElMessage.success('投票已发起')
     voteVisible.value = false
@@ -377,18 +501,63 @@ watch(() => route.params.id, load)
 </script>
 
 <style scoped>
-.course-interaction { padding: 4px; }
-.it-tabs { background: transparent; border: none; padding: 0; box-shadow: none; }
-.head-row { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--ac-spacing-md); }
-.head-row .muted { font-size: 13px; color: var(--ac-text-muted); }
+.course-interaction {
+  padding: 4px;
+}
+.it-tabs {
+  background: transparent;
+  border: none;
+  padding: 0;
+  box-shadow: none;
+}
+.head-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--ac-spacing-md);
+}
+.head-row .muted {
+  font-size: 13px;
+  color: var(--ac-text-muted);
+}
 
-.opt-list { display: flex; flex-direction: column; gap: 10px; width: 100%; }
-.opt-row { display: flex; align-items: center; gap: 10px; }
-.opt-row .el-input { flex: 1; }
+.opt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+.opt-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.opt-row .el-input {
+  flex: 1;
+}
 
-.result-wrap { display: flex; flex-direction: column; gap: 16px; }
-.result-total { font-size: 13px; color: var(--ac-text-secondary); }
-.result-item { display: flex; flex-direction: column; gap: 6px; }
-.result-head { display: flex; align-items: center; justify-content: space-between; font-size: 13px; color: var(--ac-text-primary); }
-.result-head b { color: var(--ac-primary); }
+.result-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+.result-total {
+  font-size: 13px;
+  color: var(--ac-text-secondary);
+}
+.result-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 13px;
+  color: var(--ac-text-primary);
+}
+.result-head b {
+  color: var(--ac-primary);
+}
 </style>

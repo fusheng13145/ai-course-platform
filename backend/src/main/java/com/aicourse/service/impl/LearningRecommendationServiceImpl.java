@@ -1,5 +1,6 @@
 package com.aicourse.service.impl;
 
+
 import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.KnowledgePoint;
@@ -33,6 +34,7 @@ import lombok.extern.slf4j.Slf4j;
 @Slf4j
 public class LearningRecommendationServiceImpl implements LearningRecommendationService {
 
+
     private static final BigDecimal WEAK_MASTERY_THRESHOLD = new BigDecimal("70");
     private static final int MAX_WEAK_POINTS = 8;
 
@@ -54,6 +56,8 @@ public class LearningRecommendationServiceImpl implements LearningRecommendation
         this.aiService = aiService;
     }
 
+
+    /** 学习推荐相关操作 */
     @Override
     public Map<String, Object> recommendLearning(Long userId) {
         Map<String, Object> result = new HashMap<>();

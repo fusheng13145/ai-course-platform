@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.Classroom;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
@@ -21,6 +24,8 @@ import java.util.Map;
  */
 @Service
 public class ClassroomServiceImpl extends ServiceImpl<ClassroomMapper, Classroom> implements ClassroomService {
+
+    private static final Logger log = LoggerFactory.getLogger(ClassroomServiceImpl.class);
 
     private final UserService userService;
 
@@ -77,6 +82,8 @@ public class ClassroomServiceImpl extends ServiceImpl<ClassroomMapper, Classroom
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void addStudent(Long classroomId, Long studentId) {
+        log.info("新增课堂");
+
         Classroom classroom = this.getById(classroomId);
         if (classroom == null) {
             throw new BusinessException("班级不存在");
@@ -109,6 +116,8 @@ public class ClassroomServiceImpl extends ServiceImpl<ClassroomMapper, Classroom
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void removeStudent(Long classroomId, Long studentId) {
+        log.info("移除课堂");
+
         Classroom classroom = this.getById(classroomId);
         if (classroom == null) {
             throw new BusinessException("班级不存在");

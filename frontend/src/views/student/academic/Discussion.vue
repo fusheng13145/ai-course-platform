@@ -1,7 +1,12 @@
 <template>
   <div class="discussion-page fade-in">
     <!-- 顶部：标题 + 课程选择 + 发起 -->
-    <PageHeader title="课程讨论" subtitle="参与话题讨论、向老师和同学提问，精华内容由老师标记" icon="message" icon-bg="accent">
+    <PageHeader
+      title="课程讨论"
+      subtitle="参与话题讨论、向老师和同学提问，精华内容由老师标记"
+      icon="message"
+      icon-bg="accent"
+    >
       <el-select
         v-model="courseId"
         placeholder="选择课程"
@@ -19,92 +24,126 @@
     </PageHeader>
 
     <div class="stat-grid">
-      <StatCard label="话题总数" :value="topics.length" icon="message" tone="var(--accent-soft)" tone-color="var(--accent)" />
-      <StatCard label="精华话题" :value="essenceCount" icon="star" tone="var(--warn-soft)" tone-color="var(--warn)" />
-      <StatCard label="总回复数" :value="totalReplies" icon="comment" tone="var(--info-soft)" tone-color="var(--info)" />
+      <StatCard
+        label="话题总数"
+        :value="topics.length"
+        icon="message"
+        tone="var(--accent-soft)"
+        tone-color="var(--accent)"
+      />
+      <StatCard
+        label="精华话题"
+        :value="essenceCount"
+        icon="star"
+        tone="var(--warn-soft)"
+        tone-color="var(--warn)"
+      />
+      <StatCard
+        label="总回复数"
+        :value="totalReplies"
+        icon="comment"
+        tone="var(--info-soft)"
+        tone-color="var(--info)"
+      />
     </div>
 
     <section class="l1-card">
       <div class="l1-head">
-        <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+        <span class="l1-ico" style="background: var(--accent-soft); color: var(--accent)">
+          <svg
+            viewBox="0 0 24 24"
+            width="17"
+            height="17"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.9"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
         </span>
-        <div><div class="l1-title">话题列表</div><div class="l1-sub">按精华筛选或搜索，点击进入话题详情参与讨论</div></div>
+        <div>
+          <div class="l1-title">话题列表</div>
+          <div class="l1-sub">按精华筛选或搜索，点击进入话题详情参与讨论</div>
+        </div>
       </div>
       <div class="l1-body">
-    <div v-loading="loading">
-      <el-alert v-if="!courseId" title="请选择课程" type="info" :closable="false" show-icon>
-        <template #default>选择一门课程后，即可查看该课程的讨论话题。</template>
-      </el-alert>
+        <div v-loading="loading">
+          <el-alert v-if="!courseId" title="请选择课程" type="info" :closable="false" show-icon>
+            <template #default>选择一门课程后，即可查看该课程的讨论话题。</template>
+          </el-alert>
 
-      <template v-else>
-        <!-- 工具栏：精华筛选 + 搜索 + 发起 -->
-        <div class="toolbar">
-          <el-radio-group v-model="essenceFilter" @change="loadTopics">
-            <el-radio-button :value="''">全部</el-radio-button>
-            <el-radio-button :value="true">精华</el-radio-button>
-          </el-radio-group>
-          <el-input
-            v-model="keyword"
-            placeholder="搜索话题"
-            clearable
-            style="width: 220px"
-            :prefix-icon="Search"
-            @keyup.enter="loadTopics"
-            @clear="loadTopics"
-          />
-          <el-button :disabled="topicLoading" @click="loadTopics">
-            <el-icon><Refresh /></el-icon>刷新
-          </el-button>
-        </div>
+          <template v-else>
+            <!-- 工具栏：精华筛选 + 搜索 + 发起 -->
+            <div class="toolbar">
+              <el-radio-group v-model="essenceFilter" @change="loadTopics">
+                <el-radio-button :value="''">全部</el-radio-button>
+                <el-radio-button :value="true">精华</el-radio-button>
+              </el-radio-group>
+              <el-input
+                v-model="keyword"
+                placeholder="搜索话题"
+                clearable
+                style="width: 220px"
+                :prefix-icon="Search"
+                @keyup.enter="loadTopics"
+                @clear="loadTopics"
+              />
+              <el-button :disabled="topicLoading" @click="loadTopics">
+                <el-icon><Refresh /></el-icon>刷新
+              </el-button>
+            </div>
 
-        <!-- 话题列表 -->
-        <div v-loading="topicLoading" class="chart-card">
-          <div class="chart-title">
-            <el-icon><Comment /></el-icon>话题列表
-            <el-tag size="small" type="info" effect="light" round>{{ topics.length }}</el-tag>
-          </div>
+            <!-- 话题列表 -->
+            <div v-loading="topicLoading" class="chart-card">
+              <div class="chart-title">
+                <el-icon><Comment /></el-icon>话题列表
+                <el-tag size="small" type="info" effect="light" round>{{ topics.length }}</el-tag>
+              </div>
 
-          <div v-if="topics.length" class="topic-list">
-            <div v-for="t in topics" :key="t.id" class="topic-item" @click="openDetail(t)">
-              <div class="ti-main">
-                <div class="ti-top">
-                  <el-tag v-if="t.isEssence" size="small" class="ti-essence" effect="light">
-                    <el-icon><Star /></el-icon>精华
-                  </el-tag>
-                  <el-tag v-if="t.pinned" size="small" type="danger" effect="light">置顶</el-tag>
-                  <span class="ti-title">{{ t.title }}</span>
-                  <el-tag
-                    size="small"
-                    :type="t.status === 'CLOSED' ? 'info' : 'success'"
-                    effect="light"
-                  >
-                    {{ t.status === 'CLOSED' ? '已关闭' : '进行中' }}
-                  </el-tag>
-                </div>
-                <p class="ti-content">{{ t.content }}</p>
-                <div class="ti-meta">
-                  <span
-                    ><el-icon><User /></el-icon>{{ t.authorName || '同学' }}</span
-                  >
-                  <span
-                    ><el-icon><ChatLineRound /></el-icon>{{ t.postCount || 0 }} 条回复</span
-                  >
-                  <span v-if="t.chapterName"
-                    ><el-icon><Collection /></el-icon>{{ t.chapterName }}</span
-                  >
-                  <span class="ti-time">{{ t.createdAt }}</span>
+              <div v-if="topics.length" class="topic-list">
+                <div v-for="t in topics" :key="t.id" class="topic-item" @click="openDetail(t)">
+                  <div class="ti-main">
+                    <div class="ti-top">
+                      <el-tag v-if="t.isEssence" size="small" class="ti-essence" effect="light">
+                        <el-icon><Star /></el-icon>精华
+                      </el-tag>
+                      <el-tag v-if="t.pinned" size="small" type="danger" effect="light"
+                        >置顶</el-tag
+                      >
+                      <span class="ti-title">{{ t.title }}</span>
+                      <el-tag
+                        size="small"
+                        :type="t.status === 'CLOSED' ? 'info' : 'success'"
+                        effect="light"
+                      >
+                        {{ t.status === 'CLOSED' ? '已关闭' : '进行中' }}
+                      </el-tag>
+                    </div>
+                    <p class="ti-content">{{ t.content }}</p>
+                    <div class="ti-meta">
+                      <span
+                        ><el-icon><User /></el-icon>{{ t.authorName || '同学' }}</span
+                      >
+                      <span
+                        ><el-icon><ChatLineRound /></el-icon>{{ t.postCount || 0 }} 条回复</span
+                      >
+                      <span v-if="t.chapterName"
+                        ><el-icon><Collection /></el-icon>{{ t.chapterName }}</span
+                      >
+                      <span class="ti-time">{{ t.createdAt }}</span>
+                    </div>
+                  </div>
+                  <el-icon class="ti-arrow"><ArrowRight /></el-icon>
                 </div>
               </div>
-              <el-icon class="ti-arrow"><ArrowRight /></el-icon>
+              <el-empty v-else description="暂无话题，点击「发起讨论」开始吧" :image-size="70">
+                <template #image><div class="empty-deco">💬</div></template>
+              </el-empty>
             </div>
-          </div>
-          <el-empty v-else description="暂无话题，点击「发起讨论」开始吧" :image-size="70">
-            <template #image><div class="empty-deco">💬</div></template>
-          </el-empty>
+          </template>
         </div>
-      </template>
-    </div>
       </div>
     </section>
 
@@ -300,7 +339,7 @@ const keyword = ref('')
 const essenceFilter = ref('') // '' = 全部, true = 精华
 
 /** 精华话题数 */
-const essenceCount = computed(() => topics.value.filter(t => t.isEssence).length)
+const essenceCount = computed(() => topics.value.filter((t) => t.isEssence).length)
 /** 总回复数 */
 const totalReplies = computed(() => topics.value.reduce((s, t) => s + (t.postCount || 0), 0))
 
@@ -683,7 +722,10 @@ onMounted(() => {
   flex: 1;
 }
 
-.empty-deco { font-size: 38px; filter: grayscale(.2); }
+.empty-deco {
+  font-size: 38px;
+  filter: grayscale(0.2);
+}
 
 @media (max-width: 1100px) {
   .page-head {

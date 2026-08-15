@@ -1,5 +1,10 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.aicourse.constant.ExamSessionStatus;
+
 import com.aicourse.entity.*;
 import com.aicourse.service.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -16,6 +21,8 @@ import java.util.stream.Collectors;
  */
 @Component
 public class CourseAnalyticsComponent {
+
+    private static final Logger log = LoggerFactory.getLogger(CourseAnalyticsComponent.class);
 
     private final CourseEnrollmentService enrollmentService;
     private final CourseService courseService;
@@ -37,6 +44,8 @@ public class CourseAnalyticsComponent {
         this.examSessionService = examSessionService;
     }
 
+
+    /** 查询课程分析 */
     public Map<String, Object> getGradeDistribution(Long courseId) {
         List<CourseEnrollment> enrollmentList = enrollmentService.list(
                 new LambdaQueryWrapper<CourseEnrollment>().eq(CourseEnrollment::getCourseId, courseId)
@@ -117,6 +126,8 @@ public class CourseAnalyticsComponent {
         return histogram;
     }
 
+
+    /** 查询课程分析 */
     public Map<String, Object> getCourseAnalysis(Long courseId) {
         Course course = courseService.getById(courseId);
         if (course == null) {
@@ -207,7 +218,7 @@ public class CourseAnalyticsComponent {
         List<ExamSession> sessions = examSessionService.list(
                 new LambdaQueryWrapper<ExamSession>()
                         .eq(ExamSession::getExamPaperId, examPaperId)
-                        .in(ExamSession::getStatus, "SUBMITTED", "GRADED")
+                        .in(ExamSession::getStatus, ExamSessionStatus.SUBMITTED, ExamSessionStatus.GRADED)
         );
 
         statistics.put("totalParticipants", sessions.size());

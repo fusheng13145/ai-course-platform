@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import jakarta.validation.Valid;
 
 import com.aicourse.common.ApiResponse;
@@ -25,6 +28,8 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 @Tag(name = "讨论区")
 public class DiscussionController {
 
+    private static final Logger log = LoggerFactory.getLogger(DiscussionController.class);
+
     private final DiscussionService discussionService;
 
     public DiscussionController(DiscussionService discussionService) {
@@ -41,6 +46,7 @@ public class DiscussionController {
                 .orElse(RoleConstants.STUDENT);
     }
 
+    /** 当前登录用户发布一个新的讨论话题 */
     @PostMapping("/topic")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
     public ApiResponse<DiscussionTopic> createTopic(@Valid @RequestBody DiscussionTopic topic, Authentication auth) {
@@ -48,6 +54,7 @@ public class DiscussionController {
         return ApiResponse.success("发布成功", discussionService.createTopic(topic, userId, roleOf(auth)));
     }
 
+    /** 查询某课程下的讨论话题列表，支持按章节、关键词、精华筛选 */
     @GetMapping("/topic/course/{courseId}")
     public ApiResponse<List<DiscussionTopic>> listTopics(@PathVariable Long courseId,
                                                          @RequestParam(required = false) Long chapterId,
@@ -56,11 +63,13 @@ public class DiscussionController {
         return ApiResponse.success(discussionService.listTopics(courseId, chapterId, keyword, essence));
     }
 
+    /** 获取单个话题的完整详情（含回复与统计） */
     @GetMapping("/topic/{id}")
     public ApiResponse<Map<String, Object>> getTopic(@PathVariable Long id) {
         return ApiResponse.success(discussionService.getTopicDetail(id));
     }
 
+    /** 在指定话题下发表一条回复 */
     @PostMapping("/topic/{id}/reply")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
     public ApiResponse<DiscussionPost> reply(@PathVariable Long id,
@@ -70,6 +79,7 @@ public class DiscussionController {
         return ApiResponse.success("回复成功", discussionService.reply(id, post, userId, roleOf(auth)));
     }
 
+    /** 对指定回复点赞或取消点赞（切换式） */
     @PostMapping("/post/{postId}/like")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
     public ApiResponse<Map<String, Object>> likePost(@PathVariable Long postId, Authentication auth) {
@@ -77,6 +87,7 @@ public class DiscussionController {
         return ApiResponse.success("操作成功", result);
     }
 
+    /** 关闭或重新开启某个话题（教师/管理员） */
     @PostMapping("/topic/{id}/close")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<DiscussionTopic> closeTopic(@PathVariable Long id, Authentication auth) {
@@ -84,6 +95,7 @@ public class DiscussionController {
                 discussionService.closeTopic(id, (Long) auth.getPrincipal(), roleOf(auth)));
     }
 
+    /** 置顶或取消置顶某个话题（教师/管理员） */
     @PostMapping("/topic/{id}/pin")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<DiscussionTopic> pinTopic(@PathVariable Long id,
@@ -93,6 +105,7 @@ public class DiscussionController {
                 discussionService.pinTopic(id, pinned, (Long) auth.getPrincipal(), roleOf(auth)));
     }
 
+    /** 标记或取消标记某个话题为精华（教师/管理员） */
     @PostMapping("/topic/{id}/essence")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<DiscussionTopic> markEssence(@PathVariable Long id,
@@ -102,6 +115,7 @@ public class DiscussionController {
                 discussionService.markEssence(id, essence, (Long) auth.getPrincipal(), roleOf(auth)));
     }
 
+    /** 删除某条回复，仅作者、教师或管理员可操作 */
     @DeleteMapping("/post/{postId}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
     public ApiResponse<Void> deletePost(@PathVariable Long postId, Authentication auth) {

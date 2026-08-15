@@ -48,4 +48,7 @@ export const manualGrade = (sessionId, data) => request.post(`/exam-sessions/${s
 /** 获取作弊检测信息 */
 export const getCheatingDetect = sessionId => request.get(`/exam-sessions/${sessionId}/cheating-detect`)
 
+/**
+ * 默认导出对象：模块/组件配置与导出内容
+ */
 export default { getExamPaperList, getExamPaperById, createExamPaper, updateExamPaper, deleteExamPaper, getExamQuestions, startExam, submitExam, getExamResult, getMyExamSession, getMyExamSessions, getExamDetail, publishExam, copyExam, getExamStatistics, autoSaveAnswers, forceSubmit, getRemainingTime, autoGrade, getScoreReport, getActiveExams, manualGrade, getCheatingDetect }

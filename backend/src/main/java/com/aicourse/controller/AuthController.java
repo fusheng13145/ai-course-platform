@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.CookieUtils;
@@ -29,6 +32,8 @@ import java.util.Map;
 @RequestMapping("/auth")
 public class AuthController {
 
+    private static final Logger log = LoggerFactory.getLogger(AuthController.class);
+
     private final AuthService authService;
     private final PermissionService permissionService;
     private final UserService userService;
@@ -54,6 +59,7 @@ public class AuthController {
     @PostMapping("/login")
     public ApiResponse<Map<String, Object>> login(@Valid @RequestBody UserLoginDTO body,
                                                  HttpServletRequest request, HttpServletResponse response) {
+        log.debug("用户登录 username={}", body.getUsername());
         ApiResponse<Map<String, Object>> result =
                 authService.login(body.getUsername(), body.getPassword(), body.getRememberMe(), request);
         boolean rememberMe = body.getRememberMe() != null && body.getRememberMe();
@@ -71,6 +77,7 @@ public class AuthController {
     @Operation(summary = "用户注册")
     public ApiResponse<Map<String, Object>> register(@Valid @RequestBody UserRegisterDTO body,
                                                     HttpServletRequest request, HttpServletResponse response) {
+        log.debug("用户注册 username={}", body.getUsername());
         // 注意：角色由服务端强制为 STUDENT（见 AuthServiceImpl.register 安全加固），
         // 此处即使请求体携带 role 也仅做格式校验，最终角色以服务端为准。
         ApiResponse<Map<String, Object>> result = authService.register(body.getEmail(), body.getUsername(),
@@ -91,17 +98,21 @@ public class AuthController {
     @PostMapping("/refresh")
     @Operation(summary = "刷新访问令牌")
     public ApiResponse<Map<String, Object>> refreshToken(HttpServletRequest request, HttpServletResponse response) {
+        log.debug("刷新访问令牌");
         String refreshToken = cookieUtils.readCookie(request, JwtUtils.REFRESH_TOKEN_COOKIE);
         if (refreshToken == null || refreshToken.isBlank()) {
             throw new BusinessException("刷新令牌缺失或已失效");
         }
         ApiResponse<Map<String, Object>> result = authService.refreshToken(refreshToken);
-        // 刷新后写入新的访问 Cookie（刷新令牌本身 Cookie 不变，仅访问令牌轮换）
+        // 刷新后写入新的访问 Cookie，并同步写入轮换后的新刷新令牌 Cookie（修复 P1-12 轮换闭环：
+        // 服务端已作废旧值，若不写回新 Cookie，下一次 401 刷新将拿不到有效刷新令牌）
         Map<String, Object> data = result.getData();
         if (data != null) {
             String newAccessToken = (String) data.get("token");
-            cookieUtils.addAuthCookies(response, newAccessToken, null, true);
+            String newRefreshToken = (String) data.get("refreshToken");
+            cookieUtils.addAuthCookies(response, newAccessToken, newRefreshToken, true);
             data.remove("token");
+            data.remove("refreshToken");
         }
         return result;
     }
@@ -116,6 +127,7 @@ public class AuthController {
     @PostMapping("/logout")
     @Operation(summary = "退出登录")
     public ApiResponse<Void> logout(Authentication auth, HttpServletRequest request, HttpServletResponse response) {
+        log.debug("用户登出 userId={}", auth != null && auth.getPrincipal() instanceof Long ? auth.getPrincipal() : null);
         // /auth/** 为 permitAll，未登录请求可能以匿名身份（principal="anonymousUser"）抵达此处，
         // 此时强转 Long 会抛 ClassCastException → 全局兜底返回 500。显式拒绝，返回 401 而非崩溃。
         if (auth == null || !(auth.getPrincipal() instanceof Long)) {
@@ -153,7 +165,8 @@ public class AuthController {
     @PostMapping("/change-password")
     @Operation(summary = "修改登录密码")
     public ApiResponse<Void> changePassword(Authentication auth, @Valid @RequestBody ChangePasswordDTO body) {
-        Long userId = (Long) auth.getPrincipal();
+        Long userId = requireLogin(auth);
+        log.debug("修改密码 userId={}", userId);
         return authService.changePassword(userId, body.getOldPassword(), body.getNewPassword());
     }
 
@@ -204,6 +217,19 @@ public class AuthController {
     }
 
     /**
+     * 提取当前登录用户ID；未认证（/auth/** 为 permitAll，匿名请求以 null/非 Long principal 抵达）
+     * 时返回 401 而非强转异常 500（修复：change-password、/me PUT 原直接强转，匿名请求产生 500）。
+     * @param auth 登录认证信息
+     * @return 用户ID
+     */
+    private Long requireLogin(Authentication auth) {
+        if (auth == null || !(auth.getPrincipal() instanceof Long)) {
+            throw new BusinessException(ApiCode.UNAUTHORIZED, "未授权，请先登录");
+        }
+        return (Long) auth.getPrincipal();
+    }
+
+    /**
      * 更新当前用户个人资料
      * @param auth 登录认证信息
      * @param updates 待更新用户字段（白名单 DTO，不含 role/password/id 等敏感字段）
@@ -212,7 +238,8 @@ public class AuthController {
     @PutMapping("/me")
     @Operation(summary = "更新当前用户个人资料")
     public ApiResponse<User> updateCurrentUser(Authentication auth, @Valid @RequestBody UserUpdateDTO updates) {
-        Long userId = (Long) auth.getPrincipal();
+        Long userId = requireLogin(auth);
+        log.debug("更新个人资料 userId={}", userId);
         User user = userService.getById(userId);
         if (user == null) {
             return ApiResponse.error(ApiCode.NOT_FOUND, "用户不存在");
@@ -266,17 +293,30 @@ public class AuthController {
     @Operation(summary = "发送邮箱验证码")
     public ApiResponse<Void> sendVerificationCode(@Valid @RequestBody SendCodeRequest body,
                                                   HttpServletRequest request) {
+        log.debug("发送验证码 email={}", body.getEmail());
         return authService.sendVerificationCode(body.getEmail(), body.getType(), request);
     }
 
     /**
-     * 邮箱 + 验证码 重置密码
+     * 邮箱 + 验证码 重置密码（复用统一 ResetPasswordRequest；DTO 合并后 email/phone 均允许，
+     * 邮箱通道由 Service 按 email 维度处理）
      * @param body 邮箱、验证码、新密码（强类型校验）
      * @return 操作结果
      */
     @PostMapping("/reset-password-by-email")
     @Operation(summary = "邮箱验证码重置密码")
-    public ApiResponse<Void> resetPasswordByEmail(@Valid @RequestBody ResetPasswordByEmailRequest body) {
+    public ApiResponse<Void> resetPasswordByEmail(@Valid @RequestBody ResetPasswordRequest body) {
         return authService.resetPasswordByEmail(body.getEmail(), body.getCode(), body.getNewPassword());
+    }
+
+    /**
+     * 校验邮箱验证码（仅校验不消费，供找回密码第二步「验证邮箱」使用；与重置共享尝试限流）
+     * @param body 邮箱、验证码
+     * @return 操作结果
+     */
+    @PostMapping("/verify-code")
+    @Operation(summary = "校验邮箱验证码")
+    public ApiResponse<Void> verifyCode(@Valid @RequestBody VerifyCodeRequest body) {
+        return authService.verifyCode(body.getEmail(), body.getCode());
     }
 }

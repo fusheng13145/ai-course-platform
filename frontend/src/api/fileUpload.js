@@ -14,4 +14,7 @@ export const getProgress = sessionId => request.get(`/upload-sessions/${sessionI
 // 取消上传
 export const cancelUpload = sessionId => request.delete(`/upload-sessions/${sessionId}/cancel`)
 
+/**
+ * 默认导出对象：模块/组件配置与导出内容
+ */
 export default { createSession, uploadChunk, mergeChunks, getProgress, cancelUpload }

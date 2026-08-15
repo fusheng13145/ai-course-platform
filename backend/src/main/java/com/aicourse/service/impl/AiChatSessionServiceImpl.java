@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.AiChatMessage;
 import com.aicourse.entity.AiChatSession;
 import com.aicourse.mapper.AiChatSessionMapper;
@@ -14,8 +17,14 @@ import java.util.Collections;
 import java.util.List;
 import java.util.UUID;
 
+
+/**
+ * AI聊天会话服务实现：相关业务逻辑入口，提供增删改查与编排能力。
+ */
 @Service
 public class AiChatSessionServiceImpl extends ServiceImpl<AiChatSessionMapper, AiChatSession> implements AiChatSessionService {
+
+    private static final Logger log = LoggerFactory.getLogger(AiChatSessionServiceImpl.class);
 
     private final AiChatMessageService aiChatMessageService;
 
@@ -23,9 +32,13 @@ public class AiChatSessionServiceImpl extends ServiceImpl<AiChatSessionMapper, A
         this.aiChatMessageService = aiChatMessageService;
     }
 
+
+    /** 创建AI聊天会话 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public AiChatSession createSession(Long userId, String title) {
+        log.info("创建AI聊天会话");
+
         AiChatSession session = new AiChatSession();
         session.setSessionId(UUID.randomUUID().toString());
         session.setUserId(userId);
@@ -36,6 +49,8 @@ public class AiChatSessionServiceImpl extends ServiceImpl<AiChatSessionMapper, A
         return session;
     }
 
+
+    /** AI聊天会话相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void appendMessage(String sessionId, String role, String content) {
@@ -56,6 +71,8 @@ public class AiChatSessionServiceImpl extends ServiceImpl<AiChatSessionMapper, A
         }
     }
 
+
+    /** 查询AI聊天会话 */
     @Override
     public List<AiChatSession> listSessions(Long userId) {
         if (userId == null) {
@@ -68,6 +85,8 @@ public class AiChatSessionServiceImpl extends ServiceImpl<AiChatSessionMapper, A
         return this.list(qw);
     }
 
+
+    /** 查询AI聊天会话 */
     @Override
     public AiChatSession getBySessionId(String sessionId) {
         if (sessionId == null) {
@@ -79,13 +98,19 @@ public class AiChatSessionServiceImpl extends ServiceImpl<AiChatSessionMapper, A
         return this.getOne(qw, false);
     }
 
+
+    /** 查询AI聊天会话 */
     @Override
     public List<AiChatMessage> getMessages(String sessionId) {
         return aiChatMessageService.listBySessionId(sessionId);
     }
 
+
+    /** 删除AI聊天会话 */
     @Override
     public void deleteSession(String sessionId) {
+        log.info("删除AI聊天会话");
+
         AiChatSession session = this.getBySessionId(sessionId);
         if (session != null) {
             session.setDeleted(1);

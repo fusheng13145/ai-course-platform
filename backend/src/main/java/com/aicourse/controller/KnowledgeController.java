@@ -6,11 +6,9 @@ import com.aicourse.common.JsonUtils;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.dto.KnowledgeExtractDTO;
 import com.aicourse.dto.KnowledgeRelationDTO;
-import com.aicourse.dto.PathPlanDTO;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.service.AIService;
-import com.aicourse.service.KnowledgeGraphService;
 import com.aicourse.service.KnowledgePointRelationService;
 import com.aicourse.service.KnowledgePointService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -44,7 +42,6 @@ public class KnowledgeController {
 
     private final KnowledgePointService knowledgePointService;
     private final KnowledgePointRelationService relationService;
-    private final KnowledgeGraphService knowledgeGraphService;
     private final AIService aiService;
 
     private static final ObjectMapper KG_OM = new ObjectMapper();
@@ -52,11 +49,9 @@ public class KnowledgeController {
 
     public KnowledgeController(KnowledgePointService knowledgePointService,
                                KnowledgePointRelationService relationService,
-                               KnowledgeGraphService knowledgeGraphService,
                                AIService aiService) {
         this.knowledgePointService = knowledgePointService;
         this.relationService = relationService;
-        this.knowledgeGraphService = knowledgeGraphService;
         this.aiService = aiService;
     }
 
@@ -74,6 +69,30 @@ public class KnowledgeController {
                 .eq(courseId != null, KnowledgePoint::getCourseId, courseId)
                 .like(keyword != null && !keyword.isEmpty(), KnowledgePoint::getName, keyword);
         return ApiResponse.success(knowledgePointService.list(qw));
+    }
+
+    /**
+     * 分页查询知识点列表（性能维度补强：消除图谱/列表全量加载瓶颈）
+     * GET /api/knowledge/points/page?page=1&size=10&courseId=&keyword=
+     * 响应含 total / pages / records，供前端渐进迁移分页展示。
+     * 与原 /points 并存：不传分页参数仍走全量，向后完全兼容。
+     */
+    @GetMapping("/points/page")
+    public ApiResponse<PagedResponse<KnowledgePoint>> listPointsPaged(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) Long courseId,
+            @RequestParam(required = false) String keyword) {
+        // size 上限保护：防止单次拉取过大（默认 10，最大 200）
+        int safeSize = Math.min(Math.max(size, 1), 200);
+        int safePage = Math.max(page, 1);
+        LambdaQueryWrapper<KnowledgePoint> qw = new LambdaQueryWrapper<KnowledgePoint>()
+                .eq(courseId != null, KnowledgePoint::getCourseId, courseId)
+                .like(keyword != null && !keyword.isEmpty(), KnowledgePoint::getName, keyword)
+                .orderByAsc(KnowledgePoint::getId);
+        Page<KnowledgePoint> result = knowledgePointService.page(
+                new Page<>(safePage, safeSize), qw);
+        return ApiResponse.success(PagedResponse.of(result));
     }
 
     /**
@@ -296,7 +315,7 @@ public class KnowledgeController {
         return ApiResponse.success(relationService.getGraphData(courseId));
     }
 
-    // ==================== 图谱查询（/knowledge/*） ====================
+    // ==================== 查询与抽取（/knowledge/*） ====================
 
     /**
      * 知识点搜索（全文检索）
@@ -331,26 +350,6 @@ public class KnowledgeController {
         return ApiResponse.success(data);
     }
 
-    /**
-     * 学习路径规划（起点到目标的最优路径，BFS 算法由 KnowledgeGraphService 提供）
-     * POST /api/knowledge/path/plan
-     */
-    @PostMapping("/path/plan")
-    public ApiResponse<List<KnowledgePoint>> planPath(@Valid @RequestBody PathPlanDTO dto) {
-        Long startPointId = dto.getStartPointId();
-        Long targetPointId = dto.getTargetPointId();
-
-        List<KnowledgePoint> path = knowledgeGraphService.planLearningPath(startPointId, targetPointId);
-
-        if (path.isEmpty()) {
-            // 起点与目标相同时服务层返回单点；此处为空说明两点不可达
-            return ApiResponse.success("未找到从起点到目标的学习路径，建议先学习相关知识再尝试", Collections.emptyList());
-        }
-        if (path.size() == 1 && startPointId.equals(targetPointId)) {
-            return ApiResponse.success("起点与目标相同", path);
-        }
-        return ApiResponse.success("路径规划成功，共" + path.size() + "个知识点", path);
-    }
 
     /**
      * AI 抽取知识点与关系（教师/管理员权限）
@@ -438,33 +437,5 @@ public class KnowledgeController {
         };
     }
 
-    // ==================== 图谱可视化接口（关系库实现，非 Neo4j） ====================
 
-    /**
-     * 获取课程知识图谱可视化数据（基于关系表实现，非 Neo4j）
-     * GET /api/knowledge/graph/course/{courseId}
-     */
-    @GetMapping("/graph/course/{courseId}")
-    public ApiResponse<String> getGraphByCourse(@PathVariable Long courseId) {
-        return ApiResponse.success("获取成功", knowledgeGraphService.getGraph(courseId, null));
-    }
-
-    /**
-     * 获取节点详情（图谱节点）
-     * GET /api/knowledge/graph/nodes/{nodeId}
-     */
-    @GetMapping("/graph/nodes/{nodeId}")
-    public ApiResponse<String> getNodeDetail(@PathVariable Long nodeId) {
-        return ApiResponse.success("获取成功", knowledgeGraphService.getGraph(null, nodeId));
-    }
-
-    /**
-     * 获取节点关联关系（支持深度查询）
-     * GET /api/knowledge/graph/nodes/{nodeId}/relations
-     */
-    @GetMapping("/graph/nodes/{nodeId}/relations")
-    public ApiResponse<String> getNodeRelations(@PathVariable Long nodeId,
-                                                @RequestParam(defaultValue = "2") int depth) {
-        return ApiResponse.success("获取成功", knowledgeGraphService.getNodeRelations(nodeId, depth));
-    }
 }

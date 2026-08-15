@@ -1,12 +1,35 @@
 <template>
   <div class="course-proctor fade-in">
-    <PageHeader compact title="在线监考" subtitle="进行中考试会话、风险汇总与监考事件" icon="shield" />
+    <PageHeader
+      compact
+      title="在线监考"
+      subtitle="进行中考试会话、风险汇总与监考事件"
+      icon="shield"
+    />
     <div v-loading="loading">
       <!-- 指标卡 -->
       <div class="stat-grid animate-in">
-        <StatCard label="进行中考试" :value="sessions.length || 0" icon="video" tone="var(--accent-soft)" tone-color="var(--accent)" />
-        <StatCard label="风险事件" :value="riskTotal || 0" icon="warn" tone="var(--warn-soft)" tone-color="var(--warn)" />
-        <StatCard label="监考事件" :value="eventsTotal || 0" icon="list" tone="var(--ok-soft)" tone-color="var(--ok)" />
+        <StatCard
+          label="进行中考试"
+          :value="sessions.length || 0"
+          icon="video"
+          tone="var(--accent-soft)"
+          tone-color="var(--accent)"
+        />
+        <StatCard
+          label="风险事件"
+          :value="riskTotal || 0"
+          icon="warn"
+          tone="var(--warn-soft)"
+          tone-color="var(--warn)"
+        />
+        <StatCard
+          label="监考事件"
+          :value="eventsTotal || 0"
+          icon="list"
+          tone="var(--ok-soft)"
+          tone-color="var(--ok)"
+        />
       </div>
 
       <!-- 进行中考试 -->

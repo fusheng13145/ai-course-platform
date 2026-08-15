@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+
+import com.aicourse.constant.SubmissionStatus;
+
 import com.aicourse.entity.PlagiarismCheck;
 import com.aicourse.entity.Submission;
 import com.aicourse.entity.Task;
@@ -17,6 +20,8 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.stereotype.Service;
+import io.micrometer.core.instrument.Counter;
+import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Caching;
 import org.springframework.transaction.annotation.Transactional;
@@ -32,26 +37,36 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
+
+/**
+ * 提交服务实现：相关业务逻辑入口，提供增删改查与编排能力。
+ */
 @Service
 @Slf4j
 public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submission> implements SubmissionService {
+
 
     private final TaskService taskService;
     private final PlagiarismCheckService plagiarismCheckService;
     private final AIService aiService;
     private final ObjectMapper objectMapper;
     private final NotificationService notificationService;
+    private final Counter submissionsCreated;
 
     public SubmissionServiceImpl(@Lazy TaskService taskService,
                                   PlagiarismCheckService plagiarismCheckService,
                                   AIService aiService,
                                   ObjectMapper objectMapper,
-                                  NotificationService notificationService) {
+                                  NotificationService notificationService,
+                                  MeterRegistry meterRegistry) {
         this.taskService = taskService;
         this.plagiarismCheckService = plagiarismCheckService;
         this.aiService = aiService;
         this.objectMapper = objectMapper;
         this.notificationService = notificationService;
+        this.submissionsCreated = Counter.builder("aicourse_submissions_created_total")
+                .description("作业正式提交（含草稿转正）累计次数")
+                .register(meterRegistry);
     }
 
     /**
@@ -60,6 +75,8 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Submission submitAssignment(Long taskId, Long studentId, String content, List<String> fileUrls) {
+        log.info("提交提交");
+
         // 检查任务是否存在
         Task task = taskService.getById(taskId);
         if (task == null) {
@@ -127,7 +144,7 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
         } else if (draft != null) {
             submission.setFileUrls(draft.getFileUrls()); // 正式提交未带新附件时保留草稿期附件
         }
-        submission.setStatus("SUBMITTED");
+        submission.setStatus(SubmissionStatus.SUBMITTED);
         submission.setSubmittedAt(now);
         submission.setAttemptNumber(attemptNumber);
         submission.setIsLate(isLate);
@@ -140,6 +157,7 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
         } else {
             this.save(submission);
         }
+        submissionsCreated.increment();
         return submission;
     }
 
@@ -150,6 +168,8 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Submission saveDraft(Long taskId, Long studentId, String content, List<String> fileUrls) {
+        log.info("保存提交");
+
         Task task = taskService.getById(taskId);
         if (task == null) {
             throw new BusinessException("作业任务不存在");
@@ -204,7 +224,7 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
         if (existing == null) {
             throw new BusinessException("提交记录不存在");
         }
-        if (!"RETURNED".equals(existing.getStatus()) && !"SUBMITTED".equals(existing.getStatus())) {
+        if (!SubmissionStatus.RETURNED.equals(existing.getStatus()) && !SubmissionStatus.SUBMITTED.equals(existing.getStatus())) {
             throw new BusinessException("当前状态不允许重新提交");
         }
 
@@ -236,7 +256,7 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
         if (fileUrls != null && !fileUrls.isEmpty()) {
             newSubmission.setFileUrls(String.join(",", fileUrls));
         }
-        newSubmission.setStatus("RESUBMITTED");
+        newSubmission.setStatus(SubmissionStatus.RESUBMITTED);
         newSubmission.setSubmittedAt(now);
         newSubmission.setAttemptNumber(newAttemptNumber);
         newSubmission.setIsLate(isLate);
@@ -258,11 +278,11 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
         if (submission == null) {
             throw new BusinessException("提交记录不存在");
         }
-        if ("GRADED".equals(submission.getStatus())) {
+        if (SubmissionStatus.GRADED.equals(submission.getStatus())) {
             throw new BusinessException("已评分的作业无法退回");
         }
 
-        submission.setStatus("RETURNED");
+        submission.setStatus(SubmissionStatus.RETURNED);
         // 将退回原因写入feedback字段作为returnReason
         String returnReason = reason != null ? reason : "未填写退回原因";
         submission.setFeedback(returnReason);
@@ -287,6 +307,8 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
             @CacheEvict(cacheNames = "analytics", key = "'overview'"),
             @CacheEvict(cacheNames = "analytics", key = "'teacher_' + #graderId")
     })
+
+    /** 提交相关操作 */
     public Submission gradeSubmission(Long submissionId, BigDecimal score, String feedback, Long graderId) {
         Submission submission = this.getById(submissionId);
         if (submission == null) {
@@ -307,7 +329,7 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
         submission.setFeedback(feedback);
         submission.setGraderId(graderId);
         submission.setGradedAt(LocalDateTime.now());
-        submission.setStatus("GRADED");
+        submission.setStatus(SubmissionStatus.GRADED);
 
         // 计算百分比
         if (submission.getMaxScore() != null && submission.getMaxScore().compareTo(BigDecimal.ZERO) > 0) {
@@ -358,7 +380,7 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
         }
         submission.setScore(grade.getScore());
         submission.setFeedback(grade.getFeedback());
-        submission.setStatus("GRADED");
+        submission.setStatus(SubmissionStatus.GRADED);
         submission.setGradedAt(LocalDateTime.now());
         submission.setGraderId(graderId);
         this.updateById(submission);
@@ -575,6 +597,8 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
             }
 
         } catch (RuntimeException e) {
+            log.error("提交相关操作失败: {}", e.getMessage(), e);
+
             check.setStatus("ERROR");
             check.setErrorMessage(e.getMessage());
         }
@@ -723,6 +747,8 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
             Map<String, Object> map = objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
             return map != null ? map : new LinkedHashMap<>();
         } catch (IOException e) {
+            log.error("查询提交失败: {}", e.getMessage(), e);
+
             return new LinkedHashMap<>();
         }
     }
@@ -737,6 +763,8 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
         try {
             return objectMapper.writeValueAsString(map);
         } catch (IOException e) {
+            log.error("查询提交失败: {}", e.getMessage(), e);
+
             return "{}";
         }
     }
@@ -761,6 +789,8 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
         try {
             return Integer.parseInt(value.toString().trim());
         } catch (NumberFormatException e) {
+            log.error("查询提交失败: {}", e.getMessage(), e);
+
             return 0;
         }
     }

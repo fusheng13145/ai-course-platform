@@ -1,5 +1,6 @@
 package com.aicourse.service.impl;
 
+
 import com.aicourse.service.EmailService;
 import jakarta.mail.*;
 import jakarta.mail.internet.InternetAddress;
@@ -17,6 +18,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @Slf4j
 public class EmailServiceImpl implements EmailService {
+
 
 
     // 邮件配置项
@@ -42,8 +44,12 @@ public class EmailServiceImpl implements EmailService {
     private static final String CHARSET_UTF8 = "UTF-8";
     private static final String CONTENT_TYPE_HTML = "text/html;charset=UTF-8";
 
+
+    /** 发送邮件 */
     @Override
     public void sendVerificationCode(String toEmail, String code, String type) {
+        log.info("发送邮件");
+
         String subject = "AI智能课程平台 - 验证码";
         String content = String.format(
                 "<div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px'>" +
@@ -61,8 +67,12 @@ public class EmailServiceImpl implements EmailService {
         sendHtmlEmail(toEmail, subject, content);
     }
 
+
+    /** 发送邮件 */
     @Override
     public void sendPasswordResetLink(String toEmail, String resetLink) {
+        log.info("发送邮件");
+
         String subject = "AI智能课程平台 - 密码重置";
         String content = String.format(
                 "<div style='font-family:Arial,sans-serif;max-width:600px;margin:0 auto;padding:20px'>" +

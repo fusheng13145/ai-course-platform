@@ -16,6 +16,9 @@ function applyTheme() {
   emitThemeChange()
 }
 
+/**
+ * 组合式函数 useTheme：封装可复用的响应式状态与逻辑
+ */
 export function useTheme() {
   /**
    * 循环切换主题

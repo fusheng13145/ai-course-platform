@@ -72,6 +72,15 @@ public interface TeacherCourseService {
     List<Map<String, Object>> getFullChapterTree(Long courseId);
 
     /**
+     * 课程关联班级列表（用于教师端课程驾驶舱班级维度切换）。
+     * 按选课学生所归属的班级聚合，返回每个班级的学生数与待批改提交数。
+     *
+     * @param courseId 课程ID
+     * @return 班级聚合列表（key / name / code / students / pending / schedule）
+     */
+    List<Map<String, Object>> getCourseClasses(Long courseId);
+
+    /**
      * 由选课记录集合计算「掉队预警」学生列表（进度＜40% 或 成绩＜60）
      * <p>供全校/院系/班级/课程多维聚合复用，避免重复判定逻辑。</p>
      *

@@ -1,175 +1,241 @@
 <template>
   <div class="fade-in">
-    <PageHeader title="学习路径" subtitle="AI 生成的个性化学习路线，循序渐进掌握知识" icon="compass" icon-bg="accent">
+    <PageHeader
+      title="学习路径"
+      subtitle="AI 生成的个性化学习路线，循序渐进掌握知识"
+      icon="compass"
+      icon-bg="accent"
+    >
       <el-button type="primary" :loading="generating" @click="handleGeneratePath">
         <el-icon><MagicStick /></el-icon> AI 生成路径
       </el-button>
     </PageHeader>
 
     <div class="stat-grid">
-      <StatCard label="路径总数" :value="paths.length" icon="layers" tone="var(--accent-soft)" tone-color="var(--accent)" />
-      <StatCard label="已完成节点" :value="completedNodeCount" icon="check" tone="var(--ok-soft)" tone-color="var(--ok)" />
-      <StatCard label="总节点数" :value="pathNodes.length" icon="list" tone="var(--info-soft)" tone-color="var(--info)" />
-      <StatCard label="整体进度" :value="overallProgressText" icon="target" tone="var(--warn-soft)" tone-color="var(--warn)" />
+      <StatCard
+        label="路径总数"
+        :value="paths.length"
+        icon="layers"
+        tone="var(--accent-soft)"
+        tone-color="var(--accent)"
+      />
+      <StatCard
+        label="已完成节点"
+        :value="completedNodeCount"
+        icon="check"
+        tone="var(--ok-soft)"
+        tone-color="var(--ok)"
+      />
+      <StatCard
+        label="总节点数"
+        :value="pathNodes.length"
+        icon="list"
+        tone="var(--info-soft)"
+        tone-color="var(--info)"
+      />
+      <StatCard
+        label="整体进度"
+        :value="overallProgressText"
+        icon="target"
+        tone="var(--warn-soft)"
+        tone-color="var(--warn)"
+      />
     </div>
 
     <section class="l1-card">
       <div class="l1-head">
-        <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM16 8l-2 6-6 2 2-6z"/></svg>
+        <span class="l1-ico" style="background: var(--accent-soft); color: var(--accent)">
+          <svg
+            viewBox="0 0 24 24"
+            width="17"
+            height="17"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.9"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM16 8l-2 6-6 2 2-6z" />
+          </svg>
         </span>
-        <div><div class="l1-title">学习路径详情</div><div class="l1-sub">选择路径查看节点进度与每日任务</div></div>
+        <div>
+          <div class="l1-title">学习路径详情</div>
+          <div class="l1-sub">选择路径查看节点进度与每日任务</div>
+        </div>
       </div>
       <div class="l1-body">
-    <!-- 主内容区：路径列表 + 路径详情 -->
-    <div v-if="paths.length > 0" class="lp-main">
-      <!-- 左侧：推荐路径选择 -->
-      <div class="path-selector">
-        <h3 class="section-label">我的学习路径</h3>
-        <div
-          v-for="(p, idx) in paths"
-          :key="p.id"
-          class="path-card"
-          :class="{ active: selectedPathId === p.id }"
-          @click="selectPath(p.id)"
-        >
-          <div class="path-card-header">
-            <span class="path-name">{{ p.name || `学习路径 ${idx + 1}` }}</span>
-            <el-tag size="small" :type="p.status === 'ACTIVE' ? 'success' : 'info'">
-              {{ p.status === 'ACTIVE' ? '进行中' : (p.status === 'COMPLETED' ? '已完成' : '未开始') }}
-            </el-tag>
-          </div>
-          <div class="path-meta">
-            <span>{{ p.totalStages || pathNodes.length }} 个节点</span>
-            <span>进度 {{ calculatePathProgress(p) }}%</span>
-          </div>
-          <el-progress
-            :percentage="calculatePathProgress(p)"
-            :stroke-width="6"
-            :show-text="false"
-            style="margin-top: 8px"
-          />
-        </div>
-      </div>
-
-      <!-- 右侧：当前路径详情（Timeline） -->
-      <div class="path-detail">
-        <!-- 路径概览卡片 -->
-        <div v-if="currentPath" class="overview-card">
-          <div class="overview-grid">
-            <div class="overview-item">
-              <span class="overview-value">{{ currentPath.name || '学习路径' }}</span>
-              <span class="overview-label">当前路径</span>
-            </div>
-            <div class="overview-item">
-              <span class="overview-value">{{ completedNodeCount }}</span>
-              <span class="overview-label">已完成节点</span>
-            </div>
-            <div class="overview-item">
-              <span class="overview-value">{{ pathNodes.length }}</span>
-              <span class="overview-label">总节点数</span>
-            </div>
-            <div class="overview-item">
-              <span class="overview-value">{{ overallProgress }}%</span>
-              <span class="overview-label">整体进度</span>
-            </div>
-          </div>
-        </div>
-
-        <!-- Timeline 学习节点 -->
-        <div class="timeline-section">
-          <h3 class="section-label">学习进度</h3>
-          <el-timeline v-if="pathNodes.length > 0">
-            <el-timeline-item
-              v-for="(node, index) in pathNodes"
-              :key="node.id"
-              :timestamp="node.completedAt || node.time || ''"
-              placement="top"
-              :size="getNodeSize(node)"
-              :type="getNodeType(node)"
-              :hollow="!node.completed && !node.current"
-            >
-              <div class="timeline-node-card" @click="handleNodeClick(node)">
-                <div class="node-header">
-                  <span class="node-index">步骤 {{ index + 1 }}</span>
-                  <div class="node-status-tags">
-                    <el-tag v-if="node.completed" type="success" size="small">已完成</el-tag>
-                    <el-tag v-else-if="node.current" type="warning" size="small">
-                      进行中
-                      <span v-if="node.current" class="spinning-dot"></span>
-                    </el-tag>
-                    <el-tag v-else type="info" size="small">未开始</el-tag>
-                  </div>
-                </div>
-                <h4 class="node-title">{{ node.title || node.description || '学习节点' }}</h4>
-                <p class="node-desc">{{ node.content || node.detail || '' }}</p>
-
-                <!-- 进度环形指示器 -->
-                <div v-if="node.progress !== undefined" class="node-progress-row">
-                  <span class="progress-text">完成度 {{ node.progress }}%</span>
-                </div>
-
-                <div class="node-actions">
-                  <el-button
-                    v-if="!node.completed"
-                    type="primary"
-                    size="small"
-                    @click.stop="startLearningNode(node)"
-                  >
-                    {{ node.current ? '继续学习' : '开始学习' }}
-                  </el-button>
-                  <el-button
-                    v-if="node.completed"
-                    text
-                    size="small"
-                    @click.stop="reviewNode(node)"
-                  >
-                    复习
-                  </el-button>
-                </div>
-              </div>
-            </el-timeline-item>
-          </el-timeline>
-          <el-empty v-else description="该路径暂无学习节点" />
-        </div>
-
-        <!-- 每日任务面板 -->
-        <div v-if="dailyTasks.length > 0" class="daily-tasks-panel">
-          <h3 class="section-label">
-            <el-icon><Calendar /></el-icon> 今日任务
-          </h3>
-          <div class="task-list">
+        <!-- 主内容区：路径列表 + 路径详情 -->
+        <div v-if="paths.length > 0" class="lp-main">
+          <!-- 左侧：推荐路径选择 -->
+          <div class="path-selector">
+            <h3 class="section-label">我的学习路径</h3>
             <div
-              v-for="task in dailyTasks"
-              :key="task.id"
-              class="task-item"
-              :class="{ done: task.completed }"
+              v-for="(p, idx) in paths"
+              :key="p.id"
+              class="path-card"
+              :class="{ active: selectedPathId === p.id }"
+              @click="selectPath(p.id)"
             >
-              <div class="task-check" @click="toggleTask(task)">
-                <el-icon v-if="task.completed"><Select /></el-icon>
+              <div class="path-card-header">
+                <span class="path-name">{{ p.name || `学习路径 ${idx + 1}` }}</span>
+                <el-tag size="small" :type="p.status === 'ACTIVE' ? 'success' : 'info'">
+                  {{
+                    p.status === 'ACTIVE'
+                      ? '进行中'
+                      : p.status === 'COMPLETED'
+                        ? '已完成'
+                        : '未开始'
+                  }}
+                </el-tag>
               </div>
-              <div class="task-content">
-                <span class="task-title">{{ task.title }}</span>
-                <span v-if="task.knowledgePointName" class="task-hint">{{ task.knowledgePointName }}</span>
+              <div class="path-meta">
+                <span>{{ p.totalStages || pathNodes.length }} 个节点</span>
+                <span>进度 {{ calculatePathProgress(p) }}%</span>
               </div>
-              <el-tag size="small" :type="task.priority === 'HIGH' ? 'danger' : task.priority === 'MEDIUM' ? 'warning' : 'info'">
-                {{ task.priority === 'HIGH' ? '重要' : (task.priority === 'MEDIUM' ? '一般' : '可选') }}
-              </el-tag>
+              <el-progress
+                :percentage="calculatePathProgress(p)"
+                :stroke-width="6"
+                :show-text="false"
+                style="margin-top: 8px"
+              />
+            </div>
+          </div>
+
+          <!-- 右侧：当前路径详情（Timeline） -->
+          <div class="path-detail">
+            <!-- 路径概览卡片 -->
+            <div v-if="currentPath" class="overview-card">
+              <div class="overview-grid">
+                <div class="overview-item">
+                  <span class="overview-value">{{ currentPath.name || '学习路径' }}</span>
+                  <span class="overview-label">当前路径</span>
+                </div>
+                <div class="overview-item">
+                  <span class="overview-value">{{ completedNodeCount }}</span>
+                  <span class="overview-label">已完成节点</span>
+                </div>
+                <div class="overview-item">
+                  <span class="overview-value">{{ pathNodes.length }}</span>
+                  <span class="overview-label">总节点数</span>
+                </div>
+                <div class="overview-item">
+                  <span class="overview-value">{{ overallProgress }}%</span>
+                  <span class="overview-label">整体进度</span>
+                </div>
+              </div>
+            </div>
+
+            <!-- Timeline 学习节点 -->
+            <div class="timeline-section">
+              <h3 class="section-label">学习进度</h3>
+              <el-timeline v-if="pathNodes.length > 0">
+                <el-timeline-item
+                  v-for="(node, index) in pathNodes"
+                  :key="node.id"
+                  :timestamp="node.completedAt || node.time || ''"
+                  placement="top"
+                  :size="getNodeSize(node)"
+                  :type="getNodeType(node)"
+                  :hollow="!node.completed && !node.current"
+                >
+                  <div class="timeline-node-card" @click="handleNodeClick(node)">
+                    <div class="node-header">
+                      <span class="node-index">步骤 {{ index + 1 }}</span>
+                      <div class="node-status-tags">
+                        <el-tag v-if="node.completed" type="success" size="small">已完成</el-tag>
+                        <el-tag v-else-if="node.current" type="warning" size="small">
+                          进行中
+                          <span v-if="node.current" class="spinning-dot"></span>
+                        </el-tag>
+                        <el-tag v-else type="info" size="small">未开始</el-tag>
+                      </div>
+                    </div>
+                    <h4 class="node-title">{{ node.title || node.description || '学习节点' }}</h4>
+                    <p class="node-desc">{{ node.content || node.detail || '' }}</p>
+
+                    <!-- 进度环形指示器 -->
+                    <div v-if="node.progress !== undefined" class="node-progress-row">
+                      <span class="progress-text">完成度 {{ node.progress }}%</span>
+                    </div>
+
+                    <div class="node-actions">
+                      <el-button
+                        v-if="!node.completed"
+                        type="primary"
+                        size="small"
+                        @click.stop="startLearningNode(node)"
+                      >
+                        {{ node.current ? '继续学习' : '开始学习' }}
+                      </el-button>
+                      <el-button
+                        v-if="node.completed"
+                        text
+                        size="small"
+                        @click.stop="reviewNode(node)"
+                      >
+                        复习
+                      </el-button>
+                    </div>
+                  </div>
+                </el-timeline-item>
+              </el-timeline>
+              <el-empty v-else description="该路径暂无学习节点" />
+            </div>
+
+            <!-- 每日任务面板 -->
+            <div v-if="dailyTasks.length > 0" class="daily-tasks-panel">
+              <h3 class="section-label">
+                <el-icon><Calendar /></el-icon> 今日任务
+              </h3>
+              <div class="task-list">
+                <div
+                  v-for="task in dailyTasks"
+                  :key="task.id"
+                  class="task-item"
+                  :class="{ done: task.completed }"
+                >
+                  <div class="task-check" @click="toggleTask(task)">
+                    <el-icon v-if="task.completed"><Select /></el-icon>
+                  </div>
+                  <div class="task-content">
+                    <span class="task-title">{{ task.title }}</span>
+                    <span v-if="task.knowledgePointName" class="task-hint">{{
+                      task.knowledgePointName
+                    }}</span>
+                  </div>
+                  <el-tag
+                    size="small"
+                    :type="
+                      task.priority === 'HIGH'
+                        ? 'danger'
+                        : task.priority === 'MEDIUM'
+                          ? 'warning'
+                          : 'info'
+                    "
+                  >
+                    {{
+                      task.priority === 'HIGH'
+                        ? '重要'
+                        : task.priority === 'MEDIUM'
+                          ? '一般'
+                          : '可选'
+                    }}
+                  </el-tag>
+                </div>
+              </div>
             </div>
           </div>
         </div>
-      </div>
-    </div>
 
-    <!-- 空状态 -->
-    <div v-else class="empty-state">
-      <el-empty description="暂无学习路径">
-        <template #image><div class="empty-deco">🧭</div></template>
-        <el-button type="primary" @click="handleGeneratePath">
-          <el-icon><MagicStick /></el-icon> AI 为我生成学习路径
-        </el-button>
-      </el-empty>
-    </div>
+        <!-- 空状态 -->
+        <div v-else class="empty-state">
+          <el-empty description="暂无学习路径">
+            <template #image><div class="empty-deco">🧭</div></template>
+            <el-button type="primary" @click="handleGeneratePath">
+              <el-icon><MagicStick /></el-icon> AI 为我生成学习路径
+            </el-button>
+          </el-empty>
+        </div>
       </div>
     </section>
   </div>
@@ -194,7 +260,7 @@ const loading = ref(false)
 
 /* ---- 计算属性 ---- */
 const completedNodeCount = computed(() => {
-  return pathNodes.value.filter(n => n.status === 'COMPLETED' || n.completed).length
+  return pathNodes.value.filter((n) => n.status === 'COMPLETED' || n.completed).length
 })
 
 const overallProgress = computed(() => {
@@ -210,13 +276,15 @@ async function loadPaths() {
   try {
     const res = await learningPathApi.getMyPaths()
     const list = res.data || res || []
-    paths.value = Array.isArray(list) ? list.map(p => ({
-      id: p.id,
-      name: p.pathName || p.name || '学习路径',
-      totalStages: p.totalStages || 0,
-      status: p.status || 'PENDING',
-      progress: p.progress || 0
-    })) : []
+    paths.value = Array.isArray(list)
+      ? list.map((p) => ({
+          id: p.id,
+          name: p.pathName || p.name || '学习路径',
+          totalStages: p.totalStages || 0,
+          status: p.status || 'PENDING',
+          progress: p.progress || 0,
+        }))
+      : []
 
     // 自动选中第一个路径
     if (paths.value.length > 0) {
@@ -232,20 +300,22 @@ async function loadPaths() {
 /* ---- 选择路径并加载详情 ---- */
 async function selectPath(pathId) {
   selectedPathId.value = pathId
-  currentPath.value = paths.value.find(p => p.id === pathId)
+  currentPath.value = paths.value.find((p) => p.id === pathId)
 
   try {
     // 加载路径节点
     const nodesRes = await learningPathApi.getPathNodes(pathId)
     const nodes = nodesRes.data || nodesRes || []
-    pathNodes.value = Array.isArray(nodes) ? nodes.map(n => ({
-      ...n,
-      title: n.title || n.description || n.knowledgePointName || '学习节点',
-      content: n.content || n.detail || '',
-      completed: n.status === 'COMPLETED',
-      current: n.status === 'IN_PROGRESS',
-      progress: n.progress ? Math.round(Number(n.progress)) : undefined
-    })) : []
+    pathNodes.value = Array.isArray(nodes)
+      ? nodes.map((n) => ({
+          ...n,
+          title: n.title || n.description || n.knowledgePointName || '学习节点',
+          content: n.content || n.detail || '',
+          completed: n.status === 'COMPLETED',
+          current: n.status === 'IN_PROGRESS',
+          progress: n.progress ? Math.round(Number(n.progress)) : undefined,
+        }))
+      : []
 
     // 尝试加载每日任务
     loadDailyTasks(pathId)
@@ -259,13 +329,15 @@ async function loadDailyTasks(pathId) {
   try {
     const res = await learningPathApi.getDailyTasks(pathId)
     const data = res.data || res || []
-    dailyTasks.value = Array.isArray(data) ? data.map(t => ({
-      id: t.id,
-      title: t.title || t.name || t.content || '任务',
-      completed: t.completed ?? false,
-      priority: t.priority || 'MEDIUM',
-      knowledgePointName: t.knowledgePointName || ''
-    })) : []
+    dailyTasks.value = Array.isArray(data)
+      ? data.map((t) => ({
+          id: t.id,
+          title: t.title || t.name || t.content || '任务',
+          completed: t.completed ?? false,
+          priority: t.priority || 'MEDIUM',
+          knowledgePointName: t.knowledgePointName || '',
+        }))
+      : []
   } catch (e) {
     // API 可能不存在，忽略错误
     dailyTasks.value = []
@@ -321,7 +393,7 @@ async function handleGeneratePath() {
     await ElMessageBox.confirm(
       'AI 将根据你的学习情况生成个性化学习路径，确定要继续吗？',
       'AI 生成路径',
-      { confirmButtonText: '确定', cancelButtonText: '取消', type: 'info' }
+      { confirmButtonText: '确定', cancelButtonText: '取消', type: 'info' },
     )
 
     generating.value = true
@@ -517,8 +589,15 @@ onMounted(() => {
 }
 
 @keyframes spin-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.5; transform: scale(0.8); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.5;
+    transform: scale(0.8);
+  }
 }
 
 .node-title {
@@ -604,7 +683,7 @@ onMounted(() => {
 
 .task-check:hover {
   border-color: var(--ac-success);
-  background: rgba(139,168,136,0.1);
+  background: rgba(139, 168, 136, 0.1);
 }
 
 .task-content {
@@ -636,7 +715,10 @@ onMounted(() => {
   border: 1px solid var(--ac-border);
 }
 
-.empty-deco { font-size: 38px; filter: grayscale(.2); }
+.empty-deco {
+  font-size: 38px;
+  filter: grayscale(0.2);
+}
 
 @media (max-width: 900px) {
   .lp-main {

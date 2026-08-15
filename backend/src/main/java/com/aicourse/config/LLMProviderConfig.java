@@ -4,6 +4,8 @@ import com.aicourse.llm.*;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * LLM 供应商选择配置
@@ -14,6 +16,8 @@ import org.springframework.context.annotation.Configuration;
 @Configuration
 public class LLMProviderConfig {
 
+    private static final Logger log = LoggerFactory.getLogger(LLMProviderConfig.class);
+
     @Value("${ai.provider:deepseek}")
     private String provider;
 
@@ -23,6 +27,7 @@ public class LLMProviderConfig {
      */
     @Bean
     public LLMProvider llmProvider(RoutingLLMProvider router) {
+        log.info("[LLMProviderConfig] 注入 LLM 供应商路由实现，启动默认 provider={}", provider);
         return router;
     }
 }

@@ -1,123 +1,171 @@
 <template>
   <div class="fade-in">
-    <PageHeader title="我的错题" subtitle="集中收录答错题目，针对性复习巩固" icon="warn" icon-bg="warn">
-      <el-button type="primary" size="small" :disabled="filteredQuestions.length === 0" @click="generatePracticePaper">
+    <PageHeader
+      title="我的错题"
+      subtitle="集中收录答错题目，针对性复习巩固"
+      icon="warn"
+      icon-bg="warn"
+    >
+      <el-button
+        type="primary"
+        size="small"
+        :disabled="filteredQuestions.length === 0"
+        @click="generatePracticePaper"
+      >
         <el-icon><EditPen /></el-icon> 生成练习卷
       </el-button>
     </PageHeader>
 
     <div class="stat-grid">
-      <StatCard label="错题总数" :value="stats.total" icon="warn" tone="var(--warn-soft)" tone-color="var(--warn)" />
-      <StatCard label="待复习" :value="stats.total - stats.mastered" icon="clock" tone="var(--info-soft)" tone-color="var(--info)" />
-      <StatCard label="已掌握" :value="stats.mastered" icon="check" tone="var(--ok-soft)" tone-color="var(--ok)" />
+      <StatCard
+        label="错题总数"
+        :value="stats.total"
+        icon="warn"
+        tone="var(--warn-soft)"
+        tone-color="var(--warn)"
+      />
+      <StatCard
+        label="待复习"
+        :value="stats.total - stats.mastered"
+        icon="clock"
+        tone="var(--info-soft)"
+        tone-color="var(--info)"
+      />
+      <StatCard
+        label="已掌握"
+        :value="stats.mastered"
+        icon="check"
+        tone="var(--ok-soft)"
+        tone-color="var(--ok)"
+      />
     </div>
 
     <section class="l1-card">
       <div class="l1-head">
-        <span class="l1-ico" style="background:var(--warn-soft);color:var(--warn)">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01"/></svg>
+        <span class="l1-ico" style="background: var(--warn-soft); color: var(--warn)">
+          <svg
+            viewBox="0 0 24 24"
+            width="17"
+            height="17"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.9"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0zM12 9v4M12 17h.01"
+            />
+          </svg>
         </span>
-        <div><div class="l1-title">错题列表</div><div class="l1-sub">按知识点筛选，点击卡片展开查看解析</div></div>
+        <div>
+          <div class="l1-title">错题列表</div>
+          <div class="l1-sub">按知识点筛选，点击卡片展开查看解析</div>
+        </div>
       </div>
       <div class="l1-body">
-    <div class="wq-toolbar">
-      <div class="toolbar-left">
-        <!-- 知识点分类筛选标签 -->
-        <div class="filter-tags">
-          <span
-            v-for="kp in knowledgePointTags"
-            :key="kp.id"
-            class="filter-tag"
-            :class="{ active: selectedKpId === kp.id }"
-            @click="selectedKpId = selectedKpId === kp.id ? null : kp.id"
+        <div class="wq-toolbar">
+          <div class="toolbar-left">
+            <!-- 知识点分类筛选标签 -->
+            <div class="filter-tags">
+              <span
+                v-for="kp in knowledgePointTags"
+                :key="kp.id"
+                class="filter-tag"
+                :class="{ active: selectedKpId === kp.id }"
+                @click="selectedKpId = selectedKpId === kp.id ? null : kp.id"
+              >
+                {{ kp.name }} ({{ kp.count }})
+              </span>
+              <span v-if="knowledgePointTags.length === 0" class="filter-tag-hint"
+                >暂无分类数据</span
+              >
+            </div>
+          </div>
+        </div>
+
+        <!-- 错题列表 -->
+        <div v-loading="loading" class="wrong-questions-list">
+          <transition-group name="list-fade" tag="div">
+            <div
+              v-for="q in filteredQuestions"
+              :key="q.id"
+              class="question-card"
+              :class="{ expanded: expandedId === q.id }"
+            >
+              <!-- 题目头部 -->
+              <div class="q-header" @click="toggleExpand(q.id)">
+                <div class="q-header-left">
+                  <el-tag :type="q.mastered ? 'success' : 'warning'" size="small">
+                    {{ q.mastered ? '已掌握' : '待复习' }}
+                  </el-tag>
+                  <span v-if="q.knowledgePointName" class="q-kp-tag">{{
+                    q.knowledgePointName
+                  }}</span>
+                </div>
+                <div class="q-header-right">
+                  <el-button v-if="!q.mastered" text size="small" @click.stop="handleRelated(q)">
+                    <el-icon><Link /></el-icon> 相关推荐
+                  </el-button>
+                  <el-button v-if="!q.mastered" text size="small" @click.stop="handlePractice(q)">
+                    <el-icon><RefreshRight /></el-icon> 再次练习
+                  </el-button>
+                  <el-icon class="expand-icon" :class="{ expanded: expandedId === q.id }"
+                    ><ArrowDown
+                  /></el-icon>
+                </div>
+              </div>
+
+              <!-- 题目内容（始终显示） -->
+              <div class="q-content">
+                <p class="q-text">{{ q.questionContent || q.content || '未知题目内容' }}</p>
+                <div class="q-answer-row">
+                  <span class="answer-label">你的答案：</span>
+                  <span class="answer-value wrong">{{
+                    q.wrongAnswer || q.studentAnswer || '未记录'
+                  }}</span>
+                </div>
+              </div>
+
+              <!-- 展开区域：正确答案 + 解析 -->
+              <transition name="expand-fade">
+                <div v-if="expandedId === q.id" class="q-detail">
+                  <div class="detail-section">
+                    <span class="detail-label correct">正确答案：</span>
+                    <span class="detail-value correct">{{
+                      q.correctAnswer || q.answer || '--'
+                    }}</span>
+                  </div>
+                  <div v-if="q.analysis || q.explanation" class="detail-section">
+                    <span class="detail-label">解析：</span>
+                    <p class="analysis-text">{{ q.analysis || q.explanation }}</p>
+                  </div>
+                  <div class="detail-actions">
+                    <el-button
+                      v-if="!q.mastered"
+                      type="success"
+                      size="small"
+                      @click="markMastered(q)"
+                    >
+                      <el-icon><Select /></el-icon> 标记为已掌握
+                    </el-button>
+                    <el-button v-else type="info" size="small" plain @click="unmarkMastered(q)">
+                      取消掌握标记
+                    </el-button>
+                  </div>
+                </div>
+              </transition>
+            </div>
+          </transition-group>
+
+          <el-empty
+            v-if="!loading && filteredQuestions.length === 0"
+            description="暂无错题记录，继续保持！"
+            :image-size="100"
           >
-            {{ kp.name }} ({{ kp.count }})
-          </span>
-          <span v-if="knowledgePointTags.length === 0" class="filter-tag-hint">暂无分类数据</span>
+            <template #image><div class="empty-deco">📕</div></template>
+          </el-empty>
         </div>
-      </div>
-    </div>
-
-    <!-- 错题列表 -->
-    <div v-loading="loading" class="wrong-questions-list">
-      <transition-group name="list-fade" tag="div">
-        <div
-          v-for="q in filteredQuestions"
-          :key="q.id"
-          class="question-card"
-          :class="{ expanded: expandedId === q.id }"
-        >
-          <!-- 题目头部 -->
-          <div class="q-header" @click="toggleExpand(q.id)">
-            <div class="q-header-left">
-              <el-tag :type="q.mastered ? 'success' : 'warning'" size="small">
-                {{ q.mastered ? '已掌握' : '待复习' }}
-              </el-tag>
-              <span v-if="q.knowledgePointName" class="q-kp-tag">{{ q.knowledgePointName }}</span>
-            </div>
-            <div class="q-header-right">
-              <el-button v-if="!q.mastered" text size="small" @click.stop="handleRelated(q)">
-                <el-icon><Link /></el-icon> 相关推荐
-              </el-button>
-              <el-button v-if="!q.mastered" text size="small" @click.stop="handlePractice(q)">
-                <el-icon><RefreshRight /></el-icon> 再次练习
-              </el-button>
-              <el-icon class="expand-icon" :class="{ expanded: expandedId === q.id }"><ArrowDown /></el-icon>
-            </div>
-          </div>
-
-          <!-- 题目内容（始终显示） -->
-          <div class="q-content">
-            <p class="q-text">{{ q.questionContent || q.content || '未知题目内容' }}</p>
-            <div class="q-answer-row">
-              <span class="answer-label">你的答案：</span>
-              <span class="answer-value wrong">{{ q.wrongAnswer || q.studentAnswer || '未记录' }}</span>
-            </div>
-          </div>
-
-          <!-- 展开区域：正确答案 + 解析 -->
-          <transition name="expand-fade">
-            <div v-if="expandedId === q.id" class="q-detail">
-              <div class="detail-section">
-                <span class="detail-label correct">正确答案：</span>
-                <span class="detail-value correct">{{ q.correctAnswer || q.answer || '--' }}</span>
-              </div>
-              <div v-if="q.analysis || q.explanation" class="detail-section">
-                <span class="detail-label">解析：</span>
-                <p class="analysis-text">{{ q.analysis || q.explanation }}</p>
-              </div>
-              <div class="detail-actions">
-                <el-button
-                  v-if="!q.mastered"
-                  type="success"
-                  size="small"
-                  @click="markMastered(q)"
-                >
-                  <el-icon><Select /></el-icon> 标记为已掌握
-                </el-button>
-                <el-button
-                  v-else
-                  type="info"
-                  size="small"
-                  plain
-                  @click="unmarkMastered(q)"
-                >
-                  取消掌握标记
-                </el-button>
-              </div>
-            </div>
-          </transition>
-        </div>
-      </transition-group>
-
-      <el-empty
-        v-if="!loading && filteredQuestions.length === 0"
-        description="暂无错题记录，继续保持！"
-        :image-size="100"
-      >
-        <template #image><div class="empty-deco">📕</div></template>
-      </el-empty>
-      </div>
       </div>
     </section>
   </div>
@@ -126,10 +174,7 @@
 <script setup>
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import {
-  Select,
-  EditPen, Link, RefreshRight, ArrowDown
-} from '@element-plus/icons-vue'
+import { Select, EditPen, Link, RefreshRight, ArrowDown } from '@element-plus/icons-vue'
 import wrongQuestionApi from '@/api/wrongQuestion'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
@@ -145,7 +190,7 @@ const selectedKpId = ref(null)
 const filteredQuestions = computed(() => {
   let list = questions.value
   if (selectedKpId.value) {
-    list = list.filter(q => q.knowledgePointId === selectedKpId.value)
+    list = list.filter((q) => q.knowledgePointId === selectedKpId.value)
   }
   return list
 })
@@ -153,14 +198,16 @@ const filteredQuestions = computed(() => {
 /* ---- 知识点分类标签 ---- */
 const knowledgePointTags = computed(() => {
   const map = {}
-  questions.value.forEach(q => {
+  questions.value.forEach((q) => {
     if (q.knowledgePointName) {
       const key = q.knowledgePointName
       if (!map[key]) map[key] = { id: q.knowledgePointId || key, name: key, count: 0 }
       map[key].count++
     }
   })
-  return Object.values(map).sort((a, b) => b.count - a.count).slice(0, 8)
+  return Object.values(map)
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 8)
 })
 
 /* ---- 加载数据 ---- */
@@ -170,7 +217,7 @@ async function loadData() {
     const [statsRes, listRes, kpRes] = await Promise.allSettled([
       wrongQuestionApi.getWrongQuestionStats(),
       wrongQuestionApi.getWrongQuestions(),
-      wrongQuestionApi.getByKnowledgePoints()
+      wrongQuestionApi.getByKnowledgePoints(),
     ])
 
     // 统计数据
@@ -178,21 +225,23 @@ async function loadData() {
       const statsData = statsRes.value.data || statsRes.value || {}
       stats.value = {
         total: statsData.total || 0,
-        mastered: statsData.mastered || 0
+        mastered: statsData.mastered || 0,
       }
     }
 
     // 错题列表
     if (listRes.status === 'fulfilled') {
       const list = listRes.value.data || listRes.value || []
-      questions.value = Array.isArray(list) ? list.map(q => ({
-        ...q,
-        mastered: !!q.mastered || q.reviewStatus === 'MASTERED',
-        questionContent: q.questionContent || q.content,
-        wrongAnswer: q.wrongAnswer || q.studentAnswer,
-        correctAnswer: q.correctAnswer || q.answer,
-        analysis: q.analysis || q.explanation
-      })) : []
+      questions.value = Array.isArray(list)
+        ? list.map((q) => ({
+            ...q,
+            mastered: !!q.mastered || q.reviewStatus === 'MASTERED',
+            questionContent: q.questionContent || q.content,
+            wrongAnswer: q.wrongAnswer || q.studentAnswer,
+            correctAnswer: q.correctAnswer || q.answer,
+            analysis: q.analysis || q.explanation,
+          }))
+        : []
     }
 
     // 知识点分组数据（增强源）
@@ -201,11 +250,11 @@ async function loadData() {
       if (Array.isArray(kpData) && kpData.length > 0) {
         // 将知识点分组信息合并到现有题目中（补充 knowledgePointName/knowledgePointId）
         const kpMap = {}
-        kpData.forEach(group => {
+        kpData.forEach((group) => {
           if (group.knowledgePointId && group.questions) {
             kpMap[group.knowledgePointId] = group.knowledgePointName || group.name
-            group.questions.forEach(q => {
-              const existing = questions.value.find(eq => eq.id === q.id)
+            group.questions.forEach((q) => {
+              const existing = questions.value.find((eq) => eq.id === q.id)
               if (existing && !existing.knowledgePointName) {
                 existing.knowledgePointName = group.knowledgePointName || group.name
                 existing.knowledgePointId = group.knowledgePointId
@@ -230,7 +279,8 @@ function toggleExpand(id) {
 /* ---- 标记掌握/取消 ---- */
 async function markMastered(q) {
   try {
-    await wrongQuestionApi.markAsReviewed(q.id)
+    // 修复 P1-20：原误调不存在的 markAsReviewed，导致标记掌握功能报错
+    await wrongQuestionApi.markMastered(q.id)
     q.mastered = true
     stats.value.mastered++
     ElMessage.success('已标记为掌握')
@@ -241,8 +291,8 @@ async function markMastered(q) {
 
 async function unmarkMastered(q) {
   try {
-    // 调用取消掌握的API（如果存在）
-    await wrongQuestionApi.markAsReviewed(q.id)
+    // 修复 P1-20：取消掌握应调用 unmarkMastered（原误调 markAsReviewed，且与掌握共用同一方法）
+    await wrongQuestionApi.unmarkMastered(q.id)
     q.mastered = false
     stats.value.mastered = Math.max(0, stats.value.mastered - 1)
     ElMessage.info('已取消掌握标记')
@@ -257,7 +307,7 @@ async function handlePractice(q) {
     ElMessage.info(`正在生成「${(q.questionContent || '').substring(0, 20)}...」的练习题`)
     const res = await wrongQuestionApi.generatePracticePaper({
       questionIds: [q.id],
-      type: 'single'
+      type: 'single',
     })
     const paper = res.data?.data || res.data || res || {}
     if (paper.id || paper.questions) {
@@ -282,15 +332,15 @@ async function handleRelated(q) {
     if (Array.isArray(related) && related.length > 0) {
       ElMessage.success(`找到 ${related.length} 道相关题目`)
       // 将相关题目追加到列表中（去重）
-      const existingIds = new Set(questions.value.map(eq => eq.id))
-      related.forEach(rq => {
+      const existingIds = new Set(questions.value.map((eq) => eq.id))
+      related.forEach((rq) => {
         if (!existingIds.has(rq.id)) {
           questions.value.push({
             ...rq,
             mastered: false,
             questionContent: rq.questionContent || rq.content,
             correctAnswer: rq.correctAnswer || rq.answer,
-            analysis: rq.analysis || rq.explanation
+            analysis: rq.analysis || rq.explanation,
           })
         }
       })
@@ -307,7 +357,7 @@ async function handleRelated(q) {
 /* ---- 生成练习卷 ---- */
 async function generatePracticePaper() {
   try {
-    const ids = filteredQuestions.value.filter(q => !q.mastered).map(q => q.id)
+    const ids = filteredQuestions.value.filter((q) => !q.mastered).map((q) => q.id)
     if (ids.length === 0) {
       ElMessage.warning('没有需要复习的错题')
       return
@@ -315,7 +365,7 @@ async function generatePracticePaper() {
     ElMessage.loading({ message: `正在基于 ${ids.length} 道错题生成练习卷...`, duration: 0 })
     const res = await wrongQuestionApi.generatePracticePaper({
       questionIds: ids,
-      type: 'batch'
+      type: 'batch',
     })
     ElMessage.closeAll()
     const paper = res.data?.data || res.data || res || {}
@@ -571,7 +621,10 @@ onMounted(() => {
   overflow: hidden;
 }
 
-.empty-deco { font-size: 38px; filter: grayscale(.2); }
+.empty-deco {
+  font-size: 38px;
+  filter: grayscale(0.2);
+}
 
 @media (max-width: 768px) {
   .q-header {

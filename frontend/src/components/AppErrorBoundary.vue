@@ -15,7 +15,9 @@
         <h4>错误堆栈</h4>
         <pre>{{ error.stack || '无堆栈信息' }}</pre>
         <h4>错误信息</h4>
-        <pre>{{ JSON.stringify({ message: error.message, name: error.name, cause: error.cause }, null, 2) }}</pre>
+        <pre>{{
+          JSON.stringify({ message: error.message, name: error.name, cause: error.cause }, null, 2)
+        }}</pre>
       </div>
     </div>
   </div>
@@ -29,8 +31,8 @@ import { useRouter } from 'vue-router'
 defineProps({
   fallbackRender: {
     type: Function,
-    default: null
-  }
+    default: null,
+  },
 })
 
 const router = useRouter()
@@ -54,7 +56,10 @@ function captureError(err) {
 onErrorCaptured((err, instance, info) => {
   console.error('[ErrorBoundary onErrorCaptured]', err)
   console.error('[ErrorBoundary Source]', info)
-  console.error('[ErrorBoundary Component]', instance?.$options?.name || instance?.type?.name || 'Unknown')
+  console.error(
+    '[ErrorBoundary Component]',
+    instance?.$options?.name || instance?.type?.name || 'Unknown',
+  )
   error.value = err
   // 返回 false 阻止错误继续向上冒泡
   return false

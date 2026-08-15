@@ -92,6 +92,7 @@ export function qaStream(params, { onToken, onError, onDone } = {}) {
       onDone?.()
     })
     .catch((err) => {
+      console.error('[ai.js] if:', err);
       if (err.name !== 'AbortError') {
         onError?.(err)
       }
@@ -100,6 +101,9 @@ export function qaStream(params, { onToken, onError, onDone } = {}) {
   return controller
 }
 
+/**
+ * 默认导出对象：模块/组件配置与导出内容
+ */
 export default {
   qaAsk,
   qaContinue,

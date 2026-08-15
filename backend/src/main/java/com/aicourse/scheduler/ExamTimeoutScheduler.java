@@ -1,5 +1,7 @@
 package com.aicourse.scheduler;
 
+import com.aicourse.constant.ExamSessionStatus;
+
 import com.aicourse.entity.ExamSession;
 import com.aicourse.service.ExamSessionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -33,16 +35,19 @@ public class ExamTimeoutScheduler {
     public void autoSubmitExpiredExams() {
         try {
             List<ExamSession> active = examSessionService.list(
-                    new LambdaQueryWrapper<ExamSession>().eq(ExamSession::getStatus, "STARTED"));
+                    new LambdaQueryWrapper<ExamSession>().eq(ExamSession::getStatus, ExamSessionStatus.STARTED));
             if (active == null || active.isEmpty()) return;
             int failed = 0;
             for (ExamSession s : active) {
                 try {
                     examSessionService.timeoutSubmit(s.getId());
+                    // 超时收卷后立即自动阅卷，避免 AUTO_SUBMITTED 卷滞留永不评分（修复 P1-14 闭环）。
+                    // 学生全程未作答（answers 为空）时阅卷会拒绝，此时跳过并在下方记录，不阻塞调度。
+                    examSessionService.autoGrade(s.getId());
                 } catch (Exception e) {
                     // 单场异常不影响其他场次，但必须记录以便运维排障（原静默吞异常会造成收卷失败的运维盲区）
                     failed++;
-                    log.error("考试超时自动收卷失败 sessionId={}: {}", s.getId(), e.getMessage(), e);
+                    log.error("考试超时自动收卷/阅卷失败 sessionId={}: {}", s.getId(), e.getMessage(), e);
                 }
             }
             if (failed > 0) {

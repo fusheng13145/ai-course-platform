@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.ChapterKnowledgePoint;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.mapper.ChapterKnowledgePointMapper;
@@ -21,6 +24,8 @@ import java.util.stream.Collectors;
 @Service
 public class ChapterKnowledgePointServiceImpl extends ServiceImpl<ChapterKnowledgePointMapper, ChapterKnowledgePoint>
         implements ChapterKnowledgePointService {
+
+    private static final Logger log = LoggerFactory.getLogger(ChapterKnowledgePointServiceImpl.class);
 
     private final KnowledgePointService knowledgePointService;
 

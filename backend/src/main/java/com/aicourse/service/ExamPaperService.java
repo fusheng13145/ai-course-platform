@@ -6,6 +6,10 @@ import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.util.Map;
 
+
+/**
+ * 考试试卷接口：相关业务逻辑入口，提供增删改查与编排能力。
+ */
 public interface ExamPaperService extends IService<ExamPaper> {
 
     /**

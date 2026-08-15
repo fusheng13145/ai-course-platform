@@ -43,14 +43,17 @@ const ICONS = {
   download: 'M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M7 10l5 5 5-5M12 15V3',
   refresh: 'M3 12a9 9 0 0 1 15.36-6.36L21 8M21 3v5h-5M21 12a9 9 0 0 1-15.36 6.36L3 16M3 21v-5h5',
   bell: 'M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9M10.3 21a1.94 1.94 0 0 0 3.4 0',
-  users: 'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
+  users:
+    'M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2M9 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8zM22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75',
   list: 'M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01',
   clock: 'M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2',
   star: 'm12 2 3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z',
 }
 function iconSvg(name, size = 14) {
   const d = ICONS[name] || ''
-  return d ? `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>` : ''
+  return d
+    ? `<svg viewBox="0 0 24 24" width="${size}" height="${size}" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="${d}"/></svg>`
+    : ''
 }
 </script>
 <template>
@@ -69,14 +72,61 @@ function iconSvg(name, size = 14) {
   </div>
 </template>
 <style scoped>
-.pop-menu { position: fixed; min-width: 168px; background: var(--surface); border-radius: 10px; box-shadow: var(--sh-pop); border: 1px solid var(--line); padding: 5px; z-index: var(--z-menu); }
-.menu-item { display: flex; align-items: center; gap: 9px; padding: 8px 11px; font-size: 13px; color: var(--ink-2); border-radius: 7px; cursor: pointer; transition: all .12s; }
-.menu-item:hover { background: var(--surface-3); color: var(--ink); }
-.menu-item.danger { color: var(--accent); }
-.menu-item.danger:hover { background: var(--accent-soft); }
-.m-ico { width: 15px; height: 15px; display: grid; place-items: center; color: var(--ink-3); }
-.menu-item.danger .m-ico { color: var(--accent); }
-.m-key { margin-left: auto; font-size: 11px; color: var(--ink-4); }
-.menu-divider { height: 1px; background: var(--line); margin: 5px 8px; }
-.menu-label { font-size: 10.5px; color: var(--ink-4); padding: 6px 11px 3px; letter-spacing: .5px; }
+.pop-menu {
+  position: fixed;
+  min-width: 168px;
+  background: var(--surface);
+  border-radius: 10px;
+  box-shadow: var(--sh-pop);
+  border: 1px solid var(--line);
+  padding: 5px;
+  z-index: var(--z-menu);
+}
+.menu-item {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 8px 11px;
+  font-size: 13px;
+  color: var(--ink-2);
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.12s;
+}
+.menu-item:hover {
+  background: var(--surface-3);
+  color: var(--ink);
+}
+.menu-item.danger {
+  color: var(--accent);
+}
+.menu-item.danger:hover {
+  background: var(--accent-soft);
+}
+.m-ico {
+  width: 15px;
+  height: 15px;
+  display: grid;
+  place-items: center;
+  color: var(--ink-3);
+}
+.menu-item.danger .m-ico {
+  color: var(--accent);
+}
+.m-key {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--ink-4);
+}
+.menu-divider {
+  height: 1px;
+  background: var(--line);
+  margin: 5px 8px;
+}
+.menu-label {
+  font-size: 10.5px;
+  color: var(--ink-4);
+  padding: 6px 11px 3px;
+  letter-spacing: 0.5px;
+}
 </style>

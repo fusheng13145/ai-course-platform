@@ -9,6 +9,8 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * WebSocket 会话注册中心。
@@ -18,6 +20,8 @@ import java.util.concurrent.ConcurrentHashMap;
  */
 @Service
 public class WebSocketSessionManager {
+
+    private static final Logger log = LoggerFactory.getLogger(WebSocketSessionManager.class);
 
     private final Map<Long, Set<WebSocketSession>> userSessions = new ConcurrentHashMap<>();
     private final ObjectMapper objectMapper;
@@ -32,6 +36,8 @@ public class WebSocketSessionManager {
             return;
         }
         userSessions.computeIfAbsent(userId, k -> ConcurrentHashMap.newKeySet()).add(session);
+        log.info("[ws-session] 用户上线：userId={}, sessionId={}, 该用户在线连接数={}",
+                userId, session.getId(), userSessions.get(userId).size());
     }
 
     /** 连接关闭时注销 */
@@ -46,6 +52,7 @@ public class WebSocketSessionManager {
                 userSessions.remove(userId);
             }
         }
+        log.info("[ws-session] 用户下线：userId={}, sessionId={}", userId, session.getId());
     }
 
     /** 向指定用户的所有在线连接推送消息对象（自动序列化为 JSON） */
@@ -93,6 +100,8 @@ public class WebSocketSessionManager {
                 session.sendMessage(new TextMessage(text));
             } catch (IOException e) {
                 // 连接可能已断开，交由 close 事件统一清理，此处不抛异常
+                log.warn("[ws-session] 向 session={} 推送消息失败（连接可能已断开）: {}",
+                        session.getId(), e.getMessage());
             }
         }
     }

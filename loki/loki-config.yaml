@@ -1,0 +1,49 @@
+# ============================================================
+# Loki 单实例配置（日志集中存储）
+# 与 Prometheus/Grafana 同属 monitor profile，构成可观测性三角的 Logs 支柱。
+# 采用 filesystem 存储 + TSDB 索引（schema v13），无需外部对象存储，适合单机/演示部署。
+# 生产若需长期留存或高可用，可替换为 S3/MinIO 对象存储 + 多副本 ring。
+# ============================================================
+auth_enabled: false
+
+server:
+  http_listen_port: 3100
+  grpc_listen_port: 9095
+
+common:
+  instance_addr: 127.0.0.1
+  path_prefix: /loki
+  storage:
+    filesystem:
+      chunks_directory: /loki/chunks
+      rules_directory: /loki/rules
+  replication_factor: 1
+  ring:
+    kvstore:
+      store: inmemory
+
+schema_config:
+  configs:
+    - from: 2024-01-01
+      store: tsdb
+      object_store: filesystem
+      schema: v13
+      index:
+        prefix: index_
+        period: 24h
+
+ruler:
+  storage:
+    type: local
+    local:
+      directory: /loki/rules
+
+limits_config:
+  # 拒绝超过 1 周的旧样本（容器重启后日志时间不乱入）
+  reject_old_samples: true
+  reject_old_samples_max_age: 168h
+  # 单日志流速率上限，防止异常刷屏打爆 Loki
+  ingestion_rate_mb: 8
+  ingestion_burst_size_mb: 16
+  # 最大查询时长窗口限制
+  max_query_lookback: 720h

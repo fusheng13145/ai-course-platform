@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.dto.ChapterReorderDTO;
 import com.aicourse.entity.Course;
@@ -23,6 +26,8 @@ import java.util.Map;
 @RestController
 @Tag(name = "课程章节")
 public class CourseChapterController {
+
+    private static final Logger log = LoggerFactory.getLogger(CourseChapterController.class);
 
     private final CourseChapterService chapterService;
     private final CourseService courseService;

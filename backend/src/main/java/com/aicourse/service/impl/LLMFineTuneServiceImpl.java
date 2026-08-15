@@ -1,5 +1,6 @@
 package com.aicourse.service.impl;
 
+
 import com.aicourse.service.LLMFineTuneService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -20,6 +21,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @Slf4j
 public class LLMFineTuneServiceImpl implements LLMFineTuneService {
+
 
     private static final String SERVICE_UNAVAILABLE = "{\"error\":\"微调服务暂不可用\",\"code\":503}";
 
@@ -50,6 +52,8 @@ public class LLMFineTuneServiceImpl implements LLMFineTuneService {
                 .build();
     }
 
+
+    /** 大模型微调相关操作 */
     @Override
     public boolean healthCheck() {
         if (!enabled) return false;
@@ -62,6 +66,8 @@ public class LLMFineTuneServiceImpl implements LLMFineTuneService {
         }
     }
 
+
+    /** 启动大模型微调 */
     @Override
     public String startFineTune(Long courseId, String baseModel, String config) {
         if (!enabled) return SERVICE_UNAVAILABLE;
@@ -72,6 +78,8 @@ public class LLMFineTuneServiceImpl implements LLMFineTuneService {
                         .retrieve().body(String.class), "启动微调任务");
     }
 
+
+    /** 查询大模型微调 */
     @Override
     public String getTaskStatus(String taskId) {
         if (!enabled) return SERVICE_UNAVAILABLE;
@@ -81,6 +89,8 @@ public class LLMFineTuneServiceImpl implements LLMFineTuneService {
                         .retrieve().body(String.class), "查询微调状态");
     }
 
+
+    /** 查询大模型微调 */
     @Override
     public String listTasks(Long courseId) {
         if (!enabled) return SERVICE_UNAVAILABLE;
@@ -92,8 +102,12 @@ public class LLMFineTuneServiceImpl implements LLMFineTuneService {
         }, "查询微调任务列表");
     }
 
+
+    /** 取消大模型微调 */
     @Override
     public String cancelTask(String taskId) {
+        log.info("取消大模型微调");
+
         if (!enabled) return SERVICE_UNAVAILABLE;
         return executeWithRetry(() ->
                 restClient.post()
@@ -101,6 +115,8 @@ public class LLMFineTuneServiceImpl implements LLMFineTuneService {
                         .retrieve().body(String.class), "取消微调任务");
     }
 
+
+    /** 大模型微调相关操作 */
     @Override
     public String inferWithFineTuned(String taskId, String prompt, String params) {
         if (!enabled) return SERVICE_UNAVAILABLE;
@@ -111,8 +127,12 @@ public class LLMFineTuneServiceImpl implements LLMFineTuneService {
                         .retrieve().body(String.class), "微调模型推理");
     }
 
+
+    /** 导出大模型微调 */
     @Override
     public String exportWeights(String taskId) {
+        log.info("导出大模型微调");
+
         if (!enabled) return SERVICE_UNAVAILABLE;
         return executeWithRetry(() ->
                 restClient.get()
@@ -120,8 +140,12 @@ public class LLMFineTuneServiceImpl implements LLMFineTuneService {
                         .retrieve().body(String.class), "导出LoRA权重");
     }
 
+
+    /** 删除大模型微调 */
     @Override
     public String deleteTask(String taskId) {
+        log.info("删除大模型微调");
+
         if (!enabled) return SERVICE_UNAVAILABLE;
         return executeWithRetry(() ->
                 restClient.delete()

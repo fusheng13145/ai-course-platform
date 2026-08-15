@@ -5,6 +5,8 @@ import org.springframework.boot.actuate.health.HealthIndicator;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.stereotype.Component;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 自定义 Redis 健康指示器（显式实现 {@link HealthIndicator}）。
@@ -16,12 +18,17 @@ import org.springframework.stereotype.Component;
 @Component
 public class RedisHealthIndicator implements HealthIndicator {
 
+    private static final Logger log = LoggerFactory.getLogger(RedisHealthIndicator.class);
+
     private final RedisConnectionFactory redisConnectionFactory;
 
     public RedisHealthIndicator(RedisConnectionFactory redisConnectionFactory) {
         this.redisConnectionFactory = redisConnectionFactory;
     }
 
+    /**
+     * 探测 Redis 连通性：获取连接并发送 {@code PING}，依据响应返回 UP/DOWN。
+     */
     @Override
     public Health health() {
         try (RedisConnection connection = redisConnectionFactory.getConnection()) {
@@ -36,6 +43,7 @@ public class RedisHealthIndicator implements HealthIndicator {
                     .withDetail("redis", "empty ping response")
                     .build();
         } catch (Exception e) {
+            log.warn("[health] Redis 探测失败: {}", e.getMessage());
             return Health.down()
                     .withDetail("error", e.getClass().getSimpleName())
                     .withDetail("message", e.getMessage())

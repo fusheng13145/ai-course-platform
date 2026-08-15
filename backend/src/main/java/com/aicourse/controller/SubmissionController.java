@@ -1,5 +1,7 @@
 package com.aicourse.controller;
 
+import com.aicourse.constant.SubmissionStatus;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.common.RoleConstants;
@@ -69,7 +71,7 @@ public class SubmissionController {
         if (body.getFileUrls() != null) {
             submission.setFileUrls(com.aicourse.common.JsonUtils.toJson(body.getFileUrls()));
         }
-        submission.setStatus("SUBMITTED");
+        submission.setStatus(SubmissionStatus.SUBMITTED);
         submission.setSubmittedAt(LocalDateTime.now());
         submissionService.save(submission);
         // 异步 AI 预批改：提交后自动触发，不阻塞学生提交响应；
@@ -149,7 +151,7 @@ public class SubmissionController {
         }
         submission.setScore(grade.getScore());
         submission.setFeedback(grade.getFeedback());
-        submission.setStatus("GRADED");
+        submission.setStatus(SubmissionStatus.GRADED);
         submission.setGradedAt(LocalDateTime.now());
         submission.setGraderId((Long) auth.getPrincipal());
         submissionService.updateById(submission);

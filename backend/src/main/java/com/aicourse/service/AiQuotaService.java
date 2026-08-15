@@ -1,5 +1,6 @@
 package com.aicourse.service;
 
+
 import com.aicourse.common.ApiCode;
 import com.aicourse.exception.BusinessException;
 import org.springframework.beans.factory.ObjectProvider;
@@ -42,6 +43,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @Slf4j
 public class AiQuotaService {
+
 
     /** 原子计数 + 首次设置到当日 24:00 过期（秒）。返回累计值。 */
     private static final String QUOTA_LUA =

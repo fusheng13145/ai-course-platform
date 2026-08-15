@@ -27,6 +27,17 @@ public final class RoleUtil {
     }
 
     /**
+     * 是否为管理员。管理员对跨用户资源拥有放行权限，用于 owner 校验时的特权豁免
+     * （例如学生只能操作自己的学习路径，管理员可代查/代管）。
+     */
+    public static boolean isAdmin(Authentication auth) {
+        if (auth == null) {
+            return false;
+        }
+        return extractRoles(auth).contains(RoleConstants.ADMIN);
+    }
+
+    /**
      * 当前用户角色（取第一个 ROLE_ 角色），无则返回空串。
      */
     public static String roleOf(Authentication auth) {

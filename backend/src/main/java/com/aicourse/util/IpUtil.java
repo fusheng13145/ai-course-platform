@@ -1,6 +1,8 @@
 package com.aicourse.util;
 
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -10,6 +12,8 @@ import org.springframework.util.StringUtils;
  */
 @Component
 public class IpUtil {
+
+    private static final Logger log = LoggerFactory.getLogger(IpUtil.class);
 
     /**
      * 获取客户端真实IP

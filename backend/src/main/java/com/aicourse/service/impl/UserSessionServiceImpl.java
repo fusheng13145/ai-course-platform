@@ -1,14 +1,20 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.UserSession;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.UserSessionMapper;
 import com.aicourse.service.UserSessionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -19,6 +25,22 @@ import java.util.stream.Collectors;
  */
 @Service
 public class UserSessionServiceImpl extends ServiceImpl<UserSessionMapper, UserSession> implements UserSessionService {
+
+    private static final Logger log = LoggerFactory.getLogger(UserSessionServiceImpl.class);
+
+    /**
+     * 会话活跃态缓存前缀（修复 P1-11：isSessionActive 每请求一次 DB COUNT 是全站性能瓶颈，
+     * 现改为 Redis 缓存回填，仅缓存未命中时才查询数据库）
+     */
+    private static final String SESSION_ACTIVE_KEY_PREFIX = "auth:session:active:";
+    /** 缓存 TTL 下限（秒）：即使会话剩余时间很短也至少保留该窗口，避免高频回填 */
+    private static final long CACHE_TTL_MIN_SECONDS = 60L;
+
+    private final StringRedisTemplate redisTemplate;
+
+    public UserSessionServiceImpl(ObjectProvider<StringRedisTemplate> redisTemplateProvider) {
+        this.redisTemplate = redisTemplateProvider != null ? redisTemplateProvider.getIfAvailable() : null;
+    }
 
     /**
      * 获取用户当前有效会话
@@ -62,6 +84,10 @@ public class UserSessionServiceImpl extends ServiceImpl<UserSessionMapper, UserS
         }
         session.setIsActive(false);
         this.updateById(session);
+        // 同步失效 Redis 活跃缓存（修复 P1-11 缓存一致性）
+        if (redisTemplate != null && session.getSessionToken() != null) {
+            redisTemplate.delete(SESSION_ACTIVE_KEY_PREFIX + session.getSessionToken());
+        }
     }
 
     /**
@@ -144,23 +170,50 @@ public class UserSessionServiceImpl extends ServiceImpl<UserSessionMapper, UserS
     }
 
     /**
-     * 根据 token 查询会话并检查是否活跃
+     * 根据 token 查询会话并检查是否活跃（修复 P1-11：Redis 缓存优先，DB 兜底回填）
      */
     @Override
     public boolean isSessionActive(String token) {
+        if (token == null || token.isEmpty()) {
+            return false;
+        }
+        // 1) 缓存命中直接返回（活跃 = "1"）
+        if (redisTemplate != null) {
+            String cached = redisTemplate.opsForValue().get(SESSION_ACTIVE_KEY_PREFIX + token);
+            if ("1".equals(cached)) {
+                return true;
+            }
+            if (cached != null) {
+                // 缓存明确标记为失效（"0"），无需再查库
+                return false;
+            }
+        }
+        // 2) 缓存未命中：查库
         LambdaQueryWrapper<UserSession> wrapper = new LambdaQueryWrapper<UserSession>()
                 .eq(UserSession::getSessionToken, token)
                 .eq(UserSession::getIsActive, true)
                 .gt(UserSession::getExpiresAt, LocalDateTime.now());
-        return this.count(wrapper) > 0;
+        UserSession session = this.getOne(wrapper, false);
+        if (session != null && redisTemplate != null) {
+            // 回填缓存，TTL 与会话剩余时间对齐（有下限），到期自动过期
+            long ttlSeconds = Math.max(CACHE_TTL_MIN_SECONDS,
+                    java.time.Duration.between(LocalDateTime.now(), session.getExpiresAt()).getSeconds());
+            redisTemplate.opsForValue().set(SESSION_ACTIVE_KEY_PREFIX + token, "1",
+                    Duration.ofSeconds(ttlSeconds));
+            return true;
+        }
+        return session != null;
     }
 
     /**
-     * 使会话缓存失效（按 token 强制下线）
+     * 使会话缓存失效（按 token 强制下线）：删除 Redis 缓存并置库为无效
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void evictSessionCache(String token) {
+        if (redisTemplate != null) {
+            redisTemplate.delete(SESSION_ACTIVE_KEY_PREFIX + token);
+        }
         LambdaQueryWrapper<UserSession> wrapper = new LambdaQueryWrapper<UserSession>()
                 .eq(UserSession::getSessionToken, token);
         UserSession session = this.getOne(wrapper);

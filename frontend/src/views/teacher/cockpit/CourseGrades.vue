@@ -24,7 +24,9 @@
       <template v-else>
         <div v-loading="reportLoading" class="l1-card">
           <div class="l1-head">
-            <span class="l1-ico"><el-icon><DataAnalysis /></el-icon></span>
+            <span class="l1-ico"
+              ><el-icon><DataAnalysis /></el-icon
+            ></span>
             <div>
               <div class="l1-title">
                 课程成绩报告
@@ -35,34 +37,34 @@
           </div>
           <div class="l1-body">
             <el-table v-if="report.length" :data="report" size="small" border max-height="560">
-            <el-table-column prop="studentName" label="学生" min-width="110" fixed />
-            <el-table-column
-              v-for="c in policy.components"
-              :key="c.key"
-              :label="c.name + ' (' + c.weight + '%)'"
-              min-width="120"
-              align="center"
-            >
-              <template #default="{ row }">
-                <span class="score-cell" @click="openScoreDialog(row, c)">
-                  {{ findScore(row, c.key) ?? '—' }}
-                </span>
-              </template>
-            </el-table-column>
-            <el-table-column label="总评" min-width="90" align="center" fixed="right">
-              <template #default="{ row }">
-                <span class="final-score">{{ row.finalScore ?? '—' }}</span>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" min-width="100" align="center" fixed="right">
-              <template #default="{ row }">
-                <el-button link type="primary" :icon="View" @click="previewFinal(row)"
-                  >预览总评</el-button
-                >
-              </template>
-            </el-table-column>
-          </el-table>
-          <el-empty v-else description="暂无学生成绩" :image-size="72" />
+              <el-table-column prop="studentName" label="学生" min-width="110" fixed />
+              <el-table-column
+                v-for="c in policy.components"
+                :key="c.key"
+                :label="c.name + ' (' + c.weight + '%)'"
+                min-width="120"
+                align="center"
+              >
+                <template #default="{ row }">
+                  <span class="score-cell" @click="openScoreDialog(row, c)">
+                    {{ findScore(row, c.key) ?? '—' }}
+                  </span>
+                </template>
+              </el-table-column>
+              <el-table-column label="总评" min-width="90" align="center" fixed="right">
+                <template #default="{ row }">
+                  <span class="final-score">{{ row.finalScore ?? '—' }}</span>
+                </template>
+              </el-table-column>
+              <el-table-column label="操作" min-width="100" align="center" fixed="right">
+                <template #default="{ row }">
+                  <el-button link type="primary" :icon="View" @click="previewFinal(row)"
+                    >预览总评</el-button
+                  >
+                </template>
+              </el-table-column>
+            </el-table>
+            <el-empty v-else description="暂无学生成绩" :image-size="72" />
           </div>
         </div>
       </template>

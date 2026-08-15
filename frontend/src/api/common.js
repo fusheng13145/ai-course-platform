@@ -4,6 +4,9 @@
  */
 import request from './request'
 
+/**
+ * 默认导出对象：模块/组件配置与导出内容
+ */
 export default {
   /** POST /common/verify-code -- 发送验证码 */
   sendVerifyCode(data) { return request.post('/common/verify-code', data) },

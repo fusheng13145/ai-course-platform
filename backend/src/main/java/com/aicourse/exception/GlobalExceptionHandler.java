@@ -18,6 +18,8 @@ import java.util.List;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import com.aicourse.common.ApiCode;
+import com.alibaba.csp.sentinel.slots.block.BlockException;
+import com.alibaba.csp.sentinel.slots.block.degrade.DegradeException;
 
 /**
  * 全局统一异常处理器
@@ -151,5 +153,26 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "服务器内部错误，请稍后重试"));
+    }
+
+    /**
+     * Sentinel 限流 / 熔断异常兜底。
+     * <p>兜底意义：对任意标注 {@code @SentinelResource}（或经 SentinelWebFilter 包裹）的资源，
+     * 若未显式声明 blockHandler/fallback 而将 {@link BlockException} 抛出至控制层，
+     * 此处统一封装为项目标准 {@link ApiResponse}：熔断（{@link DegradeException}）→ 503，
+     * 其余（流控等）→ 429。与 {@code SentinelWebFilter#writeBlocked} 的语义保持一致。</p>
+     */
+    @ExceptionHandler(BlockException.class)
+    public ResponseEntity<ApiResponse<Void>> handleBlockException(BlockException e) {
+        if (e instanceof DegradeException) {
+            log.warn("Sentinel 熔断降级触发：{}", e.getMessage());
+            return ResponseEntity
+                    .status(HttpStatus.SERVICE_UNAVAILABLE)
+                    .body(ApiResponse.error(ApiCode.SERVICE_UNAVAILABLE, "服务暂时不可用（熔断降级），请稍后重试"));
+        }
+        log.warn("Sentinel 限流触发：{}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(ApiResponse.error(ApiCode.TOO_MANY_REQUESTS, "请求过于频繁，请稍后再试"));
     }
 }

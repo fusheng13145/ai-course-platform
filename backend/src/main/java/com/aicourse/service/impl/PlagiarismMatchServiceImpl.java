@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.PlagiarismMatch;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.PlagiarismMatchMapper;
@@ -19,6 +22,8 @@ import java.util.Map;
  */
 @Service
 public class PlagiarismMatchServiceImpl extends ServiceImpl<PlagiarismMatchMapper, PlagiarismMatch> implements PlagiarismMatchService {
+
+    private static final Logger log = LoggerFactory.getLogger(PlagiarismMatchServiceImpl.class);
 
     /**
      * 批量保存匹配明细记录

@@ -7,6 +7,8 @@ import org.springframework.web.socket.config.annotation.WebSocketConfigurer;
 import org.springframework.web.socket.config.annotation.WebSocketHandlerRegistry;
 
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * WebSocket 端点配置。
@@ -18,6 +20,8 @@ import java.util.List;
 @Configuration
 @EnableWebSocket
 public class WebSocketConfig implements WebSocketConfigurer {
+
+    private static final Logger log = LoggerFactory.getLogger(WebSocketConfig.class);
 
     private final RealtimeWebSocketHandler handler;
     private final JwtHandshakeInterceptor handshakeInterceptor;
@@ -31,12 +35,16 @@ public class WebSocketConfig implements WebSocketConfigurer {
         this.corsProperties = corsProperties;
     }
 
+    /**
+     * 注册 {@code /ws} 端点并绑定 JWT 握手拦截器与跨域来源。
+     */
     @Override
     public void registerWebSocketHandlers(WebSocketHandlerRegistry registry) {
         List<String> origins = corsProperties.getAllowedOrigins();
         if (origins == null || origins.isEmpty()) {
             origins = List.of("http://localhost:5173");
         }
+        log.info("[WebSocketConfig] 注册 WebSocket 端点 /ws，允许跨域来源: {}", origins);
         registry.addHandler(handler, "/ws")
                 .addInterceptors(handshakeInterceptor)
                 .setAllowedOriginPatterns(origins.toArray(new String[0]));

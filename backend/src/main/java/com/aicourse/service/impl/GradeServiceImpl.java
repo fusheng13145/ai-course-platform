@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.GradeItem;
 import com.aicourse.entity.GradePolicy;
 import com.aicourse.exception.BusinessException;
@@ -25,6 +28,8 @@ import java.util.stream.Collectors;
 @Service
 public class GradeServiceImpl extends ServiceImpl<GradePolicyMapper, GradePolicy> implements GradeService {
 
+    private static final Logger log = LoggerFactory.getLogger(GradeServiceImpl.class);
+
     private final GradePolicyMapper policyMapper;
     private final GradeItemMapper itemMapper;
     private final ObjectMapper objectMapper = new ObjectMapper();
@@ -34,9 +39,13 @@ public class GradeServiceImpl extends ServiceImpl<GradePolicyMapper, GradePolicy
         this.itemMapper = itemMapper;
     }
 
+
+    /** 保存成绩 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public GradePolicy savePolicy(GradePolicy policy, Long userId) {
+        log.info("保存成绩");
+
         if (policy.getCourseId() == null) {
             throw new BusinessException("课程ID不能为空");
         }
@@ -53,6 +62,8 @@ public class GradeServiceImpl extends ServiceImpl<GradePolicyMapper, GradePolicy
         return policy;
     }
 
+
+    /** 查询成绩 */
     @Override
     public GradePolicy getPolicy(Long courseId) {
         List<GradePolicy> list = this.list(new LambdaQueryWrapper<GradePolicy>()
@@ -62,11 +73,15 @@ public class GradeServiceImpl extends ServiceImpl<GradePolicyMapper, GradePolicy
         return list.isEmpty() ? null : list.get(0);
     }
 
+
+    /** 查询成绩 */
     @Override
     public GradePolicy getPolicyById(Long policyId) {
         return policyMapper.selectById(policyId);
     }
 
+
+    /** 成绩相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public GradeItem upsertItem(Long policyId, Long studentId, String componentKey,
@@ -98,6 +113,8 @@ public class GradeServiceImpl extends ServiceImpl<GradePolicyMapper, GradePolicy
         return item;
     }
 
+
+    /** 计算成绩 */
     @Override
     public Map<String, Object> computeFinal(Long policyId, Long studentId) {
         GradePolicy policy = this.getById(policyId);
@@ -138,6 +155,8 @@ public class GradeServiceImpl extends ServiceImpl<GradePolicyMapper, GradePolicy
         return res;
     }
 
+
+    /** 成绩相关操作 */
     @Override
     public List<Map<String, Object>> courseReport(Long courseId) {
         GradePolicy policy = getPolicy(courseId);
@@ -166,6 +185,8 @@ public class GradeServiceImpl extends ServiceImpl<GradePolicyMapper, GradePolicy
         try {
             return objectMapper.readValue(json, new TypeReference<List<Map<String, Object>>>() {});
         } catch (Exception e) {
+            log.error("成绩相关操作失败: {}", e.getMessage(), e);
+
             return new ArrayList<>();
         }
     }

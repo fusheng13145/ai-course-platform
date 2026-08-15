@@ -1,150 +1,134 @@
 package com.aicourse.service.impl;
 
-import com.aicourse.entity.KnowledgePoint;
-import com.aicourse.llm.LLMProvider;
-import com.aicourse.service.KnowledgePointService;
-import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import org.junit.jupiter.api.BeforeEach;
+import com.sun.net.httpserver.HttpExchange;
+import com.sun.net.httpserver.HttpServer;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Mock;
-import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.io.IOException;
+import java.io.OutputStream;
+import java.net.InetSocketAddress;
+import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.lenient;
-import static org.mockito.Mockito.*;
 
 /**
- * RAG 服务单元测试
- * 验证「基于知识库 + 抑制幻觉」核心逻辑：TF-IDF 中文召回排序、检索态问答输出与来源标注、文档增删改查往返。
- * 离线可跑：mock KnowledgePointService 提供固定语料、mock LLMProvider 控制是否配置。
+ * RAG 服务单元测试（2026-08-13 起：RAG 引擎由团队另一成员负责，本端仅保留接口 + HTTP 代理）。
+ * <p>
+ * 覆盖两类行为：
+ * <ol>
+ *   <li>服务未启用（{@code rag.enabled=false}，默认）→ 全部方法返回 {@code {"code":503,...}}，健康检查 false；
+ *       {@code AIServiceImpl.ragAsk} 依赖该 503 约定自动降级为纯 LLM 调用；</li>
+ *   <li>服务启用且 Python 端可达（本地 JDK HttpServer 桩）→ 请求正确代理到 {@code /api/v1/rag/*}，健康检查 true。</li>
+ * </ol>
  */
-@ExtendWith(MockitoExtension.class)
 class RAGServiceImplTest {
 
-    @Mock
-    private KnowledgePointService knowledgePointService;
+    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    @Mock
-    private LLMProvider llmProvider;
+    private HttpServer server;
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
+    @AfterEach
+    void tearDown() {
+        if (server != null) {
+            server.stop(0);
+        }
+    }
 
-    private RAGServiceImpl service;
+    // ---------- 未启用（默认）----------
 
-    private List<KnowledgePoint> corpus;
-
-    @BeforeEach
-    void setUp() {
-        service = new RAGServiceImpl(knowledgePointService, llmProvider, objectMapper, 5, 1.5, 0.75);
-
-        KnowledgePoint kp1 = new KnowledgePoint();
-        kp1.setId(1L); kp1.setName("反向传播");
-        kp1.setDescription("反向传播是神经网络训练中的核心算法，用于计算梯度并更新权重。");
-        kp1.setCourseId(1L); kp1.setPointType("CONCEPT");
-
-        KnowledgePoint kp2 = new KnowledgePoint();
-        kp2.setId(2L); kp2.setName("梯度下降");
-        kp2.setDescription("梯度下降是一种优化算法，通过沿梯度反方向更新参数来最小化损失函数。");
-        kp2.setCourseId(1L); kp2.setPointType("CONCEPT");
-
-        KnowledgePoint kp3 = new KnowledgePoint();
-        kp3.setId(3L); kp3.setName("卷积神经网络");
-        kp3.setDescription("CNN 使用卷积层提取图像特征。");
-        kp3.setCourseId(1L); kp3.setPointType("CONCEPT");
-
-        corpus = new ArrayList<>(List.of(kp1, kp2, kp3));
-
-        // loadCorpus(courseId) -> list(Wrapper)；用 (Wrapper<KnowledgePoint>) any() 消除 IService.list 重载歧义
-        lenient().when(knowledgePointService.list((Wrapper<KnowledgePoint>) any())).thenReturn(corpus);
+    @Test
+    void disabled_ask_returns503() throws Exception {
+        RAGServiceImpl svc = newDisabledService();
+        assertTrue(svc.ask("什么是梯度下降", 1L, 3).contains("\"code\":503"));
+        assertFalse(svc.healthCheck());
     }
 
     @Test
-    void retrieve_shouldRankRelevantPointFirst() throws Exception {
-        // 查询“梯度下降优化算法”应召回相关知识点，且“梯度下降”排在最前、相似度 > 0
-        // （知识库中含标点的描述也能被正确分词：修正前此类描述词频恒为空、召回恒为 0）
-        String res = service.retrieve("梯度下降优化算法", 1L, 3);
-        Map<?, ?> map = objectMapper.readValue(res, Map.class);
-        assertTrue((int) map.get("count") >= 1);
-        List<?> results = (List<?>) map.get("results");
-        assertFalse(results.isEmpty());
-        Map<?, ?> top = (Map<?, ?>) results.get(0);
-        assertEquals("梯度下降", top.get("name"));
-        assertTrue(Double.parseDouble(String.valueOf(top.get("score"))) > 0);
+    void disabled_allMethods_return503() throws Exception {
+        RAGServiceImpl svc = newDisabledService();
+        assertEquals("{\"error\":\"RAG 引擎由团队另一成员负责，本端仅预留接口；服务未接入或不可用\",\"code\":503}",
+                svc.addDocument(1L, "文档", "内容"));
+        assertTrue(svc.deleteDocument(1L).contains("\"code\":503"));
+        assertTrue(svc.listDocuments(1L).contains("\"code\":503"));
+        assertTrue(svc.updateDocument(1L, "新内容").contains("\"code\":503"));
+        assertTrue(svc.buildIndex(1L).contains("\"code\":503"));
+        assertTrue(svc.clearIndex(1L).contains("\"code\":503"));
+        assertTrue(svc.retrieve("梯度", 1L, 3).contains("\"code\":503"));
+        assertFalse(svc.healthCheck());
+    }
+
+    // ---------- 启用 + Python 端可达 ----------
+
+    @Test
+    void enabled_proxiesAskAndHealth() throws Exception {
+        startStubServer();
+        RAGServiceImpl svc = newEnabledService();
+        assertTrue(svc.healthCheck());
+
+        String res = svc.ask("什么是梯度下降", 1L, 3);
+        Map<?, ?> map = OBJECT_MAPPER.readValue(res, Map.class);
+        assertEquals("proxy-ok", map.get("answer"));
+        assertTrue(((java.util.List<?>) map.get("sources")).isEmpty());
     }
 
     @Test
-    void ask_withoutLLM_shouldReturnRetrievalOnlyAndCiteSource() throws Exception {
-        // 未配置大模型 -> 检索态，引用知识库来源，抑制幻觉
-        when(llmProvider.isConfigured()).thenReturn(false);
+    void enabled_proxiesRetrieveAndIndex() throws Exception {
+        startStubServer();
+        RAGServiceImpl svc = newEnabledService();
 
-        String res = service.ask("什么是反向传播", 1L, 3);
-        Map<?, ?> map = objectMapper.readValue(res, Map.class);
-        assertEquals("retrieval-only", map.get("model"));
-        assertNotNull(map.get("answer"));
-        assertTrue(((String) map.get("answer")).length() > 0);
+        Map<?, ?> ret = OBJECT_MAPPER.readValue(svc.retrieve("梯度", null, 2), Map.class);
+        assertEquals(1, ((java.util.List<?>) ret.get("results")).size());
 
-        List<?> sources = (List<?>) map.get("sources");
-        assertFalse(sources.isEmpty());
-        Map<?, ?> src = (Map<?, ?>) sources.get(0);
-        assertEquals("反向传播", src.get("name"));
+        Map<?, ?> built = OBJECT_MAPPER.readValue(svc.buildIndex(7L), Map.class);
+        assertEquals(Boolean.TRUE, built.get("success"));
     }
 
     @Test
-    void ask_withLLM_shouldFuseAndCiteSource() throws Exception {
-        // 已配置大模型 -> 融合生成，且仍标注来源
-        when(llmProvider.isConfigured()).thenReturn(true);
-        when(llmProvider.name()).thenReturn("mock");
-        when(llmProvider.complete(any(), any()))
-                .thenReturn("反向传播用于计算梯度并更新网络权重。");
-
-        String res = service.ask("什么是反向传播", 1L, 3);
-        Map<?, ?> map = objectMapper.readValue(res, Map.class);
-        assertEquals("mock", map.get("model"));
-        assertTrue(((String) map.get("answer")).contains("梯度"));
-        List<?> sources = (List<?>) map.get("sources");
-        assertFalse(sources.isEmpty());
+    void enabled_butServiceDown_returns503() {
+        // 启用但 Python 端不可达（随机空闲端口）→ 重试耗尽后返回 503
+        RAGServiceImpl svc = new RAGServiceImpl(true, "http://127.0.0.1:1", 1, 1, 0,
+                "/api/v1/rag/health", 5);
+        assertTrue(svc.ask("q", 1L, 3).contains("\"code\":503"));
+        assertFalse(svc.healthCheck());
     }
 
-    @Test
-    void listDocuments_shouldReturnCorpus() throws Exception {
-        String res = service.listDocuments(1L);
-        Map<?, ?> map = objectMapper.readValue(res, Map.class);
-        assertEquals("ok", map.get("status"));
-        assertEquals(3, map.get("count"));
-        List<?> documents = (List<?>) map.get("documents");
-        assertEquals(3, documents.size());
+    // ---------- helpers ----------
+
+    private RAGServiceImpl newDisabledService() {
+        return new RAGServiceImpl(false, "http://localhost:8002", 1, 1, 0,
+                "/api/v1/rag/health", 5);
     }
 
-    @Test
-    void addDocument_shouldPersistAsDocumentPoint() throws Exception {
-        String res = service.addDocument(1L, "测试文档", "这是文档内容");
-        Map<?, ?> map = objectMapper.readValue(res, Map.class);
-        assertEquals("ok", map.get("status"));
-
-        ArgumentCaptor<KnowledgePoint> captor = ArgumentCaptor.forClass(KnowledgePoint.class);
-        verify(knowledgePointService).save(captor.capture());
-        KnowledgePoint saved = captor.getValue();
-        assertEquals(1L, saved.getCourseId());
-        assertEquals("测试文档", saved.getName());
-        assertEquals("这是文档内容", saved.getDescription());
-        assertEquals("DOCUMENT", saved.getPointType());
+    private RAGServiceImpl newEnabledService() {
+        String baseUrl = "http://127.0.0.1:" + server.getAddress().getPort();
+        return new RAGServiceImpl(true, baseUrl, 2, 2, 0, "/api/v1/rag/health", 5);
     }
 
-    @Test
-    void deleteDocument_shouldRemoveById() throws Exception {
-        String res = service.deleteDocument(42L);
-        Map<?, ?> map = objectMapper.readValue(res, Map.class);
-        assertEquals("ok", map.get("status"));
-        assertEquals(42, map.get("deleted"));
-        verify(knowledgePointService).removeById(eq(42L));
+    /** 极简 Python RAG 服务桩：按路径返回契约样式的固定响应。 */
+    private void startStubServer() throws IOException {
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext("/", this::handle);
+        server.start();
+    }
+
+    private void handle(HttpExchange exchange) throws IOException {
+        exchange.getRequestBody().readAllBytes();
+        String path = exchange.getRequestURI().getPath();
+        String body;
+        switch (path) {
+            case "/api/v1/rag/health" -> body = "{}";
+            case "/api/v1/rag/ask" -> body = "{\"answer\":\"proxy-ok\",\"sources\":[]}";
+            case "/api/v1/rag/retrieve" -> body = "{\"results\":[{\"document_id\":1,\"document_name\":\"a\",\"relevance_score\":0.9}]}";
+            case "/api/v1/rag/index/build/7" -> body = "{\"success\":true,\"indexed_chunks\":3}";
+            default -> body = "{\"success\":true}";
+        }
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        exchange.sendResponseHeaders(200, bytes.length);
+        try (OutputStream os = exchange.getResponseBody()) {
+            os.write(bytes);
+        }
     }
 }

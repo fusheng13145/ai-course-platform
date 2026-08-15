@@ -23,6 +23,20 @@ import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 
+import org.springframework.beans.factory.annotation.Value;
+import org.springframework.core.annotation.Order;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.ProviderManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.core.userdetails.User;
+import org.springframework.security.core.userdetails.UserDetails;
+import org.springframework.security.provisioning.InMemoryUserDetailsManager;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.util.matcher.OrRequestMatcher;
+
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import java.util.ArrayList;
 import java.util.List;
 import com.aicourse.common.RoleConstants;
@@ -54,6 +68,19 @@ public class SecurityConfig {
      * 本地 HTTP 联调由 local profile 置 false。
      */
     private final boolean requireHttps;
+
+    /**
+     * Actuator Basic 鉴权监控账号（供 Prometheus 抓取 /actuator/prometheus）。默认 monitor。
+     * 口令留空则 fail-closed：拒绝一切抓取请求，启用 monitor profile 时必须在 .env 中设置。
+     */
+    @Value("${app.actuator.basic.user:monitor}")
+    private String actuatorBasicUser;
+
+    /** Actuator Basic 鉴权监控口令。默认空（fail-closed）。 */
+    @Value("${app.actuator.basic.password:}")
+    private String actuatorBasicPassword;
+
+    private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
     /**
      * 注入JWT过滤器、认证异常处理器
@@ -93,11 +120,84 @@ public class SecurityConfig {
     }
 
     /**
+     * Actuator 专属安全过滤链（优先级高于主链）。
+     * <p>actuator 端点位于 {@code /api/actuator/**}（context-path=/api）。本链通过 {@link OrRequestMatcher}
+     * 同时匹配带/不带 {@code /api} 前缀，保证无论 Spring Security 如何归一化 context-path 都能正确拦截。</p>
+     * <p>采用独立的 HTTP Basic 鉴权，与业务 JWT 链路完全隔离：</p>
+     * <ul>
+     *   <li>health / info / metrics 公开（供探针探活与基础监控）；</li>
+     *   <li>prometheus 抓取端点：生产（actuatorSecured=true）要求 Basic Auth 且具备 ACTUATOR 角色，
+     *       凭据来自 {@code APP_ACTUATOR_BASIC_USER/PASSWORD} 环境变量；</li>
+     *   <li>其余 actuator 端点一律拒绝（最小化暴露面）。</li>
+     * </ul>
+     * <p>该设计使 Prometheus 的 {@code basic_auth} 真正可用——原 JWT 无状态架构下 Prometheus 无法换取
+     * ADMIN 角色，导致 {@code /actuator/prometheus} 在生产（actuatorSecured=true）时实际不可抓取。</p>
+     */
+    @Bean
+    @Order(0)
+    public SecurityFilterChain actuatorFilterChain(HttpSecurity http,
+                                                  PasswordEncoder passwordEncoder) throws Exception {
+        AuthenticationManager actuatorAuthManager = buildActuatorAuthManager(passwordEncoder);
+
+        http
+                .securityMatcher(new OrRequestMatcher(
+                        new AntPathRequestMatcher("/actuator/**"),
+                        new AntPathRequestMatcher("/api/actuator/**")))
+                .csrf(AbstractHttpConfigurer::disable)
+                .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authenticationManager(actuatorAuthManager)
+                .httpBasic(Customizer.withDefaults())
+                .authorizeHttpRequests(auth -> {
+                    auth.requestMatchers(
+                                    "/actuator/health", "/actuator/health/**",
+                                    "/api/actuator/health", "/api/actuator/health/**")
+                            .permitAll();
+                    auth.requestMatchers("/actuator/info", "/api/actuator/info").permitAll();
+                    auth.requestMatchers(
+                                    "/actuator/metrics", "/actuator/metrics/**",
+                                    "/api/actuator/metrics", "/api/actuator/metrics/**")
+                            .permitAll();
+                    if (actuatorSecured) {
+                        auth.requestMatchers("/actuator/prometheus", "/api/actuator/prometheus")
+                                .hasRole("ACTUATOR");
+                        auth.requestMatchers("/actuator/**", "/api/actuator/**").denyAll();
+                    } else {
+                        auth.requestMatchers("/actuator/**", "/api/actuator/**").permitAll();
+                    }
+                });
+        return http.build();
+    }
+
+    /**
+     * 构建仅供 Actuator Basic 鉴权使用的 AuthenticationManager（与业务 JWT 认证管理器隔离）。
+     * 凭据取自环境变量；若未配置口令则注册空用户表（fail-closed：任何 Basic 凭据均 401）。
+     */
+    private AuthenticationManager buildActuatorAuthManager(PasswordEncoder passwordEncoder) {
+        InMemoryUserDetailsManager userDetailsManager = new InMemoryUserDetailsManager();
+        if (actuatorBasicUser != null && !actuatorBasicUser.isBlank()
+                && actuatorBasicPassword != null && !actuatorBasicPassword.isBlank()) {
+            userDetailsManager.createUser(User.withUsername(actuatorBasicUser)
+                    .password(passwordEncoder.encode(actuatorBasicPassword))
+                    .roles("ACTUATOR")
+                    .build());
+        } else {
+            log.warn("未配置 Actuator Basic 凭据（APP_ACTUATOR_BASIC_USER/PASSWORD），"
+                    + " /actuator/prometheus 将拒绝所有抓取请求（fail-closed）。"
+                    + " 启用 monitor profile 时请务必在 .env 中设置该监控账号与强口令。");
+        }
+        DaoAuthenticationProvider provider = new DaoAuthenticationProvider();
+        provider.setUserDetailsService(userDetailsManager);
+        provider.setPasswordEncoder(passwordEncoder);
+        return new ProviderManager(provider);
+    }
+
+    /**
      * 安全过滤主链路配置
      * 1. 禁用CSRF、配置跨域  2. 无状态会话  3. 全局异常处理
      * 4. 接口路由权限控制    5. 前置JWT校验过滤器
      */
     @Bean
+    @Order(1)
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         // 定义通用资源路径
         List<String> commonResourcePaths = List.of(
@@ -121,7 +221,10 @@ public class SecurityConfig {
         }
 
         http
-                // 关闭CSRF防护：JWT基于Token认证，无服务端会话，无需开启
+                // CSRF 防护由自定义 DoubleSubmitCsrfFilter（Servlet Filter 层，@Component 注册，
+                // 读取 app.security.csrf.enabled 默认 true）承担——双提交 Cookie + 引导端点豁免，
+                // 见 security/DoubleSubmitCsrfFilter 及其专项测试。
+                // Spring Security 层必须保持关闭，否则双份 CSRF 校验相互冲突。
                 .csrf(AbstractHttpConfigurer::disable)
                 // 安全响应头加固：HSTS、防 MIME 嗅探、禁止被 iframe 嵌入、Referrer 不泄露、CSP
                 .headers(headers -> headers
@@ -149,20 +252,8 @@ public class SecurityConfig {
                     // 管理员专属接口
                     auth.requestMatchers("/admin/**").hasRole(RoleConstants.ADMIN);
 
-                    // ============ 可观测性端点（Actuator，context-path /api 下为 /actuator/**）============
-                    // health / info / metrics 公开（供探活与基础监控）
-                    auth.requestMatchers("/actuator/health", "/actuator/health/**").permitAll();
-                    auth.requestMatchers("/actuator/info").permitAll();
-                    auth.requestMatchers("/actuator/metrics", "/actuator/metrics/**").permitAll();
-                    if (actuatorSecured) {
-                        // 生产：prometheus 抓取端点仅限 ADMIN；其余 actuator 端点一律拒绝
-                        auth.requestMatchers("/actuator/prometheus").hasRole(RoleConstants.ADMIN);
-                        auth.requestMatchers("/actuator/**").denyAll();
-                    } else {
-                        // 测试/本地：放开 actuator 鉴权，便于集成测试断言
-                        auth.requestMatchers("/actuator/prometheus").permitAll();
-                        auth.requestMatchers("/actuator/**").permitAll();
-                    }
+                    // 可观测性端点（health/info/metrics/prometheus）已交由独立的 actuatorFilterChain 处理，
+                    // 详见本类 actuatorFilterChain(@Order(0))，与业务 JWT 链路隔离、支持 Prometheus Basic Auth。
 
                     // 学生可用的 AI 交互端点（智能问答 / 纠错 / 润色）：任意已登录角色均可调用，
                     // 不受下方「资源写操作限教师/管理员」规则约束，否则学生无法使用 AI 助教与笔记润色。

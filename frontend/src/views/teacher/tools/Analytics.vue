@@ -13,10 +13,34 @@
 
     <!-- 统计卡片 -->
     <div class="stat-grid animate-in">
-      <StatCard label="学生总数" :value="overview.studentCount || '--'" icon="users" tone="var(--info-soft)" tone-color="var(--info)" />
-      <StatCard label="平均成绩" :value="overview.avgScore != null ? overview.avgScore : '--'" icon="chart" tone="var(--ok-soft)" tone-color="var(--ok)" />
-      <StatCard label="作业提交率" :value="overview.submissionRate != null ? overview.submissionRate + '%' : '--'" icon="edit" tone="var(--warn-soft)" tone-color="var(--warn)" />
-      <StatCard label="出勤率" :value="overview.attendanceRate != null ? overview.attendanceRate + '%' : '--'" icon="calendar" tone="var(--accent-soft)" tone-color="var(--accent)" />
+      <StatCard
+        label="学生总数"
+        :value="overview.studentCount || '--'"
+        icon="users"
+        tone="var(--info-soft)"
+        tone-color="var(--info)"
+      />
+      <StatCard
+        label="平均成绩"
+        :value="overview.avgScore != null ? overview.avgScore : '--'"
+        icon="chart"
+        tone="var(--ok-soft)"
+        tone-color="var(--ok)"
+      />
+      <StatCard
+        label="作业提交率"
+        :value="overview.submissionRate != null ? overview.submissionRate + '%' : '--'"
+        icon="edit"
+        tone="var(--warn-soft)"
+        tone-color="var(--warn)"
+      />
+      <StatCard
+        label="出勤率"
+        :value="overview.attendanceRate != null ? overview.attendanceRate + '%' : '--'"
+        icon="calendar"
+        tone="var(--accent-soft)"
+        tone-color="var(--accent)"
+      />
     </div>
 
     <!-- 图表区域：成绩趋势 + 成绩分布 -->
@@ -54,15 +78,21 @@
           <el-table-column prop="taskName" label="任务/作业" min-width="140" />
           <el-table-column prop="submissionRate" label="提交率" width="90" align="center">
             <template #default="{ row }">
-              <span :style="{ color: monoScore(row.submissionRate) }">{{ row.submissionRate }}%</span>
+              <span :style="{ color: monoScore(row.submissionRate) }"
+                >{{ row.submissionRate }}%</span
+              >
             </template>
           </el-table-column>
           <el-table-column prop="avgScore" label="平均分" width="80" align="center" />
           <el-table-column prop="maxScore" label="最高分" width="80" align="center">
-            <template #default="{ row }"><span class="score-max">{{ row.maxScore }}</span></template>
+            <template #default="{ row }"
+              ><span class="score-max">{{ row.maxScore }}</span></template
+            >
           </el-table-column>
           <el-table-column prop="minScore" label="最低分" width="80" align="center">
-            <template #default="{ row }"><span class="score-min">{{ row.minScore }}</span></template>
+            <template #default="{ row }"
+              ><span class="score-min">{{ row.minScore }}</span></template
+            >
           </el-table-column>
         </el-table>
         <el-empty v-if="!loading && completionTable.length === 0" description="暂无数据" />
@@ -91,7 +121,7 @@ const overview = ref({
   studentCount: 0,
   avgScore: null,
   submissionRate: null,
-  attendanceRate: null
+  attendanceRate: null,
 })
 
 // 将主题色板 hex 转为带透明度的 rgba（雷达图分区底色用）
@@ -200,7 +230,8 @@ function buildDistributionOption() {
         barWidth: '45%',
         itemStyle: {
           borderRadius: [6, 6, 0, 0],
-          color: (params) => [mono[2], mono[1], mono[3], mono[6], mono[0]][params.dataIndex] || mono[1],
+          color: (params) =>
+            [mono[2], mono[1], mono[3], mono[6], mono[0]][params.dataIndex] || mono[1],
         },
       },
     ],
@@ -316,7 +347,7 @@ async function loadAnalyticsData() {
       analyticsApi.getDashboardStats({ range: timeRange.value, teacherId }),
       submissionApi.getMySubmissions({ role: 'teacher', size: 500 }),
       userApi.getTeacherStudents(),
-      courseApi.getMyCourses()
+      courseApi.getMyCourses(),
     ])
 
     // 处理仪表盘统计
@@ -327,31 +358,37 @@ async function loadAnalyticsData() {
         studentCount: data.studentCount ?? data.totalStudents ?? 0,
         avgScore: data.avgScore != null ? Math.round(data.avgScore * 10) / 10 : null,
         submissionRate: data.submissionRate != null ? Math.round(data.submissionRate) : null,
-        attendanceRate: data.attendanceRate != null ? Math.round(data.attendanceRate) : null
+        attendanceRate: data.attendanceRate != null ? Math.round(data.attendanceRate) : null,
       }
 
       if (data.trendData && Array.isArray(data.trendData)) {
-        trendOption.value.xAxis.data = data.trendData.map(d => d.label || d.date || '')
-        const values = data.trendData.map(d => d.value || d.count || 0)
-        trendOption.value.series[0].data = values.map(v => Math.round(Number(v) * 0.7 + (data.avgScore ?? 75) * 0.3))
-        trendOption.value.series[1].data = values.map(v => Math.round(Number(v) * 1.2 + 10))
-        trendOption.value.series[2].data = values.map(v => Math.max(0, Math.round(Number(v) * 0.5)))
+        trendOption.value.xAxis.data = data.trendData.map((d) => d.label || d.date || '')
+        const values = data.trendData.map((d) => d.value || d.count || 0)
+        trendOption.value.series[0].data = values.map((v) =>
+          Math.round(Number(v) * 0.7 + (data.avgScore ?? 75) * 0.3),
+        )
+        trendOption.value.series[1].data = values.map((v) => Math.round(Number(v) * 1.2 + 10))
+        trendOption.value.series[2].data = values.map((v) =>
+          Math.max(0, Math.round(Number(v) * 0.5)),
+        )
       }
 
       // 注：gradeDistribution / activityRanking / taskCompletion 后端不返回，
       // 分别由 submitRes / studentRes 的 fallback 逻辑处理
 
       if (data.courseDistribution && Array.isArray(data.courseDistribution)) {
-        radarOption.value.legend.data = data.courseDistribution.slice(0, 5).map(c => c.name || c.courseName || '')
-        radarOption.value.series[0].data = data.courseDistribution.slice(0, 5).map(c => ({
+        radarOption.value.legend.data = data.courseDistribution
+          .slice(0, 5)
+          .map((c) => c.name || c.courseName || '')
+        radarOption.value.series[0].data = data.courseDistribution.slice(0, 5).map((c) => ({
           name: c.name || c.courseName || '',
           value: [
             data.avgScore ?? 75,
             c.value ? Math.min(100, c.value * 5) : 75,
             85,
             c.value ? Math.min(100, c.value * 3) : 65,
-            70
-          ]
+            70,
+          ],
         }))
       }
     }
@@ -362,26 +399,28 @@ async function loadAnalyticsData() {
       if (Array.isArray(sData) && sData.length > 0) {
         // 按时间分组计算趋势
         const scoreMap = new Map()
-        sData.filter(s => s.score != null).forEach(s => {
-          const key = (s.createdAt || '').slice(0, 10) || 'unknown'
-          if (!scoreMap.has(key)) scoreMap.set(key, [])
-          scoreMap.get(key).push(s.score)
-        })
+        sData
+          .filter((s) => s.score != null)
+          .forEach((s) => {
+            const key = (s.createdAt || '').slice(0, 10) || 'unknown'
+            if (!scoreMap.has(key)) scoreMap.set(key, [])
+            scoreMap.get(key).push(s.score)
+          })
         const sorted = [...scoreMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-15)
         if (sorted.length > 0) {
-          trendOption.value.xAxis.data = sorted.map(s => s[0])
-          trendOption.value.series[0].data = sorted.map(s => {
+          trendOption.value.xAxis.data = sorted.map((s) => s[0])
+          trendOption.value.series[0].data = sorted.map((s) => {
             const arr = s[1]
-            return Math.round(arr.reduce((a, b) => a + b, 0) / arr.length * 10) / 10
+            return Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10
           })
-          trendOption.value.series[1].data = sorted.map(s => Math.max(...s[1]))
-          trendOption.value.series[2].data = sorted.map(s => Math.min(...s[1]))
+          trendOption.value.series[1].data = sorted.map((s) => Math.max(...s[1]))
+          trendOption.value.series[2].data = sorted.map((s) => Math.min(...s[1]))
         }
         // 计算成绩分布
-        const allScores = sData.filter(s => s.score != null).map(s => s.score)
+        const allScores = sData.filter((s) => s.score != null).map((s) => s.score)
         if (allScores.length > 0) {
           const buckets = [0, 0, 0, 0, 0]
-          allScores.forEach(sc => {
+          allScores.forEach((sc) => {
             if (sc >= 90) buckets[0]++
             else if (sc >= 80) buckets[1]++
             else if (sc >= 70) buckets[2]++
@@ -397,14 +436,19 @@ async function loadAnalyticsData() {
     if (studentRes.status === 'fulfilled' && activityRankOption.value.yAxis.data.length === 0) {
       const stuData = studentRes.value.data?.list || studentRes.value.data || []
       if (Array.isArray(stuData) && stuData.length > 0) {
-        const ranked = stuData.slice(0, 10).map(s => ({
-          name: s.name || s.studentName || s.username || s.realName || '-',
-          score: s.activityValue ?? s.loginCount ?? s.submissionCount ?? 0
-        })).reverse()
-        activityRankOption.value.yAxis.data = ranked.map(s => s.name)
+        const ranked = stuData
+          .slice(0, 10)
+          .map((s) => ({
+            name: s.name || s.studentName || s.username || s.realName || '-',
+            score: s.activityValue ?? s.loginCount ?? s.submissionCount ?? 0,
+          }))
+          .reverse()
+        activityRankOption.value.yAxis.data = ranked.map((s) => s.name)
         activityRankOption.value.series[0].data = ranked.map((s, i) => ({
           value: s.score,
-          itemStyle: { borderRadius: [0, i === ranked.length - 1 ? 8 : 4, i === ranked.length - 1 ? 8 : 4, 0] }
+          itemStyle: {
+            borderRadius: [0, i === ranked.length - 1 ? 8 : 4, i === ranked.length - 1 ? 8 : 4, 0],
+          },
         }))
         // 更新学生总数
         if (overview.value.studentCount === 0) {
@@ -417,16 +461,16 @@ async function loadAnalyticsData() {
     if (courseRes.status === 'fulfilled' && radarOption.value.series[0].data.length === 0) {
       const cList = courseRes.value.data?.list || courseRes.value.data || []
       if (Array.isArray(cList) && cList.length > 0) {
-        radarOption.value.legend.data = cList.slice(0, 5).map(c => c.name || `课程${c.id}`)
-        radarOption.value.series[0].data = cList.slice(0, 5).map(c => ({
+        radarOption.value.legend.data = cList.slice(0, 5).map((c) => c.name || `课程${c.id}`)
+        radarOption.value.series[0].data = cList.slice(0, 5).map((c) => ({
           name: c.name || `课程${c.id}`,
           value: [
             c.avgScore ?? c.averageScore ?? 70,
             c.submissionRate ?? c.submitRate ?? 75,
             c.attendanceRate ?? 85,
             c.enrollmentCount ? Math.min(100, c.enrollmentCount * 5) : 65,
-            c.completionRate ?? 70
-          ]
+            c.completionRate ?? 70,
+          ],
         }))
       }
     }

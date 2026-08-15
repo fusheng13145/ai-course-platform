@@ -50,3 +50,8 @@ e2e_*.txt
 
 # 运行时用户上传目录（含用户文件，不入库）
 uploads/
+
+# Sentinel 运行期持久化规则（由 YAML 启动时生成，可手动热编辑；落盘文件不入库）
+sentinel-rules/
+flow-rules.json
+degrade-rules.json

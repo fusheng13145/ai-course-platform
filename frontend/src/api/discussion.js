@@ -21,6 +21,9 @@ export const pinTopic = (id, pinned) =>
 // 删除帖子
 export const deletePost = (postId) => request.delete(`/discussion/post/${postId}`)
 
+/**
+ * 默认导出对象：模块/组件配置与导出内容
+ */
 export default {
   createTopic,
   getTopics,

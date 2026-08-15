@@ -13,14 +13,21 @@
             :rules="basicRules"
             class="settings-form"
           >
-            <el-divider content-position="left"><el-icon><Setting /></el-icon>站点信息</el-divider>
+            <el-divider content-position="left"
+              ><el-icon><Setting /></el-icon>站点信息</el-divider
+            >
 
             <el-form-item label="站点名称" prop="siteName">
               <el-input v-model="forms.basic.siteName" placeholder="请输入站点名称" />
             </el-form-item>
 
             <el-form-item label="站点描述" prop="siteDescription">
-              <el-input v-model="forms.basic.siteDescription" type="textarea" :rows="3" placeholder="站点描述信息" />
+              <el-input
+                v-model="forms.basic.siteDescription"
+                type="textarea"
+                :rows="3"
+                placeholder="站点描述信息"
+              />
             </el-form-item>
 
             <el-form-item label="站点Logo URL" prop="logoUrl">
@@ -31,10 +38,16 @@
               <el-input v-model="forms.basic.icpNumber" placeholder="ICP备案号（可选）" />
             </el-form-item>
 
-            <el-divider content-position="left"><el-icon><User /></el-icon>用户相关</el-divider>
+            <el-divider content-position="left"
+              ><el-icon><User /></el-icon>用户相关</el-divider
+            >
 
             <el-form-item label="允许注册" prop="allowRegister">
-              <el-switch v-model="forms.basic.allowRegister" active-text="开启" inactive-text="关闭" />
+              <el-switch
+                v-model="forms.basic.allowRegister"
+                active-text="开启"
+                inactive-text="关闭"
+              />
               <span class="form-tip">关闭后新用户无法自行注册</span>
             </el-form-item>
 
@@ -59,8 +72,15 @@
 
         <!-- 安全设置 -->
         <el-tab-pane label="安全设置" name="security">
-          <el-form ref="securityFormRef" :model="forms.security" label-width="160px" class="settings-form">
-            <el-divider content-position="left"><el-icon><Lock /></el-icon>密码策略</el-divider>
+          <el-form
+            ref="securityFormRef"
+            :model="forms.security"
+            label-width="160px"
+            class="settings-form"
+          >
+            <el-divider content-position="left"
+              ><el-icon><Lock /></el-icon>密码策略</el-divider
+            >
 
             <el-form-item label="最小密码长度" prop="minPasswordLength">
               <el-input-number v-model="forms.security.minPasswordLength" :min="6" :max="32" />
@@ -80,7 +100,9 @@
               <span class="form-tip">0表示永不过期</span>
             </el-form-item>
 
-            <el-divider content-position="left"><el-icon><Monitor /></el-icon>登录限制</el-divider>
+            <el-divider content-position="left"
+              ><el-icon><Monitor /></el-icon>登录限制</el-divider
+            >
 
             <el-form-item label="最大登录尝试次数" prop="maxLoginAttempts">
               <el-input-number v-model="forms.security.maxLoginAttempts" :min="3" :max="20" />
@@ -91,7 +113,12 @@
             </el-form-item>
 
             <el-form-item label="会话超时时间(分钟)" prop="sessionTimeout">
-              <el-input-number v-model="forms.security.sessionTimeout" :min="15" :max="1440" :step="15" />
+              <el-input-number
+                v-model="forms.security.sessionTimeout"
+                :min="15"
+                :max="1440"
+                :step="15"
+              />
             </el-form-item>
 
             <el-form-item label="启用双因素认证" prop="enable2FA">
@@ -99,7 +126,11 @@
             </el-form-item>
 
             <el-form-item>
-              <el-button type="primary" :loading="saving.security" @click="saveSettings('security')">
+              <el-button
+                type="primary"
+                :loading="saving.security"
+                @click="saveSettings('security')"
+              >
                 保存安全设置
               </el-button>
             </el-form-item>
@@ -108,8 +139,19 @@
 
         <!-- 邮件配置 -->
         <el-tab-pane label="邮件配置" name="email">
-          <el-form ref="emailFormRef" :model="forms.email" label-width="150px" class="settings-form">
-            <el-alert title="配置完成后可使用「发送测试邮件」验证连通性" type="info" show-icon :closable="false" class="alert-mb" />
+          <el-form
+            ref="emailFormRef"
+            :model="forms.email"
+            label-width="150px"
+            class="settings-form"
+          >
+            <el-alert
+              title="配置完成后可使用「发送测试邮件」验证连通性"
+              type="info"
+              show-icon
+              :closable="false"
+              class="alert-mb"
+            />
 
             <el-form-item label="SMTP服务器地址" prop="smtpHost">
               <el-input v-model="forms.email.smtpHost" placeholder="例如: smtp.example.com" />
@@ -129,16 +171,27 @@
             </el-form-item>
 
             <el-form-item label="用户名/授权码" prop="username">
-              <el-input v-model="forms.email.username" placeholder="SMTP登录凭据" type="password" show-password />
+              <el-input
+                v-model="forms.email.username"
+                placeholder="SMTP登录凭据"
+                type="password"
+                show-password
+              />
             </el-form-item>
 
             <el-form-item label="启用SSL/TLS" prop="useSSL">
-              <el-switch v-model="forms.email.useSSL" active-text="SSL" inactive-text="TLS/无加密" />
+              <el-switch
+                v-model="forms.email.useSSL"
+                active-text="SSL"
+                inactive-text="TLS/无加密"
+              />
             </el-form-item>
 
             <el-form-item>
               <el-space>
-                <el-button type="primary" :loading="saving.email" @click="saveSettings('email')">保存邮件配置</el-button>
+                <el-button type="primary" :loading="saving.email" @click="saveSettings('email')"
+                  >保存邮件配置</el-button
+                >
                 <el-button @click="sendTestEmail">发送测试邮件</el-button>
               </el-space>
             </el-form-item>
@@ -147,18 +200,35 @@
 
         <!-- 上传配置 -->
         <el-tab-pane label="上传配置" name="upload">
-          <el-form ref="uploadFormRef" :model="forms.upload" label-width="160px" class="settings-form">
-            <el-divider content-position="left"><el-icon><Upload /></el-icon>文件大小限制</el-divider>
+          <el-form
+            ref="uploadFormRef"
+            :model="forms.upload"
+            label-width="160px"
+            class="settings-form"
+          >
+            <el-divider content-position="left"
+              ><el-icon><Upload /></el-icon>文件大小限制</el-divider
+            >
 
             <el-form-item label="单文件最大(MB)" prop="maxFileSize">
-              <el-slider v-model="forms.upload.maxFileSize" :min="1" :max="100" :step="1" show-input input-size="small" class="w-400" />
+              <el-slider
+                v-model="forms.upload.maxFileSize"
+                :min="1"
+                :max="100"
+                :step="1"
+                show-input
+                input-size="small"
+                class="w-400"
+              />
             </el-form-item>
 
             <el-form-item label="总存储配额(GB)" prop="totalQuota">
               <el-input-number v-model="forms.upload.totalQuota" :min="1" :max="1000" />
             </el-form-item>
 
-            <el-divider content-position="left"><el-icon><Document /></el-icon>文件格式限制</el-divider>
+            <el-divider content-position="left"
+              ><el-icon><Document /></el-icon>文件格式限制</el-divider
+            >
 
             <el-form-item label="允许的图片格式" prop="imageFormats">
               <el-tag
@@ -167,7 +237,8 @@
                 closable
                 class="format-tag"
                 @close="removeFormat('image', fmt)"
-              >{{ fmt }}</el-tag>
+                >{{ fmt }}</el-tag
+              >
               <el-input
                 v-if="inputVisible.image"
                 v-model="inputValue.image"
@@ -176,11 +247,9 @@
                 @keyup.enter="confirmFormat('image')"
                 @blur="confirmFormat('image')"
               />
-              <el-button
-                v-else
-                size="small"
-                @click="showInput('image')"
-              ><el-icon><Plus /></el-icon></el-button>
+              <el-button v-else size="small" @click="showInput('image')"
+                ><el-icon><Plus /></el-icon
+              ></el-button>
             </el-form-item>
 
             <el-form-item label="允许的文档格式" prop="docFormats">
@@ -190,7 +259,8 @@
                 closable
                 class="format-tag"
                 @close="removeFormat('doc', fmt)"
-              >{{ fmt }}</el-tag>
+                >{{ fmt }}</el-tag
+              >
               <el-input
                 v-if="inputVisible.doc"
                 v-model="inputValue.doc"
@@ -199,11 +269,9 @@
                 @keyup.enter="confirmFormat('doc')"
                 @blur="confirmFormat('doc')"
               />
-              <el-button
-                v-else
-                size="small"
-                @click="showInput('doc')"
-              ><el-icon><Plus /></el-icon></el-button>
+              <el-button v-else size="small" @click="showInput('doc')"
+                ><el-icon><Plus /></el-icon
+              ></el-button>
             </el-form-item>
 
             <el-form-item>
@@ -216,8 +284,15 @@
 
         <!-- 通知设置 -->
         <el-tab-pane label="通知设置" name="notification">
-          <el-form ref="notifFormRef" :model="forms.notification" label-width="160px" class="settings-form">
-            <el-divider content-position="left"><el-icon><Bell /></el-icon>默认通知方式</el-divider>
+          <el-form
+            ref="notifFormRef"
+            :model="forms.notification"
+            label-width="160px"
+            class="settings-form"
+          >
+            <el-divider content-position="left"
+              ><el-icon><Bell /></el-icon>默认通知方式</el-divider
+            >
 
             <el-form-item label="站内通知" prop="inAppNotification">
               <el-switch v-model="forms.notification.inAppNotification" />
@@ -233,10 +308,17 @@
               <span class="form-tip">暂未开放</span>
             </el-form-item>
 
-            <el-divider content-position="left"><el-icon><Clock /></el-icon>自动提醒</el-divider>
+            <el-divider content-position="left"
+              ><el-icon><Clock /></el-icon>自动提醒</el-divider
+            >
 
             <el-form-item label="考试前提醒(小时)" prop="examReminderHours">
-              <el-input-number v-model="forms.notification.examReminderHours" :min="0" :max="168" :step="1" />
+              <el-input-number
+                v-model="forms.notification.examReminderHours"
+                :min="0"
+                :max="168"
+                :step="1"
+              />
             </el-form-item>
 
             <el-form-item label="作业截止前提醒" prop="deadlineReminder">
@@ -248,7 +330,11 @@
             </el-form-item>
 
             <el-form-item>
-              <el-button type="primary" :loading="saving.notification" @click="saveSettings('notification')">
+              <el-button
+                type="primary"
+                :loading="saving.notification"
+                @click="saveSettings('notification')"
+              >
                 保存通知设置
               </el-button>
             </el-form-item>
@@ -270,7 +356,7 @@ import {
   Document,
   Bell,
   Clock,
-  Plus
+  Plus,
 } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
@@ -293,7 +379,7 @@ const saving = reactive({
   security: false,
   email: false,
   upload: false,
-  notification: false
+  notification: false,
 })
 
 // 表单数据
@@ -305,7 +391,7 @@ const forms = reactive({
     icpNumber: '',
     allowRegister: true,
     defaultRole: 'STUDENT',
-    pageSize: 20
+    pageSize: 20,
   },
   security: {
     minPasswordLength: 8,
@@ -314,7 +400,7 @@ const forms = reactive({
     maxLoginAttempts: 5,
     lockoutDuration: 30,
     sessionTimeout: 120,
-    enable2FA: false
+    enable2FA: false,
   },
   email: {
     smtpHost: '',
@@ -322,13 +408,13 @@ const forms = reactive({
     senderEmail: 'noreply@aiedu.com',
     senderName: 'AI课程平台',
     username: '',
-    useSSL: true
+    useSSL: true,
   },
   upload: {
     maxFileSize: 10,
     totalQuota: 50,
     imageFormats: ['jpg', 'jpeg', 'png', 'gif', 'webp', 'svg'],
-    docFormats: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt']
+    docFormats: ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'txt'],
   },
   notification: {
     inAppNotification: true,
@@ -336,13 +422,13 @@ const forms = reactive({
     smsNotification: false,
     examReminderHours: 24,
     deadlineReminder: true,
-    gradePublishNotify: true
-  }
+    gradePublishNotify: true,
+  },
 })
 
 // 基础表单验证规则
 const basicRules = {
-  siteName: [{ required: true, message: '请输入站点名称', trigger: 'blur' }]
+  siteName: [{ required: true, message: '请输入站点名称', trigger: 'blur' }],
 }
 
 // 上传格式输入状态
@@ -384,11 +470,21 @@ async function loadConfigGroup(group) {
 async function saveSettings(group) {
   let formRef = null
   switch (group) {
-    case 'basic': formRef = basicFormRef; break
-    case 'security': formRef = securityFormRef; break
-    case 'email': formRef = emailFormRef; break
-    case 'upload': formRef = uploadFormRef; break
-    case 'notification': formRef = notifFormRef; break
+    case 'basic':
+      formRef = basicFormRef
+      break
+    case 'security':
+      formRef = securityFormRef
+      break
+    case 'email':
+      formRef = emailFormRef
+      break
+    case 'upload':
+      formRef = uploadFormRef
+      break
+    case 'notification':
+      formRef = notifFormRef
+      break
   }
 
   if (formRef?.value) {
@@ -443,7 +539,7 @@ function getGroupName(group) {
     security: '安全设置',
     email: '邮件配置',
     upload: '上传配置',
-    notification: '通知设置'
+    notification: '通知设置',
   }
   return map[group] || group
 }
@@ -508,10 +604,18 @@ onMounted(() => {
 }
 
 /* 宽度工具类（内联样式提取） */
-.w-200 { width: 200px; }
-.w-400 { width: 400px; }
-.w-100 { width: 100px; }
-.alert-mb { margin-bottom: 20px; }
+.w-200 {
+  width: 200px;
+}
+.w-400 {
+  width: 400px;
+}
+.w-100 {
+  width: 100px;
+}
+.alert-mb {
+  margin-bottom: 20px;
+}
 
 /* 设置容器 */
 .settings-container {

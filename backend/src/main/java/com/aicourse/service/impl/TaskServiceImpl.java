@@ -1,5 +1,10 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.aicourse.constant.SubmissionStatus;
+
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.Submission;
 import com.aicourse.entity.Task;
@@ -17,8 +22,14 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
 import java.util.*;
+
+/**
+ * 任务服务实现：相关业务逻辑入口，提供增删改查与编排能力。
+ */
 @Service
 public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements TaskService {
+
+    private static final Logger log = LoggerFactory.getLogger(TaskServiceImpl.class);
 
     private final SubmissionService submissionService;
     private final CourseEnrollmentService courseEnrollmentService;
@@ -58,6 +69,8 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
             eventData.put("taskTitle", task.getTitle());
             notificationService.onEvent("TASK_CREATED", eventData);
         } catch (Exception e) {
+            log.error("发布任务失败: {}", e.getMessage(), e);
+
             // 通知失败不影响发布主流程
         }
 
@@ -70,6 +83,8 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Task updateTaskById(Long id, Task task) {
+        log.info("更新任务");
+
         task.setId(id);
         this.updateById(task);
         return this.getById(id);
@@ -109,6 +124,8 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
     @Override
     @Transactional(rollbackFor = Exception.class)
     public Task copyTask(Long sourceTaskId, String newTitle) {
+        log.info("复制任务");
+
         Task sourceTask = this.getById(sourceTaskId);
         if (sourceTask == null) {
             throw new BusinessException("源任务不存在");
@@ -153,7 +170,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         for (Task task : allTasks) {
             LambdaQueryWrapper<Submission> submissionWrapper = new LambdaQueryWrapper<Submission>()
                     .eq(Submission::getTaskId, task.getId())
-                    .in(Submission::getStatus, "SUBMITTED", "RESUBMITTED");
+                    .in(Submission::getStatus, SubmissionStatus.SUBMITTED, SubmissionStatus.RESUBMITTED);
             long pendingCount = submissionService.count(submissionWrapper);
             if (pendingCount > 0) {
                 pendingTasks.add(task);
@@ -181,19 +198,19 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         long submittedCount = submissionService.count(
                 new LambdaQueryWrapper<Submission>()
                         .eq(Submission::getTaskId, taskId)
-                        .in(Submission::getStatus, "SUBMITTED", "RESUBMITTED")
+                        .in(Submission::getStatus, SubmissionStatus.SUBMITTED, SubmissionStatus.RESUBMITTED)
         );
 
         long gradedCount = submissionService.count(
                 new LambdaQueryWrapper<Submission>()
                         .eq(Submission::getTaskId, taskId)
-                        .eq(Submission::getStatus, "GRADED")
+                        .eq(Submission::getStatus, SubmissionStatus.GRADED)
         );
 
         long returnedCount = submissionService.count(
                 new LambdaQueryWrapper<Submission>()
                         .eq(Submission::getTaskId, taskId)
-                        .eq(Submission::getStatus, "RETURNED")
+                        .eq(Submission::getStatus, SubmissionStatus.RETURNED)
         );
 
         long lateCount = submissionService.count(
@@ -208,7 +225,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
             List<Submission> gradedSubmissions = submissionService.list(
                     new LambdaQueryWrapper<Submission>()
                             .eq(Submission::getTaskId, taskId)
-                            .eq(Submission::getStatus, "GRADED")
+                            .eq(Submission::getStatus, SubmissionStatus.GRADED)
                             .isNotNull(Submission::getScore)
             );
             avgScore = gradedSubmissions.stream()
@@ -223,7 +240,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
         long submittedStudentCount = submissionService.list(
                 new LambdaQueryWrapper<Submission>()
                         .eq(Submission::getTaskId, taskId)
-                        .in(Submission::getStatus, "SUBMITTED", "RESUBMITTED", "GRADED", "RETURNED")
+                        .in(Submission::getStatus, SubmissionStatus.SUBMITTED, SubmissionStatus.RESUBMITTED, SubmissionStatus.GRADED, SubmissionStatus.RETURNED)
         ).stream().map(Submission::getStudentId).distinct().count();
 
         long enrolledCount = 0;

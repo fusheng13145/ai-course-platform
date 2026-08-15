@@ -91,4 +91,12 @@ public interface AuthService {
      * @return 操作结果
      */
     ApiResponse<Void> resetPasswordByEmail(String email, String code, String newPassword);
+
+    /**
+     * 校验邮箱验证码有效性（仅校验，不消费；供找回密码第二步「验证邮箱」使用）
+     * @param email 邮箱
+     * @param code 验证码
+     * @return 操作结果
+     */
+    ApiResponse<Void> verifyCode(String email, String code);
 }

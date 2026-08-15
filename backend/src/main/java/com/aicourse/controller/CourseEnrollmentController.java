@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import jakarta.validation.Valid;
 
 import com.aicourse.common.ApiCode;
@@ -27,6 +30,8 @@ import java.util.Map;
 @RequestMapping("/enrollments")
 @Tag(name = "选课管理")
 public class CourseEnrollmentController {
+
+    private static final Logger log = LoggerFactory.getLogger(CourseEnrollmentController.class);
 
     private final CourseEnrollmentService enrollmentService;
     private final CourseService courseService;

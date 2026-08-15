@@ -1,45 +1,124 @@
 <template>
   <div>
-    <PageHeader compact title="章节结构" :subtitle="`${flatCount} 章 · 点击编辑节点信息`" icon="list">
-      <button class="btn btn-primary btn-sm" @click="openCreate()"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg> 新增顶级章节</button>
+    <PageHeader
+      compact
+      title="章节结构"
+      :subtitle="`${flatCount} 章 · 点击编辑节点信息`"
+      icon="list"
+    >
+      <button class="btn btn-primary btn-sm" @click="openCreate()">
+        <svg
+          viewBox="0 0 24 24"
+          width="14"
+          height="14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+        新增顶级章节
+      </button>
     </PageHeader>
     <section class="l1-card">
       <div class="l1-body">
         <div v-if="tree.length" class="tree">
           <div v-for="node in tree" :key="node.id" class="tree-node">
             <div class="tree-row tree-row--main">
-              <span class="tree-toggle" @click="toggle(node.id)"><svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="isOpen(node.id) ? 'is-open' : ''"><path d="m9 18 6-6-6-6"/></svg></span>
+              <span class="tree-toggle" @click="toggle(node.id)"
+                ><svg
+                  viewBox="0 0 24 24"
+                  width="14"
+                  height="14"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                  :class="isOpen(node.id) ? 'is-open' : ''"
+                >
+                  <path d="m9 18 6-6-6-6" /></svg
+              ></span>
               <span class="tree-title">{{ node.title }}</span>
-              <span class="muted tree-meta--main">任务点 {{ node.taskCount || 0 }} · 完成率 {{ pct(node.completionRate) }}</span>
-              <span class="tag" :class="node.isPublished ? 'green' : ''">{{ node.isPublished ? '已发布' : '草稿' }}</span>
-              <span class="tree-actions"><span class="op-link" @click="openEdit(node)">编辑</span><span class="op-link danger" @click="remove(node)">删除</span></span>
+              <span class="muted tree-meta--main"
+                >任务点 {{ node.taskCount || 0 }} · 完成率 {{ pct(node.completionRate) }}</span
+              >
+              <span class="tag" :class="node.isPublished ? 'green' : ''">{{
+                node.isPublished ? '已发布' : '草稿'
+              }}</span>
+              <span class="tree-actions"
+                ><span class="op-link" @click="openEdit(node)">编辑</span
+                ><span class="op-link danger" @click="remove(node)">删除</span></span
+              >
             </div>
-            <div v-if="node.children && node.children.length && isOpen(node.id)" class="tree-children-pad">
+            <div
+              v-if="node.children && node.children.length && isOpen(node.id)"
+              class="tree-children-pad"
+            >
               <div v-for="c in node.children" :key="c.id">
                 <div class="tree-row tree-row--child">
                   <span class="tree-title tree-title--child">{{ c.title }}</span>
-                  <span class="muted tree-meta--child">任务点 {{ c.taskCount || 0 }} · 完成率 {{ pct(c.completionRate) }}</span>
-                  <span class="tag" :class="c.isPublished ? 'green' : ''">{{ c.isPublished ? '已发布' : '草稿' }}</span>
-                  <span class="tree-actions"><span class="op-link" @click="openEdit(c)">编辑</span><span class="op-link danger" @click="remove(c)">删除</span></span>
+                  <span class="muted tree-meta--child"
+                    >任务点 {{ c.taskCount || 0 }} · 完成率 {{ pct(c.completionRate) }}</span
+                  >
+                  <span class="tag" :class="c.isPublished ? 'green' : ''">{{
+                    c.isPublished ? '已发布' : '草稿'
+                  }}</span>
+                  <span class="tree-actions"
+                    ><span class="op-link" @click="openEdit(c)">编辑</span
+                    ><span class="op-link danger" @click="remove(c)">删除</span></span
+                  >
                 </div>
                 <div v-if="c.taskPoints && c.taskPoints.length" class="task-tags">
-                  <span v-for="tp in c.taskPoints" :key="tp.id" class="tag outline task-tag">{{ tp.title }} <em>{{ tp.taskType }}</em></span>
+                  <span v-for="tp in c.taskPoints" :key="tp.id" class="tag outline task-tag"
+                    >{{ tp.title }} <em>{{ tp.taskType }}</em></span
+                  >
                 </div>
               </div>
             </div>
           </div>
         </div>
-        <div v-else class="empty-state"><div class="e-ico"><svg viewBox="0 0 24 24" width="24" height="24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4"/></svg></div><div class="e-title">暂无章节</div><div class="e-desc">点击右上角新增章节</div></div>
+        <div v-else class="empty-state">
+          <div class="e-ico">
+            <svg
+              viewBox="0 0 24 24"
+              width="24"
+              height="24"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            >
+              <path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" />
+            </svg>
+          </div>
+          <div class="e-title">暂无章节</div>
+          <div class="e-desc">点击右上角新增章节</div>
+        </div>
       </div>
     </section>
 
     <!-- 新增/编辑对话框 -->
-    <Modal v-if="dialogVisible" narrow @close="dialogVisible = false; resetForm()">
+    <Modal v-if="dialogVisible" narrow @close="closeDialog">
       <template #title>{{ dialogMode === 'create' ? '新增章节' : '编辑章节' }}</template>
       <div class="form-grid">
-        <div class="field span-2"><label>标题<span class="req">*</span></label><input v-model="form.title" class="input" /></div>
-        <div class="field"><label>排序</label><input v-model="form.sortOrder" class="input" type="number" /></div>
-        <div class="field"><label>发布状态</label><select v-model="form.isPublished" class="select"><option :value="true">已发布</option><option :value="false">草稿</option></select></div>
+        <div class="field span-2">
+          <label>标题<span class="req">*</span></label
+          ><input v-model="form.title" class="input" />
+        </div>
+        <div class="field">
+          <label>排序</label><input v-model="form.sortOrder" class="input" type="number" />
+        </div>
+        <div class="field">
+          <label>发布状态</label
+          ><select v-model="form.isPublished" class="select">
+            <option :value="true">已发布</option>
+            <option :value="false">草稿</option>
+          </select>
+        </div>
       </div>
       <template #footer>
         <button class="btn btn-plain" @click="dialogVisible = false">取消</button>
@@ -114,6 +193,12 @@ function resetForm() {
   form.orderIndex = 0
   form.duration = 0
   editingId.value = null
+}
+// 修复：模板多语句表达式与 prettier(semi:false) 冲突会产生 Vue 编译器无法解析的换行格式，
+// 提取为方法（对话框关闭：隐藏并重置表单）
+function closeDialog() {
+  dialogVisible.value = false
+  resetForm()
 }
 function openCreate() {
   dialogMode.value = 'create'

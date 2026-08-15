@@ -1,130 +1,188 @@
 ﻿<template>
   <div class="fade-in">
-    <PageHeader title="我的成绩" subtitle="多维成绩分析与学习趋势跟踪" icon="chart" icon-bg="accent" />
+    <PageHeader
+      title="我的成绩"
+      subtitle="多维成绩分析与学习趋势跟踪"
+      icon="chart"
+      icon-bg="accent"
+    />
 
     <div class="stat-grid animate-in d1">
-      <StatCard label="平均分" :value="avgScore" icon="chart" tone="var(--accent-soft)" tone-color="var(--accent)" />
-      <StatCard label="已完成考试" :value="list.length" icon="doc" tone="var(--info-soft)" tone-color="var(--info)" />
-      <StatCard label="班级排名" :value="rankDisplay" icon="award" tone="var(--ok-soft)" tone-color="var(--ok)" />
+      <StatCard
+        label="平均分"
+        :value="avgScore"
+        icon="chart"
+        tone="var(--accent-soft)"
+        tone-color="var(--accent)"
+      />
+      <StatCard
+        label="已完成考试"
+        :value="list.length"
+        icon="doc"
+        tone="var(--info-soft)"
+        tone-color="var(--info)"
+      />
+      <StatCard
+        label="班级排名"
+        :value="rankDisplay"
+        icon="award"
+        tone="var(--ok-soft)"
+        tone-color="var(--ok)"
+      />
     </div>
 
     <section class="l1-card animate-in d2">
       <div class="l1-head">
         <span class="l1-ico">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18M18 17V9M13 17V5M8 17v-3"/></svg>
+          <svg
+            viewBox="0 0 24 24"
+            width="17"
+            height="17"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.9"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M3 3v18h18M18 17V9M13 17V5M8 17v-3" />
+          </svg>
         </span>
-        <div><div class="l1-title">成绩分析</div><div class="l1-sub">成绩维度雷达图、历次趋势与课程明细</div></div>
+        <div>
+          <div class="l1-title">成绩分析</div>
+          <div class="l1-sub">成绩维度雷达图、历次趋势与课程明细</div>
+        </div>
       </div>
       <div class="l1-body">
         <!-- 图表区域：雷达图 + 趋势图 -->
         <div class="charts-row">
-      <!-- 成绩分布雷达图 -->
-      <div class="chart-card">
-        <div class="chart-header">
-          <span class="chart-title">成绩维度分析</span>
-        </div>
-        <v-chart v-if="!loading && groupedByCourse && Object.keys(groupedByCourse).length >= 3" :option="radarOption" class="chart-fixed" autoresize />
-        <el-empty v-else-if="!loading && (!groupedByCourse || Object.keys(groupedByCourse).length < 3)" description="选课不足（至少3门），暂无法生成多维对比分析" :image-size="80" />
-        <div v-else class="chart-loading">
-          <span class="muted">加载中...</span>
-        </div>
-      </div>
-
-      <!-- 成绩趋势折线图 -->
-      <div class="chart-card">
-        <div class="chart-header">
-          <span class="chart-title">历次考试成绩趋势</span>
-        </div>
-        <v-chart v-if="!loading && list.length > 0" :option="trendOption" class="chart-fixed" autoresize />
-        <el-empty v-else-if="!loading && list.length === 0" description="暂无考试记录" :image-size="80" />
-      </div>
-    </div>
-
-    <!-- 各课程详细成绩卡片 -->
-    <div class="grades-section">
-      <h3 class="section-title">课程成绩详情</h3>
-      <div class="course-grade-grid">
-        <div
-          v-for="(group, courseName) in groupedByCourse"
-          :key="courseName"
-          class="grade-course-card"
-        >
-          <div class="card-header">
-            <h4 class="course-name">{{ courseName }}</h4>
-            <el-tag :type="getGradeLevelType(group.avgScore)" size="small">
-              {{ getGradeLevelLabel(group.avgScore) }}
-            </el-tag>
-          </div>
-
-          <!-- 该课程的平均分 -->
-          <div class="score-highlight">
-            <span class="score-big">{{ group.avgScore }}</span>
-            <span class="score-max">/ {{ group.maxTotal || 100 }}</span>
-          </div>
-
-          <!-- 排名信息 -->
-          <div v-if="group.rank" class="rank-info">
-            <span class="rank-label">排名：</span>
-            <span class="rank-value">{{ group.rank }} / {{ group.totalStudents || '--' }}</span>
-          </div>
-
-          <!-- 成绩列表 -->
-          <div class="exam-list-mini">
-            <div v-for="exam in group.exams" :key="exam.id" class="exam-mini-item">
-              <span class="mini-name">{{ exam.examTitle || '考试' }}</span>
-              <el-tag
-                :type="getGradeLevelTag(exam.score)"
-                size="small"
-              >
-                {{ exam.score }} 分
-              </el-tag>
-              <span class="mini-time">{{ formatTime(exam.submitTime, '--') }}</span>
+          <!-- 成绩分布雷达图 -->
+          <div class="chart-card">
+            <div class="chart-header">
+              <span class="chart-title">成绩维度分析</span>
+            </div>
+            <v-chart
+              v-if="!loading && groupedByCourse && Object.keys(groupedByCourse).length >= 3"
+              :option="radarOption"
+              class="chart-fixed"
+              autoresize
+            />
+            <el-empty
+              v-else-if="!loading && (!groupedByCourse || Object.keys(groupedByCourse).length < 3)"
+              description="选课不足（至少3门），暂无法生成多维对比分析"
+              :image-size="80"
+            />
+            <div v-else class="chart-loading">
+              <span class="muted">加载中...</span>
             </div>
           </div>
+
+          <!-- 成绩趋势折线图 -->
+          <div class="chart-card">
+            <div class="chart-header">
+              <span class="chart-title">历次考试成绩趋势</span>
+            </div>
+            <v-chart
+              v-if="!loading && list.length > 0"
+              :option="trendOption"
+              class="chart-fixed"
+              autoresize
+            />
+            <el-empty
+              v-else-if="!loading && list.length === 0"
+              description="暂无考试记录"
+              :image-size="80"
+            />
+          </div>
         </div>
-      </div>
 
-      <el-empty v-if="!loading && Object.keys(groupedByCourse).length === 0" description="暂无成绩记录" :image-size="100">
-        <template #image><div class="empty-deco">📉</div></template>
-      </el-empty>
+        <!-- 各课程详细成绩卡片 -->
+        <div class="grades-section">
+          <h3 class="section-title">课程成绩详情</h3>
+          <div class="course-grade-grid">
+            <div
+              v-for="(group, courseName) in groupedByCourse"
+              :key="courseName"
+              class="grade-course-card"
+            >
+              <div class="card-header">
+                <h4 class="course-name">{{ courseName }}</h4>
+                <el-tag :type="getGradeLevelType(group.avgScore)" size="small">
+                  {{ getGradeLevelLabel(group.avgScore) }}
+                </el-tag>
+              </div>
 
-      <!-- 完整表格（折叠） -->
-      <div v-if="list.length > 0" class="table-section">
-        <el-button text class="table-toggle" @click="showTable = !showTable">
-          {{ showTable ? '收起' : '展开' }}完整成绩表
-          <el-icon><ArrowDown :class="{ rotated: showTable }" /></el-icon>
-        </el-button>
-        <transition name="expand-fade">
-          <el-table
-            v-if="showTable"
-            v-loading="loading"
-            :data="list"
-            stripe
-            class="grade-table"
-            row-class-name="grade-table-row"
+              <!-- 该课程的平均分 -->
+              <div class="score-highlight">
+                <span class="score-big">{{ group.avgScore }}</span>
+                <span class="score-max">/ {{ group.maxTotal || 100 }}</span>
+              </div>
+
+              <!-- 排名信息 -->
+              <div v-if="group.rank" class="rank-info">
+                <span class="rank-label">排名：</span>
+                <span class="rank-value">{{ group.rank }} / {{ group.totalStudents || '--' }}</span>
+              </div>
+
+              <!-- 成绩列表 -->
+              <div class="exam-list-mini">
+                <div v-for="exam in group.exams" :key="exam.id" class="exam-mini-item">
+                  <span class="mini-name">{{ exam.examTitle || '考试' }}</span>
+                  <el-tag :type="getGradeLevelTag(exam.score)" size="small">
+                    {{ exam.score }} 分
+                  </el-tag>
+                  <span class="mini-time">{{ formatTime(exam.submitTime, '--') }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <el-empty
+            v-if="!loading && Object.keys(groupedByCourse).length === 0"
+            description="暂无成绩记录"
+            :image-size="100"
           >
-            <el-table-column prop="examTitle" label="考试名称" min-width="160" />
-            <el-table-column prop="courseName" label="课程" width="140" />
-            <el-table-column prop="score" label="成绩" width="90" align="center">
-              <template #default="{ row }">
-                <el-tag :type="getGradeLevelTag(row.score)" size="small">{{ row.score }}</el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column prop="totalScore" label="总分" width="70" align="center" />
-            <el-table-column prop="submitTime" label="提交时间" width="160">
-              <template #default="{ row }">{{ formatTime(row.submitTime, '--') }}</template>
-            </el-table-column>
-            <el-table-column label="等级" width="80" align="center">
-              <template #default="{ row }">
-                <span class="level-text" :class="'level-' + getGradeClass(row.score)">
-                  {{ getGradeLevelLabel(row.score) }}
-                </span>
-              </template>
-            </el-table-column>
-          </el-table>
-        </transition>
-      </div>
-    </div>
+            <template #image><div class="empty-deco">📉</div></template>
+          </el-empty>
+
+          <!-- 完整表格（折叠） -->
+          <div v-if="list.length > 0" class="table-section">
+            <el-button text class="table-toggle" @click="showTable = !showTable">
+              {{ showTable ? '收起' : '展开' }}完整成绩表
+              <el-icon><ArrowDown :class="{ rotated: showTable }" /></el-icon>
+            </el-button>
+            <transition name="expand-fade">
+              <el-table
+                v-if="showTable"
+                v-loading="loading"
+                :data="list"
+                stripe
+                class="grade-table"
+                row-class-name="grade-table-row"
+              >
+                <el-table-column prop="examTitle" label="考试名称" min-width="160" />
+                <el-table-column prop="courseName" label="课程" width="140" />
+                <el-table-column prop="score" label="成绩" width="90" align="center">
+                  <template #default="{ row }">
+                    <el-tag :type="getGradeLevelTag(row.score)" size="small">{{
+                      row.score
+                    }}</el-tag>
+                  </template>
+                </el-table-column>
+                <el-table-column prop="totalScore" label="总分" width="70" align="center" />
+                <el-table-column prop="submitTime" label="提交时间" width="160">
+                  <template #default="{ row }">{{ formatTime(row.submitTime, '--') }}</template>
+                </el-table-column>
+                <el-table-column label="等级" width="80" align="center">
+                  <template #default="{ row }">
+                    <span class="level-text" :class="'level-' + getGradeClass(row.score)">
+                      {{ getGradeLevelLabel(row.score) }}
+                    </span>
+                  </template>
+                </el-table-column>
+              </el-table>
+            </transition>
+          </div>
+        </div>
       </div>
     </section>
   </div>
@@ -162,7 +220,7 @@ const rankDisplay = computed(() => {
 /** 按课程分组 */
 const groupedByCourse = computed(() => {
   const groups = {}
-  list.value.forEach(item => {
+  list.value.forEach((item) => {
     const name = item.courseName || '未知课程'
     if (!groups[name]) {
       groups[name] = { exams: [], scores: [], maxTotal: item.totalScore }
@@ -175,7 +233,7 @@ const groupedByCourse = computed(() => {
   })
 
   // 添加计算字段
-  Object.keys(groups).forEach(name => {
+  Object.keys(groups).forEach((name) => {
     const g = groups[name]
     g.avgScore = Math.round(g.scores.reduce((a, b) => a + b, 0) / g.scores.length)
     g.rank = null // 排名需要后端支持
@@ -206,12 +264,12 @@ const radarOption = computed(() => {
       trigger: 'item',
       backgroundColor: t.tooltipBg,
       borderColor: t.tooltipBorder,
-      textStyle: { color: t.tooltipText, fontSize: 13 }
+      textStyle: { color: t.tooltipText, fontSize: 13 },
     },
     legend: {
       data: ['我的成绩'],
       bottom: 0,
-      textStyle: { fontSize: 12, color: t.subText }
+      textStyle: { fontSize: 12, color: t.subText },
     },
     radar: {
       indicator: dimensions,
@@ -219,44 +277,51 @@ const radarOption = computed(() => {
       splitNumber: 4,
       axisName: {
         color: t.text,
-        fontSize: 11
+        fontSize: 11,
       },
       splitLine: {
-        lineStyle: { color: t.split }
+        lineStyle: { color: t.split },
       },
       splitArea: {
         areaStyle: {
-          color: [`${mono[0]}0A`, `${mono[0]}14`, `${mono[0]}0A`, `${mono[0]}05`]
-        }
+          color: [`${mono[0]}0A`, `${mono[0]}14`, `${mono[0]}0A`, `${mono[0]}05`],
+        },
       },
       axisLine: {
-        lineStyle: { color: t.axis }
-      }
+        lineStyle: { color: t.axis },
+      },
     },
-    series: [{
-      type: 'radar',
-      data: [{
-        value: values,
-        name: '我的成绩',
-        symbol: 'circle',
-        symbolSize: 6,
-        lineStyle: {
-          width: 2,
-          color: mono[0]
-        },
-        areaStyle: {
-          color: {
-            type: 'linear',
-            x: 0, y: 0, x2: 0, y2: 1,
-            colorStops: [
-              { offset: 0, color: `${mono[0]}59` },
-              { offset: 1, color: `${mono[0]}0D` }
-            ]
-          }
-        },
-        itemStyle: { color: mono[0] }
-      }]
-    }]
+    series: [
+      {
+        type: 'radar',
+        data: [
+          {
+            value: values,
+            name: '我的成绩',
+            symbol: 'circle',
+            symbolSize: 6,
+            lineStyle: {
+              width: 2,
+              color: mono[0],
+            },
+            areaStyle: {
+              color: {
+                type: 'linear',
+                x: 0,
+                y: 0,
+                x2: 0,
+                y2: 1,
+                colorStops: [
+                  { offset: 0, color: `${mono[0]}59` },
+                  { offset: 1, color: `${mono[0]}0D` },
+                ],
+              },
+            },
+            itemStyle: { color: mono[0] },
+          },
+        ],
+      },
+    ],
   }
 })
 
@@ -269,14 +334,14 @@ const trendOption = computed(() => {
       trigger: 'axis',
       backgroundColor: t.tooltipBg,
       borderColor: t.tooltipBorder,
-      textStyle: { color: t.tooltipText }
+      textStyle: { color: t.tooltipText },
     },
     grid: { left: 48, right: 20, bottom: 36, top: 20 },
     xAxis: {
       type: 'category',
       data: list.value.map((_, i) => `第${i + 1}次`),
       axisLine: { lineStyle: { color: t.axis } },
-      axisLabel: { color: t.subText, fontSize: 11 }
+      axisLabel: { color: t.subText, fontSize: 11 },
     },
     yAxis: {
       type: 'value',
@@ -284,29 +349,38 @@ const trendOption = computed(() => {
       max: 100,
       axisLine: { show: false },
       splitLine: { lineStyle: { color: t.split, type: 'dashed' } },
-      axisLabel: { color: t.subText, fontSize: 11 }
+      axisLabel: { color: t.subText, fontSize: 11 },
     },
-    series: [{
-      name: '成绩',
-      type: 'line',
-      data: list.value.map(r => Number(r.score) || 0),
-      smooth: true,
-      symbol: 'circle',
-      symbolSize: 8,
-      lineStyle: { width: 2.5, color: mono[0] },
-      itemStyle: { color: mono[0] },
-      areaStyle: {
-        color: {
-          type: 'linear', x: 0, y: 0, x2: 0, y2: 1,
-          colorStops: [{ offset: 0, color: `${mono[0]}40` }, { offset: 1, color: `${mono[0]}05` }]
-        }
+    series: [
+      {
+        name: '成绩',
+        type: 'line',
+        data: list.value.map((r) => Number(r.score) || 0),
+        smooth: true,
+        symbol: 'circle',
+        symbolSize: 8,
+        lineStyle: { width: 2.5, color: mono[0] },
+        itemStyle: { color: mono[0] },
+        areaStyle: {
+          color: {
+            type: 'linear',
+            x: 0,
+            y: 0,
+            x2: 0,
+            y2: 1,
+            colorStops: [
+              { offset: 0, color: `${mono[0]}40` },
+              { offset: 1, color: `${mono[0]}05` },
+            ],
+          },
+        },
+        markLine: {
+          silent: true,
+          lineStyle: { color: monoScore(60), type: 'dashed', width: 1 },
+          data: [{ yAxis: 60, label: { formatter: '及格线', color: t.subText, fontSize: 11 } }],
+        },
       },
-      markLine: {
-        silent: true,
-        lineStyle: { color: monoScore(60), type: 'dashed', width: 1 },
-        data: [{ yAxis: 60, label: { formatter: '及格线', color: t.subText, fontSize: 11 } }]
-      }
-    }]
+    ],
   }
 })
 
@@ -346,21 +420,28 @@ onMounted(async () => {
     const [courseRes, examRes, sessionRes] = await Promise.all([
       courseApi.getCourseList(),
       examApi.getExamPaperList(),
-      examApi.getMyExamSessions()
+      examApi.getMyExamSessions(),
     ])
 
-    const courses = courseRes.data?.records || courseRes.data?.list || courseRes.data || courseRes || []
-    courses.forEach(c => { courseMap.value[c.id] = c.name })
+    const courses =
+      courseRes.data?.records || courseRes.data?.list || courseRes.data || courseRes || []
+    courses.forEach((c) => {
+      courseMap.value[c.id] = c.name
+    })
 
     const exams = examRes.data?.list || examRes.data || examRes || []
-    exams.forEach(e => {
-      examMap.value[e.id] = { title: e.title, courseId: e.courseId, totalScore: e.totalScore || 100 }
+    exams.forEach((e) => {
+      examMap.value[e.id] = {
+        title: e.title,
+        courseId: e.courseId,
+        totalScore: e.totalScore || 100,
+      }
     })
 
     const sessions = sessionRes.data || sessionRes || []
     list.value = (Array.isArray(sessions) ? sessions : [])
-      .filter(s => s.status === 'SUBMITTED' || s.status === 'GRADED')
-      .map(s => {
+      .filter((s) => s.status === 'SUBMITTED' || s.status === 'GRADED')
+      .map((s) => {
         const exam = examMap.value[s.examPaperId] || {}
         return {
           id: s.id,
@@ -368,7 +449,7 @@ onMounted(async () => {
           courseName: courseMap.value[exam.courseId] || '未知课程',
           score: s.totalScore || 0,
           totalScore: exam.totalScore || 100,
-          submitTime: s.submitTime || s.createdAt || ''
+          submitTime: s.submitTime || s.createdAt || '',
         }
       })
       .sort((a, b) => new Date(b.submitTime) - new Date(a.submitTime))
@@ -559,19 +640,47 @@ onMounted(async () => {
   border-radius: 999px;
 }
 
-.level-excellent { background: var(--ok-soft); color: var(--ok); }
-.level-good { background: var(--accent-soft); color: var(--accent-strong); }
-.level-pass { background: var(--warn-soft); color: var(--warn); }
-.level-fail { background: var(--accent-soft); color: var(--accent-strong); }
+.level-excellent {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.level-good {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
+.level-pass {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.level-fail {
+  background: var(--accent-soft);
+  color: var(--accent-strong);
+}
 
-.empty-deco { font-size: 38px; filter: grayscale(.2); }
+.empty-deco {
+  font-size: 38px;
+  filter: grayscale(0.2);
+}
 
-.expand-fade-enter-active { transition: all 0.25s ease; }
-.expand-fade-leave-active { transition: all 0.15s ease; }
-.expand-fade-enter-from, .expand-fade-leave-to { opacity: 0; max-height: 0; overflow: hidden; }
+.expand-fade-enter-active {
+  transition: all 0.25s ease;
+}
+.expand-fade-leave-active {
+  transition: all 0.15s ease;
+}
+.expand-fade-enter-from,
+.expand-fade-leave-to {
+  opacity: 0;
+  max-height: 0;
+  overflow: hidden;
+}
 
 @media (max-width: 900px) {
-  .charts-row { grid-template-columns: 1fr; }
-  .course-grade-grid { grid-template-columns: 1fr; }
+  .charts-row {
+    grid-template-columns: 1fr;
+  }
+  .course-grade-grid {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

@@ -19,6 +19,12 @@ public interface VoteService extends IService<Vote> {
     Vote createVote(Vote vote, Long userId, Authentication auth);
 
     /**
+     * 发布投票（修复 P1-15：原实现创建即 PENDING、结束即 CLOSED，缺少 PENDING→ONGOING
+     * 发布环节，学生永远无法投票；发布后方可参与）
+     */
+    Vote publish(Long id, Long userId, Authentication auth);
+
+    /**
      * 结束投票
      */
     Vote close(Long id, Long userId, Authentication auth);

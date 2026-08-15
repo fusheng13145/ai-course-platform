@@ -37,13 +37,14 @@
           <span class="ai-name">AI 学习助手</span>
         </div>
         <div class="header-right">
-          <el-select v-model="selectedCourseId" placeholder="选择课程" size="small" style="width: 160px" clearable>
-            <el-option
-              v-for="c in courseList"
-              :key="c.id"
-              :label="c.name"
-              :value="c.id"
-            />
+          <el-select
+            v-model="selectedCourseId"
+            placeholder="选择课程"
+            size="small"
+            style="width: 160px"
+            clearable
+          >
+            <el-option v-for="c in courseList" :key="c.id" :label="c.name" :value="c.id" />
           </el-select>
         </div>
       </header>
@@ -81,12 +82,7 @@
 
         <!-- 消息列表 -->
         <div v-else class="message-list">
-          <div
-            v-for="(msg, idx) in messages"
-            :key="idx"
-            class="message-row"
-            :class="msg.role"
-          >
+          <div v-for="(msg, idx) in messages" :key="idx" class="message-row" :class="msg.role">
             <!-- 用户消息 -->
             <template v-if="msg.role === 'user'">
               <div class="message-bubble user-bubble">
@@ -169,9 +165,18 @@
 import { ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import {
-  Plus, ChatDotRound, Fold, MagicStick,
-  Document, EditPen, QuestionFilled, Calendar,
-  User, CopyDocument, RefreshRight, Promotion
+  Plus,
+  ChatDotRound,
+  Fold,
+  MagicStick,
+  Document,
+  EditPen,
+  QuestionFilled,
+  Calendar,
+  User,
+  CopyDocument,
+  RefreshRight,
+  Promotion,
 } from '@element-plus/icons-vue'
 import { sanitizeHtml } from '@/utils/sanitize'
 import aiApi from '@/api/ai'
@@ -187,9 +192,9 @@ const courseList = ref([])
 const selectedCourseId = ref(null)
 
 /* ---- 对话数据 ---- */
-const conversations = ref([])   // 对话历史列表
+const conversations = ref([]) // 对话历史列表
 const currentConvId = ref(Date.now())
-const messages = ref([])         // 当前对话的消息
+const messages = ref([]) // 当前对话的消息
 const inputMessage = ref('')
 const loading = ref(false)
 
@@ -214,9 +219,12 @@ async function loadConversations() {
     const res = await aiApi.getSessions()
     const list = res.data?.list || res.data?.records || res.data || []
     if (Array.isArray(list) && list.length > 0) {
-      conversations.value = list.map(s => ({
+      conversations.value = list.map((s) => ({
         id: s.id || s.sessionId,
-        title: s.title || s.summary || `对话 ${new Date(s.createdAt || Date.now()).toLocaleDateString()}`,
+        title:
+          s.title ||
+          s.summary ||
+          `对话 ${new Date(s.createdAt || Date.now()).toLocaleDateString()}`,
         time: s.updatedAt || s.createdAt || '',
         messages: s.messages || [],
         courseName: s.courseName || '',
@@ -236,7 +244,7 @@ async function handleSend() {
   messages.value.push({
     role: 'user',
     content: content,
-    time: formatTimeFull(now)
+    time: formatTimeFull(now),
   })
 
   inputMessage.value = ''
@@ -248,7 +256,7 @@ async function handleSend() {
     role: 'assistant',
     content: '',
     time: formatTimeFull(new Date()),
-    loading: true
+    loading: true,
   })
 
   // 优先使用 SSE 流式（真逐 token 推送）
@@ -286,7 +294,7 @@ function handleSendStream(aiMsgIdx, question) {
       onDone() {
         sseController.value = null
         resolve()
-      }
+      },
     })
     sseController.value = controller
   })
@@ -298,9 +306,12 @@ async function handleSendFallback(aiMsgIdx, question) {
   if (selectedCourseId.value) payload.courseId = selectedCourseId.value
 
   const res = await aiApi.qaAsk(payload)
-  const reply = res.data?.response || res.data?.reply ||
-                 res.data?.content || res?.content ||
-                 '感谢您的提问！我正在学习中，稍后会有更完善的回答。'
+  const reply =
+    res.data?.response ||
+    res.data?.reply ||
+    res.data?.content ||
+    res?.content ||
+    '感谢您的提问！我正在学习中，稍后会有更完善的回答。'
   // 前端逐字渲染保持交互体验
   await typewriterEffect(aiMsgIdx, reply)
 }
@@ -311,7 +322,7 @@ async function handleSendFallback(aiMsgIdx, question) {
  * @param {string} text 要显示的完整文本
  */
 function typewriterEffect(msgIndex, text) {
-  return new Promise(resolve => {
+  return new Promise((resolve) => {
     let i = 0
     messages.value[msgIndex].content = ''
     const interval = setInterval(() => {
@@ -321,7 +332,7 @@ function typewriterEffect(msgIndex, text) {
         if (i % 3 === 0) scrollToBottom()
       } else {
         clearInterval(interval)
-        activeIntervals.value = activeIntervals.value.filter(t => t !== interval)
+        activeIntervals.value = activeIntervals.value.filter((t) => t !== interval)
         resolve()
       }
     }, 20)
@@ -345,7 +356,7 @@ async function handleGenerateSummary() {
   messages.value.push({
     role: 'user',
     content: '请帮我总结当前课程的核心知识点',
-    time: formatTimeFull(new Date())
+    time: formatTimeFull(new Date()),
   })
   loading.value = true
   await scrollToBottom()
@@ -355,17 +366,22 @@ async function handleGenerateSummary() {
     role: 'assistant',
     content: '',
     time: formatTimeFull(new Date()),
-    loading: true
+    loading: true,
   })
 
   try {
     const res = await aiApi.qaAsk({
-      question: '请为当前课程生成一份全面的学习总结，包括课程核心知识点、学习重点、难点分析以及学习建议。',
-      courseId: selectedCourseId.value
+      question:
+        '请为当前课程生成一份全面的学习总结，包括课程核心知识点、学习重点、难点分析以及学习建议。',
+      courseId: selectedCourseId.value,
     })
-    const reply = res.data?.response || res.data?.reply ||
-                   res.data?.content || res?.response || res?.content ||
-                   '正在为您生成课程总结，请稍候...'
+    const reply =
+      res.data?.response ||
+      res.data?.reply ||
+      res.data?.content ||
+      res?.response ||
+      res?.content ||
+      '正在为您生成课程总结，请稍候...'
     await typewriterEffect(aiMsgIdx, reply)
   } catch (e) {
     console.error('生成总结失败:', e)
@@ -386,7 +402,7 @@ async function handleGenerateQuestion() {
   messages.value.push({
     role: 'user',
     content: '请根据当前知识点生成几道练习题',
-    time: formatTimeFull(new Date())
+    time: formatTimeFull(new Date()),
   })
   loading.value = true
   await scrollToBottom()
@@ -396,20 +412,23 @@ async function handleGenerateQuestion() {
     role: 'assistant',
     content: '',
     time: formatTimeFull(new Date()),
-    loading: true
+    loading: true,
   })
 
   try {
     const res = await aiApi.questionRecommendations({
       courseId: selectedCourseId.value,
-      count: 5
+      count: 5,
     })
     const data = res.data?.data || res.data || res || {}
     let reply = ''
     if (Array.isArray(data.questions)) {
-      reply = data.questions.map((q, i) =>
-        `${i + 1}. ${q.content || q.questionText || q}\n${q.answer ? `   答案：${q.answer}` : ''}`
-      ).join('\n\n')
+      reply = data.questions
+        .map(
+          (q, i) =>
+            `${i + 1}. ${q.content || q.questionText || q}\n${q.answer ? `   答案：${q.answer}` : ''}`,
+        )
+        .join('\n\n')
     } else if (typeof data === 'string') {
       reply = data
     } else {
@@ -435,11 +454,14 @@ function handleNewLine(_e) {
 
 /* ---- 复制消息 ---- */
 function copyMessage(content) {
-  navigator.clipboard.writeText(stripHtml(content)).then(() => {
-    ElMessage.success('已复制到剪贴板')
-  }).catch(() => {
-    ElMessage.error('复制失败')
-  })
+  navigator.clipboard
+    .writeText(stripHtml(content))
+    .then(() => {
+      ElMessage.success('已复制到剪贴板')
+    })
+    .catch(() => {
+      ElMessage.error('复制失败')
+    })
 }
 
 /* ---- 重新生成最后一条AI回复 ---- */
@@ -461,7 +483,7 @@ async function regenerateMessage(index) {
     role: 'assistant',
     content: '',
     time: formatTimeFull(new Date()),
-    loading: true
+    loading: true,
   })
 
   try {
@@ -552,7 +574,7 @@ onMounted(() => {
 /* ---- 清理 ---- */
 onBeforeUnmount(() => {
   // 清理所有正在运行的打字机定时器
-  activeIntervals.value.forEach(t => clearInterval(t))
+  activeIntervals.value.forEach((t) => clearInterval(t))
   activeIntervals.value = []
   // 中断正在进行的 SSE 流式请求
   if (sseController.value) {
@@ -803,7 +825,7 @@ onBeforeUnmount(() => {
 }
 
 .ai-avatar {
-  background: rgba(184,154,138,0.15);
+  background: rgba(184, 154, 138, 0.15);
   color: var(--ac-secondary);
 }
 
@@ -842,7 +864,7 @@ onBeforeUnmount(() => {
 }
 
 .user-bubble .message-time {
-  color: rgba(255,255,255,0.7);
+  color: rgba(255, 255, 255, 0.7);
   text-align: right;
 }
 
@@ -898,12 +920,24 @@ onBeforeUnmount(() => {
   animation: typingBounce 1.4s infinite ease-in-out both;
 }
 
-.typing-indicator .dot:nth-child(1) { animation-delay: -0.32s; }
-.typing-indicator .dot:nth-child(2) { animation-delay: -0.16s; }
+.typing-indicator .dot:nth-child(1) {
+  animation-delay: -0.32s;
+}
+.typing-indicator .dot:nth-child(2) {
+  animation-delay: -0.16s;
+}
 
 @keyframes typingBounce {
-  0%, 80%, 100% { transform: scale(0.6); opacity: 0.4; }
-  40% { transform: scale(1); opacity: 1; }
+  0%,
+  80%,
+  100% {
+    transform: scale(0.6);
+    opacity: 0.4;
+  }
+  40% {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 /* ---- 输入区域 ---- */
@@ -951,8 +985,14 @@ onBeforeUnmount(() => {
 }
 
 @media (max-width: 768px) {
-  .chat-sidebar { display: none; }
-  .quick-actions { grid-template-columns: 1fr; }
-  .message-row { max-width: 95%; }
+  .chat-sidebar {
+    display: none;
+  }
+  .quick-actions {
+    grid-template-columns: 1fr;
+  }
+  .message-row {
+    max-width: 95%;
+  }
 }
 </style>

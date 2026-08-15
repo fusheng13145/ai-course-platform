@@ -304,7 +304,10 @@ const lastLogin = formatTime(u.lastLoginAt, '—') || '刚刚'
 
 /* ---- 课程封面配色（克制、协调的淡彩 · 令牌色系） ---- */
 const coursePalette = [
-  { bg: 'linear-gradient(135deg,var(--accent-soft),var(--accent-line))', fg: 'var(--accent-strong)' },
+  {
+    bg: 'linear-gradient(135deg,var(--accent-soft),var(--accent-line))',
+    fg: 'var(--accent-strong)',
+  },
   { bg: 'linear-gradient(135deg,var(--info-soft),var(--line-2))', fg: 'var(--info)' },
   { bg: 'linear-gradient(135deg,var(--ok-soft),var(--line-2))', fg: 'var(--ok)' },
   { bg: 'linear-gradient(135deg,var(--warn-soft),var(--line-2))', fg: 'var(--warn)' },
@@ -471,7 +474,8 @@ onMounted(loadDashboard)
 .hero-cover {
   position: relative;
   height: 128px;
-  background: radial-gradient(circle at 16% 28%, rgba(255, 255, 255, 0.2), transparent 42%),
+  background:
+    radial-gradient(circle at 16% 28%, rgba(255, 255, 255, 0.2), transparent 42%),
     radial-gradient(circle at 84% 72%, rgba(255, 255, 255, 0.12), transparent 46%),
     linear-gradient(120deg, var(--ac-primary) 0%, var(--accent-strong) 100%);
   overflow: hidden;

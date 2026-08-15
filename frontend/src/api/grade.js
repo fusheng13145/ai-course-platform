@@ -14,6 +14,9 @@ export const computeFinal = (policyId, studentId) =>
 // 课程成绩报告 List<Map>（courseReport）
 export const getCourseReport = (courseId) => request.get(`/grade/report/course/${courseId}`)
 
+/**
+ * 默认导出对象：模块/组件配置与导出内容
+ */
 export default {
   saveGradePolicy,
   getGradePolicy,

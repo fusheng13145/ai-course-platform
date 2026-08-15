@@ -31,7 +31,9 @@
       <!-- 话题列表 -->
       <div class="l1-card">
         <div class="l1-head">
-          <span class="l1-ico"><el-icon><ChatLineSquare /></el-icon></span>
+          <span class="l1-ico"
+            ><el-icon><ChatLineSquare /></el-icon
+          ></span>
           <div>
             <div class="l1-title">课程讨论话题</div>
             <div class="l1-sub">{{ topics.length }} 个</div>
@@ -39,41 +41,41 @@
         </div>
         <div class="l1-body">
           <div v-if="topics.length" class="topic-list">
-          <div
-            v-for="t in topics"
-            :key="t.id"
-            class="topic-row"
-            :class="{ 'is-pinned': t.pinned }"
-            @click="openDetail(t)"
-          >
-            <div class="topic-main">
-              <div class="topic-title">
-                <el-tag v-if="t.pinned" size="small" type="warning" effect="light" round
-                  >置顶</el-tag
-                >
-                <el-tag v-if="t.closed" size="small" type="info" effect="light" round
-                  >已关闭</el-tag
-                >
-                <span>{{ t.title }}</span>
+            <div
+              v-for="t in topics"
+              :key="t.id"
+              class="topic-row"
+              :class="{ 'is-pinned': t.pinned }"
+              @click="openDetail(t)"
+            >
+              <div class="topic-main">
+                <div class="topic-title">
+                  <el-tag v-if="t.pinned" size="small" type="warning" effect="light" round
+                    >置顶</el-tag
+                  >
+                  <el-tag v-if="t.closed" size="small" type="info" effect="light" round
+                    >已关闭</el-tag
+                  >
+                  <span>{{ t.title }}</span>
+                </div>
+                <div class="topic-content">{{ t.content }}</div>
+                <div class="topic-meta">
+                  <span
+                    ><el-icon><User /></el-icon>{{ t.authorName || '匿名' }}</span
+                  >
+                  <span
+                    ><el-icon><ChatDotRound /></el-icon>{{ t.replyCount || 0 }} 回复</span
+                  >
+                  <span v-if="t.chapterId"
+                    ><el-icon><Files /></el-icon>章节 {{ t.chapterId }}</span
+                  >
+                  <span class="time">{{ t.createdAt || '—' }}</span>
+                </div>
               </div>
-              <div class="topic-content">{{ t.content }}</div>
-              <div class="topic-meta">
-                <span
-                  ><el-icon><User /></el-icon>{{ t.authorName || '匿名' }}</span
-                >
-                <span
-                  ><el-icon><ChatDotRound /></el-icon>{{ t.replyCount || 0 }} 回复</span
-                >
-                <span v-if="t.chapterId"
-                  ><el-icon><Files /></el-icon>章节 {{ t.chapterId }}</span
-                >
-                <span class="time">{{ t.createdAt || '—' }}</span>
-              </div>
+              <el-icon class="arrow"><ArrowRight /></el-icon>
             </div>
-            <el-icon class="arrow"><ArrowRight /></el-icon>
           </div>
-        </div>
-        <el-empty v-else description="暂无讨论话题" />
+          <el-empty v-else description="暂无讨论话题" />
         </div>
       </div>
     </div>

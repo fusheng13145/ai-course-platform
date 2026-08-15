@@ -20,3 +20,20 @@ redis_data/
 target/
 dist/
 node_modules/
+
+# 运维数据（含敏感数据，切勿提交）
+# 应用内「系统管理→备份」生成的 SQL 备份（SystemServiceImpl backups/ 目录）
+backups/
+# mysql-backup 服务的定时备份卷数据
+mysql-backups/
+# 运行时生成的数据库文件
+*.sql.gz
+
+# 评测产物（含评测运行结果与 QA 记录）
+evaluation/results/
+
+# Python 缓存/字节码（构建产物，切勿提交）
+__pycache__/
+*.pyc
+*.pyo
+*.pyd

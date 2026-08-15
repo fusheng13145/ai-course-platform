@@ -1,5 +1,6 @@
 package com.aicourse.service.impl;
 
+
 import com.aicourse.common.JsonUtils;
 import com.aicourse.entity.LoginLog;
 import com.aicourse.entity.OperationLog;
@@ -56,6 +57,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @Slf4j
 public class SystemServiceImpl implements SystemService {
+
 
     // ===================== 常量定义 =====================
     private static final String BACKUP_DIR = "backups";
@@ -134,8 +136,12 @@ public class SystemServiceImpl implements SystemService {
         return config == null ? null : config.getConfigValue();
     }
 
+
+    /** 保存系统 */
     @Override
     public void saveConfig(String key, String value, String group) {
+        log.info("保存系统");
+
         SystemConfig config = systemConfigMapper.selectOne(
                 new LambdaQueryWrapper<SystemConfig>().eq(SystemConfig::getConfigKey, key)
         );
@@ -161,6 +167,8 @@ public class SystemServiceImpl implements SystemService {
         }
     }
 
+
+    /** 查询系统 */
     @Override
     public List<Map<String, Object>> getConfigs(String group) {
         LambdaQueryWrapper<SystemConfig> wrapper = new LambdaQueryWrapper<>();
@@ -333,6 +341,8 @@ public class SystemServiceImpl implements SystemService {
                 }
             }
         } catch (BusinessException e) {
+            log.error("创建系统失败: {}", e.getMessage(), e);
+
             // 配置缺失属于明确失败，必须抛给调用方，不允许回退为"仅文件名"假备份
             throw e;
         } catch (Exception e) {
@@ -343,11 +353,15 @@ public class SystemServiceImpl implements SystemService {
         return backupFileName;
     }
 
+
+    /** 查询系统 */
     @Override
     public List<Map<String, Object>> getBackups() {
         return getFileInfoList(BACKUP_DIR, SQL_SUFFIX);
     }
 
+
+    /** 系统相关操作 */
     @Override
     public void restoreBackup(String fileName) {
         // ---- 路径遍历防护 ----
@@ -381,6 +395,8 @@ public class SystemServiceImpl implements SystemService {
         return getFileInfoList(LOG_DIR, LOG_SUFFIX);
     }
 
+
+    /** 系统相关操作 */
     @Override
     public String readLogFile(String fileName, int lines, String keyword) {
         // 路径防穿越
@@ -407,6 +423,8 @@ public class SystemServiceImpl implements SystemService {
             List<String> resultLines = allLines.subList(startIndex, allLines.size());
             return String.join("\n", resultLines);
         } catch (IOException e) {
+            log.error("系统相关操作失败: {}", e.getMessage(), e);
+
             throw new BusinessException("读取日志文件失败");
         }
     }

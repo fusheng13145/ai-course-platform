@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.UserMapper;
@@ -23,6 +26,8 @@ import com.aicourse.common.RoleConstants;
  */
 @Service
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
+
+    private static final Logger log = LoggerFactory.getLogger(UserServiceImpl.class);
 
     /**
      * 获取用户完整资料（含班级名称关联查询）
@@ -48,6 +53,8 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     @Transactional(rollbackFor = Exception.class)
     @CacheEvict(value = "users", key = "'profile_' + #userId")
     public void updateProfile(Long userId, User updates) {
+        log.info("更新用户");
+
         User user = this.getById(userId);
         if (user == null) {
             throw new BusinessException("用户不存在");

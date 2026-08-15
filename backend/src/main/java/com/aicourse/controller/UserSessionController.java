@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.UserSession;
 import com.aicourse.service.UserSessionService;
@@ -19,6 +22,8 @@ import java.util.Map;
 @RequestMapping("/user-sessions")
 @Tag(name = "用户会话")
 public class UserSessionController {
+
+    private static final Logger log = LoggerFactory.getLogger(UserSessionController.class);
 
     private final UserSessionService userSessionService;
 

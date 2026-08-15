@@ -3,6 +3,8 @@ package com.aicourse.common;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * JSON 工具类：从 LLM 返回文本中健壮地提取首个 JSON 对象。
@@ -10,6 +12,8 @@ import java.util.regex.Pattern;
  * 作为纯工具方法，独立于 Service 层，避免控制器直接耦合 Service 实现类。
  */
 public final class JsonUtils {
+
+    private static final Logger log = LoggerFactory.getLogger(JsonUtils.class);
 
     private static final Pattern JSON_BLOCK =
             Pattern.compile("```(?:json)?\\s*(\\{[\\s\\S]*?})\\s*```", Pattern.CASE_INSENSITIVE);
@@ -28,6 +32,7 @@ public final class JsonUtils {
         try {
             return MAPPER.writeValueAsString(obj);
         } catch (Exception e) {
+            log.error("JSON 序列化失败: {}", e.getMessage(), e);
             throw new RuntimeException("JSON 序列化失败", e);
         }
     }

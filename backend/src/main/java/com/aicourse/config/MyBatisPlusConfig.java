@@ -5,6 +5,8 @@ import com.baomidou.mybatisplus.extension.plugins.MybatisPlusInterceptor;
 import com.baomidou.mybatisplus.extension.plugins.inner.PaginationInnerInterceptor;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * MyBatis-Plus 全局配置类
@@ -12,6 +14,8 @@ import org.springframework.context.annotation.Configuration;
  */
 @Configuration
 public class MyBatisPlusConfig {
+
+    private static final Logger log = LoggerFactory.getLogger(MyBatisPlusConfig.class);
 
     /**
      * 注册 MP 插件拦截器
@@ -29,6 +33,7 @@ public class MyBatisPlusConfig {
         paginationInterceptor.setOverflow(true);
 
         interceptor.addInnerInterceptor(paginationInterceptor);
+        log.info("[MyBatisPlusConfig] MyBatis-Plus 分页插件已注册（数据库类型=MySQL，单页最大 1000 条）");
         return interceptor;
     }
 }

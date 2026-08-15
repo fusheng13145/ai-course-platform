@@ -8,7 +8,11 @@
       <div class="stat-card__value">{{ value }}</div>
       <div class="stat-card__footer">
         <span v-if="subtitle" class="stat-card__subtitle">{{ subtitle }}</span>
-        <span v-if="trend !== undefined && trend !== null" class="stat-card__trend" :class="{ 'is-up': trend > 0, 'is-down': trend < 0 }">
+        <span
+          v-if="trend !== undefined && trend !== null"
+          class="stat-card__trend"
+          :class="{ 'is-up': trend > 0, 'is-down': trend < 0 }"
+        >
           <el-icon :size="12"><Top v-if="trend > 0" /><Bottom v-else /></el-icon>
           {{ Math.abs(trend) }}%
         </span>
@@ -26,7 +30,11 @@ defineProps({
   value: { type: [String, Number], default: '' },
   subtitle: { type: String, default: '' },
   trend: { type: Number, default: undefined },
-  color: { type: String, default: 'default', validator: (v) => ['default', 'success', 'warning', 'danger'].includes(v) }
+  color: {
+    type: String,
+    default: 'default',
+    validator: (v) => ['default', 'success', 'warning', 'danger'].includes(v),
+  },
 })
 </script>
 
@@ -39,7 +47,9 @@ defineProps({
   background: var(--ac-bg-elevated);
   border-radius: 12px;
   border: 1px solid var(--ac-border);
-  transition: box-shadow 0.3s ease, transform 0.2s ease;
+  transition:
+    box-shadow 0.3s ease,
+    transform 0.2s ease;
 }
 
 .morandi-stat-card:hover {
@@ -100,18 +110,47 @@ defineProps({
 }
 
 /* 颜色变体 */
-.morandi-stat-card--default .stat-card__icon { background: rgba(122, 139, 165, 0.12); color: #7A8BA5; }
-.morandi-stat-card--default .stat-card__value { color: #7A8BA5; }
+.morandi-stat-card--default .stat-card__icon {
+  background: rgba(122, 139, 165, 0.12);
+  color: #7a8ba5;
+}
+.morandi-stat-card--default .stat-card__value {
+  color: #7a8ba5;
+}
 
-.morandi-stat-card--success .stat-card__icon { background: rgba(139, 168, 136, 0.12); color: #8BA888; }
-.morandi-stat-card--success .stat-card__value { color: #8BA888; }
-.morandi-stat-card--success .stat-card__trend.is-up { color: #8BA888; background: rgba(139, 168, 136, 0.1); }
+.morandi-stat-card--success .stat-card__icon {
+  background: rgba(139, 168, 136, 0.12);
+  color: #8ba888;
+}
+.morandi-stat-card--success .stat-card__value {
+  color: #8ba888;
+}
+.morandi-stat-card--success .stat-card__trend.is-up {
+  color: #8ba888;
+  background: rgba(139, 168, 136, 0.1);
+}
 
-.morandi-stat-card--warning .stat-card__icon { background: rgba(203, 181, 138, 0.12); color: #CBB58A; }
-.morandi-stat-card--warning .stat-card__value { color: #CBB58A; }
-.morandi-stat-card--warning .stat-card__trend.is-down { color: #CBB58A; background: rgba(203, 181, 138, 0.1); }
+.morandi-stat-card--warning .stat-card__icon {
+  background: rgba(203, 181, 138, 0.12);
+  color: #cbb58a;
+}
+.morandi-stat-card--warning .stat-card__value {
+  color: #cbb58a;
+}
+.morandi-stat-card--warning .stat-card__trend.is-down {
+  color: #cbb58a;
+  background: rgba(203, 181, 138, 0.1);
+}
 
-.morandi-stat-card--danger .stat-card__icon { background: rgba(196, 128, 128, 0.12); color: #C48080; }
-.morandi-stat-card--danger .stat-card__value { color: #C48080; }
-.morandi-stat-card--danger .stat-card__trend.is-down { color: #C48080; background: rgba(196, 128, 128, 0.1); }
+.morandi-stat-card--danger .stat-card__icon {
+  background: rgba(196, 128, 128, 0.12);
+  color: #c48080;
+}
+.morandi-stat-card--danger .stat-card__value {
+  color: #c48080;
+}
+.morandi-stat-card--danger .stat-card__trend.is-down {
+  color: #c48080;
+  background: rgba(196, 128, 128, 0.1);
+}
 </style>

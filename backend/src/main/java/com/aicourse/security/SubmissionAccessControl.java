@@ -13,6 +13,8 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 提交记录对象级授权（防 IDOR / BOLA / 水平越权）。
@@ -30,6 +32,8 @@ import java.util.List;
  */
 @Component
 public class SubmissionAccessControl {
+
+    private static final Logger log = LoggerFactory.getLogger(SubmissionAccessControl.class);
 
     private final SubmissionService submissionService;
     private final TaskMapper taskMapper;
@@ -52,6 +56,8 @@ public class SubmissionAccessControl {
         Submission submission = requireSubmission(submissionId);
         if (RoleConstants.STUDENT.equals(role)) {
             if (!userId.equals(submission.getStudentId())) {
+                log.warn("[SubmissionAccess] 越权访问尝试（学生非本人提交）：submissionId={}, 访问者={}, 持有者={}",
+                        submissionId, userId, submission.getStudentId());
                 throw new BusinessException(403, "无权访问该提交记录");
             }
             return;
@@ -66,6 +72,7 @@ public class SubmissionAccessControl {
         Long userId = principalId(auth);
         String role = roleOf(auth);
         if (RoleConstants.STUDENT.equals(role)) {
+            log.warn("[SubmissionAccess] 越权管理尝试（学生角色）：submissionId={}, userId={}", submissionId, userId);
             throw new BusinessException(403, "学生无权执行该操作");
         }
         Submission submission = requireSubmission(submissionId);
@@ -103,6 +110,8 @@ public class SubmissionAccessControl {
             throw new BusinessException(404, "关联课程不存在");
         }
         if (!userId.equals(course.getTeacherId())) {
+            log.warn("[SubmissionAccess] 越权管理尝试（非授课教师）：submissionId/taskId={}, userId={}, courseId={}, teacherId={}",
+                    taskId, userId, course.getId(), course.getTeacherId());
             throw new BusinessException(403, "无权操作非本人课程的提交记录");
         }
     }

@@ -9,6 +9,8 @@ import org.springframework.web.servlet.config.annotation.InterceptorRegistry;
 import org.springframework.web.servlet.config.annotation.WebMvcConfigurer;
 
 import java.util.concurrent.ThreadPoolExecutor;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * MVC 异步支持配置
@@ -19,6 +21,8 @@ import java.util.concurrent.ThreadPoolExecutor;
  */
 @Configuration
 public class AsyncMvcConfig implements WebMvcConfigurer {
+
+    private static final Logger log = LoggerFactory.getLogger(AsyncMvcConfig.class);
 
     private final AiQuotaInterceptor aiQuotaInterceptor;
 
@@ -54,9 +58,14 @@ public class AsyncMvcConfig implements WebMvcConfigurer {
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.DiscardOldestPolicy());
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.initialize();
+        log.info("[AsyncMvcConfig] AI 异步执行线程池初始化完成（core={}, max={}, queue={}）",
+                executor.getCorePoolSize(), executor.getMaxPoolSize(), executor.getQueueCapacity());
         return executor;
     }
 
+    /**
+     * 绑定异步执行线程池与整体超时（默认 120s），超时则客户端收到 503。
+     */
     @Override
     public void configureAsyncSupport(AsyncSupportConfigurer configurer) {
         configurer.setTaskExecutor(mvcAsyncExecutor());

@@ -1,6 +1,8 @@
 package com.aicourse.llm;
 
 import org.springframework.beans.factory.annotation.Value;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 /**
@@ -8,6 +10,8 @@ import org.springframework.stereotype.Component;
  */
 @Component
 public class OpenAiProvider extends OpenAiCompatibleProvider {
+
+    private static final Logger log = LoggerFactory.getLogger(OpenAiProvider.class);
 
     public OpenAiProvider(
             @Value("${ai.openai.api-key:}") String apiKey,
@@ -17,5 +21,6 @@ public class OpenAiProvider extends OpenAiCompatibleProvider {
             @Value("${ai.read-timeout:60}") int readTimeout,
             @Value("${ai.max-retries:2}") int maxRetries) {
         super("openai", apiKey, baseUrl, model, connectTimeout, readTimeout, maxRetries);
+        log.debug("OpenAiProvider 初始化完成, base-url={}", baseUrl);
     }
 }

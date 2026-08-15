@@ -21,6 +21,8 @@
 - **AI赋能**: DeepSeek大模型集成，支持智能出题、AI对话
 - **实时通信**: WebSocket实时通知推送
 
+> **⚠️ 职责边界说明**：知识图谱 / 知识库模块（图谱构建、多跳推理、GraphRAG）与 **RAG 检索引擎（BM25 / 向量检索 / embedding / 融合）均由团队另一成员负责**。本端（Java 后端）仅实现**消费侧**——知识点 / 关系的 CRUD、掌握度与关联查询、图谱可视化、`/extract` 摄取端点，并**预留标准化接口**（`KnowledgeGraphService` 方法签名、DTO 与调用约定；`RAGService` 接口 + HTTP 代理到 Python RAG 服务 8002，`rag.enabled=true` 启用、未接入时降级 `{"code":503}` 且 AI 问答自动回退纯 LLM），不实现图谱引擎与 RAG 引擎逻辑，以便后续接入独立 Python 项目扩展。相关契约见 `项目文档/知识图谱服务对接契约.md` 与 `docs/运维手册.md` §11。
+
 ## 技术栈
 
 | 层级 | 技术 | 版本 |
@@ -160,6 +162,31 @@ docker compose --profile full up -d --build
 
 > 注意：未创建 `.env` 时 `docker compose` 会回退到 `docker-compose.yml` 中的默认值（如 `JWT_SECRET=change_me_in_production`），仅可用于本地联调，**禁止用于生产环境**。
 
+### 3. 运维增强（可选：定时备份 / 监控）
+
+`docker-compose.yml` 提供两个可选 profile，按需叠加：
+
+```bash
+# ① MySQL 每日自动备份（mysqldump 全量，默认保留 14 天，backups 卷持久化）
+docker compose --profile full --profile ops up -d --build
+# 备份文件位于 mysql-backups 卷；应用内「系统管理→备份」的手动备份亦持久化于 backups 卷
+
+# ② Prometheus + Grafana 监控（后端已暴露 /api/actuator/prometheus 指标）
+docker compose --profile full --profile monitor up -d --build
+# Prometheus: http://localhost:9090    Grafana: http://localhost:3000（admin / .env 中 GRAFANA_ADMIN_PASSWORD）
+# 说明：prometheus 端点由独立 Basic 鉴权链保护（专用账号 APP_ACTUATOR_BASIC_*，与业务 JWT 隔离，非 ADMIN 角色）；
+#      口令须与 Prometheus 容器透传值一致，留空则抓取 fail-closed。内网/演示无反向代理时，可置 APP_ACTUATOR_SECURED=false 放开抓取。
+
+# ①②可同时叠加
+docker compose --profile full --profile ops --profile monitor up -d --build
+```
+
+> 运维相关变量见 `.env.example` 末尾（`BACKUP_RETENTION_DAYS` / `APP_ACTUATOR_SECURED` / `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD`）。
+
+### 4. RAG 效果评测（可选）
+
+`evaluation/` 目录提供 60 题专业课 QA 评测集与评测脚本，可量化对比检索的召回率、答案覆盖率与幻觉率，使用方法见 `evaluation/README.md`。注意：RAG 引擎由团队另一成员负责，评测需在另一成员 RAG 服务接入（`rag.enabled=true`）后方可实跑；未接入时后端 `/rag/*` 返回 `{"code":503}` 降级。
+
 ## 演示账号
 
 | 角色 | 用户名 | 密码 | 说明 |
@@ -180,8 +207,8 @@ ai-course-platform/
 ├── backend/                    # Spring Boot 后端
 │   ├── src/main/java/com/aicourse/
 │   │   ├── Application.java    # 启动类
-│   │   ├── controller/         # 41 个控制器（端点以 springdoc 为准）
-│   │   ├── service/            # 63个 Service 实现类
+│   │   ├── controller/         # 42 个控制器（端点以 springdoc 为准）
+│   │   ├── service/            # 约 55 接口 / 59 实现类（含 exam 子包）
 │   │   ├── mapper/             # 48个 Mapper接口
 │   │   ├── entity/             # 48个实体类
 │   │   ├── security/           # JWT认证过滤器
@@ -226,7 +253,7 @@ ai-course-platform/
 | 在线考试 | 开始考试、提交答卷、查看结果 | ✅ 已完成 |
 | 作业管理 | 任务CRUD、发布、提交统计 | ✅ 已完成 |
 | 作业批改 | 提交评分、教师反馈 | ✅ 已完成 |
-| 知识图谱 | 知识点CRUD、关系管理、图谱可视化 | ✅ 已完成 |
+| 知识图谱（消费侧） | 知识点CRUD、关系管理、图谱可视化、掌握度/关联查询、图谱AI抽取（`/extract`） | ✅ 已完成（本端消费侧；图谱构建/多跳/GraphRAG 由另一成员负责，本端仅预留 `KnowledgeGraphService` 接口） |
 | 学习路径 | 路径CRUD、节点管理、自动生成 | ✅ 已完成 |
 | 学习记录 | 学习记录创建与查询 | ✅ 已完成 |
 | 错题本 | 错题CRUD、标记已掌握、统计 | ✅ 已完成 |
@@ -246,17 +273,17 @@ ai-course-platform/
 |------|---------|---------|
 | 作业查重 | ✅ 已实装（`PlagiarismCheckServiceImpl`，CJK bigram 分词 + Jaccard 相似度，算法版本 Jaccard-CJKBigram-v2.0；查询端点 `GET /plagiarism-checks` 等已接通） | 引入语义嵌入相似度提升改写检测 |
 | 学习路径自动生成 | ✅ 已实装（`GET /learning-paths/generate` 数据驱动：错题本推导掌握度 `deriveMastery` + 薄弱优先排序 + 掌握度加权时长） | 引入学习行为序列做深度个性化 |
-| 知识点路径规划 | ✅ 已实装（`POST /knowledge-points/path/plan` BFS 路径规划，startPointId 参与裁剪） | 多目标路径优化 |
+| 知识点路径规划（多跳） | 🔲 预留接口（`KnowledgeGraphService.planLearningPath` 签名已定义，未实现 BFS 逻辑） | 由团队另一成员图谱服务实现；本端仅预留标准化接口与调用约定 |
 | 催交提醒 | 表结构已建，`GET /reminders/todos` 已接通 | 实现定时任务自动催交 |
 | 视频学习 | 表结构已建 | 实现视频播放进度追踪 |
-| RAG 检索增强 | Java 自包含实现（knowledge_points + Okapi BM25 召回（中文 bigram 分词）+ LLMProvider），无需外部 Python | 可选：接入 Milvus / FAISS 向量检索做混合召回 |
+| RAG 检索增强 | 🔲 接口预留 + HTTP 代理（`RAGService` 接口保留；`RAGServiceImpl` 经 RestClient 调用 Python RAG 服务 8002 `/api/v1/rag/*`，`rag.enabled=true` 启用；未启用/不可达降级 `{"code":503}`，AI 问答自动回退纯 LLM）。RAG 引擎（BM25/向量/embedding/融合）由团队另一成员负责 | 由另一成员接入 Python RAG 服务后经 `rag.enabled=true` 启用 |
 | Redis缓存 | ✅ 已启用 | 学情聚合 @Cacheable（5min TTL，评分失效） |
 
 > 注：教师端 AI 图谱抽取已迁至 `teacher/tools/KnowledgeGraph.vue`（真实调用后端抽取接口）；早期 `generateFallbackExtraction()` 本地兜底逻辑已移除，全仓无 mock 业务数据。
 
 ## 架构优化与可扩展点落地
 
-下列优化项已在代码中落地（知识图谱 8001 与 RAG 8002 已改为 Java 自包含实现，仅 LoRA 微调 8003 保留 Python 集成）：
+下列优化项已在代码中落地（按职责边界，知识图谱引擎与 RAG 引擎均由团队另一成员负责：本端仅保留消费侧与预留 `KnowledgeGraphService` 接口签名、`RAGService` 接口 + HTTP 代理（8002），不实现引擎逻辑；仅 LoRA 微调 8003 保留真实 Python 集成）：
 
 | 优化项 | 落地方式 | 收益 |
 |------|---------|------|

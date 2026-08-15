@@ -9,4 +9,7 @@ export const rollbackVersion = id => request.post(`/resource-versions/${id}/roll
 // 当前版本
 export const getActiveVersion = resourceId => request.get(`/resource-versions/active/${resourceId}`)
 
+/**
+ * 默认导出对象：模块/组件配置与导出内容
+ */
 export default { getVersionHistory, createVersion, rollbackVersion, getActiveVersion }

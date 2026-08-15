@@ -2,6 +2,8 @@ package com.aicourse.util;
 
 import eu.bitwalker.useragentutils.UserAgent;
 import jakarta.servlet.http.HttpServletRequest;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -11,6 +13,8 @@ import org.springframework.util.StringUtils;
  */
 @Component
 public class UserAgentUtil {
+
+    private static final Logger log = LoggerFactory.getLogger(UserAgentUtil.class);
 
     /**
      * 解析 User-Agent 字符串

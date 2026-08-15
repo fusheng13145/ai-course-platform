@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import jakarta.validation.Valid;
 
 import com.aicourse.common.ApiResponse;
@@ -34,6 +37,8 @@ import java.util.Map;
 @RestController
 @RequestMapping("/exam-papers")
 public class ExamPaperController {
+
+    private static final Logger log = LoggerFactory.getLogger(ExamPaperController.class);
 
     private final ExamPaperService examPaperService;
     private final ExamQuestionService examQuestionService;

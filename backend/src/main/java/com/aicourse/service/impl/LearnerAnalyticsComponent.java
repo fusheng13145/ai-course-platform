@@ -1,5 +1,10 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.aicourse.constant.SubmissionStatus;
+
 import com.aicourse.entity.*;
 import com.aicourse.service.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -20,6 +25,8 @@ import java.util.stream.Collectors;
 @Component
 public class LearnerAnalyticsComponent {
 
+    private static final Logger log = LoggerFactory.getLogger(LearnerAnalyticsComponent.class);
+
     private final CourseEnrollmentService enrollmentService;
     private final LearningRecordService learningRecordService;
     private final TaskService taskService;
@@ -37,6 +44,8 @@ public class LearnerAnalyticsComponent {
         this.submissionService = submissionService;
     }
 
+
+    /** 查询学习者分析 */
     public Map<String, Object> getUserDashboard(Long userId) {
         Map<String, Object> userData = new HashMap<>(12);
         try {
@@ -102,11 +111,13 @@ public class LearnerAnalyticsComponent {
             long submittedCount = submissionService.count(
                     new LambdaQueryWrapper<Submission>()
                             .eq(Submission::getStudentId, userId)
-                            .in(Submission::getStatus, "SUBMITTED", "GRADED")
+                            .in(Submission::getStatus, SubmissionStatus.SUBMITTED, SubmissionStatus.GRADED)
             );
             userData.put("pendingTasks", Math.max(0, pendingTasks - submittedCount));
             userData.put("todoCount", Math.max(0, pendingTasks - submittedCount));
         } catch (Exception e) {
+            log.error("查询学习者分析失败: {}", e.getMessage(), e);
+
             userData.put("error", "学生数据加载异常: " + e.getMessage());
             userData.putIfAbsent("enrolledCourses", 0L);
             userData.putIfAbsent("courseCount", 0L);
@@ -153,11 +164,15 @@ public class LearnerAnalyticsComponent {
                 return ((Number) rows.get(0)).intValue();
             }
         } catch (Exception e) {
+            log.error("查询学习者分析失败: {}", e.getMessage(), e);
+
             // 聚合失败时降级为 0，不影响整体仪表盘
         }
         return 0;
     }
 
+
+    /** 查询学习者分析 */
     public List<Map<String, Object>> getLearningTrends(Long userId) {
         // 优化：限定最近 365 天窗口，避免无日期过滤的全量拉取
         List<LearningRecord> recordList = learningRecordService.list(

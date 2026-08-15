@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import jakarta.validation.Valid;
 
 import com.aicourse.common.ApiResponse;
@@ -42,6 +45,8 @@ import java.util.stream.Collectors;
 @Tag(name = "教师端核心接口", description = "课程建设/学情驾驶舱/作业题库管理/学情分析（合并统一版）")
 public class TeacherController {
 
+    private static final Logger log = LoggerFactory.getLogger(TeacherController.class);
+
     private final CourseService courseService;
     private final CourseChapterService chapterService;
     private final TaskService taskService;
@@ -71,6 +76,7 @@ public class TeacherController {
 
     // ==================== 课程管理（8个接口，已加归属校验） ====================
 
+    /** 创建课程并绑定当前教师 */
     @PostMapping("/courses")
     @Operation(summary = "创建课程")
     public ApiResponse<Course> createCourse(@Valid @RequestBody Course course, Authentication auth) {
@@ -79,6 +85,7 @@ public class TeacherController {
         return ApiResponse.success("创建成功", saved);
     }
 
+    /** 分页获取当前教师拥有的课程列表 */
     @GetMapping("/courses")
     @Operation(summary = "获取我的课程列表")
     public ApiResponse<PagedResponse<Course>> getCourses(
@@ -91,6 +98,7 @@ public class TeacherController {
         return ApiResponse.success(PagedResponse.of(coursePage));
     }
 
+    /** 获取课程详情（需课程归属校验） */
     @GetMapping("/courses/{courseId}")
     @Operation(summary = "获取课程详情")
     public ApiResponse<Course> getCourseDetail(@PathVariable Long courseId, Authentication auth) {
@@ -100,6 +108,7 @@ public class TeacherController {
         return ApiResponse.success(course);
     }
 
+    /** 更新课程信息（需课程归属校验） */
     @PutMapping("/courses/{courseId}")
     @Operation(summary = "更新课程")
     public ApiResponse<Course> updateCourse(@PathVariable Long courseId, @Valid @RequestBody Course course, Authentication auth) {
@@ -109,6 +118,7 @@ public class TeacherController {
         return ApiResponse.success("更新成功", updated);
     }
 
+    /** 删除课程（需课程归属校验） */
     @DeleteMapping("/courses/{courseId}")
     @Operation(summary = "删除课程")
     public ApiResponse<Void> deleteCourse(@PathVariable Long courseId, Authentication auth) {
@@ -118,6 +128,7 @@ public class TeacherController {
         return ApiResponse.success("删除成功", null);
     }
 
+    /** 为指定课程新增章节（需课程归属校验） */
     @PostMapping("/courses/{courseId}/chapters")
     @Operation(summary = "添加课程章节")
     public ApiResponse<CourseChapter> addChapter(@PathVariable Long courseId,
@@ -129,6 +140,7 @@ public class TeacherController {
         return ApiResponse.success("章节添加成功", chapter);
     }
 
+    /** 更新课程章节（需课程归属校验） */
     @PutMapping("/courses/{courseId}/chapters/{chapterId}")
     @Operation(summary = "更新课程章节")
     public ApiResponse<CourseChapter> updateChapter(@PathVariable Long courseId,
@@ -142,6 +154,7 @@ public class TeacherController {
         return ApiResponse.success("章节更新成功", chapterService.getById(chapterId));
     }
 
+    /** 删除课程章节（需课程归属校验） */
     @DeleteMapping("/courses/{courseId}/chapters/{chapterId}")
     @Operation(summary = "删除课程章节")
     public ApiResponse<Void> deleteChapter(@PathVariable Long courseId,
@@ -154,6 +167,7 @@ public class TeacherController {
 
     // ==================== 作业管理（8个接口，已加归属校验） ====================
 
+    /** 创建作业（若指定课程则需归属校验） */
     @PostMapping("/assignments")
     @Operation(summary = "创建作业")
     public ApiResponse<Task> createAssignment(@Valid @RequestBody Task task, Authentication auth) {
@@ -162,6 +176,7 @@ public class TeacherController {
         return ApiResponse.success("创建成功", task);
     }
 
+    /** 分页查询作业列表（可按课程筛选） */
     @GetMapping("/assignments")
     @Operation(summary = "分页查询作业列表")
     public ApiResponse<PagedResponse<Task>> getAssignments(
@@ -174,6 +189,7 @@ public class TeacherController {
         return ApiResponse.success(PagedResponse.of(taskPage));
     }
 
+    /** 获取作业详情（需作业归属校验） */
     @GetMapping("/assignments/{assignmentId}")
     @Operation(summary = "获取作业详情")
     public ApiResponse<Task> getAssignmentDetail(@PathVariable Long assignmentId, Authentication auth) {
@@ -183,6 +199,7 @@ public class TeacherController {
         return ApiResponse.success(task);
     }
 
+    /** 更新作业（需作业归属校验） */
     @PutMapping("/assignments/{assignmentId}")
     @Operation(summary = "更新作业")
     public ApiResponse<Task> updateAssignment(@PathVariable Long assignmentId, @Valid @RequestBody Task task, Authentication auth) {
@@ -192,6 +209,7 @@ public class TeacherController {
         return ApiResponse.success("更新成功", updated);
     }
 
+    /** 删除作业（需作业归属校验） */
     @DeleteMapping("/assignments/{assignmentId}")
     @Operation(summary = "删除作业")
     public ApiResponse<Void> deleteAssignment(@PathVariable Long assignmentId, Authentication auth) {
@@ -200,6 +218,7 @@ public class TeacherController {
         return ApiResponse.success("删除成功", null);
     }
 
+    /** 分页获取某作业的提交列表（需作业归属校验） */
     @GetMapping("/assignments/{assignmentId}/submissions")
     @Operation(summary = "获取作业提交列表")
     public ApiResponse<PagedResponse<Submission>> getSubmissions(
@@ -213,6 +232,7 @@ public class TeacherController {
         return ApiResponse.success(PagedResponse.of(submissionPage));
     }
 
+    /** 教师批改某条作业提交（需作业归属校验） */
     @PutMapping("/assignments/{assignmentId}/submissions/{submissionId}")
     @Operation(summary = "批改作业")
     public ApiResponse<Submission> gradeSubmission(
@@ -227,6 +247,7 @@ public class TeacherController {
         return ApiResponse.success("批改完成", submission);
     }
 
+    /** 发布作业（需作业归属校验） */
     @PutMapping("/assignments/{assignmentId}/publish")
     @Operation(summary = "发布作业")
     public ApiResponse<Task> publishAssignment(@PathVariable Long assignmentId, Authentication auth) {
@@ -237,6 +258,7 @@ public class TeacherController {
 
     // ==================== 题库管理（7个接口，已加归属校验） ====================
 
+    /** 创建题目（若指定课程则需归属校验） */
     @PostMapping("/questions")
     @Operation(summary = "创建题目")
     public ApiResponse<Question> createQuestion(@Valid @RequestBody Question question, Authentication auth) {
@@ -246,6 +268,7 @@ public class TeacherController {
         return ApiResponse.success("创建成功", question);
     }
 
+    /** 分页查询题目列表（可按课程/题型/难度筛选） */
     @GetMapping("/questions")
     @Operation(summary = "分页查询题目列表")
     public ApiResponse<PagedResponse<Question>> getQuestions(
@@ -264,6 +287,7 @@ public class TeacherController {
         return ApiResponse.success(PagedResponse.of(questionPage));
     }
 
+    /** 获取题目详情（需题目归属校验） */
     @GetMapping("/questions/{questionId}")
     @Operation(summary = "获取题目详情")
     public ApiResponse<Question> getQuestionDetail(@PathVariable Long questionId, Authentication auth) {
@@ -271,6 +295,7 @@ public class TeacherController {
         return ApiResponse.success(questionService.getById(questionId));
     }
 
+    /** 更新题目（需题目归属校验） */
     @PutMapping("/questions/{questionId}")
     @Operation(summary = "更新题目")
     public ApiResponse<Question> updateQuestion(@PathVariable Long questionId, @Valid @RequestBody Question question, Authentication auth) {
@@ -280,6 +305,7 @@ public class TeacherController {
         return ApiResponse.success("更新成功", questionService.getById(questionId));
     }
 
+    /** 删除题目（需题目归属校验） */
     @DeleteMapping("/questions/{questionId}")
     @Operation(summary = "删除题目")
     public ApiResponse<Void> deleteQuestion(@PathVariable Long questionId, Authentication auth) {
@@ -288,6 +314,7 @@ public class TeacherController {
         return ApiResponse.success("删除成功", null);
     }
 
+    /** JSON 批量导入题目（兼容保留，推荐改用 Excel 导入） */
     @PostMapping("/questions/import")
     @Operation(summary = "批量导入题目", description = "JSON 批量导入（兼容保留）；Excel(.xlsx) 批量导入请使用 /teacher/questions/import-excel")
     public ApiResponse<Map<String, Object>> importQuestions(@Valid @RequestBody List<Question> questions) {
@@ -299,6 +326,7 @@ public class TeacherController {
         return ApiResponse.success("导入完成", Map.of("importedCount", count));
     }
 
+    /** 上传 Excel 批量导入题目（需 .xlsx，可选指定归属课程） */
     @PostMapping(value = "/questions/import-excel", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Excel 批量导入题目",
             description = "上传 .xlsx 文件批量导入题目（表头：题型/题干/选项(JSON)/正确答案/难度/分值/知识点/解析），courseId 可指定归属课程")
@@ -332,6 +360,7 @@ public class TeacherController {
         return ApiResponse.success("导入完成", Map.of("importedCount", imported, "total", questions.size()));
     }
 
+    /** 导出题库为 Excel 文件（可按课程筛选） */
     @GetMapping("/questions/export")
     @Operation(summary = "导出题库", description = "导出题库为 Excel(.xlsx) 文件，可按课程筛选")
     public void exportQuestions(@RequestParam(required = false) Long courseId, Authentication auth,
@@ -348,6 +377,7 @@ public class TeacherController {
 
     // ==================== 学情分析（5个接口，课程/作业级已加归属校验） ====================
 
+    /** 获取班级学情分析（需课程归属校验） */
     @GetMapping("/analytics/class/{courseId}")
     @Operation(summary = "获取班级学情分析")
     public ApiResponse<Map<String, Object>> getClassAnalytics(@PathVariable Long courseId, Authentication auth) {
@@ -356,6 +386,7 @@ public class TeacherController {
         return ApiResponse.success(data);
     }
 
+    /** 获取单个学生的学情分析 */
     @GetMapping("/analytics/students/{studentId}")
     @Operation(summary = "获取学生学情分析")
     public ApiResponse<Map<String, Object>> getStudentAnalytics(@PathVariable Long studentId) {
@@ -363,6 +394,7 @@ public class TeacherController {
         return ApiResponse.success(data);
     }
 
+    /** 获取作业学情分析（需作业归属校验） */
     @GetMapping("/analytics/assignments/{assignmentId}")
     @Operation(summary = "获取作业学情分析")
     public ApiResponse<Map<String, Object>> getAssignmentAnalytics(@PathVariable Long assignmentId, Authentication auth) {
@@ -371,6 +403,7 @@ public class TeacherController {
         return ApiResponse.success(stats);
     }
 
+    /** 获取知识点分析（可按课程筛选） */
     @GetMapping("/analytics/knowledge-points")
     @Operation(summary = "获取知识点分析")
     public ApiResponse<Map<String, Object>> getKnowledgePointAnalytics(
@@ -380,6 +413,7 @@ public class TeacherController {
         return ApiResponse.success(data);
     }
 
+    /** 导出学情报告（返回报告 JSON，需课程归属校验） */
     @GetMapping("/analytics/report/export")
     @Operation(summary = "导出学情报告", description = "返回学情报告 JSON 数据（含报告各章节内容），前端基于该数据生成 PDF 文件下载")
     public ApiResponse<Map<String, Object>> exportReport(@RequestParam Long courseId, Authentication auth) {
@@ -390,6 +424,7 @@ public class TeacherController {
 
     // ==================== 课程建设 / 学情驾驶舱（原 CourseTeachingController 合并） ====================
 
+    /** 课程驾驶舱：聚合课程各项教学指标（需课程归属校验） */
     @GetMapping("/courses/{courseId}/dashboard")
     @Operation(summary = "课程驾驶舱", description = "聚合课程概览/内容量/学习指标/待批改/趋势/预警学生/章节树/AI解读")
     public ApiResponse<Map<String, Object>> courseDashboard(
@@ -400,6 +435,7 @@ public class TeacherController {
         return ApiResponse.success(teachingService.getCourseTeachingDashboard(courseId, operatorId));
     }
 
+    /** AI 生成建课大纲（章节与任务点建议） */
     @PostMapping("/courses/ai/generate-outline")
     @Operation(summary = "AI 建课大纲", description = "输入主题/分类/难度，由 AI 生成章节与任务点建议大纲")
     public ApiResponse<Map<String, Object>> generateOutline(
@@ -412,6 +448,7 @@ public class TeacherController {
         return ApiResponse.success(teachingService.generateCourseOutlineByAI(topic, category, level, chapterCount, operatorId));
     }
 
+    /** 克隆课程为新的草稿课程（需源课程归属校验） */
     @PostMapping("/courses/{courseId}/clone")
     @Operation(summary = "克隆课程", description = "复制课程元信息与章节结构为新课程（状态置为草稿）")
     public ApiResponse<Map<String, Object>> cloneCourse(
@@ -423,6 +460,7 @@ public class TeacherController {
         return ApiResponse.success("克隆成功", teachingService.cloneCourse(courseId, newName, operatorId));
     }
 
+    /** 获取教师每门课程的聚合指标摘要 */
     @GetMapping("/courses/summaries")
     @Operation(summary = "我的课程聚合指标", description = "返回教师每门课程的摘要：学生数/平均进度/完成率/待批改")
     public ApiResponse<List<Map<String, Object>>> myCourseSummaries(Authentication auth) {
@@ -430,6 +468,7 @@ public class TeacherController {
         return ApiResponse.success(teachingService.getMyCourseSummaries(teacherId));
     }
 
+    /** 增强型教师仪表盘（多维下钻与预警） */
     @GetMapping("/dashboard/v2")
     @Operation(summary = "增强教师仪表盘", description = "课程下钻卡片/跨课预警学生/任务点完成概览/AI教学总览/平台均值对比")
     public ApiResponse<Map<String, Object>> teacherDashboardV2(Authentication auth) {
@@ -437,6 +476,7 @@ public class TeacherController {
         return ApiResponse.success(teachingService.getTeacherDashboardV2(teacherId));
     }
 
+    /** 获取课程完整章节树（需课程归属校验） */
     @GetMapping("/courses/{courseId}/chapters/tree")
     @Operation(summary = "完整章节树", description = "返回带父子嵌套、内容、发布状态的课程章节树")
     public ApiResponse<List<Map<String, Object>>> chapterTree(
@@ -444,6 +484,16 @@ public class TeacherController {
             Authentication auth) {
         assertCourseOwner(courseId, auth);
         return ApiResponse.success(teachingService.getFullChapterTree(courseId));
+    }
+
+    /** 获取课程关联班级聚合信息（需课程归属校验） */
+    @GetMapping("/courses/{courseId}/classes")
+    @Operation(summary = "课程关联班级", description = "按选课学生所属班级聚合，返回班级学生数/待批改数/课表说明")
+    public ApiResponse<List<Map<String, Object>>> courseClasses(
+            @Parameter(description = "课程ID") @PathVariable Long courseId,
+            Authentication auth) {
+        assertCourseOwner(courseId, auth);
+        return ApiResponse.success(teachingService.getCourseClasses(courseId));
     }
 
     // ==================== 课程归属校验 ====================

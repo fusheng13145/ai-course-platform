@@ -14,6 +14,8 @@ import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * 考试会话对象级授权（防 IDOR / BOLA / 水平越权）。
@@ -38,6 +40,8 @@ import java.util.List;
 @Component
 public class ExamSessionAccessControl {
 
+    private static final Logger log = LoggerFactory.getLogger(ExamSessionAccessControl.class);
+
     private final ExamSessionService examSessionService;
     private final ExamPaperService examPaperService;
     private final CourseService courseService;
@@ -60,6 +64,8 @@ public class ExamSessionAccessControl {
         ExamSession session = requireSession(sessionId);
         if (RoleConstants.STUDENT.equals(roleOf(auth))) {
             if (!principalId(auth).equals(session.getStudentId())) {
+                log.warn("[ExamSessionAccess] 越权访问尝试（学生非本人会话）：sessionId={}, 访问者={}, 持有者={}",
+                        sessionId, principalId(auth), session.getStudentId());
                 throw new BusinessException(ApiCode.FORBIDDEN, "无权访问该考试会话");
             }
         }
@@ -74,6 +80,8 @@ public class ExamSessionAccessControl {
     public ExamSession assertOwnedByStudent(Long sessionId, Authentication auth) {
         ExamSession session = requireSession(sessionId);
         if (!principalId(auth).equals(session.getStudentId())) {
+            log.warn("[ExamSessionAccess] 越权作答尝试（非考生本人）：sessionId={}, 访问者={}, 持有者={}",
+                    sessionId, principalId(auth), session.getStudentId());
             throw new BusinessException(ApiCode.FORBIDDEN, "仅考生本人可操作该考试会话");
         }
         return session;
@@ -95,6 +103,7 @@ public class ExamSessionAccessControl {
             return session;
         }
         if (RoleConstants.STUDENT.equals(roleOf(auth))) {
+            log.warn("[ExamSessionAccess] 越权管理尝试（学生角色）：sessionId={}, userId={}", sessionId, userId);
             throw new BusinessException(ApiCode.FORBIDDEN, "无权管理该考试会话");
         }
         ExamPaper paper = examPaperService.getById(session.getExamPaperId());
@@ -106,6 +115,8 @@ public class ExamSessionAccessControl {
             throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
         }
         if (!userId.equals(course.getTeacherId())) {
+            log.warn("[ExamSessionAccess] 越权管理尝试（非授课教师）：sessionId={}, userId={}, courseId={}, teacherId={}",
+                    sessionId, userId, course.getId(), course.getTeacherId());
             throw new BusinessException(ApiCode.FORBIDDEN, "无权管理其他教师的考试");
         }
         return session;

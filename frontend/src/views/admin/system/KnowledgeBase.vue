@@ -14,193 +14,256 @@
     </div>
 
     <div class="stat-grid animate-in d1">
-      <StatCard label="知识库文档数" :value="docs.length" icon="doc" tone="var(--accent-soft)" tone-color="var(--accent)" />
-      <StatCard label="当前课程" :value="currentCourseName || '未选择'" icon="building" tone="var(--info-soft)" tone-color="var(--info)" />
-      <StatCard label="可管理课程" :value="courseList.length" icon="list" tone="var(--violet-soft)" tone-color="var(--violet)" />
-      <StatCard label="生成模型" :value="modelLabel" icon="info" tone="var(--ok-soft)" tone-color="var(--ok)" />
+      <StatCard
+        label="知识库文档数"
+        :value="docs.length"
+        icon="doc"
+        tone="var(--accent-soft)"
+        tone-color="var(--accent)"
+      />
+      <StatCard
+        label="当前课程"
+        :value="currentCourseName || '未选择'"
+        icon="building"
+        tone="var(--info-soft)"
+        tone-color="var(--info)"
+      />
+      <StatCard
+        label="可管理课程"
+        :value="courseList.length"
+        icon="list"
+        tone="var(--violet-soft)"
+        tone-color="var(--violet)"
+      />
+      <StatCard
+        label="生成模型"
+        :value="modelLabel"
+        icon="info"
+        tone="var(--ok-soft)"
+        tone-color="var(--ok)"
+      />
     </div>
 
     <!-- 工具栏 -->
     <section class="l1-card animate-in d2">
       <div class="l1-head">
         <span class="l1-ico ico-accent">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          <svg
+            viewBox="0 0 24 24"
+            width="17"
+            height="17"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.9"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+          </svg>
         </span>
-        <div><div class="l1-title">知识库文档</div><div class="l1-sub">按课程检索与维护文档语料</div></div>
+        <div>
+          <div class="l1-title">知识库文档</div>
+          <div class="l1-sub">按课程检索与维护文档语料</div>
+        </div>
       </div>
       <div class="l1-body">
-    <div class="content-card filter-card">
-      <div class="filter-row">
-        <el-select
-          v-model="selectedCourseId"
-          placeholder="选择课程"
-          filterable
-          class="w-260"
-          @change="onCourseChange"
-        >
-          <el-option v-for="c in courseList" :key="c.id" :label="c.name || c.title" :value="c.id" />
-        </el-select>
-        <el-button type="primary" :disabled="!selectedCourseId" @click="openAdd">
-          <el-icon><Plus /></el-icon>新建文档
-        </el-button>
-        <el-button :disabled="!selectedCourseId" :loading="indexing" @click="buildIndex">
-          <el-icon><Refresh /></el-icon>重建索引
-        </el-button>
-        <el-button :disabled="!selectedCourseId" :loading="indexing" @click="clearIndex">
-          <el-icon><Delete /></el-icon>清空索引
-        </el-button>
-        <div class="spacer"></div>
-        <el-input
-          v-model="keyword"
-          placeholder="搜索文档名称"
-          clearable
-          class="w-200"
-          @keyup.enter="loadDocs"
-        />
-      </div>
-    </div>
-
-    <!-- 文档表格 -->
-    <div class="content-card">
-      <el-table
-        v-loading="loading"
-        :data="filteredDocs"
-        style="width: 100%"
-        empty-text="请选择课程后查看知识库文档"
-      >
-        <el-table-column prop="id" label="ID" width="70" />
-        <el-table-column label="文档名称" min-width="200" show-overflow-tooltip>
-          <template #default="{ row }">
-            <span class="doc-name">
-              <el-icon class="doc-icon"><Document /></el-icon>
-              {{ row.name || '未命名' }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column label="类型" width="120" align="center">
-          <template #default="{ row }">
-            <el-tag
-              size="small"
-              :type="row.type === 'DOCUMENT' ? 'primary' : 'info'"
-              effect="plain"
+        <div class="content-card filter-card">
+          <div class="filter-row">
+            <el-select
+              v-model="selectedCourseId"
+              placeholder="选择课程"
+              filterable
+              class="w-260"
+              @change="onCourseChange"
             >
-              {{ row.type === 'DOCUMENT' ? '文档' : '知识点' }}
-            </el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="内容预览" min-width="260" show-overflow-tooltip>
-          <template #default="{ row }">{{ preview(row.description) }}</template>
-        </el-table-column>
-        <el-table-column label="操作" width="160" align="center">
-          <template #default="{ row }">
-            <div class="action-row">
-              <el-button text type="primary" size="small" @click="openEdit(row)">编辑</el-button>
-              <el-button text type="danger" size="small" @click="removeDoc(row)">删除</el-button>
-            </div>
-          </template>
-        </el-table-column>
-        <template #empty>
-          <el-empty description="请选择课程后查看知识库文档">
-            <template #image><div class="empty-deco">📚</div></template>
-          </el-empty>
-        </template>
-      </el-table>
-    </div>
-    </div>
+              <el-option
+                v-for="c in courseList"
+                :key="c.id"
+                :label="c.name || c.title"
+                :value="c.id"
+              />
+            </el-select>
+            <el-button type="primary" :disabled="!selectedCourseId" @click="openAdd">
+              <el-icon><Plus /></el-icon>新建文档
+            </el-button>
+            <el-button :disabled="!selectedCourseId" :loading="indexing" @click="buildIndex">
+              <el-icon><Refresh /></el-icon>重建索引
+            </el-button>
+            <el-button :disabled="!selectedCourseId" :loading="indexing" @click="clearIndex">
+              <el-icon><Delete /></el-icon>清空索引
+            </el-button>
+            <div class="spacer"></div>
+            <el-input
+              v-model="keyword"
+              placeholder="搜索文档名称"
+              clearable
+              class="w-200"
+              @keyup.enter="loadDocs"
+            />
+          </div>
+        </div>
+
+        <!-- 文档表格 -->
+        <div class="content-card">
+          <el-table
+            v-loading="loading"
+            :data="filteredDocs"
+            style="width: 100%"
+            empty-text="请选择课程后查看知识库文档"
+          >
+            <el-table-column prop="id" label="ID" width="70" />
+            <el-table-column label="文档名称" min-width="200" show-overflow-tooltip>
+              <template #default="{ row }">
+                <span class="doc-name">
+                  <el-icon class="doc-icon"><Document /></el-icon>
+                  {{ row.name || '未命名' }}
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column label="类型" width="120" align="center">
+              <template #default="{ row }">
+                <el-tag
+                  size="small"
+                  :type="row.type === 'DOCUMENT' ? 'primary' : 'info'"
+                  effect="plain"
+                >
+                  {{ row.type === 'DOCUMENT' ? '文档' : '知识点' }}
+                </el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column label="内容预览" min-width="260" show-overflow-tooltip>
+              <template #default="{ row }">{{ preview(row.description) }}</template>
+            </el-table-column>
+            <el-table-column label="操作" width="160" align="center">
+              <template #default="{ row }">
+                <div class="action-row">
+                  <el-button text type="primary" size="small" @click="openEdit(row)"
+                    >编辑</el-button
+                  >
+                  <el-button text type="danger" size="small" @click="removeDoc(row)"
+                    >删除</el-button
+                  >
+                </div>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <el-empty description="请选择课程后查看知识库文档">
+                <template #image><div class="empty-deco">📚</div></template>
+              </el-empty>
+            </template>
+          </el-table>
+        </div>
+      </div>
     </section>
 
     <!-- RAG 联调面板 -->
     <section class="l1-card animate-in d3">
       <div class="l1-head">
-        <span class="l1-ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2a3 3 0 0 0-3 3v1a3 3 0 0 0-3 3 3 3 0 0 0 0 6 3 3 0 0 0 3 3v1a3 3 0 0 0 3 3 3 3 0 0 0 3-3v-1a3 3 0 0 0 3-3 3 3 0 0 0 0-6 3 3 0 0 0-3-3V5a3 3 0 0 0-3-3z" /></svg></span>
+        <span class="l1-ico"
+          ><svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M12 2a3 3 0 0 0-3 3v1a3 3 0 0 0-3 3 3 3 0 0 0 0 6 3 3 0 0 0 3 3v1a3 3 0 0 0 3 3 3 3 0 0 0 3-3v-1a3 3 0 0 0 3-3 3 3 0 0 0 0-6 3 3 0 0 0-3-3V5a3 3 0 0 0-3-3z"
+            /></svg
+        ></span>
         <div><h3 class="l1-title">RAG 联调测试</h3></div>
       </div>
       <div class="l1-body">
-    <div class="playground">
-      <div class="content-card playground-card">
-        <div class="card-title">
-          <el-icon><ChatDotRound /></el-icon><span>智能问答测试</span>
-        </div>
-        <p class="card-hint">
-          基于所选课程知识库作答；未配置大模型 Key 时回退展示知识库原文（抑制幻觉）。
-        </p>
-        <div class="qa-input">
-          <el-input
-            v-model="askForm.question"
-            placeholder="输入问题，如：什么是反向传播？"
-            @keyup.enter="doAsk"
-          />
-          <el-input-number
-            v-model="askForm.topK"
-            :min="1"
-            :max="10"
-            controls-position="right"
-            class="w-110"
-          />
-          <el-button type="primary" :loading="asking" :disabled="!selectedCourseId" @click="doAsk"
-            >提问</el-button
-          >
-        </div>
-        <div v-if="askResult" class="qa-result">
-          <div class="qa-answer"><strong>回答：</strong>{{ askResult.answer }}</div>
-          <div v-if="askResult.sources && askResult.sources.length" class="qa-sources">
-            <strong>参考知识点：</strong>
-            <span v-for="s in askResult.sources" :key="s.id" class="src-chip"
-              >{{ s.name }} <em>({{ s.score }})</em></span
-            >
-          </div>
-          <div class="qa-model">
-            模型：<el-tag size="small" effect="plain">{{ askResult.model }}</el-tag>
-          </div>
-        </div>
-      </div>
-
-      <div class="content-card playground-card">
-        <div class="card-title">
-          <el-icon><Search /></el-icon><span>语义召回测试</span>
-        </div>
-        <p class="card-hint">基于词频/IDF 加权的中文 bigram 余弦相似度召回 topK 知识点。</p>
-        <div class="qa-input">
-          <el-input
-            v-model="retrieveForm.query"
-            placeholder="输入查询词，如：梯度下降"
-            @keyup.enter="doRetrieve"
-          />
-          <el-input-number
-            v-model="retrieveForm.topK"
-            :min="1"
-            :max="10"
-            controls-position="right"
-            class="w-110"
-          />
-          <el-button
-            type="primary"
-            :loading="retrieving"
-            :disabled="!selectedCourseId"
-            @click="doRetrieve"
-            >召回</el-button
-          >
-        </div>
-        <div v-if="retrieveResult" class="retrieve-result">
-          <div class="retrieve-count">命中 {{ retrieveResult.count }} 条</div>
-          <div v-for="r in retrieveResult.results" :key="r.id" class="retrieve-item">
-            <div class="retrieve-head">
-              <span class="retrieve-name">{{ r.name }}</span>
-              <span class="retrieve-score">相似度 {{ r.score }}</span>
+        <div class="playground">
+          <div class="content-card playground-card">
+            <div class="card-title">
+              <el-icon><ChatDotRound /></el-icon><span>智能问答测试</span>
             </div>
-            <div class="retrieve-desc">{{ preview(r.description) }}</div>
+            <p class="card-hint">
+              基于所选课程知识库作答；未配置大模型 Key 时回退展示知识库原文（抑制幻觉）。
+            </p>
+            <div class="qa-input">
+              <el-input
+                v-model="askForm.question"
+                placeholder="输入问题，如：什么是反向传播？"
+                @keyup.enter="doAsk"
+              />
+              <el-input-number
+                v-model="askForm.topK"
+                :min="1"
+                :max="10"
+                controls-position="right"
+                class="w-110"
+              />
+              <el-button
+                type="primary"
+                :loading="asking"
+                :disabled="!selectedCourseId"
+                @click="doAsk"
+                >提问</el-button
+              >
+            </div>
+            <div v-if="askResult" class="qa-result">
+              <div class="qa-answer"><strong>回答：</strong>{{ askResult.answer }}</div>
+              <div v-if="askResult.sources && askResult.sources.length" class="qa-sources">
+                <strong>参考知识点：</strong>
+                <span v-for="s in askResult.sources" :key="s.id" class="src-chip"
+                  >{{ s.name }} <em>({{ s.score }})</em></span
+                >
+              </div>
+              <div class="qa-model">
+                模型：<el-tag size="small" effect="plain">{{ askResult.model }}</el-tag>
+              </div>
+            </div>
           </div>
-          <el-empty
-            v-if="!retrieveResult.count"
-            description="未召回相关知识点，建议补充知识库语料"
-            :image-size="80"
-          >
-            <template #image><div class="empty-deco">🔍</div></template>
-          </el-empty>
+
+          <div class="content-card playground-card">
+            <div class="card-title">
+              <el-icon><Search /></el-icon><span>语义召回测试</span>
+            </div>
+            <p class="card-hint">基于词频/IDF 加权的中文 bigram 余弦相似度召回 topK 知识点。</p>
+            <div class="qa-input">
+              <el-input
+                v-model="retrieveForm.query"
+                placeholder="输入查询词，如：梯度下降"
+                @keyup.enter="doRetrieve"
+              />
+              <el-input-number
+                v-model="retrieveForm.topK"
+                :min="1"
+                :max="10"
+                controls-position="right"
+                class="w-110"
+              />
+              <el-button
+                type="primary"
+                :loading="retrieving"
+                :disabled="!selectedCourseId"
+                @click="doRetrieve"
+                >召回</el-button
+              >
+            </div>
+            <div v-if="retrieveResult" class="retrieve-result">
+              <div class="retrieve-count">命中 {{ retrieveResult.count }} 条</div>
+              <div v-for="r in retrieveResult.results" :key="r.id" class="retrieve-item">
+                <div class="retrieve-head">
+                  <span class="retrieve-name">{{ r.name }}</span>
+                  <span class="retrieve-score">相似度 {{ r.score }}</span>
+                </div>
+                <div class="retrieve-desc">{{ preview(r.description) }}</div>
+              </div>
+              <el-empty
+                v-if="!retrieveResult.count"
+                description="未召回相关知识点，建议补充知识库语料"
+                :image-size="80"
+              >
+                <template #image><div class="empty-deco">🔍</div></template>
+              </el-empty>
+            </div>
+          </div>
         </div>
       </div>
-    </div>
-    </div>
     </section>
 
     <!-- 新增 / 编辑弹窗 -->
@@ -552,9 +615,15 @@ onMounted(loadCourses)
   color: var(--accent);
 }
 
-.w-260 { width: 260px; }
-.w-200 { width: 200px; }
-.w-110 { width: 110px; }
+.w-260 {
+  width: 260px;
+}
+.w-200 {
+  width: 200px;
+}
+.w-110 {
+  width: 110px;
+}
 
 .content-card {
   background: var(--ac-bg-elevated);
@@ -695,7 +764,7 @@ onMounted(loadCourses)
 /* 空状态装饰 */
 .empty-deco {
   font-size: 38px;
-  filter: grayscale(.2);
+  filter: grayscale(0.2);
 }
 
 @media (max-width: 900px) {

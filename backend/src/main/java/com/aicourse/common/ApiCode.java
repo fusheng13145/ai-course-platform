@@ -17,6 +17,8 @@ public final class ApiCode {
     public static final int METHOD_NOT_ALLOWED = 405;
     /** 触发限流 / 配额上限（对应 HTTP 429），用于 AI 用量配额熔断等场景。 */
     public static final int TOO_MANY_REQUESTS = 429;
+    /** 服务不可用（对应 HTTP 503），用于依赖服务未启用/不可达（如 Python 微调服务）的降级语义。 */
+    public static final int SERVICE_UNAVAILABLE = 503;
     public static final int INTERNAL_SERVER_ERROR = 500;
 
     private ApiCode() {

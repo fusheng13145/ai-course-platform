@@ -1,10 +1,14 @@
 package com.aicourse.service.impl;
 
+
+import com.aicourse.constant.SubmissionStatus;
+
 import com.aicourse.entity.*;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.TaskCompletionMapper;
 import com.aicourse.service.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -24,6 +28,7 @@ import lombok.extern.slf4j.Slf4j;
 @Service
 @Slf4j
 public class StudentLearningServiceImpl implements StudentLearningService {
+
 
 
     /**
@@ -154,7 +159,7 @@ public class StudentLearningServiceImpl implements StudentLearningService {
                         .eq(Task::getIsPublished, true));
                 Set<Long> submitted = submissionService.list(new LambdaQueryWrapper<Submission>()
                                 .eq(Submission::getStudentId, userId)
-                                .in(Submission::getStatus, "SUBMITTED", "GRADED", "RETURNED"))
+                                .in(Submission::getStatus, SubmissionStatus.SUBMITTED, SubmissionStatus.GRADED, SubmissionStatus.RETURNED))
                         .stream().map(Submission::getTaskId).collect(Collectors.toSet());
                 for (Task t : tasks) {
                     if (submitted.contains(t.getId())) continue;
@@ -171,13 +176,18 @@ public class StudentLearningServiceImpl implements StudentLearningService {
                 List<ExamPaper> papers = examPaperService.list(new LambdaQueryWrapper<ExamPaper>()
                         .in(ExamPaper::getCourseId, courseIds)
                         .in(ExamPaper::getStatus, "PUBLISHED", "OPEN"));
+                // 修复 N+1：循环外一次批量查询该学生全部考试会话（原在循环内逐门 count）
+                Set<Long> takenExamPaperIds = examSessionService.list(new LambdaQueryWrapper<ExamSession>()
+                                .eq(ExamSession::getStudentId, userId)
+                                .select(ExamSession::getExamPaperId))
+                        .stream()
+                        .map(ExamSession::getExamPaperId)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet());
                 for (ExamPaper p : papers) {
                     if (p.getStartTime() == null || p.getStartTime().isAfter(now)) continue;
                     if (p.getEndTime() != null && p.getEndTime().isBefore(now)) continue;
-                    boolean taken = examSessionService.count(new LambdaQueryWrapper<ExamSession>()
-                            .eq(ExamSession::getExamPaperId, p.getId())
-                            .eq(ExamSession::getStudentId, userId)) > 0;
-                    if (taken) continue;
+                    if (takenExamPaperIds.contains(p.getId())) continue;
                     Map<String, Object> m = new LinkedHashMap<>();
                     m.put("examPaperId", p.getId());
                     m.put("title", p.getTitle());
@@ -192,10 +202,14 @@ public class StudentLearningServiceImpl implements StudentLearningService {
                 List<SignIn> signs = signInService.list(new LambdaQueryWrapper<SignIn>()
                         .in(SignIn::getCourseId, courseIds)
                         .eq(SignIn::getStatus, "ONGOING"));
+                // 修复 N+1：循环外一次批量查询该学生全部签到记录（原在循环内逐次 myRecord）
+                Set<Long> signedSignInIds = signInService.listMyRecords(userId).stream()
+                        .map(SignInRecord::getSignInId)
+                        .filter(Objects::nonNull)
+                        .collect(Collectors.toSet());
                 for (SignIn s : signs) {
+                    if (signedSignInIds.contains(s.getId())) continue;
                     try {
-                        SignInRecord rec = signInService.myRecord(s.getId(), userId);
-                        if (rec != null) continue;
                         Map<String, Object> m = new LinkedHashMap<>();
                         m.put("signInId", s.getId());
                         m.put("title", s.getTitle());
@@ -221,6 +235,8 @@ public class StudentLearningServiceImpl implements StudentLearningService {
             result.put("unreadCount", notificationService.getUnreadCount(userId));
             result.put("unreadByCategory", notificationService.getUnreadGroupedByCategory(userId));
         } catch (Exception e) {
+            log.error("查询学生学习失败: {}", e.getMessage(), e);
+
             result.put("unreadCount", 0L);
             result.put("unreadByCategory", Collections.emptyMap());
         }
@@ -271,7 +287,7 @@ public class StudentLearningServiceImpl implements StudentLearningService {
                 : submissionService.list(new LambdaQueryWrapper<Submission>()
                         .eq(Submission::getStudentId, userId)
                         .in(Submission::getTaskId, taskIds)
-                        .in(Submission::getStatus, "SUBMITTED", "GRADED", "RETURNED"))
+                        .in(Submission::getStatus, SubmissionStatus.SUBMITTED, SubmissionStatus.GRADED, SubmissionStatus.RETURNED))
                 .stream().map(Submission::getTaskId).collect(Collectors.toSet());
         Set<Long> completedTcTaskIds = taskIds.isEmpty() ? Collections.emptySet()
                 : taskCompletionMapper.selectList(new LambdaQueryWrapper<TaskCompletion>()
@@ -354,7 +370,11 @@ public class StudentLearningServiceImpl implements StudentLearningService {
             List<CourseChapter> children = childrenMap.getOrDefault(ch.getId(), Collections.emptyList());
             children.sort(CHAPTER_ORDER);
             if (!children.isEmpty()) {
-                buildLevel(children, childrenMap, tasksByChapter, completedMap, new boolean[]{allCompleted}, childTree, counters);
+                // 修复 P1-16：子章节解锁必须继承「祖链锁定」——父章节本身未解锁（chapterUnlocked=false）
+                // 时，即使其全部任务完成，子章节也不应显示为解锁；原实现仅传 allCompleted，
+                // 导致已锁定章节的子章节错误显示 unlocked（闯关解锁被绕过）。
+                buildLevel(children, childrenMap, tasksByChapter, completedMap,
+                        new boolean[]{chapterUnlocked && allCompleted}, childTree, counters);
             }
             node.put("children", childTree);
             outTree.add(node);
@@ -362,6 +382,8 @@ public class StudentLearningServiceImpl implements StudentLearningService {
         }
     }
 
+
+    /** 查询学生学习 */
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getCourseProgressSummary(Long userId, Long courseId) {
@@ -414,6 +436,8 @@ public class StudentLearningServiceImpl implements StudentLearningService {
         return r;
     }
 
+
+    /** 查询学生学习 */
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getVideoState(Long userId, Long courseId, Long taskId) {
@@ -427,6 +451,8 @@ public class StudentLearningServiceImpl implements StudentLearningService {
         return r;
     }
 
+
+    /** 学生学习相关操作 */
     @Override
     @Transactional
     public Map<String, Object> reportVideoHeartbeat(Long userId, Long courseId, Long taskId, Long resourceId,
@@ -495,6 +521,8 @@ public class StudentLearningServiceImpl implements StudentLearningService {
         return getVideoState(userId, courseId, taskId);
     }
 
+
+    /** 提交学生学习 */
     @Override
     @Transactional
     public Map<String, Object> submitQuiz(Long userId, Long courseId, Long taskId, Map<String, String> rawAnswers) {
@@ -565,6 +593,8 @@ public class StudentLearningServiceImpl implements StudentLearningService {
         return r;
     }
 
+
+    /** 查询学生学习 */
     @Override
     @Transactional(readOnly = true)
     public Map<String, Object> getGrades(Long userId) {
@@ -660,13 +690,13 @@ public class StudentLearningServiceImpl implements StudentLearningService {
             return submissionService.count(new LambdaQueryWrapper<Submission>()
                     .eq(Submission::getTaskId, task.getId())
                     .eq(Submission::getStudentId, userId)
-                    .in(Submission::getStatus, "SUBMITTED", "GRADED", "RETURNED")) > 0;
+                    .in(Submission::getStatus, SubmissionStatus.SUBMITTED, SubmissionStatus.GRADED, SubmissionStatus.RETURNED)) > 0;
         }
         if ("QUIZ".equals(type)) {
             boolean sub = submissionService.count(new LambdaQueryWrapper<Submission>()
                     .eq(Submission::getTaskId, task.getId())
                     .eq(Submission::getStudentId, userId)
-                    .in(Submission::getStatus, "SUBMITTED", "GRADED", "RETURNED")) > 0;
+                    .in(Submission::getStatus, SubmissionStatus.SUBMITTED, SubmissionStatus.GRADED, SubmissionStatus.RETURNED)) > 0;
             if (sub) return true;
         }
         return taskCompletionCompleted(task.getId(), userId);
@@ -689,6 +719,7 @@ public class StudentLearningServiceImpl implements StudentLearningService {
                                              String completionType, Consumer<TaskCompletion> modifier) {
         TaskCompletion tc = getOneCompletion(taskId, userId);
         boolean isNew = false;
+        boolean wasCompleted = tc != null && Boolean.TRUE.equals(tc.getCompleted());
         if (tc == null) {
             tc = new TaskCompletion();
             tc.setStudentId(userId);
@@ -703,9 +734,60 @@ public class StudentLearningServiceImpl implements StudentLearningService {
         }
         if (completionType != null) tc.setCompletionType(completionType);
         modifier.accept(tc);
-        if (isNew) taskCompletionMapper.insert(tc);
-        else taskCompletionMapper.updateById(tc);
+        if (isNew) {
+            try {
+                taskCompletionMapper.insert(tc);
+            } catch (org.springframework.dao.DuplicateKeyException e) {
+                log.error("查询学生学习失败: {}", e.getMessage(), e);
+
+                // 修复 P1-17：视频心跳/测验提交存在并发场景，两个请求同时读到 null 并插入，
+                // 唯一索引 uk_task_completion(student_id, task_id) 冲突。捕获后转更新已有记录，
+                // 保证幂等且不再向客户端抛 500。
+                TaskCompletion existing = getOneCompletion(taskId, userId);
+                if (existing == null) {
+                    throw e;
+                }
+                tc.setId(existing.getId());
+                taskCompletionMapper.updateById(tc);
+            }
+        } else {
+            taskCompletionMapper.updateById(tc);
+        }
+        // 修复 P1-25：任务由「未完成 → 完成」的瞬间刷新课程进度（仅完成态翻转时触发一次，
+        // 视频心跳等高频路径不会重复计算）。刷新失败不影响主流程。
+        boolean justCompleted = Boolean.TRUE.equals(tc.getCompleted()) && !wasCompleted;
+        if (justCompleted && courseId != null) {
+            refreshEnrollmentProgress(userId, courseId);
+        }
         return tc;
+    }
+
+    /**
+     * 基于课程任务完成数聚合刷新 {@link CourseEnrollment#getProgress()}（0-100 百分制）。
+     * <p>修复：enrollment.progress 原先仅创建时置 0、从未更新，学生端"课程进度"恒为 0。
+     * 现以任务完成率为口径：已完成任务数 / 该课程任务总数。任务总数为 0 的课程不计算。
+     */
+    private void refreshEnrollmentProgress(Long userId, Long courseId) {
+        try {
+            long total = taskService.count(new LambdaQueryWrapper<Task>()
+                    .eq(Task::getCourseId, courseId));
+            if (total <= 0) {
+                return;
+            }
+            long done = taskCompletionMapper.selectCount(new LambdaQueryWrapper<TaskCompletion>()
+                    .eq(TaskCompletion::getStudentId, userId)
+                    .eq(TaskCompletion::getCourseId, courseId)
+                    .eq(TaskCompletion::getCompleted, true));
+            int pct = (int) Math.min(100, Math.round(done * 100.0 / total));
+            enrollmentService.update(new LambdaUpdateWrapper<CourseEnrollment>()
+                    .eq(CourseEnrollment::getStudentId, userId)
+                    .eq(CourseEnrollment::getCourseId, courseId)
+                    .eq(CourseEnrollment::getIsActive, true)
+                    .set(CourseEnrollment::getProgress, BigDecimal.valueOf(pct)));
+        } catch (Exception e) {
+            log.warn("课程进度刷新失败: userId={}, courseId={}, err={}",
+                    userId, courseId, e.getMessage());
+        }
     }
 
     private String normalize(String s) {

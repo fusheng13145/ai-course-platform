@@ -2,14 +2,20 @@
   <div class="fade-in content-card form-root">
     <PageHeader title="创建课程" subtitle="填写课程基本信息，提交后进入审核流程" icon="book" />
     <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
-      <el-form-item label="课程名称" prop="name"><el-input v-model="form.name" placeholder="输入课程名称" /></el-form-item>
-      <el-form-item label="课程编码" prop="code"><el-input v-model="form.code" placeholder="输入课程编码（如：CS101）" /></el-form-item>
+      <el-form-item label="课程名称" prop="name"
+        ><el-input v-model="form.name" placeholder="输入课程名称"
+      /></el-form-item>
+      <el-form-item label="课程编码" prop="code"
+        ><el-input v-model="form.code" placeholder="输入课程编码（如：CS101）"
+      /></el-form-item>
       <el-form-item label="课程分类" prop="category">
         <el-select v-model="form.category" class="w-100" placeholder="选择分类">
           <el-option v-for="cat in categories" :key="cat" :label="cat" :value="cat" />
         </el-select>
       </el-form-item>
-      <el-form-item label="学分"><el-input-number v-model="form.credits" :min="0" :max="10" :precision="1" /></el-form-item>
+      <el-form-item label="学分"
+        ><el-input-number v-model="form.credits" :min="0" :max="10" :precision="1"
+      /></el-form-item>
       <el-form-item label="难度">
         <el-select v-model="form.difficulty" class="w-100">
           <el-option label="入门" value="BEGINNER" />
@@ -26,15 +32,29 @@
           <el-option label="限制报名" value="RESTRICTED" />
         </el-select>
       </el-form-item>
-      <el-form-item label="最大人数"><el-input-number v-model="form.maxStudents" :min="0" /></el-form-item>
-      <el-form-item label="课程简介" prop="description"><el-input v-model="form.description" type="textarea" :rows="4" placeholder="输入课程简介" /></el-form-item>
+      <el-form-item label="最大人数"
+        ><el-input-number v-model="form.maxStudents" :min="0"
+      /></el-form-item>
+      <el-form-item label="课程简介" prop="description"
+        ><el-input v-model="form.description" type="textarea" :rows="4" placeholder="输入课程简介"
+      /></el-form-item>
       <el-form-item label="封面图片">
-        <el-upload class="avatar-uploader" :action="uploadUrl" :headers="uploadHeaders" :show-file-list="false" :on-success="handleUploadSuccess" :before-upload="beforeUpload">
+        <el-upload
+          class="avatar-uploader"
+          :action="uploadUrl"
+          :headers="uploadHeaders"
+          :show-file-list="false"
+          :on-success="handleUploadSuccess"
+          :before-upload="beforeUpload"
+        >
           <img v-if="form.coverImage" :src="form.coverImage" class="cover-img" />
           <el-icon v-else :size="24"><Plus /></el-icon>
         </el-upload>
       </el-form-item>
-      <el-form-item><el-button type="primary" :loading="submitting" @click="handleSubmit">提交审核</el-button><el-button @click="$router.back()">取消</el-button></el-form-item>
+      <el-form-item
+        ><el-button type="primary" :loading="submitting" @click="handleSubmit">提交审核</el-button
+        ><el-button @click="$router.back()">取消</el-button></el-form-item
+      >
     </el-form>
   </div>
 </template>
@@ -59,12 +79,12 @@ const form = reactive({
   difficulty: 'MEDIUM',
   enrollmentType: 'OPEN',
   maxStudents: 100,
-  coverImage: ''
+  coverImage: '',
 })
 
 const rules = {
   name: [{ required: true, message: '请输入课程名称', trigger: 'blur' }],
-  category: [{ required: true, message: '请选择分类', trigger: 'change' }]
+  category: [{ required: true, message: '请选择分类', trigger: 'change' }],
 }
 
 const uploadUrl = '/api/common/upload'
@@ -100,12 +120,22 @@ async function handleSubmit() {
       const data = {
         ...form,
         status: 'DRAFT',
-        approvalStatus: 'PENDING'
+        approvalStatus: 'PENDING',
       }
       await courseApi.createCourse(data)
       ElMessage.success('提交成功，等待审核')
       formRef.value?.resetFields()
-      Object.assign(form, { name: '', code: '', category: '', description: '', credits: 2, difficulty: 'MEDIUM', enrollmentType: 'OPEN', maxStudents: 100, coverImage: '' })
+      Object.assign(form, {
+        name: '',
+        code: '',
+        category: '',
+        description: '',
+        credits: 2,
+        difficulty: 'MEDIUM',
+        enrollmentType: 'OPEN',
+        maxStudents: 100,
+        coverImage: '',
+      })
     } catch (e) {
       ElMessage.error(e.response?.data?.message || '提交失败')
     } finally {

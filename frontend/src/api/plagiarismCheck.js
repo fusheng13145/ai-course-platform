@@ -12,4 +12,7 @@ export const getCheckMatches = id => request.get(`/plagiarism-checks/${id}/match
 export const getCheckHistory = studentId =>
   studentId ? request.get(`/plagiarism-checks/student/${studentId}`) : request.get('/plagiarism-checks')
 
+/**
+ * 默认导出对象：模块/组件配置与导出内容
+ */
 export default { createCheck, executeCheck, getCheckDetail, getCheckMatches, getCheckHistory }

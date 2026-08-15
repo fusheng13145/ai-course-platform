@@ -1,4 +1,4 @@
-@import "./theme.css";
+@import './theme.css';
 
 /* ============================================
    全局样式 · 云枢教学平台
@@ -6,9 +6,15 @@
    本文件保留：Element Plus 覆写 / 响应式
    ============================================ */
 
-* { margin: 0; padding: 0; box-sizing: border-box; }
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
 
-html, body, #app {
+html,
+body,
+#app {
   height: 100%;
   font-family: var(--font);
   background: var(--bg);
@@ -38,7 +44,7 @@ html, body, #app {
   background: var(--surface);
   border-radius: var(--r-l1);
   border: 1px solid var(--line);
-  transition: all .25s ease;
+  transition: all 0.25s ease;
   position: relative;
   overflow: hidden;
 }
@@ -46,12 +52,13 @@ html, body, #app {
 .stat-cards .stat-card::before {
   content: '';
   position: absolute;
-  top: 0; left: 0;
+  top: 0;
+  left: 0;
   width: 4px;
   height: 100%;
   background: var(--accent);
   opacity: 0;
-  transition: opacity .25s;
+  transition: opacity 0.25s;
 }
 
 .stat-cards .stat-card:hover {
@@ -59,7 +66,9 @@ html, body, #app {
   border-color: var(--line-strong);
 }
 
-.stat-cards .stat-card:hover::before { opacity: 1; }
+.stat-cards .stat-card:hover::before {
+  opacity: 1;
+}
 
 .stat-cards .stat-card .stat-icon {
   width: 48px;
@@ -158,7 +167,10 @@ html, body, #app {
   font-weight: 600;
 }
 
-.el-menu-item .el-icon { font-size: 17px !important; margin-right: 8px !important; }
+.el-menu-item .el-icon {
+  font-size: 17px !important;
+  margin-right: 8px !important;
+}
 
 /* 卡片：柔和阴影 */
 .el-card {
@@ -181,7 +193,9 @@ html, body, #app {
   color: var(--ac-text-primary);
 }
 
-.el-card__body { padding: 20px 22px !important; }
+.el-card__body {
+  padding: 20px 22px !important;
+}
 
 /* 按钮：莫兰迪主色 */
 .el-button--primary {
@@ -198,15 +212,15 @@ html, body, #app {
 .el-button--success {
   --el-button-bg-color: var(--ac-success) !important;
   --el-button-border-color: var(--ac-success) !important;
-  --el-button-hover-bg-color: #9BB898 !important;
-  --el-button-hover-border-color: #9BB898 !important;
+  --el-button-hover-bg-color: #9bb898 !important;
+  --el-button-hover-border-color: #9bb898 !important;
 }
 
 .el-button--danger {
   --el-button-bg-color: var(--ac-danger) !important;
   --el-button-border-color: var(--ac-danger) !important;
-  --el-button-hover-bg-color: #D49494 !important;
-  --el-button-hover-border-color: #D49494 !important;
+  --el-button-hover-bg-color: #d49494 !important;
+  --el-button-hover-border-color: #d49494 !important;
 }
 
 .el-button--warning {
@@ -220,7 +234,9 @@ html, body, #app {
   border-radius: var(--ac-radius-sm) !important;
 }
 
-.el-button:not(.is-text):not(.is-link):active { transform: scale(.97); }
+.el-button:not(.is-text):not(.is-link):active {
+  transform: scale(0.97);
+}
 
 .el-button:focus-visible,
 .t-icon-btn:focus-visible {
@@ -236,11 +252,26 @@ html, body, #app {
   padding: 2px 10px !important;
 }
 
-.el-tag--primary { background: var(--ac-primary-bg); color: var(--ac-primary-dark); }
-.el-tag--success { background: var(--ac-success-bg); color: var(--ac-success); }
-.el-tag--warning { background: var(--ac-warning-bg); color: var(--ac-warning); }
-.el-tag--danger { background: var(--ac-danger-bg); color: var(--ac-danger); }
-.el-tag--info { background: var(--ac-bg-hover); color: var(--ac-text-muted); }
+.el-tag--primary {
+  background: var(--ac-primary-bg);
+  color: var(--ac-primary-dark);
+}
+.el-tag--success {
+  background: var(--ac-success-bg);
+  color: var(--ac-success);
+}
+.el-tag--warning {
+  background: var(--ac-warning-bg);
+  color: var(--ac-warning);
+}
+.el-tag--danger {
+  background: var(--ac-danger-bg);
+  color: var(--ac-danger);
+}
+.el-tag--info {
+  background: var(--ac-bg-hover);
+  color: var(--ac-text-muted);
+}
 
 /* 表格：简洁无干扰线 */
 .el-table {
@@ -253,14 +284,20 @@ html, body, #app {
   color: var(--ac-text-secondary) !important;
   font-weight: 600 !important;
   font-size: 13px;
-  letter-spacing: .3px;
+  letter-spacing: 0.3px;
 }
 
-.el-table td.el-table__cell { padding: 13px 0; }
+.el-table td.el-table__cell {
+  padding: 13px 0;
+}
 
-.el-table .el-table__body tr { transition: background .12s ease; }
+.el-table .el-table__body tr {
+  transition: background 0.12s ease;
+}
 
-.el-table .el-table__row .cell { line-height: 1.6; }
+.el-table .el-table__row .cell {
+  line-height: 1.6;
+}
 
 .el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
   background: var(--ac-bg) !important;
@@ -282,7 +319,9 @@ html, body, #app {
 }
 
 .el-input__wrapper.is-focus {
-  box-shadow: 0 0 0 2px var(--ac-primary-bg), 0 0 0 1px var(--ac-primary) inset !important;
+  box-shadow:
+    0 0 0 2px var(--ac-primary-bg),
+    0 0 0 1px var(--ac-primary) inset !important;
 }
 
 /* 对话框：大圆角+柔和阴影 */
@@ -293,8 +332,12 @@ html, body, #app {
 }
 
 /* 抽屉：贴边圆角 */
-.el-drawer.rtl { border-radius: var(--ac-radius-xl) 0 0 var(--ac-radius-xl); }
-.el-drawer.ltr { border-radius: 0 var(--ac-radius-xl) var(--ac-radius-xl) 0; }
+.el-drawer.rtl {
+  border-radius: var(--ac-radius-xl) 0 0 var(--ac-radius-xl);
+}
+.el-drawer.ltr {
+  border-radius: 0 var(--ac-radius-xl) var(--ac-radius-xl) 0;
+}
 
 /* 弹层 / 下拉菜单：莫兰迪柔和质感 */
 .el-popper.is-light {
@@ -302,8 +345,14 @@ html, body, #app {
   border-color: var(--ac-border);
   box-shadow: var(--ac-shadow-lg);
 }
-.el-dropdown-menu { border-radius: 10px; padding: 5px; }
-.el-dropdown-menu__item { border-radius: 7px; margin: 0 3px; }
+.el-dropdown-menu {
+  border-radius: 10px;
+  padding: 5px;
+}
+.el-dropdown-menu__item {
+  border-radius: 7px;
+  margin: 0 3px;
+}
 .el-dropdown-menu__item:not(.is-disabled):hover,
 .el-dropdown-menu__item:not(.is-disabled):focus {
   background: var(--ac-bg-hover);
@@ -311,15 +360,27 @@ html, body, #app {
 }
 
 /* 加载遮罩：毛玻璃降噪 */
-.el-loading-mask { background: rgba(247,248,250,.72) !important; backdrop-filter: blur(2px); }
-.el-loading-spinner .path { stroke: var(--accent); }
+.el-loading-mask {
+  background: rgba(247, 248, 250, 0.72) !important;
+  backdrop-filter: blur(2px);
+}
+.el-loading-spinner .path {
+  stroke: var(--accent);
+}
 
 /* 提示条 */
-.el-alert { border-radius: var(--ac-radius-md); }
+.el-alert {
+  border-radius: var(--ac-radius-md);
+}
 
 /* 空状态：图标柔和 */
-.el-empty__image { opacity: .8; }
-.el-empty__image svg { width: 88px; height: 88px; }
+.el-empty__image {
+  opacity: 0.8;
+}
+.el-empty__image svg {
+  width: 88px;
+  height: 88px;
+}
 
 .el-dialog__header {
   border-bottom: 1px solid var(--ac-border) !important;
@@ -333,16 +394,22 @@ html, body, #app {
   font-size: 16px;
 }
 
-.el-dialog__body { padding: 24px !important; }
+.el-dialog__body {
+  padding: 24px !important;
+}
 
 /* 分页 */
-.el-pagination { margin-top: var(--ac-spacing-md) !important; }
+.el-pagination {
+  margin-top: var(--ac-spacing-md) !important;
+}
 .el-pagination button,
 .el-pagination .el-pager li {
   border-radius: 6px;
   transition: all var(--ac-transition-fast);
 }
-.el-pagination .el-pager li:hover { color: var(--ac-primary); }
+.el-pagination .el-pager li:hover {
+  color: var(--ac-primary);
+}
 .el-pagination .el-pager li.is-active {
   background: var(--ac-primary) !important;
   border-radius: 6px;
@@ -355,11 +422,18 @@ html, body, #app {
 }
 
 /* 空状态 */
-.el-empty { padding: var(--ac-spacing-xl) 0 !important; }
-.el-empty__description p { color: var(--ac-text-muted) !important; }
+.el-empty {
+  padding: var(--ac-spacing-xl) 0 !important;
+}
+.el-empty__description p {
+  color: var(--ac-text-muted) !important;
+}
 
 /* 描述列表 */
-.el-descriptions { border-radius: var(--ac-radius-md) !important; overflow: hidden; }
+.el-descriptions {
+  border-radius: var(--ac-radius-md) !important;
+  overflow: hidden;
+}
 .el-descriptions__label {
   font-weight: 500 !important;
   color: var(--ac-text-secondary) !important;
@@ -395,26 +469,41 @@ html, body, #app {
 }
 
 /* 滚动条：细窄半透明 */
-::-webkit-scrollbar { width: 6px; height: 6px; }
-::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
 ::-webkit-scrollbar-thumb {
   background: var(--ac-border);
   border-radius: 3px;
 }
-::-webkit-scrollbar-thumb:hover { background: var(--ac-text-muted); }
+::-webkit-scrollbar-thumb:hover {
+  background: var(--ac-text-muted);
+}
 
 /* 动画 */
 @keyframes fadeIn {
-  from { opacity: 0; transform: translateY(8px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 
-.fade-in { animation: fadeIn 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards; }
+.fade-in {
+  animation: fadeIn 0.35s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
 
 /* ============================================
  * 暗色主题 Element Plus 莫兰迪覆盖
  * ============================================ */
-[data-theme="dark"] {
+[data-theme='dark'] {
   --el-bg-color: var(--ac-bg-elevated);
   --el-bg-color-page: var(--ac-bg);
   --el-bg-color-overlay: var(--ac-bg-elevated);
@@ -443,21 +532,32 @@ html, body, #app {
     --el-skeleton-color: var(--ac-bg-hover);
     --el-skeleton-to-color: var(--ac-bg);
   }
-  .el-loading-mask { background: rgba(10,14,19,.7) !important; }
-  .el-empty__image { opacity: .7; }
+  .el-loading-mask {
+    background: rgba(10, 14, 19, 0.7) !important;
+  }
+  .el-empty__image {
+    opacity: 0.7;
+  }
 
   /* body 氛围背景暗色化 */
-  body, #app {
+  body,
+  #app {
     background-image:
-      radial-gradient(1100px 560px at 88% -10%, rgba(193,59,48,.07), transparent 60%),
-      radial-gradient(900px 480px at -6% 2%, rgba(37,99,168,.05), transparent 58%),
-      linear-gradient(rgba(238,241,246,.026) 1px, transparent 1px),
-      linear-gradient(90deg, rgba(238,241,246,.026) 1px, transparent 1px);
-    background-size: auto, auto, 28px 28px, 28px 28px;
+      radial-gradient(1100px 560px at 88% -10%, rgba(193, 59, 48, 0.07), transparent 60%),
+      radial-gradient(900px 480px at -6% 2%, rgba(37, 99, 168, 0.05), transparent 58%),
+      linear-gradient(rgba(238, 241, 246, 0.026) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(238, 241, 246, 0.026) 1px, transparent 1px);
+    background-size:
+      auto,
+      auto,
+      28px 28px,
+      28px 28px;
   }
 
   /* 卡片暗色 */
-  .el-card { --el-card-bg-color: var(--ac-bg-elevated); }
+  .el-card {
+    --el-card-bg-color: var(--ac-bg-elevated);
+  }
 
   /* 输入框暗色 */
   .el-input__wrapper {
@@ -469,27 +569,35 @@ html, body, #app {
   }
 
   /* 对话框暗色 */
-  .el-dialog { --el-dialog-bg-color: var(--ac-bg-elevated); }
+  .el-dialog {
+    --el-dialog-bg-color: var(--ac-bg-elevated);
+  }
 
   /* 菜单暗色 */
   .el-menu {
     --el-menu-bg-color: transparent;
     --el-menu-text-color: rgba(255, 255, 255, 0.75);
-    --el-menu-hover-bg-color: rgba(255, 255, 255, 0.10);
+    --el-menu-hover-bg-color: rgba(255, 255, 255, 0.1);
   }
 
   /* 标签暗色 */
-  .el-tag { --el-tag-bg-color: rgba(255,255,255,0.06); }
+  .el-tag {
+    --el-tag-bg-color: rgba(255, 255, 255, 0.06);
+  }
 
   /* 按钮暗色 */
-  .el-button:not(.el-button--primary):not(.el-button--success):not(.el-button--danger):not(.el-button--warning) {
-    --el-button-bg-color: rgba(255,255,255,0.05);
+  .el-button:not(.el-button--primary):not(.el-button--success):not(.el-button--danger):not(
+      .el-button--warning
+    ) {
+    --el-button-bg-color: rgba(255, 255, 255, 0.05);
     --el-button-text-color: var(--ac-text-secondary);
     --el-button-border-color: var(--ac-border);
   }
 
   /* 弹出框暗色 */
-  .el-popover { --el-popover-bg-color: var(--ac-bg-elevated); }
+  .el-popover {
+    --el-popover-bg-color: var(--ac-bg-elevated);
+  }
 
   /* 分页暗色 */
   .el-pagination {
@@ -499,21 +607,34 @@ html, body, #app {
   }
 
   /* Descriptions 暗色 */
-  .el-descriptions__label { background: var(--ac-bg) !important; }
+  .el-descriptions__label {
+    background: var(--ac-bg) !important;
+  }
 }
 
 /* ============================================
    移动端响应式适配 (≤1024px 平板, ≤768px 手机)
    ============================================ */
 @media screen and (max-width: 1024px) {
-  .stat-cards { grid-template-columns: repeat(2, 1fr); }
-  .content { padding: 16px; }
-  .el-table { font-size: 13px; }
+  .stat-cards {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .content {
+    padding: 16px;
+  }
+  .el-table {
+    font-size: 13px;
+  }
 }
 
 @media screen and (max-width: 768px) {
-  .topbar { padding: 0 14px; height: 52px; }
-  .content { padding: 12px; }
+  .topbar {
+    padding: 0 14px;
+    height: 52px;
+  }
+  .content {
+    padding: 12px;
+  }
 
   /* 统计卡片单列（旧版 .stat-cards 容器内） */
   .stat-cards {

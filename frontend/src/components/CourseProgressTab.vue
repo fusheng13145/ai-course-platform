@@ -5,9 +5,26 @@
       <div class="stat-card">
         <div class="stat-icon stat-icon--blue">
           <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
-            <path d="M22 12A10 10 0 1 1 12 2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <path d="M22 12A10 10 0 1 1 2 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.3"/>
-            <path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path
+              d="M22 12A10 10 0 1 1 12 2"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+            <path
+              d="M22 12A10 10 0 1 1 2 12"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              opacity="0.3"
+            />
+            <path
+              d="M12 6v6l4 2"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
           </svg>
         </div>
         <div class="stat-info">
@@ -36,9 +53,20 @@
       <div class="stat-card">
         <div class="stat-icon stat-icon--purple">
           <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
-            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>
-            <rect x="8" y="2" width="8" height="4" rx="1" stroke="currentColor" stroke-width="2"/>
-            <path d="M9 14l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+            <path
+              d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+            />
+            <rect x="8" y="2" width="8" height="4" rx="1" stroke="currentColor" stroke-width="2" />
+            <path
+              d="M9 14l2 2 4-4"
+              stroke="currentColor"
+              stroke-width="2"
+              stroke-linecap="round"
+              stroke-linejoin="round"
+            />
           </svg>
         </div>
         <div class="stat-info">
@@ -57,9 +85,18 @@
         <div class="ring-chart-wrapper">
           <div class="ring-chart">
             <svg viewBox="0 0 120 120" width="120" height="120">
-              <circle cx="60" cy="60" r="52" fill="none" stroke="var(--ac-border, #e5e7eb)" stroke-width="10" />
               <circle
-                cx="60" cy="60" r="52"
+                cx="60"
+                cy="60"
+                r="52"
+                fill="none"
+                stroke="var(--ac-border, #e5e7eb)"
+                stroke-width="10"
+              />
+              <circle
+                cx="60"
+                cy="60"
+                r="52"
                 fill="none"
                 stroke="var(--ac-primary, #3b82f6)"
                 stroke-width="10"
@@ -123,11 +160,7 @@
             <span class="compare-label">实际进度</span>
             <el-tag size="small" type="success" effect="plain">实际完成</el-tag>
           </div>
-          <el-progress
-            :percentage="overallProgress"
-            :stroke-width="16"
-            :show-text="false"
-          />
+          <el-progress :percentage="overallProgress" :stroke-width="16" :show-text="false" />
           <div class="compare-detail">
             <span>实际完成 {{ completedChapters }} / {{ totalChapters }} 章</span>
             <span class="compare-sub" :class="{ 'compare-behind': behindCount > 0 }">
@@ -148,7 +181,10 @@
           <el-table-column prop="title" label="章节名称" min-width="220">
             <template #default="{ row }">
               <div class="chapter-name-cell">
-                <el-icon :size="16" :color="row.isPublished ? 'var(--ac-success)' : 'var(--ac-text-tertiary)'">
+                <el-icon
+                  :size="16"
+                  :color="row.isPublished ? 'var(--ac-success)' : 'var(--ac-text-tertiary)'"
+                >
                   <component :is="row.isPublished ? 'CircleCheckFilled' : 'CircleClose'" />
                 </el-icon>
                 <span>{{ row.title }}</span>
@@ -177,7 +213,9 @@
                   :show-text="false"
                   style="width: 90px"
                 />
-                <span class="completion-text">{{ Math.round((row.completionRate ?? 0) * 100) }}%</span>
+                <span class="completion-text"
+                  >{{ Math.round((row.completionRate ?? 0) * 100) }}%</span
+                >
               </div>
             </template>
           </el-table-column>
@@ -209,12 +247,8 @@ const plannedChapters = ref(0)
 const circumference = 2 * Math.PI * 52
 
 const totalChapters = computed(() => chapterList.value.length)
-const completedChapters = computed(
-  () => chapterList.value.filter((c) => c.isPublished).length,
-)
-const totalTasks = computed(() =>
-  chapterList.value.reduce((sum, c) => sum + (c.taskCount || 0), 0),
-)
+const completedChapters = computed(() => chapterList.value.filter((c) => c.isPublished).length)
+const totalTasks = computed(() => chapterList.value.reduce((sum, c) => sum + (c.taskCount || 0), 0))
 const overallProgress = computed(() => {
   if (totalChapters.value === 0) return 0
   return Math.round((completedChapters.value / totalChapters.value) * 100)
@@ -227,10 +261,7 @@ const dashOffset = computed(() => {
 const avgSubmissionRate = computed(() => {
   const chapters = chapterList.value.filter((c) => c.taskCount > 0)
   if (chapters.length === 0) return 0
-  const total = chapters.reduce(
-    (s, c) => s + Math.round((c.completionRate ?? 0) * 100),
-    0,
-  )
+  const total = chapters.reduce((s, c) => s + Math.round((c.completionRate ?? 0) * 100), 0)
   return Math.round(total / chapters.length)
 })
 
@@ -245,9 +276,7 @@ const plannedProgress = computed(() => {
 const plannedRemaining = computed(() =>
   Math.max(0, effectivePlanned.value - completedChapters.value),
 )
-const behindCount = computed(() =>
-  Math.max(0, effectivePlanned.value - completedChapters.value),
-)
+const behindCount = computed(() => Math.max(0, effectivePlanned.value - completedChapters.value))
 
 /** 扁平化章节树（模块内顶层函数，供 loadData 调用） */
 function flattenTree(nodes, flat, level = 0) {
@@ -322,13 +351,35 @@ watch(() => props.courseId, loadData)
   flex-shrink: 0;
   color: #fff;
 }
-.stat-icon--blue { background: linear-gradient(135deg, #3b82f6, #60a5fa); }
-.stat-icon--green { background: linear-gradient(135deg, #10b981, #34d399); }
-.stat-icon--orange { background: linear-gradient(135deg, #f59e0b, #fbbf24); }
-.stat-icon--purple { background: linear-gradient(135deg, #8b5cf6, #a78bfa); }
-.stat-info { flex: 1; min-width: 0; }
-.stat-val { display: block; font-size: 20px; font-weight: 700; color: var(--ac-text-primary); line-height: 1.2; }
-.stat-lbl { display: block; font-size: 12px; color: var(--ac-text-secondary); margin-top: 2px; }
+.stat-icon--blue {
+  background: linear-gradient(135deg, #3b82f6, #60a5fa);
+}
+.stat-icon--green {
+  background: linear-gradient(135deg, #10b981, #34d399);
+}
+.stat-icon--orange {
+  background: linear-gradient(135deg, #f59e0b, #fbbf24);
+}
+.stat-icon--purple {
+  background: linear-gradient(135deg, #8b5cf6, #a78bfa);
+}
+.stat-info {
+  flex: 1;
+  min-width: 0;
+}
+.stat-val {
+  display: block;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ac-text-primary);
+  line-height: 1.2;
+}
+.stat-lbl {
+  display: block;
+  font-size: 12px;
+  color: var(--ac-text-secondary);
+  margin-top: 2px;
+}
 
 /* 章节 */
 .section-header {
@@ -406,9 +457,15 @@ watch(() => props.courseId, loadData)
   border-radius: 50%;
   flex-shrink: 0;
 }
-.legend-dot--done { background: var(--ac-primary, #3b82f6); }
-.legend-dot--pending { background: var(--ac-border, #e5e7eb); }
-.legend-dot--total { background: var(--ac-text-tertiary, #94a3b8); }
+.legend-dot--done {
+  background: var(--ac-primary, #3b82f6);
+}
+.legend-dot--pending {
+  background: var(--ac-border, #e5e7eb);
+}
+.legend-dot--total {
+  background: var(--ac-text-tertiary, #94a3b8);
+}
 
 /* 计划 vs 实际 对比 */
 .compare-section {
@@ -470,8 +527,15 @@ watch(() => props.courseId, loadData)
 }
 
 @media (max-width: 768px) {
-  .stats-row { grid-template-columns: repeat(2, 1fr); }
-  .compare-grid { grid-template-columns: 1fr; }
-  .ring-chart-wrapper { flex-direction: column; align-items: flex-start; }
+  .stats-row {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .compare-grid {
+    grid-template-columns: 1fr;
+  }
+  .ring-chart-wrapper {
+    flex-direction: column;
+    align-items: flex-start;
+  }
 }
 </style>

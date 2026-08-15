@@ -7,6 +7,10 @@ import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+
+/**
+ * 任务接口：相关业务逻辑入口，提供增删改查与编排能力。
+ */
 public interface TaskService extends IService<Task> {
 
     /**

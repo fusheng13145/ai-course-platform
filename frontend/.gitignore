@@ -16,6 +16,9 @@ dist-ssr
 .env
 .env.*
 
+# Vite/Vitest auto-generated timestamp cache (regenerable, never commit)
+vitest.config.ts.timestamp-*.mjs
+
 # Vite auto-generated (unplugin: dts at root would become untracked after git rm)
 auto-imports.d.ts
 

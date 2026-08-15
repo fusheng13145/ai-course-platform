@@ -19,6 +19,9 @@ export const getPermissions = () => request.get('/auth/permissions')
 export const sendVerificationCode = (data) => request.post('/auth/send-code', data)
 /** 重置密码 */
 export const resetPassword = (data) => request.post('/auth/reset-password', data)
+/**
+ * 默认导出对象：模块/组件配置与导出内容
+ */
 export default {
   login,
   register,

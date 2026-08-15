@@ -1,5 +1,9 @@
 <template>
-  <AppShell role="TEACHER" notification-path="/teacher/notifications" profile-path="/teacher/profile" />
+  <AppShell
+    role="TEACHER"
+    notification-path="/teacher/notifications"
+    profile-path="/teacher/profile"
+  />
 </template>
 
 <script setup>

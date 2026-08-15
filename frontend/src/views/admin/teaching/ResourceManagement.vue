@@ -12,111 +12,156 @@
     </PageHeader>
 
     <div class="stat-grid">
-      <StatCard label="资源总数" :value="resStats.total" icon="grid" tone="var(--accent-soft)" tone-color="var(--accent)" />
-      <StatCard label="公开资源" :value="resStats.publicCount" icon="check" tone="var(--ok-soft)" tone-color="var(--ok)" />
-      <StatCard label="文档类" :value="resStats.docCount" icon="doc" tone="var(--info-soft)" tone-color="var(--info)" />
-      <StatCard label="音视频" :value="resStats.mediaCount" icon="play" tone="var(--violet-soft)" tone-color="var(--violet)" />
+      <StatCard
+        label="资源总数"
+        :value="resStats.total"
+        icon="grid"
+        tone="var(--accent-soft)"
+        tone-color="var(--accent)"
+      />
+      <StatCard
+        label="公开资源"
+        :value="resStats.publicCount"
+        icon="check"
+        tone="var(--ok-soft)"
+        tone-color="var(--ok)"
+      />
+      <StatCard
+        label="文档类"
+        :value="resStats.docCount"
+        icon="doc"
+        tone="var(--info-soft)"
+        tone-color="var(--info)"
+      />
+      <StatCard
+        label="音视频"
+        :value="resStats.mediaCount"
+        icon="play"
+        tone="var(--violet-soft)"
+        tone-color="var(--violet)"
+      />
     </div>
 
     <!-- 工具栏 -->
     <section class="l1-card">
       <div class="l1-head">
-        <span class="l1-ico" style="background:var(--accent-soft);color:var(--accent)">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+        <span class="l1-ico" style="background: var(--accent-soft); color: var(--accent)">
+          <svg
+            viewBox="0 0 24 24"
+            width="17"
+            height="17"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.9"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
+          </svg>
         </span>
-        <div><div class="l1-title">资源列表</div><div class="l1-sub">按课程检索、授权与下载统计</div></div>
+        <div>
+          <div class="l1-title">资源列表</div>
+          <div class="l1-sub">按课程检索、授权与下载统计</div>
+        </div>
       </div>
       <div class="l1-body">
-    <div class="content-card filter-card">
-      <div class="filter-row">
-        <el-select
-          v-model="selectedCourseId"
-          placeholder="选择课程"
-          filterable
-          style="width: 240px"
-          @change="loadResources"
-        >
-          <el-option v-for="c in courseList" :key="c.id" :label="c.name || c.title" :value="c.id" />
-        </el-select>
-        <el-input
-          v-model="keyword"
-          placeholder="搜索资源名称"
-          clearable
-          style="width: 200px"
-          @keyup.enter="onSearch"
-        />
-        <el-select v-model="typeFilter" placeholder="类型" clearable style="width: 130px">
-          <el-option label="文档" value="doc" />
-          <el-option label="图片" value="image" />
-          <el-option label="音视频" value="media" />
-          <el-option label="其他" value="other" />
-        </el-select>
-        <el-button type="primary" @click="onSearch"
-          ><el-icon><Search /></el-icon>查询</el-button
-        >
-        <div class="spacer"></div>
-        <el-button type="primary" :disabled="!selectedCourseId" @click="openUpload">
-          <el-icon><Upload /></el-icon>上传资源
-        </el-button>
-      </div>
-    </div>
-
-    <!-- 资源表格 -->
-    <div class="content-card">
-      <el-table v-loading="loading" :data="filteredResources" style="width: 100%">
-        <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="fileName" label="资源名称" min-width="200" show-overflow-tooltip>
-          <template #default="{ row }">
-            <span class="res-name">
-              <el-icon class="res-icon"><component :is="fileIcon(row)" /></el-icon>
-              {{ row.fileName || row.name || '未命名' }}
-            </span>
-          </template>
-        </el-table-column>
-        <el-table-column
-          prop="fileType"
-          label="类型"
-          width="120"
-          align="center"
-          show-overflow-tooltip
-        >
-          <template #default="{ row }">
-            <el-tag size="small" effect="plain">{{ typeTag(row.fileType) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="description" label="描述" min-width="160" show-overflow-tooltip>
-          <template #default="{ row }">{{ row.description || '—' }}</template>
-        </el-table-column>
-        <el-table-column label="可见性" width="130" align="center" class-name="tag-col">
-          <template #default="{ row }">
-            <el-switch
-              :model-value="row.visibleToAll !== false"
-              active-text="公开"
-              inactive-text="私有"
-              inline-prompt
-              @change="(val) => toggleVisibility(row, val)"
+        <div class="content-card filter-card">
+          <div class="filter-row">
+            <el-select
+              v-model="selectedCourseId"
+              placeholder="选择课程"
+              filterable
+              style="width: 240px"
+              @change="loadResources"
+            >
+              <el-option
+                v-for="c in courseList"
+                :key="c.id"
+                :label="c.name || c.title"
+                :value="c.id"
+              />
+            </el-select>
+            <el-input
+              v-model="keyword"
+              placeholder="搜索资源名称"
+              clearable
+              style="width: 200px"
+              @keyup.enter="onSearch"
             />
-          </template>
-        </el-table-column>
-        <el-table-column prop="uploadTime" label="上传时间" width="170">
-          <template #default="{ row }">{{ formatTime(row.uploadTime || row.createdAt, '—') }}</template>
-        </el-table-column>
-        <el-table-column label="操作" width="160" align="center">
-          <template #default="{ row }">
-            <div class="action-row">
-              <button class="act-btn act-btn--edit" @click="downloadRes(row)">下载</button>
-              <button class="act-btn--del" @click="removeRes(row)">删除</button>
-            </div>
-          </template>
-        </el-table-column>
-        <template #empty>
-          <el-empty :description="selectedCourseId ? '该课程暂无资源' : '请先选择课程'">
-            <template #image><div class="empty-deco">📁</div></template>
-          </el-empty>
-        </template>
-      </el-table>
-    </div>
-    </div>
+            <el-select v-model="typeFilter" placeholder="类型" clearable style="width: 130px">
+              <el-option label="文档" value="doc" />
+              <el-option label="图片" value="image" />
+              <el-option label="音视频" value="media" />
+              <el-option label="其他" value="other" />
+            </el-select>
+            <el-button type="primary" @click="onSearch"
+              ><el-icon><Search /></el-icon>查询</el-button
+            >
+            <div class="spacer"></div>
+            <el-button type="primary" :disabled="!selectedCourseId" @click="openUpload">
+              <el-icon><Upload /></el-icon>上传资源
+            </el-button>
+          </div>
+        </div>
+
+        <!-- 资源表格 -->
+        <div class="content-card">
+          <el-table v-loading="loading" :data="filteredResources" style="width: 100%">
+            <el-table-column prop="id" label="ID" width="60" />
+            <el-table-column prop="fileName" label="资源名称" min-width="200" show-overflow-tooltip>
+              <template #default="{ row }">
+                <span class="res-name">
+                  <el-icon class="res-icon"><component :is="fileIcon(row)" /></el-icon>
+                  {{ row.fileName || row.name || '未命名' }}
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column
+              prop="fileType"
+              label="类型"
+              width="120"
+              align="center"
+              show-overflow-tooltip
+            >
+              <template #default="{ row }">
+                <el-tag size="small" effect="plain">{{ typeTag(row.fileType) }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="description" label="描述" min-width="160" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.description || '—' }}</template>
+            </el-table-column>
+            <el-table-column label="可见性" width="130" align="center" class-name="tag-col">
+              <template #default="{ row }">
+                <el-switch
+                  :model-value="row.visibleToAll !== false"
+                  active-text="公开"
+                  inactive-text="私有"
+                  inline-prompt
+                  @change="(val) => toggleVisibility(row, val)"
+                />
+              </template>
+            </el-table-column>
+            <el-table-column prop="uploadTime" label="上传时间" width="170">
+              <template #default="{ row }">{{
+                formatTime(row.uploadTime || row.createdAt, '—')
+              }}</template>
+            </el-table-column>
+            <el-table-column label="操作" width="160" align="center">
+              <template #default="{ row }">
+                <div class="action-row">
+                  <button class="act-btn act-btn--edit" @click="downloadRes(row)">下载</button>
+                  <button class="act-btn--del" @click="removeRes(row)">删除</button>
+                </div>
+              </template>
+            </el-table-column>
+            <template #empty>
+              <el-empty :description="selectedCourseId ? '该课程暂无资源' : '请先选择课程'">
+                <template #image><div class="empty-deco">📁</div></template>
+              </el-empty>
+            </template>
+          </el-table>
+        </div>
+      </div>
     </section>
 
     <!-- 上传弹窗 -->
@@ -452,6 +497,6 @@ onMounted(loadCourses)
 /* 空状态装饰 */
 .empty-deco {
   font-size: 38px;
-  filter: grayscale(.2);
+  filter: grayscale(0.2);
 }
 </style>

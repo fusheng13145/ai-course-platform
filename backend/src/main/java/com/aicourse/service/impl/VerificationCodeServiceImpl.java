@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.VerificationCode;
 import com.aicourse.mapper.VerificationCodeMapper;
 import com.aicourse.service.VerificationCodeService;
@@ -18,6 +21,8 @@ import java.time.LocalTime;
  */
 @Service
 public class VerificationCodeServiceImpl extends ServiceImpl<VerificationCodeMapper, VerificationCode> implements VerificationCodeService {
+
+    private static final Logger log = LoggerFactory.getLogger(VerificationCodeServiceImpl.class);
 
     /**
      * 验证码校验

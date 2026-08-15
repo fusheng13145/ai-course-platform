@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.aicourse.entity.SystemConfig;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.SystemConfigMapper;
@@ -20,6 +23,8 @@ import java.util.Map;
  */
 @Service
 public class SystemConfigServiceImpl extends ServiceImpl<SystemConfigMapper, SystemConfig> implements SystemConfigService {
+
+    private static final Logger log = LoggerFactory.getLogger(SystemConfigServiceImpl.class);
 
     private static final String CACHE_NAME = "systemConfig";
 
@@ -57,7 +62,11 @@ public class SystemConfigServiceImpl extends ServiceImpl<SystemConfigMapper, Sys
             @CacheEvict(cacheNames = CACHE_NAME, key = "#key"),
             @CacheEvict(cacheNames = CACHE_NAME, key = "'public'")
     })
+
+    /** 更新系统配置 */
     public void updateConfig(String key, String value) {
+        log.info("更新系统配置");
+
         LambdaQueryWrapper<SystemConfig> queryWrapper = new LambdaQueryWrapper<SystemConfig>()
                 .eq(SystemConfig::getConfigKey, key);
         SystemConfig config = this.getOne(queryWrapper);

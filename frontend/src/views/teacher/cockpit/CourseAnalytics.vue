@@ -19,61 +19,70 @@
       <div class="grid-2">
         <div class="l1-card">
           <div class="l1-head">
-            <span class="l1-ico"><el-icon><Histogram /></el-icon></span>
+            <span class="l1-ico"
+              ><el-icon><Histogram /></el-icon
+            ></span>
             <div><div class="l1-title">成绩分布直方图</div></div>
           </div>
           <div class="l1-body">
-            <v-chart v-if="buckets.length" :option="histogramOption" class="dist-chart" autoresize />
+            <v-chart
+              v-if="buckets.length"
+              :option="histogramOption"
+              class="dist-chart"
+              autoresize
+            />
             <el-empty v-else-if="!loading" description="暂无成绩分布数据" :image-size="72" />
           </div>
         </div>
         <div class="l1-card">
           <div class="l1-head">
-            <span class="l1-ico"><el-icon><TrendCharts /></el-icon></span>
+            <span class="l1-ico"
+              ><el-icon><TrendCharts /></el-icon
+            ></span>
             <div><div class="l1-title">及格率 / 优秀率</div></div>
           </div>
           <div class="l1-body">
             <div class="rate-wrap">
-            <div class="rate-item">
-              <div class="rate-head">
-                <span>及格率</span><b>{{ pctData(passRate) }}</b>
+              <div class="rate-item">
+                <div class="rate-head">
+                  <span>及格率</span><b>{{ pctData(passRate) }}</b>
+                </div>
+                <el-progress
+                  :percentage="passRatePct"
+                  :color="varSuccess"
+                  :stroke-width="12"
+                  :show-text="false"
+                />
               </div>
-              <el-progress
-                :percentage="passRatePct"
-                :color="varSuccess"
-                :stroke-width="12"
-                :show-text="false"
-              />
-            </div>
-            <div class="rate-item">
-              <div class="rate-head">
-                <span>优秀率</span><b>{{ pctData(excellentRate) }}</b>
+              <div class="rate-item">
+                <div class="rate-head">
+                  <span>优秀率</span><b>{{ pctData(excellentRate) }}</b>
+                </div>
+                <el-progress
+                  :percentage="excellentRatePct"
+                  :color="varPrimary"
+                  :stroke-width="12"
+                  :show-text="false"
+                />
               </div>
-              <el-progress
-                :percentage="excellentRatePct"
-                :color="varPrimary"
-                :stroke-width="12"
-                :show-text="false"
-              />
-            </div>
-            <div v-if="extra.count != null" class="rate-extra">
-              <div class="re">
-                <b>{{ extra.count }}</b
-                ><span>参考人数</span>
+              <div v-if="extra.count != null" class="rate-extra">
+                <div class="re">
+                  <b>{{ extra.count }}</b
+                  ><span>参考人数</span>
+                </div>
+                <div class="re">
+                  <b>{{ extra.avgScore ?? '--' }}</b
+                  ><span>平均分</span>
+                </div>
+                <div class="re">
+                  <b>{{ extra.maxScore ?? '--' }}</b
+                  ><span>最高分</span>
+                </div>
+                <div class="re">
+                  <b>{{ extra.minScore ?? '--' }}</b
+                  ><span>最低分</span>
+                </div>
               </div>
-              <div class="re">
-                <b>{{ extra.avgScore ?? '--' }}</b
-                ><span>平均分</span>
-              </div>
-              <div class="re">
-                <b>{{ extra.maxScore ?? '--' }}</b
-                ><span>最高分</span>
-              </div>
-              <div class="re">
-                <b>{{ extra.minScore ?? '--' }}</b
-                ><span>最低分</span>
-              </div>
-            </div>
             </div>
           </div>
         </div>

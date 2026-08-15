@@ -7,16 +7,46 @@
     </PageHeader>
 
     <div class="stat-grid">
-      <StatCard label="试卷总数" :value="total" icon="layers" tone="var(--accent-soft)" tone-color="var(--accent)" />
-      <StatCard label="本页条数" :value="examList.length" icon="list" tone="var(--info-soft)" tone-color="var(--info)" />
-      <StatCard label="本页草稿" :value="draftCount" icon="edit" tone="var(--warn-soft)" tone-color="var(--warn)" />
-      <StatCard label="本页已发布" :value="publishedCount" icon="checks" tone="var(--ok-soft)" tone-color="var(--ok)" />
+      <StatCard
+        label="试卷总数"
+        :value="total"
+        icon="layers"
+        tone="var(--accent-soft)"
+        tone-color="var(--accent)"
+      />
+      <StatCard
+        label="本页条数"
+        :value="examList.length"
+        icon="list"
+        tone="var(--info-soft)"
+        tone-color="var(--info)"
+      />
+      <StatCard
+        label="本页草稿"
+        :value="draftCount"
+        icon="edit"
+        tone="var(--warn-soft)"
+        tone-color="var(--warn)"
+      />
+      <StatCard
+        label="本页已发布"
+        :value="publishedCount"
+        icon="checks"
+        tone="var(--ok-soft)"
+        tone-color="var(--ok)"
+      />
     </div>
 
     <!-- 工具栏 -->
     <div class="table-toolbar">
       <div class="toolbar-left">
-        <el-select v-model="statusFilter" placeholder="状态筛选" clearable class="filter-select" @change="loadExamList">
+        <el-select
+          v-model="statusFilter"
+          placeholder="状态筛选"
+          clearable
+          class="filter-select"
+          @change="loadExamList"
+        >
           <el-option label="全部" value="" />
           <el-option label="草稿" value="DRAFT" />
           <el-option label="已发布" value="PUBLISHED" />
@@ -24,7 +54,15 @@
         </el-select>
       </div>
       <div class="toolbar-right">
-        <el-input v-model="searchText" placeholder="搜索试卷标题..." clearable class="search-input" :prefix-icon="Search" @clear="loadExamList" @keyup.enter="loadExamList" />
+        <el-input
+          v-model="searchText"
+          placeholder="搜索试卷标题..."
+          clearable
+          class="search-input"
+          :prefix-icon="Search"
+          @clear="loadExamList"
+          @keyup.enter="loadExamList"
+        />
         <el-button :icon="Search" @click="loadExamList">搜索</el-button>
       </div>
     </div>
@@ -33,67 +71,145 @@
     <section class="l1-card">
       <div class="l1-head">
         <span class="l1-ico l1-ico--warn">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2zM14 2v6h6"/></svg>
+          <svg
+            viewBox="0 0 24 24"
+            width="17"
+            height="17"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.9"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2zM14 2v6h6"
+            />
+          </svg>
         </span>
-        <div><div class="l1-title">试卷列表</div><div class="l1-sub">支持按状态筛选、搜索与发布管理</div></div>
+        <div>
+          <div class="l1-title">试卷列表</div>
+          <div class="l1-sub">支持按状态筛选、搜索与发布管理</div>
+        </div>
       </div>
       <div class="l1-body">
         <div class="content-card">
           <el-table v-loading="loading" :data="examList">
-        <el-table-column prop="id" label="ID" width="60" />
-        <el-table-column prop="title" label="试卷标题" min-width="180" show-overflow-tooltip>
-          <template #default="{ row }"><span class="exam-title">{{ row.title }}</span></template>
-        </el-table-column>
-        <el-table-column prop="courseName" label="所属课程" min-width="120" show-overflow-tooltip />
-        <el-table-column prop="status" label="状态" width="90" align="center">
-          <template #default="{ row }">
-            <el-tag :type="getStatusType(row.status)" size="small">{{ getStatusText(row.status) }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column prop="questionCount" label="题目数" width="80" align="center" />
-        <el-table-column prop="totalScore" label="总分" width="70" align="center" />
-        <el-table-column prop="duration" label="时长(分)" width="85" align="center" />
-        <el-table-column prop="attemptCount" label="参考人数" width="90" align="center" />
-        <el-table-column prop="createdAt" label="创建时间" width="160" />
-        <el-table-column label="操作" width="260" fixed="right">
-          <template #default="{ row }">
-            <el-button text type="primary" size="small" @click="viewDetail(row)">详情</el-button>
-            <el-button v-if="row.status === 'DRAFT'" text type="primary" size="small" @click="openEditDialog(row)">编辑</el-button>
-            <el-button v-if="row.status === 'DRAFT'" text type="success" size="small" @click="handlePublish(row)">发布</el-button>
-            <el-button text type="warning" size="small" @click="handleCopy(row)">复制</el-button>
-            <el-button v-if="row.status === 'DRAFT'" text type="danger" size="small" @click="handleDelete(row)">删除</el-button>
-          </template>
-        </el-table-column>
-      </el-table>
-      <el-empty v-if="!loading && examList.length === 0" description="暂无试卷数据">
-        <template #image><div class="empty-deco">📝</div></template>
-      </el-empty>
-      <div v-if="total > pageSize" class="pagination-wrap">
-        <el-pagination v-model:current-page="currentPage" v-model:page-size="pageSize" :total="total" layout="total, prev, pager, next" @current-change="loadExamList" />
-      </div>
+            <el-table-column prop="id" label="ID" width="60" />
+            <el-table-column prop="title" label="试卷标题" min-width="180" show-overflow-tooltip>
+              <template #default="{ row }"
+                ><span class="exam-title">{{ row.title }}</span></template
+              >
+            </el-table-column>
+            <el-table-column
+              prop="courseName"
+              label="所属课程"
+              min-width="120"
+              show-overflow-tooltip
+            />
+            <el-table-column prop="status" label="状态" width="90" align="center">
+              <template #default="{ row }">
+                <el-tag :type="getStatusType(row.status)" size="small">{{
+                  getStatusText(row.status)
+                }}</el-tag>
+              </template>
+            </el-table-column>
+            <el-table-column prop="questionCount" label="题目数" width="80" align="center" />
+            <el-table-column prop="totalScore" label="总分" width="70" align="center" />
+            <el-table-column prop="duration" label="时长(分)" width="85" align="center" />
+            <el-table-column prop="attemptCount" label="参考人数" width="90" align="center" />
+            <el-table-column prop="createdAt" label="创建时间" width="160" />
+            <el-table-column label="操作" width="260" fixed="right">
+              <template #default="{ row }">
+                <el-button text type="primary" size="small" @click="viewDetail(row)"
+                  >详情</el-button
+                >
+                <el-button
+                  v-if="row.status === 'DRAFT'"
+                  text
+                  type="primary"
+                  size="small"
+                  @click="openEditDialog(row)"
+                  >编辑</el-button
+                >
+                <el-button
+                  v-if="row.status === 'DRAFT'"
+                  text
+                  type="success"
+                  size="small"
+                  @click="handlePublish(row)"
+                  >发布</el-button
+                >
+                <el-button text type="warning" size="small" @click="handleCopy(row)"
+                  >复制</el-button
+                >
+                <el-button
+                  v-if="row.status === 'DRAFT'"
+                  text
+                  type="danger"
+                  size="small"
+                  @click="handleDelete(row)"
+                  >删除</el-button
+                >
+              </template>
+            </el-table-column>
+          </el-table>
+          <el-empty v-if="!loading && examList.length === 0" description="暂无试卷数据">
+            <template #image><div class="empty-deco">📝</div></template>
+          </el-empty>
+          <div v-if="total > pageSize" class="pagination-wrap">
+            <el-pagination
+              v-model:current-page="currentPage"
+              v-model:page-size="pageSize"
+              :total="total"
+              layout="total, prev, pager, next"
+              @current-change="loadExamList"
+            />
+          </div>
         </div>
       </div>
     </section>
 
     <!-- 创建/编辑试卷对话框 -->
-    <el-dialog v-model="formDialogVisible" :title="isEdit ? '编辑试卷' : '创建试卷'" width="720px" destroy-on-close>
+    <el-dialog
+      v-model="formDialogVisible"
+      :title="isEdit ? '编辑试卷' : '创建试卷'"
+      width="720px"
+      destroy-on-close
+    >
       <el-form ref="formRef" :model="examForm" :rules="formRules" label-width="100px">
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="试卷标题" prop="title">
-              <el-input v-model="examForm.title" placeholder="输入试卷标题" maxlength="80" show-word-limit />
+              <el-input
+                v-model="examForm.title"
+                placeholder="输入试卷标题"
+                maxlength="80"
+                show-word-limit
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="所属课程" prop="courseId">
-              <el-select v-model="examForm.courseId" placeholder="选择课程" class="w-100" filterable>
+              <el-select
+                v-model="examForm.courseId"
+                placeholder="选择课程"
+                class="w-100"
+                filterable
+              >
                 <el-option v-for="c in courseOptions" :key="c.id" :label="c.name" :value="c.id" />
               </el-select>
             </el-form-item>
           </el-col>
         </el-row>
         <el-form-item label="说明">
-          <el-input v-model="examForm.description" type="textarea" :rows="2" placeholder="试卷说明（可选）" maxlength="200" show-word-limit />
+          <el-input
+            v-model="examForm.description"
+            type="textarea"
+            :rows="2"
+            placeholder="试卷说明（可选）"
+            maxlength="200"
+            show-word-limit
+          />
         </el-form-item>
         <el-row :gutter="16">
           <el-col :span="12">
@@ -110,12 +226,24 @@
         <el-row :gutter="16">
           <el-col :span="12">
             <el-form-item label="开始时间">
-              <el-date-picker v-model="examForm.startTime" type="datetime" placeholder="选择开始时间" class="w-100" value-format="YYYY-MM-DD HH:mm:ss" />
+              <el-date-picker
+                v-model="examForm.startTime"
+                type="datetime"
+                placeholder="选择开始时间"
+                class="w-100"
+                value-format="YYYY-MM-DD HH:mm:ss"
+              />
             </el-form-item>
           </el-col>
           <el-col :span="12">
             <el-form-item label="截止时间">
-              <el-date-picker v-model="examForm.endTime" type="datetime" placeholder="选择截止时间" class="w-100" value-format="YYYY-MM-DD HH:mm:ss" />
+              <el-date-picker
+                v-model="examForm.endTime"
+                type="datetime"
+                placeholder="选择截止时间"
+                class="w-100"
+                value-format="YYYY-MM-DD HH:mm:ss"
+              />
             </el-form-item>
           </el-col>
         </el-row>
@@ -123,17 +251,29 @@
         <!-- 题目管理 -->
         <el-divider content-position="left">题目管理</el-divider>
         <div class="question-bar">
-          <span class="q-bar-info">已选 {{ selectedQuestions.length }} 道题，共 {{ totalSelectedScore }} 分</span>
-          <el-button size="small" type="primary" plain @click="questionPickerVisible = true">从题库选题</el-button>
+          <span class="q-bar-info"
+            >已选 {{ selectedQuestions.length }} 道题，共 {{ totalSelectedScore }} 分</span
+          >
+          <el-button size="small" type="primary" plain @click="questionPickerVisible = true"
+            >从题库选题</el-button
+          >
         </div>
         <div v-if="selectedQuestions.length > 0" class="selected-questions">
           <div v-for="(q, idx) in selectedQuestions" :key="q.id || idx" class="question-item">
             <div class="q-index">{{ idx + 1 }}</div>
             <div class="q-content">
-              <span class="q-type-tag" :class="'type-' + (q.type || 'choice')">{{ getQuestionTypeName(q.type) }}</span>
+              <span class="q-type-tag" :class="'type-' + (q.type || 'choice')">{{
+                getQuestionTypeName(q.type)
+              }}</span>
               <span class="q-text">{{ q.content || q.stem || q.title || '未命名题目' }}</span>
             </div>
-            <el-input-number v-model="q.score" :min="1" :max="50" size="small" class="q-score-input" />
+            <el-input-number
+              v-model="q.score"
+              :min="1"
+              :max="50"
+              size="small"
+              class="q-score-input"
+            />
             <el-button text type="danger" size="small" @click="removeQuestion(idx)">
               <el-icon><Delete /></el-icon>
             </el-button>
@@ -167,14 +307,22 @@
 
       <template #footer>
         <el-button @click="formDialogVisible = false">取消</el-button>
-        <el-button type="primary" :loading="submitting" @click="submitForm">{{ isEdit ? '保存修改' : '创建试卷' }}</el-button>
+        <el-button type="primary" :loading="submitting" @click="submitForm">{{
+          isEdit ? '保存修改' : '创建试卷'
+        }}</el-button>
       </template>
     </el-dialog>
 
     <!-- 题库选题弹窗 -->
     <el-dialog v-model="questionPickerVisible" title="从题库选择题目" width="760px" append-to-body>
       <div class="search-form">
-        <el-input v-model="questionSearch" placeholder="搜索题目内容..." clearable class="qk-search" :prefix-icon="Search" />
+        <el-input
+          v-model="questionSearch"
+          placeholder="搜索题目内容..."
+          clearable
+          class="qk-search"
+          :prefix-icon="Search"
+        />
         <el-select v-model="questionTypeFilter" placeholder="题型筛选" clearable class="qk-type">
           <el-option label="单选题" value="SINGLE_CHOICE" />
           <el-option label="多选题" value="MULTIPLE_CHOICE" />
@@ -184,26 +332,48 @@
         </el-select>
         <el-button type="primary" @click="loadQuestionBank">搜索</el-button>
       </div>
-      <el-table v-loading="questionLoading" :data="filteredQuestionBank" max-height="360" @selection-change="handleQuestionSelectionChange">
-        <el-table-column type="selection" width="45" :selectable="row => !isQuestionSelected(row.id)" />
+      <el-table
+        v-loading="questionLoading"
+        :data="filteredQuestionBank"
+        max-height="360"
+        @selection-change="handleQuestionSelectionChange"
+      >
+        <el-table-column
+          type="selection"
+          width="45"
+          :selectable="(row) => !isQuestionSelected(row.id)"
+        />
         <el-table-column prop="content" label="题目内容" min-width="280" show-overflow-tooltip />
         <el-table-column prop="type" label="题型" width="95" align="center">
-          <template #default="{ row }"><el-tag size="small" type="info">{{ getQuestionTypeName(row.type) }}</el-tag></template>
+          <template #default="{ row }"
+            ><el-tag size="small" type="info">{{ getQuestionTypeName(row.type) }}</el-tag></template
+          >
         </el-table-column>
         <el-table-column prop="difficulty" label="难度" width="75" align="center">
           <template #default="{ row }">
-            <span :style="{ color: getDifficultyColor(row.difficulty) }">{{ getDifficultyText(row.difficulty) }}</span>
+            <span :style="{ color: getDifficultyColor(row.difficulty) }">{{
+              getDifficultyText(row.difficulty)
+            }}</span>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="80" align="center">
           <template #default="{ row }">
-            <el-button text type="primary" size="small" :disabled="isQuestionSelected(row.id)" @click="addSingleQuestion(row)">添加</el-button>
+            <el-button
+              text
+              type="primary"
+              size="small"
+              :disabled="isQuestionSelected(row.id)"
+              @click="addSingleQuestion(row)"
+              >添加</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
       <template #footer>
         <el-button @click="questionPickerVisible = false">关闭</el-button>
-        <el-button type="primary" @click="confirmAddQuestions">确认添加 ({{ tempSelectedQuestions.length }})</el-button>
+        <el-button type="primary" @click="confirmAddQuestions"
+          >确认添加 ({{ tempSelectedQuestions.length }})</el-button
+        >
       </template>
     </el-dialog>
 
@@ -212,15 +382,29 @@
       <template v-if="currentExam">
         <el-descriptions :column="2" border>
           <el-descriptions-item label="试卷标题">{{ currentExam.title }}</el-descriptions-item>
-          <el-descriptions-item label="所属课程">{{ currentExam.courseName || '-' }}</el-descriptions-item>
+          <el-descriptions-item label="所属课程">{{
+            currentExam.courseName || '-'
+          }}</el-descriptions-item>
           <el-descriptions-item label="状态">
-            <el-tag :type="getStatusType(currentExam.status)" size="small">{{ getStatusText(currentExam.status) }}</el-tag>
+            <el-tag :type="getStatusType(currentExam.status)" size="small">{{
+              getStatusText(currentExam.status)
+            }}</el-tag>
           </el-descriptions-item>
-          <el-descriptions-item label="总分/时长">{{ currentExam.totalScore }}分 / {{ currentExam.duration }}分钟</el-descriptions-item>
-          <el-descriptions-item label="参考人数">{{ currentExam.attemptCount || 0 }}人</el-descriptions-item>
-          <el-descriptions-item label="平均分">{{ currentExam.avgScore != null ? currentExam.avgScore : '-' }}</el-descriptions-item>
-          <el-descriptions-item label="最高分">{{ currentExam.maxScore ?? '-' }}</el-descriptions-item>
-          <el-descriptions-item label="最低分">{{ currentExam.minScore ?? '-' }}</el-descriptions-item>
+          <el-descriptions-item label="总分/时长"
+            >{{ currentExam.totalScore }}分 / {{ currentExam.duration }}分钟</el-descriptions-item
+          >
+          <el-descriptions-item label="参考人数"
+            >{{ currentExam.attemptCount || 0 }}人</el-descriptions-item
+          >
+          <el-descriptions-item label="平均分">{{
+            currentExam.avgScore != null ? currentExam.avgScore : '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="最高分">{{
+            currentExam.maxScore ?? '-'
+          }}</el-descriptions-item>
+          <el-descriptions-item label="最低分">{{
+            currentExam.minScore ?? '-'
+          }}</el-descriptions-item>
         </el-descriptions>
 
         <!-- 题目预览 -->
@@ -239,7 +423,12 @@
       </template>
       <template #footer>
         <el-button @click="detailDialogVisible = false">关闭</el-button>
-        <el-button v-if="currentExam?.status === 'DRAFT'" type="success" @click="handlePublish(currentExam)">发布试卷</el-button>
+        <el-button
+          v-if="currentExam?.status === 'DRAFT'"
+          type="success"
+          @click="handlePublish(currentExam)"
+          >发布试卷</el-button
+        >
         <el-button type="warning" @click="handleCopy(currentExam)">复制试卷</el-button>
       </template>
     </el-dialog>
@@ -286,19 +475,21 @@ const examForm = reactive({
   shuffleQuestions: false,
   shuffleOptions: false,
   showScore: true,
-  maxAttempts: 1
+  maxAttempts: 1,
 })
 
 const formRules = {
   title: [{ required: true, message: '请输入试卷标题', trigger: 'blur' }],
   courseId: [{ required: true, message: '请选择所属课程', trigger: 'change' }],
   duration: [{ required: true, message: '请设置考试时长', trigger: 'blur' }],
-  totalScore: [{ required: true, message: '请设置总分', trigger: 'blur' }]
+  totalScore: [{ required: true, message: '请设置总分', trigger: 'blur' }],
 }
 
 // 已选题目
 const selectedQuestions = ref([])
-const totalSelectedScore = computed(() => selectedQuestions.value.reduce((sum, q) => sum + (q.score || 0), 0))
+const totalSelectedScore = computed(() =>
+  selectedQuestions.value.reduce((sum, q) => sum + (q.score || 0), 0),
+)
 
 // 顶部统计（基于现有分页数据）
 const draftCount = computed(() => examList.value.filter((e) => e.status === 'DRAFT').length)
@@ -330,11 +521,11 @@ async function loadExamList() {
       page: currentPage.value,
       size: pageSize.value,
       keyword: searchText.value || undefined,
-      status: statusFilter.value || undefined
+      status: statusFilter.value || undefined,
     }
     const res = await examApi.getExamPaperList(params)
     const rawData = res.data?.records || res.data?.list || res.data || res
-    const data = Array.isArray(rawData) ? { list: rawData } : (rawData || {})
+    const data = Array.isArray(rawData) ? { list: rawData } : rawData || {}
     examList.value = Array.isArray(data.list) ? data.list : Array.isArray(rawData) ? rawData : []
     total.value = data.total ?? data.count ?? examList.value.length
   } catch (e) {
@@ -360,8 +551,17 @@ function openCreateDialog() {
   isEdit.value = false
   editingId.value = null
   Object.assign(examForm, {
-    title: '', courseId: null, description: '', duration: 90, totalScore: 100,
-    startTime: '', endTime: '', shuffleQuestions: false, shuffleOptions: false, showScore: true, maxAttempts: 1
+    title: '',
+    courseId: null,
+    description: '',
+    duration: 90,
+    totalScore: 100,
+    startTime: '',
+    endTime: '',
+    shuffleQuestions: false,
+    shuffleOptions: false,
+    showScore: true,
+    maxAttempts: 1,
   })
   selectedQuestions.value = []
   formDialogVisible.value = true
@@ -382,10 +582,10 @@ function openEditDialog(row) {
     shuffleQuestions: row.shuffleQuestions || false,
     shuffleOptions: row.shuffleOptions || false,
     showScore: row.showScore !== false,
-    maxAttempts: row.maxAttempts || 1
+    maxAttempts: row.maxAttempts || 1,
   })
   // 加载已有题目
-  selectedQuestions.value = row.questions ? row.questions.map(q => ({ ...q })) : []
+  selectedQuestions.value = row.questions ? row.questions.map((q) => ({ ...q })) : []
   formDialogVisible.value = true
 }
 
@@ -402,11 +602,11 @@ async function submitForm() {
     try {
       const payload = {
         ...examForm,
-        questions: selectedQuestions.value.map(q => ({
+        questions: selectedQuestions.value.map((q) => ({
           questionId: q.id,
           score: q.score || q.defaultScore || 5,
-          order: selectedQuestions.value.indexOf(q) + 1
-        }))
+          order: selectedQuestions.value.indexOf(q) + 1,
+        })),
       }
       if (isEdit.value) {
         await examApi.updateExamPaper(editingId.value, payload)
@@ -465,7 +665,7 @@ function handleQuestionSelectionChange(rows) {
 }
 
 function isQuestionSelected(id) {
-  return selectedQuestions.value.some(q => q.id === id)
+  return selectedQuestions.value.some((q) => q.id === id)
 }
 
 function addSingleQuestion(q) {
@@ -484,9 +684,11 @@ function confirmAddQuestions() {
       selectedQuestions.value.push({ ...q, score: q.defaultScore || 5 })
     }
   }
+  // 修复：先取实际新增数量，再清空临时选择（原实现在提示前清空，导致永远显示"已添加 0 道"）
+  const addedCount = tempSelectedQuestions.value.length
   tempSelectedQuestions.value = []
   questionPickerVisible.value = false
-  ElMessage.success(`已添加 ${tempSelectedQuestions.value.length} 道题目`)
+  ElMessage.success(`已添加 ${addedCount} 道题目`)
 }
 
 // 查看详情
@@ -532,7 +734,9 @@ async function handleCopy(row) {
 // 删除
 async function handleDelete(row) {
   try {
-    await ElMessageBox.confirm(`确定删除试卷「${row.title}」？此操作不可恢复`, '删除确认', { type: 'warning' })
+    await ElMessageBox.confirm(`确定删除试卷「${row.title}」？此操作不可恢复`, '删除确认', {
+      type: 'warning',
+    })
     await examApi.deleteExamPaper(row.id)
     ElMessage.success('删除成功')
     loadExamList()
@@ -553,7 +757,13 @@ function getStatusText(status) {
 }
 
 function getQuestionTypeName(type) {
-  const map = { SINGLE_CHOICE: '单选', MULTIPLE_CHOICE: '多选', TRUE_FALSE: '判断', FILL_BLANK: '填空', ESSAY: '简答' }
+  const map = {
+    SINGLE_CHOICE: '单选',
+    MULTIPLE_CHOICE: '多选',
+    TRUE_FALSE: '判断',
+    FILL_BLANK: '填空',
+    ESSAY: '简答',
+  }
   return map[type] || type || '未知'
 }
 
@@ -579,7 +789,10 @@ function getDifficultyText(diff) {
   padding-top: var(--ac-spacing-md);
 }
 
-.empty-deco { font-size: 38px; filter: grayscale(.2); }
+.empty-deco {
+  font-size: 38px;
+  filter: grayscale(0.2);
+}
 
 .selected-questions {
   max-height: 280px;
@@ -638,11 +851,26 @@ function getDifficultyText(diff) {
   flex-shrink: 0;
 }
 
-.type-SINGLE_CHOICE { background: var(--info-soft); color: var(--info); }
-.type-MULTIPLE_CHOICE { background: var(--violet-soft); color: var(--violet); }
-.type-TRUE_FALSE { background: var(--ok-soft); color: var(--ok); }
-.type-FILL_BLANK { background: var(--warn-soft); color: var(--warn); }
-.type-ESSAY { background: var(--accent-soft); color: var(--accent); }
+.type-SINGLE_CHOICE {
+  background: var(--info-soft);
+  color: var(--info);
+}
+.type-MULTIPLE_CHOICE {
+  background: var(--violet-soft);
+  color: var(--violet);
+}
+.type-TRUE_FALSE {
+  background: var(--ok-soft);
+  color: var(--ok);
+}
+.type-FILL_BLANK {
+  background: var(--warn-soft);
+  color: var(--warn);
+}
+.type-ESSAY {
+  background: var(--accent-soft);
+  color: var(--accent);
+}
 
 .q-text {
   font-size: 13px;

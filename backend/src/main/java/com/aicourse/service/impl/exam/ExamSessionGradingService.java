@@ -1,5 +1,7 @@
 package com.aicourse.service.impl.exam;
 
+import com.aicourse.constant.ExamSessionStatus;
+
 import com.aicourse.entity.*;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ExamSessionMapper;
@@ -60,8 +62,8 @@ public class ExamSessionGradingService {
         if (session == null) {
             throw new BusinessException("考试会话不存在");
         }
-        if (!"SUBMITTED".equals(session.getStatus()) && !"FORCE_SUBMITTED".equals(session.getStatus())
-                && !"TIMEOUT".equals(session.getStatus())) {
+        if (!ExamSessionStatus.SUBMITTED.equals(session.getStatus()) && !ExamSessionStatus.FORCE_SUBMITTED.equals(session.getStatus())
+                && !ExamSessionStatus.TIMEOUT.equals(session.getStatus()) && !ExamSessionStatus.AUTO_SUBMITTED.equals(session.getStatus())) {
             throw new BusinessException("试卷尚未提交，无法进行自动阅卷");
         }
 
@@ -197,7 +199,7 @@ public class ExamSessionGradingService {
         session.setQuestionScores(questionScoresJson);
         session.setTotalScore(totalScore);
         session.setPercentage(percentage);
-        session.setStatus("GRADED");
+        session.setStatus(ExamSessionStatus.GRADED);
         examSessionMapper.updateById(session);
 
         // 记录错题到错题本（可选）
@@ -217,7 +219,7 @@ public class ExamSessionGradingService {
         result.put("wrongCount", wrongCount);
         result.put("pendingReviewCount", pendingReviewCount);
         result.put("questionScores", questionScoreMap);
-        result.put("status", "GRADED");
+        result.put("status", ExamSessionStatus.GRADED);
 
         return result;
     }
@@ -231,7 +233,7 @@ public class ExamSessionGradingService {
         if (session == null) {
             throw new BusinessException("考试会话不存在");
         }
-        if (!"GRADED".equals(session.getStatus())) {
+        if (!ExamSessionStatus.GRADED.equals(session.getStatus())) {
             throw new BusinessException("请先完成自动阅卷");
         }
 
@@ -292,6 +294,8 @@ public class ExamSessionGradingService {
         try {
             return objectMapper.readValue(json, new TypeReference<Map<String, Object>>() {});
         } catch (Exception e) {
+            log.error("考试会话Grading相关操作失败: {}", e.getMessage(), e);
+
             return result;
         }
     }
@@ -307,6 +311,8 @@ public class ExamSessionGradingService {
         try {
             return objectMapper.readValue(arrayStr, new TypeReference<Set<String>>() {});
         } catch (Exception e) {
+            log.error("考试会话Grading相关操作失败: {}", e.getMessage(), e);
+
             // 解析失败时尝试直接添加
             set.add(arrayStr.replace("\"", "").replace("'", "").trim());
             return set;
@@ -323,6 +329,8 @@ public class ExamSessionGradingService {
         try {
             return objectMapper.writeValueAsString(scores);
         } catch (Exception e) {
+            log.error("考试会话Grading相关操作失败: {}", e.getMessage(), e);
+
             return "{}";
         }
     }
@@ -338,6 +346,8 @@ public class ExamSessionGradingService {
         try {
             return objectMapper.readValue(json, new TypeReference<Map<Long, BigDecimal>>() {});
         } catch (Exception e) {
+            log.error("考试会话Grading相关操作失败: {}", e.getMessage(), e);
+
             return result;
         }
     }

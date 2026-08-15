@@ -22,6 +22,8 @@ import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * Excel 导入导出工具（POI XSSF 实现 .xlsx）。
@@ -29,6 +31,8 @@ import java.util.Map;
  * 用户批量导入、数据报表多 Sheet 导出。</p>
  */
 public final class ExcelUtil {
+
+    private static final Logger log = LoggerFactory.getLogger(ExcelUtil.class);
 
     private ExcelUtil() {
     }
@@ -110,6 +114,7 @@ public final class ExcelUtil {
                     try {
                         q.setScore(new BigDecimal(score));
                     } catch (NumberFormatException e) {
+                        log.error("解析题目分值失败: {}", e.getMessage(), e);
                         q.setScore(null);
                     }
                 }

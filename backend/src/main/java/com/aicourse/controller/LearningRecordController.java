@@ -1,5 +1,8 @@
 package com.aicourse.controller;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import jakarta.validation.Valid;
 
 import com.aicourse.common.ApiResponse;
@@ -21,6 +24,8 @@ import java.util.Map;
 @RequestMapping("/learning-records")
 @Tag(name = "学习记录")
 public class LearningRecordController {
+
+    private static final Logger log = LoggerFactory.getLogger(LearningRecordController.class);
 
     private final LearningRecordService learningRecordService;
 

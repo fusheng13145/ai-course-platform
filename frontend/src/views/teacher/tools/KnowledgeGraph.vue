@@ -26,10 +26,34 @@
       <template v-else>
         <!-- 概览统计 -->
         <div class="stat-grid animate-in">
-          <StatCard label="知识点总数" :value="overview.totalPoints || 0" icon="tag" tone="var(--accent-soft)" tone-color="var(--accent)" />
-          <StatCard label="关系总数" :value="overview.totalRelations || 0" icon="link" tone="var(--ok-soft)" tone-color="var(--ok)" />
-          <StatCard label="核心知识点" :value="overview.corePoints || 0" icon="star" tone="var(--warn-soft)" tone-color="var(--warn)" />
-          <StatCard label="覆盖度" :value="overview.coverageRate ? pct(overview.coverageRate) : '0%'" icon="target" tone="var(--info-soft)" tone-color="var(--info)" />
+          <StatCard
+            label="知识点总数"
+            :value="overview.totalPoints || 0"
+            icon="tag"
+            tone="var(--accent-soft)"
+            tone-color="var(--accent)"
+          />
+          <StatCard
+            label="关系总数"
+            :value="overview.totalRelations || 0"
+            icon="link"
+            tone="var(--ok-soft)"
+            tone-color="var(--ok)"
+          />
+          <StatCard
+            label="核心知识点"
+            :value="overview.corePoints || 0"
+            icon="star"
+            tone="var(--warn-soft)"
+            tone-color="var(--warn)"
+          />
+          <StatCard
+            label="覆盖度"
+            :value="overview.coverageRate ? pct(overview.coverageRate) : '0%'"
+            icon="target"
+            tone="var(--info-soft)"
+            tone-color="var(--info)"
+          />
         </div>
 
         <div class="kg-grid">
@@ -38,13 +62,7 @@
             <div class="chart-title">
               <el-icon><Files /></el-icon>知识点
               <el-tag size="small" type="info" effect="light" round>{{ points.length }}</el-tag>
-              <el-button
-                text
-                type="primary"
-                size="small"
-                class="ml-auto"
-                @click="openForm()"
-              >
+              <el-button text type="primary" size="small" class="ml-auto" @click="openForm()">
                 <el-icon><Plus /></el-icon>新建
               </el-button>
             </div>
@@ -226,13 +244,7 @@ import courseApi from '@/api/course'
 import knowledgeApi from '@/api/knowledge'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
-import {
-  Share,
-  Files,
-  Plus,
-  Refresh,
-  MagicStick,
-} from '@element-plus/icons-vue'
+import { Share, Files, Plus, Refresh, MagicStick } from '@element-plus/icons-vue'
 
 const courseLoading = ref(false)
 const courseOptions = ref([])

@@ -31,6 +31,20 @@ public interface WrongQuestionService extends com.baomidou.mybatisplus.extension
     void markMastered(Long wrongQuestionId);
 
     /**
+     * 标记已掌握（带归属校验，修复 P1-2 IDOR：错题必须属于该学生）
+     * @param wrongQuestionId 错题ID
+     * @param studentId 当前登录学生ID
+     */
+    void markMasteredForStudent(Long wrongQuestionId, Long studentId);
+
+    /**
+     * 删除错题（带归属校验，修复 P1-2 IDOR：错题必须属于该学生）
+     * @param wrongQuestionId 错题ID
+     * @param studentId 当前登录学生ID
+     */
+    void deleteForStudent(Long wrongQuestionId, Long studentId);
+
+    /**
      * 取消掌握标记（再次答错时调用）
      * @param wrongQuestionId 错题ID
      */

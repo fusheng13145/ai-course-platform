@@ -63,4 +63,11 @@ public interface SignInService extends IService<SignIn> {
      * 查询当前学生本人在某次签到的记录
      */
     SignInRecord myRecord(Long id, Long userId);
+
+    /**
+     * 批量查询某学生的全部签到记录（修复 dashboard 等场景的 N+1：原在循环内逐次 myRecord）
+     * @param userId 学生ID
+     * @return 该学生所有签到记录
+     */
+    List<SignInRecord> listMyRecords(Long userId);
 }

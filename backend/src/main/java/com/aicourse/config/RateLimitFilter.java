@@ -14,6 +14,8 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -35,6 +37,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
 public class RateLimitFilter extends OncePerRequestFilter {
+
+    private static final Logger log = LoggerFactory.getLogger(RateLimitFilter.class);
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
@@ -155,6 +159,8 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 return tryAcquireRedis(rule);
             } catch (Exception e) {
                 // Redis 故障时降级本地限流，避免 Redis 不可用导致全站拒绝服务
+                log.warn("[RateLimitFilter] Redis 限流执行异常，降级本地内存限流（bucket={}）: {}",
+                        rule.bucketKey, e.getMessage());
                 return tryAcquireLocal(rule);
             }
         }
