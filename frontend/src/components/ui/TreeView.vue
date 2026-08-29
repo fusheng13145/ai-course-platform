@@ -35,20 +35,18 @@ function hasKids(n) {
 const sel = computed(() => props.selectedKey)
 </script>
 <template>
+  <!-- eslint-disable vue/no-v-html -->
+  <!-- v-html 仅用于内部 SVG 图标常量（受控输入），无需净化 -->
   <div class="tree">
     <template v-for="n in nodes" :key="n.key">
       <div class="tree-node">
         <div class="tree-row" :class="{ selected: sel === n.key }" @click.stop="selectNode(n)">
-          <!-- 内部图标常量（受控），无需净化 -->
-          <!-- eslint-disable-next-line vue/no-v-html -->
           <span
             class="tree-caret"
             :class="{ open: isOpen(n.key), leaf: !hasKids(n) }"
             @click.stop="toggle(n.key)"
             v-html="ico(ICONS.chevronR, 12)"
           ></span>
-          <!-- 内部图标常量（受控），无需净化 -->
-          <!-- eslint-disable-next-line vue/no-v-html -->
           <span
             class="tree-ico"
             :style="{ color: sel === n.key ? 'var(--accent)' : '' }"
@@ -63,8 +61,6 @@ const sel = computed(() => props.selectedKey)
             style="font-size: 10px; padding: 0 6px"
             >{{ n.tag }}</span
           >
-          <!-- 内部图标常量（受控），无需净化 -->
-          <!-- eslint-disable-next-line vue/no-v-html -->
           <span v-if="n.ops || opsMenu" class="tree-extra"
             ><button
               class="t-icon-btn"

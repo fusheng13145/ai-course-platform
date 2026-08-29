@@ -410,17 +410,22 @@ class ExamSessionControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("GET /exam-sessions/my - 返回我的考试记录列表，数组透传")
+    @DisplayName("GET /exam-sessions/my - 返回我的考试记录列表（含课程维度排名字段），数组透传")
     void mySessions_authorized_passes_security() throws Exception {
-        ExamSession session = new ExamSession();
-        session.setId(1L);
-        when(examSessionService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class))).thenReturn(List.of(session));
+        // 2026-08-27 契约更新：/my 委托 getMySessionsWithCourseRank（附 courseRank/courseTotalStudents）
+        Map<String, Object> row = new java.util.HashMap<>();
+        row.put("id", 1);
+        row.put("courseRank", 2);
+        row.put("courseTotalStudents", 30);
+        when(examSessionService.getMySessionsWithCourseRank(1L)).thenReturn(List.of(row));
         mockMvc.perform(get("/exam-sessions/my").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data[0].id").value(1));
-        verify(examSessionService).list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class));
+                .andExpect(jsonPath("$.data[0].id").value(1))
+                .andExpect(jsonPath("$.data[0].courseRank").value(2))
+                .andExpect(jsonPath("$.data[0].courseTotalStudents").value(30));
+        verify(examSessionService).getMySessionsWithCourseRank(1L);
     }
 
     @Test

@@ -43,9 +43,9 @@ const chartSvg = computed(() =>
 )
 </script>
 <template>
+  <!-- eslint-disable vue/no-v-html -->
+  <!-- v-html 仅用于 chartSvg：内含外部数据（label/centerLabel），已先经 sanitizeHtml 清洗 -->
   <div style="display: flex; align-items: center; gap: 18px">
-    <!-- 已净化：chartSvg 内含外部数据（label/centerLabel），先经 sanitizeHtml 清洗 -->
-    <!-- eslint-disable-next-line vue/no-v-html -->
     <svg
       :viewBox="`0 0 ${size} ${size}`"
       :width="size"

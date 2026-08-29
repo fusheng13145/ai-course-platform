@@ -146,6 +146,37 @@ export const generateOutline = (params) =>
 export const cloneCourse = (courseId, newName) =>
   request.post(`/teacher/courses/${courseId}/clone`, null, { params: { newName } })
 
+// 课程驾驶舱：按课程获取班级维度（用于切换班级维度的教学概览）。
+// 真实数据来源：后端 GET /classrooms/by-course/{courseId}（Classroom 实体已新增 courseId 关联字段，
+// 绑定课程的班级将返回）。映射驾驶舱结构 { key←id, name, students←studentCount, pending, schedule:'' }。
+// pending（待批改作业数）已真实化：并行请求 GET /classrooms/by-course/{courseId}/pending
+// （按 submissions.status=SUBMITTED 聚合，见 ClassroomService.countPendingByCourse）；
+// 该端点不可用/未绑定时回退 0（真实零值，非占位）。
+// schedule（课表）数据模型尚未沉淀，如实占位 ''（非伪造数据）。
+// 若某课程未绑定任何班级（返回空或 404），调用方 CourseCockpit 的 catch 会回退到「全部班级」占位。
+export const getCourseClasses = async (courseId) => {
+  const [classesRes, pendingRes] = await Promise.all([
+    request.get(`/classrooms/by-course/${courseId}`),
+    request
+      .get(`/classrooms/by-course/${courseId}/pending`)
+      .catch(() => ({ data: [] })),
+  ])
+  const list = Array.isArray(classesRes?.data) ? classesRes.data : []
+  const pendingMap = new Map(
+    (Array.isArray(pendingRes?.data) ? pendingRes.data : []).map((p) => [
+      p.classroomId,
+      p.pendingCount || 0,
+    ])
+  )
+  return list.map((c) => ({
+    key: c.id,
+    name: c.name,
+    students: c.studentCount || 0,
+    pending: pendingMap.get(c.id) || 0,
+    schedule: '',
+  }))
+}
+
 /**
  * 默认导出对象：模块/组件配置与导出内容
  */
@@ -184,4 +215,5 @@ export default {
   getChapterTree,
   generateOutline,
   cloneCourse,
+  getCourseClasses,
 }

@@ -7,7 +7,7 @@ const mocks = vi.hoisted(() => ({
   mockGetDefaultRoute: vi.fn(() => '/student/dashboard'),
   mockMessage: { success: vi.fn(), error: vi.fn(), warning: vi.fn() },
   mockPush: vi.fn(),
-  state: { isLoading: false, token: '' },
+  state: { isLoading: false, token: '', user: null },
   mockRoute: { query: {} },
 }))
 
@@ -24,6 +24,9 @@ vi.mock('@/stores/auth', () => ({
     login: mocks.mockLogin,
     getDefaultRoute: mocks.mockGetDefaultRoute,
     token: mocks.state.token,
+    user: mocks.state.user,
+    // 与真实 store 口径一致：登录态以 user 对象判定（token 为恒空占位）
+    isLoggedIn: mocks.state.user != null,
   }),
 }))
 
@@ -69,6 +72,7 @@ describe('Login 页面组件', () => {
     mocks.mockMessage.warning.mockReset()
     mocks.state.isLoading = false
     mocks.state.token = ''
+    mocks.state.user = null
     mocks.mockRoute.query = {}
   })
 
@@ -211,11 +215,18 @@ describe('Login 页面组件', () => {
       expect(wrapper.vm.form.password).toBe('student123')
     })
 
-    it('已登录（有 token）时挂载直接跳转默认路由', () => {
-      mocks.state.token = 'existing-token'
+    it('已登录（user 存在）时挂载直接跳转默认路由', () => {
+      // token 为 HttpOnly Cookie 内存占位恒空，登录态以 user 对象判定（与 store isLoggedIn 一致）
+      mocks.state.user = { id: 1, role: 'STUDENT', username: 'student' }
       mountLogin()
 
       expect(mocks.mockPush).toHaveBeenCalledWith('/student/dashboard')
+    })
+
+    it('未登录（无 user）时挂载不跳转', () => {
+      mountLogin()
+
+      expect(mocks.mockPush).not.toHaveBeenCalled()
     })
   })
 })

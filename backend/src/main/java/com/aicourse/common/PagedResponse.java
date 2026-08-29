@@ -64,7 +64,8 @@ public class PagedResponse<T> {
         }
         resp.totalPages = totalPages;
         resp.hasNext = page < totalPages;
-        resp.hasPrevious = page > 1;
+        // 兼容 pageSize=0 等退化场景：总页数为 0 时不存在上一页
+        resp.hasPrevious = page > 1 && totalPages > 0;
         return resp;
     }
 

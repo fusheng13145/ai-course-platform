@@ -66,7 +66,8 @@ public class DoubleSubmitCsrfFilter extends OncePerRequestFilter {
             "/api/auth/refresh",
             "/api/auth/logout",
             "/api/auth/verify-code",
-            "/api/common/verify-code"
+            "/api/common/verify-code",
+            "/api/monitor/frontend-error"
     );
 
     @Value("${app.security.csrf.enabled:true}")

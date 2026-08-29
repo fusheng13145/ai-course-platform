@@ -301,7 +301,9 @@ public class SecurityConfig {
                 "/common/feature-roadmap",
                 "/uploads/**",
                 "/ws",
-                "/ws/**"));
+                "/ws/**",
+                // 前端错误监控上报（匿名引导型：无会话令牌可用，见 MonitorController）
+                "/api/monitor/**"));
         if (swaggerEnabled) {
             paths.add("/swagger-ui/**");
             paths.add("/api-docs.html");

@@ -122,4 +122,14 @@ public interface ExamSessionService extends IService<ExamSession> {
      * @param sessionId 会话ID
      */
     void timeoutSubmit(Long sessionId);
+
+    /**
+     * 查询学生全部考试会话并附带课程维度排名。
+     * 排名口径：同一课程下，该学生所有已评分会话的得分率（percentage）平均值，
+     * 与该课程全部参与学生的同口径平均得分率比较，降序得名次。
+     * 每条记录额外注入 courseRank / courseTotalStudents / courseId 字段。
+     * @param studentId 学生ID
+     * @return 会话列表（含课程维度排名字段）
+     */
+    List<Map<String, Object>> getMySessionsWithCourseRank(Long studentId);
 }

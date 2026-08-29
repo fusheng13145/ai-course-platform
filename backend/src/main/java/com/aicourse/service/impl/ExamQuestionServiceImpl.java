@@ -15,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 
 /**
@@ -69,24 +70,22 @@ public class ExamQuestionServiceImpl extends ServiceImpl<ExamQuestionMapper, Exa
             throw new BusinessException("题目ID列表不能为空");
         }
 
-        // 验证所有题目都属于该试卷
-        for (Long questionId : questionIds) {
-            LambdaQueryWrapper<ExamQuestion> wrapper = new LambdaQueryWrapper<ExamQuestion>()
-                    .eq(ExamQuestion::getId, questionId)
-                    .eq(ExamQuestion::getExamPaperId, examPaperId);
-            long count = this.count(wrapper);
-            if (count == 0) {
-                throw new BusinessException("题目ID " + questionId + " 不属于该试卷");
-            }
-        }
+        // 一次取回全部待排序题目并校验归属（避免逐条 count/getById 的 N+1），
+        // 复用取回对象直接更新序号，事务内保证原子性
+        List<ExamQuestion> existing = this.list(new LambdaQueryWrapper<ExamQuestion>()
+                .in(ExamQuestion::getId, questionIds)
+                .eq(ExamQuestion::getExamPaperId, examPaperId));
+        Map<Long, ExamQuestion> byId = existing.stream()
+                .collect(Collectors.toMap(ExamQuestion::getId, e -> e, (a, b) -> a));
 
         // 更新顺序
         for (int i = 0; i < questionIds.size(); i++) {
-            ExamQuestion examQuestion = this.getById(questionIds.get(i));
-            if (examQuestion != null) {
-                examQuestion.setOrderIndex(i + 1);
-                this.updateById(examQuestion);
+            ExamQuestion examQuestion = byId.get(questionIds.get(i));
+            if (examQuestion == null) {
+                throw new BusinessException("题目ID " + questionIds.get(i) + " 不属于该试卷");
             }
+            examQuestion.setOrderIndex(i + 1);
+            this.updateById(examQuestion);
         }
     }
 }

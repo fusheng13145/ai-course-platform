@@ -7,6 +7,9 @@ import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.multipart.support.MissingServletRequestPartException;
+import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
@@ -123,6 +126,32 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * Spring 6.1+ 方法级校验违例（含 {@code @Valid @RequestBody List<T>} 的容器元素校验、
+     * 方法参数上的 {@code @NotBlank} 等）—— Spring 6.1 起由
+     * {@link HandlerMethodValidationException} 承载，须显式转 400，否则落入兜底 500。
+     */
+    @ExceptionHandler(HandlerMethodValidationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMethodValidation(HandlerMethodValidationException e) {
+        String message = e.getAllValidationResults().stream()
+                .flatMap(r -> r.getResolvableErrors().stream())
+                .map(err -> {
+                    try {
+                        return err.getDefaultMessage();
+                    } catch (Exception ex) {
+                        return err.toString();
+                    }
+                })
+                .filter(msg -> msg != null && !msg.isBlank())
+                .distinct()
+                .collect(Collectors.joining(", "));
+        log.warn("方法参数校验失败：{}", message);
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(ApiCode.BAD_REQUEST,
+                        message.isBlank() ? "请求参数校验失败" : message));
+    }
+
+    /**
      * 请求参数类型不匹配（路径/查询参数类型错误）—— 返回 400
      */
     @ExceptionHandler(MethodArgumentTypeMismatchException.class)
@@ -131,6 +160,29 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error(ApiCode.BAD_REQUEST, "参数类型错误"));
+    }
+
+    /**
+     * 必需请求参数缺失（如 {@code @RequestParam} 未提供）—— 返回 400 而非落入兜底 500。
+     */
+    @ExceptionHandler(MissingServletRequestParameterException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingParam(MissingServletRequestParameterException e) {
+        log.warn("请求参数缺失：{}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(ApiCode.BAD_REQUEST, "缺少必需参数: " + e.getParameterName()));
+    }
+
+    /**
+     * 必需 multipart 文件缺失（multipart 请求未携带 {@code @RequestParam MultipartFile}）——
+     * Spring 6 对此抛 {@link MissingServletRequestPartException}（区别于普通参数缺失），返回 400。
+     */
+    @ExceptionHandler(MissingServletRequestPartException.class)
+    public ResponseEntity<ApiResponse<Void>> handleMissingPart(MissingServletRequestPartException e) {
+        log.warn("缺少必需上传文件：{}", e.getRequestPartName());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(ApiCode.BAD_REQUEST, "缺少必需上传文件: " + e.getRequestPartName()));
     }
 
     /**

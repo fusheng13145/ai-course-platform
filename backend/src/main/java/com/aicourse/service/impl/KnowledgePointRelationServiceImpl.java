@@ -193,4 +193,25 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
                 .eq(KnowledgePointRelation::getTargetId, targetId)
                 .orderByDesc(KnowledgePointRelation::getCreatedAt));
     }
+
+    /**
+     * 获取某课程下的全部关联关系（本地降级用）。
+     * 通过关联知识点归属课程筛选：关系两端的知识点任一属于该课程即纳入。
+     */
+    @Override
+    public List<KnowledgePointRelation> listByCourse(Long courseId) {
+        if (courseId == null) {
+            return Collections.emptyList();
+        }
+        List<KnowledgePoint> coursePoints = knowledgePointService.listByCourse(courseId);
+        if (coursePoints == null || coursePoints.isEmpty()) {
+            return Collections.emptyList();
+        }
+        Set<Long> coursePointIds = coursePoints.stream()
+                .map(KnowledgePoint::getId).collect(Collectors.toSet());
+        return this.list(new LambdaQueryWrapper<KnowledgePointRelation>()
+                .in(KnowledgePointRelation::getSourceId, coursePointIds)
+                .or()
+                .in(KnowledgePointRelation::getTargetId, coursePointIds));
+    }
 }

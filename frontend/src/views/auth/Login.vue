@@ -94,7 +94,8 @@
           <router-link to="/register">立即注册</router-link>
         </div>
 
-        <div v-if="showError" class="demo-row">
+        <!-- 演示账号仅开发环境展示，生产构建（import.meta.env.PROD）下隐藏 -->
+        <div v-if="showError && !isProd" class="demo-row">
           <span class="muted small">演示账号：</span>
           <span
             v-for="d in demoAccounts"
@@ -122,6 +123,8 @@ const route = useRoute()
 const auth = useAuthStore()
 const formRef = ref(null)
 const showError = ref(false)
+// 生产构建隐藏演示账号提示（避免弱口令信息泄露到线上）
+const isProd = import.meta.env.PROD
 
 const features = ['AI 智能辅导', '学习数据分析', '知识图谱构建']
 
@@ -165,7 +168,8 @@ async function handleLogin() {
 }
 
 onMounted(() => {
-  if (auth.token) router.push(auth.getDefaultRoute())
+  // 已登录（user 存在）访问 /login 自动重定向；token 为 HttpOnly Cookie 内存占位恒空，不可作为判定
+  if (auth.isLoggedIn) router.push(auth.getDefaultRoute())
 })
 </script>
 

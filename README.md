@@ -11,23 +11,35 @@
 
 基于知识图谱+LLM的AI助教系统是一套融合人工智能与教学管理的现代化在线教育系统。系统面向学生、教师与管理员三大核心角色，提供个性化学习体验、高效的教学支持及全面的管理能力。
 
-### 核心功能
+**核心能力域**：多角色 RBAC、课程/章节/选课管理、题库与在线考试（防作弊）、作业批改与查重、知识图谱可视化与学习路径规划、AI 智能问答/出题/批改/学情建议、数据分析与学情报告、WebSocket 实时通知。
 
-- **多角色支持**: 管理员、教师、学生三种角色权限隔离（RBAC）
-- **课程管理**: 课程创建、章节管理、选课审批、教学资源管理
-- **作业考试**: 题库管理、智能出题、在线考试、自动评分、查重检测
-- **学习辅助**: 知识图谱可视化、个性化学习路径、AI智能问答、错题本
-- **数据分析**: 学习进度分析、成绩分布、学习趋势、学情报告
-- **AI赋能**: DeepSeek大模型集成，支持智能出题、AI对话
-- **实时通信**: WebSocket实时通知推送
+> **⚠️ 职责边界说明**：知识图谱引擎（图谱构建、多跳推理、GraphRAG）与 RAG 检索引擎（BM25 / 向量检索 / embedding / 融合）均由团队另一成员以 Python 微服务实现（8001 / 8002）。本端（Java 后端）实现**消费侧**与**标准化集成层** `com.aicourse.integration`：`ContractPaths` 常量（调用约定唯一事实来源）+ `KnowledgeGraphContract` / `RagContract` 契约接口（强类型 record）+ 双实现（本地占位默认不依赖 Python；HTTP 远端经 `knowledge-graph.enabled` / `rag.enabled=true` 调 Python 8001 / 8002）。其中 `POST /api/knowledge/path/plan` 在引擎未启用/不可达/未找到路径时由消费侧**本地 BFS 兜底**，始终返回真实数据；RAG 未接入时返回 `{"code":503}` 且 AI 问答自动回退纯 LLM。本端不实现引擎逻辑，以便后续接入独立 Python 项目扩展。**完整对接契约见 `docs/集成契约-知识图谱与RAG.md`（权威单一事实来源）。**
 
-> **⚠️ 职责边界说明**：知识图谱 / 知识库模块（图谱构建、多跳推理、GraphRAG）与 **RAG 检索引擎（BM25 / 向量检索 / embedding / 融合）均由团队另一成员负责**。本端（Java 后端）仅实现**消费侧**——知识点 / 关系的 CRUD、掌握度与关联查询、图谱可视化、`/extract` 摄取端点，并**预留标准化接口**（`KnowledgeGraphService` 方法签名、DTO 与调用约定；`RAGService` 接口 + HTTP 代理到 Python RAG 服务 8002，`rag.enabled=true` 启用、未接入时降级 `{"code":503}` 且 AI 问答自动回退纯 LLM），不实现图谱引擎与 RAG 引擎逻辑，以便后续接入独立 Python 项目扩展。相关契约见 `项目文档/知识图谱服务对接契约.md` 与 `docs/运维手册.md` §11。
+> **⚠️ 参考项目方法学边界（避免误导）**：`大创赛/类似项目/DeepSeek-RAG-Chatbot` 的 GraphRAG 实体抽取采用正则 `\b[A-Z][a-z]+...`，**仅支持英文实体**，且为单机通用文档问答工具，与本项目的**中文知识图谱**（`knowledge_points` / `knowledge_point_relations`）在语言适配、领域建模、工程规模上均不可类比。**请勿将其作为本项目中文 KG 方案的对标或引用依据**；本项目中文 KG 的关系建模以 `相关论文/`（杜彩丽 IPA/IREM、中职计算机网络多源异构 KG 等）与 PRD 接口矩阵为准。
+
+---
+
+## 文档导航（手册集）
+
+项目文档按维度组织为**手册集**，结构与职责划分如下：
+
+| 维度 | 文档 | 说明 |
+|------|------|------|
+| **架构** | [`docs/架构手册.md`](docs/架构手册.md) | 系统架构、技术栈、目录结构、核心设计决策、标准化集成层设计、技术亮点 |
+| **开发指南** | [`docs/开发指南.md`](docs/开发指南.md) | 环境准备、启动方式、代码结构导航、编码规范、测试与质量门禁、CI 流水线 |
+| **部署 / 运维 / 监控** | [`docs/运维手册.md`](docs/运维手册.md) | 环境要求、Docker / 本地部署、健康检查、日志、故障处理、备份恢复、安全加固、性能调优、监控告警（Prometheus/Grafana/Loki） |
+| **集成契约（核心）** | [`docs/集成契约-知识图谱与RAG.md`](docs/集成契约-知识图谱与RAG.md) | Java 后端 ↔ Python 8001/8002 对接契约的**单一事实来源**：端点、JSON 字段、状态码、降级、重试；含 Java 端 `ContractPaths` / 契约接口与 Python 实现指引 |
+| **资料综合手册** | [`docs/项目资料综合手册-最终版.md`](docs/项目资料综合手册-最终版.md) | **〇 数据口径权威总表**（唯一基准）+ 第一~六章外部资料归纳（大赛/开题/类似项目/论文/申报/PRD）；第七章需求与技术基线；第八章战略规划与路线图；第九章交付与完成度（含实施进度与历史修复记录） |
+
+> 快速索引：架构设计 → 架构手册；本地开发 / 测试 → 开发指南；部署运维 / 监控排障 → 运维手册；知识图谱 / RAG 接口 → 集成契约文档；**数据口径唯一基准 → 资料综合手册〇章**；需求 / 路线图 / 交付 / 进度 → 资料综合手册（第七~九章）。
+
+---
 
 ## 技术栈
 
 | 层级 | 技术 | 版本 |
 |------|------|------|
-| 后端框架 | Spring Boot | 3.4.4 |
+| 后端框架 | Spring Boot | 3.4.13（JDK 21） |
 | ORM | MyBatis-Plus | 3.5.7 |
 | 安全 | Spring Security + JWT | 6.x / jjwt 0.12.6 |
 | 数据库 | MySQL | 8.0+ |
@@ -35,332 +47,82 @@
 | 前端框架 | Vue 3 | 3.5.x |
 | 构建工具 | Vite | 8.x |
 | UI库 | Element Plus | 2.4.x |
-| 图表 | ECharts + vue-echarts | 5.x / 6.x |
-| 状态管理 | Pinia | 2.1.x |
-| 路由 | Vue Router | 4.2.x |
+| 状态 / 路由 / 图表 | Pinia / Vue Router / ECharts | 2.1.x / 4.2.x / 5.4.x |
 | 实时通信 | WebSocket | 集成Spring WebSocket |
+| 限流熔断 | Sentinel | 下游流控 + 慢调用熔断 |
+
+---
 
 ## 快速开始
 
-项目提供两条启动路径：**本地开发**（默认，推荐——直接使用本机安装的 MySQL / Redis，Docker 仅作兜底）与 **容器化部署**（备用/上线——全套 Docker）。日常开发请走方式一。
+项目提供两条启动路径：**本地开发**（默认，推荐——使用本机 MySQL / Redis，Docker 仅作兜底）与 **容器化部署**（备用/上线——全套 Docker）。详细步骤见 `docs/开发指南.md`（开发）与 `docs/运维手册.md`（部署）。
 
-### 方式一：本地开发（推荐，使用本机 MySQL / Redis）
+### 方式一：本地开发（推荐）
 
-| 环境 | 版本要求 |
-|------|---------|
-| JDK | **21**（项目唯一目标版本：`pom.xml` 编译 `release=21`；系统 `JAVA_HOME` 与 `PATH` 已统一指向 `C:\Program Files\Java\jdk-21`，`start-backend.bat` 启动时亦强制校验） |
-| Maven | 3.8+ |
-| MySQL | 8.0+（**本机服务**，端口 3306；日常开发使用本机实例） |
-| Node.js | 20.19+（Vite 8 要求；CI 与 Docker 使用 Node 20） |
-| Redis | 7.x（**本机服务**，端口 6379；必选：缓存/限流/AI配额/验证码依赖，启动时强校验连通性） |
-
-> 本机未安装 MySQL / Redis 时不必自己装：直接 `docker compose up -d` 拉起编排中的基础设施容器（MySQL 宿主端口 3307），`start-backend.bat` 会自动检测并切换数据源，其余开发流程不变。
-
-#### 数据库初始化（首次）
+前置：JDK 21、Node 20.19+、MySQL 8.0+、Redis 7.x（必选，启动强校验）。
 
 ```bash
-# 1. 创建数据库
+# 数据库初始化（首次）
 mysql -u root -p -e "CREATE DATABASE ai_course_platform CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-
-# 2. 导入表结构和初始数据
 mysql -u root -p ai_course_platform < backend/src/main/resources/index.sql
+
+# 后端（一键脚本：自动加载 .env、校验 JDK 21、检测 MySQL/Redis）
+start-backend.bat
+# 或手动：cd backend && ./mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=local
+
+# 前端
+start-frontend.bat
+# 或手动：cd frontend && npm install && npm run dev
 ```
 
-#### 环境变量配置
+访问：前端 http://localhost:5173 ｜ API http://localhost:8080/api ｜ Swagger http://localhost:8080/api/swagger-ui.html
 
-在启动前配置以下环境变量（生产环境必需）：
-
-| 变量名 | 说明 | 默认值（仅开发环境） |
-|--------|------|-------------------|
-| JWT_SECRET | JWT签名密钥 | 内置测试密钥 |
-| MAIL_USERNAME | 邮箱账号 | - |
-| MAIL_PASSWORD | 邮箱授权码 | - |
-| DEEPSEEK_API_KEY | DeepSeek API密钥（已配置本地开发 Key；生产请通过此变量注入） | - |
-
-#### 启动后端
-
-```bash
-# 首选：一键脚本（自动加载 .env、校验 JDK 21、检测 MySQL/Redis，缺 Redis 会报错并提示）
-start-backend.bat        # Windows 根目录双击或命令行执行
-
-# 或手动命令
-cd backend
-./mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=local   # local 配置含本地开发用 DeepSeek Key
-```
-
-> `local` 配置来自 `backend/src/main/resources/application-local.yaml`（已被 `.gitignore` 忽略），无需手动设置环境变量即可体验真实 AI 对话。生产环境请改用方式二并通过 `DEEPSEEK_API_KEY` 注入密钥。
-
-#### 启动前端
-
-```bash
-# 首选：一键脚本（自动安装依赖并启动 Vite dev server）
-start-frontend.bat       # Windows 根目录
-
-# 或手动命令
-cd frontend
-npm install
-npm run dev
-```
-
-> 前端已通读审计并修复：教师端「学情分析 / 考试管理 / 成绩管理 / 知识图谱管理」与学生端「我的成绩 / 在线考试 / 知识图谱」等页面已接入路由与侧边栏菜单，均可直接访问；另修复了考试管理审批崩溃、验证码接口路径错位，并移除图表中的模拟数据。`npm run build` 已验证通过（Vite + Rolldown，无 broken import）。前后端本地联调已跑通（学生端「我的成绩 / 知识图谱」、教师端「学情分析」数据拉取正常）；联调中发现并修复了教师学情看板因 `submissions` 实体多出的 `max_score` / `percentage` 列导致聚合失败的后端缺陷。
-
-#### 访问地址
-
-- 前端: http://localhost:5173
-- API: http://localhost:8080/api
-- Swagger: http://localhost:8080/api/swagger-ui.html
-
-> 本地联调与演示账号（见下方表格，密码均为 `123456`）。生产环境请勿使用这些账号，并务必通过环境变量注入强密钥。
-
-#### Redis 说明（必选）
-
-Redis 是本系统的**必选组件**，承担四类职责：
-
-| 职责 | 载体 | 说明 |
-|------|------|------|
-| 业务缓存 | `RedisCacheManager` + `@Cacheable` | 课程/知识点/题库/用户资料/学情聚合/RAG 检索等 12 组缓存，各自独立 TTL |
-| IP 限流 | `RateLimitFilter` | 登录/AI/验证码接口 Redis 原子计数（Redis 瞬断时降级本地内存兜底，不放弃限流） |
-| AI 用量配额 | `AiQuotaService` | 按用户日请求数/token 预算原子计数 |
-| 验证码/调度锁 | 缓存 `verificationCode` / ShedLock | 找回密码验证码 5min TTL；多实例定时任务互斥 |
-
-**启动强校验（fail-fast）**：应用启动时 `RedisStartupValidator` 主动 PING Redis，默认重试 10 次（间隔 3s，容忍容器冷启动）；全部失败则中止启动，避免"半可用"状态。开关 `REDIS_REQUIRED`（默认 `true`，仅单元测试允许关闭）。
-
-**启动 Redis（优先本机服务，无则 Docker 兜底）：**
-```bash
-# 首选：本机已安装的 Redis 服务
-net start Redis          # Windows 服务（本机 D:\Redis 已注册为服务）
-
-# 兜底：无本机 Redis 时用 Docker 容器（与 start-backend.bat 同款编排）
-docker compose up -d redis
-```
+> 本机未装 MySQL / Redis 时：`docker compose up -d mysql redis` 拉起基础设施容器（MySQL 宿主端口 3307），`start-backend.bat` 自动切换数据源。
 
 ### 方式二：Docker 容器化部署（备用 / 上线）
 
-用于**上线部署、给他人快速体验、或本机未安装 MySQL / Redis** 的场景；日常本地开发请用方式一。`docker-compose.yml` 可一键拉起 MySQL、Redis、后端、前端四个服务。敏感配置（数据库密码、JWT 密钥、大模型 API Key、邮件凭据）通过同级 `.env` 注入，**请勿留空或使用默认值上线**。
-
-### 1. 准备环境变量
-
 ```bash
-# Linux / Mac
-cp .env.example .env
-# Windows
-copy .env.example .env
-```
-
-编辑 `.env`，将占位值替换为真实强密码与密钥（`JWT_SECRET` 至少 32 位随机字符串）。
-
-### 2. 构建并启动
-
-```bash
-# 后端/前端容器归入 full profile：加 --profile full 才会构建并启动全部四个服务
+cp .env.example .env      # Windows: copy .env.example .env（填入真实强密码与密钥）
 docker compose --profile full up -d --build
+# 可选叠加：--profile ops（每日备份）/ --profile monitor（Prometheus+Grafana+Loki 监控）
 ```
 
-> 仅需数据层（本地跑后端源码、本机无 MySQL/Redis 时）：`docker compose up -d mysql redis` 拉两个基础设施容器即可；`start-backend.bat` 会检测到 MySQL 容器（宿主 3307）自动切换数据源，Redis 复用 6379。
+访问：前端 http://localhost ｜ API http://localhost:8080/api
 
-启动后访问：前端 http://localhost （容器 80 端口），API http://localhost:8080/api 。
+> 生产部署前请逐项核对 `docs/运维手册.md` §8 安全加固检查清单。
 
-> 注意：未创建 `.env` 时 `docker compose` 会回退到 `docker-compose.yml` 中的默认值（如 `JWT_SECRET=change_me_in_production`），仅可用于本地联调，**禁止用于生产环境**。
-
-### 3. 运维增强（可选：定时备份 / 监控）
-
-`docker-compose.yml` 提供两个可选 profile，按需叠加：
-
-```bash
-# ① MySQL 每日自动备份（mysqldump 全量，默认保留 14 天，backups 卷持久化）
-docker compose --profile full --profile ops up -d --build
-# 备份文件位于 mysql-backups 卷；应用内「系统管理→备份」的手动备份亦持久化于 backups 卷
-
-# ② Prometheus + Grafana 监控（后端已暴露 /api/actuator/prometheus 指标）
-docker compose --profile full --profile monitor up -d --build
-# Prometheus: http://localhost:9090    Grafana: http://localhost:3000（admin / .env 中 GRAFANA_ADMIN_PASSWORD）
-# 说明：prometheus 端点由独立 Basic 鉴权链保护（专用账号 APP_ACTUATOR_BASIC_*，与业务 JWT 隔离，非 ADMIN 角色）；
-#      口令须与 Prometheus 容器透传值一致，留空则抓取 fail-closed。内网/演示无反向代理时，可置 APP_ACTUATOR_SECURED=false 放开抓取。
-
-# ①②可同时叠加
-docker compose --profile full --profile ops --profile monitor up -d --build
-```
-
-> 运维相关变量见 `.env.example` 末尾（`BACKUP_RETENTION_DAYS` / `APP_ACTUATOR_SECURED` / `GRAFANA_ADMIN_USER` / `GRAFANA_ADMIN_PASSWORD`）。
-
-### 4. RAG 效果评测（可选）
-
-`evaluation/` 目录提供 60 题专业课 QA 评测集与评测脚本，可量化对比检索的召回率、答案覆盖率与幻觉率，使用方法见 `evaluation/README.md`。注意：RAG 引擎由团队另一成员负责，评测需在另一成员 RAG 服务接入（`rag.enabled=true`）后方可实跑；未接入时后端 `/rag/*` 返回 `{"code":503}` 降级。
+---
 
 ## 演示账号
 
 | 角色 | 用户名 | 密码 | 说明 |
 |------|--------|------|------|
 | 管理员 | admin | 123456 | 系统管理员，拥有全部权限 |
-| 教师 | teacher | 123456 | 张教授，可管理课程、作业、考试 |
-| 教师 | teacher2 | 123456 | 李副教授，数学学院教师 |
-| 学生 | student | 123456 | 王同学，已选3门课 |
-| 学生 | student2 | 123456 | 赵同学 |
-| 学生 | student3 | 123456 | 刘同学 |
-| 学生 | student4 | 123456 | 陈同学 |
-| 学生 | student5 | 123456 | 杨同学 |
+| 教师 | teacher / teacher2 | 123456 | 张教授 / 李副教授 |
+| 学生 | student / student2~5 | 123456 | 王同学等 |
 
-## 项目结构
+> 演示密码仅限开发/演示环境，生产环境务必修改（见运维手册 §8）。
 
-```
-ai-course-platform/
-├── backend/                    # Spring Boot 后端
-│   ├── src/main/java/com/aicourse/
-│   │   ├── Application.java    # 启动类
-│   │   ├── controller/         # 42 个控制器（端点以 springdoc 为准）
-│   │   ├── service/            # 约 55 接口 / 59 实现类（含 exam 子包）
-│   │   ├── mapper/             # 48个 Mapper接口
-│   │   ├── entity/             # 48个实体类
-│   │   ├── security/           # JWT认证过滤器
-│   │   ├── config/             # 配置类
-│   │   └── util/               # 工具类
-│   └── src/main/resources/
-│       ├── application.yaml    # 配置文件
-│       └── index.sql           # 数据库初始化脚本
-│
-├── frontend/                   # Vue 3 前端
-│   ├── src/
-│   │   ├── api/                # 41个API模块（含 request.js 请求封装）
-│   │   ├── views/              # 75个页面组件（三端）
-│   │   ├── layouts/            # 布局组件
-│   │   ├── stores/             # Pinia状态管理
-│   │   ├── router/             # 路由配置
-│   │   └── utils/              # 工具函数
-│   ├── vite.config.js          # Vite配置
-│   └── package.json            # 依赖配置
-│
-├── docs/                       # 项目文档（2026-08-02 合并为 4 份）
-│   ├── AI课程平台-产品需求文档.md  # 合并权威版需求基线（含三端 PRD / AI 专题 / 接口矩阵 / 数据表）
-│   ├── 软件产品路线图.md        # 战略规划（架构演进 + 产品路线图 + 功能扩展可行性分析）
-│   ├── 项目交付与完成度报告.md # 交付清单 + 完成度 + 审查记录
-│   └── 运维手册.md             # 部署运维 + Python 微服务接口契约（KG/RAG 可选，微调 8003 活跃）
-└── README.md                   # 项目说明
-```
+---
 
-## 功能模块清单
-
-### 已实现功能
-
-| 模块 | 功能 | 状态 |
-|------|------|------|
-| 用户认证 | 登录/注册/退出/密码修改/密码重置 | ✅ 已完成 |
-| 用户管理 | 用户CRUD、启用/禁用、搜索筛选 | ✅ 已完成 |
-| 课程管理 | 课程CRUD、审批、状态切换 | ✅ 已完成 |
-| 章节管理 | 章节CRUD、多级章节树 | ✅ 已完成 |
-| 选课管理 | 选课/退课、审批流 | ✅ 已完成 |
-| 题库管理 | 题目CRUD、分类筛选、AI生成 | ✅ 已完成 |
-| 试卷管理 | 试卷CRUD、题目关联 | ✅ 已完成 |
-| 在线考试 | 开始考试、提交答卷、查看结果 | ✅ 已完成 |
-| 作业管理 | 任务CRUD、发布、提交统计 | ✅ 已完成 |
-| 作业批改 | 提交评分、教师反馈 | ✅ 已完成 |
-| 知识图谱（消费侧） | 知识点CRUD、关系管理、图谱可视化、掌握度/关联查询、图谱AI抽取（`/extract`） | ✅ 已完成（本端消费侧；图谱构建/多跳/GraphRAG 由另一成员负责，本端仅预留 `KnowledgeGraphService` 接口） |
-| 学习路径 | 路径CRUD、节点管理、自动生成 | ✅ 已完成 |
-| 学习记录 | 学习记录创建与查询 | ✅ 已完成 |
-| 错题本 | 错题CRUD、标记已掌握、统计 | ✅ 已完成 |
-| 资源管理 | 文件上传/下载、版本管理 | ✅ 已完成 |
-| 通知中心 | 通知列表、已读/未读、发送通知 | ✅ 已完成 |
-| 权限管理 | 角色权限CRUD、启用/禁用 | ✅ 已完成 |
-| 数据分析 | 仪表盘统计、学习趋势、课程分析 | ✅ 已完成 |
-| 系统管理 | 配置管理、健康检查、日志查看 | ✅ 已完成 |
-| AI助手 | DeepSeek对话（含多轮会话持久化）、智能出题、内容生成、作文批改、图谱AI抽取 | ✅ 已完成 |
-| AI学情建议 | 学生端「AI 学习建议」面板（薄弱点分析 + 优先级建议） | ✅ 已完成 |
-| AI异常监控 | 管理员端「AI 异常监控」面板（登录/操作日志异常检测） | ✅ 已完成 |
-| WebSocket | 实时通知推送 | ✅ 已完成 |
-
-### 可扩展功能
-
-| 功能 | 当前状态 | 扩展方向 |
-|------|---------|---------|
-| 作业查重 | ✅ 已实装（`PlagiarismCheckServiceImpl`，CJK bigram 分词 + Jaccard 相似度，算法版本 Jaccard-CJKBigram-v2.0；查询端点 `GET /plagiarism-checks` 等已接通） | 引入语义嵌入相似度提升改写检测 |
-| 学习路径自动生成 | ✅ 已实装（`GET /learning-paths/generate` 数据驱动：错题本推导掌握度 `deriveMastery` + 薄弱优先排序 + 掌握度加权时长） | 引入学习行为序列做深度个性化 |
-| 知识点路径规划（多跳） | 🔲 预留接口（`KnowledgeGraphService.planLearningPath` 签名已定义，未实现 BFS 逻辑） | 由团队另一成员图谱服务实现；本端仅预留标准化接口与调用约定 |
-| 催交提醒 | 表结构已建，`GET /reminders/todos` 已接通 | 实现定时任务自动催交 |
-| 视频学习 | 表结构已建 | 实现视频播放进度追踪 |
-| RAG 检索增强 | 🔲 接口预留 + HTTP 代理（`RAGService` 接口保留；`RAGServiceImpl` 经 RestClient 调用 Python RAG 服务 8002 `/api/v1/rag/*`，`rag.enabled=true` 启用；未启用/不可达降级 `{"code":503}`，AI 问答自动回退纯 LLM）。RAG 引擎（BM25/向量/embedding/融合）由团队另一成员负责 | 由另一成员接入 Python RAG 服务后经 `rag.enabled=true` 启用 |
-| Redis缓存 | ✅ 已启用 | 学情聚合 @Cacheable（5min TTL，评分失效） |
-
-> 注：教师端 AI 图谱抽取已迁至 `teacher/tools/KnowledgeGraph.vue`（真实调用后端抽取接口）；早期 `generateFallbackExtraction()` 本地兜底逻辑已移除，全仓无 mock 业务数据。
-
-## 架构优化与可扩展点落地
-
-下列优化项已在代码中落地（按职责边界，知识图谱引擎与 RAG 引擎均由团队另一成员负责：本端仅保留消费侧与预留 `KnowledgeGraphService` 接口签名、`RAGService` 接口 + HTTP 代理（8002），不实现引擎逻辑；仅 LoRA 微调 8003 保留真实 Python 集成）：
-
-| 优化项 | 落地方式 | 收益 |
-|------|---------|------|
-| LLM 供应商抽象 | 新增 `LLMProvider` 接口 + `OpenAiCompatibleProvider` 基类，DeepSeek/OpenAI/Qwen 三个实现由 `ai.provider` 配置热切换；业务层仅依赖接口 | 切换/新增大模型零改业务代码 |
-| AI 调用异步化 | 所有 `/ai/**` 接口返回 `Callable`，由 `AsyncMvcConfig` 专用线程池执行（CallerRunsPolicy + 120s 超时） | 长耗时 LLM 调用不再阻塞 Tomcat 请求线程 |
-| 结构化 LLM 输出 | 启用 `response_format=json_object` + JSON-Schema 系统指令；`analyzeWeakPointsJson`/`recommendQuestionsJson` 配合健壮 JSON 提取（`extractJsonObject`） | 薄弱点/题目推荐解析不再依赖脆弱的换行切分 |
-| Redis 缓存学情聚合 | `AnalyticsServiceImpl` 的 `getDashboard`/`getTeacherDashboard`/`getPlatformOverview` 加 `@Cacheable(cacheNames="analytics", ttl=5min)`；教师评分 `gradeSubmission` 加 `@CacheEvict(allEntries=true)` | 仪表盘高频聚合查询显著降 DB 压力 |
-| IP 级限流 | 新增 `RateLimitFilter`（零第三方依赖，固定窗口计数）：登录接口 60s/10 次、AI 接口 60s/20 次，阈值由 `ratelimit.*` 配置 | 缓解爆破/脚本刷登录，作为大模型调用成本上限的代理防护 |
-| CORS 配置化 | 新增 `CorsProperties` 绑定 `cors.allowed-origins`，`SecurityConfig` 不再硬编码 localhost 列表 | 多环境部署免改代码 |
-| 遗留接口收敛 | 旧版 `/ai/chat`、`/generate-question`、`/generate-summary`、`/check-plagiarism`、`/rag/ask` 标记 `@Deprecated(forRemoval=true)` | 明确新旧边界，便于后续清理 |
-| 未配置 Key 降级 | 无 API Key 时返回清晰业务提示（不再返回伪造 JSON） | 部署未配 Key 时体验清晰、不误导 |
-
-> 前端 `admin/Dashboard.vue` 与 `admin/Analytics.vue` 中将误名为「模拟数据」的兜底函数 `setMockData` 更名为 `handleLoadError`（仅作空数据兜底，不含任何硬编码模拟数据）。
-
-## 开发规范
-
-编码与部署规范见 [docs/运维手册.md](docs/运维手册.md)（部署指南、备份恢复、故障处理等章节）；交付口径见 [docs/项目交付与完成度报告.md](docs/项目交付与完成度报告.md)。
-
-## 测试
-
-### 前端（vitest + ESLint）
+## 测试与质量
 
 ```bash
-cd frontend
-npm run lint      # ESLint 检查（errors 应为 0）
-npx vitest run    # 单元测试全量执行
-npm run build     # 构建校验（Vite）
+# 后端：单元测试 + 集成测试 + JaCoCo/SpotBugs/ArchUnit 门禁
+cd backend && mvn test -Dtest='!*IT,!Phase1Phase3IntegrationTest' -DfailIfNoTests=false
+
+# 前端：ESLint + vitest + 构建校验
+cd frontend && npm run lint && npx vitest run && npm run build
 ```
 
-### 后端（JUnit5 + Mockito + Testcontainers）
+质量门禁基线（渐进收敛制，只许上调不得下调）：JaCoCo LINE ≥ 40% / BRANCH ≥ 25%（生产收敛目标指令覆盖 ≥ 85%）、SpotBugs 0 error、ArchUnit 架构约束。测试方法、契约测试清单与 CI 流水线见 `docs/开发指南.md` §5-6。
 
-```bash
-cd backend
-mvn test -Dtest='!*IT,!Phase1Phase3IntegrationTest' -DfailIfNoTests=false
-```
-
-- 单元测试（Controller 层 MockMvc / Service 层 Mockito）**无需 Docker、无需设置环境变量**（2026-07-31 起通过测试专用 profile `application-contract-test.yml` / `application-local.yml` 根治环境依赖，复用本机 MySQL/Redis）。
-- 集成测试（`*IT`、`Phase1Phase3IntegrationTest`）基于 Testcontainers，**需要 Docker daemon**；本机无 Docker 时用上面的 `-Dtest` 排除项跳过。
-- 质量门禁：JaCoCo 覆盖率（LINE ≥ 65% / BRANCH ≥ 50%，报告在 `backend/target/site/jacoco`）、SpotBugs 静态扫描、ArchUnit 架构约束，均随 `mvn test` 执行。
-
-## 详细文档
-
-- 需求基线（合并权威版）：[docs/AI课程平台-产品需求文档.md](docs/AI课程平台-产品需求文档.md)
-- 战略规划（含功能扩展可行性分析）：[docs/软件产品路线图.md](docs/软件产品路线图.md)
-- 交付与完成度（含审查记录）：[docs/项目交付与完成度报告.md](docs/项目交付与完成度报告.md)
-- 部署运维与 Python 微服务契约：[docs/运维手册.md](docs/运维手册.md)
-
-## 生产部署检查清单
-
-在将系统部署到生产环境前，请逐项确认以下检查项：
-
-- [ ] **数据库SSL配置检查**：确认 MySQL 连接启用 SSL/TLS 加密传输，避免数据库凭据和数据在网络上明文传输
-- [ ] **JWT密钥更换检查**：将 JWT_SECRET 更换为至少 32 位的随机强密钥，切勿使用默认值或开发环境密钥
-- [ ] **管理员密码修改检查**：修改默认演示账号的密码（admin / teacher / student 系列的 123456 均为演示密码），生产环境应使用强密码
-- [ ] **Redis连接检查**：确认 Redis 已启用 `requirepass` 认证密码，不使用默认空密码
-- [ ] **日志级别检查**：将 Spring Boot 日志级别调整为 WARN 或 INFO（`logging.level.root=WARN`），避免敏感信息泄露到日志
-- [ ] **备份策略配置**：配置定时数据库备份（如 `mysqldump` + cron），并确保备份文件异地存储和加密
-
-> 以上检查项为生产环境最低安全基线，未经确认请勿上线。
-
-## 技术亮点
-
-下表列出了本平台在技术选型与工程实现上的核心竞争亮点：
-
-| 亮点 | 说明 |
-|------|------|
-| 五层安全纵深防御 | JWT + CSRF + IP限流 + AI配额 + 对象级授权，构建从网络层到业务层的多级安全体系 |
-| 三供应商 AI 路由 | DeepSeek/OpenAI/Qwen 热切换，通过 `LLMProvider` 接口抽象，切换大模型零修改业务代码 |
-| 防作弊考试引擎 | 乱序题目、选项混淆、切屏检测、实时监考，多维度保障在线考试公平性 |
-| 设计令牌体系 | 100+ CSS 变量，暗色/浅色双主题，主题切换零侵入、全局样式统一管控 |
-| 自愈合数据库 | 运行时自动建表补列，减少 DBA 人工运维成本，提升部署效率与系统自愈能力 |
-| AI 流式对话 | SSE（Server-Sent Events）实时流式输出，大模型回答逐 token 推送，体验接近 ChatGPT 式对话 |
-| 异步 AI 调用 | 所有 `/ai/**` 接口返回 `Callable` 由专用线程池执行，长耗时 LLM 调用不阻塞 Tomcat 请求线程 |
-| 结构化 AI 输出 | 启用 JSON-Schema 约束 + 健壮 JSON 提取，薄弱点分析/题目推荐解析不再依赖脆弱的文本切分 |
-| Redis 缓存加速 | 学情聚合接口 `@Cacheable`（5min TTL），高频仪表盘查询降低数据库压力 |
-| 前端防抖与去重 | 请求 AbortController 管理器、网络抖动自动重试、302/502/503/504 临时故障自动恢复 |
+---
 
 ## 许可证
 
-MIT License
+本项目基于 [MIT License](LICENSE) 开源。
+
+- 完整许可证文本见仓库根目录 [`LICENSE`](LICENSE)。
+- 参与贡献请阅读 [`CONTRIBUTING.md`](CONTRIBUTING.md)（分支策略、编码规范、质量门禁与 PR 流程）。
+- 报告 Bug / 提需求请使用 Issue 模板（`.github/ISSUE_TEMPLATE/`）。

@@ -94,6 +94,8 @@ export const submitQuiz = (courseId, taskId, answers) =>
   request.post(`/student/courses/${courseId}/tasks/${taskId}/quiz-submit`, answers)
 // 学生成绩总览（按课程聚合作业/考试/总评）
 export const getGrades = () => request.get('/student/grades')
+// 学生端学情可视化数据（D7：学习时长趋势 / 课程薄弱度雷达 / 学习活跃热力图）
+export const getVisualizationData = () => request.get('/student/analytics/visualization')
 
 /**
  * 默认导出对象：模块/组件配置与导出内容
@@ -125,4 +127,5 @@ export default {
   reportVideoHeartbeat,
   submitQuiz,
   getGrades,
+  getVisualizationData,
 }

@@ -57,6 +57,11 @@ public class Classroom {
     private Long advisorId;
 
     /**
+     * 关联课程ID（可为空：行政班未绑定具体课程）
+     */
+    private Long courseId;
+
+    /**
      * 当前学生人数
      */
     private Integer studentCount;

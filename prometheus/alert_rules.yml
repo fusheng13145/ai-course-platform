@@ -113,17 +113,17 @@ groups:
   # ---------------- 监控组件自监控（meta-monitoring） ----------------
   # 监控链路自身可用性：任一组件宕机将导致监控/告警失效（尤其 Alertmanager 宕机
   # 会使业务告警石沉大海）。本组依赖 prometheus.yml 中 prometheus/alertmanager/
-  # loki/grafana/promtail 五个 scrape job 提供 up 指标。
+  # loki/grafana/promtail/node-exporter 六个 scrape job 提供 up 指标。
   - name: aicourse-meta-monitoring
     rules:
       - alert: MonitoringComponentDown
-        expr: 'up{job=~"prometheus|alertmanager|loki|grafana|promtail"} == 0'
+        expr: 'up{job=~"prometheus|alertmanager|loki|grafana|promtail|node-exporter"} == 0'
         for: 2m
         labels:
           severity: critical
         annotations:
           summary: "监控组件不可用"
-          description: "监控链路组件 {{ $labels.job }} 的 up 指标连续 1 分钟为 0，Prometheus 无法抓取该组件 /metrics。监控/告警自身可能已失效——尤其 Alertmanager 宕机将导致业务告警无法外发（石沉大海），请立即排查对应容器状态（docker compose ps / docker compose logs <组件>）。"
+          description: "监控链路组件 {{ $labels.job }} 的 up 指标连续 1 分钟为 0，Prometheus 无法抓取该组件 /metrics。监控/告警自身可能已失效——尤其 Alertmanager 宕机将导致业务告警无法外发（石沉大海）、node-exporter 宕机将失去宿主机系统资源告警，请立即排查对应容器状态（docker compose ps / docker compose logs <组件>）。"
 
   # ---------------- 业务依赖健康（health 探针指标化） ----------------
   # 将 /actuator/health 暴露的 4 个自定义业务探针状态指标化（见 HealthMetricsService）：
@@ -139,3 +139,25 @@ groups:
         annotations:
           summary: "业务依赖不可用"
           description: "业务依赖组件 {{ $labels.component }} 健康检查状态为 DOWN（aicourse_health_status=0），持续 1 分钟。该依赖不可达将导致对应功能降级或故障：redis 断连影响会话/缓存与启动强校验；llmProvider 未配置（API Key 缺失）使 AI 能力整体不可用；pythonServices 不可达影响知识图谱/RAG。请立即排查对应依赖的连通性与配置（docker compose logs backend）。"
+
+  # ---------------- 宿主机系统资源（node-exporter，D26 补强） ----------------
+  # 依赖 node-exporter 服务（docker compose monitor profile，见 prometheus.yml
+  # node-exporter scrape job）提供的 node_filesystem_* 指标。磁盘使用率取根分区。
+  - name: aicourse-host
+    rules:
+      - alert: HostDiskUsageHigh
+        expr: '(1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) > 0.80'
+        for: 10m
+        labels:
+          severity: warning
+        annotations:
+          summary: "宿主机磁盘使用率过高"
+          description: "宿主机根分区磁盘使用率 {{ $value | humanizePercentage }} 超过 80% 阈值并持续 10 分钟。请清理 docker 悬空镜像/日志卷（docker system prune）或扩容存储，避免写满导致数据库、备份与日志异常。"
+      - alert: HostDiskUsageCritical
+        expr: '(1 - (node_filesystem_avail_bytes{mountpoint="/"} / node_filesystem_size_bytes{mountpoint="/"})) > 0.90'
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "宿主机磁盘即将写满"
+          description: "宿主机根分区磁盘使用率 {{ $value | humanizePercentage }} 超过 90% 阈值并持续 5 分钟，存在写满风险（数据库备份、日志、业务上传均可能失败）。请立即清理或扩容。"

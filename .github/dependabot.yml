@@ -1,0 +1,40 @@
+# Dependabot 依赖自动更新
+# 安全/版本更新 PR 自动创建；配合 CI 门禁（OSV-Scanner / npm audit）保证引入依赖不引入已知漏洞。
+version: 2
+updates:
+  # 后端 Maven 依赖（每周三检查；版本更新按 minor/patch，安全更新即时）
+  - package-ecosystem: "maven"
+    directory: "/backend"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+
+  # 前端 npm 依赖（每周三检查）
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "wednesday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+    commit-message:
+      prefix: "chore(deps)"
+      prefix-development: "chore(deps-dev)"
+
+  # GitHub Actions 自身版本（保持 actions 更新）
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    labels:
+      - "ci"
+    commit-message:
+      prefix: "chore(ci)"

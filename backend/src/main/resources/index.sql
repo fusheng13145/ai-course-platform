@@ -8,9 +8,10 @@
 -- 变更记录：
 --   1. 添加 SET NAMES utf8mb4 修复管道模式下 GBK 编码导致的 INSERT 失败
 --   2. 合并 db/ 目录下 7 个增量迁移脚本的变化到 CREATE TABLE 定义
---   3. 按外键依赖顺序重排全部 47 张建表语句
+--   3. 按外键依赖顺序重排全部建表语句
 --   4. 移除冗余的 ALTER TABLE 增量迁移（已在 CREATE TABLE 中体现）
---   5. 统一 DROP 覆盖全部 47 张表
+--   5. 统一 DROP 覆盖全部表
+--   6. 表数口径修正：实际 50 张（含 grade_policies / grade_items 等新增表，原注释 47 已滞后）
 -- ====================================================================
 
 SET NAMES utf8mb4;
@@ -77,7 +78,7 @@ DROP TABLE IF EXISTS users;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ====================================================================
--- Phase 2: 创建全部 47 张表（按外键依赖顺序）
+-- Phase 2: 创建全部 50 张表（按外键依赖顺序）
 -- ====================================================================
 
 -- ── 2.1 用户核心模块 ──
@@ -127,6 +128,7 @@ CREATE TABLE classrooms (
   grade_level VARCHAR(50) NULL COMMENT '年级',
   major VARCHAR(100) NULL COMMENT '专业',
   advisor_id BIGINT NULL COMMENT '班主任ID，关联users表',
+  course_id BIGINT NULL COMMENT '关联课程ID（可为空：行政班未绑定具体课程），关联courses表',
   student_count INT NOT NULL DEFAULT 0 COMMENT '学生人数',
   max_students INT NOT NULL DEFAULT 50 COMMENT '最大学生人数',
   is_active TINYINT(1) NOT NULL DEFAULT 1 COMMENT '班级是否有效：0-无效，1-有效',

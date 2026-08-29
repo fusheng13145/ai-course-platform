@@ -1,0 +1,1 @@
+import{O as e,tt as t}from"./echarts-CL1HZqY1.js";import{t as n}from"./AppShell-BtpYY4Ht.js";var r={__name:`AdminLayout`,setup(r){return(r,i)=>(t(),e(n,{role:`ADMIN`,"notification-path":`/admin/message-center`,"profile-path":`/admin/profile`}))}};export{r as default};

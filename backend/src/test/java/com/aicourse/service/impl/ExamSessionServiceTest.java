@@ -53,7 +53,7 @@ class ExamSessionServiceTest {
     @Mock private ExamSessionGradingService gradingService;
     @Mock private ExamSessionMapper examSessionMapper;
 
-    @InjectMocks private ExamSessionServiceImpl examSessionService;
+    private ExamSessionServiceImpl examSessionService;
 
     private ExamSession sampleSession;
     private ExamPaper publishedPaper;
@@ -63,8 +63,13 @@ class ExamSessionServiceTest {
 
     @BeforeEach
     void setUp() {
-        // 显式注入 baseMapper，使 MyBatis-Plus ServiceImpl 的内部方法可用
+        // 手动构造门面（兼容构造器组装真实组件），显式注入 baseMapper 并同步到内部组件
+        examSessionService = new ExamSessionServiceImpl(examPaperService, examQuestionService,
+                questionService, wrongQuestionService, gradingService);
         ReflectionTestUtils.setField(examSessionService, "baseMapper", examSessionMapper);
+        for (String field : new String[]{"lifecycleComponent", "cheatingComponent", "queryComponent"}) {
+            ReflectionTestUtils.setField(ReflectionTestUtils.getField(examSessionService, field), "examSessionMapper", examSessionMapper);
+        }
         // 注册 ExamSession 的 lambda 元数据，使 LambdaUpdateWrapper 在无 Spring 上下文时可用
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), ExamSession.class);
 

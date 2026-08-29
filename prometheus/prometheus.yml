@@ -40,6 +40,12 @@ scrape_configs:
     static_configs:
       - targets: ['promtail:9080']
 
+  # 宿主机系统指标（CPU/内存/磁盘/网络）：支撑 DiskUsageHigh 等系统告警。
+  # node-exporter 以 host 网络命名空间运行，抓取目标即其容器名（docker DNS 解析到 host 网卡）。
+  - job_name: 'node-exporter'
+    static_configs:
+      - targets: ['node-exporter:9100']
+
   # ---------------- 监控组件自监控（meta-monitoring） ----------------
   # 抓取监控链路各组件自身 /metrics，使 up{job=~"prometheus|alertmanager|loki|grafana|promtail"}
   # 全部纳入监控；任一组件宕机（尤其 Alertmanager）将触发 MonitoringComponentDown 告警。

@@ -48,6 +48,10 @@ jobs:
       - name: Format check (Prettier)
         run: npm run format:check
 
+      - name: Unit tests (Vitest) + Coverage gate
+        # 覆盖率门禁：阈值见 frontend/vitest.config.ts（渐进收敛基线，只许上调）
+        run: npm run test:coverage
+
       # 仅高危级别漏洞阻断构建，中低危仅作信息提示，避免误伤常规依赖
       - name: Dependency audit
         run: npm audit --audit-level=high
@@ -145,6 +149,39 @@ jobs:
           retention-days: 14
 
   # ------------------------------------------------------------------
+  # 安全扫描：Trivy 镜像配置/依赖文件扫描（D24 质量门禁补强）
+  # 补充 OSV-Scanner 之外的 CVE 覆盖面（TRIVY_DB 由 Action 内置缓存，无需密钥）。
+  # 扫描范围：Dockerfile 配置风险 + 后端/前端依赖清单；镜像运行时扫描由
+  # release.yml 推送 GHCR 后按 tag 执行（此处 fs 扫描门禁更快反馈）。
+  # ------------------------------------------------------------------
+  trivy-scan:
+    name: Trivy Security Scan (fs)
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write # 上传 SARIF 到 code scanning
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Trivy fs scan (repo config + deps)
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'sarif'
+          output: 'trivy-results.sarif'
+          severity: 'HIGH,CRITICAL'
+          ignore-unfixed: true
+          exit-code: '1'
+
+      - name: Upload Trivy SARIF
+        if: always()
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: 'trivy-results.sarif'
+
+  # ------------------------------------------------------------------
   # 后端：软件成分分析（SCA）—— OSV-Scanner 已知漏洞门禁
   # 独立 job，避免拖慢单测反馈；命中已知漏洞（OSV.dev / GitHub Advisory）将中断构建。
   # 无需 NVD_API_KEY 等外部密钥；直接解析 pom.xml 及其 Maven 传递依赖。
@@ -211,3 +248,61 @@ jobs:
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD || 'ci-build-only-redis-7q4w2e9r' }}
           JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-build-only-jwt-secret-0123456789abcdef0123456789abcdef' }}
         run: docker compose -f docker-compose.yml build
+
+  # ------------------------------------------------------------------
+  # Python 知识图谱基线服务（端口 8001）契约校验
+  # 覆盖 docs/集成契约-知识图谱与RAG.md 关键端点，与 Java 端
+  # KnowledgeGraphServiceImpl 的下游调用对齐。用 FastAPI TestClient
+  # 内嵌运行，不依赖外部端口，稳定且快速。
+  # ------------------------------------------------------------------
+  python-kg-contract:
+    name: Python KG Service Contract (8001)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python-services/kg_service
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: python-services/kg_service/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+
+      - name: Contract smoke test (FastAPI TestClient)
+        run: pytest -q contract_test.py
+
+  # ------------------------------------------------------------------
+  # Python RAG 检索服务（端口 8002）契约校验
+  # 覆盖 docs/集成契约-知识图谱与RAG.md 关键端点，与 Java 端
+  # RAGServiceImpl 的下游调用对齐。rag_service.py 为集成契约占位骨架，
+  # 真实检索引擎（BM25/向量/embedding/融合）由团队另一成员实现。
+  # ------------------------------------------------------------------
+  python-rag-contract:
+    name: Python RAG Service Contract (8002)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: python-services/rag_service
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: python-services/rag_service/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+
+      - name: Contract smoke test (FastAPI TestClient)
+        run: pytest -q contract_test.py

@@ -60,10 +60,19 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
                 .orderByAsc(ExamQuestion::getOrderIndex);
         List<ExamQuestion> examQuestions = examQuestionService.list(queryWrapper);
 
+        // 批量取回题目（避免循环内单查 N+1），按 ID 建索引
+        List<Long> questionIds = examQuestions.stream()
+                .map(ExamQuestion::getQuestionId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        Map<Long, Question> questionMap = questionIds.isEmpty() ? Collections.emptyMap()
+                : questionService.listByIds(questionIds).stream()
+                        .collect(Collectors.toMap(Question::getId, q -> q, (a, b) -> a));
+
         // 构建题目详情列表
         List<Map<String, Object>> questionList = new ArrayList<>();
         for (ExamQuestion eq : examQuestions) {
-            Question question = questionService.getById(eq.getQuestionId());
+            Question question = questionMap.get(eq.getQuestionId());
             if (question == null) {
                 continue;
             }
@@ -188,6 +197,15 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
                 .eq(ExamQuestion::getExamPaperId, paperId);
         List<ExamQuestion> examQuestions = examQuestionService.list(queryWrapper);
 
+        // 批量取回题目（避免循环内单查 N+1），按 ID 建索引
+        List<Long> questionIds = examQuestions.stream()
+                .map(ExamQuestion::getQuestionId)
+                .filter(Objects::nonNull)
+                .collect(Collectors.toList());
+        Map<Long, Question> questionMap = questionIds.isEmpty() ? Collections.emptyMap()
+                : questionService.listByIds(questionIds).stream()
+                        .collect(Collectors.toMap(Question::getId, q -> q, (a, b) -> a));
+
         // 统计题型分布
         Map<String, Integer> typeDistribution = new HashMap<>();
         // 统计分值分布
@@ -196,7 +214,7 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
         int questionCount = examQuestions.size();
 
         for (ExamQuestion eq : examQuestions) {
-            Question question = questionService.getById(eq.getQuestionId());
+            Question question = questionMap.get(eq.getQuestionId());
             if (question == null) {
                 continue;
             }

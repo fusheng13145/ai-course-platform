@@ -7,6 +7,8 @@ import jakarta.validation.Valid;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
+import com.aicourse.dto.AdminCreateUserDTO;
+import com.aicourse.dto.AdminUpdateUserDTO;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
@@ -101,14 +103,21 @@ public class SystemAdminController {
     }
 
     /**
-     * 创建用户（修复：密码复杂度统一走 PasswordPolicy，管理端入口不得放行弱口令）
+     * 创建用户（修复：改用 AdminCreateUserDTO 白名单绑定，password 可正常反序列化；
+     * 原 @Valid @RequestBody User 因 User.password @JsonIgnore + @NotBlank 矛盾，创建永远 400 不可用）
      */
     @PostMapping("/admin/users")
-    public ApiResponse<User> createUser(@Valid @RequestBody User user) {
-        PasswordPolicy.validate(user.getPassword());
+    public ApiResponse<User> createUser(@Valid @RequestBody AdminCreateUserDTO dto) {
+        PasswordPolicy.validate(dto.getPassword());
+        User user = new User();
+        user.setUsername(dto.getUsername());
+        user.setFullName(dto.getFullName());
+        user.setPhone(dto.getPhone());
+        user.setEmail(dto.getEmail());
+        user.setRole(dto.getRole());
+        user.setIsActive(dto.getIsActive() != null ? dto.getIsActive() : true);
         // 密码加密
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
-        user.setIsActive(true);
+        user.setPassword(passwordEncoder.encode(dto.getPassword()));
         userService.save(user);
         user.setPassword(null);
         return ApiResponse.success("创建成功", user);
@@ -118,14 +127,22 @@ public class SystemAdminController {
      * 更新用户信息
      */
     @PutMapping("/admin/users/{userId}")
-    public ApiResponse<User> updateUser(@PathVariable Long userId, @Valid @RequestBody User user) {
+    public ApiResponse<User> updateUser(@PathVariable Long userId, @Valid @RequestBody AdminUpdateUserDTO dto) {
         User existing = userService.getById(userId);
         if (existing == null) {
             throw new BusinessException("用户不存在");
         }
+        // 白名单字段复制：仅允许 DTO 暴露的业务字段更新（不含密码/主键/审计字段）
+        User user = new User();
         user.setId(userId);
-        // 不更新密码字段（通过专门接口重置密码）
-        user.setPassword(null);
+        user.setUsername(dto.getUsername());
+        user.setFullName(dto.getFullName());
+        user.setPhone(dto.getPhone());
+        user.setEmail(dto.getEmail());
+        user.setRole(dto.getRole());
+        user.setIsActive(dto.getIsActive());
+        user.setAvatarUrl(dto.getAvatarUrl());
+        user.setBio(dto.getBio());
         userService.updateById(user);
         User updated = userService.getUserProfile(userId);
         return ApiResponse.success("更新成功", updated);
@@ -170,13 +187,19 @@ public class SystemAdminController {
      */
     @Operation(summary = "批量导入用户", description = "JSON 批量导入（兼容保留）；Excel(.xlsx) 批量导入请使用 /admin/users/import-excel")
     @PostMapping("/admin/users/import")
-    public ApiResponse<Map<String, Object>> importUsers(@Valid @RequestBody List<User> users) {
+    public ApiResponse<Map<String, Object>> importUsers(@Valid @RequestBody List<AdminCreateUserDTO> userDTOs) {
         int successCount = 0;
         int failCount = 0;
-        for (User user : users) {
+        for (AdminCreateUserDTO dto : userDTOs) {
             try {
-                user.setPassword(passwordEncoder.encode(user.getPassword()));
-                user.setIsActive(true);
+                User user = new User();
+                user.setUsername(dto.getUsername());
+                user.setFullName(dto.getFullName());
+                user.setPhone(dto.getPhone());
+                user.setEmail(dto.getEmail());
+                user.setRole(dto.getRole());
+                user.setIsActive(dto.getIsActive() != null ? dto.getIsActive() : true);
+                user.setPassword(passwordEncoder.encode(dto.getPassword()));
                 userService.save(user);
                 successCount++;
             } catch (Exception e) {
@@ -185,14 +208,14 @@ public class SystemAdminController {
             }
         }
         return ApiResponse.success("导入完成",
-                Map.of("successCount", successCount, "failCount", failCount, "total", users.size()));
+                Map.of("successCount", successCount, "failCount", failCount, "total", userDTOs.size()));
     }
 
     /**
      * Excel 批量导入用户
      */
     @Operation(summary = "Excel 批量导入用户",
-            description = "上传 .xlsx 文件批量导入用户（表头：用户名/姓名/邮箱/角色/初始密码/手机号/学号/专业/年级/院系，初始密码缺省为 123456）")
+            description = "上传 .xlsx 文件批量导入用户（表头：用户名/姓名/邮箱/角色/初始密码/手机号/学号/专业/年级/院系，初始密码缺省随机生成 8 位并随响应返回，供管理员转告用户）")
     @PostMapping(value = "/admin/users/import-excel", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<Map<String, Object>> importUsersExcel(
             @RequestParam("file") MultipartFile file) throws IOException {
@@ -202,12 +225,16 @@ public class SystemAdminController {
         if (!ExcelUtil.isExcelFile(file.getOriginalFilename())) {
             throw new BusinessException("仅支持 .xlsx 格式的 Excel 文件");
         }
-        List<User> users = ExcelUtil.readUsers(file);
+        ExcelUtil.UserImportResult result = ExcelUtil.readUsersWithGenerated(file);
+        List<User> users = result.users();
+        Map<String, String> generatedPasswords = result.generatedPasswords();
         if (users.isEmpty()) {
             throw new BusinessException("文件中没有可导入的用户数据");
         }
         int successCount = 0;
         int failCount = 0;
+        // 仅返回「未填密码、由系统随机生成」用户的临时密码（明文仅本次响应出现一次，供管理员转告）
+        Map<String, String> tempPasswords = new LinkedHashMap<>();
         for (User user : users) {
             try {
                 user.setId(null);
@@ -215,6 +242,9 @@ public class SystemAdminController {
                 user.setIsActive(true);
                 user.setIsVerified(false);
                 userService.save(user);
+                if (generatedPasswords.containsKey(user.getUsername())) {
+                    tempPasswords.put(user.getUsername(), generatedPasswords.get(user.getUsername()));
+                }
                 successCount++;
             } catch (Exception e) {
                 log.warn("批量导入用户失败，已跳过: {}", e.getMessage());
@@ -222,7 +252,8 @@ public class SystemAdminController {
             }
         }
         return ApiResponse.success("导入完成",
-                Map.of("successCount", successCount, "failCount", failCount, "total", users.size()));
+                Map.of("successCount", successCount, "failCount", failCount, "total", users.size(),
+                        "tempPasswords", tempPasswords));
     }
 
     // ==================== 系统配置（4个接口） ====================

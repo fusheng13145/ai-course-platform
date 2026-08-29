@@ -59,7 +59,13 @@ export const ADMIN_SECTIONS = [
         ],
       },
       { key: 'questions', text: '题库管理', icon: 'doc', path: '/admin/questions' },
-      { key: 'resources', text: '资源管理', icon: 'archive', path: '/admin/resources' },
+      {
+        key: 'resources', text: '资源管理', icon: 'archive',
+        children: [
+          { key: 'resources-all', text: '资源库', path: '/admin/resources' },
+          { key: 'resource-versions', text: '资源版本', path: '/admin/resource-versions' },
+        ],
+      },
     ],
   },
   {
@@ -86,6 +92,9 @@ export const ADMIN_SECTIONS = [
       { key: 'login-logs', text: '登录日志', icon: 'clock', path: '/admin/login-logs' },
       { key: 'kb', text: '知识库管理', icon: 'layers', path: '/admin/knowledge-base' },
       { key: 'rag', text: 'RAG 文档索引', icon: 'search', path: '/admin/rag-docs' },
+      { key: 'user-sessions', text: '会话管理', icon: 'monitor', path: '/admin/user-sessions' },
+      { key: 'file-upload', text: '上传管理', icon: 'upload', path: '/admin/file-upload' },
+      { key: 'reminders', text: '提醒管理', icon: 'bell', path: '/admin/reminders' },
     ],
   },
 ]
@@ -111,9 +120,16 @@ export const TEACHER_SECTIONS = [
   {
     label: '智能教学',
     items: [
-      { key: 'knowledge', text: '知识图谱', icon: 'layers', path: '/teacher/knowledge' },
+      {
+        key: 'knowledge', text: '知识图谱', icon: 'layers',
+        children: [
+          { key: 'knowledge-graph', text: '图谱可视化', path: '/teacher/knowledge' },
+          { key: 'knowledge-management', text: '知识点管理', path: '/teacher/knowledge-management' },
+        ],
+      },
       { key: 'ai', text: 'AI 教学中心', icon: 'grad', path: '/teacher/ai' },
       { key: 'exams-manage', text: '考试管理', icon: 'clipboard', path: '/teacher/exams-manage' },
+      { key: 'grades-manage', text: '成绩管理', icon: 'award', path: '/teacher/grades-manage' },
     ],
   },
 ]

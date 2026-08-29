@@ -37,3 +37,18 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+
+# 本地调试/临时文件（勿提交）
+backend/analyze.py
+backend/parse_errors.py
+backend/cp.txt
+backend/err_compile.txt
+backend/jc.args
+backend/jc2.txt
+backend/lqwtest/
+*.bak
+*~
+frontend/coverage/
+
+# WorkBuddy 项目数据（记忆/任务，勿入库）
+.workbuddy/

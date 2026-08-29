@@ -33,6 +33,26 @@ class FileUploadSessionControllerTest extends ControllerTestBase {
     }
 
     @Test
+    @DisplayName("GET /upload-sessions - 管理员返回200且会话列表透传")
+    void listSessions_admin_returns_200() throws Exception {
+        when(fileUploadSessionService.list(
+                any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
+                .thenReturn(java.util.List.of(sampleSession(1L, "a.pdf")));
+        mockMvc.perform(get("/upload-sessions").with(withUser(1L, "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data[0].id").value(1))
+                .andExpect(jsonPath("$.data[0].filename").value("a.pdf"));
+    }
+
+    @Test
+    @DisplayName("GET /upload-sessions - 非管理员返回403")
+    void listSessions_nonAdmin_returns_403() throws Exception {
+        mockMvc.perform(get("/upload-sessions").with(withUser(2L, "STUDENT")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("POST /upload-sessions - 返回200且上传会话透传")
     void createUploadSession_authorized_returns_200() throws Exception {
         when(fileUploadSessionService.createUploadSession("a.pdf", 1024L, 2L, 1L)).thenReturn(sampleSession(1L, "a.pdf"));

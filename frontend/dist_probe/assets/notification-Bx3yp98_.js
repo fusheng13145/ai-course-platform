@@ -1,0 +1,1 @@
+import{a as e}from"./index-BcU9xMMO.js";var t={getNotificationList:t=>e.get(`/notifications`,{params:t}),getUnreadCount:()=>e.get(`/notifications/unread-count`),markAsRead:t=>e.patch(`/notifications/${t}/read`),markAllAsRead:()=>e.patch(`/notifications/read-all`),deleteNotification:t=>e.delete(`/notifications/${t}`),sendNotification:t=>e.post(`/notifications/send`,t)};export{t};

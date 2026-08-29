@@ -20,6 +20,9 @@ module.exports = {
   rules: {
     // 与 Prettier 协作：关闭会与其冲突或过度侵入的规则
     'vue/multi-word-component-names': 'off',
+    // shallowOnly：禁止整体替换 prop 引用，允许编辑传入对象/数组的嵌套属性
+    // （表单 v-model 绑定父组件 reactive 对象的常见模式，非 prop 重新赋值）
+    'vue/no-mutating-props': ['error', { shallowOnly: true }],
     'vue/no-v-html': 'warn', // ⚠ 安全关键规则：v-html 绕过 XSS 防护，仅在有 DOMPurify 清洗的必要时使用
     'vue/no-unused-vars': 'off',
     // 关键质量规则：重新启用（批判性评估报告要求）
@@ -40,5 +43,5 @@ module.exports = {
     'no-constant-condition': 'off',
     'prefer-const': 'warn'
   },
-  ignorePatterns: ['node_modules', 'dist', 'package-lock.json', 'src/**/*.d.ts']
+  ignorePatterns: ['node_modules', 'dist', 'dist_probe', 'coverage', 'package-lock.json', 'src/**/*.d.ts']
 }

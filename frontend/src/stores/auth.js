@@ -98,7 +98,6 @@ export const useAuthStore = defineStore('auth', () => {
         storage.setItem('permissions', JSON.stringify(data))
       }
     } catch (error) {
-      console.error('[auth.js] catch:', error);
       // fail-closed：加载失败时保持 permissionsLoaded=false，使权限判定统一拒绝，
       // 而非错误地放开全部按钮/菜单。仅记录日志，不静默放行。
       logger.error('Failed to fetch permissions:', error)
@@ -158,7 +157,6 @@ export const useAuthStore = defineStore('auth', () => {
       }
       throw new Error('登录失败')
     } catch (error) {
-      console.error('[auth.js] catch:', error);
       logger.error('Login error:', error)
       throw error
     } finally {
@@ -168,6 +166,8 @@ export const useAuthStore = defineStore('auth', () => {
 
   /**
    * 用户注册
+   * 注册接口后端已写入认证 Cookie（HttpOnly）并返回最小用户信息（userId/username/role），
+   * 此处直接建立前端登录态并拉取权限，避免「注册成功跳 dashboard 被守卫弹回登录页」。
    * @param {Object} userData - 注册信息
    * @param {string} userData.username - 用户名
    * @param {string} userData.password - 密码
@@ -179,10 +179,51 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       isLoading.value = true
       const response = await authApi.register(userData)
-      return { success: true, data: unwrap(response) }
+      const data = unwrap(response)
+      if (data?.userId) {
+        user.value = { id: data.userId, username: data.username, role: data.role }
+        persistent.value = false
+        clearAllStorage()
+        saveToStorage(false)
+        await fetchPermissions()
+        wsConnect().catch(() => {
+          logger.warn('WebSocket 连接失败，实时功能已禁用')
+        })
+      }
+      return { success: true, data }
     } finally {
       isLoading.value = false
     }
+  }
+
+  /**
+   * 发送找回密码验证码（类型 FORGOT_PASSWORD，与后端 AuthServiceImpl 校验口径一致）
+   * @param {string} email - 注册邮箱
+   * @returns {Promise<void>}
+   */
+  const sendResetCode = async (email) => {
+    await authApi.sendVerificationCode({ email, type: 'FORGOT_PASSWORD' })
+  }
+
+  /**
+   * 校验找回密码验证码（仅校验不消费，供第二步「验证邮箱」使用）
+   * @param {string} email - 注册邮箱
+   * @param {string} code - 验证码
+   * @returns {Promise<void>}
+   */
+  const verifyResetCode = async (email, code) => {
+    await authApi.verifyResetCode({ email, code })
+  }
+
+  /**
+   * 邮箱验证码重置密码
+   * @param {string} email - 注册邮箱
+   * @param {string} code - 验证码
+   * @param {string} newPassword - 新密码
+   * @returns {Promise<void>}
+   */
+  const resetPassword = async (email, code, newPassword) => {
+    await authApi.resetPassword({ email, code, newPassword })
   }
 
   /**
@@ -194,7 +235,6 @@ export const useAuthStore = defineStore('auth', () => {
     try {
       if (token.value || user.value) await authApi.logout()
     } catch (e) {
-      console.error('[auth.js] catch:', e);
       /* ignore */
     } finally {
       wsDisconnect()
@@ -216,6 +256,9 @@ export const useAuthStore = defineStore('auth', () => {
     userAvatar,
     login,
     register,
+    sendResetCode,
+    verifyResetCode,
+    resetPassword,
     logout,
     resetAuthState,
     getDefaultRoute,

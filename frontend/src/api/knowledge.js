@@ -47,6 +47,32 @@ export const getMastery = (pointId, userId) => request.get(`/knowledge/points/${
 export const getRootPoints = courseId => request.get(`/knowledge/points/root/${courseId}`)
 
 /**
+ * 学习路径规划（POST /knowledge/path/plan）
+ * 知识点最优学习路径（BFS 多跳）。后端在图谱引擎（8001）未启用/不可达时，
+ * 由消费侧本地 BFS 兜底（基于 knowledge_point_relations 无向邻接），始终返回真实路径数据。
+ * @param {number} sourceId 起点知识点ID
+ * @param {number} targetId 目标知识点ID
+ * @param {number} [maxHops] 最大搜索跳数（可选，缺省由后端取默认）
+ * @returns {Promise} 信封 { code, message, data: KnowledgePathPlanVO }
+ */
+export const planLearningPath = (sourceId, targetId, maxHops) =>
+  request.post('/knowledge/path/plan', { sourceId, targetId, maxHops })
+
+/**
  * 默认导出对象：模块/组件配置与导出内容
  */
-export default { getKnowledgePoints, createKnowledgePoint, updateKnowledgePoint, deleteKnowledgePoint, getKnowledgeGraph, addRelation, getTree, getChildren, getPrerequisites, getSubsequent, getMastery, getRootPoints }
+export default {
+  getKnowledgePoints,
+  createKnowledgePoint,
+  updateKnowledgePoint,
+  deleteKnowledgePoint,
+  getKnowledgeGraph,
+  addRelation,
+  getTree,
+  getChildren,
+  getPrerequisites,
+  getSubsequent,
+  getMastery,
+  getRootPoints,
+  planLearningPath,
+}

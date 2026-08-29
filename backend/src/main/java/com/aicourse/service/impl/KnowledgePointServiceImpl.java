@@ -255,9 +255,19 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
      */
     @Override
     public BigDecimal calculateMastery(Long pointId, Long studentId) {
-        // 查询该知识点关联的题目（通过question.knowledgePoints字段匹配）
+        // question.knowledgePoints 字段存储「逗号分隔的知识点名称列表」。
+        // 须先取知识点名称再按名称匹配：原实现用 pointId 做 LIKE，既匹配不到名称（ID 数字 vs 中文名），
+        // 又存在子串误匹配（如 1 命中 12/11），导致掌握度计算失真。
+        KnowledgePoint point = this.getById(pointId);
+        if (point == null || point.getName() == null || point.getName().isBlank()) {
+            // 知识点不存在或无名称：视同无关联题目
+            return BigDecimal.valueOf(0).setScale(2, RoundingMode.HALF_UP);
+        }
+        // 精确匹配：FIND_IN_SET 判定名称是否为 knowledge_points 的独立逗号分隔项；
+        // 兼容中英文逗号/分号分隔符，避免 LIKE '%名称%' 误匹配「函数」命中「三角函数」。
         LambdaQueryWrapper<Question> questionWrapper = new LambdaQueryWrapper<Question>()
-                .like(Question::getKnowledgePoints, String.valueOf(pointId));
+                .apply("FIND_IN_SET({0}, REPLACE(REPLACE(IFNULL(knowledge_points, ''), '，', ','), ';', ',')) > 0",
+                        point.getName());
         List<Question> relatedQuestions = questionService.list(questionWrapper);
 
         if (relatedQuestions.isEmpty()) {
@@ -333,5 +343,23 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
         log.info("移除知识点点");
 
         return super.removeById(id);
+    }
+
+    @Override
+    public long countByCourse(Long courseId) {
+        if (courseId == null) {
+            return 0L;
+        }
+        return count(new LambdaQueryWrapper<KnowledgePoint>().eq(KnowledgePoint::getCourseId, courseId));
+    }
+
+    @Override
+    public List<KnowledgePoint> listByCourse(Long courseId) {
+        if (courseId == null) {
+            return Collections.emptyList();
+        }
+        return list(new LambdaQueryWrapper<KnowledgePoint>()
+                .eq(KnowledgePoint::getCourseId, courseId)
+                .orderByAsc(KnowledgePoint::getOrderIndex));
     }
 }

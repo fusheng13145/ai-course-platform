@@ -17,10 +17,8 @@ import jakarta.validation.constraints.NotBlank;
 @Data
 public class ResetPasswordRequest {
 
-    @NotBlank(message = "邮箱不能为空")
     @Email(message = "邮箱格式不正确")
-    @Schema(description = "邮箱（与手机号二选一）", example = "zhangsan@example.com",
-            requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "邮箱（与手机号二选一）", example = "zhangsan@example.com")
     private String email;
 
     @Schema(description = "手机号（与邮箱二选一）", example = "13800138000")

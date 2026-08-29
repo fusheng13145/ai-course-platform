@@ -186,4 +186,26 @@ public class ClassroomController {
         List<Classroom> classrooms = classroomService.searchClassrooms(keyword, gradeLevel, major);
         return ApiResponse.success(classrooms);
     }
+
+    /**
+     * 按课程查询关联班级（课程驾驶舱「按课程切换班级维度」的真实数据来源）。
+     * @param courseId 课程ID
+     * @return 该课程关联的班级列表（course_id 绑定且有效）
+     */
+    @GetMapping("/by-course/{courseId}")
+    public ApiResponse<List<Classroom>> listByCourse(@PathVariable Long courseId) {
+        List<Classroom> classrooms = classroomService.listByCourse(courseId);
+        return ApiResponse.success(classrooms);
+    }
+
+    /**
+     * 统计某课程下各班级的待批改作业数（驾驶舱班级 Tab 待批徽标的数据来源）。
+     * @param courseId 课程ID
+     * @return 列表项含 classroomId / classroomName / pendingCount
+     */
+    @GetMapping("/by-course/{courseId}/pending")
+    public ApiResponse<List<Map<String, Object>>> countPendingByCourse(@PathVariable Long courseId) {
+        List<Map<String, Object>> pending = classroomService.countPendingByCourse(courseId);
+        return ApiResponse.success(pending);
+    }
 }

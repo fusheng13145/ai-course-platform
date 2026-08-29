@@ -176,144 +176,37 @@
       <div class="section-header">
         <h3 class="section-title">章节进度明细</h3>
       </div>
-      <div v-loading="loading" class="content-card">
-        <el-table :data="chapterList" style="width: 100%" row-key="id" default-expand-all>
-          <el-table-column prop="title" label="章节名称" min-width="220">
-            <template #default="{ row }">
-              <div class="chapter-name-cell">
-                <el-icon
-                  :size="16"
-                  :color="row.isPublished ? 'var(--ac-success)' : 'var(--ac-text-tertiary)'"
-                >
-                  <component :is="row.isPublished ? 'CircleCheckFilled' : 'CircleClose'" />
-                </el-icon>
-                <span>{{ row.title }}</span>
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column label="状态" width="90">
-            <template #default="{ row }">
-              <el-tag :type="row.isPublished ? 'success' : 'info'" size="small">
-                {{ row.isPublished ? '已发布' : '草稿' }}
-              </el-tag>
-            </template>
-          </el-table-column>
-          <el-table-column label="任务点数" width="90" align="center">
-            <template #default="{ row }">{{ row.taskCount ?? 0 }}</template>
-          </el-table-column>
-          <el-table-column label="提交数" width="90" align="center">
-            <template #default="{ row }">{{ row.submittedCount ?? 0 }}</template>
-          </el-table-column>
-          <el-table-column label="完成率" width="150">
-            <template #default="{ row }">
-              <div class="completion-cell">
-                <el-progress
-                  :percentage="Math.round((row.completionRate ?? 0) * 100)"
-                  :stroke-width="6"
-                  :show-text="false"
-                  style="width: 90px"
-                />
-                <span class="completion-text"
-                  >{{ Math.round((row.completionRate ?? 0) * 100) }}%</span
-                >
-              </div>
-            </template>
-          </el-table-column>
-          <el-table-column label="时长(分)" width="80" align="center">
-            <template #default="{ row }">{{ row.duration || 0 }}</template>
-          </el-table-column>
-        </el-table>
-        <el-empty v-if="!loading && chapterList.length === 0" description="暂无章节数据" />
-      </div>
+      <CptChapterTable :loading="loading" :chapter-list="chapterList" />
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, computed, onMounted, watch } from 'vue'
+import { toRef } from 'vue'
 import { Collection, Document } from '@element-plus/icons-vue'
-import teacherApi from '@/api/teacher'
-import logger from '@/utils/logger'
+import CptChapterTable from './course/CptChapterTable.vue'
+import { useCourseProgressTab } from '@/composables/useCourseProgressTab'
 
 const props = defineProps({
   courseId: { type: [Number, String], required: true },
 })
+const courseIdRef = toRef(props, 'courseId')
 
-const loading = ref(false)
-const chapterList = ref([])
-const plannedChapters = ref(0)
-
-// 环形图常量
-const circumference = 2 * Math.PI * 52
-
-const totalChapters = computed(() => chapterList.value.length)
-const completedChapters = computed(() => chapterList.value.filter((c) => c.isPublished).length)
-const totalTasks = computed(() => chapterList.value.reduce((sum, c) => sum + (c.taskCount || 0), 0))
-const overallProgress = computed(() => {
-  if (totalChapters.value === 0) return 0
-  return Math.round((completedChapters.value / totalChapters.value) * 100)
-})
-const dashOffset = computed(() => {
-  const pct = overallProgress.value / 100
-  return circumference * (1 - pct)
-})
-
-const avgSubmissionRate = computed(() => {
-  const chapters = chapterList.value.filter((c) => c.taskCount > 0)
-  if (chapters.length === 0) return 0
-  const total = chapters.reduce((s, c) => s + Math.round((c.completionRate ?? 0) * 100), 0)
-  return Math.round(total / chapters.length)
-})
-
-// 计划进度（假设每章均匀分布；数据未加载时回退为全部章节）
-const effectivePlanned = computed(() =>
-  plannedChapters.value > 0 ? plannedChapters.value : totalChapters.value,
-)
-const plannedProgress = computed(() => {
-  if (totalChapters.value === 0) return 0
-  return Math.round((effectivePlanned.value / totalChapters.value) * 100)
-})
-const plannedRemaining = computed(() =>
-  Math.max(0, effectivePlanned.value - completedChapters.value),
-)
-const behindCount = computed(() => Math.max(0, effectivePlanned.value - completedChapters.value))
-
-/** 扁平化章节树（模块内顶层函数，供 loadData 调用） */
-function flattenTree(nodes, flat, level = 0) {
-  nodes.forEach((node) => {
-    flat.push({
-      ...node,
-      _level: level,
-      title: level > 0 ? '  '.repeat(level) + '└ ' + (node.title || '') : node.title || '',
-    })
-    if (node.children && node.children.length > 0) {
-      flattenTree(node.children, flat, level + 1)
-    }
-  })
-}
-
-async function loadData() {
-  loading.value = true
-  try {
-    const res = await teacherApi.getChapterTree(props.courseId)
-    const raw = res.data || res || []
-    const list = Array.isArray(raw) ? raw : []
-
-    // 扁平化章节树用于表格展示
-    const flat = []
-    flattenTree(list, flat)
-    chapterList.value = flat
-    plannedChapters.value = list.length
-  } catch (e) {
-    logger.warn('[CourseProgressTab] loadData 失败:', e.message || e)
-    chapterList.value = []
-  } finally {
-    loading.value = false
-  }
-}
-
-onMounted(loadData)
-watch(() => props.courseId, loadData)
+const {
+  loading,
+  chapterList,
+  plannedChapters,
+  circumference,
+  totalChapters,
+  completedChapters,
+  totalTasks,
+  overallProgress,
+  dashOffset,
+  avgSubmissionRate,
+  plannedProgress,
+  plannedRemaining,
+  behindCount,
+} = useCourseProgressTab(courseIdRef)
 </script>
 
 <style scoped>
@@ -510,20 +403,6 @@ watch(() => props.courseId, loadData)
 /* 章节进度表格 */
 .chapters-section {
   margin-bottom: 10px;
-}
-.chapter-name-cell {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.completion-cell {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.completion-text {
-  font-size: 12px;
-  color: var(--ac-text-secondary);
 }
 
 @media (max-width: 768px) {
