@@ -14,9 +14,9 @@ import org.springframework.web.bind.annotation.*;
 import java.time.LocalDateTime;
 import java.util.List;
 
-import com.aicourse.common.ApiCode;
 import com.aicourse.dto.ReminderCreateDTO;
 import com.aicourse.dto.ReminderUpdateDTO;
+import com.aicourse.exception.BusinessException;
 import jakarta.validation.Valid;
 
 /**
@@ -61,16 +61,16 @@ public class ReminderController {
         Integer triggerDay = dto.getTriggerDay();
 
         if (reminderType == null || reminderType.isEmpty()) {
-            return ApiResponse.error(ApiCode.BAD_REQUEST, "提醒类型不能为空");
+            throw new BusinessException("提醒类型不能为空");
         }
         if (title == null || title.isEmpty()) {
-            return ApiResponse.error(ApiCode.BAD_REQUEST, "提醒标题不能为空");
+            throw new BusinessException("提醒标题不能为空");
         }
         if (dueDate == null) {
-            return ApiResponse.error(ApiCode.BAD_REQUEST, "截止时间不能为空");
+            throw new BusinessException("截止时间不能为空");
         }
         if (triggerDay == null) {
-            return ApiResponse.error(ApiCode.BAD_REQUEST, "提前触发天数不能为空");
+            throw new BusinessException("提前触发天数不能为空");
         }
 
         Reminder reminder = reminderService.createReminder(userId, reminderType, taskId, courseId,
@@ -137,7 +137,7 @@ public class ReminderController {
         LocalDateTime newScheduledAt = dto.getNewScheduledAt() != null ?
                 LocalDateTime.parse(dto.getNewScheduledAt()) : null;
         if (newScheduledAt == null) {
-            return ApiResponse.error(ApiCode.BAD_REQUEST, "新的计划发送时间不能为空");
+            throw new BusinessException("新的计划发送时间不能为空");
         }
         reminderService.rescheduleReminder(id, newScheduledAt);
         return ApiResponse.success("改期成功");

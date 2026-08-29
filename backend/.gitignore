@@ -48,6 +48,15 @@ dash_resp.json
 r.json
 e2e_*.txt
 
+# 一次性脚本 / 编译诊断残留（开发期产物，不入库）
+analyze.py
+parse_errors.py
+cp.txt
+err_compile.txt
+jc.args
+jc2.txt
+lqwtest/
+
 # 运行时用户上传目录（含用户文件，不入库）
 uploads/
 

@@ -4,14 +4,12 @@ spring:
   application:
     name: ai-course-platform
 
-  # ===================== springdoc-openapi 自动配置 =====================
-  # springdoc-openapi 2.8.17 与 Spring Web 6.2 的 PathPattern.combine() 不兼容，
-  # 需排除 Swagger UI 自动配置（不影响 /v3/api-docs JSON）。Swagger UI 可视化恢复
-  # 需待 springdoc 发布兼容新版本（或升级 Spring Boot 至 3.5+ 并使用 springdoc 3.x）。
-  autoconfigure:
-    exclude:
-      - org.springdoc.webmvc.ui.SwaggerConfig
-      - org.springdoc.core.configuration.SpringDocSecurityConfiguration
+  # ===================== springdoc-openapi（Swagger UI 已于 2026-08-27 恢复） =====================
+  # 历史问题：Spring Boot 3.4.4（Spring Framework 6.2.4）的 PathPatternParser 无法解析
+  # springdoc 注册的 /swagger-ui/**/*swagger-initializer.js 资源模式（spring-framework#34986，
+  # ≤6.2.7 均受影响），曾被迫排除 Swagger UI 自动配置。
+  # 修复：升级 Spring Boot 3.4.13（内置 SF 6.2.8+，官方已修复该解析缺陷），
+  # 排除项已移除，/api/swagger-ui.html 恢复可用；配套回归测试见 SwaggerUiPatternTest。
 
   # ===================== 热部署配置 =====================
   devtools:
@@ -316,7 +314,7 @@ knowledge-graph:
 # ===================== Python RAG 服务配置 =====================
 # 注意（2026-08-13 职责边界）：RAG 检索引擎（BM25 / 向量检索 / embedding / 融合）由团队另一成员负责，
 # 本端不再内置引擎实现，仅保留 RAGService 标准化接口 + 本 HTTP 代理；rag.enabled=true 时调用 Python 端
-# /api/v1/rag/* 契约（见 docs/运维手册.md §11.4），未启用或不可达时降级返回 {"code":503}（AI 问答自动回退纯 LLM）。
+# /api/v1/rag/* 契约（权威单一事实来源见 docs/集成契约-知识图谱与RAG.md），未启用或不可达时降级返回 {"code":503}（AI 问答自动回退纯 LLM）。
 rag:
   # 是否启用 Python RAG 服务（默认关闭）
   enabled: ${RAG_ENABLED:false}

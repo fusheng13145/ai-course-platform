@@ -1,0 +1,29 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <!-- Content Security Policy（前端兜底层）：与后端 SecurityConfig 策略一致。
+         当应用不经过 Spring 后端直接由 Nginx/CDN 分发时，后端 CSP 头不可用，
+         此 meta 标签作为第二道防线。后端 CSP 响应头优先级高于 meta 标签。 -->
+    <meta http-equiv="Content-Security-Policy"
+          content="default-src 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; frame-ancestors 'none'; object-src 'none'; base-uri 'self'" />
+    <title>AI智能课程平台</title>
+    <script type="module" crossorigin src="/assets/index-BcU9xMMO.js"></script>
+    <link rel="modulepreload" crossorigin href="/assets/rolldown-runtime-QTnfLwEv.js">
+    <link rel="modulepreload" crossorigin href="/assets/echarts-CL1HZqY1.js">
+    <link rel="modulepreload" crossorigin href="/assets/element-plus-DhMJn-ma.js">
+    <link rel="modulepreload" crossorigin href="/assets/vue-vendor-DaiAzwcR.js">
+    <link rel="modulepreload" crossorigin href="/assets/vendor-BnwUanJC.js">
+    <link rel="modulepreload" crossorigin href="/assets/axios-BGmZl9Qd.js">
+    <link rel="stylesheet" crossorigin href="/assets/element-plus-0wCafDrL.css">
+    <link rel="stylesheet" crossorigin href="/assets/vendor-1oWo33m3.css">
+    <link rel="stylesheet" crossorigin href="/assets/index-aTxtykl6.css">
+  </head>
+  <body>
+    <!-- 全局请求加载进度条 -->
+    <div id="global-loading-bar" style="display:none;position:fixed;top:0;left:0;z-index:9999;height:3px;width:0%;background:linear-gradient(90deg,#409EFF,#67C23A);border-radius:0 2px 2px 0;pointer-events:none;"></div>
+    <div id="app"></div>
+  </body>
+</html>

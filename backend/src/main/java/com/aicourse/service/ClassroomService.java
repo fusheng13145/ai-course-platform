@@ -65,4 +65,22 @@ public interface ClassroomService extends IService<Classroom> {
      * @return 匹配的班级列表
      */
     List<Classroom> searchClassrooms(String keyword, String gradeLevel, String major);
+
+    /**
+     * 按课程查询关联班级（courseId 绑定的班级）；courseId 为 null 时返回空列表。
+     * 用于课程驾驶舱「按课程切换班级维度」的真实数据来源。
+     * @param courseId 课程ID
+     * @return 该课程关联的班级列表
+     */
+    List<Classroom> listByCourse(Long courseId);
+
+    /**
+     * 统计某课程下各班级的「待批改作业数」。
+     * 口径：班级学生（users.class_id 关联）在课程任务（tasks.course_id）下
+     * 尚未批改的提交（submissions.status = SUBMITTED）数量，按班级聚合。
+     * 用于课程驾驶舱班级 Tab 的待批徽标，消除原前端占位 0。
+     * @param courseId 课程ID
+     * @return 列表项含 classroomId / classroomName / pendingCount
+     */
+    List<Map<String, Object>> countPendingByCourse(Long courseId);
 }

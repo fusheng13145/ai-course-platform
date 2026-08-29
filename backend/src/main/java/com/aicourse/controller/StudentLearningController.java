@@ -107,4 +107,11 @@ public class StudentLearningController {
         Long userId = (Long) auth.getPrincipal();
         return ApiResponse.success(studentLearningService.getGrades(userId));
     }
+
+    /** 学生端学情可视化数据（D7：学习时长趋势 / 课程薄弱度雷达 / 学习活跃热力图） */
+    @GetMapping("/analytics/visualization")
+    public ApiResponse<Map<String, Object>> visualization(Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        return ApiResponse.success(studentLearningService.getVisualizationData(userId));
+    }
 }

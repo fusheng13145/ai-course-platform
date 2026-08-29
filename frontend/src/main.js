@@ -15,6 +15,7 @@ import {
   HeatmapChart,
   RadarChart,
   GraphChart,
+  TreeChart,
 } from 'echarts/charts'
 import {
   GridComponent,
@@ -35,6 +36,7 @@ use([
   HeatmapChart,
   RadarChart,
   GraphChart,
+  TreeChart,
   GridComponent,
   TooltipComponent,
   LegendComponent,
@@ -48,6 +50,7 @@ import App from './App.vue'
 import router from './router'
 import './styles/index.scss'
 import './styles/design-system.css'
+import { initMonitoring, captureFrontendError } from './monitoring'
 
 const app = createApp(App)
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
@@ -58,18 +61,16 @@ app.use(createPinia())
 app.use(router)
 // Element Plus 组件已通过 unplugin-vue-components 自动按需注册，无需手动 app.use()
 
+// 初始化前端监控（幂等；未配置 VITE_MONITOR_ENDPOINT 时静默降级为控制台输出）
+initMonitoring()
+
 /* ============================================
  * Vue 全局错误处理器
- * 捕获所有未处理的组件渲染异常和异步错误
+ * 捕获所有未处理的组件渲染异常和异步错误，
+ * 统一经 monitoring 模块上报（见 src/monitoring/index.js）。
  * ============================================ */
 app.config.errorHandler = (err, instance, info) => {
-  // 控制台输出完整错误信息（开发调试用）
-  console.error('[Global Error]', err)
-  console.error('[Error Info]', info)
-  console.error('[Component]', instance?.$options?.name || 'Unknown')
-
-  // TODO: 生产环境可接入 Sentry / 等监控系统上报
-  // 例如: Sentry.captureException(err, { extra: { info, component: instance?.$options?.name } })
+  captureFrontendError(err, info, instance?.$options?.name)
 }
 
 app.mount('#app')

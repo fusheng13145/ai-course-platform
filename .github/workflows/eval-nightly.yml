@@ -1,0 +1,128 @@
+name: Nightly RAG Evaluation
+
+# 评测常态化（研读报告 §10.11#4）：将 evaluation/ 纳入 CI 定时跑，持续监控幻觉率/检索召回。
+# 每日凌晨（UTC 18:00 ≈ 北京时间 02:00）触发，亦支持手动 workflow_dispatch。
+#
+# 设计要点：
+# 1) 评测脚手架校验（py_compile + qa-set.json 结构）始终执行，零基础设施依赖，保证最基本护栏；
+# 2) 后端以 mysql+redis 服务容器启动（复用 backend CI job 同款约定），跑「仅检索召回」评测；
+# 3) RAG 引擎（8002）默认未接入（rag.enabled=false），/rag/retrieve 返回 503，
+#    evaluate.py 优雅记录 retrieve_error，不会中断 job——nightly 如实反映「引擎未接入」状态，
+#    待队友补实 8002 并注入 RAG_ENABLED=true + RAG_BASE_URL 后，即可产出真实 recall@k；
+# 4) 结果 JSON 作为 artifact 上传，便于趋势对比与答辩证据留存。
+
+on:
+  schedule:
+    - cron: '0 18 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  eval:
+    name: Nightly RAG Evaluation
+    runs-on: ubuntu-latest
+    # 与 backend CI job 一致的 MySQL/Redis 服务容器约定
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: eval-nightly-pw-7c2k
+          MYSQL_DATABASE: ai_course_platform
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -peval-nightly-pw-7c2k"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+
+    env:
+      DB_PW: eval-nightly-pw-7c2k
+      JWT_SECRET: eval-nightly-jwt-secret-0123456789abcdef0123456789abcdef
+      SPRING_DATASOURCE_PASSWORD: eval-nightly-pw-7c2k
+      SPRING_DATA_REDIS_HOST: localhost
+      SPRING_DATA_REDIS_PORT: '6379'
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # ---- 步骤一：评测脚手架校验（始终执行，零基础设施）----
+      - name: Validate evaluation harness
+        run: |
+          python -m py_compile evaluation/evaluate.py
+          python - <<'PY'
+          import json
+          with open('evaluation/qa-set.json', encoding='utf-8') as f:
+              d = json.load(f)
+          assert 'questions' in d and isinstance(d['questions'], list) and len(d['questions']) > 0, "qa-set.json 缺少 questions 列表"
+          assert all('keywords' in q and 'question' in q for q in d['questions']), "qa-set 题目缺字段"
+          print("评测脚手架 OK：", len(d['questions']), "题")
+          PY
+
+      # ---- 步骤二：构建后端（验证仍可打包，不跑单测）----
+      - name: Build backend (skip tests)
+        working-directory: backend
+        run: mvn -B package -DskipTests -Dspotbugs.skip=true -Djacoco.skip=true
+
+      # ---- 步骤三：载入库表（index.sql）----
+      - name: Load schema (index.sql)
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq mysql-client
+          mysql -h 127.0.0.1 -u root -p"$DB_PW" ai_course_platform < backend/src/main/resources/index.sql
+
+      # ---- 步骤四：启动后端 + 等待健康 + 跑检索评测 + 落盘结果 ----
+      - name: Start backend, wait health, run retrieval eval
+        working-directory: backend
+        run: |
+          set -e
+          nohup mvn -B spring-boot:run > /tmp/backend.log 2>&1 &
+          echo "后端启动中…"
+          for i in $(seq 1 60); do
+            if curl -fsS http://localhost:8080/api/actuator/health >/dev/null 2>&1; then
+              echo "后端健康（第 ${i} 次探测）"; break
+            fi
+            sleep 3
+          done
+          curl -fsS http://localhost:8080/api/actuator/health || { echo "后端未就绪，打印日志："; tail -40 /tmp/backend.log; exit 1; }
+
+          mkdir -p ../evaluation/results
+          python ../evaluation/evaluate.py \
+            --base http://localhost:8080/api \
+            --username admin --password 123456 \
+            --course 1 --topk 5 --tag nightly \
+            --out ../evaluation/results/nightly.json
+          echo "评测完成，结果："
+          python -c "import json;d=json.load(open('../evaluation/results/nightly.json',encoding='utf-8'));print(json.dumps(d['summary'],ensure_ascii=False,indent=2))"
+
+      # ---- 步骤五：上传结果产物 ----
+      - name: Upload eval results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: rag-eval-nightly
+          path: evaluation/results/nightly.json
+          retention-days: 30

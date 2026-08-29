@@ -7,10 +7,14 @@ import com.aicourse.common.ApiResponse;
 import com.aicourse.dto.FileUploadDTO;
 import com.aicourse.entity.FileUploadSession;
 import com.aicourse.service.FileUploadSessionService;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -28,6 +32,22 @@ public class FileUploadSessionController {
 
     public FileUploadSessionController(FileUploadSessionService fileUploadSessionService) {
         this.fileUploadSessionService = fileUploadSessionService;
+    }
+
+    /**
+     * 上传会话列表（管理员监控用）
+     * 按创建时间倒序返回最近 100 条会话，供管理端「分片上传管理」页展示
+     * @return 上传会话列表
+     */
+    @GetMapping("")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "上传会话列表（管理员）", description = "按创建时间倒序返回最近 100 条分片上传会话")
+    public ApiResponse<List<FileUploadSession>> listSessions() {
+        List<FileUploadSession> sessions = fileUploadSessionService.list(
+                new LambdaQueryWrapper<FileUploadSession>()
+                        .orderByDesc(FileUploadSession::getCreatedAt)
+                        .last("LIMIT 100"));
+        return ApiResponse.success(sessions);
     }
 
     /**
@@ -66,7 +86,7 @@ public class FileUploadSessionController {
     @PostMapping("/{id}/merge")
     public ApiResponse<FileUploadSession> mergeChunks(@PathVariable Long id,
                                                       org.springframework.security.core.Authentication auth) {
-        FileUploadSession session = fileUploadSessionService.mergeChunks(id, (Long) auth.getPrincipal());
+        FileUploadSession session = fileUploadSessionService.mergeChunks(id, resolveOperator(id, auth));
         return ApiResponse.success("合并成功", session);
     }
 
@@ -78,7 +98,7 @@ public class FileUploadSessionController {
     @GetMapping("/{id}/progress")
     public ApiResponse<Map<String, Object>> getUploadProgress(@PathVariable Long id,
                                                               org.springframework.security.core.Authentication auth) {
-        Map<String, Object> progress = fileUploadSessionService.getUploadProgress(id, (Long) auth.getPrincipal());
+        Map<String, Object> progress = fileUploadSessionService.getUploadProgress(id, resolveOperator(id, auth));
         return ApiResponse.success(progress);
     }
 
@@ -90,7 +110,23 @@ public class FileUploadSessionController {
     @DeleteMapping("/{id}/cancel")
     public ApiResponse<Void> cancelUpload(@PathVariable Long id,
                                           org.springframework.security.core.Authentication auth) {
-        fileUploadSessionService.cancelUpload(id, (Long) auth.getPrincipal());
+        fileUploadSessionService.cancelUpload(id, resolveOperator(id, auth));
         return ApiResponse.success("取消成功");
+    }
+
+    /**
+     * 解析操作人：普通用户仅能操作自己的会话（Service 层归属校验）；
+     * 管理员（ADMIN）在「分片上传管理」页可对任意会话执行合并/取消/查看进度，
+     * 通过以会话归属人身份代操作实现，不放宽 Service 层 IDOR 防护。
+     */
+    private Long resolveOperator(Long sessionId, org.springframework.security.core.Authentication auth) {
+        Long userId = (Long) auth.getPrincipal();
+        boolean isAdmin = auth.getAuthorities().stream()
+                .anyMatch(g -> g.getAuthority().equals("ROLE_ADMIN"));
+        if (!isAdmin) {
+            return userId;
+        }
+        FileUploadSession session = fileUploadSessionService.getById(sessionId);
+        return session != null && session.getUploaderId() != null ? session.getUploaderId() : userId;
     }
 }

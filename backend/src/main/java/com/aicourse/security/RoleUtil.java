@@ -49,6 +49,10 @@ public final class RoleUtil {
     }
 
     private static List<String> extractRoles(Authentication auth) {
+        // 防御：部分 Authentication 实现（如测试桩或匿名令牌）getAuthorities() 可能返回 null
+        if (auth.getAuthorities() == null) {
+            return List.of();
+        }
         return auth.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .filter(a -> a.startsWith("ROLE_"))

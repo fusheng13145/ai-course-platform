@@ -1,0 +1,67 @@
+name: Bug 报告
+description: 提交可复现的缺陷，帮助维护者快速定位
+title: "[Bug] 简要描述问题"
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        感谢报告缺陷！请尽量填写以下信息；带 * 为必填项。
+  - type: input
+    id: env
+    attributes:
+      label: 环境信息 *
+      description: 操作系统 / 浏览器版本 / 运行方式（Docker、本地开发、访问地址）
+      placeholder: "Windows 11 / Chrome 126 / Docker compose"
+    validations:
+      required: true
+  - type: dropdown
+    id: role
+    attributes:
+      label: 涉及角色
+      description: 问题出现在哪个端？
+      options:
+        - 学生端
+        - 教师端
+        - 管理端
+        - 公共/通用
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: 复现步骤 *
+      description: 从入口到触发问题的完整操作路径
+      placeholder: |
+        1. 以学生账号登录
+        2. 进入「学习中心」→ 打开某课程
+        3. 点击「AI 问答」
+        4. 提交问题后出现报错
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: 期望行为
+      description: 正确的情况下应当发生什么
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: 实际行为 *
+      description: 实际发生了什么，附错误信息/截图/日志片段
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: 日志与截图
+      description: 浏览器 Console / Network 错误、后端日志（WARN/ERROR）、截图
+      render: shell
+  - type: input
+    id: related
+    attributes:
+      label: 相关接口
+      description: 若已知，填写涉及的 HTTP 端点（如 /api/knowledge/path/plan）
+      placeholder: "/api/xxx/xxx"

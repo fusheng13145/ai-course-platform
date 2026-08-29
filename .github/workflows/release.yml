@@ -1,0 +1,163 @@
+name: Release
+
+# 触发条件：main 分支打 v* 标签（如 v1.5.0）
+# 流程：全量质量门禁 → 构建 Docker 镜像（tag 化）→ 生成 GitHub Release（含 Release Notes）
+on:
+  push:
+    tags:
+      - "v*"
+
+# Release 需写入权限（创建 Release / 推送 GHCR 镜像）
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  # ------------------------------------------------------------------
+  # 质量门禁：后端 verify + 前端 lint/vitest/build（复用 ci.yml 关键步骤的精简版）
+  # ------------------------------------------------------------------
+  quality:
+    name: Quality Gate (backend + frontend)
+    runs-on: ubuntu-latest
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-test-password-8f3k
+          MYSQL_DATABASE: ai_course_platform_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-test-password-8f3k"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+          cache: maven
+
+      - name: Backend verify (unit + integration + JaCoCo gate)
+        env:
+          SPRING_DATASOURCE_PASSWORD: ci-test-password-8f3k
+        run: mvn -B verify jacoco:report
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Frontend lint + test + build
+        working-directory: frontend
+        run: |
+          npm ci
+          npm run lint
+          npm run test
+          npm run build
+
+      - name: Python KG contract
+        working-directory: python-services/kg_service
+        run: |
+          pip install -r requirements.txt pytest
+          pytest -q contract_test.py
+
+      # 与 ci.yml 对称：RAG 契约护栏同样纳入发布门禁（此前缺失，2026-08-27 补齐）
+      - name: Python RAG contract
+        working-directory: python-services/rag_service
+        run: |
+          pip install -r requirements.txt pytest
+          pytest -q contract_test.py
+
+  # ------------------------------------------------------------------
+  # Docker 镜像：tag 化构建并推送 GHCR（生产部署拉取源）
+  # 依赖 quality job 通过
+  # ------------------------------------------------------------------
+  docker:
+    name: Build & Push Docker Images
+    needs: quality
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # 镜像 tag：ghcr.io/<owner>/<repo>/backend:v1.5.0 等（版本号取自 git tag）
+      - name: Build & push backend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./backend
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/backend:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}/backend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push frontend image
+        uses: docker/build-push-action@v6
+        with:
+          context: ./frontend
+          push: true
+          tags: |
+            ghcr.io/${{ github.repository }}/frontend:${{ github.ref_name }}
+            ghcr.io/${{ github.repository }}/frontend:latest
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  # ------------------------------------------------------------------
+  # GitHub Release：自动生成 Release Notes（PR 标题聚合）
+  # ------------------------------------------------------------------
+  release:
+    name: Create GitHub Release
+    needs: docker
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # 拉取完整历史以生成 changelog
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          generate_release_notes: true
+          draft: false
+          prerelease: false
+          name: ${{ github.ref_name }}
+          body: |
+            ## AI Course Platform ${{ github.ref_name }}
+
+            > 由 GitHub Actions 自动生成（tag: ${{ github.ref_name }}）
+
+            ### 安装与部署
+            - Docker Compose：`docker compose up -d --build`（镜像：`ghcr.io/${{ github.repository }}`）
+            - 完整运维说明见 `docs/运维手册.md`
+
+            ### 变更内容
+            自动聚合自 PR 标题；完整变更记录见 Git History。

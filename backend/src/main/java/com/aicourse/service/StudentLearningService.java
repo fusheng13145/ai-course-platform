@@ -84,4 +84,17 @@ public interface StudentLearningService {
      * 学生成绩总览（按课程聚合作业/考试/总评）
      */
     Map<String, Object> getGrades(Long userId);
+
+    /**
+     * 学生端学情可视化数据（D7 增强，供 Dashboard 图表渲染）。
+     * 纯聚合查询、不落缓存、子项独立兜底：
+     * <ul>
+     *   <li>{@code durationTrend}：近 14 天学习时长趋势（learning_records.duration 按日聚合）；</li>
+     *   <li>{@code radarData}：课程薄弱度雷达（wrong_questions 按课程统计未掌握率，取前 6）；</li>
+     *   <li>{@code heatmapData}：课程 × 近 7 天学习活跃热力图（learning_records 按课程×日期聚合时长）。</li>
+     * </ul>
+     * @param userId 当前学生ID
+     * @return 上述三组数据的聚合 Map
+     */
+    Map<String, Object> getVisualizationData(Long userId);
 }

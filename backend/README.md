@@ -6,7 +6,7 @@
 
 | 组件 | 技术 | 版本 |
 |------|------|------|
-| 框架 | Spring Boot | 3.4.4 |
+| 框架 | Spring Boot | 3.4.13 |
 | 语言 | Java | 21 |
 | ORM | MyBatis-Plus | 3.5.7 |
 | 安全 | Spring Security + JWT (jjwt) | 0.12.6 |
@@ -21,11 +21,11 @@
 ```
 backend/
 ├── src/main/java/com/aicourse/
-│   ├── controller/         # 40 个 RESTful 控制器
-│   ├── service/             # 服务接口 + 55 个实现类
+│   ├── controller/         # 44 个 RESTful 控制器（@RestController 注解 44 处）
+│   ├── service/             # 服务接口 60 + 实现 60（impl 子包：56 个 *ServiceImpl + 4 个 Analytics Component）
 │   ├── mapper/              # MyBatis-Plus Mapper 接口
-│   ├── entity/              # 47 个数据实体
-│   ├── dto/                 # 71 个数据传输对象
+│   ├── entity/              # 48 个数据实体
+│   ├── dto/                 # 76 个数据传输对象
 │   ├── config/              # Spring Security / CORS / 异步等配置
 │   ├── llm/                 # LLM 抽象层（DeepSeek / OpenAI / Qwen 热切换）
 │   ├── common/              # ApiResponse / 异常 / 分页 公共类
@@ -36,7 +36,7 @@ backend/
 ├── src/main/resources/
 │   ├── application.yaml     # 主配置（生产安全默认）
 │   ├── application-local.yaml # 本地开发配置
-│   └── index.sql            # 数据库初始化脚本（47 表 + 种子数据）
+│   └── index.sql            # 数据库初始化脚本（48 表 + 种子数据）
 ├── pom.xml
 └── README.md
 ```
@@ -46,14 +46,14 @@ backend/
 ### 1. 环境要求
 - JDK 21（**必须** — Lombok 不兼容 JDK 25）
 - MySQL 8.0+
-- Redis 7.x（可选，部分功能降级）
+- Redis 7.x（**必选**，启动强校验，未连接则启动失败）
 - Maven 3.8+（或项目自带 mvnw）
 
 ### 2. 初始化数据库
 ```bash
 mysql -u root -p < src/main/resources/index.sql
 ```
-> 脚本内含 `SET NAMES utf8mb4;` 解决中文写入乱码问题；包含 47 张表 + 演示数据。
+> 脚本内含 `SET NAMES utf8mb4;` 解决中文写入乱码问题；包含 50 张表 + 演示数据。
 
 ### 3. 配置环境变量
 复制 `.env.example` 为 `.env`（或直接注入环境变量）：
@@ -129,4 +129,4 @@ java -jar target/ai-course-platform-backend-*.jar --spring.profiles.active=local
 open target/site/jacoco/index.html
 ```
 
-项目包含 83 个测试文件 / ~1300 测试方法，JaCoCo 门禁：行覆盖率 ≥65%、分支覆盖率 ≥50%。
+项目测试基线（2026-08-27 源码实测）：后端 **210 个测试文件**（JUnit5 + Mockito + Testcontainers；历史全量回归：2026-08-02 为 79 类 / 1370 用例、2026-08-16 为 2985 用例，均 0 失败 0 错误），JaCoCo 门禁：行覆盖率 ≥40%、分支覆盖率 ≥25%（实测基线 42% / 26%，只许上调）。

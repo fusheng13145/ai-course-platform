@@ -3,6 +3,7 @@ import com.aicourse.controller.KnowledgeController;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.service.AIService;
+import com.aicourse.service.KnowledgeGraphService;
 import com.aicourse.service.KnowledgePointRelationService;
 import com.aicourse.service.KnowledgePointService;
 import org.junit.jupiter.api.DisplayName;
@@ -35,6 +36,8 @@ class KnowledgeControllerTest extends ControllerTestBase {
     private KnowledgePointRelationService relationService;
     @MockitoBean
     private AIService aiService;
+    @MockitoBean
+    private KnowledgeGraphService knowledgeGraphService;
 
     private KnowledgePoint samplePoint() {
         KnowledgePoint p = new KnowledgePoint();
@@ -490,6 +493,43 @@ class KnowledgeControllerTest extends ControllerTestBase {
                 .andExpect(status().isUnauthorized());
     }
 
+
+    @Test
+    @DisplayName("POST /knowledge/path/plan - 找到路径返回200且data透传")
+    void planLearningPath_found_returns_success() throws Exception {
+        com.aicourse.vo.KnowledgePathPlanVO vo = new com.aicourse.vo.KnowledgePathPlanVO();
+        vo.setSourceId(1L);
+        vo.setTargetId(2L);
+        vo.setFound(true);
+        vo.setHops(1);
+        vo.setMode("LOCAL");
+        vo.setPath(List.of(samplePoint()));
+        vo.setEdges(List.of(sampleRelation()));
+        when(knowledgeGraphService.planLearningPath(eq(1L), eq(2L), anyInt())).thenReturn(vo);
+        mockMvc.perform(post("/knowledge/path/plan").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sourceId\":1,\"targetId\":2}").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.found").value(true))
+                .andExpect(jsonPath("$.data.hops").value(1));
+        verify(knowledgeGraphService).planLearningPath(eq(1L), eq(2L), anyInt());
+    }
+
+    @Test
+    @DisplayName("POST /knowledge/path/plan - 未找到路径返回404")
+    void planLearningPath_notFound_returns_404() throws Exception {
+        com.aicourse.vo.KnowledgePathPlanVO vo = new com.aicourse.vo.KnowledgePathPlanVO();
+        vo.setSourceId(1L);
+        vo.setTargetId(99L);
+        vo.setFound(false);
+        vo.setMode("LOCAL");
+        vo.setNote("在 2 跳范围内未找到从起点到目标的可达路径");
+        when(knowledgeGraphService.planLearningPath(eq(1L), eq(99L), anyInt())).thenReturn(vo);
+        mockMvc.perform(post("/knowledge/path/plan").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sourceId\":1,\"targetId\":99}").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404));
+    }
 
     @Test
     @DisplayName("POST /knowledge/extract - TEACHER角色返回200且委托AI抽取")

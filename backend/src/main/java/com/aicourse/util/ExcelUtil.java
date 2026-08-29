@@ -18,6 +18,7 @@ import java.io.OutputStream;
 import java.math.BigDecimal;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.util.AbstractMap;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,8 +46,26 @@ public final class ExcelUtil {
     private static final String[] USER_HEADERS =
             {"用户名", "姓名", "邮箱", "角色", "初始密码", "手机号", "学号", "专业", "年级", "院系"};
 
-    /** 默认初始密码（导入时未填写密码的兜底值，与种子数据一致） */
-    private static final String DEFAULT_PASSWORD = "123456";
+    /** 随机初始密码长度（导入时未填写密码的兜底，替代固定 123456 弱口令） */
+    private static final int RANDOM_PASSWORD_LENGTH = 8;
+
+    /** 随机密码字符集（去除易混淆字符 0/O/1/l/I） */
+    private static final String RANDOM_PASSWORD_CHARS =
+            "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+
+    /**
+     * 生成随机初始密码（8 位，字母+数字，SecureRandom）。
+     * <p>Excel 导入用户未填写密码时使用，替代固定 {@code 123456} 弱口令；
+     * 临时密码由导入接口返回给管理员转告用户，首次登录后应尽快修改。</p>
+     */
+    public static String generateRandomPassword() {
+        SecureRandom random = new SecureRandom();
+        StringBuilder sb = new StringBuilder(RANDOM_PASSWORD_LENGTH);
+        for (int i = 0; i < RANDOM_PASSWORD_LENGTH; i++) {
+            sb.append(RANDOM_PASSWORD_CHARS.charAt(random.nextInt(RANDOM_PASSWORD_CHARS.length())));
+        }
+        return sb.toString();
+    }
 
     /**
      * 设置 Excel 下载响应头（xlsx Content-Type + UTF-8 编码的中文文件名）。
@@ -127,10 +146,29 @@ public final class ExcelUtil {
     }
 
     /**
-     * 用户导入：从 xlsx 文件解析用户列表（跳过空行与表头行，密码缺省用默认值）。
+     * 用户导入解析结果：用户列表 + 未填密码（随机生成）用户的临时密码映射（key 为用户名）。
+     */
+    public record UserImportResult(List<User> users, Map<String, String> generatedPasswords) {
+    }
+
+    /**
+     * 用户导入：从 xlsx 文件解析用户列表（跳过空行与表头行，密码缺省生成随机初始密码）。
      */
     public static List<User> readUsers(MultipartFile file) throws IOException {
+        return parseUsers(file).users();
+    }
+
+    /**
+     * 用户导入（含临时密码）：除用户列表外，返回未填密码用户的随机初始密码映射，
+     * 供导入接口回传管理员转告用户（明文仅本次响应出现一次）。
+     */
+    public static UserImportResult readUsersWithGenerated(MultipartFile file) throws IOException {
+        return parseUsers(file);
+    }
+
+    private static UserImportResult parseUsers(MultipartFile file) throws IOException {
         List<User> list = new ArrayList<>();
+        Map<String, String> generatedPasswords = new java.util.LinkedHashMap<>();
         try (Workbook wb = WorkbookFactory.create(file.getInputStream())) {
             Sheet sheet = wb.getSheetAt(0);
             for (int i = 1; i <= sheet.getLastRowNum(); i++) {
@@ -148,7 +186,13 @@ public final class ExcelUtil {
                 u.setEmail(emptyToNull(cellStr(row.getCell(2))));
                 u.setRole(emptyToNull(cellStr(row.getCell(3))));
                 String password = cellStr(row.getCell(4));
-                u.setPassword(password == null || password.isEmpty() ? DEFAULT_PASSWORD : password);
+                if (password == null || password.isEmpty()) {
+                    String randomPwd = generateRandomPassword();
+                    u.setPassword(randomPwd);
+                    generatedPasswords.put(username, randomPwd);
+                } else {
+                    u.setPassword(password);
+                }
                 u.setPhone(emptyToNull(cellStr(row.getCell(5))));
                 u.setStudentId(emptyToNull(cellStr(row.getCell(6))));
                 u.setMajor(emptyToNull(cellStr(row.getCell(7))));
@@ -157,7 +201,7 @@ public final class ExcelUtil {
                 list.add(u);
             }
         }
-        return list;
+        return new UserImportResult(list, generatedPasswords);
     }
 
     /**

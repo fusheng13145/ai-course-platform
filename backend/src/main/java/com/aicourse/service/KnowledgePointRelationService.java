@@ -68,4 +68,12 @@ public interface KnowledgePointRelationService extends IService<KnowledgePointRe
      * @return 入边关联关系列表
      */
     List<KnowledgePointRelation> getTargetRelations(Long targetId);
+
+    /**
+     * 获取某课程下的全部关联关系（用于图谱子图的本地降级）。
+     * 通过关联的知识点归属课程来筛选（source/target 任一属于该课程即纳入）。
+     * @param courseId 课程ID
+     * @return 关联关系列表
+     */
+    List<KnowledgePointRelation> listByCourse(Long courseId);
 }

@@ -17,6 +17,8 @@ export const refreshToken = (data) => request.post('/auth/refresh', data)
 export const getPermissions = () => request.get('/auth/permissions')
 /** 发送验证码 */
 export const sendVerificationCode = (data) => request.post('/auth/send-code', data)
+/** 校验验证码（仅校验不消费，供找回密码「验证邮箱」步骤使用） */
+export const verifyResetCode = (data) => request.post('/auth/verify-code', data)
 /** 重置密码 */
 export const resetPassword = (data) => request.post('/auth/reset-password', data)
 /**
@@ -32,5 +34,6 @@ export default {
   refreshToken,
   getPermissions,
   sendVerificationCode,
+  verifyResetCode,
   resetPassword,
 }

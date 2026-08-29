@@ -1,0 +1,1 @@
+import{O as e,tt as t}from"./echarts-CL1HZqY1.js";import{t as n}from"./AppShell-BtpYY4Ht.js";var r={__name:`TeacherLayout`,setup(r){return(r,i)=>(t(),e(n,{role:`TEACHER`,"notification-path":`/teacher/notifications`,"profile-path":`/teacher/profile`}))}};export{r as default};

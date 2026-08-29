@@ -176,12 +176,16 @@ public class SignInServiceImpl extends ServiceImpl<SignInMapper, SignIn> impleme
                 .eq(SignInRecord::getStudentId, studentId);
         SignInRecord record = signInRecordMapper.selectOne(qw);
         if (record == null) {
+            // 新建：insert 时携带 status（一次写入，避免 insert 后再 update 的重复写库）
             record = new SignInRecord();
             record.setSignInId(id);
             record.setStudentId(studentId);
+            record.setStatus(status);
             record.setSignTime(LocalDateTime.now());
             signInRecordMapper.insert(record);
+            return record;
         }
+        // 已存在：仅更新状态
         record.setStatus(status);
         signInRecordMapper.updateById(record);
         return record;

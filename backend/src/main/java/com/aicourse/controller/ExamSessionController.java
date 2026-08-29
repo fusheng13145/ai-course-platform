@@ -9,7 +9,6 @@ import com.aicourse.dto.ExamSubmitDTO;
 import com.aicourse.entity.ExamSession;
 import com.aicourse.security.ExamSessionAccessControl;
 import com.aicourse.service.ExamSessionService;
-import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -231,15 +230,12 @@ public class ExamSessionController {
     }
 
     /**
-     * 查询用户所有考试会话记录
+     * 查询用户所有考试会话记录（附课程维度排名）
      */
     @GetMapping("/my")
-    @Operation(summary = "获取我的考试记录", description = "返回当前用户的所有历史考试会话记录列表")
+    @Operation(summary = "获取我的考试记录", description = "返回当前用户的所有历史考试会话记录列表，每条附课程维度排名（courseRank/courseTotalStudents）")
     public ApiResponse<Object> mySessions(Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        LambdaQueryWrapper<ExamSession> queryWrapper = new LambdaQueryWrapper<ExamSession>()
-                .eq(ExamSession::getStudentId, userId)
-                .orderByDesc(ExamSession::getCreatedAt);
-        return ApiResponse.success(examSessionService.list(queryWrapper));
+        return ApiResponse.success(examSessionService.getMySessionsWithCourseRank(userId));
     }
 }

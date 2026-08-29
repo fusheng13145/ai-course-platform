@@ -170,9 +170,12 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
         // @提及：落库为逗号分隔的用户ID列表，供前端渲染与通知
         if (post.getMentionUserIds() != null && !post.getMentionUserIds().isEmpty()) {
             StringBuilder sb = new StringBuilder();
-            for (int i = 0; i < post.getMentionUserIds().size(); i++) {
-                if (i > 0) sb.append(",");
-                sb.append(post.getMentionUserIds().get(i));
+            boolean first = true;
+            for (Long mentionedId : post.getMentionUserIds()) {
+                if (mentionedId == null) continue; // 跳过无效 @提及（与通知逻辑一致）
+                if (!first) sb.append(",");
+                sb.append(mentionedId);
+                first = false;
             }
             post.setMentions(sb.toString());
         }

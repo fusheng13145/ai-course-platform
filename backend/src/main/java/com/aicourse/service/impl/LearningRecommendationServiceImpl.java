@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 
 import java.math.BigDecimal;
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -96,22 +97,26 @@ public class LearningRecommendationServiceImpl implements LearningRecommendation
                 .mapToDouble(p -> p.doubleValue()).average().orElse(0);
         context.put("progress", String.format("%.0f", avgProgress));
 
-        // 3) 薄弱知识点（按掌握度升序，取前N最弱项）
+        // 3) 薄弱知识点（按掌握度升序，取前 MAX_WEAK_POINTS 最弱项）
         try {
+            // 一次查询全部选课知识点，避免逐课程 list()（N+1）；计算各点掌握度后过滤薄弱项
+            List<KnowledgePoint> allKps = knowledgePointService.list(
+                    new LambdaQueryWrapper<KnowledgePoint>()
+                            .in(KnowledgePoint::getCourseId, courseIds));
             List<Map<String, Object>> weakPoints = new ArrayList<>();
-            for (Long cid : courseIds) {
-                List<KnowledgePoint> kps = knowledgePointService.list(
-                        new LambdaQueryWrapper<KnowledgePoint>()
-                                .eq(KnowledgePoint::getCourseId, cid));
-                for (KnowledgePoint kp : kps) {
-                    BigDecimal mastery = knowledgePointService.calculateMastery(kp.getId(), userId);
-                    if (mastery != null && mastery.compareTo(WEAK_MASTERY_THRESHOLD) < 0) {
-                        Map<String, Object> wp = new LinkedHashMap<>();
-                        wp.put("name", kp.getName());
-                        wp.put("mastery", mastery);
-                        weakPoints.add(wp);
-                    }
+            for (KnowledgePoint kp : allKps) {
+                BigDecimal mastery = knowledgePointService.calculateMastery(kp.getId(), userId);
+                if (mastery != null && mastery.compareTo(WEAK_MASTERY_THRESHOLD) < 0) {
+                    Map<String, Object> wp = new LinkedHashMap<>();
+                    wp.put("name", kp.getName());
+                    wp.put("mastery", mastery);
+                    weakPoints.add(wp);
                 }
+            }
+            // 按掌握度升序（最弱优先），并截断至上限，避免上下文膨胀
+            weakPoints.sort(Comparator.comparing(wp -> (BigDecimal) wp.get("mastery")));
+            if (weakPoints.size() > MAX_WEAK_POINTS) {
+                weakPoints = new ArrayList<>(weakPoints.subList(0, MAX_WEAK_POINTS));
             }
             context.put("weakPoints", weakPoints);
         } catch (Exception e) {

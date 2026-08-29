@@ -4,10 +4,15 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.aicourse.entity.Classroom;
+import com.aicourse.entity.Submission;
+import com.aicourse.entity.Task;
 import com.aicourse.entity.User;
+import com.aicourse.enums.SubmissionStatus;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ClassroomMapper;
 import com.aicourse.service.ClassroomService;
+import com.aicourse.service.SubmissionService;
+import com.aicourse.service.TaskService;
 import com.aicourse.service.UserService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -15,9 +20,14 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 班级管理服务实现类
@@ -28,10 +38,17 @@ public class ClassroomServiceImpl extends ServiceImpl<ClassroomMapper, Classroom
     private static final Logger log = LoggerFactory.getLogger(ClassroomServiceImpl.class);
 
     private final UserService userService;
+    private final TaskService taskService;
+    private final SubmissionService submissionService;
 
-    public ClassroomServiceImpl(ClassroomMapper classroomMapper, UserService userService) {
+    public ClassroomServiceImpl(ClassroomMapper classroomMapper,
+                                UserService userService,
+                                TaskService taskService,
+                                SubmissionService submissionService) {
         this.baseMapper = classroomMapper;
         this.userService = userService;
+        this.taskService = taskService;
+        this.submissionService = submissionService;
     }
 
     /**
@@ -203,5 +220,77 @@ public class ClassroomServiceImpl extends ServiceImpl<ClassroomMapper, Classroom
                 .eq(major != null && !major.isEmpty(), Classroom::getMajor, major)
                 .orderByDesc(Classroom::getCreatedAt);
         return this.list(queryWrapper);
+    }
+
+    /**
+     * 按课程查询关联班级。
+     */
+    @Override
+    public List<Classroom> listByCourse(Long courseId) {
+        if (courseId == null) {
+            return Collections.emptyList();
+        }
+        return this.list(new LambdaQueryWrapper<Classroom>()
+                .eq(Classroom::getCourseId, courseId)
+                .eq(Classroom::getIsActive, true)
+                .orderByDesc(Classroom::getCreatedAt));
+    }
+
+    /**
+     * 统计某课程下各班级的「待批改作业数」。
+     * 聚合链：课程任务(tasks.course_id) → 待批改提交(submissions.status=SUBMITTED)
+     *       → 学生归属班级(users.class_id)，按班级汇总。
+     * 任一环节数据为空时返回各班级 pendingCount=0 的结构化结果（非空列表），
+     * 保证前端驾驶舱始终可渲染真实来源（0 即真实值，非占位）。
+     */
+    @Override
+    public List<Map<String, Object>> countPendingByCourse(Long courseId) {
+        List<Classroom> classrooms = listByCourse(courseId);
+        if (classrooms.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 1) 班级学生归属表：studentId -> classId
+        List<Long> classroomIds = classrooms.stream().map(Classroom::getId).collect(Collectors.toList());
+        List<User> students = userService.list(new LambdaQueryWrapper<User>()
+                .in(User::getClassId, classroomIds)
+                .eq(User::getRole, "STUDENT"));
+        Map<Long, Long> studentClassMap = new HashMap<>();
+        for (User student : students) {
+            if (student.getId() != null && student.getClassId() != null) {
+                studentClassMap.put(student.getId(), student.getClassId());
+            }
+        }
+
+        // 2) 课程任务集合
+        List<Long> taskIds = taskService.list(new LambdaQueryWrapper<Task>()
+                        .eq(Task::getCourseId, courseId))
+                .stream().map(Task::getId).collect(Collectors.toList());
+        Set<Long> taskIdSet = new HashSet<>(taskIds);
+
+        // 3) 待批改提交聚合：班级 -> 计数
+        Map<Long, Long> pendingByClass = new HashMap<>();
+        if (!taskIdSet.isEmpty() && !studentClassMap.isEmpty()) {
+            List<Submission> pendingSubmissions = submissionService.list(new LambdaQueryWrapper<Submission>()
+                    .in(Submission::getTaskId, taskIdSet)
+                    .eq(Submission::getStatus, SubmissionStatus.SUBMITTED.name()));
+            for (Submission submission : pendingSubmissions) {
+                Long classId = studentClassMap.get(submission.getStudentId());
+                if (classId != null) {
+                    pendingByClass.merge(classId, 1L, Long::sum);
+                }
+            }
+        }
+
+        // 4) 输出结构化结果（班级顺序与 by-course 一致，含真实 0 值）
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (Classroom classroom : classrooms) {
+            Map<String, Object> item = new HashMap<>();
+            item.put("classroomId", classroom.getId());
+            item.put("classroomName", classroom.getName());
+            item.put("pendingCount", pendingByClass.getOrDefault(classroom.getId(), 0L));
+            result.add(item);
+        }
+        return result;
     }
 }

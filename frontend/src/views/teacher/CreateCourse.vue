@@ -41,10 +41,8 @@
       <el-form-item label="封面图片">
         <el-upload
           class="avatar-uploader"
-          :action="uploadUrl"
-          :headers="uploadHeaders"
           :show-file-list="false"
-          :on-success="handleUploadSuccess"
+          :http-request="handleCoverUpload"
           :before-upload="beforeUpload"
         >
           <img v-if="form.coverImage" :src="form.coverImage" class="cover-img" />
@@ -61,11 +59,10 @@
 <script setup>
 import { reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { useAuthStore } from '@/stores/auth'
 import PageHeader from '@/components/PageHeader.vue'
 import courseApi from '@/api/course'
+import commonApi from '@/api/common'
 
-const auth = useAuthStore()
 const formRef = ref(null)
 const submitting = ref(false)
 const categories = ref(['编程开发', '人工智能', '数据分析', '设计创意', '其他'])
@@ -87,9 +84,6 @@ const rules = {
   category: [{ required: true, message: '请选择分类', trigger: 'change' }],
 }
 
-const uploadUrl = '/api/common/upload'
-const uploadHeaders = { Authorization: `Bearer ${auth.token}` }
-
 function beforeUpload(file) {
   const isImage = file.type.startsWith('image/')
   const isLt2M = file.size / 1024 / 1024 < 2
@@ -104,10 +98,23 @@ function beforeUpload(file) {
   return true
 }
 
-function handleUploadSuccess(res) {
-  if (res.data?.url) {
-    form.coverImage = res.data.url
-    ElMessage.success('上传成功')
+/**
+ * 自定义上传：走统一 request 实例（HttpOnly Cookie 自动携带 + CSRF 双提交 + 统一错误处理），
+ * 替代 el-upload 原生 action 直传（原实现使用恒空的 Bearer token 且绕过拦截器）。
+ */
+async function handleCoverUpload({ file }) {
+  try {
+    const res = await commonApi.uploadFile(file)
+    const url = res.data?.url
+    if (url) {
+      form.coverImage = url
+      ElMessage.success('上传成功')
+    } else {
+      ElMessage.error('上传失败：响应缺少文件地址')
+    }
+  } catch (e) {
+    console.error('封面上传失败:', e)
+    ElMessage.error('封面上传失败，请稍后重试')
   }
 }
 

@@ -58,15 +58,23 @@ services:
     restart: unless-stopped
     # 密码安全：REDIS_PASSWORD 现为必填项（见 docker-compose 顶层 required 约束）；
     # 设置后自动启用 requirepass，后端经 SPRING_DATA_REDIS_PASSWORD 同步连接。
+    #
+    # 【重要 · 必须用 $$ 转义】command / healthcheck 中引用 REDIS_PASSWORD 时
+    # 必须写 $$REDIS_PASSWORD（双美元号）。若写单 $，Compose 会在生成容器配置阶段
+    # 就地展开，导致：
+    #   (1) 明文密码被固化进容器 Cmd 元数据，`docker inspect` 可直接读出；
+    #   (2) 若密码本身含 $ 字符，Compose 会把 $xxx 当作变量引用并展开为空串，
+    #       使实际 requirepass 被截断成残留片段（曾实测降级为单字符）。
+    # 写 $$ 后 Compose 输出字面 $REDIS_PASSWORD，交由容器内 sh 从 environment 展开。
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD 必须设置（请 cp .env.example .env 后填入强密码）}
-    command: ["sh", "-c", "if [ -n \"$REDIS_PASSWORD\" ]; then exec redis-server --appendonly yes --requirepass \"$REDIS_PASSWORD\"; else exec redis-server --appendonly yes; fi"]
+    command: ["sh", "-c", "if [ -n \"$$REDIS_PASSWORD\" ]; then exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\"; else exec redis-server --appendonly yes; fi"]
     ports:
       - "6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD-SHELL", "if [ -n \"$REDIS_PASSWORD\" ]; then redis-cli -a \"$REDIS_PASSWORD\" ping | grep -q PONG; else redis-cli ping | grep -q PONG; fi"]
+      test: ["CMD-SHELL", "if [ -n \"$$REDIS_PASSWORD\" ]; then redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG; else redis-cli ping | grep -q PONG; fi"]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -109,6 +117,15 @@ services:
       # 凭据须与下方 prometheus 服务的 ACTUATOR_BASIC_* 完全一致；口令留空则抓取 fail-closed。
       APP_ACTUATOR_BASIC_USER: ${APP_ACTUATOR_BASIC_USER:-monitor}
       APP_ACTUATOR_BASIC_PASSWORD: ${APP_ACTUATOR_BASIC_PASSWORD:-}
+      # Python 微服务集成开关（默认关闭：KG/RAG 引擎由团队另一成员负责，未启用时
+      # /knowledge/path/plan 本地 BFS 兜底、AI 问答自动回退纯 LLM）。
+      # 启用步骤：解注下方 kg-service / rag-service，再置 KG_ENABLED/RAG_ENABLED=true。
+      KG_ENABLED: ${KG_ENABLED:-false}
+      KG_BASE_URL: ${KG_BASE_URL:-http://kg-service:8001}
+      RAG_ENABLED: ${RAG_ENABLED:-false}
+      RAG_BASE_URL: ${RAG_BASE_URL:-http://rag-service:8002}
+      FINE_TUNE_ENABLED: ${FINE_TUNE_ENABLED:-false}
+      FT_BASE_URL: ${FT_BASE_URL:-http://fine-tune-service:8003}
       TZ: Asia/Shanghai
     ports:
       - "8080:8080"
@@ -132,6 +149,44 @@ services:
         max-size: "10m"
         max-file: "3"
 
+  # ---------------- Python 微服务（引擎就绪后解注启用，归入 python profile） ----------------
+  # KG/RAG 引擎由团队另一成员负责（当前 python-services/ 下为契约基线/占位骨架）。
+  # 接入步骤：① 解注下方对应服务 ② .env 置 KG_ENABLED=true / RAG_ENABLED=true
+  # ③ docker compose --profile full --profile python up -d
+  # ----------------
+  # kg-service:
+  #   build:
+  #     context: ./python-services/kg_service
+  #     dockerfile: Dockerfile   # 需队友补充（uvicorn kg_service:app --host 0.0.0.0 --port 8001）
+  #   container_name: aicourse-kg-service
+  #   restart: unless-stopped
+  #   profiles: ["python"]
+  #   ports:
+  #     - "8001:8001"
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-fs", "http://localhost:8001/api/v1/graph/health"]
+  #     interval: 15s
+  #     timeout: 5s
+  #     retries: 5
+  #
+  # rag-service:
+  #   build:
+  #     context: ./python-services/rag_service
+  #     dockerfile: Dockerfile   # 需队友补充（uvicorn rag_service:app --host 0.0.0.0 --port 8002）
+  #   container_name: aicourse-rag-service
+  #   restart: unless-stopped
+  #   profiles: ["python"]
+  #   ports:
+  #     - "8002:8002"
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-fs", "http://localhost:8002/api/v1/rag/health"]
+  #     interval: 15s
+  #     timeout: 5s
+  #     retries: 5
+  #
+  # fine-tune-service（8003）：LoRA 微调引擎，Python 端尚未交付，契约见
+  # backend/docs/Python接口契约-微调服务.md；就绪后参照上述模板补充。
+
   # ---------------- MySQL 定时备份守护（profiles: ops） ----------------
   mysql-backup:
     image: mysql:8.0
@@ -147,6 +202,8 @@ services:
       MYSQL_DATABASE: ai_course_platform
       # 保留天数：超出即滚动清理
       BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      # 异地同步（可选）：如 oss:aicourse-backups / s3:bucket/path，需镜像内置 rclone；留空跳过
+      BACKUP_REMOTE_SYNC: ${BACKUP_REMOTE_SYNC:-}
       TZ: Asia/Shanghai
     volumes:
       - ./ops/mysql-backup/backup.sh:/backup.sh:ro
@@ -184,15 +241,41 @@ services:
         max-size: "10m"
         max-file: "2"
 
+  # ---------------- Node Exporter 宿主机指标采集（profiles: monitor） ----------------
+  # 采集宿主机 CPU/内存/磁盘/网络指标（node_* 系列），支撑磁盘使用率告警
+  # （DiskUsageHigh，见 prometheus/alert_rules.yml）。容器以 host 网络命名空间运行，
+  # 通过挂载只读 /proc /sys / 根目录提供指标来源；node-exporter 本身不开放对外端口。
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: aicourse-node-exporter
+    restart: unless-stopped
+    profiles: ["monitor"]
+    pid: host
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/host/root
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
   # ---------------- Alertmanager 告警分发（profiles: monitor） ----------------
   alertmanager:
     image: prom/alertmanager:v0.27.0
     container_name: aicourse-alertmanager
     restart: unless-stopped
     profiles: ["monitor"]
-    environment:
-      # 告警通知 webhook（企业微信/钉钉/飞书机器人等），留空则用占位 localhost:9000/alerts
-      ALERTMANAGER_WEBHOOK_URL: ${ALERTMANAGER_WEBHOOK_URL:-}
+    # 【注意】此处曾注入 ALERTMANAGER_WEBHOOK_URL 环境变量，但 Alertmanager
+    # 不支持在 alertmanager.yml 内做 ${VAR} 插值，该变量实际无任何效果，
+    # 反而使配置文件里的占位符被当作字面 URL 解析而启动失败（CrashLoop）。
+    # 故移除该变量；webhook 地址请直接在 prometheus/alertmanager.yml 中写字面值。
     volumes:
       - ./prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
     ports:

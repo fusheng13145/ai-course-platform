@@ -76,4 +76,18 @@ public interface KnowledgePointService extends IService<KnowledgePoint> {
     List<KnowledgePoint> getListWithFilters(Long courseId, String difficultyLevel,
                                               Integer minImportance, Integer maxImportance,
                                               String sortBy, boolean isAsc);
+
+    /**
+     * 统计某课程下的知识点数量（用于图谱摄取/子图的本地降级统计）。
+     * @param courseId 课程ID
+     * @return 知识点数量
+     */
+    long countByCourse(Long courseId);
+
+    /**
+     * 获取某课程下的全部知识点（用于图谱子图的本地降级）。
+     * @param courseId 课程ID
+     * @return 知识点列表（按 orderIndex 升序）
+     */
+    List<KnowledgePoint> listByCourse(Long courseId);
 }

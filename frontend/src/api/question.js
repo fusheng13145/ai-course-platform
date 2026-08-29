@@ -26,8 +26,19 @@ export const getByKnowledgePoint = kpId => request.get(`/questions/kp/${kpId}`)
 export const getQuestionStats = id => request.get(`/questions/${id}/stats`)
 /** 获取易错题目 */
 export const getErrorProne = params => request.get('/questions/error-prone', { params })
+/** 导出题库为 Excel 文件（blob 下载，可按课程筛选） */
+export const exportQuestionsExcel = params =>
+  request.get('/teacher/questions/export', {
+    params,
+    responseType: 'blob',
+  })
+/** Excel 批量导入题目（.xlsx，可选指定归属课程） */
+export const importQuestionsExcel = data =>
+  request.post('/teacher/questions/import-excel', data, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
 
 /**
  * 默认导出对象：模块/组件配置与导出内容
  */
-export default { getQuestionList, getQuestionById, createQuestion, updateQuestion, deleteQuestion, generateByAI, reviewQuestion, copyQuestion, searchQuestions, randomSelect, getByKnowledgePoint, getQuestionStats, getErrorProne }
+export default { getQuestionList, getQuestionById, createQuestion, updateQuestion, deleteQuestion, generateByAI, reviewQuestion, copyQuestion, searchQuestions, randomSelect, getByKnowledgePoint, getQuestionStats, getErrorProne, exportQuestionsExcel, importQuestionsExcel }

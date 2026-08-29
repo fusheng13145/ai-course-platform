@@ -8,7 +8,9 @@ import com.aicourse.dto.KnowledgeExtractDTO;
 import com.aicourse.dto.KnowledgeRelationDTO;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
+import com.aicourse.dto.KnowledgePathPlanDTO;
 import com.aicourse.service.AIService;
+import com.aicourse.service.KnowledgeGraphService;
 import com.aicourse.service.KnowledgePointRelationService;
 import com.aicourse.service.KnowledgePointService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -16,6 +18,8 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -43,16 +47,19 @@ public class KnowledgeController {
     private final KnowledgePointService knowledgePointService;
     private final KnowledgePointRelationService relationService;
     private final AIService aiService;
+    private final KnowledgeGraphService knowledgeGraphService;
 
     private static final ObjectMapper KG_OM = new ObjectMapper();
     private static final Set<String> KP_TYPES = Set.of("CONCEPT", "PRINCIPLE", "METHOD", "FACT");
 
     public KnowledgeController(KnowledgePointService knowledgePointService,
                                KnowledgePointRelationService relationService,
-                               AIService aiService) {
+                               AIService aiService,
+                               KnowledgeGraphService knowledgeGraphService) {
         this.knowledgePointService = knowledgePointService;
         this.relationService = relationService;
         this.aiService = aiService;
+        this.knowledgeGraphService = knowledgeGraphService;
     }
 
     // ==================== 知识点 CRUD / 列表（/knowledge/points） ====================
@@ -435,6 +442,84 @@ public class KnowledgeController {
             result.put("nodes", created);
             return ApiResponse.success("AI 抽取完成，共写入 " + created.size() + " 个知识点", result);
         };
+    }
+
+    // ==================== 学习路径规划（/knowledge/path/plan） ====================
+
+    /**
+     * 起点到目标知识点的最优（最短跳数）学习路径规划。
+     * <p>
+     * 对应 PRD 知识图谱模块 {@code POST /api/knowledge/path/plan}（起点到目标的最优路径）。
+     * 业务委托 {@code KnowledgeGraphService.planLearningPath}：优先由图谱引擎（Python 8001）执行多跳推理，
+     * 引擎未启用/不可达时由本端消费侧本地 BFS 兜底（直读 {@code knowledge_point_relations}），
+     * 保证端点始终返回真实路径数据。
+     * </p>
+     * POST /api/knowledge/path/plan
+     */
+    @PostMapping("/path/plan")
+    public ResponseEntity<ApiResponse<com.aicourse.vo.KnowledgePathPlanVO>> planLearningPath(
+            @Valid @RequestBody KnowledgePathPlanDTO dto) {
+        com.aicourse.vo.KnowledgePathPlanVO plan = knowledgeGraphService.planLearningPath(
+                dto.getSourceId(), dto.getTargetId(), dto.getMaxHops() != null ? dto.getMaxHops() : 0);
+        if (!plan.isFound()) {
+            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(ApiResponse.error(ApiCode.NOT_FOUND,
+                    plan.getNote() != null ? plan.getNote() : "未找到从起点到目标的学习路径"));
+        }
+        if (dto.getSourceId().equals(dto.getTargetId())) {
+            return ResponseEntity.ok(ApiResponse.success("起点与终点相同，无需规划", plan));
+        }
+        return ResponseEntity.ok(ApiResponse.success(plan));
+    }
+
+    /**
+     * 知识图谱摄取（将课程知识点/关系同步至图谱引擎）。
+     * 引擎未接入时返回消费侧本地确认（{@code mode=LOCAL}），端点始终可用，与 {@code planLearningPath} 同款降级策略。
+     */
+    @PostMapping("/ingest")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ApiResponse<Map<String, Object>> ingestGraph(@RequestParam Long courseId) {
+        String raw = knowledgeGraphService.ingest(courseId);
+        return ApiResponse.success(parseKgJson(raw));
+    }
+
+    /**
+     * 获取课程知识子图（节点 + 边）。
+     * 引擎未接入时返回消费侧 MySQL 直读结果（{@code mode=LOCAL}），端点始终可用。
+     */
+    @GetMapping("/subgraph/{courseId}")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ApiResponse<Map<String, Object>> getSubGraph(@PathVariable Long courseId,
+                                                        @RequestParam(required = false) Integer maxHops) {
+        String raw = knowledgeGraphService.getSubGraph(courseId, maxHops != null ? maxHops : 0);
+        return ApiResponse.success(parseKgJson(raw));
+    }
+
+    /**
+     * 将图谱服务返回的 JSON 字符串安全解析为 Map；解析失败或含 503 占位时返回友好提示。
+     */
+    private Map<String, Object> parseKgJson(String raw) {
+        if (raw == null || raw.isBlank()) {
+            Map<String, Object> fallback = new LinkedHashMap<>();
+            fallback.put("mode", "LOCAL");
+            fallback.put("note", "知识图谱服务返回为空，已使用本地降级");
+            return fallback;
+        }
+        try {
+            JsonNode node = KG_OM.readTree(raw);
+            if (node.has("code") && node.get("code").asInt() == 503) {
+                Map<String, Object> fallback = new LinkedHashMap<>();
+                fallback.put("mode", "UNAVAILABLE");
+                fallback.put("note", "知识图谱引擎未接入或不可用");
+                return fallback;
+            }
+            Map<String, Object> map = KG_OM.convertValue(node, Map.class);
+            return map != null ? map : Map.of("mode", "LOCAL");
+        } catch (Exception e) {
+            Map<String, Object> fallback = new LinkedHashMap<>();
+            fallback.put("mode", "LOCAL");
+            fallback.put("note", "知识图谱服务返回解析失败，已使用本地降级");
+            return fallback;
+        }
     }
 
 

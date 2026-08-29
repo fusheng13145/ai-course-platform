@@ -44,4 +44,19 @@ class ArchitectureTest {
     static final ArchRule configShouldNotDependOnController =
             noClasses().that().resideInAPackage("..config..")
                     .should().dependOnClassesThat().resideInAPackage("..controller..");
+
+    /** service 实现类不得依赖其他 service 实现类（服务间只允许依赖接口，保持解耦）。
+     * 源/目标均限定精确包 com.aicourse.service.impl + *Impl 结尾 + 非内部类；
+     * 目标条件用 JavaClass.Predicates.and 组合（andShould 实测为 OR 语义，不可用于组合条件）：
+     * 排除 MyBatis-Plus 基类（包不符）、子包协作者（impl.exam）、匿名类自引用（$ 不以 Impl 结尾）。 */
+    @ArchTest
+    static final ArchRule serviceImplShouldNotDependOnOtherServiceImpl =
+            noClasses().that().resideInAPackage("com.aicourse.service.impl")
+                    .and().haveSimpleNameNotContaining("$")
+                    .and().haveSimpleNameEndingWith("Impl")
+                    .should().dependOnClassesThat(
+                            com.tngtech.archunit.core.domain.JavaClass.Predicates
+                                    .resideInAPackage("com.aicourse.service.impl")
+                                    .and(com.tngtech.archunit.core.domain.JavaClass.Predicates
+                                            .simpleNameEndingWith("Impl")));
 }

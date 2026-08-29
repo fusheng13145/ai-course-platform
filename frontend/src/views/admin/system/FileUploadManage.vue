@@ -161,11 +161,20 @@ function formatSize(bytes) {
 async function refreshList() {
   loading.value = true
   try {
-    // 直接通过通用查询获取列表（后端可能没有 dedicated 列表接口，使用 progress 兜底）
-    sessions.value = []
-    ElMessage.info('上传会话列表功能需要后端支持列表查询，当前仅支持单个会话进度查看')
+    const res = await uploadApi.listSessions()
+    const list = res.data || []
+    sessions.value = list.map((s) => ({
+      ...s,
+      fileName: s.filename || s.fileName,
+      // 进度由已上传分片数/总分片数推导（实体无 progress 字段）
+      progress:
+        s.totalChunks > 0
+          ? Math.round(((s.uploadedChunks || 0) / s.totalChunks) * 100)
+          : 0,
+    }))
   } catch (e) {
     console.error('加载上传会话失败:', e)
+    sessions.value = []
   } finally {
     loading.value = false
   }
@@ -200,7 +209,12 @@ async function viewProgress(row) {
   progressVisible.value = true
   try {
     const res = await uploadApi.getProgress(row.id)
-    if (res && res.data) currentSession.value.progress = res.data.progress
+    const data = res?.data || {}
+    // 后端返回 uploaded/total/percentage（"50.0%" 字符串），以分片数推导数值进度
+    if (data.total > 0) {
+      currentSession.value.progress = Math.round(((data.uploaded || 0) / data.total) * 100)
+    }
+    if (data.status) currentSession.value.status = data.status
   } catch (e) {
     /* ignore */
   }

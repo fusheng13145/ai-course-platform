@@ -3,10 +3,21 @@
 # 挂载到 /etc/alertmanager/alertmanager.yml（docker-compose alertmanager 服务）
 #
 # 【通知渠道】本机无真实 SMTP，默认路由到 webhook 占位端点。
-# 生产请将 ALERTMANAGER_WEBHOOK_URL 指向真实告警网关
+# 生产请将下方 webhook url 直接改为真实告警网关地址
 # （企业微信/钉钉/飞书机器人、PagerDuty、自定义 webhook 等）；
 # 或使用下方注释的 email 路由（填入真实 SMTP）。
-# Alertmanager 原生支持配置文件内的 ${VAR} 环境变量插值（v0.20+）。
+#
+# 【重要 · 不支持环境变量插值】
+# Alertmanager 不支持配置文件内的通用 ${VAR} / ${VAR:-default} 展开
+# （该能力仅存在于少数 *_file 后缀字段的外部密钥读取，且语义不同）。
+# 若此处写 ${ALERTMANAGER_WEBHOOK_URL:-...}，Alertmanager 会把整个字符串
+# 当作字面 URL 解析并启动失败：
+#   err="parse \"${ALERTMANAGER_WEBHOOK_URL:-http://localhost:9000/alerts}\":
+#        first path segment in URL cannot contain colon"
+# 因此本文件一律使用**字面值**。如需按环境参数化，请任选其一：
+#   (a) 部署前用 envsubst / sed 生成本文件；
+#   (b) 在 compose 中改用 configs + 自定义 entrypoint 做模板渲染；
+#   (c) 各环境维护独立的 alertmanager.yml 并按需挂载。
 # ============================================================
 
 global:
@@ -28,17 +39,21 @@ route:
 receivers:
   - name: 'default-webhook'
     webhook_configs:
-      - url: '${ALERTMANAGER_WEBHOOK_URL:-http://localhost:9000/alerts}'
+      # 占位端点：本机无告警网关，Alertmanager 推送失败仅记 warn 日志，不影响自身运行。
+      # 生产环境请将本行替换为真实 webhook 地址（字面值，勿用 ${VAR}，见文件头说明）。
+      - url: 'http://localhost:9000/alerts'
         send_resolved: true
 
-  # 可选：邮件通知（需配置真实 SMTP，取消注释并填写以下变量于 .env）
+  # 可选：邮件通知（需真实 SMTP）。取消注释后请把下列各项替换为**字面值**，
+  # 不要使用 ${VAR} —— 本文件不支持环境变量插值（见文件头说明）。
+  # 密码建议改用 auth_password_file 指向挂载的密钥文件，避免明文入库。
   # - name: 'email-admin'
   #   email_configs:
-  #     - smarthost: '${SMTP_HOST:-smtp.example.com}:587'
-  #       from: '${SMTP_FROM:-alert@example.com}'
-  #       to: '${SMTP_TO:-admin@example.com}'
-  #       auth_username: '${SMTP_USER:-}'
-  #       auth_password: '${SMTP_PASSWORD:-}'
+  #     - smarthost: 'smtp.example.com:587'
+  #       from: 'alert@example.com'
+  #       to: 'admin@example.com'
+  #       auth_username: 'alert@example.com'
+  #       auth_password_file: '/etc/alertmanager/smtp_password'
   #       require_tls: true
 
 # 同实例的 critical 告警抑制其 warning 告警，避免噪音叠加

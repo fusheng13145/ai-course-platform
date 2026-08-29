@@ -18,17 +18,15 @@ function ico(d) {
 }
 </script>
 <template>
+  <!-- eslint-disable vue/no-v-html -->
+  <!-- v-html 仅用于内部 SVG 图标常量（受控输入），无需净化 -->
   <div class="l2-panel" :class="{ open: isOpen }">
     <div class="l2-head" @click="isOpen = !isOpen">
-      <!-- 内部图标常量（受控），无需净化 -->
-      <!-- eslint-disable-next-line vue/no-v-html -->
       <span
         class="l2-caret"
         :style="{ transform: isOpen ? 'rotate(90deg)' : '' }"
         v-html="ico(ICON.chevronR)"
       ></span>
-      <!-- 内部图标常量（受控），无需净化 -->
-      <!-- eslint-disable-next-line vue/no-v-html -->
       <span
         v-if="icon"
         style="color: var(--accent); display: grid; place-items: center"
