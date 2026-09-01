@@ -8,6 +8,7 @@ import com.aicourse.entity.Question;
 import com.aicourse.entity.WrongQuestion;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ExamSessionMapper;
+import com.aicourse.vo.AutoGradeResultVO;
 import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.QuestionService;
@@ -106,7 +107,7 @@ class ExamSessionGradingServiceBoostTest {
         when(questionService.listByIds(any())).thenReturn(List.of(q));
     }
 
-    private Map<String, Object> runAutoGrade(Long id, String answers) {
+    private AutoGradeResultVO runAutoGrade(Long id, String answers) {
         ExamSession s = submittedSession(id, answers);
         when(examSessionMapper.selectById(any(Serializable.class))).thenReturn(s);
         when(examSessionMapper.updateById(any(ExamSession.class))).thenReturn(1);
@@ -117,9 +118,9 @@ class ExamSessionGradingServiceBoostTest {
     @DisplayName("autoGrade 单选题答对")
     void autoGrade_singleCorrect() {
         stubQuestion(100L, "SINGLE_CHOICE", "A", "5");
-        Map<String, Object> r = runAutoGrade(1L, "{\"100\":\"A\"}");
-        assertEquals(1, r.get("correctCount"));
-        assertEquals(0, r.get("wrongCount"));
+        AutoGradeResultVO r = runAutoGrade(1L, "{\"100\":\"A\"}");
+        assertEquals(1, r.getCorrectCount());
+        assertEquals(0, r.getWrongCount());
     }
 
     @Test
@@ -131,57 +132,57 @@ class ExamSessionGradingServiceBoostTest {
         when(examPaperService.getById(1L)).thenReturn(paper);
         when(wrongQuestionService.count(any())).thenReturn(0L);
         when(wrongQuestionService.save(any())).thenReturn(true);
-        Map<String, Object> r = runAutoGrade(1L, "{\"100\":\"B\"}");
-        assertEquals(1, r.get("wrongCount"));
+        AutoGradeResultVO r = runAutoGrade(1L, "{\"100\":\"B\"}");
+        assertEquals(1, r.getWrongCount());
     }
 
     @Test
     @DisplayName("autoGrade 多选题完全匹配")
     void autoGrade_multipleFull() {
         stubQuestion(100L, "MULTIPLE_CHOICE", "[\"A\",\"B\"]", "10");
-        Map<String, Object> r = runAutoGrade(1L, "{\"100\":\"[\\\"A\\\",\\\"B\\\"]\"}");
-        assertEquals(0, r.get("wrongCount"));
-        assertEquals(0, r.get("pendingReviewCount"));
+        AutoGradeResultVO r = runAutoGrade(1L, "{\"100\":\"[\\\"A\\\",\\\"B\\\"]\"}");
+        assertEquals(0, r.getWrongCount());
+        assertEquals(0, r.getPendingReviewCount());
     }
 
     @Test
     @DisplayName("autoGrade 多选题部分匹配")
     void autoGrade_multiplePartial() {
         stubQuestion(100L, "MULTIPLE_CHOICE", "[\"A\",\"B\"]", "10");
-        Map<String, Object> r = runAutoGrade(1L, "{\"100\":\"[\\\"A\\\"]\"}");
-        assertEquals(1, r.get("wrongCount"));
+        AutoGradeResultVO r = runAutoGrade(1L, "{\"100\":\"[\\\"A\\\"]\"}");
+        assertEquals(1, r.getWrongCount());
     }
 
     @Test
     @DisplayName("autoGrade 多选题无标准答案不评分")
     void autoGrade_multipleNoCorrect() {
         stubQuestion(100L, "MULTIPLE_CHOICE", null, "10");
-        Map<String, Object> r = runAutoGrade(1L, "{\"100\":\"[\\\"A\\\"]\"}");
-        assertEquals(1, r.get("wrongCount"));
+        AutoGradeResultVO r = runAutoGrade(1L, "{\"100\":\"[\\\"A\\\"]\"}");
+        assertEquals(1, r.getWrongCount());
     }
 
     @Test
     @DisplayName("autoGrade 判断题")
     void autoGrade_trueFalse() {
         stubQuestion(100L, "TRUE_FALSE", "true", "5");
-        Map<String, Object> r = runAutoGrade(1L, "{\"100\":\"TRUE\"}");
-        assertEquals(1, r.get("correctCount"));
+        AutoGradeResultVO r = runAutoGrade(1L, "{\"100\":\"TRUE\"}");
+        assertEquals(1, r.getCorrectCount());
     }
 
     @Test
     @DisplayName("autoGrade 主观题待人工批阅")
     void autoGrade_shortAnswer() {
         stubQuestion(100L, "SHORT_ANSWER", "x", "5");
-        Map<String, Object> r = runAutoGrade(1L, "{\"100\":\"abc\"}");
-        assertEquals(1, r.get("pendingReviewCount"));
+        AutoGradeResultVO r = runAutoGrade(1L, "{\"100\":\"abc\"}");
+        assertEquals(1, r.getPendingReviewCount());
     }
 
     @Test
     @DisplayName("autoGrade 未知题型待人工批阅")
     void autoGrade_defaultType() {
         stubQuestion(100L, "UNKNOWN_TYPE", "x", "5");
-        Map<String, Object> r = runAutoGrade(1L, "{\"100\":\"abc\"}");
-        assertEquals(1, r.get("pendingReviewCount"));
+        AutoGradeResultVO r = runAutoGrade(1L, "{\"100\":\"abc\"}");
+        assertEquals(1, r.getPendingReviewCount());
     }
 
     @Test
@@ -192,8 +193,8 @@ class ExamSessionGradingServiceBoostTest {
         eq.setPoints(new BigDecimal("5"));
         when(examQuestionService.list(any(Wrapper.class))).thenReturn(List.of(eq));
         when(questionService.listByIds(any())).thenReturn(List.of());
-        Map<String, Object> r = runAutoGrade(1L, "{\"100\":\"A\"}");
-        assertEquals(0, r.get("correctCount"));
+        AutoGradeResultVO r = runAutoGrade(1L, "{\"100\":\"A\"}");
+        assertEquals(0, r.getCorrectCount());
     }
 
     @Test
@@ -208,8 +209,8 @@ class ExamSessionGradingServiceBoostTest {
         q.setType("SINGLE_CHOICE");
         q.setCorrectAnswers("A");
         when(questionService.listByIds(any())).thenReturn(List.of(q));
-        Map<String, Object> r = runAutoGrade(1L, "{\"100\":\"A\"}");
-        assertEquals(1, r.get("correctCount"));
+        AutoGradeResultVO r = runAutoGrade(1L, "{\"100\":\"A\"}");
+        assertEquals(1, r.getCorrectCount());
     }
 
     // ===== manualGrade =====

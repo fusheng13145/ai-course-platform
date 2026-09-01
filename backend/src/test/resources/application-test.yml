@@ -2,6 +2,10 @@
 # 数据源与 Redis 的连接坐标由 AbstractIntegrationTest 的 @DynamicPropertySource 动态注入，
 # 此处仅覆盖测试相关的行为开关，禁用会阻塞上下文启动或产生外部副作用的组件。
 spring:
+  # 数据库迁移：测试环境禁用 Flyway，保持 sql.init 用 index.sql 重建（防双重初始化）
+  flyway:
+    enabled: false
+
   # 关闭热部署（测试环境无意义，且会干扰类加载）
   devtools:
     restart:

@@ -7,6 +7,7 @@ import com.aicourse.service.LearningRecordService;
 import com.aicourse.service.SubmissionService;
 import com.aicourse.service.TaskService;
 import com.aicourse.service.WrongQuestionService;
+import com.aicourse.vo.DailyLearningStatVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -553,13 +554,13 @@ class StudentControllerTest extends ControllerTestBase {
     @DisplayName("GET /student/progress/calendar - STUDENT 获取学习日历返回 code=200 且为数组")
     void getProgressCalendar_authorized_passes_security() throws Exception {
         when(learningRecordService.getMonthlyLearningData(anyLong(), anyInt(), anyInt()))
-                .thenReturn(List.of(Map.of("day", 1)));
+                .thenReturn(List.of(new DailyLearningStatVO("2024-01-01", 30, 1)));
 
         mockMvc.perform(get("/student/progress/calendar?year=1&month=1").with(withUser(1L, "STUDENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data[0].day").value(1));
+                .andExpect(jsonPath("$.data[0].date").value("2024-01-01"));
 
         verify(learningRecordService).getMonthlyLearningData(eq(1L), eq(1), eq(1));
     }
@@ -585,7 +586,7 @@ class StudentControllerTest extends ControllerTestBase {
     @DisplayName("GET /student/progress/statistics - STUDENT 获取学习统计返回 code=200 且为数组")
     void getProgressStatistics_authorized_passes_security() throws Exception {
         when(learningRecordService.getLearningTrend(anyLong(), anyInt()))
-                .thenReturn(List.of(Map.of("date", "2024-01-01")));
+                .thenReturn(List.of(new DailyLearningStatVO("2024-01-01", 0, 0)));
 
         mockMvc.perform(get("/student/progress/statistics?days=1").with(withUser(1L, "STUDENT")))
                 .andExpect(status().isOk())

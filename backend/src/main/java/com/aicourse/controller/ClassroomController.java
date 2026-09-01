@@ -9,6 +9,9 @@ import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.Classroom;
 import com.aicourse.entity.User;
 import com.aicourse.service.ClassroomService;
+import com.aicourse.vo.ClassroomDetailVO;
+import com.aicourse.vo.ClassroomPendingCountVO;
+import com.aicourse.vo.ClassroomStatsVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -61,8 +64,8 @@ public class ClassroomController {
      * @return 班级详情信息
      */
     @GetMapping("/{id}/detail")
-    public ApiResponse<Map<String, Object>> getDetail(@PathVariable Long id) {
-        Map<String, Object> detail = classroomService.getClassroomDetail(id);
+    public ApiResponse<ClassroomDetailVO> getDetail(@PathVariable Long id) {
+        ClassroomDetailVO detail = classroomService.getClassroomDetail(id);
         return ApiResponse.success(detail);
     }
 
@@ -155,8 +158,8 @@ public class ClassroomController {
      * @return 统计信息
      */
     @GetMapping("/{id}/stats")
-    public ApiResponse<Map<String, Object>> getStats(@PathVariable Long id) {
-        Map<String, Object> stats = classroomService.getClassroomStats(id);
+    public ApiResponse<ClassroomStatsVO> getStats(@PathVariable Long id) {
+        ClassroomStatsVO stats = classroomService.getClassroomStats(id);
         return ApiResponse.success(stats);
     }
 
@@ -204,8 +207,8 @@ public class ClassroomController {
      * @return 列表项含 classroomId / classroomName / pendingCount
      */
     @GetMapping("/by-course/{courseId}/pending")
-    public ApiResponse<List<Map<String, Object>>> countPendingByCourse(@PathVariable Long courseId) {
-        List<Map<String, Object>> pending = classroomService.countPendingByCourse(courseId);
+    public ApiResponse<List<ClassroomPendingCountVO>> countPendingByCourse(@PathVariable Long courseId) {
+        List<ClassroomPendingCountVO> pending = classroomService.countPendingByCourse(courseId);
         return ApiResponse.success(pending);
     }
 }

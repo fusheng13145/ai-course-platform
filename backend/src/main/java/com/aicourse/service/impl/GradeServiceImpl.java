@@ -9,6 +9,8 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.GradeItemMapper;
 import com.aicourse.mapper.GradePolicyMapper;
 import com.aicourse.service.GradeService;
+import com.aicourse.vo.FinalGradeVO;
+import com.aicourse.vo.GradeComponentDetailVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -116,7 +118,7 @@ public class GradeServiceImpl extends ServiceImpl<GradePolicyMapper, GradePolicy
 
     /** 计算成绩 */
     @Override
-    public Map<String, Object> computeFinal(Long policyId, Long studentId) {
+    public FinalGradeVO computeFinal(Long policyId, Long studentId) {
         GradePolicy policy = this.getById(policyId);
         if (policy == null) {
             throw new BusinessException("成绩方案不存在");
@@ -128,7 +130,7 @@ public class GradeServiceImpl extends ServiceImpl<GradePolicyMapper, GradePolicy
         Map<String, GradeItem> itemMap = items.stream()
                 .collect(Collectors.toMap(GradeItem::getComponentKey, i -> i, (a, b) -> a));
 
-        List<Map<String, Object>> detail = new ArrayList<>();
+        List<GradeComponentDetailVO> detail = new ArrayList<>();
         BigDecimal finalScore = BigDecimal.ZERO;
         for (Map<String, Object> c : comps) {
             String key = (String) c.get("key");
@@ -139,26 +141,16 @@ public class GradeServiceImpl extends ServiceImpl<GradePolicyMapper, GradePolicy
             BigDecimal contribution = s.multiply(BigDecimal.valueOf(weight))
                     .divide(BigDecimal.valueOf(100), 4, RoundingMode.HALF_UP);
             finalScore = finalScore.add(contribution);
-            Map<String, Object> d = new LinkedHashMap<>();
-            d.put("key", key);
-            d.put("name", name);
-            d.put("weight", weight);
-            d.put("score", s);
-            d.put("contribution", contribution);
-            detail.add(d);
+            detail.add(new GradeComponentDetailVO(key, name, weight, s, contribution));
         }
-        Map<String, Object> res = new LinkedHashMap<>();
-        res.put("policyId", policyId);
-        res.put("studentId", studentId);
-        res.put("components", detail);
-        res.put("finalScore", finalScore.setScale(2, RoundingMode.HALF_UP));
-        return res;
+        return new FinalGradeVO(policyId, studentId, detail,
+                finalScore.setScale(2, RoundingMode.HALF_UP));
     }
 
 
     /** 成绩相关操作 */
     @Override
-    public List<Map<String, Object>> courseReport(Long courseId) {
+    public List<FinalGradeVO> courseReport(Long courseId) {
         GradePolicy policy = getPolicy(courseId);
         if (policy == null) {
             throw new BusinessException("课程尚未配置成绩方案");
@@ -170,11 +162,11 @@ public class GradeServiceImpl extends ServiceImpl<GradePolicyMapper, GradePolicy
                 .map(GradeItem::getStudentId)
                 .filter(Objects::nonNull)
                 .collect(Collectors.toCollection(LinkedHashSet::new));
-        List<Map<String, Object>> res = new ArrayList<>();
+        List<FinalGradeVO> res = new ArrayList<>();
         for (Long sid : studentIds) {
             res.add(computeFinal(policy.getId(), sid));
         }
-        res.sort((a, b) -> ((BigDecimal) b.get("finalScore")).compareTo((BigDecimal) a.get("finalScore")));
+        res.sort((a, b) -> b.getFinalScore().compareTo(a.getFinalScore()));
         return res;
     }
 

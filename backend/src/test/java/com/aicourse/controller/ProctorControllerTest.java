@@ -3,6 +3,7 @@ import com.aicourse.controller.ProctorController;
 import com.aicourse.entity.ProctorEvent;
 import com.aicourse.entity.ProctorSession;
 import com.aicourse.service.ProctorService;
+import com.aicourse.vo.ProctorRiskSummaryVO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -198,8 +199,8 @@ class ProctorControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /proctor/exam/1/risk - TEACHER 查询风险汇总返回 code=200 且为数组")
     void risk_authorized_passes_security() throws Exception {
-        Map<String, Object> row = Map.of("studentId", 1, "riskScore", 10);
-        when(proctorService.riskSummary(anyLong())).thenReturn(List.of(row));
+        when(proctorService.riskSummary(anyLong())).thenReturn(
+                List.of(new ProctorRiskSummaryVO(1L, 1L, "ACTIVE", 10, "LOW", 0, Map.of())));
 
         mockMvc.perform(get("/proctor/exam/1/risk").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
@@ -230,12 +231,12 @@ class ProctorControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /proctor/thresholds - TEACHER 读取阈值返回 code=200 且字段透传")
     void getThresholds_authorized_passes_security() throws Exception {
-        when(proctorService.getThresholds()).thenReturn(Map.of("faceThreshold", 0.8, "mediumThreshold", 0.5));
+        when(proctorService.getThresholds()).thenReturn(new com.aicourse.vo.ProctorThresholdVO(6, 3, 1, 2, 3));
 
         mockMvc.perform(get("/proctor/thresholds").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.faceThreshold").value(0.8));
+                .andExpect(jsonPath("$.data.high").value(6));
 
         verify(proctorService).getThresholds();
     }

@@ -5,6 +5,7 @@ import com.aicourse.entity.Resource;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.ResourceService;
+import com.aicourse.vo.ChapterResourceTreeVO;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -59,11 +60,12 @@ class ResourceControllerCoverageTest {
         Resource r = makeResource("/uploads/r.txt", 10L);
         lenient().when(resourceService.getById(anyLong())).thenReturn(r);
         lenient().when(resourceService.list(any(LambdaQueryWrapper.class))).thenReturn(List.of(r));
-        lenient().when(resourceService.getResourceTree(any())).thenReturn(List.of(Map.of("id", 1)));
+        lenient().when(resourceService.getResourceTree(any())).thenReturn(
+                List.of(new ChapterResourceTreeVO(1L, Collections.emptyList())));
         Page<Resource> p = new Page<>(1, 10);
         p.setRecords(List.of(r));
         lenient().when(resourceService.searchResources(any(), any(), anyInt(), anyInt())).thenReturn(p);
-        lenient().when(resourceService.getResourceStats(any())).thenReturn(Map.of("count", 1));
+        lenient().when(resourceService.getResourceStats(any())).thenReturn(new com.aicourse.vo.ResourceStatsVO(0L, 0L, Map.of()));
         lenient().when(resourceService.getResourcesByChapter(any(), any())).thenReturn(List.of(r));
         lenient().doNothing().when(resourceService).toggleVisibility(anyLong(), anyBoolean());
         lenient().when(resourceService.save(any())).thenReturn(true);

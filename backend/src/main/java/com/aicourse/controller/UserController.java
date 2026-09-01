@@ -11,6 +11,7 @@ import com.aicourse.dto.UserUpdateDTO;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.UserService;
+import com.aicourse.vo.UserStatsVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -136,10 +137,10 @@ public class UserController {
     @GetMapping("/{id}/stats")
     @PreAuthorize("#id == authentication.principal or hasRole('ADMIN')")
     @Operation(summary = "获取用户统计数据")
-    public ApiResponse<Map<String, Object>> getUserStats(@PathVariable Long id, Authentication auth) {
-        Map<String, Object> stats = userService.getUserStats(id);
-        if (!id.equals((Long) auth.getPrincipal()) && stats.get("email") != null) {
-            stats.put("email", maskEmail((String) stats.get("email")));
+    public ApiResponse<UserStatsVO> getUserStats(@PathVariable Long id, Authentication auth) {
+        UserStatsVO stats = userService.getUserStats(id);
+        if (!id.equals((Long) auth.getPrincipal()) && stats.getEmail() != null) {
+            stats.setEmail(maskEmail(stats.getEmail()));
         }
         return ApiResponse.success(stats);
     }

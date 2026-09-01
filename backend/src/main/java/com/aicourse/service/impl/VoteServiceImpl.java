@@ -11,6 +11,7 @@ import com.aicourse.mapper.CourseMapper;
 import com.aicourse.mapper.VoteMapper;
 import com.aicourse.mapper.VoteRecordMapper;
 import com.aicourse.service.VoteService;
+import com.aicourse.vo.VoteResultVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -150,7 +151,7 @@ public class VoteServiceImpl extends ServiceImpl<VoteMapper, Vote> implements Vo
 
     /** 投票相关操作 */
     @Override
-    public Map<String, Object> result(Long id) {
+    public VoteResultVO result(Long id) {
         Vote vote = getDetail(id);
         LambdaQueryWrapper<VoteRecord> qw = new LambdaQueryWrapper<VoteRecord>()
                 .eq(VoteRecord::getVoteId, id);
@@ -178,12 +179,7 @@ public class VoteServiceImpl extends ServiceImpl<VoteMapper, Vote> implements Vo
                 textAnswers.add(r.getTextAnswer());
             }
         }
-        Map<String, Object> res = new LinkedHashMap<>();
-        res.put("total", (long) records.size());
-        res.put("counts", counts);
-        res.put("textAnswers", textAnswers);
-        res.put("mode", vote.getVoteMode());
-        return res;
+        return new VoteResultVO((long) records.size(), counts, textAnswers, vote.getVoteMode());
     }
 
 

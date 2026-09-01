@@ -2,6 +2,7 @@ package com.aicourse.service;
 
 import com.aicourse.entity.Question;
 import com.aicourse.entity.WrongQuestion;
+import com.aicourse.vo.WrongQuestionStatsVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import java.util.List;
 import java.util.Map;
@@ -86,9 +87,9 @@ public interface WrongQuestionService extends com.baomidou.mybatisplus.extension
      * 错题统计
      * @param studentId 学生ID
      * @param courseId 课程ID（可选）
-     * @return 统计信息Map
+     * @return 统计信息
      */
-    Map<String, Object> getWrongQuestionStats(Long studentId, Long courseId);
+    WrongQuestionStatsVO getWrongQuestionStats(Long studentId, Long courseId);
 
     /**
      * 生成错题练习卷（随机选取N道未掌握错题对应的题目）

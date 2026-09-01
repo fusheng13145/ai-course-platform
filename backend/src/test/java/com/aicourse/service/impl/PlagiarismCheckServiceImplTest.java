@@ -169,14 +169,14 @@ class PlagiarismCheckServiceImplTest {
 
         when(plagiarismMatchService.list(any(LambdaQueryWrapper.class))).thenReturn(List.of(match));
 
-        Map<String, Object> result = plagiarismCheckService.getCheckResult(1L);
+        com.aicourse.vo.PlagiarismCheckResultVO result = plagiarismCheckService.getCheckResult(1L);
 
         assertNotNull(result);
-        assertEquals(testCheck, result.get("checkInfo"));
-        assertEquals(testCheck.getSimilarityScore(), result.get("similarityScore"));
-        assertEquals(2, result.get("highSimilarityCount"));
-        assertNotNull(result.get("matches"));
-        assertEquals("Jaccard-CJKBigram-v2.0", result.get("algorithmVersion"));
+        assertEquals(testCheck, result.getCheckInfo());
+        assertEquals(testCheck.getSimilarityScore(), result.getSimilarityScore());
+        assertEquals(2, result.getHighSimilarityCount());
+        assertNotNull(result.getMatches());
+        assertEquals("Jaccard-CJKBigram-v2.0", result.getAlgorithmVersion());
     }
 
     @Test

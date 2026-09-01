@@ -2,6 +2,7 @@ package com.aicourse.service.impl;
 
 import com.aicourse.entity.LearningRecord;
 import com.aicourse.mapper.LearningRecordMapper;
+import com.aicourse.vo.DailyLearningStatVO;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -85,12 +86,12 @@ class LearningRecordServiceImplTest {
     @DisplayName("getLearningTrend 默认 7 天")
     void trend_defaultDays() {
         when(learningRecordMapper.selectList(any())).thenReturn(Collections.emptyList());
-        List<Map<String, Object>> t = service.getLearningTrend(1L, 0);
+        List<DailyLearningStatVO> t = service.getLearningTrend(1L, 0);
         assertEquals(7, t.size());
-        for (Map<String, Object> d : t) {
-            assertTrue(d.containsKey("date"));
-            assertTrue(d.containsKey("duration"));
-            assertTrue(d.containsKey("count"));
+        for (DailyLearningStatVO d : t) {
+            assertNotNull(d.getDate());
+            assertNotNull(d.getDuration());
+            assertNotNull(d.getCount());
         }
     }
 
@@ -100,12 +101,12 @@ class LearningRecordServiceImplTest {
         LocalDate today = LocalDate.now();
         LearningRecord r = rec(1L, 10L, 20, null, today.atStartOfDay());
         when(learningRecordMapper.selectList(any())).thenReturn(List.of(r));
-        List<Map<String, Object>> t = service.getLearningTrend(1L, 3);
+        List<DailyLearningStatVO> t = service.getLearningTrend(1L, 3);
         assertEquals(3, t.size());
-        Map<String, Object> todayEntry = t.get(t.size() - 1);
-        assertEquals(today.toString(), todayEntry.get("date"));
-        assertEquals(20, todayEntry.get("duration"));
-        assertEquals(1, todayEntry.get("count"));
+        DailyLearningStatVO todayEntry = t.get(t.size() - 1);
+        assertEquals(today.toString(), todayEntry.getDate());
+        assertEquals(20, todayEntry.getDuration());
+        assertEquals(1, todayEntry.getCount());
     }
 
     // ===== getMonthlyLearningData =====
@@ -117,12 +118,12 @@ class LearningRecordServiceImplTest {
         LocalDate d = LocalDate.of(year, month, 1);
         LearningRecord r = rec(1L, 10L, 12, null, d.atStartOfDay());
         when(learningRecordMapper.selectList(any())).thenReturn(List.of(r));
-        List<Map<String, Object>> m = service.getMonthlyLearningData(1L, year, month);
+        List<DailyLearningStatVO> m = service.getMonthlyLearningData(1L, year, month);
         int daysInMonth = YearMonth.of(year, month).lengthOfMonth();
         assertEquals(daysInMonth, m.size());
-        Map<String, Object> first = m.get(0);
-        assertEquals(d.atStartOfDay().toLocalDate().toString(), first.get("date"));
-        assertEquals(12, first.get("duration"));
-        assertEquals(1, first.get("count"));
+        DailyLearningStatVO first = m.get(0);
+        assertEquals(d.atStartOfDay().toLocalDate().toString(), first.getDate());
+        assertEquals(12, first.getDuration());
+        assertEquals(1, first.getCount());
     }
 }

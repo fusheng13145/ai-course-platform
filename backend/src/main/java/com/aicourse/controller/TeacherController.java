@@ -10,6 +10,7 @@ import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.*;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.*;
+import com.aicourse.vo.*;
 import com.aicourse.util.ExcelUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -317,20 +318,20 @@ public class TeacherController {
     /** JSON 批量导入题目（兼容保留，推荐改用 Excel 导入） */
     @PostMapping("/questions/import")
     @Operation(summary = "批量导入题目", description = "JSON 批量导入（兼容保留）；Excel(.xlsx) 批量导入请使用 /teacher/questions/import-excel")
-    public ApiResponse<Map<String, Object>> importQuestions(@Valid @RequestBody List<Question> questions) {
+    public ApiResponse<TeacherImportResultVO> importQuestions(@Valid @RequestBody List<Question> questions) {
         int count = 0;
         for (Question q : questions) {
             questionService.save(q);
             count++;
         }
-        return ApiResponse.success("导入完成", Map.of("importedCount", count));
+        return ApiResponse.success("导入完成", new TeacherImportResultVO(count, null));
     }
 
     /** 上传 Excel 批量导入题目（需 .xlsx，可选指定归属课程） */
     @PostMapping(value = "/questions/import-excel", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     @Operation(summary = "Excel 批量导入题目",
             description = "上传 .xlsx 文件批量导入题目（表头：题型/题干/选项(JSON)/正确答案/难度/分值/知识点/解析），courseId 可指定归属课程")
-    public ApiResponse<Map<String, Object>> importQuestionsExcel(
+    public ApiResponse<TeacherImportResultVO> importQuestionsExcel(
             @Parameter(description = "Excel 文件(.xlsx)") @RequestParam("file") MultipartFile file,
             @Parameter(description = "归属课程ID（可选）") @RequestParam(required = false) Long courseId,
             Authentication auth) throws IOException {
@@ -357,7 +358,7 @@ public class TeacherController {
                 imported++;
             }
         }
-        return ApiResponse.success("导入完成", Map.of("importedCount", imported, "total", questions.size()));
+        return ApiResponse.success("导入完成", new TeacherImportResultVO(imported, questions.size()));
     }
 
     /** 导出题库为 Excel 文件（可按课程筛选） */
@@ -397,9 +398,9 @@ public class TeacherController {
     /** 获取作业学情分析（需作业归属校验） */
     @GetMapping("/analytics/assignments/{assignmentId}")
     @Operation(summary = "获取作业学情分析")
-    public ApiResponse<Map<String, Object>> getAssignmentAnalytics(@PathVariable Long assignmentId, Authentication auth) {
+    public ApiResponse<TaskCompletionStatsVO> getAssignmentAnalytics(@PathVariable Long assignmentId, Authentication auth) {
         assertTaskOwner(assignmentId, auth);
-        Map<String, Object> stats = taskService.getTaskCompletionStats(assignmentId);
+        TaskCompletionStatsVO stats = taskService.getTaskCompletionStats(assignmentId);
         return ApiResponse.success(stats);
     }
 

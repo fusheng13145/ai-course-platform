@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.LearningRecord;
 import com.aicourse.service.LearningRecordService;
+import com.aicourse.vo.DailyLearningStatVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -80,11 +81,11 @@ public class LearningRecordController {
      * @return 趋势数据列表
      */
     @GetMapping("/trend")
-    public ApiResponse<List<Map<String, Object>>> getTrend(
+    public ApiResponse<List<DailyLearningStatVO>> getTrend(
             Authentication auth,
             @RequestParam(defaultValue = "7") int days) {
         Long userId = (Long) auth.getPrincipal();
-        List<Map<String, Object>> trend = learningRecordService.getLearningTrend(userId, days);
+        List<DailyLearningStatVO> trend = learningRecordService.getLearningTrend(userId, days);
         return ApiResponse.success(trend);
     }
 
@@ -96,12 +97,12 @@ public class LearningRecordController {
      * @return 每日学习数据
      */
     @GetMapping("/calendar")
-    public ApiResponse<List<Map<String, Object>>> getCalendarData(
+    public ApiResponse<List<DailyLearningStatVO>> getCalendarData(
             Authentication auth,
             @RequestParam int year,
             @RequestParam int month) {
         Long userId = (Long) auth.getPrincipal();
-        List<Map<String, Object>> calendarData = learningRecordService.getMonthlyLearningData(userId, year, month);
+        List<DailyLearningStatVO> calendarData = learningRecordService.getMonthlyLearningData(userId, year, month);
         return ApiResponse.success(calendarData);
     }
 }

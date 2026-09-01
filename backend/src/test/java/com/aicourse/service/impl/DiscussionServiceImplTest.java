@@ -94,8 +94,8 @@ class DiscussionServiceImplTest {
     void getTopicDetail_ok() {
         when(topicMapper.selectById(1L)).thenReturn(topic(1L, "OPEN"));
         when(postMapper.selectList(any())).thenReturn(List.of(post(1L)));
-        Map<String, Object> r = service.getTopicDetail(1L);
-        assertEquals(1, ((List<?>) r.get("posts")).size());
+        com.aicourse.vo.TopicDetailVO r = service.getTopicDetail(1L);
+        assertEquals(1, r.getPosts().size());
     }
 
     @Test
@@ -134,8 +134,8 @@ class DiscussionServiceImplTest {
         when(postLikeMapper.selectOne(any())).thenReturn(null);
         when(postLikeMapper.insert(any(DiscussionPostLike.class))).thenReturn(1);
         when(postMapper.updateById(any(DiscussionPost.class))).thenReturn(1);
-        Map<String, Object> r = service.likePost(1L, 2L);
-        assertEquals(true, r.get("liked"));
+        com.aicourse.vo.LikePostVO r = service.likePost(1L, 2L);
+        assertEquals(true, r.getLiked());
     }
 
     @Test
@@ -149,8 +149,8 @@ class DiscussionServiceImplTest {
         when(postLikeMapper.selectOne(any())).thenReturn(like);
         when(postLikeMapper.deleteById(any(Long.class))).thenReturn(1);
         when(postMapper.updateById(any(DiscussionPost.class))).thenReturn(1);
-        Map<String, Object> r = service.likePost(1L, 2L);
-        assertEquals(false, r.get("liked"));
+        com.aicourse.vo.LikePostVO r = service.likePost(1L, 2L);
+        assertEquals(false, r.getLiked());
     }
 
     @Test

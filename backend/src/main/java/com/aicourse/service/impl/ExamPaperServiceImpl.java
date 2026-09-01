@@ -10,6 +10,10 @@ import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.NotificationService;
 import com.aicourse.service.QuestionService;
+import com.aicourse.vo.ExamPaperDetailVO;
+import com.aicourse.vo.ExamPaperQuestionItemVO;
+import com.aicourse.vo.ExamPaperStatsPaperVO;
+import com.aicourse.vo.ExamPaperStatsVO;
 import com.aicourse.dto.AutoComposeDTO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -48,7 +52,7 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
      */
     @Override
     @Cacheable(cacheNames = "examPapers", key = "#paperId")
-    public Map<String, Object> getExamPaperDetail(Long paperId) {
+    public ExamPaperDetailVO getExamPaperDetail(Long paperId) {
         ExamPaper examPaper = this.getById(paperId);
         if (examPaper == null) {
             throw new BusinessException("试卷不存在");
@@ -69,30 +73,17 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
                 : questionService.listByIds(questionIds).stream()
                         .collect(Collectors.toMap(Question::getId, q -> q, (a, b) -> a));
 
-        // 构建题目详情列表
-        List<Map<String, Object>> questionList = new ArrayList<>();
+        // 构建题目详情列表（结构化 VO，消除嵌套 Map）
+        List<ExamPaperQuestionItemVO> questionList = new ArrayList<>();
         for (ExamQuestion eq : examQuestions) {
             Question question = questionMap.get(eq.getQuestionId());
             if (question == null) {
                 continue;
             }
-            Map<String, Object> item = new HashMap<>();
-            item.put("id", eq.getId());
-            item.put("questionId", eq.getQuestionId());
-            item.put("orderIndex", eq.getOrderIndex());
-            item.put("points", eq.getPoints());
-            item.put("type", question.getType());
-            item.put("content", question.getContent());
-            item.put("options", question.getOptions());
-            item.put("difficulty", question.getDifficulty());
-            questionList.add(item);
+            questionList.add(new ExamPaperQuestionItemVO(eq, question));
         }
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("paper", examPaper);
-        result.put("questions", questionList);
-        result.put("questionCount", questionList.size());
-        return result;
+        return new ExamPaperDetailVO(examPaper, questionList, questionList.size());
     }
 
     /**
@@ -186,7 +177,7 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
      * 获取试卷统计（题型分布、分值分布）
      */
     @Override
-    public Map<String, Object> getPaperStatistics(Long paperId) {
+    public ExamPaperStatsVO getPaperStatistics(Long paperId) {
         ExamPaper examPaper = this.getById(paperId);
         if (examPaper == null) {
             throw new BusinessException("试卷不存在");
@@ -239,17 +230,9 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
             scoreDistribution.merge(scoreRange, 1, Integer::sum);
         }
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("paperInfo", Map.of(
-                "id", examPaper.getId(),
-                "title", examPaper.getTitle(),
-                "status", examPaper.getStatus()
-        ));
-        result.put("questionCount", questionCount);
-        result.put("totalPoints", totalPoints);
-        result.put("typeDistribution", typeDistribution);
-        result.put("scoreDistribution", scoreDistribution);
-        return result;
+        return new ExamPaperStatsVO(
+                new ExamPaperStatsPaperVO(examPaper.getId(), examPaper.getTitle(), examPaper.getStatus()),
+                questionCount, totalPoints, typeDistribution, scoreDistribution);
     }
 
     /**

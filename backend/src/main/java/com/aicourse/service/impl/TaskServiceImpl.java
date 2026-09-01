@@ -14,6 +14,7 @@ import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.NotificationService;
 import com.aicourse.service.SubmissionService;
 import com.aicourse.service.TaskService;
+import com.aicourse.vo.TaskCompletionStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.context.annotation.Lazy;
@@ -184,7 +185,7 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
      * 统计任务完成率
      */
     @Override
-    public Map<String, Object> getTaskCompletionStats(Long taskId) {
+    public TaskCompletionStatsVO getTaskCompletionStats(Long taskId) {
         Task task = this.getById(taskId);
         if (task == null) {
             throw new BusinessException("任务不存在");
@@ -256,19 +257,9 @@ public class TaskServiceImpl extends ServiceImpl<TaskMapper, Task> implements Ta
             completionRate = Math.round((double) submittedStudentCount / enrolledCount * 10000.0) / 100.0;
         }
 
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("taskId", taskId);
-        stats.put("taskTitle", task.getTitle());
-        stats.put("totalSubmissions", totalSubmissions);
-        stats.put("pendingReview", submittedCount); // 待批阅数量
-        stats.put("gradedCount", gradedCount);
-        stats.put("returnedCount", returnedCount);
-        stats.put("lateCount", lateCount);
-        stats.put("averageScore", avgScore);
-        stats.put("completionRate", completionRate);
-        stats.put("dueDate", task.getDueDate());
-        stats.put("status", task.getStatus());
-
-        return stats;
+        // pendingReview 对应待批阅数量（SUBMITTED / RESUBMITTED 状态提交数）
+        return new TaskCompletionStatsVO(taskId, task.getTitle(), totalSubmissions, submittedCount,
+                gradedCount, returnedCount, lateCount, avgScore, completionRate,
+                task.getDueDate(), task.getStatus());
     }
 }

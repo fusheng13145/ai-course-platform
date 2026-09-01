@@ -1,6 +1,7 @@
 package com.aicourse.service;
 
 import com.aicourse.entity.ExamSession;
+import com.aicourse.vo.AutoGradeResultVO;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.math.BigDecimal;
@@ -50,7 +51,7 @@ public interface ExamSessionService extends IService<ExamSession> {
      * @param sessionId 会话ID
      * @return 阅卷结果
      */
-    Map<String, Object> autoGrade(Long sessionId);
+    AutoGradeResultVO autoGrade(Long sessionId);
 
     /**
      * 人工阅卷（主观题）

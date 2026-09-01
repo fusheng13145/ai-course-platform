@@ -3,6 +3,7 @@ package com.aicourse.service.impl;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.mapper.KnowledgePointMapper;
+import com.aicourse.vo.KnowledgeTreeNodeVO;
 import com.aicourse.service.KnowledgePointRelationService;
 import com.aicourse.service.QuestionService;
 import com.aicourse.service.WrongQuestionService;
@@ -89,24 +90,23 @@ class KnowledgePointServiceTest {
     void testGetKnowledgeTree() {
         List<KnowledgePoint> allPoints = Arrays.asList(rootPoint, childPoint);
         when(mapper.selectList(any())).thenReturn(allPoints);
-        List<Map<String, Object>> tree = service.getKnowledgeTree(100L);
+        List<KnowledgeTreeNodeVO> tree = service.getKnowledgeTree(100L);
         assertNotNull(tree);
         assertEquals(1, tree.size());
-        Map<String, Object> rootNode = tree.get(0);
-        assertEquals(1L, rootNode.get("id"));
-        assertEquals("Root Point", rootNode.get("name"));
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> children = (List<Map<String, Object>>) rootNode.get("children");
+        KnowledgeTreeNodeVO rootNode = tree.get(0);
+        assertEquals(1L, rootNode.getId());
+        assertEquals("Root Point", rootNode.getName());
+        List<KnowledgeTreeNodeVO> children = rootNode.getChildren();
         assertNotNull(children);
         assertEquals(1, children.size());
-        assertEquals(2L, children.get(0).get("id"));
+        assertEquals(2L, children.get(0).getId());
     }
 
     @Test
     @DisplayName("获取知识树-课程无知识点返回空列表")
     void testGetKnowledgeTree_Empty() {
         when(mapper.selectList(any())).thenReturn(Collections.emptyList());
-        List<Map<String, Object>> tree = service.getKnowledgeTree(999L);
+        List<KnowledgeTreeNodeVO> tree = service.getKnowledgeTree(999L);
         assertNotNull(tree);
         assertTrue(tree.isEmpty());
     }

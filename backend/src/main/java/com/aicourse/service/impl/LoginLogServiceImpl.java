@@ -6,6 +6,10 @@ import org.slf4j.LoggerFactory;
 import com.aicourse.entity.LoginLog;
 import com.aicourse.mapper.LoginLogMapper;
 import com.aicourse.service.LoginLogService;
+import com.aicourse.vo.AbnormalLoginVO;
+import com.aicourse.vo.DailyLoginTrendVO;
+import com.aicourse.vo.LoginGlobalStatsVO;
+import com.aicourse.vo.LoginStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -43,52 +47,39 @@ public class LoginLogServiceImpl extends ServiceImpl<LoginLogMapper, LoginLog> i
      * 登录统计（成功/失败次数、最后登录时间等）
      */
     @Override
-    public Map<String, Object> getLoginStats(Long userId) {
-        Map<String, Object> stats = new HashMap<>();
-
+    public LoginStatsVO getLoginStats(Long userId) {
         // 查询该用户所有登录日志
-        LambdaQueryWrapper<LoginLog> allWrapper = new LambdaQueryWrapper<LoginLog>()
-                .eq(LoginLog::getUserId, userId);
-        List<LoginLog> allLogs = this.list(allWrapper);
+        List<LoginLog> allLogs = this.list(new LambdaQueryWrapper<LoginLog>()
+                .eq(LoginLog::getUserId, userId));
 
-        // 总登录次数
+        // 总登录次数 / 成功 / 失败
         long totalCount = allLogs.size();
-        stats.put("totalCount", totalCount);
-
-        // 成功次数
         long successCount = allLogs.stream()
                 .filter(log -> "SUCCESS".equals(log.getLoginStatus()))
                 .count();
-        stats.put("successCount", successCount);
-
-        // 失败次数
         long failedCount = totalCount - successCount;
-        stats.put("failedCount", failedCount);
 
-        // 成功率
+        // 成功率（百分比，保留两位小数）
         double successRate = totalCount > 0 ? (double) successCount / totalCount * 100 : 0;
-        stats.put("successRate", Math.round(successRate * 100.0) / 100.0);
+        successRate = Math.round(successRate * 100.0) / 100.0;
 
-        // 最后登录时间（最近一次成功的登录）
+        // 最近一次成功登录
         Optional<LoginLog> lastSuccessLog = allLogs.stream()
                 .filter(log -> "SUCCESS".equals(log.getLoginStatus()))
                 .max(Comparator.comparing(LoginLog::getCreatedAt));
-        lastSuccessLog.ifPresent(log -> stats.put("lastLoginTime", log.getCreatedAt()));
+        LocalDateTime lastLoginTime = lastSuccessLog.map(LoginLog::getCreatedAt).orElse(null);
+        String lastLoginIp = lastSuccessLog.map(LoginLog::getIpAddress).orElse(null);
+        String lastLoginLocation = lastSuccessLog.map(LoginLog::getLocation).orElse(null);
 
-        // 最后登录IP
-        lastSuccessLog.ifPresent(log -> stats.put("lastLoginIp", log.getIpAddress()));
-
-        // 最后登录地点
-        lastSuccessLog.ifPresent(log -> stats.put("lastLoginLocation", log.getLocation()));
-
-        // 不同IP登录数量
-        Set<String> uniqueIps = allLogs.stream()
+        // 不同 IP 登录数量
+        long uniqueIpCount = allLogs.stream()
                 .map(LoginLog::getIpAddress)
                 .filter(Objects::nonNull)
-                .collect(Collectors.toSet());
-        stats.put("uniqueIpCount", uniqueIps.size());
+                .collect(Collectors.toSet())
+                .size();
 
-        return stats;
+        return new LoginStatsVO(totalCount, successCount, failedCount, successRate,
+                lastLoginTime, lastLoginIp, lastLoginLocation, uniqueIpCount);
     }
 
     /**
@@ -137,8 +128,8 @@ public class LoginLogServiceImpl extends ServiceImpl<LoginLogMapper, LoginLog> i
      * 统计指定日期范围内每天的登录成功/失败次数
      */
     @Override
-    public List<Map<String, Object>> getLoginTrends(LocalDate start, LocalDate end) {
-        List<Map<String, Object>> trends = new ArrayList<>();
+    public List<DailyLoginTrendVO> getLoginTrends(LocalDate start, LocalDate end) {
+        List<DailyLoginTrendVO> trends = new ArrayList<>();
 
         try {
             // 查询日期范围内的所有登录日志
@@ -160,9 +151,6 @@ public class LoginLogServiceImpl extends ServiceImpl<LoginLogMapper, LoginLog> i
             // 遍历日期范围，生成每日统计数据
             LocalDate current = start;
             while (!current.isAfter(end)) {
-                Map<String, Object> dayStats = new HashMap<>();
-                dayStats.put("date", current.toString());
-
                 List<LoginLog> dayLogs = logsByDate.getOrDefault(current, new ArrayList<>());
 
                 long successCount = dayLogs.stream()
@@ -170,11 +158,8 @@ public class LoginLogServiceImpl extends ServiceImpl<LoginLogMapper, LoginLog> i
                         .count();
                 long failedCount = dayLogs.size() - successCount;
 
-                dayStats.put("successCount", successCount);
-                dayStats.put("failedCount", failedCount);
-                dayStats.put("totalCount", dayLogs.size());
-
-                trends.add(dayStats);
+                trends.add(new DailyLoginTrendVO(
+                        current.toString(), successCount, failedCount, dayLogs.size()));
                 current = current.plusDays(1);
             }
         } catch (Exception e) {
@@ -254,18 +239,13 @@ public class LoginLogServiceImpl extends ServiceImpl<LoginLogMapper, LoginLog> i
      * 异常登录检测（同账号短时间内多地登录 → 异常标记）
      */
     @Override
-    public Map<String, Object> detectAbnormalLogin(Long userId) {
-        Map<String, Object> result = new HashMap<>();
-        result.put("userId", userId);
-
+    public AbnormalLoginVO detectAbnormalLogin(Long userId) {
         // 查询该用户最近24小时内的所有登录记录
         LocalDateTime twentyFourHoursAgo = LocalDateTime.now().minusHours(24);
         List<LoginLog> recentLogs = this.list(new LambdaQueryWrapper<LoginLog>()
                 .eq(LoginLog::getUserId, userId)
                 .ge(LoginLog::getCreatedAt, twentyFourHoursAgo)
                 .orderByDesc(LoginLog::getCreatedAt));
-
-        result.put("recentLoginCount", recentLogs.size());
 
         // 检测IP变化
         Set<String> uniqueIps = recentLogs.stream()
@@ -317,15 +297,9 @@ public class LoginLogServiceImpl extends ServiceImpl<LoginLogMapper, LoginLog> i
             abnormalDetails.add("检测到凌晨时段登录(" + nightLogins + "次)");
         }
 
-        result.put("isAbnormal", isAbnormal);
-        result.put("abnormalDetails", abnormalDetails);
-        result.put("uniqueIpCount", uniqueIps.size());
-        result.put("uniqueLocationCount", uniqueLocations.size());
-        result.put("recentFailedCount", recentFailedCount);
-        result.put("recentSuccessCount", recentSuccessCount);
-        result.put("checkedAt", LocalDateTime.now());
-
-        return result;
+        return new AbnormalLoginVO(userId, recentLogs.size(), isAbnormal, abnormalDetails,
+                uniqueIps.size(), uniqueLocations.size(), recentFailedCount, recentSuccessCount,
+                LocalDateTime.now());
     }
 
     // ==================== 私有辅助方法 ====================
@@ -350,29 +324,22 @@ public class LoginLogServiceImpl extends ServiceImpl<LoginLogMapper, LoginLog> i
      * 获取全局登录统计数据
      */
     @Override
-    public Map<String, Object> getGlobalLoginStats() {
-        Map<String, Object> stats = new HashMap<>();
+    public LoginGlobalStatsVO getGlobalLoginStats() {
         // 安全的聚合查询：用 count 替代全表 list()
         long totalCount = this.count();
-        stats.put("totalCount", totalCount);
 
         long successCount = this.count(new LambdaQueryWrapper<LoginLog>()
                 .eq(LoginLog::getLoginStatus, "SUCCESS"));
-        stats.put("successCount", successCount);
-        stats.put("failedCount", totalCount - successCount);
-        stats.put("successRate", totalCount > 0 ? Math.round(successCount * 100.0 / totalCount * 100.0) / 100.0 : 0);
 
         LocalDateTime todayStart = LocalDate.now().atStartOfDay();
         long todayCount = this.count(new LambdaQueryWrapper<LoginLog>()
                 .ge(LoginLog::getCreatedAt, todayStart));
-        stats.put("todayCount", todayCount);
 
         LocalDateTime weekAgo = LocalDateTime.now().minusDays(7);
         long weekCount = this.count(new LambdaQueryWrapper<LoginLog>()
                 .ge(LoginLog::getCreatedAt, weekAgo));
-        stats.put("weekCount", weekCount);
 
-        // 各登录状态分布
+        // 各登录状态分布（仅保留数量大于 0 的状态）
         Map<String, Long> statusDist = new HashMap<>();
         String[] statuses = {"SUCCESS", "FAILED", "LOCKED", "EXPIRED"};
         for (String st : statuses) {
@@ -380,9 +347,10 @@ public class LoginLogServiceImpl extends ServiceImpl<LoginLogMapper, LoginLog> i
                     .eq(LoginLog::getLoginStatus, st));
             if (cnt > 0) statusDist.put(st, cnt);
         }
-        stats.put("statusDistribution", statusDist);
 
-        return stats;
+        return new LoginGlobalStatsVO(totalCount, successCount, totalCount - successCount,
+                totalCount > 0 ? Math.round(successCount * 100.0 / totalCount * 100.0) / 100.0 : 0,
+                todayCount, weekCount, statusDist);
     }
 
     /**

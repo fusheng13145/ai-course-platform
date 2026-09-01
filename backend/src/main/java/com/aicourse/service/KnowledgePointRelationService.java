@@ -1,12 +1,12 @@
 package com.aicourse.service;
 
 import com.aicourse.entity.KnowledgePointRelation;
+import com.aicourse.vo.KnowledgeGraphDataVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 知识点关联关系服务接口
@@ -42,9 +42,9 @@ public interface KnowledgePointRelationService extends IService<KnowledgePointRe
     /**
      * 获取可视化图数据（节点+边，供前端ECharts/D3渲染）
      * @param courseId 课程ID
-     * @return 包含nodes和links的图数据Map
+     * @return 图数据（nodes / links）
      */
-    Map<String, Object> getGraphData(Long courseId);
+    KnowledgeGraphDataVO getGraphData(Long courseId);
 
     /**
      * 获取关联关系列表（分页，支持课程筛选）

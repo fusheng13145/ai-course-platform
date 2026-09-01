@@ -9,6 +9,7 @@ import com.aicourse.mapper.LearningPathMapper;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.LearningPathNodeService;
 import com.aicourse.service.WrongQuestionService;
+import com.aicourse.vo.LearningPathDetailVO;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -281,9 +282,9 @@ class LearningPathServiceImplBoostTest {
         when(learningPathMapper.selectById(anyLong())).thenReturn(p);
         when(nodeService.getPathNodes(anyLong())).thenReturn(new ArrayList<>());
         when(nodeService.getNodeStatusStats(anyLong())).thenReturn(new HashMap<>());
-        Map<String, Object> r = service.getPathDetail(1L);
-        assertTrue(r.containsKey("stagesRaw"));
-        assertTrue(r.containsKey("planDetailRaw"));
+        LearningPathDetailVO r = service.getPathDetail(1L);
+        assertNotNull(r.getStagesRaw());
+        assertNotNull(r.getPlanDetailRaw());
     }
 
     // ===== generatePath =====

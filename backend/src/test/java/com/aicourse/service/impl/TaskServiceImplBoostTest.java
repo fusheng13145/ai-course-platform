@@ -9,6 +9,7 @@ import com.aicourse.mapper.TaskMapper;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.NotificationService;
 import com.aicourse.service.SubmissionService;
+import com.aicourse.vo.TaskCompletionStatsVO;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -249,9 +250,9 @@ class TaskServiceImplBoostTest {
         t.setCourseId(null);
         when(taskMapper.selectById(any(Serializable.class))).thenReturn(t);
         when(submissionService.count(any())).thenReturn(0L);
-        Map<String, Object> r = service.getTaskCompletionStats(1L);
-        assertEquals(0.0, r.get("averageScore"));
-        assertEquals(0.0, r.get("completionRate"));
+        TaskCompletionStatsVO r = service.getTaskCompletionStats(1L);
+        assertEquals(0.0, r.getAverageScore());
+        assertEquals(0.0, r.getCompletionRate());
     }
 
     @Test
@@ -270,8 +271,8 @@ class TaskServiceImplBoostTest {
         s2.setScore(new java.math.BigDecimal("90"));
         when(submissionService.list(any(Wrapper.class))).thenReturn(List.of(s1, s2));
         when(courseEnrollmentService.count(any())).thenReturn(4L);
-        Map<String, Object> r = service.getTaskCompletionStats(1L);
-        assertEquals(85.0, r.get("averageScore"));
-        assertEquals(50.0, r.get("completionRate"));
+        TaskCompletionStatsVO r = service.getTaskCompletionStats(1L);
+        assertEquals(85.0, r.getAverageScore());
+        assertEquals(50.0, r.getCompletionRate());
     }
 }

@@ -5,6 +5,9 @@ import jakarta.validation.Valid;
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.service.AuthService;
+import com.aicourse.vo.FeatureItemVO;
+import com.aicourse.vo.FeatureRoadmapVO;
+import com.aicourse.vo.UploadResultVO;
 import com.aicourse.service.FileStorageService;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
@@ -110,8 +113,8 @@ public class CommonController {
      */
     @PreAuthorize("isAuthenticated()")
     @PostMapping("/upload/batch")
-    public ApiResponse<List<Map<String, String>>> uploadBatch(@RequestParam("files") List<MultipartFile> files) {
-        List<Map<String, String>> results = new ArrayList<>();
+    public ApiResponse<List<UploadResultVO>> uploadBatch(@RequestParam("files") List<MultipartFile> files) {
+        List<UploadResultVO> results = new ArrayList<>();
         for (MultipartFile file : files) {
             if (file.isEmpty()) continue;
 
@@ -119,8 +122,7 @@ public class CommonController {
             String safeName = originalName != null ? originalName : "未命名文件";
             String ext = extractSafeExt(originalName);
             if (ext.isEmpty()) {
-                results.add(Map.of("url", "", "fileName", safeName, "size", "0",
-                        "error", "不支持的文件类型"));
+                results.add(new UploadResultVO("", safeName, "0", "不支持的文件类型"));
                 continue;
             }
 
@@ -128,12 +130,11 @@ public class CommonController {
             try {
                 String stored = fileStorageService.upload(objectName,
                         file.getInputStream(), file.getContentType(), file.getSize());
-                results.add(Map.of("url", "/uploads/" + stored,
-                        "fileName", safeName, "size", String.valueOf(file.getSize())));
+                results.add(new UploadResultVO("/uploads/" + stored,
+                        safeName, String.valueOf(file.getSize())));
             } catch (Exception e) {
                 log.error("批量上传失败: {}", objectName, e);
-                results.add(Map.of("url", "", "fileName", safeName, "size", "0",
-                        "error", "上传失败: " + e.getMessage()));
+                results.add(new UploadResultVO("", safeName, "0", "上传失败: " + e.getMessage()));
             }
         }
         return ApiResponse.success(results);
@@ -143,17 +144,14 @@ public class CommonController {
      * 获取功能路线图。
      */
     @GetMapping("/feature-roadmap")
-    public ApiResponse<Map<String, Object>> featureRoadmap() {
-        List<Map<String, String>> features = List.of(
-                Map.of("name", "课程管理", "status", "done"),
-                Map.of("name", "班级管理", "status", "done"),
-                Map.of("name", "用户管理", "status", "done"),
-                Map.of("name", "AI课程", "status", "partial"),
-                Map.of("name", "AI助手", "status", "partial")
+    public ApiResponse<FeatureRoadmapVO> featureRoadmap() {
+        List<FeatureItemVO> features = List.of(
+                new FeatureItemVO("课程管理", "done"),
+                new FeatureItemVO("班级管理", "done"),
+                new FeatureItemVO("用户管理", "done"),
+                new FeatureItemVO("AI课程", "partial"),
+                new FeatureItemVO("AI助手", "partial")
         );
-        return ApiResponse.success(Map.of(
-                "version", "1.0.0",
-                "features", features
-        ));
+        return ApiResponse.success(new FeatureRoadmapVO("1.0.0", features));
     }
 }

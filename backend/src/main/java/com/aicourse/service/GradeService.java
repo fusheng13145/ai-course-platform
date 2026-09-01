@@ -2,11 +2,11 @@ package com.aicourse.service;
 
 import com.aicourse.entity.GradeItem;
 import com.aicourse.entity.GradePolicy;
+import com.aicourse.vo.FinalGradeVO;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 过程性成绩（多维加权）服务
@@ -38,10 +38,10 @@ public interface GradeService extends IService<GradePolicy> {
     /**
      * 计算某学生最终加权总成绩（含各维度明细）
      */
-    Map<String, Object> computeFinal(Long policyId, Long studentId);
+    FinalGradeVO computeFinal(Long policyId, Long studentId);
 
     /**
      * 教师视角：课程全员最终成绩报表（按最终分倒序）
      */
-    List<Map<String, Object>> courseReport(Long courseId);
+    List<FinalGradeVO> courseReport(Long courseId);
 }

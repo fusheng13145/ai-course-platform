@@ -10,6 +10,8 @@ import com.aicourse.mapper.ProctorEventMapper;
 import com.aicourse.mapper.ProctorSessionMapper;
 import com.aicourse.service.ProctorService;
 import com.aicourse.service.SystemConfigService;
+import com.aicourse.vo.ProctorRiskSummaryVO;
+import com.aicourse.vo.ProctorThresholdVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.cache.annotation.CacheEvict;
@@ -158,25 +160,19 @@ public class ProctorServiceImpl extends ServiceImpl<ProctorSessionMapper, Procto
 
     /** 监考相关操作 */
     @Override
-    public List<Map<String, Object>> riskSummary(Long examSessionId) {
+    public List<ProctorRiskSummaryVO> riskSummary(Long examSessionId) {
         List<ProctorSession> sessions = this.list(new LambdaQueryWrapper<ProctorSession>()
                 .eq(ProctorSession::getExamSessionId, examSessionId));
-        List<Map<String, Object>> res = new ArrayList<>();
+        List<ProctorRiskSummaryVO> res = new ArrayList<>();
         for (ProctorSession s : sessions) {
-            Map<String, Object> m = new LinkedHashMap<>();
-            m.put("sessionId", s.getId());
-            m.put("studentId", s.getStudentId());
-            m.put("status", s.getStatus());
-            m.put("riskScore", s.getRiskScore());
-            m.put("riskLevel", s.getRiskLevel());
             List<ProctorEvent> evs = listEvents(s.getId());
-            m.put("eventCount", evs.size());
             Map<String, Long> typeCounts = new LinkedHashMap<>();
             for (ProctorEvent e : evs) {
                 typeCounts.merge(e.getType(), 1L, Long::sum);
             }
-            m.put("typeCounts", typeCounts);
-            res.add(m);
+            res.add(new ProctorRiskSummaryVO(
+                    s.getId(), s.getStudentId(), s.getStatus(),
+                    s.getRiskScore(), s.getRiskLevel(), evs.size(), typeCounts));
         }
         return res;
     }
@@ -185,14 +181,14 @@ public class ProctorServiceImpl extends ServiceImpl<ProctorSessionMapper, Procto
     /** 查询监考 */
     @Override
     @Cacheable(cacheNames = "proctor-config", key = "'thresholds'")
-    public Map<String, Object> getThresholds() {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("high", parseInt(systemConfigService.getConfigValueOrDefault(CFG_HIGH, String.valueOf(DEF_HIGH))));
-        m.put("medium", parseInt(systemConfigService.getConfigValueOrDefault(CFG_MEDIUM, String.valueOf(DEF_MEDIUM))));
-        m.put("weightLow", parseInt(systemConfigService.getConfigValueOrDefault(CFG_W_LOW, String.valueOf(DEF_W_LOW))));
-        m.put("weightMedium", parseInt(systemConfigService.getConfigValueOrDefault(CFG_W_MEDIUM, String.valueOf(DEF_W_MEDIUM))));
-        m.put("weightHigh", parseInt(systemConfigService.getConfigValueOrDefault(CFG_W_HIGH, String.valueOf(DEF_W_HIGH))));
-        return m;
+    public ProctorThresholdVO getThresholds() {
+        return new ProctorThresholdVO(
+                parseInt(systemConfigService.getConfigValueOrDefault(CFG_HIGH, String.valueOf(DEF_HIGH))),
+                parseInt(systemConfigService.getConfigValueOrDefault(CFG_MEDIUM, String.valueOf(DEF_MEDIUM))),
+                parseInt(systemConfigService.getConfigValueOrDefault(CFG_W_LOW, String.valueOf(DEF_W_LOW))),
+                parseInt(systemConfigService.getConfigValueOrDefault(CFG_W_MEDIUM, String.valueOf(DEF_W_MEDIUM))),
+                parseInt(systemConfigService.getConfigValueOrDefault(CFG_W_HIGH, String.valueOf(DEF_W_HIGH)))
+        );
     }
 
 
@@ -303,20 +299,20 @@ public class ProctorServiceImpl extends ServiceImpl<ProctorSessionMapper, Procto
     }
 
     private int severityWeight(String severity) {
-        Map<String, Object> t = getThresholds();
+        ProctorThresholdVO t = getThresholds();
         if (ProctorEvent.SEV_HIGH.equals(severity)) {
-            return (int) t.get("weightHigh");
+            return t.getWeightHigh();
         }
         if (ProctorEvent.SEV_MEDIUM.equals(severity)) {
-            return (int) t.get("weightMedium");
+            return t.getWeightMedium();
         }
-        return (int) t.get("weightLow");
+        return t.getWeightLow();
     }
 
     private String computeLevel(int score) {
-        Map<String, Object> t = getThresholds();
-        int high = (int) t.get("high");
-        int medium = (int) t.get("medium");
+        ProctorThresholdVO t = getThresholds();
+        int high = t.getHigh();
+        int medium = t.getMedium();
         if (score >= high) {
             return ProctorSession.LEVEL_HIGH;
         }

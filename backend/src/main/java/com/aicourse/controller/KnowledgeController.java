@@ -13,6 +13,11 @@ import com.aicourse.service.AIService;
 import com.aicourse.service.KnowledgeGraphService;
 import com.aicourse.service.KnowledgePointRelationService;
 import com.aicourse.service.KnowledgePointService;
+import com.aicourse.vo.KnowledgeGraphDataVO;
+import com.aicourse.vo.KnowledgeGraphVO;
+import com.aicourse.vo.KnowledgeOverviewVO;
+import com.aicourse.vo.KnowledgePointRelationsVO;
+import com.aicourse.vo.KnowledgeTreeNodeVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -152,7 +157,7 @@ public class KnowledgeController {
      * GET /api/knowledge/points/{id}/relations
      */
     @GetMapping("/points/{id}/relations")
-    public ApiResponse<Map<String, Object>> getPointRelations(@PathVariable Long id) {
+    public ApiResponse<KnowledgePointRelationsVO> getPointRelations(@PathVariable Long id) {
         LambdaQueryWrapper<KnowledgePointRelation> qw = new LambdaQueryWrapper<KnowledgePointRelation>()
                 .eq(KnowledgePointRelation::getSourceId, id)
                 .or()
@@ -166,10 +171,7 @@ public class KnowledgeController {
         }
         List<KnowledgePoint> nodes = knowledgePointService.listByIds(pointIdSet);
 
-        Map<String, Object> result = new HashMap<>();
-        result.put("nodes", nodes);
-        result.put("edges", relations);
-        return ApiResponse.success(result);
+        return ApiResponse.success(new KnowledgePointRelationsVO(nodes, relations));
     }
 
     /**
@@ -214,7 +216,7 @@ public class KnowledgeController {
      * GET /api/knowledge/points/tree/{courseId}
      */
     @GetMapping("/points/tree/{courseId}")
-    public ApiResponse<List<Map<String, Object>>> getKnowledgeTree(@PathVariable Long courseId) {
+    public ApiResponse<List<KnowledgeTreeNodeVO>> getKnowledgeTree(@PathVariable Long courseId) {
         return ApiResponse.success(knowledgePointService.getKnowledgeTree(courseId));
     }
 
@@ -233,18 +235,14 @@ public class KnowledgeController {
      */
     @GetMapping("/points/graph")
     @Operation(summary = "获取知识图谱全量数据", description = "返回课程知识点图谱的所有节点和边关系数据")
-    public ApiResponse<Map<String, Object>> getGraph(@RequestParam Long courseId) {
+    public ApiResponse<KnowledgeGraphVO> getGraph(@RequestParam Long courseId) {
         LambdaQueryWrapper<KnowledgePoint> pointWrapper = new LambdaQueryWrapper<KnowledgePoint>()
                 .eq(KnowledgePoint::getCourseId, courseId);
         List<KnowledgePoint> pointList = knowledgePointService.list(pointWrapper);
         List<KnowledgePointRelation> relationList = relationService.list();
 
-        Map<String, Object> dataMap = new HashMap<>();
-        dataMap.put("nodes", pointList);
-        dataMap.put("edges", relationList);
-        dataMap.put("totalPoints", pointList.size());
-        dataMap.put("totalRelations", relationList.size());
-        return ApiResponse.success(dataMap);
+        return ApiResponse.success(new KnowledgeGraphVO(
+                pointList, relationList, pointList.size(), relationList.size()));
     }
 
     // ==================== 知识点关联（/knowledge/relations） ====================
@@ -318,7 +316,7 @@ public class KnowledgeController {
      */
     @GetMapping("/relations/graph/{courseId}")
     @Operation(summary = "获取知识图谱可视化数据", description = "返回可供前端 ECharts/D3 渲染的图数据，包含节点和连接关系")
-    public ApiResponse<Map<String, Object>> getRelationGraphData(@PathVariable Long courseId) {
+    public ApiResponse<KnowledgeGraphDataVO> getRelationGraphData(@PathVariable Long courseId) {
         return ApiResponse.success(relationService.getGraphData(courseId));
     }
 
@@ -343,18 +341,14 @@ public class KnowledgeController {
      * GET /api/knowledge/overview
      */
     @GetMapping("/overview")
-    public ApiResponse<Map<String, Object>> overview(
+    public ApiResponse<KnowledgeOverviewVO> overview(
             @RequestParam(required = false) Long courseId) {
         LambdaQueryWrapper<KnowledgePoint> qw = new LambdaQueryWrapper<KnowledgePoint>()
                 .eq(courseId != null, KnowledgePoint::getCourseId, courseId);
         long totalPoints = knowledgePointService.count(qw);
         long totalRelations = relationService.count();
 
-        Map<String, Object> data = new HashMap<>();
-        data.put("totalPoints", totalPoints);
-        data.put("totalRelations", totalRelations);
-        data.put("courseId", courseId);
-        return ApiResponse.success(data);
+        return ApiResponse.success(new KnowledgeOverviewVO(totalPoints, totalRelations, courseId));
     }
 
 

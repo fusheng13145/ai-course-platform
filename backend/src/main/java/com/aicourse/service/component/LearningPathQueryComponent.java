@@ -5,6 +5,7 @@ import com.aicourse.entity.LearningPathNode;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.LearningPathMapper;
 import com.aicourse.service.LearningPathNodeService;
+import com.aicourse.vo.LearningPathDetailVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -13,7 +14,6 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
 
 import java.util.Collections;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -60,7 +60,7 @@ public class LearningPathQueryComponent {
      * 获取学习路径完整详情（含节点列表及统计信息）
      * 解析stages和dailyTasks的JSON字段并返回结构化数据
      */
-    public Map<String, Object> getPathDetail(Long pathId) {
+    public LearningPathDetailVO getPathDetail(Long pathId) {
         LearningPath path = learningPathMapper.selectById(pathId);
         if (path == null) {
             throw new BusinessException("学习路径不存在: " + pathId);
@@ -72,38 +72,36 @@ public class LearningPathQueryComponent {
         // 统计各状态节点数
         Map<String, Long> statusStats = nodeService.getNodeStatusStats(pathId);
 
-        Map<String, Object> detail = new LinkedHashMap<>();
-        detail.put("path", path);
-        detail.put("nodes", nodes);
-        detail.put("statusStats", statusStats);
-        detail.put("totalNodes", nodes.size());
-
-        // 解析stages JSON字段为结构化数据
+        // 解析stages JSON字段为结构化数据（stagesParsed 与 stagesRaw 互斥，null 即键缺失）
+        List<Map<String, Object>> stagesParsed = null;
+        String stagesRaw = null;
         if (path.getStages() != null && !path.getStages().isEmpty()) {
             try {
-                List<Map<String, Object>> stagesData = objectMapper.readValue(path.getStages(),
+                stagesParsed = objectMapper.readValue(path.getStages(),
                         new TypeReference<List<Map<String, Object>>>() {});
-                detail.put("stagesParsed", stagesData);
             } catch (Exception e) {
                 log.error("查询学习路径失败: {}", e.getMessage(), e);
                 // JSON解析失败时返回原始字符串
-                detail.put("stagesRaw", path.getStages());
+                stagesRaw = path.getStages();
             }
         }
 
-        // 解析planDetail JSON字段
+        // 解析planDetail JSON字段（planDetailParsed 与 planDetailRaw 互斥，null 即键缺失）
+        Map<String, Object> planDetailParsed = null;
+        String planDetailRaw = null;
         if (path.getPlanDetail() != null && !path.getPlanDetail().isEmpty()) {
             try {
-                Map<String, Object> planDetailData = objectMapper.readValue(path.getPlanDetail(),
+                planDetailParsed = objectMapper.readValue(path.getPlanDetail(),
                         new TypeReference<Map<String, Object>>() {});
-                detail.put("planDetailParsed", planDetailData);
             } catch (Exception e) {
                 log.error("查询学习路径失败: {}", e.getMessage(), e);
-                detail.put("planDetailRaw", path.getPlanDetail());
+                planDetailRaw = path.getPlanDetail();
             }
         }
 
-        return detail;
+        return new LearningPathDetailVO(
+                path, nodes, statusStats, nodes.size(),
+                stagesParsed, stagesRaw, planDetailParsed, planDetailRaw);
     }
 
     /**

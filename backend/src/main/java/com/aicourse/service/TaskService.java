@@ -1,11 +1,11 @@
 package com.aicourse.service;
 
 import com.aicourse.entity.Task;
+import com.aicourse.vo.TaskCompletionStatsVO;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
 
 /**
@@ -55,7 +55,7 @@ public interface TaskService extends IService<Task> {
     /**
      * 统计任务完成率
      * @param taskId 任务ID
-     * @return 统计数据
+     * @return 任务完成率统计
      */
-    Map<String, Object> getTaskCompletionStats(Long taskId);
+    TaskCompletionStatsVO getTaskCompletionStats(Long taskId);
 }

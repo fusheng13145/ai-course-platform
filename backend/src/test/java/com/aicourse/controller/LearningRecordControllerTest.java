@@ -2,6 +2,7 @@ package com.aicourse.controller;
 import com.aicourse.controller.LearningRecordController;
 import com.aicourse.entity.LearningRecord;
 import com.aicourse.service.LearningRecordService;
+import com.aicourse.vo.DailyLearningStatVO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -97,7 +98,7 @@ class LearningRecordControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /learning-records/trend?days=1 - 返回200且data为数组")
     void getTrend_authorized_returns_success() throws Exception {
-        when(learningRecordService.getLearningTrend(any(), anyInt())).thenReturn(List.of(Map.of("day", 1)));
+        when(learningRecordService.getLearningTrend(any(), anyInt())).thenReturn(List.of(new DailyLearningStatVO("2024-01-01", 0, 0)));
         mockMvc.perform(get("/learning-records/trend?days=1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
@@ -115,7 +116,7 @@ class LearningRecordControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /learning-records/calendar?year=1&month=1 - 返回200且data为数组")
     void getCalendarData_authorized_returns_success() throws Exception {
-        when(learningRecordService.getMonthlyLearningData(any(), anyInt(), anyInt())).thenReturn(List.of(Map.of("day", 1)));
+        when(learningRecordService.getMonthlyLearningData(any(), anyInt(), anyInt())).thenReturn(List.of(new DailyLearningStatVO("2024-01-01", 0, 0)));
         mockMvc.perform(get("/learning-records/calendar?year=1&month=1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))

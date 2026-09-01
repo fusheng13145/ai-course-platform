@@ -1,6 +1,7 @@
 package com.aicourse.service;
 
 import com.aicourse.entity.KnowledgePoint;
+import com.aicourse.vo.KnowledgeTreeNodeVO;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.math.BigDecimal;
@@ -18,7 +19,7 @@ public interface KnowledgePointService extends IService<KnowledgePoint> {
      * @param courseId 课程ID
      * @return 树形结构的知识点列表
      */
-    List<Map<String, Object>> getKnowledgeTree(Long courseId);
+    List<KnowledgeTreeNodeVO> getKnowledgeTree(Long courseId);
 
     /**
      * 获取某知识点的直接子节点

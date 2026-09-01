@@ -12,6 +12,7 @@ import com.aicourse.entity.Vote;
 import com.aicourse.entity.VoteRecord;
 import com.aicourse.service.SignInService;
 import com.aicourse.service.VoteService;
+import com.aicourse.vo.VoteResultVO;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -172,7 +173,7 @@ public class InteractionController {
 
     /** 公开查询某个投票的实时结果统计 */
     @GetMapping("/vote/{id}/result")
-    public ApiResponse<Map<String, Object>> voteResult(@PathVariable Long id) {
+    public ApiResponse<VoteResultVO> voteResult(@PathVariable Long id) {
         return ApiResponse.success(voteService.result(id));
     }
 

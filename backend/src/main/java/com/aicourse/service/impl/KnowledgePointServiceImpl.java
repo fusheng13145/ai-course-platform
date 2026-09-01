@@ -12,6 +12,7 @@ import com.aicourse.mapper.KnowledgePointMapper;
 import com.aicourse.service.KnowledgePointRelationService;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.QuestionService;
+import com.aicourse.vo.KnowledgeTreeNodeVO;
 import com.aicourse.service.WrongQuestionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -55,7 +56,7 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
      */
     @Override
     @Cacheable(cacheNames = CACHE_NAME, key = "'tree:' + #courseId")
-    public List<Map<String, Object>> getKnowledgeTree(Long courseId) {
+    public List<KnowledgeTreeNodeVO> getKnowledgeTree(Long courseId) {
         // 查询课程下所有知识点
         LambdaQueryWrapper<KnowledgePoint> wrapper = new LambdaQueryWrapper<KnowledgePoint>()
                 .eq(KnowledgePoint::getCourseId, courseId)
@@ -72,7 +73,7 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
                 .collect(Collectors.toList());
 
         // 递归构建树
-        List<Map<String, Object>> tree = new ArrayList<>();
+        List<KnowledgeTreeNodeVO> tree = new ArrayList<>();
         for (KnowledgePoint root : rootPoints) {
             tree.add(buildTreeNode(root, pointMap));
         }
@@ -82,26 +83,18 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
     /**
      * 递归构建树形节点
      */
-    private Map<String, Object> buildTreeNode(KnowledgePoint point, Map<Long, KnowledgePoint> pointMap) {
-        Map<String, Object> node = new LinkedHashMap<>();
-        node.put("id", point.getId());
-        node.put("name", point.getName());
-        node.put("description", point.getDescription());
-        node.put("difficultyLevel", point.getDifficultyLevel());
-        node.put("importance", point.getImportance());
-        node.put("estimatedTime", point.getEstimatedTime());
-        node.put("pointType", point.getPointType());
-        node.put("orderIndex", point.getOrderIndex());
-
-        // 查找子节点
-        List<Map<String, Object>> children = new ArrayList<>();
+    private KnowledgeTreeNodeVO buildTreeNode(KnowledgePoint point, Map<Long, KnowledgePoint> pointMap) {
+        List<KnowledgeTreeNodeVO> children = new ArrayList<>();
         for (KnowledgePoint p : pointMap.values()) {
             if (point.getId().equals(p.getParentId())) {
                 children.add(buildTreeNode(p, pointMap));
             }
         }
-        node.put("children", children);
-        return node;
+        return new KnowledgeTreeNodeVO(
+                point.getId(), point.getName(), point.getDescription(),
+                point.getDifficultyLevel(), point.getImportance(),
+                point.getEstimatedTime(), point.getPointType(),
+                point.getOrderIndex(), children);
     }
 
     /**

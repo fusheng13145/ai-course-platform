@@ -1,6 +1,7 @@
 package com.aicourse.service.impl;
 
 import com.aicourse.entity.LoginLog;
+import com.aicourse.vo.DailyLoginTrendVO;
 import com.aicourse.mapper.LoginLogMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -71,12 +72,12 @@ class LoginLogServiceImplTest {
     @DisplayName("登录统计")
     void getLoginStats() {
         when(mapper.selectList(any())).thenReturn(List.of(successLog, failedLog));
-        Map<String, Object> s = service.getLoginStats(1L);
-        assertEquals(2L, s.get("totalCount"));
-        assertEquals(1L, s.get("successCount"));
-        assertEquals(1L, s.get("failedCount"));
-        assertEquals(50.0, (Double) s.get("successRate"), 0.01);
-        assertEquals("Beijing", s.get("lastLoginLocation"));
+        com.aicourse.vo.LoginStatsVO s = service.getLoginStats(1L);
+        assertEquals(2L, s.getTotalCount());
+        assertEquals(1L, s.getSuccessCount());
+        assertEquals(1L, s.getFailedCount());
+        assertEquals(50.0, s.getSuccessRate(), 0.01);
+        assertEquals("Beijing", s.getLastLoginLocation());
     }
 
     @Test
@@ -106,9 +107,9 @@ class LoginLogServiceImplTest {
     @DisplayName("登录趋势-按日期统计")
     void getLoginTrends() {
         when(mapper.selectList(any())).thenReturn(List.of(successLog));
-        List<Map<String, Object>> t = service.getLoginTrends(LocalDate.now().minusDays(1), LocalDate.now());
+        List<DailyLoginTrendVO> t = service.getLoginTrends(LocalDate.now().minusDays(1), LocalDate.now());
         assertFalse(t.isEmpty());
-        int total = t.stream().mapToInt(d -> ((Number) d.get("totalCount")).intValue()).sum();
+        int total = t.stream().mapToInt(d -> (int) d.getTotalCount()).sum();
         assertEquals(1, total);
     }
 
@@ -166,8 +167,8 @@ class LoginLogServiceImplTest {
         l2.setLocation("Shanghai");
         l2.setCreatedAt(LocalDateTime.now());
         when(mapper.selectList(any())).thenReturn(List.of(successLog, l2));
-        Map<String, Object> r = service.detectAbnormalLogin(1L);
-        assertEquals(true, r.get("isAbnormal"));
+        com.aicourse.vo.AbnormalLoginVO r = service.detectAbnormalLogin(1L);
+        assertEquals(true, r.isAbnormal());
     }
 
     @Test
@@ -184,9 +185,9 @@ class LoginLogServiceImplTest {
     @DisplayName("全局登录统计")
     void getGlobalLoginStats() {
         when(mapper.selectCount(any())).thenReturn(100L, 60L, 40L, 10L, 5L, 3L, 2L, 1L);
-        Map<String, Object> s = service.getGlobalLoginStats();
-        assertEquals(100L, s.get("totalCount"));
-        assertEquals(60L, s.get("successCount"));
+        com.aicourse.vo.LoginGlobalStatsVO s = service.getGlobalLoginStats();
+        assertEquals(100L, s.getTotalCount());
+        assertEquals(60L, s.getSuccessCount());
     }
 
     @Test

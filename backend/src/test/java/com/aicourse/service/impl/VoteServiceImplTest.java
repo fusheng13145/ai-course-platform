@@ -234,14 +234,12 @@ class VoteServiceImplTest {
         r2.setChoice("B");
         r2.setTextAnswer("note");
         when(voteRecordMapper.selectList(any())).thenReturn(List.of(r1, r2));
-        Map<String, Object> res = service.result(1L);
-        assertEquals(2L, res.get("total"));
-        @SuppressWarnings("unchecked")
-        Map<String, Long> counts = (Map<String, Long>) res.get("counts");
+        com.aicourse.vo.VoteResultVO res = service.result(1L);
+        assertEquals(2L, res.getTotal());
+        Map<String, Long> counts = res.getCounts();
         assertEquals(1L, counts.get("A"));
         assertEquals(1L, counts.get("B"));
-        @SuppressWarnings("unchecked")
-        List<String> texts = (List<String>) res.get("textAnswers");
+        List<String> texts = res.getTextAnswers();
         assertEquals(1, texts.size());
     }
 
@@ -254,9 +252,8 @@ class VoteServiceImplTest {
         VoteRecord r2 = new VoteRecord();
         r2.setChoice("[\"B\",\"C\"]");
         when(voteRecordMapper.selectList(any())).thenReturn(List.of(r1, r2));
-        Map<String, Object> res = service.result(1L);
-        @SuppressWarnings("unchecked")
-        Map<String, Long> counts = (Map<String, Long>) res.get("counts");
+        com.aicourse.vo.VoteResultVO res = service.result(1L);
+        Map<String, Long> counts = res.getCounts();
         assertEquals(1L, counts.get("A"));
         assertEquals(2L, counts.get("B"));
         assertEquals(1L, counts.get("C"));
@@ -269,9 +266,8 @@ class VoteServiceImplTest {
         VoteRecord r1 = new VoteRecord();
         r1.setChoice("not-json");
         when(voteRecordMapper.selectList(any())).thenReturn(List.of(r1));
-        Map<String, Object> res = service.result(1L);
-        @SuppressWarnings("unchecked")
-        Map<String, Long> counts = (Map<String, Long>) res.get("counts");
+        com.aicourse.vo.VoteResultVO res = service.result(1L);
+        Map<String, Long> counts = res.getCounts();
         assertEquals(1L, counts.get("not-json"));
     }
 

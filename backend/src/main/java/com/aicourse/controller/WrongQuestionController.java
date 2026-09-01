@@ -11,6 +11,7 @@ import com.aicourse.entity.Question;
 import com.aicourse.entity.WrongQuestion;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.WrongQuestionService;
+import com.aicourse.vo.WrongQuestionStatsVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
@@ -138,11 +139,11 @@ public class WrongQuestionController {
      * @return 统计信息
      */
     @GetMapping("/stats")
-    public ApiResponse<Map<String, Object>> stats(
+    public ApiResponse<WrongQuestionStatsVO> stats(
             @RequestParam(required = false) Long courseId,
             Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        Map<String, Object> stats = wrongQuestionService.getWrongQuestionStats(userId, courseId);
+        WrongQuestionStatsVO stats = wrongQuestionService.getWrongQuestionStats(userId, courseId);
         return ApiResponse.success(stats);
     }
 

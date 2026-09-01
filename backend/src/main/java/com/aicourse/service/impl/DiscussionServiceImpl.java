@@ -8,6 +8,8 @@ import com.aicourse.mapper.DiscussionPostLikeMapper;
 import com.aicourse.mapper.DiscussionPostMapper;
 import com.aicourse.mapper.DiscussionTopicMapper;
 import com.aicourse.service.DiscussionService;
+import com.aicourse.vo.LikePostVO;
+import com.aicourse.vo.TopicDetailVO;
 import com.aicourse.service.NotificationService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -116,7 +118,7 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
 
     /** 查询讨论 */
     @Override
-    public Map<String, Object> getTopicDetail(Long id) {
+    public TopicDetailVO getTopicDetail(Long id) {
         DiscussionTopic topic = this.getById(id);
         if (topic == null) {
             throw new BusinessException("话题不存在");
@@ -132,11 +134,7 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
         for (DiscussionPost post : posts) {
             encodePostOutput(post);
         }
-        Map<String, Object> res = new LinkedHashMap<>();
-        res.put("topic", topic);
-        res.put("posts", posts);
-        res.put("replyCount", posts.size());
-        return res;
+        return new TopicDetailVO(topic, posts, posts.size());
     }
 
 
@@ -251,7 +249,7 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
     /** 讨论相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Map<String, Object> likePost(Long postId, Long userId) {
+    public LikePostVO likePost(Long postId, Long userId) {
         DiscussionPost post = postMapper.selectById(postId);
         if (post == null) {
             throw new BusinessException("回复不存在");
@@ -276,10 +274,7 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
         }
         postMapper.updateById(post);
 
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("likeCount", post.getLikeCount());
-        result.put("liked", liked);
-        return result;
+        return new LikePostVO(post.getLikeCount(), liked);
     }
 
 

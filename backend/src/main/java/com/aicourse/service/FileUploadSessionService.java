@@ -1,9 +1,8 @@
 package com.aicourse.service;
 
 import com.aicourse.entity.FileUploadSession;
+import com.aicourse.vo.UploadProgressVO;
 import com.baomidou.mybatisplus.extension.service.IService;
-
-import java.util.Map;
 
 /**
  * 文件上传会话服务接口
@@ -47,7 +46,7 @@ public interface FileUploadSessionService extends IService<FileUploadSession> {
      * @param uploaderId 当前登录用户ID（归属校验，修复 IDOR 越权）
      * @return 进度信息（包含 uploaded/total/percentage）
      */
-    Map<String, Object> getUploadProgress(Long sessionId, Long uploaderId);
+    UploadProgressVO getUploadProgress(Long sessionId, Long uploaderId);
 
     /**
      * 取消上传会话

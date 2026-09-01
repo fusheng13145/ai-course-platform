@@ -2,10 +2,12 @@ package com.aicourse.controller;
 import com.aicourse.controller.KnowledgeController;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
+import com.aicourse.vo.KnowledgeTreeNodeVO;
 import com.aicourse.service.AIService;
 import com.aicourse.service.KnowledgeGraphService;
 import com.aicourse.service.KnowledgePointRelationService;
 import com.aicourse.service.KnowledgePointService;
+import com.aicourse.vo.KnowledgeGraphDataVO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -259,7 +261,8 @@ class KnowledgeControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /knowledge/points/tree/1 - 返回200且data为树形列表")
     void getKnowledgeTree_authorized_returns_success() throws Exception {
-        when(knowledgePointService.getKnowledgeTree(any())).thenReturn(List.of(Map.of("id", 1L, "name", "root")));
+        when(knowledgePointService.getKnowledgeTree(any())).thenReturn(
+                List.of(new KnowledgeTreeNodeVO(1L, "root", null, null, null, null, null, null, List.of())));
         mockMvc.perform(get("/knowledge/points/tree/1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
@@ -439,7 +442,7 @@ class KnowledgeControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /knowledge/relations/graph/1 - 返回200且data为图数据")
     void getRelationGraphData_authorized_returns_success() throws Exception {
-        when(relationService.getGraphData(any())).thenReturn(Map.of("nodes", List.of(), "links", List.of()));
+        when(relationService.getGraphData(any())).thenReturn(new KnowledgeGraphDataVO(List.of(), List.of()));
         mockMvc.perform(get("/knowledge/relations/graph/1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))

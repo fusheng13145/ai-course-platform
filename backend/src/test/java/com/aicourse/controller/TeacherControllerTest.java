@@ -882,12 +882,14 @@ class TeacherControllerTest extends ControllerTestBase {
     void getAssignmentAnalytics_authorized_passes_security() throws Exception {
         when(taskService.getById(eq(1L))).thenReturn(ownerTask());
         when(courseService.getById(eq(1L))).thenReturn(ownerCourse());
-        when(taskService.getTaskCompletionStats(eq(1L))).thenReturn(Map.of("assignmentId", 1));
+        when(taskService.getTaskCompletionStats(eq(1L))).thenReturn(new com.aicourse.vo.TaskCompletionStatsVO(
+                1L, "task", 0L, 0L, 0L, 0L, 0L, 0.0, 0.0, null, "PUBLISHED"));
         mockMvc.perform(get("/teacher/analytics/assignments/1").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.assignmentId").value(1));
+                // 原桩键为 assignmentId，真实契约为 taskId；VO 化后按 taskId 断言
+                .andExpect(jsonPath("$.data.taskId").value(1));
         verify(taskService).getTaskCompletionStats(eq(1L));
         verify(taskService).getById(eq(1L));
         verify(courseService).getById(eq(1L));

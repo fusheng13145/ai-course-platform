@@ -5,6 +5,7 @@ import com.aicourse.entity.WrongQuestion;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.WrongQuestionMapper;
 import com.aicourse.service.QuestionService;
+import com.aicourse.vo.WrongQuestionStatsVO;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -257,9 +258,9 @@ class WrongQuestionServiceImplBoostTest {
     void stats_totalZero() {
         when(wrongQuestionMapper.selectCount(any(Wrapper.class))).thenReturn(0L);
         when(wrongQuestionMapper.selectList(any(Wrapper.class))).thenReturn(Collections.emptyList());
-        Map<String, Object> r = service.getWrongQuestionStats(2L, 1L);
-        assertEquals(0L, r.get("total"));
-        assertEquals(0.0, r.get("masteryRate"));
+        WrongQuestionStatsVO r = service.getWrongQuestionStats(2L, 1L);
+        assertEquals(0L, r.getTotal());
+        assertEquals(0.0, r.getMasteryRate());
     }
 
     @Test
@@ -274,11 +275,10 @@ class WrongQuestionServiceImplBoostTest {
         unmastered.setReason("");
         when(wrongQuestionMapper.selectList(any(Wrapper.class)))
                 .thenReturn(List.of(mastered, unmastered));
-        Map<String, Object> r = service.getWrongQuestionStats(2L, 1L);
-        assertEquals(1L, r.get("mastered"));
-        assertEquals(1L, r.get("unmastered"));
-        @SuppressWarnings("unchecked")
-        Map<String, Long> practice = (Map<String, Long>) r.get("practiceDistribution");
+        WrongQuestionStatsVO r = service.getWrongQuestionStats(2L, 1L);
+        assertEquals(1L, r.getMastered());
+        assertEquals(1L, r.getUnmastered());
+        Map<String, Long> practice = r.getPracticeDistribution();
         assertEquals(1L, practice.get("neverOrOnce"));
         assertEquals(1L, practice.get("multipleTimes"));
     }

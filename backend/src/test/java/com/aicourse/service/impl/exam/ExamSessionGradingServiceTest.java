@@ -3,6 +3,7 @@ package com.aicourse.service.impl.exam;
 import com.aicourse.entity.*;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ExamSessionMapper;
+import com.aicourse.vo.AutoGradeResultVO;
 import com.aicourse.service.*;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -83,13 +84,13 @@ class ExamSessionGradingServiceTest {
         when(objectMapper.writeValueAsString(any())).thenReturn("{}");
         when(examSessionMapper.updateById((ExamSession) any())).thenReturn(1);
 
-        Map<String, Object> result = gradingService.autoGrade(1L);
+        AutoGradeResultVO result = gradingService.autoGrade(1L);
 
         assertNotNull(result);
-        assertEquals(new BigDecimal("5"), result.get("totalScore"));
-        assertEquals(1, result.get("correctCount"));
-        assertEquals(0, result.get("wrongCount"));
-        assertEquals("GRADED", result.get("status"));
+        assertEquals(new BigDecimal("5"), result.getTotalScore());
+        assertEquals(1, result.getCorrectCount());
+        assertEquals(0, result.getWrongCount());
+        assertEquals("GRADED", result.getStatus());
     }
 
     @Test
@@ -125,11 +126,11 @@ class ExamSessionGradingServiceTest {
         when(objectMapper.writeValueAsString(any())).thenReturn("{}");
         when(examSessionMapper.updateById((ExamSession) any())).thenReturn(1);
 
-        Map<String, Object> result = gradingService.autoGrade(1L);
+        AutoGradeResultVO result = gradingService.autoGrade(1L);
 
         assertNotNull(result);
-        assertEquals(new BigDecimal("10"), result.get("totalScore"));
-        assertEquals(1, result.get("correctCount"));
+        assertEquals(new BigDecimal("10"), result.getTotalScore());
+        assertEquals(1, result.getCorrectCount());
     }
 
     @Test
@@ -167,11 +168,11 @@ class ExamSessionGradingServiceTest {
         when(objectMapper.writeValueAsString(any())).thenReturn("{}");
         when(examSessionMapper.updateById((ExamSession) any())).thenReturn(1);
 
-        Map<String, Object> result = gradingService.autoGrade(1L);
+        AutoGradeResultVO result = gradingService.autoGrade(1L);
 
         assertNotNull(result);
-        assertEquals(new BigDecimal("2.50"), result.get("totalScore"));
-        assertEquals(1, result.get("wrongCount"));
+        assertEquals(new BigDecimal("2.50"), result.getTotalScore());
+        assertEquals(1, result.getWrongCount());
     }
 
     @Test
@@ -199,11 +200,11 @@ class ExamSessionGradingServiceTest {
         when(objectMapper.writeValueAsString(any())).thenReturn("{}");
         when(examSessionMapper.updateById((ExamSession) any())).thenReturn(1);
 
-        Map<String, Object> result = gradingService.autoGrade(1L);
+        AutoGradeResultVO result = gradingService.autoGrade(1L);
 
         assertNotNull(result);
-        assertEquals(new BigDecimal("5"), result.get("totalScore"));
-        assertEquals(1, result.get("correctCount"));
+        assertEquals(new BigDecimal("5"), result.getTotalScore());
+        assertEquals(1, result.getCorrectCount());
     }
 
     @Test
@@ -231,11 +232,11 @@ class ExamSessionGradingServiceTest {
         when(objectMapper.writeValueAsString(any())).thenReturn("{}");
         when(examSessionMapper.updateById((ExamSession) any())).thenReturn(1);
 
-        Map<String, Object> result = gradingService.autoGrade(1L);
+        AutoGradeResultVO result = gradingService.autoGrade(1L);
 
         assertNotNull(result);
-        assertEquals(new BigDecimal("0"), result.get("totalScore"));
-        assertEquals(1, result.get("pendingReviewCount"));
+        assertEquals(new BigDecimal("0"), result.getTotalScore());
+        assertEquals(1, result.getPendingReviewCount());
     }
 
     @Test

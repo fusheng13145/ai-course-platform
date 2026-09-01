@@ -7,6 +7,7 @@ import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.UserMapper;
 import com.aicourse.service.UserService;
+import com.aicourse.vo.UserStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -15,9 +16,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import com.aicourse.common.RoleConstants;
 
 /**
@@ -137,21 +136,21 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      * 返回用户基本信息统计
      */
     @Override
-    public Map<String, Object> getUserStats(Long userId) {
+    public UserStatsVO getUserStats(Long userId) {
         User user = this.getById(userId);
         if (user == null) {
             throw new BusinessException("用户不存在");
         }
 
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("userId", user.getId());
-        stats.put("username", user.getUsername());
-        stats.put("fullName", user.getFullName());
-        stats.put("role", user.getRole());
-        stats.put("email", user.getEmail());
-        stats.put("isActive", user.getIsActive());
-        stats.put("lastLogin", user.getLastLogin());
-        stats.put("createdAt", user.getCreatedAt());
+        UserStatsVO stats = new UserStatsVO();
+        stats.setUserId(user.getId());
+        stats.setUsername(user.getUsername());
+        stats.setFullName(user.getFullName());
+        stats.setRole(user.getRole());
+        stats.setEmail(user.getEmail());
+        stats.setIsActive(user.getIsActive());
+        stats.setLastLogin(user.getLastLogin());
+        stats.setCreatedAt(user.getCreatedAt());
 
         // 统计同班同学数量（如果是学生）
         if (user.getClassId() != null) {
@@ -159,7 +158,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                     .eq(User::getClassId, user.getClassId())
                     .ne(User::getId, userId);
             long classmateCount = this.count(classmateWrapper);
-            stats.put("classmateCount", classmateCount);
+            stats.setClassmateCount(classmateCount);
         }
 
         return stats;

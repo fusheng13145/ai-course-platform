@@ -94,13 +94,19 @@ class PlagiarismCheckControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /plagiarism-checks/1 - 已认证用户获取查重结果返回 code=200 且字段透传")
     void getCheckResult_authorized_passes_security() throws Exception {
+        com.aicourse.entity.PlagiarismCheck check = new com.aicourse.entity.PlagiarismCheck();
+        check.setId(1L);
+        check.setStatus("DONE");
         when(plagiarismCheckService.getCheckResult(anyLong()))
-                .thenReturn(java.util.Map.of("id", 1, "status", "DONE", "similarityScore", "0.85"));
+                .thenReturn(new com.aicourse.vo.PlagiarismCheckResultVO(
+                        check, new java.math.BigDecimal("0.85"), 0, null, "DONE",
+                        java.util.List.of(), null, null));
 
         mockMvc.perform(get("/plagiarism-checks/1").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.id").value(1))
+                // 原 Map 为平铺 id；VO 化后 id 归属 checkInfo 子对象
+                .andExpect(jsonPath("$.data.checkInfo.id").value(1))
                 .andExpect(jsonPath("$.data.status").value("DONE"));
 
         verify(plagiarismCheckService).getCheckResult(eq(1L));

@@ -6,6 +6,7 @@ import com.aicourse.mapper.TaskMapper;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.NotificationService;
 import com.aicourse.service.SubmissionService;
+import com.aicourse.vo.TaskCompletionStatsVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -18,7 +19,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -125,8 +125,8 @@ class TaskServiceImplTest {
         when(submissionService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class))).thenReturn(List.of());
         when(courseEnrollmentService.count(any())).thenReturn(10L);
 
-        Map<String, Object> s = taskService.getTaskCompletionStats(1L);
-        assertEquals(10L, s.get("totalSubmissions"));
+        TaskCompletionStatsVO s = taskService.getTaskCompletionStats(1L);
+        assertEquals(10L, s.getTotalSubmissions());
     }
 
     @Test

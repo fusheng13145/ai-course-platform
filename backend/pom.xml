@@ -112,6 +112,16 @@
             <scope>runtime</scope>
         </dependency>
 
+        <!-- 数据库迁移（Flyway：替代 index.sql 手动全量导入；版本由 Spring Boot BOM 管理） -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-mysql</artifactId>
+        </dependency>
+
         <!-- JWT 鉴权 -->
         <dependency>
             <groupId>io.jsonwebtoken</groupId>
@@ -413,16 +423,18 @@
                                             <counter>LINE</counter>
                                             <value>COVEREDRATIO</value>
                                             <!--
-                                              真实覆盖率基线（本次实测，ASCII 路径下已可稳定产出）：
-                                              INSTRUCTION 42% / BRANCH 26%（LINE 约 43%）。
-                                              阈值设为略低于实测值以吸收 CI 波动；须随测试补全逐步上调，不得下调。
+                                              覆盖率基线（2026-08-29 实测，mvn test 全量 2968 用例）：
+                                              LINE 93.6% / BRANCH 73.4% / INSTRUCTION 92.3%（314 个 main 类，无测试类混入）。
+                                              较 08-27 基线（LINE ~43%）跃升的原因：拆分收官提交 f365da2 为
+                                              7 个 Service 拆分出的 31 个组件逐一配套独立测试（137 个测试文件新增/修改）。
+                                              阈值上调至 85%/65%（留 ~8pp 缓冲吸收 CI 波动），须随测试补全逐步上调，不得下调。
                                             -->
-                                            <minimum>0.40</minimum>
+                                            <minimum>0.85</minimum>
                                         </limit>
                                         <limit>
                                             <counter>BRANCH</counter>
                                             <value>COVEREDRATIO</value>
-                                            <minimum>0.25</minimum>
+                                            <minimum>0.65</minimum>
                                         </limit>
                                     </limits>
                                 </rule>

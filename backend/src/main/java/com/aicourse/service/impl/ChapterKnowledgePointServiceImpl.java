@@ -47,17 +47,13 @@ public class ChapterKnowledgePointServiceImpl extends ServiceImpl<ChapterKnowled
             return Collections.emptyList();
         }
 
-        // 批量查出知识点详情
+        // 批量查出知识点详情（listByIds 一次取回，替代循环内 getById，消除 N+1）
         List<Long> pointIds = mappings.stream()
                 .map(ChapterKnowledgePoint::getKnowledgePointId)
                 .collect(Collectors.toList());
 
-        // 通过KnowledgePointService批量查询
-        List<KnowledgePoint> points = pointIds.stream()
-                .map(knowledgePointService::getById)
-                .filter(java.util.Objects::nonNull)
-                .collect(Collectors.toList());
-        return points;
+        List<KnowledgePoint> points = knowledgePointService.listByIds(pointIds);
+        return points != null ? points : Collections.emptyList();
     }
 
     /**

@@ -330,12 +330,14 @@ class TaskControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /tasks/1/completion-stats - 返回200且完成率统计透传")
     void completionStats_authorized_returns_200() throws Exception {
-        when(taskService.getTaskCompletionStats(1L)).thenReturn(Map.of("submitted", 10, "total", 20));
+        when(taskService.getTaskCompletionStats(1L)).thenReturn(new com.aicourse.vo.TaskCompletionStatsVO(
+                1L, "task", 20L, 10L, 0L, 0L, 0L, 0.0, 0.0, null, "PUBLISHED"));
         mockMvc.perform(get("/tasks/1/completion-stats").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.submitted").value(10));
+                // 原桩键为 submitted，真实契约无此键；VO 化后按 totalSubmissions 断言
+                .andExpect(jsonPath("$.data.totalSubmissions").value(20));
         verify(taskService).getTaskCompletionStats(eq(1L));
     }
 

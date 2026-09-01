@@ -10,6 +10,8 @@ import com.aicourse.entity.ProctorEvent;
 import com.aicourse.entity.ProctorSession;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.ProctorService;
+import com.aicourse.vo.ProctorRiskSummaryVO;
+import com.aicourse.vo.ProctorThresholdVO;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -92,7 +94,7 @@ public class ProctorController {
     /** 教师/管理员获取某场考试的风险汇总 */
     @GetMapping("/exam/{examSessionId}/risk")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<List<Map<String, Object>>> risk(@PathVariable Long examSessionId) {
+    public ApiResponse<List<ProctorRiskSummaryVO>> risk(@PathVariable Long examSessionId) {
         return ApiResponse.success(proctorService.riskSummary(examSessionId));
     }
 
@@ -104,7 +106,7 @@ public class ProctorController {
      */
     @GetMapping("/thresholds")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Map<String, Object>> getThresholds() {
+    public ApiResponse<ProctorThresholdVO> getThresholds() {
         return ApiResponse.success(proctorService.getThresholds());
     }
 

@@ -5,13 +5,14 @@ import com.aicourse.entity.GradeItem;
 import com.aicourse.entity.GradePolicy;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.GradeService;
+import com.aicourse.vo.FinalGradeVO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -203,12 +204,13 @@ class GradeControllerTest extends ControllerTestBase {
         policy.setId(1L);
         policy.setCourseId(1L);
         when(gradeService.getPolicyById(eq(1L))).thenReturn(policy);
-        when(gradeService.computeFinal(eq(1L), eq(1L))).thenReturn(Map.of("finalScore", 88));
+        when(gradeService.computeFinal(eq(1L), eq(1L))).thenReturn(
+                new FinalGradeVO(1L, 1L, List.of(), new BigDecimal("88.00")));
         mockMvc.perform(get("/grade/final/1/student/1").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.finalScore").value(88));
+                .andExpect(jsonPath("$.data.finalScore").value(88.0));
         verify(gradeService).computeFinal(eq(1L), eq(1L));
     }
 
@@ -243,7 +245,8 @@ class GradeControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /grade/report/course/1 - 教师查询成绩报告返回200，数组透传")
     void courseReport_authorized_passes_security() throws Exception {
-        when(gradeService.courseReport(eq(1L))).thenReturn(List.of(Map.of("studentId", 1)));
+        when(gradeService.courseReport(eq(1L)))
+                .thenReturn(List.of(new com.aicourse.vo.FinalGradeVO(null, 1L, null, null)));
         mockMvc.perform(get("/grade/report/course/1").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))

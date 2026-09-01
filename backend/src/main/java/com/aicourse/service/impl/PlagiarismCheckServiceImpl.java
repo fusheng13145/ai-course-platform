@@ -12,6 +12,7 @@ import com.aicourse.mapper.SubmissionMapper;
 import com.aicourse.service.PlagiarismCheckService;
 import com.aicourse.service.PlagiarismMatchService;
 import com.aicourse.service.SubmissionService;
+import com.aicourse.vo.PlagiarismCheckResultVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.context.annotation.Lazy;
@@ -190,34 +191,27 @@ public class PlagiarismCheckServiceImpl extends ServiceImpl<PlagiarismCheckMappe
      * 获取查重结果详情
      */
     @Override
-    public Map<String, Object> getCheckResult(Long checkId) {
+    public PlagiarismCheckResultVO getCheckResult(Long checkId) {
         PlagiarismCheck check = this.getById(checkId);
         if (check == null) {
             throw new BusinessException("查重任务不存在");
         }
-        Map<String, Object> result = new HashMap<>();
-        result.put("checkInfo", check);
-        result.put("similarityScore", check.getSimilarityScore());
-        result.put("highSimilarityCount", check.getHighSimilarityCount());
-        result.put("resultSummary", check.getResultSummary());
-        result.put("status", check.getStatus());
         // 获取该查重任务的所有匹配明细
         LambdaQueryWrapper<PlagiarismMatch> matchWrapper = new LambdaQueryWrapper<PlagiarismMatch>()
                 .eq(PlagiarismMatch::getPlagiarismCheckId, checkId)
                 .orderByDesc(PlagiarismMatch::getSimilarity);
         List<PlagiarismMatch> matches = plagiarismMatchService.list(matchWrapper);
-        result.put("matches", matches);
 
         // 解析checkDetail JSON返回结构化数据
-        if (check.getCheckDetail() != null && !check.getCheckDetail().isEmpty()) {
-            result.put("checkDetailRaw", check.getCheckDetail());
-            // 提取算法版本信息
-            if (check.getCheckDetail().contains("algorithmVersion")) {
-                result.put("algorithmVersion", "Jaccard-CJKBigram-v2.0");
-            }
-        }
+        // 原实现为条件 put（键缺失即不出现），VO 侧以 null + 字段级 NON_NULL 精确复刻该语义
+        String detail = check.getCheckDetail();
+        boolean hasDetail = detail != null && !detail.isEmpty();
+        String checkDetailRaw = hasDetail ? detail : null;
+        String algorithmVersion = (hasDetail && detail.contains("algorithmVersion"))
+                ? "Jaccard-CJKBigram-v2.0" : null;
 
-        return result;
+        return new PlagiarismCheckResultVO(check, check.getSimilarityScore(), check.getHighSimilarityCount(),
+                check.getResultSummary(), check.getStatus(), matches, checkDetailRaw, algorithmVersion);
     }
 
     /**

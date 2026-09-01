@@ -7,6 +7,10 @@ import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.LoginLog;
 import com.aicourse.service.LoginLogService;
+import com.aicourse.vo.AbnormalLoginVO;
+import com.aicourse.vo.DailyLoginTrendVO;
+import com.aicourse.vo.LoginGlobalStatsVO;
+import com.aicourse.vo.LoginStatsVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -58,8 +62,8 @@ public class LoginLogController {
      */
     @GetMapping("/user/{userId}/stats")
     @PreAuthorize("hasAnyRole('ADMIN') or #userId == authentication.principal")
-    public ApiResponse<Map<String, Object>> getLoginStats(@PathVariable Long userId) {
-        Map<String, Object> stats = loginLogService.getLoginStats(userId);
+    public ApiResponse<LoginStatsVO> getLoginStats(@PathVariable Long userId) {
+        LoginStatsVO stats = loginLogService.getLoginStats(userId);
         return ApiResponse.success(stats);
     }
 
@@ -100,8 +104,8 @@ public class LoginLogController {
      */
     @GetMapping("/stats")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Map<String, Object>> getGlobalStats() {
-        Map<String, Object> stats = loginLogService.getGlobalLoginStats();
+    public ApiResponse<LoginGlobalStatsVO> getGlobalStats() {
+        LoginGlobalStatsVO stats = loginLogService.getGlobalLoginStats();
         return ApiResponse.success(stats);
     }
 
@@ -141,8 +145,8 @@ public class LoginLogController {
      */
     @GetMapping("/abnormal/{userId}")
     @PreAuthorize("hasAnyRole('ADMIN') or #userId == authentication.principal")
-    public ApiResponse<Map<String, Object>> getAbnormalLogin(@PathVariable Long userId) {
-        Map<String, Object> result = loginLogService.detectAbnormalLogin(userId);
+    public ApiResponse<AbnormalLoginVO> getAbnormalLogin(@PathVariable Long userId) {
+        AbnormalLoginVO result = loginLogService.detectAbnormalLogin(userId);
         return ApiResponse.success(result);
     }
 
@@ -156,7 +160,7 @@ public class LoginLogController {
      */
     @GetMapping("/trends")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<List<Map<String, Object>>> getLoginTrends(
+    public ApiResponse<List<DailyLoginTrendVO>> getLoginTrends(
             @RequestParam(required = false) Integer days,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end) {
@@ -169,7 +173,7 @@ public class LoginLogController {
             end = LocalDate.now();
             start = end.minusDays(6);
         }
-        List<Map<String, Object>> trends = loginLogService.getLoginTrends(start, end);
+        List<DailyLoginTrendVO> trends = loginLogService.getLoginTrends(start, end);
         return ApiResponse.success(trends);
     }
 }

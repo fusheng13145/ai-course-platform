@@ -9,6 +9,7 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.WrongQuestionMapper;
 import com.aicourse.service.QuestionService;
 import com.aicourse.service.WrongQuestionService;
+import com.aicourse.vo.WrongQuestionStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -218,15 +219,12 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
      * 返回总数、已掌握数、未掌握数、按来源分类等统计数据
      */
     @Override
-    public Map<String, Object> getWrongQuestionStats(Long studentId, Long courseId) {
-        Map<String, Object> stats = new HashMap<>();
-
+    public WrongQuestionStatsVO getWrongQuestionStats(Long studentId, Long courseId) {
         // 总错题数
         LambdaQueryWrapper<WrongQuestion> totalWrapper = new LambdaQueryWrapper<WrongQuestion>()
                 .eq(WrongQuestion::getStudentId, studentId)
                 .eq(courseId != null, WrongQuestion::getCourseId, courseId);
         long total = this.count(totalWrapper);
-        stats.put("total", total);
 
         // 已掌握数
         LambdaQueryWrapper<WrongQuestion> masteredWrapper = new LambdaQueryWrapper<WrongQuestion>()
@@ -234,14 +232,9 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
                 .eq(courseId != null, WrongQuestion::getCourseId, courseId)
                 .eq(WrongQuestion::getMastered, true);
         long mastered = this.count(masteredWrapper);
-        stats.put("mastered", mastered);
-
-        // 未掌握数
-        stats.put("unmastered", total - mastered);
 
         // 掌握率
         double masteryRate = total > 0 ? (double) mastered / total * 100 : 0;
-        stats.put("masteryRate", Math.round(masteryRate * 100.0) / 100.0);
 
         // 按来源类型分组统计
         List<WrongQuestion> allWrongQuestions = this.list(totalWrapper);
@@ -250,7 +243,6 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
                         wq -> wq.getSourceType() != null ? wq.getSourceType() : "OTHER",
                         Collectors.counting()
                 ));
-        stats.put("sourceTypeStats", sourceTypeStats);
 
         // 按错因（reason）分组统计
         Map<String, Long> reasonStats = allWrongQuestions.stream()
@@ -259,7 +251,6 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
                         WrongQuestion::getReason,
                         Collectors.counting()
                 ));
-        stats.put("reasonDistribution", reasonStats);
 
         // 练习次数分布统计
         long neverPracticed = allWrongQuestions.stream()
@@ -271,9 +262,11 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
         Map<String, Long> practiceDist = new HashMap<>();
         practiceDist.put("neverOrOnce", neverPracticed);
         practiceDist.put("multipleTimes", practicedMultiple);
-        stats.put("practiceDistribution", practiceDist);
 
-        return stats;
+        return new WrongQuestionStatsVO(
+                total, mastered, total - mastered,
+                Math.round(masteryRate * 100.0) / 100.0,
+                sourceTypeStats, reasonStats, practiceDist);
     }
 
     /**

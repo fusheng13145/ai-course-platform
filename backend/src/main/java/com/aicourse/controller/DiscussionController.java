@@ -9,13 +9,14 @@ import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.DiscussionPost;
 import com.aicourse.entity.DiscussionTopic;
 import com.aicourse.service.DiscussionService;
+import com.aicourse.vo.LikePostVO;
+import com.aicourse.vo.TopicDetailVO;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 import com.aicourse.common.RoleConstants;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
@@ -65,7 +66,7 @@ public class DiscussionController {
 
     /** 获取单个话题的完整详情（含回复与统计） */
     @GetMapping("/topic/{id}")
-    public ApiResponse<Map<String, Object>> getTopic(@PathVariable Long id) {
+    public ApiResponse<TopicDetailVO> getTopic(@PathVariable Long id) {
         return ApiResponse.success(discussionService.getTopicDetail(id));
     }
 
@@ -82,8 +83,8 @@ public class DiscussionController {
     /** 对指定回复点赞或取消点赞（切换式） */
     @PostMapping("/post/{postId}/like")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
-    public ApiResponse<Map<String, Object>> likePost(@PathVariable Long postId, Authentication auth) {
-        Map<String, Object> result = discussionService.likePost(postId, (Long) auth.getPrincipal());
+    public ApiResponse<LikePostVO> likePost(@PathVariable Long postId, Authentication auth) {
+        LikePostVO result = discussionService.likePost(postId, (Long) auth.getPrincipal());
         return ApiResponse.success("操作成功", result);
     }
 

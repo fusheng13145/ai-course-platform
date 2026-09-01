@@ -3,6 +3,7 @@ import com.aicourse.controller.WrongQuestionController;
 import com.aicourse.entity.Question;
 import com.aicourse.entity.WrongQuestion;
 import com.aicourse.service.WrongQuestionService;
+import com.aicourse.vo.WrongQuestionStatsVO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -173,7 +174,8 @@ class WrongQuestionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /wrong-questions/stats?courseId=1 - 返回200且data透传统计")
     void stats_authorized_returns_success() throws Exception {
-        when(wrongQuestionService.getWrongQuestionStats(any(), any())).thenReturn(Map.of("total", 1));
+        when(wrongQuestionService.getWrongQuestionStats(any(), any())).thenReturn(
+                new WrongQuestionStatsVO(1, 0, 1, 0.0, Map.of(), Map.of(), Map.of()));
         mockMvc.perform(get("/wrong-questions/stats?courseId=1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))

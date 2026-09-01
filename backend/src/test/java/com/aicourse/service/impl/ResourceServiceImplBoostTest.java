@@ -101,9 +101,9 @@ class ResourceServiceImplBoostTest {
     @DisplayName("getResourceStats 空资源")
     void stats_empty() {
         when(resourceMapper.selectList(any(Wrapper.class))).thenReturn(Collections.emptyList());
-        Map<String, Object> r = service.getResourceStats(1L);
-        assertEquals(0L, r.get("totalCount"));
-        assertEquals(0L, r.get("totalSize"));
+        com.aicourse.vo.ResourceStatsVO r = service.getResourceStats(1L);
+        assertEquals(0L, r.getTotalCount());
+        assertEquals(0L, r.getTotalSize());
     }
 
     @Test
@@ -122,10 +122,9 @@ class ResourceServiceImplBoostTest {
         when(resourceVersionService.getActiveVersion(1L)).thenReturn(v1);
         when(resourceVersionService.getActiveVersion(2L)).thenReturn(null);
 
-        Map<String, Object> r = service.getResourceStats(1L);
-        assertEquals(100L, r.get("totalSize"));
-        @SuppressWarnings("unchecked")
-        Map<String, Long> dist = (Map<String, Long>) r.get("typeDistribution");
+        com.aicourse.vo.ResourceStatsVO r = service.getResourceStats(1L);
+        assertEquals(100L, r.getTotalSize());
+        Map<String, Long> dist = r.getTypeDistribution();
         assertEquals(1L, dist.get("pdf"));
         assertEquals(1L, dist.get("unknown"));
     }

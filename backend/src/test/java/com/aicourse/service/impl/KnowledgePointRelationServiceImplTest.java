@@ -5,6 +5,9 @@ import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.KnowledgePointRelationMapper;
 import com.aicourse.service.KnowledgePointService;
+import com.aicourse.vo.GraphDataLinkVO;
+import com.aicourse.vo.GraphDataNodeVO;
+import com.aicourse.vo.KnowledgeGraphDataVO;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -23,7 +26,6 @@ import org.springframework.test.util.ReflectionTestUtils;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
@@ -141,25 +143,21 @@ class KnowledgePointRelationServiceImplTest {
         rel.setRelationType("prereq");
         when(mapper.selectList(any(Wrapper.class))).thenReturn(List.of(rel));
 
-        Map<String, Object> g = service.getGraphData(10L);
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> nodes = (List<Map<String, Object>>) g.get("nodes");
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> links = (List<Map<String, Object>>) g.get("links");
+        KnowledgeGraphDataVO g = service.getGraphData(10L);
+        List<GraphDataNodeVO> nodes = g.getNodes();
+        List<GraphDataLinkVO> links = g.getLinks();
         assertEquals(1, nodes.size());
         assertEquals(1, links.size());
-        assertEquals("函数", nodes.get(0).get("name"));
+        assertEquals("函数", nodes.get(0).getName());
     }
 
     @Test
     @DisplayName("getGraphData 无知识点则节点边皆空")
     void graph_noPoints() {
         when(knowledgePointService.list(any(Wrapper.class))).thenReturn(List.of());
-        Map<String, Object> g = service.getGraphData(10L);
-        @SuppressWarnings("unchecked")
-        List<?> nodes = (List<?>) g.get("nodes");
-        @SuppressWarnings("unchecked")
-        List<?> links = (List<?>) g.get("links");
+        KnowledgeGraphDataVO g = service.getGraphData(10L);
+        List<GraphDataNodeVO> nodes = g.getNodes();
+        List<GraphDataLinkVO> links = g.getLinks();
         assertTrue(nodes.isEmpty());
         assertTrue(links.isEmpty());
     }

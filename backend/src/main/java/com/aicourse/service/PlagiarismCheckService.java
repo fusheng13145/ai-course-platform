@@ -2,11 +2,11 @@ package com.aicourse.service;
 
 import com.aicourse.entity.PlagiarismCheck;
 import com.aicourse.entity.PlagiarismMatch;
+import com.aicourse.vo.PlagiarismCheckResultVO;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 查重检测服务接口
@@ -30,9 +30,9 @@ public interface PlagiarismCheckService extends IService<PlagiarismCheck> {
     /**
      * 获取查重结果详情
      * @param checkId 查重任务ID
-     * @return 查重结果详情Map
+     * @return 查重结果详情（含匹配明细列表）
      */
-    Map<String, Object> getCheckResult(Long checkId);
+    PlagiarismCheckResultVO getCheckResult(Long checkId);
 
     /**
      * 获取高相似度匹配列表（超过指定阈值）

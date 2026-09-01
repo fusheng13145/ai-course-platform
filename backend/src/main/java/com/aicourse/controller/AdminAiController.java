@@ -8,10 +8,12 @@ import jakarta.validation.Valid;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.llm.RoutingLLMProvider;
+import com.aicourse.vo.AdminAiCurrentVO;
+import com.aicourse.vo.AdminAiTestVO;
+import com.aicourse.vo.ProviderSwitchVO;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.LinkedHashMap;
 import java.util.Map;
 import com.aicourse.common.ApiCode;
 
@@ -39,12 +41,9 @@ public class AdminAiController {
      * GET /api/admin/ai/current
      */
     @GetMapping("/current")
-    public ApiResponse<Map<String, Object>> current() {
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("provider", currentKey());
-        m.put("llmName", routingLLMProvider.name());
-        m.put("configured", routingLLMProvider.isConfigured());
-        return ApiResponse.success(m);
+    public ApiResponse<AdminAiCurrentVO> current() {
+        return ApiResponse.success(new AdminAiCurrentVO(
+                currentKey(), routingLLMProvider.name(), routingLLMProvider.isConfigured()));
     }
 
     /**
@@ -52,17 +51,15 @@ public class AdminAiController {
      * POST /api/admin/ai/provider  body: { "provider": "deepseek" | "openai" | "qwen" }
      */
     @PostMapping("/provider")
-    public ApiResponse<Map<String, Object>> switchProvider(@Valid @RequestBody Map<String, String> body) {
+    public ApiResponse<ProviderSwitchVO> switchProvider(@Valid @RequestBody Map<String, String> body) {
         String provider = body.get("provider");
         log.debug("切换AI供应商 provider={}", provider);
         if (provider == null || provider.isBlank()) {
             return ApiResponse.error(ApiCode.BAD_REQUEST, "provider 不能为空");
         }
         routingLLMProvider.switchTo(provider);
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("provider", currentKey());
-        m.put("llmName", routingLLMProvider.name());
-        return ApiResponse.success("切换成功，已即时生效", m);
+        return ApiResponse.success("切换成功，已即时生效",
+                new ProviderSwitchVO(currentKey(), routingLLMProvider.name()));
     }
 
     /**
@@ -70,14 +67,12 @@ public class AdminAiController {
      * GET /api/admin/ai/test
      */
     @GetMapping("/test")
-    public ApiResponse<Map<String, Object>> test() {
+    public ApiResponse<AdminAiTestVO> test() {
         boolean ok = routingLLMProvider.testConnection();
-        Map<String, Object> m = new LinkedHashMap<>();
-        m.put("ok", ok);
-        m.put("provider", currentKey());
-        m.put("configured", routingLLMProvider.isConfigured());
-        m.put("message", ok ? "连接正常" : (routingLLMProvider.isConfigured() ? "调用失败，请检查 API Key / 网络" : "未配置 API Key"));
-        return ApiResponse.success(m);
+        String message = ok ? "连接正常"
+                : (routingLLMProvider.isConfigured() ? "调用失败，请检查 API Key / 网络" : "未配置 API Key");
+        return ApiResponse.success(new AdminAiTestVO(
+                ok, currentKey(), routingLLMProvider.isConfigured(), message));
     }
 
     private String currentKey() {

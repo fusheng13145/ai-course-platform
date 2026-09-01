@@ -50,6 +50,18 @@ spring:
       minimum-idle: 5
       connection-timeout: 30000
 
+  # 数据库迁移（Flyway）：替代 index.sql 手动全量导入
+  # - 空库：V1__init_schema.sql 自动建表 + 种子数据
+  # - 已有库（曾手动导入 index.sql）：baseline-on-migrate 将非空库标为 baseline v1，
+  #   V1 不再重复执行（避免 DROP 重建破坏数据）；后续版本 V2+/… 正常增量
+  flyway:
+    enabled: true
+    baseline-on-migrate: true
+    baseline-version: 1
+    locations: classpath:db/migration
+    # 迁移脚本中的注释含中文，需按 UTF-8 读取
+    encoding: UTF-8
+
   # Redis 配置【必选基础设施】：缓存 / IP 限流 / AI 配额 / 验证码 / 调度锁均依赖 Redis。
   # 应用启动时由 RedisStartupValidator 强校验连通性，连接失败将中止启动（fail-fast）。
   # host/port 可由环境变量 SPRING_DATA_REDIS_HOST / SPRING_DATA_REDIS_PORT 覆盖，便于 Docker 编排。

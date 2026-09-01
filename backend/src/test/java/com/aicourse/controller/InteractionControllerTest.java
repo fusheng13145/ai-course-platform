@@ -12,7 +12,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
-import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -402,12 +401,13 @@ class InteractionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /interaction/vote/1/result - 查询投票结果返回200，计数字段透传")
     void voteResult_authorized_passes_security() throws Exception {
-        when(voteService.result(eq(1L))).thenReturn(Map.of("count", 5));
+        when(voteService.result(eq(1L)))
+                .thenReturn(new com.aicourse.vo.VoteResultVO(5L, java.util.Collections.emptyMap(), java.util.Collections.emptyList(), "SINGLE"));
         mockMvc.perform(get("/interaction/vote/1/result").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.count").value(5));
+                .andExpect(jsonPath("$.data.total").value(5));
         verify(voteService).result(eq(1L));
     }
 

@@ -6,13 +6,11 @@ import org.slf4j.LoggerFactory;
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.service.LLMFineTuneService;
+import com.aicourse.vo.FineTuneHealthVO;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.web.bind.annotation.*;
-
-import java.util.LinkedHashMap;
-import java.util.Map;
 
 /**
  * 模型微调（LoRA/PEFT）管理接口（管理员）
@@ -43,11 +41,9 @@ public class FineTuneController {
     /** 检查 Python 微调微服务是否可达 */
     @GetMapping("/health")
     @Operation(summary = "微调服务健康检查")
-    public ApiResponse<Map<String, Object>> health() {
-        Map<String, Object> m = new LinkedHashMap<>();
+    public ApiResponse<FineTuneHealthVO> health() {
         boolean available = fineTuneService.healthCheck();
-        m.put("available", available);
-        return ApiResponse.success(available ? "微调服务可达" : "微调服务不可达或未启用", m);
+        return ApiResponse.success(available ? "微调服务可达" : "微调服务不可达或未启用", new FineTuneHealthVO(available));
     }
 
     /** 提交一个新的 LoRA 微调任务（需微调服务可用） */

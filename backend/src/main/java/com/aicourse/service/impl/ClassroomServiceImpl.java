@@ -12,6 +12,9 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ClassroomMapper;
 import com.aicourse.service.ClassroomService;
 import com.aicourse.service.SubmissionService;
+import com.aicourse.vo.ClassroomDetailVO;
+import com.aicourse.vo.ClassroomPendingCountVO;
+import com.aicourse.vo.ClassroomStatsVO;
 import com.aicourse.service.TaskService;
 import com.aicourse.service.UserService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -55,16 +58,12 @@ public class ClassroomServiceImpl extends ServiceImpl<ClassroomMapper, Classroom
      * 获取班级详情（含基本信息）
      */
     @Override
-    public Map<String, Object> getClassroomDetail(Long classroomId) {
+    public ClassroomDetailVO getClassroomDetail(Long classroomId) {
         Classroom classroom = this.getById(classroomId);
         if (classroom == null) {
             throw new BusinessException("班级不存在");
         }
-        Map<String, Object> detail = new HashMap<>();
-        detail.put("classroom", classroom);
-        detail.put("studentCount", classroom.getStudentCount());
-        detail.put("maxStudents", classroom.getMaxStudents());
-        return detail;
+        return new ClassroomDetailVO(classroom, classroom.getStudentCount(), classroom.getMaxStudents());
     }
 
     /**
@@ -171,7 +170,7 @@ public class ClassroomServiceImpl extends ServiceImpl<ClassroomMapper, Classroom
      * 班级统计信息（人数、按性别/专业/角色分布等）
      */
     @Override
-    public Map<String, Object> getClassroomStats(Long classroomId) {
+    public ClassroomStatsVO getClassroomStats(Long classroomId) {
         Classroom classroom = this.getById(classroomId);
         if (classroom == null) {
             throw new BusinessException("班级不存在");
@@ -194,14 +193,10 @@ public class ClassroomServiceImpl extends ServiceImpl<ClassroomMapper, Classroom
                 activeCount++;
             }
         }
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("totalStudents", totalStudents);
-        stats.put("activeStudents", activeCount);
-        stats.put("inactiveStudents", totalStudents - activeCount);
-        stats.put("maxCapacity", classroom.getMaxStudents());
-        stats.put("currentCount", classroom.getStudentCount());
-        stats.put("majorDistribution", majorStats);
-        return stats;
+        return new ClassroomStatsVO(
+                totalStudents, activeCount, totalStudents - activeCount,
+                classroom.getMaxStudents(), classroom.getStudentCount(), majorStats
+        );
     }
 
     /**
@@ -244,7 +239,7 @@ public class ClassroomServiceImpl extends ServiceImpl<ClassroomMapper, Classroom
      * 保证前端驾驶舱始终可渲染真实来源（0 即真实值，非占位）。
      */
     @Override
-    public List<Map<String, Object>> countPendingByCourse(Long courseId) {
+    public List<ClassroomPendingCountVO> countPendingByCourse(Long courseId) {
         List<Classroom> classrooms = listByCourse(courseId);
         if (classrooms.isEmpty()) {
             return Collections.emptyList();
@@ -283,13 +278,11 @@ public class ClassroomServiceImpl extends ServiceImpl<ClassroomMapper, Classroom
         }
 
         // 4) 输出结构化结果（班级顺序与 by-course 一致，含真实 0 值）
-        List<Map<String, Object>> result = new ArrayList<>();
+        List<ClassroomPendingCountVO> result = new ArrayList<>();
         for (Classroom classroom : classrooms) {
-            Map<String, Object> item = new HashMap<>();
-            item.put("classroomId", classroom.getId());
-            item.put("classroomName", classroom.getName());
-            item.put("pendingCount", pendingByClass.getOrDefault(classroom.getId(), 0L));
-            result.add(item);
+            result.add(new ClassroomPendingCountVO(
+                    classroom.getId(), classroom.getName(),
+                    pendingByClass.getOrDefault(classroom.getId(), 0L)));
         }
         return result;
     }

@@ -7,6 +7,8 @@ import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.ExamSessionService;
 import com.aicourse.service.QuestionService;
+import com.aicourse.vo.ExamPaperStatsPaperVO;
+import com.aicourse.vo.ExamPaperStatsVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -207,12 +209,15 @@ class ExamPaperControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /exam-papers/1/detail - 查询试卷完整详情返回200，字段透传")
     void getDetail_authorized_passes_security() throws Exception {
-        when(examPaperService.getExamPaperDetail(eq(1L))).thenReturn(Map.of("title", "期中试卷"));
+        com.aicourse.entity.ExamPaper p = new com.aicourse.entity.ExamPaper();
+        p.setTitle("期中试卷");
+        when(examPaperService.getExamPaperDetail(eq(1L)))
+                .thenReturn(new com.aicourse.vo.ExamPaperDetailVO(p, java.util.Collections.emptyList(), 0));
         mockMvc.perform(get("/exam-papers/1/detail").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.title").value("期中试卷"));
+                .andExpect(jsonPath("$.data.paper.title").value("期中试卷"));
         verify(examPaperService).getExamPaperDetail(eq(1L));
     }
 
@@ -309,12 +314,15 @@ class ExamPaperControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /exam-papers/1/statistics - 查询试卷统计返回200，字段透传")
     void statistics_authorized_passes_security() throws Exception {
-        when(examPaperService.getPaperStatistics(eq(1L))).thenReturn(Map.of("total", 10));
+        when(examPaperService.getPaperStatistics(eq(1L))).thenReturn(
+                new ExamPaperStatsVO(new ExamPaperStatsPaperVO(1L, "期中", "PUBLISHED"), 4,
+                        new java.math.BigDecimal("56.00"), Map.of("SINGLE", 1), Map.of("1-5分", 1)));
         mockMvc.perform(get("/exam-papers/1/statistics").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.total").value(10));
+                .andExpect(jsonPath("$.data.questionCount").value(4))
+                .andExpect(jsonPath("$.data.paperInfo.title").value("期中"));
         verify(examPaperService).getPaperStatistics(eq(1L));
     }
 

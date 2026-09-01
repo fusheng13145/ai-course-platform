@@ -6,6 +6,7 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.WrongQuestionMapper;
 import com.aicourse.service.AIService;
 import com.aicourse.service.QuestionService;
+import com.aicourse.vo.WrongQuestionStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.BeforeEach;
@@ -245,16 +246,16 @@ class WrongQuestionServiceImplTest {
         when(wrongQuestionMapper.selectCount(any())).thenReturn(2L, 1L);
         when(wrongQuestionMapper.selectList(any())).thenReturn(List.of(wq1, wq2));
 
-        Map<String, Object> stats = wrongQuestionService.getWrongQuestionStats(100L, 10L);
+        WrongQuestionStatsVO stats = wrongQuestionService.getWrongQuestionStats(100L, 10L);
 
         assertNotNull(stats);
-        assertEquals(2L, stats.get("total"));
-        assertEquals(1L, stats.get("mastered"));
-        assertEquals(1L, stats.get("unmastered"));
-        assertEquals(50.0, stats.get("masteryRate"));
-        assertNotNull(stats.get("sourceTypeStats"));
-        assertNotNull(stats.get("reasonDistribution"));
-        assertNotNull(stats.get("practiceDistribution"));
+        assertEquals(2L, stats.getTotal());
+        assertEquals(1L, stats.getMastered());
+        assertEquals(1L, stats.getUnmastered());
+        assertEquals(50.0, stats.getMasteryRate());
+        assertNotNull(stats.getSourceTypeStats());
+        assertNotNull(stats.getReasonDistribution());
+        assertNotNull(stats.getPracticeDistribution());
     }
 
     @Test
@@ -262,10 +263,10 @@ class WrongQuestionServiceImplTest {
     void testGetWrongQuestionStats_Empty() {
         when(wrongQuestionMapper.selectList(any())).thenReturn(Collections.emptyList());
 
-        Map<String, Object> stats = wrongQuestionService.getWrongQuestionStats(100L, 10L);
+        WrongQuestionStatsVO stats = wrongQuestionService.getWrongQuestionStats(100L, 10L);
 
-        assertEquals(0L, stats.get("total"));
-        assertEquals(0.0, stats.get("masteryRate"));
+        assertEquals(0L, stats.getTotal());
+        assertEquals(0.0, stats.getMasteryRate());
     }
 
     // ==================== generatePracticePaper ====================
