@@ -20,6 +20,8 @@ redis_data/
 target/
 dist/
 node_modules/
+# VitePress 文档站临时构建目录（docs/.vitepress/dist 由上方 dist/ 覆盖）
+docs/.vitepress/.temp/
 
 # 运维数据（含敏感数据，切勿提交）
 # 应用内「系统管理→备份」生成的 SQL 备份（SystemServiceImpl backups/ 目录）
