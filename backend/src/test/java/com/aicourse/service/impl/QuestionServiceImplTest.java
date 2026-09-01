@@ -4,6 +4,7 @@ import com.aicourse.entity.Question;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.QuestionMapper;
 import com.aicourse.service.AIService;
+import com.aicourse.vo.QuestionStatsVO;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -422,10 +423,10 @@ class QuestionServiceImplTest {
     @Test
     @DisplayName("getQuestionStats 返回统计字段")
     void stats_ok() {
-        Map<String, Object> r = service.getQuestionStats(100L);
-        assertEquals(100L, r.get("questionId"));
-        assertEquals(sample.getUsageCount(), r.get("usageCount"));
-        assertEquals("MEDIUM", r.get("difficulty"));
+        QuestionStatsVO r = service.getQuestionStats(100L);
+        assertEquals(100L, r.getQuestionId());
+        assertEquals(sample.getUsageCount(), r.getUsageCount());
+        assertEquals("MEDIUM", r.getDifficulty());
     }
 
     @Test

@@ -9,6 +9,7 @@ import com.aicourse.mapper.ExamPaperMapper;
 import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.NotificationService;
 import com.aicourse.service.QuestionService;
+import com.aicourse.vo.ExamPaperStatsVO;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -101,10 +102,10 @@ class ExamPaperServiceImplTest {
         when(examQuestionService.list(any(Wrapper.class))).thenReturn(List.of(eq));
         when(questionService.listByIds(anyCollection())).thenReturn(List.of(q(7L, "SINGLE", new BigDecimal("10"), null)));
 
-        Map<String, Object> r = service.getExamPaperDetail(1L);
-        assertEquals(1, ((List<?>) r.get("questions")).size());
-        assertEquals(1, r.get("questionCount"));
-        assertNotNull(r.get("paper"));
+        com.aicourse.vo.ExamPaperDetailVO r = service.getExamPaperDetail(1L);
+        assertEquals(1, r.getQuestions().size());
+        assertEquals(1, r.getQuestionCount());
+        assertNotNull(r.getPaper());
     }
 
     @Test
@@ -121,8 +122,8 @@ class ExamPaperServiceImplTest {
         eq.setId(5L); eq.setQuestionId(7L);
         when(examQuestionService.list(any(Wrapper.class))).thenReturn(List.of(eq));
         when(questionService.listByIds(anyCollection())).thenReturn(List.of()); // 题目查不到 -> 跳过
-        Map<String, Object> r = service.getExamPaperDetail(1L);
-        assertEquals(0, ((List<?>) r.get("questions")).size());
+        com.aicourse.vo.ExamPaperDetailVO r = service.getExamPaperDetail(1L);
+        assertEquals(0, r.getQuestions().size());
     }
 
     // ===================== publishExamPaper =====================
@@ -199,19 +200,17 @@ class ExamPaperServiceImplTest {
                 q(3L, "JUDGE", new BigDecimal("15"), null),
                 q(4L, "ESSAY", new BigDecimal("30"), null)));
 
-        Map<String, Object> r = service.getPaperStatistics(1L);
-        assertEquals(4, r.get("questionCount"));
-        @SuppressWarnings("unchecked")
-        Map<String, Integer> td = (Map<String, Integer>) r.get("typeDistribution");
+        ExamPaperStatsVO r = service.getPaperStatistics(1L);
+        assertEquals(4, r.getQuestionCount());
+        Map<String, Integer> td = r.getTypeDistribution();
         assertEquals(1, td.get("SINGLE"));
         assertEquals(1, td.get("MULTI"));
-        @SuppressWarnings("unchecked")
-        Map<String, Integer> sd = (Map<String, Integer>) r.get("scoreDistribution");
+        Map<String, Integer> sd = r.getScoreDistribution();
         assertEquals(1, sd.get("1-5分"));
         assertEquals(1, sd.get("6-10分"));
         assertEquals(1, sd.get("11-20分"));
         assertEquals(1, sd.get("20分以上"));
-        assertTrue(((BigDecimal) r.get("totalPoints")).compareTo(BigDecimal.ZERO) > 0);
+        assertTrue(r.getTotalPoints().compareTo(BigDecimal.ZERO) > 0);
     }
 
     @Test
@@ -227,10 +226,9 @@ class ExamPaperServiceImplTest {
         ExamQuestion eq = new ExamQuestion(); eq.setQuestionId(1L); eq.setPoints(new BigDecimal("5"));
         when(examQuestionService.list(any(Wrapper.class))).thenReturn(List.of(eq));
         when(questionService.listByIds(anyCollection())).thenReturn(List.of());
-        Map<String, Object> r = service.getPaperStatistics(1L);
-        assertEquals(1, r.get("questionCount"));
-        @SuppressWarnings("unchecked")
-        Map<String, Integer> td = (Map<String, Integer>) r.get("typeDistribution");
+        ExamPaperStatsVO r = service.getPaperStatistics(1L);
+        assertEquals(1, r.getQuestionCount());
+        Map<String, Integer> td = r.getTypeDistribution();
         assertTrue(td.isEmpty());
     }
 

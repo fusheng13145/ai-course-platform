@@ -4,6 +4,7 @@ import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.entity.Question;
 import com.aicourse.entity.WrongQuestion;
+import com.aicourse.vo.KnowledgeTreeNodeVO;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.KnowledgePointMapper;
 import com.aicourse.service.KnowledgePointRelationService;
@@ -80,12 +81,11 @@ class KnowledgePointServiceImplBoostTest {
         child.setParentId(1L);
         when(knowledgePointMapper.selectList(any(Wrapper.class))).thenReturn(List.of(root, child));
 
-        List<Map<String, Object>> tree = service.getKnowledgeTree(1L);
+        List<KnowledgeTreeNodeVO> tree = service.getKnowledgeTree(1L);
         assertEquals(1, tree.size());
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> children = (List<Map<String, Object>>) tree.get(0).get("children");
+        List<KnowledgeTreeNodeVO> children = tree.get(0).getChildren();
         assertEquals(1, children.size());
-        assertEquals(2L, children.get(0).get("id"));
+        assertEquals(2L, children.get(0).getId());
     }
 
     @Test

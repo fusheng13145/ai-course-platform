@@ -2,6 +2,8 @@ package com.aicourse.service;
 
 import com.aicourse.entity.ProctorEvent;
 import com.aicourse.entity.ProctorSession;
+import com.aicourse.vo.ProctorRiskSummaryVO;
+import com.aicourse.vo.ProctorThresholdVO;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.util.List;
@@ -40,13 +42,13 @@ public interface ProctorService extends IService<ProctorSession> {
     /**
      * 教师视角：某场考试的全部考生风险汇总
      */
-    List<Map<String, Object>> riskSummary(Long examSessionId);
+    List<ProctorRiskSummaryVO> riskSummary(Long examSessionId);
 
     /**
      * 读取当前监考风险判定阈值（管理员可调控）：
      * 返回 high/medium 阈值与 low/medium/high 事件权重，缺失配置时回退默认值。
      */
-    Map<String, Object> getThresholds();
+    ProctorThresholdVO getThresholds();
 
     /**
      * 更新监考风险判定阈值（管理员调控，持久化至 system_configs）

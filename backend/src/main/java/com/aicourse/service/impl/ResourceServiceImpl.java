@@ -9,6 +9,8 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ResourceMapper;
 import com.aicourse.service.ResourceService;
 import com.aicourse.service.ResourceVersionService;
+import com.aicourse.vo.ChapterResourceTreeVO;
+import com.aicourse.vo.ResourceStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -56,7 +58,7 @@ public class ResourceServiceImpl extends ServiceImpl<ResourceMapper, Resource> i
      * 获取课程的资源树（按章节组织）
      */
     @Override
-    public List<Map<String, Object>> getResourceTree(Long courseId) {
+    public List<ChapterResourceTreeVO> getResourceTree(Long courseId) {
         // 查询课程下所有资源
         List<Resource> allResources = this.list(
                 new LambdaQueryWrapper<Resource>()
@@ -69,12 +71,9 @@ public class ResourceServiceImpl extends ServiceImpl<ResourceMapper, Resource> i
         Map<Long, List<Resource>> groupedByChapter = allResources.stream()
                 .collect(Collectors.groupingBy(r -> r.getChapterId() != null ? r.getChapterId() : 0L));
 
-        List<Map<String, Object>> tree = new ArrayList<>();
+        List<ChapterResourceTreeVO> tree = new ArrayList<>();
         for (Map.Entry<Long, List<Resource>> entry : groupedByChapter.entrySet()) {
-            Map<String, Object> chapterNode = new HashMap<>();
-            chapterNode.put("chapterId", entry.getKey());
-            chapterNode.put("resources", entry.getValue());
-            tree.add(chapterNode);
+            tree.add(new ChapterResourceTreeVO(entry.getKey(), entry.getValue()));
         }
         return tree;
     }
@@ -98,7 +97,7 @@ public class ResourceServiceImpl extends ServiceImpl<ResourceMapper, Resource> i
      * 获取资源统计信息（类型分布、大小总计等）
      */
     @Override
-    public Map<String, Object> getResourceStats(Long courseId) {
+    public ResourceStatsVO getResourceStats(Long courseId) {
         // 查询课程下所有资源
         LambdaQueryWrapper<Resource> baseQuery = new LambdaQueryWrapper<Resource>()
                 .eq(Resource::getCourseId, courseId);
@@ -121,11 +120,7 @@ public class ResourceServiceImpl extends ServiceImpl<ResourceMapper, Resource> i
             }
         }
 
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("totalCount", totalCount);
-        stats.put("totalSize", totalSize);
-        stats.put("typeDistribution", typeDistribution);
-        return stats;
+        return new ResourceStatsVO(totalCount, totalSize, typeDistribution);
     }
 
     /**

@@ -11,6 +11,7 @@ import com.aicourse.service.component.ExamSessionCheatingComponent;
 import com.aicourse.service.component.ExamSessionLifecycleComponent;
 import com.aicourse.service.component.ExamSessionQueryComponent;
 import com.aicourse.service.impl.exam.ExamSessionGradingService;
+import com.aicourse.vo.AutoGradeResultVO;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -152,7 +153,7 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
 
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public Map<String, Object> autoGrade(Long sessionId) {
+    public AutoGradeResultVO autoGrade(Long sessionId) {
         return gradingService.autoGrade(sessionId);
     }
 

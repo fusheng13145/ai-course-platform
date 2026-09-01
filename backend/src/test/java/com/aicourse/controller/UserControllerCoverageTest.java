@@ -56,10 +56,10 @@ class UserControllerCoverageTest {
         lenient().when(userService.getUserProfile(any())).thenReturn(u);
         lenient().when(userService.getClassmates(any())).thenReturn(List.of(u));
         lenient().when(userService.getTeacherStudents(any())).thenReturn(List.of(u));
-        // 注意：控制器 getUserStats 会对返回的 Map 执行 stats.put(...) 脱敏，
-        // 必须用可变 Map，否则 Map.of() 不可变会抛 UnsupportedOperationException。
-        lenient().when(userService.getUserStats(any()))
-                .thenReturn(new HashMap<>(Map.of("email", "alice@example.com", "total", 1)));
+        // 控制器 getUserStats 会对返回的 VO 执行 setEmail(maskEmail(...)) 脱敏（仅非本人访问时）。
+        com.aicourse.vo.UserStatsVO statsStub = new com.aicourse.vo.UserStatsVO();
+        statsStub.setEmail("alice@example.com");
+        lenient().when(userService.getUserStats(any())).thenReturn(statsStub);
         lenient().when(userService.save(any())).thenReturn(true);
         lenient().when(userService.updateById(any())).thenReturn(true);
         lenient().when(userService.removeById(anyLong())).thenReturn(true);
@@ -124,16 +124,19 @@ class UserControllerCoverageTest {
         mockMvc.perform(MockMvcRequestBuilders.get("/users/1/stats").with(withAuth(2L, "STUDENT")))
                 .andExpect(status().isOk());
         // maskEmail 边界：email 无@ / null / name长度<=1
-        when(userService.getUserStats(any())).thenReturn(new HashMap<>(Map.of("email", "noatsign")));
+        com.aicourse.vo.UserStatsVO noAt = new com.aicourse.vo.UserStatsVO();
+        noAt.setEmail("noatsign");
+        when(userService.getUserStats(any())).thenReturn(noAt);
         mockMvc.perform(MockMvcRequestBuilders.get("/users/1/stats").with(withAuth(2L, "STUDENT")))
                 .andExpect(status().isOk());
-        // Map.of 不允许 null 值，必须用 HashMap 承载 null
-        Map<String, Object> nullEmail = new HashMap<>();
-        nullEmail.put("email", null);
+        // VO 字段默认 null 即对应原 Map 的 null email
+        com.aicourse.vo.UserStatsVO nullEmail = new com.aicourse.vo.UserStatsVO();
         when(userService.getUserStats(any())).thenReturn(nullEmail);
         mockMvc.perform(MockMvcRequestBuilders.get("/users/1/stats").with(withAuth(2L, "STUDENT")))
                 .andExpect(status().isOk());
-        when(userService.getUserStats(any())).thenReturn(new HashMap<>(Map.of("email", "a@x.com")));
+        com.aicourse.vo.UserStatsVO normal = new com.aicourse.vo.UserStatsVO();
+        normal.setEmail("a@x.com");
+        when(userService.getUserStats(any())).thenReturn(normal);
         mockMvc.perform(MockMvcRequestBuilders.get("/users/1/stats").with(withAuth(2L, "STUDENT")))
                 .andExpect(status().isOk());
     }

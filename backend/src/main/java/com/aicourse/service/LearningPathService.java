@@ -2,6 +2,7 @@ package com.aicourse.service;
 
 import com.aicourse.entity.LearningPath;
 import com.aicourse.entity.LearningPathNode;
+import com.aicourse.vo.LearningPathDetailVO;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.util.List;
@@ -61,9 +62,9 @@ public interface LearningPathService extends IService<LearningPath> {
     /**
      * 获取学习路径完整详情（含节点列表及统计信息）
      * @param pathId 学习路径ID
-     * @return 详情Map（包含path信息、nodes、统计数据等）
+     * @return 详情（path / nodes / statusStats / totalNodes 及条件解析键）
      */
-    Map<String, Object> getPathDetail(Long pathId);
+    LearningPathDetailVO getPathDetail(Long pathId);
 
     /**
      * 获取学生的学习路径列表（指定课程下所有路径）

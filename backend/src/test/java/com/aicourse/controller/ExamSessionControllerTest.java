@@ -4,12 +4,14 @@ import com.aicourse.common.ApiCode;
 import com.aicourse.entity.ExamSession;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.ExamSessionService;
+import com.aicourse.vo.AutoGradeResultVO;
 import com.aicourse.security.ExamSessionAccessControl;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.Map;
 
@@ -172,12 +174,12 @@ class ExamSessionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /exam-sessions/1/auto-grade - 教师/管理员自动阅卷返回200，结果透传")
     void autoGrade_authorized_passes_security() throws Exception {
-        when(examSessionService.autoGrade(eq(1L))).thenReturn(Map.of("score", 90));
+        when(examSessionService.autoGrade(eq(1L))).thenReturn(new AutoGradeResultVO(1L, new BigDecimal("90"), new BigDecimal("100"), null, 1, 0, 0, Map.of(), "GRADED"));
         mockMvc.perform(post("/exam-sessions/1/auto-grade").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.score").value(90));
+                .andExpect(jsonPath("$.data.totalScore").value(90));
         verify(examSessionService).autoGrade(eq(1L));
         verify(examSessionAccessControl).assertManageable(eq(1L), any());
     }

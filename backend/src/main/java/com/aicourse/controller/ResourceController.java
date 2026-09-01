@@ -11,6 +11,8 @@ import com.aicourse.entity.Resource;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.ResourceService;
+import com.aicourse.vo.ChapterResourceTreeVO;
+import com.aicourse.vo.ResourceStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.core.io.UrlResource;
@@ -110,8 +112,8 @@ public class ResourceController {
      * @return 资源树列表
      */
     @GetMapping("/tree/{courseId}")
-    public ApiResponse<List<Map<String, Object>>> getResourceTree(@PathVariable Long courseId) {
-        List<Map<String, Object>> tree = resourceService.getResourceTree(courseId);
+    public ApiResponse<List<ChapterResourceTreeVO>> getResourceTree(@PathVariable Long courseId) {
+        List<ChapterResourceTreeVO> tree = resourceService.getResourceTree(courseId);
         return ApiResponse.success(tree);
     }
 
@@ -139,8 +141,8 @@ public class ResourceController {
      * @return 统计数据
      */
     @GetMapping("/stats/course/{courseId}")
-    public ApiResponse<Map<String, Object>> getResourceStats(@PathVariable Long courseId) {
-        Map<String, Object> stats = resourceService.getResourceStats(courseId);
+    public ApiResponse<ResourceStatsVO> getResourceStats(@PathVariable Long courseId) {
+        ResourceStatsVO stats = resourceService.getResourceStats(courseId);
         return ApiResponse.success(stats);
     }
 

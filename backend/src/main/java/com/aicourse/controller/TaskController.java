@@ -10,6 +10,7 @@ import com.aicourse.dto.TaskCreateDTO;
 import com.aicourse.service.SubmissionService;
 import jakarta.validation.Valid;
 import com.aicourse.service.TaskService;
+import com.aicourse.vo.TaskCompletionStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
@@ -185,8 +186,8 @@ public class TaskController {
      */
     @GetMapping("/{id}/completion-stats")
     @Operation(summary = "获取任务完成率统计", description = "返回指定任务的提交完成情况统计")
-    public ApiResponse<Map<String, Object>> completionStats(@Parameter(description = "任务ID") @PathVariable Long id) {
-        Map<String, Object> stats = taskService.getTaskCompletionStats(id);
+    public ApiResponse<TaskCompletionStatsVO> completionStats(@Parameter(description = "任务ID") @PathVariable Long id) {
+        TaskCompletionStatsVO stats = taskService.getTaskCompletionStats(id);
         return ApiResponse.success(stats);
     }
 }

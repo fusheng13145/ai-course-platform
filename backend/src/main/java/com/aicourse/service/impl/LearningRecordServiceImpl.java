@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import com.aicourse.entity.LearningRecord;
 import com.aicourse.mapper.LearningRecordMapper;
 import com.aicourse.service.LearningRecordService;
+import com.aicourse.vo.DailyLearningStatVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.stereotype.Service;
@@ -77,8 +78,8 @@ public class LearningRecordServiceImpl extends ServiceImpl<LearningRecordMapper,
 
     /** 查询学习记录 */
     @Override
-    public List<Map<String, Object>> getLearningTrend(Long userId, int days) {
-        List<Map<String, Object>> trend = new ArrayList<>();
+    public List<DailyLearningStatVO> getLearningTrend(Long userId, int days) {
+        List<DailyLearningStatVO> trend = new ArrayList<>();
         if (days <= 0) days = 7;
         LocalDate today = LocalDate.now();
         LocalDate startDate = today.minusDays(days - 1);
@@ -95,19 +96,13 @@ public class LearningRecordServiceImpl extends ServiceImpl<LearningRecordMapper,
 
         for (int i = days - 1; i >= 0; i--) {
             LocalDate date = today.minusDays(i);
-            Map<String, Object> dayData = new HashMap<>();
-            dayData.put("date", date.toString());
 
             List<LearningRecord> dayRecords = groupedByDate.getOrDefault(date, Collections.emptyList());
             int duration = dayRecords.stream()
                     .mapToInt(r -> r.getDuration() != null ? r.getDuration() : 0)
                     .sum();
-            dayData.put("duration", duration);
 
-            // 学习次数
-            dayData.put("count", dayRecords.size());
-
-            trend.add(dayData);
+            trend.add(new DailyLearningStatVO(date.toString(), duration, dayRecords.size()));
         }
 
         return trend;
@@ -116,8 +111,8 @@ public class LearningRecordServiceImpl extends ServiceImpl<LearningRecordMapper,
 
     /** 查询学习记录 */
     @Override
-    public List<Map<String, Object>> getMonthlyLearningData(Long userId, int year, int month) {
-        List<Map<String, Object>> monthlyData = new ArrayList<>();
+    public List<DailyLearningStatVO> getMonthlyLearningData(Long userId, int year, int month) {
+        List<DailyLearningStatVO> monthlyData = new ArrayList<>();
         LocalDate startDate = LocalDate.of(year, month, 1);
         LocalDate endDate = startDate.plusMonths(1).minusDays(1);
         
@@ -136,17 +131,12 @@ public class LearningRecordServiceImpl extends ServiceImpl<LearningRecordMapper,
         // 填充整月数据
         LocalDate current = startDate;
         while (!current.isAfter(endDate)) {
-            Map<String, Object> dayData = new HashMap<>();
-            dayData.put("date", current.toString());
-            
             List<LearningRecord> dayRecords = groupedByDate.getOrDefault(current, Collections.emptyList());
             int duration = dayRecords.stream()
                     .mapToInt(r -> r.getDuration() != null ? r.getDuration() : 0)
                     .sum();
-            dayData.put("duration", duration);
-            dayData.put("count", dayRecords.size());
-            
-            monthlyData.add(dayData);
+
+            monthlyData.add(new DailyLearningStatVO(current.toString(), duration, dayRecords.size()));
             current = current.plusDays(1);
         }
         

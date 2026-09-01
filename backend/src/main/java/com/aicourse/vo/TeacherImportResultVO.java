@@ -1,0 +1,26 @@
+package com.aicourse.vo;
+
+import com.fasterxml.jackson.annotation.JsonInclude;
+import lombok.Data;
+
+/**
+ * 教师端题目批量导入结果出参（JSON 与 Excel 两用）。
+ * 字段名与历史 Map 键一致（importedCount / total）。
+ * JSON 导入原 Map 仅含 importedCount 单键；Excel 导入含 importedCount/total 双键。
+ * 借 {@code @JsonInclude(NON_NULL)} 精确复刻：total 为 null（JSON 导入）时键缺失，保证前端零改动。
+ */
+@Data
+@JsonInclude(JsonInclude.Include.NON_NULL)
+public class TeacherImportResultVO {
+
+    private int importedCount;
+    private Integer total;
+
+    public TeacherImportResultVO() {
+    }
+
+    public TeacherImportResultVO(int importedCount, Integer total) {
+        this.importedCount = importedCount;
+        this.total = total;
+    }
+}

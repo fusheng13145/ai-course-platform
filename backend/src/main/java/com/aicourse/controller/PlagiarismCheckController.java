@@ -8,6 +8,7 @@ import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.PlagiarismCheck;
 import com.aicourse.entity.PlagiarismMatch;
 import com.aicourse.service.PlagiarismCheckService;
+import com.aicourse.vo.PlagiarismCheckResultVO;
 import com.aicourse.dto.PlagiarismCheckCreateDTO;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -15,7 +16,6 @@ import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 查重检测接口控制器
@@ -65,8 +65,8 @@ public class PlagiarismCheckController {
      * @return 查重结果详情（含匹配明细列表）
      */
     @GetMapping("/{id}")
-    public ApiResponse<Map<String, Object>> getCheckResult(@PathVariable Long id) {
-        Map<String, Object> result = plagiarismCheckService.getCheckResult(id);
+    public ApiResponse<PlagiarismCheckResultVO> getCheckResult(@PathVariable Long id) {
+        PlagiarismCheckResultVO result = plagiarismCheckService.getCheckResult(id);
         return ApiResponse.success(result);
     }
 

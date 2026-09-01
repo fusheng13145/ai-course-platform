@@ -9,7 +9,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
-import java.util.Map;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -159,12 +158,14 @@ class UserControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /users/1/stats - 返回200且用户统计透传")
     void getUserStats_authorized_returns_200() throws Exception {
-        when(userService.getUserStats(1L)).thenReturn(Map.of("taskCount", 5, "avgScore", 88));
+        com.aicourse.vo.UserStatsVO statsStub = new com.aicourse.vo.UserStatsVO();
+        statsStub.setUserId(1L);
+        when(userService.getUserStats(1L)).thenReturn(statsStub);
         mockMvc.perform(get("/users/1/stats").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.taskCount").value(5));
+                .andExpect(jsonPath("$.data.userId").value(1));
         verify(userService).getUserStats(eq(1L));
     }
 

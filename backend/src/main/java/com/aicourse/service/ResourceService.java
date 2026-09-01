@@ -1,6 +1,8 @@
 package com.aicourse.service;
 
 import com.aicourse.entity.Resource;
+import com.aicourse.vo.ChapterResourceTreeVO;
+import com.aicourse.vo.ResourceStatsVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.IService;
 
@@ -28,7 +30,7 @@ public interface ResourceService extends IService<Resource> {
      * @param courseId 课程ID
      * @return 资源树列表
      */
-    List<Map<String, Object>> getResourceTree(Long courseId);
+    List<ChapterResourceTreeVO> getResourceTree(Long courseId);
 
     /**
      * 资源搜索（按标题/描述模糊搜索）
@@ -45,7 +47,7 @@ public interface ResourceService extends IService<Resource> {
      * @param courseId 课程ID
      * @return 统计数据Map
      */
-    Map<String, Object> getResourceStats(Long courseId);
+    ResourceStatsVO getResourceStats(Long courseId);
 
     /**
      * 资源可见性切换

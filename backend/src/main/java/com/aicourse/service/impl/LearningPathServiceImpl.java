@@ -11,6 +11,7 @@ import com.aicourse.service.component.LearningPathGenerateComponent;
 import com.aicourse.service.component.LearningPathMasteryComponent;
 import com.aicourse.service.component.LearningPathQueryComponent;
 import com.aicourse.service.component.LearningPathStateComponent;
+import com.aicourse.vo.LearningPathDetailVO;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -144,7 +145,7 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
 
     @Override
     @Transactional(readOnly = true)
-    public Map<String, Object> getPathDetail(Long pathId) {
+    public LearningPathDetailVO getPathDetail(Long pathId) {
         return queryComponent.getPathDetail(pathId);
     }
 

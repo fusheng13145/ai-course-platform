@@ -4,6 +4,7 @@ import com.aicourse.entity.Resource;
 import com.aicourse.entity.ResourceVersion;
 import com.aicourse.mapper.ResourceMapper;
 import com.aicourse.service.ResourceVersionService;
+import com.aicourse.vo.ChapterResourceTreeVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -153,12 +154,12 @@ class ResourceServiceTest {
     @DisplayName("获取资源树-按章节分组")
     void testGetResourceTree() {
         when(mapper.selectList(any())).thenReturn(Arrays.asList(resource1, resource2));
-        List<Map<String, Object>> tree = service.getResourceTree(100L);
+        List<ChapterResourceTreeVO> tree = service.getResourceTree(100L);
         assertNotNull(tree);
         assertEquals(2, tree.size());
-        for (Map<String, Object> node : tree) {
-            assertNotNull(node.get("chapterId"));
-            assertNotNull(node.get("resources"));
+        for (ChapterResourceTreeVO node : tree) {
+            assertNotNull(node.getChapterId());
+            assertNotNull(node.getResources());
         }
     }
 
@@ -166,7 +167,7 @@ class ResourceServiceTest {
     @DisplayName("获取资源树-课程无资源返回空列表")
     void testGetResourceTree_Empty() {
         when(mapper.selectList(any())).thenReturn(Collections.emptyList());
-        List<Map<String, Object>> tree = service.getResourceTree(999L);
+        List<ChapterResourceTreeVO> tree = service.getResourceTree(999L);
         assertNotNull(tree);
         assertTrue(tree.isEmpty());
     }
@@ -228,10 +229,10 @@ class ResourceServiceTest {
         ResourceVersion activeVersion = new ResourceVersion();
         activeVersion.setFileSize(1024000L);
         when(resourceVersionService.getActiveVersion(1L)).thenReturn(activeVersion);
-        Map<String, Object> stats = service.getResourceStats(100L);
+        com.aicourse.vo.ResourceStatsVO stats = service.getResourceStats(100L);
         assertNotNull(stats);
-        assertEquals(1L, stats.get("totalCount"));
-        assertEquals(1024000L, stats.get("totalSize"));
-        assertNotNull(stats.get("typeDistribution"));
+        assertEquals(1L, stats.getTotalCount());
+        assertEquals(1024000L, stats.getTotalSize());
+        assertNotNull(stats.getTypeDistribution());
     }
 }

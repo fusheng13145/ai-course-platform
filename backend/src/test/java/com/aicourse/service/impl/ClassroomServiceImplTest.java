@@ -71,7 +71,7 @@ class ClassroomServiceImplTest {
     @DisplayName("班级详情-成功")
     void getClassroomDetail_ok() {
         when(classroomMapper.selectById(1L)).thenReturn(classroom());
-        assertNotNull(service.getClassroomDetail(1L).get("classroom"));
+        assertNotNull(service.getClassroomDetail(1L).getClassroom());
     }
 
     @Test
@@ -162,7 +162,7 @@ class ClassroomServiceImplTest {
     void getClassroomStats_ok() {
         when(classroomMapper.selectById(1L)).thenReturn(classroom());
         when(userService.list(any(Wrapper.class))).thenReturn(List.of(student(2L)));
-        assertEquals(1L, service.getClassroomStats(1L).get("totalStudents"));
+        assertEquals(1L, service.getClassroomStats(1L).getTotalStudents());
     }
 
     @Test

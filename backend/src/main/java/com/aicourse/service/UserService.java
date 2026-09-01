@@ -1,9 +1,9 @@
 package com.aicourse.service;
 
 import com.aicourse.entity.User;
+import com.aicourse.vo.UserStatsVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 用户服务接口
@@ -44,7 +44,7 @@ public interface UserService extends com.baomidou.mybatisplus.extension.service.
      * @param userId 用户ID
      * @return 统计信息Map
      */
-    Map<String, Object> getUserStats(Long userId);
+    UserStatsVO getUserStats(Long userId);
 
     /**
      * 搜索用户

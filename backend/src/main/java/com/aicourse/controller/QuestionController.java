@@ -14,6 +14,8 @@ import com.aicourse.security.RoleUtil;
 import com.aicourse.service.AIService;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.QuestionService;
+import com.aicourse.vo.BatchImportResultVO;
+import com.aicourse.vo.QuestionStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
@@ -22,7 +24,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -249,8 +250,8 @@ public class QuestionController {
      */
     @GetMapping("/{id}/stats")
     @Operation(summary = "获取题目使用统计")
-    public ApiResponse<Map<String, Object>> getStats(@PathVariable Long id) {
-        Map<String, Object> stats = questionService.getQuestionStats(id);
+    public ApiResponse<QuestionStatsVO> getStats(@PathVariable Long id) {
+        QuestionStatsVO stats = questionService.getQuestionStats(id);
         return ApiResponse.success(stats);
     }
 
@@ -378,11 +379,8 @@ public class QuestionController {
     @PostMapping("/batch-import")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "批量导入题目", description = "JSON 批量导入（兼容保留，自动跳过无效项）；Excel(.xlsx) 批量导入请使用 /teacher/questions/import-excel")
-    public ApiResponse<Map<String, Object>> batchImport(@Valid @RequestBody List<Question> questions, Authentication auth) {
+    public ApiResponse<BatchImportResultVO> batchImport(@Valid @RequestBody List<Question> questions, Authentication auth) {
         int imported = questionService.batchImport(questions, (Long) auth.getPrincipal());
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("imported", imported);
-        result.put("total", questions.size());
-        return ApiResponse.success("导入完成", result);
+        return ApiResponse.success("导入完成", new BatchImportResultVO(imported, questions.size()));
     }
 }

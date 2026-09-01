@@ -7,6 +7,7 @@ import com.aicourse.entity.FileUploadSession;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.FileUploadSessionMapper;
 import com.aicourse.service.FileUploadSessionService;
+import com.aicourse.vo.UploadProgressVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.stereotype.Service;
@@ -16,9 +17,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
@@ -180,7 +179,7 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
      * 返回 uploaded/total/percentage
      */
     @Override
-    public Map<String, Object> getUploadProgress(Long sessionId, Long uploaderId) {
+    public UploadProgressVO getUploadProgress(Long sessionId, Long uploaderId) {
         FileUploadSession session = this.getById(sessionId);
         if (session == null) {
             throw new BusinessException("上传会话不存在");
@@ -190,12 +189,7 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
         int total = session.getTotalChunks() != null ? session.getTotalChunks() : 0;
         double percentage = total > 0 ? Math.round((double) uploaded / total * 10000) / 100.0 : 0.0;
 
-        Map<String, Object> progress = new HashMap<>();
-        progress.put("uploaded", uploaded);
-        progress.put("total", total);
-        progress.put("percentage", percentage + "%");
-        progress.put("status", session.getStatus());
-        return progress;
+        return new UploadProgressVO(uploaded, total, percentage + "%", session.getStatus());
     }
 
     /**

@@ -1,6 +1,7 @@
 package com.aicourse.service;
 
 import com.aicourse.entity.Question;
+import com.aicourse.vo.QuestionStatsVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import java.util.List;
 import java.util.Map;
@@ -88,9 +89,9 @@ public interface QuestionService extends com.baomidou.mybatisplus.extension.serv
     /**
      * 获取题目使用统计
      * @param questionId 题目ID
-     * @return 统计信息Map
+     * @return 统计信息
      */
-    Map<String, Object> getQuestionStats(Long questionId);
+    QuestionStatsVO getQuestionStats(Long questionId);
 
     /**
      * 获取易错题TOP N

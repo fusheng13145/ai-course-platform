@@ -16,7 +16,6 @@ import com.baomidou.mybatisplus.extension.conditions.query.LambdaQueryChainWrapp
 
 import java.math.BigDecimal;
 import java.util.List;
-import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -49,7 +48,7 @@ class PlagiarismCheckControllerCoverageTest {
         lenient().when(plagiarismCheckService.createCheck(anyLong(), anyString())).thenReturn(check);
         lenient().doNothing().when(plagiarismCheckService).executeCheck(anyLong());
         lenient().when(plagiarismCheckService.getCheckResult(anyLong()))
-                .thenReturn(Map.of("id", 1, "status", "DONE"));
+                .thenReturn(new com.aicourse.vo.PlagiarismCheckResultVO());
         lenient().when(plagiarismCheckService.getHighSimilarityMatches(anyLong(), any()))
                 .thenReturn(List.of(new PlagiarismMatch()));
         lenient().when(plagiarismCheckService.getSubmissionChecks(anyLong()))

@@ -3,6 +3,10 @@
 # 原 test profile 会退化为主配置的 localhost 数据源但密码为空 → Access denied）。
 # 本 profile 显式指向本机开发库，且 sql.init.mode=never 防止 index.sql 的 DROP TABLE 破坏数据。
 spring:
+  # 数据库迁移：契约测试禁用 Flyway，保持 sql.init 行为（防双重初始化）
+  flyway:
+    enabled: false
+
   devtools:
     restart:
       enabled: false

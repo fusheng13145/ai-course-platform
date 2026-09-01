@@ -7,6 +7,7 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ProctorEventMapper;
 import com.aicourse.mapper.ProctorSessionMapper;
 import com.aicourse.service.SystemConfigService;
+import com.aicourse.vo.ProctorRiskSummaryVO;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -192,13 +193,11 @@ class ProctorServiceImplTest {
         when(sessionMapper.selectList(any())).thenReturn(List.of(session(1L)));
         ProctorEvent e = event(1L); e.setType("FACE_MISSING");
         when(eventMapper.selectList(any())).thenReturn(List.of(e));
-        List<Map<String, Object>> r = service.riskSummary(100L);
+        List<ProctorRiskSummaryVO> r = service.riskSummary(100L);
         assertEquals(1, r.size());
-        @SuppressWarnings("unchecked")
-        Map<String, Object> m = r.get(0);
-        assertEquals(1, m.get("eventCount"));
-        @SuppressWarnings("unchecked")
-        Map<String, Long> tc = (Map<String, Long>) m.get("typeCounts");
+        ProctorRiskSummaryVO m = r.get(0);
+        assertEquals(1, m.getEventCount());
+        Map<String, Long> tc = m.getTypeCounts();
         assertEquals(1L, tc.get("FACE_MISSING"));
     }
 
@@ -207,12 +206,12 @@ class ProctorServiceImplTest {
     @Test
     @DisplayName("getThresholds 返回默认阈值")
     void thresholds_ok() {
-        Map<String, Object> r = service.getThresholds();
-        assertEquals(6, r.get("high"));
-        assertEquals(3, r.get("medium"));
-        assertEquals(1, r.get("weightLow"));
-        assertEquals(2, r.get("weightMedium"));
-        assertEquals(3, r.get("weightHigh"));
+        com.aicourse.vo.ProctorThresholdVO r = service.getThresholds();
+        assertEquals(6, r.getHigh());
+        assertEquals(3, r.getMedium());
+        assertEquals(1, r.getWeightLow());
+        assertEquals(2, r.getWeightMedium());
+        assertEquals(3, r.getWeightHigh());
     }
 
     @Test

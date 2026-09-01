@@ -8,6 +8,7 @@ import com.aicourse.mapper.ClassroomMapper;
 import com.aicourse.service.SubmissionService;
 import com.aicourse.service.TaskService;
 import com.aicourse.service.UserService;
+import com.aicourse.vo.ClassroomPendingCountVO;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -98,13 +99,13 @@ class ClassroomServiceImplPendingTest {
                 submitted(4L, 502L, 102L));  // 班1 待批
         when(submissionService.list(any(Wrapper.class))).thenReturn(submissions);
 
-        List<Map<String, Object>> result = service.countPendingByCourse(10L);
+        List<ClassroomPendingCountVO> result = service.countPendingByCourse(10L);
         assertEquals(2, result.size());
-        Map<String, Object> first = result.get(0);
-        assertEquals(1L, first.get("classroomId"));
-        assertEquals("计科一班", first.get("classroomName"));
-        assertEquals(3L, first.get("pendingCount"));
-        assertEquals(1L, result.get(1).get("pendingCount"));
+        ClassroomPendingCountVO first = result.get(0);
+        assertEquals(1L, first.getClassroomId());
+        assertEquals("计科一班", first.getClassroomName());
+        assertEquals(3L, first.getPendingCount());
+        assertEquals(1L, result.get(1).getPendingCount());
     }
 
     @Test
@@ -114,9 +115,9 @@ class ClassroomServiceImplPendingTest {
         when(userService.list(any(Wrapper.class))).thenReturn(List.of(student(101L, 1L)));
         when(taskService.list(any(Wrapper.class))).thenReturn(Collections.emptyList());
 
-        List<Map<String, Object>> result = service.countPendingByCourse(10L);
+        List<ClassroomPendingCountVO> result = service.countPendingByCourse(10L);
         assertEquals(1, result.size());
-        assertEquals(0L, result.get(0).get("pendingCount"));
+        assertEquals(0L, result.get(0).getPendingCount());
     }
 
     @Test
@@ -125,9 +126,9 @@ class ClassroomServiceImplPendingTest {
         when(classroomMapper.selectList(any())).thenReturn(List.of(classroom(1L, 10L, "一班")));
         when(userService.list(any(Wrapper.class))).thenReturn(Collections.emptyList());
 
-        List<Map<String, Object>> result = service.countPendingByCourse(10L);
+        List<ClassroomPendingCountVO> result = service.countPendingByCourse(10L);
         assertEquals(1, result.size());
-        assertEquals(0L, result.get(0).get("pendingCount"));
+        assertEquals(0L, result.get(0).getPendingCount());
     }
 
     @Test

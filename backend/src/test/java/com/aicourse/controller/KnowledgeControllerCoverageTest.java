@@ -3,10 +3,12 @@ package com.aicourse.controller;
 import com.aicourse.common.ApiCode;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
+import com.aicourse.vo.KnowledgeTreeNodeVO;
 import com.aicourse.service.AIService;
 import com.aicourse.service.KnowledgeGraphService;
 import com.aicourse.service.KnowledgePointRelationService;
 import com.aicourse.service.KnowledgePointService;
+import com.aicourse.vo.KnowledgeGraphDataVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -66,7 +68,8 @@ class KnowledgeControllerCoverageTest {
         lenient().when(knowledgePointService.getSubsequentPoints(any())).thenReturn(List.of(kp));
         lenient().when(knowledgePointService.getChildPoints(any())).thenReturn(List.of(kp));
         lenient().when(knowledgePointService.calculateMastery(any(), any())).thenReturn(BigDecimal.ONE);
-        lenient().when(knowledgePointService.getKnowledgeTree(any())).thenReturn(List.of(Map.of("id", 1)));
+        lenient().when(knowledgePointService.getKnowledgeTree(any())).thenReturn(
+                List.of(new KnowledgeTreeNodeVO(1L, "root", null, null, null, null, null, null, List.of())));
         lenient().when(knowledgePointService.getRootPoints(any())).thenReturn(List.of(kp));
         lenient().when(knowledgePointService.count(any())).thenReturn(3L);
 
@@ -78,7 +81,7 @@ class KnowledgeControllerCoverageTest {
         lenient().when(relationService.getRelationsByPoint(any())).thenReturn(List.of(rel));
         lenient().when(relationService.getSourceRelations(any())).thenReturn(List.of(rel));
         lenient().when(relationService.getTargetRelations(any())).thenReturn(List.of(rel));
-        lenient().when(relationService.getGraphData(any())).thenReturn(Map.of("nodes", 1));
+        lenient().when(relationService.getGraphData(any())).thenReturn(new KnowledgeGraphDataVO(List.of(), List.of()));
         lenient().when(relationService.count()).thenReturn(5L);
 
         lenient().when(aiService.extractKnowledgeGraphJson(any())).thenReturn("{}");

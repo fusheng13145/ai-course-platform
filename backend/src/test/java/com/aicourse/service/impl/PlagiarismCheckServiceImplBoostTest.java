@@ -260,10 +260,11 @@ class PlagiarismCheckServiceImplBoostTest {
         when(plagiarismCheckMapper.selectById(9L)).thenReturn(check);
         when(plagiarismMatchService.list(any(LambdaQueryWrapper.class))).thenReturn(Collections.emptyList());
 
-        Map<String, Object> result = service.getCheckResult(9L);
-        assertEquals(check, result.get("checkInfo"));
-        assertEquals(new BigDecimal("0.5"), result.get("similarityScore"));
-        assertFalse(result.containsKey("algorithmVersion"));
+        com.aicourse.vo.PlagiarismCheckResultVO result = service.getCheckResult(9L);
+        assertEquals(check, result.getCheckInfo());
+        assertEquals(new BigDecimal("0.5"), result.getSimilarityScore());
+        // 原断言为 Map.containsKey("algorithmVersion")==false；VO 侧以字段为 null 复刻「键缺失」语义
+        assertNull(result.getAlgorithmVersion());
     }
 
     @Test
@@ -279,10 +280,10 @@ class PlagiarismCheckServiceImplBoostTest {
         m.setSimilarity(new BigDecimal("0.9"));
         when(plagiarismMatchService.list(any(LambdaQueryWrapper.class))).thenReturn(Collections.singletonList(m));
 
-        Map<String, Object> result = service.getCheckResult(9L);
-        assertEquals("Jaccard-CJKBigram-v2.0", result.get("algorithmVersion"));
-        assertEquals("{\"algorithmVersion\":\"Jaccard-CJKBigram-v2.0\"}", result.get("checkDetailRaw"));
-        assertEquals(1, ((List<?>) result.get("matches")).size());
+        com.aicourse.vo.PlagiarismCheckResultVO result = service.getCheckResult(9L);
+        assertEquals("Jaccard-CJKBigram-v2.0", result.getAlgorithmVersion());
+        assertEquals("{\"algorithmVersion\":\"Jaccard-CJKBigram-v2.0\"}", result.getCheckDetailRaw());
+        assertEquals(1, result.getMatches().size());
     }
 
     // ==================== getHighSimilarityMatches / getSubmissionChecks ====================

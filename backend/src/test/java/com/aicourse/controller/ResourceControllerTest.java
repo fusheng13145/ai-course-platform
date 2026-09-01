@@ -2,12 +2,14 @@ package com.aicourse.controller;
 import com.aicourse.controller.ResourceController;
 import com.aicourse.service.ResourceService;
 import com.aicourse.entity.Resource;
+import com.aicourse.vo.ChapterResourceTreeVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import static org.mockito.ArgumentMatchers.*;
@@ -89,7 +91,8 @@ class ResourceControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /resources/tree/1 - 返回200且资源树透传")
     void getResourceTree_authorized_returns_200() throws Exception {
-        when(resourceService.getResourceTree(1L)).thenReturn(List.of(Map.of("chapterId", 1, "name", "第一章")));
+        when(resourceService.getResourceTree(1L)).thenReturn(
+                List.of(new ChapterResourceTreeVO(1L, Collections.emptyList())));
         mockMvc.perform(get("/resources/tree/1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
@@ -136,12 +139,12 @@ class ResourceControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /resources/stats/course/1 - 返回200且资源统计透传")
     void getResourceStats_authorized_returns_200() throws Exception {
-        when(resourceService.getResourceStats(1L)).thenReturn(Map.of("total", 5, "totalSize", 1024));
+        when(resourceService.getResourceStats(1L)).thenReturn(new com.aicourse.vo.ResourceStatsVO(5L, 1024L, Map.of()));
         mockMvc.perform(get("/resources/stats/course/1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.total").value(5));
+                .andExpect(jsonPath("$.data.totalCount").value(5));
         verify(resourceService).getResourceStats(eq(1L));
     }
 

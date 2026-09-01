@@ -160,11 +160,11 @@ class FileUploadSessionServiceImplTest {
     void progress_ok() {
         FileUploadSession s = session(1L, 99L, "UPLOADING", 1, 4);
         when(fileUploadSessionMapper.selectById(1L)).thenReturn(s);
-        Map<String, Object> p = service.getUploadProgress(1L, 99L);
-        assertEquals(1, p.get("uploaded"));
-        assertEquals(4, p.get("total"));
-        assertEquals("25.0%", p.get("percentage"));
-        assertEquals("UPLOADING", p.get("status"));
+        com.aicourse.vo.UploadProgressVO p = service.getUploadProgress(1L, 99L);
+        assertEquals(1, p.getUploaded());
+        assertEquals(4, p.getTotal());
+        assertEquals("25.0%", p.getPercentage());
+        assertEquals("UPLOADING", p.getStatus());
     }
 
     @Test
@@ -172,8 +172,8 @@ class FileUploadSessionServiceImplTest {
     void progress_zeroTotal() {
         FileUploadSession s = session(1L, 99L, "UPLOADING", 0, 0);
         when(fileUploadSessionMapper.selectById(1L)).thenReturn(s);
-        Map<String, Object> p = service.getUploadProgress(1L, 99L);
-        assertEquals("0.0%", p.get("percentage"));
+        com.aicourse.vo.UploadProgressVO p = service.getUploadProgress(1L, 99L);
+        assertEquals("0.0%", p.getPercentage());
     }
 
     @Test

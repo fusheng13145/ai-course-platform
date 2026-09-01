@@ -1,6 +1,10 @@
 package com.aicourse.service;
 
 import com.aicourse.entity.LoginLog;
+import com.aicourse.vo.AbnormalLoginVO;
+import com.aicourse.vo.DailyLoginTrendVO;
+import com.aicourse.vo.LoginGlobalStatsVO;
+import com.aicourse.vo.LoginStatsVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import java.time.LocalDate;
 import java.util.List;
@@ -26,7 +30,7 @@ public interface LoginLogService extends com.baomidou.mybatisplus.extension.serv
      * @param userId 用户ID
      * @return 统计信息Map
      */
-    Map<String, Object> getLoginStats(Long userId);
+    LoginStatsVO getLoginStats(Long userId);
 
     /**
      * 异常登录检测（频繁失败IP）
@@ -43,7 +47,7 @@ public interface LoginLogService extends com.baomidou.mybatisplus.extension.serv
      * @param end 结束日期
      * @return 每日登录统计数据列表
      */
-    List<Map<String, Object>> getLoginTrends(LocalDate start, LocalDate end);
+    List<DailyLoginTrendVO> getLoginTrends(LocalDate start, LocalDate end);
 
     /**
      * 记录登录成功（记录IP地址、UserAgent、地理位置等客户端信息）
@@ -86,9 +90,9 @@ public interface LoginLogService extends com.baomidou.mybatisplus.extension.serv
 
     /**
      * 获取全局登录统计数据
-     * @return 统计信息Map（总登录次数、成功/失败次数等）
+     * @return 全局登录统计
      */
-    Map<String, Object> getGlobalLoginStats();
+    LoginGlobalStatsVO getGlobalLoginStats();
 
     /**
      * 获取最近登录记录
@@ -111,5 +115,5 @@ public interface LoginLogService extends com.baomidou.mybatisplus.extension.serv
      * @param userId 用户ID
      * @return 异常检测结果（包含是否异常、异常详情等）
      */
-    Map<String, Object> detectAbnormalLogin(Long userId);
+    AbnormalLoginVO detectAbnormalLogin(Long userId);
 }

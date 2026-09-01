@@ -9,7 +9,6 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
-import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -73,12 +72,18 @@ class DiscussionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /discussion/topic/1 - 查询话题详情返回200，字段透传")
     void getTopic_authorized_passes_security() throws Exception {
-        when(discussionService.getTopicDetail(eq(1L))).thenReturn(Map.of("title", "话题"));
+        com.aicourse.vo.TopicDetailVO stub = new com.aicourse.vo.TopicDetailVO();
+        DiscussionTopic stubTopic = new DiscussionTopic();
+        stubTopic.setTitle("话题");
+        stub.setTopic(stubTopic);
+        stub.setPosts(List.of());
+        stub.setReplyCount(0);
+        when(discussionService.getTopicDetail(eq(1L))).thenReturn(stub);
         mockMvc.perform(get("/discussion/topic/1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.title").value("话题"));
+                .andExpect(jsonPath("$.data.topic.title").value("话题"));
         verify(discussionService).getTopicDetail(eq(1L));
     }
 
@@ -113,7 +118,7 @@ class DiscussionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /discussion/post/1/like - 点赞返回200，字段透传")
     void likePost_authorized_passes_security() throws Exception {
-        when(discussionService.likePost(eq(1L), eq(1L))).thenReturn(Map.of("liked", true));
+        when(discussionService.likePost(eq(1L), eq(1L))).thenReturn(new com.aicourse.vo.LikePostVO(1, true));
         mockMvc.perform(post("/discussion/post/1/like").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))

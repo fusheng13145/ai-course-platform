@@ -7,6 +7,7 @@ import com.aicourse.common.ApiResponse;
 import com.aicourse.dto.FileUploadDTO;
 import com.aicourse.entity.FileUploadSession;
 import com.aicourse.service.FileUploadSessionService;
+import com.aicourse.vo.UploadProgressVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -15,7 +16,6 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * 文件分片上传会话控制器
@@ -96,9 +96,9 @@ public class FileUploadSessionController {
      * @return 进度信息（uploaded/total/percentage）
      */
     @GetMapping("/{id}/progress")
-    public ApiResponse<Map<String, Object>> getUploadProgress(@PathVariable Long id,
-                                                              org.springframework.security.core.Authentication auth) {
-        Map<String, Object> progress = fileUploadSessionService.getUploadProgress(id, resolveOperator(id, auth));
+    public ApiResponse<UploadProgressVO> getUploadProgress(@PathVariable Long id,
+                                                           org.springframework.security.core.Authentication auth) {
+        UploadProgressVO progress = fileUploadSessionService.getUploadProgress(id, resolveOperator(id, auth));
         return ApiResponse.success(progress);
     }
 

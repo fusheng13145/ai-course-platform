@@ -17,6 +17,9 @@ import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.ExamSessionService;
 import com.aicourse.service.QuestionService;
+import com.aicourse.vo.ExamPaperDetailVO;
+import com.aicourse.vo.ExamPaperQuestionVO;
+import com.aicourse.vo.ExamPaperStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
@@ -158,23 +161,20 @@ public class ExamPaperController {
      */
     @GetMapping("/{id}/questions")
     @Operation(summary = "查询试卷关联的题目列表")
-    public ApiResponse<List<Map<String, Object>>> getQuestions(@PathVariable Long id) {
+    public ApiResponse<List<ExamPaperQuestionVO>> getQuestions(@PathVariable Long id) {
         LambdaQueryWrapper<ExamQuestion> queryWrapper = new LambdaQueryWrapper<ExamQuestion>()
                 .eq(ExamQuestion::getExamPaperId, id);
         List<ExamQuestion> examQuestionList = examQuestionService.list(queryWrapper);
-        List<Map<String, Object>> resultList = new ArrayList<>();
+        List<ExamPaperQuestionVO> resultList = new ArrayList<>();
 
         for (ExamQuestion examQuestion : examQuestionList) {
             Question question = questionService.getById(examQuestion.getQuestionId());
             if (question == null) {
                 continue;
             }
-            Map<String, Object> item = new HashMap<>();
-            item.put("id", examQuestion.getId());
-            item.put("orderIndex", examQuestion.getOrderIndex());
-            item.put("points", examQuestion.getPoints());
-            item.put("question", question);
-            resultList.add(item);
+            resultList.add(new ExamPaperQuestionVO(
+                    examQuestion.getId(), examQuestion.getOrderIndex(),
+                    examQuestion.getPoints(), question));
         }
         return ApiResponse.success(resultList);
     }
@@ -186,8 +186,8 @@ public class ExamPaperController {
      */
     @GetMapping("/{id}/detail")
     @Operation(summary = "查询试卷完整详情")
-    public ApiResponse<Map<String, Object>> getDetail(@PathVariable Long id) {
-        Map<String, Object> detail = examPaperService.getExamPaperDetail(id);
+    public ApiResponse<ExamPaperDetailVO> getDetail(@PathVariable Long id) {
+        ExamPaperDetailVO detail = examPaperService.getExamPaperDetail(id);
         return ApiResponse.success(detail);
     }
 
@@ -244,8 +244,8 @@ public class ExamPaperController {
      */
     @GetMapping("/{id}/statistics")
     @Operation(summary = "获取试卷统计")
-    public ApiResponse<Map<String, Object>> statistics(@PathVariable Long id) {
-        Map<String, Object> stats = examPaperService.getPaperStatistics(id);
+    public ApiResponse<ExamPaperStatsVO> statistics(@PathVariable Long id) {
+        ExamPaperStatsVO stats = examPaperService.getPaperStatistics(id);
         return ApiResponse.success(stats);
     }
 

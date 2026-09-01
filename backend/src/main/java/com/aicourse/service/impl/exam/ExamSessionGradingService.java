@@ -9,6 +9,7 @@ import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.QuestionService;
 import com.aicourse.service.WrongQuestionService;
+import com.aicourse.vo.AutoGradeResultVO;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Component;
@@ -57,7 +58,7 @@ public class ExamSessionGradingService {
      * 自动阅卷（客观题：单选/多选/判断）
      */
     @Transactional(rollbackFor = Exception.class)
-    public Map<String, Object> autoGrade(Long sessionId) {
+    public AutoGradeResultVO autoGrade(Long sessionId) {
         ExamSession session = examSessionMapper.selectById(sessionId);
         if (session == null) {
             throw new BusinessException("考试会话不存在");
@@ -210,18 +211,10 @@ public class ExamSessionGradingService {
         }
 
         // 构建返回结果
-        Map<String, Object> result = new HashMap<>();
-        result.put("sessionId", session.getId());
-        result.put("totalScore", totalScore);
-        result.put("fullScore", fullScore);
-        result.put("percentage", percentage);
-        result.put("correctCount", correctCount);
-        result.put("wrongCount", wrongCount);
-        result.put("pendingReviewCount", pendingReviewCount);
-        result.put("questionScores", questionScoreMap);
-        result.put("status", ExamSessionStatus.GRADED);
-
-        return result;
+        return new AutoGradeResultVO(
+                session.getId(), totalScore, fullScore, percentage,
+                correctCount, wrongCount, pendingReviewCount,
+                questionScoreMap, ExamSessionStatus.GRADED);
     }
 
     /**

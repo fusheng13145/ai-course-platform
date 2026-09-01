@@ -8,6 +8,7 @@ import com.aicourse.mapper.LearningPathMapper;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.LearningPathNodeService;
 import com.aicourse.service.WrongQuestionService;
+import com.aicourse.vo.LearningPathDetailVO;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -260,9 +261,9 @@ class LearningPathServiceImplTest {
         when(nodeService.getPathNodes(1L)).thenReturn(List.of());
         when(nodeService.getNodeStatusStats(1L)).thenReturn(Map.of("COMPLETED", 1L));
 
-        Map<String, Object> d = service.getPathDetail(1L);
-        assertNotNull(d.get("stagesParsed"));
-        assertNotNull(d.get("planDetailParsed"));
+        LearningPathDetailVO d = service.getPathDetail(1L);
+        assertNotNull(d.getStagesParsed());
+        assertNotNull(d.getPlanDetailParsed());
     }
 
     @Test
@@ -273,8 +274,8 @@ class LearningPathServiceImplTest {
         when(learningPathMapper.selectById(any())).thenReturn(p);
         when(nodeService.getPathNodes(1L)).thenReturn(List.of());
         when(nodeService.getNodeStatusStats(1L)).thenReturn(Map.of());
-        Map<String, Object> d = service.getPathDetail(1L);
-        assertNotNull(d.get("stagesRaw"));
+        LearningPathDetailVO d = service.getPathDetail(1L);
+        assertNotNull(d.getStagesRaw());
     }
 
     // ===================== 生成路径 =====================

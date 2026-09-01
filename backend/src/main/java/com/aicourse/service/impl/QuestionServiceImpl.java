@@ -8,6 +8,7 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.QuestionMapper;
 import com.aicourse.service.AIService;
 import com.aicourse.service.QuestionService;
+import com.aicourse.vo.QuestionStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -420,23 +421,17 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      * 返回使用次数、正确率等统计数据
      */
     @Override
-    public Map<String, Object> getQuestionStats(Long questionId) {
+    public QuestionStatsVO getQuestionStats(Long questionId) {
         Question question = this.getById(questionId);
         if (question == null) {
             throw new BusinessException("题目不存在");
         }
 
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("questionId", question.getId());
-        stats.put("usageCount", question.getUsageCount());
-        stats.put("correctRate", question.getCorrectRate());
-        stats.put("difficulty", question.getDifficulty());
-        stats.put("type", question.getType());
-        stats.put("score", question.getScore());
-        stats.put("isActive", question.getIsActive());
-        stats.put("createdAt", question.getCreatedAt());
-
-        return stats;
+        return new QuestionStatsVO(
+                question.getId(), question.getUsageCount(), question.getCorrectRate(),
+                question.getDifficulty(), question.getType(), question.getScore(),
+                question.getIsActive(), question.getCreatedAt()
+        );
     }
 
     /**

@@ -14,6 +14,7 @@ import com.aicourse.security.RoleUtil;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.LearningPathNodeService;
 import com.aicourse.service.LearningPathService;
+import com.aicourse.vo.LearningPathDetailVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -257,9 +258,9 @@ public class LearningPathController {
      * @return 详情数据（path + nodes + statusStats）
      */
     @GetMapping("/{id}/detail")
-    public ApiResponse<Map<String, Object>> getPathDetail(@PathVariable Long id, Authentication auth) {
+    public ApiResponse<LearningPathDetailVO> getPathDetail(@PathVariable Long id, Authentication auth) {
         assertPathOwner(auth, id);
-        Map<String, Object> detail = learningPathService.getPathDetail(id);
+        LearningPathDetailVO detail = learningPathService.getPathDetail(id);
         return ApiResponse.success(detail);
     }
 
@@ -270,10 +271,10 @@ public class LearningPathController {
      * @return 进度详情
      */
     @GetMapping("/{id}/progress")
-    public ApiResponse<Map<String, Object>> getProgress(@PathVariable Long id, Authentication auth) {
+    public ApiResponse<LearningPathDetailVO> getProgress(@PathVariable Long id, Authentication auth) {
         assertPathOwner(auth, id);
         learningPathService.updateProgress(id);
-        Map<String, Object> detail = learningPathService.getPathDetail(id);
+        LearningPathDetailVO detail = learningPathService.getPathDetail(id);
         return ApiResponse.success(detail);
     }
 

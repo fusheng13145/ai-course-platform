@@ -1,6 +1,7 @@
 package com.aicourse.service;
 
 import com.aicourse.entity.LearningRecord;
+import com.aicourse.vo.DailyLearningStatVO;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.util.List;
@@ -25,7 +26,7 @@ public interface LearningRecordService extends IService<LearningRecord> {
      * @param days 天数
      * @return 趋势数据列表
      */
-    List<Map<String, Object>> getLearningTrend(Long userId, int days);
+    List<DailyLearningStatVO> getLearningTrend(Long userId, int days);
 
     /**
      * 获取用户月度学习数据（用于日历）
@@ -34,5 +35,5 @@ public interface LearningRecordService extends IService<LearningRecord> {
      * @param month 月份
      * @return 每日学习数据
      */
-    List<Map<String, Object>> getMonthlyLearningData(Long userId, int year, int month);
+    List<DailyLearningStatVO> getMonthlyLearningData(Long userId, int year, int month);
 }

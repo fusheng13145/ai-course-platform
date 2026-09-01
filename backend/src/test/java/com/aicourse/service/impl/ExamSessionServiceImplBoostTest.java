@@ -12,6 +12,7 @@ import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.QuestionService;
 import com.aicourse.service.WrongQuestionService;
 import com.aicourse.service.impl.exam.ExamSessionGradingService;
+import com.aicourse.vo.AutoGradeResultVO;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -255,7 +256,7 @@ class ExamSessionServiceImplBoostTest {
     @Test
     @DisplayName("autoGrade 委托 gradingService")
     void autoGrade_delegate() {
-        Map<String, Object> m = new HashMap<>(); m.put("ok", 1);
+        AutoGradeResultVO m = new AutoGradeResultVO(1L, null, null, null, 0, 0, 0, Map.of(), null);
         when(gradingService.autoGrade(1L)).thenReturn(m);
         assertEquals(m, service.autoGrade(1L));
     }

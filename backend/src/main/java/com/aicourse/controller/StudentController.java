@@ -10,6 +10,9 @@ import com.aicourse.dto.PracticeGenerateDTO;
 import com.aicourse.entity.*;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.*;
+import com.aicourse.vo.AssignmentDetailVO;
+import com.aicourse.vo.CourseDetailVO;
+import com.aicourse.vo.DailyLearningStatVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import jakarta.validation.Valid;
@@ -84,7 +87,7 @@ public class StudentController {
      * 获取课程学习详情
      */
     @GetMapping("/courses/{courseId}")
-    public ApiResponse<Map<String, Object>> getCourseDetail(
+    public ApiResponse<CourseDetailVO> getCourseDetail(
             @PathVariable Long courseId, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         Course course = courseService.getById(courseId);
@@ -95,10 +98,7 @@ public class StudentController {
                 new LambdaQueryWrapper<CourseEnrollment>()
                         .eq(CourseEnrollment::getStudentId, userId)
                         .eq(CourseEnrollment::getCourseId, courseId));
-        Map<String, Object> result = new HashMap<>();
-        result.put("course", course);
-        result.put("enrollment", enrollment);
-        return ApiResponse.success(result);
+        return ApiResponse.success(new CourseDetailVO(course, enrollment));
     }
 
     // 进度不再由客户端写入（安全修复 P0-1）：学生可把任意课程进度改成 100%。
@@ -200,7 +200,7 @@ public class StudentController {
      * 获取作业详情
      */
     @GetMapping("/assignments/{assignmentId}")
-    public ApiResponse<Map<String, Object>> getAssignmentDetail(
+    public ApiResponse<AssignmentDetailVO> getAssignmentDetail(
             @PathVariable Long assignmentId, Authentication auth) {
         Task task = taskService.getById(assignmentId);
         if (task == null) {
@@ -211,10 +211,7 @@ public class StudentController {
                 new LambdaQueryWrapper<Submission>()
                         .eq(Submission::getTaskId, assignmentId)
                         .eq(Submission::getStudentId, userId));
-        Map<String, Object> result = new HashMap<>();
-        result.put("assignment", task);
-        result.put("submission", submission);
-        return ApiResponse.success(result);
+        return ApiResponse.success(new AssignmentDetailVO(task, submission));
     }
 
     /**
@@ -324,12 +321,12 @@ public class StudentController {
      * 获取学习日历
      */
     @GetMapping("/progress/calendar")
-    public ApiResponse<List<Map<String, Object>>> getProgressCalendar(
+    public ApiResponse<List<DailyLearningStatVO>> getProgressCalendar(
             Authentication auth,
             @RequestParam int year,
             @RequestParam int month) {
         Long userId = (Long) auth.getPrincipal();
-        List<Map<String, Object>> data = learningRecordService.getMonthlyLearningData(userId, year, month);
+        List<DailyLearningStatVO> data = learningRecordService.getMonthlyLearningData(userId, year, month);
         return ApiResponse.success(data);
     }
 
@@ -337,11 +334,11 @@ public class StudentController {
      * 获取学习统计
      */
     @GetMapping("/progress/statistics")
-    public ApiResponse<List<Map<String, Object>>> getProgressStatistics(
+    public ApiResponse<List<DailyLearningStatVO>> getProgressStatistics(
             Authentication auth,
             @RequestParam(defaultValue = "7") int days) {
         Long userId = (Long) auth.getPrincipal();
-        List<Map<String, Object>> trend = learningRecordService.getLearningTrend(userId, days);
+        List<DailyLearningStatVO> trend = learningRecordService.getLearningTrend(userId, days);
         return ApiResponse.success(trend);
     }
 }

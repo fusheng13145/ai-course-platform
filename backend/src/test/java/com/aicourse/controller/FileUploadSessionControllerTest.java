@@ -7,7 +7,6 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
-import java.util.Map;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -125,12 +124,13 @@ class FileUploadSessionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /upload-sessions/1/progress - 返回200且进度透传")
     void getUploadProgress_authorized_returns_200() throws Exception {
-        when(fileUploadSessionService.getUploadProgress(1L, 1L)).thenReturn(Map.of("uploaded", 1, "total", 2, "percentage", 50));
+        when(fileUploadSessionService.getUploadProgress(1L, 1L))
+                .thenReturn(new com.aicourse.vo.UploadProgressVO(1, 2, "50.0%", "UPLOADING"));
         mockMvc.perform(get("/upload-sessions/1/progress").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.percentage").value(50));
+                .andExpect(jsonPath("$.data.percentage").value("50.0%"));
         verify(fileUploadSessionService).getUploadProgress(eq(1L), eq(1L));
     }
 

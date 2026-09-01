@@ -11,6 +11,7 @@ import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
+import com.aicourse.vo.CourseStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
@@ -211,7 +212,7 @@ public class CourseController {
     @GetMapping("/{id}/stats")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "获取课程统计数据", description = "返回课程的学生数、待审核数、状态等统计信息")
-    public ApiResponse<Map<String, Object>> getStats(@Parameter(description = "课程ID") @PathVariable Long id, Authentication auth) {
+    public ApiResponse<CourseStatsVO> getStats(@Parameter(description = "课程ID") @PathVariable Long id, Authentication auth) {
         assertCourseOwner(id, auth);
         Course course = courseService.getById(id);
         if (course == null) {
@@ -231,13 +232,9 @@ public class CourseController {
                 .eq(CourseEnrollment::getApprovalStatus, "PENDING");
         long pendingStudents = enrollmentService.count(pendingWrapper);
 
-        return ApiResponse.success(Map.of(
-                "totalStudents", totalStudents,
-                "pendingStudents", pendingStudents,
-                "courseId", id,
-                "courseName", course.getName(),
-                "status", course.getStatus(),
-                "approvalStatus", course.getApprovalStatus()
+        return ApiResponse.success(new CourseStatsVO(
+                totalStudents, pendingStudents, id,
+                course.getName(), course.getStatus(), course.getApprovalStatus()
         ));
     }
 

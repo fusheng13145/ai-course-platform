@@ -9,6 +9,7 @@ import com.aicourse.dto.ExamSubmitDTO;
 import com.aicourse.entity.ExamSession;
 import com.aicourse.security.ExamSessionAccessControl;
 import com.aicourse.service.ExamSessionService;
+import com.aicourse.vo.AutoGradeResultVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -132,10 +133,10 @@ public class ExamSessionController {
     @PostMapping("/{id}/auto-grade")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "自动阅卷", description = "对客观题（单选/多选/判断）进行自动判分，生成成绩报告")
-    public ApiResponse<Map<String, Object>> autoGrade(@Parameter(description = "考试会话ID") @PathVariable Long id,
-                                                      Authentication auth) {
+    public ApiResponse<AutoGradeResultVO> autoGrade(@Parameter(description = "考试会话ID") @PathVariable Long id,
+                                                    Authentication auth) {
         examSessionAccessControl.assertManageable(id, auth);
-        Map<String, Object> result = examSessionService.autoGrade(id);
+        AutoGradeResultVO result = examSessionService.autoGrade(id);
         return ApiResponse.success("自动阅卷完成", result);
     }
 

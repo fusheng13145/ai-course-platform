@@ -2,6 +2,9 @@ package com.aicourse.service;
 
 import com.aicourse.entity.Classroom;
 import com.aicourse.entity.User;
+import com.aicourse.vo.ClassroomDetailVO;
+import com.aicourse.vo.ClassroomPendingCountVO;
+import com.aicourse.vo.ClassroomStatsVO;
 import com.baomidou.mybatisplus.extension.service.IService;
 
 import java.util.List;
@@ -15,9 +18,9 @@ public interface ClassroomService extends IService<Classroom> {
     /**
      * 获取班级详情（含基本信息）
      * @param classroomId 班级ID
-     * @return 班级详情信息Map
+     * @return 班级详情信息
      */
-    Map<String, Object> getClassroomDetail(Long classroomId);
+    ClassroomDetailVO getClassroomDetail(Long classroomId);
 
     /**
      * 获取班级学生列表（分页，通过User.classId关联）
@@ -53,9 +56,9 @@ public interface ClassroomService extends IService<Classroom> {
     /**
      * 班级统计信息（人数、男女比例等）
      * @param classroomId 班级ID
-     * @return 统计信息Map
+     * @return 统计信息
      */
-    Map<String, Object> getClassroomStats(Long classroomId);
+    ClassroomStatsVO getClassroomStats(Long classroomId);
 
     /**
      * 搜索班级（支持多条件组合查询）
@@ -82,5 +85,5 @@ public interface ClassroomService extends IService<Classroom> {
      * @param courseId 课程ID
      * @return 列表项含 classroomId / classroomName / pendingCount
      */
-    List<Map<String, Object>> countPendingByCourse(Long courseId);
+    List<ClassroomPendingCountVO> countPendingByCourse(Long courseId);
 }

@@ -132,10 +132,10 @@ class DiscussionServiceImplBoostTest {
         p2.setContent(null);
         when(postMapper.selectList(any(LambdaQueryWrapper.class))).thenReturn(Arrays.asList(p1, p2, null));
 
-        Map<String, Object> res = service.getTopicDetail(1L);
-        assertEquals(t, res.get("topic"));
-        assertEquals(3, res.get("replyCount"));
-        assertTrue(((DiscussionPost) ((List<?>) res.get("posts")).get(0)).getContent().contains("&lt;"));
+        com.aicourse.vo.TopicDetailVO res = service.getTopicDetail(1L);
+        assertEquals(t, res.getTopic());
+        assertEquals(3, res.getReplyCount());
+        assertTrue(res.getPosts().get(0).getContent().contains("&lt;"));
     }
 
     // ==================== reply ====================
@@ -250,9 +250,9 @@ class DiscussionServiceImplBoostTest {
         when(postMapper.selectById(1L)).thenReturn(p);
         when(postLikeMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(null);
 
-        Map<String, Object> res = service.likePost(1L, 7L);
-        assertTrue((Boolean) res.get("liked"));
-        assertEquals(1, res.get("likeCount"));
+        com.aicourse.vo.LikePostVO res = service.likePost(1L, 7L);
+        assertTrue(res.getLiked());
+        assertEquals(1, res.getLikeCount());
         verify(postLikeMapper).insert(any(DiscussionPostLike.class));
         verify(postMapper).updateById(any(DiscussionPost.class));
     }
@@ -268,9 +268,9 @@ class DiscussionServiceImplBoostTest {
         existing.setId(9L);
         when(postLikeMapper.selectOne(any(LambdaQueryWrapper.class))).thenReturn(existing);
 
-        Map<String, Object> res = service.likePost(1L, 7L);
-        assertFalse((Boolean) res.get("liked"));
-        assertEquals(0, res.get("likeCount"));
+        com.aicourse.vo.LikePostVO res = service.likePost(1L, 7L);
+        assertFalse(res.getLiked());
+        assertEquals(0, res.getLikeCount());
         verify(postLikeMapper).deleteById(9L);
     }
 

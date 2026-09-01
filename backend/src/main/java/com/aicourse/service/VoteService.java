@@ -2,11 +2,11 @@ package com.aicourse.service;
 
 import com.aicourse.entity.Vote;
 import com.aicourse.entity.VoteRecord;
+import com.aicourse.vo.VoteResultVO;
 import com.baomidou.mybatisplus.extension.service.IService;
 import org.springframework.security.core.Authentication;
 
 import java.util.List;
-import java.util.Map;
 
 /**
  * 课堂投票/问卷服务
@@ -50,7 +50,7 @@ public interface VoteService extends IService<Vote> {
     /**
      * 统计结果：{ "total": N, "counts": { "a": 3, "b": 1 } }
      */
-    Map<String, Object> result(Long id);
+    VoteResultVO result(Long id);
 
     /**
      * 查询当前学生本人的投票记录

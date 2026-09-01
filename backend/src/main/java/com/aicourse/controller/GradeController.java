@@ -13,13 +13,13 @@ import com.aicourse.entity.GradePolicy;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.GradeService;
+import com.aicourse.vo.FinalGradeVO;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
-import java.util.Map;
 import io.swagger.v3.oas.annotations.tags.Tag;
 
 /**
@@ -73,9 +73,9 @@ public class GradeController {
     /** 按成绩方案计算单个学生的最终总评成绩 */
     @GetMapping("/final/{policyId}/student/{studentId}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Map<String, Object>> computeFinal(@PathVariable Long policyId,
-                                                          @PathVariable Long studentId,
-                                                          Authentication auth) {
+    public ApiResponse<FinalGradeVO> computeFinal(@PathVariable Long policyId,
+                                                  @PathVariable Long studentId,
+                                                  Authentication auth) {
         GradePolicy policy = requirePolicy(policyId);
         assertCourseOwner(policy.getCourseId(), auth);
         return ApiResponse.success(gradeService.computeFinal(policyId, studentId));
@@ -84,7 +84,7 @@ public class GradeController {
     /** 生成某课程的全班成绩报表 */
     @GetMapping("/report/course/{courseId}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<List<Map<String, Object>>> courseReport(@PathVariable Long courseId, Authentication auth) {
+    public ApiResponse<List<FinalGradeVO>> courseReport(@PathVariable Long courseId, Authentication auth) {
         assertCourseOwner(courseId, auth);
         return ApiResponse.success(gradeService.courseReport(courseId));
     }

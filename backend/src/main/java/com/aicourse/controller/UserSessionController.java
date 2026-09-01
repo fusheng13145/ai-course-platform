@@ -6,13 +6,12 @@ import org.slf4j.LoggerFactory;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.UserSession;
 import com.aicourse.service.UserSessionService;
+import com.aicourse.vo.UserSessionStatsVO;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 用户会话管理接口控制器
@@ -75,15 +74,13 @@ public class UserSessionController {
      */
     @GetMapping("/stats")
     @PreAuthorize("hasRole('ADMIN')")
-    public ApiResponse<Map<String, Object>> getSessionStats() {
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("onlineUserCount", userSessionService.getOnlineUserCount());
+    public ApiResponse<UserSessionStatsVO> getSessionStats() {
+        Long onlineUserCount = userSessionService.getOnlineUserCount();
 
         // 清理过期会话并返回清理数量
         int cleanedCount = userSessionService.cleanExpiredSessions();
-        stats.put("cleanedExpiredSessions", cleanedCount);
 
-        return ApiResponse.success(stats);
+        return ApiResponse.success(new UserSessionStatsVO(onlineUserCount, cleanedCount));
     }
 
     /**

@@ -8,6 +8,7 @@ import com.aicourse.entity.WrongQuestion;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ExamSessionMapper;
 import com.aicourse.service.impl.exam.ExamSessionGradingService;
+import com.aicourse.vo.AutoGradeResultVO;
 import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.QuestionService;
@@ -226,7 +227,7 @@ class ExamSessionServiceBoostTest {
     @Test
     @DisplayName("autoGrade / manualGrade / calculateTotalScore 委托 gradingService")
     void gradingDelegation() {
-        Map<String, Object> map = new HashMap<>();
+        AutoGradeResultVO map = new AutoGradeResultVO(1L, null, null, null, 0, 0, 0, Map.of(), null);
         when(gradingService.autoGrade(1L)).thenReturn(map);
         assertSame(map, service.autoGrade(1L));
 

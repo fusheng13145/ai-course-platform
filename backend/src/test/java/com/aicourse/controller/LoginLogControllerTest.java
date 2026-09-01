@@ -2,6 +2,7 @@ package com.aicourse.controller;
 import com.aicourse.controller.LoginLogController;
 import com.aicourse.service.LoginLogService;
 import com.aicourse.entity.LoginLog;
+import com.aicourse.vo.DailyLoginTrendVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -60,7 +61,7 @@ class LoginLogControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /login-logs/user/1/stats - 返回200且登录统计透传")
     void getLoginStats_authorized_returns_200() throws Exception {
-        when(loginLogService.getLoginStats(1L)).thenReturn(Map.of("successCount", 10, "failCount", 2));
+        when(loginLogService.getLoginStats(1L)).thenReturn(new com.aicourse.vo.LoginStatsVO(0L, 10L, 0L, 0.0, null, null, null, 0L));
         mockMvc.perform(get("/login-logs/user/1/stats").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
@@ -142,12 +143,14 @@ class LoginLogControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /login-logs/stats - 返回200且全局统计透传")
     void getGlobalStats_authorized_returns_200() throws Exception {
-        when(loginLogService.getGlobalLoginStats()).thenReturn(Map.of("totalLogins", 1000, "successCount", 950));
+        when(loginLogService.getGlobalLoginStats()).thenReturn(new com.aicourse.vo.LoginGlobalStatsVO(
+                1000L, 950L, 50L, 95.0, 10L, 60L, java.util.Map.of("SUCCESS", 950L)));
         mockMvc.perform(get("/login-logs/stats").with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.totalLogins").value(1000));
+                // 原桩键为 totalLogins，与真实契约键 totalCount 不符；VO 化后按真实键断言
+                .andExpect(jsonPath("$.data.totalCount").value(1000));
         verify(loginLogService).getGlobalLoginStats();
     }
 
@@ -224,12 +227,14 @@ class LoginLogControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /login-logs/abnormal/1 - 本人访问返回200且异常检测结果透传")
     void getAbnormalLogin_authorized_returns_200() throws Exception {
-        when(loginLogService.detectAbnormalLogin(1L)).thenReturn(Map.of("abnormal", true, "reason", "多地登录"));
+        when(loginLogService.detectAbnormalLogin(1L)).thenReturn(new com.aicourse.vo.AbnormalLoginVO(
+                1L, 2, true, java.util.List.of("多地登录"), 2, 2, 0L, 2L, java.time.LocalDateTime.now()));
         mockMvc.perform(get("/login-logs/abnormal/1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.abnormal").value(true));
+                // VO 以 @JsonProperty 钉死 isAbnormal 键（原桩的 abnormal 与真实契约不符）
+                .andExpect(jsonPath("$.data.isAbnormal").value(true));
         verify(loginLogService).detectAbnormalLogin(eq(1L));
     }
 
@@ -253,12 +258,13 @@ class LoginLogControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /login-logs/trends?days=1 - 返回200且登录趋势列表透传")
     void getLoginTrends_authorized_returns_200() throws Exception {
-        when(loginLogService.getLoginTrends(any(), any())).thenReturn(List.of(Map.of("date", "2024-01-01", "count", 7)));
+        when(loginLogService.getLoginTrends(any(), any())).thenReturn(
+                List.of(new DailyLoginTrendVO("2024-01-01", 5, 2, 7)));
         mockMvc.perform(get("/login-logs/trends?days=1").with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data[0].count").value(7));
+                .andExpect(jsonPath("$.data[0].totalCount").value(7));
         verify(loginLogService).getLoginTrends(any(), any());
     }
 

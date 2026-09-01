@@ -15,6 +15,7 @@ import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.QuestionService;
 import com.aicourse.service.WrongQuestionService;
 import com.aicourse.service.impl.exam.ExamSessionGradingService;
+import com.aicourse.vo.AutoGradeResultVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -207,18 +208,10 @@ class ExamSessionServiceTest {
     @Test
     @DisplayName("自动评分-委托 GradingService 并原样返回结果")
     void testAutoGrade_Delegates() {
-        Map<String, Object> expected = new HashMap<>();
-        expected.put("sessionId", sessionId);
-        expected.put("totalScore", new BigDecimal("65.00"));
-        expected.put("fullScore", new BigDecimal("100"));
-        expected.put("percentage", new BigDecimal("65.00"));
-        expected.put("correctCount", 6);
-        expected.put("wrongCount", 4);
-        expected.put("pendingReviewCount", 0);
-        expected.put("status", "GRADED");
+        AutoGradeResultVO expected = new AutoGradeResultVO(sessionId, new BigDecimal("65.00"), new BigDecimal("100"), new BigDecimal("65.00"), 6, 4, 0, Map.of(), "GRADED");
         when(gradingService.autoGrade(sessionId)).thenReturn(expected);
 
-        Map<String, Object> result = examSessionService.autoGrade(sessionId);
+        AutoGradeResultVO result = examSessionService.autoGrade(sessionId);
 
         assertSame(expected, result);
         verify(gradingService).autoGrade(sessionId);

@@ -7,6 +7,7 @@ import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.LearningPathNodeService;
 import com.aicourse.service.LearningPathService;
+import com.aicourse.vo.LearningPathDetailVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -328,11 +329,14 @@ class LearningPathControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /learning-paths/1/detail - 返回200且data透传详情")
     void getPathDetail_authorized_returns_success() throws Exception {
-        when(learningPathService.getPathDetail(any())).thenReturn(Map.of("id", 1L));
+        LearningPath p = new LearningPath();
+        p.setId(1L);
+        when(learningPathService.getPathDetail(any())).thenReturn(
+                new LearningPathDetailVO(p, List.of(), Map.of(), 0, null, null, null, null));
         mockMvc.perform(get("/learning-paths/1/detail").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.id").value(1));
+                .andExpect(jsonPath("$.data.path.id").value(1));
         verify(learningPathService).getPathDetail(eq(1L));
     }
 
@@ -347,11 +351,14 @@ class LearningPathControllerTest extends ControllerTestBase {
     @DisplayName("GET /learning-paths/1/progress - 返回200且正确委托updateProgress+getPathDetail")
     void getProgress_authorized_returns_success() throws Exception {
         doNothing().when(learningPathService).updateProgress(any());
-        when(learningPathService.getPathDetail(any())).thenReturn(Map.of("id", 1L));
+        LearningPath p = new LearningPath();
+        p.setId(1L);
+        when(learningPathService.getPathDetail(any())).thenReturn(
+                new LearningPathDetailVO(p, List.of(), Map.of(), 0, null, null, null, null));
         mockMvc.perform(get("/learning-paths/1/progress").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.id").value(1));
+                .andExpect(jsonPath("$.data.path.id").value(1));
         verify(learningPathService).updateProgress(eq(1L));
         verify(learningPathService).getPathDetail(eq(1L));
     }

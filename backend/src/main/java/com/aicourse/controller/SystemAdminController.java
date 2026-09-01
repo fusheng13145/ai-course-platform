@@ -15,6 +15,10 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.service.*;
 import com.aicourse.util.ExcelUtil;
 import com.aicourse.util.PasswordPolicy;
+import com.aicourse.vo.AdminUserImportResultVO;
+import com.aicourse.vo.CourseStatisticsVO;
+import com.aicourse.vo.RoleDistributionVO;
+import com.aicourse.vo.StatisticsOverviewVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.Operation;
@@ -187,7 +191,7 @@ public class SystemAdminController {
      */
     @Operation(summary = "批量导入用户", description = "JSON 批量导入（兼容保留）；Excel(.xlsx) 批量导入请使用 /admin/users/import-excel")
     @PostMapping("/admin/users/import")
-    public ApiResponse<Map<String, Object>> importUsers(@Valid @RequestBody List<AdminCreateUserDTO> userDTOs) {
+    public ApiResponse<AdminUserImportResultVO> importUsers(@Valid @RequestBody List<AdminCreateUserDTO> userDTOs) {
         int successCount = 0;
         int failCount = 0;
         for (AdminCreateUserDTO dto : userDTOs) {
@@ -208,7 +212,7 @@ public class SystemAdminController {
             }
         }
         return ApiResponse.success("导入完成",
-                Map.of("successCount", successCount, "failCount", failCount, "total", userDTOs.size()));
+                new AdminUserImportResultVO(successCount, failCount, userDTOs.size()));
     }
 
     /**
@@ -217,7 +221,7 @@ public class SystemAdminController {
     @Operation(summary = "Excel 批量导入用户",
             description = "上传 .xlsx 文件批量导入用户（表头：用户名/姓名/邮箱/角色/初始密码/手机号/学号/专业/年级/院系，初始密码缺省随机生成 8 位并随响应返回，供管理员转告用户）")
     @PostMapping(value = "/admin/users/import-excel", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
-    public ApiResponse<Map<String, Object>> importUsersExcel(
+    public ApiResponse<AdminUserImportResultVO> importUsersExcel(
             @RequestParam("file") MultipartFile file) throws IOException {
         if (file == null || file.isEmpty()) {
             throw new BusinessException("请选择要上传的 Excel 文件");
@@ -252,8 +256,7 @@ public class SystemAdminController {
             }
         }
         return ApiResponse.success("导入完成",
-                Map.of("successCount", successCount, "failCount", failCount, "total", users.size(),
-                        "tempPasswords", tempPasswords));
+                new AdminUserImportResultVO(successCount, failCount, users.size(), tempPasswords));
     }
 
     // ==================== 系统配置（4个接口） ====================
@@ -304,28 +307,20 @@ public class SystemAdminController {
      * 获取平台数据概览
      */
     @GetMapping("/admin/statistics/overview")
-    public ApiResponse<Map<String, Object>> getStatisticsOverview() {
+    public ApiResponse<StatisticsOverviewVO> getStatisticsOverview() {
         long totalUsers = userService.count();
         long totalCourses = courseService.count();
         long totalEnrollments = enrollmentService.count();
-        Map<String, Object> overview = new HashMap<>();
-        overview.put("totalUsers", totalUsers);
-        overview.put("totalCourses", totalCourses);
-        overview.put("totalEnrollments", totalEnrollments);
         // 统计各角色用户数量
-        Map<String, Object> roleDistribution = new HashMap<>();
-        roleDistribution.put("student", userService.count(
-                new LambdaQueryWrapper<User>().eq(User::getRole, RoleConstants.STUDENT)));
-        roleDistribution.put("teacher", userService.count(
-                new LambdaQueryWrapper<User>().eq(User::getRole, RoleConstants.TEACHER)));
-        roleDistribution.put("admin", userService.count(
-                new LambdaQueryWrapper<User>().eq(User::getRole, RoleConstants.ADMIN)));
-        overview.put("roleDistribution", roleDistribution);
+        RoleDistributionVO roleDistribution = new RoleDistributionVO(
+                userService.count(new LambdaQueryWrapper<User>().eq(User::getRole, RoleConstants.STUDENT)),
+                userService.count(new LambdaQueryWrapper<User>().eq(User::getRole, RoleConstants.TEACHER)),
+                userService.count(new LambdaQueryWrapper<User>().eq(User::getRole, RoleConstants.ADMIN)));
         // 活跃课程统计
         long activeCourses = courseService.count(
                 new LambdaQueryWrapper<Course>().eq(Course::getIsActive, true));
-        overview.put("activeCourses", activeCourses);
-        return ApiResponse.success(overview);
+        return ApiResponse.success(new StatisticsOverviewVO(
+                totalUsers, totalCourses, totalEnrollments, roleDistribution, activeCourses));
     }
 
     /**
@@ -342,7 +337,7 @@ public class SystemAdminController {
      * 获取课程统计
      */
     @GetMapping("/admin/statistics/courses")
-    public ApiResponse<Map<String, Object>> getCourseStatistics() {
+    public ApiResponse<CourseStatisticsVO> getCourseStatistics() {
         long totalCourses = courseService.count();
         long activeCourses = courseService.count(
                 new LambdaQueryWrapper<Course>().eq(Course::getIsActive, true));
@@ -355,12 +350,8 @@ public class SystemAdminController {
         List<Map<String, Object>> topCourses = analyticsService.getCourseRanking()
                 .stream().limit(5).collect(Collectors.toList());
 
-        Map<String, Object> stats = new HashMap<>();
-        stats.put("totalCourses", totalCourses);
-        stats.put("activeCourses", activeCourses);
-        stats.put("categoryDistribution", categoryDistribution);
-        stats.put("topCourses", topCourses);
-        return ApiResponse.success(stats);
+        return ApiResponse.success(new CourseStatisticsVO(
+                totalCourses, activeCourses, categoryDistribution, topCourses));
     }
 
     /**

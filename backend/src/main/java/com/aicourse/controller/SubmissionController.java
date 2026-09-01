@@ -12,6 +12,7 @@ import com.aicourse.entity.Submission;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.security.SubmissionAccessControl;
 import com.aicourse.service.SubmissionService;
+import com.aicourse.vo.PlagiarismCheckResultVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -206,7 +207,7 @@ public class SubmissionController {
         if (!checks.isEmpty()) {
             com.aicourse.entity.PlagiarismCheck latest = checks.get(0);
             if ("COMPLETED".equals(latest.getStatus())) {
-                Map<String, Object> result = plagiarismCheckService.getCheckResult(latest.getId());
+                PlagiarismCheckResultVO result = plagiarismCheckService.getCheckResult(latest.getId());
                 return ApiResponse.success("查重检测结果", result);
             }
             return ApiResponse.success("查重任务正在执行中，请稍后刷新查看", Map.of("checkId", latest.getId(), "status", latest.getStatus()));

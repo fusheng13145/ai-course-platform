@@ -3,6 +3,7 @@ import com.aicourse.controller.QuestionController;
 import com.aicourse.entity.Question;
 import com.aicourse.service.AIService;
 import com.aicourse.service.QuestionService;
+import com.aicourse.vo.QuestionStatsVO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -10,7 +11,6 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.List;
-import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -233,11 +233,13 @@ class QuestionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /questions/1/stats - 返回200且data透传统计")
     void getStats_authorized_returns_success() throws Exception {
-        when(questionService.getQuestionStats(any())).thenReturn(Map.of("count", 1));
+        when(questionService.getQuestionStats(any())).thenReturn(
+                new QuestionStatsVO(1L, 5, null, "MEDIUM", "SINGLE", null, true, null));
         mockMvc.perform(get("/questions/1/stats").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.count").value(1));
+                .andExpect(jsonPath("$.data.questionId").value(1))
+                .andExpect(jsonPath("$.data.usageCount").value(5));
         verify(questionService).getQuestionStats(eq(1L));
     }
 

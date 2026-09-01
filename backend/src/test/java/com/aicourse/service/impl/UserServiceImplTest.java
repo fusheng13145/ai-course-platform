@@ -129,10 +129,10 @@ class UserServiceImplTest {
         when(userMapper.selectById(1L)).thenReturn(sampleUser);
         when(userMapper.selectCount(any(Wrapper.class))).thenReturn(5L);
 
-        Map<String, Object> stats = userService.getUserStats(1L);
+        com.aicourse.vo.UserStatsVO stats = userService.getUserStats(1L);
 
-        assertEquals(1L, stats.get("userId"));
-        assertEquals(5L, stats.get("classmateCount"));
+        assertEquals(1L, stats.getUserId());
+        assertEquals(5L, stats.getClassmateCount());
     }
 
     @Test

@@ -9,6 +9,9 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.KnowledgePointRelationMapper;
 import com.aicourse.service.KnowledgePointRelationService;
 import com.aicourse.service.KnowledgePointService;
+import com.aicourse.vo.GraphDataLinkVO;
+import com.aicourse.vo.GraphDataNodeVO;
+import com.aicourse.vo.KnowledgeGraphDataVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -105,20 +108,18 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
      * 获取可视化图数据（节点+边格式）
      */
     @Override
-    public Map<String, Object> getGraphData(Long courseId) {
+    public KnowledgeGraphDataVO getGraphData(Long courseId) {
         // 查询课程下所有知识点作为节点
         LambdaQueryWrapper<KnowledgePoint> pointWrapper = new LambdaQueryWrapper<KnowledgePoint>()
                 .eq(KnowledgePoint::getCourseId, courseId);
         List<KnowledgePoint> points = knowledgePointService.list(pointWrapper);
 
         // 构建节点数据（供ECharts/D3渲染）
-        List<Map<String, Object>> nodes = new ArrayList<>();
+        List<GraphDataNodeVO> nodes = new ArrayList<>();
         for (KnowledgePoint point : points) {
-            Map<String, Object> node = new HashMap<>();
-            node.put("id", point.getId());
-            node.put("name", point.getName());
-            node.put("category", point.getPointType() != null ? point.getPointType() : "default");
-            nodes.add(node);
+            nodes.add(new GraphDataNodeVO(
+                    point.getId(), point.getName(),
+                    point.getPointType() != null ? point.getPointType() : "default"));
         }
 
         // 查询课程内知识点之间的关联边
@@ -126,7 +127,7 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
                 .map(KnowledgePoint::getId)
                 .collect(Collectors.toSet());
 
-        List<Map<String, Object>> links = new ArrayList<>();
+        List<GraphDataLinkVO> links = new ArrayList<>();
         if (!pointIds.isEmpty()) {
             LambdaQueryWrapper<KnowledgePointRelation> relationWrapper = new LambdaQueryWrapper<KnowledgePointRelation>()
                     .in(KnowledgePointRelation::getSourceId, pointIds)
@@ -134,19 +135,13 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
             List<KnowledgePointRelation> relations = list(relationWrapper);
 
             for (KnowledgePointRelation rel : relations) {
-                Map<String, Object> link = new HashMap<>();
-                link.put("source", rel.getSourceId());
-                link.put("target", rel.getTargetId());
-                link.put("value", rel.getStrength());
-                link.put("relationType", rel.getRelationType());
-                links.add(link);
+                links.add(new GraphDataLinkVO(
+                        rel.getSourceId(), rel.getTargetId(),
+                        rel.getStrength(), rel.getRelationType()));
             }
         }
 
-        Map<String, Object> graphData = new HashMap<>();
-        graphData.put("nodes", nodes);
-        graphData.put("links", links);
-        return graphData;
+        return new KnowledgeGraphDataVO(nodes, links);
     }
 
     /**

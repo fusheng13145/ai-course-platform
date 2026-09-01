@@ -3,6 +3,7 @@ import com.aicourse.controller.ClassroomController;
 import com.aicourse.entity.Classroom;
 import com.aicourse.entity.User;
 import com.aicourse.service.ClassroomService;
+import com.aicourse.vo.ClassroomStatsVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -71,12 +72,14 @@ class ClassroomControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /classrooms/1/detail - 查询班级详情统计返回200，字段透传")
     void getDetail_authorized_passes_security() throws Exception {
-        when(classroomService.getClassroomDetail(eq(1L))).thenReturn(Map.of("name", "一班"));
+        com.aicourse.entity.Classroom cls = new com.aicourse.entity.Classroom();
+        cls.setName("一班");
+        when(classroomService.getClassroomDetail(eq(1L))).thenReturn(new com.aicourse.vo.ClassroomDetailVO(cls, 30, 50));
         mockMvc.perform(get("/classrooms/1/detail").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.name").value("一班"));
+                .andExpect(jsonPath("$.data.classroom.name").value("一班"));
         verify(classroomService).getClassroomDetail(eq(1L));
     }
 
@@ -236,12 +239,13 @@ class ClassroomControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /classrooms/1/stats - 查询班级统计返回200，字段透传")
     void getStats_authorized_passes_security() throws Exception {
-        when(classroomService.getClassroomStats(eq(1L))).thenReturn(Map.of("studentCount", 20));
+        when(classroomService.getClassroomStats(eq(1L))).thenReturn(
+                new ClassroomStatsVO(20, 15, 5, 50, 20, Map.of("计算机", 20L)));
         mockMvc.perform(get("/classrooms/1/stats").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.studentCount").value(20));
+                .andExpect(jsonPath("$.data.totalStudents").value(20));
         verify(classroomService).getClassroomStats(eq(1L));
     }
 

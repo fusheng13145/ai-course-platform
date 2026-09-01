@@ -5,6 +5,8 @@ import com.aicourse.entity.GradePolicy;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.GradeItemMapper;
 import com.aicourse.mapper.GradePolicyMapper;
+import com.aicourse.vo.FinalGradeVO;
+import com.aicourse.vo.GradeComponentDetailVO;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -168,11 +170,9 @@ class GradeServiceImplTest {
         hw.setScore(new BigDecimal("90"));
         when(itemMapper.selectList(any(Wrapper.class))).thenReturn(List.of(exam, hw));
 
-        @SuppressWarnings("unchecked")
-        java.util.Map<String, Object> r = service.computeFinal(7L, 1L);
-        assertEquals(new BigDecimal("84.00"), r.get("finalScore"));
-        @SuppressWarnings("unchecked")
-        List<?> detail = (List<?>) r.get("components");
+        FinalGradeVO r = service.computeFinal(7L, 1L);
+        assertEquals(new BigDecimal("84.00"), r.getFinalScore());
+        List<GradeComponentDetailVO> detail = r.getComponents();
         assertEquals(2, detail.size());
     }
 
@@ -191,11 +191,9 @@ class GradeServiceImplTest {
         p.setCourseId(10L);
         p.setComponents("");
         when(policyMapper.selectById(anyLong())).thenReturn(p);
-        @SuppressWarnings("unchecked")
-        java.util.Map<String, Object> r = service.computeFinal(7L, 1L);
-        assertEquals(new BigDecimal("0.00"), r.get("finalScore"));
-        @SuppressWarnings("unchecked")
-        List<?> detail = (List<?>) r.get("components");
+        FinalGradeVO r = service.computeFinal(7L, 1L);
+        assertEquals(new BigDecimal("0.00"), r.getFinalScore());
+        List<GradeComponentDetailVO> detail = r.getComponents();
         assertTrue(detail.isEmpty());
     }
 
@@ -207,9 +205,8 @@ class GradeServiceImplTest {
         p.setCourseId(10L);
         p.setComponents("not-json");
         when(policyMapper.selectById(anyLong())).thenReturn(p);
-        @SuppressWarnings("unchecked")
-        java.util.Map<String, Object> r = service.computeFinal(7L, 1L);
-        assertEquals(new BigDecimal("0.00"), r.get("finalScore"));
+        FinalGradeVO r = service.computeFinal(7L, 1L);
+        assertEquals(new BigDecimal("0.00"), r.getFinalScore());
     }
 
     // ===================== courseReport =====================
