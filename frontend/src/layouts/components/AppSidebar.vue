@@ -66,7 +66,7 @@ import { iconHtml } from '../icons'
  * <p>品牌区、按角色渲染的导航分区（一级项 + 二级手风琴）、底部用户区；
  * 展开状态与导航高亮/跳转逻辑内聚于此，mini 模式由父组件 prop 控制。</p>
  */
-defineProps({
+const props = defineProps({
   /** 当前角色（ADMIN/TEACHER/STUDENT），决定导航与品牌元数据 */
   role: { type: String, required: true },
   /** mini 折叠模式 */

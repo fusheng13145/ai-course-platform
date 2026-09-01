@@ -140,13 +140,12 @@ test.describe('导航流程（学生端）', () => {
     expect(page.url()).toContain('/student/profile')
   })
 
-  test('未登录访问受保护路由 - 重定向到登录页', async ({ page }) => {
-    // 清除 localStorage 模拟未登录
-    await page.evaluate(() => {
-      localStorage.clear()
-      sessionStorage.clear()
-    })
+})
 
+test.describe('未登录访问控制', () => {
+  test('未登录访问受保护路由 - 重定向到登录页', async ({ page }) => {
+    // 独立 describe：不注入登录态（setLocalStorageAuth 的 addInitScript 会在每次导航
+    // 重新写入 localStorage，与「清除登录态」语义冲突，故移出共享 describe）
     await page.goto('/student/dashboard')
     await page.waitForLoadState('networkidle')
 

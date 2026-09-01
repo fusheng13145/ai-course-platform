@@ -80,7 +80,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { onMounted } from 'vue'
 import { Plus, Search } from '@element-plus/icons-vue'
 import { useKnowledgeManagement } from '@/composables/useKnowledgeManagement'

@@ -69,7 +69,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Top, SwitchButton, Pointer } from '@element-plus/icons-vue'
 
 defineProps({

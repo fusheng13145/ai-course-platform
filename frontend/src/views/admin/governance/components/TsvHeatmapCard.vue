@@ -26,7 +26,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Sunny } from '@element-plus/icons-vue'
 
 /**

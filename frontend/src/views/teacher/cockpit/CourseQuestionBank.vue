@@ -115,7 +115,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { toRef } from 'vue'
 import { useRoute } from 'vue-router'
 import { RefreshLeft, Plus, MagicStick } from '@element-plus/icons-vue'

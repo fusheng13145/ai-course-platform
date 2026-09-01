@@ -52,7 +52,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import logger from '@/utils/logger'
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute } from 'vue-router'

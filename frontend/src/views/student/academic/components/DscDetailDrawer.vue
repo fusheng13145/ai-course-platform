@@ -104,7 +104,7 @@
   </el-drawer>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Star, User, Bell, Pointer } from '@element-plus/icons-vue'
 
 /**

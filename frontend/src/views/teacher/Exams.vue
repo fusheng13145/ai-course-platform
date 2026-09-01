@@ -87,7 +87,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { onMounted } from 'vue'
 import { Plus } from '@element-plus/icons-vue'
 import { useTeacherExams } from '@/composables/useTeacherExams'

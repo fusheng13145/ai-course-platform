@@ -91,7 +91,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { formatTime } from '@/utils/datetime'
 import { ArrowDown } from '@element-plus/icons-vue'
 import { useStudentGrades } from '@/composables/useStudentGrades'

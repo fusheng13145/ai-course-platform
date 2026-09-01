@@ -126,7 +126,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { formatDateTime } from '@/utils/datetime'
 import { ElMessage, ElMessageBox } from 'element-plus'

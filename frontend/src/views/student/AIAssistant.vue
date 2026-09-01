@@ -39,7 +39,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { useAIAssistant } from '@/composables/useAIAssistant'
 import AiaSidebar from './components/AiaSidebar.vue'
 import AiaChatPanel from './components/AiaChatPanel.vue'

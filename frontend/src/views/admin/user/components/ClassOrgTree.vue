@@ -27,7 +27,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 import { School, Collection, UserFilled } from '@element-plus/icons-vue'
 

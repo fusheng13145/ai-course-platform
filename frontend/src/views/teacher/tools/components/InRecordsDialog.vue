@@ -61,7 +61,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { EditPen } from '@element-plus/icons-vue'
 
 defineProps({

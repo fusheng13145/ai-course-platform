@@ -10,7 +10,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 个人中心通用卡片
  * <p>统一承载个人中心各区块的卡片外观（标题行 + 右上操作区 + 内容区），

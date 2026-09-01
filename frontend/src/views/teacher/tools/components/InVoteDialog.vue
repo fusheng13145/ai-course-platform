@@ -43,7 +43,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Delete, Plus } from '@element-plus/icons-vue'
 
 defineProps({

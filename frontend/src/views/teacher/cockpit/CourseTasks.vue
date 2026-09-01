@@ -153,7 +153,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
 import { ref, reactive, computed, onMounted, watch } from 'vue'
@@ -204,7 +204,7 @@ function taskTypeTag(type) {
 async function load() {
   loading.value = true
   try {
-    const r = await taskApi.listByCourse(courseId)
+    const r = await taskApi.getTaskList({ courseId })
     const body = unwrap(r)
     tasks.value = body?.records || body?.list || body || []
     if (page.value > 1 && (page.value - 1) * size.value >= tasks.value.length) page.value = 1

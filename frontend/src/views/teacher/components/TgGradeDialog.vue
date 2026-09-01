@@ -39,7 +39,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 批阅作业对话框
  * <p>分数（共享 gradeForm 对象，编辑嵌套属性符合 shallowOnly 规范）+ 评语输入与提交。</p>

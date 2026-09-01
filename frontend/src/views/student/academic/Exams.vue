@@ -54,7 +54,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { useStudentExams } from '@/composables/useStudentExams'
 import SeExamList from './components/SeExamList.vue'
 import SeExamRunner from './components/SeExamRunner.vue'

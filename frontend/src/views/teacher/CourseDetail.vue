@@ -111,7 +111,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { onMounted, watch } from 'vue'
 import { ArrowLeft, Edit, Bell } from '@element-plus/icons-vue'
 import { useCourseDetail } from '@/composables/useCourseDetail'

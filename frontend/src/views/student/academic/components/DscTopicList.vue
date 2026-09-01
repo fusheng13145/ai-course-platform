@@ -69,7 +69,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Search, Refresh, Comment, User, ChatLineRound, Collection, ArrowRight, Star } from '@element-plus/icons-vue'
 
 /**

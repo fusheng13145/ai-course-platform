@@ -49,7 +49,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 学生成绩详情弹窗
  * <p>基本信息描述 + 各项明细（作业/考试）表格。</p>

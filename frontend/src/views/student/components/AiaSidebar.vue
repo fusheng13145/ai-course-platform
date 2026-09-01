@@ -23,7 +23,7 @@
   </aside>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Plus, ChatDotRound } from '@element-plus/icons-vue'
 
 /**

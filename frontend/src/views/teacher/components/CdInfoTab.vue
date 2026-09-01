@@ -17,7 +17,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 课程首页 Tab（基本信息 + 简介）
  * <p>展示课程核心信息网格（编号/分类/难度/学分/学期/报名方式/人数/开课时间）与课程简介。</p>

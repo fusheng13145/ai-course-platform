@@ -84,7 +84,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 课程详情对话框组（编辑课程 / 章节 / 发送通知）
  * <p>表单对象经 props 注入（共享 reactive 对象编辑嵌套属性），可见性 v-model 双向，

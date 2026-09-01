@@ -42,7 +42,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { formatDateTime } from '@/utils/datetime'
 import { useOperationLogs } from '@/composables/useOperationLogs'
 

@@ -46,7 +46,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 题目统计对话框
  * <p>使用次数/正确率/平均用时/错误次数统计卡 + 近期使用记录时间线（纯展示）。</p>

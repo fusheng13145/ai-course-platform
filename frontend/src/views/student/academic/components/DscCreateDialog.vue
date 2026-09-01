@@ -33,7 +33,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 发起话题对话框
  * <p>标题（80 字）+ 内容（1000 字）表单，发布逻辑委托 composable。</p>

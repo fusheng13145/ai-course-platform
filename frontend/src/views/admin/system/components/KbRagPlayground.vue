@@ -87,7 +87,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Search, ChatDotRound } from '@element-plus/icons-vue'
 
 /**

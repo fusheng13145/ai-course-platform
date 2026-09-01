@@ -52,7 +52,7 @@
   </Modal>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
 import TreeView from '@/components/ui/TreeView.vue'
 import TabGroup from '@/components/ui/TabGroup.vue'

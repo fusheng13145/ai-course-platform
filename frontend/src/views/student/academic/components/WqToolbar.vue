@@ -18,7 +18,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 defineProps({
   knowledgePointTags: { type: Array, default: () => [] },
   selectedKpId: { type: [Number, String], default: null },

@@ -18,103 +18,14 @@
       </button>
     </PageHeader>
 
-    <section class="l1-card animate-in d1">
-      <div class="l1-body">
-        <div v-if="loading" class="empty-state"><div class="e-title">加载中…</div></div>
-        <CollapsePanel
-          v-for="g in noticeGroups"
-          :key="g.key"
-          :title="`${g.label}（${g.rows.length}）`"
-          :open="g.open"
-          :icon="g.icon"
-        >
-          <div v-if="g.rows.length === 0" class="empty-state">
-            <div class="e-title">暂无内容</div>
-          </div>
-          <div v-for="n in g.rows" :key="n.id" class="row-card" @click="openNotice(n)">
-            <span class="rc-ico" :style="{ background: g.icoBg, color: g.icoColor }">
-              <svg
-                viewBox="0 0 24 24"
-                width="18"
-                height="18"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path :d="g.icoPath" />
-              </svg>
-            </span>
-            <div class="rc-main">
-              <div class="rc-title">
-                {{ n.title }}
-                <span class="tag" :class="catCls(n.category)">{{ catLabel(n.category) }}</span>
-                <span v-if="n.priority === 'HIGH'" class="tag red">高优先级</span>
-              </div>
-              <div class="rc-sub">
-                <span class="s-item"
-                  ><svg
-                    viewBox="0 0 24 24"
-                    width="12"
-                    height="12"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20zM12 6v6l4 2" />
-                  </svg>
-                  {{ fmtTime(n.createdAt) }}</span
-                >
-                <span class="s-item"
-                  ><svg
-                    viewBox="0 0 24 24"
-                    width="12"
-                    height="12"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                  >
-                    <path
-                      d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7-10-7-10-7zM12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"
-                    />
-                  </svg>
-                  {{ typeLabel(n.type) }}</span
-                >
-              </div>
-            </div>
-            <div class="rc-side">
-              <span class="tag" :class="n.isRead ? 'green' : 'amber'">{{
-                n.isRead ? '已读' : '未读'
-              }}</span>
-              <button v-if="!n.isRead" class="btn btn-sm btn-soft" @click.stop="doRead(n)">
-                标记已读
-              </button>
-              <button class="t-icon-btn" @click.stop="openMenu($event, n)">
-                <svg
-                  viewBox="0 0 24 24"
-                  width="15"
-                  height="15"
-                  fill="none"
-                  stroke="currentColor"
-                  stroke-width="2"
-                  stroke-linecap="round"
-                  stroke-linejoin="round"
-                >
-                  <path
-                    d="M12 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM19 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2zM5 13a1 1 0 1 0 0-2 1 1 0 0 0 0 2z"
-                  />
-                </svg>
-              </button>
-            </div>
-          </div>
-        </CollapsePanel>
-      </div>
-    </section>
+    <!-- 通知列表（未读/已读分组 + 行操作） -->
+    <NmNoticeList
+      :groups="noticeGroups"
+      :loading="loading"
+      @open="openNotice"
+      @mark-read="doRead"
+      @menu="openMenu"
+    />
 
     <!-- 通知详情弹窗 -->
     <Modal v-if="detailNotice" wide @close="detailNotice = null">
@@ -132,66 +43,8 @@
       </div>
     </Modal>
 
-    <!-- 发布通知抽屉 -->
-    <Drawer v-if="drawerOpen" wide @close="drawerOpen = false">
-      <template #title>发布通知</template>
-      <template #sub>选择接收对象后由系统批量写入通知</template>
-      <div class="form-grid">
-        <div class="field span-2">
-          <label>通知标题<span class="req">*</span></label
-          ><input v-model="sendForm.title" class="input" placeholder="请输入标题" />
-        </div>
-        <div class="field span-2">
-          <label>接收对象</label>
-          <div class="radio-cards">
-            <div
-              v-for="s in scopes"
-              :key="s.key"
-              class="radio-card"
-              :class="{ checked: sendForm.scope === s.key }"
-              @click="sendForm.scope = s.key"
-            >
-              <div class="rc-title">{{ s.label }}</div>
-              <div class="rc-desc">{{ s.desc }}</div>
-            </div>
-          </div>
-        </div>
-        <div v-if="sendForm.scope === 'custom'" class="field span-2">
-          <label>用户 ID 列表（逗号分隔）</label>
-          <input v-model="sendForm.customIds" class="input" placeholder="如：1, 2, 3" />
-        </div>
-        <div class="field">
-          <label>分类</label
-          ><select v-model="sendForm.category" class="select">
-            <option value="SYSTEM">系统公告</option>
-            <option value="ASSIGNMENT">作业提醒</option>
-            <option value="EXAM">考试通知</option>
-          </select>
-        </div>
-        <div class="field">
-          <label>优先级</label
-          ><select v-model="sendForm.priority" class="select">
-            <option value="LOW">低</option>
-            <option value="MEDIUM">中</option>
-            <option value="HIGH">高</option>
-          </select>
-        </div>
-        <div class="field span-2">
-          <label>正文内容<span class="req">*</span></label
-          ><textarea
-            v-model="sendForm.content"
-            class="textarea send-textarea"
-            placeholder="请输入通知正文…"
-          ></textarea>
-        </div>
-      </div>
-      <template #footer>
-        <button class="btn btn-plain" @click="drawerOpen = false">取消</button>
-        <button class="btn btn-primary" :disabled="sending" @click="doSend()">
-          {{ sending ? '发送中…' : '确认发布' }}
-        </button>
-      </template>
-    </Drawer>
+    <!-- 发布通知抽屉（自包含发送逻辑） -->
+    <NmPublishDrawer v-model="drawerOpen" @published="load" />
 
     <!-- 更多菜单 -->
     <DropdownMenu
@@ -204,21 +57,23 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
-import CollapsePanel from '@/components/ui/CollapsePanel.vue'
 import Modal from '@/components/ui/Modal.vue'
-import Drawer from '@/components/ui/Drawer.vue'
 import DropdownMenu from '@/components/ui/DropdownMenu.vue'
 import { toast } from '@/composables/useToast'
 import notificationApi from '@/api/notification'
-import adminApi from '@/api/admin'
+import NmNoticeList from './components/NmNoticeList.vue'
+import NmPublishDrawer from './components/NmPublishDrawer.vue'
 
+/**
+ * 通知公告管理页（拆分子组件后页面壳）。
+ * <p>职责收敛：数据加载/详情/已读/删除/菜单；列表（NmNoticeList）
+ * 与发布（NmPublishDrawer）分别下沉。</p>
+ */
 const CAT_LABELS = { SYSTEM: '系统公告', ASSIGNMENT: '作业提醒', EXAM: '考试通知' }
-const CAT_CLS = { SYSTEM: 'red', ASSIGNMENT: 'blue', EXAM: 'violet' }
 const PRIORITY_LABELS = { HIGH: '高优先级', MEDIUM: '中优先级', LOW: '低优先级' }
-const TYPE_LABELS = { COURSE: '课程通知', TASK: '作业通知', EXAM: '考试通知', SYSTEM: '系统消息' }
 
 const loading = ref(true)
 const unread = ref([])
@@ -226,21 +81,6 @@ const read = ref([])
 
 const detailNotice = ref(null)
 const drawerOpen = ref(false)
-const sending = ref(false)
-const sendForm = ref({
-  title: '',
-  content: '',
-  scope: 'teachers',
-  customIds: '',
-  category: 'SYSTEM',
-  priority: 'MEDIUM',
-})
-const scopes = [
-  { key: 'teachers', label: '全体教师', desc: '向所有教师账号发送' },
-  { key: 'students', label: '全体学生', desc: '向所有学生账号发送' },
-  { key: 'admins', label: '全体管理员', desc: '向所有管理员账号发送' },
-  { key: 'custom', label: '指定用户', desc: '输入用户 ID 列表' },
-]
 const ctx = ref({ visible: false, x: 0, y: 0, items: [], notice: null })
 
 const noticeGroups = computed(() => [
@@ -269,14 +109,8 @@ const noticeGroups = computed(() => [
 function catLabel(c) {
   return CAT_LABELS[c] || c || '其他'
 }
-function catCls(c) {
-  return CAT_CLS[c] || ''
-}
 function priorityLabel(p) {
   return PRIORITY_LABELS[p] || p || '—'
-}
-function typeLabel(t) {
-  return TYPE_LABELS[t] || t || '—'
 }
 function fmtTime(t) {
   return t ? String(t).replace('T', ' ').slice(0, 16) : '—'
@@ -298,6 +132,8 @@ async function load() {
   }
 }
 
+onMounted(load)
+
 function openNotice(n) {
   detailNotice.value = n
 }
@@ -313,7 +149,16 @@ async function doRead(n) {
   }
 }
 
+function openMenu(e, n) {
+  const r = e.currentTarget.getBoundingClientRect()
+  const ops = [{ text: '查看详情', icon: 'eye', onClick: () => openNotice(n) }]
+  if (!n.isRead) ops.push({ text: '标记已读', icon: 'check', onClick: () => doRead(n) })
+  ops.push('-', { text: '删除', icon: 'trash', danger: true, onClick: () => doDelete(n) })
+  ctx.value = { visible: true, x: r.left, y: r.bottom + 4, items: ops }
+}
+
 async function doDelete(n) {
+  ctx.value.visible = false
   try {
     await notificationApi.deleteNotification(n.id)
     const src = n.isRead ? read.value : unread.value
@@ -324,74 +169,6 @@ async function doDelete(n) {
     toast.show('删除失败', 'error')
   }
 }
-
-async function doSend() {
-  const f = sendForm.value
-  if (!f.title.trim() || !f.content.trim()) {
-    toast.show('请填写标题与正文', 'warning')
-    return
-  }
-  sending.value = true
-  try {
-    let targetUserIds = []
-    if (f.scope === 'custom') {
-      targetUserIds = f.customIds
-        .split(/[,，\s]+/)
-        .map((s) => Number(s.trim()))
-        .filter((n) => Number.isFinite(n) && n > 0)
-      if (!targetUserIds.length) {
-        toast.show('请输入有效的用户 ID', 'warning')
-        sending.value = false
-        return
-      }
-    } else {
-      const roleMap = { teachers: 'TEACHER', students: 'STUDENT', admins: 'ADMIN' }
-      const res = await adminApi.getUsers({ page: 1, size: 500, role: roleMap[f.scope] })
-      const p = res?.data?.data || res?.data || {}
-      targetUserIds = (p.list || []).map((u) => u.id).filter(Boolean)
-      if (!targetUserIds.length) {
-        toast.show('该角色暂无用户', 'warning')
-        sending.value = false
-        return
-      }
-    }
-    const sendRes = await notificationApi.sendNotification({
-      title: f.title.trim(),
-      content: f.content.trim(),
-      category: f.category,
-      priority: f.priority,
-      targetUserIds,
-    })
-    if (sendRes?.data?.code === 200 || sendRes?.data?.data) {
-      toast.show(`已向 ${targetUserIds.length} 个用户发送`, 'ok')
-      drawerOpen.value = false
-      sendForm.value = {
-        title: '',
-        content: '',
-        scope: 'teachers',
-        customIds: '',
-        category: 'SYSTEM',
-        priority: 'MEDIUM',
-      }
-    } else {
-      toast.show(sendRes?.data?.message || '发送失败', 'error')
-    }
-  } catch (e) {
-    toast.show('发送失败', 'error')
-  } finally {
-    sending.value = false
-  }
-}
-
-function openMenu(e, n) {
-  const r = e.currentTarget.getBoundingClientRect()
-  const ops = [{ text: '查看详情', icon: 'eye', onClick: () => openNotice(n) }]
-  if (!n.isRead) ops.push({ text: '标记已读', icon: 'check', onClick: () => doRead(n) })
-  ops.push('-', { text: '删除', icon: 'trash', danger: true, onClick: () => doDelete(n) })
-  ctx.value = { visible: true, x: r.left, y: r.bottom + 4, items: ops }
-}
-
-onMounted(load)
 </script>
 
 <style scoped>
@@ -405,9 +182,5 @@ onMounted(load)
   color: var(--ink-2);
   font-size: 13.5px;
   white-space: pre-wrap;
-}
-
-.send-textarea {
-  min-height: 140px;
 }
 </style>

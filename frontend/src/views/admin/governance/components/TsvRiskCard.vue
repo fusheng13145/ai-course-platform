@@ -78,7 +78,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Bell, Warning } from '@element-plus/icons-vue'
 
 /**

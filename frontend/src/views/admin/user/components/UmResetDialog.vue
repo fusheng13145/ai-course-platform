@@ -23,7 +23,7 @@
   </Modal>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 import { toast } from '@/composables/useToast'
 import Modal from '@/components/ui/Modal.vue'

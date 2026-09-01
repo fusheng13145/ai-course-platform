@@ -65,7 +65,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 全校考试管理 — 试卷列表
  * <p>试卷表格（状态标签/操作）与分页控件。</p>

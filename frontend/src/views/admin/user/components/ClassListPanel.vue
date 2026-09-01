@@ -85,7 +85,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Plus, Search } from '@element-plus/icons-vue'
 
 /**

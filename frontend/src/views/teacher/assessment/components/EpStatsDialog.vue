@@ -42,7 +42,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 defineProps({
   modelValue: { type: Boolean, default: false },
   loading: { type: Boolean, default: false },

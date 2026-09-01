@@ -57,7 +57,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { formatTime } from '@/utils/datetime'
 import { Document, Picture, VideoPlay, Files } from '@element-plus/icons-vue'
 

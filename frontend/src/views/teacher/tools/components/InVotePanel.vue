@@ -59,7 +59,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Plus, Refresh, Histogram } from '@element-plus/icons-vue'
 
 defineProps({

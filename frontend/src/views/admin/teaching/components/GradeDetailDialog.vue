@@ -44,7 +44,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 成绩详情对话框
  * <p>展示单条成绩的基本信息（学生/课程/考试/得分/排名/提交时间）与答题明细表；

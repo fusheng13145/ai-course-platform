@@ -5,7 +5,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 知识库模型状态横幅
  * <p>按 llmReady 三态（未知/已配置/检索态）展示检测结果与回退说明。</p>

@@ -46,7 +46,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import PageHeader from '@/components/PageHeader.vue'
 import { useSystemSettings } from '@/composables/useSystemSettings'
 import SsBasicForm from './components/SsBasicForm.vue'

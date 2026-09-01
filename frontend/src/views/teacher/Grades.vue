@@ -132,7 +132,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Search, Download } from '@element-plus/icons-vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'

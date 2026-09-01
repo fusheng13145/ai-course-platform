@@ -51,7 +51,7 @@
   </el-form>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 import { Lock, Monitor } from '@element-plus/icons-vue'
 

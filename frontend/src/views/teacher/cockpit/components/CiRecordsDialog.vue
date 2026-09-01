@@ -37,7 +37,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Check } from '@element-plus/icons-vue'
 
 defineProps({

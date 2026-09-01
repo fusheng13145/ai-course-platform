@@ -25,7 +25,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 进行中考试对话框
  * <p>当前活跃考试会话列表，支持强制交卷与作弊检测入口。</p>

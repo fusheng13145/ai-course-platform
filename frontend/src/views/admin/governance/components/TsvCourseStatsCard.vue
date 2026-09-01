@@ -28,7 +28,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { DataLine } from '@element-plus/icons-vue'
 
 /**
