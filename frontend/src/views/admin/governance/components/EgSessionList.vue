@@ -31,7 +31,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { VideoCamera } from '@element-plus/icons-vue'
 
 /**

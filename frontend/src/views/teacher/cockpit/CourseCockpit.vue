@@ -115,7 +115,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import courseApi from '@/api/course'
@@ -167,7 +167,7 @@ onMounted(async () => {
   else activeCockpit.value = 'chapters'
   // Try to load course info from API
   try {
-    const res = await courseApi.getDetail(courseId.value)
+    const res = await courseApi.getCourseById(courseId.value)
     const data = unwrap(res)
     if (data) {
       courseName.value = data.name || data.courseName || courseName.value

@@ -43,7 +43,7 @@
   </el-form>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 import { Bell, Clock } from '@element-plus/icons-vue'
 

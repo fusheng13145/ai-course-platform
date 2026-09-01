@@ -73,7 +73,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 题库管理 — 题目列表
  * <p>题干/类型/难度/课程/审核状态表格 + 行操作（编辑/审核/复制/删除）+ 分页。</p>

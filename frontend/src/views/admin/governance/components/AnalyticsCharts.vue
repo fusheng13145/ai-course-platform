@@ -69,7 +69,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 数据分析图表区域
  * <p>聚合展示六类图表（用户趋势/课程分布/学习热力图/角色活跃度/成绩分布/热门课程 TOP10），

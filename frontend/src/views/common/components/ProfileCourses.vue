@@ -32,7 +32,7 @@
   </ProfileCard>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Reading, ArrowRight } from '@element-plus/icons-vue'
 import ProfileCard from './ProfileCard.vue'
 

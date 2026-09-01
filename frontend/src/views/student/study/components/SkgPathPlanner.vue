@@ -81,7 +81,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Right, MagicStick, Loading, WarningFilled, CircleCloseFilled, InfoFilled, Promotion } from '@element-plus/icons-vue'
 
 /**

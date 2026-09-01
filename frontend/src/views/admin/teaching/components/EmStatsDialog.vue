@@ -47,7 +47,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 试卷统计对话框
  * <p>平均/最高/最低分、参考率/及格率、作弊嫌疑数 + 成绩分布柱状图。</p>

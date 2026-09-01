@@ -33,7 +33,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 作弊检测日志对话框
  * <p>异常记录列表（学生/时间/类型/风险等级）。</p>

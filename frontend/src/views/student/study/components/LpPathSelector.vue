@@ -34,7 +34,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 学习路径 — 路径选择器（左栏）
  * <p>我的学习路径卡片列表（名称/状态/节点数/进度）。</p>

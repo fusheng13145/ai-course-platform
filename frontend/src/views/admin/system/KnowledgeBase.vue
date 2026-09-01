@@ -129,7 +129,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import { useKnowledgeBase } from '@/composables/useKnowledgeBase'

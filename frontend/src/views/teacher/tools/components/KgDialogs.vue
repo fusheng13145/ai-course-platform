@@ -91,7 +91,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { MagicStick } from '@element-plus/icons-vue'
 
 /**

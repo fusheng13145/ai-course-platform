@@ -84,7 +84,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { onMounted } from 'vue'
 import { MagicStick } from '@element-plus/icons-vue'
 import { useKnowledgeGraph } from '@/composables/useKnowledgeGraph'

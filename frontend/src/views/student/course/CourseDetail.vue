@@ -46,7 +46,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { useStudentCourseDetail } from '@/composables/useStudentCourseDetail'
 import CduHeader from './components/CduHeader.vue'
 import CduInfoTab from './components/CduInfoTab.vue'

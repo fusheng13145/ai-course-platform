@@ -56,7 +56,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 学习路径 — Timeline 学习节点
  * <p>步骤时间线（状态/进度/完成度）与开始学习/复习操作。</p>

@@ -123,7 +123,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { onMounted } from 'vue'
 import { useClassrooms } from '@/composables/useClassrooms'
 import PageHeader from '@/components/PageHeader.vue'

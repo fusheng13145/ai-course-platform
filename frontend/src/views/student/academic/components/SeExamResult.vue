@@ -18,7 +18,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { TrophyBase } from '@element-plus/icons-vue'
 
 /**

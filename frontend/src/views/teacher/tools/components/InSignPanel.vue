@@ -54,7 +54,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Plus, Refresh, Pointer } from '@element-plus/icons-vue'
 
 defineProps({

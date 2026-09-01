@@ -24,7 +24,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
 import OlOperationPanel from './components/OlOperationPanel.vue'

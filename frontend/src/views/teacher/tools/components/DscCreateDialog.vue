@@ -41,7 +41,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 defineProps({
   modelValue: { type: Boolean, default: false },
   submitting: { type: Boolean, default: false },

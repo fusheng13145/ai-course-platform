@@ -50,7 +50,7 @@
   </section>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Calendar, Clock } from '@element-plus/icons-vue'
 
 /**

@@ -47,7 +47,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Search, Upload } from '@element-plus/icons-vue'
 
 defineProps({

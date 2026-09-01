@@ -30,7 +30,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 题库管理 — 题目审核对话框
  * <p>通过/驳回单选 + 审核意见，提交逻辑委托 composable。</p>

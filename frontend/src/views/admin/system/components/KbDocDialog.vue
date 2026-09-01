@@ -29,7 +29,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 知识库文档新增/编辑弹窗
  * <p>所属课程只读展示 + 名称（仅新增）+ 内容文本域；保存逻辑委托 composable。</p>

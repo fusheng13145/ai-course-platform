@@ -33,7 +33,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 教师成绩分布面板
  * <p>分数段柱状分布图 + 待批阅任务快捷入口列表。</p>

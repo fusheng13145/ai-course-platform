@@ -188,7 +188,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { formatDateTime } from '@/utils/datetime'
 import { onMounted } from 'vue'
 import { Search } from '@element-plus/icons-vue'

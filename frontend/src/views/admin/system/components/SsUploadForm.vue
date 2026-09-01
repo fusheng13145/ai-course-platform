@@ -72,7 +72,7 @@
   </el-form>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 import { Upload, Document, Plus } from '@element-plus/icons-vue'
 

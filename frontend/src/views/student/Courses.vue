@@ -225,7 +225,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
 import Modal from '@/components/ui/Modal.vue'

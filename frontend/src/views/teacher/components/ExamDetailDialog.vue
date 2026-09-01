@@ -49,7 +49,7 @@
   </el-dialog>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 试卷详情对话框
  * <p>基本信息（状态/分数/人数统计）+ 题目预览列表；发布/复制操作经事件上抛。</p>

@@ -59,7 +59,7 @@
   </el-form>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 import { Setting, User } from '@element-plus/icons-vue'
 

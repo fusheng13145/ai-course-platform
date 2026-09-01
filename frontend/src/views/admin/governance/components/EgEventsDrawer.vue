@@ -57,7 +57,7 @@
   </el-drawer>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 考试治理 — 违规事件核查抽屉
  * <p>事件列表（类型/严重度/状态/时间/证据链接）+ 确认违规/标记豁免复核操作。</p>

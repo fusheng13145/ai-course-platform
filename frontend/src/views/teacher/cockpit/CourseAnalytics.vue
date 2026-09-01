@@ -91,7 +91,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import logger from '@/utils/logger'
 import { ref, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'

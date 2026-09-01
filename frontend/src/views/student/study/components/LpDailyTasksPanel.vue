@@ -42,7 +42,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Calendar, Select } from '@element-plus/icons-vue'
 
 /**

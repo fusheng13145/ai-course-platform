@@ -24,7 +24,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { WarnTriangleFilled } from '@element-plus/icons-vue'
 
 /**

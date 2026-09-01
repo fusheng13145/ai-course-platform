@@ -126,7 +126,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 // 静态文档页面
 </script>
 

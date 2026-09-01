@@ -30,7 +30,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 学生课程头部卡
  * <p>返回/标题/元信息（分类/教师/学分）+ 学习进度条。</p>

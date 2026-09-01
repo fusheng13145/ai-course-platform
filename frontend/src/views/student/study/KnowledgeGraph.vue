@@ -99,7 +99,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { onMounted } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { useStudentKnowledgeGraph } from '@/composables/useStudentKnowledgeGraph'

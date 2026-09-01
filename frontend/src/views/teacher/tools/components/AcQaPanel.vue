@@ -29,7 +29,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
 import { ref, nextTick, watch } from 'vue'

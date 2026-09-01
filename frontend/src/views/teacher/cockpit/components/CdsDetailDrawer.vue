@@ -79,7 +79,7 @@
   </el-drawer>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { User, Top, Pointer, Delete, Promotion, Check, CircleClose } from '@element-plus/icons-vue'
 
 defineProps({

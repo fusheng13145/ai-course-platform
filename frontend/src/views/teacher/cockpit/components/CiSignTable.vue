@@ -46,7 +46,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Plus, Promotion, SwitchButton, Document } from '@element-plus/icons-vue'
 
 defineProps({

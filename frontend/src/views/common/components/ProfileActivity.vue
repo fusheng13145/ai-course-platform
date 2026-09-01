@@ -34,7 +34,7 @@
   </ProfileCard>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Bell, ArrowRight } from '@element-plus/icons-vue'
 import { formatTime } from '@/utils/datetime'
 import ProfileCard from './ProfileCard.vue'

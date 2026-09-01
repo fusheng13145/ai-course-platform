@@ -120,7 +120,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Search, Edit, Select, Close, CopyDocument, Delete } from '@element-plus/icons-vue'
 
 defineProps({

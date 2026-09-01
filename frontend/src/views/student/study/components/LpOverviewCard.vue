@@ -21,7 +21,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 学习路径 — 路径概览卡
  * <p>当前路径/已完成节点/总节点数/整体进度四格摘要。</p>

@@ -48,7 +48,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 成绩管理列表（表格 + 分页）
  * <p>展示学生成绩明细（含分数段徽章、异常标记），分页变化经 search 事件上抛重新取数，

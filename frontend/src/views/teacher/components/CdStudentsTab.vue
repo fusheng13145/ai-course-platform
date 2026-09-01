@@ -40,7 +40,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 学生管理 Tab
  * <p>课程学生列表（学号/姓名/学习进度/选课状态），待审核学生可经事件上抛通过/拒绝。</p>

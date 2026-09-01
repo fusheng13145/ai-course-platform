@@ -79,7 +79,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { Files, Plus, Refresh, Share } from '@element-plus/icons-vue'
 
 /**

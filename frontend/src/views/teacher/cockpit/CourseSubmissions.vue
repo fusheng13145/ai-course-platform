@@ -174,7 +174,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
 import { ref, reactive, computed, onMounted, watch } from 'vue'
@@ -208,7 +208,7 @@ const returnForm = reactive({ reason: '' })
 async function loadTasks() {
   loading.value = true
   try {
-    const r = await taskApi.listByCourse(courseId)
+    const r = await taskApi.getTaskList({ courseId })
     const body = unwrap(r)
     tasks.value = body?.records || body?.list || body || []
     if (tasks.value.length && !selectedTaskId.value) selectTask(tasks.value[0].id)

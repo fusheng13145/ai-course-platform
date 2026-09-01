@@ -39,7 +39,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { onMounted } from 'vue'
 import { Download } from '@element-plus/icons-vue'
 import { useAnalytics } from '@/composables/useAnalytics'

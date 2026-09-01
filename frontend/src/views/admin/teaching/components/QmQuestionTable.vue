@@ -83,7 +83,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 /**
  * 题库列表表格（数据列 + 操作 + 分页）
  * <p>题型/内容/难度/课程/使用次数/正确率列 + 编辑/统计/删除操作 + 分页。

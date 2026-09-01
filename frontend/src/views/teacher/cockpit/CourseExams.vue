@@ -4,128 +4,32 @@
       <el-button type="primary" :icon="Plus" @click="openCreate">新建试卷</el-button>
     </PageHeader>
     <div v-loading="loading">
-      <!-- 试卷表格 -->
-      <div class="l1-card">
-        <div class="l1-head">
-          <div class="l1-title">
-            课程试卷
-            <el-tag size="small" type="info" effect="light" round>{{ total }}</el-tag>
-          </div>
-        </div>
-        <div class="l1-body">
-          <el-table v-if="list.length" :data="list" size="small" @row-dblclick="openEdit">
-            <el-table-column prop="title" label="标题" min-width="180" />
-            <el-table-column
-              prop="description"
-              label="描述"
-              min-width="200"
-              show-overflow-tooltip
-            />
-            <el-table-column label="时长" width="90">
-              <template #default="{ row }">{{ row.duration }} 分钟</template>
-            </el-table-column>
-            <el-table-column label="总分" width="80">
-              <template #default="{ row }">{{ row.totalScore }}</template>
-            </el-table-column>
-            <el-table-column label="题量" width="72">
-              <template #default="{ row }">{{ row.questionCount ?? '--' }}</template>
-            </el-table-column>
-            <el-table-column label="状态" width="92">
-              <template #default="{ row }">
-                <el-tag
-                  size="small"
-                  :type="row.status === '已发布' ? 'success' : 'info'"
-                  effect="light"
-                >
-                  {{ row.status === '已发布' ? '已发布' : '草稿' }}
-                </el-tag>
-              </template>
-            </el-table-column>
-            <el-table-column label="操作" width="300" fixed="right">
-              <template #default="{ row }">
-                <el-button
-                  v-if="row.status !== '已发布'"
-                  link
-                  type="success"
-                  :icon="Promotion"
-                  @click="publish(row)"
-                  >发布</el-button
-                >
-                <el-button link type="primary" :icon="View" @click="viewQuestions(row)"
-                  >查看题目</el-button
-                >
-                <el-button link type="info" :icon="DataAnalysis" @click="viewStats(row)"
-                  >统计</el-button
-                >
-                <el-button link type="warning" :icon="CopyDocument" @click="copy(row)"
-                  >复制</el-button
-                >
-                <el-button link type="primary" :icon="Edit" @click="openEdit(row)">编辑</el-button>
-                <el-button link type="danger" :icon="Delete" @click="remove(row)">删除</el-button>
-              </template>
-            </el-table-column>
-          </el-table>
-          <el-empty v-else description="暂无试卷，点击右上角新建" :image-size="72" />
-
-          <div v-if="list.length" class="pager">
-            <el-pagination
-              v-model:current-page="page"
-              v-model:page-size="size"
-              :total="total"
-              :page-sizes="[10, 20, 50]"
-              layout="total, sizes, prev, pager, next"
-              background
-              @current-change="applyPage"
-              @size-change="onSizeChange"
-            />
-          </div>
-        </div>
-      </div>
+      <!-- 试卷表格（列表 + 分页 + 行操作） -->
+      <CeExamTable
+        :list="list"
+        :total="total"
+        :page="page"
+        :size="size"
+        @publish="publish"
+        @view-questions="viewQuestions"
+        @view-stats="viewStats"
+        @copy="copy"
+        @edit="openEdit"
+        @remove="remove"
+        @page-change="applyPage"
+        @size-change="onSizeChange"
+      />
     </div>
 
     <!-- 新建 / 编辑 对话框 -->
-    <el-dialog
+    <CeExamFormDialog
       v-model="dialog.visible"
-      :title="dialog.editing ? '编辑试卷' : '新建试卷'"
-      width="520px"
+      :editing="dialog.editing"
+      :saving="dialog.saving"
+      :form="form"
+      @save="save"
       @closed="resetForm"
-    >
-      <el-form :model="form" label-width="84px">
-        <el-form-item label="标题">
-          <el-input v-model="form.title" placeholder="请输入试卷标题" />
-        </el-form-item>
-        <el-form-item label="描述">
-          <el-input
-            v-model="form.description"
-            type="textarea"
-            :rows="2"
-            placeholder="请输入试卷描述"
-          />
-        </el-form-item>
-        <el-form-item label="时长(分钟)">
-          <el-input-number
-            v-model="form.duration"
-            :min="1"
-            :max="600"
-            controls-position="right"
-            class="w-100"
-          />
-        </el-form-item>
-        <el-form-item label="总分">
-          <el-input-number
-            v-model="form.totalScore"
-            :min="1"
-            :max="1000"
-            controls-position="right"
-            class="w-100"
-          />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="dialog.visible = false">取消</el-button>
-        <el-button type="primary" :loading="dialog.saving" @click="save">保存</el-button>
-      </template>
-    </el-dialog>
+    />
 
     <!-- 查看题目 对话框 -->
     <el-dialog v-model="ques.visible" v-loading="ques.loading" title="试卷题目" width="640px">
@@ -164,24 +68,23 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
 import { ref, reactive, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import { Plus } from '@element-plus/icons-vue'
 import examApi from '@/api/exam'
 import PageHeader from '@/components/PageHeader.vue'
-import {
-  Plus,
-  Promotion,
-  View,
-  DataAnalysis,
-  CopyDocument,
-  Edit,
-  Delete,
-} from '@element-plus/icons-vue'
+import CeExamTable from './components/CeExamTable.vue'
+import CeExamFormDialog from './components/CeExamFormDialog.vue'
 
+/**
+ * 课程试卷页（拆分子组件后页面壳）。
+ * <p>职责收敛：试卷数据加载/分页切片/CRUD 操作；表格（CeExamTable）
+ * 与新建编辑表单（CeExamFormDialog）分别下沉。</p>
+ */
 const route = useRoute()
 const courseId = route.params.id
 
@@ -219,7 +122,7 @@ function typeTag(t) {
 async function load() {
   loading.value = true
   try {
-    const r = await examApi.listByCourse(courseId)
+    const r = await examApi.getExamPaperList({ courseId })
     const body = unwrap(r)
     all.value = body?.records || body?.list || body || []
     total.value = body?.total ?? body?.totalElements ?? all.value.length
@@ -279,7 +182,7 @@ async function save() {
   dialog.saving = true
   try {
     if (dialog.editing) {
-      await examApi.updateExam(form.id, {
+      await examApi.updateExamPaper(form.id, {
         title: form.title,
         description: form.description,
         duration: form.duration,
@@ -287,7 +190,7 @@ async function save() {
       })
       ElMessage.success('试卷已更新')
     } else {
-      await examApi.createExam({
+      await examApi.createExamPaper({
         courseId,
         title: form.title,
         description: form.description,
@@ -322,7 +225,7 @@ async function remove(row) {
       confirmButtonText: '删除',
       cancelButtonText: '取消',
     })
-    await examApi.deleteExam(row.id)
+    await examApi.deleteExamPaper(row.id)
     ElMessage.success('试卷已删除')
     load()
   } catch (e) {
@@ -422,15 +325,5 @@ watch(
 .mini-label {
   font-size: 11.5px;
   color: var(--ac-text-muted);
-}
-
-.w-100 {
-  width: 100%;
-}
-
-.pager {
-  display: flex;
-  justify-content: flex-end;
-  margin-top: var(--ac-spacing-md);
 }
 </style>
