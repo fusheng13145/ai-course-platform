@@ -19,6 +19,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * 课程章节接口控制器
@@ -126,8 +127,13 @@ public class CourseChapterController {
     @PutMapping("/batch-reorder")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<Void> batchReorder(@Valid @RequestBody ChapterReorderDTO dto, Authentication auth) {
+        List<Long> ids = dto.getOrderList().stream()
+                .map(ChapterReorderDTO.OrderItem::getId)
+                .collect(Collectors.toList());
+        Map<Long, CourseChapter> chapterMap = chapterService.listByIds(ids).stream()
+                .collect(Collectors.toMap(CourseChapter::getId, c -> c, (a, b) -> a));
         for (ChapterReorderDTO.OrderItem item : dto.getOrderList()) {
-            CourseChapter chapter = chapterService.getById(item.getId());
+            CourseChapter chapter = chapterMap.get(item.getId());
             if (chapter == null) continue;
             if (canManageCourse(chapter.getCourseId(), auth)) continue;
             chapter.setOrderIndex(item.getOrderIndex());
