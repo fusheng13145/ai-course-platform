@@ -1,10 +1,10 @@
 """
 知识图谱微服务（端口 8001）— 契约基线实现
 ================================================
-对应 Java 端 `com.aicourse.integration` 下游契约（权威单一事实来源见 docs/集成契约-知识图谱与RAG.md）。
+对应 Java 端 `com.aicourse.integration` 下游契约（权威单一事实来源见 docs/项目手册.md 第八部分）。
 
-职责边界（2026-08-13 用户明确）：知识图谱引擎（图谱构建、多跳推理、GraphRAG）
-由团队另一成员负责。本文件提供「契约基线」：纯内存存储 + FastAPI，覆盖 §11.3
+职责边界：知识图谱引擎（图谱构建、多跳推理、GraphRAG）
+由团队另一成员负责。本文件提供「契约基线」：纯内存存储 + FastAPI，覆盖第八部分
 全部端点，并补齐 Java 端实际调用的 `/api/v1/graph/ingest` 与 `/api/v1/graph/subgraph`
 （§11.3 文档未列，但 Java 端已接线），使 Java 端 `knowledge-graph.enabled=true`
 时存在可对话的真实 Python 端，便于联调与契约测试。

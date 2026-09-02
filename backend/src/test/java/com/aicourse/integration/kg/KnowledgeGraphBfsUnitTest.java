@@ -24,7 +24,7 @@ import static org.mockito.Mockito.when;
  * 本测试脱离 Spring 上下文，仅用 Mockito 桩 {@link KnowledgePointRelationService}，
  * 验证 BFS 行为的正确性与边界，并固化「全量关系未过滤课程维度」的性能/跨课程连通隐患认知。</p>
  *
- * <p>边界结论（详见 docs/项目资料综合手册-最终版.md §9.5.2 T2）：
+ * <p>边界结论（详见 docs/项目手册.md 第三部分 §14 标准化集成层）：
  * <ol>
  *   <li>数据完整性依赖 {@code knowledge_point_relations} 行的存在；关系稀疏则路径 found=false（优雅降级）；</li>
  *   <li>性能上限：{@code relationService.list()} 每次全表加载所有课程关系，规模增长时为 O(全表关系) 内存+遍历，未做课程过滤；</li>

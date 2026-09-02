@@ -1,7 +1,7 @@
 """
 RAG 检索引擎（8002）契约冒烟测试
 ==================================
-验证 docs/集成契约-知识图谱与RAG.md 与 Java 端 `RAGServiceImpl` 下游调用对齐的契约端点。
+验证 docs/项目手册.md（第八部分）与 Java 端 `RAGServiceImpl` 下游调用对齐的契约端点。
 使用 FastAPI TestClient 内嵌运行，不依赖外部端口，CI 中稳定快速。
 
 ⚠️ 本测试守卫的是**契约（端点路径 + JSON 形状）**，而非 RAG 引擎语义——
