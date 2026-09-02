@@ -30,4 +30,4 @@ KG_ENABLED=true KG_BASE_URL=http://localhost:8001 ./mvnw -o spring-boot:run -Dsp
 # RAG（8002）同理：RAG_ENABLED=true RAG_BASE_URL=http://localhost:8002
 ```
 
-> 完整契约（端点、JSON 字段、状态码、降级、重试）见 `docs/集成契约-知识图谱与RAG.md`（权威单一事实来源）；架构视图见 `docs/架构手册.md` §6；本地联调步骤见 `docs/开发指南.md` §2.5。
+> 完整契约（端点、JSON 字段、状态码、降级、重试）与本地联调步骤见 `docs/项目手册.md`（第八部分 Python 微服务集成契约；第六部分 §24.5 本地联调）。

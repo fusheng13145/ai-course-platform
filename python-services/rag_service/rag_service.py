@@ -7,7 +7,7 @@ RAG 检索引擎（8002）· 集成契约占位骨架
 1. 与 Java 端 `RAGService` / `RAGServiceImpl` / `HttpRagProvider` 的**对接契约占位**；
 2. CI 护栏 `python-rag-contract` 的可运行载体（确保契约端点路径/JSON 形状不被破坏）；
 3. 队友接入真实引擎前的**最小可启动骨架**——队友应在本文件基础上替换检索/生成逻辑，
-   保持以下端点与 `docs/集成契约-知识图谱与RAG.md` 及 `com.aicourse.integration.rag.RagContract`
+   保持以下端点与 `docs/项目手册.md`（第八部分）及 `com.aicourse.integration.rag.RagContract`
    一致。
 
 契约端点（详见 RagContract.java 注释）：

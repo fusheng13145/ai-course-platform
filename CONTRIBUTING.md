@@ -1,7 +1,7 @@
 # 贡献指南（CONTRIBUTING）
 
 > 欢迎参与 AI 课程平台（AI Course Platform）开源共建。本文件是外部贡献者的**唯一入口**：
-> 从 Issue 到合入的完整流程、分支策略、编码规范与质量门禁。开发环境细节见 `docs/开发指南.md`。
+> 从 Issue 到合入的完整流程、分支策略、编码规范与质量门禁。开发环境细节见 `docs/项目手册.md`（第六部分）。
 
 ---
 
@@ -30,28 +30,24 @@
 ## 3. 分支策略（Git Workflow）
 
 ```
-main（稳定，仅接受 release 合入）
-  └── develop（集成分支，PR 默认目标）
-        └── feature/<issue>-<短描述>   # 功能开发，如 feature/123-onboarding
-        └── fix/<issue>-<短描述>       # 缺陷修复，如 fix/456-csrf
-        └── refactor/<描述>            # 重构，如 refactor/remove-knowledge-graph
+main（稳定基线，受保护）
+  └── leyon（日常开发集成分支，PR 默认目标）
 ```
 
 | 规则 | 说明 |
 |------|------|
-| **默认基线** | 新功能 / 修复一律从 `develop` 切分支，PR 目标为 `develop` |
-| **main 保护** | `main` 仅接受 `release/*` 或紧急 hotfix 合入；合入即打 tag（`v*.*.*`）触发 Release 流水线 |
-| **命名** | `feature/`、`fix/`、`refactor/`、`docs/` 前缀 + Issue 号 + 短描述（kebab-case） |
+| **默认基线** | 日常改动一律在 `leyon` 上开发并推送；对外协作经 Issue + PR 指向 `leyon` |
+| **main 保护** | `main` 为受保护稳定分支；任何推送 / 合并 / 重置操作须经项目负责人明确同意后方可执行 |
 | **提交信息** | Conventional Commits：`feat:` / `fix:` / `docs:` / `refactor:` / `test:` / `chore:` + 简述；引用 Issue 号 |
-| **禁止** | 禁止直接向 `main` 提交；禁止大段无关改动混入同一 PR（保持 PR 可审查） |
+| **禁止** | 禁止未经许可直接向 `main` 推送；禁止大段无关改动混入同一 PR（保持 PR 可审查） |
 
-## 4. 编码规范（摘要，详见 `docs/开发指南.md` §4）
+## 4. 编码规范（摘要，详见 `docs/项目手册.md` 第六部分）
 
 ### 后端（Java）
 - 类 `UpperCamelCase`、方法/变量 `lowerCamelCase`、常量 `UPPER_SNAKE`；类级 Javadoc 说明职责与边界。
 - 写操作在 Service 实现类加 `@Transactional(rollbackFor = Exception.class)`。
 - Controller 方法必须声明角色约束（`@PreAuthorize`），禁止绕过 RBAC 直连数据。
-- **集成契约**：涉及 Python 对接（KG/RAG）的 HTTP 调用必须引用 `ContractPaths` 常量，禁止硬编码路径/字段名；修改契约须同步 `docs/集成契约-知识图谱与RAG.md` 与 Python 端。
+- **集成契约**：涉及 Python 对接（KG/RAG）的 HTTP 调用必须引用 `ContractPaths` 常量，禁止硬编码路径/字段名；修改契约须同步 `docs/项目手册.md`（第八部分）与 Python 端。
 - 禁止 `System.out`；业务异常 `log.warn`、系统异常 `log.error`（`@Slf4j`）。
 
 ### 前端（Vue 3）
@@ -74,7 +70,7 @@ main（稳定，仅接受 release 合入）
 | 依赖漏洞 | OSV-Scanner / npm audit | 0 已知漏洞（高危） |
 | Python 契约 | pytest（kg_service） | 全绿 |
 
-> CI 流水线定义见 `.github/workflows/ci.yml`；本地验证命令见 `docs/开发指南.md` §5。
+> CI 流水线定义见 `.github/workflows/ci.yml`；本地验证命令见 `docs/项目手册.md` 第六部分。
 > **注意**：集成层契约测试（`KnowledgeGraphServiceImplTest` / `RAGServiceImplTest` / `LocalKnowledgeGraphProviderTest` / `DisabledRagProviderTest` / `Http*ContractTest` / `HttpRagProviderBoostTest`）为契约守护，禁止删除或绕过。
 
 ## 6. 开源发布注意事项
@@ -91,4 +87,4 @@ main（稳定，仅接受 release 合入）
 - 复现类 Bug 报告须附：环境版本、复现步骤、期望/实际结果、日志片段。
 
 ---
-*维护者：项目技术负责人（详见 `docs/项目资料综合手册-最终版.md` §9.8 联系方式）。*
+*维护者：项目技术负责人（详见 `docs/项目手册.md` 第一部分团队信息）。*
