@@ -208,7 +208,7 @@ jobs:
         # ⚠ osv-scanner-action 的 `uses:` 步骤不继承 defaults.run.working-directory，
         # 必须在 step 内显式声明扫描目标目录，否则在仓库根目录找不到 ./pom.xml 而 4 秒速败。
         # 修复：仓库仅维护 v2.x.x 具体版本 tag（无裸 v2 tag），@v2 无法解析导致 job 秒败。
-        uses: google/osv-scanner-action@v2.3.8
+        uses: google/osv-scanner-action@v2.5.1
         with:
           working-directory: ./backend
           scan-args: |-
