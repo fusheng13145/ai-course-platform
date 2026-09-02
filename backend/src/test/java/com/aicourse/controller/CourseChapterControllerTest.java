@@ -179,7 +179,7 @@ class CourseChapterControllerTest extends ControllerTestBase {
         CourseChapter chapter = new CourseChapter();
         chapter.setId(1L);
         chapter.setCourseId(1L);
-        when(chapterService.getById(any())).thenReturn(chapter);
+        when(chapterService.listByIds(any())).thenReturn(List.of(chapter));
         mockMvc.perform(put("/batch-reorder").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"orderList\":[{\"id\":1,\"orderIndex\":0}]}").with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
