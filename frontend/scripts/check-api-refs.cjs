@@ -40,15 +40,23 @@ function apiExports(file) {
   return names
 }
 
-// 收集 api 模块
+// 收集 api 模块（TS 迁移后 api/ 为 .ts，保留 .js 兼容以防混合期漏扫）
 const apiDir = path.join(ROOT, 'api')
 const apiModules = {}
+const apiModuleExt = {}
 for (const f of fs.readdirSync(apiDir)) {
-  if (f.endsWith('.js')) apiModules[f.replace('.js', '')] = apiExports(path.join(apiDir, f))
+  const ext = ['.ts', '.js'].find((x) => f.endsWith(x))
+  if (!ext) continue
+  const name = f.slice(0, -ext.length)
+  apiModules[name] = apiExports(path.join(apiDir, f))
+  apiModuleExt[name] = ext
 }
 
-// 扫描 composables 与 views
-const targets = [...walk(path.join(ROOT, 'composables'), ['.js']), ...walk(path.join(ROOT, 'views'), ['.vue'])]
+// 扫描 composables 与 views（composables 已全量 TS，同时兼容 .js）
+const targets = [
+  ...walk(path.join(ROOT, 'composables'), ['.ts', '.js']),
+  ...walk(path.join(ROOT, 'views'), ['.vue']),
+]
 const issues = []
 
 for (const file of targets) {
@@ -76,7 +84,9 @@ for (const file of targets) {
         // 仅作防御兜底时不算 bug，跳过
         if (m[2] === '?') continue
         const exportsList = Array.from(modExports).join(', ')
-        issues.push(`${file}: ${alias}.${method} —— api/${module}.js 无此导出 [实际导出: ${exportsList}]`)
+        issues.push(
+          `${file}: ${alias}.${method} —— api/${module}${apiModuleExt[module]} 无此导出 [实际导出: ${exportsList}]`
+        )
       }
     }
   }
