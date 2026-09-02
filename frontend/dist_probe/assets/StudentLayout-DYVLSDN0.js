@@ -1,1 +1,0 @@
-import{O as e,tt as t}from"./echarts-CL1HZqY1.js";import{t as n}from"./AppShell-BtpYY4Ht.js";var r={__name:`StudentLayout`,setup(r){return(r,i)=>(t(),e(n,{role:`STUDENT`,"notification-path":`/student/notifications`,"profile-path":`/student/profile`}))}};export{r as default};

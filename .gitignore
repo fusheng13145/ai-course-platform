@@ -54,3 +54,10 @@ frontend/coverage/
 
 # WorkBuddy 项目数据（记忆/任务，勿入库）
 .workbuddy/
+
+# 构建探针产物（误提交，已清理）
+frontend/dist_probe/
+
+# e2e 产物
+frontend/playwright-report/
+frontend/test-results/
