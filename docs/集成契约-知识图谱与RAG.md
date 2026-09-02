@@ -20,6 +20,18 @@
 - 接入即用：Python 服务就绪后，将 `knowledge-graph.enabled` / `rag.enabled` 置 `true` 即生效，**无需改动业务代码**。
 - 未接入不中断：默认本地占位 / `503` 降级，问答链路与路径规划端点始终可用。
 
+### 1.1 剥离语义澄清（2026-09-02 审计锚定）
+
+> **「知识图谱剥离」= 引擎侧剥离（职责转移），非功能移除。** 此澄清经 2026-09-02 全量审计锚定，与 `项目资料综合手册-最终版.md` 附录 D.3 互证，避免下游误读。
+
+| 维度 | 内容 |
+|------|------|
+| 引擎侧（已剥离） | 图谱构建 / 多跳推理 / GraphRAG 检索 → 移交队友 Python 8001；RAG 向量 / embedding / 融合 → 移交队友 Python 8002；LoRA 微调 → 移交队友 Python 8003 |
+| Java 端保留（消费侧） | `KnowledgeController` 27 个端点直读 MySQL `knowledge_points` / `knowledge_point_relations`；图谱可视化、关系维护、掌握度查询、AI 抽取等业务功能**完全可用** |
+| 标准化契约（Java 端自含） | `com.aicourse.integration` 包（`ContractPaths` 常量、`KnowledgeGraphContract` / `RagContract` 接口、`LocalKnowledgeGraphProvider` / `DisabledRagProvider` 本地占位、`HttpKnowledgeGraphProvider` / `HttpRagProvider` HTTP 远端） |
+| 本地兜底（永不中断） | `LocalKnowledgeGraphProvider.planLearningPath` 按起点知识点归属课程 `listByCourse` 隔离关系加载，引擎未启用 / 不可达 / 未找到路径时**始终返回真实路径**（`mode=LOCAL`） |
+| 规划能力（P1，本仓库不实现） | 分层 RAG 中的 Neo4j / Milvus / Elasticsearch / FAISS / HyDE / Cross-Encoder 均为规划项，属职责边界内的合理预留而非缺陷 |
+
 ---
 
 ## 2. 集成层架构（Java 端 `com.aicourse.integration`）
