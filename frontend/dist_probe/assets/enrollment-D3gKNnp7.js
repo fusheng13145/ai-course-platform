@@ -1,1 +1,0 @@
-import{a as e}from"./index-BcU9xMMO.js";var t={enrollCourse:t=>e.post(`/enrollments`,t),unenrollCourse:t=>e.delete(`/enrollments/${t}`),getMyEnrollments:()=>e.get(`/enrollments/my`),approveEnrollment:t=>e.post(`/enrollments/${t}/approve`),rejectEnrollment:t=>e.post(`/enrollments/${t}/reject`)};export{t};
