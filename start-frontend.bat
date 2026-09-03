@@ -17,23 +17,25 @@ echo [1/4] Locating Node.js...
 set NODE_EXE=
 set NPM_CLI_JS=
 
-set MANAGED_NODE_DIR=C:\Users\ASUS\.workbuddy\binaries\node\versions\22.22.2
-if exist "%MANAGED_NODE_DIR%\node.exe" (
-    set NODE_EXE=%MANAGED_NODE_DIR%\node.exe
-    set NPM_CLI_JS=%MANAGED_NODE_DIR%\node_modules\npm\bin\npm-cli.js
-    echo [OK] Using managed Node.js at %MANAGED_NODE_DIR%
+REM 优先使用系统 PATH 中的 node（团队其他成员 / CI 通用，避免依赖特定用户目录）
+where node >nul 2>&1
+if not errorlevel 1 (
+    for /f "delims=" %%i in ('where node') do set NODE_EXE=%%i
+    echo [OK] Using system Node.js at !NODE_EXE!
 ) else (
-    where node >nul 2>&1
-    if errorlevel 1 (
-        echo [ERROR] Node.js not found. Please install Node.js v20+.
+    REM 兜底：WorkBuddy 管理的 Node（路径随用户家目录变化，用 %%USERPROFILE%% 推导，禁止硬编码用户名）
+    set "MANAGED_NODE_DIR=%USERPROFILE%\.workbuddy\binaries\node\versions\22.22.2"
+    if exist "!MANAGED_NODE_DIR!\node.exe" (
+        set NODE_EXE=!MANAGED_NODE_DIR!\node.exe
+        echo [OK] Using WorkBuddy managed Node.js at !MANAGED_NODE_DIR!
+    ) else (
+        echo [ERROR] Node.js not found. Please install Node.js v20+ or use the WorkBuddy managed runtime.
         pause
         exit /b 1
     )
-    for /f "delims=" %%i in ('where node') do set NODE_EXE=%%i
-    echo [OK] Using system Node.js at %NODE_EXE%
 )
 
-if "%NODE_EXE%"=="" (
+if "!NODE_EXE!"=="" (
     echo [ERROR] node.exe not found.
     pause
     exit /b 1

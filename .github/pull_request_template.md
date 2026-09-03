@@ -11,7 +11,7 @@
 - [ ] 后端：<!-- 如：新增 ClassroomService.countPendingByCourse 聚合逻辑 -->
 - [ ] 前端：<!-- 如：CourseCockpit 接入真实待批数据 -->
 - [ ] 测试：<!-- 如：ClassroomServiceImplPendingTest 5 用例 -->
-- [ ] 文档：<!-- 如：README / docs 手册 / CONTRIBUTING -->
+- [ ] 文档：<!-- 如：README / docs 手册 -->
 
 ## 测试与验证
 <!-- 列出实际执行的验证（命令 + 结果），如：

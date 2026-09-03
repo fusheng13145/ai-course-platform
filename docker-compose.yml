@@ -206,7 +206,7 @@ services:
       BACKUP_REMOTE_SYNC: ${BACKUP_REMOTE_SYNC:-}
       TZ: Asia/Shanghai
     volumes:
-      - ./ops/mysql-backup/backup.sh:/backup.sh:ro
+      - ./backup/mysql-backup.sh:/backup.sh:ro
       - mysql-backups:/backups
     entrypoint:
       - /bin/sh
@@ -230,8 +230,8 @@ services:
       ACTUATOR_BASIC_USER: ${APP_ACTUATOR_BASIC_USER:-monitor}
       ACTUATOR_BASIC_PASSWORD: ${APP_ACTUATOR_BASIC_PASSWORD:-}
     volumes:
-      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
-      - ./prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
       - prometheus-data:/prometheus
     ports:
       - "9090:9090"
@@ -243,7 +243,7 @@ services:
 
   # ---------------- Node Exporter 宿主机指标采集（profiles: monitor） ----------------
   # 采集宿主机 CPU/内存/磁盘/网络指标（node_* 系列），支撑磁盘使用率告警
-  # （DiskUsageHigh，见 prometheus/alert_rules.yml）。容器以 host 网络命名空间运行，
+  # （DiskUsageHigh，见 monitoring/prometheus/alert_rules.yml）。容器以 host 网络命名空间运行，
   # 通过挂载只读 /proc /sys / 根目录提供指标来源；node-exporter 本身不开放对外端口。
   node-exporter:
     image: prom/node-exporter:v1.8.2
@@ -275,9 +275,9 @@ services:
     # 【注意】此处曾注入 ALERTMANAGER_WEBHOOK_URL 环境变量，但 Alertmanager
     # 不支持在 alertmanager.yml 内做 ${VAR} 插值，该变量实际无任何效果，
     # 反而使配置文件里的占位符被当作字面 URL 解析而启动失败（CrashLoop）。
-    # 故移除该变量；webhook 地址请直接在 prometheus/alertmanager.yml 中写字面值。
+    # 故移除该变量；webhook 地址请直接在 monitoring/prometheus/alertmanager.yml 中写字面值。
     volumes:
-      - ./prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - ./monitoring/prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
     ports:
       - "9093:9093"
     logging:
@@ -302,7 +302,7 @@ services:
       GF_METRICS_ENABLED: "true"
       TZ: Asia/Shanghai
     volumes:
-      - ./grafana/provisioning:/etc/grafana/provisioning:ro
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
       - grafana-data:/var/lib/grafana
     ports:
       - "3000:3000"
@@ -320,7 +320,7 @@ services:
     profiles: ["monitor"]
     command: -config.file=/etc/loki/local-config.yaml
     volumes:
-      - ./loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - ./monitoring/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
       - loki-data:/loki
     ports:
       - "3100:3100"
@@ -340,7 +340,7 @@ services:
       - loki
     command: -config.file=/etc/promtail/config.yml
     volumes:
-      - ./loki/promtail-config.yaml:/etc/promtail/config.yml:ro
+      - ./monitoring/loki/promtail-config.yaml:/etc/promtail/config.yml:ro
       # 经 Docker socket 服务发现后端容器日志（只读）；本地 Docker 桌面默认可用
       - /var/run/docker.sock:/var/run/docker.sock:ro
     logging:

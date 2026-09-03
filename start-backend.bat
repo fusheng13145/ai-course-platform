@@ -52,8 +52,27 @@ echo [OK] Environment variables loaded
 
 :step2_check_jdk
 echo [2/4] Checking JDK 21...
-set JAVA_HOME_21=C:\Program Files\Java\jdk-21
+
+REM 优先使用已配置的 JAVA_HOME（跨机器通用，避免硬编码安装路径）
+if defined JAVA_HOME if exist "%JAVA_HOME%\bin\java.exe" (
+    set "JAVA_HOME_21=%JAVA_HOME%"
+    goto jdk_found
+)
+
+REM 其次在 PATH 中搜索 javac（指向 %JAVA_HOME%/bin/javac）
+where javac >nul 2>&1
+if not errorlevel 1 (
+    for /f "delims=" %%i in ('where javac') do (
+        set "JAVA_HOME_21=%%~dpi.."
+        goto jdk_found
+    )
+)
+
+REM 兜底：常见默认安装路径（仅作最后尝试，不同机器可能不同）
+set "JAVA_HOME_21=C:\Program Files\Java\jdk-21"
 if not exist "%JAVA_HOME_21%\bin\java.exe" goto err_no_jdk
+
+:jdk_found
 set "JAVA_HOME=%JAVA_HOME_21%"
 set "Path=%JAVA_HOME%\bin;%Path%"
 "%JAVA_HOME%\bin\java" -version >%TEMP%\java_ver.txt 2>&1
