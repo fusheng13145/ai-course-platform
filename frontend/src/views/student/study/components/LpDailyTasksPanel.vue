@@ -22,20 +22,10 @@
         <el-tag
           size="small"
           :type="
-            task.priority === 'HIGH'
-              ? 'danger'
-              : task.priority === 'MEDIUM'
-                ? 'warning'
-                : 'info'
+            task.priority === 'HIGH' ? 'danger' : task.priority === 'MEDIUM' ? 'warning' : 'info'
           "
         >
-          {{
-            task.priority === 'HIGH'
-              ? '重要'
-              : task.priority === 'MEDIUM'
-                ? '一般'
-                : '可选'
-          }}
+          {{ task.priority === 'HIGH' ? '重要' : task.priority === 'MEDIUM' ? '一般' : '可选' }}
         </el-tag>
       </div>
     </div>

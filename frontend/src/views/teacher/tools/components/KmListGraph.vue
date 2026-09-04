@@ -17,7 +17,9 @@
           </template>
         </el-table-column>
         <el-table-column prop="questionCount" label="关联题目" width="90" align="center">
-          <template #default="{ row }"><span>{{ row.questionCount || 0 }}</span></template>
+          <template #default="{ row }"
+            ><span>{{ row.questionCount || 0 }}</span></template
+          >
         </el-table-column>
         <el-table-column label="操作" width="220" fixed="right">
           <template #default="{ row }">
@@ -39,7 +41,11 @@
     <div class="graph-card">
       <div class="panel-header">
         <span class="chart-title">知识图谱</span>
-        <el-radio-group :model-value="graphViewMode" size="small" @change="emit('view-mode', $event)">
+        <el-radio-group
+          :model-value="graphViewMode"
+          size="small"
+          @change="emit('view-mode', $event)"
+        >
           <el-radio-button value="force">力导向</el-radio-button>
           <el-radio-button value="tree">树形</el-radio-button>
         </el-radio-group>

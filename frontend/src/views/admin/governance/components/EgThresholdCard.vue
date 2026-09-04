@@ -30,21 +30,11 @@
     <div v-if="isAdmin" class="thr-form">
       <div class="thr-item">
         <label>高风险阈值 (HIGH)</label>
-        <el-input-number
-          v-model="thresholds.high"
-          :min="1"
-          :max="50"
-          controls-position="right"
-        />
+        <el-input-number v-model="thresholds.high" :min="1" :max="50" controls-position="right" />
       </div>
       <div class="thr-item">
         <label>中风险阈值 (MEDIUM)</label>
-        <el-input-number
-          v-model="thresholds.medium"
-          :min="1"
-          :max="50"
-          controls-position="right"
-        />
+        <el-input-number v-model="thresholds.medium" :min="1" :max="50" controls-position="right" />
       </div>
       <div class="thr-item">
         <label>LOW 事件权重</label>

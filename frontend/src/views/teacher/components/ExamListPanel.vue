@@ -46,7 +46,9 @@
             stroke-linecap="round"
             stroke-linejoin="round"
           >
-            <path d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2zM14 2v6h6" />
+            <path
+              d="M14.5 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V7.5L14.5 2zM14 2v6h6"
+            />
           </svg>
         </span>
         <div>
@@ -59,9 +61,16 @@
           <el-table v-loading="loading" :data="examList">
             <el-table-column prop="id" label="ID" width="60" />
             <el-table-column prop="title" label="试卷标题" min-width="180" show-overflow-tooltip>
-              <template #default="{ row }"><span class="exam-title">{{ row.title }}</span></template>
+              <template #default="{ row }"
+                ><span class="exam-title">{{ row.title }}</span></template
+              >
             </el-table-column>
-            <el-table-column prop="courseName" label="所属课程" min-width="120" show-overflow-tooltip />
+            <el-table-column
+              prop="courseName"
+              label="所属课程"
+              min-width="120"
+              show-overflow-tooltip
+            />
             <el-table-column prop="status" label="状态" width="90" align="center">
               <template #default="{ row }">
                 <el-tag :type="getStatusType(row.status)" size="small">{{
@@ -76,11 +85,36 @@
             <el-table-column prop="createdAt" label="创建时间" width="160" />
             <el-table-column label="操作" width="260" fixed="right">
               <template #default="{ row }">
-                <el-button text type="primary" size="small" @click="emit('detail', row)">详情</el-button>
-                <el-button v-if="row.status === 'DRAFT'" text type="primary" size="small" @click="emit('edit', row)">编辑</el-button>
-                <el-button v-if="row.status === 'DRAFT'" text type="success" size="small" @click="emit('publish', row)">发布</el-button>
-                <el-button text type="warning" size="small" @click="emit('copy', row)">复制</el-button>
-                <el-button v-if="row.status === 'DRAFT'" text type="danger" size="small" @click="emit('delete', row)">删除</el-button>
+                <el-button text type="primary" size="small" @click="emit('detail', row)"
+                  >详情</el-button
+                >
+                <el-button
+                  v-if="row.status === 'DRAFT'"
+                  text
+                  type="primary"
+                  size="small"
+                  @click="emit('edit', row)"
+                  >编辑</el-button
+                >
+                <el-button
+                  v-if="row.status === 'DRAFT'"
+                  text
+                  type="success"
+                  size="small"
+                  @click="emit('publish', row)"
+                  >发布</el-button
+                >
+                <el-button text type="warning" size="small" @click="emit('copy', row)"
+                  >复制</el-button
+                >
+                <el-button
+                  v-if="row.status === 'DRAFT'"
+                  text
+                  type="danger"
+                  size="small"
+                  @click="emit('delete', row)"
+                  >删除</el-button
+                >
               </template>
             </el-table-column>
           </el-table>

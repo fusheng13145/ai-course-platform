@@ -26,7 +26,11 @@
           </el-table-column>
           <el-table-column label="等级" width="80">
             <template #default="{ row }">
-              <el-tag size="small" :type="row.level === 'HIGH' ? 'danger' : 'warning'" effect="light">
+              <el-tag
+                size="small"
+                :type="row.level === 'HIGH' ? 'danger' : 'warning'"
+                effect="light"
+              >
                 {{ row.level === 'HIGH' ? '高危' : '关注' }}
               </el-tag>
             </template>

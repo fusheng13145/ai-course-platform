@@ -11,13 +11,7 @@
       <div class="path-card-header">
         <span class="path-name">{{ p.name || `学习路径 ${idx + 1}` }}</span>
         <el-tag size="small" :type="p.status === 'ACTIVE' ? 'success' : 'info'">
-          {{
-            p.status === 'ACTIVE'
-              ? '进行中'
-              : p.status === 'COMPLETED'
-                ? '已完成'
-                : '未开始'
-          }}
+          {{ p.status === 'ACTIVE' ? '进行中' : p.status === 'COMPLETED' ? '已完成' : '未开始' }}
         </el-tag>
       </div>
       <div class="path-meta">

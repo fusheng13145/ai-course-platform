@@ -13,9 +13,7 @@
             <el-tag :type="q.mastered ? 'success' : 'warning'" size="small">
               {{ q.mastered ? '已掌握' : '待复习' }}
             </el-tag>
-            <span v-if="q.knowledgePointName" class="q-kp-tag">{{
-              q.knowledgePointName
-            }}</span>
+            <span v-if="q.knowledgePointName" class="q-kp-tag">{{ q.knowledgePointName }}</span>
           </div>
           <div class="q-header-right">
             <el-button v-if="!q.mastered" text size="small" @click.stop="$emit('related', q)">
@@ -46,9 +44,7 @@
           <div v-if="expandedId === q.id" class="q-detail">
             <div class="detail-section">
               <span class="detail-label correct">正确答案：</span>
-              <span class="detail-value correct">{{
-                q.correctAnswer || q.answer || '--'
-              }}</span>
+              <span class="detail-value correct">{{ q.correctAnswer || q.answer || '--' }}</span>
             </div>
             <div v-if="q.analysis || q.explanation" class="detail-section">
               <span class="detail-label">解析：</span>

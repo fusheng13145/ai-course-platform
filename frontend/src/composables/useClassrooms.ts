@@ -66,7 +66,8 @@ export function useClassrooms() {
   /** 组织维度 + 关键字过滤后的班级列表 */
   const filteredList = computed(() => {
     let list = allClassrooms.value
-    if (activeMajor.value) list = list.filter((c) => (c.major || '未分配专业') === activeMajor.value)
+    if (activeMajor.value)
+      list = list.filter((c) => (c.major || '未分配专业') === activeMajor.value)
     if (activeGrade.value)
       list = list.filter((c) => String(c.gradeLevel || '未分年级') === String(activeGrade.value))
     const q = keyword.value.trim().toLowerCase()

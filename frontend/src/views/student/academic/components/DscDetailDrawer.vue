@@ -22,7 +22,9 @@
       </div>
       <div class="dh-content">{{ currentTopic.content }}</div>
       <div class="dh-meta">
-        <span><el-icon><User /></el-icon>{{ currentTopic.authorName || '同学' }}</span>
+        <span
+          ><el-icon><User /></el-icon>{{ currentTopic.authorName || '同学' }}</span
+        >
         <span class="ti-time">{{ currentTopic.createdAt }}</span>
       </div>
     </div>

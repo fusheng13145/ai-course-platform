@@ -25,12 +25,7 @@
           placeholder="再次输入新密码"
         />
       </el-form-item>
-      <el-button
-        type="primary"
-        :loading="changing"
-        class="pc-submit"
-        @click="emit('change')"
-      >
+      <el-button type="primary" :loading="changing" class="pc-submit" @click="emit('change')">
         修改密码
       </el-button>
     </el-form>

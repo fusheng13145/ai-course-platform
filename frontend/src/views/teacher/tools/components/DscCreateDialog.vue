@@ -9,19 +9,10 @@
   >
     <el-form :model="form" label-width="80px">
       <el-form-item label="章节" prop="chapterId">
-        <el-input
-          v-model="form.chapterId"
-          placeholder="可选，填写章节标识"
-          style="width: 100%"
-        />
+        <el-input v-model="form.chapterId" placeholder="可选，填写章节标识" style="width: 100%" />
       </el-form-item>
       <el-form-item label="标题" required>
-        <el-input
-          v-model="form.title"
-          placeholder="话题标题"
-          maxlength="80"
-          show-word-limit
-        />
+        <el-input v-model="form.title" placeholder="话题标题" maxlength="80" show-word-limit />
       </el-form-item>
       <el-form-item label="内容" required>
         <el-input

@@ -17,15 +17,11 @@
       <el-table :data="examQuestions" size="small" border max-height="380">
         <el-table-column type="index" label="序号" width="60" />
         <el-table-column label="题目" min-width="320" show-overflow-tooltip>
-          <template #default="{ row }">{{
-            row.content || row.stem || row.title || '—'
-          }}</template>
+          <template #default="{ row }">{{ row.content || row.stem || row.title || '—' }}</template>
         </el-table-column>
         <el-table-column label="题型" width="90" align="center">
           <template #default="{ row }"
-            ><el-tag size="small" type="info">{{
-              getQuestionTypeName(row.type)
-            }}</el-tag></template
+            ><el-tag size="small" type="info">{{ getQuestionTypeName(row.type) }}</el-tag></template
           >
         </el-table-column>
         <el-table-column prop="score" label="分值" width="80" align="center" />

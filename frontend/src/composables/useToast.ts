@@ -35,7 +35,7 @@ function addToast(msg, type = 'info', ms = 2600) {
   toasts.push({ id, el })
   setTimeout(() => {
     el.remove()
-    toasts = toasts.filter(t => t.id !== id)
+    toasts = toasts.filter((t) => t.id !== id)
   }, ms)
 }
 

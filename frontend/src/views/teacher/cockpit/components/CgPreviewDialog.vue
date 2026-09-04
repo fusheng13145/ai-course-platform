@@ -39,8 +39,10 @@ async function computeFinal() {
   try {
     const r = await gradeApi.computeFinal(props.policyId, props.student.studentId)
     const body = unwrap(r)
-    data.value =
-      body || { studentName: props.student.studentName, finalScore: props.student.finalScore }
+    data.value = body || {
+      studentName: props.student.studentName,
+      finalScore: props.student.finalScore,
+    }
   } catch (e) {
     logger.error('计算总评失败', e)
     data.value = {

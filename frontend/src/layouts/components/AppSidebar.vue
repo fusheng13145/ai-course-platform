@@ -86,8 +86,10 @@ const navSections = computed(() => SECTIONS_MAP[props.role] || STUDENT_SECTIONS)
 const expandedKeys = ref(new Set())
 
 function isActive(item) {
-  if (item.key === 'my' && route.path.startsWith(`/${props.role.toLowerCase()}/courses`)) return true
-  if (item.key === 'hall' && route.path.startsWith(`/${props.role.toLowerCase()}/courses`)) return true
+  if (item.key === 'my' && route.path.startsWith(`/${props.role.toLowerCase()}/courses`))
+    return true
+  if (item.key === 'hall' && route.path.startsWith(`/${props.role.toLowerCase()}/courses`))
+    return true
   return route.path === item.path || (item.path && route.path.startsWith(item.path + '/'))
 }
 
@@ -201,7 +203,9 @@ const avatarStyle = computed(() => {
   color: #b9c1cf;
   font-size: 13.5px;
   position: relative;
-  transition: background 0.18s, color 0.18s;
+  transition:
+    background 0.18s,
+    color 0.18s;
   white-space: nowrap;
   user-select: none;
 }

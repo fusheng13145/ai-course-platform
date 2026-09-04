@@ -26,12 +26,7 @@
         <el-input v-model="form.answer" type="textarea" :rows="2" placeholder="请输入标准答案" />
       </el-form-item>
       <el-form-item label="解析">
-        <el-input
-          v-model="form.analysis"
-          type="textarea"
-          :rows="2"
-          placeholder="请输入答案解析"
-        />
+        <el-input v-model="form.analysis" type="textarea" :rows="2" placeholder="请输入答案解析" />
       </el-form-item>
     </el-form>
     <template #footer>

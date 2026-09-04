@@ -17,7 +17,10 @@
         <span class="sep" v-html="iconHtml('chevronR', 12)"></span>
         <span
           class="crumb"
-          :class="{ current: ci === breadcrumbs.length - 1, link: ci < breadcrumbs.length - 1 && crumb.path }"
+          :class="{
+            current: ci === breadcrumbs.length - 1,
+            link: ci < breadcrumbs.length - 1 && crumb.path,
+          }"
           @click="crumb.path ? router.push(crumb.path) : undefined"
           >{{ crumb.title }}</span
         >
@@ -102,7 +105,9 @@ function goHome() {
   place-items: center;
   color: var(--ink-2);
   position: relative;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 .t-icon-btn:hover {
   background: var(--surface-3);

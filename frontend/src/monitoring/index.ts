@@ -73,7 +73,9 @@ export function captureFrontendError(err, info, component) {
         headers: { 'Content-Type': 'application/json' },
         body,
         keepalive: true,
-      }).catch(() => { /* 上报失败静默 */ })
+      }).catch(() => {
+        /* 上报失败静默 */
+      })
     }
   } catch {
     /* 上报失败静默，不影响主流程 */

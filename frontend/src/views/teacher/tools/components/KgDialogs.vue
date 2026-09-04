@@ -72,7 +72,12 @@
       <div v-if="extractNodes.length" class="er-section">
         <div class="er-sec-title">抽取出的知识点</div>
         <div class="er-chips">
-          <el-tag v-for="(n, i) in extractNodes" :key="i" class="er-chip" type="primary" effect="light"
+          <el-tag
+            v-for="(n, i) in extractNodes"
+            :key="i"
+            class="er-chip"
+            type="primary"
+            effect="light"
             >{{ nodeName(n) }}</el-tag
           >
         </div>

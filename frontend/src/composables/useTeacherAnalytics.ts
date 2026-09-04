@@ -341,7 +341,12 @@ export function useTeacherAnalytics() {
           activityRankOption.value.series[0].data = ranked.map((s, i) => ({
             value: s.score,
             itemStyle: {
-              borderRadius: [0, i === ranked.length - 1 ? 8 : 4, i === ranked.length - 1 ? 8 : 4, 0],
+              borderRadius: [
+                0,
+                i === ranked.length - 1 ? 8 : 4,
+                i === ranked.length - 1 ? 8 : 4,
+                0,
+              ],
             },
           }))
           // 更新学生总数

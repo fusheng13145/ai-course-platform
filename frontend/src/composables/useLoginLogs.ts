@@ -28,7 +28,8 @@ export function useLoginLogs() {
       if (loginFilters.loginStatus) params.loginStatus = loginFilters.loginStatus
       const res = await loginLogApi.getList(params)
       const data = res.data || res
-      loginList.value = data.records || data.list || data.content || (Array.isArray(data) ? data : [])
+      loginList.value =
+        data.records || data.list || data.content || (Array.isArray(data) ? data : [])
       loginTotal.value = data.total ?? data.totalElements ?? loginList.value.length
     } catch (e) {
       logger.error('加载登录日志失败:', e)

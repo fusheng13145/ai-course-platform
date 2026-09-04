@@ -16,7 +16,9 @@
         @update:model-value="emit('update:studentKeyword', $event)"
         @keyup.enter="emit('reload')"
       >
-        <template #prefix><el-icon><Search /></el-icon></template>
+        <template #prefix
+          ><el-icon><Search /></el-icon
+        ></template>
       </el-input>
       <el-button @click="emit('reload')">查询</el-button>
       <el-button type="primary" @click="emit('add-student')"

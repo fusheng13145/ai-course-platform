@@ -82,11 +82,7 @@
         <el-icon><ArrowLeft /></el-icon> 上一题
       </el-button>
       <span class="question-counter">{{ currentIndex + 1 }} / {{ questions.length }}</span>
-      <el-button
-        v-if="currentIndex < questions.length - 1"
-        type="primary"
-        @click="emit('next')"
-      >
+      <el-button v-if="currentIndex < questions.length - 1" type="primary" @click="emit('next')">
         下一题<el-icon><ArrowRight /></el-icon>
       </el-button>
       <el-button v-else type="success" @click="emit('submit')"> 提交试卷 </el-button>

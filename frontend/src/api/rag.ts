@@ -9,7 +9,8 @@ import { unwrap } from '@/utils/response'
 export const ragAsk = (params = {}) => request.post('/rag/ask', null, { params }).then(unwrap)
 
 // 语义召回（需登录）
-export const ragRetrieve = (params = {}) => request.post('/rag/retrieve', null, { params }).then(unwrap)
+export const ragRetrieve = (params = {}) =>
+  request.post('/rag/retrieve', null, { params }).then(unwrap)
 
 // 文档列表（需登录）
 export const ragListDocuments = (courseId) =>

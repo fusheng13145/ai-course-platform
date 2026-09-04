@@ -22,8 +22,12 @@
         </div>
         <div class="hero-handle">@{{ user.username }}</div>
         <div class="hero-meta">
-          <span><el-icon><Calendar /></el-icon> 加入于 {{ memberSince }}</span>
-          <span><el-icon><Clock /></el-icon> 最近登录 {{ lastLogin }}</span>
+          <span
+            ><el-icon><Calendar /></el-icon> 加入于 {{ memberSince }}</span
+          >
+          <span
+            ><el-icon><Clock /></el-icon> 最近登录 {{ lastLogin }}</span
+          >
         </div>
       </div>
 

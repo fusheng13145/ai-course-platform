@@ -254,9 +254,13 @@ export function useQuestions() {
 
   async function deleteQuestion(row) {
     try {
-      await ElMessageBox.confirm(`确定删除该题目？\n「${row.content.slice(0, 50)}...」`, '确认删除', {
-        type: 'warning',
-      })
+      await ElMessageBox.confirm(
+        `确定删除该题目？\n「${row.content.slice(0, 50)}...」`,
+        '确认删除',
+        {
+          type: 'warning',
+        },
+      )
 
       await questionApi.deleteQuestion(row.id)
       ElMessage.success('删除成功')
@@ -396,7 +400,9 @@ export function useQuestions() {
         const res = await questionApi.importQuestionsExcel(formData)
         ElMessage.closeAll()
         const result = res.data || {}
-        ElMessage.success(`导入完成：成功 ${result.importedCount ?? 0} / 共 ${result.total ?? 0} 题`)
+        ElMessage.success(
+          `导入完成：成功 ${result.importedCount ?? 0} / 共 ${result.total ?? 0} 题`,
+        )
         fetchQuestions()
       } catch (err) {
         ElMessage.closeAll()

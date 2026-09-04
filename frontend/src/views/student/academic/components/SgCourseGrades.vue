@@ -68,9 +68,7 @@
             <el-table-column prop="courseName" label="课程" width="140" />
             <el-table-column prop="score" label="成绩" width="90" align="center">
               <template #default="{ row }">
-                <el-tag :type="getGradeLevelTag(row.score)" size="small">{{
-                  row.score
-                }}</el-tag>
+                <el-tag :type="getGradeLevelTag(row.score)" size="small">{{ row.score }}</el-tag>
               </template>
             </el-table-column>
             <el-table-column prop="totalScore" label="总分" width="70" align="center" />

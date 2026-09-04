@@ -10,7 +10,13 @@
           <h1 class="header-title">{{ course.name }}</h1>
           <el-tag
             size="small"
-            :type="course.approvalStatus === 'APPROVED' ? 'success' : course.approvalStatus === 'REJECTED' ? 'danger' : 'warning'"
+            :type="
+              course.approvalStatus === 'APPROVED'
+                ? 'success'
+                : course.approvalStatus === 'REJECTED'
+                  ? 'danger'
+                  : 'warning'
+            "
             effect="light"
             round
           >
@@ -19,17 +25,45 @@
         </div>
       </div>
       <div class="header-actions">
-        <el-button plain @click="showEditDialog"><el-icon><Edit /></el-icon>编辑课程</el-button>
-        <el-button type="primary" plain @click="showNotificationDialog"><el-icon><Bell /></el-icon>发送通知</el-button>
+        <el-button plain @click="showEditDialog"
+          ><el-icon><Edit /></el-icon>编辑课程</el-button
+        >
+        <el-button type="primary" plain @click="showNotificationDialog"
+          ><el-icon><Bell /></el-icon>发送通知</el-button
+        >
       </div>
     </div>
 
     <!-- 统计卡（容错，不暴露后端错误） -->
     <div class="stat-grid animate-in">
-      <StatCard label="学生人数" :value="stats.totalStudents ?? '-'" icon="users" tone="var(--info-soft)" tone-color="var(--info)" />
-      <StatCard label="资料" :value="resourceCount ?? '-'" icon="folder" tone="var(--ok-soft)" tone-color="var(--ok)" />
-      <StatCard label="作业" :value="taskCount ?? '-'" icon="edit" tone="var(--warn-soft)" tone-color="var(--warn)" />
-      <StatCard label="考试" :value="examCount ?? '-'" icon="doc" tone="var(--violet-soft)" tone-color="var(--violet)" />
+      <StatCard
+        label="学生人数"
+        :value="stats.totalStudents ?? '-'"
+        icon="users"
+        tone="var(--info-soft)"
+        tone-color="var(--info)"
+      />
+      <StatCard
+        label="资料"
+        :value="resourceCount ?? '-'"
+        icon="folder"
+        tone="var(--ok-soft)"
+        tone-color="var(--ok)"
+      />
+      <StatCard
+        label="作业"
+        :value="taskCount ?? '-'"
+        icon="edit"
+        tone="var(--warn-soft)"
+        tone-color="var(--warn)"
+      />
+      <StatCard
+        label="考试"
+        :value="examCount ?? '-'"
+        icon="doc"
+        tone="var(--violet-soft)"
+        tone-color="var(--violet)"
+      />
     </div>
 
     <!-- 主 Tab 区 -->
@@ -42,8 +76,12 @@
           :format-date="formatDate"
         />
       </el-tab-pane>
-      <el-tab-pane label="授课进度" name="progress"><CourseProgressTab :course-id="course.id" /></el-tab-pane>
-      <el-tab-pane label="学习情况" name="learningStatus"><CourseLearningStatusTab :course-id="course.id" /></el-tab-pane>
+      <el-tab-pane label="授课进度" name="progress"
+        ><CourseProgressTab :course-id="course.id"
+      /></el-tab-pane>
+      <el-tab-pane label="学习情况" name="learningStatus"
+        ><CourseLearningStatusTab :course-id="course.id"
+      /></el-tab-pane>
       <el-tab-pane label="章节管理" name="chapters">
         <CdChaptersTab
           :chapters="chapters"
@@ -58,16 +96,23 @@
         />
       </el-tab-pane>
       <el-tab-pane label="课程资料上传" name="resources">
-        <CourseResourcePanel :course-id="Number(course.id)" @resource-updated="updateResourceCount" />
+        <CourseResourcePanel
+          :course-id="Number(course.id)"
+          @resource-updated="updateResourceCount"
+        />
       </el-tab-pane>
       <el-tab-pane label="作业管理" name="tasks">
         <CourseTaskPanel :course-id="Number(course.id)" @task-updated="updateTaskCount" />
       </el-tab-pane>
-      <el-tab-pane label="作业完成情况" name="completion"><CourseCompletionTab :course-id="course.id" /></el-tab-pane>
+      <el-tab-pane label="作业完成情况" name="completion"
+        ><CourseCompletionTab :course-id="course.id"
+      /></el-tab-pane>
       <el-tab-pane label="考试管理" name="exams">
         <CourseExamPanel :course-id="Number(course.id)" @exam-updated="updateExamCount" />
       </el-tab-pane>
-      <el-tab-pane label="成绩管理" name="grades"><CourseGradesTab :course-id="course.id" /></el-tab-pane>
+      <el-tab-pane label="成绩管理" name="grades"
+        ><CourseGradesTab :course-id="course.id"
+      /></el-tab-pane>
       <el-tab-pane label="学生管理" name="students">
         <CdStudentsTab
           :students="students"
@@ -76,7 +121,9 @@
           @reject="rejectStudent"
         />
       </el-tab-pane>
-      <el-tab-pane label="知识管理" name="knowledge"><CourseKnowledgeTab :course-id="course.id" /></el-tab-pane>
+      <el-tab-pane label="知识管理" name="knowledge"
+        ><CourseKnowledgeTab :course-id="course.id"
+      /></el-tab-pane>
       <el-tab-pane label="通知管理" name="notifications">
         <CdNotificationsTab
           :notifications="notifications"

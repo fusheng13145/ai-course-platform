@@ -220,17 +220,61 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '课程驾驶舱', breadcrumb: '课程驾驶舱' },
         children: [
           { path: '', redirect: 'overview' },
-          { path: 'overview', component: () => import('@/views/teacher/cockpit/CourseOverview.vue'), meta: { title: '课程概览' } },
-          { path: 'chapters', component: () => import('@/views/teacher/cockpit/CourseChapters.vue'), meta: { title: '章节与任务点' } },
-          { path: 'tasks', component: () => import('@/views/teacher/cockpit/CourseTasks.vue'), meta: { title: '作业任务' } },
-          { path: 'submissions', component: () => import('@/views/teacher/cockpit/CourseSubmissions.vue'), meta: { title: '作业批改' } },
-          { path: 'bank', component: () => import('@/views/teacher/cockpit/CourseQuestionBank.vue'), meta: { title: '课程题库' } },
-          { path: 'exams', component: () => import('@/views/teacher/cockpit/CourseExams.vue'), meta: { title: '试卷与考试' } },
-          { path: 'proctor', component: () => import('@/views/teacher/cockpit/CourseProctor.vue'), meta: { title: '在线监考' } },
-          { path: 'grades', component: () => import('@/views/teacher/cockpit/CourseGrades.vue'), meta: { title: '过程性成绩' } },
-          { path: 'analytics', component: () => import('@/views/teacher/cockpit/CourseAnalytics.vue'), meta: { title: '学情统计' } },
-          { path: 'interaction', component: () => import('@/views/teacher/cockpit/CourseInteraction.vue'), meta: { title: '课堂互动' } },
-          { path: 'discussion', component: () => import('@/views/teacher/cockpit/CourseDiscussion.vue'), meta: { title: '课程讨论' } },
+          {
+            path: 'overview',
+            component: () => import('@/views/teacher/cockpit/CourseOverview.vue'),
+            meta: { title: '课程概览' },
+          },
+          {
+            path: 'chapters',
+            component: () => import('@/views/teacher/cockpit/CourseChapters.vue'),
+            meta: { title: '章节与任务点' },
+          },
+          {
+            path: 'tasks',
+            component: () => import('@/views/teacher/cockpit/CourseTasks.vue'),
+            meta: { title: '作业任务' },
+          },
+          {
+            path: 'submissions',
+            component: () => import('@/views/teacher/cockpit/CourseSubmissions.vue'),
+            meta: { title: '作业批改' },
+          },
+          {
+            path: 'bank',
+            component: () => import('@/views/teacher/cockpit/CourseQuestionBank.vue'),
+            meta: { title: '课程题库' },
+          },
+          {
+            path: 'exams',
+            component: () => import('@/views/teacher/cockpit/CourseExams.vue'),
+            meta: { title: '试卷与考试' },
+          },
+          {
+            path: 'proctor',
+            component: () => import('@/views/teacher/cockpit/CourseProctor.vue'),
+            meta: { title: '在线监考' },
+          },
+          {
+            path: 'grades',
+            component: () => import('@/views/teacher/cockpit/CourseGrades.vue'),
+            meta: { title: '过程性成绩' },
+          },
+          {
+            path: 'analytics',
+            component: () => import('@/views/teacher/cockpit/CourseAnalytics.vue'),
+            meta: { title: '学情统计' },
+          },
+          {
+            path: 'interaction',
+            component: () => import('@/views/teacher/cockpit/CourseInteraction.vue'),
+            meta: { title: '课堂互动' },
+          },
+          {
+            path: 'discussion',
+            component: () => import('@/views/teacher/cockpit/CourseDiscussion.vue'),
+            meta: { title: '课程讨论' },
+          },
         ],
       },
 

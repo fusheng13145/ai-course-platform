@@ -22,31 +22,17 @@
       </div>
     </div>
     <div v-if="weakSummary" class="ai-summary">{{ weakSummary }}</div>
-    <el-table
-      v-if="weakPoints.length"
-      :data="weakPoints"
-      size="small"
-      empty-text="暂无薄弱点"
-    >
+    <el-table v-if="weakPoints.length" :data="weakPoints" size="small" empty-text="暂无薄弱点">
       <el-table-column prop="pointName" label="知识点" min-width="160" />
       <el-table-column prop="masteryRate" label="掌握度" width="120">
         <template #default="{ row }">
           <el-progress :percentage="numPct(row.masteryRate)" :stroke-width="10" />
         </template>
       </el-table-column>
-      <el-table-column
-        prop="weakStudentCount"
-        label="薄弱人数"
-        width="100"
-        align="center"
-      />
+      <el-table-column prop="weakStudentCount" label="薄弱人数" width="100" align="center" />
       <el-table-column prop="level" label="等级" width="100">
         <template #default="{ row }">
-          <el-tag
-            size="small"
-            :type="row.level === 'HIGH' ? 'danger' : 'warning'"
-            effect="light"
-          >
+          <el-tag size="small" :type="row.level === 'HIGH' ? 'danger' : 'warning'" effect="light">
             {{ row.level === 'HIGH' ? '高危' : '关注' }}
           </el-tag>
         </template>

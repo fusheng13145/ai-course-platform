@@ -40,12 +40,7 @@
             >
               {{ node.current ? '继续学习' : '开始学习' }}
             </el-button>
-            <el-button
-              v-if="node.completed"
-              text
-              size="small"
-              @click.stop="$emit('review', node)"
-            >
+            <el-button v-if="node.completed" text size="small" @click.stop="$emit('review', node)">
               复习
             </el-button>
           </div>

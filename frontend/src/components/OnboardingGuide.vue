@@ -31,18 +31,13 @@
           <div class="ob-foot">
             <button class="ob-btn ghost" type="button" @click="skip">跳过</button>
             <div class="ob-foot-right">
-              <button
-                v-if="index > 0"
-                class="ob-btn ghost"
-                type="button"
-                @click="prev"
-              >上一步</button>
+              <button v-if="index > 0" class="ob-btn ghost" type="button" @click="prev">
+                上一步
+              </button>
               <button v-if="!isLast" class="ob-btn primary" type="button" @click="next">
                 下一步
               </button>
-              <button v-else class="ob-btn primary" type="button" @click="finish">
-                开始使用
-              </button>
+              <button v-else class="ob-btn primary" type="button" @click="finish">开始使用</button>
             </div>
           </div>
         </div>

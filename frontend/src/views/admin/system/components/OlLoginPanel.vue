@@ -82,12 +82,7 @@
         <!-- 登录日志表格 -->
         <div class="content-card">
           <el-table v-loading="loginLoading" :data="loginList" style="width: 100%">
-            <el-table-column
-              prop="username"
-              label="用户名"
-              min-width="120"
-              show-overflow-tooltip
-            />
+            <el-table-column prop="username" label="用户名" min-width="120" show-overflow-tooltip />
             <el-table-column prop="loginStatus" label="结果" width="90" align="center">
               <template #default="{ row }">
                 <span

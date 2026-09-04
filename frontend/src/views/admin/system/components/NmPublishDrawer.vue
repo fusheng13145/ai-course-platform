@@ -1,5 +1,10 @@
 <template>
-  <Drawer :model-value="modelValue" wide @update:model-value="emit('update:modelValue', $event)" @close="emit('update:modelValue', false)">
+  <Drawer
+    :model-value="modelValue"
+    wide
+    @update:model-value="emit('update:modelValue', $event)"
+    @close="emit('update:modelValue', false)"
+  >
     <template #title>发布通知</template>
     <template #sub>选择接收对象后由系统批量写入通知</template>
     <div class="form-grid">

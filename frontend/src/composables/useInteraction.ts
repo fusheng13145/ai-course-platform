@@ -210,14 +210,17 @@ export function useInteraction(courseIdRef) {
     }
   }
 
-  watch(() => courseIdRef.value, () => {
-    signList.value = []
-    voteList.value = []
-    if (courseIdRef.value) {
-      loadSignInList()
-      loadVoteList()
-    }
-  })
+  watch(
+    () => courseIdRef.value,
+    () => {
+      signList.value = []
+      voteList.value = []
+      if (courseIdRef.value) {
+        loadSignInList()
+        loadVoteList()
+      }
+    },
+  )
 
   return {
     loading,

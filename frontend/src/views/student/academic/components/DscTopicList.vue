@@ -7,7 +7,11 @@
     <template v-else>
       <!-- 工具栏：精华筛选 + 搜索 + 刷新 -->
       <div class="toolbar">
-        <el-radio-group :model-value="essenceFilter" @update:model-value="$emit('update:essenceFilter', $event)" @change="$emit('load')">
+        <el-radio-group
+          :model-value="essenceFilter"
+          @update:model-value="$emit('update:essenceFilter', $event)"
+          @change="$emit('load')"
+        >
           <el-radio-button :value="''">全部</el-radio-button>
           <el-radio-button :value="true">精华</el-radio-button>
         </el-radio-group>
@@ -52,9 +56,15 @@
               </div>
               <p class="ti-content">{{ t.content }}</p>
               <div class="ti-meta">
-                <span><el-icon><User /></el-icon>{{ t.authorName || '同学' }}</span>
-                <span><el-icon><ChatLineRound /></el-icon>{{ t.postCount || 0 }} 条回复</span>
-                <span v-if="t.chapterName"><el-icon><Collection /></el-icon>{{ t.chapterName }}</span>
+                <span
+                  ><el-icon><User /></el-icon>{{ t.authorName || '同学' }}</span
+                >
+                <span
+                  ><el-icon><ChatLineRound /></el-icon>{{ t.postCount || 0 }} 条回复</span
+                >
+                <span v-if="t.chapterName"
+                  ><el-icon><Collection /></el-icon>{{ t.chapterName }}</span
+                >
                 <span class="ti-time">{{ t.createdAt }}</span>
               </div>
             </div>
@@ -70,7 +80,16 @@
 </template>
 
 <script setup lang="ts">
-import { Search, Refresh, Comment, User, ChatLineRound, Collection, ArrowRight, Star } from '@element-plus/icons-vue'
+import {
+  Search,
+  Refresh,
+  Comment,
+  User,
+  ChatLineRound,
+  Collection,
+  ArrowRight,
+  Star,
+} from '@element-plus/icons-vue'
 
 /**
  * 课程讨论 — 话题列表区
@@ -89,13 +108,7 @@ defineProps({
   topics: { type: Array, required: true },
 })
 
-defineEmits([
-  'update:essenceFilter',
-  'update:keyword',
-  'load',
-  'refresh',
-  'open-detail',
-])
+defineEmits(['update:essenceFilter', 'update:keyword', 'load', 'refresh', 'open-detail'])
 </script>
 
 <style scoped>

@@ -26,8 +26,20 @@ describe('考试流程', () => {
         totalScore: 100,
         duration: 60,
         questions: [
-          { id: 1, type: 'SINGLE_CHOICE', content: 'TCP位于OSI哪一层？', options: ['A.网络层','B.传输层','C.应用层','D.数据链路层'], correctAnswer: 'B' },
-          { id: 2, type: 'TRUE_FALSE', content: 'UDP提供可靠传输', options: ['正确','错误'], correctAnswer: '错误' },
+          {
+            id: 1,
+            type: 'SINGLE_CHOICE',
+            content: 'TCP位于OSI哪一层？',
+            options: ['A.网络层', 'B.传输层', 'C.应用层', 'D.数据链路层'],
+            correctAnswer: 'B',
+          },
+          {
+            id: 2,
+            type: 'TRUE_FALSE',
+            content: 'UDP提供可靠传输',
+            options: ['正确', '错误'],
+            correctAnswer: '错误',
+          },
         ],
       },
     })
@@ -55,7 +67,7 @@ describe('考试流程', () => {
   })
 
   it('交卷时应提交所有已答题目', async () => {
-    const answers = { '1': 'B', '2': '错误' }
+    const answers = { 1: 'B', 2: '错误' }
     mockSubmitExam.mockResolvedValue({
       code: 200,
       data: { sessionId: 100, score: 85, totalScore: 100, status: 'GRADED' },
@@ -68,7 +80,7 @@ describe('考试流程', () => {
   })
 
   it('未答题且到时应自动提交', () => {
-    const answers = { '1': 'B' }
+    const answers = { 1: 'B' }
     const totalQuestions = 2
     const answeredCount = Object.keys(answers).length
     expect(answeredCount).toBeLessThan(totalQuestions)

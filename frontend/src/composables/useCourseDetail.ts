@@ -54,7 +54,15 @@ export function useCourseDetail() {
   const notificationsLoading = ref(false)
 
   /* ---- 对话框状态 ---- */
-  const categories = ref(['编程开发', '人工智能', '数据分析', '设计创意', '数学物理', '语言文学', '其他'])
+  const categories = ref([
+    '编程开发',
+    '人工智能',
+    '数据分析',
+    '设计创意',
+    '数学物理',
+    '语言文学',
+    '其他',
+  ])
 
   const editDialogVisible = ref(false)
   const editForm = reactive({

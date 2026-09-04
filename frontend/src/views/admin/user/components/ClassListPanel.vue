@@ -18,7 +18,9 @@
           @update:model-value="emit('update:keyword', $event)"
           @keyup.enter="emit('search')"
         >
-          <template #prefix><el-icon><Search /></el-icon></template>
+          <template #prefix
+            ><el-icon><Search /></el-icon
+          ></template>
         </el-input>
         <el-button @click="emit('search')">查询</el-button>
       </div>
@@ -48,9 +50,7 @@
           <template #default="{ row }">
             <span
               class="status-dot"
-              :class="
-                row.isActive !== false ? 'status-dot--active' : 'status-dot--inactive'
-              "
+              :class="row.isActive !== false ? 'status-dot--active' : 'status-dot--inactive'"
             >
               <i></i>{{ row.isActive !== false ? '启用' : '停用' }}
             </span>

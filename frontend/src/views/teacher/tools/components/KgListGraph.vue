@@ -65,7 +65,13 @@
               :cx="nodePos[n.id].x"
               :cy="nodePos[n.id].y"
               :r="circleR"
-              :fill="n.pathHL ? 'var(--ac-warning)' : (n.core ? 'var(--ac-primary)' : 'var(--ac-primary-light)')"
+              :fill="
+                n.pathHL
+                  ? 'var(--ac-warning)'
+                  : n.core
+                    ? 'var(--ac-primary)'
+                    : 'var(--ac-primary-light)'
+              "
               class="kg-node"
             />
             <text :x="nodePos[n.id].x" :y="nodePos[n.id].y - circleR - 6" class="kg-label">

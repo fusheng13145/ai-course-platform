@@ -3,11 +3,7 @@
     <PageHeader title="管理总览" subtitle="平台核心运营指标与常用管理入口" icon="dashboard" />
     <div v-loading="loading">
       <!-- 统计卡片 -->
-      <AdStatCards
-        :overview="overview"
-        :submit-rate="submitRate"
-        :excellent-rate="excellentRate"
-      />
+      <AdStatCards :overview="overview" :submit-rate="submitRate" :excellent-rate="excellentRate" />
 
       <!-- 系统/教学管理快捷入口 -->
       <AdQuickEntries :overview="overview" />

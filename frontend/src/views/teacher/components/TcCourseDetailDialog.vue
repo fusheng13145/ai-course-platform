@@ -1,12 +1,19 @@
 <template>
-  <el-dialog :model-value="modelValue" title="课程详情" width="700px" @update:model-value="emit('update:modelValue', $event)">
+  <el-dialog
+    :model-value="modelValue"
+    title="课程详情"
+    width="700px"
+    @update:model-value="emit('update:modelValue', $event)"
+  >
     <el-descriptions v-if="course" :column="2" border>
       <el-descriptions-item label="课程ID">{{ course.id }}</el-descriptions-item>
       <el-descriptions-item label="课程名称">{{ course.name }}</el-descriptions-item>
       <el-descriptions-item label="课程编码">{{ course.code || '无' }}</el-descriptions-item>
       <el-descriptions-item label="分类">{{ course.category || '未分类' }}</el-descriptions-item>
       <el-descriptions-item label="学分">{{ course.credits || 0 }}</el-descriptions-item>
-      <el-descriptions-item label="难度">{{ getDifficultyText(course.difficulty) }}</el-descriptions-item>
+      <el-descriptions-item label="难度">{{
+        getDifficultyText(course.difficulty)
+      }}</el-descriptions-item>
       <el-descriptions-item label="审核状态">
         <el-tag :type="getStatusType(course.approvalStatus)" size="small">{{
           getStatusText(course.approvalStatus)

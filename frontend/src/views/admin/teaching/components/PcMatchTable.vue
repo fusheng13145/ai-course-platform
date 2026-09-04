@@ -16,7 +16,9 @@
         <div class="l1-title">查重匹配详情</div>
         <div class="l1-sub">
           任务 #{{ selectedTask.id
-          }}<template v-if="selectedTask.assignmentTitle"> · {{ selectedTask.assignmentTitle }}</template>
+          }}<template v-if="selectedTask.assignmentTitle">
+            · {{ selectedTask.assignmentTitle }}</template
+          >
         </div>
       </div>
     </div>

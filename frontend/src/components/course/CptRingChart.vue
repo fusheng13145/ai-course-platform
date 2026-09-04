@@ -7,7 +7,14 @@
       <div class="ring-chart-wrapper">
         <div class="ring-chart">
           <svg viewBox="0 0 120 120" width="120" height="120">
-            <circle cx="60" cy="60" r="52" fill="none" stroke="var(--ac-border, #e5e7eb)" stroke-width="10" />
+            <circle
+              cx="60"
+              cy="60"
+              r="52"
+              fill="none"
+              stroke="var(--ac-border, #e5e7eb)"
+              stroke-width="10"
+            />
             <circle
               cx="60"
               cy="60"

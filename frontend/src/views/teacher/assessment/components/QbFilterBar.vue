@@ -50,7 +50,9 @@
         @keyup.enter="$emit('search')"
         @clear="$emit('search')"
       >
-        <template #prefix><el-icon><Search /></el-icon></template>
+        <template #prefix
+          ><el-icon><Search /></el-icon
+        ></template>
       </el-input>
       <el-button type="primary" @click="$emit('search')"
         ><el-icon><Search /></el-icon>查询</el-button

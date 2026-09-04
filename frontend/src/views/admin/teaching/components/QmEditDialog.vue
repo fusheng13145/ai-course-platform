@@ -32,12 +32,7 @@
       </el-row>
 
       <el-form-item label="所属课程" prop="courseId">
-        <el-select
-          v-model="form.courseId"
-          filterable
-          style="width: 100%"
-          placeholder="选择课程"
-        >
+        <el-select v-model="form.courseId" filterable style="width: 100%" placeholder="选择课程">
           <el-option
             v-for="course in courseList"
             :key="course.id"
@@ -95,16 +90,8 @@
       </el-form-item>
 
       <!-- 填空/简答/编程题答案 -->
-      <el-form-item
-        v-if="!isChoiceType(form.type) && form.type !== 'TRUE_FALSE'"
-        label="参考答案"
-      >
-        <el-input
-          v-model="form.answer"
-          type="textarea"
-          :rows="2"
-          placeholder="请输入参考答案"
-        />
+      <el-form-item v-if="!isChoiceType(form.type) && form.type !== 'TRUE_FALSE'" label="参考答案">
+        <el-input v-model="form.answer" type="textarea" :rows="2" placeholder="请输入参考答案" />
       </el-form-item>
 
       <el-form-item label="解析说明">

@@ -73,11 +73,46 @@ export function useAnalytics() {
 
   /** 核心指标卡 */
   const coreMetrics = ref([
-    { label: '总用户数', value: '--', change: 0, icon: 'users', tone: 'var(--accent-soft)', toneColor: 'var(--accent)' },
-    { label: '总课程数', value: '--', change: 0, icon: 'book', tone: 'var(--info-soft)', toneColor: 'var(--info)' },
-    { label: '日活用户', value: '--', change: 0, icon: 'monitor', tone: 'var(--ok-soft)', toneColor: 'var(--ok)' },
-    { label: '完成率', value: '--', change: 0, icon: 'check', tone: 'var(--warn-soft)', toneColor: 'var(--warn)' },
-    { label: '增长率', value: '--', change: 0, icon: 'chart', tone: 'var(--violet-soft)', toneColor: 'var(--violet)' },
+    {
+      label: '总用户数',
+      value: '--',
+      change: 0,
+      icon: 'users',
+      tone: 'var(--accent-soft)',
+      toneColor: 'var(--accent)',
+    },
+    {
+      label: '总课程数',
+      value: '--',
+      change: 0,
+      icon: 'book',
+      tone: 'var(--info-soft)',
+      toneColor: 'var(--info)',
+    },
+    {
+      label: '日活用户',
+      value: '--',
+      change: 0,
+      icon: 'monitor',
+      tone: 'var(--ok-soft)',
+      toneColor: 'var(--ok)',
+    },
+    {
+      label: '完成率',
+      value: '--',
+      change: 0,
+      icon: 'check',
+      tone: 'var(--warn-soft)',
+      toneColor: 'var(--warn)',
+    },
+    {
+      label: '增长率',
+      value: '--',
+      change: 0,
+      icon: 'chart',
+      tone: 'var(--violet-soft)',
+      toneColor: 'var(--violet)',
+    },
   ])
 
   /* ==================== 图表配置构建 ==================== */
@@ -94,7 +129,11 @@ export function useAnalytics() {
         textStyle: { color: t.tooltipText, fontSize: 12 },
         axisPointer: { type: 'cross' },
       },
-      legend: { data: ['新增用户', '活跃用户'], top: 0, textStyle: { color: t.subText, fontSize: 12 } },
+      legend: {
+        data: ['新增用户', '活跃用户'],
+        top: 0,
+        textStyle: { color: t.subText, fontSize: 12 },
+      },
       grid: { left: 50, right: 20, bottom: 30, top: 40 },
       xAxis: {
         type: 'category',
@@ -172,7 +211,12 @@ export function useAnalytics() {
         borderColor: t.tooltipBorder,
         textStyle: { color: t.tooltipText },
       },
-      legend: { orient: 'vertical', right: 15, top: 'center', textStyle: { color: t.subText, fontSize: 12 } },
+      legend: {
+        orient: 'vertical',
+        right: 15,
+        top: 'center',
+        textStyle: { color: t.subText, fontSize: 12 },
+      },
       series: [
         {
           type: 'pie',
@@ -233,7 +277,9 @@ export function useAnalytics() {
         left: 'center',
         bottom: 0,
         inRange: {
-          color: heatmapColors.value.map((c) => c.replace('rgba', 'rgb').replace(/[\d.]+\)$/, '1)')),
+          color: heatmapColors.value.map((c) =>
+            c.replace('rgba', 'rgb').replace(/[\d.]+\)$/, '1)'),
+          ),
         },
         textStyle: { color: t.subText, fontSize: 11 },
         show: false,
@@ -264,7 +310,11 @@ export function useAnalytics() {
         textStyle: { color: t.tooltipText },
         axisPointer: { type: 'shadow' },
       },
-      legend: { data: ['登录次数', '操作频次'], top: 0, textStyle: { color: t.subText, fontSize: 12 } },
+      legend: {
+        data: ['登录次数', '操作频次'],
+        top: 0,
+        textStyle: { color: t.subText, fontSize: 12 },
+      },
       grid: { left: 50, right: 20, bottom: 30, top: 40 },
       xAxis: {
         type: 'category',
@@ -439,7 +489,9 @@ export function useAnalytics() {
         const statsData = statsRes.value.data || statsRes.value
         if (statsData.totalUsers !== undefined) {
           coreMetrics.value[0].value = formatNumber(statsData.totalUsers)
-          coreMetrics.value[0].change = statsData.userGrowth ? Math.round(statsData.userGrowth * 100) : 0
+          coreMetrics.value[0].change = statsData.userGrowth
+            ? Math.round(statsData.userGrowth * 100)
+            : 0
         }
         if (statsData.totalCourses !== undefined) {
           coreMetrics.value[1].value = formatNumber(statsData.totalCourses)
@@ -461,12 +513,18 @@ export function useAnalytics() {
         }
         if (statsData.gradeDistribution && Array.isArray(statsData.gradeDistribution)) {
           hasGradeDist.value = statsData.gradeDistribution.length > 0
-          gradeDistOption.value.series[0].data = statsData.gradeDistribution.map((v) => Number(v) || 0)
+          gradeDistOption.value.series[0].data = statsData.gradeDistribution.map(
+            (v) => Number(v) || 0,
+          )
         }
         if (statsData.roleActivity && Array.isArray(statsData.roleActivity)) {
           hasRoleActivity.value = statsData.roleActivity.length > 0
-          roleActivityOption.value.series[0].data = statsData.roleActivity.map((r) => r.loginCount || 0)
-          roleActivityOption.value.series[1].data = statsData.roleActivity.map((r) => r.actionCount || 0)
+          roleActivityOption.value.series[0].data = statsData.roleActivity.map(
+            (r) => r.loginCount || 0,
+          )
+          roleActivityOption.value.series[1].data = statsData.roleActivity.map(
+            (r) => r.actionCount || 0,
+          )
         }
       }
 
@@ -476,7 +534,9 @@ export function useAnalytics() {
           hasUserTrend.value = true
           userTrendOption.value.xAxis.data = trendData.map((d) => d.date || d.label || '')
           userTrendOption.value.series[0].data = trendData.map((d) => d.newUsers || d.count || 0)
-          userTrendOption.value.series[1].data = trendData.map((d) => d.cumulativeUsers || d.activeUsers || 0)
+          userTrendOption.value.series[1].data = trendData.map(
+            (d) => d.cumulativeUsers || d.activeUsers || 0,
+          )
         }
       }
 
@@ -550,11 +610,46 @@ export function useAnalytics() {
   /** 设置空数据占位（API 不可用时的诚实降级，不注入模拟数据） */
   function setEmptyState() {
     coreMetrics.value = [
-      { label: '总用户数', value: '--', change: 0, icon: 'users', tone: 'var(--accent-soft)', toneColor: 'var(--accent)' },
-      { label: '总课程数', value: '--', change: 0, icon: 'book', tone: 'var(--info-soft)', toneColor: 'var(--info)' },
-      { label: '日活用户', value: '--', change: 0, icon: 'monitor', tone: 'var(--ok-soft)', toneColor: 'var(--ok)' },
-      { label: '完成率', value: '--', change: 0, icon: 'check', tone: 'var(--warn-soft)', toneColor: 'var(--warn)' },
-      { label: '增长率', value: '--', change: 0, icon: 'chart', tone: 'var(--violet-soft)', toneColor: 'var(--violet)' },
+      {
+        label: '总用户数',
+        value: '--',
+        change: 0,
+        icon: 'users',
+        tone: 'var(--accent-soft)',
+        toneColor: 'var(--accent)',
+      },
+      {
+        label: '总课程数',
+        value: '--',
+        change: 0,
+        icon: 'book',
+        tone: 'var(--info-soft)',
+        toneColor: 'var(--info)',
+      },
+      {
+        label: '日活用户',
+        value: '--',
+        change: 0,
+        icon: 'monitor',
+        tone: 'var(--ok-soft)',
+        toneColor: 'var(--ok)',
+      },
+      {
+        label: '完成率',
+        value: '--',
+        change: 0,
+        icon: 'check',
+        tone: 'var(--warn-soft)',
+        toneColor: 'var(--warn)',
+      },
+      {
+        label: '增长率',
+        value: '--',
+        change: 0,
+        icon: 'chart',
+        tone: 'var(--violet-soft)',
+        toneColor: 'var(--violet)',
+      },
     ]
     hasCategory.value = false
     hasGradeDist.value = false

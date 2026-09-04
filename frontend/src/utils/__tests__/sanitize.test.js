@@ -162,10 +162,7 @@ describe('sanitize.js - DOMPurify HTML 净化', () => {
       const input = {
         article: {
           title: '标题',
-          blocks: [
-            { text: '<p>安全</p><script>bad</script>' },
-            { text: '<strong>重要</strong>' },
-          ],
+          blocks: [{ text: '<p>安全</p><script>bad</script>' }, { text: '<strong>重要</strong>' }],
         },
       }
       const result = sanitizeObject(input)

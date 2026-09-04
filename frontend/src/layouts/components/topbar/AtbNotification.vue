@@ -6,9 +6,7 @@
     <template #reference>
       <button class="t-icon-btn" title="通知">
         <span v-html="iconHtml('bell', 17)"></span>
-        <span v-if="unreadCount" class="n-badge">{{
-          unreadCount > 99 ? '99+' : unreadCount
-        }}</span>
+        <span v-if="unreadCount" class="n-badge">{{ unreadCount > 99 ? '99+' : unreadCount }}</span>
       </button>
     </template>
     <div class="notify-panel">
@@ -19,7 +17,11 @@
         >
       </div>
       <div v-loading="notifyLoading" class="notify-list">
-        <div v-if="!notifyLoading && !notifications.length" class="empty-state" style="padding: 24px">
+        <div
+          v-if="!notifyLoading && !notifications.length"
+          class="empty-state"
+          style="padding: 24px"
+        >
           <div class="e-title">暂无通知</div>
         </div>
         <div
@@ -138,7 +140,9 @@ onBeforeUnmount(() => clearInterval(pollTimer))
   place-items: center;
   color: var(--ink-2);
   position: relative;
-  transition: background 0.15s, color 0.15s;
+  transition:
+    background 0.15s,
+    color 0.15s;
 }
 .t-icon-btn:hover {
   background: var(--surface-3);

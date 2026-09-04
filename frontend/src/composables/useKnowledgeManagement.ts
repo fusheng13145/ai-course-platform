@@ -63,7 +63,8 @@ export function useKnowledgeManagement() {
     const kw = searchText.value.toLowerCase()
     return knowledgeList.value.filter(
       (k) =>
-        (k.name || '').toLowerCase().includes(kw) || (k.description || '').toLowerCase().includes(kw),
+        (k.name || '').toLowerCase().includes(kw) ||
+        (k.description || '').toLowerCase().includes(kw),
     )
   })
 

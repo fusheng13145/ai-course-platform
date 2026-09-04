@@ -14,7 +14,9 @@
       >
       <el-table-column prop="isPublished" label="状态" width="90">
         <template #default="{ row }">
-          <span class="status-dot" :class="row.isPublished ? 'status-dot--active' : 'status-dot--inactive'"
+          <span
+            class="status-dot"
+            :class="row.isPublished ? 'status-dot--active' : 'status-dot--inactive'"
             ><i />{{ row.isPublished ? '已发布' : '草稿' }}
           </span>
         </template>
@@ -27,7 +29,9 @@
       </el-table-column>
     </el-table>
     <div v-if="dragChanged" class="order-actions">
-      <el-button type="warning" size="small" :loading="savingOrder" @click="emit('save-order')">保存排序</el-button>
+      <el-button type="warning" size="small" :loading="savingOrder" @click="emit('save-order')"
+        >保存排序</el-button
+      >
       <el-button size="small" @click="emit('reset-order')">取消</el-button>
     </div>
     <el-empty v-if="!chaptersLoading && !chapters.length" description="暂无章节，点击上方添加" />

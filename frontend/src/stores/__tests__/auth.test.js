@@ -10,9 +10,16 @@ const { mockLogin, mockLogout, mockGetPermissions } = vi.hoisted(() => ({
 
 // 模拟所有依赖
 vi.mock('@/utils/logger', () => ({ default: { log: vi.fn(), warn: vi.fn(), error: vi.fn() } }))
-vi.mock('@/utils/response', () => ({ unwrap: vi.fn((r) => (r && r.data !== undefined ? r.data : r)) }))
-vi.mock('@/utils/websocket', () => ({ connect: vi.fn(() => Promise.resolve()), disconnect: vi.fn() }))
-vi.mock('@/api/auth', () => ({ default: { login: mockLogin, logout: mockLogout, getPermissions: mockGetPermissions } }))
+vi.mock('@/utils/response', () => ({
+  unwrap: vi.fn((r) => (r && r.data !== undefined ? r.data : r)),
+}))
+vi.mock('@/utils/websocket', () => ({
+  connect: vi.fn(() => Promise.resolve()),
+  disconnect: vi.fn(),
+}))
+vi.mock('@/api/auth', () => ({
+  default: { login: mockLogin, logout: mockLogout, getPermissions: mockGetPermissions },
+}))
 
 // 动态导入 auth store（在 mock 之后）
 const { useAuthStore } = await import('@/stores/auth')
@@ -21,9 +28,15 @@ const localStorageMock = (() => {
   let store = {}
   return {
     getItem: vi.fn((key) => store[key] ?? null),
-    setItem: vi.fn((key, value) => { store[key] = value }),
-    removeItem: vi.fn((key) => { delete store[key] }),
-    clear: vi.fn(() => { store = {} }),
+    setItem: vi.fn((key, value) => {
+      store[key] = value
+    }),
+    removeItem: vi.fn((key) => {
+      delete store[key]
+    }),
+    clear: vi.fn(() => {
+      store = {}
+    }),
   }
 })()
 

@@ -1,16 +1,18 @@
 <template>
-  <el-dialog :model-value="modelValue" title="操作日志详情" width="560px" append-to-body @update:model-value="$emit('update:modelValue', $event)">
+  <el-dialog
+    :model-value="modelValue"
+    title="操作日志详情"
+    width="560px"
+    append-to-body
+    @update:model-value="$emit('update:modelValue', $event)"
+  >
     <el-descriptions v-if="log" :column="1" border>
       <el-descriptions-item label="日志 ID">{{ log.id }}</el-descriptions-item>
       <el-descriptions-item label="操作人">{{
         log.username || log.operatorName || '—'
       }}</el-descriptions-item>
-      <el-descriptions-item label="模块">{{
-        moduleLabel(log.module)
-      }}</el-descriptions-item>
-      <el-descriptions-item label="操作类型">{{
-        actionLabel(log.action)
-      }}</el-descriptions-item>
+      <el-descriptions-item label="模块">{{ moduleLabel(log.module) }}</el-descriptions-item>
+      <el-descriptions-item label="操作类型">{{ actionLabel(log.action) }}</el-descriptions-item>
       <el-descriptions-item label="描述">{{
         log.description || log.detail || '—'
       }}</el-descriptions-item>
@@ -37,7 +39,9 @@
       }}</el-descriptions-item>
     </el-descriptions>
     <template #footer
-      ><el-button type="primary" @click="$emit('update:modelValue', false)">关闭</el-button></template
+      ><el-button type="primary" @click="$emit('update:modelValue', false)"
+        >关闭</el-button
+      ></template
     >
   </el-dialog>
 </template>

@@ -6,21 +6,11 @@
         <template #default="{ row }">
           <el-tag
             :type="
-              row.status === 'ACTIVE'
-                ? 'success'
-                : row.status === 'CLOSED'
-                  ? 'danger'
-                  : 'info'
+              row.status === 'ACTIVE' ? 'success' : row.status === 'CLOSED' ? 'danger' : 'info'
             "
             size="small"
           >
-            {{
-              row.status === 'ACTIVE'
-                ? '进行中'
-                : row.status === 'CLOSED'
-                  ? '已截止'
-                  : '未发布'
-            }}
+            {{ row.status === 'ACTIVE' ? '进行中' : row.status === 'CLOSED' ? '已截止' : '未发布' }}
           </el-tag>
         </template>
       </el-table-column>

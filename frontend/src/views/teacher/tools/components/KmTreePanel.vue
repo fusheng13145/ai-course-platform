@@ -19,12 +19,9 @@
         <template #default="{ node, data }">
           <span class="tree-node-label">
             <span class="node-name">{{ node.label }}</span>
-            <el-tag
-              size="small"
-              :type="getDifficultyTagType(data.difficulty)"
-              class="tree-tag"
-              >{{ getDifficultyLabel(data.difficulty) }}</el-tag
-            >
+            <el-tag size="small" :type="getDifficultyTagType(data.difficulty)" class="tree-tag">{{
+              getDifficultyLabel(data.difficulty)
+            }}</el-tag>
           </span>
         </template>
       </el-tree>

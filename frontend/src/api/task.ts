@@ -67,4 +67,15 @@ export const getCompletionStats = (id: number) => request.get(`/tasks/${id}/comp
 /**
  * 默认导出对象：模块/组件配置与导出内容
  */
-export default { getTaskList, getTaskById, createTask, updateTask, deleteTask, publishTask, extendDeadline, copyTask, getPendingGrading, getCompletionStats }
+export default {
+  getTaskList,
+  getTaskById,
+  createTask,
+  updateTask,
+  deleteTask,
+  publishTask,
+  extendDeadline,
+  copyTask,
+  getPendingGrading,
+  getCompletionStats,
+}

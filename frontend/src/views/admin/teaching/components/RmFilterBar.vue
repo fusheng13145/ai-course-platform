@@ -9,12 +9,7 @@
         @update:model-value="$emit('update:selectedCourseId', $event)"
         @change="emit('search')"
       >
-        <el-option
-          v-for="c in courseList"
-          :key="c.id"
-          :label="c.name || c.title"
-          :value="c.id"
-        />
+        <el-option v-for="c in courseList" :key="c.id" :label="c.name || c.title" :value="c.id" />
       </el-select>
       <el-input
         :model-value="keyword"

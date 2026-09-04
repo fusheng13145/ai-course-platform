@@ -8,7 +8,11 @@
     />
 
     <!-- 模型状态横幅 -->
-    <KbModelBanner :banner-class="bannerClass" :banner-icon="bannerIcon" :banner-text="bannerText" />
+    <KbModelBanner
+      :banner-class="bannerClass"
+      :banner-icon="bannerIcon"
+      :banner-text="bannerText"
+    />
 
     <div class="stat-grid animate-in d1">
       <StatCard

@@ -34,20 +34,52 @@
 
     <!-- 内容与学习指标 -->
     <div class="stat-grid">
-      <div class="mini-stat"><span class="mini-num">{{ ct.chapterCount || 0 }}</span><span class="mini-label">章节</span></div>
-      <div class="mini-stat"><span class="mini-num">{{ ct.publishedChapterCount || 0 }}</span><span class="mini-label">已发布章节</span></div>
-      <div class="mini-stat"><span class="mini-num">{{ ct.taskCount || 0 }}</span><span class="mini-label">任务点</span></div>
       <div class="mini-stat">
-        <span class="mini-num">{{ ct.taskPointsBoundToChapters || 0 }}/{{ ct.taskPointsTotal || 0 }}</span>
+        <span class="mini-num">{{ ct.chapterCount || 0 }}</span
+        ><span class="mini-label">章节</span>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-num">{{ ct.publishedChapterCount || 0 }}</span
+        ><span class="mini-label">已发布章节</span>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-num">{{ ct.taskCount || 0 }}</span
+        ><span class="mini-label">任务点</span>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-num"
+          >{{ ct.taskPointsBoundToChapters || 0 }}/{{ ct.taskPointsTotal || 0 }}</span
+        >
         <span class="mini-label">已绑章节任务</span>
       </div>
-      <div class="mini-stat"><span class="mini-num">{{ ct.examCount || 0 }}</span><span class="mini-label">试卷</span></div>
-      <div class="mini-stat"><span class="mini-num">{{ ct.questionCount || 0 }}</span><span class="mini-label">题库</span></div>
-      <div class="mini-stat"><span class="mini-num">{{ pct(lr.avgProgress) }}</span><span class="mini-label">平均进度</span></div>
-      <div class="mini-stat"><span class="mini-num">{{ pct(lr.completionRate) }}</span><span class="mini-label">完成率</span></div>
-      <div class="mini-stat"><span class="mini-num">{{ lr.avgScore ?? '--' }}</span><span class="mini-label">平均分</span></div>
-      <div class="mini-stat"><span class="mini-num">{{ pct(lr.passRate) }}</span><span class="mini-label">及格率</span></div>
-      <div class="mini-stat"><span class="mini-num">{{ pct(lr.excellentRate) }}</span><span class="mini-label">优秀率</span></div>
+      <div class="mini-stat">
+        <span class="mini-num">{{ ct.examCount || 0 }}</span
+        ><span class="mini-label">试卷</span>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-num">{{ ct.questionCount || 0 }}</span
+        ><span class="mini-label">题库</span>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-num">{{ pct(lr.avgProgress) }}</span
+        ><span class="mini-label">平均进度</span>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-num">{{ pct(lr.completionRate) }}</span
+        ><span class="mini-label">完成率</span>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-num">{{ lr.avgScore ?? '--' }}</span
+        ><span class="mini-label">平均分</span>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-num">{{ pct(lr.passRate) }}</span
+        ><span class="mini-label">及格率</span>
+      </div>
+      <div class="mini-stat">
+        <span class="mini-num">{{ pct(lr.excellentRate) }}</span
+        ><span class="mini-label">优秀率</span>
+      </div>
     </div>
   </div>
 </template>

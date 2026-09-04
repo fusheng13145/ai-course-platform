@@ -1,11 +1,12 @@
 import request from './request'
 
 // 后端 KnowledgeController @RequestMapping("/knowledge")，知识点端点合并为 /knowledge/points
-export const getKnowledgePoints = courseId => request.get('/knowledge/points', { params: { courseId } })
+export const getKnowledgePoints = (courseId) =>
+  request.get('/knowledge/points', { params: { courseId } })
 /**
  * 导出函数 createKnowledgePoint：创建/新增数据
  */
-export const createKnowledgePoint = data => request.post('/knowledge/points', data)
+export const createKnowledgePoint = (data) => request.post('/knowledge/points', data)
 /**
  * 导出函数 updateKnowledgePoint：更新数据
  */
@@ -13,55 +14,59 @@ export const updateKnowledgePoint = (id, data) => request.put(`/knowledge/points
 /**
  * 导出函数 deleteKnowledgePoint：删除数据
  */
-export const deleteKnowledgePoint = id => request.delete(`/knowledge/points/${id}`)
+export const deleteKnowledgePoint = (id) => request.delete(`/knowledge/points/${id}`)
 /**
  * 导出函数 getKnowledgeGraph：获取/查询数据
  */
-export const getKnowledgeGraph = courseId => request.get('/knowledge/points/graph', { params: { courseId } })
+export const getKnowledgeGraph = (courseId) =>
+  request.get('/knowledge/points/graph', { params: { courseId } })
 /**
  * 导出函数 addRelation：创建/新增数据
  */
-export const addRelation = data => request.post('/knowledge/relations', data)
+export const addRelation = (data) => request.post('/knowledge/relations', data)
 
 // 知识点增强 API
-export const getTree = courseId => request.get(`/knowledge/points/tree/${courseId}`)
+export const getTree = (courseId) => request.get(`/knowledge/points/tree/${courseId}`)
 /**
  * 导出函数 getChildren：获取/查询数据
  */
-export const getChildren = id => request.get(`/knowledge/points/${id}/children`)
+export const getChildren = (id) => request.get(`/knowledge/points/${id}/children`)
 /**
  * 导出函数 getPrerequisites：获取/查询数据
  */
-export const getPrerequisites = id => request.get(`/knowledge/points/${id}/prerequisites`)
+export const getPrerequisites = (id) => request.get(`/knowledge/points/${id}/prerequisites`)
 /**
  * 导出函数 getSubsequent：获取/查询数据
  */
-export const getSubsequent = id => request.get(`/knowledge/points/${id}/successors`)
+export const getSubsequent = (id) => request.get(`/knowledge/points/${id}/successors`)
 /**
  * 导出函数 getMastery：获取/查询数据
  */
-export const getMastery = (pointId, userId) => request.get(`/knowledge/points/${pointId}/mastery/${userId}`)
+export const getMastery = (pointId, userId) =>
+  request.get(`/knowledge/points/${pointId}/mastery/${userId}`)
 /**
  * 导出函数 getRootPoints：获取/查询数据
  */
-export const getRootPoints = courseId => request.get(`/knowledge/points/root/${courseId}`)
+export const getRootPoints = (courseId) => request.get(`/knowledge/points/root/${courseId}`)
 
 // 知识图谱增强 API（对应后端 KnowledgeController 端点，重构时曾缺失，2026-08-30 补回）
 /**
  * 知识图谱概览统计（GET /knowledge/overview）
  * @param {number} courseId 可选，按课程过滤
  */
-export const getKnowledgeOverview = courseId => request.get('/knowledge/overview', { params: { courseId } })
+export const getKnowledgeOverview = (courseId) =>
+  request.get('/knowledge/overview', { params: { courseId } })
 /**
  * AI 抽取知识点与关系（POST /knowledge/extract，教师/管理员权限）
  * @param {{courseId: number, content: string}} data 课程内容
  */
-export const extractKnowledgePoints = data => request.post('/knowledge/extract', data)
+export const extractKnowledgePoints = (data) => request.post('/knowledge/extract', data)
 /**
  * 课程知识图谱可视化图数据（GET /knowledge/relations/graph/{courseId}，nodes + links）
  * @param {number} courseId 课程ID
  */
-export const getRelationGraphData = courseId => request.get(`/knowledge/relations/graph/${courseId}`)
+export const getRelationGraphData = (courseId) =>
+  request.get(`/knowledge/relations/graph/${courseId}`)
 
 /**
  * 学习路径规划（POST /knowledge/path/plan）

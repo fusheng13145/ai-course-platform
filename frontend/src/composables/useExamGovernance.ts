@@ -33,7 +33,9 @@ export function useExamGovernance() {
   const canReview = (e) => !e.status || e.status === 'PENDING'
   const highRiskCount = computed(() => sessions.value.filter((s) => s.riskLevel === 'HIGH').length)
   const flaggedCount = computed(() => sessions.value.filter((s) => s.status === 'FLAGGED').length)
-  const totalEvents = computed(() => sessions.value.reduce((sum, s) => sum + (s.eventCount || 0), 0))
+  const totalEvents = computed(() =>
+    sessions.value.reduce((sum, s) => sum + (s.eventCount || 0), 0),
+  )
 
   const TYPE_TEXT = {
     TAB_SWITCH: '切屏',

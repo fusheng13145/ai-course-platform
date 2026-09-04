@@ -190,7 +190,10 @@ export function useKnowledgeTab(courseIdRef) {
   }
 
   function buildTree(t) {
-    return t.map((n) => ({ ...n, children: n.children?.length ? buildTree(n.children) : undefined }))
+    return t.map((n) => ({
+      ...n,
+      children: n.children?.length ? buildTree(n.children) : undefined,
+    }))
   }
   function buildTreeSelect(t) {
     return t.map((n) => ({
@@ -341,7 +344,8 @@ export function useKnowledgeTab(courseIdRef) {
       source: l.source || l.sourceName || l.sourceId,
       target: l.target || l.targetName || l.targetId,
     }))
-    if (treeData.value?.[0]) treeOption.value.series[0].data = transformTree(treeData.value[0]) as any
+    if (treeData.value?.[0])
+      treeOption.value.series[0].data = transformTree(treeData.value[0]) as any
   }
   function transformTree(node) {
     return {

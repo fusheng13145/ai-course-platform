@@ -36,12 +36,15 @@
     </div>
 
     <div v-loading="loading" class="table-area">
-      <el-table :data="list" size="small" empty-text="暂无题目" @row-dblclick="$emit('edit', $event)">
+      <el-table
+        :data="list"
+        size="small"
+        empty-text="暂无题目"
+        @row-dblclick="$emit('edit', $event)"
+      >
         <el-table-column label="题干" min-width="280">
           <template #default="{ row }"
-            ><span class="stem-cell">{{
-              row.stem || row.title || '（无题干）'
-            }}</span></template
+            ><span class="stem-cell">{{ row.stem || row.title || '（无题干）' }}</span></template
           >
         </el-table-column>
         <el-table-column label="类型" width="100">

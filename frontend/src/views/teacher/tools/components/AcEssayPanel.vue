@@ -26,7 +26,12 @@
       <div class="chart-title">
         <el-icon><Document /></el-icon>批改结果
       </div>
-      <div v-if="essayResult" v-loading="essayLoading" class="ai-summary" style="white-space: pre-wrap">
+      <div
+        v-if="essayResult"
+        v-loading="essayLoading"
+        class="ai-summary"
+        style="white-space: pre-wrap"
+      >
         {{ essayResult }}
       </div>
       <el-empty v-else description="点击「批改」查看结果" :image-size="64" />

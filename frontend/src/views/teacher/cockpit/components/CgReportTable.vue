@@ -4,7 +4,9 @@
     <div v-if="!policy" class="l1-card">
       <div class="l1-body">
         <el-empty description="该课程尚未配置成绩方案">
-          <el-button type="primary" :icon="Plus" @click="emit('open-policy')">新建成绩方案</el-button>
+          <el-button type="primary" :icon="Plus" @click="emit('open-policy')"
+            >新建成绩方案</el-button
+          >
         </el-empty>
       </div>
     </div>
@@ -12,7 +14,9 @@
     <!-- 有方案：报告表格 -->
     <div v-else class="l1-card">
       <div class="l1-head">
-        <span class="l1-ico"><el-icon><DataAnalysis /></el-icon></span>
+        <span class="l1-ico"
+          ><el-icon><DataAnalysis /></el-icon
+        ></span>
         <div>
           <div class="l1-title">
             课程成绩报告

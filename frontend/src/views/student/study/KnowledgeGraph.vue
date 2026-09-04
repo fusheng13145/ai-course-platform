@@ -9,17 +9,46 @@
 
     <!-- 概览统计 -->
     <div class="stat-grid animate-in d1">
-      <StatCard label="知识点总数" :value="nodeCount" icon="layers" tone="var(--accent-soft)" tone-color="var(--accent)" />
-      <StatCard label="已掌握" :value="masteredCount" icon="check" tone="var(--ok-soft)" tone-color="var(--ok)" />
-      <StatCard label="平均掌握度" :value="avgMasteryText" icon="target" tone="var(--info-soft)" tone-color="var(--info)" />
+      <StatCard
+        label="知识点总数"
+        :value="nodeCount"
+        icon="layers"
+        tone="var(--accent-soft)"
+        tone-color="var(--accent)"
+      />
+      <StatCard
+        label="已掌握"
+        :value="masteredCount"
+        icon="check"
+        tone="var(--ok-soft)"
+        tone-color="var(--ok)"
+      />
+      <StatCard
+        label="平均掌握度"
+        :value="avgMasteryText"
+        icon="target"
+        tone="var(--info-soft)"
+        tone-color="var(--info)"
+      />
     </div>
 
     <!-- 图谱区 -->
     <section class="l1-card animate-in d2">
       <div class="l1-head">
         <span class="l1-ico">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
-            <path d="m12 2 8.5 4.7L12 11.4 3.5 6.7 12 2zM3.5 12l8.5 4.7 8.5-4.7M3.5 17.3l8.5 4.7 8.5-4.7" />
+          <svg
+            viewBox="0 0 24 24"
+            width="17"
+            height="17"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.9"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path
+              d="m12 2 8.5 4.7L12 11.4 3.5 6.7 12 2zM3.5 12l8.5 4.7 8.5-4.7M3.5 17.3l8.5 4.7 8.5-4.7"
+            />
           </svg>
         </span>
         <div>
@@ -31,10 +60,22 @@
         <!-- 工具栏 -->
         <div class="kg-toolbar">
           <div class="toolbar-left">
-            <el-select v-model="selectedCourseId" placeholder="选择课程" class="course-select" @change="loadGraphData">
+            <el-select
+              v-model="selectedCourseId"
+              placeholder="选择课程"
+              class="course-select"
+              @change="loadGraphData"
+            >
               <el-option v-for="c in courseList" :key="c.id" :label="c.name" :value="c.id" />
             </el-select>
-            <el-input v-model="searchKeyword" placeholder="搜索知识点..." clearable :prefix-icon="Search" class="search-input" @input="filterNodes" />
+            <el-input
+              v-model="searchKeyword"
+              placeholder="搜索知识点..."
+              clearable
+              :prefix-icon="Search"
+              class="search-input"
+              @input="filterNodes"
+            />
           </div>
           <div class="toolbar-right">
             <el-radio-group v-model="difficultyFilter" size="small" @change="filterNodes">
@@ -70,13 +111,24 @@
     <section class="l1-card animate-in d3">
       <div class="l1-head">
         <span class="l1-ico">
-          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round">
+          <svg
+            viewBox="0 0 24 24"
+            width="17"
+            height="17"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.9"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
             <path d="M4 19V5m0 14h16M4 5l8 5 4-3 4 3" />
           </svg>
         </span>
         <div>
           <div class="l1-title">学习路径规划</div>
-          <div class="l1-sub">选择起点与终点知识点，生成最优学习路径（基于知识点关系 BFS 多跳）</div>
+          <div class="l1-sub">
+            选择起点与终点知识点，生成最优学习路径（基于知识点关系 BFS 多跳）
+          </div>
         </div>
       </div>
       <div class="l1-body">

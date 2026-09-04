@@ -44,7 +44,13 @@ export function useStudentCourseDetail() {
 
   /* ---- 学习模式状态 ---- */
   const learningMode = ref(false)
-  const currentChapter = reactive({ id: null, title: '', description: '', content: '', duration: 0 })
+  const currentChapter = reactive({
+    id: null,
+    title: '',
+    description: '',
+    content: '',
+    duration: 0,
+  })
   const currentChapterVideo = ref(null)
   const learningStartTime = ref(null)
   const learningSeconds = ref(0)

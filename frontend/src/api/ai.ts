@@ -17,7 +17,8 @@ export const learningRecommendations = () => request.get('/ai/recommendations/le
 export const questionRecommendations = (params = {}) =>
   request.get('/ai/recommendations/questions', { params })
 /** 薄弱点分析 */
-export const weakPointsAnalysis = (params = {}) => request.get('/ai/analysis/weak-points', { params })
+export const weakPointsAnalysis = (params = {}) =>
+  request.get('/ai/analysis/weak-points', { params })
 /** 获取学习建议 */
 export const learningAdvice = (params = {}) => request.get('/ai/advice/learning', { params })
 /** 生成学习路径 */
@@ -38,7 +39,11 @@ export const generateLearningPath = (data) => request.post('/ai/learning-path/ge
  */
 export function qaStream(
   params: { question: string; sessionId?: number; context?: string; [key: string]: any },
-  { onToken, onError, onDone }: {
+  {
+    onToken,
+    onError,
+    onDone,
+  }: {
     onToken?: (token: string) => void
     onError?: (error: Error) => void
     onDone?: () => void
@@ -99,7 +104,7 @@ export function qaStream(
       onDone?.()
     })
     .catch((err) => {
-      console.error('[ai.js] if:', err);
+      console.error('[ai.js] if:', err)
       if (err.name !== 'AbortError') {
         onError?.(err)
       }

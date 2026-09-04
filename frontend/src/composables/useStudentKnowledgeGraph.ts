@@ -42,14 +42,18 @@ export function useStudentKnowledgeGraph() {
   const pathNodeIds = ref([])
   const pathEdgeKeys = ref([])
 
-  const allPointOptions = computed(() => rawNodes.value.map((n) => ({ value: n.id, label: n.name })))
+  const allPointOptions = computed(() =>
+    rawNodes.value.map((n) => ({ value: n.id, label: n.name })),
+  )
 
   const filteredNodeCount = computed(() => rawNodes.value.filter((n) => matchFilter(n)).length)
   const nodeCount = computed(() => rawNodes.value.length)
   const masteredCount = computed(() => rawNodes.value.filter((n) => (n.mastery ?? 0) >= 60).length)
   const avgMastery = computed(() => {
     if (!rawNodes.value.length) return 0
-    return Math.round(rawNodes.value.reduce((s, n) => s + (n.mastery ?? 0), 0) / rawNodes.value.length)
+    return Math.round(
+      rawNodes.value.reduce((s, n) => s + (n.mastery ?? 0), 0) / rawNodes.value.length,
+    )
   })
   const avgMasteryText = computed(() => avgMastery.value + '%')
 
@@ -100,7 +104,14 @@ export function useStudentKnowledgeGraph() {
           draggable: true,
           force: { repulsion: 300, edgeLength: [120, 200], gravity: 0.1 },
           emphasis: { focus: 'adjacency', lineStyle: { width: 3 } },
-          label: { show: true, position: 'bottom', fontSize: 12, fontWeight: 500, color: t.text, formatter: '{b}' },
+          label: {
+            show: true,
+            position: 'bottom',
+            fontSize: 12,
+            fontWeight: 500,
+            color: t.text,
+            formatter: '{b}',
+          },
           symbolSize: (val) => {
             const importance = val?.importance || val?.[2] || 3
             return Math.max(24, Math.min(56, importance * 14))
@@ -246,7 +257,16 @@ export function useStudentKnowledgeGraph() {
       const onPath =
         pkeys.includes(`${l.source}-${l.target}`) || pkeys.includes(`${l.target}-${l.source}`)
       return onPath
-        ? { ...l, lineStyle: { color: 'var(--warn)', width: 4, opacity: 1, curveness: 0.15, type: 'solid' } }
+        ? {
+            ...l,
+            lineStyle: {
+              color: 'var(--warn)',
+              width: 4,
+              opacity: 1,
+              curveness: 0.15,
+              type: 'solid',
+            },
+          }
         : l
     })
   }

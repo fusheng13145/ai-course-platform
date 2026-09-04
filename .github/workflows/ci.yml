@@ -131,10 +131,15 @@ jobs:
         # 同时触发 jacoco: prepare-agent(探针) -> report(生成 target/site/jacoco) -> check(覆盖率门禁)。
         # 若 JaCoCo 行/分支覆盖率低于阈值，check 失败使 verify 失败 -> 本 job 失败。
         # GitHub 托管 runner（ubuntu-latest）自带 Docker 守护进程，Testcontainers 可直接拉起容器。
-        # SPRING_DATASOURCE_PASSWORD 与上方 mysql service 的 MYSQL_ROOT_PASSWORD 对齐
-        # （application-contract-test.yml 中默认 1234，仅本地开发库使用）。
+        # SPRING_DATASOURCE_PASSWORD / MYSQL_ROOT_PASSWORD 与上方 mysql service 的
+        # MYSQL_ROOT_PASSWORD 对齐（application-contract-test.yml / application-local.yml
+        # 中默认 1234，仅本地开发库使用）。
+        # TESTCONTAINERS_RYUK_DISABLED：GitHub Actions 托管 runner 上 Ryuk 资源回收器
+        # 偶发权限/检测问题，禁用后由 runner 销毁时统一回收容器（runner 为临时环境）。
         env:
           SPRING_DATASOURCE_PASSWORD: ci-test-password-8f3k
+          MYSQL_ROOT_PASSWORD: ci-test-password-8f3k
+          TESTCONTAINERS_RYUK_DISABLED: true
         run: mvn -B verify jacoco:report
 
       - name: Upload JaCoCo coverage report
@@ -165,7 +170,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Trivy fs scan (repo config + deps)
-        uses: aquasecurity/trivy-action@0.28.0
+        uses: aquasecurity/trivy-action@v0.28.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -189,6 +194,8 @@ jobs:
   backend-security:
     name: Backend Security (OSV-Scanner)
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     defaults:
       run:
         working-directory: backend
@@ -196,25 +203,20 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 21
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: '21'
-          cache: maven
+      - name: Install OSV-Scanner
+        # google/osv-scanner-action@v2.3.8 不是可独立在 step 中使用的复合 Action
+        # （GitHub 报 "Top level runs: section is required"），改由官方 release 二进制直接运行。
+        env:
+          OSV_SHA256: bc98e15319ed0d515e3f9235287ba53cdc5535d576d24fd573978ecfe9ab92dc
+        run: |
+          curl -Lo /tmp/osv-scanner \
+            "https://github.com/google/osv-scanner/releases/download/v2.3.8/osv-scanner_linux_amd64"
+          echo "${OSV_SHA256}  /tmp/osv-scanner" | sha256sum -c -
+          chmod +x /tmp/osv-scanner
 
       - name: OSV-Scanner (fail on known vulnerabilities)
         # 无需 API Key：基于 OSV.dev + GitHub Advisory 数据库扫描 pom.xml 及传递依赖
-        # ⚠ osv-scanner-action 的 `uses:` 步骤不继承 defaults.run.working-directory，
-        # 必须在 step 内显式声明扫描目标目录，否则在仓库根目录找不到 ./pom.xml 而 4 秒速败。
-        # 修复：仓库仅维护 v2.x.x 具体版本 tag（无裸 v2 tag），@v2 无法解析导致 job 秒败。
-        uses: google/osv-scanner-action@v2.3.8
-        with:
-          working-directory: ./backend
-          scan-args: |-
-            --format=sarif
-            --output=osv-scan.sarif
-            ./pom.xml
+        run: /tmp/osv-scanner scan --format=sarif --output=osv-scan.sarif ./pom.xml
 
       - name: Upload OSV-Scanner report
         if: always()

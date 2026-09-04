@@ -86,7 +86,12 @@
     </section>
 
     <!-- 发起签到 -->
-    <CiSignDialog v-model="signInVisible" :saving="saving" :form="signInForm" @create="createSignIn" />
+    <CiSignDialog
+      v-model="signInVisible"
+      :saving="saving"
+      :form="signInForm"
+      @create="createSignIn"
+    />
 
     <!-- 签到记录 -->
     <CiRecordsDialog v-model="recordsVisible" :records="records" @mark="mark" />

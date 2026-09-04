@@ -8,10 +8,34 @@
 
     <!-- 概览统计 -->
     <div class="stat-grid">
-      <StatCard label="试卷总数" :value="total" icon="layers" tone="var(--accent-soft)" tone-color="var(--accent)" />
-      <StatCard label="本页条数" :value="examList.length" icon="list" tone="var(--info-soft)" tone-color="var(--info)" />
-      <StatCard label="本页草稿" :value="draftCount" icon="edit" tone="var(--warn-soft)" tone-color="var(--warn)" />
-      <StatCard label="本页已发布" :value="publishedCount" icon="checks" tone="var(--ok-soft)" tone-color="var(--ok)" />
+      <StatCard
+        label="试卷总数"
+        :value="total"
+        icon="layers"
+        tone="var(--accent-soft)"
+        tone-color="var(--accent)"
+      />
+      <StatCard
+        label="本页条数"
+        :value="examList.length"
+        icon="list"
+        tone="var(--info-soft)"
+        tone-color="var(--info)"
+      />
+      <StatCard
+        label="本页草稿"
+        :value="draftCount"
+        icon="edit"
+        tone="var(--warn-soft)"
+        tone-color="var(--warn)"
+      />
+      <StatCard
+        label="本页已发布"
+        :value="publishedCount"
+        icon="checks"
+        tone="var(--ok-soft)"
+        tone-color="var(--ok)"
+      />
     </div>
 
     <!-- 工具栏 + 试卷列表 -->

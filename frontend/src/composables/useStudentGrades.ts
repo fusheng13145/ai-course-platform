@@ -50,8 +50,8 @@ export function useStudentGrades() {
       g.avgScore = Math.round(g.scores.reduce((a, b) => a + b, 0) / g.scores.length)
       // 课程维度排名：后端在 /exam-sessions/my 注入 courseRank/courseTotalStudents（同课程各记录一致）
       g.rank = g.exams.find((e) => Number.isFinite(e.courseRank))?.courseRank ?? null
-      g.totalStudents = g.exams.find((e) => Number.isFinite(e.courseTotalStudents))
-        ?.courseTotalStudents ?? null
+      g.totalStudents =
+        g.exams.find((e) => Number.isFinite(e.courseTotalStudents))?.courseTotalStudents ?? null
     })
     return groups
   })
@@ -128,7 +128,10 @@ export function useStudentGrades() {
               : null,
           }
         })
-        .sort((a, b) => new Date((b as any).submitTime).getTime() - new Date((a as any).submitTime).getTime())
+        .sort(
+          (a, b) =>
+            new Date((b as any).submitTime).getTime() - new Date((a as any).submitTime).getTime(),
+        )
     } catch (e) {
       console.error('加载成绩失败:', e)
     } finally {

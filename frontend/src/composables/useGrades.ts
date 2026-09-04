@@ -175,11 +175,14 @@ export function useGrades() {
   /** 概览统计：平均分、标准差、及格率、异常数 */
   function updateOverviewStats(data) {
     if (!Array.isArray(data) || data.length === 0) return
-    const scores = data.map((g) => g.score).filter((s) => s !== null && s !== undefined && !isNaN(s)) as number[]
+    const scores = data
+      .map((g) => g.score)
+      .filter((s) => s !== null && s !== undefined && !isNaN(s)) as number[]
     if (scores.length === 0) return
 
     const avg = scores.reduce((a, b) => a + b, 0) / scores.length
-    const variance = scores.reduce((sum, score) => sum + Math.pow(score - avg, 2), 0) / scores.length
+    const variance =
+      scores.reduce((sum, score) => sum + Math.pow(score - avg, 2), 0) / scores.length
     const stdDev = Math.sqrt(variance).toFixed(1)
     const passCount = scores.filter((s) => s >= 60).length
     const passRate = ((passCount / scores.length) * 100).toFixed(1)
@@ -193,7 +196,9 @@ export function useGrades() {
   /** 更新成绩分布（五档）与各课程平均分对比（升序） */
   function updateCharts(data) {
     if (!Array.isArray(data)) return
-    const scores = data.map((g) => g.score).filter((s) => s !== null && s !== undefined && !isNaN(s))
+    const scores = data
+      .map((g) => g.score)
+      .filter((s) => s !== null && s !== undefined && !isNaN(s))
 
     const dist = [0, 0, 0, 0, 0]
     scores.forEach((s) => {
@@ -272,7 +277,10 @@ export function useGrades() {
       const ws = XLSX.utils.json_to_sheet(exportData)
       const wb = XLSX.utils.book_new()
       XLSX.utils.book_append_sheet(wb, ws, '成绩报表')
-      XLSX.writeFile(wb, `成绩报表_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.xlsx`)
+      XLSX.writeFile(
+        wb,
+        `成绩报表_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.xlsx`,
+      )
       ElMessage.success('报表已下载')
     } catch (e) {
       logger.error('导出成绩失败:', e)

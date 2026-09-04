@@ -8,12 +8,7 @@
   >
     <el-form :model="topicForm" label-width="80px">
       <el-form-item label="标题" required>
-        <el-input
-          v-model="topicForm.title"
-          placeholder="话题标题"
-          maxlength="80"
-          show-word-limit
-        />
+        <el-input v-model="topicForm.title" placeholder="话题标题" maxlength="80" show-word-limit />
       </el-form-item>
       <el-form-item label="内容" required>
         <el-input
@@ -28,7 +23,9 @@
     </el-form>
     <template #footer>
       <el-button @click="$emit('update:modelValue', false)">取消</el-button>
-      <el-button type="primary" :loading="createSubmitting" @click="$emit('submit')">发布</el-button>
+      <el-button type="primary" :loading="createSubmitting" @click="$emit('submit')"
+        >发布</el-button
+      >
     </template>
   </el-dialog>
 </template>

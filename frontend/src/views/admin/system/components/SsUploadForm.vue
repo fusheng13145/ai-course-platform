@@ -1,6 +1,8 @@
 <template>
   <el-form ref="formRef" :model="form" label-width="160px" class="settings-form">
-    <el-divider content-position="left"><el-icon><Upload /></el-icon>文件大小限制</el-divider>
+    <el-divider content-position="left"
+      ><el-icon><Upload /></el-icon>文件大小限制</el-divider
+    >
 
     <el-form-item label="单文件最大(MB)" prop="maxFileSize">
       <el-slider
@@ -18,7 +20,9 @@
       <el-input-number v-model="form.totalQuota" :min="1" :max="1000" />
     </el-form-item>
 
-    <el-divider content-position="left"><el-icon><Document /></el-icon>文件格式限制</el-divider>
+    <el-divider content-position="left"
+      ><el-icon><Document /></el-icon>文件格式限制</el-divider
+    >
 
     <el-form-item label="允许的图片格式" prop="imageFormats">
       <el-tag
@@ -65,9 +69,7 @@
     </el-form-item>
 
     <el-form-item>
-      <el-button type="primary" :loading="saving" @click="handleSave">
-        保存上传配置
-      </el-button>
+      <el-button type="primary" :loading="saving" @click="handleSave"> 保存上传配置 </el-button>
     </el-form-item>
   </el-form>
 </template>

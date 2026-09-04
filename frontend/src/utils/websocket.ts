@@ -42,7 +42,7 @@ export function connect() {
         const msg = JSON.parse(event.data)
         handleMessage(msg)
       } catch (e) {
-        console.error('[websocket.js] catch:', e);
+        console.error('[websocket.js] catch:', e)
         logger.warn('[WS] Parse error:', e)
       }
     }
@@ -130,7 +130,7 @@ function handleMessage(msg) {
       try {
         cb(data)
       } catch (e) {
-        console.error('[websocket.js] catch:', e);
+        console.error('[websocket.js] catch:', e)
         logger.error('[WS] Handler error:', e)
       }
     })
@@ -143,7 +143,7 @@ function handleMessage(msg) {
       try {
         cb(msg)
       } catch (e) {
-        console.error('[websocket.js] catch:', e);
+        console.error('[websocket.js] catch:', e)
         logger.error('[WS] Handler error:', e)
       }
     })

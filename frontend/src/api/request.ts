@@ -260,7 +260,7 @@ service.interceptors.response.use(
           retryCache.delete(generateReqKey(config))
           return res
         } catch (retryErr) {
-          console.error('[request.js] catch:', retryErr);
+          console.error('[request.js] catch:', retryErr)
           retryCache.delete(generateReqKey(config))
           return Promise.reject(retryErr)
         }
@@ -286,12 +286,12 @@ service.interceptors.response.use(
             await service.post('/auth/refresh', {})
             return service(config)
           } catch (refreshErr) {
-            console.error('[request.js] catch:', refreshErr);
+            console.error('[request.js] catch:', refreshErr)
             // 刷新失败：尽力清除后端会话 Cookie，避免残留脏会话
             try {
               await service.post('/auth/logout')
             } catch (logoutErr) {
-              console.error('[request.js] catch:', logoutErr);
+              console.error('[request.js] catch:', logoutErr)
               // 登出接口失败不影响主流程（令牌已失效），仅开发环境记录
               if (import.meta.env.DEV) {
                 // eslint-disable-next-line no-console
@@ -349,7 +349,7 @@ service.interceptors.response.use(
             retryCache.delete(generateReqKey(config))
             return res
           } catch (retryErr) {
-            console.error('[request.js] catch:', retryErr);
+            console.error('[request.js] catch:', retryErr)
             retryCache.delete(generateReqKey(config))
             showThrottledMessage('error', getStatusMessage(status))
             return Promise.reject(retryErr)

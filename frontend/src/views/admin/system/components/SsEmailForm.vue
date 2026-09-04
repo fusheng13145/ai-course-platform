@@ -26,27 +26,16 @@
     </el-form-item>
 
     <el-form-item label="用户名/授权码" prop="username">
-      <el-input
-        v-model="form.username"
-        placeholder="SMTP登录凭据"
-        type="password"
-        show-password
-      />
+      <el-input v-model="form.username" placeholder="SMTP登录凭据" type="password" show-password />
     </el-form-item>
 
     <el-form-item label="启用SSL/TLS" prop="useSSL">
-      <el-switch
-        v-model="form.useSSL"
-        active-text="SSL"
-        inactive-text="TLS/无加密"
-      />
+      <el-switch v-model="form.useSSL" active-text="SSL" inactive-text="TLS/无加密" />
     </el-form-item>
 
     <el-form-item>
       <el-space>
-        <el-button type="primary" :loading="saving" @click="handleSave"
-          >保存邮件配置</el-button
-        >
+        <el-button type="primary" :loading="saving" @click="handleSave">保存邮件配置</el-button>
         <el-button @click="$emit('test-email')">发送测试邮件</el-button>
       </el-space>
     </el-form-item>

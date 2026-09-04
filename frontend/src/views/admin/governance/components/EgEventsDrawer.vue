@@ -14,7 +14,9 @@
             <el-tag size="small" :type="riskTag(e.severity)" effect="light">{{
               typeText(e.type)
             }}</el-tag>
-            <el-tag size="small" :type="riskTag(e.severity)" effect="plain">{{ e.severity }}</el-tag>
+            <el-tag size="small" :type="riskTag(e.severity)" effect="plain">{{
+              e.severity
+            }}</el-tag>
             <el-tag v-if="e.status" size="small" :type="statusTag(e.status)" effect="dark">{{
               statusText(e.status)
             }}</el-tag>

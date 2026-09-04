@@ -10,7 +10,12 @@
       <el-row :gutter="16">
         <el-col :span="12">
           <el-form-item label="试卷标题" prop="title">
-            <el-input v-model="examForm.title" placeholder="输入试卷标题" maxlength="80" show-word-limit />
+            <el-input
+              v-model="examForm.title"
+              placeholder="输入试卷标题"
+              maxlength="80"
+              show-word-limit
+            />
           </el-form-item>
         </el-col>
         <el-col :span="12">
@@ -22,7 +27,14 @@
         </el-col>
       </el-row>
       <el-form-item label="说明">
-        <el-input v-model="examForm.description" type="textarea" :rows="2" placeholder="试卷说明（可选）" maxlength="200" show-word-limit />
+        <el-input
+          v-model="examForm.description"
+          type="textarea"
+          :rows="2"
+          placeholder="试卷说明（可选）"
+          maxlength="200"
+          show-word-limit
+        />
       </el-form-item>
       <el-row :gutter="16">
         <el-col :span="12">
@@ -39,12 +51,24 @@
       <el-row :gutter="16">
         <el-col :span="12">
           <el-form-item label="开始时间">
-            <el-date-picker v-model="examForm.startTime" type="datetime" placeholder="选择开始时间" class="w-100" value-format="YYYY-MM-DD HH:mm:ss" />
+            <el-date-picker
+              v-model="examForm.startTime"
+              type="datetime"
+              placeholder="选择开始时间"
+              class="w-100"
+              value-format="YYYY-MM-DD HH:mm:ss"
+            />
           </el-form-item>
         </el-col>
         <el-col :span="12">
           <el-form-item label="截止时间">
-            <el-date-picker v-model="examForm.endTime" type="datetime" placeholder="选择截止时间" class="w-100" value-format="YYYY-MM-DD HH:mm:ss" />
+            <el-date-picker
+              v-model="examForm.endTime"
+              type="datetime"
+              placeholder="选择截止时间"
+              class="w-100"
+              value-format="YYYY-MM-DD HH:mm:ss"
+            />
           </el-form-item>
         </el-col>
       </el-row>
@@ -52,8 +76,12 @@
       <!-- 题目管理 -->
       <el-divider content-position="left">题目管理</el-divider>
       <div class="question-bar">
-        <span class="q-bar-info">已选 {{ selectedQuestions.length }} 道题，共 {{ totalSelectedScore }} 分</span>
-        <el-button size="small" type="primary" plain @click="emit('open-picker')">从题库选题</el-button>
+        <span class="q-bar-info"
+          >已选 {{ selectedQuestions.length }} 道题，共 {{ totalSelectedScore }} 分</span
+        >
+        <el-button size="small" type="primary" plain @click="emit('open-picker')"
+          >从题库选题</el-button
+        >
       </div>
       <div v-if="selectedQuestions.length > 0" class="selected-questions">
         <div v-for="(q, idx) in selectedQuestions" :key="q.id || idx" class="question-item">
@@ -64,7 +92,13 @@
             }}</span>
             <span class="q-text">{{ q.content || q.stem || q.title || '未命名题目' }}</span>
           </div>
-          <el-input-number v-model="q.score" :min="1" :max="50" size="small" class="q-score-input" />
+          <el-input-number
+            v-model="q.score"
+            :min="1"
+            :max="50"
+            size="small"
+            class="q-score-input"
+          />
           <el-button text type="danger" size="small" @click="emit('remove-question', idx)">
             <el-icon><Delete /></el-icon>
           </el-button>
@@ -76,10 +110,14 @@
       <el-divider content-position="left">设置</el-divider>
       <el-row :gutter="16">
         <el-col :span="8">
-          <el-form-item label="打乱题目"><el-switch v-model="examForm.shuffleQuestions" /></el-form-item>
+          <el-form-item label="打乱题目"
+            ><el-switch v-model="examForm.shuffleQuestions"
+          /></el-form-item>
         </el-col>
         <el-col :span="8">
-          <el-form-item label="打乱选项"><el-switch v-model="examForm.shuffleOptions" /></el-form-item>
+          <el-form-item label="打乱选项"
+            ><el-switch v-model="examForm.shuffleOptions"
+          /></el-form-item>
         </el-col>
         <el-col :span="8">
           <el-form-item label="显示分数"><el-switch v-model="examForm.showScore" /></el-form-item>

@@ -63,9 +63,7 @@
         <div class="assignment-panel">
           <el-icon :size="40" color="var(--ac-danger)"><Files /></el-icon>
           <h3>{{ task.title }}</h3>
-          <p v-if="task.dueDate" class="muted">
-            截止：{{ formatTime(task.dueDate, '--') }}
-          </p>
+          <p v-if="task.dueDate" class="muted">截止：{{ formatTime(task.dueDate, '--') }}</p>
           <p class="muted">作业请在「待办 / 作业」区域提交，提交后本任务点自动完成。</p>
           <el-button type="primary" @click="goAssignments">前往作业区</el-button>
         </div>
@@ -77,9 +75,7 @@
           <div v-for="(q, i) in quizQuestions" :key="q.id" class="quiz-q">
             <div class="quiz-q-head">
               <span class="quiz-q-no">{{ i + 1 }}.</span>
-              <span class="quiz-q-type" :class="qTypeClass(q.type)">{{
-                qTypeLabel(q.type)
-              }}</span>
+              <span class="quiz-q-type" :class="qTypeClass(q.type)">{{ qTypeLabel(q.type) }}</span>
             </div>
             <p class="quiz-q-stem">{{ q.content }}</p>
 
@@ -89,12 +85,7 @@
               v-model="quizAnswers[q.id]"
               class="opt-vertical"
             >
-              <el-radio
-                v-for="(opt, oi) in q._options"
-                :key="oi"
-                :value="oi"
-                class="opt-item"
-              >
+              <el-radio v-for="(opt, oi) in q._options" :key="oi" :value="oi" class="opt-item">
                 <span class="opt-label">{{ letter(oi) }}.</span> {{ opt }}
               </el-radio>
             </el-radio-group>
@@ -105,12 +96,7 @@
               v-model="quizAnswers[q.id]"
               class="opt-vertical"
             >
-              <el-checkbox
-                v-for="(opt, oi) in q._options"
-                :key="oi"
-                :label="oi"
-                class="opt-item"
-              >
+              <el-checkbox v-for="(opt, oi) in q._options" :key="oi" :label="oi" class="opt-item">
                 <span class="opt-label">{{ letter(oi) }}.</span> {{ opt }}
               </el-checkbox>
             </el-checkbox-group>
@@ -234,19 +220,44 @@ function taskTypeLabel(t) {
 }
 
 /* ---- 视频 / 测验逻辑（组合式函数） ---- */
-const { videoEl, videoSrc, videoDuration, localWatched, videoState, loadVideo, onVideoMeta, onVideoTime, onVideoEnded, markVideoFallback, resetVideo } =
-  useVideoTask({
-    courseId: props.courseId,
-    getTask: () => props.task,
-    onTaskCompleted: async () => emit('task-completed'),
-  })
+const {
+  videoEl,
+  videoSrc,
+  videoDuration,
+  localWatched,
+  videoState,
+  loadVideo,
+  onVideoMeta,
+  onVideoTime,
+  onVideoEnded,
+  markVideoFallback,
+  resetVideo,
+} = useVideoTask({
+  courseId: props.courseId,
+  getTask: () => props.task,
+  onTaskCompleted: async () => emit('task-completed'),
+})
 
-const { quizQuestions, quizAnswers, quizSubmitting, quizResult, loadQuiz, submitQuizNow, feedbackOf, resetQuiz, letter, isSingle, isMultiple, isJudge, qTypeLabel, qTypeClass } =
-  useQuizTask({
-    courseId: props.courseId,
-    getTask: () => props.task,
-    onTaskCompleted: async () => emit('task-completed'),
-  })
+const {
+  quizQuestions,
+  quizAnswers,
+  quizSubmitting,
+  quizResult,
+  loadQuiz,
+  submitQuizNow,
+  feedbackOf,
+  resetQuiz,
+  letter,
+  isSingle,
+  isMultiple,
+  isJudge,
+  qTypeLabel,
+  qTypeClass,
+} = useQuizTask({
+  courseId: props.courseId,
+  getTask: () => props.task,
+  onTaskCompleted: async () => emit('task-completed'),
+})
 
 /* ---- 文档 / 阅读：标记完成 ---- */
 const docLoading = ref(false)

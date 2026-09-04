@@ -141,7 +141,7 @@ describe('AI 学习助手问答流程（挂载真实组件）', () => {
     expect(wrapper.vm.loading).toBe(false)
     expect(mockQaStream).toHaveBeenCalledWith(
       { question: '什么是TCP？' },
-      expect.objectContaining({ onToken: expect.any(Function), onDone: expect.any(Function) })
+      expect.objectContaining({ onToken: expect.any(Function), onDone: expect.any(Function) }),
     )
     // 流式成功时不应走非流式兜底
     expect(mockQaAsk).not.toHaveBeenCalled()

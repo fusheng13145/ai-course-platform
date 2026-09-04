@@ -1,6 +1,8 @@
 <template>
   <el-form ref="formRef" :model="form" label-width="160px" class="settings-form">
-    <el-divider content-position="left"><el-icon><Bell /></el-icon>默认通知方式</el-divider>
+    <el-divider content-position="left"
+      ><el-icon><Bell /></el-icon>默认通知方式</el-divider
+    >
 
     <el-form-item label="站内通知" prop="inAppNotification">
       <el-switch v-model="form.inAppNotification" />
@@ -16,15 +18,12 @@
       <span class="form-tip">暂未开放</span>
     </el-form-item>
 
-    <el-divider content-position="left"><el-icon><Clock /></el-icon>自动提醒</el-divider>
+    <el-divider content-position="left"
+      ><el-icon><Clock /></el-icon>自动提醒</el-divider
+    >
 
     <el-form-item label="考试前提醒(小时)" prop="examReminderHours">
-      <el-input-number
-        v-model="form.examReminderHours"
-        :min="0"
-        :max="168"
-        :step="1"
-      />
+      <el-input-number v-model="form.examReminderHours" :min="0" :max="168" :step="1" />
     </el-form-item>
 
     <el-form-item label="作业截止前提醒" prop="deadlineReminder">
@@ -36,9 +35,7 @@
     </el-form-item>
 
     <el-form-item>
-      <el-button type="primary" :loading="saving" @click="handleSave">
-        保存通知设置
-      </el-button>
+      <el-button type="primary" :loading="saving" @click="handleSave"> 保存通知设置 </el-button>
     </el-form-item>
   </el-form>
 </template>

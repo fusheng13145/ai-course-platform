@@ -63,12 +63,7 @@
               clearable
               style="width: 160px"
             />
-            <el-select
-              v-model="filters.module"
-              placeholder="模块"
-              clearable
-              style="width: 150px"
-            >
+            <el-select v-model="filters.module" placeholder="模块" clearable style="width: 150px">
               <el-option
                 v-for="m in moduleOptions"
                 :key="m.value"
@@ -89,12 +84,7 @@
                 :value="a.value"
               />
             </el-select>
-            <el-select
-              v-model="filters.status"
-              placeholder="结果"
-              clearable
-              style="width: 130px"
-            >
+            <el-select v-model="filters.status" placeholder="结果" clearable style="width: 130px">
               <el-option label="成功" value="SUCCESS" />
               <el-option label="失败" value="FAILED" />
             </el-select>
@@ -109,15 +99,8 @@
         <div class="content-card">
           <el-table v-loading="loading" :data="logList" style="width: 100%">
             <el-table-column prop="id" label="ID" width="70" />
-            <el-table-column
-              prop="username"
-              label="操作人"
-              min-width="110"
-              show-overflow-tooltip
-            >
-              <template #default="{ row }">{{
-                row.username || row.operatorName || '—'
-              }}</template>
+            <el-table-column prop="username" label="操作人" min-width="110" show-overflow-tooltip>
+              <template #default="{ row }">{{ row.username || row.operatorName || '—' }}</template>
             </el-table-column>
             <el-table-column prop="module" label="模块" width="120" align="center">
               <template #default="{ row }">
@@ -127,12 +110,7 @@
             <el-table-column prop="action" label="操作" width="110" align="center">
               <template #default="{ row }">{{ actionLabel(row.action) }}</template>
             </el-table-column>
-            <el-table-column
-              prop="description"
-              label="描述"
-              min-width="200"
-              show-overflow-tooltip
-            >
+            <el-table-column prop="description" label="描述" min-width="200" show-overflow-tooltip>
               <template #default="{ row }">{{ row.description || row.detail || '—' }}</template>
             </el-table-column>
             <el-table-column prop="ip" label="IP 地址" width="130" show-overflow-tooltip>

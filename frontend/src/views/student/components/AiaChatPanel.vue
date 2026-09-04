@@ -56,17 +56,26 @@
               <p class="message-text">{{ msg.content }}</p>
               <span class="message-time">{{ msg.time }}</span>
             </div>
-            <div class="avatar user-avatar"><el-icon :size="20"><User /></el-icon></div>
+            <div class="avatar user-avatar">
+              <el-icon :size="20"><User /></el-icon>
+            </div>
           </template>
           <template v-else>
-            <div class="avatar ai-avatar"><el-icon :size="20"><MagicStick /></el-icon></div>
+            <div class="avatar ai-avatar">
+              <el-icon :size="20"><MagicStick /></el-icon>
+            </div>
             <div class="message-bubble ai-bubble">
               <!-- Markdown 已转义并经 sanitize.js 净化 -->
               <!-- eslint-disable-next-line vue/no-v-html -->
               <div class="message-text markdown-body" v-html="renderMarkdown(msg.content)"></div>
               <span class="message-time">{{ msg.time }}</span>
               <div class="message-actions">
-                <el-button v-if="speechSupported" text size="small" @click="emit('speak', msg.content)">
+                <el-button
+                  v-if="speechSupported"
+                  text
+                  size="small"
+                  @click="emit('speak', msg.content)"
+                >
                   <el-icon><Microphone /></el-icon> 朗读
                 </el-button>
                 <el-button text size="small" @click="emit('copy', msg.content)">
@@ -82,7 +91,9 @@
 
         <!-- AI 正在输入提示 -->
         <div v-if="loading" class="message-row assistant">
-          <div class="avatar ai-avatar"><el-icon :size="20"><MagicStick /></el-icon></div>
+          <div class="avatar ai-avatar">
+            <el-icon :size="20"><MagicStick /></el-icon>
+          </div>
           <div class="message-bubble ai-bubble typing-indicator">
             <span class="dot"></span><span class="dot"></span><span class="dot"></span>
           </div>

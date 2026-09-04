@@ -107,17 +107,46 @@ describe('CourseDetail 课程详情页', () => {
       wrapper = mount(CourseDetail, {
         global: {
           stubs: {
-            'el-page-header': { template: '<div class="el-page-header"><slot name="content" /></div>' },
+            'el-page-header': {
+              template: '<div class="el-page-header"><slot name="content" /></div>',
+            },
             'el-tag': { template: '<span class="el-tag"><slot /></span>', props: ['size', 'type'] },
-            'el-progress': { template: '<div class="el-progress"></div>', props: ['percentage', 'strokeWidth', 'color', 'style', 'showText'] },
-            'el-tabs': { template: '<div class="el-tabs"><slot /></div>', props: ['modelValue'], emits: ['update:modelValue'] },
-            'el-tab-pane': { template: '<div class="el-tab-pane"><slot /></div>', props: ['label', 'name'] },
-            'el-descriptions': { template: '<div class="el-descriptions"><slot /></div>', props: ['column', 'border'] },
-            'el-descriptions-item': { template: '<div class="el-descriptions-item"><slot /></div>', props: ['label'] },
-            'el-button': { template: '<button :disabled="$attrs.loading || $attrs.disabled" @click="$emit(\'click\')"><slot /></button>', props: ['type', 'size', 'text', 'loading', 'disabled'], emits: ['click'] },
+            'el-progress': {
+              template: '<div class="el-progress"></div>',
+              props: ['percentage', 'strokeWidth', 'color', 'style', 'showText'],
+            },
+            'el-tabs': {
+              template: '<div class="el-tabs"><slot /></div>',
+              props: ['modelValue'],
+              emits: ['update:modelValue'],
+            },
+            'el-tab-pane': {
+              template: '<div class="el-tab-pane"><slot /></div>',
+              props: ['label', 'name'],
+            },
+            'el-descriptions': {
+              template: '<div class="el-descriptions"><slot /></div>',
+              props: ['column', 'border'],
+            },
+            'el-descriptions-item': {
+              template: '<div class="el-descriptions-item"><slot /></div>',
+              props: ['label'],
+            },
+            'el-button': {
+              template:
+                '<button :disabled="$attrs.loading || $attrs.disabled" @click="$emit(\'click\')"><slot /></button>',
+              props: ['type', 'size', 'text', 'loading', 'disabled'],
+              emits: ['click'],
+            },
             'el-icon': { template: '<i><slot /></i>', props: ['size', 'color'] },
-            'el-empty': { template: '<div class="el-empty"><slot /></div>', props: ['description', 'imageSize'] },
-            'el-alert': { template: '<div class="el-alert"><slot name="default" /></div>', props: ['title', 'type', 'closable', 'showIcon'] },
+            'el-empty': {
+              template: '<div class="el-empty"><slot /></div>',
+              props: ['description', 'imageSize'],
+            },
+            'el-alert': {
+              template: '<div class="el-alert"><slot name="default" /></div>',
+              props: ['title', 'type', 'closable', 'showIcon'],
+            },
             RouterLink: true,
             Transition: true,
           },
@@ -128,7 +157,7 @@ describe('CourseDetail 课程详情页', () => {
       })
       await nextTick()
       // 等待异步数据加载
-      await new Promise(resolve => setTimeout(resolve, 50))
+      await new Promise((resolve) => setTimeout(resolve, 50))
     })
 
     it('组件正常渲染', () => {
@@ -182,7 +211,7 @@ describe('CourseDetail 课程详情页', () => {
       })
 
       // 等待异步加载
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await new Promise((resolve) => setTimeout(resolve, 100))
 
       expect(mockGetCourseById).toHaveBeenCalledWith('1')
       expect(mockGetChapters).toHaveBeenCalledWith('1')
@@ -267,7 +296,7 @@ describe('CourseDetail 课程详情页', () => {
         },
       })
 
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await new Promise((resolve) => setTimeout(resolve, 100))
 
       // 章节有 30 + 45 = 75 分钟
       expect(wrapper.vm.estimatedDuration).toBe(75)
@@ -295,7 +324,7 @@ describe('CourseDetail 课程详情页', () => {
         },
       })
 
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await new Promise((resolve) => setTimeout(resolve, 100))
 
       expect(wrapper.vm.chapters).toHaveLength(2)
       expect(wrapper.vm.chapters[0].completed).toBe(true)
@@ -324,7 +353,7 @@ describe('CourseDetail 课程详情页', () => {
         },
       })
 
-      await new Promise(resolve => setTimeout(resolve, 100))
+      await new Promise((resolve) => setTimeout(resolve, 100))
 
       expect(wrapper.vm.course.name).toBe('测试课程')
       expect(wrapper.vm.course.category).toBe('计算机科学')

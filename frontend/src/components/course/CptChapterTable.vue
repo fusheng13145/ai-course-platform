@@ -36,9 +36,7 @@
               :show-text="false"
               style="width: 90px"
             />
-            <span class="completion-text"
-              >{{ Math.round((row.completionRate ?? 0) * 100) }}%</span
-            >
+            <span class="completion-text">{{ Math.round((row.completionRate ?? 0) * 100) }}%</span>
           </div>
         </template>
       </el-table-column>

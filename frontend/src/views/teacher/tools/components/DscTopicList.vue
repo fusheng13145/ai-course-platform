@@ -11,11 +11,7 @@
           <div class="ti-top">
             <el-tag v-if="t.pinned" size="small" type="danger" effect="light">置顶</el-tag>
             <span class="ti-title">{{ t.title }}</span>
-            <el-tag
-              size="small"
-              :type="t.status === 'CLOSED' ? 'info' : 'success'"
-              effect="light"
-            >
+            <el-tag size="small" :type="t.status === 'CLOSED' ? 'info' : 'success'" effect="light">
               {{ t.status === 'CLOSED' ? '已关闭' : '进行中' }}
             </el-tag>
           </div>

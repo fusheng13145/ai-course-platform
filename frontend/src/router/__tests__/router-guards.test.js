@@ -36,19 +36,39 @@ vi.mock('@/layouts/StudentLayout.vue', () => ({ default: { name: 'StudentLayout'
 vi.mock('@/views/admin/Dashboard.vue', () => ({ default: { name: 'AdminDashboard' } }))
 vi.mock('@/views/admin/user/UserManagement.vue', () => ({ default: { name: 'UserManagement' } }))
 vi.mock('@/views/admin/user/ClassManagement.vue', () => ({ default: { name: 'ClassManagement' } }))
-vi.mock('@/views/admin/teaching/CourseManagement.vue', () => ({ default: { name: 'CourseManagement' } }))
-vi.mock('@/views/admin/teaching/ResourceManagement.vue', () => ({ default: { name: 'ResourceManagement' } }))
+vi.mock('@/views/admin/teaching/CourseManagement.vue', () => ({
+  default: { name: 'CourseManagement' },
+}))
+vi.mock('@/views/admin/teaching/ResourceManagement.vue', () => ({
+  default: { name: 'ResourceManagement' },
+}))
 vi.mock('@/views/admin/governance/Analytics.vue', () => ({ default: { name: 'Analytics' } }))
-vi.mock('@/views/admin/teaching/ExamManagement.vue', () => ({ default: { name: 'ExamManagement' } }))
-vi.mock('@/views/admin/teaching/GradeManagement.vue', () => ({ default: { name: 'GradeManagement' } }))
-vi.mock('@/views/admin/system/NotificationManagement.vue', () => ({ default: { name: 'NotificationManagement' } }))
-vi.mock('@/views/admin/teaching/QuestionManagement.vue', () => ({ default: { name: 'QuestionManagement' } }))
-vi.mock('@/views/admin/user/PermissionManagement.vue', () => ({ default: { name: 'PermissionManagement' } }))
+vi.mock('@/views/admin/teaching/ExamManagement.vue', () => ({
+  default: { name: 'ExamManagement' },
+}))
+vi.mock('@/views/admin/teaching/GradeManagement.vue', () => ({
+  default: { name: 'GradeManagement' },
+}))
+vi.mock('@/views/admin/system/NotificationManagement.vue', () => ({
+  default: { name: 'NotificationManagement' },
+}))
+vi.mock('@/views/admin/teaching/QuestionManagement.vue', () => ({
+  default: { name: 'QuestionManagement' },
+}))
+vi.mock('@/views/admin/user/PermissionManagement.vue', () => ({
+  default: { name: 'PermissionManagement' },
+}))
 vi.mock('@/views/admin/system/OperationLogs.vue', () => ({ default: { name: 'OperationLogs' } }))
 vi.mock('@/views/admin/system/SystemSettings.vue', () => ({ default: { name: 'SystemSettings' } }))
-vi.mock('@/views/admin/governance/TeachingSupervision.vue', () => ({ default: { name: 'TeachingSupervision' } }))
-vi.mock('@/views/admin/governance/ExamGovernance.vue', () => ({ default: { name: 'ExamGovernance' } }))
-vi.mock('@/views/admin/system/AISupplierConfig.vue', () => ({ default: { name: 'AISupplierConfig' } }))
+vi.mock('@/views/admin/governance/TeachingSupervision.vue', () => ({
+  default: { name: 'TeachingSupervision' },
+}))
+vi.mock('@/views/admin/governance/ExamGovernance.vue', () => ({
+  default: { name: 'ExamGovernance' },
+}))
+vi.mock('@/views/admin/system/AISupplierConfig.vue', () => ({
+  default: { name: 'AISupplierConfig' },
+}))
 vi.mock('@/views/admin/system/KnowledgeBase.vue', () => ({ default: { name: 'KnowledgeBase' } }))
 vi.mock('@/views/common/Profile.vue', () => ({ default: { name: 'Profile' } }))
 vi.mock('@/views/common/Notifications.vue', () => ({ default: { name: 'Notifications' } }))
@@ -56,18 +76,34 @@ vi.mock('@/views/teacher/Dashboard.vue', () => ({ default: { name: 'TeacherDashb
 vi.mock('@/views/teacher/Courses.vue', () => ({ default: { name: 'TeacherCourses' } }))
 vi.mock('@/views/teacher/CreateCourse.vue', () => ({ default: { name: 'CreateCourse' } }))
 vi.mock('@/views/teacher/cockpit/CourseCockpit.vue', () => ({ default: { name: 'CourseCockpit' } }))
-vi.mock('@/views/teacher/cockpit/CourseOverview.vue', () => ({ default: { name: 'CourseOverview' } }))
-vi.mock('@/views/teacher/cockpit/CourseChapters.vue', () => ({ default: { name: 'CourseChapters' } }))
+vi.mock('@/views/teacher/cockpit/CourseOverview.vue', () => ({
+  default: { name: 'CourseOverview' },
+}))
+vi.mock('@/views/teacher/cockpit/CourseChapters.vue', () => ({
+  default: { name: 'CourseChapters' },
+}))
 vi.mock('@/views/teacher/cockpit/CourseTasks.vue', () => ({ default: { name: 'CourseTasks' } }))
-vi.mock('@/views/teacher/cockpit/CourseSubmissions.vue', () => ({ default: { name: 'CourseSubmissions' } }))
-vi.mock('@/views/teacher/cockpit/CourseQuestionBank.vue', () => ({ default: { name: 'CourseQuestionBank' } }))
+vi.mock('@/views/teacher/cockpit/CourseSubmissions.vue', () => ({
+  default: { name: 'CourseSubmissions' },
+}))
+vi.mock('@/views/teacher/cockpit/CourseQuestionBank.vue', () => ({
+  default: { name: 'CourseQuestionBank' },
+}))
 vi.mock('@/views/teacher/cockpit/CourseExams.vue', () => ({ default: { name: 'CourseExams' } }))
 vi.mock('@/views/teacher/cockpit/CourseProctor.vue', () => ({ default: { name: 'CourseProctor' } }))
 vi.mock('@/views/teacher/cockpit/CourseGrades.vue', () => ({ default: { name: 'CourseGrades' } }))
-vi.mock('@/views/teacher/cockpit/CourseAnalytics.vue', () => ({ default: { name: 'CourseAnalytics' } }))
-vi.mock('@/views/teacher/cockpit/CourseInteraction.vue', () => ({ default: { name: 'CourseInteraction' } }))
-vi.mock('@/views/teacher/cockpit/CourseDiscussion.vue', () => ({ default: { name: 'CourseDiscussion' } }))
-vi.mock('@/views/teacher/assessment/QuestionBank.vue', () => ({ default: { name: 'QuestionBank' } }))
+vi.mock('@/views/teacher/cockpit/CourseAnalytics.vue', () => ({
+  default: { name: 'CourseAnalytics' },
+}))
+vi.mock('@/views/teacher/cockpit/CourseInteraction.vue', () => ({
+  default: { name: 'CourseInteraction' },
+}))
+vi.mock('@/views/teacher/cockpit/CourseDiscussion.vue', () => ({
+  default: { name: 'CourseDiscussion' },
+}))
+vi.mock('@/views/teacher/assessment/QuestionBank.vue', () => ({
+  default: { name: 'QuestionBank' },
+}))
 vi.mock('@/views/teacher/assessment/ExamPapers.vue', () => ({ default: { name: 'ExamPapers' } }))
 vi.mock('@/views/teacher/tools/Interaction.vue', () => ({ default: { name: 'Interaction' } }))
 vi.mock('@/views/teacher/tools/Discussion.vue', () => ({ default: { name: 'Discussion' } }))
@@ -76,13 +112,19 @@ vi.mock('@/views/teacher/tools/AICenter.vue', () => ({ default: { name: 'AICente
 vi.mock('@/views/student/Dashboard.vue', () => ({ default: { name: 'StudentDashboard' } }))
 vi.mock('@/views/student/Courses.vue', () => ({ default: { name: 'StudentCourses' } }))
 vi.mock('@/views/student/course/CourseDetail.vue', () => ({ default: { name: 'CourseDetail' } }))
-vi.mock('@/views/student/course/LearningCenter.vue', () => ({ default: { name: 'LearningCenter' } }))
+vi.mock('@/views/student/course/LearningCenter.vue', () => ({
+  default: { name: 'LearningCenter' },
+}))
 vi.mock('@/views/student/study/LearningPath.vue', () => ({ default: { name: 'LearningPath' } }))
 vi.mock('@/views/student/AIAssistant.vue', () => ({ default: { name: 'AIAssistant' } }))
 vi.mock('@/views/student/academic/Exams.vue', () => ({ default: { name: 'Exams' } }))
 vi.mock('@/views/student/academic/Grades.vue', () => ({ default: { name: 'StudentGrades' } }))
-vi.mock('@/views/student/academic/WrongQuestions.vue', () => ({ default: { name: 'WrongQuestions' } }))
-vi.mock('@/views/student/study/LearningCalendar.vue', () => ({ default: { name: 'LearningCalendar' } }))
+vi.mock('@/views/student/academic/WrongQuestions.vue', () => ({
+  default: { name: 'WrongQuestions' },
+}))
+vi.mock('@/views/student/study/LearningCalendar.vue', () => ({
+  default: { name: 'LearningCalendar' },
+}))
 
 describe('路由守卫', () => {
   let router
@@ -108,19 +150,19 @@ describe('路由守卫', () => {
 
   describe('不需要认证的路由', () => {
     it('/login 路由 meta.requiresAuth 为 false', () => {
-      const matched = router.getRoutes().find(r => r.path === '/login')
+      const matched = router.getRoutes().find((r) => r.path === '/login')
       expect(matched).toBeDefined()
       expect(matched.meta.requiresAuth).toBeFalsy()
     })
 
     it('/register 路由 meta.requiresAuth 为 false', () => {
-      const matched = router.getRoutes().find(r => r.path === '/register')
+      const matched = router.getRoutes().find((r) => r.path === '/register')
       expect(matched).toBeDefined()
       expect(matched.meta.requiresAuth).toBeFalsy()
     })
 
     it('/forgot-password 路由 meta.requiresAuth 为 false', () => {
-      const matched = router.getRoutes().find(r => r.path === '/forgot-password')
+      const matched = router.getRoutes().find((r) => r.path === '/forgot-password')
       expect(matched).toBeDefined()
       expect(matched.meta.requiresAuth).toBeFalsy()
     })
@@ -230,23 +272,23 @@ describe('路由守卫', () => {
     })
 
     it('404 路由 meta.requiresAuth 为 false', () => {
-      const matched = router.getRoutes().find(r => r.path === '/:pathMatch(.*)*')
+      const matched = router.getRoutes().find((r) => r.path === '/:pathMatch(.*)*')
       expect(matched).toBeDefined()
     })
 
     it('管理员路由元数据包含角色 ADMIN', () => {
       // 查找 /admin 开头的路由，meta.role 在父路由上
-      const allAdminRoutes = router.getRoutes().filter(r => r.path.startsWith('/admin'))
+      const allAdminRoutes = router.getRoutes().filter((r) => r.path.startsWith('/admin'))
       expect(allAdminRoutes.length).toBeGreaterThan(0)
     })
 
     it('教师路由元数据包含角色 TEACHER', () => {
-      const teacherRoutes = router.getRoutes().filter(r => r.path.startsWith('/teacher'))
+      const teacherRoutes = router.getRoutes().filter((r) => r.path.startsWith('/teacher'))
       expect(teacherRoutes.length).toBeGreaterThan(0)
     })
 
     it('学生路由元数据包含角色 STUDENT', () => {
-      const studentRoutes = router.getRoutes().filter(r => r.path.startsWith('/student'))
+      const studentRoutes = router.getRoutes().filter((r) => r.path.startsWith('/student'))
       expect(studentRoutes.length).toBeGreaterThan(0)
     })
   })

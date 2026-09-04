@@ -2,7 +2,13 @@ import { ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import logger from '@/utils/logger'
 import { sanitizeHtml } from '@/utils/sanitize'
-import { isRecognitionSupported, isSpeechSupported, startRecognition, speak, stopSpeaking } from '@/composables/useSpeech'
+import {
+  isRecognitionSupported,
+  isSpeechSupported,
+  startRecognition,
+  speak,
+  stopSpeaking,
+} from '@/composables/useSpeech'
 import aiApi from '@/api/ai'
 import courseApi from '@/api/course'
 
@@ -48,7 +54,10 @@ export function useAIAssistant() {
       if (Array.isArray(list) && list.length > 0) {
         conversations.value = list.map((s) => ({
           id: s.id || s.sessionId,
-          title: s.title || s.summary || `对话 ${new Date(s.createdAt || Date.now()).toLocaleDateString()}`,
+          title:
+            s.title ||
+            s.summary ||
+            `对话 ${new Date(s.createdAt || Date.now()).toLocaleDateString()}`,
           time: s.updatedAt || s.createdAt || '',
           messages: s.messages || [],
           courseName: s.courseName || '',
@@ -70,7 +79,12 @@ export function useAIAssistant() {
     await scrollToBottom()
 
     const aiMsgIdx = messages.value.length
-    messages.value.push({ role: 'assistant', content: '', time: formatTimeFull(new Date()), loading: true })
+    messages.value.push({
+      role: 'assistant',
+      content: '',
+      time: formatTimeFull(new Date()),
+      loading: true,
+    })
 
     try {
       await handleSendStream(aiMsgIdx, content)
@@ -156,14 +170,24 @@ export function useAIAssistant() {
       ElMessage.warning('请先选择一个课程')
       return
     }
-    messages.value.push({ role: 'user', content: '请帮我总结当前课程的核心知识点', time: formatTimeFull(new Date()) })
+    messages.value.push({
+      role: 'user',
+      content: '请帮我总结当前课程的核心知识点',
+      time: formatTimeFull(new Date()),
+    })
     loading.value = true
     await scrollToBottom()
     const aiMsgIdx = messages.value.length
-    messages.value.push({ role: 'assistant', content: '', time: formatTimeFull(new Date()), loading: true })
+    messages.value.push({
+      role: 'assistant',
+      content: '',
+      time: formatTimeFull(new Date()),
+      loading: true,
+    })
     try {
       const res = await aiApi.qaAsk({
-        question: '请为当前课程生成一份全面的学习总结，包括课程核心知识点、学习重点、难点分析以及学习建议。',
+        question:
+          '请为当前课程生成一份全面的学习总结，包括课程核心知识点、学习重点、难点分析以及学习建议。',
         courseId: selectedCourseId.value,
       })
       const reply =
@@ -190,18 +214,33 @@ export function useAIAssistant() {
       ElMessage.warning('请先选择一个课程')
       return
     }
-    messages.value.push({ role: 'user', content: '请根据当前知识点生成几道练习题', time: formatTimeFull(new Date()) })
+    messages.value.push({
+      role: 'user',
+      content: '请根据当前知识点生成几道练习题',
+      time: formatTimeFull(new Date()),
+    })
     loading.value = true
     await scrollToBottom()
     const aiMsgIdx = messages.value.length
-    messages.value.push({ role: 'assistant', content: '', time: formatTimeFull(new Date()), loading: true })
+    messages.value.push({
+      role: 'assistant',
+      content: '',
+      time: formatTimeFull(new Date()),
+      loading: true,
+    })
     try {
-      const res = await aiApi.questionRecommendations({ courseId: selectedCourseId.value, count: 5 })
+      const res = await aiApi.questionRecommendations({
+        courseId: selectedCourseId.value,
+        count: 5,
+      })
       const data = res.data?.data || res.data || res || {}
       let reply = ''
       if (Array.isArray(data.questions)) {
         reply = data.questions
-          .map((q, i) => `${i + 1}. ${q.content || q.questionText || q}\n${q.answer ? `   答案：${q.answer}` : ''}`)
+          .map(
+            (q, i) =>
+              `${i + 1}. ${q.content || q.questionText || q}\n${q.answer ? `   答案：${q.answer}` : ''}`,
+          )
           .join('\n\n')
       } else if (typeof data === 'string') {
         reply = data
@@ -240,7 +279,12 @@ export function useAIAssistant() {
     messages.value.splice(index)
     loading.value = true
     const aiMsgIdx = messages.value.length
-    messages.value.push({ role: 'assistant', content: '', time: formatTimeFull(new Date()), loading: true })
+    messages.value.push({
+      role: 'assistant',
+      content: '',
+      time: formatTimeFull(new Date()),
+      loading: true,
+    })
     try {
       const payload: Record<string, any> = { question: lastUserMsg }
       if (selectedCourseId.value) payload.courseId = selectedCourseId.value
@@ -259,7 +303,10 @@ export function useAIAssistant() {
   function renderMarkdown(text) {
     if (!text) return ''
     let html = escapeHtml(text)
-    html = html.replace(/```(\w*)\n?([\s\S]*?)```/g, '<pre class="code-block"><code>$2</code></pre>')
+    html = html.replace(
+      /```(\w*)\n?([\s\S]*?)```/g,
+      '<pre class="code-block"><code>$2</code></pre>',
+    )
     html = html.replace(/`([^`]+)`/g, '<code class="inline-code">$1</code>')
     html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>')
     html = html.replace(/\n/g, '<br/>')

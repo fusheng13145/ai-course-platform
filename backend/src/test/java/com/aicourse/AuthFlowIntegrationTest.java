@@ -14,10 +14,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 /**
  * 认证流程集成测试：验证数据库种子用户存在、密码加密匹配。
- * 使用 @SpringBootTest + local 环境（依赖已运行的本地 MySQL + Redis）。
+ * 使用 @SpringBootTest + contract-test 环境（复用 CI 提供的 MySQL/Redis service 容器，
+ * 由 index.sql 初始化 schema 与种子数据，避免 local profile 依赖本地开发库凭据）。
  */
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.NONE)
-@ActiveProfiles("local")
+@ActiveProfiles("contract-test")
 class AuthFlowIntegrationTest {
 
     @Autowired

@@ -51,7 +51,8 @@
       <el-icon class="is-loading"><Loading /></el-icon> 规划中…
     </div>
     <div v-else-if="tPathNotFound" class="path-tip warn">
-      <el-icon><WarningFilled /></el-icon><span>{{ tPathError || '未找到从起点到目标的学习路径' }}</span>
+      <el-icon><WarningFilled /></el-icon
+      ><span>{{ tPathError || '未找到从起点到目标的学习路径' }}</span>
     </div>
     <div v-else-if="tPathError" class="path-tip danger">
       <el-icon><CircleCloseFilled /></el-icon><span>{{ tPathError }}</span>
@@ -68,13 +69,19 @@
       </div>
       <div class="path-chain">
         <template v-for="(node, idx) in tPathPlan.path" :key="node?.id ?? idx">
-          <span class="path-node" :class="{ start: idx === 0, end: idx === tPathPlan.path.length - 1 }"
+          <span
+            class="path-node"
+            :class="{ start: idx === 0, end: idx === tPathPlan.path.length - 1 }"
             >{{ node?.name || '未知' }}</span
           >
-          <el-icon v-if="idx < tPathPlan.path.length - 1" class="path-chain-arrow"><Right /></el-icon>
+          <el-icon v-if="idx < tPathPlan.path.length - 1" class="path-chain-arrow"
+            ><Right
+          /></el-icon>
         </template>
       </div>
-      <p class="path-note"><el-icon><InfoFilled /></el-icon>{{ tPathPlan.note }}</p>
+      <p class="path-note">
+        <el-icon><InfoFilled /></el-icon>{{ tPathPlan.note }}
+      </p>
     </div>
     <div v-else class="path-tip muted">
       <el-icon><Promotion /></el-icon><span>选择起点与目标知识点后点击「规划」</span>
@@ -83,7 +90,15 @@
 </template>
 
 <script setup lang="ts">
-import { Promotion, MagicStick, Right, Loading, WarningFilled, CircleCloseFilled, InfoFilled } from '@element-plus/icons-vue'
+import {
+  Promotion,
+  MagicStick,
+  Right,
+  Loading,
+  WarningFilled,
+  CircleCloseFilled,
+  InfoFilled,
+} from '@element-plus/icons-vue'
 
 /**
  * 学习路径规划面板

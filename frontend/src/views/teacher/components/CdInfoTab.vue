@@ -1,14 +1,44 @@
 <template>
   <div class="tab-card">
     <div class="info-grid">
-      <div class="info-item"><span class="info-label">课程编号</span><span class="info-val">{{ course.code || '–' }}</span></div>
-      <div class="info-item"><span class="info-label">分类</span><span class="info-val">{{ course.category || '未分类' }}</span></div>
-      <div class="info-item"><span class="info-label">难度</span><span class="info-val"><el-tag size="small" effect="light" round>{{ getDifficultyName(course.difficulty) }}</el-tag></span></div>
-      <div class="info-item"><span class="info-label">学分</span><span class="info-val">{{ course.credits ?? '–' }}</span></div>
-      <div class="info-item"><span class="info-label">学期</span><span class="info-val">{{ course.semester || '–' }} / {{ course.year || '' }}</span></div>
-      <div class="info-item"><span class="info-label">报名方式</span><span class="info-val">{{ getEnrollmentTypeName(course.enrollmentType) }}</span></div>
-      <div class="info-item"><span class="info-label">最大人数</span><span class="info-val">{{ course.maxStudents ? `${course.maxStudents} 人` : '不限' }}</span></div>
-      <div class="info-item"><span class="info-label">开课时间</span><span class="info-val">{{ formatDate(course.startDate) }}</span></div>
+      <div class="info-item">
+        <span class="info-label">课程编号</span
+        ><span class="info-val">{{ course.code || '–' }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">分类</span
+        ><span class="info-val">{{ course.category || '未分类' }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">难度</span
+        ><span class="info-val"
+          ><el-tag size="small" effect="light" round>{{
+            getDifficultyName(course.difficulty)
+          }}</el-tag></span
+        >
+      </div>
+      <div class="info-item">
+        <span class="info-label">学分</span
+        ><span class="info-val">{{ course.credits ?? '–' }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">学期</span
+        ><span class="info-val">{{ course.semester || '–' }} / {{ course.year || '' }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">报名方式</span
+        ><span class="info-val">{{ getEnrollmentTypeName(course.enrollmentType) }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">最大人数</span
+        ><span class="info-val">{{
+          course.maxStudents ? `${course.maxStudents} 人` : '不限'
+        }}</span>
+      </div>
+      <div class="info-item">
+        <span class="info-label">开课时间</span
+        ><span class="info-val">{{ formatDate(course.startDate) }}</span>
+      </div>
     </div>
     <div v-if="course.description" class="info-desc-section">
       <h4 class="section-subtitle">课程简介</h4>

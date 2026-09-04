@@ -3,7 +3,13 @@ import { mount } from '@vue/test-utils'
 
 // Mock axios and element-plus
 vi.mock('element-plus', () => ({
-  ElMessage: { error: vi.fn(), success: vi.fn(), warning: vi.fn(), info: vi.fn(), closeAll: vi.fn() },
+  ElMessage: {
+    error: vi.fn(),
+    success: vi.fn(),
+    warning: vi.fn(),
+    info: vi.fn(),
+    closeAll: vi.fn(),
+  },
   ElMessageBox: { confirm: vi.fn(() => Promise.resolve()), alert: vi.fn() },
   ElNotification: vi.fn(),
 }))
@@ -77,7 +83,7 @@ describe('teacher/Dashboard.vue — Loading 状态', () => {
       default: {
         getTeacherDashboardV2: vi.fn(() => ({ data: { stats: {}, courses: [] } })),
         createCourse: vi.fn(() => ({ data: {} })),
-      }
+      },
     }))
     const Dashboard = (await import('@/views/teacher/Dashboard.vue')).default
     return mount(Dashboard, { global: { stubs: ['v-chart', 'el-icon'] } })
@@ -96,12 +102,44 @@ describe('teacher/Dashboard.vue — Loading 状态', () => {
 
 describe('死代码验证', () => {
   it('api/common.js 不应存在（死代码已清理）', () => {
-    const apiFiles = ['userSession', 'plagiarismCheck', 'fileUpload', 'reminder', 'resourceVersion',
-      'auth', 'exam', 'course', 'ai', 'question', 'analytics', 'chapter', 'classroom',
-      'discussion', 'enrollment', 'grade', 'interaction', 'knowledge', 'knowledgePointRelation',
-      'learningPath', 'learningRecord', 'loginLog', 'notification', 'operationLog',
-      'permission', 'proctor', 'rag', 'resource', 'student', 'submission', 'system',
-      'systemConfig', 'task', 'teacher', 'user', 'wrongQuestion']
+    const apiFiles = [
+      'userSession',
+      'plagiarismCheck',
+      'fileUpload',
+      'reminder',
+      'resourceVersion',
+      'auth',
+      'exam',
+      'course',
+      'ai',
+      'question',
+      'analytics',
+      'chapter',
+      'classroom',
+      'discussion',
+      'enrollment',
+      'grade',
+      'interaction',
+      'knowledge',
+      'knowledgePointRelation',
+      'learningPath',
+      'learningRecord',
+      'loginLog',
+      'notification',
+      'operationLog',
+      'permission',
+      'proctor',
+      'rag',
+      'resource',
+      'student',
+      'submission',
+      'system',
+      'systemConfig',
+      'task',
+      'teacher',
+      'user',
+      'wrongQuestion',
+    ]
     expect(apiFiles.includes('common')).toBe(false)
   })
 })

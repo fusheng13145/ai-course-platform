@@ -18,11 +18,7 @@
         <el-table-column prop="title" label="标题" min-width="180" show-overflow-tooltip />
         <el-table-column label="类型" width="90">
           <template #default="{ row }">
-            <el-tag
-              size="small"
-              :type="row.multiple ? 'warning' : 'primary'"
-              effect="light"
-            >
+            <el-tag size="small" :type="row.multiple ? 'warning' : 'primary'" effect="light">
               {{ row.multiple ? '多选' : '单选' }}
             </el-tag>
           </template>

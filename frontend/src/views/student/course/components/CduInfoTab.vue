@@ -8,8 +8,12 @@
     <section class="info-section">
       <h3 class="section-title">课程详情</h3>
       <el-descriptions :column="2" border class="detail-desc">
-        <el-descriptions-item label="课程分类">{{ course.category || '未分类' }}</el-descriptions-item>
-        <el-descriptions-item label="授课教师">{{ course.teacherName || '未知' }}</el-descriptions-item>
+        <el-descriptions-item label="课程分类">{{
+          course.category || '未分类'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="授课教师">{{
+          course.teacherName || '未知'
+        }}</el-descriptions-item>
         <el-descriptions-item label="学分">{{ course.credits || 0 }}</el-descriptions-item>
         <el-descriptions-item label="难度等级">
           <el-tag size="small" :type="getDifficultyType(course.difficulty)">{{

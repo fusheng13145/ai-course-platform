@@ -184,15 +184,11 @@ onMounted(async () => {
       classes.value = data
       activeClass.value = data[0]?.key || ''
     } else {
-      classes.value = [
-        { key: 'all', name: '全部班级', students: 0, pending: 0, schedule: '' },
-      ]
+      classes.value = [{ key: 'all', name: '全部班级', students: 0, pending: 0, schedule: '' }]
       activeClass.value = 'all'
     }
   } catch {
-    classes.value = [
-      { key: 'all', name: '全部班级', students: 0, pending: 0, schedule: '' },
-    ]
+    classes.value = [{ key: 'all', name: '全部班级', students: 0, pending: 0, schedule: '' }]
     activeClass.value = 'all'
   }
 })

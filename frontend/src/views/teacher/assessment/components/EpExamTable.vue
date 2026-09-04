@@ -11,12 +11,7 @@
           @update:model-value="$emit('update:courseId', $event)"
           @change="$emit('query')"
         >
-          <el-option
-            v-for="c in courseList"
-            :key="c.id"
-            :label="c.name || c.title"
-            :value="c.id"
-          />
+          <el-option v-for="c in courseList" :key="c.id" :label="c.name || c.title" :value="c.id" />
         </el-select>
         <el-button type="primary" @click="$emit('query')"
           ><el-icon><Search /></el-icon>查询</el-button
@@ -45,12 +40,7 @@
             row.questionCount ?? (row.questions ? row.questions.length : 0)
           }}</template>
         </el-table-column>
-        <el-table-column
-          prop="courseName"
-          label="所属课程"
-          min-width="140"
-          show-overflow-tooltip
-        />
+        <el-table-column prop="courseName" label="所属课程" min-width="140" show-overflow-tooltip />
         <el-table-column label="状态" width="100" align="center">
           <template #default="{ row }">
             <el-tag size="small" :type="getStatusType(row.status)" effect="light">{{
@@ -64,9 +54,7 @@
               <el-button link type="primary" size="small" @click="$emit('questions', row)"
                 >题目</el-button
               >
-              <el-button link type="info" size="small" @click="$emit('stats', row)"
-                >统计</el-button
-              >
+              <el-button link type="info" size="small" @click="$emit('stats', row)">统计</el-button>
               <el-button
                 v-if="row.status === 'DRAFT'"
                 link

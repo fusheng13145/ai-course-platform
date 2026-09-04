@@ -17,12 +17,7 @@
           placeholder="选择课程"
           style="width: 100%"
         >
-          <el-option
-            v-for="c in courseList"
-            :key="c.id"
-            :label="c.name || c.title"
-            :value="c.id"
-          />
+          <el-option v-for="c in courseList" :key="c.id" :label="c.name || c.title" :value="c.id" />
         </el-select>
       </el-form-item>
       <el-form-item label="试卷标题" prop="title">

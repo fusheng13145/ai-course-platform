@@ -184,7 +184,8 @@ export function useCourseCompletionTab(courseIdRef) {
       for (const t of taskList) {
         try {
           const subRes = await submissionApi.getTaskSubmissions(t.id)
-          const submissions = subRes.data?.records || subRes.data?.list || subRes.data || subRes || []
+          const submissions =
+            subRes.data?.records || subRes.data?.list || subRes.data || subRes || []
           const subs = Array.isArray(submissions) ? submissions : []
           subs.forEach((sub) => {
             const key = String(sub.studentId || sub.userId || sub.submitterId || '')

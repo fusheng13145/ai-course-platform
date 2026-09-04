@@ -20,12 +20,7 @@
           }}</span></template
         >
       </el-table-column>
-      <el-table-column
-        prop="courseName"
-        label="所属课程"
-        min-width="140"
-        show-overflow-tooltip
-      />
+      <el-table-column prop="courseName" label="所属课程" min-width="140" show-overflow-tooltip />
       <el-table-column label="审核" width="110" align="center">
         <template #default="{ row }">
           <el-tag size="small" :type="getReviewTag(row.reviewStatus)" effect="light">{{
@@ -36,15 +31,11 @@
       <el-table-column label="操作" width="240" fixed="right" align="center">
         <template #default="{ row }">
           <div class="action-row">
-            <el-button link type="primary" size="small" @click="$emit('edit', row)"
-              >编辑</el-button
-            >
+            <el-button link type="primary" size="small" @click="$emit('edit', row)">编辑</el-button>
             <el-button link type="warning" size="small" @click="$emit('review', row)"
               >审核</el-button
             >
-            <el-button link type="success" size="small" @click="$emit('copy', row)"
-              >复制</el-button
-            >
+            <el-button link type="success" size="small" @click="$emit('copy', row)">复制</el-button>
             <el-button link type="danger" size="small" @click="$emit('delete', row)"
               >删除</el-button
             >

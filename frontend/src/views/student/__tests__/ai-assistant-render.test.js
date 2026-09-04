@@ -84,13 +84,19 @@ describe('AIAssistant 页面渲染', () => {
         global: {
           stubs: {
             'el-icon': true,
-            'el-button': { template: '<button :disabled="$attrs.disabled"><slot /></button>', inheritAttrs: false },
+            'el-button': {
+              template: '<button :disabled="$attrs.disabled"><slot /></button>',
+              inheritAttrs: false,
+            },
             'el-input': {
               template: '<textarea v-model="modelValue" :placeholder="placeholder"></textarea>',
               props: ['modelValue', 'placeholder', 'type', 'rows', 'autosize', 'resize'],
               emits: ['update:modelValue'],
             },
-            'el-select': { template: '<select><slot /></select>', props: ['modelValue', 'placeholder', 'size', 'style', 'clearable'] },
+            'el-select': {
+              template: '<select><slot /></select>',
+              props: ['modelValue', 'placeholder', 'size', 'style', 'clearable'],
+            },
             'el-option': { template: '<option><slot /></option>', props: ['label', 'value'] },
             'el-empty': { template: '<div><slot /></div>' },
             'el-tooltip': { template: '<div><slot /></div>' },
@@ -213,7 +219,7 @@ describe('AIAssistant 页面渲染', () => {
           },
         },
       })
-      const quickTexts = wrapper.findAll('.quick-btn span').map(n => n.text())
+      const quickTexts = wrapper.findAll('.quick-btn span').map((n) => n.text())
       expect(quickTexts).toContain('总结课程')
       expect(quickTexts).toContain('生成练习题')
       expect(quickTexts).toContain('解释概念')
@@ -229,13 +235,15 @@ describe('AIAssistant 页面渲染', () => {
           stubs: {
             'el-icon': true,
             'el-button': {
-              template: '<button :disabled="$attrs.loading || $attrs.disabled" @click="$emit(\'click\')"><slot /></button>',
+              template:
+                '<button :disabled="$attrs.loading || $attrs.disabled" @click="$emit(\'click\')"><slot /></button>',
               props: ['loading', 'disabled', 'icon', 'circle', 'type'],
               emits: ['click'],
               inheritAttrs: false,
             },
             'el-input': {
-              template: '<textarea v-model="modelValue" :placeholder="placeholder" @keydown.enter.exact="$emit(\'keydown\', $event)"></textarea>',
+              template:
+                '<textarea v-model="modelValue" :placeholder="placeholder" @keydown.enter.exact="$emit(\'keydown\', $event)"></textarea>',
               props: ['modelValue', 'placeholder', 'type', 'rows', 'autosize', 'resize'],
               emits: ['update:modelValue', 'keydown'],
             },
@@ -307,7 +315,11 @@ describe('AIAssistant 页面渲染', () => {
           stubs: {
             'el-icon': true,
             'el-button': { template: '<button><slot /></button>' },
-            'el-input': { template: '<textarea v-model="modelValue"></textarea>', props: ['modelValue'], emits: ['update:modelValue'] },
+            'el-input': {
+              template: '<textarea v-model="modelValue"></textarea>',
+              props: ['modelValue'],
+              emits: ['update:modelValue'],
+            },
             'el-select': true,
             'el-option': true,
             'el-empty': true,
@@ -337,9 +349,7 @@ describe('AIAssistant 页面渲染', () => {
           },
         },
       })
-      wrapper.vm.messages = [
-        { role: 'user', content: '测试消息', time: '12:00' },
-      ]
+      wrapper.vm.messages = [{ role: 'user', content: '测试消息', time: '12:00' }]
       await nextTick()
 
       expect(wrapper.find('.user-bubble').exists()).toBe(true)
@@ -359,9 +369,7 @@ describe('AIAssistant 页面渲染', () => {
           },
         },
       })
-      wrapper.vm.messages = [
-        { role: 'assistant', content: 'AI 回复', time: '12:01' },
-      ]
+      wrapper.vm.messages = [{ role: 'assistant', content: 'AI 回复', time: '12:01' }]
       await nextTick()
 
       expect(wrapper.find('.ai-bubble').exists()).toBe(true)

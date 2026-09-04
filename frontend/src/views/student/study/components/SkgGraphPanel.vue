@@ -14,7 +14,10 @@
         @click="emit('node-click', $event)"
       />
       <el-empty
-        v-else-if="!graphLoading && (!graphOption.series?.[0]?.data || graphOption.series[0].data.length === 0)"
+        v-else-if="
+          !graphLoading &&
+          (!graphOption.series?.[0]?.data || graphOption.series[0].data.length === 0)
+        "
         description="请选择课程查看知识图谱"
         :image-size="100"
       >
@@ -59,9 +62,16 @@
 
       <!-- 前置知识点 -->
       <div v-if="prerequisiteNodes.length > 0" class="relation-section">
-        <h5 class="relation-title"><el-icon><ArrowLeft /></el-icon> 前置知识点</h5>
+        <h5 class="relation-title">
+          <el-icon><ArrowLeft /></el-icon> 前置知识点
+        </h5>
         <div class="relation-list">
-          <span v-for="node in prerequisiteNodes" :key="node.id" class="relation-tag" @click="emit('select', node.id)">
+          <span
+            v-for="node in prerequisiteNodes"
+            :key="node.id"
+            class="relation-tag"
+            @click="emit('select', node.id)"
+          >
             {{ node.name }}
           </span>
         </div>
@@ -69,9 +79,16 @@
 
       <!-- 后续知识点 -->
       <div v-if="subsequentNodes.length > 0" class="relation-section">
-        <h5 class="relation-title">后续知识点<el-icon><ArrowRight /></el-icon></h5>
+        <h5 class="relation-title">
+          后续知识点<el-icon><ArrowRight /></el-icon>
+        </h5>
         <div class="relation-list">
-          <span v-for="node in subsequentNodes" :key="node.id" class="relation-tag subsequent" @click="emit('select', node.id)">
+          <span
+            v-for="node in subsequentNodes"
+            :key="node.id"
+            class="relation-tag subsequent"
+            @click="emit('select', node.id)"
+          >
             {{ node.name }}
           </span>
         </div>

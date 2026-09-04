@@ -2,7 +2,13 @@
   <div class="course-card" @click="emit('go-detail', course)">
     <div class="card-cover" :style="{ background: getCoverGradient(course) }">
       <div class="cover-overlay">
-        <el-tag size="small" :type="getStatusType(course.approvalStatus)" effect="dark" round class="status-tag">
+        <el-tag
+          size="small"
+          :type="getStatusType(course.approvalStatus)"
+          effect="dark"
+          round
+          class="status-tag"
+        >
           {{ getStatusText(course.approvalStatus) }}
         </el-tag>
         <el-tag

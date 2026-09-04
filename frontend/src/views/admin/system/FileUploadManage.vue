@@ -167,10 +167,7 @@ async function refreshList() {
       ...s,
       fileName: s.filename || s.fileName,
       // 进度由已上传分片数/总分片数推导（实体无 progress 字段）
-      progress:
-        s.totalChunks > 0
-          ? Math.round(((s.uploadedChunks || 0) / s.totalChunks) * 100)
-          : 0,
+      progress: s.totalChunks > 0 ? Math.round(((s.uploadedChunks || 0) / s.totalChunks) * 100) : 0,
     }))
   } catch (e) {
     console.error('加载上传会话失败:', e)

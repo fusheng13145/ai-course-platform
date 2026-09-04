@@ -18,16 +18,10 @@
         <el-icon><Warning /></el-icon>异常成绩预警
       </div>
       <div v-if="abnormalGrades.length > 0" class="abnormal-list">
-        <div
-          v-for="(item, idx) in abnormalGrades.slice(0, 5)"
-          :key="idx"
-          class="abnormal-item"
-        >
+        <div v-for="(item, idx) in abnormalGrades.slice(0, 5)" :key="idx" class="abnormal-item">
           <div class="abnormal-info">
             <span class="name">{{ item.studentName }}</span>
-            <span class="score" :class="item.score < 60 ? 'low' : 'high'"
-              >{{ item.score }}分</span
-            >
+            <span class="score" :class="item.score < 60 ? 'low' : 'high'">{{ item.score }}分</span>
           </div>
           <span class="course">{{ item.courseName }}</span>
         </div>

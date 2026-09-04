@@ -9,7 +9,12 @@
           <span class="compare-label">计划进度</span>
           <el-tag size="small" type="info" effect="plain">按教学计划</el-tag>
         </div>
-        <el-progress :percentage="plannedProgress" :stroke-width="16" :color="'#94a3b8'" :show-text="false" />
+        <el-progress
+          :percentage="plannedProgress"
+          :stroke-width="16"
+          :color="'#94a3b8'"
+          :show-text="false"
+        />
         <div class="compare-detail">
           <span>计划完成 {{ plannedChapters }} / {{ totalChapters }} 章</span>
           <span class="compare-sub">预计还需 {{ plannedRemaining }} 章</span>

@@ -6,17 +6,31 @@
       <el-tabs v-model="activeTab" type="border-card" class="settings-tabs">
         <!-- 基础设置 -->
         <el-tab-pane label="基础设置" name="basic">
-          <SsBasicForm :form="forms.basic" :rules="basicRules" :saving="saving.basic" @save="saveSettings('basic')" />
+          <SsBasicForm
+            :form="forms.basic"
+            :rules="basicRules"
+            :saving="saving.basic"
+            @save="saveSettings('basic')"
+          />
         </el-tab-pane>
 
         <!-- 安全设置 -->
         <el-tab-pane label="安全设置" name="security">
-          <SsSecurityForm :form="forms.security" :saving="saving.security" @save="saveSettings('security')" />
+          <SsSecurityForm
+            :form="forms.security"
+            :saving="saving.security"
+            @save="saveSettings('security')"
+          />
         </el-tab-pane>
 
         <!-- 邮件配置 -->
         <el-tab-pane label="邮件配置" name="email">
-          <SsEmailForm :form="forms.email" :saving="saving.email" @save="saveSettings('email')" @test-email="sendTestEmail" />
+          <SsEmailForm
+            :form="forms.email"
+            :saving="saving.email"
+            @save="saveSettings('email')"
+            @test-email="sendTestEmail"
+          />
         </el-tab-pane>
 
         <!-- 上传配置 -->

@@ -43,14 +43,12 @@
           <el-button text size="small" @click="$emit('like', p)">
             <el-icon><Pointer /></el-icon>赞 {{ p.likeCount || 0 }}
           </el-button>
-          <el-button text size="small" type="danger" @click="$emit('remove-post', p)">删除</el-button>
+          <el-button text size="small" type="danger" @click="$emit('remove-post', p)"
+            >删除</el-button
+          >
         </div>
       </div>
-      <el-empty
-        v-if="!postLoading && posts.length === 0"
-        description="暂无回复"
-        :image-size="56"
-      />
+      <el-empty v-if="!postLoading && posts.length === 0" description="暂无回复" :image-size="56" />
     </div>
 
     <div class="reply-box">

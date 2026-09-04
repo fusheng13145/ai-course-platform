@@ -49,7 +49,9 @@
               >复制</el-button
             >
             <el-button link type="primary" :icon="Edit" @click="emit('edit', row)">编辑</el-button>
-            <el-button link type="danger" :icon="Delete" @click="emit('remove', row)">删除</el-button>
+            <el-button link type="danger" :icon="Delete" @click="emit('remove', row)"
+              >删除</el-button
+            >
           </template>
         </el-table-column>
       </el-table>
@@ -72,14 +74,7 @@
 </template>
 
 <script setup lang="ts">
-import {
-  Promotion,
-  View,
-  DataAnalysis,
-  CopyDocument,
-  Edit,
-  Delete,
-} from '@element-plus/icons-vue'
+import { Promotion, View, DataAnalysis, CopyDocument, Edit, Delete } from '@element-plus/icons-vue'
 
 /**
  * 课程试卷 — 试卷列表表格（含分页与行操作）。

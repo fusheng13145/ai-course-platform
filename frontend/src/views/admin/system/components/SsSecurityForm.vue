@@ -1,6 +1,8 @@
 <template>
   <el-form ref="formRef" :model="form" label-width="160px" class="settings-form">
-    <el-divider content-position="left"><el-icon><Lock /></el-icon>密码策略</el-divider>
+    <el-divider content-position="left"
+      ><el-icon><Lock /></el-icon>密码策略</el-divider
+    >
 
     <el-form-item label="最小密码长度" prop="minPasswordLength">
       <el-input-number v-model="form.minPasswordLength" :min="6" :max="32" />
@@ -20,7 +22,9 @@
       <span class="form-tip">0表示永不过期</span>
     </el-form-item>
 
-    <el-divider content-position="left"><el-icon><Monitor /></el-icon>登录限制</el-divider>
+    <el-divider content-position="left"
+      ><el-icon><Monitor /></el-icon>登录限制</el-divider
+    >
 
     <el-form-item label="最大登录尝试次数" prop="maxLoginAttempts">
       <el-input-number v-model="form.maxLoginAttempts" :min="3" :max="20" />
@@ -31,12 +35,7 @@
     </el-form-item>
 
     <el-form-item label="会话超时时间(分钟)" prop="sessionTimeout">
-      <el-input-number
-        v-model="form.sessionTimeout"
-        :min="15"
-        :max="1440"
-        :step="15"
-      />
+      <el-input-number v-model="form.sessionTimeout" :min="15" :max="1440" :step="15" />
     </el-form-item>
 
     <el-form-item label="启用双因素认证" prop="enable2FA">
@@ -44,9 +43,7 @@
     </el-form-item>
 
     <el-form-item>
-      <el-button type="primary" :loading="saving" @click="handleSave">
-        保存安全设置
-      </el-button>
+      <el-button type="primary" :loading="saving" @click="handleSave"> 保存安全设置 </el-button>
     </el-form-item>
   </el-form>
 </template>

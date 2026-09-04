@@ -17,12 +17,7 @@
       </div>
       <div class="field">
         <label>初始密码<span class="req">*</span></label
-        ><input
-          v-model="form.password"
-          class="input"
-          type="password"
-          placeholder="至少 6 位"
-        />
+        ><input v-model="form.password" class="input" type="password" placeholder="至少 6 位" />
       </div>
       <div class="field">
         <label>角色<span class="req">*</span></label
@@ -70,12 +65,7 @@ const form = reactive({
 })
 
 function submit() {
-  if (
-    !form.username.trim() ||
-    !form.fullName.trim() ||
-    !form.email.trim() ||
-    !form.password
-  ) {
+  if (!form.username.trim() || !form.fullName.trim() || !form.email.trim() || !form.password) {
     toast.show('请填写账号、姓名、邮箱与初始密码', 'warning')
     return
   }

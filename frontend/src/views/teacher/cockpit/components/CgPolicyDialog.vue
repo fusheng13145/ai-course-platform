@@ -125,7 +125,15 @@ async function savePolicy() {
     const body = unwrap(r)
     ElMessage.success('成绩方案已保存')
     emit('update:modelValue', false)
-    emit('saved', body || { id: policyForm.id, courseId: props.courseId, name: payload.name, components: payload.components })
+    emit(
+      'saved',
+      body || {
+        id: policyForm.id,
+        courseId: props.courseId,
+        name: payload.name,
+        components: payload.components,
+      },
+    )
   } catch (e) {
     logger.error('保存成绩方案失败', e)
   } finally {

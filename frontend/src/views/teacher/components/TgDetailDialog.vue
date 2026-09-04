@@ -7,8 +7,12 @@
   >
     <template v-if="currentStudent">
       <el-descriptions :column="2" border>
-        <el-descriptions-item label="学号">{{ currentStudent.studentNo || '-' }}</el-descriptions-item>
-        <el-descriptions-item label="姓名">{{ currentStudent.studentName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="学号">{{
+          currentStudent.studentNo || '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="姓名">{{
+          currentStudent.studentName || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="课程">{{
           currentStudent.courseName || selectedCourseName
         }}</el-descriptions-item>

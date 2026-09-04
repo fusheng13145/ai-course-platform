@@ -1,12 +1,8 @@
 <template>
-  <el-form
-    ref="formRef"
-    :model="form"
-    label-width="140px"
-    :rules="rules"
-    class="settings-form"
-  >
-    <el-divider content-position="left"><el-icon><Setting /></el-icon>站点信息</el-divider>
+  <el-form ref="formRef" :model="form" label-width="140px" :rules="rules" class="settings-form">
+    <el-divider content-position="left"
+      ><el-icon><Setting /></el-icon>站点信息</el-divider
+    >
 
     <el-form-item label="站点名称" prop="siteName">
       <el-input v-model="form.siteName" placeholder="请输入站点名称" />
@@ -29,14 +25,12 @@
       <el-input v-model="form.icpNumber" placeholder="ICP备案号（可选）" />
     </el-form-item>
 
-    <el-divider content-position="left"><el-icon><User /></el-icon>用户相关</el-divider>
+    <el-divider content-position="left"
+      ><el-icon><User /></el-icon>用户相关</el-divider
+    >
 
     <el-form-item label="允许注册" prop="allowRegister">
-      <el-switch
-        v-model="form.allowRegister"
-        active-text="开启"
-        inactive-text="关闭"
-      />
+      <el-switch v-model="form.allowRegister" active-text="开启" inactive-text="关闭" />
       <span class="form-tip">关闭后新用户无法自行注册</span>
     </el-form-item>
 
@@ -52,9 +46,7 @@
     </el-form-item>
 
     <el-form-item>
-      <el-button type="primary" :loading="saving" @click="handleSave">
-        保存基础设置
-      </el-button>
+      <el-button type="primary" :loading="saving" @click="handleSave"> 保存基础设置 </el-button>
     </el-form-item>
   </el-form>
 </template>

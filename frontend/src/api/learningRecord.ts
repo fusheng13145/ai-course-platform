@@ -1,7 +1,7 @@
 import request from './request'
 
 // 学习记录基础 API
-export const createLearningRecord = data => request.post('/learning-records', data)
+export const createLearningRecord = (data) => request.post('/learning-records', data)
 /**
  * 导出函数 getMyLearningRecords：获取/查询数据
  */

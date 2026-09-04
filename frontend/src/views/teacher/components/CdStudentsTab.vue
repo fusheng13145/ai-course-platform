@@ -18,7 +18,9 @@
         <template #default="{ row }">
           <span
             class="status-dot"
-            :class="row.approvalStatus === 'APPROVED' ? 'status-dot--active' : 'status-dot--inactive'"
+            :class="
+              row.approvalStatus === 'APPROVED' ? 'status-dot--active' : 'status-dot--inactive'
+            "
             ><i />{{
               row.approvalStatus === 'APPROVED'
                 ? '已通过'

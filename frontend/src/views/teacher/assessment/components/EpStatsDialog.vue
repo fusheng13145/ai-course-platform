@@ -33,8 +33,7 @@
           ><span class="value">{{ formatRate(stats.passRate) }}</span>
         </div>
         <div class="stats-item">
-          <span class="label">提交数</span
-          ><span class="value">{{ stats.submitCount ?? '—' }}</span>
+          <span class="label">提交数</span><span class="value">{{ stats.submitCount ?? '—' }}</span>
         </div>
       </div>
       <el-empty v-if="!hasStats(stats)" description="暂无统计数据" />

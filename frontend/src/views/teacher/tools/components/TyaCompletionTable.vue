@@ -9,9 +9,7 @@
         <el-table-column prop="taskName" label="任务/作业" min-width="140" />
         <el-table-column prop="submissionRate" label="提交率" width="90" align="center">
           <template #default="{ row }">
-            <span :style="{ color: monoScore(row.submissionRate) }"
-              >{{ row.submissionRate }}%</span
-            >
+            <span :style="{ color: monoScore(row.submissionRate) }">{{ row.submissionRate }}%</span>
           </template>
         </el-table-column>
         <el-table-column prop="avgScore" label="平均分" width="80" align="center" />

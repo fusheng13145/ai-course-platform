@@ -38,7 +38,8 @@ export const getAssignmentResult = (assignmentId) =>
   request.get(`/student/assignments/${assignmentId}/result`)
 
 // 学生端 - 错题本
-export const getWrongQuestions = (params = {}) => request.get('/student/wrong-questions', { params })
+export const getWrongQuestions = (params = {}) =>
+  request.get('/student/wrong-questions', { params })
 /**
  * 导出函数 addWrongQuestion：创建/新增数据
  */
@@ -61,7 +62,8 @@ export const getProgressOverview = () => request.get('/student/progress/overview
 /**
  * 导出函数 getProgressCalendar：获取/查询数据
  */
-export const getProgressCalendar = (params = {}) => request.get('/student/progress/calendar', { params })
+export const getProgressCalendar = (params = {}) =>
+  request.get('/student/progress/calendar', { params })
 /**
  * 导出函数 getProgressStatistics：获取/查询数据
  */

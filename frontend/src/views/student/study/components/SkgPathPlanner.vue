@@ -58,19 +58,29 @@
     <div v-else-if="pathPlan && pathPlan.found" class="path-result">
       <div class="path-meta">
         <el-tag size="small" type="info" effect="light">跳数 {{ pathPlan.hops }}</el-tag>
-        <el-tag size="small" :type="pathPlan.mode === 'ENGINE' ? 'success' : 'warning'" effect="light">
+        <el-tag
+          size="small"
+          :type="pathPlan.mode === 'ENGINE' ? 'success' : 'warning'"
+          effect="light"
+        >
           {{ pathPlan.mode === 'ENGINE' ? '图谱引擎计算' : '本地 BFS 兜底' }}
         </el-tag>
       </div>
       <div class="path-chain">
         <template v-for="(node, idx) in pathPlan.path" :key="node?.id ?? idx">
-          <span class="path-node" :class="{ start: idx === 0, end: idx === pathPlan.path.length - 1 }"
+          <span
+            class="path-node"
+            :class="{ start: idx === 0, end: idx === pathPlan.path.length - 1 }"
             >{{ node?.name || '未知' }}</span
           >
-          <el-icon v-if="idx < pathPlan.path.length - 1" class="path-chain-arrow"><Right /></el-icon>
+          <el-icon v-if="idx < pathPlan.path.length - 1" class="path-chain-arrow"
+            ><Right
+          /></el-icon>
         </template>
       </div>
-      <p class="path-note"><el-icon><InfoFilled /></el-icon>{{ pathPlan.note }}</p>
+      <p class="path-note">
+        <el-icon><InfoFilled /></el-icon>{{ pathPlan.note }}
+      </p>
       <p class="path-hint">已在上方图谱中高亮该路径</p>
     </div>
 
@@ -82,7 +92,15 @@
 </template>
 
 <script setup lang="ts">
-import { Right, MagicStick, Loading, WarningFilled, CircleCloseFilled, InfoFilled, Promotion } from '@element-plus/icons-vue'
+import {
+  Right,
+  MagicStick,
+  Loading,
+  WarningFilled,
+  CircleCloseFilled,
+  InfoFilled,
+  Promotion,
+} from '@element-plus/icons-vue'
 
 /**
  * 学生学习路径规划面板

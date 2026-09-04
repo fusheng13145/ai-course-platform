@@ -3,12 +3,7 @@
     <el-table v-loading="loading" :data="examList" style="width: 100%">
       <el-table-column prop="id" label="ID" width="70" />
       <el-table-column prop="title" label="试卷名称" min-width="200" show-overflow-tooltip />
-      <el-table-column
-        prop="courseName"
-        label="所属课程"
-        min-width="150"
-        show-overflow-tooltip
-      />
+      <el-table-column prop="courseName" label="所属课程" min-width="150" show-overflow-tooltip />
       <el-table-column prop="teacherName" label="创建教师" width="120" />
       <el-table-column prop="totalScore" label="总分" width="70" align="center" />
       <el-table-column prop="duration" label="时长(分钟)" width="100" align="center" />
@@ -21,9 +16,7 @@
       </el-table-column>
       <el-table-column label="操作" width="260" fixed="right">
         <template #default="{ row }">
-          <el-button text type="primary" size="small" @click="$emit('detail', row)"
-            >详情</el-button
-          >
+          <el-button text type="primary" size="small" @click="$emit('detail', row)">详情</el-button>
           <el-button
             v-if="row.status === 'PENDING'"
             text
@@ -40,9 +33,7 @@
             @click="$emit('reject', row)"
             >拒绝</el-button
           >
-          <el-button text type="warning" size="small" @click="$emit('stats', row)"
-            >统计</el-button
-          >
+          <el-button text type="warning" size="small" @click="$emit('stats', row)">统计</el-button>
         </template>
       </el-table-column>
     </el-table>

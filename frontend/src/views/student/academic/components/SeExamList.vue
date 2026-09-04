@@ -98,19 +98,13 @@
                 :disabled="exam.completed || exam.status === 'EXPIRED'"
                 @click="emit('enter', exam)"
               >
-                {{
-                  exam.completed ? '已完成' : exam.status === 'EXPIRED' ? '已过期' : '开始考试'
-                }}
+                {{ exam.completed ? '已完成' : exam.status === 'EXPIRED' ? '已过期' : '开始考试' }}
               </el-button>
             </div>
           </div>
         </div>
 
-        <el-empty
-          v-if="!loading && exams.length === 0"
-          description="暂无考试"
-          :image-size="120"
-        >
+        <el-empty v-if="!loading && exams.length === 0" description="暂无考试" :image-size="120">
           <template #image><div class="empty-deco">📝</div></template>
         </el-empty>
       </div>

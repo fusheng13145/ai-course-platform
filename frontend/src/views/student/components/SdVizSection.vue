@@ -12,7 +12,12 @@
         <span class="viz-title">课程薄弱度</span>
         <span class="viz-sub">未掌握错题占比（%）</span>
       </div>
-      <VChart v-if="radarDimensions.length" :option="radarOption" autoresize style="height: 220px" />
+      <VChart
+        v-if="radarDimensions.length"
+        :option="radarOption"
+        autoresize
+        style="height: 220px"
+      />
       <el-empty v-else description="暂无错题数据" :image-size="60" />
     </div>
     <div class="viz-card viz-wide">

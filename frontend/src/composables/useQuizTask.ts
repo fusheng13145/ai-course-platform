@@ -52,7 +52,10 @@ export function useQuizTask({ courseId, getTask, onTaskCompleted }) {
       const a = quizAnswers[q.id]
       if (q.type === 'MULTIPLE_CHOICE' || q.type === 'MULTIPLE') {
         const arr = Array.isArray(a)
-          ? a.map(Number).sort((x, y) => x - y).map(String)
+          ? a
+              .map(Number)
+              .sort((x, y) => x - y)
+              .map(String)
           : []
         ans[q.id] = arr.join(',')
       } else if (q.type === 'TRUE_FALSE' || q.type === 'JUDGE') {

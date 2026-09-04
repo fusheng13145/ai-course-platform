@@ -8,7 +8,9 @@
     <template v-if="currentExam">
       <el-descriptions :column="2" border>
         <el-descriptions-item label="试卷标题">{{ currentExam.title }}</el-descriptions-item>
-        <el-descriptions-item label="所属课程">{{ currentExam.courseName || '-' }}</el-descriptions-item>
+        <el-descriptions-item label="所属课程">{{
+          currentExam.courseName || '-'
+        }}</el-descriptions-item>
         <el-descriptions-item label="状态">
           <el-tag :type="getStatusType(currentExam.status)" size="small">{{
             getStatusText(currentExam.status)
@@ -17,12 +19,18 @@
         <el-descriptions-item label="总分/时长"
           >{{ currentExam.totalScore }}分 / {{ currentExam.duration }}分钟</el-descriptions-item
         >
-        <el-descriptions-item label="参考人数">{{ currentExam.attemptCount || 0 }}人</el-descriptions-item>
+        <el-descriptions-item label="参考人数"
+          >{{ currentExam.attemptCount || 0 }}人</el-descriptions-item
+        >
         <el-descriptions-item label="平均分">{{
           currentExam.avgScore != null ? currentExam.avgScore : '-'
         }}</el-descriptions-item>
-        <el-descriptions-item label="最高分">{{ currentExam.maxScore ?? '-' }}</el-descriptions-item>
-        <el-descriptions-item label="最低分">{{ currentExam.minScore ?? '-' }}</el-descriptions-item>
+        <el-descriptions-item label="最高分">{{
+          currentExam.maxScore ?? '-'
+        }}</el-descriptions-item>
+        <el-descriptions-item label="最低分">{{
+          currentExam.minScore ?? '-'
+        }}</el-descriptions-item>
       </el-descriptions>
 
       <!-- 题目预览 -->
@@ -41,7 +49,10 @@
     </template>
     <template #footer>
       <el-button @click="emit('update:modelValue', false)">关闭</el-button>
-      <el-button v-if="currentExam?.status === 'DRAFT'" type="success" @click="emit('publish', currentExam)"
+      <el-button
+        v-if="currentExam?.status === 'DRAFT'"
+        type="success"
+        @click="emit('publish', currentExam)"
         >发布试卷</el-button
       >
       <el-button type="warning" @click="emit('copy', currentExam)">复制试卷</el-button>

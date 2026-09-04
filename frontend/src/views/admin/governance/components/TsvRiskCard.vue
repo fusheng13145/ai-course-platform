@@ -27,10 +27,12 @@
 
     <div v-if="riskTotal > 0" class="risk-summary">
       <div class="rs-item">
-        <span class="rs-val">{{ riskTotal }}</span><span class="rs-lbl">学生选课人次</span>
+        <span class="rs-val">{{ riskTotal }}</span
+        ><span class="rs-lbl">学生选课人次</span>
       </div>
       <div class="rs-item danger">
-        <span class="rs-val">{{ riskCount }}</span><span class="rs-lbl">掉队预警人次</span>
+        <span class="rs-val">{{ riskCount }}</span
+        ><span class="rs-lbl">掉队预警人次</span>
       </div>
       <div class="rs-item">
         <span class="rs-val">{{ riskRate }}%</span><span class="rs-lbl">预警占比</span>
@@ -61,12 +63,9 @@
         <span class="c-prog">{{ d.progress }}%</span>
         <span class="c-score">{{ d.finalScore ?? '—' }}</span>
         <span class="c-level">
-          <el-tag
-            size="small"
-            :type="d.level === 'HIGH' ? 'danger' : 'warning'"
-            effect="dark"
-            >{{ d.level === 'HIGH' ? '高危' : '中危' }}</el-tag
-          >
+          <el-tag size="small" :type="d.level === 'HIGH' ? 'danger' : 'warning'" effect="dark">{{
+            d.level === 'HIGH' ? '高危' : '中危'
+          }}</el-tag>
         </span>
       </div>
       <el-empty

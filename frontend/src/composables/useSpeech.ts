@@ -13,8 +13,10 @@
 
 /** 语音识别是否可用 */
 export function isRecognitionSupported() {
-  return typeof window !== 'undefined' &&
+  return (
+    typeof window !== 'undefined' &&
     ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
+  )
 }
 
 /** 语音合成是否可用 */
@@ -74,9 +76,12 @@ export function startRecognition({ onResult, onEnd, onError }) {
 /** 中文语音优先的合成器；找不到中文语音则用默认语音。 */
 function pickChineseVoice() {
   const voices = window.speechSynthesis.getVoices()
-  return voices.find((v) => v.lang === 'zh-CN') ||
+  return (
+    voices.find((v) => v.lang === 'zh-CN') ||
     voices.find((v) => v.lang?.toLowerCase().startsWith('zh')) ||
-    voices[0] || null
+    voices[0] ||
+    null
+  )
 }
 
 /**
@@ -87,7 +92,10 @@ function pickChineseVoice() {
  * @param {() => void} [opts.onError]
  * @returns {boolean} 是否成功启动朗读
  */
-export function speak(text, { onEnd, onError }: { onEnd?: () => void; onError?: (e?: Error) => void } = {}) {
+export function speak(
+  text,
+  { onEnd, onError }: { onEnd?: () => void; onError?: (e?: Error) => void } = {},
+) {
   if (!isSpeechSupported() || !text) return false
   try {
     const utter = new SpeechSynthesisUtterance(text)

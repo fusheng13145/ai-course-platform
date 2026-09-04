@@ -68,7 +68,9 @@ export function useTeacherExams() {
     selectedQuestions.value.reduce((sum, q) => sum + (q.score || 0), 0),
   )
   const draftCount = computed(() => examList.value.filter((e) => e.status === 'DRAFT').length)
-  const publishedCount = computed(() => examList.value.filter((e) => e.status === 'PUBLISHED').length)
+  const publishedCount = computed(
+    () => examList.value.filter((e) => e.status === 'PUBLISHED').length,
+  )
 
   /* ---- 题库选择器 ---- */
   const questionPickerVisible = ref(false)

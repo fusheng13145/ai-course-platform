@@ -35,15 +35,21 @@ export const ADMIN_SECTIONS = [
     label: '系统管理',
     items: [
       {
-        key: 'users', text: '用户权限', icon: 'users',
+        key: 'users',
+        text: '用户权限',
+        icon: 'users',
         path: '/admin/users',
       },
       {
-        key: 'roles', text: '角色管理', icon: 'shield',
+        key: 'roles',
+        text: '角色管理',
+        icon: 'shield',
         path: '/admin/permissions',
       },
       {
-        key: 'settings', text: '系统设置', icon: 'settings',
+        key: 'settings',
+        text: '系统设置',
+        icon: 'settings',
         path: '/admin/system',
       },
     ],
@@ -52,7 +58,9 @@ export const ADMIN_SECTIONS = [
     label: '教学管理',
     items: [
       {
-        key: 'courses', text: '课程库总览', icon: 'book',
+        key: 'courses',
+        text: '课程库总览',
+        icon: 'book',
         children: [
           { key: 'courses-all', text: '全部课程', path: '/admin/courses' },
           { key: 'courses-classes', text: '专业班级管理', path: '/admin/classes' },
@@ -60,7 +68,9 @@ export const ADMIN_SECTIONS = [
       },
       { key: 'questions', text: '题库管理', icon: 'doc', path: '/admin/questions' },
       {
-        key: 'resources', text: '资源管理', icon: 'archive',
+        key: 'resources',
+        text: '资源管理',
+        icon: 'archive',
         children: [
           { key: 'resources-all', text: '资源库', path: '/admin/resources' },
           { key: 'resource-versions', text: '资源版本', path: '/admin/resource-versions' },
@@ -74,7 +84,9 @@ export const ADMIN_SECTIONS = [
       { key: 'dashboard', text: '数据看板', icon: 'chart', path: '/admin/dashboard' },
       { key: 'analytics', text: '教学分析', icon: 'sliders', path: '/admin/analytics' },
       {
-        key: 'governance', text: '监管与考试', icon: 'shield',
+        key: 'governance',
+        text: '监管与考试',
+        icon: 'shield',
         children: [
           { key: 'gov-supervision', text: '教学监督', path: '/admin/supervision' },
           { key: 'gov-exams', text: '考试治理', path: '/admin/exam-governance' },
@@ -121,10 +133,16 @@ export const TEACHER_SECTIONS = [
     label: '智能教学',
     items: [
       {
-        key: 'knowledge', text: '知识图谱', icon: 'layers',
+        key: 'knowledge',
+        text: '知识图谱',
+        icon: 'layers',
         children: [
           { key: 'knowledge-graph', text: '图谱可视化', path: '/teacher/knowledge' },
-          { key: 'knowledge-management', text: '知识点管理', path: '/teacher/knowledge-management' },
+          {
+            key: 'knowledge-management',
+            text: '知识点管理',
+            path: '/teacher/knowledge-management',
+          },
         ],
       },
       { key: 'ai', text: 'AI 教学中心', icon: 'grad', path: '/teacher/ai' },
@@ -147,7 +165,12 @@ export const STUDENT_SECTIONS = [
   {
     label: '学习工具',
     items: [
-      { key: 'knowledge-graph', text: '知识图谱', icon: 'layers', path: '/student/knowledge-graph' },
+      {
+        key: 'knowledge-graph',
+        text: '知识图谱',
+        icon: 'layers',
+        path: '/student/knowledge-graph',
+      },
       { key: 'learning-path', text: '学习路径', icon: 'pin', path: '/student/learning-path' },
       { key: 'calendar', text: '学习日历', icon: 'calendar', path: '/student/learning-calendar' },
     ],

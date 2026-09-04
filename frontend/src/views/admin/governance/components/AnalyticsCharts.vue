@@ -9,12 +9,7 @@
       </div>
       <div class="chart-card">
         <div class="chart-title">课程类别分布</div>
-        <v-chart
-          v-if="hasCategory"
-          :option="categoryPieOption"
-          style="height: 340px"
-          autoresize
-        />
+        <v-chart v-if="hasCategory" :option="categoryPieOption" style="height: 340px" autoresize />
         <el-empty v-else description="暂无课程类别数据" :image-size="80" />
       </div>
     </div>

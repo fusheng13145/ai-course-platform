@@ -36,7 +36,11 @@
       max-height="360"
       @selection-change="emit('selection-change', $event)"
     >
-      <el-table-column type="selection" width="45" :selectable="(row) => !isQuestionSelected(row.id)" />
+      <el-table-column
+        type="selection"
+        width="45"
+        :selectable="(row) => !isQuestionSelected(row.id)"
+      />
       <el-table-column prop="content" label="题目内容" min-width="280" show-overflow-tooltip />
       <el-table-column prop="type" label="题型" width="95" align="center">
         <template #default="{ row }"

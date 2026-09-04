@@ -157,16 +157,14 @@ export const cloneCourse = (courseId, newName) =>
 export const getCourseClasses = async (courseId) => {
   const [classesRes, pendingRes] = await Promise.all([
     request.get(`/classrooms/by-course/${courseId}`),
-    request
-      .get(`/classrooms/by-course/${courseId}/pending`)
-      .catch(() => ({ data: [] })),
+    request.get(`/classrooms/by-course/${courseId}/pending`).catch(() => ({ data: [] })),
   ])
   const list = Array.isArray(classesRes?.data) ? classesRes.data : []
   const pendingMap = new Map(
     (Array.isArray(pendingRes?.data) ? pendingRes.data : []).map((p) => [
       p.classroomId,
       p.pendingCount || 0,
-    ])
+    ]),
   )
   return list.map((c) => ({
     key: c.id,

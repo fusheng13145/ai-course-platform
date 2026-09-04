@@ -55,7 +55,8 @@ export const getOverview = () => request.get('/admin/statistics/overview')
 /**
  * 导出函数 getUserGrowth：获取/查询数据
  */
-export const getUserGrowth = (params = {}) => request.get('/admin/statistics/user-growth', { params })
+export const getUserGrowth = (params = {}) =>
+  request.get('/admin/statistics/user-growth', { params })
 /**
  * 导出函数 getCourseStats：获取/查询数据
  */

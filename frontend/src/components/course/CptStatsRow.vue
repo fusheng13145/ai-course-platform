@@ -3,9 +3,26 @@
     <div class="stat-card">
       <div class="stat-icon stat-icon--blue">
         <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
-          <path d="M22 12A10 10 0 1 1 12 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
-          <path d="M22 12A10 10 0 1 1 2 12" stroke="currentColor" stroke-width="2" stroke-linecap="round" opacity="0.3" />
-          <path d="M12 6v6l4 2" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          <path
+            d="M22 12A10 10 0 1 1 12 2"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
+          <path
+            d="M22 12A10 10 0 1 1 2 12"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            opacity="0.3"
+          />
+          <path
+            d="M12 6v6l4 2"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
         </svg>
       </div>
       <div class="stat-info">
@@ -34,9 +51,20 @@
     <div class="stat-card">
       <div class="stat-icon stat-icon--purple">
         <svg viewBox="0 0 24 24" fill="none" width="20" height="20">
-          <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2" stroke="currentColor" stroke-width="2" stroke-linecap="round" />
+          <path
+            d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+          />
           <rect x="8" y="2" width="8" height="4" rx="1" stroke="currentColor" stroke-width="2" />
-          <path d="M9 14l2 2 4-4" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" />
+          <path
+            d="M9 14l2 2 4-4"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          />
         </svg>
       </div>
       <div class="stat-info">
