@@ -81,6 +81,10 @@ class Phase1Phase3IntegrationTest extends AbstractIntegrationTest {
         Course course = new Course();
         course.setName("集成测试课程");
         course.setCode("TEST001");
+        // 修复：courses.teacher_id 为 BIGINT NOT NULL 且无默认值（外键关联 users.id），
+        // 未显式设置将触发 "Field 'teacher_id' doesn't have a default value"。
+        // 此处使用 index.sql 种子数据中的教师账户（id=2，teacher@aicourse.com）以满足外键约束。
+        course.setTeacherId(2L);
         boolean saved = courseService.save(course);
         assertTrue(saved);
         assertNotNull(course.getId());
@@ -110,8 +114,11 @@ class Phase1Phase3IntegrationTest extends AbstractIntegrationTest {
         assertEquals("ADMIN", admin.getRole());
 
         // 验证密码加密匹配
-        // 种子数据中 admin 用户的密码应已通过 BCrypt 加密
-        String rawPassword = "admin123";
+        // 种子数据中 admin 用户的密码应已通过 BCrypt 加密。
+        // 修复：原硬编码 "admin123" 与 index.sql 实际种子哈希不符（测试从未在 CI 跑通过故未暴露）。
+        // 经 bcrypt 实证校验，index.sql 中全部用户共用哈希对应的明文为 "123456"。
+        // 安全提示：该默认密码强度极弱，生产部署前必须更换（见 docs 待办）。
+        String rawPassword = "123456";
         boolean passwordMatches = passwordEncoder.matches(rawPassword, admin.getPassword());
         assertTrue(passwordMatches, "原始密码应能匹配数据库中加密存储的密码");
 

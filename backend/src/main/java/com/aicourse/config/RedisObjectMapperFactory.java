@@ -56,6 +56,14 @@ public final class RedisObjectMapperFactory {
                 .allowIfSubType("java.util.")
                 .allowIfSubType("java.lang.")
                 .allowIfSubType("java.time.")
+                // 修复：实体含 BigDecimal 字段（如 Course.credits / Course.price，对应
+                // DECIMAL(5,2) / DECIMAL(10,2)）。BigDecimal 为非 final 类型，
+                // NON_FINAL 默认类型策略会写入 "@class":"java.math.BigDecimal"，
+                // 但白名单原先未包含 java.math.，反序列化时
+                // PolymorphicTypeValidator 拒绝解析该 type id，导致
+                // "Could not resolve type id 'java.math.BigDecimal'" ——
+                // 任何从缓存读取含 BigDecimal 实体的操作都会失败。
+                .allowIfSubType("java.math.")
                 .build();
         mapper.activateDefaultTyping(
                 ptv,

@@ -165,9 +165,25 @@ jobs:
     permissions:
       security-events: write # 上传 SARIF 到 code scanning
       contents: read
+      # 修复：github/codeql-action/upload-sarif 需读取 workflow run 元数据，
+      # 缺失时报 "Resource not accessible by integration ...
+      # /rest/actions/workflow-runs#get-a-workflow-run" 并导致上传失败。
+      actions: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
+      - name: Trivy fs scan (diagnostic table output)
+        # 仅用于日志诊断：以 table 格式打印命中的 HIGH/CRITICAL 项，不阻断构建，
+        # 便于在门禁失败时直接从日志定位具体漏洞（sarif 模式下详情写入文件，日志不可见）。
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          severity: 'HIGH,CRITICAL'
+          ignore-unfixed: true
+          exit-code: '0'
 
       - name: Trivy fs scan (repo config + deps)
         uses: aquasecurity/trivy-action@v0.35.0
@@ -242,10 +258,17 @@ jobs:
           echo "${OSV_SHA256}  /tmp/osv-scanner" | sha256sum -c -
           chmod +x /tmp/osv-scanner
 
+      - name: Generate CycloneDX SBOM (via Maven mirror)
+        # 由 Maven 生成 SBOM（依赖解析走 settings.xml 镜像 + 本地缓存），
+        # 使 OSV-Scanner 扫描阶段无需自行联网解析，彻底规避 Maven Central 429 限流。
+        run: mvn -B org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeAggregateBom
+
       - name: OSV-Scanner (fail on known vulnerabilities)
-        # 使用 maven-resolved 策略：通过 Maven CLI 解析依赖（受 settings.xml 镜像 + 本地缓存保护），
-        # 避免默认 pomxml 策略直接访问 Maven Central 触发 429 限流。
-        run: /tmp/osv-scanner scan --format=sarif --output=osv-scan.sarif --strategy=maven-resolved ./pom.xml
+        # 扫描 CycloneDX SBOM 而非 pom.xml，原因有二：
+        # 1) OSV-Scanner v2.3.8 不支持 --strategy flag（会报 "flag provided but not defined"，exit 127）；
+        # 2) 默认 pomxml 策略会自行向 repo.maven.apache.org 拉取父 POM，触发 429 限流。
+        # 改为扫描 SBOM 后，依赖关系已由 Maven 解析完毕，扫描阶段不做任何外部依赖解析。
+        run: /tmp/osv-scanner scan --format=sarif --output=osv-scan.sarif --sbom=target/bom.json
 
       - name: Upload OSV-Scanner report
         if: always()
