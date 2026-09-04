@@ -83,8 +83,23 @@ class LocalFileStorageServiceImplTest {
 
     @Test
     void upload_ioError_wrapsInRuntimeException() {
-        // Windows 下文件名含 "*" 属非法，FileOutputStream 创建失败 -> 捕获后抛 RuntimeException
+        // 使用「读时抛 IOException」的 InputStream 强制触发 catch 块，
+        // 跨平台可复现（原测试用 "bad*name.txt" 仅在 Windows 非法，
+        // 在 Linux/Ubuntu 合法，导致 CI 上 FileOutputStream 创建成功、异常未抛出）。
+        // 直接继承 InputStream 抽象类；同时覆盖 read()（抽象）与 read(byte[],int,int)，
+        // 其中后者是实现 read(byte[]) 时的实际调用入口。
+        InputStream brokenStream = new InputStream() {
+            @Override
+            public int read() throws IOException {
+                throw new IOException("Simulated read failure for test");
+            }
+
+            @Override
+            public int read(byte[] b, int off, int len) throws IOException {
+                throw new IOException("Simulated read failure for test");
+            }
+        };
         assertThrows(RuntimeException.class,
-                () -> service.upload("bad*name.txt", new ByteArrayInputStream("x".getBytes()), "text/plain", 1));
+                () -> service.upload("test.txt", brokenStream, "text/plain", 1));
     }
 }

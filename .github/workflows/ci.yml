@@ -170,7 +170,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Trivy fs scan (repo config + deps)
-        uses: aquasecurity/trivy-action@v0.28.0
+        uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: 'fs'
           scan-ref: '.'
@@ -203,9 +203,37 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+
+      - name: Configure Maven mirror (avoid Maven Central HTTP 429 rate limits)
+        # 修复：Maven Central 对高消费流量实施 429 限流（Sonatype 官方说明）。
+        # 将 central 仓库重定向到 Google 托管的 Maven Central 镜像，规避限流。
+        # 参考: https://central.sonatype.org/faq/429-error/
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<'EOF'
+          <settings>
+            <mirrors>
+              <mirror>
+                <id>google-maven-central</id>
+                <mirrorOf>central</mirrorOf>
+                <url>https://maven-central-eu.storage-download.googleapis.com/maven2/</url>
+              </mirror>
+            </mirrors>
+          </settings>
+          EOF
+
+      - name: Pre-resolve Maven dependencies (populate local cache via mirror)
+        # 预解析依赖并填充 ~/.m2/repository，后续 maven-resolved 策略可直接复用。
+        run: mvn -B dependency:resolve -DincludeScope=runtime
+
       - name: Install OSV-Scanner
-        # google/osv-scanner-action@v2.3.8 不是可独立在 step 中使用的复合 Action
-        # （GitHub 报 "Top level runs: section is required"），改由官方 release 二进制直接运行。
+        # google/osv-scanner-action 非可独立在 step 中使用的复合 Action，
+        # 改由官方 release 二进制直接运行。
         env:
           OSV_SHA256: bc98e15319ed0d515e3f9235287ba53cdc5535d576d24fd573978ecfe9ab92dc
         run: |
@@ -215,8 +243,9 @@ jobs:
           chmod +x /tmp/osv-scanner
 
       - name: OSV-Scanner (fail on known vulnerabilities)
-        # 无需 API Key：基于 OSV.dev + GitHub Advisory 数据库扫描 pom.xml 及传递依赖
-        run: /tmp/osv-scanner scan --format=sarif --output=osv-scan.sarif ./pom.xml
+        # 使用 maven-resolved 策略：通过 Maven CLI 解析依赖（受 settings.xml 镜像 + 本地缓存保护），
+        # 避免默认 pomxml 策略直接访问 Maven Central 触发 429 限流。
+        run: /tmp/osv-scanner scan --format=sarif --output=osv-scan.sarif --strategy=maven-resolved ./pom.xml
 
       - name: Upload OSV-Scanner report
         if: always()
