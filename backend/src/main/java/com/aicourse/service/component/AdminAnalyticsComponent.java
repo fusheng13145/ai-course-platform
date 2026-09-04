@@ -69,28 +69,6 @@ public class AdminAnalyticsComponent {
         this.objectMapper = objectMapper;
     }
 
-    private long countActiveUsers() {
-        return userService.count(new LambdaQueryWrapper<User>().eq(User::getIsActive, Boolean.TRUE));
-    }
-
-    private long countActiveCourses() {
-        return courseService.count(new LambdaQueryWrapper<Course>().eq(Course::getIsActive, Boolean.TRUE));
-    }
-
-    private double calculateRate(long numerator, long denominator) {
-        return denominator > 0 ? Math.round(numerator * 100.0 / denominator * 100.0) / 100.0 : 0;
-    }
-
-    private long countRecentActiveUsers(int days) {
-        LocalDateTime cutoff = LocalDateTime.now().minusDays(days);
-        return learningRecordService.count(new LambdaQueryWrapper<LearningRecord>().ge(LearningRecord::getCreatedAt, cutoff));
-    }
-
-    private long countNewUsers(int days) {
-        LocalDateTime cutoff = LocalDateTime.now().minusDays(days);
-        return userService.count(new LambdaQueryWrapper<User>().ge(User::getCreatedAt, cutoff));
-    }
-
     /**
      * 获取平台仪表盘数据
      * 包含用户、课程、考试、提交、选课、任务、成绩分布、角色活跃度等多维度统计

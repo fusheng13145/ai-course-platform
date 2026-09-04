@@ -21,6 +21,12 @@ vitest.config.ts.timestamp-*.mjs
 
 # Vite auto-generated (unplugin: dts at root would become untracked after git rm)
 auto-imports.d.ts
+components.d.ts
+
+# Test / coverage / E2E reports
+coverage/
+playwright-report/
+test-results/
 
 # Editor directories and files
 .vscode/*

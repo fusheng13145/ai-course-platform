@@ -140,6 +140,8 @@ def path_plan(body: PathPlanIn) -> Dict[str, Any]:
     if body.source_id not in adj:
         return {"path": [], "edges": [], "hops": 0}
 
+    # 按层 BFS，dist 记录每个节点到 source 的最短跳数，确保 max_hops 限制准确
+    dist: Dict[int, int] = {body.source_id: 0}
     prev: Dict[int, Optional[int]] = {body.source_id: None}
     q = deque([body.source_id])
     reached = False
@@ -148,11 +150,12 @@ def path_plan(body: PathPlanIn) -> Dict[str, Any]:
         if cur == body.target_id:
             reached = True
             break
-        depth = len(prev)  # 近似层级（仅用于 max_hops 粗筛）
-        if depth > body.max_hops + 1:
+        # 当前节点已到达 max_hops 跳，不再扩展下一层（下一层跳数 = dist[cur] + 1）
+        if dist[cur] >= body.max_hops:
             continue
         for nxt in adj.get(cur, []):
-            if nxt not in prev:
+            if nxt not in dist:
+                dist[nxt] = dist[cur] + 1
                 prev[nxt] = cur
                 q.append(nxt)
 

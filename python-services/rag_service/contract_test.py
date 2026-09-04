@@ -54,22 +54,21 @@ def test_document_update_and_delete():
         assert deleted.status_code == 200
 
 
-def test_retrieve_returns_added_document():
+def test_retrieve_returns_degraded_503():
     with TestClient(app) as c:
-        c.post(
-            "/api/v1/rag/documents",
-            json={"course_id": 2, "document_name": "OSI 模型", "content": "七层结构"},
-        )
+        # 占位骨架：引擎未接入，按手册 §34 返回降级语义（code=503 / mode=UNAVAILABLE）
         resp = c.post(
             "/api/v1/rag/retrieve",
             json={"query": "OSI", "course_id": 2, "top_k": 5},
         )
         assert resp.status_code == 200
-        assert resp.json()["code"] == 200
-        assert len(resp.json()["results"]) >= 1
+        body = resp.json()
+        assert body["code"] == 503
+        assert body["mode"] == "UNAVAILABLE"
+        assert body["error"] == "MSG_RAG_UNAVAILABLE"
 
 
-def test_ask_returns_contract_shape():
+def test_ask_returns_degraded_503():
     with TestClient(app) as c:
         resp = c.post(
             "/api/v1/rag/ask",
@@ -78,7 +77,9 @@ def test_ask_returns_contract_shape():
         assert resp.status_code == 200
         body = resp.json()
         assert "answer" in body
-        assert body["code"] == 200
+        assert body["code"] == 503
+        assert body["mode"] == "UNAVAILABLE"
+        assert body["error"] == "MSG_RAG_UNAVAILABLE"
 
 
 def test_index_build():
@@ -86,5 +87,15 @@ def test_index_build():
         c.post("/api/v1/rag/documents",
                json={"course_id": 3, "document_name": "X", "content": "x"})
         resp = c.post("/api/v1/rag/index/build/3")
+        assert resp.status_code == 200
+        assert resp.json()["success"] is True
+
+
+def test_clear_index():
+    with TestClient(app) as c:
+        # 补全手册 §32 列出的 DELETE /api/v1/rag/index/{courseId} 清理索引端点
+        c.post("/api/v1/rag/documents",
+               json={"course_id": 4, "document_name": "Y", "content": "y"})
+        resp = c.delete("/api/v1/rag/index/4")
         assert resp.status_code == 200
         assert resp.json()["success"] is True

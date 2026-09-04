@@ -58,7 +58,7 @@ scrape_configs:
           level:
           logger:
           thread:
-      # 5) 时间戳归一（Spring 的 XXX 形如 +08:00 / Z，RFC3339Nano 可解析）
+      # 6) 时间戳归一（Spring 的 XXX 形如 +08:00 / Z，RFC3339Nano 可解析）
       - timestamp:
           source: timestamp
           format: RFC3339Nano

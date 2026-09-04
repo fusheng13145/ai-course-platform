@@ -75,6 +75,7 @@ class RagQueryResult(BaseModel):
 
 class RagRetrievalResult(BaseModel):
     results: List[RagSource] = []
+    mode: str = "LOCAL_PLACEHOLDER"
     error: Optional[str] = None
     code: int = 200
 
@@ -142,26 +143,26 @@ def delete_document(document_id: int):
 
 @app.post("/api/v1/rag/retrieve", response_model=RagRetrievalResult)
 def retrieve(req: RetrieveRequest):
-    # 占位：返回与 course_id 匹配的已录入文档作为召回片段（真实引擎应做 BM25/向量召回）
-    results: List[RagSource] = []
-    for d in _DOCS.values():
-        if req.course_id is None or d["course_id"] == req.course_id:
-            snippet = (d["content"] or "")[:120]
-            results.append(RagSource(document_id=d["id"], document_name=d["document_name"],
-                                     relevance_score=1.0, snippet=snippet))
-    results = results[: req.top_k]
-    return RagRetrievalResult(results=results)
+    # 占位骨架：真实 RAG 引擎（BM25/向量/embedding/融合）未接入，按手册 §34 降级语义
+    # 返回 code=503 / mode=UNAVAILABLE；待 Python 端接入真实引擎后替换此处逻辑。
+    return RagRetrievalResult(
+        results=[],
+        mode="UNAVAILABLE",
+        error="MSG_RAG_UNAVAILABLE",
+        code=503,
+    )
 
 
 @app.post("/api/v1/rag/ask", response_model=RagQueryResult)
 def ask(req: AskRequest):
-    # 占位：引擎未接入，仅回显（真实引擎应基于 retrieve 结果生成答案）
+    # 占位骨架：真实 RAG 引擎未接入，按手册 §34 降级语义返回 code=503 / mode=UNAVAILABLE；
+    # 与 Java 端 RAG_ENABLED=false 时整体返回 503 一致。待 Python 端接入真实引擎后替换此处逻辑。
     return RagQueryResult(
-        answer="（占位）RAG 引擎待接入，此响应来自集成契约占位骨架。",
-        sources=retrieve(RetrieveRequest(query=req.question, course_id=req.course_id,
-                                         top_k=req.top_k)).results,
-        mode="LOCAL_PLACEHOLDER",
-        code=200,
+        answer="（占位）RAG 引擎待接入，返回降级占位响应。",
+        sources=[],
+        mode="UNAVAILABLE",
+        error="MSG_RAG_UNAVAILABLE",
+        code=503,
     )
 
 
@@ -169,3 +170,10 @@ def ask(req: AskRequest):
 def build_index(course_id: int):
     chunks = sum(1 for d in _DOCS.values() if d["course_id"] == course_id)
     return IndexResult(success=True, indexed_chunks=chunks)
+
+
+@app.delete("/api/v1/rag/index/{course_id}", response_model=IndexResult)
+def clear_index(course_id: int):
+    # 占位：契约补全（手册 §32 列出 DELETE /api/v1/rag/index/{courseId} 清理索引）。
+    # 真实引擎应清理该课程的向量索引；占位仅返回契约形状，不报错。
+    return IndexResult(success=True, indexed_chunks=0)

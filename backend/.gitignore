@@ -64,3 +64,7 @@ uploads/
 sentinel-rules/
 flow-rules.json
 degrade-rules.json
+
+# 运行时日志与备份目录（运行期生成，不入库）
+logs/
+backups/

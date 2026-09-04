@@ -123,7 +123,7 @@ groups:
           severity: critical
         annotations:
           summary: "监控组件不可用"
-          description: "监控链路组件 {{ $labels.job }} 的 up 指标连续 1 分钟为 0，Prometheus 无法抓取该组件 /metrics。监控/告警自身可能已失效——尤其 Alertmanager 宕机将导致业务告警无法外发（石沉大海）、node-exporter 宕机将失去宿主机系统资源告警，请立即排查对应容器状态（docker compose ps / docker compose logs <组件>）。"
+          description: "监控链路组件 {{ $labels.job }} 的 up 指标连续 2 分钟为 0，Prometheus 无法抓取该组件 /metrics。监控/告警自身可能已失效——尤其 Alertmanager 宕机将导致业务告警无法外发（石沉大海）、node-exporter 宕机将失去宿主机系统资源告警，请立即排查对应容器状态（docker compose ps / docker compose logs <组件>）。"
 
   # ---------------- 业务依赖健康（health 探针指标化） ----------------
   # 将 /actuator/health 暴露的 4 个自定义业务探针状态指标化（见 HealthMetricsService）：
@@ -138,7 +138,7 @@ groups:
           severity: critical
         annotations:
           summary: "业务依赖不可用"
-          description: "业务依赖组件 {{ $labels.component }} 健康检查状态为 DOWN（aicourse_health_status=0），持续 1 分钟。该依赖不可达将导致对应功能降级或故障：redis 断连影响会话/缓存与启动强校验；llmProvider 未配置（API Key 缺失）使 AI 能力整体不可用；pythonServices 不可达影响知识图谱/RAG。请立即排查对应依赖的连通性与配置（docker compose logs backend）。"
+          description: "业务依赖组件 {{ $labels.component }} 健康检查状态为 DOWN（aicourse_health_status=0），持续 2 分钟。该依赖不可达将导致对应功能降级或故障：redis 断连影响会话/缓存与启动强校验；llmProvider 未配置（API Key 缺失）使 AI 能力整体不可用；pythonServices 不可达影响知识图谱/RAG。请立即排查对应依赖的连通性与配置（docker compose logs backend）。"
 
   # ---------------- 宿主机系统资源（node-exporter，D26 补强） ----------------
   # 依赖 node-exporter 服务（docker compose monitor profile，见 prometheus.yml

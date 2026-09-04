@@ -8,8 +8,9 @@ AI 助教系统 · RAG 幻觉率 / 准确率评测脚本（零第三方依赖，
      python evaluate.py --base http://localhost:8080/api \
          --username admin --password '你的密码' \
          --course 1 --topk 5 --tag hybrid --out results/run-hybrid.json
-     * --tag 仅为结果标签（如 hybrid / bm25 / vector），便于多模式合并对比；
-     * 后端通过 RAG_RETRIEVER_MODE 环境变量切换实际检索模式后重启，再分别跑一次。
+   * --tag 仅为结果标签（如 hybrid / bm25 / vector），便于多模式合并对比；
+   * 检索模式（hybrid / bm25 / vector）由 Python RAG 引擎（8002）侧配置，本端
+     Java 消费侧仅经 RAG_ENABLED 开关对接，不在后端持有该模式切换键。
 
   2) 合并多模式结果，生成 Markdown 对比报告：
      python evaluate.py --merge results/run-bm25.json results/run-hybrid.json results/run-vector.json \

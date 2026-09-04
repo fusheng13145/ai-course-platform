@@ -108,7 +108,7 @@ services:
       # 安全开关：默认宽松（http://80 快速体验）；生产置于 TLS 反代之后时必须置 true
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       REQUIRE_HTTPS: ${REQUIRE_HTTPS:-false}
-      CSRF_ENABLED: ${CSRF_ENABLED:-true}
+      CSRF_ENABLED: ${CSRF_ENABLED:-false}
       # 监控端点（/api/actuator/prometheus）鉴权：独立 Basic 鉴权链（与业务 JWT 链路隔离，非 ADMIN 角色）。
       # 凭据为监控专用账号 APP_ACTUATOR_BASIC_USER / APP_ACTUATOR_BASIC_PASSWORD，口令留空则抓取 fail-closed；
       # 启用 monitor profile 且无反向代理鉴权时（内网/演示），可置 false 放开 Prometheus 抓取。
@@ -185,7 +185,7 @@ services:
   #     retries: 5
   #
   # fine-tune-service（8003）：LoRA 微调引擎，Python 端尚未交付，契约见
-  # backend/docs/Python接口契约-微调服务.md；就绪后参照上述模板补充。
+  # docs/项目手册.md 第八部分 §33；就绪后参照上述模板补充。
 
   # ---------------- MySQL 定时备份守护（profiles: ops） ----------------
   mysql-backup:

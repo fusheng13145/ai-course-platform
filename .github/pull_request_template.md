@@ -24,7 +24,7 @@
 
 - [ ] 无破坏性变更
 - [ ] 数据库结构变更（已附迁移 SQL 说明）
-- [ ] API / 集成契约变更（已同步 docs/集成契约-知识图谱与RAG.md 与 ContractPaths）
+- [ ] API / 集成契约变更（已同步 docs/项目手册.md 第八部分与 ContractPaths）
 
 ## 截图（可选）
 <!-- 前端 UI 改动请附截图 -->
