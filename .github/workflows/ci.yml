@@ -200,11 +200,17 @@ jobs:
           trivyignores: '.trivyignore'
           exit-code: '1'
 
-      - name: Upload Trivy SARIF
+      - name: Upload Trivy SARIF (artifact)
+        # 此前用 github/codeql-action/upload-sarif@v3 上传到 GitHub Code Scanning，
+        # 但当前仓库未启用 Code Scanning 功能（需仓库 Settings → Code security and analysis 手动开启），
+        # 报「Code scanning is not enabled」导致 step 失败。改用 actions/upload-artifact 上传 SARIF
+        # 文件作为 build artifact（与 OSV-Scanner/JaCoCo 报告一致），保留 SARIF 供下载审阅。
         if: always()
-        uses: github/codeql-action/upload-sarif@v3
+        uses: actions/upload-artifact@v4
         with:
-          sarif_file: 'trivy-results.sarif'
+          name: trivy-scan-report
+          path: trivy-results.sarif
+          retention-days: 14
 
   # ------------------------------------------------------------------
   # 后端：软件成分分析（SCA）—— OSV-Scanner 已知漏洞门禁
