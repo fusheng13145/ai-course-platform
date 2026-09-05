@@ -6,7 +6,7 @@
     <parent>
         <groupId>org.springframework.boot</groupId>
         <artifactId>spring-boot-starter-parent</artifactId>
-        <version>3.4.13</version>
+        <version>3.5.15</version>
         <relativePath/>
     </parent>
 
@@ -36,7 +36,49 @@
         <lombok.version>1.18.36</lombok.version>
         <!-- Sentinel 流量控制与熔断降级（纯 core + 注解切面，无 servlet 依赖，兼容 JDK21/Spring Boot3，不引入 Spring Cloud） -->
         <sentinel.version>1.8.9</sentinel.version>
+
+        <!-- 安全升级：覆盖 Spring Boot 3.5.15 管理的传递依赖版本，
+             修复 2026-06 后新披露、3.5.15 尚未收录的 CVE（OSV-Scanner/Trivy 门禁命中的真实漏洞）。
+             注：tomcat 不在此覆盖——GHSA-9xv2-5v5q-p794 / GHSA-h3x4-894j-xpx5 等 3 个 Tomcat CVE
+             的修复版 10.1.58 尚未发布到 Maven Central（10.1.x 当前最新仍为 10.1.55），
+             且这些 CVE 仅影响 Tomcat 内置 FORM/DIGEST 认证（本项目用 Spring Security+JWT，不受影响），
+             故在 CI 扫描器中按 GHSA 精确豁免（见 ci.yml）。 -->
+        <netty.version>4.1.137.Final</netty.version>
+        <jackson-bom.version>2.21.5</jackson-bom.version>
+        <log4j2.version>2.25.5</log4j2.version>
     </properties>
+
+    <!-- 安全升级：显式锁定非 Spring Boot BOM 管理的传递依赖版本，
+         修复 OSV-Scanner/Trivy 命中的 CVE（这些依赖无对应 Spring Boot 属性可覆盖） -->
+    <dependencyManagement>
+        <dependencies>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-compress</artifactId>
+                <version>1.26.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.apache.commons</groupId>
+                <artifactId>commons-lang3</artifactId>
+                <version>3.18.0</version>
+            </dependency>
+            <dependency>
+                <groupId>org.bouncycastle</groupId>
+                <artifactId>bcprov-jdk18on</artifactId>
+                <version>1.84</version>
+            </dependency>
+            <!-- 修复：minio 8.6.0 的 pom 声明 okhttp 5.1.0，但 okhttp 5.x 经 Gradle Module
+                 Metadata 发布、其 Maven 主 jar 为空占位符（仅 MANIFEST，无任何 class），
+                 而 minio 8.6.0 字节码实际引用 okhttp3 包（4.x 命名空间，如 okhttp3.HttpUrl）。
+                 空 jar 导致 classpath 缺失 okhttp3.HttpUrl，编译报「找不到符号 HttpUrl」。
+                 此处显式将 okhttp 钉回 4.12.0（4.x 最终版，含 okhttp3 包），与 minio 字节码匹配。 -->
+            <dependency>
+                <groupId>com.squareup.okhttp3</groupId>
+                <artifactId>okhttp</artifactId>
+                <version>4.12.0</version>
+            </dependency>
+        </dependencies>
+    </dependencyManagement>
 
     <dependencies>
         <!-- Spring Boot 核心组件 -->
@@ -77,7 +119,7 @@
         <dependency>
             <groupId>org.apache.poi</groupId>
             <artifactId>poi-ooxml</artifactId>
-            <version>5.2.5</version>
+            <version>5.4.0</version>
         </dependency>
 
         <!-- SSE 流式输出（WebFlux 提供 Flux/Mono + WebClient，与 MVC 共存运行时仍以 Tomcat 为容器） -->
@@ -187,7 +229,7 @@
         <dependency>
             <groupId>io.minio</groupId>
             <artifactId>minio</artifactId>
-            <version>8.5.14</version>
+            <version>8.6.0</version>
         </dependency>
 
         <!-- ===================== Sentinel 流量控制与熔断降级 ===================== -->

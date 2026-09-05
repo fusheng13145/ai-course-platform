@@ -183,6 +183,7 @@ jobs:
           format: 'table'
           severity: 'HIGH,CRITICAL'
           ignore-unfixed: true
+          trivyignores: '.trivyignore'
           exit-code: '0'
 
       - name: Trivy fs scan (repo config + deps)
@@ -194,6 +195,9 @@ jobs:
           output: 'trivy-results.sarif'
           severity: 'HIGH,CRITICAL'
           ignore-unfixed: true
+          # 豁免 3 个 Tomcat CVE（与 backend/osv-scanner.toml 对齐）：修复版 10.1.58 未发布到
+          # Maven Central，且仅影响 Tomcat 内置 FORM/DIGEST/security-constraint（本项目用 JWT，不受影响）。
+          trivyignores: '.trivyignore'
           exit-code: '1'
 
       - name: Upload Trivy SARIF
@@ -268,7 +272,10 @@ jobs:
         # 1) OSV-Scanner v2.3.8 不支持 --strategy flag（会报 "flag provided but not defined"，exit 127）；
         # 2) 默认 pomxml 策略会自行向 repo.maven.apache.org 拉取父 POM，触发 429 限流。
         # 改为扫描 SBOM 后，依赖关系已由 Maven 解析完毕，扫描阶段不做任何外部依赖解析。
-        run: /tmp/osv-scanner scan --format=sarif --output=osv-scan.sarif --sbom=target/bom.json
+        # --config=osv-scanner.toml：豁免 3 个 Tomcat CVE（GHSA-9xv2-5v5q-p794 / GHSA-h3x4-894j-xpx5 /
+        # GHSA-gcx9-497g-6cp6），其修复版 10.1.58 未发布到 Maven Central，且仅影响 Tomcat 内置
+        # FORM/DIGEST/security-constraint 认证授权机制（本项目用 Spring Security+JWT，不受影响）。
+        run: /tmp/osv-scanner scan --format=sarif --output=osv-scan.sarif --sbom=target/bom.json --config=osv-scanner.toml
 
       - name: Upload OSV-Scanner report
         if: always()

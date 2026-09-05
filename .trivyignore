@@ -1,0 +1,8 @@
+# Trivy 漏洞豁免（与 backend/osv-scanner.toml 对齐）
+# 以下 3 个 Tomcat CVE 仅影响 Tomcat 内置认证/授权机制（DIGEST/FORM authenticator、
+# web.xml security-constraint），本项目用 Spring Security+JWT 无状态认证，不启用上述机制，
+# 漏洞触发路径不可达；修复版 10.1.58 尚未发布到 Maven Central（截至 2026-09-05，10.1.x 最新为 10.1.55）。
+# 待 10.1.58 发布后应升级并删除以下豁免。
+CVE-2026-65905
+CVE-2026-68525
+CVE-2026-65182

@@ -31,7 +31,7 @@ import org.springframework.security.authentication.dao.DaoAuthenticationProvider
 import org.springframework.security.core.userdetails.User;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
-import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
+import org.springframework.security.web.servlet.util.matcher.PathPatternRequestMatcher;
 import org.springframework.security.web.util.matcher.OrRequestMatcher;
 
 import org.slf4j.Logger;
@@ -141,8 +141,8 @@ public class SecurityConfig {
 
         http
                 .securityMatcher(new OrRequestMatcher(
-                        new AntPathRequestMatcher("/actuator/**"),
-                        new AntPathRequestMatcher("/api/actuator/**")))
+                        PathPatternRequestMatcher.withDefaults().matcher("/actuator/**"),
+                        PathPatternRequestMatcher.withDefaults().matcher("/api/actuator/**")))
                 .csrf(AbstractHttpConfigurer::disable)
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authenticationManager(actuatorAuthManager)

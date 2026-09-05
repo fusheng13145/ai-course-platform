@@ -1,0 +1,20 @@
+# OSV-Scanner 漏洞豁免配置
+# 说明：以下 3 个 Tomcat CVE 的修复版本 10.1.58 尚未发布到 Maven Central
+# （截至 2026-09-05，org.apache.tomcat.embed:tomcat-embed-core 10.1.x 最新仍为 10.1.55），
+# 且这些漏洞仅影响 Tomcat 内置的认证/授权机制（DIGEST/FORM authenticator、web.xml security-constraint），
+# 本项目采用 Spring Security + JWT 无状态认证（SessionCreationPolicy.STATELESS），
+# 不在 web.xml 配置 login-config 或 security-constraint，权限控制完全由 Spring Security
+# authorizeHttpRequests 承担，故上述漏洞的触发路径在本项目中不可达，可安全豁免。
+# 待 Tomcat 10.1.58 发布后，应升级并删除本文件的对应豁免项。
+
+[[IgnoredVulns]]
+id = "GHSA-9xv2-5v5q-p794"
+reason = "CVE-2026-65905：Tomcat DIGEST 认证 capture-replay 绕过。本项目用 Spring Security+JWT 无状态认证，不启用 Tomcat 内置 DIGEST 认证，路径不可达；修复版 10.1.58 未发布。"
+
+[[IgnoredVulns]]
+id = "GHSA-h3x4-894j-xpx5"
+reason = "CVE-2026-68525：Tomcat FORM 认证 incorrect authorization（绕过 POST-only 约束）。本项目不启用 Tomcat FORM 认证与 method 级 security-constraint，路径不可达；修复版 10.1.58 未发布。"
+
+[[IgnoredVulns]]
+id = "GHSA-gcx9-497g-6cp6"
+reason = "CVE-2026-65182：Tomcat security-constraint 最长前缀匹配绕过。本项目不在 web.xml 配置 security-constraint，权限由 Spring Security 控制，路径不可达；修复版 10.1.58 未发布。"

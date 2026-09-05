@@ -17,12 +17,14 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
 import com.aicourse.common.ApiCode;
 import com.alibaba.csp.sentinel.slots.block.BlockException;
 import com.alibaba.csp.sentinel.slots.block.degrade.DegradeException;
+import org.springframework.context.MessageSourceResolvable;
 
 /**
  * 全局统一异常处理器
@@ -132,8 +134,14 @@ public class GlobalExceptionHandler {
      */
     @ExceptionHandler(HandlerMethodValidationException.class)
     public ResponseEntity<ApiResponse<Void>> handleMethodValidation(HandlerMethodValidationException e) {
-        String message = e.getAllValidationResults().stream()
-                .flatMap(r -> r.getResolvableErrors().stream())
+        // Spring 6.2 后期起 MethodValidationResult.getAllValidationResults() 已弃用移除，
+        // 拆分为 getParameterValidationResults()（参数级违例，含 @Valid 容器元素）与
+        // getCrossParameterValidationResults()（跨参数/方法级违例），此处合并两者提取错误消息。
+        List<MessageSourceResolvable> resolvableErrors = new ArrayList<>();
+        e.getParameterValidationResults()
+                .forEach(r -> resolvableErrors.addAll(r.getResolvableErrors()));
+        resolvableErrors.addAll(e.getCrossParameterValidationResults());
+        String message = resolvableErrors.stream()
                 .map(err -> {
                     try {
                         return err.getDefaultMessage();
