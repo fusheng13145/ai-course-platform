@@ -198,6 +198,11 @@ jobs:
           # 豁免 3 个 Tomcat CVE（与 backend/osv-scanner.toml 对齐）：修复版 10.1.58 未发布到
           # Maven Central，且仅影响 Tomcat 内置 FORM/DIGEST/security-constraint（本项目用 JWT，不受影响）。
           trivyignores: '.trivyignore'
+          # 修复：trivy-action 的 entrypoint.sh 在 format=sarif 且本参数非 true 时会
+          # `unset TRIVY_SEVERITY`（日志特征 "Building SARIF report with all severities"），
+          # 使 MEDIUM/LOW 漏洞也计入 exit-code 判定而误报失败（HIGH/CRITICAL 已清零仍 exit 1）。
+          # 设为 true 恢复 severity 过滤：SARIF 仍记录全部级别供审阅，仅 HIGH/CRITICAL 触发 exit 1。
+          limit-severities-for-sarif: true
           exit-code: '1'
 
       - name: Upload Trivy SARIF (artifact)
