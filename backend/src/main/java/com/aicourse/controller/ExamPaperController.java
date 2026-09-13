@@ -7,7 +7,7 @@ import jakarta.validation.Valid;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
-import com.aicourse.dto.QuestionVO;
+import com.aicourse.vo.QuestionVO;
 import com.aicourse.entity.ExamPaper;
 import com.aicourse.dto.AutoComposeDTO;
 import com.aicourse.entity.ExamQuestion;

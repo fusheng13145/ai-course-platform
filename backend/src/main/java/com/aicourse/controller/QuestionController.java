@@ -5,7 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
-import com.aicourse.dto.QuestionVO;
+import com.aicourse.vo.QuestionVO;
 import com.aicourse.dto.QuestionGenerateDTO;
 import com.aicourse.entity.Question;
 import com.aicourse.entity.KnowledgePoint;

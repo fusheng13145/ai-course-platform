@@ -15,7 +15,7 @@ import jakarta.validation.constraints.NotBlank;
  */
 @Schema(description = "密码重置请求（邮箱或手机号）")
 @Data
-public class ResetPasswordRequest {
+public class ResetPasswordDTO {
 
     @Email(message = "邮箱格式不正确")
     @Schema(description = "邮箱（与手机号二选一）", example = "zhangsan@example.com")

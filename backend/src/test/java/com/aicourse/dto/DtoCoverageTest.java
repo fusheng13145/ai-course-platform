@@ -26,26 +26,19 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 class DtoCoverageTest {
 
     private static final List<String> DTO_SIMPLE_NAMES = Arrays.asList(
-            "AdminCreateUserDTO", "AdminUpdateUserDTO", "AssignmentSubmitDTO", "AutoComposeDTO",
-            "BatchOperationDTO", "ChangePasswordDTO", "ChapterCreateDTO", "ChapterReorderDTO",
-            "CourseCreateDTO", "CourseDetailVO", "CourseUpdateDTO", "DailyTaskVO",
-            "DashboardStatsVO", "EssayRequest", "ExamAnswerResult", "ExamManualGradeDTO",
-            "ExamPaperCreateDTO", "ExamQuestionDTO", "ExamSessionVO", "ExamStatisticsVO",
-            "ExamSubmitDTO", "ExamSubmitEnhancedDTO", "FavoriteDTO", "FileUploadDTO",
-            "GradeDTO", "HeatmapDataVO", "KnowledgeExtractDTO", "KnowledgeGraphEdgeVO",
-            "KnowledgeGraphNodeVO", "KnowledgeGraphVO", "KnowledgePointCreateDTO",
-            "KnowledgeRelationDTO", "LearningPathGenerateDTO", "LearningPathNodeCompleteDTO",
-            "LearningPathNodeDTO", "LearningPathProgressVO", "LearningPathRequest",
-            "NoteRequestDTO", "NotificationSendDTO", "PageQueryDTO", "PathPlanDTO",
-            "PlagiarismCheckCreateDTO", "PlagiarismMatchVO", "PlagiarismResultVO",
-            "PracticeGenerateDTO", "QaAskRequest", "QaContinueRequest", "QuestionCreateDTO",
-            "QuestionGenerateDTO", "QuestionSearchDTO", "QuestionVO", "RefreshTokenRequest",
-            "ReminderCreateDTO", "ReminderUpdateDTO", "ResetPasswordRequest", "ResourceUploadDTO",
-            "ResourceVersionCreateDTO", "ResourceVisibilityDTO", "SendCodeRequest",
-            "SubmissionCreateDTO", "SubmissionDetailVO", "SubmissionGradeDTO", "SubmissionListVO",
-            "SubmissionResubmitDTO", "TaskCreateDTO", "TaskCreateEnhancedDTO", "TaskSubmitDTO",
-            "TrendQueryDTO", "UserInfoVO", "UserLoginDTO", "UserRegisterDTO",
-            "UserUpdateDTO", "VerifyCodeRequest", "VideoHeartbeatDTO", "WrongQuestionPracticeDTO"
+            "AdminCreateUserDTO", "AdminUpdateUserDTO", "AssignmentSubmitDTO", "AutoComposeDTO", "ChangePasswordDTO", "ChapterReorderDTO", "EssayDTO", "ExamManualGradeDTO",
+            "ExamSubmitDTO", "FavoriteDTO", "FileUploadDTO",
+            "GradeDTO", "KnowledgeExtractDTO",
+            "KnowledgeRelationDTO", "LearningPathNodeCompleteDTO", "LearningPathDTO",
+            "NoteRequestDTO", "NotificationSendDTO",
+            "PlagiarismCheckCreateDTO",
+            "PracticeGenerateDTO", "QaAskDTO", "QaContinueDTO",
+            "QuestionGenerateDTO",
+            "ReminderCreateDTO", "ReminderUpdateDTO", "ResetPasswordDTO",
+            "ResourceVersionCreateDTO", "ResourceVisibilityDTO", "SendCodeDTO",
+            "SubmissionCreateDTO",
+            "SubmissionResubmitDTO", "TaskCreateDTO", "UserLoginDTO", "UserRegisterDTO",
+            "UserUpdateDTO", "VerifyCodeDTO", "VideoHeartbeatDTO", "WrongQuestionPracticeDTO"
     );
 
     private int processed = 0;

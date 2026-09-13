@@ -12,7 +12,7 @@ import lombok.Data;
  * 防止「贴满整篇论文」式的成本型 DoS。</p>
  */
 @Data
-public class EssayRequest {
+public class EssayDTO {
 
     /** 作文正文的字符硬上限。 */
     public static final int MAX_CONTENT_LEN = 8000;

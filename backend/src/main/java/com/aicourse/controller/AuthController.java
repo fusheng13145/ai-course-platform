@@ -6,7 +6,13 @@ import org.slf4j.LoggerFactory;
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.CookieUtils;
-import com.aicourse.dto.*;
+import com.aicourse.dto.ChangePasswordDTO;
+import com.aicourse.dto.ResetPasswordDTO;
+import com.aicourse.dto.SendCodeDTO;
+import com.aicourse.dto.UserLoginDTO;
+import com.aicourse.dto.UserRegisterDTO;
+import com.aicourse.dto.UserUpdateDTO;
+import com.aicourse.dto.VerifyCodeDTO;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.AuthService;
@@ -194,7 +200,7 @@ public class AuthController {
      */
     @PostMapping("/reset-password")
     @Operation(summary = "重置密码")
-    public ApiResponse<Void> resetPassword(@Valid @RequestBody ResetPasswordRequest body) {
+    public ApiResponse<Void> resetPassword(@Valid @RequestBody ResetPasswordDTO body) {
         if (body.getEmail() != null && !body.getEmail().isEmpty()) {
             return authService.resetPasswordByEmail(body.getEmail(), body.getCode(), body.getNewPassword());
         }
@@ -295,21 +301,21 @@ public class AuthController {
      */
     @PostMapping("/send-code")
     @Operation(summary = "发送邮箱验证码")
-    public ApiResponse<Void> sendVerificationCode(@Valid @RequestBody SendCodeRequest body,
+    public ApiResponse<Void> sendVerificationCode(@Valid @RequestBody SendCodeDTO body,
                                                   HttpServletRequest request) {
         log.debug("发送验证码 email={}", body.getEmail());
         return authService.sendVerificationCode(body.getEmail(), body.getType(), clientInfoResolver.resolve(request));
     }
 
     /**
-     * 邮箱 + 验证码 重置密码（复用统一 ResetPasswordRequest；DTO 合并后 email/phone 均允许，
+     * 邮箱 + 验证码 重置密码（复用统一 ResetPasswordDTO；DTO 合并后 email/phone 均允许，
      * 邮箱通道由 Service 按 email 维度处理）
      * @param body 邮箱、验证码、新密码（强类型校验）
      * @return 操作结果
      */
     @PostMapping("/reset-password-by-email")
     @Operation(summary = "邮箱验证码重置密码")
-    public ApiResponse<Void> resetPasswordByEmail(@Valid @RequestBody ResetPasswordRequest body) {
+    public ApiResponse<Void> resetPasswordByEmail(@Valid @RequestBody ResetPasswordDTO body) {
         return authService.resetPasswordByEmail(body.getEmail(), body.getCode(), body.getNewPassword());
     }
 
@@ -320,7 +326,7 @@ public class AuthController {
      */
     @PostMapping("/verify-code")
     @Operation(summary = "校验邮箱验证码")
-    public ApiResponse<Void> verifyCode(@Valid @RequestBody VerifyCodeRequest body) {
+    public ApiResponse<Void> verifyCode(@Valid @RequestBody VerifyCodeDTO body) {
         return authService.verifyCode(body.getEmail(), body.getCode());
     }
 }

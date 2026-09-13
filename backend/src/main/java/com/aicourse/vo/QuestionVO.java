@@ -1,4 +1,4 @@
-package com.aicourse.dto;
+package com.aicourse.vo;
 
 import com.aicourse.entity.Question;
 import io.swagger.v3.oas.annotations.media.Schema;

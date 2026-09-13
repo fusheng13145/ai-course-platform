@@ -3,10 +3,10 @@ package com.aicourse.controller;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.AiChatMessage;
 import com.aicourse.entity.AiChatSession;
-import com.aicourse.dto.EssayRequest;
-import com.aicourse.dto.LearningPathRequest;
-import com.aicourse.dto.QaAskRequest;
-import com.aicourse.dto.QaContinueRequest;
+import com.aicourse.dto.EssayDTO;
+import com.aicourse.dto.LearningPathDTO;
+import com.aicourse.dto.QaAskDTO;
+import com.aicourse.dto.QaContinueDTO;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.AIService;
 import com.aicourse.service.AiChatSessionService;
@@ -79,7 +79,7 @@ public class AIController {
      * POST /api/ai/qa/ask
      */
     @PostMapping("/qa/ask")
-    public Callable<ApiResponse<Map<String, Object>>> qaAsk(@Valid @RequestBody QaAskRequest body,
+    public Callable<ApiResponse<Map<String, Object>>> qaAsk(@Valid @RequestBody QaAskDTO body,
                                                             Authentication auth) {
         // 在 Tomcat 线程提取所需参数，避免异步线程读取 SecurityContext
         final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
@@ -112,7 +112,7 @@ public class AIController {
      * POST /api/ai/qa/continue
      */
     @PostMapping("/qa/continue")
-    public Callable<ApiResponse<Map<String, Object>>> qaContinue(@Valid @RequestBody QaContinueRequest body,
+    public Callable<ApiResponse<Map<String, Object>>> qaContinue(@Valid @RequestBody QaContinueDTO body,
                                                                 Authentication auth) {
         final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
         final String message = body.getMessage();
@@ -193,7 +193,7 @@ public class AIController {
      * POST /api/ai/essay/correct
      */
     @PostMapping("/essay/correct")
-    public Callable<ApiResponse<Map<String, String>>> essayCorrect(@Valid @RequestBody EssayRequest body) {
+    public Callable<ApiResponse<Map<String, String>>> essayCorrect(@Valid @RequestBody EssayDTO body) {
         final String content = body.getContent();
         return () -> {
             String result = aiService.generateContent("correct", content);
@@ -206,7 +206,7 @@ public class AIController {
      * POST /api/ai/essay/polish
      */
     @PostMapping("/essay/polish")
-    public Callable<ApiResponse<Map<String, String>>> essayPolish(@Valid @RequestBody EssayRequest body) {
+    public Callable<ApiResponse<Map<String, String>>> essayPolish(@Valid @RequestBody EssayDTO body) {
         final String content = body.getContent();
         return () -> {
             String result = aiService.generateContent("polish", content);
@@ -314,7 +314,7 @@ public class AIController {
      */
     @PostMapping("/learning-path/generate")
     public Callable<ApiResponse<Map<String, Object>>> generateLearningPath(
-            @Valid @RequestBody LearningPathRequest body,
+            @Valid @RequestBody LearningPathDTO body,
             Authentication auth) {
         final Long userId = (Long) auth.getPrincipal();
         final String courseId = body.getCourseId();
@@ -347,7 +347,7 @@ public class AIController {
      */
     @PostMapping("/learning-path/generate-personalized")
     public Callable<ApiResponse<Map<String, Object>>> generatePersonalizedLearningPath(
-            @Valid @RequestBody LearningPathRequest body,
+            @Valid @RequestBody LearningPathDTO body,
             Authentication auth) {
         final Long userId = (Long) auth.getPrincipal();
         final String courseId = body.getCourseId();

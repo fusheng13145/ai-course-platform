@@ -12,7 +12,7 @@ import lombok.Data;
  * 单次请求的 token 成本上界也被锁死。</p>
  */
 @Data
-public class QaAskRequest {
+public class QaAskDTO {
 
     /** 单次提问的字符硬上限（约对应数千 token 级别的成本天花板）。 */
     public static final int MAX_QUESTION_LEN = 4000;

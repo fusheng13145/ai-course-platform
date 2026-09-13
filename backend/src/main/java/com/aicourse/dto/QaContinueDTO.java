@@ -11,7 +11,7 @@ import lombok.Data;
  * 锁死单轮对话的 token 成本上界，防止超长 prompt 造成 LLM 成本型 DoS。</p>
  */
 @Data
-public class QaContinueRequest {
+public class QaContinueDTO {
 
     /** 单轮消息的字符硬上限。 */
     public static final int MAX_MESSAGE_LEN = 4000;

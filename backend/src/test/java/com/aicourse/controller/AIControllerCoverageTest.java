@@ -282,7 +282,7 @@ class AIControllerCoverageTest {
                         .contentType("application/json").content("{\"courseId\":\"10\",\"goal\":\"掌握\"}"))
                 .andExpect(MockMvcResultMatchers.request().asyncStarted()).andReturn();
         dispatch(m1);
-        // 缺 courseId -> LearningPathRequest.courseId @NotBlank 校验失败 -> 同步 400（不触发异步）
+        // 缺 courseId -> LearningPathDTO.courseId @NotBlank 校验失败 -> 同步 400（不触发异步）
         mockMvc.perform(MockMvcRequestBuilders.post("/ai/learning-path/generate")
                         .with(withAuth(1L, "STUDENT"))
                         .contentType("application/json").content("{\"goal\":\"掌握\"}"))

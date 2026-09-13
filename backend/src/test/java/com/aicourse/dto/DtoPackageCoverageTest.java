@@ -38,92 +38,62 @@ public class DtoPackageCoverageTest {
         AdminUpdateUserDTO.class,
         AssignmentSubmitDTO.class,
         AutoComposeDTO.class,
-        BatchOperationDTO.class,
+
         ChangePasswordDTO.class,
-        ChapterCreateDTO.class,
+
         ChapterReorderDTO.class,
-        CourseCreateDTO.class,
-        CourseDetailVO.class,
-        CourseUpdateDTO.class,
-        DailyTaskVO.class,
-        DashboardStatsVO.class,
-        EssayRequest.class,
-        ExamAnswerResult.class,
+
+        EssayDTO.class,
+
         ExamManualGradeDTO.class,
-        ExamPaperCreateDTO.class,
-        ExamQuestionDTO.class,
-        ExamSessionVO.class,
-        ExamStatisticsVO.class,
+
         ExamSubmitDTO.class,
-        ExamSubmitEnhancedDTO.class,
+
         FavoriteDTO.class,
         FileUploadDTO.class,
         GradeDTO.class,
-        HeatmapDataVO.class,
+
         KnowledgeExtractDTO.class,
-        KnowledgeGraphEdgeVO.class,
-        KnowledgeGraphNodeVO.class,
-        KnowledgeGraphVO.class,
-        KnowledgePointCreateDTO.class,
+
         KnowledgeRelationDTO.class,
-        LearningPathGenerateDTO.class,
+
         LearningPathNodeCompleteDTO.class,
-        LearningPathNodeDTO.class,
-        LearningPathProgressVO.class,
-        LearningPathRequest.class,
+
+        LearningPathDTO.class,
         NoteRequestDTO.class,
         NotificationSendDTO.class,
-        PageQueryDTO.class,
-        PathPlanDTO.class,
+
         PlagiarismCheckCreateDTO.class,
-        PlagiarismMatchVO.class,
-        PlagiarismResultVO.class,
+
         PracticeGenerateDTO.class,
-        QaAskRequest.class,
-        QaContinueRequest.class,
-        QuestionCreateDTO.class,
+        QaAskDTO.class,
+        QaContinueDTO.class,
+
         QuestionGenerateDTO.class,
-        QuestionSearchDTO.class,
-        RefreshTokenRequest.class,
+
         ReminderCreateDTO.class,
         ReminderUpdateDTO.class,
-        ResetPasswordRequest.class,
-        ResourceUploadDTO.class,
+        ResetPasswordDTO.class,
+
         ResourceVersionCreateDTO.class,
         ResourceVisibilityDTO.class,
-        SendCodeRequest.class,
+        SendCodeDTO.class,
         SubmissionCreateDTO.class,
-        SubmissionDetailVO.class,
-        SubmissionGradeDTO.class,
-        SubmissionListVO.class,
+
         SubmissionResubmitDTO.class,
         TaskCreateDTO.class,
-        TaskCreateEnhancedDTO.class,
-        TaskSubmitDTO.class,
-        TrendQueryDTO.class,
-        UserInfoVO.class,
+
         UserLoginDTO.class,
         UserRegisterDTO.class,
         UserUpdateDTO.class,
-        VerifyCodeRequest.class,
+        VerifyCodeDTO.class,
         VideoHeartbeatDTO.class,
         WrongQuestionPracticeDTO.class,
 
         // ===== nested static inner VO/DTO classes =====
-        ChapterCreateDTO.ResourceRef.class,
-        ChapterReorderDTO.OrderItem.class,
-        CourseDetailVO.TeacherInfoVO.class,
-        CourseDetailVO.ProgressVO.class,
-        ExamSessionVO.ExamPaperInfoVO.class,
-        ExamStatisticsVO.QuestionStat.class,
-        KnowledgeGraphVO.GraphMetadata.class,
-        LearningPathNodeDTO.ResourceRef.class,
-        PlagiarismMatchVO.MatchedSegment.class,
-        PlagiarismMatchVO.SuspiciousSection.class,
-        SubmissionDetailVO.GradingRecord.class,
-        SubmissionDetailVO.SimilarityReport.class,
-        SubmissionDetailVO.SimilarityReport.MatchSource.class,
-        UserInfoVO.UserStatsVO.class
+
+        ChapterReorderDTO.OrderItem.class
+
     );
 
     /** Guards against infinite recursion when nested DTOs reference each other. */
