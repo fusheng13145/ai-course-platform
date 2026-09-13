@@ -1,6 +1,7 @@
 package com.aicourse.service.impl;
 
 
+import com.aicourse.integration.ContractPaths;
 import com.aicourse.service.LLMFineTuneService;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
@@ -36,7 +37,7 @@ public class LLMFineTuneServiceImpl implements LLMFineTuneService {
             @Value("${fine-tune.connect-timeout:5}") int connectTimeout,
             @Value("${fine-tune.read-timeout:300}") int readTimeout,
             @Value("${fine-tune.max-retries:1}") int maxRetries,
-            @Value("${fine-tune.health-path:/api/v1/fine-tune/health}") String healthPath) {
+            @Value("${fine-tune.health-path:" + ContractPaths.FT_HEALTH + "}") String healthPath) {
         this.enabled = enabled;
         this.maxRetries = maxRetries;
         this.healthPath = healthPath;
@@ -73,7 +74,7 @@ public class LLMFineTuneServiceImpl implements LLMFineTuneService {
         if (!enabled) return SERVICE_UNAVAILABLE;
         return executeWithRetry(() ->
                 restClient.post()
-                        .uri("/api/v1/fine-tune/start")
+                        .uri(ContractPaths.FT_START)
                         .body(Map.of("course_id", courseId, "base_model", baseModel, "config", config))
                         .retrieve().body(String.class), "启动微调任务");
     }
@@ -85,7 +86,7 @@ public class LLMFineTuneServiceImpl implements LLMFineTuneService {
         if (!enabled) return SERVICE_UNAVAILABLE;
         return executeWithRetry(() ->
                 restClient.get()
-                        .uri("/api/v1/fine-tune/tasks/{taskId}/status", taskId)
+                        .uri(ContractPaths.FT_TASK_STATUS, taskId)
                         .retrieve().body(String.class), "查询微调状态");
     }
 
@@ -96,8 +97,8 @@ public class LLMFineTuneServiceImpl implements LLMFineTuneService {
         if (!enabled) return SERVICE_UNAVAILABLE;
         return executeWithRetry(() -> {
             String uri = courseId != null
-                    ? "/api/v1/fine-tune/tasks?course_id=" + courseId
-                    : "/api/v1/fine-tune/tasks";
+                    ? ContractPaths.FT_TASKS + "?course_id=" + courseId
+                    : ContractPaths.FT_TASKS;
             return restClient.get().uri(uri).retrieve().body(String.class);
         }, "查询微调任务列表");
     }
@@ -111,7 +112,7 @@ public class LLMFineTuneServiceImpl implements LLMFineTuneService {
         if (!enabled) return SERVICE_UNAVAILABLE;
         return executeWithRetry(() ->
                 restClient.post()
-                        .uri("/api/v1/fine-tune/tasks/{taskId}/cancel", taskId)
+                        .uri(ContractPaths.FT_TASK_CANCEL, taskId)
                         .retrieve().body(String.class), "取消微调任务");
     }
 
@@ -122,7 +123,7 @@ public class LLMFineTuneServiceImpl implements LLMFineTuneService {
         if (!enabled) return SERVICE_UNAVAILABLE;
         return executeWithRetry(() ->
                 restClient.post()
-                        .uri("/api/v1/fine-tune/infer/{taskId}", taskId)
+                        .uri(ContractPaths.FT_INFER, taskId)
                         .body(Map.of("prompt", prompt, "params", params))
                         .retrieve().body(String.class), "微调模型推理");
     }
@@ -136,7 +137,7 @@ public class LLMFineTuneServiceImpl implements LLMFineTuneService {
         if (!enabled) return SERVICE_UNAVAILABLE;
         return executeWithRetry(() ->
                 restClient.get()
-                        .uri("/api/v1/fine-tune/tasks/{taskId}/export", taskId)
+                        .uri(ContractPaths.FT_TASK_EXPORT, taskId)
                         .retrieve().body(String.class), "导出LoRA权重");
     }
 
@@ -149,7 +150,7 @@ public class LLMFineTuneServiceImpl implements LLMFineTuneService {
         if (!enabled) return SERVICE_UNAVAILABLE;
         return executeWithRetry(() ->
                 restClient.delete()
-                        .uri("/api/v1/fine-tune/tasks/{taskId}", taskId)
+                        .uri(ContractPaths.FT_TASK, taskId)
                         .retrieve().body(String.class), "删除微调任务");
     }
 

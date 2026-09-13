@@ -7,7 +7,7 @@ import com.aicourse.entity.Classroom;
 import com.aicourse.entity.Submission;
 import com.aicourse.entity.Task;
 import com.aicourse.entity.User;
-import com.aicourse.enums.SubmissionStatus;
+import com.aicourse.constant.SubmissionStatus;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ClassroomMapper;
 import com.aicourse.service.ClassroomService;
@@ -268,7 +268,7 @@ public class ClassroomServiceImpl extends ServiceImpl<ClassroomMapper, Classroom
         if (!taskIdSet.isEmpty() && !studentClassMap.isEmpty()) {
             List<Submission> pendingSubmissions = submissionService.list(new LambdaQueryWrapper<Submission>()
                     .in(Submission::getTaskId, taskIdSet)
-                    .eq(Submission::getStatus, SubmissionStatus.SUBMITTED.name()));
+                    .eq(Submission::getStatus, SubmissionStatus.SUBMITTED));
             for (Submission submission : pendingSubmissions) {
                 Long classId = studentClassMap.get(submission.getStudentId());
                 if (classId != null) {

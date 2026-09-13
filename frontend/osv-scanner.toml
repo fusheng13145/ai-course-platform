@@ -1,0 +1,11 @@
+# OSV-Scanner 漏洞豁免配置（前端）
+# xlsx 0.20.3 来自 SheetJS 官方 CDN（cdn.sheetjs.com），以下两个漏洞的修复版本
+# 均早于 0.20.3，OSV 数据库未正确标记 fixed_in 导致误报。
+
+[[IgnoredVulns]]
+id = "GHSA-4r6h-8v6p-xvw6"
+reason = "Prototype Pollution in SheetJS，影响 <0.19.3。本项目使用 xlsx 0.20.3，已包含修复。"
+
+[[IgnoredVulns]]
+id = "GHSA-5pgg-2g8v-p4x9"
+reason = "ReDoS in SheetJS，影响 <0.20.2。本项目使用 xlsx 0.20.3，已包含修复。"

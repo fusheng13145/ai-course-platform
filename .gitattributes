@@ -1,0 +1,23 @@
+# 行尾统一：仓库内文本文件一律以 LF 存储与检出。
+# 目的：Prettier 配置为 endOfLine=lf，若 Windows 检出（core.autocrlf=true）把文本
+# 改写成 CRLF，本地 `npm run format:check` 会对几乎全部文件误报，而 Linux CI 检出为
+# LF 却能通过——同一份代码两端结论不一致。此处固定行尾后，两端判定一致。
+* text=auto eol=lf
+
+# Windows 专用脚本必须保留 CRLF，否则 cmd.exe 解析异常
+*.bat text eol=crlf
+*.cmd text eol=crlf
+
+# 二进制文件不做行尾转换
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.ico binary
+*.svg text
+*.pdf binary
+*.zip binary
+*.gz binary
+*.jar binary
+*.woff binary
+*.woff2 binary

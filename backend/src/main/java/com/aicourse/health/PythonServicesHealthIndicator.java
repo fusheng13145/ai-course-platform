@@ -1,5 +1,6 @@
 package com.aicourse.health;
 
+import com.aicourse.integration.ContractPaths;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.actuate.health.Health;
@@ -42,7 +43,7 @@ public class PythonServicesHealthIndicator implements HealthIndicator {
             @Value("${rag.health-path:/api/v1/rag/health}") String ragHealthPath,
             @Value("${fine-tune.enabled:false}") boolean ftEnabled,
             @Value("${fine-tune.base-url:http://localhost:8003}") String ftBaseUrl,
-            @Value("${fine-tune.health-path:/api/v1/fine-tune/health}") String ftHealthPath) {
+            @Value("${fine-tune.health-path:" + ContractPaths.FT_HEALTH + "}") String ftHealthPath) {
         this.kgEnabled = kgEnabled;
         this.kgBaseUrl = kgBaseUrl;
         this.kgHealthPath = kgHealthPath;

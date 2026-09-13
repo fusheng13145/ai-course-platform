@@ -3,10 +3,10 @@ package com.aicourse.integration;
 /**
  * 集成契约常量（调用约定的唯一事实来源）。
  * <p>
- * 知识图谱（KG，端口 8001）与 RAG（端口 8002）两个 Python 微服务由团队另一成员负责，
+ * 知识图谱（KG，端口 8001）、RAG（端口 8002）与微调（FT，端口 8003）三个 Python 微服务由团队另一成员负责，
  * 本端（Java 后端）实现<b>消费侧</b>与<b>标准化对接契约</b>。本类集中定义：
  * <ul>
- *   <li>配置键（{@code knowledge-graph.*} / {@code rag.*}），用于按 {@code enabled} 切换本地占位 / 远端 Python；</li>
+ *   <li>配置键（{@code knowledge-graph.*} / {@code rag.*} / {@code fine-tune.*}），用于按 {@code enabled} 切换本地占位 / 远端 Python；</li>
  *   <li>HTTP 方法 + 路径（端点契约）；</li>
  *   <li>请求/响应 JSON 字段名（字段级调用约定）；</li>
  *   <li>状态码与模式语义（{@code 503} = 引擎未接入/不可用；{@code ENGINE}/{@code LOCAL}/{@code UNAVAILABLE}）。</li>
@@ -35,6 +35,13 @@ public final class ContractPaths {
     /** RAG：基址默认值。 */
     public static final String RAG_DEFAULT_BASE_URL = "http://localhost:8002";
 
+    /** FT：是否启用 Python 微调微服务（默认 false → 使用本地占位 / 503 降级）。 */
+    public static final String FT_ENABLED = "fine-tune.enabled";
+    /** FT：Python 微调微服务基址。 */
+    public static final String FT_BASE_URL = "fine-tune.base-url";
+    /** FT：基址默认值。 */
+    public static final String FT_DEFAULT_BASE_URL = "http://localhost:8003";
+
     // ===================== KG（8001）端点：HTTP 方法 + 路径 =====================
 
     public static final String KG_HEALTH = "/api/v1/graph/health";
@@ -50,6 +57,17 @@ public final class ContractPaths {
     public static final String RAG_RETRIEVE = "/api/v1/rag/retrieve";
     public static final String RAG_INDEX_BUILD = "/api/v1/rag/index/build/{courseId}";
     public static final String RAG_INDEX = "/api/v1/rag/index/{courseId}";
+
+    // ===================== FT（8003）端点：HTTP 方法 + 路径 =====================
+
+    public static final String FT_HEALTH = "/api/v1/fine-tune/health";
+    public static final String FT_START = "/api/v1/fine-tune/start";
+    public static final String FT_TASK_STATUS = "/api/v1/fine-tune/tasks/{taskId}/status";
+    public static final String FT_TASKS = "/api/v1/fine-tune/tasks";
+    public static final String FT_TASK_CANCEL = "/api/v1/fine-tune/tasks/{taskId}/cancel";
+    public static final String FT_INFER = "/api/v1/fine-tune/infer/{taskId}";
+    public static final String FT_TASK_EXPORT = "/api/v1/fine-tune/tasks/{taskId}/export";
+    public static final String FT_TASK = "/api/v1/fine-tune/tasks/{taskId}";
 
     // ===================== 请求 JSON 字段名（Java ↔ Python 对齐） =====================
 

@@ -11,15 +11,15 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 
 /**
  * MonitorController 接口测试。
- * 覆盖：正常上报返回 200 / 空 body 容忍 / CSRF 与安全链路放行（引导型匿名端点）。
+ * 覆盖：登录态下正常上报返回 200 / 空 body 容忍 / 未认证请求被拦截（端点已收敛为 isAuthenticated()）。
  */
 @WebMvcTest(MonitorController.class)
 class MonitorControllerTest extends ControllerTestBase {
 
     @Test
-    @DisplayName("POST /api/monitor/frontend-error - 正常上报返回 code=200")
+    @DisplayName("POST /api/monitor/frontend-error - 登录态正常上报返回 code=200")
     void reportFrontendError_ok() throws Exception {
-        mockMvc.perform(post("/api/monitor/frontend-error")
+        mockMvc.perform(withUser(post("/api/monitor/frontend-error"), 1L, "STUDENT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"message\":\"TypeError: x is undefined\"," +
                                 "\"component\":\"Dashboard\",\"info\":\"render\"," +
@@ -29,9 +29,9 @@ class MonitorControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("POST /api/monitor/frontend-error - 空 body 容忍返回 200")
+    @DisplayName("POST /api/monitor/frontend-error - 登录态空 body 容忍返回 200")
     void reportFrontendError_emptyBody_ok() throws Exception {
-        mockMvc.perform(post("/api/monitor/frontend-error")
+        mockMvc.perform(withUser(post("/api/monitor/frontend-error"), 1L, "STUDENT")
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));

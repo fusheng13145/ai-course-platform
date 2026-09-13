@@ -1,7 +1,11 @@
 node_modules
 dist
+dist_probe
 package-lock.json
-src/auto-imports.d.ts
-src/components.d.ts
+# unplugin 构建期生成的类型声明（实际位于 frontend 根目录，非 src/ 下）
+auto-imports.d.ts
+components.d.ts
 coverage
+test-results
+playwright-report
 *.min.js

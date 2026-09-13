@@ -11,6 +11,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -146,7 +147,8 @@ public class SysBackupComponent {
 
                 // 读取输出并写入文件
                 StringBuilder output = new StringBuilder();
-                try (BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()))) {
+                try (BufferedReader reader = new BufferedReader(
+                        new InputStreamReader(process.getInputStream(), StandardCharsets.UTF_8))) {
                     String line;
                     while ((line = reader.readLine()) != null) {
                         output.append(line).append("\n");
@@ -155,7 +157,7 @@ public class SysBackupComponent {
 
                 int exitCode = process.waitFor();
                 if (exitCode == 0) {
-                    Files.writeString(backupFile.toPath(), output.toString(),
+                    Files.writeString(backupFile.toPath(), output.toString(), StandardCharsets.UTF_8,
                             StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
                     log.info("数据库备份成功: {}", backupFileName);
                     return backupFileName;

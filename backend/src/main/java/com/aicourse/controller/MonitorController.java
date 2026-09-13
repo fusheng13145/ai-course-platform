@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import com.aicourse.common.ApiResponse;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -14,21 +15,19 @@ import org.springframework.web.bind.annotation.RestController;
 import java.util.Map;
 
 /**
- * 前端错误监控上报接口（匿名引导型端点）。
+ * 前端错误监控上报接口（登录后可用）。
  *
  * 承接前端 {@code monitoring} 模块上报的运行时异常（组件渲染异常 / 异步错误），
- * 服务端仅记录结构化 WARN 日志供生产排障，不落业务表、不做持久化，
- * 以避免放大攻击面（匿名可写路径最小化）。
+ * 服务端仅记录结构化 WARN 日志供生产排障，不落业务表、不做持久化。
  *
- * 安全约定（见 SecurityConfig / DoubleSubmitCsrfFilter）：
- * - {@code /api/monitor/**} 加入 Security publicPaths 匿名放行；
- * - 该端点加入 CSRF 双提交校验豁免前缀（引导型上报，浏览器场景无既有会话令牌）。
- *
- * 关闭或未配置前端上报（VITE_MONITOR_ENDPOINT 为空）时，本端点无调用方，静默不产生日志。
+ * 安全约定：本端点要求登录态（{@code isAuthenticated()}）。历史版本曾将其匿名放行，
+ * 但匿名可写上报端点会放大攻击面，现收敛为与全仓一致的鉴权策略。
+ * {@code /api/monitor/**} 已从 Security publicPaths 移除，CSRF 校验豁免前缀亦已移除。
  */
 @RestController
 @RequestMapping("/api/monitor")
 @Tag(name = "前端监控上报")
+@PreAuthorize("isAuthenticated()")
 public class MonitorController {
 
     private static final Logger log = LoggerFactory.getLogger(MonitorController.class);

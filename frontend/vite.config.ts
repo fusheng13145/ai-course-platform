@@ -30,13 +30,13 @@ export default defineConfig(({ mode }) => ({
       resolvers: [ElementPlusResolver()],
     }),
     Components({
-      resolvers: [ElementPlusResolver({ importStyle: 'css' })]
+      resolvers: [ElementPlusResolver({ importStyle: 'css' })],
     }),
   ],
   resolve: {
     alias: {
-      '@': fileURLToPath(new URL('./src', import.meta.url))
-    }
+      '@': fileURLToPath(new URL('./src', import.meta.url)),
+    },
   },
   // 依赖预构建：显式列出全部重依赖，避免懒加载路由首次打开时
   // 触发 Vite 运行时"发现新依赖 → 重新预构建 → 强制整页刷新"的问题
@@ -64,24 +64,20 @@ export default defineConfig(({ mode }) => ({
     host: true,
     // 热更新配置
     hmr: {
-      overlay: true  // 显示错误遮罩层
+      overlay: true, // 显示错误遮罩层
     },
     // 预热高频页面模块，降低首次导航延迟
     warmup: {
-      clientFiles: [
-        './src/main.js',
-        './src/layouts/*.vue',
-        './src/views/*/Dashboard.vue',
-      ],
+      clientFiles: ['./src/main.js', './src/layouts/*.vue', './src/views/*/Dashboard.vue'],
     },
     proxy: {
       '/api': {
         // 本地后端监听 8080
         target: 'http://127.0.0.1:8080/api',
         changeOrigin: true,
-        rewrite: (path) => path.replace(/^\/api/, '')
-      }
-    }
+        rewrite: (path) => path.replace(/^\/api/, ''),
+      },
+    },
     // 注意：不要开启 watch.usePolling —— 100ms 全量轮询数千文件会拖垮 dev server，
     // Windows 下 Vite 原生文件事件工作正常，无需轮询
   },
@@ -101,15 +97,18 @@ export default defineConfig(({ mode }) => ({
             if (id.includes('element-plus')) return 'element-plus'
             if (id.includes('echarts') || id.includes('zrender')) return 'echarts'
             if (id.includes('exceljs')) return 'exceljs'
-            if (id.includes('pdfjs-dist') || id.includes('jspdf') || id.includes('html2canvas')) return 'pdf'
-            if (id.includes('marked') || id.includes('dompurify') || id.includes('markdown')) return 'markdown'
-            if (id.includes('vue') || id.includes('pinia') || id.includes('vue-router')) return 'vue-vendor'
+            if (id.includes('pdfjs-dist') || id.includes('jspdf') || id.includes('html2canvas'))
+              return 'pdf'
+            if (id.includes('marked') || id.includes('dompurify') || id.includes('markdown'))
+              return 'markdown'
+            if (id.includes('vue') || id.includes('pinia') || id.includes('vue-router'))
+              return 'vue-vendor'
             if (id.includes('axios')) return 'axios'
             // 其余 node_modules 归入 vendor，避免单一巨块
             return 'vendor'
           }
-        }
-      }
-    }
-  }
+        },
+      },
+    },
+  },
 }))

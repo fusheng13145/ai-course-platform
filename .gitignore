@@ -27,6 +27,11 @@ mysql-backups/
 # 评测产物（含评测运行结果与 QA 记录）
 evaluation/results/
 
+# 运行日志与压测瞬时产物（体积大、无复现价值，切勿提交）
+# 注：calibration/samples.jsonl 与 calibration_data.json 为校准数据集，需入库保留
+*.log
+*.out
+
 # Python 缓存/字节码（构建产物，切勿提交）
 __pycache__/
 *.pyc
