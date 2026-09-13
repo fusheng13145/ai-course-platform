@@ -66,7 +66,7 @@ defineProps({
   margin-bottom: 14px;
 }
 .card-title .el-icon {
-  color: var(--ac-primary, #3b82f6);
+  color: var(--ac-primary, var(--info));
 }
 .sub-label {
   font-size: 13px;
@@ -88,7 +88,7 @@ defineProps({
 }
 .heat-row-head {
   font-size: 12px;
-  color: var(--ac-text-secondary, #475569);
+  color: var(--ac-text-secondary, var(--ink-2));
   display: flex;
   align-items: center;
 }

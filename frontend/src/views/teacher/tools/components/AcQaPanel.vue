@@ -139,7 +139,7 @@ watch(
 }
 .qa-msg.user .qa-bubble {
   background: var(--ac-primary);
-  color: #fff;
+  color: var(--surface);
   border-bottom-right-radius: 4px;
 }
 .qa-msg.ai .qa-bubble {

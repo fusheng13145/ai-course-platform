@@ -74,13 +74,13 @@ const durationOption = computed(() => {
     xAxis: {
       type: 'category',
       data: trend.map((t) => t.date.slice(5)),
-      axisLabel: { fontSize: 11, color: 'var(--ac-text-tertiary, #98a2b3)' },
+      axisLabel: { fontSize: 11, color: 'var(--ac-text-tertiary, var(--ink-3))' },
     },
     yAxis: {
       type: 'value',
       name: '分钟',
       nameTextStyle: { fontSize: 11 },
-      axisLabel: { fontSize: 11, color: 'var(--ac-text-tertiary, #98a2b3)' },
+      axisLabel: { fontSize: 11, color: 'var(--ac-text-tertiary, var(--ink-3))' },
     },
     series: [
       {
@@ -88,8 +88,8 @@ const durationOption = computed(() => {
         smooth: true,
         symbolSize: 6,
         data: trend.map((t) => Math.round((Number(t.seconds) || 0) / 60)),
-        lineStyle: { color: 'var(--accent, #2563a8)', width: 2.5 },
-        itemStyle: { color: 'var(--accent, #2563a8)' },
+        lineStyle: { color: 'var(--accent, var(--info))', width: 2.5 },
+        itemStyle: { color: 'var(--accent, var(--info))' },
         areaStyle: { opacity: 0.1 },
       },
     ],
@@ -103,7 +103,7 @@ const radarOption = computed(() => ({
     indicator: radarDimensions.value.map((d) => ({ name: d, max: 100 })),
     radius: '62%',
     splitNumber: 4,
-    axisName: { fontSize: 11, color: 'var(--ac-text-secondary, #4b5565)' },
+    axisName: { fontSize: 11, color: 'var(--ac-text-secondary, var(--ink-2))' },
   },
   series: [
     {
@@ -113,8 +113,8 @@ const radarOption = computed(() => ({
           value: vizData.value.radarData.map((r) => Number(r.weakRate) || 0),
           name: '薄弱度',
           areaStyle: { opacity: 0.25 },
-          lineStyle: { color: 'var(--ac-danger, #c13b30)' },
-          itemStyle: { color: 'var(--ac-danger, #c13b30)' },
+          lineStyle: { color: 'var(--ac-danger, var(--accent))' },
+          itemStyle: { color: 'var(--ac-danger, var(--accent))' },
         },
       ],
     },
@@ -143,13 +143,13 @@ const heatOption = computed(() => {
     xAxis: {
       type: 'category',
       data: dates.map((d) => d.slice(5)),
-      axisLabel: { fontSize: 11, color: 'var(--ac-text-tertiary, #98a2b3)' },
+      axisLabel: { fontSize: 11, color: 'var(--ac-text-tertiary, var(--ink-3))' },
       splitArea: { show: true },
     },
     yAxis: {
       type: 'category',
       data: courses,
-      axisLabel: { fontSize: 11, color: 'var(--ac-text-tertiary, #98a2b3)' },
+      axisLabel: { fontSize: 11, color: 'var(--ac-text-tertiary, var(--ink-3))' },
       splitArea: { show: true },
     },
     visualMap: {
@@ -160,7 +160,7 @@ const heatOption = computed(() => {
       left: 'center',
       bottom: 0,
       inRange: { color: ['#eef4fb', '#c9dcf2', '#8fb6e0', '#3d78c4', '#1d4e8f'] },
-      textStyle: { fontSize: 10, color: 'var(--ac-text-tertiary, #98a2b3)' },
+      textStyle: { fontSize: 10, color: 'var(--ac-text-tertiary, var(--ink-3))' },
     },
     series: [{ type: 'heatmap', data, label: { show: false } }],
   }

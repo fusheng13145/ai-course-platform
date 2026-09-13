@@ -33,7 +33,7 @@ export function useWrongQuestions() {
       }
     })
     return Object.values(map)
-      .sort((a: any, b: any) => b.count - a.count)
+      .sort((a: { count: number }, b: { count: number }) => b.count - a.count)
       .slice(0, 8)
   })
 

@@ -272,20 +272,20 @@ onMounted(() => {
   display: flex;
   gap: 12px;
   align-items: flex-start;
-  background: color-mix(in srgb, var(--ac-primary, #3b82f6) 8%, var(--ac-bg-elevated));
-  border: 1px solid color-mix(in srgb, var(--ac-primary, #3b82f6) 25%, transparent);
+  background: color-mix(in srgb, var(--ac-primary, var(--info)) 8%, var(--ac-bg-elevated));
+  border: 1px solid color-mix(in srgb, var(--ac-primary, var(--info)) 25%, transparent);
   border-radius: var(--ac-radius-md);
   padding: 14px 16px;
   margin-bottom: var(--ac-spacing-lg);
 }
 .banner-icon {
-  color: var(--ac-primary, #3b82f6);
+  color: var(--ac-primary, var(--info));
   font-size: 18px;
   margin-top: 2px;
 }
 .banner-text {
   font-size: 13px;
-  color: var(--ac-text-secondary, #475569);
+  color: var(--ac-text-secondary, var(--ink-2));
   line-height: 1.6;
 }
 .banner-text strong {
@@ -315,7 +315,7 @@ onMounted(() => {
   margin-bottom: 16px;
 }
 .card-title .el-icon {
-  color: var(--ac-primary, #3b82f6);
+  color: var(--ac-primary, var(--info));
 }
 
 .form-grid {

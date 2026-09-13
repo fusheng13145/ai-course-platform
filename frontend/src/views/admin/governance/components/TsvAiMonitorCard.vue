@@ -58,7 +58,7 @@ defineProps({
   margin-bottom: 14px;
 }
 .card-title .el-icon {
-  color: var(--ac-primary, #3b82f6);
+  color: var(--ac-primary, var(--info));
 }
 .card-meta {
   font-size: 12px;
@@ -79,7 +79,7 @@ defineProps({
   padding: 10px 12px;
   border-radius: 8px;
   border: 1px solid var(--ac-border);
-  background: var(--ac-bg-base, #fff);
+  background: var(--ac-bg-base, var(--surface));
 }
 .alert-row.lv-HIGH {
   border-color: rgba(176, 80, 69, 0.4);

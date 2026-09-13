@@ -126,13 +126,13 @@ function fileIcon(row) {
   transform: translateY(-1px);
 }
 .act-btn--edit {
-  color: var(--ac-primary, #3b82f6);
+  color: var(--ac-primary, var(--info));
 }
 .act-btn--edit:hover {
   background: rgba(59, 130, 246, 0.08);
 }
 .act-btn--del {
-  color: #b05045;
+  color: var(--accent-strong);
 }
 .act-btn--del:hover {
   background: rgba(176, 80, 69, 0.08);

@@ -46,7 +46,15 @@ services:
     volumes:
       - mysql-data:/var/lib/mysql
     healthcheck:
-      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-p${MYSQL_ROOT_PASSWORD}"]
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          "-p${MYSQL_ROOT_PASSWORD}",
+        ]
       interval: 5s
       timeout: 5s
       retries: 20
@@ -68,13 +76,22 @@ services:
     # 写 $$ 后 Compose 输出字面 $REDIS_PASSWORD，交由容器内 sh 从 environment 展开。
     environment:
       REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD 必须设置（请 cp .env.example .env 后填入强密码）}
-    command: ["sh", "-c", "if [ -n \"$$REDIS_PASSWORD\" ]; then exec redis-server --appendonly yes --requirepass \"$$REDIS_PASSWORD\"; else exec redis-server --appendonly yes; fi"]
+    command:
+      [
+        "sh",
+        "-c",
+        'if [ -n "$$REDIS_PASSWORD" ]; then exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"; else exec redis-server --appendonly yes; fi',
+      ]
     ports:
       - "6379:6379"
     volumes:
       - redis-data:/data
     healthcheck:
-      test: ["CMD-SHELL", "if [ -n \"$$REDIS_PASSWORD\" ]; then redis-cli -a \"$$REDIS_PASSWORD\" ping | grep -q PONG; else redis-cli ping | grep -q PONG; fi"]
+      test:
+        [
+          "CMD-SHELL",
+          'if [ -n "$$REDIS_PASSWORD" ]; then redis-cli -a "$$REDIS_PASSWORD" ping | grep -q PONG; else redis-cli ping | grep -q PONG; fi',
+        ]
       interval: 5s
       timeout: 3s
       retries: 20
@@ -105,10 +122,13 @@ services:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
-      # 安全开关：默认宽松（http://80 快速体验）；生产置于 TLS 反代之后时必须置 true
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      REQUIRE_HTTPS: ${REQUIRE_HTTPS:-false}
-      CSRF_ENABLED: ${CSRF_ENABLED:-false}
+      # 安全开关：默认安全（置于 TLS 反代之后的生产应全 true）。
+      # 本地 HTTP 联调由 start-backend.bat 经 local profile 单独放宽，勿在此置 false。
+      COOKIE_SECURE: ${COOKIE_SECURE:-true}
+      REQUIRE_HTTPS: ${REQUIRE_HTTPS:-true}
+      CSRF_ENABLED: ${CSRF_ENABLED:-true}
+      # 跨域白名单（逗号分隔的真实前端域名）；留空 = 不开放跨域（fail-closed）
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
       # 监控端点（/api/actuator/prometheus）鉴权：独立 Basic 鉴权链（与业务 JWT 链路隔离，非 ADMIN 角色）。
       # 凭据为监控专用账号 APP_ACTUATOR_BASIC_USER / APP_ACTUATOR_BASIC_PASSWORD，口令留空则抓取 fail-closed；
       # 启用 monitor profile 且无反向代理鉴权时（内网/演示），可置 false 放开 Prometheus 抓取。
@@ -124,7 +144,7 @@ services:
       KG_BASE_URL: ${KG_BASE_URL:-http://kg-service:8001}
       RAG_ENABLED: ${RAG_ENABLED:-false}
       RAG_BASE_URL: ${RAG_BASE_URL:-http://rag-service:8002}
-      FINE_TUNE_ENABLED: ${FINE_TUNE_ENABLED:-false}
+      FT_ENABLED: ${FT_ENABLED:-false}
       FT_BASE_URL: ${FT_BASE_URL:-http://fine-tune-service:8003}
       TZ: Asia/Shanghai
     ports:
@@ -295,9 +315,9 @@ services:
     depends_on:
       - prometheus
     environment:
-      # 生产必须通过 .env 覆盖默认弱口令！
+      # 生产必须通过 .env 覆盖默认弱口令！缺失即拒绝启动，杜绝 admin/admin 上线。
       GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
-      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD 必须设置（请 cp .env.example .env 后填入强密码，禁止默认 admin/admin）}
       # 暴露 Grafana 自身 /metrics（Prometheus 抓取 grafana:3000/metrics，纳入监控组件存活告警）
       GF_METRICS_ENABLED: "true"
       TZ: Asia/Shanghai

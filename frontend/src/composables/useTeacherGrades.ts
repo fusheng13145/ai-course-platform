@@ -83,7 +83,7 @@ export function useTeacherGrades() {
   async function loadGradeData() {
     loading.value = true
     try {
-      const params: Record<string, any> = {}
+      const params: Record<string, unknown> = {}
       if (selectedCourseId.value) params.courseId = selectedCourseId.value
 
       // 接入 auth store 的当前登录用户ID，作为待批改任务的教师维度过滤参数

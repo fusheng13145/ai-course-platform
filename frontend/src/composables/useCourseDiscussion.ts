@@ -22,7 +22,7 @@ export function useCourseDiscussion() {
   /* 详情抽屉 */
   const detailVisible = ref(false)
   const detailLoading = ref(false)
-  const detail = ref({} as any)
+  const detail = ref<Record<string, unknown>>({})
   const posts = ref([])
   const currentTopicId = ref(null)
   const replyText = ref('')
@@ -30,7 +30,7 @@ export function useCourseDiscussion() {
   async function loadTopics() {
     loading.value = true
     try {
-      const params: Record<string, any> = {}
+      const params: Record<string, unknown> = {}
       if (filter.keyword.trim()) params.keyword = filter.keyword.trim()
       if (filter.chapterId.trim()) params.chapterId = filter.chapterId.trim()
       const r = await discussionApi.getTopics(courseId, params)

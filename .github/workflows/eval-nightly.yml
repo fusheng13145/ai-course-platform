@@ -13,7 +13,7 @@ name: Nightly RAG Evaluation
 
 on:
   schedule:
-    - cron: '0 18 * * *'
+    - cron: "0 18 * * *"
   workflow_dispatch:
 
 permissions:
@@ -52,7 +52,7 @@ jobs:
       JWT_SECRET: eval-nightly-jwt-secret-0123456789abcdef0123456789abcdef
       SPRING_DATASOURCE_PASSWORD: eval-nightly-pw-7c2k
       SPRING_DATA_REDIS_HOST: localhost
-      SPRING_DATA_REDIS_PORT: '6379'
+      SPRING_DATA_REDIS_PORT: "6379"
 
     steps:
       - name: Checkout
@@ -62,13 +62,13 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
           cache: maven
 
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
 
       # ---- 步骤一：评测脚手架校验（始终执行，零基础设施）----
       - name: Validate evaluation harness

@@ -9,7 +9,11 @@
 # - jvm_memory_* / process_cpu_usage：micrometer-registry-prometheus 自动注册
 # - aicourse_*：业务自定义指标（BusinessMetricsService / DimensionMetricsService / AIServiceImpl）
 #
-# 【阈值说明】以下阈值均为演示初值，生产须按实际容量压测后调整；
+# 【阈值说明】阈值已于 2026-09-07 通过本机原生真实负载压测校准（等价 Prometheus 采集），
+# 详细实测依据与逐条回溯见 calibration/ALERT_CALIBRATION_REPORT.md。
+# 原 13 条经校准：12 条保留；HttpP99LatencyHigh 原 2s 因被 AI 路径污染先权宜调 8s，现（2026-09-07 续）
+# 已按报告 §4.3 建议拆分为两条：非 AI 路径 P99>2s（HttpP99LatencyHigh，已排除 /api/ai/*）
+# + AI 路径 P99>8s（AiP99LatencyHigh），消除 AI 长尾延迟对非 AI 路径监控的污染。
 # 告警经 Alertmanager 路由到通知渠道（见 alertmanager.yml）。
 # ============================================================
 
@@ -46,13 +50,13 @@ groups:
           summary: "HTTP 5xx 错误率严重"
           description: "近 5 分钟 5xx 错误率 {{ $value | humanizePercentage }} 超过 20% 阈值并持续 2 分钟。系统可能大面积故障，请立即介入。"
       - alert: HttpP99LatencyHigh
-        expr: 'histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job="aicourse-backend"}[5m])) by (le)) > 2'
+        expr: 'histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job="aicourse-backend",uri!~"/api/ai/.*"}[5m])) by (le)) > 2'
         for: 5m
         labels:
           severity: warning
         annotations:
-          summary: "HTTP P99 延迟过高"
-          description: "近 5 分钟 P99 延迟 {{ $value | humanizeDuration }} 超过 2s 阈值并持续 5 分钟。请排查慢查询、外部 LLM 调用超时或 GC 停顿。"
+          summary: "非 AI 路径 HTTP P99 延迟过高"
+          description: "近 5 分钟非 AI 路径（已排除 /api/ai/*）P99 延迟 {{ $value | humanizeDuration }} 超过 2s 阈值并持续 5 分钟。非 AI 轻量路径压测实测 P99≈4ms，2s 足以捕获真正的后端退化（慢查询/GC 停顿/DB 锁）。AI 路径延迟由独立告警 AiP99LatencyHigh 监控，避免长尾污染。"
 
   # ---------------- JVM 资源饱和度 ----------------
   - name: aicourse-jvm
@@ -97,6 +101,14 @@ groups:
         annotations:
           summary: "AI 调用失败率过高"
           description: "近 10 分钟 AI 调用失败率 {{ $value | humanizePercentage }} 超过 20% 阈值并持续 5 分钟。LLM 供应商可能不稳定或超时，请检查 API Key、配额与网络连通性。"
+      - alert: AiP99LatencyHigh
+        expr: 'histogram_quantile(0.99, sum(rate(http_server_requests_seconds_bucket{job="aicourse-backend",uri=~"/api/ai/.*"}[5m])) by (le)) > 8'
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "AI 路径 HTTP P99 延迟过高"
+          description: "近 5 分钟 AI 路径（/api/ai/*）P99 延迟 {{ $value | humanizeDuration }} 超过 8s 阈值并持续 5 分钟。生产真实 LLM 调用典型 3–8s，偶发超时属正常；若 routinely 超 8s 建议阈值上调至 10s 并排查 LLM 供应商超时/配额。此告警从聚合 P99 SLO 拆分而来，避免 AI 长尾延迟污染非 AI 路径监控。"
 
   # ---------------- 日志异常（Logs → Alerting 闭环） ----------------
   - name: aicourse-logging

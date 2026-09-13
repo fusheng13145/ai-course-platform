@@ -266,7 +266,7 @@ const emit = defineEmits(['node-click', 'select', 'learn'])
 }
 .relation-tag:hover {
   background: var(--ac-primary-light);
-  color: #fff;
+  color: var(--surface);
   border-color: var(--ac-primary-light);
 }
 .relation-tag.subsequent {
@@ -275,7 +275,7 @@ const emit = defineEmits(['node-click', 'select', 'learn'])
 }
 .relation-tag.subsequent:hover {
   background: var(--violet);
-  color: #fff;
+  color: var(--surface);
 }
 .detail-actions {
   margin-top: var(--ac-spacing-lg);

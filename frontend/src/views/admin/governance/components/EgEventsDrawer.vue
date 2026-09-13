@@ -115,13 +115,13 @@ defineEmits(['update:modelValue', 'review'])
 }
 .event-detail {
   font-size: 12px;
-  color: var(--ac-text-secondary, #475569);
+  color: var(--ac-text-secondary, var(--ink-2));
   margin-top: 8px;
   line-height: 1.5;
 }
 .event-review-note {
   font-size: 12px;
-  color: var(--ac-text-secondary, #475569);
+  color: var(--ac-text-secondary, var(--ink-2));
   margin-top: 8px;
   line-height: 1.5;
 }

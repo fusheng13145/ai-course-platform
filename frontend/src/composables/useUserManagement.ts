@@ -6,7 +6,7 @@ import permissionApi from '@/api/permission'
 const ROLE_LABELS = { ADMIN: '管理员', TEACHER: '教师', STUDENT: '学生' }
 
 export function useUserManagement() {
-  const overview = ref({} as any)
+  const overview = ref({} as Record<string, unknown>)
   const search = ref('')
   const loading = ref(true)
   const groups = ref([
@@ -83,10 +83,18 @@ export function useUserManagement() {
         byId[p.id] = { ...p, children: [] }
       })
       const roots = []
-      Object.values(byId).forEach((p: any) => {
-        if (p.parentId && byId[p.parentId]) byId[p.parentId].children.push(p)
-        else roots.push(p)
-      })
+      Object.values(byId).forEach(
+        (p: {
+          id: string
+          parentId?: string
+          permissionName: string
+          resourcePath?: string
+          children: unknown[]
+        }) => {
+          if (p.parentId && byId[p.parentId]) byId[p.parentId].children.push(p)
+          else roots.push(p)
+        },
+      )
       permNodes.value = roots.map(toNode)
     } catch (e) {
       permNodes.value = []

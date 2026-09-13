@@ -47,10 +47,10 @@ function mountLogin() {
       stubs: {
         'el-form': { template: '<form class="el-form-stub"><slot /></form>' },
         'el-input': {
-          props: ['modelValue', 'type', 'placeholder', 'showPassword'],
-          emits: ['update:modelValue'],
+          props: ['modelValue', 'type', 'placeholder', 'autocomplete', 'name', 'readonly'],
+          emits: ['update:modelValue', 'focus'],
           template:
-            '<input class="el-input-stub" :type="type || \'text\'" :placeholder="placeholder" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+            '<input class="el-input-stub" :type="type || \'text\'" :placeholder="placeholder" :autocomplete="autocomplete" :name="name" :readonly="readonly" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" @focus="$emit(\'focus\')" />',
         },
         'el-checkbox': { template: '<label class="el-checkbox-stub"><slot /></label>' },
         RouterLink: { template: '<a><slot /></a>' },
@@ -165,16 +165,6 @@ describe('LoginForm 表单验证', () => {
 
   it('非加载中时无加载动画点', () => {
     expect(wrapper.find('.btn-loader-dot').exists()).toBe(false)
-  })
-
-  it('有三个演示账号', () => {
-    expect(wrapper.vm.demoAccounts).toHaveLength(3)
-  })
-
-  it('fillDemo 填充用户名和密码', () => {
-    wrapper.vm.fillDemo('admin', 'admin123')
-    expect(wrapper.vm.form.username).toBe('admin')
-    expect(wrapper.vm.form.password).toBe('admin123')
   })
 
   it('空表单登录时提示警告且不调用 login', async () => {

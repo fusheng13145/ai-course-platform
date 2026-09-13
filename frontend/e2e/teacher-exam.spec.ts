@@ -9,8 +9,24 @@ import { setLocalStorageAuth } from './test-helpers'
 
 const examPapers = {
   records: [
-    { id: 1, title: '期中考试卷', courseId: 1, courseName: '数据结构', status: 'PUBLISHED', duration: 90, totalScore: 100 },
-    { id: 2, title: '单元测验', courseId: 1, courseName: '数据结构', status: 'DRAFT', duration: 45, totalScore: 50 },
+    {
+      id: 1,
+      title: '期中考试卷',
+      courseId: 1,
+      courseName: '数据结构',
+      status: 'PUBLISHED',
+      duration: 90,
+      totalScore: 100,
+    },
+    {
+      id: 2,
+      title: '单元测验',
+      courseId: 1,
+      courseName: '数据结构',
+      status: 'DRAFT',
+      duration: 45,
+      totalScore: 50,
+    },
   ],
   total: 2,
 }

@@ -46,7 +46,10 @@ export function useClassrooms() {
         key: `major:${m}`,
         label: m,
         type: 'major',
-        count: Object.values((majors as any)[m] || {}).reduce((a: number, b: number) => a + b, 0),
+        count: Object.values((majors as Record<string, Record<string, number>>)[m] || {}).reduce(
+          (a: number, b: number) => a + b,
+          0,
+        ),
         children: Object.keys(majors[m])
           .sort()
           .map((g) => ({

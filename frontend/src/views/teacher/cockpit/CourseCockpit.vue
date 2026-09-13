@@ -11,7 +11,7 @@
             background: `linear-gradient(135deg,${coverColors[coverIdx]})`,
             display: 'grid',
             placeItems: 'center',
-            color: '#fff',
+            color: 'var(--surface)',
             flexShrink: 0,
           }"
         >

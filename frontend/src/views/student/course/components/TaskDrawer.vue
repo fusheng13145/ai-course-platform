@@ -320,7 +320,7 @@ watch(
   margin: var(--ac-spacing-md) 0;
 }
 .video-wrap {
-  background: #000;
+  background: var(--ink);
   border-radius: var(--ac-radius-md);
   overflow: hidden;
 }
@@ -328,7 +328,7 @@ watch(
   width: 100%;
   max-height: 360px;
   display: block;
-  background: #000;
+  background: var(--ink);
 }
 .video-tip {
   display: flex;

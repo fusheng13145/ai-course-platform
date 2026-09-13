@@ -89,7 +89,7 @@ defineEmits(['open-events'])
   margin-bottom: 14px;
 }
 .card-title .el-icon {
-  color: var(--ac-primary, #3b82f6);
+  color: var(--ac-primary, var(--info));
 }
 
 .detail {
@@ -112,13 +112,13 @@ defineEmits(['open-events'])
   color: var(--ac-text-primary);
 }
 .score-HIGH {
-  color: #b05045;
+  color: var(--accent-strong);
 }
 .score-MEDIUM {
-  color: #b8841e;
+  color: var(--warn);
 }
 .score-LOW {
-  color: #166534;
+  color: var(--ok);
 }
 .type-chips {
   display: flex;
@@ -130,7 +130,7 @@ defineEmits(['open-events'])
   padding: 2px 8px;
   border-radius: 12px;
   background: rgba(127, 127, 127, 0.1);
-  color: var(--ac-text-secondary, #475569);
+  color: var(--ac-text-secondary, var(--ink-2));
 }
 .muted {
   color: var(--ac-text-muted);

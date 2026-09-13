@@ -137,7 +137,7 @@ const {
   align-items: center;
   justify-content: center;
   flex-shrink: 0;
-  color: #fff;
+  color: var(--surface);
 }
 .stat-icon--blue {
   background: linear-gradient(135deg, #3b82f6, #60a5fa);

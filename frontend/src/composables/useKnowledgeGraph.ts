@@ -64,7 +64,7 @@ export function useKnowledgeGraph() {
   }
 
   /* ---- 概览 ---- */
-  const overview = ref({} as any)
+  const overview = ref<Record<string, unknown>>({})
   async function loadOverview() {
     if (!courseId.value) return
     try {
@@ -127,7 +127,7 @@ export function useKnowledgeGraph() {
     if (!courseId.value) return ElMessage.warning('请先选择课程')
     formSubmitting.value = true
     try {
-      const payload: Record<string, any> = {
+      const payload: Record<string, unknown> = {
         name: kpForm.name.trim(),
         description: kpForm.description.trim(),
         difficulty: kpForm.difficulty,

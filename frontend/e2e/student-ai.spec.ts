@@ -14,9 +14,7 @@ test.describe('AI 助手页面（学生端）', () => {
         body: JSON.stringify({
           code: 200,
           message: 'success',
-          data: [
-            { id: 1, title: '会话 1', createdAt: new Date().toISOString() },
-          ],
+          data: [{ id: 1, title: '会话 1', createdAt: new Date().toISOString() }],
         }),
       })
     })
@@ -59,12 +57,13 @@ test.describe('AI 助手页面（学生端）', () => {
     await expect(page.locator('body')).toBeVisible()
 
     // 验证侧边栏存在（StudentLayout 侧边导航）
-    const sidebar = page.locator('.el-menu, .sidebar, aside, [class*="side"], [class*="nav"]').first()
+    const sidebar = page
+      .locator('.el-menu, .sidebar, aside, [class*="side"], [class*="nav"]')
+      .first()
     await expect(sidebar).toBeVisible({ timeout: 5000 })
 
     // 验证聊天区域存在
-    const chatArea =
-      page.locator('[class*="chat"], [class*="message"], [class*="ai"]').first()
+    const chatArea = page.locator('[class*="chat"], [class*="message"], [class*="ai"]').first()
     await expect(chatArea).toBeVisible({ timeout: 5000 })
   })
 

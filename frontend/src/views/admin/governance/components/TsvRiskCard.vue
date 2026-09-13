@@ -121,7 +121,7 @@ defineEmits(['update:riskDim', 'load-risk'])
   margin-bottom: 14px;
 }
 .card-title .el-icon {
-  color: var(--ac-primary, #3b82f6);
+  color: var(--ac-primary, var(--info));
 }
 .dim-sel {
   margin-left: auto;
@@ -139,10 +139,10 @@ defineEmits(['update:riskDim', 'load-risk'])
   align-items: center;
   gap: 6px;
   font-size: 13px;
-  color: var(--ac-text-secondary, #475569);
+  color: var(--ac-text-secondary, var(--ink-2));
 }
 .rule-item .el-icon {
-  color: #b8841e;
+  color: var(--warn);
 }
 
 .risk-summary {
@@ -170,7 +170,7 @@ defineEmits(['update:riskDim', 'load-risk'])
   color: var(--ac-text-primary);
 }
 .rs-item.danger .rs-val {
-  color: #b05045;
+  color: var(--accent-strong);
 }
 .rs-lbl {
   font-size: 12px;
@@ -191,7 +191,7 @@ defineEmits(['update:riskDim', 'load-risk'])
 }
 .rg-name {
   width: 110px;
-  color: var(--ac-text-secondary, #475569);
+  color: var(--ac-text-secondary, var(--ink-2));
   flex-shrink: 0;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -232,7 +232,7 @@ defineEmits(['update:riskDim', 'load-risk'])
   align-items: center;
 }
 .rt-head {
-  background: var(--ac-bg-base, #fff);
+  background: var(--ac-bg-base, var(--surface));
   color: var(--ac-text-muted);
   font-weight: 600;
   border-bottom: 1px solid var(--ac-border);
@@ -250,6 +250,6 @@ defineEmits(['update:riskDim', 'load-risk'])
 .c-course,
 .c-prog,
 .c-score {
-  color: var(--ac-text-secondary, #475569);
+  color: var(--ac-text-secondary, var(--ink-2));
 }
 </style>

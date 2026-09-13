@@ -15,7 +15,7 @@ RAG 检索引擎（8002）契约冒烟测试
 
 from fastapi.testclient import TestClient
 
-from rag_service import app
+from rag_service import MSG_RAG_UNAVAILABLE, app
 
 
 def test_health():
@@ -65,7 +65,8 @@ def test_retrieve_returns_degraded_503():
         body = resp.json()
         assert body["code"] == 503
         assert body["mode"] == "UNAVAILABLE"
-        assert body["error"] == "MSG_RAG_UNAVAILABLE"
+        # 与 Java 端 ContractPaths.MSG_RAG_UNAVAILABLE 严格一致（契约漂移修复）
+        assert body["error"] == MSG_RAG_UNAVAILABLE
 
 
 def test_ask_returns_degraded_503():
@@ -76,10 +77,53 @@ def test_ask_returns_degraded_503():
         )
         assert resp.status_code == 200
         body = resp.json()
-        assert "answer" in body
         assert body["code"] == 503
         assert body["mode"] == "UNAVAILABLE"
-        assert body["error"] == "MSG_RAG_UNAVAILABLE"
+        # 与 Java 端 ContractPaths.MSG_RAG_UNAVAILABLE 严格一致（契约漂移修复）
+        assert body["error"] == MSG_RAG_UNAVAILABLE
+
+
+def test_retrieve_returns_success_schema(monkeypatch):
+    # 端到端断言补全：RAG_ENGINE_READY=1 时验证 Java HttpRagProvider 期望的 200 成功结构
+    monkeypatch.setenv("RAG_ENGINE_READY", "1")
+    with TestClient(app) as c:
+        resp = c.post(
+            "/api/v1/rag/retrieve",
+            json={"query": "OSI", "course_id": 2, "top_k": 5},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["code"] == 200
+        assert body["mode"] == "ENGINE"
+        results = body["results"]
+        assert len(results) >= 1
+        for r in results:
+            assert r["document_id"] is not None
+            assert r["document_name"] is not None
+            assert r["relevance_score"] is not None
+            assert r["snippet"] is not None
+
+
+def test_ask_returns_success_schema(monkeypatch):
+    # 端到端断言补全：RAG_ENGINE_READY=1 时验证 Java HttpRagProvider 期望的 200 成功结构
+    monkeypatch.setenv("RAG_ENGINE_READY", "1")
+    with TestClient(app) as c:
+        resp = c.post(
+            "/api/v1/rag/ask",
+            json={"question": "什么是 TCP？", "course_id": 2, "top_k": 5},
+        )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["code"] == 200
+        assert body["mode"] == "ENGINE"
+        assert body["answer"]
+        sources = body["sources"]
+        assert len(sources) >= 1
+        for s in sources:
+            assert s["document_id"] is not None
+            assert s["document_name"] is not None
+            assert s["relevance_score"] is not None
+            assert s["snippet"] is not None
 
 
 def test_index_build():

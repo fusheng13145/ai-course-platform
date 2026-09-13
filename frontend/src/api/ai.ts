@@ -38,7 +38,12 @@ export const generateLearningPath = (data) => request.post('/ai/learning-path/ge
  * @returns {AbortController} 可用于中途取消流
  */
 export function qaStream(
-  params: { question: string; sessionId?: number; context?: string; [key: string]: any },
+  params: {
+    question: string
+    sessionId?: number
+    context?: string
+    [key: string]: string | number | boolean | undefined
+  },
   {
     onToken,
     onError,

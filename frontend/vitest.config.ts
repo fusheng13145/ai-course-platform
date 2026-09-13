@@ -36,12 +36,7 @@ export default defineConfig({
         'src/monitoring/**/*.ts',
         'src/layouts/**/*.ts',
       ],
-      exclude: [
-        'src/main.ts',
-        'src/utils/logger.ts',
-        'src/**/__tests__/**',
-        'src/**/*.d.ts',
-      ],
+      exclude: ['src/main.ts', 'src/utils/logger.ts', 'src/**/__tests__/**', 'src/**/*.d.ts'],
       thresholds: {
         lines: 7,
         functions: 20,

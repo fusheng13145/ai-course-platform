@@ -15,50 +15,50 @@ global:
 
 # 告警规则：由 alert_rules.yml 定义；评估周期同 evaluation_interval（15s）
 rule_files:
-  - '/etc/prometheus/alert_rules.yml'
+  - "/etc/prometheus/alert_rules.yml"
 
 # 告警分发：推送至同网络内的 Alertmanager（docker-compose alertmanager 服务）。
 # 注意：Alertmanager 未启动时 Prometheus 仅无法外发告警，自身抓取与规则评估不受影响。
 alerting:
   alertmanagers:
     - static_configs:
-        - targets: ['alertmanager:9093']
+        - targets: ["alertmanager:9093"]
 
 scrape_configs:
-  - job_name: 'aicourse-backend'
-    metrics_path: '/api/actuator/prometheus'
+  - job_name: "aicourse-backend"
+    metrics_path: "/api/actuator/prometheus"
     scheme: http
     basic_auth:
-      username: '${ACTUATOR_BASIC_USER:-monitor}'
-      password: '${ACTUATOR_BASIC_PASSWORD:-}'
+      username: "${ACTUATOR_BASIC_USER:-monitor}"
+      password: "${ACTUATOR_BASIC_PASSWORD:-}"
     static_configs:
-      - targets: ['backend:8080']
+      - targets: ["backend:8080"]
 
-  - job_name: 'promtail'
+  - job_name: "promtail"
     # 抓取 Promtail 自身 metrics 端点（server.http_listen_port=9080），
     # 获取 promtail_custom_log_lines_total{level} 用于错误日志突增告警。
     static_configs:
-      - targets: ['promtail:9080']
+      - targets: ["promtail:9080"]
 
   # 宿主机系统指标（CPU/内存/磁盘/网络）：支撑 DiskUsageHigh 等系统告警。
   # node-exporter 以 host 网络命名空间运行，抓取目标即其容器名（docker DNS 解析到 host 网卡）。
-  - job_name: 'node-exporter'
+  - job_name: "node-exporter"
     static_configs:
-      - targets: ['node-exporter:9100']
+      - targets: ["node-exporter:9100"]
 
   # ---------------- 监控组件自监控（meta-monitoring） ----------------
   # 抓取监控链路各组件自身 /metrics，使 up{job=~"prometheus|alertmanager|loki|grafana|promtail"}
   # 全部纳入监控；任一组件宕机（尤其 Alertmanager）将触发 MonitoringComponentDown 告警。
-  - job_name: 'prometheus'
+  - job_name: "prometheus"
     static_configs:
-      - targets: ['prometheus:9090']
-  - job_name: 'alertmanager'
+      - targets: ["prometheus:9090"]
+  - job_name: "alertmanager"
     static_configs:
-      - targets: ['alertmanager:9093']
-  - job_name: 'loki'
+      - targets: ["alertmanager:9093"]
+  - job_name: "loki"
     static_configs:
-      - targets: ['loki:3100']
-  - job_name: 'grafana'
+      - targets: ["loki:3100"]
+  - job_name: "grafana"
     # 依赖 docker-compose grafana 服务的 GF_METRICS_ENABLED=true 暴露 /metrics
     static_configs:
-      - targets: ['grafana:3000']
+      - targets: ["grafana:3000"]

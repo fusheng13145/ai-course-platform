@@ -72,9 +72,9 @@ defineProps({
 })
 
 function getRateColor(rate) {
-  if (rate >= 90) return '#10b981'
-  if (rate >= 60) return '#f59e0b'
-  return '#ef4444'
+  if (rate >= 90) return 'var(--ok)'
+  if (rate >= 60) return 'var(--warn)'
+  return 'var(--accent)'
 }
 </script>
 
@@ -100,7 +100,7 @@ function getRateColor(rate) {
   color: var(--ac-text-primary);
 }
 .low-score {
-  color: var(--ac-danger, #ef4444);
+  color: var(--ac-danger, var(--accent));
 }
 .ratio {
   font-size: 13px;

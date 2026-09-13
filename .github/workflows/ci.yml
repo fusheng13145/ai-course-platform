@@ -3,9 +3,9 @@ name: CI
 # 触发条件：主干推送、对主干的 PR、以及手动触发
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
   workflow_dispatch:
 
 # 最小权限原则：CI 仅需读取仓库内容
@@ -35,7 +35,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -44,6 +44,15 @@ jobs:
 
       - name: Lint (ESLint)
         run: npm run lint
+
+      - name: API 方法引用一致性
+        # 校验所有 import 自 @/api/* 的调用在对应模块中有导出，防止重构后遗留失效引用
+        run: npm run lint:api-refs
+
+      - name: Type check (vue-tsc) 棘轮门禁
+        # 存量类型错误基线见 frontend/scripts/typecheck-baseline.json：
+        # 错误数不得超过基线（防回归），且基线只许下调；修复存量后同步收紧。
+        run: npm run typecheck:gate
 
       - name: Format check (Prettier)
         run: npm run format:check
@@ -72,7 +81,7 @@ jobs:
       - name: Set up Node
         uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: "20"
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
@@ -123,7 +132,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
           cache: maven
 
       - name: Build, unit & integration tests with coverage gate
@@ -162,13 +171,10 @@ jobs:
   trivy-scan:
     name: Trivy Security Scan (fs)
     runs-on: ubuntu-latest
+    # 最小权限：SARIF 结果以 artifact 形式保存（见下方 upload-artifact），
+    # 不再调用 upload-sarif，故无需 security-events / actions 写权限。
     permissions:
-      security-events: write # 上传 SARIF 到 code scanning
       contents: read
-      # 修复：github/codeql-action/upload-sarif 需读取 workflow run 元数据，
-      # 缺失时报 "Resource not accessible by integration ...
-      # /rest/actions/workflow-runs#get-a-workflow-run" 并导致上传失败。
-      actions: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -178,32 +184,32 @@ jobs:
         # 便于在门禁失败时直接从日志定位具体漏洞（sarif 模式下详情写入文件，日志不可见）。
         uses: aquasecurity/trivy-action@v0.35.0
         with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'table'
-          severity: 'HIGH,CRITICAL'
+          scan-type: "fs"
+          scan-ref: "."
+          format: "table"
+          severity: "HIGH,CRITICAL"
           ignore-unfixed: true
-          trivyignores: '.trivyignore'
-          exit-code: '0'
+          trivyignores: ".trivyignore"
+          exit-code: "0"
 
       - name: Trivy fs scan (repo config + deps)
         uses: aquasecurity/trivy-action@v0.35.0
         with:
-          scan-type: 'fs'
-          scan-ref: '.'
-          format: 'sarif'
-          output: 'trivy-results.sarif'
-          severity: 'HIGH,CRITICAL'
+          scan-type: "fs"
+          scan-ref: "."
+          format: "sarif"
+          output: "trivy-results.sarif"
+          severity: "HIGH,CRITICAL"
           ignore-unfixed: true
           # 豁免 3 个 Tomcat CVE（与 backend/osv-scanner.toml 对齐）：修复版 10.1.58 未发布到
           # Maven Central，且仅影响 Tomcat 内置 FORM/DIGEST/security-constraint（本项目用 JWT，不受影响）。
-          trivyignores: '.trivyignore'
+          trivyignores: ".trivyignore"
           # 修复：trivy-action 的 entrypoint.sh 在 format=sarif 且本参数非 true 时会
           # `unset TRIVY_SEVERITY`（日志特征 "Building SARIF report with all severities"），
           # 使 MEDIUM/LOW 漏洞也计入 exit-code 判定而误报失败（HIGH/CRITICAL 已清零仍 exit 1）。
           # 设为 true 恢复 severity 过滤：SARIF 仍记录全部级别供审阅，仅 HIGH/CRITICAL 触发 exit 1。
           limit-severities-for-sarif: true
-          exit-code: '1'
+          exit-code: "1"
 
       - name: Upload Trivy SARIF (artifact)
         # 此前用 github/codeql-action/upload-sarif@v3 上传到 GitHub Code Scanning，
@@ -238,7 +244,7 @@ jobs:
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '21'
+          java-version: "21"
 
       - name: Configure Maven mirror (avoid Maven Central HTTP 429 rate limits)
         # 修复：Maven Central 对高消费流量实施 429 限流（Sonatype 官方说明）。
@@ -340,7 +346,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
           cache: pip
           cache-dependency-path: python-services/kg_service/requirements.txt
 
@@ -369,7 +375,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: "3.11"
           cache: pip
           cache-dependency-path: python-services/rag_service/requirements.txt
 

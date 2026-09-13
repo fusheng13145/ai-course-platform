@@ -173,7 +173,7 @@ defineEmits(['ask', 'retrieve'])
   align-items: center;
 }
 .src-chip {
-  background: var(--ac-bg-subtle, #f1f5f9);
+  background: var(--ac-bg-subtle, var(--surface-3));
   border-radius: 6px;
   padding: 2px 8px;
   font-size: 12px;
@@ -203,7 +203,7 @@ defineEmits(['ask', 'retrieve'])
 .retrieve-item {
   padding: 8px 10px;
   border-radius: 8px;
-  background: var(--ac-bg-subtle, #f8fafc);
+  background: var(--ac-bg-subtle, var(--surface-2));
   margin-bottom: 8px;
 }
 .retrieve-head {

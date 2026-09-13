@@ -26,9 +26,9 @@ export function useStudentExams() {
   const questions = ref([])
   const questionsLoading = ref(false)
   const currentIndex = ref(0)
-  const answers = ref({} as any) // 单选/判断答案
-  const multiAnswers = ref({} as any) // 多选答案
-  const textAnswers = ref({} as any) // 简答答案
+  const answers = ref({} as Record<number, string | number | boolean>) // 单选/判断答案
+  const multiAnswers = ref({} as Record<number, number[]>) // 多选答案
+  const textAnswers = ref({} as Record<number, string>) // 简答答案
   const defaultScore = 10
 
   /* ---- 倒计时 ---- */
@@ -37,7 +37,7 @@ export function useStudentExams() {
   const remainingSeconds = ref(0)
 
   /* ---- 成绩结果 ---- */
-  const examResult = ref({} as any)
+  const examResult = ref({} as Record<string, unknown>)
   const autoSaveTimer = ref(null)
 
   /* ---- 计算属性 ---- */
@@ -151,7 +151,7 @@ export function useStudentExams() {
         .then(async () => {
           // 调用 startExam API
           const res = await examApi.startExam(exam.id)
-          const sid = res.data?.id || (res as any)?.id
+          const sid = res.data?.id || (res as unknown as { id?: string | number })?.id
           sessionId.value = sid
 
           // 加载题目

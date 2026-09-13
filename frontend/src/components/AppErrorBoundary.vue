@@ -97,7 +97,7 @@ defineExpose({ captureError })
   line-height: 48px;
   border-radius: 50%;
   background: var(--ac-danger);
-  color: #fff;
+  color: var(--surface);
   font-size: 24px;
   font-weight: 700;
   margin: 0 auto var(--ac-spacing-md);

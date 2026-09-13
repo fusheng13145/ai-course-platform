@@ -49,10 +49,10 @@ function mountLogin() {
       stubs: {
         'el-form': { template: '<form class="el-form-stub"><slot /></form>' },
         'el-input': {
-          props: ['modelValue', 'type', 'placeholder', 'showPassword'],
-          emits: ['update:modelValue'],
+          props: ['modelValue', 'type', 'placeholder', 'autocomplete', 'name', 'readonly'],
+          emits: ['update:modelValue', 'focus'],
           template:
-            '<input class="el-input-stub" :type="type || \'text\'" :placeholder="placeholder" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />',
+            '<input class="el-input-stub" :type="type || \'text\'" :placeholder="placeholder" :autocomplete="autocomplete" :name="name" :readonly="readonly" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" @focus="$emit(\'focus\')" />',
         },
         'el-checkbox': { template: '<label class="el-checkbox-stub"><slot /></label>' },
         RouterLink: { template: '<a><slot /></a>' },
@@ -191,28 +191,6 @@ describe('Login 页面组件', () => {
 
       expect(wrapper.vm.showError).toBe(true)
       expect(mocks.mockMessage.error).toHaveBeenCalledWith('账号已锁定')
-    })
-
-    it('登录失败后显示演示账号区域', async () => {
-      const wrapper = mountLogin()
-      wrapper.vm.form.username = 'bad'
-      wrapper.vm.form.password = 'wrong'
-      mocks.mockLogin.mockRejectedValue(new Error('认证失败'))
-
-      await wrapper.vm.handleLogin()
-
-      expect(wrapper.find('.demo-row').exists()).toBe(true)
-    })
-
-    it('点击演示账号 tag 填充表单', async () => {
-      const wrapper = mountLogin()
-      wrapper.vm.showError = true
-      await wrapper.vm.$nextTick()
-
-      await wrapper.findAll('.tag')[2].trigger('click')
-
-      expect(wrapper.vm.form.username).toBe('student')
-      expect(wrapper.vm.form.password).toBe('student123')
     })
 
     it('已登录（user 存在）时挂载直接跳转默认路由', () => {

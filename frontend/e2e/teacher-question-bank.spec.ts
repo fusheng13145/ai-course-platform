@@ -8,8 +8,20 @@ import { setLocalStorageAuth } from './test-helpers'
 
 const questions = {
   records: [
-    { id: 1, type: 'SINGLE', stem: '数据结构中，栈的特点是？', difficulty: 'MEDIUM', reviewStatus: 'APPROVED' },
-    { id: 2, type: 'MULTIPLE', stem: '以下哪些属于线性表？', difficulty: 'HARD', reviewStatus: 'PENDING' },
+    {
+      id: 1,
+      type: 'SINGLE',
+      stem: '数据结构中，栈的特点是？',
+      difficulty: 'MEDIUM',
+      reviewStatus: 'APPROVED',
+    },
+    {
+      id: 2,
+      type: 'MULTIPLE',
+      stem: '以下哪些属于线性表？',
+      difficulty: 'HARD',
+      reviewStatus: 'PENDING',
+    },
   ],
   total: 2,
 }

@@ -200,7 +200,7 @@ const avatarStyle = computed(() => {
   padding: 9px 10px;
   border-radius: 8px;
   cursor: pointer;
-  color: #b9c1cf;
+  color: var(--ink-3);
   font-size: 13.5px;
   position: relative;
   transition:
@@ -342,7 +342,7 @@ const avatarStyle = computed(() => {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--surface);
   font-weight: 600;
   font-size: 14px;
   flex-shrink: 0;

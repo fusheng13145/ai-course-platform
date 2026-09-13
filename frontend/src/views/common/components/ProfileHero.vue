@@ -132,7 +132,7 @@ defineProps({
 .hero-avatar__img {
   border: 4px solid var(--ac-bg-elevated);
   background: linear-gradient(135deg, var(--ac-primary), var(--accent-strong)) !important;
-  color: #fff !important;
+  color: var(--surface) !important;
   font-size: 34px;
   font-weight: 700;
   box-shadow: var(--ac-shadow-md);

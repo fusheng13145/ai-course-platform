@@ -43,6 +43,18 @@ set "SPRING_DATASOURCE_PASSWORD=%MYSQL_ROOT_PASSWORD%"
 set "SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3306/ai_course_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true"
 set "SPRING_DATA_REDIS_HOST=localhost"
 set "SPRING_DATA_REDIS_PORT=6379"
+rem Redis 鉴权探测：.env 的 REDIS_PASSWORD 面向 Docker 容器（requirepass），而本机 Redis 常以无密码模式运行。
+rem 若本机 6379 无密码 PING 直接返回 PONG，则清除透传——避免后端对无密码 Redis 发 AUTH，
+rem 触发 RedisStartupValidator fail-fast 导致启动失败（曾实测）。本机 Redis 带密码时（NOAUTH/错密码）保持透传。
+set "REDIS_PROBE="
+where redis-cli >nul 2>&1 && set "REDIS_PROBE=1"
+if defined REDIS_PROBE (
+    redis-cli -h 127.0.0.1 -p 6379 ping 2>nul | findstr /c:"PONG" >nul 2>&1
+    if not errorlevel 1 (
+        echo [INFO] Local Redis on 6379 has NO password - skipping REDIS_PASSWORD passthrough.
+        set "REDIS_PASSWORD="
+    )
+)
 rem Redis 认证：仅当 .env 显式配置非空 REDIS_PASSWORD 时透传（空值会触发 AUTH 导致本机无密码 Redis 连不上）
 if defined REDIS_PASSWORD if not "%REDIS_PASSWORD%"=="" set "SPRING_DATA_REDIS_PASSWORD=%REDIS_PASSWORD%"
 set "COOKIE_SECURE=false"

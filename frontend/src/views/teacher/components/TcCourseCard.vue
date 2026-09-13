@@ -111,8 +111,8 @@ function getStatusText(status) {
 <style scoped>
 /* 卡片主体 */
 .course-card {
-  background: var(--ac-bg-elevated, #fff);
-  border: 1px solid var(--ac-border, #e5e7eb);
+  background: var(--ac-bg-elevated, var(--surface));
+  border: 1px solid var(--ac-border, var(--line));
   border-radius: var(--ac-radius-md, 10px);
   overflow: hidden;
   cursor: pointer;
@@ -152,7 +152,7 @@ function getStatusText(status) {
   display: inline-block;
   background: rgba(255, 255, 255, 0.25);
   backdrop-filter: blur(4px);
-  color: #fff;
+  color: var(--surface);
   font-size: 11px;
   padding: 3px 10px;
   border-radius: 12px;
@@ -166,7 +166,7 @@ function getStatusText(status) {
 .card-title {
   font-size: 16px;
   font-weight: 600;
-  color: var(--ac-text-primary, #1e293b);
+  color: var(--ac-text-primary, var(--ink));
   margin: 0 0 10px;
   line-height: 1.4;
   overflow: hidden;
@@ -184,11 +184,11 @@ function getStatusText(status) {
   align-items: center;
   gap: 4px;
   font-size: 12.5px;
-  color: var(--ac-text-secondary, #64748b);
+  color: var(--ac-text-secondary, var(--ink-2));
 }
 .card-desc {
   font-size: 12.5px;
-  color: var(--ac-text-secondary, #94a3b8);
+  color: var(--ac-text-secondary, var(--ink-3));
   line-height: 1.5;
   display: -webkit-box;
   -webkit-line-clamp: 2;
@@ -203,7 +203,7 @@ function getStatusText(status) {
   justify-content: flex-end;
   align-items: center;
   padding: 8px 12px;
-  border-top: 1px solid var(--ac-border, #f1f5f9);
+  border-top: 1px solid var(--ac-border, var(--surface-3));
   gap: 2px;
 }
 </style>

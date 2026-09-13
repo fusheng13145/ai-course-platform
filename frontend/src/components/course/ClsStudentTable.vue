@@ -90,9 +90,9 @@ defineProps({
 defineEmits(['update:searchKeyword'])
 
 function getEngagementColor(val) {
-  if (val >= 80) return '#10b981'
-  if (val >= 50) return '#f59e0b'
-  return '#ef4444'
+  if (val >= 80) return 'var(--ok)'
+  if (val >= 50) return 'var(--warn)'
+  return 'var(--accent)'
 }
 
 function getStatusTag(row) {

@@ -71,7 +71,7 @@ export function useQuestionBank() {
   async function loadQuestions() {
     loading.value = true
     try {
-      const params: Record<string, any> = { page: page.value, size: pageSize.value }
+      const params: Record<string, unknown> = { page: page.value, size: pageSize.value }
       if (filters.courseId) params.courseId = filters.courseId
       if (filters.type) params.type = filters.type
       if (filters.difficulty) params.difficulty = filters.difficulty
@@ -137,7 +137,7 @@ export function useQuestionBank() {
     if (!valid) return
     submitting.value = true
     try {
-      const payload: Record<string, any> = {
+      const payload: Record<string, unknown> = {
         type: form.type,
         difficulty: form.difficulty,
         courseId: form.courseId || undefined,
@@ -221,7 +221,7 @@ export function useQuestionBank() {
   async function generateByAI() {
     aiGenerating.value = true
     try {
-      const payload: Record<string, any> = {
+      const payload: Record<string, unknown> = {
         courseId: aiForm.courseId || undefined,
         type: aiForm.type,
         difficulty: aiForm.difficulty,

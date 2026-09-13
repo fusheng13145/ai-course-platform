@@ -106,9 +106,9 @@ export function useAIAssistant() {
   /** SSE 流式：逐 token 推送 */
   function handleSendStream(aiMsgIdx, question) {
     return new Promise<void>((resolve, reject) => {
-      const params: Record<string, any> = { question }
+      const params: Record<string, string | number | boolean | undefined> = { question }
       if (selectedCourseId.value) params.courseId = selectedCourseId.value
-      const controller = aiApi.qaStream(params as any, {
+      const controller = aiApi.qaStream(params, {
         onToken(token) {
           messages.value[aiMsgIdx].content += token
         },
@@ -126,14 +126,14 @@ export function useAIAssistant() {
 
   /** 非流式兜底：qaAsk 完整回复后前端逐字渲染 */
   async function handleSendFallback(aiMsgIdx, question) {
-    const payload: Record<string, any> = { question }
+    const payload: Record<string, unknown> = { question }
     if (selectedCourseId.value) payload.courseId = selectedCourseId.value
     const res = await aiApi.qaAsk(payload)
     const reply =
       res.data?.response ||
       res.data?.reply ||
       res.data?.content ||
-      (res as any)?.content ||
+      (res as Record<string, unknown>)?.content ||
       '感谢您的提问！我正在学习中，稍后会有更完善的回答。'
     await typewriterEffect(aiMsgIdx, reply)
   }
@@ -194,8 +194,8 @@ export function useAIAssistant() {
         res.data?.response ||
         res.data?.reply ||
         res.data?.content ||
-        (res as any)?.response ||
-        (res as any)?.content ||
+        (res as Record<string, unknown>)?.response ||
+        (res as Record<string, unknown>)?.content ||
         '正在为您生成课程总结，请稍候...'
       await typewriterEffect(aiMsgIdx, reply)
     } catch (e) {
@@ -286,10 +286,11 @@ export function useAIAssistant() {
       loading: true,
     })
     try {
-      const payload: Record<string, any> = { question: lastUserMsg }
+      const payload: Record<string, unknown> = { question: lastUserMsg }
       if (selectedCourseId.value) payload.courseId = selectedCourseId.value
       const res = await aiApi.qaAsk(payload)
-      const reply = res.data?.response || (res as any)?.response || '已重新生成回复。'
+      const reply =
+        res.data?.response || (res as Record<string, unknown>)?.response || '已重新生成回复。'
       await typewriterEffect(aiMsgIdx, reply)
     } catch (e) {
       ElMessage.error('重新生成失败')

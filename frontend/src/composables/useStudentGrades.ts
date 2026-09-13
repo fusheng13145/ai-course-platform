@@ -10,8 +10,8 @@ export function useStudentGrades() {
   const loading = ref(false)
   const list = ref([])
   const showTable = ref(false)
-  const courseMap = ref({} as any)
-  const examMap = ref({} as any)
+  const courseMap = ref({} as Record<string, string>)
+  const examMap = ref({} as Record<string, { title: string; courseId: string; totalScore: number }>)
 
   /* ---- 计算属性 ---- */
   const avgScore = computed(() => {
@@ -22,8 +22,8 @@ export function useStudentGrades() {
 
   const rankDisplay = computed(() => {
     // 综合排名：取各课程排名中的最佳名次展示（后端注入 courseRank，未参与排名的课程不计入）
-    const ranks = Object.values(groupedByCourse.value as any)
-      .map((g: any) => g.rank)
+    const ranks = (Object.values(groupedByCourse.value) as Array<{ rank: number | null }>)
+      .map((g) => g.rank)
       .filter((r) => Number.isFinite(r) && r > 0)
     if (ranks.length === 0) return '--'
     return `第 ${Math.min(...ranks)} 名`
@@ -129,8 +129,8 @@ export function useStudentGrades() {
           }
         })
         .sort(
-          (a, b) =>
-            new Date((b as any).submitTime).getTime() - new Date((a as any).submitTime).getTime(),
+          (a: { submitTime: string }, b: { submitTime: string }) =>
+            new Date(b.submitTime).getTime() - new Date(a.submitTime).getTime(),
         )
     } catch (e) {
       console.error('加载成绩失败:', e)

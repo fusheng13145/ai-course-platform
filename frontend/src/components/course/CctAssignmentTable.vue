@@ -68,9 +68,9 @@ defineProps({
 })
 
 function getRateColor(rate) {
-  if (rate >= 90) return '#10b981'
-  if (rate >= 60) return '#f59e0b'
-  return '#ef4444'
+  if (rate >= 90) return 'var(--ok)'
+  if (rate >= 60) return 'var(--warn)'
+  return 'var(--accent)'
 }
 function formatDate(d) {
   return d ? new Date(d).toLocaleString('zh-CN') : '-'
@@ -96,10 +96,10 @@ function formatDate(d) {
 }
 .pending-count {
   font-weight: 600;
-  color: var(--ac-danger, #ef4444);
+  color: var(--ac-danger, var(--accent));
 }
 .zero-pending {
-  color: var(--ac-success, #10b981);
+  color: var(--ac-success, var(--ok));
 }
 .avg-score {
   font-weight: 600;

@@ -55,7 +55,7 @@ export function useExamPapers() {
   async function loadExams() {
     loading.value = true
     try {
-      const params: Record<string, any> = { page: page.value, size: pageSize.value }
+      const params: Record<string, unknown> = { page: page.value, size: pageSize.value }
       if (filters.courseId) params.courseId = filters.courseId
       const r = await examApi.getExamPaperList(params)
       const body = unwrap(r)
@@ -111,7 +111,7 @@ export function useExamPapers() {
     if (!valid) return
     submitting.value = true
     try {
-      const payload: Record<string, any> = {
+      const payload: Record<string, unknown> = {
         courseId: form.courseId,
         title: form.title,
         description: form.description,

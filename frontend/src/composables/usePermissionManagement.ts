@@ -130,7 +130,7 @@ export function usePermissionManagement() {
   async function handleSubmit() {
     submitting.value = true
     try {
-      const payload: Record<string, any> = {
+      const payload: Record<string, unknown> = {
         role: form.role,
         menuKey: form.menuKey,
         buttonKey: form.buttonKey,

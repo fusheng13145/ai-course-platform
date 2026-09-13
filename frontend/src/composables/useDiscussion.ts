@@ -55,7 +55,7 @@ export function useDiscussion() {
     if (!courseId.value) return
     topicLoading.value = true
     try {
-      const params: Record<string, any> = { keyword: keyword.value || undefined }
+      const params: Record<string, unknown> = { keyword: keyword.value || undefined }
       if (essenceFilter.value !== '') params.essence = essenceFilter.value
       const r = await discussionApi.getTopics(courseId.value, params)
       const body = unwrap(r)

@@ -214,7 +214,7 @@
   content: '•';
   position: absolute;
   left: 6px;
-  color: #15803d;
+  color: var(--ok);
 }
 .contact-section {
   background: rgba(22, 163, 74, 0.04);

@@ -153,7 +153,7 @@ const emit = defineEmits([
   color: var(--ac-text-muted);
 }
 .active-filter b {
-  color: var(--ac-primary, #3b82f6);
+  color: var(--ac-primary, var(--info));
 }
 .count-badge {
   font-size: 13px;
@@ -190,18 +190,18 @@ const emit = defineEmits([
   flex-shrink: 0;
 }
 .status-dot--active {
-  color: #15803d;
+  color: var(--ok);
   background: rgba(22, 163, 74, 0.08);
 }
 .status-dot--active i {
-  background: #22c55e;
+  background: var(--ok);
 }
 .status-dot--inactive {
   color: var(--ac-text-muted);
   background: var(--ac-bg-hover);
 }
 .status-dot--inactive i {
-  background: #9ca3af;
+  background: var(--ink-3);
 }
 
 /* 操作按钮 */
@@ -230,13 +230,13 @@ const emit = defineEmits([
   transform: translateY(-1px);
 }
 .act-btn--edit {
-  color: var(--ac-primary, #3b82f6);
+  color: var(--ac-primary, var(--info));
 }
 .act-btn--edit:hover {
   background: rgba(59, 130, 246, 0.08);
 }
 .act-btn--del {
-  color: #b05045;
+  color: var(--accent-strong);
 }
 .act-btn--del:hover {
   background: rgba(176, 80, 69, 0.08);

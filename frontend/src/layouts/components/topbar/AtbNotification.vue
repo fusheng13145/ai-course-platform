@@ -155,7 +155,7 @@ onBeforeUnmount(() => clearInterval(pollTimer))
   min-width: 14px;
   height: 14px;
   background: var(--accent);
-  color: #fff;
+  color: var(--surface);
   font-size: 9px;
   border-radius: 999px;
   display: grid;

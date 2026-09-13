@@ -366,7 +366,7 @@ onMounted(load)
   border-radius: 13px;
   display: grid;
   place-items: center;
-  color: #fff;
+  color: var(--surface);
   flex-shrink: 0;
 }
 .detail-info {

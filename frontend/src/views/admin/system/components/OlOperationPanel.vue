@@ -251,18 +251,18 @@ onMounted(() => {
   flex-shrink: 0;
 }
 .status-dot--active {
-  color: #15803d;
+  color: var(--ok);
   background: rgba(22, 163, 74, 0.08);
 }
 .status-dot--active i {
-  background: #22c55e;
+  background: var(--ok);
 }
 .status-dot--fail {
-  color: #b05045;
+  color: var(--accent-strong);
   background: rgba(176, 80, 69, 0.08);
 }
 .status-dot--fail i {
-  background: #ef4444;
+  background: var(--accent);
 }
 
 .act-btn--edit {
@@ -274,7 +274,7 @@ onMounted(() => {
   transition: all 0.15s ease;
   font-weight: 500;
   background: transparent;
-  color: var(--ac-primary, #3b82f6);
+  color: var(--ac-primary, var(--info));
 }
 .act-btn--edit:hover {
   background: rgba(59, 130, 246, 0.08);

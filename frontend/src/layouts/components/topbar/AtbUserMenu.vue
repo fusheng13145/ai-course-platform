@@ -107,7 +107,7 @@ function showUserMenu() {
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #fff;
+  color: var(--surface);
   font-weight: 600;
   font-size: 13px;
   flex-shrink: 0;

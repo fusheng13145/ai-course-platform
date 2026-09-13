@@ -25,7 +25,7 @@ const OBJ_TYPES = ['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'SINGLE', '
  */
 export function useQuizTask({ courseId, getTask, onTaskCompleted }) {
   const quizQuestions = ref([])
-  const quizAnswers = reactive({} as any)
+  const quizAnswers = reactive({} as Record<string, string | string[] | boolean>)
   const quizSubmitting = ref(false)
   const quizResult = ref(null)
 

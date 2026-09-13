@@ -91,7 +91,7 @@ export function useCourseInteraction(courseIdRef) {
     }
     saving.value = true
     try {
-      const payload: Record<string, any> = {
+      const payload: Record<string, unknown> = {
         courseId: courseIdRef.value,
         title: signInForm.title.trim(),
         duration: signInForm.duration,
@@ -170,7 +170,7 @@ export function useCourseInteraction(courseIdRef) {
     }
     saving.value = true
     try {
-      const payload: Record<string, any> = {
+      const payload: Record<string, unknown> = {
         courseId: courseIdRef.value,
         title: voteForm.title.trim(),
         options: opts,

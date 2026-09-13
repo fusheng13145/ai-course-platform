@@ -64,7 +64,7 @@ defineProps({
   margin-bottom: 14px;
 }
 .card-title .el-icon {
-  color: var(--ac-primary, #3b82f6);
+  color: var(--ac-primary, var(--info));
 }
 .sub-label {
   font-size: 13px;
@@ -85,7 +85,7 @@ defineProps({
 }
 .cat-name {
   width: 80px;
-  color: var(--ac-text-secondary, #475569);
+  color: var(--ac-text-secondary, var(--ink-2));
   flex-shrink: 0;
 }
 .cat-bar {
@@ -128,8 +128,8 @@ defineProps({
   width: 22px;
   height: 22px;
   border-radius: 6px;
-  background: var(--ac-primary, #3b82f6);
-  color: #fff;
+  background: var(--ac-primary, var(--info));
+  color: var(--surface);
   display: flex;
   align-items: center;
   justify-content: center;

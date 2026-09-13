@@ -186,7 +186,7 @@ export function useKnowledgeManagement() {
   function expandAll() {
     const nodes = treeRef.value?.store?.nodesMap
     if (nodes) {
-      Object.values(nodes).forEach((node) => (node as any).expand())
+      Object.values(nodes).forEach((node) => (node as { expand: () => void }).expand())
     }
   }
 

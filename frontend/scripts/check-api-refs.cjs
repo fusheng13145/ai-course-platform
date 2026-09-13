@@ -85,7 +85,7 @@ for (const file of targets) {
         if (m[2] === '?') continue
         const exportsList = Array.from(modExports).join(', ')
         issues.push(
-          `${file}: ${alias}.${method} —— api/${module}${apiModuleExt[module]} 无此导出 [实际导出: ${exportsList}]`
+          `${file}: ${alias}.${method} —— api/${module}${apiModuleExt[module]} 无此导出 [实际导出: ${exportsList}]`,
         )
       }
     }

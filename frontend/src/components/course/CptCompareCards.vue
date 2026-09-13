@@ -12,7 +12,7 @@
         <el-progress
           :percentage="plannedProgress"
           :stroke-width="16"
-          :color="'#94a3b8'"
+          :color="'var(--ink-3)'"
           :show-text="false"
         />
         <div class="compare-detail">
@@ -98,7 +98,7 @@ defineProps({
   font-weight: 500;
 }
 .compare-behind {
-  color: var(--ac-danger, #ef4444);
+  color: var(--ac-danger, var(--accent));
 }
 @media (max-width: 768px) {
   .compare-grid {

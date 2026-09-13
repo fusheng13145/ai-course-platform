@@ -120,7 +120,7 @@ const emit = defineEmits(['exit', 'submit', 'navigate'])
 }
 .nav-dot.active {
   background: var(--ac-primary);
-  color: #fff;
+  color: var(--surface);
   border-color: var(--ac-primary);
 }
 .nav-dot.answered:not(.active) {

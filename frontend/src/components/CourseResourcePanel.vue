@@ -83,7 +83,7 @@ import { getMonoSeries, getMonoStatus, monoScore } from '@/utils/chartTheme'
           >
             <el-button type="primary">选择文件</el-button>
           </el-upload>
-          <div style="margin-top: 8px; color: #999; font-size: 12px">
+          <div style="margin-top: 8px; color: var(--ink-3); font-size: 12px">
             支持 PDF/DOC/XLS/图片/视频/音频，单文件最大50MB
           </div>
         </el-form-item>

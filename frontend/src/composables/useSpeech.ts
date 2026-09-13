@@ -11,12 +11,15 @@
  * - 识别/朗读失败一律静默降级，不干扰主流程。
  */
 
+interface SpeechRecognitionWindow extends Window {
+  SpeechRecognition?: typeof SpeechRecognition
+  webkitSpeechRecognition?: typeof SpeechRecognition
+}
+
 /** 语音识别是否可用 */
 export function isRecognitionSupported() {
-  return (
-    typeof window !== 'undefined' &&
-    ((window as any).SpeechRecognition || (window as any).webkitSpeechRecognition)
-  )
+  const w = window as unknown as SpeechRecognitionWindow
+  return typeof window !== 'undefined' && (w.SpeechRecognition || w.webkitSpeechRecognition)
 }
 
 /** 语音合成是否可用 */
@@ -33,7 +36,8 @@ export function isSpeechSupported() {
  * @returns {{ stop: () => void }} 返回 stop 用于手动停止；识别器不支持时返回 null
  */
 export function startRecognition({ onResult, onEnd, onError }) {
-  const SR = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition
+  const w = window as unknown as SpeechRecognitionWindow
+  const SR = w.SpeechRecognition || w.webkitSpeechRecognition
   if (!SR) return null
 
   const recognition = new SR()

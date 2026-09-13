@@ -107,7 +107,7 @@ defineEmits(['exit', 'complete'])
 }
 
 .video-player-area {
-  background: #0f1420;
+  background: var(--surface-invert);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -120,7 +120,7 @@ defineEmits(['exit', 'complete'])
   height: 100%;
   max-height: 480px;
   object-fit: contain;
-  background: #0f1420;
+  background: var(--surface-invert);
 }
 
 .video-empty {

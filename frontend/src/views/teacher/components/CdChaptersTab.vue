@@ -101,17 +101,17 @@ const emit = defineEmits(['add', 'edit', 'delete', 'save-order', 'reset-order'])
   flex-shrink: 0;
 }
 .status-dot--active {
-  color: #15803d;
+  color: var(--ok);
   background: rgba(22, 163, 74, 0.08);
 }
 .status-dot--active i {
-  background: #22c55e;
+  background: var(--ok);
 }
 .status-dot--inactive {
   color: var(--ac-text-muted);
   background: var(--ac-bg-hover);
 }
 .status-dot--inactive i {
-  background: #9ca3af;
+  background: var(--ink-3);
 }
 </style>

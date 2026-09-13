@@ -11,7 +11,7 @@ export interface Task {
   totalScore?: number
   createdAt?: string
   updatedAt?: string
-  [key: string]: any
+  [key: string]: string | number | undefined
 }
 
 /** 任务查询参数 */
@@ -52,7 +52,7 @@ export const extendDeadline = (id: number, data: { deadline: string }) =>
 /**
  * 导出函数 copyTask：业务逻辑处理
  */
-export const copyTask = (id: number, data?: Record<string, any>) =>
+export const copyTask = (id: number, data?: Record<string, unknown>) =>
   request.post(`/tasks/${id}/copy`, data)
 /**
  * 导出函数 getPendingGrading：获取/查询数据

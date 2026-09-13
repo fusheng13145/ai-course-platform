@@ -116,7 +116,10 @@ export async function setLocalStorageAuth(page: Page, role: string = 'STUDENT') 
   }
 
   await page.addInitScript(
-    ({ user, permissions }: {
+    ({
+      user,
+      permissions,
+    }: {
       user: { id: number; username: string; fullName: string; role: string; email: string }
       permissions: { permissions: unknown[]; menus: string[] }
     }) => {

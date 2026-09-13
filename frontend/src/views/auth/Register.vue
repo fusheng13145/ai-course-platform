@@ -216,7 +216,7 @@ async function handleRegister() {
     var(--accent) 40%,
     var(--sidebar-bg-end)
   );
-  color: #fff;
+  color: var(--surface);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -337,7 +337,7 @@ async function handleRegister() {
   width: 16px;
   height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.4);
-  border-top-color: #fff;
+  border-top-color: var(--surface);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }

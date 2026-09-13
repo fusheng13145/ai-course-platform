@@ -24,8 +24,8 @@ global:
   resolve_timeout: 5m
 
 route:
-  receiver: 'default-webhook'
-  group_by: ['alertname', 'severity']
+  receiver: "default-webhook"
+  group_by: ["alertname", "severity"]
   group_wait: 30s
   group_interval: 5m
   repeat_interval: 4h
@@ -33,15 +33,18 @@ route:
     # 严重告警缩短重复通知间隔，确保第一时间持续触达
     - matchers:
         - severity = "critical"
-      receiver: 'default-webhook'
+      receiver: "default-webhook"
       repeat_interval: 1h
 
 receivers:
-  - name: 'default-webhook'
+  - name: "default-webhook"
     webhook_configs:
-      # 占位端点：本机无告警网关，Alertmanager 推送失败仅记 warn 日志，不影响自身运行。
-      # 生产环境请将本行替换为真实 webhook 地址（字面值，勿用 ${VAR}，见文件头说明）。
-      - url: 'http://localhost:9000/alerts'
+      # 【上线前必改】占位端点仅本机回环，不对外推送任何告警。
+      # 生产环境必须把本行 url 改为真实告警网关地址（企业微信/钉钉/飞书群机器人、PagerDuty、
+      # 自定义接收服务等），否则告警仅能在 Prometheus/Alertmanager UI 看见、不会主动通知。
+      # 注意：本文件不支持 ${VAR} 插值（见文件头说明），此处必须写**字面值**。
+      # TODO(上线前): 将下方 url 替换为真实告警 webhook 字面值。
+      - url: "http://localhost:9000/alerts"
         send_resolved: true
 
   # 可选：邮件通知（需真实 SMTP）。取消注释后请把下列各项替换为**字面值**，
@@ -62,4 +65,4 @@ inhibit_rules:
       - severity = "critical"
     target_matchers:
       - severity = "warning"
-    equal: ['alertname', 'instance']
+    equal: ["alertname", "instance"]

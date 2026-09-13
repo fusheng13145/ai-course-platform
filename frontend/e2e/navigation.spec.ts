@@ -24,9 +24,7 @@ test.describe('导航流程（学生端）', () => {
         body: JSON.stringify({
           code: 200,
           message: 'success',
-          data: [
-            { id: 1, name: '测试课程', description: '课程描述', status: 'PUBLISHED' },
-          ],
+          data: [{ id: 1, name: '测试课程', description: '课程描述', status: 'PUBLISHED' }],
         }),
       })
     })
@@ -139,7 +137,6 @@ test.describe('导航流程（学生端）', () => {
     await expect(page.locator('body')).toBeVisible()
     expect(page.url()).toContain('/student/profile')
   })
-
 })
 
 test.describe('未登录访问控制', () => {

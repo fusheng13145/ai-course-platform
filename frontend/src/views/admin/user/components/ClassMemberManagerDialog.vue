@@ -148,13 +148,13 @@ const emit = defineEmits([
   transform: translateY(-1px);
 }
 .act-btn--approve {
-  color: #15803d;
+  color: var(--ok);
 }
 .act-btn--approve:hover {
   background: rgba(21, 128, 61, 0.08);
 }
 .act-btn--del {
-  color: #b05045;
+  color: var(--accent-strong);
 }
 .act-btn--del:hover {
   background: rgba(176, 80, 69, 0.08);

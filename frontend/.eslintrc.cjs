@@ -4,18 +4,18 @@ module.exports = {
   env: {
     browser: true,
     es2022: true,
-    node: true
+    node: true,
   },
   parser: 'vue-eslint-parser',
   parserOptions: {
     ecmaVersion: 2022,
-    sourceType: 'module'
+    sourceType: 'module',
   },
   extends: [
     'eslint:recommended',
     'plugin:vue/vue3-recommended',
     '@vue/eslint-config-typescript',
-    'prettier'
+    'prettier',
   ],
   rules: {
     // 与 Prettier 协作：关闭会与其冲突或过度侵入的规则
@@ -33,7 +33,10 @@ module.exports = {
     // 按 typescript-eslint 官方规范：使用 TS 版本时必须关闭基础规则，否则同一处会被双重误报。
     // @typescript-eslint/no-unused-vars 在本配置下对 .js/.vue/.ts 均生效，覆盖无缺口。
     'no-unused-vars': 'off',
-    '@typescript-eslint/no-unused-vars': ['warn', { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' }], // 覆盖全部脚本；下划线前缀表示"有意保留"
+    '@typescript-eslint/no-unused-vars': [
+      'warn',
+      { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+    ], // 覆盖全部脚本；下划线前缀表示"有意保留"
     '@typescript-eslint/no-explicit-any': 'warn', // 收敛显式 any（TS/Vue 模板脚本）
     '@typescript-eslint/no-non-null-assertion': 'off',
     '@typescript-eslint/no-unused-expressions': 'off',
@@ -41,7 +44,14 @@ module.exports = {
     'no-prototype-builtins': 'off',
     'no-case-declarations': 'off',
     'no-constant-condition': 'off',
-    'prefer-const': 'warn'
+    'prefer-const': 'warn',
   },
-  ignorePatterns: ['node_modules', 'dist', 'dist_probe', 'coverage', 'package-lock.json', 'src/**/*.d.ts']
+  ignorePatterns: [
+    'node_modules',
+    'dist',
+    'dist_probe',
+    'coverage',
+    'package-lock.json',
+    'src/**/*.d.ts',
+  ],
 }

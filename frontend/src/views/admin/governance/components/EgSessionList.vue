@@ -73,7 +73,7 @@ defineEmits(['select'])
   margin-bottom: 14px;
 }
 .card-title .el-icon {
-  color: var(--ac-primary, #3b82f6);
+  color: var(--ac-primary, var(--info));
 }
 
 .session-list {
@@ -89,14 +89,14 @@ defineEmits(['select'])
   border: 1px solid var(--ac-border);
   cursor: pointer;
   transition: all 0.15s ease;
-  background: var(--ac-bg-base, #fff);
+  background: var(--ac-bg-base, var(--surface));
 }
 .session-item:hover {
-  border-color: var(--ac-primary, #3b82f6);
+  border-color: var(--ac-primary, var(--info));
 }
 .session-item.active {
-  border-color: var(--ac-primary, #3b82f6);
-  background: color-mix(in srgb, var(--ac-primary, #3b82f6) 8%, var(--ac-bg-elevated));
+  border-color: var(--ac-primary, var(--info));
+  background: color-mix(in srgb, var(--ac-primary, var(--info)) 8%, var(--ac-bg-elevated));
 }
 .session-main {
   display: flex;

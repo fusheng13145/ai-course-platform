@@ -111,7 +111,7 @@ export function useQuestions() {
   async function fetchQuestions() {
     loading.value = true
     try {
-      const params: Record<string, any> = {
+      const params: Record<string, string | number | undefined> = {
         page: pagination.page - 1,
         size: pagination.size,
       }
@@ -211,7 +211,7 @@ export function useQuestions() {
 
       saving.value = true
       try {
-        const payload: Record<string, any> = {
+        const payload: Record<string, unknown> = {
           type: questionForm.type,
           difficulty: questionForm.difficulty,
           courseId: questionForm.courseId,
@@ -290,7 +290,7 @@ export function useQuestions() {
 
       aiGenerating.value = true
       try {
-        const payload: Record<string, any> = {
+        const payload: Record<string, unknown> = {
           topic: aiForm.topic,
           type: aiForm.type,
           difficulty: aiForm.difficulty,

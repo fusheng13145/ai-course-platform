@@ -160,7 +160,7 @@ const sel = computed(() => props.selectedKey)
   line-height: 16px;
 }
 .tree-row.selected .tree-count {
-  background: #fff;
+  background: var(--surface);
   color: var(--accent);
 }
 .tree-extra {

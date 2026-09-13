@@ -193,7 +193,7 @@ const emit = defineEmits(['plan', 'update:source', 'update:target', 'update:hops
   font-size: 13px;
   font-weight: 600;
   background: var(--ac-primary-light);
-  color: #fff;
+  color: var(--surface);
 }
 .path-node.start {
   background: var(--ac-success);

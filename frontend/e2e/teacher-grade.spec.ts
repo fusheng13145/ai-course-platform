@@ -12,13 +12,27 @@ const courses = [{ id: 1, name: '数据结构', teacherId: 1 }]
 
 const examSessions = {
   list: [
-    { studentId: 5, studentName: '张三', score: 85, isGraded: true, status: 'graded', courseName: '数据结构' },
+    {
+      studentId: 5,
+      studentName: '张三',
+      score: 85,
+      isGraded: true,
+      status: 'graded',
+      courseName: '数据结构',
+    },
   ],
 }
 
 const submissions = {
   list: [
-    { id: 101, studentId: 6, studentName: '李四', score: null, status: 'submitted', courseName: '数据结构' },
+    {
+      id: 101,
+      studentId: 6,
+      studentName: '李四',
+      score: null,
+      status: 'submitted',
+      courseName: '数据结构',
+    },
   ],
 }
 

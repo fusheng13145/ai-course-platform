@@ -300,7 +300,7 @@ onBeforeUnmount(() => {
   border-radius: 13px;
   flex-shrink: 0;
   background: linear-gradient(135deg, var(--accent), var(--accent-strong));
-  color: #fff;
+  color: var(--surface);
   display: grid;
   place-items: center;
   box-shadow:
@@ -361,7 +361,7 @@ onBeforeUnmount(() => {
   width: 16px;
   height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.4);
-  border-top-color: #fff;
+  border-top-color: var(--surface);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
   display: inline-block;

@@ -61,7 +61,7 @@ export function useOperationLogs() {
   async function loadLogs() {
     loading.value = true
     try {
-      const params: Record<string, any> = { page: page.value, size: pageSize.value }
+      const params: Record<string, unknown> = { page: page.value, size: pageSize.value }
       if (filters.username) params.username = filters.username
       if (filters.module) params.module = filters.module
       if (filters.action) params.action = filters.action

@@ -90,7 +90,7 @@ export function useTeacherExams() {
   async function loadExamList() {
     loading.value = true
     try {
-      const params: Record<string, any> = {
+      const params: Record<string, unknown> = {
         page: currentPage.value,
         size: pageSize.value,
         keyword: searchText.value || undefined,
@@ -172,7 +172,7 @@ export function useTeacherExams() {
       }
       submitting.value = true
       try {
-        const payload: Record<string, any> = {
+        const payload: Record<string, unknown> = {
           ...examForm,
           questions: selectedQuestions.value.map((q, idx) => ({
             questionId: q.id,
@@ -201,7 +201,7 @@ export function useTeacherExams() {
   async function loadQuestionBank() {
     questionLoading.value = true
     try {
-      const params: Record<string, any> = { size: 100 }
+      const params: Record<string, unknown> = { size: 100 }
       if (questionSearch.value) params.keyword = questionSearch.value
       if (questionTypeFilter.value) params.type = questionTypeFilter.value
       let res

@@ -97,7 +97,7 @@ export function useExamManagement() {
   async function fetchExamList() {
     loading.value = true
     try {
-      const params: Record<string, any> = {
+      const params: Record<string, unknown> = {
         page: pagination.page - 1,
         size: pagination.size,
         all: true, // 获取全部试卷（管理员视角）

@@ -11,10 +11,10 @@ import analyticsApi from '@/api/analytics'
  */
 export function useTeachingSupervision() {
   const loading = ref(false)
-  const overview = reactive({} as any)
-  const courseStats = reactive({} as any)
+  const overview = reactive({} as Record<string, unknown>)
+  const courseStats = reactive({} as Record<string, unknown>)
   const heatCells = ref([])
-  const aiMonitor = reactive({} as any)
+  const aiMonitor = reactive({} as Record<string, unknown>)
 
   const timeSlots = ['0–6时', '6–12时', '12–18时', '18–24时']
   const dayOrder = [1, 2, 3, 4, 5, 6, 0] // MON..SAT, SUN

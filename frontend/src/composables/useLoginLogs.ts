@@ -23,7 +23,7 @@ export function useLoginLogs() {
   async function loadLoginLogs() {
     loginLoading.value = true
     try {
-      const params: Record<string, any> = { page: loginPage.value, size: loginPageSize.value }
+      const params: Record<string, unknown> = { page: loginPage.value, size: loginPageSize.value }
       if (loginFilters.username) params.username = loginFilters.username
       if (loginFilters.loginStatus) params.loginStatus = loginFilters.loginStatus
       const res = await loginLogApi.getList(params)

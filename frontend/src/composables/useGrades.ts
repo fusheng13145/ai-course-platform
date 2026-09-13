@@ -139,7 +139,7 @@ export function useGrades() {
   async function fetchGrades() {
     loading.value = true
     try {
-      const params: Record<string, any> = { page: pagination.page - 1, size: pagination.size }
+      const params: Record<string, unknown> = { page: pagination.page - 1, size: pagination.size }
       if (filters.courseId) params.courseId = filters.courseId
       if (filters.semester) params.semester = filters.semester
       if (filters.keyword) params.keyword = filters.keyword

@@ -61,16 +61,29 @@
         >
           <div class="field">
             <label>用户名</label>
-            <el-input v-model="form.username" placeholder="用户名 / 邮箱" class="auth-input" />
+            <el-input
+              ref="usernameRef"
+              v-model="form.username"
+              placeholder="用户名 / 邮箱"
+              autocomplete="off"
+              name="login-username"
+              readonly
+              class="auth-input"
+              @focus="onInputFocus"
+            />
           </div>
           <div class="field">
             <label>密码</label>
             <el-input
+              ref="passwordRef"
               v-model="form.password"
               type="password"
               placeholder="密码"
-              show-password
+              autocomplete="off"
+              name="login-password"
+              readonly
               class="auth-input"
+              @focus="onInputFocus"
               @keyup.enter="handleLogin"
             />
           </div>
@@ -93,19 +106,6 @@
           <span>还没有账号？</span>
           <router-link to="/register">立即注册</router-link>
         </div>
-
-        <!-- 演示账号仅开发环境展示，生产构建（import.meta.env.PROD）下隐藏 -->
-        <div v-if="showError && !isProd" class="demo-row">
-          <span class="muted small">演示账号：</span>
-          <span
-            v-for="d in demoAccounts"
-            :key="d.label"
-            class="tag"
-            style="cursor: pointer"
-            @click="fillDemo(d.user, d.pass)"
-            >{{ d.label }}</span
-          >
-        </div>
       </div>
     </div>
   </div>
@@ -122,9 +122,9 @@ const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
 const formRef = ref(null)
+const usernameRef = ref(null)
+const passwordRef = ref(null)
 const showError = ref(false)
-// 生产构建隐藏演示账号提示（避免弱口令信息泄露到线上）
-const isProd = import.meta.env.PROD
 
 const features = ['AI 智能辅导', '学习数据分析', '知识图谱构建']
 
@@ -134,15 +134,19 @@ const rules = {
   password: [{ required: true, message: '请输入密码', trigger: 'blur' }],
 }
 
-const demoAccounts = [
-  { label: '管理员', user: 'admin', pass: 'admin123' },
-  { label: '教师', user: 'teacher', pass: 'teacher123' },
-  { label: '学生', user: 'student', pass: 'student123' },
-]
+function clearNativeInput(elInputRef) {
+  const inputEl = elInputRef?.$el?.querySelector('input')
+  if (inputEl) {
+    inputEl.value = ''
+    inputEl.dispatchEvent(new Event('input', { bubbles: true }))
+  }
+}
 
-function fillDemo(u, p) {
-  form.username = u
-  form.password = p
+function onInputFocus() {
+  // 输入框默认 readonly，focus 时移除只读以允许用户输入；
+  // 此组合（autocomplete=off + readonly + 动态移除 readonly）可阻止多数浏览器的自动填充。
+  usernameRef.value?.input?.removeAttribute('readonly')
+  passwordRef.value?.input?.removeAttribute('readonly')
 }
 
 async function handleLogin() {
@@ -170,6 +174,18 @@ async function handleLogin() {
 onMounted(() => {
   // 已登录（user 存在）访问 /login 自动重定向；token 为 HttpOnly Cookie 内存占位恒空，不可作为判定
   if (auth.isLoggedIn) router.push(auth.getDefaultRoute())
+  // 禁止浏览器自动填充：页面刚打开时账号/密码输入框保持空白
+  // 浏览器可能在脚本执行后继续回填已保存的凭据，使用延时二次清空兜底
+  form.username = ''
+  form.password = ''
+  clearNativeInput(usernameRef.value)
+  clearNativeInput(passwordRef.value)
+  setTimeout(() => {
+    form.username = ''
+    form.password = ''
+    clearNativeInput(usernameRef.value)
+    clearNativeInput(passwordRef.value)
+  }, 50)
 })
 </script>
 
@@ -201,13 +217,8 @@ onMounted(() => {
   flex-shrink: 0;
   position: relative;
   overflow: hidden;
-  background: linear-gradient(
-    160deg,
-    var(--accent-strong) 0%,
-    var(--accent) 40%,
-    var(--sidebar-bg-end) 100%
-  );
-  color: #fff;
+  background: #c13b30;
+  color: var(--surface);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -314,18 +325,11 @@ onMounted(() => {
   font-size: 12.5px;
   color: var(--ink-3);
 }
-.demo-row {
-  margin-top: 12px;
-  display: flex;
-  gap: 6px;
-  align-items: center;
-  flex-wrap: wrap;
-}
 .btn-loader-dot {
   width: 16px;
   height: 16px;
   border: 2px solid rgba(255, 255, 255, 0.4);
-  border-top-color: #fff;
+  border-top-color: var(--surface);
   border-radius: 50%;
   animation: spin 0.8s linear infinite;
 }

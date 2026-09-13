@@ -156,7 +156,7 @@ function showUserMenu() {
 .pop-menu {
   position: fixed;
   z-index: 3000;
-  background: var(--surface, #fff);
+  background: var(--surface);
   border: 1px solid var(--line, rgba(0, 0, 0, 0.08));
   border-radius: 10px;
   box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
@@ -170,7 +170,7 @@ function showUserMenu() {
   padding: 8px 12px;
   border-radius: 6px;
   font-size: 13px;
-  color: var(--ink, #1f2430);
+  color: var(--ink);
   cursor: pointer;
   transition: background 0.15s;
 }
@@ -178,7 +178,7 @@ function showUserMenu() {
   background: var(--surface-3, rgba(0, 0, 0, 0.05));
 }
 .menu-item.danger {
-  color: #b05045;
+  color: var(--accent-strong);
 }
 .menu-item.danger:hover {
   background: rgba(176, 80, 69, 0.08);

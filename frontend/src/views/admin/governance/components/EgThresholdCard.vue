@@ -110,7 +110,7 @@ defineEmits(['save'])
   margin-bottom: 14px;
 }
 .card-title .el-icon {
-  color: var(--ac-primary, #3b82f6);
+  color: var(--ac-primary, var(--info));
 }
 .card-title .save-thr {
   margin-left: auto;
@@ -121,7 +121,7 @@ defineEmits(['save'])
   flex-direction: column;
   gap: 8px;
   font-size: 13px;
-  color: var(--ac-text-secondary, #475569);
+  color: var(--ac-text-secondary, var(--ink-2));
 }
 .rule b {
   color: var(--ac-text-primary);

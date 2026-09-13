@@ -319,7 +319,7 @@ const emit = defineEmits([
 }
 .user-bubble {
   background: var(--ac-primary);
-  color: #fff;
+  color: var(--surface);
   border-top-right-radius: 4px;
 }
 .ai-bubble {

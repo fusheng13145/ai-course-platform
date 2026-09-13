@@ -211,8 +211,8 @@ onUnmounted(() => {
 .ob-card {
   position: fixed;
   width: 320px;
-  background: var(--ac-bg-elevated, #fff);
-  color: var(--ac-text-primary, #1f2430);
+  background: var(--ac-bg-elevated, var(--surface));
+  color: var(--ac-text-primary, var(--ink));
   border: 1px solid var(--ac-border, rgba(0, 0, 0, 0.08));
   border-radius: var(--ac-radius-xl, 16px);
   box-shadow: var(--ac-shadow-xl, 0 24px 48px rgba(15, 23, 42, 0.18));
@@ -239,11 +239,11 @@ onUnmounted(() => {
 .ob-step-dot.active {
   width: 18px;
   border-radius: 4px;
-  background: var(--accent, #2563a8);
+  background: var(--accent, var(--info));
 }
 .ob-count {
   font-size: 12px;
-  color: var(--ac-text-tertiary, #98a2b3);
+  color: var(--ac-text-tertiary, var(--ink-3));
 }
 .ob-body {
   text-align: center;
@@ -257,7 +257,7 @@ onUnmounted(() => {
   height: 44px;
   border-radius: 12px;
   background: var(--accent-soft, rgba(37, 99, 168, 0.12));
-  color: var(--accent, #2563a8);
+  color: var(--accent, var(--info));
   margin-bottom: 10px;
 }
 .ob-title {
@@ -269,7 +269,7 @@ onUnmounted(() => {
   margin: 0;
   font-size: 13px;
   line-height: 1.6;
-  color: var(--ac-text-secondary, #4b5565);
+  color: var(--ac-text-secondary, var(--ink-2));
 }
 .ob-foot {
   display: flex;
@@ -290,14 +290,14 @@ onUnmounted(() => {
 }
 .ob-btn.ghost {
   background: transparent;
-  color: var(--ac-text-secondary, #4b5565);
+  color: var(--ac-text-secondary, var(--ink-2));
 }
 .ob-btn.ghost:hover {
   background: var(--ac-bg-hover, rgba(0, 0, 0, 0.05));
 }
 .ob-btn.primary {
-  background: var(--accent, #2563a8);
-  color: var(--ac-on-primary, #fff);
+  background: var(--accent, var(--info));
+  color: var(--ac-on-primary, var(--surface));
 }
 .ob-btn.primary:hover {
   filter: brightness(1.08);

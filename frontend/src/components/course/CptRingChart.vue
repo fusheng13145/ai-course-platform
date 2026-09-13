@@ -12,7 +12,7 @@
               cy="60"
               r="52"
               fill="none"
-              stroke="var(--ac-border, #e5e7eb)"
+              stroke="var(--ac-border, var(--line))"
               stroke-width="10"
             />
             <circle
@@ -20,7 +20,7 @@
               cy="60"
               r="52"
               fill="none"
-              stroke="var(--ac-primary, #3b82f6)"
+              stroke="var(--ac-primary, var(--info))"
               stroke-width="10"
               stroke-linecap="round"
               :stroke-dasharray="circumference"
@@ -141,13 +141,13 @@ defineProps({
   flex-shrink: 0;
 }
 .legend-dot--done {
-  background: var(--ac-primary, #3b82f6);
+  background: var(--ac-primary, var(--info));
 }
 .legend-dot--pending {
-  background: var(--ac-border, #e5e7eb);
+  background: var(--ac-border, var(--line));
 }
 .legend-dot--total {
-  background: var(--ac-text-tertiary, #94a3b8);
+  background: var(--ac-text-tertiary, var(--ink-3));
 }
 @media (max-width: 768px) {
   .ring-chart-wrapper {
