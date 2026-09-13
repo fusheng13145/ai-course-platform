@@ -12,6 +12,7 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.service.AuthService;
 import com.aicourse.service.PermissionService;
 import com.aicourse.service.UserService;
+import com.aicourse.util.ClientInfoResolver;
 import com.aicourse.util.JwtUtils;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -38,15 +39,18 @@ public class AuthController {
     private final PermissionService permissionService;
     private final UserService userService;
     private final CookieUtils cookieUtils;
+    private final ClientInfoResolver clientInfoResolver;
 
     public AuthController(AuthService authService,
                           PermissionService permissionService,
                           UserService userService,
-                          CookieUtils cookieUtils) {
+                          CookieUtils cookieUtils,
+                          ClientInfoResolver clientInfoResolver) {
         this.authService = authService;
         this.permissionService = permissionService;
         this.userService = userService;
         this.cookieUtils = cookieUtils;
+        this.clientInfoResolver = clientInfoResolver;
     }
 
     /**
@@ -61,7 +65,7 @@ public class AuthController {
                                                  HttpServletRequest request, HttpServletResponse response) {
         log.debug("用户登录 username={}", body.getUsername());
         ApiResponse<Map<String, Object>> result =
-                authService.login(body.getUsername(), body.getPassword(), body.getRememberMe(), request);
+                authService.login(body.getUsername(), body.getPassword(), body.getRememberMe(), clientInfoResolver.resolve(request));
         boolean rememberMe = body.getRememberMe() != null && body.getRememberMe();
         issueAuthCookiesAndStripBody(response, result, rememberMe);
         return result;
@@ -81,7 +85,7 @@ public class AuthController {
         // 注意：角色由服务端强制为 STUDENT（见 AuthServiceImpl.register 安全加固），
         // 此处即使请求体携带 role 也仅做格式校验，最终角色以服务端为准。
         ApiResponse<Map<String, Object>> result = authService.register(body.getEmail(), body.getUsername(),
-                body.getPassword(), body.getFullName(), body.getRole(), body.getPhone(), body.getCode(), request);
+                body.getPassword(), body.getFullName(), body.getRole(), body.getPhone(), body.getCode(), clientInfoResolver.resolve(request));
         // 注册会话统一按非记住我处理（刷新令牌有效期 1 天）
         issueAuthCookiesAndStripBody(response, result, false);
         return result;
@@ -134,7 +138,7 @@ public class AuthController {
             return ApiResponse.error(ApiCode.UNAUTHORIZED, "未授权，请先登录");
         }
         Long userId = (Long) auth.getPrincipal();
-        ApiResponse<Void> result = authService.logout(userId, request);
+        ApiResponse<Void> result = authService.logout(userId, clientInfoResolver.resolve(request));
         cookieUtils.clearAuthCookies(response);
         return result;
     }
@@ -294,7 +298,7 @@ public class AuthController {
     public ApiResponse<Void> sendVerificationCode(@Valid @RequestBody SendCodeRequest body,
                                                   HttpServletRequest request) {
         log.debug("发送验证码 email={}", body.getEmail());
-        return authService.sendVerificationCode(body.getEmail(), body.getType(), request);
+        return authService.sendVerificationCode(body.getEmail(), body.getType(), clientInfoResolver.resolve(request));
     }
 
     /**

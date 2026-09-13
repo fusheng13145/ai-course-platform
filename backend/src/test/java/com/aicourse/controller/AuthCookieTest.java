@@ -49,6 +49,8 @@ class AuthCookieTest extends ControllerTestBase {
     private UserService userService;
     @MockitoBean
     private JwtUtils jwtUtils;
+    @MockitoBean
+    private com.aicourse.util.ClientInfoResolver clientInfoResolver;
 
     @Autowired
     private org.springframework.test.web.servlet.MockMvc mockMvc;

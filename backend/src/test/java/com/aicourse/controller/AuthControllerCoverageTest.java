@@ -7,6 +7,7 @@ import com.aicourse.service.AuthService;
 import com.aicourse.service.PermissionService;
 import com.aicourse.service.UserService;
 import com.aicourse.common.CookieUtils;
+import com.aicourse.util.ClientInfoResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -43,12 +44,14 @@ class AuthControllerCoverageTest {
     private UserService userService;
     @Mock
     private CookieUtils cookieUtils;
+    @Mock
+    private ClientInfoResolver clientInfoResolver;
 
     private MockMvc mockMvc;
 
     @BeforeEach
     void setup() {
-        AuthController controller = new AuthController(authService, permissionService, userService, cookieUtils);
+        AuthController controller = new AuthController(authService, permissionService, userService, cookieUtils, clientInfoResolver);
         // 独立 MockMvc 需手动注册全局异常处理器，使 BusinessException 被统一转换为 4xx
         mockMvc = MockMvcBuilders.standaloneSetup(controller)
                 .setControllerAdvice(new GlobalExceptionHandler()).build();

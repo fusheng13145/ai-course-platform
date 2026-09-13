@@ -12,14 +12,12 @@ import com.aicourse.service.LoginLogService;
 import com.aicourse.service.UserService;
 import com.aicourse.service.UserSessionService;
 import com.aicourse.service.VerificationCodeService;
-import com.aicourse.util.IpUtil;
+import com.aicourse.common.ClientInfo;
 import com.aicourse.util.JwtUtils;
-import com.aicourse.util.UserAgentUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.extension.conditions.update.LambdaUpdateChainWrapper;
-import jakarta.servlet.http.HttpServletRequest;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -60,14 +58,14 @@ class AuthServiceImplBoostTest {
     @Mock EmailService emailService;
     @Mock JwtUtils jwtUtils;
     @Mock PasswordEncoder passwordEncoder;
-    @Mock IpUtil ipUtil;
-    @Mock UserAgentUtil userAgentUtil;
     @Mock ObjectProvider<StringRedisTemplate> redisProvider;
     @Mock StringRedisTemplate redisTemplate;
     @Mock ValueOperations<String, String> valueOps;
-    @Mock HttpServletRequest request;
 
     private static final String STRONG_PWD = "Passw0rd!";
+    /** 固定客户端上下文（替代原 HttpServletRequest mock 的解析结果） */
+    private static final ClientInfo CLIENT_INFO =
+            new ClientInfo("127.0.0.1", "UA", "Chrome", "Windows", "Computer");
 
     @BeforeEach
     void initTableInfo() {
@@ -81,12 +79,7 @@ class AuthServiceImplBoostTest {
         // 必须在构造 AuthServiceImpl 之前桩 getIfAvailable()，否则构造时调用会返回 null（redisTemplate 恒为 null）
         when(redisProvider.getIfAvailable()).thenReturn(redisActive ? redisTemplate : null);
         AuthServiceImpl svc = new AuthServiceImpl(userService, userSessionService, loginLogService,
-                verificationCodeService, emailService, jwtUtils, passwordEncoder, ipUtil, userAgentUtil, redisProvider);
-        when(ipUtil.getClientIp(any())).thenReturn("127.0.0.1");
-        when(userAgentUtil.getDeviceName(any())).thenReturn("Computer");
-        when(userAgentUtil.getBrowser(any())).thenReturn("Chrome");
-        when(userAgentUtil.getOperatingSystem(any())).thenReturn("Windows");
-        when(request.getHeader("User-Agent")).thenReturn("UA");
+                verificationCodeService, emailService, jwtUtils, passwordEncoder, redisProvider);
         when(loginLogService.save(any(LoginLog.class))).thenReturn(true);
         when(userSessionService.save(any(UserSession.class))).thenReturn(true);
         when(jwtUtils.generateToken(any(), any(), any(), anyBoolean())).thenReturn("jwt-token");
@@ -121,7 +114,7 @@ class AuthServiceImplBoostTest {
     void login_userNotFound() {
         AuthServiceImpl svc = buildService(false);
         when(userService.getOne(any())).thenReturn(null);
-        BusinessException ex = assertThrows(BusinessException.class, () -> svc.login("nobody", "x", false, request));
+        BusinessException ex = assertThrows(BusinessException.class, () -> svc.login("nobody", "x", false, CLIENT_INFO));
         assertTrue(ex.getMessage().contains("用户名或密码错误"));
     }
 
@@ -132,7 +125,7 @@ class AuthServiceImplBoostTest {
         User u = activeUser();
         u.setIsActive(false);
         when(userService.getOne(any())).thenReturn(u);
-        BusinessException ex = assertThrows(BusinessException.class, () -> svc.login("alice", "x", false, request));
+        BusinessException ex = assertThrows(BusinessException.class, () -> svc.login("alice", "x", false, CLIENT_INFO));
         assertTrue(ex.getMessage().contains("禁用"));
     }
 
@@ -143,7 +136,7 @@ class AuthServiceImplBoostTest {
         User u = activeUser();
         u.setLockedUntil(LocalDateTime.now().plusMinutes(10));
         when(userService.getOne(any())).thenReturn(u);
-        BusinessException ex = assertThrows(BusinessException.class, () -> svc.login("alice", "x", false, request));
+        BusinessException ex = assertThrows(BusinessException.class, () -> svc.login("alice", "x", false, CLIENT_INFO));
         assertTrue(ex.getMessage().contains("锁定"));
     }
 
@@ -155,7 +148,7 @@ class AuthServiceImplBoostTest {
         when(userService.getOne(any())).thenReturn(u);
         when(passwordEncoder.matches(any(), any())).thenReturn(false);
         when(userService.updateById(any())).thenReturn(true);
-        BusinessException ex = assertThrows(BusinessException.class, () -> svc.login("alice", "bad", false, request));
+        BusinessException ex = assertThrows(BusinessException.class, () -> svc.login("alice", "bad", false, CLIENT_INFO));
         assertTrue(ex.getMessage().contains("用户名或密码错误"));
         assertEquals(1, u.getFailedLoginAttempts());
     }
@@ -169,7 +162,7 @@ class AuthServiceImplBoostTest {
         when(userService.getOne(any())).thenReturn(u);
         when(passwordEncoder.matches(any(), any())).thenReturn(false);
         when(userService.updateById(any())).thenReturn(true);
-        assertThrows(BusinessException.class, () -> svc.login("alice", "bad", false, request));
+        assertThrows(BusinessException.class, () -> svc.login("alice", "bad", false, CLIENT_INFO));
         assertNotNull(u.getLockedUntil());
     }
 
@@ -181,7 +174,7 @@ class AuthServiceImplBoostTest {
         when(userService.getOne(any())).thenReturn(u);
         when(passwordEncoder.matches(any(), any())).thenReturn(true);
         when(userService.updateById(any())).thenReturn(true);
-        ApiResponse<?> resp = svc.login("alice", STRONG_PWD, true, request);
+        ApiResponse<?> resp = svc.login("alice", STRONG_PWD, true, CLIENT_INFO);
         assertEquals(200, resp.getCode());
         assertNotNull(resp.getData());
         verify(userSessionService).save(any(UserSession.class));
@@ -195,7 +188,7 @@ class AuthServiceImplBoostTest {
         when(userService.getOne(any())).thenReturn(u);
         when(passwordEncoder.matches(any(), any())).thenReturn(true);
         when(userService.updateById(any())).thenReturn(true);
-        ApiResponse<?> resp = svc.login("alice", STRONG_PWD, false, request);
+        ApiResponse<?> resp = svc.login("alice", STRONG_PWD, false, CLIENT_INFO);
         assertEquals(200, resp.getCode());
     }
 
@@ -205,7 +198,7 @@ class AuthServiceImplBoostTest {
     void register_emptyUsername() {
         AuthServiceImpl svc = buildService(false);
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> svc.register("a@b.com", "", STRONG_PWD, "Al", "STUDENT", null, "123456", request));
+                () -> svc.register("a@b.com", "", STRONG_PWD, "Al", "STUDENT", null, "123456", CLIENT_INFO));
         assertTrue(ex.getMessage().contains("用户名不能为空"));
     }
 
@@ -215,7 +208,7 @@ class AuthServiceImplBoostTest {
         AuthServiceImpl svc = buildService(false);
         when(userService.count(any())).thenReturn(1L);
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", null, "123456", request));
+                () -> svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", null, "123456", CLIENT_INFO));
         assertTrue(ex.getMessage().contains("用户名已存在"));
     }
 
@@ -225,7 +218,7 @@ class AuthServiceImplBoostTest {
         AuthServiceImpl svc = buildService(false);
         when(userService.count(any())).thenReturn(0L, 1L);
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", null, "123456", request));
+                () -> svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", null, "123456", CLIENT_INFO));
         assertTrue(ex.getMessage().contains("邮箱已被注册"));
     }
 
@@ -235,7 +228,7 @@ class AuthServiceImplBoostTest {
         AuthServiceImpl svc = buildService(false);
         when(userService.count(any())).thenReturn(0L, 0L, 1L);
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", "13800000000", "123456", request));
+                () -> svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", "13800000000", "123456", CLIENT_INFO));
         assertTrue(ex.getMessage().contains("手机号已被注册"));
     }
 
@@ -245,7 +238,7 @@ class AuthServiceImplBoostTest {
         AuthServiceImpl svc = buildService(false);
         when(userService.count(any())).thenReturn(0L);
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> svc.register("a@b.com", "bob", null, "Al", "STUDENT", null, "123456", request));
+                () -> svc.register("a@b.com", "bob", null, "Al", "STUDENT", null, "123456", CLIENT_INFO));
         assertTrue(ex.getMessage().contains("密码不能为空"));
     }
 
@@ -255,7 +248,7 @@ class AuthServiceImplBoostTest {
         AuthServiceImpl svc = buildService(false);
         when(userService.count(any())).thenReturn(0L);
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> svc.register("a@b.com", "bob", "abc", "Al", "STUDENT", null, "123456", request));
+                () -> svc.register("a@b.com", "bob", "abc", "Al", "STUDENT", null, "123456", CLIENT_INFO));
         assertTrue(ex.getMessage().contains("密码必须包含"));
     }
 
@@ -266,7 +259,7 @@ class AuthServiceImplBoostTest {
         when(userService.count(any())).thenReturn(0L);
         when(verificationCodeService.getOne(any())).thenReturn(null);
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", null, "999999", request));
+                () -> svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", null, "999999", CLIENT_INFO));
         assertTrue(ex.getMessage().contains("验证码无效"));
     }
 
@@ -278,7 +271,7 @@ class AuthServiceImplBoostTest {
         when(verificationCodeService.getOne(any())).thenReturn(unusedCode());
         when(verificationCodeService.updateById(any())).thenReturn(true);
         when(userService.save(any())).thenReturn(true);
-        ApiResponse<?> resp = svc.register("a@b.com", "bob", STRONG_PWD, "Al", "ADMIN", null, "123456", request);
+        ApiResponse<?> resp = svc.register("a@b.com", "bob", STRONG_PWD, "Al", "ADMIN", null, "123456", CLIENT_INFO);
         assertEquals(200, resp.getCode());
         verify(userService).save(argThat(u -> RoleConstants.STUDENT.equals(((User) u).getRole())));
     }
@@ -289,7 +282,7 @@ class AuthServiceImplBoostTest {
         AuthServiceImpl svc = buildService(false);
         when(userService.count(any())).thenReturn(0L);
         when(userService.save(any())).thenReturn(true);
-        ApiResponse<?> resp = svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", null, null, request);
+        ApiResponse<?> resp = svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", null, null, CLIENT_INFO);
         assertEquals(200, resp.getCode());
     }
 
@@ -360,7 +353,7 @@ class AuthServiceImplBoostTest {
         when(chain.eq(any(), any())).thenReturn(chain);
         when(chain.set(any(), any())).thenReturn(chain);
         when(chain.update()).thenReturn(true);
-        ApiResponse<?> resp = svc.logout(1L, request);
+        ApiResponse<?> resp = svc.logout(1L, CLIENT_INFO);
         assertEquals(200, resp.getCode());
         verify(userSessionService).evictSessionCache("tok");
     }
@@ -375,7 +368,7 @@ class AuthServiceImplBoostTest {
         when(chain.eq(any(), any())).thenReturn(chain);
         when(chain.set(any(), any())).thenReturn(chain);
         when(chain.update()).thenReturn(true);
-        ApiResponse<?> resp = svc.logout(1L, request);
+        ApiResponse<?> resp = svc.logout(1L, CLIENT_INFO);
         assertEquals(200, resp.getCode());
     }
 
@@ -486,7 +479,7 @@ class AuthServiceImplBoostTest {
     void sendVC_rateLimited() {
         AuthServiceImpl svc = buildService(false);
         when(verificationCodeService.count(any())).thenReturn(1L);
-        assertThrows(BusinessException.class, () -> svc.sendVerificationCode("a@b.com", "REGISTER", request));
+        assertThrows(BusinessException.class, () -> svc.sendVerificationCode("a@b.com", "REGISTER", CLIENT_INFO));
     }
 
     @Test
@@ -495,7 +488,7 @@ class AuthServiceImplBoostTest {
         AuthServiceImpl svc = buildService(false);
         when(verificationCodeService.count(any())).thenReturn(0L);
         when(verificationCodeService.save(any())).thenReturn(true);
-        ApiResponse<?> resp = svc.sendVerificationCode("a@b.com", "REGISTER", request);
+        ApiResponse<?> resp = svc.sendVerificationCode("a@b.com", "REGISTER", CLIENT_INFO);
         assertEquals(200, resp.getCode());
         verify(emailService).sendVerificationCode(eq("a@b.com"), anyString(), eq("REGISTER"));
     }

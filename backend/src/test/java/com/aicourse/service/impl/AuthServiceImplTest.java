@@ -6,10 +6,8 @@ import com.aicourse.entity.UserSession;
 import com.aicourse.entity.VerificationCode;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.*;
-import com.aicourse.util.IpUtil;
+import com.aicourse.common.ClientInfo;
 import com.aicourse.util.JwtUtils;
-import com.aicourse.util.UserAgentUtil;
-import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -46,22 +44,19 @@ class AuthServiceImplTest {
     @Mock private EmailService emailService;
     @Mock private JwtUtils jwtUtils;
     @Mock private PasswordEncoder passwordEncoder;
-    @Mock private IpUtil ipUtil;
-    @Mock private UserAgentUtil userAgentUtil;
-    @Mock private HttpServletRequest request;
     // 修复：AuthServiceImpl 构造器新增 ObjectProvider<StringRedisTemplate>（验证码爆破限流），
     // 显式 mock 并提供 null（测试环境 Redis 降级）
     @Mock private ObjectProvider<StringRedisTemplate> redisProvider;
 
     @InjectMocks private AuthServiceImpl authService;
 
+    /** 固定客户端上下文（替代原 HttpServletRequest mock 的解析结果） */
+    private static final ClientInfo CLIENT_INFO =
+            new ClientInfo("127.0.0.1", "JUnit-Agent", "JUnit", "Windows", "Desktop");
+
     @BeforeEach
     void setUp() {
         when(redisProvider.getIfAvailable()).thenReturn(null);
-        when(ipUtil.getClientIp(any())).thenReturn("127.0.0.1");
-        when(userAgentUtil.getDeviceName(any())).thenReturn("Desktop");
-        when(userAgentUtil.getOperatingSystem(any())).thenReturn("Windows");
-        when(userAgentUtil.getBrowser(any())).thenReturn("JUnit");
     }
 
     // ===================== 注册测试 =====================
@@ -80,7 +75,7 @@ class AuthServiceImplTest {
         when(userSessionService.save(any(UserSession.class))).thenReturn(true);
 
         ApiResponse<Map<String, Object>> response = authService.register(
-                "test@example.com", "testuser", "Test@123456", "Test User", "STUDENT", "13800138000", null, request);
+                "test@example.com", "testuser", "Test@123456", "Test User", "STUDENT", "13800138000", null, CLIENT_INFO);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
@@ -95,7 +90,7 @@ class AuthServiceImplTest {
         when(userService.count(any())).thenReturn(1L);
 
         try {
-            authService.register("test@example.com", "testuser", "password123", "Test User", "STUDENT", "13800138000", null, request);
+            authService.register("test@example.com", "testuser", "password123", "Test User", "STUDENT", "13800138000", null, CLIENT_INFO);
             fail("Expected BusinessException for duplicate email");
         } catch (Exception e) {
             assertTrue(e.getMessage().contains("用户名已存在") || e.getMessage().contains("邮箱已被注册"));
@@ -122,7 +117,7 @@ class AuthServiceImplTest {
         when(jwtUtils.generateToken(anyLong(), anyString(), anyString(), anyBoolean())).thenReturn("test-jwt-token");
         when(userSessionService.save(any(UserSession.class))).thenReturn(true);
 
-        ApiResponse<Map<String, Object>> response = authService.login("test@example.com", "password123", false, request);
+        ApiResponse<Map<String, Object>> response = authService.login("test@example.com", "password123", false, CLIENT_INFO);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
@@ -146,7 +141,7 @@ class AuthServiceImplTest {
         when(userService.updateById(any(User.class))).thenReturn(true);
 
         try {
-            authService.login("test@example.com", "wrongpassword", false, request);
+            authService.login("test@example.com", "wrongpassword", false, CLIENT_INFO);
             fail("Expected BusinessException for wrong password");
         } catch (Exception e) {
             assertTrue(e.getMessage().contains("用户名或密码错误"));
@@ -166,7 +161,7 @@ class AuthServiceImplTest {
         when(userService.getOne(any())).thenReturn(user);
 
         try {
-            authService.login("test@example.com", "password123", false, request);
+            authService.login("test@example.com", "password123", false, CLIENT_INFO);
             fail("Expected BusinessException for disabled account");
         } catch (Exception e) {
             assertTrue(e.getMessage().contains("禁用"));
@@ -186,7 +181,7 @@ class AuthServiceImplTest {
         when(userService.getOne(any())).thenReturn(user);
 
         try {
-            authService.login("test@example.com", "password123", false, request);
+            authService.login("test@example.com", "password123", false, CLIENT_INFO);
             fail("Expected BusinessException for locked account");
         } catch (Exception e) {
             assertTrue(e.getMessage().contains("锁定"));
@@ -201,7 +196,7 @@ class AuthServiceImplTest {
         doNothing().when(emailService).sendVerificationCode(anyString(), anyString(), anyString());
         when(verificationCodeService.save(any(VerificationCode.class))).thenReturn(true);
 
-        ApiResponse<Void> response = authService.sendVerificationCode("test@example.com", "REGISTER", request);
+        ApiResponse<Void> response = authService.sendVerificationCode("test@example.com", "REGISTER", CLIENT_INFO);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
@@ -291,7 +286,7 @@ class AuthServiceImplTest {
     void testRegister_NoUpperCase_Fail() {
         when(userService.count(any())).thenReturn(0L);
         assertThrows(BusinessException.class, () ->
-                authService.register("test@test.com", "user", "test@1234", "Test", "STUDENT", null, null, request),
+                authService.register("test@test.com", "user", "test@1234", "Test", "STUDENT", null, null, CLIENT_INFO),
                 "密码必须包含大写字母"
         );
     }
@@ -301,7 +296,7 @@ class AuthServiceImplTest {
     void testRegister_NoDigit_Fail() {
         when(userService.count(any())).thenReturn(0L);
         assertThrows(BusinessException.class, () ->
-                authService.register("test@test.com", "user", "Test@Test!", "Test", "STUDENT", null, null, request),
+                authService.register("test@test.com", "user", "Test@Test!", "Test", "STUDENT", null, null, CLIENT_INFO),
                 "密码必须包含数字"
         );
     }
@@ -311,7 +306,7 @@ class AuthServiceImplTest {
     void testRegister_NoSpecialChar_Fail() {
         when(userService.count(any())).thenReturn(0L);
         assertThrows(BusinessException.class, () ->
-                authService.register("test@test.com", "user", "Test1234567", "Test", "STUDENT", null, null, request),
+                authService.register("test@test.com", "user", "Test1234567", "Test", "STUDENT", null, null, CLIENT_INFO),
                 "密码必须包含特殊字符"
         );
     }
@@ -321,7 +316,7 @@ class AuthServiceImplTest {
     void testRegister_TooShort_Fail() {
         when(userService.count(any())).thenReturn(0L);
         assertThrows(BusinessException.class, () ->
-                authService.register("test@test.com", "user", "Te@1", "Test", "STUDENT", null, null, request),
+                authService.register("test@test.com", "user", "Te@1", "Test", "STUDENT", null, null, CLIENT_INFO),
                 "密码长度不足"
         );
     }
@@ -331,7 +326,7 @@ class AuthServiceImplTest {
     void testRegister_EmptyPassword_Fail() {
         when(userService.count(any())).thenReturn(0L);
         assertThrows(BusinessException.class, () ->
-                authService.register("test@test.com", "user", "", "Test", "STUDENT", null, null, request),
+                authService.register("test@test.com", "user", "", "Test", "STUDENT", null, null, CLIENT_INFO),
                 "密码不能为空"
         );
     }
@@ -342,7 +337,7 @@ class AuthServiceImplTest {
         // UserService会抛出异常（username为空的记录不存在）
         when(userService.count(any())).thenReturn(0L);
         assertThrows(Exception.class, () ->
-                authService.register("test@test.com", "", "Test@1234", "Test", "STUDENT", null, null, request)
+                authService.register("test@test.com", "", "Test@1234", "Test", "STUDENT", null, null, CLIENT_INFO)
         );
     }
 
@@ -364,7 +359,7 @@ class AuthServiceImplTest {
         // 纯空格用户名通过服务层（DTO 层 @NotBlank 应拦截），
         // 此处验证服务层在无 DTO 校验时的实际行为
         ApiResponse<Map<String, Object>> response = authService.register(
-                "space@test.com", "   ", "Test@123456", "Space User", "STUDENT", null, null, request);
+                "space@test.com", "   ", "Test@123456", "Space User", "STUDENT", null, null, CLIENT_INFO);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
@@ -386,7 +381,7 @@ class AuthServiceImplTest {
 
         String longUsername = "a".repeat(150);
         ApiResponse<Map<String, Object>> response = authService.register(
-                "long@test.com", longUsername, "Test@123456", "Long User", "STUDENT", null, null, request);
+                "long@test.com", longUsername, "Test@123456", "Long User", "STUDENT", null, null, CLIENT_INFO);
 
         // 超长用户名通过服务层（DTO 层 @Size(max=20) 应拦截），
         // 服务层未对用户名长度做校验，数据库字段约束有机会底层拒绝
@@ -409,7 +404,7 @@ class AuthServiceImplTest {
 
         // 服务层不验证用户名格式（由 DTO 层 @Pattern 负责）
         ApiResponse<Map<String, Object>> response = authService.register(
-                "special@test.com", "<script>alert('xss')</script>", "Test@123456", "XSS User", "STUDENT", null, null, request);
+                "special@test.com", "<script>alert('xss')</script>", "Test@123456", "XSS User", "STUDENT", null, null, CLIENT_INFO);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());

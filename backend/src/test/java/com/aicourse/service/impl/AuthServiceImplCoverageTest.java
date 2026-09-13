@@ -12,13 +12,11 @@ import com.aicourse.service.LoginLogService;
 import com.aicourse.service.UserService;
 import com.aicourse.service.UserSessionService;
 import com.aicourse.service.VerificationCodeService;
-import com.aicourse.util.IpUtil;
+import com.aicourse.common.ClientInfo;
 import com.aicourse.util.JwtUtils;
-import com.aicourse.util.UserAgentUtil;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.conditions.update.LambdaUpdateChainWrapper;
-import jakarta.servlet.http.HttpServletRequest;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -55,26 +53,21 @@ class AuthServiceImplCoverageTest {
     @Mock EmailService emailService;
     @Mock JwtUtils jwtUtils;
     @Mock PasswordEncoder passwordEncoder;
-    @Mock IpUtil ipUtil;
-    @Mock UserAgentUtil userAgentUtil;
     @Mock ObjectProvider<StringRedisTemplate> redisProvider;
     @Mock StringRedisTemplate redisTemplate;
     @Mock ValueOperations<String, String> valueOps;
-    @Mock HttpServletRequest request;
 
     private static final String STRONG_PWD = "Passw0rd!";
+    /** 固定客户端上下文（替代原 HttpServletRequest mock 的解析结果） */
+    private static final ClientInfo CLIENT_INFO =
+            new ClientInfo("127.0.0.1", "UA", "Chrome", "Windows", "Computer");
 
     private AuthServiceImpl buildService(boolean redisActive) {
         // 必须在构造 AuthServiceImpl 之前桩 getIfAvailable()，否则构造时调用会返回 null（redisTemplate 恒为 null）
         when(redisProvider.getIfAvailable()).thenReturn(redisActive ? redisTemplate : null);
         AuthServiceImpl svc = new AuthServiceImpl(userService, userSessionService, loginLogService,
-                verificationCodeService, emailService, jwtUtils, passwordEncoder, ipUtil, userAgentUtil, redisProvider);
+                verificationCodeService, emailService, jwtUtils, passwordEncoder, redisProvider);
         // 通用 stub
-        when(ipUtil.getClientIp(any())).thenReturn("127.0.0.1");
-        when(userAgentUtil.getDeviceName(any())).thenReturn("Computer");
-        when(userAgentUtil.getBrowser(any())).thenReturn("Chrome");
-        when(userAgentUtil.getOperatingSystem(any())).thenReturn("Windows");
-        when(request.getHeader("User-Agent")).thenReturn("UA");
         when(loginLogService.save(any(LoginLog.class))).thenReturn(true);
         when(userSessionService.save(any(UserSession.class))).thenReturn(true);
         when(jwtUtils.generateToken(any(), any(), any(), anyBoolean())).thenReturn("jwt-token");
@@ -101,7 +94,7 @@ class AuthServiceImplCoverageTest {
     void login_userNotFound() {
         AuthServiceImpl svc = buildService(false);
         when(userService.getOne(any())).thenReturn(null);
-        BusinessException ex = assertThrows(BusinessException.class, () -> svc.login("nobody", "x", false, request));
+        BusinessException ex = assertThrows(BusinessException.class, () -> svc.login("nobody", "x", false, CLIENT_INFO));
         assertTrue(ex.getMessage().contains("用户名或密码错误"));
     }
 
@@ -112,7 +105,7 @@ class AuthServiceImplCoverageTest {
         User u = activeUser();
         u.setIsActive(false);
         when(userService.getOne(any())).thenReturn(u);
-        BusinessException ex = assertThrows(BusinessException.class, () -> svc.login("alice", "x", false, request));
+        BusinessException ex = assertThrows(BusinessException.class, () -> svc.login("alice", "x", false, CLIENT_INFO));
         assertTrue(ex.getMessage().contains("禁用"));
     }
 
@@ -123,7 +116,7 @@ class AuthServiceImplCoverageTest {
         User u = activeUser();
         u.setLockedUntil(LocalDateTime.now().plusMinutes(10));
         when(userService.getOne(any())).thenReturn(u);
-        BusinessException ex = assertThrows(BusinessException.class, () -> svc.login("alice", "x", false, request));
+        BusinessException ex = assertThrows(BusinessException.class, () -> svc.login("alice", "x", false, CLIENT_INFO));
         assertTrue(ex.getMessage().contains("锁定"));
     }
 
@@ -136,7 +129,7 @@ class AuthServiceImplCoverageTest {
         when(userService.getOne(any())).thenReturn(u);
         when(passwordEncoder.matches(any(), any())).thenReturn(false);
         when(userService.updateById(any())).thenReturn(true);
-        BusinessException ex = assertThrows(BusinessException.class, () -> svc.login("alice", "bad", false, request));
+        BusinessException ex = assertThrows(BusinessException.class, () -> svc.login("alice", "bad", false, CLIENT_INFO));
         assertTrue(ex.getMessage().contains("用户名或密码错误"));
         assertEquals(1, u.getFailedLoginAttempts());
     }
@@ -150,7 +143,7 @@ class AuthServiceImplCoverageTest {
         when(userService.getOne(any())).thenReturn(u);
         when(passwordEncoder.matches(any(), any())).thenReturn(false);
         when(userService.updateById(any())).thenReturn(true);
-        assertThrows(BusinessException.class, () -> svc.login("alice", "bad", false, request));
+        assertThrows(BusinessException.class, () -> svc.login("alice", "bad", false, CLIENT_INFO));
         assertNotNull(u.getLockedUntil());
     }
 
@@ -162,7 +155,7 @@ class AuthServiceImplCoverageTest {
         when(userService.getOne(any())).thenReturn(u);
         when(passwordEncoder.matches(any(), any())).thenReturn(true);
         when(userService.updateById(any())).thenReturn(true);
-        ApiResponse<?> resp = svc.login("alice", "Passw0rd!", true, request);
+        ApiResponse<?> resp = svc.login("alice", "Passw0rd!", true, CLIENT_INFO);
         assertEquals(200, resp.getCode());
         assertNotNull(resp.getData());
         verify(userSessionService).save(any(UserSession.class));
@@ -174,7 +167,7 @@ class AuthServiceImplCoverageTest {
     void register_emptyUsername() {
         AuthServiceImpl svc = buildService(false);
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> svc.register("a@b.com", "", STRONG_PWD, "Al", "STUDENT", null, "123456", request));
+                () -> svc.register("a@b.com", "", STRONG_PWD, "Al", "STUDENT", null, "123456", CLIENT_INFO));
         assertTrue(ex.getMessage().contains("用户名不能为空"));
     }
 
@@ -184,7 +177,7 @@ class AuthServiceImplCoverageTest {
         AuthServiceImpl svc = buildService(false);
         when(userService.count(any())).thenReturn(1L);
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", null, "123456", request));
+                () -> svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", null, "123456", CLIENT_INFO));
         assertTrue(ex.getMessage().contains("用户名已存在"));
     }
 
@@ -194,7 +187,7 @@ class AuthServiceImplCoverageTest {
         AuthServiceImpl svc = buildService(false);
         when(userService.count(any())).thenReturn(0L, 1L);
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", null, "123456", request));
+                () -> svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", null, "123456", CLIENT_INFO));
         assertTrue(ex.getMessage().contains("邮箱已被注册"));
     }
 
@@ -204,7 +197,7 @@ class AuthServiceImplCoverageTest {
         AuthServiceImpl svc = buildService(false);
         when(userService.count(any())).thenReturn(0L, 0L, 1L);
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", "13800000000", "123456", request));
+                () -> svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", "13800000000", "123456", CLIENT_INFO));
         assertTrue(ex.getMessage().contains("手机号已被注册"));
     }
 
@@ -214,7 +207,7 @@ class AuthServiceImplCoverageTest {
         AuthServiceImpl svc = buildService(false);
         when(userService.count(any())).thenReturn(0L);
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> svc.register("a@b.com", "bob", "abc", "Al", "STUDENT", null, "123456", request));
+                () -> svc.register("a@b.com", "bob", "abc", "Al", "STUDENT", null, "123456", CLIENT_INFO));
         assertTrue(ex.getMessage().contains("密码必须包含"));
     }
 
@@ -225,7 +218,7 @@ class AuthServiceImplCoverageTest {
         when(userService.count(any())).thenReturn(0L);
         when(verificationCodeService.getOne(any())).thenReturn(null);
         BusinessException ex = assertThrows(BusinessException.class,
-                () -> svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", null, "999999", request));
+                () -> svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", null, "999999", CLIENT_INFO));
         assertTrue(ex.getMessage().contains("验证码无效"));
     }
 
@@ -240,7 +233,7 @@ class AuthServiceImplCoverageTest {
         when(verificationCodeService.getOne(any())).thenReturn(vc);
         when(verificationCodeService.updateById(any())).thenReturn(true);
         when(userService.save(any())).thenReturn(true);
-        ApiResponse<?> resp = svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", null, "123456", request);
+        ApiResponse<?> resp = svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", null, "123456", CLIENT_INFO);
         assertEquals(200, resp.getCode());
         verify(userService).save(any(User.class));
     }
@@ -251,7 +244,7 @@ class AuthServiceImplCoverageTest {
         AuthServiceImpl svc = buildService(false);
         when(userService.count(any())).thenReturn(0L);
         when(userService.save(any())).thenReturn(true);
-        ApiResponse<?> resp = svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", null, null, request);
+        ApiResponse<?> resp = svc.register("a@b.com", "bob", STRONG_PWD, "Al", "STUDENT", null, null, CLIENT_INFO);
         assertEquals(200, resp.getCode());
     }
 
@@ -308,7 +301,7 @@ class AuthServiceImplCoverageTest {
         when(chain.eq(any(), any())).thenReturn(chain);
         when(chain.set(any(), any())).thenReturn(chain);
         when(chain.update()).thenReturn(true);
-        ApiResponse<?> resp = svc.logout(1L, request);
+        ApiResponse<?> resp = svc.logout(1L, CLIENT_INFO);
         assertEquals(200, resp.getCode());
         verify(userSessionService).evictSessionCache("tok");
     }
@@ -402,7 +395,7 @@ class AuthServiceImplCoverageTest {
     void sendVC_rateLimited() {
         AuthServiceImpl svc = buildService(false);
         when(verificationCodeService.count(any())).thenReturn(1L);
-        assertThrows(BusinessException.class, () -> svc.sendVerificationCode("a@b.com", "REGISTER", request));
+        assertThrows(BusinessException.class, () -> svc.sendVerificationCode("a@b.com", "REGISTER", CLIENT_INFO));
     }
 
     @Test
@@ -411,7 +404,7 @@ class AuthServiceImplCoverageTest {
         AuthServiceImpl svc = buildService(false);
         when(verificationCodeService.count(any())).thenReturn(0L);
         when(verificationCodeService.save(any())).thenReturn(true);
-        ApiResponse<?> resp = svc.sendVerificationCode("a@b.com", "REGISTER", request);
+        ApiResponse<?> resp = svc.sendVerificationCode("a@b.com", "REGISTER", CLIENT_INFO);
         assertEquals(200, resp.getCode());
         verify(emailService).sendVerificationCode(eq("a@b.com"), anyString(), eq("REGISTER"));
     }

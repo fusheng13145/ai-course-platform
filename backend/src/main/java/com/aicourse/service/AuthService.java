@@ -1,7 +1,7 @@
 package com.aicourse.service;
 
 import com.aicourse.common.ApiResponse;
-import jakarta.servlet.http.HttpServletRequest;
+import com.aicourse.common.ClientInfo;
 import java.util.Map;
 
 /**
@@ -14,10 +14,10 @@ public interface AuthService {
      * @param account 账号(用户名/手机号/邮箱)
      * @param password 密码
      * @param rememberMe 是否记住我
-     * @param request 请求对象
+     * @param clientInfo 客户端上下文（IP / User-Agent，由 Web 层解析）
      * @return 登录信息(令牌、用户信息等)
      */
-    ApiResponse<Map<String, Object>> login(String account, String password, Boolean rememberMe, HttpServletRequest request);
+    ApiResponse<Map<String, Object>> login(String account, String password, Boolean rememberMe, ClientInfo clientInfo);
 
     /**
      * 用户注册
@@ -28,11 +28,11 @@ public interface AuthService {
      * @param role 角色
      * @param phone 手机号
      * @param code 验证码
-     * @param request 请求对象
+     * @param clientInfo 客户端上下文（IP / User-Agent，由 Web 层解析）
      * @return 注册结果
      */
     ApiResponse<Map<String, Object>> register(String email, String username, String password, String fullName,
-                                              String role, String phone, String code, HttpServletRequest request);
+                                              String role, String phone, String code, ClientInfo clientInfo);
 
     /**
      * 刷新访问令牌
@@ -44,10 +44,10 @@ public interface AuthService {
     /**
      * 退出登录
      * @param userId 用户ID
-     * @param request 请求对象
+     * @param clientInfo 客户端上下文（IP / User-Agent，由 Web 层解析）
      * @return 操作结果
      */
-    ApiResponse<Void> logout(Long userId, HttpServletRequest request);
+    ApiResponse<Void> logout(Long userId, ClientInfo clientInfo);
 
     /**
      * 通过手机号+验证码重置密码
@@ -78,10 +78,10 @@ public interface AuthService {
      * 发送邮箱验证码
      * @param email 邮箱地址
      * @param type 验证码类型
-     * @param request 请求对象
+     * @param clientInfo 客户端上下文（IP / User-Agent，由 Web 层解析）
      * @return 操作结果
      */
-    ApiResponse<Void> sendVerificationCode(String email, String type, HttpServletRequest request);
+    ApiResponse<Void> sendVerificationCode(String email, String type, ClientInfo clientInfo);
 
     /**
      * 通过邮箱+验证码重置密码

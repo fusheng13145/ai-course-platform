@@ -11,11 +11,9 @@ import com.aicourse.service.LoginLogService;
 import com.aicourse.service.UserService;
 import com.aicourse.service.UserSessionService;
 import com.aicourse.service.VerificationCodeService;
-import com.aicourse.util.IpUtil;
+import com.aicourse.common.ClientInfo;
 import com.aicourse.util.JwtUtils;
-import com.aicourse.util.UserAgentUtil;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
@@ -51,29 +49,25 @@ public class AuthSessionComponent {
     private final VerificationCodeService verificationCodeService;
     private final JwtUtils jwtUtils;
     private final PasswordEncoder passwordEncoder;
-    private final IpUtil ipUtil;
-    private final UserAgentUtil userAgentUtil;
     private final LoginLogService loginLogService;
     private final AuthPasswordComponent passwordComponent;
 
     public AuthSessionComponent(UserService userService, UserSessionService userSessionService,
                                 VerificationCodeService verificationCodeService, JwtUtils jwtUtils,
-                                PasswordEncoder passwordEncoder, IpUtil ipUtil, UserAgentUtil userAgentUtil,
+                                PasswordEncoder passwordEncoder,
                                 LoginLogService loginLogService, AuthPasswordComponent passwordComponent) {
         this.userService = userService;
         this.userSessionService = userSessionService;
         this.verificationCodeService = verificationCodeService;
         this.jwtUtils = jwtUtils;
         this.passwordEncoder = passwordEncoder;
-        this.ipUtil = ipUtil;
-        this.userAgentUtil = userAgentUtil;
         this.loginLogService = loginLogService;
         this.passwordComponent = passwordComponent;
     }
 
     // ===================== 登录 =====================
     public ApiResponse<Map<String, Object>> login(String account, String password,
-                                                  Boolean rememberMe, HttpServletRequest request) {
+                                                  Boolean rememberMe, ClientInfo clientInfo) {
         log.info("登录认证");
 
         User user = userService.getOne(new LambdaQueryWrapper<User>()
@@ -82,17 +76,17 @@ public class AuthSessionComponent {
                 .or().eq(User::getPhone, account));
 
         if (user == null) {
-            saveLoginLog(null, account, STATUS_FAILURE, request, "用户不存在");
+            saveLoginLog(null, account, STATUS_FAILURE, clientInfo, "用户不存在");
             throw new BusinessException("用户名或密码错误");
         }
 
         if (!user.getIsActive()) {
-            saveLoginLog(user.getId(), user.getUsername(), STATUS_FAILURE, request, "账号已禁用");
+            saveLoginLog(user.getId(), user.getUsername(), STATUS_FAILURE, clientInfo, "账号已禁用");
             throw new BusinessException("账号已被禁用");
         }
 
         if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(LocalDateTime.now())) {
-            saveLoginLog(user.getId(), user.getUsername(), STATUS_FAILURE, request, "账号已锁定");
+            saveLoginLog(user.getId(), user.getUsername(), STATUS_FAILURE, clientInfo, "账号已锁定");
             throw new BusinessException("账号已被锁定，请稍后再试");
         }
 
@@ -103,7 +97,7 @@ public class AuthSessionComponent {
                 user.setLockedUntil(LocalDateTime.now().plusMinutes(LOCK_MINUTES));
             }
             userService.updateById(user);
-            saveLoginLog(user.getId(), user.getUsername(), STATUS_FAILURE, request, "密码错误");
+            saveLoginLog(user.getId(), user.getUsername(), STATUS_FAILURE, clientInfo, "密码错误");
             throw new BusinessException("用户名或密码错误");
         }
 
@@ -119,10 +113,10 @@ public class AuthSessionComponent {
         String refreshToken = UUID.randomUUID().toString().replace("-", "");
 
         // 刷新令牌仅向客户端返回明文；入库前做 SHA-256 哈希存储，降低数据库泄漏风险
-        UserSession session = buildUserSession(user, token, jwtUtils.sha256Hex(refreshToken), remember, now, request);
+        UserSession session = buildUserSession(user, token, jwtUtils.sha256Hex(refreshToken), remember, now, clientInfo);
         userSessionService.save(session);
 
-        saveLoginLog(user.getId(), user.getUsername(), STATUS_SUCCESS, request, null);
+        saveLoginLog(user.getId(), user.getUsername(), STATUS_SUCCESS, clientInfo, null);
 
         // 组装返回数据
         Map<String, Object> userData = new HashMap<>(8);
@@ -146,7 +140,7 @@ public class AuthSessionComponent {
     // ===================== 注册 =====================
     public ApiResponse<Map<String, Object>> register(String email, String username, String password,
                                                      String fullName, String role, String phone,
-                                                     String code, HttpServletRequest request) {
+                                                     String code, ClientInfo clientInfo) {
         log.info("注册认证");
 
         // 用户名空值兜底校验（Controller 层 @Valid 已拦截，此处为服务层双保险；
@@ -197,7 +191,7 @@ public class AuthSessionComponent {
         user.setIsActive(true);
         user.setIsVerified(false);
         user.setFailedLoginAttempts(0);
-        user.setRegisterIp(ipUtil.getClientIp(request));
+        user.setRegisterIp(clientInfo.getIpAddress());
         userService.save(user);
 
         LocalDateTime now = LocalDateTime.now();
@@ -205,7 +199,7 @@ public class AuthSessionComponent {
         String refreshToken = UUID.randomUUID().toString().replace("-", "");
 
         // 创建会话（刷新令牌哈希存储）
-        UserSession session = buildUserSession(user, token, jwtUtils.sha256Hex(refreshToken), false, now, request);
+        UserSession session = buildUserSession(user, token, jwtUtils.sha256Hex(refreshToken), false, now, clientInfo);
         userSessionService.save(session);
 
         Map<String, Object> data = new HashMap<>(5);
@@ -257,7 +251,7 @@ public class AuthSessionComponent {
     }
 
     // ===================== 退出登录 =====================
-    public ApiResponse<Void> logout(Long userId, HttpServletRequest request) {
+    public ApiResponse<Void> logout(Long userId, ClientInfo clientInfo) {
         log.info("登出认证");
 
         // 先取出该用户当前有效会话的令牌，便于随后立即使其缓存失效
@@ -273,7 +267,7 @@ public class AuthSessionComponent {
         // 立即使每个会话令牌的缓存失效，避免旧令牌在缓存 TTL 内仍被判定为有效
         activeSessions.forEach(s -> userSessionService.evictSessionCache(s.getSessionToken()));
 
-        saveLoginLog(userId, null, STATUS_LOGOUT, request, "安全退出");
+        saveLoginLog(userId, null, STATUS_LOGOUT, clientInfo, "安全退出");
         return ApiResponse.success("退出成功", null);
     }
 
@@ -303,18 +297,18 @@ public class AuthSessionComponent {
      * 构建用户会话对象
      */
     private UserSession buildUserSession(User user, String token, String refreshToken,
-                                         boolean rememberMe, LocalDateTime now, HttpServletRequest request) {
+                                         boolean rememberMe, LocalDateTime now, ClientInfo clientInfo) {
         UserSession session = new UserSession();
         session.setUserId(user.getId());
         session.setSessionToken(token);
         session.setRefreshToken(refreshToken);
         session.setIsActive(true);
         session.setIsCurrent(true);
-        session.setIpAddress(ipUtil.getClientIp(request));
-        session.setDeviceName(userAgentUtil.getDeviceName(request));
-        session.setBrowser(userAgentUtil.getBrowser(request));
-        session.setOperatingSystem(userAgentUtil.getOperatingSystem(request));
-        session.setUserAgent(request.getHeader("User-Agent"));
+        session.setIpAddress(clientInfo.getIpAddress());
+        session.setDeviceName(clientInfo.getDeviceName());
+        session.setBrowser(clientInfo.getBrowser());
+        session.setOperatingSystem(clientInfo.getOperatingSystem());
+        session.setUserAgent(clientInfo.getUserAgent());
         session.setLoginTime(now);
         session.setLastActivity(now);
 
@@ -327,16 +321,16 @@ public class AuthSessionComponent {
      * 保存登录日志
      */
     private void saveLoginLog(Long userId, String username, String status,
-                              HttpServletRequest request, String reason) {
+                              ClientInfo clientInfo, String reason) {
         LoginLog log = new LoginLog();
         log.setUserId(userId);
         log.setUsername(username);
         log.setLoginStatus(status);
-        log.setIpAddress(ipUtil.getClientIp(request));
-        log.setDeviceName(userAgentUtil.getDeviceName(request));
-        log.setBrowser(userAgentUtil.getBrowser(request));
-        log.setOperatingSystem(userAgentUtil.getOperatingSystem(request));
-        log.setUserAgent(request.getHeader("User-Agent"));
+        log.setIpAddress(clientInfo.getIpAddress());
+        log.setDeviceName(clientInfo.getDeviceName());
+        log.setBrowser(clientInfo.getBrowser());
+        log.setOperatingSystem(clientInfo.getOperatingSystem());
+        log.setUserAgent(clientInfo.getUserAgent());
         log.setFailureReason(reason);
         loginLogService.save(log);
     }

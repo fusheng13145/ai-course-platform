@@ -5,10 +5,8 @@ import com.aicourse.service.*;
 import com.aicourse.service.component.AuthPasswordComponent;
 import com.aicourse.service.component.AuthSessionComponent;
 import com.aicourse.service.component.AuthVerificationComponent;
-import com.aicourse.util.IpUtil;
+import com.aicourse.common.ClientInfo;
 import com.aicourse.util.JwtUtils;
-import com.aicourse.util.UserAgentUtil;
-import jakarta.servlet.http.HttpServletRequest;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -19,7 +17,7 @@ import java.util.Map;
 
 /**
  * 认证授权服务门面：登录/注册/会话、密码管理、验证码三类职责委托给 service.component 下协作者组件。
- * <p>拆分自原 548 行单类（2026-08-31）。保留唯一 10 参构造器（生产由 Spring 注入、旧单测直构不变），
+ * <p>拆分自原 548 行单类（2026-08-31）。保留唯一 8 参构造器（生产由 Spring 注入、旧单测直构不变），
  * 内部按「验证码 → 密码 → 会话」无环依赖顺序装配组件。{@code @Transactional} 保留在门面委托方法上，
  * 由 Spring 代理按方法拦截；组件持有实际业务逻辑。</p>
  */
@@ -33,21 +31,20 @@ public class AuthServiceImpl implements AuthService {
     public AuthServiceImpl(UserService userService, UserSessionService userSessionService,
                            LoginLogService loginLogService, VerificationCodeService verificationCodeService,
                            EmailService emailService, JwtUtils jwtUtils, PasswordEncoder passwordEncoder,
-                           IpUtil ipUtil, UserAgentUtil userAgentUtil,
                            ObjectProvider<StringRedisTemplate> redisTemplateProvider) {
         StringRedisTemplate redisTemplate = redisTemplateProvider != null ? redisTemplateProvider.getIfAvailable() : null;
-        this.verificationComponent = new AuthVerificationComponent(verificationCodeService, emailService, ipUtil, redisTemplate);
+        this.verificationComponent = new AuthVerificationComponent(verificationCodeService, emailService, redisTemplate);
         this.passwordComponent = new AuthPasswordComponent(userService, verificationCodeService, passwordEncoder, verificationComponent);
         this.sessionComponent = new AuthSessionComponent(userService, userSessionService, verificationCodeService,
-                jwtUtils, passwordEncoder, ipUtil, userAgentUtil, loginLogService, passwordComponent);
+                jwtUtils, passwordEncoder, loginLogService, passwordComponent);
     }
 
     // ===================== 登录 =====================
     @Override
     @Transactional(rollbackFor = Exception.class)
     public ApiResponse<Map<String, Object>> login(String account, String password,
-                                                  Boolean rememberMe, HttpServletRequest request) {
-        return sessionComponent.login(account, password, rememberMe, request);
+                                                  Boolean rememberMe, ClientInfo clientInfo) {
+        return sessionComponent.login(account, password, rememberMe, clientInfo);
     }
 
     // ===================== 注册 =====================
@@ -55,8 +52,8 @@ public class AuthServiceImpl implements AuthService {
     @Transactional(rollbackFor = Exception.class)
     public ApiResponse<Map<String, Object>> register(String email, String username, String password,
                                                      String fullName, String role, String phone,
-                                                     String code, HttpServletRequest request) {
-        return sessionComponent.register(email, username, password, fullName, role, phone, code, request);
+                                                     String code, ClientInfo clientInfo) {
+        return sessionComponent.register(email, username, password, fullName, role, phone, code, clientInfo);
     }
 
     // ===================== 刷新令牌 =====================
@@ -68,8 +65,8 @@ public class AuthServiceImpl implements AuthService {
     // ===================== 退出登录 =====================
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public ApiResponse<Void> logout(Long userId, HttpServletRequest request) {
-        return sessionComponent.logout(userId, request);
+    public ApiResponse<Void> logout(Long userId, ClientInfo clientInfo) {
+        return sessionComponent.logout(userId, clientInfo);
     }
 
     // ===================== 手机号找回密码 =====================
@@ -94,8 +91,8 @@ public class AuthServiceImpl implements AuthService {
 
     // ===================== 发送邮箱验证码 =====================
     @Override
-    public ApiResponse<Void> sendVerificationCode(String email, String type, HttpServletRequest request) {
-        return verificationComponent.sendVerificationCode(email, type, request);
+    public ApiResponse<Void> sendVerificationCode(String email, String type, ClientInfo clientInfo) {
+        return verificationComponent.sendVerificationCode(email, type, clientInfo);
     }
 
     // ===================== 邮箱找回密码 =====================

@@ -27,6 +27,8 @@ class CommonControllerTest extends ControllerTestBase {
 
     @MockitoBean
     private FileStorageService fileStorageService;
+    @MockitoBean
+    private com.aicourse.util.ClientInfoResolver clientInfoResolver;
 
     // ==================== 验证码 ====================
 

@@ -33,6 +33,8 @@ class AuthControllerTest extends ControllerTestBase {
     private UserService userService;
     @MockitoBean
     private com.aicourse.common.CookieUtils cookieUtils;
+    @MockitoBean
+    private com.aicourse.util.ClientInfoResolver clientInfoResolver;
 
     @Test
     @DisplayName("登录-正常路径返回200，令牌写入HttpOnly Cookie并从响应体剥离")

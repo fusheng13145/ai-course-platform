@@ -5,9 +5,8 @@ import com.aicourse.entity.VerificationCode;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.EmailService;
 import com.aicourse.service.VerificationCodeService;
-import com.aicourse.util.IpUtil;
+import com.aicourse.common.ClientInfo;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
-import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
@@ -40,15 +39,13 @@ public class AuthVerificationComponent {
     // ===================== 依赖 =====================
     private final VerificationCodeService verificationCodeService;
     private final EmailService emailService;
-    private final IpUtil ipUtil;
     /** 验证码尝试限流用 Redis（可空：无 Redis 时降级不计数） */
     private final StringRedisTemplate redisTemplate;
 
     public AuthVerificationComponent(VerificationCodeService verificationCodeService, EmailService emailService,
-                                     IpUtil ipUtil, StringRedisTemplate redisTemplate) {
+                                     StringRedisTemplate redisTemplate) {
         this.verificationCodeService = verificationCodeService;
         this.emailService = emailService;
-        this.ipUtil = ipUtil;
         this.redisTemplate = redisTemplate;
     }
 
@@ -71,7 +68,7 @@ public class AuthVerificationComponent {
     }
 
     // ===================== 发送邮箱验证码 =====================
-    public ApiResponse<Void> sendVerificationCode(String email, String type, HttpServletRequest request) {
+    public ApiResponse<Void> sendVerificationCode(String email, String type, ClientInfo clientInfo) {
         log.info("发送认证");
 
         // 限流：1分钟内仅允许一次
@@ -95,7 +92,7 @@ public class AuthVerificationComponent {
         vc.setType(type);
         vc.setIsUsed(false);
         vc.setExpiresAt(now.plusMinutes(CODE_EXPIRE_MINUTES));
-        vc.setIpAddress(ipUtil.getClientIp(request));
+        vc.setIpAddress(clientInfo.getIpAddress());
         verificationCodeService.save(vc);
 
         // 发送邮件

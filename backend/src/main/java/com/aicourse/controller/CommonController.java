@@ -9,6 +9,7 @@ import com.aicourse.vo.FeatureItemVO;
 import com.aicourse.vo.FeatureRoadmapVO;
 import com.aicourse.vo.UploadResultVO;
 import com.aicourse.service.FileStorageService;
+import com.aicourse.util.ClientInfoResolver;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.servlet.http.HttpServletRequest;
 import lombok.extern.slf4j.Slf4j;
@@ -53,10 +54,13 @@ public class CommonController {
 
     private final AuthService authService;
     private final FileStorageService fileStorageService;
+    private final ClientInfoResolver clientInfoResolver;
 
-    public CommonController(AuthService authService, FileStorageService fileStorageService) {
+    public CommonController(AuthService authService, FileStorageService fileStorageService,
+                            ClientInfoResolver clientInfoResolver) {
         this.authService = authService;
         this.fileStorageService = fileStorageService;
+        this.clientInfoResolver = clientInfoResolver;
     }
 
     /**
@@ -70,7 +74,7 @@ public class CommonController {
         if (email == null || email.isEmpty()) {
             return ApiResponse.error(ApiCode.BAD_REQUEST, "邮箱不能为空");
         }
-        return authService.sendVerificationCode(email, type, request);
+        return authService.sendVerificationCode(email, type, clientInfoResolver.resolve(request));
     }
 
     /**

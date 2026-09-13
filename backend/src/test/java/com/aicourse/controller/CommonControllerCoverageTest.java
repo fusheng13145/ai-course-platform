@@ -3,6 +3,7 @@ package com.aicourse.controller;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.service.AuthService;
 import com.aicourse.service.FileStorageService;
+import com.aicourse.util.ClientInfoResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,12 +33,14 @@ class CommonControllerCoverageTest {
     private AuthService authService;
     @Mock
     private FileStorageService fileStorageService;
+    @Mock
+    private ClientInfoResolver clientInfoResolver;
 
     private MockMvc mockMvc;
 
     @BeforeEach
     void setup() {
-        CommonController controller = new CommonController(authService, fileStorageService);
+        CommonController controller = new CommonController(authService, fileStorageService, clientInfoResolver);
         mockMvc = MockMvcBuilders.standaloneSetup(controller).build();
 
         lenient().when(authService.sendVerificationCode(any(), any(), any())).thenReturn(ApiResponse.success());
