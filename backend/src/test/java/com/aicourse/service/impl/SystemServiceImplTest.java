@@ -1,10 +1,10 @@
 package com.aicourse.service.impl;
 
 import com.aicourse.service.SystemService;
-import com.aicourse.service.component.SysBackupComponent;
-import com.aicourse.service.component.SysConfigComponent;
-import com.aicourse.service.component.SysLogComponent;
-import com.aicourse.service.component.SysMonitorComponent;
+import com.aicourse.service.component.sys.SysBackupComponent;
+import com.aicourse.service.component.sys.SysConfigComponent;
+import com.aicourse.service.component.sys.SysLogComponent;
+import com.aicourse.service.component.sys.SysMonitorComponent;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;

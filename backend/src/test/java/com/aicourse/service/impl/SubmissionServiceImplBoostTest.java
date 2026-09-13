@@ -9,7 +9,7 @@ import com.aicourse.service.AIService;
 import com.aicourse.service.NotificationService;
 import com.aicourse.service.PlagiarismCheckService;
 import com.aicourse.service.TaskService;
-import com.aicourse.service.component.SubmissionJsonSupport;
+import com.aicourse.service.component.submission.SubmissionJsonComponent;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -460,35 +460,35 @@ class SubmissionServiceImplBoostTest {
     // ===== 私有 JSON 辅助（反射）=====
 
     @Test
-    @DisplayName("JSON 辅助：容错与类型解析（迁移至 SubmissionJsonSupport 后）")
+    @DisplayName("JSON 辅助：容错与类型解析（迁移至 SubmissionJsonComponent 后）")
     void privateJsonHelpers() throws Exception {
-        SubmissionJsonSupport support = new SubmissionJsonSupport(realObjectMapper);
-        Method parse = SubmissionJsonSupport.class.getDeclaredMethod("parseData", String.class);
+        SubmissionJsonComponent support = new SubmissionJsonComponent(realObjectMapper);
+        Method parse = SubmissionJsonComponent.class.getDeclaredMethod("parseData", String.class);
         parse.setAccessible(true);
         assertEquals(true, ((Map<?, ?>) parse.invoke(support, (Object) null)).isEmpty());
         assertEquals(true, ((Map<?, ?>) parse.invoke(support, "")).isEmpty());
         // 非法 JSON -> 容错返回空 Map（触发 IOException 分支）
         assertEquals(true, ((Map<?, ?>) parse.invoke(support, "{bad json")).isEmpty());
 
-        Method serialize = SubmissionJsonSupport.class.getDeclaredMethod("serializeData", Map.class);
+        Method serialize = SubmissionJsonComponent.class.getDeclaredMethod("serializeData", Map.class);
         serialize.setAccessible(true);
         assertEquals("{}", serialize.invoke(support, new LinkedHashMap<>()));
         Map<String, Object> m = new LinkedHashMap<>(); m.put("a", 1);
         assertTrue(((String) serialize.invoke(support, m)).contains("\"a\""));
 
-        Method upd = SubmissionJsonSupport.class.getDeclaredMethod("updateJsonField", String.class, String.class, String.class);
+        Method upd = SubmissionJsonComponent.class.getDeclaredMethod("updateJsonField", String.class, String.class, String.class);
         upd.setAccessible(true);
         String json = (String) upd.invoke(support, "{}", "k", "v");
         assertTrue(json.contains("\"k\""));
 
-        Method extI = SubmissionJsonSupport.class.getDeclaredMethod("extractIntFromJson", String.class, String.class);
+        Method extI = SubmissionJsonComponent.class.getDeclaredMethod("extractIntFromJson", String.class, String.class);
         extI.setAccessible(true);
         assertEquals(0, extI.invoke(support, "{}", "n"));
         assertEquals(7, extI.invoke(support, "{\"n\":7}", "n"));
         assertEquals(5, extI.invoke(support, "{\"n\":\"5\"}", "n"));
         assertEquals(0, extI.invoke(support, "{\"n\":\"xx\"}", "n")); // NumberFormatException 分支
 
-        Method extS = SubmissionJsonSupport.class.getDeclaredMethod("extractStringFromJson", String.class, String.class);
+        Method extS = SubmissionJsonComponent.class.getDeclaredMethod("extractStringFromJson", String.class, String.class);
         extS.setAccessible(true);
         assertNull(extS.invoke(support, "{}", "s"));
         assertEquals("v", extS.invoke(support, "{\"s\":\"v\"}", "s"));

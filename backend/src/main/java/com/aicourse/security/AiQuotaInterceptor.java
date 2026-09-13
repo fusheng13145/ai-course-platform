@@ -1,7 +1,7 @@
 package com.aicourse.security;
 
 import com.aicourse.exception.BusinessException;
-import com.aicourse.service.AiQuotaService;
+import com.aicourse.service.impl.AiQuotaService;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.security.core.Authentication;

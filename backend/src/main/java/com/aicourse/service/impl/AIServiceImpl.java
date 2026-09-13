@@ -2,12 +2,11 @@ package com.aicourse.service.impl;
 
 import com.aicourse.llm.LLMProvider;
 import com.aicourse.service.AIService;
-import com.aicourse.service.PromptGuard;
 import com.aicourse.service.RAGService;
-import com.aicourse.service.component.AiCoreComponent;
-import com.aicourse.service.component.AiDialogueComponent;
-import com.aicourse.service.component.AiRagComponent;
-import com.aicourse.service.component.AiStructuredComponent;
+import com.aicourse.service.component.ai.AiCoreComponent;
+import com.aicourse.service.component.ai.AiDialogueComponent;
+import com.aicourse.service.component.ai.AiRagComponent;
+import com.aicourse.service.component.ai.AiStructuredComponent;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;

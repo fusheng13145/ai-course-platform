@@ -23,11 +23,11 @@ import com.aicourse.service.SubmissionService;
 import com.aicourse.service.TaskService;
 import com.aicourse.service.VideoLearningRecordService;
 import com.aicourse.service.WrongQuestionService;
-import com.aicourse.service.component.StudentDashboardComponent;
-import com.aicourse.service.component.StudentLearningCenterComponent;
-import com.aicourse.service.component.StudentTaskComponent;
-import com.aicourse.service.component.StudentTaskSupport;
-import com.aicourse.service.component.StudentVisualizationComponent;
+import com.aicourse.service.component.student.StudentDashboardComponent;
+import com.aicourse.service.component.student.StudentLearningCenterComponent;
+import com.aicourse.service.component.student.StudentTaskComponent;
+import com.aicourse.service.component.student.StudentTaskCompletionComponent;
+import com.aicourse.service.component.student.StudentVisualizationComponent;
 import jakarta.annotation.PostConstruct;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -45,14 +45,14 @@ public class StudentLearningServiceImpl implements StudentLearningService {
     private final StudentLearningCenterComponent learningCenterComponent;
     private final StudentTaskComponent taskComponent;
     private final StudentVisualizationComponent visualizationComponent;
-    private final StudentTaskSupport taskSupport;
+    private final StudentTaskCompletionComponent taskSupport;
 
     @Autowired
     public StudentLearningServiceImpl(StudentDashboardComponent dashboardComponent,
                                       StudentLearningCenterComponent learningCenterComponent,
                                       StudentTaskComponent taskComponent,
                                       StudentVisualizationComponent visualizationComponent,
-                                      StudentTaskSupport taskSupport) {
+                                      StudentTaskCompletionComponent taskSupport) {
         this.dashboardComponent = dashboardComponent;
         this.learningCenterComponent = learningCenterComponent;
         this.taskComponent = taskComponent;
@@ -86,12 +86,12 @@ public class StudentLearningServiceImpl implements StudentLearningService {
                         learningRecordService, analyticsService),
                 new StudentLearningCenterComponent(courseService, courseChapterService, taskService,
                         submissionService, taskCompletionMapper,
-                        new StudentTaskSupport(taskService, taskCompletionMapper, enrollmentService)),
+                        new StudentTaskCompletionComponent(taskService, taskCompletionMapper, enrollmentService)),
                 new StudentTaskComponent(taskService, videoLearningRecordService, questionService,
                         wrongQuestionService,
-                        new StudentTaskSupport(taskService, taskCompletionMapper, enrollmentService)),
+                        new StudentTaskCompletionComponent(taskService, taskCompletionMapper, enrollmentService)),
                 new StudentVisualizationComponent(learningRecordService, wrongQuestionService, courseService),
-                new StudentTaskSupport(taskService, taskCompletionMapper, enrollmentService)
+                new StudentTaskCompletionComponent(taskService, taskCompletionMapper, enrollmentService)
         );
     }
 

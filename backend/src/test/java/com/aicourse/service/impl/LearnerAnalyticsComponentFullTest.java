@@ -1,5 +1,5 @@
 package com.aicourse.service.impl;
-import com.aicourse.service.component.*;
+import com.aicourse.service.component.analytics.LearnerAnalyticsComponent;
 
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.LearningRecord;

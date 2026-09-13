@@ -2,9 +2,9 @@ package com.aicourse.service.impl;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.service.*;
-import com.aicourse.service.component.AuthPasswordComponent;
-import com.aicourse.service.component.AuthSessionComponent;
-import com.aicourse.service.component.AuthVerificationComponent;
+import com.aicourse.service.component.auth.AuthPasswordComponent;
+import com.aicourse.service.component.auth.AuthSessionComponent;
+import com.aicourse.service.component.auth.AuthVerificationComponent;
 import com.aicourse.common.ClientInfo;
 import com.aicourse.util.JwtUtils;
 import org.springframework.beans.factory.ObjectProvider;

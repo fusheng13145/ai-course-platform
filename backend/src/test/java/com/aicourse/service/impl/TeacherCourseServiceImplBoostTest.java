@@ -4,9 +4,9 @@ import com.aicourse.constant.SubmissionStatus;
 import com.aicourse.entity.*;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.*;
-import com.aicourse.service.component.TeacherChapterComponent;
-import com.aicourse.service.component.TeacherCourseSupport;
-import com.aicourse.service.component.TeacherDashboardComponent;
+import com.aicourse.service.component.teacher.TeacherChapterComponent;
+import com.aicourse.service.component.teacher.TeacherCourseComponent;
+import com.aicourse.service.component.teacher.TeacherDashboardComponent;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
@@ -60,12 +60,12 @@ class TeacherCourseServiceImplBoostTest {
     private ClassroomService classroomService;
 
     private TeacherCourseServiceImpl service;
-    private TeacherCourseSupport support;
+    private TeacherCourseComponent support;
     private TeacherDashboardComponent dashboard;
 
     @BeforeEach
     void setUp() {
-        support = new TeacherCourseSupport(courseService, userService);
+        support = new TeacherCourseComponent(courseService, userService);
         TeacherChapterComponent chapterComp = new TeacherChapterComponent(chapterService, enrollmentService,
                 taskService, submissionService, userService, classroomService, support);
         dashboard = new TeacherDashboardComponent(courseService, chapterService, enrollmentService, taskService,
@@ -348,7 +348,7 @@ class TeacherCourseServiceImplBoostTest {
     @Test
     @DisplayName("round2: 四舍五入保留两位")
     void round2() throws Exception {
-        Method m = TeacherCourseSupport.class.getDeclaredMethod("round2", double.class);
+        Method m = TeacherCourseComponent.class.getDeclaredMethod("round2", double.class);
         m.setAccessible(true);
         assertEquals(1.24, (double) m.invoke(support, 1.236));
     }
@@ -356,7 +356,7 @@ class TeacherCourseServiceImplBoostTest {
     @Test
     @DisplayName("userNameMap: 空集合返回空，正常映射取 fullName/用户名")
     void userNameMap() throws Exception {
-        Method m = TeacherCourseSupport.class.getDeclaredMethod("userNameMap", Collection.class);
+        Method m = TeacherCourseComponent.class.getDeclaredMethod("userNameMap", Collection.class);
         m.setAccessible(true);
         assertTrue(((Map<?, ?>) m.invoke(support, (Object) null)).isEmpty());
         assertTrue(((Map<?, ?>) m.invoke(support, Collections.emptyList())).isEmpty());
@@ -382,7 +382,7 @@ class TeacherCourseServiceImplBoostTest {
     @Test
     @DisplayName("tryParseJson: null/围栏/纯JSON/非法")
     void tryParseJson() throws Exception {
-        Method m = TeacherCourseSupport.class.getDeclaredMethod("tryParseJson", String.class);
+        Method m = TeacherCourseComponent.class.getDeclaredMethod("tryParseJson", String.class);
         m.setAccessible(true);
         assertNull(m.invoke(support, (Object) null));
         assertNull(m.invoke(support, "   "));

@@ -1,5 +1,8 @@
 package com.aicourse.service.impl;
-import com.aicourse.service.component.*;
+import com.aicourse.service.component.analytics.AdminAnalyticsComponent;
+import com.aicourse.service.component.analytics.CourseAnalyticsComponent;
+import com.aicourse.service.component.analytics.LearnerAnalyticsComponent;
+import com.aicourse.service.component.analytics.TeachingAnalyticsComponent;
 
 import com.aicourse.entity.*;
 import com.aicourse.mapper.TaskCompletionMapper;

@@ -2,7 +2,6 @@ package com.aicourse.service.impl;
 
 import com.aicourse.exception.BusinessException;
 import com.aicourse.llm.LLMProvider;
-import com.aicourse.service.PromptGuard;
 import com.aicourse.service.RAGService;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;

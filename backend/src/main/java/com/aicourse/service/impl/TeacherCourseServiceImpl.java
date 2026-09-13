@@ -13,10 +13,10 @@ import com.aicourse.service.SubmissionService;
 import com.aicourse.service.TaskService;
 import com.aicourse.service.TeacherCourseService;
 import com.aicourse.service.UserService;
-import com.aicourse.service.component.TeacherChapterComponent;
-import com.aicourse.service.component.TeacherCourseSupport;
-import com.aicourse.service.component.TeacherDashboardComponent;
-import com.aicourse.service.component.TeacherOutlineComponent;
+import com.aicourse.service.component.teacher.TeacherChapterComponent;
+import com.aicourse.service.component.teacher.TeacherCourseComponent;
+import com.aicourse.service.component.teacher.TeacherDashboardComponent;
+import com.aicourse.service.component.teacher.TeacherOutlineComponent;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -62,13 +62,13 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
         this(
                 new TeacherDashboardComponent(courseService, chapterService, enrollmentService, taskService,
                         submissionService, examPaperService, questionService, learningRecordService, aiService,
-                        new TeacherCourseSupport(courseService, userService),
+                        new TeacherCourseComponent(courseService, userService),
                         new TeacherChapterComponent(chapterService, enrollmentService, taskService, submissionService,
-                                userService, classroomService, new TeacherCourseSupport(courseService, userService))),
+                                userService, classroomService, new TeacherCourseComponent(courseService, userService))),
                 new TeacherOutlineComponent(courseService, chapterService, aiService,
-                        new TeacherCourseSupport(courseService, userService)),
+                        new TeacherCourseComponent(courseService, userService)),
                 new TeacherChapterComponent(chapterService, enrollmentService, taskService, submissionService,
-                        userService, classroomService, new TeacherCourseSupport(courseService, userService))
+                        userService, classroomService, new TeacherCourseComponent(courseService, userService))
         );
     }
 

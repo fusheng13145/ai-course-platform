@@ -8,10 +8,10 @@ import com.aicourse.service.NotificationService;
 import com.aicourse.service.PlagiarismCheckService;
 import com.aicourse.service.SubmissionService;
 import com.aicourse.service.TaskService;
-import com.aicourse.service.component.SubmissionGradeComponent;
-import com.aicourse.service.component.SubmissionJsonSupport;
-import com.aicourse.service.component.SubmissionReadComponent;
-import com.aicourse.service.component.SubmissionWriteComponent;
+import com.aicourse.service.component.submission.SubmissionGradeComponent;
+import com.aicourse.service.component.submission.SubmissionJsonComponent;
+import com.aicourse.service.component.submission.SubmissionReadComponent;
+import com.aicourse.service.component.submission.SubmissionWriteComponent;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -60,7 +60,7 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
                                   ObjectMapper objectMapper,
                                   NotificationService notificationService,
                                   MeterRegistry meterRegistry) {
-        SubmissionJsonSupport jsonSupport = new SubmissionJsonSupport(objectMapper);
+        SubmissionJsonComponent jsonSupport = new SubmissionJsonComponent(objectMapper);
         this.writeComponent = new SubmissionWriteComponent(null, taskService, jsonSupport, meterRegistry);
         this.gradeComponent = new SubmissionGradeComponent(null, taskService, notificationService,
                 aiService, jsonSupport, this.writeComponent);
