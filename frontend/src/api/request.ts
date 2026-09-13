@@ -3,46 +3,10 @@ import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '@/router'
 import { useAuthStore } from '@/stores/auth'
+import { showLoading, hideLoading } from '@/utils/loadingBar'
+import { getRequestKey, generateReqKey } from '@/api/requestKey'
 
-// ==================== 全局 Loading 进度条 ====================
-let requestCount = 0
-let loadingTimer = null
-
-function showLoading() {
-  requestCount++
-  const bar = document.getElementById('global-loading-bar')
-  if (bar) {
-    bar.style.display = 'block'
-    bar.style.width = '0%'
-    bar.style.transition = 'none'
-    // 强制回流后启动动画
-    void bar.offsetWidth
-    bar.style.width = '85%'
-    bar.style.transition = 'width 8s cubic-bezier(0.1, 0.05, 0, 1)'
-  }
-  // 安全兜底：30s 后自动隐藏
-  clearTimeout(loadingTimer)
-  loadingTimer = setTimeout(() => hideLoading(true), 30000)
-}
-
-function hideLoading(force = false) {
-  if (!force) {
-    requestCount = Math.max(0, requestCount - 1)
-    if (requestCount > 0) return
-  } else {
-    requestCount = 0
-  }
-  clearTimeout(loadingTimer)
-  const bar = document.getElementById('global-loading-bar')
-  if (bar) {
-    bar.style.width = '100%'
-    bar.style.transition = 'width 0.3s ease-out'
-    setTimeout(() => {
-      bar.style.display = 'none'
-      bar.style.width = '0%'
-    }, 350)
-  }
-}
+// 全局 Loading 进度条已抽离至 @/utils/loadingBar（HTTP 层不直接操作 DOM）
 
 // ==================== 消息去重（防连续弹窗堆叠） ====================
 const messageCache = new Map()
@@ -109,11 +73,7 @@ const retryCache = new Map()
 /* AbortController 管理器：页面切换时取消未完成请求 */
 const pendingRequests = new Map()
 
-/* 根据请求配置生成唯一标识 */
-function getRequestKey(config) {
-  const { method, url, params, data } = config || {}
-  return `${method}:${url}:${JSON.stringify(params)}:${JSON.stringify(data)}`
-}
+// getRequestKey 已抽离至 @/api/requestKey
 
 // 取消所有未完成请求（路由切换时调用）
 export function cancelAllPendingRequests() {
@@ -137,13 +97,7 @@ function removePendingRequest(config) {
   pendingRequests.delete(key)
 }
 
-/* 根据请求配置生成唯一标识（用于重试去重） */
-function generateReqKey(config) {
-  const { method, url, params, data } = config || {}
-  const paramStr = params ? JSON.stringify(params) : ''
-  const dataStr = data ? JSON.stringify(data) : ''
-  return `${method}:${url}?${paramStr}|${dataStr}`
-}
+// generateReqKey 已抽离至 @/api/requestKey
 
 /* 判断是否为网络错误（无响应） */
 function isNetworkError(error) {
@@ -260,7 +214,7 @@ service.interceptors.response.use(
           retryCache.delete(generateReqKey(config))
           return res
         } catch (retryErr) {
-          console.error('[request.js] catch:', retryErr)
+          logger.error('[request] catch:', retryErr)
           retryCache.delete(generateReqKey(config))
           return Promise.reject(retryErr)
         }
@@ -286,12 +240,12 @@ service.interceptors.response.use(
             await service.post('/auth/refresh', {})
             return service(config)
           } catch (refreshErr) {
-            console.error('[request.js] catch:', refreshErr)
+            logger.error('[request] catch:', refreshErr)
             // 刷新失败：尽力清除后端会话 Cookie，避免残留脏会话
             try {
               await service.post('/auth/logout')
             } catch (logoutErr) {
-              console.error('[request.js] catch:', logoutErr)
+              logger.error('[request] catch:', logoutErr)
               // 登出接口失败不影响主流程（令牌已失效），仅开发环境记录
               if (import.meta.env.DEV) {
                 // eslint-disable-next-line no-console
@@ -349,7 +303,7 @@ service.interceptors.response.use(
             retryCache.delete(generateReqKey(config))
             return res
           } catch (retryErr) {
-            console.error('[request.js] catch:', retryErr)
+            logger.error('[request] catch:', retryErr)
             retryCache.delete(generateReqKey(config))
             showThrottledMessage('error', getStatusMessage(status))
             return Promise.reject(retryErr)
