@@ -8,7 +8,7 @@
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <div v-if="result" class="result-wrap">
-      <div class="result-title">{{ result.title }}</div>
+      <div v-if="result.title" class="result-title">{{ result.title }}</div>
       <div v-for="(item, i) in result.options || []" :key="i" class="result-item">
         <div class="ri-head">
           <span>{{ item.optionText || item.text }}</span>
@@ -25,10 +25,18 @@
 </template>
 
 <script setup lang="ts">
+/**
+ * 投票结果对话框（互动域共享实现）
+ * <p>教师「互动工具」页与「课程互动」页共用；结果为 `{ title?, options:[{text|optionText,count}], total }`，
+ * 标题存在时才展示（兼容无标题数据）。</p>
+ */
 const props = defineProps({
+  /** 弹窗显隐（v-model） */
   modelValue: { type: Boolean, default: false },
+  /** 投票结果 */
   result: { type: Object, default: null },
 })
+
 defineEmits(['update:modelValue'])
 
 function resultPct(count) {

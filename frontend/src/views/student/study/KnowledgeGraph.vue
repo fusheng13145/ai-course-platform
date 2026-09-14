@@ -132,8 +132,8 @@
         </div>
       </div>
       <div class="l1-body">
-        <SkgPathPlanner
-          :all-point-options="allPointOptions"
+        <KntPathPlanner
+          :points="allPointOptions"
           :path-source="pathSource"
           :path-target="pathTarget"
           :path-max-hops="pathMaxHops"
@@ -158,7 +158,7 @@ import { useStudentKnowledgeGraph } from '@/composables/useStudentKnowledgeGraph
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import SkgGraphPanel from './components/SkgGraphPanel.vue'
-import SkgPathPlanner from './components/SkgPathPlanner.vue'
+import KntPathPlanner from '@/components/knowledge/KntPathPlanner.vue'
 
 /**
  * 知识图谱页面（学生）

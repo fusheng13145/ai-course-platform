@@ -100,8 +100,8 @@ import InSignPanel from './components/InSignPanel.vue'
 import InVotePanel from './components/InVotePanel.vue'
 import InSignDialog from './components/InSignDialog.vue'
 import InRecordsDialog from './components/InRecordsDialog.vue'
-import InVoteDialog from './components/InVoteDialog.vue'
-import InResultDialog from './components/InResultDialog.vue'
+import InVoteDialog from '@/components/interaction/InVoteDialog.vue'
+import InResultDialog from '@/components/interaction/InResultDialog.vue'
 import { useInteraction } from '@/composables/useInteraction'
 
 const courseLoading = ref(false)

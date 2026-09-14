@@ -43,15 +43,16 @@
           @refresh="loadGraph"
         />
 
-        <KgPathPlanner
+        <KntPathPlanner
+          title="学习路径规划"
           :points="points"
-          :t-path-source="tPathSource"
-          :t-path-target="tPathTarget"
-          :t-path-hops="tPathHops"
-          :t-path-planning="tPathPlanning"
-          :t-path-plan="tPathPlan"
-          :t-path-not-found="tPathNotFound"
-          :t-path-error="tPathError"
+          :path-source="tPathSource"
+          :path-target="tPathTarget"
+          :path-max-hops="tPathHops"
+          :path-planning="tPathPlanning"
+          :path-plan="tPathPlan"
+          :path-not-found="tPathNotFound"
+          :path-error="tPathError"
           @plan="planPathTeacher"
           @update:source="tPathSource = $event"
           @update:target="tPathTarget = $event"
@@ -91,7 +92,7 @@ import { useKnowledgeGraph } from '@/composables/useKnowledgeGraph'
 import PageHeader from '@/components/PageHeader.vue'
 import KgOverviewStats from './components/KgOverviewStats.vue'
 import KgListGraph from './components/KgListGraph.vue'
-import KgPathPlanner from './components/KgPathPlanner.vue'
+import KntPathPlanner from '@/components/knowledge/KntPathPlanner.vue'
 import KgDialogs from './components/KgDialogs.vue'
 
 /**

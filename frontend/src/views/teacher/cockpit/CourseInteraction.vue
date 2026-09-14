@@ -97,10 +97,10 @@
     <CiRecordsDialog v-model="recordsVisible" :records="records" @mark="mark" />
 
     <!-- 发起投票 -->
-    <CiVoteDialog v-model="voteVisible" :saving="saving" :form="voteForm" @create="createVote" />
+    <InVoteDialog v-model="voteVisible" :submitting="saving" :form="voteForm" @submit="createVote" />
 
     <!-- 投票结果 -->
-    <CiResultDialog v-model="resultVisible" :result="voteResult" />
+    <InResultDialog v-model="resultVisible" :result="voteResult" />
   </div>
 </template>
 
@@ -113,8 +113,8 @@ import CiSignTable from './components/CiSignTable.vue'
 import CiVoteTable from './components/CiVoteTable.vue'
 import CiSignDialog from './components/CiSignDialog.vue'
 import CiRecordsDialog from './components/CiRecordsDialog.vue'
-import CiVoteDialog from './components/CiVoteDialog.vue'
-import CiResultDialog from './components/CiResultDialog.vue'
+import InVoteDialog from '@/components/interaction/InVoteDialog.vue'
+import InResultDialog from '@/components/interaction/InResultDialog.vue'
 import { useCourseInteraction } from '@/composables/useCourseInteraction'
 
 const route = useRoute()

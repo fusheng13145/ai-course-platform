@@ -1,5 +1,20 @@
 <template>
-  <div class="path-planner">
+  <div :class="title ? 'chart-card path-card' : 'path-planner'">
+    <div v-if="title" class="chart-title">
+      <el-icon><Promotion /></el-icon>{{ title }}
+      <el-button
+        text
+        type="primary"
+        size="small"
+        class="ml-auto"
+        :loading="pathPlanning"
+        :disabled="!pathSource || !pathTarget"
+        @click="emit('plan')"
+      >
+        <el-icon><MagicStick /></el-icon>规划
+      </el-button>
+    </div>
+
     <div class="path-inputs">
       <el-select
         :model-value="pathSource"
@@ -9,7 +24,12 @@
         clearable
         @update:model-value="emit('update:source', $event)"
       >
-        <el-option v-for="o in allPointOptions" :key="o.value" :label="o.label" :value="o.value" />
+        <el-option
+          v-for="o in points"
+          :key="o.value ?? o.id"
+          :label="o.label ?? o.name"
+          :value="o.value ?? o.id"
+        />
       </el-select>
       <el-icon class="path-arrow"><Right /></el-icon>
       <el-select
@@ -20,7 +40,12 @@
         clearable
         @update:model-value="emit('update:target', $event)"
       >
-        <el-option v-for="o in allPointOptions" :key="o.value" :label="o.label" :value="o.value" />
+        <el-option
+          v-for="o in points"
+          :key="o.value ?? o.id"
+          :label="o.label ?? o.name"
+          :value="o.value ?? o.id"
+        />
       </el-select>
       <el-input-number
         :model-value="pathMaxHops"
@@ -32,6 +57,7 @@
         @update:model-value="emit('update:hops', $event)"
       />
       <el-button
+        v-if="!title"
         type="primary"
         :loading="pathPlanning"
         :disabled="!pathSource || !pathTarget"
@@ -81,41 +107,52 @@
       <p class="path-note">
         <el-icon><InfoFilled /></el-icon>{{ pathPlan.note }}
       </p>
-      <p class="path-hint">已在上方图谱中高亮该路径</p>
+      <p v-if="!title" class="path-hint">已在上方图谱中高亮该路径</p>
     </div>
 
-    <div v-else-if="!pathSource || !pathTarget" class="path-empty muted">
+    <div v-else class="path-empty muted">
       <el-icon :size="28" color="var(--ac-text-muted)"><Promotion /></el-icon>
-      <p>选择起点与目标知识点后点击「规划路径」</p>
+      <p>选择起点与目标知识点后点击「{{ title ? '规划' : '规划路径' }}」</p>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import {
-  Right,
+  Promotion,
   MagicStick,
+  Right,
   Loading,
   WarningFilled,
   CircleCloseFilled,
   InfoFilled,
-  Promotion,
 } from '@element-plus/icons-vue'
 
 /**
- * 学生学习路径规划面板
- * <p>起点/目标/跳数选择 + 规划结果（引擎/BFS 模式标注、路径链展示）；
- * 状态经 props 注入、操作经事件上抛（useStudentKnowledgeGraph）。</p>
+ * 学习路径规划面板（知识图谱域共享实现）
+ * <p>学生课程图谱页与教师知识图谱页共用；差异以 props 表达：
+ * `title`（非空则渲染卡片标题栏与标题栏按钮，为空则为裸面板 + 内联按钮）、
+ * `points`（同时兼容 `{value,label}` 与 `{id,name}` 两种选项形状）。</p>
  */
 defineProps({
-  allPointOptions: { type: Array, default: () => [] },
+  /** 候选知识点选项（{value,label} 或 {id,name}） */
+  points: { type: Array, default: () => [] },
+  /** 起点知识点 */
   pathSource: { type: [Number, String], default: null },
+  /** 目标知识点 */
   pathTarget: { type: [Number, String], default: null },
+  /** 最大跳数 */
   pathMaxHops: { type: [Number, String], default: null },
+  /** 规划中 */
   pathPlanning: { type: Boolean, default: false },
+  /** 规划结果 */
   pathPlan: { type: Object, default: null },
+  /** 未找到路径 */
   pathNotFound: { type: Boolean, default: false },
+  /** 错误文案 */
   pathError: { type: String, default: '' },
+  /** 卡片标题（非空时渲染标题栏） */
+  title: { type: String, default: '' },
 })
 
 const emit = defineEmits(['plan', 'update:source', 'update:target', 'update:hops'])
@@ -124,6 +161,28 @@ const emit = defineEmits(['plan', 'update:source', 'update:target', 'update:hops
 <style scoped>
 .path-planner {
   padding: var(--ac-spacing-sm) 0;
+}
+.chart-card {
+  padding: var(--ac-spacing-lg);
+  background: var(--ac-bg-elevated);
+  border: 1px solid var(--ac-border);
+  border-radius: var(--ac-radius-lg);
+  box-shadow: var(--ac-shadow-sm);
+}
+.path-card {
+  margin-top: var(--ac-spacing-md);
+}
+.chart-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--ac-text-primary);
+  margin-bottom: var(--ac-spacing-md);
+}
+.ml-auto {
+  margin-left: auto;
 }
 .path-inputs {
   display: flex;
