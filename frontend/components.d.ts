@@ -39,6 +39,7 @@ declare module 'vue' {
     DonutChart: typeof import('./src/components/charts/DonutChart.vue')['default']
     Drawer: typeof import('./src/components/ui/Drawer.vue')['default']
     DropdownMenu: typeof import('./src/components/ui/DropdownMenu.vue')['default']
+    DscCreateDialog: typeof import('./src/components/discussion/DscCreateDialog.vue')['default']
     ElAlert: typeof import('element-plus/es')['ElAlert']
     ElAvatar: typeof import('element-plus/es')['ElAvatar']
     ElButton: typeof import('element-plus/es')['ElButton']

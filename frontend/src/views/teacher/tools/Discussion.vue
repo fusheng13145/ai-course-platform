@@ -55,6 +55,9 @@
       v-model="createDialog"
       :submitting="createSubmitting"
       :form="topicForm"
+      dialog-title="发布话题"
+      show-chapter
+      content-placeholder="话题内容"
       @submit="submitTopic"
     />
 
@@ -82,7 +85,7 @@ import { ref, onMounted, toRef } from 'vue'
 import { ChatDotRound, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import courseApi from '@/api/course'
 import DscTopicList from './components/DscTopicList.vue'
-import DscCreateDialog from './components/DscCreateDialog.vue'
+import DscCreateDialog from '@/components/discussion/DscCreateDialog.vue'
 import DscDetailDialog from './components/DscDetailDialog.vue'
 import { useTeacherDiscussion } from '@/composables/useTeacherDiscussion'
 
