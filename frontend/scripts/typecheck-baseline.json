@@ -1,5 +1,5 @@
 {
-  "errors": 599,
+  "errors": 588,
   "files": 110,
   "note": "2026-09-13 首次接入 vue-tsc 的存量基线；棘轮制，只许下降",
   "scope": "src/**/*.{ts,vue} + e2e/**/*.ts + *.config.ts，strict:false",

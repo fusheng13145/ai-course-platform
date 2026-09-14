@@ -1,12 +1,18 @@
 <template>
   <div>
-    <el-alert v-if="!courseId" title="请选择课程" type="info" :closable="false" show-icon>
+    <el-alert
+      v-if="enableCourseGate && !courseId"
+      title="请选择课程"
+      type="info"
+      :closable="false"
+      show-icon
+    >
       <template #default>选择一门课程后，即可查看该课程的讨论话题。</template>
     </el-alert>
 
     <template v-else>
-      <!-- 工具栏：精华筛选 + 搜索 + 刷新 -->
-      <div class="toolbar">
+      <!-- 工具栏（学生端）：精华筛选 + 搜索 + 刷新 -->
+      <div v-if="showToolbar" class="toolbar">
         <el-radio-group
           :model-value="essenceFilter"
           @update:model-value="$emit('update:essenceFilter', $event)"
@@ -41,7 +47,12 @@
           <div v-for="t in topics" :key="t.id" class="topic-item" @click="$emit('open-detail', t)">
             <div class="ti-main">
               <div class="ti-top">
-                <el-tag v-if="t.isEssence" size="small" class="ti-essence" effect="light">
+                <el-tag
+                  v-if="showEssence && t.isEssence"
+                  size="small"
+                  class="ti-essence"
+                  effect="light"
+                >
                   <el-icon><Star /></el-icon>精华
                 </el-tag>
                 <el-tag v-if="t.pinned" size="small" type="danger" effect="light">置顶</el-tag>
@@ -57,7 +68,7 @@
               <p class="ti-content">{{ t.content }}</p>
               <div class="ti-meta">
                 <span
-                  ><el-icon><User /></el-icon>{{ t.authorName || '同学' }}</span
+                  ><el-icon><User /></el-icon>{{ t.authorName || authorFallback }}</span
                 >
                 <span
                   ><el-icon><ChatLineRound /></el-icon>{{ t.postCount || 0 }} 条回复</span
@@ -71,8 +82,8 @@
             <el-icon class="ti-arrow"><ArrowRight /></el-icon>
           </div>
         </div>
-        <el-empty v-else description="暂无话题，点击「发起讨论」开始吧" :image-size="70">
-          <template #image><div class="empty-deco">💬</div></template>
+        <el-empty v-else :description="emptyText" :image-size="70">
+          <template v-if="showToolbar" #image><div class="empty-deco">💬</div></template>
         </el-empty>
       </div>
     </template>
@@ -92,20 +103,32 @@ import {
 } from '@element-plus/icons-vue'
 
 /**
- * 课程讨论 — 话题列表区
- * <p>精华筛选/搜索/刷新工具栏 + 话题卡片列表（精华/置顶/状态标识）。</p>
+ * 讨论话题列表（讨论域共享实现）
+ * <p>学生端为超集（精华筛选/搜索/刷新工具栏 + 课程门控 + 精华标识），
+ * 教师端为其子集；角色差异以 props 表达：
+ * `showToolbar` / `showEssence` / `enableCourseGate` / `authorFallback` / `emptyText`。</p>
  */
 defineProps({
-  /** 当前课程（空时提示选择） */
+  /** 话题列表 */
+  topics: { type: Array, default: () => [] },
+  /** 话题加载态 */
+  topicLoading: { type: Boolean, default: false },
+  /** 当前课程（课程门控开启且为空时提示选择） */
   courseId: { type: [String, Number], default: '' },
   /** 精华筛选（v-model：'' 或 true） */
   essenceFilter: { type: [String, Boolean], default: '' },
   /** 搜索关键字（v-model） */
   keyword: { type: String, default: '' },
-  /** 话题加载态 */
-  topicLoading: { type: Boolean, default: false },
-  /** 话题列表 */
-  topics: { type: Array, required: true },
+  /** 是否显示工具栏（学生端为 true） */
+  showToolbar: { type: Boolean, default: false },
+  /** 是否显示精华标识（学生端为 true） */
+  showEssence: { type: Boolean, default: false },
+  /** 是否启用课程门控（学生端为 true） */
+  enableCourseGate: { type: Boolean, default: false },
+  /** 作者名缺省文案（学生端「同学」/ 教师端「教师」） */
+  authorFallback: { type: String, default: '同学' },
+  /** 空态文案 */
+  emptyText: { type: String, default: '暂无话题，点击「发起讨论」开始吧' },
 })
 
 defineEmits(['update:essenceFilter', 'update:keyword', 'load', 'refresh', 'open-detail'])
@@ -149,7 +172,7 @@ defineEmits(['update:essenceFilter', 'update:keyword', 'load', 'refresh', 'open-
   padding: 14px 16px;
   border: 1px solid var(--ac-border);
   border-radius: var(--ac-radius-md);
-  background: var(--ac-bg);
+  background: var(--ac-surface-2);
   cursor: pointer;
   transition:
     border-color 0.2s ease,
@@ -209,7 +232,6 @@ defineEmits(['update:essenceFilter', 'update:keyword', 'load', 'refresh', 'open-
   align-items: center;
   gap: 2px;
 }
-
 .empty-deco {
   font-size: 38px;
   filter: grayscale(0.2);

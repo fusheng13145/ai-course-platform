@@ -46,7 +46,13 @@
           </el-button>
         </div>
 
-        <DscTopicList :topics="topics" :topic-loading="topicLoading" @open-detail="openDetail" />
+        <DscTopicList
+          :topics="topics"
+          :topic-loading="topicLoading"
+          author-fallback="教师"
+          empty-text="暂无话题，点击「发布话题」"
+          @open-detail="openDetail"
+        />
       </template>
     </div>
 
@@ -84,7 +90,7 @@ import { unwrap } from '@/utils/response'
 import { ref, onMounted, toRef } from 'vue'
 import { ChatDotRound, Plus, Refresh, Search } from '@element-plus/icons-vue'
 import courseApi from '@/api/course'
-import DscTopicList from './components/DscTopicList.vue'
+import DscTopicList from '@/components/discussion/DscTopicList.vue'
 import DscCreateDialog from '@/components/discussion/DscCreateDialog.vue'
 import DscDetailDialog from './components/DscDetailDialog.vue'
 import { useTeacherDiscussion } from '@/composables/useTeacherDiscussion'

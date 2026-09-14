@@ -76,6 +76,9 @@
             :course-id="courseId"
             :topic-loading="topicLoading"
             :topics="topics"
+            show-toolbar
+            show-essence
+            enable-course-gate
             @load="loadTopics"
             @refresh="loadTopics"
             @open-detail="openDetail"
@@ -116,7 +119,7 @@ import { Plus } from '@element-plus/icons-vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import { useDiscussion } from '@/composables/useDiscussion'
-import DscTopicList from './components/DscTopicList.vue'
+import DscTopicList from '@/components/discussion/DscTopicList.vue'
 import DscCreateDialog from '@/components/discussion/DscCreateDialog.vue'
 import DscDetailDrawer from './components/DscDetailDrawer.vue'
 
