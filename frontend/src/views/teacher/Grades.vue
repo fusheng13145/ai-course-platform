@@ -114,10 +114,11 @@
     </section>
 
     <!-- 学生成绩详情弹窗 -->
-    <TgDetailDialog
+    <CgtDetailDialog
       v-model="detailDialogVisible"
       :current-student="currentStudent"
       :selected-course-name="selectedCourseName"
+      detailed
     />
 
     <!-- 批阅对话框 -->
@@ -140,7 +141,7 @@ import StatCard from '@/components/ui/StatCard.vue'
 import { useTeacherGrades } from '@/composables/useTeacherGrades'
 import TgGradeTable from './components/TgGradeTable.vue'
 import TgDistributionPanel from './components/TgDistributionPanel.vue'
-import TgDetailDialog from './components/TgDetailDialog.vue'
+import CgtDetailDialog from '@/components/course/CgtDetailDialog.vue'
 import CgtGradeDialog from '@/components/course/CgtGradeDialog.vue'
 
 /**
