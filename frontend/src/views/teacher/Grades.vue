@@ -121,11 +121,12 @@
     />
 
     <!-- 批阅对话框 -->
-    <TgGradeDialog
+    <CgtGradeDialog
       v-model="gradeDialogVisible"
       :grading-student="gradingStudent"
       :grade-form="gradeForm"
       :grading-loading="gradingLoading"
+      show-task
       :current-task-name="currentTaskName"
       @submit="submitGrade"
     />
@@ -140,7 +141,7 @@ import { useTeacherGrades } from '@/composables/useTeacherGrades'
 import TgGradeTable from './components/TgGradeTable.vue'
 import TgDistributionPanel from './components/TgDistributionPanel.vue'
 import TgDetailDialog from './components/TgDetailDialog.vue'
-import TgGradeDialog from './components/TgGradeDialog.vue'
+import CgtGradeDialog from '@/components/course/CgtGradeDialog.vue'
 
 /**
  * 教师成绩管理页（页面壳）
