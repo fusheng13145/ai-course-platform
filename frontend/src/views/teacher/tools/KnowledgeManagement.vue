@@ -31,12 +31,13 @@
 
     <!-- 主内容区：知识树 + 知识点列表/图谱 -->
     <div class="km-main-grid animate-in d1">
-      <KmTreePanel
+      <KntTreePanel
         ref="treeRef"
-        :knowledge-tree="knowledgeTree"
+        :tree-data="knowledgeTree"
         :tree-loading="treeLoading"
         :get-difficulty-tag-type="getDifficultyTagType"
         :get-difficulty-label="getDifficultyLabel"
+        empty-text="请先选择课程加载知识点"
         @expand="onExpandAll"
         @node-click="onNodeClick"
       />
@@ -85,7 +86,7 @@ import { onMounted } from 'vue'
 import { Plus, Search } from '@element-plus/icons-vue'
 import { useKnowledgeManagement } from '@/composables/useKnowledgeManagement'
 import PageHeader from '@/components/PageHeader.vue'
-import KmTreePanel from './components/KmTreePanel.vue'
+import KntTreePanel from '@/components/knowledge/KntTreePanel.vue'
 import KmListGraph from './components/KmListGraph.vue'
 import KmDialogs from './components/KmDialogs.vue'
 
