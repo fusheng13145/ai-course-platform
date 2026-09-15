@@ -35,12 +35,24 @@
 | 第八部分 Python 微服务集成契约    | KG(8001)/RAG(8002)/LoRA(8003) 完整契约与降级语义               |
 | 第九部分 测试·质量·完成度评估     | 测试体系、质量门禁、完成度量化结论、安全机制、验收标准         |
 | **第十部分 下一步计划**（活章节） | P0/P1/P2 待办清单与状态标记，随任务推进持续同步                |
+| **第十一部分 产品化转化路线**（2026-09-14 新增） | 多租户 SaaS / 小程序 / 桌面形态可行性、目标形态、核心模块、架构与 M1–M4 路线（详见 `docs/产品化转化方案.md`） |
 | 附录A 术语表                      | 领域术语与缩略语统一释义                                       |
 | 附录B 统计口径（唯一基准）        | 全局统计数字唯一来源，取代旧「数据口径权威总表」               |
 | 附录C 贡献与 PR 流程              | 分支策略、编码规范、PR 流程（原 CONTRIBUTING 内容）            |
 | 附录D 审查修正台账                | 逐轮对抗式复核的实测清单、已修复缺陷确认与新增发现             |
 
 > 快速索引：架构设计 / 开发测试 / 部署运维 / 知识图谱与 RAG 契约 / 需求与路线图 / 交付进度 / **统计口径唯一基准** → 均见 `docs/项目手册.md` 相应部分。
+
+**文档分层（2026-09-15 收口）**——四层各司其职，避免平行文档：
+
+| 层 | 位置 | 说明 |
+| --- | --- | --- |
+| ① 权威规范 | `docs/项目手册.md` | **唯一事实基准**，与他人冲突时以手册为准 |
+| ② 导航 | `docs/文档索引.md` | 全仓文档的定位、时效与读者地图 |
+| ③ 专题 | `docs/端到端验证与缺陷修复总报告.md`<br>`docs/产品化转化方案.md`<br>`docs/密钥注入与Secret管理.md` | 单一专题的**当前有效**结论／方案／指南 |
+| ④ 归档 | `docs/历史归档/` | 时点性报告**冻结**原文（11 份，含收录判据与冻结声明见该目录 `README.md`）|
+
+> 历轮审查与端到端验证的**结论索引**见手册 **附录D 审查修正台账**（含每条发现的处置状态与原文溯源坐标）。
 
 ---
 
@@ -87,6 +99,20 @@ start-frontend.bat
 访问：前端 http://localhost:5173 ｜ API http://localhost:8080/api ｜ Swagger http://localhost:8080/api/swagger-ui.html
 
 > 本机未装 MySQL / Redis 时：`docker compose up -d mysql redis` 拉起基础设施容器（MySQL 宿主端口 3307），`start-backend.bat` 自动切换数据源。
+
+#### 健康检查与常见排障（2026-09-14 补充）
+
+- **探活**：`GET http://localhost:8080/api/actuator/health`（返回 200 即服务可用）。
+- **不要**因为探活返回 `503 / {"status":"DOWN"}` 就判定服务不可用：整体健康度会把**可选依赖**一并聚合。
+  典型场景是**未注入 AI / 邮件凭据**——`llmProvider`（未配置 API Key）与 `mail`（SMTP 认证失败）会报 DOWN，
+  但业务接口全部正常。以完整 `.env` 启动（含 `DEEPSEEK_API_KEY` / `MAIL_USERNAME` / `MAIL_PASSWORD`）后即为 `UP`。
+- 需要区分「服务就绪」时请用分组端点：`/api/actuator/health/readiness`（K8s/容器探针用的就是这个），
+  它不受 AI / 邮件等可选依赖影响。
+- **手动用 jar 启动务必显式指定端口**：`java -jar backend/target/backend-0.0.1-SNAPSHOT.jar --server.port=8080`。
+  否则端口可能被外部环境变量覆盖，出现 `Port xxxxx was already in use` 而并非 8080 冲突。
+- 本机 Redis 为**无密码**模式：手动启动**勿注入** `SPRING_DATA_REDIS_PASSWORD`（注入会使 RedisStartupValidator fail-fast）。
+- 本地 HTTP 联调需关闭传输层强制：`COOKIE_SECURE=false`、`REQUIRE_HTTPS=false`、`CSRF_ENABLED=false`
+  （`start-backend.bat` 已代劳）。CSRF 校验失败会返回 403 且提示缺失 `X-XSRF-TOKEN`。
 
 ### 方式二：Docker 容器化部署（备用 / 上线）
 
