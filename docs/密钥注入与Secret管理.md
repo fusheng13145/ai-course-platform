@@ -227,7 +227,7 @@ SPRING_CONFIG_IMPORT=optional:configtree:/tmp/ai-secrets/ \
 - [ ] 密钥已写入 Vault / 云 Secret Manager / K8s Secret，且访问凭据为最小权限、可审计。
 - [ ] 已**移除** `docker-compose.yml` 中 backend 的明文键（`SPRING_DATASOURCE_PASSWORD` / `SPRING_DATA_REDIS_PASSWORD` / `JWT_SECRET`）。
 - [ ] 已移除部署清单中其它同名明文 env（K8s `env:`、systemd unit、`.env`）。
-- [ ] 主机上的历史明文 `.env` 已安全销毁（并确认未进过版本库；历史泄露项的处置见 `deliverables/gstack/secret-governance-F02-2026-09-15.md`）。
+- [ ] 主机上的历史明文 `.env` 已安全销毁（并确认未进过版本库；历史泄露项的处置见 `历史归档/secret-governance-F02-2026-09-15.md`）。
 - [ ] `/run/secrets` 权限为 `0400`、属主为应用运行用户。
 - [ ] 轮转演练：在密钥库更新值 → 确认应用在预期时间内使用新值（Vault Agent 场景 ≤5 分钟）。
 - [ ] 密钥轮转后同步更新 `deploy/secrets/*.txt`（Compose 场景）并 `docker compose up -d` 重投。
@@ -253,4 +253,4 @@ SPRING_CONFIG_IMPORT=optional:configtree:/tmp/ai-secrets/ \
 - `docker-compose.yml` —— backend 服务 `DEMO_ACCOUNTS_ENABLED` 默认关闭
 - `deploy/vault/agent.hcl` + `deploy/vault/templates/*.ctmpl` —— Vault Agent 接线
 - `deploy/secrets/.gitkeep` —— 密钥目录占位（内容已被 `.gitignore` 排除）
-- `deliverables/gstack/secret-governance-F02-2026-09-15.md` —— 密钥治理总报告
+- `历史归档/secret-governance-F02-2026-09-15.md` —— 密钥治理总报告
