@@ -1,0 +1,12 @@
+[ {
+  "id" : null,
+  "resource" : "rag:http",
+  "limitApp" : "default",
+  "regex" : false,
+  "grade" : 0,
+  "count" : 3000.0,
+  "timeWindow" : 10,
+  "minRequestAmount" : 5,
+  "slowRatioThreshold" : 0.5,
+  "statIntervalMs" : 10000
+} ]

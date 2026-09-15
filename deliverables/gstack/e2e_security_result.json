@@ -1,0 +1,54 @@
+{
+  "total": 6,
+  "passed": 6,
+  "results": [
+    {
+      "case": "S2",
+      "title": "登录（豁免端点）并下发可读 XSRF-TOKEN Cookie",
+      "expect": "200 且 Cookie 中存在 XSRF-TOKEN",
+      "actual": "HTTP 200 code=200 hasXsrf=True",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "S1",
+      "title": "GET 安全方法不受 CSRF 约束（已登录）",
+      "expect": "200（无需 XSRF 令牌）",
+      "actual": "HTTP 200 code=200",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "S3",
+      "title": "写请求缺少 X-XSRF-TOKEN",
+      "expect": "403 CSRF 校验失败",
+      "actual": "HTTP 403 code=403 msg=CSRF 校验失败：缺少或不匹配的 X-XSRF-TOKEN 令牌",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "S4",
+      "title": "写请求携带不匹配的 X-XSRF-TOKEN",
+      "expect": "403 CSRF 校验失败",
+      "actual": "HTTP 403 code=403 msg=CSRF 校验失败：缺少或不匹配的 X-XSRF-TOKEN 令牌",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "S5",
+      "title": "写请求携带匹配的 X-XSRF-TOKEN",
+      "expect": "通过 CSRF 校验（200 或业务码，非 403-CSRF）",
+      "actual": "HTTP 200 code=200 msg=创建成功 courseId=13",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "S6",
+      "title": "登录 IP 限流（默认 10 次/60 秒）",
+      "expect": "窗口内第 11 次登录请求起返回 429",
+      "actual": "响应码序列=[400, 400, 400, 400, 400, 400, 400, 400, 400, 429, 429, 429, 429] 首次429=第10次（含 S2 已消耗 1 次配额）",
+      "verdict": "PASS",
+      "note": "阈值来自 application.yaml ratelimit.login.limit=10 / window=60s；窗口总配额 10 次 = S2 的 1 次成功登录 + S6 前 9 次，第 10 次起 429"
+    }
+  ]
+}

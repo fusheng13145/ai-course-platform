@@ -2,6 +2,9 @@
 .env
 .env.local
 .env.*.local
+# 文件式密钥文件（Docker Compose secrets / Vault Agent 渲染目标，禁止入库）
+deploy/secrets/*
+!deploy/secrets/.gitkeep
 
 # IDE
 .idea/
@@ -52,6 +55,16 @@ frontend/coverage/
 
 # WorkBuddy 项目数据（记忆/任务，勿入库）
 .workbuddy/
+# WorkBuddy 过程性工作区（调试脚本、探针、构建输出，可随时清空）
+.workbuddy/tmp/
+
+# 应用运行期上传目录（内容为运行时产物，仅保留目录占位）
+uploads/*
+!uploads/.gitkeep
+
+# 临时补丁与差异文件（过程产物）
+*.patch
+*.diff
 
 # 构建探针产物（误提交，已清理）
 frontend/dist_probe/

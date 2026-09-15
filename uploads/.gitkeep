@@ -1,0 +1,2 @@
+# 该目录为应用运行期文件上传落点（`file.upload-dir: uploads/`）。
+# 目录本身需要存在，内容属运行时产物，已在根 .gitignore 中排除。

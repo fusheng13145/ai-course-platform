@@ -1,0 +1,32 @@
+# gitleaks 配置 —— F-02 密钥治理防回归（CI 门禁：.github/workflows/ci.yml 的 secret-scan job）
+#
+# 原则：allowlist 中只豁免**已知的非真实密钥**（CI 构建/测试占位口令、示例文件、历史脱敏标记）。
+# 真实密钥一律必须来自 .env（已 .gitignore）或密钥库，禁止进入仓库。
+# 若扫描命中真实密钥，应修复代码/配置而非加入 allowlist。
+title = "ai-course-platform gitleaks config"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "已知非真实密钥占位与脱敏标记（勿添加真实密钥）"
+regexes = [
+  # CI 构建/测试专用占位口令（见 ci.yml，仅用于 CI 容器与镜像构建，非真实密钥）
+  '''ci-test-password-8f3k''',
+  '''ci-build-only-password-9f2k1m8x''',
+  '''ci-build-only-redis-7q4w2e9r''',
+  '''ci-build-only-jwt-secret-0123456789abcdef0123456789abcdef''',
+  '''ci-e2e-jwt-secret-0123456789abcdef0123456789abcdef''',
+  # git filter-repo 历史擦除后的脱敏占位符（非密钥）
+  '''REDACTED''',
+  # 【已轮换作废】F-02 之前的旧 JWT 密钥：远程 main/leyon 历史已擦除（全新克隆 pickaxe 复验归零），
+  # 但 dependabot/* 自动分支仍指向旧历史（按负责人决定不处理），其 PR 的扫描区间会覆盖旧提交。
+  # 该密钥早已轮换失效、无利用价值，为免 CI 对「已死密钥」误报红灯而豁免。
+  # 此处**只写前缀形态、不复刻完整值**，避免把已从历史擦除的密钥字面量重新写回仓库。
+  # 注意：当前有效密钥不匹配该模式，仍会被正常检出。
+  '''oZQ-[A-Za-z0-9_-]{40,}''',
+]
+paths = [
+  # 示例配置仅含占位符（your_strong_* 等），不含真实值
+  '''\.env\.example$''',
+]

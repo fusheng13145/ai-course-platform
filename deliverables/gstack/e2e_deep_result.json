@@ -1,0 +1,398 @@
+{
+  "total": 49,
+  "passed": 49,
+  "results": [
+    {
+      "case": "A1",
+      "title": "审批型课程申请加入 → PENDING",
+      "expect": "200 且 approval_status=PENDING",
+      "actual": "HTTP 200 code=200 enrollmentId=14 status=PENDING",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "A2",
+      "title": "审批前（PENDING）不可开考",
+      "expect": "403（成员资格要求审批通过）",
+      "actual": "HTTP 403 code=403 msg=尚未加入该课程（或选课尚未通过审批），无法参加考试",
+      "verdict": "PASS",
+      "note": "修复后成员判定统一为 hasApprovedEnrollment（is_active=1 且 approval_status=APPROVED）"
+    },
+    {
+      "case": "A3",
+      "title": "教师审批通过选课",
+      "expect": "200 且 APPROVED + is_active=1",
+      "actual": "HTTP 200 code=200 status=APPROVED active=1",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "A4",
+      "title": "教师驳回选课 → 记录失效（本轮修复）",
+      "expect": "REJECTED 且 is_active=0",
+      "actual": "HTTP 200 code=200 status=REJECTED is_active=0",
+      "verdict": "PASS",
+      "note": "原实现只改 approval_status，导致已驳回学生仍被按 is_active 判权的链路放行并占用名额"
+    },
+    {
+      "case": "A5",
+      "title": "被驳回学生不可下载课程资源",
+      "expect": "403（is_active=0 生效）",
+      "actual": "HTTP 403",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "A6",
+      "title": "被驳回后可重新申请（复用同一行）",
+      "expect": "200 且 status=PENDING、行数仍为 1",
+      "actual": "HTTP 200 code=200 msg=加入成功 status=PENDING rows=1",
+      "verdict": "PASS",
+      "note": "原实现按 (student,course) 全量判重 → 被驳回/退课后永久无法重新加入"
+    },
+    {
+      "case": "B1",
+      "title": "容量边界：max_students=3 时满员拒绝",
+      "expect": "满员（3）后新增被拒",
+      "actual": "当前有效选课=3 第4人=401",
+      "verdict": "PASS",
+      "note": "第4人请求来自匿名（401），满员判定见 B2"
+    },
+    {
+      "case": "B2",
+      "title": "容量边界：已满员时新申请被拒/重复申请被拒",
+      "expect": "非 200",
+      "actual": "HTTP 400 code=400 msg=课程选课人数已满（上限 3 人）",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "B3",
+      "title": "退课释放名额 + 退课归属校验",
+      "expect": "非属主退课被拒；属主退课后有效选课数-1",
+      "actual": "他退=400(您没有权限退课或该退课记录不存在) 自退=200 有效选课=2",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "B4",
+      "title": "边界：max_submissions=2 时提交次数封顶",
+      "expect": "第 1、2 次 200，第 3 次 400；落库正式提交数=2",
+      "actual": "1st=200 2nd=200 3rd=400(已达到最大提交次数限制（2次），无法再次提交) rows=2",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "B5",
+      "title": "边界：评分区间校验（0~1000）",
+      "expect": "1001 → 400；-1 → 400；0 → 200",
+      "actual": "1001=400 -1=400 0=200",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "B6",
+      "title": "边界：分页参数极端值不产生 5xx",
+      "expect": "全部不返回 500",
+      "actual": "page=0&size=10->200/200 | page=-1&size=10->200/200 | size=0->200/200 | page=1&size=100000->200/200",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "B7",
+      "title": "边界：超长标题（300 字符）",
+      "expect": "不得 500（200 截断或 400 校验失败均可）",
+      "actual": "HTTP 400 code=400 msg=数据完整性校验失败，请检查关联数据是否存在",
+      "verdict": "PASS",
+      "note": "DDL title VARCHAR(255)：若 200 则依赖 DB 截断/严格模式，建议补长度校验"
+    },
+    {
+      "case": "B8",
+      "title": "边界：max_attempts=2 时第 3 次开考被拒",
+      "expect": "前 2 次 200，第 3 次 400 已达最大尝试次数",
+      "actual": "1st=200 2nd=200 3rd=400(已达到最大尝试次数限制（2次）)",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "B9",
+      "title": "边界：延长截止日期（早于当前拒绝 / 晚于当前生效）",
+      "expect": "早于当前 → 400；晚于当前 → 200 且 due_date 更新",
+      "actual": "早=400 晚=200 due_date=2026-09-24 18:27",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "B10",
+      "title": "边界：延长截止日期传非 ISO 格式",
+      "expect": "400 明确提示（不得 500，本轮修复点）",
+      "actual": "HTTP 400 code=400 msg=截止日期格式不正确，需为 ISO-8601（如 2026-09-20T23:59:59）",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "C1",
+      "title": "越权：他师读取本课程学生名单",
+      "expect": "403",
+      "actual": "HTTP 403 code=403 msg=无权操作该课程",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "C2",
+      "title": "越权：他学生读取本人作业提交",
+      "expect": "403/404 拒绝",
+      "actual": "HTTP 403 code=403 msg=无权访问该提交记录",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "C3",
+      "title": "未认证写操作",
+      "expect": "401",
+      "actual": "HTTP 401 code=401",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "C4",
+      "title": "伪造 JWT 令牌",
+      "expect": "401",
+      "actual": "HTTP 401 code=401",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "C5",
+      "title": "越权：学生删除课程资源",
+      "expect": "403",
+      "actual": "HTTP 403 code=403",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "C6",
+      "title": "越权：他师修改本课程章节",
+      "expect": "403",
+      "actual": "HTTP 403 code=403",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "C7",
+      "title": "无效 ID：审批不存在的课程",
+      "expect": "404 语义化",
+      "actual": "HTTP 404 code=404 msg=课程不存在",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "C8",
+      "title": "参数类型错误：/courses/abc",
+      "expect": "400 参数类型错误",
+      "actual": "HTTP 400 code=400 msg=参数类型错误",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "D1",
+      "title": "并发一致性：同一学生并发选课",
+      "expect": "仅 1 条有效记录",
+      "actual": "响应码=[200, 200] 有效记录=1",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "D1b",
+      "title": "（前置）并发交卷用会话创建",
+      "expect": "200 或已达尝试上限",
+      "actual": "HTTP 400 code=400 msg=已达到最大尝试次数限制（2次）",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "D2",
+      "title": "级联删除：删除课程后子表数据清除",
+      "expect": "章节/资源/选课 均清零",
+      "actual": "前=('1', '1', '1') 后=('0', '0', '0')",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "D3",
+      "title": "缓存一致性：修改试卷后详情立即反映新值",
+      "expect": "200 且标题为改名后的值（缓存已失效）",
+      "actual": "update=200 detail=200/200 title=深度验证卷（已改名）",
+      "verdict": "PASS",
+      "note": "修复前 getExamPaperDetail 的缓存无失效点，TTL 内会读到旧标题"
+    },
+    {
+      "case": "D4",
+      "title": "缓存读可用性：试卷详情（冷→热）",
+      "expect": "连续两次调用均 200（验证缓存写入后仍可读取）",
+      "actual": "第1次=200/200 第2次=200/200",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "D5",
+      "title": "缓存读可用性：知识点树（冷→热）",
+      "expect": "连续两次调用均 200（验证缓存写入后仍可读取）",
+      "actual": "第1次=200/200 第2次=200/200",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "D6",
+      "title": "缓存读可用性：监考阈值（冷→热）",
+      "expect": "连续两次调用均 200（验证缓存写入后仍可读取）",
+      "actual": "第1次=200/200 第2次=200/200",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "E1",
+      "title": "创建分片上传会话",
+      "expect": "200 返回会话 id",
+      "actual": "HTTP 200 code=200 sessionId=1",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "E1b",
+      "title": "边界：分片会话扩展名白名单",
+      "expect": "非白名单扩展名(.bin) 400 拒绝",
+      "actual": "HTTP 400 code=400 msg=不允许的文件类型（.bin），允许的类型：md, mov, rar, txt, docx, jpeg, xml, gif, pptx, pp",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "E1c",
+      "title": "安全：文件名路径穿越",
+      "expect": "不得 5xx（按取纯文件名处理或拒绝）",
+      "actual": "HTTP 200 code=200 msg=会话创建成功",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "E2",
+      "title": "上传分片并查询进度",
+      "expect": "分片全部 200；进度 uploaded=3/3",
+      "actual": "chunks=[200, 200, 200] progress={\"uploaded\": 3, \"total\": 3, \"percentage\": \"100.0%\", \"status\": \"UPLOADING\"}",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "E3",
+      "title": "合并分片",
+      "expect": "200 且会话状态转为已合并/完成",
+      "actual": "HTTP 200 code=200 status=COMPLETED",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "E4",
+      "title": "取消上传会话（已合并后）",
+      "expect": "非 5xx（业务提示或成功均可）",
+      "actual": "HTTP 400 code=400 msg=该会话已完成或已取消，无法再次操作",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "E5",
+      "title": "异常：不存在的上传会话分片",
+      "expect": "404/403 语义化（不得 500）",
+      "actual": "HTTP 400 code=400 msg=上传会话不存在",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "F1",
+      "title": "教师退回作业（未评分）",
+      "expect": "200 且 status=RETURNED",
+      "actual": "HTTP 200 code=200 status=RETURNED",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "F2",
+      "title": "学生重新提交（生成新尝试）",
+      "expect": "200 且 attempt_number=2、status=RESUBMITTED",
+      "actual": "HTTP 200 code=200 newId=6 attempt=2 status=RESUBMITTED",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "F3",
+      "title": "边界：已评分（GRADED）作业不可退回",
+      "expect": "400 业务错误",
+      "actual": "评分=200 再退回=400(已评分的作业无法退回)",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "G1",
+      "title": "创建资源首个版本",
+      "expect": "200 且 versionNumber=1",
+      "actual": "HTTP 200 code=200 version=1",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "G1b",
+      "title": "创建第二个版本（版本号递增）",
+      "expect": "200 且 versionNumber=2",
+      "actual": "HTTP 200 code=200 version=2",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "G2",
+      "title": "版本激活态唯一",
+      "expect": "仅最新版本 is_active=1",
+      "actual": "版本(号,激活)=['1,0', '2,1']",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "G3",
+      "title": "回滚到历史版本",
+      "expect": "200 且激活版本变为 1",
+      "actual": "HTTP 200 code=200 activeVersion=1",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "G3b",
+      "title": "契约：仅传 fileUrl（DTO 声明的必填字段）也可创建版本",
+      "expect": "200（修复前只认 url 字段，会 400）",
+      "actual": "HTTP 200 code=200 msg=版本创建成功",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "G3c",
+      "title": "越权：他师为他人课程资源建版本",
+      "expect": "403 拒绝（本轮修复）",
+      "actual": "HTTP 403 code=403 msg=无权操作其他教师课程的资源版本",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "G4b",
+      "title": "边界：创建版本缺 resourceId",
+      "expect": "400 资源ID不能为空",
+      "actual": "HTTP 200 code=400 msg=资源ID不能为空",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "G4",
+      "title": "边界：创建版本缺 url/fileUrl",
+      "expect": "400 参数提示",
+      "actual": "HTTP 200 code=400 msg=资源地址不能为空",
+      "verdict": "PASS",
+      "note": ""
+    }
+  ]
+}

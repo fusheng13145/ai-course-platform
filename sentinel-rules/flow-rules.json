@@ -1,0 +1,29 @@
+[ {
+  "id" : null,
+  "resource" : "POST:/api/ai/qa/ask",
+  "limitApp" : "default",
+  "regex" : false,
+  "grade" : 1,
+  "count" : 50.0,
+  "strategy" : 0,
+  "refResource" : null,
+  "controlBehavior" : 0,
+  "warmUpPeriodSec" : 10,
+  "maxQueueingTimeMs" : 500,
+  "clusterMode" : false,
+  "clusterConfig" : null
+}, {
+  "id" : null,
+  "resource" : "rag:http",
+  "limitApp" : "default",
+  "regex" : false,
+  "grade" : 1,
+  "count" : 50.0,
+  "strategy" : 0,
+  "refResource" : null,
+  "controlBehavior" : 0,
+  "warmUpPeriodSec" : 10,
+  "maxQueueingTimeMs" : 500,
+  "clusterMode" : false,
+  "clusterConfig" : null
+} ]

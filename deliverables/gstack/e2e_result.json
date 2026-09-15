@@ -1,0 +1,606 @@
+{
+  "total": 75,
+  "passed": 75,
+  "results": [
+    {
+      "case": "A1",
+      "title": "未登录访问受保护接口",
+      "expect": "401 未认证",
+      "actual": "HTTP 401 code=401",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "A2-admin",
+      "title": "admin 登录",
+      "expect": "HTTP 200 / code=200",
+      "actual": "HTTP 200 code=200 msg=登录成功",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "A2-teacher",
+      "title": "teacher 登录",
+      "expect": "HTTP 200 / code=200",
+      "actual": "HTTP 200 code=200 msg=登录成功",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "A2-teacher2",
+      "title": "teacher2 登录",
+      "expect": "HTTP 200 / code=200",
+      "actual": "HTTP 200 code=200 msg=登录成功",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "A2-student",
+      "title": "student 登录",
+      "expect": "HTTP 200 / code=200",
+      "actual": "HTTP 200 code=200 msg=登录成功",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "A2-student2",
+      "title": "student2 登录",
+      "expect": "HTTP 200 / code=200",
+      "actual": "HTTP 200 code=200 msg=登录成功",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "A2-student3",
+      "title": "student3 登录",
+      "expect": "HTTP 200 / code=200",
+      "actual": "HTTP 200 code=200 msg=登录成功",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "A2-student4",
+      "title": "student4 登录",
+      "expect": "HTTP 200 / code=200",
+      "actual": "HTTP 200 code=200 msg=登录成功",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "B1",
+      "title": "教师创建课程（计算机网络）",
+      "expect": "HTTP 200，绑定 teacher_id=2，且响应回显 approval_status=PENDING/status=active",
+      "actual": "HTTP 200 code=200 id=7 teacherId=2 approvalStatus=PENDING status=active",
+      "verdict": "PASS",
+      "note": "修复后服务层显式落定初始状态，响应体 = 落库值（原实现不回显，前端会读到 null）"
+    },
+    {
+      "case": "B2",
+      "title": "DB 断言：新建课程落库状态",
+      "expect": "approval_status=PENDING / status=active / teacher_id=2",
+      "actual": "PENDING / active / 2",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "B3",
+      "title": "边界：课程编号重复（uk_courses_code）",
+      "expect": "409 CONFLICT 语义化提示（原为 500）",
+      "actual": "HTTP 409 code=409 msg=数据已存在（唯一约束冲突），请检查编号/名称等唯一字段",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "B4",
+      "title": "契约：LocalDateTime 接受 yyyy-MM-dd HH:mm:ss（宽松反序列化）",
+      "expect": "HTTP 200（原为 400 请求格式错误）",
+      "actual": "HTTP 200 code=200 id=9 msg=创建成功",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "C1",
+      "title": "边界：未审批(PENDING)课程被学生选课",
+      "expect": "应拒绝（课程未审核通过不可选）",
+      "actual": "HTTP 403 code=403 msg=课程尚未通过审核，无法加入",
+      "verdict": "PASS",
+      "note": "若放行则为越权/状态机漏洞：学生可加入未审核课程"
+    },
+    {
+      "case": "C2",
+      "title": "越权：学生调用管理员审批接口",
+      "expect": "403 无权限",
+      "actual": "HTTP 403 code=403",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "C3",
+      "title": "越权：教师调用管理员审批接口",
+      "expect": "403 无权限",
+      "actual": "HTTP 403 code=403",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "C4",
+      "title": "管理员审批通过",
+      "expect": "HTTP 200，approval_status=APPROVED 且 status=ACTIVE",
+      "actual": "HTTP 200 code=200 approvalStatus=APPROVED status=ACTIVE",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "C5",
+      "title": "DB 断言：courses 审批态",
+      "expect": "APPROVED / ACTIVE",
+      "actual": "APPROVED / ACTIVE",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "C6",
+      "title": "边界：重复审批（幂等性）",
+      "expect": "无异常（幂等）或明确提示",
+      "actual": "HTTP 200 code=200 msg=审批成功",
+      "verdict": "PASS",
+      "note": "approveCourse 未做状态前置校验，重复调用始终成功"
+    },
+    {
+      "case": "C7",
+      "title": "越权：其他教师修改本课程",
+      "expect": "403 FORBIDDEN（原为 400）",
+      "actual": "HTTP 403 code=403 msg=无权操作该课程",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "D1",
+      "title": "新增课程章节",
+      "expect": "HTTP 200 返回 chapter.id",
+      "actual": "HTTP 200 code=200 chapterId=1",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "D2",
+      "title": "新增第2章节",
+      "expect": "HTTP 200",
+      "actual": "HTTP 200 chapterId=2",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "D3",
+      "title": "上传教学视频（MP4）",
+      "expect": "HTTP 200，resource 落库且 file_type=video/mp4",
+      "actual": "HTTP 200 code=200 id=1 fileType=video/mp4",
+      "verdict": "PASS",
+      "note": "修复前恒定 500（Resource 实体 getter 重载导致 MyBatis 反射失败）"
+    },
+    {
+      "case": "D5",
+      "title": "上传课程资料（PDF）",
+      "expect": "HTTP 200",
+      "actual": "HTTP 200 code=200 id=2",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "D4",
+      "title": "DB 断言：resources.file_type 实际取值",
+      "expect": "video/mp4（MIME 形式，与更新后的列注释一致）",
+      "actual": "video/mp4",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "D5b",
+      "title": "对照组：通用上传接口 /common/upload",
+      "expect": "HTTP 200 返回 url（用于界定故障范围）",
+      "actual": "HTTP 200 code=200 url=/uploads/c236221e-4d0a-4f33-91e6-96461ffc941b.pdf",
+      "verdict": "PASS",
+      "note": "该接口正常，说明故障局限于 /resources/upload"
+    },
+    {
+      "case": "D6",
+      "title": "边界：上传空文件",
+      "expect": "业务错误（上传文件不能为空）",
+      "actual": "HTTP 200 code=400 msg=上传文件不能为空",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "D7",
+      "title": "边界：伪装文件类型（PNG 头声明实为 PDF 内容）",
+      "expect": "拒绝（文件内容与声明类型不符）",
+      "actual": "HTTP 200 code=400 msg=文件内容与声明类型不符，已拒绝上传",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "D8",
+      "title": "边界：上传非白名单类型（sh 脚本）",
+      "expect": "拒绝（不支持该文件格式）",
+      "actual": "HTTP 200 code=400 msg=不支持该文件格式上传",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "D9",
+      "title": "边界：上传超过 50MB 文件",
+      "expect": "413 PAYLOAD_TOO_LARGE（原为 500）",
+      "actual": "HTTP 413 code=413 msg=上传文件超过大小限制",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "D10",
+      "title": "资源可见性切换（仅教师可见）",
+      "expect": "HTTP 200 且落库 visible_to_all=0",
+      "actual": "HTTP 200 code=200 visible_to_all=0",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "D11",
+      "title": "资源可见性恢复（对所有学生可见）",
+      "expect": "visible_to_all=1",
+      "actual": "visible_to_all=1",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "E1",
+      "title": "教师创建作业（草稿）",
+      "expect": "HTTP 200，is_published=false 且响应回显",
+      "actual": "HTTP 200 code=200 taskId=1 isPublished=False",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "E2",
+      "title": "异常：提交未发布作业",
+      "expect": "业务错误（该作业尚未发布）",
+      "actual": "HTTP 400 code=400 msg=该作业尚未发布",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "E3",
+      "title": "发布作业",
+      "expect": "HTTP 200 且 is_published=1",
+      "actual": "HTTP 200 code=200 isPublished=1",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "E4",
+      "title": "边界：重复发布作业",
+      "expect": "业务错误（任务已发布）",
+      "actual": "HTTP 400 code=400 msg=任务已发布",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "E5",
+      "title": "越权：其他教师发布本课程作业",
+      "expect": "403 FORBIDDEN",
+      "actual": "HTTP 403 code=403 msg=无权操作该课程",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "F1",
+      "title": "题目入库（单选/判断，共3题）",
+      "expect": "HTTP 200 返回 question.id",
+      "actual": "HTTP 200 code=200 首题id=1",
+      "verdict": "PASS",
+      "note": "correct_answers 为 JSON 列，单值需按 JSON 字符串（含引号）写入"
+    },
+    {
+      "case": "F2",
+      "title": "自动组卷",
+      "expect": "HTTP 200，试卷含 3 题",
+      "actual": "HTTP 200 code=200 paperId=1 组卷题数=3",
+      "verdict": "PASS",
+      "note": "typeRules 的键必须与 questions.type 存量值（大写）一致，否则选题为空"
+    },
+    {
+      "case": "F2b",
+      "title": "DB 断言：试卷总分自动回填",
+      "expect": "exam_papers.total_score = 卷面合计 25.00（原为 NULL）",
+      "actual": "total_score=25.00 卷面合计=25.00",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "F3",
+      "title": "发布试卷",
+      "expect": "HTTP 200 且 status=PUBLISHED",
+      "actual": "HTTP 200 code=200 status=PUBLISHED",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "F4",
+      "title": "边界：重复发布试卷",
+      "expect": "业务错误（试卷已发布）",
+      "actual": "HTTP 400 code=400 msg=试卷已发布",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "F5",
+      "title": "越权：其他教师发布本课程试卷（草稿卷）",
+      "expect": "403 FORBIDDEN（原为 200 发布成功）",
+      "actual": "HTTP 403 code=403 msg=无权操作其他教师课程的试卷 paper2.status=DRAFT",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "G1",
+      "title": "学生加入课堂",
+      "expect": "HTTP 200 且生成选课记录",
+      "actual": "HTTP 200 code=200 msg=加入成功 落库approval_status=PENDING",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "G2",
+      "title": "选课审批态：课程 enrollment_type=APPROVAL",
+      "expect": "落 PENDING（等待教师审批，原为 APPROVED）",
+      "actual": "实际=PENDING",
+      "verdict": "PASS",
+      "note": "修复后 enrollStudent() 与 enroll() 共用同一审批态推导：APPROVAL/RESTRICTED → PENDING"
+    },
+    {
+      "case": "G3",
+      "title": "边界：重复选课",
+      "expect": "业务错误（已加入该课程）",
+      "actual": "HTTP 400 code=400 msg=已加入该课程",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "G4",
+      "title": "第2名学生加入（上限 maxStudents=2）",
+      "expect": "HTTP 200",
+      "actual": "HTTP 200 code=200",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "G5",
+      "title": "边界：选课人数超过 max_students=2",
+      "expect": "拒绝（课程选课人数已满，原为 200 入库）",
+      "actual": "HTTP 400 code=400 msg=课程选课人数已满（上限 2 人） 当前选课数=2",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "G6",
+      "title": "越权：教师调用学生选课接口",
+      "expect": "应拒绝（学生专属接口）",
+      "actual": "HTTP 403 code=403 msg=权限不足，禁止访问",
+      "verdict": "PASS",
+      "note": "/student/** 未纳入 SecurityConfig 角色规则，且控制器无 @PreAuthorize"
+    },
+    {
+      "case": "G2b",
+      "title": "教师审批通过选课申请",
+      "expect": "两名学生均 APPROVED",
+      "actual": "stu4:200/APPROVED stu5:200/APPROVED",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "G2c",
+      "title": "非成员（未选课）下载资源被拒",
+      "expect": "403（成员资格 = 有效 + 已审批）",
+      "actual": "HTTP 403",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "H1",
+      "title": "学生查询课程资源列表",
+      "expect": "HTTP 200，返回视频与讲义",
+      "actual": "HTTP 200 code=200 资源数=2",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "H2",
+      "title": "学习中心（章节任务点/闯关解锁态）",
+      "expect": "HTTP 200 返回章节任务点结构",
+      "actual": "HTTP 200 code=200",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "H3",
+      "title": "已选课学生下载视频资源",
+      "expect": "HTTP 200（放行）",
+      "actual": "HTTP 200",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "H4",
+      "title": "越权：未选课学生下载资源",
+      "expect": "HTTP 403（拒绝）",
+      "actual": "HTTP 403",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "H5",
+      "title": "学生完成任务点（视频/文档类）",
+      "expect": "HTTP 200 且 task_completions 落库 completed=1",
+      "actual": "HTTP 200 code=200 completed=1",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "H6",
+      "title": "课程任务点完成度统计",
+      "expect": "HTTP 200",
+      "actual": "HTTP 200 code=200",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "I1",
+      "title": "学生提交作业",
+      "expect": "HTTP 200，status=SUBMITTED",
+      "actual": "HTTP 200 code=200 submissionId=1 status=SUBMITTED",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "I2",
+      "title": "边界：超过 max_submissions=1 再次提交",
+      "expect": "业务错误（已达最大提交次数）",
+      "actual": "HTTP 400 code=400 msg=已达到最大提交次数限制（1次），无法再次提交",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "I3",
+      "title": "越权：学生自批作业",
+      "expect": "403 无权限",
+      "actual": "HTTP 403 code=403",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "I4",
+      "title": "教师批改作业",
+      "expect": "HTTP 200，status=GRADED 且 score=88",
+      "actual": "HTTP 200 code=200 status=GRADED score=88.00",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "I5",
+      "title": "边界：截止后提交（逾期判定 + 扣分）",
+      "expect": "is_late=1 且 late_penalty=10.00（100×10%×1天）",
+      "actual": "HTTP 200 code=200 is_late=1 late_penalty=10.00",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "J1",
+      "title": "异常：未选课学生开始考试",
+      "expect": "403 拒绝（尚未加入该课程，原为 200 考试开始成功）",
+      "actual": "HTTP 403 code=403 msg=尚未加入该课程（或选课尚未通过审批），无法参加考试",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "J2",
+      "title": "学生开始考试",
+      "expect": "HTTP 200，status=STARTED",
+      "actual": "HTTP 200 code=200 sessionId=1 status=STARTED",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "J3",
+      "title": "获取考试题目",
+      "expect": "HTTP 200 且不泄露正确答案",
+      "actual": "HTTP 200 题数=3 含答案字段=False",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "J3b",
+      "title": "构造满分作答（答案取自题库）",
+      "expect": "3 题答案均非空",
+      "actual": "answers={\"2\": \"B\", \"1\": \"B\", \"3\": \"false\"}",
+      "verdict": "PASS",
+      "note": "学生应填值 = json_unquote(correct_answers)，与前端作答语义一致"
+    },
+    {
+      "case": "J4",
+      "title": "作答自动保存",
+      "expect": "HTTP 200",
+      "actual": "HTTP 200 code=200",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "J5",
+      "title": "提交试卷",
+      "expect": "HTTP 200，status=SUBMITTED",
+      "actual": "HTTP 200 code=200 status=SUBMITTED",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "J6",
+      "title": "边界：重复提交试卷",
+      "expect": "业务错误（已提交或已结束）",
+      "actual": "HTTP 400 code=400 msg=该试卷已提交或已结束，无法重复提交",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "J7",
+      "title": "自动判分（作答全部正确，应得满分）",
+      "expect": "HTTP 200，status=GRADED 且 total_score=25.00",
+      "actual": "HTTP 200 code=200 status=GRADED total_score=25.00 卷面满分=25.00 percentage=100.00",
+      "verdict": "PASS",
+      "note": "修复后对 correct_answers 做 JSON 标量解引用，与作答字符串口径一致（原为引号参与比较导致全判错）"
+    },
+    {
+      "case": "J8",
+      "title": "边界：超过 max_attempts=1 再次开考",
+      "expect": "业务错误（已达最大尝试次数）",
+      "actual": "HTTP 400 code=400 msg=已达到最大尝试次数限制（1次）",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "J9",
+      "title": "学生查询考试成绩",
+      "expect": "HTTP 200 返回成绩明细",
+      "actual": "HTTP 200 code=200",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "J10",
+      "title": "越权：他人考试会话读取",
+      "expect": "403 拒绝",
+      "actual": "HTTP 403 code=403",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "J11",
+      "title": "学生成绩总览",
+      "expect": "HTTP 200",
+      "actual": "HTTP 200 code=200",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "J12",
+      "title": "教师课程驾驶舱数据",
+      "expect": "HTTP 200",
+      "actual": "HTTP 200 code=200",
+      "verdict": "PASS",
+      "note": ""
+    },
+    {
+      "case": "J13",
+      "title": "进行中的考试是否被超时调度器强制收卷",
+      "expect": "40s 后仍应为 STARTED（时长 45 分钟未到）",
+      "actual": "开考后 status=STARTED；40s 后 status=STARTED",
+      "verdict": "PASS",
+      "note": "修复前 ExamTimeoutScheduler 无时间比较即对全部 STARTED 会话收卷；修复后按「开始时间+时长 / 试卷结束时间取早」判定"
+    }
+  ]
+}
