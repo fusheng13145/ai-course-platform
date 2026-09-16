@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest'
+import { describe, it, expect, vi, beforeEach, beforeAll } from 'vitest'
 
 // 注意：permission.js 的 getDefaultRouteByRole / canAccessRoute 测试
 // 已由 permission.test.js 独立完整覆盖，此处不再重复。
@@ -32,6 +32,14 @@ describe('response.js', () => {
 
 // ==================== request.js (Axios 配置) 测试 ====================
 describe('request.js - Axios 配置', () => {
+  // 预热：@/api/request 的**首次**动态导入需现场转换 element-plus / router / stores 整张依赖图，
+  // 本机实测冷启动单次耗时 > 5s（超过 vitest 默认 testTimeout），会使本文件首个用例非确定性超时
+  // （全量运行实测：默认 5s 超时失败、`--testTimeout=60000` 全绿；模块缓存后其余用例均为毫秒级）。
+  // 故将这次一次性冷导入放入 beforeAll 并给足超时，使断言不再承担转换成本。
+  beforeAll(async () => {
+    await import('@/api/request')
+  }, 60000)
+
   it('baseURL 为 /api', async () => {
     const { default: instance } = await import('@/api/request')
     expect(instance.defaults.baseURL).toBe('/api')
