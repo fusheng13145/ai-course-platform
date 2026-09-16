@@ -9,9 +9,10 @@ import com.aicourse.mapper.SystemConfigMapper;
 import com.aicourse.service.SystemConfigService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.cache.CacheManager;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
-import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,7 +30,14 @@ public class SystemConfigServiceImpl extends ServiceImpl<SystemConfigMapper, Sys
     private static final String CACHE_NAME = "systemConfig";
 
     /**
+     * 修复 #11：注入 CacheManager，用于批量更新后显式清空（自调用绕过 @CacheEvict 注解代理）。
+     */
+    @Autowired
+    private CacheManager cacheManager;
+
+    /**
      * 根据配置键名获取单个配置值
+     * <p>内部通道，保留原始值语义（见接口注释），不在此处做 is_public 判定。</p>
      */
     @Override
     @Cacheable(cacheNames = CACHE_NAME, key = "#key")
@@ -39,6 +47,22 @@ public class SystemConfigServiceImpl extends ServiceImpl<SystemConfigMapper, Sys
                 .last("LIMIT 1");
         SystemConfig config = this.getOne(queryWrapper);
         return config != null ? config.getConfigValue() : null;
+    }
+
+    /**
+     * 根据键名获取配置实体（含 isPublic），供 HTTP 读侧做可见性收敛（修复 #7）。
+     * <p>刻意不加缓存：可见性判定需要拿到实时 {@code is_public}，且与内部
+     * {@code getConfigValue} 的缓存语义解耦，避免相互污染。</p>
+     */
+    @Override
+    public SystemConfig getConfigByKey(String key) {
+        if (key == null || key.isBlank()) {
+            return null;
+        }
+        LambdaQueryWrapper<SystemConfig> queryWrapper = new LambdaQueryWrapper<SystemConfig>()
+                .eq(SystemConfig::getConfigKey, key)
+                .last("LIMIT 1");
+        return this.getOne(queryWrapper);
     }
 
     /**
@@ -58,12 +82,7 @@ public class SystemConfigServiceImpl extends ServiceImpl<SystemConfigMapper, Sys
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @Caching(evict = {
-            @CacheEvict(cacheNames = CACHE_NAME, key = "#key"),
-            @CacheEvict(cacheNames = CACHE_NAME, key = "'public'")
-    })
-
-    /** 更新系统配置 */
+    @CacheEvict(cacheNames = CACHE_NAME, allEntries = true)
     public void updateConfig(String key, String value) {
         log.info("更新系统配置");
 
@@ -90,6 +109,14 @@ public class SystemConfigServiceImpl extends ServiceImpl<SystemConfigMapper, Sys
         }
         for (Map.Entry<String, String> entry : configs.entrySet()) {
             updateConfig(entry.getKey(), entry.getValue());
+        }
+        // 修复 #11：循环内 this.updateConfig(...) 属自调用，绕过 Spring 缓存代理，
+        // @CacheEvict 注解不会执行；此处直接操作 CacheManager 兜底清空，确保批量保存后立即可见。
+        if (cacheManager != null) {
+            org.springframework.cache.Cache cache = cacheManager.getCache(CACHE_NAME);
+            if (cache != null) {
+                cache.clear();
+            }
         }
     }
 

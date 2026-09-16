@@ -52,9 +52,20 @@ jobs:
           java-version: "21"
           cache: maven
 
+      # 修复 B4：仓库根无 pom.xml / mvnw（后端工程位于 backend/，与 ci.yml 的 backend job 一致），
+      # 故本 step 必须显式 working-directory: backend，否则 `mvn -B verify` 在根目录必失败（首步即中断发布流水线）。
+      # 注意：**不要**在 job 级加 defaults.run.working-directory——同 job 后续还有
+      # frontend、python-services/kg_service、python-services/rag_service 三个 step，job 级 defaults 会连带影响。
       - name: Backend verify (unit + integration + JaCoCo gate)
+        working-directory: backend
+        # 与 ci.yml 的 backend job（`Build, unit & integration tests with coverage gate`，ci.yml:148-151）完全对齐：
+        #   · MYSQL_ROOT_PASSWORD：application-local.yml 的数据源口令取 ${MYSQL_ROOT_PASSWORD:1234}，
+        #     此处与上面 mysql service 的 root 口令对齐（SPRING_DATASOURCE_PASSWORD 亦指向同值）。
+        #   · TESTCONTAINERS_RYUK_DISABLED：托管 runner 上 Ryuk 回收器偶发权限/检测问题，禁用后由 runner 销毁统一回收。
         env:
           SPRING_DATASOURCE_PASSWORD: ci-test-password-8f3k
+          MYSQL_ROOT_PASSWORD: ci-test-password-8f3k
+          TESTCONTAINERS_RYUK_DISABLED: true
         run: mvn -B verify jacoco:report
 
       - name: Set up Node
@@ -69,6 +80,12 @@ jobs:
         run: |
           npm ci
           npm run lint
+          # 修复 N-09：以下三道门禁此前只有 ci.yml 的 frontend-quality job 有，
+          # 导致「PR 门禁严于发布门禁」，问题会一路漏到打 tag 发布才发现。
+          # 现与 ci.yml:45-62 的口径完全对齐。
+          npm run lint:api-refs
+          npm run typecheck:gate
+          npm run format:check
           # 接入覆盖率门禁：阈值未达标时 vitest 非零退出，阻断发布流水线
           npm run test:coverage
           npm run build

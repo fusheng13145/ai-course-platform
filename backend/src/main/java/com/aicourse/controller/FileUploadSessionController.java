@@ -6,6 +6,7 @@ import org.slf4j.LoggerFactory;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.dto.FileUploadDTO;
 import com.aicourse.entity.FileUploadSession;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.service.FileUploadSessionService;
 import com.aicourse.vo.UploadProgressVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -67,27 +68,29 @@ public class FileUploadSessionController {
 
     /**
      * 上传单个分片
+     * <p>该端点为历史空壳实现：后端未落地分片字节落盘与合并逻辑，
+     * 仅修改会话状态为 COMPLETED，导致管理员「合并」得到虚假成功、磁盘无文件（静默数据丢失）。
+     * 已按上线前全检结论（N-03）下线，保留会话元数据管理（create/list/progress/cancel）。</p>
      * @param id 会话ID
      * @param index 分片索引
-     * @return 更新后的会话
+     * @return 永不成功，返回 501
      */
     @PostMapping("/{id}/chunks/{index}")
     public ApiResponse<FileUploadSession> uploadChunk(@PathVariable Long id, @PathVariable Integer index,
                                                       org.springframework.security.core.Authentication auth) {
-        FileUploadSession session = fileUploadSessionService.uploadChunk(id, index, (Long) auth.getPrincipal());
-        return ApiResponse.success("分片上传成功", session);
+        throw new BusinessException(501, "分片上传功能暂未启用");
     }
 
     /**
      * 合并所有分片
+     * <p>与 uploadChunk 同理，合并字节逻辑从未实现，按 N-03 下线。</p>
      * @param id 会话ID
-     * @return 更新后的会话
+     * @return 永不成功，返回 501
      */
     @PostMapping("/{id}/merge")
     public ApiResponse<FileUploadSession> mergeChunks(@PathVariable Long id,
                                                       org.springframework.security.core.Authentication auth) {
-        FileUploadSession session = fileUploadSessionService.mergeChunks(id, resolveOperator(id, auth));
-        return ApiResponse.success("合并成功", session);
+        throw new BusinessException(501, "分片合并功能暂未启用");
     }
 
     /**

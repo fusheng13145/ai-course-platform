@@ -1,5 +1,6 @@
 package com.aicourse.websocket;
 
+import com.aicourse.service.UserSessionService;
 import com.aicourse.util.JwtUtils;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -35,6 +36,8 @@ class JwtHandshakeInterceptorTest {
     @Mock
     private JwtUtils jwtUtils;
     @Mock
+    private UserSessionService userSessionService;
+    @Mock
     private ServerHttpRequest request;
     @Mock
     private ServerHttpResponse response;
@@ -46,7 +49,7 @@ class JwtHandshakeInterceptorTest {
 
     @BeforeEach
     void setUp() {
-        interceptor = new JwtHandshakeInterceptor(jwtUtils);
+        interceptor = new JwtHandshakeInterceptor(jwtUtils, userSessionService);
         lenient().when(request.getHeaders()).thenReturn(headers);
         lenient().when(request.getRemoteAddress()).thenReturn(null);
     }
@@ -56,6 +59,8 @@ class JwtHandshakeInterceptorTest {
         when(jwtUtils.getUserIdFromToken(token)).thenReturn(1L);
         when(jwtUtils.getUsernameFromToken(token)).thenReturn("alice");
         when(jwtUtils.getRoleFromToken(token)).thenReturn("STUDENT");
+        // 修复 #10a：验签通过还需会话活跃态校验，默认桩为活跃以覆盖「成功握手」用例
+        lenient().when(userSessionService.isSessionActive(token)).thenReturn(true);
     }
 
     @Test

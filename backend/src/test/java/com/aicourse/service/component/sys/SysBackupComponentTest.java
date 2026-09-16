@@ -64,18 +64,20 @@ class SysBackupComponentTest {
     }
 
     @Test
-    @DisplayName("createBackup mysqldump 不可用时回退文件名")
+    @DisplayName("createBackup mysqldump 失败时抛业务异常（不再假备份，#28 修复）")
     void createBackup_fallback() {
         when(environment.getProperty("spring.datasource.url")).thenReturn("jdbc:mysql://localhost:3306/db");
         when(environment.getProperty("spring.datasource.username")).thenReturn("root");
         when(environment.getProperty("spring.datasource.password")).thenReturn("pass");
 
-        String r = newComponent().createBackup();
-        assertTrue(r.startsWith("backup_") && r.endsWith(".sql"));
+        // 修复 #28：mysqldump 退出码非 0（如本测试环境的退出码=2）必须如实抛出，
+        // 不能再以「回退文件名」掩盖备份失败（假备份 = 静默数据丢失风险）。
+        BusinessException ex = assertThrows(BusinessException.class, () -> newComponent().createBackup());
+        assertTrue(ex.getMessage().contains("备份失败") || ex.getMessage().contains("mysqldump"));
     }
 
     @Test
-    @DisplayName("createBackup 用户名缺失时从 DataSource 元数据获取（含 @host 处理）")
+    @DisplayName("createBackup 用户名从元数据获取后 mysqldump 失败仍如实抛异常（#28 修复）")
     void createBackup_metadataFallback() throws Exception {
         when(environment.getProperty("spring.datasource.url")).thenReturn("jdbc:mysql://dbhost:3307/mydb");
         when(environment.getProperty("spring.datasource.username")).thenReturn(null);
@@ -86,8 +88,8 @@ class SysBackupComponentTest {
         when(conn.getMetaData()).thenReturn(meta);
         when(dataSource.getConnection()).thenReturn(conn);
 
-        String name = newComponent().createBackup();
-        assertTrue(name.startsWith("backup_") && name.endsWith(".sql"));
+        // 无论用户名取自配置还是元数据，mysqldump 失败都应如实抛出，而非伪造备份文件。
+        assertThrows(BusinessException.class, () -> newComponent().createBackup());
     }
 
     // ===================== getBackups =====================

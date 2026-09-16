@@ -21,6 +21,7 @@ import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 import com.aicourse.util.SysFileUtil;
 
 /**
@@ -146,6 +147,23 @@ public class SysBackupComponent {
                 pb.directory(dir);
                 Process process = pb.start();
 
+                // 安全修复 #28：必须给 mysqldump 设置超时，否则进程卡死会永久挂起请求线程；
+                // 超时/打断一律强制销毁并抛异常，绝不回退为"假备份"。
+                int exitCode;
+                boolean finished;
+                try {
+                    finished = process.waitFor(10, TimeUnit.MINUTES);
+                } catch (InterruptedException ie) {
+                    process.destroyForcibly();
+                    Thread.currentThread().interrupt();
+                    throw new BusinessException("数据库备份被中断，已取消备份");
+                }
+                if (!finished) {
+                    process.destroyForcibly();
+                    throw new BusinessException("数据库备份超时（mysqldump 10 分钟内未完成），已取消备份");
+                }
+                exitCode = process.exitValue();
+
                 // 读取输出并写入文件
                 StringBuilder output = new StringBuilder();
                 try (BufferedReader reader = new BufferedReader(
@@ -156,14 +174,16 @@ public class SysBackupComponent {
                     }
                 }
 
-                int exitCode = process.waitFor();
                 if (exitCode == 0) {
                     Files.writeString(backupFile.toPath(), output.toString(), StandardCharsets.UTF_8,
                             StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING);
                     log.info("数据库备份成功: {}", backupFileName);
                     return backupFileName;
                 } else {
-                    log.warn("mysqldump执行失败 (exitCode={}), 回退到仅文件名方式", exitCode);
+                    // 非零退出：mysqldump 实际失败。
+                    // 安全修复 #28：停止回退到"仅文件名"假备份——否则回滚预案依赖的"当次全量备份"
+                    // 会建立在不存在的恢复点上。
+                    throw new BusinessException("数据库备份失败（mysqldump 退出码=" + exitCode + "），未生成备份文件");
                 }
             } finally {
                 if (tempConfig != null && tempConfig.exists()) {
@@ -173,14 +193,14 @@ public class SysBackupComponent {
         } catch (BusinessException e) {
             log.error("创建备份失败: {}", e.getMessage(), e);
 
-            // 配置缺失属于明确失败，必须抛给调用方，不允许回退为"仅文件名"假备份
+            // 配置缺失或备份失败属于明确失败，必须抛给调用方，不允许回退为"仅文件名"假备份
             throw e;
         } catch (Exception e) {
-            log.warn("mysqldump不可用或执行失败, 回退到仅文件名方式: {}", e.getMessage());
+            log.error("mysqldump不可用或执行失败, 已取消备份: {}", e.getMessage(), e);
+            throw new BusinessException("数据库备份执行异常，未生成备份文件: " + e.getMessage());
         }
 
-        // 回退：仅创建文件名
-        return backupFileName;
+        // 说明：任何失败路径均已显式抛出 BusinessException，不再返回"成功"的备份文件名。
     }
 
     /** 备份文件列表 */

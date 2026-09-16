@@ -73,13 +73,6 @@
                 <el-button
                   v-if="row.status === 'UPLOADING'"
                   size="small"
-                  type="warning"
-                  @click="handleMerge(row)"
-                  >合并</el-button
-                >
-                <el-button
-                  v-if="row.status === 'UPLOADING'"
-                  size="small"
                   type="danger"
                   @click="handleCancel(row)"
                 >
@@ -177,15 +170,6 @@ async function refreshList() {
   }
 }
 
-async function handleMerge(row) {
-  try {
-    await uploadApi.mergeChunks(row.id)
-    ElMessage.success('合并成功')
-    await refreshList()
-  } catch (e) {
-    ElMessage.error('合并失败')
-  }
-}
 function handleCancel(row) {
   ElMessageBox.confirm('确定取消该上传任务？已上传的分片将被清除。', '取消确认', {
     type: 'warning',

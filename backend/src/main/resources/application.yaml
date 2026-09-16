@@ -118,6 +118,11 @@ server:
   port: 8080
   servlet:
     context-path: /api
+  # 修复 D2：信任反向代理回传的转发头（X-Forwarded-Proto/Host/For）。
+  # 置于 TLS 终止反代之后时，反代回传 X-Forwarded-Proto: https 即被识别为安全通道，
+  # requiresChannel().requiresSecure() 不再误判为 http，从而消灭无限 302 重定向环（D3）。
+  # 仅在存在可信反代时生效；直连且未设转发头时 scheme 仍为 http，需配合 REQUIRE_HTTPS=false。
+  forward-headers-strategy: framework
   # Gzip 压缩：减少 JSON 响应体大小 50-80%
   compression:
     enabled: true
@@ -279,6 +284,11 @@ ratelimit:
   verify-code:
     limit: ${RATELIMIT_VERIFY_LIMIT:5}
     window-seconds: ${RATELIMIT_VERIFY_WINDOW:60}
+  # 注册接口按 IP 限流：默认 3600 秒内最多 20 次
+  # （安全修复 B1：注册此前可零成本批量自建账号，除「验证码强制」外加一道 IP 维度总量约束）
+  register:
+    limit: ${RATELIMIT_REGISTER_LIMIT:20}
+    window-seconds: ${RATELIMIT_REGISTER_WINDOW:3600}
 
 # ===================== Sentinel 流量控制与熔断降级 =====================
 # 与既有 ratelimit（IP 级、按来源防刷）分层协作：Sentinel 负责「资源/容量治理 + 下游熔断」。

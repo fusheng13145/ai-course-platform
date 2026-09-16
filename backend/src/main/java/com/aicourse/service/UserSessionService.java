@@ -23,6 +23,19 @@ public interface UserSessionService extends com.baomidou.mybatisplus.extension.s
     void evictSessionCache(String token);
 
     /**
+     * 吊销指定用户的全部活跃会话（修复 #10b）。
+     *
+     * <p>密码泄露场景下，受害者「改密码」本应立刻止损；若改密/重置时不吊销既有会话，
+     * 攻击者手里已窃得的令牌仍可通过验签与会话活跃态校验，止损动作完全失效。
+     * 因此改密、手机重置、邮箱重置、管理端重置密码成功后，一律全量吊销该用户的活跃会话
+     * （含发起改密请求的那一条 —— 用户下一请求即 401，需重新登录）。</p>
+     *
+     * @param userId 用户ID
+     * @return 被吊销的会话条数
+     */
+    int revokeAllActiveSessions(Long userId);
+
+    /**
      * 获取用户当前有效会话
      * @param userId 用户ID
      * @return 当前有效会话，无则返回null

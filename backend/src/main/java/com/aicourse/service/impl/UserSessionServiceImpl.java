@@ -222,4 +222,45 @@ public class UserSessionServiceImpl extends ServiceImpl<UserSessionMapper, UserS
             this.updateById(session);
         }
     }
+
+    /**
+     * 吊销指定用户的全部活跃会话（修复 #10b：改密/重置密码后必须让已泄露的会话立即失效）。
+     *
+     * <p>实现要点：
+     * <ol>
+     *     <li>只捞 {@code userId + isActive=true + expiresAt>now} 的会话，已失效/已过期的无需重复处理；</li>
+     *     <li>逐条先置库失效，再复用 {@link #evictSessionCache(String)} 清掉 Redis 活跃缓存
+     *         （缓存删除后 {@code isSessionActive} 会回源到 DB，读到 {@code isActive=false} 即判否）；</li>
+     *     <li>与 {@code forceLogout} 一致，全程 {@code @Transactional}，单条失败整体回滚。</li>
+     * </ol>
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public int revokeAllActiveSessions(Long userId) {
+        if (userId == null) {
+            return 0;
+        }
+        LambdaQueryWrapper<UserSession> wrapper = new LambdaQueryWrapper<UserSession>()
+                .eq(UserSession::getUserId, userId)
+                .eq(UserSession::getIsActive, true)
+                .gt(UserSession::getExpiresAt, LocalDateTime.now());
+        List<UserSession> sessions = this.list(wrapper);
+        if (sessions == null || sessions.isEmpty()) {
+            return 0;
+        }
+        int revoked = 0;
+        for (UserSession session : sessions) {
+            // 先落库置失效：即便后续缓存清理失败，DB 兜底仍会让 isSessionActive 判否
+            session.setIsActive(false);
+            session.setIsCurrent(false);
+            this.updateById(session);
+            // 再清缓存（evictSessionCache 同时含 Redis 删除 + 置库失效，幂等）
+            if (session.getSessionToken() != null && !session.getSessionToken().isEmpty()) {
+                evictSessionCache(session.getSessionToken());
+            }
+            revoked++;
+        }
+        log.info("[session] 已全量吊销用户会话: userId={}, revoked={}", userId, revoked);
+        return revoked;
+    }
 }

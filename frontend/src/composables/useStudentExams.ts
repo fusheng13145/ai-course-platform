@@ -4,6 +4,30 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import logger from '@/utils/logger'
 import examApi from '@/api/exam'
 
+/** 服务端会话状态：进行中（对应后端 ExamSessionStatus.STARTED） */
+const SESSION_STATUS_STARTED = 'STARTED'
+
+/**
+ * 后端 ExamSession 快照。
+ * <p>仅声明本 composable 实际用到的字段；其余字段一律不声明，避免 unknown 数据以 any 形态扩散。</p>
+ */
+interface ExamSessionSnapshot {
+  id?: number | string
+  status?: string
+  answers?: unknown
+}
+
+/**
+ * 统一解包后端响应体。
+ * <p>request 拦截器返回的已经是 body 本体（{ code, message, data }），业务数据挂在 data 上；
+ * 个别接口历史上直接返回裸数据，故做一次兜底，取不到 data 时退化为整个响应体。</p>
+ */
+function unwrapPayload<T>(res: unknown): T | null {
+  const data = (res as { data?: unknown } | null | undefined)?.data
+  const payload = data !== undefined && data !== null ? data : res
+  return (payload ?? null) as T | null
+}
+
 /**
  * 学生考试业务逻辑
  * <p>承载学生考试页三视图（列表/答题/结果）的全部状态与操作：
@@ -22,7 +46,8 @@ export function useStudentExams() {
 
   /* ---- 答题状态 ---- */
   const currentExamPaper = ref(null)
-  const sessionId = ref(null)
+  // 显式标注联合类型：默认 ref(null) 会推导为 Ref<null>，恢复/新建两条路径都要写入会话ID
+  const sessionId = ref<number | string | null>(null)
   const questions = ref([])
   const questionsLoading = ref(false)
   const currentIndex = ref(0)
@@ -136,6 +161,52 @@ export function useStudentExams() {
 
   /* ---- 方法：进入考试 ---- */
 
+  /**
+   * 查询该试卷上「进行中」的会话，用于中途退出后续答。
+   * @returns 处于 STARTED 的会话快照；无进行中会话或接口异常时返回 null（交由调用方走新建流程）
+   */
+  async function tryResumeSession(examPaperId): Promise<ExamSessionSnapshot | null> {
+    try {
+      const res = await examApi.getMyExamSession(examPaperId)
+      const session = unwrapPayload<ExamSessionSnapshot>(res)
+      if (!session || typeof session !== 'object') return null
+      if (session.status !== SESSION_STATUS_STARTED) return null
+      if (session.id === undefined || session.id === null) return null
+      return session
+    } catch (e) {
+      // 接口不可用/未授权时不阻断主流程，降级为「新建会话」
+      logger.warn('查询进行中的考试会话失败，降级为新建会话:', e)
+      return null
+    }
+  }
+
+  /**
+   * 读取服务端剩余时间（秒）。
+   * @returns 服务端剩余秒数；接口不可用或返回非数值时返回 null，由调用方回退到试卷时长
+   */
+  async function fetchRemainingSeconds(sid): Promise<number | null> {
+    try {
+      const res = await examApi.getRemainingTime(sid)
+      const seconds = unwrapPayload<unknown>(res)
+      if (typeof seconds !== 'number' || !Number.isFinite(seconds)) return null
+      return Math.max(0, Math.floor(seconds))
+    } catch (e) {
+      logger.warn('获取考试剩余时间失败，回退为试卷时长:', e)
+      return null
+    }
+  }
+
+  /**
+   * 进入考试（新建会话，或恢复未完成会话）。
+   *
+   * <p><b>修复 #18：学生中途退出考试后无法再进入。</b>
+   * 退出时前端只清了定时器，服务端会话仍是 STARTED，再次 startExam 会被
+   * 「您有正在进行的考试」拒绝，而前端又没有「继续考试」入口 → 该场考试彻底进不去，
+   * 只能等超时自动收卷。因此进入时先查最新会话：存在 STARTED 会话则复用
+   * （恢复题目 + 已保存作答 + 服务端剩余时间），否则才走创建流程。</p>
+   *
+   * <p><b>注意：刻意不改成「退出即提交」</b>——那会直接剥夺学生继续作答的权利，比现状更糟。</p>
+   */
   async function enterExam(exam) {
     if (exam.completed) {
       ElMessage.info('该考试已完成')
@@ -143,47 +214,61 @@ export function useStudentExams() {
     }
 
     try {
-      ElMessageBox.confirm(`确定开始「${exam.title}」吗？\n进入后将启动倒计时。`, '确认开始考试', {
+      await ElMessageBox.confirm(`确定开始「${exam.title}」吗？\n进入后将启动倒计时。`, '确认开始考试', {
         confirmButtonText: '确定',
         cancelButtonText: '取消',
         type: 'info',
       })
-        .then(async () => {
-          // 调用 startExam API
-          const res = await examApi.startExam(exam.id)
-          const sid = res.data?.id || (res as unknown as { id?: string | number })?.id
-          sessionId.value = sid
+    } catch {
+      return // 用户取消，静默返回
+    }
 
-          // 加载题目
-          await loadQuestions(exam.id)
+    try {
+      const resumed = await tryResumeSession(exam.id)
+      const duration = exam.duration || exam.timeLimit || 60
 
-          // 设置当前试卷信息
-          currentExamPaper.value = exam
+      if (resumed && resumed.id !== undefined && resumed.id !== null) {
+        // ---- 恢复流程：复用既有会话，不新建 ----
+        sessionId.value = resumed.id
+        await loadQuestions(exam.id)
+        currentExamPaper.value = exam
+        restoreAnswers(parseSavedAnswers(resumed.answers))
 
-          // 初始化倒计时
-          const duration = exam.duration || exam.timeLimit || 60
-          totalSeconds.value = duration * 60
-          remainingSeconds.value = totalSeconds.value
+        totalSeconds.value = duration * 60
+        // 已考时长以服务端为准：避免每次退出重进都重置为满时长（等价无限续时）
+        const remaining = await fetchRemainingSeconds(resumed.id)
+        remainingSeconds.value = remaining ?? totalSeconds.value
 
-          // 切换到答题视图
-          viewMode.value = 'exam'
+        viewMode.value = 'exam'
+        startCountdown()
+        startAutoSave()
+        ElMessage.success('已恢复上次未完成的作答，请继续答题')
+        return
+      }
 
-          // 启动倒计时
-          startCountdown()
+      // ---- 首次进入：创建会话 ----
+      const res = await examApi.startExam(exam.id)
+      const started = unwrapPayload<ExamSessionSnapshot>(res)
+      const sid = started?.id
+      if (sid === undefined || sid === null) {
+        throw new Error('创建考试会话失败：响应缺少会话ID')
+      }
+      sessionId.value = sid
 
-          // 启动自动保存（每30秒）
-          startAutoSave()
+      await loadQuestions(exam.id)
+      currentExamPaper.value = exam
 
-          ElMessage.success('考试已开始，祝你好运！')
-        })
-        .catch((e) => {
-          // P1-22：开始考试失败不再静默吞掉，给出明确提示
-          logger.error('开始考试失败:', e)
-          ElMessage.error(e?.response?.data?.message || '开始考试失败，请稍后重试')
-        })
+      totalSeconds.value = duration * 60
+      remainingSeconds.value = totalSeconds.value
+
+      viewMode.value = 'exam'
+      startCountdown()
+      startAutoSave()
+      ElMessage.success('考试已开始，祝你好运！')
     } catch (e) {
+      // P1-22：开始考试失败不再静默吞掉，给出明确提示
       logger.error('开始考试失败:', e)
-      ElMessage.error('无法开始考试，请稍后重试')
+      ElMessage.error(e?.response?.data?.message || '开始考试失败，请稍后重试')
     }
   }
 
@@ -328,24 +413,92 @@ export function useStudentExams() {
     }
   }
 
-  function collectAnswers() {
-    const result = []
+  /**
+   * 收集当前作答，按「题目ID → 答案」组织。
+   *
+   * <p><b>必须是对象而不是数组</b>：后端 ExamSubmitDTO.answers 声明为 {@code Map<String,Object>}，
+   * 阅卷（ExamSessionGradingService.autoGrade）按 {@code String.valueOf(questionId)} 取值。
+   * 历史上此处送的是数组，Jackson 无法把 JSON 数组反序列化为 Map → 直接 400，
+   * 导致自动保存与正式交卷双双失效（退出后恢复也就拿不到任何作答）。</p>
+   */
+  function collectAnswers(): Record<string, unknown> {
+    const result: Record<string, unknown> = {}
     questions.value.forEach((q, idx) => {
-      let answer
+      const questionId = q.id ?? q.questionId
+      if (questionId === undefined || questionId === null) return
       if (q.type === 'MULTIPLE_CHOICE') {
-        answer = multiAnswers.value[idx] || []
+        result[String(questionId)] = multiAnswers.value[idx] || []
       } else if (q.type === 'SHORT_ANSWER') {
-        answer = textAnswers.value[idx] || ''
+        result[String(questionId)] = textAnswers.value[idx] || ''
       } else {
-        answer = answers.value[idx]
+        result[String(questionId)] = answers.value[idx] ?? ''
       }
-      result.push({
-        questionId: q.id,
-        questionType: q.type,
-        answer: answer,
-      })
     })
     return result
+  }
+
+  /**
+   * 解析服务端落库的 answers 字段，归一为「题目ID → 答案」映射。
+   *
+   * <p>兼容历史/异常形态：JSON 字符串、对象、{@code { answers: ... }} 包裹、
+   * 以及 {@code [ { questionId, answer } ]} 数组。解析不出来时返回空对象（不阻断进入考试）。</p>
+   */
+  function parseSavedAnswers(raw: unknown, depth = 0): Record<string, unknown> {
+    if (raw === null || raw === undefined || raw === '') return {}
+
+    let parsed: unknown = raw
+    if (typeof raw === 'string') {
+      try {
+        parsed = JSON.parse(raw)
+      } catch {
+        logger.warn('已保存的作答不是合法 JSON，跳过回填')
+        return {}
+      }
+    }
+
+    // 数组形态：按 questionId 重新索引
+    if (Array.isArray(parsed)) {
+      const mapped: Record<string, unknown> = {}
+      for (const item of parsed) {
+        const record = item as { questionId?: number | string; answer?: unknown }
+        if (record && record.questionId !== undefined && record.questionId !== null) {
+          mapped[String(record.questionId)] = record.answer
+        }
+      }
+      return mapped
+    }
+
+    if (typeof parsed !== 'object') return {}
+
+    const container = parsed as Record<string, unknown>
+    // 仅解一层：历史数据可能是 { answers: {...} } 包裹
+    if (depth === 0 && container.answers !== undefined && container.answers !== null) {
+      return parseSavedAnswers(container.answers, depth + 1)
+    }
+    return container
+  }
+
+  /**
+   * 把已保存作答按题目ID回填到当前题目列表。
+   * <p>按题目ID匹配而非下标匹配，可容忍题目顺序变化（后端存在题目乱序）。</p>
+   */
+  function restoreAnswers(saved: Record<string, unknown>) {
+    if (Object.keys(saved).length === 0) return
+    questions.value.forEach((q, idx) => {
+      const questionId = q.id ?? q.questionId
+      if (questionId === undefined || questionId === null) return
+      const key = String(questionId)
+      if (!Object.prototype.hasOwnProperty.call(saved, key)) return
+
+      const value = saved[key]
+      if (q.type === 'MULTIPLE_CHOICE') {
+        multiAnswers.value[idx] = Array.isArray(value) ? (value as number[]) : []
+      } else if (q.type === 'SHORT_ANSWER') {
+        textAnswers.value[idx] = typeof value === 'string' ? value : String(value ?? '')
+      } else {
+        answers.value[idx] = value as string | number | boolean
+      }
+    })
   }
 
   function saveCurrentAnswer() {
@@ -411,6 +564,10 @@ export function useStudentExams() {
       // 先自动保存一次
       await autoSaveAnswers()
       cleanupTimers()
+      // 关键：清空本地会话态（含 sessionId / 题目 / 作答）。
+      // 服务端会话刻意保持 STARTED（不提交、不结束），下次进入由 enterExam 走恢复流程续答；
+      // 若此处不重置，本地残留的 sessionId 会与「重新创建的会话」错位。
+      resetExamState()
       viewMode.value = 'list'
     } catch {
       // 取消

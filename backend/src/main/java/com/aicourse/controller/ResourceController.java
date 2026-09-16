@@ -8,6 +8,7 @@ import com.aicourse.dto.ResourceVisibilityDTO;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.Resource;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.ResourceService;
@@ -59,6 +60,20 @@ public class ResourceController {
             "image/jpeg", "image/png", "image/gif",
             "video/mp4", "audio/mpeg"
     };
+
+    // 修复 #13：已通过 ALLOWED_MIME_TYPES + 魔数校验的 contentType 到落盘后缀的唯一映射。
+    // 落盘后缀只允许来自此白名单，禁止直接采用客户端原始文件名后缀（防同源 .html 托管页 + 路径穿越 N-04）。
+    private static final java.util.Map<String, String> SUFFIX_BY_MIME = java.util.Map.of(
+            "application/pdf", ".pdf",
+            "application/msword", ".doc",
+            "application/vnd.openxmlformats-officedocument.wordprocessingml.document", ".docx",
+            "application/vnd.ms-excel", ".xls",
+            "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx",
+            "image/jpeg", ".jpg",
+            "image/png", ".png",
+            "image/gif", ".gif",
+            "video/mp4", ".mp4",
+            "audio/mpeg", ".mp3");
 
     // 常见文件魔数（修复 P1-6：Content-Type 可伪造，必须以文件内容校验真实类型）
     private static final byte[] MAGIC_PDF = {'%', 'P', 'D', 'F'};
@@ -213,14 +228,25 @@ public class ResourceController {
 
     /**
      * 上传课程资源文件
-     * 权限：教师、管理员
+     * 权限：教师、管理员；且教师仅可上传至本人任教课程（修复 #5：补对象级 ACL）。
      */
     @PostMapping("/upload")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     public ApiResponse<Resource> uploadResource(
             @RequestParam("file") MultipartFile file,
             @RequestParam Long courseId,
-            @RequestParam(required = false) String description) {
+            @RequestParam(required = false) String description,
+            Authentication auth) {
+        // 修复 #5：先校验课程确实存在，避免造出 courseId 悬空的孤儿资源 + 磁盘残留文件
+        Course course = courseService.getById(courseId);
+        if (course == null) {
+            throw new BusinessException(404, "课程不存在");
+        }
+        // 修复 #5：补齐对象级 ACL（此前仅有角色校验，任意教师可向他人课程上传资源）。
+        // 抛 BusinessException(403) 经全局异常处理器映射为真实 HTTP 403，与同文件其余 ACL 端点一致。
+        if (!canAccessCourse(courseId, auth)) {
+            throw new BusinessException(403, "无权向该课程上传资源");
+        }
         if (file.isEmpty()) {
             return ApiResponse.error(ApiCode.BAD_REQUEST, "上传文件不能为空");
         }
@@ -257,12 +283,20 @@ public class ResourceController {
 
         String originalFilename = file.getOriginalFilename();
         String safeFileName = StringUtils.hasText(originalFilename) ? originalFilename : "unknown";
-        String suffix = "";
-        if (originalFilename != null && originalFilename.contains(".")) {
-            suffix = originalFilename.substring(originalFilename.lastIndexOf("."));
+
+        // 修复 #13：落盘后缀由已校验可信的 contentType 经白名单映射决定，禁止采用客户端原始文件名后缀。
+        // 原始文件名后缀可能含 "/" 造成路径穿越（N-04），且其值可控会导致 .html 经 /uploads/** 回显形成同源托管页。
+        String suffix = SUFFIX_BY_MIME.get(contentType);
+        if (suffix == null) {
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "不支持该文件格式上传");
         }
         String uniqueFileName = UUID.randomUUID() + suffix;
-        Path targetPath = Paths.get(UPLOAD_BASE_DIR, uniqueFileName);
+        Path uploadBase = Paths.get(UPLOAD_BASE_DIR).normalize();
+        Path targetPath = uploadBase.resolve(uniqueFileName).normalize();
+        // 路径穿越防护：确保落盘路径始终位于上传目录内
+        if (!targetPath.startsWith(uploadBase)) {
+            return ApiResponse.error(ApiCode.BAD_REQUEST, "非法文件路径");
+        }
 
         try {
             Files.write(targetPath, bytes);

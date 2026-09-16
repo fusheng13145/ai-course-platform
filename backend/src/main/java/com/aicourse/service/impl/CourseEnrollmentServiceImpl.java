@@ -18,6 +18,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import java.util.List;
 
 
 /**
@@ -154,8 +155,32 @@ public class CourseEnrollmentServiceImpl extends ServiceImpl<CourseEnrollmentMap
                 .eq(CourseEnrollment::getApprovalStatus, "APPROVED")) > 0;
     }
 
-    // ==================== 选课前置校验（内部工具） ====================
+    /**
+     * 教师—学生归属判定（修复 B2 残留）：
+     * 先取出该教师名下的全部课程；若该学生在其中任一课程上持有有效且审批通过的选课记录，即判定为「该教师的学生」。
+     *
+     * <p>选课状态口径与 {@link #hasApprovedEnrollment} 完全一致（{@code is_active=1 AND approval_status='APPROVED'}），
+     * 以避免待审批(PENDING)、已驳回(REJECTED)或已退课记录被误判为在读关系。</p>
+     */
+    @Override
+    public boolean hasApprovedEnrollmentWithTeacher(Long studentId, Long teacherId) {
+        if (studentId == null || teacherId == null) {
+            return false;
+        }
+        List<Course> courses = courseMapper.selectList(new LambdaQueryWrapper<Course>()
+                .eq(Course::getTeacherId, teacherId));
+        if (courses.isEmpty()) {
+            return false;
+        }
+        List<Long> courseIds = courses.stream().map(Course::getId).toList();
+        return this.count(new LambdaQueryWrapper<CourseEnrollment>()
+                .eq(CourseEnrollment::getStudentId, studentId)
+                .in(CourseEnrollment::getCourseId, courseIds)
+                .eq(CourseEnrollment::getIsActive, true)
+                .eq(CourseEnrollment::getApprovalStatus, "APPROVED")) > 0;
+    }
 
+    // ==================== 选课前置校验（内部工具） ====================
     /**
      * 课程「可加入」校验：课程必须存在，且不得处于待审核/已驳回/已结束状态。
      *

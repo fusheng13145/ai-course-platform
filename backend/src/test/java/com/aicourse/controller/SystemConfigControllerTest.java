@@ -72,15 +72,32 @@ class SystemConfigControllerTest extends ControllerTestBase {
 
 
     @Test
-    @DisplayName("GET /system-configs/group/1 - 返回200且分组配置透传")
+    @DisplayName("GET /system-configs/group/1 - ADMIN 返回200且分组配置透传")
     void getByGroup_authorized_returns_200() throws Exception {
         when(systemConfigService.getConfigsByGroup("1")).thenReturn(List.of(sampleConfig(1L, "a", "v")));
-        mockMvc.perform(get("/system-configs/group/1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
+        mockMvc.perform(get("/system-configs/group/1").with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").isArray())
                 .andExpect(jsonPath("$.data[0].configKey").value("a"));
         verify(systemConfigService).getConfigsByGroup(eq("1"));
+    }
+
+
+    @Test
+    @DisplayName("GET /system-configs/group/1 - 非ADMIN仅返回公开项（#7 读侧收敛回归）")
+    void getByGroup_nonAdmin_onlyPublic() throws Exception {
+        SystemConfig pub = sampleConfig(1L, "pub.key", "pv");
+        pub.setIsPublic(true);
+        SystemConfig nonPub = sampleConfig(2L, "ai_api_key", "sk-secret");
+        nonPub.setIsPublic(false);
+        when(systemConfigService.getConfigsByGroup("ai")).thenReturn(List.of(pub, nonPub));
+
+        mockMvc.perform(get("/system-configs/group/ai").with(withUser(2L, "STUDENT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].configKey").value("pub.key"));
     }
 
 
@@ -114,14 +131,42 @@ class SystemConfigControllerTest extends ControllerTestBase {
 
 
     @Test
-    @DisplayName("GET /system-configs/key/1 - 返回200且配置值透传")
+    @DisplayName("GET /system-configs/key/p1 - ADMIN 返回200且配置值透传")
     void getValue_authorized_returns_200() throws Exception {
-        when(systemConfigService.getConfigValue("1")).thenReturn("value1");
-        mockMvc.perform(get("/system-configs/key/1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
+        SystemConfig cfg = sampleConfig(1L, "p1", "value1");
+        cfg.setIsPublic(true);
+        when(systemConfigService.getConfigByKey("p1")).thenReturn(cfg);
+        mockMvc.perform(get("/system-configs/key/p1").with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").value("value1"));
-        verify(systemConfigService).getConfigValue(eq("1"));
+        verify(systemConfigService).getConfigByKey(eq("p1"));
+    }
+
+
+    @Test
+    @DisplayName("GET /system-configs/key/ai_api_key - 非ADMIN读非公开键返回403（#7 越权回归）")
+    void getValue_nonAdmin_nonPublic_forbidden_403() throws Exception {
+        SystemConfig cfg = sampleConfig(1L, "ai_api_key", "sk-secret");
+        cfg.setIsPublic(false);
+        when(systemConfigService.getConfigByKey("ai_api_key")).thenReturn(cfg);
+
+        mockMvc.perform(get("/system-configs/key/ai_api_key").with(withUser(2L, "STUDENT")))
+                .andExpect(status().isForbidden());
+    }
+
+
+    @Test
+    @DisplayName("GET /system-configs/key/site_name - 非ADMIN读公开键返回200（放行）")
+    void getValue_nonAdmin_public_ok() throws Exception {
+        SystemConfig cfg = sampleConfig(1L, "site_name", "AI Course");
+        cfg.setIsPublic(true);
+        when(systemConfigService.getConfigByKey("site_name")).thenReturn(cfg);
+
+        mockMvc.perform(get("/system-configs/key/site_name").with(withUser(2L, "STUDENT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data").value("AI Course"));
     }
 
 
@@ -209,6 +254,23 @@ class SystemConfigControllerTest extends ControllerTestBase {
     void search_unauthorized_returns_401() throws Exception {
         mockMvc.perform(get("/system-configs/search?keyword=test"))
                 .andExpect(status().isUnauthorized());
+    }
+
+
+    @Test
+    @DisplayName("GET /system-configs/search - 非ADMIN仅返回公开项（#7 同源缺口回归）")
+    void search_nonAdmin_onlyPublic() throws Exception {
+        SystemConfig pub = sampleConfig(1L, "pub.key", "pv");
+        pub.setIsPublic(true);
+        SystemConfig nonPub = sampleConfig(2L, "ai_api_key", "sk-secret");
+        nonPub.setIsPublic(false);
+        when(systemConfigService.searchConfigs("ai")).thenReturn(List.of(pub, nonPub));
+
+        mockMvc.perform(get("/system-configs/search?keyword=ai").with(withUser(2L, "STUDENT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.length()").value(1))
+                .andExpect(jsonPath("$.data[0].configKey").value("pub.key"));
     }
 
 

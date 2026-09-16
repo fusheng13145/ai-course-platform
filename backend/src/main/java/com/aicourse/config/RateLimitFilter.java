@@ -95,6 +95,17 @@ public class RateLimitFilter extends OncePerRequestFilter {
     @Value("${ratelimit.verify-code.window-seconds:60}")
     private int verifyWindowSeconds;
 
+    /**
+     * 注册接口按 IP 限流（安全修复 B1，2026-09-16 上线前全检）：
+     * 注册此前可零成本批量自建账号，除「验证码强制」外再加一道 IP 维度总量约束。
+     * 窗口取 3600 秒——注册是低频动作，按小时计更贴合真实使用，避免误伤共享出口 IP。
+     */
+    @Value("${ratelimit.register.limit:20}")
+    private int registerLimit;
+
+    @Value("${ratelimit.register.window-seconds:3600}")
+    private int registerWindowSeconds;
+
     /** Redis 集群限流器；当 redisEnabled=false 或 Redis 不可用时回退到内存桶。 */
     private final StringRedisTemplate redisTemplate;
 
@@ -142,6 +153,17 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private Rule resolveRule(String path, String clientIp) {
         if (path.startsWith("/api/auth/login")) {
             return new Rule("login", clientIp, loginLimit, loginWindowSeconds);
+        } else if (path.startsWith("/api/auth/register")) {
+            // 安全修复 B1：注册端点补 IP 维度限流（与「验证码强制」配合，堵住批量自建账号）
+            return new Rule("register", clientIp, registerLimit, registerWindowSeconds);
+        } else if (path.startsWith("/api/auth/send-code")
+                || path.startsWith("/api/auth/verify-code")
+                || path.startsWith("/api/auth/reset-password")
+                || path.startsWith("/api/auth/reset-password-by-email")) {
+            // 安全修复 #24：四类未认证端点此前不在限流规则内，攻击者可在无凭据情况下脚本化
+            // 向大量邮箱发信（单邮箱 1min 冷却无法阻挡跨邮箱轰炸，亦会被 SMTP 封禁）。
+            // 复用 verify 桶（5 次/60s）做 IP 维度总量上限，阻断邮件轰炸。
+            return new Rule("verify", clientIp, verifyLimit, verifyWindowSeconds);
         } else if (path.startsWith("/api/ai/")) {
             return new Rule("ai", clientIp, aiLimit, aiWindowSeconds);
         } else if (path.startsWith("/api/common/verify-code")) {

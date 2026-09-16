@@ -25,8 +25,9 @@ public class UserRegisterDTO {
     @Schema(description = "手机号码", example = "13800138000")
     private String phone;
 
+    @NotBlank(message = "邮箱不能为空")
     @Email(message = "邮箱格式不正确")
-    @Schema(description = "电子邮箱", example = "zhangsan@example.com")
+    @Schema(description = "电子邮箱", example = "zhangsan@example.com", requiredMode = Schema.RequiredMode.REQUIRED)
     private String email;
 
     @NotBlank(message = "密码不能为空")
@@ -49,7 +50,8 @@ public class UserRegisterDTO {
     @Schema(description = "是否同意用户协议", example = "true")
     private Boolean agreement;
 
-    @Schema(description = "注册验证码", example = "123456")
+    @NotBlank(message = "注册验证码不能为空")
+    @Schema(description = "注册验证码", example = "123456", requiredMode = Schema.RequiredMode.REQUIRED)
     private String code;
 
     // ====================== Getter & Setter ======================

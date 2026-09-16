@@ -25,7 +25,7 @@ import java.util.Map;
  * {@code /api/monitor/**} 已从 Security publicPaths 移除，CSRF 校验豁免前缀亦已移除。
  */
 @RestController
-@RequestMapping("/api/monitor")
+@RequestMapping("/monitor")
 @Tag(name = "前端监控上报")
 @PreAuthorize("isAuthenticated()")
 public class MonitorController {

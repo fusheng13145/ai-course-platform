@@ -1,8 +1,15 @@
 # gitleaks 配置 —— F-02 密钥治理防回归（CI 门禁：.github/workflows/ci.yml 的 secret-scan job）
 #
-# 原则：allowlist 中只豁免**已知的非真实密钥**（CI 构建/测试占位口令、示例文件、历史脱敏标记）。
+# 原则：allowlist 中只豁免**已知的非真实密钥**（CI 构建/测试占位口令、示例文件中的占位串、历史脱敏标记）。
 # 真实密钥一律必须来自 .env（已 .gitignore）或密钥库，禁止进入仓库。
 # 若扫描命中真实密钥，应修复代码/配置而非加入 allowlist。
+#
+# ❗本文件**不按文件路径豁免**（曾用 `paths = ['''\.env\.example$''']` 整文件豁免，导致今后任何真实
+#   密钥写进 .env.example 都不会被命中）。现改为只豁免下文中**逐个枚举的占位串**：占位串都是
+#   `your_*` / `your-*` / `sk-your-*` / `ChangeMe*` / `CHANGE_ME*` 这类人类可读形态，
+#   真实密钥（随机高熵串）不会长成这样，因此仍会被正常检出。
+# ❗CI 为**全历史扫描**（ci.yml 的 secret-scan job 用 fetch-depth: 0），故下面的枚举同时覆盖
+#   当前值与 git 历史中出现过的旧值。
 title = "ai-course-platform gitleaks config"
 
 [extend]
@@ -25,8 +32,25 @@ regexes = [
   # 此处**只写前缀形态、不复刻完整值**，避免把已从历史擦除的密钥字面量重新写回仓库。
   # 注意：当前有效密钥不匹配该模式，仍会被正常检出。
   '''oZQ-[A-Za-z0-9_-]{40,}''',
-]
-paths = [
-  # 示例配置仅含占位符（your_strong_* 等），不含真实值
-  '''\.env\.example$''',
+
+  # ==========================================================================
+  # .env.example 的占位串（按**值**豁免，替代此前的整文件 paths 豁免）
+  # --------------------------------------------------------------------------
+  # 每条都对应 .env.example 中真实存在的占位值；`your_strong_mysql_password`
+  # 同时覆盖 `your_strong_mysql_password_16_chars_min`（前缀）。
+  # 末尾两条为 git 历史中出现过、当前已被替换掉的旧占位符（全历史扫描需要）。
+  # ==========================================================================
+  '''your_strong_mysql_password''',                    # MYSQL_ROOT_PASSWORD（含 _16_chars_min 变体）
+  '''your_jwt_secret_key_change_me_at_least_32_chars''',  # JWT_SECRET
+  '''your_strong_redis_password''',                    # REDIS_PASSWORD
+  '''your_strong_monitor_password''',                  # APP_ACTUATOR_BASIC_PASSWORD
+  '''your_strong_grafana_password''',                  # GRAFANA_ADMIN_PASSWORD
+  '''sk-your-deepseek-api-key''',                      # DEEPSEEK_API_KEY
+  '''your-smtp-auth-code''',                           # MAIL_PASSWORD
+  '''your-email@qq\.com''',                            # MAIL_USERNAME
+  '''your-domain\.example\.com''',                     # CORS_ALLOWED_ORIGINS
+  '''CHANGE_ME_SET_A_STRONG_ADMIN_PASSWORD''',         # APP_ADMIN_INITIAL_PASSWORD（刻意不合规占位）
+  # —— 以下为历史版本遗留占位符，当前文件已无，但 git 历史仍含（全历史扫描）——
+  '''ChangeMe_Admin_pw1!''',                           # APP_ADMIN_INITIAL_PASSWORD（旧，19 字符合规样例）
+  '''your_strong_admin_password_ChangeMe1!''',         # APP_ADMIN_INITIAL_PASSWORD（更早，37 字符超限样例）
 ]

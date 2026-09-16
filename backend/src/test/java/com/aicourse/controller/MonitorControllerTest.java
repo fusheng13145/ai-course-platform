@@ -17,9 +17,11 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 class MonitorControllerTest extends ControllerTestBase {
 
     @Test
-    @DisplayName("POST /api/monitor/frontend-error - 登录态正常上报返回 code=200")
+    @DisplayName("POST /monitor/frontend-error - 登录态正常上报返回 code=200")
     void reportFrontendError_ok() throws Exception {
-        mockMvc.perform(withUser(post("/api/monitor/frontend-error"), 1L, "STUDENT")
+        // 注意：@WebMvcTest 不应用 server.servlet.context-path(/api)，故 MockMvc 路径不含 /api 前缀；
+        // 实际生产路径为 /api/monitor/frontend-error（context-path + 控制器 /monitor 拼接）。
+        mockMvc.perform(withUser(post("/monitor/frontend-error"), 1L, "STUDENT")
                         .contentType(MediaType.APPLICATION_JSON)
                         .content("{\"message\":\"TypeError: x is undefined\"," +
                                 "\"component\":\"Dashboard\",\"info\":\"render\"," +
@@ -29,9 +31,9 @@ class MonitorControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("POST /api/monitor/frontend-error - 登录态空 body 容忍返回 200")
+    @DisplayName("POST /monitor/frontend-error - 登录态空 body 容忍返回 200")
     void reportFrontendError_emptyBody_ok() throws Exception {
-        mockMvc.perform(withUser(post("/api/monitor/frontend-error"), 1L, "STUDENT")
+        mockMvc.perform(withUser(post("/monitor/frontend-error"), 1L, "STUDENT")
                         .contentType(MediaType.APPLICATION_JSON))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));

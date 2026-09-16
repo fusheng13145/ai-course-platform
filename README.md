@@ -122,9 +122,52 @@ docker compose --profile full up -d --build
 # 可选叠加：--profile ops（每日备份）/ --profile monitor（Prometheus+Grafana+Loki 监控）
 ```
 
-访问：前端 http://localhost ｜ API http://localhost:8080/api
+> ⚠️ **务必先选一条路径再启动。** `--profile full` 起的是一个**明文 HTTP 单机栈**：`frontend/nginx.conf`
+> 只监听 **80**、compose **没有挂载任何证书卷**，因此不存在 TLS 终止。而 backend 的
+> `REQUIRE_HTTPS`/`COOKIE_SECURE` 生产默认是 `true` —— 若照着下面的默认值直接启动，
+> `/api/**` 会被 `requiresSecure()` 302 重定向到**并不存在的 443**，表现为**全站 API 不可用**
+> （首页能打开、所有接口报错）。这是本部署形态下最容易踩的坑，故拆成两条路径：
 
-> 生产部署前请逐项核对 `docs/项目手册.md` 第七部分安全加固检查清单。
+#### 前置条件：必须填写的环境变量
+
+`.env` 中以下变量**必须**替换为真实值，留空或照抄占位符会直接拒绝启动：
+
+> 推荐一次性生成全部强密钥（脚本已内置 `PasswordPolicy` 自检，生成即必过）：
+> `python scripts/generate-secrets.py --write` —— 直接写入 `.env` 对应键；去掉 `--write` 则仅打印。
+
+| 变量 | 要求 | 未替换的后果 |
+| --- | --- | --- |
+| `MYSQL_ROOT_PASSWORD` | ≥16 位强随机 | compose 插值失败、直接报错退出 |
+| `JWT_SECRET` | ≥32 字节随机（`openssl rand -base64 48`） | compose 插值失败、直接报错退出 |
+| `REDIS_PASSWORD` | 强随机（backend 与健康探针自动同步） | 删掉该行 → compose 插值失败；仅留占位符 → 能启动，但 Redis 以**弱口令**运行 |
+| `GRAFANA_ADMIN_PASSWORD` | 强随机（叠加 `--profile monitor` 时） | compose 插值失败、直接报错退出 |
+| `APP_ADMIN_INITIAL_PASSWORD` | 8–32 位，含大小写字母 + 数字 + 特殊字符（**共 4 类**） | **启动 fail-fast 拒绝启动**（`.env.example` 里的 `CHANGE_ME_*` 是**刻意不合规**的占位符，属有意设计——宁可拒绝启动，也不允许"照抄示例"形成公开的已知 admin 口令）。注意：`openssl rand -base64 32` 输出 44 字符、**超 8–32 上限**，不要用它生成此项，请用上面的脚本 |
+
+#### 路径 ①：本地 / 内网评估（HTTP 明文，仅限本机或内网）
+
+在 `.env` 中**显式**放宽传输层强制：
+
+```dotenv
+REQUIRE_HTTPS=false
+COOKIE_SECURE=false
+CSRF_ENABLED=true      # 保持 true，不要关
+```
+
+- **原因**：nginx 仅监听 80、compose 无证书卷，没有任何 TLS 终止；不关掉强制，`/api/**` 会被 302 到不存在的 443。
+- **风险**：令牌与口令将**明文传输**，可被同网段嗅探。**禁止用于公网**，仅限本机 / 受信内网。
+- 访问：前端 http://localhost ｜ API http://localhost:8080/api
+- 跨域：前端经 nginx 反代 `/api` 与后端**同源**，无需开放 CORS，`CORS_ALLOWED_ORIGINS` 可留空（留空即 fail-closed，拒绝一切跨域来源）。
+
+#### 路径 ②：生产上线（保持安全默认 `true`）
+
+**保持** `REQUIRE_HTTPS=true`、`COOKIE_SECURE=true`（不要为了"先跑起来"改成 false），并**先满足以下前置条件之一**，
+否则全站 API 同样不可用：
+
+1. **前置 TLS 终止反代（推荐）**：在本栈之前再放一层反向代理 / 负载均衡（入口 nginx、SLB、CDN 等）终止 TLS，
+   并且该代理**必须回传** `X-Forwarded-Proto: https`，后端才认定为安全通道；或
+2. **为前端容器补齐 443 + 证书**：给 `frontend/nginx.conf` 增加 `listen 443 ssl` 与证书挂载，并把 compose 的端口映射改为 `443:443`。
+
+> 两条路径下 `CSRF_ENABLED` 都应保持 `true`。生产部署前请逐项核对 `docs/项目手册.md` 第七部分安全加固检查清单。
 
 ---
 

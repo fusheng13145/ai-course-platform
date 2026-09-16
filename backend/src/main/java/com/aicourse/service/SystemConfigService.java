@@ -13,10 +13,22 @@ public interface SystemConfigService extends IService<SystemConfig> {
 
     /**
      * 根据配置键名获取单个配置值
+     * <p><b>内部通道</b>：这是应用内部组件（如 AI Provider 读取 ai_* 配置、
+     * ProctorService 读取阈值）直接获取原始值的通道，**刻意不做 is_public 判定**，
+     * 以免收紧 HTTP 暴露面时误伤内部调用。请勿将其暴露给未经鉴权的调用方。</p>
      * @param key 配置键名
      * @return 配置值
      */
     String getConfigValue(String key);
+
+    /**
+     * 根据键名获取配置实体（含 {@code isPublic} 可见性标记）。
+     * <p>专供 HTTP 读侧（Controller）判断「该键对当前调用方是否可见」，不参与缓存。
+     * 内部组件请继续使用 {@link #getConfigValue(String)}。</p>
+     * @param key 配置键名
+     * @return 配置实体；不存在时返回 {@code null}
+     */
+    SystemConfig getConfigByKey(String key);
 
     /**
      * 获取指定分组的配置列表（按排序序号升序）

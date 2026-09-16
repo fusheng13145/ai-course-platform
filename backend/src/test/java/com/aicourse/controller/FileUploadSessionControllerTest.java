@@ -77,15 +77,12 @@ class FileUploadSessionControllerTest extends ControllerTestBase {
 
 
     @Test
-    @DisplayName("POST /upload-sessions/1/chunks/1 - 返回200且分片上传后会话透传")
-    void uploadChunk_authorized_returns_200() throws Exception {
-        when(fileUploadSessionService.uploadChunk(1L, 1, 1L)).thenReturn(sampleSession(1L, "a.pdf"));
+    @DisplayName("POST /upload-sessions/1/chunks/1 - 端点已按N-03下线，认证后返回501")
+    void uploadChunk_authorized_returns_501() throws Exception {
         mockMvc.perform(post("/upload-sessions/1/chunks/1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.id").value(1));
-        verify(fileUploadSessionService).uploadChunk(eq(1L), eq(1), eq(1L));
+                .andExpect(status().isNotImplemented())
+                .andExpect(jsonPath("$.code").value(501));
+        verify(fileUploadSessionService, never()).uploadChunk(anyLong(), anyInt(), anyLong());
     }
 
 
@@ -98,18 +95,12 @@ class FileUploadSessionControllerTest extends ControllerTestBase {
 
 
     @Test
-    @DisplayName("POST /upload-sessions/1/merge - 返回200且合并后会话透传")
-    void mergeChunks_authorized_returns_200() throws Exception {
-        FileUploadSession merged = sampleSession(1L, "a.pdf");
-        merged.setStatus("COMPLETED");
-        when(fileUploadSessionService.mergeChunks(1L, 1L)).thenReturn(merged);
+    @DisplayName("POST /upload-sessions/1/merge - 端点已按N-03下线，认证后返回501")
+    void mergeChunks_authorized_returns_501() throws Exception {
         mockMvc.perform(post("/upload-sessions/1/merge").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.id").value(1))
-                .andExpect(jsonPath("$.data.status").value("COMPLETED"));
-        verify(fileUploadSessionService).mergeChunks(eq(1L), eq(1L));
+                .andExpect(status().isNotImplemented())
+                .andExpect(jsonPath("$.code").value(501));
+        verify(fileUploadSessionService, never()).mergeChunks(anyLong(), anyLong());
     }
 
 

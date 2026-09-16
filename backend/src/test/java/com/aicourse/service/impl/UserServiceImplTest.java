@@ -1,7 +1,11 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.entity.Course;
+import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.mapper.CourseEnrollmentMapper;
+import com.aicourse.mapper.CourseMapper;
 import com.aicourse.mapper.UserMapper;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -29,6 +33,9 @@ import static org.mockito.Mockito.*;
 class UserServiceImplTest {
 
     @Mock private UserMapper userMapper;
+    // 修复 B5：UserServiceImpl 新增「教师授课范围」依赖，构造注入需要这两个 mock
+    @Mock private CourseMapper courseMapper;
+    @Mock private CourseEnrollmentMapper courseEnrollmentMapper;
     @InjectMocks private UserServiceImpl userService;
 
     private User sampleUser;
@@ -112,15 +119,55 @@ class UserServiceImplTest {
     }
 
     @Test
-    @DisplayName("获取教师学生 - 密码脱敏")
-    void testGetTeacherStudents() {
-        User s = new User(); s.setId(2L); s.setUsername("stu1"); s.setPassword("p1"); s.setRole("STUDENT"); s.setIsActive(true);
+    @DisplayName("获取教师学生 - 仅返回该教师授课范围内有效选课的学生，且密码脱敏（修复 B5）")
+    void testGetTeacherStudents_scopedToOwnCourses() {
+        // 该教师名下有 1 门课程
+        Course course = new Course();
+        course.setId(100L);
+        course.setTeacherId(10L);
+        when(courseMapper.selectList(any(Wrapper.class))).thenReturn(List.of(course));
+
+        // 该课程下有 1 条有效且已审批的选课记录
+        CourseEnrollment enrollment = new CourseEnrollment();
+        enrollment.setCourseId(100L);
+        enrollment.setStudentId(2L);
+        enrollment.setIsActive(true);
+        enrollment.setApprovalStatus("APPROVED");
+        when(courseEnrollmentMapper.selectList(any(Wrapper.class))).thenReturn(List.of(enrollment));
+
+        User s = new User();
+        s.setId(2L);
+        s.setUsername("stu1");
+        s.setPassword("p1");
+        s.setRole("STUDENT");
+        s.setIsActive(true);
         when(userMapper.selectList(any(Wrapper.class))).thenReturn(List.of(s));
 
         List<User> students = userService.getTeacherStudents(10L);
 
         assertEquals(1, students.size());
-        assertNull(students.get(0).getPassword());
+        assertEquals("stu1", students.get(0).getUsername());
+        assertNull(students.get(0).getPassword(), "密码必须置空");
+        // 课程查询必须以 teacherId 收敛（修复前完全忽略该入参）
+        verify(courseMapper).selectList(any(Wrapper.class));
+    }
+
+    @Test
+    @DisplayName("获取教师学生 - 该教师无课程时返回空且不查询学生（修复 B5）")
+    void testGetTeacherStudents_noCourses_returnsEmpty() {
+        when(courseMapper.selectList(any(Wrapper.class))).thenReturn(List.of());
+
+        List<User> students = userService.getTeacherStudents(10L);
+
+        assertTrue(students.isEmpty());
+        verify(courseEnrollmentMapper, never()).selectList(any(Wrapper.class));
+        verify(userMapper, never()).selectList(any(Wrapper.class));
+    }
+
+    @Test
+    @DisplayName("获取教师学生 - teacherId 为空抛业务异常")
+    void testGetTeacherStudents_nullTeacherId() {
+        assertThrows(BusinessException.class, () -> userService.getTeacherStudents(null));
     }
 
     @Test

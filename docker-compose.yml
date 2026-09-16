@@ -116,7 +116,9 @@ services:
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ai_course_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true
       SPRING_DATASOURCE_USERNAME: aicourse_app
-      SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      # 修复 #21：优先使用独立的业务库账户口令 MYSQL_APP_PASSWORD；仅在未设置时回退到 MYSQL_ROOT_PASSWORD。
+      # 注意：若改为独立账户口令，需同步为 mysql 服务创建 aicourse_app 账户并授权（见 init-app-db-user.sh）。
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_APP_PASSWORD:-${MYSQL_ROOT_PASSWORD}}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379
       SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
@@ -131,10 +133,19 @@ services:
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
-      # 安全开关：默认安全（置于 TLS 反代之后的生产应全 true）。
-      # 本地 HTTP 联调由 start-backend.bat 经 local profile 单独放宽，勿在此置 false。
-      COOKIE_SECURE: ${COOKIE_SECURE:-true}
-      REQUIRE_HTTPS: ${REQUIRE_HTTPS:-true}
+      # 安全开关：**默认安全**，不因本文件的部署形态把生产默认值降到 false。
+      # ⚠️ 纠偏（2026-09-16）：原注释只写「本地 HTTP 联调由 start-backend.bat 经 local profile 放宽」，
+      #   该句仅覆盖 start-backend.bat 这条路径，对 `docker compose --profile full` **完全不适用** —— 这正是缺陷根源。
+      #   事实：`--profile full` 起的是**明文 HTTP 单机栈**（frontend/nginx.conf 只 listen 80、compose 无证书卷，
+      #   不存在任何 TLS 终止）。因此必须按部署形态显式决策：
+      #     · 纯 HTTP 评估（仅限本机 / 受信内网）：**必须显式**在 .env 置 REQUIRE_HTTPS=false 与 COOKIE_SECURE=false，
+      #       否则 /api/** 被 SecurityConfig.requiresSecure() 302 到不存在的 443 → 全站 API 不可用（README「方式二」路径①）。
+      #     · 置于 TLS 终止反代之后的生产：**必须保持 true**，且反代须回传 X-Forwarded-Proto: https（README「方式二」路径②）。
+      #   CSRF_ENABLED 在两种形态下都应保持 true。
+      # 明文 HTTP 单机栈（--profile full 默认形态，无 TLS 终止、无证书卷）必须 false，否则 /api/** 被 302 到不存在的 443 → 全站 API 不可用。
+      # 生产置于 TLS 终止反代之后：置 true 且反代回传 X-Forwarded-Proto: https（后端已启用 forward-headers-strategy: framework，可正确识别）。
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      REQUIRE_HTTPS: ${REQUIRE_HTTPS:-false}
       CSRF_ENABLED: ${CSRF_ENABLED:-true}
       # 跨域白名单（逗号分隔的真实前端域名）；留空 = 不开放跨域。
       # 【修复 2026-09-16】原注释写「留空 = fail-closed」与实现不符：SecurityConfig 在

@@ -44,10 +44,11 @@ describe('API 模块：fileUpload', () => {
   it('应正确导入所有导出函数', async () => {
     const api = await import('@/api/fileUpload')
     expect(api.createSession).toBeDefined()
-    expect(api.uploadChunk).toBeDefined()
-    expect(api.mergeChunks).toBeDefined()
     expect(api.getProgress).toBeDefined()
     expect(api.cancelUpload).toBeDefined()
+    // 分片上传与合并端点已按 N-03 下线，不应再导出
+    expect(api.uploadChunk).toBeUndefined()
+    expect(api.mergeChunks).toBeUndefined()
   })
 })
 

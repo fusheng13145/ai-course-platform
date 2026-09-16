@@ -119,6 +119,32 @@ class AuthControllerTest extends ControllerTestBase {
     }
 
     @Test
+    @DisplayName("注册-仅缺注册验证码(code)也必须被拦截返回400（B1 回归：原为可选分支）")
+    void register_missing_code_returns_400() throws Exception {
+        // 缺陷背景（2026-09-16 上线前全检阻塞项 B1）：UserRegisterDTO#code 原无 @NotBlank，
+        // 且 AuthSessionComponent#register 为 `if (code != null)` 可选分支——省略 code 即可
+        // 跳过验证码校验并注册成功。本用例锁定「除 code 外全部字段合法时仍须 400」。
+        mockMvc.perform(post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"newbie\",\"fullName\":\"新同学\","
+                                + "\"email\":\"newbie@aicourse.com\",\"password\":\"Password123\","
+                                + "\"confirmPassword\":\"Password123\",\"role\":\"STUDENT\","
+                                + "\"agreement\":true}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    @DisplayName("注册-缺少邮箱也必须被拦截返回400（email 在库中为 NOT NULL）")
+    void register_missing_email_returns_400() throws Exception {
+        mockMvc.perform(post("/auth/register")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"newbie\",\"fullName\":\"新同学\","
+                                + "\"password\":\"Password123\",\"confirmPassword\":\"Password123\","
+                                + "\"role\":\"STUDENT\",\"agreement\":true,\"code\":\"123456\"}"))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
     @DisplayName("修改密码-缺少旧密码应被@Valid拦截返回400")
     void change_password_missing_old_returns_400() throws Exception {
         mockMvc.perform(post("/auth/change-password").with(withUser(1L))

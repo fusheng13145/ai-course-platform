@@ -34,7 +34,7 @@ public class AuthServiceImpl implements AuthService {
                            ObjectProvider<StringRedisTemplate> redisTemplateProvider) {
         StringRedisTemplate redisTemplate = redisTemplateProvider != null ? redisTemplateProvider.getIfAvailable() : null;
         this.verificationComponent = new AuthVerificationComponent(verificationCodeService, emailService, redisTemplate);
-        this.passwordComponent = new AuthPasswordComponent(userService, verificationCodeService, passwordEncoder, verificationComponent);
+        this.passwordComponent = new AuthPasswordComponent(userService, verificationCodeService, passwordEncoder, verificationComponent, userSessionService);
         this.sessionComponent = new AuthSessionComponent(userService, userSessionService, verificationCodeService,
                 jwtUtils, passwordEncoder, loginLogService, passwordComponent);
     }

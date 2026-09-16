@@ -110,11 +110,17 @@ public class LoginLogController {
     }
 
     /**
-     * 获取最近登录记录
+     * 获取最近登录记录（修复 #6：为审计/运维端点补齐角色校验）
+     *
+     * <p>原端点无任何 {@code @PreAuthorize}，且服务层 {@code getRecentLogs} 无 userId 过滤，
+     * 导致任意已登录用户可读取全平台他人的 username/ip/browser/device。此处收敛为 ADMIN 专属，
+     * 与同文件其余审计端点（list/stats/trends）保持一致；服务层方法因被
+     * {@code SysMonitorComponent} 内部复用而保持不变。</p>
      * @param limit 返回条数上限
      * @return 最近登录记录列表
      */
     @GetMapping("/recent")
+    @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<List<LoginLog>> getRecentLogs(
             @RequestParam(defaultValue = "10") int limit) {
         List<LoginLog> recentLogs = loginLogService.getRecentLogs(limit);

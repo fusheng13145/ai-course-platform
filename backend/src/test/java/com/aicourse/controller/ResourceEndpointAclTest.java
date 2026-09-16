@@ -16,10 +16,13 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 import java.util.Map;
 
+import org.springframework.mock.web.MockMultipartFile;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.multipart;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 /**
@@ -158,6 +161,49 @@ class ResourceEndpointAclTest extends ControllerTestBase {
         mockMvc.perform(get("/resources/search").param("keyword", "ppt")
                         .param("courseId", String.valueOf(COURSE_ID))
                         .with(withUser(STUDENT_ID, "STUDENT")))
+                .andExpect(status().isOk());
+    }
+
+    // ===================== 上传对象级 ACL（#5 回归） =====================
+
+    private MockMultipartFile sampleFile() {
+        return new MockMultipartFile("file", "a.pdf", "application/pdf", new byte[]{1, 2, 3});
+    }
+
+    @Test
+    @DisplayName("uploadResource：非本课程教师 -> 403（#5 对象级 ACL 回归）")
+    void upload_otherTeacher_forbidden() throws Exception {
+        when(courseService.getById(COURSE_ID)).thenReturn(courseOf(TEACHER_ID));
+
+        mockMvc.perform(multipart("/resources/upload")
+                        .file(sampleFile())
+                        .param("courseId", String.valueOf(COURSE_ID))
+                        .with(withUser(OTHER_TEACHER, "TEACHER")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("uploadResource：courseId 指向不存在的课程 -> 404（防孤儿资源）")
+    void upload_courseNotFound_notFound() throws Exception {
+        when(courseService.getById(COURSE_ID)).thenReturn(null);
+
+        mockMvc.perform(multipart("/resources/upload")
+                        .file(sampleFile())
+                        .param("courseId", String.valueOf(COURSE_ID))
+                        .with(withUser(TEACHER_ID, "TEACHER")))
+                .andExpect(status().isNotFound());
+    }
+
+    @Test
+    @DisplayName("uploadResource：本课程教师 -> ACL 放行（文件内容非法由后续校验拦截，非 403/404）")
+    void upload_ownTeacher_aclPasses() throws Exception {
+        when(courseService.getById(COURSE_ID)).thenReturn(courseOf(TEACHER_ID));
+
+        mockMvc.perform(multipart("/resources/upload")
+                        .file(sampleFile())
+                        .param("courseId", String.valueOf(COURSE_ID))
+                        .with(withUser(TEACHER_ID, "TEACHER")))
+                // 业务校验失败以 200 + code 返回（文件魔数不合法 → code=400），但不应为 403/404
                 .andExpect(status().isOk());
     }
 }

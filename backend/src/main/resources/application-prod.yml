@@ -41,3 +41,18 @@ app:
     require-https: true
     csrf:
       enabled: true
+
+# ===================== CORS 白名单：生产显式清空 base 的 localhost 白名单 =====================
+# 【存在理由（2026-09-16）】base application.yaml 硬编码了 9 条 localhost 白名单且无任何 profile 覆盖，
+# 使 SecurityConfig#corsConfigurationSource() 的 `allowedOrigins == null || isEmpty()` 分支**永不成立** ——
+# 结果上面 app.cors.dev-fallback=false 沦为**空操作**：「jar 直跑 + prod profile」仍会放行
+# http://localhost:5173（且带 allowCredentials(true)）。此处显式清空，使 fail-closed 分支真实可达。
+#
+# ❗绑定说明（已实测核对，勿想当然）：CorsProperties 是 @ConfigurationProperties(prefix = "cors")
+#   —— **不含 app. 前缀**。因此本块必须写在**顶层 cors:**。写进上面的 `app.cors:` 不会生效
+#   （实测：写成 app.cors.allowed-origins=[] 后仍绑定出 9 条 base 白名单）。
+# ❗优先级说明：环境变量 > 本文件 > base。故 docker-compose 注入的 CORS_ALLOWED_ORIGINS 仍会正常生效
+#   （实测：本块置空 + CORS_ALLOWED_ORIGINS=https://app.example.com → 绑定得 [https://app.example.com]）；
+#   只有**未注入**该环境变量时才落到本空值 → 走 fail-closed 拒绝一切跨域。
+cors:
+  allowed-origins: []

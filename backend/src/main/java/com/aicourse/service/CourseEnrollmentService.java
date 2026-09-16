@@ -45,4 +45,21 @@ public interface CourseEnrollmentService extends IService<CourseEnrollment> {
      * 审批型课程（enrollment_type=APPROVAL）必须在教师审批通过后才算成员。</p>
      */
     boolean hasApprovedEnrollment(Long studentId, Long courseId);
+
+    /**
+     * 判断某学生是否为**某教师的在读学生**：该教师名下存在≥1门课程，且该学生在其中
+     * 至少一门课程上持有**有效且审批通过**的选课记录（同 {@link #hasApprovedEnrollment} 口径：
+     * {@code is_active=1 AND approval_status='APPROVED'}）。
+     *
+     * <p>用途（修复 B2 残留，2026-09-14）：查重控制器按 {@code studentId} 出学生查重历史的读端点
+     * （{@code GET /plagiarism-checks/student/{studentId}}）此前仅按角色放行，任何教师可读取
+     * **非本人学生**（甚至全平台任意学生）的查重记录，构成水平越权 / IDOR。此方法为教师侧
+     * 提供「教师—学生」归属判定的服务层入口，避免控制器层直接依赖 mapper
+     * （遵守 {@code ArchitectureTest} 的分层约束）。</p>
+     *
+     * @param studentId 学生ID
+     * @param teacherId 教师ID（课程归属教师）
+     * @return 该学生是否至少在该教师的一门课程上有效选课且审批通过
+     */
+    boolean hasApprovedEnrollmentWithTeacher(Long studentId, Long teacherId);
 }

@@ -172,15 +172,23 @@ class LoginLogControllerTest extends ControllerTestBase {
 
 
     @Test
-    @DisplayName("GET /login-logs/recent?limit=1 - 返回200且最近登录列表透传")
+    @DisplayName("GET /login-logs/recent?limit=1 - ADMIN 返回200且最近登录列表透传")
     void getRecentLogs_authorized_returns_200() throws Exception {
         when(loginLogService.getRecentLogs(1)).thenReturn(List.of(sampleLog(8L)));
-        mockMvc.perform(get("/login-logs/recent?limit=1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
+        mockMvc.perform(get("/login-logs/recent?limit=1").with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").isArray())
                 .andExpect(jsonPath("$.data[0].id").value(8));
         verify(loginLogService).getRecentLogs(eq(1));
+    }
+
+
+    @Test
+    @DisplayName("GET /login-logs/recent - STUDENT 越权返回403（#6 审计端点回归）")
+    void getRecentLogs_student_forbidden_403() throws Exception {
+        mockMvc.perform(get("/login-logs/recent?limit=1").with(withUser(2L, "STUDENT")))
+                .andExpect(status().isForbidden());
     }
 
 

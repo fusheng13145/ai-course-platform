@@ -3,8 +3,12 @@ package com.aicourse.service.impl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.aicourse.entity.Course;
+import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.mapper.CourseEnrollmentMapper;
+import com.aicourse.mapper.CourseMapper;
 import com.aicourse.mapper.UserMapper;
 import com.aicourse.service.UserService;
 import com.aicourse.vo.UserStatsVO;
@@ -16,7 +20,10 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 import com.aicourse.common.RoleConstants;
 
 /**
@@ -27,6 +34,20 @@ import com.aicourse.common.RoleConstants;
 public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements UserService {
 
     private static final Logger log = LoggerFactory.getLogger(UserServiceImpl.class);
+
+    /**
+     * 教师学生花名册收敛依赖（修复 B5）：
+     * 原实现仅按 {@code role=STUDENT AND is_active=1} 全量返回，完全忽略入参 teacherId，
+     * 导致任意教师均可拉取全平台学生 PII（fullName/email/phone）。现按
+     * 「教师所授课程 → 选课记录 → 学生」收敛，并复用选课有效口径（见 {@link CourseEnrollmentServiceImpl#hasApprovedEnrollment}）。
+     */
+    private final CourseMapper courseMapper;
+    private final CourseEnrollmentMapper courseEnrollmentMapper;
+
+    public UserServiceImpl(CourseMapper courseMapper, CourseEnrollmentMapper courseEnrollmentMapper) {
+        this.courseMapper = courseMapper;
+        this.courseEnrollmentMapper = courseEnrollmentMapper;
+    }
 
     /**
      * 获取用户完整资料（含班级名称关联查询）
@@ -115,17 +136,57 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
     }
 
     /**
-     * 获取教师的学生列表
-     * 通过课程和选课记录关联查询
+     * 获取教师的学生列表（修复 B5：按教师实际授课范围收敛，杜绝全平台学生 PII 外泄）
+     *
+     * <p>调用方必须传入**当前认证主体**的教师ID（{@code Authentication#getPrincipal()}），
+     * 服务端绝不再信任任何客户端可伪造的路径/请求参数。链路：
+     * <ol>
+     *   <li>查该教师所授全部课程（{@code Course.teacherId == teacherId}）；</li>
+     *   <li>取这些课程下**有效且已审批通过**的选课记录
+     *       （{@code is_active=1 AND approval_status='APPROVED'}，与
+     *       {@link CourseEnrollmentServiceImpl#hasApprovedEnrollment} 保持同一口径）；</li>
+     *   <li>按 studentId **去重**（同一学生选该教师多门课只返回一次）；</li>
+     *   <li>仅返回角色为 STUDENT 且账号有效的用户，并置空密码。</li>
+     * </ol></p>
      */
     @Override
     public List<User> getTeacherStudents(Long teacherId) {
-        LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<User>()
+        if (teacherId == null) {
+            throw new BusinessException(400, "教师ID不能为空");
+        }
+
+        // 1) 该教师所授全部课程
+        List<Course> courses = courseMapper.selectList(new LambdaQueryWrapper<Course>()
+                .eq(Course::getTeacherId, teacherId));
+        if (courses.isEmpty()) {
+            return new ArrayList<>();
+        }
+        List<Long> courseIds = courses.stream().map(Course::getId).collect(Collectors.toList());
+
+        // 2) 这些课程下的有效且已审批选课记录（口径同 CourseEnrollmentService#hasApprovedEnrollment）
+        List<CourseEnrollment> enrollments = courseEnrollmentMapper.selectList(
+                new LambdaQueryWrapper<CourseEnrollment>()
+                        .in(CourseEnrollment::getCourseId, courseIds)
+                        .eq(CourseEnrollment::getIsActive, true)
+                        .eq(CourseEnrollment::getApprovalStatus, "APPROVED"));
+        if (enrollments.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 3) 学生ID去重
+        Set<Long> studentIds = enrollments.stream()
+                .map(CourseEnrollment::getStudentId)
+                .collect(Collectors.toSet());
+        if (studentIds.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        // 4) 仅取学生角色、有效账号，并按用户名排序
+        List<User> students = this.list(new LambdaQueryWrapper<User>()
+                .in(User::getId, studentIds)
                 .eq(User::getRole, RoleConstants.STUDENT)
                 .eq(User::getIsActive, true)
-                .orderByAsc(User::getUsername);
-
-        List<User> students = this.list(queryWrapper);
+                .orderByAsc(User::getUsername));
         // 密码脱敏
         students.forEach(u -> u.setPassword(null));
         return students;

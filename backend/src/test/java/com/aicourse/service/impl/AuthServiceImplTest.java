@@ -59,6 +59,25 @@ class AuthServiceImplTest {
         when(redisProvider.getIfAvailable()).thenReturn(null);
     }
 
+    /**
+     * 构造一条有效的 REGISTER 验证码记录。
+     *
+     * <p>修复 B1（2026-09-16 上线前全检阻塞项）后，{@code AuthSessionComponent#register} 的验证码
+     * 校验由「可选分支」反转为「缺失即拒绝」；本类中若干注册用例原先传 {@code null} 验证码，
+     * 依赖的正是被修复掉的旁路行为，因此这里统一提供一条有效验证码，
+     * 使这些用例继续聚焦于原本要验证的行为（用户名长度/格式/空格等），而非验证码分支。
+     */
+    private static VerificationCode validRegisterCode(String email) {
+        VerificationCode vc = new VerificationCode();
+        vc.setId(1L);
+        vc.setEmail(email);
+        vc.setCode("123456");
+        vc.setType("REGISTER");
+        vc.setIsUsed(false);
+        vc.setExpiresAt(LocalDateTime.now().plusMinutes(10));
+        return vc;
+    }
+
     // ===================== 注册测试 =====================
 
     @Test
@@ -73,9 +92,11 @@ class AuthServiceImplTest {
         });
         when(jwtUtils.generateToken(anyLong(), anyString(), anyString(), anyBoolean())).thenReturn("test-jwt-token");
         when(userSessionService.save(any(UserSession.class))).thenReturn(true);
+        // 修复 B1 后验证码为必选项：提供一条有效验证码，本用例关注的是「新用户注册成功」主链路
+        when(verificationCodeService.getOne(any())).thenReturn(validRegisterCode("test@example.com"));
 
         ApiResponse<Map<String, Object>> response = authService.register(
-                "test@example.com", "testuser", "Test@123456", "Test User", "STUDENT", "13800138000", null, CLIENT_INFO);
+                "test@example.com", "testuser", "Test@123456", "Test User", "STUDENT", "13800138000", "123456", CLIENT_INFO);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
@@ -358,8 +379,9 @@ class AuthServiceImplTest {
 
         // 纯空格用户名通过服务层（DTO 层 @NotBlank 应拦截），
         // 此处验证服务层在无 DTO 校验时的实际行为
+        when(verificationCodeService.getOne(any())).thenReturn(validRegisterCode("space@test.com"));
         ApiResponse<Map<String, Object>> response = authService.register(
-                "space@test.com", "   ", "Test@123456", "Space User", "STUDENT", null, null, CLIENT_INFO);
+                "space@test.com", "   ", "Test@123456", "Space User", "STUDENT", null, "123456", CLIENT_INFO);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());
@@ -380,8 +402,9 @@ class AuthServiceImplTest {
         when(userSessionService.save(any(UserSession.class))).thenReturn(true);
 
         String longUsername = "a".repeat(150);
+        when(verificationCodeService.getOne(any())).thenReturn(validRegisterCode("long@test.com"));
         ApiResponse<Map<String, Object>> response = authService.register(
-                "long@test.com", longUsername, "Test@123456", "Long User", "STUDENT", null, null, CLIENT_INFO);
+                "long@test.com", longUsername, "Test@123456", "Long User", "STUDENT", null, "123456", CLIENT_INFO);
 
         // 超长用户名通过服务层（DTO 层 @Size(max=20) 应拦截），
         // 服务层未对用户名长度做校验，数据库字段约束有机会底层拒绝
@@ -403,8 +426,9 @@ class AuthServiceImplTest {
         when(userSessionService.save(any(UserSession.class))).thenReturn(true);
 
         // 服务层不验证用户名格式（由 DTO 层 @Pattern 负责）
+        when(verificationCodeService.getOne(any())).thenReturn(validRegisterCode("special@test.com"));
         ApiResponse<Map<String, Object>> response = authService.register(
-                "special@test.com", "<script>alert('xss')</script>", "Test@123456", "XSS User", "STUDENT", null, null, CLIENT_INFO);
+                "special@test.com", "<script>alert('xss')</script>", "Test@123456", "XSS User", "STUDENT", null, "123456", CLIENT_INFO);
 
         assertNotNull(response);
         assertEquals(200, response.getCode());

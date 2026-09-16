@@ -162,22 +162,27 @@ public class AuthSessionComponent {
         // 密码复杂度校验
         passwordComponent.validatePasswordComplexity(password);
 
-        // 验证码校验
-        if (code != null) {
-            VerificationCode vc = verificationCodeService.getOne(new LambdaQueryWrapper<VerificationCode>()
-                    .eq(VerificationCode::getEmail, email)
-                    .eq(VerificationCode::getCode, code)
-                    .eq(VerificationCode::getIsUsed, false)
-                    .eq(VerificationCode::getType, TYPE_REGISTER)
-                    .gt(VerificationCode::getExpiresAt, LocalDateTime.now())
-                    .orderByDesc(VerificationCode::getCreatedAt)
-                    .last("LIMIT 1"));
-            if (vc == null) {
-                throw new BusinessException("验证码无效或已过期");
-            }
-            vc.setIsUsed(true);
-            verificationCodeService.updateById(vc);
+        // 验证码校验（强制，不可跳过）
+        // 安全修复 B1（2026-09-16 上线前全检阻塞项）：原实现为 `if (code != null)` 的**可选**分支——
+        // 请求省略 code 即可跳过整段校验，直接建号并下发认证 Cookie，攻击者可零成本批量自建
+        // 已认证账号（运行时已实测复现：带 email、不含 code 的 POST /auth/register → 200 且可立即登录）。
+        // 现改为「缺失即拒绝」，并与 DTO 层 @NotBlank 构成两道拦截。
+        if (code == null || code.isBlank()) {
+            throw new BusinessException("注册验证码不能为空");
         }
+        VerificationCode vc = verificationCodeService.getOne(new LambdaQueryWrapper<VerificationCode>()
+                .eq(VerificationCode::getEmail, email)
+                .eq(VerificationCode::getCode, code)
+                .eq(VerificationCode::getIsUsed, false)
+                .eq(VerificationCode::getType, TYPE_REGISTER)
+                .gt(VerificationCode::getExpiresAt, LocalDateTime.now())
+                .orderByDesc(VerificationCode::getCreatedAt)
+                .last("LIMIT 1"));
+        if (vc == null) {
+            throw new BusinessException("验证码无效或已过期");
+        }
+        vc.setIsUsed(true);
+        verificationCodeService.updateById(vc);
 
         // 新增用户
         User user = new User();

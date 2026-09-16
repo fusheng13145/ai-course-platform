@@ -61,7 +61,11 @@ export default defineConfig(({ mode }) => ({
   server: {
     port: 5173,
     strictPort: true,
-    host: true,
+    // 安全默认：仅监听本机回环（localhost），不把 dev server 暴露到整个局域网。
+    // 原因：dev server 同时挂着 /api 代理，host:true 会绑定到 0.0.0.0，
+    // 在不可信网络（公共 Wi-Fi / 共享办公网）下等同把本机后端接口对外开放。
+    // 需要真机或局域网联调时显式开启：VITE_DEV_HOST=true npm run dev
+    host: process.env.VITE_DEV_HOST === 'true',
     // 热更新配置
     hmr: {
       overlay: true, // 显示错误遮罩层

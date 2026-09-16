@@ -51,6 +51,9 @@ class RateLimitFilterTest {
         ReflectionTestUtils.setField(filter, "aiWindowSeconds", 60);
         ReflectionTestUtils.setField(filter, "verifyLimit", 5);
         ReflectionTestUtils.setField(filter, "verifyWindowSeconds", 60);
+        // 安全修复 B1：注册端点 IP 限流（默认 20 次 / 3600 秒）
+        ReflectionTestUtils.setField(filter, "registerLimit", 20);
+        ReflectionTestUtils.setField(filter, "registerWindowSeconds", 3600);
         request = new MockHttpServletRequest();
         response = new MockHttpServletResponse();
         chain = mock(FilterChain.class);
@@ -106,6 +109,33 @@ class RateLimitFilterTest {
         filter.doFilterInternal(request, response, chain);
 
         assertEquals(429, response.getStatus());
+    }
+
+    @Test
+    void registerEndpoint_usesRegisterLimit() throws Exception {
+        // 安全修复 B1 回归：注册端点此前未命中任何限流规则（resolveRule 返回 null → 不限流），
+        // 与「验证码可跳过」叠加后攻击者可零成本批量自建账号。本用例锁定注册端点已纳入限流。
+        request.setRequestURI("/api/auth/register");
+        request.setRemoteAddr("192.168.1.40");
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), any()))
+                .thenReturn(21L);
+
+        filter.doFilterInternal(request, response, chain);
+
+        assertEquals(429, response.getStatus());
+    }
+
+    @Test
+    void registerEndpoint_withinLimit_shouldPass() throws Exception {
+        request.setRequestURI("/api/auth/register");
+        request.setRemoteAddr("192.168.1.41");
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), any()))
+                .thenReturn(1L);
+
+        filter.doFilterInternal(request, response, chain);
+
+        assertEquals(200, response.getStatus());
+        verify(chain, times(1)).doFilter(request, response);
     }
 
     @Test

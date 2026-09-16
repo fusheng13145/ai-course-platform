@@ -289,7 +289,7 @@ public class AuthController {
     @GetMapping("/permissions")
     @Operation(summary = "获取当前用户权限列表")
     public ApiResponse<?> getPermissions(Authentication auth) {
-        Long userId = (Long) auth.getPrincipal();
+        Long userId = requireLogin(auth);
         return ApiResponse.success(permissionService.getUserPermissions(userId));
     }
 
