@@ -11,6 +11,8 @@ const mockStore = {
   isLoggedIn: false,
   userRole: '',
   permissions: null,
+  // 路由守卫链路不读取 user；此处仅为与真实 store 形状一致而声明
+  user: null as unknown,
   getDefaultRoute: vi.fn(() => '/student/dashboard'),
   fetchPermissions: vi.fn(),
   resetAuthState: vi.fn(),

@@ -54,7 +54,7 @@ describe('错题本功能', () => {
 
     const res = await mockGetWrongQuestions({ page: 1, size: 20 })
     const sorted = [...res.data.records].sort(
-      (a, b) => new Date(b.recordedAt) - new Date(a.recordedAt),
+      (a, b) => new Date(b.recordedAt).getTime() - new Date(a.recordedAt).getTime(),
     )
 
     expect(sorted[0].id).toBe(3) // 最新的在前

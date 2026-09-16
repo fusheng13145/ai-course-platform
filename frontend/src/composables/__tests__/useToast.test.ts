@@ -32,7 +32,8 @@ describe('useToast', () => {
     const el = document.querySelector('.toast.info')
     expect(el.innerHTML).not.toContain('<script>')
     expect(el.innerHTML).toContain('&lt;script&gt;')
-    expect(window.__xss).toBeUndefined()
+    // window 上并无 __xss：显式断言读取（不为测试污染全局 Window 类型声明）
+    expect((window as unknown as { __xss?: unknown }).__xss).toBeUndefined()
   })
 
   it('图标部分保留受控 SVG', () => {

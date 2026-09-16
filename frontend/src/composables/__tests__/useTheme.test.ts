@@ -7,17 +7,20 @@ vi.mock('@/utils/chartTheme', () => ({
   emitThemeChange: mockEmitThemeChange,
 }))
 
-// jsdom 未实现 matchMedia，需模拟
-const matchMediaMock = vi.fn((query) => ({
-  matches: false,
-  media: query,
+// jsdom 未实现 matchMedia，需模拟。
+// 用工厂函数复用同一返回形状：转 .ts 后 mockReturnValue 的实参类型必须与 vi.fn 的
+// 返回类型一致，否则报 TS2345（字面量缺少成员）。
+const mediaQueryList = (matches: boolean) => ({
+  matches,
+  media: '(prefers-color-scheme: dark)',
   onchange: null,
   addListener: vi.fn(),
   removeListener: vi.fn(),
   addEventListener: vi.fn(),
   removeEventListener: vi.fn(),
   dispatchEvent: vi.fn(),
-}))
+})
+const matchMediaMock = vi.fn(() => mediaQueryList(false))
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: matchMediaMock,
@@ -42,12 +45,7 @@ describe('useTheme', () => {
     localStorage.clear()
     vi.clearAllMocks()
     // 系统主题默认偏好 light
-    matchMediaMock.mockReturnValue({
-      matches: false,
-      media: '(prefers-color-scheme: dark)',
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    })
+    matchMediaMock.mockReturnValue(mediaQueryList(false))
     document.documentElement.setAttribute('data-theme', 'light')
     // theme ref 是模块级单例，每测重置模块注册表保证状态隔离
     vi.resetModules()
@@ -139,12 +137,7 @@ describe('useTheme', () => {
   // ===================== 系统主题检测 =====================
 
   it('系统偏好 light 时 system 解析为 light', async () => {
-    matchMediaMock.mockReturnValue({
-      matches: false, // prefers-color-scheme: light
-      media: '(prefers-color-scheme: dark)',
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    })
+    matchMediaMock.mockReturnValue(mediaQueryList(false))
 
     const { useTheme } = await import('@/composables/useTheme')
     const { setTheme } = useTheme()
@@ -154,12 +147,7 @@ describe('useTheme', () => {
   })
 
   it('系统偏好 dark 时 system 解析为 dark', async () => {
-    matchMediaMock.mockReturnValue({
-      matches: true, // prefers-color-scheme: dark
-      media: '(prefers-color-scheme: dark)',
-      addEventListener: vi.fn(),
-      removeEventListener: vi.fn(),
-    })
+    matchMediaMock.mockReturnValue(mediaQueryList(true))
 
     const { useTheme } = await import('@/composables/useTheme')
     const { setTheme } = useTheme()

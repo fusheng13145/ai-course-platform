@@ -3,6 +3,15 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { nextTick } from 'vue'
 
+/**
+ * 组件脚本层暴露面：messages 为组件内部状态，测试直接赋值以驱动渲染断言。
+ * 用显式断言而非 any（项目 lint 口径为 0 error / 0 warning，any 会触发
+ * @typescript-eslint/no-explicit-any 告警）。
+ */
+type AssistantInternal = { messages: Array<{ role: string; content: string; time?: string }> }
+const assistantVm = (wrapper: { vm: unknown }) => wrapper.vm as unknown as AssistantInternal
+
+
 // Mock DOMPurify (markdown rendering)
 vi.mock('dompurify', () => ({
   default: {
@@ -326,7 +335,7 @@ describe('AIAssistant 页面渲染', () => {
           },
         },
       })
-      wrapper.vm.messages = [
+      assistantVm(wrapper).messages = [
         { role: 'user', content: '你好', time: '12:00' },
         { role: 'assistant', content: '你好！有什么可以帮助你的？', time: '12:01' },
       ]
@@ -349,7 +358,7 @@ describe('AIAssistant 页面渲染', () => {
           },
         },
       })
-      wrapper.vm.messages = [{ role: 'user', content: '测试消息', time: '12:00' }]
+      assistantVm(wrapper).messages = [{ role: 'user', content: '测试消息', time: '12:00' }]
       await nextTick()
 
       expect(wrapper.find('.user-bubble').exists()).toBe(true)
@@ -369,7 +378,7 @@ describe('AIAssistant 页面渲染', () => {
           },
         },
       })
-      wrapper.vm.messages = [{ role: 'assistant', content: 'AI 回复', time: '12:01' }]
+      assistantVm(wrapper).messages = [{ role: 'assistant', content: 'AI 回复', time: '12:01' }]
       await nextTick()
 
       expect(wrapper.find('.ai-bubble').exists()).toBe(true)
@@ -389,7 +398,7 @@ describe('AIAssistant 页面渲染', () => {
           },
         },
       })
-      wrapper.vm.messages = [{ role: 'user', content: 'hi', time: '12:00' }]
+      assistantVm(wrapper).messages = [{ role: 'user', content: 'hi', time: '12:00' }]
       await nextTick()
       expect(wrapper.find('.welcome-area').exists()).toBe(false)
     })
