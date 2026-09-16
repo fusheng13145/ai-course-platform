@@ -6,7 +6,7 @@
       "case": "A1",
       "title": "审批型课程申请加入 → PENDING",
       "expect": "200 且 approval_status=PENDING",
-      "actual": "HTTP 200 code=200 enrollmentId=14 status=PENDING",
+      "actual": "HTTP 200 code=200 enrollmentId=21 status=PENDING",
       "verdict": "PASS",
       "note": ""
     },
@@ -118,7 +118,7 @@
       "case": "B9",
       "title": "边界：延长截止日期（早于当前拒绝 / 晚于当前生效）",
       "expect": "早于当前 → 400；晚于当前 → 200 且 due_date 更新",
-      "actual": "早=400 晚=200 due_date=2026-09-26 08:38",
+      "actual": "早=400 晚=200 due_date=2026-09-26 09:28",
       "verdict": "PASS",
       "note": ""
     },
@@ -254,7 +254,7 @@
       "case": "E1",
       "title": "创建分片上传会话",
       "expect": "200 返回会话 id",
-      "actual": "HTTP 200 code=200 sessionId=1",
+      "actual": "HTTP 200 code=200 sessionId=3",
       "verdict": "PASS",
       "note": ""
     },
@@ -318,7 +318,7 @@
       "case": "F2",
       "title": "学生重新提交（生成新尝试）",
       "expect": "200 且 attempt_number=2、status=RESUBMITTED",
-      "actual": "HTTP 200 code=200 newId=6 attempt=2 status=RESUBMITTED",
+      "actual": "HTTP 200 code=200 newId=12 attempt=2 status=RESUBMITTED",
       "verdict": "PASS",
       "note": ""
     },

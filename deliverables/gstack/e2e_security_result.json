@@ -38,7 +38,7 @@
       "case": "S5",
       "title": "写请求携带匹配的 X-XSRF-TOKEN",
       "expect": "通过 CSRF 校验（200 或业务码，非 403-CSRF）",
-      "actual": "HTTP 200 code=200 msg=创建成功 courseId=12",
+      "actual": "HTTP 200 code=200 msg=创建成功 courseId=18",
       "verdict": "PASS",
       "note": ""
     },
