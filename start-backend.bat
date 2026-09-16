@@ -23,7 +23,7 @@ goto after_load_env
 
 :warn_no_env
 echo [WARN] .env file not found: %ENV_FILE%
-echo        MYSQL_ROOT_PASSWORD will use built-in default (1234, local dev only).
+echo        MYSQL_ROOT_PASSWORD / JWT_SECRET are REQUIRED (no built-in weak defaults).
 if defined JWT_SECRET goto after_load_env
 echo.
 echo [ERROR] JWT_SECRET is not defined.
@@ -35,7 +35,8 @@ pause
 exit /b 1
 
 :after_load_env
-if not defined MYSQL_ROOT_PASSWORD set "MYSQL_ROOT_PASSWORD=REDACTED"
+rem MYSQL_ROOT_PASSWORD is security-sensitive: no built-in fallback (weak default 1234 is guessable)
+if not defined MYSQL_ROOT_PASSWORD goto err_no_mysql_pw
 rem JWT_SECRET 为安全敏感密钥：不做内置兜底（内置默认密钥可被伪造 JWT），缺失则 fail-fast
 if not defined JWT_SECRET goto err_no_jwt
 
@@ -120,6 +121,13 @@ echo [ERROR] JWT_SECRET is not defined in environment or %ENV_FILE%.
 echo        JWT_SECRET is REQUIRED (authentication token signing key).
 echo        Fix: copy .env.example to .env, then set JWT_SECRET to a strong
 echo        random value (e.g. openssl rand -base64 48). Never use a default key.
+pause
+exit /b 1
+
+:err_no_mysql_pw
+echo [ERROR] MYSQL_ROOT_PASSWORD is not defined in environment or %ENV_FILE%.
+echo        MYSQL_ROOT_PASSWORD is REQUIRED (database root credential; no weak default).
+echo        Fix: copy .env.example to .env, then set a strong random value.
 pause
 exit /b 1
 

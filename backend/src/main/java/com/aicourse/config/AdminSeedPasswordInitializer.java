@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.ApplicationArguments;
 import org.springframework.boot.ApplicationRunner;
+import org.springframework.core.annotation.Order;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Component;
 
@@ -28,13 +29,16 @@ import org.springframework.stereotype.Component;
  * 初始密码同样必须满足 {@link PasswordPolicy} 复杂度要求，否则启动失败（fail-fast）。
  */
 @Component
+@Order(10)
 public class AdminSeedPasswordInitializer implements ApplicationRunner {
 
     private static final Logger log = LoggerFactory.getLogger(AdminSeedPasswordInitializer.class);
 
-    /** index.sql 中 admin 账号的种子默认哈希（弱口令，必须被替换） */
-    private static final String SEED_ADMIN_HASH =
-            "$2a$10$JiGc4/6C64A/jcAODg4JpOwB6z3KbNxAJnRsYLJAl/BHNBfsuU4tq";
+    /**
+     * index.sql 中 admin 账号的种子默认哈希（弱口令，必须被替换）。
+     * 与全部种子用户共用同一枚哈希，故统一取自 {@link SeedAccounts}，避免常量散落失配。
+     */
+    private static final String SEED_ADMIN_HASH = SeedAccounts.SEED_WEAK_BCRYPT;
 
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;

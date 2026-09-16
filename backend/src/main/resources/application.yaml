@@ -4,6 +4,19 @@ spring:
   application:
     name: ai-course-platform
 
+  # ===================== 文件式密钥注入（生产 Secret Manager 接入点） =====================
+  # 统一从「密钥目录」读取敏感配置：目录内每个文件名即属性名，文件内容即属性值。
+  #   例：/run/secrets/SPRING_DATASOURCE_PASSWORD  →  提供 ${SPRING_DATASOURCE_PASSWORD}
+  # 该目录是 Docker Compose `secrets:`、K8s Secret 卷、Vault Agent 渲染输出的共同落点，
+  # 因此应用侧无需引入 Spring Cloud 即可被 Vault/Secret Manager 覆盖（见 docs/密钥注入与Secret管理.md）。
+  # optional: 前缀保证「目录不存在」时静默跳过——本地 Windows 开发无 /run/secrets 属预期，不影响启动。
+  # 【优先级铁律】环境变量 > 本 import 的文件。生产中若改用文件式密钥，必须同时移除同名明文 env，
+  # 否则明文 env 会静默覆盖文件值（安全意图被绕过而不报错）。
+  # 自定义目录：经环境变量 SPRING_CONFIG_IMPORT=optional:configtree:/your/dir/ 追加，无需改本文件。
+  config:
+    import:
+      - optional:configtree:/run/secrets/
+
   # ===================== springdoc-openapi（Swagger UI 已于 2026-08-27 恢复） =====================
   # 历史问题：Spring Boot 3.4.4（Spring Framework 6.2.4）的 PathPatternParser 无法解析
   # springdoc 注册的 /swagger-ui/**/*swagger-initializer.js 资源模式（spring-framework#34986，
@@ -100,7 +113,7 @@ spring:
       max-file-size: 50MB
       max-request-size: 50MB
 
-# 服务端口 & 统一接口���缀
+# 服务端口 & 统一接口前缀
 server:
   port: 8080
   servlet:
@@ -180,6 +193,16 @@ app:
       # 双提交 Cookie CSRF 防护开关。默认 true（纵深防御，与 SameSite=Lax 正交叠加）。
       # 前端 axios 同源自动读取 XSRF-TOKEN Cookie 并回填 X-XSRF-TOKEN 头，无需业务代码改动。
       enabled: ${CSRF_ENABLED:true}
+  # ===================== 演示（种子）账号加固 =====================
+  # V1 迁移（= index.sql）内置 8 个演示账号（admin/teacher/teacher2/student/student2..5），
+  # 共用一枚 BCrypt 弱口令哈希（明文 "123456"）。Flyway V1 已 baseline，脚本不可改，
+  # 故由 DemoAccountHardeningInitializer 在运行期收口。
+  #   true （默认）：保留演示账号，本地开发/测试/演示不受影响；若仍检测到种子弱口令则启动打 WARN。
+  #   false（生产必设）：启动时把「仍为种子弱口令」的演示账号停用(is_active=0)并重置为不可知随机口令；
+  #                      已由管理员改密的账号一律不覆盖，加固幂等可重复启动。
+  # 铁律：true 与 prod profile 同时出现将 fail-fast 拒绝启动，杜绝「忘记关开关」把弱口令带上生产。
+  demo-accounts:
+    enabled: ${DEMO_ACCOUNTS_ENABLED:true}
 
 # 跨域允许域名白名单
 cors:
@@ -228,6 +251,14 @@ ai:
     daily-request-limit: ${AI_QUOTA_DAILY_REQUESTS:100}
     # 单用户每日 AI token 预算（prompt+响应估算值，字符按 1.5:1 折算 token）
     daily-token-budget: ${AI_QUOTA_DAILY_TOKENS:200000}
+
+# ===================== 考试超时收卷策略 =====================
+# 背景（2026-09-14 修复）：ExamTimeoutScheduler 原缺时限判定导致「30 秒内强制收卷全部进行中考试」；
+# 补齐判定后出现的边界是——若试卷既无 time_limit/duration 也无 end_time，则无期限依据、永不自动收卷。
+# 此处提供兜底时长，使「无期限依据」的试卷仍有确定的收卷时点；设 0 可显式关闭兜底（改为人工/管理端收卷）。
+exam:
+  timeout:
+    default-time-limit-minutes: ${EXAM_DEFAULT_TIME_LIMIT_MINUTES:120}
 
 # ===================== 限流配置（IP 级，Redis 集群优先，本地内存兜底） =====================
 ratelimit:

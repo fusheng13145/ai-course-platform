@@ -30,7 +30,7 @@
 
 services:
   mysql:
-    image: mysql:8.0
+    image: mysql:8.4
     container_name: aicourse-mysql
     restart: unless-stopped
     environment:
@@ -119,6 +119,10 @@ services:
       # 种子 admin 初始口令（修复：index.sql 内置弱口令账号，生产必须注入强口令替换；
       # 留空 = 不启用替换。见 AdminSeedPasswordInitializer）
       APP_ADMIN_INITIAL_PASSWORD: ${APP_ADMIN_INITIAL_PASSWORD:-}
+      # 演示账号开关（修复 F-02 P1）：容器编排即生产姿态，默认关闭 →
+      # 启动时把仍是出厂弱口令(123456)的种子演示账号停用并重置为不可知随机口令。
+      # 仅本地体验场景可在 .env 显式置 true（勿与 prod profile 同时使用）。
+      DEMO_ACCOUNTS_ENABLED: ${DEMO_ACCOUNTS_ENABLED:-false}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
@@ -209,7 +213,7 @@ services:
 
   # ---------------- MySQL 定时备份守护（profiles: ops） ----------------
   mysql-backup:
-    image: mysql:8.0
+    image: mysql:8.4
     container_name: aicourse-mysql-backup
     restart: unless-stopped
     profiles: ["ops"]
