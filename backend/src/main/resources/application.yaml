@@ -54,7 +54,7 @@ spring:
     # 本地开发(HTTP)可在 application-local.yaml 中覆盖为 useSSL=false&requireSSL=false。
     url: ${SPRING_DATASOURCE_URL:jdbc:mysql://localhost:3306/ai_course_platform?useSSL=true&requireSSL=true&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true}
     driver-class-name: com.mysql.cj.jdbc.Driver
-    username: ${SPRING_DATASOURCE_USERNAME:root}
+    username: ${SPRING_DATASOURCE_USERNAME:aicourse_app}
     # 生产必须通过环境变量 SPRING_DATASOURCE_PASSWORD 注入（无默认值，避免弱口令进入仓库）
     password: ${SPRING_DATASOURCE_PASSWORD}
     hikari:
@@ -403,8 +403,8 @@ file:
 minio:
   enabled: false
   endpoint: http://localhost:9000
-  access-key: ${MINIO_ACCESS_KEY:minioadmin}
-  secret-key: ${MINIO_SECRET_KEY:minioadmin}
+  access-key: ${MINIO_ACCESS_KEY:}
+  secret-key: ${MINIO_SECRET_KEY:}
   bucket: aicourse-uploads
 
 # ===================== 可观测性 / Actuator 配置 =====================

@@ -45,6 +45,8 @@ services:
       - "3307:3306"
     volumes:
       - mysql-data:/var/lib/mysql
+      # 最小权限账户初始化：首次建库时创建 aicourse_app（替代 root 直连），详见 scripts/init-app-db-user.sh
+      - ./scripts/init-app-db-user.sh:/docker-entrypoint-initdb.d/10-create-app-user.sh:ro
     healthcheck:
       test:
         [
@@ -113,7 +115,7 @@ services:
         condition: service_healthy
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ai_course_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true
-      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_USERNAME: aicourse_app
       SPRING_DATASOURCE_PASSWORD: ${MYSQL_ROOT_PASSWORD}
       SPRING_DATA_REDIS_HOST: redis
       SPRING_DATA_REDIS_PORT: 6379

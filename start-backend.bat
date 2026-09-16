@@ -41,6 +41,8 @@ rem JWT_SECRET 为安全敏感密钥：不做内置兜底（内置默认密钥�
 if not defined JWT_SECRET goto err_no_jwt
 
 set "SPRING_DATASOURCE_PASSWORD=%MYSQL_ROOT_PASSWORD%"
+rem 最小权限账户：后端以 aicourse_app 直连，替代 root（本地 MySQL 已创建同名账户，口令复用 MYSQL_ROOT_PASSWORD）
+set "SPRING_DATASOURCE_USERNAME=aicourse_app"
 set "SPRING_DATASOURCE_URL=jdbc:mysql://localhost:3306/ai_course_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true"
 set "SPRING_DATA_REDIS_HOST=localhost"
 set "SPRING_DATA_REDIS_PORT=6379"

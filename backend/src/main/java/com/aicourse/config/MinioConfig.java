@@ -25,9 +25,10 @@ import org.springframework.context.annotation.Configuration;
 public class MinioConfig {
 
     private String endpoint = "http://localhost:9000";
-    // 环境变量优先（MINIO_ACCESS_KEY / MINIO_SECRET_KEY），未设置时回退到本地开发默认值 minioadmin
-    private String accessKey = System.getenv().getOrDefault("MINIO_ACCESS_KEY", "minioadmin");
-    private String secretKey = System.getenv().getOrDefault("MINIO_SECRET_KEY", "minioadmin");
+    // 凭据来自 MINIO_ACCESS_KEY / MINIO_SECRET_KEY 环境变量（经 application.yaml 注入，无默认值）：
+    // 未设置时凭据为空，MinIO 客户端在首次请求时 fail-fast，避免沿用 minioadmin 弱口令默认凭据。
+    private String accessKey;
+    private String secretKey;
     private String bucket = "aicourse-uploads";
 
     @Bean
