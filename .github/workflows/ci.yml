@@ -224,6 +224,28 @@ jobs:
           retention-days: 14
 
   # ------------------------------------------------------------------
+  # 安全扫描：gitleaks 密钥/凭据泄漏扫描（F-02 密钥治理防回归）
+  # 扫描 checkout 分支的完整历史，命中真实密钥即中断构建。
+  # 已知非密钥占位（CI 构建/测试口令、示例文件、历史脱敏标记）见根目录 .gitleaks.toml。
+  # ------------------------------------------------------------------
+  secret-scan:
+    name: Secret Scan (gitleaks)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: gitleaks (fail on detected secrets)
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_CONFIG: .gitleaks.toml
+
+  # ------------------------------------------------------------------
   # 后端：软件成分分析（SCA）—— OSV-Scanner 已知漏洞门禁
   # 独立 job，避免拖慢单测反馈；命中已知漏洞（OSV.dev / GitHub Advisory）将中断构建。
   # 无需 NVD_API_KEY 等外部密钥；直接解析 pom.xml 及其 Maven 传递依赖。
@@ -384,3 +406,120 @@ jobs:
 
       - name: Contract smoke test (FastAPI TestClient)
         run: pytest -q contract_test.py
+
+  # ------------------------------------------------------------------
+  # 前端 E2E（Playwright）全栈冒烟测试  [P3 #5]
+  # 决策：采用「全栈」方案——后端 jar 连 MySQL/Redis service 容器，前端构建后以
+  # vite preview 提供静态资源（playwright.config.ts 经 PW_WEB_SERVER_COMMAND 覆盖 dev），
+  # Playwright 跑真实 /api 链路。specs 直连真实 API（未做 page.route 桩），需后端+DB 在线。
+  # 当前以 workflow_dispatch 手动触发，待补齐测试种子账号并确认 green 后再纳入 push/PR 默认门禁，
+  # 避免在未就绪时污染受保护分支的自动 CI。本沙箱无 Actions runner / Playwright 浏览器，未实跑验证。
+  # ------------------------------------------------------------------
+  frontend-e2e:
+    name: Frontend E2E (Playwright, full-stack)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'workflow_dispatch'
+    defaults:
+      run:
+        working-directory: frontend
+    services:
+      mysql:
+        image: mysql:8.0
+        env:
+          MYSQL_ROOT_PASSWORD: ci-test-password-8f3k
+          MYSQL_DATABASE: ai_course_platform_test
+        ports:
+          - 3306:3306
+        options: >-
+          --health-cmd="mysqladmin ping -h 127.0.0.1 -pci-test-password-8f3k"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=10
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd="redis-cli ping"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=5
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+          cache: maven
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Configure Maven mirror (avoid Maven Central HTTP 429)
+        working-directory: backend
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<'EOF'
+          <settings>
+            <mirrors>
+              <mirror>
+                <id>google-maven-central</id>
+                <mirrorOf>central</mirrorOf>
+                <url>https://maven-central-eu.storage-download.googleapis.com/maven2/</url>
+              </mirror>
+            </mirrors>
+          </settings>
+          EOF
+
+      - name: Build backend jar (skip tests)
+        working-directory: backend
+        env:
+          SPRING_DATASOURCE_PASSWORD: ci-test-password-8f3k
+          MYSQL_ROOT_PASSWORD: ci-test-password-8f3k
+        run: mvn -B package -DskipTests
+
+      - name: Install frontend dependencies
+        run: npm ci
+
+      - name: Build frontend
+        run: npm run build
+
+      - name: Install Playwright browsers
+        run: npx playwright install --with-deps chromium
+
+      - name: Start backend (background) + run Playwright
+        env:
+          SPRING_DATASOURCE_URL: jdbc:mysql://localhost:3306/ai_course_platform_test?useSSL=false&serverTimezone=UTC&allowPublicKeyRetrieval=true
+          SPRING_DATASOURCE_PASSWORD: ci-test-password-8f3k
+          JWT_SECRET: ci-e2e-jwt-secret-0123456789abcdef0123456789abcdef
+          COOKIE_SECURE: "false"
+          REQUIRE_HTTPS: "false"
+          CSRF_ENABLED: "false"
+          PW_WEB_SERVER_COMMAND: "npm run preview -- --port 5173 --strictPort"
+        run: |
+          java -jar ../backend/target/backend-0.0.1-SNAPSHOT.jar --server.port=8080 > ../backend-e2e.log 2>&1 &
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/actuator/health || true)
+            if [ -n "$code" ]; then echo "backend health http=$code"; break; fi
+            sleep 5
+          done
+          npx playwright test
+          status=$?
+          echo "---- backend-e2e.log (tail) ----"; tail -n 50 ../backend-e2e.log || true
+          exit $status
+
+      - name: Upload Playwright report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: frontend/playwright-report
+          retention-days: 14
+

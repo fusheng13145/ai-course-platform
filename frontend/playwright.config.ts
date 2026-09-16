@@ -26,7 +26,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: 'npm run dev',
+    // CI 全栈 e2e 用 vite preview 提供已构建静态资源（更快更稳），本地默认仍用 dev server
+    command: process.env.PW_WEB_SERVER_COMMAND || 'npm run dev',
     url: 'http://localhost:5173',
     reuseExistingServer: !process.env.CI,
     timeout: 120000,
