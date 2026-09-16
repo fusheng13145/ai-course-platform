@@ -3,9 +3,9 @@ name: CI
 # 触发条件：主干推送、对主干的 PR、以及手动触发
 on:
   push:
-    branches: [main, master]
+    branches: [main, master, leyon]
   pull_request:
-    branches: [main, master]
+    branches: [main, master, leyon]
   workflow_dispatch:
 
 # 最小权限原则：CI 仅需读取仓库内容
