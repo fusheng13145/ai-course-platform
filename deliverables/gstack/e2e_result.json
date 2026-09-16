@@ -198,7 +198,7 @@
       "case": "D5b",
       "title": "对照组：通用上传接口 /common/upload",
       "expect": "HTTP 200 返回 url（用于界定故障范围）",
-      "actual": "HTTP 200 code=200 url=/uploads/c236221e-4d0a-4f33-91e6-96461ffc941b.pdf",
+      "actual": "HTTP 200 code=200 url=/uploads/f3289fa0-ff24-4426-a51b-c045f5f5fbda.pdf",
       "verdict": "PASS",
       "note": "该接口正常，说明故障局限于 /resources/upload"
     },
@@ -518,7 +518,7 @@
       "case": "J3b",
       "title": "构造满分作答（答案取自题库）",
       "expect": "3 题答案均非空",
-      "actual": "answers={\"2\": \"B\", \"1\": \"B\", \"3\": \"false\"}",
+      "actual": "answers={\"1\": \"B\", \"2\": \"B\", \"3\": \"false\"}",
       "verdict": "PASS",
       "note": "学生应填值 = json_unquote(correct_answers)，与前端作答语义一致"
     },

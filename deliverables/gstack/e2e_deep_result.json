@@ -118,7 +118,7 @@
       "case": "B9",
       "title": "边界：延长截止日期（早于当前拒绝 / 晚于当前生效）",
       "expect": "早于当前 → 400；晚于当前 → 200 且 due_date 更新",
-      "actual": "早=400 晚=200 due_date=2026-09-24 18:27",
+      "actual": "早=400 晚=200 due_date=2026-09-26 08:38",
       "verdict": "PASS",
       "note": ""
     },
@@ -198,7 +198,7 @@
       "case": "D1",
       "title": "并发一致性：同一学生并发选课",
       "expect": "仅 1 条有效记录",
-      "actual": "响应码=[200, 200] 有效记录=1",
+      "actual": "响应码=[200, 400] 有效记录=1",
       "verdict": "PASS",
       "note": ""
     },
@@ -262,7 +262,7 @@
       "case": "E1b",
       "title": "边界：分片会话扩展名白名单",
       "expect": "非白名单扩展名(.bin) 400 拒绝",
-      "actual": "HTTP 400 code=400 msg=不允许的文件类型（.bin），允许的类型：md, mov, rar, txt, docx, jpeg, xml, gif, pptx, pp",
+      "actual": "HTTP 400 code=400 msg=不允许的文件类型（.bin），允许的类型：docx, txt, rar, mov, md, xlsx, png, webm, xls, jp",
       "verdict": "PASS",
       "note": ""
     },
