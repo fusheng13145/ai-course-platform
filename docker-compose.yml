@@ -147,6 +147,14 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       REQUIRE_HTTPS: ${REQUIRE_HTTPS:-false}
       CSRF_ENABLED: ${CSRF_ENABLED:-true}
+      # 客户端 IP 取值来源（2026-09-16 上线前全检新增）：修复「伪造 X-Forwarded-For 逐请求换头
+      # 绕过登录失败节流 / IP 限流」的 🔴 缺陷（详见 TrustedClientIpResolver 类注释）。
+      #   本栈边缘代理是 frontend(nginx)，nginx.conf 已改用 $remote_addr **覆写** X-Real-IP 与
+      #   X-Forwarded-For，故默认信任之并取 X-Real-IP——即便有人把 XFF 改回追加语义，节流键仍不可伪造。
+      #   ⚠ 该开关的前提是「应用只经受信 nginx 暴露」。若需接受不可信来源直连，必须置 false。
+      # 注：因本文件未设 SPRING_PROFILES_ACTIVE，application-prod.yml 在本路径下不生效，
+      #   故此处必须显式透传（与上方 COOKIE_SECURE / REQUIRE_HTTPS 同一原因，见 N-02）。
+      TRUST_PROXY_HEADER: ${TRUST_PROXY_HEADER:-true}
       # 跨域白名单（逗号分隔的真实前端域名）；留空 = 不开放跨域。
       # 【修复 2026-09-16】原注释写「留空 = fail-closed」与实现不符：SecurityConfig 在
       # origins 为空时回退看 app.cors.dev-fallback（默认 true）→ 会放行 http://localhost:5173
@@ -172,6 +180,11 @@ services:
       FT_BASE_URL: ${FT_BASE_URL:-http://fine-tune-service:8003}
       TZ: Asia/Shanghai
     ports:
+      # ⚠ 直连暴露提示（2026-09-16 上线前全检）：本端口把后端**绕过 nginx** 直接发布到宿主机，
+      #   而安全决策用的客户端 IP 取自代理头 → 攻击者不经 nginx、直接请求 :8080 并伪造
+      #   X-Real-IP / X-Forwarded-For，即可让 (IP, 账号) 节流键随伪造值漂移，绕过限流。
+      #   生产若无需宿主机直连后端，建议收紧为 "127.0.0.1:8080:8080"（仅本机可访问）或直接删除本段，
+      #   对外只暴露 frontend 的 80。此项属部署姿态决策，本轮未擅自改动。
       - "8080:8080"
     healthcheck:
       test: ["CMD", "curl", "-fs", "http://localhost:8080/api/actuator/health"]

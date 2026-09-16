@@ -71,8 +71,15 @@ public class RateLimitFilter extends OncePerRequestFilter {
 
     /**
      * 是否信任反向代理传递的 X-Forwarded-For 头。
-     * 默认 false：限流以 TCP 对端地址（getRemoteAddr）为准，防止客户端伪造 XFF 头绕过 IP 限流；
-     * 仅在部署于受信任反向代理（nginx/网关）之后且代理已覆写该头时才可显式开启。
+     * <p>默认 false：忽略客户端自带的 XFF，以 {@code getRemoteAddr()} 为准。</p>
+     * <p><b>⚠ 前提条件（2026-09-16 上线前全检核实）</b>：该「安全默认」成立的前提是<b>边缘代理以
+     * 覆写语义</b>设置 {@code X-Forwarded-For}（本仓库 {@code frontend/nginx.conf} 已改用
+     * {@code $remote_addr}）。原因是 {@code application.yaml} 配置了
+     * {@code server.forward-headers-strategy: framework}，Spring 的 {@code ForwardedHeaderFilter} 会以
+     * XFF 的<b>最左端</b>覆写 {@code getRemoteAddr()}，故 {@code getRemoteAddr()} <b>并不等于 TCP 对端</b>。
+     * 一旦代理改为追加语义（{@code $proxy_add_x_forwarded_for}），最左端即为客户端可控值，
+     * 本限流与 {@code trustProxyHeader=true} 时的 XFF 取值<b>都会被逐请求换头绕过</b>。</p>
+     * <p>修改代理配置前必读 {@link com.aicourse.util.TrustedClientIpResolver} 的类注释。</p>
      */
     @Value("${ratelimit.trust-proxy-header:false}")
     private boolean trustProxyHeader;
@@ -222,8 +229,12 @@ public class RateLimitFilter extends OncePerRequestFilter {
     }
 
     private String resolveClientIp(HttpServletRequest request) {
-        // 安全默认：不信任客户端可伪造的 X-Forwarded-For，使用 TCP 对端地址
+        // 安全默认：不信任客户端可伪造的 X-Forwarded-For，使用 getRemoteAddr()。
+        // 注意：framework 策略下 getRemoteAddr() 已被 ForwardedHeaderFilter 以 XFF 最左端覆写，
+        // 故此处安全性的真正前提是「边缘代理以覆写语义设置 XFF」，而非「读到的一定是 TCP 对端」；
+        // 详见 trustProxyHeader 字段注释与 TrustedClientIpResolver 类注释。
         if (trustProxyHeader) {
+            // 取 XFF 最左段：仅在边缘代理覆写（$remote_addr）时安全；追加语义下该段由客户端控制。
             String xff = request.getHeader("X-Forwarded-For");
             if (xff != null && !xff.isBlank()) {
                 return xff.split(",")[0].trim();

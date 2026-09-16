@@ -153,6 +153,53 @@ describe('request.js - API 请求层', () => {
     })
   })
 
+  describe('401 静默刷新有界性（#14 加固）', () => {
+    /** 取出响应拦截器的 rejected 处理器（axios 内部结构，经 unknown 断言访问）。 */
+    function getResponseRejected() {
+      const handlers = (
+        request.interceptors.response as unknown as {
+          handlers: { rejected: (e: unknown) => Promise<unknown> }[]
+        }
+      ).handlers
+      return handlers[handlers.length - 1].rejected
+    }
+
+    it('刷新端点自身 401 不再次触发刷新，避免无限递归', async () => {
+      const postSpy = vi.spyOn(request, 'post').mockRejectedValue(new Error('refresh 401'))
+      const rejected = getResponseRejected()
+
+      const refreshError = {
+        config: { url: '/auth/refresh' },
+        response: { status: 401, data: {} },
+        message: 'Unauthorized',
+      }
+
+      await expect(rejected(refreshError)).rejects.toBeDefined()
+      // 关键断言：刷新端点 401 不得再次调用刷新接口（否则递归）
+      expect(postSpy).not.toHaveBeenCalledWith('/auth/refresh', {})
+      // 应清空登录态（跳登录由 router.push 承担，已 mock）
+      expect(mockResetAuthState).toHaveBeenCalled()
+      postSpy.mockRestore()
+    })
+
+    it('普通业务请求 401 会尝试刷新；刷新失败后清态跳登录', async () => {
+      const postSpy = vi.spyOn(request, 'post').mockRejectedValue(new Error('refresh failed'))
+      const rejected = getResponseRejected()
+
+      const error = {
+        config: { url: '/student/courses' },
+        response: { status: 401, data: {} },
+        message: 'Unauthorized',
+      }
+
+      await expect(rejected(error)).rejects.toBeDefined()
+      // 普通请求应发起一次刷新尝试
+      expect(postSpy).toHaveBeenCalledWith('/auth/refresh', {})
+      expect(mockResetAuthState).toHaveBeenCalled()
+      postSpy.mockRestore()
+    })
+  })
+
   describe('Axios 实例安全性配置', () => {
     it('baseURL 正确指向 /api 代理', () => {
       expect(request.defaults.baseURL).toBe('/api')

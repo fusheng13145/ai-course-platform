@@ -74,7 +74,7 @@ class AuthSessionRegisterTest {
     @BeforeEach
     void setUp() {
         component = new AuthSessionComponent(userService, userSessionService, verificationCodeService,
-                jwtUtils, passwordEncoder, loginLogService, passwordComponent);
+                jwtUtils, passwordEncoder, loginLogService, passwordComponent, null);
     }
 
     // ===================== 负向：验证码缺失 / 空白 / 无效必须拒绝 =====================

@@ -36,7 +36,7 @@ public class AuthServiceImpl implements AuthService {
         this.verificationComponent = new AuthVerificationComponent(verificationCodeService, emailService, redisTemplate);
         this.passwordComponent = new AuthPasswordComponent(userService, verificationCodeService, passwordEncoder, verificationComponent, userSessionService);
         this.sessionComponent = new AuthSessionComponent(userService, userSessionService, verificationCodeService,
-                jwtUtils, passwordEncoder, loginLogService, passwordComponent);
+                jwtUtils, passwordEncoder, loginLogService, passwordComponent, redisTemplate);
     }
 
     // ===================== 登录 =====================

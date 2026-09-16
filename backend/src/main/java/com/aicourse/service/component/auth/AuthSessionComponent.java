@@ -15,8 +15,11 @@ import com.aicourse.common.ClientInfo;
 import com.aicourse.util.JwtUtils;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.data.redis.core.StringRedisTemplate;
+import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.security.crypto.password.PasswordEncoder;
 
+import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.HashMap;
 import java.util.List;
@@ -40,6 +43,30 @@ public class AuthSessionComponent {
     private static final String DEFAULT_ROLE_STUDENT = RoleConstants.STUDENT;
     private static final int LOCK_MINUTES = 15;
     private static final int MAX_FAILED_ATTEMPTS = 5;
+    // P0-1（2026-09-16 上线前全检）：登录失败节流键前缀与窗口。
+    // 计数粒度 =「来源 IP + 账户」，达阈值仅封禁该组合，杜绝账户级锁定 DoS。
+    private static final String LOGIN_FAIL_KEY_PREFIX = "auth:login:fail:";
+    private static final Duration LOGIN_FAIL_WINDOW = Duration.ofMinutes(LOCK_MINUTES);
+
+    /**
+     * 登录失败计数「原子自增 + 设置窗口过期」Lua 脚本（复用 RateLimitFilter 既有范式）。
+     * <p>原实现用 {@code INCR} 与 {@code EXPIRE} 两条独立命令：若 INCR 成功而 EXPIRE 未执行
+     * （异常/中断），该键将永不过期，配合「IP 可伪造」会造成 Redis 键空间无界增长。
+     * 此处用脚本把 INCR + EXPIRE 原子化：INCR 后若值为 1（首个计数）才 EXPIRE，返回当前计数。</p>
+     */
+    private static final String LOGIN_FAIL_INCREMENT_LUA =
+            "local current = redis.call('INCR', KEYS[1]) " +
+            "if current == 1 then " +
+            "    redis.call('EXPIRE', KEYS[1], ARGV[1]) " +
+            "end " +
+            "return current";
+
+    private static final DefaultRedisScript<Long> LOGIN_FAIL_SCRIPT = new DefaultRedisScript<>();
+
+    static {
+        LOGIN_FAIL_SCRIPT.setScriptText(LOGIN_FAIL_INCREMENT_LUA);
+        LOGIN_FAIL_SCRIPT.setResultType(Long.class);
+    }
     private static final int SESSION_EXPIRE_DAY_NORMAL = 1;
     private static final int SESSION_EXPIRE_DAY_REMEMBER = 7;
 
@@ -51,11 +78,14 @@ public class AuthSessionComponent {
     private final PasswordEncoder passwordEncoder;
     private final LoginLogService loginLogService;
     private final AuthPasswordComponent passwordComponent;
+    /** 登录失败节流用 Redis（可空：无 Redis 时降级不计数，与 AuthVerificationComponent 一致）。 */
+    private final StringRedisTemplate redisTemplate;
 
     public AuthSessionComponent(UserService userService, UserSessionService userSessionService,
                                 VerificationCodeService verificationCodeService, JwtUtils jwtUtils,
                                 PasswordEncoder passwordEncoder,
-                                LoginLogService loginLogService, AuthPasswordComponent passwordComponent) {
+                                LoginLogService loginLogService, AuthPasswordComponent passwordComponent,
+                                StringRedisTemplate redisTemplate) {
         this.userService = userService;
         this.userSessionService = userSessionService;
         this.verificationCodeService = verificationCodeService;
@@ -63,6 +93,7 @@ public class AuthSessionComponent {
         this.passwordEncoder = passwordEncoder;
         this.loginLogService = loginLogService;
         this.passwordComponent = passwordComponent;
+        this.redisTemplate = redisTemplate;
     }
 
     // ===================== 登录 =====================
@@ -85,24 +116,32 @@ public class AuthSessionComponent {
             throw new BusinessException("账号已被禁用");
         }
 
+        // 账户级锁定：仅由管理员 / DB 侧设置（登录失败不再自动写入账户锁定，见下方 P0-1 修复）
         if (user.getLockedUntil() != null && user.getLockedUntil().isAfter(LocalDateTime.now())) {
             saveLoginLog(user.getId(), user.getUsername(), STATUS_FAILURE, clientInfo, "账号已锁定");
             throw new BusinessException("账号已被锁定，请稍后再试");
         }
 
+        // P0-1 修复（2026-09-16 上线前全检）：登录失败节流改为「来源 IP + 账户」粒度。
+        // 原实现失败达阈值即 user.setLockedUntil(...)（**账户级**），任意知道用户名者连发 5 次
+        // 错误密码即可锁定该账号（含 admin），构成可被循环利用的账户锁定 DoS。现改为：
+        //   · 失败计数存 Redis，键含来源 IP，仅封禁 (IP, 账户) 组合；
+        //   · 受害者由自身 IP 登录不受影响，攻击者只会锁住自己的 IP；
+        //   · 保留 user.lockedUntil 的**读取**，以继续尊重管理员 / DB 侧设置的锁定。
+        assertLoginNotThrottled(clientInfo, account);
+
         if (!passwordEncoder.matches(password, user.getPassword())) {
-            int failedAttempts = user.getFailedLoginAttempts() + 1;
-            user.setFailedLoginAttempts(failedAttempts);
-            if (failedAttempts >= MAX_FAILED_ATTEMPTS) {
-                user.setLockedUntil(LocalDateTime.now().plusMinutes(LOCK_MINUTES));
-            }
-            userService.updateById(user);
+            boolean throttled = recordLoginFailure(clientInfo, account);
             saveLoginLog(user.getId(), user.getUsername(), STATUS_FAILURE, clientInfo, "密码错误");
+            if (throttled) {
+                throw new BusinessException(429, "登录尝试过于频繁，请" + LOCK_MINUTES + "分钟后再试");
+            }
             throw new BusinessException("用户名或密码错误");
         }
 
-        // 登录成功，重置锁定与失败次数
+        // 登录成功：清除该 (IP, 账户) 的失败计数，并重置遗留字段
         LocalDateTime now = LocalDateTime.now();
+        clearLoginFailures(clientInfo, account);
         user.setFailedLoginAttempts(0);
         user.setLockedUntil(null);
         user.setLastLogin(now);
@@ -338,5 +377,70 @@ public class AuthSessionComponent {
         log.setUserAgent(clientInfo.getUserAgent());
         log.setFailureReason(reason);
         loginLogService.save(log);
+    }
+
+    // ===================== 登录失败节流（P0-1） =====================
+
+    /**
+     * 失败计数键：按「来源 IP + 账户」隔离，避免跨 IP 的账户锁定 DoS。
+     * <p>同一 IP 同一账户的失败累计到阈值仅影响该组合；受害者由自身 IP 登录不受影响。</p>
+     */
+    private String loginFailKey(ClientInfo clientInfo, String account) {
+        String ip = (clientInfo == null || clientInfo.getIpAddress() == null)
+                ? "unknown" : clientInfo.getIpAddress();
+        String acct = account == null ? "" : account.trim().toLowerCase();
+        return LOGIN_FAIL_KEY_PREFIX + ip + ":" + acct;
+    }
+
+    /**
+     * 节流前置校验：该 (IP, 账户) 已达失败阈值时直接拒绝（窗口内**含正确密码**亦拒绝，保持锁定语义）。
+     * <p>Redis 不可用时降级放行（与 {@link AuthVerificationComponent} 一致），避免缓存故障导致全量登录不可用。</p>
+     */
+    private void assertLoginNotThrottled(ClientInfo clientInfo, String account) {
+        if (redisTemplate == null) {
+            return;
+        }
+        try {
+            String value = redisTemplate.opsForValue().get(loginFailKey(clientInfo, account));
+            if (value != null && Long.parseLong(value) >= MAX_FAILED_ATTEMPTS) {
+                throw new BusinessException(429, "登录尝试过于频繁，请" + LOCK_MINUTES + "分钟后再试");
+            }
+        } catch (BusinessException e) {
+            throw e;
+        } catch (Exception e) {
+            log.warn("登录节流校验降级（Redis 异常）：{}", e.getMessage());
+        }
+    }
+
+    /**
+     * 记录一次登录失败；返回 {@code true} 表示已达阈值（调用方应返回 429）。
+     * <p>用 Lua 脚本把 INCR 与 EXPIRE 原子化（首次计数才设窗口 TTL），避免「INCR 成功、EXPIRE 未执行」
+     * 导致键永不过期、键空间无界增长。Redis 不可用时返回 {@code false} 降级放行。</p>
+     */
+    private boolean recordLoginFailure(ClientInfo clientInfo, String account) {
+        if (redisTemplate == null) {
+            return false;
+        }
+        try {
+            String key = loginFailKey(clientInfo, account);
+            Long count = redisTemplate.execute(LOGIN_FAIL_SCRIPT, List.of(key),
+                    String.valueOf(LOGIN_FAIL_WINDOW.getSeconds()));
+            return count != null && count >= MAX_FAILED_ATTEMPTS;
+        } catch (Exception e) {
+            log.warn("登录失败计数降级（Redis 异常）：{}", e.getMessage());
+            return false;
+        }
+    }
+
+    /** 登录成功后清除该 (IP, 账户) 的失败计数。 */
+    private void clearLoginFailures(ClientInfo clientInfo, String account) {
+        if (redisTemplate == null) {
+            return;
+        }
+        try {
+            redisTemplate.delete(loginFailKey(clientInfo, account));
+        } catch (Exception e) {
+            log.warn("登录失败计数清理降级（Redis 异常）：{}", e.getMessage());
+        }
     }
 }

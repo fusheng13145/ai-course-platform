@@ -229,11 +229,17 @@ service.interceptors.response.use(
         showThrottledMessage('error', serverMsg || '请求参数有误，请检查输入')
         break
 
-      case 401:
+      case 401: {
         /* 未授权：尝试用 HttpOnly 刷新 Cookie 静默刷新访问令牌（前端不可读该 Cookie）。
            刷新成功后后端会写入新的访问 Cookie，直接重试原请求即可；无需在前端暂存令牌。 */
         const authStore = useAuthStore()
-        if (config && !config._retry) {
+        // 加固（#14）：刷新/登出端点自身的 401 **不得**再次触发刷新，否则一旦后端把
+        // 「刷新失败」由 400 改为 401，`service.post('/auth/refresh')` 将重新进入本分支，
+        // 形成无限递归。此处以 URL 为界，使重试链路**无条件有界**，不再依赖
+        // 「刷新失败恰好返回 400（而非 401）」这一隐式且脆弱的前提。
+        const url = typeof config?.url === 'string' ? config.url : ''
+        const isAuthFlowCall = url.includes('/auth/refresh') || url.includes('/auth/logout')
+        if (config && !config._retry && !isAuthFlowCall) {
           config._retry = true
           try {
             // 刷新 Cookie 随请求自动携带（withCredentials），请求体为空
@@ -254,11 +260,12 @@ service.interceptors.response.use(
             }
           }
         }
-        // 刷新失败或已重试过：清空前端登录态并跳转登录页
+        // 刷新失败 / 已重试过 / 刷新端点自身 401：清空前端登录态并跳转登录页
         authStore.resetAuthState()
         showThrottledMessage('error', '登录已过期，请重新登录')
         router.push('/login')
         break
+      }
 
       case 403:
         showThrottledMessage('error', serverMsg || '抱歉，您没有权限执行此操作')

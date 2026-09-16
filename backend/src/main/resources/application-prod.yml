@@ -34,11 +34,21 @@ app:
   actuator:
     secured: true
 
-  # HTTP 安全姿态：置于 TLS 反代之后的生产环境须全为 true（与主配置默认值一致，此处显式固化）。
+  # HTTP 安全姿态：置于 TLS 反代之后的生产环境须全为 true（默认与主配置一致，保持安全）。
+  # ❗修复 B3（2026-09-16 上线前全检）：require-https 由**硬编码 true** 改为 `${REQUIRE_HTTPS:true}`。
+  #   原硬编码会**静默忽略**文档承诺的 REQUIRE_HTTPS 环境变量——一旦激活 prod profile，
+  #   即便运维按 README「方式二」在明文栈中显式置 REQUIRE_HTTPS=false 也无效，/api/** 仍被
+  #   302 到不存在的 443，全站 API 不可用且无法经文档开关自救。改为占位符后：
+  #     · 未设 REQUIRE_HTTPS → 默认 true（保持安全默认）；
+  #     · 明文受信内网部署可显式 REQUIRE_HTTPS=false 自救（同时须 COOKIE_SECURE=false）。
   cookie:
-    secure: true
+    secure: ${COOKIE_SECURE:true}
   security:
-    require-https: true
+    require-https: ${REQUIRE_HTTPS:true}
+    # 登录失败节流 / 限流键的可信 IP 来源开关：
+    # 生产固定置于可信 nginx 之后（见 frontend/nginx.conf，X-Real-IP / X-Forwarded-For 均以 $remote_addr 覆写），
+    # 故开启以取反代覆写的 X-Real-IP；若应用被直连暴露（无受信反代），必须置 false，否则 X-Real-IP 可被客户端伪造。
+    trust-proxy-header: ${TRUST_PROXY_HEADER:true}
     csrf:
       enabled: true
 

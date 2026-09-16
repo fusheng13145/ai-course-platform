@@ -6,6 +6,11 @@
 # 不在 web.xml 配置 login-config 或 security-constraint，权限控制完全由 Spring Security
 # authorizeHttpRequests 承担，故上述漏洞的触发路径在本项目中不可达，可安全豁免。
 # 待 Tomcat 10.1.58 发布后，应升级并删除本文件的对应豁免项。
+#
+# ⚠️ 豁免到期复核（P3-1，2026-09-16 上线前全检）：同批另有 4 条 CVE 目前未显式豁免，
+#    仅因「修复版未发布」被全局 ignore-unfixed 隐式滤除（CVE-2026-65183 / 65637 / 65927 / 68763）。
+#    10.1.58 发布后这 4 条会同时由「unfixed 被忽略」转为「fixed 未豁免」→ CI 意外转红。
+#    触发复核时应升级并据实收敛豁免；联动 .trivyignore（详见其文末复核说明）。
 
 [[IgnoredVulns]]
 id = "GHSA-9xv2-5v5q-p794"

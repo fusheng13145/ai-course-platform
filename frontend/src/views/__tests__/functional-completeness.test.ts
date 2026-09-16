@@ -46,9 +46,11 @@ describe('API 模块：fileUpload', () => {
     expect(api.createSession).toBeDefined()
     expect(api.getProgress).toBeDefined()
     expect(api.cancelUpload).toBeDefined()
-    // 分片上传与合并端点已按 N-03 下线，不应再导出
-    expect(api.uploadChunk).toBeUndefined()
-    expect(api.mergeChunks).toBeUndefined()
+    // 分片上传与合并端点已按 N-03 下线，不应再导出。
+    // 注意：改用 `in` 判定而非读取属性——这两个标识符已从模块类型中移除，
+    // 直接访问会触发 TS2339（会顶破 typecheck 棘轮基线）。
+    expect('uploadChunk' in api).toBe(false)
+    expect('mergeChunks' in api).toBe(false)
   })
 })
 

@@ -127,6 +127,9 @@ docker compose --profile full up -d --build
 > `REQUIRE_HTTPS`/`COOKIE_SECURE` 生产默认是 `true` —— 若照着下面的默认值直接启动，
 > `/api/**` 会被 `requiresSecure()` 302 重定向到**并不存在的 443**，表现为**全站 API 不可用**
 > （首页能打开、所有接口报错）。这是本部署形态下最容易踩的坑，故拆成两条路径：
+>
+> 📌 **修复 B3（2026-09-16）**：`REQUIRE_HTTPS` / `COOKIE_SECURE` 现为**全 profile 可覆盖**（含 `prod`）。
+> 此前 `application-prod.yml` 把 `require-https` 硬编码为 `true`，会**静默忽略**上面的 `.env` 开关——即容器/主配置填了 `REQUIRE_HTTPS=false` 也无用，明文栈无法自救。现已改为默认 `true`、可被环境变量覆盖，两条路径的开关在 `prod` profile 下同样生效。
 
 #### 前置条件：必须填写的环境变量
 
