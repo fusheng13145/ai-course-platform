@@ -4,6 +4,14 @@
 #   - jwt.secret 固定为测试密钥（main 版读 ${JWT_SECRET:} 为空 → WeakKeyException）
 #   - datasource password 回退 1234（main 版无默认值 → Access denied）
 # 仅存在于 src/test/resources，绝不进入生产构建。
+#
+# 【修复 2026-09-16】sql.init 原先指向 classpath:index.sql，而该脚本内嵌
+#   `CREATE DATABASE IF NOT EXISTS ai_course_platform; USE ai_course_platform;` → 强制切库。
+# 后果与 contract-test profile 同源（详见 application-contract-test.yml 头部）：
+#   ① 本 profile 指向的 ai_course_platform_test 永远建不出表；
+#   ② 运行该集成测试会 DROP/重建**开发库** ai_course_platform。
+#   改用 database-agnostic 的 db/migration/V1__init_schema.sql（无 CREATE DATABASE/USE，
+#   内容与 index.sql 一致），隔离性由连接 URL 保证。切勿改回 index.sql。
 
 ai:
   deepseek:
@@ -26,7 +34,7 @@ spring:
   sql:
     init:
       mode: always
-      schema-locations: classpath:index.sql
+      schema-locations: classpath:db/migration/V1__init_schema.sql
       continue-on-error: false
 
 logging:

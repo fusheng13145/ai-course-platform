@@ -53,7 +53,10 @@ services:
           "ping",
           "-h",
           "localhost",
-          "-p${MYSQL_ROOT_PASSWORD}",
+          # 【必须写 $$】与下方 redis 的 REDIS_PASSWORD 同理：单 $ 会被 Compose 在生成
+          # 容器配置阶段就地展开，把明文 root 口令固化进容器元数据（`docker inspect` 可直接读出）；
+          # 写 $$ 后 Compose 输出字面 $MYSQL_ROOT_PASSWORD，交由容器内从 environment 展开。
+          "-p$$MYSQL_ROOT_PASSWORD",
         ]
       interval: 5s
       timeout: 5s
@@ -131,8 +134,12 @@ services:
       COOKIE_SECURE: ${COOKIE_SECURE:-true}
       REQUIRE_HTTPS: ${REQUIRE_HTTPS:-true}
       CSRF_ENABLED: ${CSRF_ENABLED:-true}
-      # 跨域白名单（逗号分隔的真实前端域名）；留空 = 不开放跨域（fail-closed）
+      # 跨域白名单（逗号分隔的真实前端域名）；留空 = 不开放跨域。
+      # 【修复 2026-09-16】原注释写「留空 = fail-closed」与实现不符：SecurityConfig 在
+      # origins 为空时回退看 app.cors.dev-fallback（默认 true）→ 会放行 http://localhost:5173
+      # 且带 allowCredentials。容器编排即生产姿态，故此处显式把兜底关掉（fail-closed）。
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      APP_CORS_DEV_FALLBACK: ${APP_CORS_DEV_FALLBACK:-false}
       # 监控端点（/api/actuator/prometheus）鉴权：独立 Basic 鉴权链（与业务 JWT 链路隔离，非 ADMIN 角色）。
       # 凭据为监控专用账号 APP_ACTUATOR_BASIC_USER / APP_ACTUATOR_BASIC_PASSWORD，口令留空则抓取 fail-closed；
       # 启用 monitor profile 且无反向代理鉴权时（内网/演示），可置 false 放开 Prometheus 抓取。

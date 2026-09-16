@@ -1,0 +1,43 @@
+# ===================== prod profile（生产姿态，显式激活） =====================
+# 激活方式：SPRING_PROFILES_ACTIVE=prod
+#
+# 【存在理由（2026-09-16 新增）】本文件此前**不存在**，导致代码里若干
+# 「生产必须…否则 fail-fast」的分支实际不可达——没有任何 profile 能触发它们，
+# 例如 DemoAccountHardeningInitializer 的「enabled=true 与 prod 不能共存」守卫。
+# 本文件把这些姿态默认值落成实体，使其成为**可执行**的开关，而非纸面约定。
+#
+# 设计原则：
+#   1. 本文件只做「收紧」，不引入任何新功能；
+#   2. 不提供任何密钥默认值——缺失即启动失败，不做弱兜底；
+#   3. 与 docker-compose.yml 的环境变量默认口径保持一致（两条部署路径同姿态）。
+
+app:
+  # 演示账号：生产必须关闭 → 启动时停用「仍为出厂弱口令(123456)」的演示账号并重置为不可知口令。
+  # 若同时置 true 且激活 prod，DemoAccountHardeningInitializer 会 fail-fast 拒绝启动。
+  # 另注意：加固会停用内置 admin，若未提供 APP_ADMIN_INITIAL_PASSWORD 且无其它有效 ADMIN 账号，
+  #         启动同样会被拒绝（防止「零管理员」静默锁死）。
+  demo-accounts:
+    enabled: false
+
+  # CORS 本地开发兜底：生产关闭。
+  # 置 false 后，若未显式配置 cors.allowed-origins，则拒绝一切跨域（fail-closed），
+  # 而不会回退到「带 allowCredentials 的 http://localhost:5173」。
+  cors:
+    dev-fallback: false
+
+  # Swagger/OpenAPI 文档：生产不对外暴露完整 API 文档。
+  swagger:
+    enabled: false
+
+  # Actuator：除 /api/actuator/prometheus（经独立 Basic 鉴权链）外一律拒绝；
+  # 凭据由 APP_ACTUATOR_BASIC_USER/PASSWORD 提供，留空则抓取 fail-closed。
+  actuator:
+    secured: true
+
+  # HTTP 安全姿态：置于 TLS 反代之后的生产环境须全为 true（与主配置默认值一致，此处显式固化）。
+  cookie:
+    secure: true
+  security:
+    require-https: true
+    csrf:
+      enabled: true
