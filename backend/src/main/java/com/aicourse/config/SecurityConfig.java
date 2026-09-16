@@ -139,7 +139,8 @@ public class SecurityConfig {
      * 同时匹配带/不带 {@code /api} 前缀，保证无论 Spring Security 如何归一化 context-path 都能正确拦截。</p>
      * <p>采用独立的 HTTP Basic 鉴权，与业务 JWT 链路完全隔离：</p>
      * <ul>
-     *   <li>health / info / metrics 公开（供探针探活与基础监控）；</li>
+     *   <li>health 始终公开（供探针探活）；info / metrics 仅在测试（actuatorSecured=false）公开，" +
+     *       "生产（actuatorSecured=true）一并收敛以减少暴露面；</li>
      *   <li>prometheus 抓取端点：生产（actuatorSecured=true）要求 Basic Auth 且具备 ACTUATOR 角色，
      *       凭据来自 {@code APP_ACTUATOR_BASIC_USER/PASSWORD} 环境变量；</li>
      *   <li>其余 actuator 端点一律拒绝（最小化暴露面）。</li>
@@ -162,20 +163,28 @@ public class SecurityConfig {
                 .authenticationManager(actuatorAuthManager)
                 .httpBasic(Customizer.withDefaults())
                 .authorizeHttpRequests(auth -> {
+                    // health 始终公开（K8s/Docker 探针探活所需）
                     auth.requestMatchers(
                                     "/actuator/health", "/actuator/health/**",
                                     "/api/actuator/health", "/api/actuator/health/**")
                             .permitAll();
-                    auth.requestMatchers("/actuator/info", "/api/actuator/info").permitAll();
-                    auth.requestMatchers(
-                                    "/actuator/metrics", "/actuator/metrics/**",
-                                    "/api/actuator/metrics", "/api/actuator/metrics/**")
-                            .permitAll();
                     if (actuatorSecured) {
+                        // 生产：info/metrics 一并收敛（仅探活所需 health 公开），减少信息暴露面
+                        auth.requestMatchers(
+                                        "/actuator/info", "/api/actuator/info",
+                                        "/actuator/metrics", "/actuator/metrics/**",
+                                        "/api/actuator/metrics", "/api/actuator/metrics/**")
+                                .denyAll();
                         auth.requestMatchers("/actuator/prometheus", "/api/actuator/prometheus")
                                 .hasRole("ACTUATOR");
                         auth.requestMatchers("/actuator/**", "/api/actuator/**").denyAll();
                     } else {
+                        // 测试（actuatorSecured=false）：放开 info/metrics 便于契约断言
+                        auth.requestMatchers("/actuator/info", "/api/actuator/info").permitAll();
+                        auth.requestMatchers(
+                                        "/actuator/metrics", "/actuator/metrics/**",
+                                        "/api/actuator/metrics", "/api/actuator/metrics/**")
+                                .permitAll();
                         auth.requestMatchers("/actuator/**", "/api/actuator/**").permitAll();
                     }
                 });
@@ -195,7 +204,17 @@ public class SecurityConfig {
             // 会抛 IllegalArgumentException("password cannot be null")，
             // 使整个应用上下文启动失败（实测：注入 APP_ACTUATOR_BASIC_PASSWORD 后切片用例全错）。
             // 空编码结果一律视为「凭据不可用」，退回 fail-closed（不注册监控账号）。
-            String encoded = passwordEncoder.encode(actuatorBasicPassword);
+            String encoded;
+            try {
+                encoded = passwordEncoder.encode(actuatorBasicPassword);
+            } catch (IllegalArgumentException e) {
+                // BCrypt 对 null 或长度超过 72 字符的口令抛 IllegalArgumentException；
+                // 视为凭据不可用，退回 fail-closed（不注册监控账号），避免上下文启动失败。
+                log.error("Actuator Basic 口令编码失败（超过 BCrypt 72 字符上限或为空）：{}，" +
+                                " 本次不注册监控账号，/actuator/prometheus 保持拒绝所有抓取（fail-closed）。",
+                        e.getMessage());
+                encoded = null;
+            }
             if (encoded == null || encoded.isBlank()) {
                 log.warn("PasswordEncoder 未能编码 Actuator Basic 口令（encode 返回空），"
                         + " 本次不注册监控账号，/actuator/prometheus 保持拒绝所有抓取（fail-closed）。");
@@ -333,9 +352,7 @@ public class SecurityConfig {
                 // 的对象级 ACL。现 /uploads/** 需登录后方可访问；教学资源下载应统一走
                 // 受认证且做 ACL 的 /resources/download/{id}（匿名 401，已登录用户仍需通过对象级鉴权）。
                 "/ws",
-                "/ws/**",
-                // 前端错误监控上报（匿名引导型：无会话令牌可用，见 MonitorController）
-                "/api/monitor/**"));
+                "/ws/**"));
         if (swaggerEnabled) {
             paths.add("/swagger-ui/**");
             paths.add("/api-docs.html");
