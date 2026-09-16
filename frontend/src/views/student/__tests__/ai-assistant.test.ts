@@ -11,6 +11,19 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 
+/**
+ * 组件脚本层暴露面：messages / loading / conversations / courseList 为组件内部状态，
+ * 测试直接读取与赋值以驱动断言。显式断言而非 any（lint 口径 0 error / 0 warning）。
+ */
+type AssistantInternal = {
+  messages: Array<{ role: string; content: string; time?: string; error?: boolean }>
+  loading: boolean
+  conversations: Array<{ id: number; title: string }>
+  courseList: Array<{ name: string }>
+}
+const assistantVm = (wrapper: { vm: unknown }) => wrapper.vm as unknown as AssistantInternal
+
+
 // ---- 模块级 mock：导出与真实 @/api/ai 完全一致（qaAsk/qaStream/getSessions/...）----
 const { mockQaAsk, mockGetSessions, mockQaStream, mockGetCourseList } = vi.hoisted(() => ({
   mockQaAsk: vi.fn(),
@@ -133,12 +146,12 @@ describe('AI 学习助手问答流程（挂载真实组件）', () => {
     await sendMessage(wrapper, '什么是TCP？')
     await flushPromises()
 
-    expect(wrapper.vm.messages).toHaveLength(2)
-    expect(wrapper.vm.messages[0].role).toBe('user')
-    expect(wrapper.vm.messages[0].content).toBe('什么是TCP？')
-    expect(wrapper.vm.messages[1].role).toBe('assistant')
-    expect(wrapper.vm.messages[1].content).toBe('你好')
-    expect(wrapper.vm.loading).toBe(false)
+    expect(assistantVm(wrapper).messages).toHaveLength(2)
+    expect(assistantVm(wrapper).messages[0].role).toBe('user')
+    expect(assistantVm(wrapper).messages[0].content).toBe('什么是TCP？')
+    expect(assistantVm(wrapper).messages[1].role).toBe('assistant')
+    expect(assistantVm(wrapper).messages[1].content).toBe('你好')
+    expect(assistantVm(wrapper).loading).toBe(false)
     expect(mockQaStream).toHaveBeenCalledWith(
       { question: '什么是TCP？' },
       expect.objectContaining({ onToken: expect.any(Function), onDone: expect.any(Function) }),
@@ -154,7 +167,7 @@ describe('AI 学习助手问答流程（挂载真实组件）', () => {
     await wrapper.find('.stub-btn.send-btn').trigger('click')
     await flushPromises()
 
-    expect(wrapper.vm.messages).toHaveLength(0)
+    expect(assistantVm(wrapper).messages).toHaveLength(0)
     expect(mockQaStream).not.toHaveBeenCalled()
     expect(mockQaAsk).not.toHaveBeenCalled()
     wrapper.unmount()
@@ -170,8 +183,8 @@ describe('AI 学习助手问答流程（挂载真实组件）', () => {
     await flushPromises()
 
     expect(mockQaStream).toHaveBeenCalledTimes(1)
-    expect(wrapper.vm.messages).toHaveLength(2) // 仅第一次的 user + assistant 占位
-    expect(wrapper.vm.loading).toBe(true)
+    expect(assistantVm(wrapper).messages).toHaveLength(2) // 仅第一次的 user + assistant 占位
+    expect(assistantVm(wrapper).loading).toBe(true)
     wrapper.unmount()
   })
 
@@ -188,8 +201,8 @@ describe('AI 学习助手问答流程（挂载真实组件）', () => {
     await sleep(400) // 等待逐字渲染完成（6 字 × 20ms + 余量）
 
     expect(mockQaAsk).toHaveBeenCalledWith({ question: '什么是TCP？' })
-    expect(wrapper.vm.messages[1].content).toBe('这是AI的回答')
-    expect(wrapper.vm.loading).toBe(false)
+    expect(assistantVm(wrapper).messages[1].content).toBe('这是AI的回答')
+    expect(assistantVm(wrapper).loading).toBe(false)
     wrapper.unmount()
   })
 
@@ -205,8 +218,8 @@ describe('AI 学习助手问答流程（挂载真实组件）', () => {
     await flushPromises()
     await sleep(300)
 
-    expect(wrapper.vm.messages[1].content).toBe('好的')
-    expect(wrapper.vm.loading).toBe(false)
+    expect(assistantVm(wrapper).messages[1].content).toBe('好的')
+    expect(assistantVm(wrapper).loading).toBe(false)
     wrapper.unmount()
   })
 
@@ -221,10 +234,10 @@ describe('AI 学习助手问答流程（挂载真实组件）', () => {
     await sendMessage(wrapper, '问题')
     await flushPromises()
 
-    expect(wrapper.vm.messages).toHaveLength(2)
-    expect(wrapper.vm.messages[1].content).toBe('抱歉，AI 服务暂时不可用，请稍后再试。')
-    expect(wrapper.vm.messages[1].error).toBe(true)
-    expect(wrapper.vm.loading).toBe(false)
+    expect(assistantVm(wrapper).messages).toHaveLength(2)
+    expect(assistantVm(wrapper).messages[1].content).toBe('抱歉，AI 服务暂时不可用，请稍后再试。')
+    expect(assistantVm(wrapper).messages[1].error).toBe(true)
+    expect(assistantVm(wrapper).loading).toBe(false)
     wrapper.unmount()
   })
 
@@ -241,10 +254,10 @@ describe('AI 学习助手问答流程（挂载真实组件）', () => {
     const wrapper = mountAssistant()
     await flushPromises()
 
-    expect(wrapper.vm.conversations).toHaveLength(2)
-    expect(wrapper.vm.conversations[0].id).toBe(1)
-    expect(wrapper.vm.conversations[0].title).toBe('TCP 三次握手')
-    expect(wrapper.vm.conversations[1].title.startsWith('对话')).toBe(true)
+    expect(assistantVm(wrapper).conversations).toHaveLength(2)
+    expect(assistantVm(wrapper).conversations[0].id).toBe(1)
+    expect(assistantVm(wrapper).conversations[0].title).toBe('TCP 三次握手')
+    expect(assistantVm(wrapper).conversations[1].title.startsWith('对话')).toBe(true)
     wrapper.unmount()
   })
 
@@ -256,21 +269,21 @@ describe('AI 学习助手问答流程（挂载真实组件）', () => {
     const wrapper = mountAssistant()
     await flushPromises()
 
-    expect(wrapper.vm.courseList).toHaveLength(10)
-    expect(wrapper.vm.courseList[0].name).toBe('课程1')
+    expect(assistantVm(wrapper).courseList).toHaveLength(10)
+    expect(assistantVm(wrapper).courseList[0].name).toBe('课程1')
     wrapper.unmount()
   })
 
   it('新建对话会清空当前消息', async () => {
     const wrapper = mountAssistant()
-    wrapper.vm.messages = [{ role: 'user', content: '旧消息', time: '10:00' }]
+    assistantVm(wrapper).messages = [{ role: 'user', content: '旧消息', time: '10:00' }]
     await flushPromises()
 
     const newBtn = wrapper.findAll('.stub-btn').find((b) => b.text().includes('新建'))
     expect(newBtn).toBeTruthy()
     await newBtn.trigger('click')
 
-    expect(wrapper.vm.messages).toHaveLength(0)
+    expect(assistantVm(wrapper).messages).toHaveLength(0)
     wrapper.unmount()
   })
 })

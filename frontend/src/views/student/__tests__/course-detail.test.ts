@@ -3,6 +3,20 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { nextTick } from 'vue'
 
+/**
+ * 组件脚本层暴露面：内联 helper 与课程/章节状态不在组件公开实例类型上。
+ * 显式断言而非 any（lint 口径 0 error / 0 warning）。
+ */
+type CourseDetailInternal = {
+  getProgressColor: (progress: number) => string
+  getDifficultyType: (level: string) => string
+  estimatedDuration: number
+  chapters: Array<{ completed?: boolean; current?: boolean }>
+  course: { name: string; category: string; teacherName: string; credits: number }
+}
+const courseVm = (wrapper: { vm: unknown }) => wrapper.vm as unknown as CourseDetailInternal
+
+
 // Mock vue-router
 const mockPush = vi.fn()
 vi.mock('vue-router', () => ({
@@ -240,10 +254,10 @@ describe('CourseDetail 课程详情页', () => {
         },
       })
 
-      expect(wrapper.vm.getProgressColor(90)).toBe('var(--ac-success)')
-      expect(wrapper.vm.getProgressColor(60)).toBe('var(--ac-primary)')
-      expect(wrapper.vm.getProgressColor(40)).toBe('var(--ac-warning)')
-      expect(wrapper.vm.getProgressColor(10)).toBe('var(--ac-danger)')
+      expect(courseVm(wrapper).getProgressColor(90)).toBe('var(--ac-success)')
+      expect(courseVm(wrapper).getProgressColor(60)).toBe('var(--ac-primary)')
+      expect(courseVm(wrapper).getProgressColor(40)).toBe('var(--ac-warning)')
+      expect(courseVm(wrapper).getProgressColor(10)).toBe('var(--ac-danger)')
     })
 
     it('getDifficultyType 返回正确类型', () => {
@@ -268,10 +282,10 @@ describe('CourseDetail 课程详情页', () => {
         },
       })
 
-      expect(wrapper.vm.getDifficultyType('简单')).toBe('success')
-      expect(wrapper.vm.getDifficultyType('中等')).toBe('warning')
-      expect(wrapper.vm.getDifficultyType('困难')).toBe('danger')
-      expect(wrapper.vm.getDifficultyType('未知')).toBe('info')
+      expect(courseVm(wrapper).getDifficultyType('简单')).toBe('success')
+      expect(courseVm(wrapper).getDifficultyType('中等')).toBe('warning')
+      expect(courseVm(wrapper).getDifficultyType('困难')).toBe('danger')
+      expect(courseVm(wrapper).getDifficultyType('未知')).toBe('info')
     })
 
     it('estimatedDuration 计算总预计时长', async () => {
@@ -299,7 +313,7 @@ describe('CourseDetail 课程详情页', () => {
       await new Promise((resolve) => setTimeout(resolve, 100))
 
       // 章节有 30 + 45 = 75 分钟
-      expect(wrapper.vm.estimatedDuration).toBe(75)
+      expect(courseVm(wrapper).estimatedDuration).toBe(75)
     })
 
     it('章节数据正确映射', async () => {
@@ -326,9 +340,9 @@ describe('CourseDetail 课程详情页', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      expect(wrapper.vm.chapters).toHaveLength(2)
-      expect(wrapper.vm.chapters[0].completed).toBe(true)
-      expect(wrapper.vm.chapters[1].current).toBe(true)
+      expect(courseVm(wrapper).chapters).toHaveLength(2)
+      expect(courseVm(wrapper).chapters[0].completed).toBe(true)
+      expect(courseVm(wrapper).chapters[1].current).toBe(true)
     })
 
     it('课程信息正确填充', async () => {
@@ -355,10 +369,10 @@ describe('CourseDetail 课程详情页', () => {
 
       await new Promise((resolve) => setTimeout(resolve, 100))
 
-      expect(wrapper.vm.course.name).toBe('测试课程')
-      expect(wrapper.vm.course.category).toBe('计算机科学')
-      expect(wrapper.vm.course.teacherName).toBe('张老师')
-      expect(wrapper.vm.course.credits).toBe(3)
+      expect(courseVm(wrapper).course.name).toBe('测试课程')
+      expect(courseVm(wrapper).course.category).toBe('计算机科学')
+      expect(courseVm(wrapper).course.teacherName).toBe('张老师')
+      expect(courseVm(wrapper).course.credits).toBe(3)
     })
   })
 })

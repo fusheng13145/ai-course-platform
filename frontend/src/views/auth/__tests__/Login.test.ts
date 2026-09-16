@@ -43,6 +43,19 @@ vi.mock('@/components/ThemeSwitcher.vue', () => ({
 
 import Login from '../Login.vue'
 
+/**
+ * 组件脚本层暴露面：组件 setup 未 return，故表单/处理函数/错误标记不在公开实例类型上。
+ * 用显式断言而非 any——项目 lint 口径为 0 error / 0 warning，
+ * 显式 any 会触发 @typescript-eslint/no-explicit-any 告警。
+ */
+type LoginInternal = {
+  form: { username: string; password: string; remember: boolean }
+  handleLogin: () => Promise<void>
+  showError: boolean
+}
+const loginVm = (wrapper: { vm: unknown }) => wrapper.vm as unknown as LoginInternal
+
+
 function mountLogin() {
   return mount(Login, {
     global: {
@@ -112,12 +125,12 @@ describe('Login 页面组件', () => {
   describe('登录行为', () => {
     it('登录成功后调用 auth.login 并携带 rememberMe', async () => {
       const wrapper = mountLogin()
-      wrapper.vm.form.username = 'testuser'
-      wrapper.vm.form.password = 'password123'
-      wrapper.vm.form.remember = false
+      loginVm(wrapper).form.username = 'testuser'
+      loginVm(wrapper).form.password = 'password123'
+      loginVm(wrapper).form.remember = false
       mocks.mockLogin.mockResolvedValue({ success: true, user: { role: 'STUDENT' } })
 
-      await wrapper.vm.handleLogin()
+      await loginVm(wrapper).handleLogin()
 
       expect(mocks.mockLogin).toHaveBeenCalledWith({
         username: 'testuser',
@@ -128,12 +141,12 @@ describe('Login 页面组件', () => {
 
     it('remember 为 true 时 payload 携带 rememberMe: true', async () => {
       const wrapper = mountLogin()
-      wrapper.vm.form.username = 'testuser'
-      wrapper.vm.form.password = 'password123'
-      wrapper.vm.form.remember = true
+      loginVm(wrapper).form.username = 'testuser'
+      loginVm(wrapper).form.password = 'password123'
+      loginVm(wrapper).form.remember = true
       mocks.mockLogin.mockResolvedValue({ success: true })
 
-      await wrapper.vm.handleLogin()
+      await loginVm(wrapper).handleLogin()
 
       expect(mocks.mockLogin).toHaveBeenCalledWith({
         username: 'testuser',
@@ -144,11 +157,11 @@ describe('Login 页面组件', () => {
 
     it('登录成功后跳转到默认路由', async () => {
       const wrapper = mountLogin()
-      wrapper.vm.form.username = 'test'
-      wrapper.vm.form.password = 'pass'
+      loginVm(wrapper).form.username = 'test'
+      loginVm(wrapper).form.password = 'pass'
       mocks.mockLogin.mockResolvedValue({ success: true, user: { role: 'STUDENT' } })
 
-      await wrapper.vm.handleLogin()
+      await loginVm(wrapper).handleLogin()
 
       expect(mocks.mockMessage.success).toHaveBeenCalledWith('登录成功')
       expect(mocks.mockPush).toHaveBeenCalledWith('/student/dashboard')
@@ -157,39 +170,39 @@ describe('Login 页面组件', () => {
     it('登录成功后优先跳转 redirect query 参数', async () => {
       mocks.mockRoute.query = { redirect: '/student/courses' }
       const wrapper = mountLogin()
-      wrapper.vm.form.username = 'test'
-      wrapper.vm.form.password = 'pass'
+      loginVm(wrapper).form.username = 'test'
+      loginVm(wrapper).form.password = 'pass'
       mocks.mockLogin.mockResolvedValue({ success: true, user: { role: 'STUDENT' } })
 
-      await wrapper.vm.handleLogin()
+      await loginVm(wrapper).handleLogin()
 
       expect(mocks.mockPush).toHaveBeenCalledWith('/student/courses')
     })
 
     it('登录失败时显示错误且不跳转', async () => {
       const wrapper = mountLogin()
-      wrapper.vm.form.username = 'bad'
-      wrapper.vm.form.password = 'wrong'
+      loginVm(wrapper).form.username = 'bad'
+      loginVm(wrapper).form.password = 'wrong'
       mocks.mockLogin.mockRejectedValue(new Error('认证失败'))
 
-      await wrapper.vm.handleLogin()
+      await loginVm(wrapper).handleLogin()
 
-      expect(wrapper.vm.showError).toBe(true)
+      expect(loginVm(wrapper).showError).toBe(true)
       expect(mocks.mockMessage.error).toHaveBeenCalledWith('登录失败，请检查用户名和密码')
       expect(mocks.mockPush).not.toHaveBeenCalled()
     })
 
     it('登录失败且后端返回消息时优先展示后端消息', async () => {
       const wrapper = mountLogin()
-      wrapper.vm.form.username = 'bad'
-      wrapper.vm.form.password = 'wrong'
+      loginVm(wrapper).form.username = 'bad'
+      loginVm(wrapper).form.password = 'wrong'
       mocks.mockLogin.mockRejectedValue({
         response: { data: { message: '账号已锁定' } },
       })
 
-      await wrapper.vm.handleLogin()
+      await loginVm(wrapper).handleLogin()
 
-      expect(wrapper.vm.showError).toBe(true)
+      expect(loginVm(wrapper).showError).toBe(true)
       expect(mocks.mockMessage.error).toHaveBeenCalledWith('账号已锁定')
     })
 
