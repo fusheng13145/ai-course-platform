@@ -2,6 +2,7 @@ package com.aicourse.service.impl;
 
 
 import com.aicourse.entity.ExamPaper;
+import com.aicourse.entity.ExamPaperStatus;
 import com.aicourse.entity.ExamQuestion;
 import com.aicourse.entity.Question;
 import com.aicourse.exception.BusinessException;
@@ -22,6 +23,7 @@ import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -97,10 +99,10 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
         if (examPaper == null) {
             throw new BusinessException("试卷不存在");
         }
-        if ("PUBLISHED".equals(examPaper.getStatus())) {
+        if (ExamPaperStatus.PUBLISHED.name().equals(examPaper.getStatus())) {
             throw new BusinessException("试卷已发布");
         }
-        examPaper.setStatus("PUBLISHED");
+        examPaper.setStatus(ExamPaperStatus.PUBLISHED.name());
         this.updateById(examPaper);
 
         // 修复 P1-1：考试发布后自动推送通知给课程选课学生
@@ -134,7 +136,7 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
         newPaper.setDescription(sourcePaper.getDescription());
         newPaper.setCourseId(sourcePaper.getCourseId());
         newPaper.setCreatorId(sourcePaper.getCreatorId());
-        newPaper.setStatus("DRAFT");
+        newPaper.setStatus(ExamPaperStatus.DRAFT.name());
         newPaper.setInstructions(sourcePaper.getInstructions());
         newPaper.setStartTime(sourcePaper.getStartTime());
         newPaper.setEndTime(sourcePaper.getEndTime());
@@ -343,13 +345,25 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
 
         String paperTitle = dto.getTitle() != null ? dto.getTitle() : "自动组卷-" + System.currentTimeMillis();
 
+        // 修复（2026-09-14）：组卷后必须回填卷面总分——原实现直接透传 dto.totalScore，
+        // 未传该字段的调用方会得到 total_score=NULL 的试卷（前端试卷列表/统计缺总分，
+        // 人工阅卷重算百分比也会因除数为空而跳过）。此处以「各题分值合计」兜底。
+        BigDecimal computedTotal = BigDecimal.ZERO;
+        for (Map<String, Object> item : selectedQuestions) {
+            BigDecimal points = (BigDecimal) item.get("points");
+            if (points != null) {
+                computedTotal = computedTotal.add(points);
+            }
+        }
+        BigDecimal paperTotalScore = dto.getTotalScore() != null ? dto.getTotalScore() : computedTotal;
+
         ExamPaper examPaper = new ExamPaper();
         examPaper.setTitle(paperTitle);
         examPaper.setDescription(dto.getDescription() != null ? dto.getDescription() : "由系统自动生成");
         examPaper.setCourseId(dto.getCourseId());
         examPaper.setCreatorId(creatorId);
-        examPaper.setStatus(dto.getStatus() != null ? dto.getStatus() : "DRAFT");
-        examPaper.setTotalScore(dto.getTotalScore());
+        examPaper.setStatus(dto.getStatus() != null ? dto.getStatus() : ExamPaperStatus.DRAFT.name());
+        examPaper.setTotalScore(paperTotalScore);
         examPaper.setDuration(dto.getDuration());
         examPaper.setQuestionCount(selectedQuestions.size());
         examPaper.setShuffleQuestions(dto.getShuffleQuestions() != null ? dto.getShuffleQuestions() : true);
@@ -373,6 +387,30 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
         }
 
         return examPaper;
+    }
+
+    // ===================== 缓存一致性（2026-09-14 修复） =====================
+
+    /**
+     * 试卷更新后失效详情缓存。
+     *
+     * <p>缺陷背景（与 courses 缓存同类）：{@link #getExamPaperDetail(Long)} 标注
+     * {@code @Cacheable(cacheNames = "examPapers", key = "#paperId")}，
+     * 但修改/删除试卷走的是 {@code IService.updateById/removeById}，**全无失效点**，
+     * 导致「改完试卷（改时限/改分/改状态/改标题）后，详情接口在缓存 TTL 内仍返回旧内容」。
+     * 这里把 evict 挂到同一写路径上，使读写缓存成对出现。</p>
+     */
+    @Override
+    @CacheEvict(cacheNames = "examPapers", key = "#entity.id")
+    public boolean updateById(ExamPaper entity) {
+        return super.updateById(entity);
+    }
+
+    /** 试卷删除后失效详情缓存（否则已删除试卷在 TTL 内仍可命中详情）。 */
+    @Override
+    @CacheEvict(cacheNames = "examPapers", key = "#id")
+    public boolean removeById(Serializable id) {
+        return super.removeById(id);
     }
 
 }

@@ -9,6 +9,7 @@ import com.aicourse.mapper.ExamQuestionMapper;
 import com.aicourse.service.ExamQuestionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -31,6 +32,9 @@ public class ExamQuestionServiceImpl extends ServiceImpl<ExamQuestionMapper, Exa
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    // 修复 CR-2：试卷题目集合变更后，失效该试卷的详情缓存（examPapers 按 paperId 缓存），
+    // 否则 getExamPaperDetail 在 TTL 内返回陈旧题目列表。
+    @CacheEvict(cacheNames = "examPapers", key = "#examPaperId")
     public void batchAddQuestions(Long examPaperId, List<Map<String, Object>> questions) {
         if (questions == null || questions.isEmpty()) {
             throw new BusinessException("题目列表不能为空");
@@ -65,6 +69,8 @@ public class ExamQuestionServiceImpl extends ServiceImpl<ExamQuestionMapper, Exa
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    // 修复 CR-2：题目顺序调整同样改变详情，失效该试卷详情缓存。
+    @CacheEvict(cacheNames = "examPapers", key = "#examPaperId")
     public void reorderQuestions(Long examPaperId, List<Long> questionIds) {
         if (questionIds == null || questionIds.isEmpty()) {
             throw new BusinessException("题目ID列表不能为空");

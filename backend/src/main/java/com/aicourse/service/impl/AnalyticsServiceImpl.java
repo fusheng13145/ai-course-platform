@@ -9,6 +9,7 @@ import com.aicourse.constant.SubmissionStatus;
 
 import com.aicourse.entity.*;
 import com.aicourse.service.*;
+import com.aicourse.vo.CourseRiskPredictionVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -41,6 +42,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     private final CourseAnalyticsComponent courseAnalyticsComponent;
     private final LearnerAnalyticsComponent learnerAnalyticsComponent;
     private final TeachingAnalyticsComponent teachingAnalyticsComponent;
+    private final LearningRiskService learningRiskService;
 
     // ---- 课程级学生学情（组件未承接，保留在门面）----
     private final UserService userService;
@@ -57,6 +59,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
             CourseAnalyticsComponent courseAnalyticsComponent,
             LearnerAnalyticsComponent learnerAnalyticsComponent,
             TeachingAnalyticsComponent teachingAnalyticsComponent,
+            LearningRiskService learningRiskService,
             UserService userService,
             CourseEnrollmentService enrollmentService,
             TaskService taskService,
@@ -70,6 +73,7 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         this.courseAnalyticsComponent = courseAnalyticsComponent;
         this.learnerAnalyticsComponent = learnerAnalyticsComponent;
         this.teachingAnalyticsComponent = teachingAnalyticsComponent;
+        this.learningRiskService = learningRiskService;
         this.userService = userService;
         this.enrollmentService = enrollmentService;
         this.taskService = taskService;
@@ -172,6 +176,12 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         // 委托给 TeachingAnalyticsComponent 的完整实现（进度<40% 或 成绩<60 判定 + 多维下钻聚合），
         // 异常直接向上传播，由全局异常处理器统一响应，不再吞异常后返回 200 + error 字段。
         return teachingAnalyticsComponent.getAtRiskStudents(groupBy, courseId, department, major, classId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public CourseRiskPredictionVO predictCourseRisk(Long courseId) {
+        return learningRiskService.predictCourseRisk(courseId);
     }
 
     @Override

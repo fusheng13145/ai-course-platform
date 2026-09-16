@@ -197,7 +197,7 @@ class ResourceServiceTest {
 
         ArgumentCaptor<Resource> captor = ArgumentCaptor.forClass(Resource.class);
         verify(mapper).updateById(captor.capture());
-        assertFalse(captor.getValue().isVisibleToAll());
+        assertFalse(captor.getValue().getVisibleToAll());
     }
 
     @Test

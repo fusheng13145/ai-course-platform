@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import jakarta.validation.Valid;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.*;
@@ -173,6 +174,9 @@ public class TeacherController {
     @Operation(summary = "创建作业")
     public ApiResponse<Task> createAssignment(@Valid @RequestBody Task task, Authentication auth) {
         if (task.getCourseId() != null) assertCourseOwner(task.getCourseId(), auth);
+        // 修复（2026-09-14）：显式落定草稿态，使「响应体 = 落库值」，避免前端据响应判断发布状态时得到 null
+        if (task.getIsPublished() == null) task.setIsPublished(false);
+        if (task.getStatus() == null) task.setStatus("draft");
         taskService.save(task);
         return ApiResponse.success("创建成功", task);
     }
@@ -509,13 +513,14 @@ public class TeacherController {
                 .anyMatch(g -> g.getAuthority().equals("ROLE_ADMIN"));
         if (isAdmin) return;
         Course course = courseService.getById(courseId);
-        if (course == null) throw new BusinessException("课程不存在");
-        if (!userId.equals(course.getTeacherId())) throw new BusinessException("无权操作该课程");
+        if (course == null) throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+        // 语义修正（2026-09-14）：越权拒绝应为 403 而非默认 400
+        if (!userId.equals(course.getTeacherId())) throw new BusinessException(ApiCode.FORBIDDEN, "无权操作该课程");
     }
 
     private void assertTaskOwner(Long taskId, Authentication auth) {
         Task task = taskService.getById(taskId);
-        if (task == null) throw new BusinessException("作业不存在");
+        if (task == null) throw new BusinessException(ApiCode.NOT_FOUND, "作业不存在");
         assertCourseOwner(task.getCourseId(), auth);
     }
 

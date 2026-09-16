@@ -53,6 +53,17 @@ public final class RedisObjectMapperFactory {
         // 业务不受影响，攻击面收敛到业务实体范围。
         PolymorphicTypeValidator ptv = BasicPolymorphicTypeValidator.builder()
                 .allowIfSubType("com.aicourse.entity.")
+                // 修复（2026-09-14，P0）：白名单原先只有 entity 包，缺失 vo 包。
+                // 由于开启的是 NON_FINAL 默认类型，VO 在**写入**缓存时会带上
+                // "@class":"com.aicourse.vo.XxxVO"，而**读取**时被 PTV 拒绝，抛
+                //   SerializationException: Could not resolve type id
+                //   'com.aicourse.vo.ExamPaperDetailVO' ... PolymorphicTypeValidator denied resolution
+                // 表现为：这类接口「首次调用正常、之后每次调用 500」——影响
+                //   GET /exam-papers/{id}/detail（ExamPaperDetailVO）
+                //   GET /knowledge/points/tree/{courseId}（List<KnowledgeTreeNodeVO>）
+                //   GET /proctor/thresholds（ProctorThresholdVO）
+                // 现补入 vo 包，仍保持「项目自有类型白名单」而非 LaissezFaire，攻击面不扩大。
+                .allowIfSubType("com.aicourse.vo.")
                 .allowIfSubType("java.util.")
                 .allowIfSubType("java.lang.")
                 .allowIfSubType("java.time.")

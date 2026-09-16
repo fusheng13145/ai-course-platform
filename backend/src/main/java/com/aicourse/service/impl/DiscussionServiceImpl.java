@@ -1,5 +1,6 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.entity.DiscussionPost;
 import com.aicourse.entity.DiscussionPostLike;
 import com.aicourse.entity.DiscussionTopic;
@@ -331,7 +332,7 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
         }
         boolean isAdmin = RoleConstants.ADMIN.equals(role);
         if (!isAdmin && !userId.equals(post.getAuthorId())) {
-            throw new BusinessException("无权删除该回复");
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权删除该回复");
         }
         postMapper.deleteById(postId);
         DiscussionTopic topic = this.getById(post.getTopicId());
@@ -348,7 +349,7 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
         }
         boolean isAdmin = RoleConstants.ADMIN.equals(role);
         if (!isAdmin && !userId.equals(topic.getCreatorId())) {
-            throw new BusinessException("无权操作该话题");
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权操作该话题");
         }
         return topic;
     }

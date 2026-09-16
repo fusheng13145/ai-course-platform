@@ -1,6 +1,8 @@
 package com.aicourse.exception;
 
 import com.aicourse.common.ApiResponse;
+import org.springframework.dao.DataIntegrityViolationException;
+import org.springframework.dao.DuplicateKeyException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -8,6 +10,7 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
+import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -205,14 +208,73 @@ public class GlobalExceptionHandler {
     }
 
     /**
+     * 唯一约束冲突（如课程编号 code 重复、同一试卷重复加入同一题目）。
+     *
+     * <p>修复（2026-09-14）：原先 {@code DuplicateKeyException} 无语义化分支，落入兜底 500
+     * 「服务器内部错误」，客户端无法区分「业务冲突」与「服务故障」。此处转为 409，
+     * 并把底层约束名保留在日志中（响应体不回显 SQL 细节，避免信息泄露）。</p>
+     */
+    @ExceptionHandler(DuplicateKeyException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDuplicateKey(DuplicateKeyException e) {
+        log.warn("唯一约束冲突：{}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
+                .body(ApiResponse.error(ApiCode.CONFLICT, "数据已存在（唯一约束冲突），请检查编号/名称等唯一字段"));
+    }
+
+    /**
+     * 其它数据完整性冲突（外键约束、非空约束等）：返回 400 并给出可读提示。
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<ApiResponse<Void>> handleDataIntegrity(DataIntegrityViolationException e) {
+        log.warn("数据完整性冲突：{}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(ApiCode.BAD_REQUEST, "数据完整性校验失败，请检查关联数据是否存在"));
+    }
+
+    /**
+     * 上传文件超限：返回 413 而非兜底 500。
+     */
+    @ExceptionHandler(MaxUploadSizeExceededException.class)
+    public ResponseEntity<ApiResponse<Void>> handleUploadTooLarge(MaxUploadSizeExceededException e) {
+        log.warn("上传文件超过大小限制：{}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.PAYLOAD_TOO_LARGE)
+                .body(ApiResponse.error(ApiCode.PAYLOAD_TOO_LARGE, "上传文件超过大小限制"));
+    }
+
+    /**
      * 系统未知异常（兜底处理）
      */
     @ExceptionHandler(Exception.class)
     public ResponseEntity<ApiResponse<Void>> handleUnknownException(Exception e) {
+        // 容器层（Tomcat multipart 解析）在 Spring 包装之前直接抛出的超限异常，
+        // 会以 IllegalStateException 形式出现；沿因果链识别后按 413 返回，
+        // 避免「文件过大」被误报为「服务器内部错误」。
+        if (hasCause(e, "SizeLimitExceededException")) {
+            log.warn("上传文件超过容器限制：{}", e.getMessage());
+            return ResponseEntity
+                    .status(HttpStatus.PAYLOAD_TOO_LARGE)
+                    .body(ApiResponse.error(ApiCode.PAYLOAD_TOO_LARGE, "上传文件超过大小限制"));
+        }
         log.error("系统未知异常", e);
         return ResponseEntity
                 .status(HttpStatus.INTERNAL_SERVER_ERROR)
                 .body(ApiResponse.error(ApiCode.INTERNAL_SERVER_ERROR, "服务器内部错误，请稍后重试"));
+    }
+
+    /** 判断异常因果链中是否包含指定简单类名的异常。 */
+    private boolean hasCause(Throwable e, String simpleName) {
+        Throwable cur = e;
+        int depth = 0;
+        while (cur != null && depth++ < 20) {
+            if (cur.getClass().getSimpleName().equals(simpleName)) {
+                return true;
+            }
+            cur = cur.getCause();
+        }
+        return false;
     }
 
     /**

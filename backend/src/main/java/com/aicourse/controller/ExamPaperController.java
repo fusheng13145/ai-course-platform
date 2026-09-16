@@ -47,15 +47,18 @@ public class ExamPaperController {
     private final ExamQuestionService examQuestionService;
     private final QuestionService questionService;
     private final ExamSessionService examSessionService;
+    private final com.aicourse.security.ExamPaperAccessControl examPaperAccessControl;
 
     public ExamPaperController(ExamPaperService examPaperService,
                                ExamQuestionService examQuestionService,
                                QuestionService questionService,
-                               ExamSessionService examSessionService) {
+                               ExamSessionService examSessionService,
+                               com.aicourse.security.ExamPaperAccessControl examPaperAccessControl) {
         this.examPaperService = examPaperService;
         this.examQuestionService = examQuestionService;
         this.questionService = questionService;
         this.examSessionService = examSessionService;
+        this.examPaperAccessControl = examPaperAccessControl;
     }
 
     /**
@@ -134,7 +137,9 @@ public class ExamPaperController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "修改试卷")
-    public ApiResponse<ExamPaper> update(@PathVariable Long id, @Valid @RequestBody ExamPaper exam) {
+    public ApiResponse<ExamPaper> update(@PathVariable Long id, @Valid @RequestBody ExamPaper exam, Authentication auth) {
+        // 归属校验（2026-09-14 修复）：仅试卷所属课程的授课教师或管理员可修改
+        examPaperAccessControl.assertCanManage(examPaperService.getById(id), auth);
         exam.setId(id);
         examPaperService.updateById(exam);
         ExamPaper updatedExam = examPaperService.getById(id);
@@ -149,7 +154,9 @@ public class ExamPaperController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "删除试卷")
-    public ApiResponse<Void> delete(@PathVariable Long id) {
+    public ApiResponse<Void> delete(@PathVariable Long id, Authentication auth) {
+        // 归属校验（2026-09-14 修复）：仅试卷所属课程的授课教师或管理员可删除
+        examPaperAccessControl.assertCanManage(examPaperService.getById(id), auth);
         examPaperService.removeById(id);
         return ApiResponse.success("删除成功", null);
     }
@@ -199,7 +206,9 @@ public class ExamPaperController {
     @PostMapping("/{id}/publish")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "发布试卷")
-    public ApiResponse<ExamPaper> publish(@PathVariable Long id) {
+    public ApiResponse<ExamPaper> publish(@PathVariable Long id, Authentication auth) {
+        // 归属校验：仅试卷所属课程的授课教师或管理员可发布（修复他师越权发布）
+        examPaperAccessControl.assertCanManage(examPaperService.getById(id), auth);
         examPaperService.publishExamPaper(id);
         ExamPaper paper = examPaperService.getById(id);
         return ApiResponse.success("发布成功", paper);
@@ -217,6 +226,8 @@ public class ExamPaperController {
     @Operation(summary = "自动组卷")
     public ApiResponse<ExamPaper> autoCompose(@Valid @RequestBody AutoComposeDTO dto, Authentication auth) {
         Long creatorId = (Long) auth.getPrincipal();
+        // 归属校验：仅目标课程的授课教师或管理员可组卷（修复他师越权为他人课程组卷）
+        examPaperAccessControl.assertCanCompose(dto.getCourseId(), auth);
         ExamPaper paper = examPaperService.autoComposeExamPaper(dto, creatorId);
         return ApiResponse.success("自动组卷成功", paper);
     }

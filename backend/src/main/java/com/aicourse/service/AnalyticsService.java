@@ -4,6 +4,8 @@ import java.time.LocalDate;
 import java.util.List;
 import java.util.Map;
 
+import com.aicourse.vo.CourseRiskPredictionVO;
+
 /**
  * 数据统计分析业务接口
  * 提供平台总览、用户学习数据、课程分析、考试统计等全方位数据分析功能
@@ -132,4 +134,11 @@ public interface AnalyticsService {
      * @return 个体学情明细
      */
     Map<String, Object> getStudentCourseDetail(Long courseId, Long studentId);
+
+    /**
+     * 预测指定课程的学生学情风险（P2 预测性学情预警）
+     * @param courseId 课程ID
+     * @return 课程级风险预测（含汇总与各学生风险明细）
+     */
+    CourseRiskPredictionVO predictCourseRisk(Long courseId);
 }

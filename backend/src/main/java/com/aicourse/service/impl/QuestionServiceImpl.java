@@ -50,7 +50,9 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(value = "questions", allEntries = true)
+    // 修复 CR-1：题库写入只清空 questionSearch（列表缓存），不再 allEntries 清空 questions，
+    // 避免跨课程、跨题目的详情缓存（questionDetail）被无辜击穿；详情缓存由 updateCorrectRate 精确失效。
+    @CacheEvict(value = "questionSearch", allEntries = true)
     public Question createQuestion(Question question) {
         log.info("创建题目");
 
@@ -74,7 +76,9 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(value = "questions", allEntries = true)
+    // 修复 CR-1：题库写入只清空 questionSearch（列表缓存），不再 allEntries 清空 questions，
+    // 避免跨课程、跨题目的详情缓存（questionDetail）被无辜击穿；详情缓存由 updateCorrectRate 精确失效。
+    @CacheEvict(value = "questionSearch", allEntries = true)
     public Question generateByAI(Long courseId, String type, String difficulty, String knowledgePointNames) {
         // 调用AI服务生成题目JSON
         String generatedContent = aiService.generateQuestion(courseId, type, difficulty, 1);
@@ -113,7 +117,9 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(value = "questions", allEntries = true)
+    // 修复 CR-1：题库写入只清空 questionSearch（列表缓存），不再 allEntries 清空 questions，
+    // 避免跨课程、跨题目的详情缓存（questionDetail）被无辜击穿；详情缓存由 updateCorrectRate 精确失效。
+    @CacheEvict(value = "questionSearch", allEntries = true)
     public List<Question> generateBatchByAI(Long courseId, String type, String difficulty,
                                             String knowledgePointNames, int count, Long createdBy) {
         String generated = aiService.generateQuestion(courseId, type, difficulty, count);
@@ -152,7 +158,9 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(value = "questions", allEntries = true)
+    // 修复 CR-1：题库写入只清空 questionSearch（列表缓存），不再 allEntries 清空 questions，
+    // 避免跨课程、跨题目的详情缓存（questionDetail）被无辜击穿；详情缓存由 updateCorrectRate 精确失效。
+    @CacheEvict(value = "questionSearch", allEntries = true)
     public int batchImport(List<Question> questions, Long createdBy) {
         int imported = 0;
         for (Question q : questions) {
@@ -226,7 +234,9 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(value = "questions", allEntries = true)
+    // 修复 CR-1：题库写入只清空 questionSearch（列表缓存），不再 allEntries 清空 questions，
+    // 避免跨课程、跨题目的详情缓存（questionDetail）被无辜击穿；详情缓存由 updateCorrectRate 精确失效。
+    @CacheEvict(value = "questionSearch", allEntries = true)
     public void reviewQuestion(Long questionId, boolean approved) {
         Question question = this.getById(questionId);
         if (question == null) {
@@ -242,7 +252,9 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    @CacheEvict(value = "questions", allEntries = true)
+    // 修复 CR-1：题库写入只清空 questionSearch（列表缓存），不再 allEntries 清空 questions，
+    // 避免跨课程、跨题目的详情缓存（questionDetail）被无辜击穿；详情缓存由 updateCorrectRate 精确失效。
+    @CacheEvict(value = "questionSearch", allEntries = true)
     public Question copyQuestion(Long sourceQuestionId) {
         log.info("复制题目");
 
@@ -275,7 +287,9 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      * 支持按课程、类型、难度、关键词多条件动态查询
      */
     @Override
-    @Cacheable(value = "questions", key = "'search_' + #courseId + '_' + #type + '_' + #difficulty + '_' + #keyword + '_' + #page + '_' + #size")
+    // 修复 CR-1/CR-12：列表缓存独立为 questionSearch；key 中 null 参数归一为 ""，
+    // 避免 (null) 与 ("") 生成不同 key 导致语义相同查询重复缓存。
+    @Cacheable(value = "questionSearch", key = "'search_' + T(java.util.Objects).toString(#courseId,'') + '_' + T(java.util.Objects).toString(#type,'') + '_' + T(java.util.Objects).toString(#difficulty,'') + '_' + T(java.util.Objects).toString(#keyword,'') + '_' + #page + '_' + #size")
     public Page<Question> searchQuestions(Long courseId, String type, String difficulty, String keyword, int page, int size) {
         LambdaQueryWrapper<Question> queryWrapper = new LambdaQueryWrapper<Question>()
                 .eq(courseId != null, Question::getCourseId, courseId)
@@ -292,7 +306,8 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
      * 返回题目基本信息及解析后的选项列表
      */
     @Override
-    @Cacheable(value = "questions", key = "'detail_' + #questionId")
+    // 修复 CR-1：详情缓存独立为 questionDetail（与列表缓存解耦，写入不击穿）。
+    @Cacheable(value = "questionDetail", key = "'detail_' + #questionId")
     public Map<String, Object> getQuestionDetail(Long questionId) {
         Question question = this.getById(questionId);
         if (question == null) {
@@ -385,8 +400,8 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
     @Override
     @Transactional(rollbackFor = Exception.class)
     // 仅精准失效该题详情缓存：正确率随每次批阅高频更新，allEntries 会让搜索缓存完全失效；
-    // 搜索列表中的 correctRate 允许 ≤10min（questions TTL）的短暂滞后
-    @CacheEvict(value = "questions", key = "'detail_' + #questionId")
+    // 搜索列表中的 correctRate 允许 ≤10min（questionSearch TTL）的短暂滞后
+    @CacheEvict(value = "questionDetail", key = "'detail_' + #questionId")
     public void updateCorrectRate(Long questionId, boolean isCorrect) {
         log.info("更新题目");
 

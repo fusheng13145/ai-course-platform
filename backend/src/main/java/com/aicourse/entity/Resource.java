@@ -69,8 +69,10 @@ public class Resource {
     @TableField("visible_to_all")
     private Boolean visibleToAll;
 
-    public Boolean isVisibleToAll() {
-        return visibleToAll;
-    }
-
+    // 注意（2026-09-14 修复）：此处曾手写 `public Boolean isVisibleToAll()`，
+    // 与 Lombok @Data 为包装类型字段生成的 `getVisibleToAll()` 形成**重载歧义**
+    // （JavaBeans 规范中 `is` 前缀仅适用于基本类型 boolean）。MyBatis 反射解析属性
+    // 时会抛出 ReflectionException: Illegal overloaded getter method with ambiguous type，
+    // 导致所有 resources 写操作（上传/可见性切换/删除）恒返回 500。
+    // 统一由 Lombok 生成 `getVisibleToAll()`，请勿再手写 `isXxx()` 形式的包装类型 getter。
 }

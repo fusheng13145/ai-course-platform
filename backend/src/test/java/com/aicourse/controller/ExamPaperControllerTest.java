@@ -38,6 +38,8 @@ class ExamPaperControllerTest extends ControllerTestBase {
     private com.aicourse.service.QuestionService questionService;
     @MockitoBean
     private com.aicourse.service.ExamSessionService examSessionService;
+    @MockitoBean
+    private com.aicourse.security.ExamPaperAccessControl examPaperAccessControl;
 
     private Page<ExamPaper> examPaperPageWith(Long id) {
         ExamPaper p = new ExamPaper();

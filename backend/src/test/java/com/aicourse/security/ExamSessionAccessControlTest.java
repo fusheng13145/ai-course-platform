@@ -4,6 +4,7 @@ import com.aicourse.entity.Course;
 import com.aicourse.entity.ExamPaper;
 import com.aicourse.entity.ExamSession;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamSessionService;
@@ -20,6 +21,7 @@ import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.when;
 
 /**
@@ -36,6 +38,8 @@ class ExamSessionAccessControlTest {
     private ExamPaperService examPaperService;
     @Mock
     private CourseService courseService;
+    @Mock
+    private CourseEnrollmentService courseEnrollmentService;
 
     @InjectMocks
     private ExamSessionAccessControl accessControl;
@@ -105,5 +109,36 @@ class ExamSessionAccessControlTest {
         when(examSessionService.getById(1L)).thenReturn(null);
         assertThrows(BusinessException.class,
                 () -> accessControl.assertManageable(1L, auth(20L, "TEACHER")));
+    }
+
+    // ===================== 开考前置校验（未选课学生不得开考） =====================
+
+    @Test
+    void studentEnrolled_canStartExam() {
+        when(examPaperService.getById(5L)).thenReturn(paper(5L, 7L));
+        when(courseService.getById(7L)).thenReturn(course(7L, 20L));
+        when(courseEnrollmentService.hasApprovedEnrollment(anyLong(), anyLong())).thenReturn(true);
+        assertDoesNotThrow(() -> accessControl.assertExamStartable(5L, auth(10L, "STUDENT")));
+    }
+
+    @Test
+    void studentNotEnrolled_cannotStartExam() {
+        when(examPaperService.getById(5L)).thenReturn(paper(5L, 7L));
+        when(courseService.getById(7L)).thenReturn(course(7L, 20L));
+        when(courseEnrollmentService.hasApprovedEnrollment(anyLong(), anyLong())).thenReturn(false);
+        assertThrows(BusinessException.class,
+                () -> accessControl.assertExamStartable(5L, auth(10L, "STUDENT")));
+    }
+
+    @Test
+    void missingPaperId_rejected() {
+        assertThrows(BusinessException.class,
+                () -> accessControl.assertExamStartable(null, auth(10L, "STUDENT")));
+    }
+
+    @Test
+    void teacherStartExam_notBlockedByEnrollmentCheck() {
+        // 教师开考不属于业务路径（收卷/阅卷走 force-submit / auto-grade），保持原放行行为不变
+        assertDoesNotThrow(() -> accessControl.assertExamStartable(5L, auth(20L, "TEACHER")));
     }
 }

@@ -17,9 +17,10 @@ import org.slf4j.LoggerFactory;
  * 现映射 {@code /uploads/**} 到本地上传目录（与 {@code file.upload-dir} 对齐，
  * 默认 {@code uploads/}，即 LocalFileStorageServiceImpl 与 ResourceController 的落盘目录）。
  * <p>
- * 安全说明：SecurityConfig 已将 {@code /uploads/**} 定为公开路径（既定设计），
- * 文件名由服务端 UUID 生成、不可枚举，等价于 capability URL；
- * 涉及权限控制的教学资源应走 {@code /api/resources/download/{id}}（已实现对象级鉴权）。
+ * 安全说明：SecurityConfig 已将 {@code /uploads/**} 取消免认证（修复 F-01，2026-09-15），
+ * 现需登录后方可访问（文件名由服务端 UUID 生成、不可枚举，等价于需登录的 capability URL）；
+ * 涉及权限控制的教学资源必须走 {@code /api/resources/download/{id}}（已实现对象级鉴权 canAccessResource），
+ * 不应依赖静态直链，否则已登录用户仍可绕过课程级可见性 ACL。
  */
 @Configuration
 public class UploadResourceConfig implements WebMvcConfigurer {

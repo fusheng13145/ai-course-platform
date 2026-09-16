@@ -3,6 +3,7 @@ package com.aicourse.service.impl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.entity.Course;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.CourseMapper;
@@ -17,6 +18,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.Serializable;
+import java.time.LocalDateTime;
 import java.util.List;
 
 
@@ -102,6 +104,24 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         log.info("创建课程");
 
         course.setTeacherId(teacherId);
+        // 修复（2026-09-14）：显式落定初始状态，不再依赖 DDL 默认值。
+        // 原实现仅 save()，DB 虽按默认值落库 PENDING/active，但返回体不回显这些字段
+        // （实体未回填），前端若据响应判断状态会得到 null 而误判；显式赋值使「响应体 = 落库值」。
+        if (course.getApprovalStatus() == null) {
+            course.setApprovalStatus("PENDING");
+        }
+        if (course.getStatus() == null) {
+            course.setStatus("active");
+        }
+        if (course.getIsActive() == null) {
+            course.setIsActive(true);
+        }
+        if (course.getEnrollmentType() == null) {
+            course.setEnrollmentType("FREE");
+        }
+        if (course.getMaxStudents() == null) {
+            course.setMaxStudents(100);
+        }
         this.save(course);
         return course;
     }
@@ -115,10 +135,11 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
 
         Course existCourse = this.getById(id);
         if (existCourse == null) {
-            throw new BusinessException("课程不存在");
+            throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
         }
         if (!operatorId.equals(existCourse.getTeacherId()) && !isAdmin) {
-            throw new BusinessException("无权修改该课程");
+            // 语义修正（2026-09-14）：越权拒绝应为 403 而非默认 400，避免客户端把「无权限」误判为「参数错误」
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权修改该课程");
         }
         course.setId(id);
         this.updateById(course);
@@ -141,6 +162,11 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     /** 删除课程 */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    // 修复（2026-09-14）：删除需失效缓存，否则已删除课程在 TTL 内仍可被 getById 命中
+    @Caching(evict = {
+            @CacheEvict(cacheNames = "courses", key = "#id"),
+            @CacheEvict(cacheNames = "courses", key = "'all'")
+    })
     public void deleteCourseById(Long id) {
         log.info("删除课程");
 
@@ -151,15 +177,32 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     /** 审批通过课程 */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    // 修复（2026-09-14）：approveCourse 原先**未失效** getById 的 courses 缓存
+    // （getById 为 @Cacheable，key=#id），审批通过后 TTL 内仍能读到旧的 PENDING，
+    // 导致「审批已通过但学生仍被判定课程未审核」这类跨请求不一致。
+    @Caching(evict = {
+            @CacheEvict(cacheNames = "courses", key = "#id"),
+            @CacheEvict(cacheNames = "courses", key = "'all'")
+    })
     public Course approveCourse(Long id) {
         log.info("审批通过课程");
 
         Course course = this.getById(id);
         if (course == null) {
-            throw new BusinessException("课程不存在");
+            throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+        }
+        // 修复（2026-09-14）：补状态前置校验，使重复审批成为**幂等**操作。
+        // 原实现无任何状态判断，重复调用始终「成功」，掩盖了审批状态机的约束。
+        if ("APPROVED".equalsIgnoreCase(course.getApprovalStatus())
+                && "ACTIVE".equalsIgnoreCase(course.getStatus())) {
+            log.info("课程已处于「已通过/进行中」状态，跳过重复审批：courseId={}", id);
+            return course;
         }
         course.setApprovalStatus("APPROVED");
         course.setStatus("ACTIVE");
+        if (course.getApprovalTime() == null) {
+            course.setApprovalTime(LocalDateTime.now());
+        }
         this.updateById(course);
         return course;
     }
@@ -168,6 +211,11 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     /** 切换课程 */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    // 修复（2026-09-14）：状态切换需失效单条 + 列表缓存，避免读到旧状态
+    @Caching(evict = {
+            @CacheEvict(cacheNames = "courses", key = "#id"),
+            @CacheEvict(cacheNames = "courses", key = "'all'")
+    })
     public Course toggleCourseStatus(Long id) {
         log.info("切换课程");
 
@@ -188,6 +236,11 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     /** 审批驳回课程 */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    // 修复（2026-09-14）：驳回同样需失效缓存，否则驳回后仍读到 PENDING/APPROVED 旧值
+    @Caching(evict = {
+            @CacheEvict(cacheNames = "courses", key = "#id"),
+            @CacheEvict(cacheNames = "courses", key = "'all'")
+    })
     public Course rejectCourse(Long id, String reason) {
         log.info("审批驳回课程");
 

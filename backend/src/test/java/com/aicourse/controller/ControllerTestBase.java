@@ -67,7 +67,9 @@ import static org.mockito.Mockito.doAnswer;
         "app.security.csrf.enabled=false"
 })
 @AutoConfigureMockMvc
-@Import(SecurityConfig.class)
+// RestAccessDeniedHandler 为真实 bean（非 mock）：它直接写出 403 + 业务信封，
+// 用于覆盖「已认证但权限不足」分支；若当作 mock 则默认不写响应，403 断言会退化为 200。
+@Import({SecurityConfig.class, com.aicourse.security.RestAccessDeniedHandler.class})
 public abstract class ControllerTestBase {
 
     @Autowired

@@ -299,7 +299,7 @@ public class LearningPathController {
             throw new BusinessException("学习路径不存在");
         }
         if (!path.getStudentId().equals(userId)) {
-            throw new BusinessException("无权访问该学习路径");
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权访问该学习路径");
         }
         return path;
     }

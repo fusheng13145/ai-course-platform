@@ -1,5 +1,6 @@
 package com.aicourse.controller;
 
+import com.aicourse.common.ApiCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -128,7 +129,7 @@ public class LearningPathNodeController {
             throw new BusinessException("学习路径不存在");
         }
         if (!path.getStudentId().equals(userId)) {
-            throw new BusinessException("无权访问该学习路径");
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权访问该学习路径");
         }
     }
 

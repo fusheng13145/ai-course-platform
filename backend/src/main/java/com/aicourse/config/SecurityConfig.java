@@ -3,6 +3,7 @@ package com.aicourse.config;
 import com.aicourse.config.CorsProperties;
 import com.aicourse.security.JwtAuthenticationEntryPoint;
 import com.aicourse.security.JwtRequestFilter;
+import com.aicourse.security.RestAccessDeniedHandler;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -52,6 +53,7 @@ public class SecurityConfig {
 
     private final JwtRequestFilter jwtRequestFilter;
     private final JwtAuthenticationEntryPoint jwtAuthEntryPoint;
+    private final RestAccessDeniedHandler restAccessDeniedHandler;
     private final CorsProperties corsProperties;
 
     /** Swagger/OpenAPI 文档是否公开，默认关闭，避免生产环境暴露完整 API 文档。 */
@@ -80,6 +82,14 @@ public class SecurityConfig {
     @Value("${app.actuator.basic.password:}")
     private String actuatorBasicPassword;
 
+    /**
+     * CORS 本地开发兜底开关。默认 true：当 {@code cors.allowed-origins} 未配置时回退到
+     * {@code http://localhost:5173}（开发联调便利）。生产环境务必在 profile 中置为 false，
+     * 使未显式配置 origins 时回落为空（拒绝一切跨域），避免带凭证的 localhost 兜底泄漏到生产。
+     */
+    @Value("${app.cors.dev-fallback:true}")
+    private boolean corsDevFallback;
+
     private static final Logger log = LoggerFactory.getLogger(SecurityConfig.class);
 
     /**
@@ -89,16 +99,20 @@ public class SecurityConfig {
      */
     public SecurityConfig(JwtRequestFilter jwtRequestFilter,
                           JwtAuthenticationEntryPoint jwtAuthenticationEntryPoint,
+                          RestAccessDeniedHandler restAccessDeniedHandler,
                           CorsProperties corsProperties,
                           @org.springframework.beans.factory.annotation.Value("${app.swagger.enabled:false}") boolean swaggerEnabled,
                           @org.springframework.beans.factory.annotation.Value("${app.actuator.secured:true}") boolean actuatorSecured,
-                          @org.springframework.beans.factory.annotation.Value("${app.security.require-https:true}") boolean requireHttps) {
+                          @org.springframework.beans.factory.annotation.Value("${app.security.require-https:true}") boolean requireHttps,
+                          @org.springframework.beans.factory.annotation.Value("${app.cors.dev-fallback:true}") boolean corsDevFallback) {
         this.jwtRequestFilter = jwtRequestFilter;
         this.jwtAuthEntryPoint = jwtAuthenticationEntryPoint;
+        this.restAccessDeniedHandler = restAccessDeniedHandler;
         this.corsProperties = corsProperties;
         this.swaggerEnabled = swaggerEnabled;
         this.actuatorSecured = actuatorSecured;
         this.requireHttps = requireHttps;
+        this.corsDevFallback = corsDevFallback;
     }
 
     /**
@@ -176,10 +190,21 @@ public class SecurityConfig {
         InMemoryUserDetailsManager userDetailsManager = new InMemoryUserDetailsManager();
         if (actuatorBasicUser != null && !actuatorBasicUser.isBlank()
                 && actuatorBasicPassword != null && !actuatorBasicPassword.isBlank()) {
-            userDetailsManager.createUser(User.withUsername(actuatorBasicUser)
-                    .password(passwordEncoder.encode(actuatorBasicPassword))
-                    .roles("ACTUATOR")
-                    .build());
+            // 防御：{@code PasswordEncoder} 在 {@code @WebMvcTest} 切片中通常是 Mockito mock，
+            // 其 {@code encode(...)} 返回 null，直接交给 {@code UserBuilder.password(...)}
+            // 会抛 IllegalArgumentException("password cannot be null")，
+            // 使整个应用上下文启动失败（实测：注入 APP_ACTUATOR_BASIC_PASSWORD 后切片用例全错）。
+            // 空编码结果一律视为「凭据不可用」，退回 fail-closed（不注册监控账号）。
+            String encoded = passwordEncoder.encode(actuatorBasicPassword);
+            if (encoded == null || encoded.isBlank()) {
+                log.warn("PasswordEncoder 未能编码 Actuator Basic 口令（encode 返回空），"
+                        + " 本次不注册监控账号，/actuator/prometheus 保持拒绝所有抓取（fail-closed）。");
+            } else {
+                userDetailsManager.createUser(User.withUsername(actuatorBasicUser)
+                        .password(encoded)
+                        .roles("ACTUATOR")
+                        .build());
+            }
         } else {
             log.warn("未配置 Actuator Basic 凭据（APP_ACTUATOR_BASIC_USER/PASSWORD），"
                     + " /actuator/prometheus 将拒绝所有抓取请求（fail-closed）。"
@@ -242,8 +267,12 @@ public class SecurityConfig {
                 .cors(cors -> cors.configurationSource(corsConfigurationSource()))
                 // 设置会话策略：无状态，不创建和使用Session
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
-                // 配置认证失败统一异常处理
-                .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthEntryPoint))
+                // 配置认证失败统一异常处理：
+                // - authenticationEntryPoint：未认证 / 令牌失效 → 401（若上下文已是已认证主体则返回 403）
+                // - accessDeniedHandler：已认证但权限不足 → 403 + 标准业务信封（原缺此配置，返回无响应体 403）
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(jwtAuthEntryPoint)
+                        .accessDeniedHandler(restAccessDeniedHandler))
                 // 接口权限规则配置
                 .authorizeHttpRequests(auth -> {
                     // 公开接口：无需登录即可访问
@@ -299,7 +328,10 @@ public class SecurityConfig {
                 "/auth/**",
                 "/common/verify-code",
                 "/common/feature-roadmap",
-                "/uploads/**",
+                // 修复 F-01：取消 /uploads/** 免认证。静态资源此前 permitAll，任意匿名用户
+                // 凭 UUID 文件名即可直链下载（含教学资源），绕过 ResourceController.canAccessResource
+                // 的对象级 ACL。现 /uploads/** 需登录后方可访问；教学资源下载应统一走
+                // 受认证且做 ACL 的 /resources/download/{id}（匿名 401，已登录用户仍需通过对象级鉴权）。
                 "/ws",
                 "/ws/**",
                 // 前端错误监控上报（匿名引导型：无会话令牌可用，见 MonitorController）
@@ -323,7 +355,15 @@ public class SecurityConfig {
         // 允许的前端域名白名单改为配置驱动（cors.allowed-origins），多环境免改代码
         List<String> allowedOrigins = corsProperties.getAllowedOrigins();
         if (allowedOrigins == null || allowedOrigins.isEmpty()) {
-            allowedOrigins = List.of("http://localhost:5173");
+            if (corsDevFallback) {
+                // 仅本地开发便利：未配置 origins 时回退 localhost。生产须置 app.cors.dev-fallback=false
+                // 并在 cors.allowed-origins 显式列出受信前端域名（不含 localhost），避免带凭证跨域泄漏。
+                allowedOrigins = List.of("http://localhost:5173");
+            } else {
+                log.warn("cors.allowed-origins 未配置且 app.cors.dev-fallback=false，"
+                        + " 将拒绝一切跨域请求（fail-closed）。生产环境请在配置中显式设置受信前端域名。");
+                allowedOrigins = List.of();
+            }
         }
         corsConfig.setAllowedOrigins(allowedOrigins);
         // 允许的请求方式

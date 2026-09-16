@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.service.AnalyticsService;
+import com.aicourse.vo.CourseRiskPredictionVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -214,6 +215,18 @@ public class AnalyticsController {
             @Parameter(description = "专业（可选过滤）") @RequestParam(required = false) String major,
             @Parameter(description = "班级ID（可选过滤）") @RequestParam(required = false) Long classId) {
         Map<String, Object> data = analyticsService.getAtRiskStudents(groupBy, courseId, department, major, classId);
+        return ApiResponse.success(data);
+    }
+
+    /**
+     * 课程学生学情风险预测（教师端预警清单，P2 预测性学情预警）
+     */
+    @GetMapping("/courses/{courseId}/risk-prediction")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "课程学生学情风险预测", description = "基于成绩/进度/登录活跃度/学习行为/时长五维信号，返回每名学生的风险分、等级与可解释原因，按风险分降序")
+    public ApiResponse<CourseRiskPredictionVO> courseRiskPrediction(
+            @Parameter(description = "课程ID") @PathVariable Long courseId) {
+        CourseRiskPredictionVO data = analyticsService.predictCourseRisk(courseId);
         return ApiResponse.success(data);
     }
 }

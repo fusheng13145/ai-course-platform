@@ -58,6 +58,9 @@ public class ExamSessionController {
         String ipAddress = request.getRemoteAddr();
         String userAgent = request.getHeader("User-Agent");
 
+        // 开考前置校验：学生必须是该试卷所属课程的选课学生（修复未选课学生越权开考）
+        examSessionAccessControl.assertExamStartable(examPaperId, auth);
+
         ExamSession session = examSessionService.startExam(examPaperId, studentId, ipAddress, userAgent);
         return ApiResponse.success("考试开始成功", session);
     }

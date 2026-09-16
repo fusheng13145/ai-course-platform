@@ -13,9 +13,16 @@ import jakarta.validation.constraints.*;
 @Data
 public class ResourceVersionCreateDTO {
 
-    @NotNull(message = "资源ID不能为空")
-    @Schema(description = "目标资源ID", example = "301",
-            requiredMode = Schema.RequiredMode.REQUIRED)
+    /**
+     * 目标资源 ID。
+     *
+     * <p><b>修复（2026-09-14）</b>：与 {@code fileUrl} 同因——本 DTO 被
+     * {@code POST /resource-versions}（建版本）与 {@code POST /resource-versions/{id}/rollback}
+     * （回滚）共用。回滚的资源 ID 已在**路径**中给出，若 DTO 再强制 body 必填，
+     * 按 REST 惯例只传 {@code {versionNumber}} 的客户端会被 400 拒绝。
+     * 现改为可选，建版本端点保留自己的非空校验（缺失时返回 400「资源ID不能为空」）。</p>
+     */
+    @Schema(description = "目标资源ID（建版本必填；回滚以路径参数为准）", example = "301")
     private Long resourceId;
 
     @Schema(description = "文件名", example = "slides-v2.pdf")
@@ -27,10 +34,19 @@ public class ResourceVersionCreateDTO {
     @Schema(description = "资源URL地址", example = "https://example.com/files/slides-v2.pdf")
     private String url;
 
-    @NotBlank(message = "文件URL不能为空")
+    /**
+     * 新版文件的 URL 地址。
+     *
+     * <p><b>修复（2026-09-14）</b>：原先标注 {@code @NotBlank}，但本 DTO 被两个端点共用：
+     * {@code POST /resource-versions}（建版本，需要 URL）与
+     * {@code POST /resource-versions/{id}/rollback}（回滚，**语义上只需 versionNumber**，
+     * 其 JavaDoc 也明确写「仅使用 versionNumber 字段」）。强制 @NotBlank 会让
+     * 回滚请求因缺少 fileUrl 直接 400，与该端点自身的契约矛盾。
+     * 现改为长度约束，非空校验下移到建版本端点内（缺失时返回 400「资源地址不能为空」）。</p>
+     */
     @Size(max = 500, message = "URL长度不能超过500个字符")
-    @Schema(description = "新版文件的URL地址", example = "https://example.com/files/ch1-slides-v2.pdf",
-            requiredMode = Schema.RequiredMode.REQUIRED)
+    @Schema(description = "新版文件的URL地址（建版本必填；回滚可省略）",
+            example = "https://example.com/files/ch1-slides-v2.pdf")
     private String fileUrl;
 
     @Min(value = 1, message = "文件大小必须大于0字节")

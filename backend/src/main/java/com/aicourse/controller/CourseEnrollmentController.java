@@ -130,6 +130,11 @@ public class CourseEnrollmentController {
         enrollment.setApprovalStatus("REJECTED");
         enrollment.setApprovedBy(approverId);
         enrollment.setApprovalTime(LocalDateTime.now());
+        // 修复（2026-09-14）：驳回必须同时置 is_active=false。
+        // is_active 的语义是「选课是否有效」，被驳回的报名显然不是有效选课；
+        // 原实现只改 approval_status，导致下游按 is_active 判权的链路（资源下载、开考资格）
+        // 仍把**已驳回**的学生当作课程成员放行，且该记录继续占用 max_students 名额。
+        enrollment.setIsActive(false);
 
         if (body != null && body.get("reason") != null) {
             enrollment.setApprovalComment(body.get("reason"));

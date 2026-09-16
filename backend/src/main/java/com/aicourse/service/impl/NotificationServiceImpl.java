@@ -1,6 +1,7 @@
 package com.aicourse.service.impl;
 
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.Notification;
 import com.aicourse.exception.BusinessException;
@@ -145,7 +146,7 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
             throw new BusinessException("通知不存在");
         }
         if (!notification.getUserId().equals(userId)) {
-            throw new BusinessException("无权操作该通知");
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权操作该通知");
         }
         notification.setIsRead(true);
         notification.setReadAt(LocalDateTime.now());
@@ -215,7 +216,7 @@ public class NotificationServiceImpl extends ServiceImpl<NotificationMapper, Not
             throw new BusinessException("通知不存在");
         }
         if (!notification.getUserId().equals(userId)) {
-            throw new BusinessException("无权删除该通知");
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权删除该通知");
         }
         this.removeById(notificationId);
     }

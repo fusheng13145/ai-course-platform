@@ -23,6 +23,11 @@ class ResourceVersionControllerTest extends ControllerTestBase {
 
     @MockitoBean
     private com.aicourse.service.ResourceVersionService resourceVersionService;
+    // 2026-09-14：控制器新增归属校验依赖（assertResourceManageable 用到资源与课程）
+    @MockitoBean
+    private com.aicourse.service.ResourceService resourceService;
+    @MockitoBean
+    private com.aicourse.service.CourseService courseService;
 
     private ResourceVersion sampleVersion(Long id, Integer versionNumber) {
         ResourceVersion v = new ResourceVersion();

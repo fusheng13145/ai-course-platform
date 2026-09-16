@@ -46,7 +46,7 @@ public class ResourceServiceImpl extends ServiceImpl<ResourceMapper, Resource> i
             throw new BusinessException("资源不存在");
         }
         // 全员可见的资源直接返回有权限
-        if (Boolean.TRUE.equals(resource.isVisibleToAll())) {
+        if (Boolean.TRUE.equals(resource.getVisibleToAll())) {
             return true;
         }
         // 非全员可见时，这里可扩展更细粒度的权限控制（如课程成员校验）

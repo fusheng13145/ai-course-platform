@@ -1,6 +1,7 @@
 package com.aicourse.config;
 
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.module.SimpleModule;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.jackson.JacksonProperties;
@@ -9,6 +10,7 @@ import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 import java.text.SimpleDateFormat;
+import java.time.LocalDateTime;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -27,9 +29,15 @@ public class JacksonConfig {
 
     @Bean
     public Jackson2ObjectMapperBuilderCustomizer jacksonCustomizer() {
-        log.info("[JacksonConfig] 注册 Jackson 定制器：JavaTimeModule + date-format/time-zone（来自 application.yaml）");
+        log.info("[JacksonConfig] 注册 Jackson 定制器：JavaTimeModule + 宽松 LocalDateTime 反序列化 + date-format/time-zone（来自 application.yaml）");
         return builder -> {
-            builder.modules(new JavaTimeModule());
+            // JavaTimeModule 负责 java.time.* 的（反）序列化；
+            // SimpleModule 额外为 LocalDateTime 注册宽松反序列化器，
+            // 使 yyyy-MM-dd HH:mm:ss（配置文件声明的格式）与 ISO-8601 两种入参都被接受，
+            // 消除「按配置格式提交却 400」的契约陷阱。详见 LenientLocalDateTimeDeserializer。
+            SimpleModule lenientDateTime = new SimpleModule();
+            lenientDateTime.addDeserializer(LocalDateTime.class, new LenientLocalDateTimeDeserializer());
+            builder.modules(new JavaTimeModule(), lenientDateTime);
             builder.featuresToDisable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS);
             if (jacksonProperties.getDateFormat() != null) {
                 builder.dateFormat(new SimpleDateFormat(jacksonProperties.getDateFormat()));

@@ -38,6 +38,7 @@ class AnalyticsServiceImplTest {
     @Mock private CourseAnalyticsComponent courseAnalyticsComponent;
     @Mock private LearnerAnalyticsComponent learnerAnalyticsComponent;
     @Mock private TeachingAnalyticsComponent teachingAnalyticsComponent;
+    @Mock private LearningRiskService learningRiskService;
 
     @Mock private UserService userService;
     @Mock private CourseEnrollmentService enrollmentService;
@@ -54,6 +55,7 @@ class AnalyticsServiceImplTest {
     void setUp() {
         analyticsService = new AnalyticsServiceImpl(
                 adminAnalyticsComponent, courseAnalyticsComponent, learnerAnalyticsComponent, teachingAnalyticsComponent,
+                learningRiskService,
                 userService, enrollmentService, taskService, taskCompletionMapper,
                 submissionService, examSessionService, examPaperService, courseChapterService);
     }

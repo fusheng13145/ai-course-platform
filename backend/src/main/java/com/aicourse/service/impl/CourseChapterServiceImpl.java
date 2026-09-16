@@ -1,5 +1,6 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.common.ApiCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -38,7 +39,7 @@ public class CourseChapterServiceImpl extends ServiceImpl<CourseChapterMapper, C
         }
         Course course = courseService.getById(courseId);
         if (course == null || !operatorId.equals(course.getTeacherId())) {
-            throw new BusinessException("无权管理该课程");
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权管理该课程");
         }
     }
 

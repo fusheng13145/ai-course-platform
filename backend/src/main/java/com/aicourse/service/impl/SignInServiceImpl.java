@@ -1,5 +1,6 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.common.ApiCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -267,7 +268,7 @@ public class SignInServiceImpl extends ServiceImpl<SignInMapper, SignIn> impleme
                 .anyMatch(a -> a instanceof SimpleGrantedAuthority
                         && "ROLE_ADMIN".equals(((SimpleGrantedAuthority) a).getAuthority()));
         if (!isAdmin && !userId.equals(course.getTeacherId())) {
-            throw new BusinessException("无权操作该课程");
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权操作该课程");
         }
     }
 }

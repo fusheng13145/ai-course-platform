@@ -6,6 +6,7 @@ import com.aicourse.entity.Course;
 import com.aicourse.entity.ExamPaper;
 import com.aicourse.entity.ExamSession;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamSessionService;
@@ -45,13 +46,49 @@ public class ExamSessionAccessControl {
     private final ExamSessionService examSessionService;
     private final ExamPaperService examPaperService;
     private final CourseService courseService;
+    private final CourseEnrollmentService courseEnrollmentService;
 
     public ExamSessionAccessControl(ExamSessionService examSessionService,
                                     ExamPaperService examPaperService,
-                                    CourseService courseService) {
+                                    CourseService courseService,
+                                    CourseEnrollmentService courseEnrollmentService) {
         this.examSessionService = examSessionService;
         this.examPaperService = examPaperService;
         this.courseService = courseService;
+        this.courseEnrollmentService = courseEnrollmentService;
+    }
+
+    /**
+     * 开考前置校验：学生必须是该试卷所属课程的选课学生。
+     *
+     * <p>修复（2026-09-14）：原 {@code POST /exam-sessions/start} 仅校验试卷状态与尝试次数，
+     * 未校验考生与课程的选课关系，任何登录学生都能对任意已发布试卷开考（越权参加他人课程考试）。
+     * 教师/管理员开考不属于业务路径（收卷/阅卷走 force-submit / auto-grade），保持原有放行行为不变。</p>
+     *
+     * @throws BusinessException 入参缺失 code=400；试卷/课程不存在 code=404；未选课学生 code=403
+     */
+    public void assertExamStartable(Long examPaperId, Authentication auth) {
+        if (examPaperId == null) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "缺少试卷ID");
+        }
+        if (!RoleConstants.STUDENT.equals(roleOf(auth))) {
+            return;
+        }
+        ExamPaper paper = examPaperService.getById(examPaperId);
+        if (paper == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "试卷不存在");
+        }
+        Course course = courseService.getById(paper.getCourseId());
+        if (course == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+        }
+        // 成员判定统一走 hasApprovedEnrollment：审批型课程必须**审批通过**后才可开考。
+        // （修复 2026-09-14：原先只查 is_active，导致待审批/已驳回的报名也能开考。）
+        if (!courseEnrollmentService.hasApprovedEnrollment(principalId(auth), course.getId())) {
+            log.warn("[ExamSessionAccess] 拒绝非课程成员开考：paperId={}, userId={}, courseId={}",
+                    examPaperId, principalId(auth), course.getId());
+            throw new BusinessException(ApiCode.FORBIDDEN, "尚未加入该课程（或选课尚未通过审批），无法参加考试");
+        }
     }
 
     /**

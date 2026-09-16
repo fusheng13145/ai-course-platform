@@ -1,5 +1,6 @@
 package com.aicourse.controller;
 
+import com.aicourse.common.ApiCode;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,7 +56,7 @@ public class ProctorController {
         Long studentId = (Long) auth.getPrincipal();
         ProctorSession session = proctorService.getById(id);
         if (session == null || !session.getStudentId().equals(studentId)) {
-            throw new BusinessException("无权上报该会话事件");
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权上报该会话事件");
         }
         return ApiResponse.success("已记录",
                 proctorService.logEvent(id, event.getType(), event.getSeverity(),
@@ -86,7 +87,7 @@ public class ProctorController {
         boolean isStudent = auth.getAuthorities().stream()
                 .anyMatch(a -> "ROLE_STUDENT".equals(a.getAuthority()));
         if (isStudent && !uid.equals(studentId)) {
-            throw new BusinessException("无权查看他人监考会话");
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权查看他人监考会话");
         }
         return ApiResponse.success(proctorService.getStudentSession(examSessionId, studentId));
     }

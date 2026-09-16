@@ -308,14 +308,12 @@ public class ResourceController {
             Course course = resource.getCourseId() != null ? courseService.getById(resource.getCourseId()) : null;
             return course != null && userId.equals(course.getTeacherId());
         }
-        // 学生：必须已选该资源所属课程
+        // 学生：必须是该课程**有效且已审批通过**的成员
+        // （修复 2026-09-14：原先只查 is_active，待审批/已驳回的报名记录也能下载资源）
         if (resource.getCourseId() == null) {
             return false;
         }
-        return courseEnrollmentService.count(new LambdaQueryWrapper<CourseEnrollment>()
-                .eq(CourseEnrollment::getStudentId, userId)
-                .eq(CourseEnrollment::getCourseId, resource.getCourseId())
-                .eq(CourseEnrollment::getIsActive, true)) > 0;
+        return courseEnrollmentService.hasApprovedEnrollment(userId, resource.getCourseId());
     }
 
     /**

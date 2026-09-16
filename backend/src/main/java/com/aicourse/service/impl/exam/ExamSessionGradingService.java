@@ -109,9 +109,9 @@ public class ExamSessionGradingService {
             fullScore = fullScore.add(points);
 
             String questionKey = String.valueOf(eq.getQuestionId());
-            String studentAnswer = studentAnswers.get(questionKey) != null ?
-                    studentAnswers.get(questionKey).toString().trim() : "";
-            String correctAnswer = question.getCorrectAnswers();
+            String studentAnswer = normalizeAnswer(studentAnswers.get(questionKey) != null ?
+                    studentAnswers.get(questionKey).toString() : "");
+            String correctAnswer = normalizeAnswer(question.getCorrectAnswers());
 
             BigDecimal score = BigDecimal.ZERO;
             boolean isCorrect = false;
@@ -294,6 +294,40 @@ public class ExamSessionGradingService {
     }
 
     /**
+     * 归一化答案字面量，消除「JSON 存储形态」与「用户作答字符串」之间的表示差异。
+     *
+     * <p><b>修复记录（2026-09-14，P0）</b>：{@code questions.correct_answers} 是 JSON 列，
+     * 单值会被持久化为带引号的 JSON 字符串（如 {@code "B"}）。MyBatis 按 String 读回时得到的是
+     * 含引号的文本，与学生会提交的 {@code B} 直接做 {@code equalsIgnoreCase} 比较**必然不相等**，
+     * 导致「作答全部正确却得 0 分」（实测 total_score=0.00 / 卷面满分 25.00）。</p>
+     *
+     * <p>归一化规则：JSON 字符串（{@code "X"}）→ 去引号标量 {@code X}；
+     * JSON 数组/对象（{@code [...]}/{@code {...}}）→ 原样保留，交由 {@link #parseArrayToStringSet} 处理；
+     * 其余字面量原样返回。</p>
+     */
+    private String normalizeAnswer(String raw) {
+        if (raw == null) {
+            return "";
+        }
+        String value = raw.trim();
+        if (value.isEmpty()) {
+            return "";
+        }
+        // 数组 / 对象形态交由集合解析，避免破坏多选题语义
+        if (value.startsWith("[") || value.startsWith("{")) {
+            return value;
+        }
+        if (value.length() >= 2 && value.startsWith("\"") && value.endsWith("\"")) {
+            try {
+                return objectMapper.readValue(value, String.class);
+            } catch (Exception e) {
+                return value.substring(1, value.length() - 1);
+            }
+        }
+        return value;
+    }
+
+    /**
      * 解析JSON数组字符串为Set
      */
     private Set<String> parseArrayToStringSet(String arrayStr) {
@@ -304,10 +338,15 @@ public class ExamSessionGradingService {
         try {
             return objectMapper.readValue(arrayStr, new TypeReference<Set<String>>() {});
         } catch (Exception e) {
-            log.error("考试会话Grading相关操作失败: {}", e.getMessage(), e);
-
-            // 解析失败时尝试直接添加
-            set.add(arrayStr.replace("\"", "").replace("'", "").trim());
+            // 非 JSON 数组（如 "A,B" / "A，B" 这类分隔符写法）：按分隔符拆分，
+            // 与 DDL 注释「多答案按规则分隔/JSON存储」保持一致，避免整串对比必然失配。
+            for (String token : arrayStr.replace("\"", "").replace("'", "")
+                    .split("[,，;；]")) {
+                String t = token.trim();
+                if (!t.isEmpty()) {
+                    set.add(t);
+                }
+            }
             return set;
         }
     }
