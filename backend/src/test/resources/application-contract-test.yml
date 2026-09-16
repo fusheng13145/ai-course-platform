@@ -1,9 +1,20 @@
 # ===================== API 契约测试配置（contract-test profile） =====================
 # ApiContractTest 使用本地 MySQL/Redis 而非 Testcontainers（该类不继承 AbstractIntegrationTest，
 # 原 test profile 会退化为主配置的 localhost 数据源但密码为空 → Access denied）。
-# 本 profile 显式指向本机开发库，且 sql.init.mode=never 防止 index.sql 的 DROP TABLE 破坏数据。
+#
+# 【修复（2026-09-15）】原先 sql.init 指向 classpath:index.sql，但该脚本内嵌
+#   `CREATE DATABASE IF NOT EXISTS ai_course_platform; USE ai_course_platform;`
+#   → 脚本会强制切库到开发库。后果有两条，均已实测：
+#     ① 本 profile 指向的 ai_course_platform_test 永远建不出表 → ApiContractTest 11 个用例
+#        全部报 “Table 'ai_course_platform_test.users' doesn't exist”；
+#     ② 每次 `mvn test` 都会 DROP/重建**开发库** ai_course_platform（实测其表 create_time
+#        被打成当次运行时刻），文件头原声称的「与开发库完全隔离」不成立，构成数据丢失风险。
+#   现改用 database-agnostic 的 db/migration/V1__init_schema.sql（该脚本无 CREATE DATABASE/USE，
+#   见其第 19 行说明；内容与 index.sql 完全一致：48 DROP / 48 CREATE / 9 种子 INSERT），
+#   使其作用于连接 URL 指定的 ai_course_platform_test，隔离性由 URL 而非脚本保证。
+#   仍保持 mode: always → 每次跑测试都重建测试库，保证用例不依赖上一轮残留状态。
 spring:
-  # 数据库迁移：契约测试禁用 Flyway，保持 sql.init 行为（防双重初始化）
+  # 数据库迁移：契约测试由 sql.init 重建测试库，Flyway 关闭以避免双重初始化
   flyway:
     enabled: false
 
@@ -15,7 +26,7 @@ spring:
 
   datasource:
     # 独立测试库（createDatabaseIfNotExist 自动创建），与开发库 ai_course_platform 完全隔离，
-    # 由 sql.init 在上下文启动时用 index.sql 重建 schema + 种子数据，测试不依赖开发库数据状态
+    # 由 sql.init 在上下文启动时重建 schema + 种子数据，测试不依赖开发库数据状态
     url: jdbc:mysql://localhost:3306/ai_course_platform_test?createDatabaseIfNotExist=true&useSSL=false&requireSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true
     driver-class-name: com.mysql.cj.jdbc.Driver
     username: root
@@ -30,12 +41,13 @@ spring:
       database: 0
       timeout: 3000
 
-  # 测试库专用：上下文启动时执行 index.sql（DROP+CREATE+种子），保证库结构/种子自愈。
-  # 测试库与开发库分离，index.sql 的 DROP TABLE 不会影响开发数据。
+  # 测试库专用：上下文启动时执行 V1__init_schema.sql（DROP+CREATE+种子），保证库结构/种子自愈。
+  # 注意必须使用**不含 CREATE DATABASE / USE** 的脚本，否则会切库到开发库（见本文件头部说明）；
+  # 切勿改回 index.sql，也不要在此处新增 application.yaml 的 sql.init 覆盖以外的脚本。
   sql:
     init:
       mode: always
-      schema-locations: classpath:index.sql
+      schema-locations: classpath:db/migration/V1__init_schema.sql
       continue-on-error: false
 
   # 邮件：账号密码留空 → EmailServiceImpl 走「模拟发送」分支，不发真实邮件
