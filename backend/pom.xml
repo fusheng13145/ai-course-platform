@@ -35,7 +35,7 @@
         <jacoco.version>0.8.15</jacoco.version>
         <lombok.version>1.18.36</lombok.version>
         <!-- Sentinel 流量控制与熔断降级（纯 core + 注解切面，无 servlet 依赖，兼容 JDK21/Spring Boot3，不引入 Spring Cloud） -->
-        <sentinel.version>1.8.9</sentinel.version>
+        <sentinel.version>1.8.10</sentinel.version>
 
         <!-- 安全升级：覆盖 Spring Boot 3.5.15 管理的传递依赖版本，
              修复 2026-06 后新披露、3.5.15 尚未收录的 CVE（OSV-Scanner/Trivy 门禁命中的真实漏洞）。
