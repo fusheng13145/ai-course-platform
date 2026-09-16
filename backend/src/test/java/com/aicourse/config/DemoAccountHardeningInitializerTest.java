@@ -1,5 +1,6 @@
 package com.aicourse.config;
 
+import com.aicourse.common.RoleConstants;
 import com.aicourse.entity.User;
 import com.aicourse.service.UserService;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
@@ -118,12 +119,77 @@ class DemoAccountHardeningInitializerTest {
         verifyNoInteractions(passwordEncoder);
     }
 
+    // ==================== 新增回归（2026-09-16）：加固不得把系统锁死 ====================
+
+    /**
+     * 回归（DR-6）：内置 admin 仍是种子弱口令、且库中只有它一个有效管理员时，
+     * 加固会把它停用 → 零管理员且无法自救。此时必须 fail-fast 拒启。
+     * <p>
+     * 并锁定<b>执行顺序</b>：判定发生在改写之前（否则首次抛错时账号已被停用，
+     * 下次启动因「已无种子弱口令账号」跳过判定 → 永久锁死）。故断言 updateById 从未调用。
+     */
+    @Test
+    @DisplayName("fail-fast：加固将导致零管理员时拒绝启动，且不改写任何账号")
+    void refusesStartupWhenHardeningWouldOrphanAdmins() {
+        ReflectionTestUtils.setField(initializer, "demoAccountsEnabled", false);
+        User seedAdmin = user(1L, "admin", SeedAccounts.SEED_WEAK_BCRYPT, true, RoleConstants.ADMIN);
+        when(userService.list(ArgumentMatchers.<Wrapper<User>>any())).thenReturn(List.of(seedAdmin));
+        when(userService.count(ArgumentMatchers.<Wrapper<User>>any())).thenReturn(1L);
+
+        assertThatThrownBy(() -> initializer.run(args))
+                .isInstanceOf(IllegalStateException.class)
+                .hasMessageContaining("APP_ADMIN_INITIAL_PASSWORD");
+
+        // 关键：先判定后动手 —— 不允许留下「已被停用」的半成品状态
+        verify(userService, never()).updateById(any());
+        verifyNoInteractions(passwordEncoder);
+        assertThat(seedAdmin.getIsActive()).isTrue();
+        assertThat(seedAdmin.getPassword()).isEqualTo(SeedAccounts.SEED_WEAK_BCRYPT);
+    }
+
+    /** 回归（DR-6）：库中另有有效 ADMIN 账号时，停用种子 admin 是安全的，应正常加固。 */
+    @Test
+    @DisplayName("放行：另有有效管理员时正常加固种子 admin")
+    void allowsHardeningWhenAnotherAdminRemains() {
+        ReflectionTestUtils.setField(initializer, "demoAccountsEnabled", false);
+        User seedAdmin = user(1L, "admin", SeedAccounts.SEED_WEAK_BCRYPT, true, RoleConstants.ADMIN);
+        when(userService.list(ArgumentMatchers.<Wrapper<User>>any())).thenReturn(List.of(seedAdmin));
+        when(userService.count(ArgumentMatchers.<Wrapper<User>>any())).thenReturn(2L);
+        when(passwordEncoder.encode(anyString())).thenReturn(NEW_RANDOM_HASH);
+
+        initializer.run(args);
+
+        assertThat(seedAdmin.getIsActive()).isFalse();
+        assertThat(seedAdmin.getPassword()).isEqualTo(NEW_RANDOM_HASH);
+        verify(userService, times(1)).updateById(any());
+    }
+
+    /** 边界：候选账号中不含管理员（如仅 student 弱口令）时，不做零管理员判定、也不产生无谓查询。 */
+    @Test
+    @DisplayName("边界：候选不含管理员时不触发管理员判定")
+    void skipsAdminGuardWhenNoAdminIsDisabled() {
+        ReflectionTestUtils.setField(initializer, "demoAccountsEnabled", false);
+        User weakStudent = user(4L, "student", SeedAccounts.SEED_WEAK_BCRYPT, true, RoleConstants.STUDENT);
+        when(userService.list(ArgumentMatchers.<Wrapper<User>>any())).thenReturn(List.of(weakStudent));
+        when(passwordEncoder.encode(anyString())).thenReturn(NEW_RANDOM_HASH);
+
+        initializer.run(args);
+
+        assertThat(weakStudent.getIsActive()).isFalse();
+        verify(userService, never()).count(ArgumentMatchers.<Wrapper<User>>any());
+    }
+
     private static User user(Long id, String username, String password, boolean active) {
+        return user(id, username, password, active, RoleConstants.STUDENT);
+    }
+
+    private static User user(Long id, String username, String password, boolean active, String role) {
         User user = new User();
         user.setId(id);
         user.setUsername(username);
         user.setPassword(password);
         user.setIsActive(active);
+        user.setRole(role);
         return user;
     }
 }

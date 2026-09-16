@@ -1,5 +1,6 @@
 package com.aicourse.config;
 
+import com.aicourse.common.RoleConstants;
 import com.aicourse.entity.User;
 import com.aicourse.service.UserService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -114,6 +115,9 @@ public class DemoAccountHardeningInitializer implements ApplicationRunner {
             log.info("[seed] 演示账号加固：无待处理账号（已改密账号一律不覆盖）。");
             return;
         }
+        // 【关键顺序】先判定、再动手：若判定在改写之后，抛错时账号已被停用，
+        // 下次启动因「已无种子弱口令账号」而直接跳过判定 → 系统被永久锁死且无法自救。
+        assertAdminRemainsAfter(candidates);
         List<String> hardened = new ArrayList<>(candidates.size());
         for (User user : candidates) {
             user.setPassword(passwordEncoder.encode(randomUnknownPassword()));
@@ -125,6 +129,43 @@ public class DemoAccountHardeningInitializer implements ApplicationRunner {
                         + "如需在受控环境恢复演示账号，请在非生产环境设置 DEMO_ACCOUNTS_ENABLED=true "
                         + "并重新初始化种子数据。",
                 hardened.size(), String.join(", ", hardened));
+    }
+
+    /**
+     * 前置判定：加固后必须仍存在「可登录的管理员」，否则拒绝启动。
+     *
+     * <p>加固会把仍用种子弱口令的账号<b>一律停用</b>，其中包含内置 {@code admin}。
+     * 若部署者未提供 {@code APP_ADMIN_INITIAL_PASSWORD}，则 {@link AdminSeedPasswordInitializer}
+     * （{@code @Order(10)}，先于本类执行）不会替换 admin 的口令，加固完成后将<b>不存在任何可用管理员</b>，
+     * 且无法再通过管理端自救（无账号可登录）——属静默锁死。</p>
+     *
+     * <p>故此处宁可 fail-fast 并给出可执行指引，也不让"零管理员"的库上线。
+     * 若库中已有其它有效 ADMIN 账号（运维自行创建），判定自然通过。</p>
+     */
+    private void assertAdminRemainsAfter(List<User> candidates) {
+        long adminsToDisable = 0L;
+        for (User user : candidates) {
+            if (RoleConstants.ADMIN.equals(user.getRole()) && Boolean.TRUE.equals(user.getIsActive())) {
+                adminsToDisable++;
+            }
+        }
+        if (adminsToDisable == 0L) {
+            // 本次加固不涉及任何管理员账号 → 不存在「加固导致零管理员」的风险，直接放行。
+            return;
+        }
+        long activeAdmins = userService.count(new LambdaQueryWrapper<User>()
+                .eq(User::getRole, RoleConstants.ADMIN)
+                .eq(User::getIsActive, true));
+        if (activeAdmins - adminsToDisable <= 0) {
+            throw new IllegalStateException(
+                    "[seed] 加固后将不存在可用管理员，已拒绝启动。原因：内置 admin 仍为出厂弱口令，"
+                            + "而 APP_ADMIN_INITIAL_PASSWORD 未设置（AdminSeedPasswordInitializer 未替换其口令）；"
+                            + "加固会把它一并停用。请在 .env 设置 APP_ADMIN_INITIAL_PASSWORD"
+                            + "（8-32 位，含大小写字母、数字与特殊字符）后重启，"
+                            + "或先由运维创建另一个有效 ADMIN 账号。");
+        }
+        log.info("[seed] 加固前校验通过：当前有效管理员 {} 个，本次将停用其中 {} 个，加固后仍有可用管理员。",
+                activeAdmins, adminsToDisable);
     }
 
     /**
