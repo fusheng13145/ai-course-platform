@@ -16,6 +16,7 @@ import com.aicourse.vo.ResourceStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.core.io.UrlResource;
+import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -83,12 +84,16 @@ public class ResourceController {
      * 根据课程ID查询关联资源列表
      */
     @GetMapping("/course/{courseId}")
-    public ApiResponse<List<Resource>> listByCourse(@PathVariable Long courseId) {
+    public ResponseEntity<ApiResponse<List<Resource>>> listByCourse(@PathVariable Long courseId, Authentication auth) {
+        if (!canAccessCourse(courseId, auth)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error(ApiCode.FORBIDDEN, "无权访问该课程资源"));
+        }
         List<Resource> resourceList = resourceService.list(
                 new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Resource>()
                         .eq(Resource::getCourseId, courseId)
         );
-        return ApiResponse.success(resourceList);
+        return ResponseEntity.ok(ApiResponse.success(resourceList));
     }
 
     /**
@@ -112,9 +117,14 @@ public class ResourceController {
      * @return 资源树列表
      */
     @GetMapping("/tree/{courseId}")
-    public ApiResponse<List<ChapterResourceTreeVO>> getResourceTree(@PathVariable Long courseId) {
+    public ResponseEntity<ApiResponse<List<ChapterResourceTreeVO>>> getResourceTree(@PathVariable Long courseId,
+                                                                                   Authentication auth) {
+        if (!canAccessCourse(courseId, auth)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error(ApiCode.FORBIDDEN, "无权访问该课程资源"));
+        }
         List<ChapterResourceTreeVO> tree = resourceService.getResourceTree(courseId);
-        return ApiResponse.success(tree);
+        return ResponseEntity.ok(ApiResponse.success(tree));
     }
 
     /**
@@ -126,13 +136,25 @@ public class ResourceController {
      * @return 分页搜索结果
      */
     @GetMapping("/search")
-    public ApiResponse<Page<Resource>> searchResources(
+    public ResponseEntity<ApiResponse<Page<Resource>>> searchResources(
             @RequestParam String keyword,
             @RequestParam(required = false) Long courseId,
             @RequestParam(defaultValue = "1") int page,
-            @RequestParam(defaultValue = "10") int size) {
+            @RequestParam(defaultValue = "10") int size,
+            Authentication auth) {
+        if (courseId == null) {
+            // 跨课程搜索会枚举全站资源（含 /uploads 路径），属越权风险：仅 ADMIN 允许，
+            // 学生/教师必须指定 courseId 在本人有权访问的课程内搜索（DR-16）。
+            if (auth == null || !(auth.getPrincipal() instanceof Long) || !isAdmin(auth)) {
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(ApiResponse.error(ApiCode.FORBIDDEN, "请指定课程ID进行资源搜索"));
+            }
+        } else if (!canAccessCourse(courseId, auth)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error(ApiCode.FORBIDDEN, "无权访问该课程资源"));
+        }
         Page<Resource> result = resourceService.searchResources(keyword, courseId, page, size);
-        return ApiResponse.success(result);
+        return ResponseEntity.ok(ApiResponse.success(result));
     }
 
     /**
@@ -141,9 +163,13 @@ public class ResourceController {
      * @return 统计数据
      */
     @GetMapping("/stats/course/{courseId}")
-    public ApiResponse<ResourceStatsVO> getResourceStats(@PathVariable Long courseId) {
+    public ResponseEntity<ApiResponse<ResourceStatsVO>> getResourceStats(@PathVariable Long courseId, Authentication auth) {
+        if (!canAccessCourse(courseId, auth)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error(ApiCode.FORBIDDEN, "无权访问该课程资源"));
+        }
         ResourceStatsVO stats = resourceService.getResourceStats(courseId);
-        return ApiResponse.success(stats);
+        return ResponseEntity.ok(ApiResponse.success(stats));
     }
 
     /**
@@ -175,10 +201,14 @@ public class ResourceController {
      * @return 章节下的资源列表
      */
     @GetMapping("/chapter/{chapterId}")
-    public ApiResponse<List<Resource>> getResourcesByChapter(
-            @RequestParam Long courseId, @PathVariable Long chapterId) {
+    public ResponseEntity<ApiResponse<List<Resource>>> getResourcesByChapter(
+            @RequestParam Long courseId, @PathVariable Long chapterId, Authentication auth) {
+        if (!canAccessCourse(courseId, auth)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                    .body(ApiResponse.error(ApiCode.FORBIDDEN, "无权访问该课程资源"));
+        }
         List<Resource> resources = resourceService.getResourcesByChapter(courseId, chapterId);
-        return ApiResponse.success(resources);
+        return ResponseEntity.ok(ApiResponse.success(resources));
     }
 
     /**
@@ -289,22 +319,30 @@ public class ResourceController {
         return ResponseEntity.notFound().build();
     }
 
+    // ===================== 权限辅助方法（重构自 P1-6 的 canAccessResource） =====================
+
+    private boolean isAdmin(Authentication auth) {
+        return auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
+    }
+
+    private boolean isTeacher(Authentication auth) {
+        return auth.getAuthorities().stream()
+                .anyMatch(a -> "ROLE_TEACHER".equals(a.getAuthority()));
+    }
+
     /**
-     * 资源访问权限校验（修复 P1-6）
+     * 单个资源访问权限校验（修复 P1-6）：下载/详情/删除/可见性切换复用。
      */
     private boolean canAccessResource(Resource resource, Authentication auth) {
         if (auth == null || !(auth.getPrincipal() instanceof Long)) {
             return false;
         }
         Long userId = (Long) auth.getPrincipal();
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(a -> "ROLE_ADMIN".equals(a.getAuthority()));
-        boolean isTeacher = auth.getAuthorities().stream()
-                .anyMatch(a -> "ROLE_TEACHER".equals(a.getAuthority()));
-        if (isAdmin) {
+        if (isAdmin(auth)) {
             return true;
         }
-        if (isTeacher) {
+        if (isTeacher(auth)) {
             Course course = resource.getCourseId() != null ? courseService.getById(resource.getCourseId()) : null;
             return course != null && userId.equals(course.getTeacherId());
         }
@@ -314,6 +352,32 @@ public class ResourceController {
             return false;
         }
         return courseEnrollmentService.hasApprovedEnrollment(userId, resource.getCourseId());
+    }
+
+    /**
+     * 课程级访问权限校验（DR-16 资源列表越权修复）。
+     * <p>此前 listByCourse / tree / stats / chapter / search 等列表端点**无任何 ACL**，
+     * 任意已登录用户可枚举任意课程的资源（含 {@code /uploads/<uuid>} 路径），再经
+     * {@code /uploads/**}（已受登录保护）直链下载，构成跨课程越权读取。</p>
+     * 规则与 {@link #canAccessResource} 对齐：ADMIN 放行；教师须是该课程 teacherId；
+     * 学生须 {@code hasApprovedEnrollment}。返回 false 的调用方应返回 403。
+     */
+    private boolean canAccessCourse(Long courseId, Authentication auth) {
+        if (courseId == null) {
+            return false;
+        }
+        if (auth == null || !(auth.getPrincipal() instanceof Long)) {
+            return false;
+        }
+        Long userId = (Long) auth.getPrincipal();
+        if (isAdmin(auth)) {
+            return true;
+        }
+        if (isTeacher(auth)) {
+            Course course = courseService.getById(courseId);
+            return course != null && userId.equals(course.getTeacherId());
+        }
+        return courseEnrollmentService.hasApprovedEnrollment(userId, courseId);
     }
 
     /**
