@@ -60,41 +60,6 @@ public class StudentLearningServiceImpl implements StudentLearningService {
         this.taskSupport = taskSupport;
     }
 
-    /**
-     * 兼容构造器（临时）：组装真实组件 + 调用方注入的底层依赖。
-     * <p>供旧单测沿用（原 15 参数签名），组件单测重构完成后移除。</p>
-     */
-    @Deprecated
-    public StudentLearningServiceImpl(CourseEnrollmentService enrollmentService,
-                                      CourseService courseService,
-                                      CourseChapterService courseChapterService,
-                                      TaskService taskService,
-                                      SubmissionService submissionService,
-                                      TaskCompletionMapper taskCompletionMapper,
-                                      NotificationService notificationService,
-                                      SignInService signInService,
-                                      ExamPaperService examPaperService,
-                                      ExamSessionService examSessionService,
-                                      AnalyticsService analyticsService,
-                                      LearningRecordService learningRecordService,
-                                      QuestionService questionService,
-                                      WrongQuestionService wrongQuestionService,
-                                      VideoLearningRecordService videoLearningRecordService) {
-        this(
-                new StudentDashboardComponent(enrollmentService, courseService, taskService, submissionService,
-                        examPaperService, examSessionService, signInService, notificationService,
-                        learningRecordService, analyticsService),
-                new StudentLearningCenterComponent(courseService, courseChapterService, taskService,
-                        submissionService, taskCompletionMapper,
-                        new StudentTaskCompletionComponent(taskService, taskCompletionMapper, enrollmentService)),
-                new StudentTaskComponent(taskService, videoLearningRecordService, questionService,
-                        wrongQuestionService,
-                        new StudentTaskCompletionComponent(taskService, taskCompletionMapper, enrollmentService)),
-                new StudentVisualizationComponent(learningRecordService, wrongQuestionService, courseService),
-                new StudentTaskCompletionComponent(taskService, taskCompletionMapper, enrollmentService)
-        );
-    }
-
     /** 自愈合建表：委托 task 支持组件（幂等） */
     @PostConstruct
     public void ensureTable() {

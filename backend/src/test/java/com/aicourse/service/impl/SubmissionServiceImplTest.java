@@ -9,6 +9,10 @@ import com.aicourse.service.AIService;
 import com.aicourse.service.NotificationService;
 import com.aicourse.service.PlagiarismCheckService;
 import com.aicourse.service.TaskService;
+import com.aicourse.service.component.submission.SubmissionGradeComponent;
+import com.aicourse.service.component.submission.SubmissionJsonComponent;
+import com.aicourse.service.component.submission.SubmissionReadComponent;
+import com.aicourse.service.component.submission.SubmissionWriteComponent;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -69,8 +73,15 @@ class SubmissionServiceImplTest {
     void setUp() {
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), Submission.class);
 
-        service = new SubmissionServiceImpl(taskService, plagiarismCheckService, aiService,
-                objectMapper, notificationService, meterRegistry);
+        // 原兼容构造器已移除：内联其组件组装逻辑，再走主构造器（3 个组件）
+        SubmissionJsonComponent jsonSupport = new SubmissionJsonComponent(objectMapper);
+        SubmissionWriteComponent writeComponent =
+                new SubmissionWriteComponent(null, taskService, jsonSupport, meterRegistry);
+        SubmissionGradeComponent gradeComponent = new SubmissionGradeComponent(null, taskService,
+                notificationService, aiService, jsonSupport, writeComponent);
+        SubmissionReadComponent readComponent =
+                new SubmissionReadComponent(null, plagiarismCheckService, aiService, jsonSupport);
+        service = new SubmissionServiceImpl(writeComponent, gradeComponent, readComponent);
         ReflectionTestUtils.setField(service, "baseMapper", submissionMapper);
         // 同步 mapper 到内部组件（兼容构造器组装的真实组件初始持有 null mapper）
         for (String field : new String[]{"writeComponent", "gradeComponent", "readComponent"}) {

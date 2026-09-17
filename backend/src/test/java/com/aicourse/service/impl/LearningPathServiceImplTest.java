@@ -8,6 +8,11 @@ import com.aicourse.mapper.LearningPathMapper;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.LearningPathNodeService;
 import com.aicourse.service.WrongQuestionService;
+import com.aicourse.service.component.learning.LearningPathGenerateComponent;
+import com.aicourse.service.component.learning.LearningPathMasteryComponent;
+import com.aicourse.service.component.learning.LearningPathQueryComponent;
+import com.aicourse.service.component.learning.LearningPathStateComponent;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.aicourse.vo.LearningPathDetailVO;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
@@ -45,7 +50,16 @@ class LearningPathServiceImplTest {
     void setUp() {
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), LearningPath.class);
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), KnowledgePoint.class);
-        service = new LearningPathServiceImpl(nodeService, knowledgePointService, wrongQuestionService);
+        // 原兼容构造器已移除：内联其组件组装逻辑，再走主构造器（4 个组件）
+        ObjectMapper objectMapper = new ObjectMapper();
+        LearningPathMasteryComponent masteryComponent =
+                new LearningPathMasteryComponent(knowledgePointService, wrongQuestionService);
+        LearningPathStateComponent stateComponent = new LearningPathStateComponent(nodeService, null);
+        LearningPathQueryComponent queryComponent =
+                new LearningPathQueryComponent(nodeService, null, objectMapper);
+        LearningPathGenerateComponent generateComponent = new LearningPathGenerateComponent(
+                knowledgePointService, nodeService, null, masteryComponent, stateComponent, objectMapper);
+        service = new LearningPathServiceImpl(masteryComponent, generateComponent, stateComponent, queryComponent);
         ReflectionTestUtils.setField(service, "baseMapper", learningPathMapper);
         // 同步 mapper 到持有 mapper 的内部组件（兼容构造器组装的真实组件初始持有 null mapper；mastery 组件无 mapper 字段）
         for (String field : new String[]{"stateComponent", "generateComponent", "queryComponent"}) {

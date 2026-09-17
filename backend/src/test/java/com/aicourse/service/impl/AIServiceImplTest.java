@@ -3,6 +3,10 @@ package com.aicourse.service.impl;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.llm.LLMProvider;
 import com.aicourse.service.RAGService;
+import com.aicourse.service.component.ai.AiCoreComponent;
+import com.aicourse.service.component.ai.AiDialogueComponent;
+import com.aicourse.service.component.ai.AiRagComponent;
+import com.aicourse.service.component.ai.AiStructuredComponent;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,7 +44,12 @@ class AIServiceImplTest {
 
     @BeforeEach
     void setUp() {
-        service = new AIServiceImpl(llmProvider, ragService, promptGuard, meterRegistry);
+        // 原兼容构造器已移除：此处内联其组件组装逻辑，再走主构造器（4 个组件）
+        AiCoreComponent coreComponent = new AiCoreComponent(llmProvider, promptGuard, meterRegistry);
+        AiDialogueComponent dialogueComponent = new AiDialogueComponent(coreComponent);
+        AiRagComponent ragComponent = new AiRagComponent(ragService, promptGuard, coreComponent);
+        AiStructuredComponent structuredComponent = new AiStructuredComponent(coreComponent);
+        service = new AIServiceImpl(dialogueComponent, ragComponent, structuredComponent, coreComponent);
         // 默认桩：已配置供应商，complete/completeJson 返回合法文本，输出清洗为原样透传
         lenient().when(llmProvider.isConfigured()).thenReturn(true);
         lenient().when(llmProvider.complete(any(), any())).thenReturn("raw");

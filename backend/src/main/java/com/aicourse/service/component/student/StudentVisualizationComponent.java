@@ -19,6 +19,9 @@ import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 学生学情可视化协作者：近 14 天学习时长趋势、课程薄弱度雷达、课程 × 7 天活跃热力图。
@@ -87,7 +90,15 @@ public class StudentVisualizationComponent {
                     new LambdaQueryWrapper<WrongQuestion>().eq(WrongQuestion::getStudentId, userId));
             // courseId -> [总错题数, 未掌握数]
             Map<Long, long[]> byCourse = new HashMap<>();
-            Map<Long, String> courseNames = new HashMap<>();
+            // 修复 N+1：循环外一次批量预取错题涉及的课程名，消除循环内逐条 courseService.getById
+            Set<Long> distinctCourseIds = wrongs.stream()
+                    .map(WrongQuestion::getCourseId)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
+            Map<Long, String> courseNames = distinctCourseIds.isEmpty() ? Collections.emptyMap()
+                    : courseService.listByIds(distinctCourseIds).stream().collect(Collectors.toMap(
+                            Course::getId, c -> c.getName() != null ? c.getName() : ("课程" + c.getId()),
+                            (a, b) -> a));
             for (WrongQuestion w : wrongs) {
                 if (w.getCourseId() == null) {
                     continue;
@@ -96,10 +107,6 @@ public class StudentVisualizationComponent {
                 arr[0]++;
                 if (w.getMastered() == null || !w.getMastered()) {
                     arr[1]++;
-                }
-                if (!courseNames.containsKey(w.getCourseId())) {
-                    Course c = courseService.getById(w.getCourseId());
-                    courseNames.put(w.getCourseId(), c != null ? c.getName() : ("课程" + w.getCourseId()));
                 }
             }
             List<Map<String, Object>> radar = new ArrayList<>();

@@ -22,6 +22,10 @@ import com.aicourse.service.QuestionService;
 import com.aicourse.service.SubmissionService;
 import com.aicourse.service.TaskService;
 import com.aicourse.service.UserService;
+import com.aicourse.service.component.teacher.TeacherChapterComponent;
+import com.aicourse.service.component.teacher.TeacherCourseComponent;
+import com.aicourse.service.component.teacher.TeacherDashboardComponent;
+import com.aicourse.service.component.teacher.TeacherOutlineComponent;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -30,7 +34,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -67,7 +70,7 @@ class TeacherCourseServiceImplTest {
     @Mock private UserService userService;
     @Mock private ClassroomService classroomService;
 
-    @InjectMocks private TeacherCourseServiceImpl service;
+    private TeacherCourseServiceImpl service;
 
     private Course course;
     private List<CourseEnrollment> enrollments;
@@ -85,6 +88,17 @@ class TeacherCourseServiceImplTest {
                 Task.class, ExamPaper.class, Question.class, Submission.class, LearningRecord.class}) {
             TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), e);
         }
+
+        // 原兼容构造器已移除：内联其组件组装逻辑，再走主构造器（3 个组件）
+        TeacherCourseComponent courseComponent = new TeacherCourseComponent(courseService, userService);
+        TeacherChapterComponent chapterComponent = new TeacherChapterComponent(chapterService, enrollmentService,
+                taskService, submissionService, userService, classroomService, courseComponent);
+        service = new TeacherCourseServiceImpl(
+                new TeacherDashboardComponent(courseService, chapterService, enrollmentService, taskService,
+                        submissionService, examPaperService, questionService, learningRecordService, aiService,
+                        courseComponent, chapterComponent),
+                new TeacherOutlineComponent(courseService, chapterService, aiService, courseComponent),
+                chapterComponent);
 
         course = new Course();
         course.setId(1L);

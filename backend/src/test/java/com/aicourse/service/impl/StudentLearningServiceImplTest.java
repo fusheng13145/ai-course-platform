@@ -27,6 +27,11 @@ import com.aicourse.service.TaskService;
 import com.aicourse.service.VideoLearningRecordService;
 import com.aicourse.service.WrongQuestionService;
 import com.aicourse.service.AnalyticsService;
+import com.aicourse.service.component.student.StudentDashboardComponent;
+import com.aicourse.service.component.student.StudentLearningCenterComponent;
+import com.aicourse.service.component.student.StudentTaskComponent;
+import com.aicourse.service.component.student.StudentTaskCompletionComponent;
+import com.aicourse.service.component.student.StudentVisualizationComponent;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -35,7 +40,6 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -76,7 +80,7 @@ class StudentLearningServiceImplTest {
     @Mock private WrongQuestionService wrongQuestionService;
     @Mock private VideoLearningRecordService videoLearningRecordService;
 
-    @InjectMocks private StudentLearningServiceImpl service;
+    private StudentLearningServiceImpl service;
 
     private CourseEnrollment enr;
     private Course course;
@@ -100,6 +104,20 @@ class StudentLearningServiceImplTest {
         task = new Task();
         task.setId(1L); task.setCourseId(1L); task.setChapterId(1L); task.setTaskType("VIDEO");
         task.setTitle("视频任务1"); task.setIsPublished(Boolean.TRUE); task.setMaxScore(new BigDecimal("100"));
+
+        // 原兼容构造器已移除：内联其组件组装逻辑，再走主构造器（5 个组件）
+        StudentTaskCompletionComponent taskCompletion =
+                new StudentTaskCompletionComponent(taskService, taskCompletionMapper, enrollmentService);
+        service = new StudentLearningServiceImpl(
+                new StudentDashboardComponent(enrollmentService, courseService, taskService, submissionService,
+                        examPaperService, examSessionService, signInService, notificationService,
+                        learningRecordService, analyticsService),
+                new StudentLearningCenterComponent(courseService, courseChapterService, taskService,
+                        submissionService, taskCompletionMapper, taskCompletion),
+                new StudentTaskComponent(taskService, videoLearningRecordService, questionService,
+                        wrongQuestionService, taskCompletion),
+                new StudentVisualizationComponent(learningRecordService, wrongQuestionService, courseService),
+                taskCompletion);
 
         // ===== 默认桩（LENIENT：未触发的桩容忍）=====
         when(enrollmentService.getOne(any(Wrapper.class))).thenReturn(enr);

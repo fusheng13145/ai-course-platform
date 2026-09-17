@@ -45,23 +45,6 @@ public class LearningPathServiceImpl extends ServiceImpl<LearningPathMapper, Lea
         this.queryComponent = queryComponent;
     }
 
-    /**
-     * 兼容构造器（临时）：组装真实组件 + 调用方注入的底层依赖。
-     * <p>供旧单测沿用（原 3 参数签名），组件单测重构完成后移除。
-     * 注意：组件持有的 LearningPathMapper 需由调用方另行注入（测试经 ReflectionTestUtils 同步 baseMapper）。</p>
-     */
-    @Deprecated
-    public LearningPathServiceImpl(LearningPathNodeService nodeService,
-                                   KnowledgePointService knowledgePointService,
-                                   WrongQuestionService wrongQuestionService) {
-        ObjectMapper objectMapper = new ObjectMapper();
-        this.masteryComponent = new LearningPathMasteryComponent(knowledgePointService, wrongQuestionService);
-        this.stateComponent = new LearningPathStateComponent(nodeService, null);
-        this.queryComponent = new LearningPathQueryComponent(nodeService, null, objectMapper);
-        this.generateComponent = new LearningPathGenerateComponent(knowledgePointService, nodeService, null,
-                this.masteryComponent, this.stateComponent, objectMapper);
-    }
-
     // ===================== 掌握度推导 =====================
 
     @Override

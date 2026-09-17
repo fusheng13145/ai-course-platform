@@ -39,19 +39,6 @@ public class AIServiceImpl implements AIService {
         this.coreComponent = coreComponent;
     }
 
-    /**
-     * 兼容构造器（临时）：组装真实组件 + 调用方注入的底层依赖。
-     * <p>供旧单测沿用（原 4 参数签名），组件单测重构完成后移除。</p>
-     */
-    @Deprecated
-    public AIServiceImpl(LLMProvider llmProvider, RAGService ragService, PromptGuard promptGuard,
-                         MeterRegistry meterRegistry) {
-        this.coreComponent = new AiCoreComponent(llmProvider, promptGuard, meterRegistry);
-        this.dialogueComponent = new AiDialogueComponent(this.coreComponent);
-        this.ragComponent = new AiRagComponent(ragService, promptGuard, this.coreComponent);
-        this.structuredComponent = new AiStructuredComponent(this.coreComponent);
-    }
-
     // ===================== 对话/生成 =====================
 
     @Override

@@ -48,25 +48,6 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
         this.readComponent = readComponent;
     }
 
-    /**
-     * 兼容构造器（临时）：组装真实组件 + 调用方注入的底层依赖。
-     * <p>供旧单测沿用（原 6 参数签名），组件单测重构完成后移除。
-     * 注意：组件持有的 SubmissionMapper 需由调用方另行注入（测试经 ReflectionTestUtils 同步 baseMapper）。</p>
-     */
-    @Deprecated
-    public SubmissionServiceImpl(@Lazy TaskService taskService,
-                                  PlagiarismCheckService plagiarismCheckService,
-                                  AIService aiService,
-                                  ObjectMapper objectMapper,
-                                  NotificationService notificationService,
-                                  MeterRegistry meterRegistry) {
-        SubmissionJsonComponent jsonSupport = new SubmissionJsonComponent(objectMapper);
-        this.writeComponent = new SubmissionWriteComponent(null, taskService, jsonSupport, meterRegistry);
-        this.gradeComponent = new SubmissionGradeComponent(null, taskService, notificationService,
-                aiService, jsonSupport, this.writeComponent);
-        this.readComponent = new SubmissionReadComponent(null, plagiarismCheckService, aiService, jsonSupport);
-    }
-
     // ===================== 写：提交/草稿/重交/退回 =====================
 
     @Override

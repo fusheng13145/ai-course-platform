@@ -47,24 +47,6 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
         this.gradingService = gradingService;
     }
 
-    /**
-     * 兼容构造器（临时）：组装真实组件 + 调用方注入的底层依赖。
-     * <p>供旧单测沿用（原 5 参数签名），组件单测重构完成后移除。
-     * 注意：组件持有的 ExamSessionMapper 需由调用方另行注入（测试经 ReflectionTestUtils 同步 baseMapper）。</p>
-     */
-    @Deprecated
-    public ExamSessionServiceImpl(ExamPaperService examPaperService,
-                                   ExamQuestionService examQuestionService,
-                                   QuestionService questionService,
-                                   WrongQuestionService wrongQuestionService,
-                                   ExamSessionGradingService gradingService) {
-        ObjectMapper objectMapper = new ObjectMapper();
-        this.lifecycleComponent = new ExamSessionLifecycleComponent(examPaperService, null, objectMapper);
-        this.cheatingComponent = new ExamSessionCheatingComponent(examPaperService, null, objectMapper);
-        this.queryComponent = new ExamSessionQueryComponent(examPaperService, examQuestionService, null, objectMapper);
-        this.gradingService = gradingService;
-    }
-
     // ===================== 生命周期 =====================
 
     @Override

@@ -43,35 +43,6 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
         this.chapterComponent = chapterComponent;
     }
 
-    /**
-     * 兼容构造器（临时）：组装真实组件 + 调用方注入的底层依赖。
-     * <p>供旧单测沿用（原 11 参数签名），组件单测重构完成后移除。</p>
-     */
-    @Deprecated
-    public TeacherCourseServiceImpl(CourseService courseService,
-                                    CourseChapterService chapterService,
-                                    CourseEnrollmentService enrollmentService,
-                                    TaskService taskService,
-                                    SubmissionService submissionService,
-                                    ExamPaperService examPaperService,
-                                    QuestionService questionService,
-                                    LearningRecordService learningRecordService,
-                                    AIService aiService,
-                                    UserService userService,
-                                    ClassroomService classroomService) {
-        this(
-                new TeacherDashboardComponent(courseService, chapterService, enrollmentService, taskService,
-                        submissionService, examPaperService, questionService, learningRecordService, aiService,
-                        new TeacherCourseComponent(courseService, userService),
-                        new TeacherChapterComponent(chapterService, enrollmentService, taskService, submissionService,
-                                userService, classroomService, new TeacherCourseComponent(courseService, userService))),
-                new TeacherOutlineComponent(courseService, chapterService, aiService,
-                        new TeacherCourseComponent(courseService, userService)),
-                new TeacherChapterComponent(chapterService, enrollmentService, taskService, submissionService,
-                        userService, classroomService, new TeacherCourseComponent(courseService, userService))
-        );
-    }
-
     @Override
     public Map<String, Object> getCourseTeachingDashboard(Long courseId, Long operatorId) {
         return dashboardComponent.getCourseTeachingDashboard(courseId, operatorId);

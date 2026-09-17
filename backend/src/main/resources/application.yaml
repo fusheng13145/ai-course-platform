@@ -118,11 +118,11 @@ server:
   port: 8080
   servlet:
     context-path: /api
-  # 修复 D2：信任反向代理回传的转发头（X-Forwarded-Proto/Host/For）。
-  # 置于 TLS 终止反代之后时，反代回传 X-Forwarded-Proto: https 即被识别为安全通道，
-  # requiresChannel().requiresSecure() 不再误判为 http，从而消灭无限 302 重定向环（D3）。
-  # 仅在存在可信反代时生效；直连且未设转发头时 scheme 仍为 http，需配合 REQUIRE_HTTPS=false。
-  forward-headers-strategy: framework
+  # 安全收窄（2026-09-16 修复 P0-2）：不再使用 framework 策略——其会以 X-Forwarded-For 最左端
+  # 覆写 getRemoteAddr()，污染审计 IP 且与 HTTPS 检测耦合。改为仅由 TrustedForwardedProtoFilter
+  # 映射受信反代回传的 X-Forwarded-Proto（仅设置 scheme/secure，不动 remoteAddr）；客户端 IP 仍由
+  # TrustedClientIpResolver 从 X-Real-IP 取值。
+  forward-headers-strategy: none
   # Gzip 压缩：减少 JSON 响应体大小 50-80%
   compression:
     enabled: true

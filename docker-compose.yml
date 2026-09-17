@@ -125,7 +125,7 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET 必须设置（请 cp .env.example .env 后填入至少32位随机密钥）}
       # 种子 admin 初始口令（修复：index.sql 内置弱口令账号，生产必须注入强口令替换；
       # 留空 = 不启用替换。见 AdminSeedPasswordInitializer）
-      APP_ADMIN_INITIAL_PASSWORD: ${APP_ADMIN_INITIAL_PASSWORD:-}
+      APP_ADMIN_INITIAL_PASSWORD: ${APP_ADMIN_INITIAL_PASSWORD:?生产须注入强管理员口令（prod profile 下缺之则启动 fail-fast）}
       # 演示账号开关（修复 F-02 P1）：容器编排即生产姿态，默认关闭 →
       # 启动时把仍是出厂弱口令(123456)的种子演示账号停用并重置为不可知随机口令。
       # 仅本地体验场景可在 .env 显式置 true（勿与 prod profile 同时使用）。
@@ -152,8 +152,10 @@ services:
       #   本栈边缘代理是 frontend(nginx)，nginx.conf 已改用 $remote_addr **覆写** X-Real-IP 与
       #   X-Forwarded-For，故默认信任之并取 X-Real-IP——即便有人把 XFF 改回追加语义，节流键仍不可伪造。
       #   ⚠ 该开关的前提是「应用只经受信 nginx 暴露」。若需接受不可信来源直连，必须置 false。
-      # 注：因本文件未设 SPRING_PROFILES_ACTIVE，application-prod.yml 在本路径下不生效，
-      #   故此处必须显式透传（与上方 COOKIE_SECURE / REQUIRE_HTTPS 同一原因，见 N-02）。
+      # 注：本文件已设 SPRING_PROFILES_ACTIVE: prod（见下），application-prod.yml 在本路径下生效；
+      #   此处显式透传仅用于覆盖 prod 配置之外的运行时值（与上方 COOKIE_SECURE / REQUIRE_HTTPS 同一原因）。
+      # 激活 prod profile：使 application-prod.yml 真正生效（闭合 N-02 影子配置）。
+      SPRING_PROFILES_ACTIVE: prod
       TRUST_PROXY_HEADER: ${TRUST_PROXY_HEADER:-true}
       # 跨域白名单（逗号分隔的真实前端域名）；留空 = 不开放跨域。
       # 【修复 2026-09-16】原注释写「留空 = fail-closed」与实现不符：SecurityConfig 在
@@ -184,8 +186,8 @@ services:
       #   而安全决策用的客户端 IP 取自代理头 → 攻击者不经 nginx、直接请求 :8080 并伪造
       #   X-Real-IP / X-Forwarded-For，即可让 (IP, 账号) 节流键随伪造值漂移，绕过限流。
       #   生产若无需宿主机直连后端，建议收紧为 "127.0.0.1:8080:8080"（仅本机可访问）或直接删除本段，
-      #   对外只暴露 frontend 的 80。此项属部署姿态决策，本轮未擅自改动。
-      - "8080:8080"
+      #   对外只暴露 frontend 的 80。此项属部署姿态决策，已收紧为 127.0.0.1（仅本机可访问）。
+      - "127.0.0.1:8080:8080"
     healthcheck:
       test: ["CMD", "curl", "-fs", "http://localhost:8080/api/actuator/health"]
       interval: 15s

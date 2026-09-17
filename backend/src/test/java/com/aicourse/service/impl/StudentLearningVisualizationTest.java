@@ -18,6 +18,11 @@ import com.aicourse.service.SubmissionService;
 import com.aicourse.service.TaskService;
 import com.aicourse.service.VideoLearningRecordService;
 import com.aicourse.service.WrongQuestionService;
+import com.aicourse.service.component.student.StudentDashboardComponent;
+import com.aicourse.service.component.student.StudentLearningCenterComponent;
+import com.aicourse.service.component.student.StudentTaskComponent;
+import com.aicourse.service.component.student.StudentTaskCompletionComponent;
+import com.aicourse.service.component.student.StudentVisualizationComponent;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -30,8 +35,10 @@ import org.mockito.quality.Strictness;
 
 import java.time.LocalDate;
 import java.time.LocalDateTime;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -67,11 +74,19 @@ class StudentLearningVisualizationTest {
 
     @BeforeEach
     void setUp() {
+        // 原兼容构造器已移除：内联其组件组装逻辑，再走主构造器（5 个组件）
+        StudentTaskCompletionComponent taskCompletion =
+                new StudentTaskCompletionComponent(taskService, taskCompletionMapper, enrollmentService);
         service = new StudentLearningServiceImpl(
-                enrollmentService, courseService, courseChapterService, taskService,
-                submissionService, taskCompletionMapper, notificationService, signInService,
-                examPaperService, examSessionService, analyticsService, learningRecordService,
-                questionService, wrongQuestionService, videoLearningRecordService);
+                new StudentDashboardComponent(enrollmentService, courseService, taskService, submissionService,
+                        examPaperService, examSessionService, signInService, notificationService,
+                        learningRecordService, analyticsService),
+                new StudentLearningCenterComponent(courseService, courseChapterService, taskService,
+                        submissionService, taskCompletionMapper, taskCompletion),
+                new StudentTaskComponent(taskService, videoLearningRecordService, questionService,
+                        wrongQuestionService, taskCompletion),
+                new StudentVisualizationComponent(learningRecordService, wrongQuestionService, courseService),
+                taskCompletion);
     }
 
     private LearningRecord record(Long courseId, int duration, LocalDateTime at) {
@@ -125,10 +140,18 @@ class StudentLearningVisualizationTest {
                 wrong(1L, false),
                 wrong(1L, true),
                 wrong(2L, false))); // 课程2：1/1 = 100%
-        Course c1 = new Course();
-        c1.setId(1L);
-        c1.setName("计算机网络");
-        when(courseService.getById(1L)).thenReturn(c1);
+        // N+1 修复后 buildRadarData 改用 listByIds 批量取课程名（见 StudentVisualizationComponent），
+        // 故此处桩需覆盖 listByIds 而非 getById
+        when(courseService.listByIds(any())).thenAnswer(inv -> {
+            @SuppressWarnings("unchecked")
+            Collection<Long> ids = inv.getArgument(0);
+            return ids.stream().map(id -> {
+                Course c = new Course();
+                c.setId(id);
+                c.setName(id.equals(1L) ? "计算机网络" : "课程" + id);
+                return c;
+            }).collect(Collectors.toList());
+        });
 
         Map<String, Object> data = service.getVisualizationData(9L);
 

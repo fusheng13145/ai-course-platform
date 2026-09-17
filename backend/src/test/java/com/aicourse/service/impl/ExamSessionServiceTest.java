@@ -14,7 +14,11 @@ import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.QuestionService;
 import com.aicourse.service.WrongQuestionService;
+import com.aicourse.service.component.exam.ExamSessionCheatingComponent;
+import com.aicourse.service.component.exam.ExamSessionLifecycleComponent;
+import com.aicourse.service.component.exam.ExamSessionQueryComponent;
 import com.aicourse.service.impl.exam.ExamSessionGradingService;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.aicourse.vo.AutoGradeResultVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -64,9 +68,16 @@ class ExamSessionServiceTest {
 
     @BeforeEach
     void setUp() {
-        // 手动构造门面（兼容构造器组装真实组件），显式注入 baseMapper 并同步到内部组件
-        examSessionService = new ExamSessionServiceImpl(examPaperService, examQuestionService,
-                questionService, wrongQuestionService, gradingService);
+        // 原兼容构造器已移除：内联其组件组装逻辑，再走主构造器（3 组件 + gradingService）
+        ObjectMapper objectMapper = new ObjectMapper();
+        ExamSessionLifecycleComponent lifecycleComponent =
+                new ExamSessionLifecycleComponent(examPaperService, null, objectMapper);
+        ExamSessionCheatingComponent cheatingComponent =
+                new ExamSessionCheatingComponent(examPaperService, null, objectMapper);
+        ExamSessionQueryComponent queryComponent =
+                new ExamSessionQueryComponent(examPaperService, examQuestionService, null, objectMapper);
+        examSessionService = new ExamSessionServiceImpl(lifecycleComponent, cheatingComponent,
+                queryComponent, gradingService);
         ReflectionTestUtils.setField(examSessionService, "baseMapper", examSessionMapper);
         for (String field : new String[]{"lifecycleComponent", "cheatingComponent", "queryComponent"}) {
             ReflectionTestUtils.setField(ReflectionTestUtils.getField(examSessionService, field), "examSessionMapper", examSessionMapper);
