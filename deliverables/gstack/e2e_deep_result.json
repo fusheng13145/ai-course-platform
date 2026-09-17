@@ -6,7 +6,7 @@
       "case": "A1",
       "title": "审批型课程申请加入 → PENDING",
       "expect": "200 且 approval_status=PENDING",
-      "actual": "HTTP 200 code=200 enrollmentId=35 status=PENDING",
+      "actual": "HTTP 200 code=200 enrollmentId=67 status=PENDING",
       "verdict": "PASS",
       "note": ""
     },
@@ -118,7 +118,7 @@
       "case": "B9",
       "title": "边界：延长截止日期（早于当前拒绝 / 晚于当前生效）",
       "expect": "早于当前 → 400；晚于当前 → 200 且 due_date 更新",
-      "actual": "早=400 晚=200 due_date=2026-09-26 20:30",
+      "actual": "早=400 晚=200 due_date=2026-09-27 15:23",
       "verdict": "PASS",
       "note": ""
     },
@@ -252,9 +252,9 @@
     },
     {
       "case": "E1",
-      "title": "创建分片上传会话",
+      "title": "创建分片上传会话（端点仍开放）",
       "expect": "200 返回会话 id",
-      "actual": "HTTP 200 code=200 sessionId=7",
+      "actual": "HTTP 200 code=200 sessionId=11",
       "verdict": "PASS",
       "note": ""
     },
@@ -262,7 +262,7 @@
       "case": "E1b",
       "title": "边界：分片会话扩展名白名单",
       "expect": "非白名单扩展名(.bin) 400 拒绝",
-      "actual": "HTTP 400 code=400 msg=不允许的文件类型（.bin），允许的类型：xls, webm, png, xlsx, md, mov, rar, txt, docx, jp",
+      "actual": "HTTP 400 code=400 msg=不允许的文件类型（.bin），允许的类型：docx, txt, rar, mov, md, xlsx, png, webm, xls, jp",
       "verdict": "PASS",
       "note": ""
     },
@@ -276,33 +276,33 @@
     },
     {
       "case": "E2",
-      "title": "上传分片并查询进度",
-      "expect": "分片全部 200；进度 uploaded=3/3",
-      "actual": "chunks=[200, 200, 200] progress={\"uploaded\": 3, \"total\": 3, \"percentage\": \"100.0%\", \"status\": \"UPLOADING\"}",
+      "title": "分片上传端点已下线：恒 501 语义化拒绝，进度不推进",
+      "expect": "分片请求全部 501（非 500），进度 uploaded=0/3",
+      "actual": "chunks=[501, 501, 501] progress={\"uploaded\": 0, \"total\": 3, \"percentage\": \"0.0%\", \"status\": \"UPLOADING\"}",
       "verdict": "PASS",
       "note": ""
     },
     {
       "case": "E3",
-      "title": "合并分片",
-      "expect": "200 且会话状态转为已合并/完成",
-      "actual": "HTTP 200 code=200 status=COMPLETED",
+      "title": "分片合并端点已下线：恒 501 语义化拒绝",
+      "expect": "501（非 500）且提示「暂未启用」",
+      "actual": "HTTP 501 code=501 status=None msg=分片合并功能暂未启用",
       "verdict": "PASS",
       "note": ""
     },
     {
       "case": "E4",
-      "title": "取消上传会话（已合并后）",
+      "title": "取消上传会话（端点仍开放）",
       "expect": "非 5xx（业务提示或成功均可）",
-      "actual": "HTTP 400 code=400 msg=该会话已完成或已取消，无法再次操作",
+      "actual": "HTTP 200 code=200 msg=取消成功",
       "verdict": "PASS",
       "note": ""
     },
     {
       "case": "E5",
-      "title": "异常：不存在的上传会话分片",
-      "expect": "404/403 语义化（不得 500）",
-      "actual": "HTTP 400 code=400 msg=上传会话不存在",
+      "title": "分片端点对不存在会话亦走 501（端点级下线，先于会话校验）",
+      "expect": "501 语义化（绝不 500）",
+      "actual": "HTTP 501 code=501 msg=分片上传功能暂未启用",
       "verdict": "PASS",
       "note": ""
     },
@@ -318,7 +318,7 @@
       "case": "F2",
       "title": "学生重新提交（生成新尝试）",
       "expect": "200 且 attempt_number=2、status=RESUBMITTED",
-      "actual": "HTTP 200 code=200 newId=26 attempt=2 status=RESUBMITTED",
+      "actual": "HTTP 200 code=200 newId=258 attempt=2 status=RESUBMITTED",
       "verdict": "PASS",
       "note": ""
     },

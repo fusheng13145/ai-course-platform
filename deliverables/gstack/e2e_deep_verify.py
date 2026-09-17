@@ -9,7 +9,7 @@ AI 智能课程平台 · 多维度深度端到端验证（第二阶段）
     维度 B  边界值（容量 / 提交次数 / 评分范围 / 分页 / 超长文本 / 尝试次数 / 截止延长）
     维度 C  越权与 IDOR（横向越权、未认证、伪造令牌、无效 ID、参数类型）
     维度 D  数据一致性（并发选课、并发交卷、级联删除、读写缓存一致性）
-    维度 E  分片上传链路（创建/分片/进度/合并/取消）
+    维度 E  分片上传端点：**N-03 下线态契约**（会话创建仍开放，分片/合并端点恒 501 语义化拒绝）
     维度 F  作业退回-重交链路
     维度 G  资源版本链路（新版本 / 激活态 / 回滚 / 缺参）
 
@@ -454,11 +454,16 @@ def main():
     twice("/proctor/thresholds", name="监考阈值", cid_="D6",
           title_="缓存读可用性：监考阈值（冷→热）")
 
-    # ============ E. 分片上传链路 ============
-    print("\n----- E. 分片上传链路 -----")
+    # ============ E. 分片上传端点（N-03 下线态） ============
+    # 背景：上线前全检结论 N-03 —— 分片的「写字节」与「合并字节」逻辑从未实现，
+    # 前端的 uploadChunk / mergeChunks 已移除（见 frontend/src/api/fileUpload.ts 注释与
+    # views/__tests__/functional-completeness.test.ts 的存在性断言）。后端保留端点但
+    # 恒抛 BusinessException(501)，以避免旧客户端静默失败。故本维度断言的是
+    # **「下线态契约」**：501 语义化拒绝且不得出现 500 未处理异常。
+    print("\n----- E. 分片上传端点（N-03 下线态） -----")
     st, o = teacher.req("POST", "/upload-sessions", {"filename": "big.pdf", "fileSize": 2048, "totalChunks": 3})
     usid = (o.get("data") or {}).get("id")
-    rec("E1", "创建分片上传会话", "200 返回会话 id", f"HTTP {st} code={o.get('code')} sessionId={usid}",
+    rec("E1", "创建分片上传会话（端点仍开放）", "200 返回会话 id", f"HTTP {st} code={o.get('code')} sessionId={usid}",
         o.get("code") == 200 and usid is not None)
 
     st_bad, o_bad = teacher.req("POST", "/upload-sessions",
@@ -478,22 +483,27 @@ def main():
         codes.append(ox.get("code"))
     st, o = teacher.req("GET", f"/upload-sessions/{usid}/progress")
     prog = o.get("data") or {}
-    rec("E2", "上传分片并查询进度", "分片全部 200；进度 uploaded=3/3",
+    rec("E2", "分片上传端点已下线：恒 501 语义化拒绝，进度不推进",
+        "分片请求全部 501（非 500），进度 uploaded=0/3",
         f"chunks={codes} progress={json.dumps(prog, ensure_ascii=False)[:120]}",
-        all(c == 200 for c in codes) and str(prog.get("uploaded")) in ("3", "3.0"))
+        all(c == 501 for c in codes) and str(prog.get("uploaded")) in ("0", "0.0"))
 
     st, o = teacher.req("POST", f"/upload-sessions/{usid}/merge")
     merged = (o.get("data") or {}).get("status")
-    rec("E3", "合并分片", "200 且会话状态转为已合并/完成",
-        f"HTTP {st} code={o.get('code')} status={merged}", o.get("code") == 200)
+    rec("E3", "分片合并端点已下线：恒 501 语义化拒绝",
+        "501（非 500）且提示「暂未启用」",
+        f"HTTP {st} code={o.get('code')} status={merged} msg={str(o.get('message'))[:40]}",
+        o.get("code") == 501 and "暂未启用" in str(o.get("message")))
 
     st, o = teacher.req("DELETE", f"/upload-sessions/{usid}/cancel")
-    rec("E4", "取消上传会话（已合并后）", "非 5xx（业务提示或成功均可）",
+    rec("E4", "取消上传会话（端点仍开放）", "非 5xx（业务提示或成功均可）",
         f"HTTP {st} code={o.get('code')} msg={o.get('message')}", st < 500)
 
     st, o = teacher.req("POST", "/upload-sessions/99999999/chunks/0")
-    rec("E5", "异常：不存在的上传会话分片", "404/403 语义化（不得 500）",
-        f"HTTP {st} code={o.get('code')} msg={o.get('message')}", st < 500 and o.get("code") in (404, 403, 400))
+    rec("E5", "分片端点对不存在会话亦走 501（端点级下线，先于会话校验）",
+        "501 语义化（绝不 500）",
+        f"HTTP {st} code={o.get('code')} msg={o.get('message')}",
+        o.get("code") == 501 and "暂未启用" in str(o.get("message")))
 
     # ============ F. 作业退回-重交 ============
     print("\n----- F. 作业退回-重交链路 -----")
