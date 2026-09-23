@@ -65,7 +65,7 @@
             <dependency>
                 <groupId>org.bouncycastle</groupId>
                 <artifactId>bcprov-jdk18on</artifactId>
-                <version>1.84</version>
+                <version>1.86</version>
             </dependency>
             <!-- 修复：minio 8.6.0 的 pom 声明 okhttp 5.1.0，但 okhttp 5.x 经 Gradle Module
                  Metadata 发布、其 Maven 主 jar 为空占位符（仅 MANIFEST，无任何 class），
