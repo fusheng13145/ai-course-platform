@@ -1,4 +1,79 @@
-/venv
-/utils/__pycache__
-/data/
+# 环境变量文件（含敏感密钥，切勿提交）
+.env
+.env.local
+.env.*.local
+# 文件式密钥文件（Docker Compose secrets / Vault Agent 渲染目标，禁止入库）
+deploy/secrets/*
+!deploy/secrets/.gitkeep
 
+# IDE
+.idea/
+*.iml
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# 构建产物
+target/
+dist/
+node_modules/
+# 运维数据（含敏感数据，切勿提交）
+# 应用内「系统管理→备份」生成的 SQL 备份（SystemServiceImpl backups/ 目录）
+backups/
+# mysql-backup 服务的定时备份卷数据
+mysql-backups/
+# 运行时生成的数据库文件
+*.sql.gz
+
+# 评测产物（含评测运行结果与 QA 记录）
+evaluation/results/
+
+# 运行日志与压测瞬时产物（体积大、无复现价值，切勿提交）
+# 注：calibration/samples.jsonl 与 calibration_data.json 为校准数据集，需入库保留
+*.log
+*.out
+
+# Python 缓存/字节码（构建产物，切勿提交）
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 本地调试/临时文件（勿提交）
+backend/analyze.py
+backend/parse_errors.py
+backend/cp.txt
+backend/err_compile.txt
+backend/jc.args
+backend/jc2.txt
+backend/lqwtest/
+*.bak
+*~
+frontend/coverage/
+
+# WorkBuddy 项目数据（记忆/任务，勿入库）
+.workbuddy/
+# WorkBuddy 过程性工作区（调试脚本、探针、构建输出，可随时清空）
+.workbuddy/tmp/
+
+# 应用运行期上传目录（内容为运行时产物，仅保留目录占位）
+uploads/*
+!uploads/.gitkeep
+
+# 临时补丁与差异文件（过程产物）
+*.patch
+*.diff
+
+# 构建探针产物（误提交，已清理）
+frontend/dist_probe/
+
+# e2e 产物
+frontend/playwright-report/
+frontend/test-results/
+
+# ---- Python 虚拟环境与数据目录（RAG 演示，整合自 RAG 成员上传版本）----
+venv/
+.venv/
+/data/
