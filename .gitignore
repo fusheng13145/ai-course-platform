@@ -77,3 +77,5 @@ frontend/test-results/
 venv/
 .venv/
 /data/
+# RAG 真实引擎持久化数据（文档存储 + BM25/向量索引）
+python-services/rag_service/data/

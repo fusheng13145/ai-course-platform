@@ -1,0 +1,7 @@
+# RAG 真实引擎重依赖（本地/部署环境安装；CI 契约护栏仅用 requirements.txt）
+# 安装：pip install -r requirements-engine.txt
+numpy>=1.26
+jieba>=0.42
+rank_bm25>=0.2.2
+faiss-cpu>=1.8.0
+sentence-transformers>=3.0
