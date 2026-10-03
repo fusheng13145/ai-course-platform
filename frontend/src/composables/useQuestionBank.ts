@@ -6,6 +6,24 @@ import questionApi from '@/api/question'
 import courseApi from '@/api/course'
 
 /**
+ * 审核状态推导（2026-09-21 修复，P1-1）。
+ *
+ * 后端 `Question` 实体/VO **没有 `reviewStatus` 字段**——审核动作
+ * （`POST /questions/{id}/review`）只写 `is_active`，且只有「通过/不通过」二分，
+ * 不存在独立的「已驳回」态。此前前端直接读 `q.reviewStatus`，取值恒为 undefined，
+ * 经 `|| 'PENDING'` 兜底后**恒显示「待审核」**（统计卡恒为「全量 / 0 / 0」）。
+ *
+ * 现按真实语义推导：`is_active === false` → 待审核；否则 → 已通过。
+ * 同时保留对 `reviewStatus` 字符串的兼容——若后端将来补上该字段，无需再改前端。
+ *
+ * 导出为模块级函数，供 `QbQuestionTable.vue` 复用，避免展示层与统计层逻辑漂移。
+ */
+export function resolveReviewStatus(question: Record<string, unknown> | null | undefined): string {
+  if (question && typeof question.reviewStatus === 'string') return question.reviewStatus
+  return question && question.isActive === false ? 'PENDING' : 'APPROVED'
+}
+
+/**
  * 教师题库管理领域逻辑
  * <p>题目多维筛选/分页、新建/编辑（表单校验）、删除/复制、审核流转、AI 智能出题。</p>
  */
@@ -91,7 +109,9 @@ export function useQuestionBank() {
   }
 
   function countByReview(status) {
-    return questionList.value.filter((q) => (q.reviewStatus || 'PENDING') === status).length
+    // 修复（2026-09-21，P1-1）：原为 (q.reviewStatus || 'PENDING')，该字段后端不存在，
+    // 导致三张统计卡恒为「全量 / 0 / 0」。现统一走 resolveReviewStatus 由 is_active 推导。
+    return questionList.value.filter((q) => resolveReviewStatus(q) === status).length
   }
 
   function handleFilterChange() {

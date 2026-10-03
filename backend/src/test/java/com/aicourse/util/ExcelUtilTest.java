@@ -76,11 +76,12 @@ class ExcelUtilTest {
 
         assertEquals(1, read.size());
         Question r = read.get(0);
-        assertEquals("single", r.getType());
+        // 2026-09 修复分支将题型导入归一化为全大写字典值（与 Vote/ExamSessionGradingService 等主流程一致）
+        assertEquals("SINGLE_CHOICE", r.getType());
         assertEquals("1+1=?", r.getContent());
         assertEquals("[\"2\"]", r.getOptions());
         assertEquals("2", r.getCorrectAnswers());
-        assertEquals("easy", r.getDifficulty());
+        assertEquals("EASY", r.getDifficulty());
         assertEquals(java.math.BigDecimal.valueOf(5), r.getScore());
     }
 

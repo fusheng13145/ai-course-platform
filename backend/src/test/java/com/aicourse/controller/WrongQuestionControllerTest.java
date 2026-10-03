@@ -3,6 +3,7 @@ import com.aicourse.controller.WrongQuestionController;
 import com.aicourse.entity.Question;
 import com.aicourse.entity.WrongQuestion;
 import com.aicourse.service.WrongQuestionService;
+import com.aicourse.vo.WrongQuestionGroupVO;
 import com.aicourse.vo.WrongQuestionStatsVO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -154,13 +155,17 @@ class WrongQuestionControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("GET /wrong-questions/by-kp?courseId=1 - 返回200且data为分组Map")
+    @DisplayName("GET /wrong-questions/by-kp?courseId=1 - 返回200且data为分组数组")
     void getByKnowledgePoints_authorized_returns_success() throws Exception {
-        when(wrongQuestionService.getByKnowledgePoints(any(), any())).thenReturn(Map.of("kp1", List.of(sampleWq())));
+        // P2-8 契约对齐：返回结构由 Map 改为 List<WrongQuestionGroupVO>
+        when(wrongQuestionService.getByKnowledgePoints(any(), any()))
+                .thenReturn(List.of(new WrongQuestionGroupVO(101L, "kp1", List.of(sampleWq()))));
         mockMvc.perform(get("/wrong-questions/by-kp?courseId=1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.kp1").isArray());
+                .andExpect(jsonPath("$.data[0].knowledgePointId").value(101))
+                .andExpect(jsonPath("$.data[0].knowledgePointName").value("kp1"))
+                .andExpect(jsonPath("$.data[0].questions").isArray());
         verify(wrongQuestionService).getByKnowledgePoints(eq(1L), eq(1L));
     }
 

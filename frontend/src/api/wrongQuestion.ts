@@ -1,7 +1,25 @@
 import request from './request'
 
 // 错题本 API（后端: WrongQuestionController /wrong-questions）
-export const getWrongQuestions = (params = {}) => request.get('/wrong-questions', { params })
+/**
+ * 错题列表。
+ *
+ * <p><b>修复（2026-09-23，P2-6）</b>：后端 `/wrong-questions` 返回 `PagedResponse`
+ * （`{ list, total, page, pageSize, ... }`），而唯一调用方 {@code useWrongQuestions}
+ * 按<b>数组</b>消费（`Array.isArray(list) ? list.map(...) : []`）——结构不匹配使列表恒被置空，
+ * 表现为错题本「统计卡有数字（6 条）但列表显示『暂无错题记录』」。</p>
+ *
+ * <p>在 API 层统一归一化为数组，与 {@code api/exam.ts} 的 {@code normalizeExamQuestions}
+ * 同一模式：不改后端分页契约，也不改各调用方。</p>
+ */
+export const getWrongQuestions = (params = {}) =>
+  request.get('/wrong-questions', { params }).then((res) => {
+    const payload = res && res.data
+    const list = Array.isArray(payload)
+      ? payload
+      : (payload && (payload.list || payload.records)) || []
+    return { ...res, data: list }
+  })
 /**
  * 导出函数 addWrongQuestion：创建/新增数据
  */

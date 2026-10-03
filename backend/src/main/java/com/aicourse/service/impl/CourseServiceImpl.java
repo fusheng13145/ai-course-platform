@@ -111,7 +111,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
             course.setApprovalStatus("PENDING");
         }
         if (course.getStatus() == null) {
-            course.setStatus("active");
+            course.setStatus("ACTIVE");
         }
         if (course.getIsActive() == null) {
             course.setIsActive(true);
@@ -223,7 +223,7 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         if (course == null) {
             throw new BusinessException("课程不存在");
         }
-        if ("ACTIVE".equals(course.getStatus())) {
+        if ("ACTIVE".equalsIgnoreCase(course.getStatus())) {
             course.setStatus("INACTIVE");
         } else {
             course.setStatus("ACTIVE");

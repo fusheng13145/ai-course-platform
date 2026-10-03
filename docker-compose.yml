@@ -1,14 +1,443 @@
-version: "3.8"
+# ============================================================
+# AI 课程平台 - Docker Compose 编排
+# 服务：mysql / redis / backend / frontend
+#       + mysql-backup（备份守护，profiles: ops）
+#       + prometheus / grafana / loki / promtail（监控+日志，profiles: monitor）
+#
+# 【Redis 必选】backend 通过 depends_on.condition=service_healthy
+# 强依赖 MySQL 与 Redis 两者；Redis 未就绪时 backend 不会启动，
+# 与应用内 RedisStartupValidator（启动 PING 强校验）双重保障。
+# Redis 认证：REDIS_PASSWORD 现为必填项（docker compose 缺失即拒绝启动），
+# 设置后自动启用 requirepass 并同步到后端。
+#
+# 【使用路径】
+# 1) 本地开发（默认，推荐）：start-backend.bat 优先使用本机 MySQL(3306) / Redis(6379)；
+#    本机缺失时脚本自动兜底：MySQL 走本编排的容器(宿主 3307)，Redis 可 `docker compose up -d redis`。
+#    本编排仅作基础设施兜底，不参与后端/前端启动。
+# 2) 容器化部署（上线/给他人快速体验/本机无 MySQL、Redis 时）：
+#    docker compose --profile full up -d --build
+#    （backend/frontend 带 profiles:["full"]，不加 --profile 仅起 mysql + redis 两个基础设施）。
+# 3) 运维增强（可选，按需叠加 profile）：
+#    docker compose --profile full --profile ops up -d --build     # + MySQL 每日自动备份
+#    docker compose --profile full --profile monitor up -d --build # + Prometheus/Grafana 监控 + Alertmanager 告警 + Loki/Promtail 日志集中化
+#    （ops 与 monitor 可同时叠加：--profile full --profile ops --profile monitor）
+#    告警通知渠道：monitor profile 默认启动 Alertmanager，默认 webhook 占位端点；
+#    生产请在 .env 设置 ALERTMANAGER_WEBHOOK_URL 指向真实告警网关（企业微信/钉钉/飞书机器人等）。
+#    日志集中化：monitor profile 默认启动 Loki（存储）+ Promtail（采集 backend 容器日志），
+#    经 Grafana 的 Loki 数据源检索；Promtail 经 Docker socket 采集，无需改动应用代码。
+# 敏感配置经同级 .env 注入（见 .env.example），禁止默认值上线。
+# ============================================================
 
 services:
+  mysql:
+    image: mysql:8.4
+    container_name: aicourse-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?MYSQL_ROOT_PASSWORD 必须设置（请 cp .env.example .env 后填入至少16位强密码）}
+      MYSQL_DATABASE: ai_course_platform
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --default-time-zone=+08:00
+    ports:
+      - "3307:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # 最小权限账户初始化：首次建库时创建 aicourse_app（替代 root 直连），详见 scripts/init-app-db-user.sh
+      - ./scripts/init-app-db-user.sh:/docker-entrypoint-initdb.d/10-create-app-user.sh:ro
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "mysqladmin",
+          "ping",
+          "-h",
+          "localhost",
+          # 【必须写 $$】与下方 redis 的 REDIS_PASSWORD 同理：单 $ 会被 Compose 在生成
+          # 容器配置阶段就地展开，把明文 root 口令固化进容器元数据（`docker inspect` 可直接读出）；
+          # 写 $$ 后 Compose 输出字面 $MYSQL_ROOT_PASSWORD，交由容器内从 environment 展开。
+          "-p$$MYSQL_ROOT_PASSWORD",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+
+  redis:
+    image: redis:7-alpine
+    container_name: aicourse-redis
+    restart: unless-stopped
+    # 密码安全：REDIS_PASSWORD 现为必填项（见 docker-compose 顶层 required 约束）；
+    # 设置后自动启用 requirepass，后端经 SPRING_DATA_REDIS_PASSWORD 同步连接。
+    #
+    # 【重要 · 必须用 $$ 转义】command / healthcheck 中引用 REDIS_PASSWORD 时
+    # 必须写 $$REDIS_PASSWORD（双美元号）。若写单 $，Compose 会在生成容器配置阶段
+    # 就地展开，导致：
+    #   (1) 明文密码被固化进容器 Cmd 元数据，`docker inspect` 可直接读出；
+    #   (2) 若密码本身含 $ 字符，Compose 会把 $xxx 当作变量引用并展开为空串，
+    #       使实际 requirepass 被截断成残留片段（曾实测降级为单字符）。
+    # 写 $$ 后 Compose 输出字面 $REDIS_PASSWORD，交由容器内 sh 从 environment 展开。
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD 必须设置（请 cp .env.example .env 后填入强密码）}
+    command:
+      [
+        "sh",
+        "-c",
+        'if [ -n "$$REDIS_PASSWORD" ]; then exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"; else exec redis-server --appendonly yes; fi',
+      ]
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          'if [ -n "$$REDIS_PASSWORD" ]; then redis-cli -a "$$REDIS_PASSWORD" ping | grep -q PONG; else redis-cli ping | grep -q PONG; fi',
+        ]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 10s
+
+  backend:
+    build:
+      context: ./backend
+    container_name: aicourse-backend
+    restart: unless-stopped
+    profiles: ["full"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    environment:
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ai_course_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true
+      SPRING_DATASOURCE_USERNAME: aicourse_app
+      # 修复 #21：优先使用独立的业务库账户口令 MYSQL_APP_PASSWORD；仅在未设置时回退到 MYSQL_ROOT_PASSWORD。
+      # 注意：若改为独立账户口令，需同步为 mysql 服务创建 aicourse_app 账户并授权（见 init-app-db-user.sh）。
+      SPRING_DATASOURCE_PASSWORD: ${MYSQL_APP_PASSWORD:-${MYSQL_ROOT_PASSWORD}}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      SPRING_DATA_REDIS_PASSWORD: ${REDIS_PASSWORD}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET 必须设置（请 cp .env.example .env 后填入至少32位随机密钥）}
+      # 种子 admin 初始口令（修复：index.sql 内置弱口令账号，生产必须注入强口令替换；
+      # 留空 = 不启用替换。见 AdminSeedPasswordInitializer）
+      APP_ADMIN_INITIAL_PASSWORD: ${APP_ADMIN_INITIAL_PASSWORD:?生产须注入强管理员口令（prod profile 下缺之则启动 fail-fast）}
+      # 演示账号开关（修复 F-02 P1）：容器编排即生产姿态，默认关闭 →
+      # 启动时把仍是出厂弱口令(123456)的种子演示账号停用并重置为不可知随机口令。
+      # 仅本地体验场景可在 .env 显式置 true（勿与 prod profile 同时使用）。
+      DEMO_ACCOUNTS_ENABLED: ${DEMO_ACCOUNTS_ENABLED:-false}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      MAIL_USERNAME: ${MAIL_USERNAME:-}
+      MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      # 安全开关：**默认安全**，不因本文件的部署形态把生产默认值降到 false。
+      # ⚠️ 纠偏（2026-09-16）：原注释只写「本地 HTTP 联调由 start-backend.bat 经 local profile 放宽」，
+      #   该句仅覆盖 start-backend.bat 这条路径，对 `docker compose --profile full` **完全不适用** —— 这正是缺陷根源。
+      #   事实：`--profile full` 起的是**明文 HTTP 单机栈**（frontend/nginx.conf 只 listen 80、compose 无证书卷，
+      #   不存在任何 TLS 终止）。因此必须按部署形态显式决策：
+      #     · 纯 HTTP 评估（仅限本机 / 受信内网）：**必须显式**在 .env 置 REQUIRE_HTTPS=false 与 COOKIE_SECURE=false，
+      #       否则 /api/** 被 SecurityConfig.requiresSecure() 302 到不存在的 443 → 全站 API 不可用（README「方式二」路径①）。
+      #     · 置于 TLS 终止反代之后的生产：**必须保持 true**，且反代须回传 X-Forwarded-Proto: https（README「方式二」路径②）。
+      #   CSRF_ENABLED 在两种形态下都应保持 true。
+      # 明文 HTTP 单机栈（--profile full 默认形态，无 TLS 终止、无证书卷）必须 false，否则 /api/** 被 302 到不存在的 443 → 全站 API 不可用。
+      # 生产置于 TLS 终止反代之后：置 true 且反代回传 X-Forwarded-Proto: https（后端已启用 forward-headers-strategy: framework，可正确识别）。
+      COOKIE_SECURE: ${COOKIE_SECURE:-false}
+      REQUIRE_HTTPS: ${REQUIRE_HTTPS:-false}
+      CSRF_ENABLED: ${CSRF_ENABLED:-true}
+      # 客户端 IP 取值来源（2026-09-16 上线前全检新增）：修复「伪造 X-Forwarded-For 逐请求换头
+      # 绕过登录失败节流 / IP 限流」的 🔴 缺陷（详见 TrustedClientIpResolver 类注释）。
+      #   本栈边缘代理是 frontend(nginx)，nginx.conf 已改用 $remote_addr **覆写** X-Real-IP 与
+      #   X-Forwarded-For，故默认信任之并取 X-Real-IP——即便有人把 XFF 改回追加语义，节流键仍不可伪造。
+      #   ⚠ 该开关的前提是「应用只经受信 nginx 暴露」。若需接受不可信来源直连，必须置 false。
+      # 注：本文件已设 SPRING_PROFILES_ACTIVE: prod（见下），application-prod.yml 在本路径下生效；
+      #   此处显式透传仅用于覆盖 prod 配置之外的运行时值（与上方 COOKIE_SECURE / REQUIRE_HTTPS 同一原因）。
+      # 激活 prod profile：使 application-prod.yml 真正生效（闭合 N-02 影子配置）。
+      SPRING_PROFILES_ACTIVE: prod
+      TRUST_PROXY_HEADER: ${TRUST_PROXY_HEADER:-true}
+      # 跨域白名单（逗号分隔的真实前端域名）；留空 = 不开放跨域。
+      # 【修复 2026-09-16】原注释写「留空 = fail-closed」与实现不符：SecurityConfig 在
+      # origins 为空时回退看 app.cors.dev-fallback（默认 true）→ 会放行 http://localhost:5173
+      # 且带 allowCredentials。容器编排即生产姿态，故此处显式把兜底关掉（fail-closed）。
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-}
+      APP_CORS_DEV_FALLBACK: ${APP_CORS_DEV_FALLBACK:-false}
+      # 监控端点（/api/actuator/prometheus）鉴权：独立 Basic 鉴权链（与业务 JWT 链路隔离，非 ADMIN 角色）。
+      # 凭据为监控专用账号 APP_ACTUATOR_BASIC_USER / APP_ACTUATOR_BASIC_PASSWORD，口令留空则抓取 fail-closed；
+      # 启用 monitor profile 且无反向代理鉴权时（内网/演示），可置 false 放开 Prometheus 抓取。
+      APP_ACTUATOR_SECURED: ${APP_ACTUATOR_SECURED:-true}
+      # 监控抓取专用 Basic 账号（Prometheus 经 basic_auth 抓取 /api/actuator/prometheus）。
+      # 凭据须与下方 prometheus 服务的 ACTUATOR_BASIC_* 完全一致；口令留空则抓取 fail-closed。
+      APP_ACTUATOR_BASIC_USER: ${APP_ACTUATOR_BASIC_USER:-monitor}
+      APP_ACTUATOR_BASIC_PASSWORD: ${APP_ACTUATOR_BASIC_PASSWORD:-}
+      # Python 微服务集成开关（默认关闭：KG/RAG 引擎由团队另一成员负责，未启用时
+      # /knowledge/path/plan 本地 BFS 兜底、AI 问答自动回退纯 LLM）。
+      # 启用步骤：解注下方 kg-service / rag-service，再置 KG_ENABLED/RAG_ENABLED=true。
+      KG_ENABLED: ${KG_ENABLED:-false}
+      KG_BASE_URL: ${KG_BASE_URL:-http://kg-service:8001}
+      RAG_ENABLED: ${RAG_ENABLED:-false}
+      RAG_BASE_URL: ${RAG_BASE_URL:-http://rag-service:8002}
+      FT_ENABLED: ${FT_ENABLED:-false}
+      FT_BASE_URL: ${FT_BASE_URL:-http://fine-tune-service:8003}
+      TZ: Asia/Shanghai
+    ports:
+      # ⚠ 直连暴露提示（2026-09-16 上线前全检）：本端口把后端**绕过 nginx** 直接发布到宿主机，
+      #   而安全决策用的客户端 IP 取自代理头 → 攻击者不经 nginx、直接请求 :8080 并伪造
+      #   X-Real-IP / X-Forwarded-For，即可让 (IP, 账号) 节流键随伪造值漂移，绕过限流。
+      #   生产若无需宿主机直连后端，建议收紧为 "127.0.0.1:8080:8080"（仅本机可访问）或直接删除本段，
+      #   对外只暴露 frontend 的 80。此项属部署姿态决策，已收紧为 127.0.0.1（仅本机可访问）。
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD", "curl", "-fs", "http://localhost:8080/api/actuator/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 12
+      start_period: 60s
+    volumes:
+      # 上传文件持久化（修复：原未挂卷，容器重建后 uploads/ 下所有教学资源/附件丢失；
+      # 与 UploadResourceConfig 静态映射及 ResourceController 落盘目录 /app/uploads 对齐）
+      - uploads-data:/app/uploads
+      # 数据库备份持久化：应用内「系统管理→备份」生成的 backups/ 目录落盘到卷，
+      # 容器重建不丢失（配合 mysql-backup 服务的定时全量备份构成双保险）
+      - backups-data:/app/backups
+    logging:
+      # json-file 日志限额：单文件 10MB × 3 份，防止日志无限膨胀占满磁盘
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ---------------- Python 微服务（引擎就绪后解注启用，归入 python profile） ----------------
+  # KG/RAG 引擎由团队另一成员负责（当前 python-services/ 下为契约基线/占位骨架）。
+  # 接入步骤：① 解注下方对应服务 ② .env 置 KG_ENABLED=true / RAG_ENABLED=true
+  # ③ docker compose --profile full --profile python up -d
+  # ----------------
+  # kg-service:
+  #   build:
+  #     context: ./python-services/kg_service
+  #     dockerfile: Dockerfile   # 需队友补充（uvicorn kg_service:app --host 0.0.0.0 --port 8001）
+  #   container_name: aicourse-kg-service
+  #   restart: unless-stopped
+  #   profiles: ["python"]
+  #   ports:
+  #     - "8001:8001"
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-fs", "http://localhost:8001/api/v1/graph/health"]
+  #     interval: 15s
+  #     timeout: 5s
+  #     retries: 5
+  #
+  # rag-service:
+  #   build:
+  #     context: ./python-services/rag_service
+  #     dockerfile: Dockerfile   # 需队友补充（uvicorn rag_service:app --host 0.0.0.0 --port 8002）
+  #   container_name: aicourse-rag-service
+  #   restart: unless-stopped
+  #   profiles: ["python"]
+  #   ports:
+  #     - "8002:8002"
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-fs", "http://localhost:8002/api/v1/rag/health"]
+  #     interval: 15s
+  #     timeout: 5s
+  #     retries: 5
+  #
+  # fine-tune-service（8003）：LoRA 微调引擎，Python 端尚未交付，契约见
+  # docs/项目手册.md 第八部分 §33；就绪后参照上述模板补充。
+
+  # ---------------- MySQL 定时备份守护（profiles: ops） ----------------
+  mysql-backup:
+    image: mysql:8.4
+    container_name: aicourse-mysql-backup
+    restart: unless-stopped
+    profiles: ["ops"]
+    depends_on:
+      mysql:
+        condition: service_healthy
+    environment:
+      MYSQL_HOST: mysql
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ai_course_platform
+      # 保留天数：超出即滚动清理
+      BACKUP_RETENTION_DAYS: ${BACKUP_RETENTION_DAYS:-14}
+      # 异地同步（可选）：如 oss:aicourse-backups / s3:bucket/path，需镜像内置 rclone；留空跳过
+      BACKUP_REMOTE_SYNC: ${BACKUP_REMOTE_SYNC:-}
+      TZ: Asia/Shanghai
+    volumes:
+      - ./backup/mysql-backup.sh:/backup.sh:ro
+      - mysql-backups:/backups
+    entrypoint:
+      - /bin/sh
+      - -c
+      - "chmod +x /backup.sh && exec /bin/sh /backup.sh"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  # ---------------- Prometheus 监控采集（profiles: monitor） ----------------
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: aicourse-prometheus
+    restart: unless-stopped
+    profiles: ["monitor"]
+    environment:
+      # 透传监控抓取账号给 Prometheus 进程（prometheus.yml 通过 ${VAR} 插值读取）。
+      # 须与 backend 的 APP_ACTUATOR_BASIC_* 完全一致。
+      ACTUATOR_BASIC_USER: ${APP_ACTUATOR_BASIC_USER:-monitor}
+      ACTUATOR_BASIC_PASSWORD: ${APP_ACTUATOR_BASIC_PASSWORD:-}
+    volumes:
+      - ./monitoring/prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./monitoring/prometheus/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus-data:/prometheus
+    ports:
+      - "9090:9090"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  # ---------------- Node Exporter 宿主机指标采集（profiles: monitor） ----------------
+  # 采集宿主机 CPU/内存/磁盘/网络指标（node_* 系列），支撑磁盘使用率告警
+  # （DiskUsageHigh，见 monitoring/prometheus/alert_rules.yml）。容器以 host 网络命名空间运行，
+  # 通过挂载只读 /proc /sys / 根目录提供指标来源；node-exporter 本身不开放对外端口。
+  node-exporter:
+    image: prom/node-exporter:v1.8.2
+    container_name: aicourse-node-exporter
+    restart: unless-stopped
+    profiles: ["monitor"]
+    pid: host
+    command:
+      - --path.procfs=/host/proc
+      - --path.sysfs=/host/sys
+      - --path.rootfs=/host/root
+      - --collector.filesystem.mount-points-exclude=^/(sys|proc|dev|host|etc)($$|/)
+    volumes:
+      - /proc:/host/proc:ro
+      - /sys:/host/sys:ro
+      - /:/host/root:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  # ---------------- Alertmanager 告警分发（profiles: monitor） ----------------
+  alertmanager:
+    image: prom/alertmanager:v0.27.0
+    container_name: aicourse-alertmanager
+    restart: unless-stopped
+    profiles: ["monitor"]
+    # 【注意】此处曾注入 ALERTMANAGER_WEBHOOK_URL 环境变量，但 Alertmanager
+    # 不支持在 alertmanager.yml 内做 ${VAR} 插值，该变量实际无任何效果，
+    # 反而使配置文件里的占位符被当作字面 URL 解析而启动失败（CrashLoop）。
+    # 故移除该变量；webhook 地址请直接在 monitoring/prometheus/alertmanager.yml 中写字面值。
+    volumes:
+      - ./monitoring/prometheus/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "9093:9093"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  # ---------------- Grafana 可视化面板（profiles: monitor） ----------------
+  grafana:
+    image: grafana/grafana:11.2.0
+    container_name: aicourse-grafana
+    restart: unless-stopped
+    profiles: ["monitor"]
+    depends_on:
+      - prometheus
+    environment:
+      # 生产必须通过 .env 覆盖默认弱口令！缺失即拒绝启动，杜绝 admin/admin 上线。
+      GF_SECURITY_ADMIN_USER: ${GRAFANA_ADMIN_USER:-admin}
+      GF_SECURITY_ADMIN_PASSWORD: ${GRAFANA_ADMIN_PASSWORD:?GRAFANA_ADMIN_PASSWORD 必须设置（请 cp .env.example .env 后填入强密码，禁止默认 admin/admin）}
+      # 暴露 Grafana 自身 /metrics（Prometheus 抓取 grafana:3000/metrics，纳入监控组件存活告警）
+      GF_METRICS_ENABLED: "true"
+      TZ: Asia/Shanghai
+    volumes:
+      - ./monitoring/grafana/provisioning:/etc/grafana/provisioning:ro
+      - grafana-data:/var/lib/grafana
+    ports:
+      - "3000:3000"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  # ---------------- Loki 日志存储（profiles: monitor） ----------------
+  loki:
+    image: grafana/loki:2.9.8
+    container_name: aicourse-loki
+    restart: unless-stopped
+    profiles: ["monitor"]
+    command: -config.file=/etc/loki/local-config.yaml
+    volumes:
+      - ./monitoring/loki/loki-config.yaml:/etc/loki/local-config.yaml:ro
+      - loki-data:/loki
+    ports:
+      - "3100:3100"
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  # ---------------- Promtail 日志采集（profiles: monitor） ----------------
+  promtail:
+    image: grafana/promtail:2.9.8
+    container_name: aicourse-promtail
+    restart: unless-stopped
+    profiles: ["monitor"]
+    depends_on:
+      - loki
+    command: -config.file=/etc/promtail/config.yml
+    volumes:
+      - ./monitoring/loki/promtail-config.yaml:/etc/promtail/config.yml:ro
+      # 经 Docker socket 服务发现后端容器日志（只读）；本地 Docker 桌面默认可用
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "2"
+
+  frontend:
+    build:
+      context: ./frontend
+    container_name: aicourse-frontend
+    restart: unless-stopped
+    profiles: ["full"]
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      - "80:80"
+    logging:
+      # json-file 日志限额：与 backend 一致，防止日志膨胀
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+  # ===================== RAG / 知识图谱（Python 侧，profile: rag）=====================
+  # 由 RAG 成员（zyjhhy）提供，整合自其上传的独立 compose；凭据已参数化至 .env
+  # 启动方式：docker compose --profile rag up -d
   neo4j:
     image: neo4j:5-community
     container_name: deepgraph-neo4j
+    profiles: ["rag"]
     ports:
       - "7474:7474"   # Neo4j Browser (HTTP)
       - "7687:7687"   # Bolt protocol
     environment:
-      - NEO4J_AUTH=neo4j/123456Zyj
+      - NEO4J_AUTH=neo4j/${NEO4J_PASSWORD:?NEO4J_PASSWORD 必须设置（请 cp .env.example .env 后填入）}
       - NEO4J_PLUGINS=["apoc"]
       - NEO4J_dbms_memory_pagecache_size=512M
       - NEO4J_dbms_memory_heap_max__size=1G
@@ -18,29 +447,47 @@ services:
       - neo4j_import:/var/lib/neo4j/import
       - neo4j_plugins:/plugins
     healthcheck:
-      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "123456Zyj", "RETURN 1"]
+      test: ["CMD", "cypher-shell", "-u", "neo4j", "-p", "${NEO4J_PASSWORD}", "RETURN 1"]
       interval: 15s
       timeout: 5s
       retries: 5
 
   deepgraph-rag-service:
     container_name: deepgraph-rag-service
-    build: .
+    build:
+      context: ./python-services/deepgraph_rag
+    profiles: ["rag"]
     ports:
       - "8501:8501"
     environment:
-      - OLLAMA_API_URL=http://host.docker.internal:11434
-      - MODEL=huihui-ai/Qwen3-1.7B-abliterated
-      - EMBEDDINGS_MODEL=nomic-embed-text:latest
-      - CROSS_ENCODER_MODEL=cross-encoder/ms-marco-MiniLM-L-6-v2
+      - OLLAMA_API_URL=${OLLAMA_API_URL:-http://host.docker.internal:11434}
+      - MODEL=${RAG_MODEL:-huihui-ai/Qwen3-1.7B-abliterated}
+      - EMBEDDINGS_MODEL=${EMBEDDINGS_MODEL:-nomic-embed-text:latest}
+      - CROSS_ENCODER_MODEL=${CROSS_ENCODER_MODEL:-cross-encoder/ms-marco-MiniLM-L-6-v2}
       - NEO4J_URI=bolt://neo4j:7687
       - NEO4J_USERNAME=neo4j
-      - NEO4J_PASSWORD=123456Zyj
+      - NEO4J_PASSWORD=${NEO4J_PASSWORD:?NEO4J_PASSWORD 必须设置（请 cp .env.example .env 后填入）}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY:-}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       neo4j:
         condition: service_healthy
 
 volumes:
+  mysql-data:
+  redis-data:
+  uploads-data:
+  # 定时备份卷（mysql-backup 服务写入）
+  mysql-backups:
+  # 应用内手动备份卷（SystemServiceImpl backups/ 目录）
+  backups-data:
+  # 监控数据卷
+  prometheus-data:
+  grafana-data:
+  # Loki 日志数据卷
+  loki-data:
+  # Neo4j 数据卷（RAG profile，知识图谱存储）
   neo4j_data:
   neo4j_logs:
   neo4j_import:

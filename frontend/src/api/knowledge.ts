@@ -81,6 +81,20 @@ export const planLearningPath = (sourceId, targetId, maxHops) =>
   request.post('/knowledge/path/plan', { sourceId, targetId, maxHops })
 
 /**
+ * Excel 批量导入知识点（后端 TeacherController POST /teacher/knowledge-points/import-excel）
+ *
+ * <p>父知识点以名称引用；同课程同名称视为重复并跳过。</p>
+ *
+ * @param {number} courseId 归属课程
+ * @param {File}   file     .xlsx 文件对象
+ */
+export const importKnowledgePointsExcel = (courseId, file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request.post(`/teacher/knowledge-points/import-excel?courseId=${courseId}`, formData)
+}
+
+/**
  * 默认导出对象：模块/组件配置与导出内容
  */
 export default {
@@ -100,4 +114,5 @@ export default {
   extractKnowledgePoints,
   getRelationGraphData,
   planLearningPath,
+  importKnowledgePointsExcel,
 }

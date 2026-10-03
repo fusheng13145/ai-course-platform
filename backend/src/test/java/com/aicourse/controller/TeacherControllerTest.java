@@ -9,6 +9,7 @@ import com.aicourse.service.AnalyticsService;
 import com.aicourse.service.CourseChapterService;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
+import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.QuestionService;
 import com.aicourse.service.SubmissionService;
 import com.aicourse.service.TaskService;
@@ -59,6 +60,8 @@ class TeacherControllerTest extends ControllerTestBase {
     private CourseEnrollmentService enrollmentService;
     @MockitoBean
     private TeacherCourseService teachingService;
+    @MockitoBean
+    private KnowledgePointService knowledgePointService;
 
     // ============ 归属校验桩（owner id 与 withUser(1L,...) 一致，越权校验才能放行） ============
     private Course ownerCourse() {

@@ -33,6 +33,10 @@ export function useUserManagement() {
   const resetting = ref(false)
   const deleteUser = ref(null)
   const deleting = ref(false)
+  /** 批量导入（Excel）相关状态 */
+  const showImport = ref(false)
+  const importing = ref(false)
+  const importResult = ref(null)
 
   function roleLabel(r) {
     return ROLE_LABELS[r] || r || '—'
@@ -173,6 +177,40 @@ export function useUserManagement() {
     }
   }
 
+  /* ---------------- 批量导入（Excel） ---------------- */
+
+  function openImport() {
+    importResult.value = null
+    showImport.value = true
+  }
+
+  /**
+   * 上传 Excel 批量创建账号。
+   * 后端逐行容错：单行失败不影响其他行，结果含成功/失败计数与随机密码映射。
+   */
+  async function handleImport(file) {
+    if (!file) return
+    importing.value = true
+    try {
+      const formData = new FormData()
+      formData.append('file', file)
+      const res = await adminApi.importUsersExcel(formData)
+      const payload = res?.data?.data || res?.data || {}
+      importResult.value = payload
+      const okCount = payload.successCount ?? 0
+      if (okCount > 0) {
+        toast.show(`成功导入 ${okCount} 个账号`, 'ok')
+        load()
+      } else {
+        toast.show('没有账号被导入，请检查文件内容', 'warning')
+      }
+    } catch (e) {
+      toast.show('导入失败，请检查文件格式（.xlsx，10 列表头）', 'error')
+    } finally {
+      importing.value = false
+    }
+  }
+
   onMounted(load)
 
   return {
@@ -190,6 +228,9 @@ export function useUserManagement() {
     resetting,
     deleteUser,
     deleting,
+    showImport,
+    importing,
+    importResult,
     roleLabel,
     onSearchInput,
     openDetail,
@@ -198,5 +239,7 @@ export function useUserManagement() {
     handleReset,
     openDelete,
     handleDelete,
+    openImport,
+    handleImport,
   }
 }

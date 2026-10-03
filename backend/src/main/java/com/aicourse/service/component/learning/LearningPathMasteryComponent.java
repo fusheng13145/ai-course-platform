@@ -4,6 +4,7 @@ import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.WrongQuestion;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.WrongQuestionService;
+import com.aicourse.vo.WrongQuestionGroupVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -46,7 +47,11 @@ public class LearningPathMasteryComponent {
     public Map<String, Double> deriveMasteryFromWrongQuestions(Long studentId, Long courseId) {
         Map<String, Double> mastery = new HashMap<>();
         try {
-            Map<String, List<WrongQuestion>> grouped =
+            // 修复（2026-09-23，P2-8）：改为结构化分组数组。
+            // 旧实现拿到的 Map 键是知识点原始 JSON 文本（如 ["Python基础"]），
+            // 与下方 pointByName 的纯名称键永远匹配不上 —— 使统一口径分支形同虚设、
+            // 恒定走兜底公式。现结构中的名称已解析干净，可按名称正确匹配。
+            List<WrongQuestionGroupVO> grouped =
                     wrongQuestionService.getByKnowledgePoints(studentId, courseId);
             if (grouped == null || grouped.isEmpty()) return mastery;
 
@@ -57,8 +62,8 @@ public class LearningPathMasteryComponent {
                     .filter(p -> p.getName() != null && !p.getName().isBlank())
                     .collect(Collectors.toMap(KnowledgePoint::getName, p -> p, (a, b) -> a));
 
-            for (Map.Entry<String, List<WrongQuestion>> e : grouped.entrySet()) {
-                String kpName = e.getKey();
+            for (WrongQuestionGroupVO group : grouped) {
+                String kpName = group.getKnowledgePointName();
                 if (kpName == null || kpName.isBlank()) continue;
                 KnowledgePoint point = pointByName.get(kpName);
                 if (point != null) {
@@ -67,9 +72,11 @@ public class LearningPathMasteryComponent {
                     mastery.put(kpName, rate != null ? rate.doubleValue() : 50.0);
                 } else {
                     // 知识点名称无法匹配时，使用兼容旧逻辑的兜底计算（保证不影响既有错题分组）
-                    long unmastered = e.getValue().stream()
+                    List<WrongQuestion> questions = group.getQuestions() == null
+                            ? List.of() : group.getQuestions();
+                    long unmastered = questions.stream()
                             .filter(w -> w.getMastered() == null || !w.getMastered()).count();
-                    long masteredCnt = e.getValue().size() - unmastered;
+                    long masteredCnt = questions.size() - unmastered;
                     double score = 100.0 - unmastered * 25.0 - masteredCnt * 5.0;
                     mastery.put(kpName, Math.max(10.0, score));
                 }

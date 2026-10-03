@@ -23,6 +23,7 @@
             :model-value="getDifficultyValue(row.difficulty)"
             disabled
             size="small"
+            :max="3"
             :colors="['#8BA888', '#CBB58A', '#C48080']"
             show-text
             :texts="['简单', '中等', '困难']"
