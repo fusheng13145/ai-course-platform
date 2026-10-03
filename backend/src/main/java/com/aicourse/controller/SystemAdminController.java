@@ -47,6 +47,24 @@ public class SystemAdminController {
 
     private static final Logger log = LoggerFactory.getLogger(SystemAdminController.class);
 
+    /**
+     * 允许通过导入创建的角色白名单。
+     *
+     * <p>Excel 导入路径不经过 {@code AdminCreateUserDTO} 的 {@code @Pattern} 校验，
+     * 而数据库 {@code users.role} 仅为 {@code varchar(20)} 无枚举约束 —— 若不显式校验，
+     * 任意角色值（如 "BOSS"）都能建号成功并进入权限体系。</p>
+     */
+    private static final Set<String> VALID_ROLES =
+            Set.of(RoleConstants.STUDENT, RoleConstants.TEACHER, RoleConstants.ADMIN);
+
+    /**
+     * 手机号格式（与 {@code AdminCreateUserDTO} 的 {@code @Pattern("^1[3-9]\\d{9}$")} 一致）。
+     *
+     * <p>与角色白名单同源缺口：Excel 导入路径不经过 DTO 校验，此前手机号可写入任意文本。</p>
+     */
+    private static final java.util.regex.Pattern PHONE_PATTERN =
+            java.util.regex.Pattern.compile("^1[3-9]\\d{9}$");
+
     private final SystemService systemService;
     private final UserService userService;
     private final CourseService courseService;
@@ -194,10 +212,16 @@ public class SystemAdminController {
     public ApiResponse<AdminUserImportResultVO> importUsers(@Valid @RequestBody List<AdminCreateUserDTO> userDTOs) {
         int successCount = 0;
         int failCount = 0;
+        List<String> errors = new ArrayList<>();
         for (AdminCreateUserDTO dto : userDTOs) {
+            String username = dto.getUsername();
             try {
+                // 与 Excel 路径一致的显式角色校验（@Valid 不校验集合元素）
+                if (!VALID_ROLES.contains(dto.getRole())) {
+                    throw new BusinessException("角色不合法（应为 STUDENT/TEACHER/ADMIN）");
+                }
                 User user = new User();
-                user.setUsername(dto.getUsername());
+                user.setUsername(username);
                 user.setFullName(dto.getFullName());
                 user.setPhone(dto.getPhone());
                 user.setEmail(dto.getEmail());
@@ -207,12 +231,37 @@ public class SystemAdminController {
                 userService.save(user);
                 successCount++;
             } catch (Exception e) {
-                log.warn("批量导入用户失败，已跳过: {}", e.getMessage());
+                log.warn("批量导入用户失败，已跳过 [{}]: {}", username, e.getMessage());
                 failCount++;
+                errors.add("用户名「" + username + "」：" + friendlyImportReason(e));
             }
         }
         return ApiResponse.success("导入完成",
-                new AdminUserImportResultVO(successCount, failCount, userDTOs.size()));
+                new AdminUserImportResultVO(successCount, failCount, userDTOs.size(), null,
+                        errors.isEmpty() ? null : errors));
+    }
+
+    /**
+     * 将底层异常转成管理员可读的失败原因。
+     *
+     * <p>逐行导入的失败多来自唯一索引冲突，原始信息形如
+     * {@code Duplicate entry 'x@y.com' for key 'users.uk_users_email'}，直接透出对使用者无意义。</p>
+     */
+    private static String friendlyImportReason(Exception e) {
+        String msg = e.getMessage() == null ? "" : e.getMessage();
+        if (msg.contains("uk_users_username")) {
+            return "用户名已存在";
+        }
+        if (msg.contains("uk_users_email")) {
+            return "邮箱已被其他账号使用";
+        }
+        if (msg.contains("uk_users_phone")) {
+            return "手机号已被其他账号使用";
+        }
+        if (e instanceof BusinessException) {
+            return msg;
+        }
+        return "写入失败：" + (msg.length() > 80 ? msg.substring(0, 80) + "…" : msg);
     }
 
     /**
@@ -237,26 +286,41 @@ public class SystemAdminController {
         }
         int successCount = 0;
         int failCount = 0;
+        List<String> errors = new ArrayList<>();
         // 仅返回「未填密码、由系统随机生成」用户的临时密码（明文仅本次响应出现一次，供管理员转告）
         Map<String, String> tempPasswords = new LinkedHashMap<>();
         for (User user : users) {
+            String username = user.getUsername();
             try {
+                // 角色白名单校验：本路径不经过 AdminCreateUserDTO 的 @Pattern，
+                // 缺失该校验时 "BOSS" 等非法角色会被直接写入数据库并通过登录鉴权。
+                if (!VALID_ROLES.contains(user.getRole())) {
+                    throw new BusinessException(
+                            "角色不合法（应为 STUDENT/TEACHER/ADMIN），当前值：「" + user.getRole() + "」");
+                }
+                // 手机号格式校验（与 AdminCreateUserDTO 的 @Pattern 同口径；留空视为不填）
+                if (user.getPhone() != null && !PHONE_PATTERN.matcher(user.getPhone()).matches()) {
+                    throw new BusinessException(
+                            "手机号格式不正确（应为 1 开头的 11 位数字），当前值：「" + user.getPhone() + "」");
+                }
                 user.setId(null);
                 user.setPassword(passwordEncoder.encode(user.getPassword()));
                 user.setIsActive(true);
                 user.setIsVerified(false);
                 userService.save(user);
-                if (generatedPasswords.containsKey(user.getUsername())) {
-                    tempPasswords.put(user.getUsername(), generatedPasswords.get(user.getUsername()));
+                if (generatedPasswords.containsKey(username)) {
+                    tempPasswords.put(username, generatedPasswords.get(username));
                 }
                 successCount++;
             } catch (Exception e) {
-                log.warn("批量导入用户失败，已跳过: {}", e.getMessage());
+                log.warn("批量导入用户失败，已跳过 [{}]: {}", username, e.getMessage());
                 failCount++;
+                errors.add("用户名「" + username + "」：" + friendlyImportReason(e));
             }
         }
         return ApiResponse.success("导入完成",
-                new AdminUserImportResultVO(successCount, failCount, users.size(), tempPasswords));
+                new AdminUserImportResultVO(successCount, failCount, users.size(), tempPasswords,
+                        errors.isEmpty() ? null : errors));
     }
 
     // ==================== 系统配置（4个接口） ====================

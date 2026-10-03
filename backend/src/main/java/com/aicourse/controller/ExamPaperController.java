@@ -8,11 +8,14 @@ import jakarta.validation.Valid;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.vo.QuestionVO;
+import com.aicourse.entity.Course;
 import com.aicourse.entity.ExamPaper;
+import com.aicourse.entity.ExamPaperStatus;
 import com.aicourse.dto.AutoComposeDTO;
 import com.aicourse.entity.ExamQuestion;
 import com.aicourse.entity.Question;
 import com.aicourse.security.RoleUtil;
+import com.aicourse.service.CourseService;
 import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.ExamSessionService;
@@ -32,6 +35,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
 
 /**
  * 试卷管理接口控制器
@@ -48,17 +53,20 @@ public class ExamPaperController {
     private final QuestionService questionService;
     private final ExamSessionService examSessionService;
     private final com.aicourse.security.ExamPaperAccessControl examPaperAccessControl;
+    private final CourseService courseService;
 
     public ExamPaperController(ExamPaperService examPaperService,
                                ExamQuestionService examQuestionService,
                                QuestionService questionService,
                                ExamSessionService examSessionService,
-                               com.aicourse.security.ExamPaperAccessControl examPaperAccessControl) {
+                               com.aicourse.security.ExamPaperAccessControl examPaperAccessControl,
+                               CourseService courseService) {
         this.examPaperService = examPaperService;
         this.examQuestionService = examQuestionService;
         this.questionService = questionService;
         this.examSessionService = examSessionService;
         this.examPaperAccessControl = examPaperAccessControl;
+        this.courseService = courseService;
     }
 
     /**
@@ -66,6 +74,7 @@ public class ExamPaperController {
      * @param page 当前页码
      * @param size 每页条数
      * @param courseId 课程ID
+     * @param auth 当前登录主体（用于按角色过滤可见范围）
      * @return 分页试卷数据
      */
     @GetMapping
@@ -73,13 +82,53 @@ public class ExamPaperController {
     public ApiResponse<PagedResponse<ExamPaper>> listByParams(
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size,
-            @RequestParam(required = false) Long courseId) {
+            @RequestParam(required = false) Long courseId,
+            Authentication auth) {
         LambdaQueryWrapper<ExamPaper> queryWrapper = new LambdaQueryWrapper<>();
         if (courseId != null) {
             queryWrapper.eq(ExamPaper::getCourseId, courseId);
         }
+        // 修复（2026-09-21，P1-2）：学生仅可见已发布试卷。
+        // 原实现无任何状态过滤，学生「我的考试」列表会列出教师尚未发布的草稿卷并渲染
+        // 「开始考试」按钮——点击后虽被 startExam 拦截（试卷尚未发布），但界面已构成误导，
+        // 且向学生暴露了未发布试卷的存在与标题。教师/管理员保留全量可见（需管理自己的草稿）。
+        if (!RoleUtil.isTeacherOrAdmin(auth)) {
+            queryWrapper.eq(ExamPaper::getStatus, ExamPaperStatus.PUBLISHED.name());
+        }
         Page<ExamPaper> examPaperPage = examPaperService.page(Page.of(page, size), queryWrapper);
+        fillCourseNames(examPaperPage.getRecords());
         return ApiResponse.success(PagedResponse.of(examPaperPage));
+    }
+
+    /**
+     * 回填试卷所属课程名称（{@code courseName} 为非持久化展示字段）。
+     *
+     * <p>修复（2026-09-23，P1-4）：此前 {@code ExamPaper} 只含 courseId，前端
+     * {@code exam.courseName || '未知课程'} 必然兜底，学生端考试卡片恒显示「未知课程」。
+     * 此处去重后一次批量查询，避免 N+1。</p>
+     */
+    private void fillCourseNames(List<ExamPaper> papers) {
+        if (papers == null || papers.isEmpty()) {
+            return;
+        }
+        List<Long> courseIds = papers.stream()
+                .map(ExamPaper::getCourseId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (courseIds.isEmpty()) {
+            return;
+        }
+        // 不用 Collectors.toMap：课程名理论上可为 null，toMap 遇 null value 会抛 NPE
+        Map<Long, String> nameById = new HashMap<>();
+        for (Course course : courseService.listByIds(courseIds)) {
+            if (course.getId() != null) {
+                nameById.put(course.getId(), course.getName());
+            }
+        }
+        for (ExamPaper paper : papers) {
+            paper.setCourseName(nameById.get(paper.getCourseId()));
+        }
     }
 
     /**
@@ -94,10 +143,17 @@ public class ExamPaperController {
     public ApiResponse<PagedResponse<ExamPaper>> listByCourse(
             @PathVariable Long courseId,
             @RequestParam(defaultValue = "1") long page,
-            @RequestParam(defaultValue = "10") long size) {
+            @RequestParam(defaultValue = "10") long size,
+            Authentication auth) {
         LambdaQueryWrapper<ExamPaper> queryWrapper = new LambdaQueryWrapper<ExamPaper>()
                 .eq(ExamPaper::getCourseId, courseId);
+        // 与 /exam-papers 列表口径保持一致（2026-09-23 补漏）：学生不得看到未发布试卷。
+        // 本端点由 CourseExamPanel 使用，学生在课程页可到达，此前 P1-2 只收了主列表，漏了这一处。
+        if (!RoleUtil.isTeacherOrAdmin(auth)) {
+            queryWrapper.eq(ExamPaper::getStatus, ExamPaperStatus.PUBLISHED.name());
+        }
         Page<ExamPaper> examPaperPage = examPaperService.page(Page.of(page, size), queryWrapper);
+        fillCourseNames(examPaperPage.getRecords());
         return ApiResponse.success(PagedResponse.of(examPaperPage));
     }
 
@@ -162,18 +218,26 @@ public class ExamPaperController {
     }
 
     /**
-     * 查询试卷关联的题目列表
+     * 查询试卷关联的题目列表（学生答题 / 教师预览共用，返回体统一脱敏）
      * @param id 试卷ID
-     * @return 题目详情集合
+     * @return 题目详情集合（不含标准答案与解析）
      */
     @GetMapping("/{id}/questions")
     @Operation(summary = "查询试卷关联的题目列表")
-    public ApiResponse<List<ExamPaperQuestionVO>> getQuestions(@PathVariable Long id) {
+    public ApiResponse<List<ExamPaperQuestionVO>> getQuestions(@PathVariable Long id, Authentication auth) {
+        // 对象级授权：管理员放行；学生须有已通过审批的选课；教师须为该课程授课教师。
+        // 修复（2026-09-21，P0）：本端点原无任何归属校验，非选课学生可跨课程读取他人试卷题目。
+        examPaperAccessControl.assertCanRead(examPaperService.getById(id), auth);
+
         LambdaQueryWrapper<ExamQuestion> queryWrapper = new LambdaQueryWrapper<ExamQuestion>()
                 .eq(ExamQuestion::getExamPaperId, id);
         List<ExamQuestion> examQuestionList = examQuestionService.list(queryWrapper);
         List<ExamPaperQuestionVO> resultList = new ArrayList<>();
 
+        // 答案可见性按角色区分（2026-09-23 修正）：学生只看作答所需字段（去答案/解析），
+        // 教师/管理员可见完整题目——讲评试卷需要标准答案。
+        // 此前 P0 修复为「对所有角色统一脱敏」，误伤了教师视角（实测教师也取不到 correctAnswers）。
+        boolean answerVisible = RoleUtil.isTeacherOrAdmin(auth);
         for (ExamQuestion examQuestion : examQuestionList) {
             Question question = questionService.getById(examQuestion.getQuestionId());
             if (question == null) {
@@ -181,9 +245,35 @@ public class ExamPaperController {
             }
             resultList.add(new ExamPaperQuestionVO(
                     examQuestion.getId(), examQuestion.getOrderIndex(),
-                    examQuestion.getPoints(), question));
+                    examQuestion.getPoints(),
+                    answerVisible ? question : toAnswerHidden(question)));
         }
         return ApiResponse.success(resultList);
+    }
+
+    /**
+     * 作答可见的题目投影：<b>白名单</b>保留作答所需字段，剔除标准答案与解析。
+     *
+     * <p><b>安全修复（2026-09-21，P0）</b>：本端点此前直接下发 {@code Question} 实体（含
+     * {@code correctAnswers} / {@code explanation}），实测学生在考前/考中调接口即可获取全部答案。
+     * 现改为白名单投影——{@code correctAnswers}、{@code explanation}、{@code knowledgePoints}
+     * 等字段在返回体中根本不存在，从结构上杜绝泄露（而非依赖调用方自觉）。</p>
+     *
+     * <p>{@code options} 保持原始 JSON 字符串形态，与前端 {@code parseOptions} 的解析逻辑一致
+     * （避免二次序列化导致含逗号的选项被错误拆分）。教师如需查看答案与解析，走题库接口。</p>
+     */
+    private static Question toAnswerHidden(Question q) {
+        Question safe = new Question();
+        safe.setId(q.getId());
+        safe.setCourseId(q.getCourseId());
+        safe.setType(q.getType());
+        safe.setContent(q.getContent());
+        safe.setOptions(q.getOptions());
+        safe.setDifficulty(q.getDifficulty());
+        safe.setScore(q.getScore());
+        safe.setUsageCount(q.getUsageCount());
+        safe.setCorrectRate(q.getCorrectRate());
+        return safe;
     }
 
     /**
@@ -193,7 +283,9 @@ public class ExamPaperController {
      */
     @GetMapping("/{id}/detail")
     @Operation(summary = "查询试卷完整详情")
-    public ApiResponse<ExamPaperDetailVO> getDetail(@PathVariable Long id) {
+    public ApiResponse<ExamPaperDetailVO> getDetail(@PathVariable Long id, Authentication auth) {
+        // 对象级授权（同 /questions）：详情含全部题目内容，学生须已选课、教师须授课
+        examPaperAccessControl.assertCanRead(examPaperService.getById(id), auth);
         ExamPaperDetailVO detail = examPaperService.getExamPaperDetail(id);
         return ApiResponse.success(detail);
     }
@@ -254,8 +346,11 @@ public class ExamPaperController {
      * @return 统计数据
      */
     @GetMapping("/{id}/statistics")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "获取试卷统计")
-    public ApiResponse<ExamPaperStatsVO> statistics(@PathVariable Long id) {
+    public ApiResponse<ExamPaperStatsVO> statistics(@PathVariable Long id, Authentication auth) {
+        // 统计含题型/分值分布，属教学侧数据；学生无使用场景（前端仅教师端调用）
+        examPaperAccessControl.assertCanRead(examPaperService.getById(id), auth);
         ExamPaperStatsVO stats = examPaperService.getPaperStatistics(id);
         return ApiResponse.success(stats);
     }

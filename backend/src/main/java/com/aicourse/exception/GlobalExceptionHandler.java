@@ -14,6 +14,7 @@ import org.springframework.web.multipart.MaxUploadSizeExceededException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
+import org.springframework.web.servlet.resource.NoResourceFoundException;
 import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.converter.HttpMessageNotReadableException;
 import org.springframework.web.HttpRequestMethodNotSupportedException;
@@ -64,6 +65,22 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.NOT_FOUND)
                 .body(ApiResponse.error(ApiCode.NOT_FOUND, e.getMessage()));
+    }
+
+    /**
+     * 请求路径不存在（未匹配任何 Handler，落到静态资源处理器后抛出的异常）。
+     *
+     * <p>Spring Boot 3.2+ 对未匹配到 Controller 的路径会抛 {@code NoResourceFoundException}。
+     * 若不单独处理，它会落入兜底分支被记为「系统未知异常」并返回 500 ——
+     * 使「接口路径写错」表现为「服务端故障」，误导排查方向（实测 {@code GET /api/courses/1/tasks}
+     * 即为此例，正确端点应为 {@code /api/tasks/course/1}）。此处按语义返回 404。</p>
+     */
+    @ExceptionHandler(NoResourceFoundException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNoResourceFound(NoResourceFoundException e) {
+        log.warn("请求路径不存在：{}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.NOT_FOUND)
+                .body(ApiResponse.error(ApiCode.NOT_FOUND, "请求的资源不存在"));
     }
 
     /**

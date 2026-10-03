@@ -3,16 +3,22 @@ package com.aicourse.service.impl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.Question;
 import com.aicourse.entity.WrongQuestion;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.mapper.KnowledgePointMapper;
 import com.aicourse.mapper.WrongQuestionMapper;
 import com.aicourse.service.QuestionService;
 import com.aicourse.service.WrongQuestionService;
+import com.aicourse.util.WrongQuestionSnapshotUtil;
+import com.aicourse.vo.WrongQuestionGroupVO;
 import com.aicourse.vo.WrongQuestionStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -29,10 +35,25 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
 
     private static final Logger log = LoggerFactory.getLogger(WrongQuestionServiceImpl.class);
 
+    /** 解析 question.knowledge_points 的 JSON 数组文本（如 ["Python基础","数据结构"]） */
+    private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
+
+    /** 未能解析出知识点时的归组名（与原实现保持一致） */
+    private static final String UNKNOWN_KP = "未知知识点";
+
     private final QuestionService questionService;
 
-    public WrongQuestionServiceImpl(QuestionService questionService) {
+    /**
+     * 注入 Mapper 而非 KnowledgePointService：后者已反向依赖本服务
+     * （见 KnowledgePointServiceImpl 的 {@code @Lazy WrongQuestionService}），
+     * 从 Service 层再注入会加深双向依赖。
+     */
+    private final KnowledgePointMapper knowledgePointMapper;
+
+    public WrongQuestionServiceImpl(QuestionService questionService,
+                                    KnowledgePointMapper knowledgePointMapper) {
         this.questionService = questionService;
+        this.knowledgePointMapper = knowledgePointMapper;
     }
 
     /**
@@ -56,6 +77,8 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
             existing.setLastPracticedAt(LocalDateTime.now());
             // 再次答错，取消掌握标记
             existing.setMastered(false);
+            // 刷新快照（2026-09-23 修复）：保证错题本展示与当前题库一致
+            WrongQuestionSnapshotUtil.fillFromQuestion(existing, questionService.getById(questionId));
             this.updateById(existing);
             return existing;
         } else {
@@ -69,6 +92,9 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
             wrongQuestion.setMastered(false);
             wrongQuestion.setPracticeCount(1);
             wrongQuestion.setLastPracticedAt(LocalDateTime.now());
+            // 快照填充（2026-09-23 修复）：questionContent / correctAnswer 等快照字段
+            // 此前无人写入，导致错题本列表题干为空（详见 WrongQuestionSnapshotUtil）
+            WrongQuestionSnapshotUtil.fillFromQuestion(wrongQuestion, questionService.getById(questionId));
             this.save(wrongQuestion);
             return wrongQuestion;
         }
@@ -169,7 +195,29 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
                 .eq(courseId != null, WrongQuestion::getCourseId, courseId)
                 .orderByDesc(WrongQuestion::getLastPracticedAt);
 
-        return this.page(Page.of(page, size), queryWrapper);
+        Page<WrongQuestion> result = this.page(Page.of(page, size), queryWrapper);
+        fillDerivedFields(result.getRecords());
+        return result;
+    }
+
+    /**
+     * 补全「联表派生的展示字段」：题干 / 选项 / 正确答案 / 解析 / 知识点名。
+     *
+     * <p>修复（2026-09-23，P2-6）：{@link WrongQuestion} 中这些字段标注为
+     * {@code @TableField(exist = false)}，实体注释已写明「联表派生的展示字段（不入库，仅用于
+     * 错题本列表展示题干/答案/解析）」，但<b>查询路径从未实现填充</b> —— 导致错题本列表
+     * 题干与正确答案恒为空（前端 {@code useWrongQuestions} 依赖 {@code questionContent} 渲染）。
+     * 现于查询后按 questionId 补全。</p>
+     */
+    private void fillDerivedFields(List<WrongQuestion> list) {
+        if (list == null || list.isEmpty()) {
+            return;
+        }
+        for (WrongQuestion wq : list) {
+            if (wq.getQuestionId() != null) {
+                WrongQuestionSnapshotUtil.fillFromQuestion(wq, questionService.getById(wq.getQuestionId()));
+            }
+        }
     }
 
     /**
@@ -183,7 +231,9 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
                 .eq(WrongQuestion::getMastered, false)
                 .orderByAsc(WrongQuestion::getLastPracticedAt);  // 优先显示最早未掌握的
 
-        return this.list(queryWrapper);
+        List<WrongQuestion> list = this.list(queryWrapper);
+        fillDerivedFields(list);
+        return list;
     }
 
     /**
@@ -191,27 +241,78 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
      * 通过关联题目获取知识点信息进行分组
      */
     @Override
-    public Map<String, List<WrongQuestion>> getByKnowledgePoints(Long studentId, Long courseId) {
-        // 查询该学生的所有错题
+    public List<WrongQuestionGroupVO> getByKnowledgePoints(Long studentId, Long courseId) {
         LambdaQueryWrapper<WrongQuestion> queryWrapper = new LambdaQueryWrapper<WrongQuestion>()
                 .eq(WrongQuestion::getStudentId, studentId)
                 .eq(courseId != null, WrongQuestion::getCourseId, courseId)
                 .orderByDesc(WrongQuestion::getLastPracticedAt);
 
         List<WrongQuestion> wrongQuestions = this.list(queryWrapper);
-        Map<String, List<WrongQuestion>> result = new LinkedHashMap<>();
 
-        // 按题目知识点分组
+        // 按知识点名称分组：一道题可关联多个知识点，故会同时出现在多个分组中
+        Map<String, List<WrongQuestion>> grouped = new LinkedHashMap<>();
         for (WrongQuestion wq : wrongQuestions) {
             Question question = questionService.getById(wq.getQuestionId());
-            String kpKey = "未知知识点";
-            if (question != null && question.getKnowledgePoints() != null && !question.getKnowledgePoints().isEmpty()) {
-                kpKey = question.getKnowledgePoints();
+            // 补齐派生展示字段（题干/选项/答案/知识点名，见 P2-6），否则分组内的题目项字段全为空
+            WrongQuestionSnapshotUtil.fillFromQuestion(wq, question);
+            for (String kpName : extractKnowledgePointNames(question)) {
+                grouped.computeIfAbsent(kpName, k -> new ArrayList<>()).add(wq);
             }
-            result.computeIfAbsent(kpKey, k -> new ArrayList<>()).add(wq);
         }
 
-        return result;
+        if (grouped.isEmpty()) {
+            return List.of();
+        }
+
+        // 回填知识点ID：一次批量查询，避免逐组查询造成 N+1
+        Map<String, Long> idByName = new HashMap<>();
+        List<KnowledgePoint> points = knowledgePointMapper.selectList(
+                new LambdaQueryWrapper<KnowledgePoint>()
+                        .eq(courseId != null, KnowledgePoint::getCourseId, courseId)
+                        .in(KnowledgePoint::getName, grouped.keySet()));
+        for (KnowledgePoint kp : points) {
+            idByName.putIfAbsent(kp.getName(), kp.getId());
+        }
+
+        return grouped.entrySet().stream()
+                .map(e -> new WrongQuestionGroupVO(idByName.get(e.getKey()), e.getKey(), e.getValue()))
+                .sorted(Comparator.comparing(WrongQuestionGroupVO::getCount).reversed())
+                .toList();
+    }
+
+    /**
+     * 提取题目关联的知识点名称。
+     *
+     * <p>{@code question.knowledge_points} 实际存的是 <b>JSON 数组文本</b>
+     * （如 {@code ["Python基础","数据结构"]}），但也兼容历史/手工录入的「逗号分隔纯文本」——
+     * 两种形态都能解析。解析不出任何名称时归入「未知知识点」，保证错题不被丢弃。</p>
+     */
+    private List<String> extractKnowledgePointNames(Question question) {
+        if (question == null || question.getKnowledgePoints() == null
+                || question.getKnowledgePoints().isBlank()) {
+            return List.of(UNKNOWN_KP);
+        }
+        String raw = question.getKnowledgePoints().trim();
+        if (raw.startsWith("[")) {
+            try {
+                List<String> parsed = JSON_MAPPER.readValue(raw, new TypeReference<List<String>>() { });
+                List<String> cleaned = parsed.stream()
+                        .filter(Objects::nonNull)
+                        .map(String::trim)
+                        .filter(s -> !s.isEmpty())
+                        .toList();
+                if (!cleaned.isEmpty()) {
+                    return cleaned;
+                }
+            } catch (Exception e) {
+                log.debug("知识点 JSON 解析失败，退回分隔符拆分：{}", raw);
+            }
+        }
+        List<String> bySplit = Arrays.stream(raw.split("[,，;；]"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
+        return bySplit.isEmpty() ? List.of(UNKNOWN_KP) : bySplit;
     }
 
     /**

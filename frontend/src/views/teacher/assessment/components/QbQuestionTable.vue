@@ -23,8 +23,8 @@
       <el-table-column prop="courseName" label="所属课程" min-width="140" show-overflow-tooltip />
       <el-table-column label="审核" width="110" align="center">
         <template #default="{ row }">
-          <el-tag size="small" :type="getReviewTag(row.reviewStatus)" effect="light">{{
-            getReviewText(row.reviewStatus)
+          <el-tag size="small" :type="getReviewTag(resolveReviewStatus(row))" effect="light">{{
+            getReviewText(resolveReviewStatus(row))
           }}</el-tag>
         </template>
       </el-table-column>
@@ -65,9 +65,14 @@
 </template>
 
 <script setup lang="ts">
+import { resolveReviewStatus } from '@/composables/useQuestionBank'
+
 /**
  * 题库管理 — 题目列表
  * <p>题干/类型/难度/课程/审核状态表格 + 行操作（编辑/审核/复制/删除）+ 分页。</p>
+ *
+ * 审核列修复（2026-09-21，P1-1）：原先传 `row.reviewStatus`，但后端无该字段
+ * （审核态存于 `is_active`），导致恒显示「待审核」。现统一走 resolveReviewStatus 推导。
  */
 defineProps({
   /** 题目列表 */

@@ -24,6 +24,19 @@ export const deleteChapter = (id) => request.delete(`/chapters/${id}`)
  */
 export const batchReorder = (data) => request.put('/batch-reorder', data)
 /**
+ * Excel 批量导入章节（后端 TeacherController POST /teacher/chapters/import-excel）
+ *
+ * <p>父章节以标题引用（支持二级章节）；同课程同标题视为重复并跳过。</p>
+ *
+ * @param courseId 归属课程
+ * @param file     .xlsx 文件对象
+ */
+export const importChaptersExcel = (courseId, file) => {
+  const formData = new FormData()
+  formData.append('file', file)
+  return request.post(`/teacher/chapters/import-excel?courseId=${courseId}`, formData)
+}
+/**
  * 默认导出对象：模块/组件配置与导出内容
  */
 export default {
@@ -33,4 +46,5 @@ export default {
   updateChapter,
   deleteChapter,
   batchReorder,
+  importChaptersExcel,
 }

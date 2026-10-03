@@ -2,6 +2,7 @@ package com.aicourse.service;
 
 import com.aicourse.entity.Question;
 import com.aicourse.entity.WrongQuestion;
+import com.aicourse.vo.WrongQuestionGroupVO;
 import com.aicourse.vo.WrongQuestionStatsVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import java.util.List;
@@ -76,12 +77,18 @@ public interface WrongQuestionService extends com.baomidou.mybatisplus.extension
     List<WrongQuestion> getUnmastered(Long studentId, Long courseId);
 
     /**
-     * 按知识点分类的错题
+     * 按知识点分类的错题。
+     *
+     * <p>修复（2026-09-23，P2-8）：原返回 {@code Map<String, List<WrongQuestion>>}，键为
+     * {@code question.knowledgePoints} 的原始 JSON 文本，与前端期望的
+     * {@code Array<{knowledgePointId, knowledgePointName, questions}>} 不符，
+     * 使前端增强逻辑静默失效。现改为结构化分组数组。</p>
+     *
      * @param studentId 学生ID
      * @param courseId 课程ID（可选）
-     * @return 按知识点分组的错题Map
+     * @return 按知识点分组的错题列表（按题目数量倒序）
      */
-    Map<String, List<WrongQuestion>> getByKnowledgePoints(Long studentId, Long courseId);
+    List<WrongQuestionGroupVO> getByKnowledgePoints(Long studentId, Long courseId);
 
     /**
      * 错题统计

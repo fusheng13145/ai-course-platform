@@ -2,6 +2,8 @@ package com.aicourse.util;
 
 import com.aicourse.entity.Question;
 import com.aicourse.entity.User;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.http.HttpServletResponse;
 import org.apache.poi.ss.usermodel.Cell;
 import org.apache.poi.ss.usermodel.CellStyle;
@@ -21,6 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
 import java.util.AbstractMap;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import org.slf4j.Logger;
@@ -123,11 +126,20 @@ public final class ExcelUtil {
                     continue;
                 }
                 Question q = new Question();
-                q.setType(emptyToNull(cellStr(row.getCell(0))));
+                // 题型/难度归一化（2026-09-23）：非法值不再原样入库。
+                // 背景：P2-11（角色）与 P2-12（难度/类型）暴露的同类问题——批量导入路径
+                // 不经过 DTO 的 @Pattern 校验，非法枚举会直接写库，前端映射表取不到值
+                // 便渲染为空/默认（如难度渲染为「-」）。
+                q.setType(normalizeQuestionType(cellStr(row.getCell(0))));
                 q.setContent(content);
-                q.setOptions(emptyToNull(cellStr(row.getCell(2))));
-                q.setCorrectAnswers(emptyToNull(cellStr(row.getCell(3))));
-                q.setDifficulty(emptyToNull(cellStr(row.getCell(4))));
+                // 修复（2026-09-23，P2-1）：C/D/G 三列在 MySQL 中是 JSON 类型，写入值本身必须是合法 JSON。
+                // 原实现用 emptyToNull 原样透传——用户按直觉写「知识点 = 数据结构基础」「填空答案 = def」
+                // 会导致整批导入失败，且报错为「数据完整性校验失败，请检查关联数据是否存在」，
+                // 完全不提示 JSON 问题，极难自查。现统一规范化：已是合法 JSON 则原样保留，
+                // 否则按列语义包装/拆分（见 normalizeJsonArray / normalizeJsonAny）。
+                q.setOptions(normalizeJsonArray(cellStr(row.getCell(2))));
+                q.setCorrectAnswers(normalizeJsonAny(cellStr(row.getCell(3))));
+                q.setDifficulty(normalizeDifficulty(cellStr(row.getCell(4))));
                 String score = cellStr(row.getCell(5));
                 if (score != null && !score.isEmpty()) {
                     try {
@@ -137,12 +149,77 @@ public final class ExcelUtil {
                         q.setScore(null);
                     }
                 }
-                q.setKnowledgePoints(emptyToNull(cellStr(row.getCell(6))));
+                q.setKnowledgePoints(normalizeJsonArray(cellStr(row.getCell(6))));
                 q.setExplanation(emptyToNull(cellStr(row.getCell(7))));
                 list.add(q);
             }
         }
         return list;
+    }
+
+    /** 供 JSON 规范化复用的轻量 mapper（仅做语法校验与序列化，不涉及业务类型） */
+    private static final ObjectMapper JSON_MAPPER = new ObjectMapper();
+
+    /**
+     * 规范化「选项」「知识点」列：目标形态必须是 <b>JSON 数组</b>。
+     *
+     * <p>修复（2026-09-23，P2-1）：这两列对应 MySQL JSON 列，写入值本身必须合法。
+     * 用户按直觉填 {@code 数据结构基础} / {@code 栈,队列,二叉树}（裸文本）会令<b>整批导入失败</b>，
+     * 且报错「数据完整性校验失败，请检查关联数据是否存在」完全不提 JSON，极难自查。</p>
+     *
+     * <p>规则：空白 → null；已是合法 JSON 数组 → 原样保留；是合法 JSON 但非数组 → 包装为单元素数组；
+     * 非法 JSON → 按 {@code , ， ; ；} 或换行拆分后组装为数组。</p>
+     */
+    private static String normalizeJsonArray(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        try {
+            JsonNode node = JSON_MAPPER.readTree(trimmed);
+            if (node.isArray()) {
+                return trimmed;
+            }
+            return JSON_MAPPER.writeValueAsString(List.of(node.asText()));
+        } catch (Exception notJson) {
+            List<String> parts = Arrays.stream(trimmed.split("[,，;；\\r\\n]+"))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .toList();
+            if (parts.isEmpty()) {
+                parts = List.of(trimmed);
+            }
+            try {
+                return JSON_MAPPER.writeValueAsString(parts);
+            } catch (Exception e) {
+                log.warn("规范化 JSON 数组失败，该值将置空：{}", e.getMessage());
+                return null;
+            }
+        }
+    }
+
+    /**
+     * 规范化「正确答案」列：允许<b>任意</b>合法 JSON（字符串 / 数组 / 布尔 / 数字）。
+     *
+     * <p>单选索引 {@code "1"}、多选 {@code ["0","1"]}、判断 {@code true}、填空 {@code ["def"]}
+     * 都是合法 JSON，原样保留；裸文本（如填空答案直接写 {@code def}）会包装为 {@code ["def"]}。</p>
+     */
+    private static String normalizeJsonAny(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String trimmed = raw.trim();
+        try {
+            JSON_MAPPER.readTree(trimmed);
+            return trimmed;
+        } catch (Exception notJson) {
+            try {
+                return JSON_MAPPER.writeValueAsString(List.of(trimmed));
+            } catch (Exception e) {
+                log.warn("规范化正确答案失败，该值将置空：{}", e.getMessage());
+                return null;
+            }
+        }
     }
 
     /**
@@ -202,6 +279,226 @@ public final class ExcelUtil {
             }
         }
         return new UserImportResult(list, generatedPasswords);
+    }
+
+    // ==================== 章节 / 知识点批量导入（2026-09-23 新增，P2-4） ====================
+
+    /**
+     * 章节导入行。
+     *
+     * <p>{@code parentTitle} 以「父章节标题」引用而非 ID —— 使用者拿到的是课程大纲文本，
+     * 不可能知道数据库 ID；写入时再解析为 {@code parentId}（支持二级章节）。</p>
+     */
+    public record ChapterRow(String title, String parentTitle, Integer orderIndex,
+                             Integer duration, Boolean isPublished, String content) {
+    }
+
+    /**
+     * 解析章节导入文件。
+     *
+     * <p>表头（第 1 行，6 列）：章节标题* / 父章节标题 / 排序序号 / 时长(分钟) / 是否发布 / 章节内容。
+     * 仅「章节标题」必填，为空的行整行跳过。</p>
+     */
+    public static List<ChapterRow> readChapters(MultipartFile file) throws IOException {
+        List<ChapterRow> list = new ArrayList<>();
+        try (Workbook wb = WorkbookFactory.create(file.getInputStream())) {
+            Sheet sheet = wb.getSheetAt(0);
+            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) {
+                    continue;
+                }
+                String title = cellStr(row.getCell(0));
+                if (title == null || title.isEmpty()) {
+                    continue;
+                }
+                list.add(new ChapterRow(
+                        title,
+                        emptyToNull(cellStr(row.getCell(1))),
+                        toIntOrNull(cellStr(row.getCell(2))),
+                        toIntOrNull(cellStr(row.getCell(3))),
+                        toBoolOrNull(cellStr(row.getCell(4))),
+                        emptyToNull(cellStr(row.getCell(5)))));
+            }
+        }
+        return list;
+    }
+
+    /**
+     * 知识点导入行。{@code parentName} 同样以「父知识点名称」引用，写入时解析为 {@code parentId}。
+     */
+    public record KnowledgeRow(String name, String parentName, String difficultyLevel,
+                               Integer importance, Integer estimatedTime, String pointType,
+                               String description) {
+    }
+
+    /**
+     * 解析知识点导入文件。
+     *
+     * <p>表头（第 1 行，7 列）：知识点名称* / 父知识点名称 / 难度 / 重要程度(1-10) /
+     * 预计学习时长(分钟) / 类型 / 描述。仅「知识点名称」必填，为空的行整行跳过。</p>
+     */
+    public static List<KnowledgeRow> readKnowledgePoints(MultipartFile file) throws IOException {
+        List<KnowledgeRow> list = new ArrayList<>();
+        try (Workbook wb = WorkbookFactory.create(file.getInputStream())) {
+            Sheet sheet = wb.getSheetAt(0);
+            for (int i = 1; i <= sheet.getLastRowNum(); i++) {
+                Row row = sheet.getRow(i);
+                if (row == null) {
+                    continue;
+                }
+                String name = cellStr(row.getCell(0));
+                if (name == null || name.isEmpty()) {
+                    continue;
+                }
+                list.add(new KnowledgeRow(
+                        name,
+                        emptyToNull(cellStr(row.getCell(1))),
+                        // 难度/类型归一化到权威枚举（难度 EASY/MEDIUM/HARD、类型 concept/skill/principle）
+                        normalizeDifficulty(cellStr(row.getCell(2))),
+                        toIntOrNull(cellStr(row.getCell(3))),
+                        toIntOrNull(cellStr(row.getCell(4))),
+                        normalizePointType(cellStr(row.getCell(5))),
+                        emptyToNull(cellStr(row.getCell(6)))));
+            }
+        }
+        return list;
+    }
+
+    /** 文本转整数，无法解析返回 null（缺省值由调用方决定）。 */
+    private static Integer toIntOrNull(String s) {
+        if (s == null || s.isEmpty()) {
+            return null;
+        }
+        try {
+            return BigDecimal.valueOf(Double.parseDouble(s)).intValue();
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** 文本转布尔，兼容 是/否、true/false、1/0、y/n。无法识别返回 null。 */
+    private static Boolean toBoolOrNull(String s) {
+        if (s == null || s.isEmpty()) {
+            return null;
+        }
+        switch (s.trim().toLowerCase()) {
+            case "是":
+            case "true":
+            case "1":
+            case "y":
+            case "yes":
+                return Boolean.TRUE;
+            case "否":
+            case "false":
+            case "0":
+            case "n":
+            case "no":
+                return Boolean.FALSE;
+            default:
+                return null;
+        }
+    }
+
+    // ==================== 枚举归一化（2026-09-23 新增） ====================
+
+    /**
+     * 归一化题型到权威枚举。
+     *
+     * <p>背景：批量导入路径不经过 DTO 校验（同 P2-11/P2-12 的根因），非法枚举会直接入库；
+     * 而前端按题型分支渲染答题控件（单选/多选/判断/填空/简答），取值不匹配将导致
+     * 题目在答题页无法作答。此处兼容中文与大小写写法，无法识别返回 null（由调用方按缺省处理）。</p>
+     */
+    private static String normalizeQuestionType(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        String v = raw.trim().toUpperCase();
+        switch (v) {
+            case "SINGLE_CHOICE":
+            case "SINGLE":
+            case "单选":
+            case "单选题":
+                return "SINGLE_CHOICE";
+            case "MULTIPLE_CHOICE":
+            case "MULTIPLE":
+            case "多选":
+            case "多选题":
+                return "MULTIPLE_CHOICE";
+            case "TRUE_FALSE":
+            case "JUDGE":
+            case "判断":
+            case "判断题":
+                return "TRUE_FALSE";
+            case "FILL_BLANK":
+            case "FILL":
+            case "填空":
+            case "填空题":
+                return "FILL_BLANK";
+            case "SHORT_ANSWER":
+            case "ESSAY":
+            case "简答":
+            case "简答题":
+                return "SHORT_ANSWER";
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * 归一化难度到权威枚举 {@code EASY / MEDIUM / HARD}。
+     *
+     * <p>背景（P2-12）：前端映射表只有这三个键，库中出现过的 {@code BASIC} 会渲染为空标签。
+     * 此处兼容历史写法（BASIC/ADVANCED）与中文，无法识别返回 null。</p>
+     */
+    private static String normalizeDifficulty(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        switch (raw.trim().toUpperCase()) {
+            case "EASY":
+            case "BASIC":
+            case "简单":
+            case "容易":
+                return "EASY";
+            case "MEDIUM":
+            case "NORMAL":
+            case "INTERMEDIATE":
+            case "中等":
+                return "MEDIUM";
+            case "HARD":
+            case "ADVANCED":
+            case "DIFFICULT":
+            case "困难":
+                return "HARD";
+            default:
+                return null;
+        }
+    }
+
+    /**
+     * 归一化知识点类型到建表注释的权威取值（<b>小写</b>）：{@code concept / skill / principle}。
+     *
+     * <p>背景（P2-12）：库中同时存在 {@code CONCEPT} 与 {@code concept} 两种写法。
+     * 兼容中文；无法识别返回 null。</p>
+     */
+    private static String normalizePointType(String raw) {
+        if (raw == null || raw.isBlank()) {
+            return null;
+        }
+        switch (raw.trim().toUpperCase()) {
+            case "CONCEPT":
+            case "概念":
+                return "concept";
+            case "SKILL":
+            case "技能":
+                return "skill";
+            case "PRINCIPLE":
+            case "原理":
+                return "principle";
+            default:
+                return null;
+        }
     }
 
     /**

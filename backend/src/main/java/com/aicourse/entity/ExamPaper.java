@@ -141,6 +141,15 @@ public class ExamPaper {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 
+    /**
+     * 所属课程名称（非本表字段，由 courseId 关联查询回填，仅用于列表展示）。
+     *
+     * <p>修复（2026-09-23，P1-4）：此前实体只含 {@code courseId}，学生端考试卡片因取不到
+     * {@code courseName} 而恒显示「未知课程」。</p>
+     */
+    @TableField(exist = false)
+    private String courseName;
+
     public void setIsActive(Boolean active) {
         isActive = active;
     }

@@ -56,7 +56,14 @@ beforeAll(async () => {
   useStudentExams = mod.useStudentExams
 }, 60000)
 
-/** 三道题：单选 / 多选 / 简答，ID 故意与下标不同，用于验证「按题目ID匹配」而非「按下标匹配」 */
+/**
+ * 三道题：单选 / 多选 / 简答，ID 故意与下标不同，用于验证「按题目ID匹配」而非「按下标匹配」。
+ *
+ * 契约边界说明（2026-09-21）：本文件 mock 的是 `@/api/exam`，即**已经过 API 层归一化**的
+ * 输出——扁平结构、`id` 为真实题目 id。归一化本身（后端包装结构 `{id, orderIndex, points,
+ * question:{…}}` → 扁平）由 `src/api/__tests__/exam.test.ts` 覆盖，其中用的是从运行实例
+ * 真实抓取的响应形态。两者合起来才构成完整契约链，改动归一化请同步该文件。
+ */
 const QUESTIONS = [
   { id: 11, type: 'SINGLE_CHOICE', content: '单选题' },
   { id: 12, type: 'MULTIPLE_CHOICE', content: '多选题' },

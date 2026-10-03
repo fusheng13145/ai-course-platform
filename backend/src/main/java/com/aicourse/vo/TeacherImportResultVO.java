@@ -16,6 +16,22 @@ public class TeacherImportResultVO {
     private int importedCount;
     private Integer total;
 
+    /**
+     * 因「同课程同题干已存在」而跳过的条数（2026-09-23 新增，修复 P2-2 重复导入不幂等）。
+     */
+    private Integer skippedCount;
+
+    /**
+     * 写入失败的条数（2026-09-23 新增）。
+     * 原实现单条失败会导致整批回滚且报错不指明具体条目，现改为逐条容错并报告。
+     */
+    private Integer failedCount;
+
+    /**
+     * 失败明细（每条含序号与原因），便于用户直接定位问题行。失败数为 0 时不输出该键。
+     */
+    private java.util.List<String> errors;
+
     public TeacherImportResultVO() {
     }
 
