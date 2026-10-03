@@ -48,14 +48,18 @@ class MemoryStore:
     def reset(self) -> None:
         self.__init__()
 
-    def create_node(self, course_id: int, name: str, content: str, type_: str) -> dict:
+    def create_node(self, course_id: int, name: str, content: str, type_: str,
+                    node_id: Optional[int] = None) -> dict:
         with _LOCK:
-            nid = self._node_seq
-            self._node_seq += 1
-            node = {"id": nid, "name": name, "type": type_,
+            if node_id is None:
+                node_id = self._node_seq
+                self._node_seq = max(self._node_seq, node_id) + 1
+            else:
+                self._node_seq = max(self._node_seq, node_id + 1)
+            node = {"id": node_id, "name": name, "type": type_,
                     "content": content, "course_id": course_id,
                     "created_at": _now()}
-            self.nodes[nid] = node
+            self.nodes[node_id] = node
             return dict(node)
 
     def get_node(self, node_id: int) -> Optional[dict]:
@@ -184,14 +188,18 @@ class Neo4jStore:
                 "content": rec.get("content", ""), "course_id": rec["course_id"],
                 "created_at": rec.get("created_at", _now())}
 
-    def create_node(self, course_id: int, name: str, content: str, type_: str) -> dict:
+    def create_node(self, course_id: int, name: str, content: str, type_: str,
+                    node_id: Optional[int] = None) -> dict:
         with _LOCK, self._id_lock:
             with self._drv.session() as s:
+                if node_id is None:
+                    node_id = s.run(
+                        "MATCH (n:Kp) RETURN coalesce(max(n.id), 0) + 1 AS nid").single()["nid"]
                 tx = s.begin_transaction()
-                nid = tx.run("MATCH (n:Kp) RETURN coalesce(max(n.id), 0) + 1 AS nid").single()["nid"]
-                node = {"id": nid, "name": name, "type": type_,
+                node = {"id": node_id, "name": name, "type": type_,
                         "content": content, "course_id": course_id, "created_at": _now()}
-                tx.run("CREATE (n:Kp $props)", props=node)
+                tx.run("MERGE (n:Kp {id: $id}) SET n = $props",
+                       id=node_id, props=node)
                 tx.commit()
                 return dict(node)
 

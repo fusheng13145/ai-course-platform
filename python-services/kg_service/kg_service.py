@@ -16,7 +16,7 @@ Java 端 `knowledge-graph.enabled=true` 时经 `HttpKnowledgeGraphProvider` 调�
     KG_BACKEND=neo4j NEO4J_URI=bolt://localhost:7687 uvicorn kg_service:app --host 0.0.0.0 --port 8001
 """
 
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -35,6 +35,8 @@ class NodeIn(BaseModel):
     name: str
     content: str = ""
     type: str = "CONCEPT"
+    # 可选显式 ID：用于与 Java 侧 MySQL 知识点 ID 对齐的图同步；缺省时服务端自增
+    id: Optional[int] = None
 
 
 class RelationIn(BaseModel):
@@ -91,7 +93,7 @@ def node_relations(node_id: int, depth: int = 1) -> Dict[str, Any]:
 @app.post("/api/v1/graph/nodes")
 def create_node(body: NodeIn) -> Dict[str, Any]:
     return kg_store.get_store().create_node(
-        body.course_id, body.name, body.content, body.type)
+        body.course_id, body.name, body.content, body.type, body.id)
 
 
 @app.post("/api/v1/graph/relations")
