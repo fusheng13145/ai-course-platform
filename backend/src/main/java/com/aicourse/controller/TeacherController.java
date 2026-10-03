@@ -179,7 +179,7 @@ public class TeacherController {
         if (task.getCourseId() != null) assertCourseOwner(task.getCourseId(), auth);
         // 修复（2026-09-14）：显式落定草稿态，使「响应体 = 落库值」，避免前端据响应判断发布状态时得到 null
         if (task.getIsPublished() == null) task.setIsPublished(false);
-        if (task.getStatus() == null) task.setStatus("draft");
+        if (task.getStatus() == null) task.setStatus("DRAFT");
         taskService.save(task);
         return ApiResponse.success("创建成功", task);
     }

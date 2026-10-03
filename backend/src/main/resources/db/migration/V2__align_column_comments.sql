@@ -35,3 +35,4 @@ ALTER TABLE exam_papers
 ALTER TABLE tasks
     MODIFY COLUMN status VARCHAR(20) NOT NULL DEFAULT 'draft'
     COMMENT '任务状态：draft-草稿，PUBLISHED-已发布（实现写入大写），closed-已关闭';
+

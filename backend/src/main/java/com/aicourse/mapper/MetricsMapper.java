@@ -12,7 +12,7 @@ import org.apache.ibatis.annotations.Select;
 public interface MetricsMapper {
 
     /** 进行中且已通过审批的课程数 */
-    @Select("SELECT COUNT(*) FROM courses WHERE status = 'active' AND approval_status = 'APPROVED'")
+    @Select("SELECT COUNT(*) FROM courses WHERE status = 'ACTIVE' AND approval_status = 'APPROVED'")
     long countActiveCourses();
 
     /** 已通过审批的选课记录数 */

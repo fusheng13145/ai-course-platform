@@ -106,8 +106,8 @@
               <template #default="{ row }">
                 <span
                   class="status-dot"
-                  :class="row.status === 'ACTIVE' ? 'status-dot--active' : 'status-dot--inactive'"
-                  ><i></i>{{ row.status === 'ACTIVE' ? '已启用' : '已停用' }}</span
+                  :class="isActive(row) ? 'status-dot--active' : 'status-dot--inactive'"
+                  ><i></i>{{ isActive(row) ? '已启用' : '已停用' }}</span
                 >
               </template>
             </el-table-column>
@@ -131,9 +131,9 @@
                   <el-button text type="primary" @click="viewDetail(row)">查看</el-button>
                   <el-button
                     text
-                    :type="row.status === 'ACTIVE' ? 'warning' : 'success'"
+                    :type="isActive(row) ? 'warning' : 'success'"
                     @click="handleToggleStatus(row)"
-                    >{{ row.status === 'ACTIVE' ? '停用' : '启用' }}</el-button
+                    >{{ isActive(row) ? '停用' : '启用' }}</el-button
                   >
                   <el-button text type="danger" @click="handleDelete(row)">删除</el-button>
                 </div>
@@ -171,8 +171,8 @@
           }}</el-tag></el-descriptions-item
         >
         <el-descriptions-item label="启用状态"
-          ><el-tag :type="currentCourse.status === 'ACTIVE' ? 'success' : 'info'" size="small">{{
-            currentCourse.status === 'ACTIVE' ? '已启用' : '已停用'
+          ><el-tag :type="isActive(currentCourse) ? 'success' : 'info'" size="small">{{
+            isActive(currentCourse) ? '已启用' : '已停用'
           }}</el-tag></el-descriptions-item
         >
         <el-descriptions-item label="报名方式">{{
@@ -213,16 +213,23 @@ const loading = ref(false)
 const detailDialogVisible = ref(false)
 const currentCourse = ref(null)
 
+const normalizeStatus = (status) => String(status || '').trim().toUpperCase()
+const isActive = (course) => normalizeStatus(course?.status) === 'ACTIVE'
+
 const pendingCount = computed(
   () => courseList.value.filter((c) => c.approvalStatus === 'PENDING').length,
 )
-const activeCount = computed(() => courseList.value.filter((c) => c.status === 'ACTIVE').length)
-const inactiveCount = computed(() => courseList.value.filter((c) => c.status === 'INACTIVE').length)
+const activeCount = computed(() => courseList.value.filter(isActive).length)
+const inactiveCount = computed(
+  () => courseList.value.filter((c) => normalizeStatus(c.status) === 'INACTIVE').length,
+)
 
 const filteredList = computed(() => {
   let list = courseList.value
   if (statusFilter.value) list = list.filter((c) => c.approvalStatus === statusFilter.value)
-  if (activeFilter.value) list = list.filter((c) => c.status === activeFilter.value)
+  if (activeFilter.value) {
+    list = list.filter((c) => normalizeStatus(c.status) === activeFilter.value)
+  }
   if (search.value) {
     const q = search.value.toLowerCase()
     list = list.filter((c) => c.name?.toLowerCase().includes(q))
@@ -291,11 +298,11 @@ async function handleReject(row) {
 }
 
 async function handleToggleStatus(row) {
-  const action = row.status === 'ACTIVE' ? '停用' : '启用'
+  const action = isActive(row) ? '停用' : '启用'
   try {
     await ElMessageBox.confirm(`确定${action}该课程？`, '提示')
     await courseApi.toggleCourseStatus(row.id)
-    row.status = row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
+    row.status = isActive(row) ? 'INACTIVE' : 'ACTIVE'
     ElMessage.success(`${action}成功`)
   } catch (e) {
     if (e !== 'cancel') ElMessage.error('操作失败')
