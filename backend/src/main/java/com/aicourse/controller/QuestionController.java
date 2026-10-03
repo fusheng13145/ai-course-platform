@@ -59,7 +59,11 @@ public class QuestionController {
      * @param difficulty 难度等级
      * @return 分页题目数据
      */
+    // 收口（2026-09-23，P0-3）：题库读接口限教师/管理员。
+    // 学生端零依赖这些接口——随堂测走 /questions/random，考试取题走 /exam-papers/{id}/questions，
+    // 错题本走 /wrong-questions。故学生调用应得 403，而非拿到（虽已脱敏的）全校题库。
     @GetMapping
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "分页查询题目列表")
     public ApiResponse<?> list(
             @RequestParam(defaultValue = "1") long page,
@@ -91,7 +95,9 @@ public class QuestionController {
      * @param id 题目ID
      * @return 题目信息
      */
+    // 收口（2026-09-23，P0-3）：题库详情同 list，仅供教师/管理员
     @GetMapping("/{id}")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "根据ID查询题目详情")
     public ApiResponse<?> getById(@PathVariable Long id, Authentication auth) {
         Question question = questionService.getById(id);
@@ -175,7 +181,9 @@ public class QuestionController {
      * @param size 每页大小
      * @return 分页搜索结果
      */
+    // 收口（2026-09-23，P0-3）：题库搜索仅教师/管理员使用
     @GetMapping("/search")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "智能搜索题目")
     public ApiResponse<?> search(
             @RequestParam(required = false) Long courseId,
@@ -229,7 +237,9 @@ public class QuestionController {
      * @param kpId 知识点ID
      * @return 题目列表
      */
+    // 收口（2026-09-23，P0-3）：按知识点查题属题库读范围，仅供教师/管理员
     @GetMapping("/kp/{kpId}")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "按知识点查询题目")
     public ApiResponse<?> getByKnowledgePoint(@PathVariable Long kpId, Authentication auth) {
         boolean privileged = RoleUtil.isTeacherOrAdmin(auth);
@@ -248,7 +258,9 @@ public class QuestionController {
      * @param id 题目ID
      * @return 统计信息
      */
+    // 收口（2026-09-23，P0-3）：题目使用统计属教学侧数据
     @GetMapping("/{id}/stats")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "获取题目使用统计")
     public ApiResponse<QuestionStatsVO> getStats(@PathVariable Long id) {
         QuestionStatsVO stats = questionService.getQuestionStats(id);
@@ -261,7 +273,9 @@ public class QuestionController {
      * @param limit 返回数量（默认20）
      * @return 易错题列表
      */
+    // 收口（2026-09-23，P0-3）：易错题榜属教学分析数据，仅教师/管理员
     @GetMapping("/error-prone")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "获取易错题TOP N")
     public ApiResponse<?> errorProne(
             @RequestParam(required = false) Long courseId,

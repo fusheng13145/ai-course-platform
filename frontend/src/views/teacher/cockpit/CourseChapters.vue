@@ -6,6 +6,21 @@
       :subtitle="`${flatCount} 章 · 点击编辑节点信息`"
       icon="list"
     >
+      <button class="btn btn-plain btn-sm" @click="openImport">
+        <svg
+          viewBox="0 0 24 24"
+          width="14"
+          height="14"
+          fill="none"
+          stroke="currentColor"
+          stroke-width="2"
+          stroke-linecap="round"
+          stroke-linejoin="round"
+        >
+          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12" />
+        </svg>
+        批量导入
+      </button>
       <button class="btn btn-primary btn-sm" @click="openCreate()">
         <svg
           viewBox="0 0 24 24"
@@ -125,6 +140,19 @@
         <button class="btn btn-primary" :disabled="saving" @click="save">保存</button>
       </template>
     </Modal>
+
+    <!-- 批量导入章节（Excel） -->
+    <ExcelImportDialog
+      v-if="showImport"
+      title="批量导入章节"
+      sub="上传 .xlsx 一次性建立课程大纲；父章节填标题即可形成二级章节"
+      :columns="IMPORT_COLUMNS"
+      :notes="IMPORT_NOTES"
+      :importing="importing"
+      :result="importResult"
+      @close="showImport = false"
+      @submit="handleImport"
+    />
   </div>
 </template>
 
@@ -138,6 +166,7 @@ import chapterApi from '@/api/chapter'
 import teachingApi from '@/api/teacher'
 import Modal from '@/components/ui/Modal.vue'
 import PageHeader from '@/components/PageHeader.vue'
+import ExcelImportDialog from '@/components/ui/ExcelImportDialog.vue'
 
 const route = useRoute()
 const courseId = route.params.id
@@ -151,6 +180,61 @@ const dialogVisible = ref(false)
 const dialogMode = ref('create')
 const editingId = ref(null)
 const form = reactive({ title: '', content: '', orderIndex: 0, duration: 0 })
+
+/** 批量导入（Excel）状态 */
+const showImport = ref(false)
+const importing = ref(false)
+const importResult = ref(null)
+
+/** 与后端 TeacherImportResultVO 对齐 */
+interface ImportResultPayload {
+  importedCount?: number
+  skippedCount?: number
+  failedCount?: number
+  total?: number
+  errors?: string[]
+}
+
+const IMPORT_COLUMNS = [
+  { name: '章节标题*', required: true },
+  { name: '父章节标题' },
+  { name: '排序序号' },
+  { name: '时长(分钟)' },
+  { name: '是否发布' },
+  { name: '章节内容' },
+]
+const IMPORT_NOTES = [
+  '仅「章节标题」必填，为空的行会被跳过',
+  '父章节标题填写已有章节名即可建立二级章节（可留空表示顶级）',
+  '「是否发布」填 是/否，留空默认发布',
+  '同一课程下标题重复的行会被跳过',
+]
+
+function openImport() {
+  importResult.value = null
+  showImport.value = true
+}
+
+async function handleImport(file) {
+  if (!file) return
+  importing.value = true
+  try {
+    const res = await chapterApi.importChaptersExcel(courseId, file)
+    const payload = (unwrap(res) || {}) as ImportResultPayload
+    importResult.value = payload
+    if (payload.importedCount > 0) {
+      ElMessage.success(`已导入 ${payload.importedCount} 个章节`)
+      load()
+    } else {
+      ElMessage.warning('没有章节被导入，请检查文件内容')
+    }
+  } catch (e) {
+    logger.error('导入章节失败:', e)
+    ElMessage.error('导入失败，请检查文件格式（.xlsx，6 列表头）')
+  } finally {
+    importing.value = false
+  }
+}
 
 const flatCount = computed(() => {
   let n = 0

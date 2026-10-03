@@ -16,6 +16,9 @@
         <el-button type="primary" @click="openCreateDialog">
           <el-icon><Plus /></el-icon>新建知识点
         </el-button>
+        <el-button :disabled="!selectedCourseId" @click="openImport">
+          <el-icon><Upload /></el-icon>批量导入
+        </el-button>
       </div>
       <div class="toolbar-right">
         <el-input
@@ -78,17 +81,34 @@
       @add-prereq="addPrerequisite"
       @remove-prereq="removePrerequisite"
     />
+
+    <!-- 批量导入知识点（Excel） -->
+    <ExcelImportDialog
+      v-if="showImport"
+      title="批量导入知识点"
+      sub="上传 .xlsx 一次性建立知识点结构；父知识点填名称即可形成层级"
+      :columns="IMPORT_COLUMNS"
+      :notes="IMPORT_NOTES"
+      :importing="importing"
+      :result="importResult"
+      @close="showImport = false"
+      @submit="handleImport"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
-import { Plus, Search } from '@element-plus/icons-vue'
+import { onMounted, ref } from 'vue'
+import { Plus, Search, Upload } from '@element-plus/icons-vue'
+import { ElMessage } from 'element-plus'
 import { useKnowledgeManagement } from '@/composables/useKnowledgeManagement'
+import knowledgeApi from '@/api/knowledge'
+import { unwrap } from '@/utils/response'
 import PageHeader from '@/components/PageHeader.vue'
 import KntTreePanel from '@/components/knowledge/KntTreePanel.vue'
 import KmListGraph from './components/KmListGraph.vue'
 import KmDialogs from './components/KmDialogs.vue'
+import ExcelImportDialog from '@/components/ui/ExcelImportDialog.vue'
 
 /**
  * 知识管理页面（教师）
@@ -131,6 +151,67 @@ const {
   getDifficultyTagType,
   getDifficultyLabel,
 } = useKnowledgeManagement()
+
+/* ---------------- 批量导入知识点（Excel，2026-09-23 新增） ---------------- */
+
+const showImport = ref(false)
+const importing = ref(false)
+const importResult = ref(null)
+
+/** 与后端 TeacherImportResultVO 对齐 */
+interface ImportResultPayload {
+  importedCount?: number
+  skippedCount?: number
+  failedCount?: number
+  total?: number
+  errors?: string[]
+}
+
+const IMPORT_COLUMNS = [
+  { name: '知识点名称*', required: true },
+  { name: '父知识点名称' },
+  { name: '难度' },
+  { name: '重要程度(1-10)' },
+  { name: '预计学习时长(分钟)' },
+  { name: '类型' },
+  { name: '描述' },
+]
+const IMPORT_NOTES = [
+  '仅「知识点名称」必填，为空的行会被跳过',
+  '父知识点名称填写已有知识点名即可建立层级（可留空表示顶级）',
+  '难度填 EASY / MEDIUM / HARD；重要程度 1-10，留空默认 5',
+  '类型填 concept（概念）/ skill（技能）/ principle（原理）',
+  '同一课程下名称重复的行会被跳过',
+]
+
+function openImport() {
+  if (!selectedCourseId.value) {
+    ElMessage.warning('请先选择课程')
+    return
+  }
+  importResult.value = null
+  showImport.value = true
+}
+
+async function handleImport(file) {
+  if (!file) return
+  importing.value = true
+  try {
+    const res = await knowledgeApi.importKnowledgePointsExcel(selectedCourseId.value, file)
+    const payload = (unwrap(res) || {}) as ImportResultPayload
+    importResult.value = payload
+    if (payload.importedCount > 0) {
+      ElMessage.success(`已导入 ${payload.importedCount} 个知识点`)
+      loadAllData()
+    } else {
+      ElMessage.warning('没有知识点被导入，请检查文件内容')
+    }
+  } catch (e) {
+    ElMessage.error('导入失败，请检查文件格式（.xlsx，7 列表头）')
+  } finally {
+    importing.value = false
+  }
+}
 
 /** 展开树：经子组件暴露的 expandAll 方法 */
 function onExpandAll() {

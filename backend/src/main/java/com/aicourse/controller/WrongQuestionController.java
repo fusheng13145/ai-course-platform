@@ -11,6 +11,7 @@ import com.aicourse.entity.Question;
 import com.aicourse.entity.WrongQuestion;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.WrongQuestionService;
+import com.aicourse.vo.WrongQuestionGroupVO;
 import com.aicourse.vo.WrongQuestionStatsVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -118,17 +119,23 @@ public class WrongQuestionController {
     }
 
     /**
-     * 按知识点分类的错题
+     * 按知识点分类的错题。
+     *
+     * <p>修复（2026-09-23，P2-8）：原返回 {@code Map<String, List<WrongQuestion>>}，
+     * 其键为知识点的原始 JSON 文本（如 {@code ["Python基础"]}），而前端按
+     * {@code Array<{knowledgePointId, knowledgePointName, questions}>} 消费 ——
+     * 结构不匹配使「按知识点补标签」增强逻辑静默失效。现改为结构化分组数组。</p>
+     *
      * @param courseId 课程ID（可选）
      * @param auth 认证信息
-     * @return 按知识点分组的错题Map
+     * @return 按知识点分组的错题列表（按题目数量倒序）
      */
     @GetMapping("/by-kp")
-    public ApiResponse<Map<String, List<WrongQuestion>>> getByKnowledgePoints(
+    public ApiResponse<List<WrongQuestionGroupVO>> getByKnowledgePoints(
             @RequestParam(required = false) Long courseId,
             Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        Map<String, List<WrongQuestion>> grouped = wrongQuestionService.getByKnowledgePoints(userId, courseId);
+        List<WrongQuestionGroupVO> grouped = wrongQuestionService.getByKnowledgePoints(userId, courseId);
         return ApiResponse.success(grouped);
     }
 

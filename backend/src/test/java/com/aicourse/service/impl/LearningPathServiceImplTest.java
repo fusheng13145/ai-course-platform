@@ -14,6 +14,7 @@ import com.aicourse.service.component.learning.LearningPathQueryComponent;
 import com.aicourse.service.component.learning.LearningPathStateComponent;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.aicourse.vo.LearningPathDetailVO;
+import com.aicourse.vo.WrongQuestionGroupVO;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -78,7 +79,8 @@ class LearningPathServiceImplTest {
     @Test
     @DisplayName("deriveMastery 空分组返回空")
     void deriveMastery_empty() {
-        when(wrongQuestionService.getByKnowledgePoints(1L, 1L)).thenReturn(Collections.emptyMap());
+        // P2-8 契约对齐：返回结构由 Map 改为 List<WrongQuestionGroupVO>
+        when(wrongQuestionService.getByKnowledgePoints(1L, 1L)).thenReturn(Collections.emptyList());
         assertTrue(service.deriveMastery(1L, 1L).isEmpty());
     }
 
@@ -86,7 +88,8 @@ class LearningPathServiceImplTest {
     @DisplayName("deriveMastery 命中知识点用 calculateMastery")
     void deriveMastery_matched() {
         WrongQuestion wq = new WrongQuestion(); wq.setMastered(true);
-        when(wrongQuestionService.getByKnowledgePoints(1L, 1L)).thenReturn(Map.of("函数", List.of(wq)));
+        when(wrongQuestionService.getByKnowledgePoints(1L, 1L))
+                .thenReturn(List.of(new WrongQuestionGroupVO(null, "函数", List.of(wq))));
         when(knowledgePointService.list(any(Wrapper.class))).thenReturn(List.of(kp(1L, "函数", 5, 60, "CONCEPT")));
         when(knowledgePointService.calculateMastery(1L, 1L)).thenReturn(new BigDecimal("80"));
 
@@ -98,7 +101,8 @@ class LearningPathServiceImplTest {
     @DisplayName("deriveMastery 未命中走兜底公式")
     void deriveMastery_fallback() {
         WrongQuestion wq = new WrongQuestion(); wq.setMastered(false);
-        when(wrongQuestionService.getByKnowledgePoints(1L, 1L)).thenReturn(Map.of("未知", List.of(wq)));
+        when(wrongQuestionService.getByKnowledgePoints(1L, 1L))
+                .thenReturn(List.of(new WrongQuestionGroupVO(null, "未知", List.of(wq))));
         when(knowledgePointService.list(any(Wrapper.class))).thenReturn(List.of());
 
         Map<String, Double> r = service.deriveMastery(1L, 1L);
@@ -370,7 +374,7 @@ class LearningPathServiceImplTest {
     @DisplayName("generatePathPersonalized 无数据回退标准生成")
     void generatePathPersonalized_fallback() {
         when(learningPathMapper.selectOne(any(Wrapper.class), anyBoolean())).thenReturn(null);
-        when(wrongQuestionService.getByKnowledgePoints(1L, 1L)).thenReturn(Collections.emptyMap());
+        when(wrongQuestionService.getByKnowledgePoints(1L, 1L)).thenReturn(Collections.emptyList());
         KnowledgePoint root = kp(10L, "R", 5, 60, "CONCEPT");
         when(knowledgePointService.getRootPoints(1L)).thenReturn(List.of(root));
         when(knowledgePointService.getChildPoints(10L)).thenReturn(List.of());

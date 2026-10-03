@@ -9,6 +9,7 @@ import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.QuestionService;
 import com.aicourse.service.WrongQuestionService;
+import com.aicourse.util.WrongQuestionSnapshotUtil;
 import com.aicourse.vo.AutoGradeResultVO;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -428,6 +429,9 @@ public class ExamSessionGradingService {
                 wq.setSourceType(sourceType != null ? sourceType : "EXAM");
                 wq.setPracticeCount(1);
                 wq.setLastPracticedAt(java.time.LocalDateTime.now());
+                // 快照填充（2026-09-23 修复）：questionContent / correctAnswer 等快照字段
+                // 此前无人写入，导致错题本列表题干为空（前端 useWrongQuestions 依赖 questionContent）。
+                WrongQuestionSnapshotUtil.fillFromQuestion(wq, questionService.getById(questionId));
                 wrongQuestionService.save(wq);
             } else {
                 // 更新错误次数与最新错误答案
@@ -436,6 +440,8 @@ public class ExamSessionGradingService {
                 existing.setWrongAnswer(wrongAnswer);
                 existing.setPracticeCount(existing.getPracticeCount() + 1);
                 existing.setLastPracticedAt(java.time.LocalDateTime.now());
+                // 再次答错时一并刷新快照，保证展示与当前题库一致
+                WrongQuestionSnapshotUtil.fillFromQuestion(existing, questionService.getById(questionId));
                 wrongQuestionService.updateById(existing);
             }
         } catch (Exception e) {

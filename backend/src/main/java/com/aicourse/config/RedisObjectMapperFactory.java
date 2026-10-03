@@ -2,6 +2,7 @@ package com.aicourse.config;
 
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonTypeInfo;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.MapperFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
@@ -75,7 +76,22 @@ public final class RedisObjectMapperFactory {
                 // "Could not resolve type id 'java.math.BigDecimal'" ——
                 // 任何从缓存读取含 BigDecimal 实体的操作都会失败。
                 .allowIfSubType("java.math.")
+                // 修复（2026-09-21）：白名单缺 MyBatis-Plus 分页对象 Page。
+                // QuestionServiceImpl.searchQuestions 标了 @Cacheable("questionSearch")，
+                // 缓存值是 Page<Question>，NON_FINAL 策略写入
+                //   "@class":"com.baomidou.mybatisplus.extension.plugins.pagination.Page"
+                // 读取时被 PTV 拒绝 → 症状：GET /questions/search「首次调用 200、
+                // 之后同一查询必 500」。实测 teacher / student / admin 三角色均复现
+                // （miss=200 / hit=500），Redis 中确认缓存值带 @class=...pagination.Page。
+                // 补入 MyBatis-Plus 数据容器类型；仍为窄白名单，不扩大攻击面。
+                .allowIfSubType("com.baomidou.mybatisplus.extension.plugins.pagination.Page")
+                .allowIfSubType("com.baomidou.mybatisplus.core.metadata.OrderItem")
                 .build();
+        // 修复（2026-09-21）：Page 含只读派生属性 getPages()（无 setter、无对应字段），
+        // 序列化时会写出 "pages":N，反序列化时 Jackson 默认（FAIL_ON_UNKNOWN_PROPERTIES
+        // =true）会抛 UnrecognizedPropertyException，同样表现为「命中缓存即 500」。
+        // 缓存 JSON 由本服务自身写入，字段增删不应导致读取崩溃，故对缓存反序列化放宽该检查。
+        mapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         mapper.activateDefaultTyping(
                 ptv,
                 ObjectMapper.DefaultTyping.NON_FINAL,

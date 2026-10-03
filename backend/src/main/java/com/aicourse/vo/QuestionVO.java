@@ -38,8 +38,8 @@ public class QuestionVO {
     @Schema(description = "默认分值", example = "10")
     private BigDecimal score;
 
-    @Schema(description = "难度等级(1-5)", example = "2")
-    private Integer difficulty;
+    @Schema(description = "难度等级(EASY/MEDIUM/HARD)", example = "MEDIUM")
+    private String difficulty;
 
     @Schema(description = "题目解析", example = "**解析**：Java有8种基本数据类型...")
     private String analysis;
@@ -83,8 +83,8 @@ public class QuestionVO {
     public void setAnswer(String answer) { this.answer = answer; }
     public BigDecimal getScore() { return score; }
     public void setScore(BigDecimal score) { this.score = score; }
-    public Integer getDifficulty() { return difficulty; }
-    public void setDifficulty(Integer difficulty) { this.difficulty = difficulty; }
+    public String getDifficulty() { return difficulty; }
+    public void setDifficulty(String difficulty) { this.difficulty = difficulty; }
     public String getAnalysis() { return analysis; }
     public void setAnalysis(String analysis) { this.analysis = analysis; }
     public List<Long> getKnowledgePointIds() { return knowledgePointIds; }
@@ -119,16 +119,11 @@ public class QuestionVO {
         vo.setScore(q.getScore());
         vo.setCorrectRate(q.getCorrectRate());
         vo.setUsageCount(q.getUsageCount());
-        // 难度映射：String → Integer
-        String diff = q.getDifficulty();
-        if (diff != null) {
-            switch (diff.toUpperCase()) {
-                case "EASY": vo.setDifficulty(1); break;
-                case "MEDIUM": vo.setDifficulty(3); break;
-                case "HARD": vo.setDifficulty(5); break;
-                default: vo.setDifficulty(3);
-            }
-        }
+        // 难度：与实体/DB 保持同一字符串枚举（EASY/MEDIUM/HARD），不做数字转换。
+        // 修复（2026-09-23，P2-9）：原实现映射为 1/3/5，而前端 getDifficultyValue 的映射表是
+        // {EASY:1, MEDIUM:2, HARD:3} —— 口径不一致使「3/5」在前端取值 miss 后落到 `|| 1`，
+        // 导致管理端题库的星级恒显示 1 星（中等/困难均显示「简单」），编辑表单难度回填亦失效。
+        vo.setDifficulty(q.getDifficulty());
         // 选项 JSON 字符串 → List
         String opts = q.getOptions();
         if (opts != null && opts.startsWith("[")) {
