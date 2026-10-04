@@ -72,8 +72,9 @@ frontend/dist_probe/
 # e2e 产物
 frontend/playwright-report/
 frontend/test-results/
+scripts/e2e/e2e_*_result.json
 
-# ---- Python 虚拟环境与数据目录（RAG 演示，整合自 RAG 成员上传版本）----
+# ---- Python 虚拟环境与数据目录 ----
 venv/
 .venv/
 /data/

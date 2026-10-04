@@ -214,7 +214,7 @@ cd frontend && npm run lint && npx vitest run && npm run build
 
 ### 端到端全链路与压力测试（四件套）
 
-`deliverables/gstack/` 下有**四件套**实机脚本（仅依赖 Python 标准库）。**改动后端后建议全跑**；结果快照为同目录下的 `e2e_*_result.json`。
+`scripts/e2e/` 下有**四件套**实机脚本（仅依赖 Python 标准库）。**改动后端后建议全跑**；历史结果快照在 `archive/deliverables/`，本地重跑生成的 `e2e_*_result.json` 落在脚本目录（已 gitignore）。
 
 ```bash
 # 前置：MySQL(3306) 与 Redis(6379) 已运行；仓库根有 .env；
@@ -224,7 +224,7 @@ cd frontend && npm run lint && npx vitest run && npm run build
 # 必须以「后台任务」方式常驻启动，前台运行会阻塞且进程可能被回收
 python scripts/run-backend-for-e2e.py functional
 
-cd deliverables/gstack
+cd scripts/e2e
 python e2e_verify_network_course.py   # ① 主链路 75 例（建课→审批→资料→作业→考试→成绩）
 python e2e_deep_verify.py             # ② 多维深度 49 例（A 协同/B 边界/C 越权/D 一致性/E 分片下线态/F 退回重交/G 版本）
 python e2e_stress_verify.py           # ④ 压力与稳定性（加 --quick 走快速档）
@@ -232,7 +232,7 @@ python e2e_stress_verify.py           # ④ 压力与稳定性（加 --quick 走
 # ── 第 2 轮：安全姿态（CSRF 默认开、登录限流默认阈值）──────────────
 # 先停掉功能姿态后端，再：
 python scripts/run-backend-for-e2e.py secure
-cd deliverables/gstack
+cd scripts/e2e
 python e2e_security_verify.py         # ③ 安全维度 7 例（CSRF 双提交 + 双层登录限流）
 ```
 
@@ -240,7 +240,7 @@ python e2e_security_verify.py         # ③ 安全维度 7 例（CSRF 双提交 
 
 > **登录保护为两层**：① 速率层 `RateLimitFilter`（IP 滑动窗口 10 次/60 秒）；② 尝试层 `AuthSessionComponent`（同账号连续失败 5 次锁定 15 分钟）。尝试层阈值更低、失败路径下先触发，验证时须分层断言。详见 `docs/项目手册.md` 附录 D 的 2026-09-17 条目。
 
-最近一次实测（2026-09-17）：E2E 四件套 **131/131 全绿**；压力测试 62,764 请求 / 峰值 1,808.6 req/s / 成功率 100% / 5xx 0。报告见 `deliverables/gstack/端到端全链路与压力测试报告-2026-09-17.md`。
+最近一次实测（2026-09-17）：E2E 四件套 **131/131 全绿**；压力测试 62,764 请求 / 峰值 1,808.6 req/s / 成功率 100% / 5xx 0。报告见 `docs/历史归档/端到端全链路与压力测试报告-2026-09-17.md`。
 
 ---
 

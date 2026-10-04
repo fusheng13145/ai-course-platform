@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""E2E 常驻后端启动器（配合 deliverables/gstack/ 的 E2E 三件套使用）。
+"""E2E 常驻后端启动器（配合 scripts/e2e/ 的 E2E 四件套使用）。
 
 为什么需要它：
   1. **后端必须跨工具调用常驻**。在本项目的沙箱里，用 `subprocess` 起 java 后立刻返回，
