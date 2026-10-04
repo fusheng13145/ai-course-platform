@@ -361,6 +361,25 @@ jobs:
     defaults:
       run:
         working-directory: python-services/kg_service
+    # 缺陷修复（2026-10-04）：此前无 Neo4j 服务容器，`test_kg_contract.py` 中唯一
+    # 直连真实图引擎的用例（_neo4j_store_or_skip）在 CI 恒 skip —— Neo4j 后端
+    # 从未真正进过 PR 门禁，只有 fake driver 覆盖。requirements.txt 已装 neo4j 驱动，
+    # 故此处起容器让其执行。容器是 CI 全新空库，且该用例只写 course_id=999 / :Kp
+    # 并自行清理，不会与共享/本地图库数据冲突。
+    services:
+      neo4j:
+        image: neo4j:5-community
+        env:
+          NEO4J_AUTH: neo4j/ci-test-neo4j-8f3k
+          NEO4J_dbms_memory_heap_max__size: 1G
+        ports:
+          - 7474:7474
+          - 7687:7687
+        options: >-
+          --health-cmd="cypher-shell -u neo4j -p ci-test-neo4j-8f3k 'RETURN 1'"
+          --health-interval=10s
+          --health-timeout=5s
+          --health-retries=12
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -375,8 +394,17 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt pytest
 
-      - name: Contract smoke test (FastAPI TestClient)
-        run: pytest -q contract_test.py
+      - name: Contract + unit tests (FastAPI TestClient)
+        # 缺陷修复（2026-10-04）：原先只跑单文件契约测试（旧名 contract_test.py，
+        # 现 test_kg_contract.py），`test_kg_store.py`（图存储双实现：内存基线 / Neo4j）
+        # 里的 20+ 用例从未进过 PR 门禁。
+        # 整目录跑：契约用例仍由 autouse fixture 强制内存后端（确定、不碰图库），
+        # 真实引擎用例读取以下环境变量连到服务容器。
+        env:
+          NEO4J_URI: bolt://127.0.0.1:7687
+          NEO4J_USERNAME: neo4j
+          NEO4J_PASSWORD: ci-test-neo4j-8f3k
+        run: pytest -q
 
   # ------------------------------------------------------------------
   # Python RAG 检索服务（端口 8002）契约校验
@@ -404,8 +432,14 @@ jobs:
       - name: Install dependencies
         run: pip install -r requirements.txt pytest
 
-      - name: Contract smoke test (FastAPI TestClient)
-        run: pytest -q contract_test.py
+      - name: Contract + engine unit tests (FastAPI TestClient)
+        # 缺陷修复（2026-10-04）：原先只跑单文件契约测试（旧名 contract_test.py，
+        # 现 test_rag_contract.py），`test_rag_engine.py`
+        # （BM25+向量+RRF 混合检索、分块、索引生命周期、损坏恢复等 29 例）从未进过 PR 门禁。
+        # 引擎重依赖（numpy/jieba/rank_bm25/faiss/sentence-transformers）在 CI 不安装，
+        # rag_engine 与用例都做了软依赖处理：缺依赖的用例按 skipif 自动跳过，纯算法用例照常跑。
+        # 需要真实引擎全绿时另行安装 requirements-engine.txt（见 eval-nightly.yml）。
+        run: pytest -q
 
   # ------------------------------------------------------------------
   # 前端 E2E（Playwright）全栈冒烟测试  [P3 #5]
