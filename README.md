@@ -71,7 +71,7 @@
 | 状态 / 路由 / 图表 | Pinia / Vue Router / ECharts | 2.1.x / 4.2.x / 6.1.x |
 | 实时通信           | WebSocket                    | 集成Spring WebSocket  |
 | 限流熔断           | Sentinel                     | 下游流控 + 慢调用熔断 |
-| KB/RAG（Python）   | FastAPI 契约服务 + Streamlit 演示 | rag 8002 / kg 8001 / deepgraph 8501 |
+| KB/RAG（Python）   | FastAPI 契约服务             | rag 8002 / kg 8001    |
 
 ## Python 侧服务（KB / RAG）
 
@@ -81,9 +81,10 @@ Java 后端通过 HTTP 契约（`com.aicourse.integration.rag.RagContract`）与
 | ---- | ---- | ---- | ---- |
 | RAG 检索引擎 | `python-services/rag_service/` | 8002 | 9 个契约端点 + `rag_engine.py` 混合检索引擎（BM25+向量+RRF）；CI 护栏 `test_rag_contract.py` |
 | 知识图谱服务 | `python-services/kg_service/` | 8001 | 同上契约模式，`kg_store.py` 支持 Neo4j 与内存双后端 |
-| DeepGraph RAG 演示 | `python-services/deepgraph_rag/` | 8501 | RAG 成员提供的 Streamlit 原型（Neo4j + FAISS + Ollama），详见其目录内 `使用说明.md` |
 
-容器化启动 RAG 演示栈（含 Neo4j）：`docker compose --profile rag up -d`（需先在 `.env` 配置 `NEO4J_PASSWORD` 等，见 `.env.example`）。
+容器化启动知识图谱栈（Neo4j）：`docker compose --profile rag up -d`（需先在 `.env` 配置 `NEO4J_PASSWORD`，见 `.env.example`）。
+
+> 早期 RAG 成员上传的 Streamlit 原型（原 `python-services/deepgraph_rag/`，端口 8501）不参与正式功能，已整体归档至仓库根 `archive/deepgraph_rag/`，仅作历史参考。
 
 ---
 
