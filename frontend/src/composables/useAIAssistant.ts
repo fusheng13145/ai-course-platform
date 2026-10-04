@@ -2,6 +2,7 @@ import { ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import logger from '@/utils/logger'
 import { sanitizeHtml } from '@/utils/sanitize'
+import { firstNonEmptyArray } from '@/utils/response'
 import {
   isRecognitionSupported,
   isSpeechSupported,
@@ -50,8 +51,10 @@ export function useAIAssistant() {
   async function loadConversations() {
     try {
       const res = await aiApi.getSessions()
-      const list = res.data?.list || res.data?.records || res.data || []
-      if (Array.isArray(list) && list.length > 0) {
+      // 缺陷修复（2026-10-04）：`list || records` 的空数组是 truthy，
+      // 后端改用 records（或反之）时历史会话整批被吞、且毫无报错。
+      const list = firstNonEmptyArray(res.data?.list, res.data?.records, res.data, res)
+      if (list.length > 0) {
         conversations.value = list.map((s) => ({
           id: s.id || s.sessionId,
           title:

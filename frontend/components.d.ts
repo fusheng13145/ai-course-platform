@@ -90,6 +90,7 @@ declare module 'vue' {
     ElTreeSelect: typeof import('element-plus/es')['ElTreeSelect']
     ElUpload: typeof import('element-plus/es')['ElUpload']
     EmptyState: typeof import('./src/components/ui/EmptyState.vue')['default']
+    ExcelImportDialog: typeof import('./src/components/ui/ExcelImportDialog.vue')['default']
     InResultDialog: typeof import('./src/components/interaction/InResultDialog.vue')['default']
     InVoteDialog: typeof import('./src/components/interaction/InVoteDialog.vue')['default']
     KntAiDialog: typeof import('./src/components/knowledge/KntAiDialog.vue')['default']

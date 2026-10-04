@@ -9,6 +9,146 @@ import { getChartTheme, monoScore } from '@/utils/chartTheme'
 import { useAuthStore } from '@/stores/auth'
 import logger from '@/utils/logger'
 
+/** 取记录的数值分数；null / undefined / 非数值 / NaN 一律视为「未批阅」→ null */
+function toScore(value) {
+  return typeof value === 'number' && !Number.isNaN(value) ? value : null
+}
+
+/**
+ * 学生唯一键。
+ *
+ * 缺陷修复（P1-8③）：原实现 `const key = s.studentId || s.userId` —— 当一条记录
+ * 两个键都缺失时 `key` 为 `undefined`，所有此类记录塌缩进 Map 的同一个桶，
+ * **不同学生被合并成同一行**（姓名取第一条、分数互相污染）。
+ * 现在键缺失返回 null，调用方把该记录**单独成行**、绝不合并。
+ */
+function studentKeyOf(record) {
+  const id = record?.studentId ?? record?.userId
+  return id === undefined || id === null || id === '' ? null : String(id)
+}
+
+/** 真实算术均值：空集合返回 null（而不是 0，避免把「无成绩」显示成「0 分」） */
+function meanScore(scores) {
+  const valid = scores.filter((s) => typeof s === 'number' && !Number.isNaN(s))
+  if (valid.length === 0) return null
+  return Math.round((valid.reduce((a, b) => a + b, 0) / valid.length) * 10) / 10
+}
+
+/**
+ * 合并考试会话与作业提交为「按学生一行」的成绩表。
+ *
+ * 缺陷修复（P1-8，2026-10-04）：
+ * ① 原实现在同一学生多次考试时写
+ *    `existing.totalScore = (existing.totalScore + (s.score || 0)) / 2`
+ *    —— 这是**递推均值**而非真实均值：三次考试 60/80/100 会得到
+ *    `((60+80)/2 + 100)/2 = 85`，真实均值应为 **80**；考试次数越多偏差越大且无规律。
+ *    同时 `s.score || 0` 把「未批阅（null）」当 0 分计入，直接拉低总评。
+ *    现在：先收集该学生**全部有效分数**，最后一次性求真实均值，null 分不计入。
+ * ② 原实现硬编码 `examScore * 0.5 + sub.score * 0.5` 权重（魔法数字、无法调整）。
+ *    现在改为对全部有效分数的等权真实均值（每一次考试/作业自然按次数参与），
+ *    不再存在隐藏的手调系数。
+ * ③ 见 `studentKeyOf`：键缺失的记录单独保留。
+ *
+ * @param {Array} sessionData 考试会话记录
+ * @param {Array} submitData 作业提交记录
+ * @returns {Array} 按学生聚合的成绩行（字段与原实现保持兼容）
+ */
+export function mergeGradeRecords(sessionData = [], submitData = []) {
+  const map = new Map()
+  /** studentId / userId 双缺失的记录：各自单独成行，不参与任何合并 */
+  const standalone = []
+
+  const pickName = (r) => r.studentName || r.userName || '未知'
+  const pickNo = (r) => r.studentNo || r.userNo || '-'
+
+  function touch(row, record) {
+    if (row.studentName === '未知') row.studentName = pickName(record)
+    if (row.studentNo === '-') row.studentNo = pickNo(record)
+    if (!row.courseName) row.courseName = record.courseName || ''
+    if (!row.submitTime) row.submitTime = record.submitTime || record.completedAt || ''
+  }
+
+  function newRow(key, record) {
+    return {
+      id: key,
+      studentNo: pickNo(record),
+      studentName: pickName(record),
+      examScores: [],
+      homeworkScores: [],
+      examScore: null,
+      homeworkScore: null,
+      totalScore: null,
+      gradeLevel: '',
+      needsGrading: false,
+      submitTime: record.submitTime || record.completedAt || record.submittedAt || '',
+      details: [],
+      courseName: record.courseName || '',
+    }
+  }
+
+  function finalize(row) {
+    row.examScore = meanScore(row.examScores)
+    row.homeworkScore = meanScore(row.homeworkScores)
+    // 总评 = 该生全部有效分数（考试 + 作业）的真实均值
+    row.totalScore = meanScore([...row.examScores, ...row.homeworkScores])
+    row.gradeLevel = gradeLevelOf(row.totalScore)
+    return row
+  }
+
+  for (const s of Array.isArray(sessionData) ? sessionData : []) {
+    const key = studentKeyOf(s)
+    const score = toScore(s.score)
+    if (!key) {
+      const row = finalize(newRow(null, s))
+      row.examScores = score !== null ? [score] : []
+      row.examScore = score
+      row.totalScore = score
+      row.gradeLevel = gradeLevelOf(score)
+      row.needsGrading = !s.isGraded && s.status !== 'graded'
+      standalone.push(row)
+      continue
+    }
+    if (!map.has(key)) map.set(key, newRow(key, s))
+    const row = map.get(key)
+    if (score !== null) row.examScores.push(score)
+    row.needsGrading = row.needsGrading || (!s.isGraded && s.status !== 'graded')
+    touch(row, s)
+  }
+
+  for (const sub of Array.isArray(submitData) ? submitData : []) {
+    const key = studentKeyOf(sub)
+    const score = toScore(sub.score)
+    const needsGrading = sub.status !== 'graded' && sub.status !== 'reviewed'
+    if (!key) {
+      const row = finalize(newRow(null, sub))
+      row.homeworkScores = score !== null ? [score] : []
+      row.homeworkScore = score
+      row.totalScore = score
+      row.gradeLevel = gradeLevelOf(score)
+      row.needsGrading = needsGrading
+      standalone.push(row)
+      continue
+    }
+    if (!map.has(key)) map.set(key, newRow(key, sub))
+    const row = map.get(key)
+    if (score !== null) row.homeworkScores.push(score)
+    row.needsGrading = row.needsGrading || needsGrading
+    touch(row, sub)
+  }
+
+  return [...Array.from(map.values()).map(finalize), ...standalone]
+}
+
+/** 根据分数获取等级；null（无有效成绩）返回空串，不当作 F */
+function gradeLevelOf(score) {
+  if (score == null) return ''
+  if (score >= 90) return 'A'
+  if (score >= 80) return 'B'
+  if (score >= 70) return 'C'
+  if (score >= 60) return 'D'
+  return 'F'
+}
+
 /**
  * 教师成绩管理领域逻辑
  * <p>多源聚合（仪表盘统计/考试会话/作业提交/待批阅任务）与成绩合并、
@@ -119,61 +259,8 @@ export function useTeacherGrades() {
           ? submitRes.value.data?.list || submitRes.value.data || []
           : []
 
-      // 合并成绩数据
-      const studentMap = new Map()
-
-      for (const s of sessionData) {
-        const key = s.studentId || s.userId
-        if (!studentMap.has(key)) {
-          studentMap.set(key, {
-            id: key,
-            studentNo: s.studentNo || s.userNo || '-',
-            studentName: s.studentName || s.userName || '未知',
-            homeworkScore: null,
-            examScore: s.score ?? null,
-            totalScore: s.score ?? null,
-            gradeLevel: getGradeLevel(s.score),
-            needsGrading: !s.isGraded && s.status !== 'graded',
-            submitTime: s.submitTime || s.completedAt || '',
-            details: [],
-            courseName: s.courseName || '',
-          })
-        } else {
-          const existing = studentMap.get(key)
-          existing.examScore = s.score ?? existing.examScore
-          existing.totalScore = Math.round(((existing.totalScore + (s.score || 0)) / 2) * 10) / 10
-          existing.gradeLevel = getGradeLevel(existing.totalScore)
-        }
-      }
-
-      for (const sub of submitData) {
-        const key = sub.studentId || sub.userId
-        if (!studentMap.has(key)) {
-          studentMap.set(key, {
-            id: key,
-            studentNo: sub.studentNo || sub.userNo || '-',
-            studentName: sub.studentName || sub.userName || '未知',
-            homeworkScore: sub.score ?? null,
-            examScore: null,
-            totalScore: sub.score ?? null,
-            gradeLevel: getGradeLevel(sub.score),
-            needsGrading: sub.status !== 'graded' && sub.status !== 'reviewed',
-            submitTime: sub.submittedAt || sub.createdAt || '',
-            details: [],
-            courseName: sub.courseName || '',
-          })
-        } else {
-          const existing = studentMap.get(key)
-          existing.homeworkScore = sub.score ?? existing.homeworkScore
-          existing.totalScore =
-            existing.examScore != null && sub.score != null
-              ? Math.round((existing.examScore * 0.5 + sub.score * 0.5) * 10) / 10
-              : (existing.examScore ?? sub.score ?? null)
-          existing.gradeLevel = getGradeLevel(existing.totalScore)
-        }
-      }
-
-      gradeList.value = Array.from(studentMap.values())
+      // 合并成绩数据（真实均值 + null 不计入 + 键缺失单独成行，见 mergeGradeRecords）
+      gradeList.value = mergeGradeRecords(sessionData, submitData)
 
       // 增强：从 taskApi 获取待批阅任务（优先于从提交记录推导）
       if (pendingRes.status === 'fulfilled') {
@@ -323,16 +410,6 @@ export function useTeacherGrades() {
   // 跳转到批阅页面
   function goToGrading(task) {
     ElMessage.info(`跳转到「${task.taskName}」的批阅页面`)
-  }
-
-  // 辅助函数：根据分数获取等级
-  function getGradeLevel(score) {
-    if (score == null) return ''
-    if (score >= 90) return 'A'
-    if (score >= 80) return 'B'
-    if (score >= 70) return 'C'
-    if (score >= 60) return 'D'
-    return 'F'
   }
 
   // 等级标签颜色

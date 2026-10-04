@@ -1,4 +1,5 @@
 import request from './request'
+import { firstNonEmptyArray } from '@/utils/response'
 
 // 错题本 API（后端: WrongQuestionController /wrong-questions）
 /**
@@ -15,9 +16,13 @@ import request from './request'
 export const getWrongQuestions = (params = {}) =>
   request.get('/wrong-questions', { params }).then((res) => {
     const payload = res && res.data
+    // 修复（2026-10-04，P1-10 同类）：原写法 `payload.list || payload.records` 用 `||` 择一，
+    // 而空数组是 truthy —— 后端把 `list: []` 与真实数据 `records` 一起返回时，
+    // 这里短路取到空的 list，列表仍被置空（正是 P2-6 想修掉的那个"统计有数、列表为空"现象的另一半）。
+    // 改用 firstNonEmptyArray：谁真正有元素取谁，都为空才回落到 []。
     const list = Array.isArray(payload)
       ? payload
-      : (payload && (payload.list || payload.records)) || []
+      : firstNonEmptyArray(payload && payload.list, payload && payload.records)
     return { ...res, data: list }
   })
 /**

@@ -167,14 +167,28 @@ describe('AuthStore', () => {
       expect(store.getDefaultRoute()).toBe('/student/dashboard')
     })
 
-    it('未设置角色或未知角色返回 /login', () => {
+    it('未知角色（已登录）返回安全落点 /403，不再返回 /login', () => {
       const store = useAuthStore()
-      // 无用户或空角色
+      // 回归（P0-3）：原实现对未知角色返回 '/login'，
+      // 而守卫在「已登录访问 /login」时又 next(getDefaultRoute()) → '/login' 自指向重定向。
+      store.user = { role: 'UNKNOWN', id: 9, username: 'x' }
+      expect(store.getDefaultRoute()).toBe('/403')
+
+      store.user = { role: '', id: 10, username: 'y' }
+      expect(store.getDefaultRoute()).toBe('/403')
+
+      // 完全没有登录态时才回落 /login（此时守卫不会调用本函数）
       store.user = null
       expect(store.getDefaultRoute()).toBe('/login')
+    })
 
-      store.user = { role: 'UNKNOWN' }
-      expect(store.getDefaultRoute()).toBe('/login')
+    it('未知角色的落点必须不等于 /login，否则 /login 页会无限重定向', () => {
+      const store = useAuthStore()
+      store.user = { role: 'GUEST', id: 11, username: 'g' }
+      const target = store.getDefaultRoute()
+      // 这是 P0-3 的核心不变式：已登录用户的默认落点不能是登录页本身
+      expect(target).not.toBe('/login')
+      expect(target).not.toBe('/register')
     })
   })
 

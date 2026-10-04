@@ -23,7 +23,6 @@ type AssistantInternal = {
 }
 const assistantVm = (wrapper: { vm: unknown }) => wrapper.vm as unknown as AssistantInternal
 
-
 // ---- 模块级 mock：导出与真实 @/api/ai 完全一致（qaAsk/qaStream/getSessions/...）----
 const { mockQaAsk, mockGetSessions, mockQaStream, mockGetCourseList } = vi.hoisted(() => ({
   mockQaAsk: vi.fn(),
@@ -258,6 +257,21 @@ describe('AI 学习助手问答流程（挂载真实组件）', () => {
     expect(assistantVm(wrapper).conversations[0].id).toBe(1)
     expect(assistantVm(wrapper).conversations[0].title).toBe('TCP 三次握手')
     expect(assistantVm(wrapper).conversations[1].title.startsWith('对话')).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('list 为空数组、历史在 records 时不得被吞成「无历史」', async () => {
+    // 缺陷回归（2026-10-04，P1-10 同形）：`res.data?.list || res.data?.records`
+    // 里空数组 truthy，后端换成 records 形状后历史会话整批消失且无任何报错。
+    mockGetSessions.mockResolvedValue({
+      data: { list: [], records: [{ sessionId: 9, title: '操作系统分页' }] },
+    })
+
+    const wrapper = mountAssistant()
+    await flushPromises()
+
+    expect(assistantVm(wrapper).conversations).toHaveLength(1)
+    expect(assistantVm(wrapper).conversations[0].id).toBe(9)
     wrapper.unmount()
   })
 

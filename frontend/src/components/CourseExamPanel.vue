@@ -274,10 +274,10 @@ async function saveExam() {
   try {
     const data = { ...examForm.value, courseId: props.courseId }
     if (editingExam.value) {
-      await examApi.updateExam(editingExam.value.id, data)
+      await examApi.updateExamPaper(editingExam.value.id, data)
       ElMessage.success('更新成功')
     } else {
-      await examApi.createExam(data)
+      await examApi.createExamPaper(data)
       ElMessage.success('创建成功')
     }
     examDialogVisible.value = false
@@ -305,7 +305,7 @@ async function closeExam(row) {
   try {
     await ElMessageBox.confirm('确定结束该考试？', '提示', { type: 'warning' })
     row.status = 'CLOSED'
-    await examApi.updateExam(row.id, { status: 'CLOSED' })
+    await examApi.updateExamPaper(row.id, { status: 'CLOSED' })
     ElMessage.success('已结束')
     emit('examUpdated')
   } catch (e) {
@@ -316,7 +316,7 @@ async function closeExam(row) {
 async function deleteExam(row) {
   try {
     await ElMessageBox.confirm('确定删除该试卷？', '提示', { type: 'warning' })
-    await examApi.deleteExam(row.id)
+    await examApi.deleteExamPaper(row.id)
     exams.value = exams.value.filter((e) => e.id !== row.id)
     ElMessage.success('删除成功')
     emit('examUpdated')

@@ -1,6 +1,12 @@
 import request from './request'
 /** 获取考试试卷列表 */
 export const getExamPaperList = (params = {}) => request.get('/exam-papers', { params })
+/**
+ * 按课程分页获取试卷（后端 GET /exam-papers/course/{courseId}）。
+ * CourseExamPanel 一直按这个名字调用，此前 api 层缺该导出，面板加载试卷列表必然 TypeError。
+ */
+export const listByCourse = (courseId, params = {}) =>
+  request.get(`/exam-papers/course/${courseId}`, { params })
 /** 根据ID获取试卷 */
 export const getExamPaperById = (id) => request.get(`/exam-papers/${id}`)
 /** 创建考试试卷 */
@@ -54,7 +60,7 @@ export const getExamResult = (sessionId) => request.get(`/exam-sessions/${sessio
 /** 获取我的考试会话 */
 export const getMyExamSession = (examPaperId) => request.get(`/exam-sessions/paper/${examPaperId}`)
 /** 获取我的所有考试会话 */
-export const getMyExamSessions = () => request.get('/exam-sessions/my')
+export const getMyExamSessions = (params = {}) => request.get('/exam-sessions/my', { params })
 
 // 考试增强 API
 /** 获取考试详情 */
@@ -91,6 +97,7 @@ export const getCheatingDetect = (sessionId) =>
  */
 export default {
   getExamPaperList,
+  listByCourse,
   getExamPaperById,
   createExamPaper,
   updateExamPaper,

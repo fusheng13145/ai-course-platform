@@ -1,6 +1,7 @@
 import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import knowledgeApi from '@/api/knowledge'
+import { isPageEnvelope, pickList, unwrap } from '@/utils/response'
 import { getChartTheme, getMonoSeries, getMonoStatus } from '@/utils/chartTheme'
 
 /**
@@ -131,21 +132,25 @@ export function useKnowledgeTab(courseIdRef) {
       } catch (e) {
         res = await knowledgeApi.getKnowledgePoints(Number(courseIdRef.value))
       }
-      const d = res.data?.data || res.data || res || []
-      if (Array.isArray(d)) {
-        treeData.value = d
-      } else if (Array.isArray(res.data?.list || res.data?.records || [])) {
-        treeData.value = Array.isArray(res.data.list) ? res.data.list : res.data.records
-      } else if (d) {
-        treeData.value = [d]
+      const payload = res?.data?.data ?? res?.data ?? res
+      const nodes = pickList(payload)
+      if (nodes.length > 0) {
+        treeData.value = nodes
+      } else if (Array.isArray(payload) || isPageEnvelope(payload)) {
+        // 缺陷修复（2026-10-04）：`{ list: [], records: [] }` 这类**空分页信封**原先
+        // 会落到下面的「单对象包一层」分支，产出一个 name 为空的幽灵树节点。
+        // 后端确实没有知识点时应保持空树。
+        treeData.value = []
+      } else if (payload && typeof payload === 'object') {
+        treeData.value = [payload]
       } else {
         treeData.value = []
       }
     } catch (e) {
       try {
         const r = await knowledgeApi.getKnowledgePoints(Number(courseIdRef.value))
-        const arr = r.data?.list || r.data || r || []
-        list.value = Array.isArray(arr) ? arr : []
+        // 同 P1-10：`list || data || res` 的 `||` 会把 records 形状彻底吞掉
+        list.value = pickList(unwrap(r))
         treeData.value = buildTree(list.value)
       } catch (e2) {
         treeData.value = []
@@ -159,8 +164,7 @@ export function useKnowledgeTab(courseIdRef) {
     tableLoading.value = true
     try {
       const res = await knowledgeApi.getKnowledgePoints(Number(courseIdRef.value))
-      const d = res.data?.list || res.data || res || []
-      list.value = (Array.isArray(d) ? d : []).map((k) => ({
+      list.value = pickList(unwrap(res)).map((k) => ({
         ...k,
         importance: k.importance ?? k.weight ?? 1,
       }))

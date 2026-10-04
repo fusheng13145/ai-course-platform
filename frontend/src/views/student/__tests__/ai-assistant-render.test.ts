@@ -11,7 +11,6 @@ import { nextTick } from 'vue'
 type AssistantInternal = { messages: Array<{ role: string; content: string; time?: string }> }
 const assistantVm = (wrapper: { vm: unknown }) => wrapper.vm as unknown as AssistantInternal
 
-
 // Mock DOMPurify (markdown rendering)
 vi.mock('dompurify', () => ({
   default: {
@@ -23,11 +22,15 @@ vi.mock('dompurify', () => ({
 const mockAiChat = vi.fn()
 const mockGenerateSummary = vi.fn()
 const mockGenerateQuestion = vi.fn()
+// 组合式函数挂载即调用 getSessions，缺失该方法会让 loadConversations 走 catch，
+// 把「测试 mock 不完整」伪装成「后端返回空历史」。与 @/api/ai 真实导出保持一致。
+const mockGetSessions = vi.fn()
 vi.mock('@/api/ai', () => ({
   default: {
     aiChat: mockAiChat,
     generateSummary: mockGenerateSummary,
     generateQuestion: mockGenerateQuestion,
+    getSessions: mockGetSessions,
   },
 }))
 
@@ -77,6 +80,7 @@ describe('AIAssistant 页面渲染', () => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
     mockGetCourseList.mockResolvedValue({ data: { list: [] } })
+    mockGetSessions.mockResolvedValue({ data: [] })
 
     const mod = await import('../AIAssistant.vue')
     AIAssistant = mod.default

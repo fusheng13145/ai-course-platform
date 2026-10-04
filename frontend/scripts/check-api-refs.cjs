@@ -1,6 +1,12 @@
 /**
  * 全仓 API 方法引用一致性检查：
- * 扫描 src 下所有 import xxxApi from '@/api/xxx' 的使用，比对 xxxApi.method 是否存在于 api 模块导出。
+ * 扫描 src 下所有 `import ... from '@/api/xxx'` 的使用，比对被引用的方法是否存在于该 api 模块导出。
+ *
+ * 覆盖口径（2026-10-04 扩充）：
+ * - 目录：src 全量 .ts/.vue（仅排除 api 定义本身与测试文件）。
+ *   原实现只扫 composables + views，components/stores/layouts/utils 里的 API 调用完全不在雷达内。
+ * - 导入形式：default 导入、具名导入（`import { foo }` / `import { foo as bar }`）、命名空间导入。
+ *   原实现只识别 default 导入，具名导入的错引一个都抓不到。
  */
 const fs = require('fs')
 const path = require('path')
@@ -9,6 +15,7 @@ const ROOT = path.resolve(__dirname, '..', 'src')
 
 function walk(dir, exts, out = []) {
   for (const e of fs.readdirSync(dir, { withFileTypes: true })) {
+    if (e.name === '__tests__' || e.name === 'node_modules') continue
     const p = path.join(dir, e.name)
     if (e.isDirectory()) walk(p, exts, out)
     else if (exts.some((x) => e.name.endsWith(x))) out.push(p)
@@ -16,27 +23,64 @@ function walk(dir, exts, out = []) {
   return out
 }
 
-/** 提取 api 模块的导出方法名集合（支持 export const fn 与 export const objApi = {...} 对象结构） */
+/** 从对象字面量正文里取「行首键名/简写属性」，作为该对象的成员名集合 */
+function objectKeys(block) {
+  const keys = new Set()
+  // 只认行首标识符后紧跟 : ( , } —— 避免把 `request.get(` 这类值内部的调用误当成成员
+  const STOP = new Set([
+    'if',
+    'for',
+    'while',
+    'switch',
+    'return',
+    'const',
+    'let',
+    'var',
+    'function',
+    'else',
+    'try',
+    'catch',
+    'throw',
+    'await',
+  ])
+  for (const m of block.matchAll(/^\s*(\w+)\s*[:,(}]/gm)) {
+    if (!STOP.has(m[1])) keys.add(m[1])
+  }
+  return keys
+}
+
+/**
+ * 提取 api 模块对外可见的名字集合：
+ * 具名导出（`export const/function/{...}`）+ 默认导出对象的成员（模块普遍以 default 对象对外提供方法表）。
+ */
 function apiExports(file) {
   const src = fs.readFileSync(file, 'utf8')
   const names = new Set()
-  // 具名函数导出
-  for (const m of src.matchAll(/export\s+const\s+(\w+)\s*=/g)) {
-    const name = m[1]
-    // 若为对象字面量（含方法键），提取方法名
-    const blockMatch = src.slice(m.index).match(/=\s*\{([\s\S]*?)\n\}/)
-    if (blockMatch) {
-      for (const km of blockMatch[1].matchAll(/(\w+)\s*(?:\(|:)/g)) names.add(km[1])
-    } else {
-      names.add(name)
+
+  // export const NAME [: 注解] = ... （对象字面量则连同其成员一起登记）
+  for (const m of src.matchAll(/^export\s+(?:const|let|var)\s+(\w+)\s*(?::[^=]+)?=\s*\{/gm)) {
+    names.add(m[1])
+    const block = src.slice(m.index)
+    const body = block.match(/=\s*\{([\s\S]*?)\n\}/)
+    if (body) for (const k of objectKeys(body[1])) names.add(k)
+  }
+  // export const NAME = 非对象值（箭头函数等）
+  for (const m of src.matchAll(/^export\s+(?:const|let|var)\s+(\w+)\s*(?::[^=\n]+)?=\s*(?!\{)/gm))
+    names.add(m[1])
+  // export function foo(...) / export async function foo(...)
+  for (const m of src.matchAll(/^export\s+(?:async\s+)?function\s+(\w+)/gm)) names.add(m[1])
+  // export { a, b as c }
+  for (const m of src.matchAll(/^export\s*\{([^}]*)\}/gm)) {
+    for (const part of m[1].split(',')) {
+      const seg = part.trim()
+      if (!seg || seg === 'default') continue
+      const asMatch = seg.match(/\bas\s+(\w+)$/)
+      names.add(asMatch ? asMatch[1] : seg)
     }
   }
-  // export default 对象（贪婪匹配到末尾缩进闭合，避免嵌套括号提前截断）
-  const dm = src.match(/export\s+default\s*\{([\s\S]*?)\n\}/)
-  if (dm) {
-    for (const m of dm[1].matchAll(/(\w+)\s*\(/g)) names.add(m[1])
-    for (const m of dm[1].matchAll(/^\s*(\w+)\s*[,}]/gm)) names.add(m[1])
-  }
+  // export default { ... }（贪婪到最后一个顶层闭合，避免嵌套对象提前截断成员列表）
+  const dm = src.match(/^export\s+default\s*\{([\s\S]*?)\n\}/m)
+  if (dm) for (const k of objectKeys(dm[1])) names.add(k)
   return names
 }
 
@@ -52,40 +96,75 @@ for (const f of fs.readdirSync(apiDir)) {
   apiModuleExt[name] = ext
 }
 
-// 扫描 composables 与 views（composables 已全量 TS，同时兼容 .js）
-const targets = [
-  ...walk(path.join(ROOT, 'composables'), ['.ts', '.js']),
-  ...walk(path.join(ROOT, 'views'), ['.vue']),
-]
+// 扫描 src 下全部 .ts/.js/.vue（api/ 目录本身是导出定义方，排除）
+const targets = walk(ROOT, ['.ts', '.js', '.vue']).filter((f) => {
+  const rel = path.relative(ROOT, f).split(path.sep).join('/')
+  return !rel.startsWith('api/')
+})
 const issues = []
+let scannedImports = 0
+
+/** 解析 import 子句：default 别名、命名空间别名、具名导入（含 as 重命名） */
+function parseImportClause(clause) {
+  const out = { defaultAlias: null, namespaceAlias: null, named: [] }
+  let rest = clause
+  const ns = rest.match(/\*\s+as\s+(\w+)/)
+  if (ns) {
+    out.namespaceAlias = ns[1]
+    rest = rest.replace(ns[0], '')
+  }
+  const braces = rest.match(/\{([^}]*)\}/)
+  if (braces) {
+    for (const part of braces[1].split(',')) {
+      const seg = part.trim()
+      if (!seg) continue
+      const asMatch = seg.match(/^(\w+)\s+as\s+(\w+)$/)
+      // 具名导入：局部名用于匹配调用，原始导出名用于比对 api 模块导出
+      out.named.push(
+        asMatch ? { exported: asMatch[1], local: asMatch[2] } : { exported: seg, local: seg },
+      )
+    }
+    rest = rest.replace(braces[0], '')
+  }
+  const def = rest.replace(/,/g, ' ').trim().split(/\s+/).filter(Boolean)[0]
+  if (def && /^\w+$/.test(def)) out.defaultAlias = def
+  return out
+}
 
 for (const file of targets) {
   const src = fs.readFileSync(file, 'utf8')
-  // 提取 import xxx from '@/api/yyy'
-  const imports = []
-  for (const m of src.matchAll(/import\s+(\w+)\s+from\s+['"]@\/api\/([\w-]+)['"]/g)) {
-    imports.push({ alias: m[1], module: m[2] })
-  }
-  if (!imports.length) continue
-  // 提取 alias.方法 调用
-  for (const { alias, module } of imports) {
-    // request 是 axios 实例（get/post/put/delete/patch 均存在），跳过
-    if (alias === 'request') continue
+  for (const m of src.matchAll(/import\s+([^;'"]*?)\s+from\s+['"]@\/api\/([\w-]+)['"]/g)) {
+    const module = m[2]
+    scannedImports++
     const modExports = apiModules[module]
     if (!modExports) {
-      issues.push(`${file}: import 的 api 模块 '@/${module}' 不存在`)
+      issues.push(`${file}: import 的 api 模块 '@/api/${module}' 不存在`)
       continue
     }
-    for (const m of src.matchAll(new RegExp(alias + '\\.(\\w+)(\\?)?\\.?\\s*\\(', 'g'))) {
-      const method = m[1]
-      if (method === 'default') continue
-      if (!modExports.has(method)) {
-        // 可选链调用（alias.method?.(...)）在方法缺失时运行时安全（undefined?.() 不执行），
-        // 仅作防御兜底时不算 bug，跳过
-        if (m[2] === '?') continue
-        const exportsList = Array.from(modExports).join(', ')
+    const { defaultAlias, namespaceAlias, named } = parseImportClause(m[1])
+
+    // 具名导入：导入的导出名必须真实存在，否则运行时拿到 undefined
+    for (const { exported, local } of named) {
+      if (exported === 'default') continue
+      if (!modExports.has(exported)) {
         issues.push(
-          `${file}: ${alias}.${method} —— api/${module}${apiModuleExt[module]} 无此导出 [实际导出: ${exportsList}]`,
+          `${file}: import { ${exported}${local !== exported ? ' as ' + local : ''} } from '@/api/${module}' ` +
+            `—— 该模块无此导出 [实际导出: ${Array.from(modExports).join(', ')}]`,
+        )
+      }
+    }
+
+    // default / 命名空间别名：逐个方法比对
+    for (const alias of [defaultAlias, namespaceAlias]) {
+      if (!alias || alias === 'request') continue // request 是 axios 实例（get/post/... 均存在）
+      for (const call of src.matchAll(new RegExp(alias + '\\.(\\w+)(\\?)?\\.?\\s*\\(', 'g'))) {
+        const method = call[1]
+        if (method === 'default' || modExports.has(method)) continue
+        const suffix =
+          call[2] === '?' ? '（可选链调用：运行时不报错，但这段逻辑永远静默不执行）' : ''
+        issues.push(
+          `${file}: ${alias}.${method}${suffix} —— api/${module}${apiModuleExt[module]} 无此导出 ` +
+            `[实际导出: ${Array.from(modExports).join(', ')}]`,
         )
       }
     }
@@ -96,6 +175,15 @@ if (issues.length) {
   console.log(`发现 ${issues.length} 处 API 方法引用不一致：`)
   issues.forEach((i) => console.log('  ' + i))
   process.exit(1)
-} else {
-  console.log('✅ 全部 API 方法引用一致（composables + views，无遗漏）')
 }
+// 口径自守：扫描面塌陷（目录结构调整、正则失配）时必须报警，而不是"0 问题"绿灯。
+if (targets.length < 300 || scannedImports < 50) {
+  console.error(
+    `[lint:api-refs] 异常：仅扫到 ${targets.length} 个源文件 / ${scannedImports} 条 @/api 导入，` +
+      '低于既有口径（≥300 文件 / ≥50 导入），扫描器可能已失效，拒绝放行',
+  )
+  process.exit(1)
+}
+console.log(
+  `✅ 全部 API 方法引用一致（${targets.length} 个源文件 / ${scannedImports} 条 @/api 导入，含 default、具名与命名空间导入）`,
+)

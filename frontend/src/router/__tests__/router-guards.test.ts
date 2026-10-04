@@ -10,8 +10,12 @@ vi.mock('nprogress', () => ({
 const mockStore = {
   isLoggedIn: false,
   userRole: '',
+  // 路由鉴权实际读取的字段（优先服务端角色，见 stores/auth.effectiveRole）
+  effectiveRole: '',
   permissions: null,
-  // 路由守卫链路不读取 user；此处仅为与真实 store 形状一致而声明
+  // 权限是否已由本会话内的真实服务端响应置位
+  permissionsLoaded: false,
+  // user 是真实 store 的形状成员；守卫链路不读取它，仅为一致性声明
   user: null as unknown,
   getDefaultRoute: vi.fn(() => '/student/dashboard'),
   fetchPermissions: vi.fn(),
@@ -138,17 +142,34 @@ describe('路由守卫', () => {
     // 重置 store 状态
     mockStore.isLoggedIn = false
     mockStore.userRole = ''
+    mockStore.effectiveRole = ''
     mockStore.permissions = null
+    mockStore.permissionsLoaded = false
+    mockStore.user = null
     mockStore.getDefaultRoute = vi.fn(() => '/student/dashboard')
-    mockStore.fetchPermissions = vi.fn()
+    // 默认让权限拉取"成功"，把 permissionsLoaded 置真，
+    // 否则角色门禁会因服务端确认缺失而一律拒绝
+    mockStore.fetchPermissions = vi.fn(async () => {
+      mockStore.permissions = { menus: [], buttons: {} }
+      mockStore.permissionsLoaded = true
+    })
 
     const mod = await import('../index.js')
     router = mod.default
 
-    // 获取 beforeEach 守卫函数
-    const guards = router.getRoutes()
-    expect(guards.length).toBeGreaterThan(0)
+    // 重置到一个与 /login、/register 都不同的中立路由作为起点：
+    // 若起点就是 /login，对 /login 的 push 会被 vue-router 当作重复导航短路，
+    // 守卫是否执行就不再可观测，测试会退化成"看运气"。
+    await router.replace('/agreement')
   })
+
+  /** 先以游客身份落到指定页面，再切换为已登录态（用于观测"已在登录页"时的重定向） */
+  async function arriveAsGuest(path) {
+    mockStore.isLoggedIn = false
+    await router.replace(path)
+    expect(router.currentRoute.value.path).toBe(path)
+    mockStore.isLoggedIn = true
+  }
 
   describe('不需要认证的路由', () => {
     it('/login 路由 meta.requiresAuth 为 false', () => {
@@ -175,19 +196,55 @@ describe('路由守卫', () => {
       expect(router.currentRoute.value.path).toBe('/login')
     })
 
-    it('已登录用户访问 /login 时应触发重定向逻辑', async () => {
-      mockStore.isLoggedIn = true
+    it('已登录学生访问 /login 真正被重定向到学生工作台', async () => {
+      await arriveAsGuest('/login')
       mockStore.userRole = 'STUDENT'
-      mockStore.getDefaultRoute.mockReturnValue('/student/dashboard')
-      mockStore.user = { role: 'STUDENT', id: 1 }
+      mockStore.effectiveRole = 'STUDENT'
+      mockStore.getDefaultRoute = vi.fn(() => '/student/dashboard')
 
-      // beforeEach 守卫检查逻辑：如果 isLoggedIn 为 true 且路由是 /login，
-      // 应调用 getDefaultRoute() 进行重定向
-      expect(mockStore.isLoggedIn).toBe(true)
-      expect(mockStore.getDefaultRoute()).toBe('/student/dashboard')
+      await router.push('/student/dashboard?_r=' + Math.random()).catch(() => {})
+      // 回到登录页触发「已登录访问 /login」分支
+      await router.push('/login').catch(() => {})
 
-      // 实际导航可能因 mock 环境限制不完全模拟重定向，
-      // 核心 guard 逻辑已通过其他测试（未登录→/login、角色匹配）验证
+      // 断言**真实导航结果**：守卫必须把人从 /login 送出
+      expect(router.currentRoute.value.path).toBe('/student/dashboard')
+      expect(mockStore.getDefaultRoute).toHaveBeenCalled()
+    })
+
+    it('已登录访问 /register 同样被重定向出注册页', async () => {
+      await arriveAsGuest('/register')
+      mockStore.userRole = 'TEACHER'
+      mockStore.effectiveRole = 'TEACHER'
+      mockStore.getDefaultRoute = vi.fn(() => '/teacher/dashboard')
+
+      await router.push('/teacher/dashboard').catch(() => {})
+      await router.push('/register').catch(() => {})
+
+      expect(router.currentRoute.value.path).toBe('/teacher/dashboard')
+    })
+
+    it('回归（P0-3）：默认落点等于当前路由时不产生自指向重定向', async () => {
+      await arriveAsGuest('/login')
+      // 模拟"角色未知"的历史场景：getDefaultRoute 返回 /login 本身
+      mockStore.getDefaultRoute = vi.fn(() => '/login')
+
+      await router.push('/login').catch(() => {})
+
+      // 关键不变式：必须以"停在 /login"收尾。原实现 next('/login') 自指 →
+      // 守卫无限重入，router.push 永不 resolve。这里能正常 await 返回即证明有界。
+      expect(router.currentRoute.value.path).toBe('/login')
+      // 守卫在"目标 === 当前"时直接 next(false)，不会继续循环调用 getDefaultRoute
+      expect(mockStore.getDefaultRoute.mock.calls.length).toBeLessThanOrEqual(2)
+    })
+
+    it('回归（P0-3）：/register 上默认落点回指 /register 时同样不循环', async () => {
+      await arriveAsGuest('/register')
+      mockStore.getDefaultRoute = vi.fn(() => '/register')
+
+      await router.push('/register').catch(() => {})
+
+      expect(router.currentRoute.value.path).toBe('/register')
+      expect(mockStore.getDefaultRoute.mock.calls.length).toBeLessThanOrEqual(2)
     })
   })
 
@@ -195,6 +252,7 @@ describe('路由守卫', () => {
     it('未登录用户访问 /student/dashboard 重定向到 /login', async () => {
       mockStore.isLoggedIn = false
       mockStore.userRole = ''
+      mockStore.effectiveRole = ''
 
       await router.push('/student/dashboard')
       expect(router.currentRoute.value.path).toBe('/login')
@@ -203,6 +261,7 @@ describe('路由守卫', () => {
     it('未登录用户访问 /admin/dashboard 重定向到 /login', async () => {
       mockStore.isLoggedIn = false
       mockStore.userRole = ''
+      mockStore.effectiveRole = ''
 
       await router.push('/admin/dashboard')
       expect(router.currentRoute.value.path).toBe('/login')
@@ -219,15 +278,16 @@ describe('路由守卫', () => {
     it('已登录用户访问匹配角色路由正常通过', async () => {
       mockStore.isLoggedIn = true
       mockStore.userRole = 'STUDENT'
+      mockStore.effectiveRole = 'STUDENT'
 
       await router.push('/student/dashboard')
-      // 重定向或正常访问
       expect(router.currentRoute.value.path).toBe('/student/dashboard')
     })
 
     it('已登录用户访问不匹配角色路由重定向到 /403', async () => {
       mockStore.isLoggedIn = true
       mockStore.userRole = 'STUDENT'
+      mockStore.effectiveRole = 'STUDENT'
 
       await router.push('/admin/dashboard')
       expect(router.currentRoute.value.path).toBe('/403')
@@ -236,6 +296,7 @@ describe('路由守卫', () => {
     it('教师角色不能访问管理员路由', async () => {
       mockStore.isLoggedIn = true
       mockStore.userRole = 'TEACHER'
+      mockStore.effectiveRole = 'TEACHER'
 
       await router.push('/admin/dashboard')
       expect(router.currentRoute.value.path).toBe('/403')
@@ -244,25 +305,44 @@ describe('路由守卫', () => {
     it('学生角色不能访问教师路由', async () => {
       mockStore.isLoggedIn = true
       mockStore.userRole = 'STUDENT'
+      mockStore.effectiveRole = 'STUDENT'
 
       await router.push('/teacher/dashboard')
       expect(router.currentRoute.value.path).toBe('/403')
     })
 
-    it('管理员可以访问管理员路由', async () => {
+    it('教师可以访问教师路由', async () => {
+      mockStore.isLoggedIn = true
+      mockStore.userRole = 'TEACHER'
+      mockStore.effectiveRole = 'TEACHER'
+
+      await router.push('/teacher/dashboard')
+      expect(router.currentRoute.value.path).toBe('/teacher/dashboard')
+    })
+
+    it('管理员在服务端权限确认后可以访问管理员路由', async () => {
       mockStore.isLoggedIn = true
       mockStore.userRole = 'ADMIN'
+      mockStore.effectiveRole = 'ADMIN'
+      mockStore.permissions = { menus: ['admin/dashboard'], buttons: {} }
+      mockStore.permissionsLoaded = true
 
       await router.push('/admin/dashboard')
       expect(router.currentRoute.value.path).toBe('/admin/dashboard')
     })
 
-    it('教师可以访问教师路由', async () => {
+    it('篡改 userRole 为 ADMIN 但服务端未确认（effectiveRole 为空）→ 管理端拒绝', async () => {
       mockStore.isLoggedIn = true
-      mockStore.userRole = 'TEACHER'
+      // 模拟攻击者在控制台把 localStorage 的 user.role 改成 ADMIN：
+      // 真实 store 的 effectiveRole 在缺少服务端权限确认时对 ADMIN 返回 ''
+      mockStore.userRole = 'ADMIN'
+      mockStore.effectiveRole = ''
+      mockStore.permissionsLoaded = false
 
-      await router.push('/teacher/dashboard')
-      expect(router.currentRoute.value.path).toBe('/teacher/dashboard')
+      await router.push('/admin/dashboard')
+      expect(router.currentRoute.value.path).toBe('/403')
+      // 且不应把用户送进任何 admin 子路由
+      expect(router.currentRoute.value.path.startsWith('/admin')).toBe(false)
     })
   })
 
@@ -273,25 +353,48 @@ describe('路由守卫', () => {
       expect(router.currentRoute.value.path).toBe('/login')
     })
 
-    it('404 路由 meta.requiresAuth 为 false', () => {
+    it('404 路由 meta.requiresAuth 为 false 且是通配兜底', () => {
       const matched = router.getRoutes().find((r) => r.path === '/:pathMatch(.*)*')
       expect(matched).toBeDefined()
+      expect(matched.meta.requiresAuth).toBe(false)
     })
 
-    it('管理员路由元数据包含角色 ADMIN', () => {
-      // 查找 /admin 开头的路由，meta.role 在父路由上
-      const allAdminRoutes = router.getRoutes().filter((r) => r.path.startsWith('/admin'))
-      expect(allAdminRoutes.length).toBeGreaterThan(0)
+    it('三大角色区的路由链上都必须声明 meta.role（守卫据此拦截）', () => {
+      // 注意：不能用 getRoutes() + find(path) 判定 —— 父记录与 path:'' 的子记录
+      // 会被规范化成同一个 path，find 命中哪一条不确定，meta.role 会"看起来缺失"。
+      // 这里用 resolve().matched（即守卫里 to.matched 的同一份数据）来断言。
+      const rolesOf = (target) =>
+        router
+          .resolve(target)
+          .matched.map((r) => r.meta?.role)
+          .filter(Boolean)
+
+      expect(rolesOf('/admin/dashboard')).toContain('ADMIN')
+      expect(rolesOf('/teacher/dashboard')).toContain('TEACHER')
+      expect(rolesOf('/student/dashboard')).toContain('STUDENT')
+
+      // 三区都必须实际挂载了子路由，否则 meta.role 形同虚设
+      for (const prefix of ['/admin', '/teacher', '/student']) {
+        const children = router.getRoutes().filter((r) => r.path.startsWith(prefix + '/'))
+        expect(children.length, `${prefix} 区子路由过少`).toBeGreaterThan(5)
+      }
     })
 
-    it('教师路由元数据包含角色 TEACHER', () => {
-      const teacherRoutes = router.getRoutes().filter((r) => r.path.startsWith('/teacher'))
-      expect(teacherRoutes.length).toBeGreaterThan(0)
-    })
+    it('所有需认证路由都必须落在某个角色区内（否则对所有登录用户开放）', () => {
+      const offenders = router
+        .getRoutes()
+        // meta.requiresAuth 未显式关闭 → 守卫按"需要认证"处理
+        .filter((r) => r.meta.requiresAuth !== false)
+        .filter((r) => {
+          // 容器/重定向记录本身不作为页面判定对象
+          if (r.redirect !== undefined) return false
+          const matched = router.resolve(r.path).matched
+          const hasRole = matched.some((m) => m.meta?.role)
+          return !hasRole
+        })
+        .map((r) => r.path)
 
-    it('学生路由元数据包含角色 STUDENT', () => {
-      const studentRoutes = router.getRoutes().filter((r) => r.path.startsWith('/student'))
-      expect(studentRoutes.length).toBeGreaterThan(0)
+      expect(offenders, `以下路由需要认证却没有任何 role 门禁：${offenders.join(', ')}`).toEqual([])
     })
   })
 })

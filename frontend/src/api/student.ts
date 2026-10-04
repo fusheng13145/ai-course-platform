@@ -80,7 +80,7 @@ export const getLearningCenter = (courseId) =>
 export const getProgressSummary = (courseId) =>
   request.get(`/student/courses/${courseId}/progress-summary`)
 // 标记任务点完成（视频/文档/阅读/测验非提交类）
-export const markTaskComplete = (courseId, taskId, completionType) =>
+export const markTaskComplete = (courseId, taskId, completionType?) =>
   request.post(
     `/student/courses/${courseId}/tasks/${taskId}/complete`,
     completionType ? { completionType } : {},

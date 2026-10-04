@@ -115,6 +115,7 @@
 import { reactive, ref, onMounted } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { resolvePostAuthRedirect } from '@/utils/redirect'
 import { ElMessage } from 'element-plus'
 import ThemeSwitcher from '@/components/ThemeSwitcher.vue'
 
@@ -162,8 +163,9 @@ async function handleLogin() {
       rememberMe: form.remember,
     })
     ElMessage.success('登录成功')
-    const redirect = route.query.redirect || auth.getDefaultRoute()
-    router.push(redirect)
+    // 缺陷修复（P0-6）：redirect 参数来自 URL、攻击者可控，必须校验为站内路径，
+    // 否则 `?redirect=//evil.example` 会在登录成功瞬间把用户送出站点（开放重定向）。
+    router.push(resolvePostAuthRedirect(route.query.redirect, auth.getDefaultRoute()))
   } catch (e) {
     showError.value = true
     if (e?.response?.data?.message) ElMessage.error(e.response.data.message)

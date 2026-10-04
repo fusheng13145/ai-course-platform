@@ -227,9 +227,17 @@ async function submitUpload() {
     ElMessage.warning('请选择文件')
     return
   }
+  // 缺陷修复（P0-5）：courseId 为空时本地先拒发并提示，
+  // 不再把一个 undefined 的 courseId 送到后端换 400。
+  if (props.courseId === null || props.courseId === undefined || props.courseId === '') {
+    ElMessage.warning('课程信息缺失，无法上传资源')
+    return
+  }
   uploading.value = true
   try {
     for (const file of uploadFileList.value) {
+      // 交给 api/resource.ts 的 buildUploadForm 统一转成合法 multipart FormData。
+      // 原实现直接传普通对象，axios 在 multipart 头下无法序列化文件部件 → 必然 400。
       await resourceApi.uploadResource({
         file: file.raw,
         courseId: props.courseId,
@@ -241,7 +249,8 @@ async function submitUpload() {
     await loadResources()
     emit('resourceUpdated')
   } catch (e) {
-    ElMessage.error('上传失败')
+    // 归一化校验抛出的可读消息直接展示（如「请选择要上传的文件」）
+    ElMessage.error(e?.message || '上传失败')
   } finally {
     uploading.value = false
   }
@@ -253,7 +262,10 @@ function downloadResource(row) {
 
 async function toggleVisibility(row) {
   try {
-    await resourceApi.toggleVisibility(row.id, { visibleToAll: !row.visibleToAll })
+    // 契约修正：api/resource.ts 的签名是 toggleVisibility(id, visible)，
+    // 内部以 query 参数 visibleToAll 上报。原实现传了整个对象，
+    // 会被序列化成 `visibleToAll=[object Object]`，后端布尔解析必然失败。
+    await resourceApi.toggleVisibility(row.id, !row.visibleToAll)
     row.visibleToAll = !row.visibleToAll
     ElMessage.success('设置成功')
   } catch (e) {

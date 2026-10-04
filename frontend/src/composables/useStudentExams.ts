@@ -214,11 +214,15 @@ export function useStudentExams() {
     }
 
     try {
-      await ElMessageBox.confirm(`确定开始「${exam.title}」吗？\n进入后将启动倒计时。`, '确认开始考试', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'info',
-      })
+      await ElMessageBox.confirm(
+        `确定开始「${exam.title}」吗？\n进入后将启动倒计时。`,
+        '确认开始考试',
+        {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'info',
+        },
+      )
     } catch {
       return // 用户取消，静默返回
     }

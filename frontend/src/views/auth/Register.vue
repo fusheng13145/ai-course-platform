@@ -143,6 +143,7 @@
 import { reactive, ref } from 'vue'
 import { useRouter, useRoute } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { resolvePostAuthRedirect } from '@/utils/redirect'
 import { ElMessage } from 'element-plus'
 import ThemeSwitcher from '@/components/ThemeSwitcher.vue'
 
@@ -175,8 +176,8 @@ async function handleRegister() {
   try {
     await auth.register({ username: form.username, email: form.email, password: form.password })
     ElMessage.success('注册成功，即将跳转')
-    const redirect = route.query.redirect || auth.getDefaultRoute()
-    router.push(redirect)
+    // 缺陷修复（P0-6）：与登录页同口径，redirect 必须校验为站内路径，防开放重定向。
+    router.push(resolvePostAuthRedirect(route.query.redirect, auth.getDefaultRoute()))
   } catch (e) {
     if (e?.response?.data?.message) ElMessage.error(e.response.data.message)
     else ElMessage.error('注册失败')

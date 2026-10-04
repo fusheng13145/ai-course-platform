@@ -55,7 +55,6 @@ type LoginInternal = {
 }
 const loginVm = (wrapper: { vm: unknown }) => wrapper.vm as unknown as LoginInternal
 
-
 function mountLogin() {
   return mount(Login, {
     global: {
