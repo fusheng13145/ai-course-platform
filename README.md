@@ -79,8 +79,8 @@ Java 后端通过 HTTP 契约（`com.aicourse.integration.rag.RagContract`）与
 
 | 服务 | 目录 | 端口 | 说明 |
 | ---- | ---- | ---- | ---- |
-| RAG 检索引擎 | `python-services/rag_service/` | 8002 | 契约骨架 + CI 护栏（`contract_test.py`），真实引擎在此对接 |
-| 知识图谱服务 | `python-services/kg_service/` | 8001 | 同上契约模式 |
+| RAG 检索引擎 | `python-services/rag_service/` | 8002 | 9 个契约端点 + `rag_engine.py` 混合检索引擎（BM25+向量+RRF）；CI 护栏 `test_rag_contract.py` |
+| 知识图谱服务 | `python-services/kg_service/` | 8001 | 同上契约模式，`kg_store.py` 支持 Neo4j 与内存双后端 |
 | DeepGraph RAG 演示 | `python-services/deepgraph_rag/` | 8501 | RAG 成员提供的 Streamlit 原型（Neo4j + FAISS + Ollama），详见其目录内 `使用说明.md` |
 
 容器化启动 RAG 演示栈（含 Neo4j）：`docker compose --profile rag up -d`（需先在 `.env` 配置 `NEO4J_PASSWORD` 等，见 `.env.example`）。
