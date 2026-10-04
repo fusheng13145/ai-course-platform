@@ -273,12 +273,14 @@ class GradeControllerTest extends ControllerTestBase {
         policy.setCourseId(1L);
         when(gradeService.getPolicyById(eq(1L))).thenReturn(policy);
         when(gradeService.computeFinal(eq(1L), eq(1L))).thenReturn(
-                new FinalGradeVO(1L, 1L, List.of(), new BigDecimal("88.00")));
+                new FinalGradeVO(1L, 1L, List.of(), new BigDecimal("88.00"), List.of("示例提示")));
         mockMvc.perform(get("/grade/final/1/student/1").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.finalScore").value(88.0));
+                .andExpect(jsonPath("$.data.finalScore").value(88.0))
+                // warnings 是 VO 的出参契约之一，控制器透传后前端据此渲染提示条
+                .andExpect(jsonPath("$.data.warnings[0]").value("示例提示"));
         verify(gradeService).computeFinal(eq(1L), eq(1L));
     }
 
@@ -314,7 +316,7 @@ class GradeControllerTest extends ControllerTestBase {
     @DisplayName("GET /grade/report/course/1 - 教师查询成绩报告返回200，数组透传")
     void courseReport_authorized_passes_security() throws Exception {
         when(gradeService.courseReport(eq(1L)))
-                .thenReturn(List.of(new com.aicourse.vo.FinalGradeVO(null, 1L, null, null)));
+                .thenReturn(List.of(new com.aicourse.vo.FinalGradeVO(null, 1L, null, null, List.of())));
         mockMvc.perform(get("/grade/report/course/1").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))

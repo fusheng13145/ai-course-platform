@@ -1287,11 +1287,12 @@ table.tbl {
 }
 
 /* ========== Element Plus 深度覆写 ========== */
-.el-button--primary {
+/* 仅实底按钮上渐变：link/text 型按钮文字色就是主色，加红底会让红字压红底不可见 */
+.el-button--primary:not(.is-link):not(.is-text) {
   background: linear-gradient(180deg, #cd453a, var(--accent)) !important;
   border-color: var(--accent) !important;
 }
-.el-button--primary:hover {
+.el-button--primary:not(.is-link):not(.is-text):hover {
   background: linear-gradient(180deg, #d35045, #c94035) !important;
 }
 .el-card {

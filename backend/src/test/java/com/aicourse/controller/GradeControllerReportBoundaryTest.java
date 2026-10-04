@@ -3,9 +3,11 @@ package com.aicourse.controller;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.GradeItem;
 import com.aicourse.entity.GradePolicy;
+import com.aicourse.entity.User;
 import com.aicourse.mapper.GradeItemMapper;
 import com.aicourse.mapper.GradePolicyMapper;
 import com.aicourse.service.CourseService;
+import com.aicourse.service.UserService;
 import com.aicourse.service.impl.GradeServiceImpl;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.AbstractWrapper;
@@ -33,6 +35,8 @@ import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.*;
@@ -60,6 +64,8 @@ class GradeControllerReportBoundaryTest extends ControllerTestBase {
     @MockitoBean private GradePolicyMapper policyMapper;
     @MockitoBean private GradeItemMapper itemMapper;
     @MockitoBean private CourseService courseService;
+    /** 真实成绩服务需要它来解析学生姓名；默认返回空名单，姓名退回「学生 #id」 */
+    @MockitoBean private UserService userService;
 
     @Autowired private GradeServiceImpl gradeService;
 
@@ -127,6 +133,14 @@ class GradeControllerReportBoundaryTest extends ControllerTestBase {
         return it;
     }
 
+    /** 账号行：报表姓名解析用 */
+    private static User user(Long id, String fullName) {
+        User u = new User();
+        u.setId(id);
+        u.setFullName(fullName);
+        return u;
+    }
+
     /** 触发 wrapper 构建 SQL 片段并取出 where 参数值（等价于真实 SQL 的过滤条件）。 */
     private static Collection<Object> wrapperParams(Wrapper<?> wrapper) {
         assertNotNull(wrapper, "查询条件 wrapper 不得为 null");
@@ -182,6 +196,8 @@ class GradeControllerReportBoundaryTest extends ControllerTestBase {
         item(11L, "HOMEWORK", "90");
         item(12L, "HOMEWORK", "60");
         item(null, "HOMEWORK", "100");   // 脏数据：没有归属学生的明细行
+        // 只有 11 号有账号：12 号必须退回「学生 #12」而不是空白，否则报表学生列整列不可用
+        when(userService.listByIds(any())).thenReturn(List.of(user(11L, "王小明")));
 
         mockMvc.perform(get("/grade/report/course/" + COURSE_ID)
                         .with(withUser(TEACHER_ID, "TEACHER")))
@@ -189,9 +205,30 @@ class GradeControllerReportBoundaryTest extends ControllerTestBase {
                 // 花名册只认得 11/12，脏行既不该多出一行也不该让流式过滤抛 NPE
                 .andExpect(jsonPath("$.data.length()").value(2))
                 .andExpect(jsonPath("$.data[0].studentId").value(11))
+                .andExpect(jsonPath("$.data[0].studentName").value("王小明"))
                 .andExpect(jsonPath("$.data[0].finalScore").value(90.0))
                 .andExpect(jsonPath("$.data[1].studentId").value(12))
+                .andExpect(jsonPath("$.data[1].studentName").value("学生 #12"))
                 .andExpect(jsonPath("$.data[1].finalScore").value(60.0));
+    }
+
+    @Test
+    @DisplayName("报表 - 全班一次批量查名：不得逐学生查库（N+1）")
+    void courseReport_resolvesNamesInOneBatch() throws Exception {
+        givenPolicy(homeworkOnly());
+        item(21L, "HOMEWORK", "90");
+        item(22L, "HOMEWORK", "80");
+        item(23L, "HOMEWORK", "70");
+        when(userService.listByIds(any())).thenReturn(List.of(
+                user(21L, "甲"), user(22L, "乙"), user(23L, "丙")));
+
+        mockMvc.perform(get("/grade/report/course/" + COURSE_ID)
+                        .with(withUser(TEACHER_ID, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[*].studentName").value(
+                        containsInAnyOrder("甲", "乙", "丙")));
+
+        verify(userService, times(1)).listByIds(any());
     }
 
     @Test
@@ -236,10 +273,10 @@ class GradeControllerReportBoundaryTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("总评 - 维度缺 weight 字段：按 0 权重降级，不再 NPE 500")
+    @DisplayName("总评 - 维度缺 weight 字段：按 0 权重降级并提示修正，不再 NPE 500")
     void computeFinal_componentWithoutWeight_degradesToZero() throws Exception {
         // 权重字段名写错/漏写是配置 JSON 最常见的失误：修复前 ((Number) null).doubleValue() 抛 NPE，
-        // 单个学生的总评连带整班报表 500；修复后该维度记 0 权重并落 warn 日志。
+        // 单个学生的总评连带整班报表 500；修复后该维度记 0 权重、标记不计入，并在 warnings 里点名。
         givenPolicy("[{\"key\":\"HOMEWORK\",\"name\":\"作业\"}]");
         item(11L, "HOMEWORK", "90");
 
@@ -247,43 +284,56 @@ class GradeControllerReportBoundaryTest extends ControllerTestBase {
                         .with(withUser(TEACHER_ID, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.components[0].weight").value(0.0))
-                .andExpect(jsonPath("$.data.finalScore").value(0.0));
+                .andExpect(jsonPath("$.data.components[0].graded").value(false))
+                .andExpect(jsonPath("$.data.finalScore").value(0.0))
+                .andExpect(jsonPath("$.data.warnings[0]")
+                        .value(org.hamcrest.Matchers.containsString("权重缺失或不是数字")));
     }
 
     @Test
-    @DisplayName("总评 - 权重合计不足 100：当前不校验，缺的份额直接从总分里扣掉")
-    void computeFinal_weightsBelow100_currentlyNoValidation() throws Exception {
+    @DisplayName("总评 - 历史方案权重合计不足 100：分母按已评分权重归一，同时提示方案不合规")
+    void computeFinal_legacyUnbalancedWeights_normalizesAndWarns() throws Exception {
         givenPolicy("[{\"key\":\"HOMEWORK\",\"name\":\"作业\",\"weight\":60}]");
         item(11L, "HOMEWORK", "100");
 
-        // 当前行为：满分 100 的作业只配了 60% 权重 -> 总评 60.00，系统不报「权重未配平」
+        // 语义变更（2026-10-04）：旧实现固定除以 100，满分作业只配 60% 权重会被无声扣成 60 分；
+        // 现分母只取实际计入的权重（60），总评 100，并用 warnings 明确告知方案权重不配平。
+        // 新方案已在 savePolicy 直接拒绝（见 savePolicy_weightSumNot100_rejected）。
         mockMvc.perform(get("/grade/final/" + POLICY_ID + "/student/11")
                         .with(withUser(TEACHER_ID, "TEACHER")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.finalScore").value(60.0))
+                .andExpect(jsonPath("$.data.finalScore").value(100.0))
                 .andExpect(jsonPath("$.data.components[0].weight").value(60.0))
-                .andExpect(jsonPath("$.data.components[0].contribution").value(60.0));
+                .andExpect(jsonPath("$.data.components[0].contribution").value(100.0))
+                .andExpect(jsonPath("$.data.warnings[0]")
+                        .value(org.hamcrest.Matchers.containsString("权重合计为 60%")));
     }
 
     @Test
-    @DisplayName("总评 - 某维度未录入：当前按 0 分计入，会稀释其余维度的得分")
-    void computeFinal_missingDimensionCountedAsZero() throws Exception {
+    @DisplayName("总评 - 某维度未评分：不进分母、按已评分权重归一，并在明细与提示中标注")
+    void computeFinal_ungradedDimensionExcludedAndNormalized() throws Exception {
         givenPolicy("[{\"key\":\"HOMEWORK\",\"name\":\"作业\",\"weight\":50},"
                 + "{\"key\":\"EXAM\",\"name\":\"考试\",\"weight\":50}]");
         item(11L, "HOMEWORK", "100");   // 考试维度一条明细都没有
 
-        // 当前行为：作业满分 100 但考试缺失 -> 总评 50.00（未录入按 0 加权，而非跳过该维度）
+        // 修复前：未录入按 0 分加权 -> 作业满分也只拿 50.00，学生被「还没批的维度」扣分
         mockMvc.perform(get("/grade/final/" + POLICY_ID + "/student/11")
                         .with(withUser(TEACHER_ID, "TEACHER")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.finalScore").value(50.0))
-                .andExpect(jsonPath("$.data.components[1].score").value(0))
-                .andExpect(jsonPath("$.data.components[1].contribution").value(0.0));
+                .andExpect(jsonPath("$.data.finalScore").value(100.0))
+                .andExpect(jsonPath("$.data.components[0].graded").value(true))
+                .andExpect(jsonPath("$.data.components[1].score").value(org.hamcrest.Matchers.nullValue()))
+                .andExpect(jsonPath("$.data.components[1].graded").value(false))
+                .andExpect(jsonPath("$.data.components[1].contribution").value(0.0))
+                .andExpect(jsonPath("$.data.warnings[0]")
+                        .value(org.hamcrest.Matchers.containsString("考试")))
+                .andExpect(jsonPath("$.data.warnings[0]")
+                        .value(org.hamcrest.Matchers.containsString("50%")));
     }
 
     @Test
-    @DisplayName("总评 - 已录入但分数为 null（未批改）：当前与真实 0 分完全不可区分")
-    void computeFinal_nullScoreIndistinguishableFromRealZero() throws Exception {
+    @DisplayName("总评 - 已录入但分数为 null（未批改）：与真实 0 分现已可区分")
+    void computeFinal_ungradedDistinguishableFromRealZero() throws Exception {
         givenPolicy(homeworkOnly());
         item(11L, "HOMEWORK", null);   // 已录入但未批改：score 为 null
         item(12L, "HOMEWORK", "0");    // 真实考了 0 分
@@ -291,15 +341,21 @@ class GradeControllerReportBoundaryTest extends ControllerTestBase {
         JsonNode ungraded = requestFinal(11L);
         JsonNode realZero = requestFinal(12L);
 
-        // 当前行为：null 分被 BigDecimal.ZERO 顶替，出参、总评与真 0 分逐字节相同，
-        // 教师无法从接口看出这名学生是「没批」还是「批了零分」
-        assertEquals(realZero.path("data").path("finalScore").asText(),
-                ungraded.path("data").path("finalScore").asText(),
-                "未批改与真实 0 分的总评当前不可区分");
+        // 修复前：null 分被 BigDecimal.ZERO 顶替，两名学生的出参逐字节相同，
+        // 教师看不出是「没批」还是「批了零分」。现以 score=null + graded=false + warnings 区分。
+        JsonNode ungradedRow = ungraded.path("data").path("components").get(0);
+        JsonNode zeroRow = realZero.path("data").path("components").get(0);
+        assertTrue(ungradedRow.path("score").isNull(), "未评分须回传 null，实际=" + ungradedRow);
+        assertFalse(ungradedRow.path("graded").asBoolean(), "未评分不得计入总评");
+        assertEquals(0, zeroRow.path("score").asInt(), "真实 0 分仍是数字 0");
+        assertTrue(zeroRow.path("graded").asBoolean(), "0 分是有效成绩，必须计入分母");
+        assertTrue(ungraded.path("data").path("warnings").toString().contains("未评分"),
+                "缺评要有提示，实际=" + ungraded.path("data").path("warnings"));
+        assertTrue(realZero.path("data").path("warnings").isEmpty(),
+                "全维度已评分且配平时不应有提示，实际=" + realZero.path("data").path("warnings"));
+        // 两者总评同为 0 分是被剔除后只剩零个计入项的必然结果，靠上面的标记而非数值区分
         assertEquals(0.0, ungraded.path("data").path("finalScore").asDouble());
-        JsonNode score = ungraded.path("data").path("components").get(0).path("score");
-        assertTrue(score.isNumber(), "当前行为：score 为 null 时出参写成数字 0，实际=" + score);
-        assertEquals(0, score.asInt());
+        assertEquals(0.0, realZero.path("data").path("finalScore").asDouble());
     }
 
     private JsonNode requestFinal(long studentId) throws Exception {
@@ -424,14 +480,40 @@ class GradeControllerReportBoundaryTest extends ControllerTestBase {
 
     // ===================== POST /grade/policy 权重配置 =====================
     @Test
-    @DisplayName("保存方案 - 权重合计不为 100：当前仅前端提示，后端放行")
-    void savePolicy_weightSumNot100_currentlyAccepted() throws Exception {
+    @DisplayName("保存方案 - 权重合计不为 100：后端 400 拒绝，不写入稀释总评的坏配置")
+    void savePolicy_weightSumNot100_rejected() throws Exception {
+        // 2026-10-04 产品决策：权重合计强制 100%。此前只在前端提示、后端放行，
+        // 落库后 computeFinal 会按缺的份额稀释全班总评（60% 方案 → 满分只有 60 分）。
         mockMvc.perform(post("/grade/policy").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"courseId\":7,\"name\":\"宽松方案\","
+                        .content("{\"courseId\":7,\"name\":\"失衡方案\","
                                 + "\"components\":[{\"key\":\"exam\",\"name\":\"期末\",\"weight\":60}]}")
+                        .with(withUser(TEACHER_ID, "TEACHER")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.message").value(containsString("100%")))
+                .andExpect(jsonPath("$.message").value(containsString("60")));
+        verify(policyMapper, never()).insert(any(GradePolicy.class));
+
+        // 配平的方案照常通过
+        mockMvc.perform(post("/grade/policy").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\":7,\"name\":\"标准方案\","
+                                + "\"components\":[{\"key\":\"exam\",\"name\":\"期末\",\"weight\":60},"
+                                + "{\"key\":\"hw\",\"name\":\"作业\",\"weight\":40}]}")
                         .with(withUser(TEACHER_ID, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
+    }
+
+    @Test
+    @DisplayName("保存方案 - 权重合计 100 的小数配平（33.3+33.3+33.4）：放行")
+    void savePolicy_weightSumBalancedWithDecimals_accepted() throws Exception {
+        mockMvc.perform(post("/grade/policy").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\":7,\"components\":["
+                                + "{\"key\":\"a\",\"weight\":33.3},{\"key\":\"b\",\"weight\":33.3},"
+                                + "{\"key\":\"c\",\"weight\":33.4}]}")
+                        .with(withUser(TEACHER_ID, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.components.length()").value(3));
     }
 
     @Test
@@ -468,19 +550,26 @@ class GradeControllerReportBoundaryTest extends ControllerTestBase {
     // ===================== 权重脏数据的读取容错 =====================
 
     @Test
-    @DisplayName("总评 - weight 写成数字字符串/非数字字符串：前者容错解析、后者按 0 计")
+    @DisplayName("总评 - weight 写成数字字符串/非数字字符串：前者容错解析、后者按 0 权重并提示")
     void computeFinal_stringWeights_parsedOrDegraded() throws Exception {
         givenPolicy("[{\"key\":\"HOMEWORK\",\"name\":\"作业\",\"weight\":\"八十\"},"
                 + "{\"key\":\"EXAM\",\"name\":\"期末\",\"weight\":\"70\"}]");
         gradeItems.add(item(11L, "HOMEWORK", "80"));
         gradeItems.add(item(11L, "EXAM", "90"));
 
+        // 作业权重不可解析 → 降级为 0，其 80 分不再进入总评；
+        // 期末 "70" 容错解析，gradedWeight=70，总评按已评分维度归一化 = 90*70/70 = 90
         mockMvc.perform(get("/grade/final/" + POLICY_ID + "/student/11")
                         .with(withUser(TEACHER_ID, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data.components[0].weight").value(0.0))
-                // 数字字符串 "70" 容错接受：90 * 70% = 63
+                .andExpect(jsonPath("$.data.components[0].graded").value(false))
+                .andExpect(jsonPath("$.data.components[0].contribution").value(0.0))
                 .andExpect(jsonPath("$.data.components[1].weight").value(70.0))
-                .andExpect(jsonPath("$.data.finalScore").value(63.0));
+                .andExpect(jsonPath("$.data.components[1].graded").value(true))
+                .andExpect(jsonPath("$.data.components[1].contribution").value(90.0))
+                .andExpect(jsonPath("$.data.finalScore").value(90.0))
+                .andExpect(jsonPath("$.data.warnings[0]").value(containsString("权重缺失或不是数字")))
+                .andExpect(jsonPath("$.data.warnings[1]").value(containsString("权重合计为 70%")));
     }
 }
