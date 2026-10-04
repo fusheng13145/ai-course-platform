@@ -12,6 +12,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -91,6 +92,19 @@ class ExamSessionGradingServiceTest {
         assertEquals(1, result.getCorrectCount());
         assertEquals(0, result.getWrongCount());
         assertEquals("GRADED", result.getStatus());
+
+        // 修复弱测试：原用例对 objectMapper 全部用 any() 打桩，未校验实际序列化/反序列化载荷。
+        // 现用 ArgumentCaptor 断言：
+        //  1) 反序列化入参确为会话原始作答 JSON（{"101":"B"}）；
+        //  2) 序列化入参确为「题目得分映射」（含 101→5），确保写入 questionScores 的是逐题分数而非其它对象。
+        ArgumentCaptor<String> readArg = ArgumentCaptor.forClass(String.class);
+        verify(objectMapper, atLeastOnce()).readValue(readArg.capture(), any(TypeReference.class));
+        assertTrue(readArg.getAllValues().contains(testSession.getAnswers()),
+                "readValue 应解析会话作答 JSON");
+        ArgumentCaptor<Object> writeArg = ArgumentCaptor.forClass(Object.class);
+        verify(objectMapper).writeValueAsString(writeArg.capture());
+        assertEquals(Map.of(101L, new BigDecimal("5")), writeArg.getValue(),
+                "writeValueAsString 应序列化逐题得分映射");
     }
 
     @Test
@@ -279,6 +293,114 @@ class ExamSessionGradingServiceTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> gradingService.manualGrade(1L, 101L, BigDecimal.TEN, "good"));
         assertEquals("请先完成自动阅卷", ex.getMessage());
+    }
+
+    // ==================== D5 人工阅卷分数边界校验 ====================
+
+    @Test
+    @DisplayName("人工阅卷 - 分数为空拒绝（D5 回归：null 不得写入导致后续拆箱炸裂）")
+    void testManualGrade_nullScore_rejected() {
+        testSession.setStatus("GRADED");
+        when(examSessionMapper.selectById(1L)).thenReturn(testSession);
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> gradingService.manualGrade(1L, 101L, null, "good"));
+        assertEquals("人工阅卷分数不能为空", ex.getMessage());
+        verify(examSessionMapper, never()).updateById((ExamSession) any());
+    }
+
+    @Test
+    @DisplayName("人工阅卷 - 负分拒绝（D5 回归：防止 percentage 越界为负）")
+    void testManualGrade_negativeScore_rejected() {
+        testSession.setStatus("GRADED");
+        when(examSessionMapper.selectById(1L)).thenReturn(testSession);
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> gradingService.manualGrade(1L, 101L, new BigDecimal("-1"), "good"));
+        assertEquals("人工阅卷分数不能为负数", ex.getMessage());
+        verify(examSessionMapper, never()).updateById((ExamSession) any());
+    }
+
+    @Test
+    @DisplayName("人工阅卷 - 超过该题满分拒绝（D5 回归：上界取 ExamQuestion.points）")
+    void testManualGrade_exceedQuestionPoints_rejected() {
+        testSession.setStatus("GRADED");
+        when(examSessionMapper.selectById(1L)).thenReturn(testSession);
+        ExamQuestion eq = new ExamQuestion();
+        eq.setQuestionId(101L);
+        eq.setExamPaperId(1L);
+        eq.setPoints(new BigDecimal("5"));
+        when(examQuestionService.getOne(any(LambdaQueryWrapper.class))).thenReturn(eq);
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> gradingService.manualGrade(1L, 101L, new BigDecimal("6"), "good"));
+        assertTrue(ex.getMessage().contains("不能超过该题满分"),
+                "拒绝信息应包含满分上界，实际=" + ex.getMessage());
+        verify(examSessionMapper, never()).updateById((ExamSession) any());
+    }
+
+    @Test
+    @DisplayName("人工阅卷 - 0.00（带 scale 的零）合法放行（D5 回归：null/负值判定须用 compareTo）")
+    void testManualGrade_zeroWithScale_accepted() throws Exception {
+        testSession.setStatus("GRADED");
+        testSession.setQuestionScores(null); // 走空分表路径，避免 readValue 依赖
+        when(examSessionMapper.selectById(1L)).thenReturn(testSession);
+        when(examQuestionService.getOne(any(LambdaQueryWrapper.class))).thenReturn(null); // 无上界来源→跳过上界
+        when(examPaperService.getById(1L)).thenReturn(testExamPaper);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(examSessionMapper.updateById((ExamSession) any())).thenReturn(1);
+
+        gradingService.manualGrade(1L, 101L, new BigDecimal("0.00"), "good");
+
+        // 0.00 既非 null 也非负数，应正常落库（updateById 被调用），且总分为 0
+        verify(examSessionMapper).updateById((ExamSession) any());
+        assertEquals(0, testSession.getTotalScore().compareTo(BigDecimal.ZERO));
+    }
+
+    // ==================== D6 错题练习次数 null 拆箱 ====================
+
+    @Test
+    @DisplayName("自动阅卷 - 已有错题 practiceCount 为 null 时再次答错次数变 1 且不丢更新（D6 回归）")
+    void testAutoGrade_practiceCountNull_incrementsTo1() throws Exception {
+        testSession.setStatus("SUBMITTED");
+        testSession.setAnswers("{\"101\":\"A\"}"); // 学生答 A
+
+        ExamQuestion eq = new ExamQuestion();
+        eq.setQuestionId(101L);
+        eq.setExamPaperId(1L);
+        eq.setPoints(new BigDecimal("5"));
+        eq.setOrderIndex(1);
+
+        Question q = new Question();
+        q.setId(101L);
+        q.setType("SINGLE_CHOICE");
+        q.setCorrectAnswers("B"); // 正确答案 B → 答错
+
+        // 已存在的错题记录：practiceCount 为 null（历史/未初始化数据）
+        WrongQuestion existing = new WrongQuestion();
+        existing.setId(500L);
+        existing.setStudentId(100L);
+        existing.setQuestionId(101L);
+        existing.setPracticeCount(null);
+
+        when(examSessionMapper.selectById(1L)).thenReturn(testSession);
+        when(objectMapper.readValue(anyString(), any(TypeReference.class))).thenReturn(Map.of("101", "A"));
+        when(examQuestionService.list(any(LambdaQueryWrapper.class))).thenReturn(List.of(eq));
+        when(questionService.listByIds(any())).thenReturn(List.of(q));
+        when(questionService.getById(101L)).thenReturn(q);
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
+        when(examSessionMapper.updateById((ExamSession) any())).thenReturn(1);
+        ExamPaper paperWithCourse = new ExamPaper();
+        paperWithCourse.setId(1L);
+        paperWithCourse.setCourseId(7L);
+        when(examPaperService.getById(1L)).thenReturn(paperWithCourse);
+        when(wrongQuestionService.count(any())).thenReturn(1L); // 命中已存在分支
+        when(wrongQuestionService.getOne(any(LambdaQueryWrapper.class))).thenReturn(existing);
+
+        assertDoesNotThrow(() -> gradingService.autoGrade(1L));
+
+        // D6 核心断言：更新被真正执行且次数由 null→1（修复前 NPE 被外层 catch 吞掉，updateById 从不触发）
+        ArgumentCaptor<WrongQuestion> captor = ArgumentCaptor.forClass(WrongQuestion.class);
+        verify(wrongQuestionService).updateById(captor.capture());
+        assertEquals(1, captor.getValue().getPracticeCount(),
+                "practiceCount 为 null 时再次答错应累加为 1");
     }
 
     // ==================== calculateTotalScore ====================

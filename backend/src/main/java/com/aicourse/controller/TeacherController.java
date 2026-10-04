@@ -153,6 +153,9 @@ public class TeacherController {
                                                      @Valid @RequestBody CourseChapter chapter,
                                                      Authentication auth) {
         assertCourseOwner(courseId, auth);
+        // 修复 D1（越权 IDOR）：仅校验 courseId 归属不足以挡住「自己的 courseId + 别人的 chapterId」，
+        // 必须确认该 chapterId 确实属于 courseId，否则可篡改/越权改写他人课程下的章节。
+        assertChapterBelongsToCourse(courseId, chapterId);
         chapter.setId(chapterId);
         chapter.setCourseId(courseId);
         chapterService.updateById(chapter);
@@ -166,6 +169,9 @@ public class TeacherController {
                                             @PathVariable Long chapterId,
                                             Authentication auth) {
         assertCourseOwner(courseId, auth);
+        // 修复 D1（越权 IDOR）：同 updateChapter，删除前必须校验章节归属，
+        // 否则任意教师用自己的 courseId + 他人 chapterId 即可删除别人章节。
+        assertChapterBelongsToCourse(courseId, chapterId);
         chapterService.removeById(chapterId);
         return ApiResponse.success("章节删除成功", null);
     }
@@ -640,7 +646,11 @@ public class TeacherController {
     /** 获取单个学生的学情分析 */
     @GetMapping("/analytics/students/{studentId}")
     @Operation(summary = "获取学生学情分析")
-    public ApiResponse<Map<String, Object>> getStudentAnalytics(@PathVariable Long studentId) {
+    public ApiResponse<Map<String, Object>> getStudentAnalytics(@PathVariable Long studentId, Authentication auth) {
+        // 修复 D2（越权 IDOR）：原方法无 Authentication，任意教师可对任意 studentId 拉全量学情。
+        // 复用服务层既有的「教师—学生」归属判定 hasApprovedEnrollmentWithTeacher，
+        // 仅当该学生确为当前教师名下课程的在读（有效且审批通过）学生时放行；管理员放行。
+        assertTeacherOwnsStudent(studentId, auth);
         Map<String, Object> data = analyticsService.getUserDashboard(studentId);
         return ApiResponse.success(data);
     }
@@ -755,9 +765,7 @@ public class TeacherController {
      */
     private void assertCourseOwner(Long courseId, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(g -> g.getAuthority().equals("ROLE_ADMIN"));
-        if (isAdmin) return;
+        if (isAdmin(auth)) return;
         Course course = courseService.getById(courseId);
         if (course == null) throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
         // 语义修正（2026-09-14）：越权拒绝应为 403 而非默认 400
@@ -774,5 +782,39 @@ public class TeacherController {
         Question question = questionService.getById(questionId);
         if (question == null) throw new BusinessException("题目不存在");
         if (question.getCourseId() != null) assertCourseOwner(question.getCourseId(), auth);
+    }
+
+    /**
+     * 章节归属校验：chapterId 必须真实属于 courseId。
+     *
+     * <p>修复 D1（越权 IDOR）：{@link #assertCourseOwner} 只证明「教师拥有 courseId」，
+     * 无法证明「chapterId 挂在该 courseId 下」。若缺失此校验，任意教师用自己名下的 courseId
+     * 拼接他人课程的 chapterId，即可改写/删除他人章节。异常类型/文案与同文件其它 assertXxxOwner 对齐：
+     * 不存在 → 404，跨课程 → 403。</p>
+     */
+    private void assertChapterBelongsToCourse(Long courseId, Long chapterId) {
+        CourseChapter chapter = chapterService.getById(chapterId);
+        if (chapter == null) throw new BusinessException(ApiCode.NOT_FOUND, "章节不存在");
+        if (!courseId.equals(chapter.getCourseId())) throw new BusinessException(ApiCode.FORBIDDEN, "无权操作该章节");
+    }
+
+    /**
+     * 教师—学生归属校验：当前教师须为该学生的授课教师（其在读学生），管理员放行。
+     *
+     * <p>修复 D2（越权 IDOR）：复用 {@link CourseEnrollmentService#hasApprovedEnrollmentWithTeacher}
+     * 的既有服务层归属判定，杜绝越权拉取任意学生学情。拒绝语义与项目一致返回 403。</p>
+     */
+    private void assertTeacherOwnsStudent(Long studentId, Authentication auth) {
+        if (isAdmin(auth)) return;
+        Long teacherId = (Long) auth.getPrincipal();
+        if (!enrollmentService.hasApprovedEnrollmentWithTeacher(studentId, teacherId)) {
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权查看该学生学情");
+        }
+    }
+
+    /** 是否管理员角色：课程归属类校验对管理员放行。 */
+    private boolean isAdmin(Authentication auth) {
+        return auth.getAuthorities().stream()
+                .anyMatch(g -> g.getAuthority().equals("ROLE_ADMIN"));
     }
 }

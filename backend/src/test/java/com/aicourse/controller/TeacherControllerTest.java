@@ -330,6 +330,10 @@ class TeacherControllerTest extends ControllerTestBase {
     @DisplayName("DELETE /teacher/courses/1/chapters/1 - 真实业务断言：归属校验通过并委托 delete")
     void deleteChapter_authorized_passes_security() throws Exception {
         when(courseService.getById(eq(1L))).thenReturn(ownerCourse());
+        CourseChapter ch = new CourseChapter();
+        ch.setId(1L);
+        ch.setCourseId(1L);
+        when(chapterService.getById(eq(1L))).thenReturn(ch);
         when(chapterService.removeById(any(Long.class))).thenReturn(true);
         mockMvc.perform(delete("/teacher/courses/1/chapters/1").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
@@ -857,6 +861,7 @@ class TeacherControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /teacher/analytics/students/1 - 真实业务断言：委托 getUserDashboard")
     void getStudentAnalytics_authorized_passes_security() throws Exception {
+        when(enrollmentService.hasApprovedEnrollmentWithTeacher(eq(1L), eq(1L))).thenReturn(true);
         when(analyticsService.getUserDashboard(eq(1L))).thenReturn(Map.of("studentId", 1));
         mockMvc.perform(get("/teacher/analytics/students/1").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
@@ -1132,5 +1137,72 @@ class TeacherControllerTest extends ControllerTestBase {
     void chapterTree_student_forbidden_403() throws Exception {
         mockMvc.perform(get("/teacher/courses/1/chapters/tree").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
+    }
+
+    // ==================== D1 回归：章节归属校验（chapterId 必须属于 courseId） ====================
+
+    @Test
+    @DisplayName("PUT 章节 - 章节属于他人课程时拒绝且不落库（D1 越权 IDOR 回归）")
+    void updateChapter_chapterBelongsToOtherCourse_forbidden() throws Exception {
+        when(courseService.getById(eq(1L))).thenReturn(ownerCourse());
+        CourseChapter foreign = new CourseChapter();
+        foreign.setId(2L);
+        foreign.setCourseId(99L); // 章节实际挂在他人课程 99 下
+        when(chapterService.getById(eq(2L))).thenReturn(foreign);
+        mockMvc.perform(put("/teacher/courses/1/chapters/2").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"越权改写\"}").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(chapterService, never()).updateById(any(CourseChapter.class));
+    }
+
+    @Test
+    @DisplayName("DELETE 章节 - 章节属于他人课程时拒绝且不删除（D1 越权 IDOR 回归）")
+    void deleteChapter_chapterBelongsToOtherCourse_forbidden() throws Exception {
+        when(courseService.getById(eq(1L))).thenReturn(ownerCourse());
+        CourseChapter foreign = new CourseChapter();
+        foreign.setId(2L);
+        foreign.setCourseId(99L);
+        when(chapterService.getById(eq(2L))).thenReturn(foreign);
+        mockMvc.perform(delete("/teacher/courses/1/chapters/2").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(chapterService, never()).removeById(any(Long.class));
+    }
+
+    @Test
+    @DisplayName("PUT 章节 - 章节不存在返回404且不落库（D1 边界）")
+    void updateChapter_chapterNotFound_notFound() throws Exception {
+        when(courseService.getById(eq(1L))).thenReturn(ownerCourse());
+        when(chapterService.getById(eq(2L))).thenReturn(null);
+        mockMvc.perform(put("/teacher/courses/1/chapters/2").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"x\"}").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.code").value(404));
+        verify(chapterService, never()).updateById(any(CourseChapter.class));
+    }
+
+    // ==================== D2 回归：学生学情归属校验 ====================
+
+    @Test
+    @DisplayName("GET 学生学情 - 教师与该生无选课归属时拒绝（D2 越权 IDOR 回归）")
+    void getStudentAnalytics_noEnrollment_forbidden() throws Exception {
+        when(enrollmentService.hasApprovedEnrollmentWithTeacher(eq(5L), eq(1L))).thenReturn(false);
+        mockMvc.perform(get("/teacher/analytics/students/5").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(analyticsService, never()).getUserDashboard(any());
+    }
+
+    @Test
+    @DisplayName("GET 学生学情 - 管理员放行（不受归属限制）")
+    void getStudentAnalytics_adminBypass_passes() throws Exception {
+        when(analyticsService.getUserDashboard(eq(5L))).thenReturn(Map.of("studentId", 5));
+        mockMvc.perform(get("/teacher/analytics/students/5").with(withUser(9L, "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.studentId").value(5));
+        verify(enrollmentService, never()).hasApprovedEnrollmentWithTeacher(any(), any());
+        verify(analyticsService).getUserDashboard(eq(5L));
     }
 }

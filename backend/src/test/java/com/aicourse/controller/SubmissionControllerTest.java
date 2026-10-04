@@ -43,14 +43,76 @@ class SubmissionControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("POST /submissions - 学生提交作业返回200，studentId透传")
+    @DisplayName("POST /submissions - 学生提交作业返回200，收口到 submitAssignment 且 studentId 取自登录态")
     void submit_authorized_passes_security() throws Exception {
+        Submission saved = new Submission();
+        saved.setId(10L);
+        saved.setStudentId(1L);
+        saved.setTaskId(1L);
+        when(submissionService.submitAssignment(eq(1L), eq(1L), any(), any())).thenReturn(saved);
         mockMvc.perform(post("/submissions").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"taskId\":1}").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
+                        .content("{\"taskId\":1,\"content\":\"作答\"}").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.studentId").value(1));
-        verify(submissionService).save(any());
+        // D4：提交必须走服务层统一收口（含存在性/发布/逾期/次数校验），而非裸 save
+        verify(submissionService).submitAssignment(eq(1L), eq(1L), any(), any());
+        verify(submissionService, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("POST /submissions - 任务不存在时按业务异常拒绝，不落库（D4 回归）")
+    void submit_taskNotFound_rejected() throws Exception {
+        when(submissionService.submitAssignment(any(), any(), any(), any()))
+                .thenThrow(new com.aicourse.exception.BusinessException("作业任务不存在"));
+        mockMvc.perform(post("/submissions").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"taskId\":999}").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.message").value("作业任务不存在"));
+        verify(submissionService, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("POST /submissions - 未发布作业被服务层拒绝（D4 回归）")
+    void submit_unpublished_rejected() throws Exception {
+        when(submissionService.submitAssignment(any(), any(), any(), any()))
+                .thenThrow(new com.aicourse.exception.BusinessException("该作业尚未发布"));
+        mockMvc.perform(post("/submissions").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"taskId\":1}").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value("该作业尚未发布"));
+        verify(submissionService, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("POST /submissions - 超过最大提交次数被拒绝（D4 幂等/次数防护回归）")
+    void submit_exceedMaxSubmissions_rejected() throws Exception {
+        when(submissionService.submitAssignment(any(), any(), any(), any()))
+                .thenThrow(new com.aicourse.exception.BusinessException("已达到最大提交次数限制（3次），无法再次提交"));
+        mockMvc.perform(post("/submissions").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"taskId\":1}").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("最大提交次数")));
+        verify(submissionService, never()).save(any());
+    }
+
+    @Test
+    @DisplayName("POST /submissions - 逾期按既有策略迟交放行并回传 isLate（D4 逾期策略回归）")
+    void submit_late_allowedWithPenalty() throws Exception {
+        Submission late = new Submission();
+        late.setId(20L);
+        late.setStudentId(1L);
+        late.setTaskId(1L);
+        late.setIsLate(true);
+        late.setLatePenalty(new java.math.BigDecimal("10"));
+        when(submissionService.submitAssignment(eq(1L), eq(1L), any(), any())).thenReturn(late);
+        mockMvc.perform(post("/submissions").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"taskId\":1,\"content\":\"迟交\"}").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.isLate").value(true))
+                .andExpect(jsonPath("$.data.latePenalty").value(10));
     }
 
     @Test

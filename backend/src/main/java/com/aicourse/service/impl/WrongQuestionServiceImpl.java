@@ -20,6 +20,7 @@ import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.core.type.TypeReference;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.LocalDateTime;
@@ -98,6 +99,21 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
             this.save(wrongQuestion);
             return wrongQuestion;
         }
+    }
+
+    /**
+     * 记录错题（独立事务版本，修复 D3）。
+     *
+     * <p>REQUIRES_NEW 会挂起调用方事务并开启全新事务：本方法内异常仅回滚本事务，
+     * 不会把外层（如测验判分）共享事务标记为 rollback-only，从而消除
+     * {@code submitQuiz} 吞异常后仍尝试提交导致的 {@code UnexpectedRollbackException}。
+     * 注意：内部对 {@link #recordWrongAnswer} 为自调用，代理事务注解不生效，但此时逻辑已运行在
+     * 本方法开启的新事务中，DB 写入仍受 REQUIRES_NEW 事务保护。</p>
+     */
+    @Override
+    @Transactional(propagation = Propagation.REQUIRES_NEW, rollbackFor = Exception.class)
+    public WrongQuestion recordWrongAnswerInNewTx(Long studentId, Long questionId, Long courseId, String wrongAnswer, String sourceType) {
+        return recordWrongAnswer(studentId, questionId, courseId, wrongAnswer, sourceType);
     }
 
     /**
