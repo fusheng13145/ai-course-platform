@@ -4,7 +4,7 @@
 对应 Java 端 `com.aicourse.integration` 下游契约（权威单一事实来源见 docs/项目手册.md 第八部分）。
 Java 端 `knowledge-graph.enabled=true` 时经 `HttpKnowledgeGraphProvider` 调用本服务的
 `/api/v1/graph/*` 契约（path/plan、ingest、subgraph），端点路径与响应字段不得破坏
-`contract_test.py` 护栏。
+`test_kg_contract.py` 护栏。
 
 存储后端见 `kg_store.py`：
 - Neo4j 真实引擎（:Kp 节点 + [:RELATES] 关系，Cypher shortestPath 多跳路径规划），
@@ -18,8 +18,8 @@ Java 端 `knowledge-graph.enabled=true` 时经 `HttpKnowledgeGraphProvider` 调�
 
 from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
+from fastapi import FastAPI, HTTPException, Query
+from pydantic import BaseModel, Field
 
 try:
     import kg_store
@@ -31,33 +31,33 @@ app = FastAPI(title="AI Course Knowledge Graph Service", version="1.1.0")
 
 # ---------------- 请求体模型 ----------------
 class NodeIn(BaseModel):
-    course_id: int
-    name: str
+    course_id: int = Field(ge=1)
+    name: str = Field(min_length=1, max_length=255)
     content: str = ""
     type: str = "CONCEPT"
     # 可选显式 ID：用于与 Java 侧 MySQL 知识点 ID 对齐的图同步；缺省时服务端自增
-    id: Optional[int] = None
+    id: Optional[int] = Field(default=None, ge=1)
 
 
 class RelationIn(BaseModel):
-    source_id: int
-    target_id: int
-    relation_type: str
+    source_id: int = Field(ge=1)
+    target_id: int = Field(ge=1)
+    relation_type: str = Field(min_length=1, max_length=255)
 
 
 class PathPlanIn(BaseModel):
-    source_id: int
-    target_id: int
-    max_hops: int = 2
+    source_id: int = Field(ge=1)
+    target_id: int = Field(ge=1)
+    max_hops: int = Field(2, ge=1, le=5)
 
 
 class IngestIn(BaseModel):
-    course_id: int
+    course_id: int = Field(ge=1)
 
 
 class SubGraphIn(BaseModel):
-    course_id: int
-    max_hops: int = 2
+    course_id: int = Field(ge=1)
+    max_hops: int = Field(2, ge=1, le=5)
 
 
 # ---------------- 端点 ----------------
@@ -84,7 +84,7 @@ def get_node(node_id: int) -> Dict[str, Any]:
 
 
 @app.get("/api/v1/graph/nodes/{node_id}/relations")
-def node_relations(node_id: int, depth: int = 1) -> Dict[str, Any]:
+def node_relations(node_id: int, depth: int = Query(1, ge=1, le=5)) -> Dict[str, Any]:
     store = kg_store.get_store()
     return {"node": store.get_node(node_id) or {"id": node_id},
             "relations": store.relations_of(node_id, depth)}

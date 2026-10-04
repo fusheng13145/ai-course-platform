@@ -55,6 +55,12 @@ class MemoryStore:
                 node_id = self._node_seq
                 self._node_seq = max(self._node_seq, node_id) + 1
             else:
+                # 缺陷4：显式 id 命中已有节点即"覆盖"，须同步清理该节点的陈旧边，
+                # 否则会遗留指向旧内容的悬空关系（delete_node 也是同样的清边语义）。
+                if node_id in self.nodes:
+                    self.relations = [r for r in self.relations
+                                      if r["source_id"] != node_id
+                                      and r["target_id"] != node_id]
                 self._node_seq = max(self._node_seq, node_id + 1)
             node = {"id": node_id, "name": name, "type": type_,
                     "content": content, "course_id": course_id,
@@ -198,8 +204,11 @@ class Neo4jStore:
                 tx = s.begin_transaction()
                 node = {"id": node_id, "name": name, "type": type_,
                         "content": content, "course_id": course_id, "created_at": _now()}
-                tx.run("MERGE (n:Kp {id: $id}) SET n = $props",
-                       id=node_id, props=node)
+                # 缺陷4：显式 id 覆盖已有节点时，DETACH DELETE 会连同其陈旧边一并清除，
+                # 再 CREATE 出干净节点，避免 MERGE+SET 遗留指向旧内容的悬空关系。
+                # 对不存在的 id，DETACH DELETE 是无操作，新节点语义不受影响。
+                tx.run("MATCH (n:Kp {id: $id}) DETACH DELETE n", id=node_id)
+                tx.run("CREATE (n:Kp) SET n = $props", props=node)
                 tx.commit()
                 return dict(node)
 

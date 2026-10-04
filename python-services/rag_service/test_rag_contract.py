@@ -9,7 +9,7 @@ RAG 检索引擎（8002）契约冒烟测试
 
 本地运行：
     pip install -r requirements.txt pytest
-    pytest -q contract_test.py
+    pytest -q test_rag_contract.py
 
 引擎说明：真实检索引擎在 rag_engine.py（BM25+向量混合召回），重依赖懒加载；
 本测试在 CI（无引擎依赖）下验证占位/降级契约，在本地（依赖齐备）额外验证真实检索。
@@ -94,6 +94,51 @@ def test_ask_returns_degraded_503():
         assert body["mode"] == "UNAVAILABLE"
         # 与 Java 端 ContractPaths.MSG_RAG_UNAVAILABLE 严格一致（契约漂移修复）
         assert body["error"] == MSG_RAG_UNAVAILABLE
+
+
+# ------------------------------------------------------------------
+# 跨语言契约固化（缺陷2 回归）：引擎不可用时，两个检索端点的响应体形状必须同时满足
+# code==503、mode=="UNAVAILABLE"、error 非空、结果集为空。
+# Java 端 HttpRagProvider 据此把 mode 判为 UNAVAILABLE 并回退纯 LLM；此前它把 mode
+# 硬编码为 ENGINE 且忽略 body.code/error，导致降级被当成成功。把形状钉死防再次漂移。
+# ------------------------------------------------------------------
+@pytest.mark.parametrize("endpoint,payload,result_field", [
+    ("/api/v1/rag/retrieve", {"query": "OSI", "course_id": 2, "top_k": 5}, "results"),
+    ("/api/v1/rag/ask", {"question": "什么是 TCP？", "course_id": 2, "top_k": 5}, "answer"),
+])
+def test_unavailable_contract_shape(endpoint, payload, result_field):
+    with TestClient(app) as c:
+        resp = c.post(endpoint, json=payload)
+        assert resp.status_code == 200, "降级仍走 HTTP 200，业务码在 body.code"
+        body = resp.json()
+        assert body["code"] == 503
+        assert body["mode"] == "UNAVAILABLE"
+        assert body.get("error"), "error 必须非空，供 Java 端记录降级原因"
+        # 结果集必须为空（answer=None 或空串；results=[] / sources=[]）
+        assert not body.get(result_field), f"{result_field} 应为空"
+        if endpoint.endswith("/ask"):
+            assert not body.get("sources"), "sources 应为空"
+        else:
+            assert body.get("results") == []
+
+
+def test_top_k_out_of_range_returns_422():
+    # 缺陷3：入参边界——top_k 越界（0 / 负 / >50）必须 422，而不是被静默夹取
+    with TestClient(app) as c:
+        for bad in (0, -1, 51):
+            resp = c.post("/api/v1/rag/retrieve",
+                          json={"query": "OSI", "course_id": 2, "top_k": bad})
+            assert resp.status_code == 422, f"top_k={bad} 应 422"
+            resp = c.post("/api/v1/rag/ask",
+                          json={"question": "TCP？", "course_id": 2, "top_k": bad})
+            assert resp.status_code == 422, f"ask top_k={bad} 应 422"
+
+
+def test_empty_question_returns_422():
+    with TestClient(app) as c:
+        resp = c.post("/api/v1/rag/ask",
+                      json={"question": "", "course_id": 2, "top_k": 5})
+        assert resp.status_code == 422
 
 
 def test_retrieve_returns_success_schema(monkeypatch):

@@ -10,7 +10,7 @@ Neo4j 真实引擎 / 内存基线）时须保持这些端点与响应结构不�
 
 本地运行：
     pip install -r requirements.txt pytest
-    pytest -q contract_test.py
+    pytest -q test_kg_contract.py
 """
 
 import os
@@ -19,6 +19,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 import kg_store
+import neo4j_fake
 from kg_service import app
 
 
@@ -123,6 +124,97 @@ def test_course_graph():
         resp = c.get("/api/v1/graph/course/4")
         assert resp.status_code == 200
         assert len(resp.json()["nodes"]) == 2
+
+
+# ------------------------------------------------------------------
+# 入参边界（缺陷3）：max_hops / depth / course_id 越界必须 422，而不是被静默夹取
+# ------------------------------------------------------------------
+def test_path_plan_max_hops_bounds():
+    with TestClient(app) as c:
+        a = c.post("/api/v1/graph/nodes", json={"course_id": 5, "name": "A"}).json()
+        b = c.post("/api/v1/graph/nodes", json={"course_id": 5, "name": "B"}).json()
+        for bad in (0, -1, 6):
+            resp = c.post("/api/v1/graph/path/plan",
+                          json={"source_id": a["id"], "target_id": b["id"], "max_hops": bad})
+            assert resp.status_code == 422, f"max_hops={bad} 应 422"
+        ok = c.post("/api/v1/graph/path/plan",
+                    json={"source_id": a["id"], "target_id": b["id"], "max_hops": 5})
+        assert ok.status_code == 200
+
+
+def test_relations_depth_bounds_and_course_id():
+    with TestClient(app) as c:
+        n = c.post("/api/v1/graph/nodes", json={"course_id": 6, "name": "N"}).json()
+        for bad in (0, 6):
+            resp = c.get(f"/api/v1/graph/nodes/{n['id']}/relations", params={"depth": bad})
+            assert resp.status_code == 422, f"depth={bad} 应 422"
+        # course_id 必须为正整数（ge=1）
+        bad = c.post("/api/v1/graph/nodes", json={"course_id": 0, "name": "X"})
+        assert bad.status_code == 422
+
+
+# ------------------------------------------------------------------
+# 显式节点 ID 覆盖语义（缺陷4）：同 id 覆盖时清理陈旧边，不遗留悬空关系
+# ------------------------------------------------------------------
+def test_explicit_id_overwrite_clears_stale_edges():
+    with TestClient(app) as c:
+        a = c.post("/api/v1/graph/nodes",
+                   json={"course_id": 7, "name": "A", "id": 500}).json()
+        b = c.post("/api/v1/graph/nodes", json={"course_id": 7, "name": "B"}).json()
+        c.post("/api/v1/graph/relations",
+               json={"source_id": a["id"], "target_id": b["id"], "relation_type": "PREREQ"})
+        assert any(r["relation_type"] == "PREREQ"
+                   for r in c.get(f"/api/v1/graph/nodes/{a['id']}/relations").json()["relations"])
+
+        # 用同一显式 id 覆盖 A -> 陈旧边应被清理
+        c.post("/api/v1/graph/nodes",
+               json={"course_id": 7, "name": "A2", "content": "新内容", "id": 500})
+        after = c.get(f"/api/v1/graph/nodes/{a['id']}/relations").json()
+        assert after["relations"] == []
+        assert after["node"]["name"] == "A2"
+
+
+# ------------------------------------------------------------------
+# Neo4jStore 契约（fake driver，无需真实 Neo4j，恒实跑）：
+# 固化 CRUD/关系/路径端点走 Neo4j 后端时的响应形状与 Cypher 参数化，
+# 使原本"因缺驱动/连不上而恒 skip"的用例具备确定性的可回归断言。
+# 真实连接 smoke 见下方 test_neo4j_store_crud_relations_and_path（无 Neo4j 时仍 skip）。
+# ------------------------------------------------------------------
+def test_neo4j_store_backend_contract_with_fake_driver(monkeypatch):
+    node_seq = {"v": 100}
+
+    def respond(query, params):
+        if "coalesce(max(n.id)" in query:
+            node_seq["v"] += 1
+            return neo4j_fake.FakeResult({"nid": node_seq["v"]})
+        if "coalesce(max(r.id)" in query:
+            return neo4j_fake.FakeResult({"rid": 1})
+        if "count(n)" in query:
+            return neo4j_fake.FakeResult({"c": 1})
+        if "shortestPath" in query:
+            return neo4j_fake.FakeResult({"ids": [1, 2],
+                                          "edges": [{"source_id": 1, "target_id": 2,
+                                                     "relation_type": "PREREQ"}]})
+        return neo4j_fake.FakeResult(None)
+
+    drv = neo4j_fake.FakeDriver(respond=respond)
+    monkeypatch.setattr(kg_store, "_GraphDatabase", neo4j_fake.FakeGraphDatabase(drv))
+    store = kg_store.Neo4jStore("bolt://fake:7687", "neo4j", "pw")
+    try:
+        a = store.create_node(9, "进程", "资源分配单位", "CONCEPT")
+        b = store.create_node(9, "线程", "调度单位", "CONCEPT")
+        rel = store.create_relation(a["id"], b["id"], "PREREQ")
+        plan = store.path_plan(a["id"], b["id"], max_hops=3)
+
+        assert a["id"] and b["id"] and a["id"] != b["id"]
+        assert rel["source_id"] == a["id"] and rel["relation_type"] == "PREREQ"
+        assert plan["path"] == [1, 2] and plan["hops"] == 1
+        # 契约：所有 id 都以参数传递，Cypher 文本里不得出现裸 id
+        assert all(str(a["id"]) not in q for q, _ in drv.calls)
+    finally:
+        store.close()
+    assert drv.closed is True
+    assert drv.sessions_opened == drv.sessions_closed  # 连接/会话被释放
 
 
 # ------------------------------------------------------------------

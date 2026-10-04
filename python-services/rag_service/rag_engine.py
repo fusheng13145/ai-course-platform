@@ -30,6 +30,14 @@ ENGINE_VERSION = "1.0"
 
 _LOCK = threading.RLock()
 
+
+class StoreCorruptedError(RuntimeError):
+    """文档存储文件损坏且无法解析时抛出。
+
+    保留"引擎故障"的显式语义：调用方（检索/健康检查）不应把它当作"无结果"静默处理，
+    而应向上报错或按契约降级，避免损坏后检索悄悄返回空。
+    """
+
 # 可选依赖探测（懒加载 + 可用性标记）
 _DEP_ERRORS: list[str] = []
 
@@ -105,12 +113,24 @@ _INDEX_META: dict[int, dict] = {}
 
 
 def _load_store() -> None:
+    """载入全局文档表。
+
+    损坏恢复语义：文件存在但解析失败时，**不静默清空**——先把损坏文件另存为
+    `.corrupt` 以便排查，再抛出 `StoreCorruptedError`，让上层（检索/健康检查）显式
+    感知引擎故障，而不是返回空结果伪装成功。正常载入后才置 `_loaded`。
+    """
     global _NEXT_ID, _loaded
     if _loaded:
         return
     path = _docs_path()
     if path.exists():
-        payload = json.loads(path.read_text(encoding="utf-8"))
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, ValueError, OSError) as exc:
+            quarantined = _quarantine_corrupt(path)
+            raise StoreCorruptedError(
+                f"文档存储损坏（{exc}），已隔离至 {quarantined.name}"
+            ) from exc
         _DOCS.clear()
         _DOCS.update({int(k): v for k, v in payload.get("documents", {}).items()})
         _INDEX_META.clear()
@@ -119,10 +139,50 @@ def _load_store() -> None:
     _loaded = True
 
 
-def _save_store() -> None:
-    path = _docs_path()
+def _quarantine_corrupt(path: Path) -> Path:
+    """把损坏的存储文件改名保留（加时间戳），供事后排查而非直接删除。"""
+    from datetime import datetime
+
+    stamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    target = path.with_name(f"{path.name}.corrupt.{stamp}")
+    try:
+        os.replace(path, target)
+    except OSError:
+        # 改名失败（例如同秒冲突）时退回带随机后缀，确保原文件不被后续写入覆盖
+        target = path.with_name(f"{path.name}.corrupt.{stamp}.{os.getpid()}")
+        try:
+            os.replace(path, target)
+        except OSError:
+            pass
+    return target
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """先写临时文件再 os.replace 原子替换，避免进程崩溃留下半截 JSON。"""
+    _atomic_write_bytes(path, text.encode("utf-8"))
+
+
+def _atomic_write_bytes(path: Path, payload: bytes) -> None:
+    """字节级原子替换落盘（先写临时文件、flush/fsync 再 os.replace）。"""
     path.parent.mkdir(parents=True, exist_ok=True)
-    path.write_text(
+    tmp = path.with_name(f".{path.name}.tmp")
+    try:
+        with open(tmp, "wb") as fh:
+            fh.write(payload)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    finally:
+        if tmp.exists():
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+
+
+def _save_store() -> None:
+    _atomic_write_text(
+        _docs_path(),
         json.dumps(
             {
                 "version": ENGINE_VERSION,
@@ -133,7 +193,6 @@ def _save_store() -> None:
             ensure_ascii=False,
             indent=2,
         ),
-        encoding="utf-8",
     )
 
 
@@ -211,13 +270,16 @@ def index_status(course_id: int) -> Optional[dict]:
 
 
 def _invalidate_course_index(course_id: int) -> None:
-    """文档变更后该课程索引视为过期（检索时回退降级语义，需重新 build）。"""
+    """文档变更后该课程索引视为过期（检索时回退降级语义，需重新 build）。
+
+    同时删除 `index.*` 与 `chunks.json`，避免旧分块残留被检索复用。
+    """
     meta = _INDEX_META.pop(course_id, None)
     if meta:
         cdir = _course_dir(course_id)
-        for f in cdir.glob("index.*"):
+        for f in list(cdir.glob("index.*")) + [cdir / "chunks.json"]:
             try:
-                f.unlink()
+                f.unlink(missing_ok=True)
             except OSError:
                 pass
 
@@ -271,6 +333,22 @@ def _get_model():
     return _model_holder["model"]
 
 
+def _as_unit_vectors(vecs):
+    """把向量矩阵按行 L2 归一化（模型已 normalize，此处兜底并保证幂等）。
+
+    输入可为 1D 或 2D；返回 float32 的 2D 数组。零向量保持为全 0（除零保护）。
+    维度不匹配的输入直接抛 ValueError，交由上层按引擎故障处理。
+    """
+    arr = _np.asarray(vecs, dtype="float32")
+    if arr.ndim == 1:
+        arr = arr.reshape(1, -1)
+    if arr.ndim != 2:
+        raise ValueError(f"向量维度非法：期望 1D/2D，实际 ndim={arr.ndim}")
+    norms = _np.linalg.norm(arr, axis=1, keepdims=True)
+    norms = _np.where(norms == 0, 1.0, norms)
+    return arr / norms
+
+
 def _embed(texts: list[str]):
     model = _get_model()
     vecs = model.encode(
@@ -279,10 +357,63 @@ def _embed(texts: list[str]):
         show_progress_bar=False,
         batch_size=16,
     )
-    return _np.asarray(vecs, dtype="float32")
+    return _as_unit_vectors(vecs)
 
 
 # ---------------------------------------------------------------- 索引构建 / 检索
+
+# ---------------------------------------------------------------- 召回与融合（可独立测试）
+
+# RRF 融合常数：与历史实现严格保持一致（原代码 k0=60.0），改此值会影响排名语义。
+RRF_K = 60.0
+
+
+def bm25_rank(corpus_tokens: list[list[str]], query_tokens: list[str],
+              pool: int) -> list[tuple[int, float]]:
+    """BM25 召回：返回按分数降序、仅保留正分、截断到 pool 的 (chunk_idx, score)。
+
+    空查询 / 纯标点（分词后为空） / 全未知词都返回 []，不抛异常。
+    """
+    if _BM25Okapi is None or not query_tokens or not corpus_tokens:
+        return []
+    if not any(corpus_tokens):
+        return []
+    bm25 = _BM25Okapi(corpus_tokens)
+    scores = bm25.get_scores(query_tokens)
+    ranked = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
+    return [(i, float(scores[i])) for i in ranked[:pool] if scores[i] > 0]
+
+
+def vector_rank_from_index(index, query_vec, pool: int) -> list[tuple[int, float]]:
+    """在 FAISS IndexFlatIP 上取回 top-`pool`，过滤 -1（无命中）。
+
+    空索引（ntotal==0）返回 []；查询向量维度与索引维度不符抛 ValueError，
+    交由调用方按引擎故障处理，而不是静默返回空。
+    """
+    qv = _np.asarray(query_vec, dtype="float32")
+    if qv.ndim == 1:
+        qv = qv.reshape(1, -1)
+    if index.ntotal == 0:
+        return []
+    if qv.shape[1] != index.d:
+        raise ValueError(f"查询向量维度({qv.shape[1]})与索引维度({index.d})不匹配")
+    D, I = index.search(_np.ascontiguousarray(qv), min(pool, index.ntotal))
+    return [(int(i), float(d)) for d, i in zip(D[0], I[0]) if i >= 0]
+
+
+def rrf_fuse(*rank_lists, top_k: int, k: float = RRF_K) -> list[tuple[int, float]]:
+    """Reciprocal Rank Fusion：score(d) = Σ_各路 1/(k + rank + 1)，rank 为 0 基排名。
+
+    每个入参是一路的有序命中（元素为 (idx, score) 元组或纯 idx）。返回按融合分降序、
+    截断到 top_k 的 (idx, fused_score) 列表。同一元素在多路命中会累加。
+    """
+    fused: dict[int, float] = {}
+    for hits in rank_lists:
+        for rank, hit in enumerate(hits):
+            idx = hit[0] if isinstance(hit, tuple) else hit
+            fused[idx] = fused.get(idx, 0.0) + 1.0 / (k + rank + 1)
+    return sorted(fused.items(), key=lambda kv: kv[1], reverse=True)[:top_k]
+
 
 def build_course_index(course_id: int) -> dict:
     """为该课程全部文档建混合索引（BM25 + FAISS 向量），落盘持久化。
@@ -326,13 +457,12 @@ def build_course_index(course_id: int) -> dict:
         cdir = _course_dir(course_id)
         cdir.mkdir(parents=True, exist_ok=True)
         # faiss 的 C++ 文件 API 在 Windows 非 ASCII 路径下不可用（本仓库目录含中文），
-        # 故用内存序列化自行落盘。
-        (cdir / "index.faiss").write_bytes(
-            _np.ascontiguousarray(_faiss.serialize_index(index)).tobytes()
+        # 故用内存序列化自行落盘（同样走原子替换，避免崩溃留半截索引）。
+        _atomic_write_bytes(
+            cdir / "index.faiss",
+            _np.ascontiguousarray(_faiss.serialize_index(index)).tobytes(),
         )
-        (cdir / "chunks.json").write_text(
-            json.dumps(chunks, ensure_ascii=False), encoding="utf-8"
-        )
+        _atomic_write_text(cdir / "chunks.json", json.dumps(chunks, ensure_ascii=False))
         _INDEX_META[course_id] = {
             "indexed_chunks": len(chunks),
             "doc_ids": [d["id"] for d in docs],
@@ -382,13 +512,8 @@ def search(query: str, course_id: Optional[int], top_k: int) -> Optional[list[di
     pool = max(top_k * 4, 20)
 
     # --- BM25 支路 ---
-    bm25_scores: list[tuple[int, float]] = []
     corpus_tokens = [tokenize(c["text"]) for c in chunks]
-    if any(corpus_tokens):
-        bm25 = _BM25Okapi(corpus_tokens)
-        scores = bm25.get_scores(tokenize(query))
-        ranked = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)[:pool]
-        bm25_scores = [(i, float(scores[i])) for i in ranked if scores[i] > 0]
+    bm25_scores = bm25_rank(corpus_tokens, tokenize(query), pool)
 
     # --- 向量支路 ---
     vec_scores: list[tuple[int, float]] = []
@@ -397,21 +522,13 @@ def search(query: str, course_id: Optional[int], top_k: int) -> Optional[list[di
         raw = _np.frombuffer(index_path.read_bytes(), dtype=_np.uint8)
         index = _faiss.deserialize_index(raw)
         qv = _embed([query])
-        D, I = index.search(qv, min(pool, index.ntotal))
-        vec_scores = [(int(i), float(d)) for d, i in zip(D[0], I[0]) if i >= 0]
+        vec_scores = vector_rank_from_index(index, qv, pool)
 
     if not bm25_scores and not vec_scores:
         return []
 
     # --- RRF 融合 ---
-    k0 = 60.0
-    fused: dict[int, float] = {}
-    for rank, (i, _) in enumerate(bm25_scores):
-        fused[i] = fused.get(i, 0.0) + 1.0 / (k0 + rank + 1)
-    for rank, (i, _) in enumerate(vec_scores):
-        fused[i] = fused.get(i, 0.0) + 1.0 / (k0 + rank + 1)
-
-    ordered = sorted(fused.items(), key=lambda kv: kv[1], reverse=True)[:top_k]
+    ordered = rrf_fuse(bm25_scores, vec_scores, top_k=top_k)
     if not ordered:
         return []
     max_rrf = ordered[0][1] or 1.0
@@ -433,7 +550,11 @@ def search(query: str, course_id: Optional[int], top_k: int) -> Optional[list[di
 def generate_answer(question: str, contexts: list[dict]) -> tuple[str, str]:
     """基于检索上下文生成回答。返回 (answer, mode_tag)。
 
-    mode_tag: "LLM"（DeepSeek 生成）| "EXTRACTIVE"（无密钥/调用失败时抽取式回答）。
+    mode_tag（第三态语义，供调用方区分成功/降级/失败）：
+      - "LLM"         DeepSeek 生成成功；
+      - "EXTRACTIVE"  无密钥或调用失败，但有检索资料——抽取式兜底；
+      - "UNAVAILABLE" LLM 不可用且无检索资料——**可识别的失败**，answer 置空，
+                      调用方（rag_service）据此不把它当作成功回答。
     """
     joined = "\n\n".join(
         f"[资料{i + 1}] {r['document_name']}：{r['snippet']}"
@@ -450,9 +571,12 @@ def generate_answer(question: str, contexts: list[dict]) -> tuple[str, str]:
             pass  # 网络/配额失败 -> 抽取式兜底，不阻断契约响应
 
     # 抽取式兜底：取最相关块的首句拼接
-    picks = [r["snippet"].strip() for r in contexts[:3] if r["snippet"].strip()]
-    answer = "根据课程资料：" + "；".join(p[:120] for p in picks) if picks else "未检索到相关课程资料。"
-    return answer, "EXTRACTIVE"
+    picks = [r["snippet"].strip() for r in contexts[:3] if r.get("snippet", "").strip()]
+    if picks:
+        return "根据课程资料：" + "；".join(p[:120] for p in picks), "EXTRACTIVE"
+    # LLM 不可用且无检索资料：返回可识别的失败（空 answer + UNAVAILABLE 标记），
+    # 绝不返回看起来像成功的占位字符串。
+    return "", "UNAVAILABLE"
 
 
 def _call_deepseek(api_key: str, question: str, contexts: str) -> Optional[str]:

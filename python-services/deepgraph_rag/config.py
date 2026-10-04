@@ -31,8 +31,22 @@ CROSS_ENCODER_MODEL = os.getenv("CROSS_ENCODER_MODEL", "cross-encoder/ms-marco-M
 # ======================
 # Neo4j 数据库配置
 # ======================
+# 安全：不再内置任何默认密码。URI/用户名保留本地开发默认值，密码只能来自环境变量。
 NEO4J_URI = os.getenv("NEO4J_URI", "bolt://localhost:7687")
 NEO4J_USERNAME = os.getenv("NEO4J_USERNAME", "neo4j")
-NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "123456Zyj")
+NEO4J_PASSWORD = os.getenv("NEO4J_PASSWORD", "")
+
+
+def require_neo4j_password() -> str:
+    """返回 Neo4j 密码；未配置时抛出明确的配置错误（不在导入期抛，供惰性建连时调用）。
+
+    绝不打印/回显密码本身。
+    """
+    password = os.getenv("NEO4J_PASSWORD", "").strip()
+    if not password:
+        raise RuntimeError(
+            "Neo4j 密码未配置：请设置环境变量 NEO4J_PASSWORD（勿硬编码到代码或提交到仓库）。"
+        )
+    return password
 
 

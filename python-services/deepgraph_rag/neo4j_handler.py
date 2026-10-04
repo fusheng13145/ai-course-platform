@@ -1,19 +1,33 @@
 from neo4j import GraphDatabase
-from config import NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD
+from config import NEO4J_URI, NEO4J_USERNAME, require_neo4j_password
 import networkx as nx
 import re
 import json
+import threading
 
 
 
 class Neo4jGraphManager:
     def __init__(self):
-        self.driver = GraphDatabase.driver(
-            NEO4J_URI, auth=(NEO4J_USERNAME, NEO4J_PASSWORD)
-        )
+        # 惰性建连：构造时不连接 Neo4j（避免 Neo4j 未启动导致 import 即失败），
+        # 首次访问 driver 时才建立。密码只来自环境变量，缺失时给出明确配置错误。
+        self._driver = None
+        self._lock = threading.Lock()
+
+    @property
+    def driver(self):
+        if self._driver is None:
+            with self._lock:
+                if self._driver is None:  # 双重检查，避免并发重复建连
+                    self._driver = GraphDatabase.driver(
+                        NEO4J_URI, auth=(NEO4J_USERNAME, require_neo4j_password())
+                    )
+        return self._driver
 
     def close(self):
-        self.driver.close()
+        driver, self._driver = self._driver, None
+        if driver is not None:
+            driver.close()
 
     def insert_triplets(self, triplets, source_doc):
         """将提取到的三元组存入 Neo4j，并绑定当前的文件来源标签"""

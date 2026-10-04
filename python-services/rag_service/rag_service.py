@@ -3,7 +3,7 @@ RAG 检索服务（8002）· 集成契约 + 真实混合检索引擎
 ================================================
 端点与 JSON 形状严格对齐 `docs/项目手册.md`（第八部分）、Java 端
 `RAGService` / `RAGServiceImpl` / `HttpRagProvider` 与 `RagContract`。
-CI 护栏 `python-rag-contract`（`pytest -q contract_test.py`）守护该契约，
+CI 护栏 job `python-rag-contract`（`pytest -q`，含 `test_rag_contract.py`）守护该契约，
 替换/演进引擎逻辑时不得破坏端点路径与响应结构。
 
 引擎实现在 `rag_engine.py`（BM25 + 向量混合召回、RRF 融合、DeepSeek 生成）：
@@ -32,7 +32,7 @@ import os
 from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 try:
     import rag_engine
@@ -46,21 +46,21 @@ MSG_RAG_UNAVAILABLE = "RAG 引擎由团队另一成员负责，本端仅预留�
 
 
 class AskRequest(BaseModel):
-    question: str
+    question: str = Field(min_length=1, max_length=2000)
     course_id: Optional[int] = None
-    top_k: int = 5
+    top_k: int = Field(5, ge=1, le=50)
 
 
 class RetrieveRequest(BaseModel):
-    query: str
+    query: str = Field(min_length=1, max_length=2000)
     course_id: Optional[int] = None
-    top_k: int = 5
+    top_k: int = Field(5, ge=1, le=50)
 
 
 class DocumentIn(BaseModel):
-    course_id: int
-    document_name: str
-    content: str
+    course_id: int = Field(ge=1)
+    document_name: str = Field(min_length=1, max_length=255)
+    content: str = Field(min_length=1)
 
 
 class DocumentUpdate(BaseModel):
@@ -167,13 +167,18 @@ _PLACEHOLDER_SOURCES = [
 
 @app.post("/api/v1/rag/retrieve", response_model=RagRetrievalResult)
 def retrieve(req: RetrieveRequest):
-    if _engine_ready_for(req.course_id):
-        results = rag_engine.search(req.query, req.course_id, req.top_k) or []
-        return RagRetrievalResult(
-            results=[RagSource(**r) for r in results],
-            mode="ENGINE",
-            code=200,
-        )
+    try:
+        if _engine_ready_for(req.course_id):
+            results = rag_engine.search(req.query, req.course_id, req.top_k) or []
+            return RagRetrievalResult(
+                results=[RagSource(**r) for r in results],
+                mode="ENGINE",
+                code=200,
+            )
+    except rag_engine.StoreCorruptedError as exc:
+        # 存储损坏：显式报错并降级（非静默返回空），error 携带可操作信息
+        return RagRetrievalResult(results=[], mode="UNAVAILABLE",
+                                  error=f"引擎存储损坏：{exc}", code=503)
     if os.getenv("RAG_ENGINE_READY", "0") == "1":
         return RagRetrievalResult(
             results=list(_PLACEHOLDER_SOURCES),
@@ -191,12 +196,16 @@ def retrieve(req: RetrieveRequest):
 
 @app.post("/api/v1/rag/ask", response_model=RagQueryResult)
 def ask(req: AskRequest):
-    if _engine_ready_for(req.course_id):
-        results = rag_engine.search(req.question, req.course_id, req.top_k) or []
-        contexts = [RagSource(**r) for r in results]
-        answer, _gen_mode = rag_engine.generate_answer(req.question, results)
-        return RagQueryResult(answer=answer, sources=contexts,
-                              mode="ENGINE", code=200)
+    try:
+        if _engine_ready_for(req.course_id):
+            results = rag_engine.search(req.question, req.course_id, req.top_k) or []
+            contexts = [RagSource(**r) for r in results]
+            answer, _gen_mode = rag_engine.generate_answer(req.question, results)
+            return RagQueryResult(answer=answer, sources=contexts,
+                                  mode="ENGINE", code=200)
+    except rag_engine.StoreCorruptedError as exc:
+        return RagQueryResult(answer=None, sources=[], mode="UNAVAILABLE",
+                              error=f"引擎存储损坏：{exc}", code=503)
     if os.getenv("RAG_ENGINE_READY", "0") == "1":
         return RagQueryResult(
             answer="TCP 是面向连接的传输层协议，通过三次握手建立可靠连接。",
