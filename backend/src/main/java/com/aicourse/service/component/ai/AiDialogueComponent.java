@@ -44,9 +44,12 @@ public class AiDialogueComponent {
     public String generateQuestion(Long courseId, String type, String difficulty, int count) {
         log.info("生成AI");
 
+        // courseId 必须进 prompt，否则跨课程出题时模型不知道题目归属哪门课；
+        // 难度/题型缺省要显式兜底，不能把字面量 "null" 拼进提示词。
+        String scope = courseId != null ? "为课程(courseId=" + courseId + ")" : "";
         String prompt = String.format(
-                "请生成%d道%s难度、类型为%s的课程题目，包含题目内容、选项和正确答案，以JSON格式返回。",
-                count, difficulty, type);
+                "请%s生成%d道%s难度、类型为%s的课程题目，包含题目内容、选项和正确答案，以JSON格式返回。",
+                scope, count, AiCoreComponent.orDefault(difficulty, "MEDIUM"), AiCoreComponent.orDefault(type, "SINGLE_CHOICE"));
         String raw = core.completeAndSanitize(core.buildMessages(prompt, null), 0.9, "question");
         return raw != null ? raw : AiCoreComponent.SERVICE_ERROR_MSG;
     }
@@ -61,12 +64,12 @@ public class AiDialogueComponent {
         String prompt;
         if ("correct".equals(type)) {
             prompt = "你是一位严谨的批改老师。请检查以下文本中的错别字、语法错误、标点误用与逻辑不通之处，"
-                    + "先逐条指出问题，再给出修改后的完整文本。若文本无明显问题，也请明确说明。\n文本内容：\n" + params;
+                    + "先逐条指出问题，再给出修改后的完整文本。若文本无明显问题，也请明确说明。\n文本内容：\n" + AiCoreComponent.orDefault(params, "");
         } else if ("polish".equals(type)) {
             prompt = "请在不改变原意的前提下，润色以下文本，使其表达更流畅、专业、优美，"
-                    + "保留原有的 Markdown 结构（如标题、列表）。直接返回润色后的文本。\n文本内容：\n" + params;
+                    + "保留原有的 Markdown 结构（如标题、列表）。直接返回润色后的文本。\n文本内容：\n" + AiCoreComponent.orDefault(params, "");
         } else {
-            prompt = "请生成" + type + "内容，" + params;
+            prompt = "请生成" + AiCoreComponent.orDefault(type, "") + "内容，" + AiCoreComponent.orDefault(params, "");
         }
         String raw = core.completeAndSanitize(core.buildMessages(prompt, null), 0.7, "content");
         return raw != null ? raw : AiCoreComponent.SERVICE_ERROR_MSG;
@@ -78,7 +81,7 @@ public class AiDialogueComponent {
     public String generateSummary(String content) {
         log.info("生成AI");
 
-        String prompt = "请总结以下内容：\n" + content;
+        String prompt = "请总结以下内容：\n" + AiCoreComponent.orDefault(content, "");
         String raw = core.completeAndSanitize(core.buildMessages(prompt, null), 0.3, "content");
         return raw != null ? raw : AiCoreComponent.SERVICE_ERROR_MSG;
     }
@@ -87,8 +90,11 @@ public class AiDialogueComponent {
      * 文本相似度/抄袭检测
      */
     public String checkPlagiarism(String text1, String text2) {
-        String prompt = "请对比以下两段文本的相似度，返回相似百分比和重复内容分析：\n文本1：" + text1 + "\n文本2：" + text2;
-        String raw = core.completeAndSanitize(core.buildMessages(prompt, null), 0.2, "correct");
+        String prompt = "请对比以下两段文本的相似度，返回相似百分比和重复内容分析：\n文本1："
+                + AiCoreComponent.orDefault(text1, "") + "\n文本2：" + AiCoreComponent.orDefault(text2, "");
+        // 埋点类型必须是 plagiarism：并入 "correct" 会让批改与查重的调用量/失败率互相污染，
+        // Grafana 按 type 下钻时无法区分两类业务。
+        String raw = core.completeAndSanitize(core.buildMessages(prompt, null), 0.2, "plagiarism");
         return raw != null ? raw : AiCoreComponent.SERVICE_ERROR_MSG;
     }
 

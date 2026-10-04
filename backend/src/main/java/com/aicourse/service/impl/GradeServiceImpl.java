@@ -51,6 +51,7 @@ public class GradeServiceImpl extends ServiceImpl<GradePolicyMapper, GradePolicy
         if (policy.getCourseId() == null) {
             throw new BusinessException("课程ID不能为空");
         }
+        validateComponents(policy.getComponents());
         GradePolicy exist = getPolicy(policy.getCourseId());
         policy.setCreatorId(userId);
         policy.setIsDefault(true);
@@ -133,9 +134,14 @@ public class GradeServiceImpl extends ServiceImpl<GradePolicyMapper, GradePolicy
         List<GradeComponentDetailVO> detail = new ArrayList<>();
         BigDecimal finalScore = BigDecimal.ZERO;
         for (Map<String, Object> c : comps) {
-            String key = (String) c.get("key");
-            String name = (String) c.get("name");
-            double weight = ((Number) c.get("weight")).doubleValue();
+            String key = text(c.get("key"));
+            String name = text(c.get("name"));
+            Double parsed = parseWeight(c.get("weight"));
+            if (parsed == null) {
+                // 历史脏数据（权重缺失/写成非数字字符串）不应让整个报表 500，按 0 计并在日志中定位
+                log.warn("成绩方案 policyId={} 构成项 key={} 的 weight 缺失或非数字，按 0 权重计算", policyId, key);
+            }
+            double weight = parsed == null ? 0d : parsed;
             GradeItem it = itemMap.get(key);
             BigDecimal s = (it != null && it.getScore() != null) ? it.getScore() : BigDecimal.ZERO;
             BigDecimal contribution = s.multiply(BigDecimal.valueOf(weight))
@@ -168,6 +174,59 @@ public class GradeServiceImpl extends ServiceImpl<GradePolicyMapper, GradePolicy
         }
         res.sort((a, b) -> b.getFinalScore().compareTo(a.getFinalScore()));
         return res;
+    }
+
+    /**
+     * 校验权重配置：允许整体留空（先建方案、后配维度），但一旦填写就必须结构合法——
+     * 否则存入的配置会在 computeFinal 里被 parseComponents 静默吞掉，全班总评无声变成 0 分。
+     */
+    private void validateComponents(String json) {
+        if (json == null || json.isBlank()) {
+            return;
+        }
+        List<Map<String, Object>> comps;
+        try {
+            comps = objectMapper.readValue(json, new TypeReference<List<Map<String, Object>>>() {});
+        } catch (Exception e) {
+            throw new BusinessException("成绩构成项必须是对象数组，如 [{\"key\":\"exam\",\"name\":\"期末\",\"weight\":60}]");
+        }
+        Set<String> keys = new HashSet<>();
+        for (Map<String, Object> c : comps) {
+            String key = c == null ? null : text(c.get("key"));
+            if (key == null) {
+                throw new BusinessException("成绩构成项缺少标识 key");
+            }
+            if (!keys.add(key)) {
+                throw new BusinessException("成绩构成项标识重复: " + key);
+            }
+            Double weight = parseWeight(c.get("weight"));
+            if (weight == null || weight < 0 || weight > 100) {
+                throw new BusinessException("成绩构成项 " + key + " 的权重必须是 0-100 的数字");
+            }
+        }
+    }
+
+    /** 权重解析：缺失、非数字类型或不可解析的字符串统一返回 null，由调用方决定降级或拒绝。 */
+    private static Double parseWeight(Object raw) {
+        if (raw instanceof Number n) {
+            return n.doubleValue();
+        }
+        if (raw instanceof String s && !s.isBlank()) {
+            try {
+                return Double.valueOf(s.trim());
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        return null;
+    }
+
+    private static String text(Object raw) {
+        if (raw == null) {
+            return null;
+        }
+        String s = String.valueOf(raw).trim();
+        return s.isEmpty() ? null : s;
     }
 
     private List<Map<String, Object>> parseComponents(String json) {

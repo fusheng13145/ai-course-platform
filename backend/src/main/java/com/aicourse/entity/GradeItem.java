@@ -7,6 +7,8 @@ import com.baomidou.mybatisplus.annotation.TableId;
 import com.baomidou.mybatisplus.annotation.TableName;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
+import jakarta.validation.constraints.DecimalMax;
+import jakarta.validation.constraints.DecimalMin;
 import lombok.Data;
 
 /**
@@ -30,7 +32,9 @@ public class GradeItem {
     /** 维度键（与 grade_policies.components[].key 对应） */
     private String componentKey;
 
-    /** 归一化得分（0-100） */
+    /** 归一化得分（0-100）；null 表示该维度尚未评分 */
+    @DecimalMin(value = "0", message = "成绩得分不能小于 0")
+    @DecimalMax(value = "100", message = "成绩得分不能大于 100")
     private BigDecimal score;
 
     /** 原始分 */

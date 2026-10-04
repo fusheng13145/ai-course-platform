@@ -165,9 +165,13 @@ public class AiStructuredComponent {
      * 返回格式：{"questions": [{"content": "题目内容", "type": "SINGLE_CHOICE", "difficulty": "..."}]}
      */
     public String recommendQuestionsJson(Long courseId, String difficulty, int count) {
+        String diff = AiCoreComponent.orDefault(difficulty, "MEDIUM");
         String schema = "{\"questions\": [{\"content\": \"题目内容\", \"type\": \"SINGLE_CHOICE\", \"difficulty\": \""
-                + (difficulty != null ? difficulty : "MEDIUM") + "\"}]}";
-        String prompt = String.format("请为课程(courseId=%d)生成%d道%s难度的练习题。", courseId, count, difficulty);
+                + diff + "\"}]}";
+        // courseId 为空时整段课程限定语要省略：String.format 会把 null 渲染成字面量 "null"，
+        // "null难度" 之类的污染会直接压低生成质量。
+        String scope = courseId != null ? "为课程(courseId=" + courseId + ")" : "";
+        String prompt = String.format("请%s生成%d道%s难度的练习题。", scope, count, diff);
         return core.callLlm(core.buildMessages(prompt, null), 0.8, schema, "question");
     }
 
