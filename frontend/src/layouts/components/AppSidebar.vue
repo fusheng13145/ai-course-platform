@@ -150,6 +150,8 @@ function isActive(item) {
   if (item.key === 'course-catalog') {
     return new RegExp(`^/${props.role.toLowerCase()}/courses/\\d+`).test(route.path)
   }
+  // 「课程总览」仅列表页精确高亮，避免 /{role}/courses/:id/* 前缀误亮
+  if (item.key === 'course-catalog-all') return route.path === item.path
   return route.path === item.path || (item.path && route.path.startsWith(item.path + '/'))
 }
 

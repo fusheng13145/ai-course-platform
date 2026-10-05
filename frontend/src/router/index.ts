@@ -276,6 +276,11 @@ const routes: RouteRecordRaw[] = [
             meta: { title: '课堂互动' },
           },
           {
+            path: 'knowledge-management',
+            component: () => import('@/views/teacher/tools/KnowledgeManagement.vue'),
+            meta: { title: '知识点管理' },
+          },
+          {
             path: 'discussion',
             component: () => import('@/views/teacher/cockpit/CourseDiscussion.vue'),
             meta: { title: '课程讨论' },

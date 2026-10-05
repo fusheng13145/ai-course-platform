@@ -125,6 +125,9 @@ export const COURSE_TABS = {
     { suffix: 'exams', text: '考试管理' },
     { suffix: 'grades', text: '成绩统计' },
     { suffix: 'knowledge', text: '知识图谱' },
+    { suffix: 'knowledge-management', text: '知识点管理' },
+    { suffix: 'analytics', text: '学情统计' },
+    { suffix: 'interaction', text: '课堂互动' },
     { suffix: 'discussion', text: '课程讨论' },
   ],
   STUDENT: [
@@ -178,19 +181,6 @@ export const TEACHER_SECTIONS = [
     items: [
       { key: 'dashboard', text: '教学概览', icon: 'chart', path: '/teacher/dashboard' },
       { key: 'bank', text: '试题库', icon: 'doc', path: '/teacher/bank' },
-    ],
-  },
-  {
-    label: '教学工具',
-    items: [
-      { key: 'analytics', text: '学情统计', icon: 'sliders', path: '/teacher/analytics' },
-      { key: 'interaction', text: '课堂互动', icon: 'message', path: '/teacher/interaction' },
-      {
-        key: 'knowledge-management',
-        text: '知识点管理',
-        icon: 'layers',
-        path: '/teacher/knowledge-management',
-      },
     ],
   },
   {
