@@ -1,0 +1,606 @@
+"""
+RAG 真实检索引擎（混合召回：BM25 + 向量，RRF 融合）
+====================================================
+为 rag_service.py 的契约端点提供真实实现。依赖策略：
+
+- 重依赖（jieba / rank_bm25 / sentence-transformers / faiss / numpy）**全部懒加载**，
+  缺失时 `engine_available()` 返回 False，rag_service 仍按契约返回降级/占位响应——
+  这样 CI（只装 fastapi/pytest）无需下载模型即可保持全绿。
+- 存储为文件持久化（JSON + numpy + faiss），目录由 `RAG_DATA_DIR` 指定，
+  默认 `python-services/rag_service/data/`（已 gitignore）。测试可用该变量隔离。
+
+环境变量：
+  RAG_DATA_DIR        数据目录（默认 ./data）
+  RAG_EMBED_MODEL     向量模型（默认 BAAI/bge-small-zh-v1.5，走 HF_ENDPOINT 镜像）
+  RAG_CHUNK_SIZE      分块字符数（默认 300）
+  RAG_CHUNK_OVERLAP   块重叠字符（默认 50）
+  DEEPSEEK_API_KEY    生成模型密钥（缺省时 /ask 返回抽取式回答，不调外部 API）
+  DEEPSEEK_MODEL      生成模型名（默认 deepseek-chat）
+"""
+from __future__ import annotations
+
+import json
+import os
+import re
+import threading
+from pathlib import Path
+from typing import Optional
+
+ENGINE_VERSION = "1.0"
+
+_LOCK = threading.RLock()
+
+
+class StoreCorruptedError(RuntimeError):
+    """文档存储文件损坏且无法解析时抛出。
+
+    保留"引擎故障"的显式语义：调用方（检索/健康检查）不应把它当作"无结果"静默处理，
+    而应向上报错或按契约降级，避免损坏后检索悄悄返回空。
+    """
+
+# 可选依赖探测（懒加载 + 可用性标记）
+_DEP_ERRORS: list[str] = []
+
+
+def _record_dep_error(name: str, exc: Exception) -> None:
+    _DEP_ERRORS.append(f"{name}: {exc}")
+
+
+try:
+    import numpy as _np
+except Exception as e:  # pragma: no cover - 环境相关
+    _np = None
+    _record_dep_error("numpy", e)
+
+try:
+    import jieba as _jieba
+except Exception as e:  # pragma: no cover
+    _jieba = None
+    _record_dep_error("jieba", e)
+
+try:
+    from rank_bm25 import BM25Okapi as _BM25Okapi
+except Exception as e:  # pragma: no cover
+    _BM25Okapi = None
+    _record_dep_error("rank_bm25", e)
+
+try:
+    import faiss as _faiss
+except Exception as e:  # pragma: no cover
+    _faiss = None
+    _record_dep_error("faiss", e)
+
+try:
+    from sentence_transformers import SentenceTransformer as _SentenceTransformer
+except Exception as e:  # pragma: no cover
+    _SentenceTransformer = None
+    _record_dep_error("sentence-transformers", e)
+
+
+def engine_available() -> bool:
+    """混合检索所需的最低依赖集合是否齐备（不含网络/模型下载）。"""
+    return all([_np, _jieba, _BM25Okapi, _faiss, _SentenceTransformer])
+
+
+def dep_errors() -> list[str]:
+    return list(_DEP_ERRORS)
+
+
+# ---------------------------------------------------------------- 存储目录
+
+def data_dir() -> Path:
+    default = Path(__file__).resolve().parent / "data"
+    return Path(os.getenv("RAG_DATA_DIR") or default)
+
+
+def _course_dir(course_id: int) -> Path:
+    return data_dir() / f"course_{course_id}"
+
+
+def _docs_path() -> Path:
+    return data_dir() / "documents.json"
+
+
+# ---------------------------------------------------------------- 文档存储
+
+# 全局文档表： {id: {id, course_id, document_name, content}}
+_DOCS: dict[int, dict] = {}
+_NEXT_ID = 1
+_loaded = False
+
+# 已建索引标记： {course_id: {"indexed_chunks": n, "doc_ids": [...], "built_at": ts}}
+_INDEX_META: dict[int, dict] = {}
+
+
+def _load_store() -> None:
+    """载入全局文档表。
+
+    损坏恢复语义：文件存在但解析失败时，**不静默清空**——先把损坏文件另存为
+    `.corrupt` 以便排查，再抛出 `StoreCorruptedError`，让上层（检索/健康检查）显式
+    感知引擎故障，而不是返回空结果伪装成功。正常载入后才置 `_loaded`。
+    """
+    global _NEXT_ID, _loaded
+    if _loaded:
+        return
+    path = _docs_path()
+    if path.exists():
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, ValueError, OSError) as exc:
+            quarantined = _quarantine_corrupt(path)
+            raise StoreCorruptedError(
+                f"文档存储损坏（{exc}），已隔离至 {quarantined.name}"
+            ) from exc
+        _DOCS.clear()
+        _DOCS.update({int(k): v for k, v in payload.get("documents", {}).items()})
+        _INDEX_META.clear()
+        _INDEX_META.update({int(k): v for k, v in payload.get("indexes", {}).items()})
+        _NEXT_ID = payload.get("next_id", max(_DOCS, default=0) + 1)
+    _loaded = True
+
+
+def _quarantine_corrupt(path: Path) -> Path:
+    """把损坏的存储文件改名保留（加时间戳），供事后排查而非直接删除。"""
+    from datetime import datetime
+
+    stamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    target = path.with_name(f"{path.name}.corrupt.{stamp}")
+    try:
+        os.replace(path, target)
+    except OSError:
+        # 改名失败（例如同秒冲突）时退回带随机后缀，确保原文件不被后续写入覆盖
+        target = path.with_name(f"{path.name}.corrupt.{stamp}.{os.getpid()}")
+        try:
+            os.replace(path, target)
+        except OSError:
+            pass
+    return target
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """先写临时文件再 os.replace 原子替换，避免进程崩溃留下半截 JSON。"""
+    _atomic_write_bytes(path, text.encode("utf-8"))
+
+
+def _atomic_write_bytes(path: Path, payload: bytes) -> None:
+    """字节级原子替换落盘（先写临时文件、flush/fsync 再 os.replace）。"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.tmp")
+    try:
+        with open(tmp, "wb") as fh:
+            fh.write(payload)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    finally:
+        if tmp.exists():
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+
+
+def _save_store() -> None:
+    _atomic_write_text(
+        _docs_path(),
+        json.dumps(
+            {
+                "version": ENGINE_VERSION,
+                "next_id": _NEXT_ID,
+                "documents": {str(k): v for k, v in _DOCS.items()},
+                "indexes": {str(k): v for k, v in _INDEX_META.items()},
+            },
+            ensure_ascii=False,
+            indent=2,
+        ),
+    )
+
+
+def reset_store() -> None:
+    """清空进程内存储并重建（契约测试隔离用）。"""
+    global _NEXT_ID, _loaded
+    with _LOCK:
+        _DOCS.clear()
+        _INDEX_META.clear()
+        _model_holder["model"] = None
+        _NEXT_ID = 1
+        _loaded = False
+
+
+def add_document(course_id: int, document_name: str, content: str) -> dict:
+    global _NEXT_ID
+    with _LOCK:
+        _load_store()
+        doc_id = _NEXT_ID
+        _NEXT_ID += 1
+        doc = {
+            "id": doc_id,
+            "course_id": course_id,
+            "document_name": document_name,
+            "content": content,
+        }
+        _DOCS[doc_id] = doc
+        _save_store()
+        return dict(doc)
+
+
+def get_document(document_id: int) -> Optional[dict]:
+    with _LOCK:
+        _load_store()
+        doc = _DOCS.get(document_id)
+        return dict(doc) if doc else None
+
+
+def update_document(document_id: int, content: str) -> Optional[dict]:
+    with _LOCK:
+        _load_store()
+        doc = _DOCS.get(document_id)
+        if not doc:
+            return None
+        doc["content"] = content
+        _save_store()
+        return dict(doc)
+
+
+def delete_document(document_id: int) -> Optional[dict]:
+    with _LOCK:
+        _load_store()
+        doc = _DOCS.pop(document_id, None)
+        if not doc:
+            return None
+        _invalidate_course_index(doc["course_id"])
+        _save_store()
+        return dict(doc)
+
+
+def list_documents(course_id: Optional[int] = None) -> list[dict]:
+    with _LOCK:
+        _load_store()
+        docs = [dict(d) for d in _DOCS.values()]
+    if course_id is not None:
+        docs = [d for d in docs if d["course_id"] == course_id]
+    return sorted(docs, key=lambda d: d["id"])
+
+
+def index_status(course_id: int) -> Optional[dict]:
+    with _LOCK:
+        _load_store()
+        meta = _INDEX_META.get(course_id)
+        return dict(meta) if meta else None
+
+
+def _invalidate_course_index(course_id: int) -> None:
+    """文档变更后该课程索引视为过期（检索时回退降级语义，需重新 build）。
+
+    同时删除 `index.*` 与 `chunks.json`，避免旧分块残留被检索复用。
+    """
+    meta = _INDEX_META.pop(course_id, None)
+    if meta:
+        cdir = _course_dir(course_id)
+        for f in list(cdir.glob("index.*")) + [cdir / "chunks.json"]:
+            try:
+                f.unlink(missing_ok=True)
+            except OSError:
+                pass
+
+
+# ---------------------------------------------------------------- 分块与分词
+
+_SENT_SPLIT = re.compile(r"(?<=[。！？；!?;\n])")
+
+
+def chunk_text(text: str, chunk_size: int, overlap: int) -> list[str]:
+    """按句子边界聚合的定长滑窗分块，兼容中英文标点。"""
+    chunk_size = max(50, chunk_size)
+    overlap = max(0, min(overlap, chunk_size - 10))
+    sentences = [s for s in _SENT_SPLIT.split(text) if s and s.strip()]
+    if not sentences:
+        return [text.strip()] if text.strip() else []
+
+    chunks: list[str] = []
+    buf = ""
+    for sent in sentences:
+        if len(buf) + len(sent) <= chunk_size:
+            buf += sent
+        else:
+            if buf:
+                chunks.append(buf.strip())
+            # 单句超长时硬切
+            while len(sent) > chunk_size:
+                chunks.append(sent[:chunk_size].strip())
+                sent = sent[chunk_size - overlap:]
+            buf = buf[overlap:] + sent if buf and overlap else sent
+    if buf.strip():
+        chunks.append(buf.strip())
+    return [c for c in chunks if c]
+
+
+def tokenize(text: str) -> list[str]:
+    if _jieba is None:  # pragma: no cover - 依赖缺失时不参与 BM25
+        return text.lower().split()
+    return [t.strip().lower() for t in _jieba.cut_for_search(text) if t.strip()]
+
+
+# ---------------------------------------------------------------- 向量模型
+
+_model_holder: dict = {"model": None}
+
+
+def _get_model():
+    if _model_holder["model"] is None:
+        model_name = os.getenv("RAG_EMBED_MODEL", "BAAI/bge-small-zh-v1.5")
+        _model_holder["model"] = _SentenceTransformer(model_name)
+    return _model_holder["model"]
+
+
+def _as_unit_vectors(vecs):
+    """把向量矩阵按行 L2 归一化（模型已 normalize，此处兜底并保证幂等）。
+
+    输入可为 1D 或 2D；返回 float32 的 2D 数组。零向量保持为全 0（除零保护）。
+    维度不匹配的输入直接抛 ValueError，交由上层按引擎故障处理。
+    """
+    arr = _np.asarray(vecs, dtype="float32")
+    if arr.ndim == 1:
+        arr = arr.reshape(1, -1)
+    if arr.ndim != 2:
+        raise ValueError(f"向量维度非法：期望 1D/2D，实际 ndim={arr.ndim}")
+    norms = _np.linalg.norm(arr, axis=1, keepdims=True)
+    norms = _np.where(norms == 0, 1.0, norms)
+    return arr / norms
+
+
+def _embed(texts: list[str]):
+    model = _get_model()
+    vecs = model.encode(
+        texts,
+        normalize_embeddings=True,
+        show_progress_bar=False,
+        batch_size=16,
+    )
+    return _as_unit_vectors(vecs)
+
+
+# ---------------------------------------------------------------- 索引构建 / 检索
+
+# ---------------------------------------------------------------- 召回与融合（可独立测试）
+
+# RRF 融合常数：与历史实现严格保持一致（原代码 k0=60.0），改此值会影响排名语义。
+RRF_K = 60.0
+
+
+def bm25_rank(corpus_tokens: list[list[str]], query_tokens: list[str],
+              pool: int) -> list[tuple[int, float]]:
+    """BM25 召回：返回按分数降序、仅保留正分、截断到 pool 的 (chunk_idx, score)。
+
+    空查询 / 纯标点（分词后为空） / 全未知词都返回 []，不抛异常。
+    """
+    if _BM25Okapi is None or not query_tokens or not corpus_tokens:
+        return []
+    if not any(corpus_tokens):
+        return []
+    bm25 = _BM25Okapi(corpus_tokens)
+    scores = bm25.get_scores(query_tokens)
+    ranked = sorted(range(len(scores)), key=lambda i: scores[i], reverse=True)
+    return [(i, float(scores[i])) for i in ranked[:pool] if scores[i] > 0]
+
+
+def vector_rank_from_index(index, query_vec, pool: int) -> list[tuple[int, float]]:
+    """在 FAISS IndexFlatIP 上取回 top-`pool`，过滤 -1（无命中）。
+
+    空索引（ntotal==0）返回 []；查询向量维度与索引维度不符抛 ValueError，
+    交由调用方按引擎故障处理，而不是静默返回空。
+    """
+    qv = _np.asarray(query_vec, dtype="float32")
+    if qv.ndim == 1:
+        qv = qv.reshape(1, -1)
+    if index.ntotal == 0:
+        return []
+    if qv.shape[1] != index.d:
+        raise ValueError(f"查询向量维度({qv.shape[1]})与索引维度({index.d})不匹配")
+    D, I = index.search(_np.ascontiguousarray(qv), min(pool, index.ntotal))
+    return [(int(i), float(d)) for d, i in zip(D[0], I[0]) if i >= 0]
+
+
+def rrf_fuse(*rank_lists, top_k: int, k: float = RRF_K) -> list[tuple[int, float]]:
+    """Reciprocal Rank Fusion：score(d) = Σ_各路 1/(k + rank + 1)，rank 为 0 基排名。
+
+    每个入参是一路的有序命中（元素为 (idx, score) 元组或纯 idx）。返回按融合分降序、
+    截断到 top_k 的 (idx, fused_score) 列表。同一元素在多路命中会累加。
+    """
+    fused: dict[int, float] = {}
+    for hits in rank_lists:
+        for rank, hit in enumerate(hits):
+            idx = hit[0] if isinstance(hit, tuple) else hit
+            fused[idx] = fused.get(idx, 0.0) + 1.0 / (k + rank + 1)
+    return sorted(fused.items(), key=lambda kv: kv[1], reverse=True)[:top_k]
+
+
+def build_course_index(course_id: int) -> dict:
+    """为该课程全部文档建混合索引（BM25 + FAISS 向量），落盘持久化。
+
+    返回 {success, indexed_chunks, error?}。依赖缺失时 success=False，
+    调用方（rag_service）按契约降级，不抛异常。
+    """
+    if not engine_available():
+        return {
+            "success": False,
+            "indexed_chunks": 0,
+            "error": "引擎依赖未安装：" + "; ".join(dep_errors())
+            + "。请 pip install -r requirements-engine.txt 后重启服务。",
+        }
+    docs = list_documents(course_id)
+    if not docs:
+        return {"success": False, "indexed_chunks": 0,
+                "error": f"课程 {course_id} 尚无文档，无法建索引"}
+
+    chunk_size = int(os.getenv("RAG_CHUNK_SIZE", "300"))
+    overlap = int(os.getenv("RAG_CHUNK_OVERLAP", "50"))
+
+    chunks: list[dict] = []
+    for doc in docs:
+        for i, piece in enumerate(chunk_text(doc["content"], chunk_size, overlap)):
+            chunks.append({
+                "doc_id": doc["id"],
+                "doc_name": doc["document_name"],
+                "chunk_no": i,
+                "text": piece,
+            })
+    if not chunks:
+        return {"success": False, "indexed_chunks": 0, "error": "文档内容为空，无有效分块"}
+
+    with _LOCK:
+        vectorized = _embed([c["text"] for c in chunks])  # 一次批量编码
+
+        index = _faiss.IndexFlatIP(vectorized.shape[1])
+        index.add(vectorized)
+
+        cdir = _course_dir(course_id)
+        cdir.mkdir(parents=True, exist_ok=True)
+        # faiss 的 C++ 文件 API 在 Windows 非 ASCII 路径下不可用（本仓库目录含中文），
+        # 故用内存序列化自行落盘（同样走原子替换，避免崩溃留半截索引）。
+        _atomic_write_bytes(
+            cdir / "index.faiss",
+            _np.ascontiguousarray(_faiss.serialize_index(index)).tobytes(),
+        )
+        _atomic_write_text(cdir / "chunks.json", json.dumps(chunks, ensure_ascii=False))
+        _INDEX_META[course_id] = {
+            "indexed_chunks": len(chunks),
+            "doc_ids": [d["id"] for d in docs],
+            "embed_model": os.getenv("RAG_EMBED_MODEL", "BAAI/bge-small-zh-v1.5"),
+        }
+        _save_store()
+    return {"success": True, "indexed_chunks": len(chunks)}
+
+
+def _load_course_chunks(course_id: int) -> Optional[list[dict]]:
+    path = _course_dir(course_id) / "chunks.json"
+    if not path.exists():
+        return None
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def clear_course_index(course_id: int) -> None:
+    with _LOCK:
+        _load_store()
+        _INDEX_META.pop(course_id, None)
+        cdir = _course_dir(course_id)
+        if cdir.exists():
+            for f in cdir.glob("index.*"):
+                f.unlink(missing_ok=True)
+            (cdir / "chunks.json").unlink(missing_ok=True)
+        _save_store()
+
+
+def search(query: str, course_id: Optional[int], top_k: int) -> Optional[list[dict]]:
+    """混合检索。课程无有效索引时返回 None（调用方决定降级语义）。
+
+    返回 [{"document_id","document_name","relevance_score","snippet"}...]，
+    分数为 RRF 融合后的归一化相对分（0~1）。
+    """
+    if not engine_available() or course_id is None:
+        return None
+    with _LOCK:
+        _load_store()
+        meta = _INDEX_META.get(course_id)
+    if not meta:
+        return None
+    chunks = _load_course_chunks(course_id)
+    if not chunks:
+        return None
+
+    top_k = max(1, min(top_k or 5, 50))
+    pool = max(top_k * 4, 20)
+
+    # --- BM25 支路 ---
+    corpus_tokens = [tokenize(c["text"]) for c in chunks]
+    bm25_scores = bm25_rank(corpus_tokens, tokenize(query), pool)
+
+    # --- 向量支路 ---
+    vec_scores: list[tuple[int, float]] = []
+    index_path = _course_dir(course_id) / "index.faiss"
+    if index_path.exists():
+        raw = _np.frombuffer(index_path.read_bytes(), dtype=_np.uint8)
+        index = _faiss.deserialize_index(raw)
+        qv = _embed([query])
+        vec_scores = vector_rank_from_index(index, qv, pool)
+
+    if not bm25_scores and not vec_scores:
+        return []
+
+    # --- RRF 融合 ---
+    ordered = rrf_fuse(bm25_scores, vec_scores, top_k=top_k)
+    if not ordered:
+        return []
+    max_rrf = ordered[0][1] or 1.0
+
+    results = []
+    for i, rrf in ordered:
+        c = chunks[i]
+        results.append({
+            "document_id": c["doc_id"],
+            "document_name": c["doc_name"],
+            "relevance_score": round(min(1.0, rrf / max_rrf), 4),
+            "snippet": c["text"][:500],
+        })
+    return results
+
+
+# ---------------------------------------------------------------- LLM 生成
+
+def generate_answer(question: str, contexts: list[dict]) -> tuple[str, str]:
+    """基于检索上下文生成回答。返回 (answer, mode_tag)。
+
+    mode_tag（第三态语义，供调用方区分成功/降级/失败）：
+      - "LLM"         DeepSeek 生成成功；
+      - "EXTRACTIVE"  无密钥或调用失败，但有检索资料——抽取式兜底；
+      - "UNAVAILABLE" LLM 不可用且无检索资料——**可识别的失败**，answer 置空，
+                      调用方（rag_service）据此不把它当作成功回答。
+    """
+    joined = "\n\n".join(
+        f"[资料{i + 1}] {r['document_name']}：{r['snippet']}"
+        for i, r in enumerate(contexts)
+    ) or "（无检索资料）"
+
+    api_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
+    if api_key:
+        try:
+            answer = _call_deepseek(api_key, question, joined)
+            if answer:
+                return answer, "LLM"
+        except Exception:
+            pass  # 网络/配额失败 -> 抽取式兜底，不阻断契约响应
+
+    # 抽取式兜底：取最相关块的首句拼接
+    picks = [r["snippet"].strip() for r in contexts[:3] if r.get("snippet", "").strip()]
+    if picks:
+        return "根据课程资料：" + "；".join(p[:120] for p in picks), "EXTRACTIVE"
+    # LLM 不可用且无检索资料：返回可识别的失败（空 answer + UNAVAILABLE 标记），
+    # 绝不返回看起来像成功的占位字符串。
+    return "", "UNAVAILABLE"
+
+
+def _call_deepseek(api_key: str, question: str, contexts: str) -> Optional[str]:
+    import httpx
+
+    model = os.getenv("DEEPSEEK_MODEL", "deepseek-chat")
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": (
+                "你是一个智能教学助手。请严格依据给定课程资料回答学生问题；"
+                "资料不足时明确说明，不要编造。回答使用简体中文，简明、有条理。"
+            )},
+            {"role": "user", "content": f"课程资料：\n{contexts}\n\n问题：{question}"},
+        ],
+        "temperature": 0.3,
+        "max_tokens": 1024,
+    }
+    resp = httpx.post(
+        "https://api.deepseek.com/v1/chat/completions",
+        headers={"Authorization": f"Bearer {api_key}"},
+        json=payload,
+        timeout=60.0,
+    )
+    resp.raise_for_status()
+    data = resp.json()
+    return data["choices"][0]["message"]["content"].strip() or None

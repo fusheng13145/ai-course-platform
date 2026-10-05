@@ -43,6 +43,8 @@ export function useStudentExams() {
   const statusFilter = ref('')
   const listLoading = ref(false)
   const examList = ref([])
+  /** 课程上下文过滤：非空时仅展示该课程的考试（课程侧边栏/驾驶舱直入） */
+  const courseIdFilter = ref(null)
 
   /* ---- 答题状态 ---- */
   const currentExamPaper = ref(null)
@@ -67,9 +69,15 @@ export function useStudentExams() {
 
   /* ---- 计算属性 ---- */
 
-  /** 过滤后的考试列表（关键字 + 状态） */
+  /** 课程上下文子集（统计卡与列表共同基准；统一入口未设置过滤时为全部） */
+  const courseScopedExams = computed(() => {
+    if (courseIdFilter.value == null) return examList.value
+    return examList.value.filter((e) => String(e.courseId) === String(courseIdFilter.value))
+  })
+
+  /** 过滤后的考试列表（课程 + 关键字 + 状态） */
   const filteredExams = computed(() => {
-    let list = examList.value
+    let list = courseScopedExams.value
     if (searchKeyword.value) {
       list = list.filter((e) => e.title?.includes(searchKeyword.value))
     }
@@ -85,13 +93,13 @@ export function useStudentExams() {
   })
 
   /** 考试总数 */
-  const totalExams = computed(() => examList.value.length)
+  const totalExams = computed(() => courseScopedExams.value.length)
   /** 可参加：未完成且未过期 */
   const availableExams = computed(
-    () => examList.value.filter((e) => !e.completed && e.status !== 'EXPIRED').length,
+    () => courseScopedExams.value.filter((e) => !e.completed && e.status !== 'EXPIRED').length,
   )
   /** 已完成 */
-  const completedExams = computed(() => examList.value.filter((e) => e.completed).length)
+  const completedExams = computed(() => courseScopedExams.value.filter((e) => e.completed).length)
 
   /** 当前题目 */
   const currentQuestion = computed(() => questions.value[currentIndex.value] || null)
@@ -214,11 +222,15 @@ export function useStudentExams() {
     }
 
     try {
-      await ElMessageBox.confirm(`确定开始「${exam.title}」吗？\n进入后将启动倒计时。`, '确认开始考试', {
-        confirmButtonText: '确定',
-        cancelButtonText: '取消',
-        type: 'info',
-      })
+      await ElMessageBox.confirm(
+        `确定开始「${exam.title}」吗？\n进入后将启动倒计时。`,
+        '确认开始考试',
+        {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'info',
+        },
+      )
     } catch {
       return // 用户取消，静默返回
     }
@@ -638,6 +650,7 @@ export function useStudentExams() {
     viewMode,
     searchKeyword,
     statusFilter,
+    courseIdFilter,
     listLoading,
     examList,
     currentExamPaper,

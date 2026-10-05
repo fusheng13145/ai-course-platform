@@ -6,6 +6,70 @@ import examApi from '@/api/exam'
 import proctorApi from '@/api/proctor'
 import { useAuthStore } from '@/stores/auth'
 
+/** 阈值默认值：后端返回缺失/非法时回退到这里，避免 NaN 污染界面 */
+const DEFAULT_THRESHOLDS = { high: 6, medium: 3, weightLow: 1, weightMedium: 2, weightHigh: 3 }
+
+/**
+ * 阈值合法性校验（纯函数，便于单测直接覆盖）。
+ *
+ * 缺陷修复（P1-9，2026-10-04）：原实现 `Number(t.high ?? 6)` 不做任何校验——
+ * 后端返回 `"abc"` 时得到 NaN 直接进 reactive 状态；返回 `high=2, medium=8`
+ * （阈值顺序倒置）时照样 PUT 回后端，导致风险分级完全反向。
+ *
+ * 规则：
+ * - 五个字段都必须为**有限数值**（拒绝 NaN / Infinity / 字符串 / null / undefined）
+ * - 三个权重必须为正数
+ * - `high` 必须严格大于 `medium`（否则高中风险区间倒置）
+ *
+ * @param {{high,medium,weightLow,weightMedium,weightHigh}} t 待校验阈值
+ * @returns {{valid: boolean, message: string}} 校验结果与首个不满足项的中文原因
+ */
+export function validateThresholds(t) {
+  if (!t || typeof t !== 'object') {
+    return { valid: false, message: '阈值数据格式不正确' }
+  }
+  const numeric = ['high', 'medium', 'weightLow', 'weightMedium', 'weightHigh']
+  for (const key of numeric) {
+    const v = Number(t[key])
+    if (!Number.isFinite(v)) {
+      return { valid: false, message: `阈值 ${key} 必须为有效数字` }
+    }
+  }
+  for (const key of ['weightLow', 'weightMedium', 'weightHigh']) {
+    if (Number(t[key]) <= 0) {
+      return { valid: false, message: `权重 ${key} 必须大于 0` }
+    }
+  }
+  if (Number(t.high) <= Number(t.medium)) {
+    return { valid: false, message: '高风险阈值必须严格大于中风险阈值' }
+  }
+  return { valid: true, message: '' }
+}
+
+/**
+ * 归一化后端阈值：逐字段校验，非法值回退默认值，绝不产出 NaN。
+ */
+export function normalizeThresholds(t) {
+  const pick = (key) => {
+    const raw = t?.[key]
+    // 缺陷修复（2026-10-04）：`Number(null)` 与 `Number('')` 都是有限数 0，
+    // 旧实现把「后端字段缺失/空串」当成合法阈值 0 —— high=0 会让所有会话被判高风险。
+    // null/undefined/空串（含纯空白）一律视为缺失并回退默认值。
+    if (raw === null || raw === undefined || String(raw).trim() === '') {
+      return DEFAULT_THRESHOLDS[key]
+    }
+    const v = Number(raw)
+    return Number.isFinite(v) ? v : DEFAULT_THRESHOLDS[key]
+  }
+  return {
+    high: pick('high'),
+    medium: pick('medium'),
+    weightLow: pick('weightLow'),
+    weightMedium: pick('weightMedium'),
+    weightHigh: pick('weightHigh'),
+  }
+}
+
 /**
  * 考试防作弊治理领域逻辑
  * <p>监考会话风险看板（并行 enrich 风险汇总）、风险详情、违规事件核查（确认/豁免）、阈值加载与保存。</p>
@@ -21,7 +85,7 @@ export function useExamGovernance() {
   // 角色与阈值
   const authStore = useAuthStore()
   const isAdmin = computed(() => authStore.userRole === 'ADMIN')
-  const thresholds = reactive({ high: 6, medium: 3, weightLow: 1, weightMedium: 2, weightHigh: 3 })
+  const thresholds = reactive({ ...DEFAULT_THRESHOLDS })
   const thrSaving = ref(false)
 
   const current = computed(() => sessions.value.find((s) => s.id === selectedId.value) || null)
@@ -117,11 +181,8 @@ export function useExamGovernance() {
       const res = await proctorApi.getThresholds().catch(() => null)
       const t = res?.data
       if (t && typeof t === 'object') {
-        thresholds.high = Number(t.high ?? 6)
-        thresholds.medium = Number(t.medium ?? 3)
-        thresholds.weightLow = Number(t.weightLow ?? 1)
-        thresholds.weightMedium = Number(t.weightMedium ?? 2)
-        thresholds.weightHigh = Number(t.weightHigh ?? 3)
+        // 逐字段校验回退，非法值（NaN/字符串/null）绝不进状态（P1-9）
+        Object.assign(thresholds, normalizeThresholds(t))
       }
     } catch (e) {
       logger.error('加载阈值失败:', e)
@@ -129,7 +190,14 @@ export function useExamGovernance() {
   }
 
   async function saveThresholds() {
-    if (!isAdmin.value) return
+    // 非管理员：零请求直接返回（P1-9 断言点）
+    if (!isAdmin.value) return false
+    // 保存前短路校验：NaN / 非数值 / 倒置阈值一律不发 PUT（P1-9）
+    const check = validateThresholds(thresholds)
+    if (!check.valid) {
+      ElMessage.error(check.message)
+      return false
+    }
     thrSaving.value = true
     try {
       await proctorApi.updateThresholds({
@@ -140,9 +208,11 @@ export function useExamGovernance() {
         weightHigh: thresholds.weightHigh,
       })
       ElMessage.success('风险判定阈值已保存')
+      return true
     } catch (e) {
       logger.error(e)
       ElMessage.error('保存阈值失败：' + (e?.response?.data?.message || '权限不足或服务异常'))
+      return false
     } finally {
       thrSaving.value = false
     }
@@ -200,6 +270,7 @@ export function useExamGovernance() {
     loadSessions,
     selectSession,
     openEvents,
+    loadThresholds,
     saveThresholds,
     submitReview,
     reviewingId,

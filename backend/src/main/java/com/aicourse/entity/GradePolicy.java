@@ -1,5 +1,8 @@
 package com.aicourse.entity;
 
+import com.aicourse.common.GradeComponentsJson;
+import com.fasterxml.jackson.databind.annotation.JsonDeserialize;
+import com.fasterxml.jackson.databind.annotation.JsonSerialize;
 import com.baomidou.mybatisplus.annotation.FieldFill;
 import com.baomidou.mybatisplus.annotation.IdType;
 import com.baomidou.mybatisplus.annotation.TableField;
@@ -30,7 +33,10 @@ public class GradePolicy {
     /** 方案名称 */
     private String name;
 
-    /** 维度权重 JSON */
+    /** 维度权重 JSON；HTTP 出入参为对象数组（见 {@link GradeComponentsJson}） */
+    @JsonDeserialize(using = GradeComponentsJson.Deserializer.class)
+    @JsonSerialize(using = GradeComponentsJson.Serializer.class,
+            nullsUsing = GradeComponentsJson.NullSerializer.class)
     private String components;
 
     /** 创建者ID */

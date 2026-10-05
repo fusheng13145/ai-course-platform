@@ -44,7 +44,15 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { unwrap } from '@/utils/response'
 import courseApi from '@/api/course'
-import { ArrowLeft, DataLine, Reading, Collection } from '@element-plus/icons-vue'
+import {
+  ArrowLeft,
+  DataLine,
+  Reading,
+  Collection,
+  EditPen,
+  Medal,
+  ChatDotRound,
+} from '@element-plus/icons-vue'
 
 const route = useRoute()
 const courseId = computed(() => route.params.id)
@@ -55,15 +63,18 @@ const courseProgress = ref(0)
 
 const tabs = [
   { path: 'overview', label: '课程概览', icon: DataLine },
-  { path: 'learning-center', label: '学习中心', icon: Reading },
+  { path: 'learning-center', label: '作业 · 学习中心', icon: Reading },
+  { path: 'exams', label: '考试练习', icon: EditPen },
+  { path: 'grades', label: '课程成绩', icon: Medal },
   { path: 'knowledge', label: '知识图谱', icon: Collection },
+  { path: 'ai', label: 'AI 助手', icon: ChatDotRound },
 ]
 
 const activeTab = computed(() => {
   const seg = route.path.split('/').filter(Boolean)
   const last = seg[seg.length - 1]
-  // student/courses/:id → overview; student/courses/:id/learning-center → learning-center
-  return ['overview', 'learning-center', 'knowledge'].includes(last) ? last : 'overview'
+  // student/courses/:id → overview；其余按 tabs 精确匹配
+  return tabs.some((t) => t.path === last) ? last : 'overview'
 })
 
 async function loadCourse() {

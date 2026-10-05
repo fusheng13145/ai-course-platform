@@ -28,16 +28,18 @@
         </div>
       </el-form-item>
       <el-alert
-        v-if="weightSum !== 100"
-        :title="'构成项权重合计为 ' + weightSum + '%，建议合计 100%'"
-        type="warning"
+        v-if="!weightBalanced"
+        :title="'构成项权重合计为 ' + weightSumText + '%，必须等于 100% 才能保存（后端同样会校验）'"
+        type="error"
         :closable="false"
         show-icon
       />
     </el-form>
     <template #footer>
       <el-button @click="emit('update:modelValue', false)">取消</el-button>
-      <el-button type="primary" :loading="saving" @click="savePolicy">保存</el-button>
+      <el-button type="primary" :loading="saving" :disabled="!weightBalanced" @click="savePolicy"
+        >保存</el-button
+      >
     </template>
   </el-dialog>
 </template>
@@ -62,6 +64,9 @@ const policyForm = reactive({ id: null, courseId: null, name: '', components: []
 const weightSum = computed(() =>
   policyForm.components.reduce((s, c) => s + (Number(c.weight) || 0), 0),
 )
+// 与后端 WEIGHT_TOLERANCE 一致：33.3+33.3+33.4 在浮点下并非精确 100
+const weightBalanced = computed(() => Math.abs(weightSum.value - 100) <= 0.01)
+const weightSumText = computed(() => Math.round(weightSum.value * 100) / 100)
 
 function addComponent() {
   policyForm.components.push({ key: '', name: '', weight: 0 })
@@ -109,6 +114,10 @@ async function savePolicy() {
       ElMessage.warning('构成项的标识与名称均不能为空')
       return
     }
+  }
+  if (!weightBalanced.value) {
+    ElMessage.error('构成项权重合计必须为 100%，当前为 ' + weightSumText.value + '%')
+    return
   }
   saving.value = true
   try {

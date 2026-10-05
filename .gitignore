@@ -72,8 +72,17 @@ frontend/dist_probe/
 # e2e 产物
 frontend/playwright-report/
 frontend/test-results/
+scripts/e2e/e2e_*_result.json
 
-# ---- Python 虚拟环境与数据目录（RAG 演示，整合自 RAG 成员上传版本）----
+# ---- Python 虚拟环境与数据目录 ----
 venv/
 .venv/
 /data/
+# RAG 真实引擎持久化数据（文档存储 + BM25/向量索引）
+python-services/rag_service/data/
+
+# ---- 凭据工件：curl 会话 Cookie 罐（含 HttpOnly access/refresh JWT），严禁入库 ----
+# calibration/cj.txt 曾被误提交（80553eb，令牌已过期）；历史提交仍含该文件，需另行清理
+calibration/cj.txt
+**/cookies.txt
+**/cookie.jar

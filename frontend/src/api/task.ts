@@ -26,6 +26,12 @@ export interface TaskQuery extends PageParams {
  */
 export const getTaskList = (params?: TaskQuery) => request.get('/tasks', { params })
 /**
+ * 按课程分页查询任务（后端 GET /tasks/course/{courseId}）。
+ * CourseTaskPanel 一直按这个名字调用，此前 api 层缺该导出，面板取任务列表必然 TypeError。
+ */
+export const listByCourse = (courseId: number, params?: PageParams) =>
+  request.get(`/tasks/course/${courseId}`, { params })
+/**
  * 导出函数 getTaskById：获取/查询数据
  */
 export const getTaskById = (id: number) => request.get(`/tasks/${id}`)
@@ -69,6 +75,7 @@ export const getCompletionStats = (id: number) => request.get(`/tasks/${id}/comp
  */
 export default {
   getTaskList,
+  listByCourse,
   getTaskById,
   createTask,
   updateTask,

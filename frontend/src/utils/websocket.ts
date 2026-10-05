@@ -9,6 +9,12 @@ let reconnectTimer = null
 let heartbeatTimer = null
 const listeners = new Map()
 let isConnected = false
+/**
+ * 是否处于「客户端主动断开」状态（P1-11）。
+ * 原实现 disconnect() 后旧 socket 的 onclose 仍会触发 scheduleReconnect()，
+ * 于是登出后若干秒又自动重连回来 —— 加上这里的全局抑制标记才能真正断开。
+ */
+let manuallyClosed = false
 
 const WS_URL = `${window.location.protocol === 'https:' ? 'wss:' : 'ws:'}//${window.location.host}/api/ws`
 
@@ -26,6 +32,9 @@ export function connect() {
     return Promise.resolve()
   }
 
+  // 客户端主动断开后，新的显式 connect() 视为重新开启一个会话
+  manuallyClosed = false
+
   return new Promise<void>((resolve, reject) => {
     socket = new WebSocket(WS_URL)
 
@@ -38,13 +47,15 @@ export function connect() {
     }
 
     socket.onmessage = (event) => {
+      let msg
       try {
-        const msg = JSON.parse(event.data)
-        handleMessage(msg)
+        msg = JSON.parse(event.data)
       } catch (e) {
-        console.error('[websocket.js] catch:', e)
+        // 非法 JSON 只记录，不抛出：单条坏消息不得影响后续消息与其它订阅者
         logger.warn('[WS] Parse error:', e)
+        return
       }
+      handleMessage(msg)
     }
 
     socket.onerror = (err) => {
@@ -56,6 +67,9 @@ export function connect() {
       logger.log(`[WS] Closed: code=${event.code}`)
       isConnected = false
       stopHeartbeat()
+      // 主动断开（登出/卸载）后绝不自动重连，否则 disconnect 会被自己的
+      // close 回调撤销，登出后仍持有新连接 → 跨用户串数据
+      if (manuallyClosed) return
       // 自动重连（最多5次）
       scheduleReconnect()
     }
@@ -64,16 +78,51 @@ export function connect() {
 
 /**
  * 断开 WebSocket 连接
- * 清除重连定时器和心跳检测，主动关闭 socket 连接
+ *
+ * 缺陷修复（P1-11，2026-10-04）：
+ * ① 原实现**不清空 listeners** —— 登出后各页面注册的回调仍留在全局 Map 中，
+ *    下一个用户登录复用同一模块实例时，旧用户的回调会继续被投递（跨用户串数据）。
+ * ② 原实现 close 后 `onclose` 仍会触发 `scheduleReconnect()`，把「主动断开」
+ *    又重连回来，等于 disconnect() 完全失效。现在以 manuallyClosed 标记阻断，
+ *    并摘除 socket 上的全部事件回调，避免悬挂引用继续驱动状态机。
  */
 export function disconnect() {
+  manuallyClosed = true
   clearReconnect()
   stopHeartbeat()
+  // 缺陷修复（2026-10-04）：重连计数原先只在 onopen 成功时归零，主动断开（登出）后
+  // 计数仍停在 MAX_RECONNECT_ATTEMPTS 附近；下次 connect() 若首跳失败，scheduleReconnect
+  // 会立即耗尽预算而不再重试。断开即结束一个会话，计数应随之复位。
+  reconnectAttempts = 0
   if (socket) {
-    socket.close(1000, 'Client disconnect')
+    socket.onopen = null
+    socket.onmessage = null
+    socket.onerror = null
+    socket.onclose = null
+    try {
+      socket.close(1000, 'Client disconnect')
+    } catch (e) {
+      logger.warn('[WS] close 异常:', e)
+    }
     socket = null
   }
   isConnected = false
+  // 登出即彻底丢弃订阅，杜绝回调残留
+  listeners.clear()
+}
+
+/** 当前注册的监听器总数（供测试与调试断言订阅已清空） */
+export function listenerCount() {
+  let n = 0
+  listeners.forEach((set) => {
+    n += set.size
+  })
+  return n
+}
+
+/** 主动清空全部订阅（不等断开） */
+export function clearListeners() {
+  listeners.clear()
 }
 
 /**
@@ -83,8 +132,17 @@ export function disconnect() {
  */
 export function send(message) {
   if (socket && socket.readyState === WebSocket.OPEN) {
-    socket.send(JSON.stringify(message))
-    return true
+    // 修复（2026-10-04）：readyState 为 OPEN 不代表 send 一定成功——缓冲区溢出、
+    // 页面卸载竞态下浏览器会直接抛 InvalidStateError。原实现不 catch，
+    // 异常会顺着心跳定时器（setInterval 回调）逸出成未捕获异常，
+    // 并被业务调用方的 await 链当成"发送逻辑失败"以外的错误。
+    try {
+      socket.send(JSON.stringify(message))
+      return true
+    } catch (e) {
+      logger.warn('[WS] send 失败:', e)
+      return false
+    }
   }
   logger.warn('[WS] Not connected, message not sent')
   return false
@@ -130,7 +188,7 @@ function handleMessage(msg) {
       try {
         cb(data)
       } catch (e) {
-        console.error('[websocket.js] catch:', e)
+        // 单个订阅者抛错不得中断广播：其余订阅者仍需收到消息
         logger.error('[WS] Handler error:', e)
       }
     })
@@ -143,7 +201,6 @@ function handleMessage(msg) {
       try {
         cb(msg)
       } catch (e) {
-        console.error('[websocket.js] catch:', e)
         logger.error('[WS] Handler error:', e)
       }
     })
@@ -168,6 +225,7 @@ let reconnectAttempts = 0
 const MAX_RECONNECT_ATTEMPTS = 5
 
 function scheduleReconnect() {
+  if (manuallyClosed) return
   if (reconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
     logger.log('[WS] Max reconnect attempts reached')
     return
@@ -178,7 +236,16 @@ function scheduleReconnect() {
   reconnectAttempts++
 
   logger.log(`[WS] Reconnecting in ${delay}ms (attempt ${reconnectAttempts})`)
-  reconnectTimer = setTimeout(() => connect(), delay)
+  // 缺陷修复（P1-11①）：connect() 在握手失败时会 reject（onerror），
+  // 原实现 `setTimeout(() => connect(), delay)` 从不 catch
+  // → 每次重连失败都产生一个 **Unhandled Promise Rejection**，
+  // 在浏览器控制台/监控里刷屏，且可能触发全局错误处理把用户踢下线。
+  reconnectTimer = setTimeout(() => {
+    if (manuallyClosed) return
+    connect().catch((err) => {
+      logger.warn('[WS] Reconnect failed:', err)
+    })
+  }, delay)
 }
 
 function clearReconnect() {

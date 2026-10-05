@@ -104,6 +104,113 @@ function isNetworkError(error) {
   return !error.response && !!error.message
 }
 
+/* ============================================
+ * 幂等性判定（P1-7）
+ * ============================================ */
+/**
+ * 仅 HTTP 语义上「可安全重复」的方法才允许自动重试。
+ *
+ * 缺陷修复（P1-7）：原实现对所有请求（含 POST/PUT/DELETE）在网络抖动时自动重试一次。
+ * 交卷（POST /exam-sessions/{id}/submit）、上传、批改等请求并非真正幂等——
+ * 首次请求可能已被服务端处理但响应在回程丢失，重试会产生**重复提交/重复记录**。
+ * 故重试白名单只保留 GET/HEAD/OPTIONS。
+ */
+const IDEMPOTENT_METHODS = ['get', 'head', 'options']
+
+function isIdempotentMethod(method) {
+  const m = (method || 'get').toLowerCase()
+  return IDEMPOTENT_METHODS.includes(m)
+}
+
+/* ============================================
+ * 401 单飞刷新（P0-4）
+ * ============================================ */
+/**
+ * 并发 401 时共享同一次刷新请求。
+ *
+ * 缺陷修复（P0-4）：原实现每个 401 请求各自 `post('/auth/refresh')`、各自
+ * `post('/auth/logout')` + `resetAuthState()` + `router.push('/login')`。
+ * 一个页面并发 5 个接口同时 401，就会打 5 次刷新、跳 5 次登录页，
+ * 且刷新 Cookie 轮换存在竞态（后一次刷新使前一次的会话失效）。
+ * 现在用模块级 `refreshPromise` 做 single-flight：所有并发 401 复用同一 Promise，
+ * 排队重试的请求因此都能拿到刷新后的新会话 Cookie。
+ */
+let refreshPromise = null
+let logoutPromise = null
+
+function refreshSessionOnce() {
+  if (!refreshPromise) {
+    // finally 保留原始 settle 结果，且无论成功失败都释放单飞槽位，
+    // 使「下一次会话过期」仍能重新发起刷新。
+    refreshPromise = service.post('/auth/refresh', {}).finally(() => {
+      refreshPromise = null
+    })
+  }
+  return refreshPromise
+}
+
+/**
+ * 刷新失败后的兜底登出同样单飞：并发 401 只会打一次 /auth/logout。
+ */
+function logoutSessionOnce() {
+  if (!logoutPromise) {
+    logoutPromise = service.post('/auth/logout').finally(() => {
+      logoutPromise = null
+    })
+  }
+  return logoutPromise
+}
+
+/** 供测试与调用方查询当前是否有刷新在途 */
+export function isRefreshing() {
+  return refreshPromise !== null
+}
+
+/** 手动使在途刷新/登出失效（登出后不应复用旧刷新结果） */
+export function resetRefreshState() {
+  refreshPromise = null
+  logoutPromise = null
+}
+
+/**
+ * 登录态失效处理的去重窗口（毫秒）。
+ * 并发 401 只允许一次 `router.push('/login')`，避免路由抖动与重复导航告警。
+ */
+const LOGIN_REDIRECT_DEDUPE_MS = 1000
+let lastLoginRedirectAt = 0
+
+/** 供测试重置跳转去重窗口 */
+export function resetLoginRedirectDedupe() {
+  lastLoginRedirectAt = 0
+}
+
+/**
+ * 会话失效统一收尾：清前端登录态 + 提示 + **至多一次**跳转登录页。
+ */
+function handleAuthExpired() {
+  const authStore = useAuthStore()
+  authStore.resetAuthState()
+  showThrottledMessage('error', '登录已过期，请重新登录')
+  const now = Date.now()
+  if (now - lastLoginRedirectAt < LOGIN_REDIRECT_DEDUPE_MS) return
+  lastLoginRedirectAt = now
+  router.push('/login')
+}
+
+/**
+ * 重试前重建 signal（P1-7 第二处缺陷）。
+ *
+ * 请求拦截器会把 AbortController 的 signal 写进 config（addPendingRequest）。
+ * 直接复用该 config 重试时，若原 signal 已被 `cancelAllPendingRequests()` 触发中止，
+ * 重试请求会在发出的瞬间被同一已 aborted 的 signal 取消 → 重试必然失败。
+ * 这里克隆 config 并剥离旧 signal，交给请求拦截器重新分配全新控制器。
+ */
+function cloneConfigForRetry(config) {
+  const cloned = { ...config }
+  delete cloned.signal
+  return cloned
+}
+
 /* 根据状态码获取友好提示信息 */
 function getStatusMessage(status) {
   const messages = {
@@ -162,6 +269,13 @@ service.interceptors.response.use(
 
     const data = response.data
 
+    /* 空响应体（204 No Content / 无 body 的成功响应）：
+       缺陷修复（P1-7 第三处）——原实现直接读 `data.code`，body 为 null 时抛
+       `TypeError: Cannot read properties of null`，把一个成功响应变成运行时错误。 */
+    if (data === null || data === undefined) {
+      return data
+    }
+
     /* 业务状态码判断 */
     if (data.code !== undefined && data.code !== 200) {
       showThrottledMessage('error', data.message || '请求失败')
@@ -180,7 +294,6 @@ service.interceptors.response.use(
     /* 被主动取消的请求不提示 */
     if (axios.isCancel(error)) {
       if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
         logger.log('[axios] 请求被取消:', error.message)
       }
       return Promise.reject(error)
@@ -206,11 +319,11 @@ service.interceptors.response.use(
 
       showThrottledMessage('error', networkMsg)
 
-      /* 网络抖动自动重试一次 */
-      if (config && !retryCache.get(generateReqKey(config))) {
+      /* 网络抖动自动重试一次：仅限幂等方法（P1-7），非幂等请求绝不重放 */
+      if (config && isIdempotentMethod(config.method) && !retryCache.get(generateReqKey(config))) {
         retryCache.set(generateReqKey(config), true)
         try {
-          const res = await service(config)
+          const res = await service(cloneConfigForRetry(config))
           retryCache.delete(generateReqKey(config))
           return res
         } catch (retryErr) {
@@ -232,38 +345,37 @@ service.interceptors.response.use(
       case 401: {
         /* 未授权：尝试用 HttpOnly 刷新 Cookie 静默刷新访问令牌（前端不可读该 Cookie）。
            刷新成功后后端会写入新的访问 Cookie，直接重试原请求即可；无需在前端暂存令牌。 */
-        const authStore = useAuthStore()
         // 加固（#14）：刷新/登出端点自身的 401 **不得**再次触发刷新，否则一旦后端把
         // 「刷新失败」由 400 改为 401，`service.post('/auth/refresh')` 将重新进入本分支，
         // 形成无限递归。此处以 URL 为界，使重试链路**无条件有界**，不再依赖
         // 「刷新失败恰好返回 400（而非 401）」这一隐式且脆弱的前提。
         const url = typeof config?.url === 'string' ? config.url : ''
         const isAuthFlowCall = url.includes('/auth/refresh') || url.includes('/auth/logout')
+        // 加固（P0-4）：刷新走 single-flight，并发 401 只发一次 /auth/refresh；
+        // 收尾统一交给 handleAuthExpired()，登录页至多跳转一次。
         if (config && !config._retry && !isAuthFlowCall) {
           config._retry = true
           try {
             // 刷新 Cookie 随请求自动携带（withCredentials），请求体为空
-            await service.post('/auth/refresh', {})
-            return service(config)
+            await refreshSessionOnce()
+            return await service(cloneConfigForRetry(config))
           } catch (refreshErr) {
             logger.error('[request] catch:', refreshErr)
-            // 刷新失败：尽力清除后端会话 Cookie，避免残留脏会话
+            // 刷新失败：尽力清除后端会话 Cookie，避免残留脏会话。
+            // 登出同样走单飞，避免并发打出 N 个 /auth/logout。
             try {
-              await service.post('/auth/logout')
+              await logoutSessionOnce()
             } catch (logoutErr) {
               logger.error('[request] catch:', logoutErr)
               // 登出接口失败不影响主流程（令牌已失效），仅开发环境记录
               if (import.meta.env.DEV) {
-                // eslint-disable-next-line no-console
                 logger.warn('登出失败:', logoutErr)
               }
             }
           }
         }
         // 刷新失败 / 已重试过 / 刷新端点自身 401：清空前端登录态并跳转登录页
-        authStore.resetAuthState()
-        showThrottledMessage('error', '登录已过期，请重新登录')
-        router.push('/login')
+        handleAuthExpired()
         break
       }
 
@@ -301,12 +413,16 @@ service.interceptors.response.use(
       case 502:
       case 503:
       case 504: {
-        /* 服务端临时故障：自动重试一次 */
-        if (config && !retryCache.get(generateReqKey(config))) {
+        /* 服务端临时故障：仅幂等方法自动重试一次（P1-7），重试前重建 signal */
+        if (
+          config &&
+          isIdempotentMethod(config.method) &&
+          !retryCache.get(generateReqKey(config))
+        ) {
           retryCache.set(generateReqKey(config), true)
           showThrottledMessage('warning', '服务暂时不可用，正在重试...')
           try {
-            const res = await service(config)
+            const res = await service(cloneConfigForRetry(config))
             retryCache.delete(generateReqKey(config))
             return res
           } catch (retryErr) {

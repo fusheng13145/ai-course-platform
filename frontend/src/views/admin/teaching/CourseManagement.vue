@@ -213,7 +213,10 @@ const loading = ref(false)
 const detailDialogVisible = ref(false)
 const currentCourse = ref(null)
 
-const normalizeStatus = (status) => String(status || '').trim().toUpperCase()
+const normalizeStatus = (status) =>
+  String(status || '')
+    .trim()
+    .toUpperCase()
 const isActive = (course) => normalizeStatus(course?.status) === 'ACTIVE'
 
 const pendingCount = computed(

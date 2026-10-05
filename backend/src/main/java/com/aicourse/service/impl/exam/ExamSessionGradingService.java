@@ -182,7 +182,9 @@ public class ExamSessionGradingService {
                 // 部分正确也算错误
                 wrongCount++;
                 wrongQuestionIds.add(question.getId());
-            } else if (score.equals(BigDecimal.ZERO) && !studentAnswer.isEmpty()) {
+            } else if (score.compareTo(BigDecimal.ZERO) == 0 && !studentAnswer.isEmpty()) {
+                // 修复 D5（零分判定）：BigDecimal.equals 按 scale 比较，0.00 与 0 不等 → 错题数漏计；
+                // 改用 compareTo 做数值零判定，保证「得分恰好为 0 且学生已作答」必被计入错题。
                 wrongCount++;
                 wrongQuestionIds.add(question.getId());
             }
@@ -229,6 +231,26 @@ public class ExamSessionGradingService {
         }
         if (!ExamSessionStatus.GRADED.equals(session.getStatus())) {
             throw new BusinessException("请先完成自动阅卷");
+        }
+
+        // 修复 D5（数值越界）：人工阅卷分数必须做边界校验，否则可写入负分/超满分导致 percentage>100，
+        // 或 score=null 时后续 calculateTotalScoreFromScores 拆箱炸裂。
+        // 策略选择「拒绝」而非「clamp」，与本项目既有 BusinessException 风格一致，让教师明确感知录入错误。
+        if (score == null) {
+            throw new BusinessException("人工阅卷分数不能为空");
+        }
+        if (score.compareTo(BigDecimal.ZERO) < 0) {
+            throw new BusinessException("人工阅卷分数不能为负数");
+        }
+        // 该题满分来源：按 (examPaperId, questionId) 定位 ExamQuestion.points。
+        // 定位不到（历史数据/未入库）时跳过上界校验，避免误伤既有可阅卷场景。
+        ExamQuestion examQuestion = examQuestionService.getOne(new LambdaQueryWrapper<ExamQuestion>()
+                .eq(ExamQuestion::getExamPaperId, session.getExamPaperId())
+                .eq(ExamQuestion::getQuestionId, questionId)
+                .last("LIMIT 1"));
+        if (examQuestion != null && examQuestion.getPoints() != null
+                && score.compareTo(examQuestion.getPoints()) > 0) {
+            throw new BusinessException("人工阅卷分数不能超过该题满分：" + examQuestion.getPoints());
         }
 
         // 解析现有的questionScores
@@ -438,7 +460,10 @@ public class ExamSessionGradingService {
                 WrongQuestion existing = wrongQuestionService.getOne(wrapper);
                 existing.setCourseId(realCourseId);
                 existing.setWrongAnswer(wrongAnswer);
-                existing.setPracticeCount(existing.getPracticeCount() + 1);
+                // 修复 D6（拆箱 NPE）：practiceCount 可能为 null（历史数据/未初始化），
+                // 直接 +1 会拆箱炸裂并被外层 catch 静默吞掉，导致练习次数永不累加。
+                // 与 WrongQuestionServiceImpl 的既有判空口径保持一致。
+                existing.setPracticeCount(Optional.ofNullable(existing.getPracticeCount()).orElse(0) + 1);
                 existing.setLastPracticedAt(java.time.LocalDateTime.now());
                 // 再次答错时一并刷新快照，保证展示与当前题库一致
                 WrongQuestionSnapshotUtil.fillFromQuestion(existing, questionService.getById(questionId));

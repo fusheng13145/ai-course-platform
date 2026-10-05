@@ -182,9 +182,12 @@ const currentVersion = computed(() => {
 
 async function loadResources() {
   try {
-    const res = (await resourceApi.getResourceList?.({ size: 200 })) ||
-      (await resourceApi.getList?.({ size: 200 })) || { data: [] }
-    const data = res.data?.list || res.data?.records || res.data || []
+    // 缺陷修复（2026-10-04）：原写法 `resourceApi.getResourceList?.({ size: 200 })` 有两重失效——
+    // ① getResourceList 的首参是 courseId，传对象会拼出 `/resources/course/[object Object]`；
+    // ② 兜底的 `resourceApi.getList` 在 api/resource.ts 里根本不存在，可选链使这半句永远静默跳过。
+    // 本页为管理端跨课程视图，改用 /resources/search（keyword 传空即全量，仅 ADMIN 可跨课程）。
+    const res = await resourceApi.searchResources({ keyword: '', page: 1, size: 200 })
+    const data = res.data?.records || res.data?.list || res.data || []
     resources.value = Array.isArray(data) ? data : []
   } catch (e) {
     console.error('加载资源列表失败:', e)

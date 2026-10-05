@@ -1,6 +1,8 @@
 /**
  * 云枢教学平台 · 三端导航分区配置
- * 侧边栏手风琴结构：分区标签 → 一级菜单项 → 二级子菜单
+ * 侧边栏手风琴结构：分区标签 → 一级菜单项 → 二级子菜单 →（课程目录）三级功能页签
+ * 「课程目录」为动态一级：展开后是 总览入口 + 各具体课程，
+ * 每门课程下再挂该课程独立的 作业/考试/成绩/知识图谱 等子项（对齐 /{role}/courses/:id/* 路由）
  * 对齐 edu-platform-prototype 原型设计
  */
 
@@ -111,77 +113,91 @@ export const ADMIN_SECTIONS = [
   },
 ]
 
-/* ============================== 教师端分区 ============================== */
-export const TEACHER_SECTIONS = [
-  {
-    label: '教学工作台',
-    items: [
-      { key: 'my', text: '我的课程', icon: 'book', path: '/teacher/courses' },
-      { key: 'dashboard', text: '教学概览', icon: 'chart', path: '/teacher/dashboard' },
-      { key: 'bank', text: '试题库', icon: 'doc', path: '/teacher/bank' },
-    ],
-  },
-  {
-    label: '教学工具',
-    items: [
-      { key: 'analytics', text: '学情统计', icon: 'sliders', path: '/teacher/analytics' },
-      { key: 'interaction', text: '课堂互动', icon: 'message', path: '/teacher/interaction' },
-      { key: 'discussion', text: '课程讨论', icon: 'grid', path: '/teacher/discussion' },
-    ],
-  },
-  {
-    label: '智能教学',
-    items: [
-      {
-        key: 'knowledge',
-        text: '知识图谱',
-        icon: 'layers',
-        children: [
-          { key: 'knowledge-graph', text: '图谱可视化', path: '/teacher/knowledge' },
-          {
-            key: 'knowledge-management',
-            text: '知识点管理',
-            path: '/teacher/knowledge-management',
-          },
-        ],
-      },
-      { key: 'ai', text: 'AI 教学中心', icon: 'grad', path: '/teacher/ai' },
-      { key: 'exams-manage', text: '考试管理', icon: 'clipboard', path: '/teacher/exams-manage' },
-      { key: 'grades-manage', text: '成绩管理', icon: 'award', path: '/teacher/grades-manage' },
-    ],
-  },
-]
+/* ============================== 课程目录（动态三级） ============================== */
 
-/* ============================== 学生端分区 ============================== */
+/** 每门课程下的功能页签：suffix 对应 `/${role}/courses/:id/${suffix}` 子路由 */
+export const COURSE_TABS = {
+  TEACHER: [
+    { suffix: 'overview', text: '课程概览' },
+    { suffix: 'chapters', text: '章节与任务点' },
+    { suffix: 'tasks', text: '作业管理' },
+    { suffix: 'submissions', text: '作业批改' },
+    { suffix: 'exams', text: '考试管理' },
+    { suffix: 'grades', text: '成绩统计' },
+    { suffix: 'knowledge', text: '知识图谱' },
+    { suffix: 'knowledge-management', text: '知识点管理' },
+    { suffix: 'bank', text: '课程题库' },
+    { suffix: 'analytics', text: '学情统计' },
+    { suffix: 'interaction', text: '课堂互动' },
+    { suffix: 'ai', text: 'AI 教学助手' },
+    { suffix: 'discussion', text: '课程讨论' },
+  ],
+  STUDENT: [
+    { suffix: 'overview', text: '课程概览' },
+    { suffix: 'learning-center', text: '作业 · 学习中心' },
+    { suffix: 'exams', text: '考试练习' },
+    { suffix: 'grades', text: '课程成绩' },
+    { suffix: 'knowledge', text: '知识图谱' },
+    { suffix: 'ai', text: 'AI 助手' },
+  ],
+}
+
+/** 课程目录的「总览」入口（统一列表页，保留在动态课程之前） */
+const COURSE_CATALOG_ENTRY = {
+  TEACHER: { allText: '课程总览', allPath: '/teacher/courses' },
+  STUDENT: { allText: '课程总览', allPath: '/student/courses' },
+}
+
+/**
+ * 按角色 + 课程列表构建「课程目录」分区（一级课程目录 → 二级各课程 → 三级功能页签）
+ * @param role   TEACHER / STUDENT
+ * @param courses [{ id, name }]
+ */
+export function buildCourseCatalogSection(role, courses) {
+  const entry = COURSE_CATALOG_ENTRY[role]
+  const tabs = COURSE_TABS[role] || []
+  const roleLower = String(role).toLowerCase()
+  const children = [
+    { key: 'course-catalog-all', text: entry.allText, path: entry.allPath },
+    ...(courses || []).map((c) => ({
+      key: `course-${c.id}`,
+      text: c.name,
+      children: tabs.map((t) => ({
+        key: `course-${c.id}-${t.suffix}`,
+        text: t.text,
+        path: `/${roleLower}/courses/${c.id}/${t.suffix}`,
+      })),
+    })),
+  ]
+  return [
+    {
+      label: '课程目录',
+      items: [{ key: 'course-catalog', text: '课程目录', icon: 'book', children }],
+    },
+  ]
+}
+
+/* ============================== 教师端分区（静态部分） ============================== */
+// 教学概览/试题库/AI 教学中心已全部收敛为「课程目录」下每门课程的独立子项，
+// 统一路由（/teacher/dashboard、/teacher/bank、/teacher/ai）保留兼容与跨课直达。
+export const TEACHER_SECTIONS = []
+
+/* ============================== 学生端分区（静态部分） ============================== */
 export const STUDENT_SECTIONS = [
   {
     label: '学习',
-    items: [
-      { key: 'hall', text: '课程大厅', icon: 'book', path: '/student/courses' },
-      { key: 'dashboard', text: '学习概览', icon: 'chart', path: '/student/dashboard' },
-      { key: 'ai-assistant', text: 'AI 助手', icon: 'grad', path: '/student/ai-assistant' },
-    ],
+    items: [{ key: 'dashboard', text: '学习概览', icon: 'chart', path: '/student/dashboard' }],
   },
   {
     label: '学习工具',
     items: [
-      {
-        key: 'knowledge-graph',
-        text: '知识图谱',
-        icon: 'layers',
-        path: '/student/knowledge-graph',
-      },
       { key: 'learning-path', text: '学习路径', icon: 'pin', path: '/student/learning-path' },
       { key: 'calendar', text: '学习日历', icon: 'calendar', path: '/student/learning-calendar' },
     ],
   },
   {
     label: '课业中心',
-    items: [
-      { key: 'exams', text: '作业考试', icon: 'clipboard', path: '/student/exams' },
-      { key: 'grades', text: '成绩查询', icon: 'award', path: '/student/grades' },
-      { key: 'wrong', text: '错题本', icon: 'warn', path: '/student/wrong-questions' },
-    ],
+    items: [{ key: 'wrong', text: '错题本', icon: 'warn', path: '/student/wrong-questions' }],
   },
   {
     label: '个人',

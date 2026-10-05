@@ -196,8 +196,12 @@ public class StudentTaskComponent {
                         correct++;
                     } else if (taskSupport.isObjectiveQuestion(q.getType())) {
                         // 修复 P1-3：练习/测验(quiz) 答错自动收录错题本，与考试(EXAM)对齐
+                        // 修复 D3（事务传染）：改用 recordWrongAnswerInNewTx（REQUIRES_NEW 独立事务），
+                        // 使「错题收录失败」仅回滚该独立事务，不会把本方法 @Transactional 的共享事务标记为
+                        // rollback-only；否则外层 catch 吞异常后继续提交会抛 UnexpectedRollbackException，
+                        // 使一次收录失败拖垮整次测验判分落库。语义：收录失败不影响判分结果，仅记录日志。
                         try {
-                            wrongQuestionService.recordWrongAnswer(userId, qid, courseId, ans, "QUIZ");
+                            wrongQuestionService.recordWrongAnswerInNewTx(userId, qid, courseId, ans, "QUIZ");
                         } catch (Exception ignore) {
                             log.warn("错题收录失败: questionId={}, userId={}", qid, userId, ignore);
                         }

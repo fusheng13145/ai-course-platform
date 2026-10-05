@@ -144,10 +144,13 @@ const cockpitTabs = [
   { path: 'submissions', label: '成员管理' },
   { path: 'exams', label: '考试管理' },
   { path: 'grades', label: '成绩统计' },
+  { path: 'knowledge', label: '知识图谱' },
+  { path: 'knowledge-management', label: '知识点管理' },
   { path: 'bank', label: '课程题库' },
   { path: 'proctor', label: '在线监考' },
   { path: 'analytics', label: '学情统计' },
   { path: 'interaction', label: '课堂互动' },
+  { path: 'ai', label: 'AI 教学助手' },
   { path: 'discussion', label: '课程讨论' },
 ]
 const activeCockpit = ref('chapters')
@@ -156,6 +159,15 @@ const activeCockpit = ref('chapters')
 watch(activeCockpit, (tab) => {
   router.push(`/teacher/courses/${courseId.value}/${tab}`)
 })
+
+// 侧边栏/外部链接切换页签时同步高亮
+watch(
+  () => route.path,
+  (p) => {
+    const last = p.split('/').pop()
+    if (cockpitTabs.some((t) => t.path === last)) activeCockpit.value = last
+  },
+)
 
 // Initialize from route
 onMounted(async () => {

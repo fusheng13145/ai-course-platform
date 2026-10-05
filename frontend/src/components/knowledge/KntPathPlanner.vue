@@ -50,9 +50,9 @@
       <el-input-number
         :model-value="pathMaxHops"
         :min="1"
-        :max="6"
+        :max="5"
         :controls="false"
-        placeholder="跳数"
+        placeholder="跳数（留空不限）"
         class="path-hops"
         @update:model-value="emit('update:hops', $event)"
       />
@@ -198,7 +198,7 @@ const emit = defineEmits(['plan', 'update:source', 'update:target', 'update:hops
   font-size: 18px;
 }
 .path-hops {
-  width: 96px;
+  width: 132px;
 }
 .path-loading {
   margin-top: var(--ac-spacing-md);

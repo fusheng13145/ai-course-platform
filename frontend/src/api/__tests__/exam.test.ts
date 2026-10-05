@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { getExamQuestions, normalizeExamQuestions } from '@/api/exam'
+import { getExamQuestions, listByCourse, normalizeExamQuestions } from '@/api/exam'
 
 /**
  * P0-2 契约护栏（2026-09-21）
@@ -180,5 +180,37 @@ describe('getExamQuestions - API 层接入', () => {
     const res = await getExamQuestions(4)
 
     expect(res.data).toEqual([])
+  })
+})
+
+/**
+ * listByCourse 契约（2026-10-04）
+ *
+ * CourseExamPanel 一直调用 `examApi.listByCourse(courseId)`，但 api/exam.ts 里从来没有这个导出
+ * —— 教师课程详情页的考试面板因此每次加载都抛 TypeError（列表恒空 + 控制台报错）。
+ * 后端真实端点为 `GET /exam-papers/course/{courseId}`（分页参数 page/size）。
+ */
+describe('exam 模块：listByCourse', () => {
+  it('拼出 /exam-papers/course/{courseId}，分页参数走 params', async () => {
+    mocks.get.mockResolvedValue({ data: { records: [], total: 0 } })
+
+    await listByCourse(7, { page: 2, size: 20 })
+
+    expect(mocks.get).toHaveBeenCalledWith('/exam-papers/course/7', {
+      params: { page: 2, size: 20 },
+    })
+  })
+
+  it('省略分页参数时发送空 params 对象（而非 undefined，避免 axios 序列化差异）', async () => {
+    mocks.get.mockResolvedValue({ data: { records: [] } })
+
+    await listByCourse(3)
+
+    expect(mocks.get).toHaveBeenCalledWith('/exam-papers/course/3', { params: {} })
+  })
+
+  it('已在默认导出对象中登记（组件按 examApi.listByCourse 取用）', async () => {
+    const examApi = (await import('@/api/exam')).default
+    expect(typeof examApi.listByCourse).toBe('function')
   })
 })

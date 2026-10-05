@@ -24,6 +24,7 @@ public class KnowledgePathPlanDTO {
     @Schema(description = "目标知识点ID", example = "12", requiredMode = Schema.RequiredMode.REQUIRED)
     private Long targetId;
 
-    @Schema(description = "最大搜索跳数（1=直接邻居，2=邻居的邻居，默认取配置 KG_RAG_MAX_HOPS）", example = "2")
+    @Schema(description = "最大搜索跳数（1=直接邻居，2=邻居的邻居）；留空/非正数表示不限，返回两点间真实最短路径",
+            example = "3")
     private Integer maxHops;
 }

@@ -19,7 +19,7 @@ interface SpeechRecognitionWindow extends Window {
 /** 语音识别是否可用 */
 export function isRecognitionSupported() {
   const w = window as unknown as SpeechRecognitionWindow
-  return typeof window !== 'undefined' && (w.SpeechRecognition || w.webkitSpeechRecognition)
+  return typeof window !== 'undefined' && !!(w.SpeechRecognition || w.webkitSpeechRecognition)
 }
 
 /** 语音合成是否可用 */

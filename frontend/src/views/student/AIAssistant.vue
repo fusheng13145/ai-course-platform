@@ -12,8 +12,6 @@
 
     <!-- 右侧：主聊天区 -->
     <AiaChatPanel
-      :messages-ref="messagesRef"
-      :input-ref="inputRef"
       :course-list="courseList"
       :selected-course-id="selectedCourseId"
       :messages="messages"
@@ -35,12 +33,14 @@
       @copy="copyMessage"
       @regenerate="regenerateMessage"
       @toggle-recording="toggleRecording"
+      @register-refs="onRegisterRefs"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 import { useAIAssistant } from '@/composables/useAIAssistant'
+import { useRoute } from 'vue-router'
 import AiaSidebar from './components/AiaSidebar.vue'
 import AiaChatPanel from './components/AiaChatPanel.vue'
 
@@ -79,6 +79,17 @@ const {
 
 /** Shift+Enter 换行：依赖 textarea 默认行为，无需额外处理 */
 function handleNewLine() {}
+
+/** 课程上下文：/student/courses/:id/ai 或统一路由 ?courseId 预选（setup 同步期完成，先于 onMounted） */
+const route = useRoute()
+const cid = route.params.id || route.query.courseId
+if (cid) selectedCourseId.value = Number(cid)
+
+/** 面板挂载后回传 DOM 引用，供 useAIAssistant 滚动到底等逻辑使用 */
+function onRegisterRefs(els: { messages: HTMLElement | null; input: unknown }) {
+  messagesRef.value = els.messages
+  inputRef.value = els.input
+}
 </script>
 
 <style scoped>

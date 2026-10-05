@@ -316,13 +316,19 @@ export function useKnowledgeManagement() {
           layout: 'force',
           data: [],
           links: [],
-          roam: true,
+          roam: 'move',
           draggable: true,
-          force: { repulsion: 200, edgeLength: 120, gravity: 0.1 },
+          categories: [
+            { name: 'EASY', itemStyle: { color: st.EASY } },
+            { name: 'MEDIUM', itemStyle: { color: st.MEDIUM } },
+            { name: 'HARD', itemStyle: { color: st.HARD } },
+          ],
+          force: { repulsion: 120, edgeLength: [60, 140], gravity: 0.12, friction: 0.26 },
           emphasis: { focus: 'adjacency', lineStyle: { width: 3 } },
-          lineStyle: { color: t.axis, width: 1.5, curveness: 0.2, opacity: 0.7 },
-          label: { show: true, position: 'bottom', fontSize: 11, color: t.text, formatter: '{b}' },
-          symbolSize: (val) => 16 + (val?.[2] || 1) * 10,
+          lineStyle: { color: t.subText, width: 1, curveness: 0.12, opacity: 0.5 },
+          label: { show: true, position: 'bottom', fontSize: 10, color: t.text, formatter: '{b}' },
+          labelLayout: { hideOverlap: true },
+          symbolSize: (val) => Math.max(12, Math.min(26, (val?.[2] || 1) * 2.2)),
           itemStyle: { borderColor: t.sliceBorder, borderWidth: 2 },
           color: (params) => {
             const colors = { EASY: st.EASY, MEDIUM: st.MEDIUM, HARD: st.HARD }
@@ -389,18 +395,23 @@ export function useKnowledgeManagement() {
         value: [k.importance || 1],
       }))
     }
-    forceGraphOption.value.series[0].data = nodes.map((n) => ({
-      name: n.name || n.label || '未知',
-      id: n.id,
-      difficulty: n.difficulty,
-      value: n.value || [n.importance || 1],
-      category: n.category ?? (n.difficulty === 'HARD' ? 2 : n.difficulty === 'EASY' ? 0 : 1),
-      symbolSize: 18 + (n.importance || 1) * 8,
-      itemStyle: { color: getNodeColor(n.difficulty) },
-    }))
+    forceGraphOption.value.series[0].data = nodes.map((n) => {
+      const diff = (n.difficulty || n.difficultyLevel || '').toUpperCase()
+      const imp = n.importance ?? n.weight ?? 1
+      return {
+        name: n.name || n.label || '未知',
+        // 标识与端点统一为字符串：ECharts 会把数字端点当作节点下标，导致连线被整体丢弃
+        id: String(n.id),
+        difficulty: diff,
+        value: [imp, imp, imp],
+        category: diff === 'HARD' ? 2 : diff === 'EASY' ? 0 : 1,
+        symbolSize: Math.max(12, Math.min(26, imp * 2.2)),
+        itemStyle: { color: getNodeColor(diff) },
+      }
+    })
     forceGraphOption.value.series[0].links = (links || []).map((l) => ({
-      source: l.source || l.sourceName || l.sourceId,
-      target: l.target || l.targetName || l.targetId,
+      source: String(l.source ?? l.sourceName ?? l.sourceId),
+      target: String(l.target ?? l.targetName ?? l.targetId),
       value: l.type || 'related',
     }))
     if (knowledgeTree.value.length > 0) {

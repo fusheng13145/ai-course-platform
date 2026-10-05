@@ -4,6 +4,7 @@ import logger from '@/utils/logger'
 import questionApi from '@/api/question'
 import courseApi from '@/api/course'
 import request from '@/api/request'
+import { pickList, readTotal, unwrap } from '@/utils/response'
 
 /** 选项标签（A-H） */
 export const OPTION_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
@@ -99,9 +100,11 @@ export function useQuestions() {
 
   async function fetchCourses() {
     try {
-      const res = await courseApi.getCourseList({ page: 0, size: 100 })
-      const data = res.data?.list || res.data || res || []
-      courseList.value = Array.isArray(data) ? data : []
+      // 后端分页为 1 基（Page.of(page,size)），传 0 会命中非法页码
+      const res = await courseApi.getCourseList({ page: 1, size: 100 })
+      // 缺陷修复（2026-10-04）：旧写法 `res.data?.list || res.data` 里空数组是 truthy，
+      // 后端把数据放在 records（MyBatis-Plus Page 形状）而 list 字段为 [] 时数据被吞掉。
+      courseList.value = pickList(unwrap(res))
     } catch (error) {
       logger.warn('获取课程列表失败:', error)
       courseList.value = []
@@ -112,7 +115,11 @@ export function useQuestions() {
     loading.value = true
     try {
       const params: Record<string, string | number | undefined> = {
-        page: pagination.page - 1,
+        // 统一为后端实际口径：MyBatis-Plus `Page.of(page,size)` 为 **1 基**
+        // （QuestionController `@RequestParam(defaultValue="1") long page`，无 ±1 转换）。
+        // 历史缺陷（P1-12）：此处曾发送 `pagination.page - 1`（0 基），
+        // 与 useExamPapers 的 1 基实现相互矛盾，且第 1 页会请求到 page=0 的非法页。
+        page: pagination.page,
         size: pagination.size,
       }
 
@@ -122,15 +129,12 @@ export function useQuestions() {
       if (filters.courseId) params.courseId = filters.courseId
 
       const res = await questionApi.getQuestionList(params)
-      const rawData = res.data?.records || res.data?.list || res.data || res
-
-      if (Array.isArray(rawData)) {
-        questionList.value = rawData
-        pagination.total = rawData.length
-      } else if (rawData?.records || rawData?.items) {
-        questionList.value = rawData.records || rawData.items
-        pagination.total = rawData.total || questionList.value.length
-      }
+      const payload = unwrap(res)
+      questionList.value = pickList(payload)
+      // 缺陷修复（2026-10-04）：旧实现在裸数组分支把 `total` 写成本页条数，
+      // 后端真实总数丢失后分页控件永远只显示 1 页；此处改为后端 total 优先，
+      // 仅当响应确实不含总数字段时才退化为当前页长度。
+      pagination.total = readTotal(payload, questionList.value.length)
 
       // 更新统计
       updateQuestionStats()

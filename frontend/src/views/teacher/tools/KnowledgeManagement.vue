@@ -99,6 +99,7 @@
 
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import { Plus, Search, Upload } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import { useKnowledgeManagement } from '@/composables/useKnowledgeManagement'
@@ -221,7 +222,14 @@ function onExpandAll() {
 /** 树节点点击：保持原高亮语义（无额外行为） */
 function onNodeClick() {}
 
-onMounted(loadCourseOptions)
+/** 课程上下文：驾驶舱子路由（/teacher/courses/:id/knowledge-management）或统一路由 ?courseId 预选 */
+const route = useRoute()
+onMounted(async () => {
+  const cid = route.params.id || route.query.courseId
+  if (cid) selectedCourseId.value = Number(cid)
+  await loadCourseOptions()
+  if (cid) await loadAllData()
+})
 </script>
 
 <style scoped>

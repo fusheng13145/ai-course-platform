@@ -73,6 +73,18 @@ class HttpRagProviderContractTest {
         }
     }
 
+    /**
+     * 启动一个可自定义 ask/retrieve 响应体的桩（用于 D7 契约测试）：
+     * Python 侧「引擎不可用」时是 HTTP 200 + body{code:503, mode:UNAVAILABLE}，需专门构造该形态。
+     */
+    private void startStubWith(int askStatus, String askBody, int retrieveStatus, String retrieveBody) throws IOException {
+        server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
+        server.createContext(ContractPaths.RAG_HEALTH, ex -> respond(ex, 200, "{}"));
+        server.createContext(ContractPaths.RAG_ASK, ex -> respond(ex, askStatus, askBody));
+        server.createContext(ContractPaths.RAG_RETRIEVE, ex -> respond(ex, retrieveStatus, retrieveBody));
+        server.start();
+    }
+
     @Test
     void healthCheck_engineUp_returnsTrue() throws Exception {
         startStub();
@@ -158,5 +170,47 @@ class HttpRagProviderContractTest {
         HttpRagProvider provider = new HttpRagProvider("http://127.0.0.1:1", 1, 1, 0,
                 ContractPaths.RAG_HEALTH, 5);
         assertFalse(provider.healthCheck().healthy());
+    }
+
+    // ==================== D7 回归：HTTP 200 + body{code:503, mode:UNAVAILABLE} 不得被当成成功 ====================
+
+    @Test
+    void ask_engineUnavailableBody200_returnsCode503ModeUnavailable() throws Exception {
+        startStubWith(200, "{\"code\":503,\"mode\":\"UNAVAILABLE\",\"error\":\"rag engine down\"}",
+                200, "{\"results\":[]}");
+        RagContract.RagQueryResult r = newProvider().ask(new RagContract.RagAskRequest("q", 1L, 3));
+        assertEquals(ContractPaths.CODE_UNAVAILABLE, r.code(),
+                "body 声明 code=503 时 Java 侧须产出 code=503 降级语义");
+        assertEquals(ContractPaths.MODE_UNAVAILABLE, r.mode(),
+                "body 声明 mode=UNAVAILABLE 时 Java 侧须产出 mode=UNAVAILABLE，而非硬编码 ENGINE");
+    }
+
+    @Test
+    void retrieve_engineUnavailableBody200_returnsCode503() throws Exception {
+        startStubWith(200, "{\"answer\":\"x\"}",
+                200, "{\"code\":503,\"mode\":\"UNAVAILABLE\",\"error\":\"rag engine down\",\"results\":[]}");
+        RagContract.RagRetrievalResult r = newProvider().retrieve(new RagContract.RagRetrieveRequest("q", 1L, 5));
+        assertEquals(ContractPaths.CODE_UNAVAILABLE, r.code(),
+                "检索路径同样须识别 body 的 503/UNAVAILABLE，降级为 code=503 而非结果为空的伪成功");
+    }
+
+    @Test
+    void ask_modeTakenFromBody_notHardcoded() throws Exception {
+        // 引擎正常但 mode 显式为 LOCAL：断言 Java 侧忠实透传响应体 mode，证明非硬编码 ENGINE。
+        startStubWith(200, "{\"answer\":\"ok\",\"mode\":\"LOCAL\",\"sources\":[]}",
+                200, "{\"results\":[]}");
+        RagContract.RagQueryResult r = newProvider().ask(new RagContract.RagAskRequest("q", 1L, 3));
+        assertNull(r.code(), "正常响应不应带 503 code");
+        assertEquals("LOCAL", r.mode(), "mode 必须来自响应体而非硬编码");
+        assertEquals("ok", r.answer());
+    }
+
+    @Test
+    void ask_engineModeFromBody_engine() throws Exception {
+        startStubWith(200, "{\"answer\":\"ok\",\"mode\":\"ENGINE\",\"sources\":[]}",
+                200, "{\"results\":[]}");
+        RagContract.RagQueryResult r = newProvider().ask(new RagContract.RagAskRequest("q", 1L, 3));
+        assertEquals(ContractPaths.MODE_ENGINE, r.mode());
+        assertNull(r.code());
     }
 }

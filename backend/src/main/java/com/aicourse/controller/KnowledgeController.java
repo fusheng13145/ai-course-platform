@@ -56,6 +56,8 @@ public class KnowledgeController {
 
     private static final ObjectMapper KG_OM = new ObjectMapper();
     private static final Set<String> KP_TYPES = Set.of("CONCEPT", "PRINCIPLE", "METHOD", "FACT");
+    /** 核心知识点判定阈值：重要度不低于该值 */
+    private static final int CORE_IMPORTANCE = 8;
 
     public KnowledgeController(KnowledgePointService knowledgePointService,
                                KnowledgePointRelationService relationService,
@@ -339,16 +341,43 @@ public class KnowledgeController {
     /**
      * 知识图谱概览统计
      * GET /api/knowledge/overview
+     * <p>给定 courseId 时为课程口径：关系数、核心知识点、覆盖度均限定在该课程的知识点集合内，
+     * 与图谱可视化端点保持一致；courseId 为空时退化为全平台口径。</p>
      */
     @GetMapping("/overview")
     public ApiResponse<KnowledgeOverviewVO> overview(
             @RequestParam(required = false) Long courseId) {
-        LambdaQueryWrapper<KnowledgePoint> qw = new LambdaQueryWrapper<KnowledgePoint>()
-                .eq(courseId != null, KnowledgePoint::getCourseId, courseId);
-        long totalPoints = knowledgePointService.count(qw);
-        long totalRelations = relationService.count();
+        List<KnowledgePoint> points = courseId == null
+                ? knowledgePointService.list()
+                : knowledgePointService.list(new LambdaQueryWrapper<KnowledgePoint>()
+                        .eq(KnowledgePoint::getCourseId, courseId));
 
-        return ApiResponse.success(new KnowledgeOverviewVO(totalPoints, totalRelations, courseId));
+        Set<Long> pointIds = new HashSet<>();
+        for (KnowledgePoint point : points) {
+            pointIds.add(point.getId());
+        }
+
+        List<KnowledgePointRelation> relations = pointIds.isEmpty()
+                ? Collections.emptyList()
+                : relationService.list(new LambdaQueryWrapper<KnowledgePointRelation>()
+                        .in(KnowledgePointRelation::getSourceId, pointIds)
+                        .in(KnowledgePointRelation::getTargetId, pointIds));
+
+        Set<Long> coveredIds = new HashSet<>();
+        for (KnowledgePointRelation relation : relations) {
+            coveredIds.add(relation.getSourceId());
+            coveredIds.add(relation.getTargetId());
+        }
+        long corePoints = 0;
+        for (KnowledgePoint point : points) {
+            if (point.getImportance() != null && point.getImportance() >= CORE_IMPORTANCE) {
+                corePoints++;
+            }
+        }
+        double coverageRate = points.isEmpty() ? 0d : (double) coveredIds.size() / points.size();
+
+        return ApiResponse.success(new KnowledgeOverviewVO(
+                (long) points.size(), (long) relations.size(), corePoints, coverageRate, courseId));
     }
 
 

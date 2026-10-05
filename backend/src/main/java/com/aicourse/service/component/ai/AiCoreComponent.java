@@ -48,7 +48,7 @@ public class AiCoreComponent {
 
     /**
      * LLM 调用埋点：每次实际发起大模型请求时，按业务类型递增对应 Counter，
-     * 使 Grafana 能按类型（chat/question/content/correct/rag/recommend/analyze/extract_graph）下钻统计。
+     * 使 Grafana 能按类型（chat/question/content/correct/plagiarism/rag/recommend/analyze/extract_graph）下钻统计。
      *
      * @param type 业务类型，取值见各公开方法的调用处
      */
@@ -99,6 +99,14 @@ public class AiCoreComponent {
                         .description("AI 大模型调用失败次数（按业务类型分桶，含异常与空响应降级）")
                         .register(meterRegistry))
                 .increment();
+    }
+
+    /**
+     * 拼接进 prompt 的文本片段兜底：null/空白一律换成给定缺省值，
+     * 否则字面量 "null" 会被送进模型（语义污染），并按污染后的长度照常估算 token 计费。
+     */
+    public static String orDefault(String value, String fallback) {
+        return value == null || value.isBlank() ? fallback : value;
     }
 
     /**

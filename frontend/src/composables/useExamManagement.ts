@@ -3,6 +3,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import examApi from '@/api/exam'
 import request from '@/api/request'
+import { pickList, readTotal, unwrap } from '@/utils/response'
 
 /**
  * 全校考试管理领域逻辑
@@ -98,7 +99,9 @@ export function useExamManagement() {
     loading.value = true
     try {
       const params: Record<string, unknown> = {
-        page: pagination.page - 1,
+        // 统一为后端实际口径：ExamPaperController `@RequestParam(defaultValue="1") long page`
+        // + MyBatis-Plus `Page.of(page, size)`，分页为 **1 基**，不做 -1 转换（P1-12）。
+        page: pagination.page,
         size: pagination.size,
         all: true, // 获取全部试卷（管理员视角）
       }
@@ -107,11 +110,12 @@ export function useExamManagement() {
       if (filters.keyword) params.keyword = filters.keyword
 
       const res = await examApi.getExamPaperList(params)
-      const rawData = res.data?.records || res.data?.list || res.data || res
-
-      const data = Array.isArray(rawData) ? rawData : rawData?.list ? rawData.list : []
-      examList.value = Array.isArray(data) ? data : []
-      pagination.total = rawData?.total ?? rawData?.count ?? data.length
+      const payload = unwrap(res)
+      examList.value = pickList(payload)
+      // 缺陷修复（2026-10-04）：旧写法 `res.data?.records || res.data?.list || …` 中
+      // 空数组 truthy 会吞掉真实数据；且总数用 `?? data.length` 回退，裸数组响应时
+      // 把「本页条数」当总数，分页只显示 1 页。现改为后端 total 优先。
+      pagination.total = readTotal(payload, examList.value.length)
 
       // 更新概览数据
       overview.totalPapers = pagination.total
@@ -130,8 +134,7 @@ export function useExamManagement() {
     loadingSessions.value = true
     try {
       const res = await examApi.getActiveExams()
-      const data = res.data?.list || res.data || res || []
-      activeSessions.value = Array.isArray(data) ? data : []
+      activeSessions.value = pickList(unwrap(res))
       overview.activeExams = activeSessions.value.length
     } catch (error) {
       logger.warn('获取进行中考试失败:', error)

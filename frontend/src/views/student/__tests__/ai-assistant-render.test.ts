@@ -3,6 +3,9 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { nextTick } from 'vue'
 
+// 组件按 /student/courses/:id/ai 路由预选课程；测试环境无 router，mock 空路由
+vi.mock('vue-router', () => ({ useRoute: () => ({ params: {}, query: {} }) }))
+
 /**
  * 组件脚本层暴露面：messages 为组件内部状态，测试直接赋值以驱动渲染断言。
  * 用显式断言而非 any（项目 lint 口径为 0 error / 0 warning，any 会触发
@@ -10,7 +13,6 @@ import { nextTick } from 'vue'
  */
 type AssistantInternal = { messages: Array<{ role: string; content: string; time?: string }> }
 const assistantVm = (wrapper: { vm: unknown }) => wrapper.vm as unknown as AssistantInternal
-
 
 // Mock DOMPurify (markdown rendering)
 vi.mock('dompurify', () => ({
@@ -23,11 +25,15 @@ vi.mock('dompurify', () => ({
 const mockAiChat = vi.fn()
 const mockGenerateSummary = vi.fn()
 const mockGenerateQuestion = vi.fn()
+// 组合式函数挂载即调用 getSessions，缺失该方法会让 loadConversations 走 catch，
+// 把「测试 mock 不完整」伪装成「后端返回空历史」。与 @/api/ai 真实导出保持一致。
+const mockGetSessions = vi.fn()
 vi.mock('@/api/ai', () => ({
   default: {
     aiChat: mockAiChat,
     generateSummary: mockGenerateSummary,
     generateQuestion: mockGenerateQuestion,
+    getSessions: mockGetSessions,
   },
 }))
 
@@ -77,6 +83,7 @@ describe('AIAssistant 页面渲染', () => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
     mockGetCourseList.mockResolvedValue({ data: { list: [] } })
+    mockGetSessions.mockResolvedValue({ data: [] })
 
     const mod = await import('../AIAssistant.vue')
     AIAssistant = mod.default

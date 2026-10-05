@@ -97,7 +97,12 @@
     <CiRecordsDialog v-model="recordsVisible" :records="records" @mark="mark" />
 
     <!-- 发起投票 -->
-    <InVoteDialog v-model="voteVisible" :submitting="saving" :form="voteForm" @submit="createVote" />
+    <InVoteDialog
+      v-model="voteVisible"
+      :submitting="saving"
+      :form="voteForm"
+      @submit="createVote"
+    />
 
     <!-- 投票结果 -->
     <InResultDialog v-model="resultVisible" :result="voteResult" />

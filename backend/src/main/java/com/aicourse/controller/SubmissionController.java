@@ -63,18 +63,20 @@ public class SubmissionController {
     public ApiResponse<Submission> submit(@Valid @RequestBody SubmissionCreateDTO body,
                                           Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        // 仅写入白名单字段，绝不使用 Submission 实体直接接收前端入参，
-        // 防止学生注入 score / graderId / status 等敏感列。
-        Submission submission = new Submission();
-        submission.setTaskId(body.getTaskId());
-        submission.setStudentId(userId);
-        submission.setContent(body.getContent());
-        if (body.getFileUrls() != null) {
-            submission.setFileUrls(com.aicourse.common.JsonUtils.toJson(body.getFileUrls()));
-        }
-        submission.setStatus(SubmissionStatus.SUBMITTED);
-        submission.setSubmittedAt(LocalDateTime.now());
-        submissionService.save(submission);
+        // 修复 D4：原实现直接 submissionService.save(...)，绕过一切校验，导致
+        //   ① 不校验 task 是否存在/是否发布/是否过期；② 同一 (taskId, studentId) 可无限重复 POST 产生多行。
+        // 现统一收口到 {@link SubmissionService#submitAssignment}（与 StudentController 的
+        // /student/assignments/{id}/submit 同源，修复历史「P0-8 双轨问题」），由服务层集中实现：
+        //   - 任务存在性校验（不存在抛「作业任务不存在」）
+        //   - 发布态校验（未发布抛「该作业尚未发布」）
+        //   - 提交次数上限（maxSubmissions>0 时超限拒绝）
+        //   - 逾期策略：本项目的既有约定是「允许迟交但计逾期扣分」——过期不拒绝，而是置 isLate + latePenalty
+        //     （见 SubmissionWriteComponent，配合 Task.latePenaltyPerDay / Submission.isLate 字段），故此处沿用该策略。
+        //   - 重复提交语义：既有实现按「多次提交、attemptNumber 递增、最新一次为准」处理，并复用草稿行避免草稿+正式双行；
+        //     submissions 表无 (task_id, student_id) 唯一约束，本次仅在应用层实现，未加 DB 迁移（待团队评审）。
+        // 仍仅接收白名单 DTO，绝不使用 Submission 实体直接入参，防止注入 score/graderId/status 等敏感列。
+        Submission submission = submissionService.submitAssignment(
+                body.getTaskId(), userId, body.getContent(), body.getFileUrls());
         // 异步 AI 预批改：提交后自动触发，不阻塞学生提交响应；
         // 教师打开批阅页时可直接看到 AI 建议分数和评语
         final Long savedId = submission.getId();

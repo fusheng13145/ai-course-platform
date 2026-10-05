@@ -261,6 +261,11 @@ const routes: RouteRecordRaw[] = [
             meta: { title: '过程性成绩' },
           },
           {
+            path: 'knowledge',
+            component: () => import('@/views/teacher/tools/KnowledgeGraph.vue'),
+            meta: { title: '课程知识图谱' },
+          },
+          {
             path: 'analytics',
             component: () => import('@/views/teacher/cockpit/CourseAnalytics.vue'),
             meta: { title: '学情统计' },
@@ -269,6 +274,16 @@ const routes: RouteRecordRaw[] = [
             path: 'interaction',
             component: () => import('@/views/teacher/cockpit/CourseInteraction.vue'),
             meta: { title: '课堂互动' },
+          },
+          {
+            path: 'knowledge-management',
+            component: () => import('@/views/teacher/tools/KnowledgeManagement.vue'),
+            meta: { title: '知识点管理' },
+          },
+          {
+            path: 'ai',
+            component: () => import('@/views/teacher/tools/AICenter.vue'),
+            meta: { title: '课程 AI 教学助手' },
           },
           {
             path: 'discussion',
@@ -383,9 +398,24 @@ const routes: RouteRecordRaw[] = [
             meta: { title: '学习中心', breadcrumb: '学习中心' },
           },
           {
+            path: 'exams',
+            component: () => import('@/views/student/academic/Exams.vue'),
+            meta: { title: '课程考试', breadcrumb: '考试练习' },
+          },
+          {
+            path: 'grades',
+            component: () => import('@/views/student/academic/Grades.vue'),
+            meta: { title: '课程成绩', breadcrumb: '课程成绩' },
+          },
+          {
             path: 'knowledge',
             component: () => import('@/views/student/study/KnowledgeGraph.vue'),
             meta: { title: '课程知识图谱', breadcrumb: '知识图谱' },
+          },
+          {
+            path: 'ai',
+            component: () => import('@/views/student/AIAssistant.vue'),
+            meta: { title: '课程 AI 助手', breadcrumb: 'AI 助手' },
           },
         ],
       },
@@ -467,7 +497,17 @@ router.beforeEach(async (to, from, next) => {
 
   if (!requiresAuth) {
     if ((to.path === '/login' || to.path === '/register') && authStore.isLoggedIn) {
-      next(authStore.getDefaultRoute())
+      // 缺陷修复（P0-3）：已登录访问登录/注册页时跳默认落地页。
+      // 若默认落地页恰好等于当前路径（历史上未知角色会返回 '/login'），
+      // next('/login') 会再次进入本分支 → 自指向重定向。此处对「目标 === 当前」
+      // 直接终止导航（next(false)），保证重定向链路无条件有界。
+      const target = authStore.getDefaultRoute()
+      if (target === to.path || target === to.fullPath) {
+        next(false)
+        NProgress.done()
+        return
+      }
+      next(target)
       return
     }
     next()
@@ -479,15 +519,22 @@ router.beforeEach(async (to, from, next) => {
     return
   }
 
-  // 刷新后权限可能尚未加载：确保已拉取一次，避免细粒度菜单/按钮权限判定失效
-  if (!authStore.permissions) {
+  // 刷新后权限可能尚未加载：确保已拉取一次，避免细粒度菜单/按钮权限判定失效。
+  // permissionsLoaded 只由一次真实的 /auth/permissions 成功响应置位，
+  // 因此这里用「未加载」而不是「未缓存」作为重新拉取的条件（防本地伪造）。
+  if (!authStore.permissions || !authStore.permissionsLoaded) {
     await authStore.fetchPermissions()
   }
 
   const requiredRole = to.matched.find((r) => r.meta.role)?.meta.role
-  if (requiredRole && authStore.userRole !== requiredRole) {
-    next('/403')
-    return
+  if (requiredRole) {
+    // 角色判定一律走 effectiveRole：优先服务端回传角色，本地可篡改的 user.role
+    // 仅在服务端确认过的会话里作为回退（ADMIN 还额外要求 permissionsLoaded）。
+    // 因此手工把 localStorage 的 user.role 改成 ADMIN 并不能进入管理端。
+    if (authStore.effectiveRole !== requiredRole) {
+      next('/403')
+      return
+    }
   }
 
   next()

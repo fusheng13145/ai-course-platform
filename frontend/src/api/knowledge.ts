@@ -77,7 +77,7 @@ export const getRelationGraphData = (courseId) =>
  * @param {number} [maxHops] 最大搜索跳数（可选，缺省由后端取默认）
  * @returns {Promise} 信封 { code, message, data: KnowledgePathPlanVO }
  */
-export const planLearningPath = (sourceId, targetId, maxHops) =>
+export const planLearningPath = (sourceId, targetId, maxHops?) =>
   request.post('/knowledge/path/plan', { sourceId, targetId, maxHops })
 
 /**

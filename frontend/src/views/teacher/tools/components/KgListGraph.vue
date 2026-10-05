@@ -50,37 +50,12 @@
         </el-button>
       </div>
       <div v-loading="graphLoading" class="graph-wrap">
-        <svg v-if="graphNodes.length" :viewBox="`0 0 ${graphSize} ${graphSize}`" class="kg-svg">
-          <line
-            v-for="(l, i) in graphLinks"
-            :key="'l' + i"
-            :x1="nodePos[l.source].x"
-            :y1="nodePos[l.source].y"
-            :x2="nodePos[l.target].x"
-            :y2="nodePos[l.target].y"
-            class="kg-link"
-          />
-          <g v-for="n in graphNodes" :key="n.id">
-            <circle
-              :cx="nodePos[n.id].x"
-              :cy="nodePos[n.id].y"
-              :r="circleR"
-              :fill="
-                n.pathHL
-                  ? 'var(--ac-warning)'
-                  : n.core
-                    ? 'var(--ac-primary)'
-                    : 'var(--ac-primary-light)'
-              "
-              class="kg-node"
-            />
-            <text :x="nodePos[n.id].x" :y="nodePos[n.id].y - circleR - 6" class="kg-label">
-              {{ n.name }}
-            </text>
-          </g>
-        </svg>
+        <v-chart v-if="hasGraph" :option="graphOption" autoresize class="kg-chart" />
         <el-empty v-else description="暂无图谱数据" :image-size="64" />
       </div>
+      <p class="graph-hint">
+        节点按力导向实时运动并自动收敛：可拖拽单个节点改变布局、按住空白处平移画布；大小代表重要度，颜色代表难度。
+      </p>
     </div>
   </div>
 </template>
@@ -89,9 +64,9 @@
 import { Files, Plus, Refresh, Share } from '@element-plus/icons-vue'
 
 /**
- * 知识图谱：知识点列表 + SVG 图谱
- * <p>左侧知识点列表（难度标签/重要度/编辑删除），右侧环形布局 SVG 图谱
- * （节点按 core/pathHL 着色）；操作经事件上抛父组件。</p>
+ * 知识图谱：知识点列表 + 力导向图谱
+ * <p>左侧知识点列表（难度标签/重要度/编辑删除），右侧 ECharts 力导向图谱
+ * （节点可拖拽、画布可缩放平移、按难度配色、按重要度定大小）；操作经事件上抛父组件。</p>
  */
 defineProps({
   points: { type: Array, default: () => [] },
@@ -99,11 +74,8 @@ defineProps({
   diffType: { type: Function, required: true },
   diffText: { type: Function, required: true },
   graphLoading: { type: Boolean, default: false },
-  graphSize: { type: Number, default: 420 },
-  circleR: { type: Number, default: 26 },
-  graphNodes: { type: Array, default: () => [] },
-  graphLinks: { type: Array, default: () => [] },
-  nodePos: { type: Object, default: () => ({}) },
+  graphOption: { type: Object, default: () => ({}) },
+  hasGraph: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['create', 'edit', 'remove', 'refresh'])
@@ -181,29 +153,18 @@ const emit = defineEmits(['create', 'edit', 'remove', 'refresh'])
 
 .graph-wrap {
   width: 100%;
-  min-height: 360px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  height: 520px;
 }
-.kg-svg {
+.kg-chart {
   width: 100%;
-  max-width: 420px;
-  height: auto;
+  height: 100%;
 }
-.kg-link {
-  stroke: var(--ac-border-strong);
-  stroke-width: 1.5;
-}
-.kg-node {
-  stroke: var(--ac-on-primary);
-  stroke-width: 2;
-  transition: fill 0.2s ease;
-}
-.kg-label {
-  font-size: 11px;
-  fill: var(--ac-text-secondary);
-  text-anchor: middle;
+.graph-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ac-text-muted);
+  text-align: center;
 }
 
 @media (max-width: 1100px) {

@@ -16,7 +16,6 @@ type CourseDetailInternal = {
 }
 const courseVm = (wrapper: { vm: unknown }) => wrapper.vm as unknown as CourseDetailInternal
 
-
 // Mock vue-router
 const mockPush = vi.fn()
 vi.mock('vue-router', () => ({

@@ -27,6 +27,23 @@ public interface WrongQuestionService extends com.baomidou.mybatisplus.extension
     WrongQuestion recordWrongAnswer(Long studentId, Long questionId, Long courseId, String wrongAnswer, String sourceType);
 
     /**
+     * 记录错题（独立事务版本，修复 D3 事务传染）。
+     *
+     * <p>与 {@link #recordWrongAnswer} 行为完全一致，但以 {@code Propagation.REQUIRES_NEW} 开启独立事务。
+     * 专供「测验判分」等外层已持有事务、且要求「错题收录失败绝不能连累主流程提交」的调用方使用：
+     * 收录若抛异常只会回滚该独立事务，外层事务保持可提交，避免内层 {@code REQUIRED} 传播把共享事务标记为
+     * rollback-only 后、外层 catch 吞异常继续 commit 触发 {@code UnexpectedRollbackException}。</p>
+     *
+     * @param studentId 学生ID
+     * @param questionId 题目ID
+     * @param courseId 课程ID
+     * @param wrongAnswer 错误答案
+     * @param sourceType 来源类型（EXAM/PRACTICE/HOMEWORK/QUIZ）
+     * @return 错题记录
+     */
+    WrongQuestion recordWrongAnswerInNewTx(Long studentId, Long questionId, Long courseId, String wrongAnswer, String sourceType);
+
+    /**
      * 标记已掌握
      * @param wrongQuestionId 错题ID
      */

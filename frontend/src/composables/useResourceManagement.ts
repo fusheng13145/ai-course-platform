@@ -3,6 +3,7 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import resourceApi from '@/api/resource'
 import courseApi from '@/api/course'
+import { pickList, unwrap } from '@/utils/response'
 
 export function useResourceManagement() {
   const loading = ref(false)
@@ -56,8 +57,9 @@ export function useResourceManagement() {
   async function loadCourses() {
     try {
       const res = await courseApi.getCourseList({ size: 500 })
-      const raw = res.data?.records || res.data?.list || res.data || res
-      courseList.value = Array.isArray(raw) ? raw : []
+      // 缺陷修复（2026-10-04）：`||` 链里空数组是 truthy，后端把数据放在 records
+      // 而 list=[] 时课程列表被吞空，进而整个页面无数据可选。
+      courseList.value = pickList(unwrap(res))
       if (courseList.value.length && !selectedCourseId.value) {
         selectedCourseId.value = courseList.value[0].id
         await loadResources()
@@ -73,8 +75,7 @@ export function useResourceManagement() {
     loading.value = true
     try {
       const res = await resourceApi.getResourceList(selectedCourseId.value)
-      const raw = res.data?.records || res.data?.list || res.data || res
-      resources.value = Array.isArray(raw) ? raw : []
+      resources.value = pickList(unwrap(res))
     } catch (e) {
       logger.error('加载资源失败:', e)
       resources.value = []
@@ -90,7 +91,10 @@ export function useResourceManagement() {
 
   async function toggleVisibility(row, val) {
     try {
-      await resourceApi.toggleVisibility(row.id, { visibleToAll: val })
+      // 缺陷修复（2026-10-04）：原实现传 `{ visibleToAll: val }`，而 api 层签名是
+      // toggleVisibility(id, visible) —— 对象被再次塞进 DTO 字段，上报成
+      // `{"visibleToAll":{"visibleToAll":true}}`，后端 Boolean 反序列化失败必 400。
+      await resourceApi.toggleVisibility(row.id, val)
       row.visibleToAll = val
       ElMessage.success(val ? '已设为公开' : '已设为私有')
     } catch (e) {
@@ -133,11 +137,27 @@ export function useResourceManagement() {
   }
 
   async function doUpload(payload) {
+    // 缺陷修复（P0-5）：原实现 `fd.append('courseId', selectedCourseId.value)` ——
+    // 未选课程时 append 的是 null，FormData 会把它序列化成字符串 "null" 上报，
+    // 后端按 Long 解析必然 400，而界面只显示一句无信息量的「上传失败」。
+    // 现在空课程直接本地拒发并明确提示。
+    const courseId = selectedCourseId.value
+    if (courseId === null || courseId === undefined || courseId === '') {
+      ElMessage.warning('请先选择所属课程后再上传')
+      return
+    }
+    // 缺陷修复（2026-10-04）：未选择文件时 `fd.append('file', undefined)` 会把
+    // undefined 序列化成字符串 "undefined" 上报，后端 MultipartFile 解析到一个 9 字节的
+    // 文本分片，最终报「上传失败」而掩盖真实原因（用户忘了选文件）。
+    if (!payload?.file) {
+      ElMessage.warning('请先选择要上传的文件')
+      return
+    }
     uploading.value = true
     try {
       const fd = new FormData()
       fd.append('file', payload.file)
-      fd.append('courseId', selectedCourseId.value)
+      fd.append('courseId', String(courseId))
       fd.append('description', payload.description || '')
       await resourceApi.uploadResource(fd)
       ElMessage.success('上传成功')

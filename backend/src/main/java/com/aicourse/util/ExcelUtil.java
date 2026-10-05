@@ -26,6 +26,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -55,6 +56,9 @@ public final class ExcelUtil {
     /** 随机密码字符集（去除易混淆字符 0/O/1/l/I） */
     private static final String RANDOM_PASSWORD_CHARS =
             "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghjkmnpqrstuvwxyz23456789";
+
+    /** 章节导入「是否发布」列可识别的否定写法（小写键）；其余写法一律沿用缺省的已发布语义 */
+    private static final Set<String> NEGATIVE_WORDS = Set.of("否", "false", "0", "n", "no");
 
     /**
      * 生成随机初始密码（8 位，字母+数字，SecureRandom）。
@@ -290,14 +294,14 @@ public final class ExcelUtil {
      * 不可能知道数据库 ID；写入时再解析为 {@code parentId}（支持二级章节）。</p>
      */
     public record ChapterRow(String title, String parentTitle, Integer orderIndex,
-                             Integer duration, Boolean isPublished, String content) {
+                             Integer duration, boolean isPublished, String content) {
     }
 
     /**
      * 解析章节导入文件。
      *
      * <p>表头（第 1 行，6 列）：章节标题* / 父章节标题 / 排序序号 / 时长(分钟) / 是否发布 / 章节内容。
-     * 仅「章节标题」必填，为空的行整行跳过。</p>
+     * 仅「章节标题」必填，为空的行整行跳过；「是否发布」仅显式写 否/false/0/n/no 才判为未发布。</p>
      */
     public static List<ChapterRow> readChapters(MultipartFile file) throws IOException {
         List<ChapterRow> list = new ArrayList<>();
@@ -317,7 +321,7 @@ public final class ExcelUtil {
                         emptyToNull(cellStr(row.getCell(1))),
                         toIntOrNull(cellStr(row.getCell(2))),
                         toIntOrNull(cellStr(row.getCell(3))),
-                        toBoolOrNull(cellStr(row.getCell(4))),
+                        toPublishedFlag(cellStr(row.getCell(4))),
                         emptyToNull(cellStr(row.getCell(5)))));
             }
         }
@@ -377,27 +381,14 @@ public final class ExcelUtil {
         }
     }
 
-    /** 文本转布尔，兼容 是/否、true/false、1/0、y/n。无法识别返回 null。 */
-    private static Boolean toBoolOrNull(String s) {
-        if (s == null || s.isEmpty()) {
-            return null;
-        }
-        switch (s.trim().toLowerCase()) {
-            case "是":
-            case "true":
-            case "1":
-            case "y":
-            case "yes":
-                return Boolean.TRUE;
-            case "否":
-            case "false":
-            case "0":
-            case "n":
-            case "no":
-                return Boolean.FALSE;
-            default:
-                return null;
-        }
+    /**
+     * 文本转布尔发布标记：仅显式否定写法（否/false/0/n/no）判为未发布。
+     *
+     * <p>留空或无法识别沿用历史缺省「已发布」，因此这里用原始 {@code boolean} 表达二态，
+     * 不再返回可空 {@code Boolean}——调用方本就只区分「未发布 / 其余一律发布」。</p>
+     */
+    private static boolean toPublishedFlag(String s) {
+        return s == null || !NEGATIVE_WORDS.contains(s.trim().toLowerCase());
     }
 
     // ==================== 枚举归一化（2026-09-23 新增） ====================

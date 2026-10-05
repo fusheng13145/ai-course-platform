@@ -14,7 +14,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.ResultActions;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -69,12 +73,40 @@ class PlagiarismCheckControllerAclTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("GET /plagiarism-checks/{id}：学生读本人提交的查重结果 -> 200")
+    @DisplayName("GET /plagiarism-checks/{id}：学生读本人提交的查重结果 -> 200，且确实读取归属提交做ACL")
     void getCheckResult_ownSubmission_ok() throws Exception {
         when(plagiarismCheckService.getById(1L)).thenReturn(checkOf(1L, 5L));
         when(submissionService.getById(5L)).thenReturn(submission(5L, 10L, 7L));
 
-        mvc(get("/plagiarism-checks/1").with(withUser(10L, "STUDENT")));
+        mvc(get("/plagiarism-checks/1").with(withUser(10L, "STUDENT")))
+                .andExpect(status().isOk());
+        // 归属过滤必须真实执行：先取查重任务、再据其 submissionId 读取提交做 ACL，
+        // 最后才调用 getCheckResult。三者的调用共同证明「放行的是本人数据」而非绕过校验。
+        verify(submissionService).getById(5L);
+        verify(plagiarismCheckService).getCheckResult(1L);
+    }
+
+    @Test
+    @DisplayName("GET /plagiarism-checks/{id}/matches：学生读本人提交匹配明细 -> 200，读取归属提交做ACL")
+    void getMatches_ownSubmission_ok() throws Exception {
+        when(plagiarismCheckService.getById(1L)).thenReturn(checkOf(1L, 5L));
+        when(submissionService.getById(5L)).thenReturn(submission(5L, 10L, 7L));
+
+        mvc(get("/plagiarism-checks/1/matches").with(withUser(10L, "STUDENT")))
+                .andExpect(status().isOk());
+        verify(submissionService).getById(5L);
+        verify(plagiarismCheckService).getHighSimilarityMatches(eq(1L), any());
+    }
+
+    @Test
+    @DisplayName("GET /plagiarism-checks/submission/{id}：学生读本人提交历史 -> 200")
+    void getSubmissionHistory_ownSubmission_ok() throws Exception {
+        when(submissionService.getById(5L)).thenReturn(submission(5L, 10L, 7L));
+
+        mvc(get("/plagiarism-checks/submission/5").with(withUser(10L, "STUDENT")))
+                .andExpect(status().isOk());
+        verify(submissionService).getById(5L);
+        verify(plagiarismCheckService).getSubmissionChecks(5L);
     }
 
     @Test
@@ -114,8 +146,9 @@ class PlagiarismCheckControllerAclTest extends ControllerTestBase {
         mvcForbidden(get("/plagiarism-checks/1").with(withUser(21L, "TEACHER")));
     }
 
-    private void mvc(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder req) throws Exception {
-        mockMvc.perform(req).andExpect(status().isOk());
+    private ResultActions mvc(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder req) throws Exception {
+        // 返回可继续断言的 ResultActions；旧写法在此处吞掉返回值，导致调用方「只跑不验」。
+        return mockMvc.perform(req);
     }
 
     private void mvcForbidden(org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder req) throws Exception {

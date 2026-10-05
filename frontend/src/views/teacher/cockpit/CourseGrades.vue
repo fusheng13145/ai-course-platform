@@ -81,7 +81,8 @@ function openScoreDialog(row, component) {
   scoreTarget.componentKey = component.key
   scoreTarget.componentName = component.name
   const existing = (row.components || []).find((x) => x.key === component.key)
-  scoreTarget.score = existing != null ? Number(existing) : 0
+  // existing 是构成项对象，取它的 score；未评分（null）从 0 起录
+  scoreTarget.score = existing?.score != null ? Number(existing.score) : 0
   scoreVisible.value = true
 }
 

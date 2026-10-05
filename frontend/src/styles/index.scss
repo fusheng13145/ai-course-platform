@@ -199,31 +199,38 @@ body,
 
 /* 按钮：莫兰迪主色 */
 .el-button--primary {
-  --el-button-bg-color: var(--ac-primary) !important;
-  --el-button-border-color: var(--ac-primary) !important;
-  --el-button-hover-bg-color: var(--ac-primary-light) !important;
-  --el-button-hover-border-color: var(--ac-primary-light) !important;
-  --el-button-active-bg-color: var(--ac-primary-dark) !important;
   border-radius: var(--ac-radius-sm) !important;
   font-weight: 500;
   transition: all var(--ac-transition-fast) !important;
 }
 
-.el-button--success {
+/*
+ * 实心底色只套在非 plain/text/link 上：这三类变体的文字色就是语义色，
+ * 再用 !important 把 --el-button-bg-color 刷成语义色会让图标/文字与底色同色而不可见。
+ */
+.el-button--primary:not(.is-plain):not(.is-text):not(.is-link) {
+  --el-button-bg-color: var(--ac-primary) !important;
+  --el-button-border-color: var(--ac-primary) !important;
+  --el-button-hover-bg-color: var(--ac-primary-light) !important;
+  --el-button-hover-border-color: var(--ac-primary-light) !important;
+  --el-button-active-bg-color: var(--ac-primary-dark) !important;
+}
+
+.el-button--success:not(.is-plain):not(.is-text):not(.is-link) {
   --el-button-bg-color: var(--ac-success) !important;
   --el-button-border-color: var(--ac-success) !important;
   --el-button-hover-bg-color: #9bb898 !important;
   --el-button-hover-border-color: #9bb898 !important;
 }
 
-.el-button--danger {
+.el-button--danger:not(.is-plain):not(.is-text):not(.is-link) {
   --el-button-bg-color: var(--ac-danger) !important;
   --el-button-border-color: var(--ac-danger) !important;
   --el-button-hover-bg-color: #d49494 !important;
   --el-button-hover-border-color: #d49494 !important;
 }
 
-.el-button--warning {
+.el-button--warning:not(.is-plain):not(.is-text):not(.is-link) {
   --el-button-bg-color: var(--ac-warning) !important;
   --el-button-border-color: var(--ac-warning) !important;
 }

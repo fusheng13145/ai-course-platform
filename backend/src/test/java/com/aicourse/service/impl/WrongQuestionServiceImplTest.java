@@ -17,7 +17,10 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.transaction.annotation.Propagation;
+import org.springframework.transaction.annotation.Transactional;
 
+import java.lang.reflect.Method;
 import java.util.*;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -105,6 +108,61 @@ class WrongQuestionServiceImplTest {
         assertFalse(result.getMastered());
         verify(wrongQuestionMapper).updateById(any(WrongQuestion.class));
         verify(wrongQuestionMapper, never()).insert(any(WrongQuestion.class));
+    }
+
+    /**
+     * D3 回归（事务隔离）：错题收录的独立事务版本必须声明 {@code REQUIRES_NEW}，
+     * 否则外层测验判分事务被共享——submitQuiz 吞异常后仍尝试提交会抛
+     * {@code UnexpectedRollbackException}。
+     *
+     * <p>Spring 事务代理在纯单测下不生效（无容器），故此处以反射断言注解真实存在，
+     * 与 {@code StudentLearningServiceImplTest} 的行为断言（错题收录只走 InNewTx 方法）
+     * 互为补充，共同锁死 D3 修复。</p>
+     */
+    @Test
+    @DisplayName("D3 - recordWrongAnswerInNewTx 必须声明 REQUIRES_NEW 独立事务")
+    void recordWrongAnswerInNewTx_requiresNew() throws NoSuchMethodException {
+        Method impl = WrongQuestionServiceImpl.class.getMethod(
+                "recordWrongAnswerInNewTx", Long.class, Long.class, Long.class, String.class, String.class);
+        Transactional tx = impl.getAnnotation(Transactional.class);
+        assertNotNull(tx, "recordWrongAnswerInNewTx 必须带 @Transactional，否则根本不会开启独立事务");
+        assertEquals(Propagation.REQUIRES_NEW, tx.propagation(),
+                "传播属性必须是 REQUIRES_NEW，以挂起外层事务、隔离错题收录的失败回滚");
+        assertTrue(tx.rollbackFor().length > 0
+                        && Arrays.asList(tx.rollbackFor()).contains(Exception.class),
+                "必须 rollbackFor = Exception.class，受检异常同样触发本事务回滚而不外溢");
+
+        // 接口契约同样声明，保证经代理调用（Spring AOP 基于接口）时注解语义不丢失
+        Method api = com.aicourse.service.WrongQuestionService.class.getMethod(
+                "recordWrongAnswerInNewTx", Long.class, Long.class, Long.class, String.class, String.class);
+        assertNotNull(api, "接口须暴露 recordWrongAnswerInNewTx，供 StudentTaskComponent 经代理调用");
+
+        // 原 recordWrongAnswer 保持默认传播（REQUIRED），仅新方法是独立事务，避免误伤既有语义
+        Method legacy = WrongQuestionServiceImpl.class.getMethod(
+                "recordWrongAnswer", Long.class, Long.class, Long.class, String.class, String.class);
+        Transactional legacyTx = legacy.getAnnotation(Transactional.class);
+        if (legacyTx != null) {
+            assertEquals(Propagation.REQUIRED, legacyTx.propagation(),
+                    "recordWrongAnswer 应沿用外层事务（REQUIRED），REQUIRES_NEW 只加在独立事务版本上");
+        }
+    }
+
+    /**
+     * D3 回归（委托正确性）：独立事务方法须原样委托 recordWrongAnswer 的落库逻辑，
+     * 保证 REQUIRES_NEW 事务内真正写入错题，而非变成空操作。
+     */
+    @Test
+    @DisplayName("D3 - recordWrongAnswerInNewTx 委托到实际落库逻辑")
+    void recordWrongAnswerInNewTx_delegatesToPersistence() {
+        when(wrongQuestionMapper.selectOne(any(), anyBoolean())).thenReturn(null);
+        when(wrongQuestionMapper.insert(any(WrongQuestion.class))).thenReturn(1);
+
+        WrongQuestion result = wrongQuestionService.recordWrongAnswerInNewTx(
+                100L, 200L, 10L, "C", "QUIZ");
+
+        assertNotNull(result, "独立事务版本仍须返回落库后的实体，而非 null 空操作");
+        assertEquals(200L, result.getQuestionId());
+        verify(wrongQuestionMapper).insert(any(WrongQuestion.class));
     }
 
     // ==================== markMastered ====================

@@ -8,12 +8,15 @@ import com.aicourse.service.GradeService;
 import com.aicourse.vo.FinalGradeVO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.math.BigDecimal;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -133,6 +136,71 @@ class GradeControllerTest extends ControllerTestBase {
     }
 
     @Test
+    @DisplayName("POST /grade/policy - 前端按数组提交构成项：应正常绑定为 JSON 文本（不是 400）")
+    void savePolicy_componentsAsArray_bindsToJsonText() throws Exception {
+        GradePolicy policy = new GradePolicy();
+        policy.setId(1L);
+        when(gradeService.savePolicy(any(), eq(1L))).thenReturn(policy);
+
+        // 回归：CgPolicyDialog 提交 components 为对象数组，而实体字段是 String。
+        // 修复前 Jackson 直接抛 HttpMessageNotReadableException -> 「保存成绩方案」必然 400。
+        mockMvc.perform(post("/grade/policy").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\":7,\"name\":\"平时+期末\","
+                                + "\"components\":[{\"key\":\"usual\",\"name\":\"平时\",\"weight\":40},"
+                                + "{\"key\":\"final\",\"name\":\"期末\",\"weight\":60}]}")
+                        .with(withUser(1L, "TEACHER", "ADMIN")))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<GradePolicy> cap = ArgumentCaptor.forClass(GradePolicy.class);
+        verify(gradeService).savePolicy(cap.capture(), eq(1L));
+        String json = cap.getValue().getComponents();
+        assertTrue(json.startsWith("["), "构成项应绑定为 JSON 数组文本，实际=" + json);
+        assertTrue(json.contains("\"key\":\"usual\"") && json.contains("\"weight\":60"),
+                "数组内容须完整序列化，实际=" + json);
+    }
+
+    @Test
+    @DisplayName("POST /grade/policy - 历史字符串入参仍兼容（前端旧版本/脚本调用）")
+    void savePolicy_componentsAsJsonString_stillAccepted() throws Exception {
+        when(gradeService.savePolicy(any(), any())).thenReturn(new GradePolicy());
+        mockMvc.perform(post("/grade/policy").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\":7,\"components\":\"[{\\\"key\\\":\\\"usual\\\",\\\"weight\\\":40}]\"}")
+                        .with(withUser(1L, "TEACHER", "ADMIN")))
+                .andExpect(status().isOk());
+        ArgumentCaptor<GradePolicy> cap = ArgumentCaptor.forClass(GradePolicy.class);
+        verify(gradeService).savePolicy(cap.capture(), any());
+        assertEquals("[{\"key\":\"usual\",\"weight\":40}]", cap.getValue().getComponents());
+    }
+
+    @Test
+    @DisplayName("GET /grade/policy/course/1 - 库内 JSON 文本以数组出参（前端可直接 v-for/.map）")
+    void getPolicy_componentsSerializedAsArray() throws Exception {
+        GradePolicy policy = new GradePolicy();
+        policy.setId(1L);
+        policy.setComponents("[{\"key\":\"usual\",\"name\":\"平时\",\"weight\":40}]");
+        when(gradeService.getPolicy(eq(1L))).thenReturn(policy);
+        mockMvc.perform(get("/grade/policy/course/1").with(withUser(1L, "TEACHER", "ADMIN")))
+                .andExpect(status().isOk())
+                // 回归：修复前出参是字符串，CgPolicyDialog 的 .map 与 CgReportTable 的 v-for 都拿不到维度
+                .andExpect(jsonPath("$.data.components").isArray())
+                .andExpect(jsonPath("$.data.components[0].key").value("usual"))
+                .andExpect(jsonPath("$.data.components[0].weight").value(40));
+    }
+
+    @Test
+    @DisplayName("GET /grade/policy/course/1 - 脏数据（非法 JSON）降级为空数组而不是 500")
+    void getPolicy_corruptedComponents_degradesToEmptyArray() throws Exception {
+        GradePolicy policy = new GradePolicy();
+        policy.setId(1L);
+        policy.setComponents("这不是合法 JSON");
+        when(gradeService.getPolicy(eq(1L))).thenReturn(policy);
+        mockMvc.perform(get("/grade/policy/course/1").with(withUser(1L, "TEACHER", "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.components").isArray())
+                .andExpect(jsonPath("$.data.components.length()").value(0));
+    }
+
+    @Test
     @DisplayName("GET /grade/policy/course/1 - 未认证返回401")
     void getPolicy_unauthorized_returns_401() throws Exception {
         mockMvc.perform(get("/grade/policy/course/1"))
@@ -205,12 +273,14 @@ class GradeControllerTest extends ControllerTestBase {
         policy.setCourseId(1L);
         when(gradeService.getPolicyById(eq(1L))).thenReturn(policy);
         when(gradeService.computeFinal(eq(1L), eq(1L))).thenReturn(
-                new FinalGradeVO(1L, 1L, List.of(), new BigDecimal("88.00")));
+                new FinalGradeVO(1L, 1L, List.of(), new BigDecimal("88.00"), List.of("示例提示")));
         mockMvc.perform(get("/grade/final/1/student/1").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.finalScore").value(88.0));
+                .andExpect(jsonPath("$.data.finalScore").value(88.0))
+                // warnings 是 VO 的出参契约之一，控制器透传后前端据此渲染提示条
+                .andExpect(jsonPath("$.data.warnings[0]").value("示例提示"));
         verify(gradeService).computeFinal(eq(1L), eq(1L));
     }
 
@@ -246,7 +316,7 @@ class GradeControllerTest extends ControllerTestBase {
     @DisplayName("GET /grade/report/course/1 - 教师查询成绩报告返回200，数组透传")
     void courseReport_authorized_passes_security() throws Exception {
         when(gradeService.courseReport(eq(1L)))
-                .thenReturn(List.of(new com.aicourse.vo.FinalGradeVO(null, 1L, null, null)));
+                .thenReturn(List.of(new com.aicourse.vo.FinalGradeVO(null, 1L, null, null, List.of())));
         mockMvc.perform(get("/grade/report/course/1").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))

@@ -62,6 +62,7 @@
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
 import { ref, onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { MagicStick } from '@element-plus/icons-vue'
 import courseApi from '@/api/course'
 import AcQaPanel from './components/AcQaPanel.vue'
@@ -92,7 +93,13 @@ async function loadCourses() {
   }
 }
 
-onMounted(loadCourses)
+/** 课程上下文：驾驶舱子路由（/teacher/courses/:id/ai）或统一路由 ?courseId 预选 */
+const route = useRoute()
+onMounted(async () => {
+  const cid = route.params.id || route.query.courseId
+  if (cid) courseId.value = Number(cid)
+  await loadCourses()
+})
 </script>
 
 <style scoped>

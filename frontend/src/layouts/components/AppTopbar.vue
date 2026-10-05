@@ -120,9 +120,14 @@ function goHome() {
   font-size: 13px;
   color: var(--ink-3);
   min-width: 0;
+  overflow: hidden;
+  flex-wrap: nowrap;
 }
 .crumb {
   white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
 }
 .crumb.link {
   cursor: pointer;
@@ -147,6 +152,11 @@ function goHome() {
     flex: 1;
     min-width: 0;
     overflow: hidden;
+  }
+  /* 窄屏仅保留当前页名，避免整段被裁切 */
+  .crumbs .crumb:not(.current),
+  .crumbs .sep {
+    display: none;
   }
 }
 </style>

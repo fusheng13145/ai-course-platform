@@ -1,5 +1,7 @@
 import { describe, it, expect, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
+import { readdirSync, readFileSync, existsSync } from 'node:fs'
+import { resolve } from 'node:path'
 
 // Mock axios and element-plus
 vi.mock('element-plus', () => ({
@@ -100,49 +102,54 @@ describe('teacher/Dashboard.vue — Loading 状态', () => {
 })
 
 /* ============================================================
- * API 模块死代码验证 — 确认 common.js 不存在
+ * API 模块引用完整性 —— 真实死代码检测
+ *
+ * 原用例断言「api/common 不应存在」，但比的是测试内硬编码的字符串数组，
+ * 而 `src/api/common.ts` 实际存在（38 行、承载批量上传端点）——该断言
+ * 与产品现状矛盾且永不感知新增的死模块。现改为扫描真实源码引用关系。
  * ============================================================ */
 
-describe('死代码验证', () => {
-  it('api/common.js 不应存在（死代码已清理）', () => {
-    const apiFiles = [
-      'userSession',
-      'plagiarismCheck',
-      'fileUpload',
-      'reminder',
-      'resourceVersion',
-      'auth',
-      'exam',
-      'course',
-      'ai',
-      'question',
-      'analytics',
-      'chapter',
-      'classroom',
-      'discussion',
-      'enrollment',
-      'grade',
-      'interaction',
-      'knowledge',
-      'knowledgePointRelation',
-      'learningPath',
-      'learningRecord',
-      'loginLog',
-      'notification',
-      'operationLog',
-      'permission',
-      'proctor',
-      'rag',
-      'resource',
-      'student',
-      'submission',
-      'system',
-      'systemConfig',
-      'task',
-      'teacher',
-      'user',
-      'wrongQuestion',
-    ]
-    expect(apiFiles.includes('common')).toBe(false)
+describe('API 模块引用完整性（死代码检测）', () => {
+  const apiDir = resolve(process.cwd(), 'src/api')
+  const srcDir = resolve(process.cwd(), 'src')
+
+  /** 递归收集生产代码（排除测试与 api 目录自身的内部引用） */
+  function collectSources(dir: string, acc: string[] = []): string[] {
+    for (const entry of readdirSync(dir, { withFileTypes: true })) {
+      const full = resolve(dir, entry.name)
+      if (entry.isDirectory()) {
+        if (entry.name === '__tests__' || entry.name === 'api') continue
+        collectSources(full, acc)
+      } else if (/\.vue$|\.ts$/.test(entry.name) && !entry.name.endsWith('.d.ts')) {
+        acc.push(full)
+      }
+    }
+    return acc
+  }
+
+  const productionSources = collectSources(srcDir).map((f) => readFileSync(f, 'utf8'))
+  const apiModules = readdirSync(apiDir)
+    .filter((f) => f.endsWith('.ts') && !f.endsWith('.d.ts'))
+    .map((f) => f.replace(/\.ts$/, ''))
+
+  it('api 目录确实被扫描到（防止路径口径失效导致空转通过）', () => {
+    expect(apiModules.length).toBeGreaterThan(30)
+    expect(productionSources.length).toBeGreaterThan(100)
+  })
+
+  it.each(apiModules.filter((m) => !['request', 'requestKey'].includes(m)))(
+    'api/%s 至少被一处生产代码引用（无死模块）',
+    (moduleName) => {
+      const ref = new RegExp(`@/api/${moduleName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`)
+      expect(
+        productionSources.some((text) => ref.test(text)),
+        `src/api/${moduleName}.ts 未被任何生产代码引用，属死代码`,
+      ).toBe(true)
+    },
+  )
+
+  it('api/common 存在且被引用（旧用例的错误结论在此纠正）', () => {
+    expect(apiModules).toContain('common')
+    expect(existsSync(resolve(apiDir, 'common.ts'))).toBe(true)
   })
 })

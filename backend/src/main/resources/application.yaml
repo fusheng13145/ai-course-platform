@@ -361,7 +361,8 @@ knowledge-graph:
   health-path: ${KG_HEALTH_PATH:/api/v1/graph/health}
   # ---------- GraphRAG 参数 ----------
   rag:
-    # 子图 BFS 最大跳数（1=直接邻居, 2=邻居的邻居）
+    # 子图 BFS 扩图最大跳数（1=直接邻居, 2=邻居的邻居）；仅用于 subgraph，
+    # 与学习路径规划无关——路径规划请求未指定跳数时返回两点间真实最短路径
     max-hops: ${KG_RAG_MAX_HOPS:2}
 
 # ===================== Python RAG 服务配置 =====================

@@ -210,4 +210,42 @@ class ExcelUtilTest {
         ExcelUtil.writeReport(out, report);
         assertTrue(out.size() > 0);
     }
+
+    /**
+     * 章节导入的「是否发布」列语义：仅显式否定写法判为未发布，留空/无法识别沿用缺省的已发布；
+     * 同时覆盖排序序号留空（null，由调用方按行序兜底）与非法值（null）。
+     */
+    @Test
+    void readChapters_publishFlagAndNullableColumns() throws Exception {
+        try (XSSFWorkbook wb = new XSSFWorkbook()) {
+            Sheet sheet = wb.createSheet("chapters");
+            Row header = sheet.createRow(0);
+            for (int i = 0; i < 6; i++) header.createCell(i).setCellValue("c" + i);
+
+            String[] publishCells = {"否", "FALSE", "0", "n", "no", "", "已发布", "是", "1"};
+            for (int i = 0; i < publishCells.length; i++) {
+                Row row = sheet.createRow(i + 1);
+                row.createCell(0).setCellValue("章节" + i);
+                if (!publishCells[i].isEmpty()) {
+                    row.createCell(4).setCellValue(publishCells[i]);
+                }
+            }
+
+            ByteArrayOutputStream out = new ByteArrayOutputStream();
+            wb.write(out);
+            List<ExcelUtil.ChapterRow> rows =
+                    ExcelUtil.readChapters(new MockMultipartFile("f", out.toByteArray()));
+
+            assertEquals(publishCells.length, rows.size());
+            for (int i = 0; i < 5; i++) {
+                assertFalse(rows.get(i).isPublished(), publishCells[i] + " 应为未发布");
+            }
+            for (int i = 5; i < publishCells.length; i++) {
+                assertTrue(rows.get(i).isPublished(), publishCells[i] + " 应沿用缺省的已发布");
+            }
+            assertNull(rows.get(0).orderIndex());
+            assertNull(rows.get(0).duration());
+            assertNull(rows.get(0).parentTitle());
+        }
+    }
 }

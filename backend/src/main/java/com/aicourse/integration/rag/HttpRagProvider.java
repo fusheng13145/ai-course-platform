@@ -173,9 +173,17 @@ public class HttpRagProvider implements RagContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
+            // 修复 D7（跨语言契约）：Python 侧引擎不可用时返回 HTTP 200 + body{code:503, mode:"UNAVAILABLE", error}，
+            // 原实现把 mode 硬编码成 ENGINE、忽略 code/error，导致「引擎不可用」被误判为「检索成功但结果为空」，
+            // 上层降级回退（AIServiceImpl / AiRagComponent 靠 code:503 嗅探）永不触发。现真实解析三字段。
+            if (isEngineUnavailable(root)) {
+                return unavailableQuery();
+            }
             String answer = root.has(ContractPaths.R_ANSWER) ? root.get(ContractPaths.R_ANSWER).asText() : null;
             List<RagSource> sources = parseSources(root.get(ContractPaths.R_SOURCES));
-            return new RagQueryResult(answer, sources, ContractPaths.MODE_ENGINE, null, null);
+            // mode 取自响应体；缺省时按引擎正常态兜底为 ENGINE（而非无条件硬编码）。
+            String mode = textOrNull(root, ContractPaths.R_MODE);
+            return new RagQueryResult(answer, sources, mode != null ? mode : ContractPaths.MODE_ENGINE, null, null);
         } catch (Exception e) {
             log.debug("RAG 问答返回解析失败：{}", e.getMessage());
             return unavailableQuery();
@@ -188,12 +196,40 @@ public class HttpRagProvider implements RagContract {
         }
         try {
             JsonNode root = OM.readTree(raw);
+            // 修复 D7：同 parseAsk，检索路径同样须识别 body 的 503/UNAVAILABLE 降级语义，
+            // 否则「引擎不可用」被当作「检索成功但结果为空」，上层降级永不触发。
+            if (isEngineUnavailable(root)) {
+                return unavailableRetrieve();
+            }
             List<RagSource> sources = parseSources(root.get(ContractPaths.R_RESULTS));
             return new RagRetrievalResult(sources, null, null);
         } catch (Exception e) {
             log.debug("RAG 检索返回解析失败：{}", e.getMessage());
             return unavailableRetrieve();
         }
+    }
+
+    /**
+     * 判断 Python RAG 响应体是否声明「引擎不可用」：body.code==503 或 body.mode==UNAVAILABLE。
+     * 复用 {@link ContractPaths} 的常量，不引入字符串字面量。
+     */
+    private boolean isEngineUnavailable(JsonNode root) {
+        if (root == null || !root.isObject()) {
+            return false;
+        }
+        if (root.has(ContractPaths.R_CODE)
+                && root.get(ContractPaths.R_CODE).asInt() == ContractPaths.CODE_UNAVAILABLE) {
+            return true;
+        }
+        return ContractPaths.MODE_UNAVAILABLE.equals(textOrNull(root, ContractPaths.R_MODE));
+    }
+
+    /** 读取字符串字段，缺失或为 null 时返回 null。 */
+    private static String textOrNull(JsonNode root, String field) {
+        if (root == null || !root.has(field) || root.get(field).isNull()) {
+            return null;
+        }
+        return root.get(field).asText();
     }
 
     private List<RagSource> parseSources(JsonNode node) {
@@ -297,7 +333,10 @@ public class HttpRagProvider implements RagContract {
     }
 
     private RagQueryResult unavailableQuery() {
-        return new RagQueryResult(null, null, null, ContractPaths.MSG_RAG_UNAVAILABLE, ContractPaths.CODE_UNAVAILABLE);
+        // D7：降级结果同时带 mode=UNAVAILABLE 与 code=503，使 Java 侧「引擎不可用」语义与 Python 侧对齐，
+        // 便于上层（AIServiceImpl / AiRagComponent）按 code:503 稳定嗅探并触发纯 LLM 回退。
+        return new RagQueryResult(null, null, ContractPaths.MODE_UNAVAILABLE,
+                ContractPaths.MSG_RAG_UNAVAILABLE, ContractPaths.CODE_UNAVAILABLE);
     }
 
     private RagDocument unavailableDocument() {

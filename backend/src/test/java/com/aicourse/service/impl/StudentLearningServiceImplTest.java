@@ -40,6 +40,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
@@ -162,6 +163,29 @@ class StudentLearningServiceImplTest {
         when(taskCompletionMapper.updateById(any(TaskCompletion.class))).thenReturn(1);
     }
 
+    // ===================== wrapper 参数捕获辅助 =====================
+
+    /**
+     * 取出 wrapper 的实际查询条件值。
+     * <p>MyBatis-Plus 把 lambda 条件参数延迟到 {@code getSqlSegment()} 时才落入
+     * {@code paramNameValuePairs}，故先触发构建再读取。学生端所有聚合查询都必须被
+     * studentId（以及 courseId）限定住——这是「学生只能看到自己数据」的最后一道防线，
+     * 用 {@code any(Wrapper.class)} 打桩完全无法发现条件被写错或漏写。</p>
+     */
+    private static Collection<Object> wrapperParams(Wrapper<?> wrapper) {
+        assertNotNull(wrapper, "查询条件 wrapper 不得为 null");
+        com.baomidou.mybatisplus.core.conditions.AbstractWrapper<?, ?, ?> aw =
+                (com.baomidou.mybatisplus.core.conditions.AbstractWrapper<?, ?, ?>) wrapper;
+        aw.getSqlSegment();
+        return aw.getParamNameValuePairs().values();
+    }
+
+    /** 断言某个查询被限定在指定学生名下。 */
+    private static void assertScopedToStudent(Wrapper<?> wrapper, long studentId) {
+        Collection<Object> params = wrapperParams(wrapper);
+        assertTrue(params.contains(studentId), "查询条件必须包含 studentId=" + studentId + "，实际参数=" + params);
+    }
+
     // ===================== ensureTable =====================
 
     @Test
@@ -233,6 +257,13 @@ class StudentLearningServiceImplTest {
         Map<String, Object> summary = (Map<String, Object>) r.get("summary");
         assertEquals(1, summary.get("courseCount"));
         assertEquals(1, summary.get("pendingAssignmentCount"));
+
+        // 「我的课程」聚合必须按 studentId 过滤，否则驾驶舱会把别人的选课与进度渲染进来
+        ArgumentCaptor<Wrapper> enrCap = ArgumentCaptor.forClass(Wrapper.class);
+        verify(enrollmentService).list(enrCap.capture());
+        assertScopedToStudent(enrCap.getValue(), 11L);
+        // 未读消息数同样要按当前学生取，写死或漏传 userId 会让所有人看到同一个红点
+        verify(notificationService).getUnreadCount(11L);
     }
 
     // ===================== getCourseLearningCenter =====================
@@ -254,6 +285,24 @@ class StudentLearningServiceImplTest {
         assertEquals(1, r.get("totalTasks"));
         assertEquals(0, r.get("completedTasks"));
         assertEquals(0, ((Number) r.get("completionPercent")).intValue());
+
+        // 选课校验的查询必须被 (studentId, courseId, isActive) 三元组限定住：
+        // 丢掉 studentId 就退化成「库里存在任意一条选课记录即视为已选课」的越权判定
+        ArgumentCaptor<Wrapper> enCap = ArgumentCaptor.forClass(Wrapper.class);
+        verify(enrollmentService).getOne(enCap.capture());
+        Collection<Object> enParams = wrapperParams(enCap.getValue());
+        assertTrue(enParams.contains(11L), "选课校验必须带 studentId，实际参数=" + enParams);
+        assertTrue(enParams.contains(1L), "选课校验必须带 courseId，实际参数=" + enParams);
+        assertTrue(enParams.contains(Boolean.TRUE), "选课校验必须只看有效选课，实际参数=" + enParams);
+
+        // 完成态预取（提交记录 / task_completions）也必须按学生维度限定，
+        // 否则会把他人的作业提交与完成情况渲染进当前学生的闯关树
+        ArgumentCaptor<Wrapper> subCap = ArgumentCaptor.forClass(Wrapper.class);
+        verify(submissionService).list(subCap.capture());
+        assertScopedToStudent(subCap.getValue(), 11L);
+        ArgumentCaptor<Wrapper> tcCap = ArgumentCaptor.forClass(Wrapper.class);
+        verify(taskCompletionMapper).selectList(tcCap.capture());
+        assertScopedToStudent(tcCap.getValue(), 11L);
     }
 
     @Test
@@ -294,13 +343,34 @@ class StudentLearningServiceImplTest {
         when(taskService.getById(anyLong())).thenReturn(task);
         // 预置已存在完成记录：upsert 走 updateById 分支，getVideoState 读到的即为该记录
         TaskCompletion after = new TaskCompletion();
+        after.setId(9L);
+        after.setStudentId(11L); after.setCourseId(1L); after.setTaskId(1L);
         after.setLastPosition(50); after.setWatchedDuration(40); after.setTotalDuration(100); after.setCompleted(false);
         when(taskCompletionMapper.selectOne(any())).thenReturn(after);
         Map<String, Object> r = service.reportVideoHeartbeat(11L, 1L, 1L, null, 50, 40, 100, 1.0);
         assertNotNull(r);
         assertEquals(50, r.get("positionSeconds"));
         assertEquals(40, r.get("watchedDuration"));
-        verify(taskCompletionMapper).updateById(any(TaskCompletion.class));
+
+        ArgumentCaptor<TaskCompletion> cap = ArgumentCaptor.forClass(TaskCompletion.class);
+        verify(taskCompletionMapper).updateById(cap.capture());
+        TaskCompletion saved = cap.getValue();
+        // 已有记录必须原地更新（不得新插一条，否则唯一索引冲突/进度重复计数）
+        verify(taskCompletionMapper, never()).insert(any(TaskCompletion.class));
+        // 必须带着原记录主键去 updateById：id 丢失会让更新退化成按全字段匹配甚至影响 0 行
+        assertSame(after, saved, "应复用查出的原记录做更新");
+        assertEquals(9L, saved.getId());
+        // 归属三元组沿用库中原值，不被心跳上报覆盖（防跨学生串号）
+        assertEquals(11L, saved.getStudentId());
+        assertEquals(1L, saved.getCourseId());
+        assertEquals(1L, saved.getTaskId());
+        // 反拖拽累计：位置沿用客户端上报值，有效观看时长按真实经过时长裁剪（本例无经过时间 -> 增量 0，仍为 40）
+        assertEquals(50, saved.getLastPosition());
+        assertEquals(40, saved.getWatchedDuration());
+        assertEquals(100, saved.getTotalDuration());
+        assertEquals("VIDEO", saved.getCompletionType());
+        // 40 < 100*0.9 -> 未达完成阈值，不得被标记为已完成
+        assertNotEquals(Boolean.TRUE, saved.getCompleted());
     }
 
     @Test
@@ -341,13 +411,27 @@ class StudentLearningServiceImplTest {
     // ===================== markTaskComplete =====================
 
     @Test
-    @DisplayName("markTaskComplete 正常标记完成")
+    @DisplayName("markTaskComplete 正常标记完成：落库实体的归属与类型由入参映射")
     void mark_ok() {
         when(taskService.getById(anyLong())).thenReturn(task);
         Map<String, Object> r = service.markTaskComplete(11L, 1L, 1L, null);
         assertEquals(true, r.get("completed"));
         assertEquals("VIDEO", r.get("completionType"));
-        verify(taskCompletionMapper).insert(any(TaskCompletion.class));
+
+        ArgumentCaptor<TaskCompletion> cap = ArgumentCaptor.forClass(TaskCompletion.class);
+        verify(taskCompletionMapper).insert(cap.capture());
+        TaskCompletion saved = cap.getValue();
+        // 完成态记录必须由 (studentId, courseId, taskId) 定位：任一映射错位都会把完成态记到别人/别课上
+        assertEquals(11L, saved.getStudentId());
+        assertEquals(1L, saved.getCourseId());
+        assertEquals(1L, saved.getTaskId());
+        // 章节与任务类型从任务点反查补齐（客户端不可信，不能由上报值决定归属）
+        assertEquals(1L, saved.getChapterId());
+        assertEquals("VIDEO", saved.getTaskType());
+        // completionType 传 null 时应回退为任务类型，而不是留空（留空会让完成态统计按类型聚合时丢桶）
+        assertEquals("VIDEO", saved.getCompletionType());
+        assertEquals(Boolean.TRUE, saved.getCompleted());
+        assertNotNull(saved.getCompletedAt());
     }
 
     @Test
@@ -390,7 +474,7 @@ class StudentLearningServiceImplTest {
     // ===================== reportVideoHeartbeat =====================
 
     @Test
-    @DisplayName("reportVideoHeartbeat 带 resourceId 委托视频服务")
+    @DisplayName("reportVideoHeartbeat 带 resourceId 委托视频服务：转发参数为用户/资源/位置/总时长/倍速")
     void heartbeat_withResource() {
         when(taskService.getById(anyLong())).thenReturn(task);
         VideoLearningRecord rec = new VideoLearningRecord();
@@ -399,7 +483,24 @@ class StudentLearningServiceImplTest {
         Map<String, Object> r = service.reportVideoHeartbeat(11L, 1L, 1L, 9L, 95, 90, 100, 1.0);
         assertNotNull(r);
         assertEquals(1L, r.get("taskId"));
-        verify(videoLearningRecordService).updateProgress(anyLong(), anyLong(), any(), any(), any());
+        // 精确校验转发参数：观看时长(watchedDuration=90) 被刻意丢弃——它是客户端自报值，
+        // 视频服务只接受 (userId, resourceId, position, totalDuration, playbackSpeed)，
+        // 一旦改成透传 watchedDuration，#65 反拖拽收口就失效了。
+        verify(videoLearningRecordService).updateProgress(11L, 9L, 95, 100, 1.0);
+        verify(videoLearningRecordService, never()).updateProgress(anyLong(), anyLong(), any(), eq(90), any());
+
+        // 心跳落库的完成态：观看时长/位置/总时长取视频服务返回值（服务端真相源），而非上报值
+        ArgumentCaptor<TaskCompletion> cap = ArgumentCaptor.forClass(TaskCompletion.class);
+        verify(taskCompletionMapper).insert(cap.capture());
+        TaskCompletion saved = cap.getValue();
+        assertEquals(11L, saved.getStudentId());
+        assertEquals(1L, saved.getCourseId());
+        assertEquals(1L, saved.getTaskId());
+        assertEquals(95, saved.getLastPosition());
+        assertEquals(90, saved.getWatchedDuration());
+        assertEquals(100, saved.getTotalDuration());
+        assertEquals("VIDEO", saved.getCompletionType());
+        assertEquals(Boolean.TRUE, saved.getCompleted(), "completeCount>0 应判定为已看完");
     }
 
     @Test
@@ -424,11 +525,28 @@ class StudentLearningServiceImplTest {
         assertEquals(1, r.get("total"));
         assertEquals(1, r.get("correct"));
         assertEquals(100, ((Number) r.get("score")).intValue());
-        verify(wrongQuestionService, never()).recordWrongAnswer(anyLong(), anyLong(), anyLong(), any(), any());
+        verify(wrongQuestionService, never()).recordWrongAnswerInNewTx(anyLong(), anyLong(), anyLong(), any(), any());
+
+        // 题目 ID 集合必须以 Long 形式批量预取（字符串键直接进 listByIds 会查不到题）
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<Collection<Long>> idsCap = ArgumentCaptor.forClass(Collection.class);
+        verify(questionService).listByIds(idsCap.capture());
+        assertEquals(List.of(5L), new ArrayList<>(idsCap.getValue()), "答案键应转成题目ID再批量预取");
+
+        // 判分结果落库：得分与完成态由服务端算出的 score 写入，而不是回显客户端上报值
+        ArgumentCaptor<TaskCompletion> cap = ArgumentCaptor.forClass(TaskCompletion.class);
+        verify(taskCompletionMapper).insert(cap.capture());
+        TaskCompletion saved = cap.getValue();
+        assertEquals(11L, saved.getStudentId());
+        assertEquals(1L, saved.getTaskId());
+        assertEquals(1L, saved.getCourseId());
+        assertEquals("QUIZ", saved.getCompletionType());
+        assertEquals(0, saved.getScore().compareTo(new BigDecimal("100")));
+        assertEquals(Boolean.TRUE, saved.getCompleted());
     }
 
     @Test
-    @DisplayName("submitQuiz 客观题答错收录错题本")
+    @DisplayName("submitQuiz 客观题答错收录错题本（走 REQUIRES_NEW 独立事务方法，D3）")
     void quiz_wrong_objective() {
         when(taskService.getById(anyLong())).thenReturn(task);
         Question q = new Question();
@@ -438,7 +556,44 @@ class StudentLearningServiceImplTest {
         answers.put("5", "B");
         Map<String, Object> r = service.submitQuiz(11L, 1L, 1L, answers);
         assertEquals(0, r.get("correct"));
-        verify(wrongQuestionService).recordWrongAnswer(anyLong(), anyLong(), anyLong(), any(), any());
+        // D3：错题收录必须走独立事务方法 recordWrongAnswerInNewTx，
+        // 绝不能再用会加入外层共享事务的 recordWrongAnswer（否则收录失败拖垮整次提交）。
+        // 参数按值锁定：学生=11、题目=5、课程=1、学生作答=B、来源=QUIZ。
+        // 来源标记写成 EXAM 会把练习错题混进考试错题本，课程写错则错题本归属到别的课。
+        verify(wrongQuestionService).recordWrongAnswerInNewTx(11L, 5L, 1L, "B", "QUIZ");
+        verify(wrongQuestionService, never()).recordWrongAnswer(anyLong(), anyLong(), anyLong(), any(), any());
+    }
+
+    @Test
+    @DisplayName("submitQuiz 错题收录抛异常时判分结果仍正常返回（D3 回归：收录失败不拖垮提交）")
+    void quiz_wrongRecordFails_gradingStillReturns() {
+        // 说明：真实的 UnexpectedRollbackException 需事务同步器参与，Mockito 单元层无法复现回滚语义。
+        // 故此处断言「收录异常被吞、判分明细照常返回且不抛出」+「调用的是 REQUIRES_NEW 方法」，
+        // 事务传播属性本身由 WrongQuestionServiceImplTest#recordWrongAnswerInNewTx_requiresNew 反射断言。
+        when(taskService.getById(anyLong())).thenReturn(task);
+        Question q = new Question();
+        q.setId(5L); q.setCorrectAnswers("A"); q.setType("SINGLE_CHOICE");
+        when(questionService.listByIds(any())).thenReturn(List.of(q));
+        doThrow(new RuntimeException("模拟错题收录失败"))
+                .when(wrongQuestionService).recordWrongAnswerInNewTx(anyLong(), anyLong(), anyLong(), any(), any());
+        Map<String, String> answers = new LinkedHashMap<>();
+        answers.put("5", "B");
+
+        Map<String, Object> r = service.submitQuiz(11L, 1L, 1L, answers);
+
+        // 收录失败不影响判分：total/correct/score 与明细均已计算并返回
+        assertEquals(1, r.get("total"));
+        assertEquals(0, r.get("correct"));
+        assertEquals(0, ((Number) r.get("score")).intValue());
+        assertNotNull(r.get("details"));
+        verify(wrongQuestionService).recordWrongAnswerInNewTx(11L, 5L, 1L, "B", "QUIZ");
+        // 判分明细要能定位到具体题目并给出正确答案，否则学生看到分数却无从复盘
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> details = (List<Map<String, Object>>) r.get("details");
+        assertEquals(1, details.size());
+        assertEquals(5L, details.get(0).get("questionId"));
+        assertEquals(false, details.get(0).get("correct"));
+        assertEquals("A", details.get(0).get("correctAnswer"));
     }
 
     @Test
@@ -451,7 +606,7 @@ class StudentLearningServiceImplTest {
         Map<String, String> answers = new LinkedHashMap<>();
         answers.put("5", "B");
         service.submitQuiz(11L, 1L, 1L, answers);
-        verify(wrongQuestionService, never()).recordWrongAnswer(anyLong(), anyLong(), anyLong(), any(), any());
+        verify(wrongQuestionService, never()).recordWrongAnswerInNewTx(anyLong(), anyLong(), anyLong(), any(), any());
     }
 
     @Test
@@ -515,6 +670,17 @@ class StudentLearningServiceImplTest {
         @SuppressWarnings("unchecked")
         List<Map<String, Object>> exams = (List<Map<String, Object>>) courses.get(0).get("exams");
         assertEquals(1, exams.size());
+
+        // 学情查询必须全部按 studentId 收口：任一 wrapper 丢了学生维度就是「看到全班成绩」的越权
+        ArgumentCaptor<Wrapper> enrCap = ArgumentCaptor.forClass(Wrapper.class);
+        verify(enrollmentService).list(enrCap.capture());
+        assertScopedToStudent(enrCap.getValue(), 11L);
+        ArgumentCaptor<Wrapper> subCap = ArgumentCaptor.forClass(Wrapper.class);
+        verify(submissionService).list(subCap.capture());
+        assertScopedToStudent(subCap.getValue(), 11L);
+        ArgumentCaptor<Wrapper> examCap = ArgumentCaptor.forClass(Wrapper.class);
+        verify(examSessionService).list(examCap.capture());
+        assertScopedToStudent(examCap.getValue(), 11L);
     }
 
     @Test

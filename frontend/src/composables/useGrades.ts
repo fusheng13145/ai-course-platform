@@ -7,6 +7,18 @@ import courseApi from '@/api/course'
 import { getChartTheme, getMonoSeries } from '@/utils/chartTheme'
 
 /**
+ * 异常成绩的唯一判定口径：后端显式标记，或分数 <45 / ≥98。
+ * 未批阅（score 为 null/undefined/NaN）一律不算异常——否则 `null < 45` 在 JS 里
+ * 会被强制成 0，把整列待批阅成绩误标为异常。
+ */
+export function isAbnormalGrade(item) {
+  if (item?.isAbnormal) return true
+  const score = item?.score
+  if (score == null || isNaN(score)) return false
+  return score < 45 || score >= 98
+}
+
+/**
  * 成绩管理（管理员视角）数据与统计逻辑
  * <p>承载成绩管理页的全部状态与操作：课程/成绩数据加载、概览统计（平均分/标准差/及格率/异常数）、
  * 图表数据更新（成绩分布、各课程平均分对比）、异常成绩提取、重置筛选、
@@ -19,7 +31,7 @@ export function useGrades() {
   const filters = reactive({ courseId: '', semester: '', keyword: '' })
   const showAbnormalOnly = ref(false)
 
-  /** 分页（页码从 1 起，接口按 0 基转换） */
+  /** 分页（页码从 1 起，与后端 MyBatis-Plus `Page.of(page,size)` 的 **1 基** 口径一致） */
   const pagination = reactive({ page: 1, size: 10, total: 0 })
 
   const gradeList = ref([])
@@ -120,10 +132,10 @@ export function useGrades() {
     ],
   })
 
-  /** 加载课程下拉列表（最多 100 条） */
+  /** 加载课程下拉列表（最多 100 条）。后端分页为 **1 基**（Page.of(page,size)） */
   async function fetchCourses() {
     try {
-      const res = await courseApi.getCourseList({ page: 0, size: 100 })
+      const res = await courseApi.getCourseList({ page: 1, size: 100 })
       const data = res.data?.records || res.data?.list || res.data || res || []
       courseList.value = Array.isArray(data) ? data : []
     } catch (error) {
@@ -134,42 +146,87 @@ export function useGrades() {
 
   /**
    * 加载成绩列表并联动更新统计与图表
-   * 兼容多种响应结构（records/list/grades/items）
+   * 兼容多种响应结构（数组 / {records} / {list}，带或不带 total）
+   *
+   * 缺陷修复（P0-1，2026-10-04）：
+   * ① 原实现组装好 `params` 却调用 `examApi.getMyExamSessions()` **不传任何参数**，
+   *    导致分页 / 课程 / 学期 / 关键词筛选全部失效（参数被静默丢弃）；
+   *    现在 params 真正传给 API（`getMyExamSessions` 已加上可选 params 并透传）。
+   * ② 原实现 `pagination.total = data.length`（当前页长度），第 2 页只有 3 条时
+   *    总数就变成 3，翻页控件直接算错。现在：后端回传 total 就以后端为准；
+   *    后端未分页（返回全量数组）时由本地完成筛选+切片，total 取**筛选后的完整条数**
+   *    （真实总数，非当前页长度），翻页控件不会误判。
    */
   async function fetchGrades() {
     loading.value = true
     try {
-      const params: Record<string, unknown> = { page: pagination.page - 1, size: pagination.size }
+      // 后端分页口径为 1 基（Page.of(page,size) + defaultValue="1"），故直接发送 pagination.page
+      const params: Record<string, unknown> = { page: pagination.page, size: pagination.size }
       if (filters.courseId) params.courseId = filters.courseId
       if (filters.semester) params.semester = filters.semester
       if (filters.keyword) params.keyword = filters.keyword
 
-      const res = await examApi.getMyExamSessions()
-      const rawData = res.data?.records || res.data?.list || res.data || res || []
-      let data = Array.isArray(rawData)
-        ? rawData
-        : (rawData?.records ?? rawData?.grades ?? rawData?.items ?? [])
-      if (!Array.isArray(data)) {
-        data = data.records || data.grades || data.items || []
+      const res = await examApi.getMyExamSessions(params)
+
+      // 兼容三种信封：裸数组 / {list,total} / {records,total}
+      const body = res?.data ?? res ?? {}
+      const serverTotal =
+        body && !Array.isArray(body) && typeof body.total === 'number' ? body.total : null
+      const rawList = Array.isArray(body)
+        ? body
+        : (body?.list ?? body?.records ?? body?.grades ?? body?.items ?? [])
+      let data = Array.isArray(rawList) ? rawList : []
+
+      if (serverTotal !== null) {
+        // 后端已完成分页，直接采信后端 total，绝不二次切片
+        pagination.total = serverTotal
+      } else {
+        // 后端返回全量列表（/exam-sessions/my 现状：接收参数但不分页）
+        // → 筛选与分页在本地补齐，保证筛选条件真正生效
+        data = applyLocalFilters(data)
+        pagination.total = data.length
+        const start = (pagination.page - 1) * pagination.size
+        data = data.slice(start, start + pagination.size)
       }
 
-      // 仅显示异常：<40 或 =100 或接口已标记 isAbnormal
+      // 仅显示异常：与下方 extractAbnormal 共用同一判定，避免「异常数卡片」与
+      // 「仅看异常」列表口径不一致；未批阅（score 为 null）不算异常。
       if (showAbnormalOnly.value) {
-        data = data.filter((item) => item.isAbnormal || item.score < 40 || item.score === 100)
+        data = data.filter(isAbnormalGrade)
       }
 
       gradeList.value = data
-      pagination.total = Array.isArray(data) ? data.length : 0
 
+      // 顺序要求：extractAbnormal 必须先于 updateOverviewStats。
+      // 统计卡的「异常数」直接读 abnormalGrades.value.length，若后置则取到上一次
+      // 加载的结果——首次加载恒显示 0，与页面列表里的异常标记数量不一致。
+      extractAbnormal(data)
       updateOverviewStats(data)
       updateCharts(data)
-      extractAbnormal(data)
     } catch (error) {
       logger.error('获取成绩列表失败:', error)
       gradeList.value = []
+      pagination.total = 0
     } finally {
       loading.value = false
     }
+  }
+
+  /**
+   * 本地筛选（仅在后端未按条件过滤时兜底）。
+   * 关键词命中学生姓名/课程名，courseId/semester 精确匹配。
+   */
+  function applyLocalFilters(list) {
+    const kw = (filters.keyword || '').trim().toLowerCase()
+    return list.filter((item) => {
+      if (filters.courseId && String(item.courseId ?? '') !== String(filters.courseId)) return false
+      if (filters.semester && item.semester !== filters.semester) return false
+      if (kw) {
+        const hay = `${item.studentName ?? ''} ${item.fullName ?? ''} ${item.courseName ?? ''}`
+        if (!hay.toLowerCase().includes(kw)) return false
+      }
+      return true
+    })
   }
 
   /** 概览统计：平均分、标准差、及格率、异常数 */
@@ -234,9 +291,7 @@ export function useGrades() {
       abnormalGrades.value = []
       return
     }
-    abnormalGrades.value = data.filter(
-      (item) => item.isAbnormal || (item.score != null && (item.score < 45 || item.score >= 98)),
-    )
+    abnormalGrades.value = data.filter(isAbnormalGrade)
   }
 
   /** 分数段样式类名（表格与详情共用） */

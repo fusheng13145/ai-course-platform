@@ -1,14 +1,17 @@
 """
-RAG 检索引擎（8002）· 集成契约占位骨架
+RAG 检索服务（8002）· 集成契约 + 真实混合检索引擎
 ================================================
-⚠️ 重要职责边界：RAG 检索引擎（BM25 / 向量检索 / embedding / 融合）由**团队另一成员**
-以 Python 微服务（端口 8002）实现，本文件**不是引擎实现**，仅为：
+端点与 JSON 形状严格对齐 `docs/项目手册.md`（第八部分）、Java 端
+`RAGService` / `RAGServiceImpl` / `HttpRagProvider` 与 `RagContract`。
+CI 护栏 job `python-rag-contract`（`pytest -q`，含 `test_rag_contract.py`）守护该契约，
+替换/演进引擎逻辑时不得破坏端点路径与响应结构。
 
-1. 与 Java 端 `RAGService` / `RAGServiceImpl` / `HttpRagProvider` 的**对接契约占位**；
-2. CI 护栏 `python-rag-contract` 的可运行载体（确保契约端点路径/JSON 形状不被破坏）；
-3. 队友接入真实引擎前的**最小可启动骨架**——队友应在本文件基础上替换检索/生成逻辑，
-   保持以下端点与 `docs/项目手册.md`（第八部分）及 `com.aicourse.integration.rag.RagContract`
-   一致。
+引擎实现在 `rag_engine.py`（BM25 + 向量混合召回、RRF 融合、DeepSeek 生成）：
+- 重依赖（torch/faiss/sentence-transformers/jieba/rank_bm25）**懒加载**；
+  依赖齐备且课程已建索引时走真实引擎（mode=ENGINE / code=200）；
+- 依赖缺失（如 CI 环境）时行为回退为占位语义，契约测试仍全绿；
+- 引擎对该课程无数据时按手册 §34 降级：code=503 / mode=UNAVAILABLE，
+  Java 端据此回退纯 LLM 回答。
 
 契约端点（详见 RagContract.java 注释）：
   GET  /api/v1/rag/health
@@ -19,8 +22,9 @@ RAG 检索引擎（8002）· 集成契约占位骨架
   DELETE /api/v1/rag/documents/{id}
   POST /api/v1/rag/retrieve       {query, course_id?, top_k}           -> {results[]}
   POST /api/v1/rag/index/build/{courseId}                             -> {success, indexed_chunks}
+  DELETE /api/v1/rag/index/{courseId}                                 -> {success}
 
-本占位使用进程内内存字典存储文档，仅用于契约验证；真实引擎应接入持久化/向量库。
+文档与索引用持久化存储（`rag_engine.py`，数据目录 RAG_DATA_DIR，默认 ./data，已 gitignore）。
 """
 from __future__ import annotations
 
@@ -28,34 +32,35 @@ import os
 from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
-app = FastAPI(title="AI Course RAG Service (contract placeholder)", version="0.1.0")
+try:
+    import rag_engine
+except ImportError:  # 以 python-services 为工作目录、按子包方式启动时（uvicorn rag_service.rag_service:app）
+    from . import rag_engine
+
+app = FastAPI(title="AI Course RAG Service", version="0.2.0")
 
 # 与 Java 端 com.aicourse.integration.ContractPaths.MSG_RAG_UNAVAILABLE 严格一致（降级语义文案）
 MSG_RAG_UNAVAILABLE = "RAG 引擎由团队另一成员负责，本端仅预留接口；服务未接入或不可用"
 
-# ---- 进程内文档存储（占位，仅契约验证用）----
-_DOCS: dict[int, dict] = {}
-_NEXT_ID = 1
-
 
 class AskRequest(BaseModel):
-    question: str
+    question: str = Field(min_length=1, max_length=2000)
     course_id: Optional[int] = None
-    top_k: int = 5
+    top_k: int = Field(5, ge=1, le=50)
 
 
 class RetrieveRequest(BaseModel):
-    query: str
+    query: str = Field(min_length=1, max_length=2000)
     course_id: Optional[int] = None
-    top_k: int = 5
+    top_k: int = Field(5, ge=1, le=50)
 
 
 class DocumentIn(BaseModel):
-    course_id: int
-    document_name: str
-    content: str
+    course_id: int = Field(ge=1)
+    document_name: str = Field(min_length=1, max_length=255)
+    content: str = Field(min_length=1)
 
 
 class DocumentUpdate(BaseModel):
@@ -108,105 +113,131 @@ def health():
 
 @app.post("/api/v1/rag/documents", response_model=RagDocument)
 def add_document(doc: DocumentIn):
-    global _NEXT_ID
-    doc_id = _NEXT_ID
-    _NEXT_ID += 1
-    _DOCS[doc_id] = {
-        "id": doc_id,
-        "course_id": doc.course_id,
-        "document_name": doc.document_name,
-        "content": doc.content,
-    }
-    return RagDocument(id=doc_id, document_name=doc.document_name,
-                       course_id=doc.course_id, content=doc.content)
+    saved = rag_engine.add_document(doc.course_id, doc.document_name, doc.content)
+    return RagDocument(id=saved["id"], document_name=saved["document_name"],
+                       course_id=saved["course_id"], content=saved["content"])
 
 
 @app.get("/api/v1/rag/documents", response_model=List[RagDocument])
 def list_documents(course_id: Optional[int] = Query(None)):
-    docs = [RagDocument(**d) for d in _DOCS.values()]
-    if course_id is not None:
-        docs = [d for d in docs if d.course_id == course_id]
-    return docs
+    return [RagDocument(**d) for d in rag_engine.list_documents(course_id)]
 
 
 @app.put("/api/v1/rag/documents/{document_id}", response_model=RagDocument)
 def update_document(document_id: int, upd: DocumentUpdate):
-    if document_id not in _DOCS:
+    updated = rag_engine.update_document(document_id, upd.content)
+    if updated is None:
         raise HTTPException(status_code=404, detail="document not found")
-    _DOCS[document_id]["content"] = upd.content
-    return RagDocument(**_DOCS[document_id])
+    return RagDocument(**updated)
 
 
 @app.delete("/api/v1/rag/documents/{document_id}", response_model=RagDocument)
 def delete_document(document_id: int):
-    if document_id not in _DOCS:
+    removed = rag_engine.delete_document(document_id)
+    if removed is None:
         raise HTTPException(status_code=404, detail="document not found")
-    removed = _DOCS.pop(document_id)
     return RagDocument(**removed)
+
+
+def _engine_ready_for(course_id: Optional[int]) -> bool:
+    """真实引擎可用且该课程已有有效索引。"""
+    return (course_id is not None
+            and rag_engine.engine_available()
+            and rag_engine.index_status(course_id) is not None)
+
+
+def _degrade_error(course_id: Optional[int]) -> str:
+    # 课程有文档但未建索引时给出可操作提示；其余情况保持契约降级文案
+    if course_id is not None and rag_engine.list_documents(course_id) \
+            and rag_engine.index_status(course_id) is None:
+        return (f"课程 {course_id} 已有文档但尚未构建索引，"
+                f"请先调用 POST /api/v1/rag/index/build/{course_id}")
+    return MSG_RAG_UNAVAILABLE
+
+
+# 契约测试/CI 用的确定性占位响应（引擎依赖未安装或课程无索引时，
+# RAG_ENGINE_READY=1 走此路径，保证 python-rag-contract 无需下载模型即可断言 200 成功结构）
+_PLACEHOLDER_SOURCES = [
+    RagSource(document_id=1, document_name="TCP 三次握手",
+              relevance_score=0.92, snippet="SYN/ACK 建立连接"),
+    RagSource(document_id=2, document_name="OSI 七层模型",
+              relevance_score=0.81, snippet="应用层到物理层"),
+]
 
 
 @app.post("/api/v1/rag/retrieve", response_model=RagRetrievalResult)
 def retrieve(req: RetrieveRequest):
-    # 端到端契约成功路径（确定性占位）：用于 python-rag-contract 断言补全。
-    # 仅当 RAG_ENGINE_READY=1 时返回，验证 Java HttpRagProvider 期望的 200 成功结构；
-    # 默认（未置位）仍返回 503 降级，保持与 Java 端 RAG_ENABLED=true 时引擎不可达回退纯 LLM 一致。
+    try:
+        if _engine_ready_for(req.course_id):
+            results = rag_engine.search(req.query, req.course_id, req.top_k) or []
+            return RagRetrievalResult(
+                results=[RagSource(**r) for r in results],
+                mode="ENGINE",
+                code=200,
+            )
+    except rag_engine.StoreCorruptedError as exc:
+        # 存储损坏：显式报错并降级（非静默返回空），error 携带可操作信息
+        return RagRetrievalResult(results=[], mode="UNAVAILABLE",
+                                  error=f"引擎存储损坏：{exc}", code=503)
     if os.getenv("RAG_ENGINE_READY", "0") == "1":
         return RagRetrievalResult(
-            results=[
-                RagSource(document_id=1, document_name="TCP 三次握手",
-                          relevance_score=0.92, snippet="SYN/ACK 建立连接"),
-                RagSource(document_id=2, document_name="OSI 七层模型",
-                          relevance_score=0.81, snippet="应用层到物理层"),
-            ],
+            results=list(_PLACEHOLDER_SOURCES),
             mode="ENGINE",
             code=200,
         )
-    # 占位骨架：真实 RAG 引擎（BM25/向量/embedding/融合）未接入，按手册 §34 降级语义
-    # 返回 code=503 / mode=UNAVAILABLE；待 Python 端接入真实引擎后替换此处逻辑。
+    # 引擎未接入或该课程无索引：按手册 §34 降级语义 code=503 / mode=UNAVAILABLE
     return RagRetrievalResult(
         results=[],
         mode="UNAVAILABLE",
-        error=MSG_RAG_UNAVAILABLE,
+        error=_degrade_error(req.course_id),
         code=503,
     )
 
 
 @app.post("/api/v1/rag/ask", response_model=RagQueryResult)
 def ask(req: AskRequest):
-    # 端到端契约成功路径（确定性占位）：用于 python-rag-contract 断言补全。
-    # 仅当 RAG_ENGINE_READY=1 时返回，验证 Java HttpRagProvider 期望的 200 成功结构；
-    # 默认（未置位）仍返回 503 降级，保持与 Java 端 RAG_ENABLED=false / 引擎不可达时回退纯 LLM 一致。
+    try:
+        if _engine_ready_for(req.course_id):
+            results = rag_engine.search(req.question, req.course_id, req.top_k) or []
+            contexts = [RagSource(**r) for r in results]
+            answer, _gen_mode = rag_engine.generate_answer(req.question, results)
+            return RagQueryResult(answer=answer, sources=contexts,
+                                  mode="ENGINE", code=200)
+    except rag_engine.StoreCorruptedError as exc:
+        return RagQueryResult(answer=None, sources=[], mode="UNAVAILABLE",
+                              error=f"引擎存储损坏：{exc}", code=503)
     if os.getenv("RAG_ENGINE_READY", "0") == "1":
         return RagQueryResult(
             answer="TCP 是面向连接的传输层协议，通过三次握手建立可靠连接。",
-            sources=[
-                RagSource(document_id=1, document_name="TCP 三次握手",
-                          relevance_score=0.92, snippet="SYN/ACK 建立连接"),
-                RagSource(document_id=2, document_name="OSI 七层模型",
-                          relevance_score=0.81, snippet="应用层到物理层"),
-            ],
+            sources=list(_PLACEHOLDER_SOURCES),
             mode="ENGINE",
             code=200,
         )
-    # 占位骨架：真实 RAG 引擎未接入，按手册 §34 降级语义返回 code=503 / mode=UNAVAILABLE；
-    # 与 Java 端 RAG_ENABLED=false 时整体返回 503 一致。待 Python 端接入真实引擎后替换此处逻辑。
+    # 引擎未接入：按手册 §34 降级语义 code=503 / mode=UNAVAILABLE；
+    # Java 端 RAG_ENABLED=false 或收到降级时回退纯 LLM。
     return RagQueryResult(
         answer=None,
         sources=[],
         mode="UNAVAILABLE",
-        error=MSG_RAG_UNAVAILABLE,
+        error=_degrade_error(req.course_id),
         code=503,
     )
 
 
 @app.post("/api/v1/rag/index/build/{course_id}", response_model=IndexResult)
 def build_index(course_id: int):
-    chunks = sum(1 for d in _DOCS.values() if d["course_id"] == course_id)
-    return IndexResult(success=True, indexed_chunks=chunks)
+    if not rag_engine.engine_available():
+        # CI/轻量环境保持占位契约行为（不断言真实索引语义）
+        chunks = len(rag_engine.list_documents(course_id))
+        return IndexResult(success=True, indexed_chunks=chunks)
+    out = rag_engine.build_course_index(course_id)
+    return IndexResult(success=out["success"],
+                       indexed_chunks=out["indexed_chunks"],
+                       error=out.get("error"))
 
 
 @app.delete("/api/v1/rag/index/{course_id}", response_model=IndexResult)
 def clear_index(course_id: int):
-    # 占位：契约补全（手册 §32 列出 DELETE /api/v1/rag/index/{courseId} 清理索引）。
-    # 真实引擎应清理该课程的向量索引；占位仅返回契约形状，不报错。
+    # 契约：DELETE /api/v1/rag/index/{courseId} 清理该课程向量索引。
+    rag_engine.clear_course_index(course_id)
     return IndexResult(success=True, indexed_chunks=0)
