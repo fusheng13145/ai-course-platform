@@ -198,7 +198,7 @@ kp_rows, PAR, CHILD = [], {}, {}
 for mi, (mname, mdesc, children) in enumerate(MODULES):
     pid = B["kp"].nxt()
     PAR[mname] = pid
-    kp_rows.append((pid, mname, mdesc, COURSE, None, "concept", 10, 60, "module", mi * 20 + 1, NOW))
+    kp_rows.append((pid, mname, mdesc, COURSE, None, "medium", 10, 60, "module", mi * 20 + 1, NOW))
     for ci, (cname, ctype, cdiff, cimp, ctime) in enumerate(children):
         cid = B["kp"].nxt()
         CHILD[cname] = cid

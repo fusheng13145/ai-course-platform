@@ -318,10 +318,16 @@ export function useKnowledgeManagement() {
           links: [],
           roam: true,
           draggable: true,
-          force: { repulsion: 200, edgeLength: 120, gravity: 0.1 },
+          categories: [
+            { name: 'EASY', itemStyle: { color: st.EASY } },
+            { name: 'MEDIUM', itemStyle: { color: st.MEDIUM } },
+            { name: 'HARD', itemStyle: { color: st.HARD } },
+          ],
+          force: { repulsion: 320, edgeLength: [90, 220], gravity: 0.06, friction: 0.2 },
           emphasis: { focus: 'adjacency', lineStyle: { width: 3 } },
           lineStyle: { color: t.axis, width: 1.5, curveness: 0.2, opacity: 0.7 },
           label: { show: true, position: 'bottom', fontSize: 11, color: t.text, formatter: '{b}' },
+          labelLayout: { hideOverlap: true },
           symbolSize: (val) => 16 + (val?.[2] || 1) * 10,
           itemStyle: { borderColor: t.sliceBorder, borderWidth: 2 },
           color: (params) => {
@@ -389,15 +395,19 @@ export function useKnowledgeManagement() {
         value: [k.importance || 1],
       }))
     }
-    forceGraphOption.value.series[0].data = nodes.map((n) => ({
-      name: n.name || n.label || '未知',
-      id: n.id,
-      difficulty: n.difficulty,
-      value: n.value || [n.importance || 1],
-      category: n.category ?? (n.difficulty === 'HARD' ? 2 : n.difficulty === 'EASY' ? 0 : 1),
-      symbolSize: 18 + (n.importance || 1) * 8,
-      itemStyle: { color: getNodeColor(n.difficulty) },
-    }))
+    forceGraphOption.value.series[0].data = nodes.map((n) => {
+      const diff = (n.difficulty || n.difficultyLevel || '').toUpperCase()
+      const imp = n.importance ?? n.weight ?? 1
+      return {
+        name: n.name || n.label || '未知',
+        id: n.id,
+        difficulty: diff,
+        value: [imp, imp, imp],
+        category: diff === 'HARD' ? 2 : diff === 'EASY' ? 0 : 1,
+        symbolSize: 16 + imp * 4,
+        itemStyle: { color: getNodeColor(diff) },
+      }
+    })
     forceGraphOption.value.series[0].links = (links || []).map((l) => ({
       source: l.source || l.sourceName || l.sourceId,
       target: l.target || l.targetName || l.targetId,

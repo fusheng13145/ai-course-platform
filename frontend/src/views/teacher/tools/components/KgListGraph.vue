@@ -53,28 +53,29 @@
         <svg v-if="graphNodes.length" :viewBox="`0 0 ${graphSize} ${graphSize}`" class="kg-svg">
           <line
             v-for="(l, i) in graphLinks"
+            v-show="nodePos[l.source] && nodePos[l.target]"
             :key="'l' + i"
-            :x1="nodePos[l.source].x"
-            :y1="nodePos[l.source].y"
-            :x2="nodePos[l.target].x"
-            :y2="nodePos[l.target].y"
+            :x1="nodePos[l.source]?.x"
+            :y1="nodePos[l.source]?.y"
+            :x2="nodePos[l.target]?.x"
+            :y2="nodePos[l.target]?.y"
             class="kg-link"
           />
           <g v-for="n in graphNodes" :key="n.id">
+            <title>{{ n.name }}</title>
             <circle
-              :cx="nodePos[n.id].x"
-              :cy="nodePos[n.id].y"
-              :r="circleR"
-              :fill="
-                n.pathHL
-                  ? 'var(--ac-warning)'
-                  : n.core
-                    ? 'var(--ac-primary)'
-                    : 'var(--ac-primary-light)'
-              "
+              :cx="nodePos[n.id]?.x"
+              :cy="nodePos[n.id]?.y"
+              :r="n.r || 12"
+              :fill="nodeColor(n)"
               class="kg-node"
             />
-            <text :x="nodePos[n.id].x" :y="nodePos[n.id].y - circleR - 6" class="kg-label">
+            <text
+              v-if="n.pathHL || (n.importance ?? 0) >= 10"
+              :x="nodePos[n.id]?.x"
+              :y="(nodePos[n.id]?.y || 0) - (n.r || 12) - 5"
+              class="kg-label"
+            >
               {{ n.name }}
             </text>
           </g>
@@ -99,14 +100,22 @@ defineProps({
   diffType: { type: Function, required: true },
   diffText: { type: Function, required: true },
   graphLoading: { type: Boolean, default: false },
-  graphSize: { type: Number, default: 420 },
-  circleR: { type: Number, default: 26 },
+  graphSize: { type: Number, default: 640 },
   graphNodes: { type: Array, default: () => [] },
   graphLinks: { type: Array, default: () => [] },
   nodePos: { type: Object, default: () => ({}) },
 })
 
 const emit = defineEmits(['create', 'edit', 'remove', 'refresh'])
+
+/** 节点配色：路径高亮优先，否则按难度（后端已归一为大写 EASY/MEDIUM/HARD） */
+function nodeColor(n) {
+  if (n.pathHL) return 'var(--ac-warning)'
+  const d = (n.difficultyLevel || n.difficulty || '').toUpperCase()
+  if (d === 'HARD') return 'var(--ac-danger)'
+  if (d === 'EASY') return 'var(--ac-success)'
+  return 'var(--ac-primary)'
+}
 </script>
 
 <style scoped>
@@ -181,29 +190,34 @@ const emit = defineEmits(['create', 'edit', 'remove', 'refresh'])
 
 .graph-wrap {
   width: 100%;
-  min-height: 360px;
+  min-height: 520px;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 .kg-svg {
   width: 100%;
-  max-width: 420px;
+  max-width: 640px;
   height: auto;
 }
 .kg-link {
   stroke: var(--ac-border-strong);
-  stroke-width: 1.5;
+  stroke-width: 1;
+  stroke-opacity: 0.28;
 }
 .kg-node {
   stroke: var(--ac-on-primary);
-  stroke-width: 2;
+  stroke-width: 1.5;
   transition: fill 0.2s ease;
 }
 .kg-label {
-  font-size: 11px;
+  font-size: 12px;
+  font-weight: 600;
   fill: var(--ac-text-secondary);
   text-anchor: middle;
+  paint-order: stroke;
+  stroke: var(--ac-bg-elevated);
+  stroke-width: 3px;
 }
 
 @media (max-width: 1100px) {

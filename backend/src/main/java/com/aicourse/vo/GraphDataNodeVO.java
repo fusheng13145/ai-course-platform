@@ -13,6 +13,10 @@ public class GraphDataNodeVO {
     private Long id;
     private String name;
     private String category;
+    /** 难度等级（EASY/MEDIUM/HARD，前端据此配色） */
+    private String difficultyLevel;
+    /** 重要度（前端据此决定节点大小） */
+    private Integer importance;
 
     public GraphDataNodeVO() {
     }
@@ -21,5 +25,13 @@ public class GraphDataNodeVO {
         this.id = id;
         this.name = name;
         this.category = category;
+    }
+
+    public GraphDataNodeVO(Long id, String name, String category, String difficultyLevel, Integer importance) {
+        this.id = id;
+        this.name = name;
+        this.category = category;
+        this.difficultyLevel = difficultyLevel;
+        this.importance = importance;
     }
 }

@@ -102,8 +102,9 @@ export function useStudentKnowledgeGraph() {
           links: [],
           roam: true,
           draggable: true,
-          force: { repulsion: 300, edgeLength: [120, 200], gravity: 0.1 },
+          force: { repulsion: 340, edgeLength: [110, 240], gravity: 0.06 },
           emphasis: { focus: 'adjacency', lineStyle: { width: 3 } },
+          labelLayout: { hideOverlap: true },
           label: {
             show: true,
             position: 'bottom',
@@ -112,9 +113,9 @@ export function useStudentKnowledgeGraph() {
             color: t.text,
             formatter: '{b}',
           },
-          symbolSize: (val) => {
-            const importance = val?.importance || val?.[2] || 3
-            return Math.max(24, Math.min(56, importance * 14))
+          symbolSize: (val, params) => {
+            const importance = params?.data?.importance || val?.[2] || 3
+            return Math.max(24, Math.min(56, importance * 4.5))
           },
           itemStyle: {
             borderColor: t.sliceBorder,

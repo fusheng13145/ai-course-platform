@@ -5,9 +5,8 @@ import { unwrap } from '@/utils/response'
 import courseApi from '@/api/course'
 import knowledgeApi from '@/api/knowledge'
 
-/** SVG 图谱画布尺寸与节点半径 */
-const GRAPH_SIZE = 420
-const CIRCLE_R = 26
+/** SVG 图谱画布尺寸（力导向布局坐标系） */
+const GRAPH_SIZE = 640
 
 /**
  * 知识图谱（教师）数据与业务逻辑
@@ -224,19 +223,83 @@ export function useKnowledgeGraph() {
   const graphNodes = ref([])
   const graphLinks = ref([])
 
-  /** 环形布局坐标计算 */
-  const nodePos = computed(() => {
-    const map = {}
-    const n = graphNodes.value.length
+  /** 轻量力导向布局：斥力 + 弹簧 + 向心，迭代收敛后输出坐标（确定性初始化） */
+  function computeLayout(nodes, links) {
+    const n = nodes.length
+    if (!n) return {}
     const cx = GRAPH_SIZE / 2
     const cy = GRAPH_SIZE / 2
-    const radius = GRAPH_SIZE / 2 - 56
-    graphNodes.value.forEach((node, i) => {
-      const angle = (Math.PI * 2 * i) / Math.max(n, 1) - Math.PI / 2
-      map[node.id] = { x: cx + radius * Math.cos(angle), y: cy + radius * Math.sin(angle) }
+    const ids = nodes.map((x) => x.id)
+    const pos = {}
+    // 黄金角螺旋初始布局：确定性且避免节点重合
+    nodes.forEach((x, i) => {
+      const a = i * 2.399963229728653
+      const rr = 24 + 14 * Math.sqrt(i)
+      pos[x.id] = { x: cx + rr * Math.cos(a), y: cy + rr * Math.sin(a), vx: 0, vy: 0 }
     })
-    return map
-  })
+    const k = Math.sqrt((GRAPH_SIZE * GRAPH_SIZE) / n) * 0.7
+    const iterations = 320
+    for (let it = 0; it < iterations; it++) {
+      const temp = 30 * (1 - it / iterations) + 1.5
+      for (let i = 0; i < n; i++) {
+        const a = pos[ids[i]]
+        for (let j = i + 1; j < n; j++) {
+          const b = pos[ids[j]]
+          let dx = a.x - b.x
+          let dy = a.y - b.y
+          let d = Math.hypot(dx, dy)
+          if (d < 0.01) {
+            dx = 0.01 * (i - j || 1)
+            dy = 0.01
+            d = Math.hypot(dx, dy)
+          }
+          const rep = (k * k) / d
+          const ux = dx / d
+          const uy = dy / d
+          a.vx += ux * rep
+          a.vy += uy * rep
+          b.vx -= ux * rep
+          b.vy -= uy * rep
+        }
+      }
+      links.forEach((l) => {
+        const a = pos[l.source]
+        const b = pos[l.target]
+        if (!a || !b) return
+        const dx = a.x - b.x
+        const dy = a.y - b.y
+        const d = Math.max(0.01, Math.hypot(dx, dy))
+        const att = (d * d) / k
+        const ux = dx / d
+        const uy = dy / d
+        a.vx -= ux * att
+        a.vy -= uy * att
+        b.vx += ux * att
+        b.vy += uy * att
+      })
+      ids.forEach((id) => {
+        const p = pos[id]
+        p.vx += (cx - p.x) * 0.03
+        p.vy += (cy - p.y) * 0.03
+        const v = Math.hypot(p.vx, p.vy) || 0.001
+        const step = Math.min(v, temp)
+        p.x += (p.vx / v) * step
+        p.y += (p.vy / v) * step
+        p.x = Math.max(28, Math.min(GRAPH_SIZE - 28, p.x))
+        p.y = Math.max(28, Math.min(GRAPH_SIZE - 28, p.y))
+        p.vx *= 0.82
+        p.vy *= 0.82
+      })
+    }
+    const out = {}
+    ids.forEach((id) => {
+      out[id] = { x: pos[id].x, y: pos[id].y }
+    })
+    return out
+  }
+
+  /** 布局坐标（节点或连线变化时重算） */
+  const nodePos = computed(() => computeLayout(graphNodes.value, graphLinks.value))
 
   async function loadGraph() {
     if (!courseId.value) return
@@ -245,18 +308,19 @@ export function useKnowledgeGraph() {
       const r = await knowledgeApi.getRelationGraphData(courseId.value)
       const body = unwrap(r)
       const g = unwrap(body) || {}
-      const nodes = g.nodes || []
-      const links = g.links || g.relations || []
-      graphNodes.value = nodes
+      const nodes = Array.isArray(g.nodes) ? g.nodes : []
+      const links = (g.links || g.relations || []).map((l) => ({
+        source: l.source ?? l.from,
+        target: l.target ?? l.to,
+      }))
+      // 依据重要度设定节点半径，令模块枢纽在图谱中更突出
+      graphNodes.value = nodes.map((x) => ({
+        ...x,
+        r: 7 + Math.min(16, (x.importance ?? 3) * 1.3),
+      }))
       graphLinks.value = links
-        .map((l) => ({
-          source: l.source ?? l.from,
-          target: l.target ?? l.to,
-        }))
-        .filter((l) => nodePos.value[l.source] && nodePos.value[l.target])
     } catch (e) {
-      // 端点不可用则忽略可视化，仅保留列表
-      logger.warn('图谱端点不可用，已忽略可视化', e)
+      logger.warn('图谱数据不可用，已忽略可视化', e)
       graphNodes.value = []
       graphLinks.value = []
     } finally {
@@ -351,7 +415,6 @@ export function useKnowledgeGraph() {
     runExtract,
     graphLoading,
     graphSize: GRAPH_SIZE,
-    circleR: CIRCLE_R,
     graphNodes,
     graphLinks,
     nodePos,

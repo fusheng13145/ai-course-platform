@@ -33,7 +33,6 @@
           :diff-text="diffText"
           :graph-loading="graphLoading"
           :graph-size="graphSize"
-          :circle-r="circleR"
           :graph-nodes="graphNodes"
           :graph-links="graphLinks"
           :node-pos="nodePos"
@@ -134,7 +133,6 @@ const {
   runExtract,
   graphLoading,
   graphSize,
-  circleR,
   graphNodes,
   graphLinks,
   nodePos,

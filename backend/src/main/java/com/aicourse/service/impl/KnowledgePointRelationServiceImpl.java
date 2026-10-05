@@ -117,9 +117,12 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
         // 构建节点数据（供ECharts/D3渲染）
         List<GraphDataNodeVO> nodes = new ArrayList<>();
         for (KnowledgePoint point : points) {
+            String difficulty = point.getDifficultyLevel() != null
+                    ? point.getDifficultyLevel().toUpperCase() : null;
             nodes.add(new GraphDataNodeVO(
                     point.getId(), point.getName(),
-                    point.getPointType() != null ? point.getPointType() : "default"));
+                    point.getPointType() != null ? point.getPointType() : "default",
+                    difficulty, point.getImportance()));
         }
 
         // 查询课程内知识点之间的关联边
