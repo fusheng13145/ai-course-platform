@@ -41,7 +41,7 @@ public interface KnowledgeGraphService {
      *
      * @param sourceId 起点知识点ID
      * @param targetId 目标知识点ID
-     * @param maxHops  最大搜索跳数（<=0 时取配置 {@code knowledge-graph.rag.max-hops}，默认 2）
+     * @param maxHops  最大搜索跳数；{@code <=0} 表示不限跳数，返回两点间真实最短路径
      * @return 路径规划结果（含有序节点、边、跳数与规划模式）
      */
     KnowledgePathPlanVO planLearningPath(Long sourceId, Long targetId, int maxHops);

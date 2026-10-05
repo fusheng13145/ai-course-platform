@@ -132,4 +132,40 @@ class KnowledgeGraphBfsUnitTest {
         assertTrue(res.found());
         assertEquals(List.of(10L, 20L, 30L), res.path());
     }
+
+    /** 1—2—3—4—5 线性链：端点 1→5 的真实最短距离为 4 跳。 */
+    private void stubFourHopChain() {
+        when(relationService.list()).thenReturn(List.of(
+                rel(1L, 2L, "PREREQUISITE"),
+                rel(2L, 3L, "PREREQUISITE"),
+                rel(3L, 4L, "PREREQUISITE"),
+                rel(4L, 5L, "PREREQUISITE")));
+    }
+
+    @Test
+    void unsetMaxHops_returnsTrueShortestPath_beyondConstructorDefault() {
+        // 未指定跳数（<=0）时必须给出真实最短路径，而不是套用 GraphRAG 子图扩图上限。
+        // 回归缺陷：原先借用 rag.max-hops=2，65 节点课程图上约八成合法查询假性「未找到」。
+        stubFourHopChain();
+
+        KnowledgeGraphContract.PathPlanResult res =
+                provider(2).planLearningPath(new KnowledgeGraphContract.PathPlanRequest(1L, 5L, 0));
+
+        assertTrue(res.found(), "未指定跳数时应能给出 4 跳真实路径");
+        assertEquals(List.of(1L, 2L, 3L, 4L, 5L), res.path());
+        assertEquals(4, res.hops());
+    }
+
+    @Test
+    void capExceeded_noteReportsTrueShortestDistance() {
+        // 显式上限不足时，note 需回传真实最短跳数，避免用户面对「未找到」却无从判断该调到几。
+        stubFourHopChain();
+
+        KnowledgeGraphContract.PathPlanResult res =
+                provider(2).planLearningPath(new KnowledgeGraphContract.PathPlanRequest(1L, 5L, 2));
+
+        assertFalse(res.found());
+        assertTrue(res.note().contains("4"), "note 应含真实最短跳数 4，实际：" + res.note());
+        assertTrue(res.note().contains("2"), "note 应含本次上限 2，实际：" + res.note());
+    }
 }

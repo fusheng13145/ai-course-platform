@@ -12,10 +12,8 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.HashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 /**
  * 知识图谱<b>本地占位实现</b>（当前阶段默认）。
@@ -23,7 +21,7 @@ import java.util.Set;
  * 不依赖任何 Python 服务，完全基于消费侧 MySQL 的 {@code knowledge_points} /
  * {@code knowledge_point_relations} 完成：
  * <ul>
- *   <li>{@link #planLearningPath} —— 无向邻接 BFS 最短跳数路径规划；</li>
+ *   <li>{@link #planLearningPath} —— 无向邻接 BFS 最短跳数路径规划（未指定跳数即给出真实最短路径）；</li>
  *   <li>{@link #ingest} —— 仅确认消费侧该课程知识点数量（不真正摄取至引擎）；</li>
  *   <li>{@link #getSubGraph} —— 直接返回消费侧该课程的知识点节点与关系边；</li>
  *   <li>{@link #healthCheck} —— 返回 false（无 Python 引擎）。</li>
@@ -35,8 +33,12 @@ import java.util.Set;
 @Slf4j
 public class LocalKnowledgeGraphProvider implements KnowledgeGraphContract {
 
+    /** 请求未指定跳数（{@code <=0}）时的语义：不设上限，直接给出真实最短路径。 */
+    private static final int UNLIMITED_HOPS = Integer.MAX_VALUE;
+
     private final KnowledgePointService knowledgePointService;
     private final KnowledgePointRelationService relationService;
+    /** 仅用于 {@link #getSubGraph} 的子图扩图跳数缺省值（GraphRAG 语境，与路径规划无关）。 */
     private final int defaultMaxHops;
 
     public LocalKnowledgeGraphProvider(KnowledgePointService knowledgePointService,
@@ -57,7 +59,7 @@ public class LocalKnowledgeGraphProvider implements KnowledgeGraphContract {
     public PathPlanResult planLearningPath(PathPlanRequest request) {
         long sourceId = request.sourceId() == null ? -1 : request.sourceId();
         long targetId = request.targetId() == null ? -1 : request.targetId();
-        int maxHops = request.maxHops() > 0 ? request.maxHops() : defaultMaxHops;
+        int maxHops = request.maxHops() > 0 ? request.maxHops() : UNLIMITED_HOPS;
 
         if (request.sourceId() == null || request.targetId() == null) {
             return new PathPlanResult(request.sourceId(), request.targetId(),
@@ -98,30 +100,22 @@ public class LocalKnowledgeGraphProvider implements KnowledgeGraphContract {
                     "起点知识点不存在任何关联关系，无法进行路径规划");
         }
 
-        // BFS 记录前驱以回溯路径（ArrayDeque 避免 ArrayList.remove(0) 的 O(n) 头删）
+        // 一次全量 BFS 求出起点到各连通点的最短跳数，并记录前驱以回溯路径。
+        // 跳数上限只用于「是否采纳」的判定，不参与遍历剪枝：课程图规模有限（数百节点/数百边），
+        // 全量遍历开销可忽略，换来的是上限不足时仍能回传真实最短跳数，
+        // 避免用户面对一句无信息量的「未找到」。
         Map<Long, Long> prev = new HashMap<>();
         Map<Long, Integer> dist = new HashMap<>();
-        Set<Long> visited = new LinkedHashSet<>();
         Deque<Long> queue = new ArrayDeque<>();
         queue.add(sourceId);
-        visited.add(sourceId);
         dist.put(sourceId, 0);
         prev.put(sourceId, null);
 
-        boolean reached = false;
         while (!queue.isEmpty()) {
             long cur = queue.removeFirst();
             int d = dist.get(cur);
-            if (cur == targetId) {
-                reached = true;
-                break;
-            }
-            if (d >= maxHops) {
-                continue;
-            }
             for (Edge e : adj.getOrDefault(cur, Collections.emptyList())) {
-                if (!visited.contains(e.to)) {
-                    visited.add(e.to);
+                if (!dist.containsKey(e.to)) {
                     dist.put(e.to, d + 1);
                     prev.put(e.to, cur);
                     queue.add(e.to);
@@ -129,27 +123,29 @@ public class LocalKnowledgeGraphProvider implements KnowledgeGraphContract {
             }
         }
 
-        if (!reached && sourceId != targetId) {
+        Integer shortest = dist.get(targetId);
+        if (shortest == null) {
             return new PathPlanResult(request.sourceId(), request.targetId(),
                     Collections.emptyList(), Collections.emptyList(), 0, false, Mode.LOCAL,
-                    "在 " + maxHops + " 跳范围内未找到从起点到目标的可达路径");
+                    "起点与目标之间不存在任何可达路径（两者不在同一连通分量内）");
+        }
+        if (shortest > maxHops) {
+            return new PathPlanResult(request.sourceId(), request.targetId(),
+                    Collections.emptyList(), Collections.emptyList(), 0, false, Mode.LOCAL,
+                    "两点最短需 " + shortest + " 跳，超过所设上限 " + maxHops + " 跳");
         }
 
         // 回溯路径（有序节点ID）
         List<Long> idPath = new ArrayList<>();
         long step = targetId;
-        if (sourceId != targetId) {
-            while (step != -1) {
-                idPath.add(step);
-                Long p = prev.get(step);
-                step = (p == null) ? -1 : p;
-            }
-            Collections.reverse(idPath);
-        } else {
-            idPath.add(sourceId);
+        while (step != -1) {
+            idPath.add(step);
+            Long p = prev.get(step);
+            step = (p == null) ? -1 : p;
         }
+        Collections.reverse(idPath);
 
-        int hops = Math.max(idPath.size() - 1, 0);
+        int hops = shortest;
 
         // 收集相邻边（PathEdge）
         List<PathEdge> edges = new ArrayList<>();
