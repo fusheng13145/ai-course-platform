@@ -126,8 +126,10 @@ export const COURSE_TABS = {
     { suffix: 'grades', text: '成绩统计' },
     { suffix: 'knowledge', text: '知识图谱' },
     { suffix: 'knowledge-management', text: '知识点管理' },
+    { suffix: 'bank', text: '课程题库' },
     { suffix: 'analytics', text: '学情统计' },
     { suffix: 'interaction', text: '课堂互动' },
+    { suffix: 'ai', text: 'AI 教学助手' },
     { suffix: 'discussion', text: '课程讨论' },
   ],
   STUDENT: [
@@ -136,6 +138,7 @@ export const COURSE_TABS = {
     { suffix: 'exams', text: '考试练习' },
     { suffix: 'grades', text: '课程成绩' },
     { suffix: 'knowledge', text: '知识图谱' },
+    { suffix: 'ai', text: 'AI 助手' },
   ],
 }
 
@@ -175,28 +178,15 @@ export function buildCourseCatalogSection(role, courses) {
 }
 
 /* ============================== 教师端分区（静态部分） ============================== */
-export const TEACHER_SECTIONS = [
-  {
-    label: '教学工作台',
-    items: [
-      { key: 'dashboard', text: '教学概览', icon: 'chart', path: '/teacher/dashboard' },
-      { key: 'bank', text: '试题库', icon: 'doc', path: '/teacher/bank' },
-    ],
-  },
-  {
-    label: '智能教学',
-    items: [{ key: 'ai', text: 'AI 教学中心', icon: 'grad', path: '/teacher/ai' }],
-  },
-]
+// 教学概览/试题库/AI 教学中心已全部收敛为「课程目录」下每门课程的独立子项，
+// 统一路由（/teacher/dashboard、/teacher/bank、/teacher/ai）保留兼容与跨课直达。
+export const TEACHER_SECTIONS = []
 
 /* ============================== 学生端分区（静态部分） ============================== */
 export const STUDENT_SECTIONS = [
   {
     label: '学习',
-    items: [
-      { key: 'dashboard', text: '学习概览', icon: 'chart', path: '/student/dashboard' },
-      { key: 'ai-assistant', text: 'AI 助手', icon: 'grad', path: '/student/ai-assistant' },
-    ],
+    items: [{ key: 'dashboard', text: '学习概览', icon: 'chart', path: '/student/dashboard' }],
   },
   {
     label: '学习工具',

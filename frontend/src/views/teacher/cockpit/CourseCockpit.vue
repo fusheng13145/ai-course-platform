@@ -150,6 +150,7 @@ const cockpitTabs = [
   { path: 'proctor', label: '在线监考' },
   { path: 'analytics', label: '学情统计' },
   { path: 'interaction', label: '课堂互动' },
+  { path: 'ai', label: 'AI 教学助手' },
   { path: 'discussion', label: '课程讨论' },
 ]
 const activeCockpit = ref('chapters')

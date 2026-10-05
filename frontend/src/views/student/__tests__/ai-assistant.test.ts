@@ -11,6 +11,9 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 
+// 组件按 /student/courses/:id/ai 路由预选课程；测试环境无 router，mock 空路由
+vi.mock('vue-router', () => ({ useRoute: () => ({ params: {}, query: {} }) }))
+
 /**
  * 组件脚本层暴露面：messages / loading / conversations / courseList 为组件内部状态，
  * 测试直接读取与赋值以驱动断言。显式断言而非 any（lint 口径 0 error / 0 warning）。

@@ -281,6 +281,11 @@ const routes: RouteRecordRaw[] = [
             meta: { title: '知识点管理' },
           },
           {
+            path: 'ai',
+            component: () => import('@/views/teacher/tools/AICenter.vue'),
+            meta: { title: '课程 AI 教学助手' },
+          },
+          {
             path: 'discussion',
             component: () => import('@/views/teacher/cockpit/CourseDiscussion.vue'),
             meta: { title: '课程讨论' },
@@ -406,6 +411,11 @@ const routes: RouteRecordRaw[] = [
             path: 'knowledge',
             component: () => import('@/views/student/study/KnowledgeGraph.vue'),
             meta: { title: '课程知识图谱', breadcrumb: '知识图谱' },
+          },
+          {
+            path: 'ai',
+            component: () => import('@/views/student/AIAssistant.vue'),
+            meta: { title: '课程 AI 助手', breadcrumb: 'AI 助手' },
           },
         ],
       },

@@ -3,6 +3,9 @@ import { mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { nextTick } from 'vue'
 
+// 组件按 /student/courses/:id/ai 路由预选课程；测试环境无 router，mock 空路由
+vi.mock('vue-router', () => ({ useRoute: () => ({ params: {}, query: {} }) }))
+
 /**
  * 组件脚本层暴露面：messages 为组件内部状态，测试直接赋值以驱动渲染断言。
  * 用显式断言而非 any（项目 lint 口径为 0 error / 0 warning，any 会触发
