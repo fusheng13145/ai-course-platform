@@ -675,8 +675,14 @@ table.tbl {
   background: var(--surface-3);
   border-radius: 10px;
   width: fit-content;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
 }
 .tabs-pill .tab-i {
+  flex-shrink: 0;
+  flex-shrink: 0;
   padding: 6px 16px;
   border-radius: 8px;
   font-size: 13px;

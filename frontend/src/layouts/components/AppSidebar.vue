@@ -337,20 +337,26 @@ const avatarStyle = computed(() => {
   padding: 10px 0;
 }
 .nav-sub {
-  overflow: hidden;
-  max-height: 0;
-  transition: max-height 0.3s var(--ease-out);
+  display: grid;
+  grid-template-rows: 0fr;
+  transition: grid-template-rows 0.3s var(--ease-out);
 }
 .nav-sub.open {
-  max-height: 2400px;
+  grid-template-rows: 1fr;
 }
 .nav-sub-inner {
-  margin: 2px 0 6px 17px;
+  overflow: hidden;
+  min-height: 0;
+  margin: 0 0 0 17px;
   padding-left: 12px;
   border-left: 1px solid rgba(255, 255, 255, 0.1);
   display: flex;
   flex-direction: column;
   gap: 1px;
+}
+.nav-sub.open > .nav-sub-inner {
+  margin-top: 2px;
+  margin-bottom: 6px;
 }
 .nav-sub-inner-3 {
   margin-left: 14px;

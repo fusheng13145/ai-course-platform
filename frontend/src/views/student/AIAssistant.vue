@@ -12,8 +12,6 @@
 
     <!-- 右侧：主聊天区 -->
     <AiaChatPanel
-      :messages-ref="messagesRef"
-      :input-ref="inputRef"
       :course-list="courseList"
       :selected-course-id="selectedCourseId"
       :messages="messages"
@@ -35,6 +33,7 @@
       @copy="copyMessage"
       @regenerate="regenerateMessage"
       @toggle-recording="toggleRecording"
+      @register-refs="onRegisterRefs"
     />
   </div>
 </template>
@@ -85,6 +84,12 @@ function handleNewLine() {}
 const route = useRoute()
 const cid = route.params.id || route.query.courseId
 if (cid) selectedCourseId.value = Number(cid)
+
+/** 面板挂载后回传 DOM 引用，供 useAIAssistant 滚动到底等逻辑使用 */
+function onRegisterRefs(els: { messages: HTMLElement | null; input: unknown }) {
+  messagesRef.value = els.messages
+  inputRef.value = els.input
+}
 </script>
 
 <style scoped>

@@ -14,7 +14,7 @@
           :model-value="selectedCourseId"
           placeholder="选择课程"
           size="small"
-          style="width: 160px"
+          style="width: 210px"
           clearable
           @update:model-value="emit('update:course', $event)"
         >
@@ -24,7 +24,7 @@
     </header>
 
     <!-- 消息列表区域 -->
-    <div ref="messagesRef" class="messages-container">
+    <div ref="messagesEl" class="messages-container">
       <!-- 欢迎消息 + 快捷操作 -->
       <div v-if="messages.length === 0 && !loading" class="welcome-area">
         <div class="welcome-icon">
@@ -114,7 +114,7 @@
           <el-icon :size="17"><Microphone /></el-icon>
         </el-button>
         <el-input
-          ref="inputRef"
+          ref="inputEl"
           :model-value="inputMessage"
           type="textarea"
           :rows="1"
@@ -141,6 +141,7 @@
 </template>
 
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
 import {
   Fold,
   MagicStick,
@@ -159,11 +160,9 @@ import {
  * AI 助手主聊天区
  * <p>头部（折叠/课程选择）+ 消息列表（欢迎区快捷操作、用户/AI 气泡、输入中动画、
  * 朗读/复制/重新生成操作）+ 输入区（语音/多行输入/发送）；
- * 全部交互经事件上抛（useAIAssistant）。</p>
+ * 全部交互经事件上抛（useAIAssistant）；DOM 引用经 register-refs 事件回传父级。</p>
  */
 defineProps({
-  messagesRef: { type: Object, required: true },
-  inputRef: { type: Object, required: true },
   courseList: { type: Array, default: () => [] },
   selectedCourseId: { type: [Number, String], default: null },
   messages: { type: Array, default: () => [] },
@@ -188,7 +187,13 @@ const emit = defineEmits([
   'copy',
   'regenerate',
   'toggle-recording',
+  'register-refs',
 ])
+
+/** 消息滚动容器与输入框的 DOM 引用，挂载后回传给页面壳（滚动到底等逻辑在 useAIAssistant） */
+const messagesEl = ref(null)
+const inputEl = ref(null)
+onMounted(() => emit('register-refs', { messages: messagesEl.value, input: inputEl.value }))
 </script>
 
 <style scoped>
