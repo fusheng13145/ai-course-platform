@@ -196,7 +196,7 @@ watch(
 
 const avatarInitial = computed(() => (auth.userName || 'U').slice(-2))
 const avatarStyle = computed(() => {
-  const idx = ([...(auth.userName || 'U')] || []).reduce((s, c) => s + c.charCodeAt(0), 0) % 6
+  const idx = [...(auth.userName || 'U')].reduce((s, c) => s + c.charCodeAt(0), 0) % 6
   const gradients = [
     'linear-gradient(135deg,#c13b30,#8f2a21)',
     'linear-gradient(135deg,#2563a8,#1a4a80)',

@@ -294,7 +294,6 @@ service.interceptors.response.use(
     /* 被主动取消的请求不提示 */
     if (axios.isCancel(error)) {
       if (import.meta.env.DEV) {
-        // eslint-disable-next-line no-console
         logger.log('[axios] 请求被取消:', error.message)
       }
       return Promise.reject(error)
@@ -370,7 +369,6 @@ service.interceptors.response.use(
               logger.error('[request] catch:', logoutErr)
               // 登出接口失败不影响主流程（令牌已失效），仅开发环境记录
               if (import.meta.env.DEV) {
-                // eslint-disable-next-line no-console
                 logger.warn('登出失败:', logoutErr)
               }
             }

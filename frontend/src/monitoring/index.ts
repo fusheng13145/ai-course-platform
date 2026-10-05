@@ -1,4 +1,3 @@
-/* eslint-disable no-console */
 /**
  * 前端监控模块（统一错误采集与上报出口）。
  *
