@@ -446,9 +446,9 @@ public class TeacherController {
                 chapter.setCourseId(courseId);
                 chapter.setTitle(row.title());
                 chapter.setContent(row.content());
-                chapter.setOrderIndex(row.orderIndex() == null ? idx : row.orderIndex());
+                chapter.setOrderIndex(row.orderIndex() == null ? Integer.valueOf(idx) : row.orderIndex());
                 chapter.setDuration(row.duration());
-                chapter.setIsPublished(row.isPublished() == null || row.isPublished());
+                chapter.setIsPublished(row.isPublished());
                 if (chapterService.save(chapter)) {
                     imported++;
                     existingTitles.add(row.title());
@@ -530,7 +530,7 @@ public class TeacherController {
                 point.setDescription(row.description());
                 point.setDifficultyLevel(row.difficultyLevel());
                 // importance / order_index 在库中为 NOT NULL DEFAULT，缺省时显式给值避免依赖列默认
-                point.setImportance(row.importance() == null ? 5 : row.importance());
+                point.setImportance(row.importance() == null ? Integer.valueOf(5) : row.importance());
                 point.setEstimatedTime(row.estimatedTime());
                 point.setPointType(row.pointType());
                 point.setOrderIndex(idx);
