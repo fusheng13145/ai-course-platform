@@ -26,18 +26,45 @@
             <span v-if="item.children" class="nav-arrow" v-html="iconHtml('chevronR', 13)"></span>
           </div>
           <!-- 二级手风琴子菜单 -->
-          <div v-if="item.children" class="nav-sub">
+          <div v-if="item.children" class="nav-sub" :class="{ open: isExpanded(item.key) }">
             <div class="nav-sub-inner">
-              <div
-                v-for="child in item.children"
-                :key="child.key"
-                class="nav-sub-item"
-                :class="{ active: isActive(child) }"
-                @click="handleNavChildClick(child, item)"
-              >
-                <span class="dot"></span>
-                {{ child.text }}
-              </div>
+              <template v-for="child in item.children" :key="child.key">
+                <div
+                  class="nav-sub-item"
+                  :class="{
+                    active: !child.children && isActive(child),
+                    expanded: child.children && isExpanded(child.key),
+                  }"
+                  @click="handleNavChildClick(child, item)"
+                >
+                  <span v-if="!child.children" class="dot"></span>
+                  <span class="nav-sub-txt">{{ child.text }}</span>
+                  <span
+                    v-if="child.children"
+                    class="nav-arrow"
+                    v-html="iconHtml('chevronR', 11)"
+                  ></span>
+                </div>
+                <!-- 三级：课程下的功能页签（作业/考试/成绩/知识图谱…） -->
+                <div
+                  v-if="child.children"
+                  class="nav-sub nav-sub-3"
+                  :class="{ open: isExpanded(child.key) }"
+                >
+                  <div class="nav-sub-inner nav-sub-inner-3">
+                    <div
+                      v-for="leaf in child.children"
+                      :key="leaf.key"
+                      class="nav-sub-item nav-leaf"
+                      :class="{ active: isActive(leaf) }"
+                      @click="router.push(leaf.path)"
+                    >
+                      <span class="dot"></span>
+                      <span class="nav-sub-txt">{{ leaf.text }}</span>
+                    </div>
+                  </div>
+                </div>
+              </template>
             </div>
           </div>
         </template>
@@ -55,15 +82,25 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { ROLE_META, ADMIN_SECTIONS, TEACHER_SECTIONS, STUDENT_SECTIONS } from '../menus'
+import courseApi from '@/api/course'
+import studentApi from '@/api/student'
+import { unwrap } from '@/utils/response'
+import {
+  ROLE_META,
+  ADMIN_SECTIONS,
+  TEACHER_SECTIONS,
+  STUDENT_SECTIONS,
+  buildCourseCatalogSection,
+} from '../menus'
 import { iconHtml } from '../icons'
 
 /**
- * 应用侧边栏（深色手风琴二级菜单 + mini 折叠模式）
- * <p>品牌区、按角色渲染的导航分区（一级项 + 二级手风琴）、底部用户区；
+ * 应用侧边栏（深色手风琴三级菜单 + mini 折叠模式）
+ * <p>品牌区、按角色渲染的导航分区（一级项 + 二级子菜单 + 课程目录三级页签）、底部用户区；
+ * 「课程目录」按当前登录者的授课/选课列表动态构建，进入课程子路由时自动展开祖先节点；
  * 展开状态与导航高亮/跳转逻辑内聚于此，mini 模式由父组件 prop 控制。</p>
  */
 const props = defineProps({
@@ -80,16 +117,39 @@ const router = useRouter()
 const auth = useAuthStore()
 
 const roleMeta = computed(() => ROLE_META[props.role] || ROLE_META.STUDENT)
-const SECTIONS_MAP = { ADMIN: ADMIN_SECTIONS, TEACHER: TEACHER_SECTIONS, STUDENT: STUDENT_SECTIONS }
-const navSections = computed(() => SECTIONS_MAP[props.role] || STUDENT_SECTIONS)
+const STATIC_MAP = { ADMIN: ADMIN_SECTIONS, TEACHER: TEACHER_SECTIONS, STUDENT: STUDENT_SECTIONS }
+
+/* ---- 动态课程目录 ---- */
+const courses = ref([])
+
+async function loadCourses() {
+  if (props.role === 'ADMIN') return
+  try {
+    const res =
+      props.role === 'TEACHER'
+        ? await courseApi.getMyCourses({ page: 1, size: 200 })
+        : await studentApi.getMyCourses({ page: 1, size: 200 })
+    const body = unwrap(res) || {}
+    courses.value = body.records || body.list || (Array.isArray(body) ? body : [])
+  } catch (e) {
+    console.warn('[sidebar] 课程列表加载失败', e)
+  }
+}
+
+onMounted(loadCourses)
+
+const navSections = computed(() => {
+  const base = STATIC_MAP[props.role] || STUDENT_SECTIONS
+  if (props.role === 'ADMIN') return base
+  return [...buildCourseCatalogSection(props.role, courses.value), ...base]
+})
 
 const expandedKeys = ref(new Set())
 
 function isActive(item) {
-  if (item.key === 'my' && route.path.startsWith(`/${props.role.toLowerCase()}/courses`))
-    return true
-  if (item.key === 'hall' && route.path.startsWith(`/${props.role.toLowerCase()}/courses`))
-    return true
+  if (item.key === 'course-catalog') {
+    return new RegExp(`^/${props.role.toLowerCase()}/courses/\\d+`).test(route.path)
+  }
   return route.path === item.path || (item.path && route.path.startsWith(item.path + '/'))
 }
 
@@ -97,23 +157,40 @@ function isExpanded(key) {
   return expandedKeys.value.has(key)
 }
 
-function handleNavClick(item) {
-  if (item.children) {
-    const s = new Set(expandedKeys.value)
-    if (s.has(item.key)) s.delete(item.key)
-    else s.add(item.key)
-    expandedKeys.value = s
-  } else if (item.path) {
-    router.push(item.path)
-  }
+function toggleExpand(key) {
+  const s = new Set(expandedKeys.value)
+  if (s.has(key)) s.delete(key)
+  else s.add(key)
+  expandedKeys.value = s
 }
 
-function handleNavChildClick(child, parent) {
-  const s = new Set(expandedKeys.value)
-  s.add(parent.key)
-  expandedKeys.value = s
+function handleNavClick(item) {
+  if (item.children) toggleExpand(item.key)
+  else if (item.path) router.push(item.path)
+}
+
+function handleNavChildClick(child) {
+  if (child.children) {
+    toggleExpand(child.key)
+    return
+  }
   if (child.path) router.push(child.path)
 }
+
+/* 进入某课程的功能页（/role/courses/:id/xxx）时自动展开「课程目录」与该课程节点 */
+watch(
+  () => route.path,
+  (p) => {
+    const m = p.match(/^\/(?:teacher|student)\/courses\/(\d+)/)
+    if (m) {
+      const s = new Set(expandedKeys.value)
+      s.add('course-catalog')
+      s.add(`course-${m[1]}`)
+      expandedKeys.value = s
+    }
+  },
+  { immediate: true },
+)
 
 const avatarInitial = computed(() => (auth.userName || 'U').slice(-2))
 const avatarStyle = computed(() => {
@@ -234,7 +311,8 @@ const avatarStyle = computed(() => {
   transition: transform 0.25s var(--ease-out);
   opacity: 0.55;
 }
-.nav-item.expanded .nav-arrow {
+.nav-item.expanded .nav-arrow,
+.nav-sub-item.expanded .nav-arrow {
   transform: rotate(90deg);
 }
 .nav-badge {
@@ -261,8 +339,8 @@ const avatarStyle = computed(() => {
   max-height: 0;
   transition: max-height 0.3s var(--ease-out);
 }
-.nav-item.expanded + .nav-sub {
-  max-height: 600px;
+.nav-sub.open {
+  max-height: 2400px;
 }
 .nav-sub-inner {
   margin: 2px 0 6px 17px;
@@ -271,6 +349,9 @@ const avatarStyle = computed(() => {
   display: flex;
   flex-direction: column;
   gap: 1px;
+}
+.nav-sub-inner-3 {
+  margin-left: 14px;
 }
 .nav-sub-item {
   padding: 7px 10px;
@@ -285,6 +366,12 @@ const avatarStyle = computed(() => {
   align-items: center;
   gap: 8px;
 }
+.nav-sub-txt {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
 .nav-sub-item:hover {
   color: var(--sidebar-text-hover);
   background: var(--sidebar-hover-bg);
@@ -293,6 +380,13 @@ const avatarStyle = computed(() => {
   color: var(--sidebar-sub-active);
   background: rgba(193, 59, 48, 0.16);
   font-weight: 500;
+}
+.nav-sub-item.expanded {
+  color: var(--sidebar-text-hover);
+}
+.nav-leaf {
+  font-size: 12.5px;
+  padding: 6px 10px;
 }
 .dot {
   width: 4px;

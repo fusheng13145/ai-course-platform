@@ -140,7 +140,7 @@ export function useStudentKnowledgeGraph() {
       const res = await courseApi.getCourseList()
       const list = res.data?.list || res.data || res || []
       courseList.value = Array.isArray(list) ? list : []
-      const routeCourseId = route.query.courseId || route.params.courseId
+      const routeCourseId = route.query.courseId || route.params.courseId || route.params.id
       if (routeCourseId) {
         selectedCourseId.value = Number(routeCourseId)
         await loadGraphData()

@@ -87,6 +87,7 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { MagicStick } from '@element-plus/icons-vue'
 import { useKnowledgeGraph } from '@/composables/useKnowledgeGraph'
 import PageHeader from '@/components/PageHeader.vue'
@@ -148,7 +149,15 @@ const {
   planPathTeacher,
 } = useKnowledgeGraph()
 
-onMounted(loadCourses)
+const route = useRoute()
+
+onMounted(async () => {
+  // 课程驾驶舱路由 /teacher/courses/:id/knowledge 直入：预选本课程并加载
+  const cid = route.params.id || route.query.courseId
+  if (cid) courseId.value = Number(cid)
+  await loadCourses()
+  if (cid) onCourseChange()
+})
 </script>
 
 <style scoped>

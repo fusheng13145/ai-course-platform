@@ -261,6 +261,11 @@ const routes: RouteRecordRaw[] = [
             meta: { title: '过程性成绩' },
           },
           {
+            path: 'knowledge',
+            component: () => import('@/views/teacher/tools/KnowledgeGraph.vue'),
+            meta: { title: '课程知识图谱' },
+          },
+          {
             path: 'analytics',
             component: () => import('@/views/teacher/cockpit/CourseAnalytics.vue'),
             meta: { title: '学情统计' },
@@ -381,6 +386,16 @@ const routes: RouteRecordRaw[] = [
             path: 'learning-center',
             component: () => import('@/views/student/course/LearningCenter.vue'),
             meta: { title: '学习中心', breadcrumb: '学习中心' },
+          },
+          {
+            path: 'exams',
+            component: () => import('@/views/student/academic/Exams.vue'),
+            meta: { title: '课程考试', breadcrumb: '考试练习' },
+          },
+          {
+            path: 'grades',
+            component: () => import('@/views/student/academic/Grades.vue'),
+            meta: { title: '课程成绩', breadcrumb: '课程成绩' },
           },
           {
             path: 'knowledge',

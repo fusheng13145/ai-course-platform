@@ -144,6 +144,7 @@ const cockpitTabs = [
   { path: 'submissions', label: '成员管理' },
   { path: 'exams', label: '考试管理' },
   { path: 'grades', label: '成绩统计' },
+  { path: 'knowledge', label: '知识图谱' },
   { path: 'bank', label: '课程题库' },
   { path: 'proctor', label: '在线监考' },
   { path: 'analytics', label: '学情统计' },

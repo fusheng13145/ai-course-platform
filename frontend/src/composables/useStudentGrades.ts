@@ -86,7 +86,7 @@ export function useStudentGrades() {
   }
 
   /* ---- 加载数据 ---- */
-  async function loadData() {
+  async function loadData(courseId = null) {
     loading.value = true
     try {
       const [courseRes, examRes, sessionRes] = await Promise.all([
@@ -118,6 +118,7 @@ export function useStudentGrades() {
           return {
             id: s.id,
             examTitle: exam.title || '考试',
+            courseId: exam.courseId ?? null,
             courseName: courseMap.value[exam.courseId] || '未知课程',
             score: s.totalScore || 0,
             totalScore: exam.totalScore || 100,
@@ -132,6 +133,9 @@ export function useStudentGrades() {
           (a: { submitTime: string }, b: { submitTime: string }) =>
             new Date(b.submitTime).getTime() - new Date(a.submitTime).getTime(),
         )
+      if (courseId != null) {
+        list.value = list.value.filter((x) => String(x.courseId) === String(courseId))
+      }
     } catch (e) {
       console.error('加载成绩失败:', e)
     } finally {

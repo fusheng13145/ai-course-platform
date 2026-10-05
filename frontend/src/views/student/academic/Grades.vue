@@ -67,6 +67,7 @@
 
 <script setup lang="ts">
 import { onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import SgChartsPanel from './components/SgChartsPanel.vue'
@@ -76,5 +77,6 @@ import { useStudentGrades } from '@/composables/useStudentGrades'
 const { loading, list, showTable, avgScore, rankDisplay, groupedByCourse, loadData } =
   useStudentGrades()
 
-onMounted(loadData)
+const route = useRoute()
+onMounted(() => loadData(route.params.id || route.query.courseId || null))
 </script>

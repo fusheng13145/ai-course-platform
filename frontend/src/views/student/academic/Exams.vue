@@ -55,6 +55,8 @@
 </template>
 
 <script setup lang="ts">
+import { onMounted } from 'vue'
+import { useRoute } from 'vue-router'
 import { useStudentExams } from '@/composables/useStudentExams'
 import SeExamList from './components/SeExamList.vue'
 import SeExamRunner from './components/SeExamRunner.vue'
@@ -62,12 +64,15 @@ import SeExamResult from './components/SeExamResult.vue'
 
 /**
  * 学生考试页（页面壳）
- * <p>三视图（列表/答题/结果）分发与数据流编排，全部业务逻辑委托 useStudentExams。</p>
+ * <p>三视图（列表/答题/结果）分发与数据流编排，全部业务逻辑委托 useStudentExams。
+ * 挂在课程路由 /student/courses/:id/exams 下时仅展示本课程考试。</p>
  */
+const route = useRoute()
 const {
   viewMode,
   searchKeyword,
   statusFilter,
+  courseIdFilter,
   listLoading,
   filteredExams,
   totalExams,
@@ -103,4 +108,9 @@ const {
   viewDetailResult,
   getResultClass,
 } = useStudentExams()
+
+onMounted(() => {
+  const cid = route.params.id || route.query.courseId
+  if (cid) courseIdFilter.value = Number(cid)
+})
 </script>
