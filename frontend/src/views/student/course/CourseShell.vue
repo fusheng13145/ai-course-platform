@@ -44,7 +44,15 @@ import { ref, computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { unwrap } from '@/utils/response'
 import courseApi from '@/api/course'
-import { ArrowLeft, DataLine, Reading, Collection, EditPen, Medal, ChatDotRound } from '@element-plus/icons-vue'
+import {
+  ArrowLeft,
+  DataLine,
+  Reading,
+  Collection,
+  EditPen,
+  Medal,
+  ChatDotRound,
+} from '@element-plus/icons-vue'
 
 const route = useRoute()
 const courseId = computed(() => route.params.id)

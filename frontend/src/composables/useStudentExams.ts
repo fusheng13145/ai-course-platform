@@ -99,9 +99,7 @@ export function useStudentExams() {
     () => courseScopedExams.value.filter((e) => !e.completed && e.status !== 'EXPIRED').length,
   )
   /** 已完成 */
-  const completedExams = computed(
-    () => courseScopedExams.value.filter((e) => e.completed).length,
-  )
+  const completedExams = computed(() => courseScopedExams.value.filter((e) => e.completed).length)
 
   /** 当前题目 */
   const currentQuestion = computed(() => questions.value[currentIndex.value] || null)
