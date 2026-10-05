@@ -32,10 +32,8 @@
           :diff-type="diffType"
           :diff-text="diffText"
           :graph-loading="graphLoading"
-          :graph-size="graphSize"
-          :graph-nodes="graphNodes"
-          :graph-links="graphLinks"
-          :node-pos="nodePos"
+          :graph-option="graphOption"
+          :has-graph="hasGraph"
           @create="openForm()"
           @edit="openForm"
           @remove="removePoint"
@@ -97,7 +95,7 @@ import KgDialogs from './components/KgDialogs.vue'
 
 /**
  * 知识图谱页面（教师）
- * <p>页面壳：课程选择 + AI 抽取入口 + 概览统计 + 知识点列表与 SVG 图谱
+ * <p>页面壳：课程选择 + AI 抽取入口 + 概览统计 + 知识点列表与力导向图谱
  * + 学习路径规划 + 新建编辑/AI 抽取对话框；全部数据与业务逻辑由 useKnowledgeGraph 承载。</p>
  */
 const {
@@ -132,10 +130,8 @@ const {
   openExtractDialog,
   runExtract,
   graphLoading,
-  graphSize,
-  graphNodes,
-  graphLinks,
-  nodePos,
+  graphOption,
+  hasGraph,
   loadGraph,
   tPathSource,
   tPathTarget,

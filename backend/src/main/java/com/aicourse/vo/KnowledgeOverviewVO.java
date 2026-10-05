@@ -6,7 +6,7 @@ import lombok.Data;
  * 知识图谱概览统计 VO。
  * <p>
  * 由 {@code KnowledgeController.overview}（GET /api/knowledge/overview）产出：
- * 知识点总数、关系总数与课程过滤维度。字段名与历史 Map 返回保持一致，
+ * 知识点总数、关系总数、核心知识点数、覆盖度与课程过滤维度。字段名与历史 Map 返回保持一致，
  * 前端消费无需改动（2026-08-30 由 Map 裸返回收敛为结构化出参）。
  * </p>
  */
@@ -16,8 +16,14 @@ public class KnowledgeOverviewVO {
     /** 知识点总数（courseId 为空时为全平台口径） */
     private Long totalPoints;
 
-    /** 关系总数（courseId 为空时为全平台口径） */
+    /** 关系总数（两端均落在统计口径的知识点集合内） */
     private Long totalRelations;
+
+    /** 核心知识点数（重要度 ≥ 8） */
+    private Long corePoints;
+
+    /** 覆盖度：至少被一条关系覆盖的知识点占比（0-1 小数） */
+    private Double coverageRate;
 
     /** 课程过滤维度（可空：全平台口径） */
     private Long courseId;
@@ -25,9 +31,12 @@ public class KnowledgeOverviewVO {
     public KnowledgeOverviewVO() {
     }
 
-    public KnowledgeOverviewVO(Long totalPoints, Long totalRelations, Long courseId) {
+    public KnowledgeOverviewVO(Long totalPoints, Long totalRelations, Long corePoints,
+                               Double coverageRate, Long courseId) {
         this.totalPoints = totalPoints;
         this.totalRelations = totalRelations;
+        this.corePoints = corePoints;
+        this.coverageRate = coverageRate;
         this.courseId = courseId;
     }
 }

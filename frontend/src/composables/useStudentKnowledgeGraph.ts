@@ -100,22 +100,22 @@ export function useStudentKnowledgeGraph() {
           layout: 'force',
           data: [],
           links: [],
-          roam: true,
+          roam: 'move',
           draggable: true,
-          force: { repulsion: 340, edgeLength: [110, 240], gravity: 0.06 },
+          force: { repulsion: 120, edgeLength: [60, 140], gravity: 0.12 },
           emphasis: { focus: 'adjacency', lineStyle: { width: 3 } },
           labelLayout: { hideOverlap: true },
           label: {
             show: true,
             position: 'bottom',
-            fontSize: 12,
+            fontSize: 11,
             fontWeight: 500,
             color: t.text,
             formatter: '{b}',
           },
           symbolSize: (val, params) => {
             const importance = params?.data?.importance || val?.[2] || 3
-            return Math.max(24, Math.min(56, importance * 4.5))
+            return Math.max(12, Math.min(26, importance * 2.2))
           },
           itemStyle: {
             borderColor: t.sliceBorder,
@@ -230,6 +230,8 @@ export function useStudentKnowledgeGraph() {
 
   /** 更新图表数据（过滤 + 路径高亮） */
   function updateChartOption() {
+    // ECharts 画在 canvas 上，不解析 CSS 变量，高亮色需取主题实际色值
+    const warn = getMonoStatus().WARNING
     const filtered = rawNodes.value.filter((n) => matchFilter(n))
     const nodeIdSet = new Set(filtered.map((n) => n.id))
     const filteredLinks = rawLinks.value.filter(
@@ -242,13 +244,15 @@ export function useStudentKnowledgeGraph() {
       const onPath = pset.has(n.id)
       return {
         ...n,
+        // 端点/标识统一转字符串：ECharts 会把数字端点当作节点下标，导致连线被整体丢弃
+        id: String(n.id),
         itemStyle: onPath
           ? {
               color: getDifficultyColor(n.difficultyLevel),
-              borderColor: 'var(--warn)',
+              borderColor: warn,
               borderWidth: 4,
               shadowBlur: 14,
-              shadowColor: 'var(--warn)',
+              shadowColor: warn,
             }
           : { color: getDifficultyColor(n.difficultyLevel) },
         category: getCategoryIndex(n.difficultyLevel),
@@ -260,15 +264,17 @@ export function useStudentKnowledgeGraph() {
       return onPath
         ? {
             ...l,
+            source: String(l.source),
+            target: String(l.target),
             lineStyle: {
-              color: 'var(--warn)',
+              color: warn,
               width: 4,
               opacity: 1,
               curveness: 0.15,
               type: 'solid',
             },
           }
-        : l
+        : { ...l, source: String(l.source), target: String(l.target) }
     })
   }
 
@@ -298,7 +304,7 @@ export function useStudentKnowledgeGraph() {
   /** 节点点击：选中 + 加载真实掌握度 */
   async function handleNodeClick(params) {
     if (params.dataType !== 'node') return
-    const clickedNode = rawNodes.value.find((n) => n.id === params.data.id)
+    const clickedNode = rawNodes.value.find((n) => String(n.id) === String(params.data.id))
     if (clickedNode) {
       selectedNode.value = { ...clickedNode }
       try {

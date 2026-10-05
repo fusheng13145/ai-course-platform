@@ -50,38 +50,12 @@
         </el-button>
       </div>
       <div v-loading="graphLoading" class="graph-wrap">
-        <svg v-if="graphNodes.length" :viewBox="`0 0 ${graphSize} ${graphSize}`" class="kg-svg">
-          <line
-            v-for="(l, i) in graphLinks"
-            v-show="nodePos[l.source] && nodePos[l.target]"
-            :key="'l' + i"
-            :x1="nodePos[l.source]?.x"
-            :y1="nodePos[l.source]?.y"
-            :x2="nodePos[l.target]?.x"
-            :y2="nodePos[l.target]?.y"
-            class="kg-link"
-          />
-          <g v-for="n in graphNodes" :key="n.id">
-            <title>{{ n.name }}</title>
-            <circle
-              :cx="nodePos[n.id]?.x"
-              :cy="nodePos[n.id]?.y"
-              :r="n.r || 12"
-              :fill="nodeColor(n)"
-              class="kg-node"
-            />
-            <text
-              v-if="n.pathHL || (n.importance ?? 0) >= 10"
-              :x="nodePos[n.id]?.x"
-              :y="(nodePos[n.id]?.y || 0) - (n.r || 12) - 5"
-              class="kg-label"
-            >
-              {{ n.name }}
-            </text>
-          </g>
-        </svg>
+        <v-chart v-if="hasGraph" :option="graphOption" autoresize class="kg-chart" />
         <el-empty v-else description="暂无图谱数据" :image-size="64" />
       </div>
+      <p class="graph-hint">
+        节点按力导向实时运动并自动收敛：可拖拽单个节点改变布局、按住空白处平移画布；大小代表重要度，颜色代表难度。
+      </p>
     </div>
   </div>
 </template>
@@ -90,9 +64,9 @@
 import { Files, Plus, Refresh, Share } from '@element-plus/icons-vue'
 
 /**
- * 知识图谱：知识点列表 + SVG 图谱
- * <p>左侧知识点列表（难度标签/重要度/编辑删除），右侧环形布局 SVG 图谱
- * （节点按 core/pathHL 着色）；操作经事件上抛父组件。</p>
+ * 知识图谱：知识点列表 + 力导向图谱
+ * <p>左侧知识点列表（难度标签/重要度/编辑删除），右侧 ECharts 力导向图谱
+ * （节点可拖拽、画布可缩放平移、按难度配色、按重要度定大小）；操作经事件上抛父组件。</p>
  */
 defineProps({
   points: { type: Array, default: () => [] },
@@ -100,22 +74,11 @@ defineProps({
   diffType: { type: Function, required: true },
   diffText: { type: Function, required: true },
   graphLoading: { type: Boolean, default: false },
-  graphSize: { type: Number, default: 640 },
-  graphNodes: { type: Array, default: () => [] },
-  graphLinks: { type: Array, default: () => [] },
-  nodePos: { type: Object, default: () => ({}) },
+  graphOption: { type: Object, default: () => ({}) },
+  hasGraph: { type: Boolean, default: false },
 })
 
 const emit = defineEmits(['create', 'edit', 'remove', 'refresh'])
-
-/** 节点配色：路径高亮优先，否则按难度（后端已归一为大写 EASY/MEDIUM/HARD） */
-function nodeColor(n) {
-  if (n.pathHL) return 'var(--ac-warning)'
-  const d = (n.difficultyLevel || n.difficulty || '').toUpperCase()
-  if (d === 'HARD') return 'var(--ac-danger)'
-  if (d === 'EASY') return 'var(--ac-success)'
-  return 'var(--ac-primary)'
-}
 </script>
 
 <style scoped>
@@ -190,34 +153,18 @@ function nodeColor(n) {
 
 .graph-wrap {
   width: 100%;
-  min-height: 520px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+  height: 520px;
 }
-.kg-svg {
+.kg-chart {
   width: 100%;
-  max-width: 640px;
-  height: auto;
+  height: 100%;
 }
-.kg-link {
-  stroke: var(--ac-border-strong);
-  stroke-width: 1;
-  stroke-opacity: 0.28;
-}
-.kg-node {
-  stroke: var(--ac-on-primary);
-  stroke-width: 1.5;
-  transition: fill 0.2s ease;
-}
-.kg-label {
+.graph-hint {
+  margin: 8px 0 0;
   font-size: 12px;
-  font-weight: 600;
-  fill: var(--ac-text-secondary);
-  text-anchor: middle;
-  paint-order: stroke;
-  stroke: var(--ac-bg-elevated);
-  stroke-width: 3px;
+  line-height: 1.6;
+  color: var(--ac-text-muted);
+  text-align: center;
 }
 
 @media (max-width: 1100px) {

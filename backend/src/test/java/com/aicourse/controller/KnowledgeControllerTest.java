@@ -476,17 +476,28 @@ class KnowledgeControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("GET /knowledge/overview?courseId=1 - 返回200且data透传统计")
+    @DisplayName("GET /knowledge/overview?courseId=1 - 返回课程口径统计（关系/核心点/覆盖度）")
     void overview_authorized_returns_success() throws Exception {
-        when(knowledgePointService.count(any())).thenReturn(5L);
-        when(relationService.count()).thenReturn(3L);
+        KnowledgePoint p1 = samplePoint();
+        KnowledgePoint p2 = samplePoint();
+        p2.setId(2L);
+        p2.setImportance(9);
+        when(knowledgePointService.list(any(com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper.class)))
+                .thenReturn(List.of(p1, p2));
+        KnowledgePointRelation rel = sampleRelation();
+        rel.setSourceId(1L);
+        rel.setTargetId(2L);
+        when(relationService.list(any(com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper.class)))
+                .thenReturn(List.of(rel));
         mockMvc.perform(get("/knowledge/overview?courseId=1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.totalPoints").value(5))
-                .andExpect(jsonPath("$.data.totalRelations").value(3));
-        verify(knowledgePointService).count(any());
-        verify(relationService).count();
+                .andExpect(jsonPath("$.data.totalPoints").value(2))
+                .andExpect(jsonPath("$.data.totalRelations").value(1))
+                .andExpect(jsonPath("$.data.corePoints").value(1))
+                .andExpect(jsonPath("$.data.coverageRate").value(1.0));
+        verify(relationService)
+                .list(any(com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper.class));
     }
 
     @Test
