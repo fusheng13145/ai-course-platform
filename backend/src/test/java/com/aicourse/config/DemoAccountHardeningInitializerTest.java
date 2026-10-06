@@ -3,7 +3,11 @@ package com.aicourse.config;
 import com.aicourse.common.RoleConstants;
 import com.aicourse.entity.User;
 import com.aicourse.service.UserService;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -32,7 +36,8 @@ import static org.mockito.Mockito.when;
 /**
  * 演示账号生产加固初始器单元测试（F-02 密钥治理 P1）。
  * <p>
- * 锁定四条契约：①开关关闭时停用并改密；②已改密账号绝不覆盖；③幂等；④true+prod 拒绝启动。
+ * 锁定五条契约：①开关关闭时停用并改密；②已改密账号绝不覆盖；③幂等；④true+prod 拒绝启动；
+ * ⑤候选集按「口令仍等于种子哈希」筛选，不以 V1 用户名白名单为条件（否则漏掉 V5/V6 号段）。
  */
 @ExtendWith(MockitoExtension.class)
 @DisplayName("演示账号加固：DemoAccountHardeningInitializer")
@@ -77,6 +82,24 @@ class DemoAccountHardeningInitializerTest {
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
         verify(userService, times(1)).updateById(captor.capture());
         assertThat(captor.getValue().getUsername()).isEqualTo("student");
+    }
+
+    @Test
+    @DisplayName("候选口径：按种子哈希等值筛选，不用 V1 用户名白名单（DR-18）")
+    void candidateSetIsKeyedBySeedHashNotUsernameWhitelist() {
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), ""), User.class);
+        ReflectionTestUtils.setField(initializer, "demoAccountsEnabled", false);
+        when(userService.list(ArgumentMatchers.<Wrapper<User>>any())).thenReturn(List.of());
+
+        initializer.run(args);
+
+        ArgumentCaptor<Wrapper> captor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(userService).list(captor.capture());
+        LambdaQueryWrapper<User> wrapper = (LambdaQueryWrapper<User>) captor.getValue();
+        wrapper.getSqlSegment();
+        assertThat(wrapper.getParamNameValuePairs().values())
+                .containsExactly(SeedAccounts.SEED_WEAK_BCRYPT);
     }
 
     @Test
