@@ -222,7 +222,7 @@ CSRF_ENABLED=true      # 保持 true，不要关
 | `V5` 富种子 | `ts01`…`ts12`      | 123456 | 12 位教师，邮箱 `ts01@aicourse.com`；另 150 名学生 `st001`…`st150`（`@stu.aicourse.com`） |
 | `V6` 示范课 | 同上号段内选课学生 | 123456 | 计算机网络示范课 **course 4007**，60 条选课 / 65 知识点 / 120 关系边 |
 
-> ⚠️ **生产边界（务必读）**：`DEMO_ACCOUNTS_ENABLED=false` 的启动期加固器**只处理上述 8 个 V1 账号**——它按 `SeedAccounts.DEMO_USERNAMES` 白名单筛选，**V5/V6 号段的 162 个弱口令账号不会被停用或改密**。更需注意 Flyway 为 `enabled=true` 且 prod profile **无覆盖**，**全新生产库首次启动即会自动执行到 V6**，"不导入"不是可选项：上线前须在构建期剔除 `V5__*.sql` / `V6__*.sql`（或按环境分 `locations`），否则必须部署后立即按号段批量停用/改密。详见 `docs/项目手册.md` §24.5 与附录 D **DR-18**。
+> ⚠️ **生产边界（务必读）**：`DEMO_ACCOUNTS_ENABLED=false` 的启动期加固器按**「口令仍等于种子哈希」**筛选，V1 + V5/V6 共 **170 个**种子账号一并停用并重置为不可知口令（2026-10-06 起，此前只覆盖 V1 的 8 个，见 `docs/项目手册.md` 附录 D **DR-18**）；已改密账号绝不覆盖，加固幂等。仍要留意：Flyway 为 `enabled=true` 且 prod profile **无覆盖**，**全新生产库首次启动即会自动执行到 V6**——口令不再弱，但"演示数据该不该进生产库"需在构建期剔除 `V5__*.sql` / `V6__*.sql`（或按环境分 `locations`）与"接受并由加固器停用"之间定案。详见 `docs/项目手册.md` §24.5。
 >
 > 演示密码仅限开发/演示环境，生产环境务必修改（见 `docs/项目手册.md` 第七部分 §29 安全加固检查清单）。
 
@@ -239,12 +239,12 @@ cd backend && mvn test -Dtest='!*IT,!Phase1Phase3IntegrationTest' -DfailIfNoTest
 cd frontend && npm run lint && npm run typecheck:gate && npx vitest run && npm run build
 ```
 
-**当前实测基线**（口径与逐行出处见 `docs/项目手册.md` 附录 B / §43；本轮为文档同步，后端数字取 2026-10-05 `backend/target/` 归档件解析，非本会话重跑）：
+**当前实测基线**（口径与逐行出处见 `docs/项目手册.md` 附录 B / §43；后端各行取自 2026-10-06 本机 `mvn -B -o verify -DskipITs` 实跑，`-DskipITs` 因本机无 Docker，Testcontainers 系 7 个 IT 只在 CI 取数）：
 
 | 门禁 | 读数 |
 | --- | --- |
-| 后端单测 | **2568 用例 / 0 失败 / 0 错误 / 0 跳过**（194 个测试源文件，187 份 surefire 报告） |
-| JaCoCo | **LINE 87.84% / BRANCH 66.78%**（指令 87.09%，341 类）→ 门禁达标 |
+| 后端单测 | **2569 用例 / 0 失败 / 0 错误 / 0 跳过**（194 个测试源文件，187 份 surefire 报告） |
+| JaCoCo | **LINE 87.58% / BRANCH 66.19%**（指令 86.74%，341 类）→ 门禁达标 |
 | ArchUnit | **6 条**架构守护全通过 |
 | SpotBugs | **0 缺陷**，`failOnError=true` 已硬阻断（13 个框架性 `<Match>` 豁免） |
 | 前端单测 | **54 文件 / 1093 用例全绿**（2026-10-06 本机实测） |

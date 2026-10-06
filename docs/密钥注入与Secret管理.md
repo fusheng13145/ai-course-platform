@@ -327,7 +327,7 @@ SPRING_CONFIG_IMPORT=optional:configtree:/tmp/ai-secrets/ \
 - [ ] 轮转演练：在密钥库更新值 → 确认应用在预期时间内使用新值（Vault Agent 场景 ≤5 分钟）。
 - [ ] 密钥轮转后同步更新 `deploy/secrets/*.txt`（Compose 场景）并 `docker compose up -d` 重投。
 - [ ] 演示账号开关 `DEMO_ACCOUNTS_ENABLED=false` —— 注意 **yaml 默认为 `true`**（`application.yaml:210`）、compose 默认 `false`（`docker-compose.yml:132`）；改用文件式密钥时须**显式提供该值**，否则会回落到 yaml 的 `true`。
-- [ ] 种子弱口令收口：`SeedAccounts.DEMO_USERNAMES` 的停用/重置白名单**只覆盖 V1 内置的 8 个演示账号**；Flyway V5/V6 另引入 **162 个**出厂弱口令账号（`ts01..ts12` + `st001..st150`）与示范课数据，且 `application.yaml:70-76` 的 Flyway **无环境隔离**（prod 也自动迁移）。生产库须按手册 §24.5 的三条缓解措施之一处置，否则首次启动即把这些账号写入生产库（附录 D **DR-18**）。
+- [ ] 种子弱口令收口：加固器候选集自 2026-10-06 起为「口令等于种子哈希」（不再按 `SeedAccounts.DEMO_USERNAMES` 白名单），V1 的 8 个 + Flyway V5/V6 引入的 **162 个**（`ts01..ts12` + `st001..st150`）共 170 个账号在 `DEMO_ACCOUNTS_ENABLED=false` 时一并停用改密，首次启动的日志计数应为 170。**仍无环境隔离**：`application.yaml:70-76` 使 prod 首启照样执行 V5/V6 把演示数据写入生产库——口令已收敛，数据面须按手册 §24.5 择一处置（附录 D **DR-18**）。
 
 ### 5.1 当前密钥状态（2026-10-06 复核）
 
