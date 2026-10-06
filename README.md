@@ -177,7 +177,7 @@ docker compose --profile full up -d --build
 | `MYSQL_APP_PASSWORD` | 可留空 | 留空则 compose 回退用 `MYSQL_ROOT_PASSWORD` 连接业务库（`${MYSQL_APP_PASSWORD:-${MYSQL_ROOT_PASSWORD}}`，`docker-compose.yml:121`）；生产建议独立建业务账号 |
 | `APP_ADMIN_INITIAL_PASSWORD` | 8–32 位，含大小写字母 + 数字 + 特殊字符（**共 4 类**） | **启动 fail-fast 拒绝启动**（`.env.example` 里的 `CHANGE_ME_*` 是**刻意不合规**的占位符，属有意设计——宁可拒绝启动，也不允许"照抄示例"形成公开的已知 admin 口令）。注意：`openssl rand -base64 32` 输出 44 字符、**超 8–32 上限**，不要用它生成此项，请用上面的脚本 |
 
-> ⚠️ **`DEMO_ACCOUNTS_ENABLED` 默认值两处不一致（已知，按环境生效范围区分）**：`application.yaml:210` 为 `${DEMO_ACCOUNTS_ENABLED:true}`（本地开发默认保留演示账号），`docker-compose.yml:132` 为 `${DEMO_ACCOUNTS_ENABLED:-false}`（容器化默认加固）。容器里未显式传值即为 `false`（自动停用并改密），本地 `start-backend.bat` 未设则为 `true`。**生产必须显式 `=false`**，并注意其收敛范围只含 V1 内置 8 账号（见上方「演示账号」与手册 §24.5 / DR-18）。
+> ⚠️ **`DEMO_ACCOUNTS_ENABLED` 默认值两处不一致（已知，按环境生效范围区分）**：`application.yaml:210` 为 `${DEMO_ACCOUNTS_ENABLED:true}`（本地开发默认保留演示账号），`docker-compose.yml:132` 为 `${DEMO_ACCOUNTS_ENABLED:-false}`（容器化默认加固）。容器里未显式传值即为 `false`（自动停用并改密），本地 `start-backend.bat` 未设则为 `true`。**生产必须显式 `=false`**，并注意其收敛范围自 2026-10-06 起为「口令等于种子哈希」的**全部 170 个**种子账号（V1 内置 8 个 + V5/V6 号段 162 个；此前只覆盖 V1 的 8 个，见上方「演示账号」与手册 §24.5 / DR-18）。
 
 #### 路径 ①：本地 / 内网评估（HTTP 明文，仅限本机或内网）
 
