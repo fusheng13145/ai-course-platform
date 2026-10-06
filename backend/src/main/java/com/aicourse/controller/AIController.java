@@ -17,6 +17,7 @@ import com.aicourse.service.LearningPathService;
 import com.aicourse.service.LearningRecommendationService;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -45,6 +46,7 @@ import org.springframework.web.util.HtmlUtils;
 @RequestMapping("/ai")
 @Slf4j
 @Tag(name = "AI 助手")
+@PreAuthorize("isAuthenticated()")
 public class AIController {
 
 
