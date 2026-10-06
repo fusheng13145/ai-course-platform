@@ -13,7 +13,9 @@
 
 **核心能力域**：多角色 RBAC、课程/章节/选课管理、题库与在线考试（防作弊）、作业批改与查重、知识图谱可视化与学习路径规划、AI 智能问答/出题/批改/学情建议、数据分析与学情报告、WebSocket 实时通知。
 
-> **职责边界**：知识图谱引擎（图谱构建、多跳推理、GraphRAG）与 RAG 检索引擎（BM25 / 向量检索 / embedding / 融合）均由团队另一成员以 Python 微服务实现（8001 / 8002）。本端（Java 后端）实现**消费侧**与**标准化集成层** `com.aicourse.integration`：`ContractPaths` 常量（调用约定唯一事实来源）+ `KnowledgeGraphContract` / `RagContract` 契约接口（强类型 record）+ 双实现（本地占位默认不依赖 Python；HTTP 远端经 `knowledge-graph.enabled` / `rag.enabled=true` 调 Python 8001 / 8002）。其中 `POST /api/knowledge/path/plan` 在引擎未启用/不可达/未找到路径时由消费侧**本地 BFS 兜底**，始终返回真实数据；RAG 未接入时返回 `{"code":503}` 且 AI 问答自动回退纯 LLM。本端不实现引擎逻辑，以便后续接入独立 Python 项目扩展。**完整对接契约见 `docs/项目手册.md`（第八部分，唯一标准基准）。**
+**2026-10 更新**：侧边栏改为**三级动态课程导航**（考试/成绩/作业/图谱/教学工具收敛为每门课程下的独立页签，93 条路由 / 281 个 `.vue`）；知识图谱改为**可拖拽力导向布局**并修正学习路径规划语义；Flyway 新增 **V5 富种子**（48 表互联、12 教师 + 150 学生、春秋双学期）与 **V6 计算机网络示范课**（course 4007：14 章节 / 65 知识点 / 120 关系边 / 8 套试卷 / 60 条选课），供参赛演示直接使用（口径见 `docs/项目手册.md` §13.1，生产约束见 §24.5）。
+
+> **职责边界**：知识图谱引擎（图谱构建、多跳推理、GraphRAG）与 RAG 检索引擎（BM25 / 向量检索 / embedding / 融合）均由团队另一成员以 Python 微服务实现（kg **8001** / rag **8002**，两端均已接入真实引擎实现）。本端（Java 后端）实现**消费侧**与**标准化集成层** `com.aicourse.integration`：`ContractPaths` 常量（调用约定唯一事实来源，55 个契约常量）+ `KnowledgeGraphContract` / `RagContract` 契约接口（强类型 record）+ 双实现（本地 BFS / 禁用态默认不依赖 Python；HTTP 远端经 `knowledge-graph.enabled` / `rag.enabled=true` 调 Python 8001 / 8002，成功时返回 `mode=ENGINE`）。其中 `POST /api/knowledge/path/plan` 在引擎未启用/不可达时由消费侧**本地 BFS 兜底**；`max_hops` 自 2026-10-05 起**仅用于「是否采纳」判定、不再参与遍历剪枝**，上限不足时仍回传真实最短跳数（语义表见 `docs/项目手册.md` §35.2）。RAG 未接入时返回 `{"code":503}` 且 AI 问答自动回退纯 LLM。**LoRA 微调（8003）契约与消费侧已就绪，Python 端仍无实现**，启用即 503 降级。**完整对接契约见 `docs/项目手册.md`（第八部分，唯一标准基准）。**
 
 > **⚠️ 参考项目方法学边界（避免误导）**：`大创赛/类似项目/DeepSeek-RAG-Chatbot` 的 GraphRAG 实体抽取采用正则 `\b[A-Z][a-z]+...`，**仅支持英文实体**，且为单机通用文档问答工具，与本项目的**中文知识图谱**（`knowledge_points` / `knowledge_point_relations`）在语言适配、领域建模、工程规模上均不可类比。**请勿将其作为本项目中文 KG 方案的对标或引用依据**；本项目中文 KG 的关系建模以 `相关论文/`（杜彩丽 IPA/IREM、中职计算机网络多源异构 KG 等）与 PRD 接口矩阵为准。
 
@@ -21,7 +23,7 @@
 
 ## 文档导航
 
-项目文档已整合为**单一权威手册** `docs/项目手册.md`（后续所有任务唯一依据，统一标准基准），按十个部分 + 四个附录组织：
+项目文档已整合为**单一权威手册** `docs/项目手册.md`（后续所有任务唯一依据，统一标准基准），按**十一个部分** + 四个附录组织：
 
 | 部分                              | 主题                                                           |
 | --------------------------------- | -------------------------------------------------------------- |
@@ -50,7 +52,7 @@
 | ① 权威规范 | `docs/项目手册.md` | **唯一事实基准**，与他人冲突时以手册为准 |
 | ② 导航 | `docs/文档索引.md` | 全仓文档的定位、时效与读者地图 |
 | ③ 专题 | `docs/端到端验证与缺陷修复总报告.md`<br>`docs/产品化转化方案.md`<br>`docs/密钥注入与Secret管理.md` | 单一专题的**当前有效**结论／方案／指南 |
-| ④ 归档 | `docs/历史归档/` | 时点性报告**冻结**原文（11 份，含收录判据与冻结声明见该目录 `README.md`）|
+| ④ 归档 | `docs/历史归档/` | 时点性报告**冻结**原文（**20 份报告 + 1 份目录 README = 21 个文件**，2026-10-06 实测；收录判据与冻结声明见该目录 `README.md`）|
 
 > 历轮审查与端到端验证的**结论索引**见手册 **附录D 审查修正台账**（含每条发现的处置状态与原文溯源坐标）。
 
@@ -71,6 +73,10 @@
 | 状态 / 路由 / 图表 | Pinia / Vue Router / ECharts | 2.1.x / 4.2.x / 6.1.x |
 | 实时通信           | WebSocket                    | 集成Spring WebSocket  |
 | 限流熔断           | Sentinel                     | 下游流控 + 慢调用熔断 |
+| 数据库迁移         | Flyway                       | 6 个脚本（V1 建表 … V6 示范课种子） |
+| 图数据库（可选）   | Neo4j                        | 5.x，compose `rag` profile；缺失时 KG 回落内存图 |
+| 代码质量门禁       | JaCoCo / SpotBugs / ArchUnit | LINE≥85%+BRANCH≥65%（阻断）/ 0 bug（阻断）/ 6 条架构守护 |
+| 前端 Lint          | ESLint                       | **9.39.5 + flat config**（`frontend/eslint.config.js`） |
 | KB/RAG（Python）   | FastAPI 契约服务             | rag 8002 / kg 8001    |
 
 ## Python 侧服务（KB / RAG）
@@ -79,10 +85,11 @@ Java 后端通过 HTTP 契约（`com.aicourse.integration.rag.RagContract`）与
 
 | 服务 | 目录 | 端口 | 说明 |
 | ---- | ---- | ---- | ---- |
-| RAG 检索引擎 | `python-services/rag_service/` | 8002 | 9 个契约端点 + `rag_engine.py` 混合检索引擎（BM25+向量+RRF）；CI 护栏 `test_rag_contract.py` |
-| 知识图谱服务 | `python-services/kg_service/` | 8001 | 同上契约模式，`kg_store.py` 支持 Neo4j 与内存双后端 |
+| 知识图谱服务 | `python-services/kg_service/` | 8001 | **11 个契约端点**；`kg_store.py` 支持 **Neo4j 与内存双后端**（Neo4j 不可达时自动回落内存图），GraphRAG 多跳推理与学习路径规划；CI 护栏 `test_kg_contract.py`（含 Neo4j service 容器） |
+| RAG 检索引擎 | `python-services/rag_service/` | 8002 | **9 个契约端点** + `rag_engine.py` 真实混合检索引擎（BM25 + 向量 + RRF 融合，重依赖懒加载）；CI 护栏 `test_rag_contract.py` |
+| LoRA 微调服务 | —（**Python 端尚无实现**） | 8003 | Java 侧 `ContractPaths` 的 8 条 `/api/v1/fine-tune/*` 契约与消费侧已就绪，启用即 503 降级；等待队友交付 |
 
-容器化启动知识图谱栈（Neo4j）：`docker compose --profile rag up -d`（需先在 `.env` 配置 `NEO4J_PASSWORD`，见 `.env.example`）。
+容器化启动知识图谱栈（Neo4j）：`docker compose --profile rag up -d neo4j`（需先在 `.env` 配置 `NEO4J_PASSWORD`，见 `.env.example`）。**未拉起 Neo4j 不阻塞**：KG 自动回落内存图，功能可用但持久化缺失。
 
 > 早期 RAG 成员上传的 Streamlit 原型（原 `python-services/deepgraph_rag/`，端口 8501）不参与正式功能，已整体归档至仓库根 `archive/deepgraph_rag/`，仅作历史参考。
 
@@ -112,6 +119,10 @@ start-frontend.bat
 
 访问：前端 http://localhost:5173 ｜ API http://localhost:8080/api ｜ Swagger http://localhost:8080/api/swagger-ui.html
 
+> 前端 dev server 为 `strictPort: true`：**5173 被其他项目占用时会直接报错退出**（不会自动换端口）。改用
+> `cd frontend && npx vite --port 5174` 即可——后端 CORS 白名单已含 `5173 / 5174 / 5175`（`application.yaml:213-219`，
+> `localhost` 与 `127.0.0.1` 两种写法），换端口不影响联调。
+
 > 本机未装 MySQL / Redis 时：`docker compose up -d mysql redis` 拉起基础设施容器（MySQL 宿主端口 3307），`start-backend.bat` 自动切换数据源。
 
 #### 健康检查与常见排障（2026-09-14 补充）
@@ -131,9 +142,13 @@ start-frontend.bat
 ### 方式二：Docker 容器化部署（备用 / 上线）
 
 ```bash
-cp .env.example .env      # Windows: copy .env.example .env（填入真实强密码与密钥）
+cp .env.example .env      # Windows: copy .env.example .env（共 32 个键，填入真实强密码与密钥）
 docker compose --profile full up -d --build
-# 可选叠加：--profile ops（每日备份）/ --profile monitor（Prometheus+Grafana+Loki 监控）
+# 可选叠加 profile（compose 共 12 个服务 / 12 个命名卷）：
+#   --profile ops      每日备份（mysql-backup + cron sidecar）
+#   --profile monitor  Prometheus + Grafana + Loki + Promtail + node-exporter + Alertmanager
+#   --profile rag      Neo4j 5-community（知识图谱真图库后端，需 NEO4J_PASSWORD）
+# 注：`mysql` 与 `redis` 无 profile，任何 `up` 都会拉起；其余服务须显式指定 profile。
 ```
 
 > ⚠️ **务必先选一条路径再启动。** `--profile full` 起的是一个**明文 HTTP 单机栈**：`frontend/nginx.conf`
@@ -158,7 +173,11 @@ docker compose --profile full up -d --build
 | `JWT_SECRET` | ≥32 字节随机（`openssl rand -base64 48`） | compose 插值失败、直接报错退出 |
 | `REDIS_PASSWORD` | 强随机（backend 与健康探针自动同步） | 删掉该行 → compose 插值失败；仅留占位符 → 能启动，但 Redis 以**弱口令**运行 |
 | `GRAFANA_ADMIN_PASSWORD` | 强随机（叠加 `--profile monitor` 时） | compose 插值失败、直接报错退出 |
+| `NEO4J_PASSWORD` | 强随机（叠加 `--profile rag` 时） | compose 以 `${NEO4J_PASSWORD:?…}` **插值失败、直接报错退出**（`docker-compose.yml:440`） |
+| `MYSQL_APP_PASSWORD` | 可留空 | 留空则 compose 回退用 `MYSQL_ROOT_PASSWORD` 连接业务库（`${MYSQL_APP_PASSWORD:-${MYSQL_ROOT_PASSWORD}}`，`docker-compose.yml:121`）；生产建议独立建业务账号 |
 | `APP_ADMIN_INITIAL_PASSWORD` | 8–32 位，含大小写字母 + 数字 + 特殊字符（**共 4 类**） | **启动 fail-fast 拒绝启动**（`.env.example` 里的 `CHANGE_ME_*` 是**刻意不合规**的占位符，属有意设计——宁可拒绝启动，也不允许"照抄示例"形成公开的已知 admin 口令）。注意：`openssl rand -base64 32` 输出 44 字符、**超 8–32 上限**，不要用它生成此项，请用上面的脚本 |
+
+> ⚠️ **`DEMO_ACCOUNTS_ENABLED` 默认值两处不一致（已知，按环境生效范围区分）**：`application.yaml:210` 为 `${DEMO_ACCOUNTS_ENABLED:true}`（本地开发默认保留演示账号），`docker-compose.yml:132` 为 `${DEMO_ACCOUNTS_ENABLED:-false}`（容器化默认加固）。容器里未显式传值即为 `false`（自动停用并改密），本地 `start-backend.bat` 未设则为 `true`。**生产必须显式 `=false`**，并注意其收敛范围只含 V1 内置 8 账号（见上方「演示账号」与手册 §24.5 / DR-18）。
 
 #### 路径 ①：本地 / 内网评估（HTTP 明文，仅限本机或内网）
 
@@ -196,6 +215,15 @@ CSRF_ENABLED=true      # 保持 true，不要关
 | 教师   | teacher / teacher2   | 123456 | 张教授 / 李副教授        |
 | 学生   | student / student2~5 | 123456 | 王同学等                 |
 
+以上 8 个为 **V1 内置**演示账号（`SeedAccounts.DEMO_USERNAMES` 单一事实来源）。导入富种子迁移后另有：
+
+| 来源    | 用户名             | 密码   | 说明                                                       |
+| ------- | ------------------ | ------ | ---------------------------------------------------------- |
+| `V5` 富种子 | `ts01`…`ts12`      | 123456 | 12 位教师，邮箱 `ts01@aicourse.com`；另 150 名学生 `st001`…`st150`（`@stu.aicourse.com`） |
+| `V6` 示范课 | 同上号段内选课学生 | 123456 | 计算机网络示范课 **course 4007**，60 条选课 / 65 知识点 / 120 关系边 |
+
+> ⚠️ **生产边界（务必读）**：`DEMO_ACCOUNTS_ENABLED=false` 的启动期加固器**只处理上述 8 个 V1 账号**——它按 `SeedAccounts.DEMO_USERNAMES` 白名单筛选，**V5/V6 号段的 162 个弱口令账号不会被停用或改密**。更需注意 Flyway 为 `enabled=true` 且 prod profile **无覆盖**，**全新生产库首次启动即会自动执行到 V6**，"不导入"不是可选项：上线前须在构建期剔除 `V5__*.sql` / `V6__*.sql`（或按环境分 `locations`），否则必须部署后立即按号段批量停用/改密。详见 `docs/项目手册.md` §24.5 与附录 D **DR-18**。
+>
 > 演示密码仅限开发/演示环境，生产环境务必修改（见 `docs/项目手册.md` 第七部分 §29 安全加固检查清单）。
 
 ---
@@ -205,10 +233,24 @@ CSRF_ENABLED=true      # 保持 true，不要关
 ```bash
 # 后端：单元测试 + 集成测试 + JaCoCo/SpotBugs/ArchUnit 门禁
 cd backend && mvn test -Dtest='!*IT,!Phase1Phase3IntegrationTest' -DfailIfNoTests=false
+# 完整门禁（含覆盖率与 SpotBugs 阻断）：mvn -B verify
 
-# 前端：ESLint + vitest + 构建校验
-cd frontend && npm run lint && npx vitest run && npm run build
+# 前端：ESLint（9 + flat config）+ 类型棘轮 + vitest + 构建校验
+cd frontend && npm run lint && npm run typecheck:gate && npx vitest run && npm run build
 ```
+
+**当前实测基线**（口径与逐行出处见 `docs/项目手册.md` 附录 B / §43；本轮为文档同步，后端数字取 2026-10-05 `backend/target/` 归档件解析，非本会话重跑）：
+
+| 门禁 | 读数 |
+| --- | --- |
+| 后端单测 | **2568 用例 / 0 失败 / 0 错误 / 0 跳过**（194 个测试源文件，187 份 surefire 报告） |
+| JaCoCo | **LINE 87.84% / BRANCH 66.78%**（指令 87.09%，341 类）→ 门禁达标 |
+| ArchUnit | **6 条**架构守护全通过 |
+| SpotBugs | **0 缺陷**，`failOnError=true` 已硬阻断（13 个框架性 `<Match>` 豁免） |
+| 前端单测 | **54 文件 / 1093 用例全绿**（2026-10-06 本机实测） |
+| 前端 ESLint | **0 error / 0 warning**（ESLint 9 flat config） |
+| 前端类型检查 | `vue-tsc` 存量 **586 条 / 107 文件**，棘轮基线只许下调 |
+| CI | 3 个工作流文件；`ci.yml` **10 个作业**（含 `secret-scan`；`frontend-e2e` 暂为 `workflow_dispatch` 手动触发） |
 
 质量门禁基线（渐进收敛制，只许上调不得下调）：JaCoCo LINE ≥ 85% / BRANCH ≥ 65%（生产收敛目标指令覆盖 ≥ 85%）、SpotBugs 0 error、ArchUnit 架构约束。测试方法、契约测试清单与 CI 流水线见 `docs/项目手册.md` 第六部分。
 
@@ -241,6 +283,8 @@ python e2e_security_verify.py         # ③ 安全维度 7 例（CSRF 双提交 
 > **登录保护为两层**：① 速率层 `RateLimitFilter`（IP 滑动窗口 10 次/60 秒）；② 尝试层 `AuthSessionComponent`（同账号连续失败 5 次锁定 15 分钟）。尝试层阈值更低、失败路径下先触发，验证时须分层断言。详见 `docs/项目手册.md` 附录 D 的 2026-09-17 条目。
 
 最近一次实测（2026-09-17）：E2E 四件套 **131/131 全绿**；压力测试 62,764 请求 / 峰值 1,808.6 req/s / 成功率 100% / 5xx 0。报告见 `docs/历史归档/端到端全链路与压力测试报告-2026-09-17.md`。
+
+> ⚠️ **该基线已滞后于当前代码**：V5/V6 富种子、三级课程导航、KG 力导向与路径规划语义均在该次全绿**之后**落地，四件套尚未复跑；`ci.yml` 的 `frontend-e2e` 作业也仍为 `workflow_dispatch` 手动触发。**演示或放行前建议实跑一轮**（可用示范课 4007 作主链路对象），登记见 `docs/项目手册.md` 附录 D **DR-20**。
 
 ---
 

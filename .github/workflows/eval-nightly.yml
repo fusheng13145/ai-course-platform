@@ -6,9 +6,10 @@ name: Nightly RAG Evaluation
 # 设计要点：
 # 1) 评测脚手架校验（py_compile + qa-set.json 结构）始终执行，零基础设施依赖，保证最基本护栏；
 # 2) 后端以 mysql+redis 服务容器启动（复用 backend CI job 同款约定），跑「仅检索召回」评测；
-# 3) RAG 引擎（8002）默认未接入（rag.enabled=false），/rag/retrieve 返回 503，
-#    evaluate.py 优雅记录 retrieve_error，不会中断 job——nightly 如实反映「引擎未接入」状态，
-#    待队友补实 8002 并注入 RAG_ENABLED=true + RAG_BASE_URL 后，即可产出真实 recall@k；
+# 3) 本 job 未拉起 8002 引擎容器（rag.enabled=false），/rag/retrieve 返回 503，
+#    evaluate.py 优雅记录 retrieve_error，不会中断 job——nightly 如实反映「本 job 未接引擎」状态。
+#    注：rag_service 侧的真实混合检索引擎（rag_engine.py：BM25+向量+RRF）已实现（2026-10 复核），
+#    要在此产出真实 recall@k，需给本 job 增加 8002 service/step 并注入 RAG_ENABLED=true + RAG_BASE_URL；
 # 4) 结果 JSON 作为 artifact 上传，便于趋势对比与答辩证据留存。
 
 on:
