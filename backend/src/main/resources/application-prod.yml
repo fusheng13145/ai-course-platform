@@ -52,6 +52,30 @@ app:
     csrf:
       enabled: true
 
+# ===================== Flyway：演示种子不进生产库 =====================
+# 【存在理由（2026-10-06，落地 DR-18 路径①）】V5 富种子与 V6 示范课 4007 是**演示语料**：
+#   含 162 个号段演示账号（ts01..ts12 / st001..st150）与示范课的选课/题库/图谱全量数据。
+#   拆分前 base 只有 locations=classpath:db/migration 且 prod 无覆盖 → 全新生产库首启即自动写入这批数据。
+# 现在按目录切分（见 application.yaml 注释）：本 profile 只保留结构迁移 V1..V4，整目录排除
+#   classpath:db/seed-demo。jar 直跑与 docker-compose 两条部署路径同姿态（compose 已设 SPRING_PROFILES_ACTIVE: prod）。
+# 注：V1 内置的 8 个演示账号无法经此排除（V1 已 baseline、脚本校验和不可改），
+#   由 DemoAccountHardeningInitializer 按「口令等于种子哈希」停用并改密兜住（本文件 app.demo-accounts.enabled=false）。
+#
+# ⚠ 隔离只对「全新库」构成机械保证；对灌过 V5/V6 的旧库**不阻断**（2026-10-06 本机 MySQL 8.4 + Flyway 11.7.2 实跑取证）：
+#   Flyway 默认 ignoreMigrationPatterns=[*:future]，「历史里有、类路径上找不到」的迁移被判 FUTURE_SUCCESS 而忽略，
+#   validate 仍成功、migrate 只打一条 "has a version (6) that is newer than the latest available migration (4)" 的 WARN
+#   后执行 0 个迁移 —— 演示账号与示范课数据会原样留在"生产库"里，无人拦截。
+#   因此这属于**部署流程约束**：生产库必须是全新库（或历史只到 V1..V4），并按手册 §29 核对
+#   flyway_schema_history 最高版本为 4、users 只剩 V1 内置 8 个账号。
+#   确需把灌过演示数据的库转生产：先按号段清理演示数据，并删除 flyway_schema_history 中 version 5/6 两行
+#   （V5/V6 生成时即做号段隔离，可批量清理）。
+#   若确要把这种旧库 fail-fast，可显式置 spring.flyway.ignore-migration-patterns: [] 去掉默认的 *:future，
+#   代价是将来正常的前向迁移也会被当 future 阻断 —— 故不作默认。
+#   （旧写法 spring.flyway.ignore-missing-migrations 在 Flyway 9 已移除，Boot 元数据标为 error 级废弃。）
+spring:
+  flyway:
+    locations: classpath:db/migration
+
 # ===================== CORS 白名单：生产显式清空 base 的 localhost 白名单 =====================
 # 【存在理由（2026-09-16）】base application.yaml 硬编码了 9 条 localhost 白名单且无任何 profile 覆盖，
 # 使 SecurityConfig#corsConfigurationSource() 的 `allowedOrigins == null || isEmpty()` 分支**永不成立** ——

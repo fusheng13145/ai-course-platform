@@ -13,7 +13,7 @@
 
 **核心能力域**：多角色 RBAC、课程/章节/选课管理、题库与在线考试（防作弊）、作业批改与查重、知识图谱可视化与学习路径规划、AI 智能问答/出题/批改/学情建议、数据分析与学情报告、WebSocket 实时通知。
 
-**2026-10 更新**：侧边栏改为**三级动态课程导航**（考试/成绩/作业/图谱/教学工具收敛为每门课程下的独立页签，93 条路由 / 281 个 `.vue`）；知识图谱改为**可拖拽力导向布局**并修正学习路径规划语义；Flyway 新增 **V5 富种子**（48 表互联、12 教师 + 150 学生、春秋双学期）与 **V6 计算机网络示范课**（course 4007：14 章节 / 65 知识点 / 120 关系边 / 8 套试卷 / 60 条选课），供参赛演示直接使用（口径见 `docs/项目手册.md` §13.1，生产约束见 §24.5）。
+**2026-10 更新**：侧边栏改为**三级动态课程导航**（考试/成绩/作业/图谱/教学工具收敛为每门课程下的独立页签，93 条路由 / 281 个 `.vue`）；知识图谱改为**可拖拽力导向布局**并修正学习路径规划语义；Flyway 新增 **V5 富种子**（48 表互联、12 教师 + 150 学生、春秋双学期）与 **V6 计算机网络示范课**（course 4007：14 章节 / 65 知识点 / 120 关系边 / 8 套试卷 / 60 条选课），供参赛演示直接使用；**2026-10-06 起这两个脚本移入 `db/seed-demo`，`prod` profile 的 Flyway `locations` 整目录排除 → 演示数据不进生产库**（口径见 `docs/项目手册.md` §13.1，生产约束与实测取证见 §24.5）。
 
 > **职责边界**：知识图谱引擎（图谱构建、多跳推理、GraphRAG）与 RAG 检索引擎（BM25 / 向量检索 / embedding / 融合）均由团队另一成员以 Python 微服务实现（kg **8001** / rag **8002**，两端均已接入真实引擎实现）。本端（Java 后端）实现**消费侧**与**标准化集成层** `com.aicourse.integration`：`ContractPaths` 常量（调用约定唯一事实来源，55 个契约常量）+ `KnowledgeGraphContract` / `RagContract` 契约接口（强类型 record）+ 双实现（本地 BFS / 禁用态默认不依赖 Python；HTTP 远端经 `knowledge-graph.enabled` / `rag.enabled=true` 调 Python 8001 / 8002，成功时返回 `mode=ENGINE`）。其中 `POST /api/knowledge/path/plan` 在引擎未启用/不可达时由消费侧**本地 BFS 兜底**；`max_hops` 自 2026-10-05 起**仅用于「是否采纳」判定、不再参与遍历剪枝**，上限不足时仍回传真实最短跳数（语义表见 `docs/项目手册.md` §35.2）。RAG 未接入时返回 `{"code":503}` 且 AI 问答自动回退纯 LLM。**LoRA 微调（8003）契约与消费侧已就绪，Python 端仍无实现**，启用即 503 降级。**完整对接契约见 `docs/项目手册.md`（第八部分，唯一标准基准）。**
 
@@ -73,7 +73,7 @@
 | 状态 / 路由 / 图表 | Pinia / Vue Router / ECharts | 2.1.x / 4.2.x / 6.1.x |
 | 实时通信           | WebSocket                    | 集成Spring WebSocket  |
 | 限流熔断           | Sentinel                     | 下游流控 + 慢调用熔断 |
-| 数据库迁移         | Flyway                       | 6 个脚本（V1 建表 … V6 示范课种子） |
+| 数据库迁移         | Flyway                       | 6 个脚本：结构迁移 V1–V4（`db/migration`，全环境）+ 演示种子 V5–V6（`db/seed-demo`，prod 排除） |
 | 图数据库（可选）   | Neo4j                        | 5.x，compose `rag` profile；缺失时 KG 回落内存图 |
 | 代码质量门禁       | JaCoCo / SpotBugs / ArchUnit | LINE≥85%+BRANCH≥65%（阻断）/ 0 bug（阻断）/ 6 条架构守护 |
 | 前端 Lint          | ESLint                       | **9.39.5 + flat config**（`frontend/eslint.config.js`） |
@@ -120,7 +120,7 @@ start-frontend.bat
 访问：前端 http://localhost:5173 ｜ API http://localhost:8080/api ｜ Swagger http://localhost:8080/api/swagger-ui.html
 
 > 前端 dev server 为 `strictPort: true`：**5173 被其他项目占用时会直接报错退出**（不会自动换端口）。改用
-> `cd frontend && npx vite --port 5174` 即可——后端 CORS 白名单已含 `5173 / 5174 / 5175`（`application.yaml:213-219`，
+> `cd frontend && npx vite --port 5174` 即可——后端 CORS 白名单已含 `5173 / 5174 / 5175`（`application.yaml:219-229`，
 > `localhost` 与 `127.0.0.1` 两种写法），换端口不影响联调。
 
 > 本机未装 MySQL / Redis 时：`docker compose up -d mysql redis` 拉起基础设施容器（MySQL 宿主端口 3307），`start-backend.bat` 自动切换数据源。
@@ -177,7 +177,7 @@ docker compose --profile full up -d --build
 | `MYSQL_APP_PASSWORD` | 可留空 | 留空则 compose 回退用 `MYSQL_ROOT_PASSWORD` 连接业务库（`${MYSQL_APP_PASSWORD:-${MYSQL_ROOT_PASSWORD}}`，`docker-compose.yml:121`）；生产建议独立建业务账号 |
 | `APP_ADMIN_INITIAL_PASSWORD` | 8–32 位，含大小写字母 + 数字 + 特殊字符（**共 4 类**） | **启动 fail-fast 拒绝启动**（`.env.example` 里的 `CHANGE_ME_*` 是**刻意不合规**的占位符，属有意设计——宁可拒绝启动，也不允许"照抄示例"形成公开的已知 admin 口令）。注意：`openssl rand -base64 32` 输出 44 字符、**超 8–32 上限**，不要用它生成此项，请用上面的脚本 |
 
-> ⚠️ **`DEMO_ACCOUNTS_ENABLED` 默认值两处不一致（已知，按环境生效范围区分）**：`application.yaml:210` 为 `${DEMO_ACCOUNTS_ENABLED:true}`（本地开发默认保留演示账号），`docker-compose.yml:132` 为 `${DEMO_ACCOUNTS_ENABLED:-false}`（容器化默认加固）。容器里未显式传值即为 `false`（自动停用并改密），本地 `start-backend.bat` 未设则为 `true`。**生产必须显式 `=false`**，并注意其收敛范围自 2026-10-06 起为「口令等于种子哈希」的**全部 170 个**种子账号（V1 内置 8 个 + V5/V6 号段 162 个；此前只覆盖 V1 的 8 个，见上方「演示账号」与手册 §24.5 / DR-18）。
+> ⚠️ **`DEMO_ACCOUNTS_ENABLED` 默认值两处不一致（已知，按环境生效范围区分）**：`application.yaml:216` 为 `${DEMO_ACCOUNTS_ENABLED:true}`（本地开发默认保留演示账号），`docker-compose.yml:132` 为 `${DEMO_ACCOUNTS_ENABLED:-false}`（容器化默认加固）。容器里未显式传值即为 `false`（自动停用并改密），本地 `start-backend.bat` 未设则为 `true`。**生产必须显式 `=false`**，并注意其收敛范围自 2026-10-06 起为「口令等于种子哈希」的**全部 170 个**种子账号（V1 内置 8 个 + V5/V6 号段 162 个；此前只覆盖 V1 的 8 个）。⚠️ 同日 V5/V6 已移出 prod 的 Flyway `locations`，故**全新生产库里实际只有 V1 的 8 个**待收敛，170 这个数字只在开发库或被误用的旧库上出现（见下方「生产边界」与手册 §24.5 / DR-18）。
 
 #### 路径 ①：本地 / 内网评估（HTTP 明文，仅限本机或内网）
 
@@ -222,7 +222,10 @@ CSRF_ENABLED=true      # 保持 true，不要关
 | `V5` 富种子 | `ts01`…`ts12`      | 123456 | 12 位教师，邮箱 `ts01@aicourse.com`；另 150 名学生 `st001`…`st150`（`@stu.aicourse.com`） |
 | `V6` 示范课 | 同上号段内选课学生 | 123456 | 计算机网络示范课 **course 4007**，60 条选课 / 65 知识点 / 120 关系边 |
 
-> ⚠️ **生产边界（务必读）**：`DEMO_ACCOUNTS_ENABLED=false` 的启动期加固器按**「口令仍等于种子哈希」**筛选，V1 + V5/V6 共 **170 个**种子账号一并停用并重置为不可知口令（2026-10-06 起，此前只覆盖 V1 的 8 个，见 `docs/项目手册.md` 附录 D **DR-18**）；已改密账号绝不覆盖，加固幂等。仍要留意：Flyway 为 `enabled=true` 且 prod profile **无覆盖**，**全新生产库首次启动即会自动执行到 V6**——口令不再弱，但"演示数据该不该进生产库"需在构建期剔除 `V5__*.sql` / `V6__*.sql`（或按环境分 `locations`）与"接受并由加固器停用"之间定案。详见 `docs/项目手册.md` §24.5。
+> ⚠️ **生产边界（务必读）**：演示数据不进生产库，2026-10-06 已落地并实跑取证（`docs/项目手册.md` §24.5 / 附录 D **DR-18**）。两道防线各自到位：
+> ① **数据面**：V5/V6 移入 `db/seed-demo`，`application-prod.yml` 把 `spring.flyway.locations` 覆盖为 `classpath:db/migration` 单目录 → 激活 prod（jar 直跑或 compose 的 `SPRING_PROFILES_ACTIVE`）后全新生产库只跑到 **V4**，162 个号段演示账号与示范课 4007 不入库（本机 Flyway API 对照实跑：单目录 8 账号 / 无 4007，双目录 170 账号 / 有 4007）；该布局由 `DemoSeedMigrationIsolationTest` 5 例钉住。
+> ② **弱口令面**：`DEMO_ACCOUNTS_ENABLED=false` 的启动期加固器按**「口令仍等于种子哈希」**筛选，把 V1 内置（因 `baseline-on-migrate` 而无法排除）的 **8 个**账号停用并重置为不可知口令；同口径下若跑过 V5/V6 也一并收敛（历史上共 170 个）。已改密账号绝不覆盖，加固幂等。
+> ⚠️ **唯一残余风险是部署流程，不是代码**：把一个灌过 V5/V6 的开发库直接当生产库**不会报错**——Flyway 11.7.2 默认 `ignoreMigrationPatterns=[*:future]`，找不到的已应用迁移被静默忽略，只留一条 WARN。因此上线前须按 §29 核对生产库 `flyway_schema_history` 最高版本为 **4**。另注：演示 SQL 仍打进 jar（约 5.9 MB，prod 不执行），只占包体。
 >
 > 演示密码仅限开发/演示环境，生产环境务必修改（见 `docs/项目手册.md` 第七部分 §29 安全加固检查清单）。
 
@@ -239,12 +242,12 @@ cd backend && mvn test -Dtest='!*IT,!Phase1Phase3IntegrationTest' -DfailIfNoTest
 cd frontend && npm run lint && npm run typecheck:gate && npx vitest run && npm run build
 ```
 
-**当前实测基线**（口径与逐行出处见 `docs/项目手册.md` 附录 B / §43；后端各行取自 2026-10-06 本机 `mvn -B -o verify -DskipITs` 实跑，`-DskipITs` 因本机无 Docker，Testcontainers 系 7 个 IT 只在 CI 取数）：
+**当前实测基线**（口径与逐行出处见 `docs/项目手册.md` 附录 B / §43；后端各行取自 2026-10-06 19:19 本机 `mvn -B -o clean verify -DskipITs` 实跑，`-DskipITs` 因本机无 Docker，Testcontainers 系 7 个 IT 只在 CI 取数。⚠️ JaCoCo 的 exec 落在 `${user.home}`、不随 `clean` 重置，见手册 §3 告警块）：
 
 | 门禁 | 读数 |
 | --- | --- |
-| 后端单测 | **2569 用例 / 0 失败 / 0 错误 / 0 跳过**（194 个测试源文件，187 份 surefire 报告） |
-| JaCoCo | **LINE 87.58% / BRANCH 66.19%**（指令 86.74%，341 类）→ 门禁达标 |
+| 后端单测 | **2574 用例 / 0 失败 / 0 错误 / 0 跳过**（195 个测试源文件，188 份 surefire 报告） |
+| JaCoCo | **LINE 87.58% / BRANCH 66.19%**（指令 86.74%，341 类 / 336 类有覆盖）→ 门禁达标 |
 | ArchUnit | **6 条**架构守护全通过 |
 | SpotBugs | **0 缺陷**，`failOnError=true` 已硬阻断（13 个框架性 `<Match>` 豁免） |
 | 前端单测 | **54 文件 / 1093 用例全绿**（2026-10-06 本机实测） |

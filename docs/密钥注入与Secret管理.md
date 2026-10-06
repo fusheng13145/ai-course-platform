@@ -71,9 +71,9 @@ Spring Boot 属性源优先级（高 → 低）：
 
 | 密钥 | 在 Spring 中的读取形式（代码位置） | 生效的文件名 | 备注 |
 | --- | --- | --- | --- |
-| `JWT_SECRET` | `${JWT_SECRET}`（`application.yaml:170`，无默认值） | `JWT_SECRET` | 缺失即启动失败（不会静默） |
+| `JWT_SECRET` | `${JWT_SECRET}`（`application.yaml:176`，无默认值） | `JWT_SECRET` | 缺失即启动失败（不会静默） |
 | `SPRING_DATASOURCE_PASSWORD` | `${SPRING_DATASOURCE_PASSWORD}`（`:59`，无默认值） | `SPRING_DATASOURCE_PASSWORD` | compose 现值为 `${MYSQL_APP_PASSWORD:-${MYSQL_ROOT_PASSWORD}}`（`docker-compose.yml:121`），回退 root 口令 |
-| Redis 口令 | **yaml 无占位符**：`application.yaml:82-86` 只配 `host`/`port`/`database`/`timeout`；`SPRING_DATA_REDIS_PASSWORD` 在整个 `backend/src` **零引用**，纯靠系统 env 松散绑定到 `spring.data.redis.password` | ⚠️ **必须** `spring.data.redis.password` | 若挂成 `SPRING_DATA_REDIS_PASSWORD`，删明文 env 后接管失败 → 连 Redis 报 `NOAUTH`。写法见 §3.1 |
+| Redis 口令 | **yaml 无占位符**：`application.yaml:88-92` 只配 `host`/`port`/`database`/`timeout`；`SPRING_DATA_REDIS_PASSWORD` 在整个 `backend/src` **零引用**，纯靠系统 env 松散绑定到 `spring.data.redis.password` | ⚠️ **必须** `spring.data.redis.password` | 若挂成 `SPRING_DATA_REDIS_PASSWORD`，删明文 env 后接管失败 → 连 Redis 报 `NOAUTH`。写法见 §3.1 |
 | `DEEPSEEK_API_KEY` | `${DEEPSEEK_API_KEY:}`（`:237`） | `DEEPSEEK_API_KEY` | 未注入时 AI 功能降级、`/api/actuator/health` 恒 503 |
 | `MAIL_PASSWORD` | `${MAIL_PASSWORD:}`（`:40`） | `MAIL_PASSWORD` | 可选功能 |
 | `DEMO_ACCOUNTS_ENABLED` | `${DEMO_ACCOUNTS_ENABLED:true}`（`:210`） | `DEMO_ACCOUNTS_ENABLED` | **默认值分歧**：yaml `true` vs compose `false`（`docker-compose.yml:132`），接管时须显式给值 |
@@ -326,8 +326,8 @@ SPRING_CONFIG_IMPORT=optional:configtree:/tmp/ai-secrets/ \
 - [ ] `/run/secrets` 权限为 `0400`、属主为应用运行用户。
 - [ ] 轮转演练：在密钥库更新值 → 确认应用在预期时间内使用新值（Vault Agent 场景 ≤5 分钟）。
 - [ ] 密钥轮转后同步更新 `deploy/secrets/*.txt`（Compose 场景）并 `docker compose up -d` 重投。
-- [ ] 演示账号开关 `DEMO_ACCOUNTS_ENABLED=false` —— 注意 **yaml 默认为 `true`**（`application.yaml:210`）、compose 默认 `false`（`docker-compose.yml:132`）；改用文件式密钥时须**显式提供该值**，否则会回落到 yaml 的 `true`。
-- [ ] 种子弱口令收口：加固器候选集自 2026-10-06 起为「口令等于种子哈希」（不再按 `SeedAccounts.DEMO_USERNAMES` 白名单），V1 的 8 个 + Flyway V5/V6 引入的 **162 个**（`ts01..ts12` + `st001..st150`）共 170 个账号在 `DEMO_ACCOUNTS_ENABLED=false` 时一并停用改密，首次启动的日志计数应为 170。**仍无环境隔离**：`application.yaml:70-76` 使 prod 首启照样执行 V5/V6 把演示数据写入生产库——口令已收敛，数据面须按手册 §24.5 择一处置（附录 D **DR-18**）。
+- [ ] 演示账号开关 `DEMO_ACCOUNTS_ENABLED=false` —— 注意 **yaml 默认为 `true`**（`application.yaml:216`）、compose 默认 `false`（`docker-compose.yml:132`）；改用文件式密钥时须**显式提供该值**，否则会回落到 yaml 的 `true`。
+- [x] 种子弱口令收口：加固器候选集自 2026-10-06 起为「口令等于种子哈希」（不再按 `SeedAccounts.DEMO_USERNAMES` 白名单），V1 的 8 个 + Flyway V5/V6 引入的 **162 个**（`ts01..ts12` + `st001..st150`）共 170 个账号在 `DEMO_ACCOUNTS_ENABLED=false` 时一并停用改密。**环境隔离同日落地**：V5/V6 已移入 `db/seed-demo`，`application-prod.yml` 覆盖 `spring.flyway.locations=classpath:db/migration` → 激活 prod 即整目录不执行演示种子（本机 Flyway API 对照实跑：单目录只到 V4 / `users`=8，双目录到 V6 / `users`=170），故**全新生产库首启的日志计数为 8 而非 170**；若日志读到 170，说明该库不是全新库（已带 V5/V6 历史，Flyway 对此**不报错**，见手册 §24.5 边界③），须按手册 §29 处置（附录 D **DR-18**）
 
 ### 5.1 当前密钥状态（2026-10-06 复核）
 

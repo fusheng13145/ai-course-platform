@@ -2,7 +2,7 @@
 """大创·AI 智能课程平台 V5 种子数据生成引擎。
 
 用法：python scripts/generate-seed-data.py
-输出：backend/src/main/resources/db/migration/V5__rich_seed_data.sql
+输出：backend/src/main/resources/db/seed-demo/V5__rich_seed_data.sql
 
 约束：
   * 确定性随机（固定种子），重复生成结果逐字节一致；
@@ -1021,7 +1021,7 @@ UPDATE course_enrollments SET approval_status = UPPER(approval_status) WHERE BIN
 """
 
 OUT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
-               "backend", "src", "main", "resources", "db", "migration", "V5__rich_seed_data.sql"))
+               "backend", "src", "main", "resources", "db", "seed-demo", "V5__rich_seed_data.sql"))
 lines = [HEADER]
 summary = []
 

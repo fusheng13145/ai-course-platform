@@ -71,7 +71,13 @@ spring:
     enabled: true
     baseline-on-migrate: true
     baseline-version: 1
-    locations: classpath:db/migration
+    # locations 按「结构迁移 / 演示种子」分目录，使生产能整目录排除演示数据（DR-18 路径①）：
+    #   db/migration = V1..V4，建表与状态规范化，生产必需；
+    #   db/seed-demo = V5 富种子 + V6 计算机网络示范课（含 162 个号段演示账号），仅演示/开发语料。
+    # 生产由 application-prod.yml 覆盖为 classpath:db/migration。开发/演示保持双 location，行为与拆分前一致。
+    # 注：V5/V6 仅换目录、文件名逐字未改，故 Flyway 的 version/description/校验和不变，
+    #     已应用过它们的开发库不会因本次拆分而 validate 失败。
+    locations: classpath:db/migration,classpath:db/seed-demo
     # 迁移脚本中的注释含中文，需按 UTF-8 读取
     encoding: UTF-8
 

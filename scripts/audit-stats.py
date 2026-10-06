@@ -79,13 +79,19 @@ def audit() -> dict:
     v1_sql = read(os.path.join(BACK, "src/main/resources/db/migration/V1__init_schema.sql"))
     d["tables_index_sql"] = len(re.findall(r"(?im)^\s*CREATE TABLE", index_sql))
     d["tables_v1_sql"] = len(re.findall(r"(?im)^\s*CREATE TABLE", v1_sql))
+    # 迁移脚本按目录分层（DR-18①：db/migration 进生产，db/seed-demo 演示种子生产排除）
     d["flyway_migrations"] = len(walk_files(os.path.join(BACK, "src/main/resources/db/migration"), lambda f: f.endswith(".sql")))
+    d["flyway_demo_seeds"] = len(walk_files(os.path.join(BACK, "src/main/resources/db/seed-demo"), lambda f: f.endswith(".sql")))
 
     # ---------------- 注解计数 ----------------
     base = os.path.join(BACK, "src/main/java")
     d["op_operation"] = count_annotations(base, "@Operation")
     d["op_valid"] = count_annotations(base, "@Valid")
     d["op_transactional"] = count_annotations(base, "@Transactional")
+    d["op_preauthorize"] = count_annotations(base, "@PreAuthorize")
+    d["op_tag"] = count_annotations(base, "@Tag")
+    d["op_exception_handler"] = count_annotations(base, "@ExceptionHandler")
+    d["op_deprecated"] = count_annotations(base, "@Deprecated")
 
     # ---------------- 前端结构 ----------------
     d["frontend_vue"] = len(walk_files(os.path.join(FRONT, "src"), lambda f: f.endswith(".vue")))
@@ -151,10 +157,15 @@ LABELS = {
     "vo_star_vo_java": "vo/ *VO.java",
     "tables_index_sql": "数据表（index.sql 严格 CREATE TABLE）",
     "tables_v1_sql": "数据表（V1 迁移严格 CREATE TABLE）",
-    "flyway_migrations": "Flyway 迁移脚本数",
+    "flyway_migrations": "Flyway 结构迁移脚本数（db/migration，进生产）",
+    "flyway_demo_seeds": "Flyway 演示种子脚本数（db/seed-demo，生产排除）",
     "op_operation": "@Operation（源码计数，排除注释行）",
     "op_valid": "@Valid（源码计数，排除注释行）",
     "op_transactional": "@Transactional（源码计数，排除注释行）",
+    "op_preauthorize": "@PreAuthorize（源码计数，排除注释行）",
+    "op_tag": "@Tag（源码计数，排除注释行）",
+    "op_exception_handler": "@ExceptionHandler（源码计数，排除注释行）",
+    "op_deprecated": "@Deprecated（源码计数，排除注释行）",
     "frontend_vue": "前端 .vue（文件计数）",
     "frontend_test_ts": "前端 .test.ts",
     "frontend_test_js": "前端 .test.js（应为 0）",
