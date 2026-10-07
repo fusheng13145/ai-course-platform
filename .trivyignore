@@ -31,3 +31,36 @@
 #               或后端一旦引入任何服务端视图渲染（Thymeleaf/Xslt/模板引擎）立即重评。
 CVE-2026-47884
 GHSA-pc63-qcmh-9cmg
+
+# ---------------------------------------------------------------------------
+# 镜像配置（misconfiguration）豁免 —— 与上面的 CVE 是两套口径，勿混用
+# 跟踪缺陷：DR-34（手册附录 D.12.3 / §24.2.3 根因 F / §29 部署核对项）
+#
+# ⚠ ID 形态陷阱（2026-10-07 本机实跑取证，trivy 0.69.3 = trivy-action v0.35.0 的默认版本，
+#   另在 0.75.0 上交叉复验结论一致。命令：
+#   `trivy fs <repo> --scanners misconfig --severity HIGH,CRITICAL --ignore-unfixed --exit-code 1`）：
+#     · ignorefile 写 `DS-0002`            → 命中归零，exit 0
+#     · ignorefile 写 `AVD-DS-2022-0002`   → 仍 3 命中，exit 1   ← misconfig 只认 Trivy 规则 ID，不认 AVD 编号
+#     · ignorefile 写 `DS-9999`（阴性对照）→ 仍 3 命中，exit 1   ← 证明豁免按 ID 精确生效，不是「挂了 ignore 文件就整体放行」
+#   两条备选豁免路线实测**无效**，不要再试：
+#     · Dockerfile 内联 `#trivy:ignore:DS-0002` / `#trivy:ignore:AVD-DS-2022-0002` 均不生效；
+#     · `--ignore-policy` 的 Rego 包名必须是 `package trivy`（写成 `package trivy.misconfig` 会被静默忽略；
+#       `package trivy` + `ignore { true }` 能全量放行，但 `input.id == "DS-0002"` 不匹配 → 判据字段名未知，不可控）。
+#
+# DS-0002「镜像未指定非 root USER」（HIGH），命中 3 个 Dockerfile（据实，不只前端）：
+#   backend/Dockerfile（eclipse-temurin:21-jre-alpine）、frontend/Dockerfile（nginx:alpine）、
+#   archive/deepgraph_rag/Dockerfile（已归档、不参与 compose 构建，但 fs 扫描仍会扫到）。
+# 为何本轮不直接改：修复是**部署姿态变更**而非版本升级，触及运行拓扑，须由负责人确认后再动——
+#   1) backend：要新增非 root 用户并 chown /app 与 /app/uploads；而 compose 用命名卷 uploads-data
+#      挂到 /app/uploads（docker-compose.yml:279），改属主必须同时迁移卷内既有文件的归属，
+#      否则教学资源上传会静默写失败。
+#   2) frontend：nginx 官方镜像的 master 进程需 root 才能 bind :80；改非 root 要换 nginx-unprivileged
+#      线并把监听端口 80 → 8080，连带改 compose 端口映射
+#      （docker-compose.yml:553 `${FRONTEND_HOST_BIND:-127.0.0.1}:${FRONTEND_HTTP_PORT:-80}:80`）、
+#      边缘代理 upstream 与手册的访问口径，属跨文件拓扑调整。
+# 现有缓解（据实陈述，不等于「无风险」）：compose 未给任何服务开 privileged / cap_add / security_opt，
+#   root 容器不带额外能力；frontend 与 backend 的宿主端口默认只绑 127.0.0.1，
+#   要从局域网访问必须显式 FRONTEND_HOST_BIND=0.0.0.0。残余暴露面是「内核漏洞逃逸」这一类纵深防御缺口。
+# 复核触发条件：DR-34 每落地一个 Dockerfile 的非 root USER，就本机复跑 trivy 确认命中数递减；
+#               三个全部修完即**删除**本条。本节不得追加其它 misconfig 豁免项。
+DS-0002
