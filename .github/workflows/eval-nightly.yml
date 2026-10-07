@@ -103,12 +103,14 @@ jobs:
           nohup mvn -B spring-boot:run > /tmp/backend.log 2>&1 &
           echo "后端启动中…"
           for i in $(seq 1 60); do
-            if curl -fsS http://localhost:8080/api/actuator/health >/dev/null 2>&1; then
+            if curl -fsS http://localhost:8080/api/actuator/health/probe >/dev/null 2>&1; then
               echo "后端健康（第 ${i} 次探测）"; break
             fi
             sleep 3
           done
-          curl -fsS http://localhost:8080/api/actuator/health || { echo "后端未就绪，打印日志："; tail -40 /tmp/backend.log; exit 1; }
+          # 探 probe 组（readinessState+database+redis+diskSpace），不探综合 /health：
+          # CI 不注入 DEEPSEEK_API_KEY，综合状态含 llmProvider → 恒 503，会让本作业永远等不到就绪
+          curl -fsS http://localhost:8080/api/actuator/health/probe || { echo "后端未就绪，打印日志："; tail -40 /tmp/backend.log; exit 1; }
 
           mkdir -p ../evaluation/results
           python ../evaluation/evaluate.py \

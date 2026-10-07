@@ -142,7 +142,7 @@ async function load() {
       value: d.totalCount ?? 0,
       color: getMonoSeries()[1],
     }))
-  } catch (e) {
+  } catch {
     // 保持空列表与空统计，不注入假数据
   } finally {
     loading.value = false

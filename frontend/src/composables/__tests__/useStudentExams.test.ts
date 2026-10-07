@@ -236,13 +236,14 @@ describe('useStudentExams - 退出与提交', () => {
     const state = useStudentExams()
     await state.enterExam(EXAM)
     state.answers.value[0] = 'C'
-    state.multiAnswers.value[1] = [1]
+    // 多选按**选项字母**上报，与题库 correct_answers 口径一致（DR-25：曾用数组下标，自动阅卷恒判错）
+    state.multiAnswers.value[1] = ['A', 'C']
     state.textAnswers.value[2] = '作答内容'
     // submitExam 为内部方法，经 confirmSubmit（确认框已 mock 为直接确认）触发
     await state.confirmSubmit()
 
     expect(mocks.submitExam).toHaveBeenCalledWith(400, {
-      answers: { 11: 'C', 12: [1], 13: '作答内容' },
+      answers: { 11: 'C', 12: ['A', 'C'], 13: '作答内容' },
     })
   })
 })

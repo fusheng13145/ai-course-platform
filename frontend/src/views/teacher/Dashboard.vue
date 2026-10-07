@@ -268,7 +268,7 @@ async function load() {
       avgScore: d.avgScore != null ? d.avgScore : null,
     }
     courses.value = d.courseCards || []
-  } catch (e) {
+  } catch {
     toast.show('课程数据加载失败', 'error')
   } finally {
     loading.value = false
@@ -327,7 +327,7 @@ async function finishCreate() {
     } else {
       toast.show(res?.data?.message || '创建失败', 'error')
     }
-  } catch (e) {
+  } catch {
     toast.show('创建失败，请检查课程信息', 'error')
   } finally {
     creating.value = false

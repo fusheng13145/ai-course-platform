@@ -214,7 +214,7 @@ async function sendCode() {
     step.value = 2
     startCountdown()
     ElMessage.success('验证码已发送')
-  } catch (e) {
+  } catch {
     ElMessage.error('发送失败')
   } finally {
     sending.value = false
@@ -231,7 +231,7 @@ async function verifyCode() {
     await auth.verifyResetCode(form.email, form.code)
     step.value = 3
     ElMessage.success('验证通过')
-  } catch (e) {
+  } catch {
     ElMessage.error('验证失败')
   } finally {
     sending.value = false
@@ -252,7 +252,7 @@ async function resetPassword() {
     await auth.resetPassword(form.email, form.code, form.newPwd)
     ElMessage.success('密码已重置')
     router.push('/login')
-  } catch (e) {
+  } catch {
     ElMessage.error('重置失败')
   } finally {
     sending.value = false

@@ -80,6 +80,10 @@ export default defineConfig(({ mode }) => ({
         target: 'http://127.0.0.1:8080/api',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
+        // 必须开启：/api/ws 是 WebSocket 端点（实时通知 + 考试实时通道，握手见后端
+        // WebSocketConfig）。缺 ws 时 dev/preview 不转发 upgrade 请求，浏览器握手必然失败，
+        // 前端只能退避重连 5 次后彻底放弃 —— 登录后的实时功能在本机从未真正可用。
+        ws: true,
       },
     },
     // 注意：不要开启 watch.usePolling —— 100ms 全量轮询数千文件会拖垮 dev server，

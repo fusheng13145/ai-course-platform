@@ -1,8 +1,8 @@
 import { test, expect, type Page } from '@playwright/test'
-import { setLocalStorageAuth } from './test-helpers'
+import { loginAs } from './test-helpers'
 
 /**
- * 教师端成绩管理主链路 e2e（API Mock 模式，无需真实后端）。
+ * 教师端成绩管理主链路 e2e（会话由真实登录建立，业务数据用 API Mock）。
  * 覆盖：成绩列表多源渲染（考试会话 + 作业提交合并）/ AI 批阅（确认 + 请求）。
  * 数据源：/api/courses/my、/api/analytics/dashboard、/api/exam-sessions/my、
  * /api/submissions（role=teacher）、/api/tasks/pending-grading、POST /api/submissions/:id/ai-grade。
@@ -85,7 +85,7 @@ async function mockGradeBasics(page: Page) {
 
 test.describe('成绩管理（教师端主链路）', () => {
   test.beforeEach(async ({ page }) => {
-    await setLocalStorageAuth(page, 'TEACHER')
+    await loginAs(page, 'TEACHER')
     await page.route('/api/**', async (route) => {
       await route.fulfill({
         status: 200,

@@ -167,6 +167,15 @@ export const useAuthStore = defineStore('auth', () => {
         }
         const storage = persistent.value ? localStorage : sessionStorage
         storage.setItem('permissions', JSON.stringify(data))
+        // 实时通道在此建立，而不是只在 login() 里建立。
+        // 缺陷修复（Q-3 验证 2026-10-06）：刷新页面时 Cookie 会话仍然有效、但 login() 不会重跑，
+        // 原实现只在 login/register 里 connect → 「按 F5 之后 WebSocket 永久不再连接」，
+        // 考试实时与通知功能静默失效，前端 5 次退避重连的预算也救不回来（没有新的 connect 入口）。
+        // fetchPermissions 由路由守卫在每次冷启动时调用，且 connect() 对 OPEN/CONNECTING
+        // 幂等早退，因此放这里既能覆盖刷新场景，也不会叠出多余连接。
+        wsConnect().catch(() => {
+          logger.warn('WebSocket 连接失败，实时功能已禁用')
+        })
       }
     } catch (error) {
       // fail-closed：加载失败时保持 permissionsLoaded=false，使权限判定统一拒绝，
@@ -220,10 +229,6 @@ export const useAuthStore = defineStore('auth', () => {
         clearAllStorage()
         saveToStorage(remember)
         await fetchPermissions()
-        // 登录成功后自动连接 WebSocket：握手经同源/同站 Cookie 自动携带令牌，无需传参
-        wsConnect().catch(() => {
-          logger.warn('WebSocket 连接失败，实时功能已禁用')
-        })
         return { success: true, user: user.value }
       }
       throw new Error('登录失败')
@@ -264,9 +269,6 @@ export const useAuthStore = defineStore('auth', () => {
       clearAllStorage()
       saveToStorage(false)
       await fetchPermissions()
-      wsConnect().catch(() => {
-        logger.warn('WebSocket 连接失败，实时功能已禁用')
-      })
       return { success: true, data }
     } finally {
       isLoading.value = false
@@ -311,7 +313,7 @@ export const useAuthStore = defineStore('auth', () => {
   const logout = async () => {
     try {
       if (token.value || user.value) await authApi.logout()
-    } catch (e) {
+    } catch {
       /* ignore */
     } finally {
       wsDisconnect()

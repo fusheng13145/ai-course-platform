@@ -274,7 +274,7 @@ async function publishTask(row) {
     row.status = 'ACTIVE'
     ElMessage.success('发布成功')
     emit('taskUpdated')
-  } catch (e) {
+  } catch {
     ElMessage.error('操作失败')
   }
 }

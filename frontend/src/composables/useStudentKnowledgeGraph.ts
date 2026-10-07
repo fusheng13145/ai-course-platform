@@ -219,7 +219,7 @@ export function useStudentKnowledgeGraph() {
           rawNodes.value = []
           rawLinks.value = []
         }
-      } catch (e2) {
+      } catch {
         rawNodes.value = []
         rawLinks.value = []
       }
@@ -319,7 +319,7 @@ export function useStudentKnowledgeGraph() {
         if (origIdx >= 0) {
           rawNodes.value[origIdx].mastery = selectedNode.value.mastery
         }
-      } catch (e) {
+      } catch {
         // 掌握度 API 不可用时保留图谱值
       }
     }

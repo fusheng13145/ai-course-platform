@@ -19,10 +19,10 @@
         <el-radio
           v-for="(opt, optIdx) in parseOptions(currentQuestion.options)"
           :key="optIdx"
-          :value="optIdx"
+          :value="optionLabel(optIdx)"
           class="option-radio"
         >
-          <span class="option-label">{{ ['A', 'B', 'C', 'D', 'E', 'F'][optIdx] }}.</span>
+          <span class="option-label">{{ optionLabel(optIdx) }}.</span>
           {{ opt }}
         </el-radio>
       </el-radio-group>
@@ -34,10 +34,10 @@
         <el-checkbox
           v-for="(opt, optIdx) in parseOptions(currentQuestion.options)"
           :key="optIdx"
-          :label="optIdx"
+          :label="optionLabel(optIdx)"
           class="option-checkbox"
         >
-          <span class="option-label">{{ ['A', 'B', 'C', 'D', 'E', 'F'][optIdx] }}.</span>
+          <span class="option-label">{{ optionLabel(optIdx) }}.</span>
           {{ opt }}
         </el-checkbox>
       </el-checkbox-group>
@@ -114,6 +114,20 @@ defineProps({
 })
 
 const emit = defineEmits(['prev', 'next', 'submit'])
+
+/**
+ * 选项字母（A/B/C…），同时用于展示与**作为提交值**。
+ *
+ * <p>必须是字母而不是下标：题库 `questions.correct_answers` 按字母存
+ * （命题端 useQuestions 用 OPTION_LABELS 拼装、V1/V5/V6 种子与单测同为字母），
+ * 而自动阅卷对单选题做的是 `studentAnswer.equalsIgnoreCase(correctAnswer)`。
+ * 原先这里绑的是数组下标（0/1/2…），于是「学生明明选了 A、上报的是 0、
+ * 与 A 永不相等」——客观题自动阅卷恒判错、得分恒 0，且交卷不可撤销。
+ * 判断题不受影响（boolean 的字符串形态与种子存储的 true/false 一致）。</p>
+ */
+function optionLabel(idx: number): string {
+  return idx < 26 ? String.fromCharCode(65 + idx) : String(idx)
+}
 </script>
 
 <style scoped>

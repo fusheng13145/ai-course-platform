@@ -218,7 +218,7 @@ export function useTeacherExams() {
         const res = await questionApi.getQuestionList({ size: 100 })
         const data = res.data?.list || res.data || res || []
         questionBank.value = Array.isArray(data) ? data : []
-      } catch (e2) {
+      } catch {
         questionBank.value = []
       }
     } finally {

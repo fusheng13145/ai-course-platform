@@ -72,11 +72,11 @@ Spring Boot 属性源优先级（高 → 低）：
 | 密钥 | 在 Spring 中的读取形式（代码位置） | 生效的文件名 | 备注 |
 | --- | --- | --- | --- |
 | `JWT_SECRET` | `${JWT_SECRET}`（`application.yaml:176`，无默认值） | `JWT_SECRET` | 缺失即启动失败（不会静默） |
-| `SPRING_DATASOURCE_PASSWORD` | `${SPRING_DATASOURCE_PASSWORD}`（`:59`，无默认值） | `SPRING_DATASOURCE_PASSWORD` | compose 现值为 `${MYSQL_APP_PASSWORD:-${MYSQL_ROOT_PASSWORD}}`（`docker-compose.yml:121`），回退 root 口令 |
+| `SPRING_DATASOURCE_PASSWORD` | `${SPRING_DATASOURCE_PASSWORD}`（`:59`，无默认值） | `SPRING_DATASOURCE_PASSWORD` | compose 现值为 `${MYSQL_APP_PASSWORD:-${MYSQL_ROOT_PASSWORD}}`（`docker-compose.yml:192`），回退 root 口令 |
 | Redis 口令 | **yaml 无占位符**：`application.yaml:88-92` 只配 `host`/`port`/`database`/`timeout`；`SPRING_DATA_REDIS_PASSWORD` 在整个 `backend/src` **零引用**，纯靠系统 env 松散绑定到 `spring.data.redis.password` | ⚠️ **必须** `spring.data.redis.password` | 若挂成 `SPRING_DATA_REDIS_PASSWORD`，删明文 env 后接管失败 → 连 Redis 报 `NOAUTH`。写法见 §3.1 |
-| `DEEPSEEK_API_KEY` | `${DEEPSEEK_API_KEY:}`（`:237`） | `DEEPSEEK_API_KEY` | 未注入时 AI 功能降级、`/api/actuator/health` 恒 503 |
+| `DEEPSEEK_API_KEY` | `${DEEPSEEK_API_KEY:}`（`:243`） | `DEEPSEEK_API_KEY` | 未注入时 AI 功能降级、`/api/actuator/health` 恒 503 |
 | `MAIL_PASSWORD` | `${MAIL_PASSWORD:}`（`:40`） | `MAIL_PASSWORD` | 可选功能 |
-| `DEMO_ACCOUNTS_ENABLED` | `${DEMO_ACCOUNTS_ENABLED:true}`（`:210`） | `DEMO_ACCOUNTS_ENABLED` | **默认值分歧**：yaml `true` vs compose `false`（`docker-compose.yml:132`），接管时须显式给值 |
+| `DEMO_ACCOUNTS_ENABLED` | `${DEMO_ACCOUNTS_ENABLED:true}`（`:216`） | `DEMO_ACCOUNTS_ENABLED` | **默认值分歧**：yaml `true` vs compose `false`（`docker-compose.yml:203`），接管时须显式给值 |
 | `APP_ADMIN_INITIAL_PASSWORD` | `@Value("${app.admin.initial-password:}")`（`AdminSeedPasswordInitializer.java:46`） | `app.admin.initial-password` | 点分名；删 compose 行会连带失去 `:?` 的 fail-fast（`:128`），需以启动脚本校验补位 |
 | `APP_ACTUATOR_BASIC_PASSWORD` | `@Value("${app.actuator.basic.password:}")`（`SecurityConfig.java:82`） | `app.actuator.basic.password` | 点分名 |
 | `MYSQL_ROOT_PASSWORD`、`REDIS_PASSWORD`（**容器自身**口令） | mysql/redis 镜像 entrypoint 读 env | ❌ 不在 JVM 侧 | 改用 `MYSQL_ROOT_PASSWORD_FILE` / 改写 redis `command`，见 §6-1 |
@@ -141,9 +141,20 @@ Compose 的 file secret 会挂载为 `/run/secrets/<secret 名>`。步骤：
    ```
 
    > 上例中的 `target:` 改名与「大写蛇形 secret 名」需在目标环境用 `docker compose config` 与 §4.2 ②/④ 实测确认；
-   > 本仓库无 Docker daemon，该写法**尚未端到端实机验证**（见 §6-3）。若目标 Compose 版本不接受大写 secret 名，
+   > **`/run/secrets` 文件式供给已于 2026-10-07 在真容器端到端闭环**（DR-24 三向取证：三枚文件 + 三项同名 env
+   > 缺席 → probe 200 且登录/鉴权链可用；去掉挂载则 `JWT_SECRET` 占位符解析失败退出；改回旧大写蛇形文件名
+   > 则 Redis `NOAUTH` 启动失败。详见手册附录 **D.12.3 DR-24**）。仍未实跑的只剩 **Vault Agent 旁车进程**
+   > （本机无 Vault 实例），其渲染目的地与已验路径同为 `/run/secrets`。若目标 Compose 版本不接受大写 secret 名，
    > 改为小写名 + `target` 显式指定容器内文件名即可（容器内**文件名**才是属性名，secret 名只是库内标识）。
    > 若含点的文件名不便使用，可改用**嵌套目录**（`spring/data/redis/password`）——两种写法都已在属性源层面实机确证（§4.1）。
+
+> **Prometheus 同样是文件式密钥的消费者（2026-10-07，DR-30）**：`monitor` profile 下 Prometheus 抓取
+> `/api/actuator/prometheus` 要用同一枚 Basic 口令，而 **Prometheus 不插值配置文件内的环境变量**
+> （`${ACTUATOR_BASIC_PASSWORD}` 会被当字面量发出 → backend 抓取恒 401，而其余 job 与告警规则全部健康，
+> 属"监控看着好在撒谎"），因此它只能读 `basic_auth.password_file`。仓库据此在 `docker-compose.yml`
+> 顶层声明 `secrets: actuator_basic_password`（源 `deploy/secrets/actuator_basic_password`，
+> 容器内落点 `/run/secrets/actuator_basic_password`）。启用 monitor 前按手册 §32.6 准备该文件，
+> **末尾不可有换行**（Prometheus 会把换行算进口令），Linux 下还需让容器内 UID 65534 可读。
 
 
 > **为什么必须「删除」而不是「用覆盖文件置 null」？** 实测结论（Compose v5.5.0）：

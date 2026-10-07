@@ -540,10 +540,15 @@ jobs:
         run: |
           java -jar ../backend/target/backend-0.0.1-SNAPSHOT.jar --server.port=8080 > ../backend-e2e.log 2>&1 &
           for i in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/actuator/health || true)
-            if [ -n "$code" ]; then echo "backend health http=$code"; break; fi
+            # 探 probe 组并等真正的 200。两处纠正：
+            #   1) 原判断 `[ -n "$code" ]` 在端口未监听时得到 "000"（非空）即 break，等于没等；
+            #   2) 原探综合 /health，其聚合含 llmProvider，而本作业不注入 DEEPSEEK_API_KEY
+            #      → 恒 503，就绪判定永远不成立（2026-10-07，手册 §25 / DR-28）。
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/actuator/health/probe || true)
+            if [ "$code" = "200" ]; then echo "backend ready (http=$code, 第 ${i} 次探测)"; break; fi
             sleep 5
           done
+          if [ "$code" != "200" ]; then echo "backend 未就绪，最后 http=$code"; tail -n 60 ../backend-e2e.log; exit 1; fi
           npx playwright test
           status=$?
           echo "---- backend-e2e.log (tail) ----"; tail -n 50 ../backend-e2e.log || true

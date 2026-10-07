@@ -107,7 +107,7 @@ export function useKnowledgeManagement() {
       const res = await knowledgeApi.getTree(selectedCourseId.value)
       const data = res.data?.data || res.data || res || []
       knowledgeTree.value = Array.isArray(data) ? data : data ? [data] : []
-    } catch (e) {
+    } catch {
       try {
         const res = await knowledgeApi.getKnowledgePoints(selectedCourseId.value)
         const list = res.data?.list || res.data || res || []
@@ -265,7 +265,7 @@ export function useKnowledgeManagement() {
       const res = await knowledgeApi.getPrerequisites(row.id)
       const data = res.data?.data || res.data || res || []
       prerequisitesList.value = Array.isArray(data) ? data : []
-    } catch (e) {
+    } catch {
       prerequisitesList.value = []
     }
   }
@@ -292,7 +292,7 @@ export function useKnowledgeManagement() {
       ElMessage.success('移除关联成功')
       await openRelationDialog(currentKpForRelation.value)
       await loadKnowledgeGraph()
-    } catch (e) {
+    } catch {
       ElMessage.error('移除失败')
     }
   }

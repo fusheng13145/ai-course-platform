@@ -45,18 +45,21 @@ export function useQuizTask({ courseId, getTask, onTaskCompleted }) {
     }
   }
 
-  /** 按题型归一化作答结果（多选逗号分隔、判断转 TRUE/FALSE） */
+  /**
+   * 按题型归一化作答结果（多选逗号分隔、判断转 TRUE/FALSE）
+   *
+   * <p>作答值必须是**选项字母**：判分端 StudentTaskComponent#submitQuiz 用
+   * {@code normalize(q.getCorrectAnswers()).equals(normalize(ans))} 逐题比对，
+   * 而题库 correct_answers 按字母存（命题端与种子数据同为 A/B/C…）。
+   * 原先此处对多选做 {@code map(Number)} 排序，隐含「作答是下标」的假设，
+   * 与字母口径冲突（DR-25），故改为按字母排序后直接连接。</p>
+   */
   function buildAnswers() {
     const ans = {}
     for (const q of quizQuestions.value) {
       const a = quizAnswers[q.id]
       if (q.type === 'MULTIPLE_CHOICE' || q.type === 'MULTIPLE') {
-        const arr = Array.isArray(a)
-          ? a
-              .map(Number)
-              .sort((x, y) => x - y)
-              .map(String)
-          : []
+        const arr = Array.isArray(a) ? a.map(String).sort() : []
         ans[q.id] = arr.join(',')
       } else if (q.type === 'TRUE_FALSE' || q.type === 'JUDGE') {
         ans[q.id] = a === true ? 'TRUE' : a === false ? 'FALSE' : ''
@@ -82,7 +85,7 @@ export function useQuizTask({ courseId, getTask, onTaskCompleted }) {
       const task = getTask()
       if (task) task.completed = true
       await onTaskCompleted()
-    } catch (e) {
+    } catch {
       ElMessage.error('提交失败')
     } finally {
       quizSubmitting.value = false

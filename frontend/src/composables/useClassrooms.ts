@@ -227,7 +227,7 @@ export function useClassrooms() {
           await classroomApi.deleteClassroom(row.id)
           ElMessage.success('删除成功')
           await loadClassrooms()
-        } catch (e) {
+        } catch {
           ElMessage.error('删除失败')
         }
       })
@@ -277,7 +277,7 @@ export function useClassrooms() {
           ElMessage.success('已移除')
           await loadStudents()
           await loadClassrooms()
-        } catch (e) {
+        } catch {
           ElMessage.error('移除失败')
         }
       })
@@ -327,7 +327,7 @@ export function useClassrooms() {
       ElMessage.success(`已添加 ${row.fullName || row.username}`)
       await loadStudents()
       await loadClassrooms()
-    } catch (e) {
+    } catch {
       ElMessage.error('添加失败')
     }
   }

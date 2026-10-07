@@ -21,7 +21,8 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
  * 演示种子与生产迁移的隔离契约（手册 §24.5 / 附录 D DR-18 路径①）。
  *
  * <p>迁移脚本按目录分两层：{@code db/migration} 只有结构迁移（建表与状态规范化），
- * {@code db/seed-demo} 是演示语料（V5 富种子、V6 示范课 4007，含 162 个号段演示账号）。
+ * {@code db/seed-demo} 是演示语料（V5 富种子、V6 示范课 4007、V7 示范课文案修正，
+ * 含 162 个号段演示账号）。
  * 生产 profile 的 {@code spring.flyway.locations} 只保留前者，因此全新生产库首启
  * 不会把演示数据写进库——这是「演示数据不进生产库」这条定案的机械保证。
  *
@@ -56,12 +57,15 @@ class DemoSeedMigrationIsolationTest {
     }
 
     @Test
-    @DisplayName("演示种子脚本落在 db/seed-demo，文件名逐字保持 V5/V6")
-    void demoSeedLocationHoldsExactlyTheTwoSeedScripts() throws IOException {
+    @DisplayName("演示种子脚本落在 db/seed-demo，文件名逐字保持 V5/V6/V7")
+    void demoSeedLocationHoldsExactlyTheSeedScripts() throws IOException {
         assertThat(filenames("classpath:db/seed-demo/*.sql"))
                 .containsExactlyInAnyOrder(
                         "V5__rich_seed_data.sql",
-                        "V6__computer_network_showcase.sql");
+                        "V6__computer_network_showcase.sql",
+                        // V7：DR-19 的文案前向修正。V6 已应用、校验和不可改，
+                        // 故库内示范课简介的规模数字只能由新迁移改写。
+                        "V7__fix_showcase_seed_self_description.sql");
     }
 
     @Test

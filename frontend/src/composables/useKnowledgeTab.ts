@@ -129,7 +129,7 @@ export function useKnowledgeTab(courseIdRef) {
       let res
       try {
         res = await knowledgeApi.getTree(Number(courseIdRef.value))
-      } catch (e) {
+      } catch {
         res = await knowledgeApi.getKnowledgePoints(Number(courseIdRef.value))
       }
       const payload = res?.data?.data ?? res?.data ?? res
@@ -146,13 +146,13 @@ export function useKnowledgeTab(courseIdRef) {
       } else {
         treeData.value = []
       }
-    } catch (e) {
+    } catch {
       try {
         const r = await knowledgeApi.getKnowledgePoints(Number(courseIdRef.value))
         // 同 P1-10：`list || data || res` 的 `||` 会把 records 形状彻底吞掉
         list.value = pickList(unwrap(r))
         treeData.value = buildTree(list.value)
-      } catch (e2) {
+      } catch {
         treeData.value = []
       }
     } finally {
@@ -168,7 +168,7 @@ export function useKnowledgeTab(courseIdRef) {
         ...k,
         importance: k.importance ?? k.weight ?? 1,
       }))
-    } catch (e) {
+    } catch {
       list.value = []
     } finally {
       tableLoading.value = false
@@ -180,7 +180,7 @@ export function useKnowledgeTab(courseIdRef) {
       const res = await knowledgeApi.getRelationGraphData(Number(courseIdRef.value))
       const d = res.data || res || {}
       updateForce(d.nodes || [], d.links || d.edges || [])
-    } catch (e) {
+    } catch {
       updateForce(
         list.value.map((k) => ({
           id: k.id,
@@ -297,7 +297,7 @@ export function useKnowledgeTab(courseIdRef) {
       }
       await loadAll()
       aiVisible.value = false
-    } catch (e) {
+    } catch {
       // fallback
       const sentences = aiText.value
         .split(/[。！？\n]+/)

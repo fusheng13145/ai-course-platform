@@ -55,7 +55,6 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { useStudentExams } from '@/composables/useStudentExams'
 import SeExamList from './components/SeExamList.vue'
@@ -109,8 +108,9 @@ const {
   getResultClass,
 } = useStudentExams()
 
-onMounted(() => {
-  const cid = route.params.id || route.query.courseId
-  if (cid) courseIdFilter.value = Number(cid)
-})
+// 课程上下文必须在 **setup 体内**、useStudentExams() 之后立刻赋值，不能放进本组件的 onMounted：
+// composable 内部注册的 onMounted(loadExamList) 先于这里执行，若此时 courseIdFilter 仍是 null，
+// 首次加载就会落到全局分页列表（第 1 页 10 条）→ 课程过滤形同虚设（详见 loadExamList 注释）。
+const routeCourseId = route.params.id || route.query.courseId
+if (routeCourseId) courseIdFilter.value = Number(routeCourseId)
 </script>

@@ -179,7 +179,7 @@ function handleCancel(row) {
         await uploadApi.cancelUpload(row.id)
         ElMessage.success('已取消')
         await refreshList()
-      } catch (e) {
+      } catch {
         ElMessage.error('取消失败')
       }
     })
@@ -196,7 +196,7 @@ async function viewProgress(row) {
       currentSession.value.progress = Math.round(((data.uploaded || 0) / data.total) * 100)
     }
     if (data.status) currentSession.value.status = data.status
-  } catch (e) {
+  } catch {
     /* ignore */
   }
 }

@@ -273,7 +273,7 @@ export function useStudentCourseDetail() {
       } else {
         exitLearning()
       }
-    } catch (e) {
+    } catch {
       ElMessage.error('标记完成失败')
     } finally {
       completing.value = false

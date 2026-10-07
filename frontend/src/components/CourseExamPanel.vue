@@ -296,7 +296,7 @@ async function publishExam(row) {
     row.status = 'PUBLISHED'
     ElMessage.success('发布成功')
     emit('examUpdated')
-  } catch (e) {
+  } catch {
     ElMessage.error('操作失败')
   }
 }

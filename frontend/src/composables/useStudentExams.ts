@@ -53,8 +53,8 @@ export function useStudentExams() {
   const questions = ref([])
   const questionsLoading = ref(false)
   const currentIndex = ref(0)
-  const answers = ref({} as Record<number, string | number | boolean>) // 单选/判断答案
-  const multiAnswers = ref({} as Record<number, number[]>) // 多选答案
+  const answers = ref({} as Record<number, string | number | boolean>) // 单选/判断答案（单选为选项字母）
+  const multiAnswers = ref({} as Record<number, string[]>) // 多选答案（选项字母数组）
   const textAnswers = ref({} as Record<number, string>) // 简答答案
   const defaultScore = 10
 
@@ -66,6 +66,12 @@ export function useStudentExams() {
   /* ---- 成绩结果 ---- */
   const examResult = ref({} as Record<string, unknown>)
   const autoSaveTimer = ref(null)
+
+  /**
+   * 自动保存故障是否已提示过（每个考试页实例一份）。
+   * <p>只用于抑制「每 30s 一条」的重复弹窗；保存成功后复位，故障复发时仍会再提示。</p>
+   */
+  let autoSaveFailureNotified = false
 
   /* ---- 计算属性 ---- */
 
@@ -129,7 +135,15 @@ export function useStudentExams() {
   async function loadExamList() {
     listLoading.value = true
     try {
-      const res = await examApi.getExamPaperList()
+      // 课程上下文必须走**服务端**按课程过滤，不能只在已加载的第 1 页里做客户端筛选：
+      // GET /exam-papers 是分页接口（默认 page=1、size=10，且本页没有分页控件），
+      // 实测库存 114 份试卷时第 1 页只有 10 份、按 id 升序排列 → 老师刚发布的课程试卷
+      // 大概率压根不在列表里，而 SeExamList/Exams.vue 的承诺是「仅展示本课程考试」。
+      // 课程入口取足够大的 size，覆盖单课程规模，避免同一缺陷在课程维度复现。
+      const res =
+        courseIdFilter.value != null
+          ? await examApi.listByCourse(courseIdFilter.value, { page: 1, size: 100 })
+          : await examApi.getExamPaperList()
       const rawData = res.data?.records || res.data?.list || res.data || res
       examList.value = Array.isArray(rawData) ? rawData : []
 
@@ -414,13 +428,21 @@ export function useStudentExams() {
       const answerData = collectAnswers()
       // 使用专用的自动保存 API
       await examApi.autoSaveAnswers(sessionId.value, { answers: answerData })
+      if (!autoSaveFailureNotified) return
+      // 上一次失败、本次成功：复位提示标记，下一轮故障仍能重新提示（不吞掉后续独立故障）
+      autoSaveFailureNotified = false
+      ElMessage.success('网络恢复，作答已重新同步到服务端')
     } catch (e) {
-      // autoSave 接口不可用时回退到 submit（兼容模式）
-      logger.warn('自动保存失败，尝试回退:', e)
-      try {
-        await examApi.submitExam(sessionId.value, { answers: collectAnswers(), autoSave: true })
-      } catch (e2) {
-        logger.warn('回退保存也失败:', e2)
+      // 自动保存失败（断网 / 5xx）时**绝不**回退到 submit。
+      // submit 是终止性操作：会话置 SUBMITTED、立即判卷并锁定重入，
+      // 把一次瞬时保存失败换成一次「不可撤销的自动交卷」，学生整场考试直接报废。
+      // 正确姿态是让定时器继续跑：作答仍在内存里，下一次 30s tick 自然重试，
+      // 退出考试时 confirmExitExam 也会再存一次；同时把故障显式告知用户（原实现只写日志，
+      // 页面一切「正常」，学生以为进度已保存才敢关标签页 → 真丢卷）。
+      logger.warn('自动保存失败，作答保留在本地，将在下一次定时器重试:', e)
+      if (!autoSaveFailureNotified) {
+        autoSaveFailureNotified = true
+        ElMessage.warning('网络异常，本次自动保存未成功；请勿关闭页面，作答已暂存本地并会持续重试')
       }
     }
   }
@@ -504,7 +526,7 @@ export function useStudentExams() {
 
       const value = saved[key]
       if (q.type === 'MULTIPLE_CHOICE') {
-        multiAnswers.value[idx] = Array.isArray(value) ? (value as number[]) : []
+        multiAnswers.value[idx] = Array.isArray(value) ? (value as string[]) : []
       } else if (q.type === 'SHORT_ANSWER') {
         textAnswers.value[idx] = typeof value === 'string' ? value : String(value ?? '')
       } else {

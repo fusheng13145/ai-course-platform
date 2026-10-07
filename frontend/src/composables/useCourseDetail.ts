@@ -198,7 +198,7 @@ export function useCourseDetail() {
     try {
       const res = await resourceApi.getResourceList(course.id)
       resourceCount.value = (Array.isArray(res.data) ? res.data : []).length
-    } catch (e) {
+    } catch {
       resourceCount.value = null
     }
   }
@@ -207,7 +207,7 @@ export function useCourseDetail() {
       const res = await taskApi.getTaskList({ courseId: course.id })
       const d = res.data?.records || res.data?.list || res.data || []
       taskCount.value = Array.isArray(d) ? d.length : 0
-    } catch (e) {
+    } catch {
       taskCount.value = null
     }
   }
@@ -216,7 +216,7 @@ export function useCourseDetail() {
       const res = await examApi.getExamPaperList({ courseId: course.id })
       const d = res.data?.records || res.data?.list || res.data || []
       examCount.value = Array.isArray(d) ? d.length : 0
-    } catch (e) {
+    } catch {
       examCount.value = null
     }
   }
@@ -337,7 +337,7 @@ export function useCourseDetail() {
       dragChanged.value = false
       originalChapters.value = JSON.parse(JSON.stringify(chapters.value))
       ElMessage.success('排序已保存')
-    } catch (e) {
+    } catch {
       ElMessage.error('保存排序失败')
     } finally {
       savingOrder.value = false
@@ -354,7 +354,7 @@ export function useCourseDetail() {
       await enrollmentApi.approveEnrollment(row.id)
       row.approvalStatus = 'APPROVED'
       ElMessage.success('已通过')
-    } catch (e) {
+    } catch {
       ElMessage.error('操作失败')
     }
   }

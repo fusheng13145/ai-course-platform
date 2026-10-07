@@ -150,7 +150,7 @@ async function loadDocs() {
     const res = await ragApi.ragListDocuments()
     const d = res?.data || res || {}
     docs.value = d.documents || []
-  } catch (e) {
+  } catch {
     toast.show('文档加载失败', 'error')
   } finally {
     loading.value = false
@@ -161,7 +161,7 @@ async function loadCourses() {
   try {
     const res = await courseApi.getCourseList()
     courses.value = res?.data?.data || res?.data || []
-  } catch (e) {
+  } catch {
     courses.value = []
   }
 }
@@ -192,7 +192,7 @@ async function doUpload() {
     } else {
       toast.show('上传失败', 'error')
     }
-  } catch (e) {
+  } catch {
     toast.show('上传失败，请检查课程与内容', 'error')
   } finally {
     uploading.value = false
@@ -209,7 +209,7 @@ async function removeDoc(d) {
     } else {
       toast.show('删除失败', 'error')
     }
-  } catch (e) {
+  } catch {
     toast.show('删除失败', 'error')
   }
 }
@@ -226,7 +226,7 @@ async function doRetrieve() {
     const res = await ragApi.ragRetrieve({ query: query.value.trim(), topK: 5 })
     const d = res?.data || res || {}
     results.value = d.results || []
-  } catch (e) {
+  } catch {
     toast.show('检索失败', 'error')
   } finally {
     retrieving.value = false

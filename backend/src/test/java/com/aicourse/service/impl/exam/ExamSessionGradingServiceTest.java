@@ -189,6 +189,112 @@ class ExamSessionGradingServiceTest {
         assertEquals(1, result.getWrongCount());
     }
 
+    /**
+     * 真实 ObjectMapper + 真实 service 实例：只 mock 数据访问与题目服务。
+     *
+     * <p>为什么不用类头的 @Mock ObjectMapper：本类原有单选/多选用例把
+     * {@code readValue} 打了桩，桩里那套「去括号去引号再按逗号拆」的模拟比真实实现宽容，
+     * 于是多选题即便送成 {@code List.toString()} 的 {@code "[A, B]"} 也能算对，
+     * 客观题作答格式错位（DR-25）因此长期不可见。这里刻意用真解析器复现并锁定口径。</p>
+     */
+    private ExamSessionGradingService realGrader() {
+        return new ExamSessionGradingService(
+                examQuestionService, questionService, wrongQuestionService,
+                examPaperService, new ObjectMapper(), examSessionMapper);
+    }
+
+    private ExamQuestion questionOf(long questionId, String type, String correctAnswers, String points) {
+        ExamQuestion eq = new ExamQuestion();
+        eq.setQuestionId(questionId);
+        eq.setExamPaperId(1L);
+        eq.setPoints(new BigDecimal(points));
+        eq.setOrderIndex(1);
+
+        Question q = new Question();
+        q.setId(questionId);
+        q.setType(type);
+        q.setCorrectAnswers(correctAnswers);
+        questionMap.put(questionId, q);
+        return eq;
+    }
+
+    private final Map<Long, Question> questionMap = new HashMap<>();
+
+    @Test
+    @DisplayName("自动阅卷 - 单选按选项字母判对（回归：学生端曾上报选项下标，与字母正确答案永不相等）")
+    void testAutoGrade_SingleChoiceMatchesOptionLetter() throws Exception {
+        testSession.setStatus("SUBMITTED");
+        testSession.setAnswers("{\"101\":\"A\"}");
+        ExamQuestion eq = questionOf(101L, "SINGLE_CHOICE", "A", "5");
+
+        when(examSessionMapper.selectById(1L)).thenReturn(testSession);
+        when(examQuestionService.list(any(LambdaQueryWrapper.class))).thenReturn(List.of(eq));
+        when(questionService.listByIds(any())).thenReturn(List.of(questionMap.get(101L)));
+        when(examSessionMapper.updateById((ExamSession) any())).thenReturn(1);
+
+        AutoGradeResultVO result = realGrader().autoGrade(1L);
+
+        assertEquals(new BigDecimal("5"), result.getTotalScore());
+        assertEquals(1, result.getCorrectCount());
+        assertEquals("GRADED", result.getStatus());
+    }
+
+    @Test
+    @DisplayName("自动阅卷 - 单选送选项下标必须判错（证明字母才是唯一可比口径）")
+    void testAutoGrade_SingleChoiceRejectsOptionIndex() throws Exception {
+        testSession.setStatus("SUBMITTED");
+        testSession.setAnswers("{\"101\":0}");
+        ExamQuestion eq = questionOf(101L, "SINGLE_CHOICE", "A", "5");
+
+        when(examSessionMapper.selectById(1L)).thenReturn(testSession);
+        when(examQuestionService.list(any(LambdaQueryWrapper.class))).thenReturn(List.of(eq));
+        when(questionService.listByIds(any())).thenReturn(List.of(questionMap.get(101L)));
+        when(wrongQuestionService.count(any())).thenReturn(0L);
+        when(wrongQuestionService.save(any(WrongQuestion.class))).thenReturn(true);
+        when(examSessionMapper.updateById((ExamSession) any())).thenReturn(1);
+
+        AutoGradeResultVO result = realGrader().autoGrade(1L);
+
+        assertEquals(0, new BigDecimal("0").compareTo(result.getTotalScore()));
+        assertEquals(1, result.getWrongCount());
+    }
+
+    @Test
+    @DisplayName("自动阅卷 - 多选作答为 JSON 数组时按逗号归一后判对（回归：List.toString 的 \"[A, B]\" 会被切成 \"[A\"/\"B]\"）")
+    void testAutoGrade_MultipleChoiceArrayAnswerIsJoined() throws Exception {
+        testSession.setStatus("SUBMITTED");
+        testSession.setAnswers("{\"102\":[\"A\",\"B\"]}");
+        ExamQuestion eq = questionOf(102L, "MULTIPLE_CHOICE", "A,B", "10");
+
+        when(examSessionMapper.selectById(1L)).thenReturn(testSession);
+        when(examQuestionService.list(any(LambdaQueryWrapper.class))).thenReturn(List.of(eq));
+        when(questionService.listByIds(any())).thenReturn(List.of(questionMap.get(102L)));
+        when(examSessionMapper.updateById((ExamSession) any())).thenReturn(1);
+
+        AutoGradeResultVO result = realGrader().autoGrade(1L);
+
+        assertEquals(new BigDecimal("10"), result.getTotalScore());
+        assertEquals(1, result.getCorrectCount());
+    }
+
+    @Test
+    @DisplayName("自动阅卷 - 判断题布尔作答判对")
+    void testAutoGrade_TrueFalseBooleanAnswer() throws Exception {
+        testSession.setStatus("SUBMITTED");
+        testSession.setAnswers("{\"103\":true}");
+        ExamQuestion eq = questionOf(103L, "TRUE_FALSE", "true", "5");
+
+        when(examSessionMapper.selectById(1L)).thenReturn(testSession);
+        when(examQuestionService.list(any(LambdaQueryWrapper.class))).thenReturn(List.of(eq));
+        when(questionService.listByIds(any())).thenReturn(List.of(questionMap.get(103L)));
+        when(examSessionMapper.updateById((ExamSession) any())).thenReturn(1);
+
+        AutoGradeResultVO result = realGrader().autoGrade(1L);
+
+        assertEquals(new BigDecimal("5"), result.getTotalScore());
+        assertEquals(1, result.getCorrectCount());
+    }
+
     @Test
     @DisplayName("自动阅卷 - 判断题正确得分")
     void testAutoGrade_TrueFalse() throws Exception {

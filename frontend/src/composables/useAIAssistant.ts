@@ -295,7 +295,7 @@ export function useAIAssistant() {
       const reply =
         res.data?.response || (res as Record<string, unknown>)?.response || '已重新生成回复。'
       await typewriterEffect(aiMsgIdx, reply)
-    } catch (e) {
+    } catch {
       ElMessage.error('重新生成失败')
     } finally {
       loading.value = false

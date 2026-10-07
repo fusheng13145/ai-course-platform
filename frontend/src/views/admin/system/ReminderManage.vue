@@ -193,7 +193,7 @@ async function handleSave() {
     }
     dialogVisible.value = false
     await loadTodos()
-  } catch (e) {
+  } catch {
     ElMessage.error(isEdit.value ? '更新失败' : '创建失败')
   } finally {
     saving.value = false
@@ -214,7 +214,7 @@ async function handleSendDue() {
   try {
     await reminderApi.sendDue()
     ElMessage.success('到期提醒已触发')
-  } catch (e) {
+  } catch {
     ElMessage.error('触发失败')
   }
 }

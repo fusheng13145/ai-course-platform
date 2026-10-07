@@ -72,7 +72,10 @@ frontend/dist_probe/
 # e2e 产物
 frontend/playwright-report/
 frontend/test-results/
-scripts/e2e/e2e_*_result.json
+scripts/e2e/e2e_*result.json
+# 安全/深度/压力脚本按当前工作目录落盘，从仓库根跑时会留在根目录；只锚定根目录，
+# 以免误伤 archive/deliverables/ 下同名的人工快照（那些是跟踪文件）
+/e2e_*result.json
 
 # ---- Python 虚拟环境与数据目录 ----
 venv/

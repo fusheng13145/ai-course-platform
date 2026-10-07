@@ -97,7 +97,7 @@ export function useResourceManagement() {
       await resourceApi.toggleVisibility(row.id, val)
       row.visibleToAll = val
       ElMessage.success(val ? '已设为公开' : '已设为私有')
-    } catch (e) {
+    } catch {
       ElMessage.error('设置失败')
     }
   }
@@ -129,7 +129,7 @@ export function useResourceManagement() {
           await resourceApi.deleteResource(row.id)
           ElMessage.success('删除成功')
           await loadResources()
-        } catch (e) {
+        } catch {
           ElMessage.error('删除失败')
         }
       })

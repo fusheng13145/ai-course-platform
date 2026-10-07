@@ -177,7 +177,7 @@ async function loadOnlineUsers() {
     const res = await userSessionApi.getOnlineUsers()
     const data = res.data || res
     onlineUsers.value = Array.isArray(data) ? data : data.records || data.list || data.content || []
-  } catch (e) {
+  } catch {
     onlineUsers.value = []
     ElMessage.error('加载在线用户失败')
   } finally {
@@ -195,7 +195,7 @@ async function loadSessionStats() {
     stats.abnormalCount = data.abnormalCount ?? data.abnormal ?? 0
     stats.todayNew = data.todayNew ?? 0
     stats.yesterdayNew = data.yesterdayNew ?? 0
-  } catch (e) {
+  } catch {
     // 静默失败，仅使用默认值
   }
 }

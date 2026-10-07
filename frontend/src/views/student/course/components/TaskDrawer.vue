@@ -79,13 +79,18 @@
             </div>
             <p class="quiz-q-stem">{{ q.content }}</p>
 
-            <!-- 单选 -->
+            <!-- 单选（提交值为选项字母，与题库 correct_answers 口径一致） -->
             <el-radio-group
               v-if="isSingle(q.type)"
               v-model="quizAnswers[q.id]"
               class="opt-vertical"
             >
-              <el-radio v-for="(opt, oi) in q._options" :key="oi" :value="oi" class="opt-item">
+              <el-radio
+                v-for="(opt, oi) in q._options"
+                :key="oi"
+                :value="letter(oi)"
+                class="opt-item"
+              >
                 <span class="opt-label">{{ letter(oi) }}.</span> {{ opt }}
               </el-radio>
             </el-radio-group>
@@ -96,7 +101,12 @@
               v-model="quizAnswers[q.id]"
               class="opt-vertical"
             >
-              <el-checkbox v-for="(opt, oi) in q._options" :key="oi" :label="oi" class="opt-item">
+              <el-checkbox
+                v-for="(opt, oi) in q._options"
+                :key="oi"
+                :label="letter(oi)"
+                class="opt-item"
+              >
                 <span class="opt-label">{{ letter(oi) }}.</span> {{ opt }}
               </el-checkbox>
             </el-checkbox-group>
@@ -270,7 +280,7 @@ async function markDocDone() {
     // task 为父组件传入的共享对象引用（activeTask），嵌套属性同步完成任务状态，非 prop 整体替换
     props.task.completed = true
     emit('task-completed')
-  } catch (e) {
+  } catch {
     ElMessage.error('操作失败')
   } finally {
     docLoading.value = false

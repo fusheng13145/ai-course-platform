@@ -61,7 +61,7 @@ export function useUserManagement() {
         const p = res?.data?.data || res?.data || {}
         groups.value[i].rows = p.list || []
       })
-    } catch (e) {
+    } catch {
       toast.show('用户数据加载失败', 'error')
     } finally {
       loading.value = false
@@ -100,7 +100,7 @@ export function useUserManagement() {
         },
       )
       permNodes.value = roots.map(toNode)
-    } catch (e) {
+    } catch {
       permNodes.value = []
     } finally {
       permLoading.value = false
@@ -127,7 +127,7 @@ export function useUserManagement() {
       } else {
         toast.show(res?.data?.message || '创建失败', 'error')
       }
-    } catch (e) {
+    } catch {
       toast.show('创建失败', 'error')
     } finally {
       creating.value = false
@@ -148,7 +148,7 @@ export function useUserManagement() {
       } else {
         toast.show(res?.data?.message || '重置失败', 'error')
       }
-    } catch (e) {
+    } catch {
       toast.show('重置失败', 'error')
     } finally {
       resetting.value = false
@@ -170,7 +170,7 @@ export function useUserManagement() {
       } else {
         toast.show(res?.data?.message || '删除失败', 'error')
       }
-    } catch (e) {
+    } catch {
       toast.show('删除失败', 'error')
     } finally {
       deleting.value = false
@@ -204,7 +204,7 @@ export function useUserManagement() {
       } else {
         toast.show('没有账号被导入，请检查文件内容', 'warning')
       }
-    } catch (e) {
+    } catch {
       toast.show('导入失败，请检查文件格式（.xlsx，10 列表头）', 'error')
     } finally {
       importing.value = false

@@ -207,7 +207,7 @@ async function handleImport(file) {
     } else {
       ElMessage.warning('没有知识点被导入，请检查文件内容')
     }
-  } catch (e) {
+  } catch {
     ElMessage.error('导入失败，请检查文件格式（.xlsx，7 列表头）')
   } finally {
     importing.value = false

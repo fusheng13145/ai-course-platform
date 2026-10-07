@@ -215,9 +215,9 @@ def main():
     db_ap = db1(f"select approval_status from {DB}.courses where code='CS-NET-2026';")
     db_st = db1(f"select status from {DB}.courses where code='CS-NET-2026';")
     db_tid = db1(f"select teacher_id from {DB}.courses where code='CS-NET-2026';")
-    record("B2", "DB 断言：新建课程落库状态", "approval_status=PENDING / status=active / teacher_id=2",
+    record("B2", "DB 断言：新建课程落库状态", "approval_status=PENDING / status=ACTIVE / teacher_id=2",
            f"{db_ap} / {db_st} / {db_tid}",
-           db_ap == "PENDING" and db_st == "active" and db_tid == "2")
+           db_ap == "PENDING" and (db_st or "").upper() == "ACTIVE" and db_tid == "2")
 
     st, obj, _ = teacher.req("POST", "/teacher/courses", dict(course_body))
     record("B3", "边界：课程编号重复（uk_courses_code）", "409 CONFLICT 语义化提示（原为 500）",

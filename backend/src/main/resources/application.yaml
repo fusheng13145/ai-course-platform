@@ -447,6 +447,14 @@ management:
       # 探针（Kubernetes 等）使用 readiness/liveness 子端点
       probes:
         enabled: true
+      group:
+        # 编排探活专用组：只计入「决定实例能否服务流量」的探针（就绪态 + DB + Redis + 磁盘），
+        # **不含 llmProvider**：缺 DEEPSEEK_API_KEY 时 AI 能力按契约降级为抽取式回答，业务链路不受影响
+        # （手册 §40）。把它算进来会让综合状态恒 DOWN → 组合编排的 backend 探针永不过、
+        # frontend 的 depends_on: service_healthy 卡死，未配 Key 的环境整栈拉不起来
+        # （2026-10-07 CMP-1 真机首启实测，见附录 D.12.3）。
+        probe:
+          include: readinessState,database,redis,diskSpace
     prometheus:
       enabled: true
   health:

@@ -97,7 +97,7 @@ export function useLearningPath() {
             knowledgePointName: t.knowledgePointName || '',
           }))
         : []
-    } catch (e) {
+    } catch {
       // API 可能不存在，忽略错误
       dailyTasks.value = []
     }

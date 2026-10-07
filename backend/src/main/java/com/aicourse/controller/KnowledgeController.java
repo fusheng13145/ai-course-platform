@@ -241,7 +241,18 @@ public class KnowledgeController {
         LambdaQueryWrapper<KnowledgePoint> pointWrapper = new LambdaQueryWrapper<KnowledgePoint>()
                 .eq(KnowledgePoint::getCourseId, courseId);
         List<KnowledgePoint> pointList = knowledgePointService.list(pointWrapper);
-        List<KnowledgePointRelation> relationList = relationService.list();
+
+        // 边与节点必须同域：本端点一次返回整图数据，若按课程过滤节点却取全表关系，
+        // 其他课程的关联行会一起下发（力导向图里表现为悬空边与虚高的 totalRelations）。
+        Set<Long> pointIds = new HashSet<>();
+        for (KnowledgePoint point : pointList) {
+            pointIds.add(point.getId());
+        }
+        List<KnowledgePointRelation> relationList = pointIds.isEmpty()
+                ? Collections.emptyList()
+                : relationService.list(new LambdaQueryWrapper<KnowledgePointRelation>()
+                        .in(KnowledgePointRelation::getSourceId, pointIds)
+                        .in(KnowledgePointRelation::getTargetId, pointIds));
 
         return ApiResponse.success(new KnowledgeGraphVO(
                 pointList, relationList, pointList.size(), relationList.size()));

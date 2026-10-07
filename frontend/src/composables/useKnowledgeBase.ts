@@ -145,7 +145,7 @@ export function useKnowledgeBase() {
         ElMessage.success('文档已加入知识库')
         showDialog.value = false
         await loadDocs()
-      } catch (e) {
+      } catch {
         ElMessage.error('新增失败')
       } finally {
         saving.value = false
@@ -165,7 +165,7 @@ export function useKnowledgeBase() {
         ElMessage.success('文档已更新')
         showDialog.value = false
         await loadDocs()
-      } catch (e) {
+      } catch {
         ElMessage.error('更新失败')
       } finally {
         saving.value = false
@@ -185,7 +185,7 @@ export function useKnowledgeBase() {
           }
           ElMessage.success('已删除')
           await loadDocs()
-        } catch (e) {
+        } catch {
           ElMessage.error('删除失败')
         }
       })
@@ -198,7 +198,7 @@ export function useKnowledgeBase() {
     try {
       const res = await ragApi.ragBuildIndex(selectedCourseId.value)
       ElMessage.success((res && res.note) || '索引已构建（知识库实时构建，无需离线处理）')
-    } catch (e) {
+    } catch {
       ElMessage.error('构建索引失败')
     } finally {
       indexing.value = false
@@ -209,7 +209,7 @@ export function useKnowledgeBase() {
     try {
       const res = await ragApi.ragClearIndex(selectedCourseId.value)
       ElMessage.success((res && res.note) || '索引已清理')
-    } catch (e) {
+    } catch {
       ElMessage.error('清理索引失败')
     } finally {
       indexing.value = false
@@ -235,7 +235,7 @@ export function useKnowledgeBase() {
       askResult.value = res || {}
       if (res && res.model && res.model !== 'retrieval-only') llmReady.value = true
       else if (res) llmReady.value = false
-    } catch (e) {
+    } catch {
       ElMessage.error('提问失败')
     } finally {
       asking.value = false
@@ -259,7 +259,7 @@ export function useKnowledgeBase() {
         topK: retrieveForm.topK,
       })
       retrieveResult.value = res || {}
-    } catch (e) {
+    } catch {
       ElMessage.error('召回失败')
     } finally {
       retrieving.value = false

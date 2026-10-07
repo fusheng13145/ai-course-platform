@@ -1,10 +1,10 @@
 import { test, expect } from '@playwright/test'
-import { setLocalStorageAuth } from './test-helpers'
+import { loginAs } from './test-helpers'
 
 test.describe('AI 助手页面（学生端）', () => {
   test.beforeEach(async ({ page }) => {
-    // 通过 localStorage 模拟已登录学生
-    await setLocalStorageAuth(page, 'STUDENT')
+    // 会话由真实登录建立（student / 123456，V1 迁移内置账号）
+    await loginAs(page, 'STUDENT')
 
     // Mock AI 聊天相关 API（与当前后端端点对齐）
     await page.route('/api/ai/qa/sessions', async (route) => {
@@ -16,6 +16,21 @@ test.describe('AI 助手页面（学生端）', () => {
           message: 'success',
           data: [{ id: 1, title: '会话 1', createdAt: new Date().toISOString() }],
         }),
+      })
+    })
+
+    // 【必须 mock 流端点】发送链路是 SSE 优先：useAIAssistant.ts:93 → handleSendStream →
+    // api/ai.ts:59 的 GET /api/ai/qa/stream；只有流失败才回落 qaAsk（:96）。原来只 mock
+    // /api/ai/qa/ask，于是流请求真打到后端，在没配 DEEPSEEK_API_KEY 的环境里渲染成
+    // 「AI 服务暂未配置…」→ 断言假失败，还把 E2E 和大模型密钥绑死了。
+    await page.route(/\/api\/ai\/qa\/stream/, async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: { 'content-type': 'text/event-stream' },
+        body:
+          'data: {"token":"你好！我是 AI 学习助手，"}\n\n' +
+          'data: {"token":"有什么可以帮助你的吗？"}\n\n' +
+          'data: [DONE]\n\n',
       })
     })
 

@@ -120,7 +120,7 @@ export function useVideoTask({ courseId, getTask, onTaskCompleted }) {
       ElMessage.success('已标记为完成')
       videoState.completed = true
       await onTaskCompleted()
-    } catch (e) {
+    } catch {
       ElMessage.error('操作失败')
     }
   }

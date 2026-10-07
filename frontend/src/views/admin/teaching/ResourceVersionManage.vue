@@ -242,7 +242,7 @@ async function handleCreateVersion() {
     ElMessage.success('新版本已创建')
     dialogVisible.value = false
     await loadVersions()
-  } catch (e) {
+  } catch {
     ElMessage.error('创建版本失败')
   } finally {
     saving.value = false
@@ -262,7 +262,7 @@ async function confirmRollback() {
     ElMessage.success('回滚成功')
     rollbackVisible.value = false
     await loadVersions()
-  } catch (e) {
+  } catch {
     ElMessage.error('回滚失败')
   } finally {
     rollingBack.value = false

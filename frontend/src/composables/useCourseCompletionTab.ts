@@ -107,7 +107,7 @@ export function useCourseCompletionTab(courseIdRef) {
           const subRes = await submissionApi.getTaskSubmissions(t.id)
           submissions = subRes.data?.records || subRes.data?.list || subRes.data || subRes || []
           submissions = Array.isArray(submissions) ? submissions : []
-        } catch (e) {
+        } catch {
           // 静默
         }
 
@@ -195,7 +195,7 @@ export function useCourseCompletionTab(courseIdRef) {
               if (sub.score != null) entry.scores.push(sub.score)
             }
           })
-        } catch (e) {
+        } catch {
           // 静默
         }
       }

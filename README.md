@@ -13,7 +13,7 @@
 
 **核心能力域**：多角色 RBAC、课程/章节/选课管理、题库与在线考试（防作弊）、作业批改与查重、知识图谱可视化与学习路径规划、AI 智能问答/出题/批改/学情建议、数据分析与学情报告、WebSocket 实时通知。
 
-**2026-10 更新**：侧边栏改为**三级动态课程导航**（考试/成绩/作业/图谱/教学工具收敛为每门课程下的独立页签，93 条路由 / 281 个 `.vue`）；知识图谱改为**可拖拽力导向布局**并修正学习路径规划语义；Flyway 新增 **V5 富种子**（48 表互联、12 教师 + 150 学生、春秋双学期）与 **V6 计算机网络示范课**（course 4007：14 章节 / 65 知识点 / 120 关系边 / 8 套试卷 / 60 条选课），供参赛演示直接使用；**2026-10-06 起这两个脚本移入 `db/seed-demo`，`prod` profile 的 Flyway `locations` 整目录排除 → 演示数据不进生产库**（口径见 `docs/项目手册.md` §13.1，生产约束与实测取证见 §24.5）。
+**2026-10 更新**：侧边栏改为**三级动态课程导航**（考试/成绩/作业/图谱/教学工具收敛为每门课程下的独立页签，93 条路由 / 281 个 `.vue`）；知识图谱改为**可拖拽力导向布局**并修正学习路径规划语义；Flyway 新增 **V5 富种子**（48 表互联、12 教师 + 150 学生、春秋双学期）与 **V6 计算机网络示范课**（course 4007：14 章节 / 65 知识点 / 120 关系边 / 8 套试卷 / 60 条选课），供参赛演示直接使用；**2026-10-06 起这两个脚本移入 `db/seed-demo`，`prod` profile 的 Flyway `locations` 整目录排除 → 演示数据不进生产库**；同批另加 **V7 前向修正**（V6 落库后的示范课文案已按实测 65 知识点 / 56 题改正，V6 本体因 Flyway 校验和冻结不可回改，见手册 DR-19）（口径见 `docs/项目手册.md` §13.1，生产约束与实测取证见 §24.5）。
 
 > **职责边界**：知识图谱引擎（图谱构建、多跳推理、GraphRAG）与 RAG 检索引擎（BM25 / 向量检索 / embedding / 融合）均由团队另一成员以 Python 微服务实现（kg **8001** / rag **8002**，两端均已接入真实引擎实现）。本端（Java 后端）实现**消费侧**与**标准化集成层** `com.aicourse.integration`：`ContractPaths` 常量（调用约定唯一事实来源，55 个契约常量）+ `KnowledgeGraphContract` / `RagContract` 契约接口（强类型 record）+ 双实现（本地 BFS / 禁用态默认不依赖 Python；HTTP 远端经 `knowledge-graph.enabled` / `rag.enabled=true` 调 Python 8001 / 8002，成功时返回 `mode=ENGINE`）。其中 `POST /api/knowledge/path/plan` 在引擎未启用/不可达时由消费侧**本地 BFS 兜底**；`max_hops` 自 2026-10-05 起**仅用于「是否采纳」判定、不再参与遍历剪枝**，上限不足时仍回传真实最短跳数（语义表见 `docs/项目手册.md` §35.2）。RAG 未接入时返回 `{"code":503}` 且 AI 问答自动回退纯 LLM。**LoRA 微调（8003）契约与消费侧已就绪，Python 端仍无实现**，启用即 503 降级。**完整对接契约见 `docs/项目手册.md`（第八部分，唯一标准基准）。**
 
@@ -73,7 +73,7 @@
 | 状态 / 路由 / 图表 | Pinia / Vue Router / ECharts | 2.1.x / 4.2.x / 6.1.x |
 | 实时通信           | WebSocket                    | 集成Spring WebSocket  |
 | 限流熔断           | Sentinel                     | 下游流控 + 慢调用熔断 |
-| 数据库迁移         | Flyway                       | 6 个脚本：结构迁移 V1–V4（`db/migration`，全环境）+ 演示种子 V5–V6（`db/seed-demo`，prod 排除） |
+| 数据库迁移         | Flyway                       | 7 个脚本：结构迁移 V1–V4（`db/migration`，全环境）+ 演示种子 V5–V7（`db/seed-demo`，prod 排除） |
 | 图数据库（可选）   | Neo4j                        | 5.x，compose `rag` profile；缺失时 KG 回落内存图 |
 | 代码质量门禁       | JaCoCo / SpotBugs / ArchUnit | LINE≥85%+BRANCH≥65%（阻断）/ 0 bug（阻断）/ 6 条架构守护 |
 | 前端 Lint          | ESLint                       | **9.39.5 + flat config**（`frontend/eslint.config.js`） |
@@ -127,12 +127,13 @@ start-frontend.bat
 
 #### 健康检查与常见排障（2026-09-14 补充）
 
-- **探活**：`GET http://localhost:8080/api/actuator/health`（返回 200 即服务可用）。
-- **不要**因为探活返回 `503 / {"status":"DOWN"}` 就判定服务不可用：整体健康度会把**可选依赖**一并聚合。
+- **探活**：人读整体状态用 `GET http://localhost:8080/api/actuator/health`；**编排/容器探针请用 `GET /api/actuator/health/probe`**（返回 200 即实例可服务）。
+- **不要**因为 `/health` 返回 `503 / {"status":"DOWN"}` 就判定服务不可用：整体健康度会把**可选依赖**一并聚合。
   典型场景是**未注入 AI / 邮件凭据**——`llmProvider`（未配置 API Key）与 `mail`（SMTP 认证失败）会报 DOWN，
   但业务接口全部正常。以完整 `.env` 启动（含 `DEEPSEEK_API_KEY` / `MAIL_USERNAME` / `MAIL_PASSWORD`）后即为 `UP`。
-- 需要区分「服务就绪」时请用分组端点：`/api/actuator/health/readiness`（K8s/容器探针用的就是这个），
-  它不受 AI / 邮件等可选依赖影响。
+- **`probe` 组**（`readinessState` + `database` + `redis` + `diskSpace`）就是为这条边界建的：AI/邮件凭据缺失属**按契约降级**，不属"实例不可服务"，所以不计入探针。
+  ⚠️ 反例：compose 的 backend 探针原先打的是综合 `/health`，在没有 `DEEPSEEK_API_KEY` 的机器上恒 503 → 容器反复重启、`frontend` 的 `service_healthy` 依赖卡死、整栈起不来（2026-10-07 实跑发现，见手册 §25 / 附录 D **DR-28**）。
+- 另可用 `GET /api/actuator/health/readiness` / `/liveness`（Spring 内建组，只含生命周期状态，不含 DB/Redis）。
 - **手动用 jar 启动务必显式指定端口**：`java -jar backend/target/backend-0.0.1-SNAPSHOT.jar --server.port=8080`。
   否则端口可能被外部环境变量覆盖，出现 `Port xxxxx was already in use` 而并非 8080 冲突。
 - 本机 Redis 为**无密码**模式：手动启动**勿注入** `SPRING_DATA_REDIS_PASSWORD`（注入会使 RedisStartupValidator fail-fast）。
@@ -142,13 +143,16 @@ start-frontend.bat
 ### 方式二：Docker 容器化部署（备用 / 上线）
 
 ```bash
-cp .env.example .env      # Windows: copy .env.example .env（共 32 个键，填入真实强密码与密钥）
+cp .env.example .env      # Windows: copy .env.example .env（共 33 个生效键 + 21 行注释示例，填入真实强密码与密钥）
 docker compose --profile full up -d --build
 # 可选叠加 profile（compose 共 12 个服务 / 12 个命名卷）：
-#   --profile ops      每日备份（mysql-backup + cron sidecar）
+#   --profile ops      每日全量备份（mysql-backup：入口守护循环，周期 BACKUP_INTERVAL_SECONDS，默认 86400s）
 #   --profile monitor  Prometheus + Grafana + Loki + Promtail + node-exporter + Alertmanager
 #   --profile rag      Neo4j 5-community（知识图谱真图库后端，需 NEO4J_PASSWORD）
 # 注：`mysql` 与 `redis` 无 profile，任何 `up` 都会拉起；其余服务须显式指定 profile。
+# ⚠️ 启用 --profile monitor 前还需一枚文件式凭据（Prometheus 不插值配置文件、只读 password_file，DR-30）：
+#      mkdir -p deploy/secrets
+#      printf %s "$APP_ACTUATOR_BASIC_PASSWORD" > deploy/secrets/actuator_basic_password   # 末尾不可有换行
 ```
 
 > ⚠️ **务必先选一条路径再启动。** `--profile full` 起的是一个**明文 HTTP 单机栈**：`frontend/nginx.conf`
@@ -173,11 +177,11 @@ docker compose --profile full up -d --build
 | `JWT_SECRET` | ≥32 字节随机（`openssl rand -base64 48`） | compose 插值失败、直接报错退出 |
 | `REDIS_PASSWORD` | 强随机（backend 与健康探针自动同步） | 删掉该行 → compose 插值失败；仅留占位符 → 能启动，但 Redis 以**弱口令**运行 |
 | `GRAFANA_ADMIN_PASSWORD` | 强随机（叠加 `--profile monitor` 时） | compose 插值失败、直接报错退出 |
-| `NEO4J_PASSWORD` | 强随机（叠加 `--profile rag` 时） | compose 以 `${NEO4J_PASSWORD:?…}` **插值失败、直接报错退出**（`docker-compose.yml:440`） |
-| `MYSQL_APP_PASSWORD` | 可留空 | 留空则 compose 回退用 `MYSQL_ROOT_PASSWORD` 连接业务库（`${MYSQL_APP_PASSWORD:-${MYSQL_ROOT_PASSWORD}}`，`docker-compose.yml:121`）；生产建议独立建业务账号 |
+| `NEO4J_PASSWORD` | 强随机（叠加 `--profile rag` 时） | compose 以 `${NEO4J_PASSWORD:?…}` **插值失败、直接报错退出**（neo4j 服务的 `NEO4J_AUTH` 行） |
+| `MYSQL_APP_PASSWORD` | 可留空 | 留空则 compose 回退用 `MYSQL_ROOT_PASSWORD` 连接业务库（backend 服务的 `SPRING_DATASOURCE_PASSWORD: ${MYSQL_APP_PASSWORD:-${MYSQL_ROOT_PASSWORD}}`）；生产建议独立建业务账号 |
 | `APP_ADMIN_INITIAL_PASSWORD` | 8–32 位，含大小写字母 + 数字 + 特殊字符（**共 4 类**） | **启动 fail-fast 拒绝启动**（`.env.example` 里的 `CHANGE_ME_*` 是**刻意不合规**的占位符，属有意设计——宁可拒绝启动，也不允许"照抄示例"形成公开的已知 admin 口令）。注意：`openssl rand -base64 32` 输出 44 字符、**超 8–32 上限**，不要用它生成此项，请用上面的脚本 |
 
-> ⚠️ **`DEMO_ACCOUNTS_ENABLED` 默认值两处不一致（已知，按环境生效范围区分）**：`application.yaml:216` 为 `${DEMO_ACCOUNTS_ENABLED:true}`（本地开发默认保留演示账号），`docker-compose.yml:132` 为 `${DEMO_ACCOUNTS_ENABLED:-false}`（容器化默认加固）。容器里未显式传值即为 `false`（自动停用并改密），本地 `start-backend.bat` 未设则为 `true`。**生产必须显式 `=false`**，并注意其收敛范围自 2026-10-06 起为「口令等于种子哈希」的**全部 170 个**种子账号（V1 内置 8 个 + V5/V6 号段 162 个；此前只覆盖 V1 的 8 个）。⚠️ 同日 V5/V6 已移出 prod 的 Flyway `locations`，故**全新生产库里实际只有 V1 的 8 个**待收敛，170 这个数字只在开发库或被误用的旧库上出现（见下方「生产边界」与手册 §24.5 / DR-18）。
+> ⚠️ **`DEMO_ACCOUNTS_ENABLED` 默认值两处不一致（已知，按环境生效范围区分）**：`application.yaml:216` 为 `${DEMO_ACCOUNTS_ENABLED:true}`（本地开发默认保留演示账号），compose backend 服务的 `DEMO_ACCOUNTS_ENABLED: ${DEMO_ACCOUNTS_ENABLED:-false}` 为容器化默认加固。容器里未显式传值即为 `false`（自动停用并改密），本地 `start-backend.bat` 未设则为 `true`。**生产必须显式 `=false`**，并注意其收敛范围自 2026-10-06 起为「口令等于种子哈希」的**全部 170 个**种子账号（V1 内置 8 个 + V5/V6 号段 162 个；此前只覆盖 V1 的 8 个）。⚠️ 同日 V5/V6/V7 已移出 prod 的 Flyway `locations`，故**全新生产库里实际只有 V1 的 8 个**待收敛，170 这个数字只在开发库或被误用的旧库上出现（见下方「生产边界」与手册 §24.5 / DR-18）。
 
 #### 路径 ①：本地 / 内网评估（HTTP 明文，仅限本机或内网）
 
@@ -242,17 +246,18 @@ cd backend && mvn test -Dtest='!*IT,!Phase1Phase3IntegrationTest' -DfailIfNoTest
 cd frontend && npm run lint && npm run typecheck:gate && npx vitest run && npm run build
 ```
 
-**当前实测基线**（口径与逐行出处见 `docs/项目手册.md` 附录 B / §43；后端各行取自 2026-10-06 19:19 本机 `mvn -B -o clean verify -DskipITs` 实跑，`-DskipITs` 因本机无 Docker，Testcontainers 系 7 个 IT 只在 CI 取数。⚠️ JaCoCo 的 exec 落在 `${user.home}`、不随 `clean` 重置，见手册 §3 告警块）：
+**当前实测基线**（口径与逐行出处见 `docs/项目手册.md` 附录 B / §43；后端各行取自 2026-10-07 18:27 本机 `mvn -B -o clean verify`（**含集成测试**）实跑，Testcontainers 系 7 用例已在真容器上执行、不再依赖 CI 取数。⚠️ JaCoCo 的 exec 落在 `${user.home}`、不随 `clean` 重置，见手册 §3 告警块）：
 
 | 门禁 | 读数 |
 | --- | --- |
-| 后端单测 | **2574 用例 / 0 失败 / 0 错误 / 0 跳过**（195 个测试源文件，188 份 surefire 报告） |
-| JaCoCo | **LINE 87.58% / BRANCH 66.19%**（指令 86.74%，341 类 / 336 类有覆盖）→ 门禁达标 |
+| 后端单测 | **2579 用例 / 0 失败 / 0 错误 / 0 跳过**（195 个测试源文件，188 份 surefire 报告） |
+| 后端集成测试 | **failsafe 12 用例 / 0 失败**（`ApplicationIT` 1 + `Phase1Phase3IntegrationTest` 6 走 Testcontainers；`AuthFlowIntegrationTest` 5 走本机 MySQL+Redis） |
+| JaCoCo | **LINE 87.63% / BRANCH 66.27%**（指令 86.80%，341 类 / 336 类有覆盖）→ 门禁达标 |
 | ArchUnit | **6 条**架构守护全通过 |
 | SpotBugs | **0 缺陷**，`failOnError=true` 已硬阻断（13 个框架性 `<Match>` 豁免） |
-| 前端单测 | **54 文件 / 1093 用例全绿**（2026-10-06 本机实测） |
+| 前端单测 | **55 文件 / 1096 用例全绿**（2026-10-07 本机实测） |
 | 前端 ESLint | **0 error / 0 warning**（ESLint 9 flat config） |
-| 前端类型检查 | `vue-tsc` 存量 **586 条 / 107 文件**，棘轮基线只许下调 |
+| 前端类型检查 | `vue-tsc` 存量 **576 条 / 108 文件**，棘轮基线已于 2026-10-07 同步下调（586 → 576，只许下降） |
 | CI | 3 个工作流文件；`ci.yml` **10 个作业**（含 `secret-scan`；`frontend-e2e` 暂为 `workflow_dispatch` 手动触发） |
 
 质量门禁基线（渐进收敛制，只许上调不得下调）：JaCoCo LINE ≥ 85% / BRANCH ≥ 65%（生产收敛目标指令覆盖 ≥ 85%）、SpotBugs 0 error、ArchUnit 架构约束。测试方法、契约测试清单与 CI 流水线见 `docs/项目手册.md` 第六部分。

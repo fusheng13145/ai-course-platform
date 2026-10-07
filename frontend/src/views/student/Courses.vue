@@ -317,7 +317,7 @@ async function selectCourse(c) {
       meta: parts.length ? parts.join(' · ') : '已加入',
       description: course.description,
     }
-  } catch (e) {
+  } catch {
     /* 详情补全失败不阻塞列表展示 */
   }
 }

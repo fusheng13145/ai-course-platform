@@ -109,7 +109,7 @@ export function useWrongQuestions() {
       q.mastered = true
       stats.value.mastered++
       ElMessage.success('已标记为掌握')
-    } catch (e) {
+    } catch {
       ElMessage.error('操作失败')
     }
   }
@@ -121,7 +121,7 @@ export function useWrongQuestions() {
       q.mastered = false
       stats.value.mastered = Math.max(0, stats.value.mastered - 1)
       ElMessage.info('已取消掌握标记')
-    } catch (e) {
+    } catch {
       ElMessage.error('操作失败')
     }
   }

@@ -125,7 +125,7 @@ async function load() {
     ])
     unread.value = unreadRes?.data?.data?.list || unreadRes?.data?.list || []
     read.value = readRes?.data?.data?.list || readRes?.data?.list || []
-  } catch (e) {
+  } catch {
     toast.show('通知加载失败', 'error')
   } finally {
     loading.value = false
@@ -144,7 +144,7 @@ async function doRead(n) {
     n.isRead = true
     unread.value = unread.value.filter((x) => x.id !== n.id)
     read.value.unshift(n)
-  } catch (e) {
+  } catch {
     toast.show('操作失败', 'error')
   }
 }
@@ -165,7 +165,7 @@ async function doDelete(n) {
     const i = src.findIndex((x) => x.id === n.id)
     if (i > -1) src.splice(i, 1)
     toast.show('通知已删除', 'ok')
-  } catch (e) {
+  } catch {
     toast.show('删除失败', 'error')
   }
 }

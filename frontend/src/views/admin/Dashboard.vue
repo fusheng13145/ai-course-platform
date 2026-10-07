@@ -94,7 +94,7 @@ async function load() {
     }))
 
     topCourses.value = cs.topCourses || []
-  } catch (e) {
+  } catch {
     toast.show('看板数据加载失败', 'error')
   } finally {
     loading.value = false

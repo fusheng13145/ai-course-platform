@@ -268,7 +268,7 @@ async function toggleVisibility(row) {
     await resourceApi.toggleVisibility(row.id, !row.visibleToAll)
     row.visibleToAll = !row.visibleToAll
     ElMessage.success('设置成功')
-  } catch (e) {
+  } catch {
     ElMessage.error('操作失败')
   }
 }

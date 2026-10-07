@@ -104,24 +104,28 @@ def main() -> int:
     print("[backend] PID =", proc.pid, "日志:", os.path.relpath(LOG, ROOT), flush=True)
 
     opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    # 探 probe 组（readinessState + database + redis + diskSpace），不探综合 /health：
+    # 综合状态含 llmProvider，本机不注入 DEEPSEEK_API_KEY 时恒 503，原实现把 503 当"就绪"
+    # 放行 → DB/Redis 真挂了也照样往下跑 E2E。改探 probe 后 200 才是"依赖可用"。
     for i in range(60):
         time.sleep(3)
         if proc.poll() is not None:
             print("[backend] 提前退出 exit =", proc.returncode, flush=True)
             return 1
+        code = None
         try:
-            with opener.open("http://127.0.0.1:%s/api/actuator/health" % PORT, timeout=3) as r:
-                print("[backend] HTTP %s 就绪（%ds）" % (r.status, i * 3 + 3), flush=True)
-                break
+            with opener.open("http://127.0.0.1:%s/api/actuator/health/probe" % PORT, timeout=3) as r:
+                code = r.status
         except urllib.error.HTTPError as e:
-            # 503 = 未注入 AI Key，属预期；业务仍正常
-            print("[backend] HTTP %s 就绪（%ds；503=未注入 AI Key，业务正常）"
-                  % (e.code, i * 3 + 3), flush=True)
-            break
+            code = e.code
         except Exception:
             continue
+        if code == 200:
+            print("[backend] HTTP 200 就绪（%ds）" % (i * 3 + 3), flush=True)
+            break
+        print("[backend] probe HTTP %s（%ds），继续等待依赖就绪…" % (code, i * 3 + 3), flush=True)
     else:
-        print("[backend] 探活超时", flush=True)
+        print("[backend] 探活超时（probe 未达 200，多为 MySQL/Redis 不可用）", flush=True)
         return 1
 
     print("[backend] 常驻中，等待被终止（终止本进程即停后端）…", flush=True)
