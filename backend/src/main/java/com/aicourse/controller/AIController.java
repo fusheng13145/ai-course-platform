@@ -318,7 +318,9 @@ public class AIController {
     public Callable<ApiResponse<Map<String, Object>>> generateLearningPath(
             @Valid @RequestBody LearningPathDTO body,
             Authentication auth) {
-        final Long userId = (Long) auth.getPrincipal();
+        // DR-32：与本控制器其余端点同口径做空值防护——Authentication 参数为 null 时
+        // 直接解引用会抛 NPE 并回落 500，掩盖「缺少必要参数」这一业务 400。
+        final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
         final String courseId = body.getCourseId();
         final String goal = body.getGoal() != null ? body.getGoal() : "掌握课程核心知识";
         final Long cid = courseId != null ? Long.valueOf(courseId) : null;
@@ -351,7 +353,8 @@ public class AIController {
     public Callable<ApiResponse<Map<String, Object>>> generatePersonalizedLearningPath(
             @Valid @RequestBody LearningPathDTO body,
             Authentication auth) {
-        final Long userId = (Long) auth.getPrincipal();
+        // DR-32：同 generateLearningPath，null Authentication 不再解引用抛 NPE
+        final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
         final String courseId = body.getCourseId();
         final String goal = body.getGoal() != null ? body.getGoal() : "针对性补强薄弱点";
         final Long cid = courseId != null ? Long.valueOf(courseId) : null;

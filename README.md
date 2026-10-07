@@ -246,13 +246,13 @@ cd backend && mvn test -Dtest='!*IT,!Phase1Phase3IntegrationTest' -DfailIfNoTest
 cd frontend && npm run lint && npm run typecheck:gate && npx vitest run && npm run build
 ```
 
-**当前实测基线**（口径与逐行出处见 `docs/项目手册.md` 附录 B / §43；后端各行取自 2026-10-07 18:27 本机 `mvn -B -o clean verify`（**含集成测试**）实跑，Testcontainers 系 7 用例已在真容器上执行、不再依赖 CI 取数。⚠️ JaCoCo 的 exec 落在 `${user.home}`、不随 `clean` 重置，见手册 §3 告警块）：
+**当前实测基线**（口径与逐行出处见 `docs/项目手册.md` 附录 B / §43；后端各行取自 2026-10-07 21:56 本机 `mvn -B -o clean verify`（**含集成测试**）实跑，Testcontainers 系 7 用例已在真容器上执行、不再依赖 CI 取数。⚠️ JaCoCo 采集为「surefire 截断 + failsafe 追加」的**单次构建并集**，读数与历史构建无关、可本机复现并 ≡ CI；但 exec 落在 `${user.home}` 且被所有 git worktree 共用，**带覆盖率的构建必须串行**，见手册 §3 告警块与 §24.2.3 根因 D）：
 
 | 门禁 | 读数 |
 | --- | --- |
-| 后端单测 | **2579 用例 / 0 失败 / 0 错误 / 0 跳过**（195 个测试源文件，188 份 surefire 报告） |
+| 后端单测 | **2830 用例 / 0 失败 / 0 错误 / 0 跳过**（203 个测试源文件，196 份 surefire 报告） |
 | 后端集成测试 | **failsafe 12 用例 / 0 失败**（`ApplicationIT` 1 + `Phase1Phase3IntegrationTest` 6 走 Testcontainers；`AuthFlowIntegrationTest` 5 走本机 MySQL+Redis） |
-| JaCoCo | **LINE 87.63% / BRANCH 66.27%**（指令 86.80%，341 类 / 336 类有覆盖）→ 门禁达标 |
+| JaCoCo | **LINE 89.16% / BRANCH 70.62%**（指令 88.96%，341 类 / 334 类有行覆盖）→ 门禁达标 |
 | ArchUnit | **6 条**架构守护全通过 |
 | SpotBugs | **0 缺陷**，`failOnError=true` 已硬阻断（13 个框架性 `<Match>` 豁免） |
 | 前端单测 | **55 文件 / 1096 用例全绿**（2026-10-07 本机实测） |

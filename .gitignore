@@ -89,3 +89,7 @@ python-services/rag_service/data/
 calibration/cj.txt
 **/cookies.txt
 **/cookie.jar
+
+# ---- Qoder CLI 本地工作目录（会话数据 + 委派子 agent 的临时 git worktree，含整仓副本 157MB）----
+# 仅本机工具产物，与交付无关；子 agent 的测试产物已由主仓库跟踪，此处只防止误 add
+.qoder/

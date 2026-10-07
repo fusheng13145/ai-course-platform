@@ -39,13 +39,19 @@
 
         <!-- 安全升级：覆盖 Spring Boot 3.5.15 管理的传递依赖版本，
              修复 2026-06 后新披露、3.5.15 尚未收录的 CVE（OSV-Scanner/Trivy 门禁命中的真实漏洞）。
-             注：tomcat 不在此覆盖——GHSA-9xv2-5v5q-p794 / GHSA-h3x4-894j-xpx5 等 3 个 Tomcat CVE
-             的修复版 10.1.58 尚未发布到 Maven Central（10.1.x 当前最新仍为 10.1.55），
-             且这些 CVE 仅影响 Tomcat 内置 FORM/DIGEST 认证（本项目用 Spring Security+JWT，不受影响），
-             故在 CI 扫描器中按 GHSA 精确豁免（见 ci.yml）。 -->
+             2026-10-07 复核（本机按 OSV API 逐包实跑，见手册 §24.2.3 根因 B）：
+               · jackson 2.21.5 → 2.21.7 关闭 CVE-2026-89425/89407（core）与 CVE-2026-91777/68497/91776（databind）；
+               · tomcat 新增覆盖到 10.1.60：三条 Tomcat CRITICAL 的 OSV 修复版记为 10.1.58，
+                 而 10.1.58 **确实从未发布到 Maven Central**（10.1.x 实际存在 10.1.56/57/59/60），
+                 故取「≥ 修复版且已发布」的 10.1.60；升级后 10.1.60 在 OSV 查询为 0 命中，
+                 .trivyignore / osv-scanner.toml 的三条 Tomcat 豁免已据实删除（不是追加新豁免）。
+             ⚠️ 仍无法升级的一条：spring-webmvc CVE-2026-47884（XsltView SSRF/RCE）在 6.2.x 线**无修复版**
+             （OSV：6.2.0–6.2.19 为 last_affected，仅 7.0.9 修复），升 7.x 需 Spring Boot 4，超出本轮范围；
+             改为按「触发路径不可达」精确豁免，论证见 backend/osv-scanner.toml。 -->
         <netty.version>4.1.137.Final</netty.version>
-        <jackson-bom.version>2.21.5</jackson-bom.version>
+        <jackson-bom.version>2.21.7</jackson-bom.version>
         <log4j2.version>2.25.5</log4j2.version>
+        <tomcat.version>10.1.60</tomcat.version>
     </properties>
 
     <!-- 安全升级：显式锁定非 Spring Boot BOM 管理的传递依赖版本，
@@ -62,10 +68,12 @@
                 <artifactId>commons-lang3</artifactId>
                 <version>3.18.0</version>
             </dependency>
+            <!-- 1.84 → 1.85：关闭 CVE-2026-8763（CRITICAL，rfc822Name/URI 尾点绕过 Name Constraints）
+                 与 CVE-2026-13506（HIGH）。1.85 经 OSV 查询为 0 命中。 -->
             <dependency>
                 <groupId>org.bouncycastle</groupId>
                 <artifactId>bcprov-jdk18on</artifactId>
-                <version>1.84</version>
+                <version>1.85</version>
             </dependency>
             <!-- 修复：minio 8.6.0 的 pom 声明 okhttp 5.1.0，但 okhttp 5.x 经 Gradle Module
                  Metadata 发布、其 Maven 主 jar 为空占位符（仅 MANIFEST，无任何 class），
@@ -420,18 +428,60 @@
                 </configuration>
             </plugin>
 
+            <!-- 覆盖率探针数据落在 ${user.home}（中文路径限制，见 jacoco 插件注释），
+                 不在 target/ 内，故 clean 默认删不到；这里显式纳管，避免留档串味。 -->
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-clean-plugin</artifactId>
+                <executions>
+                    <execution>
+                        <id>clean-jacoco-exec</id>
+                        <phase>clean</phase>
+                        <goals>
+                            <goal>clean</goal>
+                        </goals>
+                        <configuration>
+                            <filesets>
+                                <fileset>
+                                    <directory>${user.home}</directory>
+                                    <includes>
+                                        <include>jacoco-${project.artifactId}*.exec</include>
+                                    </includes>
+                                    <followSymlinks>false</followSymlinks>
+                                </fileset>
+                            </filesets>
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
             <!-- 测试覆盖率统计 -->
             <plugin>
                 <groupId>org.jacoco</groupId>
                 <artifactId>jacoco-maven-plugin</artifactId>
                 <version>${jacoco.version}</version>
                 <!--
-                  destFile 指向纯 ASCII 路径，规避工作目录含中文（如“大创赛”）时
+                  exec 文件一律落在纯 ASCII 路径（${user.home}），规避工作目录含中文（如“大创赛”）时
                   JaCoCo 探针静默失效、exec 文件不生成、覆盖率门禁被整体跳过（BUILD SUCCESS 却无覆盖数据）的问题。
+
+                  单元与集成两套数据写进同一份 exec，但 append 取值刻意不同（2026-10-07，CI 红灯根因 D）：
+                    prepare-agent（surefire 先跑）          → append=false，**截断**重写，本次构建从这里起算
+                    prepare-agent-integration（failsafe 后跑）→ append=true ，**追加**到同一文件
+                  两个 fork 若共用 destFile 而都取默认 append=true，会把历史构建（含已改名的类、已删的测试）
+                  一起叠加进来，本机读数系统性偏高，于是出现「本机 87.6% 绿、CI 单次运行 84.8% 红」的分裂；
+                  若都取 append=false，后跑的 failsafe 又会把 surefire 的数据整份覆盖掉，门禁只统计 12 例 IT。
+                  现在「首个 fork 截断 + 后续 fork 追加」＝单次构建的单元∪集成并集，与是否 clean、与历史无关，
+                  本机复现值 ≡ CI 单次运行值。注意：此写法前提是每个阶段的 forkCount=1（当前默认值），
+                  多个 fork 并发追加同一文件会互相踩写。
+                  同一前提也约束跨进程并发：destFile 基于 ${user.home} 而非 target/，所有 git worktree
+                  （含并行子 agent 的构建）共用这一份路径。一旦有两个覆盖率构建同时在跑，先启动的那个会被
+                  后启动的 prepare-agent（append=false）整份截断，门禁读到的行数只剩残值（实测曾跌到
+                  LINE 0.12 / BRANCH 0.02，而 2821 单元 + 12 集成全部通过）。结论：本机跑带覆盖率的
+                  verify 必须串行，不要并行两个 Maven 构建。
+                  `mvn clean` 顺带删除这三个文件（见上方 maven-clean-plugin 的 clean-jacoco-exec 执行），仅作留档卫生。
                 -->
                 <configuration>
-                    <!-- destFile：prepare-agent 探针写入位置；dataFile：report/check 读取位置。
-                         两者必须一致且为纯 ASCII 路径，否则会静默读取到错误/上次的 exec，门禁形同虚设。 -->
+                    <!-- destFile：探针写入位置；dataFile：report/check 读取位置。两者必须一致且为纯 ASCII 路径。 -->
                     <destFile>${user.home}/jacoco-${project.artifactId}.exec</destFile>
                     <dataFile>${user.home}/jacoco-${project.artifactId}.exec</dataFile>
                     <haltOnFailure>true</haltOnFailure>
@@ -442,6 +492,20 @@
                         <goals>
                             <goal>prepare-agent</goal>
                         </goals>
+                        <configuration>
+                            <append>false</append>
+                        </configuration>
+                    </execution>
+                    <!-- pre-integration-test 阶段重写 argLine，使 failsafe 的 fork 追加到同一份 exec 而不是覆盖 -->
+                    <execution>
+                        <id>prepare-agent-integration</id>
+                        <phase>pre-integration-test</phase>
+                        <goals>
+                            <goal>prepare-agent-integration</goal>
+                        </goals>
+                        <configuration>
+                            <append>true</append>
+                        </configuration>
                     </execution>
                     <execution>
                         <id>report</id>
@@ -465,11 +529,16 @@
                                             <counter>LINE</counter>
                                             <value>COVEREDRATIO</value>
                                             <!--
-                                              覆盖率基线（2026-08-29 实测，mvn test 全量 2968 用例）：
-                                              LINE 93.6% / BRANCH 73.4% / INSTRUCTION 92.3%（314 个 main 类，无测试类混入）。
-                                              较 08-27 基线（LINE ~43%）跃升的原因：拆分收官提交 f365da2 为
-                                              7 个 Service 拆分出的 31 个组件逐一配套独立测试（137 个测试文件新增/修改）。
-                                              阈值上调至 85%/65%（留 ~8pp 缓冲吸收 CI 波动），须随测试补全逐步上调，不得下调。
+                                              覆盖率基线（2026-10-07 采集口径修正后诚实复测）：
+                                                · 补测前（2579 单测 + 12 IT 并集，341 个 main 类，无测试类混入）
+                                                  LINE 84.84% / BRANCH 61.84%，距门禁差 **27 行 / 211 个分支**；
+                                                · 补测后（2830 单测 + 12 IT，同日 21:56 串行 clean verify）
+                                                  LINE 89.16% / BRANCH 70.62%，余量 +669 行 / +375 分支。
+                                              ⚠️ 下面 0.85 / 0.65 的定档依据是 2026-08-29 记的「LINE 93.6% / BRANCH 73.4%」，
+                                              而那份读数是被 append=true 跨构建叠加历史 exec 污染出来的（见手册 §24.2.3 根因 D），
+                                              即这条线在口径修正前从未被诚实达到过。
+                                              处置：**阈值不降**，靠补真实测试达标（8 份 *CoverageTest 共 251 例，禁为测试改生产代码）；
+                                              任何调整都必须先用 `mvn -B clean verify`（串行）复现出可比的诚实读数，并在评审里给理由。
                                             -->
                                             <minimum>0.85</minimum>
                                         </limit>

@@ -8,8 +8,15 @@
 #   密钥写进 .env.example 都不会被命中）。现改为只豁免下文中**逐个枚举的占位串**：占位串都是
 #   `your_*` / `your-*` / `sk-your-*` / `ChangeMe*` / `CHANGE_ME*` 这类人类可读形态，
 #   真实密钥（随机高熵串）不会长成这样，因此仍会被正常检出。
-# ❗CI 为**全历史扫描**（ci.yml 的 secret-scan job 用 fetch-depth: 0），故下面的枚举同时覆盖
-#   当前值与 git 历史中出现过的旧值。
+# ❗CI 扫描口径（2026-10-07 起，见 ci.yml 的 secret-scan job）分两段，各自职责不同：
+#   ① **HEAD 内容扫描**（`gitleaks detect --no-git`）：检出「当前会被交付的文件」里的密钥。
+#      这是主门禁——真实密钥绝不能出现在仓库内容中，与它是哪次提交写入的无关。
+#   ② **变更提交区间扫描**（`--log-opts=<base>..<head>`）：对 push 只扫本次推送的提交、
+#      对 PR 只扫 `main` 之外的分支提交，用于「新改动刚引入密钥」的早反馈。
+#   原实现是**全历史扫描**，副作用很大：已轮换失效、且早已从文件内容中删除的旧口令
+#   （F-02 治理与 git filter-repo 擦除的遗留）会在每个 leyon→main PR 上重复点红，
+#   而真正该拦住的「交付内容含密钥」反而被淹没在噪声里。
+#   因此下面的枚举同时覆盖 当前值 与 ② 区间内出现过的旧值（后者只登记前缀形态）。
 title = "ai-course-platform gitleaks config"
 
 [extend]
@@ -24,6 +31,12 @@ regexes = [
   '''ci-build-only-redis-7q4w2e9r''',
   '''ci-build-only-jwt-secret-0123456789abcdef0123456789abcdef''',
   '''ci-e2e-jwt-secret-0123456789abcdef0123456789abcdef''',
+  # 同族补齐（2026-10-07）：以下三枚是后加入的 CI 服务容器/夜间评测占位口令，此前漏登记，
+  # 导致 secret-scan 对 `.github/workflows/*` 的每次改动都点红。仍是**按值**豁免，
+  # 且这些值只出现在 GitHub 托管 runner 的一次性容器里，不落任何真实环境。
+  '''ci-test-neo4j-8f3k''',                            # ci.yml / release.yml 的 Neo4j 服务容器
+  '''eval-nightly-pw-7c2k''',                          # eval-nightly.yml 的 MySQL/数据源口令
+  '''eval-nightly-jwt-secret-0123456789abcdef0123456789abcdef''',  # eval-nightly.yml 的 JWT_SECRET
   # git filter-repo 历史擦除后的脱敏占位符（非密钥）
   '''REDACTED''',
   # 【已轮换作废】F-02 之前的旧 JWT 密钥：远程 main/leyon 历史已擦除（全新克隆 pickaxe 复验归零），
@@ -53,4 +66,19 @@ regexes = [
   # —— 以下为历史版本遗留占位符，当前文件已无，但 git 历史仍含（全历史扫描）——
   '''ChangeMe_Admin_pw1!''',                           # APP_ADMIN_INITIAL_PASSWORD（旧，19 字符合规样例）
   '''your_strong_admin_password_ChangeMe1!''',         # APP_ADMIN_INITIAL_PASSWORD（更早，37 字符超限样例）
+
+  # ==========================================================================
+  # 【2026-10-07 新增】分支区间扫描需要的「已失效历史值」
+  # --------------------------------------------------------------------------
+  # CI 已从「全历史扫描」改为「HEAD 内容 + 变更提交区间」两段扫描（见 ci.yml 的 secret-scan），
+  # 因此仍会命中**本分支独有、但在 main 上没有**的旧提交。下列两值均已从当前文件内容中移除
+  # （逐条 `git show <commit>:<file>` 与 HEAD 对比核实），属早先轮换掉的样例/临时口令：
+  #   · `09d25e094faa6ca255…`：Spring 教程通用的示例 JWT 密钥（网络上公开可查的教学样例，非本项目密钥），
+  #     2026-06 的 application.yaml 里用过，现已改为从环境变量注入，HEAD 内容不含该串。
+  #   · `NEO4J_AUTH=neo4j/1234…`：早期 docker-compose 的 Neo4j 临时口令，现由
+  #     `${NEO4J_PASSWORD:?…}` 插值取代，HEAD 内容不含该串。
+  # 与上文 `oZQ-…` 同理，这里**只写前缀形态、不复刻完整值**，避免把已失效的口令字面量重新写回仓库。
+  # ==========================================================================
+  '''09d25e094faa6ca255[0-9a-f]{8,}''',
+  '''NEO4J_AUTH=neo4j/1234''',
 ]

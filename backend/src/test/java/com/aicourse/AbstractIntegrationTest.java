@@ -15,6 +15,9 @@ import org.testcontainers.utility.DockerImageName;
  * <ul>
  *   <li>容器声明为 {@code static} 单例，整个测试 JVM 复用同一组容器，避免逐类反复拉起（显著缩短耗时）。
  *       手动调用 {@code start()}；不使用 {@code @Container} 自动生命周期，以获得跨测试类的单例语义。</li>
+ *   <li>镜像版本与 {@code docker-compose.yml} 的第三方镜像 pin 逐字一致（{@code mysql:8.4.11} /
+ *       {@code redis:7.4.11-alpine}），使「测试环境＝编排环境＝生产」成为可核对的等式，
+ *       也让本机与 CI 直接复用同一份已存在的镜像，不再额外拉取 {@code mysql:8.0} 这类旁支版本。</li>
  *   <li>MySQL 数据库名固定为 {@code ai_course_platform}，与 {@code index.sql} 中的 {@code USE} 语句一致。</li>
  *   <li>通过 {@link DynamicPropertySource} 将容器随机映射端口注入 Spring 数据源与 Redis 配置，
  *       无需在配置文件中硬编码端口。</li>
@@ -26,7 +29,7 @@ import org.testcontainers.utility.DockerImageName;
 public abstract class AbstractIntegrationTest {
 
     static final MySQLContainer<?> MYSQL =
-            new MySQLContainer<>(DockerImageName.parse("mysql:8.0"))
+            new MySQLContainer<>(DockerImageName.parse("mysql:8.4.11"))
                     .withDatabaseName("ai_course_platform")
                     .withUsername("test")
                     .withPassword("test")
@@ -35,7 +38,7 @@ public abstract class AbstractIntegrationTest {
 
     @SuppressWarnings("resource")
     static final GenericContainer<?> REDIS =
-            new GenericContainer<>(DockerImageName.parse("redis:7-alpine"))
+            new GenericContainer<>(DockerImageName.parse("redis:7.4.11-alpine"))
                     .withExposedPorts(6379);
 
     static {

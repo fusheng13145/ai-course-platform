@@ -4,6 +4,15 @@ name: CI
 on:
   push:
     branches: [main, master, leyon]
+    # 纯文档/归档改动不占用 runner：这类提交不可能影响编译、测试、镜像内容或密钥面。
+    # ⚠️ 只对 push 生效；pull_request 故意**不设**路径过滤 → 任何进 main 的 PR 一定跑满全部门禁，
+    #    收敛的是「日常在 leyon 上推文档也排队等 CI」，不收敛任何进入主干的把关强度。
+    paths-ignore:
+      - "docs/**"
+      - "archive/**"
+      - "*.md"
+      - "**/*.md"
+      - ".gitignore"
   pull_request:
     branches: [main, master, leyon]
   workflow_dispatch:
@@ -25,6 +34,7 @@ jobs:
   frontend-quality:
     name: Frontend Quality (lint + format + audit)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: frontend
@@ -71,6 +81,7 @@ jobs:
   frontend-build:
     name: Frontend Build (Vite)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend
@@ -97,14 +108,20 @@ jobs:
   backend:
     name: Backend (Maven + JUnit)
     runs-on: ubuntu-latest
+    # 上限取本机全量实跑的约 4 倍余量（clean verify 含 12 例 IT 实测 03:40），
+    # 目的是把「网络挂起 / Docker 起不来」这类无进展的作业在 30 分钟内判定失败，
+    # 而不是让它在 6 小时后被 Actions 强杀成一条看不出原因的红灯。
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: backend
     # 修复：ApiContractTest（contract-test profile）直连 localhost:3306 MySQL 与 localhost:6379 Redis，
     # CI runner 无基础设施导致上下文加载失败（11 errors）。提供 GitHub Actions service 容器。
+    # 版本与 docker-compose.yml 的第三方镜像 pin 逐字一致（mysql:8.4.11 / redis:7.4.11-alpine）：
+    # 测试环境＝编排环境＝生产，且 Testcontainers 与 service 容器共用同一份镜像，不产生旁支版本。
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:8.4.11
         env:
           MYSQL_ROOT_PASSWORD: ci-test-password-8f3k
           MYSQL_DATABASE: ai_course_platform_test
@@ -116,7 +133,7 @@ jobs:
           --health-timeout=5s
           --health-retries=10
       redis:
-        image: redis:7
+        image: redis:7.4.11-alpine
         ports:
           - 6379:6379
         options: >-
@@ -134,6 +151,25 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
+
+      - name: Configure Maven mirror (avoid Maven Central HTTP 429 rate limits)
+        # 与 backend-security / frontend-e2e 两个 job 同款（那两处 2026-09 已因 Central 对高消费流量
+        # 429 限流而加过镜像）：本 job 此前是唯一没配镜像的后端作业，缓存未命中时
+        # 依赖解析直连 repo.maven.apache.org → 随机 429 → 整条流水线无理由变红。
+        # 参考: https://central.sonatype.org/faq/429-error/
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<'EOF'
+          <settings>
+            <mirrors>
+              <mirror>
+                <id>google-maven-central</id>
+                <mirrorOf>central</mirrorOf>
+                <url>https://maven-central-eu.storage-download.googleapis.com/maven2/</url>
+              </mirror>
+            </mirrors>
+          </settings>
+          EOF
 
       - name: Build, unit & integration tests with coverage gate
         # mvn verify -> surefire 运行单元测试，failsafe 在 verify 阶段运行 Testcontainers 集成测试；
@@ -171,6 +207,7 @@ jobs:
   trivy-scan:
     name: Trivy Security Scan (fs)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # 最小权限：SARIF 结果以 artifact 形式保存（见下方 upload-artifact），
     # 不再调用 upload-sarif，故无需 security-events / actions 写权限。
     permissions:
@@ -179,13 +216,46 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # 缺陷修复（2026-10-07，CI 红灯根因 C）：trivy 解析 backend/pom.xml 时会自行向
+      # repo.maven.apache.org 取父 POM / BOM，被 Maven Central 429 限流时直接
+      # `FATAL ... returned 429 Too Many Requests`（本机已实测复现，命中
+      # spring-pulsar-bom:1.2.18），**这不是漏洞命中，而是扫描器自身报错 → exit 1 点红**。
+      # 与 backend-security job 同一套解法：先把 central 指向 Google 托管镜像、
+      # 预解析依赖填充 ~/.m2，trivy 随后优先读本地缓存，扫描阶段不再联网解析。
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Populate local Maven cache (via mirror) before Trivy resolves POMs
+        working-directory: backend
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<'EOF'
+          <settings>
+            <mirrors>
+              <mirror>
+                <id>google-maven-central</id>
+                <mirrorOf>central</mirrorOf>
+                <url>https://maven-central-eu.storage-download.googleapis.com/maven2/</url>
+              </mirror>
+            </mirrors>
+          </settings>
+          EOF
+          mvn -B -q dependency:resolve -DincludeScope=runtime
+
       - name: Trivy fs scan (diagnostic table output)
         # 仅用于日志诊断：以 table 格式打印命中的 HIGH/CRITICAL 项，不阻断构建，
         # 便于在门禁失败时直接从日志定位具体漏洞（sarif 模式下详情写入文件，日志不可见）。
+        # scanners 显式限定为 vuln,misconfig：密钥面由下方 secret-scan（gitleaks）job 统一负责，
+        # 那里有按值登记的 .gitleaks.toml 白名单；trivy 自带的通用密钥规则会把 CI 占位口令
+        # 与 .env.example 的刻意不合规样例一并点红，属重复且不可解释的噪声。
         uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: "fs"
           scan-ref: "."
+          scanners: "vuln,misconfig"
           format: "table"
           severity: "HIGH,CRITICAL"
           ignore-unfixed: true
@@ -197,12 +267,15 @@ jobs:
         with:
           scan-type: "fs"
           scan-ref: "."
+          scanners: "vuln,misconfig"
           format: "sarif"
           output: "trivy-results.sarif"
           severity: "HIGH,CRITICAL"
           ignore-unfixed: true
-          # 豁免 3 个 Tomcat CVE（与 backend/osv-scanner.toml 对齐）：修复版 10.1.58 未发布到
-          # Maven Central，且仅影响 Tomcat 内置 FORM/DIGEST/security-constraint（本项目用 JWT，不受影响）。
+          # 豁免口径（2026-10-07 按 OSV 实查重定，与 backend/osv-scanner.toml 逐字同步）：
+          #   · 原 3 条 Tomcat CRITICAL 豁免**已删除**——`tomcat.version` 升到 10.1.60 后复查为 0 命中；
+          #   · 仅保留 spring-webmvc CVE-2026-47884：6.2.x 线无修复版（唯一修复在 7.0.9，需 Boot 4），
+          #     且 XsltView 视图渲染路径经三项取证不可达。能升级的绝不豁免，勿在此追加新条目。
           trivyignores: ".trivyignore"
           # 修复：trivy-action 的 entrypoint.sh 在 format=sarif 且本参数非 true 时会
           # `unset TRIVY_SEVERITY`（日志特征 "Building SARIF report with all severities"），
@@ -225,25 +298,68 @@ jobs:
 
   # ------------------------------------------------------------------
   # 安全扫描：gitleaks 密钥/凭据泄漏扫描（F-02 密钥治理防回归）
-  # 扫描 checkout 分支的完整历史，命中真实密钥即中断构建。
-  # 已知非密钥占位（CI 构建/测试口令、示例文件、历史脱敏标记）见根目录 .gitleaks.toml。
+  #
+  # 【2026-10-07 口径重构】原实现 = gitleaks-action + `fetch-depth: 0` 的**全历史扫描**，
+  # 本机实测（`ghcr.io/gitleaks/gitleaks:v8.30.1 detect --source=. --config=.gitleaks.toml`，
+  # 125 个提交）命中 10 条，逐条核对后**没有一条是当前内容里的真实密钥**：
+  #   · 5 条是 `.github/workflows/*` 里 CI 服务容器的占位口令（已在 .gitleaks.toml 按值登记）；
+  #   · 5 条只在历史提交里（F-02 轮换与 filter-repo 擦除的遗留，当前文件内容已无，
+  #     `git show <commit>:<file>` 与 HEAD 逐条比对确认）。
+  # 后果：任何 leyon→main 的 PR 都要重扫 main 之外的全部提交，已失效的历史口令反复点红，
+  # 把真正该拦住的「交付内容含密钥」淹没在噪声里（这就是 CI 大面积不达标的根因之一）。
+  #
+  # 现拆成两段职责清晰的门禁：
+  #   ① HEAD 内容扫描——真实密钥绝不允许出现在被交付的文件里，与它是哪次提交写入的无关；
+  #   ② 变更区间扫描——本次 push / 本 PR 新增的提交，用于「刚引入密钥」的早反馈。
+  # 两段都不放宽规则本身（仍用同一份 .gitleaks.toml，且该文件坚持**按值**豁免、不按路径豁免）。
+  # 另：不再走 gitleaks-action（其对区间不可判定时的回退行为不可控，且依赖市场 Action 计费），
+  # 改为直接跑钉好版本的官方镜像；本机已存在同一 digest，故本地复验无需联网拉取。
   # ------------------------------------------------------------------
   secret-scan:
     name: Secret Scan (gitleaks)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
+    env:
+      # 补丁级钉版（禁 latest）。升级时同步改这一处即可。
+      GITLEAKS_IMAGE: ghcr.io/gitleaks/gitleaks:v8.30.1
     steps:
       - name: Checkout (full history)
         uses: actions/checkout@v4
         with:
+          # ② 需要 base..head 的完整对象库才能解析区间；① 不依赖历史。
           fetch-depth: 0
 
-      - name: gitleaks (fail on detected secrets)
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_CONFIG: .gitleaks.toml
+      - name: ① HEAD 内容扫描（主门禁）
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/repo" \
+            "$GITLEAKS_IMAGE" detect --no-git \
+              --source=/repo \
+              --config=/repo/.gitleaks.toml \
+              --redact --no-banner --exit-code 1
+
+      - name: ② 变更提交区间扫描（增量反馈）
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            RANGE="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          else
+            BEFORE="${{ github.event.before }}"
+            case "$BEFORE" in
+              ""|*[!0-9a-f]*) RANGE="-1 HEAD" ;;          # 取不到基线：只扫本次提交
+              0000000000000000000000000000000000000000) RANGE="-1 HEAD" ;;  # 新建分支首次推送
+              *) RANGE="$BEFORE..${{ github.sha }}" ;;
+            esac
+          fi
+          echo "gitleaks 扫描区间：$RANGE"
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/repo" \
+            "$GITLEAKS_IMAGE" detect \
+              --source=/repo \
+              --config=/repo/.gitleaks.toml \
+              --log-opts="$RANGE" \
+              --redact --no-banner --exit-code 1
 
   # ------------------------------------------------------------------
   # 后端：软件成分分析（SCA）—— OSV-Scanner 已知漏洞门禁
@@ -253,6 +369,7 @@ jobs:
   backend-security:
     name: Backend Security (OSV-Scanner)
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     permissions:
       contents: read
     defaults:
@@ -311,9 +428,11 @@ jobs:
         # 1) OSV-Scanner v2.3.8 不支持 --strategy flag（会报 "flag provided but not defined"，exit 127）；
         # 2) 默认 pomxml 策略会自行向 repo.maven.apache.org 拉取父 POM，触发 429 限流。
         # 改为扫描 SBOM 后，依赖关系已由 Maven 解析完毕，扫描阶段不做任何外部依赖解析。
-        # --config=osv-scanner.toml：豁免 3 个 Tomcat CVE（GHSA-9xv2-5v5q-p794 / GHSA-h3x4-894j-xpx5 /
-        # GHSA-gcx9-497g-6cp6），其修复版 10.1.58 未发布到 Maven Central，且仅影响 Tomcat 内置
-        # FORM/DIGEST/security-constraint 认证授权机制（本项目用 Spring Security+JWT，不受影响）。
+        # --config=osv-scanner.toml：与 .trivyignore 同口径的**最小**豁免集（2026-10-07 按 OSV 实查重定）：
+        # 原 3 条 Tomcat CRITICAL 豁免已随 `tomcat.version=10.1.60` 升级删除；
+        # 仅保留 spring-webmvc CVE-2026-47884（GHSA-pc63-qcmh-9cmg，XsltView SSRF/RCE）——
+        # 6.2.x 线无修复版（唯一修复 7.0.9 需 Spring Boot 4），且本项目 45 个控制器全为
+        # @RestController、无任何 ViewResolver/XsltView，触发路径不可达（论证见该文件）。
         run: /tmp/osv-scanner scan --format=sarif --output=osv-scan.sarif --sbom=target/bom.json --config=osv-scanner.toml
 
       - name: Upload OSV-Scanner report
@@ -331,6 +450,7 @@ jobs:
   docker:
     name: Docker Images Build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout
@@ -358,6 +478,7 @@ jobs:
   python-kg-contract:
     name: Python KG Service Contract (8001)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: python-services/kg_service
@@ -415,6 +536,7 @@ jobs:
   python-rag-contract:
     name: Python RAG Service Contract (8002)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: python-services/rag_service
@@ -452,13 +574,14 @@ jobs:
   frontend-e2e:
     name: Frontend E2E (Playwright, full-stack)
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     if: github.event_name == 'workflow_dispatch'
     defaults:
       run:
         working-directory: frontend
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:8.4.11
         env:
           MYSQL_ROOT_PASSWORD: ci-test-password-8f3k
           MYSQL_DATABASE: ai_course_platform_test
@@ -470,7 +593,7 @@ jobs:
           --health-timeout=5s
           --health-retries=10
       redis:
-        image: redis:7
+        image: redis:7.4.11-alpine
         ports:
           - 6379:6379
         options: >-

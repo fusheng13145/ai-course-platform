@@ -571,7 +571,11 @@ public class SystemAdminController {
             @RequestParam(defaultValue = "100") int lines,
             @RequestParam(required = false) String keyword) {
         String logContent = systemService.readLogFile(fileName, lines, keyword);
-        return ApiResponse.success(logContent);
+        // DR-33：必须用双参重载。ApiResponse.success(String) 与 success(T data) 并存时，
+        // String 入参绑定到「仅提示语」的那个，日志内容会跑到 message 里、data 变 null；
+        // 又因 spring.jackson.default-property-inclusion=non_null，data 键整体消失，
+        // 调用方按契约读 res.data 恒为空。本文件其余 ApiResponse<String> 端点均已用双参形式。
+        return ApiResponse.success("读取成功", logContent);
     }
 
     // ==================== AI 智能监控 ====================
