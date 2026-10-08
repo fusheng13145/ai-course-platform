@@ -245,12 +245,13 @@ jobs:
           EOF
           mvn -B -q dependency:resolve -DincludeScope=runtime
 
-      - name: Trivy fs scan (diagnostic table output)
+      - name: Trivy fs scan (vuln diagnostic table output)
         # 仅用于日志诊断：以 table 格式打印命中的 HIGH/CRITICAL 项，不阻断构建，
         # 便于在门禁失败时直接从日志定位具体漏洞（sarif 模式下详情写入文件，日志不可见）。
-        # scanners 显式限定为 vuln,misconfig：密钥面由下方 secret-scan（gitleaks）job 统一负责，
-        # 那里有按值登记的 .gitleaks.toml 白名单；trivy 自带的通用密钥规则会把 CI 占位口令
-        # 与 .env.example 的刻意不合规样例一并点红，属重复且不可解释的噪声。
+        # scanners 显式限定为 vuln：① 密钥面由下方 secret-scan（gitleaks）job 统一负责，
+        # 那里有按值登记的 .gitleaks.toml 白名单，trivy 自带的通用密钥规则会把 CI 占位口令
+        # 与 .env.example 的刻意不合规样例一并点红，属重复且不可解释的噪声；
+        # ② misconfig 自 2026-10-08 起拆到独立的门禁步骤（豁免文件不同，混扫会让本表与判定口径不一致）。
         # version 显式钉住（2026-10-07）：trivy-action v0.35.0 的默认版本是隐式的（其 action.yaml 里
         # `version` 默认 v0.69.3），一旦 bump action 就会静默换扫描器版本、判定结果随之漂移；
         # 这里钉成与本机复验一致的版本，使「本机跑 ≡ CI 跑」成立（豁免口径取证见 .trivyignore 头部）。
@@ -261,7 +262,7 @@ jobs:
         with:
           scan-type: "fs"
           scan-ref: "."
-          scanners: "vuln,misconfig"
+          scanners: "vuln"
           format: "table"
           severity: "HIGH,CRITICAL"
           ignore-unfixed: true
@@ -269,12 +270,12 @@ jobs:
           version: "v0.69.3"
           exit-code: "0"
 
-      - name: Trivy fs scan (repo config + deps)
+      - name: Trivy fs scan (vuln gate + SARIF)
         uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: "fs"
           scan-ref: "."
-          scanners: "vuln,misconfig"
+          scanners: "vuln"
           format: "sarif"
           output: "trivy-results.sarif"
           severity: "HIGH,CRITICAL"
@@ -283,17 +284,38 @@ jobs:
           #   · 原 3 条 Tomcat CRITICAL 豁免**已删除**——`tomcat.version` 升到 10.1.60 后复查为 0 命中；
           #   · 仅保留 spring-webmvc CVE-2026-47884：6.2.x 线无修复版（唯一修复在 7.0.9，需 Boot 4），
           #     且 XsltView 视图渲染路径经三项取证不可达。能升级的绝不豁免，勿在此追加新条目。
-          #   · misconfig 侧另有 DS-0002（镜像未指定非 root USER，命中 3 个 Dockerfile）：
-          #     修复要改运行拓扑（uploads 卷属主 / nginx 非 privileged 端口 80→8080），须负责人确认，
-          #     已登记为 DR-34；取证与 ID 口径写在 .trivyignore 的 misconfig 小节。
           # 注意此前该 job 一直死在 Maven 429 FATAL（根因 C），misconfig 判定从未真正跑到底，
           # 所以 DS-0002 是修好 C 之后才暴露出来的下一颗雷；429 解法见上方 dependency:resolve 步骤。
+          # ⚠ 本步不再挂 misconfig 豁免：plain `.trivyignore` 对 misconfig 是全局按 ID 放行，
+          #   会把在用镜像的 root 缺陷一并盖掉。misconfig 走下一步的按路径豁免。
           trivyignores: ".trivyignore"
           # 修复：trivy-action 的 entrypoint.sh 在 format=sarif 且本参数非 true 时会
           # `unset TRIVY_SEVERITY`（日志特征 "Building SARIF report with all severities"），
           # 使 MEDIUM/LOW 漏洞也计入 exit-code 判定而误报失败（HIGH/CRITICAL 已清零仍 exit 1）。
           # 设为 true 恢复 severity 过滤：SARIF 仍记录全部级别供审阅，仅 HIGH/CRITICAL 触发 exit 1。
           limit-severities-for-sarif: true
+          version: "v0.69.3"
+          exit-code: "1"
+
+      # ------------------------------------------------------------------
+      # misconfig 门禁（DR-34 真修后新增，2026-10-08）
+      # 与 vuln 门禁分开跑的原因：plain `.trivyignore` 对 misconfig 只能**按规则 ID 全局**
+      # 放行，无法限定路径；一旦为归档件保留 DS-0002，在用镜像的 root 缺陷也会被一起盖掉。
+      # `.trivyignore.yaml` 的 misconfigurations[].paths 支持按路径生效（本机三组对照实测：
+      # paths=archive/** 时 backend/frontend 仍点红、paths 指向不存在目录时一条都没被盖），
+      # 取证见手册 §24.2.3 根因 F。DS-0002 本体已在 backend/ 与 frontend/ 两个 Dockerfile
+      # 真修（非 root USER），残留豁免只指向 archive/**，不接受新增在用镜像的豁免。
+      # 用 table 而非 sarif：命中时日志直接可读，misconfig 项无需进 Code Scanning。
+      # ------------------------------------------------------------------
+      - name: Trivy misconfig gate
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          scanners: "misconfig"
+          format: "table"
+          severity: "HIGH,CRITICAL"
+          trivyignores: ".trivyignore.yaml"
           version: "v0.69.3"
           exit-code: "1"
 

@@ -550,7 +550,10 @@ services:
       # 前端是本栈的对外入口，但默认仍只绑回环：本机评估/浏览器验证够用，
       # 不把 80 端口随手开放到局域网。需要同学从别的机器访问时显式开：
       #   FRONTEND_HOST_BIND=0.0.0.0 docker compose --profile full up -d
-      - "${FRONTEND_HOST_BIND:-127.0.0.1}:${FRONTEND_HTTP_PORT:-80}:80"
+      # 【DR-34】容器侧端口 80 → 8080：nginx 以 uid=101 运行，绑不了 <1024 的特权端口。
+      #   **宿主机侧不变**（默认 80），所以 http://localhost/ 与后端 CORS 白名单无需改动；
+      #   改的是 nginx.conf 的 listen，两处必须同步（见 frontend/nginx.conf 头注）。
+      - "${FRONTEND_HOST_BIND:-127.0.0.1}:${FRONTEND_HTTP_PORT:-80}:8080"
     logging:
       # json-file 日志限额：与 backend 一致，防止日志膨胀
       driver: json-file

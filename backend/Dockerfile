@@ -25,8 +25,21 @@ FROM ${RUNTIME_IMAGE}
 WORKDIR /app
 # 安装 curl：容器健康探针（docker-compose healthcheck）依赖 curl 探活 /api/actuator/health/probe
 RUN apk add --no-cache curl
-COPY --from=builder /app/target/*.jar app.jar
-RUN mkdir -p uploads
+# 【DR-34 非 root 化】2026-10-08：原镜像未声明 USER → 进程以 UID 0 运行，被 Trivy misconfig
+# DS-0002（HIGH）点红。容器内 Java 一旦被 RCE，root 可直接改挂载点与 /run/secrets，故按
+# 「能修绝不豁免」在本镜像根治，而不是继续靠 .trivyignore 兜。
+#   · UID/GID 固定 10001：命名卷的属主靠数字 UID 传递，不能依赖用户名解析；
+#   · uploads/ 与 backups/ 在 chown 之前建好，见下方卷属主说明；
+#   · busybox 的 adduser 只有 `-h DIR`（没有 GNU 的 `-d`），`-H` 表示不新建目录——/app 已由 WORKDIR 建好。
+RUN addgroup -g 10001 -S app \
+    && adduser -u 10001 -S -G app -h /app -H -D app \
+    && mkdir -p /app/uploads /app/backups \
+    && chown -R app:app /app
+COPY --chown=app:app --from=builder /app/target/*.jar app.jar
+# ⚠ 命名卷属主只在**卷首次创建**时从镜像目录继承（Docker 的 volume chown-on-create 语义）。
+#   存量 uploads-data / backups-data 卷仍是 root:root → 升级后上传与备份会 500，
+#   上线前必须一次性迁移（处置命令与取证见 docs/项目手册.md §24.2.4）。
+USER app:app
 EXPOSE 8080
 ENV JAVA_OPTS="-Xms256m -Xmx512m" \
     TZ=Asia/Shanghai

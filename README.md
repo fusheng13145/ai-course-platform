@@ -155,8 +155,23 @@ docker compose --profile full up -d --build
 #      printf %s "$APP_ACTUATOR_BASIC_PASSWORD" > deploy/secrets/actuator_basic_password   # 末尾不可有换行
 ```
 
+> 🔄 **从 2026-10-08 之前的版本升级上来，先做这一件事**（DR-34：两个镜像已真正非 root 运行——backend uid/gid **10001**、frontend uid/gid **101**）：
+> Docker 只在**卷首次创建**时把镜像内挂载点的属主传给卷，所以**存量** `aicourse_uploads-data` / `aicourse_backups-data`
+> 仍是 root:root，直接换新镜像会让**教学资源上传与每日备份静默 500**（容器照常 Healthy，问题只在写文件时暴露）。
+> ```bash
+> docker run --rm -v aicourse_uploads-data:/v alpine:3 sh -c 'ls -la /v | head -40'   # 先看有没有既有文件
+> docker run --rm -v aicourse_uploads-data:/v alpine:3 sh -c 'chown -R 10001:10001 /v'
+> docker run --rm -v aicourse_backups-data:/v  alpine:3 sh -c 'chown -R 10001:10001 /v'
+> ```
+> 空卷可以直接删卷让 compose 重建（新卷自动是 10001:10001）；**有既有文件的库必须走上面的 in-place chown，不要删卷**。
+> 范围只有这两卷：`--profile ops` 的 mysql-backup 容器写的是**另一个卷** `mysql-backups:/backups`（它未声明 `user`，仍以 root 运行），
+> 与 backend 的 `backups-data:/app/backups` 互不相干，**不要顺手 chown 它**。
+> 完整取证（含"存量卷不改会 Permission denied"的对照实验、上传/下载全链路复验）见 `docs/项目手册.md` §24.2.4。
+
 > ⚠️ **务必先选一条路径再启动。** `--profile full` 起的是一个**明文 HTTP 单机栈**：`frontend/nginx.conf`
-> 只监听 **80**、compose **没有挂载任何证书卷**，因此不存在 TLS 终止。而 backend 的
+> 在容器内监听 **8080**（DR-34 非 root 化后 nginx 以 uid 101 运行，绑不了 <1024 的特权端口），
+> compose 把它映射回**宿主机 80**（`${FRONTEND_HOST_BIND:-127.0.0.1}:${FRONTEND_HTTP_PORT:-80}:8080`），
+> 且**没有挂载任何证书卷**，因此不存在 TLS 终止。而 backend 的
 > `REQUIRE_HTTPS`/`COOKIE_SECURE` 生产默认是 `true` —— 若照着下面的默认值直接启动，
 > `/api/**` 会被 `requiresSecure()` 302 重定向到**并不存在的 443**，表现为**全站 API 不可用**
 > （首页能打开、所有接口报错）。这是本部署形态下最容易踩的坑，故拆成两条路径：
@@ -193,7 +208,7 @@ COOKIE_SECURE=false
 CSRF_ENABLED=true      # 保持 true，不要关
 ```
 
-- **原因**：nginx 仅监听 80、compose 无证书卷，没有任何 TLS 终止；不关掉强制，`/api/**` 会被 302 到不存在的 443。
+- **原因**：nginx 容器内只听 **8080**（宿主机侧仍是 80，访问 URL 不变）、compose 未挂载任何证书卷，没有任何 TLS 终止；不关掉强制，`/api/**` 会被 302 到不存在的 443。
 - **风险**：令牌与口令将**明文传输**，可被同网段嗅探。**禁止用于公网**，仅限本机 / 受信内网。
 - 访问：前端 http://localhost ｜ API http://localhost:8080/api
 - 跨域：前端经 nginx 反代 `/api` 与后端**同源**，无需开放 CORS，`CORS_ALLOWED_ORIGINS` 可留空（留空即 fail-closed，拒绝一切跨域来源）。

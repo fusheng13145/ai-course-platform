@@ -18,7 +18,20 @@ RUN npm run build
 
 # ==== 运行阶段 ====
 FROM ${NGINX_IMAGE}
-COPY --from=builder /app/dist /usr/share/nginx/html
+# 【DR-34 非 root 化】2026-10-08：沿用已钉住的 nginx:alpine，不引入 nginxinc/nginx-unprivileged
+# （多一个上游就要多一套 tag+digest 维护）。nginx:alpine 自带 uid/gid=101 的 nginx 账号，
+# 但 /var/cache/nginx 与 /run 属主是 root，非 root 起不来 → 显式把运行时可写落点交给 101。
+# 监听端口 80→8080：<1024 的端口在 Linux 上只有 root 能绑，这是本改动唯一的功能性代价，
+#   宿主机侧端口不变（compose 仍默认 80），对外访问 URL 无感知。
+RUN mkdir -p /var/cache/nginx /var/log/nginx \
+    && chown -R nginx:nginx /var/cache/nginx /var/log/nginx \
+    && touch /var/run/nginx.pid \
+    && chown nginx:nginx /var/run/nginx.pid
+COPY --chown=nginx:nginx --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
-EXPOSE 80
+USER nginx:nginx
+EXPOSE 8080
+# 说明：/etc/nginx/nginx.conf 是上游文件，其中 `user nginx;` 在非 root master 下会打一条
+# WARN（"the 'user' directive makes sense only if the master process runs with super-user
+# privileges"）。实测仅为告警、不影响启动与转发，属预期日志，不是缺陷。
 CMD ["nginx", "-g", "daemon off;"]

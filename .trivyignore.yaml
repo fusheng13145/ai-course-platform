@@ -1,0 +1,34 @@
+# Trivy 镜像配置（misconfiguration）豁免 —— 与 .trivyignore 是两套口径，勿混用
+#
+# 本文件只被 ci.yml 的「Trivy misconfig gate」步骤挂上（--ignorefile .trivyignore.yaml），
+# 漏洞豁免仍走 plain 格式的 .trivyignore；两步各挂各的文件，互不污染。
+# 取证全文见 docs/项目手册.md §24.2.3 根因 F 与附录 D.12.3 DR-34。
+#
+# ---------------------------------------------------------------------------
+# 为什么单独成文件（2026-10-08 本机实跑取证，trivy 0.69.3 = trivy-action v0.35.0 默认版本）
+#   plain `.trivyignore` 对 misconfig **只按规则 ID 全局放行，无法限定路径**，
+#   一条 `DS-0002` 会把仓库里所有镜像的同类缺陷一并盖掉 —— 这正是 DR-34 上一轮的困局：
+#   修了两个 Dockerfile，第三个（归档件）仍需要豁免，而豁免是全局的，门禁就此失明。
+#   `.trivyignore.yaml` 的 `misconfigurations[].paths` 能按路径精确生效，实测三组对照：
+#     · paths=['archive/**/Dockerfile']  → 命中 2 条 DS-0002（backend/frontend 仍点红，archive 被豁免）
+#     · paths=['no_such_dir/**/Dockerfile']（阴性对照）→ 命中 3 条 DS-0002，一条都没被盖
+#     · plain 文件写 `DS-0002`            → 命中 0 条（全局放行，即被弃用的旧口径）
+#   ⇒ paths 真实生效，本豁免不是「挂了 ignore 文件就整体放行」。
+#
+# ⚠ ID 形态陷阱（2026-10-07 取证，结论仍适用）：misconfig 只认 Trivy 规则 ID（`DS-0002`），
+#   不认 AVD 编号（`AVD-DS-2022-0002` 写进去零效果）。两条备选路线实测**无效**，不要再试：
+#     · Dockerfile 内联 `#trivy:ignore:DS-0002` / `#trivy:ignore:AVD-DS-2022-0002` 均不生效；
+#     · `--ignore-policy` 的 Rego 包名必须是 `package trivy`（`package trivy.misconfig` 被静默忽略；
+#       `package trivy` + `input.id == "DS-0002"` 不匹配 → 判据字段名未知，不可控）。
+# ---------------------------------------------------------------------------
+misconfigurations:
+  # DS-0002「镜像未指定非 root USER」（HIGH）。
+  # 唯一残留命中：archive/deepgraph_rag/Dockerfile —— 已归档的 Streamlit 演示件
+  # （python:3.11-buster），不参与 docker-compose 构建、不在任何 CI job 里出镜像，
+  # 给它加 USER 既无法构建验证也无人运行，属纯风险改动，故据实豁免而非「修了再说」。
+  # backend/ 与 frontend/ 两个在用镜像已于 2026-10-08 真正非 root 化（DR-34 闭合）。
+  # ⚠ 本节只允许 paths 指向 archive/**；往在用镜像上追加豁免即违反「能修绝不豁免」口径。
+  # 复核触发条件：该归档件被复活（进 compose / 进 CI 构建）→ 立即删除本条并真修。
+  - id: DS-0002
+    paths:
+      - 'archive/**/Dockerfile'
