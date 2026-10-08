@@ -178,11 +178,21 @@ export function buildCourseCatalogSection(role, courses) {
 }
 
 /* ============================== 教师端分区（静态部分） ============================== */
-// 教学概览/试题库/AI 教学中心已全部收敛为「课程目录」下每门课程的独立子项，
-// 统一路由（/teacher/dashboard、/teacher/bank、/teacher/ai）保留兼容与跨课直达。
-export const TEACHER_SECTIONS = []
+// 教学工具/试题库/AI 教学中心/课程级页签已全部收敛为「课程目录」下每门课程的独立子项，
+// 统一路由（/teacher/bank、/teacher/ai、/teacher/analytics 等）保留兼容与跨课直达。
+// 唯一保留的静态项是「教学概览」：它是教师登录后的落地页（stores/auth.ts、utils/permission.ts），
+// 收敛后侧边栏再无入口，进入即回不去，故显式留在导航里。
+export const TEACHER_SECTIONS = [
+  {
+    label: '教学工作台',
+    items: [{ key: 'dashboard', text: '教学概览', icon: 'chart', path: '/teacher/dashboard' }],
+  },
+]
 
 /* ============================== 学生端分区（静态部分） ============================== */
+// 与教师端同为「课程目录 + 静态区」的混合结构：可归属单门课程的功能
+// （课程概览/作业·学习中心/考试练习/课程成绩/知识图谱/AI 助手）走每门课程的三级页签；
+// 跨课程与纯个人入口保留在静态区，分区口径与路由表一致（study/ 归学习工具、academic/ 归课业中心）。
 export const STUDENT_SECTIONS = [
   {
     label: '学习',
@@ -193,11 +203,16 @@ export const STUDENT_SECTIONS = [
     items: [
       { key: 'learning-path', text: '学习路径', icon: 'pin', path: '/student/learning-path' },
       { key: 'calendar', text: '学习日历', icon: 'calendar', path: '/student/learning-calendar' },
+      { key: 'graph', text: '知识图谱', icon: 'layers', path: '/student/knowledge-graph' },
     ],
   },
   {
     label: '课业中心',
-    items: [{ key: 'wrong', text: '错题本', icon: 'warn', path: '/student/wrong-questions' }],
+    items: [
+      { key: 'exams', text: '模拟考试', icon: 'clipboard', path: '/student/exams' },
+      { key: 'grades', text: '我的成绩', icon: 'award', path: '/student/grades' },
+      { key: 'wrong', text: '错题本', icon: 'warn', path: '/student/wrong-questions' },
+    ],
   },
   {
     label: '个人',
