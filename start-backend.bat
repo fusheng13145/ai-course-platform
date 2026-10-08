@@ -145,7 +145,17 @@ echo        This is expected without a key and does NOT block the demo (manual s
 goto step5_check_engines
 
 :ai_key_present
-echo [OK] DEEPSEEK_API_KEY present (value not printed)
+rem Shape check only - never print the value. A placeholder left in .env (for example an empty
+rem value plus a trailing comment) is "defined" but useless, and it makes the composite /health
+rem read 503 while the launcher still claims the credential is present.
+if not "!DEEPSEEK_API_KEY:~0,3!"=="sk-" goto ai_key_suspect
+echo [OK] DEEPSEEK_API_KEY present and shaped like a DeepSeek key (value not printed)
+goto step5_check_engines
+
+:ai_key_suspect
+echo [WARN] DEEPSEEK_API_KEY is defined but does not start with sk- - treat it as NOT configured.
+echo        AI answers stay extractive and /api/actuator/health stays 503 (probe stays 200).
+echo        Paste a real key into .env; this script never prints the value.
 
 :step5_check_engines
 rem Engine self-check: when 8001/8002 are listening and .env does not set the switch, enable it for this process only.
@@ -179,6 +189,8 @@ goto neo4j_check
 :rag_absent
 echo [INFO] RAG engine not on 8002 - AI answers come from locally extracted passages.
 echo        To enable: cd python-services\rag_service ^&^& uvicorn rag_service:app --host 127.0.0.1 --port 8002
+echo        The python engines read the process environment only (no .env loader), so a real
+echo        sk- DEEPSEEK_API_KEY must be set in that shell before generated answers can work.
 
 :neo4j_check
 netstat -ano | findstr ":7687 " | findstr "LISTENING" >nul 2>&1

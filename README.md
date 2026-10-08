@@ -74,7 +74,7 @@
 | 实时通信           | WebSocket                    | 集成Spring WebSocket  |
 | 限流熔断           | Sentinel                     | 下游流控 + 慢调用熔断 |
 | 数据库迁移         | Flyway                       | 7 个脚本：结构迁移 V1–V4（`db/migration`，全环境）+ 演示种子 V5–V7（`db/seed-demo`，prod 排除） |
-| 图数据库（可选）   | Neo4j                        | 5.x，compose `rag` profile；缺失时 KG 回落内存图 |
+| 图数据库（可选）   | Neo4j                        | 5.x，本阶段用**本机独立实例**（compose `rag` 路径已搁置，§18.5）；缺失时 KG 回落内存图 |
 | 代码质量门禁       | JaCoCo / SpotBugs / ArchUnit | LINE≥85%+BRANCH≥65%（阻断）/ 0 bug（阻断）/ 6 条架构守护 |
 | 前端 Lint          | ESLint                       | **9.39.5 + flat config**（`frontend/eslint.config.js`） |
 | KB/RAG（Python）   | FastAPI 契约服务             | rag 8002 / kg 8001    |
@@ -89,7 +89,7 @@ Java 后端通过 HTTP 契约（`com.aicourse.integration.rag.RagContract`）与
 | RAG 检索引擎 | `python-services/rag_service/` | 8002 | **9 个契约端点** + `rag_engine.py` 真实混合检索引擎（BM25 + 向量 + RRF 融合，重依赖懒加载）；CI 护栏 `test_rag_contract.py` |
 | LoRA 微调服务 | —（**Python 端尚无实现**） | 8003 | Java 侧 `ContractPaths` 的 8 条 `/api/v1/fine-tune/*` 契约与消费侧已就绪，启用即 503 降级；等待队友交付 |
 
-容器化启动知识图谱栈（`docker compose --profile rag up -d neo4j`，需先在 `.env` 配 `NEO4J_PASSWORD`）的用法与前置已随 2026-10-08 的编排搁置**整体转入手册 §24.2**（含重新启用前提清单①–⑤），本阶段不再执行。**未拉起 Neo4j 不阻塞**：KG 自动回落内存图，功能可用但持久化缺失；本阶段 Python KG/RAG 服务不运行，AI 走 Java 原生 Provider。
+容器化启动知识图谱栈（`docker compose --profile rag up -d neo4j`，需先在 `.env` 配 `NEO4J_PASSWORD`）的用法与前置已随 2026-10-08 的编排搁置**整体转入手册 §24.2**（含重新启用前提清单①–⑤），本阶段不再执行。**但"搁置 Docker"不等于"搁置引擎"**：本阶段以本机独立 Neo4j 5.26 + `uvicorn` 两进程运行 KG(8001) / RAG(8002)，`start-backend.bat` 探到监听后自动开启 Java 侧对接，2026-10-08 运行验收实测路径规划 / 子图 / 摄取与检索问答均为 `mode=ENGINE`。**未起 Neo4j 仍不阻塞**：KG 自动回落内存图。三进程的启动顺序、必须导出到引擎进程的环境变量与取证清单见手册 **§18.5**。
 
 > 早期 RAG 成员上传的 Streamlit 原型（原 `python-services/deepgraph_rag/`，端口 8501）不参与正式功能，已整体归档至仓库根 `archive/deepgraph_rag/`，仅作历史参考。
 
@@ -99,11 +99,11 @@ Java 后端通过 HTTP 契约（`com.aicourse.integration.rag.RagContract`）与
 
 项目提供两条启动路径：**本地开发**（**本阶段唯一使用的路径**——本机 MySQL / Redis + 两份 `.bat` 启动器）与 **容器化部署**（**2026-10-08 起整体搁置**：编排文件、镜像版本、用法与重新启用前提清单已全部归档到 `docs/项目手册.md` §24.2，仓库文件一件没删、CI 的 `docker`／`trivy-scan` 作业照常按容器判定，但**本机不再执行**）。详细步骤见 `docs/项目手册.md`（第六部分开发 / 第七部分部署）。
 
-> ⚠️ **本阶段的依赖纪律**：开发阶段**仅使用本地服务**。若本机缺少必要依赖（MySQL 3306 / Redis 6379 / JDK 21 / Node 20.19+），**不要自行 `docker pull`、也不要安装替代物 → 直接上报项目主**。`python-services/`（KG 8001 / RAG 8002）与 Neo4j 在本机同样不运行，后端以 `KG_ENABLED=false` / `RAG_ENABLED=false` 走 Java 原生实现，功能可用（详见手册 §18.5、§D.12.5）。
+> ⚠️ **本阶段的依赖纪律**：开发阶段**仅使用本地服务**。**必要**依赖（MySQL 3306 / Redis 6379 / JDK 21 / Node 20.19+）由两份 `.bat` 启动时自检，缺失即报错退出；**可选**依赖（Neo4j 7687 / KG 8001 / RAG 8002）缺失只降级不阻塞——`KG_ENABLED` / `RAG_ENABLED` 保持关闭，AI 走 Java 原生 Provider，功能仍可用。任一必要依赖本机没有时，**不要自行 `docker pull`、也不要安装替代物 → 直接上报项目主**。可选依赖的启动方式与本轮运行验收见手册 **§18.5**。
 
 ### 方式一：本地开发（推荐）
 
-前置：JDK 21、Node 20.19+，以及**本机在跑的 MySQL 8.4（3306）与 Redis（6379）**。缺任何依赖 → **上报项目主，不要自行拉容器**（本阶段 Docker 编排搁置，手册 §17 / §24.2）。
+前置：JDK 21、Node 20.19+，以及**本机在跑的 MySQL 8.4（3306）与 Redis（6379）**。缺任何依赖 → **上报项目主，不要自行拉容器**（本阶段 Docker 编排搁置，手册 §17 / §24.2）。AI 图谱/检索引擎（Neo4j 7687 + KG 8001 + RAG 8002）为**可选**前置：不起也能演示（走 Java 原生 Provider），起法与启动顺序见手册 **§18.5**——`start-backend.bat` 会探测它们并自动开启对接。
 
 ```bash
 # 数据库初始化（首次）
@@ -116,7 +116,7 @@ start-frontend.bat       # 前端：另开一个终端
 
 两个脚本各自做什么（逐步口径见手册 **§18.2 / §18.3**）：
 
-- **`start-backend.bat`**：读 `.env`（缺 `JWT_SECRET` / `MYSQL_ROOT_PASSWORD` 直接 fail-fast，无弱默认）→ 校验 JDK 21 → 探测本机 3306 / 6379（未监听只提示 `net start MySQL84` / `net start Redis` 后退出，**脚本已不含任何 docker 分支**）→ 检查可选的 `DEEPSEEK_API_KEY`（只判在不在、不打印值）→ 探测 8001 / 8002 引擎，`.env` 未显式给开关时**为本次进程**自动 `KG_ENABLED` / `RAG_ENABLED=true` → 8080 被占用时**默认不启第二个实例**（双实例共用一套 MySQL/Redis 却各自计限流、日志分叉，DR-36）→ 以 `profiles=local` 启动。
+- **`start-backend.bat`**：读 `.env`（缺 `JWT_SECRET` / `MYSQL_ROOT_PASSWORD` 直接 fail-fast，无弱默认）→ 校验 JDK 21 → 探测本机 3306 / 6379（未监听只提示 `net start MySQL84` / `net start Redis` 后退出，**脚本已不含任何 docker 分支**）→ 检查可选的 `DEEPSEEK_API_KEY`（先判在不在、再按前缀 `sk-` 判形状，占位串打 `[WARN]` 而非 `[OK]`，全程不打印值，DR-38）→ 探测 8001 / 8002 引擎，`.env` 未显式给开关时**为本次进程**自动 `KG_ENABLED` / `RAG_ENABLED=true` → 8080 被占用时**默认不启第二个实例**（双实例共用一套 MySQL/Redis 却各自计限流、日志分叉，DR-36）→ 以 `profiles=local` 启动。
 - **`start-frontend.bat`**：定位 Node → 依赖检查（`node_modules` 已存在则跳过 `install`，另提示 lockfile 时间戳供 `npm ci` 判断）→ 探后端 `GET /api/actuator/health/probe` → 在 **5173 / 5174 / 5175** 中取第一个空闲端口起 Vite。
 
 访问：前端 http://localhost:5173（脚本自动择空）｜ API http://localhost:8080/api ｜ Swagger http://localhost:8080/api/swagger-ui.html ｜ 探活 http://localhost:8080/api/actuator/health/probe
