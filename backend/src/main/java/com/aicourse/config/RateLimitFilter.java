@@ -48,11 +48,17 @@ public class RateLimitFilter extends OncePerRequestFilter {
      * 2) 若 key 是首次创建，则设置过期时间（窗口长度 + 1 秒缓冲）；
      * 3) 返回当前窗口内请求数。
      * 使用 Lua 保证 INCR + EXPIRE 的原子性，避免并发窗口重置导致计数错误。
+     * <p>
+     * ⚠️ 引用参数下标必须与 {@link #tryAcquireRedis} 实际传入的 ARGV 个数一致：
+     * Lua 里越界访问 {@code ARGV[n]} 得到的是 {@code false}，{@code EXPIRE key false}
+     * 会让整段脚本报 "Lua redis() command arguments must be strings or integers"。
+     * 由于 INCR 先于 EXPIRE 生效，报错后窗口 key 已计数却永不过期——限流计数退化为
+     * 本地内存执行，同时 Redis 里的窗口键无限堆积。
      */
     private static final String SLIDE_WINDOW_LUA =
             "local current = redis.call('INCR', KEYS[1]) " +
             "if current == 1 then " +
-            "    redis.call('EXPIRE', KEYS[1], ARGV[2]) " +
+            "    redis.call('EXPIRE', KEYS[1], ARGV[1]) " +
             "end " +
             "return current";
 

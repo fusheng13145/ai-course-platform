@@ -224,4 +224,48 @@ class RateLimitFilterTest {
         String key = keysCaptor.getValue().get(0);
         assertTrue(key.startsWith("ratelimit:login:1.2.3.4:"));
     }
+
+    /**
+     * Lua 脚本引用的 ARGV / KEYS 下标必须落在调用方真实传入的个数之内。
+     * <p>越界的 {@code ARGV[n]} 在 Lua 里取到 {@code false}，{@code EXPIRE key false} 会让
+     * 整段脚本执行失败；而 INCR 先已写入，于是窗口键既没有限流语义也没有 TTL，
+     * 在 Redis 中永久堆积，同时集群级限流静默退化为单机内存限流。
+     * 既有用例把 {@code StringRedisTemplate} 整体打桩，脚本正文从未被执行，
+     * 所以这一类下标错位只能靠断言脚本与实参的契约来守住。</p>
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void luaScriptParameterIndexes_stayWithinArgsAndKeysPassed() throws Exception {
+        request.setRequestURI("/api/ai/qa/ask");
+        request.setRemoteAddr("192.168.1.20");
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), any()))
+                .thenReturn(1L);
+
+        filter.doFilterInternal(request, response, chain);
+
+        ArgumentCaptor<RedisScript<Long>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
+        ArgumentCaptor<List<String>> keysCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<Object> argsCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(redisTemplate).execute(scriptCaptor.capture(), keysCaptor.capture(), argsCaptor.capture());
+
+        String lua = scriptCaptor.getValue().getScriptAsString();
+        assertTrue(highestLuaTableIndex(lua, "ARGV") <= argsCaptor.getAllValues().size(),
+                "ARGV 下标越界：脚本引用到 ARGV[" + highestLuaTableIndex(lua, "ARGV")
+                        + "]，但调用方只传了 " + argsCaptor.getAllValues().size() + " 个实参");
+        assertTrue(highestLuaTableIndex(lua, "KEYS") <= keysCaptor.getValue().size(),
+                "KEYS 下标越界：脚本引用到 KEYS[" + highestLuaTableIndex(lua, "KEYS")
+                        + "]，但调用方只传了 " + keysCaptor.getValue().size() + " 个键");
+        // TTL 实参 = 窗口长度 + 1 秒边界缓冲（ai 窗口默认 60）
+        assertEquals("61", String.valueOf(argsCaptor.getAllValues().get(0)));
+    }
+
+    private static int highestLuaTableIndex(String lua, String table) {
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile(table + "\\[(\\d+)]").matcher(lua);
+        int max = 0;
+        while (m.find()) {
+            max = Math.max(max, Integer.parseInt(m.group(1)));
+        }
+        return max;
+    }
 }
