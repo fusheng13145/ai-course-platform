@@ -51,8 +51,8 @@
 | --- | --- | --- |
 | ① 权威规范 | `docs/项目手册.md` | **唯一事实基准**，与他人冲突时以手册为准 |
 | ② 导航 | `docs/文档索引.md` | 全仓文档的定位、时效与读者地图 |
-| ③ 专题 | `docs/端到端验证与缺陷修复总报告.md`<br>`docs/产品化转化方案.md`<br>`docs/密钥注入与Secret管理.md` | 单一专题的**当前有效**结论／方案／指南 |
-| ④ 归档 | `docs/历史归档/` | 时点性报告**冻结**原文（**20 份报告 + 1 份目录 README = 21 个文件**，2026-10-06 实测；收录判据与冻结声明见该目录 `README.md`）|
+| ③ 专题 | `docs/产品化转化方案.md`<br>`docs/密钥注入与Secret管理.md` | 单一专题的**当前有效**方案／操作指南。⚠️ **端到端与压力结论不再另立专题文档**——唯一来源是手册 **§43**，缺陷台账见手册**附录 D** |
+| ④ 归档 | `docs/历史归档/` | 时点性报告**冻结**原文（**21 份报告 + 1 份目录 README = 22 个文件**，2026-10-08 实测；收录判据与冻结声明见该目录 `README.md`）|
 
 > 历轮审查与端到端验证的**结论索引**见手册 **附录D 审查修正台账**（含每条发现的处置状态与原文溯源坐标）。
 
@@ -89,7 +89,7 @@ Java 后端通过 HTTP 契约（`com.aicourse.integration.rag.RagContract`）与
 | RAG 检索引擎 | `python-services/rag_service/` | 8002 | **9 个契约端点** + `rag_engine.py` 真实混合检索引擎（BM25 + 向量 + RRF 融合，重依赖懒加载）；CI 护栏 `test_rag_contract.py` |
 | LoRA 微调服务 | —（**Python 端尚无实现**） | 8003 | Java 侧 `ContractPaths` 的 8 条 `/api/v1/fine-tune/*` 契约与消费侧已就绪，启用即 503 降级；等待队友交付 |
 
-~~容器化启动知识图谱栈（Neo4j）：`docker compose --profile rag up -d neo4j`（需先在 `.env` 配置 `NEO4J_PASSWORD`，见 `.env.example`）。~~ ⚠️ **该命令随 2026-10-08 的编排搁置只作留档**（用法与前置见手册 §24.2 清单①–⑤）。**未拉起 Neo4j 不阻塞**：KG 自动回落内存图，功能可用但持久化缺失；本阶段 Python KG/RAG 服务不运行，AI 走 Java 原生 Provider。
+容器化启动知识图谱栈（`docker compose --profile rag up -d neo4j`，需先在 `.env` 配 `NEO4J_PASSWORD`）的用法与前置已随 2026-10-08 的编排搁置**整体转入手册 §24.2**（含重新启用前提清单①–⑤），本阶段不再执行。**未拉起 Neo4j 不阻塞**：KG 自动回落内存图，功能可用但持久化缺失；本阶段 Python KG/RAG 服务不运行，AI 走 Java 原生 Provider。
 
 > 早期 RAG 成员上传的 Streamlit 原型（原 `python-services/deepgraph_rag/`，端口 8501）不参与正式功能，已整体归档至仓库根 `archive/deepgraph_rag/`，仅作历史参考。
 
@@ -103,32 +103,30 @@ Java 后端通过 HTTP 契约（`com.aicourse.integration.rag.RagContract`）与
 
 ### 方式一：本地开发（推荐）
 
-前置：JDK 21、Node 20.19+、MySQL 8.0+、Redis 7.x（必选，启动强校验）。
+前置：JDK 21、Node 20.19+，以及**本机在跑的 MySQL 8.4（3306）与 Redis（6379）**。缺任何依赖 → **上报项目主，不要自行拉容器**（本阶段 Docker 编排搁置，手册 §17 / §24.2）。
 
 ```bash
 # 数据库初始化（首次）
 mysql -u root -p -e "CREATE DATABASE ai_course_platform CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 mysql -u root -p ai_course_platform < backend/src/main/resources/index.sql
 
-# 后端（一键脚本：自动加载 .env、校验 JDK 21、检测 MySQL/Redis）
-start-backend.bat
-# 或手动：cd backend && ./mvnw.cmd spring-boot:run -Dspring-boot.run.profiles=local
-
-# 前端
-start-frontend.bat
-# 或手动：cd frontend && npm install && npm run dev
+start-backend.bat        # 后端：六步自检后 spring-boot:run
+start-frontend.bat       # 前端：另开一个终端
 ```
 
-访问：前端 http://localhost:5173 ｜ API http://localhost:8080/api ｜ Swagger http://localhost:8080/api/swagger-ui.html
+两个脚本各自做什么（逐步口径见手册 **§18.2 / §18.3**）：
+
+- **`start-backend.bat`**：读 `.env`（缺 `JWT_SECRET` / `MYSQL_ROOT_PASSWORD` 直接 fail-fast，无弱默认）→ 校验 JDK 21 → 探测本机 3306 / 6379（未监听只提示 `net start MySQL84` / `net start Redis` 后退出，**脚本已不含任何 docker 分支**）→ 检查可选的 `DEEPSEEK_API_KEY`（只判在不在、不打印值）→ 探测 8001 / 8002 引擎，`.env` 未显式给开关时**为本次进程**自动 `KG_ENABLED` / `RAG_ENABLED=true` → 8080 被占用时**默认不启第二个实例**（双实例共用一套 MySQL/Redis 却各自计限流、日志分叉，DR-36）→ 以 `profiles=local` 启动。
+- **`start-frontend.bat`**：定位 Node → 依赖检查（`node_modules` 已存在则跳过 `install`，另提示 lockfile 时间戳供 `npm ci` 判断）→ 探后端 `GET /api/actuator/health/probe` → 在 **5173 / 5174 / 5175** 中取第一个空闲端口起 Vite。
+
+访问：前端 http://localhost:5173（脚本自动择空）｜ API http://localhost:8080/api ｜ Swagger http://localhost:8080/api/swagger-ui.html ｜ 探活 http://localhost:8080/api/actuator/health/probe
 
 > 📦 **依赖源已迁移到官方 registry**（2026-10-08，DR-35 相邻项闭合）：`frontend/package-lock.json` 的 509 条 `resolved` 已全部改为 `registry.npmjs.org`（仅 `cdn.sheetjs.com` 的 xlsx tarball 按原样保留）。**本机不需要为此改 npm 配置**——npm 默认的 `replace-registry-host=npmjs` 会把官方主机名重写到**你配置的**镜像源，所以同一份 lockfile 同时服务 CI（官方源）与本机（npmmirror 提速），`integrity` 哈希与源无关。取证见手册 §24.2.3 根因 G 续写。
 
-> 前端 dev server 为 `strictPort: true`：**5173 被其他项目占用时会直接报错退出**（不会自动换端口）。改用
-> `cd frontend && npx vite --port 5174` 即可——后端 CORS 白名单已含 `5173 / 5174 / 5175`（`application.yaml:219-229`，
-> `localhost` 与 `127.0.0.1` 两种写法），换端口不影响联调。
+> 前端 dev server 为 `strictPort: true`：5173 被其他应用占用时 Vite **直接退出而不自动换口**——`start-frontend.bat` 因此预先探测端口并显式传 `--port`。手动起则用 `cd frontend && npx vite --port 5174`。后端 CORS 白名单只含 `5173 / 5174 / 5175`（`application.yaml:220-226`，`localhost` 与 `127.0.0.1` 两种写法），**5176 及以上端口登录会被 403 拒绝**。本机 Vite 实测监听 `[::1]`，请用 `http://localhost:5173/`（`127.0.0.1` 反而连不上）。
 
-> ~~本机未装 MySQL / Redis 时：`docker compose up -d mysql redis` 拉起基础设施容器（MySQL 宿主端口 3307），`start-backend.bat` 自动切换数据源。~~
-> **2026-10-08 起本条作废**（编排搁置，见手册 §24.2）：缺少本地 MySQL / Redis 时**按上面的依赖纪律上报项目主**，不要自行拉容器。`start-backend.bat` 里仍保留"探测 3307 则切数据源"的**检测逻辑**，它只在别处已经提供一个 MySQL 时才生效，不构成拉镜像的许可。
+> 本机未装 MySQL / Redis 时：**按上面的依赖纪律上报项目主**，不要自行拉容器（编排搁置，用法与配置留档见手册 §24.2）。
+> `start-backend.bat` 里原先"探测 3307 则切数据源"的分支**已删除**——脚本现在不含任何 docker 路径。
 
 #### 健康检查与常见排障（2026-09-14 补充）
 
@@ -268,25 +266,23 @@ cd backend && mvn test -Dtest='!*IT,!Phase1Phase3IntegrationTest' -DfailIfNoTest
 cd frontend && npm run lint && npm run typecheck:gate && npx vitest run && npm run build
 ```
 
-**当前实测基线**（口径与逐行出处见 `docs/项目手册.md` 附录 B / §43。**本机当前口径 = 2026-10-08 14:14 `mvn -B -o clean verify -DskipITs` 串行实跑 → BUILD SUCCESS（3:03）**，因为编排自 2026-10-08 起搁置、Testcontainers 层交回 CI `backend` 作业取数。⚠️ JaCoCo 采集为「surefire 截断 + failsafe 追加」的**单次构建并集**，读数与历史构建无关、可本机复现并 ≡ CI；但 exec 落在 `${user.home}` 且被所有 git worktree 共用，**带覆盖率的构建必须串行**，见手册 §3 告警块与 §24.2.3 根因 D。集成层最后一次本机含 IT 实跑为 2026-10-07 21:56：单测 2830 + **failsafe 12 用例 / 0 失败**，当时 JaCoCo **LINE 89.16% / BRANCH 70.62%**；两口径仅差 **0.01pp**，故搁置 IT 不扭曲覆盖率引用）：
+**当前实测基线**：本机当前口径 = `mvn -B -o clean verify -DskipITs`（编排 2026-10-08 起搁置，Testcontainers 集成层交回 CI `backend` 作业取数）。⚠️ **下表数值一律从手册附录 B.2 抄取，B.2 是唯一来源**；改 B.2 后必须同步此处，两处不一致时以 B.2 为准。构建纪律（JaCoCo exec 落在 `${user.home}`、被所有 worktree 共用，**带覆盖率的构建必须串行**）见手册 §3 告警块与 §24.2.3 根因 D。
 
-| 门禁 | 读数 |
+| 门禁 | 读数（当前本机口径） |
 | --- | --- |
-| 后端单测 | **2831 用例 / 0 失败 / 0 错误 / 0 跳过**（196 份 surefire 报告；较 10-07 增 1 例 = DR-36 的 Lua 下标一致性守卫） |
-| 后端集成测试 | failsafe **12 用例 / 0 失败**（`ApplicationIT` 1 + `Phase1Phase3IntegrationTest` 6 走 Testcontainers；`AuthFlowIntegrationTest` 5 走本机 MySQL+Redis）——⚠️ **本阶段本机不跑，由 CI `backend` 作业取数**，读数取自 2026-10-07 含 IT 实跑 |
-| JaCoCo | **LINE 89.15% / BRANCH 70.60%**（指令 88.96%，341 类 / 334 类有行覆盖）→ 门禁 LINE≥85%／BRANCH≥65% **未降低**下达标 |
+| 后端单元测试 | **2831 用例 / 0 失败 / 0 错误 / 0 跳过** |
+| 后端集成测试 | **12 用例 / 0 失败**（含 IT 那轮，现由 CI 取数） |
+| JaCoCo | **LINE 89.15% / BRANCH 70.60%**（341 类）→ 在**阈值未降低**（LINE ≥ 85% / BRANCH ≥ 65%）的前提下达标，靠补真实测试而非降阈值 |
 | ArchUnit | **6 条**架构守护全通过 |
-| SpotBugs | **0 缺陷**，`failOnError=true` 已硬阻断（13 个框架性 `<Match>` 豁免） |
-| 前端单测 | **55 文件 / 1096 用例全绿**（2026-10-07 本机实测） |
-| 前端 ESLint | **0 error / 0 warning**（ESLint 9 flat config） |
-| 前端类型检查 | `vue-tsc` 存量 **576 条 / 108 文件**，棘轮基线已于 2026-10-07 同步下调（586 → 576，只许下降） |
-| CI | 3 个工作流文件；`ci.yml` **10 个作业**（含 `secret-scan`；`frontend-e2e` 暂为 `workflow_dispatch` 手动触发）。⚠️ **本机对 Actions 运行结果不可观测**（无 `gh`、无 token，github MCP 无 workflow/check 类 API → 盘点见手册 §21.1），故一律以本地复现门禁为准 |
-
+| SpotBugs | **0 缺陷**（`failOnError=true` 硬阻断，13 个框架性 `<Match>` 豁免） |
+| 前端单测 / ESLint | **55 文件 / 1096 用例全绿**；lint **0 error / 0 warning** |
+| 前端类型检查 | `vue-tsc` 棘轮基线 **576 条 / 108 文件**（只许下调） |
+| CI | 3 个工作流；`ci.yml` **10 个作业**（`frontend-e2e` 暂为 `workflow_dispatch`）——**本机绿不等于 CI 绿**，且本机对 Actions 结果不可观测（手册 §21.1） |
 质量门禁基线（渐进收敛制，只许上调不得下调）：JaCoCo LINE ≥ 85% / BRANCH ≥ 65%（生产收敛目标指令覆盖 ≥ 85%）、SpotBugs 0 error、ArchUnit 架构约束。测试方法、契约测试清单与 CI 流水线见 `docs/项目手册.md` 第六部分。
 
 ### 端到端全链路与压力测试（四件套）
 
-`scripts/e2e/` 下有**四件套**实机脚本（仅依赖 Python 标准库）。**改动后端后建议全跑**；历史结果快照在 `archive/deliverables/`，本地重跑生成的 `e2e_*_result.json` 落在脚本目录（已 gitignore）。
+`scripts/e2e/` 下有**四件套**实机脚本（仅依赖 Python 标准库），**改动后端后必跑**。用例规模、运行前提（`FLUSHDB`、双姿态、cookie jar、造数据契约）与读数一律见手册 **§43**——README 只给命令顺序，不复制数字；历史结果快照在 `archive/deliverables/`，本地重跑生成的 `e2e_*_result.json` 落在脚本目录（已 gitignore）。
 
 ```bash
 # 前置：MySQL(3306) 与 Redis(6379) 已运行；仓库根有 .env；
@@ -297,15 +293,15 @@ cd frontend && npm run lint && npm run typecheck:gate && npx vitest run && npm r
 python scripts/run-backend-for-e2e.py functional
 
 cd scripts/e2e
-python e2e_verify_network_course.py   # ① 主链路 75 例（建课→审批→资料→作业→考试→成绩）
-python e2e_deep_verify.py             # ② 多维深度 49 例（A 协同/B 边界/C 越权/D 一致性/E 分片下线态/F 退回重交/G 版本）
+python e2e_verify_network_course.py   # ① 主链路（建课→审批→资料→作业→考试→成绩）
+python e2e_deep_verify.py             # ② 多维深度（A 协同/B 边界/C 越权/D 一致性/E 分片下线态/F 退回重交/G 版本）
 python e2e_stress_verify.py           # ④ 压力与稳定性（加 --quick 走快速档）
 
 # ── 第 2 轮：安全姿态（CSRF 默认开、登录限流默认阈值）──────────────
 # 先停掉功能姿态后端，再：
 python scripts/run-backend-for-e2e.py secure
 cd scripts/e2e
-python e2e_security_verify.py         # ③ 安全维度 7 例（CSRF 双提交 + 双层登录限流）
+python e2e_security_verify.py         # ③ 安全维度（CSRF 双提交 + 双层登录限流）
 ```
 
 > **姿态纪律**：功能轮与安全轮**不可混用配置** —— 安全轮若沿用功能姿态（CSRF 关、限流放宽），CSRF 与限流用例会全部失效。两轮起测前脚本均会自行 `FLUSHDB`，无需手工清 Redis。
@@ -314,9 +310,9 @@ python e2e_security_verify.py         # ③ 安全维度 7 例（CSRF 双提交 
 >
 > ⚠️ **DR-36（2026-10-08 已修复）改写了上面这层的真实历史**：速率层四种规则（`login`/`register`/`verify`/`ai`）**共用同一条 Lua**，而该脚本越界引用了不存在的 `ARGV[2]` → 脚本每次报错、只回落实例内存计数，**Redis 侧限流在修复前从未生效**（副作用：计数键无 TTL 慢性泄漏；多实例部署时限流额度按实例数放大）。修复为一处下标更正 + 一条从真实调用现场取参的守卫用例（含阴性对照），机制、A/B 取证与规约升见手册 **附录 D.12.3 DR-36** 与 **§19.1「脚本内联 DSL 的下标一致性」**。
 
-最近一次实测（2026-09-17）：E2E 四件套 **131/131 全绿**；压力测试 62,764 请求 / 峰值 1,808.6 req/s / 成功率 100% / 5xx 0。报告见 `docs/历史归档/端到端全链路与压力测试报告-2026-09-17.md`。
+最近一次全栈复跑为 **2026-10-06**（以示范课 4007 为主链路对象，功能 + 安全双姿态），其后 2026-10-07/08 的收口轮又复验过安全维度。E2E 四件套与压力测试的**读数唯一来源是 `docs/项目手册.md` §43**，README 不复制数字；最早那轮的时点报告在 `docs/历史归档/端到端全链路与压力测试报告-2026-09-17.md`。
 
-> ⚠️ **该基线已滞后于当前代码**：V5/V6 富种子、三级课程导航、KG 力导向与路径规划语义均在该次全绿**之后**落地，四件套尚未复跑；`ci.yml` 的 `frontend-e2e` 作业也仍为 `workflow_dispatch` 手动触发。**演示或放行前建议实跑一轮**（可用示范课 4007 作主链路对象），登记见 `docs/项目手册.md` 附录 D **DR-20**。
+> 📌 **仍开放的半边**：`ci.yml` 的 `frontend-e2e` 作业为 `workflow_dispatch` 手动触发，不在 push/PR 触发链上 ⇒ **本机 Playwright 全绿不等于 CI 绿**，E2E 门禁在主干上没有强制力（**DR-20 未闭合半边**，2026-10-08 经项目主定案留待后续，手册 §D.12.5）。演示或放行前建议按上面的顺序本机实跑一轮。
 >
 > 📌 **2026-10-08 定案**：**DR-20 / DR-23 / DR-26 连同 Docker 相关项，经项目主明确为「留待后续推进」，不是本轮遗漏**；逐项「本轮为何不做 / 重新拾起的前置 / 现在的兜底状态」见手册 **§D.12.5**。当前里程碑判定（核心功能已完成、可交付且可扩展）以手册第五部分与 §43 的实测门禁为准。
 
