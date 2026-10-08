@@ -86,7 +86,7 @@ Java 后端通过 HTTP 契约（`com.aicourse.integration.rag.RagContract`）与
 | 服务 | 目录 | 端口 | 说明 |
 | ---- | ---- | ---- | ---- |
 | 知识图谱服务 | `python-services/kg_service/` | 8001 | **11 个契约端点**；`kg_store.py` 支持 **Neo4j 与内存双后端**（Neo4j 不可达时自动回落内存图），GraphRAG 多跳推理与学习路径规划；CI 护栏 `test_kg_contract.py`（含 Neo4j service 容器） |
-| RAG 检索引擎 | `python-services/rag_service/` | 8002 | **9 个契约端点** + `rag_engine.py` 真实混合检索引擎（BM25 + 向量 + RRF 融合，重依赖懒加载）；CI 护栏 `test_rag_contract.py`。⚠️ 语料落在 gitignore 的 `data/`，演示前用 `python scripts\seed-rag-corpus.py 1` 从 `scripts/rag_corpus.json` 重放并重建索引 |
+| RAG 检索引擎 | `python-services/rag_service/` | 8002 | **9 个契约端点** + `rag_engine.py` 真实混合检索引擎（BM25 + 向量 + RRF 融合，重依赖懒加载）；CI 护栏 `test_rag_contract.py`。⚠️ 语料落在 gitignore 的 `data/`，演示前用 `python scripts\seed-rag-corpus.py` 从 `scripts/rag_corpus.json` 重放并重建索引（副本现覆盖课程 1 与示范课 4007，口径见手册 §18.5） |
 | LoRA 微调服务 | —（**Python 端尚无实现**） | 8003 | Java 侧 `ContractPaths` 的 8 条 `/api/v1/fine-tune/*` 契约与消费侧已就绪，启用即 503 降级；等待队友交付 |
 
 容器化启动知识图谱栈（`docker compose --profile rag up -d neo4j`，需先在 `.env` 配 `NEO4J_PASSWORD`）的用法与前置已随 2026-10-08 的编排搁置**整体转入手册 §24.2**（含重新启用前提清单①–⑤），本阶段不再执行。**但"搁置 Docker"不等于"搁置引擎"**：本阶段以本机独立 Neo4j 5.26 + `uvicorn` 两进程运行 KG(8001) / RAG(8002)，`start-backend.bat` 探到监听后自动开启 Java 侧对接，2026-10-08 运行验收实测路径规划 / 子图 / 摄取与检索问答均为 `mode=ENGINE`。**未起 Neo4j 仍不阻塞**：KG 自动回落内存图。三进程的启动顺序、必须导出到引擎进程的环境变量与取证清单见手册 **§18.5**。
