@@ -3,6 +3,7 @@ package com.aicourse.service.component.ai;
 import com.aicourse.common.JsonUtils;
 import com.aicourse.llm.LLMProvider;
 import com.aicourse.service.impl.PromptGuard;
+import com.aicourse.vo.QaSourceVO;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
@@ -239,6 +240,40 @@ public class AiCoreComponent {
             log.debug("RAG 答案 JSON 解析失败，原样返回: {}", e.getMessage());
         }
         return ragJson;
+    }
+
+    /**
+     * 从 RAG 返回的 JSON（{@code {"answer":...,"sources":[...]}}）中提取召回来源；
+     * 非 JSON、无 {@code sources} 或解析失败时返回空列表——溯源是增强信息，不得因此让问答本身失败。
+     */
+    public List<QaSourceVO> extractRagSources(String ragJson) {
+        String json = JsonUtils.extractJsonObject(ragJson);
+        if (json == null) {
+            return List.of();
+        }
+        try {
+            JsonNode sources = OBJECT_MAPPER.readTree(json).get("sources");
+            if (sources == null || !sources.isArray()) {
+                return List.of();
+            }
+            List<QaSourceVO> list = new ArrayList<>(sources.size());
+            for (JsonNode s : sources) {
+                String documentName = s.path("documentName").asText(null);
+                String snippet = s.path("snippet").asText(null);
+                if (documentName == null && snippet == null) {
+                    continue;
+                }
+                list.add(new QaSourceVO(
+                        s.hasNonNull("documentId") ? s.get("documentId").asLong() : null,
+                        documentName,
+                        s.hasNonNull("relevanceScore") ? s.get("relevanceScore").asDouble() : null,
+                        snippet));
+            }
+            return list;
+        } catch (Exception e) {
+            log.debug("RAG 来源 JSON 解析失败，按无溯源处理: {}", e.getMessage());
+            return List.of();
+        }
     }
 
     /**

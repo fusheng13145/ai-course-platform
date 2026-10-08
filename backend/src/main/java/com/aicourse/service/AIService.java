@@ -1,5 +1,7 @@
 package com.aicourse.service;
 
+import com.aicourse.vo.QaAnswerVO;
+
 /**
  * AI 能力业务接口
  */
@@ -59,9 +61,9 @@ public interface AIService {
      * 基于知识库的 RAG 问答
      * @param question 提问内容
      * @param courseId 课程ID
-     * @return 问答结果
+     * @return 答案与检索出处（降级为纯 LLM 直答时 sources 为空列表）
      */
-    String ragAsk(String question, Long courseId);
+    QaAnswerVO ragAsk(String question, Long courseId);
 
     // ===================== 结构化输出（健壮性增强） =====================
 

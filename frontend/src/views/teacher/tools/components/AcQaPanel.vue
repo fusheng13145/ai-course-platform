@@ -6,7 +6,23 @@
         <p>向 AI 提问，获取基于本课程的解答</p>
       </div>
       <div v-for="(m, i) in messages" :key="i" class="qa-msg" :class="m.role">
-        <div class="qa-bubble">{{ m.content }}</div>
+        <div class="qa-bubble">
+          {{ m.content }}
+          <div v-if="m.sources && m.sources.length" class="qa-sources">
+            <p class="sources-label">课程资料出处</p>
+            <ul class="sources-list">
+              <li v-for="(s, si) in m.sources" :key="si" class="source-item">
+                <span class="source-name">
+                  {{ s.documentName || `资料 #${s.documentId}` }}
+                </span>
+                <span v-if="s.relevanceScore != null" class="source-score">
+                  {{ Math.round(s.relevanceScore * 100) }}%
+                </span>
+                <p v-if="s.snippet" class="source-snippet">{{ clipSnippet(s.snippet) }}</p>
+              </li>
+            </ul>
+          </div>
+        </div>
       </div>
     </div>
     <div class="qa-input">
@@ -31,7 +47,7 @@
 
 <script setup lang="ts">
 import logger from '@/utils/logger'
-import { unwrap } from '@/utils/response'
+import { unwrap, decodeHtml } from '@/utils/response'
 import { ref, nextTick, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { ChatRound, Promotion } from '@element-plus/icons-vue'
@@ -62,10 +78,20 @@ async function sendQa() {
     } else {
       res = await aiApi.qaAsk({ courseId: props.courseId, question: text })
     }
-    const body = unwrap(res)
-    const data = unwrap(body) || {}
+    const data = unwrap(res) || {}
     if (data.sessionId) sessionId.value = data.sessionId
-    messages.value.push({ role: 'ai', content: data.answer || '（暂无回答）' })
+    // answer/sources 由控制器按展示口径 HTML 转义下发，还原后再插值（插值本身不解析 HTML）
+    messages.value.push({
+      role: 'ai',
+      content: decodeHtml(data.answer) || '（暂无回答）',
+      sources: Array.isArray(data.sources)
+        ? data.sources.map((s) => ({
+            ...s,
+            documentName: decodeHtml(s.documentName),
+            snippet: decodeHtml(s.snippet),
+          }))
+        : [],
+    })
   } catch (e) {
     logger.error('智能答疑失败', e)
     messages.value.push({ role: 'ai', content: '抱歉，回答失败，请稍后重试。' })
@@ -78,6 +104,12 @@ async function sendQa() {
 function resetSession() {
   sessionId.value = ''
   messages.value = []
+}
+
+/** 出处片段截断展示 */
+function clipSnippet(text) {
+  if (typeof text !== 'string') return ''
+  return text.length > 160 ? `${text.slice(0, 160)}…` : text
 }
 
 async function scrollMsg() {
@@ -147,6 +179,36 @@ watch(
   color: var(--ac-text-primary);
   border: 1px solid var(--ac-border);
   border-bottom-left-radius: 4px;
+}
+.qa-sources {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px dashed var(--ac-border);
+  border-radius: var(--ac-radius-sm);
+  background: var(--ac-surface-2);
+}
+.sources-label {
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--ac-text-muted);
+}
+.sources-list {
+  margin: 0;
+  padding-left: 16px;
+}
+.source-item {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ac-text-secondary);
+}
+.source-score {
+  margin-left: 6px;
+  color: var(--ac-text-muted);
+}
+.source-snippet {
+  margin: 2px 0 6px;
+  color: var(--ac-text-muted);
+  line-height: 1.5;
 }
 .qa-input {
   display: flex;

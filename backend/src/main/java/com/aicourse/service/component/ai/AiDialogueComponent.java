@@ -1,5 +1,7 @@
 package com.aicourse.service.component.ai;
 
+import com.aicourse.common.ApiCode;
+import com.aicourse.exception.BusinessException;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
@@ -101,6 +103,11 @@ public class AiDialogueComponent {
     /**
      * 流式 AI 对话：将用户问题经 PromptGuard 注入中和后，委托至 LLM 供应商流式接口，
      * 以 Flux 逐 token 推送内容增量，供 SSE 端点使用。
+     * <p>
+     * 供应商侧异常（无效 Key 的 401、网关 5xx 等）在订阅期异步抛出，映射为
+     * {@code BusinessException(SERVICE_UNAVAILABLE)}，使端点返回 503 降级语义而非落入
+     * 兜底的「系统未知异常」500；口径与同步出口 {@code completeAndSanitize} 一致，
+     * 失败同样计入按类型分桶的失败埋点。
      */
     public Flux<String> streamChat(String question) {
         if (!core.isProviderEnabled()) {
@@ -110,6 +117,11 @@ public class AiDialogueComponent {
         String safeQuestion = core.neutralizeInjection(question);
         List<Map<String, String>> messages = List.of(Map.of("role", "user", "content", safeQuestion));
         core.recordAiToken("chat", core.estimateInputTokens(messages));
-        return core.stream(messages, 0.7);
+        return core.stream(messages, 0.7)
+                .onErrorMap(e -> {
+                    log.error("流式问答调用失败: {}", e.getMessage(), e);
+                    core.recordAiFailure("chat");
+                    return new BusinessException(ApiCode.SERVICE_UNAVAILABLE, AiCoreComponent.SERVICE_ERROR_MSG, e);
+                });
     }
 }

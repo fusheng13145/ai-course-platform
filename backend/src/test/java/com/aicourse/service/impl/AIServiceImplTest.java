@@ -259,7 +259,7 @@ class AIServiceImplTest {
     void ragAsk_ragNull() {
         // topK=5 与 courseId 都是 AiRagComponent 硬编码/透传的业务参数，必须按值打桩而非 anyInt()
         when(ragService.ask("q", 1L, 5)).thenReturn(null);
-        assertEquals("raw", service.ragAsk("q", 1L));
+        assertEquals("raw", service.ragAsk("q", 1L).getAnswer());
         List<Map<String, String>> msgs = captureCompleteMessages(0.5);
         assertTrue(flatten(msgs).contains("请基于课程知识回答问题"), "降级路径应带课程语境 system，实际=" + flatten(msgs));
         assertTrue(promptOf(msgs).contains("q"), "原始问题必须透传给降级 LLM，实际=" + flatten(msgs));
@@ -270,7 +270,7 @@ class AIServiceImplTest {
     @DisplayName("ragAsk RAG 含 503 降级纯 LLM")
     void ragAsk_rag503() {
         when(ragService.ask("q", 1L, 5)).thenReturn("{\"code\":503,\"msg\":\"x\"}");
-        assertEquals("raw", service.ragAsk("q", 1L));
+        assertEquals("raw", service.ragAsk("q", 1L).getAnswer());
         assertEquals(1.0, aiCallCount("rag"));
     }
 
@@ -278,7 +278,7 @@ class AIServiceImplTest {
     @DisplayName("ragAsk RAG 正常返回答案：检索参数为(问题, 课程ID, topK=5)")
     void ragAsk_ragOk() {
         when(ragService.ask("q", 1L, 5)).thenReturn("{\"answer\":\"hello\"}");
-        assertEquals("hello", service.ragAsk("q", 1L));
+        assertEquals("hello", service.ragAsk("q", 1L).getAnswer());
         // 检索召回条数决定答案的证据密度，写错 topK 不会改变类型却会改变结果，必须按值校验
         verify(ragService).ask("q", 1L, 5);
         verify(llmProvider, never()).complete(any(), any());
@@ -288,7 +288,7 @@ class AIServiceImplTest {
     @DisplayName("ragAsk RAG 抛异常降级")
     void ragAsk_ragThrows() {
         when(ragService.ask("q", 1L, 5)).thenThrow(new RuntimeException("boom"));
-        assertEquals("raw", service.ragAsk("q", 1L));
+        assertEquals("raw", service.ragAsk("q", 1L).getAnswer());
         assertEquals(1.0, aiCallCount("rag"));
     }
 
@@ -550,6 +550,17 @@ class AIServiceImplTest {
         assertEquals(1, cap.getValue().size());
         assertEquals("user", cap.getValue().get(0).get("role"));
         assertEquals("q", cap.getValue().get(0).get("content"), "问题必须原样下发给流式接口");
+    }
+
+    @Test
+    @DisplayName("streamChat 供应商侧异常 -> 映射为 503 业务异常并计入失败埋点")
+    void streamChat_providerError_mapsToServiceUnavailable() {
+        // 本机实测形状：Key 无效时供应商返回 401，异常在订阅期抛出而非建流时抛出
+        when(llmProvider.stream(any(), any())).thenReturn(Flux.error(new RuntimeException("401 Unauthorized")));
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.streamChat("q").blockFirst());
+        assertEquals(503, ex.getCode(), "流式失败须以 503 降级语义收尾，而非落入兜底 500「系统未知异常」");
+        assertEquals(1.0, meterRegistry.counter("aicourse_ai_calls_failed_total", "type", "chat").count(),
+                "流式失败必须与同步路径一样计入失败埋点");
     }
 
     // ===================== completeAndSanitize 异常 =====================

@@ -7,6 +7,7 @@ import com.aicourse.service.component.ai.AiCoreComponent;
 import com.aicourse.service.component.ai.AiDialogueComponent;
 import com.aicourse.service.component.ai.AiRagComponent;
 import com.aicourse.service.component.ai.AiStructuredComponent;
+import com.aicourse.vo.QaAnswerVO;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
@@ -79,7 +80,7 @@ public class AIServiceImpl implements AIService {
     // ===================== RAG 问答 =====================
 
     @Override
-    public String ragAsk(String question, Long courseId) {
+    public QaAnswerVO ragAsk(String question, Long courseId) {
         return ragComponent.ragAsk(question, courseId);
     }
 

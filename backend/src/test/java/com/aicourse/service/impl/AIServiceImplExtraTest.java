@@ -7,6 +7,8 @@ import com.aicourse.service.component.ai.AiCoreComponent;
 import com.aicourse.service.component.ai.AiDialogueComponent;
 import com.aicourse.service.component.ai.AiRagComponent;
 import com.aicourse.service.component.ai.AiStructuredComponent;
+import com.aicourse.vo.QaAnswerVO;
+import com.aicourse.vo.QaSourceVO;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -276,7 +278,8 @@ class AIServiceImplExtraTest {
     @DisplayName("ragAsk: RAG 返回有效 answer -> 提取并清洗返回，检索参数为(问题, 课程ID, topK=5)")
     void ragAsk_answer() {
         when(ragService.ask("q", 1L, 5)).thenReturn("{\"answer\":\"final answer\",\"sources\":[]}");
-        assertEquals("final answer", service.ragAsk("q", 1L));
+        QaAnswerVO vo = service.ragAsk("q", 1L);
+        assertEquals("final answer", vo.getAnswer());
         verify(ragService).ask("q", 1L, 5);
         verify(promptGuard).sanitizeOutput("final answer");
         // 命中 RAG 时不应再触发纯 LLM 补全
@@ -284,10 +287,30 @@ class AIServiceImplExtraTest {
     }
 
     @Test
+    @DisplayName("ragAsk: RAG 返回 sources -> 溯源一并带回，answer 与 sources 互不吞掉")
+    void ragAsk_carriesSources() {
+        when(ragService.ask("q", 1L, 5)).thenReturn("{\"answer\":\"三次握手同步序号\","
+                + "\"sources\":[{\"documentId\":9,\"documentName\":\"计算机网络-第6章-传输层TCP与UDP\","
+                + "\"relevanceScore\":0.9937,\"snippet\":\"TCP 三次握手的主要目的是同步双方的初始序号\"}],"
+                + "\"mode\":\"ENGINE\"}");
+        QaAnswerVO vo = service.ragAsk("q", 1L);
+        assertEquals("三次握手同步序号", vo.getAnswer());
+        assertEquals(1, vo.getSources().size());
+        QaSourceVO source = vo.getSources().get(0);
+        assertEquals(9L, source.getDocumentId());
+        assertEquals("计算机网络-第6章-传输层TCP与UDP", source.getDocumentName());
+        assertEquals(0.9937, source.getRelevanceScore());
+        assertTrue(source.getSnippet().contains("同步双方的初始序号"), "片段须原样带回，实际=" + source.getSnippet());
+    }
+
+    @Test
     @DisplayName("ragAsk: RAG 返回 503 -> 回退纯 LLM，且降级 prompt 保留课程语境")
     void ragAsk_503() {
         when(ragService.ask("q", 1L, 5)).thenReturn("{\"error\":\"x\",\"code\":503}");
-        assertEquals("ok", service.ragAsk("q", 1L));
+        QaAnswerVO vo = service.ragAsk("q", 1L);
+        assertEquals("ok", vo.getAnswer());
+        assertNotNull(vo.getSources(), "降级路径的 sources 必须是空列表而非 null，前端据此判空");
+        assertTrue(vo.getSources().isEmpty(), "纯 LLM 直答无检索出处");
         Completion c = singleCompletion();
         assertEquals(0.5, c.temperature());
         assertTrue(c.flattened().contains("请基于课程知识回答问题"), "降级应带课程语境 system，实际=" + c.flattened());
@@ -298,7 +321,7 @@ class AIServiceImplExtraTest {
     @DisplayName("ragAsk: RAG 返回纯文本（非 JSON）-> extractRagAnswer 原样返回")
     void ragAsk_plainText() {
         when(ragService.ask("q", 1L, 5)).thenReturn("just text");
-        assertEquals("just text", service.ragAsk("q", 1L));
+        assertEquals("just text", service.ragAsk("q", 1L).getAnswer());
         verify(ragService).ask("q", 1L, 5);
     }
 
@@ -306,28 +329,28 @@ class AIServiceImplExtraTest {
     @DisplayName("ragAsk: RAG answer 为空白 -> 回退原串")
     void ragAsk_blankAnswer() {
         when(ragService.ask("q", 1L, 5)).thenReturn("{\"answer\":\"   \"}");
-        assertTrue(service.ragAsk("q", 1L).contains("answer"));
+        assertTrue(service.ragAsk("q", 1L).getAnswer().contains("answer"));
     }
 
     @Test
     @DisplayName("ragAsk: RAG answer 为非文本(数字) -> 回退原串")
     void ragAsk_nonTextualAnswer() {
         when(ragService.ask("q", 1L, 5)).thenReturn("{\"answer\":123}");
-        assertTrue(service.ragAsk("q", 1L).contains("123"));
+        assertTrue(service.ragAsk("q", 1L).getAnswer().contains("123"));
     }
 
     @Test
     @DisplayName("ragAsk: RAG 返回残缺 JSON -> extractRagAnswer 解析异常 catch -> 回退原串")
     void ragAsk_malformedJson() {
         when(ragService.ask("q", 1L, 5)).thenReturn("{\"answer\":}");
-        assertTrue(service.ragAsk("q", 1L).contains("answer"));
+        assertTrue(service.ragAsk("q", 1L).getAnswer().contains("answer"));
     }
 
     @Test
     @DisplayName("ragAsk: RAG 抛异常 -> 回退纯 LLM")
     void ragAsk_exception() {
         when(ragService.ask("q", 1L, 5)).thenThrow(new RuntimeException("boom"));
-        assertEquals("ok", service.ragAsk("q", 1L));
+        assertEquals("ok", service.ragAsk("q", 1L).getAnswer());
         Completion fallback = singleCompletion();
         assertEquals(0.5, fallback.temperature());
         // 回退路径丢了提问原文就会变成「无题作答」，故问题与课程语境都要落在消息内容里
@@ -340,7 +363,7 @@ class AIServiceImplExtraTest {
     @DisplayName("ragAsk: RAG 返回 null -> 回退纯 LLM")
     void ragAsk_null() {
         when(ragService.ask("q", 1L, 5)).thenReturn(null);
-        assertEquals("ok", service.ragAsk("q", 1L));
+        assertEquals("ok", service.ragAsk("q", 1L).getAnswer());
         Completion fallback = singleCompletion();
         assertEquals(0.5, fallback.temperature());
         assertTrue(fallback.prompt().contains("q"), "回退 prompt 须保留提问原文，实际=" + fallback.flattened());

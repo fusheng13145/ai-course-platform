@@ -9,6 +9,8 @@ import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.LearningPathService;
 import com.aicourse.service.LearningRecordService;
+import com.aicourse.vo.QaAnswerVO;
+import com.aicourse.vo.QaSourceVO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -62,7 +64,8 @@ class AIControllerTest extends ControllerTestBase {
         session.setSessionId("sess-1");
         when(aiChatSessionService.createSession(anyLong(), any())).thenReturn(session);
         when(aiChatSessionService.getMessages(anyString())).thenReturn(Collections.emptyList());
-        when(aiService.ragAsk(anyString(), any())).thenReturn("RAG答案");
+        when(aiService.ragAsk(anyString(), any())).thenReturn(new QaAnswerVO("RAG答案",
+                List.of(new QaSourceVO(9L, "<b>第6章 传输层</b>", 0.9937, "三次握手同步初始序号"))));
 
         MvcResult mvc = mockMvc.perform(post("/ai/qa/ask").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"question\":\"什么是闭包\",\"courseId\":\"2\"}").with(withUser(1L, "TEACHER")))
@@ -71,7 +74,12 @@ class AIControllerTest extends ControllerTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.answer").value("RAG答案"))
-                .andExpect(jsonPath("$.data.sessionId").value("sess-1"));
+                .andExpect(jsonPath("$.data.sessionId").value("sess-1"))
+                // 溯源下发：出处随答案一并返回，且按与 answer 同口径做 HTML 转义
+                .andExpect(jsonPath("$.data.sources[0].documentId").value(9))
+                .andExpect(jsonPath("$.data.sources[0].documentName").value("&lt;b&gt;第6章 传输层&lt;/b&gt;"))
+                .andExpect(jsonPath("$.data.sources[0].relevanceScore").value(0.9937))
+                .andExpect(jsonPath("$.data.sources[0].snippet").value("三次握手同步初始序号"));
 
         verify(aiService).ragAsk(eq("什么是闭包"), eq(2L));
         verify(aiChatSessionService).createSession(eq(1L), any());
@@ -93,7 +101,7 @@ class AIControllerTest extends ControllerTestBase {
         session.setSessionId("sess-1");
         when(aiChatSessionService.createSession(anyLong(), any())).thenReturn(session);
         when(aiChatSessionService.getMessages(anyString())).thenReturn(Collections.emptyList());
-        when(aiService.ragAsk(anyString(), any())).thenReturn("RAG答案");
+        when(aiService.ragAsk(anyString(), any())).thenReturn(new QaAnswerVO("RAG答案", Collections.emptyList()));
 
         MvcResult mvc = mockMvc.perform(post("/ai/qa/ask").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"question\":\"什么是闭包\",\"courseId\":\"2\"}").with(withUser(2L, "STUDENT")))
@@ -101,7 +109,9 @@ class AIControllerTest extends ControllerTestBase {
         mockMvc.perform(asyncDispatch(mvc))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.answer").value("RAG答案"));
+                .andExpect(jsonPath("$.data.answer").value("RAG答案"))
+                .andExpect(jsonPath("$.data.sources").isArray())
+                .andExpect(jsonPath("$.data.sources").isEmpty());
 
         verify(aiService).ragAsk(eq("什么是闭包"), eq(2L));
     }

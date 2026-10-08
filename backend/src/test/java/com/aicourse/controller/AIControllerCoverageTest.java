@@ -10,6 +10,8 @@ import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.LearningPathService;
 import com.aicourse.service.LearningRecommendationService;
+import com.aicourse.vo.QaAnswerVO;
+import com.aicourse.vo.QaSourceVO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -95,7 +97,9 @@ class AIControllerCoverageTest extends ControllerTestBase {
     @DisplayName("POST /ai/qa/ask - 携带已存在 sessionId：复用会话不新建，AI 返回内容被 HTML 转义")
     void qaAsk_existingSession_reusedAndEscaped() throws Exception {
         when(aiChatSessionService.getBySessionId("s-9")).thenReturn(session("s-9"));
-        when(aiService.ragAsk("什么是闭包", null)).thenReturn("<em>答案</em>");
+        when(aiService.ragAsk("什么是闭包", null))
+                .thenReturn(new QaAnswerVO("<em>答案</em>",
+                        List.of(new QaSourceVO(3L, "第<1>章", 0.8, "<script>危险片段</script>"))));
 
         MvcResult mvc = mockMvc.perform(post("/ai/qa/ask").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"question\":\"什么是闭包\",\"sessionId\":\"s-9\"}")
@@ -105,7 +109,12 @@ class AIControllerCoverageTest extends ControllerTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.answer").value("&lt;em&gt;答案&lt;/em&gt;"))
-                .andExpect(jsonPath("$.data.sessionId").value("s-9"));
+                .andExpect(jsonPath("$.data.sessionId").value("s-9"))
+                // 出处与答案同口径转义：资料名/片段里的标签与脚本不得原样下发
+                .andExpect(jsonPath("$.data.sources[0].documentName").value("第&lt;1&gt;章"))
+                .andExpect(jsonPath("$.data.sources[0].snippet").value("&lt;script&gt;危险片段&lt;/script&gt;"))
+                .andExpect(jsonPath("$.data.sources[0].documentId").value(3))
+                .andExpect(jsonPath("$.data.sources[0].relevanceScore").value(0.8));
 
         // 命中已有会话：不得再新建；courseId 未提供时以 null 透传 RAG
         verify(aiChatSessionService, never()).createSession(any(), any());
@@ -489,7 +498,7 @@ class AIControllerCoverageTest extends ControllerTestBase {
     @DisplayName("POST /ai/qa/ask - Authentication 为 null：userId 以 null 建会话，链路不中断")
     void qaAsk_nullAuth_createsSessionWithNullUser() throws Exception {
         when(aiChatSessionService.createSession(null, null)).thenReturn(session("s-anon"));
-        when(aiService.ragAsk("anon?", null)).thenReturn("ok");
+        when(aiService.ragAsk("anon?", null)).thenReturn(new QaAnswerVO("ok", List.of()));
 
         MvcResult mvc = mockMvc.perform(post("/ai/qa/ask").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"question\":\"anon?\"}").with(withUser(null, "STUDENT")))

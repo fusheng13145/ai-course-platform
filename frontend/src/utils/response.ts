@@ -1,8 +1,9 @@
 /**
  * 统一响应解包工具。
  *
- * 响应拦截器（api/request.ts）在请求成功时返回已解包的业务数据，
- * 即 { code, message, data } 信封中的 data 部分。
+ * 响应拦截器（api/request.ts）在请求成功时返回**整个业务信封**
+ * 即 { code, message, data, timestamp }（仅当 code !== 200 时 reject），
+ * 因此业务字段要从 res.data 里读。
  * 历史上部分视图为兼容「裸响应」写了防御式双取值（res.data || res、
  * r?.data ?? r 等）。unwrap 将这些写法收敛为单一语义，集中维护。
  *
@@ -38,6 +39,24 @@ export function unwrap<T = ApiPayload>(res: unknown): T | null | undefined {
   if (res == null) return res as T | null | undefined
   const envelope = res as ApiEnvelope<T>
   return envelope.data !== undefined ? envelope.data : (res as T)
+}
+
+/**
+ * 还原后端展示层转义（AIController 对 answer/sources 统一做了 HTML 转义）。
+ *
+ * 视图侧要么用 {{ }} 插值、要么经 renderMarkdown 再转义一次后 sanitize，
+ * 因此这里的还原只用于展示，不会把内容重新注入 DOM。
+ *
+ * @param text 后端下发的已转义文本
+ */
+export function decodeHtml(text) {
+  if (typeof text !== 'string') return ''
+  return text
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&amp;/g, '&')
 }
 
 export default unwrap

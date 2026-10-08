@@ -4,7 +4,7 @@
  * 挂载真实 AIAssistant.vue 组件，通过 DOM 交互驱动发送流程，
  * 覆盖真实实现路径：
  *  - qaStream（SSE 流式，onToken/onDone 回调）
- *  - qaAsk（非流式兜底，response/reply/content 字段解包 + 逐字渲染）
+ *  - qaAsk（非流式兜底，读取信封 data.answer + data.sources 后逐字渲染）
  *  - 空消息 / loading 重复发送拦截
  *  - 会话历史与课程列表加载
  */
@@ -18,21 +18,39 @@ vi.mock('vue-router', () => ({ useRoute: () => ({ params: {}, query: {} }) }))
  * 组件脚本层暴露面：messages / loading / conversations / courseList 为组件内部状态，
  * 测试直接读取与赋值以驱动断言。显式断言而非 any（lint 口径 0 error / 0 warning）。
  */
+type QaSource = {
+  documentId?: number
+  documentName?: string
+  relevanceScore?: number
+  snippet?: string
+}
+
 type AssistantInternal = {
-  messages: Array<{ role: string; content: string; time?: string; error?: boolean }>
+  messages: Array<{
+    role: string
+    content: string
+    time?: string
+    error?: boolean
+    loading?: boolean
+    sources?: QaSource[]
+  }>
   loading: boolean
+  selectedCourseId: number | null
   conversations: Array<{ id: number; title: string }>
   courseList: Array<{ name: string }>
+  handleGenerateQuestion: () => Promise<void>
 }
 const assistantVm = (wrapper: { vm: unknown }) => wrapper.vm as unknown as AssistantInternal
 
 // ---- 模块级 mock：导出与真实 @/api/ai 完全一致（qaAsk/qaStream/getSessions/...）----
-const { mockQaAsk, mockGetSessions, mockQaStream, mockGetCourseList } = vi.hoisted(() => ({
-  mockQaAsk: vi.fn(),
-  mockGetSessions: vi.fn(),
-  mockQaStream: vi.fn(),
-  mockGetCourseList: vi.fn(),
-}))
+const { mockQaAsk, mockGetSessions, mockQaStream, mockGetCourseList, mockQuestionRecommendations } =
+  vi.hoisted(() => ({
+    mockQaAsk: vi.fn(),
+    mockGetSessions: vi.fn(),
+    mockQaStream: vi.fn(),
+    mockGetCourseList: vi.fn(),
+    mockQuestionRecommendations: vi.fn(),
+  }))
 
 vi.mock('@/api/ai', () => ({
   default: {
@@ -43,7 +61,7 @@ vi.mock('@/api/ai', () => ({
     essayCorrect: vi.fn(),
     essayPolish: vi.fn(),
     learningRecommendations: vi.fn(),
-    questionRecommendations: vi.fn(),
+    questionRecommendations: mockQuestionRecommendations,
     weakPointsAnalysis: vi.fn(),
     learningAdvice: vi.fn(),
     generateLearningPath: vi.fn(),
@@ -190,38 +208,122 @@ describe('AI 学习助手问答流程（挂载真实组件）', () => {
     wrapper.unmount()
   })
 
-  it('SSE 流式失败时降级为非流式 qaAsk 并逐字渲染（response 字段）', async () => {
+  it('SSE 流式失败时降级为非流式 qaAsk，渲染 data.answer 并带上检索出处', async () => {
     mockQaStream.mockImplementation((params, cb) => {
       cb.onError(new Error('SSE 不可用'))
       return { abort: vi.fn() }
     })
-    mockQaAsk.mockResolvedValue({ data: { response: '这是AI的回答' } })
+    // 真实信封形状：request.ts 拦截器返回 { code, message, data }，业务字段在 data 里
+    mockQaAsk.mockResolvedValue({
+      code: 200,
+      data: {
+        sessionId: 'sess-1',
+        answer: 'TCP 通过三次握手建立连接。',
+        sources: [
+          {
+            documentId: 9,
+            documentName: '第6章 传输层',
+            relevanceScore: 0.9937,
+            snippet: '同步初始序号 ISN',
+          },
+        ],
+      },
+    })
 
     const wrapper = mountAssistant()
     await sendMessage(wrapper, '什么是TCP？')
     await flushPromises()
-    await sleep(400) // 等待逐字渲染完成（6 字 × 20ms + 余量）
+    await sleep(600) // 逐字渲染完成后才挂出处（15 字 × 20ms + 余量）
 
     expect(mockQaAsk).toHaveBeenCalledWith({ question: '什么是TCP？' })
-    expect(assistantVm(wrapper).messages[1].content).toBe('这是AI的回答')
+    expect(assistantVm(wrapper).messages[1].content).toBe('TCP 通过三次握手建立连接。')
+    expect(assistantVm(wrapper).messages[1].sources).toEqual([
+      {
+        documentId: 9,
+        documentName: '第6章 传输层',
+        relevanceScore: 0.9937,
+        snippet: '同步初始序号 ISN',
+      },
+    ])
     expect(assistantVm(wrapper).loading).toBe(false)
     wrapper.unmount()
   })
 
-  it('qaAsk 返回 content 字段时同样正确解包', async () => {
+  it('缺陷回归 DR-41：只有 response/content 旧字段时如实提示，不用假文案伪装成功', async () => {
+    // 后端从不返回 response/content；此前按这些字段取值会永远取不到，
+    // 于是把「感谢您的提问！」这类固定文案当成回答播出，真实 RAG 结果被静默丢弃。
     mockQaStream.mockImplementation((params, cb) => {
       cb.onError(new Error('SSE 不可用'))
       return { abort: vi.fn() }
     })
-    mockQaAsk.mockResolvedValue({ data: { content: '好的' } })
+    mockQaAsk.mockResolvedValue({
+      code: 200,
+      data: { sessionId: 'sess-1', response: '旧字段', content: '旧字段' },
+    })
 
     const wrapper = mountAssistant()
-    await sendMessage(wrapper, '你好')
+    await sendMessage(wrapper, '什么是TCP？')
     await flushPromises()
-    await sleep(300)
 
-    expect(assistantVm(wrapper).messages[1].content).toBe('好的')
-    expect(assistantVm(wrapper).loading).toBe(false)
+    expect(assistantVm(wrapper).messages[1].content).toBe('AI 未返回内容，请稍后再试。')
+    expect(assistantVm(wrapper).messages[1].error).toBe(true)
+    wrapper.unmount()
+  })
+
+  it('answer 的展示层转义在渲染前还原，不把 &lt; 直接播给用户', async () => {
+    mockQaStream.mockImplementation((params, cb) => {
+      cb.onError(new Error('SSE 不可用'))
+      return { abort: vi.fn() }
+    })
+    mockQaAsk.mockResolvedValue({
+      code: 200,
+      data: {
+        sessionId: 'sess-1',
+        answer: '若 &lt;span&gt; 未闭合，浏览器会&#39;自动补全&amp;纠正',
+        sources: [{ documentId: 3, documentName: '&lt;脚本&gt;危险标题', snippet: '&amp; 号' }],
+      },
+    })
+
+    const wrapper = mountAssistant()
+    await sendMessage(wrapper, 'HTML 实体')
+    await flushPromises()
+    await sleep(900)
+
+    expect(assistantVm(wrapper).messages[1].content).toBe(
+      "若 <span> 未闭合，浏览器会'自动补全&纠正",
+    )
+    expect(assistantVm(wrapper).messages[1].sources[0].documentName).toBe('<脚本>危险标题')
+    expect(assistantVm(wrapper).messages[1].sources[0].snippet).toBe('& 号')
+    wrapper.unmount()
+  })
+
+  it('生成练习题读取 recommendations 业务字段，不再把整个 JSON 当回答播出', async () => {
+    mockQuestionRecommendations.mockResolvedValue({
+      code: 200,
+      data: {
+        courseId: 4007,
+        difficulty: 'MEDIUM',
+        recommendations: [
+          { content: '下列哪个协议工作在传输层？', type: 'SINGLE_CHOICE', difficulty: 'MEDIUM' },
+          {
+            content: 'IP 数据报首部校验和覆盖哪些字段？',
+            type: 'SINGLE_CHOICE',
+            difficulty: 'HARD',
+          },
+        ],
+      },
+    })
+
+    const wrapper = mountAssistant()
+    assistantVm(wrapper).selectedCourseId = 4007
+    await assistantVm(wrapper).handleGenerateQuestion()
+    await flushPromises()
+    await sleep(600)
+
+    expect(mockQuestionRecommendations).toHaveBeenCalledWith({ courseId: 4007 })
+    expect(assistantVm(wrapper).messages[1].content).toBe(
+      '1. 下列哪个协议工作在传输层？\n\n2. IP 数据报首部校验和覆盖哪些字段？',
+    )
     wrapper.unmount()
   })
 

@@ -1,5 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import {
+  decodeHtml,
   firstNonEmptyArray,
   hasNonEmptyArray,
   isPageEnvelope,
@@ -146,5 +147,31 @@ describe('isPageEnvelope - 区分空分页信封与单个实体', () => {
     expect(isPageEnvelope(null)).toBe(false)
     expect(isPageEnvelope('x')).toBe(false)
     expect(isPageEnvelope({ id: 1, name: '知识点' })).toBe(false)
+  })
+})
+
+describe('decodeHtml - 还原 AIController 的展示层转义', () => {
+  it('还原后端 answer/sources 实际下发的实体', () => {
+    expect(decodeHtml('SYN=1, seq=x &amp; ACK=1')).toBe('SYN=1, seq=x & ACK=1')
+    expect(decodeHtml('&lt;TIME_WAIT&gt;')).toBe('<TIME_WAIT>')
+    expect(decodeHtml('r&quot;seq&quot;')).toBe('r"seq"')
+    expect(decodeHtml('it&#39;s')).toBe("it's")
+    expect(decodeHtml('it&apos;s')).toBe("it's")
+  })
+
+  it('&amp; 最后还原：二次转义不会被打平成可解析标签', () => {
+    // 后端只转义一次；若把 &amp; 先还原，&amp;lt; 会变成 &lt; 再变成 <，等于多解一层
+    expect(decodeHtml('&amp;lt;p&amp;gt;')).toBe('&lt;p&gt;')
+  })
+
+  it('非字符串（缺字段 / null / 数字）一律归空串，不把 undefined 播进气泡', () => {
+    expect(decodeHtml(undefined)).toBe('')
+    expect(decodeHtml(null)).toBe('')
+    expect(decodeHtml(42)).toBe('')
+    expect(decodeHtml({})).toBe('')
+  })
+
+  it('普通中文文本原样返回', () => {
+    expect(decodeHtml('三次握手用于同步初始序号')).toBe('三次握手用于同步初始序号')
   })
 })

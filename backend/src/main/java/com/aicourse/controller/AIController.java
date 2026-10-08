@@ -15,6 +15,8 @@ import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.LearningPathService;
 import com.aicourse.service.LearningRecommendationService;
+import com.aicourse.vo.QaAnswerVO;
+import com.aicourse.vo.QaSourceVO;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -79,6 +81,8 @@ public class AIController {
     /**
      * 智能答疑 - RAG增强专业问题解答
      * POST /api/ai/qa/ask
+     * <p>响应含 {@code sources}（检索命中的课程资料出处），供界面溯源展示；
+     * 降级为纯 LLM 直答时为空数组。出处文本与答案同口径做 HTML 转义后下发。</p>
      */
     @PostMapping("/qa/ask")
     public Callable<ApiResponse<Map<String, Object>>> qaAsk(@Valid @RequestBody QaAskDTO body,
@@ -98,15 +102,36 @@ public class AIController {
             // XSS防护：对用户输入进行HTML转义
             String escapedQuestion = HtmlUtils.htmlEscape(question);
             aiChatSessionService.appendMessage(sessionId, "user", escapedQuestion);
-            String answer = aiService.ragAsk(question, cid);
+            QaAnswerVO qa = aiService.ragAsk(question, cid);
+            String answer = qa != null && qa.getAnswer() != null ? qa.getAnswer() : "";
             // XSS防护：对AI返回内容进行HTML转义
-            String escapedAnswer = HtmlUtils.htmlEscape(answer != null ? answer : "");
+            String escapedAnswer = HtmlUtils.htmlEscape(answer);
             aiChatSessionService.appendMessage(sessionId, "assistant", escapedAnswer);
             Map<String, Object> resp = new LinkedHashMap<>();
             resp.put("answer", escapedAnswer);
             resp.put("sessionId", sessionId);
+            resp.put("sources", escapeSources(qa != null ? qa.getSources() : null));
             return ApiResponse.success(resp);
         };
+    }
+
+    /**
+     * 出处片段的下发前处理：逐条复制并对 {@code documentName}/{@code snippet} 做 HTML 转义，
+     * 与 {@code answer} 同口径（转义只用于展示，不写回引擎侧存储）。
+     */
+    private List<QaSourceVO> escapeSources(List<QaSourceVO> sources) {
+        if (sources == null || sources.isEmpty()) {
+            return List.of();
+        }
+        List<QaSourceVO> escaped = new ArrayList<>(sources.size());
+        for (QaSourceVO s : sources) {
+            escaped.add(new QaSourceVO(
+                    s.getDocumentId(),
+                    HtmlUtils.htmlEscape(s.getDocumentName() != null ? s.getDocumentName() : ""),
+                    s.getRelevanceScore(),
+                    HtmlUtils.htmlEscape(s.getSnippet() != null ? s.getSnippet() : "")));
+        }
+        return escaped;
     }
 
     /**
