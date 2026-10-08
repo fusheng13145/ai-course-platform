@@ -25,6 +25,7 @@ CI 护栏 job `python-rag-contract`（`pytest -q`，含 `test_rag_contract.py`�
   DELETE /api/v1/rag/index/{courseId}                                 -> {success}
 
 文档与索引用持久化存储（`rag_engine.py`，数据目录 RAG_DATA_DIR，默认 ./data，已 gitignore）。
+语料正文的权威副本在仓库根的 `scripts/rag_corpus.json`，用 `scripts/seed-rag-corpus.py` 重放。
 """
 from __future__ import annotations
 

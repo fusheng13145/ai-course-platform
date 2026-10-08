@@ -1,0 +1,16 @@
+{
+  "version": "1.0",
+  "description": "RAG 演示语料的版本控制权威副本。python-services/rag_service/data/ 已被 .gitignore 排除（运行态产物），换机器或清空数据目录后须用 scripts/seed-rag-corpus.py 重放本文件，否则 AI 问答按契约降级为不可用。",
+  "documents": [
+    {
+      "course_id": 1,
+      "document_name": "操作系统-进程调度",
+      "content": "进程调度算法包括先来先服务FCFS、短作业优先SJF、时间片轮转RR和优先级调度。时间片轮转保证公平性，时间片过大退化为FCFS。多级反馈队列综合了优先级与轮转的优点。"
+    },
+    {
+      "course_id": 1,
+      "document_name": "Python-函数与lambda",
+      "content": "函数是用def定义的可复用代码块。lambda是只包含单个表达式的匿名函数，常用于排序key和高阶函数参数。默认参数须为不可变对象以避免共享可变默认值陷阱。"
+    }
+  ]
+}
