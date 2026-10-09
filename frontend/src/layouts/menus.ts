@@ -44,7 +44,6 @@ type MenuNode = {
   text: string
   icon: string
   path?: string
-  badge?: string | number
   children?: MenuChild[]
 }
 type MenuSection = { label: string; items: MenuNode[] }

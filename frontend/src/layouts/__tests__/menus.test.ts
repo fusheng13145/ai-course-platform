@@ -13,8 +13,10 @@ import {
  * <p>导航配置（menus.ts）与路由表（router/index.ts）是两处独立声明，历史上出现过
  * 「教师端静态区清空后 /teacher/dashboard 成为无入口落点」「学生端跨课程路由缺入口」
  * 「管理端 /admin/exams、/admin/grades 收敛后漏掉入口」三类漂移。本套件把两侧对齐关系
- * 固化为断言：每条导航路径必须命中真实路由，管理端每条治理叶子路由也必须真有入口，
- * 且三端的收敛口径（三端统一为「动态课程目录 + 静态分区」）不回退。</p>
+ * 固化为断言：每条导航路径必须命中真实路由，管理端每条治理叶子路由及其已声明课程页签
+ * 也必须真有入口，且三端的收敛口径不回退。
+ * 本套件只锁配置层；「动态课程目录 + 静态分区」在管理端的实际组装顺序由
+ * AppSidebar.test.ts 的分区标签顺序断言守住（自 Task 4 起 ADMIN 也走动态课程目录）。</p>
  */
 
 const DEMO_COURSES = [{ id: 1, name: '示例课程' }]
@@ -91,7 +93,8 @@ describe('三端收敛口径不回退', () => {
   })
 
   it('管理员端治理大盘为静态区首节，课程维度经动态目录进入', () => {
-    // 配置层不锁组装顺序（那由 AppSidebar 决定，见 AppSidebar.test 的分区标签顺序断言），
+    // 配置层不锁组装顺序（那由 AppSidebar 决定）：AppSidebar.test.ts 已断言管理端完整 7 个分区标签顺序
+    // （治理总览 → 课程目录 → 用户与班级 → 题库与试卷 → 数据统计 → 内容与资源治理 → 权限·系统·审计）。
     // 这里只锁：静态区第一节必须是落点，且课程目录能为 ADMIN 构建出真实页签路径。
     expect(ADMIN_SECTIONS[0].items[0].path).toBe('/admin/dashboard')
     const paths = navPathsOf('ADMIN')
@@ -136,9 +139,11 @@ describe('三端收敛口径不回退', () => {
       .filter((r) => r.path.startsWith('/admin/'))
       .filter((r) => !r.children.length)
       .map((r) => r.path)
-    const orphans = adminLeaves.filter(
-      (p) => !covered.has(p) && !/^\/admin\/courses\/:id\//.test(p),
-    )
+    // 课程子路由的 :id 是参数段，导航侧用的是 demo 课程的真实 id：归一化后再比覆盖集，
+    // 于是只有 COURSE_TABS.ADMIN 已声明的页签后缀算被覆盖。
+    // 若日后给 /admin/courses/:id 新增子路由却忘了声明页签，本条会红——这正是要守住的回归。
+    const normalizeCoursePath = (p) => p.replace(/^\/admin\/courses\/:id\//, '/admin/courses/1/')
+    const orphans = adminLeaves.filter((p) => !covered.has(normalizeCoursePath(p)))
     expect(orphans, `侧边栏无入口的管理端路由：${orphans.join(', ')}`).toEqual([])
   })
 })

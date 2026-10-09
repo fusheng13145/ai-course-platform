@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   mockRoute: { path: '/' },
   teacherCourses: vi.fn(),
   studentCourses: vi.fn(),
+  adminCourses: vi.fn(),
 }))
 
 vi.mock('vue-router', () => ({
@@ -19,7 +20,7 @@ vi.mock('@/stores/auth', () => ({
 }))
 
 vi.mock('@/api/course', () => ({
-  default: { getMyCourses: mocks.teacherCourses },
+  default: { getMyCourses: mocks.teacherCourses, getCourseList: mocks.adminCourses },
 }))
 
 vi.mock('@/api/student', () => ({
@@ -57,6 +58,8 @@ describe('AppSidebar 导航跳转', () => {
     vi.clearAllMocks()
     mocks.teacherCourses.mockResolvedValue({ data: { records: [COURSE] } })
     mocks.studentCourses.mockResolvedValue({ data: { records: [COURSE] } })
+    // 本机 GET /api/courses 的真实信封是 data.list，不是 data.records
+    mocks.adminCourses.mockResolvedValue({ data: { list: [COURSE] } })
   })
 
   it('教师端：位于课程子页时「教学概览」可见且可点回 /teacher/dashboard', async () => {
@@ -98,15 +101,51 @@ describe('AppSidebar 导航跳转', () => {
     expect(catalog.classes()).toContain('expanded')
   })
 
-  it('管理员端：扁平治理视图，不构建课程目录也不拉取课程列表', async () => {
+  it('管理员端：拉全库课程列表构建课程目录，治理大盘仍是第一分区', async () => {
     const wrapper = await mountSidebar('ADMIN', '/admin/dashboard')
-    expect(wrapper.text()).not.toContain('课程目录')
+
+    expect(mocks.adminCourses).toHaveBeenCalledWith({ page: 1, size: 200 })
     expect(mocks.teacherCourses).not.toHaveBeenCalled()
     expect(mocks.studentCourses).not.toHaveBeenCalled()
 
-    // 菜单文案的唯一来源是 menus.ts：本条只跟着「用户与账号」这个新分区标签改字，
-    // 断言的跳转目标 /admin/users 未变。ADMIN 侧的组装改造与目录断言由 Task 4 承接。
+    // 组装顺序锁死：治理大盘（/admin 空路径重定向落点）第一，动态课程目录紧随其后，其余静态分区依次
+    const labels = wrapper.findAll('.nav-section-label').map((n) => n.text())
+    expect(labels).toEqual([
+      '治理总览',
+      '课程目录',
+      '用户与班级',
+      '题库与试卷',
+      '数据统计',
+      '内容与资源治理',
+      '权限·系统·审计',
+    ])
+
+    // 静态区一级项按新文案渲染，点击真实跳转
     await navItem(wrapper, '用户与账号').trigger('click')
     expect(mocks.mockPush).toHaveBeenCalledWith('/admin/users')
+  })
+
+  it('管理员端：课程目录三级页签跳到 /admin 前缀的子路由', async () => {
+    const wrapper = await mountSidebar('ADMIN', '/admin/courses/1/grades')
+    await navLeaf(wrapper, '成绩统计').trigger('click')
+    expect(mocks.mockPush).toHaveBeenCalledWith('/admin/courses/1/grades')
+  })
+
+  it('管理员端：位于课程子页时课程目录与课程节点自动展开', async () => {
+    const wrapper = await mountSidebar('ADMIN', '/admin/courses/1/bank')
+    const catalog = navItem(wrapper, '课程目录')
+    expect(catalog.classes()).toContain('active')
+    expect(catalog.classes()).toContain('expanded')
+    // 三级页签已渲染，说明课程节点也处于展开态
+    expect(navLeaf(wrapper, '章节与任务点').exists()).toBe(true)
+  })
+
+  it('管理员端：课程治理总览入口精确高亮，不被课程子页误亮', async () => {
+    const wrapper = await mountSidebar('ADMIN', '/admin/courses/1/overview')
+    const all = wrapper
+      .findAll('.nav-sub-item')
+      .find((n) => n.find('.nav-sub-txt').text().trim() === '课程治理总览')
+    expect(all, '应渲染「课程治理总览」入口').toBeTruthy()
+    expect(all!.classes()).not.toContain('active')
   })
 })
