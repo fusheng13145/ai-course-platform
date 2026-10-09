@@ -53,6 +53,20 @@ function mountCockpit() {
   })
 }
 
+/** 需要断言返回链接 to 时用的挂载器：把 router-link 渲染成带 data-to 的 a */
+function mountCockpitAt(path: string, id: string) {
+  mocks.route.path = path
+  mocks.route.params = { id }
+  return mount(CourseCockpit, {
+    global: {
+      stubs: {
+        'router-view': true,
+        'router-link': { props: ['to'], template: '<a class="rl" :data-to="to"><slot /></a>' },
+      },
+    },
+  })
+}
+
 describe('CourseCockpit 头部读数', () => {
   beforeEach(() => {
     vi.clearAllMocks()
@@ -166,5 +180,32 @@ describe('CourseCockpit 头部读数', () => {
         )
       }
     })
+  })
+})
+
+describe('CourseCockpit 角色前缀推导（DR-48：同一壳服务 TEACHER / ADMIN）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getCourseById.mockResolvedValue(COURSE_DETAIL)
+    mocks.getStats.mockResolvedValue({ code: 200, data: { totalStudents: 15 } })
+    mocks.getCourseClasses.mockResolvedValue([])
+  })
+
+  it('教师端前缀下返回链接指向 /teacher/courses', async () => {
+    const wrapper = await mountCockpitAt('/teacher/courses/4001/overview', '4001')
+    await flushPromises()
+    expect(wrapper.get('a.rl').attributes('data-to')).toBe('/teacher/courses')
+  })
+
+  it('管理端前缀下返回链接与页签跳转都走 /admin，不串回教师端', async () => {
+    const wrapper = await mountCockpitAt('/admin/courses/4007/chapters', '4007')
+    await flushPromises()
+
+    expect(wrapper.get('a.rl').attributes('data-to')).toBe('/admin/courses')
+
+    const pills = wrapper.findAll('.tabs-pill .tab-i')
+    expect(pills.map((n) => n.text())).toEqual(COURSE_TABS.TEACHER.map((t) => t.text))
+    await pills[0].trigger('click')
+    expect(mocks.push).toHaveBeenCalledWith('/admin/courses/4007/overview')
   })
 })

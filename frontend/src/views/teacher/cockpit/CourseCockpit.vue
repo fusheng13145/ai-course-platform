@@ -1,3 +1,4 @@
+<!-- 课程壳页：TEACHER / ADMIN 双角色消费，角色按 route 首段推导 -->
 <template>
   <div>
     <!-- 课程头卡 -->
@@ -38,7 +39,7 @@
             <span v-if="courseCode" class="tag outline mono">{{ courseCode }}</span>
             <span class="tag" :class="statusClass">{{ statusLabel }}</span>
             <router-link
-              to="/teacher/courses"
+              :to="`${rolePrefix}/courses`"
               class="btn btn-ghost btn-sm"
               style="margin-left: auto"
               >← 返回课程列表</router-link
@@ -123,6 +124,11 @@ const route = useRoute()
 const router = useRouter()
 const courseId = computed(() => route.params.id)
 
+// 壳同时挂在 /teacher/courses/:id 与 /admin/courses/:id 下，角色由路径首段推导：
+// 不新增 prop 是为了避免调用方（路由表）漏传，两处声明漂移。
+const role = computed(() => (route.path.split('/')[1] === 'admin' ? 'ADMIN' : 'TEACHER'))
+const rolePrefix = computed(() => `/${role.value.toLowerCase()}`)
+
 const courseName = ref('')
 const courseCode = ref('')
 const courseStatus = ref('')
@@ -162,12 +168,14 @@ const currentClassLabel = computed(() => {
 
 // 页签清单以 menus.ts 的 COURSE_TABS 为单一来源：侧边栏三级页签与本壳页签同源，
 // 文案与入口不会再各写一份而漂移（DR-47 里 submissions 曾被误标成「成员管理」）。
-const cockpitTabs = COURSE_TABS.TEACHER.map((t) => ({ path: t.suffix, label: t.text }))
+const cockpitTabs = computed(() =>
+  (COURSE_TABS[role.value] || COURSE_TABS.TEACHER).map((t) => ({ path: t.suffix, label: t.text })),
+)
 const activeCockpit = ref('chapters')
 
 // Navigate to selected cockpit tab
 watch(activeCockpit, (tab) => {
-  router.push(`/teacher/courses/${courseId.value}/${tab}`)
+  router.push(`${rolePrefix.value}/courses/${courseId.value}/${tab}`)
 })
 
 // 侧边栏/外部链接切换页签时同步高亮
@@ -175,7 +183,7 @@ watch(
   () => route.path,
   (p) => {
     const last = p.split('/').pop()
-    if (cockpitTabs.some((t) => t.path === last)) activeCockpit.value = last
+    if (cockpitTabs.value.some((t) => t.path === last)) activeCockpit.value = last
   },
 )
 
@@ -184,7 +192,7 @@ onMounted(async () => {
   const segments = route.path.split('/')
   const last = segments[segments.length - 1]
   // Check if last segment matches a tab key
-  const match = cockpitTabs.find((t) => t.path === last)
+  const match = cockpitTabs.value.find((t) => t.path === last)
   if (match) activeCockpit.value = last
   else activeCockpit.value = 'chapters'
   // 课程主体信息 + 报名统计并行拉取：/courses/{id} 给学期与学分，/courses/{id}/stats 给真实学生数
