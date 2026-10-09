@@ -168,8 +168,10 @@ const currentClassLabel = computed(() => {
 
 // 页签清单以 menus.ts 的 COURSE_TABS 为单一来源：侧边栏三级页签与本壳页签同源，
 // 文案与入口不会再各写一份而漂移（DR-47 里 submissions 曾被误标成「成员管理」）。
+// role 只可能是 TEACHER / ADMIN，两者都有配置，故不做 `|| TEACHER` 兜底：
+// 兜底只会把「新增角色漏配页签」压成静默降级——管理员拿到 14 个教师页签，其中 6 个在管理端没有子路由。
 const cockpitTabs = computed(() =>
-  (COURSE_TABS[role.value] || COURSE_TABS.TEACHER).map((t) => ({ path: t.suffix, label: t.text })),
+  COURSE_TABS[role.value].map((t) => ({ path: t.suffix, label: t.text })),
 )
 const activeCockpit = ref('chapters')
 

@@ -104,7 +104,9 @@ describe('AppSidebar 导航跳转', () => {
     expect(mocks.teacherCourses).not.toHaveBeenCalled()
     expect(mocks.studentCourses).not.toHaveBeenCalled()
 
-    await navItem(wrapper, '用户权限').trigger('click')
+    // 菜单文案的唯一来源是 menus.ts：本条只跟着「用户与账号」这个新分区标签改字，
+    // 断言的跳转目标 /admin/users 未变。ADMIN 侧的组装改造与目录断言由 Task 4 承接。
+    await navItem(wrapper, '用户与账号').trigger('click')
     expect(mocks.mockPush).toHaveBeenCalledWith('/admin/users')
   })
 })

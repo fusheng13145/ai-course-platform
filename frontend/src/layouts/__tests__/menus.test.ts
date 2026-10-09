@@ -12,8 +12,9 @@ import {
  * 侧边栏导航与路由表的一致性守护
  * <p>导航配置（menus.ts）与路由表（router/index.ts）是两处独立声明，历史上出现过
  * 「教师端静态区清空后 /teacher/dashboard 成为无入口落点」「学生端跨课程路由缺入口」
- * 两类漂移。本套件把两侧对齐关系固化为断言：每条导航路径必须命中真实路由，
- * 且三端的收敛口径（教师/学生混合收敛、管理员扁平）不回退。</p>
+ * 「管理端 /admin/exams、/admin/grades 收敛后漏掉入口」三类漂移。本套件把两侧对齐关系
+ * 固化为断言：每条导航路径必须命中真实路由，管理端每条治理叶子路由也必须真有入口，
+ * 且三端的收敛口径（三端统一为「动态课程目录 + 静态分区」）不回退。</p>
  */
 
 const DEMO_COURSES = [{ id: 1, name: '示例课程' }]
@@ -34,7 +35,6 @@ function collectPaths(sections) {
 function navPathsOf(role) {
   const staticSections =
     role === 'ADMIN' ? ADMIN_SECTIONS : role === 'TEACHER' ? TEACHER_SECTIONS : STUDENT_SECTIONS
-  if (role === 'ADMIN') return collectPaths(staticSections)
   return [
     ...collectPaths(buildCourseCatalogSection(role, DEMO_COURSES)),
     ...collectPaths(staticSections),
@@ -56,7 +56,7 @@ describe('导航路径必须命中真实路由', () => {
   }
 
   it('课程目录三级页签与 /{role}/courses/:id/* 子路由一一对应', () => {
-    for (const role of ['TEACHER', 'STUDENT']) {
+    for (const role of ['TEACHER', 'STUDENT', 'ADMIN']) {
       for (const tab of COURSE_TABS[role]) {
         expect(isLiveRoute(`/${role.toLowerCase()}/courses/1/${tab.suffix}`)).toBe(true)
       }
@@ -90,11 +90,55 @@ describe('三端收敛口径不回退', () => {
     expect(paths).toContain('/student/courses/1/knowledge')
   })
 
-  it('管理员端维持扁平治理视图，不引入课程维度', () => {
+  it('管理员端治理大盘为静态区首节，课程维度经动态目录进入', () => {
+    // 配置层不锁组装顺序（那由 AppSidebar 决定，见 AppSidebar.test 的分区标签顺序断言），
+    // 这里只锁：静态区第一节必须是落点，且课程目录能为 ADMIN 构建出真实页签路径。
+    expect(ADMIN_SECTIONS[0].items[0].path).toBe('/admin/dashboard')
     const paths = navPathsOf('ADMIN')
-    expect(paths.length).toBeGreaterThan(0)
-    expect(paths.filter((p) => /^\/admin\/courses\/\d+/.test(p))).toEqual([])
-    // 扁平结构下不应出现「课程目录」动态分区
+    expect(paths).toContain('/admin/dashboard')
+    expect(paths).toContain('/admin/courses/1/overview')
+    expect(paths).toContain('/admin/courses/1/ai')
+    expect(paths).toContain('/admin/courses')
+  })
+
+  it('管理员端课程页签集合是治理子集，不含教师运营页签', () => {
+    const suffixes = COURSE_TABS.ADMIN.map((t) => t.suffix)
+    expect(suffixes).toEqual([
+      'overview',
+      'chapters',
+      'bank',
+      'exams',
+      'grades',
+      'analytics',
+      'knowledge',
+      'ai',
+    ])
+    for (const excluded of ['submissions', 'proctor', 'interaction', 'tasks', 'discussion']) {
+      expect(suffixes).not.toContain(excluded)
+    }
+  })
+
+  it('静态 ADMIN_SECTIONS 不出现「课程目录」，禁止静态/动态双写', () => {
     expect(ADMIN_SECTIONS.some((sec) => sec.label === '课程目录')).toBe(false)
+    expect(ADMIN_SECTIONS).toHaveLength(6)
+  })
+
+  it('管理端每条治理叶子路由都有导航入口（孤儿收编后不得回退）', () => {
+    const covered = new Set([
+      ...navPathsOf('ADMIN'),
+      '/admin/profile',
+      '/admin/message-center',
+      '/admin',
+      '/admin/courses/:id',
+    ])
+    const adminLeaves = router
+      .getRoutes()
+      .filter((r) => r.path.startsWith('/admin/'))
+      .filter((r) => !r.children.length)
+      .map((r) => r.path)
+    const orphans = adminLeaves.filter(
+      (p) => !covered.has(p) && !/^\/admin\/courses\/:id\//.test(p),
+    )
+    expect(orphans, `侧边栏无入口的管理端路由：${orphans.join(', ')}`).toEqual([])
   })
 })

@@ -71,7 +71,7 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '课程管理', breadcrumb: '课程管理' },
       },
       // 课程治理驾驶舱：复用 views/teacher/cockpit/* 视图
-      // 按 route 首段推导角色/前缀是本轮设计；Task 2 落地前壳内跳转仍发 /teacher/... 前缀
+      // 壳内按 route 首段推导角色与前缀（/admin/... 走 ADMIN），返回链接与页签跳转都留在本端
       // 页签面是「查看/治理」子集，写动作沿用后端既有 ADMIN 姿态（spec §5 末，项目主已接受）
       {
         path: 'courses/:id',

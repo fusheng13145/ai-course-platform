@@ -31,84 +31,114 @@ export const ROLE_META = {
   },
 }
 
-/* ============================== 管理员端分区 ============================== */
-export const ADMIN_SECTIONS = [
+/* ============================== 管理员端分区（静态治理维度；课程目录见 buildCourseCatalogSection） ============================== */
+// 菜单节点形状：一级项要么直跳（path），要么下挂二级（children）；二级项可再下挂三级页签。
+// 显式标注是类型棘轮的要求：「内容与资源治理」「权限·系统·审计」两节的一级项全部只挂 children，
+// 不标注时 TS 会把这些子数组推成「没有 path 属性」的字面量类型，
+// 于是消费方的通用遍历（nav-reachability.test.ts:71、本套件对 ADMIN_SECTIONS[0].items[0].path 的断言）
+// 各多出 1 条 TS2339；那两个文件按本轮约束都不可改，基线又只许下降，故在此把形状写清。
+type MenuLeaf = { key: string; text: string; path: string }
+type MenuChild = MenuLeaf & { children?: MenuLeaf[] }
+type MenuNode = {
+  key: string
+  text: string
+  icon: string
+  path?: string
+  badge?: string | number
+  children?: MenuChild[]
+}
+type MenuSection = { label: string; items: MenuNode[] }
+
+// 角色边界（项目主 2026-10-09 给定矩阵）：管理员端是平台运维管控层，按治理维度组织，
+// 不按"我教的课"组织。矩阵六维度中的「课程管理」由动态「课程目录」分区承担（本表不重复声明），
+// 故静态区恰好 6 节；治理大盘必须排第一节，它是 /admin 空路径重定向的落点（router/index.ts:43）。
+// 一级项每节 ≤3，超出者收进二级 children——与教师/学生端同口径。
+export const ADMIN_SECTIONS: MenuSection[] = [
   {
-    label: '系统管理',
+    label: '治理总览',
+    items: [{ key: 'dashboard', text: '治理大盘', icon: 'dashboard', path: '/admin/dashboard' }],
+  },
+  {
+    label: '用户与班级',
     items: [
-      {
-        key: 'users',
-        text: '用户权限',
-        icon: 'users',
-        path: '/admin/users',
-      },
-      {
-        key: 'roles',
-        text: '角色管理',
-        icon: 'shield',
-        path: '/admin/permissions',
-      },
-      {
-        key: 'settings',
-        text: '系统设置',
-        icon: 'settings',
-        path: '/admin/system',
-      },
+      { key: 'users', text: '用户与账号', icon: 'users', path: '/admin/users' },
+      { key: 'roles', text: '角色与权限', icon: 'lock', path: '/admin/permissions' },
+      { key: 'classes', text: '组织与班级', icon: 'building', path: '/admin/classes' },
     ],
   },
   {
-    label: '教学管理',
+    label: '题库与试卷',
+    items: [
+      { key: 'questions', text: '公共题库', icon: 'doc', path: '/admin/questions' },
+      // /admin/exams 与 /admin/grades 是 2026-10-08 收敛时漏掉入口的孤儿路由，本轮收编
+      { key: 'exams', text: '试卷与考试', icon: 'clipboard', path: '/admin/exams' },
+    ],
+  },
+  {
+    label: '数据统计',
+    items: [
+      { key: 'analytics', text: '跨课程分析', icon: 'sliders', path: '/admin/analytics' },
+      { key: 'grades', text: '全校成绩汇总', icon: 'award', path: '/admin/grades' },
+    ],
+  },
+  {
+    label: '内容与资源治理',
     items: [
       {
-        key: 'courses',
-        text: '课程库总览',
-        icon: 'book',
-        children: [
-          { key: 'courses-all', text: '全部课程', path: '/admin/courses' },
-          { key: 'courses-classes', text: '专业班级管理', path: '/admin/classes' },
-        ],
-      },
-      { key: 'questions', text: '题库管理', icon: 'doc', path: '/admin/questions' },
-      {
         key: 'resources',
-        text: '资源管理',
+        text: '资源治理',
         icon: 'archive',
         children: [
           { key: 'resources-all', text: '资源库', path: '/admin/resources' },
           { key: 'resource-versions', text: '资源版本', path: '/admin/resource-versions' },
+          { key: 'file-upload', text: '上传管理', path: '/admin/file-upload' },
         ],
       },
-    ],
-  },
-  {
-    label: '数据与公告',
-    items: [
-      { key: 'dashboard', text: '数据看板', icon: 'chart', path: '/admin/dashboard' },
-      { key: 'analytics', text: '教学分析', icon: 'sliders', path: '/admin/analytics' },
       {
         key: 'governance',
-        text: '监管与考试',
-        icon: 'shield',
+        text: '运行监管',
+        icon: 'eye',
         children: [
           { key: 'gov-supervision', text: '教学监督', path: '/admin/supervision' },
-          { key: 'gov-exams', text: '考试治理', path: '/admin/exam-governance' },
+          { key: 'gov-exam-gov', text: '考试治理', path: '/admin/exam-governance' },
           { key: 'gov-plagiarism', text: '查重管理', path: '/admin/plagiarism' },
         ],
       },
-      { key: 'notices', text: '通知公告', icon: 'megaphone', path: '/admin/notifications' },
     ],
   },
   {
-    label: '系统配置',
+    label: '权限·系统·审计',
     items: [
-      { key: 'ai-cfg', text: 'AI 服务配置', icon: 'log', path: '/admin/ai-supplier' },
-      { key: 'logs', text: '操作日志', icon: 'list', path: '/admin/logs' },
-      { key: 'login-logs', text: '登录日志', icon: 'clock', path: '/admin/login-logs' },
-      { key: 'kb', text: '知识库管理', icon: 'layers', path: '/admin/knowledge-base' },
-      { key: 'rag', text: 'RAG 文档索引', icon: 'search', path: '/admin/rag-docs' },
-      { key: 'user-sessions', text: '会话管理', icon: 'monitor', path: '/admin/user-sessions' },
-      { key: 'file-upload', text: '上传管理', icon: 'upload', path: '/admin/file-upload' },
-      { key: 'reminders', text: '提醒管理', icon: 'bell', path: '/admin/reminders' },
+      {
+        key: 'system',
+        text: '系统参数与公告',
+        icon: 'settings',
+        children: [
+          { key: 'system-settings', text: '系统设置', path: '/admin/system' },
+          { key: 'notices', text: '通知公告', path: '/admin/notifications' },
+          { key: 'reminders', text: '提醒管理', path: '/admin/reminders' },
+        ],
+      },
+      {
+        key: 'ai-kb',
+        text: 'AI 与知识库',
+        icon: 'layers',
+        children: [
+          { key: 'ai-cfg', text: 'AI 供应商配置', path: '/admin/ai-supplier' },
+          { key: 'kb', text: '知识库管理', path: '/admin/knowledge-base' },
+          { key: 'rag', text: 'RAG 文档索引', path: '/admin/rag-docs' },
+        ],
+      },
+      {
+        key: 'audit',
+        text: '安全与审计',
+        icon: 'shield',
+        children: [
+          { key: 'logs', text: '操作日志', path: '/admin/logs' },
+          { key: 'login-logs', text: '登录日志', path: '/admin/login-logs' },
+          { key: 'user-sessions', text: '会话管理', path: '/admin/user-sessions' },
+        ],
+      },
     ],
   },
 ]
@@ -141,17 +171,30 @@ export const COURSE_TABS = {
     { suffix: 'knowledge', text: '知识图谱' },
     { suffix: 'ai', text: 'AI 助手' },
   ],
+  // 管理端每门课下的治理页签：均为「查看平台全部课程」语义，读路径已逐条核实 ADMIN 可访
+  // （spec §5 取证表）。刻意不含 tasks/submissions/proctor/interaction/knowledge-management/discussion。
+  ADMIN: [
+    { suffix: 'overview', text: '课程概览' },
+    { suffix: 'chapters', text: '章节与任务点' },
+    { suffix: 'bank', text: '课程题库' },
+    { suffix: 'exams', text: '试卷与考试' },
+    { suffix: 'grades', text: '成绩统计' },
+    { suffix: 'analytics', text: '学情统计' },
+    { suffix: 'knowledge', text: '知识图谱' },
+    { suffix: 'ai', text: 'AI 教学助手' },
+  ],
 }
 
 /** 课程目录的「总览」入口（统一列表页，保留在动态课程之前） */
 const COURSE_CATALOG_ENTRY = {
   TEACHER: { allText: '课程总览', allPath: '/teacher/courses' },
   STUDENT: { allText: '课程总览', allPath: '/student/courses' },
+  ADMIN: { allText: '课程治理总览', allPath: '/admin/courses' },
 }
 
 /**
  * 按角色 + 课程列表构建「课程目录」分区（一级课程目录 → 二级各课程 → 三级功能页签）
- * @param role   TEACHER / STUDENT
+ * @param role   TEACHER / STUDENT / ADMIN
  * @param courses [{ id, name }]
  */
 export function buildCourseCatalogSection(role, courses) {

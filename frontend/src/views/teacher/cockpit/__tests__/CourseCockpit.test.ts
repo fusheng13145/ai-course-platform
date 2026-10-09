@@ -186,6 +186,10 @@ describe('CourseCockpit 头部读数', () => {
 describe('CourseCockpit 角色前缀推导（DR-48：同一壳服务 TEACHER / ADMIN）', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    // mountCockpitAt 会就地改写共享的 mocks.route，而 vi.clearAllMocks 不会还原普通字段，
+    // 这里统一复位，避免本组用例依赖上一条用例留下的路径（声明顺序耦合）。
+    mocks.route.path = '/teacher/courses/4001/overview'
+    mocks.route.params = { id: '4001' }
     mocks.getCourseById.mockResolvedValue(COURSE_DETAIL)
     mocks.getStats.mockResolvedValue({ code: 200, data: { totalStudents: 15 } })
     mocks.getCourseClasses.mockResolvedValue([])
@@ -204,8 +208,9 @@ describe('CourseCockpit 角色前缀推导（DR-48：同一壳服务 TEACHER / A
     expect(wrapper.get('a.rl').attributes('data-to')).toBe('/admin/courses')
 
     const pills = wrapper.findAll('.tabs-pill .tab-i')
-    expect(pills.map((n) => n.text())).toEqual(COURSE_TABS.TEACHER.map((t) => t.text))
+    expect(pills.map((n) => n.text())).toEqual(COURSE_TABS.ADMIN.map((t) => t.text))
+    // 期望路径由页签集自身推导，页签顺序日后调整时不会连带误报
     await pills[0].trigger('click')
-    expect(mocks.push).toHaveBeenCalledWith('/admin/courses/4007/overview')
+    expect(mocks.push).toHaveBeenCalledWith(`/admin/courses/4007/${COURSE_TABS.ADMIN[0].suffix}`)
   })
 })
