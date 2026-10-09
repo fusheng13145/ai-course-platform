@@ -523,7 +523,15 @@ router.beforeEach(async (to, from, next) => {
   // permissionsLoaded 只由一次真实的 /auth/permissions 成功响应置位，
   // 因此这里用「未加载」而不是「未缓存」作为重新拉取的条件（防本地伪造）。
   if (!authStore.permissions || !authStore.permissionsLoaded) {
-    await authStore.fetchPermissions()
+    // DR-45：`isLoggedIn` 只表示本地缓存里有 user，不等于服务端认这次会话。
+    // 所以必须消费 fetchPermissions 回传的结论：服务端 401 就在此终止导航、带 redirect
+    // 跳登录页。原实现 await 之后无视结果照常 next()，跳转又由拦截器另起一路，
+    // 两条导航互相取消 → 过期用户看到「仍已登录、点击无反应，再点才跳登录」。
+    const verdict = await authStore.fetchPermissions()
+    if (verdict === 'expired') {
+      next({ path: '/login', query: { redirect: to.fullPath } })
+      return
+    }
   }
 
   const requiredRole = to.matched.find((r) => r.meta.role)?.meta.role

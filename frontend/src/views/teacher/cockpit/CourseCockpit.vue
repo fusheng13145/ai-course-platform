@@ -33,10 +33,10 @@
         <div style="flex: 1">
           <div class="flex gap-8">
             <span style="font-size: 18px; font-weight: 700; letter-spacing: -0.3px">{{
-              courseName || '计算机网络'
+              courseName || '加载中…'
             }}</span>
-            <span class="tag outline mono">{{ courseCode || 'CS3101' }}</span>
-            <span class="tag green">进行中</span>
+            <span v-if="courseCode" class="tag outline mono">{{ courseCode }}</span>
+            <span class="tag" :class="statusClass">{{ statusLabel }}</span>
             <router-link
               to="/teacher/courses"
               class="btn btn-ghost btn-sm"
@@ -44,13 +44,11 @@
               >← 返回课程列表</router-link
             >
           </div>
-          <div class="small muted mt-8">
-            2025-2026-2 · 4 学分 · 共 {{ classes.length }} 个班级 {{ totalStudents }} 名学生
-          </div>
+          <div class="small muted mt-8">{{ courseMeta }}</div>
         </div>
       </div>
-      <!-- 班级 Tab —— 一级隔离维度 -->
-      <div class="tabs-line">
+      <!-- 班级 Tab —— 一级隔离维度（课程未绑定行政班时不显示，避免伪造「全部班级 0 人」） -->
+      <div v-if="classes.length" class="tabs-line">
         <div
           v-for="(cls, i) in classes"
           :key="cls.key"
@@ -104,9 +102,7 @@
           >
         </div>
       </div>
-      <span class="tag blue"
-        >当前班级：{{ currentClass?.name || '—' }} · {{ currentClass?.schedule || '' }}</span
-      >
+      <span class="tag blue">{{ currentClassLabel }}</span>
     </div>
 
     <div>
@@ -120,6 +116,7 @@ import { ref, computed, watch, onMounted } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import courseApi from '@/api/course'
 import { getCourseClasses } from '@/api/teacher'
+import { COURSE_TABS } from '@/layouts/menus'
 import { unwrap } from '@/utils/response'
 
 const route = useRoute()
@@ -128,31 +125,44 @@ const courseId = computed(() => route.params.id)
 
 const courseName = ref('')
 const courseCode = ref('')
+const courseStatus = ref('')
+const semester = ref('')
+const credits = ref(null)
+const enrolledStudents = ref(null)
 const coverIdx = ref(0)
 const coverColors = ['#8f2a21,#c13b30', '#1a4a80,#2563a8', '#1f5c39,#2e7d4f', '#6d4fa1,#8b6cc0']
 
 const classes = ref([])
 const activeClass = ref('')
 const currentClass = computed(() => classes.value.find((c) => c.key === activeClass.value))
-const totalStudents = computed(() => classes.value.reduce((s, c) => s + (c.students || 0), 0))
 const totalPending = computed(() => classes.value.reduce((s, c) => s + (c.pending || 0), 0))
 
-const cockpitTabs = [
-  { path: 'overview', label: '课程概览' },
-  { path: 'chapters', label: '课程章节' },
-  { path: 'tasks', label: '作业管理' },
-  { path: 'submissions', label: '成员管理' },
-  { path: 'exams', label: '考试管理' },
-  { path: 'grades', label: '成绩统计' },
-  { path: 'knowledge', label: '知识图谱' },
-  { path: 'knowledge-management', label: '知识点管理' },
-  { path: 'bank', label: '课程题库' },
-  { path: 'proctor', label: '在线监考' },
-  { path: 'analytics', label: '学情统计' },
-  { path: 'interaction', label: '课堂互动' },
-  { path: 'ai', label: 'AI 教学助手' },
-  { path: 'discussion', label: '课程讨论' },
-]
+const statusLabel = computed(() => {
+  if (!courseStatus.value) return '未同步'
+  return courseStatus.value === 'ACTIVE' ? '进行中' : '已停用'
+})
+const statusClass = computed(() => (courseStatus.value === 'ACTIVE' ? 'green' : ''))
+
+/** 头部副标题：逐项只在拿到真实数据后渲染，缺字段就不显示，不再用硬编码串占位 */
+const courseMeta = computed(() => {
+  const parts = []
+  if (semester.value) parts.push(semester.value)
+  if (credits.value != null) parts.push(`${credits.value} 学分`)
+  const students =
+    enrolledStudents.value ?? classes.value.reduce((s, c) => s + (c.students || 0), 0)
+  parts.push(`${students} 名学生`)
+  parts.push(classes.value.length ? `共 ${classes.value.length} 个班级` : '未绑定行政班')
+  return parts.join(' · ')
+})
+
+const currentClassLabel = computed(() => {
+  if (!currentClass.value) return '按课程维度（未绑定行政班）'
+  return `当前班级：${currentClass.value.name}${currentClass.value.schedule ? ` · ${currentClass.value.schedule}` : ''}`
+})
+
+// 页签清单以 menus.ts 的 COURSE_TABS 为单一来源：侧边栏三级页签与本壳页签同源，
+// 文案与入口不会再各写一份而漂移（DR-47 里 submissions 曾被误标成「成员管理」）。
+const cockpitTabs = COURSE_TABS.TEACHER.map((t) => ({ path: t.suffix, label: t.text }))
 const activeCockpit = ref('chapters')
 
 // Navigate to selected cockpit tab
@@ -177,17 +187,23 @@ onMounted(async () => {
   const match = cockpitTabs.find((t) => t.path === last)
   if (match) activeCockpit.value = last
   else activeCockpit.value = 'chapters'
-  // Try to load course info from API
-  try {
-    const res = await courseApi.getCourseById(courseId.value)
-    const data = unwrap(res)
-    if (data) {
-      courseName.value = data.name || data.courseName || courseName.value
-      courseCode.value = data.code || data.courseCode || courseCode.value
-    }
-  } catch {
-    /* use defaults */
+  // 课程主体信息 + 报名统计并行拉取：/courses/{id} 给学期与学分，/courses/{id}/stats 给真实学生数
+  const [detailRes, statsRes] = await Promise.all([
+    courseApi.getCourseById(courseId.value).catch(() => null),
+    courseApi.getStats(courseId.value).catch(() => null),
+  ])
+  const detail = unwrap(detailRes)
+  if (detail) {
+    courseName.value = String(detail.name || detail.courseName || '')
+    courseCode.value = String(detail.code || detail.courseCode || '')
+    courseStatus.value = String(detail.status || '')
+    semester.value = String(detail.semester || '')
+    const parsedCredits = Number(detail.credits)
+    credits.value = Number.isFinite(parsedCredits) ? parsedCredits : null
   }
+  const stats = unwrap(statsRes)
+  const parsedStudents = Number(stats?.totalStudents)
+  enrolledStudents.value = Number.isFinite(parsedStudents) ? parsedStudents : null
   // Load real class dimensions from backend
   try {
     const res = await getCourseClasses(courseId.value)
@@ -195,13 +211,9 @@ onMounted(async () => {
     if (Array.isArray(data) && data.length > 0) {
       classes.value = data
       activeClass.value = data[0]?.key || ''
-    } else {
-      classes.value = [{ key: 'all', name: '全部班级', students: 0, pending: 0, schedule: '' }]
-      activeClass.value = 'all'
     }
   } catch {
-    classes.value = [{ key: 'all', name: '全部班级', students: 0, pending: 0, schedule: '' }]
-    activeClass.value = 'all'
+    /* 班级维度缺失：保持空数组，头部如实显示「未绑定行政班」 */
   }
 })
 </script>

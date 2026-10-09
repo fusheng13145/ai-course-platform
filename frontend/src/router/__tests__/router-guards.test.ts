@@ -346,6 +346,46 @@ describe('路由守卫', () => {
     })
   })
 
+  // DR-45：守卫必须消费 fetchPermissions 回传的「服务端会话结论」。
+  // 原实现在 await fetchPermissions() 之后无条件 next()，于是本地缓存里有 user 的过期会话
+  // 照样渲染受保护页；同一时刻拦截器又各自 router.push('/login')，两条导航互相取消，
+  // 用户看到的是「还显示已登录、点什么都没反应，再点一次才跳登录页」。
+  describe('会话确认结论（DR-45）', () => {
+    /** 以「本地有缓存登录态、服务端结论待定」的姿态发起一次受保护导航 */
+    async function navigateWithStaleSession(verdict, target) {
+      mockStore.isLoggedIn = true
+      mockStore.user = { id: 1001, role: 'TEACHER' }
+      mockStore.effectiveRole = 'TEACHER'
+      mockStore.permissions = { menus: [], buttons: {} }
+      mockStore.permissionsLoaded = false
+      mockStore.fetchPermissions = vi.fn(async () => {
+        if (verdict === 'expired') {
+          // 真实 store 在 401 分支会清空本地登录态
+          mockStore.isLoggedIn = false
+          mockStore.user = null
+        }
+        return verdict
+      })
+      await router.push(target)
+    }
+
+    it('服务端判定会话已过期：不渲染受保护页，带 redirect 跳登录页', async () => {
+      await navigateWithStaleSession('expired', '/teacher/dashboard')
+      expect(router.currentRoute.value.path).toBe('/login')
+      expect(router.currentRoute.value.query.redirect).toBe('/teacher/dashboard')
+    })
+
+    it('服务端不可达（网络/5xx）：保留本地登录态放行，不把用户踢出登录页', async () => {
+      await navigateWithStaleSession('unavailable', '/teacher/dashboard')
+      expect(router.currentRoute.value.path).toBe('/teacher/dashboard')
+    })
+
+    it('服务端确认成功：正常放行，且不带多余的登录页跳转', async () => {
+      await navigateWithStaleSession('ok', '/teacher/dashboard')
+      expect(router.currentRoute.value.path).toBe('/teacher/dashboard')
+    })
+  })
+
   describe('路由配置', () => {
     it('根路径 / 重定向到 /login', async () => {
       mockStore.isLoggedIn = false

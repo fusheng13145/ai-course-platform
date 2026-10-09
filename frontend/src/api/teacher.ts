@@ -153,7 +153,8 @@ export const cloneCourse = (courseId, newName) =>
 // （按 submissions.status=SUBMITTED 聚合，见 ClassroomService.countPendingByCourse）；
 // 该端点不可用/未绑定时回退 0（真实零值，非占位）。
 // schedule（课表）数据模型尚未沉淀，如实占位 ''（非伪造数据）。
-// 若某课程未绑定任何班级（返回空或 404），调用方 CourseCockpit 的 catch 会回退到「全部班级」占位。
+// 若某课程未绑定任何班级（返回空或 404），调用方 CourseCockpit 不渲染班级页签，
+// 头部如实显示「未绑定行政班」，学生数改用 GET /courses/{id}/stats 的 totalStudents。
 export const getCourseClasses = async (courseId) => {
   const [classesRes, pendingRes] = await Promise.all([
     request.get(`/classrooms/by-course/${courseId}`),

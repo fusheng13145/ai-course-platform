@@ -186,6 +186,10 @@ export function resetLoginRedirectDedupe() {
 
 /**
  * 会话失效统一收尾：清前端登录态 + 提示 + **至多一次**跳转登录页。
+ *
+ * 跳转带上 `redirect`，重新登录后回到原页面 —— 与路由守卫的未登录分支同口径。
+ * 例外：守卫冷启动时发起的 `/auth/permissions` 探针**不在此跳转**（见下方调用处），
+ * 由守卫用 `next({path:'/login', query:{redirect}})` 作为唯一出口，避免两条导航互相取消。
  */
 function handleAuthExpired() {
   const authStore = useAuthStore()
@@ -194,6 +198,11 @@ function handleAuthExpired() {
   const now = Date.now()
   if (now - lastLoginRedirectAt < LOGIN_REDIRECT_DEDUPE_MS) return
   lastLoginRedirectAt = now
+  const from = router.currentRoute?.value?.fullPath
+  if (from && from !== '/login' && from !== '/register') {
+    router.push({ path: '/login', query: { redirect: from } })
+    return
+  }
   router.push('/login')
 }
 
@@ -374,8 +383,14 @@ service.interceptors.response.use(
             }
           }
         }
-        // 刷新失败 / 已重试过 / 刷新端点自身 401：清空前端登录态并跳转登录页
-        handleAuthExpired()
+        // 刷新失败 / 已重试过 / 刷新端点自身 401：清空前端登录态并跳转登录页。
+        // 例外（DR-45）：/auth/permissions 是路由守卫在冷启动时发起的「会话探针」，
+        // 它的失败结果会由 fetchPermissions 回传给守卫，跳转由守卫的 next() 作为唯一出口；
+        // 这里再 push 一次就会与进行中的守卫导航互相取消。
+        const isSessionProbe = url.includes('/auth/permissions')
+        if (!isSessionProbe) {
+          handleAuthExpired()
+        }
         break
       }
 

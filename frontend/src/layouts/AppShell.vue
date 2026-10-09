@@ -14,10 +14,10 @@
         @toggle-sidebar="sidebarMini = !sidebarMini"
       />
 
-      <main class="content">
+      <main ref="contentRef" class="content">
         <router-view v-slot="{ Component }">
           <transition name="page" mode="out-in">
-            <component :is="Component" :key="route.path" />
+            <component :is="Component" :key="viewKey" />
           </transition>
         </router-view>
       </main>
@@ -29,7 +29,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { iconHtml } from './icons'
@@ -51,6 +51,24 @@ const props = defineProps({
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+
+/**
+ * 本层视图的重建判据：只用「本层路由记录 + 该记录声明的参数值」，不用 route.path。
+ * 按 path 打 key 会把下层页签也算进去，切一次课程页签就整体重建课程壳（接口重来 +
+ * 内容区先清空再淡入），而淡入依赖 rAF——窗口被遮挡时 rAF 冻结，页面就卡在离场帧。
+ */
+const viewKey = computed(() => {
+  const rec = route.matched[1]
+  if (!rec) return route.path
+  return rec.path.replace(/:[^/]+/g, (m) => String(route.params[m.slice(1)] ?? ''))
+})
+
+// 壳层复用后不再靠重建把滚动归零，切页时显式回到顶部（.content 才是滚动容器）
+const contentRef = ref(null)
+watch(
+  () => route.path,
+  () => contentRef.value?.scrollTo({ top: 0 }),
+)
 
 const sidebarMini = ref(false)
 

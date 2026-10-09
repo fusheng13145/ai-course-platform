@@ -9,6 +9,7 @@ import org.springframework.util.StringUtils;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.util.Date;
+import java.util.UUID;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -71,6 +72,11 @@ public class JwtUtils {
                 .claim("role", role)
                 .issuer(ISSUER)
                 .audience().add(AUDIENCE).and()
+                // 修复（DR-44）：加入每次签发独立的 jti。原令牌的声明全部只由「用户 + 签发秒」决定，
+                // 同一用户在同一秒内的两次登录会拿到逐字节相同的 JWT；而 user_sessions.session_token
+                // 无唯一约束，于是库里出现同令牌多行，按令牌吊销（登出/改密/强制下线）即抛
+                // TooManyResultsException → HTTP 500 且回滚，会话吊销不生效。
+                .id(UUID.randomUUID().toString())
                 .issuedAt(now)
                 .expiration(expirationDate)
                 .signWith(secretKey)

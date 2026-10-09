@@ -1,7 +1,7 @@
 {
-  "errors": 564,
+  "errors": 563,
   "files": 108,
-  "note": "2026-09-13 首次接入 vue-tsc 的存量基线；棘轮制，只许下降（2026-10-04 同步：587 条）（2026-10-04 同步：586 条）（2026-10-07 同步：576 条）（2026-10-08 同步：564 条）",
+  "note": "2026-09-13 首次接入 vue-tsc 的存量基线；棘轮制，只许下降（2026-10-04 同步：587 条）（2026-10-04 同步：586 条）（2026-10-07 同步：576 条）（2026-10-08 同步：564 条）（2026-10-09 同步：563 条）",
   "scope": "src/**/*.{ts,vue} + e2e/**/*.ts + *.config.ts，strict:false",
   "nextSteps": [
     "收敛 145 处手写防御式双取值（res.data?.records || res.data?.list || res.data || res）为统一解包工具",
@@ -91,7 +91,6 @@
     "src/views/admin/Dashboard.vue": 2,
     "src/views/admin/system/NotificationManagement.vue": 2,
     "src/views/student/Dashboard.vue": 2,
-    "src/views/teacher/cockpit/CourseCockpit.vue": 2,
     "src/views/teacher/cockpit/CourseGrades.vue": 2,
     "src/views/teacher/tools/components/AcAdvicePanel.vue": 2,
     "src/views/teacher/tools/components/AcEssayPanel.vue": 2,
@@ -103,6 +102,7 @@
     "src/composables/useKnowledgeTab.ts": 1,
     "src/composables/useQuestionBank.ts": 1,
     "src/composables/useTeacherDiscussion.ts": 1,
+    "src/router/__tests__/nav-reachability.test.ts": 1,
     "src/views/admin/governance/components/AnalyticsCharts.vue": 1,
     "src/views/admin/governance/components/TsvHeatmapCard.vue": 1,
     "src/views/admin/system/ReminderManage.vue": 1,

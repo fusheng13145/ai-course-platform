@@ -2,6 +2,9 @@ package com.aicourse.service.impl;
 
 import com.aicourse.entity.UserSession;
 import com.aicourse.mapper.UserSessionMapper;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -36,6 +39,10 @@ class UserSessionCacheTest {
 
     @BeforeEach
     void setUp() {
+        // 纯 Mockito 单测无 Spring 上下文：先初始化实体元信息，否则 lambdaUpdate 的列解析会抛
+        // "can not find lambda cache for this entity"。
+        TableInfoHelper.initTableInfo(
+                new MapperBuilderAssistant(new MybatisConfiguration(), ""), UserSession.class);
         // 显式构造（ObjectProvider 传 null → 无 Redis，降级 DB），并注入 baseMapper
         userSessionService = new UserSessionServiceImpl(null);
         ReflectionTestUtils.setField(userSessionService, "baseMapper", mapper);
@@ -79,22 +86,18 @@ class UserSessionCacheTest {
 
     @Test
     void evictSessionCache_marksSessionInactive() {
-        UserSession session = activeSession("jwt-token");
-        when(mapper.selectOne(any(), anyBoolean())).thenReturn(session);
-
+        // DR-44：吊销改为按令牌批量 UPDATE（不再有 selectOne + updateById 的单行假设）
         userSessionService.evictSessionCache("jwt-token");
 
-        assertThat(session.getIsActive()).isFalse();
-        verify(mapper).updateById(session);
+        verify(mapper).update(any(), any());
+        verify(mapper, never()).selectOne(any(), anyBoolean());
     }
 
     @Test
     void evictSessionCache_tokenNotFound_isNoOp() {
-        when(mapper.selectOne(any(), anyBoolean())).thenReturn(null);
-
         userSessionService.evictSessionCache("  ");
         userSessionService.evictSessionCache(null);
 
-        verify(mapper, never()).updateById(any(UserSession.class));
+        verify(mapper, never()).update(any(), any());
     }
 }

@@ -127,6 +127,7 @@ export const COURSE_TABS = {
     { suffix: 'knowledge', text: '知识图谱' },
     { suffix: 'knowledge-management', text: '知识点管理' },
     { suffix: 'bank', text: '课程题库' },
+    { suffix: 'proctor', text: '在线监考' },
     { suffix: 'analytics', text: '学情统计' },
     { suffix: 'interaction', text: '课堂互动' },
     { suffix: 'ai', text: 'AI 教学助手' },
