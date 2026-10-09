@@ -100,9 +100,41 @@ describe('课程壳空路径重定向', () => {
   })
 
   it('课程列表页 /admin/courses 不被 courses/:id 壳吞掉', async () => {
-    expect(await landedFrom('/admin/users', '/admin/courses')).toBe('/admin/courses')
-    expect(await landedFrom('/admin/dashboard', '/admin/courses/4007/bank')).toBe(
-      '/admin/courses/4007/bank',
-    )
+    const r = probe()
+    await r.push('/admin/dashboard')
+    await r.push('/admin/courses')
+    expect(r.currentRoute.value.fullPath).toBe('/admin/courses')
+    expect(r.currentRoute.value.matched.map((m) => m.path)).toEqual(['/admin', '/admin/courses'])
+    await r.push('/admin/courses/4007/bank')
+    expect(r.currentRoute.value.matched.map((m) => m.path)).toEqual([
+      '/admin',
+      '/admin/courses/:id',
+      '/admin/courses/:id/bank',
+    ])
+  })
+
+  it('管理端课程壳 8 个页签表驱动命中壳记录，而非兜底 404', async () => {
+    const adminTabSuffixes = [
+      'overview',
+      'chapters',
+      'bank',
+      'exams',
+      'grades',
+      'analytics',
+      'knowledge',
+      'ai',
+    ]
+    for (const suffix of adminTabSuffixes) {
+      const r = probe()
+      await r.push('/admin/courses')
+      await r.push(`/admin/courses/4007/${suffix}`)
+      expect(r.currentRoute.value.matched.map((m) => m.path)).toEqual([
+        '/admin',
+        '/admin/courses/:id',
+        `/admin/courses/:id/${suffix}`,
+      ])
+      expect(r.currentRoute.value.fullPath).toBe(`/admin/courses/4007/${suffix}`)
+      expect(r.currentRoute.value.params.id).toBe('4007')
+    }
   })
 })
