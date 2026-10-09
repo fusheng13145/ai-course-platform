@@ -219,7 +219,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/teacher/cockpit/CourseCockpit.vue'),
         meta: { title: '课程驾驶舱', breadcrumb: '课程驾驶舱' },
         children: [
-          { path: '', redirect: 'overview' },
+          { path: '', redirect: (to) => `/teacher/courses/${to.params.id}/overview` },
           {
             path: 'overview',
             component: () => import('@/views/teacher/cockpit/CourseOverview.vue'),
@@ -386,7 +386,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/student/course/CourseShell.vue'),
         meta: { title: '课程详情', breadcrumb: '课程详情' },
         children: [
-          { path: '', redirect: 'overview' },
+          { path: '', redirect: (to) => `/student/courses/${to.params.id}/overview` },
           {
             path: 'overview',
             component: () => import('@/views/student/course/CourseDetail.vue'),
