@@ -76,4 +76,33 @@ describe('课程壳空路径重定向', () => {
       '/student/courses/4001/learning-center',
     )
   })
+
+  it('管理端从治理大盘点裸课程 URL 落在课程概览', async () => {
+    expect(await landedFrom('/admin/dashboard', '/admin/courses/4007')).toBe(
+      '/admin/courses/4007/overview',
+    )
+  })
+
+  it('管理端裸课程 URL 保留课程 id，匹配链落到课程壳而非兜底 404', async () => {
+    const r = probe()
+    await r.push('/admin/users')
+    await r.push('/admin/courses/4023')
+    expect(r.currentRoute.value.params.id).toBe('4023')
+    expect(r.currentRoute.value.matched.map((m) => m.path)).toEqual([
+      '/admin',
+      '/admin/courses/:id',
+      '/admin/courses/:id/overview',
+    ])
+  })
+
+  it('管理端裸课程 URL 冷启动直达（无历史起点）也不落兜底 404', async () => {
+    expect(await landedFrom('/', '/admin/courses/4007')).toBe('/admin/courses/4007/overview')
+  })
+
+  it('课程列表页 /admin/courses 不被 courses/:id 壳吞掉', async () => {
+    expect(await landedFrom('/admin/users', '/admin/courses')).toBe('/admin/courses')
+    expect(await landedFrom('/admin/dashboard', '/admin/courses/4007/bank')).toBe(
+      '/admin/courses/4007/bank',
+    )
+  })
 })

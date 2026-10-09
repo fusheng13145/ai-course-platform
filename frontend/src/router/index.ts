@@ -70,6 +70,56 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/teaching/CourseManagement.vue'),
         meta: { title: '课程管理', breadcrumb: '课程管理' },
       },
+      // 课程治理驾驶舱：复用 views/teacher/cockpit/* 视图（壳按 route 首段推导角色，见 CourseCockpit.vue）
+      // 页签面是「查看/治理」子集，写动作沿用后端既有 ADMIN 姿态（spec §5 末，项目主已接受）
+      {
+        path: 'courses/:id',
+        component: () => import('@/views/teacher/cockpit/CourseCockpit.vue'),
+        meta: { title: '课程治理驾驶舱', breadcrumb: '课程治理' },
+        children: [
+          { path: '', redirect: (to) => `/admin/courses/${to.params.id}/overview` },
+          {
+            path: 'overview',
+            component: () => import('@/views/teacher/cockpit/CourseOverview.vue'),
+            meta: { title: '课程概览' },
+          },
+          {
+            path: 'chapters',
+            component: () => import('@/views/teacher/cockpit/CourseChapters.vue'),
+            meta: { title: '章节与任务点' },
+          },
+          {
+            path: 'bank',
+            component: () => import('@/views/teacher/cockpit/CourseQuestionBank.vue'),
+            meta: { title: '课程题库' },
+          },
+          {
+            path: 'exams',
+            component: () => import('@/views/teacher/cockpit/CourseExams.vue'),
+            meta: { title: '试卷与考试' },
+          },
+          {
+            path: 'grades',
+            component: () => import('@/views/teacher/cockpit/CourseGrades.vue'),
+            meta: { title: '成绩统计' },
+          },
+          {
+            path: 'analytics',
+            component: () => import('@/views/teacher/cockpit/CourseAnalytics.vue'),
+            meta: { title: '学情统计' },
+          },
+          {
+            path: 'knowledge',
+            component: () => import('@/views/teacher/tools/KnowledgeGraph.vue'),
+            meta: { title: '课程知识图谱' },
+          },
+          {
+            path: 'ai',
+            component: () => import('@/views/teacher/tools/AICenter.vue'),
+            meta: { title: '课程 AI 教学助手' },
+          },
+        ],
+      },
       {
         path: 'questions',
         component: () => import('@/views/admin/teaching/QuestionManagement.vue'),
