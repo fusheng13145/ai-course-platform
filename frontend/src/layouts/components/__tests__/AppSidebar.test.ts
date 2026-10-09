@@ -136,8 +136,12 @@ describe('AppSidebar 导航跳转', () => {
     const catalog = navItem(wrapper, '课程目录')
     expect(catalog.classes()).toContain('active')
     expect(catalog.classes()).toContain('expanded')
-    // 三级页签已渲染，说明课程节点也处于展开态
-    expect(navLeaf(wrapper, '章节与任务点').exists()).toBe(true)
+
+    // 三级页签容器由 AppSidebar.vue 的 v-if="child.children" 决定是否存在于 DOM，
+    // 「展开」只切换 .nav-sub-3 的 open class（对应 course-${id} 进入 expandedKeys）；
+    // 页签是否存在与展开态无关，故断言 open 才真正锁住课程节点自动展开这一半行为。
+    navLeaf(wrapper, '章节与任务点')
+    expect(wrapper.find('.nav-sub-3').classes()).toContain('open')
   })
 
   it('管理员端：课程治理总览入口精确高亮，不被课程子页误亮', async () => {
