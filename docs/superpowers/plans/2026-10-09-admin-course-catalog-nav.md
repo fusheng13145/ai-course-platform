@@ -27,6 +27,23 @@
 
 ---
 
+## 前置条件：工作区基线（开工前必须由项目主解决）
+
+计划写成后核对 `git status` 发现：**工作区有一批未提交改动（16 文件 / +329 −99），与本计划要改的三个文件重叠**。
+
+- 重叠文件：`frontend/src/layouts/menus.ts`、`frontend/src/router/index.ts`、`views/teacher/cockpit/CourseCockpit.vue`
+- 内容经核为 **DR-45 / DR-46 / DR-47** 这批在途工作（`router/index.ts` 守卫消费 `fetchPermissions` 回传结论；`CourseCockpit.vue` 头部改真实读数 + 页签取 `COURSE_TABS.TEACHER`；`menus.ts` 给 `COURSE_TABS.TEACHER` 补 `proctor`；另含后端 `JwtUtils`/`UserSessionServiceImpl` 与 `AppShell.vue`、`stores/auth.ts`、`api/request.ts` 等），另有 **2 个未跟踪测试文件/目录**（`router/__tests__/nav-reachability.test.ts`、`cockpit/__tests__/`）。
+- 本计划里所有 `file:line` 引用、"教师端 14 页签"、以及"待改写的既有测试用例编号"（如 `AppSidebar.test.ts:101`、`menus.test.ts:93-99`）**都是按这棵脏树取的**——它是实际运行的状态，因此对实现是对的；但一旦这批改动被回退或重排，行号与用例名会一起漂移。
+
+**执行方式必须先二选一**（否则 Task 1–4 的 `git add <文件>` 会把别人的在途 hunk 一并提交，提交信息就成了替他人工作背书）：
+
+- **口径 A（推荐）**：项目主确认这批改动归属后，**先由项目主或经其授权、以独立提交落盘**（提交信息写 DR-45/46/47 的事实，不混入本轮内容），本计划再在其之上执行。
+- **口径 B**：从 HEAD 另开隔离 worktree 执行本计划。代价：`COURSE_TABS.TEACHER` 在 HEAD 是 **13 项**（无 `proctor`）、`CourseCockpit.vue` 头部仍是伪造读数、`nav-reachability.test.ts` 与 `cockpit/__tests__/` **不存在**，Task 3/4/5 的多处"改写既有用例"要改成"新增用例"，且真跑验证需另起一套端口。
+
+在口径确定前，**不要开始 Task 1**。
+
+---
+
 ### Task 1: 管理端课程壳路由
 
 **Files:**
@@ -771,7 +788,7 @@ cd frontend && npm run lint && npm run typecheck && npx vitest run && npm run bu
 - **管理员端是「治理大盘 + 动态课程目录 + 六治理维度」结构（2026-10-09 DR-48 改版）**：角色边界按项目主给定的矩阵定为**平台运维管控层**（管整个平台、所有课程、全部用户），与教师端的**课程业务操作层**（只管自己这门课）区分。静态区 6 节对应矩阵余下五维度（用户&班级、题库&试卷、数据统计、内容&资源治理、权限·系统·审计），其中矩阵的「课程管理」维度由**动态「课程目录」分区**承担——`AppSidebar.vue` 对 `ADMIN` 用 `courseApi.getCourseList({page:1,size:200})` 取全库课程（本机 38 门）后经 `buildCourseCatalogSection('ADMIN', courses)` 构建，每门课下挂 8 个治理页签（概览/章节任务点/课程题库/试卷与考试/成绩统计/学情统计/知识图谱/AI 教学助手）。**刻意不用 `getMyCourses`**（`CourseController.java:178` 为 `hasRole('TEACHER')`，管理员必 403）。治理大盘排在第一分区，因为它是 `/admin` 空路径重定向的落点（`router/index.ts:43`）。课程页签复用 `views/teacher/cockpit/*` 与 `tools/{KnowledgeGraph,AICenter}.vue`，壳按 `route.path` 首段推导角色，**后端零改动**。⚠️ 复用即连带复用页面的写控件：`CourseChapterController.java:83/98/114/128` 等写端点是 `hasAnyRole('TEACHER','ADMIN')` 且无课程归属断言，管理员经页签可真实写入他人课程——该口径经项目主 2026-10-09 知情接受，本轮不做前端只读态，取证与三条退路见 spec §5 末。矩阵中四项能力（创建学期、归档过期学期、内容审核、限制教师出题权限）在全仓**无实现落点**，按"不发明死链"纪律不进导航，登记在 D.12.4。
 ```
 
-同段 `:87` 有两处需一并更正（都是本轮核对时发现的既有笔误）：教师端页签数 **13 → 14**（原文漏列「在线监考」，`COURSE_TABS.TEACHER` 实为 14 项），并在句尾补"管理员 8 个"。`:92` 的测试守护计数按 Step 4 的 vitest 真实读数更新。
+同段 `:87` 有两处需一并更正（**仅在"口径 A"即 DR-45/46/47 那批 WIP 已落盘时成立**：`proctor` 页签是该批未提交新增，HEAD 里教师端仍是 13 项，手册并未写错）：教师端页签数 **13 → 14**（原文漏列「在线监考」），并在句尾补"管理员 8 个"。若按"口径 B"从 HEAD 起做，则**只补"管理员 8 个"，不动 13 这个数字**。`:92` 的测试守护计数按 Step 4 的 vitest 真实读数更新。
 
 - [ ] **Step 6: D.12.3 加 DR-48 行，并修正编号说明**
 
