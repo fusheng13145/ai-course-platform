@@ -44,7 +44,9 @@
       >
         <el-table-column label="题干" min-width="280">
           <template #default="{ row }"
-            ><span class="stem-cell">{{ row.stem || row.title || '（无题干）' }}</span></template
+            ><span class="stem-cell">{{
+              row.content || row.stem || row.title || '（无题干）'
+            }}</span></template
           >
         </el-table-column>
         <el-table-column label="类型" width="100">
@@ -63,8 +65,8 @@
         </el-table-column>
         <el-table-column label="审核" width="82">
           <template #default="{ row }">
-            <el-tag size="small" :type="row.reviewed ? 'success' : 'warning'" effect="light">{{
-              row.reviewed ? '已审核' : '待审核'
+            <el-tag size="small" :type="isApproved(row) ? 'success' : 'warning'" effect="light">{{
+              isApproved(row) ? '已通过' : '待审核'
             }}</el-tag>
           </template>
         </el-table-column>
@@ -75,7 +77,7 @@
                 >编辑</el-button
               >
               <el-button
-                v-if="!row.reviewed"
+                v-if="!isApproved(row)"
                 link
                 type="success"
                 :icon="Select"
@@ -83,7 +85,7 @@
                 >通过</el-button
               >
               <el-button
-                v-if="!row.reviewed"
+                v-if="isApproved(row)"
                 link
                 type="warning"
                 :icon="Close"
@@ -125,6 +127,16 @@
 
 <script setup lang="ts">
 import { Search, Edit, Select, Close, CopyDocument, Delete } from '@element-plus/icons-vue'
+import { resolveReviewStatus } from '@/composables/useQuestionBank'
+
+/**
+ * 审核态取自 is_active（缺陷 B5）：Question 上没有 reviewed 字段，审核动作只写 is_active
+ * （QuestionServiceImpl.java:245），且建题默认为 1。统一走同仓既有推导
+ * （useQuestionBank.ts:21，教师题库列表 QbQuestionTable.vue:68 同法），不再各自兜底。
+ */
+function isApproved(row) {
+  return resolveReviewStatus(row) === 'APPROVED'
+}
 
 defineProps({
   loading: { type: Boolean, default: false },

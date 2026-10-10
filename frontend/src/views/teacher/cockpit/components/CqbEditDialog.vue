@@ -20,13 +20,23 @@
         </el-select>
       </el-form-item>
       <el-form-item label="题干">
-        <el-input v-model="form.stem" type="textarea" :rows="3" placeholder="请输入题干" />
+        <el-input v-model="form.content" type="textarea" :rows="3" placeholder="请输入题干" />
       </el-form-item>
       <el-form-item label="答案">
-        <el-input v-model="form.answer" type="textarea" :rows="2" placeholder="请输入标准答案" />
+        <el-input
+          v-model="form.correctAnswers"
+          type="textarea"
+          :rows="2"
+          placeholder="请输入标准答案"
+        />
       </el-form-item>
       <el-form-item label="解析">
-        <el-input v-model="form.analysis" type="textarea" :rows="2" placeholder="请输入答案解析" />
+        <el-input
+          v-model="form.explanation"
+          type="textarea"
+          :rows="2"
+          placeholder="请输入答案解析"
+        />
       </el-form-item>
     </el-form>
     <template #footer>

@@ -158,10 +158,34 @@ echo        AI answers stay extractive and /api/actuator/health stays 503 (probe
 echo        Paste a real key into .env; this script never prints the value.
 
 :step5_check_engines
-rem Engine self-check: when 8001/8002 are listening and .env does not set the switch, enable it for this process only.
-rem Anything already in .env (KG_ENABLED / RAG_ENABLED, including an explicit false) always wins. No process or image is launched here.
-echo [5/6] Checking python engines (optional, local only)...
+rem One-click engine bring-up. start-engines.py only ADDS what is not listening (it never restarts
+rem a running engine - two instances share MySQL/Redis but split rate limits, DR-36), it starts
+rem Neo4j in a console window (the zip install is not a Windows service, so "neo4j.bat start" fails),
+rem and it exports what the engines cannot read themselves: NEO4J_URI, DEEPSEEK_API_KEY, HF_HUB_OFFLINE
+rem (both FastAPI services have no dotenv loader - DR-39 - and without the offline flag retrieval hangs).
+rem Engines are OPTIONAL: no branch below can exit this script, Java keeps its local fallback providers.
+echo [5/6] Starting python engines (Neo4j 7687 / KG 8001 / RAG 8002, local only)...
 
+set "PY_EXE="
+where python >nul 2>&1 && set "PY_EXE=python"
+if defined PY_EXE goto engines_launch
+where py >nul 2>&1 && set "PY_EXE=py -3"
+
+:engines_launch
+if not defined PY_EXE goto engines_no_python
+call %PY_EXE% "%PROJECT_ROOT%scripts\start-engines.py"
+echo [INFO] Switches now re-read from the ports the launcher just verified.
+goto engines_probe
+
+:engines_no_python
+echo [INFO] No python interpreter on PATH - engines were NOT started (optional, not fatal).
+echo        Start them by hand in two windows if you need AI answers and the graph store:
+echo          cd python-services\kg_service   ^&^& python -m uvicorn kg_service:app  --host 127.0.0.1 --port 8001
+echo          cd python-services\rag_service  ^&^& python -m uvicorn rag_service:app --host 127.0.0.1 --port 8002
+
+:engines_probe
+rem Auto-set the switches for THIS process only. Anything already in .env (KG_ENABLED / RAG_ENABLED,
+rem including an explicit false) always wins - the launcher honours the same rule.
 netstat -ano | findstr ":8001 " | findstr "LISTENING" >nul 2>&1
 if errorlevel 1 goto kg_absent
 if defined KG_ENABLED (

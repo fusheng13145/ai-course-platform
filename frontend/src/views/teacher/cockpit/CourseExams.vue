@@ -32,38 +32,44 @@
     />
 
     <!-- 查看题目 对话框 -->
-    <el-dialog v-model="ques.visible" v-loading="ques.loading" title="试卷题目" width="640px">
-      <el-table :data="ques.list" size="small" empty-text="暂无题目" max-height="420">
-        <el-table-column label="#" width="56">
-          <template #default="{ row }">{{ row.orderIndex ?? '--' }}</template>
-        </el-table-column>
-        <el-table-column label="题干" min-width="320">
-          <template #default="{ row }">{{
-            row.question?.stem || row.question?.title || '（无题干）'
-          }}</template>
-        </el-table-column>
-        <el-table-column label="类型" width="92">
-          <template #default="{ row }">
-            <el-tag size="small" :type="typeTag(row.question?.type)" effect="light">{{
-              typeLabel(row.question?.type)
-            }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="分值" width="70">
-          <template #default="{ row }">{{ row.points ?? '--' }}</template>
-        </el-table-column>
-      </el-table>
+    <!-- v-loading 不能挂在 <el-dialog> 上：弹层渲染在 teleport 的非元素根上，
+         runtime directive 无处安放（Vue 告警 + 遮罩实际不生效），改由 dialog 内的包裹层承担。 -->
+    <el-dialog v-model="ques.visible" title="试卷题目" width="640px">
+      <div v-loading="ques.loading">
+        <el-table :data="ques.list" size="small" empty-text="暂无题目" max-height="420">
+          <el-table-column label="#" width="56">
+            <template #default="{ row }">{{ row.orderIndex ?? '--' }}</template>
+          </el-table-column>
+          <el-table-column label="题干" min-width="320">
+            <template #default="{ row }">{{
+              row.question?.content || row.question?.stem || row.question?.title || '（无题干）'
+            }}</template>
+          </el-table-column>
+          <el-table-column label="类型" width="92">
+            <template #default="{ row }">
+              <el-tag size="small" :type="typeTag(row.question?.type)" effect="light">{{
+                typeLabel(row.question?.type)
+              }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="分值" width="70">
+            <template #default="{ row }">{{ row.points ?? '--' }}</template>
+          </el-table-column>
+        </el-table>
+      </div>
     </el-dialog>
 
     <!-- 统计 对话框 -->
-    <el-dialog v-model="stat.visible" v-loading="stat.loading" title="试卷统计" width="620px">
-      <div v-if="stat.items.length" class="stat-grid">
-        <div v-for="(it, i) in stat.items" :key="i" class="mini-stat">
-          <span class="mini-num">{{ it.value }}</span>
-          <span class="mini-label">{{ it.label }}</span>
+    <el-dialog v-model="stat.visible" title="试卷统计" width="620px">
+      <div v-loading="stat.loading">
+        <div v-if="stat.items.length" class="stat-grid">
+          <div v-for="(it, i) in stat.items" :key="i" class="mini-stat">
+            <span class="mini-num">{{ it.value }}</span>
+            <span class="mini-label">{{ it.label }}</span>
+          </div>
         </div>
+        <el-empty v-else description="暂无统计数据" :image-size="70" />
       </div>
-      <el-empty v-else description="暂无统计数据" :image-size="70" />
     </el-dialog>
   </div>
 </template>

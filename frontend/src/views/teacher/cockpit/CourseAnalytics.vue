@@ -105,11 +105,22 @@ const route = useRoute()
 const courseId = route.params.id
 
 const loading = ref(false)
-const stats = ref({})
 const passRate = ref(0)
 const excellentRate = ref(0)
 const buckets = ref([])
 const extra = ref({})
+
+/**
+ * 后端 histogram 的 distribution 是 Map<String,Long>，且只装非空分数段
+ * （CourseAnalyticsComponent.java:104-115），键序不可依赖。这里固定展示顺序并补 0。
+ */
+const BUCKET_ORDER = [
+  '0-59（不及格）',
+  '60-69（及格）',
+  '70-79（中等）',
+  '80-89（良好）',
+  '90-100（优秀）',
+]
 
 const varPrimary = 'var(--ac-primary)'
 const varSuccess = 'var(--ac-success)'
@@ -167,37 +178,31 @@ async function load() {
   try {
     const r1 = await analyticsApi.getCourseAnalytics(courseId)
     const a = r1?.data ?? r1 ?? {}
-    stats.value = a
 
+    // 只渲染该端点真实返回的字段（CourseAnalyticsComponent.java:142-166）。
+    // 原先读的 totalStudents/studentCount/activeStudents/completionRate 后端从未返回，
+    // 导致 60 人的课四张卡恒 0/'--'。平均进度是百分比口径（V1__init_schema.sql:271）。
     metrics.value = [
       {
-        key: 'totalStudents',
+        key: 'enrollmentCount',
         label: '选课学生',
-        value: a.totalStudents ?? a.studentCount ?? 0,
+        value: a.enrollmentCount ?? 0,
         icon: 'users',
         tone: 'var(--accent-soft)',
         toneColor: 'var(--accent)',
       },
       {
-        key: 'activeStudents',
-        label: '活跃学生',
-        value: a.activeStudents ?? 0,
-        icon: 'chart',
-        tone: 'var(--info-soft)',
-        toneColor: 'var(--info)',
-      },
-      {
-        key: 'avgScore',
+        key: 'averageScore',
         label: '平均分',
-        value: a.avgScore ?? '--',
+        value: a.averageScore ?? '--',
         icon: 'award',
         tone: 'var(--warn-soft)',
         toneColor: 'var(--warn)',
       },
       {
-        key: 'completionRate',
-        label: '完成率',
-        value: pctData(a.completionRate),
+        key: 'averageProgress',
+        label: '平均进度',
+        value: pctData(a.averageProgress),
         icon: 'check',
         tone: 'var(--ok-soft)',
         toneColor: 'var(--ok)',
@@ -206,12 +211,19 @@ async function load() {
 
     const r2 = await analyticsApi.getGradeHistogram(courseId)
     const h = r2?.data ?? r2 ?? {}
-    buckets.value = h.buckets || []
+    // total 是「已有成绩的人数」，为 0 时不画一屏全 0 柱，回到空态
+    buckets.value =
+      h.total > 0
+        ? BUCKET_ORDER.map((range) => ({ range, count: h.distribution?.[range] ?? 0 }))
+        : []
     passRate.value = h.passRate ?? 0
     excellentRate.value = h.excellentRate ?? 0
     passRatePct.value = toPct(passRate.value)
     excellentRatePct.value = toPct(excellentRate.value)
-    extra.value = h.summary || h || {}
+    extra.value =
+      h.total > 0
+        ? { count: h.total, avgScore: h.average, maxScore: h.maxScore, minScore: h.minScore }
+        : {}
 
     histogramOption.value = buildHistogramOption()
     histogramOption.value.xAxis.data = buckets.value.map((b) => b.range)

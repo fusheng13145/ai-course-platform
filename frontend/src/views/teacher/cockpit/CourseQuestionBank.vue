@@ -147,6 +147,8 @@ const {
   kpText,
   onFilter,
   resetFilter,
+  // 模板 :100 的 @closed 需要它；缺这一行时 composable 即使导出也接不上（fix-1a 缺陷 4）
+  resetForm,
   openCreate,
   openEdit,
   save,

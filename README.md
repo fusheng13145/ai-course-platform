@@ -89,7 +89,7 @@ Java 后端通过 HTTP 契约（`com.aicourse.integration.rag.RagContract`）与
 | RAG 检索引擎 | `python-services/rag_service/` | 8002 | **9 个契约端点** + `rag_engine.py` 真实混合检索引擎（BM25 + 向量 + RRF 融合，重依赖懒加载）；CI 护栏 `test_rag_contract.py`。⚠️ 语料落在 gitignore 的 `data/`，演示前用 `python scripts\seed-rag-corpus.py` 从 `scripts/rag_corpus.json` 重放并重建索引（副本现覆盖课程 1 与示范课 4007，口径见手册 §18.5） |
 | LoRA 微调服务 | —（**Python 端尚无实现**） | 8003 | Java 侧 `ContractPaths` 的 8 条 `/api/v1/fine-tune/*` 契约与消费侧已就绪，启用即 503 降级；等待队友交付 |
 
-容器化启动知识图谱栈（`docker compose --profile rag up -d neo4j`，需先在 `.env` 配 `NEO4J_PASSWORD`）的用法与前置已随 2026-10-08 的编排搁置**整体转入手册 §24.2**（含重新启用前提清单①–⑤），本阶段不再执行。**但"搁置 Docker"不等于"搁置引擎"**：本阶段以本机独立 Neo4j 5.26 + `uvicorn` 两进程运行 KG(8001) / RAG(8002)，`start-backend.bat` 探到监听后自动开启 Java 侧对接，2026-10-08 运行验收实测路径规划 / 子图 / 摄取与检索问答均为 `mode=ENGINE`。**未起 Neo4j 仍不阻塞**：KG 自动回落内存图。三进程的启动顺序、必须导出到引擎进程的环境变量与取证清单见手册 **§18.5**。
+容器化启动知识图谱栈（`docker compose --profile rag up -d neo4j`，需先在 `.env` 配 `NEO4J_PASSWORD`）的用法与前置已随 2026-10-08 的编排搁置**整体转入手册 §24.2**（含重新启用前提清单①–⑤），本阶段不再执行。**但"搁置 Docker"不等于"搁置引擎"**：本阶段以本机独立 Neo4j 5.26 + `uvicorn` 两进程运行 KG(8001) / RAG(8002)，自 2026-10-10 起这三个进程**由 `start-backend.bat` 第 5 步自己拉起**（`scripts/start-engines.py`，**DR-50**），起后再开启 Java 侧对接，2026-10-08 运行验收实测路径规划 / 子图 / 摄取与检索问答均为 `mode=ENGINE`。**未起 Neo4j 仍不阻塞**：KG 自动回落内存图。三进程的启动顺序、必须导出到引擎进程的环境变量与取证清单见手册 **§18.5**。
 
 > 早期 RAG 成员上传的 Streamlit 原型（原 `python-services/deepgraph_rag/`，端口 8501）不参与正式功能，已整体归档至仓库根 `archive/deepgraph_rag/`，仅作历史参考。
 
@@ -103,20 +103,20 @@ Java 后端通过 HTTP 契约（`com.aicourse.integration.rag.RagContract`）与
 
 ### 方式一：本地开发（推荐）
 
-前置：JDK 21、Node 20.19+，以及**本机在跑的 MySQL 8.4（3306）与 Redis（6379）**。缺任何依赖 → **上报项目主，不要自行拉容器**（本阶段 Docker 编排搁置，手册 §17 / §24.2）。AI 图谱/检索引擎（Neo4j 7687 + KG 8001 + RAG 8002）为**可选**前置：不起也能演示（走 Java 原生 Provider），起法与启动顺序见手册 **§18.5**——`start-backend.bat` 会探测它们并自动开启对接。
+前置：JDK 21、Node 20.19+，以及**本机在跑的 MySQL 8.4（3306）与 Redis（6379）**。缺任何依赖 → **上报项目主，不要自行拉容器**（本阶段 Docker 编排搁置，手册 §17 / §24.2）。AI 图谱/检索引擎（Neo4j 7687 + KG 8001 + RAG 8002）为**可选**前置：不起也能演示（走 Java 原生 Provider）。自 2026-10-10 起**不必再照抄手工命令**——`start-backend.bat` 第 5 步会调 `scripts/start-engines.py` 按 Neo4j → KG → RAG 只补缺失的进程并代它们导出必需的环境变量（**DR-50**）；单独起法、判定口径与取证见手册 **§18.5**。
 
 ```bash
 # 数据库初始化（首次）
 mysql -u root -p -e "CREATE DATABASE ai_course_platform CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 mysql -u root -p ai_course_platform < backend/src/main/resources/index.sql
 
-start-backend.bat        # 后端：六步自检后 spring-boot:run
+start-backend.bat        # 后端：六步自检（第 5 步拉起 Neo4j / KG / RAG）后 spring-boot:run
 start-frontend.bat       # 前端：另开一个终端
 ```
 
 两个脚本各自做什么（逐步口径见手册 **§18.2 / §18.3**）：
 
-- **`start-backend.bat`**：读 `.env`（缺 `JWT_SECRET` / `MYSQL_ROOT_PASSWORD` 直接 fail-fast，无弱默认）→ 校验 JDK 21 → 探测本机 3306 / 6379（未监听只提示 `net start MySQL84` / `net start Redis` 后退出，**脚本已不含任何 docker 分支**）→ 检查可选的 `DEEPSEEK_API_KEY`（先判在不在、再按前缀 `sk-` 判形状，占位串打 `[WARN]` 而非 `[OK]`，全程不打印值，DR-38）→ 探测 8001 / 8002 引擎，`.env` 未显式给开关时**为本次进程**自动 `KG_ENABLED` / `RAG_ENABLED=true` → 8080 被占用时**默认不启第二个实例**（双实例共用一套 MySQL/Redis 却各自计限流、日志分叉，DR-36）→ 以 `profiles=local` 启动。
+- **`start-backend.bat`**：读 `.env`（缺 `JWT_SECRET` / `MYSQL_ROOT_PASSWORD` 直接 fail-fast，无弱默认）→ 校验 JDK 21 → 探测本机 3306 / 6379（未监听只提示 `net start MySQL84` / `net start Redis` 后退出，**脚本已不含任何 docker 分支**）→ 检查可选的 `DEEPSEEK_API_KEY`（先判在不在、再按前缀 `sk-` 判形状，占位串打 `[WARN]` 而非 `[OK]`，全程不打印值，DR-38）→ **拉起 Python 引擎链**（`call python scripts\start-engines.py`：Neo4j 走 `bin\neo4j.bat console`，KG/RAG 各开一个窗口，**只补没在监听的**、绝不重启已监听服务，并代引擎导出 `NEO4J_URI` / `DEEPSEEK_API_KEY` / `HF_HUB_OFFLINE`），再按刚验证过的端口**为本次进程**置 `KG_ENABLED` / `RAG_ENABLED=true`（`.env` 已写值含显式 `false` 一律优先；找不到 python 或缺 Neo4j 安装位只告警并打印手工 uvicorn 兜底，**不阻断 Java 启动**，DR-50）→ 8080 被占用时**默认不启第二个实例**（双实例共用一套 MySQL/Redis 却各自计限流、日志分叉，DR-36）→ 以 `profiles=local` 启动。
 - **`start-frontend.bat`**：定位 Node → 依赖检查（`node_modules` 已存在则跳过 `install`，另提示 lockfile 时间戳供 `npm ci` 判断）→ 探后端 `GET /api/actuator/health/probe` → 在 **5173 / 5174 / 5175** 中取第一个空闲端口起 Vite。
 
 访问：前端 http://localhost:5173（脚本自动择空）｜ API http://localhost:8080/api ｜ Swagger http://localhost:8080/api/swagger-ui.html ｜ 探活 http://localhost:8080/api/actuator/health/probe
