@@ -88,6 +88,31 @@ describe('导航目标可达性', () => {
     expect(bad, `课程页签死链：${bad.join(', ')}`).toEqual([])
   })
 
+  it('admin 课程壳页签标题与 COURSE_TABS.ADMIN 单一来源一致', () => {
+    // 按 suffix 精确匹配 path 尾段取壳叶子（空路径 redirect 子记录 path 无尾段、也无 meta.title，
+    // 不依赖数组顺序）
+    const adminShellLeaf = (suffix: string) =>
+      router.getRoutes().find((r) => r.path === `/admin/courses/:id/${suffix}`)
+    const shellLeaves = router
+      .getRoutes()
+      .filter((r) => /^\/admin\/courses\/:id\/[^/]+$/.test(r.path))
+
+    expect(shellLeaves).toHaveLength(8)
+    // 与页签数对齐：防止只加页签忘了加路由
+    expect(shellLeaves.length).toBe(COURSE_TABS.ADMIN.length)
+
+    for (const tab of COURSE_TABS.ADMIN) {
+      const leaf = adminShellLeaf(tab.suffix)
+      expect(leaf, `admin 课程壳缺少页签路由：${tab.suffix}`).toBeDefined()
+      expect(leaf?.meta?.title, `${tab.suffix} 标题与侧边栏文案分叉`).toBe(tab.text)
+    }
+
+    // 阴性对照：discussion 是教师端页签、admin 壳下不存在。
+    // 同一查法若能命中它，上面的断言就是恒真的；这里必须查不到。
+    expect(COURSE_TABS.TEACHER.some((t) => t.suffix === 'discussion')).toBe(true)
+    expect(adminShellLeaf('discussion')).toBeUndefined()
+  })
+
   it('源码里写死的跳转目标全部命中真实路由', () => {
     const targets = new Map<string, string[]>()
     collectLiteralTargets(SRC_ROOT, targets)

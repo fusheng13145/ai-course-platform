@@ -2,6 +2,12 @@ import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import NProgress from 'nprogress'
 import { useAuthStore } from '@/stores/auth'
+import { COURSE_TABS } from '@/layouts/menus'
+
+// 管理端课程页签文案取自 layouts/menus 的单一来源，避免路由与侧边栏各抄一份而分叉
+const ADMIN_TAB_TITLES = Object.fromEntries(
+  COURSE_TABS.ADMIN.map((t) => [t.suffix, t.text]),
+) as Record<string, string>
 
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/login' },
@@ -82,42 +88,42 @@ const routes: RouteRecordRaw[] = [
           {
             path: 'overview',
             component: () => import('@/views/teacher/cockpit/CourseOverview.vue'),
-            meta: { title: '课程概览' },
+            meta: { title: ADMIN_TAB_TITLES['overview'] },
           },
           {
             path: 'chapters',
             component: () => import('@/views/teacher/cockpit/CourseChapters.vue'),
-            meta: { title: '章节与任务点' },
+            meta: { title: ADMIN_TAB_TITLES['chapters'] },
           },
           {
             path: 'bank',
             component: () => import('@/views/teacher/cockpit/CourseQuestionBank.vue'),
-            meta: { title: '课程题库' },
+            meta: { title: ADMIN_TAB_TITLES['bank'] },
           },
           {
             path: 'exams',
             component: () => import('@/views/teacher/cockpit/CourseExams.vue'),
-            meta: { title: '试卷与考试' },
+            meta: { title: ADMIN_TAB_TITLES['exams'] },
           },
           {
             path: 'grades',
             component: () => import('@/views/teacher/cockpit/CourseGrades.vue'),
-            meta: { title: '成绩统计' },
+            meta: { title: ADMIN_TAB_TITLES['grades'] },
           },
           {
             path: 'analytics',
             component: () => import('@/views/teacher/cockpit/CourseAnalytics.vue'),
-            meta: { title: '学情统计' },
+            meta: { title: ADMIN_TAB_TITLES['analytics'] },
           },
           {
             path: 'knowledge',
             component: () => import('@/views/teacher/tools/KnowledgeGraph.vue'),
-            meta: { title: '课程知识图谱' },
+            meta: { title: ADMIN_TAB_TITLES['knowledge'] },
           },
           {
             path: 'ai',
             component: () => import('@/views/teacher/tools/AICenter.vue'),
-            meta: { title: '课程 AI 教学助手' },
+            meta: { title: ADMIN_TAB_TITLES['ai'] },
           },
         ],
       },
