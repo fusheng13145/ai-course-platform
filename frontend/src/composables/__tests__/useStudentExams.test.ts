@@ -15,6 +15,8 @@ const mocks = vi.hoisted(() => ({
   submitExam: vi.fn(),
   getExamResult: vi.fn(),
   getExamPaperList: vi.fn(),
+  getAllExamPapers: vi.fn(),
+  getAllExamPapersByCourse: vi.fn(),
   getMyExamSessions: vi.fn(),
   message: { info: vi.fn(), success: vi.fn(), warning: vi.fn(), error: vi.fn() },
   confirm: vi.fn(),
@@ -30,6 +32,8 @@ vi.mock('@/api/exam', () => ({
     submitExam: mocks.submitExam,
     getExamResult: mocks.getExamResult,
     getExamPaperList: mocks.getExamPaperList,
+    getAllExamPapers: mocks.getAllExamPapers,
+    getAllExamPapersByCourse: mocks.getAllExamPapersByCourse,
     getMyExamSessions: mocks.getMyExamSessions,
   },
 }))
@@ -245,5 +249,138 @@ describe('useStudentExams - 退出与提交', () => {
     expect(mocks.submitExam).toHaveBeenCalledWith(400, {
       answers: { 11: 'C', 12: ['A', 'C'], 13: '作答内容' },
     })
+  })
+
+  it('题目加载失败或试卷为空时不进入空白答题页', async () => {
+    mocks.getMyExamSession.mockResolvedValue({ code: 200, data: null })
+    mocks.startExam.mockResolvedValue({ code: 200, data: { id: 401, status: 'STARTED' } })
+    mocks.getExamQuestions.mockResolvedValue({ code: 200, data: [] })
+
+    const state = useStudentExams()
+    await state.enterExam(EXAM)
+
+    expect(state.viewMode.value).toBe('list')
+    expect(state.questions.value).toEqual([])
+    expect(mocks.message.error).toHaveBeenCalledWith('该试卷暂无可用题目，请联系老师确认后重试')
+  })
+
+  it('交卷失败时保留答题页和自动保存，成功重试后才清理定时器', async () => {
+    mocks.getMyExamSession.mockResolvedValue({ code: 200, data: null })
+    mocks.startExam.mockResolvedValue({ code: 200, data: { id: 402, status: 'STARTED' } })
+    mocks.submitExam.mockRejectedValueOnce(new Error('offline'))
+
+    const state = useStudentExams()
+    await state.enterExam(EXAM)
+    state.answers.value[0] = 'B'
+    await state.confirmSubmit()
+
+    expect(state.viewMode.value).toBe('exam')
+    expect(state.submitting.value).toBe(false)
+    expect(vi.getTimerCount()).toBe(2)
+    expect(mocks.message.error).toHaveBeenCalledWith('提交失败，作答仍保留在本页；请检查网络后重试')
+
+    await state.confirmSubmit()
+
+    expect(state.viewMode.value).toBe('result')
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('交卷进行中忽略重复提交并锁定答题交互状态', async () => {
+    mocks.getMyExamSession.mockResolvedValue({ code: 200, data: null })
+    mocks.startExam.mockResolvedValue({ code: 200, data: { id: 403, status: 'STARTED' } })
+    let resolveSubmit: (value: unknown) => void = () => {}
+    mocks.submitExam.mockImplementation(() => new Promise((resolve) => (resolveSubmit = resolve)))
+
+    const state = useStudentExams()
+    await state.enterExam(EXAM)
+    const firstSubmit = state.confirmSubmit()
+    await Promise.resolve()
+    const confirmCalls = mocks.confirm.mock.calls.length
+    await state.confirmSubmit()
+
+    expect(state.submitting.value).toBe(true)
+    expect(mocks.confirm).toHaveBeenCalledTimes(confirmCalls)
+    resolveSubmit({ code: 200, data: { id: 403, status: 'SUBMITTED' } })
+    await firstSubmit
+    expect(state.viewMode.value).toBe('result')
+  })
+
+  it('退出前自动保存失败时保留本地答卷，不清空考试会话', async () => {
+    mocks.getMyExamSession.mockResolvedValue({ code: 200, data: null })
+    mocks.startExam.mockResolvedValue({ code: 200, data: { id: 404, status: 'STARTED' } })
+    mocks.autoSaveAnswers.mockRejectedValue(new Error('offline'))
+
+    const state = useStudentExams()
+    await state.enterExam(EXAM)
+    state.answers.value[0] = 'A'
+    await state.confirmExitExam()
+
+    expect(state.viewMode.value).toBe('exam')
+    expect(state.sessionId.value).toBe(404)
+    expect(state.answers.value[0]).toBe('A')
+    expect(vi.getTimerCount()).toBe(2)
+    expect(mocks.submitExam).not.toHaveBeenCalled()
+  })
+})
+
+describe('useStudentExams - 定时器边界（倒计时与自动保存）', () => {
+  /** 进入一场指定时长的考试，返回 state（倒计时与自动保存共注册两个 interval） */
+  async function enterExamOf(duration: number) {
+    mocks.getMyExamSession.mockResolvedValue({ code: 200, data: null })
+    mocks.startExam.mockResolvedValue({ code: 200, data: { id: 500, status: 'STARTED' } })
+
+    const state = useStudentExams()
+    await state.enterExam({ id: 6, title: '随堂小测', duration })
+    return state
+  }
+
+  it('倒计时归零自动交卷；不出现「剩余时间：0 分钟」的误导提示', async () => {
+    const state = await enterExamOf(1)
+    state.answers.value[0] = 'A'
+    mocks.message.warning.mockClear()
+
+    // 1 分钟 = 60 个 tick；归零后的下一个 tick 触发自动交卷
+    await vi.advanceTimersByTimeAsync(61 * 1000)
+
+    expect(mocks.message.warning).not.toHaveBeenCalledWith('剩余时间：0 分钟')
+    expect(mocks.message.warning).toHaveBeenCalledWith('考试时间已到，将自动提交试卷')
+    expect(mocks.submitExam).toHaveBeenCalledWith(500, { answers: { 11: 'A', 12: [], 13: '' } })
+    expect(state.viewMode.value).toBe('result')
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('每 30 秒自动保存一次，成功后保持静默（不打扰答题）', async () => {
+    const state = await enterExamOf(10)
+    mocks.message.success.mockClear()
+
+    await vi.advanceTimersByTimeAsync(30 * 1000)
+
+    expect(mocks.autoSaveAnswers).toHaveBeenCalledTimes(1)
+    expect(mocks.message.success).not.toHaveBeenCalled()
+    expect(state.viewMode.value).toBe('exam')
+  })
+
+  it('自动保存连续失败只提示一次；网络恢复后明确提示已重新同步', async () => {
+    const state = await enterExamOf(10)
+    mocks.message.warning.mockClear()
+    mocks.message.success.mockClear()
+    mocks.autoSaveAnswers
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockRejectedValueOnce(new Error('offline'))
+
+    await vi.advanceTimersByTimeAsync(30 * 1000)
+    expect(mocks.message.warning).toHaveBeenCalledTimes(1)
+    expect(mocks.message.warning).toHaveBeenCalledWith(
+      '网络异常，本次自动保存未成功；请勿关闭页面，作答已暂存本地并会持续重试',
+    )
+
+    // 第二次仍失败：不重复打扰
+    await vi.advanceTimersByTimeAsync(30 * 1000)
+    expect(mocks.message.warning).toHaveBeenCalledTimes(1)
+
+    // 第三次恢复：显式告知已重新同步
+    await vi.advanceTimersByTimeAsync(30 * 1000)
+    expect(mocks.message.success).toHaveBeenCalledWith('网络恢复，作答已重新同步到服务端')
+    expect(state.viewMode.value).toBe('exam')
   })
 })

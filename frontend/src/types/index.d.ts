@@ -222,6 +222,53 @@ interface Notification {
   createdAt: string
 }
 
+/** 课程讨论话题 */
+interface DiscussionTopic {
+  id: number | string
+  courseId?: number | string
+  chapterId?: number | string | null
+  chapterName?: string | null
+  title: string
+  content: string
+  creatorId?: number | string
+  creatorRole?: string
+  authorId?: number | string
+  authorName?: string | null
+  status?: string
+  isPinned?: boolean | null
+  pinned?: boolean
+  closed?: boolean
+  isEssence?: boolean | null
+  postCount?: number
+  replyCount?: number | null
+  createdAt?: string | null
+}
+
+/** 课程讨论回复 */
+interface DiscussionPost {
+  id: number | string
+  topicId?: number | string
+  authorId?: number | string
+  authorRole?: string
+  authorName?: string | null
+  content?: string | null
+  likes?: number | null
+  likeCount?: number | null
+  liked?: boolean | null
+  floor?: number
+  mentions?: string | null
+  createdAt?: string | null
+}
+
+/** 话题详情接口响应 */
+interface DiscussionTopicDetail {
+  topic?: DiscussionTopic
+  posts?: DiscussionPost[]
+  records?: DiscussionPost[]
+  list?: DiscussionPost[]
+  replyCount?: number
+}
+
 /** 资源实体 */
 interface Resource {
   id: number

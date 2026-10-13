@@ -77,10 +77,7 @@ export function useQuestionBank() {
 
   async function loadCourses() {
     try {
-      const r = await courseApi.getMyCourses()
-      const body = unwrap(r)
-      const list = body?.records || body?.list || body || []
-      courseList.value = Array.isArray(list) ? list : []
+      courseList.value = await courseApi.getAllMyCourses()
     } catch (e) {
       logger.error('加载课程失败', e)
     }

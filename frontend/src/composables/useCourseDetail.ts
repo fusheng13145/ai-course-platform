@@ -9,6 +9,7 @@ import notificationApi from '@/api/notification'
 import resourceApi from '@/api/resource'
 import taskApi from '@/api/task'
 import examApi from '@/api/exam'
+import { pickList } from '@/utils/response'
 
 /** 文案映射 */
 const STATUS_TEXT = { APPROVED: '已通过', REJECTED: '已拒绝' }
@@ -146,8 +147,7 @@ export function useCourseDetail() {
     chaptersLoading.value = true
     try {
       const res = await chapterApi.getChapters(course.id)
-      const raw = res.data?.records || res.data?.list || res.data || []
-      chapters.value = Array.isArray(raw) ? raw : []
+      chapters.value = pickList(res.data)
     } catch (e) {
       logger.warn('[CourseDetail] loadChapters 失败:', e.message || e)
       chapters.value = []
@@ -160,9 +160,7 @@ export function useCourseDetail() {
   async function loadStudents() {
     studentsLoading.value = true
     try {
-      const res = await courseApi.getStudents(course.id)
-      const raw = res.data?.records || res.data?.list || res.data || []
-      students.value = Array.isArray(raw) ? raw : []
+      students.value = await courseApi.getAllStudents(course.id)
     } catch (e) {
       logger.warn('[CourseDetail] loadStudents 失败:', e.message || e)
       students.value = []
@@ -175,8 +173,7 @@ export function useCourseDetail() {
     notificationsLoading.value = true
     try {
       const res = await notificationApi.getNotificationList()
-      const raw = res.data?.list || res.data || []
-      notifications.value = Array.isArray(raw) ? raw : []
+      notifications.value = pickList(res.data)
     } catch (e) {
       logger.warn('[CourseDetail] loadNotifications 失败:', e.message || e)
       notifications.value = []
@@ -197,25 +194,21 @@ export function useCourseDetail() {
   async function loadResourceCount() {
     try {
       const res = await resourceApi.getResourceList(course.id)
-      resourceCount.value = (Array.isArray(res.data) ? res.data : []).length
+      resourceCount.value = pickList(res.data).length
     } catch {
       resourceCount.value = null
     }
   }
   async function loadTaskCount() {
     try {
-      const res = await taskApi.getTaskList({ courseId: course.id })
-      const d = res.data?.records || res.data?.list || res.data || []
-      taskCount.value = Array.isArray(d) ? d.length : 0
+      taskCount.value = (await taskApi.getAllTasks({ courseId: course.id })).length
     } catch {
       taskCount.value = null
     }
   }
   async function loadExamCount() {
     try {
-      const res = await examApi.getExamPaperList({ courseId: course.id })
-      const d = res.data?.records || res.data?.list || res.data || []
-      examCount.value = Array.isArray(d) ? d.length : 0
+      examCount.value = (await examApi.getAllExamPapers({ courseId: course.id })).length
     } catch {
       examCount.value = null
     }
@@ -397,7 +390,7 @@ export function useCourseDetail() {
   }
   async function deleteNotification(row) {
     try {
-      await ElMessageBox.confirm('确定删除该通知？', '提示', { type: 'warning' })
+      await ElMessageBox.confirm('确定删除该通知？此操作不可恢复。', '提示', { type: 'warning' })
       await notificationApi.deleteNotification(row.id)
       notifications.value = notifications.value.filter((n) => n.id !== row.id)
       ElMessage.success('已删除')

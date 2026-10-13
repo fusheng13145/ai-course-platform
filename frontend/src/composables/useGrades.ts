@@ -132,12 +132,10 @@ export function useGrades() {
     ],
   })
 
-  /** 加载课程下拉列表（最多 100 条）。后端分页为 **1 基**（Page.of(page,size)） */
+  /** 加载完整课程下拉列表；分页细节由课程 API 统一处理。 */
   async function fetchCourses() {
     try {
-      const res = await courseApi.getCourseList({ page: 1, size: 100 })
-      const data = res.data?.records || res.data?.list || res.data || res || []
-      courseList.value = Array.isArray(data) ? data : []
+      courseList.value = await courseApi.getAllCourses()
     } catch (error) {
       logger.warn('获取课程列表失败:', error)
       courseList.value = []

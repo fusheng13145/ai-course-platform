@@ -2,6 +2,7 @@ import { ref, onMounted } from 'vue'
 import { toast } from '@/composables/useToast'
 import adminApi from '@/api/admin'
 import permissionApi from '@/api/permission'
+import { pickList, readTotal, unwrap } from '@/utils/response'
 
 const ROLE_LABELS = { ADMIN: '管理员', TEACHER: '教师', STUDENT: '学生' }
 
@@ -17,9 +18,32 @@ export function useUserManagement() {
       desc: '系统管理员与教务管理员',
       open: true,
       rows: [],
+      page: 1,
+      size: 50,
+      total: 0,
     },
-    { key: 'teacher', label: '教师', role: 'TEACHER', desc: '开课教师账号', open: true, rows: [] },
-    { key: 'student', label: '学生', role: 'STUDENT', desc: '在读学生账号', open: false, rows: [] },
+    {
+      key: 'teacher',
+      label: '教师',
+      role: 'TEACHER',
+      desc: '开课教师账号',
+      open: true,
+      rows: [],
+      page: 1,
+      size: 50,
+      total: 0,
+    },
+    {
+      key: 'student',
+      label: '学生',
+      role: 'STUDENT',
+      desc: '在读学生账号',
+      open: false,
+      rows: [],
+      page: 1,
+      size: 50,
+      total: 0,
+    },
   ])
 
   const detailUser = ref(null)
@@ -49,17 +73,19 @@ export function useUserManagement() {
         adminApi.getOverview(),
         ...groups.value.map((g) =>
           adminApi.getUsers({
-            page: 1,
-            size: 100,
+            page: g.page,
+            size: g.size,
             role: g.role,
             keyword: search.value.trim() || undefined,
           }),
         ),
       ])
-      overview.value = ovRes?.data?.data || ovRes?.data || {}
+      overview.value = unwrap(ovRes) || {}
       roleRes.forEach((res, i) => {
-        const p = res?.data?.data || res?.data || {}
-        groups.value[i].rows = p.list || []
+        const group = groups.value[i]
+        const payload = unwrap(res)
+        group.rows = pickList(payload)
+        group.total = readTotal(payload, group.rows.length)
       })
     } catch {
       toast.show('用户数据加载失败', 'error')
@@ -68,8 +94,31 @@ export function useUserManagement() {
     }
   }
 
+  async function changeGroupPage(groupKey, page) {
+    const group = groups.value.find((item) => item.key === groupKey)
+    if (!group || page === group.page) return
+    group.page = page
+    loading.value = true
+    try {
+      const response = await adminApi.getUsers({
+        page: group.page,
+        size: group.size,
+        role: group.role,
+        keyword: search.value.trim() || undefined,
+      })
+      const payload = unwrap(response)
+      group.rows = pickList(payload)
+      group.total = readTotal(payload, group.rows.length)
+    } catch {
+      toast.show(`${group.label}列表加载失败`, 'error')
+    } finally {
+      loading.value = false
+    }
+  }
+
   let searchTimer = null
   function onSearchInput() {
+    groups.value.forEach((group) => (group.page = 1))
     clearTimeout(searchTimer)
     searchTimer = setTimeout(load, 350)
   }
@@ -233,6 +282,7 @@ export function useUserManagement() {
     importResult,
     roleLabel,
     onSearchInput,
+    changeGroupPage,
     openDetail,
     handleCreate,
     openReset,

@@ -131,7 +131,7 @@ export function useStudentCourseDetail() {
       )
       if (myEnrollment) {
         enrollment.id = myEnrollment.id
-        enrollment.progress = Math.round(Number(myEnrollment.progress || 0) * 100)
+        enrollment.progress = Math.round(Number(myEnrollment.progress || 0))
         enrollment.isActive = myEnrollment.isActive
       }
     } catch (e) {

@@ -56,10 +56,7 @@ export function useResourceManagement() {
 
   async function loadCourses() {
     try {
-      const res = await courseApi.getCourseList({ size: 500 })
-      // 缺陷修复（2026-10-04）：`||` 链里空数组是 truthy，后端把数据放在 records
-      // 而 list=[] 时课程列表被吞空，进而整个页面无数据可选。
-      courseList.value = pickList(unwrap(res))
+      courseList.value = await courseApi.getAllCourses()
       if (courseList.value.length && !selectedCourseId.value) {
         selectedCourseId.value = courseList.value[0].id
         await loadResources()

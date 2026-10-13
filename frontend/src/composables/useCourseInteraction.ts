@@ -118,7 +118,9 @@ export function useCourseInteraction(courseIdRef) {
   }
   async function closeSignIn(row) {
     try {
-      await ElMessageBox.confirm('确定结束该签到？', '提示', { type: 'warning' })
+      await ElMessageBox.confirm('确定结束该签到？结束后学生将无法继续签到。', '提示', {
+        type: 'warning',
+      })
       await interactionApi.closeSignIn(row.id)
       ElMessage.success('签到已结束')
       await loadSignInList()
@@ -188,7 +190,9 @@ export function useCourseInteraction(courseIdRef) {
   }
   async function closeVote(row) {
     try {
-      await ElMessageBox.confirm('确定结束该投票？', '提示', { type: 'warning' })
+      await ElMessageBox.confirm('确定结束该投票？结束后学生将无法继续投票。', '提示', {
+        type: 'warning',
+      })
       await interactionApi.closeVote(row.id)
       ElMessage.success('投票已结束')
       await loadVoteList()

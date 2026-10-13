@@ -138,9 +138,7 @@ export function useStudentKnowledgeGraph() {
   /** 加载课程列表（支持路由 courseId 直入） */
   async function loadCourseList() {
     try {
-      const res = await courseApi.getCourseList()
-      const list = res.data?.list || res.data || res || []
-      courseList.value = Array.isArray(list) ? list : []
+      courseList.value = await courseApi.getAllCourses()
       const routeCourseId = route.query.courseId || route.params.courseId || route.params.id
       if (routeCourseId) {
         selectedCourseId.value = Number(routeCourseId)

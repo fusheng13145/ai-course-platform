@@ -138,6 +138,32 @@ describe('student.markTaskComplete - completionType 可选体', () => {
   })
 })
 
+describe('student.getAllMyCourses - 完整课程目录', () => {
+  it('按分页总数读取后续课程，而不是只显示默认第一页', async () => {
+    vi.clearAllMocks()
+    mocks.get
+      .mockResolvedValueOnce({
+        code: 200,
+        data: { list: [{ id: 1, name: '课程一' }], total: 101 },
+      })
+      .mockResolvedValueOnce({
+        code: 200,
+        data: { list: [{ id: 2, name: '课程二' }], total: 101 },
+      })
+
+    await expect(studentApi.getAllMyCourses()).resolves.toEqual([
+      { id: 1, name: '课程一' },
+      { id: 2, name: '课程二' },
+    ])
+    expect(mocks.get).toHaveBeenNthCalledWith(1, '/student/courses', {
+      params: { page: 1, size: 100 },
+    })
+    expect(mocks.get).toHaveBeenNthCalledWith(2, '/student/courses', {
+      params: { page: 2, size: 100 },
+    })
+  })
+})
+
 describe('student 模块导出完整性', () => {
   it('默认导出覆盖全部具名接口', () => {
     const named = Object.keys(studentApi).filter((k) => k !== 'default')

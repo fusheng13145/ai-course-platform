@@ -1,19 +1,26 @@
 import logger from '@/utils/logger'
-import { unwrap } from '@/utils/response'
-import { ref, reactive, onMounted, watch } from 'vue'
+import { pickList, unwrap } from '@/utils/response'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import discussionApi from '@/api/discussion'
+import discussionApi, {
+  normalizeDiscussionPost,
+  normalizeDiscussionTopic,
+  type DiscussionLikeResult,
+} from '@/api/discussion'
 
 export function useCourseDiscussion() {
   const route = useRoute()
-  const courseId = route.params.id
+  const courseId = computed(() => {
+    const routeCourseId = route.params.id
+    return Array.isArray(routeCourseId) ? routeCourseId[0] : routeCourseId
+  })
 
   const loading = ref(false)
   const saving = ref(false)
   const replyLoading = ref(false)
 
-  const topics = ref([])
+  const topics = ref<DiscussionTopic[]>([])
   const filter = reactive({ keyword: '', chapterId: '' })
 
   /* 发起话题 */
@@ -22,20 +29,24 @@ export function useCourseDiscussion() {
   /* 详情抽屉 */
   const detailVisible = ref(false)
   const detailLoading = ref(false)
-  const detail = ref<Record<string, unknown>>({})
-  const posts = ref([])
-  const currentTopicId = ref(null)
+  const detail = ref<Partial<DiscussionTopic>>({})
+  const posts = ref<DiscussionPost[]>([])
+  const currentTopicId = ref<number | string | null>(null)
   const replyText = ref('')
 
   async function loadTopics() {
+    const selectedCourseId = courseId.value
+    if (!selectedCourseId) {
+      topics.value = []
+      return
+    }
     loading.value = true
     try {
       const params: Record<string, unknown> = {}
       if (filter.keyword.trim()) params.keyword = filter.keyword.trim()
       if (filter.chapterId.trim()) params.chapterId = filter.chapterId.trim()
-      const r = await discussionApi.getTopics(courseId, params)
-      const body = unwrap(r)
-      topics.value = body?.records || body?.list || body || []
+      const r = await discussionApi.getTopics(selectedCourseId, params)
+      topics.value = pickList<DiscussionTopic>(unwrap(r)).map(normalizeDiscussionTopic)
     } catch (e) {
       logger.error('加载话题列表失败', e)
     } finally {
@@ -43,10 +54,17 @@ export function useCourseDiscussion() {
     }
   }
 
-  async function createTopic(payload) {
+  async function createTopic(
+    payload: Pick<DiscussionTopic, 'title' | 'content'> & { chapterId?: string | number },
+  ) {
+    const selectedCourseId = courseId.value
+    if (!selectedCourseId) {
+      ElMessage.warning('课程信息缺失，请返回课程列表后重试')
+      return
+    }
     saving.value = true
     try {
-      const body = { courseId, ...payload }
+      const body = { courseId: selectedCourseId, ...payload }
       await discussionApi.createTopic(body)
       ElMessage.success('话题已发布')
       topicVisible.value = false
@@ -58,7 +76,7 @@ export function useCourseDiscussion() {
     }
   }
 
-  async function openDetail(t) {
+  async function openDetail(t: Pick<DiscussionTopic, 'id'> & Partial<DiscussionTopic>) {
     currentTopicId.value = t.id
     detailVisible.value = true
     detailLoading.value = true
@@ -66,9 +84,9 @@ export function useCourseDiscussion() {
     posts.value = []
     try {
       const r = await discussionApi.getTopicDetail(t.id)
-      const body = unwrap(r)
-      detail.value = body?.topic || t
-      posts.value = body?.posts || []
+      const body = unwrap<DiscussionTopicDetail>(r)
+      detail.value = body?.topic ? normalizeDiscussionTopic(body.topic) : t
+      posts.value = pickList<DiscussionPost>(body?.posts).map(normalizeDiscussionPost)
     } catch (e) {
       logger.error('加载话题详情失败', e)
     } finally {
@@ -83,16 +101,17 @@ export function useCourseDiscussion() {
 
   async function sendReply() {
     if (!currentTopicId.value) return
+    const topicId = currentTopicId.value
     if (!replyText.value.trim()) {
       ElMessage.warning('请输入回复内容')
       return
     }
     replyLoading.value = true
     try {
-      await discussionApi.replyTopic(currentTopicId.value, { content: replyText.value.trim() })
+      await discussionApi.replyTopic(topicId, { content: replyText.value.trim() })
       ElMessage.success('回复成功')
       replyText.value = ''
-      await openDetail({ id: currentTopicId.value })
+      await openDetail({ id: topicId })
       await loadTopics()
     } catch (e) {
       logger.error('回复失败', e)
@@ -101,17 +120,20 @@ export function useCourseDiscussion() {
     }
   }
 
-  async function likePost(p) {
+  async function likePost(p: DiscussionPost) {
     try {
-      await discussionApi.likePost(p.id)
-      ElMessage.success('已点赞')
-      p.likes = (p.likes || 0) + 1
+      const result = unwrap<DiscussionLikeResult>(await discussionApi.likePost(p.id))
+      if (!result) return
+      p.likes = result.likeCount
+      p.likeCount = result.likeCount
+      p.liked = result.liked
+      ElMessage.success(result.liked ? '已点赞' : '已取消点赞')
     } catch (e) {
       logger.error('点赞失败', e)
     }
   }
 
-  async function delPost(p) {
+  async function delPost(p: DiscussionPost) {
     try {
       await discussionApi.deletePost(p.id)
       ElMessage.success('帖子已删除')

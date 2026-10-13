@@ -116,6 +116,23 @@ describe('question - 默认参数与特例分支', () => {
     expect(mocks.post.mock.calls[0].length).toBe(1)
   })
 
+  it('getAllQuestions 和 searchAllQuestions 汇总全部分页并保留筛选', async () => {
+    mocks.get
+      .mockResolvedValueOnce({ code: 200, data: { list: [{ id: 1 }], total: 101 } })
+      .mockResolvedValueOnce({ code: 200, data: { list: [{ id: 2 }], total: 101 } })
+
+    await expect(questionApi.searchAllQuestions({ keyword: '三次握手', type: 'ESSAY' })).resolves.toEqual([
+      { id: 1 },
+      { id: 2 },
+    ])
+    expect(mocks.get).toHaveBeenNthCalledWith(1, '/questions/search', {
+      params: { keyword: '三次握手', type: 'ESSAY', page: 1, size: 100 },
+    })
+    expect(mocks.get).toHaveBeenNthCalledWith(2, '/questions/search', {
+      params: { keyword: '三次握手', type: 'ESSAY', page: 2, size: 100 },
+    })
+  })
+
   it('exportQuestionsExcel 始终合并 responseType，默认空 params', async () => {
     await questionApi.exportQuestionsExcel()
     expect(mocks.get).toHaveBeenCalledWith('/teacher/questions/export', {

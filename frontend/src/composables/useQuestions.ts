@@ -100,11 +100,7 @@ export function useQuestions() {
 
   async function fetchCourses() {
     try {
-      // 后端分页为 1 基（Page.of(page,size)），传 0 会命中非法页码
-      const res = await courseApi.getCourseList({ page: 1, size: 100 })
-      // 缺陷修复（2026-10-04）：旧写法 `res.data?.list || res.data` 里空数组是 truthy，
-      // 后端把数据放在 records（MyBatis-Plus Page 形状）而 list 字段为 [] 时数据被吞掉。
-      courseList.value = pickList(unwrap(res))
+      courseList.value = await courseApi.getAllCourses()
     } catch (error) {
       logger.warn('获取课程列表失败:', error)
       courseList.value = []

@@ -1,19 +1,25 @@
 import logger from '@/utils/logger'
-import { unwrap } from '@/utils/response'
+import { firstNonEmptyArray, pickList, unwrap } from '@/utils/response'
 import { ref, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
-import discussionApi from '@/api/discussion'
+import discussionApi, {
+  normalizeDiscussionPost,
+  normalizeDiscussionTopic,
+  type DiscussionLikeResult,
+} from '@/api/discussion'
 
 /**
  * 教师课程讨论页数据逻辑（拆分自 teacher/tools/Discussion.vue，2026-08-29）
  * @param {import('vue').Ref} courseIdRef 课程 ID
  */
-export function useTeacherDiscussion(courseIdRef) {
+export function useTeacherDiscussion<T extends number | string | null | undefined>(
+  courseIdRef: import('vue').Ref<T>,
+) {
   const loading = ref(false)
 
   /* ---------- 话题列表 ---------- */
   const topicLoading = ref(false)
-  const topics = ref([])
+  const topics = ref<DiscussionTopic[]>([])
   const keyword = ref('')
 
   async function loadTopics() {
@@ -23,9 +29,7 @@ export function useTeacherDiscussion(courseIdRef) {
       const r = await discussionApi.getTopics(courseIdRef.value, {
         keyword: keyword.value || undefined,
       })
-      const body = unwrap(r)
-      const list = body?.records || body?.list || body || []
-      topics.value = Array.isArray(list) ? list : []
+      topics.value = pickList<DiscussionTopic>(unwrap(r)).map(normalizeDiscussionTopic)
     } catch (e) {
       logger.error('加载话题列表失败', e)
     } finally {
@@ -67,29 +71,32 @@ export function useTeacherDiscussion(courseIdRef) {
 
   /* ---------- 话题详情 ---------- */
   const detailDialog = ref(false)
-  const currentTopic = ref(null)
+  const currentTopic = ref<DiscussionTopic | null>(null)
   const postLoading = ref(false)
-  const posts = ref([])
+  const posts = ref<DiscussionPost[]>([])
   const replyText = ref('')
   const replySubmitting = ref(false)
 
-  async function openDetail(t) {
+  async function openDetail(t: DiscussionTopic) {
     currentTopic.value = t
     detailDialog.value = true
     await loadPosts(t.id)
   }
 
-  async function loadPosts(id) {
+  async function loadPosts(id: number | string) {
     postLoading.value = true
     try {
       const r = await discussionApi.getTopicDetail(id)
-      const body = unwrap(r)
       // 兼容 Map 结构：topic 字段 + posts 列表
-      const map = unwrap(body) || {}
+      const map = unwrap<DiscussionTopicDetail>(r) || {}
       if (!currentTopic.value?.content && map.topic)
-        currentTopic.value = { ...currentTopic.value, ...map.topic }
-      const list = map.posts || map?.records || map?.list || []
-      posts.value = Array.isArray(list) ? list : []
+        currentTopic.value = normalizeDiscussionTopic({
+          ...(currentTopic.value || {}),
+          ...map.topic,
+        })
+      posts.value = firstNonEmptyArray<DiscussionPost>(map.posts, map.records, map.list).map(
+        normalizeDiscussionPost,
+      )
     } catch (e) {
       logger.error('加载话题详情失败', e)
     } finally {
@@ -100,12 +107,13 @@ export function useTeacherDiscussion(courseIdRef) {
   async function submitReply() {
     if (!replyText.value.trim()) return ElMessage.warning('请输入回复内容')
     if (!currentTopic.value) return
+    const topicId = currentTopic.value.id
     replySubmitting.value = true
     try {
-      await discussionApi.replyTopic(currentTopic.value.id, { content: replyText.value.trim() })
+      await discussionApi.replyTopic(topicId, { content: replyText.value.trim() })
       ElMessage.success('回复成功')
       replyText.value = ''
-      await loadPosts(currentTopic.value.id)
+      await loadPosts(topicId)
       loadTopics()
     } catch (e) {
       logger.error('回复失败', e)
@@ -114,22 +122,27 @@ export function useTeacherDiscussion(courseIdRef) {
     }
   }
 
-  async function likePost(p) {
+  async function likePost(p: DiscussionPost) {
     try {
-      await discussionApi.likePost(p.id)
-      ElMessage.success('已点赞')
-      p.likeCount = (p.likeCount || 0) + 1
+      const result = unwrap<DiscussionLikeResult>(await discussionApi.likePost(p.id))
+      if (!result) return
+      p.likeCount = result.likeCount
+      p.likes = result.likeCount
+      p.liked = result.liked
+      ElMessage.success(result.liked ? '已点赞' : '已取消点赞')
     } catch (e) {
       logger.error('点赞失败', e)
     }
   }
 
-  async function removePost(p) {
+  async function removePost(p: DiscussionPost) {
+    if (!currentTopic.value) return
+    const topicId = currentTopic.value.id
     try {
-      await ElMessageBox.confirm('确认删除该回复？', '提示', { type: 'warning' })
+      await ElMessageBox.confirm('确认删除该回复？此操作不可恢复。', '提示', { type: 'warning' })
       await discussionApi.deletePost(p.id)
       ElMessage.success('已删除')
-      await loadPosts(currentTopic.value.id)
+      await loadPosts(topicId)
       loadTopics()
     } catch (e) {
       if (e !== 'cancel' && e?.type !== 'cancel') logger.error('删除回复失败', e)

@@ -22,10 +22,7 @@ export function useKnowledgeGraph() {
   async function loadCourses() {
     courseLoading.value = true
     try {
-      const r = await courseApi.getMyCourses()
-      const body = unwrap(r)
-      const list = body?.records || body?.list || body || []
-      courseOptions.value = Array.isArray(list) ? list : []
+      courseOptions.value = await courseApi.getAllMyCourses()
       if (courseOptions.value.length && !courseId.value) courseId.value = courseOptions.value[0].id
     } catch (e) {
       logger.error('加载课程列表失败', e)
@@ -146,7 +143,9 @@ export function useKnowledgeGraph() {
 
   async function removePoint(row) {
     try {
-      await ElMessageBox.confirm(`确认删除知识点「${row.name}」？`, '提示', { type: 'warning' })
+      await ElMessageBox.confirm(`确认删除知识点「${row.name}」？此操作不可恢复。`, '提示', {
+        type: 'warning',
+      })
       await knowledgeApi.deleteKnowledgePoint(row.id)
       ElMessage.success('已删除')
       loadPoints()

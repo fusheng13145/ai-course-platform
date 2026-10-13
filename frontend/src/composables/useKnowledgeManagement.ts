@@ -82,9 +82,7 @@ export function useKnowledgeManagement() {
   /** 加载课程选项；默认选中第一门并加载数据 */
   async function loadCourseOptions() {
     try {
-      const res = await courseApi.getMyCourses()
-      const data = res.data?.list || res.data || res || []
-      courseList.value = Array.isArray(data) ? data : []
+      courseList.value = await courseApi.getAllMyCourses()
       if (courseList.value.length > 0 && !selectedCourseId.value) {
         selectedCourseId.value = courseList.value[0].id
         await loadAllData()

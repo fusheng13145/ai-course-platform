@@ -72,6 +72,20 @@ describe('task API 契约（方法 / URL / 参数）', () => {
     expect(spyOf[method]).toHaveBeenCalledWith(url, ...requestArgs)
   })
 
+  it('getAllTasks follows all course-filtered pages', async () => {
+    mocks.get
+      .mockResolvedValueOnce({ code: 200, data: { list: [{ id: 1 }], total: 101 } })
+      .mockResolvedValueOnce({ code: 200, data: { list: [{ id: 2 }], total: 101 } })
+
+    await expect(taskApi.getAllTasks({ courseId: 3 })).resolves.toEqual([{ id: 1 }, { id: 2 }])
+    expect(mocks.get).toHaveBeenNthCalledWith(1, '/tasks', {
+      params: { courseId: 3, page: 1, size: 100 },
+    })
+    expect(mocks.get).toHaveBeenNthCalledWith(2, '/tasks', {
+      params: { courseId: 3, page: 2, size: 100 },
+    })
+  })
+
   it('getTaskList 省略参数时退化为 { params: undefined }，不伪造空对象改变请求形状', async () => {
     await taskApi.getTaskList()
     expect(mocks.get).toHaveBeenCalledWith('/tasks', { params: undefined })

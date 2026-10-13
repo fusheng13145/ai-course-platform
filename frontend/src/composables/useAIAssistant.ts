@@ -83,12 +83,22 @@ export function useAIAssistant() {
   /* ---- 课程列表 ---- */
   async function loadCourses() {
     try {
-      const res = await courseApi.getCourseList()
-      const list = res.data?.list || res.data || res || []
-      courseList.value = Array.isArray(list) ? list.slice(0, 10) : []
+      courseList.value = await courseApi.getAllCourses()
     } catch (e) {
       logger.error('加载课程失败:', e)
     }
+  }
+
+  /** 会话列表行的展示字段子集（字段名存在历史分叉，故全部可选） */
+  interface ConversationRow {
+    id?: number | string
+    sessionId?: number | string
+    title?: string
+    summary?: string
+    createdAt?: string
+    updatedAt?: string
+    messages?: unknown[]
+    courseName?: string
   }
 
   /* ---- 对话历史 ---- */
@@ -97,7 +107,12 @@ export function useAIAssistant() {
       const res = await aiApi.getSessions()
       // 缺陷修复（2026-10-04）：`list || records` 的空数组是 truthy，
       // 后端改用 records（或反之）时历史会话整批被吞、且毫无报错。
-      const list = firstNonEmptyArray(res.data?.list, res.data?.records, res.data, res)
+      const list = firstNonEmptyArray<ConversationRow>(
+        res.data?.list,
+        res.data?.records,
+        res.data,
+        res,
+      )
       if (list.length > 0) {
         conversations.value = list.map((s) => ({
           id: s.id || s.sessionId,
@@ -153,7 +168,8 @@ export function useAIAssistant() {
   /** SSE 流式：逐 token 推送 */
   function handleSendStream(aiMsgIdx, question) {
     return new Promise<void>((resolve, reject) => {
-      const params: Record<string, string | number | boolean | undefined> = { question }
+      // 与 qaStream 的入参契约对齐：索引签名允许扩展字段，question 必填（原声明缺 question 键保证）。
+      const params: { [key: string]: string | number | boolean; question: string } = { question }
       if (selectedCourseId.value) params.courseId = selectedCourseId.value
       const controller = aiApi.qaStream(params, {
         onToken(token) {

@@ -16,7 +16,7 @@ import { mount } from '@vue/test-utils'
 
 const mocks = vi.hoisted(() => ({
   getMyExamSessions: vi.fn(),
-  getCourseList: vi.fn(),
+  getAllCourses: vi.fn(),
   message: Object.assign(vi.fn(), {
     info: vi.fn(),
     success: vi.fn(),
@@ -26,7 +26,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 vi.mock('@/api/exam', () => ({ default: { getMyExamSessions: mocks.getMyExamSessions } }))
-vi.mock('@/api/course', () => ({ default: { getCourseList: mocks.getCourseList } }))
+vi.mock('@/api/course', () => ({ default: { getAllCourses: mocks.getAllCourses } }))
 vi.mock('element-plus', () => ({ ElMessage: mocks.message }))
 // xlsx 只在导出路径使用，桩掉以免拖入真实打包库
 vi.mock('xlsx', () => ({ utils: { book_new: vi.fn(), json_to_sheet: vi.fn() }, write: vi.fn() }))
@@ -67,7 +67,7 @@ const statValue = (state: ReturnType<typeof useGrades>, label: string) =>
 describe('useGrades — 请求参数与分页（P0-1 回归）', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getCourseList.mockResolvedValue({ data: [] })
+    mocks.getAllCourses.mockResolvedValue([])
   })
 
   it('筛选条件必须真正进入请求参数，而不是组装后被丢弃', async () => {
@@ -149,13 +149,13 @@ describe('useGrades — 请求参数与分页（P0-1 回归）', () => {
     expect(state.pagination.total).toBe(1)
   })
 
-  it('课程下拉按后端 1 基口径请求 page=1', async () => {
-    mocks.getCourseList.mockResolvedValue({ data: { records: [{ id: 1 }] } })
+  it('课程下拉由分页 API 返回完整数组', async () => {
+    mocks.getAllCourses.mockResolvedValue([{ id: 1 }])
     const { state } = withSetup()
 
     await state.fetchCourses()
 
-    expect(mocks.getCourseList).toHaveBeenCalledWith({ page: 1, size: 100 })
+    expect(mocks.getAllCourses).toHaveBeenCalledOnce()
     expect(state.courseList.value).toEqual([{ id: 1 }])
   })
 })

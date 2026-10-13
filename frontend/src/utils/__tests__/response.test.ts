@@ -1,6 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
   decodeHtml,
+  fetchAllPages,
   firstNonEmptyArray,
   hasNonEmptyArray,
   isPageEnvelope,
@@ -133,6 +134,37 @@ describe('readTotal - 后端总数优先', () => {
 
   it('数字字符串（后端 Long 序列化成 string 的形态）可以转换', () => {
     expect(readTotal({ total: '120' }, 0)).toBe(120)
+  })
+})
+
+describe('fetchAllPages - 完整读取分页结果', () => {
+  it('按后端 total 逐页加载并兼容 records / list 形状', async () => {
+    const requestPage = async (page: number, size: number) => {
+      expect(size).toBe(2)
+      return page === 1
+        ? { code: 200, data: { records: [{ id: 1 }, { id: 2 }], total: 3 } }
+        : { code: 200, data: { list: [{ id: 3 }], total: 3 } }
+    }
+
+    await expect(fetchAllPages(requestPage, 2)).resolves.toEqual([{ id: 1 }, { id: 2 }, { id: 3 }])
+  })
+
+  it('后续页失败时抛出错误，不把第一页伪装成完整结果', async () => {
+    const requestPage = vi
+      .fn()
+      .mockResolvedValueOnce({ code: 200, data: { list: [{ id: 1 }], total: 101 } })
+      .mockRejectedValueOnce(new Error('page unavailable'))
+
+    await expect(fetchAllPages(requestPage)).rejects.toThrow('page unavailable')
+    expect(requestPage).toHaveBeenCalledTimes(2)
+  })
+
+  it('无分页总数字段时只返回本页，并拒绝非法 pageSize', async () => {
+    const requestPage = vi.fn().mockResolvedValue({ code: 200, data: [{ id: 1 }] })
+
+    await expect(fetchAllPages(requestPage)).resolves.toEqual([{ id: 1 }])
+    expect(requestPage).toHaveBeenCalledOnce()
+    await expect(fetchAllPages(requestPage, 0)).rejects.toThrow(RangeError)
   })
 })
 

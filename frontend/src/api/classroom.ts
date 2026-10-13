@@ -1,4 +1,5 @@
 import request from './request'
+import { fetchAllPages } from '@/utils/response'
 /**
  * 导出函数 getClassroomList：获取/查询数据
  */
@@ -27,6 +28,9 @@ export const getDetail = (id) => request.get(`/classrooms/${id}/detail`)
  */
 export const getStudents = (id, params = {}) =>
   request.get(`/classrooms/${id}/students`, { params })
+/** 获取班级所有匹配学生，供完整成员管理列表使用。 */
+export const getAllStudents = (id, filters = {}) =>
+  fetchAllPages((page, size) => getStudents(id, { ...filters, page, size }))
 /**
  * 导出函数 addStudent：创建/新增数据
  */
@@ -62,6 +66,7 @@ export default {
   deleteClassroom,
   getDetail,
   getStudents,
+  getAllStudents,
   addStudent,
   removeStudent,
   getStats,

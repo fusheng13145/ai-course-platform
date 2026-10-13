@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import examApi from '@/api/exam'
 import courseApi from '@/api/course'
+import { pickList } from '@/utils/response'
 
 /**
  * 学生成绩页数据逻辑（拆分自 student/academic/Grades.vue，2026-08-29）
@@ -89,19 +90,25 @@ export function useStudentGrades() {
   async function loadData(courseId = null) {
     loading.value = true
     try {
-      const [courseRes, examRes, sessionRes] = await Promise.all([
-        courseApi.getCourseList(),
-        examApi.getExamPaperList(),
+      const [courses, examRes, sessionRes] = await Promise.all([
+        courseApi.getAllCourses(),
+        examApi.getAllExamPapers(),
         examApi.getMyExamSessions(),
       ])
 
-      const courses =
-        courseRes.data?.records || courseRes.data?.list || courseRes.data || courseRes || []
-      courses.forEach((c) => {
+      // getAllCourses / getAllExamPapers 已由 fetchAllPages 解包为数组；
+      // 显式给出展示所需字段，避免 unknown 流入下游映射。
+      const courseRows = courses as Array<{ id: number; name: string }>
+      courseRows.forEach((c) => {
         courseMap.value[c.id] = c.name
       })
 
-      const exams = examRes.data?.list || examRes.data || examRes || []
+      const exams = pickList<{
+        id: number
+        title?: string
+        courseId?: number
+        totalScore?: number
+      }>(examRes)
       exams.forEach((e) => {
         examMap.value[e.id] = {
           title: e.title,

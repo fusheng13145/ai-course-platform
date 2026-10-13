@@ -1,4 +1,5 @@
 import request from './request'
+import { fetchAllPages } from '@/utils/response'
 
 /** 任务实体（后端 Task） */
 export interface Task {
@@ -25,6 +26,9 @@ export interface TaskQuery extends PageParams {
  * 导出函数 getTaskList：获取/查询数据
  */
 export const getTaskList = (params?: TaskQuery) => request.get('/tasks', { params })
+/** 获取满足筛选条件的全部任务，供任务目录/聚合统计使用。 */
+export const getAllTasks = (filters: Omit<TaskQuery, 'page' | 'size'> = {}) =>
+  fetchAllPages((page, size) => getTaskList({ ...filters, page, size }))
 /**
  * 按课程分页查询任务（后端 GET /tasks/course/{courseId}）。
  * CourseTaskPanel 一直按这个名字调用，此前 api 层缺该导出，面板取任务列表必然 TypeError。
@@ -75,6 +79,7 @@ export const getCompletionStats = (id: number) => request.get(`/tasks/${id}/comp
  */
 export default {
   getTaskList,
+  getAllTasks,
   listByCourse,
   getTaskById,
   createTask,

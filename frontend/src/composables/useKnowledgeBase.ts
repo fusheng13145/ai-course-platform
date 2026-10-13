@@ -61,9 +61,7 @@ export function useKnowledgeBase() {
   /* 加载课程 */
   async function loadCourses() {
     try {
-      const res = await courseApi.getCourseList({ size: 500 })
-      const raw = res.data?.records || res.data?.list || res.data || res
-      courseList.value = Array.isArray(raw) ? raw : []
+      courseList.value = await courseApi.getAllCourses()
       if (courseList.value.length && !selectedCourseId.value) {
         selectedCourseId.value = courseList.value[0].id
         await loadDocs()

@@ -111,9 +111,7 @@ export function useTeacherExams() {
   /** 加载课程下拉选项 */
   async function loadCourseOptions() {
     try {
-      const res = await courseApi.getMyCourses()
-      const data = res.data?.list || res.data || res || []
-      courseOptions.value = Array.isArray(data) ? data : []
+      courseOptions.value = await courseApi.getAllMyCourses()
     } catch (e) {
       logger.error('加载课程失败:', e)
     }
@@ -200,27 +198,21 @@ export function useTeacherExams() {
   /** 加载题库（搜索/筛选时用 search API，否则列表 API） */
   async function loadQuestionBank() {
     questionLoading.value = true
+    questionBank.value = []
     try {
-      const params: Record<string, unknown> = { size: 100 }
-      if (questionSearch.value) params.keyword = questionSearch.value
-      if (questionTypeFilter.value) params.type = questionTypeFilter.value
-      let res
-      if (params.keyword || params.type) {
-        res = await questionApi.searchQuestions(params)
+      const filters: Record<string, unknown> = {}
+      const keyword = questionSearch.value.trim()
+      if (keyword) filters.keyword = keyword
+      if (questionTypeFilter.value) filters.type = questionTypeFilter.value
+      if (keyword) {
+        questionBank.value = await questionApi.searchAllQuestions(filters)
       } else {
-        res = await questionApi.getQuestionList(params)
+        questionBank.value = await questionApi.getAllQuestions(filters)
       }
-      const data = res.data?.list || res.data || res || []
-      questionBank.value = Array.isArray(data) ? data : []
     } catch (e) {
       logger.error('加载题库失败:', e)
-      try {
-        const res = await questionApi.getQuestionList({ size: 100 })
-        const data = res.data?.list || res.data || res || []
-        questionBank.value = Array.isArray(data) ? data : []
-      } catch {
-        questionBank.value = []
-      }
+      questionBank.value = []
+      ElMessage.error('题库暂不可用，请稍后重试')
     } finally {
       questionLoading.value = false
     }

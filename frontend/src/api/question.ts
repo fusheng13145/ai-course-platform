@@ -1,6 +1,10 @@
 import request from './request'
+import { fetchAllPages } from '@/utils/response'
 /** 获取题目列表 */
 export const getQuestionList = (params = {}) => request.get('/questions', { params })
+/** 读取题目列表所有分页。 */
+export const getAllQuestions = (filters = {}) =>
+  fetchAllPages((page, size) => getQuestionList({ ...filters, page, size }))
 /** 根据ID获取题目 */
 export const getQuestionById = (id) => request.get(`/questions/${id}`)
 /** 创建题目 */
@@ -18,6 +22,9 @@ export const reviewQuestion = (id, data) => request.post(`/questions/${id}/revie
 export const copyQuestion = (id) => request.post(`/questions/${id}/copy`)
 /** 搜索题目 */
 export const searchQuestions = (params = {}) => request.get('/questions/search', { params })
+/** 读取搜索结果所有分页，避免题库选择器只展示第一页。 */
+export const searchAllQuestions = (filters = {}) =>
+  fetchAllPages((page, size) => searchQuestions({ ...filters, page, size }))
 /** 随机选题 */
 export const randomSelect = (params = {}) => request.get('/questions/random', { params })
 /** 根据知识点获取题目 */
@@ -43,6 +50,7 @@ export const importQuestionsExcel = (data) =>
  */
 export default {
   getQuestionList,
+  getAllQuestions,
   getQuestionById,
   createQuestion,
   updateQuestion,
@@ -51,6 +59,7 @@ export default {
   reviewQuestion,
   copyQuestion,
   searchQuestions,
+  searchAllQuestions,
   randomSelect,
   getByKnowledgePoint,
   getQuestionStats,

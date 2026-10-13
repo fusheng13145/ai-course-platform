@@ -191,6 +191,12 @@ describe('getExamQuestions - API 层接入', () => {
  * 后端真实端点为 `GET /exam-papers/course/{courseId}`（分页参数 page/size）。
  */
 describe('exam 模块：listByCourse', () => {
+  // 本文件前面的 describe 会真实调用 getExamQuestions(4)，若不清零，
+  // mock.calls 里残留 `/exam-papers/4/questions`，使 toHaveBeenNthCalledWith(1, …) 错位。
+  beforeEach(() => {
+    mocks.get.mockReset()
+  })
+
   it('拼出 /exam-papers/course/{courseId}，分页参数走 params', async () => {
     mocks.get.mockResolvedValue({ data: { records: [], total: 0 } })
 
@@ -212,5 +218,20 @@ describe('exam 模块：listByCourse', () => {
   it('已在默认导出对象中登记（组件按 examApi.listByCourse 取用）', async () => {
     const examApi = (await import('@/api/exam')).default
     expect(typeof examApi.listByCourse).toBe('function')
+  })
+
+  it('getAllExamPapersByCourse follows every page rather than capping at the first 100', async () => {
+    mocks.get
+      .mockResolvedValueOnce({ code: 200, data: { records: [{ id: 1 }], total: 101 } })
+      .mockResolvedValueOnce({ code: 200, data: { records: [{ id: 2 }], total: 101 } })
+
+    const examApi = (await import('@/api/exam')).default
+    await expect(examApi.getAllExamPapersByCourse(7)).resolves.toEqual([{ id: 1 }, { id: 2 }])
+    expect(mocks.get).toHaveBeenNthCalledWith(1, '/exam-papers/course/7', {
+      params: { page: 1, size: 100 },
+    })
+    expect(mocks.get).toHaveBeenNthCalledWith(2, '/exam-papers/course/7', {
+      params: { page: 2, size: 100 },
+    })
   })
 })

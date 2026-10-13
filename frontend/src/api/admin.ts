@@ -1,4 +1,5 @@
 import request from './request'
+import { fetchAllPages } from '@/utils/response'
 import { exportReport } from './analytics'
 import { createBackup } from './system'
 
@@ -7,6 +8,9 @@ export { exportReport, createBackup }
 
 // 管理员端 - 用户管理
 export const getUsers = (params = {}) => request.get('/admin/users', { params })
+/** 获取筛选条件下的全部用户，适用于需要覆盖整个角色群体的批量操作。 */
+export const getAllUsers = (filters = {}) =>
+  fetchAllPages((page, size) => getUsers({ ...filters, page, size }))
 /**
  * 导出函数 getUserDetail：获取/查询数据
  */
@@ -75,6 +79,7 @@ export const getAIMonitor = () => request.get('/admin/ai-monitor')
  */
 export default {
   getUsers,
+  getAllUsers,
   getUserDetail,
   createUser,
   updateUser,

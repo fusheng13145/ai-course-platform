@@ -164,7 +164,9 @@ export function useKnowledgeTab(courseIdRef) {
     tableLoading.value = true
     try {
       const res = await knowledgeApi.getKnowledgePoints(Number(courseIdRef.value))
-      list.value = pickList(unwrap(res)).map((k) => ({
+      list.value = pickList<{ importance?: number; weight?: number; [key: string]: unknown }>(
+        unwrap(res),
+      ).map((k) => ({
         ...k,
         importance: k.importance ?? k.weight ?? 1,
       }))
@@ -205,8 +207,6 @@ export function useKnowledgeTab(courseIdRef) {
       children: n.children?.length ? buildTreeSelect(n.children) : undefined,
     }))
   }
-
-  function handleNodeClick() {}
 
   function openCreateDialog() {
     isEdit.value = false
@@ -255,7 +255,9 @@ export function useKnowledgeTab(courseIdRef) {
 
   async function handleDelete(row) {
     try {
-      await ElMessageBox.confirm(`确定删除「${row.name}」？`, '提示', { type: 'warning' })
+      await ElMessageBox.confirm(`确定删除「${row.name}」？此操作不可恢复。`, '提示', {
+        type: 'warning',
+      })
       await knowledgeApi.deleteKnowledgePoint(row.id)
       ElMessage.success('已删除')
       await loadAll()
@@ -414,7 +416,6 @@ export function useKnowledgeTab(courseIdRef) {
     forceOption,
     treeOption,
     loadAll,
-    handleNodeClick,
     openCreateDialog,
     openEditDialog,
     savePoint,

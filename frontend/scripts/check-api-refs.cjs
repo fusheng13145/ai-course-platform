@@ -2,11 +2,15 @@
  * 全仓 API 方法引用一致性检查：
  * 扫描 src 下所有 `import ... from '@/api/xxx'` 的使用，比对被引用的方法是否存在于该 api 模块导出。
  *
- * 覆盖口径（2026-10-04 扩充）：
+ * 覆盖口径（2026-10-04 扩充；2026-10-13 补类型导出与 type 具名导入）：
  * - 目录：src 全量 .ts/.vue（仅排除 api 定义本身与测试文件）。
  *   原实现只扫 composables + views，components/stores/layouts/utils 里的 API 调用完全不在雷达内。
- * - 导入形式：default 导入、具名导入（`import { foo }` / `import { foo as bar }`）、命名空间导入。
+ * - 导入形式：default 导入、具名导入（`import { foo }` / `import { foo as bar }` /
+ *   `import { type Foo }`）、命名空间导入。
  *   原实现只识别 default 导入，具名导入的错引一个都抓不到。
+ * - 导出形式：export const/let/var、export function、export interface/type/enum/class。
+ *   类型导出（interface/type）虽无运行时值，但作为具名导入是合法用法，故一并登记，
+ *   避免把 `import { type X } from '@/api/xxx'` 误报为「无此导出」。
  */
 const fs = require('fs')
 const path = require('path')
@@ -69,6 +73,11 @@ function apiExports(file) {
     names.add(m[1])
   // export function foo(...) / export async function foo(...)
   for (const m of src.matchAll(/^export\s+(?:async\s+)?function\s+(\w+)/gm)) names.add(m[1])
+  // export interface Foo / export type Foo = ... / export enum Foo / export (abstract) class Foo
+  for (const m of src.matchAll(
+    /^export\s+(?:declare\s+)?(?:interface|type|enum|(?:abstract\s+)?class)\s+(\w+)/gm,
+  ))
+    names.add(m[1])
   // export { a, b as c }
   for (const m of src.matchAll(/^export\s*\{([^}]*)\}/gm)) {
     for (const part of m[1].split(',')) {
@@ -116,7 +125,8 @@ function parseImportClause(clause) {
   const braces = rest.match(/\{([^}]*)\}/)
   if (braces) {
     for (const part of braces[1].split(',')) {
-      const seg = part.trim()
+      // 剥离 TS 具名导入的 `type` 修饰（`import { type Foo }` / `import { type Foo as Bar }`）
+      const seg = part.trim().replace(/^type\s+/, '')
       if (!seg) continue
       const asMatch = seg.match(/^(\w+)\s+as\s+(\w+)$/)
       // 具名导入：局部名用于匹配调用，原始导出名用于比对 api 模块导出

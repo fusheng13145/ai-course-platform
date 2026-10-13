@@ -253,13 +253,9 @@ export function useClassrooms() {
     if (!currentClass.value) return
     studentLoading.value = true
     try {
-      const res = await classroomApi.getStudents(currentClass.value.id, {
+      studentList.value = await classroomApi.getAllStudents(currentClass.value.id, {
         keyword: studentKeyword.value,
-        page: 1,
-        size: 200,
       })
-      const raw = res.data?.records || res.data?.list || res.data || res
-      studentList.value = Array.isArray(raw) ? raw : []
     } catch (e) {
       logger.error(e)
       studentList.value = []
@@ -309,9 +305,7 @@ export function useClassrooms() {
     if (candidateList.value.length) return
     candidateLoading.value = true
     try {
-      const res = await adminApi.getUsers({ role: 'STUDENT', size: 500 })
-      const raw = res.data?.records || res.data?.list || res.data || res
-      candidateList.value = Array.isArray(raw) ? raw : []
+      candidateList.value = await adminApi.getAllUsers({ role: 'STUDENT' })
     } catch (e) {
       logger.error(e)
       candidateList.value = []

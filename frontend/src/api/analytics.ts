@@ -32,6 +32,10 @@ export const getGradeDistribution = (courseId) =>
 export const getGradeHistogram = (courseId) =>
   request.get(`/analytics/courses/${courseId}/grades/histogram`)
 
+// 课程学生学情（含学生身份、作业均分、考试均分与学习进度）
+export const getStudentCourseProgress = (courseId) =>
+  request.get(`/analytics/courses/${courseId}/student-progress`)
+
 // 热门课程排行（按选课人数降序 TOP20）
 export const getCourseRanking = () => request.get('/analytics/courses/ranking')
 
@@ -68,6 +72,7 @@ export default {
   getCourseAnalytics,
   getGradeDistribution,
   getGradeHistogram,
+  getStudentCourseProgress,
   getCourseRanking,
   getUserGrowth,
   getExamStatistics,
