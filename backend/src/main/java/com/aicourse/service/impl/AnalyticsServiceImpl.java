@@ -229,10 +229,28 @@ public class AnalyticsServiceImpl implements AnalyticsService {
                     : submissionService.list(new LambdaQueryWrapper<Submission>()
                             .in(Submission::getTaskId, taskIds)
                             .in(Submission::getStudentId, studentIds));
-            List<ExamSession> sessions = studentIds.isEmpty() ? Collections.emptyList()
-                    : examSessionService.list(new LambdaQueryWrapper<ExamSession>()
-                            .in(ExamSession::getStudentId, studentIds)
-                            .orderByDesc(ExamSession::getCreatedAt));
+            List<ExamSession> sessions = Collections.emptyList();
+            if (!studentIds.isEmpty()) {
+                try {
+                    List<ExamPaper> courseExamPapers = examPaperService.list(
+                            new LambdaQueryWrapper<ExamPaper>().eq(ExamPaper::getCourseId, courseId));
+                    Set<Long> courseExamPaperIds = courseExamPapers == null ? Collections.emptySet()
+                            : courseExamPapers.stream()
+                                    .map(ExamPaper::getId)
+                                    .filter(Objects::nonNull)
+                                    .collect(Collectors.toSet());
+                    if (!courseExamPaperIds.isEmpty()) {
+                        List<ExamSession> queriedSessions = examSessionService.list(new LambdaQueryWrapper<ExamSession>()
+                                .in(ExamSession::getStudentId, studentIds)
+                                .in(ExamSession::getExamPaperId, courseExamPaperIds)
+                                .orderByDesc(ExamSession::getCreatedAt));
+                        sessions = queriedSessions == null ? Collections.emptyList() : queriedSessions;
+                    }
+                } catch (RuntimeException examError) {
+                    // 课程考试统计故障不应连带丢掉仍可用的学生、作业与进度数据。
+                    log.warn("课程考试均分暂不可用: courseId={}, {}", courseId, examError.getMessage());
+                }
+            }
 
             for (Long sid : studentIds) {
                 Map<String, Object> item = new LinkedHashMap<>();

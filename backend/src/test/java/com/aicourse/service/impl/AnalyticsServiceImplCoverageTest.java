@@ -178,7 +178,7 @@ class AnalyticsServiceImplCoverageTest {
     // ===================== getStudentCourseProgressList：全量聚合 =====================
 
     @Test
-    @DisplayName("进度列表 - 三学生全量聚合：完成/提交/考试三条时间线、四种提交状态、并列次级排序")
+    @DisplayName("进度列表 - 三学生全量聚合：限定本课程考试、完成/提交时间线及并列次级排序")
     @SuppressWarnings("unchecked")
     void progressList_aggregatesEveryTimeline() {
         // 学生 10（进度 90，有用户）、学生 11（进度 null，无用户）、学生 12（进度 90，有用户）
@@ -213,16 +213,28 @@ class AnalyticsServiceImplCoverageTest {
                 submission(11L, 1L, SubmissionStatus.SUBMITTED, new BigDecimal("60"), null, T_0130)));
         when(submissionService.list(any(Wrapper.class))).thenReturn(submissions);
 
-        // 考试会话：有百分比/无百分比/updatedAt 缺失回落 createdAt/时间全空 + 他班学生
-        List<ExamSession> sessions = new ArrayList<>(Arrays.asList(
-                examSession(10L, new BigDecimal("88"), T_0108, null),
-                examSession(10L, new BigDecimal("95"), null, T_0150),
-                examSession(10L, null, T_0150, null),
-                examSession(10L, new BigDecimal("70"), null, null),
-                examSession(11L, new BigDecimal("50"), T_0110, null),
-                examSession(12L, new BigDecimal("77"), T_0101, null),
-                examSession(12L, new BigDecimal("80"), null, T_0105)));
-        when(examSessionService.list(any(Wrapper.class))).thenReturn(sessions);
+        // 只返回课程 1 的试卷 500；paper 501 属于其他课程，即便同一学生参加也不能污染均分/活跃时间。
+        when(examPaperService.list(any(Wrapper.class)))
+                .thenReturn(new ArrayList<>(Collections.singletonList(paper(500L, 1L, "本课程试卷", new BigDecimal("100")))));
+
+        // 考试会话混合本课程/其他课程试卷，进度结果只能聚合本课程试卷 500。
+        ExamSession es1 = examSession(10L, new BigDecimal("88"), T_0108, null);
+        es1.setExamPaperId(500L);
+        ExamSession otherCourseSession = examSession(10L, new BigDecimal("95"), null, T_0150);
+        otherCourseSession.setExamPaperId(501L);
+        ExamSession es3 = examSession(10L, null, T_0150, null);
+        es3.setExamPaperId(500L);
+        ExamSession es4 = examSession(10L, new BigDecimal("70"), null, null);
+        es4.setExamPaperId(500L);
+        ExamSession es5 = examSession(11L, new BigDecimal("50"), T_0110, null);
+        es5.setExamPaperId(500L);
+        ExamSession es6 = examSession(12L, new BigDecimal("77"), T_0101, null);
+        es6.setExamPaperId(500L);
+        ExamSession es7 = examSession(12L, new BigDecimal("80"), null, T_0105);
+        es7.setExamPaperId(501L);
+        List<ExamSession> sessions = new ArrayList<>(Arrays.asList(es1, otherCourseSession, es3, es4, es5, es6, es7));
+        when(examSessionService.list(any(Wrapper.class)))
+                .thenReturn(new ArrayList<>(Arrays.asList(es1, es3, es4, es5, es6)));
 
         List<Map<String, Object>> result = analyticsService.getStudentCourseProgressList(1L);
 
@@ -240,19 +252,19 @@ class AnalyticsServiceImplCoverageTest {
         assertEquals(2, first.get("completedTasks"));
         // 80 / 70（GRADED 但 score 为 null 的不计入）
         assertEquals(75.0, first.get("avgAssignmentScore"));
-        // (88 + 95 + 70) / 3 = 84.333... -> 84.33
-        assertEquals(84.33, first.get("avgExamScore"));
-        assertEquals(T_0150.toString(), first.get("lastActiveAt"));
+        // (88 + 70) / 2 = 79；跨课程的 95 分/T_0150 不参与课程考试统计。
+        assertEquals(79.0, first.get("avgExamScore"));
+        assertEquals(T_0130.toString(), first.get("lastActiveAt"));
 
         Map<String, Object> second = result.get(1);
         assertEquals("李四", second.get("studentName"));
         // avatarUrl 为 null -> 字段降级为 null
         assertNull(second.get("avatarUrl"));
         assertEquals(0, second.get("completedTasks"));
-        // 学生 12 无提交 -> 作业均分 null；考试 (77+80)/2 = 78.5
+        // 学生 12 无提交 -> 作业均分 null；跨课程的 80 分不计入，考试均分为 77。
         assertNull(second.get("avgAssignmentScore"));
-        assertEquals(78.5, second.get("avgExamScore"));
-        assertEquals(T_0105.toString(), second.get("lastActiveAt"));
+        assertEquals(77.0, second.get("avgExamScore"));
+        assertEquals(T_0101.toString(), second.get("lastActiveAt"));
 
         Map<String, Object> third = result.get(2);
         // 选课在、用户表查不到 -> 姓名/学号/头像降级
@@ -265,6 +277,8 @@ class AnalyticsServiceImplCoverageTest {
         assertEquals(50.0, third.get("avgExamScore"));
         // 学生 11 完成记录无时间、提交时间与考试时间并存，取最大者
         assertEquals(T_0130.toString(), third.get("lastActiveAt"));
+
+        verify(examSessionService).list(argThat(query -> query.getSqlSegment().contains("exam_paper_id")));
 
         verify(userService).listByIds(anyCollection());
         verify(taskCompletionMapper).selectList(any(Wrapper.class));

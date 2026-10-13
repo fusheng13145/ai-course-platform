@@ -1,6 +1,11 @@
 package com.aicourse.controller;
 import com.aicourse.controller.AnalyticsController;
+import com.aicourse.entity.Course;
+import com.aicourse.entity.ExamPaper;
 import com.aicourse.service.AnalyticsService;
+import com.aicourse.service.CourseEnrollmentService;
+import com.aicourse.service.CourseService;
+import com.aicourse.service.ExamPaperService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -16,13 +21,157 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * AnalyticsController 接口测试（升级版）。
  * 原生成器弱断言（status != 401 && status != 403）已全部替换为真实业务断言：
  * 对依赖的 AnalyticsService 方法打桩返回合理业务对象，断言 200/code=200，并校验关键字段透传、verify 路由委托。
- * AnalyticsController 各方法均无 @PreAuthorize，仅需认证，故不新增越权 403 测试。
+ * 课程级学生学情接口需同时校验教师角色与课程归属，单独覆盖越权拒绝。
  */
 @WebMvcTest(AnalyticsController.class)
 class AnalyticsControllerTest extends ControllerTestBase {
 
     @MockitoBean
     private com.aicourse.service.AnalyticsService analyticsService;
+
+    @MockitoBean
+    private CourseService courseService;
+
+    @MockitoBean
+    private CourseEnrollmentService courseEnrollmentService;
+
+    @MockitoBean
+    private ExamPaperService examPaperService;
+
+    @Test
+    @DisplayName("GET /analytics/courses/1/student-progress - 课程教师可读取学情")
+    void studentCourseProgress_owner_returns_200() throws Exception {
+        Course course = new Course();
+        course.setTeacherId(1L);
+        when(courseService.getById(1L)).thenReturn(course);
+        when(analyticsService.getStudentCourseProgressList(1L))
+                .thenReturn(List.of(Map.of("studentId", 9, "studentName", "学生甲")));
+
+        mockMvc.perform(get("/analytics/courses/1/student-progress").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].studentId").value(9));
+
+        verify(analyticsService).getStudentCourseProgressList(1L);
+    }
+
+    @Test
+    @DisplayName("GET /analytics/courses/1/student-progress - 非课程教师返回403")
+    void studentCourseProgress_nonOwner_returns_403() throws Exception {
+        Course course = new Course();
+        course.setTeacherId(2L);
+        when(courseService.getById(1L)).thenReturn(course);
+
+        mockMvc.perform(get("/analytics/courses/1/student-progress").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(analyticsService);
+    }
+
+    @Test
+    @DisplayName("GET /analytics/courses/1/students/9 - 课程教师可读取学生明细")
+    void studentCourseDetail_owner_returns_200() throws Exception {
+        Course course = new Course();
+        course.setTeacherId(1L);
+        when(courseService.getById(1L)).thenReturn(course);
+        when(courseEnrollmentService.hasApprovedEnrollment(9L, 1L)).thenReturn(true);
+        when(analyticsService.getStudentCourseDetail(1L, 9L)).thenReturn(Map.of("studentId", 9));
+
+        mockMvc.perform(get("/analytics/courses/1/students/9").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.studentId").value(9));
+
+        verify(analyticsService).getStudentCourseDetail(1L, 9L);
+    }
+
+    @Test
+    @DisplayName("GET /analytics/courses/1/students/9 - 非本课程学生不可读取明细")
+    void studentCourseDetail_nonMember_returns_404() throws Exception {
+        Course course = new Course();
+        course.setTeacherId(1L);
+        when(courseService.getById(1L)).thenReturn(course);
+        when(courseEnrollmentService.hasApprovedEnrollment(9L, 1L)).thenReturn(false);
+
+        mockMvc.perform(get("/analytics/courses/1/students/9").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isNotFound());
+
+        verifyNoInteractions(analyticsService);
+    }
+
+    @Test
+    @DisplayName("GET /analytics/courses/1/grades/histogram - 学生成员不能读取课程级统计")
+    void gradeDistributionHistogram_student_returns_403() throws Exception {
+        mockMvc.perform(get("/analytics/courses/1/grades/histogram").with(withUser(9L, "STUDENT")))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(analyticsService);
+    }
+
+    @Test
+    @DisplayName("GET /analytics/dashboard - 学生不能读取平台仪表盘")
+    void dashboard_student_returns_403() throws Exception {
+        mockMvc.perform(get("/analytics/dashboard").with(withUser(9L, "STUDENT")))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(analyticsService);
+    }
+
+    @Test
+    @DisplayName("GET /analytics/dashboard - 教师不传ID时只读取自己的仪表盘")
+    void dashboard_teacher_defaultsToSelf() throws Exception {
+        when(analyticsService.getTeacherDashboard(1L)).thenReturn(Map.of("courseCount", 2));
+
+        mockMvc.perform(get("/analytics/dashboard").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.courseCount").value(2));
+
+        verify(analyticsService).getTeacherDashboard(1L);
+        verify(analyticsService, never()).getDashboard();
+    }
+
+    @Test
+    @DisplayName("GET /analytics/dashboard?teacherId=2 - 教师不能读取其他教师仪表盘")
+    void dashboard_teacherCannotReadAnotherTeacher() throws Exception {
+        mockMvc.perform(get("/analytics/dashboard?teacherId=2").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(analyticsService);
+    }
+
+    @Test
+    @DisplayName("GET /analytics/students/9 - 教师不能读取非本人学生数据")
+    void studentDashboard_nonOwnedStudent_returns_403() throws Exception {
+        when(courseEnrollmentService.hasApprovedEnrollmentWithTeacher(9L, 1L)).thenReturn(false);
+
+        mockMvc.perform(get("/analytics/students/9").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(analyticsService);
+    }
+
+    @Test
+    @DisplayName("GET /analytics/exams/1/statistics - 非课程教师不能读取考试统计")
+    void examStatistics_nonOwner_returns_403() throws Exception {
+        ExamPaper examPaper = new ExamPaper();
+        examPaper.setCourseId(1L);
+        Course course = new Course();
+        course.setTeacherId(2L);
+        when(examPaperService.getById(1L)).thenReturn(examPaper);
+        when(courseService.getById(1L)).thenReturn(course);
+
+        mockMvc.perform(get("/analytics/exams/1/statistics").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(analyticsService);
+    }
+
+    @Test
+    @DisplayName("GET /analytics/at-risk/students - 教师不能读取全校预警名单")
+    void atRiskStudents_teacher_returns_403() throws Exception {
+        mockMvc.perform(get("/analytics/at-risk/students").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+
+        verifyNoInteractions(analyticsService);
+    }
 
     @Test
     @DisplayName("GET /analytics/dashboard?teacherId=1 - 返回200且教师仪表盘数据透传")
