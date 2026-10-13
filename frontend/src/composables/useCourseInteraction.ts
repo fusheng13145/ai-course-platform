@@ -15,6 +15,13 @@ export function useCourseInteraction(courseIdRef) {
 
   const signIns = ref([])
   const votes = ref([])
+  /**
+   * 签到 / 投票两路列表**各自独立**记录失败，避免「签到成功、投票失败」时被一方复位而互相串味；
+   * 对外以 loadError 聚合暴露，页面据此渲染持久提示（失败可见）。
+   */
+  const signError = ref('')
+  const voteError = ref('')
+  const loadError = computed(() => signError.value || voteError.value)
 
   const activeCount = computed(
     () =>
@@ -60,21 +67,27 @@ export function useCourseInteraction(courseIdRef) {
   }
 
   async function loadSignInList() {
+    signError.value = ''
     try {
       const r = await interactionApi.getSignInList(courseIdRef.value)
       const body = unwrap(r)
       signIns.value = body?.records || body?.list || body || []
     } catch (e) {
       logger.error('加载签到列表失败', e)
+      signIns.value = []
+      signError.value = '签到列表加载失败，请检查网络后重试'
     }
   }
   async function loadVoteList() {
+    voteError.value = ''
     try {
       const r = await interactionApi.getVoteList(courseIdRef.value)
       const body = unwrap(r)
       votes.value = body?.records || body?.list || body || []
     } catch (e) {
       logger.error('加载投票列表失败', e)
+      votes.value = []
+      voteError.value = '投票列表加载失败，请检查网络后重试'
     }
   }
 
@@ -226,6 +239,9 @@ export function useCourseInteraction(courseIdRef) {
 
   return {
     loading,
+    loadError,
+    signError,
+    voteError,
     saving,
     activeTab,
     signIns,

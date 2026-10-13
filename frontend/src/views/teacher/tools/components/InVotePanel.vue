@@ -50,7 +50,7 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-else description="暂无投票，点击「发起投票」" :image-size="70" />
+      <el-empty v-else :description="emptyText" :image-size="70" />
     </div>
   </div>
 </template>
@@ -61,6 +61,8 @@ import { Plus, Refresh, Histogram } from '@element-plus/icons-vue'
 defineProps({
   voteList: { type: Array, default: () => [] },
   voteLoading: { type: Boolean, default: false },
+  /** 空态文案（失败时由页面传入「未能加载」文案，默认保留原语义） */
+  emptyText: { type: String, default: '暂无投票，点击「发起投票」' },
 })
 defineEmits(['open-vote', 'refresh', 'open-result', 'close'])
 </script>

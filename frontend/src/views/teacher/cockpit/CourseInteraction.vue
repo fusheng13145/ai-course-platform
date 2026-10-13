@@ -60,11 +60,21 @@
         </div>
       </div>
       <div class="l1-body">
+        <!-- 加载失败提示：见 useCourseInteraction.loadError 注释（失败不得渲染成「暂无签到/暂无投票」） -->
+        <el-alert
+          v-if="loadError"
+          :title="loadError"
+          type="error"
+          :closable="false"
+          show-icon
+          style="margin-bottom: var(--ac-spacing-md)"
+        />
         <el-tabs v-model="activeTab" class="it-tabs">
           <!-- 签到 -->
           <el-tab-pane label="签到" name="signin">
             <CiSignTable
               :data="signIns"
+              :empty-text="signError ? '签到记录未能加载，请查看上方提示后重试' : '暂无签到'"
               @open-sign="openSignInDialog"
               @publish="publish"
               @close="closeSignIn"
@@ -76,6 +86,7 @@
           <el-tab-pane label="投票" name="vote">
             <CiVoteTable
               :data="votes"
+              :empty-text="voteError ? '投票记录未能加载，请查看上方提示后重试' : '暂无投票'"
               @open-vote="openVoteDialog"
               @close="closeVote"
               @open-result="openVoteResult"
@@ -126,6 +137,9 @@ const route = useRoute()
 const courseIdRef = toRef(route.params, 'id')
 
 const {
+  loadError,
+  signError,
+  voteError,
   saving,
   activeTab,
   signIns,

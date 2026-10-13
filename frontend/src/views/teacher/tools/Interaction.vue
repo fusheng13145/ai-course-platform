@@ -27,12 +27,26 @@
       </el-alert>
 
       <template v-else>
+        <!-- 加载失败提示：见 useInteraction.loadError 注释（失败不得渲染成「暂无签到/暂无投票」） -->
+        <el-alert
+          v-if="loadError"
+          :title="loadError"
+          type="error"
+          :closable="false"
+          show-icon
+          style="margin-bottom: var(--ac-spacing-md)"
+        />
         <el-tabs v-model="activeTab" class="inter-tabs">
           <!-- 签到 -->
           <el-tab-pane label="签到" name="sign">
             <InSignPanel
               :sign-list="signList"
               :sign-loading="signLoading"
+              :empty-text="
+                signError
+                  ? '签到记录未能加载，请查看上方提示后重试'
+                  : '暂无签到，点击「发起签到」'
+              "
               @open-sign="openSignInDialog"
               @refresh="loadSignInList"
               @open-records="openRecords"
@@ -46,6 +60,11 @@
             <InVotePanel
               :vote-list="voteList"
               :vote-loading="voteLoading"
+              :empty-text="
+                voteError
+                  ? '投票记录未能加载，请查看上方提示后重试'
+                  : '暂无投票，点击「发起投票」'
+              "
               @open-vote="openVoteDialog"
               @refresh="loadVoteList"
               @open-result="openResult"
@@ -111,6 +130,9 @@ const courseIdRef = toRef(courseId)
 
 const {
   loading,
+  loadError,
+  signError,
+  voteError,
   activeTab,
   signLoading,
   signList,
