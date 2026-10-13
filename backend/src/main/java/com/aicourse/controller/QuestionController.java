@@ -3,18 +3,21 @@ package com.aicourse.controller;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.vo.QuestionVO;
 import com.aicourse.dto.QuestionGenerateDTO;
 import com.aicourse.entity.Question;
 import com.aicourse.entity.KnowledgePoint;
+import com.aicourse.exception.BusinessException;
 import jakarta.validation.Valid;
 import com.aicourse.security.RoleUtil;
 import com.aicourse.service.AIService;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.QuestionService;
 import com.aicourse.service.component.ai.AiCallContext;
+import com.aicourse.service.component.ai.AiGenerationPolicy;
 import com.aicourse.vo.BatchImportResultVO;
 import com.aicourse.vo.QuestionStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -43,12 +46,33 @@ public class QuestionController {
     private final QuestionService questionService;
     private final AIService aiService;
     private final KnowledgePointService knowledgePointService;
+    /** 角色矩阵「限制教师出题权限」的判定：平台级治理开关（ADMIN 不受限）。 */
+    private final AiGenerationPolicy aiGenerationPolicy;
 
     public QuestionController(QuestionService questionService, AIService aiService,
-                              KnowledgePointService knowledgePointService) {
+                              KnowledgePointService knowledgePointService,
+                              AiGenerationPolicy aiGenerationPolicy) {
         this.questionService = questionService;
         this.aiService = aiService;
         this.knowledgePointService = knowledgePointService;
+        this.aiGenerationPolicy = aiGenerationPolicy;
+    }
+
+    /**
+     * AI 出题权限校验：管理员可以在管理端关闭「教师 AI 出题」开关，
+     * 关闭后非 ADMIN 的调用方在本控制器的两个出题入口一律 403；ADMIN 不受限（治理者保留能力）。
+     *
+     * <p>刻意<b>不</b>改 {@code @PreAuthorize}（那是角色门，与治理开关是两件事）：
+     * 角色门写死"谁能进来"，本校验表达"进来之后当前是否被允许"。</p>
+     */
+    private void assertQuestionGenerationAllowed(Authentication auth) {
+        if (RoleUtil.isAdmin(auth)) {
+            return;
+        }
+        if (!aiGenerationPolicy.isTeacherQuestionGenerationEnabled()) {
+            throw new BusinessException(ApiCode.FORBIDDEN,
+                    "管理员已限制教师的 AI 出题权限，请联系管理员开通后再试。");
+        }
     }
 
     /**
@@ -352,6 +376,7 @@ public class QuestionController {
         String difficulty = dto.getDifficulty();
         int count = dto.getCount() != null ? dto.getCount() : 1;
 
+        assertQuestionGenerationAllowed(auth);
         // 跨课程 AI 统计：把调用者与归属课程带进作用域，落库发生在 AiCoreComponent
         Long userId = auth != null ? (Long) auth.getPrincipal() : null;
         String result = AiCallContext.run(userId, courseId, "QUESTION_GENERATE",
@@ -373,6 +398,8 @@ public class QuestionController {
         String difficulty = dto.getDifficulty();
         String kp = dto.getKnowledgePointNames();
         int count = dto.getCount() != null ? dto.getCount() : 5;
+
+        assertQuestionGenerationAllowed(auth);
 
         // 知识点感知增强：用户未指定知识点时，自动从课程知识图谱中提取
         if ((kp == null || kp.isBlank()) && courseId != null) {

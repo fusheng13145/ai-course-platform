@@ -176,11 +176,11 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '数据分析', breadcrumb: '数据统计' },
       },
       {
-        // 跨课程 AI 统计：数据源为 ai_call_logs（2026-10-13 埋点上线），
+        // 跨课程 AI 统计 + 教师出题权限治理：数据源为 ai_call_logs（2026-10-13 埋点上线），
         // 与 /admin/statistics/ai-usage（无逐次留痕）是两个口径，不可互替。
         path: 'ai-usage',
         component: () => import('@/views/admin/governance/AIUsageByCourse.vue'),
-        meta: { title: 'AI 使用统计', breadcrumb: '数据统计' },
+        meta: { title: 'AI 使用与治理', breadcrumb: '数据统计' },
       },
 
       // ---- 系统配置 (views/admin/system/) ----

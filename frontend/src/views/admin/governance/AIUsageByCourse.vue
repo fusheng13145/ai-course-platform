@@ -1,8 +1,8 @@
 <template>
   <div>
     <PageHeader
-      title="AI 使用统计"
-      subtitle="跨课程 AI 调用留痕 · 按课程聚合（数据源 ai_call_logs）"
+      title="AI 使用与治理"
+      subtitle="跨课程 AI 调用留痕（数据源 ai_call_logs）· 教师出题权限治理"
       icon="chart"
     >
       <!-- 时间窗切换刻意用原生控件而非 ui/TabGroup：后者是运行时声明 props 的 JS 组件，
@@ -101,6 +101,37 @@
           </CollapsePanel>
         </div>
       </section>
+
+      <!-- 角色矩阵「限制教师出题权限」：平台级治理开关（管理员不受限，缺省=允许） -->
+      <section class="l1-card animate-in d3">
+        <div class="l1-body">
+          <CollapsePanel title="AI 治理" icon="lock" :open="true">
+            <div class="gov-row">
+              <div>
+                <div class="gov-title">教师 AI 出题权限</div>
+                <div class="gov-desc">
+                  关闭后，教师调用「AI 生成题目」与「批量生成」会被拒绝（403）；管理员不受限。
+                  设置写入系统配置项
+                  <code>ai.question-generation.teacher-enabled</code>，热生效、无需重启。
+                </div>
+              </div>
+              <el-switch
+                :model-value="questionGenEnabled"
+                :loading="govLoading || govSaving"
+                @change="onToggleGovernance"
+              />
+            </div>
+            <el-alert
+              v-if="govLoadError || govSaveError"
+              class="gov-alert"
+              type="error"
+              :closable="false"
+              show-icon
+              :title="govLoadError || govSaveError"
+            />
+          </CollapsePanel>
+        </div>
+      </section>
     </div>
   </div>
 </template>
@@ -112,9 +143,23 @@ import StatCard from '@/components/ui/StatCard.vue'
 import CollapsePanel from '@/components/ui/CollapsePanel.vue'
 import BarChart from '@/components/charts/BarChart.vue'
 import { useAIUsageByCourse, AI_USAGE_RANGES, type AiUsageCourseRow } from '@/composables/useAIUsageByCourse'
+import { useAiGovernance } from '@/composables/useAiGovernance'
 
 const { days, loading, loadError, stats, rows, collectionNote, topCourses, load } =
   useAIUsageByCourse()
+
+const {
+  questionGenEnabled,
+  loading: govLoading,
+  loadError: govLoadError,
+  saving: govSaving,
+  saveError: govSaveError,
+  setQuestionGenEnabled,
+} = useAiGovernance()
+
+function onToggleGovernance(value: string | number | boolean) {
+  setQuestionGenEnabled(Boolean(value))
+}
 
 // 显式标注为可变的基础类型数组：`AI_USAGE_RANGES` 是 as const 只读元组，
 // 直接把推导出的字面量联合类型交给 TabGroup（运行时 props: { tabs: { type: Array } }）
@@ -178,5 +223,33 @@ function fmtRate(v?: number | null) {
   background: var(--surface);
   color: var(--ink);
   font-weight: 600;
+}
+
+/* 治理开关行：左说明右控件，文本与控件同排 */
+.gov-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+.gov-title {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--ink);
+}
+.gov-desc {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.7;
+  color: var(--ink-3);
+  max-width: 720px;
+}
+.gov-desc code {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 11.5px;
+}
+.gov-alert {
+  margin-top: 10px;
 }
 </style>

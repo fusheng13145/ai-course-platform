@@ -78,9 +78,9 @@ export const ADMIN_SECTIONS: MenuSection[] = [
     items: [
       { key: 'analytics', text: '跨课程分析', icon: 'sliders', path: '/admin/analytics' },
       { key: 'grades', text: '全校成绩汇总', icon: 'award', path: '/admin/grades' },
-      // 跨课程 AI 统计（2026-10-13）：数据源 ai_call_logs，此前该能力在角色矩阵里无实现落点，
+      // 跨课程 AI 统计 + 教师出题权限治理（2026-10-13）：数据源 ai_call_logs，此前该能力在角色矩阵里无实现落点，
       // 现按项目主指令补齐；口径边界（历史不可回填）由页面持久展示后端下发的 collectionNote。
-      { key: 'ai-usage', text: 'AI 使用统计', icon: 'star', path: '/admin/ai-usage' },
+      { key: 'ai-usage', text: 'AI 使用与治理', icon: 'star', path: '/admin/ai-usage' },
     ],
   },
   {
