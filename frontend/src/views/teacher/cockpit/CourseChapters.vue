@@ -39,6 +39,15 @@
     </PageHeader>
     <section class="l1-card">
       <div class="l1-body">
+        <!-- 加载失败提示：见 loadError 注释（失败不得渲染成「暂无章节」） -->
+        <el-alert
+          v-if="loadError"
+          :title="loadError"
+          type="error"
+          :closable="false"
+          show-icon
+          style="margin-bottom: var(--ac-spacing-md)"
+        />
         <div v-if="tree.length" class="tree">
           <div v-for="node in tree" :key="node.id" class="tree-node">
             <div class="tree-row tree-row--main">
@@ -110,8 +119,10 @@
               <path d="M21 8v13H3V8M1 3h22v5H1zM10 12h4" />
             </svg>
           </div>
-          <div class="e-title">暂无章节</div>
-          <div class="e-desc">点击右上角新增章节</div>
+          <div class="e-title">{{ loadError ? '章节未能加载' : '暂无章节' }}</div>
+          <div class="e-desc">
+            {{ loadError ? '请查看上方提示后重试' : '点击右上角新增章节' }}
+          </div>
         </div>
       </div>
     </section>
@@ -174,6 +185,12 @@ const courseId = route.params.id
 const loading = ref(false)
 const saving = ref(false)
 const tree = ref([])
+/**
+ * 加载失败提示文案：非空即表示章节树数据不可信。
+ * 原实现失败仅 logger.error 后静默 → 页面显示「暂无章节 / 点击右上角新增章节」，
+ * 教师会误判该课程确实没有章节（失败可见）。
+ */
+const loadError = ref('')
 const openSet = reactive(new Set())
 
 const dialogVisible = ref(false)
@@ -258,6 +275,7 @@ function toggle(id) {
 
 async function load() {
   loading.value = true
+  loadError.value = ''
   try {
     const r = await teachingApi.getChapterTree(courseId)
     const body = unwrap(r)
@@ -266,6 +284,8 @@ async function load() {
     list.forEach((n) => openSet.add(n.id))
   } catch (e) {
     logger.error('加载章节树失败', e)
+    tree.value = []
+    loadError.value = '章节加载失败，请检查网络后重试'
   } finally {
     loading.value = false
   }

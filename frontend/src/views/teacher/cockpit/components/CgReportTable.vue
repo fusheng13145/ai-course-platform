@@ -3,7 +3,7 @@
     <!-- 无成绩方案：空状态 + 新建 -->
     <div v-if="!policy" class="l1-card">
       <div class="l1-body">
-        <el-empty description="该课程尚未配置成绩方案">
+        <el-empty :description="policyEmptyText">
           <el-button type="primary" :icon="Plus" @click="emit('open-policy')"
             >新建成绩方案</el-button
           >
@@ -79,7 +79,7 @@
             </template>
           </el-table-column>
         </el-table>
-        <el-empty v-else description="暂无学生成绩" :image-size="72" />
+        <el-empty v-else :description="emptyText" :image-size="72" />
       </div>
     </div>
   </div>
@@ -93,6 +93,10 @@ const props = defineProps({
   policy: { type: Object, default: null },
   report: { type: Array, default: () => [] },
   reportLoading: { type: Boolean, default: false },
+  /** 报告表格空态文案（失败时由页面传入「未能加载」文案，默认保留原语义） */
+  emptyText: { type: String, default: '暂无学生成绩' },
+  /** 「无成绩方案」空态文案（方案加载失败时由页面传入「未能加载」文案） */
+  policyEmptyText: { type: String, default: '该课程尚未配置成绩方案' },
 })
 
 const emit = defineEmits(['open-policy', 'open-score', 'preview'])
