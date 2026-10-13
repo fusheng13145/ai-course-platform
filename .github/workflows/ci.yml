@@ -102,6 +102,13 @@ jobs:
       - name: Build
         run: npm run build
 
+      # 产物体积预算门禁（2026-10-13 经项目主批准接入 CI）：
+      # 把 manualChunks 清理后的实测分块写成上限（echarts/element-plus/xlsx/其余合计/JS 合计/CSS），
+      # 任一超限即失败，防止"顺手多引一个组件库"静默推高首屏体积。
+      # 依赖上一步 build 产出的 dist/assets —— 顺序不可调换。
+      - name: Bundle size gate
+        run: npm run size:gate
+
   # ------------------------------------------------------------------
   # 后端：编译 + 单元测试 + Testcontainers 集成测试（Java 21，与 backend/Dockerfile 的 temurin-21 对齐）
   # ------------------------------------------------------------------
