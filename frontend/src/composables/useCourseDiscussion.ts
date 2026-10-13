@@ -19,6 +19,11 @@ export function useCourseDiscussion() {
   const loading = ref(false)
   const saving = ref(false)
   const replyLoading = ref(false)
+  /**
+   * 加载失败提示文案：非空即表示话题列表数据不可信。
+   * 失败后 topics 被置空 → 页面显示「暂无讨论话题」，教师会误判该课程零讨论（失败可见）。
+   */
+  const loadError = ref('')
 
   const topics = ref<DiscussionTopic[]>([])
   const filter = reactive({ keyword: '', chapterId: '' })
@@ -41,6 +46,7 @@ export function useCourseDiscussion() {
       return
     }
     loading.value = true
+    loadError.value = ''
     try {
       const params: Record<string, unknown> = {}
       if (filter.keyword.trim()) params.keyword = filter.keyword.trim()
@@ -49,6 +55,8 @@ export function useCourseDiscussion() {
       topics.value = pickList<DiscussionTopic>(unwrap(r)).map(normalizeDiscussionTopic)
     } catch (e) {
       logger.error('加载话题列表失败', e)
+      topics.value = []
+      loadError.value = '话题列表加载失败，请检查网络后重试'
     } finally {
       loading.value = false
     }
@@ -179,12 +187,14 @@ export function useCourseDiscussion() {
     () => route.params.id,
     () => {
       topics.value = []
+      loadError.value = ''
       loadTopics()
     },
   )
 
   return {
     loading,
+    loadError,
     saving,
     replyLoading,
     topics,

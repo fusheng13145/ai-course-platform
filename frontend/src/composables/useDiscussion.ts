@@ -23,6 +23,11 @@ export function useDiscussion() {
   const courseOptions = ref<Course[]>([])
   const courseId = ref<number | string>('')
   const loading = ref(false)
+  /**
+   * 加载失败提示文案：非空即表示话题列表数据不可信。
+   * 失败后 topics 被置空 → 页面显示「暂无话题」，学生会误判该课程无讨论（失败可见）。
+   */
+  const loadError = ref('')
 
   async function loadCourses() {
     courseLoading.value = true
@@ -38,6 +43,7 @@ export function useDiscussion() {
 
   function onCourseChange() {
     topics.value = []
+    loadError.value = ''
     if (courseId.value) loadTopics()
   }
 
@@ -55,6 +61,7 @@ export function useDiscussion() {
   async function loadTopics() {
     if (!courseId.value) return
     topicLoading.value = true
+    loadError.value = ''
     try {
       const params: Record<string, unknown> = { keyword: keyword.value || undefined }
       if (essenceFilter.value !== '') params.essence = essenceFilter.value
@@ -62,6 +69,8 @@ export function useDiscussion() {
       topics.value = pickList<DiscussionTopic>(unwrap(r)).map(normalizeDiscussionTopic)
     } catch (e) {
       logger.error('加载话题列表失败', e)
+      topics.value = []
+      loadError.value = '话题列表加载失败，请检查网络后重试'
     } finally {
       topicLoading.value = false
     }
@@ -214,6 +223,7 @@ export function useDiscussion() {
     courseOptions,
     courseId,
     loading,
+    loadError,
     topicLoading,
     topics,
     keyword,

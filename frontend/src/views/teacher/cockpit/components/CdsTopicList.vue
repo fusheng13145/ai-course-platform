@@ -73,7 +73,7 @@
             <el-icon class="arrow"><ArrowRight /></el-icon>
           </div>
         </div>
-        <el-empty v-else description="暂无讨论话题" />
+        <el-empty v-else :description="emptyText" />
       </div>
     </div>
   </div>
@@ -95,12 +95,15 @@ withDefaults(
     topics?: DiscussionTopic[]
     keyword?: string
     chapterId?: string
+    /** 空态文案（失败时由页面传入「未能加载」文案，默认保留原语义） */
+    emptyText?: string
   }>(),
   {
     loading: false,
     topics: () => [],
     keyword: '',
     chapterId: '',
+    emptyText: '暂无讨论话题',
   },
 )
 const emit = defineEmits<{

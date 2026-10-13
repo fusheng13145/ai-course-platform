@@ -27,6 +27,16 @@
       </el-alert>
 
       <template v-else>
+        <!-- 加载失败提示：见 useTeacherDiscussion.loadError 注释（失败不得渲染成「暂无话题」） -->
+        <el-alert
+          v-if="loadError"
+          :title="loadError"
+          type="error"
+          :closable="false"
+          show-icon
+          style="margin-bottom: var(--ac-spacing-md)"
+        />
+
         <!-- 工具栏 -->
         <div class="toolbar">
           <el-input
@@ -50,7 +60,9 @@
           :topics="topics"
           :topic-loading="topicLoading"
           author-fallback="教师"
-          empty-text="暂无话题，点击「发布话题」"
+          :empty-text="
+            loadError ? '话题列表未能加载，请查看上方提示后重试' : '暂无话题，点击「发布话题」'
+          "
           @open-detail="openDetail"
         />
       </template>
@@ -102,6 +114,7 @@ const courseIdRef = toRef(courseId)
 
 const {
   loading,
+  loadError,
   topicLoading,
   topics,
   keyword,

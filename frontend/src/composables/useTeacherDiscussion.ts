@@ -21,10 +21,17 @@ export function useTeacherDiscussion<T extends number | string | null | undefine
   const topicLoading = ref(false)
   const topics = ref<DiscussionTopic[]>([])
   const keyword = ref('')
+  /**
+   * 加载失败提示文案：非空即表示话题列表数据不可信。
+   * 接口层只记日志不弹窗，失败后列表被置空 → 页面会显示「暂无话题」，
+   * 教师会据此误判班级零讨论，故必须补一条持久提示（失败可见）。
+   */
+  const loadError = ref('')
 
   async function loadTopics() {
     if (!courseIdRef.value) return
     topicLoading.value = true
+    loadError.value = ''
     try {
       const r = await discussionApi.getTopics(courseIdRef.value, {
         keyword: keyword.value || undefined,
@@ -32,6 +39,8 @@ export function useTeacherDiscussion<T extends number | string | null | undefine
       topics.value = pickList<DiscussionTopic>(unwrap(r)).map(normalizeDiscussionTopic)
     } catch (e) {
       logger.error('加载话题列表失败', e)
+      topics.value = []
+      loadError.value = '话题列表加载失败，请检查网络后重试'
     } finally {
       topicLoading.value = false
     }
@@ -180,12 +189,14 @@ export function useTeacherDiscussion<T extends number | string | null | undefine
     () => courseIdRef.value,
     () => {
       topics.value = []
+      loadError.value = ''
       if (courseIdRef.value) loadTopics()
     },
   )
 
   return {
     loading,
+    loadError,
     topicLoading,
     topics,
     keyword,
