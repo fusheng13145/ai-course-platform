@@ -53,6 +53,17 @@
     </div>
 
     <!-- 课程卡片网格 -->
+    <!-- 加载失败提示：接口层已弹 toast，但 toast 会消失，而列表会持久显示"暂无课程"——
+         二者叠加会让用户误判"我确实没有课程"。故此处补一条持久提示 + 空态改文案（与
+         FileUploadManage 的"失败可见"模式同口径）。 -->
+    <el-alert
+      v-if="loadError"
+      class="load-error"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      show-icon
+    />
     <div v-loading="loading" class="courses-grid">
       <template v-if="filteredList.length > 0">
         <TcCourseCard
@@ -67,7 +78,11 @@
       </template>
       <el-empty
         v-if="!loading && filteredList.length === 0"
-        description="暂无课程，点击右上角「创建课程」开始"
+        :description="
+          loadError
+            ? '课程列表未能加载，请查看上方提示后重试'
+            : '暂无课程，点击右上角「创建课程」开始'
+        "
       >
         <template #image><div class="empty-deco">📚</div></template>
       </el-empty>
@@ -87,6 +102,7 @@ import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
+import logger from '@/utils/logger'
 import courseApi from '@/api/course'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
@@ -104,6 +120,8 @@ const search = ref('')
 const statusFilter = ref('')
 const activeFilter = ref('')
 const loading = ref(false)
+/** 加载失败提示文案：非空即表示列表数据不可信（防"失败被当成没有数据"） */
+const loadError = ref('')
 const detailDialogVisible = ref(false)
 const currentCourse = ref(null)
 
@@ -130,11 +148,13 @@ const filteredList = computed(() => {
 
 onMounted(async () => {
   loading.value = true
+  loadError.value = ''
   try {
     courseList.value = await courseApi.getAllMyCourses()
   } catch (e) {
-    console.error('Failed to load courses:', e)
+    logger.error('课程列表加载失败', e)
     courseList.value = []
+    loadError.value = '课程列表加载失败，请检查网络后重试'
   } finally {
     loading.value = false
   }

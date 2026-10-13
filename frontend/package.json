@@ -12,6 +12,7 @@
     "lint": "eslint \"src/**/*.{js,ts,vue}\"",
     "lint:fix": "eslint --fix \"src/**/*.{js,ts,vue}\"",
     "lint:api-refs": "node scripts/check-api-refs.cjs",
+    "size:gate": "node scripts/check-bundle-size.cjs",
     "typecheck": "vue-tsc --noEmit",
     "typecheck:gate": "node scripts/check-types.cjs",
     "test": "vitest run",
