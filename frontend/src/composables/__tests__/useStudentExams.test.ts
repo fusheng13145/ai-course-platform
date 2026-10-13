@@ -384,3 +384,27 @@ describe('useStudentExams - 定时器边界（倒计时与自动保存）', () =
     expect(state.viewMode.value).toBe('exam')
   })
 })
+
+describe('useStudentExams - 列表加载失败可见', () => {
+  it('考试列表请求失败时必须给出持久提示，且不得表现为"暂无考试"', async () => {
+    mocks.getAllExamPapers.mockRejectedValue(new Error('500'))
+    const state = useStudentExams()
+
+    await state.loadExamList()
+
+    expect(state.loadError.value).toBe('考试列表加载失败，请检查网络后重试')
+    expect(state.examList.value).toEqual([])
+    expect(state.listLoading.value).toBe(false)
+  })
+
+  it('阴性对照：加载成功时不得出现失败提示', async () => {
+    mocks.getAllExamPapers.mockResolvedValue([{ id: 1, title: '期中考试' }])
+    mocks.getMyExamSessions.mockResolvedValue({ code: 200, data: [] })
+    const state = useStudentExams()
+
+    await state.loadExamList()
+
+    expect(state.loadError.value).toBe('')
+    expect(state.examList.value).toHaveLength(1)
+  })
+})

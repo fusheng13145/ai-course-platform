@@ -43,6 +43,11 @@ export function useStudentExams() {
   const searchKeyword = ref('')
   const statusFilter = ref('')
   const listLoading = ref(false)
+  /**
+   * 加载失败提示文案：非空即表示考试列表数据不可信。
+   * 失败时列表被置空并显示"暂无考试"，学生易误判为"当前没有可参加的考试"。
+   */
+  const loadError = ref('')
   const examList = ref([])
   /** 课程上下文过滤：非空时仅展示该课程的考试（课程侧边栏/驾驶舱直入） */
   const courseIdFilter = ref(null)
@@ -136,6 +141,7 @@ export function useStudentExams() {
 
   async function loadExamList() {
     listLoading.value = true
+    loadError.value = ''
     try {
       // 课程上下文必须走**服务端**按课程过滤，不能只在已加载的第 1 页里做客户端筛选：
       // GET /exam-papers 是分页接口（默认 page=1、size=10，且本页没有分页控件），
@@ -166,7 +172,9 @@ export function useStudentExams() {
         /* 忽略 */
       }
     } catch (e) {
-      logger.error('加载考试列表失败:', e)
+      logger.error('加载考试列表失败', e)
+      examList.value = []
+      loadError.value = '考试列表加载失败，请检查网络后重试'
     } finally {
       listLoading.value = false
     }
@@ -700,6 +708,7 @@ export function useStudentExams() {
     statusFilter,
     courseIdFilter,
     listLoading,
+    loadError,
     examList,
     currentExamPaper,
     sessionId,

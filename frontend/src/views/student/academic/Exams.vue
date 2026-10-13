@@ -1,5 +1,14 @@
 ﻿<template>
   <div class="fade-in">
+    <!-- 加载失败提示：失败时列表被置空，仅剩"暂无考试"会让学生误判为"当前没有可参加的考试" -->
+    <el-alert
+      v-if="viewMode === 'list' && loadError"
+      class="load-error"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      show-icon
+    />
     <!-- ===== 考试列表视图 ===== -->
     <SeExamList
       v-if="viewMode === 'list'"
@@ -7,6 +16,7 @@
       v-model:status-filter="statusFilter"
       :exams="filteredExams"
       :loading="listLoading"
+      :empty-text="loadError ? '考试列表未能加载，请查看上方提示后重试' : '暂无考试'"
       :total-exams="totalExams"
       :available-exams="availableExams"
       :completed-exams="completedExams"
@@ -79,6 +89,7 @@ const {
   availableExams,
   completedExams,
   currentExamPaper,
+  loadError,
   questions,
   questionsLoading,
   submitting,

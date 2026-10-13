@@ -11,6 +11,16 @@
       </el-button>
     </PageHeader>
 
+    <!-- 加载失败提示：失败时列表被置空，仅剩"暂无学习路径"会让学生误判 -->
+    <el-alert
+      v-if="loadError"
+      class="load-error"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      show-icon
+    />
+
     <div class="stat-grid">
       <StatCard
         label="路径总数"
@@ -101,7 +111,9 @@
 
         <!-- 空状态 -->
         <div v-else class="empty-state">
-          <el-empty description="暂无学习路径">
+          <el-empty
+            :description="loadError ? '学习路径未能加载，请查看上方提示后重试' : '暂无学习路径'"
+          >
             <template #image><div class="empty-deco">🧭</div></template>
             <el-button type="primary" @click="handleGeneratePath">
               <el-icon><MagicStick /></el-icon> AI 为我生成学习路径
@@ -134,6 +146,7 @@ const {
   selectedPathId,
   currentPath,
   generating,
+  loadError,
   completedNodeCount,
   overallProgress,
   overallProgressText,

@@ -104,7 +104,7 @@
           </div>
         </div>
 
-        <el-empty v-if="!loading && exams.length === 0" description="暂无考试" :image-size="120">
+        <el-empty v-if="!loading && exams.length === 0" :description="emptyText" :image-size="120">
           <template #image><div class="empty-deco">📝</div></template>
         </el-empty>
       </div>
@@ -151,6 +151,11 @@ defineProps({
   getExamStatusType: { type: Function, required: true },
   getExamStatusLabel: { type: Function, required: true },
   formatTime: { type: Function, required: true },
+  /**
+   * 空态文案。默认值是"确实没有考试"的语义；调用方在**加载失败**时应传入
+   * 失败文案，避免把"取不到数据"渲染成"暂无考试"。
+   */
+  emptyText: { type: String, default: '暂无考试' },
 })
 
 const emit = defineEmits(['update:keyword', 'update:status-filter', 'enter'])
