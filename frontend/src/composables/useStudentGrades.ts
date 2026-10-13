@@ -1,4 +1,5 @@
 import { ref, computed } from 'vue'
+import logger from '@/utils/logger'
 import examApi from '@/api/exam'
 import courseApi from '@/api/course'
 import { pickList } from '@/utils/response'
@@ -10,6 +11,11 @@ export function useStudentGrades() {
   /* ---- 数据状态 ---- */
   const loading = ref(false)
   const list = ref([])
+  /**
+   * 加载失败提示文案：非空即表示成绩数据不可信。
+   * 失败时列表被置空并显示"暂无成绩"，学生易误判为"我还没考过试"。
+   */
+  const loadError = ref('')
   const showTable = ref(false)
   const courseMap = ref({} as Record<string, string>)
   const examMap = ref({} as Record<string, { title: string; courseId: string; totalScore: number }>)
@@ -89,6 +95,7 @@ export function useStudentGrades() {
   /* ---- 加载数据 ---- */
   async function loadData(courseId = null) {
     loading.value = true
+    loadError.value = ''
     try {
       const [courses, examRes, sessionRes] = await Promise.all([
         courseApi.getAllCourses(),
@@ -144,7 +151,9 @@ export function useStudentGrades() {
         list.value = list.value.filter((x) => String(x.courseId) === String(courseId))
       }
     } catch (e) {
-      console.error('加载成绩失败:', e)
+      logger.error('加载成绩失败', e)
+      list.value = []
+      loadError.value = '成绩数据加载失败，请检查网络后重试'
     } finally {
       loading.value = false
     }
@@ -152,6 +161,7 @@ export function useStudentGrades() {
 
   return {
     loading,
+    loadError,
     list,
     showTable,
     avgScore,

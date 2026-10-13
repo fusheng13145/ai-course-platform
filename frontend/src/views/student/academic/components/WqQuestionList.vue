@@ -63,11 +63,7 @@
       </div>
     </transition-group>
 
-    <el-empty
-      v-if="!loading && questions.length === 0"
-      description="暂无错题记录，继续保持！"
-      :image-size="100"
-    >
+    <el-empty v-if="!loading && questions.length === 0" :description="emptyText" :image-size="100">
       <template #image><div class="empty-deco">📕</div></template>
     </el-empty>
   </div>
@@ -96,6 +92,11 @@ defineProps({
   loading: { type: Boolean, default: false },
   questions: { type: Array as PropType<WrongQuestionRow[]>, default: () => [] },
   expandedId: { type: [Number, String], default: null },
+  /**
+   * 空态文案。默认值是"确实没有错题"的语义；调用方在**加载失败**时应传入
+   * 失败文案，避免把"取不到数据"渲染成"没有错题"。
+   */
+  emptyText: { type: String, default: '暂无错题记录，继续保持！' },
 })
 defineEmits(['toggle', 'mark', 'unmark', 'practice', 'related'])
 </script>

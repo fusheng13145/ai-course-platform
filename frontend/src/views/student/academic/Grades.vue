@@ -53,6 +53,15 @@
         </div>
       </div>
       <div class="l1-body">
+        <!-- 加载失败提示：失败时列表被置空，仅剩"暂无成绩"会让学生误判为"我还没考过试" -->
+        <el-alert
+          v-if="loadError"
+          class="load-error"
+          :title="loadError"
+          type="error"
+          :closable="false"
+          show-icon
+        />
         <SgChartsPanel :loading="loading" :grouped-by-course="groupedByCourse" :list="list" />
         <SgCourseGrades
           v-model:show-table="showTable"
@@ -74,7 +83,7 @@ import SgChartsPanel from './components/SgChartsPanel.vue'
 import SgCourseGrades from './components/SgCourseGrades.vue'
 import { useStudentGrades } from '@/composables/useStudentGrades'
 
-const { loading, list, showTable, avgScore, rankDisplay, groupedByCourse, loadData } =
+const { loading, loadError, list, showTable, avgScore, rankDisplay, groupedByCourse, loadData } =
   useStudentGrades()
 
 const route = useRoute()

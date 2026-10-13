@@ -68,10 +68,22 @@
           v-model:selected-kp-id="selectedKpId"
           :knowledge-point-tags="knowledgePointTags"
         />
+        <!-- 加载失败提示：见 useWrongQuestions.loadError 注释（失败不得渲染成"没有错题"） -->
+        <el-alert
+          v-if="loadError"
+          class="load-error"
+          :title="loadError"
+          type="error"
+          :closable="false"
+          show-icon
+        />
         <WqQuestionList
           :loading="loading"
           :questions="filteredQuestions"
           :expanded-id="expandedId"
+          :empty-text="
+            loadError ? '错题列表未能加载，请查看上方提示后重试' : '暂无错题记录，继续保持！'
+          "
           @toggle="toggleExpand"
           @mark="markMastered"
           @unmark="unmarkMastered"
@@ -93,6 +105,7 @@ import { useWrongQuestions } from '@/composables/useWrongQuestions'
 
 const {
   loading,
+  loadError,
   stats,
   expandedId,
   selectedKpId,
