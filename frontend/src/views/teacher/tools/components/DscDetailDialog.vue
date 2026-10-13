@@ -40,8 +40,13 @@
         </div>
         <p class="pi-content">{{ p.content }}</p>
         <div class="pi-foot">
-          <el-button text size="small" @click="$emit('like', p)">
-            <el-icon><Pointer /></el-icon>赞 {{ p.likeCount || 0 }}
+          <el-button
+            text
+            size="small"
+            :type="p.liked ? 'primary' : 'default'"
+            @click="$emit('like', p)"
+          >
+            <el-icon><Pointer /></el-icon>{{ p.liked ? '已赞' : '赞' }} {{ p.likeCount || 0 }}
           </el-button>
           <el-button text size="small" type="danger" @click="$emit('remove-post', p)"
             >删除</el-button
@@ -70,23 +75,33 @@
 <script setup lang="ts">
 import { Top, SwitchButton, Pointer } from '@element-plus/icons-vue'
 
-defineProps({
-  modelValue: { type: Boolean, default: false },
-  currentTopic: { type: Object, default: null },
-  posts: { type: Array, default: () => [] },
-  postLoading: { type: Boolean, default: false },
-  replyText: { type: String, default: '' },
-  replySubmitting: { type: Boolean, default: false },
-})
-defineEmits([
-  'update:modelValue',
-  'update:replyText',
-  'toggle-pin',
-  'close-topic',
-  'like',
-  'remove-post',
-  'submit-reply',
-])
+withDefaults(
+  defineProps<{
+    modelValue?: boolean
+    currentTopic?: DiscussionTopic | null
+    posts?: DiscussionPost[]
+    postLoading?: boolean
+    replyText?: string
+    replySubmitting?: boolean
+  }>(),
+  {
+    modelValue: false,
+    currentTopic: null,
+    posts: () => [],
+    postLoading: false,
+    replyText: '',
+    replySubmitting: false,
+  },
+)
+defineEmits<{
+  'update:modelValue': [value: boolean]
+  'update:replyText': [value: string]
+  'toggle-pin': []
+  'close-topic': []
+  like: [post: DiscussionPost]
+  'remove-post': [post: DiscussionPost]
+  'submit-reply': []
+}>()
 </script>
 
 <style scoped>

@@ -43,12 +43,12 @@ type AssistantInternal = {
 const assistantVm = (wrapper: { vm: unknown }) => wrapper.vm as unknown as AssistantInternal
 
 // ---- 模块级 mock：导出与真实 @/api/ai 完全一致（qaAsk/qaStream/getSessions/...）----
-const { mockQaAsk, mockGetSessions, mockQaStream, mockGetCourseList, mockQuestionRecommendations } =
+const { mockQaAsk, mockGetSessions, mockQaStream, mockGetAllCourses, mockQuestionRecommendations } =
   vi.hoisted(() => ({
     mockQaAsk: vi.fn(),
     mockGetSessions: vi.fn(),
     mockQaStream: vi.fn(),
-    mockGetCourseList: vi.fn(),
+    mockGetAllCourses: vi.fn(),
     mockQuestionRecommendations: vi.fn(),
   }))
 
@@ -69,7 +69,7 @@ vi.mock('@/api/ai', () => ({
 }))
 
 vi.mock('@/api/course', () => ({
-  default: { getCourseList: mockGetCourseList },
+  default: { getAllCourses: mockGetAllCourses },
 }))
 
 // 组件仅从 element-plus 导入 ElMessage，el-* 组件由下方 mount stubs 提供
@@ -147,7 +147,7 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 describe('AI 学习助手问答流程（挂载真实组件）', () => {
   beforeEach(async () => {
     vi.clearAllMocks()
-    mockGetCourseList.mockResolvedValue({ data: { list: [] } })
+    mockGetAllCourses.mockResolvedValue([])
     mockGetSessions.mockResolvedValue({ data: { list: [] } })
     // 动态导入，避免 vi.mock 提升导致的 TDZ 问题
     const mod = await import('../AIAssistant.vue')
@@ -380,15 +380,15 @@ describe('AI 学习助手问答流程（挂载真实组件）', () => {
     wrapper.unmount()
   })
 
-  it('课程列表最多展示前 10 门', async () => {
-    mockGetCourseList.mockResolvedValue({
-      data: { list: Array.from({ length: 15 }, (_, i) => ({ id: i + 1, name: `课程${i + 1}` })) },
-    })
+  it('课程列表不会在前 10 门处被静默截断', async () => {
+    mockGetAllCourses.mockResolvedValue(
+      Array.from({ length: 15 }, (_, i) => ({ id: i + 1, name: `课程${i + 1}` })),
+    )
 
     const wrapper = mountAssistant()
     await flushPromises()
 
-    expect(assistantVm(wrapper).courseList).toHaveLength(10)
+    expect(assistantVm(wrapper).courseList).toHaveLength(15)
     expect(assistantVm(wrapper).courseList[0].name).toBe('课程1')
     wrapper.unmount()
   })

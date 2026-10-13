@@ -37,32 +37,16 @@
           <span v-else>--</span>
         </template>
       </el-table-column>
-      <el-table-column prop="submitTime" label="最后提交" width="160" />
-      <el-table-column label="操作" width="180" fixed="right">
+      <el-table-column prop="courseName" label="课程" min-width="130" show-overflow-tooltip />
+      <el-table-column label="操作" width="90" fixed="right">
         <template #default="{ row }">
           <el-button text type="primary" size="small" @click.stop="$emit('detail', row)"
             >详情</el-button
           >
-          <el-button
-            v-if="row.needsGrading"
-            text
-            type="warning"
-            size="small"
-            @click.stop="$emit('grade', row)"
-            >批阅</el-button
-          >
-          <el-button
-            v-if="row.needsGrading"
-            text
-            type="success"
-            size="small"
-            @click.stop="$emit('ai-grade', row)"
-            >AI评分</el-button
-          >
         </template>
       </el-table-column>
     </el-table>
-    <el-empty v-if="!loading && gradeList.length === 0" description="暂无成绩数据">
+    <el-empty v-if="!loading && gradeList.length === 0" :description="emptyDescription">
       <template #image><div class="empty-deco">📊</div></template>
     </el-empty>
   </div>
@@ -73,7 +57,7 @@ import { monoScore } from '@/utils/chartTheme'
 
 /**
  * 教师成绩表格
- * <p>成绩明细表（作业/考试/总评/等级/提交时间）与行级操作（详情/批阅/AI评分）。</p>
+ * <p>显示课程学情分均分与成绩方案总评；具体作业批阅入口位于待批阅任务。</p>
  */
 defineProps({
   /** 加载态 */
@@ -82,9 +66,11 @@ defineProps({
   gradeList: { type: Array, required: true },
   /** 等级 → 标签色映射函数 */
   getGradeTagType: { type: Function, required: true },
+  /** 无结果时的说明，区分空课程与搜索无匹配 */
+  emptyDescription: { type: String, default: '暂无成绩数据' },
 })
 
-defineEmits(['detail', 'grade', 'ai-grade'])
+defineEmits(['detail'])
 </script>
 
 <style scoped>

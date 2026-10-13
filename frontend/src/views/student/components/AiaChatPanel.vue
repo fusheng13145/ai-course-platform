@@ -134,7 +134,6 @@
           resize="none"
           @update:model-value="emit('update:input', $event)"
           @keydown.enter.exact.prevent="emit('send')"
-          @keydown.enter.shift.exact="emit('newline')"
         />
         <el-button
           type="primary"
@@ -194,7 +193,6 @@ const emit = defineEmits([
   'quick-question',
   'quick-send',
   'send',
-  'newline',
   'speak',
   'copy',
   'regenerate',

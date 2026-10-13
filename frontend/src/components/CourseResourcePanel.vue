@@ -275,7 +275,7 @@ async function toggleVisibility(row) {
 
 async function deleteResource(row) {
   try {
-    await ElMessageBox.confirm('确定删除该资源？', '提示', { type: 'warning' })
+    await ElMessageBox.confirm('确定删除该资源？此操作不可恢复。', '提示', { type: 'warning' })
     await resourceApi.deleteResource(row.id)
     resources.value = resources.value.filter((r) => r.id !== row.id)
     ElMessage.success('删除成功')

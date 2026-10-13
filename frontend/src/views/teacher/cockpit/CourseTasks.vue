@@ -155,7 +155,6 @@
 
 <script setup lang="ts">
 import logger from '@/utils/logger'
-import { unwrap } from '@/utils/response'
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
@@ -164,7 +163,7 @@ import PageHeader from '@/components/PageHeader.vue'
 import { Plus, Edit, Delete, Calendar } from '@element-plus/icons-vue'
 
 const route = useRoute()
-const courseId = route.params.id
+const courseId = computed(() => Number(route.params.id))
 
 const loading = ref(false)
 const saving = ref(false)
@@ -204,9 +203,7 @@ function taskTypeTag(type) {
 async function load() {
   loading.value = true
   try {
-    const r = await taskApi.getTaskList({ courseId })
-    const body = unwrap(r)
-    tasks.value = body?.records || body?.list || body || []
+    tasks.value = await taskApi.getAllTasks({ courseId: courseId.value })
     if (page.value > 1 && (page.value - 1) * size.value >= tasks.value.length) page.value = 1
   } catch (e) {
     logger.error('加载任务列表失败', e)
@@ -247,7 +244,7 @@ async function save() {
   saving.value = true
   try {
     const payload = {
-      courseId,
+      courseId: courseId.value,
       title: form.title.trim(),
       taskType: form.taskType,
       description: form.description,

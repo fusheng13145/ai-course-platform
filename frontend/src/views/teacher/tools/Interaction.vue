@@ -92,7 +92,6 @@
 
 <script setup lang="ts">
 import logger from '@/utils/logger'
-import { unwrap } from '@/utils/response'
 import { ref, onMounted, toRef } from 'vue'
 import { ChatLineSquare } from '@element-plus/icons-vue'
 import courseApi from '@/api/course'
@@ -151,10 +150,7 @@ const {
 async function loadCourses() {
   courseLoading.value = true
   try {
-    const r = await courseApi.getMyCourses()
-    const body = unwrap(r)
-    const list = body?.records || body?.list || body || []
-    courseOptions.value = Array.isArray(list) ? list : []
+    courseOptions.value = await courseApi.getAllMyCourses()
     if (courseOptions.value.length && !courseId.value) courseId.value = courseOptions.value[0].id
   } catch (e) {
     logger.error('加载课程列表失败', e)

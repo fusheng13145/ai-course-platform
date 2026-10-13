@@ -113,9 +113,27 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { Search, Collection, Document, Timer, List } from '@element-plus/icons-vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
+
+/** 考试卡片行（duration/timeLimit 等字段名存在历史分叉，故均可选） */
+interface ExamCardRow {
+  id?: number | string
+  type?: string
+  title?: string
+  courseName?: string
+  totalScore?: number
+  duration?: number
+  timeLimit?: number
+  questionCount?: number
+  description?: string
+  startTime?: string
+  endTime?: string
+  completed?: boolean
+  status?: string
+}
 
 /**
  * 学生考试列表视图
@@ -123,7 +141,7 @@ import StatCard from '@/components/ui/StatCard.vue'
  * 全部状态经 props 注入，交互经事件上抛父组件（useStudentExams）。</p>
  */
 defineProps({
-  exams: { type: Array, default: () => [] },
+  exams: { type: Array as PropType<ExamCardRow[]>, default: () => [] },
   loading: { type: Boolean, default: false },
   keyword: { type: String, default: '' },
   statusFilter: { type: String, default: '' },

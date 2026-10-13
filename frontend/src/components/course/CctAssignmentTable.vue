@@ -16,13 +16,14 @@
       </el-table-column>
       <el-table-column label="已提交/应提交" width="130" align="center">
         <template #default="{ row }">
-          <span class="ratio">{{ row.submittedCount }} / {{ row.totalStudents }}</span>
+          <span class="ratio">{{ row.submittedCount }} / {{ row.totalStudents ?? '—' }}</span>
         </template>
       </el-table-column>
       <el-table-column label="提交率" width="150">
         <template #default="{ row }">
           <div class="completion-cell">
             <el-progress
+              v-if="row.submissionRate != null"
               :percentage="row.submissionRate"
               :stroke-width="7"
               :show-text="false"
@@ -30,14 +31,14 @@
               :color="getRateColor(row.submissionRate)"
               :status="row.submissionRate === 100 ? 'success' : undefined"
             />
-            <span class="completion-text">{{ row.submissionRate }}%</span>
+            <span class="completion-text">{{ row.submissionRate == null ? '—' : `${row.submissionRate}%` }}</span>
           </div>
         </template>
       </el-table-column>
       <el-table-column label="未提交" width="80" align="center">
         <template #default="{ row }">
           <span class="pending-count" :class="{ 'zero-pending': row.unsubmittedCount === 0 }">
-            {{ row.unsubmittedCount }}
+            {{ row.unsubmittedCount ?? '—' }}
           </span>
         </template>
       </el-table-column>
@@ -48,7 +49,7 @@
       </el-table-column>
       <el-table-column label="平均分" width="90" align="center">
         <template #default="{ row }">
-          <span class="avg-score">{{ row.avgScore }}</span>
+          <span class="avg-score">{{ row.avgScore ?? '—' }}</span>
         </template>
       </el-table-column>
       <el-table-column label="截止时间" width="155">

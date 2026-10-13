@@ -159,8 +159,7 @@ async function loadDocs() {
 
 async function loadCourses() {
   try {
-    const res = await courseApi.getCourseList()
-    courses.value = res?.data?.data || res?.data || []
+    courses.value = await courseApi.getAllCourses()
   } catch {
     courses.value = []
   }

@@ -22,6 +22,7 @@
       :paper="currentExamPaper"
       :questions="questions"
       :questions-loading="questionsLoading"
+      :submitting="submitting"
       :current-index="currentIndex"
       :current-question="currentQuestion"
       :answers="answers"
@@ -80,6 +81,7 @@ const {
   currentExamPaper,
   questions,
   questionsLoading,
+  submitting,
   currentIndex,
   currentQuestion,
   answers,

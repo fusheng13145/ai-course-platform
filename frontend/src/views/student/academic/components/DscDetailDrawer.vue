@@ -43,8 +43,13 @@
         </div>
         <p class="pi-content">{{ p.content }}</p>
         <div class="pi-foot">
-          <el-button text size="small" @click="$emit('like', p)">
-            <el-icon><Pointer /></el-icon>赞 {{ p.likeCount || 0 }}
+          <el-button
+            text
+            size="small"
+            :type="p.liked ? 'primary' : 'default'"
+            @click="$emit('like', p)"
+          >
+            <el-icon><Pointer /></el-icon>{{ p.liked ? '已赞' : '赞' }} {{ p.likeCount || 0 }}
           </el-button>
           <el-button v-if="canDelete(p)" text size="small" type="danger" @click="$emit('remove', p)"
             >删除</el-button
@@ -113,37 +118,49 @@ import { Star, User, Bell, Pointer } from '@element-plus/icons-vue'
  * 话题详情抽屉
  * <p>话题头（精华/置顶/状态）+ 回复列表（点赞/删除/楼层）+ 回复框（@提及）。</p>
  */
-defineProps({
-  /** 抽屉显隐（v-model） */
-  modelValue: { type: Boolean, default: false },
-  /** 当前话题 */
-  currentTopic: { type: Object, default: null },
-  /** 回复列表 */
-  posts: { type: Array, required: true },
-  /** 回复加载态 */
-  postLoading: { type: Boolean, default: false },
-  /** @提及选中（v-model 数组） */
-  mentionIds: { type: Array, default: () => [] },
-  /** 可@提及的参与者选项 */
-  participantOptions: { type: Array, default: () => [] },
-  /** 回复文本（v-model） */
-  replyText: { type: String, default: '' },
-  /** 回复提交加载态 */
-  replySubmitting: { type: Boolean, default: false },
-  /** 当前用户 id（禁选自己） */
-  myUserId: { type: [String, Number], default: null },
-  /** 是否可删除该回复 */
-  canDelete: { type: Function, required: true },
-})
+withDefaults(
+  defineProps<{
+    /** 抽屉显隐（v-model） */
+    modelValue?: boolean
+    /** 当前话题 */
+    currentTopic?: DiscussionTopic | null
+    /** 回复列表 */
+    posts: DiscussionPost[]
+    /** 回复加载态 */
+    postLoading?: boolean
+    /** @提及选中（v-model 数组） */
+    mentionIds?: Array<number | string>
+    /** 可@提及的参与者选项 */
+    participantOptions?: Array<{ id: number | string; name: string }>
+    /** 回复文本（v-model） */
+    replyText?: string
+    /** 回复提交加载态 */
+    replySubmitting?: boolean
+    /** 当前用户 id（禁选自己） */
+    myUserId?: number | string | null
+    /** 是否可删除该回复 */
+    canDelete: (post: DiscussionPost) => boolean
+  }>(),
+  {
+    modelValue: false,
+    currentTopic: null,
+    postLoading: false,
+    mentionIds: () => [],
+    participantOptions: () => [],
+    replyText: '',
+    replySubmitting: false,
+    myUserId: null,
+  },
+)
 
-defineEmits([
-  'update:modelValue',
-  'update:mentionIds',
-  'update:replyText',
-  'like',
-  'remove',
-  'submit-reply',
-])
+defineEmits<{
+  'update:modelValue': [value: boolean]
+  'update:mentionIds': [value: Array<number | string>]
+  'update:replyText': [value: string]
+  like: [post: DiscussionPost]
+  remove: [post: DiscussionPost]
+  'submit-reply': []
+}>()
 </script>
 
 <style scoped>

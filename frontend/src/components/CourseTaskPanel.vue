@@ -281,7 +281,9 @@ async function publishTask(row) {
 
 async function closeTask(row) {
   try {
-    await ElMessageBox.confirm('确定截止该作业？', '提示', { type: 'warning' })
+    await ElMessageBox.confirm('确定截止该作业？截止后学生将无法再提交。', '提示', {
+      type: 'warning',
+    })
     row.status = 'CLOSED'
     await taskApi.updateTask(row.id, { status: 'CLOSED' })
     ElMessage.success('已截止')
@@ -293,7 +295,7 @@ async function closeTask(row) {
 
 async function deleteTask(row) {
   try {
-    await ElMessageBox.confirm('确定删除该作业？', '提示', { type: 'warning' })
+    await ElMessageBox.confirm('确定删除该作业？此操作不可恢复。', '提示', { type: 'warning' })
     await taskApi.deleteTask(row.id)
     tasks.value = tasks.value.filter((t) => t.id !== row.id)
     ElMessage.success('删除成功')

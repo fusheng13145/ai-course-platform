@@ -5,8 +5,14 @@
       <div class="l1-head">
         <div class="l1-title">成绩分布</div>
       </div>
-      <div class="l1-body">
-        <v-chart :option="distributionOption" class="dist-chart" autoresize />
+      <div v-loading="loading" class="l1-body">
+        <v-chart
+          v-if="hasDistribution"
+          :option="distributionOption"
+          class="dist-chart"
+          autoresize
+        />
+        <el-empty v-else-if="!loading" description="暂无可统计的总评成绩" :image-size="60" />
       </div>
     </div>
 
@@ -17,23 +23,46 @@
       </div>
       <div class="l1-body">
         <div v-if="pendingTasks.length > 0" class="pending-list">
-          <div
-            v-for="task in pendingTasks.slice(0, 5)"
+          <button
+            v-for="task in pendingTasks"
             :key="task.id"
+            type="button"
             class="pending-item"
             @click="$emit('go-grading', task)"
           >
             <span class="pending-name">{{ task.taskName || task.title || '未命名任务' }}</span>
-            <el-tag type="warning" size="small">{{ task.pendingCount || 0 }}份</el-tag>
-          </div>
+            <el-tag type="warning" size="small">
+              {{ task.pendingCount == null ? '待批阅' : `${task.pendingCount}份` }}
+            </el-tag>
+          </button>
         </div>
-        <el-empty v-else description="暂无待批阅任务" :image-size="60" />
+        <el-empty
+          v-else
+          :description="
+            loading
+              ? '正在加载待批阅任务'
+              : pendingUnavailable
+                ? '待批阅数据暂不可用'
+                : '暂无待批阅任务'
+          "
+          :image-size="60"
+        />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
+
+/** 待批阅任务行（taskName/title 存在历史分叉，故均可选） */
+interface PendingTaskRow {
+  id?: number | string
+  taskName?: string
+  title?: string
+  pendingCount?: number | null
+}
+
 /**
  * 教师成绩分布面板
  * <p>分数段柱状分布图 + 待批阅任务快捷入口列表。</p>
@@ -41,8 +70,11 @@
 defineProps({
   /** ECharts 分布图配置（由 composable 构建并更新） */
   distributionOption: { type: Object, required: true },
+  hasDistribution: { type: Boolean, default: false },
+  loading: { type: Boolean, default: false },
+  pendingUnavailable: { type: Boolean, default: false },
   /** 待批阅任务列表 */
-  pendingTasks: { type: Array, required: true },
+  pendingTasks: { type: Array as PropType<PendingTaskRow[]>, required: true },
 })
 
 defineEmits(['go-grading'])
@@ -63,6 +95,9 @@ defineEmits(['go-grading'])
   display: flex;
   flex-direction: column;
   gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+  padding-right: 4px;
 }
 
 .pending-item {
@@ -75,6 +110,12 @@ defineEmits(['go-grading'])
   cursor: pointer;
   transition: all var(--ac-transition-fast);
   border-left: 3px solid transparent;
+  border-top: 0;
+  border-right: 0;
+  border-bottom: 0;
+  width: 100%;
+  text-align: left;
+  font: inherit;
 }
 
 .pending-item:hover {

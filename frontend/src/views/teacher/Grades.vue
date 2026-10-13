@@ -2,14 +2,29 @@
   <div class="fade-in">
     <PageHeader
       title="成绩管理"
-      subtitle="查看与导出学生成绩，支持 AI 评分与批阅"
+      subtitle="查看课程学情与正式总评；作业批阅按具体任务进入提交记录"
       icon="chart"
       icon-bg="accent"
     >
-      <el-button type="success" plain :disabled="gradeList.length === 0" @click="handleExport">
+      <el-button
+        type="success"
+        plain
+        :disabled="filteredGradeList.length === 0"
+        @click="handleExport"
+      >
         <el-icon><Download /></el-icon>导出成绩
       </el-button>
+      <el-button :loading="loading" @click="refresh">刷新</el-button>
     </PageHeader>
+
+    <el-alert
+      v-if="loadNotice"
+      class="load-notice"
+      :title="loadNotice"
+      type="warning"
+      :closable="false"
+      show-icon
+    />
 
     <div class="stat-grid">
       <StatCard
@@ -34,8 +49,8 @@
         tone-color="var(--info)"
       />
       <StatCard
-        label="待批阅"
-        :value="overview.pendingCount ?? 0"
+        label="待批阅任务"
+        :value="overview.pendingCount ?? '--'"
         icon="edit"
         tone="var(--warn-soft)"
         tone-color="var(--warn)"
@@ -58,12 +73,10 @@
       <div class="toolbar-right">
         <el-input
           v-model="searchText"
-          placeholder="搜索学号/姓名..."
+          placeholder="搜索学号/姓名/课程..."
           clearable
           class="search-input"
           :prefix-icon="Search"
-          @clear="handleSearch"
-          @keyup.enter="handleSearch"
         />
       </div>
     </div>
@@ -97,16 +110,18 @@
               :loading="loading"
               :grade-list="filteredGradeList"
               :get-grade-tag-type="getGradeTagType"
+              :empty-description="searchText.trim() ? '没有匹配的学生' : '暂无可显示的学生成绩'"
               @detail="viewStudentDetail"
-              @grade="openGradeDialog"
-              @ai-grade="aiGrade"
             />
           </div>
 
           <!-- 成绩分布 + 待批阅 -->
           <TgDistributionPanel
             :distribution-option="distributionOption"
+            :has-distribution="hasDistribution"
+            :loading="loading"
             :pending-tasks="pendingTasks"
+            :pending-unavailable="pendingUnavailable"
             @go-grading="goToGrading"
           />
         </div>
@@ -118,18 +133,6 @@
       v-model="detailDialogVisible"
       :current-student="currentStudent"
       :selected-course-name="selectedCourseName"
-      detailed
-    />
-
-    <!-- 批阅对话框 -->
-    <CgtGradeDialog
-      v-model="gradeDialogVisible"
-      :grading-student="gradingStudent"
-      :grade-form="gradeForm"
-      :grading-loading="gradingLoading"
-      show-task
-      :current-task-name="currentTaskName"
-      @submit="submitGrade"
     />
   </div>
 </template>
@@ -142,7 +145,6 @@ import { useTeacherGrades } from '@/composables/useTeacherGrades'
 import TgGradeTable from './components/TgGradeTable.vue'
 import TgDistributionPanel from './components/TgDistributionPanel.vue'
 import CgtDetailDialog from '@/components/course/CgtDetailDialog.vue'
-import CgtGradeDialog from '@/components/course/CgtGradeDialog.vue'
 
 /**
  * 教师成绩管理页（页面壳）
@@ -155,24 +157,18 @@ const {
   courseList,
   selectedCourseName,
   overview,
-  gradeList,
+  loadNotice,
   pendingTasks,
+  pendingUnavailable,
   detailDialogVisible,
   currentStudent,
-  gradeDialogVisible,
-  gradingStudent,
-  currentTaskName,
-  gradingLoading,
-  gradeForm,
   filteredGradeList,
   distributionOption,
+  hasDistribution,
+  refresh,
   loadGradeData,
-  handleSearch,
   handleExport,
   viewStudentDetail,
-  openGradeDialog,
-  aiGrade,
-  submitGrade,
   goToGrading,
   getGradeTagType,
 } = useTeacherGrades()
@@ -182,6 +178,10 @@ const {
 .l1-ico--accent {
   background: var(--accent-soft);
   color: var(--accent);
+}
+
+.load-notice {
+  margin-bottom: var(--ac-spacing-md);
 }
 
 .main-content-grid {

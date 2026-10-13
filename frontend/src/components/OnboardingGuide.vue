@@ -55,7 +55,8 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
  * 背景：原规划采用 driver.js 集成 3-5 步引导（见 docs/软件产品路线图.md D5），
  * 受离线依赖安装限制，本组件以原生 Vue + CSS 实现等价能力：
  * - 支持按 CSS 选择器高亮目标元素并定位气泡（fallback 居中卡片）；
- * - 首次登录自动触发，跳过/完成即写入 localStorage，不再重复打扰；
+ * - 首次进入自动触发，跳过/完成即写入 localStorage，不再自动重复打扰；
+ * - 宿主可经组件 ref 调用暴露的 show() 重新唤起（AppShell 用户菜单「新手引导」）；
  * - 三端共用（挂载于 AppShell.vue，admin/teacher/student 均生效）。
  *
  * 未来如需替换为 driver.js：仅需在本组件内换用 driver.js API，对外接口不变。
@@ -89,7 +90,7 @@ const steps = [
   {
     icon: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 6 9 17l-5-5"/></svg>',
     title: '准备就绪',
-    desc: '以上就是核心功能概览。探索过程中如有疑问，可在个人中心查看帮助与反馈入口。祝学习愉快！',
+    desc: '以上就是核心功能概览。随时可在左下角用户菜单里点「新手引导」重新查看本指引。祝学习愉快！',
   },
 ]
 
@@ -140,6 +141,9 @@ function hide() {
   visible.value = false
 }
 
+/** 供外部主动唤起（AppShell 用户菜单「新手引导」）：总是回到第 1 步 */
+defineExpose({ show })
+
 function skip() {
   try {
     localStorage.setItem(STORAGE_KEY, '1')
@@ -182,7 +186,10 @@ function onKeydown(e) {
 }
 
 onMounted(() => {
-  // 首次进入触发；已完成后不再打扰
+  // 监听器无条件注册：已跳过的用户经菜单重开时同样需要 Esc/←/→ 与 resize 定位
+  window.addEventListener('resize', locate)
+  window.addEventListener('keydown', onKeydown)
+  // 首次进入触发；已完成后不再自动打扰
   try {
     if (localStorage.getItem(STORAGE_KEY) === '1') return
   } catch {
@@ -190,8 +197,6 @@ onMounted(() => {
   }
   // 等待首屏渲染稳定后再弹出（避免定位到未布局完成的目标）
   window.setTimeout(show, 600)
-  window.addEventListener('resize', locate)
-  window.addEventListener('keydown', onKeydown)
 })
 
 onUnmounted(() => {

@@ -14,26 +14,57 @@
         <el-descriptions-item label="姓名">{{
           currentStudent.studentName || '-'
         }}</el-descriptions-item>
-        <el-descriptions-item v-if="detailed" label="课程">{{
+        <el-descriptions-item v-if="detailed || currentStudent.courseName || selectedCourseName" label="课程">{{
           currentStudent.courseName || selectedCourseName
         }}</el-descriptions-item>
         <el-descriptions-item label="总评">
-          <span class="score-big">{{ currentStudent.totalScore || '--' }}</span>
+          <span class="score-big">{{ currentStudent.totalScore ?? '--' }}</span>
         </el-descriptions-item>
       </el-descriptions>
+
+      <el-alert
+        v-if="currentStudent.warnings?.length"
+        class="grade-warnings"
+        :title="currentStudent.warnings.join('；')"
+        type="warning"
+        :closable="false"
+        show-icon
+      />
 
       <div class="detail-block">
         <h4 v-if="detailed" class="detail-h4">各项明细</h4>
         <el-table :data="currentStudent.details || []" size="small" style="width: 100%">
-          <el-table-column prop="taskName" label="任务/考试" />
+          <el-table-column prop="taskName" label="成绩项" />
           <el-table-column prop="type" label="类型" width="80" align="center">
             <template #default="{ row }">
-              <el-tag size="small" :type="row.type === 'exam' ? 'danger' : 'info'">{{
-                row.type === 'exam' ? '考试' : '作业'
-              }}</el-tag>
+              <el-tag
+                size="small"
+                :type="
+                  row.type === 'exam' ? 'danger' : row.type === 'component' ? 'primary' : 'info'
+                "
+                >{{
+                  row.type === 'exam' ? '考试' : row.type === 'component' ? '构成项' : '作业'
+                }}</el-tag
+              >
             </template>
           </el-table-column>
-          <el-table-column prop="score" label="得分" width="70" align="center" />
+          <el-table-column label="得分" width="70" align="center">
+            <template #default="{ row }">{{ row.score ?? '--' }}</template>
+          </el-table-column>
+          <el-table-column v-if="!detailed" prop="weight" label="权重" width="70" align="center">
+            <template #default="{ row }">{{
+              row.weight == null ? '--' : `${row.weight}%`
+            }}</template>
+          </el-table-column>
+          <el-table-column
+            v-if="!detailed"
+            prop="contribution"
+            label="贡献"
+            width="70"
+            align="center"
+          >
+            <template #default="{ row }">{{ row.contribution ?? '--' }}</template>
+          </el-table-column>
           <el-table-column
             v-if="detailed"
             prop="fullScore"
@@ -43,16 +74,34 @@
           />
           <el-table-column prop="status" label="状态" width="80" align="center">
             <template #default="{ row }">
-              <el-tag size="small" :type="row.status === 'graded' ? 'success' : 'warning'">{{
-                row.status === 'graded' ? '已批阅' : '待批阅'
-              }}</el-tag>
+              <el-tag
+                size="small"
+                :type="
+                  row.type === 'component'
+                    ? row.graded
+                      ? 'success'
+                      : 'warning'
+                    : row.status === 'graded'
+                      ? 'success'
+                      : 'warning'
+                "
+                >{{
+                  row.type === 'component'
+                    ? row.graded
+                      ? '已评分'
+                      : '未评分/未计入'
+                    : row.status === 'graded'
+                      ? '已批阅'
+                      : '待批阅'
+                }}</el-tag
+              >
             </template>
           </el-table-column>
           <el-table-column v-if="detailed" prop="submitTime" label="提交时间" />
         </el-table>
         <el-empty
-          v-if="detailed && !currentStudent.details?.length"
-          description="暂无明细数据"
+          v-if="!currentStudent.details?.length"
+          description="暂无成绩构成明细"
           :image-size="50"
         />
       </div>
@@ -89,6 +138,9 @@ defineEmits(['update:modelValue'])
 
 .detail-block {
   margin-top: 16px;
+}
+.grade-warnings {
+  margin-top: 12px;
 }
 
 .detail-h4 {

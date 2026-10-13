@@ -3,7 +3,7 @@
     <el-table :data="data" style="width: 100%">
       <el-table-column type="index" label="#" width="50" />
       <el-table-column prop="studentName" label="姓名" min-width="110" />
-      <el-table-column prop="studentId" label="学号" width="120" />
+      <el-table-column prop="studentId" label="学生 ID" width="120" />
       <el-table-column label="已提交/总作业" width="130" align="center">
         <template #default="{ row }">
           <span class="ratio">{{ row.submittedCount }} / {{ row.totalAssignments }}</span>
@@ -26,8 +26,8 @@
       </el-table-column>
       <el-table-column label="平均成绩" width="100" align="center" sortable prop="avgScore">
         <template #default="{ row }">
-          <span class="avg-score" :class="{ 'low-score': row.avgScore < 60 }">
-            {{ row.avgScore }}
+          <span class="avg-score" :class="{ 'low-score': row.avgScore != null && row.avgScore < 60 }">
+            {{ row.avgScore ?? '—' }}
           </span>
         </template>
       </el-table-column>

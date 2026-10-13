@@ -89,13 +89,26 @@ import {
   ArrowRight,
 } from '@element-plus/icons-vue'
 
-defineProps({
-  loading: { type: Boolean, default: false },
-  topics: { type: Array, default: () => [] },
-  keyword: { type: String, default: '' },
-  chapterId: { type: String, default: '' },
-})
-const emit = defineEmits(['update:keyword', 'update:chapterId', 'search', 'open-detail'])
+withDefaults(
+  defineProps<{
+    loading?: boolean
+    topics?: DiscussionTopic[]
+    keyword?: string
+    chapterId?: string
+  }>(),
+  {
+    loading: false,
+    topics: () => [],
+    keyword: '',
+    chapterId: '',
+  },
+)
+const emit = defineEmits<{
+  'update:keyword': [value: string]
+  'update:chapterId': [value: string]
+  search: []
+  'open-detail': [topic: DiscussionTopic]
+}>()
 </script>
 
 <style scoped>

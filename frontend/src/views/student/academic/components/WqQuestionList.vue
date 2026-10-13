@@ -74,11 +74,27 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { Link, RefreshRight, ArrowDown, Select } from '@element-plus/icons-vue'
+
+/** 错题行（字段名存在历史分叉：questionContent/content、wrongAnswer/studentAnswer 等，故均可选） */
+interface WrongQuestionRow {
+  id?: number | string
+  mastered?: boolean
+  knowledgePointName?: string | null
+  questionContent?: string | null
+  content?: string | null
+  wrongAnswer?: string | string[] | null
+  studentAnswer?: string | string[] | null
+  correctAnswer?: string | string[] | null
+  answer?: string | string[] | null
+  analysis?: string | null
+  explanation?: string | null
+}
 
 defineProps({
   loading: { type: Boolean, default: false },
-  questions: { type: Array, default: () => [] },
+  questions: { type: Array as PropType<WrongQuestionRow[]>, default: () => [] },
   expandedId: { type: [Number, String], default: null },
 })
 defineEmits(['toggle', 'mark', 'unmark', 'practice', 'related'])

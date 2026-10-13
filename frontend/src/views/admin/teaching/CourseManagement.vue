@@ -261,9 +261,7 @@ function getEnrollmentTypeText(type) {
 onMounted(async () => {
   loading.value = true
   try {
-    const res = await courseApi.getCourseList()
-    const rawData = res.data?.records || res.data?.list || res.data || res
-    courseList.value = Array.isArray(rawData) ? rawData : []
+    courseList.value = await courseApi.getAllCourses()
   } catch (e) {
     logger.error('Failed to load courses:', e)
     ElMessage.error('加载课程列表失败')

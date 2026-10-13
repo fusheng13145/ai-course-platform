@@ -303,7 +303,9 @@ async function publishExam(row) {
 
 async function closeExam(row) {
   try {
-    await ElMessageBox.confirm('确定结束该考试？', '提示', { type: 'warning' })
+    await ElMessageBox.confirm('确定结束该考试？结束后学生将无法继续作答。', '提示', {
+      type: 'warning',
+    })
     row.status = 'CLOSED'
     await examApi.updateExamPaper(row.id, { status: 'CLOSED' })
     ElMessage.success('已结束')
@@ -315,7 +317,7 @@ async function closeExam(row) {
 
 async function deleteExam(row) {
   try {
-    await ElMessageBox.confirm('确定删除该试卷？', '提示', { type: 'warning' })
+    await ElMessageBox.confirm('确定删除该试卷？此操作不可恢复。', '提示', { type: 'warning' })
     await examApi.deleteExamPaper(row.id)
     exams.value = exams.value.filter((e) => e.id !== row.id)
     ElMessage.success('删除成功')

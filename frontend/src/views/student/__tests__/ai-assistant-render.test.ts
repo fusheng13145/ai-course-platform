@@ -52,10 +52,10 @@ vi.mock('@/api/ai', () => ({
 }))
 
 // Mock Course API
-const mockGetCourseList = vi.fn()
+const mockGetAllCourses = vi.fn()
 vi.mock('@/api/course', () => ({
   default: {
-    getCourseList: mockGetCourseList,
+    getAllCourses: mockGetAllCourses,
   },
 }))
 
@@ -96,7 +96,7 @@ describe('AIAssistant 页面渲染', () => {
   beforeEach(async () => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
-    mockGetCourseList.mockResolvedValue({ data: { list: [] } })
+    mockGetAllCourses.mockResolvedValue([])
     mockGetSessions.mockResolvedValue({ data: [] })
 
     const mod = await import('../AIAssistant.vue')

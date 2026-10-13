@@ -120,9 +120,11 @@ async function doSend() {
       }
     } else {
       const roleMap = { teachers: 'TEACHER', students: 'STUDENT', admins: 'ADMIN' }
-      const res = await adminApi.getUsers({ page: 1, size: 500, role: roleMap[f.scope] })
-      const p = res?.data?.data || res?.data || {}
-      targetUserIds = (p.list || []).map((u) => u.id).filter(Boolean)
+      // getAllUsers 已由 fetchAllPages 解包为数组；显式给出 id 字段避免 unknown 流入下游。
+      const users = (await adminApi.getAllUsers({ role: roleMap[f.scope] })) as Array<{
+        id?: number
+      }>
+      targetUserIds = users.map((u) => u.id).filter(Boolean)
       if (!targetUserIds.length) {
         toast.show('该角色暂无用户', 'warning')
         sending.value = false

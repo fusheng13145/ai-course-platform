@@ -45,8 +45,12 @@
           </div>
           <div class="post-content">{{ p.content }}</div>
           <div class="post-foot">
-            <el-button link type="primary" :icon="Pointer" @click="emit('like', p)"
-              >赞 {{ p.likes || 0 }}</el-button
+            <el-button
+              link
+              :type="p.liked ? 'primary' : 'default'"
+              :icon="Pointer"
+              @click="emit('like', p)"
+              >{{ p.liked ? '已赞' : '赞' }} {{ p.likes || 0 }}</el-button
             >
             <el-popconfirm title="确定删除该帖子？" @confirm="emit('del-post', p)">
               <template #reference>
@@ -82,24 +86,34 @@
 <script setup lang="ts">
 import { User, Top, Pointer, Delete, Promotion, Check, CircleClose } from '@element-plus/icons-vue'
 
-defineProps({
-  modelValue: { type: Boolean, default: false },
-  detailLoading: { type: Boolean, default: false },
-  detail: { type: Object, default: () => ({}) },
-  posts: { type: Array, default: () => [] },
-  replyText: { type: String, default: '' },
-  replyLoading: { type: Boolean, default: false },
-})
-const emit = defineEmits([
-  'update:modelValue',
-  'closed',
-  'toggle-pin',
-  'toggle-close',
-  'like',
-  'del-post',
-  'send-reply',
-  'update:replyText',
-])
+withDefaults(
+  defineProps<{
+    modelValue?: boolean
+    detailLoading?: boolean
+    detail?: Partial<DiscussionTopic>
+    posts?: DiscussionPost[]
+    replyText?: string
+    replyLoading?: boolean
+  }>(),
+  {
+    modelValue: false,
+    detailLoading: false,
+    detail: () => ({}),
+    posts: () => [],
+    replyText: '',
+    replyLoading: false,
+  },
+)
+const emit = defineEmits<{
+  'update:modelValue': [value: boolean]
+  closed: []
+  'toggle-pin': []
+  'toggle-close': []
+  like: [post: DiscussionPost]
+  'del-post': [post: DiscussionPost]
+  'send-reply': []
+  'update:replyText': [value: string]
+}>()
 </script>
 
 <style scoped>

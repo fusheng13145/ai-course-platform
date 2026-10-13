@@ -24,8 +24,8 @@
     </div>
   </div>
 
-  <!-- 新用户引导（首次登录自动展示，三端共用） -->
-  <OnboardingGuide />
+  <!-- 新用户引导（首次进入自动展示，三端共用；用户菜单可重新唤起） -->
+  <OnboardingGuide ref="guideRef" />
 </template>
 
 <script setup>
@@ -40,7 +40,7 @@ import AppTopbar from './components/AppTopbar.vue'
 /**
  * 应用布局骨架
  * <p>整体壳：深色侧边栏（手风琴菜单/mini 折叠）+ 顶栏（搜索/通知/主题/用户菜单）
- * + 内容区（路由过渡）；共享侧边栏折叠状态，用户菜单（个人中心/退出）经动态 DOM 弹出。</p>
+ * + 内容区（路由过渡）；共享侧边栏折叠状态，用户菜单（个人中心/新手引导/退出）经动态 DOM 弹出。</p>
  */
 const props = defineProps({
   role: { type: String, required: true },
@@ -71,6 +71,7 @@ watch(
 )
 
 const sidebarMini = ref(false)
+const guideRef = ref(null)
 
 /* ---- 用户菜单（动态 DOM 弹出，侧边栏底部用户区共用） ---- */
 function showUserMenu() {
@@ -79,6 +80,11 @@ function showUserMenu() {
       label: '个人中心',
       icon: 'user',
       action: () => router.push(props.profilePath || `/${props.role.toLowerCase()}/profile`),
+    },
+    {
+      label: '新手引导',
+      icon: 'grad',
+      action: () => guideRef.value?.show(),
     },
     {
       label: '退出登录',

@@ -127,10 +127,10 @@ async function loadCourses() {
     const res =
       props.role === 'ADMIN'
         ? // 管理员治理的是全库课程，取 /courses 而非 /courses/my（后者 hasRole('TEACHER')，ADMIN 必 403）
-          await courseApi.getCourseList({ page: 1, size: 200 })
+          await courseApi.getAllCourses()
         : props.role === 'TEACHER'
-          ? await courseApi.getMyCourses({ page: 1, size: 200 })
-          : await studentApi.getMyCourses({ page: 1, size: 200 })
+          ? await courseApi.getAllMyCourses()
+          : await studentApi.getAllMyCourses()
     const body = unwrap(res) || {}
     courses.value = body.records || body.list || (Array.isArray(body) ? body : [])
   } catch (e) {

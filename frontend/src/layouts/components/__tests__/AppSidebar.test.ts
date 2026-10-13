@@ -5,9 +5,8 @@ import { mount, flushPromises } from '@vue/test-utils'
 const mocks = vi.hoisted(() => ({
   mockPush: vi.fn(),
   mockRoute: { path: '/' },
-  teacherCourses: vi.fn(),
   studentCourses: vi.fn(),
-  adminCourses: vi.fn(),
+  allCourses: vi.fn(),
 }))
 
 vi.mock('vue-router', () => ({
@@ -20,11 +19,16 @@ vi.mock('@/stores/auth', () => ({
 }))
 
 vi.mock('@/api/course', () => ({
-  default: { getMyCourses: mocks.teacherCourses, getCourseList: mocks.adminCourses },
+  default: {
+    getMyCourses: vi.fn(),
+    getAllMyCourses: mocks.allCourses,
+    getCourseList: vi.fn(),
+    getAllCourses: mocks.allCourses,
+  },
 }))
 
 vi.mock('@/api/student', () => ({
-  default: { getMyCourses: mocks.studentCourses },
+  default: { getMyCourses: vi.fn(), getAllMyCourses: mocks.studentCourses },
 }))
 
 const AppSidebar = (await import('../AppSidebar.vue')).default
@@ -56,10 +60,8 @@ function navLeaf(wrapper, text: string) {
 describe('AppSidebar 导航跳转', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.teacherCourses.mockResolvedValue({ data: { records: [COURSE] } })
-    mocks.studentCourses.mockResolvedValue({ data: { records: [COURSE] } })
-    // 本机 GET /api/courses 的真实信封是 data.list，不是 data.records
-    mocks.adminCourses.mockResolvedValue({ data: { list: [COURSE] } })
+    mocks.studentCourses.mockResolvedValue([COURSE])
+    mocks.allCourses.mockResolvedValue([COURSE])
   })
 
   it('教师端：位于课程子页时「教学概览」可见且可点回 /teacher/dashboard', async () => {
@@ -104,8 +106,7 @@ describe('AppSidebar 导航跳转', () => {
   it('管理员端：拉全库课程列表构建课程目录，治理大盘仍是第一分区', async () => {
     const wrapper = await mountSidebar('ADMIN', '/admin/dashboard')
 
-    expect(mocks.adminCourses).toHaveBeenCalledWith({ page: 1, size: 200 })
-    expect(mocks.teacherCourses).not.toHaveBeenCalled()
+    expect(mocks.allCourses).toHaveBeenCalled()
     expect(mocks.studentCourses).not.toHaveBeenCalled()
 
     // 组装顺序锁死：治理大盘（/admin 空路径重定向落点）第一，动态课程目录紧随其后，其余静态分区依次

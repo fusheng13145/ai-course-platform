@@ -42,7 +42,6 @@
         :get-difficulty-label="getDifficultyLabel"
         empty-text="请先选择课程加载知识点"
         @expand="onExpandAll"
-        @node-click="onNodeClick"
       />
       <KmListGraph
         :filtered-knowledge-list="filteredKnowledgeList"
@@ -218,9 +217,6 @@ async function handleImport(file) {
 function onExpandAll() {
   treeRef.value?.expandAll()
 }
-
-/** 树节点点击：保持原高亮语义（无额外行为） */
-function onNodeClick() {}
 
 /** 课程上下文：驾驶舱子路由（/teacher/courses/:id/knowledge-management）或统一路由 ?courseId 预选 */
 const route = useRoute()

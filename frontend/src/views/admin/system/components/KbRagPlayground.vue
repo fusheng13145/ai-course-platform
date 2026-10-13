@@ -12,7 +12,7 @@
         <el-input
           v-model="askForm.question"
           placeholder="输入问题，如：什么是反向传播？"
-          @keyup.enter="doAsk"
+          @keyup.enter="emit('ask')"
         />
         <el-input-number
           v-model="askForm.topK"
@@ -21,7 +21,11 @@
           controls-position="right"
           class="w-110"
         />
-        <el-button type="primary" :loading="asking" :disabled="!selectedCourseId" @click="doAsk"
+        <el-button
+          type="primary"
+          :loading="asking"
+          :disabled="!selectedCourseId"
+          @click="emit('ask')"
           >提问</el-button
         >
       </div>
@@ -49,7 +53,7 @@
         <el-input
           v-model="retrieveForm.query"
           placeholder="输入查询词，如：梯度下降"
-          @keyup.enter="doRetrieve"
+          @keyup.enter="emit('retrieve')"
         />
         <el-input-number
           v-model="retrieveForm.topK"
@@ -62,7 +66,7 @@
           type="primary"
           :loading="retrieving"
           :disabled="!selectedCourseId"
-          @click="doRetrieve"
+          @click="emit('retrieve')"
           >召回</el-button
         >
       </div>
@@ -90,30 +94,51 @@
 <script setup lang="ts">
 import { Search, ChatDotRound } from '@element-plus/icons-vue'
 
+interface KnowledgePointResult {
+  id: string | number
+  name: string
+  score: number
+  description?: string | null
+}
+
+interface AskResult {
+  answer: string
+  sources: KnowledgePointResult[]
+  model: string
+}
+
+interface RetrieveResult {
+  count: number
+  results: KnowledgePointResult[]
+}
+
+const emit = defineEmits<{
+  ask: []
+  retrieve: []
+}>()
+
 /**
  * RAG 联调面板
  * <p>智能问答测试（基于知识库融合生成）与语义召回测试双卡片。</p>
  */
-defineProps({
+defineProps<{
   /** 当前选中课程（问答/召回禁用条件） */
-  selectedCourseId: { type: [String, Number], default: null },
+  selectedCourseId: string | number | null
   /** 问答表单（共享对象：question/topK） */
-  askForm: { type: Object, required: true },
+  askForm: { question: string; topK: number }
   /** 问答结果 */
-  askResult: { type: Object, default: null },
+  askResult: AskResult | null
   /** 问答加载态 */
-  asking: { type: Boolean, default: false },
+  asking: boolean
   /** 召回表单（共享对象：query/topK） */
-  retrieveForm: { type: Object, required: true },
+  retrieveForm: { query: string; topK: number }
   /** 召回结果 */
-  retrieveResult: { type: Object, default: null },
+  retrieveResult: RetrieveResult | null
   /** 召回加载态 */
-  retrieving: { type: Boolean, default: false },
+  retrieving: boolean
   /** 内容预览截断函数 */
-  preview: { type: Function, required: true },
-})
-
-defineEmits(['ask', 'retrieve'])
+  preview: (text: string | null | undefined) => string
+}>()
 </script>
 
 <style scoped>

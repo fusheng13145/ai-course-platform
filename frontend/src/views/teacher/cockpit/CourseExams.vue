@@ -77,7 +77,7 @@
 <script setup lang="ts">
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
@@ -92,7 +92,7 @@ import CeExamFormDialog from './components/CeExamFormDialog.vue'
  * 与新建编辑表单（CeExamFormDialog）分别下沉。</p>
  */
 const route = useRoute()
-const courseId = route.params.id
+const courseId = computed(() => Number(route.params.id))
 
 const loading = ref(false)
 const all = ref([])
@@ -128,10 +128,8 @@ function typeTag(t) {
 async function load() {
   loading.value = true
   try {
-    const r = await examApi.getExamPaperList({ courseId })
-    const body = unwrap(r)
-    all.value = body?.records || body?.list || body || []
-    total.value = body?.total ?? body?.totalElements ?? all.value.length
+    all.value = await examApi.getAllExamPapersByCourse(courseId.value)
+    total.value = all.value.length
     applyPage()
   } catch (e) {
     logger.error('加载试卷失败', e)
@@ -197,7 +195,7 @@ async function save() {
       ElMessage.success('试卷已更新')
     } else {
       await examApi.createExamPaper({
-        courseId,
+        courseId: courseId.value,
         title: form.title,
         description: form.description,
         duration: form.duration,

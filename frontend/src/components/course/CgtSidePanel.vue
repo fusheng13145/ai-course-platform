@@ -9,10 +9,22 @@
       <div v-if="pendingTasks.length > 0" class="pending-list">
         <div v-for="t in pendingTasks.slice(0, 5)" :key="t.id" class="pending-item">
           <span>{{ t.taskName || t.title || '未命名' }}</span>
-          <el-tag type="warning" size="small">{{ t.pendingCount || 0 }}份</el-tag>
+          <el-tag type="warning" size="small">
+            {{ t.pendingCount == null ? '待批阅' : `${t.pendingCount}份` }}
+          </el-tag>
         </div>
       </div>
-      <el-empty v-else description="暂无待批阅" :image-size="50" />
+      <el-empty
+        v-else
+        :description="
+          pendingLoading
+            ? '正在加载待批阅任务'
+            : pendingUnavailable
+              ? '待批阅数据暂不可用'
+              : '暂无待批阅'
+        "
+        :image-size="50"
+      />
     </div>
   </div>
 </template>
@@ -21,6 +33,8 @@
 defineProps({
   distOption: { type: Object, default: () => ({}) },
   pendingTasks: { type: Array, default: () => [] },
+  pendingLoading: { type: Boolean, default: false },
+  pendingUnavailable: { type: Boolean, default: false },
 })
 </script>
 

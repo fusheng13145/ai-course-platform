@@ -18,7 +18,7 @@
           ><span style="font-weight: 500">{{ row.studentName }}</span></template
         >
       </el-table-column>
-      <el-table-column prop="homeworkScore" label="作业成绩" width="90" align="center">
+      <el-table-column prop="homeworkScore" label="作业均分" width="90" align="center">
         <template #default="{ row }">
           <span
             v-if="row.homeworkScore != null"
@@ -28,7 +28,7 @@
           <span v-else style="color: var(--ac-text-muted)">--</span>
         </template>
       </el-table-column>
-      <el-table-column prop="examScore" label="考试成绩" width="90" align="center">
+      <el-table-column prop="examScore" label="考试均分" width="90" align="center">
         <template #default="{ row }">
           <span v-if="row.examScore != null" :style="{ color: getScoreColor(row.examScore) }">{{
             row.examScore
@@ -54,19 +54,11 @@
           ><span v-else>--</span></template
         >
       </el-table-column>
-      <el-table-column label="操作" width="140" align="center">
+      <el-table-column label="操作" width="84" align="center">
         <template #default="{ row }">
           <div class="action-row">
             <el-button text type="primary" size="small" @click.stop="$emit('view-detail', row)"
               >详情</el-button
-            >
-            <el-button
-              v-if="row.needsGrading"
-              text
-              type="warning"
-              size="small"
-              @click.stop="$emit('open-grade', row)"
-              >批阅</el-button
             >
           </div>
         </template>
@@ -83,7 +75,7 @@ defineProps({
   loading: { type: Boolean, default: false },
   filteredGrades: { type: Array, default: () => [] },
 })
-defineEmits(['view-detail', 'open-grade'])
+defineEmits(['view-detail'])
 
 function getGradeTagType(l) {
   const m = { A: 'success', B: 'primary', C: 'warning', D: 'danger', F: 'info' }

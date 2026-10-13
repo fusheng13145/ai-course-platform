@@ -131,9 +131,7 @@ const filteredList = computed(() => {
 onMounted(async () => {
   loading.value = true
   try {
-    const res = await courseApi.getMyCourses()
-    const rawData = res.data?.records || res.data?.list || res.data || res
-    courseList.value = Array.isArray(rawData) ? rawData : []
+    courseList.value = await courseApi.getAllMyCourses()
   } catch (e) {
     console.error('Failed to load courses:', e)
     courseList.value = []
