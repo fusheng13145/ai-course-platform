@@ -69,6 +69,29 @@ public class Resource {
     @TableField("visible_to_all")
     private Boolean visibleToAll;
 
+    /* ---- 内容审核（V11，角色矩阵 ③）---- */
+
+    /** 审核状态取值：正常（常量与 ModerationServiceImpl、V11 迁移的口径一致）。 */
+    public static final String MODERATION_NORMAL = "NORMAL";
+    /** 审核状态取值：已隐藏（读路径过滤，可恢复）。 */
+    public static final String MODERATION_HIDDEN = "HIDDEN";
+
+    /** 审核状态：NORMAL-正常；HIDDEN-已隐藏（读路径过滤，可恢复） */
+    @TableField("moderation_status")
+    private String moderationStatus;
+
+    /** 审核原因（管理员填写） */
+    @TableField("moderation_reason")
+    private String moderationReason;
+
+    /** 最近一次审核时间 */
+    @TableField("moderated_at")
+    private LocalDateTime moderatedAt;
+
+    /** 最近一次审核管理员ID */
+    @TableField("moderated_by")
+    private Long moderatedBy;
+
     // 注意（2026-09-14 修复）：此处曾手写 `public Boolean isVisibleToAll()`，
     // 与 Lombok @Data 为包装类型字段生成的 `getVisibleToAll()` 形成**重载歧义**
     // （JavaBeans 规范中 `is` 前缀仅适用于基本类型 boolean）。MyBatis 反射解析属性

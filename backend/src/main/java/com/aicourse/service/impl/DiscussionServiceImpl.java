@@ -128,6 +128,8 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
         encodeTopicOutput(topic);
         LambdaQueryWrapper<DiscussionPost> qw = new LambdaQueryWrapper<DiscussionPost>()
                 .eq(DiscussionPost::getTopicId, id)
+                // 内容审核（③）的读路径执行点：已隐藏的回复不进入学生/教师视角（管理员经审核页仍可见）
+                .ne(DiscussionPost::getModerationStatus, DiscussionPost.MODERATION_HIDDEN)
                 .orderByAsc(DiscussionPost::getFloor)
                 .orderByAsc(DiscussionPost::getCreatedAt);
         List<DiscussionPost> posts = postMapper.selectList(qw);

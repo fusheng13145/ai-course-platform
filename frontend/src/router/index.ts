@@ -171,6 +171,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '考试防作弊治理', breadcrumb: '考试治理' },
       },
       {
+        // 角色矩阵 ③：讨论回复 + 平台全部资源的审核与违规处置（隐藏/删除/封禁作者）
+        path: 'moderation',
+        component: () => import('@/views/admin/governance/ContentModeration.vue'),
+        meta: { title: '内容审核', breadcrumb: '内容与资源治理' },
+      },
+      {
         path: 'analytics',
         component: () => import('@/views/admin/governance/Analytics.vue'),
         meta: { title: '数据分析', breadcrumb: '数据统计' },

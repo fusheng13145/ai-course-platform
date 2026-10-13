@@ -106,6 +106,8 @@ export const ADMIN_SECTIONS: MenuSection[] = [
           { key: 'gov-plagiarism', text: '查重管理', path: '/admin/plagiarism' },
         ],
       },
+      // 角色矩阵 ③（2026-10-13）：讨论回复 + 平台全部资源的审核与违规处置（隐藏/删除/封禁作者）
+      { key: 'moderation', text: '内容审核', icon: 'shield', path: '/admin/moderation' },
     ],
   },
   {

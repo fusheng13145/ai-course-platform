@@ -43,6 +43,29 @@ public class DiscussionPost {
     /** 被@提及的用户ID列表（逗号分隔的字符串存储） */
     private String mentions;
 
+    /* ---- 内容审核（V11，角色矩阵 ③）---- */
+
+    /** 审核状态取值：正常（常量与 ModerationServiceImpl、V11 迁移的口径一致）。 */
+    public static final String MODERATION_NORMAL = "NORMAL";
+    /** 审核状态取值：已隐藏（读路径过滤，可恢复）。 */
+    public static final String MODERATION_HIDDEN = "HIDDEN";
+
+    /** 审核状态：NORMAL-正常；HIDDEN-已隐藏（读路径过滤，可恢复） */
+    @TableField("moderation_status")
+    private String moderationStatus;
+
+    /** 审核原因（管理员填写） */
+    @TableField("moderation_reason")
+    private String moderationReason;
+
+    /** 最近一次审核时间 */
+    @TableField("moderated_at")
+    private LocalDateTime moderatedAt;
+
+    /** 最近一次审核管理员ID */
+    @TableField("moderated_by")
+    private Long moderatedBy;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 

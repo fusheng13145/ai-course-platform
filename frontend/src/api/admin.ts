@@ -39,6 +39,29 @@ export const importUsers = (data) => request.post('/admin/users/import', data)
 // Excel 批量导入（multipart 上传 .xlsx 文件）
 export const importUsersExcel = (data) => request.post('/admin/users/import-excel', data)
 
+// 管理员端 - 内容审核与违规处理（角色矩阵 ③）
+/** 讨论回复审核列表（params: {page,size,status,keyword}） */
+export const getModerationPosts = (params = {}) =>
+  request.get('/admin/moderation/discussion-posts', { params })
+/** 资源审核列表（平台全部资源；params 同讨论回复） */
+export const getModerationResources = (params = {}) =>
+  request.get('/admin/moderation/resources', { params })
+/**
+ * 对内容执行处置。`target` 取 `discussion-posts` / `resources`。
+ * @param {'discussion-posts'|'resources'} target
+ * @param {number|string} id
+ * @param {{ action: 'HIDE'|'RESTORE'|'DELETE', reason?: string, banAuthor?: boolean }} data
+ */
+export const applyModerationAction = (target, id, data) =>
+  request.post(`/admin/moderation/${target}/${id}/action`, data)
+/** 经审核封禁的作者列表 */
+export const getBannedAuthors = () => request.get('/admin/moderation/banned-authors')
+/** 封禁作者（= 停用该账号，立即无法登录） */
+export const banAuthor = (userId, data = {}) =>
+  request.post(`/admin/moderation/users/${userId}/ban`, data)
+/** 解除封禁（只对经审核封禁的账号有效） */
+export const unbanAuthor = (userId) => request.post(`/admin/moderation/users/${userId}/unban`)
+
 // 管理员端 - AI 出题治理（角色矩阵 ④ 修订：逐人限制名单，后端 V10 表）
 /** 限制名单（含被限制教师的登录名与姓名） */
 export const getAiRestrictions = () => request.get('/admin/ai-governance/restrictions')
@@ -134,6 +157,12 @@ export default {
   getCourseStats,
   getAIUsage,
   getAIUsageByCourse,
+  getModerationPosts,
+  getModerationResources,
+  applyModerationAction,
+  getBannedAuthors,
+  banAuthor,
+  unbanAuthor,
   getAiRestrictions,
   restrictAiGeneration,
   unrestrictAiGeneration,
