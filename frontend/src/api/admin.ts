@@ -39,6 +39,22 @@ export const importUsers = (data) => request.post('/admin/users/import', data)
 // Excel 批量导入（multipart 上传 .xlsx 文件）
 export const importUsersExcel = (data) => request.post('/admin/users/import-excel', data)
 
+// 管理员端 - 学期管理（角色矩阵 ①②：创建学期 / 归档过期学期）
+/**
+ * 学期列表；可按状态过滤（ACTIVE / ARCHIVED，省略为全部）。
+ * @param {{ status?: string }} params
+ */
+export const getSemesters = (params = {}) => request.get('/admin/semesters', { params })
+/**
+ * 创建学期（学期名唯一；结束日期不得早于开始日期）。
+ * @param {{ name: string, startDate: string, endDate: string }} data
+ */
+export const createSemester = (data) => request.post('/admin/semesters', data)
+/** 归档指定学期（幂等：已归档再次调用返回 archived=false） */
+export const archiveSemester = (id) => request.post(`/admin/semesters/${id}/archive`)
+/** 批量归档所有「状态=ACTIVE 且 结束日期<今天」的学期，返回本次条数 */
+export const archiveExpiredSemesters = () => request.post('/admin/semesters/archive-expired')
+
 // 管理员端 - 系统配置
 export const getConfigs = (params = {}) => request.get('/admin/configs', { params })
 /**
@@ -104,6 +120,10 @@ export default {
   getCourseStats,
   getAIUsage,
   getAIUsageByCourse,
+  getSemesters,
+  createSemester,
+  archiveSemester,
+  archiveExpiredSemesters,
   exportReport,
   createBackup,
   getAIMonitor,

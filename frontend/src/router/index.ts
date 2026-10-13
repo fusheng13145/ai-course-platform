@@ -235,6 +235,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/system/ReminderManage.vue'),
         meta: { title: '提醒管理', breadcrumb: '系统管理' },
       },
+      {
+        // 角色矩阵 ①②：创建学期 / 归档过期学期（学期表与课程归属尚未绑定，见页面口径声明）
+        path: 'semesters',
+        component: () => import('@/views/admin/system/SemesterManage.vue'),
+        meta: { title: '学期管理', breadcrumb: '系统管理' },
+      },
 
       // ---- 个人 (views/common/) ----
       {

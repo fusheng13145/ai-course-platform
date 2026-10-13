@@ -119,6 +119,8 @@ export const ADMIN_SECTIONS: MenuSection[] = [
           { key: 'system-settings', text: '系统设置', path: '/admin/system' },
           { key: 'notices', text: '通知公告', path: '/admin/notifications' },
           { key: 'reminders', text: '提醒管理', path: '/admin/reminders' },
+          // 角色矩阵 ①②（2026-10-13）：创建学期 / 归档过期学期——此前无任何落点，本轮补齐
+          { key: 'semesters', text: '学期管理', path: '/admin/semesters' },
         ],
       },
       {
