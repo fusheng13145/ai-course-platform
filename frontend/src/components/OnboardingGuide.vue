@@ -48,6 +48,7 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 
 /**
  * 新用户引导教程（无第三方依赖实现）。
@@ -59,10 +60,39 @@ import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
  * - 宿主可经组件 ref 调用暴露的 show() 重新唤起（AppShell 用户菜单「新手引导」）；
  * - 三端共用（挂载于 AppShell.vue，admin/teacher/student 均生效）。
  *
+ * 「已看过」标记**按账号**记录（2026-10-13 由产品定案）：
+ * 键名带当前用户 id，因此同一浏览器**换账号登录会重新看到引导**（每个账号首次登录都看得到），
+ * 而同账号退出再登录不再打扰。标记只由本组件读写，登出（stores/auth.ts resetAuthState）
+ * 不清除它——清除即等于"换账号"语义被破坏。
+ *
  * 未来如需替换为 driver.js：仅需在本组件内换用 driver.js API，对外接口不变。
  */
 
-const STORAGE_KEY = 'ai-course:onboarding:done:v1'
+/** done 标记键前缀；实际键为 `${前缀}:${userId}`（按账号隔离） */
+const STORAGE_KEY_PREFIX = 'ai-course:onboarding:done:v1'
+
+const auth = useAuthStore()
+/** 当前账号的标记键；userId 缺失（异常态）时退化为 anon 段，保证不越权压其他账号 */
+const storageKey = computed(() => `${STORAGE_KEY_PREFIX}:${auth.userId ?? 'anon'}`)
+
+/** 写入「已看过」标记（隐私模式等场景静默降级） */
+function markDone() {
+  try {
+    localStorage.setItem(storageKey.value, '1')
+  } catch {
+    /* 隐私模式等场景静默降级 */
+  }
+}
+
+/** 是否已看过当前账号的引导 */
+function hasSeen() {
+  try {
+    return localStorage.getItem(storageKey.value) === '1'
+  } catch {
+    // 无 localStorage 可用则每次展示
+    return false
+  }
+}
 
 const steps = [
   {
@@ -145,11 +175,7 @@ function hide() {
 defineExpose({ show })
 
 function skip() {
-  try {
-    localStorage.setItem(STORAGE_KEY, '1')
-  } catch {
-    /* 隐私模式等场景静默降级 */
-  }
+  markDone()
   hide()
 }
 
@@ -170,11 +196,7 @@ function next() {
 }
 
 function finish() {
-  try {
-    localStorage.setItem(STORAGE_KEY, '1')
-  } catch {
-    /* 静默 */
-  }
+  markDone()
   hide()
 }
 
@@ -189,12 +211,8 @@ onMounted(() => {
   // 监听器无条件注册：已跳过的用户经菜单重开时同样需要 Esc/←/→ 与 resize 定位
   window.addEventListener('resize', locate)
   window.addEventListener('keydown', onKeydown)
-  // 首次进入触发；已完成后不再自动打扰
-  try {
-    if (localStorage.getItem(STORAGE_KEY) === '1') return
-  } catch {
-    /* 无 localStorage 则每次展示 */
-  }
+  // 首次进入触发；当前账号已完成后不再自动打扰（换账号登录会重新看到）
+  if (hasSeen()) return
   // 等待首屏渲染稳定后再弹出（避免定位到未布局完成的目标）
   window.setTimeout(show, 600)
 })

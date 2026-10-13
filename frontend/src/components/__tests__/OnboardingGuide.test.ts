@@ -4,19 +4,26 @@ import { defineComponent, h, ref } from 'vue'
 
 /**
  * OnboardingGuide 单元测试
- * <p>聚焦「重新查看引导」入口的两条契约：</p>
+ * <p>聚焦三条契约：</p>
  * <ol>
- *   <li>已看过（localStorage 有 done 标记）时不再自动弹出，但必须能被外部经组件 ref 主动唤起；</li>
- *   <li>主动唤起后键盘（Esc/←/→）仍然可用——原实现把监听器注册写在 done 判断之后，done 分支直接
- *       return，导致重开的引导只剩鼠标可操作。</li>
+ *   <li>「已看过」标记**按账号**记录：同账号已看过不再自动弹，换账号登录必须重新看到；</li>
+ *   <li>已看过（或经补看入口主动唤起）时，键盘（Esc/←/→）仍然可用——原实现把监听器注册写在
+ *       done 判断之后，done 分支直接 return，导致重开的引导只剩鼠标可操作；</li>
+ *   <li>主动唤起总是回到第 1 步。</li>
  * </ol>
  * <p>组件 Teleport 到 body，断言一律走 document 查询，不用 wrapper.html()。
  * 宿主用 render 函数而非 template 字符串，避免依赖运行时模板编译器。</p>
  */
 
+// 组件按账号取键，需读 auth store；这里用可变 userId 替身模拟「换账号」
+const mocks = vi.hoisted(() => ({ userId: 7 }))
+vi.mock('@/stores/auth', () => ({ useAuthStore: () => ({ userId: mocks.userId }) }))
+
 const OnboardingGuide = (await import('../OnboardingGuide.vue')).default
 
-const STORAGE_KEY = 'ai-course:onboarding:done:v1'
+/** done 标记按账号键：`<前缀>:<userId>`（与组件实现保持一致） */
+const keyFor = (id: number) => `ai-course:onboarding:done:v1:${id}`
+const STORAGE_KEY = keyFor(7)
 
 type GuideApi = { show: () => void }
 
@@ -44,6 +51,7 @@ function press(key: string) {
 
 describe('OnboardingGuide 重开入口', () => {
   beforeEach(() => {
+    mocks.userId = 7
     localStorage.clear()
     document.body.replaceChildren()
     // 只 fake setTimeout：600ms 自动弹出是本组件唯一用到的定时器
@@ -54,6 +62,21 @@ describe('OnboardingGuide 重开入口', () => {
     vi.useRealTimers()
     localStorage.clear()
     document.body.replaceChildren()
+  })
+
+  it('按账号记录：换账号登录必须重新看到引导', async () => {
+    localStorage.setItem(keyFor(7), '1') // 账号 7 已看过
+    mocks.userId = 8 // 同一浏览器换成账号 8
+
+    const { wrapper } = await mountHost()
+    vi.advanceTimersByTime(600)
+    await flushPromises()
+
+    expect(card(), '新账号不应被旧账号的标记压掉').not.toBeNull()
+    expect(countLabel()).toBe('1 / 5')
+    // 旧账号的标记不受影响（未互相覆盖）
+    expect(localStorage.getItem(keyFor(7))).toBe('1')
+    wrapper.unmount()
   })
 
   it('未看过：挂载后 600ms 自动弹出（原行为不回归）', async () => {

@@ -363,11 +363,8 @@ const routes: RouteRecordRaw[] = [
       },
 
       // ---- 考试管理（教师个人视角，非课程级） ----
-      {
-        path: 'exams-manage',
-        component: () => import('@/views/teacher/Exams.vue'),
-        meta: { title: '考试管理', breadcrumb: '考试管理' },
-      },
+      // 注：原 /teacher/exams-manage 与 /teacher/exams 指向同一 examApi.getExamPaperList、
+      // 且无课程筛选，属收敛期旧拆分残留，2026-10-13 随孤儿路由整治一并移除（视图同步删除）。
       {
         path: 'grades-manage',
         component: () => import('@/views/teacher/Grades.vue'),

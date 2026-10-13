@@ -222,13 +222,68 @@ export function buildCourseCatalogSection(role, courses) {
 
 /* ============================== 教师端分区（静态部分） ============================== */
 // 教学工具/试题库/AI 教学中心/课程级页签已全部收敛为「课程目录」下每门课程的独立子项，
-// 统一路由（/teacher/bank、/teacher/ai、/teacher/analytics 等）保留兼容与跨课直达。
-// 唯一保留的静态项是「教学概览」：它是教师登录后的落地页（stores/auth.ts、utils/permission.ts），
-// 收敛后侧边栏再无入口，进入即回不去，故显式留在导航里。
-export const TEACHER_SECTIONS = [
+// 但**跨课程聚合视图**是课程级页签替代不了的语义（教师带多门课时需要一处看全部）：
+// /teacher/bank、/teacher/exams、/teacher/grades-manage、/teacher/analytics、
+// /teacher/interaction、/teacher/discussion、/teacher/knowledge、/teacher/knowledge-management、
+// /teacher/ai 这 9 条统一路由此前无入口（孤儿），2026-10-13 经逐条取证确认均可独立使用
+// （自带课程下拉、无 courseId 时列全部课程），故以两节静态区正式给出入口；
+// 一级项每节 ≤3，故按语义收进二级 children（与管理员端同口径）。
+// ⚠️ /teacher/exams-manage 与 /teacher/exams 指向同一 examApi.getExamPaperList 且无课程筛选，
+// 属收敛期旧拆分残留，已随本轮移除（路由与视图一并删除）。
+// 显式标注 MenuSection[]（与 ADMIN_SECTIONS 同口径）：本次新增的一级项全部只挂 children，
+// 不标注时 TS 会把子数组推成「没有 path 属性」的字面量类型，使消费方的通用遍历
+// （nav-reachability.test.ts:71-72）多出 TS2339 而撞类型棘轮。
+export const TEACHER_SECTIONS: MenuSection[] = [
   {
     label: '教学工作台',
     items: [{ key: 'dashboard', text: '教学概览', icon: 'chart', path: '/teacher/dashboard' }],
+  },
+  {
+    label: '试题与学情',
+    items: [
+      {
+        key: 't-assess',
+        text: '试题与考试',
+        icon: 'doc',
+        children: [
+          { key: 't-bank', text: '题库管理', path: '/teacher/bank' },
+          { key: 't-exams', text: '试卷库', path: '/teacher/exams' },
+        ],
+      },
+      {
+        key: 't-insight',
+        text: '学情与成绩',
+        icon: 'chart',
+        children: [
+          { key: 't-grades', text: '成绩总览', path: '/teacher/grades-manage' },
+          { key: 't-analytics', text: '学情统计', path: '/teacher/analytics' },
+        ],
+      },
+    ],
+  },
+  {
+    label: '课堂与知识',
+    items: [
+      {
+        key: 't-class',
+        text: '课堂运营',
+        icon: 'message',
+        children: [
+          { key: 't-interaction', text: '课堂互动', path: '/teacher/interaction' },
+          { key: 't-discussion', text: '课程讨论', path: '/teacher/discussion' },
+        ],
+      },
+      {
+        key: 't-kna',
+        text: '知识与 AI',
+        icon: 'layers',
+        children: [
+          { key: 't-knowledge', text: '知识图谱', path: '/teacher/knowledge' },
+          { key: 't-km', text: '知识点管理', path: '/teacher/knowledge-management' },
+          { key: 't-ai', text: 'AI 教学中心', path: '/teacher/ai' },
+        ],
+      },
+    ],
   },
 ]
 
@@ -236,7 +291,8 @@ export const TEACHER_SECTIONS = [
 // 与教师端同为「课程目录 + 静态区」的混合结构：可归属单门课程的功能
 // （课程概览/作业·学习中心/考试练习/课程成绩/知识图谱/AI 助手）走每门课程的三级页签；
 // 跨课程与纯个人入口保留在静态区，分区口径与路由表一致（study/ 归学习工具、academic/ 归课业中心）。
-export const STUDENT_SECTIONS = [
+// 显式标注 MenuSection[]，理由同 TEACHER_SECTIONS（防通用遍历处的字面量联合类型报 TS2339）。
+export const STUDENT_SECTIONS: MenuSection[] = [
   {
     label: '学习',
     items: [{ key: 'dashboard', text: '学习概览', icon: 'chart', path: '/student/dashboard' }],
@@ -256,6 +312,13 @@ export const STUDENT_SECTIONS = [
       { key: 'grades', text: '我的成绩', icon: 'award', path: '/student/grades' },
       { key: 'wrong', text: '错题本', icon: 'warn', path: '/student/wrong-questions' },
     ],
+  },
+  {
+    // /student/ai-assistant 与课程级「AI 助手」页签指向同一组件，但语义不同：
+    // 前者课程下拉可留空（selectedCourseId 为空时不带 courseId 请求）→ 支持**不绑定课程的通识问答**，
+    // 后者固定绑定当前课程。此前该路由无入口（孤儿），2026-10-13 取证后正式给出入口。
+    label: '智能助手',
+    items: [{ key: 'ai-assistant', text: 'AI 助手', icon: 'star', path: '/student/ai-assistant' }],
   },
   {
     label: '个人',
