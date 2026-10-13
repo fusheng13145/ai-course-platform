@@ -17,6 +17,14 @@ export function useKnowledgeGraph() {
   const courseOptions = ref([])
   const courseId = ref('')
   const loading = ref(false)
+  /**
+   * 知识点列表 / 图谱两路加载各自独立记录失败，避免并发加载时被成功方复位而互相串味；
+   * 对外以 loadError 聚合暴露，页面据此渲染持久提示（失败可见）。
+   * 原实现失败后静默置空 → 页面只剩「暂无知识点 / 暂无图谱数据」，会被误判为确实没有数据。
+   */
+  const pointsError = ref('')
+  const graphError = ref('')
+  const loadError = computed(() => pointsError.value || graphError.value)
 
   /** 加载课程选项；默认选中第一门 */
   async function loadCourses() {
@@ -37,6 +45,8 @@ export function useKnowledgeGraph() {
     points.value = []
     graphNodes.value = []
     graphLinks.value = []
+    pointsError.value = ''
+    graphError.value = ''
     if (courseId.value) {
       loadOverview()
       loadPoints()
@@ -75,6 +85,7 @@ export function useKnowledgeGraph() {
   async function loadPoints() {
     if (!courseId.value) return
     pointLoading.value = true
+    pointsError.value = ''
     try {
       const r = await knowledgeApi.getKnowledgePoints(courseId.value)
       const body = unwrap(r)
@@ -85,6 +96,8 @@ export function useKnowledgeGraph() {
       }))
     } catch (e) {
       logger.error('加载知识点失败', e)
+      points.value = []
+      pointsError.value = '知识点列表加载失败，请检查网络后重试'
     } finally {
       pointLoading.value = false
     }
@@ -337,6 +350,7 @@ export function useKnowledgeGraph() {
   async function loadGraph() {
     if (!courseId.value) return
     graphLoading.value = true
+    graphError.value = ''
     pathNodeIds.value = []
     try {
       const r = await knowledgeApi.getRelationGraphData(courseId.value)
@@ -351,6 +365,7 @@ export function useKnowledgeGraph() {
       logger.warn('图谱数据不可用，已忽略可视化', e)
       graphNodes.value = []
       graphLinks.value = []
+      graphError.value = '图谱数据加载失败，请检查网络后重试'
     } finally {
       graphOption.value = buildGraphOption()
       graphLoading.value = false
@@ -415,6 +430,7 @@ export function useKnowledgeGraph() {
     courseOptions,
     courseId,
     loading,
+    loadError,
     loadCourses,
     onCourseChange,
     pct,

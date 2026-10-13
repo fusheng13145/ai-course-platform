@@ -24,6 +24,16 @@
       </el-alert>
 
       <template v-else>
+        <!-- 加载失败提示：见 useKnowledgeGraph.loadError 注释（失败不得渲染成「暂无知识点/暂无图谱数据」） -->
+        <el-alert
+          v-if="loadError"
+          :title="loadError"
+          type="error"
+          :closable="false"
+          show-icon
+          style="margin-bottom: var(--ac-spacing-md)"
+        />
+
         <KgOverviewStats :overview="overview" :pct="pct" />
 
         <KgListGraph
@@ -34,6 +44,7 @@
           :graph-loading="graphLoading"
           :graph-option="graphOption"
           :has-graph="hasGraph"
+          :empty-text="loadError ? '知识点未能加载，请查看上方提示后重试' : '暂无知识点'"
           @create="openForm()"
           @edit="openForm"
           @remove="removePoint"
@@ -103,6 +114,7 @@ const {
   courseOptions,
   courseId,
   loading,
+  loadError,
   loadCourses,
   onCourseChange,
   pct,

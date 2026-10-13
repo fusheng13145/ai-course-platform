@@ -26,6 +26,13 @@ export function useStudentKnowledgeGraph() {
   const searchKeyword = ref('')
   const difficultyFilter = ref('')
   const graphLoading = ref(false)
+  /**
+   * 加载失败提示文案：非空即表示图谱数据不可信。
+   * 原实现关系 API 失败后走基础 API 回退，回退也失败时静默置空 → 页面只剩
+   * 「请选择课程查看知识图谱」，学生会误判该课程没有知识点（失败可见）。
+   * 回退成功时**不得**置错，以免对可用数据误报失败。
+   */
+  const loadError = ref('')
 
   const rawNodes = ref([])
   const rawLinks = ref([])
@@ -137,6 +144,7 @@ export function useStudentKnowledgeGraph() {
 
   /** 加载课程列表（支持路由 courseId 直入） */
   async function loadCourseList() {
+    loadError.value = ''
     try {
       courseList.value = await courseApi.getAllCourses()
       const routeCourseId = route.query.courseId || route.params.courseId || route.params.id
@@ -149,6 +157,7 @@ export function useStudentKnowledgeGraph() {
       }
     } catch (e) {
       logger.error('加载课程列表失败:', e)
+      loadError.value = '课程列表加载失败，请检查网络后重试'
     }
   }
 
@@ -156,6 +165,7 @@ export function useStudentKnowledgeGraph() {
   async function loadGraphData() {
     if (!selectedCourseId.value) return
     graphLoading.value = true
+    loadError.value = ''
     try {
       const res = await knowledgeRelationApi.getGraphData(selectedCourseId.value)
       const data = res.data || res || {}
@@ -220,6 +230,7 @@ export function useStudentKnowledgeGraph() {
       } catch {
         rawNodes.value = []
         rawLinks.value = []
+        loadError.value = '知识图谱加载失败，请检查网络后重试'
       }
     } finally {
       graphLoading.value = false
@@ -410,6 +421,7 @@ export function useStudentKnowledgeGraph() {
     searchKeyword,
     difficultyFilter,
     graphLoading,
+    loadError,
     rawNodes,
     rawLinks,
     selectedNode,

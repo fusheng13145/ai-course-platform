@@ -18,7 +18,7 @@
           !graphLoading &&
           (!graphOption.series?.[0]?.data || graphOption.series[0].data.length === 0)
         "
-        description="请选择课程查看知识图谱"
+        :description="emptyText"
         :image-size="100"
       >
         <template #image><div class="empty-deco">🕸️</div></template>
@@ -127,6 +127,8 @@ defineProps({
   getDifficultyTagType: { type: Function, required: true },
   getDifficultyLabel: { type: Function, required: true },
   getMasteryColor: { type: Function, required: true },
+  /** 图谱空态文案（失败时由页面传入「未能加载」文案，默认保留原语义） */
+  emptyText: { type: String, default: '请选择课程查看知识图谱' },
 })
 
 const emit = defineEmits(['node-click', 'select', 'learn'])

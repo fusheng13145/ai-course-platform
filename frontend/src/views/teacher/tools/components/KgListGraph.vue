@@ -28,7 +28,7 @@
         </div>
         <el-empty
           v-if="!pointLoading && points.length === 0"
-          description="暂无知识点"
+          :description="emptyText"
           :image-size="64"
         />
       </div>
@@ -76,6 +76,8 @@ defineProps({
   graphLoading: { type: Boolean, default: false },
   graphOption: { type: Object, default: () => ({}) },
   hasGraph: { type: Boolean, default: false },
+  /** 知识点列表空态文案（失败时由页面传入「未能加载」文案，默认保留原语义） */
+  emptyText: { type: String, default: '暂无知识点' },
 })
 
 const emit = defineEmits(['create', 'edit', 'remove', 'refresh'])
