@@ -97,7 +97,7 @@ Java 后端通过 HTTP 契约（`com.aicourse.integration.rag.RagContract`）与
 
 ## 快速开始
 
-项目提供两条启动路径：**本地开发**（**本阶段唯一使用的路径**——本机 MySQL / Redis + 两份 `.bat` 启动器）与 **容器化部署**（**2026-10-08 起整体搁置**：编排文件、镜像版本、用法与重新启用前提清单已全部归档到 `docs/项目手册.md` §24.2，仓库文件一件没删、CI 的 `docker`／`trivy-scan` 作业照常按容器判定，但**本机不再执行**）。详细步骤见 `docs/项目手册.md`（第六部分开发 / 第七部分部署）。
+项目提供两条启动路径：**本地开发**（**本阶段唯一使用的路径**——本机 MySQL / Redis + `start-all.bat` 单窗口启动器，或 `start-backend.bat` + `start-frontend.bat` 两份分步启动器）与 **容器化部署**（**2026-10-08 起整体搁置**：编排文件、镜像版本、用法与重新启用前提清单已全部归档到 `docs/项目手册.md` §24.2，仓库文件一件没删、CI 的 `docker`／`trivy-scan` 作业照常按容器判定，但**本机不再执行**）。详细步骤见 `docs/项目手册.md`（第六部分开发 / 第七部分部署）。
 
 > ⚠️ **本阶段的依赖纪律**：开发阶段**仅使用本地服务**。**必要**依赖（MySQL 3306 / Redis 6379 / JDK 21 / Node 20.19+）由两份 `.bat` 启动时自检，缺失即报错退出；**可选**依赖（Neo4j 7687 / KG 8001 / RAG 8002）缺失只降级不阻塞——`KG_ENABLED` / `RAG_ENABLED` 保持关闭，AI 走 Java 原生 Provider，功能仍可用。任一必要依赖本机没有时，**不要自行 `docker pull`、也不要安装替代物 → 直接上报项目主**。可选依赖的启动方式与本轮运行验收见手册 **§18.5**。
 
@@ -110,9 +110,13 @@ Java 后端通过 HTTP 契约（`com.aicourse.integration.rag.RagContract`）与
 mysql -u root -p -e "CREATE DATABASE ai_course_platform CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
 mysql -u root -p ai_course_platform < backend/src/main/resources/index.sql
 
-start-backend.bat        # 后端：六步自检（第 5 步拉起 Neo4j / KG / RAG）后 spring-boot:run
-start-frontend.bat       # 前端：另开一个终端
+start-all.bat            # 一个脚本、一个窗口起完整项目（Neo4j / KG / RAG / Java / Vite）——推荐入口，手册 §18.6
+
+start-backend.bat        # 分步：后端六步自检（第 5 步拉起 Neo4j / KG / RAG）后 spring-boot:run
+start-frontend.bat       # 分步：前端另开一个终端
 ```
+
+- **`start-all.bat`**（2026-10-10 新增，**DR-53**）：把五条服务日志**中继进同一个控制台**（逐行 `[neo4j] [kg] [rag] [api] [web]` 前缀，同时镜像写 `logs/<name>.log`），实测**整条演示栈只占一个窗口**；已在跑的服务一律**接管不重启**，退出时只收本次真起起来的进程树。判定口径与真跑读数见手册 **§18.6**，`start-backend.bat` / `start-frontend.bat` / `scripts/start-engines.py` **一行未改**，两条入口可混用。
 
 两个脚本各自做什么（逐步口径见手册 **§18.2 / §18.3**）：
 
