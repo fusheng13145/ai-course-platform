@@ -51,7 +51,9 @@ class DemoSeedMigrationIsolationTest {
             // V8（2026-10-13）：ai_call_logs + ai_chat_sessions.course_id —— 结构迁移，非演示数据
             "V8__ai_call_logging.sql",
             // V9（2026-10-13）：semesters 学期注册表 —— 结构迁移，非演示数据
-            "V9__semester_registry.sql");
+            "V9__semester_registry.sql",
+            // V10（2026-10-13）：ai_generation_restrictions 教师出题限制名单 —— 结构迁移，非演示数据
+            "V10__ai_generation_restrictions.sql");
 
     /** 演示种子脚本：这三个文件名只允许出现在 {@code db/seed-demo}。 */
     private static final Set<String> SEED_FILENAMES = Set.of(

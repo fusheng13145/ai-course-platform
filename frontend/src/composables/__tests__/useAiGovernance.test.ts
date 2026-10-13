@@ -12,10 +12,21 @@ import { mount, flushPromises } from '@vue/test-utils'
 const mocks = vi.hoisted(() => ({
   getConfigs: vi.fn(),
   updateConfig: vi.fn(),
+  getAiRestrictions: vi.fn(),
+  restrictAiGeneration: vi.fn(),
+  unrestrictAiGeneration: vi.fn(),
+  getAllUsers: vi.fn(),
 }))
 
 vi.mock('@/api/admin', () => ({
-  default: { getConfigs: mocks.getConfigs, updateConfig: mocks.updateConfig },
+  default: {
+    getConfigs: mocks.getConfigs,
+    updateConfig: mocks.updateConfig,
+    getAiRestrictions: mocks.getAiRestrictions,
+    restrictAiGeneration: mocks.restrictAiGeneration,
+    unrestrictAiGeneration: mocks.unrestrictAiGeneration,
+    getAllUsers: mocks.getAllUsers,
+  },
 }))
 
 import { useAiGovernance, TEACHER_QUESTION_GENERATION_KEY } from '@/composables/useAiGovernance'
@@ -33,7 +44,7 @@ function withSetup() {
   return state
 }
 
-describe('useAiGovernance — 出题权限开关', () => {
+describe('useAiGovernance — 出题权限总闸', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })
@@ -105,5 +116,96 @@ describe('useAiGovernance — 出题权限开关', () => {
 
     expect(state.loadError.value).toContain('不可信')
     expect(state.loading.value).toBe(false)
+  })
+})
+
+describe('useAiGovernance — 逐人限制名单（V10）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('名单加载成功：填充名单行（含被限制教师身份信息）', async () => {
+    mocks.getAiRestrictions.mockResolvedValue({
+      data: [{ userId: 7, username: 't001', fullName: '张老师', reason: '重复出题' }],
+    })
+    const state = withSetup()
+
+    await state.loadRestrictions()
+    await flushPromises()
+
+    expect(state.restrictions.value).toHaveLength(1)
+    expect(state.restrictions.value[0].fullName).toBe('张老师')
+    expect(state.restrictionLoadError.value).toBe('')
+  })
+
+  it('名单加载失败：给出提示并清空名单（不得表现为"没人被限制"）', async () => {
+    mocks.getAiRestrictions.mockRejectedValue(new Error('500'))
+    const state = withSetup()
+
+    await state.loadRestrictions()
+    await flushPromises()
+
+    expect(state.restrictionLoadError.value).toBe('限制名单加载失败，请检查网络后重试')
+    expect(state.restrictions.value).toEqual([])
+    expect(state.restrictionLoading.value).toBe(false)
+  })
+
+  it('加入名单成功：按 userId + 原因调用接口，并刷新名单', async () => {
+    mocks.getAiRestrictions.mockResolvedValue({ data: [] })
+    mocks.restrictAiGeneration.mockResolvedValue(undefined)
+    const state = withSetup()
+    await state.loadRestrictions()
+    mocks.getAiRestrictions.mockClear()
+
+    expect(await state.restrict(7, '重复出题')).toBe(true)
+    await flushPromises()
+
+    expect(mocks.restrictAiGeneration).toHaveBeenCalledWith(7, { reason: '重复出题' })
+    // 成功后必须刷新，否则界面停留在旧名单
+    expect(mocks.getAiRestrictions).toHaveBeenCalled()
+  })
+
+  it('加入名单失败：透传后端原因（如非教师 400），返回 false 且不刷新', async () => {
+    mocks.getAiRestrictions.mockResolvedValue({ data: [] })
+    mocks.restrictAiGeneration.mockRejectedValue({
+      response: { data: { message: '只能限制教师角色的账号出题（该账号当前角色：ADMIN）' } },
+    })
+    const state = withSetup()
+    await state.loadRestrictions()
+    mocks.getAiRestrictions.mockClear()
+
+    expect(await state.restrict(3, '')).toBe(false)
+    expect(state.restrictionActionError.value).toContain('只能限制教师')
+    expect(mocks.getAiRestrictions).not.toHaveBeenCalled()
+    expect(state.restrictionBusy.value).toBe(false)
+  })
+
+  it('解除限制：调用接口并刷新名单（404 也走失败分支，不静默成功）', async () => {
+    mocks.getAiRestrictions.mockResolvedValue({ data: [] })
+    mocks.unrestrictAiGeneration.mockResolvedValue(undefined)
+    const state = withSetup()
+
+    expect(await state.unrestrict(7)).toBe(true)
+    await flushPromises()
+    expect(mocks.unrestrictAiGeneration).toHaveBeenCalledWith(7)
+    expect(mocks.getAiRestrictions).toHaveBeenCalled()
+
+    mocks.unrestrictAiGeneration.mockRejectedValue({ response: { data: { message: '该教师不在限制名单内：7' } } })
+    expect(await state.unrestrict(7)).toBe(false)
+    expect(state.restrictionActionError.value).toContain('不在限制名单内')
+  })
+
+  it('教师候选加载失败：只置空选择器，不阻断名单本身的展示（不写 error）', async () => {
+    mocks.getAllUsers.mockRejectedValue(new Error('500'))
+    mocks.getAiRestrictions.mockResolvedValue({ data: [{ userId: 7, reason: 'r' }] })
+    const state = withSetup()
+
+    await state.loadTeachers()
+    await state.loadRestrictions()
+    await flushPromises()
+
+    expect(state.teachers.value).toEqual([])
+    expect(state.restrictions.value).toHaveLength(1)
+    expect(state.restrictionLoadError.value).toBe('')
   })
 })

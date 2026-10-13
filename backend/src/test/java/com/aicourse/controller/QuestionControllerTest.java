@@ -445,6 +445,28 @@ class QuestionControllerTest extends ControllerTestBase {
     }
 
     @Test
+    @DisplayName("逐人名单（V10 修订）：被点名限制的教师出题 403，且不得委托生成")
+    void generateByAIBasic_userRestricted_returns403() throws Exception {
+        when(aiGenerationPolicy.isUserRestricted(1L)).thenReturn(true);
+        mockMvc.perform(post("/questions/ai-generate").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\":1,\"type\":\"SINGLE\",\"difficulty\":\"EASY\"}").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(aiService, never()).generateQuestion(any(), any(), any(), anyInt());
+    }
+
+    @Test
+    @DisplayName("逐人名单：即使被点名，ADMIN 仍不受限（治理者保留能力，判定优先级如实钉住）")
+    void generateByAIBasic_restrictedAdmin_returns200() throws Exception {
+        when(aiGenerationPolicy.isUserRestricted(9L)).thenReturn(true);
+        when(aiService.generateQuestion(any(), any(), any(), anyInt())).thenReturn("admin-text");
+        mockMvc.perform(post("/questions/ai-generate").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\":1,\"type\":\"SINGLE\",\"difficulty\":\"EASY\"}").with(withUser(9L, "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.questions").value("admin-text"));
+    }
+
+    @Test
     @DisplayName("POST /questions/batch-import - TEACHER角色返回200且data透传导入数量")
     void batchImport_authorized_returns_success() throws Exception {
         when(questionService.batchImport(any(), any())).thenReturn(1);

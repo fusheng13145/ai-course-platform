@@ -129,6 +129,72 @@
               show-icon
               :title="govLoadError || govSaveError"
             />
+
+            <!-- 逐人名单（V10）：只限制被点名的教师，与上面的总闸并存 -->
+            <div class="restrict-row">
+              <el-select
+                v-model="restrictTargets"
+                class="restrict-select"
+                multiple
+                filterable
+                placeholder="选择要限制出题的教师（可多选）"
+              >
+                <el-option
+                  v-for="t in teachers"
+                  :key="t.id"
+                  :label="teacherLabel(t)"
+                  :value="t.id"
+                />
+              </el-select>
+              <el-input
+                v-model="restrictReason"
+                class="restrict-reason"
+                maxlength="255"
+                placeholder="限制原因（可选，会展示给被限制者）"
+              />
+              <el-button type="primary" :loading="restrictionBusy" @click="onRestrict">
+                加入名单
+              </el-button>
+            </div>
+            <el-alert
+              v-if="restrictionActionError || restrictionLoadError"
+              class="gov-alert"
+              type="error"
+              :closable="false"
+              show-icon
+              :title="restrictionActionError || restrictionLoadError"
+            />
+
+            <div v-loading="restrictionLoading" class="tbl-wrap restrict-tbl">
+              <table v-if="restrictions.length" class="tbl">
+                <thead>
+                  <tr>
+                    <th>被限制教师</th>
+                    <th>原因</th>
+                    <th>加入时间</th>
+                    <th class="col-op">操作</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="r in restrictions" :key="r.userId">
+                    <td class="cell-main">{{ teacherName(r) }}</td>
+                    <td class="muted small">{{ r.reason || '—' }}</td>
+                    <td class="muted small">{{ fmtTime(r.createdAt) }}</td>
+                    <td class="col-op">
+                      <el-button
+                        link
+                        type="primary"
+                        :disabled="restrictionBusy"
+                        @click="onUnrestrict(r)"
+                      >
+                        解除
+                      </el-button>
+                    </td>
+                  </tr>
+                </tbody>
+              </table>
+              <el-empty v-else description="当前没有教师被限制出题" :image-size="70" />
+            </div>
           </CollapsePanel>
         </div>
       </section>
@@ -137,13 +203,18 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import CollapsePanel from '@/components/ui/CollapsePanel.vue'
 import BarChart from '@/components/charts/BarChart.vue'
 import { useAIUsageByCourse, AI_USAGE_RANGES, type AiUsageCourseRow } from '@/composables/useAIUsageByCourse'
-import { useAiGovernance } from '@/composables/useAiGovernance'
+import {
+  useAiGovernance,
+  type AiRestrictionRow,
+  type TeacherOption,
+} from '@/composables/useAiGovernance'
 
 const { days, loading, loadError, stats, rows, collectionNote, topCourses, load } =
   useAIUsageByCourse()
@@ -155,10 +226,63 @@ const {
   saving: govSaving,
   saveError: govSaveError,
   setQuestionGenEnabled,
+  teachers,
+  restrictions,
+  restrictionLoading,
+  restrictionLoadError,
+  restrictionActionError,
+  restrictionBusy,
+  restrict,
+  unrestrict,
 } = useAiGovernance()
 
 function onToggleGovernance(value: string | number | boolean) {
   setQuestionGenEnabled(Boolean(value))
+}
+
+/* ---- 逐人限制名单（V10） ---- */
+const restrictTargets = ref<number[]>([])
+const restrictReason = ref('')
+
+function teacherLabel(t: TeacherOption) {
+  if (t.fullName && t.username) return `${t.fullName}（${t.username}）`
+  return t.fullName || t.username || `#${t.id}`
+}
+function teacherName(r: AiRestrictionRow) {
+  return r.fullName || r.username || (r.userId != null ? `#${r.userId}` : '—')
+}
+function fmtTime(v?: string | null) {
+  return v ? String(v).replace('T', ' ').slice(0, 16) : '—'
+}
+
+async function onRestrict() {
+  const ids = restrictTargets.value.filter((id) => typeof id === 'number')
+  if (ids.length === 0) {
+    ElMessage.warning('请选择要限制出题的教师')
+    return
+  }
+  const reason = restrictReason.value.trim()
+  for (const id of ids) {
+    // 逐个加入；任一失败即停，避免"部分成功"却给出一致成功提示（名单是逐人记录，失败可重试）
+    if (!(await restrict(id, reason))) return
+  }
+  ElMessage.success(`已限制 ${ids.length} 位教师的 AI 出题权限`)
+  restrictTargets.value = []
+  restrictReason.value = ''
+}
+
+async function onUnrestrict(row: AiRestrictionRow) {
+  if (row.userId === undefined || row.userId === null) return
+  try {
+    await ElMessageBox.confirm(
+      `确定解除「${teacherName(row)}」的 AI 出题限制吗？解除后该教师可立即恢复出题。`,
+      '解除确认',
+      { confirmButtonText: '确定解除', cancelButtonText: '取消', type: 'warning' },
+    )
+  } catch {
+    return // 用户取消
+  }
+  if (await unrestrict(row.userId)) ElMessage.success('已解除限制')
 }
 
 // 显式标注为可变的基础类型数组：`AI_USAGE_RANGES` 是 as const 只读元组，
@@ -250,6 +374,25 @@ function fmtRate(v?: number | null) {
   font-size: 11.5px;
 }
 .gov-alert {
+  margin-top: 10px;
+}
+
+/* 逐人限制名单：选择器 + 原因 + 按钮同排 */
+.restrict-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-top: 14px;
+}
+.restrict-select {
+  min-width: 320px;
+  max-width: 460px;
+}
+.restrict-reason {
+  max-width: 300px;
+}
+.restrict-tbl {
   margin-top: 10px;
 }
 </style>

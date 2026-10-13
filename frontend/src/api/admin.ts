@@ -39,6 +39,20 @@ export const importUsers = (data) => request.post('/admin/users/import', data)
 // Excel 批量导入（multipart 上传 .xlsx 文件）
 export const importUsersExcel = (data) => request.post('/admin/users/import-excel', data)
 
+// 管理员端 - AI 出题治理（角色矩阵 ④ 修订：逐人限制名单，后端 V10 表）
+/** 限制名单（含被限制教师的登录名与姓名） */
+export const getAiRestrictions = () => request.get('/admin/ai-governance/restrictions')
+/**
+ * 把教师加入限制名单（幂等：已在名单内则更新原因，保留首次加入时间）。
+ * @param {number|string} userId 教师用户ID
+ * @param {{ reason?: string }} data
+ */
+export const restrictAiGeneration = (userId, data = {}) =>
+  request.post('/admin/ai-governance/restrictions', { userId, ...data })
+/** 解除限制（不在名单内后端返回 404，不静默成功） */
+export const unrestrictAiGeneration = (userId) =>
+  request.delete(`/admin/ai-governance/restrictions/${userId}`)
+
 // 管理员端 - 学期管理（角色矩阵 ①②：创建学期 / 归档过期学期）
 /**
  * 学期列表；可按状态过滤（ACTIVE / ARCHIVED，省略为全部）。
@@ -120,6 +134,9 @@ export default {
   getCourseStats,
   getAIUsage,
   getAIUsageByCourse,
+  getAiRestrictions,
+  restrictAiGeneration,
+  unrestrictAiGeneration,
   getSemesters,
   createSemester,
   archiveSemester,

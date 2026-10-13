@@ -59,8 +59,10 @@ public class QuestionController {
     }
 
     /**
-     * AI 出题权限校验：管理员可以在管理端关闭「教师 AI 出题」开关，
-     * 关闭后非 ADMIN 的调用方在本控制器的两个出题入口一律 403；ADMIN 不受限（治理者保留能力）。
+     * AI 出题权限校验（**两层**，2026-10-13 修订为"平台总闸 + 逐人名单"）：
+     * ① 管理员可在管理端关闭「教师 AI 出题」总闸 → 对所有非 ADMIN 调用方 403（紧急一键全禁）；
+     * ② 管理员可把**特定教师**加入限制名单 → 只对该教师 403。
+     * ADMIN 两层都不受限（治理者保留能力）。
      *
      * <p>刻意<b>不</b>改 {@code @PreAuthorize}（那是角色门，与治理开关是两件事）：
      * 角色门写死"谁能进来"，本校验表达"进来之后当前是否被允许"。</p>
@@ -69,9 +71,14 @@ public class QuestionController {
         if (RoleUtil.isAdmin(auth)) {
             return;
         }
+        Long userId = auth != null ? (Long) auth.getPrincipal() : null;
         if (!aiGenerationPolicy.isTeacherQuestionGenerationEnabled()) {
             throw new BusinessException(ApiCode.FORBIDDEN,
                     "管理员已限制教师的 AI 出题权限，请联系管理员开通后再试。");
+        }
+        if (aiGenerationPolicy.isUserRestricted(userId)) {
+            throw new BusinessException(ApiCode.FORBIDDEN,
+                    "该账号已被管理员限制 AI 出题权限，请联系管理员解除后再试。");
         }
     }
 

@@ -1,5 +1,6 @@
 package com.aicourse.service.component.ai;
 
+import com.aicourse.service.AiGenerationRestrictionService;
 import com.aicourse.service.component.sys.SysConfigComponent;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -14,16 +15,19 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
- * AiGenerationPolicy 单元测试（角色矩阵「限制教师出题权限」的判定口径）。
+ * AiGenerationPolicy 单元测试（角色矩阵 ④「限制教师出题权限」的判定口径）。
  *
- * <p>重点是「缺省等于现状」这条：配置行不存在（或空白/非 false 值）必须判为**允许**，
- * 否则会把"没配过"当成"被禁用"，让既有教师的出题能力在无人操作的情况下静默失效。</p>
+ * <p>两层判定：① 平台总闸（system_configs）——重点是「缺省等于现状」：配置行不存在
+ * （或空白/非 false 值）必须判为**允许**，否则会把"没配过"当成"被禁用"；
+ * ② 逐人名单（V10 表）——只看名单、不改总闸的判定口径。</p>
  */
 @ExtendWith(MockitoExtension.class)
 class AiGenerationPolicyTest {
 
     @Mock
     private SysConfigComponent sysConfigComponent;
+    @Mock
+    private AiGenerationRestrictionService aiGenerationRestrictionService;
 
     @InjectMocks
     private AiGenerationPolicy policy;
@@ -59,5 +63,29 @@ class AiGenerationPolicyTest {
                 .thenReturn(" false ");
         assertFalse(policy.isTeacherQuestionGenerationEnabled());
         verify(sysConfigComponent).getConfig(AiGenerationPolicy.TEACHER_QUESTION_GENERATION_KEY);
+    }
+
+    // ===================== 逐人名单（V10 表） =====================
+
+    @Test
+    @DisplayName("逐人名单：命中名单判为受限（委托名单服务，不在本组件另存一份判定）")
+    void userRestricted_delegates() {
+        when(aiGenerationRestrictionService.isRestricted(7L)).thenReturn(true);
+        assertTrue(policy.isUserRestricted(7L));
+        verify(aiGenerationRestrictionService).isRestricted(7L);
+    }
+
+    @Test
+    @DisplayName("逐人名单：不在名单内判为不受限")
+    void userNotRestricted() {
+        when(aiGenerationRestrictionService.isRestricted(8L)).thenReturn(false);
+        assertFalse(policy.isUserRestricted(8L));
+    }
+
+    @Test
+    @DisplayName("逐人名单：userId 为 null（未认证）判为不受限（名单服务自身按 null 兜底）")
+    void nullUser_notRestricted() {
+        when(aiGenerationRestrictionService.isRestricted(null)).thenReturn(false);
+        assertFalse(policy.isUserRestricted(null));
     }
 }
