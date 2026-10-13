@@ -20,6 +20,14 @@ export function useKnowledgeManagement() {
   const selectedCourseId = ref(null)
   const courseList = ref([])
   const searchText = ref('')
+  /**
+   * 知识树 / 知识点列表两路加载各自独立记录失败，避免 Promise.all 并发时被成功方复位而互相串味；
+   * 对外以 loadError 聚合暴露，页面据此渲染持久提示（失败可见）。
+   * 原实现失败后静默置空 → 树显示「请先选择课程加载知识点」、表格显示「暂无知识点数据」，均属误导。
+   */
+  const treeError = ref('')
+  const listError = ref('')
+  const loadError = computed(() => treeError.value || listError.value)
 
   const treeLoading = ref(false)
   const knowledgeTree = ref([])
@@ -101,6 +109,7 @@ export function useKnowledgeManagement() {
   /** 加载知识树（getTree 优先，失败回退列表构建） */
   async function loadKnowledgeTree() {
     treeLoading.value = true
+    treeError.value = ''
     try {
       const res = await knowledgeApi.getTree(selectedCourseId.value)
       const data = res.data?.data || res.data || res || []
@@ -113,6 +122,7 @@ export function useKnowledgeManagement() {
       } catch (e2) {
         logger.error('加载知识树失败:', e2)
         knowledgeTree.value = []
+        treeError.value = '知识树加载失败，请检查网络后重试'
       }
     } finally {
       treeLoading.value = false
@@ -121,6 +131,7 @@ export function useKnowledgeManagement() {
 
   async function loadKnowledgeList() {
     tableLoading.value = true
+    listError.value = ''
     try {
       const res = await knowledgeApi.getKnowledgePoints(selectedCourseId.value)
       const data = res.data?.list || res.data || res || []
@@ -131,6 +142,7 @@ export function useKnowledgeManagement() {
     } catch (e) {
       logger.error('加载知识点列表失败:', e)
       knowledgeList.value = []
+      listError.value = '知识点列表加载失败，请检查网络后重试'
     } finally {
       tableLoading.value = false
     }
@@ -443,6 +455,9 @@ export function useKnowledgeManagement() {
     selectedCourseId,
     courseList,
     searchText,
+    loadError,
+    treeError,
+    listError,
     treeLoading,
     knowledgeTree,
     treeRef,

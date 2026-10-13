@@ -12,6 +12,13 @@ export function useKnowledgeTab(courseIdRef) {
   const searchText = ref('')
   const treeLoading = ref(false)
   const tableLoading = ref(false)
+  /**
+   * 加载失败提示文案：非空即表示知识点树/列表数据不可信。
+   * 原实现失败后静默置空 → 树与表格只剩「暂无知识点」，教师会误判该课程没有知识点（失败可见）。
+   * 树与列表在同一轮 loadAll 内并发加载，故**只在 loadAll 开头复位一次**、两个 loader 均可置位，
+   * 彼此不会复位对方的失败信号。
+   */
+  const loadError = ref('')
   const treeData = ref([])
   const list = ref([])
 
@@ -120,6 +127,7 @@ export function useKnowledgeTab(courseIdRef) {
 
   async function loadAll() {
     if (!courseIdRef.value) return
+    loadError.value = ''
     await Promise.all([loadTree(), loadList(), loadGraph()])
   }
 
@@ -154,6 +162,7 @@ export function useKnowledgeTab(courseIdRef) {
         treeData.value = buildTree(list.value)
       } catch {
         treeData.value = []
+        loadError.value = '知识点树加载失败，请检查网络后重试'
       }
     } finally {
       treeLoading.value = false
@@ -172,6 +181,7 @@ export function useKnowledgeTab(courseIdRef) {
       }))
     } catch {
       list.value = []
+      loadError.value = '知识点列表加载失败，请检查网络后重试'
     } finally {
       tableLoading.value = false
     }
@@ -398,6 +408,7 @@ export function useKnowledgeTab(courseIdRef) {
 
   return {
     searchText,
+    loadError,
     treeLoading,
     tableLoading,
     treeData,

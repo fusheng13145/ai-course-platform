@@ -39,7 +39,7 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="!tableLoading && !filteredData.length" description="暂无知识点" />
+      <el-empty v-if="!tableLoading && !filteredData.length" :description="emptyText" />
     </div>
 
     <!-- 知识图谱 -->
@@ -73,6 +73,8 @@ defineProps({
   graphMode: { type: String, default: 'force' },
   forceOption: { type: Object, default: () => ({}) },
   treeOption: { type: Object, default: () => ({}) },
+  /** 列表空态文案（失败时由页面传入「未能加载」文案，默认保留原语义） */
+  emptyText: { type: String, default: '暂无知识点' },
 })
 defineEmits(['update:graphMode', 'edit', 'delete'])
 

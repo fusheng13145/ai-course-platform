@@ -33,7 +33,7 @@
       </el-table>
       <el-empty
         v-if="!tableLoading && filteredKnowledgeList.length === 0"
-        description="暂无知识点数据"
+        :description="emptyText"
       />
     </div>
 
@@ -77,6 +77,8 @@ defineProps({
   graphViewMode: { type: String, default: 'force' },
   forceGraphOption: { type: Object, required: true },
   treeGraphOption: { type: Object, required: true },
+  /** 列表空态文案（失败时由页面传入「未能加载」文案，默认保留原语义） */
+  emptyText: { type: String, default: '暂无知识点数据' },
 })
 
 const emit = defineEmits(['edit', 'relation', 'delete', 'view-mode'])

@@ -32,6 +32,16 @@
       </div>
     </div>
 
+    <!-- 加载失败提示：见 useKnowledgeManagement.loadError 注释（失败不得渲染成「暂无知识点数据」） -->
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      show-icon
+      style="margin-bottom: var(--ac-spacing-md)"
+    />
+
     <!-- 主内容区：知识树 + 知识点列表/图谱 -->
     <div class="km-main-grid animate-in d1">
       <KntTreePanel
@@ -40,7 +50,7 @@
         :tree-loading="treeLoading"
         :get-difficulty-tag-type="getDifficultyTagType"
         :get-difficulty-label="getDifficultyLabel"
-        empty-text="请先选择课程加载知识点"
+        :empty-text="treeError ? '知识树未能加载，请查看上方提示后重试' : '请先选择课程加载知识点'"
         @expand="onExpandAll"
       />
       <KmListGraph
@@ -51,6 +61,7 @@
         :graph-view-mode="graphViewMode"
         :force-graph-option="forceGraphOption"
         :tree-graph-option="treeGraphOption"
+        :empty-text="listError ? '知识点列表未能加载，请查看上方提示后重试' : '暂无知识点数据'"
         @edit="openEditDialog"
         @relation="openRelationDialog"
         @delete="handleDelete"
@@ -119,6 +130,9 @@ const {
   selectedCourseId,
   courseList,
   searchText,
+  loadError,
+  treeError,
+  listError,
   treeLoading,
   knowledgeTree,
   treeRef,
