@@ -134,6 +134,13 @@ class SysMonitorComponentTest {
         assertEquals(true, r.get("apiConfigured"));
         assertEquals(120L, r.get("knowledgeBaseSize"));
         assertEquals("active", r.get("status"));
+        // 2026-10-13 口径修正：编造/估算字段（totalCalls/todayCalls/avgResponseTime/costEstimate）
+        // 必须已被移除，且改为如实声明"按次留痕"——阴性对照，防止估算值被悄悄加回来
+        assertNull(r.get("totalCalls"));
+        assertNull(r.get("costEstimate"));
+        assertNull(r.get("avgResponseTime"));
+        assertEquals("2026-10-13", r.get("collectedSince"));
+        assertNotNull(r.get("collectionNote"));
     }
 
     @Test
@@ -150,8 +157,10 @@ class SysMonitorComponentTest {
 
         Map<String, Object> r = noKey.getAIUsageStats();
         assertEquals(false, r.get("apiConfigured"));
-        assertEquals(0, r.get("avgResponseTime"));
         assertEquals("api_key_missing", r.get("status"));
+        // 未配置 Key 时同样不得回落到"估算值"（此前 avgResponseTime 常量 1200/0 属编造）
+        assertNull(r.get("avgResponseTime"));
+        assertEquals("2026-10-13", r.get("collectedSince"));
     }
 
     // ===================== aiMonitor =====================

@@ -45,6 +45,9 @@ class AIServiceImplTest {
     private RAGService ragService;
     @Mock
     private PromptGuard promptGuard;
+    /** 落库服务桩：本测试不设 AiCallContext 作用域，故不会有任何 record 交互。 */
+    @Mock
+    private com.aicourse.service.AiCallLogService aiCallLogService;
 
     private final MeterRegistry meterRegistry = new SimpleMeterRegistry();
     private AIServiceImpl service;
@@ -52,7 +55,7 @@ class AIServiceImplTest {
     @BeforeEach
     void setUp() {
         // 原兼容构造器已移除：此处内联其组件组装逻辑，再走主构造器（4 个组件）
-        AiCoreComponent coreComponent = new AiCoreComponent(llmProvider, promptGuard, meterRegistry);
+        AiCoreComponent coreComponent = new AiCoreComponent(llmProvider, promptGuard, meterRegistry, aiCallLogService);
         AiDialogueComponent dialogueComponent = new AiDialogueComponent(coreComponent);
         AiRagComponent ragComponent = new AiRagComponent(ragService, promptGuard, coreComponent);
         AiStructuredComponent structuredComponent = new AiStructuredComponent(coreComponent);

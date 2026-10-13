@@ -117,7 +117,7 @@ class AIControllerCoverageTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.data.sources[0].relevanceScore").value(0.8));
 
         // 命中已有会话：不得再新建；courseId 未提供时以 null 透传 RAG
-        verify(aiChatSessionService, never()).createSession(any(), any());
+        verify(aiChatSessionService, never()).createSession(any(), any(), any());
         verify(aiService).ragAsk(eq("什么是闭包"), isNull());
         verify(aiChatSessionService).appendMessage("s-9", "user", "什么是闭包");
         verify(aiChatSessionService).appendMessage("s-9", "assistant", "&lt;em&gt;答案&lt;/em&gt;");
@@ -126,7 +126,7 @@ class AIControllerCoverageTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /ai/qa/ask - AI 返回 null：answer 回落空串而非 NPE")
     void qaAsk_nullAnswer_fallsBackToEmpty() throws Exception {
-        when(aiChatSessionService.createSession(5L, null)).thenReturn(session("s-new"));
+        when(aiChatSessionService.createSession(5L, null, null)).thenReturn(session("s-new"));
         when(aiService.ragAsk(anyString(), any())).thenReturn(null);
 
         MvcResult mvc = mockMvc.perform(post("/ai/qa/ask").contentType(MediaType.APPLICATION_JSON)
@@ -145,7 +145,7 @@ class AIControllerCoverageTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /ai/qa/continue - 无 sessionId 新建会话；历史 content 为 null 转空串；AI null 回落空串")
     void qaContinue_noSession_createsAndEscapesHistory() throws Exception {
-        when(aiChatSessionService.createSession(2L, null)).thenReturn(session("s-2"));
+        when(aiChatSessionService.createSession(2L, null, null)).thenReturn(session("s-2"));
         when(aiChatSessionService.getMessages("s-2"))
                 .thenReturn(List.of(message("user", null), message("assistant", "ok")));
         when(aiService.chat(anyList(), eq(2L))).thenReturn(null);
@@ -497,7 +497,7 @@ class AIControllerCoverageTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /ai/qa/ask - Authentication 为 null：userId 以 null 建会话，链路不中断")
     void qaAsk_nullAuth_createsSessionWithNullUser() throws Exception {
-        when(aiChatSessionService.createSession(null, null)).thenReturn(session("s-anon"));
+        when(aiChatSessionService.createSession(null, null, null)).thenReturn(session("s-anon"));
         when(aiService.ragAsk("anon?", null)).thenReturn(new QaAnswerVO("ok", List.of()));
 
         MvcResult mvc = mockMvc.perform(post("/ai/qa/ask").contentType(MediaType.APPLICATION_JSON)
@@ -508,13 +508,13 @@ class AIControllerCoverageTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.data.sessionId").value("s-anon"))
                 .andExpect(jsonPath("$.data.answer").value("ok"));
 
-        verify(aiChatSessionService).createSession(isNull(), isNull());
+        verify(aiChatSessionService).createSession(isNull(), isNull(), isNull());
     }
 
     @Test
     @DisplayName("POST /ai/qa/continue - Authentication 为 null：新建会话并以 null userId 委托 chat")
     void qaContinue_nullAuth_createsSession() throws Exception {
-        when(aiChatSessionService.createSession(null, null)).thenReturn(session("s-canon"));
+        when(aiChatSessionService.createSession(null, null, null)).thenReturn(session("s-canon"));
         when(aiChatSessionService.getMessages("s-canon")).thenReturn(List.of());
         when(aiService.chat(anyList(), isNull())).thenReturn("done");
 

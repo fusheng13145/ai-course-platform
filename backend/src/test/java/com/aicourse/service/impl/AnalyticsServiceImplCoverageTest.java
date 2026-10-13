@@ -23,7 +23,10 @@ import com.aicourse.service.component.analytics.CourseAnalyticsComponent;
 import com.aicourse.service.component.analytics.LearnerAnalyticsComponent;
 import com.aicourse.service.component.analytics.TeachingAnalyticsComponent;
 import com.aicourse.vo.CourseRiskPredictionVO;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -48,6 +51,7 @@ import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -103,6 +107,9 @@ class AnalyticsServiceImplCoverageTest {
 
     @BeforeEach
     void setUp() {
+        // LambdaQueryWrapper 的列名要在 getSqlSegment() 时才落地，需先注册实体元数据，
+        // 否则抛 MybatisPlusException: can not find lambda cache（仓库其它单测同款做法）
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), ExamSession.class);
         analyticsService = new AnalyticsServiceImpl(
                 adminAnalyticsComponent, courseAnalyticsComponent, learnerAnalyticsComponent, teachingAnalyticsComponent,
                 learningRiskService,
@@ -278,7 +285,10 @@ class AnalyticsServiceImplCoverageTest {
         // 学生 11 完成记录无时间、提交时间与考试时间并存，取最大者
         assertEquals(T_0130.toString(), third.get("lastActiveAt"));
 
-        verify(examSessionService).list(argThat(query -> query.getSqlSegment().contains("exam_paper_id")));
+        // 显式声明形参类型 Wrapper<ExamSession>：IService 同时存在 list(Wrapper) 与 list(IPage) 两个重载，
+        // 隐式类型 lambda 会让 javac 无法在两者间选择（本轮首次真正编译测试源码时暴露）
+        verify(examSessionService).list(argThat((Wrapper<ExamSession> query) ->
+                query.getSqlSegment().contains("exam_paper_id")));
 
         verify(userService).listByIds(anyCollection());
         verify(taskCompletionMapper).selectList(any(Wrapper.class));

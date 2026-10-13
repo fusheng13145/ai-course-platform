@@ -14,6 +14,7 @@ import com.aicourse.security.RoleUtil;
 import com.aicourse.service.AIService;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.QuestionService;
+import com.aicourse.service.component.ai.AiCallContext;
 import com.aicourse.vo.BatchImportResultVO;
 import com.aicourse.vo.QuestionStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -344,13 +345,17 @@ public class QuestionController {
     @PostMapping("/ai-generate")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "AI生成题目")
-    public ApiResponse<Map<String, String>> generateByAIBasic(@Valid @RequestBody QuestionGenerateDTO dto) {
+    public ApiResponse<Map<String, String>> generateByAIBasic(@Valid @RequestBody QuestionGenerateDTO dto,
+                                                              Authentication auth) {
         Long courseId = dto.getCourseId();
         String type = dto.getType();
         String difficulty = dto.getDifficulty();
         int count = dto.getCount() != null ? dto.getCount() : 1;
 
-        String result = aiService.generateQuestion(courseId, type, difficulty, count);
+        // 跨课程 AI 统计：把调用者与归属课程带进作用域，落库发生在 AiCoreComponent
+        Long userId = auth != null ? (Long) auth.getPrincipal() : null;
+        String result = AiCallContext.run(userId, courseId, "QUESTION_GENERATE",
+                () -> aiService.generateQuestion(courseId, type, difficulty, count));
         return ApiResponse.success("AI生成成功", Map.of("questions", result));
     }
 
@@ -380,9 +385,11 @@ public class QuestionController {
             }
         }
 
-        List<Question> questions = questionService.generateBatchByAI(
-                courseId, type, difficulty, kp, count, (Long) auth.getPrincipal());
-        return ApiResponse.success("AI批量生成成功（" + (kp != null ? "知识点感知" : "通用模式") + "）", questions);
+        final String resolvedKp = kp;
+        List<Question> questions = AiCallContext.run((Long) auth.getPrincipal(), courseId, "QUESTION_GENERATE",
+                () -> questionService.generateBatchByAI(
+                        courseId, type, difficulty, resolvedKp, count, (Long) auth.getPrincipal()));
+        return ApiResponse.success("AI批量生成成功（" + (resolvedKp != null ? "知识点感知" : "通用模式") + "）", questions);
     }
 
     /**

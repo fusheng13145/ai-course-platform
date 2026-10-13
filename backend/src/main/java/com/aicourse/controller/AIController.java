@@ -15,6 +15,7 @@ import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.LearningPathService;
 import com.aicourse.service.LearningRecommendationService;
+import com.aicourse.service.component.ai.AiCallContext;
 import com.aicourse.vo.QaAnswerVO;
 import com.aicourse.vo.QaSourceVO;
 import jakarta.validation.Valid;
@@ -43,6 +44,11 @@ import org.springframework.web.util.HtmlUtils;
  * 4) 历史遗留的 /chat /generate-question /generate-summary /check-plagiarism /rag/ask
  *    五个端点已于 2026.07 彻底删除，请使用 /qa/ask /recommendations/questions /essay/correct
  *    等新端点。
+ * <p>
+ * 5) <b>跨课程 AI 统计的归属标注（2026-10-13 增）</b>：每个会真实触发大模型调用的入口，
+ *    都用 {@link AiCallContext#run} 把「调用者 / 归属课程 / 业务场景」带进作用域；
+ *    真正落库发生在 {@code AiCoreComponent}。作用域必须设在 {@code Callable} <b>内部</b>
+ *    （异步线程），否则上下文不会跟随过去。
  */
 @RestController
 @RequestMapping("/ai")
@@ -96,22 +102,25 @@ public class AIController {
             Long cid = courseId != null ? Long.valueOf(courseId) : null;
             AiChatSession session = (providedSid != null) ? aiChatSessionService.getBySessionId(providedSid) : null;
             if (session == null) {
-                session = aiChatSessionService.createSession(userId, null);
+                // ★ 2026-10-13 修复：不再丢弃入口已收到的 courseId（原先固定传 null，会话无法归属课程）
+                session = aiChatSessionService.createSession(userId, null, cid);
             }
-            String sessionId = session.getSessionId();
-            // XSS防护：对用户输入进行HTML转义
-            String escapedQuestion = HtmlUtils.htmlEscape(question);
-            aiChatSessionService.appendMessage(sessionId, "user", escapedQuestion);
-            QaAnswerVO qa = aiService.ragAsk(question, cid);
-            String answer = qa != null && qa.getAnswer() != null ? qa.getAnswer() : "";
-            // XSS防护：对AI返回内容进行HTML转义
-            String escapedAnswer = HtmlUtils.htmlEscape(answer);
-            aiChatSessionService.appendMessage(sessionId, "assistant", escapedAnswer);
-            Map<String, Object> resp = new LinkedHashMap<>();
-            resp.put("answer", escapedAnswer);
-            resp.put("sessionId", sessionId);
-            resp.put("sources", escapeSources(qa != null ? qa.getSources() : null));
-            return ApiResponse.success(resp);
+            final String sessionId = session.getSessionId();
+            return AiCallContext.run(userId, cid, "QA_ASK", () -> {
+                // XSS防护：对用户输入进行HTML转义
+                String escapedQuestion = HtmlUtils.htmlEscape(question);
+                aiChatSessionService.appendMessage(sessionId, "user", escapedQuestion);
+                QaAnswerVO qa = aiService.ragAsk(question, cid);
+                String answer = qa != null && qa.getAnswer() != null ? qa.getAnswer() : "";
+                // XSS防护：对AI返回内容进行HTML转义
+                String escapedAnswer = HtmlUtils.htmlEscape(answer);
+                aiChatSessionService.appendMessage(sessionId, "assistant", escapedAnswer);
+                Map<String, Object> resp = new LinkedHashMap<>();
+                resp.put("answer", escapedAnswer);
+                resp.put("sessionId", sessionId);
+                resp.put("sources", escapeSources(qa != null ? qa.getSources() : null));
+                return ApiResponse.success(resp);
+            });
         };
     }
 
@@ -137,6 +146,8 @@ public class AIController {
     /**
      * 继续对话 - 多轮上下文连续对话
      * POST /api/ai/qa/continue
+     * <p>归属课程取自会话本身：会话由 {@link #qaAsk} 建立时已写入 courseId，
+     * 故"继续对话"不会因为 DTO 里没有 courseId 就退化成未绑定课程。</p>
      */
     @PostMapping("/qa/continue")
     public Callable<ApiResponse<Map<String, Object>>> qaContinue(@Valid @RequestBody QaContinueDTO body,
@@ -147,25 +158,28 @@ public class AIController {
         return () -> {
             AiChatSession session = (providedSid != null) ? aiChatSessionService.getBySessionId(providedSid) : null;
             if (session == null) {
-                session = aiChatSessionService.createSession(userId, null);
+                session = aiChatSessionService.createSession(userId, null, null);
             }
-            String sessionId = session.getSessionId();
-            // XSS防护：对AI返回的历史消息和用户输入进行HTML转义
-            String escapedMessage = HtmlUtils.htmlEscape(message);
-            List<Map<String, String>> history = new ArrayList<>();
-            for (AiChatMessage m : aiChatSessionService.getMessages(sessionId)) {
-                history.add(Map.of("role", m.getRole(), "content", HtmlUtils.htmlEscape(m.getContent() != null ? m.getContent() : "")));
-            }
-            history.add(Map.of("role", "user", "content", escapedMessage));
-            aiChatSessionService.appendMessage(sessionId, "user", escapedMessage);
-            String answer = aiService.chat(history, userId);
-            // XSS防护：对AI返回内容进行HTML转义
-            String escapedAnswer = HtmlUtils.htmlEscape(answer != null ? answer : "");
-            aiChatSessionService.appendMessage(sessionId, "assistant", escapedAnswer);
-            Map<String, Object> resp = new LinkedHashMap<>();
-            resp.put("answer", escapedAnswer);
-            resp.put("sessionId", sessionId);
-            return ApiResponse.success(resp);
+            final String sessionId = session.getSessionId();
+            final Long sessionCourseId = session.getCourseId();
+            return AiCallContext.run(userId, sessionCourseId, "QA_CONTINUE", () -> {
+                // XSS防护：对AI返回的历史消息和用户输入进行HTML转义
+                String escapedMessage = HtmlUtils.htmlEscape(message);
+                List<Map<String, String>> history = new ArrayList<>();
+                for (AiChatMessage m : aiChatSessionService.getMessages(sessionId)) {
+                    history.add(Map.of("role", m.getRole(), "content", HtmlUtils.htmlEscape(m.getContent() != null ? m.getContent() : "")));
+                }
+                history.add(Map.of("role", "user", "content", escapedMessage));
+                aiChatSessionService.appendMessage(sessionId, "user", escapedMessage);
+                String answer = aiService.chat(history, userId);
+                // XSS防护：对AI返回内容进行HTML转义
+                String escapedAnswer = HtmlUtils.htmlEscape(answer != null ? answer : "");
+                aiChatSessionService.appendMessage(sessionId, "assistant", escapedAnswer);
+                Map<String, Object> resp = new LinkedHashMap<>();
+                resp.put("answer", escapedAnswer);
+                resp.put("sessionId", sessionId);
+                return ApiResponse.success(resp);
+            });
         };
     }
 
@@ -204,6 +218,8 @@ public class AIController {
      * 每个事件为一个 content delta 片段，前端可实时渲染打字机效果。
      * 输入经 PromptGuard 注入中和后，由当前配置的 LLM 供应商（DeepSeek/OpenAI/Qwen）
      * 以流式模式执行补全，输出每 token 经输出护栏清洗后逐条推送。
+     * <p>⚠️ 该路径<b>不落</b> {@code ai_call_logs}：实际调用发生在 SSE 订阅线程上，
+     * 而调用归属是线程级作用域，跨线程即失效——少记一条好过记错归属（见 {@code AiCoreComponent} 注释）。
      *
      * @param question 用户提问内容
      * @return SSE 流，每个事件为一段 delta 文本
@@ -218,14 +234,17 @@ public class AIController {
     /**
      * 作文批改 - AI自动批改作文
      * POST /api/ai/essay/correct
+     * <p>作文批改不带课程维度（DTO 无 courseId），统计中归入"未绑定课程"。</p>
      */
     @PostMapping("/essay/correct")
-    public Callable<ApiResponse<Map<String, String>>> essayCorrect(@Valid @RequestBody EssayDTO body) {
+    public Callable<ApiResponse<Map<String, String>>> essayCorrect(@Valid @RequestBody EssayDTO body,
+                                                                   Authentication auth) {
+        final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
         final String content = body.getContent();
-        return () -> {
+        return () -> AiCallContext.run(userId, null, "ESSAY_CORRECT", () -> {
             String result = aiService.generateContent("correct", content);
             return ApiResponse.success(Map.of("result", result));
-        };
+        });
     }
 
     /**
@@ -233,12 +252,14 @@ public class AIController {
      * POST /api/ai/essay/polish
      */
     @PostMapping("/essay/polish")
-    public Callable<ApiResponse<Map<String, String>>> essayPolish(@Valid @RequestBody EssayDTO body) {
+    public Callable<ApiResponse<Map<String, String>>> essayPolish(@Valid @RequestBody EssayDTO body,
+                                                                  Authentication auth) {
+        final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
         final String content = body.getContent();
-        return () -> {
+        return () -> AiCallContext.run(userId, null, "ESSAY_POLISH", () -> {
             String result = aiService.generateContent("polish", content);
             return ApiResponse.success(Map.of("result", result));
-        };
+        });
     }
 
     // ==================== 智能推荐（2个接口） ====================
@@ -251,7 +272,8 @@ public class AIController {
     public Callable<ApiResponse<Map<String, Object>>> learningRecommendations(Authentication auth) {
         // 业务编排已下沉至 LearningRecommendationService（学情聚合 + 数据驱动上下文 + LLM 推荐）
         final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
-        return () -> ApiResponse.success(learningRecommendationService.recommendLearning(userId));
+        return () -> AiCallContext.run(userId, null, "LEARNING_RECOMMEND",
+                () -> ApiResponse.success(learningRecommendationService.recommendLearning(userId)));
     }
 
     /**
@@ -261,10 +283,12 @@ public class AIController {
     @GetMapping("/recommendations/questions")
     public Callable<ApiResponse<Map<String, Object>>> questionRecommendations(
             @RequestParam(required = false) Long courseId,
-            @RequestParam(required = false) String difficulty) {
+            @RequestParam(required = false) String difficulty,
+            Authentication auth) {
+        final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
         final Long cid = courseId;
         final String diff = difficulty;
-        return () -> {
+        return () -> AiCallContext.run(userId, cid, "QUESTION_RECOMMEND", () -> {
             Map<String, Object> result = new HashMap<>();
             result.put("courseId", cid);
             result.put("difficulty", diff);
@@ -280,7 +304,7 @@ public class AIController {
             }
             result.put("recommendations", recommendations);
             return ApiResponse.success(result);
-        };
+        });
     }
 
     // ==================== 学情分析（1个接口） ====================
@@ -295,7 +319,7 @@ public class AIController {
             Authentication auth) {
         final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
         final Long cid = courseId;
-        return () -> {
+        return () -> AiCallContext.run(userId, cid, "WEAK_POINTS", () -> {
             Map<String, Object> result = new HashMap<>();
             result.put("courseId", cid);
             List<Map<String, String>> weakPoints = new ArrayList<>();
@@ -306,7 +330,7 @@ public class AIController {
             }
             result.put("weakPoints", weakPoints);
             return ApiResponse.success(result);
-        };
+        });
     }
 
     /**
@@ -318,7 +342,8 @@ public class AIController {
             @RequestParam(required = false) Long courseId,
             Authentication auth) {
         final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
-        return () -> {
+        final Long cid = courseId;
+        return () -> AiCallContext.run(userId, cid, "LEARNING_ADVICE", () -> {
             if (userId == null) {
                 throw new BusinessException(ApiCode.UNAUTHORIZED, "未登录");
             }
@@ -330,7 +355,7 @@ public class AIController {
                 log.error("生成学习建议失败: {}", e.getMessage(), e);
                 throw new BusinessException("生成学习建议失败: " + e.getMessage());
             }
-        };
+        });
     }
 
     // ==================== 学习路径（1个接口） ====================
@@ -349,7 +374,7 @@ public class AIController {
         final String courseId = body.getCourseId();
         final String goal = body.getGoal() != null ? body.getGoal() : "掌握课程核心知识";
         final Long cid = courseId != null ? Long.valueOf(courseId) : null;
-        return () -> {
+        return () -> AiCallContext.run(userId, cid, "LEARNING_PATH", () -> {
             Map<String, Object> result = new HashMap<>();
             if (cid != null && userId != null) {
                 try {
@@ -366,7 +391,7 @@ public class AIController {
                 throw new BusinessException("缺少必要参数：userId或courseId");
             }
             return ApiResponse.success(result);
-        };
+        });
     }
 
     /**
@@ -395,7 +420,7 @@ public class AIController {
         } else {
             mastery = null;
         }
-        return () -> {
+        return () -> AiCallContext.run(userId, cid, "PERSONALIZED_PATH", () -> {
             Map<String, Object> result = new HashMap<>();
             if (cid != null && userId != null) {
                 try {
@@ -413,7 +438,7 @@ public class AIController {
                 throw new BusinessException("缺少必要参数：userId或courseId");
             }
             return ApiResponse.success(result);
-        };
+        });
     }
 
 }

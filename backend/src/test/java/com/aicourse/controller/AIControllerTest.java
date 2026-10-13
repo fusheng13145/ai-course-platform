@@ -62,7 +62,7 @@ class AIControllerTest extends ControllerTestBase {
     void qaAsk_authorized_passes_security() throws Exception {
         AiChatSession session = new AiChatSession();
         session.setSessionId("sess-1");
-        when(aiChatSessionService.createSession(anyLong(), any())).thenReturn(session);
+        when(aiChatSessionService.createSession(anyLong(), any(), any())).thenReturn(session);
         when(aiChatSessionService.getMessages(anyString())).thenReturn(Collections.emptyList());
         when(aiService.ragAsk(anyString(), any())).thenReturn(new QaAnswerVO("RAG答案",
                 List.of(new QaSourceVO(9L, "<b>第6章 传输层</b>", 0.9937, "三次握手同步初始序号"))));
@@ -82,7 +82,8 @@ class AIControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.data.sources[0].snippet").value("三次握手同步初始序号"));
 
         verify(aiService).ragAsk(eq("什么是闭包"), eq(2L));
-        verify(aiChatSessionService).createSession(eq(1L), any());
+        // 跨课程 AI 统计修复：入口收到的 courseId 必须写入会话，不再被丢弃（原先固定传 null）
+        verify(aiChatSessionService).createSession(eq(1L), any(), eq(2L));
     }
 
 
@@ -99,7 +100,7 @@ class AIControllerTest extends ControllerTestBase {
     void qaAsk_student_authorized_200() throws Exception {
         AiChatSession session = new AiChatSession();
         session.setSessionId("sess-1");
-        when(aiChatSessionService.createSession(anyLong(), any())).thenReturn(session);
+        when(aiChatSessionService.createSession(anyLong(), any(), any())).thenReturn(session);
         when(aiChatSessionService.getMessages(anyString())).thenReturn(Collections.emptyList());
         when(aiService.ragAsk(anyString(), any())).thenReturn(new QaAnswerVO("RAG答案", Collections.emptyList()));
 

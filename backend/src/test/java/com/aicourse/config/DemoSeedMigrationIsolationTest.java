@@ -7,8 +7,6 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Properties;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -35,25 +33,40 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
 @DisplayName("演示种子迁移隔离（DR-18①）")
 class DemoSeedMigrationIsolationTest {
 
-    /** Flyway 版本化脚本命名：{@code V<版本>__<描述>.sql}。 */
-    private static final Pattern VERSIONED = Pattern.compile("^V(\\d+)__.+\\.sql$");
+    /**
+     * 结构迁移白名单（逐字比对）。
+     *
+     * <p>⚠️ <b>2026-10-13 判据修正（如实记录）</b>：原先用「版本号 ≤ 4」当代理判据推断
+     * 「版本 > 4 即演示种子被放回结构目录」。本批次新增 {@code V8__ai_call_logging.sql}
+     * （跨课程 AI 统计的数据面，纯结构迁移、不含任何演示数据）后该代理判据不再成立——
+     * 结构迁移的版本号本来就可以继续增长，号段本身从来不是"是不是种子"的证据。
+     * 故改为<b>显式白名单</b>：新增结构迁移必须在此登记（改动即红，正是本用例的意图），
+     * 同时保留针对演示种子文件名的阴性对照。</p>
+     */
+    private static final Set<String> STRUCTURAL_MIGRATIONS = Set.of(
+            "V1__init_schema.sql",
+            "V2__align_column_comments.sql",
+            "V3__normalize_course_status.sql",
+            "V4__normalize_task_and_exam_paper_status.sql",
+            // V8（2026-10-13）：ai_call_logs + ai_chat_sessions.course_id —— 结构迁移，非演示数据
+            "V8__ai_call_logging.sql");
 
-    /** 结构迁移允许的最高版本号：超过即说明演示种子被放回了 db/migration。 */
-    private static final int MAX_STRUCTURAL_VERSION = 4;
+    /** 演示种子脚本：这三个文件名只允许出现在 {@code db/seed-demo}。 */
+    private static final Set<String> SEED_FILENAMES = Set.of(
+            "V5__rich_seed_data.sql",
+            "V6__computer_network_showcase.sql",
+            "V7__fix_showcase_seed_self_description.sql");
 
     private final PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
 
     @Test
-    @DisplayName("db/migration 只含结构迁移，版本号不得超过 4")
+    @DisplayName("db/migration 只含结构迁移：白名单逐字相符，且演示种子一个都不许出现")
     void structuralLocationHoldsNoDemoSeed() throws IOException {
         Set<String> files = filenames("classpath:db/migration/*.sql");
         assertThat(files).contains("V1__init_schema.sql");
-
-        List<Integer> versions = files.stream()
-                .map(DemoSeedMigrationIsolationTest::versionOf)
-                .sorted()
-                .toList();
-        assertThat(versions).isNotEmpty().allMatch(v -> v <= MAX_STRUCTURAL_VERSION);
+        assertThat(files).containsExactlyInAnyOrderElementsOf(STRUCTURAL_MIGRATIONS);
+        // 阴性对照：演示种子脚本出现在结构目录即判失败（这才是 DR-18 真正要守的那条线）
+        assertThat(files).doesNotContainAnyElementsOf(SEED_FILENAMES);
     }
 
     @Test
@@ -111,13 +124,5 @@ class DemoSeedMigrationIsolationTest {
             names.add(resource.getFilename());
         }
         return names;
-    }
-
-    private static int versionOf(String filename) {
-        Matcher matcher = VERSIONED.matcher(filename);
-        if (!matcher.matches()) {
-            throw new AssertionError("不符合 Flyway 版本化命名：" + filename);
-        }
-        return Integer.parseInt(matcher.group(1));
     }
 }

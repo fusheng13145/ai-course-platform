@@ -2,6 +2,7 @@ package com.aicourse.service.component.ai;
 
 import com.aicourse.common.JsonUtils;
 import com.aicourse.llm.LLMProvider;
+import com.aicourse.service.AiCallLogService;
 import com.aicourse.service.impl.PromptGuard;
 import com.aicourse.vo.QaSourceVO;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -20,6 +21,15 @@ import java.util.concurrent.ConcurrentHashMap;
 /**
  * AI 执行核心组件：LLM 供应商调用出口、消息构建、PromptGuard 护栏与埋点。
  * <p>拆分自原 AIServiceImpl（2026-08-29），被对话/推荐/结构化/解析组件共享。</p>
+ *
+ * <p><b>跨课程 AI 统计的落库点就在这里</b>（2026-10-13 增）：本组件是全部业务入口
+ * 唯一真实发起大模型调用的位置，只有它同时拿得到「输入 token 估算、供应商名、真实耗时、成败」，
+ * 而调用者身份（userId）与归属课程（courseId）由控制器经 {@link AiCallContext} 作用域带入。
+ * 未处于作用域内时静默跳过落库——宁可少记一条，也不记出错误的归属。</p>
+ *
+ * <p>⚠️ <b>覆盖边界（如实记录）</b>：{@link #stream} 的实际调用发生在 SSE 订阅线程上，
+ * {@code ThreadLocal} 作用域不会跟随过去，故流式路径<b>不落库</b>；管理端统计页与手册
+ * 均已注明"仅统计非流式调用"。</p>
  */
 @Slf4j
 @Component
@@ -34,6 +44,8 @@ public class AiCoreComponent {
     private final LLMProvider llmProvider;
     private final PromptGuard promptGuard;
     private final MeterRegistry meterRegistry;
+    /** 调用落库服务（records ai_call_logs）；其 record() 自身失败安全，这里不做 try/catch。 */
+    private final AiCallLogService aiCallLogService;
     /** 按业务类型分桶的 AI 调用计数器缓存：key=类型，value=对应 Counter（首次访问时懒注册）。 */
     private final Map<String, Counter> aiCallCounters = new ConcurrentHashMap<>();
     /** 按业务类型分桶的 AI 输入 token 估算计数器缓存（与调用计数器对称，口径见 {@link #recordAiToken}）。 */
@@ -41,10 +53,12 @@ public class AiCoreComponent {
     /** 按业务类型分桶的 AI 调用失败计数器缓存（与调用计数器对称，口径见 {@link #recordAiFailure}）。 */
     private final Map<String, Counter> aiFailedCounters = new ConcurrentHashMap<>();
 
-    public AiCoreComponent(LLMProvider llmProvider, PromptGuard promptGuard, MeterRegistry meterRegistry) {
+    public AiCoreComponent(LLMProvider llmProvider, PromptGuard promptGuard, MeterRegistry meterRegistry,
+                           AiCallLogService aiCallLogService) {
         this.llmProvider = llmProvider;
         this.promptGuard = promptGuard;
         this.meterRegistry = meterRegistry;
+        this.aiCallLogService = aiCallLogService;
     }
 
     /**
@@ -135,12 +149,19 @@ public class AiCoreComponent {
      */
     public String completeAndSanitize(List<Map<String, String>> messages, double temperature, String type) {
         recordAiCall(type);
-        recordAiToken(type, estimateInputTokens(messages));
+        long inputTokens = estimateInputTokens(messages);
+        recordAiToken(type, inputTokens);
+        long startedNanos = System.nanoTime();
         try {
-            return promptGuard.sanitizeOutput(llmProvider.complete(messages, temperature));
+            String sanitized = promptGuard.sanitizeOutput(llmProvider.complete(messages, temperature));
+            // 落库的 success 以"是否拿到可用输出"为准：空响应对统计而言算一次失败（与既有指标计数口径无关）
+            logCall(inputTokens, sanitized, startedNanos, sanitized != null,
+                    sanitized == null ? SERVICE_ERROR_MSG : null);
+            return sanitized;
         } catch (Exception e) {
             log.error("AI相关操作失败: {}", e.getMessage(), e);
             recordAiFailure(type);
+            logCall(inputTokens, null, startedNanos, false, e.getMessage());
             throw e;
         }
     }
@@ -158,19 +179,56 @@ public class AiCoreComponent {
             inputTokens += (long) (jsonSchema.length() / 1.5);
         }
         recordAiToken(type, inputTokens);
+        long startedNanos = System.nanoTime();
         try {
             String result = jsonSchema != null
                     ? llmProvider.completeJson(messages, temperature, jsonSchema)
                     : llmProvider.complete(messages, temperature);
             if (result == null) {
                 recordAiFailure(type);
+                logCall(inputTokens, null, startedNanos, false, SERVICE_ERROR_MSG);
                 return SERVICE_ERROR_MSG;
             }
-            return promptGuard.sanitizeOutput(result);
+            String sanitized = promptGuard.sanitizeOutput(result);
+            logCall(inputTokens, sanitized, startedNanos, true, null);
+            return sanitized;
         } catch (Exception e) {
             log.error("AI相关操作失败: {}", e.getMessage(), e);
             recordAiFailure(type);
+            logCall(inputTokens, null, startedNanos, false, e.getMessage());
             throw e;
+        }
+    }
+
+    /**
+     * 把本次调用落到 {@code ai_call_logs} —— <b>仅当处于 {@code AiCallLogService#inContext} 作用域内</b>时写。
+     *
+     * <p>不在作用域内时静默跳过（返回）：宁可少记一条，也不把归属不明的调用记成"某个课程用了 AI"。
+     * 落库本身的失败已由 {@code AiCallLogService#record} 吞掉，故此处不再包一层 try/catch。</p>
+     *
+     * @param promptTokens 本次输入 token 估算
+     * @param outputText   模型输出原文（失败/空响应传 null）
+     * @param startedNanos 调用起始纳秒（用于算耗时）
+     * @param success      是否拿到可用输出
+     * @param errorMsg     失败原因（可空）
+     */
+    private void logCall(long promptTokens, String outputText, long startedNanos, boolean success, String errorMsg) {
+        AiCallContext ctx = AiCallContext.get();
+        if (ctx == null || aiCallLogService == null) {
+            return;
+        }
+        long durationMs = (System.nanoTime() - startedNanos) / 1_000_000L;
+        aiCallLogService.record(ctx.getUserId(), ctx.getCourseId(), ctx.getScene(),
+                providerName(), promptTokens, outputText, durationMs, success, errorMsg);
+    }
+
+    /** 当前实际生效的供应商名；未配置（或读取异常）时返回 null，不阻断落库。 */
+    private String providerName() {
+        try {
+            return llmProvider != null && llmProvider.isConfigured() ? llmProvider.name() : null;
+        } catch (Exception e) {
+            log.debug("读取 LLM 供应商名失败，按未知处理: {}", e.getMessage());
+            return null;
         }
     }
 

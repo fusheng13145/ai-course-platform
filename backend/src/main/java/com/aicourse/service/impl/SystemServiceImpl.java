@@ -1,5 +1,6 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.service.AiCallLogService;
 import com.aicourse.service.SystemService;
 import com.aicourse.service.component.sys.SysBackupComponent;
 import com.aicourse.service.component.sys.SysConfigComponent;
@@ -21,15 +22,19 @@ public class SystemServiceImpl implements SystemService {
     private final SysBackupComponent backupComponent;
     private final SysLogComponent logComponent;
     private final SysMonitorComponent monitorComponent;
+    /** 跨课程 AI 统计的聚合入口（逐次调用留痕），与 monitorComponent 的无留痕口径分开。 */
+    private final AiCallLogService aiCallLogService;
 
     public SystemServiceImpl(SysConfigComponent configComponent,
                              SysBackupComponent backupComponent,
                              SysLogComponent logComponent,
-                             SysMonitorComponent monitorComponent) {
+                             SysMonitorComponent monitorComponent,
+                             AiCallLogService aiCallLogService) {
         this.configComponent = configComponent;
         this.backupComponent = backupComponent;
         this.logComponent = logComponent;
         this.monitorComponent = monitorComponent;
+        this.aiCallLogService = aiCallLogService;
     }
 
     // ===================== 系统概览与配置 =====================
@@ -90,6 +95,11 @@ public class SystemServiceImpl implements SystemService {
     @Override
     public Map<String, Object> getAIUsageStats() {
         return monitorComponent.getAIUsageStats();
+    }
+
+    @Override
+    public Map<String, Object> getAIUsageByCourse(int days) {
+        return aiCallLogService.statistics(days);
     }
 
     @Override

@@ -70,6 +70,14 @@ export const getCourseStats = () => request.get('/admin/statistics/courses')
  */
 export const getAIUsage = () => request.get('/admin/statistics/ai-usage')
 /**
+ * 跨课程 AI 统计（按课程聚合，数据源 ai_call_logs）。
+ * <p>⚠️ 与上方 getAIUsage 是两个不同口径：后者无逐次留痕、字段多为平台概况；
+ * 本接口只统计自 2026-10-13 埋点上线后的调用，历史不可回填（响应内 collectionNote 已声明）。</p>
+ * @param {{ days?: number }} params 统计天数（默认 30，后端收敛到 1–365）
+ */
+export const getAIUsageByCourse = (params = {}) =>
+  request.get('/admin/statistics/ai-usage/by-course', { params })
+/**
  * 导出函数 getAIMonitor：获取/查询数据
  */
 export const getAIMonitor = () => request.get('/admin/ai-monitor')
@@ -95,6 +103,7 @@ export default {
   getUserGrowth,
   getCourseStats,
   getAIUsage,
+  getAIUsageByCourse,
   exportReport,
   createBackup,
   getAIMonitor,

@@ -15,11 +15,12 @@ public interface AiChatSessionService extends IService<AiChatSession> {
     /**
      * 创建新的 AI 对话会话
      *
-     * @param userId 用户ID
-     * @param title  会话标题（可为 null，首条用户消息将自动成为标题）
+     * @param userId   用户ID
+     * @param title    会话标题（可为 null，首条用户消息将自动成为标题）
+     * @param courseId 关联课程ID（可为 null = 不绑定课程的通识问答）
      * @return 新建的会话实体（含业务 sessionId）
      */
-    AiChatSession createSession(Long userId, String title);
+    AiChatSession createSession(Long userId, String title, Long courseId);
 
     /**
      * 向会话追加一条消息，并维护会话的消息数与更新时间

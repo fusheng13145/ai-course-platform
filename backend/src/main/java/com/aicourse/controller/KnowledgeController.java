@@ -13,6 +13,7 @@ import com.aicourse.service.AIService;
 import com.aicourse.service.KnowledgeGraphService;
 import com.aicourse.service.KnowledgePointRelationService;
 import com.aicourse.service.KnowledgePointService;
+import com.aicourse.service.component.ai.AiCallContext;
 import com.aicourse.vo.KnowledgeGraphDataVO;
 import com.aicourse.vo.KnowledgeGraphVO;
 import com.aicourse.vo.KnowledgeOverviewVO;
@@ -26,6 +27,7 @@ import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -399,14 +401,18 @@ public class KnowledgeController {
      */
     @PostMapping("/extract")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public Callable<ApiResponse<Map<String, Object>>> extractGraph(@Valid @RequestBody KnowledgeExtractDTO dto) {
+    public Callable<ApiResponse<Map<String, Object>>> extractGraph(@Valid @RequestBody KnowledgeExtractDTO dto,
+                                                                   Authentication auth) {
         final Long courseId = dto.getCourseId();
         final String content = dto.getContent() != null ? dto.getContent() : "";
+        final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
         return () -> {
             if (content.isBlank()) {
                 return ApiResponse.error(ApiCode.BAD_REQUEST, "请提供待抽取的课程内容");
             }
-            String json = aiService.extractKnowledgeGraphJson(content);
+            // 跨课程 AI 统计：图谱抽取同样是一次真实大模型调用，按课程归属落库
+            String json = AiCallContext.run(userId, courseId, "GRAPH_EXTRACT",
+                    () -> aiService.extractKnowledgeGraphJson(content));
             String raw = JsonUtils.extractJsonObject(json);
             Map<String, Object> result = new LinkedHashMap<>();
             List<KnowledgePoint> created = new ArrayList<>();
