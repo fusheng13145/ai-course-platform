@@ -7,6 +7,15 @@
       icon="shield"
     />
     <div v-loading="loading">
+      <!-- 加载失败提示：见 loadError 注释（失败不得渲染成「暂无进行中的考试/暂无风险/暂无事件」） -->
+      <el-alert
+        v-if="loadError"
+        :title="loadError"
+        type="error"
+        :closable="false"
+        show-icon
+        style="margin-bottom: var(--ac-spacing-md)"
+      />
       <!-- 指标卡 -->
       <div class="stat-grid animate-in">
         <StatCard
@@ -55,7 +64,9 @@
         <el-table
           :data="filteredSessions"
           size="small"
-          empty-text="暂无进行中的考试"
+          :empty-text="
+            sessionsError ? '会话列表未能加载，请查看上方提示后重试' : '暂无进行中的考试'
+          "
           highlight-current-row
           :row-class-name="(row) => (row.row.id === selected?.id ? 'row-active' : '')"
           @row-click="onSelectSession"
@@ -97,7 +108,9 @@
           v-if="selected"
           :data="risk.list"
           size="small"
-          empty-text="该会话暂无风险记录"
+          :empty-text="
+            riskError ? '风险记录未能加载，请查看上方提示后重试' : '该会话暂无风险记录'
+          "
           highlight-current-row
           :row-class-name="(row) => (row.row === selectedRisk ? 'row-active' : '')"
           @row-click="onSelectRisk"
@@ -143,7 +156,9 @@
           v-if="selectedRisk"
           :data="events.list"
           size="small"
-          empty-text="该风险暂无监考事件"
+          :empty-text="
+            eventsError ? '监考事件未能加载，请查看上方提示后重试' : '该风险暂无监考事件'
+          "
           max-height="360"
         >
           <el-table-column label="事件类型" min-width="150">
@@ -184,6 +199,15 @@ const route = useRoute()
 const courseId = ref(route.params.id)
 
 const loading = ref(false)
+/**
+ * 会话 / 风险 / 事件三路失败信号各自独立记录，再聚合为 loadError 供页面持久提示。
+ * 三者由用户交互顺序触发（非并发），但独立 ref 可避免「后一次成功加载复位掉前一次失败」。
+ * 原实现失败仅 logger.error 后静默置空 → 页面显示「暂无进行中的考试 / 该会话暂无风险记录」等，属误导。
+ */
+const sessionsError = ref('')
+const riskError = ref('')
+const eventsError = ref('')
+const loadError = computed(() => sessionsError.value || riskError.value || eventsError.value)
 const sessions = ref([])
 const paperMap = ref({}) // examPaperId -> title
 const onlyThisCourse = ref(false)
@@ -244,6 +268,7 @@ function paperTitle(row) {
 
 async function load() {
   loading.value = true
+  sessionsError.value = ''
   try {
     // 进行中考试会话
     const r = await examApi.getActiveExams()
@@ -272,6 +297,8 @@ async function load() {
     }
   } catch (e) {
     logger.error('加载进行中考试失败', e)
+    sessions.value = []
+    sessionsError.value = '进行中考试会话加载失败，请检查网络后重试'
   } finally {
     loading.value = false
   }
@@ -289,6 +316,7 @@ async function loadRisk(session) {
   risk.loading = true
   risk.list = []
   riskTotal.value = 0
+  riskError.value = ''
   try {
     const r = await proctorApi.getExamRisk(session.id)
     const body = unwrap(r)
@@ -297,6 +325,9 @@ async function loadRisk(session) {
     riskTotal.value = arr.length
   } catch (e) {
     logger.error('加载风险汇总失败', e)
+    risk.list = []
+    riskTotal.value = 0
+    riskError.value = '风险记录加载失败，请检查网络后重试'
   } finally {
     risk.loading = false
   }
@@ -328,6 +359,7 @@ async function loadEvents(risk) {
   events.loading = true
   events.list = []
   eventsTotal.value = 0
+  eventsError.value = ''
   try {
     const pid = await resolveProctorSessionId(risk)
     if (!pid) {
@@ -342,6 +374,9 @@ async function loadEvents(risk) {
     eventsTotal.value = arr.length
   } catch (e) {
     logger.error('加载监考事件失败', e)
+    events.list = []
+    eventsTotal.value = 0
+    eventsError.value = '监考事件加载失败，请检查网络后重试'
   } finally {
     events.loading = false
   }

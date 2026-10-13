@@ -55,7 +55,7 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-else description="暂无试卷，点击右上角新建" :image-size="72" />
+      <el-empty v-else :description="emptyText" :image-size="72" />
 
       <div v-if="list.length" class="pager">
         <el-pagination
@@ -85,6 +85,8 @@ defineProps({
   total: { type: Number, default: 0 },
   page: { type: Number, default: 1 },
   size: { type: Number, default: 10 },
+  /** 列表空态文案（失败时由页面传入「未能加载」文案，默认保留原语义） */
+  emptyText: { type: String, default: '暂无试卷，点击右上角新建' },
 })
 
 const emit = defineEmits([

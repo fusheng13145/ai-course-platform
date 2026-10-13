@@ -3,6 +3,15 @@
     <PageHeader compact title="课程试卷" subtitle="试卷管理、发布与统计" icon="document">
       <el-button type="primary" :icon="Plus" @click="openCreate">新建试卷</el-button>
     </PageHeader>
+    <!-- 加载失败提示：见 loadError 注释（失败不得渲染成「暂无试卷」） -->
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      show-icon
+      style="margin-bottom: var(--ac-spacing-md)"
+    />
     <div v-loading="loading">
       <!-- 试卷表格（列表 + 分页 + 行操作） -->
       <CeExamTable
@@ -10,6 +19,9 @@
         :total="total"
         :page="page"
         :size="size"
+        :empty-text="
+          loadError ? '试卷列表未能加载，请查看上方提示后重试' : '暂无试卷，点击右上角新建'
+        "
         @publish="publish"
         @view-questions="viewQuestions"
         @view-stats="viewStats"
@@ -95,6 +107,12 @@ const route = useRoute()
 const courseId = computed(() => Number(route.params.id))
 
 const loading = ref(false)
+/**
+ * 加载失败提示文案：非空即表示试卷列表数据不可信。
+ * 原实现失败仅 logger.error 后静默置空 → 页面显示「暂无试卷，点击右上角新建」，
+ * 教师会误判该课程确实没有试卷（失败可见）。
+ */
+const loadError = ref('')
 const all = ref([])
 const list = ref([])
 const total = ref(0)
@@ -127,12 +145,17 @@ function typeTag(t) {
 
 async function load() {
   loading.value = true
+  loadError.value = ''
   try {
     all.value = await examApi.getAllExamPapersByCourse(courseId.value)
     total.value = all.value.length
     applyPage()
   } catch (e) {
     logger.error('加载试卷失败', e)
+    all.value = []
+    list.value = []
+    total.value = 0
+    loadError.value = '试卷列表加载失败，请检查网络后重试'
   } finally {
     loading.value = false
   }
