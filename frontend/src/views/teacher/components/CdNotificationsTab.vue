@@ -15,7 +15,7 @@
         </template>
       </el-table-column>
     </el-table>
-    <el-empty v-if="!notificationsLoading && !notifications.length" description="暂无通知" />
+    <el-empty v-if="!notificationsLoading && !notifications.length" :description="emptyText" />
   </div>
 </template>
 
@@ -30,6 +30,8 @@ defineProps({
   notifications: { type: Array, default: () => [] },
   notificationsLoading: { type: Boolean, default: false },
   formatDateTime: { type: Function, required: true },
+  /** 空态文案（父页面按加载失败态透传诚实提示，默认保留原语义） */
+  emptyText: { type: String, default: '暂无通知' },
 })
 
 const emit = defineEmits(['send', 'delete'])

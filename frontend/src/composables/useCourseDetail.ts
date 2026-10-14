@@ -1,4 +1,4 @@
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import logger from '@/utils/logger'
@@ -53,6 +53,15 @@ export function useCourseDetail() {
   const chaptersLoading = ref(false)
   const studentsLoading = ref(false)
   const notificationsLoading = ref(false)
+
+  /* ---- 分路错误态（失败可见：互不复位，页面级持久提示聚合） ---- */
+  const courseError = ref('')
+  const chaptersError = ref('')
+  const studentsError = ref('')
+  const notificationsError = ref('')
+  const loadError = computed(
+    () => courseError.value || chaptersError.value || studentsError.value || notificationsError.value,
+  )
 
   /* ---- 对话框状态 ---- */
   const categories = ref([
@@ -121,6 +130,10 @@ export function useCourseDetail() {
     chapters.value = []
     students.value = []
     notifications.value = []
+    courseError.value = ''
+    chaptersError.value = ''
+    studentsError.value = ''
+    notificationsError.value = ''
 
     await Promise.allSettled([
       loadCourse(),
@@ -135,22 +148,26 @@ export function useCourseDetail() {
   }
 
   async function loadCourse() {
+    courseError.value = ''
     try {
       const res = await courseApi.getCourseById(course.id)
       if (res.data) Object.assign(course, res.data)
     } catch (e) {
       logger.warn('[CourseDetail] loadCourse 失败:', e.message || e)
+      courseError.value = '课程信息加载失败，请检查网络后重试'
     }
   }
 
   async function loadChapters() {
     chaptersLoading.value = true
+    chaptersError.value = ''
     try {
       const res = await chapterApi.getChapters(course.id)
       chapters.value = pickList(res.data)
     } catch (e) {
       logger.warn('[CourseDetail] loadChapters 失败:', e.message || e)
       chapters.value = []
+      chaptersError.value = '章节列表加载失败，请检查网络后重试'
     } finally {
       chaptersLoading.value = false
       originalChapters.value = JSON.parse(JSON.stringify(chapters.value))
@@ -159,11 +176,13 @@ export function useCourseDetail() {
 
   async function loadStudents() {
     studentsLoading.value = true
+    studentsError.value = ''
     try {
       students.value = await courseApi.getAllStudents(course.id)
     } catch (e) {
       logger.warn('[CourseDetail] loadStudents 失败:', e.message || e)
       students.value = []
+      studentsError.value = '学生列表加载失败，请检查网络后重试'
     } finally {
       studentsLoading.value = false
     }
@@ -171,12 +190,14 @@ export function useCourseDetail() {
 
   async function loadNotifications() {
     notificationsLoading.value = true
+    notificationsError.value = ''
     try {
       const res = await notificationApi.getNotificationList()
       notifications.value = pickList(res.data)
     } catch (e) {
       logger.warn('[CourseDetail] loadNotifications 失败:', e.message || e)
       notifications.value = []
+      notificationsError.value = '通知列表加载失败，请检查网络后重试'
     } finally {
       notificationsLoading.value = false
     }
@@ -413,6 +434,11 @@ export function useCourseDetail() {
     chaptersLoading,
     studentsLoading,
     notificationsLoading,
+    courseError,
+    chaptersError,
+    studentsError,
+    notificationsError,
+    loadError,
     categories,
     editDialogVisible,
     editForm,

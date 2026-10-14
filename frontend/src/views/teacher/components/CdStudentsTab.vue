@@ -38,7 +38,7 @@
         </template>
       </el-table-column>
     </el-table>
-    <el-empty v-if="!studentsLoading && !students.length" description="暂无学生" />
+    <el-empty v-if="!studentsLoading && !students.length" :description="emptyText" />
   </div>
 </template>
 
@@ -50,6 +50,8 @@
 defineProps({
   students: { type: Array, default: () => [] },
   studentsLoading: { type: Boolean, default: false },
+  /** 空态文案（父页面按加载失败态透传诚实提示，默认保留原语义） */
+  emptyText: { type: String, default: '暂无学生' },
 })
 
 const emit = defineEmits(['approve', 'reject'])
