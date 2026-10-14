@@ -383,6 +383,48 @@ describe('useStudentExams - 定时器边界（倒计时与自动保存）', () =
     expect(mocks.message.success).toHaveBeenCalledWith('网络恢复，作答已重新同步到服务端')
     expect(state.viewMode.value).toBe('exam')
   })
+
+  it('倒计时归零自动交卷失败时周期性重试，网络恢复后成功提交并进入结果页', async () => {
+    const state = await enterExamOf(1)
+    state.answers.value[0] = 'A'
+    // 归零触发的首次交卷与 10s 后首次重试均失败，第二次重试（再 10s）成功
+    mocks.submitExam
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockRejectedValueOnce(new Error('offline'))
+      .mockResolvedValueOnce({ code: 200, data: { id: 500, status: 'SUBMITTED' } })
+
+    // 归零触发首次自动交卷（失败）→ 安排 10s 后重试；倒计时已清，自动保存仍在跑
+    await vi.advanceTimersByTimeAsync(61 * 1000)
+    expect(mocks.submitExam).toHaveBeenCalledTimes(1)
+    expect(state.viewMode.value).toBe('exam')
+    expect(vi.getTimerCount()).toBe(2) // 自动保存 1 + 交卷重试 1
+
+    // 第一次重试（10s 后）仍失败
+    await vi.advanceTimersByTimeAsync(10 * 1000)
+    expect(mocks.submitExam).toHaveBeenCalledTimes(2)
+    expect(state.viewMode.value).toBe('exam')
+
+    // 第二次重试（再过 10s）成功 → 切结果页并清理全部定时器
+    await vi.advanceTimersByTimeAsync(10 * 1000)
+    expect(mocks.submitExam).toHaveBeenCalledTimes(3)
+    expect(state.viewMode.value).toBe('result')
+    expect(vi.getTimerCount()).toBe(0)
+  })
+
+  it('倒计时归零自动交卷失败：保留答题页、submitting 复位、自动保存持续重试', async () => {
+    const state = await enterExamOf(1)
+    state.answers.value[0] = 'A'
+    mocks.submitExam.mockRejectedValue(new Error('offline'))
+    mocks.message.error.mockClear()
+
+    await vi.advanceTimersByTimeAsync(61 * 1000)
+
+    expect(state.viewMode.value).toBe('exam')
+    expect(state.submitting.value).toBe(false)
+    expect(mocks.message.error).toHaveBeenCalledWith('提交失败，作答仍保留在本页；请检查网络后重试')
+    // 交卷失败后自动保存定时器仍在运行（持续同步作答到服务端），且已安排交卷重试
+    expect(vi.getTimerCount()).toBe(2)
+  })
 })
 
 describe('useStudentExams - 列表加载失败可见', () => {

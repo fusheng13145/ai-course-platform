@@ -66,6 +66,12 @@ export function useStudentExams() {
 
   /* ---- 倒计时 ---- */
   let countdownTimer = null
+  /**
+   * 超时自动交卷的重试定时器句柄。
+   * <p>归零交卷因瞬时网络故障失败时，前端须"兜底到底"周期性重试（详见 submitExamOnTimeout）；
+   * 该定时器与 countdown/autoSave 一并纳入 cleanupTimers 清理，避免组件卸载/成功交卷后残留。</p>
+   */
+  let timeoutSubmitRetryTimer: ReturnType<typeof setTimeout> | null = null
   const totalSeconds = ref(0)
   const remainingSeconds = ref(0)
 
@@ -415,12 +421,12 @@ export function useStudentExams() {
           ElMessage.warning(`剩余时间：${Math.ceil(remainingSeconds.value / 60)} 分钟`)
         }
       } else {
-        // 时间到时停止倒计时并自动交卷。自动保存保留到服务端确认交卷，
-        // 以便交卷失败时答卷仍有本地保护，并允许学生手动重试。
+        // 时间到时停止倒计时并自动交卷。交卷失败（如断网）由 submitExamOnTimeout
+        // 兜底重试，直到服务端确认收卷，避免考试卡在「已到时却未交卷」的悬空态。
         clearInterval(countdownTimer)
         countdownTimer = null
         ElMessage.warning('考试时间已到，将自动提交试卷')
-        submitExam()
+        submitExamOnTimeout()
       }
     }, 1000)
   }
@@ -584,11 +590,15 @@ export function useStudentExams() {
     }
   }
 
-  async function submitExam() {
-    if (submitting.value) return
+  /**
+   * 提交试卷（内部实现，供手动与超时自动交卷共用）。
+   * @returns true=服务端已接受（已切到结果页并清理定时器）；false=未提交（会话失效或被并发/失败拦截）
+   */
+  async function submitExam(): Promise<boolean> {
+    if (submitting.value) return false
     if (sessionId.value === null) {
       ElMessage.error('考试会话已失效，请返回考试列表后重新进入')
-      return
+      return false
     }
 
     submitting.value = true
@@ -608,12 +618,37 @@ export function useStudentExams() {
       }
 
       viewMode.value = 'result'
+      return true
     } catch (e) {
       logger.error('提交试卷失败:', e)
       ElMessage.error('提交失败，作答仍保留在本页；请检查网络后重试')
+      return false
     } finally {
       submitting.value = false
     }
+  }
+
+  /**
+   * 超时自动交卷（倒计时归零时触发）。
+   * <p>与手动交卷不同，超时交卷必须由前端"兜底到底"：此时学生已无权继续操作，
+   * 若因瞬时网络故障交卷失败就放任不管，考试会卡在「已到时却未交卷」的悬空态，
+   * 学生不手动重试则永远交不出去。故失败时：
+   * （1）先尽力把最新作答同步到服务端（避免服务端缺失最新一笔作答）；
+   * （2）以 10s 退避节奏周期性重试交卷，直到网络恢复成功提交；
+   * （3）成功提交后由 submitExam 内部切到结果页并清理全部定时器（含本重试定时器）。
+   * 若在重试窗口内学生手动交卷成功，submitExam 会 cleanupTimers 清掉本重试定时器，不会重复交卷。</p>
+   */
+  function submitExamOnTimeout() {
+    submitExam().then((ok) => {
+      if (ok) {
+        timeoutSubmitRetryTimer = null
+        return
+      }
+      // 交卷失败：尽力同步作答，再安排下一次重试
+      autoSaveAnswers().catch(() => {})
+      if (timeoutSubmitRetryTimer) clearTimeout(timeoutSubmitRetryTimer)
+      timeoutSubmitRetryTimer = setTimeout(submitExamOnTimeout, 10000)
+    })
   }
 
   /* ---- 方法：退出考试 ---- */
@@ -682,6 +717,11 @@ export function useStudentExams() {
     }
     // 复用 stopAutoSave：与自动保存启动/停止保持单一实现，避免两处清理逻辑漂移。
     stopAutoSave()
+    // 清理超时交卷重试定时器（组件卸载 / 成功交卷 / 手动退出均须清掉，避免残留重试）
+    if (timeoutSubmitRetryTimer) {
+      clearTimeout(timeoutSubmitRetryTimer)
+      timeoutSubmitRetryTimer = null
+    }
   }
 
   function getResultClass() {
