@@ -24,7 +24,13 @@
     </div>
     <div class="l1-body">
       <div class="content-card">
-        <el-table v-loading="loading" :data="matchList" style="width: 100%" stripe>
+        <el-table
+          v-loading="loading"
+          :data="matchList"
+          style="width: 100%"
+          stripe
+          :empty-text="emptyText"
+        >
           <el-table-column prop="studentA" label="学生A" min-width="160" show-overflow-tooltip />
           <el-table-column prop="studentB" label="学生B" min-width="160" show-overflow-tooltip />
           <el-table-column label="相似度" width="140" align="center">
@@ -75,6 +81,8 @@ defineProps({
   loading: { type: Boolean, default: false },
   matchList: { type: Array, default: () => [] },
   page: { type: Object, default: () => ({ page: 1, size: 10, total: 0 }) },
+  /** 空态文案：父页面加载失败时透传诚实提示（默认保留原语义） */
+  emptyText: { type: String, default: '暂无匹配记录' },
 })
 
 const emit = defineEmits(['page-change', 'size-change'])

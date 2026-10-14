@@ -12,17 +12,28 @@
     </PageHeader>
 
     <div class="stat-grid">
-      <StatCard label="任务总数" :value="taskTotal" icon="list" tone="accent" />
-      <StatCard label="执行中" :value="runningCount" icon="play" tone="warn" />
-      <StatCard label="已完成" :value="completedCount" icon="check" tone="ok" />
-      <StatCard label="待执行" :value="pendingCount" icon="clock" tone="info" />
+      <StatCard label="任务总数" :value="tasksError ? '--' : taskTotal" icon="list" tone="accent" />
+      <StatCard label="执行中" :value="tasksError ? '--' : runningCount" icon="play" tone="warn" />
+      <StatCard label="已完成" :value="tasksError ? '--' : completedCount" icon="check" tone="ok" />
+      <StatCard label="待执行" :value="tasksError ? '--' : pendingCount" icon="clock" tone="info" />
     </div>
+
+    <!-- 加载失败提示：见 loadError 注释（失败不得静默渲染成「暂无查重任务」与 0 值读数） -->
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      show-icon
+      style="margin-bottom: var(--ac-spacing-md)"
+    />
 
     <!-- 查重任务列表 -->
     <PcTaskTable
       :loading="loadingTasks"
       :task-list="taskList"
       :page="taskPage"
+      :empty-text="tasksError ? '查重任务未能加载，请查看上方提示后重试' : '暂无查重任务'"
       @execute="handleExecute"
       @view-detail="handleViewDetail"
       @page-change="onTaskPageChange"
@@ -35,6 +46,7 @@
       :loading="loadingMatches"
       :match-list="matchList"
       :page="matchPage"
+      :empty-text="matchesError ? '匹配详情未能加载，请查看上方提示后重试' : '暂无匹配记录'"
       @page-change="onMatchPageChange"
       @size-change="onMatchSizeChange"
     />
@@ -64,6 +76,19 @@ const taskList = ref([])
 const matchList = ref([])
 const selectedTask = ref(null)
 
+/**
+ * 两路独立加载错误（失败可见）：
+ * - tasksError：查重任务列表加载失败（原实现仅 console.error 后静默清空，
+ *   统计卡谎报 0、表格渲染成「暂无查重任务」，管理员会误判平台无任何任务）；
+ * - matchesError：匹配详情加载失败（同上，表格静默变空）。
+ * 两路互不复位，由 loadError 聚合展示，避免一路成功清掉另一路的失败提示。
+ */
+const tasksError = ref('')
+const matchesError = ref('')
+const loadError = computed(() =>
+  [tasksError.value, matchesError.value].filter(Boolean).join('；'),
+)
+
 // 分页
 const taskPage = reactive({ page: 1, size: 10, total: 0 })
 const matchPage = reactive({ page: 1, size: 10, total: 0 })
@@ -78,6 +103,7 @@ const pendingCount = computed(() => taskList.value.filter((r) => r.status === 'P
 
 async function fetchTaskList() {
   loadingTasks.value = true
+  tasksError.value = ''
   try {
     const res = await plagiarismApi.getCheckHistory('')
     const rawData = res.data?.records || res.data?.list || res.data || res || []
@@ -87,6 +113,8 @@ async function fetchTaskList() {
   } catch (error) {
     console.error('获取查重任务列表失败:', error)
     taskList.value = []
+    taskPage.total = 0
+    tasksError.value = '查重任务加载失败，请检查网络后重试'
   } finally {
     loadingTasks.value = false
   }
@@ -95,6 +123,7 @@ async function fetchTaskList() {
 async function fetchMatchList() {
   if (!selectedTask.value) return
   loadingMatches.value = true
+  matchesError.value = ''
   try {
     const res = await plagiarismApi.getCheckMatches(selectedTask.value.id)
     const rawData = res.data?.records || res.data?.list || res.data || res || []
@@ -104,6 +133,8 @@ async function fetchMatchList() {
   } catch (error) {
     console.error('获取匹配列表失败:', error)
     matchList.value = []
+    matchPage.total = 0
+    matchesError.value = '查重匹配详情加载失败，请检查网络后重试'
   } finally {
     loadingMatches.value = false
   }

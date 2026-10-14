@@ -67,7 +67,7 @@
             </template>
           </el-table-column>
           <template #empty>
-            <el-empty description="暂无查重任务">
+            <el-empty :description="emptyText">
               <template #image><div class="empty-deco">🔍</div></template>
             </el-empty>
           </template>
@@ -95,6 +95,8 @@ defineProps({
   loading: { type: Boolean, default: false },
   taskList: { type: Array, default: () => [] },
   page: { type: Object, default: () => ({ page: 1, size: 10, total: 0 }) },
+  /** 空态文案：父页面加载失败时透传诚实提示（默认保留原语义） */
+  emptyText: { type: String, default: '暂无查重任务' },
 })
 
 const emit = defineEmits(['execute', 'view-detail', 'page-change', 'size-change'])
