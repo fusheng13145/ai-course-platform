@@ -6,34 +6,44 @@
       icon="book"
       icon-bg="accent"
     >
-      <span class="head-hint">共 {{ courseList.length }} 门课程</span>
+      <span class="head-hint">共 {{ listError ? '--' : courseList.length }} 门课程</span>
     </PageHeader>
+
+    <!-- 加载失败提示：非空即表示下方读数与列表不可信（失败不得渲染成「暂无课程」与 0 值读数） -->
+    <el-alert
+      v-if="listError"
+      :title="listError"
+      type="error"
+      :closable="false"
+      show-icon
+      style="margin-bottom: var(--ac-spacing-md)"
+    />
 
     <div class="stat-grid">
       <StatCard
         label="课程总数"
-        :value="courseList.length"
+        :value="listError ? '--' : courseList.length"
         icon="book"
         tone="var(--accent-soft)"
         tone-color="var(--accent)"
       />
       <StatCard
         label="待审核"
-        :value="pendingCount"
+        :value="listError ? '--' : pendingCount"
         icon="warn"
         tone="var(--warn-soft)"
         tone-color="var(--warn)"
       />
       <StatCard
         label="已启用"
-        :value="activeCount"
+        :value="listError ? '--' : activeCount"
         icon="check"
         tone="var(--ok-soft)"
         tone-color="var(--ok)"
       />
       <StatCard
         label="已停用"
-        :value="inactiveCount"
+        :value="listError ? '--' : inactiveCount"
         icon="clock"
         tone="var(--info-soft)"
         tone-color="var(--info)"
@@ -141,7 +151,7 @@
             </el-table-column>
           </el-table>
           <div v-if="!loading && filteredList.length === 0" class="empty-wrap">
-            <el-empty description="暂无课程数据，调整筛选条件试试">
+            <el-empty :description="emptyDescription()">
               <template #image><div class="empty-deco">📖</div></template>
             </el-empty>
           </div>
@@ -197,21 +207,34 @@
 </template>
 
 <script setup lang="ts">
-import logger from '@/utils/logger'
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import courseApi from '@/api/course'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
+import { useListFeedback } from '@/composables/useListFeedback'
 
 const courseList = ref([])
 const search = ref('')
 const statusFilter = ref('')
 const activeFilter = ref('')
-const loading = ref(false)
 const detailDialogVisible = ref(false)
 const currentCourse = ref(null)
+
+// D2-1：失败反馈统一原语——失败时持久 alert + 双态空文案 + 读数显 '--'，
+// 避免「接口失败」被渲染成「暂无课程」与 0 值统计（以 FileUploadManage 为样板）。
+const {
+  loading,
+  listError,
+  run: runLoad,
+  emptyDescription,
+} = useListFeedback({
+  failMessage: '课程列表加载失败，请稍后刷新；已保留上次显示的数据。',
+  toastMessage: '课程列表加载失败',
+  emptyText: '暂无课程数据，调整筛选条件试试',
+  errorEmptyText: '课程数据未能加载，请查看上方提示后重试',
+})
 
 const normalizeStatus = (status) =>
   String(status || '')
@@ -258,16 +281,13 @@ function getEnrollmentTypeText(type) {
   return map[type] || type || '开放报名'
 }
 
-onMounted(async () => {
-  loading.value = true
-  try {
-    courseList.value = await courseApi.getAllCourses()
-  } catch (e) {
-    logger.error('Failed to load courses:', e)
-    ElMessage.error('加载课程列表失败')
-  } finally {
-    loading.value = false
-  }
+onMounted(() => {
+  runLoad(async () => {
+    const list = await courseApi.getAllCourses()
+    // 响应格式校验：非数组同样进入失败态，避免把异常响应渲染成空列表
+    if (!Array.isArray(list)) throw new Error('课程列表响应格式无效')
+    courseList.value = list
+  })
 })
 
 function viewDetail(row) {
