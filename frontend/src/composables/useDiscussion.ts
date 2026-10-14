@@ -1,6 +1,6 @@
 import logger from '@/utils/logger'
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { firstNonEmptyArray, pickList, unwrap } from '@/utils/response'
 import { useAuthStore } from '@/stores/auth'
 import courseApi from '@/api/course'
@@ -9,6 +9,7 @@ import discussionApi, {
   normalizeDiscussionTopic,
   type DiscussionLikeResult,
 } from '@/api/discussion'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /**
  * 课程讨论领域逻辑
@@ -203,7 +204,9 @@ export function useDiscussion() {
     if (!currentTopic.value) return
     const topicId = currentTopic.value.id
     try {
-      await ElMessageBox.confirm('确认删除该回复？此操作不可恢复。', '提示', { type: 'warning' })
+      // D2-2：删除回复不可逆，明确不可逆性与恢复路径
+      const ok = await confirmDanger({ verb: '删除', target: '回复' })
+      if (!ok) return
       await discussionApi.deletePost(p.id)
       ElMessage.success('已删除')
       await loadPosts(topicId)

@@ -149,10 +149,11 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { Refresh, Document, Close } from '@element-plus/icons-vue'
 import uploadApi from '@/api/fileUpload'
 import { useListFeedback } from '@/composables/useListFeedback'
+import { confirmDanger } from '@/utils/dangerConfirm'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 
@@ -242,9 +243,14 @@ async function refreshList() {
 
 async function handleCancel(row: UploadSession) {
   try {
-    await ElMessageBox.confirm('确定取消该上传会话？已记录的分片进度将不再继续。', '取消确认', {
-      type: 'warning',
+    // D2-2：明确影响范围（分片进度不再继续、需重新上传）与不可逆性
+    const ok = await confirmDanger({
+      verb: '取消',
+      target: '上传会话',
+      impact: '已上传的分片进度将不再继续，需重新开始上传',
+      irreversible: true,
     })
+    if (!ok) return
   } catch {
     return
   }

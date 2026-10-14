@@ -1,6 +1,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import permissionApi from '@/api/permission'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /**
  * 权限管理页数据逻辑（拆分自 admin/user/PermissionManagement.vue，2026-08-29）
@@ -165,8 +166,19 @@ export function usePermissionManagement() {
   /** 切换启用 / 停用状态 */
   function handleToggle(row) {
     const action = row.isActive ? '停用' : '启用'
-    ElMessageBox.confirm(`确定${action}该权限项吗？`, '操作确认', { type: 'warning' })
-      .then(async () => {
+    confirmDanger({
+      verb: action,
+      target: '权限项',
+      impact:
+        action === '停用'
+          ? '停用后拥有该权限的角色将立即失去对应操作能力'
+          : '启用后对应操作能力将立即对拥有该权限的角色生效',
+      irreversible: false,
+      note: '之后可随时再次切换状态',
+      confirmText: `确定${action}`,
+    })
+      .then(async (ok) => {
+        if (!ok) return
         try {
           await permissionApi.togglePermission(row.id)
           row.isActive = !row.isActive
@@ -181,8 +193,13 @@ export function usePermissionManagement() {
 
   /** 删除权限 */
   function handleDelete(row) {
-    ElMessageBox.confirm(`确定删除该权限项吗？删除后不可恢复。`, '删除确认', { type: 'warning' })
-      .then(async () => {
+    confirmDanger({
+      verb: '删除',
+      target: '权限项',
+      impact: '删除后引用该权限的角色配置将失去对应能力，需重新调整',
+    })
+      .then(async (ok) => {
+        if (!ok) return
         try {
           await permissionApi.deletePermission(row.id)
           permissionList.value = permissionList.value.filter((p) => p.id !== row.id)

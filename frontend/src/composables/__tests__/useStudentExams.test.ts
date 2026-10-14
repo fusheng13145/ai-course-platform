@@ -294,12 +294,17 @@ describe('useStudentExams - 退出与提交', () => {
     const state = useStudentExams()
     await state.enterExam(EXAM)
     const firstSubmit = state.confirmSubmit()
-    await Promise.resolve()
+    // 等确认链走完并进入 submitting（confirmDanger 比直接 confirm 多一跳微任务，
+    // 故用有界轮询而非固定跳数，避免时序脆弱）
+    for (let i = 0; i < 10 && !state.submitting.value; i++) {
+      await Promise.resolve()
+    }
     const confirmCalls = mocks.confirm.mock.calls.length
     await state.confirmSubmit()
 
     expect(state.submitting.value).toBe(true)
     expect(mocks.confirm).toHaveBeenCalledTimes(confirmCalls)
+    expect(mocks.submitExam).toHaveBeenCalledTimes(1)
     resolveSubmit({ code: 200, data: { id: 403, status: 'SUBMITTED' } })
     await firstSubmit
     expect(state.viewMode.value).toBe('result')

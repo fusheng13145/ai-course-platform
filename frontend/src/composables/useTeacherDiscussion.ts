@@ -1,12 +1,13 @@
 import logger from '@/utils/logger'
 import { firstNonEmptyArray, pickList, unwrap } from '@/utils/response'
 import { ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import discussionApi, {
   normalizeDiscussionPost,
   normalizeDiscussionTopic,
   type DiscussionLikeResult,
 } from '@/api/discussion'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /**
  * 教师课程讨论页数据逻辑（拆分自 teacher/tools/Discussion.vue，2026-08-29）
@@ -148,7 +149,9 @@ export function useTeacherDiscussion<T extends number | string | null | undefine
     if (!currentTopic.value) return
     const topicId = currentTopic.value.id
     try {
-      await ElMessageBox.confirm('确认删除该回复？此操作不可恢复。', '提示', { type: 'warning' })
+      // D2-2：删除回复不可逆，明确不可逆性与恢复路径
+      const ok = await confirmDanger({ verb: '删除', target: '回复' })
+      if (!ok) return
       await discussionApi.deletePost(p.id)
       ElMessage.success('已删除')
       await loadPosts(topicId)
@@ -173,9 +176,16 @@ export function useTeacherDiscussion<T extends number | string | null | undefine
   async function closeTopic() {
     if (!currentTopic.value) return
     try {
-      await ElMessageBox.confirm('确认关闭该话题？关闭后学生将无法继续回复。', '提示', {
-        type: 'warning',
+      // D2-2：明确后果（学生无法继续回复）与可逆性（可重新打开）
+      const ok = await confirmDanger({
+        verb: '关闭',
+        target: '话题',
+        impact: '学生将无法继续回复，已有回复仍可查看',
+        irreversible: false,
+        note: '之后可重新打开话题',
+        confirmText: '确定关闭',
       })
+      if (!ok) return
       await discussionApi.closeTopic(currentTopic.value.id)
       ElMessage.success('话题已关闭')
       currentTopic.value.status = 'CLOSED'

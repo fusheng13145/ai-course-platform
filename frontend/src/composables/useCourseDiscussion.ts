@@ -2,12 +2,13 @@ import logger from '@/utils/logger'
 import { pickList, unwrap } from '@/utils/response'
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import discussionApi, {
   normalizeDiscussionPost,
   normalizeDiscussionTopic,
   type DiscussionLikeResult,
 } from '@/api/discussion'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 export function useCourseDiscussion() {
   const route = useRoute()
@@ -167,12 +168,28 @@ export function useCourseDiscussion() {
 
   async function toggleClose() {
     if (!currentTopicId.value) return
+    // D2-2：关闭/重开话题分别明确后果与可逆性
+    const ok = await confirmDanger(
+      detail.value.closed
+        ? {
+            verb: '重新打开',
+            target: '话题',
+            impact: '学生将可以继续回复',
+            irreversible: false,
+            note: '话题状态可随时切换',
+            confirmText: '确定打开',
+          }
+        : {
+            verb: '关闭',
+            target: '话题',
+            impact: '学生将无法继续回复，已有回复仍可查看',
+            irreversible: false,
+            note: '之后可重新打开话题',
+            confirmText: '确定关闭',
+          },
+    )
+    if (!ok) return
     try {
-      await ElMessageBox.confirm(
-        detail.value.closed ? '确定重新打开该话题？' : '确定关闭该话题？关闭后学生不可再回复。',
-        '提示',
-        { type: 'warning' },
-      )
       await discussionApi.closeTopic(currentTopicId.value)
       detail.value.closed = !detail.value.closed
       ElMessage.success(detail.value.closed ? '话题已关闭' : '话题已重新打开')

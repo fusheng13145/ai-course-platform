@@ -148,9 +148,10 @@
 <script setup>
 import logger from '@/utils/logger'
 import { ref, computed, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import taskApi from '@/api/task'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 const props = defineProps({
   courseId: { type: Number, required: true },
@@ -296,9 +297,17 @@ async function publishTask(row) {
 
 async function closeTask(row) {
   try {
-    await ElMessageBox.confirm('确定截止该作业？截止后学生将无法再提交。', '提示', {
-      type: 'warning',
+    // D2-2：明确后果（学生无法再提交）与不可重新开启
+    const ok = await confirmDanger({
+      verb: '截止',
+      target: '作业',
+      subject: row.title,
+      impact: '学生将无法再提交，已提交的作业不受影响',
+      irreversible: false,
+      note: '截止后暂不支持重新开启',
+      confirmText: '确定截止',
     })
+    if (!ok) return
     row.status = 'CLOSED'
     await taskApi.updateTask(row.id, { status: 'CLOSED' })
     ElMessage.success('已截止')
@@ -310,7 +319,14 @@ async function closeTask(row) {
 
 async function deleteTask(row) {
   try {
-    await ElMessageBox.confirm('确定删除该作业？此操作不可恢复。', '提示', { type: 'warning' })
+    // D2-2：明确连带影响（学生提交记录一并移除）与恢复路径
+    const ok = await confirmDanger({
+      verb: '删除',
+      target: '作业',
+      subject: row.title,
+      impact: '将一并移除该作业下学生已提交的记录',
+    })
+    if (!ok) return
     await taskApi.deleteTask(row.id)
     tasks.value = tasks.value.filter((t) => t.id !== row.id)
     ElMessage.success('删除成功')

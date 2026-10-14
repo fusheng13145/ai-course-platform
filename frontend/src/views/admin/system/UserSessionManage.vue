@@ -151,8 +151,9 @@
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
 import { formatDateTime } from '@/utils/datetime'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import userSessionApi from '@/api/userSession'
+import { confirmDanger } from '@/utils/dangerConfirm'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import { useListFeedback } from '@/composables/useListFeedback'
@@ -244,16 +245,17 @@ async function loadSessionStats() {
 
 async function handleForceLogout(row) {
   try {
-    await ElMessageBox.confirm(
-      `确定要将用户「${row.username}」强制下线吗？该操作会立即断开其当前会话。`,
-      '强制下线确认',
-      {
-        confirmButtonText: '确定下线',
-        cancelButtonText: '取消',
-        type: 'warning',
-        confirmButtonClass: 'el-button--danger',
-      },
-    )
+    // D2-2：明确影响范围（立即断会话、未保存操作可能丢失）与恢复路径（重新登录）
+    const ok = await confirmDanger({
+      verb: '强制下线',
+      target: '用户',
+      subject: row.username,
+      impact: '将立即断开该用户的当前会话，其未保存的操作可能丢失',
+      irreversible: false,
+      note: '用户重新登录即可恢复使用',
+      confirmText: '确定下线',
+    })
+    if (!ok) return
     await userSessionApi.forceLogout(row.id)
     ElMessage.success(`用户「${row.username}」已强制下线`)
     await loadOnlineUsers()

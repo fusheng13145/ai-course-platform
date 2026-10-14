@@ -162,9 +162,10 @@
 <script setup>
 import logger from '@/utils/logger'
 import { ref, computed, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import examApi from '@/api/exam'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 const props = defineProps({
   courseId: { type: Number, required: true },
@@ -318,9 +319,17 @@ async function publishExam(row) {
 
 async function closeExam(row) {
   try {
-    await ElMessageBox.confirm('确定结束该考试？结束后学生将无法继续作答。', '提示', {
-      type: 'warning',
+    // D2-2：明确后果（学生无法继续作答）与不可重新开启
+    const ok = await confirmDanger({
+      verb: '结束',
+      target: '考试',
+      subject: row.title,
+      impact: '学生将无法继续作答',
+      irreversible: false,
+      note: '结束后暂不支持重新开启',
+      confirmText: '确定结束',
     })
+    if (!ok) return
     row.status = 'CLOSED'
     await examApi.updateExamPaper(row.id, { status: 'CLOSED' })
     ElMessage.success('已结束')
@@ -332,7 +341,14 @@ async function closeExam(row) {
 
 async function deleteExam(row) {
   try {
-    await ElMessageBox.confirm('确定删除该试卷？此操作不可恢复。', '提示', { type: 'warning' })
+    // D2-2：明确连带影响（学生作答与成绩明细一并移除）与恢复路径
+    const ok = await confirmDanger({
+      verb: '删除',
+      target: '试卷',
+      subject: row.title,
+      impact: '将一并移除该试卷关联的学生作答记录与成绩明细',
+    })
+    if (!ok) return
     await examApi.deleteExamPaper(row.id)
     exams.value = exams.value.filter((e) => e.id !== row.id)
     ElMessage.success('删除成功')

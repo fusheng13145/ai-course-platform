@@ -1,8 +1,9 @@
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
 import { ref, reactive, computed, watch, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import interactionApi from '@/api/interaction'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /**
  * 课程互动页数据逻辑（拆分自 teacher/cockpit/CourseInteraction.vue，2026-08-29）
@@ -131,9 +132,16 @@ export function useCourseInteraction(courseIdRef) {
   }
   async function closeSignIn(row) {
     try {
-      await ElMessageBox.confirm('确定结束该签到？结束后学生将无法继续签到。', '提示', {
-        type: 'warning',
+      // D2-2：明确后果（学生无法继续签到）与不可重新开启
+      const ok = await confirmDanger({
+        verb: '结束',
+        target: '签到',
+        impact: '学生将无法继续签到，已签到的记录不受影响',
+        irreversible: false,
+        note: '结束后暂不支持重新开启',
+        confirmText: '确定结束',
       })
+      if (!ok) return
       await interactionApi.closeSignIn(row.id)
       ElMessage.success('签到已结束')
       await loadSignInList()
@@ -203,9 +211,16 @@ export function useCourseInteraction(courseIdRef) {
   }
   async function closeVote(row) {
     try {
-      await ElMessageBox.confirm('确定结束该投票？结束后学生将无法继续投票。', '提示', {
-        type: 'warning',
+      // D2-2：明确后果（学生无法继续投票）与不可重新开启
+      const ok = await confirmDanger({
+        verb: '结束',
+        target: '投票',
+        impact: '学生将无法继续投票，已投票的记录不受影响',
+        irreversible: false,
+        note: '结束后暂不支持重新开启',
+        confirmText: '确定结束',
       })
+      if (!ok) return
       await interactionApi.closeVote(row.id)
       ElMessage.success('投票已结束')
       await loadVoteList()

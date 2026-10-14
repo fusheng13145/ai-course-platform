@@ -1,6 +1,6 @@
 import { ref, reactive, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import logger from '@/utils/logger'
 import courseApi from '@/api/course'
 import chapterApi from '@/api/chapter'
@@ -10,6 +10,7 @@ import resourceApi from '@/api/resource'
 import taskApi from '@/api/task'
 import examApi from '@/api/exam'
 import { pickList } from '@/utils/response'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /** 文案映射 */
 const STATUS_TEXT = { APPROVED: '已通过', REJECTED: '已拒绝' }
@@ -334,7 +335,14 @@ export function useCourseDetail() {
   }
   async function deleteChapter(row) {
     try {
-      await ElMessageBox.confirm(`确定删除「${row.title}」？`, '提示', { type: 'warning' })
+      // D2-2：明确连带影响（子章节与任务点一并移除）与不可逆性
+      const ok = await confirmDanger({
+        verb: '删除',
+        target: '章节',
+        subject: row.title,
+        impact: '将一并移除该章节下的子章节与任务点',
+      })
+      if (!ok) return
       await chapterApi.deleteChapter(row.id)
       chapters.value = chapters.value.filter((c) => c.id !== row.id)
       ElMessage.success('已删除')
@@ -374,7 +382,16 @@ export function useCourseDetail() {
   }
   async function rejectStudent(row) {
     try {
-      await ElMessageBox.confirm('确定拒绝该学生的选课申请？', '提示', { type: 'warning' })
+      // D2-2：明确影响范围（学生无法进入课程）与恢复路径（重新提交申请）
+      const ok = await confirmDanger({
+        verb: '拒绝',
+        target: '选课申请',
+        impact: '该学生将无法进入课程学习',
+        irreversible: false,
+        note: '学生重新提交申请后可再次审核',
+        confirmText: '确定拒绝',
+      })
+      if (!ok) return
       await enrollmentApi.rejectEnrollment(row.id)
       row.approvalStatus = 'REJECTED'
       ElMessage.success('已拒绝')
@@ -411,7 +428,14 @@ export function useCourseDetail() {
   }
   async function deleteNotification(row) {
     try {
-      await ElMessageBox.confirm('确定删除该通知？此操作不可恢复。', '提示', { type: 'warning' })
+      // D2-2：明确连带影响（学生不可见）与不可逆性
+      const ok = await confirmDanger({
+        verb: '删除',
+        target: '通知',
+        subject: row.title,
+        impact: '删除后学生将无法再查看该通知',
+      })
+      if (!ok) return
       await notificationApi.deleteNotification(row.id)
       notifications.value = notifications.value.filter((n) => n.id !== row.id)
       ElMessage.success('已删除')

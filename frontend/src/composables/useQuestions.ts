@@ -1,10 +1,11 @@
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import logger from '@/utils/logger'
 import questionApi from '@/api/question'
 import courseApi from '@/api/course'
 import request from '@/api/request'
 import { pickList, readTotal, unwrap } from '@/utils/response'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /** 选项标签（A-H） */
 export const OPTION_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
@@ -254,13 +255,13 @@ export function useQuestions() {
 
   async function deleteQuestion(row) {
     try {
-      await ElMessageBox.confirm(
-        `确定删除该题目？\n「${row.content.slice(0, 50)}...」`,
-        '确认删除',
-        {
-          type: 'warning',
-        },
-      )
+      // D2-2：题干截断进 subject，并明确不可逆性与恢复路径
+      const ok = await confirmDanger({
+        verb: '删除',
+        target: '题目',
+        subject: `${row.content.slice(0, 50)}...`,
+      })
+      if (!ok) return
 
       await questionApi.deleteQuestion(row.id)
       ElMessage.success('删除成功')

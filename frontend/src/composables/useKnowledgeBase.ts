@@ -1,10 +1,11 @@
 import logger from '@/utils/logger'
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { Cpu, Warning, CircleCheck } from '@element-plus/icons-vue'
 import ragApi from '@/api/rag'
 import courseApi from '@/api/course'
 import { useCourseKbBuild } from './useCourseKbBuild'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /**
  * 知识库管理领域逻辑
@@ -172,10 +173,14 @@ export function useKnowledgeBase() {
     }
   }
   function removeDoc(row) {
-    ElMessageBox.confirm(`确定从知识库删除「${row.name || '未命名'}」？`, '删除确认', {
-      type: 'warning',
+    confirmDanger({
+      verb: '删除',
+      target: '知识库文档',
+      subject: row.name || '未命名',
+      impact: '将一并移除该文档的向量索引，需重新上传并重建索引后才能用于检索',
     })
-      .then(async () => {
+      .then(async (ok) => {
+        if (!ok) return
         try {
           const res = await ragApi.ragDeleteDocument(row.id)
           if (res && res.status === 'error') {

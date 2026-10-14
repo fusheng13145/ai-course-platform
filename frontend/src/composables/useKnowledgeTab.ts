@@ -1,8 +1,9 @@
 import { ref, reactive, computed, watch, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import knowledgeApi from '@/api/knowledge'
 import { isPageEnvelope, pickList, unwrap } from '@/utils/response'
 import { getChartTheme, getMonoSeries, getMonoStatus } from '@/utils/chartTheme'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /**
  * 课程知识点 Tab 数据逻辑（拆分自 components/CourseKnowledgeTab.vue，2026-08-29）
@@ -265,9 +266,14 @@ export function useKnowledgeTab(courseIdRef) {
 
   async function handleDelete(row) {
     try {
-      await ElMessageBox.confirm(`确定删除「${row.name}」？此操作不可恢复。`, '提示', {
-        type: 'warning',
+      // D2-2：明确连带影响（子节点一并删除）与恢复路径
+      const ok = await confirmDanger({
+        verb: '删除',
+        target: '知识点',
+        subject: row.name,
+        impact: '其子节点也将被一并删除',
       })
+      if (!ok) return
       await knowledgeApi.deleteKnowledgePoint(row.id)
       ElMessage.success('已删除')
       await loadAll()

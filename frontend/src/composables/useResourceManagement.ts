@@ -1,9 +1,10 @@
 import logger from '@/utils/logger'
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import resourceApi from '@/api/resource'
 import courseApi from '@/api/course'
 import { pickList, unwrap } from '@/utils/response'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 export function useResourceManagement() {
   const loading = ref(false)
@@ -118,10 +119,14 @@ export function useResourceManagement() {
   }
 
   function removeRes(row) {
-    ElMessageBox.confirm(`确定删除资源「${row.fileName || row.name}」？`, '删除确认', {
-      type: 'warning',
+    confirmDanger({
+      verb: '删除',
+      target: '资源',
+      subject: row.fileName || row.name,
+      impact: '将一并移除该资源文件，课程中学生将无法再下载',
     })
-      .then(async () => {
+      .then(async (ok) => {
+        if (!ok) return
         try {
           await resourceApi.deleteResource(row.id)
           ElMessage.success('删除成功')

@@ -1,10 +1,11 @@
 import { ref, reactive, computed } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
 import courseApi from '@/api/course'
 import knowledgeApi from '@/api/knowledge'
 import { getChartTheme, getMonoStatus } from '@/utils/chartTheme'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /**
  * 知识图谱（教师）数据与业务逻辑
@@ -157,9 +158,14 @@ export function useKnowledgeGraph() {
 
   async function removePoint(row) {
     try {
-      await ElMessageBox.confirm(`确认删除知识点「${row.name}」？此操作不可恢复。`, '提示', {
-        type: 'warning',
+      // D2-2：明确连带影响（图谱关联关系一并移除）与不可逆性
+      const ok = await confirmDanger({
+        verb: '删除',
+        target: '知识点',
+        subject: row.name,
+        impact: '将一并移除该知识点在图谱中的关联关系',
       })
+      if (!ok) return
       await knowledgeApi.deleteKnowledgePoint(row.id)
       ElMessage.success('已删除')
       engineSyncStale.value = true

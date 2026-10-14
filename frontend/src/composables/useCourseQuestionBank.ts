@@ -1,9 +1,10 @@
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
 import { ref, reactive, computed, watch, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import questionApi from '@/api/question'
 import { resolveReviewStatus } from '@/composables/useQuestionBank'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /**
  * 课程题库页数据逻辑（拆分自 teacher/cockpit/CourseQuestionBank.vue，2026-08-29）
@@ -208,11 +209,15 @@ export function useCourseQuestionBank(courseIdRef) {
 
   async function remove(row) {
     try {
-      await ElMessageBox.confirm(
-        `确认删除题目「${row.content || row.stem || row.title || ''}」？此操作不可恢复。`,
-        '删除确认',
-        { type: 'warning', confirmButtonText: '删除', cancelButtonText: '取消' },
-      )
+      // D2-2：题干进 subject（测试依赖），并明确不可逆与恢复路径
+      const ok = await confirmDanger({
+        verb: '删除',
+        target: '题目',
+        subject: row.content || row.stem || row.title || '',
+        impact: '删除后该题目将从题库移除，无法再次被选用',
+        confirmText: '删除',
+      })
+      if (!ok) return
       await questionApi.deleteQuestion(row.id)
       ElMessage.success('题目已删除')
       load()

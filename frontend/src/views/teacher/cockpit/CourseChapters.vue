@@ -172,9 +172,10 @@ import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import chapterApi from '@/api/chapter'
 import teachingApi from '@/api/teacher'
+import { confirmDanger } from '@/utils/dangerConfirm'
 import Modal from '@/components/ui/Modal.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import ExcelImportDialog from '@/components/ui/ExcelImportDialog.vue'
@@ -355,16 +356,14 @@ async function save() {
 
 async function remove(node) {
   try {
-    await ElMessageBox.confirm(
-      `确认删除章节「${node.title}」？其子章节与任务点将一并移除，且不可恢复。`,
-      '删除确认',
-      {
-        type: 'warning',
-        confirmButtonText: '删除',
-        cancelButtonText: '取消',
-        confirmButtonClass: 'el-button--danger',
-      },
-    )
+    // D2-2：连带影响（子章节与任务点一并移除）进确认语，并明确不可逆与恢复路径
+    const ok = await confirmDanger({
+      verb: '删除',
+      target: '章节',
+      subject: node.title,
+      impact: '其子章节与任务点将一并移除',
+    })
+    if (!ok) return
   } catch {
     return
   }

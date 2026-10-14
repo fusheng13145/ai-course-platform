@@ -1,10 +1,11 @@
 import { ref, reactive, computed } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import logger from '@/utils/logger'
 import knowledgeApi from '@/api/knowledge'
 import courseApi from '@/api/course'
 import knowledgeRelationApi from '@/api/knowledgePointRelation'
 import { getChartTheme, getMonoStatus } from '@/utils/chartTheme'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /** 难度 → 标签类型/文案映射 */
 const DIFFICULTY_TAG = { EASY: 'success', MEDIUM: 'warning', HARD: 'danger' }
@@ -255,9 +256,14 @@ export function useKnowledgeManagement() {
   /** 删除知识点（连带子节点，二次确认） */
   async function handleDelete(row) {
     try {
-      await ElMessageBox.confirm(`确定删除知识点「${row.name}」？其子节点也将被删除`, '删除确认', {
-        type: 'warning',
+      // D2-2：明确连带影响（子节点一并删除）与恢复路径
+      const ok = await confirmDanger({
+        verb: '删除',
+        target: '知识点',
+        subject: row.name,
+        impact: '其子节点也将被一并删除',
       })
+      if (!ok) return
       await knowledgeApi.deleteKnowledgePoint(row.id)
       ElMessage.success('删除成功')
       await loadAllData()

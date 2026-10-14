@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import logger from '@/utils/logger'
 import examApi from '@/api/exam'
 import { pickList, unwrap } from '@/utils/response'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /** 服务端会话状态：进行中（对应后端 ExamSessionStatus.STARTED） */
 const SESSION_STATUS_STARTED = 'STARTED'
@@ -572,22 +573,21 @@ export function useStudentExams() {
     if (submitting.value) return
     const unansweredCount = questions.value.filter((_, idx) => !isQuestionAnswered(idx)).length
 
-    let msg = '确定要提交试卷吗？'
-    if (unansweredCount > 0) {
-      msg += `\n您还有 ${unansweredCount} 道题目未作答。`
-    }
+    // D2-2：交卷为不可逆操作，确认语明确影响范围与后果
+    const ok = await confirmDanger({
+      verb: '提交',
+      target: '试卷',
+      impact: unansweredCount > 0
+        ? `您还有 ${unansweredCount} 道题目未作答，未作答题目将按 0 分计入成绩`
+        : '提交后将无法继续修改答案',
+      irreversible: true,
+      recovery: '请确认作答无误后再提交',
+      confirmText: '确认提交',
+      cancelText: '继续答题',
+    })
+    if (!ok) return
 
-    try {
-      await ElMessageBox.confirm(msg, '确认提交', {
-        confirmButtonText: '确认提交',
-        cancelButtonText: '继续答题',
-        type: 'warning',
-      })
-
-      await submitExam()
-    } catch {
-      // 用户取消
-    }
+    await submitExam()
   }
 
   /**
@@ -655,13 +655,19 @@ export function useStudentExams() {
 
   async function confirmExitExam() {
     if (submitting.value) return
-    try {
-      await ElMessageBox.confirm('确定要退出考试吗？\n已作答的进度将被保留。', '退出确认', {
-        confirmButtonText: '确定退出',
-        cancelButtonText: '继续答题',
-        type: 'warning',
-      })
+    // D2-2：退出考试确认语明确后果（进度保留方式、重新进入条件、超时仍会 auto-submit）
+    const ok = await confirmDanger({
+      verb: '退出',
+      target: '考试',
+      impact: '已作答的进度将保留，退出后需在考试有效期内重新进入才能继续作答',
+      irreversible: false,
+      note: '倒计时结束后系统仍会自动提交试卷',
+      confirmText: '确定退出',
+      cancelText: '继续答题',
+    })
+    if (!ok) return
 
+    try {
       // 先自动保存一次。若同步失败，保留答题状态与定时器，不让“进度已保留”的提示失真。
       const saved = await autoSaveAnswers()
       if (!saved) {
@@ -675,7 +681,7 @@ export function useStudentExams() {
       resetExamState()
       viewMode.value = 'list'
     } catch {
-      // 取消
+      // 自动保存异常：保留答题页，与“进度已保留”提示保持一致
     }
   }
 
