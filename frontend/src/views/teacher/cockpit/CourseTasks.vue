@@ -5,6 +5,15 @@
         <el-button type="primary" :icon="Plus" @click="openCreate()">新建任务</el-button>
       </PageHeader>
 
+      <!-- 加载失败持久提示（不自动消失） -->
+      <el-alert
+        v-if="loadError"
+        :title="loadError"
+        type="error"
+        :closable="false"
+        class="load-error-alert"
+      />
+
       <div class="l1-card animate-in d1">
         <el-table v-if="tasks.length" :data="pagedTasks" size="small" empty-text="暂无任务">
           <el-table-column prop="title" label="标题" min-width="180" show-overflow-tooltip>
@@ -50,7 +59,11 @@
             </template>
           </el-table-column>
         </el-table>
-        <el-empty v-else-if="!loading" description="暂无任务，点击右上角新建" :image-size="72" />
+        <el-empty
+          v-else-if="!loading"
+          :description="loadError ? '任务列表未能加载，请查看上方提示后重试' : '暂无任务，点击右上角新建'"
+          :image-size="72"
+        />
 
         <div v-if="tasks.length" class="pager">
           <el-pagination
@@ -166,6 +179,7 @@ const route = useRoute()
 const courseId = computed(() => Number(route.params.id))
 
 const loading = ref(false)
+const loadError = ref('')
 const saving = ref(false)
 const tasks = ref([])
 
@@ -202,11 +216,14 @@ function taskTypeTag(type) {
 
 async function load() {
   loading.value = true
+  loadError.value = ''
   try {
     tasks.value = await taskApi.getAllTasks({ courseId: courseId.value })
     if (page.value > 1 && (page.value - 1) * size.value >= tasks.value.length) page.value = 1
   } catch (e) {
     logger.error('加载任务列表失败', e)
+    tasks.value = []
+    loadError.value = '任务列表加载失败，请检查网络后重试'
   } finally {
     loading.value = false
   }
@@ -334,6 +351,10 @@ watch(() => route.params.id, load)
 </script>
 
 <style scoped>
+.load-error-alert {
+  margin-bottom: var(--ac-spacing-md);
+}
+
 .hint {
   margin-left: 10px;
   font-size: 12px;
