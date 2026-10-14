@@ -16,6 +16,16 @@
       <StatCard label="当前版本" :value="currentVersion" icon="check" tone="ok" />
     </div>
 
+    <!-- 加载失败提示：见 loadError 注释（失败不得静默渲染成「暂无版本记录」与 0 值读数） -->
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      show-icon
+      style="margin-bottom: var(--ac-spacing-md)"
+    />
+
     <section class="l1-card">
       <div class="l1-head">
         <span class="l1-ico"
@@ -66,7 +76,7 @@
             v-loading="loading"
             :data="versions"
             style="width: 100%"
-            empty-text="暂无版本记录"
+            :empty-text="versionsError ? '版本记录未能加载，请查看上方提示后重试' : '暂无版本记录'"
           >
             <el-table-column prop="id" label="版本ID" width="80" />
             <el-table-column label="版本号" width="120">
@@ -101,7 +111,11 @@
               </template>
             </el-table-column>
             <template #empty>
-              <el-empty description="暂无版本记录">
+              <el-empty
+                :description="
+                  versionsError ? '版本记录未能加载，请查看上方提示后重试' : '暂无版本记录'
+                "
+              >
                 <template #image><div class="empty-deco">🗂️</div></template>
               </el-empty>
             </template>
@@ -169,18 +183,35 @@ const rollbackVisible = ref(false)
 const rollbackTarget = ref(null)
 const form = ref({ changeLog: '' })
 
+/**
+ * 两路独立加载错误（失败可见）：
+ * - resourcesError：资源下拉列表加载失败（原实现仅 console.error 后静默清空，
+ *   管理员会误判平台无任何资源）；
+ * - versionsError：版本历史/当前版本加载失败（原实现 allSettled 后不检测 rejected，
+ *   任一接口失败都被静默忽略，表格渲染成「暂无版本记录」）。
+ * 两路互不复位，由 loadError 聚合展示，避免一路成功清掉另一路的失败提示。
+ */
+const resourcesError = ref('')
+const versionsError = ref('')
+const loadError = computed(() =>
+  [resourcesError.value, versionsError.value].filter(Boolean).join('；'),
+)
+
 const selectedResourceName = computed(() => {
   const r = resources.value.find((x) => x.id === selectedResourceId.value)
   return r ? r.name || r.title : ''
 })
 
-const versionCount = computed(() => versions.value.length)
+/** 版本总数：加载失败时不得谎报 0，改显 '--' */
+const versionCount = computed(() => (versionsError.value ? '--' : versions.value.length))
 const currentVersion = computed(() => {
+  if (versionsError.value) return '--'
   const v = versions.value.find((x) => x.id === activeVersionId.value)
   return v ? v.versionNumber || v.version || '—' : '—'
 })
 
 async function loadResources() {
+  resourcesError.value = ''
   try {
     // 缺陷修复（2026-10-04）：原写法 `resourceApi.getResourceList?.({ size: 200 })` 有两重失效——
     // ① getResourceList 的首参是 courseId，传对象会拼出 `/resources/course/[object Object]`；
@@ -192,17 +223,21 @@ async function loadResources() {
   } catch (e) {
     console.error('加载资源列表失败:', e)
     resources.value = []
+    resourcesError.value = '资源列表加载失败，请检查网络后重试'
   }
 }
 
 async function loadVersions() {
   if (!selectedResourceId.value) return
   loading.value = true
+  versionsError.value = ''
   try {
     const [histRes, activeRes] = await Promise.allSettled([
       versionApi.getVersionHistory(selectedResourceId.value),
       versionApi.getActiveVersion(selectedResourceId.value),
     ])
+    // 失败可见：allSettled 不抛错，必须逐路检测 rejected，否则失败被静默吞掉
+    const notices: string[] = []
     if (histRes.status === 'fulfilled') {
       const data =
         histRes.value.data?.list ||
@@ -211,13 +246,24 @@ async function loadVersions() {
         histRes.value ||
         []
       versions.value = Array.isArray(data) ? data : []
+    } else {
+      console.error('加载版本历史失败:', histRes.reason)
+      versions.value = []
+      notices.push('版本历史加载失败')
     }
     if (activeRes.status === 'fulfilled') {
       activeVersionId.value = activeRes.value.data?.id || activeRes.value.id || null
+    } else {
+      console.error('加载当前版本失败:', activeRes.reason)
+      activeVersionId.value = null
+      notices.push('当前版本加载失败')
     }
+    versionsError.value = notices.length ? `${notices.join('、')}，请检查网络后重试` : ''
   } catch (e) {
     console.error('加载版本历史失败:', e)
     versions.value = []
+    activeVersionId.value = null
+    versionsError.value = '版本信息加载失败，请检查网络后重试'
   } finally {
     loading.value = false
   }
