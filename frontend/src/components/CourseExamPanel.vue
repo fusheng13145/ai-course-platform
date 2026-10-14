@@ -13,6 +13,14 @@
     </div>
 
     <div class="content-card">
+      <!-- 加载失败持久提示（不自动消失） -->
+      <el-alert
+        v-if="loadError"
+        :title="loadError"
+        type="error"
+        :closable="false"
+        class="load-error-alert"
+      />
       <el-table v-loading="loading" :data="filteredExams" style="width: 100%">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="title" label="试卷标题" min-width="200" />
@@ -61,7 +69,10 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="!loading && filteredExams.length === 0" description="暂无试卷" />
+      <el-empty
+        v-if="!loading && filteredExams.length === 0"
+        :description="loadError ? '试卷列表未能加载，请查看上方提示后重试' : '暂无试卷'"
+      />
     </div>
 
     <el-dialog
@@ -163,6 +174,7 @@ const emit = defineEmits(['examUpdated'])
 
 const exams = ref([])
 const loading = ref(false)
+const loadError = ref('')
 const examFilter = ref('')
 const examDialogVisible = ref(false)
 const editingExam = ref(null)
@@ -212,12 +224,15 @@ function formatDateTime(date) {
 
 async function loadExams() {
   loading.value = true
+  loadError.value = ''
   try {
     const res = await examApi.listByCourse(props.courseId)
     const data = res.data?.records || res.data?.list || res.data || res || []
     exams.value = Array.isArray(data) ? data : []
   } catch (e) {
     logger.error('加载试卷失败:', e)
+    exams.value = []
+    loadError.value = '试卷列表加载失败，请检查网络后重试'
   } finally {
     loading.value = false
   }
@@ -339,6 +354,10 @@ watch(
 <style scoped>
 .exam-panel {
   padding: 0;
+}
+
+.load-error-alert {
+  margin-bottom: 16px;
 }
 
 .panel-toolbar {

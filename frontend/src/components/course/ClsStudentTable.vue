@@ -76,7 +76,7 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="!loading && filteredStudents.length === 0" description="暂无学生数据" />
+      <el-empty v-if="!loading && filteredStudents.length === 0" :description="emptyText" />
     </div>
   </div>
 </template>
@@ -86,6 +86,7 @@ defineProps({
   loading: { type: Boolean, default: false },
   searchKeyword: { type: String, default: '' },
   filteredStudents: { type: Array, default: () => [] },
+  emptyText: { type: String, default: '暂无学生数据' },
 })
 defineEmits(['update:searchKeyword'])
 

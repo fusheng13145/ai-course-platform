@@ -26,7 +26,7 @@
         </svg>
       </div>
       <div class="stat-info">
-        <span class="stat-val">{{ overallProgress }}%</span>
+        <span class="stat-val">{{ loadFailed ? '--' : overallProgress + '%' }}</span>
         <span class="stat-lbl">总体进度</span>
       </div>
     </div>
@@ -35,7 +35,7 @@
         <Collection :size="20" />
       </div>
       <div class="stat-info">
-        <span class="stat-val">{{ completedChapters }}/{{ totalChapters }}</span>
+        <span class="stat-val">{{ loadFailed ? '--' : completedChapters + '/' + totalChapters }}</span>
         <span class="stat-lbl">已完成章节</span>
       </div>
     </div>
@@ -44,7 +44,7 @@
         <Document :size="20" />
       </div>
       <div class="stat-info">
-        <span class="stat-val">{{ totalTasks }}</span>
+        <span class="stat-val">{{ loadFailed ? '--' : totalTasks }}</span>
         <span class="stat-lbl">任务点总数</span>
       </div>
     </div>
@@ -68,7 +68,7 @@
         </svg>
       </div>
       <div class="stat-info">
-        <span class="stat-val">{{ avgSubmissionRate }}%</span>
+        <span class="stat-val">{{ loadFailed ? '--' : avgSubmissionRate + '%' }}</span>
         <span class="stat-lbl">平均提交率</span>
       </div>
     </div>
@@ -84,6 +84,7 @@ defineProps({
   totalChapters: { type: [Number, String], default: 0 },
   totalTasks: { type: [Number, String], default: 0 },
   avgSubmissionRate: { type: [Number, String], default: 0 },
+  loadFailed: { type: Boolean, default: false },
 })
 </script>
 

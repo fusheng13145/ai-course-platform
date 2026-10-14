@@ -44,7 +44,7 @@
         <template #default="{ row }">{{ row.duration || 0 }}</template>
       </el-table-column>
     </el-table>
-    <el-empty v-if="!loading && chapterList.length === 0" description="暂无章节数据" />
+    <el-empty v-if="!loading && chapterList.length === 0" :description="emptyText" />
   </div>
 </template>
 
@@ -52,6 +52,7 @@
 defineProps({
   loading: { type: Boolean, default: false },
   chapterList: { type: Array, default: () => [] },
+  emptyText: { type: String, default: '暂无章节数据' },
 })
 </script>
 

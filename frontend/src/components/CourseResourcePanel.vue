@@ -15,6 +15,14 @@ import { getMonoSeries, getMonoStatus, monoScore } from '@/utils/chartTheme'
     </div>
 
     <div class="content-card">
+      <!-- 加载失败持久提示（不自动消失） -->
+      <el-alert
+        v-if="loadError"
+        :title="loadError"
+        type="error"
+        :closable="false"
+        class="load-error-alert"
+      />
       <el-table v-loading="loading" :data="filteredResources" style="width: 100%">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column label="文件名" min-width="250">
@@ -64,7 +72,10 @@ import { getMonoSeries, getMonoStatus, monoScore } from '@/utils/chartTheme'
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="!loading && filteredResources.length === 0" description="暂无资源" />
+      <el-empty
+        v-if="!loading && filteredResources.length === 0"
+        :description="loadError ? '资源列表未能加载，请查看上方提示后重试' : '暂无资源'"
+      />
     </div>
 
     <el-dialog v-model="uploadDialogVisible" title="上传资源" width="500px" append-to-body>
@@ -124,6 +135,7 @@ const emit = defineEmits(['resourceUpdated'])
 
 const resources = ref([])
 const loading = ref(false)
+const loadError = ref('')
 const resourceFilter = ref('')
 const uploadDialogVisible = ref(false)
 const uploadFileList = ref([])
@@ -198,11 +210,14 @@ function formatDateTime(date) {
 
 async function loadResources() {
   loading.value = true
+  loadError.value = ''
   try {
     const res = await resourceApi.getResourceList(props.courseId)
     resources.value = res.data || res || []
   } catch (e) {
     logger.error('加载资源失败:', e)
+    resources.value = []
+    loadError.value = '资源列表加载失败，请检查网络后重试'
   } finally {
     loading.value = false
   }
@@ -297,6 +312,10 @@ watch(
 <style scoped>
 .resource-panel {
   padding: 0;
+}
+
+.load-error-alert {
+  margin-bottom: 16px;
 }
 
 .panel-toolbar {

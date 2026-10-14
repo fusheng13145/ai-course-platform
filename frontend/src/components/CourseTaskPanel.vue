@@ -13,6 +13,14 @@
     </div>
 
     <div class="content-card">
+      <!-- 加载失败持久提示（不自动消失） -->
+      <el-alert
+        v-if="loadError"
+        :title="loadError"
+        type="error"
+        :closable="false"
+        class="load-error-alert"
+      />
       <el-table v-loading="loading" :data="filteredTasks" style="width: 100%">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="title" label="作业标题" min-width="200" />
@@ -62,7 +70,10 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="!loading && filteredTasks.length === 0" description="暂无作业" />
+      <el-empty
+        v-if="!loading && filteredTasks.length === 0"
+        :description="loadError ? '作业列表未能加载，请查看上方提示后重试' : '暂无作业'"
+      />
     </div>
 
     <el-dialog
@@ -149,6 +160,7 @@ const emit = defineEmits(['taskUpdated'])
 
 const tasks = ref([])
 const loading = ref(false)
+const loadError = ref('')
 const taskFilter = ref('')
 const taskDialogVisible = ref(false)
 const editingTask = ref(null)
@@ -202,12 +214,15 @@ function formatDateTime(date) {
 
 async function loadTasks() {
   loading.value = true
+  loadError.value = ''
   try {
     const res = await taskApi.listByCourse(props.courseId)
     const data = res.data?.records || res.data?.list || res.data || res || []
     tasks.value = Array.isArray(data) ? data : []
   } catch (e) {
     logger.error('加载作业失败:', e)
+    tasks.value = []
+    loadError.value = '作业列表加载失败，请检查网络后重试'
   } finally {
     loading.value = false
   }
@@ -317,6 +332,10 @@ watch(
 <style scoped>
 .task-panel {
   padding: 0;
+}
+
+.load-error-alert {
+  margin-bottom: 16px;
 }
 
 .panel-toolbar {

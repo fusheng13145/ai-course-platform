@@ -26,6 +26,11 @@ export function useCourseLearningStatusTab(courseIdRef) {
   const loading = ref(false)
   const searchKeyword = ref('')
 
+  // 双路加载各自的独立错误状态：互不复位，防止一路失败清除另一路的提示/数据。
+  const classError = ref('')
+  const studentsError = ref('')
+  const loadError = computed(() => classError.value || studentsError.value)
+
   const overview = ref({
     activeStudents: 0,
     avgOnlineHours: 0,
@@ -111,6 +116,8 @@ export function useCourseLearningStatusTab(courseIdRef) {
 
   async function loadData() {
     loading.value = true
+    classError.value = ''
+    studentsError.value = ''
     try {
       const cid = Number(courseIdRef.value)
 
@@ -144,6 +151,8 @@ export function useCourseLearningStatusTab(courseIdRef) {
             itemStyle: { color: b.color },
           }))
         }
+      } else {
+        classError.value = '班级学习数据加载失败，请检查网络后重试'
       }
 
       // 学生数据
@@ -201,6 +210,9 @@ export function useCourseLearningStatusTab(courseIdRef) {
             ]
           }
         }
+      } else {
+        students.value = []
+        studentsError.value = '学生名单加载失败，请检查网络后重试'
       }
     } catch (e) {
       logger.warn('[CourseLearningStatusTab] loadData 失败:', e.message || e)
@@ -214,6 +226,9 @@ export function useCourseLearningStatusTab(courseIdRef) {
 
   return {
     loading,
+    loadError,
+    classError,
+    studentsError,
     searchKeyword,
     overview,
     students,
