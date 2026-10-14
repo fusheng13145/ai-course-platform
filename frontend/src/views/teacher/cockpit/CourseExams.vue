@@ -91,9 +91,10 @@ import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import examApi from '@/api/exam'
+import { confirmDanger } from '@/utils/dangerConfirm'
 import PageHeader from '@/components/PageHeader.vue'
 import CeExamTable from './components/CeExamTable.vue'
 import CeExamFormDialog from './components/CeExamFormDialog.vue'
@@ -246,17 +247,20 @@ async function publish(row) {
 }
 
 async function remove(row) {
+  const ok = await confirmDanger({
+    verb: '删除',
+    target: '试卷',
+    subject: row.title,
+    impact: '将一并移除该试卷关联的学生作答记录与成绩明细',
+  })
+  if (!ok) return
   try {
-    await ElMessageBox.confirm(`确认删除试卷「${row.title}」？此操作不可恢复。`, '删除确认', {
-      type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-    })
     await examApi.deleteExamPaper(row.id)
     ElMessage.success('试卷已删除')
     load()
   } catch (e) {
-    if (e !== 'cancel' && e?.toLowerCase) logger.error('删除试卷失败', e)
+    logger.error('删除试卷失败', e)
+    ElMessage.error('删除失败')
   }
 }
 

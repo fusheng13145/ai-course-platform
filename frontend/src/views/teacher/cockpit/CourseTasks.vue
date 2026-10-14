@@ -170,8 +170,9 @@
 import logger from '@/utils/logger'
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import taskApi from '@/api/task'
+import { confirmDanger } from '@/utils/dangerConfirm'
 import PageHeader from '@/components/PageHeader.vue'
 import { Plus, Edit, Delete, Calendar } from '@element-plus/icons-vue'
 
@@ -327,22 +328,20 @@ async function saveExtend() {
 }
 
 async function remove(row) {
-  try {
-    await ElMessageBox.confirm(`确认删除任务「${row.title}」？此操作不可恢复。`, '删除确认', {
-      type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-      confirmButtonClass: 'el-button--danger',
-    })
-  } catch {
-    return
-  }
+  const ok = await confirmDanger({
+    verb: '删除',
+    target: '任务',
+    subject: row.title,
+    impact: '将一并移除该任务的附件、提交记录与学生成绩，且无法恢复',
+  })
+  if (!ok) return
   try {
     await taskApi.deleteTask(row.id)
     ElMessage.success('已删除')
     await load()
   } catch (e) {
     logger.error('删除任务失败', e)
+    ElMessage.error('删除失败')
   }
 }
 

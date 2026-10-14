@@ -211,6 +211,7 @@ import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Search } from '@element-plus/icons-vue'
 import courseApi from '@/api/course'
+import { confirmDanger } from '@/utils/dangerConfirm'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import { useListFeedback } from '@/composables/useListFeedback'
@@ -320,24 +321,41 @@ async function handleReject(row) {
 
 async function handleToggleStatus(row) {
   const action = isActive(row) ? '停用' : '启用'
+  const ok = await confirmDanger({
+    verb: action,
+    target: '课程',
+    subject: row.name,
+    impact:
+      action === '停用'
+        ? '停用后学生将无法在课程列表中看到并进入该课程，进行中的教学活动也会随之下线'
+        : '启用后该课程将重新对学生可见，学生可继续进入学习',
+    irreversible: false,
+    note: '可随时再次切换状态',
+  })
+  if (!ok) return
   try {
-    await ElMessageBox.confirm(`确定${action}该课程？`, '提示')
     await courseApi.toggleCourseStatus(row.id)
     row.status = isActive(row) ? 'INACTIVE' : 'ACTIVE'
     ElMessage.success(`${action}成功`)
-  } catch (e) {
-    if (e !== 'cancel') ElMessage.error('操作失败')
+  } catch {
+    ElMessage.error('操作失败')
   }
 }
 
 async function handleDelete(row) {
+  const ok = await confirmDanger({
+    verb: '删除',
+    target: '课程',
+    subject: row.name,
+    impact: '将一并移除该课程的章节、任务点、选课记录与学生作答数据',
+  })
+  if (!ok) return
   try {
-    await ElMessageBox.confirm('确定删除该课程？此操作不可恢复', '提示', { type: 'warning' })
     await courseApi.deleteCourse(row.id)
     courseList.value = courseList.value.filter((c) => c.id !== row.id)
     ElMessage.success('已删除')
-  } catch (e) {
-    if (e !== 'cancel') ElMessage.error('删除失败')
+  } catch {
+    ElMessage.error('删除失败')
   }
 }
 </script>

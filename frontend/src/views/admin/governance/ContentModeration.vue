@@ -209,6 +209,7 @@ import { computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import CollapsePanel from '@/components/ui/CollapsePanel.vue'
+import { confirmDanger } from '@/utils/dangerConfirm'
 import {
   useModeration,
   type BannedAuthorRow,
@@ -309,16 +310,17 @@ async function onAction(
 
   let banAuthor = false
   if (action !== 'RESTORE') {
-    try {
-      await ElMessageBox.confirm(
-        '是否同时封禁该内容的作者？封禁等于停用其账号，该用户将立即无法登录。',
-        '封禁作者',
-        { confirmButtonText: '同时封禁作者', cancelButtonText: '仅处置内容', type: 'warning' },
-      )
-      banAuthor = true
-    } catch {
-      banAuthor = false // 用户选择"仅处置内容"
-    }
+    // 双关语义：确认=同时封禁作者；取消/关闭=仅处置内容（confirmDanger 取消时
+    // resolve(false)，与旧 catch 分支等价）。
+    banAuthor = await confirmDanger({
+      verb: '封禁',
+      target: '作者',
+      subject: rowLabel(row),
+      impact: '封禁等于停用其账号，该用户将立即无法登录；同时仍会按上方选择处置该内容',
+      recovery: '如需恢复，可在本页「封禁名单」中解除封禁',
+      confirmText: '同时封禁作者',
+      cancelText: '仅处置内容',
+    })
   }
 
   if (await applyAction(target, row.id, action, reason, banAuthor)) {
