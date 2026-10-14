@@ -14,10 +14,20 @@
       </el-button>
     </PageHeader>
 
+    <!-- 加载失败提示：非空即表示下方读数与列表不可信（失败不得渲染成「暂无待办提醒」） -->
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      show-icon
+      style="margin-bottom: var(--ac-spacing-md)"
+    />
+
     <div class="stat-grid">
-      <StatCard label="总提醒" :value="totalCount" icon="list" tone="accent" />
-      <StatCard label="待处理" :value="pendingCount" icon="clock" tone="warn" />
-      <StatCard label="已完成" :value="completedCount" icon="check" tone="ok" />
+      <StatCard label="总提醒" :value="loadError ? '--' : totalCount" icon="list" tone="accent" />
+      <StatCard label="待处理" :value="loadError ? '--' : pendingCount" icon="clock" tone="warn" />
+      <StatCard label="已完成" :value="loadError ? '--' : completedCount" icon="check" tone="ok" />
     </div>
 
     <section class="l1-card">
@@ -85,7 +95,9 @@
               </template>
             </el-table-column>
             <template #empty>
-              <el-empty description="暂无待办提醒">
+              <el-empty
+                :description="loadError ? '待办提醒未能加载，请查看上方提示后重试' : '暂无待办提醒'"
+              >
                 <template #image><div class="empty-deco">🔔</div></template>
               </el-empty>
             </template>
@@ -139,6 +151,11 @@ import StatCard from '@/components/ui/StatCard.vue'
 const loading = ref(false)
 const saving = ref(false)
 const todos = ref([])
+/**
+ * 加载失败提示文案：非空即表示提醒列表与三张统计卡读数不可信。
+ * 原实现失败仅 console.error 后静默 → 页面照常显示「暂无待办提醒」与全 0 统计（失败可见）。
+ */
+const loadError = ref('')
 const totalCount = computed(() => todos.value.length)
 const pendingCount = computed(() => todos.value.filter((t) => t.status === 'PENDING').length)
 const completedCount = computed(() => todos.value.filter((t) => t.status === 'COMPLETED').length)
@@ -148,6 +165,7 @@ const form = ref({ title: '', content: '', remindAt: null, targetUserId: '' })
 
 async function loadTodos() {
   loading.value = true
+  loadError.value = ''
   try {
     const res = await reminderApi.getTodos()
     const data = res.data?.list || res.data?.records || res.data || []
@@ -155,6 +173,7 @@ async function loadTodos() {
   } catch (e) {
     console.error('加载提醒失败:', e)
     todos.value = []
+    loadError.value = '待办提醒加载失败，请检查网络后重试'
   } finally {
     loading.value = false
   }
