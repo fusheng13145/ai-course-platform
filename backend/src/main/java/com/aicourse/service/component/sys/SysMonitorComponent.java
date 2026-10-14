@@ -3,6 +3,7 @@ package com.aicourse.service.component.sys;
 import com.aicourse.common.JsonUtils;
 import com.aicourse.entity.LoginLog;
 import com.aicourse.entity.OperationLog;
+import com.aicourse.health.PythonServicesHealthIndicator;
 import com.aicourse.mapper.CourseMapper;
 import com.aicourse.mapper.KnowledgePointMapper;
 import com.aicourse.mapper.LoginLogMapper;
@@ -57,6 +58,7 @@ public class SysMonitorComponent {
     private final LoginLogService loginLogService;
     private final OperationLogService operationLogService;
     private final AIService aiService;
+    private final PythonServicesHealthIndicator pythonServicesHealthIndicator;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public SysMonitorComponent(UserMapper userMapper,
@@ -69,7 +71,8 @@ public class SysMonitorComponent {
                                @Value("${ai.deepseek.api-key:}") String deepseekApiKey,
                                LoginLogService loginLogService,
                                OperationLogService operationLogService,
-                               AIService aiService) {
+                               AIService aiService,
+                               PythonServicesHealthIndicator pythonServicesHealthIndicator) {
         this.userMapper = userMapper;
         this.courseMapper = courseMapper;
         this.questionMapper = questionMapper;
@@ -81,11 +84,12 @@ public class SysMonitorComponent {
         this.loginLogService = loginLogService;
         this.operationLogService = operationLogService;
         this.aiService = aiService;
+        this.pythonServicesHealthIndicator = pythonServicesHealthIndicator;
     }
 
-    /** 健康检查：数据库与 Redis 连接状态 */
+    /** 健康检查：数据库、Redis 连接状态与 Python 微服务（知识图谱/RAG/微调）可用性 */
     public Map<String, Object> getHealth() {
-        Map<String, Object> health = new HashMap<>(4);
+        Map<String, Object> health = new HashMap<>(8);
         health.put("status", "UP");
         health.put("timestamp", LocalDateTime.now().format(DATETIME_FORMATTER));
 
@@ -109,6 +113,17 @@ public class SysMonitorComponent {
             log.warn("Redis健康检查失败: {}", e.getMessage());
         }
         health.put("redis", redisStatus);
+
+        // Python 微服务（知识图谱/RAG/微调）可用性：明细逐服务下发（enabled/baseUrl/status），
+        // 未启用的服务标记 DISABLED 而不再伪装成 UP，运维据此看到真实开关状态。
+        try {
+            health.put("pythonServices", pythonServicesHealthIndicator.health().getDetails());
+        } catch (Exception e) {
+            // 健康指示器本身异常（理论不可达）：如实标记失败，前端显示 "--" 而非当作全部正常
+            log.warn("Python 微服务健康检查异常: {}", e.getMessage());
+            health.put("pythonServices", null);
+            health.put("pythonServicesError", "Python 微服务健康检查失败，请查看后端日志");
+        }
 
         return health;
     }

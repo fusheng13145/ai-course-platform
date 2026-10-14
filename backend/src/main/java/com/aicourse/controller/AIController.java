@@ -1,6 +1,7 @@
 package com.aicourse.controller;
 
 import com.aicourse.common.ApiResponse;
+import com.aicourse.common.JsonUtils;
 import com.aicourse.entity.AiChatMessage;
 import com.aicourse.entity.AiChatSession;
 import com.aicourse.dto.EssayDTO;
@@ -18,6 +19,7 @@ import com.aicourse.service.LearningRecommendationService;
 import com.aicourse.service.component.ai.AiCallContext;
 import com.aicourse.vo.QaAnswerVO;
 import com.aicourse.vo.QaSourceVO;
+import com.aicourse.vo.QaStreamVO;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -212,21 +214,53 @@ public class AIController {
     }
 
     /**
-     * 流式智能问答 - SSE 逐 token 推送
+     * 流式智能问答 - SSE 逐 token 推送（含课程资料溯源）
      * <p>
      * 与 {@link #qaAsk} 不同，本接口以 Server-Sent Events 方式流式返回 AI 回答，
-     * 每个事件为一个 content delta 片段，前端可实时渲染打字机效果。
-     * 输入经 PromptGuard 注入中和后，由当前配置的 LLM 供应商（DeepSeek/OpenAI/Qwen）
-     * 以流式模式执行补全，输出每 token 经输出护栏清洗后逐条推送。
+     * 前端可实时渲染打字机效果。每个数据帧统一为 JSON：
+     * <ul>
+     *   <li>增量帧 {@code {"token":"..."}}：一段回答内容；</li>
+     *   <li>末帧 {@code {"sources":[...]}}：本次检索命中的课程资料出处（无则为空数组）。</li>
+     * </ul>
+     * 采用 JSON 帧而非裸文本，是因为换行等内容经 JSON 转义后仍是单行，
+     * 不会被 SSE 的分行规则切断（裸文本里的 "\n" 会被拆成多个 data 行、内容失真）。
+     * <p>
+     * 传入 {@code courseId} 时，服务层会先检索课程资料做接地，并把出处随流回传；
+     * 检索失败/未命时不中断，sources 为空数组（降级纯 LLM 直答）。
      * <p>⚠️ 该路径<b>不落</b> {@code ai_call_logs}：实际调用发生在 SSE 订阅线程上，
      * 而调用归属是线程级作用域，跨线程即失效——少记一条好过记错归属（见 {@code AiCoreComponent} 注释）。
      *
      * @param question 用户提问内容
-     * @return SSE 流，每个事件为一段 delta 文本
+     * @param courseId 归属课程（可选）；用于检索课程资料做接地并回传出处
+     * @return SSE 流：逐段增量帧 + 一段出处末帧
      */
     @GetMapping(value = "/qa/stream", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
-    public Flux<String> streamChat(@RequestParam @NotBlank(message = "提问内容不能为空") String question) {
-        return aiService.streamChat(question);
+    public Flux<String> streamChat(@RequestParam @NotBlank(message = "提问内容不能为空") String question,
+                                   @RequestParam(required = false) Long courseId) {
+        QaStreamVO stream = aiService.streamChat(question, courseId);
+        // 出处与 /qa/ask 同口径转义后再随流下发，避免展示口径分叉
+        List<QaSourceVO> sources = escapeSources(stream.getSources());
+        return stream.getTokens()
+                .map(this::tokenFrame)
+                .concatWith(Flux.just(sourcesFrame(sources)));
+    }
+
+    /** 增量帧：{"token":"..."}；序列化失败（理论不可达）时降级为空增量，不打断整条流。 */
+    private String tokenFrame(String token) {
+        try {
+            return JsonUtils.toJson(Map.of("token", token != null ? token : ""));
+        } catch (Exception e) {
+            return "{\"token\":\"\"}";
+        }
+    }
+
+    /** 出处末帧：{"sources":[...]}；无出处时为空数组，前端据此不渲染溯源区块。 */
+    private String sourcesFrame(List<QaSourceVO> sources) {
+        try {
+            return JsonUtils.toJson(Map.of("sources", sources == null ? List.of() : sources));
+        } catch (Exception e) {
+            return "{\"sources\":[]}";
+        }
     }
 
     // ==================== 作文批改（2个接口） ====================

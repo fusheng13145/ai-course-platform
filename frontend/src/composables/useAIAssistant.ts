@@ -10,7 +10,7 @@ import {
   speak,
   stopSpeaking,
 } from '@/composables/useSpeech'
-import aiApi from '@/api/ai'
+import aiApi, { type QaSourcePayload } from '@/api/ai'
 import courseApi from '@/api/course'
 
 /**
@@ -21,12 +21,7 @@ import courseApi from '@/api/course'
  */
 
 /** 检索出处条目（与后端 QaSourceVO 对齐，控制器下发前已做 HTML 转义） */
-export interface QaSource {
-  documentId?: number
-  documentName?: string
-  relevanceScore?: number
-  snippet?: string
-}
+export type QaSource = QaSourcePayload
 
 /**
  * 聊天消息条目。
@@ -46,21 +41,28 @@ export interface ChatMessage {
 }
 
 /**
+ * 还原后端展示层转义后的出处条目（documentName/snippet 同 answer 口径做过 HTML 转义）。
+ * <p>流式（SSE 末帧 onSources）与非流式（/qa/ask 应答）两条链路共用同一还原，
+ * 避免出现「一条链路还原、另一条把 &amp; 直接播给用户」的口径分叉。</p>
+ */
+function mapSources(raw: unknown): QaSource[] {
+  if (!Array.isArray(raw)) return []
+  return (raw as QaSourcePayload[]).map((s) => ({
+    ...s,
+    documentName: decodeHtml(s.documentName),
+    snippet: decodeHtml(s.snippet),
+  }))
+}
+
+/**
  * 读取 /qa/ask 应答的答案与溯源出处。
  * <p>业务字段在信封的 data 里（answer / sessionId / sources）；历史实现按
  * response / reply / content 取值，全部取不到时用固定文案兜底，真实 RAG 回答
  * 因此被静默丢弃。转义按展示口径还原，渲染仍走 escapeHtml + sanitize。</p>
  */
 function readQa(res: unknown): { answer: string; sources: QaSource[] } {
-  const payload = (unwrap(res) ?? {}) as { answer?: string; sources?: QaSource[] }
-  const sources = Array.isArray(payload.sources)
-    ? payload.sources.map((s) => ({
-        ...s,
-        documentName: decodeHtml(s.documentName),
-        snippet: decodeHtml(s.snippet),
-      }))
-    : []
-  return { answer: decodeHtml(payload.answer), sources }
+  const payload = (unwrap(res) ?? {}) as { answer?: string; sources?: QaSourcePayload[] }
+  return { answer: decodeHtml(payload.answer), sources: mapSources(payload.sources) }
 }
 
 export function useAIAssistant() {
@@ -165,7 +167,7 @@ export function useAIAssistant() {
     }
   }
 
-  /** SSE 流式：逐 token 推送 */
+  /** SSE 流式：逐 token 推送；末帧出处写入当前回答气泡供溯源展示 */
   function handleSendStream(aiMsgIdx, question) {
     return new Promise<void>((resolve, reject) => {
       // 与 qaStream 的入参契约对齐：索引签名允许扩展字段，question 必填（原声明缺 question 键保证）。
@@ -174,6 +176,10 @@ export function useAIAssistant() {
       const controller = aiApi.qaStream(params, {
         onToken(token) {
           messages.value[aiMsgIdx].content += token
+        },
+        onSources(sources) {
+          // 出处末帧：与 /qa/ask 同口径还原；空数组表示本次无溯源，交由渲染侧按长度隐藏
+          messages.value[aiMsgIdx].sources = mapSources(sources)
         },
         onError(err) {
           reject(err)

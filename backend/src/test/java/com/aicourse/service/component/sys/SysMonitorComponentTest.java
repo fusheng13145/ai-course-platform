@@ -2,6 +2,7 @@ package com.aicourse.service.component.sys;
 
 import com.aicourse.entity.LoginLog;
 import com.aicourse.entity.OperationLog;
+import com.aicourse.health.PythonServicesHealthIndicator;
 import com.aicourse.mapper.CourseMapper;
 import com.aicourse.mapper.KnowledgePointMapper;
 import com.aicourse.mapper.LoginLogMapper;
@@ -19,6 +20,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.mockito.junit.jupiter.MockitoSettings;
 import org.mockito.quality.Strictness;
+import org.springframework.boot.actuate.health.Health;
 import org.springframework.data.redis.connection.RedisConnection;
 import org.springframework.data.redis.connection.RedisConnectionFactory;
 import org.springframework.data.redis.core.RedisTemplate;
@@ -63,6 +65,8 @@ class SysMonitorComponentTest {
     private OperationLogService operationLogService;
     @Mock
     private AIService aiService;
+    @Mock
+    private PythonServicesHealthIndicator pythonServicesHealthIndicator;
 
     private SysMonitorComponent component;
 
@@ -70,7 +74,8 @@ class SysMonitorComponentTest {
     void setUp() {
         component = new SysMonitorComponent(userMapper, courseMapper, questionMapper,
                 knowledgePointMapper, loginLogMapper, dataSource, redisTemplate,
-                "sk-test-key", loginLogService, operationLogService, aiService);
+                "sk-test-key", loginLogService, operationLogService, aiService,
+                pythonServicesHealthIndicator);
     }
 
     // ===================== getHealth =====================
@@ -119,6 +124,67 @@ class SysMonitorComponentTest {
         assertEquals("DISCONNECTED", h.get("redis"));
     }
 
+    @Test
+    @DisplayName("getHealth 下发 Python 微服务明细：未启用者标记 DISABLED 而非伪装 UP")
+    void getHealth_includesPythonServices() throws Exception {
+        Connection conn = mock(Connection.class);
+        when(conn.isValid(3)).thenReturn(true);
+        when(dataSource.getConnection()).thenReturn(conn);
+        RedisConnectionFactory cf = mock(RedisConnectionFactory.class);
+        RedisConnection rc = mock(RedisConnection.class);
+        when(rc.ping()).thenReturn("PONG");
+        when(cf.getConnection()).thenReturn(rc);
+        when(redisTemplate.getConnectionFactory()).thenReturn(cf);
+
+        Health kgDown = Health.down()
+                .withDetail("enabled", true)
+                .withDetail("baseUrl", "http://localhost:8001")
+                .withDetail("status", "DOWN")
+                .build();
+        Health ragDisabled = Health.up()
+                .withDetail("enabled", false)
+                .withDetail("status", "DISABLED")
+                .build();
+        Health ftDisabled = Health.up()
+                .withDetail("enabled", false)
+                .withDetail("status", "DISABLED")
+                .build();
+        Health pythons = Health.down()
+                .withDetail("knowledge-graph", kgDown.getDetails())
+                .withDetail("rag", ragDisabled.getDetails())
+                .withDetail("fine-tune", ftDisabled.getDetails())
+                .build();
+        when(pythonServicesHealthIndicator.health()).thenReturn(pythons);
+
+        Map<String, Object> h = component.getHealth();
+        assertNotNull(h.get("pythonServices"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> py = (Map<String, Object>) h.get("pythonServices");
+        assertTrue(py.containsKey("knowledge-graph"));
+        assertTrue(py.containsKey("rag"));
+        assertTrue(py.containsKey("fine-tune"));
+        @SuppressWarnings("unchecked")
+        Map<String, Object> rag = (Map<String, Object>) py.get("rag");
+        assertEquals(false, rag.get("enabled"));
+        assertEquals("DISABLED", rag.get("status"));
+        // 健康检查本身成功时不得下发失败标记
+        assertNull(h.get("pythonServicesError"));
+    }
+
+    @Test
+    @DisplayName("getHealth Python 健康指示器异常：如实标记失败，不当作全部正常")
+    void getHealth_pythonServicesThrows_marksFailed() throws Exception {
+        Connection conn = mock(Connection.class);
+        when(conn.isValid(3)).thenReturn(true);
+        when(dataSource.getConnection()).thenReturn(conn);
+        when(redisTemplate.getConnectionFactory()).thenReturn(null);
+        when(pythonServicesHealthIndicator.health()).thenThrow(new RuntimeException("indicator boom"));
+
+        Map<String, Object> h = component.getHealth();
+        assertNull(h.get("pythonServices"));
+        assertNotNull(h.get("pythonServicesError"));
+    }
+
     // ===================== getAIUsageStats =====================
     @Test
     @DisplayName("getAIUsageStats aiConfigured=true")
@@ -148,7 +214,7 @@ class SysMonitorComponentTest {
     void getAIUsageStats_notConfigured() {
         SysMonitorComponent noKey = new SysMonitorComponent(userMapper, courseMapper, questionMapper,
                 knowledgePointMapper, loginLogMapper, dataSource, redisTemplate,
-                "", loginLogService, operationLogService, aiService);
+                "", loginLogService, operationLogService, aiService, pythonServicesHealthIndicator);
         when(userMapper.selectCount(null)).thenReturn(1L);
         when(courseMapper.selectCount(null)).thenReturn(1L);
         when(questionMapper.selectCount(null)).thenReturn(1L);

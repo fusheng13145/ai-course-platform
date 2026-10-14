@@ -8,10 +8,10 @@ import com.aicourse.service.component.ai.AiDialogueComponent;
 import com.aicourse.service.component.ai.AiRagComponent;
 import com.aicourse.service.component.ai.AiStructuredComponent;
 import com.aicourse.vo.QaAnswerVO;
+import com.aicourse.vo.QaStreamVO;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
-import reactor.core.publisher.Flux;
 
 import java.util.List;
 import java.util.Map;
@@ -73,8 +73,8 @@ public class AIServiceImpl implements AIService {
     }
 
     @Override
-    public Flux<String> streamChat(String question) {
-        return dialogueComponent.streamChat(question);
+    public QaStreamVO streamChat(String question, Long courseId) {
+        return dialogueComponent.streamChat(question, courseId);
     }
 
     // ===================== RAG 问答 =====================

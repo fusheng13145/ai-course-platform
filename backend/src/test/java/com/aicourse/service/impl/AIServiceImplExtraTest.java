@@ -9,6 +9,7 @@ import com.aicourse.service.component.ai.AiRagComponent;
 import com.aicourse.service.component.ai.AiStructuredComponent;
 import com.aicourse.vo.QaAnswerVO;
 import com.aicourse.vo.QaSourceVO;
+import com.aicourse.vo.QaStreamVO;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -66,7 +67,7 @@ class AIServiceImplExtraTest {
     void setUp() {
         // 原兼容构造器已移除：此处内联其组件组装逻辑，再走主构造器（4 个组件）
         AiCoreComponent coreComponent = new AiCoreComponent(llmProvider, promptGuard, meterRegistry, aiCallLogService);
-        AiDialogueComponent dialogueComponent = new AiDialogueComponent(coreComponent);
+        AiDialogueComponent dialogueComponent = new AiDialogueComponent(coreComponent, ragService);
         AiRagComponent ragComponent = new AiRagComponent(ragService, promptGuard, coreComponent);
         AiStructuredComponent structuredComponent = new AiStructuredComponent(coreComponent);
         service = new AIServiceImpl(dialogueComponent, ragComponent, structuredComponent, coreComponent);
@@ -666,7 +667,7 @@ class AIServiceImplExtraTest {
     @DisplayName("streamChat: 未配置 -> 直接返回提示 Flux")
     void streamChat_noProvider() {
         when(llmProvider.isConfigured()).thenReturn(false);
-        reactor.core.publisher.Flux<String> f = service.streamChat("q");
+        reactor.core.publisher.Flux<String> f = service.streamChat("q", null).getTokens();
         assertEquals(service.noProviderMessage(), f.blockFirst());
         verify(llmProvider, never()).stream(any(), any());
     }
@@ -674,7 +675,7 @@ class AIServiceImplExtraTest {
     @Test
     @DisplayName("streamChat: 已配置 -> 流式 + 护栏，问题以 user 角色、温度 0.7 下发")
     void streamChat_configured() {
-        reactor.core.publisher.Flux<String> f = service.streamChat("q");
+        reactor.core.publisher.Flux<String> f = service.streamChat("q", null).getTokens();
         assertEquals("a", f.blockFirst());
 
         @SuppressWarnings("unchecked")

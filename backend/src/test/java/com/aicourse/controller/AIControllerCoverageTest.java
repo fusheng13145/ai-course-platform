@@ -12,6 +12,7 @@ import com.aicourse.service.LearningPathService;
 import com.aicourse.service.LearningRecommendationService;
 import com.aicourse.vo.QaAnswerVO;
 import com.aicourse.vo.QaSourceVO;
+import com.aicourse.vo.QaStreamVO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -20,11 +21,14 @@ import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.MvcResult;
 
+import java.nio.charset.StandardCharsets;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 
+import static org.hamcrest.Matchers.containsString;
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.anyLong;
@@ -37,6 +41,7 @@ import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.asyncDispatch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.content;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.request;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
@@ -221,19 +226,48 @@ class AIControllerCoverageTest extends ControllerTestBase {
     // ==================== /ai/qa/stream ====================
 
     @Test
-    @DisplayName("GET /ai/qa/stream - SSE 流式透传 Flux 片段")
+    @DisplayName("GET /ai/qa/stream - SSE 逐段下发 JSON token 帧，末尾补空 sources 帧")
     void streamChat_returnsStreamedTokens() throws Exception {
-        when(aiService.streamChat("hi")).thenReturn(reactor.core.publisher.Flux.just("A", "B"));
+        when(aiService.streamChat("hi", null))
+                .thenReturn(new QaStreamVO(reactor.core.publisher.Flux.just("A", "B"), List.of()));
 
         MvcResult mvc = mockMvc.perform(get("/ai/qa/stream").param("question", "hi")
                         .with(withUser(1L, "STUDENT")))
                 .andExpect(request().asyncStarted()).andReturn();
         mockMvc.perform(asyncDispatch(mvc))
                 .andExpect(status().isOk())
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
-                        .content().string(org.hamcrest.Matchers.containsString("A")))
-                .andExpect(org.springframework.test.web.servlet.result.MockMvcResultMatchers
-                        .content().string(org.hamcrest.Matchers.containsString("B")));
+                // token 帧必须是 JSON 包装：裸文本里的换行会被 SSE 分行规则截断而失真
+                .andExpect(content().string(containsString("{\"token\":\"A\"}")))
+                .andExpect(content().string(containsString("{\"token\":\"B\"}")))
+                // 无出处时仍要显式下发空 sources 末帧，前端据此判定检索为空而非缺帧
+                .andExpect(content().string(containsString("{\"sources\":[]}")));
+
+        // courseId 未提供：以 null 透传检索接地
+        verify(aiService).streamChat(eq("hi"), isNull());
+    }
+
+    @Test
+    @DisplayName("GET /ai/qa/stream - 携带 courseId 与出处：末帧下发转义后的 sources")
+    void streamChat_withCourseId_emitsEscapedSources() throws Exception {
+        when(aiService.streamChat("什么是闭包", 7L))
+                .thenReturn(new QaStreamVO(reactor.core.publisher.Flux.just("答案"),
+                        List.of(new QaSourceVO(3L, "第<1>章", 0.8, "<script>危险片段</script>"))));
+
+        MvcResult mvc = mockMvc.perform(get("/ai/qa/stream").param("question", "什么是闭包")
+                        .param("courseId", "7").with(withUser(1L, "STUDENT")))
+                .andExpect(request().asyncStarted()).andReturn();
+        MvcResult dispatched = mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isOk())
+                .andReturn();
+        // 流内含中文，而 MockHttpServletResponse 默认按 ISO-8859-1 解码（content().string() 会失真），
+        // 故直接按 UTF-8 取回原始字节（SSE 规范本就要求 UTF-8）。
+        String body = new String(dispatched.getResponse().getContentAsByteArray(), StandardCharsets.UTF_8);
+        assertTrue(body.contains("{\"token\":\"答案\"}"), body);
+        // 出处与同步问答同口径转义：资料名/片段里的标签与脚本不得原样下发
+        assertTrue(body.contains("第&lt;1&gt;章"), body);
+        assertTrue(body.contains("&lt;script&gt;危险片段&lt;/script&gt;"), body);
+
+        verify(aiService).streamChat(eq("什么是闭包"), eq(7L));
     }
 
     // ==================== /ai/recommendations/questions ====================

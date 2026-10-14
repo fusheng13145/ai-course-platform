@@ -2,10 +2,14 @@ package com.aicourse.service.component.ai;
 
 import com.aicourse.common.ApiCode;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.service.RAGService;
+import com.aicourse.vo.QaSourceVO;
+import com.aicourse.vo.QaStreamVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import reactor.core.publisher.Flux;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
@@ -17,10 +21,15 @@ import java.util.Map;
 @Component
 public class AiDialogueComponent {
 
-    private final AiCoreComponent core;
+    /** 流式问答检索的召回条数（与同步 RAG 问答 {@code AiRagComponent.ragAsk} 保持同一口径）。 */
+    private static final int STREAM_RETRIEVE_TOP_K = 5;
 
-    public AiDialogueComponent(AiCoreComponent core) {
+    private final AiCoreComponent core;
+    private final RAGService ragService;
+
+    public AiDialogueComponent(AiCoreComponent core, RAGService ragService) {
         this.core = core;
+        this.ragService = ragService;
     }
 
     /**
@@ -104,24 +113,73 @@ public class AiDialogueComponent {
      * 流式 AI 对话：将用户问题经 PromptGuard 注入中和后，委托至 LLM 供应商流式接口，
      * 以 Flux 逐 token 推送内容增量，供 SSE 端点使用。
      * <p>
+     * <b>课程维度接地（2026-10-14 增）</b>：当传入 {@code courseId} 时，先对该课程知识库做一次
+     * 检索（仅召回、不生成），把命中的课程资料片段拼进 system prompt，让模型「依据资料回答」——
+     * 避免出现「界面展示了出处、但出处根本没影响答案」的误导；命中的出处随流一并回传供界面溯源。
+     * 检索失败/未命中不中断问答：降级为纯 LLM 直答，sources 为空列表。
+     * <p>
      * 供应商侧异常（无效 Key 的 401、网关 5xx 等）在订阅期异步抛出，映射为
      * {@code BusinessException(SERVICE_UNAVAILABLE)}，使端点返回 503 降级语义而非落入
      * 兜底的「系统未知异常」500；口径与同步出口 {@code completeAndSanitize} 一致，
      * 失败同样计入按类型分桶的失败埋点。
      */
-    public Flux<String> streamChat(String question) {
+    public QaStreamVO streamChat(String question, Long courseId) {
         if (!core.isProviderEnabled()) {
-            return Flux.just(AiCoreComponent.NO_PROVIDER_MSG);
+            return new QaStreamVO(Flux.just(AiCoreComponent.NO_PROVIDER_MSG), List.of());
         }
         core.recordAiCall("chat");
         String safeQuestion = core.neutralizeInjection(question);
-        List<Map<String, String>> messages = List.of(Map.of("role", "user", "content", safeQuestion));
+
+        // 有归属课程时先召回课程资料：既做接地提示词，又把出处带回界面（两条用途同源，避免「出处是摆设」）
+        List<QaSourceVO> sources = List.of();
+        String grounding = null;
+        if (courseId != null) {
+            try {
+                List<QaSourceVO> retrieved = core.extractRagSources(
+                        ragService.retrieve(question, courseId, STREAM_RETRIEVE_TOP_K));
+                if (!retrieved.isEmpty()) {
+                    sources = retrieved;
+                    grounding = buildGrounding(retrieved);
+                }
+            } catch (Exception e) {
+                log.warn("流式问答课程检索失败，降级为纯 LLM 对话: {}", e.getMessage());
+            }
+        }
+
+        List<Map<String, String>> messages = new ArrayList<>(grounding != null ? 2 : 1);
+        if (grounding != null) {
+            messages.add(Map.of("role", "system", "content", grounding));
+        }
+        messages.add(Map.of("role", "user", "content", safeQuestion));
         core.recordAiToken("chat", core.estimateInputTokens(messages));
-        return core.stream(messages, 0.7)
+
+        Flux<String> tokens = core.stream(messages, 0.7)
                 .onErrorMap(e -> {
                     log.error("流式问答调用失败: {}", e.getMessage(), e);
                     core.recordAiFailure("chat");
                     return new BusinessException(ApiCode.SERVICE_UNAVAILABLE, AiCoreComponent.SERVICE_ERROR_MSG, e);
                 });
+        return new QaStreamVO(tokens, sources);
+    }
+
+    /**
+     * 由检索命中的资料片段拼装接地 system 提示：明确「优先依据资料回答」，
+     * 资料不足时允许结合通用知识但须显式说明。片段逐条做输入侧注入中和
+     * （课程资料同样可能夹带对话模板控制符，不能因其"来源可信"就跳过护栏）。
+     */
+    private String buildGrounding(List<QaSourceVO> sources) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("你是课程学习助手。请优先依据下方检索到的课程资料回答学生问题；")
+                .append("若资料不足以回答，可结合通用知识补充，但必须明确说明哪些内容超出资料范围。\n\n")
+                .append("【检索到的课程资料】\n");
+        int idx = 1;
+        for (QaSourceVO s : sources) {
+            sb.append('[').append(idx++).append("] ");
+            if (s.getDocumentName() != null && !s.getDocumentName().isBlank()) {
+                sb.append(s.getDocumentName()).append("：");
+            }
+            sb.append(core.neutralizeInjection(s.getSnippet() != null ? s.getSnippet() : "")).append('\n');
+        }
+        return sb.toString();
     }
 }

@@ -181,6 +181,44 @@ describe('AI 学习助手问答流程（挂载真实组件）', () => {
     wrapper.unmount()
   })
 
+  it('SSE 末帧 onSources 写入当前回答气泡并还原展示层转义', async () => {
+    mockQaStream.mockImplementation((params, cb) => {
+      cb.onToken('答案')
+      // 后端末帧 {"sources":[...]}：资料名/片段在下发前已 HTML 转义，前端须还原后再展示
+      cb.onSources([
+        { documentId: 3, documentName: '&lt;脚本&gt;危险标题', relevanceScore: 0.81, snippet: '&amp; 号' },
+      ])
+      cb.onDone()
+      return { abort: vi.fn() }
+    })
+
+    const wrapper = mountAssistant()
+    await sendMessage(wrapper, '什么是TCP？')
+    await flushPromises()
+
+    expect(assistantVm(wrapper).messages[1].content).toBe('答案')
+    expect(assistantVm(wrapper).messages[1].sources).toEqual([
+      { documentId: 3, documentName: '<脚本>危险标题', relevanceScore: 0.81, snippet: '& 号' },
+    ])
+    wrapper.unmount()
+  })
+
+  it('SSE 空 sources 末帧：sources 落为空数组，不残留上一轮溯源', async () => {
+    mockQaStream.mockImplementation((params, cb) => {
+      cb.onToken('无检索结果')
+      cb.onSources([])
+      cb.onDone()
+      return { abort: vi.fn() }
+    })
+
+    const wrapper = mountAssistant()
+    await sendMessage(wrapper, '问题')
+    await flushPromises()
+
+    expect(assistantVm(wrapper).messages[1].sources).toEqual([])
+    wrapper.unmount()
+  })
+
   it('空白消息不应发送', async () => {
     const wrapper = mountAssistant()
     await wrapper.find('[data-test="ai-input"]').setValue('   ')
