@@ -43,7 +43,7 @@
 
       <el-empty
         v-if="!loading && Object.keys(groupedByCourse).length === 0"
-        description="暂无成绩记录"
+        :description="emptyText"
         :image-size="100"
       >
         <template #image><div class="empty-deco">📉</div></template>
@@ -99,6 +99,8 @@ defineProps({
   groupedByCourse: { type: Object, default: () => ({}) },
   list: { type: Array, default: () => [] },
   showTable: { type: Boolean, default: false },
+  // D2-1：双态空文案由父页（Grades.vue）按 loadError 切换，失败时不得谎称「暂无成绩记录」
+  emptyText: { type: String, default: '暂无成绩记录' },
 })
 defineEmits(['update:showTable'])
 

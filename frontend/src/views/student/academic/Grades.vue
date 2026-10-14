@@ -10,21 +10,21 @@
     <div class="stat-grid animate-in d1">
       <StatCard
         label="平均分"
-        :value="avgScore"
+        :value="loadError ? '--' : avgScore"
         icon="chart"
         tone="var(--accent-soft)"
         tone-color="var(--accent)"
       />
       <StatCard
         label="已完成考试"
-        :value="list.length"
+        :value="loadError ? '--' : list.length"
         icon="doc"
         tone="var(--info-soft)"
         tone-color="var(--info)"
       />
       <StatCard
         label="班级排名"
-        :value="rankDisplay"
+        :value="loadError ? '--' : rankDisplay"
         icon="award"
         tone="var(--ok-soft)"
         tone-color="var(--ok)"
@@ -62,12 +62,19 @@
           :closable="false"
           show-icon
         />
-        <SgChartsPanel :loading="loading" :grouped-by-course="groupedByCourse" :list="list" />
+        <SgChartsPanel
+          :loading="loading"
+          :grouped-by-course="groupedByCourse"
+          :list="list"
+          :radar-empty-text="radarEmptyText"
+          :trend-empty-text="trendEmptyText"
+        />
         <SgCourseGrades
           v-model:show-table="showTable"
           :loading="loading"
           :grouped-by-course="groupedByCourse"
           :list="list"
+          :empty-text="gradesEmptyText"
         />
       </div>
     </section>
@@ -75,7 +82,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted } from 'vue'
+import { computed, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
@@ -85,6 +92,19 @@ import { useStudentGrades } from '@/composables/useStudentGrades'
 
 const { loading, loadError, list, showTable, avgScore, rankDisplay, groupedByCourse, loadData } =
   useStudentGrades()
+
+// D2-1：双态空文案下传给子面板——加载失败时不得把「失败」显示成
+// 「暂无成绩记录 / 暂无考试记录 / 选课不足」，让学生误判自己没考过试。
+const LOAD_FAILED_TEXT = '成绩数据未能加载，请查看上方提示后重试'
+const gradesEmptyText = computed(() =>
+  loadError.value ? LOAD_FAILED_TEXT : '暂无成绩记录',
+)
+const trendEmptyText = computed(() => (loadError.value ? LOAD_FAILED_TEXT : '暂无考试记录'))
+const radarEmptyText = computed(() =>
+  loadError.value
+    ? LOAD_FAILED_TEXT
+    : '选课不足（至少3门），暂无法生成多维对比分析',
+)
 
 const route = useRoute()
 onMounted(() => loadData(route.params.id || route.query.courseId || null))

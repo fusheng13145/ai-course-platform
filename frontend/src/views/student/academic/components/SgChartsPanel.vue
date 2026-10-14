@@ -15,7 +15,7 @@
         />
         <el-empty
           v-else-if="!loading && (!groupedByCourse || Object.keys(groupedByCourse).length < 3)"
-          description="选课不足（至少3门），暂无法生成多维对比分析"
+          :description="radarEmptyText"
           :image-size="80"
         />
         <div v-else class="chart-loading">
@@ -36,7 +36,7 @@
         />
         <el-empty
           v-else-if="!loading && list.length === 0"
-          description="暂无考试记录"
+          :description="trendEmptyText"
           :image-size="80"
         />
       </div>
@@ -52,6 +52,13 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
   groupedByCourse: { type: Object, default: () => ({}) },
   list: { type: Array, default: () => [] },
+  // D2-1：双态空文案由父页（Grades.vue）按 loadError 切换——失败时不得把
+  // 「加载失败」显示成「选课不足」或「暂无考试记录」
+  radarEmptyText: {
+    type: String,
+    default: '选课不足（至少3门），暂无法生成多维对比分析',
+  },
+  trendEmptyText: { type: String, default: '暂无考试记录' },
 })
 
 /* ---- 雷达图配置 ---- */
