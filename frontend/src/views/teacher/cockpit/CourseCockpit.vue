@@ -3,6 +3,14 @@
   <div>
     <!-- 课程头卡 -->
     <section class="l1-card" style="margin-bottom: 14px">
+      <!-- 加载失败持久提示（不自动消失） -->
+      <el-alert
+        v-if="loadError"
+        :title="loadError"
+        type="error"
+        :closable="false"
+        class="load-error-alert"
+      />
       <div class="l1-body" style="display: flex; gap: 18px; align-items: center">
         <div
           :style="{
@@ -138,6 +146,12 @@ const enrolledStudents = ref(null)
 const coverIdx = ref(0)
 const coverColors = ['#8f2a21,#c13b30', '#1a4a80,#2563a8', '#1f5c39,#2e7d4f', '#6d4fa1,#8b6cc0']
 
+// 三路加载各自的独立错误状态：互不复位，防止一路失败清除另一路的提示。
+const detailError = ref('')
+const statsError = ref('')
+const classesError = ref('')
+const loadError = computed(() => detailError.value || statsError.value || classesError.value)
+
 const classes = ref([])
 const activeClass = ref('')
 const currentClass = computed(() => classes.value.find((c) => c.key === activeClass.value))
@@ -149,19 +163,34 @@ const statusLabel = computed(() => {
 })
 const statusClass = computed(() => (courseStatus.value === 'ACTIVE' ? 'green' : ''))
 
-/** 头部副标题：逐项只在拿到真实数据后渲染，缺字段就不显示，不再用硬编码串占位 */
+/** 头部副标题：逐项只在拿到真实数据后渲染，缺字段就不显示，不再用硬编码串占位。
+ *  加载失败的读数改显 '--'，避免把「0 名学生 / 未绑定行政班」当成真实结果误导教师。 */
 const courseMeta = computed(() => {
   const parts = []
-  if (semester.value) parts.push(semester.value)
-  if (credits.value != null) parts.push(`${credits.value} 学分`)
-  const students =
-    enrolledStudents.value ?? classes.value.reduce((s, c) => s + (c.students || 0), 0)
-  parts.push(`${students} 名学生`)
-  parts.push(classes.value.length ? `共 ${classes.value.length} 个班级` : '未绑定行政班')
+  if (detailError.value) {
+    parts.push('--')
+  } else {
+    if (semester.value) parts.push(semester.value)
+    if (credits.value != null) parts.push(`${credits.value} 学分`)
+  }
+  // 学生数优先取后端统计；统计不可用但班级维度可用则按班级求和（DR-46，不得报 0）；
+  // 两路都拿不到真实读数时才显 '--'，避免把「未知」伪装成 0。
+  const fallbackStudents =
+    classesError.value || classes.value.length === 0
+      ? null
+      : classes.value.reduce((s, c) => s + (c.students || 0), 0)
+  const students = enrolledStudents.value ?? fallbackStudents
+  parts.push(students == null ? '-- 名学生' : `${students} 名学生`)
+  if (classesError.value) {
+    parts.push('--')
+  } else {
+    parts.push(classes.value.length ? `共 ${classes.value.length} 个班级` : '未绑定行政班')
+  }
   return parts.join(' · ')
 })
 
 const currentClassLabel = computed(() => {
+  if (classesError.value) return '--'
   if (!currentClass.value) return '按课程维度（未绑定行政班）'
   return `当前班级：${currentClass.value.name}${currentClass.value.schedule ? ` · ${currentClass.value.schedule}` : ''}`
 })
@@ -198,22 +227,33 @@ onMounted(async () => {
   if (match) activeCockpit.value = last
   else activeCockpit.value = 'chapters'
   // 课程主体信息 + 报名统计并行拉取：/courses/{id} 给学期与学分，/courses/{id}/stats 给真实学生数
-  const [detailRes, statsRes] = await Promise.all([
-    courseApi.getCourseById(courseId.value).catch(() => null),
-    courseApi.getStats(courseId.value).catch(() => null),
+  detailError.value = ''
+  statsError.value = ''
+  classesError.value = ''
+  const [detailRes, statsRes] = await Promise.allSettled([
+    courseApi.getCourseById(courseId.value),
+    courseApi.getStats(courseId.value),
   ])
-  const detail = unwrap(detailRes)
-  if (detail) {
-    courseName.value = String(detail.name || detail.courseName || '')
-    courseCode.value = String(detail.code || detail.courseCode || '')
-    courseStatus.value = String(detail.status || '')
-    semester.value = String(detail.semester || '')
-    const parsedCredits = Number(detail.credits)
-    credits.value = Number.isFinite(parsedCredits) ? parsedCredits : null
+  if (detailRes.status === 'fulfilled') {
+    const detail = unwrap(detailRes.value)
+    if (detail) {
+      courseName.value = String(detail.name || detail.courseName || '')
+      courseCode.value = String(detail.code || detail.courseCode || '')
+      courseStatus.value = String(detail.status || '')
+      semester.value = String(detail.semester || '')
+      const parsedCredits = Number(detail.credits)
+      credits.value = Number.isFinite(parsedCredits) ? parsedCredits : null
+    }
+  } else {
+    detailError.value = '课程基本信息加载失败，请检查网络后重试'
   }
-  const stats = unwrap(statsRes)
-  const parsedStudents = Number(stats?.totalStudents)
-  enrolledStudents.value = Number.isFinite(parsedStudents) ? parsedStudents : null
+  if (statsRes.status === 'fulfilled') {
+    const stats = unwrap(statsRes.value)
+    const parsedStudents = Number(stats?.totalStudents)
+    enrolledStudents.value = Number.isFinite(parsedStudents) ? parsedStudents : null
+  } else {
+    statsError.value = '课程统计加载失败，请检查网络后重试'
+  }
   // Load real class dimensions from backend
   try {
     const res = await getCourseClasses(courseId.value)
@@ -223,7 +263,14 @@ onMounted(async () => {
       activeClass.value = data[0]?.key || ''
     }
   } catch {
-    /* 班级维度缺失：保持空数组，头部如实显示「未绑定行政班」 */
+    /* 班级维度缺失：保持空数组，但页面给出持久失败提示，不静默当作「未绑定行政班」 */
+    classesError.value = '课程班级维度加载失败，请检查网络后重试'
   }
 })
 </script>
+
+<style scoped>
+.load-error-alert {
+  margin-bottom: 12px;
+}
+</style>

@@ -18,6 +18,15 @@
       </div>
     </div>
 
+    <!-- 课程信息加载失败持久提示（不自动消失） -->
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      class="load-error-alert"
+    />
+
     <!-- 二级 Tab 导航 -->
     <div class="shell-tabs">
       <router-link
@@ -60,6 +69,8 @@ const courseId = computed(() => route.params.id)
 const courseName = ref('')
 const courseTeacher = ref('')
 const courseProgress = ref(0)
+/** 课程信息加载失败持久提示（单路，不自动消失） */
+const loadError = ref('')
 
 const tabs = [
   { path: 'overview', label: '课程概览', icon: DataLine },
@@ -78,6 +89,7 @@ const activeTab = computed(() => {
 })
 
 async function loadCourse() {
+  loadError.value = ''
   try {
     const res = await courseApi.getCourseById(courseId.value)
     const c = unwrap(res)
@@ -88,6 +100,7 @@ async function loadCourse() {
     }
   } catch {
     courseName.value = ''
+    loadError.value = '课程信息加载失败，请检查网络后重试'
   }
 }
 
@@ -175,5 +188,9 @@ onMounted(() => {
   flex: 1;
   overflow-y: auto;
   padding: 16px 0;
+}
+
+.load-error-alert {
+  margin-top: 12px;
 }
 </style>

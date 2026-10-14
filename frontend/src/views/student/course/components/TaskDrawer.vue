@@ -7,6 +7,14 @@
     @closed="onClosed"
   >
     <div v-loading="taskLoading" class="task-panel">
+      <!-- 任务点内容加载失败持久提示（不自动消失） -->
+      <el-alert
+        v-if="loadError"
+        :title="loadError"
+        type="error"
+        :closable="false"
+        class="load-error-alert"
+      />
       <!-- 视频任务点 -->
       <template v-if="task && isVideo">
         <div v-if="videoSrc" class="video-wrap">
@@ -203,6 +211,8 @@ const visible = computed({
 })
 
 const taskLoading = ref(false)
+/** 任务点内容加载失败持久提示（单路，不自动消失） */
+const loadError = ref('')
 const drawerSize = computed(() => (window.innerWidth < 768 ? '100%' : '620px'))
 
 const isVideo = computed(() => props.task?.taskType === 'VIDEO')
@@ -296,11 +306,13 @@ function goAssignments() {
 /* ---- 任务点数据加载与抽屉关闭清理 ---- */
 async function openTask(task) {
   taskLoading.value = true
+  loadError.value = ''
   try {
     if (isVideo.value) await loadVideo(task)
     else if (isQuiz.value) await loadQuiz()
   } catch (e) {
     logger.warn('任务点加载失败:', e)
+    loadError.value = '任务点内容加载失败，请检查网络后重试'
   } finally {
     taskLoading.value = false
   }
@@ -328,6 +340,9 @@ watch(
 }
 .task-alert {
   margin: var(--ac-spacing-md) 0;
+}
+.load-error-alert {
+  margin-bottom: var(--ac-spacing-md);
 }
 .video-wrap {
   background: var(--ink);
