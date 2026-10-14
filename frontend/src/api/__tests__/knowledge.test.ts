@@ -66,6 +66,9 @@ const CONTRACT: Array<[string, 'get' | 'post' | 'put' | 'delete', string, unknow
     [1, 2, 6],
     [{ sourceId: 1, targetId: 2, maxHops: 6 }],
   ],
+  // 图谱引擎端点：courseId 走 query（ingest 是 @RequestParam），subgraph 的 courseId 走 path
+  ['ingestKnowledgeGraph', 'post', '/knowledge/ingest', [3], [null, { params: { courseId: 3 } }]],
+  ['getKnowledgeSubGraph', 'get', '/knowledge/subgraph/3', [3, 2], [{ params: { maxHops: 2 } }]],
 ]
 
 describe('knowledge API 契约（方法 / URL / 参数）', () => {

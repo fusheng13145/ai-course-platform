@@ -21,6 +21,8 @@ const mocks = vi.hoisted(() => ({
   deleteKnowledgePoint: vi.fn(),
   extractKnowledgePoints: vi.fn(),
   planLearningPath: vi.fn(),
+  ingestKnowledgeGraph: vi.fn(),
+  getKnowledgeSubGraph: vi.fn(),
 }))
 
 vi.mock('@/api/course', () => ({ default: { getAllMyCourses: mocks.getAllMyCourses } }))
@@ -34,6 +36,8 @@ vi.mock('@/api/knowledge', () => ({
     deleteKnowledgePoint: mocks.deleteKnowledgePoint,
     extractKnowledgePoints: mocks.extractKnowledgePoints,
     planLearningPath: mocks.planLearningPath,
+    ingestKnowledgeGraph: mocks.ingestKnowledgeGraph,
+    getKnowledgeSubGraph: mocks.getKnowledgeSubGraph,
   },
 }))
 vi.mock('element-plus', () => ({
@@ -139,5 +143,150 @@ describe('useKnowledgeGraph — 加载失败可见', () => {
 
     expect(state.points.value).toHaveLength(1)
     expect(state.loadError.value).toBe('图谱数据加载失败，请检查网络后重试')
+  })
+})
+
+describe('useKnowledgeGraph — 图谱引擎（同步 / 子图）失败可见', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getKnowledgeOverview.mockResolvedValue({ data: {} })
+    mocks.getKnowledgePoints.mockResolvedValue({ data: [] })
+    mocks.getRelationGraphData.mockResolvedValue({ data: { nodes: [], links: [] } })
+  })
+
+  it('同步成功（mode=ENGINE）时给出模式与说明，不置错', async () => {
+    mocks.ingestKnowledgeGraph.mockResolvedValue({
+      data: { mode: 'ENGINE', note: '已同步至图谱引擎', syncedPoints: 12 },
+    })
+    const state = withSetup()
+    state.courseId.value = '7'
+
+    await state.syncKnowledgeGraphEngine()
+
+    expect(state.engineSyncError.value).toBe('')
+    expect(state.engineSyncMode.value).toBe('ENGINE')
+    expect(state.engineSyncNote.value).toBe('已同步至图谱引擎')
+    expect(state.engineSyncStale.value).toBe(false)
+  })
+
+  it('同步失败时必须给出持久提示（不得静默）', async () => {
+    mocks.ingestKnowledgeGraph.mockRejectedValue(new Error('500'))
+    const state = withSetup()
+    state.courseId.value = '7'
+
+    await state.syncKnowledgeGraphEngine()
+
+    expect(state.engineSyncError.value).toBe('图谱引擎同步失败，请检查网络后重试')
+    expect(state.engineSyncMode.value).toBe('')
+  })
+
+  it('引擎未接入时（mode=LOCAL）如实标注本地兜底', async () => {
+    mocks.ingestKnowledgeGraph.mockResolvedValue({
+      data: {
+        mode: 'LOCAL',
+        note: '知识图谱引擎未接入，已在消费侧确认知识点数据（未真正摄取至引擎）',
+      },
+    })
+    const state = withSetup()
+    state.courseId.value = '7'
+
+    await state.syncKnowledgeGraphEngine()
+
+    expect(state.engineSyncMode.value).toBe('LOCAL')
+    expect(state.engineSyncNote.value).toContain('未接入')
+  })
+
+  it('子图加载成功时给出节点/关系读数与来源模式', async () => {
+    mocks.getKnowledgeSubGraph.mockResolvedValue({
+      data: {
+        mode: 'ENGINE',
+        nodes: [{ id: 1 }, { id: 2 }],
+        edges: [{ sourceId: 1, targetId: 2 }],
+      },
+    })
+    const state = withSetup()
+    state.courseId.value = '7'
+
+    await state.loadEngineSubGraph()
+
+    expect(state.engineSubGraphError.value).toBe('')
+    expect(state.engineSubGraphNodeCount.value).toBe(2)
+    expect(state.engineSubGraphEdgeCount.value).toBe(1)
+    expect(state.engineSubGraphMode.value).toBe('ENGINE')
+  })
+
+  it('子图加载失败时必须给出持久提示，且不得表现为「暂无子图」', async () => {
+    mocks.getKnowledgeSubGraph.mockRejectedValue(new Error('500'))
+    const state = withSetup()
+    state.courseId.value = '7'
+
+    await state.loadEngineSubGraph()
+
+    expect(state.engineSubGraphError.value).toBe('引擎子图加载失败，请检查网络后重试')
+    expect(state.engineSubGraph.value).toBeNull()
+  })
+
+  it('不同路失败不得串味：同步失败不影响子图成功结果', async () => {
+    mocks.ingestKnowledgeGraph.mockRejectedValue(new Error('500'))
+    mocks.getKnowledgeSubGraph.mockResolvedValue({
+      data: { mode: 'LOCAL', nodes: [{ id: 1 }], edges: [] },
+    })
+    const state = withSetup()
+    state.courseId.value = '7'
+
+    await state.syncKnowledgeGraphEngine()
+    await state.loadEngineSubGraph()
+
+    expect(state.engineSyncError.value).toBe('图谱引擎同步失败，请检查网络后重试')
+    expect(state.engineSubGraphError.value).toBe('')
+    expect(state.engineSubGraphNodeCount.value).toBe(1)
+  })
+
+  it('失败后再成功可复位（同步路）', async () => {
+    const state = withSetup()
+    state.courseId.value = '7'
+    mocks.ingestKnowledgeGraph.mockRejectedValueOnce(new Error('500'))
+    await state.syncKnowledgeGraphEngine()
+    expect(state.engineSyncError.value).not.toBe('')
+
+    mocks.ingestKnowledgeGraph.mockResolvedValue({ data: { mode: 'ENGINE', note: 'ok' } })
+    await state.syncKnowledgeGraphEngine()
+
+    expect(state.engineSyncError.value).toBe('')
+    expect(state.engineSyncMode.value).toBe('ENGINE')
+  })
+
+  it('AI 抽取成功后置位「建议重新同步引擎」并刷新列表', async () => {
+    mocks.extractKnowledgePoints.mockResolvedValue({ data: { nodeCount: 2, relationCount: 1 } })
+    const state = withSetup()
+    state.courseId.value = '7'
+    state.extractText.value = '课程内容'
+
+    await state.runExtract()
+
+    expect(state.engineSyncStale.value).toBe(true)
+    expect(mocks.getKnowledgePoints).toHaveBeenCalled()
+  })
+
+  it('未选课程时不发起请求，也不置错（未选课 ≠ 加载失败）', async () => {
+    const state = withSetup()
+
+    await state.syncKnowledgeGraphEngine()
+    await state.loadEngineSubGraph()
+
+    expect(mocks.ingestKnowledgeGraph).not.toHaveBeenCalled()
+    expect(mocks.getKnowledgeSubGraph).not.toHaveBeenCalled()
+    expect(state.engineSyncError.value).toBe('')
+    expect(state.engineSubGraphError.value).toBe('')
+  })
+
+  it('模式文案/标签色映射：ENGINE→引擎计算、LOCAL→本地兜底、UNAVAILABLE→引擎不可用', () => {
+    const state = withSetup()
+    expect(state.engineModeText('ENGINE')).toBe('引擎计算')
+    expect(state.engineModeText('LOCAL')).toBe('本地兜底')
+    expect(state.engineModeText('UNAVAILABLE')).toBe('引擎不可用')
+    expect(state.engineModeType('ENGINE')).toBe('success')
+    expect(state.engineModeType('LOCAL')).toBe('warning')
+    expect(state.engineModeType('UNAVAILABLE')).toBe('danger')
   })
 })
