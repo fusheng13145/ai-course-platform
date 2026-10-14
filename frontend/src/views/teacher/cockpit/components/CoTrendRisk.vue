@@ -16,7 +16,7 @@
         </div>
       </div>
       <div class="l1-body">
-        <el-table :data="atRisk" size="small" max-height="300" empty-text="暂无风险学生">
+        <el-table :data="atRisk" size="small" max-height="300" :empty-text="emptyText">
           <el-table-column prop="studentName" label="学生" min-width="90" />
           <el-table-column label="进度" width="72">
             <template #default="{ row }">{{ pct(row.progress) }}</template>
@@ -45,6 +45,8 @@
 defineProps({
   trendOption: { type: Object, default: () => ({}) },
   atRisk: { type: Array, default: () => [] },
+  // 加载失败时由父组件传入诚实文案，避免把「失败」显示成「暂无风险学生」
+  emptyText: { type: String, default: '暂无风险学生' },
 })
 
 function pct(v) {

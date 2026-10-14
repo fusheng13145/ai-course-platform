@@ -101,7 +101,13 @@ async function mountPage() {
         'v-chart': { name: 'v-chart', props: ['option'], template: '<div class="chart-stub" />' },
         'el-icon': true,
         'el-progress': true,
-        'el-empty': true,
+        // 自定义 el-alert 桩：渲染 title，使 wrapper.text() 可断言持久失败提示文案
+        'el-alert': {
+          props: ['title', 'type'],
+          template: '<div class="alert-stub">{{ title }}</div>',
+        },
+        // el-empty 桩声明 description，便于断言空态文案是否诚实化
+        'el-empty': { props: ['description'], template: '<div class="empty-stub">{{ description }}</div>' },
       },
       // element-plus 的 loading 指令在全局插件里注册，测试环境需自带，否则 Vue 告警淹没断言
       directives: { loading: { mounted() {}, updated() {} } },
@@ -211,5 +217,81 @@ describe('CourseAnalytics — 直方图由 distribution 映射为有序 buckets'
 
     expect(wrapper.findComponent({ name: 'v-chart' }).exists()).toBe(false)
     expect(wrapper.text()).not.toContain('参考人数')
+  })
+})
+
+/**
+ * 加载失败可见（2026-10-14）：原实现两路接口串行 await，任一步失败即被 catch 静默吞掉 →
+ * 页面照常显示 0 值卡片与空直方图，教师会误判「这门课没有成绩」。
+ * 现改为 allSettled 两路独立归因 + 持久 el-alert + 空态文案诚实化 + 失败路读数改显 '--'。
+ */
+describe('CourseAnalytics — 加载失败可见（两路独立归因）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getCourseAnalytics.mockResolvedValue({ code: 200, data: COURSE_ANALYSIS })
+    mocks.getGradeHistogram.mockResolvedValue({ code: 200, data: HISTOGRAM })
+  })
+
+  it('成绩分布接口失败：给出持久提示，及格率/优秀率改显 --，空态不谎称「暂无成绩分布数据」', async () => {
+    mocks.getGradeHistogram.mockRejectedValue(new Error('500'))
+    const wrapper = await mountPage()
+    await flushPromises()
+
+    expect(wrapper.find('.alert-stub').exists()).toBe(true)
+    expect(wrapper.text()).toContain('成绩分布未能加载')
+    // 失败时不得再谎报 0% 读数
+    expect(wrapper.text()).not.toMatch(/0%/)
+    // 空态须诚实
+    expect(wrapper.get('.empty-stub').text()).toContain('成绩分布未能加载，请查看上方提示后重试')
+    expect(wrapper.text()).not.toContain('暂无成绩分布数据')
+    // 另一路（课程指标）仍成功，一路失败不拖垮另一路
+    expect(cardValues(wrapper).find((c) => c.label === '选课学生')?.value).toBe(60)
+  })
+
+  it('课程指标接口失败：不留 0 值假卡片，给出提示且成绩分布这一路仍渲染', async () => {
+    mocks.getCourseAnalytics.mockRejectedValue(new Error('500'))
+    const wrapper = await mountPage()
+    await flushPromises()
+
+    expect(wrapper.find('.alert-stub').exists()).toBe(true)
+    expect(wrapper.text()).toContain('课程指标未能加载')
+    expect(cardValues(wrapper).map((c) => c.label)).not.toContain('选课学生')
+    expect(wrapper.findComponent({ name: 'v-chart' }).exists()).toBe(true)
+  })
+
+  it('阴性对照：成功且无人有成绩时无失败提示，空态保留原语义「暂无成绩分布数据」', async () => {
+    mocks.getGradeHistogram.mockResolvedValue({
+      code: 200,
+      data: {
+        total: 0,
+        average: 0,
+        maxScore: 0,
+        minScore: 0,
+        distribution: {},
+        passRate: 0,
+        excellentRate: 0,
+      },
+    })
+    const wrapper = await mountPage()
+    await flushPromises()
+
+    expect(wrapper.find('.alert-stub').exists()).toBe(false)
+    expect(wrapper.get('.empty-stub').text()).toContain('暂无成绩分布数据')
+    expect(wrapper.text()).not.toContain('未能加载')
+  })
+
+  it('失败后再成功：提示必须被清空（每次 load 复位，不是一次失败永久残留）', async () => {
+    mocks.getGradeHistogram
+      .mockRejectedValueOnce(new Error('500'))
+      .mockResolvedValue({ code: 200, data: HISTOGRAM })
+    const first = await mountPage()
+    await flushPromises()
+    expect(first.find('.alert-stub').exists()).toBe(true)
+
+    const second = await mountPage()
+    await flushPromises()
+
+    expect(second.find('.alert-stub').exists()).toBe(false)
+    expect(second.text()).not.toContain('成绩分布未能加载')
   })
 })

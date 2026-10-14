@@ -1,6 +1,15 @@
 <template>
   <div class="course-analytics fade-in">
     <PageHeader compact title="课程分析" subtitle="成绩分布、及格率与优秀率一览" icon="chart" />
+    <!-- 加载失败提示：非空即表示下方读数不可信（失败不得渲染成「暂无成绩分布数据」） -->
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      show-icon
+      style="margin-bottom: var(--ac-spacing-md)"
+    />
     <div v-loading="loading">
       <!-- 指标卡片 -->
       <div class="stat-grid animate-in">
@@ -31,7 +40,13 @@
               class="dist-chart"
               autoresize
             />
-            <el-empty v-else-if="!loading" description="暂无成绩分布数据" :image-size="72" />
+            <el-empty
+              v-else-if="!loading"
+              :description="
+                loadError ? '成绩分布未能加载，请查看上方提示后重试' : '暂无成绩分布数据'
+              "
+              :image-size="72"
+            />
           </div>
         </div>
         <div class="l1-card">
@@ -105,10 +120,16 @@ const route = useRoute()
 const courseId = route.params.id
 
 const loading = ref(false)
-const passRate = ref(0)
-const excellentRate = ref(0)
+const passRate = ref<number | null>(0)
+const excellentRate = ref<number | null>(0)
 const buckets = ref([])
 const extra = ref({})
+/**
+ * 加载失败提示文案：非空即表示课程指标 / 成绩分布读数不可信。
+ * 原实现两路接口串行 await、任一步失败即被 catch 静默吞掉 → 页面照常显示 0 值卡片与空直方图，
+ * 教师会误判「这门课没有成绩」。现改为两路独立归因（allSettled），失败路径读数改显 '--'。
+ */
+const loadError = ref('')
 
 /**
  * 后端 histogram 的 distribution 是 Map<String,Long>，且只装非空分数段
@@ -175,61 +196,87 @@ function buildHistogramOption() {
 
 async function load() {
   loading.value = true
+  loadError.value = ''
   try {
-    const r1 = await analyticsApi.getCourseAnalytics(courseId)
-    const a = r1?.data ?? r1 ?? {}
+    // 两个端点相互独立（课程指标 / 成绩分布），任一路失败不得拖垮另一路，
+    // 因此用 allSettled 分别归因，而不是一把 try/catch 静默吞掉。
+    const [courseRes, histRes] = await Promise.allSettled([
+      analyticsApi.getCourseAnalytics(courseId),
+      analyticsApi.getGradeHistogram(courseId),
+    ])
+    const notices: string[] = []
 
-    // 只渲染该端点真实返回的字段（CourseAnalyticsComponent.java:142-166）。
-    // 原先读的 totalStudents/studentCount/activeStudents/completionRate 后端从未返回，
-    // 导致 60 人的课四张卡恒 0/'--'。平均进度是百分比口径（V1__init_schema.sql:271）。
-    metrics.value = [
-      {
-        key: 'enrollmentCount',
-        label: '选课学生',
-        value: a.enrollmentCount ?? 0,
-        icon: 'users',
-        tone: 'var(--accent-soft)',
-        toneColor: 'var(--accent)',
-      },
-      {
-        key: 'averageScore',
-        label: '平均分',
-        value: a.averageScore ?? '--',
-        icon: 'award',
-        tone: 'var(--warn-soft)',
-        toneColor: 'var(--warn)',
-      },
-      {
-        key: 'averageProgress',
-        label: '平均进度',
-        value: pctData(a.averageProgress),
-        icon: 'check',
-        tone: 'var(--ok-soft)',
-        toneColor: 'var(--ok)',
-      },
-    ]
+    if (courseRes.status === 'fulfilled') {
+      const a = courseRes.value?.data ?? courseRes.value ?? {}
+      // 只渲染该端点真实返回的字段（CourseAnalyticsComponent.java:142-166）。
+      // 原先读的 totalStudents/studentCount/activeStudents/completionRate 后端从未返回，
+      // 导致 60 人的课四张卡恒 0/'--'。平均进度是百分比口径（V1__init_schema.sql:271）。
+      metrics.value = [
+        {
+          key: 'enrollmentCount',
+          label: '选课学生',
+          value: a.enrollmentCount ?? 0,
+          icon: 'users',
+          tone: 'var(--accent-soft)',
+          toneColor: 'var(--accent)',
+        },
+        {
+          key: 'averageScore',
+          label: '平均分',
+          value: a.averageScore ?? '--',
+          icon: 'award',
+          tone: 'var(--warn-soft)',
+          toneColor: 'var(--warn)',
+        },
+        {
+          key: 'averageProgress',
+          label: '平均进度',
+          value: pctData(a.averageProgress),
+          icon: 'check',
+          tone: 'var(--ok-soft)',
+          toneColor: 'var(--ok)',
+        },
+      ]
+    } else {
+      // 失败时不留 0 值假卡片
+      metrics.value = []
+      notices.push('课程指标未能加载。')
+    }
 
-    const r2 = await analyticsApi.getGradeHistogram(courseId)
-    const h = r2?.data ?? r2 ?? {}
-    // total 是「已有成绩的人数」，为 0 时不画一屏全 0 柱，回到空态
-    buckets.value =
-      h.total > 0
-        ? BUCKET_ORDER.map((range) => ({ range, count: h.distribution?.[range] ?? 0 }))
-        : []
-    passRate.value = h.passRate ?? 0
-    excellentRate.value = h.excellentRate ?? 0
-    passRatePct.value = toPct(passRate.value)
-    excellentRatePct.value = toPct(excellentRate.value)
-    extra.value =
-      h.total > 0
-        ? { count: h.total, avgScore: h.average, maxScore: h.maxScore, minScore: h.minScore }
-        : {}
+    if (histRes.status === 'fulfilled') {
+      const h = histRes.value?.data ?? histRes.value ?? {}
+      // total 是「已有成绩的人数」，为 0 时不画一屏全 0 柱，回到空态
+      buckets.value =
+        h.total > 0
+          ? BUCKET_ORDER.map((range) => ({ range, count: h.distribution?.[range] ?? 0 }))
+          : []
+      passRate.value = h.passRate ?? 0
+      excellentRate.value = h.excellentRate ?? 0
+      passRatePct.value = toPct(passRate.value)
+      excellentRatePct.value = toPct(excellentRate.value)
+      extra.value =
+        h.total > 0
+          ? { count: h.total, avgScore: h.average, maxScore: h.maxScore, minScore: h.minScore }
+          : {}
 
-    histogramOption.value = buildHistogramOption()
-    histogramOption.value.xAxis.data = buckets.value.map((b) => b.range)
-    histogramOption.value.series[0].data = buckets.value.map((b) => b.count)
+      histogramOption.value = buildHistogramOption()
+      histogramOption.value.xAxis.data = buckets.value.map((b) => b.range)
+      histogramOption.value.series[0].data = buckets.value.map((b) => b.count)
+    } else {
+      // 失败时及格率/优秀率不再谎报 0%（改显 '--'），参考人数块隐藏
+      buckets.value = []
+      passRate.value = null
+      excellentRate.value = null
+      passRatePct.value = 0
+      excellentRatePct.value = 0
+      extra.value = {}
+      notices.push('成绩分布未能加载。')
+    }
+
+    loadError.value = notices.join('')
   } catch (e) {
     logger.error('加载课程分析失败', e)
+    loadError.value = '课程分析加载失败，请刷新重试。'
   } finally {
     loading.value = false
   }

@@ -35,7 +35,7 @@
           </div>
         </div>
       </div>
-      <el-empty v-else description="暂无章节" :image-size="70" />
+      <el-empty v-else :description="emptyText" :image-size="70" />
     </div>
   </div>
 </template>
@@ -43,6 +43,8 @@
 <script setup lang="ts">
 defineProps({
   chapterTree: { type: Array, default: () => [] },
+  // 加载失败时由父组件传入诚实文案，避免把「失败」显示成「暂无章节」
+  emptyText: { type: String, default: '暂无章节' },
 })
 
 function pct(v) {
