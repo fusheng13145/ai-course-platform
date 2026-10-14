@@ -8,6 +8,15 @@
       @back="$router.push('/student/courses')"
     />
 
+    <!-- 分路加载失败持久提示（任一子模块失败即显示，不自动消失） -->
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      class="load-error-alert"
+    />
+
     <!-- Tabs 主内容区 -->
     <el-tabs v-model="activeTab" class="main-tabs">
       <!-- 课程简介 Tab -->
@@ -27,7 +36,12 @@
       <el-tab-pane label="章节学习" name="chapters">
         <div class="tab-content-card">
           <!-- 章节列表视图 -->
-          <CduChapterList v-if="!learningMode" :chapters="chapters" @enter="enterLearning" />
+          <CduChapterList
+            v-if="!learningMode"
+            :chapters="chapters"
+            :empty-text="chaptersError ? '章节列表未能加载，请查看上方提示后重试' : '暂无章节内容'"
+            @enter="enterLearning"
+          />
 
           <!-- 学习模式视图 -->
           <CduLearningMode
@@ -66,6 +80,8 @@ const {
   course,
   enrollment,
   chapters,
+  chaptersError,
+  loadError,
   learningMode,
   currentChapter,
   currentChapterVideo,
@@ -82,6 +98,10 @@ const {
 </script>
 
 <style scoped>
+.load-error-alert {
+  margin-bottom: var(--ac-spacing-md);
+}
+
 .main-tabs {
   background: var(--ac-bg-elevated);
   border-radius: var(--ac-radius-lg);

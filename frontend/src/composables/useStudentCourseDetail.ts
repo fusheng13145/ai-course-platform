@@ -42,6 +42,12 @@ export function useStudentCourseDetail() {
   /* ---- 章节数据 ---- */
   const chapters = ref([])
 
+  /* ---- 分路错误态（失败可见：互不复位，页面级持久提示聚合） ---- */
+  const courseError = ref('')
+  const chaptersError = ref('')
+  const enrollError = ref('')
+  const loadError = computed(() => courseError.value || chaptersError.value || enrollError.value)
+
   /* ---- 学习模式状态 ---- */
   const learningMode = ref(false)
   const currentChapter = reactive({
@@ -101,31 +107,46 @@ export function useStudentCourseDetail() {
     return map[difficulty] || 'info'
   }
 
-  /* ---- 加载页面数据 ---- */
+  /* ---- 加载页面数据（三路独立归因：任一失败不影响他路展示） ---- */
   onMounted(async () => {
     pageLoading.value = true
     const courseId = route.params.id
-    try {
-      const [courseRes, chapterRes, enrollRes] = await Promise.all([
-        courseApi.getCourseById(courseId),
-        chapterApi.getChapters(courseId),
-        enrollmentApi.getMyEnrollments(),
-      ])
+    courseError.value = ''
+    chaptersError.value = ''
+    enrollError.value = ''
+    const [courseRes, chapterRes, enrollRes] = await Promise.allSettled([
+      courseApi.getCourseById(courseId),
+      chapterApi.getChapters(courseId),
+      enrollmentApi.getMyEnrollments(),
+    ])
 
-      // 课程信息
-      if (courseRes.data) Object.assign(course, courseRes.data)
+    // 课程信息
+    if (courseRes.status === 'fulfilled') {
+      if (courseRes.value.data) Object.assign(course, courseRes.value.data)
+    } else {
+      logger.error('加载课程信息失败:', courseRes.reason)
+      courseError.value = '课程信息加载失败，请检查网络后重试'
+    }
 
-      // 章节信息
-      const chapterList = chapterRes.data || chapterRes || []
+    // 章节信息
+    if (chapterRes.status === 'fulfilled') {
+      const chapterList = chapterRes.value.data || chapterRes.value || []
       chapters.value = chapterList.map((ch, _idx) => ({
         ...ch,
         completed: ch.status === 'COMPLETED',
         current: ch.status === 'IN_PROGRESS',
         progress: ch.progress ? Math.round(Number(ch.progress)) : 0,
       }))
+    } else {
+      logger.error('加载章节列表失败:', chapterRes.reason)
+      chapters.value = []
+      chaptersError.value = '章节列表加载失败，请检查网络后重试'
+    }
 
-      // 选课状态
-      const enrollments = enrollRes.data?.list || enrollRes.data || enrollRes || []
+    // 选课状态
+    if (enrollRes.status === 'fulfilled') {
+      const enrollments =
+        enrollRes.value.data?.list || enrollRes.value.data || enrollRes.value || []
       const myEnrollment = enrollments.find(
         (e) => Number(e.courseId) === Number(courseId) && e.isActive,
       )
@@ -134,12 +155,12 @@ export function useStudentCourseDetail() {
         enrollment.progress = Math.round(Number(myEnrollment.progress || 0))
         enrollment.isActive = myEnrollment.isActive
       }
-    } catch (e) {
-      logger.error('加载课程失败:', e)
-      ElMessage.error('加载课程失败')
-    } finally {
-      pageLoading.value = false
+    } else {
+      logger.error('加载选课状态失败:', enrollRes.reason)
+      enrollError.value = '选课状态加载失败，请检查网络后重试'
     }
+
+    pageLoading.value = false
   })
 
   /* ---- 加入课程 ---- */
@@ -288,6 +309,10 @@ export function useStudentCourseDetail() {
     course,
     enrollment,
     chapters,
+    courseError,
+    chaptersError,
+    enrollError,
+    loadError,
     learningMode,
     currentChapter,
     currentChapterVideo,
