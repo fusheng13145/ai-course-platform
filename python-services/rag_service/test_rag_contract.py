@@ -271,3 +271,55 @@ def test_real_engine_degrades_without_index():
         assert body["code"] == 503
         assert body["mode"] == "UNAVAILABLE"
         assert "index/build" in body["error"]
+
+
+# ------------------------------------------------------------------
+# 引擎"依赖可 import 但运行时失败"的中间态降级（不依赖联网下载模型，确定性）
+# 复现并锁定 A 排查发现的缺陷：依赖齐备（engine_available=True）但模型缺失/
+# 离线部署/版本不兼容导致 _embed 抛错时，端点必须优雅降级（200+success=False
+# 或 503/UNAVAILABLE），绝不能 500。
+# ------------------------------------------------------------------
+def test_engine_runtime_failure_degrades_gracefully(monkeypatch):
+    # 模拟"依赖可 import 但引擎运行时失败"的环境（本沙箱正是此类中间态）
+    monkeypatch.setattr(rag_engine, "engine_available", lambda: True)
+
+    def _boom():
+        raise RuntimeError("embedding model failed to load (offline / missing / version mismatch)")
+
+    def _boom_search(*args, **kwargs):
+        raise RuntimeError("embedding failed at runtime (offline / missing / version mismatch)")
+
+    # _get_model 抛错：覆盖建索引路径（build_course_index -> _embed -> _get_model）
+    monkeypatch.setattr(rag_engine, "_get_model", _boom)
+    # search 抛错：覆盖检索路径（_engine_ready_for 为真后即调用 search）
+    monkeypatch.setattr(rag_engine, "search", _boom_search)
+
+    with TestClient(app) as c:
+        c.post("/api/v1/rag/documents",
+               json={"course_id": 77, "document_name": "X", "content": "x"})
+
+        # 1) 建索引：不应 500，应返回 success=False + 可操作 error
+        built = c.post("/api/v1/rag/index/build/77")
+        assert built.status_code == 200
+        bb = built.json()
+        assert bb["success"] is False
+        assert "失败" in (bb.get("error") or "")
+
+        # 2) 让引擎"看似已有索引"以进入检索路径，验证 retrieve/ask 亦降级而非 500
+        monkeypatch.setattr(rag_engine, "index_status", lambda cid: {"indexed_chunks": 1})
+
+        retrieved = c.post("/api/v1/rag/retrieve",
+                           json={"query": "x", "course_id": 77, "top_k": 2})
+        assert retrieved.status_code == 200
+        rb = retrieved.json()
+        assert rb["code"] == 503
+        assert rb["mode"] == "UNAVAILABLE"
+        assert "失败" in (rb.get("error") or "")
+
+        asked = c.post("/api/v1/rag/ask",
+                       json={"question": "x", "course_id": 77, "top_k": 2})
+        assert asked.status_code == 200
+        ab = asked.json()
+        assert ab["code"] == 503
+        assert ab["mode"] == "UNAVAILABLE"
+        assert "失败" in (ab.get("error") or "")

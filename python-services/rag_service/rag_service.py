@@ -180,6 +180,11 @@ def retrieve(req: RetrieveRequest):
         # 存储损坏：显式报错并降级（非静默返回空），error 携带可操作信息
         return RagRetrievalResult(results=[], mode="UNAVAILABLE",
                                   error=f"引擎存储损坏：{exc}", code=503)
+    except Exception as exc:
+        # 引擎运行时故障（依赖可 import 但模型加载/向量化失败）：降级而非 500
+        return RagRetrievalResult(results=[], mode="UNAVAILABLE",
+                                  error=f"引擎检索失败：{type(exc).__name__}: {exc}",
+                                  code=503)
     if os.getenv("RAG_ENGINE_READY", "0") == "1":
         return RagRetrievalResult(
             results=list(_PLACEHOLDER_SOURCES),
@@ -207,6 +212,10 @@ def ask(req: AskRequest):
     except rag_engine.StoreCorruptedError as exc:
         return RagQueryResult(answer=None, sources=[], mode="UNAVAILABLE",
                               error=f"引擎存储损坏：{exc}", code=503)
+    except Exception as exc:
+        # 引擎运行时故障（依赖可 import 但模型加载/向量化失败）：降级而非 500
+        return RagQueryResult(answer=None, sources=[], mode="UNAVAILABLE",
+                              error=f"引擎检索失败：{type(exc).__name__}: {exc}", code=503)
     if os.getenv("RAG_ENGINE_READY", "0") == "1":
         return RagQueryResult(
             answer="TCP 是面向连接的传输层协议，通过三次握手建立可靠连接。",
@@ -231,7 +240,16 @@ def build_index(course_id: int):
         # CI/轻量环境保持占位契约行为（不断言真实索引语义）
         chunks = len(rag_engine.list_documents(course_id))
         return IndexResult(success=True, indexed_chunks=chunks)
-    out = rag_engine.build_course_index(course_id)
+    try:
+        out = rag_engine.build_course_index(course_id)
+    except Exception as exc:
+        # 引擎运行时故障（依赖可 import 但模型缺失/离线部署/版本不兼容）：
+        # 按契约降级返回 success=False 而非 500，避免运维盲区。
+        return IndexResult(
+            success=False,
+            indexed_chunks=0,
+            error=f"引擎建索引失败：{type(exc).__name__}: {exc}",
+        )
     return IndexResult(success=out["success"],
                        indexed_chunks=out["indexed_chunks"],
                        error=out.get("error"))
