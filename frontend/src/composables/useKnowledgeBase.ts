@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import { Cpu, Warning, CircleCheck } from '@element-plus/icons-vue'
 import ragApi from '@/api/rag'
 import courseApi from '@/api/course'
+import { useCourseKbBuild } from './useCourseKbBuild'
 
 /**
  * 知识库管理领域逻辑
@@ -214,6 +215,20 @@ export function useKnowledgeBase() {
     }
   }
 
+  /* 从课程资料一键构建知识库（共享逻辑：枚举课程简介/章节/资源 → 幂等写入 → 重建索引） */
+  const {
+    building: buildingFromCourse,
+    buildError: courseKbError,
+    buildResult: courseKbResult,
+    build: runCourseKbBuild,
+  } = useCourseKbBuild(selectedCourseId)
+  /** 真正写入后刷新文档列表，让「新增了多少篇」在列表上可直接核对 */
+  async function buildCourseKb() {
+    if (await runCourseKbBuild()) {
+      await loadDocs()
+    }
+  }
+
   /* 问答 */
   const askForm = reactive({ question: '', topK: 3 })
   const askResult = ref(null)
@@ -272,6 +287,9 @@ export function useKnowledgeBase() {
     asking,
     retrieving,
     saving,
+    buildingFromCourse,
+    courseKbError,
+    courseKbResult,
     courseList,
     selectedCourseId,
     docs,
@@ -299,6 +317,7 @@ export function useKnowledgeBase() {
     removeDoc,
     buildIndex,
     clearIndex,
+    buildCourseKb,
     doAsk,
     doRetrieve,
   }

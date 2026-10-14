@@ -35,6 +35,15 @@ export const ragBuildIndex = (courseId) => request.post(`/rag/index/build/${cour
 export const ragClearIndex = (courseId) => request.delete(`/rag/index/${courseId}`).then(unwrap)
 
 /**
+ * 从课程结构化资料（课程简介 / 章节 / 资源）一键构建课程知识库并重建索引（ADMIN / TEACHER）。
+ * 幂等：知识库中已存在的同名文档会被跳过，重复执行不会产生重复语料。
+ * 响应 data 关键字段：mode（ENGINE / LOCAL / UNAVAILABLE）、total、added、skipped、
+ * indexedChunks、documents、note；引擎不可用时附 error / code=503，由调用方按「失败可见」展示降级提示。
+ */
+export const ragBuildCourseKnowledgeBase = (courseId) =>
+  request.post(`/rag/course/${courseId}/build`).then(unwrap)
+
+/**
  * 默认导出对象：模块/组件配置与导出内容
  */
 export default {
@@ -46,4 +55,5 @@ export default {
   ragDeleteDocument,
   ragBuildIndex,
   ragClearIndex,
+  ragBuildCourseKnowledgeBase,
 }

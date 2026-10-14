@@ -132,9 +132,10 @@
           @reject="rejectStudent"
         />
       </el-tab-pane>
-      <el-tab-pane label="知识管理" name="knowledge"
-        ><CourseKnowledgeTab :course-id="course.id"
-      /></el-tab-pane>
+      <el-tab-pane label="知识管理" name="knowledge">
+        <CdKbBuildPanel :course-id="Number(course.id)" />
+        <CourseKnowledgeTab :course-id="course.id" />
+      </el-tab-pane>
       <el-tab-pane label="通知管理" name="notifications">
         <CdNotificationsTab
           :notifications="notifications"
@@ -187,6 +188,7 @@ import CdInfoTab from './components/CdInfoTab.vue'
 import CdChaptersTab from './components/CdChaptersTab.vue'
 import CdStudentsTab from './components/CdStudentsTab.vue'
 import CdNotificationsTab from './components/CdNotificationsTab.vue'
+import CdKbBuildPanel from './components/CdKbBuildPanel.vue'
 import CdDialogs from './components/CdDialogs.vue'
 
 /**
