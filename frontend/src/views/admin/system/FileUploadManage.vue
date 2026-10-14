@@ -55,7 +55,7 @@
             v-loading="loading"
             :data="sessions"
             style="width: 100%"
-            :empty-text="listError ? '无法确认会话数据，请查看上方提示后重试' : '暂无上传会话'"
+            :empty-text="emptyDescription()"
           >
             <el-table-column prop="id" label="ID" width="70" />
             <el-table-column label="文件名称" min-width="200" show-overflow-tooltip>
@@ -98,13 +98,11 @@
                 <el-button v-else size="small" @click="viewProgress(row)">查看进度</el-button>
               </template>
             </el-table-column>
-            <template #empty>
-              <el-empty
-                :description="listError ? '无法确认会话数据，请查看上方提示后重试' : '暂无上传会话'"
-              >
-                <template #image><div class="empty-deco">📤</div></template>
-              </el-empty>
-            </template>
+              <template #empty>
+                <el-empty :description="emptyDescription()">
+                  <template #image><div class="empty-deco">📤</div></template>
+                </el-empty>
+              </template>
           </el-table>
         </div>
       </div>
@@ -154,10 +152,10 @@ import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Refresh, Document, Close } from '@element-plus/icons-vue'
 import uploadApi from '@/api/fileUpload'
+import { useListFeedback } from '@/composables/useListFeedback'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 
-const loading = ref(false)
 interface UploadSession {
   id: number
   filename?: string | null
@@ -185,7 +183,13 @@ const completedCount = computed(
 )
 const progressVisible = ref(false)
 const currentSession = ref<UploadSession | null>(null)
-const listError = ref('')
+// 列表失败反馈统一原语（D2-1）：loading + 错误态 banner + 双态空文案
+const { loading, listError, run, emptyDescription } = useListFeedback({
+  failMessage: '上传会话加载失败，请稍后刷新；已保留上次显示的数据。',
+  toastMessage: '上传会话加载失败',
+  emptyText: '暂无上传会话',
+  errorEmptyText: '无法确认会话数据，请查看上方提示后重试',
+})
 const progressError = ref('')
 const lastProgressUpdatedAt = ref('')
 const progressRefreshing = ref(false)
@@ -216,9 +220,7 @@ function formatSize(bytes?: number | null) {
 }
 
 async function refreshList() {
-  loading.value = true
-  listError.value = ''
-  try {
+  await run(async () => {
     const res = await uploadApi.listSessions()
     const payload = res?.data
     const list = Array.isArray(payload)
@@ -235,12 +237,7 @@ async function refreshList() {
       // 进度由已上传分片数/总分片数推导（实体无 progress 字段）
       progress: s.totalChunks > 0 ? Math.round(((s.uploadedChunks || 0) / s.totalChunks) * 100) : 0,
     }))
-  } catch {
-    listError.value = '上传会话加载失败，请稍后刷新；已保留上次显示的数据。'
-    ElMessage.error('上传会话加载失败')
-  } finally {
-    loading.value = false
-  }
+  })
 }
 
 async function handleCancel(row: UploadSession) {
