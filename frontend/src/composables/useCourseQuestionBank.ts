@@ -11,6 +11,7 @@ import { resolveReviewStatus } from '@/composables/useQuestionBank'
  */
 export function useCourseQuestionBank(courseIdRef) {
   const loading = ref(false)
+  const loadError = ref('')
   const list = ref([])
   const total = ref(0)
   const page = ref(1)
@@ -65,6 +66,7 @@ export function useCourseQuestionBank(courseIdRef) {
 
   async function load() {
     loading.value = true
+    loadError.value = ''
     try {
       const r = await questionApi.getQuestionList({
         courseId: courseIdRef.value,
@@ -79,6 +81,9 @@ export function useCourseQuestionBank(courseIdRef) {
       total.value = body?.total ?? body?.totalElements ?? list.value.length
     } catch (e) {
       logger.error('加载题库失败', e)
+      list.value = []
+      total.value = 0
+      loadError.value = '题库列表加载失败，请检查网络后重试'
     } finally {
       loading.value = false
     }
@@ -263,6 +268,7 @@ export function useCourseQuestionBank(courseIdRef) {
 
   return {
     loading,
+    loadError,
     list,
     total,
     page,

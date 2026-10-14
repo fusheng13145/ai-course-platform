@@ -103,7 +103,7 @@
         </el-table-column>
       </el-table>
       <div v-if="!loading && !list.length" class="empty-wrap">
-        <el-empty description="该课程暂无题目，点击右上角「新建题目」或「AI 生成」">
+        <el-empty :description="emptyText">
           <template #image><div class="empty-deco">📚</div></template>
         </el-empty>
       </div>
@@ -147,6 +147,11 @@ defineProps({
   total: { type: Number, default: 0 },
   page: { type: Number, default: 1 },
   size: { type: Number, default: 10 },
+  /** 空态文案（父页面按加载失败态透传诚实提示，默认保留原引导语义） */
+  emptyText: {
+    type: String,
+    default: '该课程暂无题目，点击右上角「新建题目」或「AI 生成」',
+  },
 })
 defineEmits([
   'update:type',
