@@ -166,3 +166,79 @@ describe('OnboardingGuide 重开入口', () => {
     wrapper.unmount()
   })
 })
+
+/**
+ * 聚光高亮契约（2026-10-14 浏览器实测缺陷修复）：
+ * <p>原实现只有「整屏压暗」——目标元素（.sidebar / .topbar）与页面其它区域一样被遮罩压暗，
+ * 既无挖空也无描边，第 2/3 步文案说「左侧导航栏 / 顶栏快捷操作」却看不出指的是哪一块，
+ * 与本组件自述的「按 CSS 选择器高亮目标元素」不符。现改为聚光层：目标区域保持明亮 + 描边，
+ * 其余范围由聚光层的巨大 box-shadow 压暗。</p>
+ */
+describe('OnboardingGuide 聚光高亮', () => {
+  beforeEach(() => {
+    mocks.userId = 7
+    localStorage.clear()
+    document.body.replaceChildren()
+    vi.useFakeTimers({ toFake: ['setTimeout'] })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
+    localStorage.clear()
+    document.body.replaceChildren()
+  })
+
+  function overlay() {
+    return document.body.querySelector('.ob-overlay') as HTMLElement
+  }
+
+  it('目标元素存在时渲染聚光层，且遮罩不再整屏压暗（真高亮）', async () => {
+    localStorage.setItem(STORAGE_KEY, '1')
+    const { wrapper, guide } = await mountHost()
+    guide.value!.show()
+    await flushPromises()
+
+    // 注入 .sidebar（第 2 步目标），再翻到第 2 步
+    const sidebar = document.createElement('aside')
+    sidebar.className = 'sidebar'
+    document.body.appendChild(sidebar)
+    press('ArrowRight')
+    await flushPromises()
+
+    expect(document.body.querySelector('.ob-spotlight')).not.toBeNull()
+    expect(overlay().className).toContain('has-target')
+    wrapper.unmount()
+  })
+
+  it('负控制：无目标元素时不渲染聚光层（回退居中卡片，遮罩保持整屏压暗）', async () => {
+    localStorage.setItem(STORAGE_KEY, '1')
+    const { wrapper, guide } = await mountHost()
+    guide.value!.show()
+    await flushPromises()
+
+    expect(document.body.querySelector('.ob-spotlight')).toBeNull()
+    expect(overlay().className).not.toContain('has-target')
+    wrapper.unmount()
+  })
+
+  it('切到无目标步骤时聚光层随定位一起消失（第 2 步 → 第 1 步不留残影）', async () => {
+    localStorage.setItem(STORAGE_KEY, '1')
+    const { wrapper, guide } = await mountHost()
+    guide.value!.show()
+    await flushPromises()
+
+    const sidebar = document.createElement('aside')
+    sidebar.className = 'sidebar'
+    document.body.appendChild(sidebar)
+    press('ArrowRight')
+    await flushPromises()
+    expect(document.body.querySelector('.ob-spotlight')).not.toBeNull()
+
+    press('ArrowLeft') // 回到第 1 步（无 target）
+    await flushPromises()
+
+    expect(document.body.querySelector('.ob-spotlight')).toBeNull()
+    expect(overlay().className).not.toContain('has-target')
+    wrapper.unmount()
+  })
+})
