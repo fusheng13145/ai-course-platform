@@ -37,8 +37,8 @@ requires_faiss = pytest.mark.skipif(
     rag_engine._faiss is None or _np is None, reason="faiss/numpy 未安装"
 )
 requires_engine = pytest.mark.skipif(
-    not rag_engine.engine_available(),
-    reason="引擎重依赖未安装（requirements-engine.txt），跳过真实索引用例",
+    not rag_engine.engine_functional(),
+    reason="引擎重依赖未安装或嵌入模型未本地缓存（requirements-engine.txt），跳过真实索引用例",
 )
 
 

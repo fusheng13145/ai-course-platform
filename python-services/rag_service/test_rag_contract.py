@@ -208,8 +208,8 @@ def test_clear_index():
 # CI 轻量环境（requirements.txt 不含 torch/faiss 等）自动跳过
 # ------------------------------------------------------------------
 requires_engine = pytest.mark.skipif(
-    not rag_engine.engine_available(),
-    reason="引擎重依赖未安装（requirements-engine.txt），跳过真实检索验证",
+    not rag_engine.engine_functional(),
+    reason="引擎重依赖未安装或嵌入模型未本地缓存（requirements-engine.txt），跳过真实检索验证",
 )
 
 

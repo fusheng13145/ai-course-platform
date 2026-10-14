@@ -86,6 +86,49 @@ def dep_errors() -> list[str]:
     return list(_DEP_ERRORS)
 
 
+def embed_model_cached(model_name: Optional[str] = None) -> bool:
+    """嵌入模型是否已本地缓存（**不触发联网**）。
+
+    语义：仅检查本地 HF 缓存是否已有该模型的实质文件，绝不发起网络请求。
+    用途：
+      1) `_get_model` 命中缓存时以 `local_files_only=True` 离线加载——否则
+         `SentenceTransformer` 即便文件已缓存也会向 HF 发连通性探测请求，
+         离线 / CI 环境会因此长时间挂起；
+      2) 真实引擎测试门禁：模型未缓存则跳过而非联网挂起。
+    """
+    if not engine_available():
+        return False
+    model_name = model_name or os.getenv("RAG_EMBED_MODEL", "BAAI/bge-small-zh-v1.5")
+    try:
+        from huggingface_hub import try_to_load_from_cache
+        # config_sentence_transformers.json 是 sentence-transformers 加载任一模型
+        # 都会落盘的标记文件，命中即代表该模型已被完整缓存。
+        return try_to_load_from_cache(
+            model_name, "config_sentence_transformers.json") is not None
+    except Exception:
+        # huggingface_hub 不可用 / 探测异常：回退到文件系统检查（同样免联网）。
+        norm = model_name.replace("/", "--")
+        for base in (
+            os.path.join(os.getenv("HF_HUB_CACHE", ""), "hub") if os.getenv("HF_HUB_CACHE") else "",
+            os.path.join(os.getenv("HF_HOME", os.path.expanduser("~/.cache/huggingface")), "hub"),
+        ):
+            cache = Path(base) / f"models--{norm}" / "snapshots"
+            if cache.exists() and any(p.suffix in {".safetensors", ".bin", ".json"}
+                                      for p in cache.rglob("*") if p.is_file()):
+                return True
+        return False
+
+
+def engine_functional() -> bool:
+    """引擎是否**真实可用**：重依赖齐备 **且** 嵌入模型已本地缓存（可离线加载）。
+
+    区别于 `engine_available()`（仅检查 import 层依赖齐备）：本函数 additionally
+    要求嵌入模型已缓存，使真实引擎用例既能在无网环境安全运行（`local_files_only`
+    加载），也能在模型未缓存时被 `requires_engine` 收敛跳过，而非联网挂起。
+    """
+    return engine_available() and embed_model_cached()
+
+
 # ---------------------------------------------------------------- 存储目录
 
 def data_dir() -> Path:
@@ -329,7 +372,13 @@ _model_holder: dict = {"model": None}
 def _get_model():
     if _model_holder["model"] is None:
         model_name = os.getenv("RAG_EMBED_MODEL", "BAAI/bge-small-zh-v1.5")
-        _model_holder["model"] = _SentenceTransformer(model_name)
+        load_kwargs: dict = {}
+        # 模型已本地缓存时强制 offline 加载：SentenceTransformer 默认即便文件已缓存
+        # 也会向 HF 发连通性探测请求，离线 / CI 环境会因此长时间挂起；local_files_only=True
+        # 直接读缓存规避该问题。未缓存时保留在线行为，以支持首次部署下载模型。
+        if embed_model_cached(model_name):
+            load_kwargs["local_files_only"] = True
+        _model_holder["model"] = _SentenceTransformer(model_name, **load_kwargs)
     return _model_holder["model"]
 
 
