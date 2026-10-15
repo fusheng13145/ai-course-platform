@@ -1,6 +1,6 @@
 <template>
   <div class="content-card content-card--flush">
-    <el-table v-loading="loading" :data="gradeList" @row-click="$emit('detail', $event)">
+    <el-table v-loading="loading" :data="paged" @row-click="$emit('detail', $event)">
       <el-table-column prop="studentNo" label="学号" width="110" />
       <el-table-column prop="studentName" label="姓名" width="90">
         <template #default="{ row }"
@@ -46,6 +46,17 @@
         </template>
       </el-table-column>
     </el-table>
+    <!-- D2-5：大课程（>20 行）客户端分页，仅超一页时出现 -->
+    <div v-if="showPager" class="pager-wrap">
+      <el-pagination
+        small
+        layout="total, prev, pager, next"
+        :total="total"
+        :page-size="pageSize"
+        :current-page="page"
+        @current-change="onPageChange"
+      />
+    </div>
     <EmptyState v-if="!loading && gradeList.length === 0" :title="emptyDescription" icon="chart" />
   </div>
 </template>
@@ -53,12 +64,15 @@
 <script setup lang="ts">
 import { monoScore } from '@/utils/chartTheme'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import { useClientPagination } from '@/composables/useClientPagination'
 
 /**
  * 教师成绩表格
  * <p>显示课程学情分均分与成绩方案总评；具体作业批阅入口位于待批阅任务。</p>
+ * <p>D2-5：课程成绩无界（大课程可达数百行），渲染层客户端分页（每页 20），
+ * 数据抓取保持全量不变。</p>
  */
-defineProps({
+const props = defineProps({
   /** 加载态 */
   loading: { type: Boolean, default: false },
   /** 过滤后的成绩列表 */
@@ -70,12 +84,23 @@ defineProps({
 })
 
 defineEmits(['detail'])
+
+// D2-5：大列表客户端分页（小列表全量渲染、视觉零变化；越界页自动收敛）
+const { page, pageSize, total, paged, showPager, onPageChange } = useClientPagination(
+  () => props.gradeList,
+)
 </script>
 
 <style scoped>
 .content-card--flush {
   padding: 0;
   overflow: hidden;
+}
+/* D2-5：分页器右对齐 */
+.pager-wrap {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 12px 4px;
 }
 
 .student-name {
