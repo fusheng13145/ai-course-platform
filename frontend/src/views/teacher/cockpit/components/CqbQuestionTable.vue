@@ -103,9 +103,7 @@
         </el-table-column>
       </el-table>
       <div v-if="!loading && !list.length" class="empty-wrap">
-        <el-empty :description="emptyText">
-          <template #image><div class="empty-deco">📚</div></template>
-        </el-empty>
+        <EmptyState :title="emptyText" icon="book" />
       </div>
       <div v-if="total > size" class="pagination-wrap">
         <el-pagination
@@ -128,6 +126,7 @@
 <script setup lang="ts">
 import { Search, Edit, Select, Close, CopyDocument, Delete } from '@element-plus/icons-vue'
 import { resolveReviewStatus } from '@/composables/useQuestionBank'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 审核态取自 is_active（缺陷 B5）：Question 上没有 reviewed 字段，审核动作只写 is_active
@@ -234,10 +233,6 @@ function diffTag(d) {
 }
 .empty-wrap {
   padding: 30px 0;
-}
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 .pagination-wrap {
   display: flex;

@@ -43,10 +43,10 @@
         <span class="lc-tree-title">课程章节</span>
         <span class="lc-tree-hint">按顺序解锁 · 完成前置任务点方可进入后续内容</span>
       </div>
-      <el-empty
+      <EmptyState
         v-if="!loading && center.chapters.length === 0"
-        :description="loadError ? '学习中心内容未能加载，请查看上方提示后重试' : '本课程暂无章节任务点'"
-        :image-size="100"
+        :title="loadError ? '学习中心内容未能加载，请查看上方提示后重试' : '本课程暂无章节任务点'"
+        icon="layers"
       />
       <chapter-tree v-else :nodes="center.chapters" @open-task="openTask" />
     </div>
@@ -65,6 +65,7 @@
 import logger from '@/utils/logger'
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { unwrap } from '@/utils/response'
 import studentApi from '@/api/student'
 import ChapterTree from '../components/ChapterTree.vue'

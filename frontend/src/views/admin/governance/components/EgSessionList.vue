@@ -22,10 +22,11 @@
           </el-tag>
         </div>
       </div>
-      <el-empty
+      <EmptyState
         v-if="!sessions.length"
-        :description="loading ? '加载中…' : '当前无进行中的监考会话'"
-        :image-size="70"
+        :title="loading ? '加载中…' : '当前无进行中的监考会话'"
+        icon="list"
+        size="compact"
       />
     </div>
   </div>
@@ -33,6 +34,7 @@
 
 <script setup lang="ts">
 import { VideoCamera } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 考试治理 — 监考会话列表（左栏）

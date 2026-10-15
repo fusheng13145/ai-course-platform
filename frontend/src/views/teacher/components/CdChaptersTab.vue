@@ -34,12 +34,13 @@
       >
       <el-button size="small" @click="emit('reset-order')">取消</el-button>
     </div>
-    <el-empty v-if="!chaptersLoading && !chapters.length" :description="emptyText" />
+    <EmptyState v-if="!chaptersLoading && !chapters.length" :title="emptyText" icon="layers" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { Plus, Rank } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 章节管理 Tab

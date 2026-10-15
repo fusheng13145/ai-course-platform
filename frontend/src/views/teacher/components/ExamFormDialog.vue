@@ -104,7 +104,7 @@
           </el-button>
         </div>
       </div>
-      <el-empty v-else description="尚未添加题目，请从题库中选择" :image-size="60" />
+      <EmptyState v-else title="尚未添加题目，请从题库中选择" icon="list" size="compact" />
 
       <!-- 设置 -->
       <el-divider content-position="left">设置</el-divider>
@@ -139,6 +139,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { Delete } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 试卷创建/编辑对话框

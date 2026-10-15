@@ -38,12 +38,13 @@
         </el-button>
       </div>
     </div>
-    <el-empty v-if="chapters.length === 0" :description="emptyText" :image-size="100" />
+    <EmptyState v-if="chapters.length === 0" :title="emptyText" icon="layers" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { Select, Timer, ArrowRight } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 章节学习 Tab — 章节列表视图

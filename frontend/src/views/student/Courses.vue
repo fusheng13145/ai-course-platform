@@ -37,10 +37,10 @@
         </div>
         <div class="sa-body">
           <el-skeleton v-if="loading" :rows="3" animated />
-          <el-empty
+          <EmptyState
             v-else-if="courses.length === 0"
-            :description="loadError ? '课程列表未能加载，请查看上方提示后重试' : '暂无课程'"
-            :image-size="70"
+            :title="loadError ? '课程列表未能加载，请查看上方提示后重试' : '暂无课程'"
+            icon="book"
           />
           <template v-else>
             <div

@@ -18,13 +18,14 @@
         <span class="conv-title">{{ conv.title || '新对话' }}</span>
         <span class="conv-time">{{ formatTime(conv.time) }}</span>
       </div>
-      <el-empty v-if="conversations.length === 0" description="暂无历史对话" :image-size="60" />
+      <EmptyState v-if="conversations.length === 0" title="暂无历史对话" icon="message" size="compact" />
     </div>
   </aside>
 </template>
 
 <script setup lang="ts">
 import { Plus, ChatDotRound } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * AI 助手对话历史侧栏

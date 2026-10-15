@@ -168,7 +168,7 @@
             />
           </div>
         </div>
-        <el-empty v-else description="该课程暂无可用测验题目" :image-size="80" />
+        <EmptyState v-else title="该课程暂无可用测验题目" icon="list" size="compact" />
       </template>
     </div>
   </el-drawer>
@@ -178,6 +178,7 @@
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { Select, VideoPlay, Files, InfoFilled, Check, Close } from '@element-plus/icons-vue'
 import { formatTime } from '@/utils/datetime'
 import logger from '@/utils/logger'

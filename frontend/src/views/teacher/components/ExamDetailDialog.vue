@@ -44,7 +44,7 @@
             <span class="q-score-val">{{ q.score }}分</span>
           </div>
         </div>
-        <el-empty v-else description="暂无题目数据" :image-size="60" />
+        <EmptyState v-else title="暂无题目数据" icon="list" size="compact" />
       </div>
     </template>
     <template #footer>
@@ -61,6 +61,8 @@
 </template>
 
 <script setup lang="ts">
+import EmptyState from '@/components/ui/EmptyState.vue'
+
 /**
  * 试卷详情对话框
  * <p>基本信息（状态/分数/人数统计）+ 题目预览列表；发布/复制操作经事件上抛。</p>

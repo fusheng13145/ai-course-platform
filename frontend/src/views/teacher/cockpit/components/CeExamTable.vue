@@ -55,7 +55,7 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-else :description="emptyText" :image-size="72" />
+      <EmptyState v-else :title="emptyText" icon="checks" />
 
       <div v-if="list.length" class="pager">
         <el-pagination
@@ -75,6 +75,7 @@
 
 <script setup lang="ts">
 import { Promotion, View, DataAnalysis, CopyDocument, Edit, Delete } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 课程试卷 — 试卷列表表格（含分页与行操作）。

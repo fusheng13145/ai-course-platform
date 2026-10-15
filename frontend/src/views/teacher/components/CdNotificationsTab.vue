@@ -15,12 +15,17 @@
         </template>
       </el-table-column>
     </el-table>
-    <el-empty v-if="!notificationsLoading && !notifications.length" :description="emptyText" />
+    <EmptyState
+      v-if="!notificationsLoading && !notifications.length"
+      :title="emptyText"
+      icon="message"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { Plus } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 通知管理 Tab

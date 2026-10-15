@@ -25,10 +25,11 @@
         </div>
         <el-icon class="activity-go"><ArrowRight /></el-icon>
       </div>
-      <el-empty
+      <EmptyState
         v-if="!loading && activities.length === 0"
-        description="暂无学习动态"
-        :image-size="72"
+        title="暂无学习动态"
+        icon="list"
+        size="compact"
       />
     </div>
   </ProfileCard>
@@ -38,6 +39,7 @@
 import { Bell, ArrowRight } from '@element-plus/icons-vue'
 import { formatTime } from '@/utils/datetime'
 import ProfileCard from './ProfileCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 个人中心「学习动态」区块

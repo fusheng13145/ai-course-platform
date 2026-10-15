@@ -39,13 +39,15 @@
             ><span class="value">{{ stats.submitCount ?? '—' }}</span>
           </div>
         </div>
-        <el-empty v-if="!hasStats(stats)" description="暂无统计数据" />
+        <EmptyState v-if="!hasStats(stats)" title="暂无统计数据" icon="chart" size="compact" />
       </template>
     </div>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
+import EmptyState from '@/components/ui/EmptyState.vue'
+
 defineProps({
   modelValue: { type: Boolean, default: false },
   loading: { type: Boolean, default: false },

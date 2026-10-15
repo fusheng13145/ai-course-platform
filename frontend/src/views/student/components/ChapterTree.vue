@@ -50,7 +50,7 @@
           <el-icon v-else class="task-go"><ArrowRight /></el-icon>
         </div>
 
-        <el-empty v-if="chapter.tasks.length === 0" :image-size="36" description="本章暂无任务点" />
+        <EmptyState v-if="chapter.tasks.length === 0" title="本章暂无任务点" icon="list" size="compact" />
 
         <!-- 递归子章节 -->
         <chapter-tree
@@ -68,6 +68,7 @@
 import type { PropType } from 'vue'
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import {
   ArrowRight,
   Lock,

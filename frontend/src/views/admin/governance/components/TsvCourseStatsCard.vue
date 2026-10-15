@@ -12,7 +12,7 @@
         </div>
         <span class="cat-cnt">{{ cnt }}</span>
       </div>
-      <el-empty v-if="!categoryKeys.length" description="暂无课程分类数据" :image-size="60" />
+      <EmptyState v-if="!categoryKeys.length" title="暂无课程分类数据" icon="chart" size="compact" />
     </div>
     <div class="sub-label" style="margin-top: 18px">热门课程 Top5</div>
     <div class="top-list">
@@ -23,13 +23,14 @@
         }}</span>
         <span class="top-cnt">{{ c.enrollmentCount ?? c.count ?? '—' }} 人选课</span>
       </div>
-      <el-empty v-if="!topCourses.length" description="暂无热门课程" :image-size="60" />
+      <EmptyState v-if="!topCourses.length" title="暂无热门课程" icon="chart" size="compact" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { DataLine } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 教学监管 — 开课统计卡

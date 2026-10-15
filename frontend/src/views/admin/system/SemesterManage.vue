@@ -110,7 +110,7 @@
                   </tbody>
                 </table>
               </div>
-              <el-empty v-else description="尚未注册任何学期" :image-size="80" />
+              <EmptyState v-else title="尚未注册任何学期" icon="list" />
             </div>
           </CollapsePanel>
         </div>
@@ -122,6 +122,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import CollapsePanel from '@/components/ui/CollapsePanel.vue'

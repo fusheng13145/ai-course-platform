@@ -76,16 +76,15 @@
           @delete="handleDelete"
         />
       </template>
-      <el-empty
+      <EmptyState
         v-if="!loading && filteredList.length === 0"
-        :description="
+        :title="
           loadError
             ? '课程列表未能加载，请查看上方提示后重试'
             : '暂无课程，点击右上角「创建课程」开始'
         "
-      >
-        <template #image><div class="empty-deco">📚</div></template>
-      </el-empty>
+        icon="book"
+      />
     </div>
 
     <!-- 课程详情对话框 -->
@@ -100,6 +99,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { ElMessage } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
 import logger from '@/utils/logger'
@@ -245,11 +245,6 @@ async function handleDelete(row) {
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 20px;
   min-height: 200px;
-}
-
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 
 @media (max-width: 768px) {

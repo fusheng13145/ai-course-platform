@@ -47,12 +47,13 @@
         <el-icon><Document /></el-icon>查看违规事件（{{ current.eventCount ?? 0 }}）
       </el-button>
     </div>
-    <el-empty v-else description="请选择左侧监考会话查看风险详情" :image-size="70" />
+    <EmptyState v-else title="请选择左侧监考会话查看风险详情" icon="list" size="compact" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { DataAnalysis, Document } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 考试治理 — 会话风险详情（右栏）

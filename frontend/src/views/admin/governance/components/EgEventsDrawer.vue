@@ -53,7 +53,7 @@
             >
           </div>
         </div>
-        <el-empty v-if="!events.length" description="该会话暂无违规事件" :image-size="60" />
+        <EmptyState v-if="!events.length" title="该会话暂无违规事件" icon="alert" size="compact" />
       </div>
     </template>
   </el-drawer>
@@ -61,6 +61,7 @@
 
 <script setup lang="ts">
 import type { PropType } from 'vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /** 违规事件行（治理事件展示字段子集） */
 interface ExamEventRow {

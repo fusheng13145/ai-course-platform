@@ -18,7 +18,7 @@
         autoresize
         style="height: 220px"
       />
-      <el-empty v-else description="暂无错题数据" :image-size="60" />
+      <EmptyState v-else title="暂无错题数据" icon="book" size="compact" />
     </div>
     <div class="viz-card viz-wide">
       <div class="viz-head">
@@ -26,7 +26,7 @@
         <span class="viz-sub">课程 × 近 7 天 · 学习时长（分钟）</span>
       </div>
       <VChart v-if="heatRows.length" :option="heatOption" autoresize style="height: 180px" />
-      <el-empty v-else description="近 7 天暂无学习记录" :image-size="60" />
+      <EmptyState v-else title="近 7 天暂无学习记录" icon="chart" size="compact" />
     </div>
   </section>
 </template>
@@ -34,6 +34,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import studentApi from '@/api/student'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 学生驾驶舱 — 学情可视化区（近 14 天时长 / 课程薄弱度雷达 / 活跃热力图）。

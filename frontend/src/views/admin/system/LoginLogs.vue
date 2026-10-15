@@ -76,10 +76,10 @@
                   </tbody>
                 </table>
               </div>
-              <el-empty
+              <EmptyState
                 v-else
-                :description="logsError ? '登录记录未能加载，请查看上方提示后重试' : '暂无登录记录'"
-                :image-size="80"
+                :title="logsError ? '登录记录未能加载，请查看上方提示后重试' : '暂无登录记录'"
+                icon="list"
               />
             </div>
           </CollapsePanel>
@@ -92,6 +92,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import CollapsePanel from '@/components/ui/CollapsePanel.vue'
 import TabGroup from '@/components/ui/TabGroup.vue'

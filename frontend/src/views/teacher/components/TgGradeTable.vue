@@ -46,14 +46,13 @@
         </template>
       </el-table-column>
     </el-table>
-    <el-empty v-if="!loading && gradeList.length === 0" :description="emptyDescription">
-      <template #image><div class="empty-deco">📊</div></template>
-    </el-empty>
+    <EmptyState v-if="!loading && gradeList.length === 0" :title="emptyDescription" icon="chart" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { monoScore } from '@/utils/chartTheme'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 教师成绩表格
@@ -74,11 +73,6 @@ defineEmits(['detail'])
 </script>
 
 <style scoped>
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
-}
-
 .content-card--flush {
   padding: 0;
   overflow: hidden;

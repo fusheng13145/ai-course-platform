@@ -16,16 +16,18 @@
         </div>
       </div>
     </div>
-    <el-empty
+    <EmptyState
       v-else
-      :description="aiMonitor.error ? 'AI 分析暂不可用' : '未检测到异常'"
-      :image-size="70"
+      :title="aiMonitor.error ? 'AI 分析暂不可用' : '未检测到异常'"
+      icon="alert"
+      size="compact"
     />
   </div>
 </template>
 
 <script setup lang="ts">
 import { WarnTriangleFilled } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 教学监管 — AI 异常监控卡

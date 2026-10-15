@@ -60,7 +60,7 @@
           </div>
         </div>
       </div>
-      <el-empty v-else description="暂无回复" :image-size="60" />
+      <EmptyState v-else title="暂无回复" icon="message" size="compact" />
 
       <div class="reply-box">
         <el-input
@@ -85,6 +85,7 @@
 
 <script setup lang="ts">
 import { User, Top, Pointer, Delete, Promotion, Check, CircleClose } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 withDefaults(
   defineProps<{

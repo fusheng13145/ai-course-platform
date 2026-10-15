@@ -38,11 +38,13 @@
         </template>
       </el-table-column>
     </el-table>
-    <el-empty v-if="!studentsLoading && !students.length" :description="emptyText" />
+    <EmptyState v-if="!studentsLoading && !students.length" :title="emptyText" icon="users" />
   </div>
 </template>
 
 <script setup lang="ts">
+import EmptyState from '@/components/ui/EmptyState.vue'
+
 /**
  * 学生管理 Tab
  * <p>课程学生列表（学号/姓名/学习进度/选课状态），待审核学生可经事件上抛通过/拒绝。</p>

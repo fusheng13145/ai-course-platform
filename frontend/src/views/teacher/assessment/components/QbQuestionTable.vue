@@ -44,9 +44,7 @@
       </el-table-column>
     </el-table>
     <div v-if="!loading && !questionList.length" class="empty-wrap">
-      <el-empty description="题库暂无题目，点击右上角「新建题目」或「AI 生成」">
-        <template #image><div class="empty-deco">📚</div></template>
-      </el-empty>
+      <EmptyState title="题库暂无题目，点击右上角「新建题目」或「AI 生成」" icon="book" />
     </div>
     <div v-if="total > pageSize" class="pagination-wrap">
       <el-pagination
@@ -66,6 +64,7 @@
 
 <script setup lang="ts">
 import { resolveReviewStatus } from '@/composables/useQuestionBank'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 题库管理 — 题目列表
@@ -119,10 +118,6 @@ defineEmits(['edit', 'review', 'copy', 'delete', 'update:page', 'update:pageSize
 }
 .empty-wrap {
   padding: 30px 0;
-}
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 .pagination-wrap {
   display: flex;

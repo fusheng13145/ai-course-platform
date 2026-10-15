@@ -73,13 +73,14 @@
             <el-icon class="arrow"><ArrowRight /></el-icon>
           </div>
         </div>
-        <el-empty v-else :description="emptyText" />
+        <EmptyState v-else :title="emptyText" icon="message" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import EmptyState from '@/components/ui/EmptyState.vue'
 import {
   Search,
   User,

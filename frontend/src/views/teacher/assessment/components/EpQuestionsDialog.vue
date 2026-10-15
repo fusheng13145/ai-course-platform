@@ -26,12 +26,14 @@
         </el-table-column>
         <el-table-column prop="score" label="分值" width="80" align="center" />
       </el-table>
-      <el-empty v-if="!examQuestions.length" description="暂无题目" />
+      <EmptyState v-if="!examQuestions.length" title="暂无题目" icon="list" size="compact" />
     </template>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
+import EmptyState from '@/components/ui/EmptyState.vue'
+
 defineProps({
   modelValue: { type: Boolean, default: false },
   currentExam: { type: Object, default: null },

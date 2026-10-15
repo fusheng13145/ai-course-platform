@@ -332,7 +332,7 @@ describe('AIAssistant 页面渲染', () => {
       expect(sidebar.classes()).not.toContain('collapsed')
     })
 
-    it('对话列表为空时显示 el-empty', () => {
+    it('对话列表为空时侧栏展示空态（D2-3 后由 EmptyState 承载）', () => {
       wrapper.vm.conversations = []
       expect(wrapper.vm.conversations).toHaveLength(0)
     })
