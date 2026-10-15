@@ -83,35 +83,44 @@
           label-width="0"
           size="large"
           class="form-wrap"
+          scroll-to-error
         >
-          <div class="field">
-            <label>用户名</label
-            ><el-input v-model="form.username" placeholder="用户名" class="auth-input" />
-          </div>
-          <div class="field">
-            <label>邮箱</label
-            ><el-input v-model="form.email" placeholder="example@just.edu.cn" class="auth-input" />
-          </div>
-          <div class="field">
-            <label>密码</label
-            ><el-input
-              v-model="form.password"
-              type="password"
-              placeholder="至少 6 位"
-              show-password
-              class="auth-input"
-            />
-          </div>
-          <div class="field">
-            <label>确认密码</label
-            ><el-input
-              v-model="form.confirmPwd"
-              type="password"
-              placeholder="再次输入密码"
-              show-password
-              class="auth-input"
-            />
-          </div>
+          <el-form-item prop="username">
+            <div class="field">
+              <label>用户名</label
+              ><el-input v-model="form.username" placeholder="用户名" class="auth-input" />
+            </div>
+          </el-form-item>
+          <el-form-item prop="email">
+            <div class="field">
+              <label>邮箱</label
+              ><el-input v-model="form.email" placeholder="example@just.edu.cn" class="auth-input" />
+            </div>
+          </el-form-item>
+          <el-form-item prop="password">
+            <div class="field">
+              <label>密码</label
+              ><el-input
+                v-model="form.password"
+                type="password"
+                placeholder="至少 6 位"
+                show-password
+                class="auth-input"
+              />
+            </div>
+          </el-form-item>
+          <el-form-item prop="confirmPwd">
+            <div class="field">
+              <label>确认密码</label
+              ><el-input
+                v-model="form.confirmPwd"
+                type="password"
+                placeholder="再次输入密码"
+                show-password
+                class="auth-input"
+              />
+            </div>
+          </el-form-item>
 
           <el-form-item>
             <el-checkbox v-model="form.agree"
@@ -122,12 +131,12 @@
 
           <button
             class="btn btn-primary btn-lg btn-block"
-            :disabled="auth.isLoading"
+            :disabled="auth.isLoading || registerSubmitting"
             type="button"
             @click="handleRegister"
           >
-            <span v-if="auth.isLoading" class="btn-loader-dot"></span
-            >{{ auth.isLoading ? '注册中...' : '注 册' }}
+            <span v-if="auth.isLoading || registerSubmitting" class="btn-loader-dot"></span
+            >{{ auth.isLoading || registerSubmitting ? '注册中...' : '注 册' }}
           </button>
         </el-form>
 
@@ -146,11 +155,12 @@ import { useAuthStore } from '@/stores/auth'
 import { resolvePostAuthRedirect } from '@/utils/redirect'
 import { ElMessage } from 'element-plus'
 import ThemeSwitcher from '@/components/ThemeSwitcher.vue'
+import { useFormSubmit, type ElFormLike } from '@/composables/useFormSubmit'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
-const formRef = ref(null)
+const formRef = ref<ElFormLike | null>(null)
 
 const form = reactive({ username: '', email: '', password: '', confirmPwd: '', agree: false })
 const rules = {
@@ -159,6 +169,19 @@ const rules = {
   password: [{ required: true, min: 6, message: '密码至少 6 位', trigger: 'blur' }],
   confirmPwd: [{ required: true, message: '请确认密码', trigger: 'blur' }],
 }
+
+// D2-4：表单提交守卫——校验（含首错滚动定位）+ 提交防重复（双击/回车连按）
+const { submitting: registerSubmitting, run: runRegister } = useFormSubmit(formRef, async () => {
+  try {
+    await auth.register({ username: form.username, email: form.email, password: form.password })
+    ElMessage.success('注册成功，即将跳转')
+    // 缺陷修复（P0-6）：与登录页同口径，redirect 必须校验为站内路径，防开放重定向。
+    router.push(resolvePostAuthRedirect(route.query.redirect, auth.getDefaultRoute()))
+  } catch (e) {
+    if (e?.response?.data?.message) ElMessage.error(e.response.data.message)
+    else ElMessage.error('注册失败')
+  }
+})
 
 async function handleRegister() {
   if (!form.username || !form.email || !form.password) {
@@ -173,15 +196,7 @@ async function handleRegister() {
     ElMessage.warning('请阅读并同意用户协议和隐私政策')
     return
   }
-  try {
-    await auth.register({ username: form.username, email: form.email, password: form.password })
-    ElMessage.success('注册成功，即将跳转')
-    // 缺陷修复（P0-6）：与登录页同口径，redirect 必须校验为站内路径，防开放重定向。
-    router.push(resolvePostAuthRedirect(route.query.redirect, auth.getDefaultRoute()))
-  } catch (e) {
-    if (e?.response?.data?.message) ElMessage.error(e.response.data.message)
-    else ElMessage.error('注册失败')
-  }
+  await runRegister()
 }
 </script>
 
@@ -306,6 +321,15 @@ async function handleRegister() {
   flex-direction: column;
   gap: 2px;
   flex: 1;
+}
+/* D2-4：el-form-item 包裹后收平默认间距（间距由 .form-wrap gap 承担），
+   并让内容区回归块级，避免默认 flex 行布局影响 .field 纵向结构 */
+.form-wrap :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+.form-wrap :deep(.el-form-item__content) {
+  display: block;
+  line-height: inherit;
 }
 .form-foot {
   text-align: center;

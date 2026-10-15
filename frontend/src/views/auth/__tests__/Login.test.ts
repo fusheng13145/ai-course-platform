@@ -60,6 +60,8 @@ function mountLogin() {
     global: {
       stubs: {
         'el-form': { template: '<form class="el-form-stub"><slot /></form>' },
+        // D2-4：字段包裹 el-form-item（真实环境承载 rules 内联错误）
+        'el-form-item': { template: '<div class="el-form-item-stub"><slot /></div>' },
         'el-input': {
           props: ['modelValue', 'type', 'placeholder', 'autocomplete', 'name', 'readonly'],
           emits: ['update:modelValue', 'focus'],

@@ -53,9 +53,11 @@
         label-width="0"
         size="large"
         class="form-wrap"
+        scroll-to-error
       >
-        <div class="field">
-          <label>注册邮箱</label>
+        <el-form-item prop="email">
+          <div class="field">
+            <label>注册邮箱</label>
           <el-input
             v-model="form.email"
             placeholder="请输入注册邮箱"
@@ -78,48 +80,55 @@
                 /></svg
             ></template>
           </el-input>
-        </div>
-
-        <div v-if="step >= 2" class="field">
-          <label>验证码</label>
-          <div class="flex gap-8">
-            <el-input
-              v-model="form.code"
-              placeholder="6 位验证码"
-              class="auth-input"
-              style="flex: 1"
-            />
-            <button
-              class="btn btn-plain btn-sm"
-              :disabled="codeSent || sending"
-              style="flex-shrink: 0; min-width: 104px"
-              @click="sendCode"
-            >
-              {{ codeSent ? countdownText : '重新获取' }}
-            </button>
           </div>
-        </div>
+        </el-form-item>
 
-        <div v-if="step >= 3" class="field">
-          <label>新密码</label>
-          <el-input
-            v-model="form.newPwd"
-            type="password"
-            placeholder="至少 6 位"
-            show-password
-            class="auth-input"
-          />
-        </div>
-        <div v-if="step >= 3" class="field">
-          <label>确认新密码</label>
-          <el-input
-            v-model="form.confirmPwd"
-            type="password"
-            placeholder="再次输入"
-            show-password
-            class="auth-input"
-          />
-        </div>
+        <el-form-item v-if="step >= 2" prop="code">
+          <div class="field">
+            <label>验证码</label>
+            <div class="flex gap-8">
+              <el-input
+                v-model="form.code"
+                placeholder="6 位验证码"
+                class="auth-input"
+                style="flex: 1"
+              />
+              <button
+                class="btn btn-plain btn-sm"
+                :disabled="codeSent || sending"
+                style="flex-shrink: 0; min-width: 104px"
+                @click="sendCode"
+              >
+                {{ codeSent ? countdownText : '重新获取' }}
+              </button>
+            </div>
+          </div>
+        </el-form-item>
+
+        <el-form-item v-if="step >= 3" prop="newPwd">
+          <div class="field">
+            <label>新密码</label>
+            <el-input
+              v-model="form.newPwd"
+              type="password"
+              placeholder="至少 6 位"
+              show-password
+              class="auth-input"
+            />
+          </div>
+        </el-form-item>
+        <el-form-item v-if="step >= 3" prop="confirmPwd">
+          <div class="field">
+            <label>确认新密码</label>
+            <el-input
+              v-model="form.confirmPwd"
+              type="password"
+              placeholder="再次输入"
+              show-password
+              class="auth-input"
+            />
+          </div>
+        </el-form-item>
 
         <button
           v-if="step === 1"
@@ -164,9 +173,11 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import ThemeSwitcher from '@/components/ThemeSwitcher.vue'
+import { validateFormFields, type ElFormLike } from '@/composables/useFormSubmit'
 
 const router = useRouter()
 const auth = useAuthStore()
+const formRef = ref<ElFormLike | null>(null)
 const step = ref(1)
 const codeSent = ref(false)
 const sending = ref(false)
@@ -203,10 +214,13 @@ function startCountdown() {
 }
 
 async function sendCode() {
+  if (sending.value) return
   if (!form.email) {
     ElMessage.warning('请输入邮箱')
     return
   }
+  // D2-4：分步校验——失败时 el-form 滚动定位该字段并显示内联错误
+  if (!(await validateFormFields(formRef, ['email']))) return
   sending.value = true
   try {
     await auth.sendResetCode(form.email)
@@ -222,10 +236,12 @@ async function sendCode() {
 }
 
 async function verifyCode() {
+  if (sending.value) return
   if (!form.code) {
     ElMessage.warning('请输入验证码')
     return
   }
+  if (!(await validateFormFields(formRef, ['code']))) return
   sending.value = true
   try {
     await auth.verifyResetCode(form.email, form.code)
@@ -239,6 +255,7 @@ async function verifyCode() {
 }
 
 async function resetPassword() {
+  if (sending.value) return
   if (!form.newPwd) {
     ElMessage.warning('请输入新密码')
     return
@@ -247,6 +264,9 @@ async function resetPassword() {
     ElMessage.warning('两次密码不一致')
     return
   }
+  // D2-4：新密码规则（8-32 位 + 大小写/数字/特殊字符）此前仅声明未执行，
+  // 现由 validate 强制执行，避免弱密码通过前端提交（与后端 PasswordPolicy 同口径）
+  if (!(await validateFormFields(formRef, ['newPwd', 'confirmPwd']))) return
   sending.value = true
   try {
     await auth.resetPassword(form.email, form.code, form.newPwd)
@@ -334,6 +354,15 @@ onBeforeUnmount(() => {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+/* D2-4：el-form-item 包裹后收平默认间距（间距由 .form-wrap gap 承担），
+   并让内容区回归块级，避免默认 flex 行布局影响 .field 纵向结构 */
+.form-wrap :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+.form-wrap :deep(.el-form-item__content) {
+  display: block;
+  line-height: inherit;
 }
 .form-foot {
   text-align: center;
