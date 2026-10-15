@@ -83,8 +83,8 @@
       width="600px"
       append-to-body
     >
-      <el-form :model="taskForm" label-width="100px">
-        <el-form-item label="作业标题" required>
+      <el-form ref="formRef" :model="taskForm" :rules="rules" label-width="100px" scroll-to-error>
+        <el-form-item label="作业标题" prop="title">
           <el-input v-model="taskForm.title" placeholder="输入作业标题" />
         </el-form-item>
         <el-form-item label="作业类型">
@@ -152,6 +152,7 @@ import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import { validateFormFields } from '@/composables/useFormSubmit'
 import taskApi from '@/api/task'
 import { confirmDanger } from '@/utils/dangerConfirm'
 
@@ -179,6 +180,11 @@ const taskForm = ref({
   dueDate: null,
   submissionFormat: 'TEXT',
 })
+const formRef = ref(null)
+// D2-4：必填规则声明（原为手写 if 校验），blur 内联错误 + 提交时首错滚动定位
+const rules = {
+  title: [{ required: true, message: '请输入作业标题', trigger: 'blur' }],
+}
 
 const filteredTasks = computed(() => {
   if (!taskFilter.value) return tasks.value
@@ -262,6 +268,8 @@ function editTask(row) {
 }
 
 async function saveTask() {
+  // validate 先行（真环境内联错误 + scroll-to-error）；桩/无表单环境由快检兜底
+  if (!(await validateFormFields(formRef, ['title']))) return
   if (!taskForm.value.title) {
     ElMessage.warning('请输入作业标题')
     return

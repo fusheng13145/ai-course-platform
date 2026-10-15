@@ -124,11 +124,11 @@
 
     <!-- 新建版本弹窗 -->
     <el-dialog v-model="dialogVisible" title="新建版本" width="520px" append-to-body>
-      <el-form label-width="80px">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="80px" scroll-to-error>
         <el-form-item label="资源">
           <el-input :model-value="selectedResourceName" disabled />
         </el-form-item>
-        <el-form-item label="更新说明">
+        <el-form-item label="更新说明" prop="changeLog">
           <el-input
             v-model="form.changeLog"
             type="textarea"
@@ -166,6 +166,7 @@ import resourceApi from '@/api/resource'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import { validateFormFields, type ElFormLike } from '@/composables/useFormSubmit'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -178,6 +179,11 @@ const dialogVisible = ref(false)
 const rollbackVisible = ref(false)
 const rollbackTarget = ref(null)
 const form = ref({ changeLog: '' })
+const formRef = ref<ElFormLike | null>(null)
+// D2-4：必填规则声明（原为手写 if 校验），blur 内联错误 + 提交时首错滚动定位
+const rules = {
+  changeLog: [{ required: true, message: '请输入更新说明', trigger: 'blur' }],
+}
 
 /**
  * 两路独立加载错误（失败可见）：
@@ -271,6 +277,8 @@ function openCreateVersion() {
 }
 
 async function handleCreateVersion() {
+  // validate 先行（真环境内联错误 + scroll-to-error）；桩/无表单环境由快检兜底
+  if (!(await validateFormFields(formRef, ['changeLog']))) return
   if (!form.value.changeLog?.trim()) {
     ElMessage.warning('请输入更新说明')
     return

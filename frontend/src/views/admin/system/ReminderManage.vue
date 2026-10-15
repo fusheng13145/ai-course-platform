@@ -112,8 +112,8 @@
       width="520px"
       append-to-body
     >
-      <el-form label-width="80px">
-        <el-form-item label="标题">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="80px" scroll-to-error>
+        <el-form-item label="标题" prop="title">
           <el-input v-model="form.title" placeholder="提醒标题" />
         </el-form-item>
         <el-form-item label="内容">
@@ -147,6 +147,7 @@ import reminderApi from '@/api/reminder'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import { validateFormFields, type ElFormLike } from '@/composables/useFormSubmit'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -162,6 +163,11 @@ const completedCount = computed(() => todos.value.filter((t) => t.status === 'CO
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 const form = ref({ title: '', content: '', remindAt: null, targetUserId: '' })
+const formRef = ref<ElFormLike | null>(null)
+// D2-4：必填规则声明（原为手写 if 校验），blur 内联错误 + 提交时首错滚动定位
+const rules = {
+  title: [{ required: true, message: '请输入提醒标题', trigger: 'blur' }],
+}
 
 async function loadTodos() {
   loading.value = true
@@ -191,6 +197,8 @@ function openEdit(row) {
 }
 
 async function handleSave() {
+  // validate 先行（真环境内联错误 + scroll-to-error）；桩/无表单环境由快检兜底
+  if (!(await validateFormFields(formRef, ['title']))) return
   if (!form.value.title?.trim()) {
     ElMessage.warning('请输入提醒标题')
     return
