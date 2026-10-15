@@ -25,7 +25,7 @@
         ><el-icon><Plus /></el-icon>添加学生</el-button
       >
     </div>
-    <el-table v-loading="studentLoading" :data="studentList" max-height="380" style="width: 100%">
+    <el-table v-loading="studentLoading" :data="pagedMembers" max-height="380" style="width: 100%">
       <el-table-column prop="id" label="ID" width="60" />
       <el-table-column prop="username" label="学号" min-width="120" show-overflow-tooltip />
       <el-table-column prop="fullName" label="姓名" min-width="100" show-overflow-tooltip />
@@ -39,6 +39,17 @@
         ><EmptyState title="该班级暂无学生" icon="users"
       /></template>
     </el-table>
+    <!-- D2-5：班级成员无界（大班级数百人），客户端分页仅超一页时出现 -->
+    <div v-if="membersShowPager" class="pager-wrap">
+      <el-pagination
+        small
+        layout="total, prev, pager, next"
+        :total="membersTotal"
+        :page-size="membersPageSize"
+        :current-page="membersPage"
+        @current-change="membersOnPageChange"
+      />
+    </div>
   </el-dialog>
 
   <!-- 添加学生对话框 -->
@@ -60,7 +71,7 @@
     </div>
     <el-table
       v-loading="candidateLoading"
-      :data="filteredCandidates"
+      :data="pagedCandidates"
       max-height="380"
       style="width: 100%"
     >
@@ -76,20 +87,34 @@
         ><EmptyState title="无可添加学生" icon="users"
       /></template>
     </el-table>
+    <!-- D2-5：候选学生为全量学生池（可达数千），客户端分页仅超一页时出现 -->
+    <div v-if="candidatesShowPager" class="pager-wrap">
+      <el-pagination
+        small
+        layout="total, prev, pager, next"
+        :total="candidatesTotal"
+        :page-size="candidatesPageSize"
+        :current-page="candidatesPage"
+        @current-change="candidatesOnPageChange"
+      />
+    </div>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { Plus, Search } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import { useClientPagination } from '@/composables/useClientPagination'
 
 /**
  * 班级成员管理（成员列表 + 添加学生双对话框）
  * <p>成员表展示当前班级学生，支持搜索/移除；添加学生对话框展示全量候选学生
  * （排除已入班、关键字过滤），添加后刷新成员列表。全部状态与操作由父组件
  * （useClassrooms）承载，本组件仅负责展示与事件上抛。</p>
+ * <p>D2-5：两张表均为无界数据（大班级成员 / 全量学生池），渲染层客户端分页
+ * （每页 20，仅超一页时出现分页器；数据收缩自动收敛页码）。</p>
  */
-defineProps({
+const props = defineProps({
   /** 成员管理对话框可见性（v-model） */
   modelValue: { type: Boolean, default: false },
   /** 当前班级对象 */
@@ -118,6 +143,24 @@ const emit = defineEmits([
   'add-student',
   'add',
 ])
+
+// D2-5：成员表与候选学生表各自的客户端分页（互不干扰）
+const {
+  page: membersPage,
+  pageSize: membersPageSize,
+  total: membersTotal,
+  paged: pagedMembers,
+  showPager: membersShowPager,
+  onPageChange: membersOnPageChange,
+} = useClientPagination(() => props.studentList)
+const {
+  page: candidatesPage,
+  pageSize: candidatesPageSize,
+  total: candidatesTotal,
+  paged: pagedCandidates,
+  showPager: candidatesShowPager,
+  onPageChange: candidatesOnPageChange,
+} = useClientPagination(() => props.filteredCandidates)
 </script>
 
 <style scoped>
@@ -125,6 +168,12 @@ const emit = defineEmits([
   display: flex;
   gap: 10px;
   margin-bottom: 14px;
+}
+/* D2-5：分页器右对齐 */
+.pager-wrap {
+  display: flex;
+  justify-content: flex-end;
+  padding: 10px 0 2px;
 }
 .act-btn,
 .act-btn--approve,

@@ -74,7 +74,7 @@
             show-icon
             style="margin-bottom: var(--ac-spacing-md)"
           />
-          <el-table v-loading="loading" :data="onlineUsers" style="width: 100%">
+          <el-table v-loading="loading" :data="pagedOnlineUsers" style="width: 100%">
             <el-table-column prop="id" label="ID" width="70" />
             <el-table-column prop="username" label="用户名" min-width="120" show-overflow-tooltip />
             <el-table-column prop="role" label="角色" width="110" align="center">
@@ -104,6 +104,17 @@
               <EmptyState :title="usersEmptyText()" icon="users" />
             </template>
           </el-table>
+          <!-- D2-5：在线用户无界（getOnlineUsers 全量返回），客户端分页仅超一页时出现 -->
+          <div v-if="showPager" class="pager-wrap">
+            <el-pagination
+              small
+              layout="total, prev, pager, next"
+              :total="total"
+              :page-size="pageSize"
+              :current-page="page"
+              @current-change="onPageChange"
+            />
+          </div>
         </div>
 
         <!-- 会话统计概览 -->
@@ -156,6 +167,7 @@ import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { useListFeedback } from '@/composables/useListFeedback'
+import { useClientPagination } from '@/composables/useClientPagination'
 
 // D2-1：两路数据（在线用户 / 会话统计）各自独立归因——单路失败只污染该路提示，
 // 不把另一路数据与提示一起清掉（以 LoginLogs 多路聚合为参照，原统计路为静默失败）。
@@ -173,6 +185,9 @@ const { loading, listError: usersError, run: runUsers, emptyDescription: usersEm
   usersFeedback
 const { listError: statsError, run: runStats } = statsFeedback
 const onlineUsers = ref([])
+// D2-5：在线用户无界（getOnlineUsers 全量返回），渲染层客户端分页（每页 20）
+const { page, pageSize, total, paged: pagedOnlineUsers, showPager, onPageChange } =
+  useClientPagination(() => onlineUsers.value)
 const stats = reactive({
   total: 0,
   active: 0,
@@ -277,6 +292,12 @@ onMounted(() => {
 .user-session-manage {
   max-width: 1400px;
   margin: 0 auto;
+}
+/* D2-5：分页器右对齐 */
+.pager-wrap {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 12px;
 }
 
 .content-card {

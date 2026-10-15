@@ -53,7 +53,7 @@
         <div class="content-card">
           <el-table
             v-loading="loading"
-            :data="sessions"
+            :data="pagedSessions"
             style="width: 100%"
             :empty-text="emptyDescription()"
           >
@@ -102,6 +102,17 @@
                 <EmptyState :title="emptyDescription()" icon="upload" />
               </template>
           </el-table>
+          <!-- D2-5：上传会话历史无界（listSessions 全量返回），客户端分页仅超一页时出现 -->
+          <div v-if="showPager" class="pager-wrap">
+            <el-pagination
+              small
+              layout="total, prev, pager, next"
+              :total="total"
+              :page-size="pageSize"
+              :current-page="page"
+              @current-change="onPageChange"
+            />
+          </div>
         </div>
       </div>
     </section>
@@ -151,6 +162,7 @@ import { ElMessage } from 'element-plus'
 import { Refresh, Document, Close } from '@element-plus/icons-vue'
 import uploadApi from '@/api/fileUpload'
 import { useListFeedback } from '@/composables/useListFeedback'
+import { useClientPagination } from '@/composables/useClientPagination'
 import { confirmDanger } from '@/utils/dangerConfirm'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
@@ -176,6 +188,10 @@ interface UploadProgress {
 }
 
 const sessions = ref<UploadSession[]>([])
+// D2-5：上传会话历史无界（listSessions 全量返回），渲染层客户端分页（每页 20）
+const { page, pageSize, total, paged: pagedSessions, showPager, onPageChange } = useClientPagination(
+  () => sessions.value,
+)
 const sessionTotal = computed(() => sessions.value.length)
 const uploadingCount = computed(() => sessions.value.filter((s) => s.status === 'UPLOADING').length)
 const completedCount = computed(
@@ -373,6 +389,12 @@ onUnmounted(stopProgressPolling)
   border-radius: var(--ac-radius-md);
   border: 1px solid var(--ac-border);
   padding: 16px;
+}
+/* D2-5：分页器右对齐 */
+.pager-wrap {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 12px;
 }
 .filter-card {
   margin-bottom: var(--ac-spacing-md);
