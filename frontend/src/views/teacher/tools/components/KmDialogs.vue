@@ -116,7 +116,7 @@
             </el-button>
           </div>
         </div>
-        <el-empty v-else description="暂无前置依赖" :image-size="50" />
+        <EmptyState v-else title="暂无前置依赖" icon="list" size="compact" />
       </div>
     </div>
   </el-dialog>
@@ -125,6 +125,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { Delete } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 知识管理对话框（新建/编辑 + 关联关系）

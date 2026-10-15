@@ -46,6 +46,7 @@ const ICONS = {
     </div>
     <div class="e-title">{{ title }}</div>
     <div v-if="desc" class="e-desc">{{ desc }}</div>
+    <div v-if="$slots.default" class="e-action"><slot /></div>
   </div>
 </template>
 <style scoped>
@@ -72,6 +73,10 @@ const ICONS = {
 }
 .e-desc {
   font-size: 12.5px;
+}
+/* 空态 CTA（可选默认插槽，如「新建成绩方案」按钮） */
+.e-action {
+  margin-top: 12px;
 }
 
 /* compact：面板 / 抽屉 / 图表区内嵌空态（D2-3 规范） */

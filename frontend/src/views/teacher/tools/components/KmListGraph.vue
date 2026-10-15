@@ -31,9 +31,10 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty
+      <EmptyState
         v-if="!tableLoading && filteredKnowledgeList.length === 0"
-        :description="emptyText"
+        :title="emptyText"
+        icon="layers"
       />
     </div>
 
@@ -64,6 +65,8 @@
 </template>
 
 <script setup lang="ts">
+import EmptyState from '@/components/ui/EmptyState.vue'
+
 /**
  * 知识管理右侧：知识点列表 + 知识图谱
  * <p>列表展示知识点（难度/重要度/关联题数）并提供编辑/关联/删除操作；

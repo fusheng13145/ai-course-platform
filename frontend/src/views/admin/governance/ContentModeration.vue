@@ -110,7 +110,7 @@
                   </tr>
                 </tbody>
               </table>
-              <el-empty v-else description="没有符合条件的讨论回复" :image-size="80" />
+              <EmptyState v-else title="没有符合条件的讨论回复" icon="message" />
             </div>
 
             <!-- 资源 -->
@@ -166,7 +166,7 @@
                   </tr>
                 </tbody>
               </table>
-              <el-empty v-else description="没有符合条件的资源" :image-size="80" />
+              <EmptyState v-else title="没有符合条件的资源" icon="folder" />
             </div>
 
             <!-- 被封禁作者 -->
@@ -195,7 +195,7 @@
                   </tr>
                 </tbody>
               </table>
-              <el-empty v-else description="没有经审核封禁的账号" :image-size="80" />
+              <EmptyState v-else title="没有经审核封禁的账号" icon="users" />
             </div>
           </div>
         </CollapsePanel>
@@ -209,6 +209,7 @@ import { computed } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import CollapsePanel from '@/components/ui/CollapsePanel.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { confirmDanger } from '@/utils/dangerConfirm'
 import {
   useModeration,

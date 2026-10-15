@@ -66,7 +66,7 @@
         <div class="l1-body">
           <CollapsePanel title="调用量 Top 课程" icon="chart" :open="true">
             <BarChart v-if="topCourses.length" :data="topCourses" :w="560" :h="200" horizontal />
-            <el-empty v-else description="暂无调用记录" :image-size="70" />
+            <EmptyState v-else title="暂无调用记录" icon="chart" />
           </CollapsePanel>
           <CollapsePanel title="按课程明细" icon="list" :open="true">
             <div class="content-card">
@@ -92,10 +92,10 @@
                   </tbody>
                 </table>
               </div>
-              <el-empty
+              <EmptyState
                 v-else
-                description="当前时间窗内没有 AI 调用记录（统计自 2026-10-13 起采集）"
-                :image-size="80"
+                title="当前时间窗内没有 AI 调用记录（统计自 2026-10-13 起采集）"
+                icon="list"
               />
             </div>
           </CollapsePanel>
@@ -193,7 +193,7 @@
                   </tr>
                 </tbody>
               </table>
-              <el-empty v-else description="当前没有教师被限制出题" :image-size="70" />
+              <EmptyState v-else title="当前没有教师被限制出题" icon="users" />
             </div>
           </CollapsePanel>
         </div>
@@ -208,6 +208,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import CollapsePanel from '@/components/ui/CollapsePanel.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import BarChart from '@/components/charts/BarChart.vue'
 import { useAIUsageByCourse, AI_USAGE_RANGES, type AiUsageCourseRow } from '@/composables/useAIUsageByCourse'
 import {

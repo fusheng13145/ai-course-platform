@@ -36,4 +36,15 @@ describe('EmptyState 统一空状态组件', () => {
     expect(wrapper.classes()).toContain('is-compact')
     expect(wrapper.get('.e-title').text()).toBe('暂无异常成绩')
   })
+
+  it('默认插槽渲染空态 CTA（如「新建」按钮），无插槽时不渲染动作区', () => {
+    const withSlot = mount(EmptyState, {
+      props: { title: '暂无成绩方案' },
+      slots: { default: '<button class="cta">新建成绩方案</button>' },
+    })
+    expect(withSlot.get('.e-action .cta').text()).toBe('新建成绩方案')
+
+    const noSlot = mount(EmptyState, { props: { title: '暂无' } })
+    expect(noSlot.find('.e-action').exists()).toBe(false)
+  })
 })

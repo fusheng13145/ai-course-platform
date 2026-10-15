@@ -3,11 +3,11 @@
     <!-- 无成绩方案：空状态 + 新建 -->
     <div v-if="!policy" class="l1-card">
       <div class="l1-body">
-        <el-empty :description="policyEmptyText">
+        <EmptyState :title="policyEmptyText" icon="chart">
           <el-button type="primary" :icon="Plus" @click="emit('open-policy')"
             >新建成绩方案</el-button
           >
-        </el-empty>
+        </EmptyState>
       </div>
     </div>
 
@@ -79,7 +79,7 @@
             </template>
           </el-table-column>
         </el-table>
-        <el-empty v-else :description="emptyText" :image-size="72" />
+        <EmptyState v-else :title="emptyText" icon="chart" />
       </div>
     </div>
   </div>
@@ -88,6 +88,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Plus, View, DataAnalysis } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 const props = defineProps({
   policy: { type: Object, default: null },

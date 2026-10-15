@@ -12,7 +12,7 @@
           class="dist-chart"
           autoresize
         />
-        <el-empty v-else-if="!loading" description="暂无可统计的总评成绩" :image-size="60" />
+        <EmptyState v-else-if="!loading" title="暂无可统计的总评成绩" icon="chart" size="compact" />
       </div>
     </div>
 
@@ -36,16 +36,17 @@
             </el-tag>
           </button>
         </div>
-        <el-empty
+        <EmptyState
           v-else
-          :description="
+          :title="
             loading
               ? '正在加载待批阅任务'
               : pendingUnavailable
                 ? '待批阅数据暂不可用'
                 : '暂无待批阅任务'
           "
-          :image-size="60"
+          icon="list"
+          size="compact"
         />
       </div>
     </div>
@@ -54,6 +55,7 @@
 
 <script setup lang="ts">
 import type { PropType } from 'vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /** 待批阅任务行（taskName/title 存在历史分叉，故均可选） */
 interface PendingTaskRow {
