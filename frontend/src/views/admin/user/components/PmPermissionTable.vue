@@ -72,9 +72,7 @@
         </el-table-column>
         <!-- 空状态 -->
         <template #empty>
-          <el-empty description="暂无权限数据">
-            <template #image><div class="empty-deco">🔐</div></template>
-          </el-empty>
+          <EmptyState title="暂无权限数据" icon="users" />
         </template>
       </el-table>
     </div>
@@ -84,6 +82,7 @@
 <script setup lang="ts">
 import { Search } from '@element-plus/icons-vue'
 import { formatTime } from '@/utils/datetime'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 defineProps({
   loading: { type: Boolean, default: false },
@@ -135,10 +134,6 @@ function roleTagType(role) {
   font-size: 12px;
   color: var(--ac-secondary);
   font-family: 'Consolas', 'Monaco', monospace;
-}
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 @media (max-width: 900px) {
   .table-toolbar {

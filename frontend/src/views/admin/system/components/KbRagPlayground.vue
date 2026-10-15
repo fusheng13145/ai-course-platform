@@ -79,13 +79,11 @@
           </div>
           <div class="retrieve-desc">{{ preview(r.description) }}</div>
         </div>
-        <el-empty
+        <EmptyState
           v-if="!retrieveResult.count"
-          description="未召回相关知识点，建议补充知识库语料"
-          :image-size="80"
-        >
-          <template #image><div class="empty-deco">🔍</div></template>
-        </el-empty>
+          title="未召回相关知识点，建议补充知识库语料"
+          icon="search"
+        />
       </div>
     </div>
   </div>
@@ -93,6 +91,7 @@
 
 <script setup lang="ts">
 import { Search, ChatDotRound } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 interface KnowledgePointResult {
   id: string | number
@@ -250,10 +249,6 @@ defineProps<{
   color: var(--ac-text-muted);
   margin-top: 4px;
   line-height: 1.5;
-}
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 
 @media (max-width: 900px) {

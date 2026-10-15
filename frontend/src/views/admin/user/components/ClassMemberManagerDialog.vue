@@ -36,10 +36,8 @@
         </template>
       </el-table-column>
       <template #empty
-        ><el-empty description="该班级暂无学生" :image-size="80"
-          ><template #image><div class="empty-deco">👥</div></template></el-empty
-        ></template
-      >
+        ><EmptyState title="该班级暂无学生" icon="users"
+      /></template>
     </el-table>
   </el-dialog>
 
@@ -75,16 +73,15 @@
         </template>
       </el-table-column>
       <template #empty
-        ><el-empty description="无可添加学生" :image-size="80"
-          ><template #image><div class="empty-deco">🧑‍🎓</div></template></el-empty
-        ></template
-      >
+        ><EmptyState title="无可添加学生" icon="users"
+      /></template>
     </el-table>
   </el-dialog>
 </template>
 
 <script setup lang="ts">
 import { Plus, Search } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 班级成员管理（成员列表 + 添加学生双对话框）
@@ -158,9 +155,5 @@ const emit = defineEmits([
 }
 .act-btn--del:hover {
   background: rgba(176, 80, 69, 0.08);
-}
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 </style>

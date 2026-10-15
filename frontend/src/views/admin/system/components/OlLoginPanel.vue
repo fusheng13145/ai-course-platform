@@ -122,9 +122,7 @@
               <template #default="{ row }">{{ formatDateTime(row.createdAt, '—') }}</template>
             </el-table-column>
             <template #empty>
-              <el-empty description="暂无登录日志">
-                <template #image><div class="empty-deco">🔐</div></template>
-              </el-empty>
+              <EmptyState title="暂无登录日志" icon="list" />
             </template>
           </el-table>
 
@@ -148,6 +146,7 @@
 <script setup lang="ts">
 import { formatDateTime } from '@/utils/datetime'
 import { onMounted } from 'vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { Search } from '@element-plus/icons-vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import { useLoginLogs } from '@/composables/useLoginLogs'
@@ -230,9 +229,5 @@ onMounted(() => {
   background: var(--accent);
 }
 
-/* 空状态装饰 */
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
-}
+
 </style>

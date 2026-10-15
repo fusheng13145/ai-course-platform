@@ -67,9 +67,7 @@
             </template>
           </el-table-column>
           <template #empty>
-            <el-empty :description="emptyText">
-              <template #image><div class="empty-deco">🔍</div></template>
-            </el-empty>
+            <EmptyState :title="emptyText" icon="list" />
           </template>
         </el-table>
 
@@ -91,6 +89,8 @@
 </template>
 
 <script setup lang="ts">
+import EmptyState from '@/components/ui/EmptyState.vue'
+
 defineProps({
   loading: { type: Boolean, default: false },
   taskList: { type: Array, default: () => [] },
@@ -139,9 +139,5 @@ function similarityColor(similarity) {
   margin-top: var(--ac-spacing-md);
   display: flex;
   justify-content: flex-end;
-}
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 </style>

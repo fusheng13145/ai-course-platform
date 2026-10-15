@@ -66,9 +66,7 @@
           </template>
         </el-table-column>
         <template #empty>
-          <el-empty description="暂无班级数据">
-            <template #image><div class="empty-deco">🏫</div></template>
-          </el-empty>
+          <EmptyState title="暂无班级数据" icon="users" />
         </template>
       </el-table>
 
@@ -87,6 +85,7 @@
 
 <script setup lang="ts">
 import { Plus, Search } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 班级列表（表格 + 分页）
@@ -240,9 +239,5 @@ const emit = defineEmits([
 }
 .act-btn--del:hover {
   background: rgba(176, 80, 69, 0.08);
-}
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 </style>

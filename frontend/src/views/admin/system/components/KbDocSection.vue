@@ -108,9 +108,7 @@
           </template>
         </el-table-column>
         <template #empty>
-          <el-empty description="请选择课程后查看知识库文档">
-            <template #image><div class="empty-deco">📚</div></template>
-          </el-empty>
+          <EmptyState title="请选择课程后查看知识库文档" icon="book" />
         </template>
       </el-table>
     </div>
@@ -119,6 +117,7 @@
 
 <script setup lang="ts">
 import { Plus, Refresh, Delete, Document, MagicStick } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 知识库文档管理区
@@ -207,9 +206,5 @@ defineEmits([
   align-items: center;
   justify-content: center;
   gap: 8px;
-}
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 </style>

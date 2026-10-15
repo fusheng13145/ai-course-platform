@@ -151,9 +151,7 @@
             </el-table-column>
           </el-table>
           <div v-if="!loading && filteredList.length === 0" class="empty-wrap">
-            <el-empty :description="emptyDescription()">
-              <template #image><div class="empty-deco">📖</div></template>
-            </el-empty>
+            <EmptyState :title="emptyDescription()" icon="book" />
           </div>
         </div>
       </div>
@@ -209,6 +207,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { Search } from '@element-plus/icons-vue'
 import courseApi from '@/api/course'
 import { confirmDanger } from '@/utils/dangerConfirm'
@@ -417,9 +416,5 @@ async function handleDelete(row) {
 }
 .empty-wrap {
   padding: 30px 0;
-}
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 </style>

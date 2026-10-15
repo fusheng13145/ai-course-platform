@@ -27,13 +27,13 @@
         </div>
       </div>
     </div>
-    <el-empty v-else description="暂无作弊检测记录">
-      <template #image><div class="empty-deco">🛡️</div></template>
-    </el-empty>
+    <EmptyState v-else title="暂无作弊检测记录" icon="alert" />
   </el-dialog>
 </template>
 
 <script setup lang="ts">
+import EmptyState from '@/components/ui/EmptyState.vue'
+
 /**
  * 作弊检测日志对话框
  * <p>异常记录列表（学生/时间/类型/风险等级）。</p>
@@ -92,8 +92,5 @@ defineEmits(['update:modelValue'])
   margin-bottom: 0;
 }
 
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
-}
+
 </style>
