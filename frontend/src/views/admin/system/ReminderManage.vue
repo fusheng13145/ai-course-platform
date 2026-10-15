@@ -95,11 +95,10 @@
               </template>
             </el-table-column>
             <template #empty>
-              <el-empty
-                :description="loadError ? '待办提醒未能加载，请查看上方提示后重试' : '暂无待办提醒'"
-              >
-                <template #image><div class="empty-deco">🔔</div></template>
-              </el-empty>
+              <EmptyState
+                :title="loadError ? '待办提醒未能加载，请查看上方提示后重试' : '暂无待办提醒'"
+                icon="bell"
+              />
             </template>
           </el-table>
         </div>
@@ -147,6 +146,7 @@ import { Plus, AlarmClock } from '@element-plus/icons-vue'
 import reminderApi from '@/api/reminder'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -267,11 +267,5 @@ onMounted(loadTodos)
   border-radius: var(--ac-radius-md);
   border: 1px solid var(--ac-border);
   padding: 16px;
-}
-
-/* 空状态装饰 */
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 </style>

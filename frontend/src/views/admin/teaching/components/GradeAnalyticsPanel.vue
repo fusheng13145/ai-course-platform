@@ -26,15 +26,14 @@
           <span class="course">{{ item.courseName }}</span>
         </div>
       </div>
-      <el-empty v-else description="暂无异常成绩" :image-size="50">
-        <template #image><div class="empty-deco">⚠️</div></template>
-      </el-empty>
+      <EmptyState v-else title="暂无异常成绩" icon="alert" size="compact" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { Warning } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 成绩管理统计分析面板
@@ -134,11 +133,6 @@ defineProps({
   overflow: hidden;
   text-overflow: ellipsis;
   max-width: 120px;
-}
-
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 
 @media (max-width: 1024px) {

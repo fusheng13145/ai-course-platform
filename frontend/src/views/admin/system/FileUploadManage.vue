@@ -99,9 +99,7 @@
               </template>
             </el-table-column>
               <template #empty>
-                <el-empty :description="emptyDescription()">
-                  <template #image><div class="empty-deco">📤</div></template>
-                </el-empty>
+                <EmptyState :title="emptyDescription()" icon="upload" />
               </template>
           </el-table>
         </div>
@@ -156,6 +154,7 @@ import { useListFeedback } from '@/composables/useListFeedback'
 import { confirmDanger } from '@/utils/dangerConfirm'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 interface UploadSession {
   id: number
@@ -396,11 +395,5 @@ onUnmounted(stopProgressPolling)
   font-size: 12px;
   color: var(--ac-text-muted);
   margin-top: 6px;
-}
-
-/* 空状态装饰 */
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 </style>

@@ -56,13 +56,12 @@
           >
         </div>
       </div>
-      <el-empty
+      <EmptyState
         v-if="!postLoading && posts.length === 0"
-        description="暂无回复，来抢沙发"
-        :image-size="56"
-      >
-        <template #image><div class="empty-deco">💬</div></template>
-      </el-empty>
+        title="暂无回复，来抢沙发"
+        icon="message"
+        size="compact"
+      />
     </div>
 
     <!-- 回复框（话题关闭后禁用） -->
@@ -113,6 +112,7 @@
 
 <script setup lang="ts">
 import { Star, User, Bell, Pointer } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 话题详情抽屉
@@ -271,10 +271,5 @@ defineEmits<{
 }
 .reply-input .el-input {
   flex: 1;
-}
-
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 </style>

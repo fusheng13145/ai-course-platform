@@ -48,14 +48,15 @@ function mountPage() {
           props: ['title', 'type'],
           template: '<div class="alert-stub">{{ title }}</div>',
         },
-        // el-table 桩：渲染 #empty 具名插槽，使内部 el-empty 的诚实空态文案可断言
+        // el-table 桩：渲染 #empty 具名插槽，使内部 EmptyState 的诚实空态文案可断言
         'el-table': {
           props: ['data', 'emptyText'],
           template: '<div class="tbl-stub"><slot name="empty" /></div>',
         },
-        'el-empty': {
-          props: ['description'],
-          template: '<div class="empty-stub">{{ description }}</div>',
+        // D2-3：空态已统一为 EmptyState 组件；shallow 下显式桩，断言 title 双态文案
+        EmptyState: {
+          props: ['title', 'desc', 'icon', 'size'],
+          template: '<div class="empty-stub">{{ title }}</div>',
         },
         PageHeader: { props: ['title', 'subtitle', 'icon', 'iconBg'], template: '<div><slot /></div>' },
         StatCard: {

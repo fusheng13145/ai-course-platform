@@ -39,9 +39,10 @@ function mountPage() {
           props: ['title', 'type'],
           template: '<div class="alert-stub">{{ title }}</div>',
         },
-        'el-empty': {
-          props: ['description'],
-          template: '<div class="empty-stub">{{ description }}</div>',
+        // D2-3：空态已统一为 EmptyState 组件；shallow 下显式桩，断言 title 双态文案
+        EmptyState: {
+          props: ['title', 'desc', 'icon', 'size'],
+          template: '<div class="empty-stub">{{ title }}</div>',
         },
         // 需渲染 #empty 插槽，否则内部的双态空文案无法进入 DOM 供断言
         'el-table': {

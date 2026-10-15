@@ -101,9 +101,7 @@
               </template>
             </el-table-column>
             <template #empty>
-              <el-empty :description="usersEmptyText()">
-                <template #image><div class="empty-deco">👥</div></template>
-              </el-empty>
+              <EmptyState :title="usersEmptyText()" icon="users" />
             </template>
           </el-table>
         </div>
@@ -156,6 +154,7 @@ import userSessionApi from '@/api/userSession'
 import { confirmDanger } from '@/utils/dangerConfirm'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { useListFeedback } from '@/composables/useListFeedback'
 
 // D2-1：两路数据（在线用户 / 会话统计）各自独立归因——单路失败只污染该路提示，
@@ -305,11 +304,5 @@ onMounted(() => {
 }
 :deep(.el-descriptions__cell) {
   font-size: 13px;
-}
-
-/* 空状态装饰 */
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 </style>
