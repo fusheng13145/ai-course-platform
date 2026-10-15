@@ -125,8 +125,9 @@ import { getMonoSeries, getMonoStatus, monoScore } from '@/utils/chartTheme'
 <script setup>
 import logger from '@/utils/logger'
 import { ref, computed, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import { confirmDanger } from '@/utils/dangerConfirm'
 import resourceApi from '@/api/resource'
 
 const props = defineProps({
@@ -291,14 +292,22 @@ async function toggleVisibility(row) {
 }
 
 async function deleteResource(row) {
+  // D2-2：删除类操作统一走 dangerConfirm——明确影响范围与恢复路径（原为泛化「确定删除该资源？此操作不可恢复。」）
+  const ok = await confirmDanger({
+    verb: '删除',
+    target: '资源',
+    subject: row.fileName || row.id,
+    impact: '学生端将无法再访问该资源',
+  })
+  if (!ok) return
   try {
-    await ElMessageBox.confirm('确定删除该资源？此操作不可恢复。', '提示', { type: 'warning' })
     await resourceApi.deleteResource(row.id)
     resources.value = resources.value.filter((r) => r.id !== row.id)
     ElMessage.success('删除成功')
     emit('resourceUpdated')
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error('删除失败')
+    logger.error('删除资源失败', e)
+    ElMessage.error('删除失败')
   }
 }
 

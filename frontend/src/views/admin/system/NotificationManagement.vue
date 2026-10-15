@@ -64,6 +64,7 @@ import Modal from '@/components/ui/Modal.vue'
 import DropdownMenu from '@/components/ui/DropdownMenu.vue'
 import { toast } from '@/composables/useToast'
 import notificationApi from '@/api/notification'
+import { confirmDanger } from '@/utils/dangerConfirm'
 import NmNoticeList from './components/NmNoticeList.vue'
 import NmPublishDrawer from './components/NmPublishDrawer.vue'
 
@@ -159,6 +160,14 @@ function openMenu(e, n) {
 
 async function doDelete(n) {
   ctx.value.visible = false
+  // D2-2：删除类操作必须二次确认（原实现右键菜单点击即删，无任何确认）
+  const ok = await confirmDanger({
+    verb: '删除',
+    target: '通知',
+    subject: n.title || n.id,
+    impact: '该通知将从发送记录中移除，学生端已收到的内容不受影响',
+  })
+  if (!ok) return
   try {
     await notificationApi.deleteNotification(n.id)
     const src = n.isRead ? read.value : unread.value

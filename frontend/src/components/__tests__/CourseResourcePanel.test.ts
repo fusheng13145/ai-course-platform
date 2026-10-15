@@ -10,6 +10,8 @@ import { mount, flushPromises } from '@vue/test-utils'
 
 const mocks = vi.hoisted(() => ({
   getResourceList: vi.fn(),
+  delResource: vi.fn(),
+  confirmDanger: vi.fn(),
 }))
 
 vi.mock('@/api/resource', () => ({
@@ -17,7 +19,7 @@ vi.mock('@/api/resource', () => ({
     getResourceList: mocks.getResourceList,
     uploadResource: vi.fn(),
     toggleVisibility: vi.fn(),
-    deleteResource: vi.fn(),
+    deleteResource: mocks.delResource,
   },
 }))
 vi.mock('element-plus', () => ({
@@ -28,6 +30,10 @@ vi.mock('element-plus', () => ({
     info: vi.fn(),
   }),
   ElMessageBox: { confirm: vi.fn() },
+}))
+// D2-2：删除类操作统一走 dangerConfirm 原语；mock 该模块以控制确认分支
+vi.mock('@/utils/dangerConfirm', () => ({
+  confirmDanger: mocks.confirmDanger,
 }))
 
 import CourseResourcePanel from '@/components/CourseResourcePanel.vue'
@@ -57,6 +63,12 @@ function mountPanel() {
     },
   })
 }
+
+/** script setup 内部绑定在测试环境经 vm 暴露；以类型桥接访问（对齐 ai-assistant-render 范式） */
+interface PanelInternal {
+  deleteResource: (row: { id: number; fileName?: string }) => Promise<void>
+}
+const panelVm = (wrapper: { vm: unknown }) => wrapper.vm as unknown as PanelInternal
 
 describe('CourseResourcePanel — 加载失败可见', () => {
   beforeEach(() => {
@@ -111,5 +123,47 @@ describe('CourseResourcePanel — 加载失败可见', () => {
     expect(second.find('.alert-stub').exists()).toBe(false)
     expect(second.text()).not.toContain('资源列表加载失败')
     expect(second.get('.empty-stub').text()).toContain('暂无资源')
+  })
+})
+
+describe('CourseResourcePanel — 删除资源确认语（D2-2）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+  })
+
+  it('取消删除 → 不调删除接口，资源保留', async () => {
+    mocks.getResourceList.mockResolvedValue({ data: [{ id: 9, fileName: '讲义.pdf' }] })
+    mocks.confirmDanger.mockResolvedValue(false)
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    await panelVm(wrapper).deleteResource({ id: 9, fileName: '讲义.pdf' })
+    await flushPromises()
+
+    expect(mocks.confirmDanger).toHaveBeenCalledTimes(1)
+    expect(mocks.delResource).not.toHaveBeenCalled()
+  })
+
+  it('确认删除 → 走 dangerConfirm（含影响范围），删除成功后列表移除', async () => {
+    mocks.getResourceList.mockResolvedValue({ data: [{ id: 9, fileName: '讲义.pdf' }] })
+    mocks.confirmDanger.mockResolvedValue(true)
+    mocks.delResource.mockResolvedValue({})
+    const wrapper = mountPanel()
+    await flushPromises()
+
+    await panelVm(wrapper).deleteResource({ id: 9, fileName: '讲义.pdf' })
+    await flushPromises()
+
+    // 确认语三要素：动作/对象/影响范围（恢复路径由原语默认补充）
+    expect(mocks.confirmDanger).toHaveBeenCalledWith(
+      expect.objectContaining({
+        verb: '删除',
+        target: '资源',
+        subject: '讲义.pdf',
+        impact: expect.stringContaining('学生端将无法再访问'),
+      }),
+    )
+    expect(mocks.delResource).toHaveBeenCalledWith(9)
+    expect(wrapper.get('.tbl-stub').text()).toBe('0')
   })
 })
