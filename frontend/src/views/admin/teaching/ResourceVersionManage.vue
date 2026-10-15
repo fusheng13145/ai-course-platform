@@ -111,19 +111,14 @@
               </template>
             </el-table-column>
             <template #empty>
-              <el-empty
-                :description="
-                  versionsError ? '版本记录未能加载，请查看上方提示后重试' : '暂无版本记录'
-                "
-              >
-                <template #image><div class="empty-deco">🗂️</div></template>
-              </el-empty>
+              <EmptyState
+                :title="versionsError ? '版本记录未能加载，请查看上方提示后重试' : '暂无版本记录'"
+                icon="layers"
+              />
             </template>
           </el-table>
         </div>
-        <el-empty v-else description="请先选择资源" :image-size="80">
-          <template #image><div class="empty-deco">🗂️</div></template>
-        </el-empty>
+        <EmptyState v-else title="请先选择资源" desc="在上方资源下拉框选择后查看版本" icon="folder" />
       </div>
     </section>
 
@@ -170,6 +165,7 @@ import versionApi from '@/api/resourceVersion'
 import resourceApi from '@/api/resource'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -352,9 +348,4 @@ onMounted(loadResources)
   flex-wrap: wrap;
 }
 
-/* 空状态装饰 */
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
-}
 </style>

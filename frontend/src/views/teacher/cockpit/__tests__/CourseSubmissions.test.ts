@@ -48,7 +48,6 @@ function mountPage() {
           props: ['title'],
           template: '<div class="el-alert">{{ title }}<slot /></div>',
         },
-        'el-empty': true,
         'el-pagination': true,
       },
     },

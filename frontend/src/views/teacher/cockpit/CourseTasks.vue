@@ -59,10 +59,10 @@
             </template>
           </el-table-column>
         </el-table>
-        <el-empty
+        <EmptyState
           v-else-if="!loading"
-          :description="loadError ? '任务列表未能加载，请查看上方提示后重试' : '暂无任务，点击右上角新建'"
-          :image-size="72"
+          :title="loadError ? '任务列表未能加载，请查看上方提示后重试' : '暂无任务，点击右上角新建'"
+          icon="list"
         />
 
         <div v-if="tasks.length" class="pager">
@@ -172,6 +172,7 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import taskApi from '@/api/task'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { confirmDanger } from '@/utils/dangerConfirm'
 import PageHeader from '@/components/PageHeader.vue'
 import { Plus, Edit, Delete, Calendar } from '@element-plus/icons-vue'

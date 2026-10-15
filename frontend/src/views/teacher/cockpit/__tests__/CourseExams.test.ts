@@ -70,7 +70,6 @@ function mountPage() {
         'el-table-column': true,
         'el-tag': true,
         'el-dialog': true,
-        'el-empty': true,
         'el-pagination': true,
       },
       directives: { loading: { mounted() {}, updated() {} } },

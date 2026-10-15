@@ -40,12 +40,10 @@
               class="dist-chart"
               autoresize
             />
-            <el-empty
+            <EmptyState
               v-else-if="!loading"
-              :description="
-                loadError ? '成绩分布未能加载，请查看上方提示后重试' : '暂无成绩分布数据'
-              "
-              :image-size="72"
+              :title="loadError ? '成绩分布未能加载，请查看上方提示后重试' : '暂无成绩分布数据'"
+              icon="chart"
             />
           </div>
         </div>
@@ -114,6 +112,7 @@ import analyticsApi from '@/api/analytics'
 import { getChartTheme, getMonoSeries } from '@/utils/chartTheme'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { Histogram, TrendCharts } from '@element-plus/icons-vue'
 
 const route = useRoute()

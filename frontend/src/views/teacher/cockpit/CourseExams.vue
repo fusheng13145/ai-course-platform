@@ -80,7 +80,7 @@
             <span class="mini-label">{{ it.label }}</span>
           </div>
         </div>
-        <el-empty v-else description="暂无统计数据" :image-size="70" />
+        <EmptyState v-else title="暂无统计数据" icon="chart" size="compact" />
       </div>
     </el-dialog>
   </div>
@@ -95,6 +95,7 @@ import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import examApi from '@/api/exam'
 import { confirmDanger } from '@/utils/dangerConfirm'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import CeExamTable from './components/CeExamTable.vue'
 import CeExamFormDialog from './components/CeExamFormDialog.vue'

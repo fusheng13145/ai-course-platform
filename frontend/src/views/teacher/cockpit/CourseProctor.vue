@@ -138,7 +138,7 @@
             }}</template>
           </el-table-column>
         </el-table>
-        <el-empty v-else description="请选择考试会话以查看风险" :image-size="64" />
+        <EmptyState v-else title="请选择考试会话以查看风险" icon="list" size="compact" />
       </div>
 
       <!-- 监考事件 -->
@@ -179,7 +179,7 @@
             }}</template>
           </el-table-column>
         </el-table>
-        <el-empty v-else description="请选择风险记录以查看监考事件" :image-size="64" />
+        <EmptyState v-else title="请选择风险记录以查看监考事件" icon="list" size="compact" />
       </div>
     </div>
   </div>
@@ -194,6 +194,7 @@ import examApi from '@/api/exam'
 import proctorApi from '@/api/proctor'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 const route = useRoute()
 const courseId = ref(route.params.id)

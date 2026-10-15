@@ -149,16 +149,12 @@
               :closable="false"
               show-icon
             />
-            <el-empty
+            <EmptyState
               v-else-if="!submissionsLoading && selectedTask"
-              description="暂无提交记录"
-              :image-size="72"
+              title="暂无提交记录"
+              icon="list"
             />
-            <el-empty
-              v-else-if="!selectedTask"
-              description="请选择任务查看提交记录"
-              :image-size="72"
-            />
+            <EmptyState v-else-if="!selectedTask" title="请选择任务查看提交记录" icon="list" />
           </div>
         </section>
       </div>
@@ -258,6 +254,7 @@ import { ElMessage } from 'element-plus'
 import taskApi from '@/api/task'
 import submissionApi from '@/api/submission'
 import Modal from '@/components/ui/Modal.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 
 const route = useRoute()

@@ -65,7 +65,6 @@ function mountPage() {
         'el-table-column': true,
         'el-tag': true,
         'el-switch': true,
-        'el-empty': true,
         'el-icon': true,
       },
       directives: { loading: { mounted() {}, updated() {} } },
