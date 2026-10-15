@@ -104,9 +104,7 @@
           </div>
         </div>
 
-        <el-empty v-if="!loading && exams.length === 0" :description="emptyText" :image-size="120">
-          <template #image><div class="empty-deco">📝</div></template>
-        </el-empty>
+        <EmptyState v-if="!loading && exams.length === 0" :title="emptyText" icon="list" />
       </div>
     </section>
   </div>
@@ -117,6 +115,7 @@ import type { PropType } from 'vue'
 import { Search, Collection, Document, Timer, List } from '@element-plus/icons-vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /** 考试卡片行（duration/timeLimit 等字段名存在历史分叉，故均可选） */
 interface ExamCardRow {
@@ -261,10 +260,5 @@ const emit = defineEmits(['update:keyword', 'update:status-filter', 'enter'])
 .exam-time {
   font-size: 12px;
   color: var(--ac-text-muted);
-}
-
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 </style>

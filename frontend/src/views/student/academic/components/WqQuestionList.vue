@@ -63,15 +63,14 @@
       </div>
     </transition-group>
 
-    <el-empty v-if="!loading && questions.length === 0" :description="emptyText" :image-size="100">
-      <template #image><div class="empty-deco">📕</div></template>
-    </el-empty>
+    <EmptyState v-if="!loading && questions.length === 0" :title="emptyText" icon="book" />
   </div>
 </template>
 
 <script setup lang="ts">
 import type { PropType } from 'vue'
 import { Link, RefreshRight, ArrowDown, Select } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /** 错题行（字段名存在历史分叉：questionContent/content、wrongAnswer/studentAnswer 等，故均可选） */
 interface WrongQuestionRow {
@@ -249,10 +248,6 @@ defineEmits(['toggle', 'mark', 'unmark', 'practice', 'related'])
   opacity: 0;
   max-height: 0;
   overflow: hidden;
-}
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 
 @media (max-width: 768px) {

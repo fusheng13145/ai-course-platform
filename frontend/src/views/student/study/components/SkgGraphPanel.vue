@@ -13,16 +13,14 @@
         autoresize
         @click="emit('node-click', $event)"
       />
-      <el-empty
+      <EmptyState
         v-else-if="
           !graphLoading &&
           (!graphOption.series?.[0]?.data || graphOption.series[0].data.length === 0)
         "
-        :description="emptyText"
-        :image-size="100"
-      >
-        <template #image><div class="empty-deco">🕸️</div></template>
-      </el-empty>
+        :title="emptyText"
+        icon="layers"
+      />
     </div>
     <!-- 图例说明 -->
     <div class="graph-legend">
@@ -111,6 +109,7 @@
 
 <script setup lang="ts">
 import { ArrowLeft, ArrowRight, Reading, Share } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 学生知识图谱：图谱可视化 + 节点详情面板
@@ -193,10 +192,6 @@ const emit = defineEmits(['node-click', 'select', 'learn'])
 }
 .legend-dot.solid {
   background: var(--warn);
-}
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 
 /* 详情面板 */

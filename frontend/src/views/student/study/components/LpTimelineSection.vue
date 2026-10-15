@@ -47,12 +47,13 @@
         </div>
       </el-timeline-item>
     </el-timeline>
-    <el-empty v-else description="该路径暂无学习节点" />
+    <EmptyState v-else title="该路径暂无学习节点" icon="list" />
   </div>
 </template>
 
 <script setup lang="ts">
 import type { PropType } from 'vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /** 路径节点行（content/detail 等字段名存在历史分叉，故均可选） */
 interface PathNodeRow {

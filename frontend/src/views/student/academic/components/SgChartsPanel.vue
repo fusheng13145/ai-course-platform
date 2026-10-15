@@ -13,10 +13,10 @@
           class="chart-fixed"
           autoresize
         />
-        <el-empty
+        <EmptyState
           v-else-if="!loading && (!groupedByCourse || Object.keys(groupedByCourse).length < 3)"
-          :description="radarEmptyText"
-          :image-size="80"
+          :title="radarEmptyText"
+          icon="chart"
         />
         <div v-else class="chart-loading">
           <span class="muted">加载中...</span>
@@ -34,10 +34,10 @@
           class="chart-fixed"
           autoresize
         />
-        <el-empty
+        <EmptyState
           v-else-if="!loading && list.length === 0"
-          :description="trendEmptyText"
-          :image-size="80"
+          :title="trendEmptyText"
+          icon="chart"
         />
       </div>
     </div>
@@ -47,6 +47,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { getChartTheme, getMonoSeries, monoScore } from '@/utils/chartTheme'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 const props = defineProps({
   loading: { type: Boolean, default: false },
