@@ -24,7 +24,7 @@
       <p class="ai-summary">{{ pathResult.message || '已生成学习路径' }}</p>
       <pre v-if="pathRaw" class="path-json">{{ pathRaw }}</pre>
     </div>
-    <el-empty v-else description="输入目标后生成学习路径" :image-size="64" />
+    <EmptyState v-else title="输入目标后生成学习路径" icon="layers" />
   </div>
 </template>
 
@@ -32,6 +32,7 @@
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
 import { ref, watch, onMounted } from 'vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { ElMessage } from 'element-plus'
 import { Guide, Promotion } from '@element-plus/icons-vue'
 import aiApi from '@/api/ai'

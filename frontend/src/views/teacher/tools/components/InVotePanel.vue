@@ -50,13 +50,14 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-else :description="emptyText" :image-size="70" />
+      <EmptyState v-else :title="emptyText" icon="chart" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { Plus, Refresh, Histogram } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 defineProps({
   voteList: { type: Array, default: () => [] },

@@ -34,7 +34,7 @@
       >
         {{ essayResult }}
       </div>
-      <el-empty v-else description="点击「批改」查看结果" :image-size="64" />
+      <EmptyState v-else title="点击「批改」查看结果" icon="checks" />
     </div>
   </div>
 </template>
@@ -43,6 +43,7 @@
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
 import { ref } from 'vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { ElMessage } from 'element-plus'
 import { EditPen, Check, Document, MagicStick } from '@element-plus/icons-vue'
 import aiApi from '@/api/ai'

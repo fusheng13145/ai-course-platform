@@ -49,13 +49,14 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-else :description="emptyText" :image-size="70" />
+      <EmptyState v-else :title="emptyText" icon="checks" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { Plus, Refresh, Pointer } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 defineProps({
   signList: { type: Array, default: () => [] },

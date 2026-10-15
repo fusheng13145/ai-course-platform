@@ -64,7 +64,7 @@
       <div v-loading="loading" class="chart-card">
         <div class="chart-title">近 7 天作业提交量</div>
         <v-chart v-if="hasTrendData" :option="trendOption" class="chart-h300" autoresize />
-        <el-empty v-else description="暂无提交趋势数据" :image-size="60" />
+        <EmptyState v-else title="暂无提交趋势数据" icon="chart" />
       </div>
       <div v-loading="loading" class="chart-card">
         <div class="chart-title">学生作业均分区间</div>
@@ -74,7 +74,7 @@
           class="chart-h300"
           autoresize
         />
-        <el-empty v-else description="暂无已评分作业" :image-size="60" />
+        <EmptyState v-else title="暂无已评分作业" icon="chart" />
       </div>
     </div>
 
@@ -83,7 +83,7 @@
       <div v-loading="loading" class="chart-card">
         <div class="chart-title">课程进度与任务完成率</div>
         <v-chart v-if="hasCourseComparison" :option="radarOption" class="chart-h320" autoresize />
-        <el-empty v-else description="暂无课程进度数据" :image-size="60" />
+        <EmptyState v-else title="暂无课程进度数据" icon="chart" />
       </div>
       <div v-loading="loading" class="chart-card">
         <div class="chart-title">学生任务完成数排行</div>
@@ -93,7 +93,7 @@
           class="chart-h320"
           autoresize
         />
-        <el-empty v-else description="暂无任务完成记录" :image-size="60" />
+        <EmptyState v-else title="暂无任务完成记录" icon="chart" />
       </div>
     </div>
 
@@ -105,6 +105,7 @@
 <script setup lang="ts">
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import TyaCompletionTable from './components/TyaCompletionTable.vue'
 import { useTeacherAnalytics } from '@/composables/useTeacherAnalytics'
 

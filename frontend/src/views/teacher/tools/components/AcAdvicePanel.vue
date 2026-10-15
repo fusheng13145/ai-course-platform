@@ -15,7 +15,7 @@
         <p class="ai-detail">{{ it.detail }}</p>
       </div>
     </div>
-    <el-empty v-else description="暂无学习建议" :image-size="64" />
+    <EmptyState v-else title="暂无学习建议" icon="book" />
   </div>
 </template>
 
@@ -23,6 +23,7 @@
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
 import { ref, watch, onMounted } from 'vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { Lightning } from '@element-plus/icons-vue'
 import aiApi from '@/api/ai'
 

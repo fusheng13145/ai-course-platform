@@ -53,7 +53,12 @@
           >
         </div>
       </div>
-      <el-empty v-if="!postLoading && posts.length === 0" description="暂无回复" :image-size="56" />
+      <EmptyState
+        v-if="!postLoading && posts.length === 0"
+        title="暂无回复"
+        icon="message"
+        size="compact"
+      />
     </div>
 
     <div class="reply-box">
@@ -74,6 +79,7 @@
 
 <script setup lang="ts">
 import { Top, SwitchButton, Pointer } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 withDefaults(
   defineProps<{

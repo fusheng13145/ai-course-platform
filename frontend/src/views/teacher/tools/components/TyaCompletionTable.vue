@@ -27,13 +27,14 @@
           <template #default="{ row }">{{ row.pendingGrading ?? '--' }}</template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="!loading && completionTable.length === 0" description="暂无课程完成数据" />
+      <EmptyState v-if="!loading && completionTable.length === 0" title="暂无课程完成数据" icon="chart" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { monoScore } from '@/utils/chartTheme'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 defineProps({
   loading: { type: Boolean, default: false },

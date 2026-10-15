@@ -38,7 +38,7 @@
         </template>
       </el-table-column>
     </el-table>
-    <el-empty v-else description="暂无薄弱点数据" :image-size="64" />
+    <EmptyState v-else title="暂无薄弱点数据" icon="alert" />
   </div>
 </template>
 
@@ -46,6 +46,7 @@
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
 import { ref, watch, onMounted } from 'vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { Warning } from '@element-plus/icons-vue'
 import aiApi from '@/api/ai'
 
