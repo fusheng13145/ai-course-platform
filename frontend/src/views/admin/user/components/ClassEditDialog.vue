@@ -6,7 +6,7 @@
     append-to-body
     @update:model-value="emit('update:modelValue', $event)"
   >
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="88px">
+    <el-form ref="formRef" :model="form" :rules="rules" label-width="88px" scroll-to-error>
       <el-form-item label="班级名称" prop="name"
         ><el-input v-model="form.name" placeholder="如：计算机2201班"
       /></el-form-item>

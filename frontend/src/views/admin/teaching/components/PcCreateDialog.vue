@@ -12,6 +12,7 @@
       :rules="createRules"
       label-width="100px"
       label-position="top"
+      scroll-to-error
     >
       <el-form-item label="作业 ID" prop="assignmentId">
         <el-input v-model="createForm.assignmentId" placeholder="请输入作业 ID" clearable />

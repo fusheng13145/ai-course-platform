@@ -6,7 +6,7 @@
     destroy-on-close
     @update:model-value="emit('update:modelValue', $event)"
   >
-    <el-form ref="formRef" :model="examForm" :rules="formRules" label-width="100px">
+    <el-form ref="formRef" :model="examForm" :rules="formRules" label-width="100px" scroll-to-error>
       <el-row :gutter="16">
         <el-col :span="12">
           <el-form-item label="试卷标题" prop="title">

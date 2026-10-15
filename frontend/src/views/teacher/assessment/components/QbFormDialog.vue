@@ -7,7 +7,7 @@
     destroy-on-close
     @update:model-value="$emit('update:modelValue', $event)"
   >
-    <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
+    <el-form ref="formRef" :model="form" :rules="rules" label-position="top" scroll-to-error>
       <el-row :gutter="16">
         <el-col :span="12">
           <el-form-item label="题型" prop="type">

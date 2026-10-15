@@ -7,7 +7,7 @@
     destroy-on-close
     @update:model-value="emit('update:formVisible', $event)"
   >
-    <el-form ref="formRef" :model="kpForm" :rules="formRules" label-width="100px">
+    <el-form ref="formRef" :model="kpForm" :rules="formRules" label-width="100px" scroll-to-error>
       <el-form-item label="知识点名称" prop="name">
         <el-input
           v-model="kpForm.name"

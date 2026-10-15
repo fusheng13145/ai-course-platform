@@ -14,7 +14,7 @@
       style="margin-bottom: 20px"
     />
 
-    <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
+    <el-form ref="formRef" :model="form" :rules="rules" label-position="top" scroll-to-error>
       <el-form-item label="知识点/主题" prop="topic">
         <el-input v-model="form.topic" placeholder="例如：Python基础语法、机器学习算法等" />
       </el-form-item>

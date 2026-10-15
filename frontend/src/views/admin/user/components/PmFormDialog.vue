@@ -7,7 +7,7 @@
     :close-on-click-modal="false"
     @update:model-value="$emit('update:modelValue', $event)"
   >
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="110px">
+    <el-form ref="formRef" :model="form" :rules="rules" label-width="110px" scroll-to-error>
       <el-form-item label="角色" prop="role">
         <el-select v-model="form.role" placeholder="请选择角色" style="width: 100%">
           <el-option label="管理员 (ADMIN)" value="ADMIN" />

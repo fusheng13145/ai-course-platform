@@ -8,7 +8,7 @@
     destroy-on-close
     @update:model-value="$emit('update:modelValue', $event)"
   >
-    <el-form ref="formRef" :model="form" :rules="rules" label-position="top">
+    <el-form ref="formRef" :model="form" :rules="rules" label-position="top" scroll-to-error>
       <el-form-item label="所属课程" prop="courseId">
         <el-select
           v-model="form.courseId"
