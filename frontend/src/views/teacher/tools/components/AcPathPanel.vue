@@ -62,6 +62,7 @@ async function runPath() {
     ElMessage.success('学习路径已生成')
   } catch (e) {
     logger.error('学习路径生成失败', e)
+    ElMessage.error('学习路径生成失败，请稍后重试')
   } finally {
     pathLoading.value = false
   }

@@ -64,6 +64,7 @@ async function runCorrect() {
     ElMessage.success('批改完成')
   } catch (e) {
     logger.error('作文批改失败', e)
+    ElMessage.error('批改失败，请稍后重试')
   } finally {
     essayLoading.value = false
   }
@@ -85,6 +86,7 @@ async function runPolish() {
     }
   } catch (e) {
     logger.error('作文润色失败', e)
+    ElMessage.error('润色失败，请稍后重试')
   } finally {
     polishLoading.value = false
   }

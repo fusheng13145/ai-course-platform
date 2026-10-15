@@ -3,6 +3,15 @@
     <div class="chart-title">
       <el-icon><Lightning /></el-icon>个性化学习建议
     </div>
+    <!-- 加载失败提示：失败不得渲染成「暂无学习建议」（D2-1 双态规范） -->
+    <el-alert
+      v-if="adviceError"
+      :title="adviceError"
+      type="error"
+      :closable="false"
+      show-icon
+      style="margin-bottom: var(--ac-spacing-md)"
+    />
     <p v-if="adviceSummary" class="ai-summary">{{ adviceSummary }}</p>
     <div v-if="adviceItems.length" class="advice-list">
       <div v-for="(it, i) in adviceItems" :key="i" class="advice-item">
@@ -15,7 +24,11 @@
         <p class="ai-detail">{{ it.detail }}</p>
       </div>
     </div>
-    <EmptyState v-else title="暂无学习建议" icon="book" />
+    <EmptyState
+      v-else
+      :title="adviceError ? '学习建议未能加载，请查看上方提示后重试' : '暂无学习建议'"
+      icon="book"
+    />
   </div>
 </template>
 
@@ -34,6 +47,8 @@ const props = defineProps({
 const adviceLoading = ref(false)
 const adviceItems = ref([])
 const adviceSummary = ref('')
+/** 加载失败文案；非空表示「加载失败」而非「无数据」（D2-1） */
+const adviceError = ref('')
 
 function levelType(l) {
   return l === 'HIGH' || l === '高'
@@ -49,6 +64,7 @@ function levelText(l) {
 async function loadAdvice() {
   if (!props.courseId) return
   adviceLoading.value = true
+  adviceError.value = ''
   try {
     const r = await aiApi.learningAdvice({ courseId: props.courseId })
     const body = unwrap(r)
@@ -57,6 +73,7 @@ async function loadAdvice() {
     adviceItems.value = data.items || data.list || []
   } catch (e) {
     logger.error('学习建议加载失败', e)
+    adviceError.value = '学习建议加载失败，请稍后重试'
   } finally {
     adviceLoading.value = false
   }
