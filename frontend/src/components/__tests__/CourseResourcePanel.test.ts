@@ -42,9 +42,10 @@ function mountPanel() {
           props: ['title', 'type'],
           template: '<div class="alert-stub">{{ title }}</div>',
         },
-        'el-empty': {
-          props: ['description'],
-          template: '<div class="empty-stub">{{ description }}</div>',
+        // D2-3：空态统一为 EmptyState；shallow 下显式桩，断言 title 双态文案
+        EmptyState: {
+          props: ['title', 'desc', 'icon', 'size'],
+          template: '<div class="empty-stub">{{ title }}</div>',
         },
         'el-table': {
           props: ['data'],

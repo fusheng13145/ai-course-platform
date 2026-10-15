@@ -72,9 +72,10 @@ import { getMonoSeries, getMonoStatus, monoScore } from '@/utils/chartTheme'
           </template>
         </el-table-column>
       </el-table>
-      <el-empty
+      <EmptyState
         v-if="!loading && filteredResources.length === 0"
-        :description="loadError ? '资源列表未能加载，请查看上方提示后重试' : '暂无资源'"
+        :title="loadError ? '资源列表未能加载，请查看上方提示后重试' : '暂无资源'"
+        icon="folder"
       />
     </div>
 
@@ -125,6 +126,7 @@ import { getMonoSeries, getMonoStatus, monoScore } from '@/utils/chartTheme'
 import logger from '@/utils/logger'
 import { ref, computed, watch } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import resourceApi from '@/api/resource'
 
 const props = defineProps({

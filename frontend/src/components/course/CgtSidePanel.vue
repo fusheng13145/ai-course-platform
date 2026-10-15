@@ -14,22 +14,25 @@
           </el-tag>
         </div>
       </div>
-      <el-empty
+      <EmptyState
         v-else
-        :description="
+        :title="
           pendingLoading
             ? '正在加载待批阅任务'
             : pendingUnavailable
               ? '待批阅数据暂不可用'
               : '暂无待批阅'
         "
-        :image-size="50"
+        icon="list"
+        size="compact"
       />
     </div>
   </div>
 </template>
 
 <script setup>
+import EmptyState from '@/components/ui/EmptyState.vue'
+
 defineProps({
   distOption: { type: Object, default: () => ({}) },
   pendingTasks: { type: Array, default: () => [] },

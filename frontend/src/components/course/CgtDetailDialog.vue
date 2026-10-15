@@ -99,10 +99,11 @@
           </el-table-column>
           <el-table-column v-if="detailed" prop="submitTime" label="提交时间" />
         </el-table>
-        <el-empty
+        <EmptyState
           v-if="!currentStudent.details?.length"
-          description="暂无成绩构成明细"
-          :image-size="50"
+          title="暂无成绩构成明细"
+          icon="chart"
+          size="compact"
         />
       </div>
     </template>
@@ -110,6 +111,8 @@
 </template>
 
 <script setup lang="ts">
+import EmptyState from '@/components/ui/EmptyState.vue'
+
 /**
  * 学生成绩详情弹窗（成绩域共享实现）
  * <p>教师成绩页与学生课程成绩页共用；角色差异以 props 表达：

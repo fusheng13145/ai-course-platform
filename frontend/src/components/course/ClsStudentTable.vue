@@ -76,12 +76,14 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="!loading && filteredStudents.length === 0" :description="emptyText" />
+      <EmptyState v-if="!loading && filteredStudents.length === 0" :title="emptyText" icon="users" />
     </div>
   </div>
 </template>
 
 <script setup>
+import EmptyState from '@/components/ui/EmptyState.vue'
+
 defineProps({
   loading: { type: Boolean, default: false },
   searchKeyword: { type: String, default: '' },

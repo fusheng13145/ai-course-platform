@@ -69,9 +69,10 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty
+      <EmptyState
         v-if="!loading && filteredExams.length === 0"
-        :description="loadError ? '试卷列表未能加载，请查看上方提示后重试' : '暂无试卷'"
+        :title="loadError ? '试卷列表未能加载，请查看上方提示后重试' : '暂无试卷'"
+        icon="checks"
       />
     </div>
 
@@ -164,6 +165,7 @@ import logger from '@/utils/logger'
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import examApi from '@/api/exam'
 import { confirmDanger } from '@/utils/dangerConfirm'
 

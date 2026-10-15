@@ -64,12 +64,13 @@
         </template>
       </el-table-column>
     </el-table>
-    <el-empty v-if="!loading && filteredGrades.length === 0" description="暂无成绩数据" />
+    <EmptyState v-if="!loading && filteredGrades.length === 0" title="暂无成绩数据" icon="chart" />
   </div>
 </template>
 
 <script setup>
 import { monoScore } from '@/utils/chartTheme'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 defineProps({
   loading: { type: Boolean, default: false },

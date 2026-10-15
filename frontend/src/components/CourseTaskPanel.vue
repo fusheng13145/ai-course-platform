@@ -70,9 +70,10 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty
+      <EmptyState
         v-if="!loading && filteredTasks.length === 0"
-        :description="loadError ? '作业列表未能加载，请查看上方提示后重试' : '暂无作业'"
+        :title="loadError ? '作业列表未能加载，请查看上方提示后重试' : '暂无作业'"
+        icon="list"
       />
     </div>
 
@@ -150,6 +151,7 @@ import logger from '@/utils/logger'
 import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import taskApi from '@/api/task'
 import { confirmDanger } from '@/utils/dangerConfirm'
 

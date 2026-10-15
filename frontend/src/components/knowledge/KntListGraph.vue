@@ -39,7 +39,7 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="!tableLoading && !filteredData.length" :description="emptyText" />
+      <EmptyState v-if="!tableLoading && !filteredData.length" :title="emptyText" icon="layers" />
     </div>
 
     <!-- 知识图谱 -->
@@ -67,6 +67,8 @@
 </template>
 
 <script setup>
+import EmptyState from '@/components/ui/EmptyState.vue'
+
 defineProps({
   filteredData: { type: Array, default: () => [] },
   tableLoading: { type: Boolean, default: false },

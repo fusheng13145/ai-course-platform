@@ -82,9 +82,7 @@
             <el-icon class="ti-arrow"><ArrowRight /></el-icon>
           </div>
         </div>
-        <el-empty v-else :description="emptyText" :image-size="70">
-          <template v-if="showToolbar" #image><div class="empty-deco">💬</div></template>
-        </el-empty>
+        <EmptyState v-else :title="emptyText" icon="message" />
       </div>
     </template>
   </div>
@@ -101,6 +99,7 @@ import {
   ArrowRight,
   Star,
 } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 讨论话题列表（讨论域共享实现）
@@ -251,9 +250,5 @@ defineEmits<{
   display: inline-flex;
   align-items: center;
   gap: 2px;
-}
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 </style>

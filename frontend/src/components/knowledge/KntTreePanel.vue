@@ -26,10 +26,11 @@
           </span>
         </template>
       </el-tree>
-      <el-empty
+      <EmptyState
         v-if="!treeLoading && !treeData.length"
-        description="暂无知识树数据"
-        :image-size="60"
+        title="暂无知识树数据"
+        icon="layers"
+        size="compact"
       />
     </div>
   </div>
@@ -37,6 +38,7 @@
 
 <script setup lang="ts">
 import { ref } from 'vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 知识结构树面板（知识图谱域共享实现）

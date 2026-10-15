@@ -58,11 +58,13 @@
         </template>
       </el-table-column>
     </el-table>
-    <el-empty v-if="!loading && data.length === 0" description="暂无作业" />
+    <EmptyState v-if="!loading && data.length === 0" title="暂无作业" icon="list" />
   </div>
 </template>
 
 <script setup>
+import EmptyState from '@/components/ui/EmptyState.vue'
+
 defineProps({
   loading: { type: Boolean, default: false },
   data: { type: Array, default: () => [] },
