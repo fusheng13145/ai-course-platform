@@ -32,9 +32,11 @@ export function inputA11y(label, required = false, errorId = '') {
  *
  * @param {string} label 按钮操作说明
  * @param {boolean} [loading=false] 是否处于加载状态
- * @returns {Record<string, string>} 可绑定到 el-button 的 attribute 对象
+ * @returns {{ 'aria-label': string; 'aria-busy': 'true' | 'false' }} 可绑定到
+ *   el-button / 原生 button 的 attribute 对象（v-bind 展开）；
+ *   aria-busy 取字面量联合而非 string，避免原生 button 的属性类型不兼容
  */
-export function buttonA11y(label, loading = false) {
+export function buttonA11y(label: string, loading = false): { 'aria-label': string; 'aria-busy': 'true' | 'false' } {
   return {
     'aria-label': label,
     'aria-busy': loading ? 'true' : 'false',

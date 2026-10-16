@@ -24,6 +24,7 @@
               text
               type="danger"
               :disabled="form.options.length <= 2"
+              v-bind="buttonA11y('删除该选项')"
               @click="form.options.splice(i, 1)"
             >
               <el-icon><Delete /></el-icon>
@@ -47,6 +48,7 @@
 
 <script setup lang="ts">
 import { Delete, Plus } from '@element-plus/icons-vue'
+import { buttonA11y } from '@/composables/useA11y'
 
 /**
  * 发起投票对话框（互动域共享实现）

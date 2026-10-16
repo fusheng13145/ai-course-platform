@@ -71,6 +71,7 @@
                 name="login-username"
                 readonly
                 class="auth-input"
+                v-bind="inputA11y('用户名', true)"
                 @focus="onInputFocus"
               />
             </div>
@@ -87,6 +88,7 @@
                 name="login-password"
                 readonly
                 class="auth-input"
+                v-bind="inputA11y('密码', true)"
                 @focus="onInputFocus"
                 @keyup.enter="handleLogin"
               />
@@ -99,6 +101,7 @@
           <button
             class="btn btn-primary btn-lg btn-block"
             :disabled="auth.isLoading || loginSubmitting"
+            v-bind="buttonA11y('登录', auth.isLoading || loginSubmitting)"
             type="button"
             @click="handleLogin"
           >
@@ -123,6 +126,7 @@ import { useAuthStore } from '@/stores/auth'
 import { resolvePostAuthRedirect } from '@/utils/redirect'
 import { ElMessage } from 'element-plus'
 import ThemeSwitcher from '@/components/ThemeSwitcher.vue'
+import { inputA11y, buttonA11y } from '@/composables/useA11y'
 import { useFormSubmit, type ElFormLike } from '@/composables/useFormSubmit'
 
 const router = useRouter()

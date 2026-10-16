@@ -63,6 +63,7 @@
             placeholder="请输入注册邮箱"
             :disabled="step > 1"
             class="auth-input"
+            v-bind="inputA11y('注册邮箱', true)"
           >
             <template #prefix
               ><svg
@@ -92,6 +93,7 @@
                 placeholder="6 位验证码"
                 class="auth-input"
                 style="flex: 1"
+                v-bind="inputA11y('验证码', true)"
               />
               <button
                 class="btn btn-plain btn-sm"
@@ -114,6 +116,7 @@
               placeholder="至少 6 位"
               show-password
               class="auth-input"
+              v-bind="inputA11y('新密码', true)"
             />
           </div>
         </el-form-item>
@@ -126,6 +129,7 @@
               placeholder="再次输入"
               show-password
               class="auth-input"
+              v-bind="inputA11y('确认新密码', true)"
             />
           </div>
         </el-form-item>
@@ -134,6 +138,7 @@
           v-if="step === 1"
           class="btn btn-primary btn-lg btn-block"
           :disabled="sending"
+          v-bind="buttonA11y('发送验证码', sending)"
           type="button"
           @click="sendCode"
         >
@@ -144,6 +149,7 @@
           v-if="step === 2"
           class="btn btn-primary btn-lg btn-block"
           :disabled="sending"
+          v-bind="buttonA11y('验证并继续', sending)"
           type="button"
           @click="verifyCode"
         >
@@ -154,6 +160,7 @@
           v-if="step === 3"
           class="btn btn-primary btn-lg btn-block"
           :disabled="sending"
+          v-bind="buttonA11y('重置密码', sending)"
           type="button"
           @click="resetPassword"
         >
@@ -173,6 +180,7 @@ import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useAuthStore } from '@/stores/auth'
 import ThemeSwitcher from '@/components/ThemeSwitcher.vue'
+import { inputA11y, buttonA11y } from '@/composables/useA11y'
 import { validateFormFields, type ElFormLike } from '@/composables/useFormSubmit'
 
 const router = useRouter()

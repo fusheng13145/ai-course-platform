@@ -2,7 +2,12 @@
   <main class="chat-main">
     <!-- 聊天头部 -->
     <header class="chat-header">
-      <el-button text class="toggle-sidebar" @click="emit('toggle-sidebar')">
+      <el-button
+        text
+        class="toggle-sidebar"
+        v-bind="buttonA11y('折叠侧边栏')"
+        @click="emit('toggle-sidebar')"
+      >
         <el-icon :size="18"><Fold /></el-icon>
       </el-button>
       <div class="header-center">
@@ -120,6 +125,7 @@
           circle
           :class="{ 'mic-active': recording }"
           :title="recording ? '点击停止' : '语音输入'"
+          v-bind="buttonA11y(recording ? '停止语音输入' : '开始语音输入')"
           @click="emit('toggle-recording')"
         >
           <el-icon :size="17"><Microphone /></el-icon>
@@ -166,6 +172,7 @@ import {
   Promotion,
   Microphone,
 } from '@element-plus/icons-vue'
+import { buttonA11y } from '@/composables/useA11y'
 
 /**
  * AI 助手主聊天区

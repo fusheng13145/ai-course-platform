@@ -88,13 +88,23 @@
           <el-form-item prop="username">
             <div class="field">
               <label>用户名</label
-              ><el-input v-model="form.username" placeholder="用户名" class="auth-input" />
+              ><el-input
+                v-model="form.username"
+                v-bind="inputA11y('用户名', true)"
+                placeholder="用户名"
+                class="auth-input"
+              />
             </div>
           </el-form-item>
           <el-form-item prop="email">
             <div class="field">
               <label>邮箱</label
-              ><el-input v-model="form.email" placeholder="example@just.edu.cn" class="auth-input" />
+              ><el-input
+                v-model="form.email"
+                v-bind="inputA11y('邮箱', true)"
+                placeholder="example@just.edu.cn"
+                class="auth-input"
+              />
             </div>
           </el-form-item>
           <el-form-item prop="password">
@@ -106,6 +116,7 @@
                 placeholder="至少 6 位"
                 show-password
                 class="auth-input"
+                v-bind="inputA11y('密码', true)"
               />
             </div>
           </el-form-item>
@@ -118,6 +129,7 @@
                 placeholder="再次输入密码"
                 show-password
                 class="auth-input"
+                v-bind="inputA11y('确认密码', true)"
               />
             </div>
           </el-form-item>
@@ -132,6 +144,7 @@
           <button
             class="btn btn-primary btn-lg btn-block"
             :disabled="auth.isLoading || registerSubmitting"
+            v-bind="buttonA11y('注册', auth.isLoading || registerSubmitting)"
             type="button"
             @click="handleRegister"
           >
@@ -155,6 +168,7 @@ import { useAuthStore } from '@/stores/auth'
 import { resolvePostAuthRedirect } from '@/utils/redirect'
 import { ElMessage } from 'element-plus'
 import ThemeSwitcher from '@/components/ThemeSwitcher.vue'
+import { inputA11y, buttonA11y } from '@/composables/useA11y'
 import { useFormSubmit, type ElFormLike } from '@/composables/useFormSubmit'
 
 const router = useRouter()
