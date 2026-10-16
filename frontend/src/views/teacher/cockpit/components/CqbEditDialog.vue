@@ -1,6 +1,7 @@
 <template>
   <!-- 新建 / 编辑 对话框 -->
   <el-dialog
+    ref="dialogRef"
     :model-value="modelValue"
     :title="editing ? '编辑题目' : '新建题目'"
     width="560px"
@@ -47,7 +48,9 @@
 </template>
 
 <script setup lang="ts">
-defineProps({
+import { ref, computed } from 'vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
+const props = defineProps({
   modelValue: { type: Boolean, default: false },
   editing: { type: Boolean, default: false },
   saving: { type: Boolean, default: false },
@@ -55,5 +58,9 @@ defineProps({
   typeOpts: { type: Array, default: () => [] },
   diffOpts: { type: Array, default: () => [] },
 })
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, computed(() => props.modelValue))
+
 defineEmits(['update:modelValue', 'closed', 'save'])
 </script>

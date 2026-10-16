@@ -1,5 +1,6 @@
 <template>
   <el-dialog
+    ref="dialogRef"
     :model-value="modelValue"
     :title="editing ? '编辑试卷' : '新建试卷'"
     width="520px"
@@ -45,18 +46,24 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 /**
  * 课程试卷 — 新建/编辑对话框。
  * <p>拆分子组件：表单双向绑定由页面壳传入的 form 对象承接（共享引用），
  * 保存动作 emit('save') 交还页面壳。</p>
  */
-defineProps({
+const props = defineProps({
   modelValue: { type: Boolean, default: false },
   editing: { type: Boolean, default: false },
   saving: { type: Boolean, default: false },
   /** 表单对象（页面壳持有共享引用，表单双向绑定直接生效） */
   form: { type: Object, required: true },
 })
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, computed(() => props.modelValue))
+
 
 const emit = defineEmits(['update:modelValue', 'save', 'closed'])
 </script>

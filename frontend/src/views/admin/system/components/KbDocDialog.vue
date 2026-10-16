@@ -1,5 +1,6 @@
 <template>
   <el-dialog
+    ref="dialogRef"
     :model-value="modelValue"
     :title="dialogMode === 'add' ? '新建知识库文档' : '编辑文档内容'"
     width="560px"
@@ -30,11 +31,13 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 /**
  * 知识库文档新增/编辑弹窗
  * <p>所属课程只读展示 + 名称（仅新增）+ 内容文本域；保存逻辑委托 composable。</p>
  */
-defineProps({
+const props = defineProps({
   /** 弹窗显隐（v-model） */
   modelValue: { type: Boolean, default: false },
   /** add=新建 / edit=编辑 */
@@ -46,6 +49,10 @@ defineProps({
   /** 保存加载态 */
   saving: { type: Boolean, default: false },
 })
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, computed(() => props.modelValue))
+
 
 defineEmits(['update:modelValue', 'save'])
 </script>
