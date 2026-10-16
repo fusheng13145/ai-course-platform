@@ -52,10 +52,17 @@ spring:
 #   `Unknown column 'ban_reason' in 'field list'`（错误发生在上下文加载阶段，不是断言失败）。
 #   故这里改为**按版本顺序列全部结构迁移**；新增结构迁移必须同步本清单，
 #   该约束由 `ContractTestSchemaBootstrapTest` 机械守住（漏列即构建期红）。
+#
+# ⚠️【修复（2026-10-16）】V1 的 DROP 清单冻结在其编写时点，**不含 V8+ 新建的表**，
+#   于是测试库第二次重建会在 V8 的 `CREATE TABLE ai_call_logs` 处报 already exists，
+#   4 个 @SpringBootTest 集成类上下文加载失败。新增前置清理脚本（测试专属、幂等 DROP、
+#   在 V1 之前执行），不能改 V1 本体（Flyway 校验和会连累开发库）。
+#   新增建表迁移必须同步该清理清单，由 `ContractTestSchemaBootstrapTest` 机械守住。
   sql:
     init:
       mode: always
       schema-locations:
+        - classpath:contract-test/00-drop-post-v1-tables.sql
         - classpath:db/migration/V1__init_schema.sql
         - classpath:db/migration/V2__align_column_comments.sql
         - classpath:db/migration/V3__normalize_course_status.sql
