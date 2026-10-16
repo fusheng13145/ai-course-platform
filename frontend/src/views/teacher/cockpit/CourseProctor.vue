@@ -92,6 +92,20 @@
               }}</el-tag>
             </template>
           </el-table-column>
+          <!-- D2-7：行选择的行内按钮（键盘替代：Tab 可达 + Enter 激活；此前仅 row-click 鼠标可选，
+               与成绩表 CgtGradeTable/TgGradeTable 同款口径） -->
+          <el-table-column label="操作" width="100" align="center">
+            <template #default="{ row }">
+              <el-button
+                text
+                type="primary"
+                size="small"
+                :aria-label="`选择该考试会话并查看风险：${paperTitle(row)}`"
+                @click.stop="onSelectSession(row)"
+                >查看风险</el-button
+              >
+            </template>
+          </el-table-column>
         </el-table>
       </div>
 
@@ -108,9 +122,7 @@
           v-if="selected"
           :data="risk.list"
           size="small"
-          :empty-text="
-            riskError ? '风险记录未能加载，请查看上方提示后重试' : '该会话暂无风险记录'
-          "
+          :empty-text="riskError ? '风险记录未能加载，请查看上方提示后重试' : '该会话暂无风险记录'"
           highlight-current-row
           :row-class-name="(row) => (row.row === selectedRisk ? 'row-active' : '')"
           @row-click="onSelectRisk"
@@ -136,6 +148,19 @@
             <template #default="{ row }">{{
               fmt(pick(row, ['time', 'createTime', 'happenTime']))
             }}</template>
+          </el-table-column>
+          <!-- D2-7：风险行的行内按钮（键盘替代，同会话表口径） -->
+          <el-table-column label="操作" width="100" align="center">
+            <template #default="{ row }">
+              <el-button
+                text
+                type="primary"
+                size="small"
+                :aria-label="`选择该风险并查看监考事件：${pick(row, ['studentName', 'student', 'userName']) || '—'}`"
+                @click.stop="onSelectRisk(row)"
+                >查看事件</el-button
+              >
+            </template>
           </el-table-column>
         </el-table>
         <EmptyState v-else title="请选择考试会话以查看风险" icon="list" size="compact" />
