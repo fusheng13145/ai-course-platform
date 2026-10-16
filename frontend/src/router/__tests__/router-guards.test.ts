@@ -33,6 +33,7 @@ vi.mock('@/views/auth/ForgotPassword.vue', () => ({ default: { name: 'ForgotPass
 vi.mock('@/views/auth/Agreement.vue', () => ({ default: { name: 'Agreement' } }))
 vi.mock('@/views/auth/Privacy.vue', () => ({ default: { name: 'Privacy' } }))
 vi.mock('@/views/error/403.vue', () => ({ default: { name: 'Forbidden' } }))
+vi.mock('@/views/error/503.vue', () => ({ default: { name: 'ServiceUnavailable' } }))
 vi.mock('@/views/error/404.vue', () => ({ default: { name: 'NotFound' } }))
 vi.mock('@/layouts/AdminLayout.vue', () => ({ default: { name: 'AdminLayout' } }))
 vi.mock('@/layouts/TeacherLayout.vue', () => ({ default: { name: 'TeacherLayout' } }))
@@ -176,6 +177,18 @@ describe('路由守卫', () => {
       const matched = router.getRoutes().find((r) => r.path === '/login')
       expect(matched).toBeDefined()
       expect(matched.meta.requiresAuth).toBeFalsy()
+    })
+
+    it('/403 路由存在且 meta.requiresAuth 为 false', () => {
+      const matched = router.getRoutes().find((r) => r.path === '/403')
+      expect(matched).toBeDefined()
+      expect(matched.meta.requiresAuth).toBeFalsy()
+    })
+
+    it('/503 路由存在且 meta.requiresAuth 为 false（连接失败页不得再触发守卫轮询）', () => {
+      const matched = router.getRoutes().find((r) => r.path === '/503')
+      expect(matched).toBeDefined()
+      expect(matched.meta.requiresAuth).toBe(false)
     })
 
     it('/register 路由 meta.requiresAuth 为 false', () => {
@@ -375,9 +388,16 @@ describe('路由守卫', () => {
       expect(router.currentRoute.value.query.redirect).toBe('/teacher/dashboard')
     })
 
-    it('服务端不可达（网络/5xx）：保留本地登录态放行，不把用户踢出登录页', async () => {
+    it('服务端不可达（网络/5xx）：不渲染受保护页，落 /503 连接失败页并带 redirect', async () => {
+      // 缺陷修复（2026-10-16 启动崩溃）：后端未监听 8080 时，原实现在此放行，
+      // 随后角色门禁 fail-closed 落到 /403——把「服务没起来」显示成「你没有权限」。
+      // 不可达 ≠ 无权限：必须落 /503（自带轮询重试），且不得踢掉本地登录态。
       await navigateWithStaleSession('unavailable', '/teacher/dashboard')
-      expect(router.currentRoute.value.path).toBe('/teacher/dashboard')
+      expect(router.currentRoute.value.path).toBe('/503')
+      expect(router.currentRoute.value.query.redirect).toBe('/teacher/dashboard')
+      // 本地登录态保留（后端恢复后 /503 页轮询成功即回原页面）
+      expect(mockStore.isLoggedIn).toBe(true)
+      expect(mockStore.resetAuthState).not.toHaveBeenCalled()
     })
 
     it('服务端确认成功：正常放行，且不带多余的登录页跳转', async () => {

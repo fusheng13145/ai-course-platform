@@ -65,6 +65,29 @@ const service = axios.create({
 })
 
 /* ============================================
+ * 会话探针静默期（/503 连接失败页轮询期间）
+ * ============================================ */
+/**
+ * 探针静默开关：views/error/503.vue 轮询 /auth/permissions 期间置 true。
+ *
+ * 背景（2026-10-16 启动崩溃修复）：后端未就绪时探针每 3 秒重试一次，若不禁用
+ * 提示，用户每 3 秒就被弹一次「网络异常」/「服务器内部错误」，既掩盖本页自己
+ * 展示的连接状态，也掩盖其他真正需要关注的错误。静默只吞 toast 与自动重试，
+ * 不改写任何状态码分支的控制流（401 刷新、结论回传等照常）。
+ */
+let probeSilence = false
+
+/** 进入/退出探针静默期（由 /503 页在挂载/卸载时调用） */
+export function setProbeSilence(value: boolean) {
+  probeSilence = value
+}
+
+/** 供测试查询当前静默状态 */
+export function isProbeSilent() {
+  return probeSilence
+}
+
+/* ============================================
  * 请求重试配置
  * ============================================ */
 // 记录已重试的请求，避免无限循环（实际重试判定由 generateReqKey + retryCache 完成）
@@ -326,10 +349,18 @@ service.interceptors.response.use(
         networkMsg = '网络已断开，请连接后重试'
       }
 
-      showThrottledMessage('error', networkMsg)
+      // 探针静默期不弹toast（/503 页自带状态展示与重试 UI）
+      if (!probeSilence) {
+        showThrottledMessage('error', networkMsg)
+      }
 
       /* 网络抖动自动重试一次：仅限幂等方法（P1-7），非幂等请求绝不重放 */
-      if (config && isIdempotentMethod(config.method) && !retryCache.get(generateReqKey(config))) {
+      if (
+        config &&
+        !probeSilence &&
+        isIdempotentMethod(config.method) &&
+        !retryCache.get(generateReqKey(config))
+      ) {
         retryCache.set(generateReqKey(config), true)
         try {
           const res = await service(cloneConfigForRetry(config))
@@ -422,7 +453,11 @@ service.interceptors.response.use(
         break
 
       case 500:
-        showThrottledMessage('error', serverMsg || '服务器内部错误，请稍后重试')
+        // 探针静默期不提示（/503 页轮询中；且 dev 下 Vite 代理对 ECONNREFUSED
+        // 正是返回 500，此时「服务器内部错误」的文案会误导成后端代码故障）
+        if (!probeSilence) {
+          showThrottledMessage('error', serverMsg || '服务器内部错误，请稍后重试')
+        }
         break
 
       case 502:
@@ -431,6 +466,7 @@ service.interceptors.response.use(
         /* 服务端临时故障：仅幂等方法自动重试一次（P1-7），重试前重建 signal */
         if (
           config &&
+          !probeSilence &&
           isIdempotentMethod(config.method) &&
           !retryCache.get(generateReqKey(config))
         ) {
@@ -447,7 +483,9 @@ service.interceptors.response.use(
             return Promise.reject(retryErr)
           }
         }
-        showThrottledMessage('error', getStatusMessage(status))
+        if (!probeSilence) {
+          showThrottledMessage('error', getStatusMessage(status))
+        }
         break
       }
 

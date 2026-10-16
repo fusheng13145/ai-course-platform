@@ -1,5 +1,7 @@
 package com.aicourse.security;
 
+import com.aicourse.entity.User;
+import com.aicourse.service.UserService;
 import com.aicourse.service.UserSessionService;
 import com.aicourse.util.JwtUtils;
 import jakarta.servlet.FilterChain;
@@ -31,10 +33,12 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
     private final JwtUtils jwtUtils;
     private final UserSessionService userSessionService;
+    private final UserService userService;
 
-    public JwtRequestFilter(JwtUtils jwtUtils, UserSessionService userSessionService) {
+    public JwtRequestFilter(JwtUtils jwtUtils, UserSessionService userSessionService, UserService userService) {
         this.jwtUtils = jwtUtils;
         this.userSessionService = userSessionService;
+        this.userService = userService;
     }
 
     /**
@@ -51,6 +55,18 @@ public class JwtRequestFilter extends OncePerRequestFilter {
     /**
      * 每个请求解析并校验 JWT，认证成功后写入 SecurityContext；任何解析异常均记录 ERROR 并放行
      * （随后由匿名上下文落入 anyRequest().authenticated() 统一返回 401，不阻塞后续过滤器）。
+     *
+     * <p>【修复 2026-10-16】authorities 一律以**用户表的现行角色**为准，不再使用令牌里的
+     * {@code role} claim（登录时快照）。令牌只证明身份（userId），授权属性必须实时：</p>
+     * <ul>
+     *   <li>管理端修改角色后，已签发令牌在有效期内仍携带旧角色。若按 claim 构造 authorities，
+     *       {@code /auth/permissions} 与前端菜单按 DB 新角色渲染、REST 鉴权按令牌旧角色拒绝，
+     *       出现「UI 是管理台、API 全 403」的分裂态（线上实测：teacher 账号提权为 ADMIN 后，
+     *       旧会话访问 /admin/statistics/** 全部 403）；</li>
+     *   <li>降权场景更是安全缺口：被降级的管理员在令牌过期前仍持有原角色的接口权限。</li>
+     * </ul>
+     * <p>开销：仅在「令牌有效且会话活跃」的已认证请求上多一次 users 主键查询
+     * （与 isSessionActive 的既有 DB 兜底同量级）；用户名仍取令牌 claim（非授权属性）。</p>
      */
     @Override
     protected void doFilterInternal(@NonNull HttpServletRequest request,
@@ -74,7 +90,16 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
                 Long userId = jwtUtils.getUserIdFromToken(token);
                 String username = jwtUtils.getUsernameFromToken(token);
-                String role = jwtUtils.getRoleFromToken(token);
+
+                // 授权属性以用户表现行状态为准（见类注释）：用户被删除或禁用时
+                // 不建立认证上下文，与 /auth/refresh 的「用户不存在或已禁用」口径一致。
+                User user = userService.getById(userId);
+                if (user == null || !Boolean.TRUE.equals(user.getIsActive())) {
+                    log.warn("[JwtRequestFilter] 用户不存在或已禁用，拒绝建立认证上下文: userId={}", userId);
+                    chain.doFilter(request, response);
+                    return;
+                }
+                String role = user.getRole();
 
                 // 封装角色权限（Spring Security 角色需前缀 ROLE_）
                 List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));

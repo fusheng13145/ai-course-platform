@@ -42,6 +42,13 @@ const routes: RouteRecordRaw[] = [
     meta: { requiresAuth: false, title: '无权限' },
   },
   {
+    // 后端不可达（网络错误/5xx，典型即启动窗口期 8080 未监听）时的落点。
+    // 必须 requiresAuth:false，否则守卫会对本页再次发起会话探针，形成轮询环。
+    path: '/503',
+    component: () => import('@/views/error/503.vue'),
+    meta: { requiresAuth: false, title: '服务连接失败' },
+  },
+  {
     path: '/admin',
     component: () => import('@/layouts/AdminLayout.vue'),
     meta: { requiresAuth: true, role: 'ADMIN' },
@@ -603,6 +610,16 @@ router.beforeEach(async (to, from, next) => {
     const verdict = await authStore.fetchPermissions()
     if (verdict === 'expired') {
       next({ path: '/login', query: { redirect: to.fullPath } })
+      return
+    }
+    // 缺陷修复（2026-10-16 启动崩溃）：服务端不可达（网络错误/5xx，典型即后端尚未
+    // 监听 8080）时，原实现放行后由角色门禁 fail-closed 落到 /403——把「服务没起来」
+    // 显示成「你没有权限」，用户据此去查权限配置，排查方向完全被带偏（本次用户实测：
+    // start-all 启动即见 ECONNREFUSED + 403 页）。
+    // 不可达 ≠ 无权限：改落 /503 连接失败页（自带轮询重试，后端就绪后自动回到原目标），
+    // 角色判定只在服务端真正给出结论（ok/expired）之后才进行。
+    if (verdict === 'unavailable') {
+      next({ path: '/503', query: { redirect: to.fullPath } })
       return
     }
   }
