@@ -1,6 +1,7 @@
 <template>
   <!-- 新建/编辑知识点对话框 -->
   <el-dialog
+  ref="dialogRef1"
     :model-value="formDialogVisible"
     :title="isEdit ? '编辑知识点' : '新建知识点'"
     width="560px"
@@ -70,6 +71,7 @@
 
   <!-- 关联关系对话框 -->
   <el-dialog
+  ref="dialogRef2"
     :model-value="relationVisible"
     title="管理关联关系"
     width="520px"
@@ -123,16 +125,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { Delete } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 
 /**
  * 知识管理对话框（新建/编辑 + 关联关系）
  * <p>表单对象/校验/课程选项经 props 注入；保存与关联操作经事件上抛父组件
  * （useKnowledgeManagement）。表单校验能力经 defineExpose 暴露。</p>
  */
-defineProps({
+const props = defineProps({
   formDialogVisible: { type: Boolean, default: false },
   isEdit: { type: Boolean, default: false },
   submitting: { type: Boolean, default: false },
@@ -146,6 +149,13 @@ defineProps({
   availablePrereqs: { type: Array, default: () => [] },
   prerequisitesList: { type: Array, default: () => [] },
 })
+const dialogRef1 = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef1, computed(() => props.formDialogVisible))
+const dialogRef2 = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef2, computed(() => props.relationVisible))
+
 
 const emit = defineEmits([
   'update:formVisible',

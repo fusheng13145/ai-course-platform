@@ -82,6 +82,7 @@
 
     <!-- 新建 / 编辑对话框 -->
     <el-dialog
+    ref="dialogRef1"
       v-model="dialogVisible"
       :title="dialogMode === 'create' ? '新建任务' : '编辑任务'"
       width="520px"
@@ -138,7 +139,7 @@
     </el-dialog>
 
     <!-- 延长截止对话框 -->
-    <el-dialog v-model="extendVisible" title="延长截止日期" width="460px" @closed="resetExtend">
+    <el-dialog ref="dialogRef2" v-model="extendVisible" title="延长截止日期" width="460px" @closed="resetExtend">
       <el-form :model="extendForm" label-width="88px">
         <el-form-item label="新截止">
           <el-date-picker
@@ -176,6 +177,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import { confirmDanger } from '@/utils/dangerConfirm'
 import PageHeader from '@/components/PageHeader.vue'
 import { Plus, Edit, Delete, Calendar } from '@element-plus/icons-vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 
 const route = useRoute()
 const courseId = computed(() => Number(route.params.id))
@@ -195,6 +197,9 @@ const pagedTasks = computed(() => {
 const taskTypes = ['视频', '测验', '作业', '文档', '讨论']
 
 const dialogVisible = ref(false)
+const dialogRef1 = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef1, dialogVisible)
 const dialogMode = ref('create')
 const editingId = ref(null)
 const form = reactive({
@@ -206,6 +211,9 @@ const form = reactive({
 })
 
 const extendVisible = ref(false)
+const dialogRef2 = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef2, extendVisible)
 const extendId = ref(null)
 const extendForm = reactive({ newDueDate: '', reason: '' })
 
