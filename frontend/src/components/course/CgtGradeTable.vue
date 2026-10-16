@@ -2,7 +2,7 @@
   <div class="table-area">
     <el-table
       v-loading="loading"
-      :data="filteredGrades"
+      :data="paged"
       style="width: 100%"
       :header-cell-style="{
         background: 'var(--ac-bg)',
@@ -64,6 +64,17 @@
         </template>
       </el-table-column>
     </el-table>
+    <!-- D2-5：课程成绩无界（大课程数百行），客户端分页仅超一页时出现 -->
+    <div v-if="showPager" class="pager-wrap">
+      <el-pagination
+        small
+        layout="total, prev, pager, next"
+        :total="total"
+        :page-size="pageSize"
+        :current-page="page"
+        @current-change="onPageChange"
+      />
+    </div>
     <EmptyState v-if="!loading && filteredGrades.length === 0" title="暂无成绩数据" icon="chart" />
   </div>
 </template>
@@ -71,12 +82,18 @@
 <script setup>
 import { monoScore } from '@/utils/chartTheme'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import { useClientPagination } from '@/composables/useClientPagination'
 
-defineProps({
+const props = defineProps({
   loading: { type: Boolean, default: false },
   filteredGrades: { type: Array, default: () => [] },
 })
 defineEmits(['view-detail'])
+
+// D2-5：课程成绩按课程人数伸缩（大课程数百行），渲染层客户端分页（每页 20）
+const { page, pageSize, total, paged, showPager, onPageChange } = useClientPagination(
+  () => props.filteredGrades,
+)
 
 function getGradeTagType(l) {
   const m = { A: 'success', B: 'primary', C: 'warning', D: 'danger', F: 'info' }
@@ -90,6 +107,12 @@ function getScoreColor(score) {
 <style scoped>
 .table-area {
   min-width: 0;
+}
+/* D2-5：分页器右对齐 */
+.pager-wrap {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 12px;
 }
 .action-row {
   display: flex;

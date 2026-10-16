@@ -47,7 +47,7 @@
           :closable="false"
           show-icon
         />
-        <el-table v-if="report.length" :data="report" size="small" border max-height="560">
+        <el-table v-if="report.length" :data="paged" size="small" border max-height="560">
           <el-table-column prop="studentName" label="学生" min-width="110" fixed />
           <el-table-column
             v-for="c in policy.components"
@@ -79,6 +79,17 @@
             </template>
           </el-table-column>
         </el-table>
+        <!-- D2-5：课程成绩报告无界（大课程数百行），客户端分页仅超一页时出现 -->
+        <div v-if="showPager" class="pager-wrap">
+          <el-pagination
+            small
+            layout="total, prev, pager, next"
+            :total="total"
+            :page-size="pageSize"
+            :current-page="page"
+            @current-change="onPageChange"
+          />
+        </div>
         <EmptyState v-else :title="emptyText" icon="chart" />
       </div>
     </div>
@@ -89,6 +100,7 @@
 import { computed } from 'vue'
 import { Plus, View, DataAnalysis } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import { useClientPagination } from '@/composables/useClientPagination'
 
 const props = defineProps({
   policy: { type: Object, default: null },
@@ -101,6 +113,11 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['open-policy', 'open-score', 'preview'])
+
+// D2-5：成绩报告按课程人数伸缩（大课程数百行），渲染层客户端分页（每页 20）
+const { page, pageSize, total, paged, showPager, onPageChange } = useClientPagination(
+  () => props.report,
+)
 
 /** 后端 FinalGradeVO 在本组件用到的键（report 数组的元素形状） */
 type ReportRow = {
@@ -141,6 +158,12 @@ function findScore(row, key) {
 <style scoped>
 .warn-line {
   margin-bottom: 10px;
+}
+/* D2-5：分页器右对齐 */
+.pager-wrap {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 10px;
 }
 .score-cell {
   display: inline-block;
