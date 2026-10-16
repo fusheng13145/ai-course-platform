@@ -16,6 +16,7 @@
       <path d="m21 21-4.35-4.35" />
     </svg>
     <input
+      ref="searchInputRef"
       v-model="searchKeyword"
       class="gs-input"
       type="text"
@@ -50,9 +51,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { searchAll } from '@/api/search'
+import { FOCUS_GLOBAL_SEARCH_EVENT } from '@/composables/useKeyboardShortcuts'
 
 const props = defineProps({
   role: { type: String, required: true },
@@ -66,6 +68,15 @@ const searchLoading = ref(false)
 const searchPanelOpen = ref(false)
 let searchTimer = null
 let searchBlurTimer = null
+
+/* D2-7 第八批：快捷键聚焦入口——AppShell 派发事件，本组件只负责把焦点落到搜索框
+   （事件解耦：不通过 ref 链穿透 AppTopbar/AppShell 两层组件）。 */
+const searchInputRef = ref(null)
+function onFocusShortcut() {
+  searchInputRef.value?.focus()
+}
+onMounted(() => window.addEventListener(FOCUS_GLOBAL_SEARCH_EVENT, onFocusShortcut))
+onBeforeUnmount(() => window.removeEventListener(FOCUS_GLOBAL_SEARCH_EVENT, onFocusShortcut))
 
 function typeLabel(type) {
   return { knowledge: '知识', question: '题目', course: '课程', note: '笔记' }[type] || type

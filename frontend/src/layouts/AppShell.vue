@@ -26,6 +26,9 @@
 
   <!-- 新用户引导（首次进入自动展示，三端共用；用户菜单可重新唤起） -->
   <OnboardingGuide ref="guideRef" />
+
+  <!-- 键盘快捷键说明（D2-7 第八批：按 ? 打开/关闭） -->
+  <KeyboardShortcutsDialog v-model="shortcutsHelpVisible" />
 </template>
 
 <script setup>
@@ -34,7 +37,9 @@ import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { iconHtml } from './icons'
 import { announce } from '@/composables/useAnnouncer'
+import { useGlobalHotkeys, FOCUS_GLOBAL_SEARCH_EVENT } from '@/composables/useKeyboardShortcuts'
 import OnboardingGuide from '@/components/OnboardingGuide.vue'
+import KeyboardShortcutsDialog from './components/KeyboardShortcutsDialog.vue'
 import AppSidebar from './components/AppSidebar.vue'
 import AppTopbar from './components/AppTopbar.vue'
 
@@ -98,6 +103,34 @@ watch(
 
 const sidebarMini = ref(false)
 const guideRef = ref(null)
+
+/* ---- D2-7 第八批：全局快捷键（详见 useKeyboardShortcuts 原语） ---- */
+const shortcutsHelpVisible = ref(false)
+
+/** 聚焦顶栏全局搜索：派发事件由 AtbGlobalSearch 监听（跨组件解耦，不传 ref） */
+function focusGlobalSearch() {
+  window.dispatchEvent(new CustomEvent(FOCUS_GLOBAL_SEARCH_EVENT))
+}
+
+useGlobalHotkeys([
+  // Ctrl/⌘+K 与 /：聚焦全局搜索；输入态与弹层打开时不触发（原语默认守卫）
+  { key: 'k', mod: true, handler: focusGlobalSearch },
+  { key: '/', handler: focusGlobalSearch },
+  {
+    // ?：打开/关闭快捷键说明。allowWhenOverlayOpen 放行给处理器自行判断——
+    // 已打开时按 ? 关闭（toggle）；其他弹层打开时不叠加。
+    key: '?',
+    handler: () => {
+      if (shortcutsHelpVisible.value) {
+        shortcutsHelpVisible.value = false
+        return
+      }
+      if (typeof document !== 'undefined' && document.querySelector('.el-overlay')) return
+      shortcutsHelpVisible.value = true
+    },
+    allowWhenOverlayOpen: true,
+  },
+])
 
 /* ---- 用户菜单（动态 DOM 弹出，侧边栏底部用户区共用） ---- */
 function showUserMenu() {

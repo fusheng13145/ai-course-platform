@@ -56,7 +56,7 @@ async function mountShell() {
   const wrapper = mount(AppShell, {
     props: { role: 'ADMIN', profilePath: '/admin/profile' },
     attachTo: document.body,
-    global: { stubs: { 'router-view': true } },
+    global: { stubs: { 'router-view': true, KeyboardShortcutsDialog: true } },
   })
   await flushPromises()
   return wrapper

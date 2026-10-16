@@ -57,7 +57,7 @@ function mountShell() {
   return mount(AppShell, {
     props: { role: 'ADMIN', profilePath: '/admin/profile' },
     attachTo: document.body,
-    global: { stubs: { 'router-view': true } },
+    global: { stubs: { 'router-view': true, KeyboardShortcutsDialog: true } },
   })
 }
 
