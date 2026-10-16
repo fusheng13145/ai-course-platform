@@ -79,7 +79,7 @@ import { getMonoSeries, getMonoStatus, monoScore } from '@/utils/chartTheme'
       />
     </div>
 
-    <el-dialog v-model="uploadDialogVisible" title="上传资源" width="500px" append-to-body>
+    <el-dialog ref="dialogRef" v-model="uploadDialogVisible" title="上传资源" width="500px" append-to-body>
       <el-form :model="uploadForm" label-width="80px">
         <el-form-item label="文件">
           <el-upload
@@ -129,6 +129,7 @@ import { ElMessage } from 'element-plus'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { confirmDanger } from '@/utils/dangerConfirm'
 import resourceApi from '@/api/resource'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 
 const props = defineProps({
   courseId: { type: Number, required: true },
@@ -141,6 +142,9 @@ const loading = ref(false)
 const loadError = ref('')
 const resourceFilter = ref('')
 const uploadDialogVisible = ref(false)
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, uploadDialogVisible)
 const uploadFileList = ref([])
 const uploading = ref(false)
 const uploadForm = ref({

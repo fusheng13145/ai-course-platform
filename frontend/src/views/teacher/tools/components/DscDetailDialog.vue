@@ -1,6 +1,7 @@
 <template>
   <!-- 话题详情 -->
   <el-dialog
+    ref="dialogRef"
     :model-value="modelValue"
     :title="currentTopic?.title || '话题详情'"
     width="680px"
@@ -78,10 +79,12 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
 import { Top, SwitchButton, Pointer } from '@element-plus/icons-vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
-withDefaults(
+const props = withDefaults(
   defineProps<{
     modelValue?: boolean
     currentTopic?: DiscussionTopic | null
@@ -99,6 +102,9 @@ withDefaults(
     replySubmitting: false,
   },
 )
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, computed(() => props.modelValue))
 defineEmits<{
   'update:modelValue': [value: boolean]
   'update:replyText': [value: string]

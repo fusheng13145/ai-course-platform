@@ -1,5 +1,6 @@
 <template>
   <el-dialog
+    ref="dialogRef"
     :model-value="modelValue"
     title="题目审核"
     width="520px"
@@ -31,11 +32,13 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 /**
  * 题库管理 — 题目审核对话框
  * <p>通过/驳回单选 + 审核意见，提交逻辑委托 composable。</p>
  */
-defineProps({
+const props = defineProps({
   /** 弹窗显隐（v-model） */
   modelValue: { type: Boolean, default: false },
   /** 审核表单（共享对象：status/comment） */
@@ -43,6 +46,10 @@ defineProps({
   /** 提交加载态 */
   reviewing: { type: Boolean, default: false },
 })
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, computed(() => props.modelValue))
+
 
 defineEmits(['update:modelValue', 'submit'])
 </script>

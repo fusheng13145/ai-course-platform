@@ -1,5 +1,6 @@
 <template>
   <el-dialog
+    ref="dialogRef"
     :model-value="modelValue"
     title="创建查重任务"
     width="480px"
@@ -27,13 +28,18 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import plagiarismApi from '@/api/plagiarismCheck'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 
-defineProps({
+const props = defineProps({
   modelValue: { type: Boolean, default: false },
 })
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, computed(() => props.modelValue))
+
 
 const emit = defineEmits(['update:modelValue', 'created'])
 

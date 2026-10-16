@@ -107,7 +107,8 @@
 
     <!-- 新建/编辑弹窗 -->
     <el-dialog
-      v-model="dialogVisible"
+      ref="dialogRef"
+    v-model="dialogVisible"
       :title="isEdit ? '编辑提醒' : '新建提醒'"
       width="520px"
       append-to-body
@@ -148,6 +149,7 @@ import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { validateFormFields, type ElFormLike } from '@/composables/useFormSubmit'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -161,6 +163,9 @@ const totalCount = computed(() => todos.value.length)
 const pendingCount = computed(() => todos.value.filter((t) => t.status === 'PENDING').length)
 const completedCount = computed(() => todos.value.filter((t) => t.status === 'COMPLETED').length)
 const dialogVisible = ref(false)
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, dialogVisible)
 const isEdit = ref(false)
 const form = ref({ title: '', content: '', remindAt: null, targetUserId: '' })
 const formRef = ref<ElFormLike | null>(null)

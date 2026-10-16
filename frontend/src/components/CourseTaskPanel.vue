@@ -78,7 +78,8 @@
     </div>
 
     <el-dialog
-      v-model="taskDialogVisible"
+      ref="dialogRef"
+    v-model="taskDialogVisible"
       :title="editingTask ? '编辑作业' : '创建作业'"
       width="600px"
       append-to-body
@@ -155,6 +156,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import { validateFormFields } from '@/composables/useFormSubmit'
 import taskApi from '@/api/task'
 import { confirmDanger } from '@/utils/dangerConfirm'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 
 const props = defineProps({
   courseId: { type: Number, required: true },
@@ -167,6 +169,9 @@ const loading = ref(false)
 const loadError = ref('')
 const taskFilter = ref('')
 const taskDialogVisible = ref(false)
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, taskDialogVisible)
 const editingTask = ref(null)
 const saving = ref(false)
 

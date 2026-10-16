@@ -158,7 +158,7 @@
     </section>
 
     <!-- 课程详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="课程详情" width="700px" append-to-body>
+    <el-dialog ref="dialogRef" v-model="detailDialogVisible" title="课程详情" width="700px" append-to-body>
       <el-descriptions v-if="currentCourse" :column="2" border>
         <el-descriptions-item label="课程ID">{{ currentCourse.id }}</el-descriptions-item>
         <el-descriptions-item label="课程名称">{{ currentCourse.name }}</el-descriptions-item>
@@ -214,12 +214,16 @@ import { confirmDanger } from '@/utils/dangerConfirm'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import { useListFeedback } from '@/composables/useListFeedback'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 
 const courseList = ref([])
 const search = ref('')
 const statusFilter = ref('')
 const activeFilter = ref('')
 const detailDialogVisible = ref(false)
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, detailDialogVisible)
 const currentCourse = ref(null)
 
 // D2-1：失败反馈统一原语——失败时持久 alert + 双态空文案 + 读数显 '--'，

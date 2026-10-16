@@ -77,7 +77,8 @@
     </div>
 
     <el-dialog
-      v-model="examDialogVisible"
+      ref="dialogRef"
+    v-model="examDialogVisible"
       :title="editingExam ? '编辑试卷' : '创建试卷'"
       width="700px"
       append-to-body
@@ -169,6 +170,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import examApi from '@/api/exam'
 import { confirmDanger } from '@/utils/dangerConfirm'
 import { validateFormFields } from '@/composables/useFormSubmit'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 
 const props = defineProps({
   courseId: { type: Number, required: true },
@@ -181,6 +183,9 @@ const loading = ref(false)
 const loadError = ref('')
 const examFilter = ref('')
 const examDialogVisible = ref(false)
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, examDialogVisible)
 const editingExam = ref(null)
 const saving = ref(false)
 const formRef = ref(null)
