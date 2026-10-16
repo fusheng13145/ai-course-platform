@@ -1,7 +1,7 @@
 <template>
   <!-- eslint-disable vue/no-v-html -->
   <!-- v-html 仅用于内部 SVG 图标常量（受控输入），无需净化 -->
-  <aside class="sidebar" :class="{ mini: sidebarMini }">
+  <nav class="sidebar" :class="{ mini: sidebarMini }" aria-label="主导航">
     <div class="brand">
       <span class="brand-mark">{{ roleMeta.brandMark }}</span>
       <div>
@@ -78,7 +78,7 @@
         <div class="u-role">{{ roleMeta.label }}</div>
       </div>
     </div>
-  </aside>
+  </nav>
 </template>
 
 <script setup>

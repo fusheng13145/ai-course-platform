@@ -14,7 +14,7 @@
         @toggle-sidebar="sidebarMini = !sidebarMini"
       />
 
-      <main ref="contentRef" class="content">
+      <main ref="contentRef" class="content" :aria-busy="navigating">
         <router-view v-slot="{ Component }">
           <transition name="page" mode="out-in">
             <component :is="Component" :key="viewKey" />
@@ -29,10 +29,11 @@
 </template>
 
 <script setup>
-import { ref, computed, watch } from 'vue'
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { iconHtml } from './icons'
+import { announce } from '@/composables/useAnnouncer'
 import OnboardingGuide from '@/components/OnboardingGuide.vue'
 import AppSidebar from './components/AppSidebar.vue'
 import AppTopbar from './components/AppTopbar.vue'
@@ -51,6 +52,31 @@ const props = defineProps({
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
+
+// D2-7：导航期间主内容区标记 aria-busy（读屏不朗读中间态），结束后清除
+const navigating = ref(false)
+const unregisterBefore = router.beforeEach?.(() => {
+  navigating.value = true
+})
+const unregisterAfter = router.afterEach?.(() => {
+  navigating.value = false
+})
+onBeforeUnmount(() => {
+  unregisterBefore?.()
+  unregisterAfter?.()
+})
+
+// D2-7：SPA 路由切换对读屏无声——进入新页面后播报页面标题（meta.title）
+watch(
+  () => route.fullPath || route.path,
+  async () => {
+    await nextTick()
+    const matched = route.matched || []
+    const title = matched[matched.length - 1]?.meta?.title
+    if (title) announce(`已进入${title}页面`)
+  },
+  { immediate: true },
+)
 
 /**
  * 本层视图的重建判据：只用「本层路由记录 + 该记录声明的参数值」，不用 route.path。

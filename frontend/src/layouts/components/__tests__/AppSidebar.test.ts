@@ -64,6 +64,14 @@ describe('AppSidebar 导航跳转', () => {
     mocks.allCourses.mockResolvedValue([COURSE])
   })
 
+  it('D2-7：侧边栏为 nav landmark（aria-label=主导航）', async () => {
+    const wrapper = await mountSidebar('TEACHER', '/teacher/dashboard')
+    const nav = wrapper.get('nav.sidebar')
+    expect(nav.attributes('aria-label')).toBe('主导航')
+    // 历史 aside 标签已升级为 nav（隐式 navigation 角色）
+    expect(wrapper.find('aside.sidebar').exists()).toBe(false)
+  })
+
   it('教师端：位于课程子页时「教学概览」可见且可点回 /teacher/dashboard', async () => {
     const wrapper = await mountSidebar('TEACHER', '/teacher/courses/1/analytics')
     expect(navItem(wrapper, '课程目录').classes()).toContain('active')
