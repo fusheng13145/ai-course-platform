@@ -274,13 +274,13 @@ cd frontend && npm run lint && npm run typecheck:gate && npx vitest run && npm r
 
 | 门禁 | 读数（当前本机口径） |
 | --- | --- |
-| 后端单元测试 | **2831 用例 / 0 失败 / 0 错误 / 0 跳过** |
+| 后端单元测试 | **2958 用例 / 0 失败 / 0 错误 / 0 跳过**（2026-10-16 本机 `mvn -o test`；DR-57 闭合后**不清库连续重跑**成立） |
 | 后端集成测试 | **12 用例 / 0 失败**（含 IT 那轮，现由 CI 取数） |
 | JaCoCo | **LINE 89.15% / BRANCH 70.60%**（341 类）→ 在**阈值未降低**（LINE ≥ 85% / BRANCH ≥ 65%）的前提下达标，靠补真实测试而非降阈值 |
 | ArchUnit | **6 条**架构守护全通过 |
 | SpotBugs | **0 缺陷**（`failOnError=true` 硬阻断，13 个框架性 `<Match>` 豁免） |
-| 前端单测 / ESLint | **55 文件 / 1096 用例全绿**；lint **0 error / 0 warning** |
-| 前端类型检查 | `vue-tsc` 棘轮基线 **576 条 / 108 文件**（只许下调） |
+| 前端单测 / ESLint | **149 文件 / 1604 用例全绿**；lint **0 error / 0 warning**（2026-10-16 复跑） |
+| 前端类型检查 | `vue-tsc` 棘轮基线 **402 条 / 90 文件**（只许下调） |
 | CI | 3 个工作流；`ci.yml` **10 个作业**（`frontend-e2e` 暂为 `workflow_dispatch`）——**本机绿不等于 CI 绿**，且本机对 Actions 结果不可观测（手册 §21.1） |
 质量门禁基线（渐进收敛制，只许上调不得下调）：JaCoCo LINE ≥ 85% / BRANCH ≥ 65%（生产收敛目标指令覆盖 ≥ 85%）、SpotBugs 0 error、ArchUnit 架构约束。测试方法、契约测试清单与 CI 流水线见 `docs/项目手册.md` 第六部分。
 
