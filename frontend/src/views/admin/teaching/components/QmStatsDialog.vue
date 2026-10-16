@@ -1,5 +1,6 @@
 <template>
   <el-dialog
+    ref="dialogRef"
     :model-value="modelValue"
     title="题目统计分析"
     width="550px"
@@ -47,14 +48,23 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 /**
  * 题目统计对话框
  * <p>使用次数/正确率/平均用时/错误次数统计卡 + 近期使用记录时间线（纯展示）。</p>
  */
-defineProps({
+const props = defineProps({
   modelValue: { type: Boolean, default: false },
   stats: { type: Object, default: null },
 })
+
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(
+  dialogRef,
+  computed(() => props.modelValue),
+)
 
 const emit = defineEmits(['update:model-value'])
 </script>

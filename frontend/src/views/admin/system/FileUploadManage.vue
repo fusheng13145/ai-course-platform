@@ -98,9 +98,9 @@
                 <el-button v-else size="small" @click="viewProgress(row)">查看进度</el-button>
               </template>
             </el-table-column>
-              <template #empty>
-                <EmptyState :title="emptyDescription()" icon="upload" />
-              </template>
+            <template #empty>
+              <EmptyState :title="emptyDescription()" icon="upload" />
+            </template>
           </el-table>
           <!-- D2-5：上传会话历史无界（listSessions 全量返回），客户端分页仅超一页时出现 -->
           <div v-if="showPager" class="pager-wrap">
@@ -119,6 +119,7 @@
 
     <!-- 进度弹窗 -->
     <el-dialog
+      ref="dialogRef"
       v-model="progressVisible"
       title="上传进度"
       width="520px"
@@ -158,6 +159,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 import { ElMessage } from 'element-plus'
 import { Refresh, Document, Close } from '@element-plus/icons-vue'
 import uploadApi from '@/api/fileUpload'
@@ -189,15 +191,23 @@ interface UploadProgress {
 
 const sessions = ref<UploadSession[]>([])
 // D2-5：上传会话历史无界（listSessions 全量返回），渲染层客户端分页（每页 20）
-const { page, pageSize, total, paged: pagedSessions, showPager, onPageChange } = useClientPagination(
-  () => sessions.value,
-)
+const {
+  page,
+  pageSize,
+  total,
+  paged: pagedSessions,
+  showPager,
+  onPageChange,
+} = useClientPagination(() => sessions.value)
 const sessionTotal = computed(() => sessions.value.length)
 const uploadingCount = computed(() => sessions.value.filter((s) => s.status === 'UPLOADING').length)
 const completedCount = computed(
   () => sessions.value.filter((s) => s.status === 'MERGED' || s.status === 'COMPLETED').length,
 )
 const progressVisible = ref(false)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+const dialogRef = ref(null)
+useDialogFocus(dialogRef, progressVisible)
 const currentSession = ref<UploadSession | null>(null)
 // 列表失败反馈统一原语（D2-1）：loading + 错误态 banner + 双态空文案
 const { loading, listError, run, emptyDescription } = useListFeedback({

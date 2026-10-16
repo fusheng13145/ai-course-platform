@@ -1,5 +1,6 @@
 <template>
   <el-dialog
+    ref="dialogRef"
     :model-value="modelValue"
     title="试卷详情"
     width="700px"
@@ -61,13 +62,15 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 试卷详情对话框
  * <p>基本信息（状态/分数/人数统计）+ 题目预览列表；发布/复制操作经事件上抛。</p>
  */
-defineProps({
+const props = defineProps({
   modelValue: { type: Boolean, default: false },
   currentExam: { type: Object, default: null },
   examDetailQuestions: { type: Array, default: () => [] },
@@ -75,6 +78,13 @@ defineProps({
   getStatusText: { type: Function, required: true },
   getQuestionTypeName: { type: Function, required: true },
 })
+
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(
+  dialogRef,
+  computed(() => props.modelValue),
+)
 
 const emit = defineEmits(['update:modelValue', 'publish', 'copy'])
 </script>

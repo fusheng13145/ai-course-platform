@@ -1,6 +1,7 @@
 <template>
   <!-- 签到记录 -->
   <el-dialog
+    ref="dialogRef"
     :model-value="modelValue"
     title="签到记录"
     width="520px"
@@ -49,6 +50,8 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 import { Check } from '@element-plus/icons-vue'
 import { useClientPagination } from '@/composables/useClientPagination'
 
@@ -60,11 +63,23 @@ const props = defineProps({
   modelValue: { type: Boolean, default: false },
   records: { type: Array, default: () => [] },
 })
+
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(
+  dialogRef,
+  computed(() => props.modelValue),
+)
 defineEmits(['update:modelValue', 'mark'])
 
-const { page, pageSize, total, paged: pagedRecords, showPager, onPageChange } = useClientPagination(
-  () => props.records,
-)
+const {
+  page,
+  pageSize,
+  total,
+  paged: pagedRecords,
+  showPager,
+  onPageChange,
+} = useClientPagination(() => props.records)
 </script>
 
 <style scoped>

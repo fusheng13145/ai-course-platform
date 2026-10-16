@@ -3,6 +3,7 @@
   <!-- v-loading 不能绑在 <el-dialog> 上：弹层内容在 teleport 的非元素根上，运行时指令无处安放
        （Vue 告警 + 遮罩静默失效）。改由插槽内的包裹层承担，同 CourseProctor.vue:88 的写法。 -->
   <el-dialog
+    ref="dialogRef"
     :model-value="modelValue"
     title="试卷统计"
     width="560px"
@@ -46,13 +47,22 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
-defineProps({
+const props = defineProps({
   modelValue: { type: Boolean, default: false },
   loading: { type: Boolean, default: false },
   stats: { type: Object, default: null },
 })
+
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(
+  dialogRef,
+  computed(() => props.modelValue),
+)
 defineEmits(['update:modelValue'])
 
 function hasStats(s) {
