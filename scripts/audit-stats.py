@@ -10,7 +10,8 @@
     python scripts/audit-stats.py --json     # 输出 JSON（供脚本消费）
 
 口径原则：
-  - 每一行都注明口径（文件计数 / 正则计数 / 严格 CREATE TABLE 计数），与手册口径列一一对应；
+  - 每一行都注明口径（文件计数 / 正则计数 / 严格 CREATE TABLE 行计数 / CREATE TABLE 表名去重），
+    与手册口径列一一对应；「48 表」是 index.sql↔V1 口径，当前库表数看「全迁移去重」行；
   - 只做静态计数，不做「运行期识别」，故与运行期数字（如实际 @RestController 数）可能略有差异；
   - 计数路径全部相对仓库根，脚本可在任意 CWD 下运行。
 """
@@ -43,7 +44,32 @@ def read(path: str) -> str:
 
 
 def strip_comment_lines(text: str) -> str:
-    return re.sub(r"(?m)^\s*(\*|//|/\*).*$", "", text)
+    """按行剔注释：整行注释丢弃；注释收尾符 `*/` 后若还挂着代码（`*/  @PostMapping(...)`），
+    保留该代码段——否则行上的注解会被静默漏计。本函数是全部注解计数的唯一口径入口。"""
+    kept = []
+    for line in text.splitlines():
+        s = line.strip()
+        if not s.startswith(("//", "/*", "*")):
+            kept.append(line)
+            continue
+        if s.startswith("//"):
+            continue
+        tail = s.split("*/", 1)[1] if "*/" in s else ""
+        if tail.strip():
+            kept.append(tail.strip())
+    return "\n".join(kept)
+
+
+def create_table_names(text: str) -> set:
+    """行首 CREATE TABLE 的表名集合；跳过 -- 注释行，避免脚注里的「CREATE TABLE」被误计。"""
+    names = set()
+    for line in text.splitlines():
+        if line.lstrip().startswith("--"):
+            continue
+        m = re.match(r"\s*CREATE TABLE\s+(?:IF NOT EXISTS\s+)?`?(\w+)`?", line, re.I)
+        if m:
+            names.add(m.group(1).lower())
+    return names
 
 
 def count_annotations(base: str, ann: str) -> int:
@@ -80,8 +106,17 @@ def audit() -> dict:
     d["tables_index_sql"] = len(re.findall(r"(?im)^\s*CREATE TABLE", index_sql))
     d["tables_v1_sql"] = len(re.findall(r"(?im)^\s*CREATE TABLE", v1_sql))
     # 迁移脚本按目录分层（DR-18①：db/migration 进生产，db/seed-demo 演示种子生产排除）
-    d["flyway_migrations"] = len(walk_files(os.path.join(BACK, "src/main/resources/db/migration"), lambda f: f.endswith(".sql")))
+    mig_files = walk_files(os.path.join(BACK, "src/main/resources/db/migration"), lambda f: f.endswith(".sql"))
+    d["flyway_migrations"] = len(mig_files)
     d["flyway_demo_seeds"] = len(walk_files(os.path.join(BACK, "src/main/resources/db/seed-demo"), lambda f: f.endswith(".sql")))
+    # 全迁移去重表名：V8+ 新表不在 index.sql/V1 内，仅比 index.sql↔V1 会把「48」当成当前库表数
+    mig_tables = set()
+    for p in mig_files:
+        mig_tables |= create_table_names(read(p))
+    d["tables_migrations_distinct"] = len(mig_tables)
+    index_lag = sorted(mig_tables - create_table_names(index_sql))
+    d["tables_index_sql_lag"] = len(index_lag)
+    d["tables_index_sql_missing_list"] = ",".join(index_lag) or "-"
 
     # ---------------- 注解计数 ----------------
     base = os.path.join(BACK, "src/main/java")
@@ -92,6 +127,19 @@ def audit() -> dict:
     d["op_tag"] = count_annotations(base, "@Tag")
     d["op_exception_handler"] = count_annotations(base, "@ExceptionHandler")
     d["op_deprecated"] = count_annotations(base, "@Deprecated")
+
+    # ---------------- 方法级 HTTP 操作计数 ----------------
+    # 口径：controller/ 目录内的 @GetMapping/@PostMapping/... 出现次数，经 strip_comment_lines
+    # （唯一剔注释入口，含「`*/` 后挂代码」修正——468→469 的漏计正来自此）。
+    # 这是手册 §15 / B.1「方法级 HTTP 操作」唯一权威来源，不得再用行首锚定的手 grep 复算。
+    ctrl = os.path.join(base, "com/aicourse/controller")
+    verbs = {"GET": "@GetMapping", "POST": "@PostMapping", "PUT": "@PutMapping",
+             "DELETE": "@DeleteMapping", "PATCH": "@PatchMapping"}
+    counts = {v: count_annotations(ctrl, a) for v, a in verbs.items()}
+    for verb, n in counts.items():
+        d["http_" + verb.lower()] = n
+    d["http_ops_total"] = sum(counts.values())
+    d["http_class_level_mapping"] = count_annotations(ctrl, "@RequestMapping")
 
     # ---------------- 前端结构 ----------------
     d["frontend_vue"] = len(walk_files(os.path.join(FRONT, "src"), lambda f: f.endswith(".vue")))
@@ -134,6 +182,23 @@ def audit() -> dict:
         d["typecheck_baseline_errors"] = bl.get("errors")
         d["typecheck_baseline_files"] = bl.get("files")
 
+    # ---------------- 环境变量键位核对（只取键名，绝不读值） ----------------
+    # 口径：未注释的 `KEY=` 行，按键名去重；缺失 = example 有而本机 .env 没有。
+    # 手册 §24.1 的「N 个键」与 §29 的 .env 补齐项都以本行为准，不再用 ad-hoc grep 计数。
+    def env_keys(name: str) -> set:
+        p = os.path.join(ROOT, name)
+        if not os.path.exists(p):
+            return set()
+        return {m.group(1) for m in re.finditer(r"(?m)^([A-Z0-9_]+)=", read(p))}
+
+    example_keys = env_keys(".env.example")
+    local_keys = env_keys(".env")
+    d["env_example_keys"] = len(example_keys)
+    d["env_local_keys"] = len(local_keys)
+    d["env_local_missing_count"] = len(example_keys - local_keys)
+    d["env_local_missing_keys"] = ",".join(sorted(example_keys - local_keys)) or "无"
+    d["env_local_extra_keys"] = ",".join(sorted(local_keys - example_keys)) or "无"
+
     # ---------------- SpotBugs 门禁状态 ----------------
     pom = read(os.path.join(BACK, "pom.xml"))
     m = re.search(r"<failOnError>(true|false)</failOnError>", pom)
@@ -157,6 +222,9 @@ LABELS = {
     "vo_star_vo_java": "vo/ *VO.java",
     "tables_index_sql": "数据表（index.sql 严格 CREATE TABLE）",
     "tables_v1_sql": "数据表（V1 迁移严格 CREATE TABLE）",
+    "tables_migrations_distinct": "数据表（全迁移 CREATE TABLE 去重＝当前库表数）",
+    "tables_index_sql_lag": "index.sql 落后迁移的表数",
+    "tables_index_sql_missing_list": "index.sql 缺失表名",
     "flyway_migrations": "Flyway 结构迁移脚本数（db/migration，进生产）",
     "flyway_demo_seeds": "Flyway 演示种子脚本数（db/seed-demo，生产排除）",
     "op_operation": "@Operation（源码计数，排除注释行）",
@@ -166,6 +234,13 @@ LABELS = {
     "op_tag": "@Tag（源码计数，排除注释行）",
     "op_exception_handler": "@ExceptionHandler（源码计数，排除注释行）",
     "op_deprecated": "@Deprecated（源码计数，排除注释行）",
+    "http_get": "方法级 HTTP 操作：GET（@GetMapping，controller/）",
+    "http_post": "方法级 HTTP 操作：POST（@PostMapping，controller/）",
+    "http_put": "方法级 HTTP 操作：PUT（@PutMapping，controller/）",
+    "http_delete": "方法级 HTTP 操作：DELETE（@DeleteMapping，controller/）",
+    "http_patch": "方法级 HTTP 操作：PATCH（@PatchMapping，controller/）",
+    "http_ops_total": "**方法级 HTTP 操作合计**（手册 §15 / B.1 权威来源）",
+    "http_class_level_mapping": "类级 @RequestMapping（controller/ 内出现次数）",
     "frontend_vue": "前端 .vue（文件计数）",
     "frontend_test_ts": "前端 .test.ts",
     "frontend_test_js": "前端 .test.js（应为 0）",
@@ -180,6 +255,11 @@ LABELS = {
     "grafana_rows": "Grafana row 分组数",
     "typecheck_baseline_errors": "类型门禁基线错误数",
     "typecheck_baseline_files": "类型门禁基线文件数",
+    "env_example_keys": ".env.example 生效键数（未注释、去重）",
+    "env_local_keys": "本机 .env 键数（仅计数，不读值）",
+    "env_local_missing_count": "本机 .env 相对 example 缺失键数",
+    "env_local_missing_keys": "本机 .env 缺失的键名",
+    "env_local_extra_keys": "本机 .env 独有（example 无）的键名",
     "spotbugs_fail_on_error": "SpotBugs failOnError",
 }
 
