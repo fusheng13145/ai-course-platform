@@ -274,12 +274,12 @@ cd frontend && npm run lint && npm run typecheck:gate && npx vitest run && npm r
 
 | 门禁 | 读数（当前本机口径） |
 | --- | --- |
-| 后端单元测试 | **2962 用例 / 0 失败 / 0 错误 / 0 跳过**（2026-10-17 本机 `mvn -B -o clean verify -DskipITs`，210 份 surefire 报告；口径链与覆盖率见手册 B.2） |
+| 后端单元测试 | **2995 用例 / 0 失败 / 0 错误 / 0 跳过**（2026-10-17 15:21 本机 `mvn -B -o clean verify -DskipITs`，210 份 surefire 报告；口径链与覆盖率见手册 B.2） |
 | 后端集成测试 | **12 用例 / 0 失败**（含 IT 那轮，现由 CI 取数） |
-| JaCoCo | **LINE 89.19%（15031/16852）/ BRANCH 70.50%（4973/7054）**（356 类，2026-10-17 同轮；BRANCH 带 ±1 噪声，见 B.2）→ 在**阈值未降低**（LINE ≥ 85% / BRANCH ≥ 65%）的前提下达标，靠补真实测试而非降阈值 |
+| JaCoCo | **LINE 89.14%（15168/17015）/ BRANCH 70.70%（5038/7126）**（356 类，2026-10-17 15:21 同轮；BRANCH 带 ±1 噪声、`jacoco.csv` 口径较 `<report>` 级多 12 行，两者不等价，见 B.2）→ 在**阈值未降低**（LINE ≥ 85% / BRANCH ≥ 65%）的前提下达标，靠补真实测试而非降阈值 |
 | ArchUnit | **6 条**架构守护全通过 |
 | SpotBugs | **0 缺陷**（`failOnError=true` 硬阻断，13 个框架性 `<Match>` 豁免） |
-| 前端单测 / ESLint | **149 文件 / 1604 用例全绿**；lint **0 error / 0 warning**（2026-10-16 复跑） |
+| 前端单测 / ESLint | **150 文件 / 1608 用例全绿**；lint **0 error / 0 warning**（2026-10-17 复跑） |
 | 前端类型检查 | `vue-tsc` 棘轮基线 **402 条 / 90 文件**（只许下调） |
 | CI | 3 个工作流；`ci.yml` **10 个作业**（`frontend-e2e` 暂为 `workflow_dispatch`）——**本机绿不等于 CI 绿**，且本机对 Actions 结果不可观测（手册 §21.1） |
 质量门禁基线（渐进收敛制，只许上调不得下调）：JaCoCo LINE ≥ 85% / BRANCH ≥ 65%（生产收敛目标指令覆盖 ≥ 85%）、SpotBugs 0 error、ArchUnit 架构约束。测试方法、契约测试清单与 CI 流水线见 `docs/项目手册.md` 第六部分。
