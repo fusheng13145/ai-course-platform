@@ -11,7 +11,11 @@
 --   3. 按外键依赖顺序重排全部建表语句
 --   4. 移除冗余的 ALTER TABLE 增量迁移（已在 CREATE TABLE 中体现）
 --   5. 统一 DROP 覆盖全部表
---   6. 表数口径修正：实际 50 张（含 grade_policies / grade_items 等新增表，原注释 47 已滞后）
+--   6. 表数口径修正：注释原写 47 已滞后；2026-10-17 前脚本内实际 CREATE TABLE 为 48 张
+--   7. 2026-10-17 回补 V8/V9/V10/V11（DR-61 处置 A）：新增 semesters / ai_call_logs /
+--      ai_generation_restrictions 三表，并补齐 users(3) / resources(4) / discussion_posts(4) /
+--      ai_chat_sessions(1) 的列与 4 个索引；表数由 48 → 51，与 db/migration 现行schema 对齐
+--      护栏：IndexSqlMigrationGuardTest 断言本脚本表集与列集 ⊇ 迁移产物，缺项即构建失败
 -- ====================================================================
 
 SET NAMES utf8mb4;
@@ -27,6 +31,9 @@ USE ai_course_platform;
 -- ====================================================================
 SET FOREIGN_KEY_CHECKS = 0;
 
+DROP TABLE IF EXISTS ai_generation_restrictions;
+DROP TABLE IF EXISTS ai_call_logs;
+DROP TABLE IF EXISTS semesters;
 DROP TABLE IF EXISTS grade_items;
 DROP TABLE IF EXISTS grade_policies;
 DROP TABLE IF EXISTS proctor_events;
@@ -78,7 +85,7 @@ DROP TABLE IF EXISTS users;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ====================================================================
--- Phase 2: 创建全部 50 张表（按外键依赖顺序）
+-- Phase 2: 创建全部 51 张表（按外键依赖顺序）
 -- ====================================================================
 
 -- ── 2.1 用户核心模块 ──
@@ -106,6 +113,9 @@ CREATE TABLE users (
   notification_settings JSON NULL COMMENT '通知设置，JSON格式存储',
   failed_login_attempts INT NOT NULL DEFAULT 0 COMMENT '登录失败次数，用于账户锁定',
   locked_until DATETIME NULL COMMENT '账户锁定截止时间',
+  ban_reason VARCHAR(255) NULL COMMENT '封禁原因（经内容审核封禁时写入）',
+  banned_at DATETIME NULL COMMENT '封禁时间',
+  banned_by BIGINT NULL COMMENT '执行封禁的管理员ID',
   register_ip VARCHAR(50) NULL COMMENT '注册IP地址',
   last_login DATETIME NULL COMMENT '最后登录时间',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -114,7 +124,8 @@ CREATE TABLE users (
   UNIQUE KEY uk_users_email (email) COMMENT '邮箱唯一索引',
   UNIQUE KEY uk_users_username (username) COMMENT '用户名唯一索引',
   KEY idx_users_role (role) COMMENT '角色索引，用于按角色查询',
-  KEY idx_users_class_id (class_id) COMMENT '班级ID索引，用于查询班级学生'
+  KEY idx_users_class_id (class_id) COMMENT '班级ID索引，用于查询班级学生',
+  KEY idx_users_banned (banned_at) COMMENT '封禁记录按时间检索（V11 同步）'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';;
 
 -- ── 2.2 班级管理模块 ──
@@ -296,9 +307,14 @@ CREATE TABLE resources (
   upload_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '上传时间',
   description TEXT NULL COMMENT '资源描述',
   visible_to_all TINYINT(1) NOT NULL DEFAULT 1 COMMENT '是否对所有学生可见：0-仅教师可见，1-所有学生可见',
+  moderation_status VARCHAR(16) NOT NULL DEFAULT 'NORMAL' COMMENT '审核状态：NORMAL-正常；HIDDEN-已隐藏（读路径过滤，可恢复）',
+  moderation_reason VARCHAR(255) NULL COMMENT '审核原因（管理员填写）',
+  moderated_at DATETIME NULL COMMENT '最近一次审核时间',
+  moderated_by BIGINT NULL COMMENT '最近一次审核管理员ID',
   PRIMARY KEY (id),
   KEY idx_resources_course_id (course_id) COMMENT '课程ID索引，用于查询课程所有资源',
   KEY idx_resources_chapter_id (chapter_id) COMMENT '章节ID索引，用于查询章节所有资源',
+  KEY idx_resources_moderation (moderation_status) COMMENT '内容审核名单检索（V11 同步）',
   CONSTRAINT fk_resources_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
   CONSTRAINT fk_resources_chapter FOREIGN KEY (chapter_id) REFERENCES course_chapters(id) ON DELETE SET NULL,
   CONSTRAINT fk_resources_uploader FOREIGN KEY (uploader_id) REFERENCES users(id) ON DELETE SET NULL
@@ -869,13 +885,15 @@ CREATE TABLE ai_chat_sessions (
     id BIGINT AUTO_INCREMENT PRIMARY KEY,
     session_id VARCHAR(64) NOT NULL COMMENT '业务会话ID(UUID)',
     user_id BIGINT NOT NULL COMMENT '所属用户ID',
+    course_id BIGINT NULL COMMENT '关联课程ID，NULL 表示未绑定课程（通识问答）',
     title VARCHAR(255) DEFAULT '' COMMENT '会话标题',
     message_count INT DEFAULT 0 COMMENT '消息条数',
     deleted TINYINT(1) NOT NULL DEFAULT 0 COMMENT '逻辑删除:0-未删,1-已删',
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     UNIQUE KEY uk_session_id (session_id),
-    INDEX idx_user_id (user_id)
+    INDEX idx_user_id (user_id),
+    INDEX idx_course_id (course_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI对话会话表';;
 
 -- ai_chat_messages
@@ -1020,12 +1038,17 @@ CREATE TABLE discussion_posts (
     like_count INT NOT NULL DEFAULT 0 COMMENT '点赞数',
     floor INT NULL COMMENT '楼层号，按话题内回复顺序递增（顶层与楼中楼统一编号）',
     mentions VARCHAR(500) NULL COMMENT '被@提及的用户ID列表，逗号分隔（对标超星@提醒）',
+    moderation_status VARCHAR(16) NOT NULL DEFAULT 'NORMAL' COMMENT '审核状态：NORMAL-正常；HIDDEN-已隐藏（读路径过滤，可恢复）',
+    moderation_reason VARCHAR(255) NULL COMMENT '审核原因（管理员填写）',
+    moderated_at DATETIME NULL COMMENT '最近一次审核时间',
+    moderated_by BIGINT NULL COMMENT '最近一次审核管理员ID',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     PRIMARY KEY (id),
     KEY idx_discussion_posts_topic_id (topic_id) COMMENT '话题ID索引',
     KEY idx_discussion_posts_author_id (author_id) COMMENT '作者ID索引',
     KEY idx_discussion_posts_parent_id (parent_id) COMMENT '父回复ID索引',
+    KEY idx_discussion_posts_moderation (moderation_status) COMMENT '内容审核名单检索（V11 同步）',
     CONSTRAINT fk_discussion_posts_topic FOREIGN KEY (topic_id) REFERENCES discussion_topics(id) ON DELETE CASCADE,
     CONSTRAINT fk_discussion_posts_parent FOREIGN KEY (parent_id) REFERENCES discussion_posts(id) ON DELETE CASCADE,
     CONSTRAINT fk_discussion_posts_author FOREIGN KEY (author_id) REFERENCES users(id) ON DELETE CASCADE
@@ -1127,6 +1150,58 @@ CREATE TABLE grade_items (
     CONSTRAINT fk_grade_items_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
     CONSTRAINT fk_grade_items_grader FOREIGN KEY (grader_id) REFERENCES users(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='成绩明细项表';;
+
+-- ── 2.12 迁移回补表（V8 / V9 / V10，2026-10-17 同步）──
+-- 这三张表由 V8/V9/V10 新建，本脚本此前未收录：任何走 index.sql 建库的环境
+-- （开发全量初始化、CI eval-nightly）都不会有它们，而实体与查询已按迁移后的列写。
+-- 与 db/migration 保持同源 DDL，差异仅限本脚本的语句收尾风格。
+
+-- semesters（V9）
+CREATE TABLE semesters (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+    name VARCHAR(64) NOT NULL COMMENT '学期名称，如 2026-2027-1',
+    start_date DATE NOT NULL COMMENT '开始日期',
+    end_date DATE NOT NULL COMMENT '结束日期',
+    status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' COMMENT 'ACTIVE-在册；ARCHIVED-已归档',
+    archived_at DATETIME NULL COMMENT '归档时间（未归档为空）',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_semesters_name (name) COMMENT '学期名唯一，防重名注册',
+    KEY idx_semesters_status_end (status, end_date) COMMENT '归档过期学期的扫描索引'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='学期注册表（2026-10-13 新增，角色矩阵①②）';;
+
+-- ai_call_logs（V8）
+CREATE TABLE ai_call_logs (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+    user_id BIGINT NULL COMMENT '调用者用户ID；未认证为空',
+    course_id BIGINT NULL COMMENT '关联课程ID；NULL 表示未绑定课程（通识问答/作文批改等）',
+    scene VARCHAR(32) NOT NULL COMMENT '业务场景：QA_ASK/QA_CONTINUE/ESSAY_CORRECT/ESSAY_POLISH/QUESTION_RECOMMEND/LEARNING_RECOMMEND/WEAK_POINTS/LEARNING_ADVICE/LEARNING_PATH/PERSONALIZED_PATH/GRAPH_EXTRACT/QUESTION_GENERATE',
+    provider VARCHAR(32) NULL COMMENT 'LLM 供应商：deepseek/openai/qwen；未配置任何 Key 时为空',
+    prompt_tokens INT NOT NULL DEFAULT 0 COMMENT '输入 token 估算（1 token≈1.5 字符，与 AiQuotaService 同口径）',
+    completion_tokens INT NOT NULL DEFAULT 0 COMMENT '输出 token 估算',
+    duration_ms INT NULL COMMENT 'AI 调用耗时(ms)；未计时为空',
+    success TINYINT(1) NOT NULL DEFAULT 1 COMMENT '1-成功；0-失败或降级为兜底文案',
+    error_msg VARCHAR(255) NULL COMMENT '失败原因（截断 255 字符）',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '调用时间',
+    PRIMARY KEY (id),
+    KEY idx_course_created (course_id, created_at) COMMENT '按课程聚合 AI 用量的主查询索引',
+    KEY idx_user_created (user_id, created_at) COMMENT '按用户聚合',
+    KEY idx_created_at (created_at) COMMENT '按时间窗过滤',
+    KEY idx_scene (scene) COMMENT '按场景下钻'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI 调用日志表（跨课程 AI 统计唯一数据源，自 2026-10-13 起埋点，历史不可回填）';;
+
+-- ai_generation_restrictions（V10）
+CREATE TABLE ai_generation_restrictions (
+    id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+    user_id BIGINT NOT NULL COMMENT '被限制的教师用户ID（users.id）',
+    reason VARCHAR(255) NULL COMMENT '限制原因（管理员填写，展示给被限制者）',
+    restricted_by BIGINT NULL COMMENT '操作管理员ID（留痕）',
+    created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '加入名单时间',
+    PRIMARY KEY (id),
+    UNIQUE KEY uk_ai_generation_restrictions_user (user_id) COMMENT '同一教师只保留一条名单记录',
+    KEY idx_ai_generation_restrictions_created (created_at) COMMENT '按加入时间排序'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='教师 AI 出题限制名单（2026-10-13 新增，角色矩阵④修订）';;
 
 -- ====================================================================
 -- Phase 3: 交叉外键约束（表创建完成后补充）

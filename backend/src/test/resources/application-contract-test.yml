@@ -10,7 +10,10 @@
 #     ② 每次 `mvn test` 都会 DROP/重建**开发库** ai_course_platform（实测其表 create_time
 #        被打成当次运行时刻），文件头原声称的「与开发库完全隔离」不成立，构成数据丢失风险。
 #   现改用 database-agnostic 的 db/migration/V1__init_schema.sql（该脚本无 CREATE DATABASE/USE，
-#   见其第 19 行说明；内容与 index.sql 完全一致：48 DROP / 48 CREATE / 9 种子 INSERT），
+#   见其第 19 行说明；两者在 V1 时点同源：各 48 DROP / 48 CREATE / 9 种子 INSERT）。
+#   ⚠️ 2026-10-17 起二者不再等量：index.sql 已回补 V8–V11（51 表，见手册 DR-61），
+#     V1 因 Flyway 校验和冻结不可回改（仍为 48 表）；本 profile 不依赖该等量关系，
+#     它按序执行 V1→V11 全部结构迁移，落地视图与 index.sql 一致。
 #   使其作用于连接 URL 指定的 ai_course_platform_test，隔离性由 URL 而非脚本保证。
 #   仍保持 mode: always → 每次跑测试都重建测试库，保证用例不依赖上一轮残留状态。
 spring:
