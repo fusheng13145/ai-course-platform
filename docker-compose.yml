@@ -218,7 +218,10 @@ services:
       #     · 置于 TLS 终止反代之后的生产：**必须保持 true**，且反代须回传 X-Forwarded-Proto: https（README「方式二」路径②）。
       #   CSRF_ENABLED 在两种形态下都应保持 true。
       # 明文 HTTP 单机栈（--profile full 默认形态，无 TLS 终止、无证书卷）必须 false，否则 /api/** 被 302 到不存在的 443 → 全站 API 不可用。
-      # 生产置于 TLS 终止反代之后：置 true 且反代回传 X-Forwarded-Proto: https（后端已启用 forward-headers-strategy: framework，可正确识别）。
+      # 生产置于 TLS 终止反代之后：置 true 且反代回传 X-Forwarded-Proto: https。
+      # ⚠ 2026-10-17 更正：本行旧文案写「后端已启用 forward-headers-strategy: framework」已过期——
+      #   现行值是 **none**（backend/src/main/resources/application.yaml:131），协议修正改由
+      #   config/TrustedForwardedProtoFilter 只读 X-Forwarded-Proto 完成（手册 DR-66）。
       COOKIE_SECURE: ${COOKIE_SECURE:-false}
       REQUIRE_HTTPS: ${REQUIRE_HTTPS:-false}
       CSRF_ENABLED: ${CSRF_ENABLED:-true}

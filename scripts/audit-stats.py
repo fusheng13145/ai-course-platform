@@ -200,6 +200,103 @@ def audit() -> dict:
     d["env_local_missing_count"] = len(example_keys - local_keys)
     d["env_local_missing_keys"] = ",".join(sorted(example_keys - local_keys)) or "无"
     d["env_local_extra_keys"] = ",".join(sorted(local_keys - example_keys)) or "无"
+    d["env_local_key_names"] = ",".join(sorted(local_keys)) or "无"
+
+    # ---------------- .env 口令强度自检（手册 §29 项 1/2/5/9 的机器判据） -------------
+    # 刻意**只输出派生判定**（长度、是否等于已知占位串、留空/未设），绝不在 stdout 或返回值里
+    # 出现值本身或其任何前缀——密钥不落终端是本项目既有纪律（start-all.py 的 backend_env 同源）。
+    # 长度/格式判据**一律取自仓库既有文档或代码**，本文件不自创标准；无据可引的键只判「非空 + 非占位串」：
+    #   MYSQL_ROOT_PASSWORD  ≥16        ← .env.example:23「要求：至少 16 位」
+    #   JWT_SECRET            ≥32 字节  ← JwtUtils 的 Keys.hmacShaKeyFor 下限（不足则 jjwt 拒启）
+    #   APP_ADMIN_INITIAL_PASSWORD 8–32 ← PasswordPolicy.java（由 AdminSeedPasswordInitializer 启动期强制）；
+    #                                     四类字符那半条由 generate-secrets.py 保证，本行不重复判
+    #   GRAFANA/APP_ACTUATOR_BASIC/NEO4J/REDIS/DEEPSEEK 无文档化长度下限 → 仅判非空非占位；
+    #                                     留空在本项目**是有语义的**（fail-closed / 跳过注入 / 回落内存图），
+    #                                     故"留空"只标 EMPTY 不算 FAIL，由 §29 逐项决定何时必须填。
+    STRENGTH_RULES = [
+        ("MYSQL_ROOT_PASSWORD", 16, None, False),
+        ("JWT_SECRET", 32, None, True),
+        ("APP_ADMIN_INITIAL_PASSWORD", 8, 32, False),
+        ("GRAFANA_ADMIN_PASSWORD", None, None, False),
+        ("APP_ACTUATOR_BASIC_PASSWORD", None, None, False),
+        ("NEO4J_PASSWORD", None, None, False),
+        ("REDIS_PASSWORD", None, None, False),
+        ("DEEPSEEK_API_KEY", None, None, False),
+    ]
+    placeholders = [re.compile(p) for p in re.findall(
+        r"(?m)^\s*'''([^']+)'''", read(os.path.join(ROOT, ".gitleaks.toml")))]
+
+    def local_value_map(name: str) -> dict:
+        p = os.path.join(ROOT, name)
+        if not os.path.exists(p):
+            return {}
+        out = {}
+        for m in re.finditer(r"(?m)^([A-Z0-9_]+)=(.*)$", read(p)):
+            out.setdefault(m.group(1), m.group(2))
+        return out
+
+    vals = local_value_map(".env")
+    verdicts = []
+    for key, minlen, maxlen, by_bytes in STRENGTH_RULES:
+        if key not in vals:
+            verdicts.append(f"{key}=未设键(FAIL)")
+            continue
+        v = vals[key].strip()
+        if not v:
+            verdicts.append(f"{key}=EMPTY")
+            continue
+        if any(px.search(v) for px in placeholders):
+            verdicts.append(f"{key}=占位串(FAIL)")
+            continue
+        size = len(v.encode("utf-8")) if by_bytes else len(v)
+        if minlen is not None and size < minlen:
+            verdicts.append(f"{key}=短于{minlen}(FAIL,{size})")
+        elif maxlen is not None and size > maxlen:
+            verdicts.append(f"{key}=长于{maxlen}(FAIL,{size})")
+        else:
+            verdicts.append(f"{key}=OK({size})")
+    d["env_strength"] = " ".join(verdicts)
+    d["env_strength_fail_count"] = sum(1 for x in verdicts if "FAIL" in x)
+
+    # example 键的「消费者存在性」：DR-63 的推广——键被列出不等于会被读取。
+    # 口径：在代码/配置类文件（排除 md、.gitleaks.toml、模板自身、归档与构建产物）的
+    # **非注释行**里找键名；零命中即该键无任何消费者（填了也无效）。
+    CONSUMER_EXTS = {".yml", ".yaml", ".java", ".py", ".ts", ".js", ".cjs", ".mjs",
+                     ".sh", ".bat", ".hcl", ".sql", ".properties", ".toml", ".conf"}
+    CONSUMER_SKIP = {".git", "node_modules", "target", "dist", "venv", ".venv",
+                     "__pycache__", "data", ".workbuddy", "archive", "docs", "外部资料"}
+    COMMENT_PREFIX = ("#", "//", "*", "rem ", "::", "--", "/*")
+
+    def consumers(key: str) -> int:
+        pat = re.compile(r"\b" + key + r"\b")
+        return sum(1 for _, line in CONSUMER_LINES if pat.search(line))
+
+    def collect_consumer_lines():
+        """一次遍历收齐所有消费者候选文件的非注释行，避免逐键全仓扫描。"""
+        out = []
+        for dirpath, dirnames, filenames in os.walk(ROOT):
+            dirnames[:] = [x for x in dirnames
+                           if x not in CONSUMER_SKIP and not x.startswith(".")]
+            for fn in filenames:
+                if os.path.splitext(fn)[1] not in CONSUMER_EXTS:
+                    continue
+                if fn in (".env", ".env.example", ".gitleaks.toml"):
+                    continue
+                p = os.path.join(dirpath, fn)
+                try:
+                    text = read(p)
+                except (OSError, UnicodeDecodeError):
+                    continue
+                for line in text.splitlines():
+                    s = line.strip()
+                    if s and not s.startswith(COMMENT_PREFIX):
+                        out.append((p, line))
+        return out
+
+    CONSUMER_LINES = collect_consumer_lines()
+    dead = sorted(k for k in example_keys if consumers(k) == 0)
+    d["env_example_dead_keys"] = ",".join(dead) or "无"
+    d["env_example_dead_count"] = len(dead)
 
     # ---------------- SpotBugs 门禁状态 ----------------
     pom = read(os.path.join(BACK, "pom.xml"))
@@ -262,6 +359,11 @@ LABELS = {
     "env_local_missing_count": "本机 .env 相对 example 缺失键数",
     "env_local_missing_keys": "本机 .env 缺失的键名",
     "env_local_extra_keys": "本机 .env 独有（example 无）的键名",
+    "env_local_key_names": "本机 .env 已有键名（仅键名，用于补齐时判重）",
+    "env_example_dead_count": "example 中无任何代码消费者的键数",
+    "env_example_dead_keys": "example 中无任何代码消费者的键名",
+    "env_strength": "本机 .env 口令强度判定（只出派生结论，不含值）",
+    "env_strength_fail_count": "本机 .env 强度不合格项数（占位串或短于下限）",
     "spotbugs_fail_on_error": "SpotBugs failOnError",
 }
 
