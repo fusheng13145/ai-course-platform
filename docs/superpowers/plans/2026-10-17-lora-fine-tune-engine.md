@@ -361,13 +361,10 @@ def format_size(n: int) -> str:
     if n < 1024:
         return f"{n}B"
     units = ["KB", "MB", "GB", "TB"]
-    val, unit = float(n), units[-1]
     for i, u in enumerate(units):
-        limit = 1024 ** (i + 1)
-        if n < limit:
-            val, unit = n / (1024 ** i), u
-            break
-    return f"{val:.1f}{unit}"
+        if n < 1024 ** (i + 2):
+            return f"{n / (1024 ** (i + 1)):.1f}{u}"
+    return f"{n / (1024 ** 4):.1f}TB"
 
 
 def task_error(cfg: dict) -> Optional[str]:
@@ -379,6 +376,8 @@ def task_error(cfg: dict) -> Optional[str]:
 ```
 
 - [ ] **Step 6: 运行确认通过**
+
+**实现注记（落地时不得回退成原稿形状）**：`format_size` 的档位判定与除数**不是同一个指数**——单位 i（0=KB…）的成立区间是 `[1024^(i+1), 1024^(i+2))`，除数是 `1024^(i+1)`。原稿把判定写成 `n < 1024**(i+1)` 而除数写 `1024**i`，两个下标各错一位、相减恰好抵消，于是数值对而单位名高一档：`15_938_048` 会渲染成 `"15.2GB"` 而不是 `"15.2MB"`。Step 3 的 `test_format_size_human_string_matches_contract_shape` 正是为钉住这一点而写，落地后请再打印边界值（`1024**2`、`1024**3`、`1024**4`）确认为 `1.0MB / 1.0GB / 1.0TB`。
 
 Run: `cd python-services/fine_tune_service && python -m pytest test_ft_engine.py -q`
 Expected: PASS（6 例）；`reset_store` / `list_datasets` 尚未定义会 ImportError → 本步先加两个空壳：`def reset_store(): pass` 与 `def list_datasets(course_id=None): return []`，Task 2 替换为真实实现。
