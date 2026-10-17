@@ -255,12 +255,395 @@ def task_error(cfg: dict) -> Optional[str]:
     return None
 
 
-# ---------------------------------------------------------------- 待 Task 2 落地（当前为空壳）
+# ---------------------------------------------------------------- 原子落盘（同源 rag_engine.py:185-223）
+
+
+def _quarantine_corrupt(path: Path) -> Path:
+    """把损坏的存储文件改名保留（加时间戳），供事后排查而非直接删除。"""
+    stamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    target = path.with_name(f"{path.name}.corrupt.{stamp}")
+    try:
+        os.replace(path, target)
+    except OSError:
+        # 改名失败（例如同秒冲突）时退回带随机后缀，确保原文件不被后续写入覆盖
+        target = path.with_name(f"{path.name}.corrupt.{stamp}.{os.getpid()}")
+        try:
+            os.replace(path, target)
+        except OSError:
+            pass
+    return target
+
+
+def _atomic_write_text(path: Path, text: str) -> None:
+    """先写临时文件再 os.replace 原子替换，避免进程崩溃留下半截 JSON。"""
+    _atomic_write_bytes(path, text.encode("utf-8"))
+
+
+def _atomic_write_bytes(path: Path, payload: bytes) -> None:
+    """字节级原子替换落盘（先写临时文件、flush/fsync 再 os.replace）。"""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.tmp")
+    try:
+        with open(tmp, "wb") as fh:
+            fh.write(payload)
+            fh.flush()
+            os.fsync(fh.fileno())
+        os.replace(tmp, path)
+    finally:
+        if tmp.exists():
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
+
+
+# ---------------------------------------------------------------- 存储表
+
+# 数据集： {dataset_id: {"dataset_id","course_id","source","sample_count","created_at","dir"}}
+_DATASETS: dict[str, dict] = {}
+_TASKS: dict[str, dict] = {}
+# 按天序号（数据集/任务各一张）： {"20261017": 3}——删除后不得复用旧号，否则 ID 撞车
+_DATASET_SEQ: dict[str, int] = {}
+_TASK_SEQ: dict[str, int] = {}
+_loaded = False
+
+# 进程内模型/分词器缓存：训练与推理共用，换基座即失效重建
+_MODEL_HOLDER: dict = {"model": None, "tokenizer": None, "hf_id": None}
+
+
+def now_iso() -> str:
+    """带时区的 ISO 时间戳（`created_at`/`updated_at` 与契约响应同形）。"""
+    return datetime.now().astimezone().isoformat(timespec="seconds")
+
+
+def _today_str() -> str:
+    """ID 的日期段。单独成函数是为了让测试**钉日期而不是 monkeypatch 标准库**。"""
+    return datetime.now().strftime("%Y%m%d")
+
+
+def _datasets_path() -> Path:
+    return data_dir() / "datasets.json"
+
+
+def _tasks_path() -> Path:
+    return data_dir() / "tasks.json"
+
+
+def _load_store() -> None:
+    global _loaded
+    if _loaded:
+        return
+    for path, table, seq in ((_datasets_path(), _DATASETS, _DATASET_SEQ),
+                             (_tasks_path(), _TASKS, _TASK_SEQ)):
+        if not path.exists():
+            continue
+        try:
+            payload = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, ValueError, OSError) as exc:
+            quarantined = _quarantine_corrupt(path)
+            raise StoreCorruptedError(
+                f"引擎存储损坏（{exc}），已隔离至 {quarantined.name}") from exc
+        table.clear()
+        table.update(payload.get("records", {}))
+        seq.clear()
+        seq.update({k: int(v) for k, v in (payload.get("seq") or {}).items()})
+    _loaded = True
+
+
+def _save_datasets() -> None:
+    _atomic_write_text(_datasets_path(), json.dumps(
+        {"version": ENGINE_VERSION, "records": _DATASETS, "seq": _DATASET_SEQ},
+        ensure_ascii=False, indent=2))
+
+
+def _save_tasks() -> None:
+    _atomic_write_text(_tasks_path(), json.dumps(
+        {"version": ENGINE_VERSION, "records": _TASKS, "seq": _TASK_SEQ},
+        ensure_ascii=False, indent=2))
 
 
 def reset_store() -> None:
-    pass
+    """清空进程内存储（契约测试隔离用）。"""
+    global _loaded
+    with _LOCK:
+        _DATASETS.clear()
+        _TASKS.clear()
+        _DATASET_SEQ.clear()
+        _TASK_SEQ.clear()
+        _MODEL_HOLDER.update({"model": None, "tokenizer": None, "hf_id": None})
+        _loaded = False
+
+
+# ---------------------------------------------------------------- 语料来源
+
+def _corpus_dir_or_none() -> Optional[Path]:
+    """`FT_CORPUS_DIR` 存在才返回，否则 None（回落链第二级）。"""
+    d = os.getenv("FT_CORPUS_DIR")
+    return Path(d) if d else None
+
+
+def _repo_corpus_path() -> Path:
+    """仓库内已版本化语料：`<repo>/scripts/rag_corpus.json`（回落链第三级）。"""
+    default = Path(__file__).resolve().parents[2] / "scripts" / "rag_corpus.json"
+    return Path(os.getenv("FT_CORPUS_JSON") or default)
+
+
+def _docs_to_text(docs: list) -> tuple[str, list[dict]]:
+    """`[{document_name, content}, ...]` → (拼接文本, 目录行)。目录行供 GET /corpus 用。"""
+    parts, toc = [], []
+    for d in docs:
+        if not isinstance(d, dict):
+            continue
+        content = (d.get("content") or "").strip()
+        if not content:
+            continue
+        name = d.get("document_name") or d.get("name") or "未命名讲义"
+        parts.append(f"# {name}\n{content}")
+        toc.append({"course_id": d.get("course_id"), "document_name": name,
+                    "chars": len(content)})
+    return "\n\n".join(parts), toc
+
+
+def corpus_source(course_id: int) -> tuple[str, str]:
+    """解析课程讲义语料，**统一返回纯文本**（派生逻辑只处理一种形状）。
+
+    优先级：`FT_CORPUS_DIR/<course_id>.{json,md,txt}` → `scripts/rag_corpus.json`
+    → `("none", "")`。三处皆无时调用方须给出应设置哪个变量的可操作文案。
+    """
+    cdir = _corpus_dir_or_none()
+    if cdir is not None:
+        for suffix in (".json", ".md", ".txt"):
+            cand = cdir / f"{course_id}{suffix}"
+            if not cand.exists():
+                continue
+            raw = cand.read_text(encoding="utf-8")
+            if suffix == ".json":
+                try:
+                    payload = json.loads(raw)
+                except json.JSONDecodeError:
+                    return "none", ""
+                docs = payload.get("documents", payload) if isinstance(payload, dict) else payload
+                text, _ = _docs_to_text(docs if isinstance(docs, list) else [])
+                return ("dir-json", text) if text else ("none", "")
+            return "dir-text", raw
+    path = _repo_corpus_path()
+    if not path.exists():
+        return "none", ""
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, ValueError):
+        return "none", ""
+    docs = payload.get("documents", payload) if isinstance(payload, dict) else payload
+    if not isinstance(docs, list):
+        return "none", ""
+    text, _ = _docs_to_text([d for d in docs
+                             if isinstance(d, dict) and d.get("course_id") == course_id])
+    return ("repo-json", text) if text else ("none", "")
+
+
+def corpus_catalog() -> list[dict]:
+    """仓库语料的课程/文档清单（`GET /corpus` 数据源，不含正文）。"""
+    path = _repo_corpus_path()
+    if not path.exists():
+        return []
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, ValueError):
+        raise StoreCorruptedError(f"语料文件损坏：{path}")
+    docs = payload.get("documents", payload) if isinstance(payload, dict) else payload
+    _text, toc = _docs_to_text(docs if isinstance(docs, list) else [])
+    return toc
+
+
+# ---------------------------------------------------------------- 样本校验与派生
+
+def validate_samples(rows: list) -> list[dict]:
+    """任意来源的样本 → 规范形状（校验放引擎，路由层保持"不做计算"）。
+
+    接受三种写法：`{instruction,input,output}`、`{question,answer}`、对话 `messages[]`
+    （取首条 user 为指令、末条 assistant 为回答）。错误文案带 **1 基行号**，
+    调用方可直接把用户上传的 JSONL 第几行有问题报回去。
+    """
+    out: list[dict] = []
+    for i, r in enumerate(rows or [], 1):
+        if not isinstance(r, dict):
+            raise ValueError(f"第 {i} 条样本必须是对象，实际为 {type(r).__name__}")
+        row = dict(r)
+        msgs = row.get("messages")
+        if isinstance(msgs, list) and msgs:
+            user = next((m.get("content", "") for m in msgs
+                         if isinstance(m, dict) and m.get("role") == "user"), "")
+            asst = next((m.get("content", "") for m in reversed(msgs)
+                         if isinstance(m, dict) and m.get("role") == "assistant"), "")
+            row.setdefault("instruction", user)
+            row.setdefault("output", asst)
+        instruction = str(row.get("instruction") or row.get("question") or "").strip()
+        output = str(row.get("output") or row.get("answer")
+                     or row.get("completion") or "").strip()
+        if not instruction or not output:
+            raise ValueError(f"第 {i} 条样本缺少 instruction/output（或 question/answer、"
+                             f"messages 里的 user/assistant）")
+        out.append({"instruction": instruction[:2000],
+                    "input": str(row.get("input") or "")[:2000],
+                    "output": output[:4000],
+                    "derived_from": str(row.get("derived_from") or "上传")})
+    if not out:
+        raise ValueError("样本为空：至少需要一条 instruction/output 对")
+    return out
+
+
+_SENT_SPLIT = re.compile(r"(?<=[。！？；!?;\n])")
+
+
+def _heading_title(line: str) -> str:
+    return re.sub(r"^#+\s*", "", line).strip()
+
+
+def build_samples(text: str, source_name: str, limit: int = 400) -> list[dict]:
+    """把讲义切成**确定性**指令样本（可复现、可溯源，绝不依赖随机数或 LLM）。
+
+    规则：`#` 标题行设定当前小节；正文按句聚合为 ≤560 字一段，每段一条样本；
+    指令为「请讲解「<小节>」的核心要点。」，无小节时回落到该段首句；
+    每条带 `derived_from` 供人工检视（手册 §4 的溯源要求）。
+    """
+    limit = max(1, min(int(limit), _env_int("FT_MAX_SAMPLES", 200)))
+    samples: list[dict] = []
+    topic = ""
+
+    def emit(body: str):
+        body = re.sub(r"\s+", " ", body).strip()
+        if not body:
+            return
+        first = next((s.strip() for s in _SENT_SPLIT.split(body) if s.strip()), body)[:80]
+        samples.append({
+            "instruction": f"请讲解「{topic}」的核心要点。" if topic else first,
+            "input": "",
+            "output": body[:560],
+            "derived_from": source_name,
+        })
+
+    buf = ""
+    for raw_line in (text or "").splitlines():
+        if len(samples) >= limit:
+            break
+        line = raw_line.strip()
+        if not line:
+            continue
+        if line.startswith("#"):
+            emit(buf)
+            buf = ""
+            new_topic = _heading_title(line)
+            if new_topic:      # 空标题行不改变当前小节
+                topic = new_topic
+            continue
+        for sent in (s for s in _SENT_SPLIT.split(line) if s.strip()):
+            if buf and len(buf) + len(sent) > 560:
+                emit(buf)
+                buf = sent
+            else:
+                buf += sent
+    emit(buf)
+    return samples[:limit]
+
+
+def next_dataset_id() -> str:
+    day = _today_str()
+    _DATASET_SEQ[day] = _DATASET_SEQ.get(day, 0) + 1
+    return f"ds_{day}_{_DATASET_SEQ[day]:03d}"
+
+
+def add_dataset(course_id: int, samples: list[dict], source: str = "上传") -> dict:
+    """登记一份数据集（样本落 `<dir>/datasets/<id>/samples.json`，可人工检视）。"""
+    with _LOCK:
+        _load_store()
+        dataset_id = next_dataset_id()
+        ddir = data_dir() / "datasets" / dataset_id
+        ddir.mkdir(parents=True, exist_ok=True)
+        _atomic_write_text(ddir / "samples.json",
+                           json.dumps(samples, ensure_ascii=False, indent=2))
+        record = {
+            "dataset_id": dataset_id,
+            "course_id": course_id,
+            "source": source,
+            "sample_count": len(samples),
+            "created_at": now_iso(),
+            "dir": str(ddir),
+        }
+        _DATASETS[dataset_id] = record
+        _save_datasets()
+        return dict(record)
+
+
+def build_course_dataset(course_id: int, source: Optional[str] = None) -> dict:
+    """从课程讲义语料派生数据集。`source` 是调用方**可选**提供的原始文本。
+
+    回落链：`source` → `FT_CORPUS_DIR/<course_id>.*` → 仓库内已版本化 `scripts/rag_corpus.json`。
+    `source` 之所以可选：Java 端不会传语料体，强制要求 body 会让 `FT_ENABLED=true` 时
+    `/start` 恒 503、链路仍不可用（手册 §4 的设计缺口，计划期补出）。
+    """
+    if source and source.strip():
+        kind, text = "inline", source
+    else:
+        kind, text = corpus_source(course_id)
+        if kind == "none":
+            return {"success": False, "sample_count": 0,
+                    "error": (f"课程 {course_id} 无可派生讲义语料：回落链三级皆空——"
+                              f"请在 body 传 source，或设置 FT_CORPUS_DIR / FT_CORPUS_JSON，"
+                              f"或改用 POST /api/v1/fine-tune/datasets 上传样本")}
+    samples = build_samples(text, f"{kind}#course_{course_id}")
+    if not samples:
+        return {"success": False, "sample_count": 0,
+                "error": f"课程 {course_id} 语料无有效片段，未生成数据集"}
+    cdir = _corpus_dir_or_none()
+    label = {"inline": "调用方提供",
+             "repo-json": f"{_repo_corpus_path().name} 派生",
+             "dir-json": f"{cdir} 派生", "dir-text": f"{cdir} 派生"}[kind]
+    saved = add_dataset(course_id, samples, source=label)
+    return {"success": True, "dataset_id": saved["dataset_id"],
+            "sample_count": saved["sample_count"], "source": saved["source"],
+            "created_at": saved["created_at"]}
 
 
 def list_datasets(course_id: Optional[int] = None) -> list[dict]:
-    return []
+    with _LOCK:
+        _load_store()
+        rows = [dict(d) for d in _DATASETS.values()]
+    if course_id is not None:
+        rows = [d for d in rows if d["course_id"] == course_id]
+    return sorted(rows, key=lambda d: d["created_at"])
+
+
+def get_dataset(dataset_id: str) -> Optional[dict]:
+    with _LOCK:
+        _load_store()
+        rec = _DATASETS.get(dataset_id)
+        return dict(rec) if rec else None
+
+
+def latest_dataset_id(course_id: Optional[int]) -> Optional[str]:
+    rows = list_datasets(course_id)
+    return rows[-1]["dataset_id"] if rows else None
+
+
+def load_samples(dataset_id: str) -> list[dict]:
+    rec = get_dataset(dataset_id)
+    if not rec:
+        return []
+    path = Path(rec["dir"]) / "samples.json"
+    if not path.exists():
+        return []
+    try:
+        return json.loads(path.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, ValueError):
+        raise StoreCorruptedError(f"数据集样本文件损坏：{path}")
+
+
+def delete_dataset(dataset_id: str) -> Optional[dict]:
+    with _LOCK:
+        _load_store()
+        rec = _DATASETS.pop(dataset_id, None)
+        if not rec:
+            return None
+        _save_datasets()
+    shutil.rmtree(Path(rec["dir"]), ignore_errors=True)
+    return dict(rec)
