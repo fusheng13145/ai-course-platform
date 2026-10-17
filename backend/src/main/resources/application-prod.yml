@@ -65,9 +65,13 @@ app:
 #   Flyway 默认 ignoreMigrationPatterns=[*:future]，「历史里有、类路径上找不到」的迁移被判 FUTURE_SUCCESS 而忽略，
 #   validate 仍成功、migrate 只打一条 "has a version (6) that is newer than the latest available migration (4)" 的 WARN
 #   后执行 0 个迁移 —— 演示账号与示范课数据会原样留在"生产库"里，无人拦截。
-#   因此这属于**部署流程约束**：生产库必须是全新库（或历史只到 V1..V4），并按手册 §29 核对
-#   flyway_schema_history 最高版本为 4、users 只剩 V1 内置 8 个账号。
-#   确需把灌过演示数据的库转生产：先按号段清理演示数据，并删除 flyway_schema_history 中 version 5/6 两行
+#   因此这属于**部署流程约束**：生产库必须是全新库，并按手册 §29 核对 flyway_schema_history
+#   **不含 version 5 / 6 / 7**（干净库应为 {1,2,3,4,8,9,10,11}；全新库的 1 是 baseline-on-migrate 写入的 BASELINE 行），
+#   数据面 users 只剩 V1 内置 8 个账号、courses 无 4007。
+#   ⚠️ 旧判据「最高版本为 4」自 V8..V11（2026-10-13）起失效：全新 prod 库最高就是 11，被污染的旧库也会被
+#   向前补齐 V8..V11 同样到 11，两个数字相等看不出差别（手册 DR-62）。上面的「migrate 执行 0 个迁移」同为该判据
+#   失效前的取证姿态——现该场景为执行 V8..V11 共 4 个迁移，污染依旧不被拦截。
+#   确需把灌过演示数据的库转生产：先按号段清理演示数据，并删除 flyway_schema_history 中 version 5/6/7 三行
 #   （V5/V6 生成时即做号段隔离，可批量清理）。
 #   若确要把这种旧库 fail-fast，可显式置 spring.flyway.ignore-migration-patterns: [] 去掉默认的 *:future，
 #   代价是将来正常的前向迁移也会被当 future 阻断 —— 故不作默认。

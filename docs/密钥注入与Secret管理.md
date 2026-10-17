@@ -58,7 +58,7 @@ Spring Boot 属性源优先级（高 → 低）：
 
 ### 2.2 密钥清单与覆盖范围（2026-10-06 复核）
 
-`.env.example` 当前共 **32 个键**。接管前须先牢记一条**机制差异**，否则会把「密钥没生效」误判成「密钥库坏了」：
+`.env.example` 现共 **33 个键**（2026-10-17 由 `scripts/audit-stats.py` 复算；本节标题的 2026-10-06 复核时点为 32，`e1b78cb`（2026-10-07）新增 `BACKUP_INTERVAL_SECONDS` 后 +1）。接管前须先牢记一条**机制差异**，否则会把「密钥没生效」误判成「密钥库坏了」：
 
 > **configtree 的键名查找是精确 map 查找，不做反向松散绑定**（已用 `javap` 复核 `spring-boot-3.5.15` 的 `ConfigTreePropertySource.getProperty`，字节码仅做 `propertyFiles.get(name)`，无 `.`→`_`／大写化转换；该类也未覆写 `getConfigurationProperty`）。
 > 而 `SystemEnvironmentPropertySource` **会**把 `APP_FOO_BAR` 松散匹配到 `app.foo.bar`。
