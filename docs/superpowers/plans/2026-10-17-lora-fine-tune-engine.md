@@ -737,16 +737,14 @@ def build_samples(text: str, source_name: str, limit: int = 400) -> list[dict]:
         if line.startswith("#"):
             emit(buf)
             buf = ""
-            topic = _heading_title(line)
-            if not topic:          # 空标题行不改变当前小节
-                topic = topic or ""
+            new_topic = _heading_title(line)
+            if new_topic:      # 空标题行不改变当前小节
+                topic = new_topic
             continue
         for sent in (s for s in _SENT_SPLIT.split(line) if s.strip()):
             if buf and len(buf) + len(sent) > 560:
                 emit(buf)
                 buf = sent
-                if not topic:      # 无小节时长文按首句立指令，避免全部同名
-                    topic = ""
             else:
                 buf += sent
     emit(buf)
@@ -874,7 +872,9 @@ print(json.dumps(le.load_samples(out['dataset_id'])[:2], ensure_ascii=False, ind
 "
 ```
 
-Expected: `sample_count` > 0 且样本 `output` 为可读中文讲义片段（本机课程 1 有 2 篇讲义，实测打印为准写入手册）。
+Expected: `sample_count` > 0 且样本 `output` 为可读中文讲义片段。
+
+**本机实测留档（2026-10-17，Windows / torch 2.11 CPU 环境）**：`scripts/rag_corpus.json` 只有两门课的讲义——`course_id=1` 2 篇（84 / 78 字）→ 派生 **2 条**样本；`course_id=4007` 10 篇（400–602 字）→ 派生 **12 条**样本。样本主题相关、指令/回答可配对（如「请讲解「计算机网络-第3章-数据链路层与以太网」的核心要点。」），但**单课最多 12 条 < 20 条**，Task 7 Step 0 的判据 3 不达标——取证须走 `scripts/fine_tune_dataset.py` 种子脚本，不得拿 2 条样本硬跑并宣称训练坐实。
 
 - [ ] **Step 6: Commit**
 
@@ -2183,7 +2183,7 @@ git commit -m "build(ci): 新增 8003 LoRA 契约门禁作业并忽略引擎数�
 - Consumes: Task 1–6 全部
 - Produces: 手册 §46.2 与 §18.5 的实测取证记录（loss 序列、zip 字节、推理文本）
 
-- [ ] **Step 0: 语料充足性判据（先实测再决定要不要另起数据脚本）**
+- [ ] **Step 0: 语料充足性判据（Task 2 Step 5 已实测——判据 3 已确定不达标）**
 
 Run:
 
@@ -2204,7 +2204,9 @@ PY
 2. **可配对**：每条都有语义完整的 `instruction` 与非空 `output`（不是把同一段文字复制两遍）；
 3. **量足够**：单课 ≥20 条，否则 8 步训练连一次完整 epoch 都不到，loss 序列无意义。
 
-不达标时创建 `scripts/fine_tune_dataset.py`：读仓库权威语料（或后端讲义）→ 生成 `{instruction, output}` 列表 → 只调用公开入口 `le.validate_samples()` + `le.add_dataset()` 落库。**不写私有符号、不改 `corpus_source()` 的回落链**——回落链只负责「找不到语料时诚实失败」，数据补齐是脚本的职责。批 2 若把 Java 侧 `POST /datasets` 接上，此脚本可退役为纯种子工具。
+**Task 2 Step 5 的实测已判**：判据 1、2 通过；判据 3 **不通过**（`course_id=1` 只有 2 条、`course_id=4007` 只有 12 条，均 <20）。所以本任务**默认要创建** `scripts/fine_tune_dataset.py`；Step 0 的打印只作换机复核，若在新环境实测 ≥20 条才可跳过脚本。
+
+创建 `scripts/fine_tune_dataset.py`：读仓库权威语料（或后端讲义）→ 生成 `{instruction, output}` 列表 → 只调用公开入口 `le.validate_samples()` + `le.add_dataset()` 落库。**不写私有符号、不改 `corpus_source()` 的回落链**——回落链只负责「找不到语料时诚实失败」，数据补齐是脚本的职责。批 2 若把 Java 侧 `POST /datasets` 接上，此脚本可退役为纯种子工具。
 
 - [ ] **Step 1: 装引擎依赖（不动 torch）**
 
