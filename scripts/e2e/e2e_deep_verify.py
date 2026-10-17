@@ -9,13 +9,15 @@ AI 智能课程平台 · 多维度深度端到端验证（第二阶段）
     维度 B  边界值（容量 / 提交次数 / 评分范围 / 分页 / 超长文本 / 尝试次数 / 截止延长）
     维度 C  越权与 IDOR（横向越权、未认证、伪造令牌、无效 ID、参数类型）
     维度 D  数据一致性（并发选课、并发交卷、级联删除、读写缓存一致性）
-    维度 E  分片上传端点：**N-03 下线态契约**（会话创建仍开放，分片/合并端点恒 501 语义化拒绝）
+    维度 E  分片上传与合并链路（D1-2 批次 2 起为成功路径）：磁盘真值进度、缺片拒绝、
+            重传覆盖、MD5 摘要校验、合并落上传根、分片目录回收、状态机守卫
     维度 F  作业退回-重交链路
     维度 G  资源版本链路（新版本 / 激活态 / 回滚 / 缺参）
 
 仅使用 Python 标准库；数据库断言走本机 mysql 客户端。
 """
 import json
+import hashlib
 import os
 import subprocess
 import sys
@@ -46,6 +48,13 @@ def _mysql_pw():
     return os.environ.get("MYSQL_ROOT_PASSWORD", "")
 MYSQL = ["mysql", "-u", "root", "-p" + _mysql_pw(), "-N", "-s", "-e"]
 CODE = "CS-NET-DEEP"
+
+# 后端进程工作目录为 backend/（见 scripts/run-backend-for-e2e.py），
+# 故 application.yaml 的相对路径 file.upload-dir / file.chunk-dir 落在这两处。
+# 分片维度 E 要断言「磁盘即真值」，必须直接核对这两个目录。
+ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+UP_ROOT = os.path.join(ROOT, "backend", "uploads")
+CHUNK_ROOT = os.path.join(ROOT, "backend", "upload-chunks")
 
 RESULTS = []
 
@@ -454,20 +463,20 @@ def main():
     twice("/proctor/thresholds", name="监考阈值", cid_="D6",
           title_="缓存读可用性：监考阈值（冷→热）")
 
-    # ============ E. 分片上传端点（N-03 下线态） ============
-    # 背景：上线前全检结论 N-03 —— 分片的「写字节」与「合并字节」逻辑从未实现，
-    # 前端的 uploadChunk / mergeChunks 已移除（见 frontend/src/api/fileUpload.ts 注释与
-    # views/__tests__/functional-completeness.test.ts 的存在性断言）。后端保留端点但
-    # 恒抛 BusinessException(501)，以避免旧客户端静默失败。故本维度断言的是
-    # **「下线态契约」**：501 语义化拒绝且不得出现 500 未处理异常。
-    print("\n----- E. 分片上传端点（N-03 下线态） -----")
-    st, o = teacher.req("POST", "/upload-sessions", {"filename": "big.pdf", "fileSize": 2048, "totalChunks": 3})
+    # ============ E. 分片上传与合并链路（磁盘真值） ============
+    # 背景：D1-2 批次 1 落地「分片写字节 + 合并」，批次 2 把进度出参改为磁盘真值并补
+    # missingIndexes。本维度断言**成功路径 + 状态机守卫**，并核对 upload-chunks / uploads
+    # 两个目录的物理状态——进度不能只信数据库计数。
+    # 本轮实测新增回归位 E2：端点从「恒 501」改真实现后，非 multipart 请求曾在参数解析
+    # 阶段抛 MultipartException 落入 500 兜底；N-03 下线期「不得出现 500」的要求同样成立。
+    print("\n----- E. 分片上传与合并链路（磁盘真值） -----")
+    st, o = teacher.req("POST", "/upload-sessions", {"filename": "big.pdf", "fileSize": 3072, "totalChunks": 3})
     usid = (o.get("data") or {}).get("id")
-    rec("E1", "创建分片上传会话（端点仍开放）", "200 返回会话 id", f"HTTP {st} code={o.get('code')} sessionId={usid}",
+    rec("E1", "创建分片上传会话", "200 返回会话 id", f"HTTP {st} code={o.get('code')} sessionId={usid}",
         o.get("code") == 200 and usid is not None)
 
     st_bad, o_bad = teacher.req("POST", "/upload-sessions",
-                                {"filename": "big.bin", "fileSize": 2048, "totalChunks": 3})
+                                {"filename": "big.bin", "fileSize": 3072, "totalChunks": 3})
     rec("E1b", "边界：分片会话扩展名白名单", "非白名单扩展名(.bin) 400 拒绝",
         f"HTTP {st_bad} code={o_bad.get('code')} msg={str(o_bad.get('message'))[:70]}",
         o_bad.get("code") == 400)
@@ -477,33 +486,87 @@ def main():
     rec("E1c", "安全：文件名路径穿越", "不得 5xx（按取纯文件名处理或拒绝）",
         f"HTTP {st_trav} code={o_trav.get('code')} msg={str(o_trav.get('message'))[:60]}", st_trav < 500)
 
-    codes = []
-    for i in range(3):
-        stx, ox = teacher.req("POST", f"/upload-sessions/{usid}/chunks/{i}")
-        codes.append(ox.get("code"))
+    def put_chunk(sid, idx, content, md5=None):
+        body, ct = multipart(({"md5": md5} if md5 else {}),
+                             [("file", f"{idx}.part", "application/octet-stream", content)])
+        return teacher.req("POST", f"/upload-sessions/{sid}/chunks/{idx}", raw=body, ctype=ct)
+
+    def chunk_dir(sid):
+        d = os.path.join(CHUNK_ROOT, str(sid))
+        if not os.path.isdir(d):
+            return None
+        return sum(os.path.getsize(os.path.join(d, f)) for f in os.listdir(d))
+
+    st, o = teacher.req("POST", f"/upload-sessions/{usid}/chunks/0", {"fileSize": 1024})
+    rec("E2", "非 multipart 分片请求按 400 语义拒绝", "code=400 且绝不 500",
+        f"HTTP {st} code={o.get('code')} msg={str(o.get('message'))[:60]}",
+        o.get("code") == 400 and st < 500)
+
+    CH = [b"A" * 1024, b"B" * 1024, b"C" * 1024]
+    codes = [put_chunk(usid, i, CH[i])[1].get("code") for i in (0, 1)]
     st, o = teacher.req("GET", f"/upload-sessions/{usid}/progress")
     prog = o.get("data") or {}
-    rec("E2", "分片上传端点已下线：恒 501 语义化拒绝，进度不推进",
-        "分片请求全部 501（非 500），进度 uploaded=0/3",
-        f"chunks={codes} progress={json.dumps(prog, ensure_ascii=False)[:120]}",
-        all(c == 501 for c in codes) and str(prog.get("uploaded")) in ("0", "0.0"))
+    rec("E3", "两片分片落盘，进度按磁盘真值推进", "分片均 200，uploaded=2/3、percentage=66.67%、missingIndexes=[2]",
+        f"chunks={codes} progress={json.dumps(prog, ensure_ascii=False)[:160]} diskBytes={chunk_dir(usid)}",
+        all(c == 200 for c in codes) and prog.get("uploaded") == 2 and prog.get("total") == 3
+        and prog.get("percentage") == "66.67%" and prog.get("missingIndexes") == [2]
+        and chunk_dir(usid) == 2048)
 
     st, o = teacher.req("POST", f"/upload-sessions/{usid}/merge")
-    merged = (o.get("data") or {}).get("status")
-    rec("E3", "分片合并端点已下线：恒 501 语义化拒绝",
-        "501（非 500）且提示「暂未启用」",
-        f"HTTP {st} code={o.get('code')} status={merged} msg={str(o.get('message'))[:40]}",
-        o.get("code") == 501 and "暂未启用" in str(o.get("message")))
+    rec("E4", "缺片合并被拒且不产出半成品", "code=400 且提示「缺失索引：[2]」，上传根内无最终对象",
+        f"HTTP {st} code={o.get('code')} msg={str(o.get('message'))[:70]}",
+        o.get("code") == 400 and "缺失索引：[2]" in str(o.get("message")))
 
-    st, o = teacher.req("DELETE", f"/upload-sessions/{usid}/cancel")
-    rec("E4", "取消上传会话（端点仍开放）", "非 5xx（业务提示或成功均可）",
-        f"HTTP {st} code={o.get('code')} msg={o.get('message')}", st < 500)
+    st, o = put_chunk(usid, 0, b"a" * 1024)
+    st2, o2 = teacher.req("GET", f"/upload-sessions/{usid}/progress")
+    prog2 = o2.get("data") or {}
+    rec("E5", "同序号重传覆盖旧片，不重复推进进度", "200 且 uploaded 仍 2、磁盘仍 2048 字节",
+        f"HTTP {st} code={o.get('code')} uploaded={prog2.get('uploaded')} diskBytes={chunk_dir(usid)}",
+        o.get("code") == 200 and prog2.get("uploaded") == 2 and chunk_dir(usid) == 2048)
 
-    st, o = teacher.req("POST", "/upload-sessions/99999999/chunks/0")
-    rec("E5", "分片端点对不存在会话亦走 501（端点级下线，先于会话校验）",
-        "501 语义化（绝不 500）",
-        f"HTTP {st} code={o.get('code')} msg={o.get('message')}",
-        o.get("code") == 501 and "暂未启用" in str(o.get("message")))
+    st, o = put_chunk(usid, 2, CH[2], md5="0" * 32)
+    st2, o2 = teacher.req("GET", f"/upload-sessions/{usid}/progress")
+    prog3 = o2.get("data") or {}
+    rec("E6", "MD5 与声明不符：本片丢弃", "code=400 且第 2 片未落盘（missingIndexes 仍 [2]）",
+        f"HTTP {st} code={o.get('code')} msg={str(o.get('message'))[:50]} missing={prog3.get('missingIndexes')}",
+        o.get("code") == 400 and "摘要" in str(o.get("message")) and prog3.get("missingIndexes") == [2])
+
+    st, o = put_chunk(usid, 2, CH[2], md5=hashlib.md5(CH[2]).hexdigest())
+    st2, o2 = teacher.req("GET", f"/upload-sessions/{usid}/progress")
+    prog4 = o2.get("data") or {}
+    rec("E7", "正确 MD5 补齐末片", "200 且 uploaded=3/3、missingIndexes 为空",
+        f"HTTP {st} code={o.get('code')} progress={json.dumps(prog4, ensure_ascii=False)[:120]}",
+        o.get("code") == 200 and prog4.get("uploaded") == 3 and prog4.get("missingIndexes") == [])
+
+    st, o = teacher.req("POST", f"/upload-sessions/{usid}/merge")
+    merged = (o.get("data") or {})
+    obj_path = os.path.join(UP_ROOT, str(merged.get("uploadPath") or "")) if merged.get("uploadPath") else None
+    obj_bytes = os.path.getsize(obj_path) if obj_path and os.path.isfile(obj_path) else -1
+    db_status = db1(f"select status from {DB}.file_upload_sessions where id={usid};")
+    rec("E8", "齐片合并成功：对象落上传根、分片目录回收",
+        "200 且 status=COMPLETED、对象 3072 字节、分片目录已删、DB=COMPLETED",
+        f"HTTP {st} code={o.get('code')} status={merged.get('status')} objBytes={obj_bytes} "
+        f"chunkDirBytes={chunk_dir(usid)} db={db_status}",
+        o.get("code") == 200 and merged.get("status") == "COMPLETED" and obj_bytes == 3072
+        and chunk_dir(usid) is None and db_status == "COMPLETED")
+
+    st, o = teacher.req("POST", f"/upload-sessions/{usid}/merge")
+    rec("E9", "状态机守卫：已完成会话不可重复合并", "code=400 且提示状态不允许",
+        f"HTTP {st} code={o.get('code')} msg={str(o.get('message'))[:50]}",
+        o.get("code") == 400 and "不允许合并" in str(o.get("message")))
+
+    st, o = put_chunk(99999999, 0, CH[0])
+    rec("E10", "分片端点对不存在会话按 400 拒绝", "code=400 且提示会话不存在（绝不 500）",
+        f"HTTP {st} code={o.get('code')} msg={str(o.get('message'))[:50]}",
+        o.get("code") == 400 and "不存在" in str(o.get("message")) and st < 500)
+
+    st, o = teacher.req("POST", "/upload-sessions", {"filename": "half.pdf", "fileSize": 2048, "totalChunks": 2})
+    usid2 = (o.get("data") or {}).get("id")
+    put_chunk(usid2, 0, CH[0])
+    st, o = teacher.req("DELETE", f"/upload-sessions/{usid2}/cancel")
+    rec("E11", "取消进行中会话并回收分片目录", "200 且 upload-chunks/<id> 已删除",
+        f"HTTP {st} code={o.get('code')} msg={o.get('message')} chunkDirBytes={chunk_dir(usid2)}",
+        st < 500 and chunk_dir(usid2) is None)
 
     # ============ F. 作业退回-重交 ============
     print("\n----- F. 作业退回-重交链路 -----")

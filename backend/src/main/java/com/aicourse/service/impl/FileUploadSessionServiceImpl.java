@@ -228,6 +228,35 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
         return storedChunkFiles(sessionId).size();
     }
 
+    /**
+     * 已落盘分片的「0 基索引 → 文件」映射。
+     * 文件名不可解析为整数时跳过并告警：进度与合并都走这条读路径，
+     * 残留脏文件只能不被计入，不能把轮询端点打成 500。
+     */
+    private Map<Integer, Path> storedChunkIndexMap(Long sessionId) {
+        Map<Integer, Path> byIndex = new HashMap<>();
+        for (Path chunk : storedChunkFiles(sessionId)) {
+            String name = chunk.getFileName().toString();
+            try {
+                byIndex.put(Integer.parseInt(name.substring(0, name.length() - CHUNK_SUFFIX.length())), chunk);
+            } catch (NumberFormatException e) {
+                log.warn("忽略非索引命名的分片残留: {}", chunk);
+            }
+        }
+        return byIndex;
+    }
+
+    /** 声明范围内磁盘尚未落盘的索引（升序），进度出参与合并前置校验共用同一真值 */
+    private List<Integer> missingChunkIndexes(Map<Integer, Path> chunkByIndex, int totalChunks) {
+        List<Integer> missing = new ArrayList<>();
+        for (int i = 0; i < totalChunks; i++) {
+            if (!chunkByIndex.containsKey(i)) {
+                missing.add(i);
+            }
+        }
+        return missing;
+    }
+
     /** 统计会话已落盘分片的累计字节数，用于配额拦截 */
     private long storedChunkBytes(Long sessionId) {
         long total = 0L;
@@ -264,17 +293,8 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
             throw new BusinessException("会话未声明有效的总分片数");
         }
 
-        Map<Integer, Path> chunkByIndex = new HashMap<>();
-        for (Path chunk : storedChunkFiles(sessionId)) {
-            String name = chunk.getFileName().toString();
-            chunkByIndex.put(Integer.parseInt(name.substring(0, name.length() - CHUNK_SUFFIX.length())), chunk);
-        }
-        List<Integer> missing = new ArrayList<>();
-        for (int i = 0; i < totalChunks; i++) {
-            if (!chunkByIndex.containsKey(i)) {
-                missing.add(i);
-            }
-        }
+        Map<Integer, Path> chunkByIndex = storedChunkIndexMap(sessionId);
+        List<Integer> missing = missingChunkIndexes(chunkByIndex, totalChunks);
         if (!missing.isEmpty()) {
             throw new BusinessException("分片未全部上传完成，缺失索引：" + missing
                     + "（已落盘 " + chunkByIndex.size() + "/" + totalChunks + "）");
@@ -348,7 +368,7 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
 
     /**
      * 获取上传进度信息
-     * 返回 uploaded/total/percentage
+     * uploaded/percentage/missingIndexes 一律取自磁盘分片，不信会话行的历史计数
      */
     @Override
     public UploadProgressVO getUploadProgress(Long sessionId, Long uploaderId) {
@@ -357,11 +377,14 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
             throw new BusinessException("上传会话不存在");
         }
         assertOwnership(session, uploaderId);
-        int uploaded = session.getUploadedChunks() != null ? session.getUploadedChunks() : 0;
-        int total = session.getTotalChunks() != null ? session.getTotalChunks() : 0;
+        int total = session.getTotalChunks() != null && session.getTotalChunks() > 0
+                ? session.getTotalChunks() : 0;
+        Map<Integer, Path> chunkByIndex = storedChunkIndexMap(sessionId);
+        List<Integer> missing = missingChunkIndexes(chunkByIndex, total);
+        int uploaded = total - missing.size();
         double percentage = total > 0 ? Math.round((double) uploaded / total * 10000) / 100.0 : 0.0;
 
-        return new UploadProgressVO(uploaded, total, percentage + "%", session.getStatus());
+        return new UploadProgressVO(uploaded, total, percentage + "%", session.getStatus(), missing);
     }
 
     /**
@@ -404,5 +427,47 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
             deleteChunkDir(session.getId());
         }
         return expiredSessions.size();
+    }
+
+    /**
+     * 回收无主分片目录：目录名是会话 id，但会话行已不存在，或会话已进入终态。
+     *
+     * <p>存在理由：取消/过期/合并三处的事件式回收都以「会话行还在」为前提，行被直接删掉
+     * （运维清库、导入覆盖）或事务半途失败时，分片就永久留在磁盘上，没人再会去清它。
+     * UPLOADING 与 FAILED 的目录刻意保留——前者在续传，后者要靠这些片补传缺片。
+     * 非会话 id 命名的子目录一律跳过：命名口径之外就推断不出归属，不该由本任务删。
+     */
+    @Override
+    public int sweepOrphanChunkDirs() {
+        Path root = Paths.get(chunkDir);
+        if (!Files.isDirectory(root)) {
+            return 0;
+        }
+        List<Path> dirs;
+        try (Stream<Path> children = Files.list(root)) {
+            dirs = children.filter(Files::isDirectory).toList();
+        } catch (IOException e) {
+            log.error("分片根目录读取失败: {}", root, e);
+            throw new BusinessException("分片根目录读取失败");
+        }
+        int swept = 0;
+        for (Path dir : dirs) {
+            long sessionId;
+            try {
+                sessionId = Long.parseLong(dir.getFileName().toString());
+            } catch (NumberFormatException e) {
+                log.warn("分片根目录下有非会话 id 命名的目录，跳过不回收: {}", dir);
+                continue;
+            }
+            FileUploadSession session = this.getById(sessionId);
+            boolean reclaimable = session == null
+                    || "COMPLETED".equals(session.getStatus())
+                    || "CANCELLED".equals(session.getStatus());
+            if (reclaimable) {
+                deleteChunkDir(sessionId);
+                swept++;
+            }
+        }
+        return swept;
     }
 }

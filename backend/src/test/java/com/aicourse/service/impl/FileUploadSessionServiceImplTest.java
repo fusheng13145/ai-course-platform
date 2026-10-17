@@ -420,10 +420,11 @@ class FileUploadSessionServiceImplTest {
 
     // ===== getUploadProgress =====
     @Test
-    @DisplayName("getUploadProgress 正常计算百分比")
-    void progress_ok() {
+    @DisplayName("getUploadProgress 按磁盘单片算百分比（原断言沿用会话行计数，批次 2 改磁盘真值后翻向）")
+    void progress_ok() throws Exception {
         FileUploadSession s = session(1L, 99L, "UPLOADING", 1, 4);
         when(fileUploadSessionMapper.selectById(1L)).thenReturn(s);
+        seedChunk(1L, 0, "AA");
         com.aicourse.vo.UploadProgressVO p = service.getUploadProgress(1L, 99L);
         assertEquals(1, p.getUploaded());
         assertEquals(4, p.getTotal());
@@ -446,6 +447,49 @@ class FileUploadSessionServiceImplTest {
         FileUploadSession s = session(1L, 88L, "UPLOADING", 0, 4);
         when(fileUploadSessionMapper.selectById(1L)).thenReturn(s);
         assertThrows(BusinessException.class, () -> service.getUploadProgress(1L, 99L));
+    }
+
+    @Test
+    @DisplayName("getUploadProgress 给出磁盘缺失分片索引集合（0 基升序），供客户端只补传缺片")
+    void progress_listsMissingIndexesFromDisk() throws Exception {
+        FileUploadSession s = session(1L, 99L, "UPLOADING", 4, 4);
+        when(fileUploadSessionMapper.selectById(1L)).thenReturn(s);
+        seedChunk(1L, 0, "AA");
+        seedChunk(1L, 2, "CC");
+
+        com.aicourse.vo.UploadProgressVO p = service.getUploadProgress(1L, 99L);
+
+        assertEquals(List.of(1, 3), p.getMissingIndexes(),
+                "缺失索引须为 0 基升序集合，实际=" + p.getMissingIndexes());
+    }
+
+    @Test
+    @DisplayName("getUploadProgress 的 uploaded 与百分比取自磁盘，不信会话行的陈旧计数")
+    void progress_uploadedAndPercentageComeFromDisk() throws Exception {
+        FileUploadSession s = session(1L, 99L, "UPLOADING", 4, 4);
+        when(fileUploadSessionMapper.selectById(1L)).thenReturn(s);
+        seedChunk(1L, 0, "AA");
+        seedChunk(1L, 2, "CC");
+
+        com.aicourse.vo.UploadProgressVO p = service.getUploadProgress(1L, 99L);
+
+        assertEquals(2, p.getUploaded(), "磁盘只有两片，uploaded 不得沿用会话行的 4");
+        assertEquals("50.0%", p.getPercentage());
+    }
+
+    @Test
+    @DisplayName("getUploadProgress 遇到非索引命名的 .part 残留不炸，按缺失处理")
+    void progress_unparseableChunkNameDoesNotThrow() throws Exception {
+        FileUploadSession s = session(1L, 99L, "UPLOADING", 0, 2);
+        when(fileUploadSessionMapper.selectById(1L)).thenReturn(s);
+        Path dir = chunkRoot.resolve("1");
+        Files.createDirectories(dir);
+        Files.writeString(dir.resolve("broken.part"), "XX", StandardCharsets.UTF_8);
+
+        com.aicourse.vo.UploadProgressVO p = service.getUploadProgress(1L, 99L);
+
+        assertEquals(List.of(0, 1), p.getMissingIndexes(),
+                "不可解析的残留片不得被当成就绪，实际=" + p.getMissingIndexes());
     }
 
     // ===== cancelUpload =====
@@ -492,5 +536,57 @@ class FileUploadSessionServiceImplTest {
         when(fileUploadSessionMapper.deleteById(any(Serializable.class))).thenReturn(1);
         assertEquals(2, service.cleanExpiredSessions());
         verify(fileUploadSessionMapper, times(2)).deleteById(any(Serializable.class));
+    }
+
+    // ===== sweepOrphanChunkDirs =====
+    @Test
+    @DisplayName("sweepOrphanChunkDirs 回收会话行已不存在的分片目录（删行不等于磁盘清干净）")
+    void sweep_deletesDirsOfUnknownSessions() throws Exception {
+        seedChunk(777L, 0, "AA");
+        when(fileUploadSessionMapper.selectById(777L)).thenReturn(null);
+
+        assertEquals(1, service.sweepOrphanChunkDirs());
+        assertFalse(Files.exists(chunkRoot.resolve("777")), "无主目录必须回收");
+    }
+
+    @Test
+    @DisplayName("sweepOrphanChunkDirs 保留 UPLOADING/FAILED 会话目录（续传与补传的真值所在）")
+    void sweep_keepsResumableSessions() throws Exception {
+        seedChunk(1L, 0, "AA");
+        seedChunk(2L, 0, "BB");
+        when(fileUploadSessionMapper.selectById(1L)).thenReturn(session(1L, 99L, "UPLOADING", 1, 4));
+        when(fileUploadSessionMapper.selectById(2L)).thenReturn(session(2L, 99L, "FAILED", 3, 4));
+
+        assertEquals(0, service.sweepOrphanChunkDirs());
+        assertTrue(Files.exists(chunkRoot.resolve("1")), "续传中会话的分片不得被回收");
+        assertTrue(Files.exists(chunkRoot.resolve("2")), "合并失败会话的分片须留给补传");
+    }
+
+    @Test
+    @DisplayName("sweepOrphanChunkDirs 回收终态会话的残留目录")
+    void sweep_deletesTerminalLeftovers() throws Exception {
+        seedChunk(3L, 0, "CC");
+        when(fileUploadSessionMapper.selectById(3L)).thenReturn(session(3L, 99L, "COMPLETED", 4, 4));
+
+        assertEquals(1, service.sweepOrphanChunkDirs());
+        assertFalse(Files.exists(chunkRoot.resolve("3")));
+    }
+
+    @Test
+    @DisplayName("sweepOrphanChunkDirs 不碰非会话 id 命名的子目录")
+    void sweep_skipsNonNumericDir() throws Exception {
+        Path manual = chunkRoot.resolve("manual-drop");
+        Files.createDirectories(manual);
+        Files.writeString(manual.resolve("keep.txt"), "K", StandardCharsets.UTF_8);
+
+        assertEquals(0, service.sweepOrphanChunkDirs());
+        assertTrue(Files.exists(manual), "非数字目录一律不删：命名口径外即不可推断为分片");
+    }
+
+    @Test
+    @DisplayName("sweepOrphanChunkDirs 分片根目录不存在时返回 0 且不抛")
+    void sweep_absentRootIsQuiet() {
+        ReflectionTestUtils.setField(service, "chunkDir", tempRoot.resolve("never-created").toString());
+        assertEquals(0, service.sweepOrphanChunkDirs());
     }
 }

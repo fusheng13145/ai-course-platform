@@ -50,7 +50,7 @@ public interface FileUploadSessionService extends IService<FileUploadSession> {
      * 获取上传进度信息
      * @param sessionId 会话ID
      * @param uploaderId 当前登录用户ID（归属校验，修复 IDOR 越权）
-     * @return 进度信息（包含 uploaded/total/percentage）
+     * @return 进度信息（uploaded/total/percentage/status/missingIndexes，均源自磁盘真值）
      */
     UploadProgressVO getUploadProgress(Long sessionId, Long uploaderId);
 
@@ -67,4 +67,11 @@ public interface FileUploadSessionService extends IService<FileUploadSession> {
      * @return 清理的数量
      */
     int cleanExpiredSessions();
+
+    /**
+     * 回收无主分片目录（会话行已不存在或已进入 COMPLETED/CANCELLED 终态）
+     * 由维护调度任务调用，兜住事件式回收漏下的磁盘残留
+     * @return 回收的目录数
+     */
+    int sweepOrphanChunkDirs();
 }

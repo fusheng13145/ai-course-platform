@@ -8,6 +8,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import java.util.List;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -131,6 +132,25 @@ class FileUploadSessionControllerTest extends ControllerTestBase {
                 .andExpect(status().isUnauthorized());
     }
 
+    /**
+     * D1-2 批次 2 实测缺陷：分片端点从「恒 501」改为真实实现后，非 multipart 请求
+     * 会在参数解析阶段抛 MultipartException，落入 500 兜底——客户端写错请求体裁
+     * 却表现为服务端故障。N-03 下线期契约明确要求「不得出现 500」，恢复端点后
+     * 该要求同样成立，故按 400 语义拒绝。
+     */
+    @Test
+    @DisplayName("POST /upload-sessions/1/chunks/0 - 非 multipart 请求按400语义拒绝，不得落入500兜底")
+    void uploadChunk_notMultipart_returns_400() throws Exception {
+        mockMvc.perform(post("/upload-sessions/1/chunks/0")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .with(withUser(1L, "STUDENT")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+
+        verify(fileUploadSessionService, never())
+                .uploadChunk(anyLong(), anyInt(), any(), anyLong(), any(), anyLong());
+    }
+
 
     @Test
     @DisplayName("POST /upload-sessions/1/merge - 委托 service 合并落盘，返回200且状态透传")
@@ -182,12 +202,15 @@ class FileUploadSessionControllerTest extends ControllerTestBase {
     @DisplayName("GET /upload-sessions/1/progress - 返回200且进度透传")
     void getUploadProgress_authorized_returns_200() throws Exception {
         when(fileUploadSessionService.getUploadProgress(1L, 1L))
-                .thenReturn(new com.aicourse.vo.UploadProgressVO(1, 2, "50.0%", "UPLOADING"));
+                .thenReturn(new com.aicourse.vo.UploadProgressVO(1, 2, "50.0%", "UPLOADING", List.of(1)));
         mockMvc.perform(get("/upload-sessions/1/progress").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.percentage").value("50.0%"));
+                .andExpect(jsonPath("$.data.percentage").value("50.0%"))
+                .andExpect(jsonPath("$.data.missingIndexes").isArray())
+                .andExpect(jsonPath("$.data.missingIndexes[0]").value(1))
+                .andExpect(jsonPath("$.data.missingIndexes[1]").doesNotExist());
         verify(fileUploadSessionService).getUploadProgress(eq(1L), eq(1L));
     }
 

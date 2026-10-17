@@ -2,7 +2,7 @@
   <div class="fade-in file-upload-manage">
     <PageHeader
       title="上传会话监控"
-      subtitle="查看最近 100 条上传会话的状态与分片进度，支持取消仍在进行的会话"
+      subtitle="查看最近 100 条上传会话的状态与磁盘分片进度，支持合并已齐片的会话或取消仍在进行的会话"
       icon="upload"
       icon-bg="accent"
     >
@@ -10,15 +10,6 @@
         <el-icon><Refresh /></el-icon>刷新列表
       </el-button>
     </PageHeader>
-
-    <el-alert
-      class="upload-capability-notice"
-      title="文件分片上传与合并当前未启用"
-      description="本页仅管理上传会话元数据；进度反映后端已记录的分片数，不代表文件已成功保存。"
-      type="warning"
-      :closable="false"
-      show-icon
-    />
 
     <div class="stat-grid">
       <StatCard label="最近会话数" :value="sessionTotal" icon="list" tone="accent" />
@@ -85,16 +76,25 @@
               </template>
             </el-table-column>
             <el-table-column prop="createdAt" label="创建时间" width="160" />
-            <el-table-column label="操作" width="180" align="center">
+            <el-table-column label="操作" width="240" align="center">
               <template #default="{ row }">
-                <el-button
-                  v-if="row.status === 'UPLOADING'"
-                  size="small"
-                  type="danger"
-                  @click="handleCancel(row)"
-                >
-                  <el-icon><Close /></el-icon>取消
-                </el-button>
+                <template v-if="row.status === 'UPLOADING'">
+                  <el-button
+                    size="small"
+                    type="warning"
+                    :loading="mergingId === row.id"
+                    @click="handleMerge(row)"
+                  >
+                    <el-icon><Connection /></el-icon>合并
+                  </el-button>
+                  <el-button
+                    size="small"
+                    type="danger"
+                    @click="handleCancel(row)"
+                  >
+                    <el-icon><Close /></el-icon>取消
+                  </el-button>
+                </template>
                 <el-button v-else size="small" @click="viewProgress(row)">查看进度</el-button>
               </template>
             </el-table-column>
@@ -136,6 +136,9 @@
           }}</el-tag>
         </p>
         <el-progress :percentage="currentSession.progress || 0" :stroke-width="20" />
+        <p v-if="progressMissing.length" class="progress-missing">
+          缺失分片序号：{{ progressMissing.join('、') }}（补齐后即可合并）
+        </p>
         <el-alert
           v-if="progressError"
           class="progress-error"
@@ -146,7 +149,7 @@
         />
         <p class="progress-hint">
           <template v-if="currentSession.status === 'UPLOADING'">
-            每 5 秒刷新一次；进度仅反映后端记录的分片数
+            每 5 秒刷新一次；进度与缺失分片取自服务端磁盘上的实际分片文件
           </template>
           <template v-else>
             {{ lastProgressUpdatedAt ? `最近更新：${lastProgressUpdatedAt}` : '会话已结束' }}
@@ -161,7 +164,7 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { useDialogFocus } from '@/composables/useDialogFocus'
 import { ElMessage } from 'element-plus'
-import { Refresh, Document, Close } from '@element-plus/icons-vue'
+import { Refresh, Document, Close, Connection } from '@element-plus/icons-vue'
 import uploadApi from '@/api/fileUpload'
 import { useListFeedback } from '@/composables/useListFeedback'
 import { useClientPagination } from '@/composables/useClientPagination'
@@ -187,6 +190,7 @@ interface UploadProgress {
   total?: number | null
   percentage?: string | null
   status?: string | null
+  missingIndexes?: number[] | null
 }
 
 const sessions = ref<UploadSession[]>([])
@@ -217,6 +221,8 @@ const { loading, listError, run, emptyDescription } = useListFeedback({
   errorEmptyText: '无法确认会话数据，请查看上方提示后重试',
 })
 const progressError = ref('')
+const progressMissing = ref<number[]>([])
+const mergingId = ref<number | null>(null)
 const lastProgressUpdatedAt = ref('')
 const progressRefreshing = ref(false)
 const progressTimer = ref<ReturnType<typeof setInterval> | null>(null)
@@ -264,6 +270,28 @@ async function refreshList() {
       progress: s.totalChunks > 0 ? Math.round(((s.uploadedChunks || 0) / s.totalChunks) * 100) : 0,
     }))
   })
+}
+
+async function handleMerge(row: UploadSession) {
+  mergingId.value = row.id
+  try {
+    await uploadApi.mergeChunks(row.id)
+    ElMessage.success(`会话 ${row.id} 的分片已合并`)
+    const activeSession = currentSession.value
+    if (activeSession?.id === row.id) {
+      currentSession.value = { ...activeSession, status: 'COMPLETED', progress: 100 }
+      progressMissing.value = []
+      stopProgressPolling()
+    }
+    await refreshList()
+  } catch {
+    // 失败原因（如「缺少分片：1、3」）已由 request.ts 响应拦截器统一提示，
+    // 此处只补动作口径；不可拼接 err.message——HTTP 错误路径下它是英文的
+    // axios 文案（"Request failed with status code 400"），会造成双重且出海的提示。
+    ElMessage.error('合并失败，请稍后重试')
+  } finally {
+    mergingId.value = null
+  }
 }
 
 async function handleCancel(row: UploadSession) {
@@ -321,6 +349,7 @@ async function refreshProgress(silent = false) {
     const res = await uploadApi.getProgress(session.id)
     const data = (res?.data || {}) as UploadProgress
     if (currentSession.value?.id !== session.id) return
+    progressMissing.value = Array.isArray(data.missingIndexes) ? data.missingIndexes : []
 
     const total = Number(data.total ?? session.totalChunks ?? 0)
     const uploaded = Number(data.uploaded ?? session.uploadedChunks ?? 0)
@@ -356,6 +385,7 @@ async function viewProgress(row: UploadSession) {
   stopProgressPolling()
   currentSession.value = row
   progressError.value = ''
+  progressMissing.value = []
   lastProgressUpdatedAt.value = ''
   progressVisible.value = true
   await refreshProgress()
@@ -367,9 +397,6 @@ onUnmounted(stopProgressPolling)
 </script>
 
 <style scoped>
-.upload-capability-notice {
-  margin-bottom: var(--ac-spacing-md);
-}
 .list-error {
   margin-bottom: var(--ac-spacing-md);
 }
@@ -422,6 +449,11 @@ onUnmounted(stopProgressPolling)
 }
 .progress-detail p {
   margin: 8px 0;
+}
+.progress-missing {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--ac-warning);
 }
 .progress-hint {
   font-size: 12px;

@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.time.LocalDateTime;
 import java.util.Collection;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
@@ -85,6 +86,7 @@ class DataMaintenanceSchedulerTest {
         verify(learningRecordMapper, never()).delete(any());
         verify(videoWatchSessionMapper, never()).delete(any());
         verify(fileUploadSessionService, never()).cleanExpiredSessions();
+        verify(fileUploadSessionService, never()).sweepOrphanChunkDirs();
     }
 
     @Test
@@ -116,6 +118,38 @@ class DataMaintenanceSchedulerTest {
 
         verify(verificationCodeMapper).delete(any());
         verify(learningRecordMapper).delete(any());
+        verify(fileUploadSessionService).sweepOrphanChunkDirs();
+    }
+
+    @Test
+    @DisplayName("runCleanup 每轮都跑无主分片目录兜底回收")
+    void runCleanup_sweepsOrphanChunkDirs() {
+        when(verificationCodeMapper.delete(any())).thenReturn(0);
+        when(userSessionMapper.delete(any())).thenReturn(0);
+        when(operationLogMapper.delete(any())).thenReturn(0);
+        when(learningRecordMapper.delete(any())).thenReturn(0);
+        when(videoWatchSessionMapper.delete(any())).thenReturn(0);
+
+        scheduler.runCleanup();
+
+        verify(fileUploadSessionService).sweepOrphanChunkDirs();
+    }
+
+    @Test
+    @DisplayName("无主分片回收抛异常时不影响其余清理任务")
+    void runCleanup_orphanSweepThrows_isIsolated() {
+        when(verificationCodeMapper.delete(any())).thenReturn(3);
+        when(userSessionMapper.delete(any())).thenReturn(0);
+        when(operationLogMapper.delete(any())).thenReturn(0);
+        when(learningRecordMapper.delete(any())).thenReturn(0);
+        when(videoWatchSessionMapper.delete(any())).thenReturn(0);
+        when(fileUploadSessionService.sweepOrphanChunkDirs())
+                .thenThrow(new RuntimeException("chunk root unreadable"));
+
+        assertDoesNotThrow(() -> scheduler.runCleanup());
+
+        verify(verificationCodeMapper).delete(any());
+        verify(fileUploadSessionService).cleanExpiredSessions();
     }
 
     @Test

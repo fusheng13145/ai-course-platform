@@ -89,6 +89,7 @@ public class DataMaintenanceScheduler {
         cleanupOperationLogs(now);
         cleanupLearningRecords(now);
         cleanupExpiredUploadSessions();
+        sweepOrphanUploadChunkDirs();
         log.info("[maintenance] 数据保留清理结束");
     }
 
@@ -105,6 +106,21 @@ public class DataMaintenanceScheduler {
             }
         } catch (Exception e) {
             log.warn("[maintenance] 上传会话清理失败（已隔离）: {}", e.getMessage());
+        }
+    }
+
+    /**
+     * 无主分片目录兜底回收——上一项只清「行还在」的会话，行被直接删掉时磁盘没人管。
+     * 与上一项刻意分开：两者失败的处置不同（删行失败要查库，回收失败只看磁盘）。
+     */
+    private void sweepOrphanUploadChunkDirs() {
+        try {
+            int swept = fileUploadSessionService.sweepOrphanChunkDirs();
+            if (swept > 0) {
+                log.info("[maintenance] 回收无主分片目录 {} 个", swept);
+            }
+        } catch (Exception e) {
+            log.warn("[maintenance] 无主分片目录回收失败（已隔离）: {}", e.getMessage());
         }
     }
 

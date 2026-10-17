@@ -56,6 +56,12 @@ function mountPage() {
           template: '<div class="tbl-stub">{{ (data || []).length }}</div>',
         },
         'el-table-column': true,
+        // element-plus 整体被 mock 掉了，列插槽内真实渲染的这四个控件需要显式桩，
+        // 否则每次重渲染都刷 "Failed to resolve component" 警告
+        'el-button': { template: '<button><slot /></button>' },
+        'el-icon': { template: '<i><slot /></i>' },
+        'el-tag': { template: '<span><slot /></span>' },
+        'el-progress': { props: ['percentage'], template: '<div class="progress-stub" />' },
         'el-alert': {
           props: ['title'],
           template: '<div class="alert-stub">{{ title }}</div>',
