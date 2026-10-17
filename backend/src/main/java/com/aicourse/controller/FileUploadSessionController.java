@@ -15,7 +15,9 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
 import java.util.List;
 
 /**
@@ -68,29 +70,40 @@ public class FileUploadSessionController {
 
     /**
      * 上传单个分片
-     * <p>该端点为历史空壳实现：后端未落地分片字节落盘与合并逻辑，
-     * 仅修改会话状态为 COMPLETED，导致管理员「合并」得到虚假成功、磁盘无文件（静默数据丢失）。
-     * 已按上线前全检结论（N-03）下线，保留会话元数据管理（create/list/progress/cancel）。</p>
+     * <p>分片字节按 0 基索引落盘到 {@code file.chunk-dir} 下的会话目录，
+     * 同名索引重传覆盖且不重复推进进度。</p>
      * @param id 会话ID
-     * @param index 分片索引
-     * @return 永不成功，返回 501
+     * @param index 分片索引（0 基，须小于会话声明的 totalChunks）
+     * @param file 分片内容（multipart 字段名 file）
+     * @param md5 可选的分片 MD5 摘要，声明后由 Service 层实算比对
+     * @return 更新后的会话
      */
     @PostMapping("/{id}/chunks/{index}")
     public ApiResponse<FileUploadSession> uploadChunk(@PathVariable Long id, @PathVariable Integer index,
+                                                      @RequestParam("file") MultipartFile file,
+                                                      @RequestParam(value = "md5", required = false) String md5,
                                                       org.springframework.security.core.Authentication auth) {
-        throw new BusinessException(501, "分片上传功能暂未启用");
+        try {
+            FileUploadSession session = fileUploadSessionService.uploadChunk(
+                    id, index, file.getInputStream(), file.getSize(), md5, resolveOperator(id, auth));
+            return ApiResponse.success("分片上传成功", session);
+        } catch (IOException e) {
+            log.error("分片读取失败: session={}, chunk={}, {}", id, index, e.getMessage());
+            throw new BusinessException(500, "分片读取失败", e);
+        }
     }
 
     /**
      * 合并所有分片
-     * <p>与 uploadChunk 同理，合并字节逻辑从未实现，按 N-03 下线。</p>
+     * <p>以磁盘分片为真值：缺片返回 400 并列出缺失索引，绝不产出半成品。</p>
      * @param id 会话ID
-     * @return 永不成功，返回 501
+     * @return 合并后的会话（status=COMPLETED，uploadPath 为相对上传根的对象名）
      */
     @PostMapping("/{id}/merge")
     public ApiResponse<FileUploadSession> mergeChunks(@PathVariable Long id,
                                                       org.springframework.security.core.Authentication auth) {
-        throw new BusinessException(501, "分片合并功能暂未启用");
+        FileUploadSession session = fileUploadSessionService.mergeChunks(id, resolveOperator(id, auth));
+        return ApiResponse.success("分片合并成功", session);
     }
 
     /**

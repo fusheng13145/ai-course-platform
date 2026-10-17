@@ -411,6 +411,10 @@ fine-tune:
 # 本地文件上传路径与大小
 file:
   upload-dir: uploads/
+  # 分片上传的临时落盘目录（相对进程工作目录，与 upload-dir 同级）。
+  # 刻意置于 upload-dir 之外：未合并完的分片不得出现在 /uploads/** 静态映射里。
+  # 会话取消/过期与合并成功后由 FileUploadSessionServiceImpl 回收该目录。
+  chunk-dir: ${FILE_CHUNK_DIR:upload-chunks/}
   max-size: 52428800
 
 # ===================== MinIO 对象存储配置（默认禁用） =====================

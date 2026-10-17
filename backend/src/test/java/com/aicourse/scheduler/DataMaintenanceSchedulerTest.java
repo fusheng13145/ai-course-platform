@@ -10,6 +10,7 @@ import com.baomidou.mybatisplus.core.conditions.AbstractWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -24,6 +25,7 @@ import java.util.Collection;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -47,6 +49,8 @@ class DataMaintenanceSchedulerTest {
     private LearningRecordMapper learningRecordMapper;
     @Mock
     private VideoWatchSessionMapper videoWatchSessionMapper;
+    @Mock
+    private com.aicourse.service.FileUploadSessionService fileUploadSessionService;
 
     private DataMaintenanceScheduler scheduler;
 
@@ -54,11 +58,14 @@ class DataMaintenanceSchedulerTest {
     void setUp() {
         scheduler = new DataMaintenanceScheduler(
                 verificationCodeMapper, userSessionMapper, operationLogMapper,
-                learningRecordMapper, videoWatchSessionMapper);
+                learningRecordMapper, videoWatchSessionMapper, fileUploadSessionService);
         // @Value 在纯单元测试（无 Spring 上下文）下不会注入，enabled 字段默认 false，
         // 会导致 runCleanup() 直接提前返回、各清理任务 delete 永不执行。
         // 显式置为 true，使清理逻辑真正执行（runCleanup_disabled_returnsEarly 会再覆盖为 false）。
         ReflectionTestUtils.setField(scheduler, "enabled", true);
+        // 上传会话清理走 service（其内部查库+回收分片），本类只断言"被调度调用"，
+        // 返回值与用例无关，故用 lenient 避免各分支的严格存根检查报错
+        lenient().when(fileUploadSessionService.cleanExpiredSessions()).thenReturn(0);
         // 初始化各实体 TableInfo，使 LambdaQueryWrapper 能解析 lambda 列并在 getSqlSegment()
         // 时把参数值落入 paramNameValuePairs（供 runCleanup_usesDocumentedRetentionCutoffs 断言时间阈值）。
         for (Class<?> e : new Class<?>[]{com.aicourse.entity.VerificationCode.class,
@@ -77,6 +84,38 @@ class DataMaintenanceSchedulerTest {
         verify(operationLogMapper, never()).delete(any());
         verify(learningRecordMapper, never()).delete(any());
         verify(videoWatchSessionMapper, never()).delete(any());
+        verify(fileUploadSessionService, never()).cleanExpiredSessions();
+    }
+
+    @Test
+    @DisplayName("runCleanup 调用上传会话过期清理（分片回收的唯一入口）")
+    void runCleanup_cleansExpiredUploadSessions() {
+        when(verificationCodeMapper.delete(any())).thenReturn(0);
+        when(userSessionMapper.delete(any())).thenReturn(0);
+        when(operationLogMapper.delete(any())).thenReturn(0);
+        when(learningRecordMapper.delete(any())).thenReturn(0);
+        when(videoWatchSessionMapper.delete(any())).thenReturn(0);
+
+        scheduler.runCleanup();
+
+        verify(fileUploadSessionService).cleanExpiredSessions();
+    }
+
+    @Test
+    @DisplayName("上传会话清理抛异常时不影响其余清理任务")
+    void runCleanup_uploadSessionCleanupThrows_isIsolated() {
+        when(fileUploadSessionService.cleanExpiredSessions())
+                .thenThrow(new RuntimeException("chunk dir locked"));
+        when(verificationCodeMapper.delete(any())).thenReturn(0);
+        when(userSessionMapper.delete(any())).thenReturn(0);
+        when(operationLogMapper.delete(any())).thenReturn(0);
+        when(learningRecordMapper.delete(any())).thenReturn(0);
+        when(videoWatchSessionMapper.delete(any())).thenReturn(0);
+
+        scheduler.runCleanup();
+
+        verify(verificationCodeMapper).delete(any());
+        verify(learningRecordMapper).delete(any());
     }
 
     @Test

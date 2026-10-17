@@ -29,6 +29,8 @@ import java.time.LocalDateTime;
  *   <li>失效用户会话：is_active=false 且创建超过 {@code 90} 天删除（活跃会话由 expires_at 管理，不受影响）；</li>
  *   <li>操作日志：创建超过 {@code 90} 天删除；</li>
  *   <li>学习记录 / 观看会话：创建超过 {@code 180} 天删除。</li>
+ *   <li>上传会话：expires_at 早于当前时刻即删行，并回收其在 {@code file.chunk-dir} 下的分片目录
+ *       （由 {@code FileUploadSessionService.cleanExpiredSessions()} 承担，本处为唯一调用方）。</li>
  * </ul>
  * 每项独立事务、失败隔离互不影响；删除行数计入日志。开关 {@code app.maintenance.enabled}（默认 true）。
  */
@@ -51,6 +53,7 @@ public class DataMaintenanceScheduler {
     private final OperationLogMapper operationLogMapper;
     private final LearningRecordMapper learningRecordMapper;
     private final VideoWatchSessionMapper videoWatchSessionMapper;
+    private final com.aicourse.service.FileUploadSessionService fileUploadSessionService;
 
     @Value("${app.maintenance.enabled:true}")
     private boolean enabled;
@@ -59,12 +62,14 @@ public class DataMaintenanceScheduler {
                                     UserSessionMapper userSessionMapper,
                                     OperationLogMapper operationLogMapper,
                                     LearningRecordMapper learningRecordMapper,
-                                    VideoWatchSessionMapper videoWatchSessionMapper) {
+                                    VideoWatchSessionMapper videoWatchSessionMapper,
+                                    com.aicourse.service.FileUploadSessionService fileUploadSessionService) {
         this.verificationCodeMapper = verificationCodeMapper;
         this.userSessionMapper = userSessionMapper;
         this.operationLogMapper = operationLogMapper;
         this.learningRecordMapper = learningRecordMapper;
         this.videoWatchSessionMapper = videoWatchSessionMapper;
+        this.fileUploadSessionService = fileUploadSessionService;
     }
 
     /** 每日 03:30 执行（避开业务高峰）；ShedLock 保证多实例部署下仅一个节点执行 */
@@ -83,7 +88,24 @@ public class DataMaintenanceScheduler {
         cleanupInactiveSessions(now);
         cleanupOperationLogs(now);
         cleanupLearningRecords(now);
+        cleanupExpiredUploadSessions();
         log.info("[maintenance] 数据保留清理结束");
+    }
+
+    /**
+     * 过期上传会话清理——同时是分片暂存目录的唯一回收入口。
+     * <p>会话表按 expires_at 过期，但分片落在 {@code file.chunk-dir} 下的目录里；
+     * 本任务此前无任何调用方，故分片目录只增不清。删除行与回收目录都在 service 内完成。</p>
+     */
+    private void cleanupExpiredUploadSessions() {
+        try {
+            int removed = fileUploadSessionService.cleanExpiredSessions();
+            if (removed > 0) {
+                log.info("[maintenance] 清理过期上传会话 {} 条并回收其分片目录", removed);
+            }
+        } catch (Exception e) {
+            log.warn("[maintenance] 上传会话清理失败（已隔离）: {}", e.getMessage());
+        }
     }
 
     private void cleanupVerificationCodes(LocalDateTime now) {
