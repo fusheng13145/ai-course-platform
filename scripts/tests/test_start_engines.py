@@ -13,6 +13,7 @@
 """
 
 import importlib.util
+import re
 import socket
 import sys
 import threading
@@ -202,6 +203,66 @@ def test_engines_never_read_dotenv_so_the_helper_must_export_both_keys():
     assert "NEO4J_URI" in src and "HF_HUB_OFFLINE" in src
     # 阴性对照：缺键名的片段确实不会命中（证明守卫非恒真）
     assert not ("TRANSFORMERS_NEVER_SET" in src)
+
+
+def test_engine_env_forwards_the_dotenv_knobs_the_engines_actually_read():
+    # DR-63：`.env` 里 advertised 的调优旋钮与 Neo4j 认证键，此前只喂给启动器自己的判定，
+    # 传给子进程的 base 却是 os.environ -> 配了也不生效，引擎静默用内置默认值。
+    dotenv = {
+        "RAG_EMBED_MODEL": "BAAI/bge-m3",
+        "RAG_DATA_DIR": r"D:\rag-data",
+        "RAG_CHUNK_SIZE": "500",
+        "RAG_CHUNK_OVERLAP": "80",
+        "DEEPSEEK_MODEL": "deepseek-reasoner",
+        "NEO4J_USERNAME": "kg_reader",
+        "NEO4J_PASSWORD": "not-a-real-secret",
+        "KG_BACKEND": "neo4j",
+        "NEO4J_URI": "bolt://127.0.0.1:7687",
+    }
+
+    rag_env = eng.engine_env({}, service="rag", api_key=None, dotenv=dotenv)
+    assert rag_env["RAG_EMBED_MODEL"] == "BAAI/bge-m3"
+    assert rag_env["RAG_CHUNK_SIZE"] == "500"
+    assert rag_env["DEEPSEEK_MODEL"] == "deepseek-reasoner"
+    # 串服务不导出：KG 的认证键不该进 RAG 进程，RAG 的旋钮也不该进 KG 进程
+    assert "NEO4J_PASSWORD" not in rag_env
+
+    kg_env = eng.engine_env(
+        {}, service="kg", neo4j_uri="bolt://127.0.0.1:7687", api_key=None, dotenv=dotenv
+    )
+    assert kg_env["NEO4J_USERNAME"] == "kg_reader"
+    assert kg_env["NEO4J_PASSWORD"] == "not-a-real-secret"
+    assert kg_env["KG_BACKEND"] == "neo4j"
+    assert "RAG_CHUNK_SIZE" not in kg_env
+
+    # 空串/纯空白不导出：否则会把引擎自身的默认值盖成空（int() 直接抛 ValueError）
+    blank = eng.engine_env({}, service="rag", dotenv={"RAG_CHUNK_SIZE": "   ", "RAG_DATA_DIR": ""})
+    assert "RAG_CHUNK_SIZE" not in blank and "RAG_DATA_DIR" not in blank
+    # 不传 dotenv 仍是旧行为（base 有什么就是什么），保持调用方可用
+    assert "RAG_CHUNK_SIZE" not in eng.engine_env({}, service="rag", api_key=None)
+    # 父进程 dict 不能被改坏
+    assert dotenv["RAG_CHUNK_SIZE"] == "500"
+
+
+def test_engine_export_list_covers_every_var_the_engines_read():
+    # 漂移护栏（DR-63 的复发防止）：引擎新增一个 os.getenv 读取，而启动器名单没跟上，
+    # 就又回到「.env 配了不生效」——这类缺口没有报错，只能靠集合包含关系钉住。
+    read = set()
+    for rel in (
+        "python-services/kg_service/kg_store.py",
+        "python-services/rag_service/rag_engine.py",
+        "python-services/rag_service/rag_service.py",
+    ):
+        src = (ROOT / rel).read_text(encoding="utf-8", errors="replace")
+        read |= set(re.findall(r"""os\.(?:getenv|environ\.get)\(\s*["']([A-Z0-9_]+)""", src))
+    assert read, "引擎源码里一个 os.getenv 都没匹配到——守卫的正则已失效"
+
+    # 这三个由专用参数处理（api_key / neo4j_uri），RAG_ENGINE_READY 只在契约测试里置位
+    handled_elsewhere = {"DEEPSEEK_API_KEY", "NEO4J_URI", "KG_NEO4J_URI", "RAG_ENGINE_READY"}
+    exported = {key for keys in eng.ENGINE_EXPORTS.values() for key in keys}
+    assert sorted(read - handled_elsewhere - exported) == []
+    # 阴性对照：名单不是「全导出」，随便一个没读过的键确实不在里面
+    assert "NOT_A_REAL_KNOB" not in exported
 
 
 # ------------------------------------------------------------------ 命令构造

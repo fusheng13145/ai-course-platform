@@ -558,6 +558,7 @@ def start_engine(name: str, env: dict, sink: Sink):
         neo4j_uri=(env.get("KG_NEO4J_URI") or env.get("NEO4J_URI") or "bolt://127.0.0.1:7687").strip(),
         api_key=eng.effective_api_key(env.get("DEEPSEEK_API_KEY")),
         offline=eng.offline_flags(env),
+        dotenv=env,
     )
     workdir = ROOT / "python-services" / eng.SERVICE_DIRS[name]
     sink.put(name, f"启动 {name.upper()} 引擎（:{PORTS[name]}，本窗口内）")

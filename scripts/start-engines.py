@@ -50,6 +50,22 @@ DEFAULT_EMBED_MODEL = "BAAI/bge-small-zh-v1.5"
 SERVICE_DIRS = {"kg": "kg_service", "rag": "rag_service"}
 APP_MODULES = {"kg": "kg_service:app", "rag": "rag_service:app"}
 
+# DR-63：引擎进程没有 dotenv，只调 os.getenv（kg_store.py:36/312-323、rag_engine.py:101-634）。
+# 因此「写在 .env 里」不等于「会生效」——只有在下面这份名单里的键才会被导出到子进程。
+# 名单按服务分列，与各服务实际读取的键一一对应；未配置（缺失或空串）的键不导出，让引擎用自身默认。
+ENGINE_EXPORTS = {
+    "kg": ("NEO4J_USERNAME", "NEO4J_PASSWORD", "KG_BACKEND"),
+    "rag": (
+        "DEEPSEEK_MODEL",
+        "RAG_EMBED_MODEL",
+        "RAG_DATA_DIR",
+        "RAG_CHUNK_SIZE",
+        "RAG_CHUNK_OVERLAP",
+        "HF_HOME",
+        "HF_HUB_CACHE",
+    ),
+}
+
 NEO4J_START_TIMEOUT = 120.0
 ENGINE_START_TIMEOUT = 60.0
 
@@ -129,12 +145,19 @@ def plan(status: dict, want: dict) -> list:
     return [name for name in ORDER if want.get(name, True) and not status.get(name)]
 
 
-def engine_env(base: dict, *, service: str, neo4j_uri=None, api_key=None, offline=None) -> dict:
+def engine_env(base: dict, *, service: str, neo4j_uri=None, api_key=None, offline=None, dotenv=None) -> dict:
     """引擎不读 .env，所以导出必须在这里完成。
-    DEEPSEEK_API_KEY 只给 RAG（KG 侧无生成逻辑），且占位值一律不转。"""
+    DEEPSEEK_API_KEY 只给 RAG（KG 侧无生成逻辑），且占位值一律不转。
+    dotenv 是启动器解析出的 .env 读数（DR-63）：名单内的键由它显式导出，
+    否则 .env 里配了也只会静默回落引擎默认值。"""
     env = dict(base)
     env.pop("DEEPSEEK_API_KEY", None)
     env.pop("NEO4J_URI", None)
+    source = dotenv or {}
+    for key in ENGINE_EXPORTS.get(service, ()):
+        value = source.get(key)
+        if value is not None and str(value).strip():
+            env[key] = str(value).strip()
     if service == "rag":
         if api_key:
             env["DEEPSEEK_API_KEY"] = api_key
@@ -355,7 +378,12 @@ def main(argv=None) -> int:
             ok = start_neo4j(neo4j_home, env)
         else:
             exported = engine_env(
-                os.environ, service=name, neo4j_uri=uri, api_key=api_key, offline=offline
+                os.environ,
+                service=name,
+                neo4j_uri=uri,
+                api_key=api_key,
+                offline=offline,
+                dotenv=env,
             )
             print(f"[..] 启动 {name.upper()} 引擎（:{PORTS[name]}，新窗口，日志在窗口内）")
             ok = start_engine(name, exported)
