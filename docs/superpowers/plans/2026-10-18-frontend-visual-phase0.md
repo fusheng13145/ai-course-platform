@@ -751,6 +751,135 @@ git commit -m "test(visual): 12 锚点×明暗 24 张基线入库，二次跑零
 
 ---
 
+### Task 4b: 基线量程测量（Phase 1 开工前的准入门）
+
+**为什么单独立一个任务。** Task 4 修复轮发现旧暗色图谱基线是**假绿**：新图与旧的"空态图"有 0.33% 像素不同，
+而 `toHaveScreenshot(..., { threshold: 0.2, maxDiffPixelRatio: 0.002 })` 判为相同，`--update-snapshots`
+甚至拒绝重写（要手工删文件才换掉）。`threshold` 是**单像素颜色距离容差**，0.2 会把"差异薄铺"型改动逐像素吸收掉——
+而 Phase 1–3 要做的**恰好全是这种**：阴影 alpha 0.06→0.10、内高光、描边、圆角 6→10、表面明度差 6 级。
+不先量出"这层到底看得见多小的改动"，后续 60–80 个单元里所有"零 diff"和"有 diff"的读数都不可解释。
+本任务**只测量、不改产品代码**，判据是"注入一个已知幅度的改动，基线必须报警"。
+
+**Files:**
+- Create: `frontend/e2e/visual/sensitivity.spec.ts`
+- Modify: `frontend/e2e/visual/anchors.spec.ts`（阈值改为从单一常量取）
+- Modify: `frontend/e2e/visual/visual-helpers.ts`（导出 `SNAPSHOT_THRESHOLDS`）
+- Modify: `frontend/.gitignore`（量程参考图 `-ref.png` 不入库）
+
+**Interfaces:**
+- Consumes: `ANCHORS`、`snapName`、`setTheme`/`freezeClock`/`settlePage`/`storagePathFor`、既有 22 张基线
+- Produces: `SNAPSHOT_THRESHOLDS: { threshold: number; maxDiffPixelRatio: number }` — 全仓唯一阈值来源；
+  以及写进 LEDGER 的三档实测结论（`red | green`）
+
+- [ ] **Step 1: 写量程探针（三档注入，幅度取"我们真正会做的改动"的形状）**
+
+Create `frontend/e2e/visual/sensitivity.spec.ts`:
+
+```ts
+import { expect, test } from '@playwright/test'
+import {
+  ANCHORS, freezeClock, setTheme, settlePage, snapName, storagePathFor,
+} from './visual-helpers'
+
+/**
+ * 这不是回归测试，是**量程测量**：故意注入一个已知幅度的视觉改动，看基线是否报警。
+ * 报警 = 该幅度上这层防护有效；不报警 = 这个幅度往后 Phase 1-6 做了也看不见。
+ * 所以"注入后测试变红"是**成功的测量结果**，不是失败——不要为了让它绿而去放宽阈值。
+ * 注入一律用 addStyleTag，不落源文件：改源文件会连带影响 token 的所有消费方，
+ * 量出来的就不是"基线能否看见改动"，而是"改动有多大"，是另一个问题。
+ */
+const PROBE_ANCHORS = ['login', 'admin-dashboard', 'admin-courses-table'] as const
+
+// 三档，由粗到薄。档 2/3 才是本次测量的目的。
+const LADDER: Record<string, string> = {
+  gross: 'body{filter:brightness(0.97)}',
+  // 档 2：单卡阴影增强 —— 正是 Phase 1 的 --sh-l1 alpha 0.06→0.10
+  shadow: '.l1-card{box-shadow:0 1px 2px rgba(24,32,48,0.12),0 4px 14px rgba(24,32,48,0.13)!important}',
+  // 档 3：圆角差 2px —— 正是 Phase 2 半径阶梯里较薄的一档
+  radius: '.l1-card{border-radius:14px!important}',
+}
+const LAD = process.env.PW_LADDER ?? 'gross'
+const CSS = LADDER[LAD]
+if (!CSS) throw new Error(`PW_LADDER=${LAD} 不在 ladder 里：${Object.keys(LADDER).join('/')}`)
+
+for (const slug of PROBE_ANCHORS) {
+  const anchor = ANCHORS.find((a) => a.slug === slug)
+  if (!anchor) throw new Error(`探针锚点 ${slug} 不在 ANCHORS——先核对再跑`)
+  test(`量程探针 ${slug} · 档 ${LAD}`, async ({ page }) => {
+    test.skip(anchor.role === 'ANON' && slug === 'error-404', 'D-1 已拒收 error 锚点')
+    if (anchor.role !== 'ANON') await page.context().storageState({ path: storagePathFor(anchor.role) })
+    await setTheme(page, 'light')
+    await freezeClock(page)
+    await page.goto(typeof anchor.path === 'string' ? anchor.path : '/student/courses')
+    await settlePage(page)
+    await page.addStyleTag({ content: CSS })
+    // 与 anchors 用同一组阈值，测的才是同一层防护
+    await expect(page).toHaveScreenshot(`${snapName(slug, 'light')}-${LAD}-probe.png`, {
+      fullPage: true, animations: 'disabled', caret: 'hide', scale: 'css',
+    })
+  })
+}
+```
+
+Modify `frontend/e2e/visual/visual-helpers.ts` — 在 `snapName` 附近加唯一阈值来源，并把 `anchors.spec.ts`
+里的字面量换成引用它（**两处各写一份就一定会漂**）：
+
+```ts
+/**
+ * 全仓唯一截图阈值来源。默认值是**待测量**，不是结论：
+ * Task 4b 用三档注入证明它能不能看见 Phase 1/2 形状的改动，
+ * 测出来不合格就在此处收紧，并逐张重跑 anchors 确认没有把噪声当成改动。
+ */
+export const SNAPSHOT_THRESHOLDS = { threshold: 0.2, maxDiffPixelRatio: 0.002 }
+```
+
+- [ ] **Step 2: 三档各跑一次，把 red/green 原样记下来**
+
+```bash
+for LAD in gross shadow radius; do
+  echo "===== 档 $LAD ====="
+  PW_LADDER=$LAD PW_PORT=5175 npx playwright test -c playwright.visual.ts sensitivity --update-snapshots
+  # 上面一次生成参考；下面一次比对，注入相同则应绿——所以真正的判据是"参考图 vs 未注入的 anchors 基线"
+  PW_LADDER=$LAD PW_PORT=5175 npx playwright test -c playwright.visual.ts sensitivity
+done
+```
+
+Expected 并**必须写进 LEDGER**：把每档的探针图与对应锚点的现有基线**逐对比较**（用
+`PW_LADDER=<档> ... -g "量程探针 <slug>"` 配合临时把参考指向 anchors 基线，或直接目视 + 像素比对工具），
+得到三行结论：`gross → red/green`、`shadow → red/green`、`radius → red/green`。
+`gross` 若不报警，说明阈值配置本身是坏的，先修配置。**`shadow` 与 `radius` 必须都 red**，
+否则 Phase 1–3 的"零 diff"毫无意义——这是本任务的准出判据。
+
+- [ ] **Step 3: 按测量结果收紧，禁止反向**
+
+若 `shadow` 或 `radius` 为 green：把 `SNAPSHOT_THRESHOLDS.threshold` 逐级下调
+（0.2 → 0.1 → 0.05 → 0.02 → 0），**每调一次都跑一遍 `anchors` 确认 22 张仍零 diff**。
+收紧后若原有基线开始互红，说明基线本身混进了噪声——回头查 `settlePage`/`freezeClock`，
+**不得**继续放宽阈值来"消除噪声"。`threshold` 降到 0 仍检不出，才动 `maxDiffPixelRatio`。
+阈值一旦改变，所有基线必须重生成并**逐张重新人工核验**（标准同 Task 4 Step 5），
+LEDGER 记录新旧阈值、原因、重生成后的二次零 diff 结果。
+
+- [ ] **Step 4: 还原校验，证明没污染仓库**
+
+```bash
+git status --short
+PW_PORT=5175 npx playwright test -c playwright.visual.ts anchors
+```
+Expected: `git status` 只剩本任务声明的文件，**不得出现任何 `src/` 改动**（出现即说明用了改源文件的方式注入，回退重做）；
+anchors 除 4 个已知的 error-404 拒收失败外全绿。
+
+- [ ] **Step 5: 量程参考图不入库，提交**
+
+在 `frontend/.gitignore` 追加 `e2e/visual/**/*-probe.png`（量程产物，不是基线），删文件后复验 `git status` 干净。
+
+```bash
+git add frontend/e2e/visual/sensitivity.spec.ts frontend/e2e/visual/visual-helpers.ts \
+        frontend/e2e/visual/anchors.spec.ts frontend/.gitignore
+git commit -m "test(visual): 用三档注入量出基线量程并固化阈值单一来源，Phase 1 的零diff从此才可解释"
+```
+
+---
+
 ### Task 5: 台账 LEDGER.md 落地，用 Phase 0 自身当首批真实行
 
 台账必须先于改动存在，否则"改前截图"字段无处可取。首批行就记 Phase 0 自己的单元——顺带验证协议真的写得下去，而不是一份好看但没人填的模板。
