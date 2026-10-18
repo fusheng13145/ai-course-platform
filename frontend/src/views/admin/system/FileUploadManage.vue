@@ -11,6 +11,101 @@
       </el-button>
     </PageHeader>
 
+    <!-- DR-69 = A：本地文件 → 切片上传 → 合并 → 直链可达（会话链路已有，缺的是这个入口） -->
+    <section class="l1-card upload-entry">
+      <div class="l1-head">
+        <span class="l1-ico"
+          ><svg
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="2"
+            stroke-linecap="round"
+            stroke-linejoin="round"
+          >
+            <path d="M12 1v22M1 12h22" /></svg
+        ></span>
+        <div>
+          <h3 class="l1-title">本地文件分片上传</h3>
+          <p class="l1-sub">
+            选文件后按分片大小切片，每片带前端实算的 MD5 由服务端逐片比对；中断后用「按磁盘真值续传」补齐服务端报告的缺失分片
+          </p>
+        </div>
+      </div>
+      <div class="l1-body">
+        <input
+          ref="fileInputRef"
+          type="file"
+          class="hidden-input"
+          aria-label="选择要分片上传的本地文件"
+          @change="onFilePicked"
+        />
+        <div class="filter-row">
+          <el-button :disabled="isUploading" @click="fileInputRef?.click()">选择本地文件</el-button>
+          <span class="picked">{{
+            pickedFile ? `${pickedFile.name} · ${formatSize(pickedFile.size)}` : '未选择文件'
+          }}</span>
+          <label class="knob">
+            分片大小(MB)
+            <el-input-number
+              v-model="chunkSizeMb"
+              :min="1"
+              :max="MAX_CHUNK_MB"
+              :disabled="isUploading"
+              size="small"
+              controls-position="right"
+            />
+          </label>
+          <label class="knob">
+            切片阈值(MB)
+            <el-input-number
+              v-model="thresholdMb"
+              :min="1"
+              :max="2048"
+              :disabled="isUploading"
+              size="small"
+              controls-position="right"
+            />
+          </label>
+          <el-button
+            type="primary"
+            :loading="isUploading"
+            :disabled="!pickedFile"
+            data-testid="upload-start"
+            @click="startUpload"
+          >
+            {{ status === 'FAILED' ? '按磁盘真值续传' : '开始上传' }}
+          </el-button>
+          <el-button v-if="isUploading" type="danger" @click="cancelUploadFlow">取消本次上传</el-button>
+        </div>
+
+        <div class="upload-state">
+          <el-progress
+            :percentage="percentage"
+            :status="
+              status === 'COMPLETED' ? 'success' : status === 'FAILED' ? 'exception' : undefined
+            "
+          />
+          <p class="plan-hint">
+            计划 {{ totalChunks }} 片 · 服务端已落盘 {{ uploadedChunks }} 片
+            <template v-if="sessionId">· 会话 {{ sessionId }}</template>
+          </p>
+        </div>
+
+        <el-alert
+          v-if="uploadError"
+          class="upload-error"
+          :title="uploadError"
+          type="error"
+          :closable="false"
+          show-icon
+        />
+        <p v-if="mergedUrl" class="result-line" data-testid="upload-result">
+          合并完成，直链：<a :href="mergedUrl" target="_blank" rel="noopener">{{ mergedUrl }}</a>
+        </p>
+      </div>
+    </section>
+
     <div class="stat-grid">
       <StatCard label="最近会话数" :value="sessionTotal" icon="list" tone="accent" />
       <StatCard label="上传中" :value="uploadingCount" icon="play" tone="warn" />
@@ -168,6 +263,7 @@ import { Refresh, Document, Close, Connection } from '@element-plus/icons-vue'
 import uploadApi from '@/api/fileUpload'
 import { useListFeedback } from '@/composables/useListFeedback'
 import { useClientPagination } from '@/composables/useClientPagination'
+import { MAX_CHUNK_SIZE, useChunkedUpload } from '@/composables/useChunkedUpload'
 import { confirmDanger } from '@/utils/dangerConfirm'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
@@ -226,6 +322,75 @@ const mergingId = ref<number | null>(null)
 const lastProgressUpdatedAt = ref('')
 const progressRefreshing = ref(false)
 const progressTimer = ref<ReturnType<typeof setInterval> | null>(null)
+
+/* ---- DR-69 = A：本地文件分片上传入口 ---- */
+const MB = 1024 * 1024
+/** 分片大小上限即后端 multipart 上限（spring.servlet.multipart.max-file-size: 50MB） */
+const MAX_CHUNK_MB = Math.floor(MAX_CHUNK_SIZE / MB)
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const pickedFile = ref<File | null>(null)
+const chunkSizeMb = ref(5)
+const thresholdMb = ref(5)
+const {
+  sessionId,
+  status,
+  error: uploadError,
+  uploadPath,
+  totalChunks,
+  uploadedChunks,
+  isUploading,
+  percentage,
+  upload,
+  cancel: cancelUploadSession,
+} = useChunkedUpload()
+
+// 静态映射在 /uploads/**（UploadResourceConfig），经 /api 前缀转发；
+// F-01 后该路径需登录，浏览器同站请求由 HttpOnly 认证 Cookie 自动携带。
+const mergedUrl = computed(() => (uploadPath.value ? `/api/uploads/${uploadPath.value}` : ''))
+
+function onFilePicked(e: Event) {
+  const file = (e.target as HTMLInputElement)?.files?.[0]
+  if (!file) return
+  pickedFile.value = file
+}
+
+async function startUpload() {
+  const file = pickedFile.value
+  if (!file) return
+  try {
+    await upload(file, {
+      chunkSize: chunkSizeMb.value * MB,
+      chunkThreshold: thresholdMb.value * MB,
+    })
+    ElMessage.success(`会话 ${sessionId.value} 已合并完成`)
+    await refreshList()
+  } catch {
+    // 服务端原因（缺片、摘要不符、类型不允许）已由 request.ts 拦截器提示，
+    // 这里只给动作口径：可原地点「按磁盘真值续传」，不必重头再传一遍。
+    ElMessage.error('上传未完成，可点「按磁盘真值续传」补齐缺失分片')
+  }
+}
+
+async function cancelUploadFlow() {
+  try {
+    const ok = await confirmDanger({
+      verb: '取消',
+      target: '本次上传',
+      impact: '服务端已落盘的分片将被回收，需重新上传该文件',
+      irreversible: true,
+    })
+    if (!ok) return
+  } catch {
+    return
+  }
+  try {
+    await cancelUploadSession()
+    ElMessage.success('本次上传已取消')
+    await refreshList()
+  } catch {
+    ElMessage.error('取消失败，请稍后重试')
+  }
+}
 
 function statusType(s?: string) {
   if (s === 'MERGED' || s === 'COMPLETED') return 'success'
@@ -399,6 +564,47 @@ onUnmounted(stopProgressPolling)
 <style scoped>
 .list-error {
   margin-bottom: var(--ac-spacing-md);
+}
+/* DR-69 = A 上传入口：与 ExcelImportDialog 同一 hidden-input 惯例（选择由按钮触发，输入本身不占位） */
+.hidden-input {
+  display: none;
+}
+.upload-entry {
+  margin-bottom: var(--ac-spacing-md);
+}
+.knob {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 13px;
+  color: var(--ac-text-muted);
+}
+.picked {
+  font-size: 13px;
+  color: var(--ac-text-secondary);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 320px;
+}
+.upload-state {
+  margin-top: 12px;
+}
+.plan-hint {
+  margin: 8px 0 0;
+  font-size: 12px;
+  color: var(--ac-text-muted);
+}
+.upload-error {
+  margin-top: 12px;
+}
+.result-line {
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+.result-line a {
+  color: var(--ac-primary);
+  word-break: break-all;
 }
 .progress-error {
   margin-top: var(--ac-spacing-md);

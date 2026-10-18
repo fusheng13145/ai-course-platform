@@ -123,6 +123,25 @@ export async function fillLoginField(page: Page, input: Locator, value: string) 
 }
 
 /**
+ * 关掉首次引导浮层（components/OnboardingGuide.vue）
+ *
+ * 该浮层是 `position: fixed; inset: 0` 的整屏遮罩，未点「跳过 / 开始使用」之前会拦截页面上
+ * 的一切点击（实测：Playwright 报 `<div class="ob-overlay"> intercepts pointer events` 并反复重试）。
+ * 「已看过」标记自 2026-10-13 起**按账号**写入（键 `ai-course:onboarding:done:v1:<userId>`），
+ * 所以旧 e2e 里 `localStorage.setItem('ai-course:onboarding:done:v1', '1')` 那种写裸前缀键的
+ * 做法已经不再命中判定分支——等于没关。这里改按真实用户行为点掉它：点一次即由组件自己写入
+ * 正确键，同一上下文后续导航不再弹出。浮层在 AppShell 挂载 600ms 后才出现，故先等过那个延时。
+ */
+export async function dismissOnboarding(page: Page) {
+  await page.waitForTimeout(900)
+  const skip = page.getByRole('button', { name: '跳过' })
+  if (await skip.isVisible().catch(() => false)) {
+    await skip.click()
+    await page.locator('.ob-overlay').waitFor({ state: 'hidden', timeout: 5000 })
+  }
+}
+
+/**
  * 通过真实登录建立会话（E2E 首选）
  *
  * 【为什么不用 localStorage 伪造】auth 加固后 `permissionsLoaded` 只由一次真实的
@@ -140,12 +159,6 @@ export async function fillLoginField(page: Page, input: Locator, value: string) 
 export async function loginAs(page: Page, role: 'STUDENT' | 'TEACHER' | 'ADMIN' = 'STUDENT') {
   const account = { STUDENT: 'student', TEACHER: 'teacher', ADMIN: 'admin' }[role]
 
-  // 关闭首次引导浮层（OnboardingGuide：ai-course:onboarding:done:v1），否则它会遮挡
-  // 表格操作按钮；对每次导航幂等，须在 goto 之前注入。
-  await page.addInitScript(() => {
-    localStorage.setItem('ai-course:onboarding:done:v1', '1')
-  })
-
   await page.goto('/login')
   await fillLoginField(
     page,
@@ -158,6 +171,7 @@ export async function loginAs(page: Page, role: 'STUDENT' | 'TEACHER' | 'ADMIN' 
   // 登录后按角色落到各自默认页（getDefaultRoute），失败即说明会话没建起来，
   // 让 waitForURL 直接暴露原因，而不是后面几十个断言一起变成假缺陷。
   await page.waitForURL(new RegExp(`/${role.toLowerCase()}/`), { timeout: 15000 })
+  await dismissOnboarding(page)
 }
 
 /**
@@ -194,9 +208,9 @@ export async function setLocalStorageAuth(page: Page, role: string = 'STUDENT') 
     }) => {
       localStorage.setItem('user', JSON.stringify(user))
       localStorage.setItem('permissions', JSON.stringify(permissions))
-      // 关闭首次引导层（OnboardingGuide：ai-course:onboarding:done:v1），
-      // 否则引导浮层遮挡表格操作按钮导致 e2e 点击失败
-      localStorage.setItem('ai-course:onboarding:done:v1', '1')
+      // 关闭首次引导层。键必须带账号段：OnboardingGuide 读 `...:done:v1:<userId>`
+      // （2026-10-13 起按账号隔离），本夹具的 user.id 固定为 1，故写 `:1`。
+      localStorage.setItem('ai-course:onboarding:done:v1:1', '1')
     },
     { user, permissions },
   )

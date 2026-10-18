@@ -13,12 +13,16 @@ import { computed, h, inject, provide, toRef } from 'vue'
 
 const mocks = vi.hoisted(() => ({
   listSessions: vi.fn(),
+  createSession: vi.fn(),
+  uploadChunk: vi.fn(),
   mergeChunks: vi.fn(),
   cancelUpload: vi.fn(),
   getProgress: vi.fn(),
 }))
 
+// 页面用默认导出、useChunkedUpload 用命名导出，两种口径都要给，否则组合逻辑抓到 undefined
 vi.mock('@/api/fileUpload', () => ({
+  ...mocks,
   default: {
     listSessions: mocks.listSessions,
     mergeChunks: mocks.mergeChunks,
@@ -103,6 +107,11 @@ function mountPage() {
         'el-alert': { props: ['title'], template: '<div class="alert-stub">{{ title }}</div>' },
         'el-pagination': { props: ['total'], template: '<div class="pager-stub" />' },
         'el-progress': { props: ['percentage'], template: '<div class="progress-stub" />' },
+        'el-input-number': {
+          props: ['modelValue'],
+          emits: ['update:modelValue'],
+          template: '<div class="num-stub" />',
+        },
         'el-dialog': { template: '<div class="dialog-stub"><slot /></div>' },
         EmptyState: { props: ['title'], template: '<div class="empty-stub">{{ title }}</div>' },
         PageHeader: { props: ['subtitle'], template: '<div class="ph-stub">{{ subtitle }}</div>' },

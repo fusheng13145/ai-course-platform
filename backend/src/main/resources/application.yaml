@@ -200,6 +200,14 @@ app:
     # 是否在 Spring Security 层强制 HTTPS 通道（http 请求 302 跳转 https）。默认 true。
     # 生产应始终为 true；本地 HTTP 联调由 local profile 关闭。
     require-https: ${REQUIRE_HTTPS:true}
+    # 安全决策用的客户端 IP 来源开关（登录失败节流键 + RateLimitFilter 限流键**共用**这一个）。
+    #   false（默认，直连 / 本地开发）：忽略一切代理头，以 TCP 对端地址为准。
+    #   true （生产，置于本仓 frontend/nginx.conf 之后）：取反代以 $remote_addr **覆写**的 X-Real-IP。
+    # ⚠ 无受信反代时置 true 等于把限流键的 IP 维度交还客户端（伪造 X-Real-IP 即可逐请求换键绕过），
+    #   故 prod profile 默认 true、base 默认 false；改代理配置前先读 TrustedClientIpResolver 类注释。
+    # ⚠ 本键刻意**只有这一个名字**：DR-66 收口前限流另有一个无 yml 落点的
+    #   {@code ratelimit.trust-proxy-header}（只认 XFF 最左段），与节流口径分叉，已删除。
+    trust-proxy-header: ${TRUST_PROXY_HEADER:false}
     csrf:
       # 双提交 Cookie CSRF 防护开关。默认 true（纵深防御，与 SameSite=Lax 正交叠加）。
       # 前端 axios 同源自动读取 XSRF-TOKEN Cookie 并回填 X-XSRF-TOKEN 头，无需业务代码改动。

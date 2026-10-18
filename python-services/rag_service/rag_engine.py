@@ -20,11 +20,14 @@ RAG 真实检索引擎（混合召回：BM25 + 向量，RRF 融合）
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import threading
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 ENGINE_VERSION = "1.0"
 
@@ -616,8 +619,19 @@ def generate_answer(question: str, contexts: list[dict]) -> tuple[str, str]:
             answer = _call_deepseek(api_key, question, joined)
             if answer:
                 return answer, "LLM"
-        except Exception:
-            pass  # 网络/配额失败 -> 抽取式兜底，不阻断契约响应
+            # 200 但空内容同样是不成功的生成，留痕后走抽取式
+            logger.warning("LLM 返回空内容，降级为抽取式回答（model=%s）",
+                           os.getenv("DEEPSEEK_MODEL", "deepseek-chat"))
+        except Exception as exc:
+            # 必须留痕：401（密钥失效）/超时/配额用尽/DNS 失败的处置完全不同，
+            # 若一律 `pass`，「真实 LLM 从未成功」这类故障在日志里无从定位。
+            # 降级本身不阻断契约响应（抽取式兜底照常返回）。
+            logger.warning("LLM 调用失败，降级为抽取式回答：%s: %s",
+                           type(exc).__name__, exc)
+    else:
+        # 未配密钥是预期内的部署形态（Java 侧 RAG_ENABLED=false 亦回退纯 LLM），
+        # 记 info 而非 warning，避免与真实故障混成一类。
+        logger.info("未配置 DEEPSEEK_API_KEY，直接使用抽取式回答")
 
     # 抽取式兜底：取最相关块的首句拼接
     picks = [r["snippet"].strip() for r in contexts[:3] if r.get("snippet", "").strip()]

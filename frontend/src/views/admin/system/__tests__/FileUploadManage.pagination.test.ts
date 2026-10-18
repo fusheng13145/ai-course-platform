@@ -10,9 +10,13 @@ import { mount, flushPromises } from '@vue/test-utils'
 
 const mocks = vi.hoisted(() => ({
   listSessions: vi.fn(),
+  createSession: vi.fn(),
+  uploadChunk: vi.fn(),
+  mergeChunks: vi.fn(),
 }))
 
 vi.mock('@/api/fileUpload', () => ({
+  ...mocks,
   default: {
     listSessions: mocks.listSessions,
     cancelUpload: vi.fn(),
@@ -62,6 +66,11 @@ function mountPage() {
         'el-icon': { template: '<i><slot /></i>' },
         'el-tag': { template: '<span><slot /></span>' },
         'el-progress': { props: ['percentage'], template: '<div class="progress-stub" />' },
+        'el-input-number': {
+          props: ['modelValue'],
+          emits: ['update:modelValue'],
+          template: '<div class="num-stub" />',
+        },
         'el-alert': {
           props: ['title'],
           template: '<div class="alert-stub">{{ title }}</div>',

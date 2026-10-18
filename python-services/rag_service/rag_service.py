@@ -79,6 +79,10 @@ class RagQueryResult(BaseModel):
     answer: Optional[str] = None
     sources: List[RagSource] = []
     mode: str = "LOCAL"
+    # 生成层来源（与 mode 正交）：mode 说明「检索走了哪条路」，gen_mode 说明「这段回答是谁写的」。
+    # LLM=真实大模型；EXTRACTIVE=抽取式兜底；UNAVAILABLE=两者都不可用；PLACEHOLDER=CI 占位桩。
+    # 旧实现把它丢弃在 `answer, _gen_mode = ...` 里，于是密钥 401 的降级回答对外与真生成完全同形。
+    gen_mode: Optional[str] = None
     error: Optional[str] = None
     code: int = 200
 
@@ -157,7 +161,9 @@ def _degrade_error(course_id: Optional[int]) -> str:
 
 
 # 契约测试/CI 用的确定性占位响应（引擎依赖未安装或课程无索引时，
-# RAG_ENGINE_READY=1 走此路径，保证 python-rag-contract 无需下载模型即可断言 200 成功结构）
+# RAG_ENGINE_READY=1 走此路径，保证 python-rag-contract 无需下载模型即可断言 200 成功结构）。
+# ⚠ 这条路径返回的是硬编码文本，因此 mode/gen_mode 一律写 PLACEHOLDER：自称 ENGINE
+# 就等于把「没接引擎」对外宣称为「引擎已应答」，取证与告警都会被误导。
 _PLACEHOLDER_SOURCES = [
     RagSource(document_id=1, document_name="TCP 三次握手",
               relevance_score=0.92, snippet="SYN/ACK 建立连接"),
@@ -186,9 +192,10 @@ def retrieve(req: RetrieveRequest):
                                   error=f"引擎检索失败：{type(exc).__name__}: {exc}",
                                   code=503)
     if os.getenv("RAG_ENGINE_READY", "0") == "1":
+        # CI 占位桩（硬编码样例），自称 ENGINE 即虚报引擎已应答
         return RagRetrievalResult(
             results=list(_PLACEHOLDER_SOURCES),
-            mode="ENGINE",
+            mode="PLACEHOLDER",
             code=200,
         )
     # 引擎未接入或该课程无索引：按手册 §34 降级语义 code=503 / mode=UNAVAILABLE
@@ -206,9 +213,17 @@ def ask(req: AskRequest):
         if _engine_ready_for(req.course_id):
             results = rag_engine.search(req.question, req.course_id, req.top_k) or []
             contexts = [RagSource(**r) for r in results]
-            answer, _gen_mode = rag_engine.generate_answer(req.question, results)
+            answer, gen_mode = rag_engine.generate_answer(req.question, results)
+            if gen_mode == "UNAVAILABLE":
+                # 既无可用资料、LLM 又不可用：如实降级，别让空回答冒充 ENGINE/200 成功
+                # （Java 侧见 503/UNAVAILABLE 才会回退纯 LLM 作答）
+                return RagQueryResult(
+                    answer=None, sources=contexts, mode="UNAVAILABLE",
+                    gen_mode=gen_mode,
+                    error="引擎无可用资料且 LLM 不可用（未配 DEEPSEEK_API_KEY 或调用失败）",
+                    code=503)
             return RagQueryResult(answer=answer, sources=contexts,
-                                  mode="ENGINE", code=200)
+                                  mode="ENGINE", gen_mode=gen_mode, code=200)
     except rag_engine.StoreCorruptedError as exc:
         return RagQueryResult(answer=None, sources=[], mode="UNAVAILABLE",
                               error=f"引擎存储损坏：{exc}", code=503)
@@ -217,10 +232,13 @@ def ask(req: AskRequest):
         return RagQueryResult(answer=None, sources=[], mode="UNAVAILABLE",
                               error=f"引擎检索失败：{type(exc).__name__}: {exc}", code=503)
     if os.getenv("RAG_ENGINE_READY", "0") == "1":
+        # CI 占位桩：形状与成功一致，但绝不自称 ENGINE——返回的是硬编码样例文本，
+        # 若被当成引擎应答，就是对外虚报能力（该开关只应在契约测试里置位）。
         return RagQueryResult(
             answer="TCP 是面向连接的传输层协议，通过三次握手建立可靠连接。",
             sources=list(_PLACEHOLDER_SOURCES),
-            mode="ENGINE",
+            mode="PLACEHOLDER",
+            gen_mode="PLACEHOLDER",
             code=200,
         )
     # 引擎未接入：按手册 §34 降级语义 code=503 / mode=UNAVAILABLE；
