@@ -210,11 +210,18 @@ export interface AnchorSpec {
 }
 
 /**
- * 快照文件名。**不要**在这里放 `{platform}` 之类的占位符：Playwright 只在
+ * 快照文件名基。**不要**在这里放 `{platform}` 之类的占位符：Playwright 只在
  * `snapshotPathTemplate` 里展开占位符，作为 `toHaveScreenshot(name)` 传入的 arg 里
- * `{platform}` 会原样落进文件名（实测：花括号文本 survives）。
- * 返回**不含扩展名**的名字——扩展由模板尾部的 `{ext}` 负责，名字里再带 `.png`
- * 会得到 `light.png.png` 这类双扩展基线。
+ * `{platform}` 会原样落进文件名。
+ *
+ * 返回**不含扩展名**的名字，但**扩展名要由调用方补 `.png`**——不是模板免费给的。
+ * 机制实测（Playwright 1.63）：`toHaveScreenshot("x-light")` 直接抛
+ * `Screenshot name "x-light" must have a '.png' or '.webp' extension`，
+ * 因为 `matchers/expect.js:12597` 先按**传入 arg 的 extname** 定 mimeType，没扩展名根本进不到比对；
+ * 而模板尾部的 `{ext}` 是**从 arg 的扩展名反推**出来的（`workerProcessEntry.js:1258` 的
+ * `basename(subPath, ext)`），arg 带 `.png` 时 `{arg}` 仍是去掉扩展名的部分，
+ * 落盘名 `x-light.png`，**不会**得到 `light.png.png`。
+ * 所以：helper 保持无扩展名返回值，调用处写 `${snapName(slug, theme)}.png`。
  */
 export function snapName(slug: string, theme: ThemeName): string {
   return `${slug}-${theme}`
@@ -684,7 +691,8 @@ async function runAnchor(page: Page, anchor: AnchorSpec, theme: ThemeName): Prom
   // 不是 `.app-error-boundary`，全仓也没有 data-test="error-state"。写错的选择数会让这层防护静默失效。
   await expect(page.locator('.error-boundary')).toHaveCount(0)
 
-  await expect(page).toHaveScreenshot(snapName(anchor.slug, theme), {
+  // 扩展名必须在 arg 上（见 snapName 注释的 1.63 实测机制），模板的 {ext} 是从它反推的。
+  await expect(page).toHaveScreenshot(`${snapName(anchor.slug, theme)}.png`, {
     fullPage: true,
     animations: 'disabled',
     caret: 'hide',
