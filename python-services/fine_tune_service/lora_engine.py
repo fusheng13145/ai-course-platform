@@ -29,7 +29,8 @@ LoRA 真实微调引擎（PEFT 低秩适配：数据集构建 → 训练 → 导
   FT_MAX_SAMPLES       单次训练样本上限（默认 200，CPU 可行性护栏）
   FT_MAX_SEQ_LEN       截断长度（默认 512）
   FT_TRAIN_STEPS       钉死 max_steps（本机分钟级取证用；未设时按 epochs/batch 估完整轮步数）
-  FT_ALLOW_DOWNLOAD    0=基座未本地缓存即失败（默认）；1=允许首次联网拉取
+  FT_ALLOW_DOWNLOAD    0=基座未本地缓存即失败（默认）；1=允许首次联网拉取。
+                       该开关在 import 期生效（Hub 的离线常量亦在 import 期读取），改动需重启服务。
   FT_DEVICE            训练/推理设备（默认自动：有 cuda 用 cuda）
   FT_PUBLIC_BASE       download_url 拼接基址（默认 http://localhost:8003，容器/反代须覆盖）
   FT_ENGINE_READY      CI 结构开关（默认 0）：**只**影响 /start 是否启动训练线程
@@ -72,6 +73,17 @@ _DEP_ERRORS: list[str] = []
 
 def _record_dep_error(name: str, exc: Exception) -> None:
     _DEP_ERRORS.append(f"{name}: {exc}")
+
+
+# 离线优先：默认绝不让 Hub 发网络探测。必须在下面的 try-import 之前落定——
+# huggingface_hub 在 import 期就把 HF_HUB_OFFLINE 读成模块常量，运行期再改环境变量无效。
+# 本机取证坐实的原因（transformers 5.5.4）：即使传 `local_files_only=True`，加载仍会向
+# https://huggingface.co/api/models/<id> 发一次 revision 解析请求；该域名不可达时不是快速
+# 失败，而是挂到 ConnectTimeout（约 21s）后整次训练以"失败"收场——本地明明有缓存，本该秒开。
+# FT_ALLOW_DOWNLOAD=1 时不钉离线，允许首次拉取；改这个开关需要重启服务才生效。
+if os.getenv("FT_ALLOW_DOWNLOAD", "0") != "1":
+    os.environ.setdefault("HF_HUB_OFFLINE", "1")
+    os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
 
 try:
@@ -833,8 +845,9 @@ def run_training(task_id: str) -> dict:
     try:
         from transformers import (AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling,
                                   Trainer, TrainerCallback, TrainingArguments)
-        from peft import LoraConfig, PeftModel, TaskType
+        from peft import LoraConfig, TaskType, get_peft_model
 
+        # 缓存命中即秒开：Hub 的联网探测已由模块顶部的离线钉死关闭（见 FT_ALLOW_DOWNLOAD 注释）
         tokenizer = _MODEL_HOLDER["tokenizer"] or AutoTokenizer.from_pretrained(
             hf_id, local_files_only=cached)
         if tokenizer.pad_token is None:
@@ -851,7 +864,9 @@ def run_training(task_id: str) -> dict:
                           lora_alpha=rec["config"]["lora_alpha"],
                           lora_dropout=rec["config"]["lora_dropout"],
                           target_modules=rec["config"]["target_modules"])
-        model = PeftModel.from_config(base, lora)
+        # peft 没有 `PeftModel.from_config`（那是 transformers 的形状）：从配置建 LoRA 用
+        # get_peft_model；`PeftModel.from_pretrained` 只用于从目录载入已训好的 adapter
+        model = get_peft_model(base, lora)
 
         total_steps = _train_steps(len(ds_obj), rec)
         args = TrainingArguments(
