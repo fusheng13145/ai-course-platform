@@ -51,7 +51,7 @@
 
 **Interfaces:**
 - Consumes: 无（首任务）
-- Produces：`ENGINE_VERSION:str`、`StoreCorruptedError`、`UnknownModelError`、`ConfigError`、`engine_available()->bool`、`dep_errors()->list[str]`、`data_dir()->Path`、`as_dict(raw)->dict`、`normalize_config(raw_cfg:dict)->dict`、`KNOWN_MODEL_ALIASES:dict[str,str]`、`known_models()->list[str]`、`resolve_base_model(name:str)->str`、`base_model_cached(hf_id:str)->bool`、`format_size(n:int)->str`、`task_error(cfg:dict)->str|None`
+- Produces：`ENGINE_VERSION:str`、`StoreCorruptedError`、`UnknownModelError`、`ConfigError`、`engine_available()->bool`、`dep_errors()->list[str]`、`data_dir()->Path`、`as_dict(raw)->dict`、`normalize_config(raw_cfg:dict)->dict`、`KNOWN_MODEL_ALIASES:dict[str,str]`、`known_models()->list[str]`、`resolve_base_model(name:str)->str`、`base_model_cached(hf_id:str)->bool`、`format_size(n:int)->str`（`task_error` 挪到 Task 2：它要调 `latest_dataset_id`）
 
 - [ ] **Step 1: 建目录与两份 requirements（照 `rag_service` 双清单口径）**
 
@@ -217,12 +217,6 @@ def test_format_size_human_string_matches_contract_shape():
     assert le.format_size(15_938_048) == "15.2MB"
     assert le.format_size(0) == "0B"
     assert le.format_size(2048) == "2.0KB"
-
-
-def test_task_error_is_actionable_when_no_dataset(tmp_path, monkeypatch):
-    monkeypatch.delenv("FT_ENGINE_READY", raising=False)
-    cfg = le.normalize_config({})
-    assert "datasets/build" in le.task_error(cfg)
 ```
 
 - [ ] **Step 4: 运行确认失败**
@@ -365,22 +359,16 @@ def format_size(n: int) -> str:
         if n < 1024 ** (i + 2):
             return f"{n / (1024 ** (i + 1)):.1f}{u}"
     return f"{n / (1024 ** 4):.1f}TB"
-
-
-def task_error(cfg: dict) -> Optional[str]:
-    """任务可启动性检查：无数据集时给可操作文案（同 rag_service._degrade_error 口径）。"""
-    if not cfg.get("dataset_id") and not list_datasets(None):
-        return ("尚无训练数据集，请先 POST /api/v1/fine-tune/datasets/build/{course_id}"
-                "（或 POST /api/v1/fine-tune/datasets 上传 JSONL）")
-    return None
 ```
+
+> **`task_error` 不在本任务**（落地时订正）：它的全部职责是"本课程有没有数据集"，必须调 `latest_dataset_id`，而后者在 Task 2 才存在。初稿把它放在 Task 1、靠 `list_datasets` 空壳兜住，改课程号后又引入了第二个前向引用；现随数据集层一起落到 Task 2，Task 1 的示例实现与用例各少一项（6 例 → 5 例，Task 2 15 例 → 16 例，总数不变）。
 
 - [ ] **Step 6: 运行确认通过**
 
 **实现注记（落地时不得回退成原稿形状）**：`format_size` 的档位判定与除数**不是同一个指数**——单位 i（0=KB…）的成立区间是 `[1024^(i+1), 1024^(i+2))`，除数是 `1024^(i+1)`。原稿把判定写成 `n < 1024**(i+1)` 而除数写 `1024**i`，两个下标各错一位、相减恰好抵消，于是数值对而单位名高一档：`15_938_048` 会渲染成 `"15.2GB"` 而不是 `"15.2MB"`。Step 3 的 `test_format_size_human_string_matches_contract_shape` 正是为钉住这一点而写，落地后请再打印边界值（`1024**2`、`1024**3`、`1024**4`）确认为 `1.0MB / 1.0GB / 1.0TB`。
 
 Run: `cd python-services/fine_tune_service && python -m pytest test_ft_engine.py -q`
-Expected: PASS（6 例）；`reset_store` / `list_datasets` 尚未定义会 ImportError → 本步先加两个空壳：`def reset_store(): pass` 与 `def list_datasets(course_id=None): return []`，Task 2 替换为真实实现。
+Expected: PASS（5 例）；`reset_store` / `list_datasets` 尚未定义会 ImportError → 本步先加两个空壳：`def reset_store(): pass` 与 `def list_datasets(course_id=None): return []`，Task 2 替换为真实实现。（初稿此处 6 例含 `task_error`，该函数已随数据集层挪到 Task 2。）
 
 - [ ] **Step 7: Commit**
 
@@ -402,7 +390,7 @@ git commit -m "feat(python): LoRA 引擎依赖探针与配置归一层（config 
 
 **Interfaces:**
 - Consumes: Task 1 的 `data_dir()`、`_LOCK`、`StoreCorruptedError`、`as_dict`
-- Produces: `reset_store()`、`now_iso()->str`、`_today_str()->str`、`_corpus_dir_or_none()->Path|None`、`_repo_corpus_path()->Path`、`_docs_to_text(list)->tuple[str,list[dict]]`、`corpus_source(course_id)->tuple[str,str]`（返回**纯文本**）、`corpus_catalog()->list[dict]`、`validate_samples(rows)->list[dict]`（`ValueError` 携 1 基行号）、`build_samples(text,str)->list[dict]`、`next_dataset_id()->str`、`add_dataset(course_id,samples,source)->dict`、`build_course_dataset(course_id,source=None)->dict`、`list_datasets(course_id=None)->list[dict]`、`get_dataset(dataset_id)->dict|None`、`latest_dataset_id(course_id)->str|None`、`load_samples(dataset_id)->list[dict]`、`delete_dataset(dataset_id)->dict|None`、`_DATASETS:dict`、`_DATASET_SEQ:dict`
+- Produces: `reset_store()`、`now_iso()->str`、`_today_str()->str`、`_corpus_dir_or_none()->Path|None`、`_repo_corpus_path()->Path`、`_docs_to_text(list)->tuple[str,list[dict]]`、`corpus_source(course_id)->tuple[str,str]`（返回**纯文本**）、`corpus_catalog()->list[dict]`、`validate_samples(rows)->list[dict]`（`ValueError` 携 1 基行号）、`build_samples(text,str)->list[dict]`、`next_dataset_id()->str`、`add_dataset(course_id,samples,source)->dict`、`build_course_dataset(course_id,source=None)->dict`、`list_datasets(course_id=None)->list[dict]`、`get_dataset(dataset_id)->dict|None`、`latest_dataset_id(course_id)->str|None`、`load_samples(dataset_id)->list[dict]`、`delete_dataset(dataset_id)->dict|None`、`task_error(cfg:dict, course_id:int)->str|None`、`_DATASETS:dict`、`_DATASET_SEQ:dict`
 
 - [ ] **Step 1: 写失败用例（确定性派生 + 两条来源 + 无来源诚实失败）**
 
@@ -465,6 +453,15 @@ def test_dataset_id_never_reuses_a_number_after_delete(monkeypatch):
     assert b["dataset_id"] == "ds_20261017_002"
     assert c["dataset_id"] == "ds_20261017_003"
     assert [d["dataset_id"] for d in le.list_datasets(1)] == [b["dataset_id"], c["dataset_id"]]
+
+
+def test_task_error_is_actionable_and_course_scoped(tmp_path):
+    cfg = le.normalize_config({})
+    assert "datasets/build/99" in le.task_error(cfg, 99)   # 文案带真实课程号，照抄即可执行
+    ds = le.add_dataset(7, [{"instruction": "q", "output": "a"}], source="上传")
+    assert le.task_error(cfg, 7) is None                   # 本课程有数据集 → 放行
+    assert le.task_error(cfg, 8) is not None               # 别的课程有不等于本课程有
+    assert le.task_error(le.normalize_config({"dataset_id": ds["dataset_id"]}), 8) is None
 
 
 def test_build_course_dataset_from_repo_corpus_is_rebuildable(tmp_path, monkeypatch):
@@ -835,6 +832,19 @@ def latest_dataset_id(course_id: Optional[int]) -> Optional[str]:
     return rows[-1]["dataset_id"] if rows else None
 
 
+def task_error(cfg: dict, course_id: int) -> Optional[str]:
+    """任务可启动性检查：本课程无数据集时给可操作文案（同 rag_service._degrade_error 口径）。
+
+    必须按 `course_id` 判定而不是"全局有没有数据集"：否则课程 A 有数据时，
+    课程 B 的 /start 会放行并建出一个 `dataset_id=None`、永远练不成的任务。
+    文案里带真实课程号，调用方照抄就能跑通下一步。
+    """
+    if cfg.get("dataset_id") or latest_dataset_id(course_id):
+        return None
+    return (f"尚无训练数据集，请先 POST /api/v1/fine-tune/datasets/build/{course_id}"
+            "（或 POST /api/v1/fine-tune/datasets 上传 JSONL）")
+
+
 def load_samples(dataset_id: str) -> list[dict]:
     rec = get_dataset(dataset_id)
     if not rec:
@@ -862,7 +872,7 @@ def delete_dataset(dataset_id: str) -> Optional[dict]:
 - [ ] **Step 4: 运行确认通过**
 
 Run: `cd python-services/fine_tune_service && python -m pytest test_ft_engine.py -q`
-Expected: PASS（15 例）。若 `parents[2]` 定位不到 `scripts/`，改为 `Path(le.__file__).resolve().parents[2]` 实测打印后修正——**不得凭猜写路径**。
+Expected: PASS（16 例）。若 `parents[2]` 定位不到 `scripts/`，改为 `Path(le.__file__).resolve().parents[2]` 实测打印后修正——**不得凭猜写路径**。
 
 - [ ] **Step 5: 手工验一次真实派生量（不留口头结论）**
 
@@ -1800,8 +1810,9 @@ app = FastAPI(title="AI Course Fine-Tune Service", version="0.1.0")
 # 与 Java 端 ContractPaths 的降级文案保持同口径：真正无实现可说时才用它兜错误文本
 MSG_FT_UNAVAILABLE = "LoRA 微调引擎由团队另一成员负责，本端仅预留接口；服务未接入或不可用"
 
-# 下载路由只认 `<task_id>.zip`：任务号本身是 ft_数字_数字，绝不接受路径分隔符或点号目录
-_WEIGHT_NAME = re.compile(r"^ft_\d{8}_\d{3}\.zip$")
+# 下载路由只认 `<task_id>.zip`：任务号本身是 ft_数字_数字，绝不接受路径分隔符或点号目录。
+# 序号位数放宽到 3 位以上：任务号按天只增，第 1000 个任务是 4 位，卡死 3 位会让导出真的下不下来。
+_WEIGHT_NAME = re.compile(r"^ft_\d{8}_\d{3,}\.zip$")
 
 
 def ready() -> bool:
@@ -1919,9 +1930,8 @@ def start_task(body: StartIn):
         lora_engine.resolve_base_model(body.base_model)
     except lora_engine.UnknownModelError as exc:
         raise HTTPException(400, detail=str(exc))
-    if not cfg.get("dataset_id"):
-        cfg["dataset_id"] = lora_engine.latest_dataset_id(body.course_id)
-    err = lora_engine.task_error(cfg)
+    # 数据集按课程判定：本课程没数据就拒绝，绝不借用别课程的语料建一个练不成的任务
+    err = lora_engine.task_error(cfg, body.course_id)
     if err:
         # /start 只有这一条失败出口：保持 TaskOut 单一形状，用 task_id="" + code=503 表达
         return TaskOut(task_id="", course_id=body.course_id, status="rejected",
@@ -2086,6 +2096,7 @@ if __name__ == "__main__":  # 直跑入口（同 kg/rag 服务风格）
 - **响应字段白名单**：`_task_out`/`_ds_out`/`ExportOut` 只出契约字段，`adapter_dir`、`dir`、`local_path`、`config` 属服务器内部项，不进响应。
 - **`/weights/{name}` 用下载路由而非 StaticFiles**：后者在 import 期固化目录，与按用例注入的 `FT_DATA_DIR` 冲突；改路由后既跟着环境走又能拦路径穿越（`_WEIGHT_NAME` + `target.parent != root` 双闸）。
 - **可选 body 的两种写法都要测**：`build_dataset` 的 `body: Optional[BuildIn] = None` 让 Java/管理端不传 body 也能派生（回落链在引擎里）；`test_dataset_build_*` 各钉一例。
+- **落地时订正三处**：① `/start` 初稿先 `cfg["dataset_id"] = latest_dataset_id(course_id)` 再 `task_error(cfg)`，而 `task_error` 内部又用 `list_datasets(None)`（"任何课程有数据就放行"）——两条合起来的后果是：课程 A 建过数据集后，课程 B 的 `/start` 会返回 `code=200 pending`，但任务的 `dataset_id` 为空、`run_training` 之后必然失败。现由 `task_error(cfg, course_id)` 单点按课程判定，路由层不再重复解析（解析仍归 `create_task`）。本任务的用例 `test_start_without_dataset_degrades_actionably` 断言的 `datasets/build/99` 也正是初稿 `task_error` 文案里那个没被替换的 `{course_id}` 字面量。② `_WEIGHT_NAME` 由 `\d{3}` 放宽为 `\d{3,}`，否则单日第 1000 个任务导出成功却下载 404。③ Step 5 的比对脚本里 `ContractPaths.java` 应为 `../../backend/...`（初稿少写一层，跑起来直接 FileNotFoundError）。
 
 - [ ] **Step 4: 运行确认通过**
 
@@ -2101,7 +2112,7 @@ import pathlib, re
 import lora_service as svc
 
 java = pathlib.Path(
-    "../backend/src/main/java/com/aicourse/integration/ContractPaths.java"
+    "../../backend/src/main/java/com/aicourse/integration/ContractPaths.java"
 ).read_text(encoding="utf-8")
 consts = {k: v for k, v in re.findall(r'\b(FT_\w+)\s*=\s*"([^"]+)"', java)
           if v.startswith("/api")}
@@ -2403,4 +2414,4 @@ git commit -m "docs(manual,index,readme): D1-3 LoRA(8003) 引擎回写——DR-7
   6. `dataset_id` 号段不能由 `len+1` 推出：删除后复用号码会让历史任务的 `dataset_id` 指向另一份数据 → Task 2 用 `_DATASET_SEQ` 单调递增并有回归用例。
   7. Trainer 回调的步数/轮次只能取 `state.global_step` / `state.epoch`：`logs` 里没有 `step`，从 kwargs 取会恒为 `None` → `progress` 永远 0.0，而这类缺陷在真跑取证时只表现为「任务完成了但进度是 0」，极易被误读成已坐实 → 写入逻辑单列 `_record_progress()` 并用假 state 在 CI 断言（spec §5）。
 - **类型与命名一致性**：`export_weights(task_id, public_base=None)` 在 Task 4 定义、Task 5 与 Task 7 调用签名一致；导出字节数字段统一叫 `size_bytes`（不叫 `bytes`，避免遮蔽内置且与 `file_size` 人类可读串区分）；`normalize_config` 产出的键（`epochs/learning_rate/lora_rank/lora_alpha/lora_dropout/batch_size/max_seq_length/dataset_id/target_modules/warmup_ratio`）在 Task 3 `_train_steps`/`TrainingArguments` 与 Task 7 测试中逐字一致；进程内持有表统一大写 `_MODEL_HOLDER`/`_CANCEL_FLAGS`；时间戳与 ID 日期段由 Task 2 的 `now_iso()`/`_today_str()` 单点提供（Task 3 起复用，不重复定义）；设备解析单点为 Task 3 的 `device() -> str`（Task 4/5 复用，`/health` 与训练共用同一真值）。
-- **测试计数递进**：`test_ft_engine.py` 6（Task 1）→ 15（Task 2）→ 23（Task 3，实测）→ 29（Task 4，实测；初稿预期 27，落地时因 adapter 缓存键控与取消标志两条订正各多用例 +2）→ 30（Task 7 加真实训练用例）；`test_ft_contract.py` 22（Task 5）。手册 §42 记**实测数**，与计划预期不符时以实测为准并回改本计划。
+- **测试计数递进**：`test_ft_engine.py` 5（Task 1，落地后；初稿 6 例中的 `task_error` 用例挪到 Task 2）→ 16（Task 2，落地后；初稿 15）→ 23（Task 3，实测）→ 29（Task 4，实测；初稿预期 27，落地时因 adapter 缓存键控与取消标志两条订正各多用例 +2）→ 30（Task 7 加真实训练用例）；`test_ft_contract.py` 22（Task 5，实测）。手册 §42 记**实测数**，与计划预期不符时以实测为准并回改本计划。
