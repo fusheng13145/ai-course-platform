@@ -325,8 +325,10 @@ services:
   #     timeout: 5s
   #     retries: 5
   #
-  # fine-tune-service（8003）：LoRA 微调引擎，Python 端尚未交付，契约见
-  # docs/项目手册.md 第八部分 §33；就绪后参照上述模板补充。
+  # fine-tune-service（8003）：LoRA 微调引擎。**引擎侧已交付**（python-services/fine_tune_service，
+  # 契约见 docs/项目手册.md 第八部分 §37；本机 pytest 53 passed，手册 DR-78），但**尚无 Dockerfile**，
+  # 且未纳入 scripts/start-engines.py / start-all.py 一键范围 → 服务块仍按 kg/rag 同形保持注释，
+  # 补出 Dockerfile 后参照上述模板放开（profiles: ["python"]）。
 
   # ---------------- MySQL 定时备份守护（profiles: ops） ----------------
   mysql-backup:

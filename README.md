@@ -15,7 +15,7 @@
 
 **2026-10 更新**：侧边栏改为**三级动态课程导航**（考试/成绩/作业/图谱/教学工具收敛为每门课程下的独立页签，**108 条路由 / 285 个 `.vue`**，2026-10-17 `audit-stats.py` 复跑口径；旧记「93 条路由 / 281 个 `.vue`」为早期快照）；知识图谱改为**可拖拽力导向布局**并修正学习路径规划语义；Flyway 新增 **V5 富种子**（48 表互联、12 教师 + 150 学生、春秋双学期）与 **V6 计算机网络示范课**（course 4007：14 章节 / 65 知识点 / 120 关系边 / 8 套试卷 / 60 条选课），供参赛演示直接使用；**2026-10-06 起这两个脚本移入 `db/seed-demo`，`prod` profile 的 Flyway `locations` 整目录排除 → 演示数据不进生产库**；同批另加 **V7 前向修正**（V6 落库后的示范课文案已按实测 65 知识点 / 56 题改正，V6 本体因 Flyway 校验和冻结不可回改，见手册 DR-19）；**2026-10-13 另加结构迁移 V8–V11**（AI 调用日志、学期注册表、AI 出题限制名单、内容审核列），故**当前库表 51 张**——`index.sql` 已于 2026-10-17 回补至 **51 表**（含 V8/V11 的 12 个加列），`V1` 因 Flyway 校验和冻结仍为 48 张；口径与护栏见手册 **DR-61**（口径见 `docs/项目手册.md` §13/§13.1，生产约束与实测取证见 §24.5）。
 
-> **职责边界**：知识图谱引擎（图谱构建、多跳推理、GraphRAG）与 RAG 检索引擎（BM25 / 向量检索 / embedding / 融合）均由团队另一成员以 Python 微服务实现（kg **8001** / rag **8002**，两端均已接入真实引擎实现）。本端（Java 后端）实现**消费侧**与**标准化集成层** `com.aicourse.integration`：`ContractPaths` 常量（调用约定唯一事实来源，55 个契约常量）+ `KnowledgeGraphContract` / `RagContract` 契约接口（强类型 record）+ 双实现（本地 BFS / 禁用态默认不依赖 Python；HTTP 远端经 `knowledge-graph.enabled` / `rag.enabled=true` 调 Python 8001 / 8002，成功时返回 `mode=ENGINE`）。其中 `POST /api/knowledge/path/plan` 在引擎未启用/不可达时由消费侧**本地 BFS 兜底**；`max_hops` 自 2026-10-05 起**仅用于「是否采纳」判定、不再参与遍历剪枝**，上限不足时仍回传真实最短跳数（语义表见 `docs/项目手册.md` §35.2）。RAG 未接入时返回 `{"code":503}` 且 AI 问答自动回退纯 LLM。**LoRA 微调（8003）契约与消费侧已就绪，Python 端仍无实现**，启用即 503 降级。**完整对接契约见 `docs/项目手册.md`（第八部分，唯一标准基准）。**
+> **职责边界**：知识图谱引擎（图谱构建、多跳推理、GraphRAG）与 RAG 检索引擎（BM25 / 向量检索 / embedding / 融合）均由团队另一成员以 Python 微服务实现（kg **8001** / rag **8002**，三端（kg/rag/lora）均已接入真实引擎实现）。本端（Java 后端）实现**消费侧**与**标准化集成层** `com.aicourse.integration`：`ContractPaths` 常量（调用约定唯一事实来源，55 个契约常量）+ `KnowledgeGraphContract` / `RagContract` 契约接口（强类型 record）+ 双实现（本地 BFS / 禁用态默认不依赖 Python；HTTP 远端经 `knowledge-graph.enabled` / `rag.enabled=true` 调 Python 8001 / 8002，成功时返回 `mode=ENGINE`）。其中 `POST /api/knowledge/path/plan` 在引擎未启用/不可达时由消费侧**本地 BFS 兜底**；`max_hops` 自 2026-10-05 起**仅用于「是否采纳」判定、不再参与遍历剪枝**，上限不足时仍回传真实最短跳数（语义表见 `docs/项目手册.md` §35.2）。RAG 未接入时返回 `{"code":503}` 且 AI 问答自动回退纯 LLM。**LoRA 微调（8003）契约与消费侧已就绪，Python 端仍无实现**，启用即 503 降级。**完整对接契约见 `docs/项目手册.md`（第八部分，唯一标准基准）。**
 
 > **⚠️ 参考项目方法学边界（避免误导）**：`大创赛/类似项目/DeepSeek-RAG-Chatbot` 的 GraphRAG 实体抽取采用正则 `\b[A-Z][a-z]+...`，**仅支持英文实体**，且为单机通用文档问答工具，与本项目的**中文知识图谱**（`knowledge_points` / `knowledge_point_relations`）在语言适配、领域建模、工程规模上均不可类比。**请勿将其作为本项目中文 KG 方案的对标或引用依据**；本项目中文 KG 的关系建模以 `相关论文/`（杜彩丽 IPA/IREM、中职计算机网络多源异构 KG 等）与 PRD 接口矩阵为准。
 
@@ -87,7 +87,7 @@ Java 后端通过 HTTP 契约（`com.aicourse.integration.rag.RagContract`）与
 | ---- | ---- | ---- | ---- |
 | 知识图谱服务 | `python-services/kg_service/` | 8001 | **11 个契约端点**；`kg_store.py` 支持 **Neo4j 与内存双后端**（Neo4j 不可达时自动回落内存图），GraphRAG 多跳推理与学习路径规划；CI 护栏 `test_kg_contract.py`（含 Neo4j service 容器） |
 | RAG 检索引擎 | `python-services/rag_service/` | 8002 | **9 个契约端点** + `rag_engine.py` 真实混合检索引擎（BM25 + 向量 + RRF 融合，重依赖懒加载）；CI 护栏 `test_rag_contract.py`。⚠️ 语料落在 gitignore 的 `data/`，演示前用 `python scripts\seed-rag-corpus.py` 从 `scripts/rag_corpus.json` 重放并重建索引（副本现覆盖课程 1 与示范课 4007，口径见手册 §18.5） |
-| LoRA 微调服务 | —（**Python 端尚无实现**） | 8003 | Java 侧 `ContractPaths` 的 8 条 `/api/v1/fine-tune/*` 契约与消费侧已就绪，启用即 503 降级；等待队友交付 |
+| LoRA 微调服务 | `fine_tune_service/`（**引擎侧已交付**，本机 `pytest -q` 53 passed，手册 DR-78） | 8003 | `lora_service.py` 覆盖 §37 八端点 + 数据集/语料六端点，真实 PEFT 训练/导出/推理；**残项**：无 Dockerfile、compose 服务块仍注释、未纳入一键启动器（`start-engines.py`/`start-all.py` 全文无 8003），Java 侧未消费数据集端点 |
 
 容器化启动知识图谱栈（`docker compose --profile rag up -d neo4j`，需先在 `.env` 配 `NEO4J_PASSWORD`）的用法与前置已随 2026-10-08 的编排搁置**整体转入手册 §24.2**（含重新启用前提清单①–⑤），本阶段不再执行。**但"搁置 Docker"不等于"搁置引擎"**：本阶段以本机独立 Neo4j 5.26 + `uvicorn` 两进程运行 KG(8001) / RAG(8002)，自 2026-10-10 起这三个进程**由 `start-backend.bat` 第 5 步自己拉起**（`scripts/start-engines.py`，**DR-50**），起后再开启 Java 侧对接，2026-10-08 运行验收实测路径规划 / 子图 / 摄取与检索问答均为 `mode=ENGINE`。**未起 Neo4j 仍不阻塞**：KG 自动回落内存图。三进程的启动顺序、必须导出到引擎进程的环境变量与取证清单见手册 **§18.5**。
 
@@ -99,7 +99,7 @@ Java 后端通过 HTTP 契约（`com.aicourse.integration.rag.RagContract`）与
 
 项目提供两条启动路径：**本地开发**（**本阶段唯一使用的路径**——本机 MySQL / Redis + `start-all.bat` 单窗口启动器，或 `start-backend.bat` + `start-frontend.bat` 两份分步启动器）与 **容器化部署**（**2026-10-08 起整体搁置**：编排文件、镜像版本、用法与重新启用前提清单已全部归档到 `docs/项目手册.md` §24.2，仓库文件一件没删、CI 的 `docker`／`trivy-scan` 作业照常按容器判定，但**本机不再执行**）。详细步骤见 `docs/项目手册.md`（第六部分开发 / 第七部分部署）。
 
-> ⚠️ **本阶段的依赖纪律**：开发阶段**仅使用本地服务**。**必要**依赖（MySQL 3306 / Redis 6379 / JDK 21 / Node 20.19+）由两份 `.bat` 启动时自检，缺失即报错退出；**可选**依赖（Neo4j 7687 / KG 8001 / RAG 8002）缺失只降级不阻塞——`KG_ENABLED` / `RAG_ENABLED` 保持关闭，AI 走 Java 原生 Provider，功能仍可用。任一必要依赖本机没有时，**不要自行 `docker pull`、也不要安装替代物 → 直接上报项目主**。可选依赖的启动方式与本轮运行验收见手册 **§18.5**。
+> ⚠️ **本阶段的依赖纪律**：开发阶段**仅使用本地服务**。**必要**依赖（MySQL 3306 / Redis 6379 / JDK 21 / Node 20.19+）由两份 `.bat` 启动时自检，缺失即报错退出；**可选**依赖（Neo4j 7687 / KG 8001 / RAG 8002 / LoRA 8003）缺失只降级不阻塞——`KG_ENABLED` / `RAG_ENABLED` 保持关闭，检索退化为 Java 原生 Provider 直答。⚠️ 但**AI 面不是"功能仍可用"**：大模型调用失败现在如实返回 **HTTP 503 + `code=503`**（凭据被拒/额度/未配置/空响应，`message` 指认病因，手册 DR-74-B），不再有"200 带一句客套话"的形态——无有效凭据时 AI 端点就是不可用，这比假可用更该先知道。任一必要依赖本机没有时，**不要自行 `docker pull`、也不要安装替代物 → 直接上报项目主**。可选依赖的启动方式与本轮运行验收见手册 **§18.5**。
 
 ### 方式一：本地开发（推荐）
 
@@ -138,7 +138,7 @@ start-frontend.bat       # 分步：前端另开一个终端
 - **不要**因为 `/health` 返回 `503 / {"status":"DOWN"}` 就判定服务不可用：整体健康度会把**可选依赖**一并聚合。
   典型场景是**未注入 AI / 邮件凭据**——`llmProvider`（未配置 API Key）与 `mail`（SMTP 认证失败）会报 DOWN，
   但业务接口全部正常。以完整 `.env` 启动（含 `DEEPSEEK_API_KEY` / `MAIL_USERNAME` / `MAIL_PASSWORD`）后即为 `UP`。
-- **`probe` 组**（`readinessState` + `database` + `redis` + `diskSpace`）就是为这条边界建的：AI/邮件凭据缺失属**按契约降级**，不属"实例不可服务"，所以不计入探针。
+- **`probe` 组**（`readinessState` + `database` + `redis` + `diskSpace`）就是为这条边界建的：AI/邮件凭据缺失属**按契约降级**，不属"实例不可服务"，所以不计入探针。⚠️ 反向别读错：`llmProvider` 组件 UP 只说明"填了东西"，**不证明凭据有效**（只静态判非空白）；有效性用 `python scripts/probe-llm-chain.py engine|chains` 实测（手册 DR-75 两条假绿之一）。
   ⚠️ 反例：compose 的 backend 探针原先打的是综合 `/health`，在没有 `DEEPSEEK_API_KEY` 的机器上恒 503 → 容器反复重启、`frontend` 的 `service_healthy` 依赖卡死、整栈起不来（2026-10-07 实跑发现，见手册 §25 / 附录 D **DR-28**）。
 - 另可用 `GET /api/actuator/health/readiness` / `/liveness`（Spring 内建组，只含生命周期状态，不含 DB/Redis）。
 - **手动用 jar 启动务必显式指定端口**：`java -jar backend/target/backend-0.0.1-SNAPSHOT.jar --server.port=8080`。
@@ -149,7 +149,9 @@ start-frontend.bat       # 分步：前端另开一个终端
 
 ### 方式二：Docker 容器化部署（**本阶段搁置，以下内容转为留档**）
 
-> 🗄️ **2026-10-08 状态**：本节命令**当前不在本机执行**（镜像与容器已从本机全部移除，约 8.7 GB 释放；16 个数据卷一个没动）。文件与知识都保留着，`docker-compose.yml`／三份 `Dockerfile`／`.dockerignore` **不可删**（CI 的 `docker`、`trivy-scan` 作业仍按它们判定）。**重新启用前请先读手册 §24.2 的「重新启用前提清单①–⑤」**（钉版本拉取 → `.env` 必填键 → 存量卷一次性 `chown` → `REQUIRE_HTTPS`/`COOKIE_SECURE` 显式决策 → 用 `/api/actuator/health/probe` 探活）。以下原文保留供后续参考。
+> 🗄️ **2026-10-08 状态**：本节命令**当前不在本机执行**（镜像与容器已从本机全部移除，约 8.7 GB 释放；16 个数据卷一个没动）。文件与知识都保留着，`docker-compose.yml`／三份 `Dockerfile`／`.dockerignore` **不可删**（CI 的 `docker`、`trivy-scan` 作业仍按它们判定）。**重新启用前请先读手册 §24.2 的「重新启用前提清单①–⑤」**（钉版本拉取 → `.env` 必填键 → 存量卷一次性 `chown` → `REQUIRE_HTTPS`/`COOKIE_SECURE` 显式决策 → 用 `/api/actuator/health/probe` 探活）。
+>
+> 🗺️ **2026-10-17 定案与指针**：当前阶段**不上公网**（走「本机真跑 + 录屏演示」），但「一台云主机 + 本编排」的**完整上线执行序**——五项待拍板决策、逐 Phase 命令与判据、14 条已知断链点——已固化在 **`docs/项目手册.md` §24.6「单机云主机上线全链路（A 路径预案）」**。要真上线时按那一节走，不要只凭本节命令拼。以下原文保留供后续参考。
 
 ```bash
 cp .env.example .env      # Windows: copy .env.example .env（共 33 个生效键 + 21 行注释示例，填入真实强密码与密钥）
@@ -180,13 +182,15 @@ docker compose --profile full up -d --build
 > ⚠️ **务必先选一条路径再启动。** `--profile full` 起的是一个**明文 HTTP 单机栈**：`frontend/nginx.conf`
 > 在容器内监听 **8080**（DR-34 非 root 化后 nginx 以 uid 101 运行，绑不了 <1024 的特权端口），
 > compose 把它映射回**宿主机 80**（`${FRONTEND_HOST_BIND:-127.0.0.1}:${FRONTEND_HTTP_PORT:-80}:8080`），
-> 且**没有挂载任何证书卷**，因此不存在 TLS 终止。而 backend 的
-> `REQUIRE_HTTPS`/`COOKIE_SECURE` 生产默认是 `true` —— 若照着下面的默认值直接启动，
-> `/api/**` 会被 `requiresSecure()` 302 重定向到**并不存在的 443**，表现为**全站 API 不可用**
-> （首页能打开、所有接口报错）。这是本部署形态下最容易踩的坑，故拆成两条路径：
+> 且**没有挂载任何证书卷**，因此不存在 TLS 终止。
+>
+> ⚠️ **2026-10-17 纠正一处方向性错误（手册 DR-70）**：本节旧文本称「backend 的 `REQUIRE_HTTPS` / `COOKIE_SECURE` 生产默认是 `true`，照默认启动会被 302 到不存在的 443」——**容器形态不成立**。`application-prod.yml:45`/`:47` 确实是 `${…:true}`，但 `docker-compose.yml:225-226` 注入容器的是 `COOKIE_SECURE: ${COOKIE_SECURE:-false}` 与 `REQUIRE_HTTPS: ${REQUIRE_HTTPS:-false}`，**环境变量优先级高于 profile 默认** ⇒ 编排形态下不填即为 **false**：不会被 302 拦住，而是**安静地以明文跑起来**（公网部署＝口令与 JWT 裸奔，且不报错）。「默认 true → 全站 302」描述的是 jar 直跑或显式置 true 的情形。⇒ 下面两条路径的真实差别是**"要不要显式把开关拧到 true"**，不是"要不要关掉强制"。
+>
+> 这是本部署形态下最容易踩的坑，故拆成两条路径：**显式置 true 却没有 TLS 终止**时，`/api/**` 会被 `requiresSecure()` 302 到不存在的 443，症状是**首页能打开、所有接口报错**；**留空/置 false** 时站点正常可用但全程明文。
 >
 > 📌 **修复 B3（2026-09-16）**：`REQUIRE_HTTPS` / `COOKIE_SECURE` 现为**全 profile 可覆盖**（含 `prod`）。
 > 此前 `application-prod.yml` 把 `require-https` 硬编码为 `true`，会**静默忽略**上面的 `.env` 开关——即容器/主配置填了 `REQUIRE_HTTPS=false` 也无用，明文栈无法自救。现已改为默认 `true`、可被环境变量覆盖，两条路径的开关在 `prod` profile 下同样生效。
+> ⚠️ 本条的「默认 `true`」指的是 **yml 层**的占位符默认；编排形态在容器上注入的是 **env 默认 `false`**，而 env 优先于 yml 默认 ⇒ 实际默认值是 false（上条 DR-70）。两句不冲突，但连读容易误解，故在此点明。
 
 #### 前置条件：必须填写的环境变量
 
@@ -217,21 +221,26 @@ COOKIE_SECURE=false
 CSRF_ENABLED=true      # 保持 true，不要关
 ```
 
-- **原因**：nginx 容器内只听 **8080**（宿主机侧仍是 80，访问 URL 不变）、compose 未挂载任何证书卷，没有任何 TLS 终止；不关掉强制，`/api/**` 会被 302 到不存在的 443。
+- **原因**：nginx 容器内只听 **8080**（宿主机侧仍是 80，访问 URL 不变）、compose 未挂载任何证书卷，没有任何 TLS 终止；一旦 `REQUIRE_HTTPS=true`，`/api/**` 会被 302 到不存在的 443。⚠️ 编排形态下该两项的注入默认值**本就是 false**（`docker-compose.yml:225-226`，见上方 DR-70），这里显式写出是把姿态**钉住**、不靠默认值。
 - **风险**：令牌与口令将**明文传输**，可被同网段嗅探。**禁止用于公网**，仅限本机 / 受信内网。
 - 访问：前端 http://localhost ｜ API http://localhost:8080/api
-- 跨域：前端经 nginx 反代 `/api` 与后端**同源**，无需开放 CORS，`CORS_ALLOWED_ORIGINS` 可留空（留空即 fail-closed，拒绝一切跨域来源）。
+- 跨域：前端经 nginx 反代 `/api` 与后端**同源**，HTTP 侧无需开放 CORS；`CORS_ALLOWED_ORIGINS` 留空在 **HTTP** 侧确实是 fail-closed（`APP_CORS_DEV_FALLBACK=false` + `application-prod.yml:25-26`），**但 WebSocket 不是**——`backend/src/main/java/com/aicourse/websocket/WebSocketConfig.java:43-45` 在 origins 为空时**硬回退 `http://localhost:5173`** 且不受该开关管，公网域名下同域 `wss://` 握手照样被拒 ⇒ **同域上线也要把真实 origin 填进这个键**（判据与取证动作见手册 §24.6 Phase 5）。
 
-#### 路径 ②：生产上线（保持安全默认 `true`）
+#### 路径 ②：生产上线（**必须显式**置 `true`）
 
-**保持** `REQUIRE_HTTPS=true`、`COOKIE_SECURE=true`（不要为了"先跑起来"改成 false），并**先满足以下前置条件之一**，
-否则全站 API 同样不可用：
+**在 `.env` 显式写** `REQUIRE_HTTPS=true`、`COOKIE_SECURE=true`。⚠️ 这里不是"保持默认"——`docker-compose.yml:225-226`
+注入的是 `${…:-false}`，**默认即明文**（见上方 DR-70），"什么都不填"得到的是口令与 JWT 走公网且不报错，而不是安全。
+置 true 之后**必须**满足以下前置条件之一，否则全站 API 不可用（症状：首页能打开、`/api/**` 被 302 到不存在的 443）：
 
 1. **前置 TLS 终止反代（推荐）**：在本栈之前再放一层反向代理 / 负载均衡（入口 nginx、SLB、CDN 等）终止 TLS，
-   并且该代理**必须回传** `X-Forwarded-Proto: https`，后端才认定为安全通道；或
-2. **为前端容器补齐 443 + 证书**：给 `frontend/nginx.conf` 增加 `listen 443 ssl` 与证书挂载，并把 compose 的端口映射改为 `443:443`。
+   并且该代理**必须回传** `X-Forwarded-Proto: https`，后端才认定为安全通道（`forward-headers-strategy` 现行值是 **none**，
+   协议修正只由 `TrustedForwardedProtoFilter` 读该头完成）；或
+2. **为前端容器补齐 443 + 证书**：给 `frontend/nginx.conf` 增加 `listen 443 ssl` 与证书挂载，并把 compose 的端口映射改为 `443:443`
+   （该服务现在**连 `volumes:` 都没有**，且 `X-Forwarded-Proto` 不能再用 `$scheme`）。
 
-> 两条路径下 `CSRF_ENABLED` 都应保持 `true`。生产部署前请逐项核对 `docs/项目手册.md` 第七部分安全加固检查清单。
+> 两条路径下 `CSRF_ENABLED` 都应保持 `true`（另注意它在 prod 是**假开关**：`application-prod.yml:52-53` 硬编码 `true`、无 `${}` 占位符，改了也不生效）。
+> 同域上线**仍要**填 `CORS_ALLOWED_ORIGINS`，否则 `/api/ws` 握手被拒——原因见上方路径①的「跨域」条与手册 §24.6 Phase 5。
+> 生产部署前请逐项核对 `docs/项目手册.md` 第七部分安全加固检查清单；**从零到公网可访问的完整顺序、判据与已知断链见 §24.6**。
 
 ---
 
@@ -274,14 +283,14 @@ cd frontend && npm run lint && npm run typecheck:gate && npx vitest run && npm r
 
 | 门禁 | 读数（当前本机口径） |
 | --- | --- |
-| 后端单元测试 | **2995 用例 / 0 失败 / 0 错误 / 0 跳过**（2026-10-17 15:21 本机 `mvn -B -o clean verify -DskipITs`，210 份 surefire 报告；口径链与覆盖率见手册 B.2） |
+| 后端单元测试 | **3006 用例 / 0 失败 / 0 错误 / 0 跳过**（2026-10-18 09:41 本机 `mvn -B -o clean verify -DskipITs`，211 份 surefire 报告；口径链与覆盖率见手册 B.2） |
 | 后端集成测试 | **12 用例 / 0 失败**（含 IT 那轮，现由 CI 取数） |
-| JaCoCo | **LINE 89.14%（15168/17015）/ BRANCH 70.70%（5038/7126）**（356 类，2026-10-17 15:21 同轮；BRANCH 带 ±1 噪声、`jacoco.csv` 口径较 `<report>` 级多 12 行，两者不等价，见 B.2）→ 在**阈值未降低**（LINE ≥ 85% / BRANCH ≥ 65%）的前提下达标，靠补真实测试而非降阈值 |
+| JaCoCo | **LINE 89.13%（15219/17075）/ BRANCH 70.71%（5038/7125）**（358 类，2026-10-18 09:41 同轮；BRANCH 带 ±1 噪声、`jacoco.csv` 口径较 `<report>` 级多 12 行，两者不等价，见 B.2）→ 在**阈值未降低**（LINE ≥ 85% / BRANCH ≥ 65%）的前提下达标，靠补真实测试而非降阈值 |
 | ArchUnit | **6 条**架构守护全通过 |
 | SpotBugs | **0 缺陷**（`failOnError=true` 硬阻断，13 个框架性 `<Match>` 豁免） |
-| 前端单测 / ESLint | **150 文件 / 1608 用例全绿**；lint **0 error / 0 warning**（2026-10-17 复跑） |
+| 前端单测 / ESLint | **153 文件 / 1642 用例全绿**；lint **0 error / 0 warning**（2026-10-18 复跑） |
 | 前端类型检查 | `vue-tsc` 棘轮基线 **402 条 / 90 文件**（只许下调） |
-| CI | 3 个工作流；`ci.yml` **10 个作业**（`frontend-e2e` 暂为 `workflow_dispatch`）——**本机绿不等于 CI 绿**，且本机对 Actions 结果不可观测（手册 §21.1） |
+| CI | 3 个工作流；`ci.yml` **11 个作业**（新增 `python-fine-tune-contract`；`frontend-e2e` 暂为 `workflow_dispatch`）——**本机绿不等于 CI 绿**，且本机对 Actions 结果不可观测（手册 §21.1） |
 质量门禁基线（渐进收敛制，只许上调不得下调）：JaCoCo LINE ≥ 85% / BRANCH ≥ 65%（生产收敛目标指令覆盖 ≥ 85%）、SpotBugs 0 error、ArchUnit 架构约束。测试方法、契约测试清单与 CI 流水线见 `docs/项目手册.md` 第六部分。
 
 ### 端到端全链路与压力测试（四件套）
@@ -298,7 +307,7 @@ python scripts/run-backend-for-e2e.py functional
 
 cd scripts/e2e
 python e2e_verify_network_course.py   # ① 主链路（建课→审批→资料→作业→考试→成绩）
-python e2e_deep_verify.py             # ② 多维深度（A 协同/B 边界/C 越权/D 一致性/E 分片下线态/F 退回重交/G 版本）
+python e2e_deep_verify.py             # ② 多维深度（A 协同/B 边界/C 越权/D 一致性/E 分片上传（成功路径 + 状态机守卫，批次 2 已整段重写）/F 退回重交/G 版本）
 python e2e_stress_verify.py           # ④ 压力与稳定性（加 --quick 走快速档）
 
 # ── 第 2 轮：安全姿态（CSRF 默认开、登录限流默认阈值）──────────────

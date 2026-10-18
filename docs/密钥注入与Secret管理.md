@@ -74,7 +74,7 @@ Spring Boot 属性源优先级（高 → 低）：
 | `JWT_SECRET` | `${JWT_SECRET}`（`application.yaml:176`，无默认值） | `JWT_SECRET` | 缺失即启动失败（不会静默） |
 | `SPRING_DATASOURCE_PASSWORD` | `${SPRING_DATASOURCE_PASSWORD}`（`:59`，无默认值） | `SPRING_DATASOURCE_PASSWORD` | compose 现值为 `${MYSQL_APP_PASSWORD:-${MYSQL_ROOT_PASSWORD}}`（`docker-compose.yml:192`），回退 root 口令 |
 | Redis 口令 | **yaml 无占位符**：`application.yaml:88-92` 只配 `host`/`port`/`database`/`timeout`；`SPRING_DATA_REDIS_PASSWORD` 在整个 `backend/src` **零引用**，纯靠系统 env 松散绑定到 `spring.data.redis.password` | ⚠️ **必须** `spring.data.redis.password` | 若挂成 `SPRING_DATA_REDIS_PASSWORD`，删明文 env 后接管失败 → 连 Redis 报 `NOAUTH`。写法见 §3.1 |
-| `DEEPSEEK_API_KEY` | `${DEEPSEEK_API_KEY:}`（`:243`） | `DEEPSEEK_API_KEY` | 未注入时 AI 功能降级、`/api/actuator/health` 恒 503 |
+| `DEEPSEEK_API_KEY` | `${DEEPSEEK_API_KEY:}`（`:251`） | `DEEPSEEK_API_KEY` | 未注入时 AI 端点**如实 503**（旧形态"200 带兜底文案"已随手册 **DR-74-B** 废除）；`/api/actuator/health` 综合态恒 503 且 `llmProvider` UP **只判非空白、不判有效性**（DR-75） |
 | `MAIL_PASSWORD` | `${MAIL_PASSWORD:}`（`:40`） | `MAIL_PASSWORD` | 可选功能 |
 | `DEMO_ACCOUNTS_ENABLED` | `${DEMO_ACCOUNTS_ENABLED:true}`（`:216`） | `DEMO_ACCOUNTS_ENABLED` | **默认值分歧**：yaml `true` vs compose `false`（`docker-compose.yml:203`），接管时须显式给值 |
 | `APP_ADMIN_INITIAL_PASSWORD` | `@Value("${app.admin.initial-password:}")`（`AdminSeedPasswordInitializer.java:46`） | `app.admin.initial-password` | 点分名；删 compose 行会连带失去 `:?` 的 fail-fast（`:128`），需以启动脚本校验补位 |
@@ -102,7 +102,7 @@ Compose 的 file secret 会挂载为 `/run/secrets/<secret 名>`。步骤：
    openssl rand -base64 32 > deploy/secrets/jwt_secret.txt
    openssl rand -base64 24 > deploy/secrets/spring_datasource_password.txt
    openssl rand -base64 24 > deploy/secrets/redis_password.txt
-   # 可选：AI 引擎密钥（未注入则 AI 功能降级、健康探针恒 503）
+   # 可选：AI 引擎密钥（未注入则 AI 功能**如实 503**、健康探针（综合 /health）恒 503）
    printf '%s' '<DeepSeek API Key>' > deploy/secrets/deepseek_api_key.txt
    ```
 
@@ -337,7 +337,7 @@ SPRING_CONFIG_IMPORT=optional:configtree:/tmp/ai-secrets/ \
 - [ ] `/run/secrets` 权限为 `0400`、属主为应用运行用户。
 - [ ] 轮转演练：在密钥库更新值 → 确认应用在预期时间内使用新值（Vault Agent 场景 ≤5 分钟）。
 - [ ] 密钥轮转后同步更新 `deploy/secrets/*.txt`（Compose 场景）并 `docker compose up -d` 重投。
-- [ ] 演示账号开关 `DEMO_ACCOUNTS_ENABLED=false` —— 注意 **yaml 默认为 `true`**（`application.yaml:216`）、compose 默认 `false`（`docker-compose.yml:132`）；改用文件式密钥时须**显式提供该值**，否则会回落到 yaml 的 `true`。
+- [ ] 演示账号开关 `DEMO_ACCOUNTS_ENABLED=false` —— 注意 **yaml 默认为 `true`**（`application.yaml:224`）、compose 默认 `false`（`docker-compose.yml:207`）；改用文件式密钥时须**显式提供该值**，否则会回落到 yaml 的 `true`。
 - [x] 种子弱口令收口：加固器候选集自 2026-10-06 起为「口令等于种子哈希」（不再按 `SeedAccounts.DEMO_USERNAMES` 白名单），V1 的 8 个 + Flyway V5/V6 引入的 **162 个**（`ts01..ts12` + `st001..st150`）共 170 个账号在 `DEMO_ACCOUNTS_ENABLED=false` 时一并停用改密。**环境隔离同日落地**：V5/V6 已移入 `db/seed-demo`，`application-prod.yml` 覆盖 `spring.flyway.locations=classpath:db/migration` → 激活 prod 即整目录不执行演示种子（本机 Flyway API 对照实跑：单目录只到 V4 / `users`=8，双目录到 V6 / `users`=170），故**全新生产库首启的日志计数为 8 而非 170**；若日志读到 170，说明该库不是全新库（已带 V5/V6 历史，Flyway 对此**不报错**，见手册 §24.5 边界③），须按手册 §29 处置（附录 D **DR-18**）
 
 ### 5.1 当前密钥状态（2026-10-06 复核）
@@ -345,7 +345,7 @@ SPRING_CONFIG_IMPORT=optional:configtree:/tmp/ai-secrets/ \
 | 密钥 | 当前状态 | 影响 / 待办 |
 | --- | --- | --- |
 | `JWT_SECRET`、数据源/Redis 口令 | 本机以 `.env` 明文提供（`.env` 不入库，本文档不复述其值）；由 `scripts/generate-secrets.py --write` 生成 | 应用侧接管点已就绪，生产切换按 §3 执行 |
-| `DEEPSEEK_API_KEY` | **未注入**（待负责人提供） | AI 生成/问答类功能降级；`/api/actuator/health` 因 AI 健康指示器缺失恒返 **503**，业务链路不受影响——**不可据此判定服务不可用** |
+| `DEEPSEEK_API_KEY` | **已注入但无效**：本机 `.env` 有值（长度 37、**非 `sk-` 前缀**），向 `api.deepseek.com` 返回 **401**；"待负责人提供"仍成立——真正的有效 Key 尚未落到任何可取位置（2026-10-18 复测：`.env` 值与 10-17 备份逐字相同、无环境变量、`deploy/secrets/` 空） | AI 生成/问答类功能降级；`/api/actuator/health` 因 AI 健康指示器缺失恒返 **503**，业务链路**因此报 503**（不是"不受影响"——AI 端点在无凭据时本就不可用，见手册 DR-74-B/DR-75）——**不可据此判定服务不可用** |
 | `NEO4J_PASSWORD` | 本地未挂 neo4j 时不必填；`docker compose --profile rag` 下为 `:?` 必填（`:440`） | 未连通时 `kg_store.py` 回退内存图，重启即丢图数据 |
 | 容器侧口令（MySQL/Redis/Neo4j/Grafana） | 仍为 `.env` 明文 | 见 §6-1 残项 |
 
@@ -360,7 +360,7 @@ SPRING_CONFIG_IMPORT=optional:configtree:/tmp/ai-secrets/ \
 | 3 | 本项目无真实 Vault / 云 Secret Manager 实例                                | 方案为接线级交付，未做端到端联通验证                    | 具备实例后按 §4.2 逐项实测并回填证据                     |
 | 4 | 密钥轮转后应用内已缓存的连接（如 Hikari 池）不会自动重建                    | 数据源口令轮转需重启容器                                | 数据源口令轮转纳入「重启窗口」；JWT 密钥可热生效（无需重启）|
 | 5 | `configtree` **不做反向松散绑定**（§2.2），点分属性须以点分文件名接管         | 误用大写蛇形文件名时会**静默回落默认值**，密钥看似已接管实则未生效 | 按 §2.2 表逐键核对；用 §4.2 ④ 反证用例回归 |
-| 6 | `DEEPSEEK_API_KEY` 尚未注入任何环境                                        | AI 功能降级、健康探针恒 503，掩盖真实健康信号            | 密钥到位后按 §3 任一路径接入，并把健康指示器状态纳入告警口径 |
+| 6 | `DEEPSEEK_API_KEY` **已注入一枚无效值且此前无任何机械判据能发现**：`audit-stats.py` 按长度判 `OK(37)`、`llmProvider` 健康组件按非空白判 UP——两处假绿已由 `scripts/probe-llm-chain.py` 补上（手册 **DR-75**）                                        | AI 功能降级、健康探针恒 503，掩盖真实健康信号            | 密钥到位后按 §3 任一路径接入，并把健康指示器状态纳入告警口径 |
 | 7 | ~~接线件与模板注释把 Redis 口令写成 `SPRING_DATA_REDIS_PASSWORD`~~ **已修复（DR-24，2026-10-06）**：`deploy/vault/agent.hcl` 目的地、`redis-password.ctmpl` 注释、`.env.example` 示例段三处均改为 `spring.data.redis.password` | 修复前按原文接线会**读不到口令**（Redis 认证失败），且注释误导后续运维判断 | 残留：Vault／Compose 路径的**端到端联通**仍未验（本机无实例，见 3）；接线前按 §4.2 ②/④ 复核 |
 
 
