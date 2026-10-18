@@ -102,9 +102,9 @@ public class AiCoreComponent {
 
     /**
      * AI 调用失败埋点：按业务类型累加失败次数。
-     * <p>失败判定口径与 {@link #recordAiCall} 对齐（type 一致）：
-     * LLM 供应商调用抛出异常，或返回 null（统一降级为 {@code SERVICE_ERROR_MSG}）均计一次失败。
-     * 注意：未配置供应商（{@code NO_PROVIDER_MSG} 路径）不计入失败——那属于部署配置缺失，
+     * <p>失败判定口径与 {@link #recordAiCall} 对齐（type 一致）：LLM 供应商抛出异常，
+     * 或返回 null／空白正文（即 {@link LLMUnavailableException.Kind#EMPTY_RESPONSE}）均计一次失败。
+     * 注意：未配置供应商（{@code NOT_CONFIGURED} 路径）不计入失败——那属于部署配置缺失，
      * 而非调用失败，避免污染失败率。与调用计数配合可计算各类型失败率，
      * 供 Prometheus 告警「AI 调用失败率突增」使用。</p>
      *
