@@ -13,9 +13,11 @@
 
 **核心能力域**：多角色 RBAC、课程/章节/选课管理、题库与在线考试（防作弊）、作业批改与查重、知识图谱可视化与学习路径规划、AI 智能问答/出题/批改/学情建议、数据分析与学情报告、WebSocket 实时通知。
 
+**里程碑状态**：核心功能已完成、可交付且可扩展，本机全栈实测可用（最新一轮三套测试与全部门禁读数见下表，出处为手册附录 **B.2**）。⚠️ **已完成 / 进行中 / 待完成三态的唯一索引是手册 §16.1**——对外表述必须按「🟡 进行中」行的残项降级，「⏳ 待完成」行**一律不得主张**。
+
 **2026-10 更新**：侧边栏改为**三级动态课程导航**（考试/成绩/作业/图谱/教学工具收敛为每门课程下的独立页签，**108 条路由 / 285 个 `.vue`**，2026-10-17 `audit-stats.py` 复跑口径；旧记「93 条路由 / 281 个 `.vue`」为早期快照）；知识图谱改为**可拖拽力导向布局**并修正学习路径规划语义；Flyway 新增 **V5 富种子**（48 表互联、12 教师 + 150 学生、春秋双学期）与 **V6 计算机网络示范课**（course 4007：14 章节 / 65 知识点 / 120 关系边 / 8 套试卷 / 60 条选课），供参赛演示直接使用；**2026-10-06 起这两个脚本移入 `db/seed-demo`，`prod` profile 的 Flyway `locations` 整目录排除 → 演示数据不进生产库**；同批另加 **V7 前向修正**（V6 落库后的示范课文案已按实测 65 知识点 / 56 题改正，V6 本体因 Flyway 校验和冻结不可回改，见手册 DR-19）；**2026-10-13 另加结构迁移 V8–V11**（AI 调用日志、学期注册表、AI 出题限制名单、内容审核列），故**当前库表 51 张**——`index.sql` 已于 2026-10-17 回补至 **51 表**（含 V8/V11 的 12 个加列），`V1` 因 Flyway 校验和冻结仍为 48 张；口径与护栏见手册 **DR-61**（口径见 `docs/项目手册.md` §13/§13.1，生产约束与实测取证见 §24.5）。
 
-> **职责边界**：知识图谱引擎（图谱构建、多跳推理、GraphRAG）与 RAG 检索引擎（BM25 / 向量检索 / embedding / 融合）均由团队另一成员以 Python 微服务实现（kg **8001** / rag **8002**，三端（kg/rag/lora）均已接入真实引擎实现）。本端（Java 后端）实现**消费侧**与**标准化集成层** `com.aicourse.integration`：`ContractPaths` 常量（调用约定唯一事实来源，55 个契约常量）+ `KnowledgeGraphContract` / `RagContract` 契约接口（强类型 record）+ 双实现（本地 BFS / 禁用态默认不依赖 Python；HTTP 远端经 `knowledge-graph.enabled` / `rag.enabled=true` 调 Python 8001 / 8002，成功时返回 `mode=ENGINE`）。其中 `POST /api/knowledge/path/plan` 在引擎未启用/不可达时由消费侧**本地 BFS 兜底**；`max_hops` 自 2026-10-05 起**仅用于「是否采纳」判定、不再参与遍历剪枝**，上限不足时仍回传真实最短跳数（语义表见 `docs/项目手册.md` §35.2）。RAG 未接入时返回 `{"code":503}` 且 AI 问答自动回退纯 LLM。**LoRA 微调（8003）契约与消费侧已就绪，Python 端仍无实现**，启用即 503 降级。**完整对接契约见 `docs/项目手册.md`（第八部分，唯一标准基准）。**
+> **职责边界**：知识图谱引擎（图谱构建、多跳推理、GraphRAG）与 RAG 检索引擎（BM25 / 向量检索 / embedding / 融合）均由团队另一成员以 Python 微服务实现（kg **8001** / rag **8002**，三端（kg/rag/lora）均已接入真实引擎实现）。本端（Java 后端）实现**消费侧**与**标准化集成层** `com.aicourse.integration`：`ContractPaths` 常量（调用约定唯一事实来源，55 个契约常量）+ `KnowledgeGraphContract` / `RagContract` 契约接口（强类型 record）+ 双实现（本地 BFS / 禁用态默认不依赖 Python；HTTP 远端经 `knowledge-graph.enabled` / `rag.enabled=true` 调 Python 8001 / 8002，成功时返回 `mode=ENGINE`）。其中 `POST /api/knowledge/path/plan` 在引擎未启用/不可达时由消费侧**本地 BFS 兜底**；`max_hops` 自 2026-10-05 起**仅用于「是否采纳」判定、不再参与遍历剪枝**，上限不足时仍回传真实最短跳数（语义表见 `docs/项目手册.md` §35.2）。RAG 未接入时返回 `{"code":503}` 且 AI 问答自动回退纯 LLM。**LoRA 微调（8003）引擎侧已交付并本机 `mode=ENGINE` 真跑坐实（2026-10-18，手册 DR-78）**：残项为三条——无 Dockerfile、Java 侧未消费数据集/语料六端点、两个启动器全文无 `8003`（一键姿态不拉起，须手工 `uvicorn`）。**完整对接契约见 `docs/项目手册.md`（第八部分，唯一标准基准）。**
 
 > **⚠️ 参考项目方法学边界（避免误导）**：`大创赛/类似项目/DeepSeek-RAG-Chatbot` 的 GraphRAG 实体抽取采用正则 `\b[A-Z][a-z]+...`，**仅支持英文实体**，且为单机通用文档问答工具，与本项目的**中文知识图谱**（`knowledge_points` / `knowledge_point_relations`）在语言适配、领域建模、工程规模上均不可类比。**请勿将其作为本项目中文 KG 方案的对标或引用依据**；本项目中文 KG 的关系建模以 `相关论文/`（杜彩丽 IPA/IREM、中职计算机网络多源异构 KG 等）与 PRD 接口矩阵为准。
 
@@ -283,14 +285,15 @@ cd frontend && npm run lint && npm run typecheck:gate && npx vitest run && npm r
 
 | 门禁 | 读数（当前本机口径） |
 | --- | --- |
-| 后端单元测试 | **3010 用例 / 0 失败 / 0 错误 / 0 跳过**（2026-10-18 13:3x 本机 `mvn -B -o clean verify -DskipITs`，212 份 surefire 报告；口径链与覆盖率见手册 B.2） |
+| 后端单元测试 | **3019 用例 / 0 失败 / 0 错误 / 0 跳过**（2026-10-18 16:2x→16:3x 本机 `mvn -B -o clean verify -DskipITs` BUILD SUCCESS 02:52，213 份 surefire 报告；增长链与覆盖率见手册 B.2 与 **D.20**） |
 | 后端集成测试 | **12 用例 / 0 失败**（含 IT 那轮，现由 CI 取数） |
-| JaCoCo | **LINE 89.13%（15224/17080）/ BRANCH 70.74%（5043/7129）**（358 类，2026-10-18 10:0x 同轮；BRANCH 带 ±1 噪声、`jacoco.csv` 口径较 `<report>` 级多 12 行，两者不等价，见 B.2）→ 在**阈值未降低**（LINE ≥ 85% / BRANCH ≥ 65%）的前提下达标，靠补真实测试而非降阈值 |
+| JaCoCo | **LINE 89.08%（15236/17104）/ BRANCH 70.71%（5059/7155）**（358 类，2026-10-18 16:3x 同轮；BRANCH 带 ±1 噪声、`jacoco.csv` 口径较 `<report>` 级多约 12 行，两者不等价，见 B.2）→ 在**阈值未降低**（LINE ≥ 85% / BRANCH ≥ 65%）的前提下达标，靠补真实测试而非降阈值 |
 | ArchUnit | **6 条**架构守护全通过 |
 | SpotBugs | **0 缺陷**（`failOnError=true` 硬阻断，13 个框架性 `<Match>` 豁免） |
-| 前端单测 / ESLint | **153 文件 / 1642 用例全绿**；lint **0 error / 0 warning**（2026-10-18 复跑） |
-| 前端类型检查 | `vue-tsc` 棘轮基线 **402 条 / 90 文件**（只许下调） |
-| CI | 3 个工作流；`ci.yml` **11 个作业**（新增 `python-fine-tune-contract`；`frontend-e2e` 暂为 `workflow_dispatch`）——**本机绿不等于 CI 绿**，且本机对 Actions 结果不可观测（手册 §21.1） |
+| 前端单测 / ESLint | **153 文件 / 1642 用例全绿**；lint **0 error / 0 warning**；`size:gate` 五项预算全过；`npm run build` EXIT 0（2026-10-18 16:1x 复跑） |
+| 前端类型检查 | `vue-tsc` 棘轮基线 **402 条 / 90 文件**（只许下调，本轮与基线持平） |
+| Python 引擎与启动器 | 分目录 `pytest -q`：`kg_service` **29** / `rag_service` **54** / `fine_tune_service` **53** passed；仓库根 `pytest scripts/tests -q` **85 passed**（2026-10-18 16:1x 复跑） |
+| CI | 3 个工作流；`ci.yml` **11 个作业**（新增 `python-fine-tune-contract`；`frontend-e2e` 暂为 `workflow_dispatch`）——**本机绿不等于 CI 绿**，且本机对 Actions 结果不可观测（手册 §21.1）。⚠️  workflows 的存量红灯本轮**有意暂置**，留待后续优化（项目主指令第 5 条） |
 质量门禁基线（渐进收敛制，只许上调不得下调）：JaCoCo LINE ≥ 85% / BRANCH ≥ 65%（生产收敛目标指令覆盖 ≥ 85%）、SpotBugs 0 error、ArchUnit 架构约束。测试方法、契约测试清单与 CI 流水线见 `docs/项目手册.md` 第六部分。
 
 ### 端到端全链路与压力测试（四件套）
