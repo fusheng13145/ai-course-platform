@@ -38,3 +38,14 @@ test-results/
 *.njsproj
 *.sln
 *.sw?
+
+# ---- 视觉回归（Phase 0）临时产物与会话夹具 ----
+# test-results/ 与 playwright-report/ 已在上面「Test / coverage / E2E reports」段忽略，此处不重复。
+# toHaveScreenshot 比对失败时额外吐出的中间图：只排除这几类派生物，
+# 真实基线 e2e/visual/__snapshots__/**.png 必须入库，不在排除之列。
+e2e/visual/**/*-diff.png
+e2e/visual/**/*-actual.png
+# storageState 夹具（student/teacher/admin.json）内含 access/refresh token，严禁入库。
+# 注意：本文件的模式相对 frontend/ 解析，所以不能写成 frontend/e2e/visual/.auth/——
+# 那样等于匹配 frontend/frontend/...，规则会静默失效。
+e2e/visual/.auth/

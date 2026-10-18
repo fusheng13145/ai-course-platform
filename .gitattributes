@@ -21,3 +21,16 @@
 *.jar binary
 *.woff binary
 *.woff2 binary
+
+# 视觉基线 PNG（e2e/visual/__snapshots__ 下的 *-light.png / *-dark.png 与 Task 14 的动效观察图）
+# 按路径再声明一次。上面的 `*.png binary` 实测已经生效，但基线是 Phase 0 的判据资产，
+# 路径级规则保证它不依赖全局规则的存续。
+# 为什么必须是 binary：本机 core.autocrlf=true（`git config --get core.autocrlf` 实测），
+# PNG 一旦被当作文本，`git add` 的 clean 过滤会剥掉字节流里的 CR——实测同一份含 CRLF 的
+# 字节：写到 __snapshots__/x.txt 时 blob 哈希与原文件不同（被改写），写到 x-dark.png 时相同。
+# 图仍能被浏览器显示，但字节已变，换一台机器（Linux CI）重生成就会与入库版本整图不同，
+# toHaveScreenshot 把每张图判成 100% 差异——视觉回归不是报错，而是静默失效。
+# `binary` 是 Git 内置宏，等价于 -diff -merge -text；检出与入库都零转换。
+# 刻意不写 `merge=binary`：merge 属性只在三方冲突时选合并驱动，管不到检出/入库的
+# 字节保真（本条要防的正是后者），且它会覆盖 binary 宏的 -merge，反而少一层保护。
+frontend/e2e/visual/__snapshots__/**/*.png binary
