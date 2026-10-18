@@ -606,6 +606,45 @@ jobs:
         run: pytest -q
 
   # ------------------------------------------------------------------
+  # Python LoRA 微调服务（端口 8003）契约校验
+  # 覆盖 docs/项目手册.md §37 八端点 + 数据集/语料六端点，与 Java 端
+  # LLMFineTuneServiceImpl / ContractPaths.java 的下游调用对齐。
+  # lora_service.py 已接真实 PEFT 训练引擎（lora_engine.py，重依赖懒加载），
+  # 本 job 只跑无重依赖的用例。
+  # ------------------------------------------------------------------
+  python-fine-tune-contract:
+    name: Python LoRA Fine-Tune Service Contract (8003)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: python-services/fine_tune_service
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: python-services/fine_tune_service/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+
+      - name: Contract + engine tests (FastAPI TestClient)
+        # 引擎重依赖（torch/transformers/peft/datasets）在 CI 不安装：
+        # lora_engine 与用例都做软依赖处理——缺依赖的真实训练用例按 skipif 跳过，
+        # 纯逻辑与契约用例照常跑。
+        # FT_ENGINE_READY=1 只是**结构开关**：让 /start 登记真实任务记录但不启动训练线程，
+        # 使契约用例能断言 pending 形状而不与后台线程竞态。它不改变 mode 语义，
+        # 也不产生任何占位成功响应——取证只认引擎真跑出的 mode=ENGINE。
+        env:
+          FT_ENGINE_READY: "1"
+        run: pytest -q
+
+  # ------------------------------------------------------------------
   # 前端 E2E（Playwright）全栈冒烟测试  [P3 #5]
   # 决策：采用「全栈」方案——后端 jar 连 MySQL/Redis service 容器，前端构建后以
   # vite preview 提供静态资源（playwright.config.ts 经 PW_WEB_SERVER_COMMAND 覆盖 dev），

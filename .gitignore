@@ -86,6 +86,8 @@ venv/
 /data/
 # RAG 真实引擎持久化数据（文档存储 + BM25/向量索引）
 python-services/rag_service/data/
+# LoRA 微调引擎持久化数据（数据集/任务存储 + runs/adapter + weights/*.zip）
+python-services/fine_tune_service/data/
 
 # ---- 凭据工件：curl 会话 Cookie 罐（含 HttpOnly access/refresh JWT），严禁入库 ----
 # calibration/cj.txt 曾被误提交（80553eb，令牌已过期）；历史提交仍含该文件，需另行清理
