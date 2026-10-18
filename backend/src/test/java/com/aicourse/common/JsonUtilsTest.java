@@ -40,4 +40,12 @@ class JsonUtilsTest {
     void extractJsonObject_null_returnsNull() {
         assertNull(JsonUtils.extractJsonObject(null));
     }
+
+    @Test
+    void extractJsonObject_fencedWithNestedBraces_notTruncated() {
+        // 非贪婪正则若无 ``` 锚点会在首个 } 处截断，落库即成残缺 JSON（DR-87 同族形态）
+        String text = "```json\n{\"content\":\"题\",\"options\":{\"a\":{\"k\":1}},\"score\":5}\n```";
+        assertEquals("{\"content\":\"题\",\"options\":{\"a\":{\"k\":1}},\"score\":5}",
+                JsonUtils.extractJsonObject(text));
+    }
 }

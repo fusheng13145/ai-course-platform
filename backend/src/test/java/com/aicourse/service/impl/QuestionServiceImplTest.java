@@ -123,16 +123,20 @@ class QuestionServiceImplTest {
         assertNotNull(r);
         assertEquals("什么是函数?", r.getContent());
         assertEquals("[\"A\",\"B\"]", r.getOptions());
-        assertEquals("A", r.getCorrectAnswers());
+        // 翻向说明（DR-88）：原断言 "A" 是**裸串**，而 correct_answers 是 JSON 列，MySQL 直接拒收；
+        // 落库必须带引号成 JSON 字符串标量，判分侧 normalizeAnswer 会脱引号还原成 A。
+        assertEquals("\"A\"", r.getCorrectAnswers());
         assertEquals("说明", r.getExplanation());
         assertEquals(new BigDecimal("10"), r.getScore());
-        assertEquals("函数", r.getKnowledgePoints());
+        // 翻向说明（DR-88）：knowledge_points 同为 JSON 列，裸串 "函数" 写不进库，
+        // 按列注释与读取侧口径落 JSON 数组。
+        assertEquals("[\"函数\"]", r.getKnowledgePoints());
         assertEquals(BigDecimal.ZERO, r.getCorrectRate());
         verify(questionMapper).insert(any(Question.class));
     }
 
     @Test
-    @DisplayName("generateByAI 缺省字段回退默认")
+    @DisplayName("generateByAI 缺省字段回退默认（correctAnswers 必须是 null 而非空串——JSON 列拒收空串）")
     void ai_defaults() {
         String json = "{\"content\":\"仅题干\"}";
         when(aiService.generateQuestion(2L, "single", "easy", 1)).thenReturn(json);
@@ -140,9 +144,61 @@ class QuestionServiceImplTest {
         Question r = service.generateByAI(2L, "single", "easy", "代数");
         assertEquals("仅题干", r.getContent());
         assertNull(r.getOptions());
-        assertEquals("", r.getCorrectAnswers());
+        // 翻向说明（DR-88）：原断言是 ""，而 `questions.correct_answers` 是 `JSON NULL`
+        // （V1__init_schema.sql:505），MySQL 对空串报 `Invalid JSON text: "The document is empty."`，
+        // 于是"模型没回 correctAnswers"这一常见形态必然 400 + 事务回滚（真实 Key 下实测复现）。
+        assertNull(r.getCorrectAnswers());
         assertEquals("", r.getExplanation());
         assertEquals(new BigDecimal("5"), r.getScore());
+    }
+
+    @Test
+    @DisplayName("generateByAI 标量答案落成 JSON 字符串标量（裸串被 MySQL 拒收，包成数组会让单选判错）")
+    void ai_scalarAnswer_becomesJsonArray() {
+        String json = "{\"content\":\"题干\",\"correctAnswers\":\"A\"}";
+        when(aiService.generateQuestion(6L, "single", "easy", 1)).thenReturn(json);
+
+        Question r = service.generateByAI(6L, "single", "easy", "x");
+        assertEquals("\"A\"", r.getCorrectAnswers());
+    }
+
+    @Test
+    @DisplayName("generateByAI 知识点串必须落成 JSON 数组（knowledge_points 也是 JSON 列，DR-88 同族）")
+    void ai_knowledgePoints_becomesJsonArray() {
+        String json = "{\"content\":\"题干\",\"correctAnswers\":\"A\"}";
+        when(aiService.generateQuestion(8L, "single", "easy", 1)).thenReturn(json);
+
+        Question one = service.generateByAI(8L, "single", "easy", "进程与线程");
+        assertEquals("[\"进程与线程\"]", one.getKnowledgePoints());
+
+        Question many = service.generateByAI(8L, "single", "easy", "第一章，第二章;第三章");
+        assertEquals("[\"第一章\",\"第二章\",\"第三章\"]", many.getKnowledgePoints());
+
+        Question none = service.generateByAI(8L, "single", "easy", "  ");
+        assertNull(none.getKnowledgePoints());
+    }
+
+    @Test
+    @DisplayName("generateByAI 模型已给 JSON 数组时逐字保留，不得二次包装")
+    void ai_jsonArrayAnswer_passthrough() {
+        String json = "{\"content\":\"题干\",\"correctAnswers\":[\"A\",\"C\"]}";
+        when(aiService.generateQuestion(7L, "single", "easy", 1)).thenReturn(json);
+
+        Question r = service.generateByAI(7L, "single", "easy", "x");
+        assertEquals("[\"A\",\"C\"]", r.getCorrectAnswers());
+    }
+
+    @Test
+    @DisplayName("generateByAI 模型没给 content 时不得落库（DR-89：空题干 200 是假成功，比 400 更坏）")
+    void ai_blankContent_refusesToSave() {
+        // 真实 Key 下实测形态：模型把题干放在 stem 里，而下游只读 content
+        String json = "{\"stem\":\"什么是进程?\",\"options\":[\"A\",\"B\"],\"correctAnswers\":\"A\"}";
+        when(aiService.generateQuestion(9L, "single", "easy", 1)).thenReturn(json);
+
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.generateByAI(9L, "single", "easy", "进程"));
+        assertTrue(ex.getMessage().contains("content"), "异常应点名缺失的键：" + ex.getMessage());
+        verify(questionMapper, never()).insert(any(Question.class));
     }
 
     @Test
@@ -152,6 +208,34 @@ class QuestionServiceImplTest {
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.generateByAI(3L, "single", "easy", "x"));
         assertTrue(ex.getMessage().contains("解析失败"));
+    }
+
+    @Test
+    @DisplayName("generateByAI 必须吃掉 ```json 代码栅栏（DR-87：模型常把 JSON 包进栅栏，此前直接 400）")
+    void ai_fencedJson() {
+        String fenced = "```json\n"
+                + "{\"content\":\"什么是进程?\",\"options\":[\"A\",\"B\"],"
+                + "\"correctAnswers\":\"A\",\"explanation\":\"说明\",\"score\":10}\n"
+                + "```";
+        when(aiService.generateQuestion(4L, "single", "easy", 1)).thenReturn(fenced);
+
+        Question r = service.generateByAI(4L, "single", "easy", "进程");
+        assertEquals("什么是进程?", r.getContent());
+        assertEquals("[\"A\",\"B\"]", r.getOptions());
+        assertEquals(new BigDecimal("10"), r.getScore());
+    }
+
+    @Test
+    @DisplayName("generateByAI 栅栏内的嵌套对象不得被截断（非贪婪正则遇首个 } 就停是致命形态）")
+    void ai_fencedJsonWithNestedObject() {
+        String fenced = "```json\n"
+                + "{\"content\":\"下列哪项正确?\",\"options\":{\"a\":{\"k\":1}},\"score\":5}\n"
+                + "```";
+        when(aiService.generateQuestion(5L, "single", "easy", 1)).thenReturn(fenced);
+
+        Question r = service.generateByAI(5L, "single", "easy", "选项");
+        assertEquals("下列哪项正确?", r.getContent());
+        assertEquals("{\"a\":{\"k\":1}}", r.getOptions());
     }
 
     // ===================== generateBatchByAI =====================

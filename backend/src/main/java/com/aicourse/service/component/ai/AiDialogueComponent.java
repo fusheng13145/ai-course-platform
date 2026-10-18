@@ -61,8 +61,14 @@ public class AiDialogueComponent {
         // courseId 必须进 prompt，否则跨课程出题时模型不知道题目归属哪门课；
         // 难度/题型缺省要显式兜底，不能把字面量 "null" 拼进提示词。
         String scope = courseId != null ? "为课程(courseId=" + courseId + ")" : "";
+        // 键位必须点名（DR-89）：下游 QuestionServiceImpl 只读 content/options/correctAnswers/
+        // explanation/score，此前提示词只用散文描述"包含题目内容、选项和正确答案"，真实 Key 下
+        // 模型自选 stem 之类的键名，于是取不到题干、落库成空题干题目并返回 200——假成功。
         String prompt = String.format(
-                "请%s生成%d道%s难度、类型为%s的课程题目，包含题目内容、选项和正确答案，以JSON格式返回。",
+                "请%s生成%d道%s难度、类型为%s的课程题目。"
+                        + "只返回一个 JSON 对象，不要输出任何解释文字或代码栅栏之外的内容，键固定为："
+                        + "content(题干字符串)、options(选项字符串数组)、correctAnswers(正确答案，单选为字符串、"
+                        + "多选为字符串数组)、explanation(解析字符串)、score(分值数字)。",
                 scope, count, AiCoreComponent.orDefault(difficulty, "MEDIUM"), AiCoreComponent.orDefault(type, "SINGLE_CHOICE"));
         // 失败即抛（503），不再把降级文案当生成结果返回——下游要拿它当 JSON 解析。
         return core.completeAndSanitize(core.buildMessages(prompt, null), 0.9, "question");

@@ -34,8 +34,7 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 RAG_DIR = ROOT / "python-services" / "rag_service"
 JAR = ROOT / "backend" / "target" / "backend-0.0.1-SNAPSHOT.jar"
-PROBE_PORT = "8081"
-DEGRADE = "AI 服务暂时不可用，请稍后再试。"  # AiCoreComponent.SERVICE_ERROR_MSG
+PROBE_PORT = os.getenv("PROBE_PORT", "8081")  # DR-86：一键启动的后端在 8080，写死 8081 会让 chains 连不上并被误读成"后端没起来"
 
 
 def engines():
@@ -136,13 +135,14 @@ def probe_chains() -> int:
         except Exception:
             j = {"code": None, "message": raw[:160], "data": None}
         blob = json.dumps(j.get("data"), ensure_ascii=False)
-        if DEGRADE in blob:
-            verdict = "❌ 降级串冒充成功（LLM 未真实生成）"
-        elif st == 200 and (j.get("code") == 200) and blob not in ("null", ""):
-            verdict = "✅ 非降级内容（需人工核对是否为模型原文）"
+        # DR-74-B 之后失败是协议级的（HTTP/code 503），不再有“200 + 降级串”这一态，所以判据只能看状态码与 code，**不能按字面文案判**（手册 §19.2）。
+        if st == 200 and j.get("code") == 200 and blob not in ("null", ""):
+            verdict = "✅ 真实生成（非空 data；按 DR-74-B 只有成功才可能到这里）"
             real += 1
+        elif st == 503 or j.get("code") == 503:
+            verdict = f"❌ 协议级失败（503）：{j.get('message')}"
         else:
-            verdict = f"⚠ 业务失败/异常：{j.get('message')}"
+            verdict = f"⚠ 业务失败/异常 HTTP={st}：{j.get('message')}"
         print(f"[chains] {label:<26} HTTP={st} code={j.get('code')} -> {verdict}")
         print(f"         摘录 {blob[:80]!r}" if blob not in ("null",) else "         摘录 (data=null)")
     print(f"[chains] 密钥形状：{key_verdict(dotenv())}；401 原文见后端日志 [deepseek] 请求失败行")
@@ -183,6 +183,11 @@ def probe_backend() -> int:
 
 
 def main() -> int:
+    # 判定行含 ✅/❌，而 Windows 控制台默认 GBK —— 不重配就会在打印第一条判据时
+    # UnicodeEncodeError 中断，剩下的链路一条也读不到（本轮实测复现）。
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8", errors="replace")
     mode = sys.argv[1] if len(sys.argv) > 1 else "all"
     if mode == "engine":
         return probe_engine()

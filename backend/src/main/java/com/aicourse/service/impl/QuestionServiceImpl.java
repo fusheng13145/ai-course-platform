@@ -3,6 +3,7 @@ package com.aicourse.service.impl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.aicourse.common.JsonUtils;
 import com.aicourse.entity.Question;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.QuestionMapper;
@@ -84,8 +85,10 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         String generatedContent = aiService.generateQuestion(courseId, type, difficulty, 1);
 
         try {
-            // 解析AI生成的题目内容
-            Map<String, Object> questionData = objectMapper.readValue(generatedContent,
+            // 解析AI生成的题目内容。模型经常把 JSON 包进 ```json ``` 栅栏（DR-87 实测：
+            // 真实 Key 下本端点 400，Jackson 在第 1 列撞到反引号），必须先过 extractJsonObject。
+            String json = JsonUtils.extractJsonObject(generatedContent);
+            Map<String, Object> questionData = objectMapper.readValue(json,
                     new TypeReference<Map<String, Object>>() {});
 
             Question question = new Question();
@@ -93,12 +96,17 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
             question.setType(type);
             question.setDifficulty(difficulty);
             question.setContent(questionData.get("content") != null ? questionData.get("content").toString() : "");
+            if (question.getContent().isBlank()) {
+                // 模型没按点名的键位返回（真实 Key 下实测把题干放进 stem）时必须中止，
+                // 否则落库一条空题干题目并返回 200——那是假成功（DR-89）。
+                throw new BusinessException("AI 返回的题目缺少 content 字段，已中止落库以免产生空题干题目");
+            }
             question.setOptions(questionData.get("options") != null ? objectMapper.writeValueAsString(questionData.get("options")) : null);
-            question.setCorrectAnswers(questionData.get("correctAnswers") != null ? questionData.get("correctAnswers").toString() : "");
+            question.setCorrectAnswers(toJsonColumnValue(questionData.get("correctAnswers")));
             question.setExplanation(questionData.get("explanation") != null ? questionData.get("explanation").toString() : "");
             question.setScore(questionData.get("score") != null ?
                     new BigDecimal(questionData.get("score").toString()) : new BigDecimal("5"));
-            question.setKnowledgePoints(knowledgePointNames);
+            question.setKnowledgePoints(toJsonArrayValue(knowledgePointNames));
             question.setUsageCount(0);
             question.setCorrectRate(BigDecimal.ZERO);
             question.setIsActive(true);
@@ -133,22 +141,31 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
         }
         List<Question> saved = new ArrayList<>();
         for (Map<String, Object> qd : list) {
+            Object stem = qd.get("content");
+            // 没有 content 的项一律不落库（DR-89）：空题干题目会在题库、组卷、错题本里
+            // 一路以"看起来存在"的形态扩散，比一次失败难查得多。
+            if (stem == null || stem.toString().isBlank()) {
+                continue;
+            }
             Question q = new Question();
             q.setCourseId(courseId);
             q.setType(type);
             q.setDifficulty(difficulty);
-            q.setContent(qd.get("content") != null ? qd.get("content").toString() : "");
+            q.setContent(stem.toString());
             q.setOptions(toJsonOrString(qd.get("options")));
-            q.setCorrectAnswers(toJsonOrString(qd.get("correctAnswers")));
+            q.setCorrectAnswers(toJsonColumnValue(qd.get("correctAnswers")));
             q.setExplanation(qd.get("explanation") != null ? qd.get("explanation").toString() : "");
             q.setScore(qd.get("score") != null ? new BigDecimal(qd.get("score").toString()) : new BigDecimal("5"));
-            q.setKnowledgePoints(knowledgePointNames);
+            q.setKnowledgePoints(toJsonArrayValue(knowledgePointNames));
             q.setUsageCount(0);
             q.setCorrectRate(BigDecimal.ZERO);
             q.setIsActive(true);
             q.setCreatedBy(createdBy);
             this.save(q);
             saved.add(q);
+        }
+        if (saved.isEmpty()) {
+            throw new BusinessException("AI 批量生成未返回任何含 content 题干的题目，已中止落库");
         }
         return saved;
     }
@@ -206,6 +223,71 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
             log.error("批量题目失败: {}", e.getMessage(), e);
 
             return o.toString();
+        }
+    }
+
+    /**
+     * 把 AI 返回的答案落成 {@code questions.correct_answers} 能接受的形态。
+     * <p>该列是 {@code JSON NULL}（V1__init_schema.sql:505），只有合法 JSON 才写得进去：
+     * 集合序列化成 JSON 数组，标量答案序列化成 JSON 字符串，缺失/空串落 null。
+     * <p>刻意**不**把标量包成数组：{@code ExamSessionGradingService.normalizeAnswer:339-348}
+     * 对 {@code [} 开头是原样返回、对带引号的字符串才脱引号，而单选题判分走
+     * {@code studentAnswer.equalsIgnoreCase(correctAnswer)}——存成 {@code ["A"]} 会让
+     * AI 生成的单选题永远判错。
+     * <p>反面教材（DR-88 实测复现）：原实现用 {@code .toString()} 并回退空串，于是
+     * {@code A} 与 {@code ""} 都不是合法 JSON，MySQL 报
+     * {@code Invalid JSON text: "The document is empty."}，出题必然 400 并回滚整事务。
+     */
+    private String toJsonColumnValue(Object o) {
+        if (o == null) {
+            return null;
+        }
+        if (o instanceof String) {
+            String s = ((String) o).trim();
+            if (s.isEmpty()) {
+                return null;
+            }
+            if (s.startsWith("[") || s.startsWith("{") || s.startsWith("\"")) {
+                return s;
+            }
+            o = s;
+        }
+        try {
+            return objectMapper.writeValueAsString(o);
+        } catch (Exception e) {
+            log.error("题目答案落 JSON 列失败: {}", e.getMessage(), e);
+            return null;
+        }
+    }
+
+    /**
+     * 把「逗号/分号分隔的知识点名」落成 {@code questions.knowledge_points}（同为 JSON 列）能接受的数组形态。
+     * <p>口径来源：列注释「JSON数组格式」（V1__init_schema.sql:508）、Excel 导入侧
+     * {@code ExcelUtil.normalizeJsonArray}，以及读取侧
+     * {@code WrongQuestionServiceImpl.extractKnowledgePointNames}（先按 JSON 数组解，失败才退回分隔符）。
+     * 分隔符集合与 {@code ExamPaperServiceImpl:267} 的匹配逻辑保持一致，否则同一道题在组卷与错题本里
+     * 会被切成不同的知识点。
+     */
+    private String toJsonArrayValue(String names) {
+        if (names == null || names.isBlank()) {
+            return null;
+        }
+        String trimmed = names.trim();
+        if (trimmed.startsWith("[")) {
+            return trimmed;
+        }
+        List<String> parts = Arrays.stream(trimmed.split("[,，;；]"))
+                .map(String::trim)
+                .filter(s -> !s.isEmpty())
+                .toList();
+        if (parts.isEmpty()) {
+            return null;
+        }
+        try {
+            return objectMapper.writeValueAsString(parts);
+        } catch (Exception e) {
+            log.error("知识点落 JSON 列失败: {}", e.getMessage(), e);
+            return null;
         }
     }
 

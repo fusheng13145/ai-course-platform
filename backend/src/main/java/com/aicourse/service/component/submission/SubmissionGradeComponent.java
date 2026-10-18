@@ -1,5 +1,6 @@
 package com.aicourse.service.component.submission;
 
+import com.aicourse.common.JsonUtils;
 import com.aicourse.constant.SubmissionStatus;
 import com.aicourse.entity.Submission;
 import com.aicourse.entity.Task;
@@ -172,7 +173,9 @@ public class SubmissionGradeComponent {
             String highlights = null;
             String suggestions = null;
             try {
-                JsonNode root = jsonSupport.readTree(aiResponse);
+                // LLM 常把 JSON 包进 ```json 栅栏；不先剥壳就会解析失败并走到下面的"原始文本当评语"
+                // 分支——那是把 ``` 连同栅栏一起存进学生可见的 aiFeedback，且分数丢失（DR-87 同族）。
+                JsonNode root = jsonSupport.readTree(JsonUtils.extractJsonObject(aiResponse));
                 if (root.has("score")) {
                     aiScore = new BigDecimal(root.get("score").asText());
                 }
