@@ -249,16 +249,19 @@ ai:
   deepseek:
     # 优先读取系统环境变量 DEEPSEEK_API_KEY，未配置则为空
     api-key: ${DEEPSEEK_API_KEY:}
-    base-url: https://api.deepseek.com/v1
-    model: deepseek-chat
+    # 端点与模型都可被环境变量覆盖（DR-84）：默认值就是原写死值，不填行为零变化。
+    # 填这里即可接入任意 OpenAI 兼容网关（如自建 one-api / 硅基流动 / 火山方舟），
+    # 否则非 DeepSeek 域名的 Key 只能打到 api.deepseek.com 并必然 401，现象与"密钥无效"同形。
+    base-url: ${DEEPSEEK_BASE_URL:https://api.deepseek.com/v1}
+    model: ${DEEPSEEK_MODEL:deepseek-chat}
   openai:
     api-key: ${OPENAI_API_KEY:}
-    base-url: https://api.openai.com/v1
-    model: gpt-4o-mini
+    base-url: ${OPENAI_BASE_URL:https://api.openai.com/v1}
+    model: ${OPENAI_MODEL:gpt-4o-mini}
   qwen:
     api-key: ${QWEN_API_KEY:}
-    base-url: https://dashscope.aliyuncs.com/compatible-mode/v1
-    model: qwen-plus
+    base-url: ${QWEN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
+    model: ${QWEN_MODEL:qwen-plus}
   # ---------- AI 用量配额（按认证 userId，防 LLM 成本型 DoS） ----------
   # 与 ratelimit（按 IP）互补：IP 限流拦同源洪泛，本配额按登录身份拦「代理池轮换 IP 的刷量」。
   # 单用户单日 LLM 成本数学上界：min(daily-request-limit × 单次 prompt 上限, daily-token-budget)。

@@ -206,6 +206,11 @@ services:
       # 仅本地体验场景可在 .env 显式置 true（勿与 prod profile 同时使用）。
       DEMO_ACCOUNTS_ENABLED: ${DEMO_ACCOUNTS_ENABLED:-false}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      # 供应商与端点（DR-84）：默认值与 application.yaml 一致，不填行为不变；
+      # 容器形态若要接自建网关，必须在此注入（同 DR-73 教训：yml 有落点而编排到不了＝调不动且不报错）。
+      AI_PROVIDER: ${AI_PROVIDER:-deepseek}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       # 安全开关：**默认安全**，不因本文件的部署形态把生产默认值降到 false。

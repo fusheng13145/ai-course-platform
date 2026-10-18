@@ -56,6 +56,8 @@ APP_MODULES = {"kg": "kg_service:app", "rag": "rag_service:app"}
 ENGINE_EXPORTS = {
     "kg": ("NEO4J_USERNAME", "NEO4J_PASSWORD", "KG_BACKEND"),
     "rag": (
+        # DR-84：网关端点必须一起导出，否则 .env 里配了 base-url 也到不了引擎进程（DR-63 同型）
+        "DEEPSEEK_BASE_URL",
         "DEEPSEEK_MODEL",
         "RAG_EMBED_MODEL",
         "RAG_DATA_DIR",

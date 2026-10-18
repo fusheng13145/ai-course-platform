@@ -466,3 +466,50 @@ def test_generate_answer_distinguishes_missing_key_from_call_failure(caplog, mon
     joined = "\n".join(r.getMessage() for r in caplog.records)
     assert "调用失败" not in joined, f"无密钥不是调用失败，不应记成故障：{joined!r}"
 
+# ================================================================== DR-84：LLM 端点可配
+def test_llm_endpoint_honours_configured_base_url(monkeypatch):
+    """网关 Key 必须有处可填：`DEEPSEEK_BASE_URL` 决定实际请求地址（默认仍是 DeepSeek 官方）。
+
+    只修 Java 侧不修引擎侧等于修一半——RAG 的生成走 `rag_engine._call_deepseek`，
+    它此前把 URL 写死，非 DeepSeek 域名的 Key 无论真假都只会得到 401。
+    """
+    seen = {}
+
+    class _Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"choices": [{"message": {"content": " 网关回答  "}}]}
+
+    def fake_post(url, **kw):
+        seen["url"] = url
+        return _Resp()
+
+    import httpx
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.setenv("DEEPSEEK_BASE_URL", "https://gateway.example.com/v1/")
+    assert rag_engine._call_deepseek("sk-x", "问", "资料") == "网关回答"
+    assert seen["url"] == "https://gateway.example.com/v1/chat/completions", seen
+
+
+def test_llm_endpoint_defaults_to_deepseek(monkeypatch):
+    """不填时必须与旧行为逐字一致——默认值不变是本次可配化的前提。"""
+    seen = {}
+
+    class _Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"choices": [{"message": {"content": "ok"}}]}
+
+    def fake_post(url, **kw):
+        seen["url"] = url
+        return _Resp()
+
+    import httpx
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.delenv("DEEPSEEK_BASE_URL", raising=False)
+    rag_engine._call_deepseek("sk-x", "问", "资料")
+    assert seen["url"] == "https://api.deepseek.com/v1/chat/completions", seen

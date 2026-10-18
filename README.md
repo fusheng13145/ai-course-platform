@@ -154,7 +154,7 @@ start-frontend.bat       # 分步：前端另开一个终端
 > 🗺️ **2026-10-17 定案与指针**：当前阶段**不上公网**（走「本机真跑 + 录屏演示」），但「一台云主机 + 本编排」的**完整上线执行序**——五项待拍板决策、逐 Phase 命令与判据、14 条已知断链点——已固化在 **`docs/项目手册.md` §24.6「单机云主机上线全链路（A 路径预案）」**。要真上线时按那一节走，不要只凭本节命令拼。以下原文保留供后续参考。
 
 ```bash
-cp .env.example .env      # Windows: copy .env.example .env（共 33 个生效键 + 21 行注释示例，填入真实强密码与密钥）
+cp .env.example .env      # Windows: copy .env.example .env（共 36 个生效键 + 注释示例，填入真实强密码与密钥）
 docker compose --profile full up -d --build
 # 可选叠加 profile（compose 共 12 个服务 / 12 个命名卷）：
 #   --profile ops      每日全量备份（mysql-backup：入口守护循环，周期 BACKUP_INTERVAL_SECONDS，默认 86400s）
@@ -283,7 +283,7 @@ cd frontend && npm run lint && npm run typecheck:gate && npx vitest run && npm r
 
 | 门禁 | 读数（当前本机口径） |
 | --- | --- |
-| 后端单元测试 | **3007 用例 / 0 失败 / 0 错误 / 0 跳过**（2026-10-18 10:0x 本机 `mvn -B -o clean verify -DskipITs`，211 份 surefire 报告；口径链与覆盖率见手册 B.2） |
+| 后端单元测试 | **3010 用例 / 0 失败 / 0 错误 / 0 跳过**（2026-10-18 13:3x 本机 `mvn -B -o clean verify -DskipITs`，212 份 surefire 报告；口径链与覆盖率见手册 B.2） |
 | 后端集成测试 | **12 用例 / 0 失败**（含 IT 那轮，现由 CI 取数） |
 | JaCoCo | **LINE 89.13%（15224/17080）/ BRANCH 70.74%（5043/7129）**（358 类，2026-10-18 10:0x 同轮；BRANCH 带 ±1 噪声、`jacoco.csv` 口径较 `<report>` 级多 12 行，两者不等价，见 B.2）→ 在**阈值未降低**（LINE ≥ 85% / BRANCH ≥ 65%）的前提下达标，靠补真实测试而非降阈值 |
 | ArchUnit | **6 条**架构守护全通过 |

@@ -642,6 +642,16 @@ def generate_answer(question: str, contexts: list[dict]) -> tuple[str, str]:
     return "", "UNAVAILABLE"
 
 
+def llm_chat_url() -> str:
+    """LLM 聊天端点（DR-84）：默认 DeepSeek 官方，可经 `DEEPSEEK_BASE_URL` 指向任意 OpenAI 兼容网关。
+
+    与 Java 侧 `ai.deepseek.base-url` 同一口径、同一默认值。此前这里把 URL 写死，
+    于是"网关 Key"在引擎侧必然 401，且现象与"密钥无效"同形——修一半等于没修。
+    """
+    base = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1").strip().rstrip("/")
+    return base + "/chat/completions"
+
+
 def _call_deepseek(api_key: str, question: str, contexts: str) -> Optional[str]:
     import httpx
 
@@ -659,7 +669,7 @@ def _call_deepseek(api_key: str, question: str, contexts: str) -> Optional[str]:
         "max_tokens": 1024,
     }
     resp = httpx.post(
-        "https://api.deepseek.com/v1/chat/completions",
+        llm_chat_url(),
         headers={"Authorization": f"Bearer {api_key}"},
         json=payload,
         timeout=60.0,
