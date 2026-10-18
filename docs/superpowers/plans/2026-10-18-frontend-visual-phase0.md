@@ -1147,20 +1147,32 @@ onBeforeUnmount(() => document.removeEventListener('keydown', onEsc))
 
 模板根改为条件渲染：
 
+模板只加 `v-if`，**本步不引入 Teleport**：
+
 ```html
-<Teleport to="body">
-  <div v-if="open" class="overlay" @mousedown.self="onOverlay">
-    <!-- …既有内容不变… -->
-  </div>
-</Teleport>
+<div v-if="open" class="overlay" @mousedown.self="onOverlay">
+  <!-- …既有内容原样保留，包括 :class 尺寸档与 @click.stop… -->
+</div>
 ```
 
-> `Teleport` 一并在本节引入：`v-if` 的挂载时机若不加 Teleport，下一个任务就要把 `v-if` 再挪一次位置。两者同处一片模板，分开改反而更易出错。Teleport 的独立验证见 Task 8。
+> **修正说明（Task 6 评审挖出的计划内部矛盾，务必按此执行）**：本任务原先要求"Teleport 一并在本节引入，
+> 免得下一任务再挪一次位置"。那个"省事"代价极大：`<Teleport to="body">` 一旦落地，
+> VTU 的 `wrapper.find/get` **取不到渲染节点**（`VueWrapper.findAll → findAllDOMElements`
+> 过滤 `isElement(getRootNodes(vnode))`，而 Teleport 根的节点是注释锚点，
+> 见 `vue-test-utils.cjs.js:7217-7228, :7505-7540`；仓内既有旁证
+> `src/components/__tests__/OnboardingGuide.test.ts:14`「组件 Teleport 到 body，断言一律走 document 查询」）。
+> 那会在**这一步**就打断 Task 6 的 8/10 条兼容钉，而 Task 7 Step 4 又写着"compat 转红就回退"——
+> 两条要求互相矛盾，执行者只能靠违反其一脱身。
+> 结论：**Teleport 归 Task 8**（那本来就是它的主题），并把查询路径迁移也放在 Task 8 同一 commit 内，
+> 让"引入 Teleport"和"随之迁移查询"永远是原子变更，不存在中间坏态。
 
 - [ ] **Step 4: 跑测试确认通过（含 Task 6 的兼容钉仍绿）**
 
 Run: `npx vitest run src/components/ui/__tests__/Modal.vmodel.test.ts src/components/ui/__tests__/Modal.compat.test.ts`
-Expected: 两个文件全 PASS。compat 一旦转红，说明 `v-if` 或 Teleport 破坏了现状语义，回退本步重做。
+Expected: 两个文件全 PASS。**本步的 compat 必须保持绿**——`v-if` 缺省视为 true、不传 `modelValue` 时行为与今天一致，
+没有任何理由打断兼容钉；打断了就是实现写错，回退本步重做。
+（Task 8 引入 Teleport 时 compat 会**因查询路径**转红，那是预期的、且必须在 Task 8 内当场迁移掉，
+不要把 Task 8 的红当成 Task 7 的错。）
 
 - [ ] **Step 5: 提交**
 
@@ -1303,11 +1315,26 @@ const props = defineProps<{
 > 12 个调用点会**全部静默塌回默认 640px**：不报错、不红、只是宽度全错，
 > 而 `narrow`（460px，`UmDeleteDialog` 一类确认框）和 `xwide`（1060px，大表格）塌回 640px
 > 在截图上只是"不太对"，很容易被人眼放过。
-> **硬要求**：`sizeClass` computed 必须与 props 声明在同一个 commit 内落地，
-> 且 Task 6 的 `$attrs` 尺寸档 pin 在这一轮会**正确地变红**（它读的是 attrs 通道）——
-> 那是通道变更、不是行为破坏，须按 Task 8 Step 4 把它改成读 `.modal` 的 class，
-> 并在 LEDGER 记一句"尺寸档由 attribute 契约改为 prop 契约，12 个调用点逐一确认宽度未变"。
-> 确认方式不是目视：`helpers.spec.ts` 风格的断言逐个档位比对 `getComputedStyle().width`
+> **硬要求**：`sizeClass` computed 必须与 props 声明在同一个 commit 内落地。
+> **拦截网是真的，但方向必须认清（Task 6 评审逐条核过 VTU 与 Vue 源码）**：VTU 把 `attrs` 与 `props`
+> 合并进同一个 vnode props 对象（`vue-test-utils.cjs.js:8278-8300`），所以测试里 `attrs:{wide:''}`
+> 与线上 `<Modal wide>` 编译结果等价——测的就是生产通道。于是声明 props 却不改模板读取处
+> ⇒ `$attrs.wide` 变 `undefined` ⇒ class 不生效 ⇒ `Modal.compat.test.ts` 那三条**红**；
+> 而**做对了则三条保持绿**（`[Boolean,String]` 联合下 Vue 布尔转换把 `''` 转成 `true`，computed 两种都接受）。
+> ⇒ **红 = 实现错，绿 = 实现对。**
+> ❌ **禁止**把这三条改成 `wrapper.props('wide')` 之类的 prop 值断言：那种写法即使模板还在读 `$attrs`、
+> 13 个调用点已经全塌成 640px，它照样绿——等于亲手拆掉这张网。断言对象必须是 `.modal` 上**渲染出的 class 列表**。
+> ⚠️ 这张网的**已知边界**（评审指出，须承认而非假装全覆盖）：jsdom 不应用 `<style scoped>`（`Modal.vue:77-85`），
+> 所以 vitest 只能证明"class 挂上了"，不能证明"宽度按 CSS 真的生效"。
+> 若 Phase 1 把 `.modal.wide` 这条规则改名而 class 不动，vitest 仍绿。补这个缺口的只有 Playwright 基线。
+> **注意口径（控制器实测）**：`<Modal` 共 **13 处使用、分布在 12 个文件**
+> （任务标题里的"12"指文件数）。档位分布：`wide` 5、`narrow` 7、裸 1、**`xwide` 0**。
+> 也就是说 `xwide` 这条通道**没有任何生产调用点**——Task 8 为它写的 props 声明只被测试保护，
+> 不被使用保护。这不影响本步的正确性判断（红仍是实现错），但**别把"xwide 绿了"当成
+> "13 个调用点都确认过了"**：真正的生产风险面是 wide 5 + narrow 7 + 裸 1。
+> `xwide` 目前是一段无人使用的 CSS 通道，本批不删（删除属功能面变更，超出"只改样式"边界），
+> 但要记 LEDGER 一行，让后续 Phase 4 收敛 `el-dialog` 时知道它可以被真正启用或明确废弃。
+> 确认方式不是目视：逐档位比对 `getComputedStyle().width`
 > 与 `design-system.css` 的 640/880/1060/460 四值。
 
 - [ ] **Step 4: 把 compat / vmodel 两组测试的查询路径迁到 body**
@@ -1315,10 +1342,21 @@ const props = defineProps<{
 Teleport 后 `wrapper.find('.modal')` 取不到节点（内容已不在 wrapper 的元素树里）。这是预期的连带影响，**不是**兼容锁失败：
 
 ```bash
-grep -n "wrapper.find('\.\(modal\|overlay\)" src/components/ui/__tests__/Modal.compat.test.ts src/components/ui/__tests__/Modal.vmodel.test.ts
+grep -nE "wrapper\.(find|get)\('\.(modal|overlay)" src/components/ui/__tests__/Modal.compat.test.ts src/components/ui/__tests__/Modal.vmodel.test.ts
 ```
 
-把命中的每一处从 `wrapper.find('.modal')` 改为 `document.body.querySelector('.modal')`（配 `attachTo: document.body`，两组测试已具备），并在用例末尾 `wrapper.unmount()` 防节点跨用例残留。**每条都要确认原断言意图不变**——若某条原意是"内容在 wrapper 内"，则该意图已被 Teleport 主动推翻，须在 LEDGER 的 `P0b-MODAL-01` 行写明，不许静默改绿。
+把命中的每一处从 `wrapper.find/get('.modal')` 改为 `document.body.querySelector('.modal')`
+（配 `attachTo: document.body`，两组测试已具备），并在用例末尾 `wrapper.unmount()` 防节点跨用例残留。
+**每条都要确认原断言意图不变**——若某条原意是"内容在 wrapper 内"，则该意图已被 Teleport 主动推翻，
+须在 LEDGER 的 `P0b-MODAL-01` 行写明，不许静默改绿。
+
+> ❌ **本步只允许改"怎么取节点"，不允许改"断言什么"。** 特别是那三条尺寸档用例：
+> 迁移后必须仍然断言 `.modal` **渲染出的 class 列表**
+> （`document.body.querySelector('.modal')?.classList.contains('wide')`）。
+> 一旦顺手改成 `wrapper.props('wide')`，这张网就废了——prop 断言在模板仍读 `$attrs`、
+> 13 个调用点全部塌回 640px 的情况下照样绿（理由见 Step 3 的 ⚠️ 块）。
+> 反证要求：迁移完成后，手工把 `Modal.vue` 模板里的 `:class="sizeClass"` 临时改成 `:class="{}"`，
+> 三条尺寸档用例**必须变红**；改回后必须变绿。这一步是本任务唯一能证明"网还在"的检验，不得跳过。
 
 - [ ] **Step 5: 跑测试确认通过**
 
