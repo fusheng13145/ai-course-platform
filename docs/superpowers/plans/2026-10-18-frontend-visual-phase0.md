@@ -791,12 +791,23 @@ import {
 const PROBE_ANCHORS = ['login', 'admin-dashboard', 'admin-courses-table'] as const
 
 // 三档，由粗到薄。档 2/3 才是本次测量的目的。
-const LADDER: Record<string, string> = {
-  gross: 'body{filter:brightness(0.97)}',
+// ⚠️ 作用域必须与被测锚点匹配：`.l1-card` 只存在于 AppShell 内的页面，**登录页没有这个类**。
+// 首轮就踩了：档 2/3 注入到 `login` 上命中 0 个元素，等于"没注入"，
+// 若直接看结果会把"没生效"误读成"检不出"。现在每档带 target 选择器，
+// 命中 0 时判 SKIPPED（空操作），不计入"检不出"。
+const LADDER: Record<string, { css: string; target: string }> = {
+  // 全站生效，用作"阈值配置本身是否在工作"的哨兵
+  gross: { css: 'body{filter:brightness(0.97)}', target: 'body' },
   // 档 2：单卡阴影增强 —— 正是 Phase 1 的 --sh-l1 alpha 0.06→0.10
-  shadow: '.l1-card{box-shadow:0 1px 2px rgba(24,32,48,0.12),0 4px 14px rgba(24,32,48,0.13)!important}',
+  shadow: {
+    css: '.l1-card{box-shadow:0 1px 2px rgba(24,32,48,0.12),0 4px 14px rgba(24,32,48,0.13)!important}',
+    target: '.l1-card',
+  },
   // 档 3：圆角差 2px —— 正是 Phase 2 半径阶梯里较薄的一档
-  radius: '.l1-card{border-radius:14px!important}',
+  radius: { css: '.l1-card{border-radius:14px!important}', target: '.l1-card' },
+  // 噪声地板档：不注入任何样式，专测"同一页连截两遍差多少"。
+  // 这个数决定可达阈值下限——真实噪声非 0 时，阈值不可能无限收紧。
+  noise: { css: '', target: 'body' },
 }
 const LAD = process.env.PW_LADDER ?? 'gross'
 const CSS = LADDER[LAD]
@@ -807,6 +818,11 @@ for (const slug of PROBE_ANCHORS) {
   if (!anchor) throw new Error(`探针锚点 ${slug} 不在 ANCHORS——先核对再跑`)
   test(`量程探针 ${slug} · 档 ${LAD}`, async ({ page }) => {
     test.skip(anchor.role === 'ANON' && slug === 'error-404', 'D-1 已拒收 error 锚点')
+    // ⚠️ 载入会话只能用 test.use({ storageState })，**绝不能**在这里调
+    // `page.context().storageState({ path })`——那个 API 的语义是把**当前** context 的会话
+    // **写到**该路径。在全新的空 context 上调它，等于把 Task 3 刚造好的三份夹具原地清空，
+    // 而且不报错：后续每个锚点都会截成未登录态，量程数字全部作废。
+    // （本任务首轮就是这么写的，实现者发现并纠正过；同类错误在 Task 4 也出现过一次。）
     if (anchor.role !== 'ANON') await page.context().storageState({ path: storagePathFor(anchor.role) })
     await setTheme(page, 'light')
     await freezeClock(page)
@@ -833,31 +849,57 @@ Modify `frontend/e2e/visual/visual-helpers.ts` — 在 `snapName` 附近加唯�
 export const SNAPSHOT_THRESHOLDS = { threshold: 0.2, maxDiffPixelRatio: 0.002 }
 ```
 
-- [ ] **Step 2: 三档各跑一次，把 red/green 原样记下来**
+- [ ] **Step 2: 四档各跑一次，把 detected / not-detected / skipped 原样记下来**
+
+> ⚠️ **比较机制必须说清楚，否则整个测量是恒真的**（首轮返工的原因，勿再照抄本段旧写法）。
+> 错误做法：注入后跑一次 `--update-snapshots` 生成参考、再跑一次比对 —— 两次都带同样的注入，
+> 必然逐像素相同，永远报"检不出"。首轮计划就是这个写法，实现者判定其为探针 vs 探针而否掉。
+> **正确做法**：每档比较必须是「**注入后的现场渲染** vs 该锚点**已提交的未注入基线**」。
+> 实现方式是把已提交基线**按字节复制**成该次运行的期望图（复制，不是重新截），再拿注入后的渲染去比：
+> FAILED = 检测到；PASSED = **假绿**（正是我们要找的东西）；SKIPPED = 注入命中 0 个元素，属空操作，不计入"检不出"。
+> **绝对禁止**让参考指向 anchors 的基线目录 —— 一次手滑的 `--update-snapshots` 就覆盖掉 22 张基线。
 
 ```bash
-for LAD in gross shadow radius; do
+for LAD in noise gross shadow radius; do
   echo "===== 档 $LAD ====="
-  PW_LADDER=$LAD PW_PORT=5175 npx playwright test -c playwright.visual.ts sensitivity --update-snapshots
-  # 上面一次生成参考；下面一次比对，注入相同则应绿——所以真正的判据是"参考图 vs 未注入的 anchors 基线"
-  PW_LADDER=$LAD PW_PORT=5175 npx playwright test -c playwright.visual.ts sensitivity
+  PW_LADDER=$LAD PW_PORT=5175 npx playwright test -c playwright.visual.ts sensitivity || true
 done
 ```
 
-Expected 并**必须写进 LEDGER**：把每档的探针图与对应锚点的现有基线**逐对比较**（用
-`PW_LADDER=<档> ... -g "量程探针 <slug>"` 配合临时把参考指向 anchors 基线，或直接目视 + 像素比对工具），
-得到三行结论：`gross → red/green`、`shadow → red/green`、`radius → red/green`。
-`gross` 若不报警，说明阈值配置本身是坏的，先修配置。**`shadow` 与 `radius` 必须都 red**，
-否则 Phase 1–3 的"零 diff"毫无意义——这是本任务的准出判据。
+Expected 并**必须写进 LEDGER**：每档一行 `detected / not-detected / skipped`，
+外加**实测 diff 百分比**与最大单通道色差 —— Phase 1–6 以后就用这套刻度报有效性证据，必须知道真实改动落在此刻度的哪里。
+`noise` 档不注入任何东西，只测"同一页连截两遍差多少"，给出**真实噪声地板**：地板非 0 时阈值不可能无限收紧。
+另注：档 2/3 的作用域是 `.l1-card`，**登录页没有这个类**；若不加命中数守卫，会把"注入没生效"
+误读成"基线检不出"。首轮实现者补了空操作守卫、判 SKIPPED 而非"检不出"，这个区分要保留。
+
+> **首轮离线自检台**（同一把 pixelmatch、真实 token/几何、噪声地板 0）的量出结果，
+> 必须在真实基线上**证实或推翻**——这是本轮最有价值的产出，因为现有结论全站在那个自检台上：
+> - `gross`（`body{filter:brightness(0.97)}`）在 `{0.2, 0.002}` 下**被吸收**（220px < 免检额 3082px，最大单通道色差 82/255）
+>   ⇒ 本段旧写法"`gross` 不报警说明配置是坏的、先修配置"这个假设**不成立**：连哨兵档都检不出。
+> - `shadow` 在 `t=0.2` 与 `t=0.1` 都是 **0 像素报警**（连 `ratio=0` 都判绿），最大单通道色差 20/255；
+>   0.2 的报警线要求单通道差 >52.8，**需收到 ≤0.05** 才见得到（11282px）。
+> - `radius` 在 `t=0.2/0.1` 为 0 px；**即便 `threshold` 降到 0 也只有 2559px < 免检额 3082px → 仍判绿**
+>   ⇒ 下面 Step 3 预留的"`threshold=0` 仍检不出"分支**已经成立**，必须同时收紧 `maxDiffPixelRatio`。
 
 - [ ] **Step 3: 按测量结果收紧，禁止反向**
 
-若 `shadow` 或 `radius` 为 green：把 `SNAPSHOT_THRESHOLDS.threshold` 逐级下调
-（0.2 → 0.1 → 0.05 → 0.02 → 0），**每调一次都跑一遍 `anchors` 确认 22 张仍零 diff**。
-收紧后若原有基线开始互红，说明基线本身混进了噪声——回头查 `settlePage`/`freezeClock`，
-**不得**继续放宽阈值来"消除噪声"。`threshold` 降到 0 仍检不出，才动 `maxDiffPixelRatio`。
-阈值一旦改变，所有基线必须重生成并**逐张重新人工核验**（标准同 Task 4 Step 5），
-LEDGER 记录新旧阈值、原因、重生成后的二次零 diff 结果。
+判据：**`shadow` 与 `radius` 两档都必须 detected**，否则 Phase 1–3 的任何"零 diff"都无意义。
+收紧顺序（每步都要在**真实基线**上做，不接受只由自检台推出的结论）：
+1. `threshold` 逐级下调 `0.2 → 0.1 → 0.05 → 0.02 → 0`；**每调一次都跑 anchors 全套确认 22 张仍零 diff**。
+   收紧后若原有基线开始互红，说明基线本身混进噪声 —— 回头查 `settlePage`/`freezeClock` 并读 `noise` 档地板值，
+   **不得**把阈值调回去。
+2. `threshold` 到 0 仍检不出（首轮自检台预言的正是这一支），才动 `maxDiffPixelRatio`：`0.002 → 0.0005 → 0`。
+   免检额是按全页像素数算的绝对值，`radius` 这种"薄铺、面积又不大"的改动受 `maxDiffPixelRatio` 支配，
+   **光降 `threshold` 治不了它**。
+3. **禁止**任何放宽（含"为消除噪声而调大阈值"）。未经验证的收紧与放宽一样错：
+   没有 22 张零 diff 复验的阈值改动一律不予合入。
+
+阈值一旦改变，所有受影响基线必须重生成并**逐张重新人工核验**（标准同 Task 4 Step 5：内容非空壳、
+暗色可读无糊区、图表真的画出内容），LEDGER 记新旧阈值、原因、重生成后的二次零 diff 结果。
+最终值写进 `SNAPSHOT_THRESHOLDS` 单一来源，`anchors.spec.ts` 与探针都从它取，**不得**两处各写一份。
+
+**若收紧到 `threshold:0` + `ratio:0` 仍看不见 `shadow`**：这是"机器证据协议本身需要重想"的结论，
+必须原样上报，不得折中——它意味着 spec §5/§6 承诺的"用 diff % 作有效性判据"在这类改动上不成立。
 
 - [ ] **Step 4: 还原校验，证明没污染仓库**
 
