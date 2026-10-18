@@ -307,6 +307,16 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 9. **验证链完整**：每单元收尾跑齐 `lint` → `typecheck` → `test`（153）→ `build` → `size:gate` → e2e，
    e2e 须带 **`PW_PORT=5175`**（`playwright.config.ts:3-6` 自陈 5173 被占用会静默复用别项目服务、测出假缺陷）。
 10. **留痕完整**：LEDGER 每行字段齐全，无空"理由"、无空"对比判定"。
+11. **过渡类属性不得充当证据**（Phase 0 实测追加）。视觉基线在 `reducedMotion: reduce` +
+    `animations: 'disabled'` 下采集，Playwright 会在捕获瞬间把过渡/动画**强制落到终态**；
+    叠加 `page.clock` 冻结后，页面里"已排队但推不动"的过渡既不会出现在像素上，
+    也会让 `getComputedStyle` 在读不到终态时返回**旧值**（实测：`.l1-card` 的
+    `transition: box-shadow 0.25s` 使第一版量程守卫把"注入生效"误报成"被优先级挡掉"，
+    而不过渡的 `border-radius` 正常）。
+    因此：**改 `transition-duration` / `transition-timing-function` 不构成可见回归，不得写进"有效性"栏**；
+    任何用 `getComputedStyle` 取证的脚本必须先显式消除冻结时钟的影响（临时压掉过渡再读，
+    且证明这一动作不改变被截图的那一帧），否则读到的是历史值。
+    过渡本身的合理性改由 §4 Phase 6 的降级实测与 §7 的动效清单承担，不由基线像素承担。
 
 ---
 
