@@ -152,8 +152,10 @@ export async function freezeClock(page: Page): Promise<void> {
  * 再一次性把时钟推进 5000ms（越过 ECharts ~1000ms 与 CountUp 的时长并停住），
  * 然后读字体、校文本不再变。这比 waitForTimeout 可靠——固定毫秒数在慢机器上会截到半截动画。
  *
- * 截图时刻的页面时间 = 09:00:10.000（freezeClock 停在 +5000，此处再 +5000）。
- * Task 4/14 若断言任何绝对时间文案，须按这个值算，不是 09:00:00。
+ * 截图时刻的页面时间 = 09:00:05 + `settlePage` 的 5000ms + 稳定态轮询所推进的 `120ms × 轮数`，
+ * 落在 09:00:10 附近；轮数由页面文本何时不再变化决定，故**不是**一个逐页相同的常量。
+ * Task 4/14 若要断言绝对时间文案，只能断言到"小时:分钟"粒度，或在同一锚点上比"二次跑一致"，
+ * 不得假设每页都是同一个毫秒值。
  */
 export async function settlePage(page: Page): Promise<void> {
   await page.waitForLoadState('networkidle')
@@ -398,13 +400,20 @@ e2e/visual/**/*-diff.png
 e2e/visual/**/*-actual.png
 ```
 
-在根 `.gitattributes` 追加：
+在根 `.gitattributes` 追加（**用 `binary` 宏，不用 `merge=binary`**——Task 2 实测裁定，见下）：
 
 ```gitattributes
-# 视觉基线：禁止文本化 diff 与换行转换，否则跨平台重生成会把整图判为差异
-frontend/e2e/visual/__snapshots__/**/*-dark.png binary -text merge=binary merge=binary
-frontend/e2e/visual/__snapshots__/**/*-light.png binary -text merge=binary merge=binary
+# 视觉基线：禁止换行/文本化 diff，否则跨平台重生成会把整图判为差异。
+# 用 binary 宏而非 merge=binary：本仓既没有任何 merge driver 配置
+# （git config --get-regexp '^merge\..*\.driver' 为空），而 merge=<名称> 只是"选一个驱动"，
+# 未注册的驱动会让合并直接报错；更关键的是 binary 宏本身已含 -merge -diff -text，
+# 再写 merge=binary 反而把宏设的 -merge 覆盖成一个不存在的驱动名。
+frontend/e2e/visual/__snapshots__/**/*.png binary
 ```
+
+判据实测依据（保留在案）：同样的 CRLF 字节，在 `__snapshots__` 下的 `.txt` 会被工作树规范化改写，
+在同目录的 `.png` 上 `git hash-object` 结果与原始字节一致；临时注释掉这条规则后该保护消失、恢复后
+哈希逐字节复原，证明这条规则**本身在承重**，不是被别的规则顺带覆盖。
 
 - [ ] **Step 3: 验证规则命中**
 
@@ -522,10 +531,16 @@ Modify `frontend/playwright.visual.ts` — 在 `defineConfig({` 后第一行加�
 Run: `PW_PORT=5175 npx playwright test -c playwright.visual.ts -g "admin 夹具"`
 Expected: PASS。若报 `/403`，先查 `loginAs` 是否因限流失败（按前置条件 2 放宽 `RATELIMIT_LOGIN_LIMIT`）；若报引导层拦截点击，说明 `dismissOnboarding` 未命中账号键，查 `OnboardingGuide.vue` 的键格式而非改测试。
 
-- [ ] **Step 6: 确认夹具文件不入 git**
+- [ ] **Step 6: 确认夹具文件不入 git（先验，再决定要不要写）**
 
-Run: `echo "frontend/e2e/visual/.auth/" >> frontend/.gitignore && git status --short`
-Expected: `git status` 不出现 `.auth/*.json`。storageState 内含 token，**必须**忽略。
+**不要**直接 `echo "frontend/e2e/visual/.auth/" >> frontend/.gitignore`——`frontend/.gitignore` 里的模式
+是**相对 `frontend/` 解析**的，那样写指向的是 `frontend/frontend/e2e/...`，永远不会命中（Task 2 实测：
+隔离仓库里 `git check-ignore` 对这种写法返回 exit=1）。正确做法是先验现状：
+
+Run: `cd frontend && git check-ignore -v e2e/visual/.auth/admin.json`
+Expected: 命中一条规则（Task 2 已把 `e2e/visual/.auth/` 加进 `frontend/.gitignore`）。
+若未命中，补 `e2e/visual/.auth/`（**不带** `frontend/` 前缀），再复验命中。
+然后 `git status --short` 确认工作区不出现 `.auth/*.json`——这些文件含会话 token，入 git 即泄漏。
 
 - [ ] **Step 7: 提交**
 
@@ -601,9 +616,13 @@ import {
  * 取 DOM 里第一个 course 卡链接，解析出 id。
  */
 async function resolvePath(page: Page, anchor: AnchorSpec): Promise<string> {
+  // 注意：本函数**不得**调 settlePage。settlePage 每次都会 runFor(5000) 推进页面时钟，
+  // 若这里也调一次，__FROM_COURSE_LIST__ 锚点的截图时刻就变成 09:00:20+，与其他 23 张不同基，
+  // 而重跑时"课程列表要几轮才稳定"又会让轮数漂移——等于专门给这一页装了个随机源。
+  // 列表页的 DOM 只需已渲染，用 locator 等待即可。
   if (anchor.path !== '__FROM_COURSE_LIST__') return anchor.path
-  await page.goto('/student/courses')
-  await settlePage(page)
+  await page.locator('a[href*="/student/courses/"], [data-course-id]').first()
+    .waitFor({ state: 'attached', timeout: 15000 })
   const href = await page
     .locator('a[href*="/student/courses/"], [data-course-id]')
     .first()
