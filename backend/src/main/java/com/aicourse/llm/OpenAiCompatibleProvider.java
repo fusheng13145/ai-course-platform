@@ -163,6 +163,18 @@ public abstract class OpenAiCompatibleProvider implements LLMProvider {
             // 「未配置」的唯一信号；上层 AiCoreComponent 会把它转成 503（NOT_CONFIGURED）
             return null;
         }
+        // DR-82：Key 值必须全 ASCII。实测踩到运维把中文备注直接粘在键值后面
+        // （`sk-xxx已移除泄露密钥；问答需由成员轮换后重新填入`），Authorization 头承载不了非 ASCII，
+        // 只能在写头时抛 UnicodeEncodeError——旧代码把它吞掉，故障就表现为"AI 恒为抽取式"。
+        // 这里在发出任何请求之前失败，并说清该改哪一处。
+        for (int i = 0; i < apiKey.length(); i++) {
+            if (apiKey.charAt(i) > 0x7F) {
+                throw new LLMUnavailableException(LLMUnavailableException.Kind.CREDENTIAL_REJECTED,
+                        String.format("大模型 [%s] 的 API Key 含非 ASCII 字符（自第 %d 位起），"
+                                        + "无法写入 Authorization 请求头：疑似中文备注粘连进键值。"
+                                        + "请把说明另起一行注释，值只保留 sk- 开头的 ASCII 串", name, i));
+            }
+        }
         if (jsonSchema != null && !jsonSchema.isBlank()) {
             messages = withJsonInstruction(messages, jsonSchema);
         }

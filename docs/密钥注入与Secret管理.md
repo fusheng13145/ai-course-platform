@@ -360,7 +360,7 @@ SPRING_CONFIG_IMPORT=optional:configtree:/tmp/ai-secrets/ \
 | 3 | 本项目无真实 Vault / 云 Secret Manager 实例                                | 方案为接线级交付，未做端到端联通验证                    | 具备实例后按 §4.2 逐项实测并回填证据                     |
 | 4 | 密钥轮转后应用内已缓存的连接（如 Hikari 池）不会自动重建                    | 数据源口令轮转需重启容器                                | 数据源口令轮转纳入「重启窗口」；JWT 密钥可热生效（无需重启）|
 | 5 | `configtree` **不做反向松散绑定**（§2.2），点分属性须以点分文件名接管         | 误用大写蛇形文件名时会**静默回落默认值**，密钥看似已接管实则未生效 | 按 §2.2 表逐键核对；用 §4.2 ④ 反证用例回归 |
-| 6 | `DEEPSEEK_API_KEY` **已注入一枚无效值且此前无任何机械判据能发现**：`audit-stats.py` 按长度判 `OK(37)`、`llmProvider` 健康组件按非空白判 UP——两处假绿已由 `scripts/probe-llm-chain.py` 补上（手册 **DR-75**）                                        | AI 功能降级、健康探针恒 503，掩盖真实健康信号            | 密钥到位后按 §3 任一路径接入，并把健康指示器状态纳入告警口径 |
+| 6 | `DEEPSEEK_API_KEY` **已注入一枚无效值且此前无任何机械判据能发现**：`audit-stats.py` 按长度判 `OK(37)`、`llmProvider` 健康组件按非空白判 UP——两处假绿已由 `scripts/probe-llm-chain.py` 补上（手册 **DR-75**）                                        | AI 功能降级、健康探针恒 503，掩盖真实健康信号            | 密钥到位后按 §3 任一路径接入，并把健康指示器状态纳入告警口径；⚠️ **另有一条形态约束（DR-82）：密钥值必须纯 ASCII**——本轮实测把中文说明粘在同一行键值后面（`sk-xxx已移除泄露密钥；…`），`Authorization` 头无法承载，请求在发出前就失败；说明必须另起注释行。启动器形状门与 Java provider 现均按此拒绝并给定位文案 |
 | 7 | ~~接线件与模板注释把 Redis 口令写成 `SPRING_DATA_REDIS_PASSWORD`~~ **已修复（DR-24，2026-10-06）**：`deploy/vault/agent.hcl` 目的地、`redis-password.ctmpl` 注释、`.env.example` 示例段三处均改为 `spring.data.redis.password` | 修复前按原文接线会**读不到口令**（Redis 认证失败），且注释误导后续运维判断 | 残留：Vault／Compose 路径的**端到端联通**仍未验（本机无实例，见 3）；接线前按 §4.2 ②/④ 复核 |
 
 

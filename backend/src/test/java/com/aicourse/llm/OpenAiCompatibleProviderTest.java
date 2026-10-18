@@ -25,6 +25,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -202,6 +203,26 @@ class OpenAiCompatibleProviderTest {
                 () -> provider.complete(List.of(Map.of("role", "user", "content", "hi")), null));
         // 清除中断标记，避免影响其它测试
         Thread.interrupted();
+    }
+
+    @Test
+    void complete_nonAsciiKeyFailsFastBeforeAnyRequest() {
+        // DR-82：实测踩到的形态——运维把中文备注直接粘在 Key 值后面（`sk-xxx已移除泄露密钥；…`），
+        // 写 Authorization 头时只能抛 UnicodeEncodeError。过去这被 `except Exception: pass` 吞掉，
+        // 表现为"AI 恒为抽取式"却无人能定位。现在必须在**发出任何请求之前**给出可诊断的失败。
+        OpenAiCompatibleProvider dirty =
+                new OpenAiCompatibleProvider("dirty", "sk-abcdef已移除", "http://localhost/v1",
+                        "model-x", 5, 60, 2) {};
+        // 刻意不打桩任何请求行为：断言"一次请求都不发"最直接的证据，就是这里连 stub 都不需要
+        RestClient rc = mock(RestClient.class);
+        ReflectionTestUtils.setField(dirty, "restClient", rc);
+
+        LLMUnavailableException ex = assertThrows(LLMUnavailableException.class,
+                () -> dirty.complete(List.of(Map.of("role", "user", "content", "hi")), null));
+        assertEquals(LLMUnavailableException.Kind.CREDENTIAL_REJECTED, ex.kind());
+        assertTrue(ex.getMessage().contains("非 ASCII"), ex.getMessage());
+        // 一次请求都不许发：既省掉 3 次重试等待，也避免把注定失败的请求打到上游
+        verify(rc, never()).post();
     }
 
     @Test

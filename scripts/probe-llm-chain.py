@@ -58,9 +58,14 @@ def key_verdict(env: dict) -> str:
     v = raw.strip()
     if not v:
         return ".env 该键为空"
-    real = engines().effective_api_key(v)
-    shape = "sk- 前缀（通过形状门）" if real else f"非 sk- 前缀（被形状门判为占位，长度 {len(v)}）"
-    return shape
+    if not engines().effective_api_key(v):
+        # 与 start-engines.effective_api_key 同一判据：前缀 + 全 ASCII（DR-82）
+        if not v.startswith("sk-"):
+            return f"非 sk- 前缀（判为占位；长度 {len(v)}）"
+        bad = [i for i, c in enumerate(v) if ord(c) > 127]
+        return (f"sk- 前缀通过，但**含 {len(bad)} 个非 ASCII 字符**（自第 {bad[0]} 位起，"
+                f"疑似备注粘连进键值）→ 形状门拒绝；请把说明另起注释行（DR-82）")
+    return "sk- 前缀且全 ASCII（通过形状门）"
 
 
 def probe_engine() -> int:

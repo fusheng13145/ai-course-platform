@@ -352,3 +352,12 @@ def test_graph_backend_reads_the_real_payload_and_labels_memory_honestly():
     # 拿不到响应只能说 unknown，不能把「内存图」误报成 Neo4j
     assert eng.graph_backend(None) == "unknown"
     assert eng.graph_backend({}) == "unknown"
+
+def test_effective_api_key_rejects_non_ascii_value():
+    """DR-82：Key 值里粘了中文备注（实测形态：`sk-xxx已移除泄露密钥；问答需由成员轮换后重新填入`）。
+
+    这种值能过 `sk-` 前缀检查，却会在引擎写 Authorization 头时抛 UnicodeEncodeError；
+    旧代码把该异常整段吞掉，故障表现为"AI 恒为抽取式"且无从定位。形状门必须提前判它不可用。
+    """
+    assert eng.effective_api_key("sk-abcdef已移除清露") is None
+    assert eng.effective_api_key("sk-0123456789abcdef") == "sk-0123456789abcdef"

@@ -89,11 +89,18 @@ def parse_env(text: str) -> dict:
 
 
 def effective_api_key(value) -> str | None:
-    """只有形如 sk-… 的值才算真密钥；占位串按未配置处理（DR-38 的假绿形态）。"""
+    """只有形如 `sk-…` **且全 ASCII** 的值才算真密钥；占位串/含备注的值一律按未配置处理。
+
+    DR-38 管"看着像占位串"，DR-82 管"粘了中文备注"：后者能过前缀检查，却会在引擎写
+    Authorization 头时抛 UnicodeEncodeError，而旧代码整段吞掉该异常，表现为"AI 恒为抽取式"
+    且无从定位。在启动器这一层就拒绝，比让请求在运行时静默失败更可诊断。
+    """
     if not value:
         return None
     stripped = str(value).strip()
-    return stripped if stripped.startswith("sk-") else None
+    if not stripped.startswith("sk-"):
+        return None
+    return stripped if stripped.isascii() else None
 
 
 def default_exists(path: str) -> bool:

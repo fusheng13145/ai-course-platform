@@ -283,9 +283,9 @@ cd frontend && npm run lint && npm run typecheck:gate && npx vitest run && npm r
 
 | 门禁 | 读数（当前本机口径） |
 | --- | --- |
-| 后端单元测试 | **3006 用例 / 0 失败 / 0 错误 / 0 跳过**（2026-10-18 09:41 本机 `mvn -B -o clean verify -DskipITs`，211 份 surefire 报告；口径链与覆盖率见手册 B.2） |
+| 后端单元测试 | **3007 用例 / 0 失败 / 0 错误 / 0 跳过**（2026-10-18 10:0x 本机 `mvn -B -o clean verify -DskipITs`，211 份 surefire 报告；口径链与覆盖率见手册 B.2） |
 | 后端集成测试 | **12 用例 / 0 失败**（含 IT 那轮，现由 CI 取数） |
-| JaCoCo | **LINE 89.13%（15219/17075）/ BRANCH 70.71%（5038/7125）**（358 类，2026-10-18 09:41 同轮；BRANCH 带 ±1 噪声、`jacoco.csv` 口径较 `<report>` 级多 12 行，两者不等价，见 B.2）→ 在**阈值未降低**（LINE ≥ 85% / BRANCH ≥ 65%）的前提下达标，靠补真实测试而非降阈值 |
+| JaCoCo | **LINE 89.13%（15224/17080）/ BRANCH 70.74%（5043/7129）**（358 类，2026-10-18 10:0x 同轮；BRANCH 带 ±1 噪声、`jacoco.csv` 口径较 `<report>` 级多 12 行，两者不等价，见 B.2）→ 在**阈值未降低**（LINE ≥ 85% / BRANCH ≥ 65%）的前提下达标，靠补真实测试而非降阈值 |
 | ArchUnit | **6 条**架构守护全通过 |
 | SpotBugs | **0 缺陷**（`failOnError=true` 硬阻断，13 个框架性 `<Match>` 豁免） |
 | 前端单测 / ESLint | **153 文件 / 1642 用例全绿**；lint **0 error / 0 warning**（2026-10-18 复跑） |

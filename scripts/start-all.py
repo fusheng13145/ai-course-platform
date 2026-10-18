@@ -539,7 +539,7 @@ def print_status(sink: Sink, status: dict, env: dict, app_title: str) -> None:
     sink.info(
         "[OK]   DEEPSEEK_API_KEY 已配置且形如真实 Key（值从不打印）"
         if key
-        else "[WARN] DEEPSEEK_API_KEY 未配置或形如占位串 -> AI 走抽取式回答（§40），不阻塞启动"
+        else "[WARN] DEEPSEEK_API_KEY 未配置、形如占位串、或含非 ASCII 字符（备注粘连进键值，DR-82） -> 大模型调用不可用（Java 侧按 §40 如实返回 503，不再走「抽取式冒充成功」），不阻塞启动"
     )
     sink.info("-" * 62)
 
