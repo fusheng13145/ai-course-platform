@@ -1035,6 +1035,11 @@ Phase 1 要动的三样形态里**只量过两样**：shadow-alpha（32~86 倍�
 离线自检台与 Playwright 的读数就会**静默分叉**，而喂给 LEDGER 的是前者。
 本步把 mask 传进两条路径，并加一条断言：同一对图，两条路径的计数相等。
 
+> 顺带一处评审 Minor（本任务既然要动这个文件就一并改，别留假引用）：交付注释里的
+> `workerProcessEntry.js:1258` 实际在 `playwright/lib/worker/workerProcessEntry.js:1266`，
+> 结论成立但行号指错。评审已逐条验过其余库引用（`coreBundle.js:21599-21624 / :7896 / :6962 / :7005 / :7012 / :7069`、
+> `types.d.ts:20466-20480`、`matchers/expect.js:12597`）**全部准确**，只有这一处要改。
+
 - [ ] **Step 2: 堵掉"空态过守卫"这个洞**
 
 Task 4b 记录了一次真实事故：后端瞬时失败使 `teacher-dashboard` 渲染成空态，
