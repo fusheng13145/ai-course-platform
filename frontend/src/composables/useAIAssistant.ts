@@ -157,7 +157,13 @@ export function useAIAssistant() {
         await handleSendFallback(aiMsgIdx, content)
       } catch (e) {
         logger.error('AI 聊天失败:', e)
-        messages.value[aiMsgIdx].content = '抱歉，AI 服务暂时不可用，请稍后再试。'
+        const bizCode = (e as { code?: number })?.code
+        // 503 时后端的 message 就是可诊断病因（凭据被拒 / 额度用尽 / 未配置 Key），原样呈现；
+        // 其它失败仍用通用句——axios 的 "Network Error" 之类不该直接丢给学生。
+        messages.value[aiMsgIdx].content =
+          bizCode === 503 && e instanceof Error && e.message
+            ? e.message
+            : '抱歉，AI 服务暂时不可用，请稍后再试。'
         messages.value[aiMsgIdx].error = true
       }
     } finally {

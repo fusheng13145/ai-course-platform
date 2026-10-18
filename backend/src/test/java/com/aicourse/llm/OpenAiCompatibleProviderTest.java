@@ -1,11 +1,14 @@
 package com.aicourse.llm;
 
+import com.aicourse.exception.LLMUnavailableException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
 import org.springframework.test.util.ReflectionTestUtils;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
@@ -16,10 +19,14 @@ import java.util.Map;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 /**
@@ -100,6 +107,10 @@ class OpenAiCompatibleProviderTest {
     }
 
     // ===================== complete 成功与各失败分支 =====================
+    //
+    // 契约（DR-74-B）：非空串 ⇔ 成功；null ⇔ 仅表示「未配置 Key」；调用失败一律抛
+    // LLMUnavailableException。过去把 401/超时/空响应统统 return null，上层就分不清
+    // 「没配 Key」和「Key 被拒」，只能一律发一句"暂时不可用"并按 200 成功返回。
 
     @Test
     void complete_success() {
@@ -111,37 +122,44 @@ class OpenAiCompatibleProviderTest {
     }
 
     @Test
-    void complete_respNull() {
+    void complete_respNullThrowsEmptyResponse() {
         ReflectionTestUtils.setField(provider, "restClient", mockRestClientReturning(null));
-        assertNull(provider.complete(List.of(Map.of("role", "user", "content", "hi")), null));
+        LLMUnavailableException ex = assertThrows(LLMUnavailableException.class,
+                () -> provider.complete(List.of(Map.of("role", "user", "content", "hi")), null));
+        assertEquals(LLMUnavailableException.Kind.EMPTY_RESPONSE, ex.kind());
     }
 
     @Test
-    void complete_noChoicesKey() {
+    void complete_noChoicesKeyThrowsEmptyResponse() {
         ReflectionTestUtils.setField(provider, "restClient", mockRestClientReturning(Map.of("foo", "bar")));
-        assertNull(provider.complete(List.of(Map.of("role", "user", "content", "hi")), null));
+        assertThrows(LLMUnavailableException.class,
+                () -> provider.complete(List.of(Map.of("role", "user", "content", "hi")), null));
     }
 
     @Test
-    void complete_emptyChoices() {
+    void complete_emptyChoicesThrowsEmptyResponse() {
         ReflectionTestUtils.setField(provider, "restClient", mockRestClientReturning(Map.of("choices", List.of())));
-        assertNull(provider.complete(List.of(Map.of("role", "user", "content", "hi")), null));
+        assertThrows(LLMUnavailableException.class,
+                () -> provider.complete(List.of(Map.of("role", "user", "content", "hi")), null));
     }
 
     @Test
-    void complete_messageOrContentBlank() {
+    void complete_contentBlankThrowsEmptyResponse() {
         // message 为 null
         ReflectionTestUtils.setField(provider, "restClient",
                 mockRestClientReturning(Map.of("choices", List.of(Map.of()))));
-        assertNull(provider.complete(List.of(Map.of("role", "user", "content", "hi")), null));
-        // content 为空串
+        assertThrows(LLMUnavailableException.class,
+                () -> provider.complete(List.of(Map.of("role", "user", "content", "hi")), null));
+        // content 为空白串
         ReflectionTestUtils.setField(provider, "restClient",
                 mockRestClientReturning(Map.of("choices", List.of(Map.of("message", Map.of("content", "  "))))));
-        assertNull(provider.complete(List.of(Map.of("role", "user", "content", "hi")), null));
+        assertThrows(LLMUnavailableException.class,
+                () -> provider.complete(List.of(Map.of("role", "user", "content", "hi")), null));
     }
 
     @Test
     void complete_unconfiguredReturnsNull() {
+        // null 现在是「未配置」的唯一信号，不能改成抛错——上层靠它给"请联系管理员配 Key"的文案
         assertNull(unconfiguredProvider.complete(List.of(Map.of("role", "user", "content", "hi")), null));
     }
 
@@ -165,19 +183,43 @@ class OpenAiCompatibleProviderTest {
     }
 
     @Test
-    void complete_maxRetriesExhausted() {
+    void complete_maxRetriesExhaustedThrowsUnreachable() {
         ReflectionTestUtils.setField(provider, "restClient", mockRestClientThrowing());
-        assertNull(provider.complete(List.of(Map.of("role", "user", "content", "hi")), null));
+        LLMUnavailableException ex = assertThrows(LLMUnavailableException.class,
+                () -> provider.complete(List.of(Map.of("role", "user", "content", "hi")), null));
+        assertEquals(LLMUnavailableException.Kind.UPSTREAM_UNREACHABLE, ex.kind());
+        // 类别必须可诊断：日志/文案里要能看出是重试耗尽，而不是又一句无差别"暂时不可用"
+        assertTrue(ex.getMessage().contains("重试"), ex.getMessage());
+        assertNotNull(ex.getCause());
     }
 
     @Test
-    void complete_interruptedDuringRetry() {
+    void complete_interruptedDuringRetryThrows() {
         ReflectionTestUtils.setField(provider, "restClient", mockRestClientThrowing());
-        // 中断当前线程，使重试中的 Thread.sleep 抛 InterruptedException -> break
+        // 中断当前线程，使重试中的 Thread.sleep 抛 InterruptedException -> 立即中止
         Thread.currentThread().interrupt();
-        assertNull(provider.complete(List.of(Map.of("role", "user", "content", "hi")), null));
+        assertThrows(LLMUnavailableException.class,
+                () -> provider.complete(List.of(Map.of("role", "user", "content", "hi")), null));
         // 清除中断标记，避免影响其它测试
         Thread.interrupted();
+    }
+
+    @Test
+    void complete_credentialRejectedIsClassifiedAndNotRetried() {
+        // 401 是确定性失败，重试 3 次只会白等退避时间并放大上游压力（实测每个 AI 请求 3 条 401 日志）。
+        RestClient rc = mock(RestClient.class);
+        when(rc.post()).thenReturn(uriSpec);
+        when(uriSpec.uri("/chat/completions")).thenReturn(bodySpec);
+        when(bodySpec.body(any(Object.class))).thenReturn(bodySpec);
+        when(bodySpec.retrieve()).thenReturn(respSpec);
+        when(respSpec.body(eq(Map.class)))
+                .thenThrow(new HttpClientErrorException(HttpStatus.UNAUTHORIZED, "401 Authorization Required"));
+        ReflectionTestUtils.setField(provider, "restClient", rc);
+
+        LLMUnavailableException ex = assertThrows(LLMUnavailableException.class,
+                () -> provider.complete(List.of(Map.of("role", "user", "content", "hi")), null));
+        assertEquals(LLMUnavailableException.Kind.CREDENTIAL_REJECTED, ex.kind());
+        verify(respSpec, times(1)).body(eq(Map.class));
     }
 
     // ===================== completeJson 注入分支 =====================

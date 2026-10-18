@@ -1,6 +1,8 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.exception.LLMUnavailableException;
 import com.aicourse.llm.LLMProvider;
 import com.aicourse.service.RAGService;
 import com.aicourse.service.component.ai.AiCoreComponent;
@@ -169,8 +171,12 @@ class AIServiceImplExtraTest {
     @Test
     @DisplayName("chat(List): 空/null -> 通用错误文案")
     void chat_list_empty() {
-        assertTrue(service.chat(Collections.emptyList(), 1L).length() > 0);
-        assertTrue(service.chat(null, 1L).length() > 0);
+        // DR-74-B：空历史是入参问题，必须以 400 失败；过去它返回一句"AI 服务暂时不可用"，
+        // 与真正的上游 401 共用同一句话，用户与排障者都无法区分。
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.chat(Collections.emptyList(), 1L));
+        assertEquals(ApiCode.BAD_REQUEST, ex.getCode());
+        assertThrows(BusinessException.class, () -> service.chat(null, 1L));
         // 空历史必须短路，不得带着空 messages 去计费调用
         verify(llmProvider, never()).complete(any(), any());
     }
@@ -629,20 +635,26 @@ class AIServiceImplExtraTest {
     @DisplayName("callLlm: 供应商未配置 -> 返回提示（覆盖 multiple 调用点）")
     void callLlm_noProvider() {
         when(llmProvider.isConfigured()).thenReturn(false);
-        assertEquals(service.noProviderMessage(), service.recommendLearningJson("数学"));
-        assertEquals(service.noProviderMessage(), service.recommendLearningWithContext(Map.of("c", 1)));
-        assertEquals(service.noProviderMessage(), service.generateLearningAdviceJson("{}", "[]"));
+        // DR-74-B：未配置 Key 也必须以 503 失败（文案保留"请联系管理员配置"），
+        // 不能再把它当正常回答返回——否则管理端看到的是"AI 答了一句客套话"，不是"AI 没配"。
+        LLMUnavailableException ex = assertThrows(LLMUnavailableException.class,
+                () -> service.recommendLearningJson("数学"));
+        assertEquals(LLMUnavailableException.Kind.NOT_CONFIGURED, ex.kind());
+        assertEquals(ApiCode.SERVICE_UNAVAILABLE, ex.getCode());
+        assertThrows(LLMUnavailableException.class, () -> service.recommendLearningWithContext(Map.of("c", 1)));
+        assertThrows(LLMUnavailableException.class, () -> service.generateLearningAdviceJson("{}", "[]"));
         // 未配置供应商时三次调用点都应短路，一条计费请求都不许发出
         verify(llmProvider, never()).completeJson(any(), any(), any());
     }
 
     @Test
-    @DisplayName("callLlm: 返回 null -> 通用错误文案 + 失败埋点")
+    @DisplayName("callLlm: 返回 null -> 抛 503(EMPTY_RESPONSE) + 失败埋点")
     void callLlm_nullResult() {
-        // null 注入桩：any() 合理，此处断言降级文案与失败埋点
+        // null 注入桩：any() 合理，此处断言失败语义与失败埋点
         when(llmProvider.completeJson(any(), any(), any())).thenReturn(null);
-        String r = service.recommendLearningJson("数学");
-        assertTrue(r.contains("不可用") || r.contains("暂未配置"));
+        LLMUnavailableException ex = assertThrows(LLMUnavailableException.class,
+                () -> service.recommendLearningJson("数学"));
+        assertEquals(LLMUnavailableException.Kind.EMPTY_RESPONSE, ex.kind());
         assertEquals(1.0, meterRegistry.counter("aicourse_ai_calls_failed_total", "type", "recommend").count(),
                 "空响应应计入 recommend 分桶的失败埋点");
     }
@@ -667,8 +679,10 @@ class AIServiceImplExtraTest {
     @DisplayName("streamChat: 未配置 -> 直接返回提示 Flux")
     void streamChat_noProvider() {
         when(llmProvider.isConfigured()).thenReturn(false);
-        reactor.core.publisher.Flux<String> f = service.streamChat("q", null).getTokens();
-        assertEquals(service.noProviderMessage(), f.blockFirst());
+        // DR-74-B：未配 Key 时不能再"播出一个假装是回答的首帧"——同步抛出，SSE 根本不开播
+        LLMUnavailableException ex = assertThrows(LLMUnavailableException.class,
+                () -> service.streamChat("q", null));
+        assertEquals(LLMUnavailableException.Kind.NOT_CONFIGURED, ex.kind());
         verify(llmProvider, never()).stream(any(), any());
     }
 

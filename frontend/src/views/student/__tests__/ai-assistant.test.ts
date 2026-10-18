@@ -365,12 +365,36 @@ describe('AI 学习助手问答流程（挂载真实组件）', () => {
     wrapper.unmount()
   })
 
-  it('SSE 与 qaAsk 均失败时显示错误占位消息', async () => {
+  it('上游 503 时把后端的病因原样呈现，不再用无差别占位句', async () => {
+    // DR-74-B：后端不再把失败包成 200 + 一句客套话，而是 503 + 可诊断文案。
+    // 前端若仍固定显示自己那句"暂时不可用"，401（要换 Key）与超时（重试即可）在学生端就长得一样。
+    const reason: Error & { code?: number } = new Error(
+      '大模型 [deepseek] 凭据被拒（HTTP 401）：API Key 无效、已失效或不属于该供应商，请联系管理员更换',
+    )
+    reason.code = 503
     mockQaStream.mockImplementation((params, cb) => {
       cb.onError(new Error('SSE 不可用'))
       return { abort: vi.fn() }
     })
-    mockQaAsk.mockRejectedValue(new Error('网络异常'))
+    mockQaAsk.mockRejectedValue(reason)
+
+    const wrapper = mountAssistant()
+    await sendMessage(wrapper, '问题')
+    await flushPromises()
+
+    const msg = assistantVm(wrapper).messages[1]
+    expect(msg.content).toContain('凭据被拒')
+    expect(msg.error).toBe(true)
+    expect(assistantVm(wrapper).loading).toBe(false)
+    wrapper.unmount()
+  })
+
+  it('SSE 与 qaAsk 均失败且拿不到业务码时，才用通用兜底句', async () => {
+    mockQaStream.mockImplementation((params, cb) => {
+      cb.onError(new Error('SSE 不可用'))
+      return { abort: vi.fn() }
+    })
+    mockQaAsk.mockRejectedValue(new Error('Network Error'))
 
     const wrapper = mountAssistant()
     await sendMessage(wrapper, '问题')

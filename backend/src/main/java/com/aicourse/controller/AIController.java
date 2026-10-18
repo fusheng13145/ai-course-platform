@@ -385,6 +385,10 @@ public class AIController {
                 Map<String, Object> userStats = analyticsService.getUserDashboard(userId);
                 Map<String, Object> advice = aiService.generateLearningAdvice(userStats);
                 return ApiResponse.success(advice);
+            } catch (BusinessException e) {
+                // 原样上抛：AI 不可用已是 LLMUnavailableException(503)，若在这里一律重写成
+                // "生成学习建议失败: xxx"(默认 400)，503 就退化成"你参数不对"，运维与前端都看不出是上游故障
+                throw e;
             } catch (Exception e) {
                 log.error("生成学习建议失败: {}", e.getMessage(), e);
                 throw new BusinessException("生成学习建议失败: " + e.getMessage());

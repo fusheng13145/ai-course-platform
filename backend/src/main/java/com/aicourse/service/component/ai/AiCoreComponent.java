@@ -1,6 +1,7 @@
 package com.aicourse.service.component.ai;
 
 import com.aicourse.common.JsonUtils;
+import com.aicourse.exception.LLMUnavailableException;
 import com.aicourse.llm.LLMProvider;
 import com.aicourse.service.AiCallLogService;
 import com.aicourse.service.impl.PromptGuard;
@@ -37,7 +38,9 @@ public class AiCoreComponent {
 
     /** 未配置任何 LLM 供应商 Key 时返回的清晰业务提示（不再返回伪造 JSON） */
     public static final String NO_PROVIDER_MSG = "AI 服务暂未配置（请联系管理员配置大模型 API Key 后重试）。";
-    public static final String SERVICE_ERROR_MSG = "AI 服务暂时不可用，请稍后再试。";
+    // DR-74-B：删除 "AI 服务暂时不可用，请稍后再试。" 这个 SERVICE_ERROR_MSG 常量。
+    // 它曾被当作正常回答返回（HTTP 200 + code 200），是"失败伪装成成功"的载体；
+    // 失败现在一律是 LLMUnavailableException(503)，不允许再有任何"看起来像内容"的兜底文案。
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
@@ -145,33 +148,47 @@ public class AiCoreComponent {
     }
 
     /**
-     * 直连出口：调用供应商后对输出统一做活动内容清洗（null 透传，交由上层判空）。
+     * 直连出口：调用供应商后对输出统一做活动内容清洗。
+     * <p>取不到内容一律是失败（不再把 null 交给上层去兜 {@code SERVICE_ERROR_MSG}——
+     * 那个兜底正是「HTTP 200 + 一句中文」的诞生地，见手册 DR-74）。</p>
      */
     public String completeAndSanitize(List<Map<String, String>> messages, double temperature, String type) {
         recordAiCall(type);
         long inputTokens = estimateInputTokens(messages);
         recordAiToken(type, inputTokens);
         long startedNanos = System.nanoTime();
+        String sanitized;
         try {
-            String sanitized = promptGuard.sanitizeOutput(llmProvider.complete(messages, temperature));
-            // 落库的 success 以"是否拿到可用输出"为准：空响应对统计而言算一次失败（与既有指标计数口径无关）
-            logCall(inputTokens, sanitized, startedNanos, sanitized != null,
-                    sanitized == null ? SERVICE_ERROR_MSG : null);
-            return sanitized;
+            sanitized = promptGuard.sanitizeOutput(llmProvider.complete(messages, temperature));
         } catch (Exception e) {
             log.error("AI相关操作失败: {}", e.getMessage(), e);
             recordAiFailure(type);
             logCall(inputTokens, null, startedNanos, false, e.getMessage());
             throw e;
         }
+        // 空响应单独在 try 之外判定并计入一次失败：放进 try 里会被下面的兜底 catch 再记一遍，
+        // 失败率与 ai_call_logs 都会翻倍。
+        if (sanitized == null || sanitized.isBlank()) {
+            recordAiFailure(type);
+            logCall(inputTokens, null, startedNanos, false, "上游未返回可用正文");
+            throw new LLMUnavailableException(LLMUnavailableException.Kind.EMPTY_RESPONSE,
+                    "大模型未返回可用正文（供应商 [" + providerName() + "] 返回空内容）");
+        }
+        logCall(inputTokens, sanitized, startedNanos, true, null);
+        return sanitized;
     }
 
     /**
-     * 统一调用入口：未配置供应商时返回清晰提示，调用失败返回通用错误文案；成功结果统一清洗后下发
+     * 统一调用入口：成功返回清洗后的正文；<b>失败抛 {@link LLMUnavailableException}（HTTP 503）</b>。
+     * <p>旧契约在此返回 {@code NO_PROVIDER_MSG} / {@code SERVICE_ERROR_MSG} 两句文案，控制器把它们当
+     * 正常回答用 {@code ApiResponse.success} 发出，于是"AI 挂了"在协议层长成"AI 答了一句客套话"，
+     * 出题链路甚至拿这句中文去 parse JSON（DR-74 实测）。</p>
      */
     public String callLlm(List<Map<String, String>> messages, Double temperature, String jsonSchema, String type) {
         if (!llmProvider.isConfigured()) {
-            return NO_PROVIDER_MSG;
+            // 与既有口径一致：未配置不计入调用量/失败率（它是部署形态，不是上游故障），
+            // 但对调用方必须是失败——503 + 「请联系管理员配置 Key」的文案原样保留。
+            throw new LLMUnavailableException(LLMUnavailableException.Kind.NOT_CONFIGURED, NO_PROVIDER_MSG);
         }
         recordAiCall(type);
         long inputTokens = estimateInputTokens(messages);
@@ -180,24 +197,27 @@ public class AiCoreComponent {
         }
         recordAiToken(type, inputTokens);
         long startedNanos = System.nanoTime();
+        String result;
         try {
-            String result = jsonSchema != null
+            result = jsonSchema != null
                     ? llmProvider.completeJson(messages, temperature, jsonSchema)
                     : llmProvider.complete(messages, temperature);
-            if (result == null) {
-                recordAiFailure(type);
-                logCall(inputTokens, null, startedNanos, false, SERVICE_ERROR_MSG);
-                return SERVICE_ERROR_MSG;
-            }
-            String sanitized = promptGuard.sanitizeOutput(result);
-            logCall(inputTokens, sanitized, startedNanos, true, null);
-            return sanitized;
         } catch (Exception e) {
             log.error("AI相关操作失败: {}", e.getMessage(), e);
             recordAiFailure(type);
             logCall(inputTokens, null, startedNanos, false, e.getMessage());
             throw e;
         }
+        if (result == null) {
+            // 供应商侧 null 只可能是「未返回可用正文」（未配置已在方法开头抛出），同样只记一次失败
+            recordAiFailure(type);
+            logCall(inputTokens, null, startedNanos, false, "上游返回空响应");
+            throw new LLMUnavailableException(LLMUnavailableException.Kind.EMPTY_RESPONSE,
+                    "大模型返回空响应（供应商 [" + providerName() + "]）");
+        }
+        String sanitized = promptGuard.sanitizeOutput(result);
+        logCall(inputTokens, sanitized, startedNanos, true, null);
+        return sanitized;
     }
 
     /**

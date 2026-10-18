@@ -311,7 +311,11 @@ service.interceptors.response.use(
     /* 业务状态码判断 */
     if (data.code !== undefined && data.code !== 200) {
       showThrottledMessage('error', data.message || '请求失败')
-      return Promise.reject(new Error(data.message || '请求失败'))
+      /* 把业务码挂在 Error 上：调用方需要区分"上游 AI 不可用(503，要报病因)"与
+         其它失败（网络层文案不该原样丢给用户）。仅加属性，不改既有 reject 语义。 */
+      const bizError = new Error(data.message || '请求失败') as Error & { code?: number }
+      bizError.code = data.code
+      return Promise.reject(bizError)
     }
 
     return data

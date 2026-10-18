@@ -13,6 +13,7 @@ import com.aicourse.vo.QaAnswerVO;
 import com.aicourse.vo.QaSourceVO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import com.aicourse.exception.LLMUnavailableException;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -441,6 +442,75 @@ class AIControllerTest extends ControllerTestBase {
                 .andExpect(status().isForbidden());
     }
 
+
+    // ==================== AI 上游不可用的对外语义（DR-74-B） ====================
+    //
+    // 钉的是"失败在协议层就得是失败"：这四个端点原先在 LLM 挂掉时返回
+    // HTTP 200 / code 200 / message=success，正文是 "AI 服务暂时不可用，请稍后再试。"
+    // （手册 DR-74 实测：问答与批改如此，出题把这句当 JSON 解析报 400，建议报"未返回有效建议"）。
+
+    private static LLMUnavailableException credentialDown() {
+        return new LLMUnavailableException(LLMUnavailableException.Kind.CREDENTIAL_REJECTED,
+                "大模型 [deepseek] 凭据被拒（HTTP 401）：API Key 无效、已失效或不属于该供应商，请联系管理员更换");
+    }
+
+    @Test
+    @DisplayName("POST /ai/qa/ask - 大模型凭据被拒必须落 503，而非 200 带降级文案")
+    void qaAsk_llmDown_returns503() throws Exception {
+        AiChatSession session = new AiChatSession();
+        session.setSessionId("sess-down");
+        when(aiChatSessionService.createSession(anyLong(), any(), any())).thenReturn(session);
+        when(aiChatSessionService.getMessages(anyString())).thenReturn(Collections.emptyList());
+        when(aiService.ragAsk(anyString(), any())).thenThrow(credentialDown());
+
+        MvcResult mvc = mockMvc.perform(post("/ai/qa/ask").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"question\":\"什么是闭包\",\"courseId\":\"2\"}").with(withUser(1L, "TEACHER")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value(503))
+                // 文案要能指认病因：出现"凭据被拒/401"才算可诊断，"暂时不可用"这种无差别句不行
+                .andExpect(jsonPath("$.message").value(org.hamcrest.Matchers.containsString("凭据")));
+    }
+
+    @Test
+    @DisplayName("POST /ai/essay/correct - 批改调用失败落 503")
+    void essayCorrect_llmDown_returns503() throws Exception {
+        when(aiService.generateContent(anyString(), anyString())).thenThrow(credentialDown());
+
+        MvcResult mvc = mockMvc.perform(post("/ai/essay/correct").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"我的作文\"}").with(withUser(1L, "TEACHER")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value(503));
+    }
+
+    @Test
+    @DisplayName("GET /ai/advice/learning - 503 不能被控制器重写成 400「生成学习建议失败」")
+    void learningAdvice_llmDown_keeps503() throws Exception {
+        when(analyticsService.getUserDashboard(anyLong())).thenReturn(new HashMap<>());
+        when(aiService.generateLearningAdvice(any())).thenThrow(credentialDown());
+
+        MvcResult mvc = mockMvc.perform(get("/ai/advice/learning").with(withUser(1L, "STUDENT")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value(503));
+    }
+
+    @Test
+    @DisplayName("GET /ai/analysis/weak-points - 上游故障不得伪装成 severity=LOW 的分析条目")
+    void weakPoints_llmDown_returns503() throws Exception {
+        when(analyticsService.getUserDashboard(anyLong())).thenReturn(new HashMap<>());
+        when(aiService.analyzeWeakPoints(any())).thenThrow(credentialDown());
+
+        MvcResult mvc = mockMvc.perform(get("/ai/analysis/weak-points").with(withUser(1L, "STUDENT")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value(503));
+    }
 
     // ==================== 已废弃兼容接口（端点已移除，仅保留安全行为断言） ====================
     // 历史遗留端点 /chat /generate-question /generate-summary /check-plagiarism /rag/ask

@@ -2,6 +2,7 @@ package com.aicourse.service.component.ai;
 
 import com.aicourse.common.ApiCode;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.exception.LLMUnavailableException;
 import com.aicourse.service.RAGService;
 import com.aicourse.vo.QaSourceVO;
 import com.aicourse.vo.QaStreamVO;
@@ -44,7 +45,9 @@ public class AiDialogueComponent {
      */
     public String chat(List<Map<String, String>> messages, Long userId) {
         if (messages == null || messages.isEmpty()) {
-            return AiCoreComponent.SERVICE_ERROR_MSG;
+            // 这是入参问题，不是上游故障；过去复用 SERVICE_ERROR_MSG 会让"你没带历史"
+            // 和"大模型 401"在用户端长得一模一样（DR-74 语义分名）
+            throw new BusinessException(ApiCode.BAD_REQUEST, "没有可用于续聊的历史消息，请重新发起对话");
         }
         return core.completeAndSanitize(core.neutralizeUserMessages(messages), 0.7, "chat");
     }
@@ -61,8 +64,8 @@ public class AiDialogueComponent {
         String prompt = String.format(
                 "请%s生成%d道%s难度、类型为%s的课程题目，包含题目内容、选项和正确答案，以JSON格式返回。",
                 scope, count, AiCoreComponent.orDefault(difficulty, "MEDIUM"), AiCoreComponent.orDefault(type, "SINGLE_CHOICE"));
-        String raw = core.completeAndSanitize(core.buildMessages(prompt, null), 0.9, "question");
-        return raw != null ? raw : AiCoreComponent.SERVICE_ERROR_MSG;
+        // 失败即抛（503），不再把降级文案当生成结果返回——下游要拿它当 JSON 解析。
+        return core.completeAndSanitize(core.buildMessages(prompt, null), 0.9, "question");
     }
 
     /**
@@ -82,8 +85,7 @@ public class AiDialogueComponent {
         } else {
             prompt = "请生成" + AiCoreComponent.orDefault(type, "") + "内容，" + AiCoreComponent.orDefault(params, "");
         }
-        String raw = core.completeAndSanitize(core.buildMessages(prompt, null), 0.7, "content");
-        return raw != null ? raw : AiCoreComponent.SERVICE_ERROR_MSG;
+        return core.completeAndSanitize(core.buildMessages(prompt, null), 0.7, "content");
     }
 
     /**
@@ -93,8 +95,7 @@ public class AiDialogueComponent {
         log.info("生成AI");
 
         String prompt = "请总结以下内容：\n" + AiCoreComponent.orDefault(content, "");
-        String raw = core.completeAndSanitize(core.buildMessages(prompt, null), 0.3, "content");
-        return raw != null ? raw : AiCoreComponent.SERVICE_ERROR_MSG;
+        return core.completeAndSanitize(core.buildMessages(prompt, null), 0.3, "content");
     }
 
     /**
@@ -105,8 +106,7 @@ public class AiDialogueComponent {
                 + AiCoreComponent.orDefault(text1, "") + "\n文本2：" + AiCoreComponent.orDefault(text2, "");
         // 埋点类型必须是 plagiarism：并入 "correct" 会让批改与查重的调用量/失败率互相污染，
         // Grafana 按 type 下钻时无法区分两类业务。
-        String raw = core.completeAndSanitize(core.buildMessages(prompt, null), 0.2, "plagiarism");
-        return raw != null ? raw : AiCoreComponent.SERVICE_ERROR_MSG;
+        return core.completeAndSanitize(core.buildMessages(prompt, null), 0.2, "plagiarism");
     }
 
     /**
@@ -125,7 +125,10 @@ public class AiDialogueComponent {
      */
     public QaStreamVO streamChat(String question, Long courseId) {
         if (!core.isProviderEnabled()) {
-            return new QaStreamVO(Flux.just(AiCoreComponent.NO_PROVIDER_MSG), List.of());
+            // 未配 Key 时过去把提示文案当成"流式回答"的第一帧发出去，界面看到的就是正常回答在打字；
+            // 现在同步抛出 → 端点以 503 结束，SSE 根本不开播（口径与同步出口一致）
+            throw new LLMUnavailableException(LLMUnavailableException.Kind.NOT_CONFIGURED,
+                    core.noProviderMessage());
         }
         core.recordAiCall("chat");
         String safeQuestion = core.neutralizeInjection(question);
@@ -157,7 +160,12 @@ public class AiDialogueComponent {
                 .onErrorMap(e -> {
                     log.error("流式问答调用失败: {}", e.getMessage(), e);
                     core.recordAiFailure("chat");
-                    return new BusinessException(ApiCode.SERVICE_UNAVAILABLE, AiCoreComponent.SERVICE_ERROR_MSG, e);
+                    if (e instanceof LLMUnavailableException le) {
+                        // 保留类别与原话术（401 该说"凭据被拒"，不该塌成"暂时不可用"）；
+                        // 它本身就是 BusinessException(503)，SSE 端点据此以 503 收场
+                        return le;
+                    }
+                    return new BusinessException(ApiCode.SERVICE_UNAVAILABLE, e.getMessage(), e);
                 });
         return new QaStreamVO(tokens, sources);
     }
