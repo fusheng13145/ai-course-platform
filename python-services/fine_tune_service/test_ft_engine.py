@@ -238,3 +238,60 @@ def test_format_sample_prefers_chat_template_and_falls_back():
     assert le._format_sample(s, fake) == "TPL"
     assert called["messages"][1]["content"].startswith("模型在训练集")
     assert called["kw"]["tokenize"] is False  # 不传 tokenize=False 拿到的是 token id 而非文本
+
+
+def test_export_requires_completed_task(tmp_path):
+    ds = le.add_dataset(1, [{"instruction": "q", "output": "a"}], source="上传")
+    t = le.create_task(1, "qwen-7b", le.normalize_config({"dataset_id": ds["dataset_id"]}))
+    out = le.export_weights(t["task_id"])
+    assert out["code"] == 503 and "尚未完成" in out["error"]
+
+
+def test_export_zips_adapter_and_reports_real_bytes(tmp_path):
+    ds = le.add_dataset(1, [{"instruction": "q", "output": "a"}], source="上传")
+    t = le.create_task(1, "qwen-7b", le.normalize_config({"dataset_id": ds["dataset_id"]}))
+    adir = Path(t["adapter_dir"]); adir.mkdir(parents=True, exist_ok=True)
+    (adir / "adapter_config.json").write_text('{"r": 8}', encoding="utf-8")
+    (adir / "adapter_model.safetensors").write_bytes(b"\0" * 4096)
+    le.update_task(t["task_id"], status="completed")
+    out = le.export_weights(t["task_id"], public_base="http://localhost:8003")
+    assert out["format"] == "peft_lora"
+    assert out["download_url"] == f"http://localhost:8003/weights/{t['task_id']}.zip"
+    assert out["file_size"] == le.format_size(out["size_bytes"])
+    assert Path(out["local_path"]).exists() and out["size_bytes"] > 0
+
+
+def test_infer_without_engine_deps_is_recognizable_failure(tmp_path, monkeypatch):
+    ds = le.add_dataset(1, [{"instruction": "q", "output": "a"}], source="上传")
+    t = le.create_task(1, "qwen-7b", le.normalize_config({"dataset_id": ds["dataset_id"]}))
+    le.update_task(t["task_id"], status="completed")
+    monkeypatch.setattr(le, "engine_available", lambda: False)
+    out = le.infer(t["task_id"], "什么是过拟合", {"temperature": 0.7, "max_tokens": 64})
+    assert out["code"] == 503 and "requirements-engine.txt" in out["error"]
+
+
+def test_infer_rejects_unfinished_task(tmp_path):
+    ds = le.add_dataset(1, [{"instruction": "q", "output": "a"}], source="上传")
+    t = le.create_task(1, "qwen-7b", le.normalize_config({"dataset_id": ds["dataset_id"]}))
+    out = le.infer(t["task_id"], "q", {})
+    assert out["code"] == 503 and "未完成" in out["error"]
+
+
+def test_adapter_cache_is_keyed_by_task_not_only_by_presence():
+    """钉住 `_MODEL_HOLDER` 的缓存键：漏掉 task_id 会让任务 B 静默用任务 A 的权重。"""
+    assert le._adapter_cache_matches("ft_x") is False  # 无缓存
+    le._MODEL_HOLDER.update({"model": object(), "task_id": "ft_x"})
+    assert le._adapter_cache_matches("ft_x") is True
+    assert le._adapter_cache_matches("ft_y") is False  # 换任务必须重载
+    le.reset_store()
+    assert le._adapter_cache_matches("ft_x") is False  # 重置后不得留下跨用例缓存
+
+
+def test_reset_store_clears_cancel_flags_so_reused_ids_are_not_pre_cancelled(tmp_path):
+    """按天序号会重号：残留取消标志必须随 reset_store 清掉。"""
+    ds = le.add_dataset(1, [{"instruction": "q", "output": "a"}], source="上传")
+    t = le.create_task(1, "qwen-7b", le.normalize_config({"dataset_id": ds["dataset_id"]}))
+    le.cancel_task(t["task_id"])
+    assert le._CANCEL_FLAGS[t["task_id"]] is True
+    le.reset_store()
+    assert le._CANCEL_FLAGS == {}

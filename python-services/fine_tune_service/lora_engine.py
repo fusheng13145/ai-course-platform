@@ -307,8 +307,12 @@ _DATASET_SEQ: dict[str, int] = {}
 _TASK_SEQ: dict[str, int] = {}
 _loaded = False
 
-# 进程内模型/分词器缓存：训练与推理共用，换基座即失效重建
-_MODEL_HOLDER: dict = {"model": None, "tokenizer": None, "hf_id": None}
+# 进程内模型/分词器缓存：训练与推理共用，换基座即失效重建。
+# task_id 是 adapter 的归属：缓存的是「基座+某个 adapter」，换任务必须重载，否则会拿 A 的权重冒充 B 推理。
+_MODEL_HOLDER: dict = {"model": None, "tokenizer": None, "hf_id": None, "task_id": None}
+
+# 协作式取消标志（task_id → 是否已请求取消）：由 cancel_task 置位、训练回调在 step 边界读取
+_CANCEL_FLAGS: dict[str, bool] = {}
 
 
 def now_iso() -> str:
@@ -370,7 +374,8 @@ def reset_store() -> None:
         _TASKS.clear()
         _DATASET_SEQ.clear()
         _TASK_SEQ.clear()
-        _MODEL_HOLDER.update({"model": None, "tokenizer": None, "hf_id": None})
+        _MODEL_HOLDER.update({"model": None, "tokenizer": None, "hf_id": None, "task_id": None})
+        _CANCEL_FLAGS.clear()  # 按天序号会重号，残留的取消标志会把新任务一起跑就判死
         _loaded = False
 
 
@@ -651,8 +656,6 @@ def delete_dataset(dataset_id: str) -> Optional[dict]:
 
 # ---------------------------------------------------------------- 任务状态机
 
-_CANCEL_FLAGS: dict[str, bool] = {}
-
 
 class _TrainingCancelled(RuntimeError):
     """协作式取消：在 on_log/on_step 边界抛出，由 run_training 收成 cancelled 终态。"""
@@ -876,7 +879,7 @@ def run_training(task_id: str) -> dict:
              "total_steps": total_steps, "finished_at": now_iso()},
             ensure_ascii=False, indent=2))
         # 只缓存分词器：adapter 已折入 model，缓存裸基座会让下一次训练拿到已带 LoRA 的模型
-        _MODEL_HOLDER.update({"model": None, "tokenizer": tokenizer, "hf_id": hf_id})
+        _MODEL_HOLDER.update({"model": None, "tokenizer": tokenizer, "hf_id": hf_id, "task_id": None})
         return update_task(task_id, status="completed", progress=100.0,
                            current_epoch=rec["config"]["epochs"], error=None)
     except _TrainingCancelled:
@@ -907,3 +910,106 @@ def start_training(task_id: str) -> dict:
     threading.Thread(target=run_training, args=(task_id,), daemon=True,
                      name=f"lora-train-{task_id}").start()
     return get_task(task_id) or {"task_id": task_id, "status": "pending"}
+
+
+# ---------------------------------------------------------------- 权重导出与推理
+
+
+def weights_dir() -> Path:
+    return data_dir() / "weights"
+
+
+def export_weights(task_id: str, public_base: Optional[str] = None) -> dict:
+    """把 adapter 目录打成 zip 落 `data/weights/`，由契约层的 `/weights/{name}` 路由真实可下载。
+
+    file_size 与 download_url 均为落盘真值——§37 的 "15.2MB" 形状不是装饰，
+    它是「导出确实发生」的取证点。
+    """
+    rec = get_task(task_id)
+    if not rec:
+        return {"error": "任务不存在", "code": 404, "mode": "UNAVAILABLE"}
+    if rec["status"] != "completed":
+        return {"error": f"任务 {task_id} 尚未完成（当前 {rec['status']}），无权重可导出",
+                "code": 503, "mode": "UNAVAILABLE"}
+    adir = Path(rec["adapter_dir"])
+    if not adir.exists() or (not any(adir.glob("adapter_*.json")) and not any(adir.glob("*.safetensors"))):
+        return {"error": f"任务 {task_id} 的 adapter 目录缺失，无法导出",
+                "code": 503, "mode": "UNAVAILABLE"}
+    weights_dir().mkdir(parents=True, exist_ok=True)
+    zip_path = weights_dir() / f"{task_id}.zip"
+    tmp = weights_dir() / f".{task_id}.zip.tmp"
+    with zipfile.ZipFile(tmp, "w", zipfile.ZIP_DEFLATED) as zf:
+        for f in sorted(adir.rglob("*")):
+            if f.is_file() and "trainer" not in f.parts:
+                zf.write(f, arcname=f.relative_to(adir).as_posix())
+    os.replace(tmp, zip_path)
+    size = zip_path.stat().st_size
+    base = (public_base or os.getenv("FT_PUBLIC_BASE", "http://localhost:8003")).rstrip("/")
+    return {"download_url": f"{base}/weights/{task_id}.zip", "file_size": format_size(size),
+            "size_bytes": size, "format": "peft_lora", "task_id": task_id,
+            "local_path": str(zip_path), "code": 200, "mode": "ENGINE"}
+
+
+def _adapter_cache_matches(task_id: str) -> bool:
+    """缓存中的模型是否就是本次要用的 adapter。
+
+    单独成函数是为了让「换任务必须重载 adapter」在 CI 里可断言：缓存键若漏掉
+    task_id，推理任务 B 会静默使用任务 A 的权重并照样回报 `-lora-B`。
+    """
+    return _MODEL_HOLDER["model"] is not None and _MODEL_HOLDER.get("task_id") == task_id
+
+
+def infer(task_id: str, prompt: str, params: dict) -> dict:
+    """真实推理：基座 + adapter 载入后 generate，tokens_used 取实际生成 token 数。"""
+    rec = get_task(task_id)
+    if not rec:
+        return {"error": "任务不存在", "code": 404, "mode": "UNAVAILABLE"}
+    if rec["status"] != "completed":
+        return {"error": f"任务 {task_id} 未完成（{rec['status']}），adapter 不可用于推理",
+                "code": 503, "mode": "UNAVAILABLE"}
+    if not engine_available():
+        return {"error": "引擎依赖未安装：" + "; ".join(dep_errors())
+                + "。请 pip install -r requirements-engine.txt 后重试。",
+                "code": 503, "mode": "UNAVAILABLE"}
+    p = as_dict(params)
+    temperature = float(p.get("temperature", 0.7))
+    max_tokens = int(p.get("max_tokens", 512))
+    hf_id = rec["hf_model_id"]
+    cached = base_model_cached(hf_id)
+    if not cached and os.getenv("FT_ALLOW_DOWNLOAD", "0") != "1":
+        return {"error": f"基座模型 {hf_id} 未本地缓存且未允许下载（FT_ALLOW_DOWNLOAD=1）",
+                "code": 503, "mode": "UNAVAILABLE"}
+    try:
+        from transformers import AutoModelForCausalLM, AutoTokenizer
+        from peft import PeftModel
+        tokenizer = _MODEL_HOLDER["tokenizer"] or AutoTokenizer.from_pretrained(
+            hf_id, local_files_only=cached)
+        if not _adapter_cache_matches(task_id):
+            base = AutoModelForCausalLM.from_pretrained(
+                hf_id, local_files_only=cached,
+                torch_dtype=_torch.float16 if device() == "cuda" else _torch.float32)
+            _MODEL_HOLDER.update({"model": PeftModel.from_pretrained(base, rec["adapter_dir"]),
+                                  "tokenizer": tokenizer, "hf_id": hf_id, "task_id": task_id})
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+        model = _MODEL_HOLDER["model"].to(device())
+        messages = [{"role": "user", "content": prompt}]
+        if tokenizer.chat_template:
+            text = tokenizer.apply_chat_template(messages, tokenize=False,
+                                                add_generation_prompt=True)
+        else:
+            text = f"### 指令:\n{prompt}\n### 回答:\n"
+        inputs = tokenizer(text, return_tensors="pt").to(device())
+        new_tokens = max(1, min(max_tokens, 1024))
+        gen = model.generate(
+            **inputs, max_new_tokens=new_tokens,
+            do_sample=temperature > 0, temperature=max(0.1, temperature),
+            pad_token_id=tokenizer.pad_token_id, eos_token_id=tokenizer.eos_token_id)
+        prompt_len = int(inputs["input_ids"].shape[1])
+        answer = tokenizer.decode(gen[0][prompt_len:], skip_special_tokens=True).strip()
+        return {"answer": answer, "tokens_used": int(gen.shape[1]) - prompt_len,
+                "model": f"{rec['base_model']}-lora-{task_id}", "code": 200, "mode": "ENGINE"}
+    except Exception as exc:
+        return {"answer": None, "error": f"推理失败：{type(exc).__name__}: {exc}",
+                "code": 503, "mode": "UNAVAILABLE",
+                "model": f"{rec['base_model']}-lora-{task_id}", "tokens_used": 0}
