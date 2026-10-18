@@ -58,10 +58,14 @@ def test_format_size_human_string_matches_contract_shape():
     assert le.format_size(2048) == "2.0KB"
 
 
-def test_task_error_is_actionable_when_no_dataset(tmp_path, monkeypatch):
-    monkeypatch.delenv("FT_ENGINE_READY", raising=False)
+def test_task_error_is_actionable_and_course_scoped(tmp_path):
     cfg = le.normalize_config({})
-    assert "datasets/build" in le.task_error(cfg)
+    msg = le.task_error(cfg, 99)
+    assert "datasets/build/99" in msg                       # 文案带真实课程号，照抄即可执行
+    ds = le.add_dataset(7, [{"instruction": "q", "output": "a"}], source="上传")
+    assert le.task_error(cfg, 7) is None                    # 本课程有数据集 → 放行
+    assert le.task_error(cfg, 8) is not None                # 别的课程有不等于本课程有
+    assert le.task_error(le.normalize_config({"dataset_id": ds["dataset_id"]}), 8) is None
 
 
 def test_validate_samples_accepts_three_shapes():

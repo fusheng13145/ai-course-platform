@@ -247,12 +247,17 @@ def format_size(n: int) -> str:
     return f"{n / (1024 ** 4):.1f}TB"
 
 
-def task_error(cfg: dict) -> Optional[str]:
-    """任务可启动性检查：无数据集时给可操作文案（同 rag_service._degrade_error 口径）。"""
-    if not cfg.get("dataset_id") and not list_datasets(None):
-        return ("尚无训练数据集，请先 POST /api/v1/fine-tune/datasets/build/{course_id}"
-                "（或 POST /api/v1/fine-tune/datasets 上传 JSONL）")
-    return None
+def task_error(cfg: dict, course_id: int) -> Optional[str]:
+    """任务可启动性检查：本课程无数据集时给可操作文案（同 rag_service._degrade_error 口径）。
+
+    必须按 `course_id` 判定而不是"全局有没有数据集"：否则课程 A 有数据时，
+    课程 B 的 /start 会放行并建出一个 `dataset_id=None`、永远练不成的任务。
+    文案里带真实课程号，调用方照抄就能跑通下一步。
+    """
+    if cfg.get("dataset_id") or latest_dataset_id(course_id):
+        return None
+    return (f"尚无训练数据集，请先 POST /api/v1/fine-tune/datasets/build/{course_id}"
+            "（或 POST /api/v1/fine-tune/datasets 上传 JSONL）")
 
 
 # ---------------------------------------------------------------- 原子落盘（同源 rag_engine.py:185-223）
