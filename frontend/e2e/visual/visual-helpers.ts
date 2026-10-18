@@ -108,8 +108,15 @@ export interface AnchorSpec {
  * 快照文件名。**不要**在这里放 `{platform}` 之类的占位符：Playwright 只在
  * `snapshotPathTemplate` 里展开占位符，作为 `toHaveScreenshot(name)` 传入的 arg 里
  * `{platform}` 会原样落进文件名。
- * 返回**不含扩展名**的名字——扩展由模板尾部的 `{ext}` 负责，名字里再带 `.png`
- * 会得到 `light.png.png` 这类双扩展基线。
+ * 返回**不含扩展名**的名字——但注意扩展名不是模板免费给的：
+ * 1.63 实测 `toHaveScreenshot(snapName(..))` 直接抛
+ * `Screenshot name "x-light" must have a '.png' or '.webp' extension`
+ * （matchers/expect.js:12597 先按 arg 的 extname 定 mimeType，无扩展名就进不到比对），
+ * 而模板里的 `{ext}` 正是从 arg 的扩展名反推出来的（workerProcessEntry.js:1258
+ * `basename(subPath, ext)`），arg 带 `.png` 时 `{arg}` 仍是去掉扩展名的部分，
+ * 落盘名 `x-light.png`，不会出现 `.png.png`。
+ * 结论：**消费方在调用处补 `.png`**（见 anchors.spec.ts），本函数保持无扩展名返回值——
+ * 这是 helpers.spec.ts 已钉住的契约，Task 5+ 同样按 `snapName(..) + '.png'` 用。
  */
 export function snapName(slug: string, theme: ThemeName): string {
   return `${slug}-${theme}`
@@ -129,3 +136,32 @@ export function storagePathFor(role: 'STUDENT' | 'TEACHER' | 'ADMIN'): string {
 export function maskOf(page: Page, selectors: string[] = []): Locator[] {
   return selectors.map((s) => page.locator(s))
 }
+
+/**
+ * 12 个锚点是 spec §4 Phase 0a 选定的"每一类版式的代表"，不是随便 12 页：
+ * 工作台 ×3 端（卡片+统计+图表混排）、表格页代表（54 个文件在用 el-table）、
+ * 表单页代表、Modal 复用代表（12 个 ui/Modal 调用点之一）、图谱/图表代表各一、
+ * 个人中心、错误页。LearningCenter 需 :id，故不在这里写死数字——种子库里
+ * 学生的第 1 门课未必存在，硬编 /student/courses/1 会截出一张空态图当基线，
+ * 之后所有真实改版都被判为"改善"。改为运行时取列表首条真实链接。
+ *
+ * 路径逐条核过 src/router/index.ts 的**路由表**（不是文件目录）：
+ * admin 端的 children 是平铺的，`views/admin/governance/Analytics.vue` 挂在
+ * router/index.ts:187 的 `path: 'analytics'` 上，真实 URL 是 `/admin/analytics`；
+ * 写成 `/admin/governance/analytics` 会被 :562 的 `/:pathMatch(.*)*` 兜住，
+ * 截出来是一张 404 页——而 404 页恰好也是"渲染正常、非空壳"，断言全绿。
+ */
+export const ANCHORS: readonly AnchorSpec[] = [
+  { slug: 'login', title: '登录页', role: 'ANON', path: '/login' },
+  { slug: 'admin-dashboard', title: '管理工作台', role: 'ADMIN', path: '/admin/dashboard' },
+  { slug: 'student-dashboard', title: '学生工作台', role: 'STUDENT', path: '/student/dashboard' },
+  { slug: 'teacher-dashboard', title: '教师工作台', role: 'TEACHER', path: '/teacher/dashboard' },
+  { slug: 'admin-courses-table', title: '课程管理（表格代表）', role: 'ADMIN', path: '/admin/courses' },
+  { slug: 'admin-system-form', title: '系统设置（表单代表）', role: 'ADMIN', path: '/admin/system' },
+  { slug: 'student-courses-modal', title: '学生课程（弹层代表）', role: 'STUDENT', path: '/student/courses' },
+  { slug: 'student-learning-center', title: '学习中心（壳页代表）', role: 'STUDENT', path: '__FROM_COURSE_LIST__' },
+  { slug: 'student-knowledge-graph', title: '知识图谱（图谱代表）', role: 'STUDENT', path: '/student/knowledge-graph' },
+  { slug: 'admin-governance-analytics', title: '治理分析（图表代表）', role: 'ADMIN', path: '/admin/analytics' },
+  { slug: 'admin-profile', title: '个人中心', role: 'ADMIN', path: '/admin/profile' },
+  { slug: 'error-404', title: '404', role: 'ANON', path: '/__no-such-route__' },
+]
