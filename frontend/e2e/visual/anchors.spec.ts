@@ -9,6 +9,7 @@ import {
   setTheme,
   snapName,
   SNAPSHOT_PAGE_TIME_MS,
+  SNAPSHOT_THRESHOLDS,
   storagePathFor,
   type AnchorSpec,
   type ThemeName,
@@ -178,7 +179,9 @@ async function runAnchor(page: Page, anchor: AnchorSpec, theme: ThemeName): Prom
     caret: 'hide',
     scale: 'css',
     mask: maskOf(page, anchor.maskSelectors),
-    maxDiffPixelRatio: 0.002,
+    // 阈值不在这里写字面量：Task 4b 的灵敏度测量测的就是这一组数，
+    // 两处各写一份就一定会漂，届时"量出来的防护"和"实际用的防护"不是同一个东西。
+    ...SNAPSHOT_THRESHOLDS,
   })
 }
 

@@ -226,6 +226,40 @@ export function snapName(slug: string, theme: ThemeName): string {
 }
 
 /**
+ * 全仓唯一截图阈值来源。默认值是**待测量**，不是结论：
+ * Task 4b 用三档注入证明它能不能看见 Phase 1/2 形状的改动，
+ * 测出来不合格就在此处收紧，并逐张重跑 anchors 确认没有把噪声当成改动。
+ *
+ * 【唯一来源的机械约束】anchors.spec.ts 与 sensitivity.spec.ts 都从这里取值，
+ * 不在各自 spec 里写字面量——两处各写一份就一定会漂，
+ * 而"量程测量"用的阈值和"基线回归"用的阈值一旦不是同一组，测出来的结论对回归无效。
+ *
+ * 【这两个数在 pixelmatch 里到底是什么】comparators 调 pixelmatch(expected, actual, diff, w, h, { threshold })
+ * （playwright-core/lib/coreBundle.js:7896，只传 threshold，其余走 pixelmatch 默认 includeAA:false），
+ * 判据是 `|colorDelta| > 35215 × threshold²`，其中 YIQ 亮度差 y 单独贡献 0.5053·y²：
+ * - threshold 0.2 → 需要单通道差 δ > 52.8/255 ≈ **20.6% 的明度跳变**才算"不同像素"；
+ * - threshold 0.05 → δ > 13.2（5.2%）；0.02 → δ > 5.3（2.1%）；0 → 任何不相等都算，
+ *   但**仍会**被 pixelmatch 的抗锯齿判别（antialiased()）整类跳过——
+ *   所以"降到 0"不等于"逐字节比"，圆角/描边这种本来就长在 AA 边缘上的改动可能一条都不计。
+ * maxDiffPixelRatio 0.002 再乘一层宽松度：1440×H 的整页图按 H=1200 算是 3456 个像素的免检额，
+ * 而一次阴影增强恰好就是"几千个弱差像素"的形状。
+ * 这两条合起来就是 Task 4 图谱基线假绿（0.33% 像素差被判相同）的机制解释。
+ *
+ * 【Task 4b 实测·离线自检台，待真基线复验】后端不在期间用同一把尺量了合成页（真实 token 与真实卡片几何，
+ * 1440×1070，噪声地板对照 = 不注入再截一次，t=0/r=0 下 0 个像素差，即静态渲染是逐字节可复现的）：
+ *   gross(body brightness 0.97)：最大单通道色差 82/255，t=0.2 只有 220 个像素报警 < 免检额 3082 → **被吸收**
+ *   shadow(--sh-l1 alpha 翻倍) ：最大单通道色差 20/255 → t=0.2 与 t=0.1 都是 **0 个像素**，t=0.05 起 11282 个
+ *   radius(16px→14px)          ：最大单通道色差 19/255 → t=0.2/t=0.1 同样 0 个像素；
+ *                                即便 t=0 也只有 2559 个 < 免检额 3082 → **连阈值降到 0 都检不出**
+ * 结论：这一组阈值看不见 Phase 1/2/3 要做的任何一档改动，连"哨兵档"gross 都看不见。
+ * 但把上面的数改成产品结论，必须先做两件本任务做不了的事：
+ *   ①sensitivity.spec.ts 在 22 张真基线上跑同一张 ladder（真页面的卡片数量/面积与合成页不同）；
+ *   ②每下调一格都重跑 anchors，确认 22 张仍零 diff（真页面的噪声地板从没在 t=0 下量过）。
+ * 这两件做完之前**不改**这两个数——放宽是错的，未经验证的收紧同样是错的。
+ */
+export const SNAPSHOT_THRESHOLDS = { threshold: 0.2, maxDiffPixelRatio: 0.002 }
+
+/**
  * 会话夹具路径。定义在 helper 而非 global-setup：消费者是 anchors.spec.ts /
  * motion-observation.spec.ts，让它们去 import global-setup 会形成"配置导入设置"的反向依赖。
  * 路径相对 frontend/（Playwright 的 storageState 按 cwd 解析），全仓只用这一种写法，

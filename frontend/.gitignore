@@ -45,6 +45,13 @@ test-results/
 # 真实基线 e2e/visual/__snapshots__/**.png 必须入库，不在排除之列。
 e2e/visual/**/*-diff.png
 e2e/visual/**/*-actual.png
+# Task 4b 量程探针的产物：期望图（未注入基线的逐字节副本）、注入后的现场截图、派生的 actual/diff。
+# 它们是测量数据而不是基线，每次跑都重新生成，绝不能入库——
+# 入库后下一轮就变成"跟上一轮的探针图比"，量程测量当场失效。
+# 规则要写两条：*-probe.png 是探针期望图本身，*-probe-*.png 才是它派生的 -captured/-actual/-diff，
+# 单写前一条会漏掉后一类（模式是结尾匹配，不是包含匹配）。
+e2e/visual/**/*-probe.png
+e2e/visual/**/*-probe-*.png
 # storageState 夹具（student/teacher/admin.json）内含 access/refresh token，严禁入库。
 # 注意：本文件的模式相对 frontend/ 解析，所以不能写成 frontend/e2e/visual/.auth/——
 # 那样等于匹配 frontend/frontend/...，规则会静默失效。
