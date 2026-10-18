@@ -147,3 +147,94 @@ def test_delete_dataset_keeps_task_records(tmp_path):
     assert le.delete_dataset(saved["dataset_id"])["dataset_id"] == saved["dataset_id"]
     assert le.get_dataset(saved["dataset_id"]) is None
     assert le.load_samples(saved["dataset_id"]) == []
+
+
+def test_next_task_id_shape_and_daily_counter(monkeypatch):
+    monkeypatch.setattr(le, "_today_str", lambda: "20261017")
+    assert le.next_task_id() == "ft_20261017_001"
+    assert le.next_task_id() == "ft_20261017_002"
+    monkeypatch.setattr(le, "_today_str", lambda: "20261018")   # 换日重新从 001 起
+    assert le.next_task_id() == "ft_20261018_001"
+
+
+def test_create_task_freezes_config_and_dataset(tmp_path):
+    ds = le.add_dataset(1, [{"instruction": "q", "output": "a"}], source="上传")
+    task = le.create_task(1, "qwen-7b", le.normalize_config({"epochs": 2, "dataset_id": ds["dataset_id"]}))
+    assert task["status"] == "pending" and task["total_epochs"] == 2
+    assert task["dataset_id"] == ds["dataset_id"]
+    assert task["base_model"] == "qwen-7b" and task["hf_model_id"] == "Qwen/Qwen2.5-0.5B"
+    assert task["progress"] == 0.0 and task["current_epoch"] == 0
+
+
+def test_progress_pct_is_monotonic_and_capped():
+    assert le._progress_pct(0, 10) == 0.0
+    assert le._progress_pct(5, 10) == 50.0
+    assert le._progress_pct(10, 10) == 99.5  # 运行中封顶，完成才 100
+    assert le._progress_pct(3, 0) == 0.0     # 除零保护
+
+
+def test_record_progress_writes_state_values_not_kwargs(tmp_path):
+    """钉住 `_record_progress` 的取数契约：progress 跟 global_step 走。
+    若实现误从回调 kwargs 取 `step`（那里没有），progress 会恒为 0.0 且无报错。"""
+    ds = le.add_dataset(1, [{"instruction": "q", "output": "a"}], source="上传")
+    cfg = le.normalize_config({"epochs": 2, "dataset_id": ds["dataset_id"]})
+    t = le.create_task(1, "qwen-7b", cfg)
+    tid = t["task_id"]
+    assert t["total_epochs"] == 2
+    le._record_progress(tid, 10, global_step=3, epoch=0.4, loss=1.2345678)
+    row = le.get_task(tid)
+    assert row["progress"] == 30.0 and row["loss_history"] == [1.234568]
+    assert row["current_epoch"] == 1
+    le._record_progress(tid, 10, global_step=10, epoch=1.9, loss=0.5)
+    row = le.get_task(tid)
+    assert row["progress"] == 99.5 and row["current_epoch"] == 2  # 运行中封顶 99.5，轮次不超过 epochs
+    assert row["loss_history"] == [1.234568, 0.5]
+    le._record_progress(tid, 10, global_step=10, epoch=2.0, loss=None)
+    assert le.get_task(tid)["loss_history"] == [1.234568, 0.5]   # 无 loss 的日志行不写历史
+
+
+def test_cancel_on_pending_marks_cancelled_and_on_finished_is_rejected(tmp_path):
+    ds = le.add_dataset(1, [{"instruction": "q", "output": "a"}], source="上传")
+    t = le.create_task(1, "qwen-7b", le.normalize_config({"dataset_id": ds["dataset_id"]}))
+    out = le.cancel_task(t["task_id"])
+    assert out == {"success": True, "status": "cancelled"}
+    assert le.get_task(t["task_id"])["status"] == "cancelled"
+    le.update_task(t["task_id"], status="completed")
+    again = le.cancel_task(t["task_id"])
+    assert again["success"] is False and again["status"] == "completed" and "无法取消" in again["error"]
+
+
+def test_delete_task_removes_record_and_run_dir(tmp_path):
+    ds = le.add_dataset(1, [{"instruction": "q", "output": "a"}], source="上传")
+    t = le.create_task(1, "qwen-7b", le.normalize_config({"dataset_id": ds["dataset_id"]}))
+    assert le.delete_task(t["task_id"])["task_id"] == t["task_id"]
+    assert le.get_task(t["task_id"]) is None
+    assert le.list_tasks(1) == []
+
+
+def test_run_training_reports_missing_deps_honestly(tmp_path, monkeypatch):
+    """依赖缺失/数据集为空都必须给出可识别失败，不得伪装 running 后静默结束。"""
+    ds = le.add_dataset(1, [{"instruction": "q", "output": "a"}], source="上传")
+    t = le.create_task(1, "qwen-7b", le.normalize_config({"dataset_id": ds["dataset_id"]}))
+    monkeypatch.setattr(le, "engine_available", lambda: False)
+    out = le.run_training(t["task_id"])
+    assert out["status"] == "failed" and "依赖未安装" in out["error"]
+    monkeypatch.setattr(le, "engine_available", lambda: True)
+    empty = le.create_task(2, "qwen-7b", le.normalize_config({}))
+    assert le.run_training(empty["task_id"])["status"] == "failed"
+
+
+def test_format_sample_prefers_chat_template_and_falls_back():
+    s = {"instruction": "什么是过拟合", "input": "", "output": "模型在训练集上表现好而泛化差"}
+    txt = le._format_sample(s, None)
+    assert "什么是过拟合" in txt and "泛化差" in txt
+    called = {}
+
+    def fake(messages, **kw):
+        called["messages"] = messages
+        called["kw"] = kw
+        return "TPL"
+
+    assert le._format_sample(s, fake) == "TPL"
+    assert called["messages"][1]["content"].startswith("模型在训练集")
+    assert called["kw"]["tokenize"] is False  # 不传 tokenize=False 拿到的是 token id 而非文本

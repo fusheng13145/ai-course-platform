@@ -647,3 +647,263 @@ def delete_dataset(dataset_id: str) -> Optional[dict]:
         _save_datasets()
     shutil.rmtree(Path(rec["dir"]), ignore_errors=True)
     return dict(rec)
+
+
+# ---------------------------------------------------------------- 任务状态机
+
+_CANCEL_FLAGS: dict[str, bool] = {}
+
+
+class _TrainingCancelled(RuntimeError):
+    """协作式取消：在 on_log/on_step 边界抛出，由 run_training 收成 cancelled 终态。"""
+
+
+def next_task_id() -> str:
+    day = _today_str()
+    _TASK_SEQ[day] = _TASK_SEQ.get(day, 0) + 1
+    return f"ft_{day}_{_TASK_SEQ[day]:03d}"
+
+
+def create_task(course_id: int, base_model: str, cfg: dict) -> dict:
+    with _LOCK:
+        _load_store()
+        task_id = next_task_id()
+        dataset_id = cfg.get("dataset_id") or latest_dataset_id(course_id)
+        task = {
+            "task_id": task_id,
+            "course_id": course_id,
+            "base_model": base_model,
+            "hf_model_id": resolve_base_model(base_model),
+            "dataset_id": dataset_id,
+            "status": "pending",
+            "progress": 0.0,
+            "current_epoch": 0,
+            "total_epochs": cfg["epochs"],
+            "loss": None,
+            "config": dict(cfg),
+            "created_at": now_iso(),
+            "updated_at": now_iso(),
+            "error": None,
+            "loss_history": [],
+            "adapter_dir": str(data_dir() / "runs" / task_id),
+        }
+        _TASKS[task_id] = task
+        _save_tasks()
+        return dict(task)
+
+
+def get_task(task_id: str) -> Optional[dict]:
+    with _LOCK:
+        _load_store()
+        rec = _TASKS.get(task_id)
+        return dict(rec) if rec else None
+
+
+def update_task(task_id: str, **fields) -> Optional[dict]:
+    with _LOCK:
+        _load_store()
+        rec = _TASKS.get(task_id)
+        if not rec:
+            return None
+        rec.update(fields)
+        if "loss_history" in fields:
+            hist = fields["loss_history"] or []
+            rec["loss"] = hist[-1] if hist else rec.get("loss")
+        rec["updated_at"] = now_iso()
+        _save_tasks()
+        return dict(rec)
+
+
+def list_tasks(course_id: Optional[int] = None) -> list[dict]:
+    with _LOCK:
+        _load_store()
+        rows = [dict(t) for t in _TASKS.values()]
+    if course_id is not None:
+        rows = [t for t in rows if t["course_id"] == course_id]
+    return sorted(rows, key=lambda t: t["created_at"])
+
+
+def cancel_task(task_id: str) -> dict:
+    rec = get_task(task_id)
+    if not rec:
+        return {"success": False, "status": "not_found", "error": "任务不存在"}
+    if rec["status"] in ("completed", "failed", "cancelled"):
+        return {"success": False, "status": rec["status"],
+                "error": f"任务已结束（{rec['status']}），无法取消"}
+    _CANCEL_FLAGS[task_id] = True
+    if rec["status"] == "pending":  # 训练线程尚未起跑：直接定终态
+        update_task(task_id, status="cancelled", progress=0.0)
+        return {"success": True, "status": "cancelled"}
+    update_task(task_id, status="cancelling")
+    return {"success": True, "status": "cancelled"}
+
+
+def delete_task(task_id: str) -> Optional[dict]:
+    with _LOCK:
+        _load_store()
+        rec = _TASKS.pop(task_id, None)
+        if not rec:
+            return None
+        _save_tasks()
+    shutil.rmtree(Path(rec["adapter_dir"]), ignore_errors=True)
+    return dict(rec)
+
+
+def _progress_pct(step: int, total: int) -> float:
+    if not total or total <= 0:
+        return 0.0
+    return round(max(0.0, min(step / total * 100.0, 99.5)), 1)
+
+
+def _record_progress(task_id: str, total_steps: int, global_step: int,
+                     epoch: float, loss: Optional[float]) -> None:
+    """把 Trainer 回调的一次日志写成存储真值。
+
+    单列成函数是为了让「步数/轮次来自 TrainerState」这件事在 CI 里可断言：
+    `logs` 只有 loss，`step`/`epoch` 若从 kwargs 取会恒为 None、progress 永远 0.0。
+    轮次上限读 `total_epochs`（`create_task` 已冻结），不由调用方重复传。
+    """
+    if loss is None:
+        return
+    row = get_task(task_id)
+    if not row:
+        return
+    hist = list(row.get("loss_history") or []) + [round(float(loss), 6)]
+    update_task(task_id, loss_history=hist,
+                progress=_progress_pct(int(global_step), int(total_steps)),
+                current_epoch=min(int(row.get("total_epochs") or 1),
+                                  int(float(epoch or 0.0)) + 1))
+
+
+def _format_sample(sample: dict, chat_template) -> str:
+    """指令样本 → 训练文本。有 chat template 走模板（与推理时的应用格式一致），
+    否则退回显式标记文本。"""
+    if chat_template is not None:
+        return chat_template([
+            {"role": "user", "content": (sample.get("instruction") or "") +
+             (("\n" + sample["input"]) if sample.get("input") else "")},
+            {"role": "assistant", "content": sample.get("output") or ""},
+        ], tokenize=False, add_generation_prompt=False)
+    head = sample.get("instruction") or ""
+    inp = sample.get("input") or ""
+    return (f"### 指令:\n{head}\n" + (f"{inp}\n" if inp else "")
+            + f"### 回答:\n{sample.get('output') or ''}")
+
+
+def run_training(task_id: str) -> dict:
+    """同步执行一次真实 LoRA 训练（`start_training` 用线程包装它）。
+
+    返回任务终态快照。CPU 可行性护栏：`FT_TRAIN_STEPS` 可钉死 max_steps，
+    便于本机在分钟级取证；未设置时按 epochs 跑完整轮。
+    """
+    rec = get_task(task_id)
+    if not rec:
+        return {"task_id": task_id, "status": "not_found", "error": "任务不存在"}
+    if not engine_available():
+        msg = "引擎依赖未安装：" + "; ".join(dep_errors()) + \
+              "。请 pip install -r requirements-engine.txt 后重启服务。"
+        return update_task(task_id, status="failed", error=msg)
+    if rec["status"] == "cancelled":
+        return rec
+    busy = [t["task_id"] for t in list_tasks()
+            if t["status"] in ("running", "cancelling") and t["task_id"] != task_id]
+    if busy:  # 单 uvicorn worker 串行训练（手册 §5 边界）：并发提交即诚实失败，不排队不静默
+        return update_task(task_id, status="failed",
+                           error=f"已有训练在跑（{busy[0]}），当前实现单 worker 串行，请稍后再提交")
+    samples = load_samples(rec["dataset_id"]) if rec.get("dataset_id") else []
+    if not samples:
+        return update_task(task_id, status="failed",
+                           error=f"数据集 {rec.get('dataset_id')} 无有效样本，"
+                                 f"请先 POST /api/v1/fine-tune/datasets/build/{rec['course_id']}")
+    hf_id = rec["hf_model_id"]
+    max_len = rec["config"]["max_seq_length"]
+    cached = base_model_cached(hf_id)
+    if not cached and os.getenv("FT_ALLOW_DOWNLOAD", "0") != "1":
+        return update_task(task_id, status="failed",
+                           error=f"基座模型 {hf_id} 未本地缓存，且未允许下载"
+                                 f"（置 FT_ALLOW_DOWNLOAD=1 可首次自动拉取）")
+    try:
+        from transformers import (AutoModelForCausalLM, AutoTokenizer, DataCollatorForLanguageModeling,
+                                  Trainer, TrainerCallback, TrainingArguments)
+        from peft import LoraConfig, PeftModel, TaskType
+
+        tokenizer = _MODEL_HOLDER["tokenizer"] or AutoTokenizer.from_pretrained(
+            hf_id, local_files_only=cached)
+        if tokenizer.pad_token is None:
+            tokenizer.pad_token = tokenizer.eos_token
+        template = tokenizer.apply_chat_template if tokenizer.chat_template else None
+        texts = [_format_sample(s, template) for s in samples]
+        enc = tokenizer(texts, truncation=True, max_length=max_len, padding=False)
+        ds_obj = _datasets.Dataset.from_dict({k: v for k, v in enc.items()})
+
+        base = AutoModelForCausalLM.from_pretrained(
+            hf_id, local_files_only=cached,
+            torch_dtype=_torch.float16 if device() == "cuda" else _torch.float32)
+        lora = LoraConfig(task_type=TaskType.CAUSAL_LM, r=rec["config"]["lora_rank"],
+                          lora_alpha=rec["config"]["lora_alpha"],
+                          lora_dropout=rec["config"]["lora_dropout"],
+                          target_modules=rec["config"]["target_modules"])
+        model = PeftModel.from_config(base, lora)
+
+        total_steps = _train_steps(len(ds_obj), rec)
+        args = TrainingArguments(
+            output_dir=str(Path(rec["adapter_dir"]) / "trainer"),
+            per_device_train_batch_size=rec["config"]["batch_size"],
+            learning_rate=rec["config"]["learning_rate"],
+            num_train_epochs=rec["config"]["epochs"],
+            max_steps=total_steps,
+            warmup_ratio=rec["config"]["warmup_ratio"],
+            logging_steps=1, save_strategy="no", report_to=[],
+            use_cpu=device() == "cpu",
+        )
+
+        class _Progress(TrainerCallback):
+            def on_log(self, args, state, control=None, logs=None, **kwargs):
+                if _CANCEL_FLAGS.get(task_id):
+                    raise _TrainingCancelled()
+                _record_progress(task_id, total_steps,
+                                 state.global_step, state.epoch, (logs or {}).get("loss"))
+
+        # completion-only：整段「指令+回答」计入损失，不做 prompt 段掩码（理由见本模块 docstring）
+        trainer = Trainer(model=model, args=args, train_dataset=ds_obj,
+                          data_collator=DataCollatorForLanguageModeling(tokenizer=tokenizer, mlm=False),
+                          callbacks=[_Progress()])
+        update_task(task_id, status="running", progress=0.0, error=None)
+        trainer.train()
+        model.save_pretrained(rec["adapter_dir"])
+        _atomic_write_text(Path(rec["adapter_dir"]) / "train_state.json", json.dumps(
+            {"task_id": task_id, "hf_model_id": hf_id, "config": rec["config"],
+             "total_steps": total_steps, "finished_at": now_iso()},
+            ensure_ascii=False, indent=2))
+        # 只缓存分词器：adapter 已折入 model，缓存裸基座会让下一次训练拿到已带 LoRA 的模型
+        _MODEL_HOLDER.update({"model": None, "tokenizer": tokenizer, "hf_id": hf_id})
+        return update_task(task_id, status="completed", progress=100.0,
+                           current_epoch=rec["config"]["epochs"], error=None)
+    except _TrainingCancelled:
+        return update_task(task_id, status="cancelled", error="训练已在 step 边界取消")
+    except Exception as exc:  # 训练期任何异常都落成可诊断终态，绝不冒泡成 500
+        return update_task(task_id, status="failed",
+                           error=f"训练失败：{type(exc).__name__}: {exc}")
+
+
+def device() -> str:
+    forced = os.getenv("FT_DEVICE")
+    if forced:
+        return forced
+    return "cuda" if (_torch is not None and _torch.cuda.is_available()) else "cpu"
+
+
+def _train_steps(n_samples: int, rec: dict) -> int:
+    """步数：`FT_TRAIN_STEPS` 优先（本机取证护栏），否则按 epochs/batch 估完整轮步数。"""
+    env_steps = os.getenv("FT_TRAIN_STEPS")
+    if env_steps:
+        return int(env_steps)
+    bs = max(1, rec["config"]["batch_size"])
+    return max(1, int(-(-n_samples // bs) * rec["config"]["epochs"]))
+
+
+def start_training(task_id: str) -> dict:
+    """后台线程执行训练；HTTP 侧立即返回 pending/running 快照。"""
+    threading.Thread(target=run_training, args=(task_id,), daemon=True,
+                     name=f"lora-train-{task_id}").start()
+    return get_task(task_id) or {"task_id": task_id, "status": "pending"}
