@@ -129,7 +129,7 @@ def as_dict(raw) -> dict:
     """把 config/params 归一为 dict。
 
     Java 端 `LLMFineTuneServiceImpl` 用 `JsonNode.toString()` 把它们当**字符串**发出
-    （见手册 §37 与 DR-73），而契约示例是对象——两种形状都必须吃，否则 8003 一上线即全线失败。
+    （见手册 §37 与 DR-79），而契约示例是对象——两种形状都必须吃，否则 8003 一上线即全线失败。
     """
     if raw is None or raw == "":
         return {}

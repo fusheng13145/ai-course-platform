@@ -85,7 +85,7 @@ async def _on_corrupt(_request, exc):
 class StartIn(BaseModel):
     course_id: int = Field(ge=1)
     base_model: str = Field("qwen-7b", min_length=1, max_length=120)
-    # Java 发 JSON 字符串、§37 示例是对象（DR-73）：形状在此放宽，归一交给引擎的 as_dict
+    # Java 发 JSON 字符串、§37 示例是对象（DR-79）：形状在此放宽，归一交给引擎的 as_dict
     config: Union[dict, str, None] = None
 
 

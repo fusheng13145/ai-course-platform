@@ -36,7 +36,7 @@
 | `python-services/fine_tune_service/requirements-engine.txt` | 真实引擎重依赖 | Create |
 | `.gitignore:88` 附近 | 追加 `python-services/fine_tune_service/data/` | Modify |
 | `.github/workflows/ci.yml:578-606` 后 | 新增 `python-fine-tune-contract` 作业 | Modify |
-| `docs/项目手册.md` | §37/§40/§42/§46.2/附录 D（DR-72/DR-73） | Modify |
+| `docs/项目手册.md` | §37/§40/§42/§46.2/附录 D（DR-78/DR-79，原拟 72/73 已被并发批次占用） | Modify |
 | `docs/文档索引.md`、`README.md`、`docs/项目现状分析与未来发展规划-2026-10-13.md` | 引擎读数与 F1/D4-1/D13 状态 | Modify |
 
 ---
@@ -231,7 +231,7 @@ def as_dict(raw) -> dict:
     """把 config/params 归一为 dict。
 
     Java 端 `LLMFineTuneServiceImpl` 用 `JsonNode.toString()` 把它们当**字符串**发出
-    （见手册 §37 与 DR-73），而契约示例是对象——两种形状都必须吃，否则 8003 一上线即全线失败。
+    （见手册 §37 与 DR-79），而契约示例是对象——两种形状都必须吃，否则 8003 一上线即全线失败。
     """
     if raw is None or raw == "":
         return {}
@@ -1835,7 +1835,7 @@ async def _on_corrupt(_request, exc):
 class StartIn(BaseModel):
     course_id: int = Field(ge=1)
     base_model: str = Field("qwen-7b", min_length=1, max_length=120)
-    # Java 发 JSON 字符串、§37 示例是对象（DR-73）：形状在此放宽，归一交给引擎的 as_dict
+    # Java 发 JSON 字符串、§37 示例是对象（DR-79）：形状在此放宽，归一交给引擎的 as_dict
     config: Union[dict, str, None] = None
 
 
@@ -2399,7 +2399,7 @@ Expected: 确认待改文件是否仍有未提交改动；有则**先问项目�
 
 - [ ] **Step 2: §37 契约节回写**
 
-在 §37 追加实现落地说明：8 条端点已交付 + 6 条附加数据集/语料端点清单（`POST /datasets`、`POST /datasets/build/{course_id}`、`GET /datasets`、`GET /datasets/{dataset_id}/samples`、`DELETE /datasets/{dataset_id}`、`GET /corpus`，标注「附加，不改 §37 形状」）与 `/weights/{weight_name}` 下载路由；`config`/`params` 双形状说明与 **DR-73** 残项（Java 侧仍发字符串，是否改发对象属跨端决策）；任务状态机、单 worker 边界与 `mode`/`code` 同向三值规则。
+在 §37 追加实现落地说明：8 条端点已交付 + 6 条附加数据集/语料端点清单（`POST /datasets`、`POST /datasets/build/{course_id}`、`GET /datasets`、`GET /datasets/{dataset_id}/samples`、`DELETE /datasets/{dataset_id}`、`GET /corpus`，标注「附加，不改 §37 形状」）与 `/weights/{weight_name}` 下载路由；`config`/`params` 双形状说明与 **DR-79** 残项（Java 侧仍发字符串，是否改发对象属跨端决策）；任务状态机、单 worker 边界与 `mode`/`code` 同向三值规则。
 
 - [ ] **Step 3: §40 降级表 / §42 契约测试表 / §46.2 LoRA 条**
 
@@ -2407,9 +2407,9 @@ Expected: 确认待改文件是否仍有未提交改动；有则**先问项目�
 - §42 增行：`test_ft_contract.py`（22 例）/ `test_ft_engine.py`（30 例，其中真实训练用例 1 例带 `skipif` 门禁），逐字写本机**实测**数；实测与计划预期不一致时以实测为准并回头改本计划。
 - §46.2 的 LoRA 条由 ❌ 改为 ✅/🟡：**只写 Task 7 实测到的东西**（模型 ID、步数、loss 首末值、zip 字节、推理文本样例、`mode=ENGINE` 命中的端点），并明确未覆盖面：GPU、7B 级基座、多并发、容器化。
 
-- [ ] **Step 4: 附录 D 登记 DR-72 / DR-73，并把 DR-23 残项收窄**
+- [ ] **Step 4: 附录 D 登记 DR-78 / DR-79，并把 DR-23 残项收窄**
 
-DR-72：LoRA(8003) 引擎侧交付（含取证与未完成面）。DR-73：`config`/`params` 两端形状漂移（引擎双形状兼容已落地，Java 侧待决）。DR-23 的「`:8003` LoRA 微调无任何 Python 实现」改为「已交付，残项仅剩 kg/rag/ft 的 Dockerfile」。
+DR-78：LoRA(8003) 引擎侧交付（含取证与未完成面）。DR-79：`config`/`params` 两端形状漂移（引擎双形状兼容已落地，Java 侧待决）。DR-23 的「`:8003` LoRA 微调无任何 Python 实现」改为「已交付，残项仅剩 kg/rag/ft 的 Dockerfile」。
 
 - [ ] **Step 5: 索引与 README 读数**
 
@@ -2424,7 +2424,7 @@ Expected: 仅剩「Dockerfile 仍待补」等**确实未完成**的表述；出�
 
 ```bash
 git add docs/项目手册.md docs/文档索引.md README.md docs/项目现状分析与未来发展规划-2026-10-13.md
-git commit -m "docs(manual,index,readme): D1-3 LoRA(8003) 引擎回写——DR-72/DR-73 入表 + §37/§40/§42/§46.2 实测口径"
+git commit -m "docs(manual,index,readme): D1-3 LoRA(8003) 引擎回写——DR-78/DR-79 入表 + §37/§40/§42/§46.2 实测口径"
 ```
 
 ---
