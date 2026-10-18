@@ -613,6 +613,9 @@ git commit -m "test(visual): storageState 三角色会话夹具，把 24 次导�
 **Files:**
 - Create: `frontend/e2e/visual/anchors.spec.ts`
 - Create: `frontend/e2e/visual/__snapshots__/anchors.spec.ts/**.png`（24 张，由 `--update-snapshots` 生成）
+  - **据实更正（Task 4 实测）**：入库 **22 张**。差额不是漏跑，是**两条 `error` 锚点被主动拒收**——
+    error 路由从不写 `data-theme`（缺陷 D-1），暗色下无法诚实采集。引用这个数字时一律写 **22/24** 并带上原因，
+    台账 `P0a-HARNESS-01` 行是同一条判据的落点。
 - Modify: `frontend/e2e/visual/visual-helpers.ts`（补 `ANCHORS` 常量）
 
 **Interfaces:**
@@ -1183,7 +1186,11 @@ Create `docs/visual-upgrade/LEDGER.md`:
 在表下追加（数值须替换为本轮实测，不得留空）：
 
 ```markdown
-| P0a-HARNESS-01 | 视觉基线 0 张（全库 `toHaveScreenshot` 命中 0） | 新增 `playwright.visual.ts` + `e2e/visual/`：独立 config、时钟冻结、稳定态轮询。理由＝spec §5 要求"改前截图"，此前无处可取 | 24 张（12 锚点 × 明暗），`frontend/e2e/visual/__snapshots__/anchors.spec.ts/` | 不建则 Phase 1–6 全部改动无痕可言 | 命中"留痕缺口"而非表层观感 | 二次跑 diff 像素比 __实测__ %；机器判 | 保留 | lint/typecheck/test/build/size:gate/visual 全绿 |
+| P0a-HARNESS-01 | 视觉基线 0 张（全库 `toHaveScreenshot` 命中 0） | 新增 `playwright.visual.ts` + `e2e/visual/`：独立 config、时钟冻结、稳定态轮询。理由＝spec §5 要求"改前截图"，此前无处可取 | 22/24 张（12 锚点 × 明暗；两条 `error` 锚点被主动拒收，根因 D-1＝error 路由从不写 `data-theme`，暗色无法诚实采集），`frontend/e2e/visual/__snapshots__/anchors.spec.ts/` | 不建则 Phase 1–6 全部改动无痕可言 | 命中"留痕缺口"而非表层观感 | 二次跑**计数为 0**（不是"一字不差"，见 spec 第 16 条）；量程出处＝`P0a-THRESH-01`；Phase 1 需按第 15 条报计数＋最大单通道色差，**前置是 Task 4c Step 1g** | 保留 | 本行只由"建 harness"这一件事背书；实现者实际跑的是 `ls`/`grep -c`/`git grep`/`git status --porcelain __snapshots__`，**未跑** lint/typecheck/test/build/visual |
+
+> **这条样例行是按 Task 4/4b/5 的实测回填过的版本**，之前写的"24 张""diff 像素比 __实测__ %""全绿"三处都不成立：
+> 数量是 22/24；"零 diff"必须写成"计数为 0 并带量程出处"；**验证栏只能写那一行真的跑过的命令**，
+> 不许留模板套话（模板套话会让后面 60+ 行看起来都做了全量验证，而实际上没有）。
 | P0b-MODAL-01 | `ui/Modal` 无 Teleport（`Modal.vue:19` 根为 `.overlay`） | 待 Phase 0b Task 8 回填 | 待回填 | 待回填 | 待回填 | 待回填 | 待回填 | 待回填 |
 ```
 
@@ -1192,7 +1199,10 @@ Create `docs/visual-upgrade/LEDGER.md`:
 - [ ] **Step 3: 确认表头与列数一致**
 
 Run: `cd "C:/Users/ASUS/Desktop/大创赛/ai-course-platform" && awk -F'|' '/^\|/ {print NF-2": "substr($0,1,40)}' docs/visual-upgrade/LEDGER.md`
-Expected: 每一行的列数都等于 9（表头、分隔行、两条数据行一致）。不一致即表格被内容里的 `|` 撑破，改用 `\|` 转义。
+Expected: 每一行的列数都等于 9（表头、分隔行、两条数据行一致）。
+> **转义这条我写错了，据实改掉（Task 5 实现者实测）**：`awk -F'|'` **连 `\|` 一起切**，
+> 所以"内容里的竖线改用 `\|` 转义"不能让列数自检通过——它第一稿正因如此撑成 11 列。
+> 可行的规矩是**表内正文不出现竖线**（用"加/或/、"改写），并把这条写进台账自己的口径区。
 
 - [ ] **Step 4: 提交**
 
