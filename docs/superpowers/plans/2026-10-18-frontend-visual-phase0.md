@@ -891,8 +891,21 @@ Expected 并**必须写进 LEDGER**：每档一行 `detected / not-detected / sk
 另注：档 2/3 的作用域是 `.l1-card`，**登录页没有这个类**；若不加命中数守卫，会把"注入没生效"
 误读成"基线检不出"。首轮实现者补了空操作守卫、判 SKIPPED 而非"检不出"，这个区分要保留。
 
-> **首轮离线自检台**（同一把 pixelmatch、真实 token/几何、噪声地板 0）的量出结果，
-> 必须在真实基线上**证实或推翻**——这是本轮最有价值的产出，因为现有结论全站在那个自检台上：
+> **⚠️ 下面这块离线自检台的读数已被真实基线推翻，保留只为记录"当时的假设为什么不成立"，不得再被引用为依据**
+> （真实值：`gross` 最大单通道色差是 **8/255**，不是 82；自检台把亮度 3% 的乘法压暗换成了加法，高估约 10 倍，
+> 因此它导出的"收到 ≤0.05 就看得见"是错的，真实需要 ≤0.02。免检额也不该用自检台的 3082 px，真基线是 2592 px）。
+>
+> **更要紧的一处归因错误，是 4b 独立评审纠正的，也是我在给 Task 5 的派发词里跟着写错的**：
+> `gross` 在 `{0.2, 0.002}` 下被吸收，**不是因为 2592 px 的免检额把它吞了**，
+> 而是因为 `threshold: 0.2` 那道**逐像素闸**要求单通道差 `> 264.0 × 0.2 = 52.8`，
+> 而 3% 亮度变化最多 `0.03 × 255 = 7.65 → 8/255` —— pixelmatch 于是**一个像素都不计数**
+> （实测 t≥0.05 时计数恒为 0，连 `ratio=0` 都判绿）。两道闸要分清：
+> **逐像素闸决定"看得见看得见"，`maxDiffPixelRatio` 决定"允许多少个看不见也算数"**。
+> 推论一：旧的"零 diff"读数对**薄型/低对比**改动（Phase 1–3 的形态）全部作废；
+> 推论二：但对**高对比大面积替换**它并没有失效（Δ>52.8 且面积 >2592 px 一样会红），
+> 所以 spec 第 12 条"任何零 diff 都不得当证据"是**偏保守**，不是说旧配置在两类上都一样瞎。
+>
+> 首轮离线自检台的原文（已作废，仅存档）：
 > - `gross`（`body{filter:brightness(0.97)}`）在 `{0.2, 0.002}` 下**被吸收**（220px < 免检额 3082px，最大单通道色差 82/255）
 >   ⇒ 本段旧写法"`gross` 不报警说明配置是坏的、先修配置"这个假设**不成立**：连哨兵档都检不出。
 > - `shadow` 在 `t=0.2` 与 `t=0.1` 都是 **0 像素报警**（连 `ratio=0` 都判绿），最大单通道色差 20/255；
@@ -948,7 +961,8 @@ Task 4b round 2 量出三件它自己无权修的事（都在 `anchors.spec.ts` 
 
 **Files:**
 - Modify: `frontend/e2e/visual/anchors.spec.ts`（锚点各自的"数据已到位"断言 + 日期带遮罩）
-- Modify: `frontend/e2e/visual/sensitivity.spec.ts`（暗色量程探测）
+- Modify: `frontend/e2e/visual/sensitivity.spec.ts`（暗色量程探测 + `inset`/`surface` 两档 + 默认档改 `noise` + 离线取证与比较共用 mask）
+- Modify: `frontend/e2e/visual/helpers.spec.ts`（`SNAPSHOT_THRESHOLDS` 单测钉 + 22 张基线 hash 清单）
 - Modify: `frontend/e2e/visual/visual-helpers.ts`（`maskSelectors` 落到具体锚点）
 - Possibly: `frontend/e2e/visual/__snapshots__/anchors.spec.ts/*.png`（仅当遮罩改变被比区域时按流程重生成并逐张复核）
 
@@ -976,6 +990,51 @@ PW_PORT=5175 npx playwright test -c playwright.visual.ts anchors -g "student-das
 
 判定"遮罩是否可接受"的标准是具体的：被遮的像素面积占整页比例，以及 Phase 1/2 的改动是否落在其中。
 
+> **评审把这条的优先级改了顺序，理由要照抄进实现者的判断里**：4b 独立评审实测
+> `student-dashboard` 的**字节差异像素已达 618，而免检额只有 648——余量 5%，不是原先以为的 2 倍**
+> （321 是 pixelmatch 计数后的值，另外约 297 个被它的抗锯齿分类器吃掉了）。
+> 更要紧的是同一个 `LocalDate.now()` 窗口**还会重新取数**（`StudentVisualizationComponent.java:59,134`），
+> 所以换一天动的可能不只是轴标签文字，而是**整条 series 的几何**。
+> ⇒ **遮罩只是退路，`page.route` 钉死响应载荷才是首选**；而且必须证"漂移在 ≥3 天跨度上仍 ≤ X"，
+> 只量今天这一天的差**不算闭**。判定式：钉载荷后重跑 3 次独立全量 `anchors`，4 张日期锚点的
+> 计数必须归 0（不是"变小"）。
+
+- [ ] **Step 1b: 把 `SNAPSHOT_THRESHOLDS` 用一条单测钉住**
+
+4b 这一轮里这个常量**在飞的过程中就被另一个代理改过**（0.2→0.05→0.02）。它现在只靠散文保护，
+而后 60+ 个任务都要读它。加一条：
+
+```ts
+it('量程常量钉死，改动必须显式决策', () => {
+  expect(SNAPSHOT_THRESHOLDS).toEqual({ threshold: 0, maxDiffPixelRatio: 0.0005 })
+})
+```
+
+放进 `frontend/e2e/visual/helpers.spec.ts`。**只许收紧**（把这条断言一起改），不许放宽。
+
+- [ ] **Step 1c: 探针默认档改成 `noise`，并给基线加篡改痕迹**
+
+`sensitivity.spec.ts:98` 的 `PW_LADDER ?? 'gross'` 让**任何不带过滤的 visual 跑都天然带 3 条设计好的失败**，
+而计划里 `:740` 与 `:1030` 给的命令恰恰是不带过滤的 `--update-snapshots`。后果有两条：
+把后来的代理训练成"红了也别管"，以及同一条命令会**重写全部 22 张基线**而没有任何机械阻止。
+改：默认档 `noise`；`--update-snapshots` 存在时必须带一个显式 env 承认才肯跑；
+并在 `helpers.spec.ts` 里断言 22 张基线的 hash 清单（篡改痕迹），基线被换掉即红。
+
+- [ ] **Step 1d: 补 `inset` 与 `surface` 两档量程**
+
+Phase 1 要动的三样形态里**只量过两样**：shadow-alpha（32~86 倍）与整页亮度（约 1900 倍）。
+**内高光（inset）与局部表面色阶（surface）没量过**——4b 是靠"t=0 什么都能报"论证的，
+而这个论证只在 pixelmatch 的抗锯齿分类器不吃掉高光边缘时成立，
+而 radius 恰恰演示了它会被吃（1983 字节差 → 1394 计数）。
+⇒ 在实现者自己先补出这两档之前，**Phase 1 的证据形式只对 shadow 有效**，内高光不许报"零 diff"。
+
+- [ ] **Step 1e: `PW_PROBE_CAPTURE` 与比对路径的 `mask` 必须一致**
+
+`sensitivity.spec.ts:287` 的离线取证截图**不带 mask**，而 `:297` 的比较**带 mask**。
+今天无害（12 个锚点没有一个声明 `maskSelectors`），但 Step 1 若采纳"遮标签带"，
+离线自检台与 Playwright 的读数就会**静默分叉**，而喂给 LEDGER 的是前者。
+本步把 mask 传进两条路径，并加一条断言：同一对图，两条路径的计数相等。
+
 - [ ] **Step 2: 堵掉"空态过守卫"这个洞**
 
 Task 4b 记录了一次真实事故：后端瞬时失败使 `teacher-dashboard` 渲染成空态，
@@ -998,12 +1057,22 @@ Task 4b 记录了一次真实事故：后端瞬时失败使 `teacher-dashboard` 
 **只有到 0.0001 仍全绿，Phase 2 的圆角工作才算可被证明**；否则 Phase 2 计划必须改用非像素证据，
 并把这一条写进它的准入门。
 
+> 评审给的算术（供判定用，别重新推）：1440×900 = 1,296,000 px，
+> 免检额 `0.0005 → 648`、`0.0002 → 259`、`0.0001 → 129.6 ≈ 130`；失败判据是 `count > allowance`。
+> 残余非日期抖动最大 46 px ⇒ **漂移归零后 `0.0001` 是可及的**。
+> 但**即便到了 0.0001，单卡圆角也只有约 1.5 倍余量**（198 vs 130），因为这个量的上界是几何定的：
+> 16→14px 只重绘四个角弧，`4·(π/4)(16²−14²) = 189 px`（实测 198）。
+> ⇒ **Phase 2 的准入门不是"把 r 调下去"，而是给圆角配一条非像素判据**
+> （逐卡 `getComputedStyle().borderRadius` 等值 + 对该角做定向裁剪图），
+> diff % 只留给"会按比例放大改动面积"的形态。
+
 - [ ] **Step 5: 提交**
 
 ```bash
 git add frontend/e2e/visual/anchors.spec.ts frontend/e2e/visual/sensitivity.spec.ts \
+        frontend/e2e/visual/helpers.spec.ts \
         frontend/e2e/visual/visual-helpers.ts frontend/e2e/visual/__snapshots__
-git commit -m "test(visual): 消除图表日期漂移、堵掉空态过守卫，并补暗色量程与 0.0001 可行性判定"
+git commit -m "test(visual): 钉死图表日期漂移、堵掉空态过守卫，补 inset/surface 量程与阈值/基线篡改防护"
 ```
 
 ---
@@ -1768,7 +1837,7 @@ Expected: FAIL——无 `role`/`aria-modal`、无滚动锁、无 `closed` 事件
 Create `frontend/src/composables/useOverlayScrollLock.ts`:
 
 ```ts
-import { watch } from 'vue'
+import { onScopeDispose, watch } from 'vue'
 import type { Ref } from 'vue'
 
 /**
@@ -1782,21 +1851,45 @@ import type { Ref } from 'vue'
  * 计数会恒读回 0、滚动锁永不还原，而单测里清的是另一个键，两边都"看起来对"。
  */
 function count(): number {
-  return Number(document.body.dataset.overlayCount ?? 0)
+  // 消毒：脏值不能带进比较。`Number('abc')` → NaN，而 `Math.max(0, NaN)` 仍是 NaN，
+  // 且 `NaN > 0` 为 false ⇒ 表现是"还开着却把滚动解了"，比直接崩更难查。
+  const raw = Number(document.body.dataset.overlayCount)
+  return Number.isInteger(raw) && raw > 0 ? raw : 0
 }
 
 export function useOverlayScrollLock(active: Ref<boolean>): void {
-  watch(
-    active,
-    (on, prev) => {
-      if (on === prev) return
-      const next = Math.max(0, count() + (on ? 1 : -1))
-      document.body.dataset.overlayCount = String(next)
-      document.body.style.overflow = next > 0 ? 'hidden' : ''
-    },
-    { immediate: true },
-  )
+  // 下面三处是 Task 11 评审在**这份草稿**里实测出来的 bug，照抄即中，故先改对再派发。
+  // ① `immediate` 首次回调的 prev 是 undefined，`on === prev` 挡不住 (false, undefined)
+  //    ⇒ 一个从没打开过的实例挂载就减一次。改成"本实例是否已登记"的 claimed 标志，
+  //    让增减对每个实例**幂等**，而不是去猜上一次的布尔值。
+  // ② 草稿没有任何卸载路径 ⇒ 开着的时候被卸载，+1 永久漏（`v-if` 卸载、路由切换都会）。
+  //    用 `onScopeDispose` 归还，并停掉 watch。
+  // ③ 脏值：`Number('abc')` 是 NaN，`Math.max(0, NaN)` 也是 NaN，
+  //    而 `NaN > 0` 为 false ⇒ 结果是"还开着却把滚动解了"。计数读写两侧都要消毒。
+  let claimed = false
+  const write = (n: number) => {
+    document.body.dataset.overlayCount = String(n)
+    document.body.style.overflow = n > 0 ? 'hidden' : ''
+  }
+  const apply = (on: boolean) => {
+    if (on && !claimed) {
+      claimed = true
+      write(count() + 1)
+    } else if (!on && claimed) {
+      claimed = false
+      write(Math.max(0, count() - 1))
+    }
+  }
+  const stop = watch(active, (on) => apply(on === true), { immediate: true })
+  onScopeDispose(() => {
+    stop()
+    if (claimed) {
+      claimed = false
+      write(Math.max(0, count() - 1))
+    }
+  })
 }
+```
 
 /** 供单测与调试读取当前计数 */
 export function overlayCount(): number {
