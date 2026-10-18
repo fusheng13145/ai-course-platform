@@ -1,27 +1,54 @@
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import Modal from '../Modal.vue'
 
-// 12 个调用点的实际用法抽成三类：尺寸档、@close、插槽有无。
+// 13 个调用点的实际用法抽成三类：尺寸档、@close、插槽有无。
 // 这一组测试是 Phase 4 每批迁移前的「存量不破」门禁：加能力之前先把现状钉死，
 // 后续 Task 7-10 只在本文件追加断言、不另开文件。一旦它们变红，说明改的是
 // 不兼容而非纯增强——红的是信号，不是待修的 bug。
+//
+// 每个 factory() 挂载的 wrapper 都登记进 mounted，由下面的 afterEach 统一卸载：
+// 本文件所有用例都 attachTo document.body，不卸载就会把 .overlay 节点连同它们的
+// document keydown 监听留到整份文件结束。今天用例之间互不污染（断言都是 wrapper
+// 作用域，注册表用例也只记录自己那一次挂载），但 Task 8 要往本文件追加断言——那时
+// 任何 body 作用域的查询都会先撞上这些僵尸实例，所以先把场地清干净。
+interface TrackedWrapper {
+  readonly element: Element
+  unmount(): void
+}
+const mounted: TrackedWrapper[] = []
+
 function factory(
   props: Record<string, unknown> = {},
   slots: Record<string, string> = {},
   attrs: Record<string, string> = {},
 ) {
-  return mount(Modal, {
+  const wrapper = mount(Modal, {
     props,
     attrs,
     slots: { title: '标题', ...slots },
     attachTo: document.body,
   })
+  mounted.push(wrapper)
+  return wrapper
 }
 
 describe('Modal 现状兼容钉', () => {
+  afterEach(() => {
+    // 卸载本文件创建、且仍未卸载的 wrapper。监听清理用例会自己 unmount（那是被测动作），
+    // 卸载后元素从 body 摘掉、isConnected 变 false，这里据此跳过、避免二次 unmount。
+    for (const w of mounted) {
+      if (w.element.isConnected) w.unmount()
+    }
+    mounted.length = 0
+  })
+
   it('默认宽度 640px 档（无修饰 prop）', () => {
-    // 用 get 而非 find：find 落空时 classes() 返回 []，三条 not.toContain 会空转通过。
+    // 用 get 而非 find：get 缺元素即抛，且错误信息带上 DOM，和 EmptyState.test.ts 的既有约定一致。
+    // 注意别误信旧稿的说法——find 落空并不会返回空 wrapper 让 classes() 得到 []：它返回
+    // createWrapperError 的代理，除 exists/then 外的任何属性读取都会被 get trap 抛错
+    // （vue-test-utils.cjs.js:7247-7251 与 :1477-1492）。所以 find 同样能锁住「缺 .modal 即失败」，
+    // 只是报错比 get 更晦涩，故统一用 get。
     const w = factory().get('.modal')
     expect(w.classes()).not.toContain('wide')
     expect(w.classes()).not.toContain('narrow')
@@ -78,42 +105,67 @@ describe('Modal 现状兼容钉', () => {
   })
 
   it('卸载必须摘掉挂载期注册的 document keydown 监听（后续 Esc 不能打到僵尸实例）', async () => {
-    // 观察点必须落在监听器注册表，而不是 emitted 计数。实测（见 task-6-report）：
-    // VTU 在 unmount() 时清空该实例事件史，父组件的 @close 也收不到已卸载实例的 emit，
-    // 所以「卸载后 dispatch Esc，断言 emitted close 长度不增长」这种写法无论
-    // removeEventListener 有没有被调用都会绿——它钉不住任何东西，而 12 个调用点全靠
-    // v-if 反复开关实例，残留 handler 是真实的内存/幽灵回调来源。
-    interface DocListeners {
+    // 观察点落在监听器注册表，而不是 emitted 计数。实测（见 task-6-report §2 D-1）：
+    // VTU 的 unmount() 会 removeEventHistory（vue-test-utils.cjs.js:7863），而 Vue 的
+    // emit() 起手就是 `if (instance.isUnmounted) return`（runtime-core.cjs.js:4484）——
+    // 所以「卸载后 dispatch Esc、断言 emitted close 不增长」无论 removeEventListener 有没
+    // 被调用都会绿，它钉不住任何东西；而调用点全靠 v-if 反复开关实例，残留 handler 是真实
+    // 的内存/幽灵回调来源。故把观察点钉在注册表本身。
+    //
+    // 拦截改用 vi.spyOn + mockRestore（仓内既有习惯：AppShell.shortcuts.test.ts 用 window
+    // 事件、useTheme.test.ts / useQuestions.test.ts:586 用 vi.fn / vi.spyOn 而非手改全局）。
+    // 相比「把绑定的原函数赋回全局」，mockRestore 会把 document 上的 own 属性整个删掉、还原到
+    // EventTarget.prototype，不在 document 上留下 own 属性残迹。
+    //
+    // 注册记录成 [type, listener, capture] 三元组，并按三元组身份比对：DOM 的移除匹配是
+    // (type, callback, capture)——若将来有人 addEventListener('keydown', fn, true) 却用
+    // removeEventListener('keydown', fn)（capture 不匹配＝真泄漏），只比函数引用会误判为干净。
+    interface RawListeners {
       addEventListener: (type: string, listener: EventListener, options?: unknown) => void
       removeEventListener: (type: string, listener: EventListener, options?: unknown) => void
     }
-    const doc = document as unknown as DocListeners
-    const rawAdd = doc.addEventListener.bind(document)
-    const rawRemove = doc.removeEventListener.bind(document)
-    const added: EventListener[] = []
-    const removed: EventListener[] = []
+    // 先绑定原始实现、再装 spy：rawAdd/rawRemove 拿到的是尚未被替换的原型方法，不会自我递归。
+    const raw = document as unknown as RawListeners
+    const rawAdd = raw.addEventListener.bind(document)
+    const rawRemove = raw.removeEventListener.bind(document)
+    const captureOf = (o?: boolean | { capture?: boolean }): boolean =>
+      typeof o === 'boolean' ? o : !!o?.capture
+    type Registration = readonly [type: string, listener: EventListener, capture: boolean]
+    const added: Registration[] = []
+    const removed: Registration[] = []
 
-    doc.addEventListener = (type, listener, options) => {
-      if (type === 'keydown') added.push(listener)
-      rawAdd(type, listener, options)
-    }
-    doc.removeEventListener = (type, listener, options) => {
-      if (type === 'keydown') removed.push(listener)
-      rawRemove(type, listener, options)
-    }
+    const addSpy = vi
+      .spyOn(document, 'addEventListener')
+      .mockImplementation((type, listener, options) => {
+        added.push([type, listener as EventListener, captureOf(options)])
+        rawAdd(type, listener as EventListener, options)
+      })
+    const removeSpy = vi
+      .spyOn(document, 'removeEventListener')
+      .mockImplementation((type, listener, options) => {
+        removed.push([type, listener as EventListener, captureOf(options)])
+        rawRemove(type, listener as EventListener, options)
+      })
 
     try {
       const wrapper = factory()
       await wrapper.vm.$nextTick()
-      // 挂载期确实往 document 挂了 keydown（>0 而非 ===1：Phase 0b 加焦点管理时
-      // 允许再挂别的 keydown，只要卸载时一起摘干净就不算破兼容）
-      expect(added.length).toBeGreaterThan(0)
+      const keydownAdds = added.filter(([t]) => t === 'keydown')
+      // 挂载期确实往 document 挂了 keydown：用 >0 而非 ===1，为 Phase 0b 的焦点管理预留
+      //（允许再加别的 keydown，只要卸载时一起摘干净就不算破兼容）。
+      // 这条同时也把「至少 1 个 keydown 挂在 document」钉死：现状 Modal.vue:5 确实挂 document，
+      // Esc 用例也已钉住 document 通道；但若 Task 9 像 OnboardingGuide.vue:252 那样合法地把
+      // keydown 改挂 window，本行会因 spy 只盯 document 而红——那需要连 spy 目标一起挪到 window
+      // 的同步改动，不是兼容回归，别被这盏红灯唬住。
+      expect(keydownAdds.length).toBeGreaterThan(0)
       wrapper.unmount()
-      const leaked = added.filter((fn) => !removed.includes(fn))
+      const leaked = keydownAdds.filter(
+        ([t, fn, cap]) => !removed.some(([rt, rf, rc]) => rt === t && rf === fn && rc === cap),
+      )
       expect(leaked).toEqual([])
     } finally {
-      doc.addEventListener = rawAdd
-      doc.removeEventListener = rawRemove
+      addSpy.mockRestore()
+      removeSpy.mockRestore()
     }
   })
 })
