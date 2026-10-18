@@ -58,6 +58,13 @@
   ② 同一 brief 只允许有一个在飞的实现者（不确定时先查后台任务，不要重发）；
   ③ 并行执行者各用**独立端口**（`PW_PORT` 5176/5177…），避免共享 dev server 造成连接失败与读数串台；
   ④ 只有**只读评审**可以与实现者并行，实现者之间不行。
+  ⑤ ④ 的边界要说清，否则要么被当成空话要么被当成禁令：**"实现者"指会跑测试/构建/采集的那类**。
+     只写文档、且所写文件不会被别的执行者当证据读取的（如台账 `docs/visual-upgrade/LEDGER.md`），
+     可与代码实现者并行——本轮实际就是这样排的。判据是"会不会有人读我这篇的中间态"，不是"是不是两个代理"。
+  ⑥ **两个及以上实现者在飞时，任何一方不得跑全包套件或视觉全量**（本机 `fileParallelism: false`，
+     两个 vitest 进程会互相拖慢甚至超时；超时报错会被误读成代码问题）。
+     各自只跑**聚焦测试**（如 `npx vitest run src/components/ui/`），
+     **全包套件由控制者在两者落地后跑一次**，并把这一次的结果写进账本作为该批次的合流门。
 - **凡涉及库/VM 内部行为的断言，必须给出实际读过的 `file:line` 并用变异自证可证伪。**
   本任务族已三次出现"自信陈述而代码不支持"（控制器 1、实现者 1、评审 1），第三次是同一条评审链上
   两份评审互相矛盾、由控制器 grep 定案"该仓库惯例并不存在"。措辞宁可写弱一档。
@@ -1950,6 +1957,28 @@ function onOverlay(e: MouseEvent) {
 ```
 
 > **Ruling（来自 Task 6 的兼容钉）：关闭通道保持 `mousedown`，本批不改 `click`。**
+
+- [ ] **Step 4b: 焦点陷阱——`aria-modal` 的债在这一笔还清，建一次、`Modal` 与 `Drawer` 共用**
+
+这不是可选加项，是 **Task 11 评审裁定的 R-1**：`Drawer` 曾写 `aria-modal="true"` 却没有陷阱，
+**语义与实现不一致比不写更糟**（读屏以为已被模态封闭，Tab 仍能走到背后的页面上），
+故该属性已从 `Drawer` 撤下，`role="dialog"` 保留。撤下的东西要由本步骤在共用的陷阱上重新挣回来，
+否则 Phase 4 准入门第 5 项闭不掉（spec 明文：**要么补陷阱，要么撤 `aria-modal`，不许留一个说不通的属性**）。
+
+新建 `frontend/src/composables/useFocusTrap.ts`，签名 `useFocusTrap(rootRef: Ref<HTMLElement | null>, active: Ref<boolean>): void`，
+要求逐条配一条会红的断言（放 `Modal.a11y.test.ts`）：
+
+1. `active` 为真时，**Tab 与 Shift+Tab 在面板内循环**，越界即回绕（焦点序复用 `DIALOG_FOCUSABLE_SELECTOR`，
+   与 63 个 `el-dialog` 走同一份事实，不允许再长出第二套"什么算可聚焦"）；
+2. 陷阱只在**打开边沿**装载、关闭边沿卸载（与 Task 7 修复轮给 Esc 加的 `open.value` 闸同一套语义，
+   关闭态不得留下任何 document 级监听）；
+3. **`useOverlayScrollLock` 的引用计数要能证明它是幂等的**：从未打开过的实例挂载-卸载，计数不得变；
+   开着时被卸载，计数必须归还（这两条就是 Task 11 评审在草稿里实测出的 ①② 两个 bug 的锁）；
+4. 陷阱生效后 `document.activeElement` 必须始终在 `rootRef` 内；被禁用/`display:none` 的控件须跳过。
+
+`Modal` 接上后 `aria-modal="true"` 才算说得通；**`Drawer` 在 Phase 4 迁入同一套陷阱之前，仍然不许写 `aria-modal`**。
+若本步骤代价过大而无法完成，处置**不是**把 `aria-modal` 悄悄留在 `Modal` 上，
+而是把两个原语一起改成 `aria-modal` 缺省、并在 LEDGER 写明"本阶段撤下该属性的原因与恢复条件"。
 > Task 6 把遮罩关闭钉在 `mousedown.self` 上，改成 `click` 会让那条 pin 变红。
 > 这不是障碍而是**故意保留的决策点**：`mousedown` 与 `click` 的差别在"拖拽选中文字越过遮罩时是否关闭"，
 > 属交互语义变更，需单独评估而非在加 `closeOnClickModal` 时顺手改掉。
