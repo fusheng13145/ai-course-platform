@@ -512,8 +512,12 @@ _DATASET_SEQ: dict[str, int] = {}
 _TASK_SEQ: dict[str, int] = {}
 _loaded = False
 
-# 进程内模型/分词器缓存：训练与推理共用，换基座即失效重建
-_MODEL_HOLDER: dict = {"model": None, "tokenizer": None, "hf_id": None}
+# 进程内模型/分词器缓存：训练与推理共用，换基座即失效重建。
+# task_id 是 adapter 的归属：缓存的是「基座+某个 adapter」，换任务必须重载，否则会拿 A 的权重冒充 B 推理。
+_MODEL_HOLDER: dict = {"model": None, "tokenizer": None, "hf_id": None, "task_id": None}
+
+# 协作式取消标志（task_id → 是否已请求取消）：由 cancel_task 置位、训练回调在 step 边界读取
+_CANCEL_FLAGS: dict[str, bool] = {}
 
 
 def now_iso() -> str:
@@ -575,7 +579,8 @@ def reset_store() -> None:
         _TASKS.clear()
         _DATASET_SEQ.clear()
         _TASK_SEQ.clear()
-        _MODEL_HOLDER.update({"model": None, "tokenizer": None, "hf_id": None})
+        _MODEL_HOLDER.update({"model": None, "tokenizer": None, "hf_id": None, "task_id": None})
+        _CANCEL_FLAGS.clear()  # 按天序号会重号，残留的取消标志会把新任务一起跑就判死
         _loaded = False
 
 
@@ -979,12 +984,14 @@ def test_format_sample_prefers_chat_template_and_falls_back():
     assert "什么是过拟合" in txt and "泛化差" in txt
     called = {}
 
-    def fake(messages):
+    def fake(messages, **kw):
         called["messages"] = messages
+        called["kw"] = kw
         return "TPL"
 
     assert le._format_sample(s, fake) == "TPL"
     assert called["messages"][1]["content"].startswith("模型在训练集")
+    assert called["kw"]["tokenize"] is False  # 不传 tokenize=False 拿到的是 token id 而非文本
 ```
 
 - [ ] **Step 2: 运行确认失败**
@@ -995,10 +1002,8 @@ Expected: FAIL —`AttributeError: ... has no attribute 'next_task_id'`
 - [ ] **Step 3: 实现任务存储 + 训练线程**
 
 ```python
-# 模块级已具备（Task 2）：_TASKS / _TASK_SEQ / _MODEL_HOLDER / _load_store
-#                / _save_tasks / _atomic_write_* / now_iso() / _today_str()
-
-_CANCEL_FLAGS: dict[str, bool] = {}
+# 模块级已具备（Task 2）：_TASKS / _TASK_SEQ / _MODEL_HOLDER / _CANCEL_FLAGS
+#                / _load_store / _save_tasks / _atomic_write_* / now_iso() / _today_str()
 
 
 def next_task_id() -> str:
@@ -1222,7 +1227,7 @@ def run_training(task_id: str) -> dict:
              "total_steps": total_steps, "finished_at": now_iso()},
             ensure_ascii=False, indent=2))
         # 只缓存分词器：adapter 已折入 model，缓存裸基座会让下一次训练拿到已带 LoRA 的模型
-        _MODEL_HOLDER.update({"model": None, "tokenizer": tokenizer, "hf_id": hf_id})
+        _MODEL_HOLDER.update({"model": None, "tokenizer": tokenizer, "hf_id": hf_id, "task_id": None})
         return update_task(task_id, status="completed", progress=100.0,
                            current_epoch=rec["config"]["epochs"], error=None)
     except _TrainingCancelled:
@@ -1262,6 +1267,7 @@ def start_training(task_id: str) -> dict:
 **实现注记（不得省略）**：
 - **loss mask 取舍**：本实现采 completion-only 整理器（`mlm=False`）对「指令+回答」整段计损失，不给 prompt 段做掩码。理由：对 0.5B 基座做部分掩码需要模板一致性保证，做不对会静默学成「复读指令」且不报错；截断风险改由样本构造侧的 `max_seq_length` 兜住。该取舍必须同样写进 `lora_engine.py` 的模块 docstring 与手册 §46.2，不得默默略过（spec §5 末条）。
 - **进度真值取自 `TrainerState`，不是回调 kwargs**：`on_log` 的 `logs` 里只有 `loss`/`learning_rate` 等日志项，**步数与轮次在 `state.global_step` / `state.epoch` 上**。写成 `kwargs.get("step")` 会恒为 `None` → `progress` 永远 0.0，而本机取证只看得到「任务完成了」，会误以为进度字段已坐实。形参按 `on_log(self, args, state, control=None, logs=None, **kwargs)` 的官方形状命名，不要用 `**kw` 兜住一切。
+- **`apply_chat_template` 必须带 `tokenize=False`**（落地时订正）：本计划初稿的 Step 1 用例把替身写成 `def fake(messages)`，而 Step 3 实现传的是 `tokenize=False, add_generation_prompt=False`，两边对不上 → 用例 `TypeError`。实现侧是对的：不带 `tokenize=False` 时真实分词器返回的是 token id 列表而不是文本，`_format_sample` 的返回值会整个坏掉、训练数据变成 id 噪声。已把用例改成 `def fake(messages, **kw)` 并断言 `kw["tokenize"] is False`，让这个不变量在 CI 里可见。
 
 - [ ] **Step 4: 运行确认通过**
 
@@ -1325,6 +1331,26 @@ def test_infer_rejects_unfinished_task(tmp_path):
     t = le.create_task(1, "qwen-7b", le.normalize_config({"dataset_id": ds["dataset_id"]}))
     out = le.infer(t["task_id"], "q", {})
     assert out["code"] == 503 and "未完成" in out["error"]
+
+
+def test_adapter_cache_is_keyed_by_task_not_only_by_presence():
+    """钉住 `_MODEL_HOLDER` 的缓存键：漏掉 task_id 会让任务 B 静默用任务 A 的权重。"""
+    assert le._adapter_cache_matches("ft_x") is False  # 无缓存
+    le._MODEL_HOLDER.update({"model": object(), "task_id": "ft_x"})
+    assert le._adapter_cache_matches("ft_x") is True
+    assert le._adapter_cache_matches("ft_y") is False  # 换任务必须重载
+    le.reset_store()
+    assert le._adapter_cache_matches("ft_x") is False  # 重置后不得留下跨用例缓存
+
+
+def test_reset_store_clears_cancel_flags_so_reused_ids_are_not_pre_cancelled(tmp_path):
+    """按天序号会重号：残留取消标志必须随 reset_store 清掉。"""
+    ds = le.add_dataset(1, [{"instruction": "q", "output": "a"}], source="上传")
+    t = le.create_task(1, "qwen-7b", le.normalize_config({"dataset_id": ds["dataset_id"]}))
+    le.cancel_task(t["task_id"])
+    assert le._CANCEL_FLAGS[t["task_id"]] is True
+    le.reset_store()
+    assert le._CANCEL_FLAGS == {}
 ```
 
 - [ ] **Step 2: 运行确认失败**
@@ -1370,6 +1396,15 @@ def export_weights(task_id: str, public_base: Optional[str] = None) -> dict:
             "local_path": str(zip_path), "code": 200, "mode": "ENGINE"}
 
 
+def _adapter_cache_matches(task_id: str) -> bool:
+    """缓存中的模型是否就是本次要用的 adapter。
+
+    单独成函数是为了让「换任务必须重载 adapter」在 CI 里可断言：缓存键若漏掉
+    task_id，推理任务 B 会静默使用任务 A 的权重并照样回报 `-lora-B`。
+    """
+    return _MODEL_HOLDER["model"] is not None and _MODEL_HOLDER.get("task_id") == task_id
+
+
 def infer(task_id: str, prompt: str, params: dict) -> dict:
     """真实推理：基座 + adapter 载入后 generate，tokens_used 取实际生成 token 数。"""
     rec = get_task(task_id)
@@ -1395,13 +1430,12 @@ def infer(task_id: str, prompt: str, params: dict) -> dict:
         from peft import PeftModel
         tokenizer = _MODEL_HOLDER["tokenizer"] or AutoTokenizer.from_pretrained(
             hf_id, local_files_only=cached)
-        if _MODEL_HOLDER["model"] is None:
+        if not _adapter_cache_matches(task_id):
             base = AutoModelForCausalLM.from_pretrained(
                 hf_id, local_files_only=cached,
                 torch_dtype=_torch.float16 if device() == "cuda" else _torch.float32)
-            _MODEL_HOLDER["model"] = PeftModel.from_pretrained(base, rec["adapter_dir"])
-            _MODEL_HOLDER["hf_id"] = hf_id
-            _MODEL_HOLDER["tokenizer"] = tokenizer
+            _MODEL_HOLDER.update({"model": PeftModel.from_pretrained(base, rec["adapter_dir"]),
+                                  "tokenizer": tokenizer, "hf_id": hf_id, "task_id": task_id})
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
         model = _MODEL_HOLDER["model"].to(device())
@@ -1429,10 +1463,15 @@ def infer(task_id: str, prompt: str, params: dict) -> dict:
 
 **实现注记**：`tokens_used` 必须是 `gen.shape[1] - prompt_len` 的**实际生成 token 数**，不是 `max_tokens` 的回显——§37 把它列为响应字段，取假值就等于在契约字段上造假。
 
+**落地时订正（初稿有两处会让真值失真）**：
+- **adapter 缓存必须按 `task_id` 键控**：初稿的 `if _MODEL_HOLDER["model"] is None` 只判断"有没有缓存"，于是任务 B 的 `/infer` 会直接复用任务 A 已载入的 `PeftModel`，**用 A 的权重生成、却回报 `...-lora-B`**——本机取证时两个任务都跑通，完全看不出来。已改为 `_adapter_cache_matches(task_id)`（`_MODEL_HOLDER` 增 `task_id` 键），并加 CI 用例钉住；`run_training` 训练完把 `task_id` 置 `None`（它只缓存分词器，不缓存带 adapter 的模型）。
+- **`reset_store()` 要清 `_CANCEL_FLAGS`**：任务号按天重号（每条用例都是 `ft_<today>_001`），`cancel_task` 置的位若残留，下一条用例的训练会一进门就抛 `_TrainingCancelled`。同批把 `_CANCEL_FLAGS` 的声明上移到模块状态区（与 `_MODEL_HOLDER` 并列），因为 `reset_store` 在 Task 2 就引用它。
+- **本机已核实 transformers 5.5.4 的三处事实**（写进注释免得取证时误判）：`from_pretrained` 仍接受 `torch_dtype`（源码里 `kwargs.pop("torch_dtype")  # kept for BC`，故初稿写法可用）；`TrainingArguments` 的 `use_cpu/max_steps/report_to/save_strategy/logging_steps/warmup_ratio` 全部存在；`Trainer` 调回调是 `on_log(args, state, control, logs)`，`CallbackHandler.on_log` 再以 `call_event(..., logs=logs)` 关键字转发给使用者回调，故 `def on_log(self, args, state, control=None, logs=None, **kwargs)` 的命名形参能接到，不必退回 `**kwargs` 取。`peft/datasets/accelerate` 本机尚未安装（`torch/transformers` 已装），Task 7 需补装。
+
 - [ ] **Step 4: 运行确认通过并肉眼复核 generate 调用**
 
-Run: `cd python-services/fine_tune_service && python -m pytest test_ft_engine.py -q && python -l -c "import lora_engine"`
-Expected: PASS（27 例）；`python -c "import lora_engine"` 无 SyntaxError；`grep -n "do_temperature" lora_engine.py` 必须**无输出**。
+Run: `cd python-services/fine_tune_service && python -m pytest test_ft_engine.py -q && python -c "import lora_engine"`
+Expected: PASS（29 例，含缓存键控与取消标志两条订正用例）；`python -c "import lora_engine"` 无 SyntaxError；`grep -n "do_temperature" lora_engine.py` 必须**无输出**（防手滑：`generate` 的开关是 `do_sample`，温度是 `temperature`，把两个名字拼成 `do_temperature` 会当作未知 kwarg 被吞掉、既不报错也不生效）。
 
 - [ ] **Step 5: Commit**
 
@@ -2327,7 +2366,7 @@ Expected: 确认待改文件是否仍有未提交改动；有则**先问项目�
 - [ ] **Step 3: §40 降级表 / §42 契约测试表 / §46.2 LoRA 条**
 
 - §40 增行：`微调服务（8003）引擎依赖缺失 / 无数据集 / 存储损坏` → `{"error": 可操作文案, "code": 503, "mode": "UNAVAILABLE"}`（HTTP 仍为 200，理由同 §38：Java 侧只透传非 5xx），Java 侧仍按 §40 返回 `微调服务暂不可用`。存储损坏项由 `lora_service.py` 的 app 级 `StoreCorruptedError` 处理器统一产出。
-- §42 增行：`test_ft_contract.py`（22 例）/ `test_ft_engine.py`（28 例，其中真实训练用例 1 例带 `skipif` 门禁），逐字写本机**实测**数；实测与计划预期不一致时以实测为准并回头改本计划。
+- §42 增行：`test_ft_contract.py`（22 例）/ `test_ft_engine.py`（30 例，其中真实训练用例 1 例带 `skipif` 门禁），逐字写本机**实测**数；实测与计划预期不一致时以实测为准并回头改本计划。
 - §46.2 的 LoRA 条由 ❌ 改为 ✅/🟡：**只写 Task 7 实测到的东西**（模型 ID、步数、loss 首末值、zip 字节、推理文本样例、`mode=ENGINE` 命中的端点），并明确未覆盖面：GPU、7B 级基座、多并发、容器化。
 
 - [ ] **Step 4: 附录 D 登记 DR-72 / DR-73，并把 DR-23 残项收窄**
@@ -2364,4 +2403,4 @@ git commit -m "docs(manual,index,readme): D1-3 LoRA(8003) 引擎回写——DR-7
   6. `dataset_id` 号段不能由 `len+1` 推出：删除后复用号码会让历史任务的 `dataset_id` 指向另一份数据 → Task 2 用 `_DATASET_SEQ` 单调递增并有回归用例。
   7. Trainer 回调的步数/轮次只能取 `state.global_step` / `state.epoch`：`logs` 里没有 `step`，从 kwargs 取会恒为 `None` → `progress` 永远 0.0，而这类缺陷在真跑取证时只表现为「任务完成了但进度是 0」，极易被误读成已坐实 → 写入逻辑单列 `_record_progress()` 并用假 state 在 CI 断言（spec §5）。
 - **类型与命名一致性**：`export_weights(task_id, public_base=None)` 在 Task 4 定义、Task 5 与 Task 7 调用签名一致；导出字节数字段统一叫 `size_bytes`（不叫 `bytes`，避免遮蔽内置且与 `file_size` 人类可读串区分）；`normalize_config` 产出的键（`epochs/learning_rate/lora_rank/lora_alpha/lora_dropout/batch_size/max_seq_length/dataset_id/target_modules/warmup_ratio`）在 Task 3 `_train_steps`/`TrainingArguments` 与 Task 7 测试中逐字一致；进程内持有表统一大写 `_MODEL_HOLDER`/`_CANCEL_FLAGS`；时间戳与 ID 日期段由 Task 2 的 `now_iso()`/`_today_str()` 单点提供（Task 3 起复用，不重复定义）；设备解析单点为 Task 3 的 `device() -> str`（Task 4/5 复用，`/health` 与训练共用同一真值）。
-- **测试计数递进**：`test_ft_engine.py` 6（Task 1）→ 15（Task 2）→ 23（Task 3）→ 27（Task 4）→ 28（Task 7 加真实训练用例）；`test_ft_contract.py` 22（Task 5）。手册 §42 记**实测数**，与计划预期不符时以实测为准并回改本计划。
+- **测试计数递进**：`test_ft_engine.py` 6（Task 1）→ 15（Task 2）→ 23（Task 3，实测）→ 29（Task 4，实测；初稿预期 27，落地时因 adapter 缓存键控与取消标志两条订正各多用例 +2）→ 30（Task 7 加真实训练用例）；`test_ft_contract.py` 22（Task 5）。手册 §42 记**实测数**，与计划预期不符时以实测为准并回改本计划。
