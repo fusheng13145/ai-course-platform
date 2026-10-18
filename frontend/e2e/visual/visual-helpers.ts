@@ -4,11 +4,40 @@ export const THEME_KEY = 'fz-theme'
 export type ThemeName = 'light' | 'dark'
 
 /**
- * 冻结点与预热推进量。为什么是这两个数，见下面 freezeClock / settlePage 的注释；
- * 两处共用同一个常量，页面时间在截图时刻才是可推算的。
+ * 冻结点与推进量。为什么是这几个数，见下面 freezeClock / settlePage 的注释；
+ * 三处共用同一组常量，页面时间在截图时刻才是可推算的。
+ *
+ * 预算制：文本轮询每轮只推进 TEXT_POLL_STEP_MS，最多占用 TEXT_POLL_BUDGET_MS，
+ * settlePage 收尾把没用完的补满——总推进量因此与轮数无关。
  */
 const CLOCK_EPOCH = new Date('2026-10-18T09:00:00')
 const CLOCK_WARMUP_MS = 5000
+const TEXT_POLL_STEP_MS = 120
+const TEXT_POLL_BUDGET_MS = 1200
+/**
+ * 文本收敛之后**无条件**再推进这么多页面时间，为的是帧数敏感型绘制：
+ * ECharts 力导向布局每 16ms 走一步（GraphView.js:209 `setTimeout(step, 16)`），
+ * 每步 friction ×0.992、从 0.6 衰减到 <0.01 才算停（forceHelper.js:179-181），
+ * 即 ln(0.01/0.6)/ln(0.992) ≈ 510 步 ≈ 8160ms。
+ * 导航后总推进量 = WARMUP 5000 + 轮询预算 1200 + 本量 3200 = 9400ms ≈ 587 步 > 510，
+ * 截图因此落在**收敛之后**：布局对"多跑/少跑几帧"不再敏感，只剩 Math.random 种子
+ * 这一个依赖（由 pinRandom 钉住）。余量取 77 步，是为了 autoresize / 二次 setOption
+ * 触发 `_startForceLayoutIteration` 重启时（GraphView.js:135）也还能收完。
+ */
+const CLOCK_FRAME_SETTLE_MS = 3200
+
+/**
+ * 截图时刻的页面时间（`Date.now()`）恒等于这个值：
+ * epoch + pauseAt(5000) + runFor(5000) + 轮询预算(1200) + 帧数沉降(3200)
+ * = 2026-10-18 09:00:14.400。与轮数、与机器快慢都无关。
+ * 导出来是为了让 spec 逐张断言它真的成立，而不是只在注释里宣称。
+ */
+export const SNAPSHOT_PAGE_TIME_MS =
+  CLOCK_EPOCH.getTime() +
+  CLOCK_WARMUP_MS +
+  CLOCK_WARMUP_MS +
+  TEXT_POLL_BUDGET_MS +
+  CLOCK_FRAME_SETTLE_MS
 
 /**
  * 主题必须在导航前落到 localStorage：useTheme 在模块作用域读一次初值
@@ -53,14 +82,37 @@ export async function freezeClock(page: Page): Promise<void> {
  * runFor 必须在 networkidle 之后（前一次实现正好反了）：freezeClock 在导航前调用，
  * 那一刻页面还没有任何定时器，先推进只会挪时间戳、跑不出任何动画；
  * 页面加载后排队的入场动画要靠 networkidle 之后的这次 runFor 跑完。
- * runFor 不会 resume，所以跑完仍是停住状态：settlePage 返回后页面时间 ≥ 09:00:10.000，
- * 且只由文本收敛所需的轮数决定，二次跑同样落在这个时刻。
+ *
+ * 【不变式——评审 Important 3 修正后的口径，旧文案是错的，别再引用】
+ * 本函数返回后页面 `Date.now()` **恒等于 SNAPSHOT_PAGE_TIME_MS**（09:00:14.400），
+ * 与 waitForStableText 轮了几轮无关；时钟仍是停的，所以截图前后都不再前进。
+ *
+ * 为什么原来做不到：轮询每轮都 runFor(120)，截图时刻实际是
+ * 09:00:10 + 120ms×(轮数−1)；零匹配页（登录页/404/个人中心）在第 1 轮之前就 return，
+ * 停在 09:00:10.000，而有 `.s-value`/`.pg-title` 的页至少走满一轮停在 09:00:10.120。
+ * 两种分支在本批基线里都真实存在——"24 张落在同一瞬间"当时只是经验上碰巧没漂，
+ * 不是结构上被钉住。现在改成预算制：轮询至多消耗 TEXT_POLL_BUDGET_MS 的页面时间，
+ * 收尾把差额一次补满，再无条件推进 CLOCK_FRAME_SETTLE_MS（合计与轮数无关），
+ * 于是总推进量 = 2×CLOCK_WARMUP_MS + TEXT_POLL_BUDGET_MS + CLOCK_FRAME_SETTLE_MS 恒成立。
+ * runFor 只推进假时钟，所以补多少都与机器快慢无关。
+ *
+ * 这条不变式顺带钉住的是**帧数**：fake requestAnimationFrame 同属 runFor 驱动的定时器
+ * （Playwright clock 的 install 清单里就有 requestAnimationFrame，types.d.ts:20468-20478），
+ * ECharts 入场动画的收尾帧、力导向布局的步数都只由这个常量决定。
+ * 图谱锚点没有它就没有可比基线——力导向每 16ms 一步、要 510 步才收敛
+ * （算式与余量见 CLOCK_FRAME_SETTLE_MS 注释）。
+ * 所以 anchors.spec.ts 每张都断言 `Date.now() === SNAPSHOT_PAGE_TIME_MS`：
+ * 这条不变式每次跑都验一遍，不是写在注释里相信。
  */
 export async function settlePage(page: Page): Promise<void> {
   await page.waitForLoadState('networkidle')
   await page.clock.runFor(CLOCK_WARMUP_MS)
   await page.evaluate(() => document.fonts.ready.then(() => undefined))
-  await waitForStableText(page)
+  const usedByPolling = await waitForStableText(page)
+  // 补齐预算：轮数少 ↔ 补得多，总推进量不变。usedByPolling 不会超过预算，见 waitForStableText
+  const rest = TEXT_POLL_BUDGET_MS - usedByPolling
+  if (rest > 0) await page.clock.runFor(rest)
+  await page.clock.runFor(CLOCK_FRAME_SETTLE_MS)
 }
 
 /**
@@ -73,9 +125,17 @@ export async function settlePage(page: Page): Promise<void> {
  * 每轮先用 runFor 推进页面时钟：时钟被 freezeClock 停住后页面的 CountUp 不会自己跑，
  * 只等真实毫秒数会永远读到同一个初值。保留 waitForTimeout 是为"忘了先 freezeClock"的调用方
  * 兜底——那种情况下 runFor 是静默 no-op，真实等待才让判别力还在。
+ *
+ * 返回值 = 本函数消耗掉的页面毫秒数，settlePage 用它把总额补到 TEXT_POLL_BUDGET_MS，
+ * 这样"截图时刻"与"fake rAF 跑过多少帧"都只由常量决定（见 settlePage 的不变式）。
+ * 因此这里对推进量设上限：预算用完仍不收敛，就只剩真实毫秒在等，页面时间不再前进、
+ * 文本也不会再变——15s 后抛"未收敛"。这是**故意的严格化**：
+ * 需要 >10 轮（1200ms 页面时间）才停下的动画属于"没被钉住的动态源"，
+ * 该红给您看，而不是靠多轮 runFor 把它悄悄跑完、顺手改变截图时刻。
  */
-export async function waitForStableText(page: Page, timeout = 15000): Promise<void> {
+export async function waitForStableText(page: Page, timeout = 15000): Promise<number> {
   let prev: string | null = null
+  let used = 0
   const deadline = Date.now() + timeout
   while (Date.now() < deadline) {
     const now = await page.evaluate(() =>
@@ -83,13 +143,45 @@ export async function waitForStableText(page: Page, timeout = 15000): Promise<vo
         .map((el) => el.textContent?.trim() ?? '')
         .join('|'),
     )
-    if (now === '') return // 页面无统计类文本 → 天然稳定
-    if (now === prev) return
+    if (now === '') return used // 页面无统计类文本 → 天然稳定
+    if (now === prev) return used
     prev = now
-    await page.clock.runFor(120)
-    await page.waitForTimeout(120)
+    const step = Math.min(TEXT_POLL_STEP_MS, TEXT_POLL_BUDGET_MS - used)
+    if (step > 0) {
+      await page.clock.runFor(step)
+      used += step
+    }
+    await page.waitForTimeout(TEXT_POLL_STEP_MS)
   }
   throw new Error(`文本未收敛到稳定态（可能仍在动画中）·最后读数: ${prev}`)
+}
+
+/**
+ * 把 Math.random 钉成固定序列（mulberry32，种子写死在代码里）。
+ *
+ * 只有 `AnchorSpec.pinRandom` 的锚点才开，为什么不并进 freezeClock：
+ * Playwright 的 clock 只 fake 时间类 API（types.d.ts:20468-20478 的 install 清单里
+ * 没有 Math.random），所以冻结时钟挡不住随机源；但**全局**钉会把其它页面里
+ * "真该暴露出来的随机"一并抹平成假稳定，而需要它的锚点是少数（现在就一个）。
+ *
+ * 那一个为什么必须有：ECharts 力导向布局用 Math.random() 播节点初值
+ * （node_modules/echarts/lib/chart/graph/forceHelper.js:80），节点重叠时的斥力也用它
+ * （:162）。种子不钉死，同一份代码每次截出一张不同的图，基线就是随机红灯；
+ * 用遮罩把整块图谱遮掉是自欺——那等于这张基线根本没看图。
+ * 钉了种子以后，布局 = f(固定初值, 固定步数)，步数由 settlePage 的预算恒定保证，
+ * 于是画布逐像素可复现，二次跑零 diff 才有结构性依据。
+ */
+export async function pinRandom(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    let state = 0x20261018
+    Math.random = () => {
+      state = (state + 0x6d2b79f5) >>> 0
+      let t = state
+      t = Math.imul(t ^ (t >>> 15), t | 1)
+      t ^= t + Math.imul(t ^ (t >>> 7), t | 61)
+      return ((t ^ (t >>> 14)) >>> 0) / 4294967296
+    }
+  })
 }
 
 export interface AnchorSpec {
@@ -102,6 +194,17 @@ export interface AnchorSpec {
   path: string | (() => Promise<string>)
   /** 合法随数据变化、必须遮掉的区域选择器（如头像图片） */
   maskSelectors?: string[]
+  /**
+   * 该页渲染力导向图，随机源必须钉住（见 pinRandom）。
+   * 默认不开：全局钉会掩盖别处"本该暴露的随机"，所以按锚点显式声明。
+   */
+  pinRandom?: boolean
+  /**
+   * 该页的图表面板必须"真的画出内容"才允许入库（见 anchors.spec.ts 的 assertGraphPainted）。
+   * 设立理由：上一轮图谱锚点截到的是空态占位图，而占位图同样"非空壳、无错误边界、断言全绿"，
+   * 四条通用防护一条都拦不住——它得专门看图本身。
+   */
+  requirePaintedGraph?: boolean
 }
 
 /**
@@ -150,6 +253,11 @@ export function maskOf(page: Page, selectors: string[] = []): Locator[] {
  * router/index.ts:187 的 `path: 'analytics'` 上，真实 URL 是 `/admin/analytics`；
  * 写成 `/admin/governance/analytics` 会被 :562 的 `/:pathMatch(.*)*` 兜住，
  * 截出来是一张 404 页——而 404 页恰好也是"渲染正常、非空壳"，断言全绿。
+ *
+ * 图谱锚点带 `?courseId=`：默认的 `courseList[0]`（= /api/courses 列表首项 4060）
+ * 在种子里 **0 个知识点**，不带参数截到的永远是占位图（上一轮缺陷 D-3）。
+ * 查询参数有效是因为 useStudentKnowledgeGraph.ts:150 先读 `route.query.courseId`，
+ * `:155` 的 courseList[0] 只是它的兜底。
  */
 export const ANCHORS: readonly AnchorSpec[] = [
   { slug: 'login', title: '登录页', role: 'ANON', path: '/login' },
@@ -160,7 +268,24 @@ export const ANCHORS: readonly AnchorSpec[] = [
   { slug: 'admin-system-form', title: '系统设置（表单代表）', role: 'ADMIN', path: '/admin/system' },
   { slug: 'student-courses-modal', title: '学生课程（弹层代表）', role: 'STUDENT', path: '/student/courses' },
   { slug: 'student-learning-center', title: '学习中心（壳页代表）', role: 'STUDENT', path: '__FROM_COURSE_LIST__' },
-  { slug: 'student-knowledge-graph', title: '知识图谱（图谱代表）', role: 'STUDENT', path: '/student/knowledge-graph' },
+  {
+    slug: 'student-knowledge-graph',
+    title: '知识图谱（图谱代表）',
+    role: 'STUDENT',
+    /**
+     * 4001 = Python程序设计（A班）。选它不是照抄评审建议，是逐课实测出来的：
+     * 拿学生会话打 GET /api/knowledge/relations/graph/{id}（就是 loadGraphData :170
+     * 调的那个端点），38 门课里 4001 有 8 节点 10 边，而列表首项 4060 与 4047、
+     * 以及 2/3/4/5/6 都是 0 节点 0 边；4007 更多（65 节点 120 边）。
+     * 8 个节点在 520px 高的面板里画得开、10 条边与 8 组标签都看得清，
+     * 所以取 4001（节点圆点本身不画是另一回事，见 task-4-report 的缺陷 D-9，与选哪门课无关）；
+     * 随机种子由 pinRandom 钉、步数由 settlePage 的预算钉，
+     * 入库前由 requirePaintedGraph 验画布真有墨。
+     */
+    path: '/student/knowledge-graph?courseId=4001',
+    pinRandom: true,
+    requirePaintedGraph: true,
+  },
   { slug: 'admin-governance-analytics', title: '治理分析（图表代表）', role: 'ADMIN', path: '/admin/analytics' },
   { slug: 'admin-profile', title: '个人中心', role: 'ADMIN', path: '/admin/profile' },
   { slug: 'error-404', title: '404', role: 'ANON', path: '/__no-such-route__' },

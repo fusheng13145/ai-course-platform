@@ -1,11 +1,22 @@
 import { expect, test } from '@playwright/test'
-import { freezeClock, maskOf, setTheme, settlePage, snapName, storagePathFor, THEME_KEY, waitForStableText } from './visual-helpers'
+import {
+  freezeClock,
+  maskOf,
+  setTheme,
+  settlePage,
+  snapName,
+  SNAPSHOT_PAGE_TIME_MS,
+  storagePathFor,
+  THEME_KEY,
+  waitForStableText,
+} from './visual-helpers'
 
-// helper 自身的六条测试（smoke.spec.ts 只管主题注入在页面上生效）。
+// helper 自身的测试（smoke.spec.ts 只管主题注入在页面上生效）。
 // 为什么值得单开：settlePage / freezeClock 是 24 张基线的公共依赖，它们出错的方式是
 // "每页都假红"或"每页都假绿"，比 smoke 的用例更隐蔽——上一轮的 #1/#2 两个缺陷正是
 // 落在这段无断言覆盖区里。
-// 前三条用 setContent 造页面，不依赖后端；第四、五条真起 dev server 打 /login；第六条是纯函数。
+// 前四条用 setContent 造页面，不依赖后端；第五条真起 dev server 打 /login；
+// 第六、七条是纯函数与常量。
 
 // 零统计卡的页面（登录页就是）必须直接判稳定，而不是空转到 15s 超时后
 // 抛一句"可能仍在动画中"的假诊断。
@@ -64,8 +75,32 @@ test('settlePage 在真实 /login 锚点上收敛且时间仍冻结', async ({ p
   const t1 = await page.evaluate(() => Date.now())
   await page.waitForTimeout(300)
   expect((await page.evaluate(() => Date.now())) - t1).toBe(0)
-  // 冻结点 = 09:00:00 + pauseAt 的 5000ms + settlePage 的 runFor(5000)，与机器快慢无关
-  expect(t1 - new Date('2026-10-18T09:00:00').getTime()).toBe(10000)
+  // /login 是**零匹配页**：waitForStableText 一轮都不推进，1200ms 轮询预算全靠 settlePage 补齐。
+  // 总额 = pauseAt 5000 + runFor 5000 + 轮询预算 1200 + 帧数沉降 3200，写在 SNAPSHOT_PAGE_TIME_MS 里。
+  expect(t1).toBe(SNAPSHOT_PAGE_TIME_MS)
+})
+
+// 评审 Important 3 的结构证明：截图时刻曾经 = 09:00:10 + 120ms×(轮数−1)，
+// 于是同一批基线里"零匹配页"与"文本仍在变的页"落在两个不同瞬间，
+// helper 注释却宣称它们同刻——是个假口径而不是碰巧没漂。
+// 下面这条与上一条**必须同时成立**才算修好：轮数不同的两类页面，
+// settlePage 之后 Date.now() 都等于同一个常量（差额由预算补齐）。
+test('settlePage 在需要多轮轮询的页上落到同一个截图时刻', async ({ page }) => {
+  await freezeClock(page)
+  await page.setContent('<div id="app"><span class="s-value">0</span></div>')
+  await page.evaluate(() => {
+    const el = document.querySelector('.s-value')!
+    let n = 0
+    const id = setInterval(() => {
+      el.textContent = String(++n)
+      if (n > 6) clearInterval(id)
+    }, 50)
+  })
+  await settlePage(page)
+  // 文本真的收敛了（CountUp 之类"还没跑完就截"的老毛病仍被拦）
+  await expect(page.locator('.s-value')).toHaveText('7')
+  // 且时刻与零匹配页一模一样——轮数被预算吸收了
+  expect(await page.evaluate(() => Date.now())).toBe(SNAPSHOT_PAGE_TIME_MS)
 })
 
 // 三个纯函数也钉住：snapName 多写一个 `.png` 或留下 `{platform}` 字面量，
