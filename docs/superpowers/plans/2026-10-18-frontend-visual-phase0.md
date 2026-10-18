@@ -42,6 +42,16 @@
 - **覆盖率门禁棘轮制**：`vitest.config.ts` thresholds 为 lines 30 / functions 62 / branches 78 / statements 30，**只许上调、不得下调**。
 - **台账唯一**：`docs/visual-upgrade/LEDGER.md` 一份表，不拆多份。单元截图只留失败项与代表项（spec §5）。
 - **计划分份**：本计划只做 Phase 0。Phase 1–3 / 4 / 5–6 的计划待本阶段验收后另出（spec §4"计划分份"）。
+- **VTU 断言两条硬规则**（Task 6 与 Task 12 各以一次真实翻车换来）：
+  ① **模板首行是注释的组件属于多根 Fragment**，`wrapper.classes()` / `wrapper.element` 不可信
+  （恒 `[]` / 指向注释锚点：`vue-test-utils.cjs.js:7788-7791` + `:7304-7311`）。
+  在这类组件上写 `.not.toContain(...)` **永远不会失败**，必须改取根内的具体子节点。
+  ② `get` 与 `find` 分工固定：`get(sel)` 表"元素必须存在否则测试失败"；
+  断言"不存在"必须用 `find(sel).exists() === false`——`get` 没有 `.exists()`，会撞 TS2339
+  并把 `typecheck:gate` 从 402 顶高（Task 12 实测踩过一次，改回后回到 402/402）。
+- **凡涉及库/VM 内部行为的断言，必须给出实际读过的 `file:line` 并用变异自证可证伪。**
+  本任务族已三次出现"自信陈述而代码不支持"（控制器 1、实现者 1、评审 1），第三次是同一条评审链上
+  两份评审互相矛盾、由控制器 grep 定案"该仓库惯例并不存在"。措辞宁可写弱一档。
 
 ---
 
