@@ -26,6 +26,14 @@
   Phase 0 **不扩 eslint 作用域**；`tsconfig.json` 已 include `e2e/**/*.ts`，新增视觉文件由 `typecheck:gate` 覆盖。
 - **e2e / 视觉跑之前必须带 `PW_PORT=5175`**（`frontend/playwright.config.ts:3-6` 自陈 5173 常被别的项目占用、
   `reuseExistingServer` 会静默复用并测出假缺陷。**该文件在 `frontend/` 根，不在 `frontend/e2e/`**）。
+  **并且 `PW_BASE_URL` 必须与它一致**（Task 3 实测：会话夹具的 localStorage 绑定到写入时的 origin，
+  夹具的 baseURL 回退值写死 5175；若只改 `PW_PORT` 而不改 `PW_BASE_URL`，得到的是"半恢复的会话"——
+  cookie 是端口无关的、能带上，但 `user`/`permissions`/引导标记这些按 origin 存的键取不回来，
+  现象是页面渲染成未登录态而不是报错）。要么固定用 5175，要么两个变量一起设。
+- **会话的真实载体是 httpOnly cookie，不是 localStorage**（Task 3 实测，`src/stores/auth.ts:34` 的口径是
+  token 从不落客户端存储）。夹具里是 `ai_course_token` + `ai_course_refresh` 两个 cookie。
+  因此**任何"往 localStorage 塞 token 就当作已登录"的做法在本项目必然失败**，
+  `e2e/test-helpers.ts:33-38` 的说明与此一致。
 - **两个 Playwright config 必须互不发现**：`frontend/playwright.config.ts` 的 `testDir: './e2e'` 会把
   `e2e/visual/` 一并扫进流程套件，故须给它加 `testIgnore: /[/\\]visual[/\\]/`（Task 1 负责，见其 Step 6）。
 - **视觉基线须同时覆盖明暗两主题**，暗色不得只在浅色截图下被判通过。spec §6.6。
@@ -450,17 +458,20 @@ git commit -m "build(visual): 基线 PNG 标 binary、临时产物加 ignore，�
 import { test as base, expect } from '@playwright/test'
 import { freezeClock, setTheme, settlePage } from './visual-helpers'
 
-// 会话必须真的可用：auth 加固后，未登录访问受限页会被守卫踢回 /login
-// （router/index.ts:598）。本用例用 admin 夹具进 /admin/dashboard，
-// 断言 URL 没被改写、且侧边栏 landmark 已渲染（AppShell 的 nav，D2-7 第五批）。
+// 会话必须真的可用：auth 加固后，未登录访问受限页会被守卫踢回
+// `router/index.ts:598` 的 `next({ path: '/login', query: { redirect: to.fullPath } })`。
+// **判据必须是 pathname 相等，不能是 toContain('/admin/dashboard')**——
+// 被踢回时的 URL 是 `/login?redirect=/admin/dashboard`，`toContain` 照样命中，
+// 空夹具也能通过（Task 3 用"清空夹具"作反向对照实测过：toContain 那行 PASS，只有 pathname 断言 FAIL）。
+// 侧边栏 `nav[aria-label="主导航"]` 是 AppShell 才渲染的 landmark（D2-7 第五批），作第二道证明。
 base.describe('会话夹具', () => {
-  base.use({ storageState: 'e2e/visual/.auth/admin.json' })
+  base.use({ storageState: storagePathFor('ADMIN') })
   base('admin 夹具可直达受限工作台', async ({ page }) => {
     await freezeClock(page)
     await setTheme(page, 'light')
     await page.goto('/admin/dashboard')
     await settlePage(page)
-    expect(page.url()).toContain('/admin/dashboard')
+    expect(new URL(page.url()).pathname).toBe('/admin/dashboard')
     await expect(page.locator('nav[aria-label="主导航"]')).toBeVisible()
   })
 })
