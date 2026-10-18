@@ -17,6 +17,23 @@ def isolated_data_dir(tmp_path, monkeypatch):
     le.reset_store()
 
 
+def test_base_model_snapshot_prefers_local_dir_so_load_never_touches_hub(tmp_path, monkeypatch):
+    """缓存命中必须给出**本地目录**：按仓库 ID 加载时 transformers 仍会发一次 Hub revision 探测。"""
+    import huggingface_hub
+    snap = tmp_path / "snap060db64"
+    snap.mkdir(parents=True)
+    (snap / "config.json").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(huggingface_hub, "try_to_load_from_cache",
+                        lambda repo, fn, **kw: str(snap / "config.json") if fn == "config.json" else None)
+    monkeypatch.setenv("HF_HUB_CACHE", str(tmp_path / "none-here"))
+    assert le.base_model_snapshot("X/Y") == snap.resolve()
+    assert le.base_model_cached("X/Y") is True
+    assert le.load_target("X/Y") == str(snap.resolve())
+    monkeypatch.setattr(huggingface_hub, "try_to_load_from_cache", lambda repo, fn, **kw: None)
+    assert le.base_model_snapshot("X/Y") is None
+    assert le.load_target("X/Y") == "X/Y"      # 未缓存才回落到仓库 ID（此时才可能下载）
+
+
 def test_as_dict_accepts_object_and_java_json_string():
     assert le.as_dict({"epochs": 3}) == {"epochs": 3}
     assert le.as_dict('{"epochs": 3, "learning_rate": 5e-05}') == {"epochs": 3, "learning_rate": 5e-05}

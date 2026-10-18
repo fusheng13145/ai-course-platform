@@ -30,7 +30,7 @@ LoRA 真实微调引擎（PEFT 低秩适配：数据集构建 → 训练 → 导
   FT_MAX_SEQ_LEN       截断长度（默认 512）
   FT_TRAIN_STEPS       钉死 max_steps（本机分钟级取证用；未设时按 epochs/batch 估完整轮步数）
   FT_ALLOW_DOWNLOAD    0=基座未本地缓存即失败（默认）；1=允许首次联网拉取。
-                       该开关在 import 期生效（Hub 的离线常量亦在 import 期读取），改动需重启服务。
+                       按次判定，无需重启：已缓存时按本地 snapshot 目录加载，压根不发 Hub 请求。
   FT_DEVICE            训练/推理设备（默认自动：有 cuda 用 cuda）
   FT_PUBLIC_BASE       download_url 拼接基址（默认 http://localhost:8003，容器/反代须覆盖）
   FT_ENGINE_READY      CI 结构开关（默认 0）：**只**影响 /start 是否启动训练线程
@@ -75,16 +75,12 @@ def _record_dep_error(name: str, exc: Exception) -> None:
     _DEP_ERRORS.append(f"{name}: {exc}")
 
 
-# 离线优先：默认绝不让 Hub 发网络探测。必须在下面的 try-import 之前落定——
-# huggingface_hub 在 import 期就把 HF_HUB_OFFLINE 读成模块常量，运行期再改环境变量无效。
-# 本机取证坐实的原因（transformers 5.5.4）：即使传 `local_files_only=True`，加载仍会向
-# https://huggingface.co/api/models/<id> 发一次 revision 解析请求；该域名不可达时不是快速
-# 失败，而是挂到 ConnectTimeout（约 21s）后整次训练以"失败"收场——本地明明有缓存，本该秒开。
-# FT_ALLOW_DOWNLOAD=1 时不钉离线，允许首次拉取；改这个开关需要重启服务才生效。
-if os.getenv("FT_ALLOW_DOWNLOAD", "0") != "1":
-    os.environ.setdefault("HF_HUB_OFFLINE", "1")
-    os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
-
+# 不在这里钉 HF_HUB_OFFLINE。原因（本机取证坐实，transformers 5.5.4）：即使传
+# `local_files_only=True`，按**仓库 ID** 加载仍会向 https://huggingface.co/api/models/<id>
+# 发一次 revision 解析请求，该域名不可达时挂到 ConnectTimeout（约 21s）而不是秒开缓存；
+# 而 `huggingface_hub` 又在 import 期把该变量读成模块常量，运行期改无效——钉桩会逼运维
+# "改开关必须重启"。正解见 `base_model_snapshot()`：缓存命中就按**本地目录**加载，
+# 根本不走 Hub 解析，实测零网络请求，`FT_ALLOW_DOWNLOAD` 也因此可以按次生效。
 
 try:
     import torch as _torch
@@ -227,24 +223,46 @@ def resolve_base_model(name: Optional[str]) -> str:
         f"新增映射请设置环境变量 FT_MODEL_MAP='名字=HF模型ID'")
 
 
-def base_model_cached(hf_id: str) -> bool:
-    """基座模型是否已本地缓存（**不触发联网**，语义同 rag_engine.embed_model_cached）。"""
+def base_model_snapshot(hf_id: str) -> Optional[Path]:
+    """已缓存基座的**本地 snapshot 目录**，未缓存返回 None（不触发联网）。
+
+    为什么按目录加载而不是按仓库 ID 加载：按 ID 走 `from_pretrained` 时，transformers
+    即使带 `local_files_only=True` 仍会向 Hub 发一次 revision 解析请求；离线机器上那一次
+    就是 21 秒 ConnectTimeout。按目录加载则完全绕开 Hub 分支（本机实测网络请求数 = 0），
+    也就不需要把进程钉成离线模式。
+    """
     if not hf_id:
-        return False
+        return None
     try:
         from huggingface_hub import try_to_load_from_cache
-        return try_to_load_from_cache(hf_id, "config.json") is not None
+        hit = try_to_load_from_cache(hf_id, "config.json")
+        if isinstance(hit, str) and os.path.exists(hit):
+            return Path(hit).resolve().parent
     except Exception:
-        norm = hf_id.replace("/", "--")
-        for base in (
-            os.getenv("HF_HUB_CACHE") or "",
-            os.path.join(os.getenv("HF_HOME", os.path.expanduser("~/.cache/huggingface")), "hub"),
-        ):
-            cache = Path(base) / f"models--{norm}" / "snapshots"
-            if cache.exists() and any(p.suffix in {".safetensors", ".bin"}
-                                      for p in cache.rglob("*") if p.is_file()):
-                return True
-        return False
+        pass
+    norm = hf_id.replace("/", "--")
+    for base in (
+        os.getenv("HF_HUB_CACHE") or "",
+        os.path.join(os.getenv("HF_HOME", os.path.expanduser("~/.cache/huggingface")), "hub"),
+    ):
+        cache = Path(base) / f"models--{norm}" / "snapshots"
+        if not cache.exists():
+            continue
+        for snap in sorted(cache.iterdir(), reverse=True):
+            if (snap / "config.json").exists():
+                return snap.resolve()
+    return None
+
+
+def base_model_cached(hf_id: str) -> bool:
+    """基座模型是否已本地缓存（**不触发联网**，语义同 rag_engine.embed_model_cached）。"""
+    return base_model_snapshot(hf_id) is not None
+
+
+def load_target(hf_id: str) -> str:
+    """`from_pretrained` 该拿什么：已缓存给本地目录，未缓存给仓库 ID（此时才可能下载）。"""
+    snap = base_model_snapshot(hf_id)
+    return str(snap) if snap else hf_id
 
 
 def format_size(n: int) -> str:
@@ -847,9 +865,10 @@ def run_training(task_id: str) -> dict:
                                   Trainer, TrainerCallback, TrainingArguments)
         from peft import LoraConfig, TaskType, get_peft_model
 
-        # 缓存命中即秒开：Hub 的联网探测已由模块顶部的离线钉死关闭（见 FT_ALLOW_DOWNLOAD 注释）
+        # 已缓存 → 按本地 snapshot 目录加载（不经 Hub，见 load_target）
+        target = load_target(hf_id)
         tokenizer = _MODEL_HOLDER["tokenizer"] or AutoTokenizer.from_pretrained(
-            hf_id, local_files_only=cached)
+            target, local_files_only=cached)
         if tokenizer.pad_token is None:
             tokenizer.pad_token = tokenizer.eos_token
         template = tokenizer.apply_chat_template if tokenizer.chat_template else None
@@ -858,7 +877,7 @@ def run_training(task_id: str) -> dict:
         ds_obj = _datasets.Dataset.from_dict({k: v for k, v in enc.items()})
 
         base = AutoModelForCausalLM.from_pretrained(
-            hf_id, local_files_only=cached,
+            target, local_files_only=cached,
             torch_dtype=_torch.float16 if device() == "cuda" else _torch.float32)
         lora = LoraConfig(task_type=TaskType.CAUSAL_LM, r=rec["config"]["lora_rank"],
                           lora_alpha=rec["config"]["lora_alpha"],
@@ -1002,11 +1021,12 @@ def infer(task_id: str, prompt: str, params: dict) -> dict:
     try:
         from transformers import AutoModelForCausalLM, AutoTokenizer
         from peft import PeftModel
+        target = load_target(hf_id)
         tokenizer = _MODEL_HOLDER["tokenizer"] or AutoTokenizer.from_pretrained(
-            hf_id, local_files_only=cached)
+            target, local_files_only=cached)
         if not _adapter_cache_matches(task_id):
             base = AutoModelForCausalLM.from_pretrained(
-                hf_id, local_files_only=cached,
+                target, local_files_only=cached,
                 torch_dtype=_torch.float16 if device() == "cuda" else _torch.float32)
             _MODEL_HOLDER.update({"model": PeftModel.from_pretrained(base, rec["adapter_dir"]),
                                   "tokenizer": tokenizer, "hf_id": hf_id, "task_id": task_id})
