@@ -24,7 +24,37 @@ import glob
 import json
 import os
 import re
+import subprocess
 import sys
+
+CREDENTIAL_KEY_RE = re.compile(r"(?:^|_)(?:PASSWORD|SECRET|API_KEY|TOKEN)$")
+
+
+def credential_keys(mapping) -> list[str]:
+    """筛出**凭据类**键名（以 _PASSWORD / _SECRET / _API_KEY / _TOKEN 结尾）。
+
+    DR-83 的判据只该作用在这些键上：`NEO4J_URI`、`MODEL` 之类标识符出现在历史里不构成泄露，
+    把它们计入会让"轮换成功后应为无"永远达不到，读数因此被忽略——那比没有判据更糟。
+    """
+    return sorted(k for k in mapping if CREDENTIAL_KEY_RE.search(k))
+
+
+def keys_equal_to_history(current: dict, history: dict) -> list[str]:
+    """返回「当前值曾在 git 历史里出现过」的键名（DR-83 的机械判据，只报键名绝不报值）。
+
+    为什么要有这一行：F-02 长期写"git 历史擦除 + 密钥轮换已完成"，而实测含 `.env` 的提交仍在
+    `origin/main` 祖先链上、其中 `NEO4J_PASSWORD` **就是现在在用的值**。"已轮换"若没有判据，
+    就永远是一句不可证伪的话——本函数把它变成可复跑读数：轮换成功后该行应变为「无」。
+    """
+    hits = []
+    for key in sorted(current):
+        v = (current[key] or "").strip()
+        if not v:
+            continue  # 空值/纯空白不参与：历史里的空键不构成复用
+        if any(v == (old or "").strip() for old in history.get(key, [])):
+            hits.append(key)
+    return hits
+
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 BACK = os.path.join(ROOT, "backend")
@@ -258,6 +288,34 @@ def audit() -> dict:
     d["env_strength"] = " ".join(verdicts)
     d["env_strength_fail_count"] = sum(1 for x in verdicts if "FAIL" in x)
 
+    # ---------------- 现用密钥是否仍等于 git 历史里出现过的值（DR-83） ----------------
+    # 只比对、只输出键名。判据源是 `git log --all -- .env` 的每个历史版本，
+    # 因此"把文件移出版本库"不会被误判成"历史已清"（172ae55 正是这种半治理）。
+    def history_values(name: str) -> dict:
+        out: dict = {}
+        try:
+            listing = subprocess.run(["git", "log", "--all", "--format=%H", "--", name],
+                                     cwd=ROOT, capture_output=True, text=True,
+                                     encoding="utf-8", errors="replace")
+        except OSError:
+            return out
+        if listing.returncode != 0:
+            return out
+        for sha in listing.stdout.split():
+            shown = subprocess.run(["git", "show", f"{sha}:{name}"], cwd=ROOT,
+                                   capture_output=True, text=True,
+                                   encoding="utf-8", errors="replace")
+            if shown.returncode != 0:
+                continue  # 该提交里没有此文件（新增前/删除后）
+            for m in re.finditer(r"(?m)^([A-Z0-9_]+)=(.*)$", shown.stdout):
+                out.setdefault(m.group(1), []).append(m.group(2))
+        return out
+
+    cred_vals = {k: vals[k] for k in credential_keys(vals)}
+    reused = keys_equal_to_history(cred_vals, history_values(".env"))
+    d["env_reused_from_history"] = ",".join(reused) or "无"
+    d["env_reused_from_history_count"] = len(reused)
+
     # example 键的「消费者存在性」：DR-63 的推广——键被列出不等于会被读取。
     # 口径：在代码/配置类文件（排除 md、.gitleaks.toml、模板自身、归档与构建产物）的
     # **非注释行**里找键名；零命中即该键无任何消费者（填了也无效）。
@@ -364,6 +422,8 @@ LABELS = {
     "env_example_dead_keys": "example 中无任何代码消费者的键名",
     "env_strength": "本机 .env 口令强度判定（只出派生结论，不含值）",
     "env_strength_fail_count": "本机 .env 强度不合格项数（占位串或短于下限）",
+    "env_reused_from_history": "仍等于 git 历史值的 .env **凭据类**键名（DR-83；轮换成功后应为「无」）",
+    "env_reused_from_history_count": "仍等于 git 历史值的 .env 凭据类键数（判据源：git log --all -- .env 各历史版本）",
     "spotbugs_fail_on_error": "SpotBugs failOnError",
 }
 
