@@ -57,7 +57,10 @@
   - `setTheme(page: Page, theme: ThemeName): Promise<void>` — 导航前注入 localStorage，幂等
   - `freezeClock(page: Page): Promise<void>` — 装固定时钟
   - `settlePage(page: Page): Promise<void>` — 等网络空闲 + 字体就绪 + 关键文本稳定
-  - `ANCHORS: readonly AnchorSpec[]` — 12 个锚点定义（Task 3 消费）
+  - `ANCHORS: readonly AnchorSpec[]` — 12 个锚点定义（Task 4 消费）
+  - `storagePathFor(role: 'STUDENT'|'TEACHER'|'ADMIN'): string` — 会话夹具路径（Task 3/4/14 都从这里导；
+    **定义在本文件而非 `global-setup.ts`**：消费方是视觉 spec，放在被导入方才不会出现循环依赖，
+    且 `tsconfig.json` 已 include `e2e/**/*.ts`，导入断了 `npm run typecheck` 会当场红）
 
 - [ ] **Step 1: 写烟雾测试（先证明主题注入真的生效）**
 
@@ -162,6 +165,16 @@ export function snapName(theme: ThemeName): string {
   return `{platform}-${theme}.png`
 }
 
+/**
+ * 会话夹具路径。定义在 helper 而非 global-setup：消费者是 anchors.spec.ts /
+ * motion-observation.spec.ts，让它们去 import global-setup 会形成"配置导入设置"的反向依赖。
+ * 路径相对 frontend/（Playwright 的 storageState 按 cwd 解析），全仓只用这一种写法，
+ * 绝对/相对混用会得到 ENOENT 这种最难查的失败。
+ */
+export function storagePathFor(role: 'STUDENT' | 'TEACHER' | 'ADMIN'): string {
+  return `e2e/visual/.auth/${role.toLowerCase()}.json`
+}
+
 export async function maskOf(page: Page, selectors: string[] = []): Promise<Locator[]> {
   return selectors.map((s) => page.locator(s))
 }
@@ -218,10 +231,19 @@ export default defineConfig({
 Run: `PW_PORT=5175 npx playwright test -c playwright.visual.ts -g "data-theme 命中"`
 Expected: PASS，2 passed。若 light 用例失败并显示 `data-theme="dark"`，说明 `addInitScript` 未生效——回到 Step 3 检查是否在 `goto` 之前调用。
 
-- [ ] **Step 6: 提交**
+- [ ] **Step 6: 提交前先过 lint 与 typecheck（本任务起就管 e2e，不留到 T15 爆）**
 
 ```bash
-git add frontend/playwright.visual.ts frontend/e2e/visual/visual-helpers.ts frontend/e2e/visual/smoke.spec.ts
+cd frontend
+npx eslint e2e/visual/ playwright.visual.ts
+npm run typecheck          # tsconfig.json 已 include e2e/**/*.ts，新文件在此受类型检查
+```
+Expected: 均无错。`npm run typecheck` 若报 `playwright.visual.ts` 未被 include（include 列表里没有它），
+把 `"playwright.visual.ts"` 加进 `tsconfig.json` 的 `include`（与既有 `"playwright.config.ts"` 同列），
+而不是把 e2e 文件从类型检查里摘掉。
+
+```bash
+git add frontend/playwright.visual.ts frontend/e2e/visual/visual-helpers.ts frontend/e2e/visual/smoke.spec.ts frontend/tsconfig.json
 git commit -m "test(visual): 独立视觉配置与主题/时钟/稳定态助手，为 12 锚点基线去裸超时依赖"
 ```
 
@@ -288,8 +310,8 @@ git commit -m "build(visual): 基线 PNG 标 binary、临时产物加 ignore，�
 - Test: `frontend/e2e/visual/smoke.spec.ts`（追加会话有效性用例）
 
 **Interfaces:**
-- Consumes: `loginAs(page, role)` from `e2e/test-helpers.ts`
-- Produces: `storagePathFor(role: 'STUDENT'|'TEACHER'|'ADMIN'): string`，返回相对 config 的 JSON 路径；三份文件位于 `frontend/e2e/visual/.auth/`
+- Consumes: `loginAs(page, role)` from `e2e/test-helpers.ts`；`storagePathFor` from Task 1 的 `visual-helpers.ts`（**只导入，不再定义一份**）
+- Produces: `frontend/e2e/visual/.auth/{student,teacher,admin}.json` 三份会话夹具（不入 git）
 
 - [ ] **Step 1: 写失败测试**
 
@@ -330,14 +352,12 @@ import { mkdirSync } from 'node:fs'
 import { join } from 'node:path'
 // ts 扩展名导入：与既有 spec 的相对导入风格一致（e2e/*.spec.ts 均 import from './test-helpers'）
 import { loginAs } from '../test-helpers'
+// storagePathFor 由 Task 1 定义在 visual-helpers.ts，此处只导入不复定义——
+// 两份定义会让 spec 与 setup 写到不同路径，夹具"存在但读不到"。
+import { storagePathFor } from './visual-helpers'
 
 const ROLES = ['STUDENT', 'TEACHER', 'ADMIN'] as const
-export type夹具角色 = (typeof ROLES)[number]
-
 const AUTH_DIR = join(__dirname, '.auth')
-export function storagePathFor(role: (typeof ROLES)[number]): string {
-  return join('e2e', 'visual', '.auth', `${role.toLowerCase()}.json`)
-}
 
 /**
  * 登录三次而非 24 次。两个理由都是实测出来的：
@@ -355,7 +375,8 @@ export default async function globalSetup() {
       const ctx = await browser.newContext({ baseURL: process.env.PW_BASE_URL || 'http://localhost:5175' })
       const page = await ctx.newPage()
       await loginAs(page, role)
-      await ctx.storageState({ path: join(AUTH_DIR, `${role.toLowerCase()}.json`) })
+      // 落盘路径必须与 storagePathFor 完全一致（相对 cwd），否则 spec 侧 ENOENT
+      await ctx.storageState({ path: join(process.cwd(), storagePathFor(role)) })
       await ctx.close()
     }
   } finally {
@@ -372,7 +393,9 @@ Modify `frontend/playwright.visual.ts` — 在 `defineConfig({` 后第一行加�
   globalSetup: './e2e/visual/global-setup.ts',
 ```
 
-同时把 `storagePathFor` 的返回路径确认为相对 `frontend/`（Playwright 的 `storageState` 相对 cwd 解析），避免绝对/相对混用导致 ENOENT。
+`storagePathFor` 已在 Task 1 定义于 `visual-helpers.ts`、返回相对 `frontend/` 的路径串；
+`global-setup.ts` 落盘时须 `join(process.cwd(), storagePathFor(role))` 与之对齐。
+跑测 cwd 必须是 `frontend/`（`webServer.command` 用的就是 `npm run dev`），否则相对路径两边都指错。
 
 - [ ] **Step 5: 跑测试确认通过**
 
@@ -464,47 +487,61 @@ async function resolvePath(page: Page, anchor: AnchorSpec): Promise<string> {
   const href = await page
     .locator('a[href*="/student/courses/"], [data-course-id]')
     .first()
-    .evaluate((el) => ('href' in el ? (el as HTMLAnchorElement).getAttribute('href') ?? '' : `/${(el as HTMLElement).dataset.courseId}`))
+    .evaluate((el) =>
+      'href' in el ? (el as HTMLAnchorElement).getAttribute('href') ?? '' : `/${(el as HTMLElement).dataset.courseId}`,
+    )
   const id = href.match(/\/student\/courses\/(\d+)/)?.[1]
   if (!id) throw new Error('无法从 /student/courses 解析课程 id——种子数据或选择器需复核')
   return `/student/courses/${id}/learning-center`
 }
 
-for (const theme of ['light', 'dark'] as ThemeName[]) {
-  test.describe(`视觉基线 · ${theme}`, () => {
-    for (const anchor of ANCHORS) {
-      test(anchor.slug, async ({ page }) => {
-        if (anchor.role !== 'ANON') {
-          await page.context().storageState({ path: storagePathFor(anchor.role) })
-        }
-        await setTheme(page, theme)
-        await freezeClock(page)
-        const target = await resolvePath(page, anchor)
-        if (anchor.path === '__FROM_COURSE_LIST__') {
-          await page.goto(target)
-        } else {
-          await page.goto(target)
-        }
-        await settlePage(page)
+/**
+ * 会话必须在建 context 时载入，不能在测试体内调 page.context().storageState({path})——
+ * 那个 API 的语义是**把当前会话保存到该路径**，在刚造好的空 context 上调用，
+ * 会把 Task 3 写好的夹具原地覆盖成空会话。这是本任务最容易踩的坑，
+ * 且现象是"基线全都截成登录页"而非报错，所以用一条显式断言兜住（见下方 expect URL）。
+ */
+async function runAnchor(page: Page, anchor: AnchorSpec, theme: ThemeName): Promise<void> {
+  await setTheme(page, theme)
+  await freezeClock(page)
+  const target = await resolvePath(page, anchor)
+  await page.goto(target)
+  await settlePage(page)
 
-        // 主题注入必须真的生效——否则 24 张里有 12 张是同一张图换了名字，
-        // 基线会"通过"但从未验证过暗色（spec §6.6 明令禁止的现象）。
-        await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
-        // 空壳页不得当基线：SPA 白屏 / 报错边界都会截出一张干净的图。
-        await expect(page.locator('#app')).not.toBeEmpty()
-        await expect(page.locator('.app-error-boundary, [data-test="error-state"]')).toHaveCount(0)
+  if (anchor.role !== 'ANON') {
+    // 会话真在用的证据：没被守卫踢回 /login（router/index.ts:598 的 next('/login')）
+    expect(page.url()).not.toContain('/login')
+  }
+  // 主题注入必须真的生效——否则 24 张里有 12 张是同一张图换了名字，
+  // 基线会"通过"但从未验证过暗色（spec §6.6 明令禁止的现象）。
+  await expect(page.locator('html')).toHaveAttribute('data-theme', theme)
+  // 空壳页不得当基线：SPA 白屏 / 报错边界都会截出一张干净的图。
+  await expect(page.locator('#app')).not.toBeEmpty()
+  // 根类实测自 src/components/AppErrorBoundary.vue:2 —— 是 `.error-boundary`，
+  // 不是 `.app-error-boundary`，全仓也没有 data-test="error-state"。写错的选择数会让这层防护静默失效。
+  await expect(page.locator('.error-boundary')).toHaveCount(0)
 
-        await expect(page).toHaveScreenshot(snapName(theme).replace('{platform}', anchor.slug), {
-          fullPage: true,
-          animations: 'disabled',
-          caret: 'hide',
-          scale: 'css',
-          mask: await maskOf(page, anchor.maskSelectors),
-          maxDiffPixelRatio: 0.002,
-        })
-      })
-    }
+  await expect(page).toHaveScreenshot(snapName(theme).replace('{platform}', anchor.slug), {
+    fullPage: true,
+    animations: 'disabled',
+    caret: 'hide',
+    scale: 'css',
+    mask: await maskOf(page, anchor.maskSelectors),
+    maxDiffPixelRatio: 0.002,
   })
+}
+
+for (const theme of ['light', 'dark'] as ThemeName[]) {
+  for (const role of ['ANON', 'STUDENT', 'TEACHER', 'ADMIN'] as const) {
+    const subset = ANCHORS.filter((a) => a.role === role)
+    if (subset.length === 0) continue
+    test.describe(`视觉基线 · ${theme} · ${role}`, () => {
+      if (role !== 'ANON') test.use({ storageState: storagePathFor(role) })
+      for (const anchor of subset) {
+        test(anchor.slug, async ({ page }) => runAnchor(page, anchor, theme))
+      }
+    })
+  }
 }
 ```
 
@@ -613,16 +650,21 @@ git commit -m "docs(visual): LEDGER 唯一台账落地，首批行以 Phase 0 �
 Create `frontend/src/components/ui/__tests__/Modal.compat.test.ts`:
 
 ```ts
-import { describe, expect, it, vi } from 'vitest'
+import { describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import Modal from '../Modal.vue'
 
 // 12 个调用点的实际用法抽成三类：尺寸档、@close、插槽有无。
 // 这一组测试在 Phase 0b 开始前必须全绿——它们钉的是"现状行为"，
 // 一旦后续加能力把它们弄红，就说明改的是不兼容而非纯增强。
-function factory(props: Record<string, unknown> = {}, slots: Record<string, string> = {}) {
+function factory(
+  props: Record<string, unknown> = {},
+  slots: Record<string, string> = {},
+  attrs: Record<string, string> = {},
+) {
   return mount(Modal, {
     props,
+    attrs,
     slots: { title: '标题', ...slots },
     attachTo: document.body,
   })
@@ -636,8 +678,11 @@ describe('Modal 现状兼容钉', () => {
     expect(w.classes()).not.toContain('xwide')
   })
 
-  it.each(['wide', 'xwide', 'narrow'])('%s 走 $attrs 布尔通道', (size) => {
-    const wrapper = factory({ [size]: '' })
+  it.each(['wide', 'xwide', 'narrow'])('%s 走 $attrs 布尔通道', async (size) => {
+    // 用 attrs 而非 props：现状 Modal.vue 是从 $attrs 读尺寸档（Modal.vue:22-26），
+    // 组件并未声明这些 props；用 props 传未声明键在 VTU 下的落点与 attrs 不同。
+    const wrapper = factory({}, {}, { [size]: '' })
+    await wrapper.vm.$nextTick()
     expect(wrapper.find('.modal').classes()).toContain(size)
   })
 
@@ -656,13 +701,17 @@ describe('Modal 现状兼容钉', () => {
     wrapper.unmount()
   })
 
-  it('遮罩自身被按下 emit close，内容区按下不 emit', async () => {
-    const wrapper = factory()
-    await wrapper.find('.modal').trigger('mousedown')
-    expect(wrapper.emitted('close')).toBeUndefined()
-    await wrapper.find('.overlay').trigger('mousedown', { target: { classList: [] } })
-    // mousedown.self 需要真实 e.target===currentTarget；jsdom 下以组件内逻辑为准，
-    // 故此断言只校验"内容区按下不 emit"，遮罩按下由 e2e 层覆盖
+  it('按下遮罩本体 emit close；按下内容区不 emit', async () => {
+    // jsdom 下 trigger('mousedown') 令 e.target === 该元素本体，故 .self 守卫在遮罩上成立
+    const content = factory()
+    await content.find('.modal').trigger('mousedown')
+    expect(content.emitted('close')).toBeUndefined()
+    content.unmount()
+
+    const overlay = factory()
+    await overlay.find('.overlay').trigger('mousedown')
+    expect(overlay.emitted('close')).toHaveLength(1)
+    overlay.unmount()
   })
 
   it('title 插槽渲染、sub 无则不渲染、footer 无则不渲染', () => {
@@ -678,15 +727,18 @@ describe('Modal 现状兼容钉', () => {
     expect(wrapper.find('.modal-foot button').text()).toBe('确定')
   })
 
-  it('卸载后 Esc 不再触发（监听须清理）', async () => {
-    const spy = vi.fn()
+  it('卸载后 Esc 不再 emit（keydown 监听必须被清理）', async () => {
     const wrapper = factory()
-    wrapper.emitted('close') && spy()
+    await wrapper.vm.$nextTick()
     wrapper.unmount()
+    // 卸载后 wrapper 不再记录新事件，故观察点必须是"卸载前就持有的 emitted() 数组引用"
+    const emittedBeforeUnmount = wrapper.emitted('close')
+    const lenAtUnmount = emittedBeforeUnmount?.length ?? 0
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
-    expect(spy).toHaveBeenCalled()
-    // 反证：卸载后事件监听若未清理，会在 document 上残留 handler。
-    // 用 beforeUnmount 已 removeEventListener（Modal.vue:8），此处以"不抛错"为最低要求。
+    await new Promise((r) => setTimeout(r, 0))
+    // 监听若未 removeEventListener（Modal.vue:8 的 onBeforeUnmount），残留 handler 会对
+    // 已卸载实例再次触发 emit；Vue 仍会把事件记进 emitted 数组，长度因此增长。
+    expect(wrapper.emitted('close')?.length ?? 0).toBe(lenAtUnmount)
   })
 })
 ```
@@ -1203,10 +1255,13 @@ import type { Ref } from 'vue'
  * 布尔版在"确认框叠在编辑框上"这种嵌套场景里，内层关闭即还原滚动，
  * 外层还开着但已能滚背景——是真实缺陷而非理论边界（本项目 65 个弹层中
  * 已存在 drawer/dialog 叠加，见 e2e/teacher-exam.spec.ts 的考试弹层链）。
+ *
+ * 键名统一用 dataset.overlayCount（camelCase）。DOMStringMap 的 supported property
+ * names 是 camelCase 形式，dataset['overlay-count'] 不保证命中——若那样写，
+ * 计数会恒读回 0、滚动锁永不还原，而单测里清的是另一个键，两边都"看起来对"。
  */
-const KEY = 'data-overlay-count'
 function count(): number {
-  return Number(document.body.dataset[KEY.replace(/^data-/, '')] ?? 0)
+  return Number(document.body.dataset.overlayCount ?? 0)
 }
 
 export function useOverlayScrollLock(active: Ref<boolean>): void {
@@ -1215,7 +1270,7 @@ export function useOverlayScrollLock(active: Ref<boolean>): void {
     (on, prev) => {
       if (on === prev) return
       const next = Math.max(0, count() + (on ? 1 : -1))
-      document.body.dataset[KEY.replace(/^data-/, '')] = String(next)
+      document.body.dataset.overlayCount = String(next)
       document.body.style.overflow = next > 0 ? 'hidden' : ''
     },
     { immediate: true },
@@ -1470,17 +1525,25 @@ git commit -m "test(ui): 补齐 5 个裸奔原语现状断言，Phase 4/5 动它
 
 - [ ] **Step 1: 先测准当前口径（消解 spec §9.4 的 54/55 与 63/65 差异）**
 
+**要测的是"所有弹层实现"的并集，不只是 `el-dialog`**——`EXPECTED_OVERLAY_MIN` 守的是弹层总数，
+而现仓已有 12 个文件用 `ui/Modal`、2 个用 `ui/Drawer`、4 个用 `el-drawer`。只测 el-dialog 会把地板定低，
+迁移到 Modal 反而"总数上涨"而失去防丢失的能力。
+
 Run: `cd frontend && node -e "
-const fs=require('fs'),p=require('path');const S='src';let f=[],t=0;const strip=s=>s.replace(/<!--[\s\S]*?-->/g,'');
-(function walk(d){for(const e of fs.readdirSync(d)){const x=p.join(d,e);const st=fs.statSync(x);
-if(st.isDirectory()){if(e!=='__tests__')walk(x);continue}if(!x.endsWith('.vue'))continue;
-const s=strip(fs.readFileSync(x,'utf8'));const c=(s.match(/<el-dialog/g)||[]).length;
-if(c){f.push(x);t+=c}}})(S);
-console.log('去注释含<el-dialog的文件数=',f.length,'开标签总数=',t);
-console.log('未接 useDialogFocus 的=',f.filter(x=>!strip(fs.readFileSync(x,'utf8')).includes('useDialogFocus')));
-"`
+const fs=require('fs'),p=require('path');const S='src';
+const MK=['<el-dialog','<Modal','<modal','<ui-modal','<Drawer','<drawer','<el-drawer'];
+const strip=s=>s.replace(/<!--[\s\S]*?-->/g,'');let files=[],tags=0;
+(function walk(d){for(const e of fs.readdirSync(d)){const x=p.join(d,e);
+if(fs.statSync(x).isDirectory()){if(e!=='__tests__')walk(x);continue}
+if(!x.endsWith('.vue'))continue;const s=strip(fs.readFileSync(x,'utf8'));
+const c=MK.reduce((a,m)=>a+(s.split(m).length-1),0);
+if(c){files.push([p.relative(S,x).replace(/\\\\/g,'/'),c]);tags+=c}}})(S);
+console.log('弹层文件数=',files.length,'开标签总数=',tags);
+console.log('未接焦点的=',files.filter(([f])=>{const s=strip(fs.readFileSync(p.join(S,f),'utf8'));return !(s.includes('useDialogFocus')||s.includes('ui/Modal.vue')||s.includes('ui/Drawer.vue'))}));
+"
 Expected: 打印出三个数。**把实测值抄进下一步**，不要沿用本文写的 54/55/63/65——这些数随时会漂。
-差异定位：若"文件数"大于护栏的 54，逐个查是不是 `<el-dialog` 出现在 JS 注释或字符串里（护栏只去 HTML 注释）。
+差异定位：若"文件数"大于护栏的 54，逐个查是不是 `<el-dialog` 出现在 JS 字符串或 `import` 行里
+（护栏只去 HTML 注释，不去 JS 源码）。
 
 - [ ] **Step 2: 写护栏自身的失败测试**
 
@@ -1532,12 +1595,33 @@ export const SRC = join(process.cwd(), 'src')
  * 护栏会因"扫不到东西"而跌破防空转下限、或因"扫不到就不检查"而静默失效。
  * 两种口径都危险。故本表是弹层实现的并集，迁移过程里覆盖率始终为 100%。
  */
-export const OVERLAY_MARKERS = ['<el-dialog', '<Modal', '<modal', '<ui-modal', '<ui-modal ', '<Drawer', '<drawer', '<el-drawer'] as const
+export const OVERLAY_MARKERS = ['<el-dialog', '<Modal', '<modal', '<ui-modal', '<Drawer', '<drawer', '<el-drawer'] as const
 
 export interface OverlayFile {
   file: string
   wired: boolean
-  markers: string[]
+  /** 弹层**开标签出现次数**之和（不是"命中了哪几种标记"） */
+  dialogs: number
+  kinds: string[]
+}
+
+/**
+ * 计数必须按"出现次数"而不是"命中了几种标记"。
+ * 按种类计的话，一个含 3 个 el-dialog 的文件只算 1，总数就与真实弹层数脱钩——
+ * 于是"总数只升不降"这条断言守的是一段没有意义的数字，迁移中真的丢了两个弹层也不会响。
+ * CourseExams.vue 有 2 个、ResourceVersionManage.vue 有 2 个，正是会被漏掉的那种。
+ */
+export function countDialogs(text: string): { dialogs: number; kinds: string[] } {
+  let dialogs = 0
+  const kinds: string[] = []
+  for (const m of OVERLAY_MARKERS) {
+    const n = text.split(m).length - 1
+    if (n > 0) {
+      dialogs += n
+      kinds.push(m)
+    }
+  }
+  return { dialogs, kinds }
 }
 
 const stripComments = (text: string) => text.replace(/<!--[\s\S]*?-->/g, '')
@@ -1562,12 +1646,20 @@ export function collectOverlayFiles(
   })),
 ): OverlayFile[] {
   return sources
-    .map(({ file, text }) => ({
-      file,
-      wired: text.includes('useDialogFocus') || text.includes('ui/Modal.vue') || text.includes('ui/Drawer.vue'),
-      markers: OVERLAY_MARKERS.filter((m) => text.includes(m)),
-    }))
-    .filter((r) => r.markers.length > 0)
+    .map(({ file, text }) => {
+      const { dialogs, kinds } = countDialogs(text)
+      return {
+        file,
+        // 焦点管理有两种等价保证方式：调用点手接原语（el-dialog 口径），
+        // 或组件内部接入（ui/Modal、ui/Drawer 自持）。两者都算 wired；
+        // 后者由 Modal.focus.test.ts / Drawer.test.ts 守住，不是空口计入。
+        wired:
+          text.includes('useDialogFocus') || text.includes('ui/Modal.vue') || text.includes('ui/Drawer.vue'),
+        dialogs,
+        kinds,
+      }
+    })
+    .filter((r) => r.dialogs > 0)
 }
 ```
 
@@ -1595,13 +1687,13 @@ it('全仓弹层组件必须接入焦点管理（实现无关）', () => {
     `弹层组件数 ${files.length} 低于 ${EXPECTED_OVERLAY_COMPONENT_MIN}——扫描逻辑可能退化，或弹层被静默删除`,
   ).toBeGreaterThanOrEqual(EXPECTED_OVERLAY_COMPONENT_MIN)
 
-  const totalMarkers = files.reduce((s, f) => s + f.markers.length, 0)
+  const totalDialogs = files.reduce((s, f) => s + f.dialogs, 0)
   expect(
-    totalMarkers,
-    `弹层标记总数 ${totalMarkers} 低于 ${EXPECTED_OVERLAY_MIN}——迁移过程中弹层总数不应下降`,
+    totalDialogs,
+    `弹层开标签总数 ${totalDialogs} 低于 ${EXPECTED_OVERLAY_MIN}——迁移过程中弹层总数不应下降`,
   ).toBeGreaterThanOrEqual(EXPECTED_OVERLAY_MIN)
 
-  const offenders = files.filter((f) => !f.wired).map((f) => `${f.file} (${f.markers.join(',')})`)
+  const offenders = files.filter((f) => !f.wired).map((f) => `${f.file} (${f.kinds.join(',')}, ${f.dialogs} 个)`)
   expect(offenders, `以下弹层未接入焦点管理：\n${offenders.join('\n')}`).toEqual([])
 })
 ```
@@ -1658,7 +1750,7 @@ import { freezeClock, setTheme, storagePathFor } from './visual-helpers'
 // 绝不用 toHaveScreenshot —— 动效开启时像素不确定，做成基线会天天红。
 // 本组图的用途是"让人看见动效"，不是"机器判等价"。
 test.describe('动效观察（非基线）', () => {
-  test.use({ storageState: storagePathFor('ADMIN'), reducedMotion: 'no-preference' } as never)
+  test.use({ storageState: storagePathFor('ADMIN'), reducedMotion: 'no-preference' })
 
   const shots: Array<[string, string]> = [
     ['admin-dashboard', '/admin/dashboard'],
@@ -1722,14 +1814,19 @@ Phase 0 的产物是"后续所有阶段的地基"，收口判据必须逐条对�
 
 ```bash
 cd frontend
-npx eslint .
-npm run typecheck
+npm run lint                    # src 口径（package.json 的 lint 脚本只覆盖 src/**）
+npx eslint e2e/visual/ playwright.visual.ts   # e2e 口径：eslint.config.js 的 **/*.ts 规则块覆盖它们
+npm run typecheck               # tsconfig.json 已 include e2e/**/*.ts，故会类型检查视觉 spec
 npm run test
 npm run build
 npm run size:gate
 PW_PORT=5175 npx playwright test -c playwright.visual.ts
 PW_PORT=5175 npx playwright test          # 既有 9 个流程 spec，确认没被视觉改动带偏
 ```
+
+**不要用 `npx eslint .`**：那会把 `dist/`、`node_modules` 之外的全部目录首次纳入 lint，
+在收口这一步爆出一堆与 Phase 0 无关的历史错——把"验收"变成"补债"。上面两条分别按 src / e2e 口径跑，
+且 `npx eslint e2e/visual/` 从 Task 1 起就应随每个视觉任务执行，不留到最后。
 
 Expected: 全绿；视觉 24 项零 diff；`test` 用例数相对 Phase 0 开始前**只增不减**（本阶段新增了 Modal/Drawer/护栏测试）。记录实际数字。
 
