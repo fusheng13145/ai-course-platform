@@ -2353,6 +2353,33 @@ git commit -m "test(python): 8003 真实 LoRA 训练用例（loss 下降/导出�
 
 若走了 Step 0 的分支创建了 `scripts/fine_tune_dataset.py`，Step 6 的 `git add` 把它一并加上、commit message 末尾追加「+ 数据集种子脚本」；**同时在手册 §46.2 说明取证用的是哪一份语料**，否则换机复现时会误以为 `rag_corpus.json` 够用。
 
+- [x] **Step 7: 本机实测留档（2026-10-18，手册 §46.2 与 §42 的唯一取证来源）**
+
+环境：`torch 2.11.0+cpu`、`transformers 5.5.4`、本任务补装 `peft 0.11→0.21.2`、`datasets 5.1.0`、`accelerate 1.15.0`；`device()=cpu`；`engine_available()=True`、`deps_missing=[]`。
+
+基座缓存：`huggingface.co` 在本机 **DNS 不可解析**，改用 `HF_ENDPOINT=https://hf-mirror.com` 拉取 `Qwen/Qwen2.5-0.5B`（snapshot `060db649…`，7 个文件），`base_model_cached()` 转 `True`。**取证时的联网口径**：权重来自镜像，非官方域名——换机复现若官方域名可达，应改用官方源重跑一次再引用本节数字。
+
+语料：`scripts/rag_corpus.json` 实测只有 2 门课有正文（course 4007 = 10 篇 4863 字符；course 1 = 2 篇 195 字符）。按 `build_samples` 直接派生只得 12 / 2 条（判据 3 不达标），故按 Step 0 创建 `scripts/fine_tune_dataset.py`，以「小节标题 + 2 句原文窗口」再切细：**course 4007 得 52 条**（`output` 全为讲义原文，`instruction` 只含标题与序号），取证数据集 `ds_20261018_001`。
+
+真链路（`FT_ALLOW_DOWNLOAD=0 FT_TRAIN_STEPS=8`，`POST /start` → 轮询 → export → infer）：
+
+| 环节 | 实测原值 |
+| --- | --- |
+| 状态机 | `pending → running → completed`，`progress` 12.5 → 37.5 → 75.0 → 100.0，`current_epoch` 0 → 1 |
+| loss_history（8 条） | 3.444564, 4.10627, 3.801538, 4.514247, 4.793718, 4.379035, 4.153719, 4.561535 |
+| export | `mode=ENGINE` `code=200`，`download_url=http://localhost:8003/weights/ft_20261018_003.zip`，`size_bytes=1011533`，`file_size="987.8KB"` |
+| 下载核对 | GET 该 URL 得 **1011533 字节**（与 `size_bytes` 逐字节相等），`content-type: application/zip`，魔数 `PK\x03\x04` |
+| infer | `mode=ENGINE`，`answer` 为真实中文讲解文本，`tokens_used=48`，`model="qwen-7b-lora-ft_20261018_003"` |
+| adapter 落盘 | `adapter_config.json`、`adapter_model.safetensors`、`train_state.json`、`README.md`（`trainer/` 被导出排除） |
+
+**loss 不下降——这是实测结论，不得美化**：另跑 40 步（lr 5e-5）首/末/最小 = **3.445 / 4.116 / 3.214**，仍不单调。52 条样本、completion-only、几十步的量级下，损失本就不保证单调下降。因此 Step 5 的用例**删掉了初稿的 `hist[-1] < hist[0]` 断言**，改为钉「序列是真实数值（`0 < x < 20`、≥2 条）+ adapter 与 zip 是实物 + 推理有真实 token」；手册 §46.2 也照此口径写，**不得**宣称「微调使 loss 下降」。
+
+真跑首次失败的两条根因（都已修进引擎，属计划期未预见的依赖事实）：
+1. **`PeftModel.from_config` 不存在**（peft 0.21.2）：从配置建 LoRA 的正确入口是 `get_peft_model(model, cfg)`，`PeftModel.from_pretrained` 只用于载入已训 adapter。初稿照 transformers 的形状写错了类方法，真跑第一步就 `AttributeError`。
+2. **`local_files_only=True` 仍会联网**：transformers 5.5.4 加载分词器时向 `https://huggingface.co/api/models/<id>` 发一次 revision 解析请求；该域名不可达时**挂到 ConnectTimeout（约 21s）**而非秒开缓存，任务以 `failed` 收场、失败体看起来像依赖缺失。修法是在 `lora_engine` 的 **try-import 之前**按 `FT_ALLOW_DOWNLOAD` 钉 `HF_HUB_OFFLINE`/`TRANSFORMERS_OFFLINE`（`huggingface_hub` 在 import 期把该变量读成模块常量，运行期再改无效——初版写成 `with` 上下文管理器时实测仍超时）。副作用：`FT_ALLOW_DOWNLOAD` 改动需**重启服务**才生效，已写进模块 docstring。
+
+计数（实测）：`test_ft_engine.py` **30** 例、`test_ft_contract.py` **22** 例，`pytest -q` 合计 **52 passed**；`FT_ENGINE_READY=0` 姿态同样 52 passed。真实训练用例在本机执行、在无 peft 的环境自动 skip。
+
 ---
 
 ### Task 8: 手册与索引文档回写

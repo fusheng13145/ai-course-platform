@@ -299,3 +299,43 @@ def test_reset_store_clears_cancel_flags_so_reused_ids_are_not_pre_cancelled(tmp
     assert le._CANCEL_FLAGS[t["task_id"]] is True
     le.reset_store()
     assert le._CANCEL_FLAGS == {}
+
+
+requires_real_engine = pytest.mark.skipif(
+    not (le.engine_available() and le.base_model_cached("Qwen/Qwen2.5-0.5B")),
+    reason="需 peft/transformers 与本地已缓存基座模型")
+
+
+@requires_real_engine
+def test_real_lora_training_produces_true_artifacts(tmp_path, monkeypatch):
+    """真跑一次 LoRA：完成态、adapter 落盘、导出字节、推理文本必须都是实物。
+
+    **不断言 loss 单调下降**。本机实测：40 步 completion-only 训练的首/末/最小值为
+    3.445 / 4.116 / 3.214（52 条讲义窗口样本，lr 5e-5）——这个量级与步数下损失本就
+    不单调。把「下降」写成断言等于替实验结果编形状；此处只钉「序列是真实数值」，
+    下降与否留给取证记录如实描述。
+    """
+    monkeypatch.setenv("FT_TRAIN_STEPS", "6")
+    monkeypatch.setenv("FT_ALLOW_DOWNLOAD", "0")
+    built = le.build_course_dataset(4007)   # 唯一有足够讲义正文的课（其余课语料 <20 条）
+    assert built["success"], built
+    cfg = le.normalize_config({"epochs": 1, "lora_rank": 4, "dataset_id": built["dataset_id"]})
+    done = le.run_training(le.create_task(4007, "qwen-7b", cfg)["task_id"])
+    assert done["status"] == "completed", done
+
+    hist = done["loss_history"]
+    assert len(hist) >= 2 and all(0.0 < x < 20.0 for x in hist)   # 真实数值，不是占位 0
+    assert done["progress"] == 100.0 and done["current_epoch"] == 1
+
+    adir = Path(done["adapter_dir"])
+    assert (adir / "adapter_config.json").exists()
+    assert (adir / "adapter_model.safetensors").stat().st_size > 10_000
+
+    ex = le.export_weights(done["task_id"])
+    assert ex["code"] == 200 and ex["mode"] == "ENGINE" and ex["format"] == "peft_lora"
+    assert Path(ex["local_path"]).stat().st_size == ex["size_bytes"] > 0
+    assert Path(ex["local_path"]).read_bytes()[:2] == b"PK"        # 真是 zip
+
+    out = le.infer(done["task_id"], "请讲解「计算机网络-第1章-网络概述与体系结构」的第 1 个要点。",
+                   {"max_tokens": 32})
+    assert out["mode"] == "ENGINE" and out["answer"] and out["tokens_used"] > 0
