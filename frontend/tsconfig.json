@@ -21,7 +21,8 @@
     "e2e/**/*.ts",
     "vite.config.ts",
     "vitest.config.ts",
-    "playwright.config.ts"
+    "playwright.config.ts",
+    "playwright.visual.ts"
   ],
   "exclude": ["node_modules", "dist", "coverage", "test-results"]
 }
