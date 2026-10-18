@@ -104,6 +104,8 @@ Top 5：`layouts/components/AppSidebar.vue` 19、`views/auth/Login.vue` 18、`vi
 | 登录三页各自复制同一套样式且互不一致 | `views/auth/Login.vue:218-225,263-272,362-381`（含伪玻璃卡与多处 `!important`）、`Register.vue`、`ForgotPassword.vue` |
 | e2e 端口陷阱：5173 被别的项目占用时 `reuseExistingServer` 会**静默复用并测出假缺陷** | `frontend/playwright.config.ts:3-6,34-40` |
 | e2e 截图策略为 `only-on-failure`，成功即无图 | `playwright.config.ts:25` |
+| **自有 z 阶整体低于 Element Plus 一层**：本文体系是 `--z-modal: 100` / `--z-menu: 130` / `--z-toast: 160`，而 EP 弹层用全局递增计数器、**从 2000 起**（`popup-manager/pom-hd:2108` `this.zIndex = 2000`、`:2125` `nextZIndex(){ return ++this.zIndex }`，由 `useDialog:132` 消费）。⇒ EP 的任何弹层天然盖在自建浮层之上 | `theme.css:59-66` vs EP 源码 |
+| 抽屉/弹窗**叠在 EP 对话框之上会被压住**——这是 Phase 4/5 的结构前提，不是假想：现有 `EgEventsDrawer → InResultDialog` 一叠就中 | 由 Phase 0b 评审实测确认 |
 
 ### 2.6 已核为"当前未爆"的一条风险
 
