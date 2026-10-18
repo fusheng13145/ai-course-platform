@@ -1482,6 +1482,16 @@ describe('Modal 焦点接入前提', () => {
 
 Run: `npx vitest run src/components/ui/__tests__/Modal.focus.test.ts`
 
+> **控制器已先用源码把这条未知量收窄（spec §9.2 原记"未实测、不得凭推断"）**：
+> `@vue/runtime-core/dist/runtime-core.cjs.js:8457-8471` 的 exposeProxy，其 `get` 在 `key in target`
+> 不成立时**回落到 `publicPropertiesMap[key]`**，而 `$el` 正是这张 public properties 表里的键；
+> 组件完全未 `expose()` 时更直接返回 `instance.proxy`（同样含 `$el`）。
+> ⇒ **两条路径都拿得到 `$el`，预期走 Step 3-A。** 探针仍要跑，但它现在的角色是**确认**而非**探索**：
+> 若它意外 FAIL，说明我对 Vue 内部的理解又错了（本任务族已错过三次），
+> 停下来报告、不要直接改用 3-B。
+
+Run: `npx vitest run src/components/ui/__tests__/Modal.focus.test.ts`
+
 **若 PASS**（`$el` 可达）→ 走 Step 3-A：沿用与 `el-dialog` 同构的 `dialogRef.$el` 口径。
 **若 FAIL** → 走 Step 3-B：`Modal.vue` 自持 `rootRef` 并 `defineExpose` 同形 `$el` getter，`useDialogFocus` 改接 `{ $el: rootRef }` 形状。
 把实测结果与所选分支写进 `LEDGER.md` 的 `P0b-MODAL-02` 行——这是 spec §9.2 要求消解的条目。
