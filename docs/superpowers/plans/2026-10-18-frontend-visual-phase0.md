@@ -932,6 +932,73 @@ git commit -m "test(visual): 用三档注入量出基线量程并固化阈值单
 
 ---
 
+### Task 4c: 消除日期漂移、补暗色量程、把"空态能过守卫"堵掉
+
+Task 4b round 2 量出三件它自己无权修的事（都在 `anchors.spec.ts` / 守卫侧，不是阈值问题）。
+不做完这三件，Phase 2 的圆角/描边工作**无法被证明**，且一张空态图有可能已经被当成基线。
+
+**Files:**
+- Modify: `frontend/e2e/visual/anchors.spec.ts`（锚点各自的"数据已到位"断言 + 日期带遮罩）
+- Modify: `frontend/e2e/visual/sensitivity.spec.ts`（暗色量程探测）
+- Modify: `frontend/e2e/visual/visual-helpers.ts`（`maskSelectors` 落到具体锚点）
+- Possibly: `frontend/e2e/visual/__snapshots__/anchors.spec.ts/*.png`（仅当遮罩改变被比区域时按流程重生成并逐张复核）
+
+**Interfaces:**
+- Consumes: `SNAPSHOT_THRESHOLDS = {0, 0.0005}`（Task 4b 定稿，**只许再收紧**）、`ANCHORS`、`settlePage`
+- Produces: ①日期漂移归零的度量证据；②暗色量程结论；③每个锚点一条"非空态"硬断言；
+  ④必要时 `maxDiffPixelRatio` 可推进到 `0.0001`（这决定 Phase 2 能否开工）
+
+- [ ] **Step 1: 先证明日期漂移的来源，再决定遮罩还是钉死**
+
+4 张基线（`student-dashboard` 明暗、`admin-governance-analytics` 明暗）**确定性**差 110–321 px，
+两次捕获 md5 相同 ⇒ 非抖动。假设：图表 x 轴日期由**后端当前日期**回推（`freezeClock` 只伪造浏览器时钟，管不到服务端）。
+
+先测准，别急着遮：
+```bash
+PW_PORT=5175 npx playwright test -c playwright.visual.ts anchors -g "student-dashboard" --repeat-each=2
+```
+再在同一天的**隔日**（或把系统日期临时前移一天后重跑）对比，确认差异恰好落在轴标签区域。
+两条路线按测量结果择一，**并说明为什么不选另一条**：
+- **遮罩**（默认）：`mask` 掉含日期标签的轴区。代价：那一带从此不被比较，
+  必须同时在 LEDGER 写明"图表轴标签带不在保护范围内"这一盲区；
+- **钉死后端日期**（首选，若可行）：让 `global-setup` 或一个专用 fixture 把图表数据的日期序列固定
+  （例如后端提供可注入的 `Clock`/`today`，或种子数据本身不含相对日期）。
+  代价是要动后端，故**只有在遮罩会遮掉 Phase 1–3 真改动区域时才付这个代价**。
+
+判定"遮罩是否可接受"的标准是具体的：被遮的像素面积占整页比例，以及 Phase 1/2 的改动是否落在其中。
+
+- [ ] **Step 2: 堵掉"空态过守卫"这个洞**
+
+Task 4b 记录了一次真实事故：后端瞬时失败使 `teacher-dashboard` 渲染成空态，
+而 `.error-boundary`、`#app` 非空、URL 三条守卫**全部通过**。
+⇒ 每条锚点必须有一条**属于该锚点的"数据确已到位"断言**（如 `teacher-dashboard` 至少出现 1 张
+`l1-card` 且 `.s-value` 中至少一个非 `0`/非空），而不是靠通用守卫兜。
+先写一条会因空态而红的断言（用桩把接口打成空响应来验证它真的会红），再补到全部 12 个锚点。
+
+- [ ] **Step 3: 暗色量程探测（Task 4b 明确未做的盲区）**
+
+对 `shadow` / `radius` 两档在**暗色**下重做量程：暗色阴影本身低可见，`--sh-*` 暗色值又与浅色不同，
+"浅色检得出"完全不蕴含"暗色检得出"。沿用同一套机制（注入后的渲染 vs 已提交的暗色基线字节副本）。
+若暗色下 `shadow` 漏检，这不是失败而是**结论**：Phase 1 的暗色阴影改动必须换证据形式
+（例如对该元素做定向元素截图比对，或在 LEDGER 里以"描边/抬亮值"这类可静态断言的量代替像素 diff）。
+
+- [ ] **Step 4: 收紧到 `0.0001` 的可行性判定**
+
+日期漂移归零后重跑全量 `anchors`（3 次独立运行，须全部零 diff），再试
+`maxDiffPixelRatio: 0.0005 → 0.0002 → 0.0001`，每档都要 22 张全绿。
+**只有到 0.0001 仍全绿，Phase 2 的圆角工作才算可被证明**；否则 Phase 2 计划必须改用非像素证据，
+并把这一条写进它的准入门。
+
+- [ ] **Step 5: 提交**
+
+```bash
+git add frontend/e2e/visual/anchors.spec.ts frontend/e2e/visual/sensitivity.spec.ts \
+        frontend/e2e/visual/visual-helpers.ts frontend/e2e/visual/__snapshots__
+git commit -m "test(visual): 消除图表日期漂移、堵掉空态过守卫，并补暗色量程与 0.0001 可行性判定"
+```
+
+---
+
 ### Task 5: 台账 LEDGER.md 落地，用 Phase 0 自身当首批真实行
 
 台账必须先于改动存在，否则"改前截图"字段无处可取。首批行就记 Phase 0 自己的单元——顺带验证协议真的写得下去，而不是一份好看但没人填的模板。
