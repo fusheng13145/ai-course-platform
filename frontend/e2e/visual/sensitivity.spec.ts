@@ -196,9 +196,10 @@ for (const slug of PROBE_ANCHORS) {
 
     test(`量程探针 ${slug} · 档 ${LAD}`, async ({ page }, testInfo) => {
       // 计划原稿这一行是 `test.skip(anchor.role === 'ANON' && slug === 'error-404', 'D-1 已拒收 error 锚点')`，
-      // 在本 spec 里**永远为假**：PROBE_ANCHORS 是写死的三元素字面量元组，不含 error-404，
+      // 在本 spec 里**永远为假**：默认锚点只有写死的三个，不含 error-404，
       // TS2367 直接把它判成编译期错误（typecheck:gate 抓到 402→403）。删掉而不是留着"以后也许用得上"——
-      // 真要扩锚点时，那条拒收规则应当由锚点表自己带（D-1 的修复会一并处理），不该散在探针里。
+      // 现在锚点可由 PW_PROBE_SLUGS 临时指定，那条拒收规则更不该散在探针里：
+      // 真要探 error 锚点时由锚点表自己带（D-1 的修复会一并处理）。
       if (typeof anchor.path !== 'string') {
         throw new Error(`探针锚点 ${slug} 的 path 需运行时解析，本 spec 未实现`)
       }
