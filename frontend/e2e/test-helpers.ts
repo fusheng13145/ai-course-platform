@@ -166,7 +166,20 @@ export async function loginAs(page: Page, role: 'STUDENT' | 'TEACHER' | 'ADMIN' 
     account,
   )
   await fillLoginField(page, page.locator('input[type="password"]').first(), '123456')
+  // 先挂上响应监听再点提交：429 的 `ratelimit.login`（默认 10 次/60 秒/IP）在后端**不打日志**，
+  // 只让 waitForURL 超时的话，现象是"随机红灯"，查不出是被限流还是页面坏了（DR-85 实测）。
+  const loginResponse = page
+    .waitForResponse((res) => new URL(res.url()).pathname === '/api/auth/login', { timeout: 15000 })
+    .catch(() => null)
   await page.getByRole('button', { name: /登录|登 录|Login/i }).click()
+  const res = await loginResponse
+  if (res && res.status() === 429) {
+    throw new Error(
+      '登录被 IP 限流（HTTP 429，`ratelimit.login` 默认 10 次/60 秒）。整份 e2e 要登录 35 次，' +
+        '跑之前必须把后端起成 `RATELIMIT_LOGIN_LIMIT=200`（或改用会话复用），' +
+        '否则失败集合随测试快慢漂移，读到的红灯不是产品缺陷。',
+    )
+  }
 
   // 登录后按角色落到各自默认页（getDefaultRoute），失败即说明会话没建起来，
   // 让 waitForURL 直接暴露原因，而不是后面几十个断言一起变成假缺陷。
