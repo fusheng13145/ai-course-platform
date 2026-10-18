@@ -17,8 +17,17 @@
 - **Phase 0 不引入任何新依赖。** Playwright、vitest、`@vue/test-utils`、jsdom 均已在 `package.json` 内（devDependencies）。`lucide-vue-next` / `motion-v` 属 Phase 6，本阶段不得安装。
 - **不改任何业务页 `<template>` 的语义**（不增删改 `v-if` / `v-for` / 事件 / props / slot 名）。spec §6.1。
 - **弹层焦点覆盖率必须保持 100%，且不得靠放宽断言达成。** spec §9.5 明令：直接删断言或调低阈值 = 无声拆掉 D2-7 的机械保障。
-- **验证链每任务收尾跑齐**：`npx eslint` → `npm run typecheck` → `npm run test` → `npm run build` → `npm run size:gate`。
-- **e2e / 视觉跑之前必须带 `PW_PORT=5175`**（`e2e/playwright.config.ts:3-6` 自陈 5173 常被别的项目占用，`reuseExistingServer` 会静默复用并测出假缺陷）。
+- **验证链每任务收尾跑齐**：`npm run lint` → **`npm run typecheck:gate`** → `npm run test` → `npm run build` → `npm run size:gate`。
+  **注意：不是 `npm run typecheck`**——本仓前端从未做过全量类型治理，存量错误约 402 条，`vue-tsc` 裸跑必然"红"。
+  门禁是**棘轮**：`scripts/check-types.cjs` + `scripts/typecheck-baseline.json`，错误数只许降不许升；
+  收尾证据写"gate 通过 / 总数与基线相同、本任务新增 0"，不要写"typecheck 全绿"。
+- **e2e 目录的正确性靠类型检查保证，不靠 lint**：`eslint.config.js` 只为 `src/**` 配了 TS parser，
+  `npx eslint e2e/**` 会对**既有**的 `e2e/test-helpers.ts` 同样报 Parsing error（先前存在的状况，非本批引入）。
+  Phase 0 **不扩 eslint 作用域**；`tsconfig.json` 已 include `e2e/**/*.ts`，新增视觉文件由 `typecheck:gate` 覆盖。
+- **e2e / 视觉跑之前必须带 `PW_PORT=5175`**（`frontend/playwright.config.ts:3-6` 自陈 5173 常被别的项目占用、
+  `reuseExistingServer` 会静默复用并测出假缺陷。**该文件在 `frontend/` 根，不在 `frontend/e2e/`**）。
+- **两个 Playwright config 必须互不发现**：`frontend/playwright.config.ts` 的 `testDir: './e2e'` 会把
+  `e2e/visual/` 一并扫进流程套件，故须给它加 `testIgnore: /[/\\]visual[/\\]/`（Task 1 负责，见其 Step 6）。
 - **视觉基线须同时覆盖明暗两主题**，暗色不得只在浅色截图下被判通过。spec §6.6。
 - **主题默认值是 `dark`**（`src/composables/useTheme.ts:6` `ref(localStorage.getItem(THEME_KEY) || 'dark')`，键 `fz-theme`）。任何"没设置主题就当作浅色"的假设都是错的。
 - **vitest 固化 `fileParallelism: false`**（`vitest.config.ts` 注释：Windows + 中文路径下默认并发 worker 挂起）。不得为了跑得快而改动它。
@@ -49,6 +58,12 @@
 - Create: `frontend/playwright.visual.ts`
 - Create: `frontend/e2e/visual/visual-helpers.ts`
 - Test: `frontend/e2e/visual/smoke.spec.ts`
+- Modify: `frontend/playwright.config.ts` — 加 `testIgnore`。理由：它的 `testDir: './e2e'` 会把新建的
+  `e2e/visual/` 一并收进流程套件（实测 `--list` 从 35 tests/9 files 变 37/10），而 `npm run test:e2e`
+  不带 `PW_PORT`、会打到 5173 上那个**别的项目**的服务；CI 里 `.github/workflows/ci.yml:756` 跑裸
+  `npx playwright test` 同样会收。**"新建视觉 config" 与 "把 visual 从流程 config 里摘出去" 是同一件事的两半，
+  只做前一半就是交付半成品**，故归入本任务。
+- Modify: `frontend/tsconfig.json` — `include` 加 `"playwright.visual.ts"`，让新 config 自身也受类型检查。
 
 **Interfaces:**
 - Consumes: 无（本任务是地基）
@@ -57,7 +72,6 @@
   - `setTheme(page: Page, theme: ThemeName): Promise<void>` — 导航前注入 localStorage，幂等
   - `freezeClock(page: Page): Promise<void>` — 装固定时钟
   - `settlePage(page: Page): Promise<void>` — 等网络空闲 + 字体就绪 + 关键文本稳定
-  - `ANCHORS: readonly AnchorSpec[]` — 12 个锚点定义（Task 4 消费）
   - `storagePathFor(role: 'STUDENT'|'TEACHER'|'ADMIN'): string` — 会话夹具路径（Task 3/4/14 都从这里导；
     **定义在本文件而非 `global-setup.ts`**：消费方是视觉 spec，放在被导入方才不会出现循环依赖，
     且 `tsconfig.json` 已 include `e2e/**/*.ts`，导入断了 `npm run typecheck` 会当场红）
@@ -112,37 +126,46 @@ export async function setTheme(page: Page, theme: ThemeName): Promise<void> {
  * 冻结时间。仪表盘的"3 分钟前"、CountUp 的缓动、ECharts 入场动画都挂在时钟上，
  * 不冻结则同一份代码每天截出不同的图，基线失去意义。
  * 固定到本计划撰写日的上午九点整——刻意避开零点/整日边界，边界值最易暴露格式化差异。
+ *
+ * 必须带 `pauseAt`：`clock.install({ time })` 只是把起点挪到 time，时钟**仍按真实速率前进**
+ * （实测约 310ms/300ms），到截图那一刻页面时间 = 09:00:05 + 真实耗时，秒级文案照旧会漂，
+ * "二次跑零 diff"就变成随机红灯。`pauseAt` 让时间推进到该刻即停，推进量由参数决定、不由机器快慢决定。
+ * 若实测发现 `pauseAt` 不驱动 rAF（动画因此不跑完），退路是 install → runFor(5000) → pause() 两步，
+ * 并把本注释改成实际生效的那一种。
  */
 export async function freezeClock(page: Page): Promise<void> {
-  await page.clock.install({ time: new Date('2026-10-18T09:00:00') })
+  const t0 = new Date('2026-10-18T09:00:00')
+  await page.clock.install({ time: t0, pauseAt: new Date(t0.getTime() + 5000) })
 }
 
 /**
- * 稳定态收敛。顺序有意义：先让网络与定时器跑完，再读字体，最后校文本不再变。
- * `clock.runFor` 会把 rAF/定时器一次性推过 ECharts(~1000ms) 与 CountUp 的动画时长，
- * 这是比 waitForTimeout 更可靠的做法——慢机器上固定毫秒数会截到半截动画。
+ * 稳定态收敛。顺序有意义：先等网络空闲，让迟到的数据把动画排上队，
+ * 再一次性推进到 pauseAt（已越过 ECharts ~1000ms 与 CountUp 的时长），最后校文本不再变。
+ * 这比 waitForTimeout 可靠——固定毫秒数在慢机器上会截到半截动画。
  */
 export async function settlePage(page: Page): Promise<void> {
-  await page.clock.runFor(5000)
   await page.waitForLoadState('networkidle')
+  await page.clock.runFor(0) // 触发已排队的 rAF/timer 回调 flush
   await page.evaluate(() => document.fonts.ready.then(() => undefined))
   await waitForStableText(page)
 }
 
 /**
  * 关键文本稳定判定：连续两轮读数相同才放行。
- * 这是对"动画真的结束了"的直接证据，不依赖对动画时长的猜测。
+ * 零匹配也算稳定——一个没有任何统计卡的页面（登录页就是）不可能"还在动画中"，
+ * 若在此等超时，抛出的诊断"可能仍在动画中"是假的，且会把多数锚点页拖成随机红。
  */
 export async function waitForStableText(page: Page, timeout = 15000): Promise<void> {
-  let prev = ''
+  let prev: string | null = null
   const deadline = Date.now() + timeout
   while (Date.now() < deadline) {
     const now = await page.evaluate(() =>
-      Array.from(document.querySelectorAll('.s-value, .pg-title, .stat-value'))
+      Array.from(document.querySelectorAll('.s-value, .pg-title'))
         .map((el) => el.textContent?.trim() ?? '')
         .join('|'),
     )
-    if (now && now === prev) return
+    if (now === '') return // 页面无统计类文本 → 天然稳定
+    if (now === prev) return
     prev = now
     await page.waitForTimeout(120)
   }
@@ -161,8 +184,20 @@ export interface AnchorSpec {
   maskSelectors?: string[]
 }
 
-export function snapName(theme: ThemeName): string {
-  return `{platform}-${theme}.png`
+/**
+ * 快照文件名。**不要**在这里放 `{platform}` 之类的占位符：Playwright 只在
+ * `snapshotPathTemplate` 里展开占位符，作为 `toHaveScreenshot(name)` 传入的 arg 里
+ * `{platform}` 会原样落进文件名（实测：花括号文本 survives）。
+ * 返回**不含扩展名**的名字——扩展由模板尾部的 `{ext}` 负责，名字里再带 `.png`
+ * 会得到 `light.png.png` 这类双扩展基线。
+ */
+export function snapName(slug: string, theme: ThemeName): string {
+  return `${slug}-${theme}`
+}
+
+/** 遮罩定位器。同步函数——它没有任何 await，标 async 只会让调用点多一个假 await。 */
+export function maskOf(page: Page, selectors: string[] = []): Locator[] {
+  return selectors.map((s) => page.locator(s))
 }
 
 /**
@@ -173,10 +208,6 @@ export function snapName(theme: ThemeName): string {
  */
 export function storagePathFor(role: 'STUDENT' | 'TEACHER' | 'ADMIN'): string {
   return `e2e/visual/.auth/${role.toLowerCase()}.json`
-}
-
-export async function maskOf(page: Page, selectors: string[] = []): Promise<Locator[]> {
-  return selectors.map((s) => page.locator(s))
 }
 ```
 
@@ -197,6 +228,7 @@ export default defineConfig({
   testDir: './e2e/visual',
   fullyParallel: false,
   workers: 1,
+  forbidOnly: !!process.env.CI,
   retries: 0,
   timeout: 60000,
   reporter: [['list']],
@@ -231,20 +263,91 @@ export default defineConfig({
 Run: `PW_PORT=5175 npx playwright test -c playwright.visual.ts -g "data-theme 命中"`
 Expected: PASS，2 passed。若 light 用例失败并显示 `data-theme="dark"`，说明 `addInitScript` 未生效——回到 Step 3 检查是否在 `goto` 之前调用。
 
-- [ ] **Step 6: 提交前先过 lint 与 typecheck（本任务起就管 e2e，不留到 T15 爆）**
+- [ ] **Step 5b: 把 helper 本身测了（不是只测 setTheme）**
+
+`settlePage` / `freezeClock` 是 24 张基线的公共依赖，它们出错的方式是"每页都假红"或"每页都假绿"，
+比 smoke 用例更值得一条自己的测试。Create `frontend/e2e/visual/helpers.spec.ts`:
+
+```ts
+import { expect, test } from '@playwright/test'
+import { freezeClock, settlePage, waitForStableText } from './visual-helpers'
+
+// 零统计卡的页面（登录页就是）必须直接判稳定，而不是空转到 15s 超时后
+// 抛一句"可能仍在动画中"的假诊断。
+test('settlePage 在无 .s-value/.pg-title 的页上不超时', async ({ page }) => {
+  await freezeClock(page)
+  await page.setContent('<div id="app"><h1>纯静态</h1></div>')
+  await settlePage(page)
+})
+
+// 时钟必须真的停下来：install 后不冻结时，页面时间按真实速率前进（实测约 310ms/300ms），
+// 秒级相对文案会漂，Task 4 的"二次跑零 diff"就变成随机红灯。
+test('freezeClock 之后页面时间不再随真实耗时前进', async ({ page }) => {
+  await freezeClock(page)
+  await page.setContent('<div id="app"></div>')
+  const t1 = await page.evaluate(() => Date.now())
+  await page.waitForTimeout(400)
+  const t2 = await page.evaluate(() => Date.now())
+  expect(t2 - t1).toBe(0)
+})
+
+// 有统计卡的页面，文本变化期间不得提前放行。
+test('waitForStableText 在文本仍在变时不立即返回', async ({ page }) => {
+  await freezeClock(page)
+  await page.setContent('<div id="app"><span class="s-value">0</span></div>')
+  await page.evaluate(() => {
+    const el = document.querySelector('.s-value')!
+    let n = 0
+    const id = setInterval(() => {
+      el.textContent = String(++n)
+      if (n > 6) clearInterval(id)
+    }, 50)
+  })
+  await waitForStableText(page)
+  await expect(page.locator('.s-value')).toHaveText('7')
+})
+```
+
+Run: `PW_PORT=5175 npx playwright test -c playwright.visual.ts helpers`
+Expected: 三条 PASS。**若第二条 FAIL，说明 Step 3 的 `pauseAt` 写法在本机 Playwright 1.62 上不冻结**
+——按 Step 3 注释的退路改成 `install({ time })` → `runFor(5000)` → `pause()`，并把该处注释改成实际生效的那种；
+不得把这条断言删掉或改成"前进量 < 某阈值"来蒙过。
+
+- [ ] **Step 5c: 把 visual 从流程 config 里摘出去（本任务交付的另一半）**
+
+`playwright.config.ts` 的 `testDir: './e2e'` 会把 `e2e/visual/` 一并收进流程套件——实测
+`--list` 从 35 tests/9 files 变成 37/10。后果是具体的：`npm run test:e2e`（package.json 里不带 `PW_PORT`）
+会在 5173 上跑视觉用例，而 5173 按该文件自己的注释常被**别的项目**占用；CI 的 `.github/workflows/ci.yml`
+跑裸 `npx playwright test`，同样会收走。Modify `frontend/playwright.config.ts`：
+
+```ts
+export default defineConfig({
+  testDir: './e2e',
+  // 视觉回归有自己的 config（playwright.visual.ts）：那边 workers:1、快照进 __snapshots__、
+  // 端口 5175。留在这里被扫到，流程套件就会在 5173 上跑基线并假红。
+  testIgnore: /[/\\]visual[/\\]/,
+```
+
+Run: `npx playwright test --list`
+Expected: 回到 **35 tests / 9 files**。数字没变回去就是 `testIgnore` 的正则没命中 Windows 反斜杠路径。
+
+- [ ] **Step 6: 提交前先过类型检查（e2e 不在 lint 口径内，别把 lint 失败当通过）**
 
 ```bash
 cd frontend
-npx eslint e2e/visual/ playwright.visual.ts
-npm run typecheck          # tsconfig.json 已 include e2e/**/*.ts，新文件在此受类型检查
+npm run typecheck:gate   # 棘轮门禁：本仓存量错误约 402 条，基线在 scripts/typecheck-baseline.json
 ```
-Expected: 均无错。`npm run typecheck` 若报 `playwright.visual.ts` 未被 include（include 列表里没有它），
+Expected: gate 通过。若报 `playwright.visual.ts` 未被 include（include 列表里没有它），
 把 `"playwright.visual.ts"` 加进 `tsconfig.json` 的 `include`（与既有 `"playwright.config.ts"` 同列），
 而不是把 e2e 文件从类型检查里摘掉。
 
+**不要用 `npx eslint e2e/visual/ playwright.visual.ts`**：`eslint.config.js` 只为 `src/**` 配了 TS parser，
+该命令会报 Parsing error（既有的 `e2e/test-helpers.ts` 同样报错，属先前状况，不是本批引入）。
+e2e 的正确性由上面的 `typecheck:gate` 保证；这条 lint 缺口按 deferred minor 记入账本，**不得记为通过**。
+
 ```bash
-git add frontend/playwright.visual.ts frontend/e2e/visual/visual-helpers.ts frontend/e2e/visual/smoke.spec.ts frontend/tsconfig.json
-git commit -m "test(visual): 独立视觉配置与主题/时钟/稳定态助手，为 12 锚点基线去裸超时依赖"
+git add frontend/playwright.visual.ts frontend/e2e/visual/visual-helpers.ts frontend/e2e/visual/smoke.spec.ts frontend/e2e/visual/helpers.spec.ts frontend/playwright.config.ts frontend/tsconfig.json
+git commit -m "test(visual): 独立视觉配置与主题/时钟/稳定态助手，并用 testIgnore 把基线挡在流程套件之外"
 ```
 
 ---
@@ -521,12 +624,12 @@ async function runAnchor(page: Page, anchor: AnchorSpec, theme: ThemeName): Prom
   // 不是 `.app-error-boundary`，全仓也没有 data-test="error-state"。写错的选择数会让这层防护静默失效。
   await expect(page.locator('.error-boundary')).toHaveCount(0)
 
-  await expect(page).toHaveScreenshot(snapName(theme).replace('{platform}', anchor.slug), {
+  await expect(page).toHaveScreenshot(snapName(anchor.slug, theme), {
     fullPage: true,
     animations: 'disabled',
     caret: 'hide',
     scale: 'css',
-    mask: await maskOf(page, anchor.maskSelectors),
+    mask: maskOf(page, anchor.maskSelectors),
     maxDiffPixelRatio: 0.002,
   })
 }
