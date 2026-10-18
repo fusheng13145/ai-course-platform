@@ -2380,6 +2380,13 @@ git commit -m "test(python): 8003 真实 LoRA 训练用例（loss 下降/导出�
 
 计数（实测）：`test_ft_engine.py` **30** 例、`test_ft_contract.py` **22** 例，`pytest -q` 合计 **52 passed**；`FT_ENGINE_READY=0` 姿态同样 52 passed。真实训练用例在本机执行、在无 peft 的环境自动 skip。
 
+- [x] **Step 8: C 档续跑（项目主指令「我倾向于 C」，2026-10-18 同日）——上面 Step 7 的三条降级有两条被消解，数字以本节为准**
+
+1. **按本地 snapshot 目录加载**（`base_model_snapshot()` / `load_target()`）取代 Step 7 的 import 期钉 `HF_HUB_OFFLINE`：实测不钉任何离线变量、走 `run_training` 真路径**网络请求数 = 0**，故 `FT_ALLOW_DOWNLOAD` 恢复按次生效，**「改动必须重启服务」这条口径作废**。新增用例 1 例 → `test_ft_engine.py` **31 例**、合计 **53 passed**。
+2. **语料上量**：`fine_tune_dataset.py` 增 `questions` 来源——**只读解析** V6 题库 SQL（56 道单选：题干+选项 → `instruction`，标准答案+解析+知识点 → `output`），课 4007 从 52 条升到 **108 条**（`ds_20261018_002`）。解析器最初按 SQL 标准 `''` 转义写，而 V6 实际用 MySQL `\'`（468 处、`''` 0 处），结果**静默返回 0 行**——和「这门课没有题库」看起来一模一样，必须把计数打出来核才抓得到。⚠️ 探形状时**不要 import `generate-cn-showcase-seed.py`**：它 import 即执行并重写 V6 种子（本轮踩到一次，`git status` 发现后已复原），故登记 **DR-80**。
+3. **取证重跑**（默认超参，不设 `FT_TRAIN_STEPS`）：`ft_20261018_004`，108 条 × batch 2 × epochs 3 → **162 步 / 263 秒**，`completed`；导出 zip **2011033 字节**与 `size_bytes` 逐字节相等；`/infer` 两道题库真题**选项都答对**（A、C），`tokens_used=80`。训练损失**确实下降**：头 3 均 **3.800** → 末 3 均 **2.584**（−32.0%，最小 1.186）。Step 7 的「不断言下降」因此修正为**分档断言**：`len(loss_history) >= 40` 才钉下降，6 步快跑仍只钉产物实物。⚠️ 下降 ≠ 质量：答案后半段实测退化为语料外乱码（`gunta / You are a developer…`），108 条 3 epoch 属记忆式拟合，「微调可售」仍不成立。
+4. **镜像口径消解**：本机 `huggingface.co` 直连 DNS 仍不可解析，但经项目主本地代理可达。用官方端点核过：main commit `060db6499f32faf8b98477b0a26969ef7d8b9987` == 本地 snapshot 目录名，且 `model.safetensors` **本地实算 sha256 == 官方 LFS 声明值**，故 Step 7 的「换机须改用官方源重跑」降级为已核验事项。另记 **DR-81**：本机脚本用 httpx 默认客户端调 `127.0.0.1:8003` 会被系统代理劫持成 `ReadTimeout`，取证须 `trust_env=False`。
+
 ---
 
 ### Task 8: 手册与索引文档回写
