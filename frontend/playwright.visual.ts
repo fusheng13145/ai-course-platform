@@ -7,6 +7,7 @@ const PORT = process.env.PW_PORT || '5175'
 const BASE_URL = `http://localhost:${PORT}`
 
 export default defineConfig({
+  globalSetup: './e2e/visual/global-setup.ts',
   testDir: './e2e/visual',
   fullyParallel: false,
   workers: 1,
