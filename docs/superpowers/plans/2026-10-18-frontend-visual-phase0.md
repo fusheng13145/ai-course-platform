@@ -455,8 +455,15 @@ git commit -m "build(visual): 基线 PNG 标 binary、临时产物加 ignore，�
 追加到 `frontend/e2e/visual/smoke.spec.ts`:
 
 ```ts
+// 追加到 smoke.spec.ts 时**必须合并进文件顶部已有的 import**——
+// 原样另起一段 `import { test as base, expect }` 会与既有 `import { expect, test }` 撞名，
+// 报 `SyntaxError: Identifier 'expect' has already been declared`（Task 3 实测），
+// 且 setTheme 同理重复。正确做法：把顶部改成
+//   `import { test, expect, test as base } from '@playwright/test'`（或直接复用 test）
+//   `import { freezeClock, setTheme, settlePage, storagePathFor } from './visual-helpers'`
+// 然后只追加下面这段 describe。
 import { test as base, expect } from '@playwright/test'
-import { freezeClock, setTheme, settlePage } from './visual-helpers'
+import { freezeClock, setTheme, settlePage, storagePathFor } from './visual-helpers'
 
 // 会话必须真的可用：auth 加固后，未登录访问受限页会被守卫踢回
 // `router/index.ts:598` 的 `next({ path: '/login', query: { redirect: to.fullPath } })`。
@@ -497,7 +504,13 @@ import { loginAs } from '../test-helpers'
 import { storagePathFor } from './visual-helpers'
 
 const ROLES = ['STUDENT', 'TEACHER', 'ADMIN'] as const
-const AUTH_DIR = join(__dirname, '.auth')
+// 不能用 `join(__dirname, '.auth')`：frontend/package.json 是 `"type": "module"`，
+// Playwright 的 requireOrImport 走 `import()` 分支，ESM 下没有 `__dirname`，
+// 直接 `ReferenceError: __dirname is not defined in ES module scope`（Task 3 实测）。
+// 也不用 `import.meta.url`：spec 侧读夹具的路径是 cwd 相对的，两边会分叉成两个路径。
+// 统一以 cwd 为基准——globalSetup 与 worker 都继承同一 cwd（Playwright fork 不设 cwd、
+// runner 里也没有 process.chdir），所以这不是"碰巧可用"，是结构性一致。
+const AUTH_DIR = join(process.cwd(), 'e2e', 'visual', '.auth')
 
 /**
  * 登录三次而非 24 次。两个理由都是实测出来的：
