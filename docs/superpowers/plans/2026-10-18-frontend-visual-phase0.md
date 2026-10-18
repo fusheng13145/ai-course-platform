@@ -1297,7 +1297,18 @@ const props = defineProps<{
 }>()
 ```
 
-> **这一步会把 `$attrs` 布尔通道改成显式 props，是行为敏感的改动**：显式声明后 `wide` 不再出现在 `$attrs` 里、也就不会再作为属性落到根 DOM 节点上。Task 6 的 `$attrs` 尺寸档断言必须同步改为断言 `.modal` 的 class（而不是 `$attrs`），且这是**查询路径变更、不是行为变更**——逐条确认原断言意图仍是"该档位生效了"。若发现有调用点依赖 `getAttribute('wide')`（实测 grep 应为零），则改回保留 `$attrs` 的写法并在此注明。
+> ⚠️ **这一步是本计划里最容易造成静默产品故障的地方**（Task 6 实测出来的事实，不是假设）：
+> 尺寸档今天是 **attribute 契约**——`Modal.vue` 不声明这些 props，模板读 `$attrs.wide === '' || true`。
+> 把声明改成 props 而**不同步改模板读取处**，`$attrs` 里就没有 `wide` 了，
+> 12 个调用点会**全部静默塌回默认 640px**：不报错、不红、只是宽度全错，
+> 而 `narrow`（460px，`UmDeleteDialog` 一类确认框）和 `xwide`（1060px，大表格）塌回 640px
+> 在截图上只是"不太对"，很容易被人眼放过。
+> **硬要求**：`sizeClass` computed 必须与 props 声明在同一个 commit 内落地，
+> 且 Task 6 的 `$attrs` 尺寸档 pin 在这一轮会**正确地变红**（它读的是 attrs 通道）——
+> 那是通道变更、不是行为破坏，须按 Task 8 Step 4 把它改成读 `.modal` 的 class，
+> 并在 LEDGER 记一句"尺寸档由 attribute 契约改为 prop 契约，12 个调用点逐一确认宽度未变"。
+> 确认方式不是目视：`helpers.spec.ts` 风格的断言逐个档位比对 `getComputedStyle().width`
+> 与 `design-system.css` 的 640/880/1060/460 四值。
 
 - [ ] **Step 4: 把 compat / vmodel 两组测试的查询路径迁到 body**
 
@@ -1635,6 +1646,14 @@ function onOverlay(e: MouseEvent) {
   if (e.target === e.currentTarget) close()
 }
 ```
+
+> **Ruling（来自 Task 6 的兼容钉）：关闭通道保持 `mousedown`，本批不改 `click`。**
+> Task 6 把遮罩关闭钉在 `mousedown.self` 上，改成 `click` 会让那条 pin 变红。
+> 这不是障碍而是**故意保留的决策点**：`mousedown` 与 `click` 的差别在"拖拽选中文字越过遮罩时是否关闭"，
+> 属交互语义变更，需单独评估而非在加 `closeOnClickModal` 时顺手改掉。
+> 若将来要改，须作为一条 LEDGER 单元写入理由，不得作为"重构时顺带"处理。
+> 另：`Modal.vue` 现有 `e.target === e.currentTarget` 与 `.self` 修饰符是**重复守卫**（Task 6 实测），
+> 本任务保留其一即可，删哪个都行、但必须在同一 commit 内保持 `closeOnClickModal===false` 的门在其之前生效。
 
 `titleId` 由 `Modal` 用实例唯一 id 生成（`getCurrentInstance()?.uid`），避免同页多个弹层 id 撞车。
 
