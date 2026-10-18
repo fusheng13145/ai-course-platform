@@ -32,7 +32,7 @@ import {
  *
  * ── 比对口径：为什么期望图是"从 anchors 基线复制过来的"──────────────────────
  * 计划原稿跑 `--update-snapshots` 生成参考、再跑一次比对，两次都是**注入后**的同一张图，
- * 必然绿——那是"探针 vs 探针"，量的是同一张图自己跟自己相等，与量程无关（ worthless）。
+ * 必然绿——那是"探针 vs 探针"，量的是同一张图自己跟自己相等，与量程无关（ worthless 的 green）。
  * 本 spec 改成：每次比较前，把该锚点**已提交的未注入基线**（`__snapshots__/anchors.spec.ts/`）
  * 逐字节复制成 `__snapshots__/sensitivity.spec.ts/<slug>-<theme>-<档>-probe.png`，
  * 然后让 toHaveScreenshot 拿"注入后的现场渲染"去比这张"未注入的基线"。
@@ -40,7 +40,9 @@ import {
  * 结局直接就是"这层防护对这个形状的改动报不报警"。
  * 复制而不是"把参考指到 anchors 目录"：那样一旦手滑带上 `--update-snapshots`，
  * 22 张已提交基线会被注入图原地覆盖——测量顺手毁掉被测对象，绝不能留这个口子。
- * 落盘的 `*-probe.png` / `*-actual.png` / `*-diff.png` 都是产物，已在 .gitignore 里，不入库。
+ * 落盘的 `*-probe.png`（期望图副本）与 `*-probe-*.png`（含 PW_PROBE_CAPTURE 存的现场图）都是测量产物，
+ * 已在 .gitignore 里；Playwright 自己在判红时写的 `-actual/-diff` 落在 test-results/ 且每次跑测开头会被清空，
+ * 所以那两个目录不是证据来源，证据要用 PW_PROBE_CAPTURE 存下来的图。
  *
  * ── 与 anchors 的口径对齐（少一条就不可比）─────────────────────────────────
  * 主题 light、fullPage、animations:'disabled'、caret:'hide'、scale:'css'、同 mask 调用、
