@@ -1379,6 +1379,21 @@ const props = defineProps<{
 > 确认方式不是目视：逐档位比对 `getComputedStyle().width`
 > 与 `design-system.css` 的 640/880/1060/460 四值。
 
+- [ ] **Step 3b: 先修 Task 6 遗留的三处，再动本任务**（评审明确非阻塞，但第三条会被本任务直接踩响）
+
+1. `Modal.compat.test.ts:51` 的注释结尾写着"故统一用 get"，而**同一文件 `:63/:84/:89/:96-98/:103-104` 仍是 `find`**。
+   这与被修掉的那条 finding 属同一类缺陷——自信地陈述一件代码并不支持的结论，只不过这次落在"纠正注释"上。
+   二选一：把措辞软化为"本用例用 `get`"，或把 `:63`（"元素必须存在否则测试必须失败"的同一形状）一并迁到 `get`。
+   后者是**查询路径变更、不是断言变更**，优先选后者。
+2. `:115-116` 对仓库约定的引用偏弱：`AppShell.shortcuts.test.ts:94-105` 其实是普通 `addEventListener` 测试监听、
+   `useTheme.test.ts:20` 是 matchMedia 桩里的 `vi.fn()`；真正的 `vi.spyOn` 先例是
+   `useQuestions.test.ts:586` 与 `chartTheme.test.ts:74`。改掉引用对象，别留一个撑不住的"仓库惯例"说法。
+3. ⚠️ **load-bearing**：`mounted` 是**模块作用域**数组，而 `afterEach` 挂在单个 `describe` 内。
+   本任务 Step 4 要往同一文件**追加第二个顶层 `describe`**，届时第一个块的 `afterEach` 会清空共享数组
+   （`mounted.length = 0`），**把 finding 5 刚清掉的僵尸 `.overlay` 节点与残留 keydown 监听原样带回来**，
+   而 Teleport 之后查询走 `document.body`，这些僵尸会直接污染断言。
+   ⇒ **在追加新块之前，先把 `afterEach` 提到文件级**（不套在任何 `describe` 内）。
+
 - [ ] **Step 4: 把 compat / vmodel 两组测试的查询路径迁到 body**
 
 Teleport 后 `wrapper.find('.modal')` 取不到节点（内容已不在 wrapper 的元素树里）。这是预期的连带影响，**不是**兼容锁失败：
