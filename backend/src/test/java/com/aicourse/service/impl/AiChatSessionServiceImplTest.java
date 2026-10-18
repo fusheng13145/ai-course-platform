@@ -37,11 +37,21 @@ class AiChatSessionServiceImplTest {
     }
 
     @Test
-    @DisplayName("创建会话 - UUID+持久化")
+    @DisplayName("创建会话 - UUID+持久化，并写入归属课程 courseId（V8 新增列）")
     void testCreateSession() {
-        AiChatSession r = aiChatSessionService.createSession(100L, "新对话");
+        AiChatSession r = aiChatSessionService.createSession(100L, "新对话", 4007L);
         assertNotNull(r.getSessionId());
         assertEquals(100L, r.getUserId().longValue());
+        // 跨课程 AI 统计依赖该字段：控制器收到的 courseId 必须原样落到会话上
+        assertEquals(4007L, r.getCourseId().longValue());
+    }
+
+    @Test
+    @DisplayName("创建会话 - courseId 为 null 表示通识问答（不绑定课程）")
+    void testCreateSession_unboundCourse() {
+        AiChatSession r = aiChatSessionService.createSession(100L, null, null);
+        assertNull(r.getCourseId());
+        assertEquals("新对话", r.getTitle());
     }
 
     @Test

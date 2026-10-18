@@ -66,6 +66,15 @@
       />
     </div>
 
+    <!-- 分路加载失败持久提示（任一子模块失败即显示，不自动消失） -->
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      class="load-error-alert"
+    />
+
     <!-- 主 Tab 区 -->
     <el-tabs v-model="activeTab" class="main-tabs">
       <el-tab-pane label="课程首页" name="info">
@@ -88,6 +97,7 @@
           :chapters-loading="chaptersLoading"
           :drag-changed="dragChanged"
           :saving-order="savingOrder"
+          :empty-text="chaptersError ? '章节列表未能加载，请查看上方提示后重试' : '暂无章节，点击上方添加'"
           @add="showAddChapterDialog"
           @edit="editChapter"
           @delete="deleteChapter"
@@ -117,18 +127,21 @@
         <CdStudentsTab
           :students="students"
           :students-loading="studentsLoading"
+          :empty-text="studentsError ? '学生列表未能加载，请查看上方提示后重试' : '暂无学生'"
           @approve="approveStudent"
           @reject="rejectStudent"
         />
       </el-tab-pane>
-      <el-tab-pane label="知识管理" name="knowledge"
-        ><CourseKnowledgeTab :course-id="course.id"
-      /></el-tab-pane>
+      <el-tab-pane label="知识管理" name="knowledge">
+        <CdKbBuildPanel :course-id="Number(course.id)" />
+        <CourseKnowledgeTab :course-id="course.id" />
+      </el-tab-pane>
       <el-tab-pane label="通知管理" name="notifications">
         <CdNotificationsTab
           :notifications="notifications"
           :notifications-loading="notificationsLoading"
           :format-date-time="formatDateTime"
+          :empty-text="notificationsError ? '通知列表未能加载，请查看上方提示后重试' : '暂无通知'"
           @send="showNotificationDialog"
           @delete="deleteNotification"
         />
@@ -175,6 +188,7 @@ import CdInfoTab from './components/CdInfoTab.vue'
 import CdChaptersTab from './components/CdChaptersTab.vue'
 import CdStudentsTab from './components/CdStudentsTab.vue'
 import CdNotificationsTab from './components/CdNotificationsTab.vue'
+import CdKbBuildPanel from './components/CdKbBuildPanel.vue'
 import CdDialogs from './components/CdDialogs.vue'
 
 /**
@@ -196,6 +210,10 @@ const {
   chaptersLoading,
   studentsLoading,
   notificationsLoading,
+  chaptersError,
+  studentsError,
+  notificationsError,
+  loadError,
   categories,
   editDialogVisible,
   editForm,
@@ -287,6 +305,9 @@ watch(
   display: flex;
   align-items: center;
   gap: 8px;
+}
+.load-error-alert {
+  margin-bottom: 16px;
 }
 .main-tabs {
   background: var(--ac-bg-elevated);

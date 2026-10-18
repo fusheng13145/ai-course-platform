@@ -1,0 +1,7 @@
+# LoRA 真实引擎重依赖（本地/部署环境安装；CI 契约护栏仅用 requirements.txt）
+# 安装：pip install -r requirements-engine.txt
+torch>=2.2
+transformers>=4.40
+peft>=0.11
+datasets>=2.19
+accelerate>=0.30

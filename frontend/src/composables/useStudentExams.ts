@@ -3,6 +3,8 @@ import { formatTime } from '@/utils/datetime'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import logger from '@/utils/logger'
 import examApi from '@/api/exam'
+import { pickList, unwrap } from '@/utils/response'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /** 服务端会话状态：进行中（对应后端 ExamSessionStatus.STARTED） */
 const SESSION_STATUS_STARTED = 'STARTED'
@@ -42,6 +44,11 @@ export function useStudentExams() {
   const searchKeyword = ref('')
   const statusFilter = ref('')
   const listLoading = ref(false)
+  /**
+   * 加载失败提示文案：非空即表示考试列表数据不可信。
+   * 失败时列表被置空并显示"暂无考试"，学生易误判为"当前没有可参加的考试"。
+   */
+  const loadError = ref('')
   const examList = ref([])
   /** 课程上下文过滤：非空时仅展示该课程的考试（课程侧边栏/驾驶舱直入） */
   const courseIdFilter = ref(null)
@@ -53,19 +60,32 @@ export function useStudentExams() {
   const questions = ref([])
   const questionsLoading = ref(false)
   const currentIndex = ref(0)
-  const answers = ref({} as Record<number, string | number | boolean>) // 单选/判断答案
-  const multiAnswers = ref({} as Record<number, number[]>) // 多选答案
+  const answers = ref({} as Record<number, string | number | boolean>) // 单选/判断答案（单选为选项字母）
+  const multiAnswers = ref({} as Record<number, string[]>) // 多选答案（选项字母数组）
   const textAnswers = ref({} as Record<number, string>) // 简答答案
   const defaultScore = 10
 
   /* ---- 倒计时 ---- */
   let countdownTimer = null
+  /**
+   * 超时自动交卷的重试定时器句柄。
+   * <p>归零交卷因瞬时网络故障失败时，前端须"兜底到底"周期性重试（详见 submitExamOnTimeout）；
+   * 该定时器与 countdown/autoSave 一并纳入 cleanupTimers 清理，避免组件卸载/成功交卷后残留。</p>
+   */
+  let timeoutSubmitRetryTimer: ReturnType<typeof setTimeout> | null = null
   const totalSeconds = ref(0)
   const remainingSeconds = ref(0)
 
   /* ---- 成绩结果 ---- */
   const examResult = ref({} as Record<string, unknown>)
   const autoSaveTimer = ref(null)
+  const submitting = ref(false)
+
+  /**
+   * 自动保存故障是否已提示过（每个考试页实例一份）。
+   * <p>只用于抑制「每 30s 一条」的重复弹窗；保存成功后复位，故障复发时仍会再提示。</p>
+   */
+  let autoSaveFailureNotified = false
 
   /* ---- 计算属性 ---- */
 
@@ -128,10 +148,20 @@ export function useStudentExams() {
 
   async function loadExamList() {
     listLoading.value = true
+    loadError.value = ''
     try {
-      const res = await examApi.getExamPaperList()
-      const rawData = res.data?.records || res.data?.list || res.data || res
-      examList.value = Array.isArray(rawData) ? rawData : []
+      // 课程上下文必须走**服务端**按课程过滤，不能只在已加载的第 1 页里做客户端筛选：
+      // GET /exam-papers 是分页接口（默认 page=1、size=10，且本页没有分页控件），
+      // 实测库存 114 份试卷时第 1 页只有 10 份、按 id 升序排列 → 老师刚发布的课程试卷
+      // 大概率压根不在列表里，而 SeExamList/Exams.vue 的承诺是「仅展示本课程考试」。
+      // 课程入口取足够大的 size，覆盖单课程规模，避免同一缺陷在课程维度复现。
+      const res =
+        courseIdFilter.value != null
+          ? await examApi.getAllExamPapersByCourse(courseIdFilter.value)
+          : await examApi.getAllExamPapers()
+      // 两个 getAll* 已由 fetchAllPages 解包为数组（不再有 data 信封）；
+      // pickList 对数组原样透传，同时防御信封形态回归。
+      examList.value = pickList(unwrap(res))
 
       // 标记已完成状态（检查是否有提交记录）
       try {
@@ -149,7 +179,9 @@ export function useStudentExams() {
         /* 忽略 */
       }
     } catch (e) {
-      logger.error('加载考试列表失败:', e)
+      logger.error('加载考试列表失败', e)
+      examList.value = []
+      loadError.value = '考试列表加载失败，请检查网络后重试'
     } finally {
       listLoading.value = false
     }
@@ -280,7 +312,7 @@ export function useStudentExams() {
     } catch (e) {
       // P1-22：开始考试失败不再静默吞掉，给出明确提示
       logger.error('开始考试失败:', e)
-      ElMessage.error(e?.response?.data?.message || '开始考试失败，请稍后重试')
+      ElMessage.error(e?.response?.data?.message || e?.message || '开始考试失败，请稍后重试')
     }
   }
 
@@ -291,14 +323,17 @@ export function useStudentExams() {
     try {
       const res = await examApi.getExamQuestions(paperId)
       const data = res.data || res || []
-      questions.value = Array.isArray(data) ? data : []
+      if (!Array.isArray(data) || data.length === 0) {
+        throw new Error('该试卷暂无可用题目，请联系老师确认后重试')
+      }
+      questions.value = data
       // 初始化答案对象
       answers.value = {}
       multiAnswers.value = {}
       textAnswers.value = {}
     } catch (e) {
       logger.error('加载题目失败:', e)
-      ElMessage.error('加载题目失败')
+      throw e
     } finally {
       questionsLoading.value = false
     }
@@ -377,17 +412,22 @@ export function useStudentExams() {
     countdownTimer = setInterval(() => {
       if (remainingSeconds.value > 0) {
         remainingSeconds.value--
-        if (remainingSeconds.value <= 300 && remainingSeconds.value % 60 === 0) {
+        // 归零（剩余 0 秒）不再提示「剩余时间：0 分钟」——该文案具有误导性；
+        // 自动交卷提示由下一个 tick 的「考试时间已到」分支统一给出。
+        if (
+          remainingSeconds.value > 0 &&
+          remainingSeconds.value <= 300 &&
+          remainingSeconds.value % 60 === 0
+        ) {
           ElMessage.warning(`剩余时间：${Math.ceil(remainingSeconds.value / 60)} 分钟`)
         }
       } else {
-        // 时间到，自动提交（P1-22：同时清理 autoSave 定时器，
-        // 否则考试已提交后自动保存仍每 30s 触发，向后端发送无效请求并反复报错）
+        // 时间到时停止倒计时并自动交卷。交卷失败（如断网）由 submitExamOnTimeout
+        // 兜底重试，直到服务端确认收卷，避免考试卡在「已到时却未交卷」的悬空态。
         clearInterval(countdownTimer)
         countdownTimer = null
-        stopAutoSave()
         ElMessage.warning('考试时间已到，将自动提交试卷')
-        submitExam()
+        submitExamOnTimeout()
       }
     }, 1000)
   }
@@ -408,20 +448,30 @@ export function useStudentExams() {
     }
   }
 
-  async function autoSaveAnswers() {
-    if (!sessionId.value) return
+  async function autoSaveAnswers(): Promise<boolean> {
+    if (!sessionId.value || submitting.value) return false
     try {
       const answerData = collectAnswers()
       // 使用专用的自动保存 API
       await examApi.autoSaveAnswers(sessionId.value, { answers: answerData })
+      if (!autoSaveFailureNotified) return true
+      // 上一次失败、本次成功：复位提示标记，下一轮故障仍能重新提示（不吞掉后续独立故障）
+      autoSaveFailureNotified = false
+      ElMessage.success('网络恢复，作答已重新同步到服务端')
+      return true
     } catch (e) {
-      // autoSave 接口不可用时回退到 submit（兼容模式）
-      logger.warn('自动保存失败，尝试回退:', e)
-      try {
-        await examApi.submitExam(sessionId.value, { answers: collectAnswers(), autoSave: true })
-      } catch (e2) {
-        logger.warn('回退保存也失败:', e2)
+      // 自动保存失败（断网 / 5xx）时**绝不**回退到 submit。
+      // submit 是终止性操作：会话置 SUBMITTED、立即判卷并锁定重入，
+      // 把一次瞬时保存失败换成一次「不可撤销的自动交卷」，学生整场考试直接报废。
+      // 正确姿态是让定时器继续跑：作答仍在内存里，下一次 30s tick 自然重试，
+      // 退出考试时 confirmExitExam 也会再存一次；同时把故障显式告知用户（原实现只写日志，
+      // 页面一切「正常」，学生以为进度已保存才敢关标签页 → 真丢卷）。
+      logger.warn('自动保存失败，作答保留在本地，将在下一次定时器重试:', e)
+      if (!autoSaveFailureNotified) {
+        autoSaveFailureNotified = true
+        ElMessage.warning('网络异常，本次自动保存未成功；请勿关闭页面，作答已暂存本地并会持续重试')
       }
+      return false
     }
   }
 
@@ -504,7 +554,7 @@ export function useStudentExams() {
 
       const value = saved[key]
       if (q.type === 'MULTIPLE_CHOICE') {
-        multiAnswers.value[idx] = Array.isArray(value) ? (value as number[]) : []
+        multiAnswers.value[idx] = Array.isArray(value) ? (value as string[]) : []
       } else if (q.type === 'SHORT_ANSWER') {
         textAnswers.value[idx] = typeof value === 'string' ? value : String(value ?? '')
       } else {
@@ -520,32 +570,43 @@ export function useStudentExams() {
   /* ---- 方法：提交试卷 ---- */
 
   async function confirmSubmit() {
+    if (submitting.value) return
     const unansweredCount = questions.value.filter((_, idx) => !isQuestionAnswered(idx)).length
 
-    let msg = '确定要提交试卷吗？'
-    if (unansweredCount > 0) {
-      msg += `\n您还有 ${unansweredCount} 道题目未作答。`
-    }
+    // D2-2：交卷为不可逆操作，确认语明确影响范围与后果
+    const ok = await confirmDanger({
+      verb: '提交',
+      target: '试卷',
+      impact: unansweredCount > 0
+        ? `您还有 ${unansweredCount} 道题目未作答，未作答题目将按 0 分计入成绩`
+        : '提交后将无法继续修改答案',
+      irreversible: true,
+      recovery: '请确认作答无误后再提交',
+      confirmText: '确认提交',
+      cancelText: '继续答题',
+    })
+    if (!ok) return
 
-    try {
-      await ElMessageBox.confirm(msg, '确认提交', {
-        confirmButtonText: '确认提交',
-        cancelButtonText: '继续答题',
-        type: 'warning',
-      })
-
-      // 清理定时器
-      cleanupTimers()
-      await submitExam()
-    } catch {
-      // 用户取消
-    }
+    await submitExam()
   }
 
-  async function submitExam() {
+  /**
+   * 提交试卷（内部实现，供手动与超时自动交卷共用）。
+   * @returns true=服务端已接受（已切到结果页并清理定时器）；false=未提交（会话失效或被并发/失败拦截）
+   */
+  async function submitExam(): Promise<boolean> {
+    if (submitting.value) return false
+    if (sessionId.value === null) {
+      ElMessage.error('考试会话已失效，请返回考试列表后重新进入')
+      return false
+    }
+
+    submitting.value = true
     try {
       const answerData = collectAnswers()
       const res = await examApi.submitExam(sessionId.value, { answers: answerData })
+      // 交卷已由服务端接受：此后不再发送自动保存请求，避免终态会话收到无效写入。
+      cleanupTimers()
       const result = res.data || res || {}
 
       // 尝试获取即时成绩
@@ -557,24 +618,62 @@ export function useStudentExams() {
       }
 
       viewMode.value = 'result'
+      return true
     } catch (e) {
       logger.error('提交试卷失败:', e)
-      ElMessage.error('提交失败，请重试')
+      ElMessage.error('提交失败，作答仍保留在本页；请检查网络后重试')
+      return false
+    } finally {
+      submitting.value = false
     }
+  }
+
+  /**
+   * 超时自动交卷（倒计时归零时触发）。
+   * <p>与手动交卷不同，超时交卷必须由前端"兜底到底"：此时学生已无权继续操作，
+   * 若因瞬时网络故障交卷失败就放任不管，考试会卡在「已到时却未交卷」的悬空态，
+   * 学生不手动重试则永远交不出去。故失败时：
+   * （1）先尽力把最新作答同步到服务端（避免服务端缺失最新一笔作答）；
+   * （2）以 10s 退避节奏周期性重试交卷，直到网络恢复成功提交；
+   * （3）成功提交后由 submitExam 内部切到结果页并清理全部定时器（含本重试定时器）。
+   * 若在重试窗口内学生手动交卷成功，submitExam 会 cleanupTimers 清掉本重试定时器，不会重复交卷。</p>
+   */
+  function submitExamOnTimeout() {
+    submitExam().then((ok) => {
+      if (ok) {
+        timeoutSubmitRetryTimer = null
+        return
+      }
+      // 交卷失败：尽力同步作答，再安排下一次重试
+      autoSaveAnswers().catch(() => {})
+      if (timeoutSubmitRetryTimer) clearTimeout(timeoutSubmitRetryTimer)
+      timeoutSubmitRetryTimer = setTimeout(submitExamOnTimeout, 10000)
+    })
   }
 
   /* ---- 方法：退出考试 ---- */
 
   async function confirmExitExam() {
-    try {
-      await ElMessageBox.confirm('确定要退出考试吗？\n已作答的进度将被保留。', '退出确认', {
-        confirmButtonText: '确定退出',
-        cancelButtonText: '继续答题',
-        type: 'warning',
-      })
+    if (submitting.value) return
+    // D2-2：退出考试确认语明确后果（进度保留方式、重新进入条件、超时仍会 auto-submit）
+    const ok = await confirmDanger({
+      verb: '退出',
+      target: '考试',
+      impact: '已作答的进度将保留，退出后需在考试有效期内重新进入才能继续作答',
+      irreversible: false,
+      note: '倒计时结束后系统仍会自动提交试卷',
+      confirmText: '确定退出',
+      cancelText: '继续答题',
+    })
+    if (!ok) return
 
-      // 先自动保存一次
-      await autoSaveAnswers()
+    try {
+      // 先自动保存一次。若同步失败，保留答题状态与定时器，不让“进度已保留”的提示失真。
+      const saved = await autoSaveAnswers()
+      if (!saved) {
+        ElMessage.warning('作答尚未成功同步，已保留在本页；请恢复网络后重试退出')
+        return
+      }
       cleanupTimers()
       // 关键：清空本地会话态（含 sessionId / 题目 / 作答）。
       // 服务端会话刻意保持 STARTED（不提交、不结束），下次进入由 enterExam 走恢复流程续答；
@@ -582,7 +681,7 @@ export function useStudentExams() {
       resetExamState()
       viewMode.value = 'list'
     } catch {
-      // 取消
+      // 自动保存异常：保留答题页，与“进度已保留”提示保持一致
     }
   }
 
@@ -622,9 +721,12 @@ export function useStudentExams() {
       clearInterval(countdownTimer)
       countdownTimer = null
     }
-    if (autoSaveTimer.value) {
-      clearInterval(autoSaveTimer.value)
-      autoSaveTimer.value = null
+    // 复用 stopAutoSave：与自动保存启动/停止保持单一实现，避免两处清理逻辑漂移。
+    stopAutoSave()
+    // 清理超时交卷重试定时器（组件卸载 / 成功交卷 / 手动退出均须清掉，避免残留重试）
+    if (timeoutSubmitRetryTimer) {
+      clearTimeout(timeoutSubmitRetryTimer)
+      timeoutSubmitRetryTimer = null
     }
   }
 
@@ -652,9 +754,11 @@ export function useStudentExams() {
     statusFilter,
     courseIdFilter,
     listLoading,
+    loadError,
     examList,
     currentExamPaper,
     sessionId,
+    submitting,
     questions,
     questionsLoading,
     currentIndex,

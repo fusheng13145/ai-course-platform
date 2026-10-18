@@ -16,9 +16,14 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.cache.annotation.CacheEvict;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.test.util.ReflectionTestUtils;
 
+import java.lang.reflect.Method;
 import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -194,5 +199,65 @@ class UserServiceImplTest {
 
         assertEquals(1, result.getTotal());
         assertNull(result.getRecords().get(0).getPassword());
+    }
+
+    // ==================== 缓存失效契约（回归 2026-10-16 E2E 实测） ====================
+
+    /**
+     * 回归背景：updateById 此前直接继承 MyBatis-Plus 默认实现，不失效任何缓存——
+     * 管理端把用户提为 ADMIN 后，GET /admin/users/{id}（getUserProfile @Cacheable）
+     * 在 users 缓存 30 分钟 TTL 内仍返回旧角色；/auth/permissions（@Cacheable key=userId）
+     * 同样可能返回旧角色的菜单/权限。表现为「改了角色、界面没变」，
+     * 而 REST 鉴权（JwtRequestFilter 直读用户表）已即时生效，两端再次分叉。
+     *
+     * <p>注解语义需要 AOP 代理，纯单测观测不到拦截过程（与 PermissionServiceImplTest
+     * 同口径：缓存语义由集成测试覆盖）；此处用反射把「写路径必须声明缓存失效」固化为护栏。</p>
+     */
+    @Test
+    @DisplayName("updateById 必须声明 users(profile_+id) 与 permissions(userId) 两类缓存失效")
+    void testUpdateById_declaresCacheEviction() throws Exception {
+        // 覆写后声明形参为 User；未覆写时继承的是泛型擦除后的 updateById(Object)。
+        // 两种形态都要能拿到「实际生效的方法」：优先取声参为 User 的声明方法，
+        // 回退到擦除形态（其注解为空 → 断言失败，即该测得的回归）。
+        Method updateById = Arrays.stream(UserServiceImpl.class.getMethods())
+                .filter(m -> "updateById".equals(m.getName()) && m.getParameterCount() == 1)
+                .filter(m -> m.getParameterTypes()[0] == User.class)
+                .findFirst()
+                .orElseGet(() -> {
+                    try {
+                        return UserServiceImpl.class.getMethod("updateById", Object.class);
+                    } catch (NoSuchMethodException e) {
+                        throw new IllegalStateException(e);
+                    }
+                });
+
+        List<CacheEvict> evicts = new ArrayList<>();
+        CacheEvict single = updateById.getAnnotation(CacheEvict.class);
+        if (single != null) {
+            evicts.add(single);
+        }
+        Caching caching = updateById.getAnnotation(Caching.class);
+        if (caching != null) {
+            evicts.addAll(Arrays.asList(caching.evict()));
+        }
+
+        assertFalse(evicts.isEmpty(),
+                "updateById 必须声明缓存失效：管理端改角色/禁用后，users 与 permissions 缓存不得滞留旧值");
+
+        // 注意：value/cacheNames 是 @AliasFor 别名，原始反射不会互映（AnnotationUtils 才会合成），
+        // 这里合并两个属性读取，兼容两种书写风格（本项目 updateProfile 用 value、PermissionServiceImpl 用 cacheNames）。
+        assertTrue(evicts.stream().anyMatch(e ->
+                        cacheNamesOf(e).contains("users") && e.key().contains("profile_")),
+                "必须按 'profile_' + id 失效 users 缓存（getUserProfile 的键口径）");
+        assertTrue(evicts.stream().anyMatch(e ->
+                        cacheNamesOf(e).contains("permissions")),
+                "必须失效 permissions 缓存（getUserPermissions 按 userId 键控，含服务端角色与菜单）");
+    }
+
+    /** 合并 @CacheEvict 的 value 与 cacheNames 两个别名属性（原始反射不合成别名）。 */
+    private static List<String> cacheNamesOf(CacheEvict evict) {
+        List<String> names = new ArrayList<>(Arrays.asList(evict.cacheNames()));
+        names.addAll(Arrays.asList(evict.value()));
+        return names;
     }
 }

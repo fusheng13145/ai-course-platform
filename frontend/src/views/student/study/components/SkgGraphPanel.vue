@@ -13,16 +13,14 @@
         autoresize
         @click="emit('node-click', $event)"
       />
-      <el-empty
+      <EmptyState
         v-else-if="
           !graphLoading &&
           (!graphOption.series?.[0]?.data || graphOption.series[0].data.length === 0)
         "
-        description="请选择课程查看知识图谱"
-        :image-size="100"
-      >
-        <template #image><div class="empty-deco">🕸️</div></template>
-      </el-empty>
+        :title="emptyText"
+        icon="layers"
+      />
     </div>
     <!-- 图例说明 -->
     <div class="graph-legend">
@@ -111,6 +109,7 @@
 
 <script setup lang="ts">
 import { ArrowLeft, ArrowRight, Reading, Share } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 学生知识图谱：图谱可视化 + 节点详情面板
@@ -127,6 +126,8 @@ defineProps({
   getDifficultyTagType: { type: Function, required: true },
   getDifficultyLabel: { type: Function, required: true },
   getMasteryColor: { type: Function, required: true },
+  /** 图谱空态文案（失败时由页面传入「未能加载」文案，默认保留原语义） */
+  emptyText: { type: String, default: '请选择课程查看知识图谱' },
 })
 
 const emit = defineEmits(['node-click', 'select', 'learn'])
@@ -191,10 +192,6 @@ const emit = defineEmits(['node-click', 'select', 'learn'])
 }
 .legend-dot.solid {
   background: var(--warn);
-}
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 
 /* 详情面板 */

@@ -1,9 +1,11 @@
 package com.aicourse.util;
 
 import io.jsonwebtoken.JwtException;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
@@ -30,6 +32,19 @@ class JwtUtilsTest {
         assertEquals("alice", jwtUtils.getUsernameFromToken(token));
         assertEquals("STUDENT", jwtUtils.getRoleFromToken(token));
         assertTrue(jwtUtils.getRemainingSeconds(token) > 0);
+    }
+
+    @Test
+    @DisplayName("同用户同秒两次签发必须得到不同令牌（每次登录有独立 jti，避免 user_sessions 出现同令牌重复行）")
+    void generateToken_isUniquePerInvocation() {
+        String first = jwtUtils.generateToken(1L, "alice", "TEACHER", false);
+        String second = jwtUtils.generateToken(1L, "alice", "TEACHER", false);
+        assertNotEquals(first, second);
+        // 加了随机 jti 后令牌仍可正常解析出原有声明
+        assertEquals(1L, jwtUtils.getUserIdFromToken(second));
+        assertEquals("alice", jwtUtils.getUsernameFromToken(second));
+        assertEquals("TEACHER", jwtUtils.getRoleFromToken(second));
+        assertTrue(jwtUtils.validateToken(second));
     }
 
     @Test

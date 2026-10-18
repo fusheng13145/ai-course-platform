@@ -19,6 +19,7 @@ RAG 真实检索引擎单元测试（rag_engine.py）
 from __future__ import annotations
 
 import json
+import logging
 import os
 
 import pytest
@@ -37,8 +38,8 @@ requires_faiss = pytest.mark.skipif(
     rag_engine._faiss is None or _np is None, reason="faiss/numpy 未安装"
 )
 requires_engine = pytest.mark.skipif(
-    not rag_engine.engine_available(),
-    reason="引擎重依赖未安装（requirements-engine.txt），跳过真实索引用例",
+    not rag_engine.engine_functional(),
+    reason="引擎重依赖未安装或嵌入模型未本地缓存（requirements-engine.txt），跳过真实索引用例",
 )
 
 
@@ -431,3 +432,84 @@ def test_generate_answer_llm_error_falls_back(monkeypatch):
     without_ctx = rag_engine.generate_answer("q", [])
     assert without_ctx[1] == "UNAVAILABLE"
     assert without_ctx[0] == ""
+
+
+def test_generate_answer_logs_llm_failure_reason(caplog, monkeypatch):
+    """LLM 调用失败必须留痕（异常类型 + 原始消息）。
+
+    降级到抽取式本身是对的，但原实现是 `except Exception: pass`：401（密钥失效）、超时、
+    配额用尽、DNS 失败在日志里长得一模一样且**一条都不记**——于是「真实 LLM 从未成功过」
+    这件事在本仓库长期无人能定位（D6-2 的 401 正是靠读代码才发现，不是靠日志）。
+    """
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test-not-real")
+
+    def raise_401(*a, **k):
+        raise RuntimeError("Client error '401 Unauthorized' for url '/v1/chat/completions'")
+
+    monkeypatch.setattr(rag_engine, "_call_deepseek", raise_401)
+    with caplog.at_level(logging.WARNING, logger="rag_engine"):
+        answer, mode = rag_engine.generate_answer(
+            "q", [{"document_name": "D", "snippet": "S"}])
+
+    assert mode == "EXTRACTIVE"
+    assert answer  # 抽取式兜底照常给出，不阻断契约
+    text = "\n".join(f"{r.levelname}:{r.getMessage()}" for r in caplog.records)
+    assert "401 Unauthorized" in text, f"降级日志需带原始失败原因，实际日志：{text!r}"
+
+
+def test_generate_answer_distinguishes_missing_key_from_call_failure(caplog, monkeypatch):
+    """未配密钥（预期内降级）与调用失败（异常）必须在日志上可区分，且前者不该谎报失败。"""
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    with caplog.at_level(logging.WARNING, logger="rag_engine"):
+        _, mode = rag_engine.generate_answer("q", [{"document_name": "D", "snippet": "S"}])
+    assert mode == "EXTRACTIVE"
+    joined = "\n".join(r.getMessage() for r in caplog.records)
+    assert "调用失败" not in joined, f"无密钥不是调用失败，不应记成故障：{joined!r}"
+
+# ================================================================== DR-84：LLM 端点可配
+def test_llm_endpoint_honours_configured_base_url(monkeypatch):
+    """网关 Key 必须有处可填：`DEEPSEEK_BASE_URL` 决定实际请求地址（默认仍是 DeepSeek 官方）。
+
+    只修 Java 侧不修引擎侧等于修一半——RAG 的生成走 `rag_engine._call_deepseek`，
+    它此前把 URL 写死，非 DeepSeek 域名的 Key 无论真假都只会得到 401。
+    """
+    seen = {}
+
+    class _Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"choices": [{"message": {"content": " 网关回答  "}}]}
+
+    def fake_post(url, **kw):
+        seen["url"] = url
+        return _Resp()
+
+    import httpx
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.setenv("DEEPSEEK_BASE_URL", "https://gateway.example.com/v1/")
+    assert rag_engine._call_deepseek("sk-x", "问", "资料") == "网关回答"
+    assert seen["url"] == "https://gateway.example.com/v1/chat/completions", seen
+
+
+def test_llm_endpoint_defaults_to_deepseek(monkeypatch):
+    """不填时必须与旧行为逐字一致——默认值不变是本次可配化的前提。"""
+    seen = {}
+
+    class _Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"choices": [{"message": {"content": "ok"}}]}
+
+    def fake_post(url, **kw):
+        seen["url"] = url
+        return _Resp()
+
+    import httpx
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.delenv("DEEPSEEK_BASE_URL", raising=False)
+    rag_engine._call_deepseek("sk-x", "问", "资料")
+    assert seen["url"] == "https://api.deepseek.com/v1/chat/completions", seen

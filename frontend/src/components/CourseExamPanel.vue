@@ -13,6 +13,14 @@
     </div>
 
     <div class="content-card">
+      <!-- 加载失败持久提示（不自动消失） -->
+      <el-alert
+        v-if="loadError"
+        :title="loadError"
+        type="error"
+        :closable="false"
+        class="load-error-alert"
+      />
       <el-table v-loading="loading" :data="filteredExams" style="width: 100%">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="title" label="试卷标题" min-width="200" />
@@ -61,17 +69,22 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="!loading && filteredExams.length === 0" description="暂无试卷" />
+      <EmptyState
+        v-if="!loading && filteredExams.length === 0"
+        :title="loadError ? '试卷列表未能加载，请查看上方提示后重试' : '暂无试卷'"
+        icon="checks"
+      />
     </div>
 
     <el-dialog
-      v-model="examDialogVisible"
+      ref="dialogRef"
+    v-model="examDialogVisible"
       :title="editingExam ? '编辑试卷' : '创建试卷'"
       width="700px"
       append-to-body
     >
-      <el-form :model="examForm" label-width="120px">
-        <el-form-item label="试卷标题" required>
+      <el-form ref="formRef" :model="examForm" :rules="rules" label-width="120px" scroll-to-error>
+        <el-form-item label="试卷标题" prop="title">
           <el-input v-model="examForm.title" placeholder="输入试卷标题" />
         </el-form-item>
         <el-form-item label="试卷描述">
@@ -151,9 +164,13 @@
 <script setup>
 import logger from '@/utils/logger'
 import { ref, computed, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import examApi from '@/api/exam'
+import { confirmDanger } from '@/utils/dangerConfirm'
+import { validateFormFields } from '@/composables/useFormSubmit'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 
 const props = defineProps({
   courseId: { type: Number, required: true },
@@ -163,10 +180,19 @@ const emit = defineEmits(['examUpdated'])
 
 const exams = ref([])
 const loading = ref(false)
+const loadError = ref('')
 const examFilter = ref('')
 const examDialogVisible = ref(false)
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, examDialogVisible)
 const editingExam = ref(null)
 const saving = ref(false)
+const formRef = ref(null)
+// D2-4：必填规则声明（原为手写 if 校验），blur 内联错误 + 提交时首错滚动定位
+const rules = {
+  title: [{ required: true, message: '请输入试卷标题', trigger: 'blur' }],
+}
 
 const examForm = ref({
   title: '',
@@ -212,12 +238,15 @@ function formatDateTime(date) {
 
 async function loadExams() {
   loading.value = true
+  loadError.value = ''
   try {
     const res = await examApi.listByCourse(props.courseId)
     const data = res.data?.records || res.data?.list || res.data || res || []
     exams.value = Array.isArray(data) ? data : []
   } catch (e) {
     logger.error('加载试卷失败:', e)
+    exams.value = []
+    loadError.value = '试卷列表加载失败，请检查网络后重试'
   } finally {
     loading.value = false
   }
@@ -266,6 +295,8 @@ function editExam(row) {
 }
 
 async function saveExam() {
+  // validate 先行（真环境内联错误 + scroll-to-error）；桩/无表单环境由快检兜底
+  if (!(await validateFormFields(formRef, ['title']))) return
   if (!examForm.value.title) {
     ElMessage.warning('请输入试卷标题')
     return
@@ -296,14 +327,24 @@ async function publishExam(row) {
     row.status = 'PUBLISHED'
     ElMessage.success('发布成功')
     emit('examUpdated')
-  } catch (e) {
+  } catch {
     ElMessage.error('操作失败')
   }
 }
 
 async function closeExam(row) {
   try {
-    await ElMessageBox.confirm('确定结束该考试？', '提示', { type: 'warning' })
+    // D2-2：明确后果（学生无法继续作答）与不可重新开启
+    const ok = await confirmDanger({
+      verb: '结束',
+      target: '考试',
+      subject: row.title,
+      impact: '学生将无法继续作答',
+      irreversible: false,
+      note: '结束后暂不支持重新开启',
+      confirmText: '确定结束',
+    })
+    if (!ok) return
     row.status = 'CLOSED'
     await examApi.updateExamPaper(row.id, { status: 'CLOSED' })
     ElMessage.success('已结束')
@@ -315,7 +356,14 @@ async function closeExam(row) {
 
 async function deleteExam(row) {
   try {
-    await ElMessageBox.confirm('确定删除该试卷？', '提示', { type: 'warning' })
+    // D2-2：明确连带影响（学生作答与成绩明细一并移除）与恢复路径
+    const ok = await confirmDanger({
+      verb: '删除',
+      target: '试卷',
+      subject: row.title,
+      impact: '将一并移除该试卷关联的学生作答记录与成绩明细',
+    })
+    if (!ok) return
     await examApi.deleteExamPaper(row.id)
     exams.value = exams.value.filter((e) => e.id !== row.id)
     ElMessage.success('删除成功')
@@ -337,6 +385,10 @@ watch(
 <style scoped>
 .exam-panel {
   padding: 0;
+}
+
+.load-error-alert {
+  margin-bottom: 16px;
 }
 
 .panel-toolbar {

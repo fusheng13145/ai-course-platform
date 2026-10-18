@@ -67,9 +67,7 @@
             </template>
           </el-table-column>
           <template #empty>
-            <el-empty description="暂无查重任务">
-              <template #image><div class="empty-deco">🔍</div></template>
-            </el-empty>
+            <EmptyState :title="emptyText" icon="list" />
           </template>
         </el-table>
 
@@ -91,10 +89,14 @@
 </template>
 
 <script setup lang="ts">
+import EmptyState from '@/components/ui/EmptyState.vue'
+
 defineProps({
   loading: { type: Boolean, default: false },
   taskList: { type: Array, default: () => [] },
   page: { type: Object, default: () => ({ page: 1, size: 10, total: 0 }) },
+  /** 空态文案：父页面加载失败时透传诚实提示（默认保留原语义） */
+  emptyText: { type: String, default: '暂无查重任务' },
 })
 
 const emit = defineEmits(['execute', 'view-detail', 'page-change', 'size-change'])
@@ -137,9 +139,5 @@ function similarityColor(similarity) {
   margin-top: var(--ac-spacing-md);
   display: flex;
   justify-content: flex-end;
-}
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 </style>

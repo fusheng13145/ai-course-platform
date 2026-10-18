@@ -20,11 +20,14 @@ RAG 真实检索引擎（混合召回：BM25 + 向量，RRF 融合）
 from __future__ import annotations
 
 import json
+import logging
 import os
 import re
 import threading
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 ENGINE_VERSION = "1.0"
 
@@ -84,6 +87,49 @@ def engine_available() -> bool:
 
 def dep_errors() -> list[str]:
     return list(_DEP_ERRORS)
+
+
+def embed_model_cached(model_name: Optional[str] = None) -> bool:
+    """嵌入模型是否已本地缓存（**不触发联网**）。
+
+    语义：仅检查本地 HF 缓存是否已有该模型的实质文件，绝不发起网络请求。
+    用途：
+      1) `_get_model` 命中缓存时以 `local_files_only=True` 离线加载——否则
+         `SentenceTransformer` 即便文件已缓存也会向 HF 发连通性探测请求，
+         离线 / CI 环境会因此长时间挂起；
+      2) 真实引擎测试门禁：模型未缓存则跳过而非联网挂起。
+    """
+    if not engine_available():
+        return False
+    model_name = model_name or os.getenv("RAG_EMBED_MODEL", "BAAI/bge-small-zh-v1.5")
+    try:
+        from huggingface_hub import try_to_load_from_cache
+        # config_sentence_transformers.json 是 sentence-transformers 加载任一模型
+        # 都会落盘的标记文件，命中即代表该模型已被完整缓存。
+        return try_to_load_from_cache(
+            model_name, "config_sentence_transformers.json") is not None
+    except Exception:
+        # huggingface_hub 不可用 / 探测异常：回退到文件系统检查（同样免联网）。
+        norm = model_name.replace("/", "--")
+        for base in (
+            os.path.join(os.getenv("HF_HUB_CACHE", ""), "hub") if os.getenv("HF_HUB_CACHE") else "",
+            os.path.join(os.getenv("HF_HOME", os.path.expanduser("~/.cache/huggingface")), "hub"),
+        ):
+            cache = Path(base) / f"models--{norm}" / "snapshots"
+            if cache.exists() and any(p.suffix in {".safetensors", ".bin", ".json"}
+                                      for p in cache.rglob("*") if p.is_file()):
+                return True
+        return False
+
+
+def engine_functional() -> bool:
+    """引擎是否**真实可用**：重依赖齐备 **且** 嵌入模型已本地缓存（可离线加载）。
+
+    区别于 `engine_available()`（仅检查 import 层依赖齐备）：本函数 additionally
+    要求嵌入模型已缓存，使真实引擎用例既能在无网环境安全运行（`local_files_only`
+    加载），也能在模型未缓存时被 `requires_engine` 收敛跳过，而非联网挂起。
+    """
+    return engine_available() and embed_model_cached()
 
 
 # ---------------------------------------------------------------- 存储目录
@@ -329,7 +375,13 @@ _model_holder: dict = {"model": None}
 def _get_model():
     if _model_holder["model"] is None:
         model_name = os.getenv("RAG_EMBED_MODEL", "BAAI/bge-small-zh-v1.5")
-        _model_holder["model"] = _SentenceTransformer(model_name)
+        load_kwargs: dict = {}
+        # 模型已本地缓存时强制 offline 加载：SentenceTransformer 默认即便文件已缓存
+        # 也会向 HF 发连通性探测请求，离线 / CI 环境会因此长时间挂起；local_files_only=True
+        # 直接读缓存规避该问题。未缓存时保留在线行为，以支持首次部署下载模型。
+        if embed_model_cached(model_name):
+            load_kwargs["local_files_only"] = True
+        _model_holder["model"] = _SentenceTransformer(model_name, **load_kwargs)
     return _model_holder["model"]
 
 
@@ -567,8 +619,19 @@ def generate_answer(question: str, contexts: list[dict]) -> tuple[str, str]:
             answer = _call_deepseek(api_key, question, joined)
             if answer:
                 return answer, "LLM"
-        except Exception:
-            pass  # 网络/配额失败 -> 抽取式兜底，不阻断契约响应
+            # 200 但空内容同样是不成功的生成，留痕后走抽取式
+            logger.warning("LLM 返回空内容，降级为抽取式回答（model=%s）",
+                           os.getenv("DEEPSEEK_MODEL", "deepseek-chat"))
+        except Exception as exc:
+            # 必须留痕：401（密钥失效）/超时/配额用尽/DNS 失败的处置完全不同，
+            # 若一律 `pass`，「真实 LLM 从未成功」这类故障在日志里无从定位。
+            # 降级本身不阻断契约响应（抽取式兜底照常返回）。
+            logger.warning("LLM 调用失败，降级为抽取式回答：%s: %s",
+                           type(exc).__name__, exc)
+    else:
+        # 未配密钥是预期内的部署形态（Java 侧 RAG_ENABLED=false 亦回退纯 LLM），
+        # 记 info 而非 warning，避免与真实故障混成一类。
+        logger.info("未配置 DEEPSEEK_API_KEY，直接使用抽取式回答")
 
     # 抽取式兜底：取最相关块的首句拼接
     picks = [r["snippet"].strip() for r in contexts[:3] if r.get("snippet", "").strip()]
@@ -577,6 +640,16 @@ def generate_answer(question: str, contexts: list[dict]) -> tuple[str, str]:
     # LLM 不可用且无检索资料：返回可识别的失败（空 answer + UNAVAILABLE 标记），
     # 绝不返回看起来像成功的占位字符串。
     return "", "UNAVAILABLE"
+
+
+def llm_chat_url() -> str:
+    """LLM 聊天端点（DR-84）：默认 DeepSeek 官方，可经 `DEEPSEEK_BASE_URL` 指向任意 OpenAI 兼容网关。
+
+    与 Java 侧 `ai.deepseek.base-url` 同一口径、同一默认值。此前这里把 URL 写死，
+    于是"网关 Key"在引擎侧必然 401，且现象与"密钥无效"同形——修一半等于没修。
+    """
+    base = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1").strip().rstrip("/")
+    return base + "/chat/completions"
 
 
 def _call_deepseek(api_key: str, question: str, contexts: str) -> Optional[str]:
@@ -596,7 +669,7 @@ def _call_deepseek(api_key: str, question: str, contexts: str) -> Optional[str]:
         "max_tokens": 1024,
     }
     resp = httpx.post(
-        "https://api.deepseek.com/v1/chat/completions",
+        llm_chat_url(),
         headers={"Authorization": f"Bearer {api_key}"},
         json=payload,
         timeout=60.0,

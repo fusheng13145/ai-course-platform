@@ -25,14 +25,28 @@ export const learningAdvice = (params = {}) => request.get('/ai/advice/learning'
 export const generateLearningPath = (data) => request.post('/ai/learning-path/generate', data)
 
 /**
+ * 检索出处条目（与后端 QaSourceVO 对齐；后端下发前已做 HTML 转义）。
+ * <p>SSE 末帧 {@code {"sources":[...]}} 与同步 /qa/ask 的 sources 使用同一形状，
+ * 故此处收敛为单一类型，供流式与非流式两条链路共用。</p>
+ */
+export interface QaSourcePayload {
+  documentId?: number
+  documentName?: string
+  relevanceScore?: number
+  snippet?: string
+}
+
+/**
  * SSE 流式问答——逐 token 推送，实现打字机效果。
  *
  * 使用原生 fetch + ReadableStream 而非 axios（axios 不支持流式消费），
  * 通过 onToken 回调逐片段传递 delta 文本，前端按需拼装 UI。
+ * 后端每帧均为 JSON：增量帧 {"token":"..."}，末帧 {"sources":[...]}。
  *
- * @param {{ question: string, sessionId?: number, context?: string }} params
+ * @param {{ question: string, courseId?: number|string, sessionId?: number, context?: string }} params
  * @param {Object} callbacks
  * @param {(token: string) => void} callbacks.onToken   - 每收到一个 delta 片段时调用
+ * @param {(sources: QaSourcePayload[]) => void} callbacks.onSources - 收到出处末帧时调用（无出处处为空数组）
  * @param {(error: Error) => void}  callbacks.onError   - 流中断时调用
  * @param {() => void}              callbacks.onDone    - 流正常结束时调用
  * @returns {AbortController} 可用于中途取消流
@@ -40,16 +54,19 @@ export const generateLearningPath = (data) => request.post('/ai/learning-path/ge
 export function qaStream(
   params: {
     question: string
+    courseId?: number | string
     sessionId?: number
     context?: string
     [key: string]: string | number | boolean | undefined
   },
   {
     onToken,
+    onSources,
     onError,
     onDone,
   }: {
     onToken?: (token: string) => void
+    onSources?: (sources: QaSourcePayload[]) => void
     onError?: (error: Error) => void
     onDone?: () => void
   } = {},
@@ -96,7 +113,10 @@ export function qaStream(
             }
             try {
               const parsed = JSON.parse(data)
-              if (parsed.token && onToken) {
+              if (Array.isArray(parsed.sources)) {
+                // 出处末帧：与增量帧互斥，收到即回调 onSources（空数组也算，表示本次无溯源）
+                onSources?.(parsed.sources)
+              } else if (parsed.token && onToken) {
                 onToken(parsed.token)
               }
             } catch {

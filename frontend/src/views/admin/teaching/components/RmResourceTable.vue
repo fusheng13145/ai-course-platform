@@ -49,9 +49,7 @@
         </template>
       </el-table-column>
       <template #empty>
-        <el-empty :description="selectedCourseId ? '该课程暂无资源' : '请先选择课程'">
-          <template #image><div class="empty-deco">📁</div></template>
-        </el-empty>
+        <EmptyState :title="selectedCourseId ? '该课程暂无资源' : '请先选择课程'" icon="folder" />
       </template>
     </el-table>
   </div>
@@ -60,6 +58,7 @@
 <script setup lang="ts">
 import { formatTime } from '@/utils/datetime'
 import { Document, Picture, VideoPlay, Files } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 defineProps({
   loading: { type: Boolean, default: false },
@@ -144,9 +143,5 @@ function fileIcon(row) {
   align-items: center;
 }
 
-/* 空状态装饰 */
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
-}
+
 </style>

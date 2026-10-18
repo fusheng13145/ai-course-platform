@@ -148,10 +148,23 @@ export const useAuthStore = defineStore('auth', () => {
   }
 
   /**
-   * 获取当前用户权限列表
-   * 请求后端接口获取菜单和按钮权限数据，存储到 Pinia state 和 localStorage/sessionStorage 中
-   * 加载失败时保持 permissionsLoaded=false 以 fail-closed 方式拒绝所有权限判定
-   * @returns {Promise<void>}
+   * 获取当前用户权限列表，并回传**服务端的会话结论**。
+   *
+   * 缺陷修复（DR-45）：原实现无论成功失败都返回 undefined，失败只在控制台留一行日志。
+   * 路由守卫因此处在「刚 await 了这次请求、却读不到它的结果」的位置，只能无条件 next()
+   * 放行 —— 本地 localStorage 里残留的 user 让 `isLoggedIn` 恒为真，于是登录态早已过期的
+   * 用户刷新页面后仍看到已登录的界面；与此同时 401 收尾逻辑又在拦截器里各自
+   * `router.push('/login')`，两条导航互相取消，最终表现为「页面显示已登录、点什么都没反应，
+   * 再点一次才跳登录页」。
+   *
+   * 结论分三种，守卫据此决定唯一的一次导航：
+   * - `'ok'`：服务端确认了本次会话，正常放行；
+   * - `'expired'`：服务端明确 401（含静默刷新也失败后的会话失效），就地清空本地登录态，
+   *   由守卫带 `redirect` 跳登录页；
+   * - `'unavailable'`：网络异常/5xx 等**无法判定**的情形，保留本地登录态继续渲染
+   *   （拦截器另有重试），后端仍是真正的准入闸门。
+   *
+   * @returns {Promise<'ok'|'expired'|'unavailable'>} 服务端会话结论
    */
   const fetchPermissions = async () => {
     try {
@@ -167,11 +180,31 @@ export const useAuthStore = defineStore('auth', () => {
         }
         const storage = persistent.value ? localStorage : sessionStorage
         storage.setItem('permissions', JSON.stringify(data))
+        // 实时通道在此建立，而不是只在 login() 里建立。
+        // 缺陷修复（Q-3 验证 2026-10-06）：刷新页面时 Cookie 会话仍然有效、但 login() 不会重跑，
+        // 原实现只在 login/register 里 connect → 「按 F5 之后 WebSocket 永久不再连接」，
+        // 考试实时与通知功能静默失效，前端 5 次退避重连的预算也救不回来（没有新的 connect 入口）。
+        // fetchPermissions 由路由守卫在每次冷启动时调用，且 connect() 对 OPEN/CONNECTING
+        // 幂等早退，因此放这里既能覆盖刷新场景，也不会叠出多余连接。
+        wsConnect().catch(() => {
+          logger.warn('WebSocket 连接失败，实时功能已禁用')
+        })
+        return 'ok'
       }
+      // 200 但无权限载荷：无法据此确认会话，按「不可判定」处理，不把用户误踢出登录。
+      logger.warn('权限响应为空，按会话不可判定处理')
+      return 'unavailable'
     } catch (error) {
       // fail-closed：加载失败时保持 permissionsLoaded=false，使权限判定统一拒绝，
-      // 而非错误地放开全部按钮/菜单。仅记录日志，不静默放行。
+      // 而非错误地放开全部按钮/菜单。
       logger.error('Failed to fetch permissions:', error)
+      if (error?.response?.status === 401) {
+        // 服务端明确拒绝本次会话（拦截器的静默刷新也已失败）：清空本地登录态并回传结论，
+        // 跳转动作交给路由守卫这唯一出口。
+        resetAuthState()
+        return 'expired'
+      }
+      return 'unavailable'
     }
   }
 
@@ -220,10 +253,6 @@ export const useAuthStore = defineStore('auth', () => {
         clearAllStorage()
         saveToStorage(remember)
         await fetchPermissions()
-        // 登录成功后自动连接 WebSocket：握手经同源/同站 Cookie 自动携带令牌，无需传参
-        wsConnect().catch(() => {
-          logger.warn('WebSocket 连接失败，实时功能已禁用')
-        })
         return { success: true, user: user.value }
       }
       throw new Error('登录失败')
@@ -264,9 +293,6 @@ export const useAuthStore = defineStore('auth', () => {
       clearAllStorage()
       saveToStorage(false)
       await fetchPermissions()
-      wsConnect().catch(() => {
-        logger.warn('WebSocket 连接失败，实时功能已禁用')
-      })
       return { success: true, data }
     } finally {
       isLoading.value = false
@@ -311,7 +337,7 @@ export const useAuthStore = defineStore('auth', () => {
   const logout = async () => {
     try {
       if (token.value || user.value) await authApi.logout()
-    } catch (e) {
+    } catch {
       /* ignore */
     } finally {
       wsDisconnect()

@@ -96,7 +96,7 @@
             </tbody>
           </table>
         </div>
-        <el-empty v-else description="暂无热门课程数据" :image-size="80" />
+        <EmptyState v-else title="暂无热门课程数据" icon="chart" />
       </CollapsePanel>
     </div>
   </section>
@@ -105,6 +105,7 @@
 <script setup lang="ts">
 import BarChart from '@/components/charts/BarChart.vue'
 import DonutChart from '@/components/charts/DonutChart.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import CollapsePanel from '@/components/ui/CollapsePanel.vue'
 
 defineProps({

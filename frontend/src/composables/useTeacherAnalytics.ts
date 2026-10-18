@@ -1,35 +1,98 @@
-import { ref, onMounted } from 'vue'
-import { useAuthStore } from '@/stores/auth'
+import { computed, onMounted, ref } from 'vue'
+import logger from '@/utils/logger'
 import analyticsApi from '@/api/analytics'
-import submissionApi from '@/api/submission'
-import courseApi from '@/api/course'
-import userApi from '@/api/user'
+import teacherApi from '@/api/teacher'
+import { pickList, unwrap } from '@/utils/response'
 import { getChartTheme, getMonoSeries, monoScore } from '@/utils/chartTheme'
 
-/**
- * 教学数据分析页数据逻辑（拆分自 teacher/tools/Analytics.vue，2026-08-29）
- */
-export function useTeacherAnalytics() {
-  const auth = useAuthStore()
-  const loading = ref(false)
-  const timeRange = ref('month')
+interface TeacherCourseSummary {
+  courseId?: number | string | null
+  name?: string | null
+  studentCount?: number | string | null
+  avgProgress?: number | string | null
+  completionRate?: number | string | null
+  pendingGrading?: number | string | null
+}
 
-  // 总览数据
-  const overview = ref({
-    studentCount: 0,
-    avgScore: null,
-    submissionRate: null,
-    attendanceRate: null,
-  })
+interface CourseProgressRecord {
+  studentId?: number | string | null
+  studentName?: string | null
+  completedTasks?: number | string | null
+  avgAssignmentScore?: number | string | null
+}
 
-  // 将主题色板 hex 转为带透明度的 rgba（雷达图分区底色用）
-  function withAlpha(hex, alpha) {
-    const n = parseInt(hex.slice(1), 16)
-    return `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, ${alpha})`
+interface TrendPoint {
+  date?: string | null
+  label?: string | null
+  value?: number | string | null
+  count?: number | string | null
+}
+
+interface TeacherDashboard {
+  courseCount?: number | string | null
+  studentCount?: number | string | null
+  avgScore?: number | string | null
+  pendingGrading?: number | string | null
+  courseCards?: TeacherCourseSummary[] | null
+  taskPointOverview?: { submissionRate?: number | string | null } | null
+  error?: string | null
+}
+
+interface TrendChartOption {
+  xAxis: { data: string[]; [key: string]: unknown }
+  series: Array<{ data: number[]; [key: string]: unknown }>
+  [key: string]: unknown
+}
+
+interface DistributionChartOption {
+  series: Array<{ data: number[]; [key: string]: unknown }>
+  [key: string]: unknown
+}
+
+interface RadarChartOption {
+  legend: { data: string[]; [key: string]: unknown }
+  series: Array<{
+    data: Array<{ name: string; value: number[] }>
+    [key: string]: unknown
+  }>
+  [key: string]: unknown
+}
+
+interface ActivityChartOption {
+  yAxis: { data: string[]; [key: string]: unknown }
+  series: Array<{ data: number[]; [key: string]: unknown }>
+  [key: string]: unknown
+}
+
+interface LegacyTeacherDashboard {
+  trendData?: TrendPoint[] | null
+  error?: string | null
+}
+
+function toNullableNumber(value: number | string | null | undefined): number | null {
+  if (value == null || value === '') return null
+  const number = Number(value)
+  return Number.isFinite(number) ? number : null
+}
+
+function emptyOverview() {
+  return {
+    courseCount: null as number | null,
+    studentCount: null as number | null,
+    avgScore: null as number | null,
+    submissionRate: null as number | null,
+    pendingGrading: null as number | null,
   }
+}
 
-  // 成绩趋势折线图
-  function buildTrendOption() {
+/** 教师数据分析：只展示后端真实统计，不从学生端提交接口推算或补造图表数值。 */
+export function useTeacherAnalytics() {
+  let requestSequence = 0
+  const loading = ref(false)
+  const loadNotice = ref('')
+  const overview = ref(emptyOverview())
+
+  function buildTrendOption(): TrendChartOption {
     const t = getChartTheme()
     const mono = getMonoSeries()
     return {
@@ -41,7 +104,7 @@ export function useTeacherAnalytics() {
         textStyle: { color: t.tooltipText },
       },
       legend: {
-        data: ['平均分', '最高分', '最低分'],
+        data: ['作业提交量'],
         top: 0,
         textStyle: { color: t.subText, fontSize: 12 },
       },
@@ -55,14 +118,13 @@ export function useTeacherAnalytics() {
       yAxis: {
         type: 'value',
         min: 0,
-        max: 100,
         axisLine: { show: false },
         splitLine: { lineStyle: { color: t.split, type: 'dashed' } },
         axisLabel: { color: t.subText, fontSize: 12 },
       },
       series: [
         {
-          name: '平均分',
+          name: '作业提交量',
           data: [],
           type: 'line',
           smooth: true,
@@ -70,40 +132,21 @@ export function useTeacherAnalytics() {
           symbolSize: 6,
           lineStyle: { width: 2.5, color: mono[1] },
           itemStyle: { color: mono[1] },
-        },
-        {
-          name: '最高分',
-          data: [],
-          type: 'line',
-          smooth: true,
-          symbol: 'circle',
-          symbolSize: 5,
-          lineStyle: { width: 2, color: mono[2], type: 'dashed' },
-          itemStyle: { color: mono[2] },
-        },
-        {
-          name: '最低分',
-          data: [],
-          type: 'line',
-          smooth: true,
-          symbol: 'circle',
-          symbolSize: 5,
-          lineStyle: { width: 2, color: mono[0], type: 'dashed' },
-          itemStyle: { color: mono[0] },
+          areaStyle: { opacity: 0.08 },
         },
       ],
     }
   }
   const trendOption = ref(buildTrendOption())
 
-  // 成绩分布柱状图
-  function buildDistributionOption() {
+  function buildDistributionOption(): DistributionChartOption {
     const t = getChartTheme()
     const mono = getMonoSeries()
     return {
       tooltip: {
         trigger: 'axis',
         axisPointer: { type: 'shadow' },
+        formatter: '{b}: {c} 人次',
         backgroundColor: t.tooltipBg,
         borderColor: t.tooltipBorder,
         textStyle: { color: t.tooltipText },
@@ -117,6 +160,7 @@ export function useTeacherAnalytics() {
       },
       yAxis: {
         type: 'value',
+        min: 0,
         axisLine: { show: false },
         splitLine: { lineStyle: { color: t.split, type: 'dashed' } },
         axisLabel: { color: t.subText, fontSize: 12 },
@@ -137,56 +181,44 @@ export function useTeacherAnalytics() {
   }
   const distributionOption = ref(buildDistributionOption())
 
-  // 课程对比雷达图
-  function buildRadarOption() {
+  function buildRadarOption(): RadarChartOption {
     const t = getChartTheme()
     const mono = getMonoSeries()
+    const n = parseInt(mono[1].slice(1), 16)
+    const soft = `rgba(${(n >> 16) & 255}, ${(n >> 8) & 255}, ${n & 255}, 0.08)`
     return {
       tooltip: {
         backgroundColor: t.tooltipBg,
         borderColor: t.tooltipBorder,
         textStyle: { color: t.tooltipText },
       },
-      legend: {
-        data: [],
-        bottom: 0,
-        textStyle: { color: t.subText, fontSize: 11 },
-      },
+      legend: { data: [], bottom: 0, textStyle: { color: t.subText, fontSize: 11 } },
       radar: {
         indicator: [
-          { name: '平均分', max: 100 },
-          { name: '提交率', max: 100 },
-          { name: '出勤率', max: 100 },
-          { name: '参与度', max: 100 },
-          { name: '完成率', max: 100 },
+          { name: '平均进度', max: 100 },
+          { name: '任务完成率', max: 100 },
         ],
         shape: 'circle',
         radius: '65%',
         center: ['50%', '48%'],
         axisName: { color: t.text, fontSize: 11 },
-        splitArea: { areaStyle: { color: [withAlpha(mono[1], 0.04), withAlpha(mono[1], 0.08)] } },
+        splitArea: { areaStyle: { color: [soft, 'rgba(0, 0, 0, 0)'] } },
         axisLine: { lineStyle: { color: t.axis } },
         splitLine: { lineStyle: { color: t.axis } },
       },
-      series: [
-        {
-          type: 'radar',
-          data: [],
-        },
-      ],
+      series: [{ type: 'radar', data: [] }],
     }
   }
   const radarOption = ref(buildRadarOption())
 
-  // 学生活跃度排行（横向柱状图）
-  function buildActivityRankOption() {
+  function buildActivityRankOption(): ActivityChartOption {
     const t = getChartTheme()
     const mono = getMonoSeries()
     return {
       tooltip: {
         trigger: 'axis',
         axisPointer: { type: 'shadow' },
-        formatter: '{b}: 活跃值 {c}',
+        formatter: '{b}: 已完成 {c} 个任务点',
         backgroundColor: t.tooltipBg,
         borderColor: t.tooltipBorder,
         textStyle: { color: t.tooltipText },
@@ -194,6 +226,7 @@ export function useTeacherAnalytics() {
       grid: { left: 80, right: 20, bottom: 20, top: 10 },
       xAxis: {
         type: 'value',
+        min: 0,
         axisLine: { show: false },
         splitLine: { lineStyle: { color: t.split, type: 'dashed' } },
         axisLabel: { color: t.subText, fontSize: 11 },
@@ -208,6 +241,7 @@ export function useTeacherAnalytics() {
       },
       series: [
         {
+          name: '已完成任务点',
           type: 'bar',
           data: [],
           barWidth: 16,
@@ -221,180 +255,164 @@ export function useTeacherAnalytics() {
     }
   }
   const activityRankOption = ref(buildActivityRankOption())
+  const completionTable = ref<TeacherCourseSummary[]>([])
 
-  // 作业完成情况表格
-  const completionTable = ref([])
+  const hasTrendData = computed(() => trendOption.value.series[0].data.length > 0)
+  const hasDistributionData = computed(() =>
+    distributionOption.value.series[0].data.some((value) => value > 0),
+  )
+  const hasCourseComparison = computed(() => radarOption.value.series[0].data.length > 0)
+  const hasActivityRank = computed(() => activityRankOption.value.yAxis.data.length > 0)
 
-  // 切换时间范围
-  async function handleTimeChange() {
-    await loadAnalyticsData()
+  function clearCharts() {
+    trendOption.value.xAxis.data = []
+    trendOption.value.series[0].data = []
+    distributionOption.value.series[0].data = [0, 0, 0, 0, 0]
+    radarOption.value.legend.data = []
+    radarOption.value.series[0].data = []
+    activityRankOption.value.yAxis.data = []
+    activityRankOption.value.series[0].data = []
+    completionTable.value = []
   }
 
-  // 加载所有分析数据（增强：多源数据聚合）
   async function loadAnalyticsData() {
+    const requestId = ++requestSequence
     loading.value = true
+    loadNotice.value = ''
+    overview.value = emptyOverview()
+    clearCharts()
+
     try {
-      const teacherId = auth.userId
-
-      // 并行加载：仪表盘统计 + 提交记录(用于成绩) + 学生列表(用于活跃度)
-      const [statsRes, submitRes, studentRes, courseRes] = await Promise.allSettled([
-        analyticsApi.getDashboardStats({ range: timeRange.value, teacherId }),
-        submissionApi.getMySubmissions({ role: 'teacher', size: 500 }),
-        userApi.getTeacherStudents(),
-        courseApi.getMyCourses(),
+      const [legacyResult, dashboardResult] = await Promise.allSettled([
+        analyticsApi.getDashboardStats(),
+        teacherApi.getTeacherDashboardV2(),
       ])
+      if (requestId !== requestSequence) return
 
-      // 处理仪表盘统计
-      if (statsRes.status === 'fulfilled') {
-        const data = statsRes.value.data || statsRes.value || {}
+      const legacy =
+        legacyResult.status === 'fulfilled'
+          ? (unwrap<LegacyTeacherDashboard>(legacyResult.value) ?? {})
+          : null
+      const dashboard =
+        dashboardResult.status === 'fulfilled'
+          ? (unwrap<TeacherDashboard>(dashboardResult.value) ?? {})
+          : null
+      const notices: string[] = []
 
-        overview.value = {
-          studentCount: data.studentCount ?? data.totalStudents ?? 0,
-          avgScore: data.avgScore != null ? Math.round(data.avgScore * 10) / 10 : null,
-          submissionRate: data.submissionRate != null ? Math.round(data.submissionRate) : null,
-          attendanceRate: data.attendanceRate != null ? Math.round(data.attendanceRate) : null,
-        }
+      if (legacyResult.status === 'rejected') notices.push('提交趋势暂不可用。')
+      else if (legacy?.error) notices.push('提交趋势数据加载不完整。')
+      if (dashboardResult.status === 'rejected') notices.push('课程汇总暂不可用。')
+      else if (dashboard?.error) notices.push('课程汇总数据加载不完整。')
 
-        if (data.trendData && Array.isArray(data.trendData)) {
-          trendOption.value.xAxis.data = data.trendData.map((d) => d.label || d.date || '')
-          const values = data.trendData.map((d) => d.value || d.count || 0)
-          trendOption.value.series[0].data = values.map((v) =>
-            Math.round(Number(v) * 0.7 + (data.avgScore ?? 75) * 0.3),
-          )
-          trendOption.value.series[1].data = values.map((v) => Math.round(Number(v) * 1.2 + 10))
-          trendOption.value.series[2].data = values.map((v) =>
-            Math.max(0, Math.round(Number(v) * 0.5)),
-          )
-        }
-
-        // 注：gradeDistribution / activityRanking / taskCompletion 后端不返回，
-        // 分别由 submitRes / studentRes 的 fallback 逻辑处理
-
-        if (data.courseDistribution && Array.isArray(data.courseDistribution)) {
-          radarOption.value.legend.data = data.courseDistribution
-            .slice(0, 5)
-            .map((c) => c.name || c.courseName || '')
-          radarOption.value.series[0].data = data.courseDistribution.slice(0, 5).map((c) => ({
-            name: c.name || c.courseName || '',
-            value: [
-              data.avgScore ?? 75,
-              c.value ? Math.min(100, c.value * 5) : 75,
-              85,
-              c.value ? Math.min(100, c.value * 3) : 65,
-              70,
-            ],
-          }))
-        }
+      const courses = dashboard ? pickList<TeacherCourseSummary>(dashboard.courseCards) : []
+      overview.value = {
+        courseCount: toNullableNumber(dashboard?.courseCount),
+        studentCount: toNullableNumber(dashboard?.studentCount),
+        avgScore: toNullableNumber(dashboard?.avgScore),
+        submissionRate: toNullableNumber(dashboard?.taskPointOverview?.submissionRate),
+        pendingGrading: toNullableNumber(dashboard?.pendingGrading),
       }
 
-      // 增强：从提交记录计算成绩趋势和分布（当 analytics 未返回时）
-      if (submitRes.status === 'fulfilled' && trendOption.value.series[0].data.length === 0) {
-        const sData = submitRes.value.data?.list || submitRes.value.data || []
-        if (Array.isArray(sData) && sData.length > 0) {
-          // 按时间分组计算趋势
-          const scoreMap = new Map()
-          sData
-            .filter((s) => s.score != null)
-            .forEach((s) => {
-              const key = (s.createdAt || '').slice(0, 10) || 'unknown'
-              if (!scoreMap.has(key)) scoreMap.set(key, [])
-              scoreMap.get(key).push(s.score)
-            })
-          const sorted = [...scoreMap.entries()].sort((a, b) => a[0].localeCompare(b[0])).slice(-15)
-          if (sorted.length > 0) {
-            trendOption.value.xAxis.data = sorted.map((s) => s[0])
-            trendOption.value.series[0].data = sorted.map((s) => {
-              const arr = s[1]
-              return Math.round((arr.reduce((a, b) => a + b, 0) / arr.length) * 10) / 10
-            })
-            trendOption.value.series[1].data = sorted.map((s) => Math.max(...s[1]))
-            trendOption.value.series[2].data = sorted.map((s) => Math.min(...s[1]))
+      const trendRows = legacy ? pickList<TrendPoint>(legacy.trendData) : []
+      trendOption.value.xAxis.data = trendRows.map((point) => point.label || point.date || '')
+      trendOption.value.series[0].data = trendRows.map(
+        (point) => toNullableNumber(point.value ?? point.count) ?? 0,
+      )
+
+      const validCourses = courses.filter((course) => course.courseId != null)
+      const progressResults = await Promise.allSettled(
+        validCourses.map((course) => analyticsApi.getStudentCourseProgress(course.courseId!)),
+      )
+      if (requestId !== requestSequence) return
+
+      const studentScores: number[] = []
+      const studentActivity = new Map<string, { name: string; completedTasks: number }>()
+      let failedCourseCount = 0
+      progressResults.forEach((result) => {
+        if (result.status === 'rejected') {
+          failedCourseCount++
+          return
+        }
+        const rows = pickList<CourseProgressRecord>(unwrap<unknown>(result.value))
+        rows.forEach((row) => {
+          const score = toNullableNumber(row.avgAssignmentScore)
+          if (score !== null) studentScores.push(score)
+          if (row.studentId == null) return
+
+          const studentKey = String(row.studentId)
+          const activity = studentActivity.get(studentKey) ?? {
+            name: row.studentName || `学生 #${studentKey}`,
+            completedTasks: 0,
           }
-          // 计算成绩分布
-          const allScores = sData.filter((s) => s.score != null).map((s) => s.score)
-          if (allScores.length > 0) {
-            const buckets = [0, 0, 0, 0, 0]
-            allScores.forEach((sc) => {
-              if (sc >= 90) buckets[0]++
-              else if (sc >= 80) buckets[1]++
-              else if (sc >= 70) buckets[2]++
-              else if (sc >= 60) buckets[3]++
-              else buckets[4]++
-            })
-            distributionOption.value.series[0].data = buckets
-          }
-        }
-      }
+          activity.completedTasks += toNullableNumber(row.completedTasks) ?? 0
+          studentActivity.set(studentKey, activity)
+        })
+      })
+      if (failedCourseCount > 0) notices.push(`${failedCourseCount} 门课程的学情数据暂不可用。`)
 
-      // 增强：从学生列表获取活跃度排行（当 analytics 未返回时）
-      if (studentRes.status === 'fulfilled' && activityRankOption.value.yAxis.data.length === 0) {
-        const stuData = studentRes.value.data?.list || studentRes.value.data || []
-        if (Array.isArray(stuData) && stuData.length > 0) {
-          const ranked = stuData
-            .slice(0, 10)
-            .map((s) => ({
-              name: s.name || s.studentName || s.username || s.realName || '-',
-              score: s.activityValue ?? s.loginCount ?? s.submissionCount ?? 0,
-            }))
-            .reverse()
-          activityRankOption.value.yAxis.data = ranked.map((s) => s.name)
-          activityRankOption.value.series[0].data = ranked.map((s, i) => ({
-            value: s.score,
-            itemStyle: {
-              borderRadius: [
-                0,
-                i === ranked.length - 1 ? 8 : 4,
-                i === ranked.length - 1 ? 8 : 4,
-                0,
-              ],
-            },
-          }))
-          // 更新学生总数
-          if (overview.value.studentCount === 0) {
-            overview.value.studentCount = stuData.length
-          }
-        }
-      }
+      const scoreBuckets = [0, 0, 0, 0, 0]
+      studentScores.forEach((score) => {
+        if (score >= 90) scoreBuckets[0]++
+        else if (score >= 80) scoreBuckets[1]++
+        else if (score >= 70) scoreBuckets[2]++
+        else if (score >= 60) scoreBuckets[3]++
+        else scoreBuckets[4]++
+      })
+      distributionOption.value.series[0].data = scoreBuckets
 
-      // 增强：从课程数据获取雷达图对比（当 analytics 未返回时）
-      if (courseRes.status === 'fulfilled' && radarOption.value.series[0].data.length === 0) {
-        const cList = courseRes.value.data?.list || courseRes.value.data || []
-        if (Array.isArray(cList) && cList.length > 0) {
-          radarOption.value.legend.data = cList.slice(0, 5).map((c) => c.name || `课程${c.id}`)
-          radarOption.value.series[0].data = cList.slice(0, 5).map((c) => ({
-            name: c.name || `课程${c.id}`,
-            value: [
-              c.avgScore ?? c.averageScore ?? 70,
-              c.submissionRate ?? c.submitRate ?? 75,
-              c.attendanceRate ?? 85,
-              c.enrollmentCount ? Math.min(100, c.enrollmentCount * 5) : 65,
-              c.completionRate ?? 70,
-            ],
-          }))
-        }
-      }
-    } catch (e) {
-      console.error('加载分析数据失败:', e)
+      const comparisonRows = courses
+        .map((course) => ({
+          name: course.name || `课程 ${course.courseId ?? ''}`,
+          avgProgress: toNullableNumber(course.avgProgress),
+          completionRate: toNullableNumber(course.completionRate),
+        }))
+        .filter((course) => course.avgProgress !== null || course.completionRate !== null)
+        .slice(0, 8)
+      radarOption.value.legend.data = comparisonRows.map((course) => course.name)
+      radarOption.value.series[0].data = comparisonRows.map((course) => ({
+        name: course.name,
+        value: [course.avgProgress ?? 0, course.completionRate ?? 0],
+      }))
+
+      const rankedStudents = Array.from(studentActivity.values())
+        .sort((a, b) => b.completedTasks - a.completedTasks)
+        .slice(0, 10)
+        .reverse()
+      activityRankOption.value.yAxis.data = rankedStudents.map((student) => student.name)
+      activityRankOption.value.series[0].data = rankedStudents.map(
+        (student) => student.completedTasks,
+      )
+
+      completionTable.value = courses.map((course) => ({
+        ...course,
+        name: course.name || `课程 ${course.courseId ?? ''}`,
+      }))
+
+      loadNotice.value = notices.join('')
+    } catch (error) {
+      logger.error('加载教师分析数据失败:', error)
+      loadNotice.value = '分析数据处理失败，请刷新重试。'
     } finally {
-      loading.value = false
+      if (requestId === requestSequence) loading.value = false
     }
   }
 
-  onMounted(() => {
-    loadAnalyticsData()
-  })
+  onMounted(loadAnalyticsData)
 
   return {
     loading,
-    timeRange,
+    loadNotice,
     overview,
     trendOption,
     distributionOption,
     radarOption,
     activityRankOption,
     completionTable,
+    hasTrendData,
+    hasDistributionData,
+    hasCourseComparison,
+    hasActivityRank,
     monoScore,
-    handleTimeChange,
     loadAnalyticsData,
   }
 }

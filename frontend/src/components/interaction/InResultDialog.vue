@@ -1,6 +1,7 @@
 <template>
   <!-- 投票结果 -->
   <el-dialog
+    ref="dialogRef"
     :model-value="modelValue"
     title="投票结果"
     width="520px"
@@ -20,11 +21,15 @@
       </div>
       <div class="result-total">总票数：{{ result.total || 0 }}</div>
     </div>
-    <el-empty v-else description="暂无结果" :image-size="60" />
+    <EmptyState v-else title="暂无结果" icon="chart" size="compact" />
   </el-dialog>
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
+import EmptyState from '@/components/ui/EmptyState.vue'
+
 /**
  * 投票结果对话框（互动域共享实现）
  * <p>教师「互动工具」页与「课程互动」页共用；结果为 `{ title?, options:[{text|optionText,count}], total }`，
@@ -36,6 +41,13 @@ const props = defineProps({
   /** 投票结果 */
   result: { type: Object, default: null },
 })
+
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(
+  dialogRef,
+  computed(() => props.modelValue),
+)
 
 defineEmits(['update:modelValue'])
 

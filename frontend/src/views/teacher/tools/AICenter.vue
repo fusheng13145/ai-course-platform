@@ -60,7 +60,6 @@
 
 <script setup lang="ts">
 import logger from '@/utils/logger'
-import { unwrap } from '@/utils/response'
 import { ref, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
 import { MagicStick } from '@element-plus/icons-vue'
@@ -81,10 +80,7 @@ const activeTab = ref('qa')
 async function loadCourses() {
   courseLoading.value = true
   try {
-    const r = await courseApi.getMyCourses()
-    const body = unwrap(r)
-    const list = body?.records || body?.list || body || []
-    courseOptions.value = Array.isArray(list) ? list : []
+    courseOptions.value = await courseApi.getAllMyCourses()
     if (courseOptions.value.length && !courseId.value) courseId.value = courseOptions.value[0].id
   } catch (e) {
     logger.error('加载课程列表失败', e)

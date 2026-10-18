@@ -63,23 +63,39 @@
       </div>
     </transition-group>
 
-    <el-empty
-      v-if="!loading && questions.length === 0"
-      description="暂无错题记录，继续保持！"
-      :image-size="100"
-    >
-      <template #image><div class="empty-deco">📕</div></template>
-    </el-empty>
+    <EmptyState v-if="!loading && questions.length === 0" :title="emptyText" icon="book" />
   </div>
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { Link, RefreshRight, ArrowDown, Select } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
+
+/** 错题行（字段名存在历史分叉：questionContent/content、wrongAnswer/studentAnswer 等，故均可选） */
+interface WrongQuestionRow {
+  id?: number | string
+  mastered?: boolean
+  knowledgePointName?: string | null
+  questionContent?: string | null
+  content?: string | null
+  wrongAnswer?: string | string[] | null
+  studentAnswer?: string | string[] | null
+  correctAnswer?: string | string[] | null
+  answer?: string | string[] | null
+  analysis?: string | null
+  explanation?: string | null
+}
 
 defineProps({
   loading: { type: Boolean, default: false },
-  questions: { type: Array, default: () => [] },
+  questions: { type: Array as PropType<WrongQuestionRow[]>, default: () => [] },
   expandedId: { type: [Number, String], default: null },
+  /**
+   * 空态文案。默认值是"确实没有错题"的语义；调用方在**加载失败**时应传入
+   * 失败文案，避免把"取不到数据"渲染成"没有错题"。
+   */
+  emptyText: { type: String, default: '暂无错题记录，继续保持！' },
 })
 defineEmits(['toggle', 'mark', 'unmark', 'practice', 'related'])
 </script>
@@ -232,10 +248,6 @@ defineEmits(['toggle', 'mark', 'unmark', 'practice', 'related'])
   opacity: 0;
   max-height: 0;
   overflow: hidden;
-}
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 
 @media (max-width: 768px) {

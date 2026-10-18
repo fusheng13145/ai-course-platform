@@ -12,7 +12,7 @@
       />
     </div>
     <div v-loading="loading" class="content-card">
-      <el-table :data="filteredStudents" style="width: 100%">
+      <el-table :data="paged" style="width: 100%">
         <el-table-column type="index" label="#" width="50" />
         <el-table-column prop="studentName" label="姓名" min-width="110" />
         <el-table-column prop="studentId" label="学号" width="120" />
@@ -76,18 +76,38 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="!loading && filteredStudents.length === 0" description="暂无学生数据" />
+      <!-- D2-5：课堂学生学情无界（大课程数百人），客户端分页仅超一页时出现 -->
+      <div v-if="showPager" class="pager-wrap">
+        <el-pagination
+          small
+          layout="total, prev, pager, next"
+          :total="total"
+          :page-size="pageSize"
+          :current-page="page"
+          @current-change="onPageChange"
+        />
+      </div>
+      <EmptyState v-if="!loading && filteredStudents.length === 0" :title="emptyText" icon="users" />
     </div>
   </div>
 </template>
 
 <script setup>
-defineProps({
+import EmptyState from '@/components/ui/EmptyState.vue'
+import { useClientPagination } from '@/composables/useClientPagination'
+
+const props = defineProps({
   loading: { type: Boolean, default: false },
   searchKeyword: { type: String, default: '' },
   filteredStudents: { type: Array, default: () => [] },
+  emptyText: { type: String, default: '暂无学生数据' },
 })
 defineEmits(['update:searchKeyword'])
+
+// D2-5：课堂学生学情按课程人数伸缩（大课程数百行），渲染层客户端分页（每页 20）
+const { page, pageSize, total, paged, showPager, onPageChange } = useClientPagination(
+  () => props.filteredStudents,
+)
 
 function getEngagementColor(val) {
   if (val >= 80) return 'var(--ok)'
@@ -130,6 +150,12 @@ function formatRelative(dateStr) {
 <style scoped>
 .table-section {
   margin-bottom: 10px;
+}
+/* D2-5：分页器右对齐 */
+.pager-wrap {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 12px;
 }
 .section-header {
   display: flex;

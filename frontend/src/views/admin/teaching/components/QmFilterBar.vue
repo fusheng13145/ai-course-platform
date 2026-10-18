@@ -57,7 +57,7 @@
           :value="course.id"
         />
       </el-select>
-      <el-button type="primary" @click="emit('search')"
+      <el-button type="primary" v-bind="buttonA11y('搜索题目')" @click="emit('search')"
         ><el-icon><Search /></el-icon
       ></el-button>
     </div>
@@ -71,6 +71,7 @@
 
 <script setup lang="ts">
 import { Search } from '@element-plus/icons-vue'
+import { buttonA11y } from '@/composables/useA11y'
 
 /**
  * 题库筛选工具栏

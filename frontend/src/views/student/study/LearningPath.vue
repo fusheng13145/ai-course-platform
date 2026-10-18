@@ -11,6 +11,16 @@
       </el-button>
     </PageHeader>
 
+    <!-- 加载失败提示：失败时列表被置空，仅剩"暂无学习路径"会让学生误判 -->
+    <el-alert
+      v-if="loadError"
+      class="load-error"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      show-icon
+    />
+
     <div class="stat-grid">
       <StatCard
         label="路径总数"
@@ -100,13 +110,15 @@
         </div>
 
         <!-- 空状态 -->
-        <div v-else class="empty-state">
-          <el-empty description="暂无学习路径">
-            <template #image><div class="empty-deco">🧭</div></template>
+        <div v-else class="empty-state-card">
+          <EmptyState
+            :title="loadError ? '学习路径未能加载，请查看上方提示后重试' : '暂无学习路径'"
+            icon="layers"
+          >
             <el-button type="primary" @click="handleGeneratePath">
               <el-icon><MagicStick /></el-icon> AI 为我生成学习路径
             </el-button>
-          </el-empty>
+          </EmptyState>
         </div>
       </div>
     </section>
@@ -117,6 +129,7 @@
 import { MagicStick } from '@element-plus/icons-vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { useLearningPath } from '@/composables/useLearningPath'
 import LpPathSelector from './components/LpPathSelector.vue'
 import LpOverviewCard from './components/LpOverviewCard.vue'
@@ -134,6 +147,7 @@ const {
   selectedPathId,
   currentPath,
   generating,
+  loadError,
   completedNodeCount,
   overallProgress,
   overallProgressText,
@@ -161,7 +175,7 @@ const {
   min-width: 0;
 }
 
-.empty-state {
+.empty-state-card {
   display: flex;
   justify-content: center;
   align-items: center;
@@ -169,11 +183,6 @@ const {
   background: var(--ac-bg-elevated);
   border-radius: var(--ac-radius-lg);
   border: 1px solid var(--ac-border);
-}
-
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 
 @media (max-width: 900px) {

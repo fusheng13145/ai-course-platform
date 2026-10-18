@@ -73,6 +73,22 @@ public class User {
     @JsonIgnore
     private LocalDateTime lockedUntil;
 
+    /* ---- 封禁留痕（V11，角色矩阵 ③ 违规处理）----
+       封禁复用既有 is_active=0（不另造第二套封禁语义）；这三列只作留痕，
+       并以 banned_at IS NOT NULL 区分"经内容审核封禁"与"其它原因停用"。 */
+
+    /** 封禁原因（经内容审核封禁时写入） */
+    @TableField("ban_reason")
+    private String banReason;
+
+    /** 封禁时间 */
+    @TableField("banned_at")
+    private LocalDateTime bannedAt;
+
+    /** 执行封禁的管理员ID */
+    @TableField("banned_by")
+    private Long bannedBy;
+
     @JsonIgnore
     private String registerIp;
 

@@ -1,8 +1,9 @@
 /**
  * 统一响应解包工具。
  *
- * 响应拦截器（api/request.ts）在请求成功时返回已解包的业务数据，
- * 即 { code, message, data } 信封中的 data 部分。
+ * 响应拦截器（api/request.ts）在请求成功时返回**整个业务信封**
+ * 即 { code, message, data, timestamp }（仅当 code !== 200 时 reject），
+ * 因此业务字段要从 res.data 里读。
  * 历史上部分视图为兼容「裸响应」写了防御式双取值（res.data || res、
  * r?.data ?? r 等）。unwrap 将这些写法收敛为单一语义，集中维护。
  *
@@ -40,6 +41,24 @@ export function unwrap<T = ApiPayload>(res: unknown): T | null | undefined {
   return envelope.data !== undefined ? envelope.data : (res as T)
 }
 
+/**
+ * 还原后端展示层转义（AIController 对 answer/sources 统一做了 HTML 转义）。
+ *
+ * 视图侧要么用 {{ }} 插值、要么经 renderMarkdown 再转义一次后 sanitize，
+ * 因此这里的还原只用于展示，不会把内容重新注入 DOM。
+ *
+ * @param text 后端下发的已转义文本
+ */
+export function decodeHtml(text) {
+  if (typeof text !== 'string') return ''
+  return text
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;|&apos;/g, "'")
+    .replace(/&amp;/g, '&')
+}
+
 export default unwrap
 
 /**
@@ -55,9 +74,9 @@ export default unwrap
  * @param {...unknown} candidates 按优先级排列的候选值
  * @returns {Array} 第一个非空数组；全不满足时返回空数组
  */
-export function firstNonEmptyArray(...candidates) {
+export function firstNonEmptyArray<T = unknown>(...candidates: unknown[]): T[] {
   for (const c of candidates) {
-    if (Array.isArray(c) && c.length > 0) return c
+    if (Array.isArray(c) && c.length > 0) return c as T[]
   }
   return []
 }
@@ -66,7 +85,7 @@ export function firstNonEmptyArray(...candidates) {
  * 判断候选中是否存在非空数组（用于分支判定，与 firstNonEmptyArray 同口径）。
  * @param {...unknown} candidates 候选值
  */
-export function hasNonEmptyArray(...candidates) {
+export function hasNonEmptyArray(...candidates: unknown[]): boolean {
   return candidates.some((c) => Array.isArray(c) && c.length > 0)
 }
 
@@ -80,8 +99,12 @@ export function hasNonEmptyArray(...candidates) {
  * @param {unknown} payload unwrap(res) 之后的业务数据
  * @returns {Array}
  */
-export function pickList(payload) {
-  return firstNonEmptyArray(payload?.records, payload?.list, payload?.items, payload)
+export function pickList<T = unknown>(payload: unknown): T[] {
+  const fields =
+    payload && typeof payload === 'object'
+      ? (payload as { records?: unknown; list?: unknown; items?: unknown })
+      : undefined
+  return firstNonEmptyArray<T>(fields?.records, fields?.list, fields?.items, payload)
 }
 
 /**
@@ -99,6 +122,32 @@ export function readTotal(payload, fallback = 0) {
   const raw = payload?.total ?? payload?.count ?? payload?.totalCount
   const num = Number(raw)
   return Number.isFinite(num) && num >= 0 ? num : fallback
+}
+
+/**
+ * Read every page from a paginated endpoint without returning a silently partial list.
+ * `requestPage` owns endpoint-specific filters; this helper supplies only the 1-based page
+ * and page size so callers can reuse the same pagination contract across API modules.
+ */
+export async function fetchAllPages<T = unknown>(
+  requestPage: (page: number, size: number) => Promise<unknown>,
+  pageSize = 100,
+): Promise<T[]> {
+  if (!Number.isInteger(pageSize) || pageSize <= 0) {
+    throw new RangeError('pageSize must be a positive integer')
+  }
+
+  const firstResponse = await requestPage(1, pageSize)
+  const firstPayload = unwrap<unknown>(firstResponse)
+  const items = pickList<T>(firstPayload)
+  const pageCount = Math.ceil(readTotal(firstPayload, items.length) / pageSize)
+
+  for (let page = 2; page <= pageCount; page++) {
+    const response = await requestPage(page, pageSize)
+    items.push(...pickList<T>(unwrap<unknown>(response)))
+  }
+
+  return items
 }
 
 /**

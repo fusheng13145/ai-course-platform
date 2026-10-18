@@ -43,7 +43,7 @@
         </div>
         <div class="stat-info">
           <span class="stat-val">{{ overview.pendingCount ?? '--' }}</span
-          ><span class="stat-lbl">待批阅</span>
+          ><span class="stat-lbl">待批阅任务</span>
         </div>
       </div>
     </div>
@@ -59,6 +59,9 @@
       >
         <el-icon><Download :size="14" /></el-icon>导出成绩
       </el-button>
+      <el-button text size="small" :loading="loading" @click="loadData">
+        <el-icon><Refresh /></el-icon>刷新
+      </el-button>
       <el-input
         v-model="searchText"
         placeholder="搜索学号/姓名..."
@@ -68,38 +71,41 @@
       />
     </div>
 
+    <el-alert
+      v-if="loadNotice"
+      class="load-notice"
+      :title="loadNotice"
+      type="warning"
+      :closable="false"
+      show-icon
+    />
+
     <!-- 主区域 -->
     <div class="main-grid">
       <CgtGradeTable
         :loading="loading"
         :filtered-grades="filteredGrades"
         @view-detail="viewDetail"
-        @open-grade="openGradeDialog"
       />
-      <CgtSidePanel :dist-option="distOption" :pending-tasks="pendingTasks" />
+      <CgtSidePanel
+        :dist-option="distOption"
+        :pending-tasks="pendingTasks"
+        :pending-loading="loading"
+        :pending-unavailable="pendingUnavailable"
+      />
     </div>
 
     <!-- 详情弹窗 -->
     <CgtDetailDialog v-model="detailVisible" :current-student="currentStudent" />
-
-    <!-- 批阅弹窗 -->
-    <CgtGradeDialog
-      v-model="gradeVisible"
-      :grading-student="gradingStudent"
-      :grading-loading="gradingLoading"
-      :grade-form="gradeForm"
-      @submit="submitGrade"
-    />
   </div>
 </template>
 
 <script setup>
 import { toRef } from 'vue'
-import { Search, Download, Top, Bottom, EditPen } from '@element-plus/icons-vue'
+import { Search, Download, Top, Bottom, EditPen, Refresh } from '@element-plus/icons-vue'
 import CgtGradeTable from './course/CgtGradeTable.vue'
 import CgtSidePanel from './course/CgtSidePanel.vue'
 import CgtDetailDialog from './course/CgtDetailDialog.vue'
-import CgtGradeDialog from './course/CgtGradeDialog.vue'
 import { useCourseGradesTab } from '@/composables/useCourseGradesTab'
 
 const props = defineProps({ courseId: { type: [Number, String], required: true } })
@@ -110,18 +116,15 @@ const {
   searchText,
   gradeList,
   pendingTasks,
+  pendingUnavailable,
+  loadNotice,
   overview,
   detailVisible,
   currentStudent,
-  gradeVisible,
-  gradingStudent,
-  gradingLoading,
-  gradeForm,
   filteredGrades,
   distOption,
+  loadData,
   viewDetail,
-  openGradeDialog,
-  submitGrade,
   handleExport,
 } = useCourseGradesTab(courseIdRef)
 </script>
@@ -129,6 +132,9 @@ const {
 <style scoped>
 .grades-tab {
   padding: 4px 0;
+}
+.load-notice {
+  margin-bottom: 14px;
 }
 .stats-row {
   display: grid;

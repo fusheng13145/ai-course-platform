@@ -569,3 +569,61 @@ describe('useKnowledgeTab — CSV 导出', () => {
     expect(mocks.message.success).not.toHaveBeenCalled()
   })
 })
+
+describe('useKnowledgeTab — 加载失败可见', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getRelationGraphData.mockResolvedValue({ data: {} })
+  })
+
+  it('列表请求失败时必须给出持久提示，且不得表现为「暂无知识点」', async () => {
+    mocks.getTree.mockResolvedValue({ data: [] })
+    mocks.getKnowledgePoints.mockRejectedValue(new Error('500'))
+    const { state } = withSetup()
+    await flushPromises()
+
+    await state.loadAll()
+
+    expect(state.loadError.value).toBe('知识点列表加载失败，请检查网络后重试')
+    expect(state.list.value).toEqual([])
+    expect(state.tableLoading.value).toBe(false)
+  })
+
+  it('阴性对照：加载成功时不得出现失败提示', async () => {
+    mocks.getTree.mockResolvedValue({ data: [] })
+    mocks.getKnowledgePoints.mockResolvedValue({ data: { records: [kp('A')] } })
+    const { state } = withSetup()
+    await flushPromises()
+
+    await state.loadAll()
+
+    expect(state.loadError.value).toBe('')
+    expect(rows<Point>(state.list.value)).toHaveLength(1)
+  })
+
+  it('失败后再成功：提示必须被清空（每次 loadAll 都复位，不是一次失败永久残留）', async () => {
+    // 首轮为挂载时 onMounted 触发的 loadAll（列表失败），次轮显式 loadAll 成功
+    mocks.getTree.mockResolvedValue({ data: [] })
+    mocks.getKnowledgePoints
+      .mockRejectedValueOnce(new Error('500'))
+      .mockResolvedValue({ data: [] })
+    const { state } = withSetup()
+    await flushPromises()
+    expect(state.loadError.value).not.toBe('')
+
+    await state.loadAll()
+
+    expect(state.loadError.value).toBe('')
+  })
+
+  it('未选课程时不置错，也不发起请求（未选课 ≠ 加载失败）', async () => {
+    const { state } = withSetup('')
+    await flushPromises()
+
+    await state.loadAll()
+
+    expect(state.loadError.value).toBe('')
+    expect(mocks.getTree).not.toHaveBeenCalled()
+  })
+})
+

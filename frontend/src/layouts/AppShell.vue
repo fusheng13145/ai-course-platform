@@ -14,33 +14,39 @@
         @toggle-sidebar="sidebarMini = !sidebarMini"
       />
 
-      <main class="content">
+      <main ref="contentRef" class="content" :aria-busy="navigating">
         <router-view v-slot="{ Component }">
           <transition name="page" mode="out-in">
-            <component :is="Component" :key="route.path" />
+            <component :is="Component" :key="viewKey" />
           </transition>
         </router-view>
       </main>
     </div>
   </div>
 
-  <!-- 新用户引导（首次登录自动展示，三端共用） -->
-  <OnboardingGuide />
+  <!-- 新用户引导（首次进入自动展示，三端共用；用户菜单可重新唤起） -->
+  <OnboardingGuide ref="guideRef" />
+
+  <!-- 键盘快捷键说明（D2-7 第八批：按 ? 打开/关闭） -->
+  <KeyboardShortcutsDialog v-model="shortcutsHelpVisible" />
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
 import { iconHtml } from './icons'
+import { announce } from '@/composables/useAnnouncer'
+import { useGlobalHotkeys, FOCUS_GLOBAL_SEARCH_EVENT } from '@/composables/useKeyboardShortcuts'
 import OnboardingGuide from '@/components/OnboardingGuide.vue'
+import KeyboardShortcutsDialog from './components/KeyboardShortcutsDialog.vue'
 import AppSidebar from './components/AppSidebar.vue'
 import AppTopbar from './components/AppTopbar.vue'
 
 /**
  * 应用布局骨架
  * <p>整体壳：深色侧边栏（手风琴菜单/mini 折叠）+ 顶栏（搜索/通知/主题/用户菜单）
- * + 内容区（路由过渡）；共享侧边栏折叠状态，用户菜单（个人中心/退出）经动态 DOM 弹出。</p>
+ * + 内容区（路由过渡）；共享侧边栏折叠状态，用户菜单（个人中心/新手引导/退出）经动态 DOM 弹出。</p>
  */
 const props = defineProps({
   role: { type: String, required: true },
@@ -52,7 +58,79 @@ const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
 
+// D2-7：导航期间主内容区标记 aria-busy（读屏不朗读中间态），结束后清除
+const navigating = ref(false)
+const unregisterBefore = router.beforeEach?.(() => {
+  navigating.value = true
+})
+const unregisterAfter = router.afterEach?.(() => {
+  navigating.value = false
+})
+onBeforeUnmount(() => {
+  unregisterBefore?.()
+  unregisterAfter?.()
+})
+
+// D2-7：SPA 路由切换对读屏无声——进入新页面后播报页面标题（meta.title）
+watch(
+  () => route.fullPath || route.path,
+  async () => {
+    await nextTick()
+    const matched = route.matched || []
+    const title = matched[matched.length - 1]?.meta?.title
+    if (title) announce(`已进入${title}页面`)
+  },
+  { immediate: true },
+)
+
+/**
+ * 本层视图的重建判据：只用「本层路由记录 + 该记录声明的参数值」，不用 route.path。
+ * 按 path 打 key 会把下层页签也算进去，切一次课程页签就整体重建课程壳（接口重来 +
+ * 内容区先清空再淡入），而淡入依赖 rAF——窗口被遮挡时 rAF 冻结，页面就卡在离场帧。
+ */
+const viewKey = computed(() => {
+  const rec = route.matched[1]
+  if (!rec) return route.path
+  return rec.path.replace(/:[^/]+/g, (m) => String(route.params[m.slice(1)] ?? ''))
+})
+
+// 壳层复用后不再靠重建把滚动归零，切页时显式回到顶部（.content 才是滚动容器）
+const contentRef = ref(null)
+watch(
+  () => route.path,
+  () => contentRef.value?.scrollTo({ top: 0 }),
+)
+
 const sidebarMini = ref(false)
+const guideRef = ref(null)
+
+/* ---- D2-7 第八批：全局快捷键（详见 useKeyboardShortcuts 原语） ---- */
+const shortcutsHelpVisible = ref(false)
+
+/** 聚焦顶栏全局搜索：派发事件由 AtbGlobalSearch 监听（跨组件解耦，不传 ref） */
+function focusGlobalSearch() {
+  window.dispatchEvent(new CustomEvent(FOCUS_GLOBAL_SEARCH_EVENT))
+}
+
+useGlobalHotkeys([
+  // Ctrl/⌘+K 与 /：聚焦全局搜索；输入态与弹层打开时不触发（原语默认守卫）
+  { key: 'k', mod: true, handler: focusGlobalSearch },
+  { key: '/', handler: focusGlobalSearch },
+  {
+    // ?：打开/关闭快捷键说明。allowWhenOverlayOpen 放行给处理器自行判断——
+    // 已打开时按 ? 关闭（toggle）；其他弹层打开时不叠加。
+    key: '?',
+    handler: () => {
+      if (shortcutsHelpVisible.value) {
+        shortcutsHelpVisible.value = false
+        return
+      }
+      if (typeof document !== 'undefined' && document.querySelector('.el-overlay')) return
+      shortcutsHelpVisible.value = true
+    },
+    allowWhenOverlayOpen: true,
+  },
+])
 
 /* ---- 用户菜单（动态 DOM 弹出，侧边栏底部用户区共用） ---- */
 function showUserMenu() {
@@ -61,6 +139,11 @@ function showUserMenu() {
       label: '个人中心',
       icon: 'user',
       action: () => router.push(props.profilePath || `/${props.role.toLowerCase()}/profile`),
+    },
+    {
+      label: '新手引导',
+      icon: 'grad',
+      action: () => guideRef.value?.show(),
     },
     {
       label: '退出登录',

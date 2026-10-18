@@ -31,9 +31,10 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty
+      <EmptyState
         v-if="!tableLoading && filteredKnowledgeList.length === 0"
-        description="暂无知识点数据"
+        :title="emptyText"
+        icon="layers"
       />
     </div>
 
@@ -64,6 +65,8 @@
 </template>
 
 <script setup lang="ts">
+import EmptyState from '@/components/ui/EmptyState.vue'
+
 /**
  * 知识管理右侧：知识点列表 + 知识图谱
  * <p>列表展示知识点（难度/重要度/关联题数）并提供编辑/关联/删除操作；
@@ -77,6 +80,8 @@ defineProps({
   graphViewMode: { type: String, default: 'force' },
   forceGraphOption: { type: Object, required: true },
   treeGraphOption: { type: Object, required: true },
+  /** 列表空态文案（失败时由页面传入「未能加载」文案，默认保留原语义） */
+  emptyText: { type: String, default: '暂无知识点数据' },
 })
 
 const emit = defineEmits(['edit', 'relation', 'delete', 'view-mode'])

@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
   put: vi.fn(),
   patch: vi.fn(),
   del: vi.fn(),
-  getCourseList: vi.fn(),
+  getAllCourses: vi.fn(),
   message: Object.assign(vi.fn(), {
     info: vi.fn(),
     success: vi.fn(),
@@ -41,7 +41,7 @@ vi.mock('@/api/request', () => ({
     delete: mocks.del,
   },
 }))
-vi.mock('@/api/course', () => ({ default: { getCourseList: mocks.getCourseList } }))
+vi.mock('@/api/course', () => ({ default: { getAllCourses: mocks.getAllCourses } }))
 vi.mock('element-plus', () => ({
   ElMessage: mocks.message,
   ElMessageBox: { confirm: mocks.confirm },
@@ -75,7 +75,7 @@ function pickCourse(state: { selectedCourseId: { value: unknown } }, id: unknown
 describe('useResourceManagement — 上传链路（P0-5 回归）', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getCourseList.mockResolvedValue({ data: [] })
+    mocks.getAllCourses.mockResolvedValue([])
     mocks.get.mockResolvedValue({ data: [] })
     mocks.post.mockResolvedValue({ code: 200 })
   })
@@ -211,19 +211,19 @@ describe('useResourceManagement — 课程与资源加载', () => {
   })
 
   it('挂载即拉课程，并自动选中首门课程后加载其资源', async () => {
-    mocks.getCourseList.mockResolvedValue({ data: { records: [{ id: 1, name: '数据结构' }] } })
+    mocks.getAllCourses.mockResolvedValue([{ id: 1, name: '数据结构' }])
     const { state } = withSetup()
     await flushPromises()
 
-    expect(mocks.getCourseList).toHaveBeenCalledWith({ size: 500 })
+    expect(mocks.getAllCourses).toHaveBeenCalledOnce()
     expect(state.courseList.value).toEqual([{ id: 1, name: '数据结构' }])
     expect(state.selectedCourseId.value).toBe(1)
     expect(state.currentCourseName.value).toBe('数据结构')
     expect(mocks.get).toHaveBeenCalledWith('/resources/course/1')
   })
 
-  it('list 形状也能解析课程，且 title 别名用于课程名展示', async () => {
-    mocks.getCourseList.mockResolvedValue({ data: { list: [{ id: 2, title: '计算机网络' }] } })
+  it('课程 title 别名用于课程名展示', async () => {
+    mocks.getAllCourses.mockResolvedValue([{ id: 2, title: '计算机网络' }])
     const { state } = withSetup()
     await flushPromises()
     expect(state.courseList.value).toHaveLength(1)
@@ -231,12 +231,8 @@ describe('useResourceManagement — 课程与资源加载', () => {
     expect(state.currentCourseName.value).toBe('计算机网络')
   })
 
-  it('records 为空数组、数据在 list 时不得被吞成空课程（双向回归）', async () => {
-    // 缺陷回归（2026-10-04）：`res.data?.records || res.data?.list` 的空 records 是
-    // truthy，PagedResponse（list）形状被彻底吞掉 —— 与 P1-10 同形，只是方向相反。
-    mocks.getCourseList.mockResolvedValue({
-      data: { records: [], list: [{ id: 6, name: '数据库系统' }] },
-    })
+  it('课程 API 已归一化分页结果后再驱动资源加载', async () => {
+    mocks.getAllCourses.mockResolvedValue([{ id: 6, name: '数据库系统' }])
     const { state } = withSetup()
     await flushPromises()
 
@@ -245,7 +241,7 @@ describe('useResourceManagement — 课程与资源加载', () => {
   })
 
   it('课程接口失败时清空列表而不中断页面', async () => {
-    mocks.getCourseList.mockRejectedValue(new Error('500'))
+    mocks.getAllCourses.mockRejectedValue(new Error('500'))
     const { state } = withSetup()
     await flushPromises()
 
@@ -260,7 +256,7 @@ describe('useResourceManagement — 课程与资源加载', () => {
    * 因此这里统一走「挂载 → 自动选中首课 → 加载资源」的真实入口。
    */
   async function mountWithResources(payload: unknown) {
-    mocks.getCourseList.mockResolvedValue({ data: [{ id: 5, name: '操作系统' }] })
+    mocks.getAllCourses.mockResolvedValue([{ id: 5, name: '操作系统' }])
     mocks.get.mockResolvedValue(payload as never)
     const state = withSetup().state
     await flushPromises()
@@ -288,7 +284,7 @@ describe('useResourceManagement — 课程与资源加载', () => {
   })
 
   it('资源接口失败：置空 + 报错 + 结束 loading', async () => {
-    mocks.getCourseList.mockResolvedValue({ data: [{ id: 5, name: '操作系统' }] })
+    mocks.getAllCourses.mockResolvedValue([{ id: 5, name: '操作系统' }])
     mocks.get.mockImplementation((url: string) =>
       url.startsWith('/resources/course')
         ? Promise.reject(new Error('500'))
@@ -303,7 +299,7 @@ describe('useResourceManagement — 课程与资源加载', () => {
   })
 
   it('无可选课程时不自动选中，也不发资源请求', async () => {
-    mocks.getCourseList.mockResolvedValue({ data: [] })
+    mocks.getAllCourses.mockResolvedValue([])
     const { state } = withSetup()
     await flushPromises()
 
@@ -315,7 +311,7 @@ describe('useResourceManagement — 课程与资源加载', () => {
 
 describe('useResourceManagement — 筛选与统计', () => {
   async function setupWithResources() {
-    mocks.getCourseList.mockResolvedValue({ data: [] })
+    mocks.getAllCourses.mockResolvedValue([])
     mocks.get.mockResolvedValue({ data: [] })
     const { state } = withSetup()
     pickCourse(state, 1)
@@ -351,7 +347,7 @@ describe('useResourceManagement — 筛选与统计', () => {
 describe('useResourceManagement — 可见性/下载/删除', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getCourseList.mockResolvedValue({ data: [] })
+    mocks.getAllCourses.mockResolvedValue([])
     mocks.get.mockResolvedValue({ data: [] })
     mocks.patch.mockResolvedValue({ code: 200 })
     mocks.del.mockResolvedValue({ code: 200 })

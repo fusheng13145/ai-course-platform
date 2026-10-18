@@ -296,17 +296,33 @@ class KnowledgeControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("GET /knowledge/points/graph?courseId=1 - 返回200且data含nodes/totalPoints")
+    @DisplayName("GET /knowledge/points/graph?courseId=1 - 返回200且data含nodes/totalPoints，边按课程内知识点过滤")
     void getGraph_authorized_returns_success() throws Exception {
         when(knowledgePointService.list(any(com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper.class))).thenReturn(List.of(samplePoint()));
-        when(relationService.list()).thenReturn(List.of(sampleRelation()));
+        when(relationService.list(any(com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper.class))).thenReturn(List.of(sampleRelation()));
         mockMvc.perform(get("/knowledge/points/graph?courseId=1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.nodes").isArray())
-                .andExpect(jsonPath("$.data.totalPoints").value(1));
+                .andExpect(jsonPath("$.data.totalPoints").value(1))
+                .andExpect(jsonPath("$.data.totalRelations").value(1));
         verify(knowledgePointService).list(any(com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper.class));
-        verify(relationService).list();
+        // DR-27：关系必须走带课程域过滤的查询，不得回落到 relationService.list() 全表
+        verify(relationService).list(any(com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper.class));
+        verify(relationService, never()).list();
+    }
+
+    @Test
+    @DisplayName("GET /knowledge/points/graph?courseId=999 - 课程无知识点时边为空且不发出 IN () 查询")
+    void getGraph_withoutPoints_returns_emptyEdges() throws Exception {
+        when(knowledgePointService.list(any(com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper.class))).thenReturn(List.of());
+        mockMvc.perform(get("/knowledge/points/graph?courseId=999").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.totalPoints").value(0))
+                .andExpect(jsonPath("$.data.totalRelations").value(0));
+        verify(relationService, never()).list(any(com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper.class));
+        verify(relationService, never()).list();
     }
 
     @Test

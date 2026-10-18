@@ -6,34 +6,44 @@
       icon="book"
       icon-bg="accent"
     >
-      <span class="head-hint">共 {{ courseList.length }} 门课程</span>
+      <span class="head-hint">共 {{ listError ? '--' : courseList.length }} 门课程</span>
     </PageHeader>
+
+    <!-- 加载失败提示：非空即表示下方读数与列表不可信（失败不得渲染成「暂无课程」与 0 值读数） -->
+    <el-alert
+      v-if="listError"
+      :title="listError"
+      type="error"
+      :closable="false"
+      show-icon
+      style="margin-bottom: var(--ac-spacing-md)"
+    />
 
     <div class="stat-grid">
       <StatCard
         label="课程总数"
-        :value="courseList.length"
+        :value="listError ? '--' : courseList.length"
         icon="book"
         tone="var(--accent-soft)"
         tone-color="var(--accent)"
       />
       <StatCard
         label="待审核"
-        :value="pendingCount"
+        :value="listError ? '--' : pendingCount"
         icon="warn"
         tone="var(--warn-soft)"
         tone-color="var(--warn)"
       />
       <StatCard
         label="已启用"
-        :value="activeCount"
+        :value="listError ? '--' : activeCount"
         icon="check"
         tone="var(--ok-soft)"
         tone-color="var(--ok)"
       />
       <StatCard
         label="已停用"
-        :value="inactiveCount"
+        :value="listError ? '--' : inactiveCount"
         icon="clock"
         tone="var(--info-soft)"
         tone-color="var(--info)"
@@ -141,16 +151,14 @@
             </el-table-column>
           </el-table>
           <div v-if="!loading && filteredList.length === 0" class="empty-wrap">
-            <el-empty description="暂无课程数据，调整筛选条件试试">
-              <template #image><div class="empty-deco">📖</div></template>
-            </el-empty>
+            <EmptyState :title="emptyDescription()" icon="book" />
           </div>
         </div>
       </div>
     </section>
 
     <!-- 课程详情对话框 -->
-    <el-dialog v-model="detailDialogVisible" title="课程详情" width="700px" append-to-body>
+    <el-dialog ref="dialogRef" v-model="detailDialogVisible" title="课程详情" width="700px" append-to-body>
       <el-descriptions v-if="currentCourse" :column="2" border>
         <el-descriptions-item label="课程ID">{{ currentCourse.id }}</el-descriptions-item>
         <el-descriptions-item label="课程名称">{{ currentCourse.name }}</el-descriptions-item>
@@ -197,21 +205,40 @@
 </template>
 
 <script setup lang="ts">
-import logger from '@/utils/logger'
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { Search } from '@element-plus/icons-vue'
 import courseApi from '@/api/course'
+import { confirmDanger } from '@/utils/dangerConfirm'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
+import { useListFeedback } from '@/composables/useListFeedback'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 
 const courseList = ref([])
 const search = ref('')
 const statusFilter = ref('')
 const activeFilter = ref('')
-const loading = ref(false)
 const detailDialogVisible = ref(false)
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, detailDialogVisible)
 const currentCourse = ref(null)
+
+// D2-1：失败反馈统一原语——失败时持久 alert + 双态空文案 + 读数显 '--'，
+// 避免「接口失败」被渲染成「暂无课程」与 0 值统计（以 FileUploadManage 为样板）。
+const {
+  loading,
+  listError,
+  run: runLoad,
+  emptyDescription,
+} = useListFeedback({
+  failMessage: '课程列表加载失败，请稍后刷新；已保留上次显示的数据。',
+  toastMessage: '课程列表加载失败',
+  emptyText: '暂无课程数据，调整筛选条件试试',
+  errorEmptyText: '课程数据未能加载，请查看上方提示后重试',
+})
 
 const normalizeStatus = (status) =>
   String(status || '')
@@ -258,18 +285,13 @@ function getEnrollmentTypeText(type) {
   return map[type] || type || '开放报名'
 }
 
-onMounted(async () => {
-  loading.value = true
-  try {
-    const res = await courseApi.getCourseList()
-    const rawData = res.data?.records || res.data?.list || res.data || res
-    courseList.value = Array.isArray(rawData) ? rawData : []
-  } catch (e) {
-    logger.error('Failed to load courses:', e)
-    ElMessage.error('加载课程列表失败')
-  } finally {
-    loading.value = false
-  }
+onMounted(() => {
+  runLoad(async () => {
+    const list = await courseApi.getAllCourses()
+    // 响应格式校验：非数组同样进入失败态，避免把异常响应渲染成空列表
+    if (!Array.isArray(list)) throw new Error('课程列表响应格式无效')
+    courseList.value = list
+  })
 })
 
 function viewDetail(row) {
@@ -302,24 +324,41 @@ async function handleReject(row) {
 
 async function handleToggleStatus(row) {
   const action = isActive(row) ? '停用' : '启用'
+  const ok = await confirmDanger({
+    verb: action,
+    target: '课程',
+    subject: row.name,
+    impact:
+      action === '停用'
+        ? '停用后学生将无法在课程列表中看到并进入该课程，进行中的教学活动也会随之下线'
+        : '启用后该课程将重新对学生可见，学生可继续进入学习',
+    irreversible: false,
+    note: '可随时再次切换状态',
+  })
+  if (!ok) return
   try {
-    await ElMessageBox.confirm(`确定${action}该课程？`, '提示')
     await courseApi.toggleCourseStatus(row.id)
     row.status = isActive(row) ? 'INACTIVE' : 'ACTIVE'
     ElMessage.success(`${action}成功`)
-  } catch (e) {
-    if (e !== 'cancel') ElMessage.error('操作失败')
+  } catch {
+    ElMessage.error('操作失败')
   }
 }
 
 async function handleDelete(row) {
+  const ok = await confirmDanger({
+    verb: '删除',
+    target: '课程',
+    subject: row.name,
+    impact: '将一并移除该课程的章节、任务点、选课记录与学生作答数据',
+  })
+  if (!ok) return
   try {
-    await ElMessageBox.confirm('确定删除该课程？此操作不可恢复', '提示', { type: 'warning' })
     await courseApi.deleteCourse(row.id)
     courseList.value = courseList.value.filter((c) => c.id !== row.id)
     ElMessage.success('已删除')
-  } catch (e) {
-    if (e !== 'cancel') ElMessage.error('删除失败')
+  } catch {
+    ElMessage.error('删除失败')
   }
 }
 </script>
@@ -381,9 +420,5 @@ async function handleDelete(row) {
 }
 .empty-wrap {
   padding: 30px 0;
-}
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 </style>

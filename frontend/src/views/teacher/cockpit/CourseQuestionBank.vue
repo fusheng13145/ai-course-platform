@@ -14,21 +14,21 @@
     <div class="stat-grid">
       <StatCard
         label="题目总数"
-        :value="total"
+        :value="loadError ? '--' : total"
         icon="layers"
         tone="var(--accent-soft)"
         tone-color="var(--accent)"
       />
       <StatCard
         label="待审核"
-        :value="countPending"
+        :value="loadError ? '--' : countPending"
         icon="warn"
         tone="var(--warn-soft)"
         tone-color="var(--warn)"
       />
       <StatCard
         label="已审核"
-        :value="countReviewed"
+        :value="loadError ? '--' : countReviewed"
         icon="checks"
         tone="var(--ok-soft)"
         tone-color="var(--ok)"
@@ -41,6 +41,15 @@
         tone-color="var(--info)"
       />
     </div>
+
+    <!-- 加载失败持久提示（不自动消失） -->
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      class="load-error-alert"
+    />
 
     <section class="l1-card">
       <div class="l1-head">
@@ -75,6 +84,11 @@
           :total="total"
           :page="page"
           :size="size"
+          :empty-text="
+            loadError
+              ? '题库列表未能加载，请查看上方提示后重试'
+              : '该课程暂无题目，点击右上角「新建题目」或「AI 生成」'
+          "
           @update:type="filters.type = $event"
           @update:difficulty="filters.difficulty = $event"
           @update:keyword="filters.keyword = $event"
@@ -131,6 +145,7 @@ const courseIdRef = toRef(route.params, 'id')
 
 const {
   loading,
+  loadError,
   list,
   total,
   page,
@@ -147,6 +162,8 @@ const {
   kpText,
   onFilter,
   resetFilter,
+  // 模板 :100 的 @closed 需要它；缺这一行时 composable 即使导出也接不上（fix-1a 缺陷 4）
+  resetForm,
   openCreate,
   openEdit,
   save,
@@ -162,5 +179,8 @@ const {
 <style scoped>
 .course-question-bank {
   padding: 4px;
+}
+.load-error-alert {
+  margin-bottom: var(--ac-spacing-md);
 }
 </style>

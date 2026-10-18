@@ -1,5 +1,7 @@
-import { describe, it, expect } from 'vitest'
+import { describe, it, expect, vi } from 'vitest'
 import {
+  decodeHtml,
+  fetchAllPages,
   firstNonEmptyArray,
   hasNonEmptyArray,
   isPageEnvelope,
@@ -135,6 +137,37 @@ describe('readTotal - 后端总数优先', () => {
   })
 })
 
+describe('fetchAllPages - 完整读取分页结果', () => {
+  it('按后端 total 逐页加载并兼容 records / list 形状', async () => {
+    const requestPage = async (page: number, size: number) => {
+      expect(size).toBe(2)
+      return page === 1
+        ? { code: 200, data: { records: [{ id: 1 }, { id: 2 }], total: 3 } }
+        : { code: 200, data: { list: [{ id: 3 }], total: 3 } }
+    }
+
+    await expect(fetchAllPages(requestPage, 2)).resolves.toEqual([{ id: 1 }, { id: 2 }, { id: 3 }])
+  })
+
+  it('后续页失败时抛出错误，不把第一页伪装成完整结果', async () => {
+    const requestPage = vi
+      .fn()
+      .mockResolvedValueOnce({ code: 200, data: { list: [{ id: 1 }], total: 101 } })
+      .mockRejectedValueOnce(new Error('page unavailable'))
+
+    await expect(fetchAllPages(requestPage)).rejects.toThrow('page unavailable')
+    expect(requestPage).toHaveBeenCalledTimes(2)
+  })
+
+  it('无分页总数字段时只返回本页，并拒绝非法 pageSize', async () => {
+    const requestPage = vi.fn().mockResolvedValue({ code: 200, data: [{ id: 1 }] })
+
+    await expect(fetchAllPages(requestPage)).resolves.toEqual([{ id: 1 }])
+    expect(requestPage).toHaveBeenCalledOnce()
+    await expect(fetchAllPages(requestPage, 0)).rejects.toThrow(RangeError)
+  })
+})
+
 describe('isPageEnvelope - 区分空分页信封与单个实体', () => {
   it('含 list/records/items/total 的对象判为分页信封', () => {
     expect(isPageEnvelope({ list: [], records: [] })).toBe(true)
@@ -146,5 +179,31 @@ describe('isPageEnvelope - 区分空分页信封与单个实体', () => {
     expect(isPageEnvelope(null)).toBe(false)
     expect(isPageEnvelope('x')).toBe(false)
     expect(isPageEnvelope({ id: 1, name: '知识点' })).toBe(false)
+  })
+})
+
+describe('decodeHtml - 还原 AIController 的展示层转义', () => {
+  it('还原后端 answer/sources 实际下发的实体', () => {
+    expect(decodeHtml('SYN=1, seq=x &amp; ACK=1')).toBe('SYN=1, seq=x & ACK=1')
+    expect(decodeHtml('&lt;TIME_WAIT&gt;')).toBe('<TIME_WAIT>')
+    expect(decodeHtml('r&quot;seq&quot;')).toBe('r"seq"')
+    expect(decodeHtml('it&#39;s')).toBe("it's")
+    expect(decodeHtml('it&apos;s')).toBe("it's")
+  })
+
+  it('&amp; 最后还原：二次转义不会被打平成可解析标签', () => {
+    // 后端只转义一次；若把 &amp; 先还原，&amp;lt; 会变成 &lt; 再变成 <，等于多解一层
+    expect(decodeHtml('&amp;lt;p&amp;gt;')).toBe('&lt;p&gt;')
+  })
+
+  it('非字符串（缺字段 / null / 数字）一律归空串，不把 undefined 播进气泡', () => {
+    expect(decodeHtml(undefined)).toBe('')
+    expect(decodeHtml(null)).toBe('')
+    expect(decodeHtml(42)).toBe('')
+    expect(decodeHtml({})).toBe('')
+  })
+
+  it('普通中文文本原样返回', () => {
+    expect(decodeHtml('三次握手用于同步初始序号')).toBe('三次握手用于同步初始序号')
   })
 })

@@ -1,5 +1,6 @@
 <template>
   <el-dialog
+    ref="dialogRef"
     :model-value="modelValue"
     title="总评预览"
     width="420px"
@@ -39,7 +40,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 import { unwrap } from '@/utils/response'
 import logger from '@/utils/logger'
 import gradeApi from '@/api/grade'
@@ -49,6 +51,13 @@ const props = defineProps({
   policyId: { type: [Number, String], default: null },
   student: { type: Object, default: () => ({}) },
 })
+
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(
+  dialogRef,
+  computed(() => props.modelValue),
+)
 const emit = defineEmits(['update:modelValue'])
 
 const data = ref(null)

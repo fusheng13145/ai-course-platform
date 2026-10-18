@@ -80,7 +80,8 @@ public class ExamSessionController {
 
     /**
      * 自动保存作答答案
-     */    @PostMapping("/{id}/auto-save")
+     */
+    @PostMapping("/{id}/auto-save")
     @Operation(summary = "自动保存答案", description = "在考试过程中定时或手动自动保存作答进度，防止意外丢失")
     public ApiResponse<Void> autoSave(
             @Parameter(description = "考试会话ID") @PathVariable Long id,

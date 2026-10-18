@@ -1,10 +1,11 @@
 import { ref, reactive, computed } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import logger from '@/utils/logger'
 import knowledgeApi from '@/api/knowledge'
 import courseApi from '@/api/course'
 import knowledgeRelationApi from '@/api/knowledgePointRelation'
 import { getChartTheme, getMonoStatus } from '@/utils/chartTheme'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /** 难度 → 标签类型/文案映射 */
 const DIFFICULTY_TAG = { EASY: 'success', MEDIUM: 'warning', HARD: 'danger' }
@@ -20,6 +21,14 @@ export function useKnowledgeManagement() {
   const selectedCourseId = ref(null)
   const courseList = ref([])
   const searchText = ref('')
+  /**
+   * 知识树 / 知识点列表两路加载各自独立记录失败，避免 Promise.all 并发时被成功方复位而互相串味；
+   * 对外以 loadError 聚合暴露，页面据此渲染持久提示（失败可见）。
+   * 原实现失败后静默置空 → 树显示「请先选择课程加载知识点」、表格显示「暂无知识点数据」，均属误导。
+   */
+  const treeError = ref('')
+  const listError = ref('')
+  const loadError = computed(() => treeError.value || listError.value)
 
   const treeLoading = ref(false)
   const knowledgeTree = ref([])
@@ -82,9 +91,7 @@ export function useKnowledgeManagement() {
   /** 加载课程选项；默认选中第一门并加载数据 */
   async function loadCourseOptions() {
     try {
-      const res = await courseApi.getMyCourses()
-      const data = res.data?.list || res.data || res || []
-      courseList.value = Array.isArray(data) ? data : []
+      courseList.value = await courseApi.getAllMyCourses()
       if (courseList.value.length > 0 && !selectedCourseId.value) {
         selectedCourseId.value = courseList.value[0].id
         await loadAllData()
@@ -103,11 +110,12 @@ export function useKnowledgeManagement() {
   /** 加载知识树（getTree 优先，失败回退列表构建） */
   async function loadKnowledgeTree() {
     treeLoading.value = true
+    treeError.value = ''
     try {
       const res = await knowledgeApi.getTree(selectedCourseId.value)
       const data = res.data?.data || res.data || res || []
       knowledgeTree.value = Array.isArray(data) ? data : data ? [data] : []
-    } catch (e) {
+    } catch {
       try {
         const res = await knowledgeApi.getKnowledgePoints(selectedCourseId.value)
         const list = res.data?.list || res.data || res || []
@@ -115,6 +123,7 @@ export function useKnowledgeManagement() {
       } catch (e2) {
         logger.error('加载知识树失败:', e2)
         knowledgeTree.value = []
+        treeError.value = '知识树加载失败，请检查网络后重试'
       }
     } finally {
       treeLoading.value = false
@@ -123,6 +132,7 @@ export function useKnowledgeManagement() {
 
   async function loadKnowledgeList() {
     tableLoading.value = true
+    listError.value = ''
     try {
       const res = await knowledgeApi.getKnowledgePoints(selectedCourseId.value)
       const data = res.data?.list || res.data || res || []
@@ -133,6 +143,7 @@ export function useKnowledgeManagement() {
     } catch (e) {
       logger.error('加载知识点列表失败:', e)
       knowledgeList.value = []
+      listError.value = '知识点列表加载失败，请检查网络后重试'
     } finally {
       tableLoading.value = false
     }
@@ -245,9 +256,14 @@ export function useKnowledgeManagement() {
   /** 删除知识点（连带子节点，二次确认） */
   async function handleDelete(row) {
     try {
-      await ElMessageBox.confirm(`确定删除知识点「${row.name}」？其子节点也将被删除`, '删除确认', {
-        type: 'warning',
+      // D2-2：明确连带影响（子节点一并删除）与恢复路径
+      const ok = await confirmDanger({
+        verb: '删除',
+        target: '知识点',
+        subject: row.name,
+        impact: '其子节点也将被一并删除',
       })
+      if (!ok) return
       await knowledgeApi.deleteKnowledgePoint(row.id)
       ElMessage.success('删除成功')
       await loadAllData()
@@ -265,7 +281,7 @@ export function useKnowledgeManagement() {
       const res = await knowledgeApi.getPrerequisites(row.id)
       const data = res.data?.data || res.data || res || []
       prerequisitesList.value = Array.isArray(data) ? data : []
-    } catch (e) {
+    } catch {
       prerequisitesList.value = []
     }
   }
@@ -292,7 +308,7 @@ export function useKnowledgeManagement() {
       ElMessage.success('移除关联成功')
       await openRelationDialog(currentKpForRelation.value)
       await loadKnowledgeGraph()
-    } catch (e) {
+    } catch {
       ElMessage.error('移除失败')
     }
   }
@@ -445,6 +461,9 @@ export function useKnowledgeManagement() {
     selectedCourseId,
     courseList,
     searchText,
+    loadError,
+    treeError,
+    listError,
     treeLoading,
     knowledgeTree,
     treeRef,

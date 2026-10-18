@@ -73,13 +73,14 @@
             <el-icon class="arrow"><ArrowRight /></el-icon>
           </div>
         </div>
-        <el-empty v-else description="暂无讨论话题" />
+        <EmptyState v-else :title="emptyText" icon="message" />
       </div>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import EmptyState from '@/components/ui/EmptyState.vue'
 import {
   Search,
   User,
@@ -89,13 +90,29 @@ import {
   ArrowRight,
 } from '@element-plus/icons-vue'
 
-defineProps({
-  loading: { type: Boolean, default: false },
-  topics: { type: Array, default: () => [] },
-  keyword: { type: String, default: '' },
-  chapterId: { type: String, default: '' },
-})
-const emit = defineEmits(['update:keyword', 'update:chapterId', 'search', 'open-detail'])
+withDefaults(
+  defineProps<{
+    loading?: boolean
+    topics?: DiscussionTopic[]
+    keyword?: string
+    chapterId?: string
+    /** 空态文案（失败时由页面传入「未能加载」文案，默认保留原语义） */
+    emptyText?: string
+  }>(),
+  {
+    loading: false,
+    topics: () => [],
+    keyword: '',
+    chapterId: '',
+    emptyText: '暂无讨论话题',
+  },
+)
+const emit = defineEmits<{
+  'update:keyword': [value: string]
+  'update:chapterId': [value: string]
+  search: []
+  'open-detail': [topic: DiscussionTopic]
+}>()
 </script>
 
 <style scoped>

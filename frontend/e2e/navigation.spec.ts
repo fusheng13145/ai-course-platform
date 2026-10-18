@@ -1,9 +1,9 @@
 import { test, expect } from '@playwright/test'
-import { setLocalStorageAuth } from './test-helpers'
+import { loginAs } from './test-helpers'
 
 test.describe('导航流程（学生端）', () => {
   test.beforeEach(async ({ page }) => {
-    await setLocalStorageAuth(page, 'STUDENT')
+    await loginAs(page, 'STUDENT')
   })
 
   test('仪表盘导航', async ({ page }) => {
@@ -154,7 +154,7 @@ test.describe('未登录访问控制', () => {
 
 test.describe('导航流程（教师端）', () => {
   test.beforeEach(async ({ page }) => {
-    await setLocalStorageAuth(page, 'TEACHER')
+    await loginAs(page, 'TEACHER')
 
     // 默认 mock
     await page.route('/api/**', async (route) => {
@@ -197,7 +197,7 @@ test.describe('导航流程（教师端）', () => {
 
 test.describe('导航流程（管理员端）', () => {
   test.beforeEach(async ({ page }) => {
-    await setLocalStorageAuth(page, 'ADMIN')
+    await loginAs(page, 'ADMIN')
 
     await page.route('/api/**', async (route) => {
       await route.fulfill({

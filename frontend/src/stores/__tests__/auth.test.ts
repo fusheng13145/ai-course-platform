@@ -358,5 +358,47 @@ describe('AuthStore', () => {
       expect(store.permissions).toBeNull()
       expect(store.permissionsLoaded).toBe(false)
     })
+
+    // DR-45：fetchPermissions 必须把「服务端的会话结论」回传给调用方（路由守卫），
+    // 否则守卫会一边等待这次请求、一边无视它的结果照常 next() 放行受保护页 ——
+    // 表现即「登录态已过期，页面仍显示已登录且点不动，再点一次才跳登录页」。
+    describe('fetchPermissions 的会话结论（DR-45）', () => {
+      /** 预置一份「本地缓存里有登录态」的状态，模拟刷新页面时 localStorage 仍留着 user */
+      function seedCachedSession() {
+        const store = useAuthStore()
+        store.user = { id: 1001, username: 'ts01', role: 'TEACHER', fullName: '孙立群' }
+        store.permissions = { menus: ['teacher/dashboard'], buttons: {} }
+        return store
+      }
+
+      it('服务端回 401 → 结论为 expired，并清空本地登录态', async () => {
+        mockGetPermissions.mockRejectedValue({ response: { status: 401 }, message: 'Unauthorized' })
+        const store = seedCachedSession()
+
+        await expect(store.fetchPermissions()).resolves.toBe('expired')
+        expect(store.isLoggedIn).toBe(false)
+        expect(store.user).toBeNull()
+      })
+
+      it('非 401 的失败（网络异常/5xx）→ 结论为 unavailable，且不得清空登录态', async () => {
+        // 后端重启、超时这类瞬时故障不应把用户踢出登录；真正拦住他的是后端本身。
+        mockGetPermissions.mockRejectedValue(new Error('Network Error'))
+        const store = seedCachedSession()
+
+        await expect(store.fetchPermissions()).resolves.toBe('unavailable')
+        expect(store.isLoggedIn).toBe(true)
+        expect(store.user).not.toBeNull()
+      })
+
+      it('成功 → 结论为 ok', async () => {
+        mockGetPermissions.mockResolvedValue({
+          data: { menus: ['teacher/dashboard'], buttons: {} },
+        })
+        const store = seedCachedSession()
+
+        await expect(store.fetchPermissions()).resolves.toBe('ok')
+        expect(store.permissionsLoaded).toBe(true)
+      })
+    })
   })
 })

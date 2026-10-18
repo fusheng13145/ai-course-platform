@@ -1,5 +1,6 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
+import logger from '@/utils/logger'
 import wrongQuestionApi from '@/api/wrongQuestion'
 
 /**
@@ -10,6 +11,12 @@ export function useWrongQuestions() {
   const loading = ref(false)
   const stats = ref({ total: 0, mastered: 0 })
   const questions = ref([])
+  /**
+   * 加载失败提示文案：非空即表示错题列表数据不可信。
+   * 接口层已弹瞬时 toast，但 toast 消失后列表只剩"暂无错题记录，继续保持！"——
+   * 学生因此会误判"我没有错题"，故必须补一条持久提示（失败可见）。
+   */
+  const loadError = ref('')
   const expandedId = ref(null)
   const selectedKpId = ref(null)
 
@@ -40,6 +47,7 @@ export function useWrongQuestions() {
   /* ---- 加载数据 ---- */
   async function loadData() {
     loading.value = true
+    loadError.value = ''
     try {
       const [statsRes, listRes, kpRes] = await Promise.allSettled([
         wrongQuestionApi.getWrongQuestionStats(),
@@ -69,6 +77,11 @@ export function useWrongQuestions() {
               analysis: q.analysis || q.explanation,
             }))
           : []
+      } else {
+        // 关键：本函数用 Promise.allSettled —— 请求失败**不会**抛到 catch，
+        // 只能按 status 判定。漏了这一支就会让"列表请求失败"静默表现为"没有错题"。
+        questions.value = []
+        loadError.value = '错题列表加载失败，请检查网络后重试'
       }
 
       // 知识点分组数据（增强源）
@@ -90,7 +103,9 @@ export function useWrongQuestions() {
         }
       }
     } catch (e) {
-      console.error('加载错题失败:', e)
+      logger.error('加载错题失败', e)
+      questions.value = []
+      loadError.value = '错题列表加载失败，请检查网络后重试'
     } finally {
       loading.value = false
     }
@@ -109,7 +124,7 @@ export function useWrongQuestions() {
       q.mastered = true
       stats.value.mastered++
       ElMessage.success('已标记为掌握')
-    } catch (e) {
+    } catch {
       ElMessage.error('操作失败')
     }
   }
@@ -121,7 +136,7 @@ export function useWrongQuestions() {
       q.mastered = false
       stats.value.mastered = Math.max(0, stats.value.mastered - 1)
       ElMessage.info('已取消掌握标记')
-    } catch (e) {
+    } catch {
       ElMessage.error('操作失败')
     }
   }
@@ -210,6 +225,7 @@ export function useWrongQuestions() {
 
   return {
     loading,
+    loadError,
     stats,
     questions,
     expandedId,

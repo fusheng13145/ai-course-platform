@@ -3,7 +3,7 @@
     <div class="stat-card">
       <div class="stat-icon stat-icon--blue"><User :size="20" /></div>
       <div class="stat-info">
-        <span class="stat-val">{{ overview.activeStudents ?? '-' }}</span>
+        <span class="stat-val">{{ loadFailed ? '--' : (overview.activeStudents ?? '-') }}</span>
         <span class="stat-lbl">活跃学生</span>
       </div>
     </div>
@@ -21,7 +21,7 @@
         </svg>
       </div>
       <div class="stat-info">
-        <span class="stat-val">{{ overview.avgOnlineHours ?? '-' }}h</span>
+        <span class="stat-val">{{ loadFailed ? '--' : (overview.avgOnlineHours ?? '-') + 'h' }}</span>
         <span class="stat-lbl">人均在线时长</span>
       </div>
     </div>
@@ -38,7 +38,7 @@
         </svg>
       </div>
       <div class="stat-info">
-        <span class="stat-val">{{ overview.avgEngagement ?? '-' }}%</span>
+        <span class="stat-val">{{ loadFailed ? '--' : (overview.avgEngagement ?? '-') + '%' }}</span>
         <span class="stat-lbl">平均参与度</span>
       </div>
     </div>
@@ -56,7 +56,7 @@
         </svg>
       </div>
       <div class="stat-info">
-        <span class="stat-val">{{ overview.avgCompletion ?? '-' }}%</span>
+        <span class="stat-val">{{ loadFailed ? '--' : (overview.avgCompletion ?? '-') + '%' }}</span>
         <span class="stat-lbl">平均学习完成率</span>
       </div>
     </div>
@@ -68,6 +68,7 @@ import { User } from '@element-plus/icons-vue'
 
 defineProps({
   overview: { type: Object, default: () => ({}) },
+  loadFailed: { type: Boolean, default: false },
 })
 </script>
 

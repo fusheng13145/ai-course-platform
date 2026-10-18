@@ -1,5 +1,6 @@
 package com.aicourse.config;
 
+import com.aicourse.util.TrustedClientIpResolver;
 import jakarta.servlet.FilterChain;
 import org.junit.jupiter.api.BeforeEach;
 import org.springframework.beans.factory.ObjectProvider;
@@ -30,6 +31,7 @@ import org.mockito.ArgumentCaptor;
 class RateLimitFilterTest {
 
     private StringRedisTemplate redisTemplate;
+    private TrustedClientIpResolver clientIpResolver;
     private RateLimitFilter filter;
     private MockHttpServletRequest request;
     private MockHttpServletResponse response;
@@ -41,7 +43,9 @@ class RateLimitFilterTest {
         redisTemplate = mock(StringRedisTemplate.class);
         ObjectProvider<StringRedisTemplate> provider = mock(ObjectProvider.class);
         when(provider.getIfAvailable()).thenReturn(redisTemplate);
-        filter = new RateLimitFilter(provider);
+        // DR-66：限流键的 IP 来源不再由本过滤器自定，而是与节流共用同一个解析器（默认 false=直连姿态）。
+        clientIpResolver = new TrustedClientIpResolver();
+        filter = new RateLimitFilter(provider, clientIpResolver);
         // 单元测试无 Spring 上下文，@Value 字段需显式注入默认值
         ReflectionTestUtils.setField(filter, "enabled", true);
         ReflectionTestUtils.setField(filter, "redisEnabled", true);
@@ -208,9 +212,15 @@ class RateLimitFilterTest {
         assertFalse(key.contains("1.2.3.4"));
     }
 
+    /**
+     * DR-66 的反向证明：**追加语义**代理形态下（代理把客户端自带 XFF 拼在最左端），
+     * 客户端可控的 XFF 最左段<b>不得</b>成为限流键——否则逐请求换头即可绕过限流。
+     * 旧实现自带 {@code ratelimit.trust-proxy-header} 时正是取最左段，本用例把它钉成回归锁：
+     * 现在没有 {@code X-Real-IP}（反代未设置或被剥掉）时一律回退 TCP 对端地址。
+     */
     @Test
-    void trustProxyHeader_enabled_keyUsesXffFirstSegment() throws Exception {
-        ReflectionTestUtils.setField(filter, "trustProxyHeader", true);
+    void appendSemanticsProxy_forgedXffLeftmost_notUsedAsKey() throws Exception {
+        ReflectionTestUtils.setField(clientIpResolver, "trustProxyHeader", true);
         request.setRequestURI("/api/auth/login");
         request.setRemoteAddr("192.168.1.9");
         request.addHeader("X-Forwarded-For", "1.2.3.4, 10.0.0.1");
@@ -222,6 +232,81 @@ class RateLimitFilterTest {
         ArgumentCaptor<List<String>> keysCaptor = ArgumentCaptor.forClass(List.class);
         verify(redisTemplate).execute(any(RedisScript.class), keysCaptor.capture(), any());
         String key = keysCaptor.getValue().get(0);
-        assertTrue(key.startsWith("ratelimit:login:1.2.3.4:"));
+        assertTrue(key.startsWith("ratelimit:login:192.168.1.9:"), "实得=" + key);
+        assertFalse(key.contains("1.2.3.4"), "客户端可控的 XFF 最左段不得进入限流键");
+    }
+
+    /**
+     * DR-66：置于受信反代之后时，限流键必须与 {@code TrustedClientIpResolver} 给出的**同一个** IP。
+     *
+     * <p>本仓 {@code application.yaml} 已把 {@code server.forward-headers-strategy} 收为
+     * {@code none}（P0-2 安全收窄），故 {@code getRemoteAddr()} 在 Docker 编排下就是
+     * <b>nginx 容器自己的地址</b>，而不是任何客户端地址。此时若过滤器仍按自己的口径取值
+     * （只认 XFF、不认 nginx 以 {@code $remote_addr} 覆写的 {@code X-Real-IP}），
+     * 全站所有用户会落进**同一个桶**——登录 10 次/60 秒成为全部署总额度，
+     * 而登录失败节流走的是 resolver（按客户端分桶）。两个 IP 维度安全决策由此分叉，
+     * 且分叉方向是「可用性先崩」。</p>
+     */
+    @Test
+    void behindTrustedProxy_keyUsesSameIpAsThrottleResolver() throws Exception {
+        ReflectionTestUtils.setField(clientIpResolver, "trustProxyHeader", true);
+        request.setRequestURI("/api/auth/login");
+        request.setRemoteAddr("172.18.0.3");
+        request.addHeader("X-Real-IP", "203.0.113.9");
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), any()))
+                .thenReturn(1L);
+
+        filter.doFilterInternal(request, response, chain);
+
+        ArgumentCaptor<List<String>> keysCaptor = ArgumentCaptor.forClass(List.class);
+        verify(redisTemplate).execute(any(RedisScript.class), keysCaptor.capture(), any());
+        String key = keysCaptor.getValue().get(0);
+        assertTrue(key.startsWith("ratelimit:login:203.0.113.9:"),
+                "受信反代姿态下限流键应取反代覆写的 X-Real-IP，实得=" + key);
+        assertFalse(key.contains("172.18.0.3"), "不得把反代自身地址当客户端地址");
+    }
+
+    /**
+     * Lua 脚本引用的 ARGV / KEYS 下标必须落在调用方真实传入的个数之内。
+     * <p>越界的 {@code ARGV[n]} 在 Lua 里取到 {@code false}，{@code EXPIRE key false} 会让
+     * 整段脚本执行失败；而 INCR 先已写入，于是窗口键既没有限流语义也没有 TTL，
+     * 在 Redis 中永久堆积，同时集群级限流静默退化为单机内存限流。
+     * 既有用例把 {@code StringRedisTemplate} 整体打桩，脚本正文从未被执行，
+     * 所以这一类下标错位只能靠断言脚本与实参的契约来守住。</p>
+     */
+    @Test
+    @SuppressWarnings("unchecked")
+    void luaScriptParameterIndexes_stayWithinArgsAndKeysPassed() throws Exception {
+        request.setRequestURI("/api/ai/qa/ask");
+        request.setRemoteAddr("192.168.1.20");
+        when(redisTemplate.execute(any(RedisScript.class), anyList(), any()))
+                .thenReturn(1L);
+
+        filter.doFilterInternal(request, response, chain);
+
+        ArgumentCaptor<RedisScript<Long>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
+        ArgumentCaptor<List<String>> keysCaptor = ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<Object> argsCaptor = ArgumentCaptor.forClass(Object.class);
+        verify(redisTemplate).execute(scriptCaptor.capture(), keysCaptor.capture(), argsCaptor.capture());
+
+        String lua = scriptCaptor.getValue().getScriptAsString();
+        assertTrue(highestLuaTableIndex(lua, "ARGV") <= argsCaptor.getAllValues().size(),
+                "ARGV 下标越界：脚本引用到 ARGV[" + highestLuaTableIndex(lua, "ARGV")
+                        + "]，但调用方只传了 " + argsCaptor.getAllValues().size() + " 个实参");
+        assertTrue(highestLuaTableIndex(lua, "KEYS") <= keysCaptor.getValue().size(),
+                "KEYS 下标越界：脚本引用到 KEYS[" + highestLuaTableIndex(lua, "KEYS")
+                        + "]，但调用方只传了 " + keysCaptor.getValue().size() + " 个键");
+        // TTL 实参 = 窗口长度 + 1 秒边界缓冲（ai 窗口默认 60）
+        assertEquals("61", String.valueOf(argsCaptor.getAllValues().get(0)));
+    }
+
+    private static int highestLuaTableIndex(String lua, String table) {
+        java.util.regex.Matcher m = java.util.regex.Pattern
+                .compile(table + "\\[(\\d+)]").matcher(lua);
+        int max = 0;
+        while (m.find()) {
+            max = Math.max(max, Integer.parseInt(m.group(1)));
+        }
+        return max;
     }
 }

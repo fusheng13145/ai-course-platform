@@ -7,6 +7,7 @@
       :current-index="currentIndex"
       :remaining-minutes="remainingMinutes"
       :countdown-display="countdownDisplay"
+      :submitting="submitting"
       :is-question-answered="isQuestionAnswered"
       @exit="emit('exit')"
       @submit="emit('submit')"
@@ -27,6 +28,7 @@
         :get-question-type-tag="getQuestionTypeTag"
         :parse-options="parseOptions"
         :is-question-answered="isQuestionAnswered"
+        :submitting="submitting"
         @prev="emit('prev')"
         @next="emit('next')"
         @submit="emit('submit')"
@@ -49,6 +51,7 @@ defineProps({
   paper: { type: Object, default: null },
   questions: { type: Array, default: () => [] },
   questionsLoading: { type: Boolean, default: false },
+  submitting: { type: Boolean, default: false },
   currentIndex: { type: Number, default: 0 },
   currentQuestion: { type: Object, default: null },
   answers: { type: Object, default: () => ({}) },

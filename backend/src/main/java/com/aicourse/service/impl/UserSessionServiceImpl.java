@@ -207,20 +207,29 @@ public class UserSessionServiceImpl extends ServiceImpl<UserSessionMapper, UserS
 
     /**
      * 使会话缓存失效（按 token 强制下线）：删除 Redis 缓存并置库为无效
+     *
+     * <p>修复（DR-44）：这里原本用 {@code getOne(eq(sessionToken, token))} 取单行再 updateById，
+     * 隐含「令牌在库里最多一行」的假设。实际上 {@code user_sessions.session_token} 只有普通索引、
+     * 没有唯一约束，而访问 JWT 的全部声明（sub/username/role/iss/aud/iat/exp）在同一秒内的两次登录
+     * 中完全一致，{@code iat}/{@code exp} 又按秒序列化，于是同令牌多行是可达状态。此时 MyBatis 的
+     * {@code selectOne} 抛 {@code TooManyResultsException} → 兜底 500，且因外层 {@code @Transactional}
+     * 连带动作回滚：登出/改密既报错，会话也没被真正吊销（实测 /api/auth/logout 返回 500 后
+     * /auth/me、/auth/permissions 仍全部放行）。改为按令牌批量 UPDATE：一次覆盖所有重复行，
+     * 幂等、无单行假设，也顺带让「同令牌多设备」一起下线（本就是同一份凭据）。</p>
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
     public void evictSessionCache(String token) {
+        if (token == null || token.isBlank()) {
+            return;
+        }
         if (redisTemplate != null) {
             redisTemplate.delete(SESSION_ACTIVE_KEY_PREFIX + token);
         }
-        LambdaQueryWrapper<UserSession> wrapper = new LambdaQueryWrapper<UserSession>()
-                .eq(UserSession::getSessionToken, token);
-        UserSession session = this.getOne(wrapper);
-        if (session != null) {
-            session.setIsActive(false);
-            this.updateById(session);
-        }
+        this.lambdaUpdate()
+                .eq(UserSession::getSessionToken, token)
+                .set(UserSession::getIsActive, false)
+                .update();
     }
 
     /**

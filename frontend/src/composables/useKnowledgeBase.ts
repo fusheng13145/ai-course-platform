@@ -1,9 +1,11 @@
 import logger from '@/utils/logger'
 import { ref, reactive, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { Cpu, Warning, CircleCheck } from '@element-plus/icons-vue'
 import ragApi from '@/api/rag'
 import courseApi from '@/api/course'
+import { useCourseKbBuild } from './useCourseKbBuild'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /**
  * 知识库管理领域逻辑
@@ -61,9 +63,7 @@ export function useKnowledgeBase() {
   /* 加载课程 */
   async function loadCourses() {
     try {
-      const res = await courseApi.getCourseList({ size: 500 })
-      const raw = res.data?.records || res.data?.list || res.data || res
-      courseList.value = Array.isArray(raw) ? raw : []
+      courseList.value = await courseApi.getAllCourses()
       if (courseList.value.length && !selectedCourseId.value) {
         selectedCourseId.value = courseList.value[0].id
         await loadDocs()
@@ -145,7 +145,7 @@ export function useKnowledgeBase() {
         ElMessage.success('文档已加入知识库')
         showDialog.value = false
         await loadDocs()
-      } catch (e) {
+      } catch {
         ElMessage.error('新增失败')
       } finally {
         saving.value = false
@@ -165,7 +165,7 @@ export function useKnowledgeBase() {
         ElMessage.success('文档已更新')
         showDialog.value = false
         await loadDocs()
-      } catch (e) {
+      } catch {
         ElMessage.error('更新失败')
       } finally {
         saving.value = false
@@ -173,10 +173,14 @@ export function useKnowledgeBase() {
     }
   }
   function removeDoc(row) {
-    ElMessageBox.confirm(`确定从知识库删除「${row.name || '未命名'}」？`, '删除确认', {
-      type: 'warning',
+    confirmDanger({
+      verb: '删除',
+      target: '知识库文档',
+      subject: row.name || '未命名',
+      impact: '将一并移除该文档的向量索引，需重新上传并重建索引后才能用于检索',
     })
-      .then(async () => {
+      .then(async (ok) => {
+        if (!ok) return
         try {
           const res = await ragApi.ragDeleteDocument(row.id)
           if (res && res.status === 'error') {
@@ -185,7 +189,7 @@ export function useKnowledgeBase() {
           }
           ElMessage.success('已删除')
           await loadDocs()
-        } catch (e) {
+        } catch {
           ElMessage.error('删除失败')
         }
       })
@@ -198,7 +202,7 @@ export function useKnowledgeBase() {
     try {
       const res = await ragApi.ragBuildIndex(selectedCourseId.value)
       ElMessage.success((res && res.note) || '索引已构建（知识库实时构建，无需离线处理）')
-    } catch (e) {
+    } catch {
       ElMessage.error('构建索引失败')
     } finally {
       indexing.value = false
@@ -209,10 +213,24 @@ export function useKnowledgeBase() {
     try {
       const res = await ragApi.ragClearIndex(selectedCourseId.value)
       ElMessage.success((res && res.note) || '索引已清理')
-    } catch (e) {
+    } catch {
       ElMessage.error('清理索引失败')
     } finally {
       indexing.value = false
+    }
+  }
+
+  /* 从课程资料一键构建知识库（共享逻辑：枚举课程简介/章节/资源 → 幂等写入 → 重建索引） */
+  const {
+    building: buildingFromCourse,
+    buildError: courseKbError,
+    buildResult: courseKbResult,
+    build: runCourseKbBuild,
+  } = useCourseKbBuild(selectedCourseId)
+  /** 真正写入后刷新文档列表，让「新增了多少篇」在列表上可直接核对 */
+  async function buildCourseKb() {
+    if (await runCourseKbBuild()) {
+      await loadDocs()
     }
   }
 
@@ -235,7 +253,7 @@ export function useKnowledgeBase() {
       askResult.value = res || {}
       if (res && res.model && res.model !== 'retrieval-only') llmReady.value = true
       else if (res) llmReady.value = false
-    } catch (e) {
+    } catch {
       ElMessage.error('提问失败')
     } finally {
       asking.value = false
@@ -259,7 +277,7 @@ export function useKnowledgeBase() {
         topK: retrieveForm.topK,
       })
       retrieveResult.value = res || {}
-    } catch (e) {
+    } catch {
       ElMessage.error('召回失败')
     } finally {
       retrieving.value = false
@@ -274,6 +292,9 @@ export function useKnowledgeBase() {
     asking,
     retrieving,
     saving,
+    buildingFromCourse,
+    courseKbError,
+    courseKbResult,
     courseList,
     selectedCourseId,
     docs,
@@ -301,6 +322,7 @@ export function useKnowledgeBase() {
     removeDoc,
     buildIndex,
     clearIndex,
+    buildCourseKb,
     doAsk,
     doRetrieve,
   }

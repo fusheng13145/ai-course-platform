@@ -1,10 +1,15 @@
 import logger from '@/utils/logger'
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import { unwrap } from '@/utils/response'
+import { ElMessage } from 'element-plus'
+import { firstNonEmptyArray, pickList, unwrap } from '@/utils/response'
 import { useAuthStore } from '@/stores/auth'
 import courseApi from '@/api/course'
-import discussionApi from '@/api/discussion'
+import discussionApi, {
+  normalizeDiscussionPost,
+  normalizeDiscussionTopic,
+  type DiscussionLikeResult,
+} from '@/api/discussion'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /**
  * 课程讨论领域逻辑
@@ -16,17 +21,19 @@ export function useDiscussion() {
 
   /* ---------- 课程选择器 ---------- */
   const courseLoading = ref(false)
-  const courseOptions = ref([])
-  const courseId = ref('')
+  const courseOptions = ref<Course[]>([])
+  const courseId = ref<number | string>('')
   const loading = ref(false)
+  /**
+   * 加载失败提示文案：非空即表示话题列表数据不可信。
+   * 失败后 topics 被置空 → 页面显示「暂无话题」，学生会误判该课程无讨论（失败可见）。
+   */
+  const loadError = ref('')
 
   async function loadCourses() {
     courseLoading.value = true
     try {
-      const r = await courseApi.getCourseList()
-      const body = unwrap(r)
-      const list = body?.records || body?.list || body || []
-      courseOptions.value = Array.isArray(list) ? list : []
+      courseOptions.value = (await courseApi.getAllCourses()) as Course[]
       if (courseOptions.value.length && !courseId.value) courseId.value = courseOptions.value[0].id
     } catch (e) {
       logger.error('加载课程列表失败', e)
@@ -37,14 +44,15 @@ export function useDiscussion() {
 
   function onCourseChange() {
     topics.value = []
+    loadError.value = ''
     if (courseId.value) loadTopics()
   }
 
   /* ---------- 话题列表（含精华筛选） ---------- */
   const topicLoading = ref(false)
-  const topics = ref([])
+  const topics = ref<DiscussionTopic[]>([])
   const keyword = ref('')
-  const essenceFilter = ref('') // '' = 全部, true = 精华
+  const essenceFilter = ref<string | boolean>('') // '' = 全部, true = 精华
 
   /** 精华话题数 */
   const essenceCount = computed(() => topics.value.filter((t) => t.isEssence).length)
@@ -54,15 +62,16 @@ export function useDiscussion() {
   async function loadTopics() {
     if (!courseId.value) return
     topicLoading.value = true
+    loadError.value = ''
     try {
       const params: Record<string, unknown> = { keyword: keyword.value || undefined }
       if (essenceFilter.value !== '') params.essence = essenceFilter.value
       const r = await discussionApi.getTopics(courseId.value, params)
-      const body = unwrap(r)
-      const list = body?.records || body?.list || body || []
-      topics.value = Array.isArray(list) ? list : []
+      topics.value = pickList<DiscussionTopic>(unwrap(r)).map(normalizeDiscussionTopic)
     } catch (e) {
       logger.error('加载话题列表失败', e)
+      topics.value = []
+      loadError.value = '话题列表加载失败，请检查网络后重试'
     } finally {
       topicLoading.value = false
     }
@@ -102,15 +111,15 @@ export function useDiscussion() {
 
   /* ---------- 话题详情 + 回复 ---------- */
   const detailVisible = ref(false)
-  const currentTopic = ref(null)
+  const currentTopic = ref<DiscussionTopic | null>(null)
   const postLoading = ref(false)
-  const posts = ref([])
+  const posts = ref<DiscussionPost[]>([])
   const replyText = ref('')
   const replySubmitting = ref(false)
-  const mentionIds = ref([])
+  const mentionIds = ref<Array<number | string>>([])
 
   const participantOptions = computed(() => {
-    const map = new Map()
+    const map = new Map<number | string, { id: number | string; name: string }>()
     if (currentTopic.value?.authorId) {
       map.set(currentTopic.value.authorId, {
         id: currentTopic.value.authorId,
@@ -123,11 +132,11 @@ export function useDiscussion() {
     return Array.from(map.values())
   })
 
-  function canDelete(p) {
-    return p.authorId && Number(p.authorId) === Number(myUserId.value)
+  function canDelete(p: DiscussionPost): boolean {
+    return p.authorId != null && Number(p.authorId) === Number(myUserId.value)
   }
 
-  async function openDetail(t) {
+  async function openDetail(t: DiscussionTopic) {
     currentTopic.value = t
     detailVisible.value = true
     mentionIds.value = []
@@ -135,16 +144,19 @@ export function useDiscussion() {
     await loadPosts(t.id)
   }
 
-  async function loadPosts(id) {
+  async function loadPosts(id: number | string) {
     postLoading.value = true
     try {
       const r = await discussionApi.getTopicDetail(id)
-      const body = unwrap(r)
-      const map = unwrap(body) || {}
+      const map = unwrap<DiscussionTopicDetail>(r) || {}
       if (!currentTopic.value?.content && map.topic)
-        currentTopic.value = { ...currentTopic.value, ...map.topic }
-      const list = map.posts || map?.records || map?.list || []
-      posts.value = Array.isArray(list) ? list : []
+        currentTopic.value = normalizeDiscussionTopic({
+          ...(currentTopic.value || {}),
+          ...map.topic,
+        })
+      posts.value = firstNonEmptyArray<DiscussionPost>(map.posts, map.records, map.list).map(
+        normalizeDiscussionPost,
+      )
     } catch (e) {
       logger.error('加载话题详情失败', e)
     } finally {
@@ -155,16 +167,17 @@ export function useDiscussion() {
   async function submitReply() {
     if (!replyText.value.trim()) return ElMessage.warning('请输入回复内容')
     if (!currentTopic.value) return
+    const topicId = currentTopic.value.id
     replySubmitting.value = true
     try {
-      await discussionApi.replyTopic(currentTopic.value.id, {
+      await discussionApi.replyTopic(topicId, {
         content: replyText.value.trim(),
         mentionUserIds: mentionIds.value.length ? mentionIds.value : undefined,
       })
       ElMessage.success(mentionIds.value.length ? '回复成功，已通知被@的同学' : '回复成功')
       replyText.value = ''
       mentionIds.value = []
-      await loadPosts(currentTopic.value.id)
+      await loadPosts(topicId)
       loadTopics()
     } catch (e) {
       logger.error('回复失败', e)
@@ -174,22 +187,29 @@ export function useDiscussion() {
     }
   }
 
-  async function likePost(p) {
+  async function likePost(p: DiscussionPost) {
     try {
-      await discussionApi.likePost(p.id)
-      ElMessage.success('已点赞')
-      p.likeCount = (p.likeCount || 0) + 1
+      const result = unwrap<DiscussionLikeResult>(await discussionApi.likePost(p.id))
+      if (!result) return
+      p.likeCount = result.likeCount
+      p.likes = result.likeCount
+      p.liked = result.liked
+      ElMessage.success(result.liked ? '已点赞' : '已取消点赞')
     } catch (e) {
       logger.error('点赞失败', e)
     }
   }
 
-  async function removePost(p) {
+  async function removePost(p: DiscussionPost) {
+    if (!currentTopic.value) return
+    const topicId = currentTopic.value.id
     try {
-      await ElMessageBox.confirm('确认删除该回复？', '提示', { type: 'warning' })
+      // D2-2：删除回复不可逆，明确不可逆性与恢复路径
+      const ok = await confirmDanger({ verb: '删除', target: '回复' })
+      if (!ok) return
       await discussionApi.deletePost(p.id)
       ElMessage.success('已删除')
-      await loadPosts(currentTopic.value.id)
+      await loadPosts(topicId)
       loadTopics()
     } catch (e) {
       if (e !== 'cancel' && e?.type !== 'cancel') logger.error('删除回复失败', e)
@@ -206,6 +226,7 @@ export function useDiscussion() {
     courseOptions,
     courseId,
     loading,
+    loadError,
     topicLoading,
     topics,
     keyword,

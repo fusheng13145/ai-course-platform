@@ -62,6 +62,9 @@ frontend/coverage/
 uploads/*
 !uploads/.gitkeep
 
+# 分片上传临时分片（进程在仓库根目录启动时落此，运行期产物不入库）
+upload-chunks/
+
 # 临时补丁与差异文件（过程产物）
 *.patch
 *.diff
@@ -72,7 +75,10 @@ frontend/dist_probe/
 # e2e 产物
 frontend/playwright-report/
 frontend/test-results/
-scripts/e2e/e2e_*_result.json
+scripts/e2e/e2e_*result.json
+# 安全/深度/压力脚本按当前工作目录落盘，从仓库根跑时会留在根目录；只锚定根目录，
+# 以免误伤 archive/deliverables/ 下同名的人工快照（那些是跟踪文件）
+/e2e_*result.json
 
 # ---- Python 虚拟环境与数据目录 ----
 venv/
@@ -80,9 +86,15 @@ venv/
 /data/
 # RAG 真实引擎持久化数据（文档存储 + BM25/向量索引）
 python-services/rag_service/data/
+# LoRA 微调引擎持久化数据（数据集/任务存储 + runs/adapter + weights/*.zip）
+python-services/fine_tune_service/data/
 
 # ---- 凭据工件：curl 会话 Cookie 罐（含 HttpOnly access/refresh JWT），严禁入库 ----
 # calibration/cj.txt 曾被误提交（80553eb，令牌已过期）；历史提交仍含该文件，需另行清理
 calibration/cj.txt
 **/cookies.txt
 **/cookie.jar
+
+# ---- Qoder CLI 本地工作目录（会话数据 + 委派子 agent 的临时 git worktree，含整仓副本 157MB）----
+# 仅本机工具产物，与交付无关；子 agent 的测试产物已由主仓库跟踪，此处只防止误 add
+.qoder/

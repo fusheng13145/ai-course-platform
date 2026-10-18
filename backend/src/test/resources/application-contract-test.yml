@@ -10,7 +10,10 @@
 #     ② 每次 `mvn test` 都会 DROP/重建**开发库** ai_course_platform（实测其表 create_time
 #        被打成当次运行时刻），文件头原声称的「与开发库完全隔离」不成立，构成数据丢失风险。
 #   现改用 database-agnostic 的 db/migration/V1__init_schema.sql（该脚本无 CREATE DATABASE/USE，
-#   见其第 19 行说明；内容与 index.sql 完全一致：48 DROP / 48 CREATE / 9 种子 INSERT），
+#   见其第 19 行说明；两者在 V1 时点同源：各 48 DROP / 48 CREATE / 9 种子 INSERT）。
+#   ⚠️ 2026-10-17 起二者不再等量：index.sql 已回补 V8–V11（51 表，见手册 DR-61），
+#     V1 因 Flyway 校验和冻结不可回改（仍为 48 表）；本 profile 不依赖该等量关系，
+#     它按序执行 V1→V11 全部结构迁移，落地视图与 index.sql 一致。
 #   使其作用于连接 URL 指定的 ai_course_platform_test，隔离性由 URL 而非脚本保证。
 #   仍保持 mode: always → 每次跑测试都重建测试库，保证用例不依赖上一轮残留状态。
 spring:
@@ -41,13 +44,36 @@ spring:
       database: 0
       timeout: 3000
 
-  # 测试库专用：上下文启动时执行 V1__init_schema.sql（DROP+CREATE+种子），保证库结构/种子自愈。
-  # 注意必须使用**不含 CREATE DATABASE / USE** 的脚本，否则会切库到开发库（见本文件头部说明）；
-  # 切勿改回 index.sql，也不要在此处新增 application.yaml 的 sql.init 覆盖以外的脚本。
+# 测试库专用：上下文启动时**按序**执行结构迁移（DROP+CREATE+种子），保证库结构/种子自愈。
+# 注意必须使用**不含 CREATE DATABASE / USE** 的脚本，否则会切库到开发库（见本文件头部说明）；
+# 切勿改回 index.sql。
+#
+# ⚠️【修复（2026-10-13）】此前这里只列 V1__init_schema.sql，于是 **V2 起的所有结构迁移在契约测试库里
+#   从未生效**——该缺口自 V8（新建 ai_call_logs、给 ai_chat_sessions 加 course_id）起就已存在，
+#   直到本批 V11 给 **users** 加列（ban_reason/banned_at/banned_by）才暴露：契约测试库没有这些列，
+#   而 User 实体会 SELECT 它们 → ApiContractTest 11 个用例全部
+#   `Unknown column 'ban_reason' in 'field list'`（错误发生在上下文加载阶段，不是断言失败）。
+#   故这里改为**按版本顺序列全部结构迁移**；新增结构迁移必须同步本清单，
+#   该约束由 `ContractTestSchemaBootstrapTest` 机械守住（漏列即构建期红）。
+#
+# ⚠️【修复（2026-10-16）】V1 的 DROP 清单冻结在其编写时点，**不含 V8+ 新建的表**，
+#   于是测试库第二次重建会在 V8 的 `CREATE TABLE ai_call_logs` 处报 already exists，
+#   4 个 @SpringBootTest 集成类上下文加载失败。新增前置清理脚本（测试专属、幂等 DROP、
+#   在 V1 之前执行），不能改 V1 本体（Flyway 校验和会连累开发库）。
+#   新增建表迁移必须同步该清理清单，由 `ContractTestSchemaBootstrapTest` 机械守住。
   sql:
     init:
       mode: always
-      schema-locations: classpath:db/migration/V1__init_schema.sql
+      schema-locations:
+        - classpath:contract-test/00-drop-post-v1-tables.sql
+        - classpath:db/migration/V1__init_schema.sql
+        - classpath:db/migration/V2__align_column_comments.sql
+        - classpath:db/migration/V3__normalize_course_status.sql
+        - classpath:db/migration/V4__normalize_task_and_exam_paper_status.sql
+        - classpath:db/migration/V8__ai_call_logging.sql
+        - classpath:db/migration/V9__semester_registry.sql
+        - classpath:db/migration/V10__ai_generation_restrictions.sql
+        - classpath:db/migration/V11__content_moderation.sql
       continue-on-error: false
 
   # 邮件：账号密码留空 → EmailServiceImpl 走「模拟发送」分支，不发真实邮件

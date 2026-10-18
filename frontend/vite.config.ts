@@ -80,6 +80,10 @@ export default defineConfig(({ mode }) => ({
         target: 'http://127.0.0.1:8080/api',
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
+        // 必须开启：/api/ws 是 WebSocket 端点（实时通知 + 考试实时通道，握手见后端
+        // WebSocketConfig）。缺 ws 时 dev/preview 不转发 upgrade 请求，浏览器握手必然失败，
+        // 前端只能退避重连 5 次后彻底放弃 —— 登录后的实时功能在本机从未真正可用。
+        ws: true,
       },
     },
     // 注意：不要开启 watch.usePolling —— 100ms 全量轮询数千文件会拖垮 dev server，
@@ -100,11 +104,11 @@ export default defineConfig(({ mode }) => ({
           if (id.includes('node_modules')) {
             if (id.includes('element-plus')) return 'element-plus'
             if (id.includes('echarts') || id.includes('zrender')) return 'echarts'
-            if (id.includes('exceljs')) return 'exceljs'
-            if (id.includes('pdfjs-dist') || id.includes('jspdf') || id.includes('html2canvas'))
-              return 'pdf'
-            if (id.includes('marked') || id.includes('dompurify') || id.includes('markdown'))
-              return 'markdown'
+            // 仅保留真实依赖的独立分块。历史上引用的 exceljs / pdfjs-dist / jspdf /
+            // marked / markdown 均不在 package.json 内，属死配置（分支永不命中），已删除。
+            if (id.includes('xlsx')) return 'xlsx'
+            if (id.includes('html2canvas')) return 'html2canvas'
+            if (id.includes('dompurify')) return 'dompurify'
             if (id.includes('vue') || id.includes('pinia') || id.includes('vue-router'))
               return 'vue-vendor'
             if (id.includes('axios')) return 'axios'

@@ -2,6 +2,7 @@ package com.aicourse.service.component.ai;
 
 import com.aicourse.common.JsonUtils;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.exception.LLMUnavailableException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -114,6 +115,9 @@ public class AiStructuredComponent {
                 return core.callLlm(core.buildMessages(prompt, null), 0.3, schema, "extract_graph");
             }
         } catch (Exception e) {
+            // 阶段一失败（含空白响应、401）降级为单阶段：这是一条真实的恢复路径，抽到的仍是模型原文。
+            // 诚实性由单阶段自己保证——它若同样失败会抛 LLMUnavailableException(503)，
+            // 绝不会拿"退化成单阶段"这件事去伪造抽取结果（DR-74-B 复核后保留本降级）。
             log.debug("[IPA] 阶段一失败，降级为单阶段抽取: {}", e.getMessage());
             String prompt = "请从以下课程内容中抽取知识结构（知识点及其关系），仅返回符合 schema 的 JSON，不要额外说明：\n" + content;
             return core.callLlm(core.buildMessages(prompt, null), 0.3, schema, "extract_graph");
@@ -272,6 +276,10 @@ public class AiStructuredComponent {
             String statsJson = OBJECT_MAPPER.writeValueAsString(userStats);
             String json = analyzeWeakPointsJson(statsJson);
             return parseWeakPoints(json);
+        } catch (LLMUnavailableException e) {
+            // 上游不可用不是"分析结论"，不能在这里退化成一条 severity=LOW 的"AI分析暂时不可用"条目：
+            // 那等于让 /analysis/weak-points 对 AI 故障返回 200 + 假装分析过的低风险提示
+            throw e;
         } catch (Exception e) {
             log.warn("薄弱点分析失败，返回降级提示: {}", e.getMessage());
             List<Map<String, String>> fallback = new ArrayList<>();
@@ -310,6 +318,10 @@ public class AiStructuredComponent {
             }
             result.put("items", items);
             return result;
+        } catch (LLMUnavailableException e) {
+            // 保持 503：这里过去把一切重抛成 BusinessException(默认 400)，
+            // 于是"上游凭据被拒"在客户端长成"你的请求不合法"
+            throw e;
         } catch (Exception e) {
             log.error("生成AI失败: {}", e.getMessage(), e);
             // 原控制器将本段整体 try/catch 并重抛 BusinessException("生成学习建议失败: " + msg)；

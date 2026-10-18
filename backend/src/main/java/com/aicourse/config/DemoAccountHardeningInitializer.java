@@ -22,8 +22,9 @@ import java.util.List;
 /**
  * 演示（种子）账号「生产加固」初始化器
  * <p>
- * 背景（F-02 密钥治理 P1 项）：V1 迁移内置 8 个演示账号，共用弱口令 {@code "123456"}。
- * 该弱口令无法从 V1 移除（脚本已 baseline，改动即校验和失配），因此必须在运行期收口。
+ * 背景（F-02 密钥治理 P1 项）：迁移脚本内置共 170 个种子账号（V1 的 8 个 + V5/V6 的
+ * {@code ts01..ts12} / {@code st001..st150}），共用弱口令 {@code "123456"}。
+ * 该弱口令无法从脚本移除（已 baseline 的脚本改动即校验和失配），因此必须在运行期收口。
  * <p>
  * 开关：{@code app.demo-accounts.enabled}（环境变量 {@code DEMO_ACCOUNTS_ENABLED}）。
  * <ul>
@@ -49,6 +50,9 @@ public class DemoAccountHardeningInitializer implements ApplicationRunner {
 
     /** 生产姿态 profile：该 profile 下禁止演示账号以种子弱口令存活。 */
     private static final String PROD_PROFILE = "prod";
+
+    /** 启动日志中列举种子账号名时的上限。 */
+    private static final int LOG_NAME_PREVIEW = 10;
 
     private static final SecureRandom RANDOM = new SecureRandom();
 
@@ -128,7 +132,7 @@ public class DemoAccountHardeningInitializer implements ApplicationRunner {
         log.warn("[seed] 演示账号加固完成：{} 个账号已停用并重置为不可知随机口令（{}）。"
                         + "如需在受控环境恢复演示账号，请在非生产环境设置 DEMO_ACCOUNTS_ENABLED=true "
                         + "并重新初始化种子数据。",
-                hardened.size(), String.join(", ", hardened));
+                hardened.size(), preview(hardened));
     }
 
     /**
@@ -170,10 +174,15 @@ public class DemoAccountHardeningInitializer implements ApplicationRunner {
 
     /**
      * 载入「仍为种子弱口令」的演示账号（单次查询后内存过滤，避免 N 次往返）。
+     * <p>
+     * 判定口径是<b>口令哈希本身</b>，不是用户名白名单：V1/V5/V6 的 170 个种子账号共用同一枚
+     * BCrypt 串，白名单只覆盖 V1 的 8 个，会把 V5/V6 号段（{@code ts01..ts12} /
+     * {@code st001..st150}）留在弱口令上——Flyway 在 prod 也自动执行到 V6，故必须按哈希收敛。
+     * 正常注册/改密产生的口令盐值不同，不会被此条件命中。
      */
     private List<User> loadSeedWeakAccounts() {
         List<User> users = userService.list(new LambdaQueryWrapper<User>()
-                .in(User::getUsername, SeedAccounts.DEMO_USERNAMES));
+                .eq(User::getPassword, SeedAccounts.SEED_WEAK_BCRYPT));
         List<User> weak = new ArrayList<>();
         if (users == null) {
             return weak;
@@ -191,7 +200,16 @@ public class DemoAccountHardeningInitializer implements ApplicationRunner {
         for (User user : users) {
             names.add(user.getUsername());
         }
-        return String.join(", ", names);
+        return preview(names);
+    }
+
+    /** 日志只列前若干账号：种子号段可达 170 个，全量打印会淹没启动日志。 */
+    private static String preview(List<String> names) {
+        if (names.size() <= LOG_NAME_PREVIEW) {
+            return String.join(", ", names);
+        }
+        return String.join(", ", names.subList(0, LOG_NAME_PREVIEW))
+                + " 等 " + names.size() + " 个";
     }
 
     /**

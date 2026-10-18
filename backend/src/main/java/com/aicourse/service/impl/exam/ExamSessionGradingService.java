@@ -110,8 +110,7 @@ public class ExamSessionGradingService {
             fullScore = fullScore.add(points);
 
             String questionKey = String.valueOf(eq.getQuestionId());
-            String studentAnswer = normalizeAnswer(studentAnswers.get(questionKey) != null ?
-                    studentAnswers.get(questionKey).toString() : "");
+            String studentAnswer = normalizeAnswer(stringifyAnswer(studentAnswers.get(questionKey)));
             String correctAnswer = normalizeAnswer(question.getCorrectAnswers());
 
             BigDecimal score = BigDecimal.ZERO;
@@ -372,6 +371,30 @@ public class ExamSessionGradingService {
             }
             return set;
         }
+    }
+
+    /**
+     * 把单条作答值规范成可比对的字符串。
+     *
+     * <p>多选题前端送的是 JSON 数组，{@code Map<String,Object>} 反序列化后是 {@code List}；
+     * 原先直接 {@code value.toString()} 会得到 {@code "[A, C]"} —— 既不是合法 JSON（元素无引号），
+     * 也不是纯分隔串，于是 {@link #parseArrayToStringSet(String)} 退化切分出 {@code "[A"} / {@code "C]"}，
+     * 多选题无论是否答对都判错。集合一律按逗号连接后再交给 normalizeAnswer。</p>
+     */
+    private String stringifyAnswer(Object raw) {
+        if (raw == null) {
+            return "";
+        }
+        if (raw instanceof Collection<?> collection) {
+            StringJoiner joiner = new StringJoiner(",");
+            for (Object item : collection) {
+                if (item != null) {
+                    joiner.add(String.valueOf(item));
+                }
+            }
+            return joiner.toString();
+        }
+        return String.valueOf(raw);
     }
 
     /**

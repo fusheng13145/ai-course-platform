@@ -1,5 +1,5 @@
 import { test, expect } from '@playwright/test'
-import { API_BASE, createMockPermissionsResponse, setLocalStorageAuth } from './test-helpers'
+import { API_BASE, createMockPermissionsResponse, loginAs } from './test-helpers'
 
 /**
  * 权限拒绝（403）语义的端到端回归用例。
@@ -18,7 +18,7 @@ test.describe('权限拒绝（403）不应触发登出', () => {
     let logoutCalled = false
 
     // 登录态（localStorage）与权限/用户信息 mock
-    await setLocalStorageAuth(page, 'STUDENT')
+    await loginAs(page, 'STUDENT')
     await page.route(`${API_BASE}/auth/permissions`, async (route) => {
       await route.fulfill({
         status: 200,

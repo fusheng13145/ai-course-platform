@@ -1,14 +1,24 @@
 <template>
   <Teleport to="body">
     <Transition name="ob-fade">
-      <div v-if="visible" class="ob-overlay" @click.self="skip">
+      <div
+        v-if="visible"
+        class="ob-overlay"
+        :class="{ 'has-target': !!targetEl }"
+        @click.self="skip"
+      >
+        <!-- 聚光高亮：仅当定位到目标元素时渲染——挖空目标区域、其余范围加深，使目标真正被「点亮」 -->
+        <div v-if="targetEl" class="ob-spotlight" :style="spotStyle" aria-hidden="true"></div>
         <!-- 定位到目标元素旁的气泡（target 存在时）；否则居中卡片 -->
         <div
+          ref="cardEl"
           class="ob-card"
           :class="{ centered: !targetEl }"
           :style="cardStyle"
           role="dialog"
+          aria-modal="true"
           aria-label="新用户引导"
+          tabindex="-1"
         >
           <div class="ob-head">
             <span
@@ -48,20 +58,52 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 
 /**
  * 新用户引导教程（无第三方依赖实现）。
  *
  * 背景：原规划采用 driver.js 集成 3-5 步引导（见 docs/软件产品路线图.md D5），
  * 受离线依赖安装限制，本组件以原生 Vue + CSS 实现等价能力：
- * - 支持按 CSS 选择器高亮目标元素并定位气泡（fallback 居中卡片）；
- * - 首次登录自动触发，跳过/完成即写入 localStorage，不再重复打扰；
+ * - 支持按 CSS 选择器**聚光高亮**目标元素（挖空目标区域、只压暗其余范围，并给目标描边）
+ *   并把气泡定位到其旁；目标不存在时回退居中卡片（此时遮罩整屏压暗）；
+ * - 首次进入自动触发，跳过/完成即写入 localStorage，不再自动重复打扰；
+ * - 宿主可经组件 ref 调用暴露的 show() 重新唤起（AppShell 用户菜单「新手引导」）；
  * - 三端共用（挂载于 AppShell.vue，admin/teacher/student 均生效）。
+ *
+ * 「已看过」标记**按账号**记录（2026-10-13 由产品定案）：
+ * 键名带当前用户 id，因此同一浏览器**换账号登录会重新看到引导**（每个账号首次登录都看得到），
+ * 而同账号退出再登录不再打扰。标记只由本组件读写，登出（stores/auth.ts resetAuthState）
+ * 不清除它——清除即等于"换账号"语义被破坏。
  *
  * 未来如需替换为 driver.js：仅需在本组件内换用 driver.js API，对外接口不变。
  */
 
-const STORAGE_KEY = 'ai-course:onboarding:done:v1'
+/** done 标记键前缀；实际键为 `${前缀}:${userId}`（按账号隔离） */
+const STORAGE_KEY_PREFIX = 'ai-course:onboarding:done:v1'
+
+const auth = useAuthStore()
+/** 当前账号的标记键；userId 缺失（异常态）时退化为 anon 段，保证不越权压其他账号 */
+const storageKey = computed(() => `${STORAGE_KEY_PREFIX}:${auth.userId ?? 'anon'}`)
+
+/** 写入「已看过」标记（隐私模式等场景静默降级） */
+function markDone() {
+  try {
+    localStorage.setItem(storageKey.value, '1')
+  } catch {
+    /* 隐私模式等场景静默降级 */
+  }
+}
+
+/** 是否已看过当前账号的引导 */
+function hasSeen() {
+  try {
+    return localStorage.getItem(storageKey.value) === '1'
+  } catch {
+    // 无 localStorage 可用则每次展示
+    return false
+  }
+}
 
 const steps = [
   {
@@ -89,7 +131,7 @@ const steps = [
   {
     icon: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 6 9 17l-5-5"/></svg>',
     title: '准备就绪',
-    desc: '以上就是核心功能概览。探索过程中如有疑问，可在个人中心查看帮助与反馈入口。祝学习愉快！',
+    desc: '以上就是核心功能概览。随时可在左下角用户菜单里点「新手引导」重新查看本指引。祝学习愉快！',
   },
 ]
 
@@ -98,7 +140,26 @@ const index = ref(0)
 const targetEl = ref(null)
 const pos = ref({ top: 0, left: 0, width: 0, height: 0 })
 const cardWidth = 320
+/** 气泡卡片元素：弹出后聚焦它，键盘用户可立即用 Esc / ← / →（不必先点一下卡片） */
+const cardEl = ref(null)
 const isLast = computed(() => index.value >= steps.length - 1)
+
+/** 聚光层内边距：在目标矩形外扩一圈，避免描边紧贴元素边缘 */
+const SPOT_PAD = 6
+/**
+ * 聚光层位置/尺寸：跟随目标元素矩形（外扩 SPOT_PAD）。
+ * 与气泡一样由 locate() 写入的 pos 驱动，resize/scroll/切步都会同步更新。
+ */
+const spotStyle = computed(() => {
+  if (!targetEl.value) return {}
+  const { top, left, width, height } = pos.value
+  return {
+    top: `${top - SPOT_PAD}px`,
+    left: `${left - SPOT_PAD}px`,
+    width: `${width + SPOT_PAD * 2}px`,
+    height: `${height + SPOT_PAD * 2}px`,
+  }
+})
 
 const cardStyle = computed(() => {
   if (!targetEl.value) return {}
@@ -133,19 +194,22 @@ function locate() {
 function show() {
   visible.value = true
   index.value = 0
-  nextTick(locate)
+  nextTick(() => {
+    locate()
+    // 弹出即聚焦卡片：键盘用户可直接 Esc 跳过 / ←→ 翻步，无需先用鼠标点卡片
+    cardEl.value?.focus?.()
+  })
 }
 
 function hide() {
   visible.value = false
 }
 
+/** 供外部主动唤起（AppShell 用户菜单「新手引导」）：总是回到第 1 步 */
+defineExpose({ show })
+
 function skip() {
-  try {
-    localStorage.setItem(STORAGE_KEY, '1')
-  } catch {
-    /* 隐私模式等场景静默降级 */
-  }
+  markDone()
   hide()
 }
 
@@ -166,11 +230,7 @@ function next() {
 }
 
 function finish() {
-  try {
-    localStorage.setItem(STORAGE_KEY, '1')
-  } catch {
-    /* 静默 */
-  }
+  markDone()
   hide()
 }
 
@@ -181,21 +241,25 @@ function onKeydown(e) {
   if (e.key === 'ArrowLeft') prev()
 }
 
+/** 自动弹出定时器句柄：卸载时清除，避免组件销毁后仍弹出「幽灵引导」 */
+let autoShowTimer = null
+
 onMounted(() => {
-  // 首次进入触发；已完成后不再打扰
-  try {
-    if (localStorage.getItem(STORAGE_KEY) === '1') return
-  } catch {
-    /* 无 localStorage 则每次展示 */
-  }
-  // 等待首屏渲染稳定后再弹出（避免定位到未布局完成的目标）
-  window.setTimeout(show, 600)
+  // 监听器无条件注册：已跳过的用户经菜单重开时同样需要 Esc/←/→ 与 resize/scroll 定位
   window.addEventListener('resize', locate)
+  // 捕获阶段监听滚动：目标元素随内容滚动时气泡与聚光层需同步跟随
+  window.addEventListener('scroll', locate, true)
   window.addEventListener('keydown', onKeydown)
+  // 首次进入触发；当前账号已完成后不再自动打扰（换账号登录会重新看到）
+  if (hasSeen()) return
+  // 等待首屏渲染稳定后再弹出（避免定位到未布局完成的目标）
+  autoShowTimer = window.setTimeout(show, 600)
 })
 
 onUnmounted(() => {
+  if (autoShowTimer) window.clearTimeout(autoShowTimer)
   window.removeEventListener('resize', locate)
+  window.removeEventListener('scroll', locate, true)
   window.removeEventListener('keydown', onKeydown)
 })
 </script>
@@ -208,8 +272,32 @@ onUnmounted(() => {
   background: rgba(10, 14, 24, 0.45);
   backdrop-filter: blur(1px);
 }
+/*
+ * 有目标元素时遮罩自身必须透明：改由 .ob-spotlight 的巨大 box-shadow 只压暗「目标以外」区域，
+ * 目标元素因此保持原亮度并带一圈描边——否则整屏（含目标）一起被压暗，等于没有高亮。
+ */
+.ob-overlay.has-target {
+  background: transparent;
+  backdrop-filter: none;
+}
+.ob-spotlight {
+  position: fixed;
+  z-index: 1;
+  border-radius: 10px;
+  /* 0 0 0 9999px 的投影铺满目标以外区域，形成聚光；目标框本身不投影，故保持明亮 */
+  box-shadow: 0 0 0 9999px rgba(10, 14, 24, 0.45);
+  outline: 2px solid var(--accent, var(--info));
+  outline-offset: 2px;
+  pointer-events: none;
+  transition:
+    top 0.22s var(--ease-out, ease),
+    left 0.22s var(--ease-out, ease),
+    width 0.22s var(--ease-out, ease),
+    height 0.22s var(--ease-out, ease);
+}
 .ob-card {
   position: fixed;
+  z-index: 2;
   width: 320px;
   background: var(--ac-bg-elevated, var(--surface));
   color: var(--ac-text-primary, var(--ink));

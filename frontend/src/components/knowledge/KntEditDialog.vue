@@ -1,6 +1,7 @@
 <template>
   <!-- 新建/编辑对话框 -->
   <el-dialog
+    ref="dialogRef"
     :model-value="modelValue"
     :title="isEdit ? '编辑知识点' : '新建知识点'"
     width="520px"
@@ -8,7 +9,7 @@
     destroy-on-close
     @update:model-value="$emit('update:modelValue', $event)"
   >
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="90px">
+    <el-form ref="formRef" :model="form" :rules="rules" label-width="90px" scroll-to-error>
       <el-form-item label="名称" prop="name"
         ><el-input v-model="form.name" placeholder="输入名称" maxlength="50" show-word-limit
       /></el-form-item>
@@ -56,9 +57,10 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 
-defineProps({
+const props = defineProps({
   modelValue: { type: Boolean, default: false },
   isEdit: { type: Boolean, default: false },
   form: { type: Object, default: () => ({}) },
@@ -66,6 +68,9 @@ defineProps({
   submitting: { type: Boolean, default: false },
   flatTreeOptions: { type: Array, default: () => [] },
 })
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, computed(() => props.modelValue))
 const emit = defineEmits(['update:modelValue', 'submit'])
 
 const formRef = ref(null)

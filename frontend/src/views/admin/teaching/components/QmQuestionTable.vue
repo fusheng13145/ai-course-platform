@@ -56,9 +56,7 @@
       </el-table-column>
       <!-- 空状态 -->
       <template #empty>
-        <el-empty description="暂无题目数据">
-          <template #image><div class="empty-deco">📚</div></template>
-        </el-empty>
+        <EmptyState title="暂无题目数据" icon="book" />
       </template>
     </el-table>
 
@@ -81,6 +79,8 @@
 </template>
 
 <script setup lang="ts">
+import EmptyState from '@/components/ui/EmptyState.vue'
+
 /**
  * 题库列表表格（数据列 + 操作 + 分页）
  * <p>题型/内容/难度/课程/使用次数/正确率列 + 编辑/统计/删除操作 + 分页。
@@ -145,8 +145,5 @@ const emit = defineEmits(['edit', 'stats', 'delete', 'update:page', 'update:size
   background: rgba(196, 128, 128, 0.12);
 }
 
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
-}
+
 </style>

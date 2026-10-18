@@ -2,7 +2,7 @@
 """大创·AI 智能课程平台 V5 种子数据生成引擎。
 
 用法：python scripts/generate-seed-data.py
-输出：backend/src/main/resources/db/migration/V5__rich_seed_data.sql
+输出：backend/src/main/resources/db/seed-demo/V5__rich_seed_data.sql
 
 约束：
   * 确定性随机（固定种子），重复生成结果逐字节一致；
@@ -983,7 +983,7 @@ HEADER = """-- =================================================================
 -- ====================================================================
 -- 生成：python scripts/generate-seed-data.py（确定性随机，可整文件重生成）
 -- 规模：12 教师 / 150 学生 / 20 班级 / 30 课程班次（2026春 20 个已结束班 +
---       2026秋 10 个进行中班），覆盖全部 50 张表；除下列结构性上限外，
+--       2026秋 10 个进行中班），覆盖全部 48 张表；除下列结构性上限外，
 --       每张表新增 >=100 行：
 --   * grade_policies：UNIQUE(course_id) 限制，每课 1 套（30 条封顶）；
 --   * classrooms / courses：行政班与排课颗粒上限（20 / 30）。
@@ -1021,7 +1021,7 @@ UPDATE course_enrollments SET approval_status = UPPER(approval_status) WHERE BIN
 """
 
 OUT = os.path.normpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..",
-               "backend", "src", "main", "resources", "db", "migration", "V5__rich_seed_data.sql"))
+               "backend", "src", "main", "resources", "db", "seed-demo", "V5__rich_seed_data.sql"))
 lines = [HEADER]
 summary = []
 

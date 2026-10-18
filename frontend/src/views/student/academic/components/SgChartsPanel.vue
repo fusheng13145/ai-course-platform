@@ -13,10 +13,10 @@
           class="chart-fixed"
           autoresize
         />
-        <el-empty
+        <EmptyState
           v-else-if="!loading && (!groupedByCourse || Object.keys(groupedByCourse).length < 3)"
-          description="选课不足（至少3门），暂无法生成多维对比分析"
-          :image-size="80"
+          :title="radarEmptyText"
+          icon="chart"
         />
         <div v-else class="chart-loading">
           <span class="muted">加载中...</span>
@@ -34,10 +34,10 @@
           class="chart-fixed"
           autoresize
         />
-        <el-empty
+        <EmptyState
           v-else-if="!loading && list.length === 0"
-          description="暂无考试记录"
-          :image-size="80"
+          :title="trendEmptyText"
+          icon="chart"
         />
       </div>
     </div>
@@ -47,11 +47,19 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { getChartTheme, getMonoSeries, monoScore } from '@/utils/chartTheme'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 const props = defineProps({
   loading: { type: Boolean, default: false },
   groupedByCourse: { type: Object, default: () => ({}) },
   list: { type: Array, default: () => [] },
+  // D2-1：双态空文案由父页（Grades.vue）按 loadError 切换——失败时不得把
+  // 「加载失败」显示成「选课不足」或「暂无考试记录」
+  radarEmptyText: {
+    type: String,
+    default: '选课不足（至少3门），暂无法生成多维对比分析',
+  },
+  trendEmptyText: { type: String, default: '暂无考试记录' },
 })
 
 /* ---- 雷达图配置 ---- */

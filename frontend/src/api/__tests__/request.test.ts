@@ -20,11 +20,13 @@ vi.mock('@/utils/logger', () => ({
   },
 }))
 
-// 模拟 router
+// 模拟 router：拦截器会读 currentRoute 以决定登录页跳转是否带 redirect
 const mockRouterPush = vi.hoisted(() => vi.fn())
+const mockRouterCurrentRoute = vi.hoisted(() => ({ value: { fullPath: '/' } }))
 vi.mock('@/router', () => ({
   default: {
     push: mockRouterPush,
+    currentRoute: mockRouterCurrentRoute,
   },
 }))
 
@@ -364,6 +366,7 @@ describe('request 拦截器 - 401 单飞刷新与重试策略', () => {
     })
 
     it('刷新失败时只跳一次登录页、只登出一次（原实现每个请求各跳一次）', async () => {
+      mockRouterCurrentRoute.value.fullPath = '/student/courses'
       installAdapter({
         '/auth/refresh': networkFail('Network Error'),
         '/auth/logout': ok({ code: 200, data: null }),
@@ -383,8 +386,39 @@ describe('request 拦截器 - 401 单飞刷新与重试策略', () => {
       expect(countCalls('/auth/refresh')).toBe(1)
       expect(countCalls('/auth/logout')).toBe(1)
       expect(mockRouterPush).toHaveBeenCalledTimes(1)
-      expect(mockRouterPush).toHaveBeenCalledWith('/login')
+      // DR-45：跳登录页必须带 redirect，重新登录后回到原页面（与守卫的未登录分支同口径）
+      expect(mockRouterPush).toHaveBeenCalledWith({
+        path: '/login',
+        query: { redirect: '/student/courses' },
+      })
       expect(mockResetAuthState).toHaveBeenCalled()
+    })
+
+    it('已在登录页时不再叠加 redirect', async () => {
+      mockRouterCurrentRoute.value.fullPath = '/login'
+      installAdapter({
+        '/auth/refresh': networkFail('Network Error'),
+        '/auth/logout': ok({ code: 200, data: null }),
+        '/courses': httpFail(401),
+      })
+
+      await expect(service.get('/courses')).rejects.toBeDefined()
+      expect(mockRouterPush).toHaveBeenCalledWith('/login')
+    })
+
+    it('守卫发起的 /auth/permissions 探针不在拦截器里跳转，会话结论回交路由守卫（DR-45）', async () => {
+      // 冷启动时这次请求就发生在 beforeEach 里：拦截器若同时 router.push('/login')，
+      // 就会与守卫自己的导航互相取消 —— 这正是「过期后页面仍显示已登录」的直接成因。
+      mockRouterCurrentRoute.value.fullPath = '/teacher/dashboard'
+      installAdapter({
+        '/auth/permissions': httpFail(401),
+        '/auth/refresh': networkFail('Network Error'),
+        '/auth/logout': ok({ code: 200, data: null }),
+      })
+
+      await expect(service.get('/auth/permissions')).rejects.toBeDefined()
+      expect(mockRouterPush).not.toHaveBeenCalled()
+      expect(mockResetAuthState).not.toHaveBeenCalled()
     })
 
     it('重放请求不复用旧 signal，避免已 abort 的 signal 让重试瞬间失败', async () => {

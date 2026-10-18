@@ -1,9 +1,10 @@
 import logger from '@/utils/logger'
 import { ref, computed, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import resourceApi from '@/api/resource'
 import courseApi from '@/api/course'
 import { pickList, unwrap } from '@/utils/response'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 export function useResourceManagement() {
   const loading = ref(false)
@@ -56,10 +57,7 @@ export function useResourceManagement() {
 
   async function loadCourses() {
     try {
-      const res = await courseApi.getCourseList({ size: 500 })
-      // 缺陷修复（2026-10-04）：`||` 链里空数组是 truthy，后端把数据放在 records
-      // 而 list=[] 时课程列表被吞空，进而整个页面无数据可选。
-      courseList.value = pickList(unwrap(res))
+      courseList.value = await courseApi.getAllCourses()
       if (courseList.value.length && !selectedCourseId.value) {
         selectedCourseId.value = courseList.value[0].id
         await loadResources()
@@ -97,7 +95,7 @@ export function useResourceManagement() {
       await resourceApi.toggleVisibility(row.id, val)
       row.visibleToAll = val
       ElMessage.success(val ? '已设为公开' : '已设为私有')
-    } catch (e) {
+    } catch {
       ElMessage.error('设置失败')
     }
   }
@@ -121,15 +119,19 @@ export function useResourceManagement() {
   }
 
   function removeRes(row) {
-    ElMessageBox.confirm(`确定删除资源「${row.fileName || row.name}」？`, '删除确认', {
-      type: 'warning',
+    confirmDanger({
+      verb: '删除',
+      target: '资源',
+      subject: row.fileName || row.name,
+      impact: '将一并移除该资源文件，课程中学生将无法再下载',
     })
-      .then(async () => {
+      .then(async (ok) => {
+        if (!ok) return
         try {
           await resourceApi.deleteResource(row.id)
           ElMessage.success('删除成功')
           await loadResources()
-        } catch (e) {
+        } catch {
           ElMessage.error('删除失败')
         }
       })

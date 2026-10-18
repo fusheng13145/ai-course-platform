@@ -1,6 +1,7 @@
 <template>
   <!-- AI提取对话框 -->
   <el-dialog
+    ref="dialogRef"
     :model-value="modelValue"
     title="AI提取知识点"
     width="560px"
@@ -30,10 +31,16 @@
 </template>
 
 <script setup>
-defineProps({
+import { ref, computed } from 'vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
+const props = defineProps({
   modelValue: { type: Boolean, default: false },
   aiText: { type: String, default: '' },
   aiExtracting: { type: Boolean, default: false },
 })
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, computed(() => props.modelValue))
+
 defineEmits(['update:modelValue', 'update:aiText', 'extract'])
 </script>

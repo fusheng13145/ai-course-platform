@@ -15,12 +15,17 @@
         </template>
       </el-table-column>
     </el-table>
-    <el-empty v-if="!notificationsLoading && !notifications.length" description="暂无通知" />
+    <EmptyState
+      v-if="!notificationsLoading && !notifications.length"
+      :title="emptyText"
+      icon="message"
+    />
   </div>
 </template>
 
 <script setup lang="ts">
 import { Plus } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 通知管理 Tab
@@ -30,6 +35,8 @@ defineProps({
   notifications: { type: Array, default: () => [] },
   notificationsLoading: { type: Boolean, default: false },
   formatDateTime: { type: Function, required: true },
+  /** 空态文案（父页面按加载失败态透传诚实提示，默认保留原语义） */
+  emptyText: { type: String, default: '暂无通知' },
 })
 
 const emit = defineEmits(['send', 'delete'])

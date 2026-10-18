@@ -1,5 +1,6 @@
 <template>
   <el-dialog
+    ref="dialogRef"
     :model-value="modelValue"
     title="操作日志详情"
     width="560px"
@@ -47,13 +48,22 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 import { formatDateTime } from '@/utils/datetime'
 import { useOperationLogs } from '@/composables/useOperationLogs'
 
-defineProps({
+const props = defineProps({
   modelValue: { type: Boolean, default: false },
   log: { type: Object, default: null },
 })
+
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(
+  dialogRef,
+  computed(() => props.modelValue),
+)
 defineEmits(['update:modelValue'])
 
 const { moduleLabel, actionLabel, isSuccess } = useOperationLogs()

@@ -2,11 +2,34 @@ import logger from '@/utils/logger'
 import { ref, computed, watch, onMounted } from 'vue'
 import teacherApi from '@/api/teacher'
 import courseApi from '@/api/course'
+import userApi from '@/api/user'
 import { getChartTheme } from '@/utils/chartTheme'
+import { pickList, unwrap } from '@/utils/response'
+
+/** 选课记录行（后端 Enrollment 展示字段子集；未列字段不做假设） */
+type EnrollmentStudentRow = {
+  isActive?: boolean
+  approvalStatus?: string
+  studentId?: number | string
+  totalStudyTime?: number | null
+  engagement?: number | null
+  engagementScore?: number | null
+  completionRate?: number | null
+  progress?: number | string | null
+  submissionCount?: number | null
+  submittedAssignments?: number | null
+  lastActiveTime?: string | null
+  lastLoginTime?: string | null
+}
 
 export function useCourseLearningStatusTab(courseIdRef) {
   const loading = ref(false)
   const searchKeyword = ref('')
+
+  // 双路加载各自的独立错误状态：互不复位，防止一路失败清除另一路的提示/数据。
+  const classError = ref('')
+  const studentsError = ref('')
+  const loadError = computed(() => classError.value || studentsError.value)
 
   const overview = ref({
     activeStudents: 0,
@@ -93,12 +116,14 @@ export function useCourseLearningStatusTab(courseIdRef) {
 
   async function loadData() {
     loading.value = true
+    classError.value = ''
+    studentsError.value = ''
     try {
       const cid = Number(courseIdRef.value)
 
       const [classRes, studentsRes] = await Promise.allSettled([
         teacherApi.getClassAnalytics(cid),
-        courseApi.getStudents(cid),
+        courseApi.getAllStudents(cid),
       ])
 
       // 班级级分析数据
@@ -126,24 +151,41 @@ export function useCourseLearningStatusTab(courseIdRef) {
             itemStyle: { color: b.color },
           }))
         }
+      } else {
+        classError.value = '班级学习数据加载失败，请检查网络后重试'
       }
 
       // 学生数据
       if (studentsRes.status === 'fulfilled') {
-        const raw =
-          studentsRes.value?.data?.records ||
-          studentsRes.value?.data?.list ||
-          studentsRes.value?.data ||
-          studentsRes.value ||
-          []
-        const list = Array.isArray(raw) ? raw : []
+        const rows = studentsRes.value as EnrollmentStudentRow[]
+        const list = rows.filter(
+          (enrollment) =>
+            enrollment?.isActive === true && enrollment?.approvalStatus === 'APPROVED',
+        )
+        let teacherStudents = []
+        try {
+          teacherStudents = pickList(unwrap(await userApi.getTeacherStudents()))
+        } catch (e) {
+          logger.warn('[CourseLearningStatusTab] 获取学生姓名失败:', e.message || e)
+        }
+        const usersById = new Map(teacherStudents.map((student) => [String(student.id), student]))
         students.value = list.map((s) => ({
           ...s,
-          studentName: s.studentName || s.name || s.username || '-',
-          studentId: s.studentId || s.studentNo || s.id || '-',
-          onlineHours: s.onlineHours ?? s.totalOnlineHours ?? null,
+          studentName:
+            usersById.get(String(s.studentId))?.fullName ||
+            usersById.get(String(s.studentId))?.username ||
+            `学生 #${s.studentId}`,
+          studentNo: usersById.get(String(s.studentId))?.username || '-',
+          studentId: usersById.get(String(s.studentId))?.username || String(s.studentId || '-'),
+          onlineHours:
+            s.totalStudyTime != null ? Math.round((s.totalStudyTime / 60) * 10) / 10 : null,
           engagement: s.engagement ?? s.engagementScore ?? null,
-          completionRate: s.completionRate ?? s.progress ?? null,
+          // Enrollment.progress 使用 0-100 百分制，表格按 0-1 比例显示。
+          completionRate: (() => {
+            if (s.completionRate != null) return s.completionRate
+            const progress = Number(s.progress)
+            return Number.isFinite(progress) ? Math.min(100, Math.max(0, progress)) / 100 : null
+          })(),
           submissionCount: s.submissionCount ?? s.submittedAssignments ?? null,
           lastActiveTime: s.lastActiveTime || s.lastLoginTime || null,
         }))
@@ -168,6 +210,9 @@ export function useCourseLearningStatusTab(courseIdRef) {
             ]
           }
         }
+      } else {
+        students.value = []
+        studentsError.value = '学生名单加载失败，请检查网络后重试'
       }
     } catch (e) {
       logger.warn('[CourseLearningStatusTab] loadData 失败:', e.message || e)
@@ -181,6 +226,9 @@ export function useCourseLearningStatusTab(courseIdRef) {
 
   return {
     loading,
+    loadError,
+    classError,
+    studentsError,
     searchKeyword,
     overview,
     students,

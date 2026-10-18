@@ -1,28 +1,44 @@
 <template>
   <div class="fade-in">
-    <!-- 顶部：时间范围选择器 -->
-    <PageHeader title="教学数据分析" subtitle="课程成绩趋势、作业提交与学生活跃度总览" icon="chart">
+    <!-- 顶部：刷新入口 -->
+    <PageHeader
+      title="教学数据分析"
+      subtitle="课程进度、真实成绩统计与近 7 天作业提交趋势"
+      icon="chart"
+    >
       <div class="time-selector">
-        <el-radio-group v-model="timeRange" size="default" @change="handleTimeChange">
-          <el-radio-button value="week">近7天</el-radio-button>
-          <el-radio-button value="month">近30天</el-radio-button>
-          <el-radio-button value="semester">本学期</el-radio-button>
-        </el-radio-group>
+        <el-button :loading="loading" @click="loadAnalyticsData">刷新数据</el-button>
       </div>
     </PageHeader>
+
+    <el-alert
+      v-if="loadNotice"
+      class="load-notice"
+      :title="loadNotice"
+      type="warning"
+      :closable="false"
+      show-icon
+    />
 
     <!-- 统计卡片 -->
     <div class="stat-grid animate-in">
       <StatCard
-        label="学生总数"
-        :value="overview.studentCount || '--'"
+        label="课程总数"
+        :value="overview.courseCount ?? '--'"
+        icon="book"
+        tone="var(--accent-soft)"
+        tone-color="var(--accent)"
+      />
+      <StatCard
+        label="选课人次"
+        :value="overview.studentCount ?? '--'"
         icon="users"
         tone="var(--info-soft)"
         tone-color="var(--info)"
       />
       <StatCard
-        label="平均成绩"
-        :value="overview.avgScore != null ? overview.avgScore : '--'"
+        label="平均作业得分"
+        :value="overview.avgScore ?? '--'"
         icon="chart"
         tone="var(--ok-soft)"
         tone-color="var(--ok)"
@@ -35,35 +51,49 @@
         tone-color="var(--warn)"
       />
       <StatCard
-        label="出勤率"
-        :value="overview.attendanceRate != null ? overview.attendanceRate + '%' : '--'"
-        icon="calendar"
+        label="待批阅提交"
+        :value="overview.pendingGrading ?? '--'"
+        icon="edit"
         tone="var(--accent-soft)"
         tone-color="var(--accent)"
       />
     </div>
 
-    <!-- 图表区域：成绩趋势 + 成绩分布 -->
+    <!-- 图表区域：真实提交趋势 + 学生作业均分分布 -->
     <div class="chart-row">
-      <div class="chart-card">
-        <div class="chart-title">成绩趋势</div>
-        <v-chart :option="trendOption" class="chart-h300" autoresize />
+      <div v-loading="loading" class="chart-card">
+        <div class="chart-title">近 7 天作业提交量</div>
+        <v-chart v-if="hasTrendData" :option="trendOption" class="chart-h300" autoresize />
+        <EmptyState v-else title="暂无提交趋势数据" icon="chart" />
       </div>
-      <div class="chart-card">
-        <div class="chart-title">成绩分布</div>
-        <v-chart :option="distributionOption" class="chart-h300" autoresize />
+      <div v-loading="loading" class="chart-card">
+        <div class="chart-title">学生作业均分区间</div>
+        <v-chart
+          v-if="hasDistributionData"
+          :option="distributionOption"
+          class="chart-h300"
+          autoresize
+        />
+        <EmptyState v-else title="暂无已评分作业" icon="chart" />
       </div>
     </div>
 
-    <!-- 图表区域：课程对比雷达图 + 学生活跃度排行 -->
+    <!-- 图表区域：真实课程进度 + 学生任务完成数 -->
     <div class="chart-row">
-      <div class="chart-card">
-        <div class="chart-title">各课程对比</div>
-        <v-chart :option="radarOption" class="chart-h320" autoresize />
+      <div v-loading="loading" class="chart-card">
+        <div class="chart-title">课程进度与任务完成率</div>
+        <v-chart v-if="hasCourseComparison" :option="radarOption" class="chart-h320" autoresize />
+        <EmptyState v-else title="暂无课程进度数据" icon="chart" />
       </div>
-      <div class="chart-card">
-        <div class="chart-title">学生活跃度排行</div>
-        <v-chart :option="activityRankOption" class="chart-h320" autoresize />
+      <div v-loading="loading" class="chart-card">
+        <div class="chart-title">学生任务完成数排行</div>
+        <v-chart
+          v-if="hasActivityRank"
+          :option="activityRankOption"
+          class="chart-h320"
+          autoresize
+        />
+        <EmptyState v-else title="暂无任务完成记录" icon="chart" />
       </div>
     </div>
 
@@ -75,33 +105,30 @@
 <script setup lang="ts">
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import TyaCompletionTable from './components/TyaCompletionTable.vue'
 import { useTeacherAnalytics } from '@/composables/useTeacherAnalytics'
 
 const {
   loading,
-  timeRange,
+  loadNotice,
   overview,
   trendOption,
   distributionOption,
   radarOption,
   activityRankOption,
   completionTable,
-  handleTimeChange,
+  hasTrendData,
+  hasDistributionData,
+  hasCourseComparison,
+  hasActivityRank,
+  loadAnalyticsData,
 } = useTeacherAnalytics()
 </script>
 
 <style scoped>
-.time-selector :deep(.el-radio-button__inner) {
-  border-color: var(--ac-border);
-  color: var(--ac-text-secondary);
-  font-size: 13px;
-}
-
-.time-selector :deep(.el-radio-button__original-radio:checked + .el-radio-button__inner) {
-  background-color: var(--ac-primary);
-  border-color: var(--ac-primary);
-  box-shadow: none;
+.load-notice {
+  margin-bottom: var(--ac-spacing-md);
 }
 
 .chart-row {

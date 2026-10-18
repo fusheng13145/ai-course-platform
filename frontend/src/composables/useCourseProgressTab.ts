@@ -8,6 +8,7 @@ import logger from '@/utils/logger'
  */
 export function useCourseProgressTab(courseIdRef) {
   const loading = ref(false)
+  const loadError = ref('')
   const chapterList = ref([])
   const plannedChapters = ref(0)
 
@@ -64,6 +65,7 @@ export function useCourseProgressTab(courseIdRef) {
 
   async function loadData() {
     loading.value = true
+    loadError.value = ''
     try {
       const res = await teacherApi.getChapterTree(courseIdRef.value)
       const raw = res.data || res || []
@@ -77,6 +79,7 @@ export function useCourseProgressTab(courseIdRef) {
     } catch (e) {
       logger.warn('[CourseProgressTab] loadData 失败:', e.message || e)
       chapterList.value = []
+      loadError.value = '课程进度数据加载失败，请检查网络后重试'
     } finally {
       loading.value = false
     }
@@ -87,6 +90,7 @@ export function useCourseProgressTab(courseIdRef) {
 
   return {
     loading,
+    loadError,
     chapterList,
     plannedChapters,
     circumference,

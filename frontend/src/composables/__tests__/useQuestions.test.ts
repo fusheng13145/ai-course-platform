@@ -21,7 +21,7 @@ const mocks = vi.hoisted(() => ({
   getErrorProne: vi.fn(),
   exportQuestionsExcel: vi.fn(),
   importQuestionsExcel: vi.fn(),
-  getCourseList: vi.fn(),
+  getAllCourses: vi.fn(),
   reqGet: vi.fn(),
   message: Object.assign(vi.fn(), {
     info: vi.fn(),
@@ -45,7 +45,7 @@ vi.mock('@/api/question', () => ({
     importQuestionsExcel: mocks.importQuestionsExcel,
   },
 }))
-vi.mock('@/api/course', () => ({ default: { getCourseList: mocks.getCourseList } }))
+vi.mock('@/api/course', () => ({ default: { getAllCourses: mocks.getAllCourses } }))
 // viewStats 直接用 axios 实例，其余走领域 api
 vi.mock('@/api/request', () => ({
   default: { get: mocks.reqGet, post: vi.fn(), put: vi.fn(), patch: vi.fn(), delete: vi.fn() },
@@ -79,7 +79,7 @@ async function setupQuiet() {
   const ctx = withSetup()
   await flushPromises()
   mocks.getQuestionList.mockClear()
-  mocks.getCourseList.mockClear()
+  mocks.getAllCourses.mockClear()
   return ctx
 }
 
@@ -129,23 +129,25 @@ function injectValidator(target: { value: unknown }, valid: boolean) {
 describe('useQuestions — 分页参数基准（P1-12 回归）', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getCourseList.mockResolvedValue({ data: [] })
+    mocks.getAllCourses.mockResolvedValue([])
     mocks.getQuestionList.mockResolvedValue({ data: { records: [], total: 0 } })
   })
 
-  it('课程下拉按后端 1 基口径请求 page=1（旧实现传 0）', async () => {
+  it('课程下拉使用由分页 API 聚合的完整数组', async () => {
+    mocks.getAllCourses.mockResolvedValue([{ id: 7, name: '编译原理' }])
     const { state } = withSetup()
+    // withSetup 会真实挂载组件 → onMounted 的自动加载先落地；
+    // 先等它完成并清空调用记录，再验证「显式调用一次 fetchCourses 只打一次 getAllCourses」。
+    await flushPromises()
+    mocks.getAllCourses.mockClear()
     await state.fetchCourses()
 
-    expect(mocks.getCourseList).toHaveBeenCalledWith({ page: 1, size: 100 })
+    expect(mocks.getAllCourses).toHaveBeenCalledOnce()
+    expect(state.courseList.value).toEqual([{ id: 7, name: '编译原理' }])
   })
 
-  it('课程下拉：list 为空数组、数据在 records 时不得被吞成空下拉', async () => {
-    // 缺陷回归（2026-10-04）：旧写法 `res.data?.list || res.data` 里空数组是 truthy，
-    // MyBatis-Plus Page 形状（records）永远取不到。
-    mocks.getCourseList.mockResolvedValue({
-      data: { list: [], records: [{ id: 7, name: '编译原理' }] },
-    })
+  it('课程下拉不重复解析 API 已归一化的结果', async () => {
+    mocks.getAllCourses.mockResolvedValue([{ id: 7, name: '编译原理' }])
     const { state } = withSetup()
     await state.fetchCourses()
 
@@ -201,7 +203,7 @@ describe('useQuestions — 分页参数基准（P1-12 回归）', () => {
 describe('useQuestions — 响应信封与统计', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getCourseList.mockResolvedValue({ data: [] })
+    mocks.getAllCourses.mockResolvedValue([])
   })
 
   it.each<[string, unknown, number]>([
@@ -295,12 +297,12 @@ describe('useQuestions — 响应信封与统计', () => {
   })
 
   it('课程接口失败时下拉置空而不抛异常', async () => {
-    mocks.getCourseList.mockResolvedValue({ data: { list: [{ id: 1, name: 'CS' }] } })
+    mocks.getAllCourses.mockResolvedValue([{ id: 1, name: 'CS' }])
     const { state } = withSetup()
     await state.fetchCourses()
     expect(state.courseList.value).toEqual([{ id: 1, name: 'CS' }])
 
-    mocks.getCourseList.mockRejectedValue(new Error('500'))
+    mocks.getAllCourses.mockRejectedValue(new Error('500'))
     await state.fetchCourses()
     expect(state.courseList.value).toEqual([])
   })
@@ -309,7 +311,7 @@ describe('useQuestions — 响应信封与统计', () => {
 describe('useQuestions — 表单填充与保存', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getCourseList.mockResolvedValue({ data: [] })
+    mocks.getAllCourses.mockResolvedValue([])
     mocks.getQuestionList.mockResolvedValue({ data: { records: [], total: 0 } })
     mocks.createQuestion.mockResolvedValue({ code: 200 })
     mocks.updateQuestion.mockResolvedValue({ code: 200 })
@@ -476,7 +478,7 @@ describe('useQuestions — 表单填充与保存', () => {
 describe('useQuestions — AI 出题 / 统计 / 易错题', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    mocks.getCourseList.mockResolvedValue({ data: [] })
+    mocks.getAllCourses.mockResolvedValue([])
     mocks.getQuestionList.mockResolvedValue({ data: { records: [], total: 0 } })
   })
 
@@ -586,7 +588,7 @@ describe('useQuestions — 批量导出/导入', () => {
         ? (fakeInput as unknown as HTMLElement)
         : originalCreateElement(tag),
     )
-    mocks.getCourseList.mockResolvedValue({ data: [] })
+    mocks.getAllCourses.mockResolvedValue([])
     mocks.getQuestionList.mockResolvedValue({ data: { records: [], total: 0 } })
     window.URL.createObjectURL = vi.fn(() => 'blob:fake')
     window.URL.revokeObjectURL = vi.fn()

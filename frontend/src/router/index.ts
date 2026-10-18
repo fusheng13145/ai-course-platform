@@ -2,6 +2,12 @@ import { createRouter, createWebHistory } from 'vue-router'
 import type { RouteRecordRaw } from 'vue-router'
 import NProgress from 'nprogress'
 import { useAuthStore } from '@/stores/auth'
+import { COURSE_TABS } from '@/layouts/menus'
+
+// 管理端课程页签文案取自 layouts/menus 的单一来源，避免路由与侧边栏各抄一份而分叉
+const ADMIN_TAB_TITLES = Object.fromEntries(
+  COURSE_TABS.ADMIN.map((t) => [t.suffix, t.text]),
+) as Record<string, string>
 
 const routes: RouteRecordRaw[] = [
   { path: '/', redirect: '/login' },
@@ -34,6 +40,13 @@ const routes: RouteRecordRaw[] = [
     path: '/403',
     component: () => import('@/views/error/403.vue'),
     meta: { requiresAuth: false, title: '无权限' },
+  },
+  {
+    // 后端不可达（网络错误/5xx，典型即启动窗口期 8080 未监听）时的落点。
+    // 必须 requiresAuth:false，否则守卫会对本页再次发起会话探针，形成轮询环。
+    path: '/503',
+    component: () => import('@/views/error/503.vue'),
+    meta: { requiresAuth: false, title: '服务连接失败' },
   },
   {
     path: '/admin',
@@ -69,6 +82,57 @@ const routes: RouteRecordRaw[] = [
         path: 'courses',
         component: () => import('@/views/admin/teaching/CourseManagement.vue'),
         meta: { title: '课程管理', breadcrumb: '课程管理' },
+      },
+      // 课程治理驾驶舱：复用 views/teacher/cockpit/* 视图
+      // 壳内按 route 首段推导角色与前缀（/admin/... 走 ADMIN），返回链接与页签跳转都留在本端
+      // 页签面是「查看/治理」子集，写动作沿用后端既有 ADMIN 姿态（spec §5 末，项目主已接受）
+      {
+        path: 'courses/:id',
+        component: () => import('@/views/teacher/cockpit/CourseCockpit.vue'),
+        meta: { title: '课程治理驾驶舱', breadcrumb: '课程治理' },
+        children: [
+          { path: '', redirect: (to) => `/admin/courses/${to.params.id}/overview` },
+          {
+            path: 'overview',
+            component: () => import('@/views/teacher/cockpit/CourseOverview.vue'),
+            meta: { title: ADMIN_TAB_TITLES['overview'] },
+          },
+          {
+            path: 'chapters',
+            component: () => import('@/views/teacher/cockpit/CourseChapters.vue'),
+            meta: { title: ADMIN_TAB_TITLES['chapters'] },
+          },
+          {
+            path: 'bank',
+            component: () => import('@/views/teacher/cockpit/CourseQuestionBank.vue'),
+            meta: { title: ADMIN_TAB_TITLES['bank'] },
+          },
+          {
+            path: 'exams',
+            component: () => import('@/views/teacher/cockpit/CourseExams.vue'),
+            meta: { title: ADMIN_TAB_TITLES['exams'] },
+          },
+          {
+            path: 'grades',
+            component: () => import('@/views/teacher/cockpit/CourseGrades.vue'),
+            meta: { title: ADMIN_TAB_TITLES['grades'] },
+          },
+          {
+            path: 'analytics',
+            component: () => import('@/views/teacher/cockpit/CourseAnalytics.vue'),
+            meta: { title: ADMIN_TAB_TITLES['analytics'] },
+          },
+          {
+            path: 'knowledge',
+            component: () => import('@/views/teacher/tools/KnowledgeGraph.vue'),
+            meta: { title: ADMIN_TAB_TITLES['knowledge'] },
+          },
+          {
+            path: 'ai',
+            component: () => import('@/views/teacher/tools/AICenter.vue'),
+            meta: { title: ADMIN_TAB_TITLES['ai'] },
+          },
+        ],
       },
       {
         path: 'questions',
@@ -114,9 +178,22 @@ const routes: RouteRecordRaw[] = [
         meta: { title: '考试防作弊治理', breadcrumb: '考试治理' },
       },
       {
+        // 角色矩阵 ③：讨论回复 + 平台全部资源的审核与违规处置（隐藏/删除/封禁作者）
+        path: 'moderation',
+        component: () => import('@/views/admin/governance/ContentModeration.vue'),
+        meta: { title: '内容审核', breadcrumb: '内容与资源治理' },
+      },
+      {
         path: 'analytics',
         component: () => import('@/views/admin/governance/Analytics.vue'),
         meta: { title: '数据分析', breadcrumb: '数据统计' },
+      },
+      {
+        // 跨课程 AI 统计 + 教师出题权限治理：数据源为 ai_call_logs（2026-10-13 埋点上线），
+        // 与 /admin/statistics/ai-usage（无逐次留痕）是两个口径，不可互替。
+        path: 'ai-usage',
+        component: () => import('@/views/admin/governance/AIUsageByCourse.vue'),
+        meta: { title: 'AI 使用与治理', breadcrumb: '数据统计' },
       },
 
       // ---- 系统配置 (views/admin/system/) ----
@@ -171,6 +248,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/admin/system/ReminderManage.vue'),
         meta: { title: '提醒管理', breadcrumb: '系统管理' },
       },
+      {
+        // 角色矩阵 ①②：创建学期 / 归档过期学期（学期表与课程归属尚未绑定，见页面口径声明）
+        path: 'semesters',
+        component: () => import('@/views/admin/system/SemesterManage.vue'),
+        meta: { title: '学期管理', breadcrumb: '系统管理' },
+      },
 
       // ---- 个人 (views/common/) ----
       {
@@ -219,7 +302,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/teacher/cockpit/CourseCockpit.vue'),
         meta: { title: '课程驾驶舱', breadcrumb: '课程驾驶舱' },
         children: [
-          { path: '', redirect: 'overview' },
+          { path: '', redirect: (to) => `/teacher/courses/${to.params.id}/overview` },
           {
             path: 'overview',
             component: () => import('@/views/teacher/cockpit/CourseOverview.vue'),
@@ -306,11 +389,8 @@ const routes: RouteRecordRaw[] = [
       },
 
       // ---- 考试管理（教师个人视角，非课程级） ----
-      {
-        path: 'exams-manage',
-        component: () => import('@/views/teacher/Exams.vue'),
-        meta: { title: '考试管理', breadcrumb: '考试管理' },
-      },
+      // 注：原 /teacher/exams-manage 与 /teacher/exams 指向同一 examApi.getExamPaperList、
+      // 且无课程筛选，属收敛期旧拆分残留，2026-10-13 随孤儿路由整治一并移除（视图同步删除）。
       {
         path: 'grades-manage',
         component: () => import('@/views/teacher/Grades.vue'),
@@ -386,7 +466,7 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/views/student/course/CourseShell.vue'),
         meta: { title: '课程详情', breadcrumb: '课程详情' },
         children: [
-          { path: '', redirect: 'overview' },
+          { path: '', redirect: (to) => `/student/courses/${to.params.id}/overview` },
           {
             path: 'overview',
             component: () => import('@/views/student/course/CourseDetail.vue'),
@@ -523,7 +603,25 @@ router.beforeEach(async (to, from, next) => {
   // permissionsLoaded 只由一次真实的 /auth/permissions 成功响应置位，
   // 因此这里用「未加载」而不是「未缓存」作为重新拉取的条件（防本地伪造）。
   if (!authStore.permissions || !authStore.permissionsLoaded) {
-    await authStore.fetchPermissions()
+    // DR-45：`isLoggedIn` 只表示本地缓存里有 user，不等于服务端认这次会话。
+    // 所以必须消费 fetchPermissions 回传的结论：服务端 401 就在此终止导航、带 redirect
+    // 跳登录页。原实现 await 之后无视结果照常 next()，跳转又由拦截器另起一路，
+    // 两条导航互相取消 → 过期用户看到「仍已登录、点击无反应，再点才跳登录」。
+    const verdict = await authStore.fetchPermissions()
+    if (verdict === 'expired') {
+      next({ path: '/login', query: { redirect: to.fullPath } })
+      return
+    }
+    // 缺陷修复（2026-10-16 启动崩溃）：服务端不可达（网络错误/5xx，典型即后端尚未
+    // 监听 8080）时，原实现放行后由角色门禁 fail-closed 落到 /403——把「服务没起来」
+    // 显示成「你没有权限」，用户据此去查权限配置，排查方向完全被带偏（本次用户实测：
+    // start-all 启动即见 ECONNREFUSED + 403 页）。
+    // 不可达 ≠ 无权限：改落 /503 连接失败页（自带轮询重试，后端就绪后自动回到原目标），
+    // 角色判定只在服务端真正给出结论（ok/expired）之后才进行。
+    if (verdict === 'unavailable') {
+      next({ path: '/503', query: { redirect: to.fullPath } })
+      return
+    }
   }
 
   const requiredRole = to.matched.find((r) => r.meta.role)?.meta.role

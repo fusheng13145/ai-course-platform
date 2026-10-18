@@ -63,6 +63,8 @@ public class ResourceServiceImpl extends ServiceImpl<ResourceMapper, Resource> i
         List<Resource> allResources = this.list(
                 new LambdaQueryWrapper<Resource>()
                         .eq(Resource::getCourseId, courseId)
+                        // 内容审核（③）读路径执行点：已隐藏资源不进入资源树
+                        .ne(Resource::getModerationStatus, Resource.MODERATION_HIDDEN)
                         .orderByAsc(Resource::getChapterId)
                         .orderByDesc(Resource::getUploadTime)
         );
@@ -89,6 +91,8 @@ public class ResourceServiceImpl extends ServiceImpl<ResourceMapper, Resource> i
                         .or()
                         .like(Resource::getDescription, keyword))
                 .eq(courseId != null, Resource::getCourseId, courseId)
+                // 内容审核（③）读路径执行点：已隐藏资源不出现在搜索结果里
+                .ne(Resource::getModerationStatus, Resource.MODERATION_HIDDEN)
                 .orderByDesc(Resource::getUploadTime);
         return this.page(pageParam, queryWrapper);
     }
@@ -100,7 +104,9 @@ public class ResourceServiceImpl extends ServiceImpl<ResourceMapper, Resource> i
     public ResourceStatsVO getResourceStats(Long courseId) {
         // 查询课程下所有资源
         LambdaQueryWrapper<Resource> baseQuery = new LambdaQueryWrapper<Resource>()
-                .eq(Resource::getCourseId, courseId);
+                .eq(Resource::getCourseId, courseId)
+                // 内容审核（③）读路径执行点：统计口径同样不计已隐藏资源（否则"已隐藏却仍计入总数"自相矛盾）
+                .ne(Resource::getModerationStatus, Resource.MODERATION_HIDDEN);
         List<Resource> resources = this.list(baseQuery);
 
         // 按文件类型分组统计数量
@@ -148,6 +154,8 @@ public class ResourceServiceImpl extends ServiceImpl<ResourceMapper, Resource> i
                 new LambdaQueryWrapper<Resource>()
                         .eq(Resource::getCourseId, courseId)
                         .eq(Resource::getChapterId, chapterId)
+                        // 内容审核（③）读路径执行点：已隐藏资源不进入章节目录
+                        .ne(Resource::getModerationStatus, Resource.MODERATION_HIDDEN)
                         .orderByDesc(Resource::getUploadTime)
         );
     }

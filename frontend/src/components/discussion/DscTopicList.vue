@@ -82,9 +82,7 @@
             <el-icon class="ti-arrow"><ArrowRight /></el-icon>
           </div>
         </div>
-        <el-empty v-else :description="emptyText" :image-size="70">
-          <template v-if="showToolbar" #image><div class="empty-deco">💬</div></template>
-        </el-empty>
+        <EmptyState v-else :title="emptyText" icon="message" />
       </div>
     </template>
   </div>
@@ -101,6 +99,7 @@ import {
   ArrowRight,
   Star,
 } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 讨论话题列表（讨论域共享实现）
@@ -108,30 +107,50 @@ import {
  * 教师端为其子集；角色差异以 props 表达：
  * `showToolbar` / `showEssence` / `enableCourseGate` / `authorFallback` / `emptyText`。</p>
  */
-defineProps({
-  /** 话题列表 */
-  topics: { type: Array, default: () => [] },
-  /** 话题加载态 */
-  topicLoading: { type: Boolean, default: false },
-  /** 当前课程（课程门控开启且为空时提示选择） */
-  courseId: { type: [String, Number], default: '' },
-  /** 精华筛选（v-model：'' 或 true） */
-  essenceFilter: { type: [String, Boolean], default: '' },
-  /** 搜索关键字（v-model） */
-  keyword: { type: String, default: '' },
-  /** 是否显示工具栏（学生端为 true） */
-  showToolbar: { type: Boolean, default: false },
-  /** 是否显示精华标识（学生端为 true） */
-  showEssence: { type: Boolean, default: false },
-  /** 是否启用课程门控（学生端为 true） */
-  enableCourseGate: { type: Boolean, default: false },
-  /** 作者名缺省文案（学生端「同学」/ 教师端「教师」） */
-  authorFallback: { type: String, default: '同学' },
-  /** 空态文案 */
-  emptyText: { type: String, default: '暂无话题，点击「发起讨论」开始吧' },
-})
+withDefaults(
+  defineProps<{
+    /** 话题列表 */
+    topics?: DiscussionTopic[]
+    /** 话题加载态 */
+    topicLoading?: boolean
+    /** 当前课程（课程门控开启且为空时提示选择） */
+    courseId?: string | number
+    /** 精华筛选（v-model：'' 或 true） */
+    essenceFilter?: string | boolean
+    /** 搜索关键字（v-model） */
+    keyword?: string
+    /** 是否显示工具栏（学生端为 true） */
+    showToolbar?: boolean
+    /** 是否显示精华标识（学生端为 true） */
+    showEssence?: boolean
+    /** 是否启用课程门控（学生端为 true） */
+    enableCourseGate?: boolean
+    /** 作者名缺省文案（学生端「同学」/ 教师端「教师」） */
+    authorFallback?: string
+    /** 空态文案 */
+    emptyText?: string
+  }>(),
+  {
+    topics: () => [],
+    topicLoading: false,
+    courseId: '',
+    essenceFilter: '',
+    keyword: '',
+    showToolbar: false,
+    showEssence: false,
+    enableCourseGate: false,
+    authorFallback: '同学',
+    emptyText: '暂无话题，点击「发起讨论」开始吧',
+  },
+)
 
-defineEmits(['update:essenceFilter', 'update:keyword', 'load', 'refresh', 'open-detail'])
+defineEmits<{
+  'update:essenceFilter': [value: string | boolean]
+  'update:keyword': [value: string]
+  load: []
+  refresh: []
+  'open-detail': [topic: DiscussionTopic]
+}>()
 </script>
 
 <style scoped>
@@ -231,9 +250,5 @@ defineEmits(['update:essenceFilter', 'update:keyword', 'load', 'refresh', 'open-
   display: inline-flex;
   align-items: center;
   gap: 2px;
-}
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 </style>

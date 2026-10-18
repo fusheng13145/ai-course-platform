@@ -3,7 +3,43 @@ import { ref, watch, onMounted } from 'vue'
 import taskApi from '@/api/task'
 import submissionApi from '@/api/submission'
 import courseApi from '@/api/course'
+import userApi from '@/api/user'
 import { getChartTheme } from '@/utils/chartTheme'
+import { pickList, unwrap } from '@/utils/response'
+
+function submissionStudentKey(submission) {
+  const id = submission?.studentId ?? submission?.userId ?? submission?.submitterId
+  return id == null || id === '' ? null : String(id)
+}
+
+function isNewerAttempt(candidate, current) {
+  const candidateAttempt = Number(candidate?.attemptNumber) || 0
+  const currentAttempt = Number(current?.attemptNumber) || 0
+  if (candidateAttempt !== currentAttempt) return candidateAttempt > currentAttempt
+
+  const candidateTime = Date.parse(candidate?.submittedAt || candidate?.createdAt || '') || 0
+  const currentTime = Date.parse(current?.submittedAt || current?.createdAt || '') || 0
+  if (candidateTime !== currentTime) return candidateTime > currentTime
+
+  return (Number(candidate?.id) || 0) > (Number(current?.id) || 0)
+}
+
+function latestSubmissionPerStudent(submissions) {
+  const latestByStudent = new Map()
+  for (const submission of submissions) {
+    const studentKey = submissionStudentKey(submission)
+    if (!studentKey) continue
+    const current = latestByStudent.get(studentKey)
+    if (!current || isNewerAttempt(submission, current)) latestByStudent.set(studentKey, submission)
+  }
+  return [...latestByStudent.values()]
+}
+
+function numericScore(value) {
+  if (value == null || value === '') return null
+  const score = Number(value)
+  return Number.isFinite(score) ? score : null
+}
 
 /**
  * 课程完成度 Tab 数据逻辑（拆分自 components/CourseCompletionTab.vue，2026-08-29）
@@ -12,12 +48,13 @@ import { getChartTheme } from '@/utils/chartTheme'
 export function useCourseCompletionTab(courseIdRef) {
   const loadingAssignments = ref(false)
   const loadingStudents = ref(false)
+  const loadNotice = ref('')
   const viewMode = ref('assignment')
 
   const overview = ref({
     totalAssignments: 0,
-    avgSubmissionRate: 0,
-    avgScore: 0,
+    avgSubmissionRate: null,
+    avgScore: null,
     totalSubmissions: 0,
   })
 
@@ -74,55 +111,106 @@ export function useCourseCompletionTab(courseIdRef) {
   async function loadData() {
     loadingAssignments.value = true
     loadingStudents.value = true
+    loadNotice.value = ''
+    assignmentStats.value = []
+    studentStats.value = []
+    overview.value = {
+      totalAssignments: 0,
+      avgSubmissionRate: null,
+      avgScore: null,
+      totalSubmissions: 0,
+    }
+    gradeDistOption.value.series[0].data = [0, 0, 0, 0, 0]
 
     try {
       const cid = Number(courseIdRef.value)
 
       // 获取作业列表
-      const taskRes = await taskApi.getTaskList({ courseId: cid })
-      const tasks = taskRes.data?.records || taskRes.data?.list || taskRes.data || taskRes || []
-      const taskList = Array.isArray(tasks) ? tasks : []
+      const allTasks = (await taskApi.getAllTasks({ courseId: cid })) as Array<{
+        id?: number | string
+        title?: string
+        status?: string
+        taskType?: string
+        dueDate?: string
+      }>
+      const taskList = allTasks.filter((task) => {
+        const type = String(task.taskType || '')
+          .trim()
+          .toUpperCase()
+        return !type || ['ASSIGNMENT', 'HOMEWORK', '作业'].includes(type)
+      })
 
       // 获取学生列表
       let studentList = []
+      let studentListAvailable = true
+      const notices = []
       try {
-        const stuRes = await courseApi.getStudents(cid)
-        const raw = stuRes.data?.records || stuRes.data?.list || stuRes.data || stuRes || []
-        studentList = Array.isArray(raw) ? raw : []
+        const enrollments = (await courseApi.getAllStudents(cid)) as Array<{
+          isActive?: boolean
+          approvalStatus?: string
+          studentId?: number | string
+        }>
+        studentList = enrollments.filter(
+          (enrollment) =>
+            enrollment?.isActive === true && enrollment?.approvalStatus === 'APPROVED',
+        )
       } catch (e) {
         logger.warn('[CourseCompletionTab] 获取学生列表失败:', e.message || e)
+        studentListAvailable = false
+        notices.push('学生名单暂不可用，提交率统计不完整。')
       }
 
-      const totalStudents = studentList.length || 1
+      const totalStudents = studentListAvailable ? studentList.length : null
+
+      let teacherStudents = []
+      try {
+        teacherStudents = pickList(unwrap(await userApi.getTeacherStudents()))
+      } catch (e) {
+        logger.warn('[CourseCompletionTab] 获取学生姓名失败:', e.message || e)
+      }
+      const usersById = new Map(teacherStudents.map((student) => [String(student.id), student]))
+      const rosterIds = new Set(studentList.map((student) => String(student.studentId)))
 
       // 作业级统计
       const taskStats = []
       let totalSubmissions = 0
+      let submissionFailures = 0
       const allScores = []
       let totalRates = 0
 
+      const submissionsByTask = new Map()
       for (const t of taskList) {
         let submissions = []
         try {
-          const subRes = await submissionApi.getTaskSubmissions(t.id)
-          submissions = subRes.data?.records || subRes.data?.list || subRes.data || subRes || []
-          submissions = Array.isArray(submissions) ? submissions : []
-        } catch (e) {
-          // 静默
+          const allSubmissions = await submissionApi.getAllTaskSubmissions(t.id)
+          submissions = latestSubmissionPerStudent(allSubmissions)
+          if (studentListAvailable) {
+            submissions = submissions.filter((submission) =>
+              rosterIds.has(submissionStudentKey(submission)),
+            )
+          }
+        } catch {
+          submissionFailures++
         }
+        submissionsByTask.set(String(t.id), submissions)
 
         const submittedCount = submissions.length
-        const gradeSubs = submissions.filter((s) => s.score != null)
+        const gradeSubs = submissions.filter((s) => numericScore(s.score) != null)
         const gradedCount = gradeSubs.length
-        const scores = gradeSubs.map((s) => s.score)
+        const scores = gradeSubs.map((s) => numericScore(s.score))
         const avgScore =
           scores.length > 0
             ? Math.round((scores.reduce((a, b) => a + b, 0) / scores.length) * 10) / 10
-            : 0
+            : null
         allScores.push(...scores)
 
-        const submissionRate = Math.round((submittedCount / Math.max(totalStudents, 1)) * 100)
-        totalRates += submissionRate
+        const submissionRate =
+          totalStudents == null
+            ? null
+            : totalStudents > 0
+              ? Math.round((submittedCount / totalStudents) * 100)
+              : 0
+        if (submissionRate != null) totalRates += submissionRate
         totalSubmissions += submittedCount
 
         taskStats.push({
@@ -132,7 +220,8 @@ export function useCourseCompletionTab(courseIdRef) {
           dueDate: t.dueDate,
           totalStudents,
           submittedCount,
-          unsubmittedCount: Math.max(0, totalStudents - submittedCount),
+          unsubmittedCount:
+            totalStudents == null ? null : Math.max(0, totalStudents - submittedCount),
           submissionRate,
           gradedCount,
           avgScore,
@@ -140,13 +229,19 @@ export function useCourseCompletionTab(courseIdRef) {
       }
 
       assignmentStats.value = taskStats
+      if (submissionFailures > 0) {
+        notices.push('部分任务提交记录暂不可用，相关统计可能不完整。')
+      }
+      loadNotice.value = notices.join(' ')
 
       // 概览统计
-      const avgSubmissionRate = taskStats.length > 0 ? Math.round(totalRates / taskStats.length) : 0
+      const knownRates = taskStats.filter((task) => task.submissionRate != null)
+      const avgSubmissionRate =
+        knownRates.length > 0 ? Math.round(totalRates / knownRates.length) : null
       const totalAvgScore =
         allScores.length > 0
           ? Math.round((allScores.reduce((a, b) => a + b, 0) / allScores.length) * 10) / 10
-          : 0
+          : null
 
       overview.value = {
         totalAssignments: taskList.length,
@@ -171,10 +266,11 @@ export function useCourseCompletionTab(courseIdRef) {
       // 学生级统计
       const studentMap = new Map()
       studentList.forEach((s) => {
-        const key = s.studentId || s.studentNo || s.id
+        const key = s.studentId
+        const user = usersById.get(String(key))
         studentMap.set(String(key), {
-          studentId: s.studentId || s.studentNo || String(s.id),
-          studentName: s.studentName || s.name || s.username || '-',
+          studentId: key,
+          studentName: user?.fullName || user?.username || `学生 #${key}`,
           submittedCount: 0,
           totalAssignments: taskList.length,
           scores: [],
@@ -182,22 +278,17 @@ export function useCourseCompletionTab(courseIdRef) {
       })
 
       for (const t of taskList) {
-        try {
-          const subRes = await submissionApi.getTaskSubmissions(t.id)
-          const submissions =
-            subRes.data?.records || subRes.data?.list || subRes.data || subRes || []
-          const subs = Array.isArray(submissions) ? submissions : []
-          subs.forEach((sub) => {
-            const key = String(sub.studentId || sub.userId || sub.submitterId || '')
-            const entry = studentMap.get(key)
-            if (entry) {
-              entry.submittedCount++
-              if (sub.score != null) entry.scores.push(sub.score)
-            }
-          })
-        } catch (e) {
-          // 静默
-        }
+        const submissions = submissionsByTask.get(String(t.id)) || []
+        submissions.forEach((sub) => {
+          const key = submissionStudentKey(sub)
+          if (!key) return
+          const entry = studentMap.get(key)
+          if (entry) {
+            entry.submittedCount++
+            const score = numericScore(sub.score)
+            if (score != null) entry.scores.push(score)
+          }
+        })
       }
 
       const stuStats = []
@@ -223,6 +314,7 @@ export function useCourseCompletionTab(courseIdRef) {
       studentStats.value = stuStats
     } catch (e) {
       logger.warn('[CourseCompletionTab] loadData 失败:', e.message || e)
+      loadNotice.value = '课程完成度数据加载失败，请刷新页面重试。'
     } finally {
       loadingAssignments.value = false
       loadingStudents.value = false
@@ -235,6 +327,7 @@ export function useCourseCompletionTab(courseIdRef) {
   return {
     loadingAssignments,
     loadingStudents,
+    loadNotice,
     viewMode,
     overview,
     assignmentStats,

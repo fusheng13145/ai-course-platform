@@ -142,7 +142,9 @@ def test_empty_question_returns_422():
 
 
 def test_retrieve_returns_success_schema(monkeypatch):
-    # 端到端断言补全：RAG_ENGINE_READY=1 时验证 Java HttpRagProvider 期望的 200 成功结构
+    # 端到端断言补全：RAG_ENGINE_READY=1 时验证 Java HttpRagProvider 期望的 200 成功结构。
+    # ⚠ mode 必须是 PLACEHOLDER 而非 ENGINE：该开关返回的是硬编码样例文本，
+    # 一旦自称 ENGINE，就等于把「未接引擎」对外宣称为「引擎已应答」（DR 登记）。
     monkeypatch.setenv("RAG_ENGINE_READY", "1")
     with TestClient(app) as c:
         resp = c.post(
@@ -152,7 +154,7 @@ def test_retrieve_returns_success_schema(monkeypatch):
         assert resp.status_code == 200
         body = resp.json()
         assert body["code"] == 200
-        assert body["mode"] == "ENGINE"
+        assert body["mode"] == "PLACEHOLDER"
         results = body["results"]
         assert len(results) >= 1
         for r in results:
@@ -173,7 +175,8 @@ def test_ask_returns_success_schema(monkeypatch):
         assert resp.status_code == 200
         body = resp.json()
         assert body["code"] == 200
-        assert body["mode"] == "ENGINE"
+        assert body["mode"] == "PLACEHOLDER"
+        assert body["gen_mode"] == "PLACEHOLDER"
         assert body["answer"]
         sources = body["sources"]
         assert len(sources) >= 1
@@ -182,6 +185,74 @@ def test_ask_returns_success_schema(monkeypatch):
             assert s["document_name"] is not None
             assert s["relevance_score"] is not None
             assert s["snippet"] is not None
+
+
+def _fake_engine_ready(monkeypatch, gen_mode: str, answer: str):
+    """把「引擎已就绪」这条分支钉成可控桩：只桩引擎函数，不桩 rag_service 的装配逻辑。"""
+    import rag_service
+
+    monkeypatch.setattr(rag_service, "_engine_ready_for", lambda cid: True)
+    monkeypatch.setattr(
+        rag_engine, "search",
+        lambda q, cid, k: [{"document_id": 11, "document_name": "进程与线程",
+                            "relevance_score": 0.87,
+                            "snippet": "进程是资源分配的基本单位。"}],
+    )
+    monkeypatch.setattr(rag_engine, "generate_answer", lambda q, ctx: (answer, gen_mode))
+    return rag_service
+
+
+@pytest.mark.parametrize("gen_mode", ["LLM", "EXTRACTIVE"])
+def test_ask_surfaces_generation_source_in_contract(monkeypatch, gen_mode):
+    """真实 LLM 回答与抽取式兜底必须在契约上可区分（D6-2/D13-1 取证的前提）。
+
+    原实现里 rag_service 把 generate_answer 的 mode_tag 丢弃（`answer, _gen_mode = ...`），
+    两者对外都长成 mode=ENGINE/code=200——密钥 401 时平台照样报「引擎已回答」，
+    「真实 LLM 链路是否真的通」无法从响应判断，只能读代码猜。
+    """
+    _fake_engine_ready(monkeypatch, gen_mode, "进程是资源分配的基本单位。")
+    with TestClient(app) as c:
+        body = c.post("/api/v1/rag/ask",
+                      json={"question": "进程和线程的区别", "course_id": 8, "top_k": 3}).json()
+    assert body["code"] == 200
+    assert body["mode"] == "ENGINE"          # 检索层确实走了引擎
+    assert body["gen_mode"] == gen_mode      # 生成层来源单独如实上报
+
+
+def test_ask_gen_mode_extractive_when_llm_key_missing(monkeypatch):
+    """配了索引但没配密钥：抽取式兜底不得冒充 LLM 生成。"""
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    monkeypatch.setattr(rag_engine, "engine_available", lambda: True)
+    monkeypatch.setattr(rag_engine, "index_status",
+                        lambda cid: {"indexed_chunks": 1, "document_count": 1})
+    monkeypatch.setattr(
+        rag_engine, "search",
+        lambda q, cid, k: [{"document_id": 1, "document_name": "D",
+                            "relevance_score": 0.5, "snippet": "资料首句。"}],
+    )
+    with TestClient(app) as c:
+        body = c.post("/api/v1/rag/ask",
+                      json={"question": "问题", "course_id": 88, "top_k": 2}).json()
+    assert body["mode"] == "ENGINE"
+    assert body["gen_mode"] == "EXTRACTIVE"
+    assert body["answer"], "抽取式兜底仍应有内容"
+
+
+def test_ask_degrades_when_generation_unavailable(monkeypatch):
+    """引擎检索层就绪但生成层如实报 UNAVAILABLE（无资料且 LLM 不可用）：不是 200 成功。
+
+    原实现丢弃 mode_tag，这种「什么都没生成出来」的回答照样对外是 mode=ENGINE/code=200，
+    Java 侧因此不会回退纯 LLM——用户看到空回答却无任何降级信号。
+    """
+    _fake_engine_ready(monkeypatch, "UNAVAILABLE", "")
+    with TestClient(app) as c:
+        body = c.post("/api/v1/rag/ask",
+                      json={"question": "问题", "course_id": 8, "top_k": 3}).json()
+    assert body["code"] == 503
+    assert body["mode"] == "UNAVAILABLE"
+    assert body["gen_mode"] == "UNAVAILABLE"
+    assert body["answer"] in (None, "")
+
 
 
 def test_index_build():
@@ -208,8 +279,8 @@ def test_clear_index():
 # CI 轻量环境（requirements.txt 不含 torch/faiss 等）自动跳过
 # ------------------------------------------------------------------
 requires_engine = pytest.mark.skipif(
-    not rag_engine.engine_available(),
-    reason="引擎重依赖未安装（requirements-engine.txt），跳过真实检索验证",
+    not rag_engine.engine_functional(),
+    reason="引擎重依赖未安装或嵌入模型未本地缓存（requirements-engine.txt），跳过真实检索验证",
 )
 
 
@@ -255,6 +326,8 @@ def test_real_engine_ask_returns_grounded_answer():
         body = asked.json()
         assert body["code"] == 200
         assert body["mode"] == "ENGINE"
+        # 生成来源如实上报：有可用密钥才是 LLM，否则抽取式兜底——两者都必须能在响应里看出来
+        assert body["gen_mode"] in {"LLM", "EXTRACTIVE"}, body
         assert body["answer"]
         assert all(s["snippet"] for s in body["sources"])
 
@@ -271,3 +344,55 @@ def test_real_engine_degrades_without_index():
         assert body["code"] == 503
         assert body["mode"] == "UNAVAILABLE"
         assert "index/build" in body["error"]
+
+
+# ------------------------------------------------------------------
+# 引擎"依赖可 import 但运行时失败"的中间态降级（不依赖联网下载模型，确定性）
+# 复现并锁定 A 排查发现的缺陷：依赖齐备（engine_available=True）但模型缺失/
+# 离线部署/版本不兼容导致 _embed 抛错时，端点必须优雅降级（200+success=False
+# 或 503/UNAVAILABLE），绝不能 500。
+# ------------------------------------------------------------------
+def test_engine_runtime_failure_degrades_gracefully(monkeypatch):
+    # 模拟"依赖可 import 但引擎运行时失败"的环境（本沙箱正是此类中间态）
+    monkeypatch.setattr(rag_engine, "engine_available", lambda: True)
+
+    def _boom():
+        raise RuntimeError("embedding model failed to load (offline / missing / version mismatch)")
+
+    def _boom_search(*args, **kwargs):
+        raise RuntimeError("embedding failed at runtime (offline / missing / version mismatch)")
+
+    # _get_model 抛错：覆盖建索引路径（build_course_index -> _embed -> _get_model）
+    monkeypatch.setattr(rag_engine, "_get_model", _boom)
+    # search 抛错：覆盖检索路径（_engine_ready_for 为真后即调用 search）
+    monkeypatch.setattr(rag_engine, "search", _boom_search)
+
+    with TestClient(app) as c:
+        c.post("/api/v1/rag/documents",
+               json={"course_id": 77, "document_name": "X", "content": "x"})
+
+        # 1) 建索引：不应 500，应返回 success=False + 可操作 error
+        built = c.post("/api/v1/rag/index/build/77")
+        assert built.status_code == 200
+        bb = built.json()
+        assert bb["success"] is False
+        assert "失败" in (bb.get("error") or "")
+
+        # 2) 让引擎"看似已有索引"以进入检索路径，验证 retrieve/ask 亦降级而非 500
+        monkeypatch.setattr(rag_engine, "index_status", lambda cid: {"indexed_chunks": 1})
+
+        retrieved = c.post("/api/v1/rag/retrieve",
+                           json={"query": "x", "course_id": 77, "top_k": 2})
+        assert retrieved.status_code == 200
+        rb = retrieved.json()
+        assert rb["code"] == 503
+        assert rb["mode"] == "UNAVAILABLE"
+        assert "失败" in (rb.get("error") or "")
+
+        asked = c.post("/api/v1/rag/ask",
+                       json={"question": "x", "course_id": 77, "top_k": 2})
+        assert asked.status_code == 200
+        ab = asked.json()
+        assert ab["code"] == 503
+        assert ab["mode"] == "UNAVAILABLE"
+        assert "失败" in (ab.get("error") or "")

@@ -4,6 +4,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import questionApi from '@/api/question'
 import courseApi from '@/api/course'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /**
  * 审核状态推导（2026-09-21 修复，P1-1）。
@@ -77,10 +78,7 @@ export function useQuestionBank() {
 
   async function loadCourses() {
     try {
-      const r = await courseApi.getMyCourses()
-      const body = unwrap(r)
-      const list = body?.records || body?.list || body || []
-      courseList.value = Array.isArray(list) ? list : []
+      courseList.value = await courseApi.getAllMyCourses()
     } catch (e) {
       logger.error('加载课程失败', e)
     }
@@ -184,7 +182,9 @@ export function useQuestionBank() {
 
   async function handleDelete(row) {
     try {
-      await ElMessageBox.confirm(`确定删除该题目？此操作不可恢复`, '删除确认', { type: 'warning' })
+      // D2-2：删除题目不可逆，明确不可逆性与恢复路径
+      const ok = await confirmDanger({ verb: '删除', target: '题目' })
+      if (!ok) return
       await questionApi.deleteQuestion(row.id)
       ElMessage.success('题目已删除')
       loadQuestions()

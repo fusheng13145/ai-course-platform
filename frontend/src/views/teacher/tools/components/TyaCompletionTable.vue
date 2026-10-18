@@ -1,36 +1,40 @@
 <template>
   <div class="table-section animate-in d2">
     <div class="section-header">
-      <span class="chart-title">作业完成情况</span>
+      <span class="chart-title">各课程完成概况</span>
     </div>
     <div class="content-card table-card">
       <el-table v-loading="loading" :data="completionTable">
-        <el-table-column prop="courseName" label="课程名称" min-width="140" />
-        <el-table-column prop="taskName" label="任务/作业" min-width="140" />
-        <el-table-column prop="submissionRate" label="提交率" width="90" align="center">
+        <el-table-column prop="name" label="课程名称" min-width="140" />
+        <el-table-column prop="studentCount" label="选课人数" width="90" align="center">
+          <template #default="{ row }">{{ row.studentCount ?? '--' }}</template>
+        </el-table-column>
+        <el-table-column prop="avgProgress" label="平均进度" width="100" align="center">
           <template #default="{ row }">
-            <span :style="{ color: monoScore(row.submissionRate) }">{{ row.submissionRate }}%</span>
+            <span v-if="row.avgProgress != null" :style="{ color: monoScore(row.avgProgress) }">
+              {{ row.avgProgress }}%
+            </span>
+            <span v-else>--</span>
           </template>
         </el-table-column>
-        <el-table-column prop="avgScore" label="平均分" width="80" align="center" />
-        <el-table-column prop="maxScore" label="最高分" width="80" align="center">
+        <el-table-column prop="completionRate" label="完成率" width="90" align="center">
           <template #default="{ row }"
-            ><span class="score-max">{{ row.maxScore }}</span></template
+            ><span v-if="row.completionRate != null">{{ row.completionRate }}%</span
+            ><span v-else>--</span></template
           >
         </el-table-column>
-        <el-table-column prop="minScore" label="最低分" width="80" align="center">
-          <template #default="{ row }"
-            ><span class="score-min">{{ row.minScore }}</span></template
-          >
+        <el-table-column prop="pendingGrading" label="待批阅提交" width="110" align="center">
+          <template #default="{ row }">{{ row.pendingGrading ?? '--' }}</template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="!loading && completionTable.length === 0" description="暂无数据" />
+      <EmptyState v-if="!loading && completionTable.length === 0" title="暂无课程完成数据" icon="chart" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { monoScore } from '@/utils/chartTheme'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 defineProps({
   loading: { type: Boolean, default: false },
@@ -60,11 +64,5 @@ defineProps({
 .table-card {
   padding: 0;
   overflow: hidden;
-}
-.score-max {
-  color: var(--ac-success);
-}
-.score-min {
-  color: var(--ac-danger);
 }
 </style>

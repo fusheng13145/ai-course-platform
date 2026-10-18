@@ -180,6 +180,27 @@ class AnalyticsServiceImplTest {
     }
 
     @Test
+    @DisplayName("getStudentCourseProgressList - 课程考试统计故障时保留学情与作业数据")
+    void progressList_examAnalyticsFailureKeepsCourseProgress() {
+        when(enrollmentService.list(any(Wrapper.class)))
+                .thenReturn(Collections.singletonList(enrollment(1L, 10L, new BigDecimal("60"), null)));
+        when(userService.listByIds(anyCollection())).thenReturn(Collections.singletonList(user(10L, "张三")));
+        when(taskService.list(any(Wrapper.class))).thenReturn(Collections.singletonList(task(1L)));
+        when(taskCompletionMapper.selectList(any(Wrapper.class))).thenReturn(Collections.emptyList());
+        when(submissionService.list(any(Wrapper.class))).thenReturn(Collections.emptyList());
+        when(examPaperService.list(any(Wrapper.class))).thenThrow(new IllegalStateException("exam data offline"));
+
+        List<Map<String, Object>> result = analyticsService.getStudentCourseProgressList(1L);
+
+        assertEquals(1, result.size());
+        assertEquals(10L, result.get(0).get("studentId"));
+        assertNull(result.get(0).get("avgAssignmentScore"));
+        assertNull(result.get(0).get("avgExamScore"));
+        assertEquals(1L, result.get(0).get("totalTasks"));
+        verify(examSessionService, never()).list(any(Wrapper.class));
+    }
+
+    @Test
     @DisplayName("getStudentCourseDetail - 学生为 null 时姓名/学号降级为 null 且不抛异常")
     void studentDetail_studentNull() {
         when(userService.getById(99L)).thenReturn(null);

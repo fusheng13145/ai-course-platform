@@ -26,10 +26,11 @@
             </div>
           </div>
         </div>
-        <el-empty
+        <EmptyState
           v-if="!pointLoading && points.length === 0"
-          description="暂无知识点"
-          :image-size="64"
+          :title="emptyText"
+          icon="layers"
+          size="compact"
         />
       </div>
     </div>
@@ -51,7 +52,7 @@
       </div>
       <div v-loading="graphLoading" class="graph-wrap">
         <v-chart v-if="hasGraph" :option="graphOption" autoresize class="kg-chart" />
-        <el-empty v-else description="暂无图谱数据" :image-size="64" />
+        <EmptyState v-else title="暂无图谱数据" icon="layers" size="compact" />
       </div>
       <p class="graph-hint">
         节点按力导向实时运动并自动收敛：可拖拽单个节点改变布局、按住空白处平移画布；大小代表重要度，颜色代表难度。
@@ -62,6 +63,7 @@
 
 <script setup lang="ts">
 import { Files, Plus, Refresh, Share } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 知识图谱：知识点列表 + 力导向图谱
@@ -76,6 +78,8 @@ defineProps({
   graphLoading: { type: Boolean, default: false },
   graphOption: { type: Object, default: () => ({}) },
   hasGraph: { type: Boolean, default: false },
+  /** 知识点列表空态文案（失败时由页面传入「未能加载」文案，默认保留原语义） */
+  emptyText: { type: String, default: '暂无知识点' },
 })
 
 const emit = defineEmits(['create', 'edit', 'remove', 'refresh'])

@@ -75,12 +75,16 @@
           :filtered-docs="filteredDocs"
           :loading="loading"
           :indexing="indexing"
+          :building-from-course="buildingFromCourse"
+          :build-error="courseKbError"
+          :build-result="courseKbResult"
           :preview="preview"
           @course-change="onCourseChange"
           @search="loadDocs"
           @open-add="openAdd"
           @build-index="buildIndex"
           @clear-index="clearIndex"
+          @build-from-course="buildCourseKb"
           @open-edit="openEdit"
           @remove-doc="removeDoc"
         />
@@ -152,6 +156,9 @@ const {
   asking,
   retrieving,
   saving,
+  buildingFromCourse,
+  courseKbError,
+  courseKbResult,
   courseList,
   selectedCourseId,
   docs,
@@ -178,6 +185,7 @@ const {
   removeDoc,
   buildIndex,
   clearIndex,
+  buildCourseKb,
   doAsk,
   doRetrieve,
 } = useKnowledgeBase()

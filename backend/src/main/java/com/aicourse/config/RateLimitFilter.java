@@ -1,5 +1,6 @@
 package com.aicourse.config;
 
+import com.aicourse.util.TrustedClientIpResolver;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -32,7 +33,9 @@ import java.util.concurrent.ConcurrentHashMap;
  * 3) 验证码接口限流，防止邮件/短信轰炸。
  * 4) <b>集群一致性</b>：Redis 模式下所有实例共享同一计数窗口，攻击者无法通过轮询节点绕过。
  * <p>
- * 阈值全部配置化：{@code ratelimit.login.*} / {@code ratelimit.ai.*} / {@code ratelimit.verify-code.*}。
+ * 阈值全部配置化：{@code ratelimit.login.*} / {@code ratelimit.ai.*} / {@code ratelimit.verify-code.*}
+ * / {@code ratelimit.register.*}。IP 维度取值一律走 {@link TrustedClientIpResolver}（与登录失败节流同源，
+ * 由 {@code app.security.trust-proxy-header} 单点控制），本过滤器不再自带开关。
  */
 @Component
 @Order(Ordered.HIGHEST_PRECEDENCE)
@@ -48,11 +51,17 @@ public class RateLimitFilter extends OncePerRequestFilter {
      * 2) 若 key 是首次创建，则设置过期时间（窗口长度 + 1 秒缓冲）；
      * 3) 返回当前窗口内请求数。
      * 使用 Lua 保证 INCR + EXPIRE 的原子性，避免并发窗口重置导致计数错误。
+     * <p>
+     * ⚠️ 引用参数下标必须与 {@link #tryAcquireRedis} 实际传入的 ARGV 个数一致：
+     * Lua 里越界访问 {@code ARGV[n]} 得到的是 {@code false}，{@code EXPIRE key false}
+     * 会让整段脚本报 "Lua redis() command arguments must be strings or integers"。
+     * 由于 INCR 先于 EXPIRE 生效，报错后窗口 key 已计数却永不过期——限流计数退化为
+     * 本地内存执行，同时 Redis 里的窗口键无限堆积。
      */
     private static final String SLIDE_WINDOW_LUA =
             "local current = redis.call('INCR', KEYS[1]) " +
             "if current == 1 then " +
-            "    redis.call('EXPIRE', KEYS[1], ARGV[2]) " +
+            "    redis.call('EXPIRE', KEYS[1], ARGV[1]) " +
             "end " +
             "return current";
 
@@ -70,19 +79,21 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private boolean redisEnabled;
 
     /**
-     * 是否信任反向代理传递的 X-Forwarded-For 头。
-     * <p>默认 false：忽略客户端自带的 XFF，以 {@code getRemoteAddr()} 为准。</p>
-     * <p><b>⚠ 前提条件（2026-09-16 上线前全检核实）</b>：该「安全默认」成立的前提是<b>边缘代理以
-     * 覆写语义</b>设置 {@code X-Forwarded-For}（本仓库 {@code frontend/nginx.conf} 已改用
-     * {@code $remote_addr}）。原因是 {@code application.yaml} 配置了
-     * {@code server.forward-headers-strategy: framework}，Spring 的 {@code ForwardedHeaderFilter} 会以
-     * XFF 的<b>最左端</b>覆写 {@code getRemoteAddr()}，故 {@code getRemoteAddr()} <b>并不等于 TCP 对端</b>。
-     * 一旦代理改为追加语义（{@code $proxy_add_x_forwarded_for}），最左端即为客户端可控值，
-     * 本限流与 {@code trustProxyHeader=true} 时的 XFF 取值<b>都会被逐请求换头绕过</b>。</p>
-     * <p>修改代理配置前必读 {@link com.aicourse.util.TrustedClientIpResolver} 的类注释。</p>
+     * 限流键的客户端地址来源：与登录失败节流<b>同一个</b> {@link TrustedClientIpResolver}。
+     *
+     * <p>DR-66 收口前，本过滤器自带一个 {@code ratelimit.trust-proxy-header} 开关，只认
+     * {@code X-Forwarded-For} 最左段；而节流走 resolver，认反代以 {@code $remote_addr} 覆写的
+     * {@code X-Real-IP}。两个键的取值口径不同，且本仓 {@code server.forward-headers-strategy}
+     * 已于 P0-2 收为 {@code none}（不再由 Spring 用 XFF 改写 remoteAddr），于是置于反代之后时
+     * {@code getRemoteAddr()} 就是反代自身地址——**全站所有客户端落进同一个桶**，
+     * 登录 10 次/60 秒变成全部署总额度。反方向也成立：追加语义的代理下，XFF 最左段由客户端可控，
+     * 逐请求换头即可绕过限流。两个缺陷同源：同一个安全语义有两份实现。</p>
+     *
+     * <p>现口径：本过滤器不再持有开关，一律 {@code resolver.resolve(request)}（构造器注入）；
+     * 是否信任反代头由 {@code app.security.trust-proxy-header} 单点决定
+     * （直连/dev=false，prod=true，见 {@code application.yaml} 与 {@code application-prod.yml}）。</p>
      */
-    @Value("${ratelimit.trust-proxy-header:false}")
-    private boolean trustProxyHeader;
+    private final TrustedClientIpResolver clientIpResolver;
 
     @Value("${ratelimit.login.limit:10}")
     private int loginLimit;
@@ -122,9 +133,13 @@ public class RateLimitFilter extends OncePerRequestFilter {
     /**
      * 使用 {@link ObjectProvider} 注入 StringRedisTemplate，使过滤器在缺少 Redis 依赖的
      * 测试切片（如 {@code @WebMvcTest}）中仍可启动，此时自动降级为纯本地内存限流。
+     * <p>{@link TrustedClientIpResolver} 刻意<b>不用</b> ObjectProvider：缺 bean 时必须让上下文
+     * 启动失败，而不是静默退回「自己猜客户端地址」——那正是 DR-66 的成因。</p>
      */
-    public RateLimitFilter(ObjectProvider<StringRedisTemplate> redisTemplateProvider) {
+    public RateLimitFilter(ObjectProvider<StringRedisTemplate> redisTemplateProvider,
+                           TrustedClientIpResolver clientIpResolver) {
         this.redisTemplate = redisTemplateProvider.getIfAvailable();
+        this.clientIpResolver = clientIpResolver;
     }
 
     @Override
@@ -142,7 +157,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
         }
 
         String path = request.getRequestURI();
-        String clientIp = resolveClientIp(request);
+        String clientIp = clientIpResolver.resolve(request);
 
         Rule rule = resolveRule(path, clientIp);
         if (rule != null && !tryAcquire(rule)) {
@@ -226,21 +241,6 @@ public class RateLimitFilter extends OncePerRequestFilter {
             buckets.entrySet().removeIf(e -> nowSec - e.getValue().windowStart >= e.getValue().windowSeconds);
         }
         return bucket.count <= rule.limit;
-    }
-
-    private String resolveClientIp(HttpServletRequest request) {
-        // 安全默认：不信任客户端可伪造的 X-Forwarded-For，使用 getRemoteAddr()。
-        // 注意：framework 策略下 getRemoteAddr() 已被 ForwardedHeaderFilter 以 XFF 最左端覆写，
-        // 故此处安全性的真正前提是「边缘代理以覆写语义设置 XFF」，而非「读到的一定是 TCP 对端」；
-        // 详见 trustProxyHeader 字段注释与 TrustedClientIpResolver 类注释。
-        if (trustProxyHeader) {
-            // 取 XFF 最左段：仅在边缘代理覆写（$remote_addr）时安全；追加语义下该段由客户端控制。
-            String xff = request.getHeader("X-Forwarded-For");
-            if (xff != null && !xff.isBlank()) {
-                return xff.split(",")[0].trim();
-            }
-        }
-        return request.getRemoteAddr();
     }
 
     private static final class Bucket {

@@ -50,7 +50,7 @@
           <el-icon v-else class="task-go"><ArrowRight /></el-icon>
         </div>
 
-        <el-empty v-if="chapter.tasks.length === 0" :image-size="36" description="本章暂无任务点" />
+        <EmptyState v-if="chapter.tasks.length === 0" title="本章暂无任务点" icon="list" size="compact" />
 
         <!-- 递归子章节 -->
         <chapter-tree
@@ -65,8 +65,10 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import {
   ArrowRight,
   Lock,
@@ -79,8 +81,20 @@ import {
   Notebook,
 } from '@element-plus/icons-vue'
 
+/** 章节节点（children 为递归同型；tasks 仅整体迭代与随 open-task 事件上抛） */
+interface ChapterNode {
+  id?: number | string
+  unlocked?: boolean
+  title?: string
+  completedTasks?: number
+  totalTasks?: number
+  allCompleted?: boolean
+  tasks?: unknown[]
+  children?: ChapterNode[]
+}
+
 const props = defineProps({
-  nodes: { type: Array, default: () => [] },
+  nodes: { type: Array as PropType<ChapterNode[]>, default: () => [] },
   depth: { type: Number, default: 0 },
 })
 const emit = defineEmits(['open-task'])

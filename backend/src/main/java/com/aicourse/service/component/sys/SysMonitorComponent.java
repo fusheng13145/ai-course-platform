@@ -3,6 +3,7 @@ package com.aicourse.service.component.sys;
 import com.aicourse.common.JsonUtils;
 import com.aicourse.entity.LoginLog;
 import com.aicourse.entity.OperationLog;
+import com.aicourse.health.PythonServicesHealthIndicator;
 import com.aicourse.mapper.CourseMapper;
 import com.aicourse.mapper.KnowledgePointMapper;
 import com.aicourse.mapper.LoginLogMapper;
@@ -57,6 +58,7 @@ public class SysMonitorComponent {
     private final LoginLogService loginLogService;
     private final OperationLogService operationLogService;
     private final AIService aiService;
+    private final PythonServicesHealthIndicator pythonServicesHealthIndicator;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public SysMonitorComponent(UserMapper userMapper,
@@ -69,7 +71,8 @@ public class SysMonitorComponent {
                                @Value("${ai.deepseek.api-key:}") String deepseekApiKey,
                                LoginLogService loginLogService,
                                OperationLogService operationLogService,
-                               AIService aiService) {
+                               AIService aiService,
+                               PythonServicesHealthIndicator pythonServicesHealthIndicator) {
         this.userMapper = userMapper;
         this.courseMapper = courseMapper;
         this.questionMapper = questionMapper;
@@ -81,11 +84,12 @@ public class SysMonitorComponent {
         this.loginLogService = loginLogService;
         this.operationLogService = operationLogService;
         this.aiService = aiService;
+        this.pythonServicesHealthIndicator = pythonServicesHealthIndicator;
     }
 
-    /** 健康检查：数据库与 Redis 连接状态 */
+    /** 健康检查：数据库、Redis 连接状态与 Python 微服务（知识图谱/RAG/微调）可用性 */
     public Map<String, Object> getHealth() {
-        Map<String, Object> health = new HashMap<>(4);
+        Map<String, Object> health = new HashMap<>(8);
         health.put("status", "UP");
         health.put("timestamp", LocalDateTime.now().format(DATETIME_FORMATTER));
 
@@ -110,10 +114,33 @@ public class SysMonitorComponent {
         }
         health.put("redis", redisStatus);
 
+        // Python 微服务（知识图谱/RAG/微调）可用性：明细逐服务下发（enabled/baseUrl/status），
+        // 未启用的服务标记 DISABLED 而不再伪装成 UP，运维据此看到真实开关状态。
+        try {
+            health.put("pythonServices", pythonServicesHealthIndicator.health().getDetails());
+        } catch (Exception e) {
+            // 健康指示器本身异常（理论不可达）：如实标记失败，前端显示 "--" 而非当作全部正常
+            log.warn("Python 微服务健康检查异常: {}", e.getMessage());
+            health.put("pythonServices", null);
+            health.put("pythonServicesError", "Python 微服务健康检查失败，请查看后端日志");
+        }
+
         return health;
     }
 
-    /** AI 能力使用统计（基于真实系统数据 + 登录活跃度代理指标） */
+    /**
+     * AI 能力使用统计。
+     *
+     * <p><b>2026-10-13 口径修正（如实记录）</b>：本方法此前返回的 {@code totalCalls} 是
+     * {@code todayLogins * 3}、{@code costEstimate} 是 {@code todayLogins * 0.02}、
+     * {@code avgResponseTime} 是常量 1200——全是"估算"，注释亦自承，属编造数字。
+     * 既往因前端零消费而未在演示中露馅，但任何新 AI 统计页都不允许误接该端点，
+     * 故<b>直接删去这三个无留痕的估算字段</b>，改为显式声明"调用量/成本需按次留痕"。
+     * 真实的逐次调用统计请走 {@code GET /admin/statistics/ai-usage/by-course}
+     * （数据源 {@code ai_call_logs}）。</p>
+     *
+     * <p>保留的字段都是真实可核的：用户/课程/题目/知识点计数、AI 是否为已配置状态。</p>
+     */
     public Map<String, Object> getAIUsageStats() {
         Map<String, Object> stats = new HashMap<>();
 
@@ -123,20 +150,14 @@ public class SysMonitorComponent {
         long totalQuestions = questionMapper.selectCount(null);
         long totalKnowledgePoints = knowledgePointMapper.selectCount(null);
 
-        // 今日登录次数（作为系统活跃度代理指标）
-        LocalDateTime todayStart = LocalDateTime.of(LocalDate.now(), LocalTime.MIN);
-        long todayLogins = loginLogMapper.selectCount(
-                new LambdaQueryWrapper<LoginLog>()
-                        .ge(LoginLog::getCreatedAt, todayStart)
-        );
-
         // AI服务状态
         boolean aiConfigured = deepseekApiKey != null && !deepseekApiKey.isBlank();
 
-        stats.put("totalCalls", todayLogins * 3); // 估算：每次登录约3次AI调用
-        stats.put("todayCalls", todayLogins > 0 ? todayLogins : 1);
-        stats.put("avgResponseTime", aiConfigured ? 1200 : 0); // DeepSeek 平均响应约1.2s
-        stats.put("costEstimate", todayLogins * 0.02); // 估算：每次约0.02元
+        // 如实声明：调用量/成本不在本端点采集（避免后续有人把估算值当真值接走）
+        stats.put("collectedSince", "2026-10-13");
+        stats.put("collectionNote",
+                "调用次数/Token/耗时自 2026-10-13 起按次留痕，请见 /admin/statistics/ai-usage/by-course；"
+                        + "本端点不再给出任何估算值。");
         stats.put("apiConfigured", aiConfigured);
         stats.put("modelReady", aiConfigured);
         stats.put("knowledgeBaseSize", totalQuestions + totalKnowledgePoints);

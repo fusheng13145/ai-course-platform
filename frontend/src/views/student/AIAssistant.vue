@@ -28,7 +28,6 @@
       @quick-question="handleGenerateQuestion"
       @quick-send="sendQuickMessage"
       @send="handleSend"
-      @newline="handleNewLine"
       @speak="speakMessage"
       @copy="copyMessage"
       @regenerate="regenerateMessage"
@@ -76,9 +75,6 @@ const {
   toggleRecording,
   speakMessage,
 } = useAIAssistant()
-
-/** Shift+Enter 换行：依赖 textarea 默认行为，无需额外处理 */
-function handleNewLine() {}
 
 /** 课程上下文：/student/courses/:id/ai 或统一路由 ?courseId 预选（setup 同步期完成，先于 onMounted） */
 const route = useRoute()

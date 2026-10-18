@@ -1,9 +1,10 @@
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import examApi from '@/api/exam'
 import courseApi from '@/api/course'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /**
  * 试卷管理页数据逻辑（拆分自 teacher/assessment/ExamPapers.vue，2026-08-29）
@@ -43,10 +44,7 @@ export function useExamPapers() {
 
   async function loadCourses() {
     try {
-      const r = await courseApi.getMyCourses()
-      const body = unwrap(r)
-      const list = body?.records || body?.list || body || []
-      courseList.value = Array.isArray(list) ? list : []
+      courseList.value = await courseApi.getAllMyCourses()
     } catch (e) {
       logger.error('加载课程失败', e)
     }
@@ -137,7 +135,17 @@ export function useExamPapers() {
 
   async function handlePublish(row) {
     try {
-      await ElMessageBox.confirm(`确定发布试卷「${row.title}」？`, '发布确认', { type: 'info' })
+      // D2-2：发布后即对学生可见，明确影响范围与可逆性边界
+      const ok = await confirmDanger({
+        verb: '发布',
+        target: '试卷',
+        subject: row.title,
+        impact: '发布后学生即可在考试列表中看到并进入该试卷',
+        irreversible: false,
+        note: '发布后仍可下架，但已产生的作答记录会保留',
+        confirmText: '确定发布',
+      })
+      if (!ok) return
       await examApi.publishExam(row.id)
       ElMessage.success('试卷已发布')
       loadExams()
@@ -148,9 +156,14 @@ export function useExamPapers() {
 
   async function handleDelete(row) {
     try {
-      await ElMessageBox.confirm(`确定删除试卷「${row.title}」？此操作不可恢复`, '删除确认', {
-        type: 'warning',
+      // D2-2：明确连带影响（学生作答与成绩明细一并移除）与恢复路径
+      const ok = await confirmDanger({
+        verb: '删除',
+        target: '试卷',
+        subject: row.title,
+        impact: '将一并移除该试卷关联的学生作答记录与成绩明细',
       })
+      if (!ok) return
       await examApi.deleteExamPaper(row.id)
       ElMessage.success('试卷已删除')
       loadExams()

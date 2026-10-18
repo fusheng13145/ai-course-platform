@@ -1,6 +1,6 @@
-import { ref, reactive } from 'vue'
+import { ref, reactive, computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import logger from '@/utils/logger'
 import courseApi from '@/api/course'
 import chapterApi from '@/api/chapter'
@@ -9,6 +9,8 @@ import notificationApi from '@/api/notification'
 import resourceApi from '@/api/resource'
 import taskApi from '@/api/task'
 import examApi from '@/api/exam'
+import { pickList } from '@/utils/response'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /** 文案映射 */
 const STATUS_TEXT = { APPROVED: '已通过', REJECTED: '已拒绝' }
@@ -52,6 +54,15 @@ export function useCourseDetail() {
   const chaptersLoading = ref(false)
   const studentsLoading = ref(false)
   const notificationsLoading = ref(false)
+
+  /* ---- 分路错误态（失败可见：互不复位，页面级持久提示聚合） ---- */
+  const courseError = ref('')
+  const chaptersError = ref('')
+  const studentsError = ref('')
+  const notificationsError = ref('')
+  const loadError = computed(
+    () => courseError.value || chaptersError.value || studentsError.value || notificationsError.value,
+  )
 
   /* ---- 对话框状态 ---- */
   const categories = ref([
@@ -120,6 +131,10 @@ export function useCourseDetail() {
     chapters.value = []
     students.value = []
     notifications.value = []
+    courseError.value = ''
+    chaptersError.value = ''
+    studentsError.value = ''
+    notificationsError.value = ''
 
     await Promise.allSettled([
       loadCourse(),
@@ -134,23 +149,26 @@ export function useCourseDetail() {
   }
 
   async function loadCourse() {
+    courseError.value = ''
     try {
       const res = await courseApi.getCourseById(course.id)
       if (res.data) Object.assign(course, res.data)
     } catch (e) {
       logger.warn('[CourseDetail] loadCourse 失败:', e.message || e)
+      courseError.value = '课程信息加载失败，请检查网络后重试'
     }
   }
 
   async function loadChapters() {
     chaptersLoading.value = true
+    chaptersError.value = ''
     try {
       const res = await chapterApi.getChapters(course.id)
-      const raw = res.data?.records || res.data?.list || res.data || []
-      chapters.value = Array.isArray(raw) ? raw : []
+      chapters.value = pickList(res.data)
     } catch (e) {
       logger.warn('[CourseDetail] loadChapters 失败:', e.message || e)
       chapters.value = []
+      chaptersError.value = '章节列表加载失败，请检查网络后重试'
     } finally {
       chaptersLoading.value = false
       originalChapters.value = JSON.parse(JSON.stringify(chapters.value))
@@ -159,13 +177,13 @@ export function useCourseDetail() {
 
   async function loadStudents() {
     studentsLoading.value = true
+    studentsError.value = ''
     try {
-      const res = await courseApi.getStudents(course.id)
-      const raw = res.data?.records || res.data?.list || res.data || []
-      students.value = Array.isArray(raw) ? raw : []
+      students.value = await courseApi.getAllStudents(course.id)
     } catch (e) {
       logger.warn('[CourseDetail] loadStudents 失败:', e.message || e)
       students.value = []
+      studentsError.value = '学生列表加载失败，请检查网络后重试'
     } finally {
       studentsLoading.value = false
     }
@@ -173,13 +191,14 @@ export function useCourseDetail() {
 
   async function loadNotifications() {
     notificationsLoading.value = true
+    notificationsError.value = ''
     try {
       const res = await notificationApi.getNotificationList()
-      const raw = res.data?.list || res.data || []
-      notifications.value = Array.isArray(raw) ? raw : []
+      notifications.value = pickList(res.data)
     } catch (e) {
       logger.warn('[CourseDetail] loadNotifications 失败:', e.message || e)
       notifications.value = []
+      notificationsError.value = '通知列表加载失败，请检查网络后重试'
     } finally {
       notificationsLoading.value = false
     }
@@ -197,26 +216,22 @@ export function useCourseDetail() {
   async function loadResourceCount() {
     try {
       const res = await resourceApi.getResourceList(course.id)
-      resourceCount.value = (Array.isArray(res.data) ? res.data : []).length
-    } catch (e) {
+      resourceCount.value = pickList(res.data).length
+    } catch {
       resourceCount.value = null
     }
   }
   async function loadTaskCount() {
     try {
-      const res = await taskApi.getTaskList({ courseId: course.id })
-      const d = res.data?.records || res.data?.list || res.data || []
-      taskCount.value = Array.isArray(d) ? d.length : 0
-    } catch (e) {
+      taskCount.value = (await taskApi.getAllTasks({ courseId: course.id })).length
+    } catch {
       taskCount.value = null
     }
   }
   async function loadExamCount() {
     try {
-      const res = await examApi.getExamPaperList({ courseId: course.id })
-      const d = res.data?.records || res.data?.list || res.data || []
-      examCount.value = Array.isArray(d) ? d.length : 0
-    } catch (e) {
+      examCount.value = (await examApi.getAllExamPapers({ courseId: course.id })).length
+    } catch {
       examCount.value = null
     }
   }
@@ -320,7 +335,14 @@ export function useCourseDetail() {
   }
   async function deleteChapter(row) {
     try {
-      await ElMessageBox.confirm(`确定删除「${row.title}」？`, '提示', { type: 'warning' })
+      // D2-2：明确连带影响（子章节与任务点一并移除）与不可逆性
+      const ok = await confirmDanger({
+        verb: '删除',
+        target: '章节',
+        subject: row.title,
+        impact: '将一并移除该章节下的子章节与任务点',
+      })
+      if (!ok) return
       await chapterApi.deleteChapter(row.id)
       chapters.value = chapters.value.filter((c) => c.id !== row.id)
       ElMessage.success('已删除')
@@ -337,7 +359,7 @@ export function useCourseDetail() {
       dragChanged.value = false
       originalChapters.value = JSON.parse(JSON.stringify(chapters.value))
       ElMessage.success('排序已保存')
-    } catch (e) {
+    } catch {
       ElMessage.error('保存排序失败')
     } finally {
       savingOrder.value = false
@@ -354,13 +376,22 @@ export function useCourseDetail() {
       await enrollmentApi.approveEnrollment(row.id)
       row.approvalStatus = 'APPROVED'
       ElMessage.success('已通过')
-    } catch (e) {
+    } catch {
       ElMessage.error('操作失败')
     }
   }
   async function rejectStudent(row) {
     try {
-      await ElMessageBox.confirm('确定拒绝该学生的选课申请？', '提示', { type: 'warning' })
+      // D2-2：明确影响范围（学生无法进入课程）与恢复路径（重新提交申请）
+      const ok = await confirmDanger({
+        verb: '拒绝',
+        target: '选课申请',
+        impact: '该学生将无法进入课程学习',
+        irreversible: false,
+        note: '学生重新提交申请后可再次审核',
+        confirmText: '确定拒绝',
+      })
+      if (!ok) return
       await enrollmentApi.rejectEnrollment(row.id)
       row.approvalStatus = 'REJECTED'
       ElMessage.success('已拒绝')
@@ -397,7 +428,14 @@ export function useCourseDetail() {
   }
   async function deleteNotification(row) {
     try {
-      await ElMessageBox.confirm('确定删除该通知？', '提示', { type: 'warning' })
+      // D2-2：明确连带影响（学生不可见）与不可逆性
+      const ok = await confirmDanger({
+        verb: '删除',
+        target: '通知',
+        subject: row.title,
+        impact: '删除后学生将无法再查看该通知',
+      })
+      if (!ok) return
       await notificationApi.deleteNotification(row.id)
       notifications.value = notifications.value.filter((n) => n.id !== row.id)
       ElMessage.success('已删除')
@@ -420,6 +458,11 @@ export function useCourseDetail() {
     chaptersLoading,
     studentsLoading,
     notificationsLoading,
+    courseError,
+    chaptersError,
+    studentsError,
+    notificationsError,
+    loadError,
     categories,
     editDialogVisible,
     editForm,

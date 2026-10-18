@@ -39,7 +39,7 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="!tableLoading && !filteredData.length" description="暂无知识点" />
+      <EmptyState v-if="!tableLoading && !filteredData.length" :title="emptyText" icon="layers" />
     </div>
 
     <!-- 知识图谱 -->
@@ -67,12 +67,16 @@
 </template>
 
 <script setup>
+import EmptyState from '@/components/ui/EmptyState.vue'
+
 defineProps({
   filteredData: { type: Array, default: () => [] },
   tableLoading: { type: Boolean, default: false },
   graphMode: { type: String, default: 'force' },
   forceOption: { type: Object, default: () => ({}) },
   treeOption: { type: Object, default: () => ({}) },
+  /** 列表空态文案（失败时由页面传入「未能加载」文案，默认保留原语义） */
+  emptyText: { type: String, default: '暂无知识点' },
 })
 defineEmits(['update:graphMode', 'edit', 'delete'])
 

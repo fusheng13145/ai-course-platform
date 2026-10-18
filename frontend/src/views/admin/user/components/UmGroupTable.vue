@@ -3,7 +3,7 @@
     <CollapsePanel
       v-for="g in groups"
       :key="g.key"
-      :title="`${g.label}（${g.rows.length}）`"
+      :title="`${g.label}（${g.total ?? g.rows.length}）`"
       :desc="g.desc"
       icon="shield"
       :open="g.open"
@@ -63,19 +63,53 @@
             </tr>
           </tbody>
         </table>
+        <el-pagination
+          v-if="g.total > g.size"
+          class="group-pagination"
+          :current-page="g.page"
+          :page-size="g.size"
+          :total="g.total"
+          layout="total, prev, pager, next"
+          background
+          @current-change="emit('page-change', g.key, $event)"
+        />
       </div>
     </CollapsePanel>
   </div>
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import CollapsePanel from '@/components/ui/CollapsePanel.vue'
+
+interface UserGroupRow {
+  id?: number | string
+  username?: string
+  fullName?: string | null
+  email?: string | null
+  department?: string | null
+  lastLogin?: string | null
+  role?: string
+  isActive?: boolean
+  lockedUntil?: string | null
+}
+
+interface UserGroup {
+  key: string
+  label: string
+  desc?: string
+  open?: boolean
+  total?: number
+  page?: number
+  size?: number
+  rows: UserGroupRow[]
+}
 
 defineProps({
   loading: { type: Boolean, default: false },
-  groups: { type: Array, default: () => [] },
+  groups: { type: Array as PropType<UserGroup[]>, default: () => [] },
 })
-const emit = defineEmits(['open-detail', 'open-reset', 'open-delete'])
+const emit = defineEmits(['open-detail', 'open-reset', 'open-delete', 'page-change'])
 
 const GRADIENTS = [
   'linear-gradient(135deg,#c13b30,#8f2a21)',
@@ -99,3 +133,10 @@ function statusOf(u) {
   return { text: '正常', cls: 'green' }
 }
 </script>
+
+<style scoped>
+.group-pagination {
+  justify-content: flex-end;
+  margin: 14px 0 2px;
+}
+</style>

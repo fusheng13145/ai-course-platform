@@ -4,9 +4,11 @@ import com.aicourse.entity.UserSession;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.UserSessionMapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import org.apache.ibatis.builder.MapperBuilderAssistant;
+import org.apache.ibatis.exceptions.TooManyResultsException;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -285,40 +287,40 @@ class UserSessionServiceImplTest {
     }
 
     // ===================== evictSessionCache =====================
+    // 契约（DR-44）：session_token 上没有唯一约束，同一秒内的两次登录会签出完全相同的 JWT，
+    // 库里因此可能出现同令牌多行。按令牌吊销必须走**批量 UPDATE**，
+    // 不得使用 selectOne（MyBatis 遇到多行抛 TooManyResultsException，会让登出/改密返回 500 并回滚）。
+
     @Test
-    @DisplayName("evictSessionCache: 无 Redis，会话存在 -> 置失效")
-    void evict_noRedis_found() {
+    @DisplayName("evictSessionCache: 同令牌多行（库里已有重复行）不抛异常，走批量 UPDATE")
+    void evict_duplicateTokenRows_doesNotThrow() {
+        when(baseMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean()))
+                .thenThrow(new TooManyResultsException(
+                        "Expected one result (or null) to be returned by selectOne(), but found: 2"));
+        when(baseMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(2);
+        assertDoesNotThrow(() -> service.evictSessionCache("tok"));
+        verify(baseMapper).update(isNull(), any(LambdaUpdateWrapper.class));
+    }
+
+    @Test
+    @DisplayName("evictSessionCache: 全程不调用 selectOne，仅 Redis delete + 批量 UPDATE")
+    void evict_withRedis_bulkUpdateOnly() {
+        when(redisProvider.getIfAvailable()).thenReturn(redisTemplate);
+        when(baseMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(1);
+        service.evictSessionCache("tok");
+        verify(baseMapper, never()).selectOne(any(LambdaQueryWrapper.class), anyBoolean());
+        verify(baseMapper, never()).updateById(any(UserSession.class));
+        verify(redisTemplate).delete(anyString());
+    }
+
+    @Test
+    @DisplayName("evictSessionCache: 无 Redis 时仍执行批量 UPDATE（不因缓存缺失而跳过吊销）")
+    void evict_noRedis_stillRevokes() {
         // 构造期已捕获 redisTemplate（非 null），显式置空以模拟无 Redis 分支
         ReflectionTestUtils.setField(service, "redisTemplate", null);
-        UserSession s = sampleSession(1L, 10L, "1.1.1.1", true, null);
-        when(baseMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(s);
-        when(baseMapper.updateById(any(UserSession.class))).thenReturn(1);
+        when(baseMapper.update(isNull(), any(LambdaUpdateWrapper.class))).thenReturn(0);
         service.evictSessionCache("tok");
-        assertFalse(s.getIsActive());
+        verify(baseMapper).update(isNull(), any(LambdaUpdateWrapper.class));
         verify(redisTemplate, never()).delete(anyString());
-    }
-
-    @Test
-    @DisplayName("evictSessionCache: 有 Redis，会话存在 -> delete + 置失效")
-    void evict_withRedis_found() {
-        when(redisProvider.getIfAvailable()).thenReturn(redisTemplate);
-        when(redisTemplate.opsForValue()).thenReturn(valueOps);
-        UserSession s = sampleSession(1L, 10L, "1.1.1.1", true, null);
-        when(baseMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(s);
-        when(baseMapper.updateById(any(UserSession.class))).thenReturn(1);
-        service.evictSessionCache("tok");
-        verify(redisTemplate).delete(anyString());
-        verify(baseMapper).updateById(s);
-    }
-
-    @Test
-    @DisplayName("evictSessionCache: 有 Redis，会话不存在 -> 仅 delete")
-    void evict_withRedis_notFound() {
-        when(redisProvider.getIfAvailable()).thenReturn(redisTemplate);
-        when(redisTemplate.opsForValue()).thenReturn(valueOps);
-        when(baseMapper.selectOne(any(LambdaQueryWrapper.class), anyBoolean())).thenReturn(null);
-        service.evictSessionCache("tok");
-        verify(redisTemplate).delete(anyString());
-        verify(baseMapper, never()).updateById(any(UserSession.class));
     }
 }

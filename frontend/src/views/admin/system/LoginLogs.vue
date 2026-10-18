@@ -4,19 +4,29 @@
       <TabGroup :tabs="filterTabs" :active="activeTab" style="seg" @change="onTabChange" />
     </PageHeader>
 
+    <!-- 加载失败提示：非空即表示本页读数不可信（失败不得渲染成「暂无登录记录」） -->
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      show-icon
+      style="margin-bottom: var(--ac-spacing-md)"
+    />
+
     <div v-loading="loading">
       <div class="stat-grid animate-in d1">
-        <StatCard label="今日登录" :value="stats.todayCount ?? 0" icon="monitor" />
+        <StatCard label="今日登录" :value="stats.todayCount ?? '--'" icon="monitor" />
         <StatCard
           label="累计登录"
-          :value="stats.totalCount ?? 0"
+          :value="stats.totalCount ?? '--'"
           icon="users"
           tone="var(--info-soft)"
           tone-color="var(--info)"
         />
         <StatCard
           label="失败登录"
-          :value="stats.failedCount ?? 0"
+          :value="stats.failedCount ?? '--'"
           icon="warn"
           tone="var(--warn-soft)"
           tone-color="var(--warn)"
@@ -27,7 +37,7 @@
           icon="shield"
           tone="var(--accent-soft)"
           tone-color="var(--accent)"
-          :foot="`近 7 天 ${stats.weekCount ?? 0} 次`"
+          :foot="stats.weekCount != null ? `近 7 天 ${stats.weekCount} 次` : '数据未能加载'"
         />
       </div>
 
@@ -66,7 +76,11 @@
                   </tbody>
                 </table>
               </div>
-              <el-empty v-else description="暂无登录记录" :image-size="80" />
+              <EmptyState
+                v-else
+                :title="logsError ? '登录记录未能加载，请查看上方提示后重试' : '暂无登录记录'"
+                icon="list"
+              />
             </div>
           </CollapsePanel>
         </div>
@@ -78,6 +92,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import PageHeader from '@/components/PageHeader.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import CollapsePanel from '@/components/ui/CollapsePanel.vue'
 import TabGroup from '@/components/ui/TabGroup.vue'
@@ -96,10 +111,26 @@ const filterTabs = [
 const STATUS_LABELS = { SUCCESS: '成功', FAILED: '失败', LOCKED: '锁定', EXPIRED: '过期' }
 const STATUS_CLS = { SUCCESS: 'green', FAILED: 'amber', LOCKED: 'red', EXPIRED: 'red' }
 
-const stats = ref({})
+const stats = ref<Record<string, number | string | null>>({})
 const logs = ref([])
 const trendData = ref([])
 const loading = ref(false)
+
+/**
+ * 三路接口（统计 / 记录 / 趋势）相互独立并发：任一路失败都不应把另两路的成功数据一起清空，
+ * 也不得把「失败」显示成「暂无登录记录」。故分别归因，再由 loadError 聚合为一条持久提示。
+ * （原实现一把 Promise.all + 空 catch，任一失败则三路数据全丢且页面无任何提示。）
+ */
+const statsError = ref(false)
+const logsError = ref(false)
+const trendError = ref(false)
+const loadError = computed(() => {
+  const notices: string[] = []
+  if (statsError.value) notices.push('统计概览未能加载。')
+  if (logsError.value) notices.push('登录记录未能加载。')
+  if (trendError.value) notices.push('登录趋势未能加载。')
+  return notices.join('')
+})
 
 const successRate = computed(() => {
   const v = stats.value.successRate
@@ -125,25 +156,44 @@ function onTabChange(v) {
 
 async function load() {
   loading.value = true
+  statsError.value = false
+  logsError.value = false
+  trendError.value = false
   try {
     const statusParam =
       activeTab.value === 'fail' ? 'FAILED' : activeTab.value === 'locked' ? 'LOCKED' : undefined
-    const [s, l, t] = await Promise.all([
+    const [s, l, t] = await Promise.allSettled([
       loginLogApi.getStats(),
       loginLogApi.getList({ page: 1, size: 50, status: statusParam }),
       loginLogApi.getTrends({ days: 30 }),
     ])
-    stats.value = s.data?.data || s.data || {}
-    const page = l.data?.data || l.data || {}
-    logs.value = page.list || page.records || []
-    const td = t.data?.data || t.data || []
-    trendData.value = td.map((d) => ({
-      label: String(d.date).slice(5),
-      value: d.totalCount ?? 0,
-      color: getMonoSeries()[1],
-    }))
-  } catch (e) {
-    // 保持空列表与空统计，不注入假数据
+
+    if (s.status === 'fulfilled') {
+      stats.value = s.value.data?.data || s.value.data || {}
+    } else {
+      stats.value = {}
+      statsError.value = true
+    }
+
+    if (l.status === 'fulfilled') {
+      const page = l.value.data?.data || l.value.data || {}
+      logs.value = page.list || page.records || []
+    } else {
+      logs.value = []
+      logsError.value = true
+    }
+
+    if (t.status === 'fulfilled') {
+      const td = t.value.data?.data || t.value.data || []
+      trendData.value = td.map((d) => ({
+        label: String(d.date).slice(5),
+        value: d.totalCount ?? 0,
+        color: getMonoSeries()[1],
+      }))
+    } else {
+      trendData.value = []
+      trendError.value = true
+    }
   } finally {
     loading.value = false
   }

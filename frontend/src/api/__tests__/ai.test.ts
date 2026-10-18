@@ -187,6 +187,48 @@ describe('ai.qaStream - SSE 流式解析', () => {
     expect(onDone).toHaveBeenCalledTimes(1)
   })
 
+  it('sources 末帧：回调 onSources 且不触发 onToken，随后正常 onDone', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi
+        .fn()
+        .mockResolvedValue(
+          makeSSEResponse([
+            'data: {"token":"答"}\n\n',
+            'data: {"sources":[{"documentId":3,"documentName":"第1章","relevanceScore":0.8,"snippet":"片段"}]}\n\n',
+          ]),
+        ),
+    )
+    const onToken = vi.fn()
+    const onSources = vi.fn()
+    const onDone = vi.fn()
+
+    aiApi.qaStream({ question: 'q', courseId: 7 }, { onToken, onSources, onDone })
+    await flush()
+
+    expect(onToken).toHaveBeenCalledTimes(1)
+    expect(onToken).toHaveBeenCalledWith('答')
+    expect(onSources).toHaveBeenCalledTimes(1)
+    expect(onSources.mock.calls[0][0]).toEqual([
+      { documentId: 3, documentName: '第1章', relevanceScore: 0.8, snippet: '片段' },
+    ])
+    expect(onDone).toHaveBeenCalledTimes(1)
+  })
+
+  it('空 sources 末帧：仍回调 onSources([]) 以区分「检索为空」与「缺帧」', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn().mockResolvedValue(makeSSEResponse(['data: {"token":"A"}\n\n', 'data: {"sources":[]}\n\n'])),
+    )
+    const onSources = vi.fn()
+
+    aiApi.qaStream({ question: 'q' }, { onSources })
+    await flush()
+
+    expect(onSources).toHaveBeenCalledTimes(1)
+    expect(onSources).toHaveBeenCalledWith([])
+  })
+
   it('非 JSON 的 data 走纯文本回落，仍回调 onToken', async () => {
     vi.stubGlobal('fetch', vi.fn().mockResolvedValue(makeSSEResponse(['data: 纯文本片段\n\n'])))
     const onToken = vi.fn()

@@ -53,6 +53,17 @@
     </div>
 
     <!-- 课程卡片网格 -->
+    <!-- 加载失败提示：接口层已弹 toast，但 toast 会消失，而列表会持久显示"暂无课程"——
+         二者叠加会让用户误判"我确实没有课程"。故此处补一条持久提示 + 空态改文案（与
+         FileUploadManage 的"失败可见"模式同口径）。 -->
+    <el-alert
+      v-if="loadError"
+      class="load-error"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      show-icon
+    />
     <div v-loading="loading" class="courses-grid">
       <template v-if="filteredList.length > 0">
         <TcCourseCard
@@ -65,12 +76,15 @@
           @delete="handleDelete"
         />
       </template>
-      <el-empty
+      <EmptyState
         v-if="!loading && filteredList.length === 0"
-        description="暂无课程，点击右上角「创建课程」开始"
-      >
-        <template #image><div class="empty-deco">📚</div></template>
-      </el-empty>
+        :title="
+          loadError
+            ? '课程列表未能加载，请查看上方提示后重试'
+            : '暂无课程，点击右上角「创建课程」开始'
+        "
+        icon="book"
+      />
     </div>
 
     <!-- 课程详情对话框 -->
@@ -85,8 +99,11 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import EmptyState from '@/components/ui/EmptyState.vue'
+import { ElMessage } from 'element-plus'
 import { Plus, Search } from '@element-plus/icons-vue'
+import logger from '@/utils/logger'
+import { confirmDanger } from '@/utils/dangerConfirm'
 import courseApi from '@/api/course'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
@@ -104,6 +121,8 @@ const search = ref('')
 const statusFilter = ref('')
 const activeFilter = ref('')
 const loading = ref(false)
+/** 加载失败提示文案：非空即表示列表数据不可信（防"失败被当成没有数据"） */
+const loadError = ref('')
 const detailDialogVisible = ref(false)
 const currentCourse = ref(null)
 
@@ -130,13 +149,13 @@ const filteredList = computed(() => {
 
 onMounted(async () => {
   loading.value = true
+  loadError.value = ''
   try {
-    const res = await courseApi.getMyCourses()
-    const rawData = res.data?.records || res.data?.list || res.data || res
-    courseList.value = Array.isArray(rawData) ? rawData : []
+    courseList.value = await courseApi.getAllMyCourses()
   } catch (e) {
-    console.error('Failed to load courses:', e)
+    logger.error('课程列表加载失败', e)
     courseList.value = []
+    loadError.value = '课程列表加载失败，请检查网络后重试'
   } finally {
     loading.value = false
   }
@@ -160,24 +179,41 @@ function goToManage() {
 
 async function handleToggleStatus(row) {
   const action = row.status === 'ACTIVE' ? '停用' : '启用'
+  const ok = await confirmDanger({
+    verb: action,
+    target: '课程',
+    subject: row.name || row.title,
+    impact:
+      action === '停用'
+        ? '停用后学生将无法在课程列表中看到并进入该课程，进行中的教学活动也会随之下线'
+        : '启用后该课程将重新对学生可见，学生可继续进入学习',
+    irreversible: false,
+    note: '可随时再次切换状态',
+  })
+  if (!ok) return
   try {
-    await ElMessageBox.confirm(`确定${action}该课程？`, '提示')
     await courseApi.toggleCourseStatus(row.id)
     row.status = row.status === 'ACTIVE' ? 'INACTIVE' : 'ACTIVE'
     ElMessage.success(`${action}成功`)
-  } catch (e) {
-    if (e !== 'cancel') ElMessage.error('操作失败')
+  } catch {
+    ElMessage.error('操作失败')
   }
 }
 
 async function handleDelete(row) {
+  const ok = await confirmDanger({
+    verb: '删除',
+    target: '课程',
+    subject: row.name || row.title,
+    impact: '将一并移除该课程的章节、任务点、选课记录与学生作答数据',
+  })
+  if (!ok) return
   try {
-    await ElMessageBox.confirm('确定删除该课程？此操作不可恢复', '提示', { type: 'warning' })
     await courseApi.deleteCourse(row.id)
     courseList.value = courseList.value.filter((c) => c.id !== row.id)
     ElMessage.success('删除成功')
-  } catch (e) {
-    if (e !== 'cancel') ElMessage.error('删除失败')
+  } catch {
+    ElMessage.error('删除失败')
   }
 }
 </script>
@@ -209,11 +245,6 @@ async function handleDelete(row) {
   grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
   gap: 20px;
   min-height: 200px;
-}
-
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 
 @media (max-width: 768px) {

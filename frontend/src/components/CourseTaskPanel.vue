@@ -13,6 +13,14 @@
     </div>
 
     <div class="content-card">
+      <!-- 加载失败持久提示（不自动消失） -->
+      <el-alert
+        v-if="loadError"
+        :title="loadError"
+        type="error"
+        :closable="false"
+        class="load-error-alert"
+      />
       <el-table v-loading="loading" :data="filteredTasks" style="width: 100%">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column prop="title" label="作业标题" min-width="200" />
@@ -62,17 +70,22 @@
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="!loading && filteredTasks.length === 0" description="暂无作业" />
+      <EmptyState
+        v-if="!loading && filteredTasks.length === 0"
+        :title="loadError ? '作业列表未能加载，请查看上方提示后重试' : '暂无作业'"
+        icon="list"
+      />
     </div>
 
     <el-dialog
-      v-model="taskDialogVisible"
+      ref="dialogRef"
+    v-model="taskDialogVisible"
       :title="editingTask ? '编辑作业' : '创建作业'"
       width="600px"
       append-to-body
     >
-      <el-form :model="taskForm" label-width="100px">
-        <el-form-item label="作业标题" required>
+      <el-form ref="formRef" :model="taskForm" :rules="rules" label-width="100px" scroll-to-error>
+        <el-form-item label="作业标题" prop="title">
           <el-input v-model="taskForm.title" placeholder="输入作业标题" />
         </el-form-item>
         <el-form-item label="作业类型">
@@ -137,9 +150,13 @@
 <script setup>
 import logger from '@/utils/logger'
 import { ref, computed, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
+import { validateFormFields } from '@/composables/useFormSubmit'
 import taskApi from '@/api/task'
+import { confirmDanger } from '@/utils/dangerConfirm'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 
 const props = defineProps({
   courseId: { type: Number, required: true },
@@ -149,8 +166,12 @@ const emit = defineEmits(['taskUpdated'])
 
 const tasks = ref([])
 const loading = ref(false)
+const loadError = ref('')
 const taskFilter = ref('')
 const taskDialogVisible = ref(false)
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, taskDialogVisible)
 const editingTask = ref(null)
 const saving = ref(false)
 
@@ -164,6 +185,11 @@ const taskForm = ref({
   dueDate: null,
   submissionFormat: 'TEXT',
 })
+const formRef = ref(null)
+// D2-4：必填规则声明（原为手写 if 校验），blur 内联错误 + 提交时首错滚动定位
+const rules = {
+  title: [{ required: true, message: '请输入作业标题', trigger: 'blur' }],
+}
 
 const filteredTasks = computed(() => {
   if (!taskFilter.value) return tasks.value
@@ -202,12 +228,15 @@ function formatDateTime(date) {
 
 async function loadTasks() {
   loading.value = true
+  loadError.value = ''
   try {
     const res = await taskApi.listByCourse(props.courseId)
     const data = res.data?.records || res.data?.list || res.data || res || []
     tasks.value = Array.isArray(data) ? data : []
   } catch (e) {
     logger.error('加载作业失败:', e)
+    tasks.value = []
+    loadError.value = '作业列表加载失败，请检查网络后重试'
   } finally {
     loading.value = false
   }
@@ -244,6 +273,8 @@ function editTask(row) {
 }
 
 async function saveTask() {
+  // validate 先行（真环境内联错误 + scroll-to-error）；桩/无表单环境由快检兜底
+  if (!(await validateFormFields(formRef, ['title']))) return
   if (!taskForm.value.title) {
     ElMessage.warning('请输入作业标题')
     return
@@ -274,14 +305,24 @@ async function publishTask(row) {
     row.status = 'ACTIVE'
     ElMessage.success('发布成功')
     emit('taskUpdated')
-  } catch (e) {
+  } catch {
     ElMessage.error('操作失败')
   }
 }
 
 async function closeTask(row) {
   try {
-    await ElMessageBox.confirm('确定截止该作业？', '提示', { type: 'warning' })
+    // D2-2：明确后果（学生无法再提交）与不可重新开启
+    const ok = await confirmDanger({
+      verb: '截止',
+      target: '作业',
+      subject: row.title,
+      impact: '学生将无法再提交，已提交的作业不受影响',
+      irreversible: false,
+      note: '截止后暂不支持重新开启',
+      confirmText: '确定截止',
+    })
+    if (!ok) return
     row.status = 'CLOSED'
     await taskApi.updateTask(row.id, { status: 'CLOSED' })
     ElMessage.success('已截止')
@@ -293,7 +334,14 @@ async function closeTask(row) {
 
 async function deleteTask(row) {
   try {
-    await ElMessageBox.confirm('确定删除该作业？', '提示', { type: 'warning' })
+    // D2-2：明确连带影响（学生提交记录一并移除）与恢复路径
+    const ok = await confirmDanger({
+      verb: '删除',
+      target: '作业',
+      subject: row.title,
+      impact: '将一并移除该作业下学生已提交的记录',
+    })
+    if (!ok) return
     await taskApi.deleteTask(row.id)
     tasks.value = tasks.value.filter((t) => t.id !== row.id)
     ElMessage.success('删除成功')
@@ -315,6 +363,10 @@ watch(
 <style scoped>
 .task-panel {
   padding: 0;
+}
+
+.load-error-alert {
+  margin-bottom: 16px;
 }
 
 .panel-toolbar {

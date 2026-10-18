@@ -65,6 +65,29 @@ const service = axios.create({
 })
 
 /* ============================================
+ * 会话探针静默期（/503 连接失败页轮询期间）
+ * ============================================ */
+/**
+ * 探针静默开关：views/error/503.vue 轮询 /auth/permissions 期间置 true。
+ *
+ * 背景（2026-10-16 启动崩溃修复）：后端未就绪时探针每 3 秒重试一次，若不禁用
+ * 提示，用户每 3 秒就被弹一次「网络异常」/「服务器内部错误」，既掩盖本页自己
+ * 展示的连接状态，也掩盖其他真正需要关注的错误。静默只吞 toast 与自动重试，
+ * 不改写任何状态码分支的控制流（401 刷新、结论回传等照常）。
+ */
+let probeSilence = false
+
+/** 进入/退出探针静默期（由 /503 页在挂载/卸载时调用） */
+export function setProbeSilence(value: boolean) {
+  probeSilence = value
+}
+
+/** 供测试查询当前静默状态 */
+export function isProbeSilent() {
+  return probeSilence
+}
+
+/* ============================================
  * 请求重试配置
  * ============================================ */
 // 记录已重试的请求，避免无限循环（实际重试判定由 generateReqKey + retryCache 完成）
@@ -186,6 +209,10 @@ export function resetLoginRedirectDedupe() {
 
 /**
  * 会话失效统一收尾：清前端登录态 + 提示 + **至多一次**跳转登录页。
+ *
+ * 跳转带上 `redirect`，重新登录后回到原页面 —— 与路由守卫的未登录分支同口径。
+ * 例外：守卫冷启动时发起的 `/auth/permissions` 探针**不在此跳转**（见下方调用处），
+ * 由守卫用 `next({path:'/login', query:{redirect}})` 作为唯一出口，避免两条导航互相取消。
  */
 function handleAuthExpired() {
   const authStore = useAuthStore()
@@ -194,6 +221,11 @@ function handleAuthExpired() {
   const now = Date.now()
   if (now - lastLoginRedirectAt < LOGIN_REDIRECT_DEDUPE_MS) return
   lastLoginRedirectAt = now
+  const from = router.currentRoute?.value?.fullPath
+  if (from && from !== '/login' && from !== '/register') {
+    router.push({ path: '/login', query: { redirect: from } })
+    return
+  }
   router.push('/login')
 }
 
@@ -279,7 +311,11 @@ service.interceptors.response.use(
     /* 业务状态码判断 */
     if (data.code !== undefined && data.code !== 200) {
       showThrottledMessage('error', data.message || '请求失败')
-      return Promise.reject(new Error(data.message || '请求失败'))
+      /* 把业务码挂在 Error 上：调用方需要区分"上游 AI 不可用(503，要报病因)"与
+         其它失败（网络层文案不该原样丢给用户）。仅加属性，不改既有 reject 语义。 */
+      const bizError = new Error(data.message || '请求失败') as Error & { code?: number }
+      bizError.code = data.code
+      return Promise.reject(bizError)
     }
 
     return data
@@ -317,10 +353,18 @@ service.interceptors.response.use(
         networkMsg = '网络已断开，请连接后重试'
       }
 
-      showThrottledMessage('error', networkMsg)
+      // 探针静默期不弹toast（/503 页自带状态展示与重试 UI）
+      if (!probeSilence) {
+        showThrottledMessage('error', networkMsg)
+      }
 
       /* 网络抖动自动重试一次：仅限幂等方法（P1-7），非幂等请求绝不重放 */
-      if (config && isIdempotentMethod(config.method) && !retryCache.get(generateReqKey(config))) {
+      if (
+        config &&
+        !probeSilence &&
+        isIdempotentMethod(config.method) &&
+        !retryCache.get(generateReqKey(config))
+      ) {
         retryCache.set(generateReqKey(config), true)
         try {
           const res = await service(cloneConfigForRetry(config))
@@ -374,8 +418,14 @@ service.interceptors.response.use(
             }
           }
         }
-        // 刷新失败 / 已重试过 / 刷新端点自身 401：清空前端登录态并跳转登录页
-        handleAuthExpired()
+        // 刷新失败 / 已重试过 / 刷新端点自身 401：清空前端登录态并跳转登录页。
+        // 例外（DR-45）：/auth/permissions 是路由守卫在冷启动时发起的「会话探针」，
+        // 它的失败结果会由 fetchPermissions 回传给守卫，跳转由守卫的 next() 作为唯一出口；
+        // 这里再 push 一次就会与进行中的守卫导航互相取消。
+        const isSessionProbe = url.includes('/auth/permissions')
+        if (!isSessionProbe) {
+          handleAuthExpired()
+        }
         break
       }
 
@@ -407,7 +457,11 @@ service.interceptors.response.use(
         break
 
       case 500:
-        showThrottledMessage('error', serverMsg || '服务器内部错误，请稍后重试')
+        // 探针静默期不提示（/503 页轮询中；且 dev 下 Vite 代理对 ECONNREFUSED
+        // 正是返回 500，此时「服务器内部错误」的文案会误导成后端代码故障）
+        if (!probeSilence) {
+          showThrottledMessage('error', serverMsg || '服务器内部错误，请稍后重试')
+        }
         break
 
       case 502:
@@ -416,6 +470,7 @@ service.interceptors.response.use(
         /* 服务端临时故障：仅幂等方法自动重试一次（P1-7），重试前重建 signal */
         if (
           config &&
+          !probeSilence &&
           isIdempotentMethod(config.method) &&
           !retryCache.get(generateReqKey(config))
         ) {
@@ -432,7 +487,9 @@ service.interceptors.response.use(
             return Promise.reject(retryErr)
           }
         }
-        showThrottledMessage('error', getStatusMessage(status))
+        if (!probeSilence) {
+          showThrottledMessage('error', getStatusMessage(status))
+        }
         break
       }
 

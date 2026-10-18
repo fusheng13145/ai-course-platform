@@ -1,5 +1,6 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.service.AiCallLogService;
 import com.aicourse.service.SystemService;
 import com.aicourse.service.component.sys.SysBackupComponent;
 import com.aicourse.service.component.sys.SysConfigComponent;
@@ -35,12 +36,15 @@ class SystemServiceImplTest {
     private SysLogComponent logComponent;
     @Mock
     private SysMonitorComponent monitorComponent;
+    @Mock
+    private AiCallLogService aiCallLogService;
 
     private SystemService service;
 
     @BeforeEach
     void setUp() {
-        service = new SystemServiceImpl(configComponent, backupComponent, logComponent, monitorComponent);
+        service = new SystemServiceImpl(configComponent, backupComponent, logComponent,
+                monitorComponent, aiCallLogService);
     }
 
     // ===================== 概览/配置 =====================
@@ -114,5 +118,13 @@ class SystemServiceImplTest {
         assertEquals("active", service.getAIUsageStats().get("status"));
         assertNotNull(service.aiMonitor().get("alerts"));
         verify(monitorComponent).aiMonitor();
+    }
+
+    @Test
+    @DisplayName("getAIUsageByCourse 委托 AI 调用日志服务（跨课程 AI 统计）")
+    void aiUsageByCourseDelegation() {
+        when(aiCallLogService.statistics(30)).thenReturn(Map.of("totalCalls", 7L));
+        assertEquals(7L, service.getAIUsageByCourse(30).get("totalCalls"));
+        verify(aiCallLogService).statistics(30);
     }
 }

@@ -53,13 +53,28 @@
             >
           </div>
         </div>
-        <el-empty v-if="!events.length" description="该会话暂无违规事件" :image-size="60" />
+        <EmptyState v-if="!events.length" title="该会话暂无违规事件" icon="alert" size="compact" />
       </div>
     </template>
   </el-drawer>
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
+
+/** 违规事件行（治理事件展示字段子集） */
+interface ExamEventRow {
+  id?: number | string
+  severity?: string
+  type?: string
+  status?: string
+  capturedAt?: string
+  detail?: string
+  reviewNote?: string
+  evidenceUrl?: string
+}
+
 /**
  * 考试治理 — 违规事件核查抽屉
  * <p>事件列表（类型/严重度/状态/时间/证据链接）+ 确认违规/标记豁免复核操作。</p>
@@ -68,7 +83,7 @@ defineProps({
   /** 抽屉显隐（v-model） */
   modelValue: { type: Boolean, default: false },
   /** 事件列表 */
-  events: { type: Array, required: true },
+  events: { type: Array as PropType<ExamEventRow[]>, required: true },
   /** 事件加载态 */
   eventsLoading: { type: Boolean, default: false },
   /** 正在复核的事件 id */

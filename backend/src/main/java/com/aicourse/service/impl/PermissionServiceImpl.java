@@ -38,7 +38,14 @@ public class PermissionServiceImpl extends ServiceImpl<RolePermissionMapper, Rol
     }
 
     /**
-     * 获取用户权限集合（按钮权限 + 菜单权限）
+     * 获取用户权限集合（按钮权限 + 菜单权限）。
+     *
+     * <p>响应形状契约（2026-10-16 修复）：前端 stores/auth 消费三个字段——
+     * {@code role}（服务端权威角色，压过可篡改的本地 user.role）、
+     * {@code menus}（MENU 类型权限键列表）、{@code buttons}（BUTTON 类型扁平化为
+     * {@code {key: true}} 映射）。原实现只回传 {@code permissions}/{@code menus}，
+     * 导致前端 serverRole 回退与 hasButtonPermission 整套机制从未真正生效。</p>
+     *
      * @param userId 用户ID
      * @return 权限与菜单标识集合
      */
@@ -47,9 +54,11 @@ public class PermissionServiceImpl extends ServiceImpl<RolePermissionMapper, Rol
     public Map<String, Object> getUserPermissions(Long userId) {
         User user = userService.getById(userId);
         if (user == null) {
-            Map<String, Object> emptyMap = new HashMap<>(2);
+            Map<String, Object> emptyMap = new HashMap<>(4);
+            emptyMap.put("role", "");
             emptyMap.put("permissions", List.of());
             emptyMap.put("menus", List.of());
+            emptyMap.put("buttons", Map.of());
             return emptyMap;
         }
 
@@ -58,10 +67,19 @@ public class PermissionServiceImpl extends ServiceImpl<RolePermissionMapper, Rol
                 .filter(perm -> "MENU".equals(perm.getPermissionType()))
                 .map(RolePermission::getPermissionKey)
                 .collect(Collectors.toList());
+        // BUTTON 类型扁平化为 {key: true}：与前端 hasButtonPermission 的读取形状对齐。
+        // 过滤 null 键——Collectors.toMap 拒绝 null value，脏数据不应让整个响应 500。
+        Map<String, Boolean> buttonKeyMap = rolePermissionList.stream()
+                .filter(perm -> "BUTTON".equals(perm.getPermissionType())
+                        && perm.getPermissionKey() != null)
+                .collect(Collectors.toMap(RolePermission::getPermissionKey, perm -> Boolean.TRUE, (a, b) -> a));
 
-        Map<String, Object> result = new HashMap<>(2);
+        Map<String, Object> result = new HashMap<>(4);
+        // 服务端回传角色：前端 effectiveRole 以此压过本地可篡改的 user.role
+        result.put("role", user.getRole());
         result.put("permissions", rolePermissionList);
         result.put("menus", menuKeyList);
+        result.put("buttons", buttonKeyMap);
         return result;
     }
 

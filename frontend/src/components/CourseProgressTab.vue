@@ -1,5 +1,14 @@
 <template>
   <div class="progress-tab">
+    <!-- 加载失败持久提示（不自动消失） -->
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      class="load-error-alert"
+    />
+
     <!-- 总览统计卡 -->
     <CptStatsRow
       :overall-progress="overallProgress"
@@ -7,6 +16,7 @@
       :total-chapters="totalChapters"
       :total-tasks="totalTasks"
       :avg-submission-rate="avgSubmissionRate"
+      :load-failed="!!loadError"
     />
 
     <!-- 总体进度环形图 -->
@@ -34,7 +44,11 @@
       <div class="section-header">
         <h3 class="section-title">章节进度明细</h3>
       </div>
-      <CptChapterTable :loading="loading" :chapter-list="chapterList" />
+      <CptChapterTable
+        :loading="loading"
+        :chapter-list="chapterList"
+        :empty-text="loadError ? '章节进度未能加载，请查看上方提示后重试' : '暂无章节数据'"
+      />
     </div>
   </div>
 </template>
@@ -54,6 +68,7 @@ const courseIdRef = toRef(props, 'courseId')
 
 const {
   loading,
+  loadError,
   chapterList,
   plannedChapters,
   circumference,
@@ -72,6 +87,9 @@ const {
 <style scoped>
 .progress-tab {
   padding: 4px 0;
+}
+.load-error-alert {
+  margin-bottom: 16px;
 }
 .section-header {
   display: flex;

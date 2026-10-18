@@ -57,6 +57,15 @@
         </div>
       </div>
       <div class="l1-body">
+        <!-- 加载失败提示：见 useStudentKnowledgeGraph.loadError 注释（失败不得渲染成「请选择课程查看知识图谱」） -->
+        <el-alert
+          v-if="loadError"
+          :title="loadError"
+          type="error"
+          :closable="false"
+          show-icon
+          style="margin-bottom: var(--ac-spacing-md)"
+        />
         <!-- 工具栏 -->
         <div class="kg-toolbar">
           <div class="toolbar-left">
@@ -99,6 +108,9 @@
             :get-difficulty-tag-type="getDifficultyTagType"
             :get-difficulty-label="getDifficultyLabel"
             :get-mastery-color="getMasteryColor"
+            :empty-text="
+              loadError ? '知识图谱未能加载，请查看上方提示后重试' : '请选择课程查看知识图谱'
+            "
             @node-click="handleNodeClick"
             @select="selectNodeById"
             @learn="startLearningNode"
@@ -171,6 +183,7 @@ const {
   searchKeyword,
   difficultyFilter,
   graphLoading,
+  loadError,
   selectedNode,
   pathSource,
   pathTarget,

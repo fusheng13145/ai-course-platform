@@ -1,4 +1,5 @@
 import request from './request'
+import { fetchAllPages } from '@/utils/response'
 /**
  * 导出函数 submitTask：发起请求/调用
  */
@@ -12,6 +13,9 @@ export const getMySubmissions = (params = {}) => request.get('/submissions', { p
  */
 export const getTaskSubmissions = (taskId, params = {}) =>
   request.get(`/submissions/task/${taskId}`, { params })
+/** 获取任务的全部提交，供教师批改列表与课程完成度统计使用。 */
+export const getAllTaskSubmissions = (taskId, filters = {}) =>
+  fetchAllPages((page, size) => getTaskSubmissions(taskId, { ...filters, page, size }))
 /**
  * 导出函数 gradeSubmission：业务逻辑处理
  */
@@ -47,6 +51,7 @@ export default {
   submitTask,
   getMySubmissions,
   getTaskSubmissions,
+  getAllTaskSubmissions,
   gradeSubmission,
   resubmit,
   returnSubmission,

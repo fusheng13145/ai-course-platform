@@ -2,7 +2,7 @@ import { ref, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { ElMessage } from 'element-plus'
 import logger from '@/utils/logger'
 import { sanitizeHtml } from '@/utils/sanitize'
-import { firstNonEmptyArray } from '@/utils/response'
+import { firstNonEmptyArray, unwrap, decodeHtml } from '@/utils/response'
 import {
   isRecognitionSupported,
   isSpeechSupported,
@@ -10,7 +10,7 @@ import {
   speak,
   stopSpeaking,
 } from '@/composables/useSpeech'
-import aiApi from '@/api/ai'
+import aiApi, { type QaSourcePayload } from '@/api/ai'
 import courseApi from '@/api/course'
 
 /**
@@ -19,6 +19,52 @@ import courseApi from '@/api/course'
  * 非流式逐字降级）、快捷操作（总结课程/生成练习题/解释概念/学习计划）、
  * 重新生成/复制/朗读、Markdown 渲染（经 sanitize 净化）、语音输入/朗读与资源清理。</p>
  */
+
+/** 检索出处条目（与后端 QaSourceVO 对齐，控制器下发前已做 HTML 转义） */
+export type QaSource = QaSourcePayload
+
+/**
+ * 聊天消息条目。
+ * <p>面板按此类型读取 role/content/loading/sources，避免消息数组退化为 unknown[] 后
+ * 模板里每处属性访问都成为类型缺口。</p>
+ */
+export interface ChatMessage {
+  role: 'user' | 'assistant'
+  content: string
+  time?: string
+  /** 该条回答仍在生成（占位气泡据此显示输入中动画） */
+  loading?: boolean
+  /** 生成失败，content 为错误提示文案 */
+  error?: boolean
+  /** RAG 检索出处；纯 LLM 直答时为空 */
+  sources?: QaSource[]
+}
+
+/**
+ * 还原后端展示层转义后的出处条目（documentName/snippet 同 answer 口径做过 HTML 转义）。
+ * <p>流式（SSE 末帧 onSources）与非流式（/qa/ask 应答）两条链路共用同一还原，
+ * 避免出现「一条链路还原、另一条把 &amp; 直接播给用户」的口径分叉。</p>
+ */
+function mapSources(raw: unknown): QaSource[] {
+  if (!Array.isArray(raw)) return []
+  return (raw as QaSourcePayload[]).map((s) => ({
+    ...s,
+    documentName: decodeHtml(s.documentName),
+    snippet: decodeHtml(s.snippet),
+  }))
+}
+
+/**
+ * 读取 /qa/ask 应答的答案与溯源出处。
+ * <p>业务字段在信封的 data 里（answer / sessionId / sources）；历史实现按
+ * response / reply / content 取值，全部取不到时用固定文案兜底，真实 RAG 回答
+ * 因此被静默丢弃。转义按展示口径还原，渲染仍走 escapeHtml + sanitize。</p>
+ */
+function readQa(res: unknown): { answer: string; sources: QaSource[] } {
+  const payload = (unwrap(res) ?? {}) as { answer?: string; sources?: QaSourcePayload[] }
+  return { answer: decodeHtml(payload.answer), sources: mapSources(payload.sources) }
+}
+
 export function useAIAssistant() {
   const showSidebar = ref(true)
   const messagesRef = ref(null)
@@ -29,7 +75,7 @@ export function useAIAssistant() {
 
   const conversations = ref([])
   const currentConvId = ref(Date.now())
-  const messages = ref([])
+  const messages = ref<ChatMessage[]>([])
   const inputMessage = ref('')
   const loading = ref(false)
 
@@ -39,12 +85,22 @@ export function useAIAssistant() {
   /* ---- 课程列表 ---- */
   async function loadCourses() {
     try {
-      const res = await courseApi.getCourseList()
-      const list = res.data?.list || res.data || res || []
-      courseList.value = Array.isArray(list) ? list.slice(0, 10) : []
+      courseList.value = await courseApi.getAllCourses()
     } catch (e) {
       logger.error('加载课程失败:', e)
     }
+  }
+
+  /** 会话列表行的展示字段子集（字段名存在历史分叉，故全部可选） */
+  interface ConversationRow {
+    id?: number | string
+    sessionId?: number | string
+    title?: string
+    summary?: string
+    createdAt?: string
+    updatedAt?: string
+    messages?: unknown[]
+    courseName?: string
   }
 
   /* ---- 对话历史 ---- */
@@ -53,7 +109,12 @@ export function useAIAssistant() {
       const res = await aiApi.getSessions()
       // 缺陷修复（2026-10-04）：`list || records` 的空数组是 truthy，
       // 后端改用 records（或反之）时历史会话整批被吞、且毫无报错。
-      const list = firstNonEmptyArray(res.data?.list, res.data?.records, res.data, res)
+      const list = firstNonEmptyArray<ConversationRow>(
+        res.data?.list,
+        res.data?.records,
+        res.data,
+        res,
+      )
       if (list.length > 0) {
         conversations.value = list.map((s) => ({
           id: s.id || s.sessionId,
@@ -96,7 +157,13 @@ export function useAIAssistant() {
         await handleSendFallback(aiMsgIdx, content)
       } catch (e) {
         logger.error('AI 聊天失败:', e)
-        messages.value[aiMsgIdx].content = '抱歉，AI 服务暂时不可用，请稍后再试。'
+        const bizCode = (e as { code?: number })?.code
+        // 503 时后端的 message 就是可诊断病因（凭据被拒 / 额度用尽 / 未配置 Key），原样呈现；
+        // 其它失败仍用通用句——axios 的 "Network Error" 之类不该直接丢给学生。
+        messages.value[aiMsgIdx].content =
+          bizCode === 503 && e instanceof Error && e.message
+            ? e.message
+            : '抱歉，AI 服务暂时不可用，请稍后再试。'
         messages.value[aiMsgIdx].error = true
       }
     } finally {
@@ -106,14 +173,19 @@ export function useAIAssistant() {
     }
   }
 
-  /** SSE 流式：逐 token 推送 */
+  /** SSE 流式：逐 token 推送；末帧出处写入当前回答气泡供溯源展示 */
   function handleSendStream(aiMsgIdx, question) {
     return new Promise<void>((resolve, reject) => {
-      const params: Record<string, string | number | boolean | undefined> = { question }
+      // 与 qaStream 的入参契约对齐：索引签名允许扩展字段，question 必填（原声明缺 question 键保证）。
+      const params: { [key: string]: string | number | boolean; question: string } = { question }
       if (selectedCourseId.value) params.courseId = selectedCourseId.value
       const controller = aiApi.qaStream(params, {
         onToken(token) {
           messages.value[aiMsgIdx].content += token
+        },
+        onSources(sources) {
+          // 出处末帧：与 /qa/ask 同口径还原；空数组表示本次无溯源，交由渲染侧按长度隐藏
+          messages.value[aiMsgIdx].sources = mapSources(sources)
         },
         onError(err) {
           reject(err)
@@ -131,14 +203,14 @@ export function useAIAssistant() {
   async function handleSendFallback(aiMsgIdx, question) {
     const payload: Record<string, unknown> = { question }
     if (selectedCourseId.value) payload.courseId = selectedCourseId.value
-    const res = await aiApi.qaAsk(payload)
-    const reply =
-      res.data?.response ||
-      res.data?.reply ||
-      res.data?.content ||
-      (res as Record<string, unknown>)?.content ||
-      '感谢您的提问！我正在学习中，稍后会有更完善的回答。'
-    await typewriterEffect(aiMsgIdx, reply)
+    const { answer, sources } = readQa(await aiApi.qaAsk(payload))
+    if (!answer) {
+      messages.value[aiMsgIdx].content = 'AI 未返回内容，请稍后再试。'
+      messages.value[aiMsgIdx].error = true
+      return
+    }
+    await typewriterEffect(aiMsgIdx, answer)
+    messages.value[aiMsgIdx].sources = sources
   }
 
   /** 打字机效果（非流式兜底用，20ms/字） */
@@ -188,19 +260,15 @@ export function useAIAssistant() {
       loading: true,
     })
     try {
-      const res = await aiApi.qaAsk({
-        question:
-          '请为当前课程生成一份全面的学习总结，包括课程核心知识点、学习重点、难点分析以及学习建议。',
-        courseId: selectedCourseId.value,
-      })
-      const reply =
-        res.data?.response ||
-        res.data?.reply ||
-        res.data?.content ||
-        (res as Record<string, unknown>)?.response ||
-        (res as Record<string, unknown>)?.content ||
-        '正在为您生成课程总结，请稍候...'
-      await typewriterEffect(aiMsgIdx, reply)
+      const { answer, sources } = readQa(
+        await aiApi.qaAsk({
+          question:
+            '请为当前课程生成一份全面的学习总结，包括课程核心知识点、学习重点、难点分析以及学习建议。',
+          courseId: selectedCourseId.value,
+        }),
+      )
+      await typewriterEffect(aiMsgIdx, answer || '课程总结暂时无法生成，请稍后再试。')
+      messages.value[aiMsgIdx].sources = sources
     } catch (e) {
       logger.error('生成总结失败:', e)
       messages.value[aiMsgIdx].content = '抱歉，生成课程总结失败，请稍后再试。'
@@ -232,25 +300,13 @@ export function useAIAssistant() {
       loading: true,
     })
     try {
-      const res = await aiApi.questionRecommendations({
-        courseId: selectedCourseId.value,
-        count: 5,
-      })
-      const data = res.data?.data || res.data || res || {}
-      let reply = ''
-      if (Array.isArray(data.questions)) {
-        reply = data.questions
-          .map(
-            (q, i) =>
-              `${i + 1}. ${q.content || q.questionText || q}\n${q.answer ? `   答案：${q.answer}` : ''}`,
-          )
-          .join('\n\n')
-      } else if (typeof data === 'string') {
-        reply = data
-      } else {
-        reply = JSON.stringify(data, null, 2)
-      }
-      if (!reply) reply = '已为您生成练习题，请查看详情。'
+      // 后端 /recommendations/questions 的业务字段是 recommendations（{content,type,difficulty}[]），
+      // 此前按 data.questions 取值取不到，界面把整个 JSON 当回答打字机播了出来。
+      const data = unwrap(await aiApi.questionRecommendations({ courseId: selectedCourseId.value }))
+      const list = Array.isArray(data?.recommendations) ? data.recommendations : []
+      const reply = list.length
+        ? list.map((q, i) => `${i + 1}. ${q.content ?? ''}`).join('\n\n')
+        : '练习题暂时无法生成，请稍后再试。'
       await typewriterEffect(aiMsgIdx, reply)
     } catch (e) {
       logger.error('生成练习题失败:', e)
@@ -291,11 +347,10 @@ export function useAIAssistant() {
     try {
       const payload: Record<string, unknown> = { question: lastUserMsg }
       if (selectedCourseId.value) payload.courseId = selectedCourseId.value
-      const res = await aiApi.qaAsk(payload)
-      const reply =
-        res.data?.response || (res as Record<string, unknown>)?.response || '已重新生成回复。'
-      await typewriterEffect(aiMsgIdx, reply)
-    } catch (e) {
+      const { answer, sources } = readQa(await aiApi.qaAsk(payload))
+      await typewriterEffect(aiMsgIdx, answer || 'AI 未返回内容，请稍后再试。')
+      messages.value[aiMsgIdx].sources = sources
+    } catch {
       ElMessage.error('重新生成失败')
     } finally {
       loading.value = false

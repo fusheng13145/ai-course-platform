@@ -3,6 +3,15 @@
     <div class="chart-title">
       <el-icon><Warning /></el-icon>薄弱知识点分析
     </div>
+    <!-- 加载失败提示：失败不得渲染成「暂无薄弱点数据」（D2-1 双态规范） -->
+    <el-alert
+      v-if="weakError"
+      :title="weakError"
+      type="error"
+      :closable="false"
+      show-icon
+      style="margin-bottom: var(--ac-spacing-md)"
+    />
     <div v-if="weakStats" class="stat-grid stat-grid--sm">
       <div class="mini-stat">
         <span class="mini-num">{{ weakStats.avgScore ?? '--' }}</span
@@ -38,7 +47,11 @@
         </template>
       </el-table-column>
     </el-table>
-    <el-empty v-else description="暂无薄弱点数据" :image-size="64" />
+    <EmptyState
+      v-else
+      :title="weakError ? '薄弱点分析未能加载，请查看上方提示后重试' : '暂无薄弱点数据'"
+      icon="alert"
+    />
   </div>
 </template>
 
@@ -46,6 +59,7 @@
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
 import { ref, watch, onMounted } from 'vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { Warning } from '@element-plus/icons-vue'
 import aiApi from '@/api/ai'
 
@@ -57,6 +71,8 @@ const weakLoading = ref(false)
 const weakPoints = ref([])
 const weakStats = ref(null)
 const weakSummary = ref('')
+/** 加载失败文案；非空表示「加载失败」而非「无数据」（D2-1） */
+const weakError = ref('')
 
 function numPct(v) {
   if (v == null) return 0
@@ -67,6 +83,7 @@ function numPct(v) {
 async function loadWeak() {
   if (!props.courseId) return
   weakLoading.value = true
+  weakError.value = ''
   try {
     const r = await aiApi.weakPointsAnalysis({ courseId: props.courseId })
     const body = unwrap(r)
@@ -76,6 +93,7 @@ async function loadWeak() {
     weakSummary.value = data.summary || ''
   } catch (e) {
     logger.error('薄弱点分析失败', e)
+    weakError.value = '薄弱点分析加载失败，请稍后重试'
   } finally {
     weakLoading.value = false
   }

@@ -339,7 +339,12 @@ const ROWS: Array<[string, Method, string, () => Promise<unknown>]> = [
     () => learningRecordApi.getHeatmap({}),
   ],
   // discussion
-  ['discussion.createTopic', 'post', '/discussion/topic', () => discussionApi.createTopic({})],
+  [
+    'discussion.createTopic',
+    'post',
+    '/discussion/topic',
+    () => discussionApi.createTopic({ courseId: 3, title: '话题', content: '正文' }),
+  ],
   [
     'discussion.getTopics',
     'get',
@@ -356,7 +361,7 @@ const ROWS: Array<[string, Method, string, () => Promise<unknown>]> = [
     'discussion.replyTopic',
     'post',
     '/discussion/topic/7/reply',
-    () => discussionApi.replyTopic(7, {}),
+    () => discussionApi.replyTopic(7, { content: '回复' }),
   ],
   ['discussion.likePost', 'post', '/discussion/post/11/like', () => discussionApi.likePost(11)],
   ['discussion.closeTopic', 'post', '/discussion/topic/7/close', () => discussionApi.closeTopic(7)],

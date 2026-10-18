@@ -1,7 +1,10 @@
 import request from './request'
+import { fetchAllPages } from '@/utils/response'
 
 // 学生端 - 学习中心
 export const getMyCourses = (params = {}) => request.get('/student/courses', { params })
+/** 获取全部已选课程，避免侧边栏课程目录被后端默认 10 条分页截断。 */
+export const getAllMyCourses = () => fetchAllPages((page, size) => getMyCourses({ page, size }))
 /**
  * 导出函数 getCourseDetail：获取/查询数据
  */
@@ -104,6 +107,7 @@ export const getVisualizationData = () => request.get('/student/analytics/visual
  */
 export default {
   getMyCourses,
+  getAllMyCourses,
   getCourseDetail,
   enrollCourse,
   unenrollCourse,

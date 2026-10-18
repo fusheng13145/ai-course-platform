@@ -28,6 +28,14 @@ public class AiChatSession {
     @TableField("user_id")
     private Long userId;
 
+    /**
+     * 关联课程ID；null 表示未绑定课程（通识问答）。
+     * <p>V8 迁移新增：此前该列不存在，且 {@code AIController} 建会话时把已收到的 courseId 丢弃，
+     * 导致会话无法归属课程。</p>
+     */
+    @TableField("course_id")
+    private Long courseId;
+
     private String title;
 
     @TableField("message_count")

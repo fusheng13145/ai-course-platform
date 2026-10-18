@@ -41,6 +41,7 @@ import org.slf4j.LoggerFactory;
 import java.util.ArrayList;
 import java.util.List;
 import com.aicourse.common.RoleConstants;
+import com.aicourse.util.TrustedClientIpResolver;
 
 /**
  * Spring Security 安全全局配置
@@ -113,6 +114,17 @@ public class SecurityConfig {
         this.actuatorSecured = actuatorSecured;
         this.requireHttps = requireHttps;
         this.corsDevFallback = corsDevFallback;
+    }
+
+    /**
+     * 安全决策用的客户端 IP 单一真源（限流键与登录失败节流共用）。
+     * <p>刻意用 {@code @Bean} 而非类级 {@code @Component}：{@code RateLimitFilter}（{@code Filter}）
+     * 会被 {@code @WebMvcTest} 切片扫描，而 util 包的 {@code @Component} 不会——组件注册时切片上下文
+     * 必然缺 bean 而无法启动。{@code @Configuration} 在切片中照常加载，故此处注册可同时覆盖整机与切片。</p>
+     */
+    @Bean
+    public TrustedClientIpResolver trustedClientIpResolver() {
+        return new TrustedClientIpResolver();
     }
 
     /**

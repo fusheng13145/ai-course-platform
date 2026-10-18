@@ -1,5 +1,7 @@
 package com.aicourse.security;
 
+import com.aicourse.entity.User;
+import com.aicourse.service.UserService;
 import com.aicourse.service.UserSessionService;
 import com.aicourse.util.JwtUtils;
 import jakarta.servlet.http.Cookie;
@@ -30,6 +32,8 @@ class JwtRequestFilterCookieTest {
     private JwtUtils jwtUtils;
     @Mock
     private UserSessionService userSessionService;
+    @Mock
+    private UserService userService;
 
     private JwtRequestFilter filter;
     private MockHttpServletRequest request;
@@ -38,7 +42,7 @@ class JwtRequestFilterCookieTest {
 
     @BeforeEach
     void setUp() {
-        filter = new JwtRequestFilter(jwtUtils, userSessionService);
+        filter = new JwtRequestFilter(jwtUtils, userSessionService, userService);
         request = new MockHttpServletRequest();
         response = new MockHttpServletResponse();
         chain = new MockFilterChain();
@@ -54,7 +58,12 @@ class JwtRequestFilterCookieTest {
         when(userSessionService.isSessionActive("jwt")).thenReturn(true);
         when(jwtUtils.getUserIdFromToken("jwt")).thenReturn(1L);
         when(jwtUtils.getUsernameFromToken("jwt")).thenReturn("alice");
-        when(jwtUtils.getRoleFromToken("jwt")).thenReturn("STUDENT");
+        User dbUser = new User();
+        dbUser.setId(1L);
+        dbUser.setUsername("alice");
+        dbUser.setRole("STUDENT");
+        dbUser.setIsActive(true);
+        when(userService.getById(1L)).thenReturn(dbUser);
 
         filter.doFilterInternal(request, response, chain);
 

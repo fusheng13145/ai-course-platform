@@ -68,10 +68,11 @@
           }}</el-tag>
         </span>
       </div>
-      <el-empty
+      <EmptyState
         v-if="!riskDetails.length"
-        description="当前维度下无掉队预警学生"
-        :image-size="60"
+        title="当前维度下无掉队预警学生"
+        icon="alert"
+        size="compact"
       />
     </div>
   </div>
@@ -79,6 +80,7 @@
 
 <script setup lang="ts">
 import { Bell, Warning } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 教学监管 — 学习预警卡

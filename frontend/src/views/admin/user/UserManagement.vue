@@ -74,6 +74,7 @@
           @open-detail="openDetail"
           @open-reset="openReset"
           @open-delete="openDelete"
+          @page-change="changeGroupPage"
         />
       </div>
     </section>
@@ -157,6 +158,7 @@ const {
   deleteUser,
   deleting,
   onSearchInput,
+  changeGroupPage,
   openDetail,
   handleCreate,
   openReset,

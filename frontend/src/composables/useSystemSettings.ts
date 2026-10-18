@@ -90,7 +90,7 @@ export function useSystemSettings() {
           Object.assign(forms[group], data)
         }
       }
-    } catch (error) {
+    } catch {
       // 回退到 systemApi
       try {
         const res = await systemApi.getSystemConfig(group)
@@ -154,7 +154,7 @@ export function useSystemSettings() {
     try {
       await systemConfigApi.testEmail()
       ElMessage.success('测试邮件已发送，请查收')
-    } catch (error) {
+    } catch {
       ElMessage.error('发送失败，请检查邮件配置')
     }
   }

@@ -6,9 +6,10 @@ name: Nightly RAG Evaluation
 # 设计要点：
 # 1) 评测脚手架校验（py_compile + qa-set.json 结构）始终执行，零基础设施依赖，保证最基本护栏；
 # 2) 后端以 mysql+redis 服务容器启动（复用 backend CI job 同款约定），跑「仅检索召回」评测；
-# 3) RAG 引擎（8002）默认未接入（rag.enabled=false），/rag/retrieve 返回 503，
-#    evaluate.py 优雅记录 retrieve_error，不会中断 job——nightly 如实反映「引擎未接入」状态，
-#    待队友补实 8002 并注入 RAG_ENABLED=true + RAG_BASE_URL 后，即可产出真实 recall@k；
+# 3) 本 job 未拉起 8002 引擎容器（rag.enabled=false），/rag/retrieve 返回 503，
+#    evaluate.py 优雅记录 retrieve_error，不会中断 job——nightly 如实反映「本 job 未接引擎」状态。
+#    注：rag_service 侧的真实混合检索引擎（rag_engine.py：BM25+向量+RRF）已实现（2026-10 复核），
+#    要在此产出真实 recall@k，需给本 job 增加 8002 service/step 并注入 RAG_ENABLED=true + RAG_BASE_URL；
 # 4) 结果 JSON 作为 artifact 上传，便于趋势对比与答辩证据留存。
 
 on:
@@ -23,10 +24,11 @@ jobs:
   eval:
     name: Nightly RAG Evaluation
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     # 与 backend CI job 一致的 MySQL/Redis 服务容器约定
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:8.4.11
         env:
           MYSQL_ROOT_PASSWORD: eval-nightly-pw-7c2k
           MYSQL_DATABASE: ai_course_platform
@@ -38,7 +40,7 @@ jobs:
           --health-timeout=5s
           --health-retries=10
       redis:
-        image: redis:7
+        image: redis:7.4.11-alpine
         ports:
           - 6379:6379
         options: >-
@@ -102,12 +104,14 @@ jobs:
           nohup mvn -B spring-boot:run > /tmp/backend.log 2>&1 &
           echo "后端启动中…"
           for i in $(seq 1 60); do
-            if curl -fsS http://localhost:8080/api/actuator/health >/dev/null 2>&1; then
+            if curl -fsS http://localhost:8080/api/actuator/health/probe >/dev/null 2>&1; then
               echo "后端健康（第 ${i} 次探测）"; break
             fi
             sleep 3
           done
-          curl -fsS http://localhost:8080/api/actuator/health || { echo "后端未就绪，打印日志："; tail -40 /tmp/backend.log; exit 1; }
+          # 探 probe 组（readinessState+database+redis+diskSpace），不探综合 /health：
+          # CI 不注入 DEEPSEEK_API_KEY，综合状态含 llmProvider → 恒 503，会让本作业永远等不到就绪
+          curl -fsS http://localhost:8080/api/actuator/health/probe || { echo "后端未就绪，打印日志："; tail -40 /tmp/backend.log; exit 1; }
 
           mkdir -p ../evaluation/results
           python ../evaluation/evaluate.py \

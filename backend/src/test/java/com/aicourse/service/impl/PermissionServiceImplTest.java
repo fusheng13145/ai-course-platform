@@ -65,6 +65,10 @@ class PermissionServiceImplTest {
         Map<String, Object> result = service.getUserPermissions(1L);
         assertTrue(((List<?>) result.get("permissions")).isEmpty());
         assertTrue(((List<?>) result.get("menus")).isEmpty());
+        // 形状契约：角色字段与按钮映射即使用户不存在也必须存在，
+        // 否则前端 effectiveRole/serverRole 与 hasButtonPermission 读到 undefined
+        assertEquals("", result.get("role"));
+        assertTrue(((Map<?, ?>) result.get("buttons")).isEmpty());
         verify(rolePermissionMapper, never()).selectList(any());
     }
 
@@ -91,6 +95,12 @@ class PermissionServiceImplTest {
         List<String> menus = (List<String>) result.get("menus");
         assertEquals(1, menus.size());
         assertEquals("course", menus.get(0));
+        // 服务端权威角色：前端 stores/auth.effectiveRole 以此压过可篡改的本地 user.role
+        assertEquals("TEACHER", result.get("role"));
+        // 按钮权限扁平化为 {key: true}，与前端 hasButtonPermission 的读取形状对齐
+        Map<String, Boolean> buttons = (Map<String, Boolean>) result.get("buttons");
+        assertEquals(1, buttons.size());
+        assertEquals(Boolean.TRUE, buttons.get("course:create"));
     }
 
     // ===================== getRolePermissions =====================

@@ -1,5 +1,6 @@
 <template>
   <el-dialog
+    ref="dialogRef"
     :model-value="modelValue"
     title="进行中的考试"
     width="800px"
@@ -26,11 +27,13 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 /**
  * 进行中考试对话框
  * <p>当前活跃考试会话列表，支持强制交卷与作弊检测入口。</p>
  */
-defineProps({
+const props = defineProps({
   /** 弹窗显隐（v-model） */
   modelValue: { type: Boolean, default: false },
   /** 活跃会话列表 */
@@ -38,6 +41,13 @@ defineProps({
   /** 加载态 */
   loadingSessions: { type: Boolean, default: false },
 })
+
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(
+  dialogRef,
+  computed(() => props.modelValue),
+)
 
 defineEmits(['update:modelValue', 'force-submit', 'view-cheating'])
 </script>

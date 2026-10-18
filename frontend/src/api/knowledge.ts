@@ -81,6 +81,26 @@ export const planLearningPath = (sourceId, targetId, maxHops?) =>
   request.post('/knowledge/path/plan', { sourceId, targetId, maxHops })
 
 /**
+ * 知识图谱摄取：把课程知识点/关系同步至图谱引擎（POST /knowledge/ingest，教师/管理员权限）
+ * <p>引擎未接入/不可达时后端返回消费侧本地确认（data.mode=LOCAL），端点始终可用，
+ * 与 planLearningPath 同款降级策略。</p>
+ * @param {number} courseId 归属课程
+ * @returns {Promise} 信封 { code, message, data: { mode, note, syncedPoints, ... } }
+ */
+export const ingestKnowledgeGraph = (courseId) =>
+  request.post('/knowledge/ingest', null, { params: { courseId } })
+
+/**
+ * 获取课程知识子图（GET /knowledge/subgraph/{courseId}，教师/管理员权限）
+ * <p>引擎未接入时后端返回消费侧 MySQL 直读结果（data.mode=LOCAL），端点始终可用。</p>
+ * @param {number} courseId 归属课程
+ * @param {number} [maxHops] 子图最大跳数（可选，缺省由后端取默认）
+ * @returns {Promise} 信封 { code, message, data: { mode, note, nodes[], edges[] } }
+ */
+export const getKnowledgeSubGraph = (courseId, maxHops?) =>
+  request.get(`/knowledge/subgraph/${courseId}`, { params: { maxHops } })
+
+/**
  * Excel 批量导入知识点（后端 TeacherController POST /teacher/knowledge-points/import-excel）
  *
  * <p>父知识点以名称引用；同课程同名称视为重复并跳过。</p>
@@ -114,5 +134,7 @@ export default {
   extractKnowledgePoints,
   getRelationGraphData,
   planLearningPath,
+  ingestKnowledgeGraph,
+  getKnowledgeSubGraph,
   importKnowledgePointsExcel,
 }

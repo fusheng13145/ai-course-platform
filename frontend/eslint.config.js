@@ -57,13 +57,12 @@ export default tseslint.config(
       'no-unused-vars': 'off',
       '@typescript-eslint/no-unused-vars': [
         'warn',
-        // caughtErrors: 'none' 用于保持升级前后的 lint 输出一致——typescript-eslint v6 默认不检查
-        // catch 形参，v8 把默认值改为 'all'，直接切换会在 20+ 个既有文件一次性引入 76 条 warning。
-        // 该收敛应作为独立任务处理，不混入工具链升级。
+        // caughtErrors 保持 typescript-eslint 默认 'all'：catch 形参未使用即告警。
+        // 工具链升级期曾临时置为 'none' 以免一次性引入 76 条 warning，该缺口已由
+        // DR-22 单独收敛（未用的 catch 形参改为可选 catch {} 绑定）。
         {
           argsIgnorePattern: '^_',
           varsIgnorePattern: '^_',
-          caughtErrors: 'none',
           caughtErrorsIgnorePattern: '^_',
         },
       ], // 覆盖全部脚本；下划线前缀表示"有意保留"

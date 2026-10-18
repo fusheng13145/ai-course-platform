@@ -4,6 +4,15 @@ name: CI
 on:
   push:
     branches: [main, master, leyon]
+    # 纯文档/归档改动不占用 runner：这类提交不可能影响编译、测试、镜像内容或密钥面。
+    # ⚠️ 只对 push 生效；pull_request 故意**不设**路径过滤 → 任何进 main 的 PR 一定跑满全部门禁，
+    #    收敛的是「日常在 leyon 上推文档也排队等 CI」，不收敛任何进入主干的把关强度。
+    paths-ignore:
+      - "docs/**"
+      - "archive/**"
+      - "*.md"
+      - "**/*.md"
+      - ".gitignore"
   pull_request:
     branches: [main, master, leyon]
   workflow_dispatch:
@@ -25,6 +34,7 @@ jobs:
   frontend-quality:
     name: Frontend Quality (lint + format + audit)
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     defaults:
       run:
         working-directory: frontend
@@ -71,6 +81,7 @@ jobs:
   frontend-build:
     name: Frontend Build (Vite)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: frontend
@@ -91,20 +102,33 @@ jobs:
       - name: Build
         run: npm run build
 
+      # 产物体积预算门禁（2026-10-13 经项目主批准接入 CI）：
+      # 把 manualChunks 清理后的实测分块写成上限（echarts/element-plus/xlsx/其余合计/JS 合计/CSS），
+      # 任一超限即失败，防止"顺手多引一个组件库"静默推高首屏体积。
+      # 依赖上一步 build 产出的 dist/assets —— 顺序不可调换。
+      - name: Bundle size gate
+        run: npm run size:gate
+
   # ------------------------------------------------------------------
   # 后端：编译 + 单元测试 + Testcontainers 集成测试（Java 21，与 backend/Dockerfile 的 temurin-21 对齐）
   # ------------------------------------------------------------------
   backend:
     name: Backend (Maven + JUnit)
     runs-on: ubuntu-latest
+    # 上限取本机全量实跑的约 4 倍余量（clean verify 含 12 例 IT 实测 03:40），
+    # 目的是把「网络挂起 / Docker 起不来」这类无进展的作业在 30 分钟内判定失败，
+    # 而不是让它在 6 小时后被 Actions 强杀成一条看不出原因的红灯。
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: backend
     # 修复：ApiContractTest（contract-test profile）直连 localhost:3306 MySQL 与 localhost:6379 Redis，
     # CI runner 无基础设施导致上下文加载失败（11 errors）。提供 GitHub Actions service 容器。
+    # 版本与 docker-compose.yml 的第三方镜像 pin 逐字一致（mysql:8.4.11 / redis:7.4.11-alpine）：
+    # 测试环境＝编排环境＝生产，且 Testcontainers 与 service 容器共用同一份镜像，不产生旁支版本。
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:8.4.11
         env:
           MYSQL_ROOT_PASSWORD: ci-test-password-8f3k
           MYSQL_DATABASE: ai_course_platform_test
@@ -116,7 +140,7 @@ jobs:
           --health-timeout=5s
           --health-retries=10
       redis:
-        image: redis:7
+        image: redis:7.4.11-alpine
         ports:
           - 6379:6379
         options: >-
@@ -134,6 +158,25 @@ jobs:
           distribution: temurin
           java-version: "21"
           cache: maven
+
+      - name: Configure Maven mirror (avoid Maven Central HTTP 429 rate limits)
+        # 与 backend-security / frontend-e2e 两个 job 同款（那两处 2026-09 已因 Central 对高消费流量
+        # 429 限流而加过镜像）：本 job 此前是唯一没配镜像的后端作业，缓存未命中时
+        # 依赖解析直连 repo.maven.apache.org → 随机 429 → 整条流水线无理由变红。
+        # 参考: https://central.sonatype.org/faq/429-error/
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<'EOF'
+          <settings>
+            <mirrors>
+              <mirror>
+                <id>google-maven-central</id>
+                <mirrorOf>central</mirrorOf>
+                <url>https://maven-central-eu.storage-download.googleapis.com/maven2/</url>
+              </mirror>
+            </mirrors>
+          </settings>
+          EOF
 
       - name: Build, unit & integration tests with coverage gate
         # mvn verify -> surefire 运行单元测试，failsafe 在 verify 阶段运行 Testcontainers 集成测试；
@@ -171,6 +214,7 @@ jobs:
   trivy-scan:
     name: Trivy Security Scan (fs)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     # 最小权限：SARIF 结果以 artifact 形式保存（见下方 upload-artifact），
     # 不再调用 upload-sarif，故无需 security-events / actions 写权限。
     permissions:
@@ -179,36 +223,107 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Trivy fs scan (diagnostic table output)
+      # 缺陷修复（2026-10-07，CI 红灯根因 C）：trivy 解析 backend/pom.xml 时会自行向
+      # repo.maven.apache.org 取父 POM / BOM，被 Maven Central 429 限流时直接
+      # `FATAL ... returned 429 Too Many Requests`（本机已实测复现，命中
+      # spring-pulsar-bom:1.2.18），**这不是漏洞命中，而是扫描器自身报错 → exit 1 点红**。
+      # 与 backend-security job 同一套解法：先把 central 指向 Google 托管镜像、
+      # 预解析依赖填充 ~/.m2，trivy 随后优先读本地缓存，扫描阶段不再联网解析。
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - name: Populate local Maven cache (via mirror) before Trivy resolves POMs
+        working-directory: backend
+        run: |
+          mkdir -p ~/.m2
+          cat > ~/.m2/settings.xml <<'EOF'
+          <settings>
+            <mirrors>
+              <mirror>
+                <id>google-maven-central</id>
+                <mirrorOf>central</mirrorOf>
+                <url>https://maven-central-eu.storage-download.googleapis.com/maven2/</url>
+              </mirror>
+            </mirrors>
+          </settings>
+          EOF
+          mvn -B -q dependency:resolve -DincludeScope=runtime
+
+      - name: Trivy fs scan (vuln diagnostic table output)
         # 仅用于日志诊断：以 table 格式打印命中的 HIGH/CRITICAL 项，不阻断构建，
         # 便于在门禁失败时直接从日志定位具体漏洞（sarif 模式下详情写入文件，日志不可见）。
+        # scanners 显式限定为 vuln：① 密钥面由下方 secret-scan（gitleaks）job 统一负责，
+        # 那里有按值登记的 .gitleaks.toml 白名单，trivy 自带的通用密钥规则会把 CI 占位口令
+        # 与 .env.example 的刻意不合规样例一并点红，属重复且不可解释的噪声；
+        # ② misconfig 自 2026-10-08 起拆到独立的门禁步骤（豁免文件不同，混扫会让本表与判定口径不一致）。
+        # version 显式钉住（2026-10-07）：trivy-action v0.35.0 的默认版本是隐式的（其 action.yaml 里
+        # `version` 默认 v0.69.3），一旦 bump action 就会静默换扫描器版本、判定结果随之漂移；
+        # 这里钉成与本机复验一致的版本，使「本机跑 ≡ CI 跑」成立（豁免口径取证见 .trivyignore 头部）。
+        # ⚠ 必须带 `v` 前缀：setup-trivy 走 trivy 的 contrib/install.sh，它拿这个串去查
+        #   releases/tags/<tag>，实测 `0.69.3` → 404（安装步骤直接失败、作业红在装 trivy 上），
+        #   `v0.69.3` → 200。
         uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: "fs"
           scan-ref: "."
+          scanners: "vuln"
           format: "table"
           severity: "HIGH,CRITICAL"
           ignore-unfixed: true
           trivyignores: ".trivyignore"
+          version: "v0.69.3"
           exit-code: "0"
 
-      - name: Trivy fs scan (repo config + deps)
+      - name: Trivy fs scan (vuln gate + SARIF)
         uses: aquasecurity/trivy-action@v0.35.0
         with:
           scan-type: "fs"
           scan-ref: "."
+          scanners: "vuln"
           format: "sarif"
           output: "trivy-results.sarif"
           severity: "HIGH,CRITICAL"
           ignore-unfixed: true
-          # 豁免 3 个 Tomcat CVE（与 backend/osv-scanner.toml 对齐）：修复版 10.1.58 未发布到
-          # Maven Central，且仅影响 Tomcat 内置 FORM/DIGEST/security-constraint（本项目用 JWT，不受影响）。
+          # 豁免口径（2026-10-07 按 OSV 实查重定，与 backend/osv-scanner.toml 逐字同步）：
+          #   · 原 3 条 Tomcat CRITICAL 豁免**已删除**——`tomcat.version` 升到 10.1.60 后复查为 0 命中；
+          #   · 仅保留 spring-webmvc CVE-2026-47884：6.2.x 线无修复版（唯一修复在 7.0.9，需 Boot 4），
+          #     且 XsltView 视图渲染路径经三项取证不可达。能升级的绝不豁免，勿在此追加新条目。
+          # 注意此前该 job 一直死在 Maven 429 FATAL（根因 C），misconfig 判定从未真正跑到底，
+          # 所以 DS-0002 是修好 C 之后才暴露出来的下一颗雷；429 解法见上方 dependency:resolve 步骤。
+          # ⚠ 本步不再挂 misconfig 豁免：plain `.trivyignore` 对 misconfig 是全局按 ID 放行，
+          #   会把在用镜像的 root 缺陷一并盖掉。misconfig 走下一步的按路径豁免。
           trivyignores: ".trivyignore"
           # 修复：trivy-action 的 entrypoint.sh 在 format=sarif 且本参数非 true 时会
           # `unset TRIVY_SEVERITY`（日志特征 "Building SARIF report with all severities"），
           # 使 MEDIUM/LOW 漏洞也计入 exit-code 判定而误报失败（HIGH/CRITICAL 已清零仍 exit 1）。
           # 设为 true 恢复 severity 过滤：SARIF 仍记录全部级别供审阅，仅 HIGH/CRITICAL 触发 exit 1。
           limit-severities-for-sarif: true
+          version: "v0.69.3"
+          exit-code: "1"
+
+      # ------------------------------------------------------------------
+      # misconfig 门禁（DR-34 真修后新增，2026-10-08）
+      # 与 vuln 门禁分开跑的原因：plain `.trivyignore` 对 misconfig 只能**按规则 ID 全局**
+      # 放行，无法限定路径；一旦为归档件保留 DS-0002，在用镜像的 root 缺陷也会被一起盖掉。
+      # `.trivyignore.yaml` 的 misconfigurations[].paths 支持按路径生效（本机三组对照实测：
+      # paths=archive/** 时 backend/frontend 仍点红、paths 指向不存在目录时一条都没被盖），
+      # 取证见手册 §24.2.3 根因 F。DS-0002 本体已在 backend/ 与 frontend/ 两个 Dockerfile
+      # 真修（非 root USER），残留豁免只指向 archive/**，不接受新增在用镜像的豁免。
+      # 用 table 而非 sarif：命中时日志直接可读，misconfig 项无需进 Code Scanning。
+      # ------------------------------------------------------------------
+      - name: Trivy misconfig gate
+        uses: aquasecurity/trivy-action@v0.35.0
+        with:
+          scan-type: "fs"
+          scan-ref: "."
+          scanners: "misconfig"
+          format: "table"
+          severity: "HIGH,CRITICAL"
+          trivyignores: ".trivyignore.yaml"
+          version: "v0.69.3"
           exit-code: "1"
 
       - name: Upload Trivy SARIF (artifact)
@@ -225,25 +340,68 @@ jobs:
 
   # ------------------------------------------------------------------
   # 安全扫描：gitleaks 密钥/凭据泄漏扫描（F-02 密钥治理防回归）
-  # 扫描 checkout 分支的完整历史，命中真实密钥即中断构建。
-  # 已知非密钥占位（CI 构建/测试口令、示例文件、历史脱敏标记）见根目录 .gitleaks.toml。
+  #
+  # 【2026-10-07 口径重构】原实现 = gitleaks-action + `fetch-depth: 0` 的**全历史扫描**，
+  # 本机实测（`ghcr.io/gitleaks/gitleaks:v8.30.1 detect --source=. --config=.gitleaks.toml`，
+  # 125 个提交）命中 10 条，逐条核对后**没有一条是当前内容里的真实密钥**：
+  #   · 5 条是 `.github/workflows/*` 里 CI 服务容器的占位口令（已在 .gitleaks.toml 按值登记）；
+  #   · 5 条只在历史提交里（F-02 轮换与 filter-repo 擦除的遗留，当前文件内容已无，
+  #     `git show <commit>:<file>` 与 HEAD 逐条比对确认）。
+  # 后果：任何 leyon→main 的 PR 都要重扫 main 之外的全部提交，已失效的历史口令反复点红，
+  # 把真正该拦住的「交付内容含密钥」淹没在噪声里（这就是 CI 大面积不达标的根因之一）。
+  #
+  # 现拆成两段职责清晰的门禁：
+  #   ① HEAD 内容扫描——真实密钥绝不允许出现在被交付的文件里，与它是哪次提交写入的无关；
+  #   ② 变更区间扫描——本次 push / 本 PR 新增的提交，用于「刚引入密钥」的早反馈。
+  # 两段都不放宽规则本身（仍用同一份 .gitleaks.toml，且该文件坚持**按值**豁免、不按路径豁免）。
+  # 另：不再走 gitleaks-action（其对区间不可判定时的回退行为不可控，且依赖市场 Action 计费），
+  # 改为直接跑钉好版本的官方镜像；本机已存在同一 digest，故本地复验无需联网拉取。
   # ------------------------------------------------------------------
   secret-scan:
     name: Secret Scan (gitleaks)
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     permissions:
       contents: read
+    env:
+      # 补丁级钉版（禁 latest）。升级时同步改这一处即可。
+      GITLEAKS_IMAGE: ghcr.io/gitleaks/gitleaks:v8.30.1
     steps:
       - name: Checkout (full history)
         uses: actions/checkout@v4
         with:
+          # ② 需要 base..head 的完整对象库才能解析区间；① 不依赖历史。
           fetch-depth: 0
 
-      - name: gitleaks (fail on detected secrets)
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GITLEAKS_CONFIG: .gitleaks.toml
+      - name: ① HEAD 内容扫描（主门禁）
+        run: |
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/repo" \
+            "$GITLEAKS_IMAGE" detect --no-git \
+              --source=/repo \
+              --config=/repo/.gitleaks.toml \
+              --redact --no-banner --exit-code 1
+
+      - name: ② 变更提交区间扫描（增量反馈）
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            RANGE="${{ github.event.pull_request.base.sha }}..${{ github.event.pull_request.head.sha }}"
+          else
+            BEFORE="${{ github.event.before }}"
+            case "$BEFORE" in
+              ""|*[!0-9a-f]*) RANGE="-1 HEAD" ;;          # 取不到基线：只扫本次提交
+              0000000000000000000000000000000000000000) RANGE="-1 HEAD" ;;  # 新建分支首次推送
+              *) RANGE="$BEFORE..${{ github.sha }}" ;;
+            esac
+          fi
+          echo "gitleaks 扫描区间：$RANGE"
+          docker run --rm \
+            -v "$GITHUB_WORKSPACE:/repo" \
+            "$GITLEAKS_IMAGE" detect \
+              --source=/repo \
+              --config=/repo/.gitleaks.toml \
+              --log-opts="$RANGE" \
+              --redact --no-banner --exit-code 1
 
   # ------------------------------------------------------------------
   # 后端：软件成分分析（SCA）—— OSV-Scanner 已知漏洞门禁
@@ -253,6 +411,7 @@ jobs:
   backend-security:
     name: Backend Security (OSV-Scanner)
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     permissions:
       contents: read
     defaults:
@@ -311,9 +470,11 @@ jobs:
         # 1) OSV-Scanner v2.3.8 不支持 --strategy flag（会报 "flag provided but not defined"，exit 127）；
         # 2) 默认 pomxml 策略会自行向 repo.maven.apache.org 拉取父 POM，触发 429 限流。
         # 改为扫描 SBOM 后，依赖关系已由 Maven 解析完毕，扫描阶段不做任何外部依赖解析。
-        # --config=osv-scanner.toml：豁免 3 个 Tomcat CVE（GHSA-9xv2-5v5q-p794 / GHSA-h3x4-894j-xpx5 /
-        # GHSA-gcx9-497g-6cp6），其修复版 10.1.58 未发布到 Maven Central，且仅影响 Tomcat 内置
-        # FORM/DIGEST/security-constraint 认证授权机制（本项目用 Spring Security+JWT，不受影响）。
+        # --config=osv-scanner.toml：与 .trivyignore 同口径的**最小**豁免集（2026-10-07 按 OSV 实查重定）：
+        # 原 3 条 Tomcat CRITICAL 豁免已随 `tomcat.version=10.1.60` 升级删除；
+        # 仅保留 spring-webmvc CVE-2026-47884（GHSA-pc63-qcmh-9cmg，XsltView SSRF/RCE）——
+        # 6.2.x 线无修复版（唯一修复 7.0.9 需 Spring Boot 4），且本项目 45 个控制器全为
+        # @RestController、无任何 ViewResolver/XsltView，触发路径不可达（论证见该文件）。
         run: /tmp/osv-scanner scan --format=sarif --output=osv-scan.sarif --sbom=target/bom.json --config=osv-scanner.toml
 
       - name: Upload OSV-Scanner report
@@ -331,6 +492,7 @@ jobs:
   docker:
     name: Docker Images Build
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/master' || github.event_name == 'workflow_dispatch'
     steps:
       - name: Checkout
@@ -358,6 +520,7 @@ jobs:
   python-kg-contract:
     name: Python KG Service Contract (8001)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: python-services/kg_service
@@ -409,12 +572,13 @@ jobs:
   # ------------------------------------------------------------------
   # Python RAG 检索服务（端口 8002）契约校验
   # 覆盖 docs/项目手册.md 第八部分关键端点，与 Java 端
-  # RAGServiceImpl 的下游调用对齐。rag_service.py 为集成契约占位骨架，
-  # 真实检索引擎（BM25/向量/embedding/融合）由团队另一成员实现。
+  # RAGServiceImpl 的下游调用对齐。rag_service.py 已接真实混合检索引擎
+  # （rag_engine.py：BM25+向量+RRF，重依赖懒加载），本 job 只跑无重依赖的用例。
   # ------------------------------------------------------------------
   python-rag-contract:
     name: Python RAG Service Contract (8002)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: python-services/rag_service
@@ -442,6 +606,45 @@ jobs:
         run: pytest -q
 
   # ------------------------------------------------------------------
+  # Python LoRA 微调服务（端口 8003）契约校验
+  # 覆盖 docs/项目手册.md §37 八端点 + 数据集/语料六端点，与 Java 端
+  # LLMFineTuneServiceImpl / ContractPaths.java 的下游调用对齐。
+  # lora_service.py 已接真实 PEFT 训练引擎（lora_engine.py，重依赖懒加载），
+  # 本 job 只跑无重依赖的用例。
+  # ------------------------------------------------------------------
+  python-fine-tune-contract:
+    name: Python LoRA Fine-Tune Service Contract (8003)
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    defaults:
+      run:
+        working-directory: python-services/fine_tune_service
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: python-services/fine_tune_service/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt pytest
+
+      - name: Contract + engine tests (FastAPI TestClient)
+        # 引擎重依赖（torch/transformers/peft/datasets）在 CI 不安装：
+        # lora_engine 与用例都做软依赖处理——缺依赖的真实训练用例按 skipif 跳过，
+        # 纯逻辑与契约用例照常跑。
+        # FT_ENGINE_READY=1 只是**结构开关**：让 /start 登记真实任务记录但不启动训练线程，
+        # 使契约用例能断言 pending 形状而不与后台线程竞态。它不改变 mode 语义，
+        # 也不产生任何占位成功响应——取证只认引擎真跑出的 mode=ENGINE。
+        env:
+          FT_ENGINE_READY: "1"
+        run: pytest -q
+
+  # ------------------------------------------------------------------
   # 前端 E2E（Playwright）全栈冒烟测试  [P3 #5]
   # 决策：采用「全栈」方案——后端 jar 连 MySQL/Redis service 容器，前端构建后以
   # vite preview 提供静态资源（playwright.config.ts 经 PW_WEB_SERVER_COMMAND 覆盖 dev），
@@ -452,13 +655,14 @@ jobs:
   frontend-e2e:
     name: Frontend E2E (Playwright, full-stack)
     runs-on: ubuntu-latest
+    timeout-minutes: 35
     if: github.event_name == 'workflow_dispatch'
     defaults:
       run:
         working-directory: frontend
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:8.4.11
         env:
           MYSQL_ROOT_PASSWORD: ci-test-password-8f3k
           MYSQL_DATABASE: ai_course_platform_test
@@ -470,7 +674,7 @@ jobs:
           --health-timeout=5s
           --health-retries=10
       redis:
-        image: redis:7
+        image: redis:7.4.11-alpine
         ports:
           - 6379:6379
         options: >-
@@ -540,10 +744,15 @@ jobs:
         run: |
           java -jar ../backend/target/backend-0.0.1-SNAPSHOT.jar --server.port=8080 > ../backend-e2e.log 2>&1 &
           for i in $(seq 1 30); do
-            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/actuator/health || true)
-            if [ -n "$code" ]; then echo "backend health http=$code"; break; fi
+            # 探 probe 组并等真正的 200。两处纠正：
+            #   1) 原判断 `[ -n "$code" ]` 在端口未监听时得到 "000"（非空）即 break，等于没等；
+            #   2) 原探综合 /health，其聚合含 llmProvider，而本作业不注入 DEEPSEEK_API_KEY
+            #      → 恒 503，就绪判定永远不成立（2026-10-07，手册 §25 / DR-28）。
+            code=$(curl -s -o /dev/null -w "%{http_code}" http://localhost:8080/api/actuator/health/probe || true)
+            if [ "$code" = "200" ]; then echo "backend ready (http=$code, 第 ${i} 次探测)"; break; fi
             sleep 5
           done
+          if [ "$code" != "200" ]; then echo "backend 未就绪，最后 http=$code"; tail -n 60 ../backend-e2e.log; exit 1; fi
           npx playwright test
           status=$?
           echo "---- backend-e2e.log (tail) ----"; tail -n 50 ../backend-e2e.log || true

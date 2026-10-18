@@ -68,9 +68,19 @@ template {
   perms       = "0400"
 }
 
-# Redis 密码 → ${SPRING_DATA_REDIS_PASSWORD}
+# Redis 密码 → spring.data.redis.password
+# 【键名修正 2026-10-06】原写 destination=/run/secrets/SPRING_DATA_REDIS_PASSWORD 取不到值：
+#   application.yaml 未写 ${SPRING_DATA_REDIS_PASSWORD} 占位符，该口令只经 @ConfigurationProperties
+#   绑定到 spring.data.redis.password；运行期靠系统 env 的松散绑定才成立。而 configtree 是**精确键名**
+#   查找且不做反向松散绑定（已用 spring-boot 3.5.15 实机验证：大写蛇形文件对绑定不可见）。
+#   故必须渲染为点分名。上方 JWT_SECRET / SPRING_DATASOURCE_PASSWORD 仍用大写蛇形，是因为
+#   application.yaml 里确实写了 ${JWT_SECRET} / ${SPRING_DATASOURCE_PASSWORD} 占位符（逐字匹配即生效）。
 template {
   source      = "/etc/vault/templates/redis-password.ctmpl"
-  destination = "/run/secrets/SPRING_DATA_REDIS_PASSWORD"
+  destination = "/run/secrets/spring.data.redis.password"
   perms       = "0400"
 }
+
+# 若目标环境不便使用含点的文件名，可改挂嵌套目录（等效于同一属性名，亦经实机验证）：
+#   destination = "/run/secrets/spring/data/redis/password"
+

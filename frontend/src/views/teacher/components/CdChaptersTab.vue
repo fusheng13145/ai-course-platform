@@ -34,12 +34,13 @@
       >
       <el-button size="small" @click="emit('reset-order')">取消</el-button>
     </div>
-    <el-empty v-if="!chaptersLoading && !chapters.length" description="暂无章节，点击上方添加" />
+    <EmptyState v-if="!chaptersLoading && !chapters.length" :title="emptyText" icon="layers" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { Plus, Rank } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 章节管理 Tab
@@ -50,6 +51,8 @@ defineProps({
   chaptersLoading: { type: Boolean, default: false },
   dragChanged: { type: Boolean, default: false },
   savingOrder: { type: Boolean, default: false },
+  /** 空态文案（父页面按加载失败态透传诚实提示，默认保留原语义） */
+  emptyText: { type: String, default: '暂无章节，点击上方添加' },
 })
 
 const emit = defineEmits(['add', 'edit', 'delete', 'save-order', 'reset-order'])

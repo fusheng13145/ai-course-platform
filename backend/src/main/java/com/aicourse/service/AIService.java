@@ -1,5 +1,8 @@
 package com.aicourse.service;
 
+import com.aicourse.vo.QaAnswerVO;
+import com.aicourse.vo.QaStreamVO;
+
 /**
  * AI 能力业务接口
  */
@@ -59,9 +62,9 @@ public interface AIService {
      * 基于知识库的 RAG 问答
      * @param question 提问内容
      * @param courseId 课程ID
-     * @return 问答结果
+     * @return 答案与检索出处（降级为纯 LLM 直答时 sources 为空列表）
      */
-    String ragAsk(String question, Long courseId);
+    QaAnswerVO ragAsk(String question, Long courseId);
 
     // ===================== 结构化输出（健壮性增强） =====================
 
@@ -143,14 +146,16 @@ public interface AIService {
     boolean isProviderConfigured();
 
     /**
-     * 流式 AI 对话（SSE 逐 token 推送）
+     * 流式 AI 对话（SSE 逐 token 推送），带课程维度检索接地。
      * <p>
      * 与 {@link #chat} 不同，本方法通过 SSE 流式返回回答内容，前端可实时渲染打字机效果。
      * 底层委托至 {@link com.aicourse.llm.LLMProvider#stream}，请求体自动附带
      * {@code "stream": true} 并逐行解析 delta.content。
      *
      * @param question 用户提问内容（会经 PromptGuard 注入中和）
-     * @return 流式内容增量（由 reactor.core.publisher.Flux 封装，供 Spring MVC SSE 响应使用）
+     * @param courseId 归属课程；非空时先检索该课程知识库，把命中片段拼进 system prompt 做接地，
+     *                 并把命中出处随流回传（供界面溯源）。检索失败/未命时不中断，sources 为空列表
+     * @return 流式回答聚合：{@code tokens} 为逐段增量，{@code sources} 为检索出处
      */
-    reactor.core.publisher.Flux<String> streamChat(String question);
+    QaStreamVO streamChat(String question, Long courseId);
 }

@@ -1,5 +1,6 @@
 <template>
   <el-dialog
+    ref="dialogRef"
     :model-value="modelValue"
     title="试卷统计分析"
     width="650px"
@@ -48,11 +49,13 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 /**
  * 试卷统计对话框
  * <p>平均/最高/最低分、参考率/及格率、作弊嫌疑数 + 成绩分布柱状图。</p>
  */
-defineProps({
+const props = defineProps({
   /** 弹窗显隐（v-model） */
   modelValue: { type: Boolean, default: false },
   /** 统计数据对象 */
@@ -60,6 +63,13 @@ defineProps({
   /** ECharts 分布图配置 */
   gradeChartOption: { type: Object, required: true },
 })
+
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(
+  dialogRef,
+  computed(() => props.modelValue),
+)
 
 defineEmits(['update:modelValue'])
 </script>

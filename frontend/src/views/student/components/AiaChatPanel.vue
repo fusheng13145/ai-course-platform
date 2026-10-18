@@ -2,7 +2,12 @@
   <main class="chat-main">
     <!-- 聊天头部 -->
     <header class="chat-header">
-      <el-button text class="toggle-sidebar" @click="emit('toggle-sidebar')">
+      <el-button
+        text
+        class="toggle-sidebar"
+        v-bind="buttonA11y('折叠侧边栏')"
+        @click="emit('toggle-sidebar')"
+      >
         <el-icon :size="18"><Fold /></el-icon>
       </el-button>
       <div class="header-center">
@@ -65,38 +70,49 @@
               <el-icon :size="20"><MagicStick /></el-icon>
             </div>
             <div class="message-bubble ai-bubble">
+              <!-- 占位气泡自身承载输入中动画：此前另起一个 loading 气泡，打字机期间会出现两个气泡 -->
+              <div v-if="msg.loading && !msg.content" class="typing-indicator">
+                <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+              </div>
               <!-- Markdown 已转义并经 sanitize.js 净化 -->
               <!-- eslint-disable-next-line vue/no-v-html -->
               <div class="message-text markdown-body" v-html="renderMarkdown(msg.content)"></div>
-              <span class="message-time">{{ msg.time }}</span>
-              <div class="message-actions">
-                <el-button
-                  v-if="speechSupported"
-                  text
-                  size="small"
-                  @click="emit('speak', msg.content)"
-                >
-                  <el-icon><Microphone /></el-icon> 朗读
-                </el-button>
-                <el-button text size="small" @click="emit('copy', msg.content)">
-                  <el-icon><CopyDocument /></el-icon> 复制
-                </el-button>
-                <el-button text size="small" @click="emit('regenerate', idx)">
-                  <el-icon><RefreshRight /></el-icon> 重新生成
-                </el-button>
+              <!-- RAG 检索出处：后端已按展示口径转义，composable 还原后原样插值渲染 -->
+              <div v-if="msg.sources && msg.sources.length" class="message-sources">
+                <p class="sources-label">
+                  <el-icon :size="14"><Document /></el-icon> 课程资料出处
+                </p>
+                <ul class="sources-list">
+                  <li v-for="(s, si) in msg.sources" :key="si" class="source-item">
+                    <span class="source-name">{{ s.documentName || `资料 #${s.documentId}` }}</span>
+                    <span v-if="s.relevanceScore != null" class="source-score">
+                      相关度 {{ Math.round(s.relevanceScore * 100) }}%
+                    </span>
+                    <p v-if="s.snippet" class="source-snippet">{{ clipSnippet(s.snippet) }}</p>
+                  </li>
+                </ul>
               </div>
+              <template v-if="!msg.loading">
+                <span class="message-time">{{ msg.time }}</span>
+                <div class="message-actions">
+                  <el-button
+                    v-if="speechSupported"
+                    text
+                    size="small"
+                    @click="emit('speak', msg.content)"
+                  >
+                    <el-icon><Microphone /></el-icon> 朗读
+                  </el-button>
+                  <el-button text size="small" @click="emit('copy', msg.content)">
+                    <el-icon><CopyDocument /></el-icon> 复制
+                  </el-button>
+                  <el-button text size="small" @click="emit('regenerate', idx)">
+                    <el-icon><RefreshRight /></el-icon> 重新生成
+                  </el-button>
+                </div>
+              </template>
             </div>
           </template>
-        </div>
-
-        <!-- AI 正在输入提示 -->
-        <div v-if="loading" class="message-row assistant">
-          <div class="avatar ai-avatar">
-            <el-icon :size="20"><MagicStick /></el-icon>
-          </div>
-          <div class="message-bubble ai-bubble typing-indicator">
-            <span class="dot"></span><span class="dot"></span><span class="dot"></span>
-          </div>
         </div>
       </div>
     </div>
@@ -109,6 +125,7 @@
           circle
           :class="{ 'mic-active': recording }"
           :title="recording ? '点击停止' : '语音输入'"
+          v-bind="buttonA11y(recording ? '停止语音输入' : '开始语音输入')"
           @click="emit('toggle-recording')"
         >
           <el-icon :size="17"><Microphone /></el-icon>
@@ -123,7 +140,6 @@
           resize="none"
           @update:model-value="emit('update:input', $event)"
           @keydown.enter.exact.prevent="emit('send')"
-          @keydown.enter.shift.exact="emit('newline')"
         />
         <el-button
           type="primary"
@@ -141,7 +157,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, type PropType } from 'vue'
+import type { ChatMessage } from '@/composables/useAIAssistant'
 import {
   Fold,
   MagicStick,
@@ -155,6 +172,7 @@ import {
   Promotion,
   Microphone,
 } from '@element-plus/icons-vue'
+import { buttonA11y } from '@/composables/useA11y'
 
 /**
  * AI 助手主聊天区
@@ -165,7 +183,7 @@ import {
 defineProps({
   courseList: { type: Array, default: () => [] },
   selectedCourseId: { type: [Number, String], default: null },
-  messages: { type: Array, default: () => [] },
+  messages: { type: Array as PropType<ChatMessage[]>, default: () => [] },
   inputMessage: { type: String, default: '' },
   loading: { type: Boolean, default: false },
   recognitionSupported: { type: Boolean, default: false },
@@ -182,13 +200,18 @@ const emit = defineEmits([
   'quick-question',
   'quick-send',
   'send',
-  'newline',
   'speak',
   'copy',
   'regenerate',
   'toggle-recording',
   'register-refs',
 ])
+
+/** 出处片段截断展示（全文仍可在课程资料中查看） */
+function clipSnippet(text) {
+  if (typeof text !== 'string') return ''
+  return text.length > 160 ? `${text.slice(0, 160)}…` : text
+}
 
 /** 消息滚动容器与输入框的 DOM 引用，挂载后回传给页面壳（滚动到底等逻辑在 useAIAssistant） */
 const messagesEl = ref(null)
@@ -337,6 +360,39 @@ onMounted(() => emit('register-refs', { messages: messagesEl.value, input: input
   word-break: break-word;
   white-space: pre-wrap;
 }
+.message-sources {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border: 1px dashed var(--ac-border);
+  border-radius: var(--ac-radius-sm);
+  background: var(--ac-bg-subtle);
+}
+.sources-label {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 0 0 6px;
+  font-size: 12px;
+  color: var(--ac-text-muted);
+}
+.sources-list {
+  margin: 0;
+  padding-left: 16px;
+}
+.source-item {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--ac-text-secondary);
+}
+.source-score {
+  margin-left: 6px;
+  color: var(--ac-text-muted);
+}
+.source-snippet {
+  margin: 2px 0 6px;
+  color: var(--ac-text-muted);
+  line-height: 1.5;
+}
 .message-time {
   display: block;
   font-size: 11px;
@@ -353,7 +409,8 @@ onMounted(() => emit('register-refs', { messages: messagesEl.value, input: input
   display: flex;
   gap: 5px;
   align-items: center;
-  padding: 14px 18px;
+  /* 气泡自身已有内边距，此处不再叠加 */
+  padding: 3px 0;
 }
 .typing-indicator .dot {
   width: 7px;

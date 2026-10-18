@@ -1,8 +1,10 @@
 package com.aicourse.llm;
+import com.aicourse.exception.LLMUnavailableException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.springframework.http.MediaType;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import org.springframework.web.client.HttpClientErrorException;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.reactive.function.client.WebClient;
 import reactor.core.publisher.Flux;
@@ -143,10 +145,35 @@ public abstract class OpenAiCompatibleProvider implements LLMProvider {
         }
     }
 
+    /**
+     * 统一请求/重试出口。
+     * <p><b>返回契约（DR-74-B）</b>：
+     * <ul>
+     *   <li>非空字符串 ⇒ 上游确实产出了内容；</li>
+     *   <li>{@code null} ⇒ <b>仅</b>表示「未配置 API Key」，是部署形态而非故障；</li>
+     *   <li>{@link LLMUnavailableException} ⇒ 调用失败，且类别可诊断（凭据被拒 / 额度限流 / 传输失败 / 空响应）。</li>
+     * </ul>
+     * 旧实现把 401、额度耗尽、网络不可达、返回体无 choices 统统 {@code return null}，
+     * 上层只能一律换成"AI 服务暂时不可用"并按 HTTP 200 发出——四链路实测 0/4 能看出是 401（手册 DR-74）。
+     * <p>4xx（凭据/权限类）不重试：它是确定性失败，重试只拉长响应时间并放大上游压力。</p>
+     */
     private String doComplete(List<Map<String, String>> messages, Double temperature,
                               boolean jsonMode, String jsonSchema) {
         if (apiKey == null || apiKey.isBlank()) {
-            return null; // 交由上层 AIService 处理“未配置”降级文案
+            // 「未配置」的唯一信号；上层 AiCoreComponent 会把它转成 503（NOT_CONFIGURED）
+            return null;
+        }
+        // DR-82：Key 值必须全 ASCII。实测踩到运维把中文备注直接粘在键值后面
+        // （`sk-xxx已移除泄露密钥；问答需由成员轮换后重新填入`），Authorization 头承载不了非 ASCII，
+        // 只能在写头时抛 UnicodeEncodeError——旧代码把它吞掉，故障就表现为"AI 恒为抽取式"。
+        // 这里在发出任何请求之前失败，并说清该改哪一处。
+        for (int i = 0; i < apiKey.length(); i++) {
+            if (apiKey.charAt(i) > 0x7F) {
+                throw new LLMUnavailableException(LLMUnavailableException.Kind.CREDENTIAL_REJECTED,
+                        String.format("大模型 [%s] 的 API Key 含非 ASCII 字符（自第 %d 位起），"
+                                        + "无法写入 Authorization 请求头：疑似中文备注粘连进键值。"
+                                        + "请把说明另起一行注释，值只保留 sk- 开头的 ASCII 串", name, i));
+            }
         }
         if (jsonSchema != null && !jsonSchema.isBlank()) {
             messages = withJsonInstruction(messages, jsonSchema);
@@ -168,22 +195,15 @@ public abstract class OpenAiCompatibleProvider implements LLMProvider {
                         .body(body)
                         .retrieve()
                         .body(Map.class);
-                if (resp == null || !resp.containsKey("choices")) {
-                    log.warn("[{}] 返回异常，无 choices 字段", name);
-                    return null;
-                }
-                @SuppressWarnings("unchecked")
-                List<Map<String, Object>> choices = (List<Map<String, Object>>) resp.get("choices");
-                if (choices == null || choices.isEmpty()) {
-                    return null;
-                }
-                @SuppressWarnings("unchecked")
-                Map<String, Object> msg = (Map<String, Object>) choices.get(0).get("message");
-                String content = msg == null ? null : (String) msg.get("content");
-                if (content == null || content.isBlank()) {
-                    return null;
-                }
-                return content;
+                return extractContent(resp);
+            } catch (LLMUnavailableException e) {
+                // 已定类别（含空响应），原样上抛，别再被下面的兜底 catch 重写成无差别失败
+                throw e;
+            } catch (HttpClientErrorException e) {
+                int status = e.getStatusCode().value();
+                LLMUnavailableException.Kind kind = LLMUnavailableException.kindOfStatus(status);
+                log.error("[{}] 上游拒绝请求（HTTP {}，不重试）：{}", name, status, e.getMessage());
+                throw new LLMUnavailableException(kind, describe(kind, status), e);
             } catch (Exception e) {
                 last = e;
                 attempt++;
@@ -193,13 +213,57 @@ public abstract class OpenAiCompatibleProvider implements LLMProvider {
                         Thread.sleep(500L * attempt);
                     } catch (InterruptedException ie) {
                         Thread.currentThread().interrupt();
+                        last = ie;
                         break;
                     }
                 }
             }
         }
         log.error("[{}] 多次失败，已达最大重试次数", name, last);
-        return null;
+        throw new LLMUnavailableException(LLMUnavailableException.Kind.UPSTREAM_UNREACHABLE,
+                String.format("大模型 [%s] 调用失败：重试 %d 次仍未成功（最近原因：%s）",
+                        name, maxRetries, last == null ? "未知" : last.getMessage()), last);
+    }
+
+    /** 失败类别 → 面向运维/用户的可诊断文案（不含密钥，只给类别与状态）。 */
+    private String describe(LLMUnavailableException.Kind kind, int status) {
+        return switch (kind) {
+            case CREDENTIAL_REJECTED -> String.format(
+                    "大模型 [%s] 凭据被拒（HTTP %d）：API Key 无效、已失效或不属于该供应商，请联系管理员更换", name, status);
+            case QUOTA_OR_THROTTLED -> String.format(
+                    "大模型 [%s] 额度受限（HTTP %d）：账户余额不足或触发限流，请稍后重试", name, status);
+            default -> String.format("大模型 [%s] 上游返回 HTTP %d", name, status);
+        };
+    }
+
+    /**
+     * 从 OpenAI 兼容响应体里取正文。取不到内容算一次<b>失败</b>（EMPTY_RESPONSE），不再返回 null——
+     * 「200 但没内容」与「没配 Key」对用户的处置完全不同。
+     */
+    private String extractContent(Map<String, Object> resp) {
+        if (resp == null || !resp.containsKey("choices")) {
+            log.warn("[{}] 返回体不含 choices 字段", name);
+            throw empty("大模型 [%s] 返回体异常：不含 choices 字段");
+        }
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> choices = (List<Map<String, Object>>) resp.get("choices");
+        if (choices == null || choices.isEmpty()) {
+            log.warn("[{}] choices 为空数组", name);
+            throw empty("大模型 [%s] 未返回任何候选内容");
+        }
+        @SuppressWarnings("unchecked")
+        Map<String, Object> msg = (Map<String, Object>) choices.get(0).get("message");
+        String content = msg == null ? null : (String) msg.get("content");
+        if (content == null || content.isBlank()) {
+            log.warn("[{}] message.content 缺失或空白", name);
+            throw empty("大模型 [%s] 返回了空正文");
+        }
+        return content;
+    }
+
+    private LLMUnavailableException empty(String template) {
+        return new LLMUnavailableException(LLMUnavailableException.Kind.EMPTY_RESPONSE,
+                String.format(template, name));
     }
 
     /**

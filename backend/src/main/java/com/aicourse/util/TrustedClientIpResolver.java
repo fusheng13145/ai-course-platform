@@ -39,8 +39,13 @@ import org.springframework.util.StringUtils;
  * <p><b>⚠ 安全警示</b>：{@code trust-proxy-header} 开关<b>禁止</b>在无受信反代（直连暴露 / 客户端可直接
  * 触达应用）时开启。否则攻击者可直接伪造 {@code X-Real-IP} 头，等于把限流键的 IP 维度重新交还攻击者，
  * 缺陷原样复活。生产固定置于可信 nginx 之后，参见 {@code frontend/nginx.conf}。</p>
+ *
+ * <p><b>装配方式</b>：由 {@code SecurityConfig} 以 {@code @Bean} 注册，<b>不</b>用类级 {@code @Component}。
+ * 原因：{@code RateLimitFilter} 是 {@code Filter}，被 {@code @WebMvcTest} 切片自动扫描，而 util 包的
+ * {@code @Component} 在切片中不扫描 → 若靠组件扫描注册，全部 {@code @WebMvcTest} 切片会因缺该 bean
+ * 而无法启动。{@code @Configuration} 在切片中照常加载，故 {@code @Bean} 注册能同时覆盖整上下文与切片，
+ * 且仍保持「缺 bean 即启动失败」的硬约束（不改成 ObjectProvider 可选注入）。</p>
  */
-@Component
 public class TrustedClientIpResolver {
 
     /** 是否信任反代覆写的 X-Real-IP 头（生产置于可信反代之后时开启）。默认 false = 以 TCP 对端地址为准。 */

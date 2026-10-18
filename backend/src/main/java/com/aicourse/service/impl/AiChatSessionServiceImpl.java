@@ -36,12 +36,13 @@ public class AiChatSessionServiceImpl extends ServiceImpl<AiChatSessionMapper, A
     /** 创建AI聊天会话 */
     @Override
     @Transactional(rollbackFor = Exception.class)
-    public AiChatSession createSession(Long userId, String title) {
+    public AiChatSession createSession(Long userId, String title, Long courseId) {
         log.info("创建AI聊天会话");
 
         AiChatSession session = new AiChatSession();
         session.setSessionId(UUID.randomUUID().toString());
         session.setUserId(userId);
+        session.setCourseId(courseId);
         session.setTitle(title != null && !title.isBlank() ? title : "新对话");
         session.setMessageCount(0);
         session.setDeleted(0);

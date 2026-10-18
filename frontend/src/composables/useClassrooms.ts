@@ -1,8 +1,9 @@
 import { ref, reactive, computed } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import logger from '@/utils/logger'
 import classroomApi from '@/api/classroom'
 import adminApi from '@/api/admin'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /**
  * 组织与班级管理（管理员视角）数据与业务逻辑
@@ -219,15 +220,20 @@ export function useClassrooms() {
 
   /** 删除班级（二次确认，不可恢复） */
   function removeClassroom(row) {
-    ElMessageBox.confirm(`确定删除班级「${row.name}」？该操作不可恢复。`, '删除确认', {
-      type: 'warning',
+    confirmDanger({
+      verb: '删除',
+      target: '班级',
+      subject: row.name,
+      impact: '将一并移除该班级下的全部学生关联关系',
+      irreversible: true,
     })
-      .then(async () => {
+      .then(async (ok) => {
+        if (!ok) return
         try {
           await classroomApi.deleteClassroom(row.id)
           ElMessage.success('删除成功')
           await loadClassrooms()
-        } catch (e) {
+        } catch {
           ElMessage.error('删除失败')
         }
       })
@@ -253,13 +259,9 @@ export function useClassrooms() {
     if (!currentClass.value) return
     studentLoading.value = true
     try {
-      const res = await classroomApi.getStudents(currentClass.value.id, {
+      studentList.value = await classroomApi.getAllStudents(currentClass.value.id, {
         keyword: studentKeyword.value,
-        page: 1,
-        size: 200,
       })
-      const raw = res.data?.records || res.data?.list || res.data || res
-      studentList.value = Array.isArray(raw) ? raw : []
     } catch (e) {
       logger.error(e)
       studentList.value = []
@@ -270,14 +272,23 @@ export function useClassrooms() {
 
   /** 移除班级成员（二次确认） */
   function removeStudentFromClass(row) {
-    ElMessageBox.confirm(`将学生「${row.fullName || row.username}」移出该班级？`, '提示')
-      .then(async () => {
+    confirmDanger({
+      verb: '移出',
+      target: '班级',
+      subject: row.fullName || row.username,
+      impact: '移出后该学生将不再属于此班级，其历史学习记录不受影响',
+      irreversible: false,
+      note: '之后可重新将其加入班级',
+      confirmText: '确定移出',
+    })
+      .then(async (ok) => {
+        if (!ok) return
         try {
           await classroomApi.removeStudent(currentClass.value.id, row.id)
           ElMessage.success('已移除')
           await loadStudents()
           await loadClassrooms()
-        } catch (e) {
+        } catch {
           ElMessage.error('移除失败')
         }
       })
@@ -309,9 +320,7 @@ export function useClassrooms() {
     if (candidateList.value.length) return
     candidateLoading.value = true
     try {
-      const res = await adminApi.getUsers({ role: 'STUDENT', size: 500 })
-      const raw = res.data?.records || res.data?.list || res.data || res
-      candidateList.value = Array.isArray(raw) ? raw : []
+      candidateList.value = await adminApi.getAllUsers({ role: 'STUDENT' })
     } catch (e) {
       logger.error(e)
       candidateList.value = []
@@ -327,7 +336,7 @@ export function useClassrooms() {
       ElMessage.success(`已添加 ${row.fullName || row.username}`)
       await loadStudents()
       await loadClassrooms()
-    } catch (e) {
+    } catch {
       ElMessage.error('添加失败')
     }
   }

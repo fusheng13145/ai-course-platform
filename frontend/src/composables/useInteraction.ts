@@ -1,8 +1,9 @@
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
-import { ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ref, computed, watch } from 'vue'
+import { ElMessage } from 'element-plus'
 import interactionApi from '@/api/interaction'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /**
  * 课堂互动页数据逻辑（拆分自 teacher/tools/Interaction.vue，2026-08-29）
@@ -11,6 +12,13 @@ import interactionApi from '@/api/interaction'
 export function useInteraction(courseIdRef) {
   const loading = ref(false)
   const activeTab = ref('sign')
+  /**
+   * 签到 / 投票两路列表**各自独立**记录失败，避免「签到成功、投票失败」时被一方复位而互相串味；
+   * 对外以 loadError 聚合暴露，页面据此渲染持久提示（失败可见）。
+   */
+  const signError = ref('')
+  const voteError = ref('')
+  const loadError = computed(() => signError.value || voteError.value)
 
   /* ---------- 签到 ---------- */
   const signLoading = ref(false)
@@ -22,6 +30,7 @@ export function useInteraction(courseIdRef) {
   async function loadSignInList() {
     if (!courseIdRef.value) return
     signLoading.value = true
+    signError.value = ''
     try {
       const r = await interactionApi.getSignInList(courseIdRef.value)
       const body = unwrap(r)
@@ -29,6 +38,8 @@ export function useInteraction(courseIdRef) {
       signList.value = Array.isArray(list) ? list : []
     } catch (e) {
       logger.error('加载签到列表失败', e)
+      signList.value = []
+      signError.value = '签到列表加载失败，请检查网络后重试'
     } finally {
       signLoading.value = false
     }
@@ -75,7 +86,17 @@ export function useInteraction(courseIdRef) {
 
   async function handleCloseSignIn(row) {
     try {
-      await ElMessageBox.confirm(`确认关闭签到「${row.title}」？`, '提示', { type: 'warning' })
+      // D2-2：明确后果（学生无法继续签到）与不可重新开启
+      const ok = await confirmDanger({
+        verb: '结束',
+        target: '签到',
+        subject: row.title,
+        impact: '学生将无法继续签到，已签到的记录不受影响',
+        irreversible: false,
+        note: '结束后暂不支持重新开启',
+        confirmText: '确定结束',
+      })
+      if (!ok) return
       await interactionApi.closeSignIn(row.id)
       ElMessage.success('已关闭')
       loadSignInList()
@@ -144,6 +165,7 @@ export function useInteraction(courseIdRef) {
   async function loadVoteList() {
     if (!courseIdRef.value) return
     voteLoading.value = true
+    voteError.value = ''
     try {
       const r = await interactionApi.getVoteList(courseIdRef.value)
       const body = unwrap(r)
@@ -151,6 +173,8 @@ export function useInteraction(courseIdRef) {
       voteList.value = Array.isArray(list) ? list : []
     } catch (e) {
       logger.error('加载投票列表失败', e)
+      voteList.value = []
+      voteError.value = '投票列表加载失败，请检查网络后重试'
     } finally {
       voteLoading.value = false
     }
@@ -186,7 +210,17 @@ export function useInteraction(courseIdRef) {
 
   async function handleCloseVote(row) {
     try {
-      await ElMessageBox.confirm(`确认结束投票「${row.title}」？`, '提示', { type: 'warning' })
+      // D2-2：明确后果（学生无法继续投票）与不可重新开启
+      const ok = await confirmDanger({
+        verb: '结束',
+        target: '投票',
+        subject: row.title,
+        impact: '学生将无法继续投票，已投票的记录不受影响',
+        irreversible: false,
+        note: '结束后暂不支持重新开启',
+        confirmText: '确定结束',
+      })
+      if (!ok) return
       await interactionApi.closeVote(row.id)
       ElMessage.success('已结束')
       loadVoteList()
@@ -215,6 +249,8 @@ export function useInteraction(courseIdRef) {
     () => {
       signList.value = []
       voteList.value = []
+      signError.value = ''
+      voteError.value = ''
       if (courseIdRef.value) {
         loadSignInList()
         loadVoteList()
@@ -224,6 +260,9 @@ export function useInteraction(courseIdRef) {
 
   return {
     loading,
+    loadError,
+    signError,
+    voteError,
     activeTab,
     signLoading,
     signList,

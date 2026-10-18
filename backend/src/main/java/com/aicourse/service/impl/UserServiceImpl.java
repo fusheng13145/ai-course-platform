@@ -17,6 +17,7 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.cache.annotation.CacheEvict;
 import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.annotation.Caching;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -63,6 +64,29 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
         // 密码字段置空返回
         user.setPassword(null);
         return user;
+    }
+
+    /**
+     * 更新用户（管理端改角色/禁用/资料、登录时的 lastLogin 回写均经此路径）。
+     *
+     * <p>缺陷修复（2026-10-16 E2E 实测）：本方法此前直接继承 MyBatis-Plus 默认实现，
+     * 不失效任何缓存——管理端把用户提为 ADMIN 后，{@code GET /admin/users/{id}}
+     * （getUserProfile，users 缓存 30 分钟 TTL）仍返回**旧角色**，
+     * {@code /auth/permissions}（permissions 缓存按 userId 键控）同样滞留旧角色与旧菜单，
+     * 出现「改了角色、界面没变」的假象；而 REST 鉴权（JwtRequestFilter 直读用户表）
+     * 已即时生效，两端再次分叉。故写路径统一按用户维度失效两类缓存：</p>
+     * <ul>
+     *   <li>{@code users}：键 {@code 'profile_' + userId}（与 getUserProfile 键口径一致）；</li>
+     *   <li>{@code permissions}：键 {@code userId}（getUserPermissions 的缓存，含服务端角色与菜单）。</li>
+     * </ul>
+     */
+    @Override
+    @Caching(evict = {
+            @CacheEvict(value = "users", key = "'profile_' + #entity.id"),
+            @CacheEvict(value = "permissions", key = "#entity.id")
+    })
+    public boolean updateById(User entity) {
+        return super.updateById(entity);
     }
 
     /**

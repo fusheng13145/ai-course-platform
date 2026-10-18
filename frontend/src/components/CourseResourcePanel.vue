@@ -15,6 +15,14 @@ import { getMonoSeries, getMonoStatus, monoScore } from '@/utils/chartTheme'
     </div>
 
     <div class="content-card">
+      <!-- 加载失败持久提示（不自动消失） -->
+      <el-alert
+        v-if="loadError"
+        :title="loadError"
+        type="error"
+        :closable="false"
+        class="load-error-alert"
+      />
       <el-table v-loading="loading" :data="filteredResources" style="width: 100%">
         <el-table-column prop="id" label="ID" width="60" />
         <el-table-column label="文件名" min-width="250">
@@ -64,10 +72,14 @@ import { getMonoSeries, getMonoStatus, monoScore } from '@/utils/chartTheme'
           </template>
         </el-table-column>
       </el-table>
-      <el-empty v-if="!loading && filteredResources.length === 0" description="暂无资源" />
+      <EmptyState
+        v-if="!loading && filteredResources.length === 0"
+        :title="loadError ? '资源列表未能加载，请查看上方提示后重试' : '暂无资源'"
+        icon="folder"
+      />
     </div>
 
-    <el-dialog v-model="uploadDialogVisible" title="上传资源" width="500px" append-to-body>
+    <el-dialog ref="dialogRef" v-model="uploadDialogVisible" title="上传资源" width="500px" append-to-body>
       <el-form :model="uploadForm" label-width="80px">
         <el-form-item label="文件">
           <el-upload
@@ -113,8 +125,11 @@ import { getMonoSeries, getMonoStatus, monoScore } from '@/utils/chartTheme'
 <script setup>
 import logger from '@/utils/logger'
 import { ref, computed, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
+import EmptyState from '@/components/ui/EmptyState.vue'
+import { confirmDanger } from '@/utils/dangerConfirm'
 import resourceApi from '@/api/resource'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 
 const props = defineProps({
   courseId: { type: Number, required: true },
@@ -124,8 +139,12 @@ const emit = defineEmits(['resourceUpdated'])
 
 const resources = ref([])
 const loading = ref(false)
+const loadError = ref('')
 const resourceFilter = ref('')
 const uploadDialogVisible = ref(false)
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, uploadDialogVisible)
 const uploadFileList = ref([])
 const uploading = ref(false)
 const uploadForm = ref({
@@ -198,11 +217,14 @@ function formatDateTime(date) {
 
 async function loadResources() {
   loading.value = true
+  loadError.value = ''
   try {
     const res = await resourceApi.getResourceList(props.courseId)
     resources.value = res.data || res || []
   } catch (e) {
     logger.error('加载资源失败:', e)
+    resources.value = []
+    loadError.value = '资源列表加载失败，请检查网络后重试'
   } finally {
     loading.value = false
   }
@@ -268,20 +290,28 @@ async function toggleVisibility(row) {
     await resourceApi.toggleVisibility(row.id, !row.visibleToAll)
     row.visibleToAll = !row.visibleToAll
     ElMessage.success('设置成功')
-  } catch (e) {
+  } catch {
     ElMessage.error('操作失败')
   }
 }
 
 async function deleteResource(row) {
+  // D2-2：删除类操作统一走 dangerConfirm——明确影响范围与恢复路径（原为泛化「确定删除该资源？此操作不可恢复。」）
+  const ok = await confirmDanger({
+    verb: '删除',
+    target: '资源',
+    subject: row.fileName || row.id,
+    impact: '学生端将无法再访问该资源',
+  })
+  if (!ok) return
   try {
-    await ElMessageBox.confirm('确定删除该资源？', '提示', { type: 'warning' })
     await resourceApi.deleteResource(row.id)
     resources.value = resources.value.filter((r) => r.id !== row.id)
     ElMessage.success('删除成功')
     emit('resourceUpdated')
   } catch (e) {
-    if (e !== 'cancel') ElMessage.error('删除失败')
+    logger.error('删除资源失败', e)
+    ElMessage.error('删除失败')
   }
 }
 
@@ -297,6 +327,10 @@ watch(
 <style scoped>
 .resource-panel {
   padding: 0;
+}
+
+.load-error-alert {
+  margin-bottom: 16px;
 }
 
 .panel-toolbar {

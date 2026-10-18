@@ -175,6 +175,50 @@ def test_explicit_id_overwrite_clears_stale_edges():
 
 
 # ------------------------------------------------------------------
+# 删除端点契约（D7-4 补漏）：两个 DELETE 端点此前仅在 neo4j 真实用例里间接覆盖
+# （CI 恒 skip），HTTP 层契约是盲区。此处锁定其始终返回 200 + {"success": true} 的形状
+# 与幂等语义，使 Java 端 HttpKnowledgeGraphProvider 删除调用不会因 404 而误判失败。
+# ------------------------------------------------------------------
+def test_delete_node_contract_and_idempotency():
+    with TestClient(app) as c:
+        n = c.post("/api/v1/graph/nodes", json={"course_id": 8, "name": "D"}).json()
+
+        # 删除成功：契约形状固定为 {"success": true}，且删除后原节点不可取（404）
+        deleted = c.delete(f"/api/v1/graph/nodes/{n['id']}")
+        assert deleted.status_code == 200
+        assert deleted.json() == {"success": True}
+        assert c.get(f"/api/v1/graph/nodes/{n['id']}").status_code == 404
+
+        # 幂等：删除不存在的节点仍返回 200 + success，不抛 404
+        again = c.delete(f"/api/v1/graph/nodes/{n['id']}")
+        assert again.status_code == 200
+        assert again.json() == {"success": True}
+
+
+def test_delete_relation_contract_and_idempotency():
+    with TestClient(app) as c:
+        a = c.post("/api/v1/graph/nodes", json={"course_id": 9, "name": "A"}).json()
+        b = c.post("/api/v1/graph/nodes", json={"course_id": 9, "name": "B"}).json()
+        rel = c.post("/api/v1/graph/relations",
+                     json={"source_id": a["id"], "target_id": b["id"],
+                           "relation_type": "PREREQUISITE"}).json()
+        # 关系 id 由创建响应返回（node_relations 列表仅含 node/relation_type/depth，不含 id）
+        rel_id = rel["id"]
+
+        deleted = c.delete(f"/api/v1/graph/relations/{rel_id}")
+        assert deleted.status_code == 200
+        assert deleted.json() == {"success": True}
+        # 删除后该节点的 PREREQUISITE 关系应已清空
+        rels_after = c.get(f"/api/v1/graph/nodes/{a['id']}/relations").json()["relations"]
+        assert all(r["relation_type"] != "PREREQUISITE" for r in rels_after)
+
+        # 幂等：删除不存在的关系仍返回 200 + success
+        again = c.delete(f"/api/v1/graph/relations/{rel_id}")
+        assert again.status_code == 200
+        assert again.json() == {"success": True}
+
+
+# ------------------------------------------------------------------
 # Neo4jStore 契约（fake driver，无需真实 Neo4j，恒实跑）：
 # 固化 CRUD/关系/路径端点走 Neo4j 后端时的响应形状与 Cypher 参数化，
 # 使原本"因缺驱动/连不上而恒 skip"的用例具备确定性的可回归断言。

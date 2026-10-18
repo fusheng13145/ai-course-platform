@@ -4,6 +4,7 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import examApi from '@/api/exam'
 import request from '@/api/request'
 import { pickList, readTotal, unwrap } from '@/utils/response'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /**
  * 全校考试管理领域逻辑
@@ -222,16 +223,17 @@ export function useExamManagement() {
    */
   async function forceSubmit(session) {
     try {
-      await ElMessageBox.confirm(
-        `确定强制结束「${session.paperTitle}」的考试？\n此操作将使所有未交卷的学生强制提交！`,
-        '危险操作',
-        {
-          confirmButtonText: '确定强制交卷',
-          cancelButtonText: '取消',
-          type: 'warning',
-          confirmButtonClass: 'el-button--danger',
-        },
-      )
+      // D2-2：强制交卷影响全体未交卷学生，明确影响范围与不可撤回
+      const ok = await confirmDanger({
+        verb: '强制交卷',
+        target: '考试',
+        subject: session.paperTitle,
+        impact: '所有未交卷的学生将按当前作答立即提交，无法继续修改',
+        irreversible: true,
+        recovery: '交卷结果无法撤回，请确认后再执行',
+        confirmText: '确定强制交卷',
+      })
+      if (!ok) return
 
       await examApi.forceSubmit(session.id)
       ElMessage.success('已强制交卷')

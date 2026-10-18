@@ -44,14 +44,17 @@
         <template #default="{ row }">{{ row.duration || 0 }}</template>
       </el-table-column>
     </el-table>
-    <el-empty v-if="!loading && chapterList.length === 0" description="暂无章节数据" />
+    <EmptyState v-if="!loading && chapterList.length === 0" :title="emptyText" icon="list" />
   </div>
 </template>
 
 <script setup>
+import EmptyState from '@/components/ui/EmptyState.vue'
+
 defineProps({
   loading: { type: Boolean, default: false },
   chapterList: { type: Array, default: () => [] },
+  emptyText: { type: String, default: '暂无章节数据' },
 })
 </script>
 

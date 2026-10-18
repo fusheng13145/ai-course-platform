@@ -31,8 +31,11 @@
         </div>
       </div>
 
+      <!-- AI 引擎健康状态：数据库/Redis 与 Python 微服务（知识图谱/RAG/微调）可用性 -->
+      <AiEngineHealthPanel class="animate-in d2" />
+
       <!-- 基础设置 -->
-      <div class="content-card animate-in d2">
+      <div class="content-card animate-in d3">
         <div class="card-title">
           <el-icon><Setting /></el-icon>基础设置
         </div>
@@ -66,7 +69,7 @@
       </div>
 
       <!-- 供应商凭据 -->
-      <div class="provider-cards animate-in d3">
+      <div class="provider-cards animate-in d4">
         <div v-for="p in providers" :key="p.key" class="content-card provider-card">
           <div class="provider-head">
             <span class="provider-dot" :style="{ background: p.color }"></span>
@@ -113,6 +116,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Check, InfoFilled, Setting, Connection, Switch } from '@element-plus/icons-vue'
 import PageHeader from '@/components/PageHeader.vue'
+import AiEngineHealthPanel from './components/AiEngineHealthPanel.vue'
 import aiSupplierApi from '@/api/aiSupplier'
 
 const saving = ref(false)

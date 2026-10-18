@@ -1,13 +1,14 @@
 <template>
   <!-- 添加/编辑对话框 -->
   <el-dialog
+    ref="dialogRef"
     :model-value="modelValue"
     :title="isEdit ? '编辑权限' : '添加权限'"
     width="520px"
     :close-on-click-modal="false"
     @update:model-value="$emit('update:modelValue', $event)"
   >
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="110px">
+    <el-form ref="formRef" :model="form" :rules="rules" label-width="110px" scroll-to-error>
       <el-form-item label="角色" prop="role">
         <el-select v-model="form.role" placeholder="请选择角色" style="width: 100%">
           <el-option label="管理员 (ADMIN)" value="ADMIN" />
@@ -41,7 +42,8 @@
 </template>
 
 <script setup lang="ts">
-import { ref, watch } from 'vue'
+import { ref, watch, computed } from 'vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -50,6 +52,10 @@ const props = defineProps({
   form: { type: Object, default: () => ({}) },
   rules: { type: Object, default: () => ({}) },
 })
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, computed(() => props.modelValue))
+
 const emit = defineEmits(['update:modelValue', 'submit'])
 
 const formRef = ref(null)

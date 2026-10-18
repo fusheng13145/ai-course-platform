@@ -1,8 +1,8 @@
 import { test, expect, type Page } from '@playwright/test'
-import { setLocalStorageAuth } from './test-helpers'
+import { loginAs } from './test-helpers'
 
 /**
- * 教师端试卷管理主链路 e2e（API Mock 模式，无需真实后端）。
+ * 教师端试卷管理主链路 e2e（会话由真实登录建立，业务数据用 API Mock）。
  * 覆盖：试卷列表渲染 / 新建试卷（对话框 + 创建请求）/ 发布试卷（确认 + 发布请求）。
  * 补充建议：Q3/4.3-6 所指教师端主链路（试卷/题库/成绩）覆盖缺口。
  */
@@ -53,7 +53,7 @@ async function mockExamBasics(page: Page) {
 
 test.describe('试卷管理（教师端主链路）', () => {
   test.beforeEach(async ({ page }) => {
-    await setLocalStorageAuth(page, 'TEACHER')
+    await loginAs(page, 'TEACHER')
     // 兜底 mock：未精确匹配的 API 返回空数据，避免请求失败打断页面
     await page.route('/api/**', async (route) => {
       await route.fulfill({

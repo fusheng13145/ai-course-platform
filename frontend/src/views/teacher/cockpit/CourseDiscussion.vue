@@ -4,12 +4,23 @@
       <el-button type="primary" :icon="Plus" @click="topicVisible = true">发起话题</el-button>
     </PageHeader>
 
+    <!-- 加载失败提示：见 useCourseDiscussion.loadError 注释（失败不得渲染成「暂无讨论话题」） -->
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      show-icon
+      style="margin-bottom: var(--ac-spacing-md)"
+    />
+
     <!-- 筛选 + 话题列表 -->
     <CdsTopicList
       v-model:keyword="filter.keyword"
       v-model:chapter-id="filter.chapterId"
       :loading="loading"
       :topics="topics"
+      :empty-text="loadError ? '话题列表未能加载，请查看上方提示后重试' : '暂无讨论话题'"
       @search="loadTopics"
       @open-detail="openDetail"
     />
@@ -50,6 +61,7 @@ import { useCourseDiscussion } from '@/composables/useCourseDiscussion'
 
 const {
   loading,
+  loadError,
   saving,
   replyLoading,
   topics,

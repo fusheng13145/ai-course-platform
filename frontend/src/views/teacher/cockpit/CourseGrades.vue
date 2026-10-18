@@ -8,11 +8,26 @@
         >
       </template>
     </PageHeader>
+    <!-- 加载失败提示：见 loadError 注释（失败不得渲染成「尚未配置成绩方案 / 暂无学生成绩」） -->
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      show-icon
+      style="margin-bottom: var(--ac-spacing-md)"
+    />
     <div v-loading="loading">
       <CgReportTable
         :policy="policy"
         :report="report"
         :report-loading="reportLoading"
+        :empty-text="
+          reportError ? '成绩报告未能加载，请查看上方提示后重试' : '暂无学生成绩'
+        "
+        :policy-empty-text="
+          policyError ? '成绩方案未能加载，请查看上方提示后重试' : '该课程尚未配置成绩方案'
+        "
         @open-policy="policyVisible = true"
         @open-score="openScoreDialog"
         @preview="openPreview"
@@ -43,7 +58,7 @@
 <script setup lang="ts">
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import gradeApi from '@/api/grade'
 import PageHeader from '@/components/PageHeader.vue'
@@ -61,6 +76,13 @@ const reportLoading = ref(false)
 
 const policy = ref(null)
 const report = ref([])
+/**
+ * 成绩方案 / 成绩报告两路失败信号独立记录，再聚合为 loadError 供页面持久提示。
+ * 原实现失败仅 logger.error 后静默 → 页面显示「该课程尚未配置成绩方案 / 暂无学生成绩」，属误导。
+ */
+const policyError = ref('')
+const reportError = ref('')
+const loadError = computed(() => policyError.value || reportError.value)
 
 const policyVisible = ref(false)
 const scoreVisible = ref(false)
@@ -103,12 +125,15 @@ function onPolicySaved(saved) {
 async function loadReport() {
   if (!policy.value) return
   reportLoading.value = true
+  reportError.value = ''
   try {
     const r = await gradeApi.getCourseReport(courseId)
     const body = unwrap(r)
     report.value = body?.records || body?.list || body || []
   } catch (e) {
     logger.error('加载成绩报告失败', e)
+    report.value = []
+    reportError.value = '成绩报告加载失败，请检查网络后重试'
   } finally {
     reportLoading.value = false
   }
@@ -116,6 +141,7 @@ async function loadReport() {
 
 async function loadPolicy() {
   loading.value = true
+  policyError.value = ''
   try {
     const r = await gradeApi.getGradePolicy(courseId)
     const body = unwrap(r)
@@ -123,6 +149,8 @@ async function loadPolicy() {
     if (policy.value) await loadReport()
   } catch (e) {
     logger.error('加载成绩方案失败', e)
+    policy.value = null
+    policyError.value = '成绩方案加载失败，请检查网络后重试'
   } finally {
     loading.value = false
   }

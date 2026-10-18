@@ -1,7 +1,7 @@
 <template>
   <!-- eslint-disable vue/no-v-html -->
   <!-- v-html 仅用于内部 SVG 图标常量（受控输入），无需净化 -->
-  <aside class="sidebar" :class="{ mini: sidebarMini }">
+  <nav class="sidebar" :class="{ mini: sidebarMini }" aria-label="主导航">
     <div class="brand">
       <span class="brand-mark">{{ roleMeta.brandMark }}</span>
       <div>
@@ -78,7 +78,7 @@
         <div class="u-role">{{ roleMeta.label }}</div>
       </div>
     </div>
-  </aside>
+  </nav>
 </template>
 
 <script setup>
@@ -100,7 +100,7 @@ import { iconHtml } from '../icons'
 /**
  * 应用侧边栏（深色手风琴三级菜单 + mini 折叠模式）
  * <p>品牌区、按角色渲染的导航分区（一级项 + 二级子菜单 + 课程目录三级页签）、底部用户区；
- * 「课程目录」按当前登录者的授课/选课列表动态构建，进入课程子路由时自动展开祖先节点；
+ * 「课程目录」按当前登录者的授课/选课/全库课程列表动态构建（ADMIN 取全库），进入课程子路由时自动展开祖先节点；
  * 展开状态与导航高亮/跳转逻辑内聚于此，mini 模式由父组件 prop 控制。</p>
  */
 const props = defineProps({
@@ -123,12 +123,14 @@ const STATIC_MAP = { ADMIN: ADMIN_SECTIONS, TEACHER: TEACHER_SECTIONS, STUDENT: 
 const courses = ref([])
 
 async function loadCourses() {
-  if (props.role === 'ADMIN') return
   try {
     const res =
-      props.role === 'TEACHER'
-        ? await courseApi.getMyCourses({ page: 1, size: 200 })
-        : await studentApi.getMyCourses({ page: 1, size: 200 })
+      props.role === 'ADMIN'
+        ? // 管理员治理的是全库课程，取 /courses 而非 /courses/my（后者 hasRole('TEACHER')，ADMIN 必 403）
+          await courseApi.getAllCourses()
+        : props.role === 'TEACHER'
+          ? await courseApi.getAllMyCourses()
+          : await studentApi.getAllMyCourses()
     const body = unwrap(res) || {}
     courses.value = body.records || body.list || (Array.isArray(body) ? body : [])
   } catch (e) {
@@ -140,7 +142,10 @@ onMounted(loadCourses)
 
 const navSections = computed(() => {
   const base = STATIC_MAP[props.role] || STUDENT_SECTIONS
-  if (props.role === 'ADMIN') return base
+  if (props.role === 'ADMIN') {
+    // 治理大盘是 /admin 空路径的落点，必须保持第一分区；课程目录（动态）紧随其后
+    return [base[0], ...buildCourseCatalogSection('ADMIN', courses.value), ...base.slice(1)]
+  }
   return [...buildCourseCatalogSection(props.role, courses.value), ...base]
 })
 
@@ -183,7 +188,7 @@ function handleNavChildClick(child) {
 watch(
   () => route.path,
   (p) => {
-    const m = p.match(/^\/(?:teacher|student)\/courses\/(\d+)/)
+    const m = p.match(/^\/(?:admin|teacher|student)\/courses\/(\d+)/)
     if (m) {
       const s = new Set(expandedKeys.value)
       s.add('course-catalog')

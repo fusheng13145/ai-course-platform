@@ -1,12 +1,13 @@
 <template>
   <el-dialog
+    ref="dialogRef"
     :model-value="modelValue"
     :title="isEdit ? '编辑试卷' : '创建试卷'"
     width="720px"
     destroy-on-close
     @update:model-value="emit('update:modelValue', $event)"
   >
-    <el-form ref="formRef" :model="examForm" :rules="formRules" label-width="100px">
+    <el-form ref="formRef" :model="examForm" :rules="formRules" label-width="100px" scroll-to-error>
       <el-row :gutter="16">
         <el-col :span="12">
           <el-form-item label="试卷标题" prop="title">
@@ -104,7 +105,7 @@
           </el-button>
         </div>
       </div>
-      <el-empty v-else description="尚未添加题目，请从题库中选择" :image-size="60" />
+      <EmptyState v-else title="尚未添加题目，请从题库中选择" icon="list" size="compact" />
 
       <!-- 设置 -->
       <el-divider content-position="left">设置</el-divider>
@@ -137,15 +138,17 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, computed } from 'vue'
 import { Delete } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 
 /**
  * 试卷创建/编辑对话框
  * <p>表单对象/校验/课程/已选题目经 props 注入（共享 reactive 对象编辑嵌套属性）；
  * 题库入口/移除题目/保存经事件上抛。表单校验能力经 defineExpose 暴露。</p>
  */
-defineProps({
+const props = defineProps({
   modelValue: { type: Boolean, default: false },
   isEdit: { type: Boolean, default: false },
   submitting: { type: Boolean, default: false },
@@ -156,6 +159,10 @@ defineProps({
   totalSelectedScore: { type: Number, default: 0 },
   getQuestionTypeName: { type: Function, required: true },
 })
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, computed(() => props.modelValue))
+
 
 const emit = defineEmits(['update:modelValue', 'open-picker', 'remove-question', 'submit'])
 

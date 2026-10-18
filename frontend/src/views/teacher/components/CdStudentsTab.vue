@@ -1,6 +1,6 @@
 <template>
   <div class="tab-card">
-    <el-table v-loading="studentsLoading" :data="students">
+    <el-table v-loading="studentsLoading" :data="paged">
       <el-table-column prop="studentId" label="学号" width="120" />
       <el-table-column prop="studentName" label="姓名" min-width="110" />
       <el-table-column label="进度" width="140">
@@ -38,26 +38,55 @@
         </template>
       </el-table-column>
     </el-table>
-    <el-empty v-if="!studentsLoading && !students.length" description="暂无学生" />
+    <!-- D2-5：大课程（>20 人）客户端分页，仅超一页时出现 -->
+    <div v-if="showPager" class="pager-wrap">
+      <el-pagination
+        small
+        layout="total, prev, pager, next"
+        :total="total"
+        :page-size="pageSize"
+        :current-page="page"
+        @current-change="onPageChange"
+      />
+    </div>
+    <EmptyState v-if="!studentsLoading && !students.length" :title="emptyText" icon="users" />
   </div>
 </template>
 
 <script setup lang="ts">
+import EmptyState from '@/components/ui/EmptyState.vue'
+import { useClientPagination } from '@/composables/useClientPagination'
+
 /**
  * 学生管理 Tab
  * <p>课程学生列表（学号/姓名/学习进度/选课状态），待审核学生可经事件上抛通过/拒绝。</p>
+ * <p>D2-5：课程学生无界（大课程可达数百人），渲染层客户端分页（每页 20），
+ * 数据抓取保持全量不变。</p>
  */
-defineProps({
+const props = defineProps({
   students: { type: Array, default: () => [] },
   studentsLoading: { type: Boolean, default: false },
+  /** 空态文案（父页面按加载失败态透传诚实提示，默认保留原语义） */
+  emptyText: { type: String, default: '暂无学生' },
 })
 
 const emit = defineEmits(['approve', 'reject'])
+
+// D2-5：大列表客户端分页（小列表全量渲染、视觉零变化；越界页自动收敛）
+const { page, pageSize, total, paged, showPager, onPageChange } = useClientPagination(
+  () => props.students,
+)
 </script>
 
 <style scoped>
 .tab-card {
   padding: 8px 4px;
+}
+/* D2-5：分页器右对齐 */
+.pager-wrap {
+  display: flex;
+  justify-content: flex-end;
+  padding: 12px 4px 4px;
 }
 .prog-cell {
   width: 100px;

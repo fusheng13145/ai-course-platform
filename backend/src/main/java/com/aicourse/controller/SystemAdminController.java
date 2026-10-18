@@ -428,6 +428,23 @@ public class SystemAdminController {
     }
 
     /**
+     * 获取**按课程聚合**的 AI 使用统计（跨课程 AI 统计）。
+     *
+     * <p>数据源是 {@code ai_call_logs}（2026-10-13 埋点上线）——与上方 {@code /ai-usage} 的
+     * "无逐次留痕"口径是两回事，两者不可互换、也不可用一个去校正另一个。</p>
+     *
+     * <p>⚠️ 只统计自埋点上线后的调用，历史数据不可回填；响应内的 {@code collectionNote}
+     * 会把这条边界显式带给前端，避免页面自己编一条"历史趋势"。</p>
+     *
+     * @param days 统计天数（默认 30，1–365 越界收敛）
+     */
+    @GetMapping("/admin/statistics/ai-usage/by-course")
+    public ApiResponse<Map<String, Object>> getAIUsageByCourse(
+            @RequestParam(defaultValue = "30") int days) {
+        return ApiResponse.success(systemService.getAIUsageByCourse(days));
+    }
+
+    /**
      * 导出数据报表
      */
     @Operation(summary = "导出数据报表", description = "导出平台综合数据报表为 Excel(.xlsx) 文件（多 Sheet：平台概览/AI使用统计/课程统计/用户统计等）")
@@ -571,7 +588,11 @@ public class SystemAdminController {
             @RequestParam(defaultValue = "100") int lines,
             @RequestParam(required = false) String keyword) {
         String logContent = systemService.readLogFile(fileName, lines, keyword);
-        return ApiResponse.success(logContent);
+        // DR-33：必须用双参重载。ApiResponse.success(String) 与 success(T data) 并存时，
+        // String 入参绑定到「仅提示语」的那个，日志内容会跑到 message 里、data 变 null；
+        // 又因 spring.jackson.default-property-inclusion=non_null，data 键整体消失，
+        // 调用方按契约读 res.data 恒为空。本文件其余 ApiResponse<String> 端点均已用双参形式。
+        return ApiResponse.success("读取成功", logContent);
     }
 
     // ==================== AI 智能监控 ====================

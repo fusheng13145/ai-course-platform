@@ -1,10 +1,11 @@
 import { ref, reactive, computed } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
 import courseApi from '@/api/course'
 import knowledgeApi from '@/api/knowledge'
 import { getChartTheme, getMonoStatus } from '@/utils/chartTheme'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /**
  * 知识图谱（教师）数据与业务逻辑
@@ -17,15 +18,20 @@ export function useKnowledgeGraph() {
   const courseOptions = ref([])
   const courseId = ref('')
   const loading = ref(false)
+  /**
+   * 知识点列表 / 图谱两路加载各自独立记录失败，避免并发加载时被成功方复位而互相串味；
+   * 对外以 loadError 聚合暴露，页面据此渲染持久提示（失败可见）。
+   * 原实现失败后静默置空 → 页面只剩「暂无知识点 / 暂无图谱数据」，会被误判为确实没有数据。
+   */
+  const pointsError = ref('')
+  const graphError = ref('')
+  const loadError = computed(() => pointsError.value || graphError.value)
 
   /** 加载课程选项；默认选中第一门 */
   async function loadCourses() {
     courseLoading.value = true
     try {
-      const r = await courseApi.getMyCourses()
-      const body = unwrap(r)
-      const list = body?.records || body?.list || body || []
-      courseOptions.value = Array.isArray(list) ? list : []
+      courseOptions.value = await courseApi.getAllMyCourses()
       if (courseOptions.value.length && !courseId.value) courseId.value = courseOptions.value[0].id
     } catch (e) {
       logger.error('加载课程列表失败', e)
@@ -40,6 +46,8 @@ export function useKnowledgeGraph() {
     points.value = []
     graphNodes.value = []
     graphLinks.value = []
+    pointsError.value = ''
+    graphError.value = ''
     if (courseId.value) {
       loadOverview()
       loadPoints()
@@ -78,6 +86,7 @@ export function useKnowledgeGraph() {
   async function loadPoints() {
     if (!courseId.value) return
     pointLoading.value = true
+    pointsError.value = ''
     try {
       const r = await knowledgeApi.getKnowledgePoints(courseId.value)
       const body = unwrap(r)
@@ -88,6 +97,8 @@ export function useKnowledgeGraph() {
       }))
     } catch (e) {
       logger.error('加载知识点失败', e)
+      points.value = []
+      pointsError.value = '知识点列表加载失败，请检查网络后重试'
     } finally {
       pointLoading.value = false
     }
@@ -135,6 +146,7 @@ export function useKnowledgeGraph() {
       else await knowledgeApi.createKnowledgePoint(payload)
       ElMessage.success(isEdit.value ? '已更新' : '已创建')
       formDialog.value = false
+      engineSyncStale.value = true
       loadPoints()
       loadOverview()
     } catch (e) {
@@ -146,9 +158,17 @@ export function useKnowledgeGraph() {
 
   async function removePoint(row) {
     try {
-      await ElMessageBox.confirm(`确认删除知识点「${row.name}」？`, '提示', { type: 'warning' })
+      // D2-2：明确连带影响（图谱关联关系一并移除）与不可逆性
+      const ok = await confirmDanger({
+        verb: '删除',
+        target: '知识点',
+        subject: row.name,
+        impact: '将一并移除该知识点在图谱中的关联关系',
+      })
+      if (!ok) return
       await knowledgeApi.deleteKnowledgePoint(row.id)
       ElMessage.success('已删除')
+      engineSyncStale.value = true
       loadPoints()
       loadOverview()
       loadGraph()
@@ -209,6 +229,12 @@ export function useKnowledgeGraph() {
         2,
       )
       ElMessage.success('抽取完成')
+      // 抽取结果已真实落库：刷新列表/概览/图谱，教师无需手动刷新即可看到新知识点，
+      // 同时置位「建议重新同步引擎」，提示图谱数据已变更。
+      engineSyncStale.value = true
+      loadPoints()
+      loadOverview()
+      loadGraph()
     } catch (e) {
       logger.error('AI 抽取失败', e)
     } finally {
@@ -338,6 +364,7 @@ export function useKnowledgeGraph() {
   async function loadGraph() {
     if (!courseId.value) return
     graphLoading.value = true
+    graphError.value = ''
     pathNodeIds.value = []
     try {
       const r = await knowledgeApi.getRelationGraphData(courseId.value)
@@ -352,6 +379,7 @@ export function useKnowledgeGraph() {
       logger.warn('图谱数据不可用，已忽略可视化', e)
       graphNodes.value = []
       graphLinks.value = []
+      graphError.value = '图谱数据加载失败，请检查网络后重试'
     } finally {
       graphOption.value = buildGraphOption()
       graphLoading.value = false
@@ -411,11 +439,98 @@ export function useKnowledgeGraph() {
     }
   }
 
+  /* ---- 图谱引擎（Python 8001）同步与子图 ---- */
+  const engineSyncing = ref(false)
+  /** 引擎同步失败持久提示（单路，不自动消失，区别于瞬时 toast） */
+  const engineSyncError = ref('')
+  /** 引擎同步后的模式与说明（ENGINE=真引擎 / LOCAL=消费侧兜底 / UNAVAILABLE=降级占位） */
+  const engineSyncMode = ref('')
+  const engineSyncNote = ref('')
+  /** 图谱数据已变更、建议重新同步引擎（新建/删除/抽取后置位） */
+  const engineSyncStale = ref(false)
+
+  const engineSubGraphLoading = ref(false)
+  /** 引擎子图加载失败持久提示（单路，不自动消失） */
+  const engineSubGraphError = ref('')
+  const engineSubGraphMode = ref('')
+  const engineSubGraphNote = ref('')
+  const engineSubGraph = ref<{ nodes: unknown[]; edges: unknown[] } | null>(null)
+  const engineSubGraphNodeCount = computed(() =>
+    Array.isArray(engineSubGraph.value?.nodes) ? engineSubGraph.value.nodes.length : 0,
+  )
+  const engineSubGraphEdgeCount = computed(() =>
+    Array.isArray(engineSubGraph.value?.edges) ? engineSubGraph.value.edges.length : 0,
+  )
+
+  /** 引擎模式文案与标签色（ENGINE=引擎计算 / LOCAL=本地兜底 / UNAVAILABLE=引擎不可用） */
+  const ENGINE_MODE_TEXT: Record<string, string> = {
+    ENGINE: '引擎计算',
+    LOCAL: '本地兜底',
+    UNAVAILABLE: '引擎不可用',
+  }
+  function engineModeText(m: string) {
+    return ENGINE_MODE_TEXT[m] || '未知'
+  }
+  function engineModeType(m: string) {
+    return m === 'ENGINE' ? 'success' : m === 'LOCAL' ? 'warning' : m === 'UNAVAILABLE' ? 'danger' : 'info'
+  }
+
+  /** 将当前课程知识点/关系同步至图谱引擎（引擎未接入时后端返回 mode=LOCAL 消费侧确认） */
+  async function syncKnowledgeGraphEngine() {
+    if (!courseId.value) return ElMessage.warning('请先选择课程')
+    engineSyncing.value = true
+    engineSyncError.value = ''
+    engineSyncMode.value = ''
+    engineSyncNote.value = ''
+    try {
+      const r = await knowledgeApi.ingestKnowledgeGraph(courseId.value)
+      const res = (unwrap(unwrap(r)) || {}) as unknown as { mode?: string; note?: string }
+      engineSyncMode.value = res.mode || ''
+      engineSyncNote.value =
+        res.note || (res.mode === 'ENGINE' ? '已同步至图谱引擎' : '已在消费侧确认数据')
+      engineSyncStale.value = false
+    } catch (e) {
+      logger.error('图谱引擎同步失败', e)
+      engineSyncError.value = '图谱引擎同步失败，请检查网络后重试'
+    } finally {
+      engineSyncing.value = false
+    }
+  }
+
+  /** 拉取课程知识子图（引擎未接入时后端返回消费侧 MySQL 直读结果，mode=LOCAL） */
+  async function loadEngineSubGraph() {
+    if (!courseId.value) return ElMessage.warning('请先选择课程')
+    engineSubGraphLoading.value = true
+    engineSubGraphError.value = ''
+    try {
+      const r = await knowledgeApi.getKnowledgeSubGraph(courseId.value)
+      const res = (unwrap(unwrap(r)) || {}) as unknown as {
+        mode?: string
+        note?: string
+        nodes?: unknown[]
+        edges?: unknown[]
+      }
+      engineSubGraphMode.value = res.mode || ''
+      engineSubGraphNote.value = res.note || ''
+      engineSubGraph.value = {
+        nodes: Array.isArray(res.nodes) ? res.nodes : [],
+        edges: Array.isArray(res.edges) ? res.edges : [],
+      }
+    } catch (e) {
+      logger.error('引擎子图加载失败', e)
+      engineSubGraph.value = null
+      engineSubGraphError.value = '引擎子图加载失败，请检查网络后重试'
+    } finally {
+      engineSubGraphLoading.value = false
+    }
+  }
+
   return {
     courseLoading,
     courseOptions,
     courseId,
     loading,
+    loadError,
     loadCourses,
     onCourseChange,
     pct,
@@ -456,5 +571,21 @@ export function useKnowledgeGraph() {
     tPathNotFound,
     tPathError,
     planPathTeacher,
+    engineSyncing,
+    engineSyncError,
+    engineSyncMode,
+    engineSyncNote,
+    engineSyncStale,
+    engineSubGraphLoading,
+    engineSubGraphError,
+    engineSubGraphMode,
+    engineSubGraphNote,
+    engineSubGraph,
+    engineSubGraphNodeCount,
+    engineSubGraphEdgeCount,
+    engineModeText,
+    engineModeType,
+    syncKnowledgeGraphEngine,
+    loadEngineSubGraph,
   }
 }

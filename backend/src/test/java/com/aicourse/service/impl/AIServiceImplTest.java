@@ -1,12 +1,16 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.exception.LLMUnavailableException;
 import com.aicourse.llm.LLMProvider;
 import com.aicourse.service.RAGService;
 import com.aicourse.service.component.ai.AiCoreComponent;
 import com.aicourse.service.component.ai.AiDialogueComponent;
 import com.aicourse.service.component.ai.AiRagComponent;
 import com.aicourse.service.component.ai.AiStructuredComponent;
+import com.aicourse.vo.QaSourceVO;
+import com.aicourse.vo.QaStreamVO;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -45,6 +49,9 @@ class AIServiceImplTest {
     private RAGService ragService;
     @Mock
     private PromptGuard promptGuard;
+    /** 落库服务桩：本测试不设 AiCallContext 作用域，故不会有任何 record 交互。 */
+    @Mock
+    private com.aicourse.service.AiCallLogService aiCallLogService;
 
     private final MeterRegistry meterRegistry = new SimpleMeterRegistry();
     private AIServiceImpl service;
@@ -52,8 +59,8 @@ class AIServiceImplTest {
     @BeforeEach
     void setUp() {
         // 原兼容构造器已移除：此处内联其组件组装逻辑，再走主构造器（4 个组件）
-        AiCoreComponent coreComponent = new AiCoreComponent(llmProvider, promptGuard, meterRegistry);
-        AiDialogueComponent dialogueComponent = new AiDialogueComponent(coreComponent);
+        AiCoreComponent coreComponent = new AiCoreComponent(llmProvider, promptGuard, meterRegistry, aiCallLogService);
+        AiDialogueComponent dialogueComponent = new AiDialogueComponent(coreComponent, ragService);
         AiRagComponent ragComponent = new AiRagComponent(ragService, promptGuard, coreComponent);
         AiStructuredComponent structuredComponent = new AiStructuredComponent(coreComponent);
         service = new AIServiceImpl(dialogueComponent, ragComponent, structuredComponent, coreComponent);
@@ -135,16 +142,14 @@ class AIServiceImplTest {
     }
 
     @Test
-    @DisplayName("chat(List) 空消息返回降级文案")
+    @DisplayName("chat(List) 空历史按入参错误失败，不再冒充上游降级文案")
     void chat_list_empty() {
-        assertEquals(AIServiceImplTest.SERVICE_ERROR_MSG(), service.chat(List.of(), 1L));
+        // 旧行为：空历史也返回 "AI 服务暂时不可用，请稍后再试。"——与真的 401 同形，
+        // 用户和排障者都分不清"你没带历史"和"大模型挂了"（DR-74 语义分名）。
+        BusinessException ex = assertThrows(BusinessException.class, () -> service.chat(List.of(), 1L));
+        assertEquals(ApiCode.BAD_REQUEST, ex.getCode());
         // 空历史必须在门面处短路，绝不能带着空 messages 去调用供应商
         verify(llmProvider, never()).complete(any(), any());
-    }
-
-    private static String SERVICE_ERROR_MSG() {
-        // SERVICE_ERROR_MSG 为私有常量，通过 chat(List) 的空分支间接取得同样文案
-        return "AI 服务暂时不可用，请稍后再试。";
     }
 
     @Test
@@ -259,7 +264,7 @@ class AIServiceImplTest {
     void ragAsk_ragNull() {
         // topK=5 与 courseId 都是 AiRagComponent 硬编码/透传的业务参数，必须按值打桩而非 anyInt()
         when(ragService.ask("q", 1L, 5)).thenReturn(null);
-        assertEquals("raw", service.ragAsk("q", 1L));
+        assertEquals("raw", service.ragAsk("q", 1L).getAnswer());
         List<Map<String, String>> msgs = captureCompleteMessages(0.5);
         assertTrue(flatten(msgs).contains("请基于课程知识回答问题"), "降级路径应带课程语境 system，实际=" + flatten(msgs));
         assertTrue(promptOf(msgs).contains("q"), "原始问题必须透传给降级 LLM，实际=" + flatten(msgs));
@@ -270,7 +275,7 @@ class AIServiceImplTest {
     @DisplayName("ragAsk RAG 含 503 降级纯 LLM")
     void ragAsk_rag503() {
         when(ragService.ask("q", 1L, 5)).thenReturn("{\"code\":503,\"msg\":\"x\"}");
-        assertEquals("raw", service.ragAsk("q", 1L));
+        assertEquals("raw", service.ragAsk("q", 1L).getAnswer());
         assertEquals(1.0, aiCallCount("rag"));
     }
 
@@ -278,7 +283,7 @@ class AIServiceImplTest {
     @DisplayName("ragAsk RAG 正常返回答案：检索参数为(问题, 课程ID, topK=5)")
     void ragAsk_ragOk() {
         when(ragService.ask("q", 1L, 5)).thenReturn("{\"answer\":\"hello\"}");
-        assertEquals("hello", service.ragAsk("q", 1L));
+        assertEquals("hello", service.ragAsk("q", 1L).getAnswer());
         // 检索召回条数决定答案的证据密度，写错 topK 不会改变类型却会改变结果，必须按值校验
         verify(ragService).ask("q", 1L, 5);
         verify(llmProvider, never()).complete(any(), any());
@@ -288,7 +293,7 @@ class AIServiceImplTest {
     @DisplayName("ragAsk RAG 抛异常降级")
     void ragAsk_ragThrows() {
         when(ragService.ask("q", 1L, 5)).thenThrow(new RuntimeException("boom"));
-        assertEquals("raw", service.ragAsk("q", 1L));
+        assertEquals("raw", service.ragAsk("q", 1L).getAnswer());
         assertEquals(1.0, aiCallCount("rag"));
     }
 
@@ -313,7 +318,11 @@ class AIServiceImplTest {
     @DisplayName("recommendLearningJson 未配置供应商返回提示")
     void recommendLearningJson_notConfigured() {
         when(llmProvider.isConfigured()).thenReturn(false);
-        assertTrue(service.recommendLearningJson("数学").contains("暂未配置"));
+        // 文案仍要说"暂未配置"，但通道必须是失败（503）而不是"看起来像回答"
+        LLMUnavailableException ex = assertThrows(LLMUnavailableException.class,
+                () -> service.recommendLearningJson("数学"));
+        assertEquals(LLMUnavailableException.Kind.NOT_CONFIGURED, ex.kind());
+        assertTrue(ex.getMessage().contains("暂未配置"), ex.getMessage());
         // 未配置供应商时不得发起真实调用（避免把 NO_PROVIDER 路径污染成计费调用）
         verify(llmProvider, never()).completeJson(any(), any(), any());
     }
@@ -515,32 +524,41 @@ class AIServiceImplTest {
     }
 
     @Test
-    @DisplayName("callLlm 返回 null 降级 SERVICE_ERROR_MSG")
+    @DisplayName("callLlm 拿到空响应抛 503，不再把降级文案当结果返回")
     void callLlm_nullResult() {
         when(llmProvider.completeJson(any(), any(), any())).thenReturn(null);
-        // recommendLearningJson 在已配置时走 callLlm；completeJson 返回 null → SERVICE_ERROR_MSG
-        assertEquals("AI 服务暂时不可用，请稍后再试。", service.recommendLearningJson("数学"));
-        // 空响应既要降级也要计入失败埋点，否则失败率看板会低估故障面
+        // recommendLearningJson 在已配置时走 callLlm；completeJson 返回 null → 失败必须是失败
+        LLMUnavailableException ex = assertThrows(LLMUnavailableException.class,
+                () -> service.recommendLearningJson("数学"));
+        assertEquals(LLMUnavailableException.Kind.EMPTY_RESPONSE, ex.kind());
+        assertEquals(ApiCode.SERVICE_UNAVAILABLE, ex.getCode());
+        // 空响应既要报错也要计入失败埋点，否则失败率看板会低估故障面
         assertEquals(1.0, meterRegistry.counter("aicourse_ai_calls_failed_total", "type", "recommend").count());
     }
 
     // ===================== streamChat =====================
     @Test
-    @DisplayName("streamChat 未配置返回提示")
+    @DisplayName("streamChat 未配置返回提示，且不出处")
     void streamChat_notConfigured() {
         when(llmProvider.isConfigured()).thenReturn(false);
-        Flux<String> f = service.streamChat("q");
-        assertEquals(service.noProviderMessage(), f.blockFirst());
+        // 未配 Key 时不许"播出一个假装是回答的首帧"：同步抛 503，SSE 不开播
+        LLMUnavailableException ex = assertThrows(LLMUnavailableException.class,
+                () -> service.streamChat("q", null));
+        assertEquals(LLMUnavailableException.Kind.NOT_CONFIGURED, ex.kind());
+        assertTrue(ex.getMessage().contains("暂未配置"), ex.getMessage());
         verify(llmProvider, never()).stream(any(), any());
     }
 
     @Test
-    @DisplayName("streamChat 已配置返回流式 token，且问题以 user 角色、温度 0.7 下发")
+    @DisplayName("streamChat 已配置返回流式 token，且问题以 user 角色、温度 0.7 下发；无 courseId 不出处")
     void streamChat_configured() {
         when(llmProvider.isConfigured()).thenReturn(true);
-        Flux<String> f = service.streamChat("q");
-        assertEquals("tok1", f.blockFirst());
-        assertEquals(2, f.collectList().block().size());
+        QaStreamVO r = service.streamChat("q", null);
+        assertEquals("tok1", r.getTokens().blockFirst());
+        assertEquals(2, r.getTokens().collectList().block().size());
+        assertTrue(r.getSources().isEmpty());
+        // 无归属课程时不得发起检索（否则会平白增加一次 RAG 往返）
+        verify(ragService, never()).retrieve(anyString(), any(), anyInt());
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<Map<String, String>>> cap = ArgumentCaptor.forClass(List.class);
@@ -550,6 +568,66 @@ class AIServiceImplTest {
         assertEquals(1, cap.getValue().size());
         assertEquals("user", cap.getValue().get(0).get("role"));
         assertEquals("q", cap.getValue().get(0).get("content"), "问题必须原样下发给流式接口");
+    }
+
+    @Test
+    @DisplayName("streamChat 带 courseId：检索命中 -> 接地 system 提示 + 出处随流回传")
+    void streamChat_withCourseId_retrieveHits_groundsAndReturnsSources() {
+        when(llmProvider.isConfigured()).thenReturn(true);
+        when(ragService.retrieve(eq("q"), eq(7L), eq(5))).thenReturn(
+                "{\"sources\":[{\"documentId\":1,\"documentName\":\"第1章 绪论\","
+                        + "\"relevanceScore\":0.9,\"snippet\":\"算法的定义\"}]}");
+
+        QaStreamVO r = service.streamChat("q", 7L);
+
+        // 出处回传并与引擎召回项对齐（溯源展示的形状）
+        assertEquals(1, r.getSources().size());
+        QaSourceVO s = r.getSources().get(0);
+        assertEquals("第1章 绪论", s.getDocumentName());
+        assertEquals("算法的定义", s.getSnippet());
+        assertEquals(0.9, s.getRelevanceScore());
+
+        // 命中资料必须真正进入 system 提示（否则「展示了出处却没影响答案」）
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Map<String, String>>> cap = ArgumentCaptor.forClass(List.class);
+        verify(llmProvider).stream(cap.capture(), any());
+        assertEquals(2, cap.getValue().size(), "应下发 system(接地) + user(问题)");
+        assertEquals("system", cap.getValue().get(0).get("role"));
+        assertTrue(cap.getValue().get(0).get("content").contains("算法的定义"),
+                "检索片段必须拼进 system 提示");
+        assertEquals("user", cap.getValue().get(1).get("role"));
+        assertEquals("q", cap.getValue().get(1).get("content"));
+    }
+
+    @Test
+    @DisplayName("streamChat 带 courseId：检索异常 -> 降级纯 LLM 且不出处，流不中断")
+    void streamChat_withCourseId_retrieveFails_degradesToPlainLlm() {
+        when(llmProvider.isConfigured()).thenReturn(true);
+        when(ragService.retrieve(anyString(), any(), anyInt()))
+                .thenThrow(new RuntimeException("RAG 服务不可用"));
+
+        QaStreamVO r = service.streamChat("q", 7L);
+
+        assertEquals("tok1", r.getTokens().blockFirst(), "检索失败不得中断流式问答");
+        assertTrue(r.getSources().isEmpty());
+
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Map<String, String>>> cap = ArgumentCaptor.forClass(List.class);
+        verify(llmProvider).stream(cap.capture(), any());
+        assertEquals(1, cap.getValue().size(), "降级后只下发 user 消息");
+        assertEquals("user", cap.getValue().get(0).get("role"));
+    }
+
+    @Test
+    @DisplayName("streamChat 供应商侧异常 -> 映射为 503 业务异常并计入失败埋点")
+    void streamChat_providerError_mapsToServiceUnavailable() {
+        // 本机实测形状：Key 无效时供应商返回 401，异常在订阅期抛出而非建流时抛出
+        when(llmProvider.stream(any(), any())).thenReturn(Flux.error(new RuntimeException("401 Unauthorized")));
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.streamChat("q", null).getTokens().blockFirst());
+        assertEquals(503, ex.getCode(), "流式失败须以 503 降级语义收尾，而非落入兜底 500「系统未知异常」");
+        assertEquals(1.0, meterRegistry.counter("aicourse_ai_calls_failed_total", "type", "chat").count(),
+                "流式失败必须与同步路径一样计入失败埋点");
     }
 
     // ===================== completeAndSanitize 异常 =====================

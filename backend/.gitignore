@@ -60,6 +60,9 @@ lqwtest/
 # 运行时用户上传目录（含用户文件，不入库）
 uploads/
 
+# 分片上传的临时分片（运行期产物，合并后回收，不入库）
+upload-chunks/
+
 # Sentinel 运行期持久化规则（由 YAML 启动时生成，可手动热编辑；落盘文件不入库）
 sentinel-rules/
 flow-rules.json

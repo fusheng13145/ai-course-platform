@@ -19,9 +19,10 @@ jobs:
   quality:
     name: Quality Gate (backend + frontend)
     runs-on: ubuntu-latest
+    timeout-minutes: 45
     services:
       mysql:
-        image: mysql:8.0
+        image: mysql:8.4.11
         env:
           MYSQL_ROOT_PASSWORD: ci-test-password-8f3k
           MYSQL_DATABASE: ai_course_platform_test
@@ -33,7 +34,7 @@ jobs:
           --health-timeout=5s
           --health-retries=10
       redis:
-        image: redis:7
+        image: redis:7.4.11-alpine
         ports:
           - 6379:6379
         options: >-
@@ -135,6 +136,7 @@ jobs:
     name: Build & Push Docker Images
     needs: quality
     runs-on: ubuntu-latest
+    timeout-minutes: 40
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -179,6 +181,7 @@ jobs:
     name: Create GitHub Release
     needs: docker
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4

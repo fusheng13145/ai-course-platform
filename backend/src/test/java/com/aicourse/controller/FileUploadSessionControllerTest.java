@@ -6,7 +6,9 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import java.util.List;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -77,14 +79,51 @@ class FileUploadSessionControllerTest extends ControllerTestBase {
 
 
     @Test
-    @DisplayName("POST /upload-sessions/1/chunks/1 - 端点已按N-03下线，认证后返回501")
-    void uploadChunk_authorized_returns_501() throws Exception {
-        mockMvc.perform(post("/upload-sessions/1/chunks/1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
-                .andExpect(status().isNotImplemented())
-                .andExpect(jsonPath("$.code").value(501));
-        verify(fileUploadSessionService, never()).uploadChunk(anyLong(), anyInt(), anyLong());
+    @DisplayName("POST /upload-sessions/1/chunks/0 - multipart 分片委托 service 落盘，返回200")
+    void uploadChunk_authorized_returns_200() throws Exception {
+        when(fileUploadSessionService.uploadChunk(eq(1L), eq(0), any(), eq(5L), isNull(), eq(1L)))
+                .thenReturn(sampleSession(1L, "a.pdf"));
+        MockMultipartFile part = new MockMultipartFile("file", "chunk", null, "bytes".getBytes());
+
+        mockMvc.perform(multipart("/upload-sessions/1/chunks/0").file(part)
+                        .with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        verify(fileUploadSessionService).uploadChunk(eq(1L), eq(0), any(), eq(5L), isNull(), eq(1L));
     }
 
+    @Test
+    @DisplayName("POST /upload-sessions/1/chunks/0 - 声明的 md5 摘要透传给 service 做校验")
+    void uploadChunk_forwardsDeclaredMd5() throws Exception {
+        when(fileUploadSessionService.uploadChunk(eq(1L), eq(0), any(), anyLong(), eq("deadbeef"), eq(1L)))
+                .thenReturn(sampleSession(1L, "a.pdf"));
+        MockMultipartFile part = new MockMultipartFile("file", "chunk", null, "bytes".getBytes());
+
+        mockMvc.perform(multipart("/upload-sessions/1/chunks/0").file(part)
+                        .param("md5", "deadbeef")
+                        .with(withUser(1L, "STUDENT")))
+                .andExpect(status().isOk());
+
+        verify(fileUploadSessionService).uploadChunk(eq(1L), eq(0), any(), anyLong(), eq("deadbeef"), eq(1L));
+    }
+
+    @Test
+    @DisplayName("POST /upload-sessions/1/chunks/0 - 管理员以会话归属人身份代操作，不放宽 Service 层归属校验")
+    void uploadChunk_admin_actsAsSessionOwner() throws Exception {
+        FileUploadSession ownedByOther = sampleSession(1L, "a.pdf");
+        ownedByOther.setUploaderId(777L);
+        when(fileUploadSessionService.getById(1L)).thenReturn(ownedByOther);
+        when(fileUploadSessionService.uploadChunk(eq(1L), eq(0), any(), anyLong(), isNull(), eq(777L)))
+                .thenReturn(ownedByOther);
+        MockMultipartFile part = new MockMultipartFile("file", "chunk", null, "bytes".getBytes());
+
+        mockMvc.perform(multipart("/upload-sessions/1/chunks/0").file(part)
+                        .with(withUser(1L, "ADMIN")))
+                .andExpect(status().isOk());
+
+        verify(fileUploadSessionService).uploadChunk(eq(1L), eq(0), any(), anyLong(), isNull(), eq(777L));
+    }
 
     @Test
     @DisplayName("POST /upload-sessions/1/chunks/1 - 未认证返回401")
@@ -93,14 +132,52 @@ class FileUploadSessionControllerTest extends ControllerTestBase {
                 .andExpect(status().isUnauthorized());
     }
 
+    /**
+     * D1-2 批次 2 实测缺陷：分片端点从「恒 501」改为真实实现后，非 multipart 请求
+     * 会在参数解析阶段抛 MultipartException，落入 500 兜底——客户端写错请求体裁
+     * 却表现为服务端故障。N-03 下线期契约明确要求「不得出现 500」，恢复端点后
+     * 该要求同样成立，故按 400 语义拒绝。
+     */
+    @Test
+    @DisplayName("POST /upload-sessions/1/chunks/0 - 非 multipart 请求按400语义拒绝，不得落入500兜底")
+    void uploadChunk_notMultipart_returns_400() throws Exception {
+        mockMvc.perform(post("/upload-sessions/1/chunks/0")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .with(withUser(1L, "STUDENT")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+
+        verify(fileUploadSessionService, never())
+                .uploadChunk(anyLong(), anyInt(), any(), anyLong(), any(), anyLong());
+    }
+
 
     @Test
-    @DisplayName("POST /upload-sessions/1/merge - 端点已按N-03下线，认证后返回501")
-    void mergeChunks_authorized_returns_501() throws Exception {
+    @DisplayName("POST /upload-sessions/1/merge - 委托 service 合并落盘，返回200且状态透传")
+    void mergeChunks_authorized_returns_200() throws Exception {
+        FileUploadSession done = sampleSession(1L, "a.pdf");
+        done.setStatus("COMPLETED");
+        when(fileUploadSessionService.mergeChunks(1L, 1L)).thenReturn(done);
+
         mockMvc.perform(post("/upload-sessions/1/merge").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
-                .andExpect(status().isNotImplemented())
-                .andExpect(jsonPath("$.code").value(501));
-        verify(fileUploadSessionService, never()).mergeChunks(anyLong(), anyLong());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.status").value("COMPLETED"));
+
+        verify(fileUploadSessionService).mergeChunks(eq(1L), eq(1L));
+    }
+
+    @Test
+    @DisplayName("POST /upload-sessions/1/merge - 分片不齐时返回400语义化提示而非500")
+    void mergeChunks_incompleteChunks_returns_400() throws Exception {
+        when(fileUploadSessionService.mergeChunks(1L, 1L))
+                .thenThrow(new com.aicourse.exception.BusinessException("分片未全部上传完成，缺失索引：[1]"));
+
+        mockMvc.perform(post("/upload-sessions/1/merge").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400))
+                .andExpect(jsonPath("$.message").value(
+                        org.hamcrest.Matchers.containsString("缺失索引")));
     }
 
 
@@ -111,17 +188,29 @@ class FileUploadSessionControllerTest extends ControllerTestBase {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    @DisplayName("POST /upload-sessions/1/chunks/0 - 未认证不落盘分片")
+    void uploadChunk_unauthorized_neverDelegates() throws Exception {
+        MockMultipartFile part = new MockMultipartFile("file", "chunk", null, "bytes".getBytes());
+        mockMvc.perform(multipart("/upload-sessions/1/chunks/0").file(part))
+                .andExpect(status().isUnauthorized());
+        verify(fileUploadSessionService, never())
+                .uploadChunk(anyLong(), anyInt(), any(), anyLong(), any(), anyLong());
+    }
 
     @Test
     @DisplayName("GET /upload-sessions/1/progress - 返回200且进度透传")
     void getUploadProgress_authorized_returns_200() throws Exception {
         when(fileUploadSessionService.getUploadProgress(1L, 1L))
-                .thenReturn(new com.aicourse.vo.UploadProgressVO(1, 2, "50.0%", "UPLOADING"));
+                .thenReturn(new com.aicourse.vo.UploadProgressVO(1, 2, "50.0%", "UPLOADING", List.of(1)));
         mockMvc.perform(get("/upload-sessions/1/progress").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
-                .andExpect(jsonPath("$.data.percentage").value("50.0%"));
+                .andExpect(jsonPath("$.data.percentage").value("50.0%"))
+                .andExpect(jsonPath("$.data.missingIndexes").isArray())
+                .andExpect(jsonPath("$.data.missingIndexes[0]").value(1))
+                .andExpect(jsonPath("$.data.missingIndexes[1]").doesNotExist());
         verify(fileUploadSessionService).getUploadProgress(eq(1L), eq(1L));
     }
 

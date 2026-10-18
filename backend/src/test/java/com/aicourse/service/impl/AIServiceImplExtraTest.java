@@ -1,12 +1,17 @@
 package com.aicourse.service.impl;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.exception.LLMUnavailableException;
 import com.aicourse.llm.LLMProvider;
 import com.aicourse.service.RAGService;
 import com.aicourse.service.component.ai.AiCoreComponent;
 import com.aicourse.service.component.ai.AiDialogueComponent;
 import com.aicourse.service.component.ai.AiRagComponent;
 import com.aicourse.service.component.ai.AiStructuredComponent;
+import com.aicourse.vo.QaAnswerVO;
+import com.aicourse.vo.QaSourceVO;
+import com.aicourse.vo.QaStreamVO;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,6 +59,8 @@ class AIServiceImplExtraTest {
     @Mock LLMProvider llmProvider;
     @Mock RAGService ragService;
     @Mock PromptGuard promptGuard;
+    /** 落库服务桩：本测试不设 AiCallContext 作用域，故不会有任何 record 交互。 */
+    @Mock com.aicourse.service.AiCallLogService aiCallLogService;
 
     private final MeterRegistry meterRegistry = new SimpleMeterRegistry();
     private AIServiceImpl service;
@@ -61,8 +68,8 @@ class AIServiceImplExtraTest {
     @BeforeEach
     void setUp() {
         // 原兼容构造器已移除：此处内联其组件组装逻辑，再走主构造器（4 个组件）
-        AiCoreComponent coreComponent = new AiCoreComponent(llmProvider, promptGuard, meterRegistry);
-        AiDialogueComponent dialogueComponent = new AiDialogueComponent(coreComponent);
+        AiCoreComponent coreComponent = new AiCoreComponent(llmProvider, promptGuard, meterRegistry, aiCallLogService);
+        AiDialogueComponent dialogueComponent = new AiDialogueComponent(coreComponent, ragService);
         AiRagComponent ragComponent = new AiRagComponent(ragService, promptGuard, coreComponent);
         AiStructuredComponent structuredComponent = new AiStructuredComponent(coreComponent);
         service = new AIServiceImpl(dialogueComponent, ragComponent, structuredComponent, coreComponent);
@@ -164,8 +171,12 @@ class AIServiceImplExtraTest {
     @Test
     @DisplayName("chat(List): 空/null -> 通用错误文案")
     void chat_list_empty() {
-        assertTrue(service.chat(Collections.emptyList(), 1L).length() > 0);
-        assertTrue(service.chat(null, 1L).length() > 0);
+        // DR-74-B：空历史是入参问题，必须以 400 失败；过去它返回一句"AI 服务暂时不可用"，
+        // 与真正的上游 401 共用同一句话，用户与排障者都无法区分。
+        BusinessException ex = assertThrows(BusinessException.class,
+                () -> service.chat(Collections.emptyList(), 1L));
+        assertEquals(ApiCode.BAD_REQUEST, ex.getCode());
+        assertThrows(BusinessException.class, () -> service.chat(null, 1L));
         // 空历史必须短路，不得带着空 messages 去计费调用
         verify(llmProvider, never()).complete(any(), any());
     }
@@ -276,7 +287,8 @@ class AIServiceImplExtraTest {
     @DisplayName("ragAsk: RAG 返回有效 answer -> 提取并清洗返回，检索参数为(问题, 课程ID, topK=5)")
     void ragAsk_answer() {
         when(ragService.ask("q", 1L, 5)).thenReturn("{\"answer\":\"final answer\",\"sources\":[]}");
-        assertEquals("final answer", service.ragAsk("q", 1L));
+        QaAnswerVO vo = service.ragAsk("q", 1L);
+        assertEquals("final answer", vo.getAnswer());
         verify(ragService).ask("q", 1L, 5);
         verify(promptGuard).sanitizeOutput("final answer");
         // 命中 RAG 时不应再触发纯 LLM 补全
@@ -284,10 +296,30 @@ class AIServiceImplExtraTest {
     }
 
     @Test
+    @DisplayName("ragAsk: RAG 返回 sources -> 溯源一并带回，answer 与 sources 互不吞掉")
+    void ragAsk_carriesSources() {
+        when(ragService.ask("q", 1L, 5)).thenReturn("{\"answer\":\"三次握手同步序号\","
+                + "\"sources\":[{\"documentId\":9,\"documentName\":\"计算机网络-第6章-传输层TCP与UDP\","
+                + "\"relevanceScore\":0.9937,\"snippet\":\"TCP 三次握手的主要目的是同步双方的初始序号\"}],"
+                + "\"mode\":\"ENGINE\"}");
+        QaAnswerVO vo = service.ragAsk("q", 1L);
+        assertEquals("三次握手同步序号", vo.getAnswer());
+        assertEquals(1, vo.getSources().size());
+        QaSourceVO source = vo.getSources().get(0);
+        assertEquals(9L, source.getDocumentId());
+        assertEquals("计算机网络-第6章-传输层TCP与UDP", source.getDocumentName());
+        assertEquals(0.9937, source.getRelevanceScore());
+        assertTrue(source.getSnippet().contains("同步双方的初始序号"), "片段须原样带回，实际=" + source.getSnippet());
+    }
+
+    @Test
     @DisplayName("ragAsk: RAG 返回 503 -> 回退纯 LLM，且降级 prompt 保留课程语境")
     void ragAsk_503() {
         when(ragService.ask("q", 1L, 5)).thenReturn("{\"error\":\"x\",\"code\":503}");
-        assertEquals("ok", service.ragAsk("q", 1L));
+        QaAnswerVO vo = service.ragAsk("q", 1L);
+        assertEquals("ok", vo.getAnswer());
+        assertNotNull(vo.getSources(), "降级路径的 sources 必须是空列表而非 null，前端据此判空");
+        assertTrue(vo.getSources().isEmpty(), "纯 LLM 直答无检索出处");
         Completion c = singleCompletion();
         assertEquals(0.5, c.temperature());
         assertTrue(c.flattened().contains("请基于课程知识回答问题"), "降级应带课程语境 system，实际=" + c.flattened());
@@ -298,7 +330,7 @@ class AIServiceImplExtraTest {
     @DisplayName("ragAsk: RAG 返回纯文本（非 JSON）-> extractRagAnswer 原样返回")
     void ragAsk_plainText() {
         when(ragService.ask("q", 1L, 5)).thenReturn("just text");
-        assertEquals("just text", service.ragAsk("q", 1L));
+        assertEquals("just text", service.ragAsk("q", 1L).getAnswer());
         verify(ragService).ask("q", 1L, 5);
     }
 
@@ -306,28 +338,28 @@ class AIServiceImplExtraTest {
     @DisplayName("ragAsk: RAG answer 为空白 -> 回退原串")
     void ragAsk_blankAnswer() {
         when(ragService.ask("q", 1L, 5)).thenReturn("{\"answer\":\"   \"}");
-        assertTrue(service.ragAsk("q", 1L).contains("answer"));
+        assertTrue(service.ragAsk("q", 1L).getAnswer().contains("answer"));
     }
 
     @Test
     @DisplayName("ragAsk: RAG answer 为非文本(数字) -> 回退原串")
     void ragAsk_nonTextualAnswer() {
         when(ragService.ask("q", 1L, 5)).thenReturn("{\"answer\":123}");
-        assertTrue(service.ragAsk("q", 1L).contains("123"));
+        assertTrue(service.ragAsk("q", 1L).getAnswer().contains("123"));
     }
 
     @Test
     @DisplayName("ragAsk: RAG 返回残缺 JSON -> extractRagAnswer 解析异常 catch -> 回退原串")
     void ragAsk_malformedJson() {
         when(ragService.ask("q", 1L, 5)).thenReturn("{\"answer\":}");
-        assertTrue(service.ragAsk("q", 1L).contains("answer"));
+        assertTrue(service.ragAsk("q", 1L).getAnswer().contains("answer"));
     }
 
     @Test
     @DisplayName("ragAsk: RAG 抛异常 -> 回退纯 LLM")
     void ragAsk_exception() {
         when(ragService.ask("q", 1L, 5)).thenThrow(new RuntimeException("boom"));
-        assertEquals("ok", service.ragAsk("q", 1L));
+        assertEquals("ok", service.ragAsk("q", 1L).getAnswer());
         Completion fallback = singleCompletion();
         assertEquals(0.5, fallback.temperature());
         // 回退路径丢了提问原文就会变成「无题作答」，故问题与课程语境都要落在消息内容里
@@ -340,7 +372,7 @@ class AIServiceImplExtraTest {
     @DisplayName("ragAsk: RAG 返回 null -> 回退纯 LLM")
     void ragAsk_null() {
         when(ragService.ask("q", 1L, 5)).thenReturn(null);
-        assertEquals("ok", service.ragAsk("q", 1L));
+        assertEquals("ok", service.ragAsk("q", 1L).getAnswer());
         Completion fallback = singleCompletion();
         assertEquals(0.5, fallback.temperature());
         assertTrue(fallback.prompt().contains("q"), "回退 prompt 须保留提问原文，实际=" + fallback.flattened());
@@ -603,20 +635,26 @@ class AIServiceImplExtraTest {
     @DisplayName("callLlm: 供应商未配置 -> 返回提示（覆盖 multiple 调用点）")
     void callLlm_noProvider() {
         when(llmProvider.isConfigured()).thenReturn(false);
-        assertEquals(service.noProviderMessage(), service.recommendLearningJson("数学"));
-        assertEquals(service.noProviderMessage(), service.recommendLearningWithContext(Map.of("c", 1)));
-        assertEquals(service.noProviderMessage(), service.generateLearningAdviceJson("{}", "[]"));
+        // DR-74-B：未配置 Key 也必须以 503 失败（文案保留"请联系管理员配置"），
+        // 不能再把它当正常回答返回——否则管理端看到的是"AI 答了一句客套话"，不是"AI 没配"。
+        LLMUnavailableException ex = assertThrows(LLMUnavailableException.class,
+                () -> service.recommendLearningJson("数学"));
+        assertEquals(LLMUnavailableException.Kind.NOT_CONFIGURED, ex.kind());
+        assertEquals(ApiCode.SERVICE_UNAVAILABLE, ex.getCode());
+        assertThrows(LLMUnavailableException.class, () -> service.recommendLearningWithContext(Map.of("c", 1)));
+        assertThrows(LLMUnavailableException.class, () -> service.generateLearningAdviceJson("{}", "[]"));
         // 未配置供应商时三次调用点都应短路，一条计费请求都不许发出
         verify(llmProvider, never()).completeJson(any(), any(), any());
     }
 
     @Test
-    @DisplayName("callLlm: 返回 null -> 通用错误文案 + 失败埋点")
+    @DisplayName("callLlm: 返回 null -> 抛 503(EMPTY_RESPONSE) + 失败埋点")
     void callLlm_nullResult() {
-        // null 注入桩：any() 合理，此处断言降级文案与失败埋点
+        // null 注入桩：any() 合理，此处断言失败语义与失败埋点
         when(llmProvider.completeJson(any(), any(), any())).thenReturn(null);
-        String r = service.recommendLearningJson("数学");
-        assertTrue(r.contains("不可用") || r.contains("暂未配置"));
+        LLMUnavailableException ex = assertThrows(LLMUnavailableException.class,
+                () -> service.recommendLearningJson("数学"));
+        assertEquals(LLMUnavailableException.Kind.EMPTY_RESPONSE, ex.kind());
         assertEquals(1.0, meterRegistry.counter("aicourse_ai_calls_failed_total", "type", "recommend").count(),
                 "空响应应计入 recommend 分桶的失败埋点");
     }
@@ -641,15 +679,17 @@ class AIServiceImplExtraTest {
     @DisplayName("streamChat: 未配置 -> 直接返回提示 Flux")
     void streamChat_noProvider() {
         when(llmProvider.isConfigured()).thenReturn(false);
-        reactor.core.publisher.Flux<String> f = service.streamChat("q");
-        assertEquals(service.noProviderMessage(), f.blockFirst());
+        // DR-74-B：未配 Key 时不能再"播出一个假装是回答的首帧"——同步抛出，SSE 根本不开播
+        LLMUnavailableException ex = assertThrows(LLMUnavailableException.class,
+                () -> service.streamChat("q", null));
+        assertEquals(LLMUnavailableException.Kind.NOT_CONFIGURED, ex.kind());
         verify(llmProvider, never()).stream(any(), any());
     }
 
     @Test
     @DisplayName("streamChat: 已配置 -> 流式 + 护栏，问题以 user 角色、温度 0.7 下发")
     void streamChat_configured() {
-        reactor.core.publisher.Flux<String> f = service.streamChat("q");
+        reactor.core.publisher.Flux<String> f = service.streamChat("q", null).getTokens();
         assertEquals("a", f.blockFirst());
 
         @SuppressWarnings("unchecked")

@@ -1,7 +1,7 @@
 <template>
   <div class="exam-topbar">
     <div class="topbar-left">
-      <el-button text @click="emit('exit')">
+      <el-button text :disabled="submitting" @click="emit('exit')">
         <el-icon><ArrowLeft /></el-icon> 退出考试
       </el-button>
       <h2 class="exam-paper-title">{{ paper?.title || '试卷' }}</h2>
@@ -17,6 +17,7 @@
             answered: isQuestionAnswered(idx),
             current: currentIndex === idx,
           }"
+          :disabled="submitting"
           @click="emit('navigate', idx)"
         >
           {{ idx + 1 }}
@@ -28,7 +29,9 @@
         <el-icon><AlarmClock /></el-icon>
         <span class="countdown-text">{{ countdownDisplay }}</span>
       </div>
-      <el-button type="success" @click="emit('submit')">提交试卷</el-button>
+      <el-button type="success" :loading="submitting" @click="emit('submit')">
+        {{ submitting ? '正在交卷' : '提交试卷' }}
+      </el-button>
     </div>
   </div>
 </template>
@@ -46,6 +49,7 @@ defineProps({
   currentIndex: { type: Number, default: 0 },
   remainingMinutes: { type: Number, default: 0 },
   countdownDisplay: { type: String, default: '00:00' },
+  submitting: { type: Boolean, default: false },
   isQuestionAnswered: { type: Function, required: true },
 })
 

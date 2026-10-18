@@ -14,10 +14,20 @@
       </el-button>
     </PageHeader>
 
+    <!-- 加载失败提示：非空即表示下方读数与列表不可信（失败不得渲染成「暂无待办提醒」） -->
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      show-icon
+      style="margin-bottom: var(--ac-spacing-md)"
+    />
+
     <div class="stat-grid">
-      <StatCard label="总提醒" :value="totalCount" icon="list" tone="accent" />
-      <StatCard label="待处理" :value="pendingCount" icon="clock" tone="warn" />
-      <StatCard label="已完成" :value="completedCount" icon="check" tone="ok" />
+      <StatCard label="总提醒" :value="loadError ? '--' : totalCount" icon="list" tone="accent" />
+      <StatCard label="待处理" :value="loadError ? '--' : pendingCount" icon="clock" tone="warn" />
+      <StatCard label="已完成" :value="loadError ? '--' : completedCount" icon="check" tone="ok" />
     </div>
 
     <section class="l1-card">
@@ -85,9 +95,10 @@
               </template>
             </el-table-column>
             <template #empty>
-              <el-empty description="暂无待办提醒">
-                <template #image><div class="empty-deco">🔔</div></template>
-              </el-empty>
+              <EmptyState
+                :title="loadError ? '待办提醒未能加载，请查看上方提示后重试' : '暂无待办提醒'"
+                icon="bell"
+              />
             </template>
           </el-table>
         </div>
@@ -96,13 +107,14 @@
 
     <!-- 新建/编辑弹窗 -->
     <el-dialog
-      v-model="dialogVisible"
+      ref="dialogRef"
+    v-model="dialogVisible"
       :title="isEdit ? '编辑提醒' : '新建提醒'"
       width="520px"
       append-to-body
     >
-      <el-form label-width="80px">
-        <el-form-item label="标题">
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="80px" scroll-to-error>
+        <el-form-item label="标题" prop="title">
           <el-input v-model="form.title" placeholder="提醒标题" />
         </el-form-item>
         <el-form-item label="内容">
@@ -135,19 +147,36 @@ import { Plus, AlarmClock } from '@element-plus/icons-vue'
 import reminderApi from '@/api/reminder'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
+import { validateFormFields, type ElFormLike } from '@/composables/useFormSubmit'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 
 const loading = ref(false)
 const saving = ref(false)
 const todos = ref([])
+/**
+ * 加载失败提示文案：非空即表示提醒列表与三张统计卡读数不可信。
+ * 原实现失败仅 console.error 后静默 → 页面照常显示「暂无待办提醒」与全 0 统计（失败可见）。
+ */
+const loadError = ref('')
 const totalCount = computed(() => todos.value.length)
 const pendingCount = computed(() => todos.value.filter((t) => t.status === 'PENDING').length)
 const completedCount = computed(() => todos.value.filter((t) => t.status === 'COMPLETED').length)
 const dialogVisible = ref(false)
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, dialogVisible)
 const isEdit = ref(false)
 const form = ref({ title: '', content: '', remindAt: null, targetUserId: '' })
+const formRef = ref<ElFormLike | null>(null)
+// D2-4：必填规则声明（原为手写 if 校验），blur 内联错误 + 提交时首错滚动定位
+const rules = {
+  title: [{ required: true, message: '请输入提醒标题', trigger: 'blur' }],
+}
 
 async function loadTodos() {
   loading.value = true
+  loadError.value = ''
   try {
     const res = await reminderApi.getTodos()
     const data = res.data?.list || res.data?.records || res.data || []
@@ -155,6 +184,7 @@ async function loadTodos() {
   } catch (e) {
     console.error('加载提醒失败:', e)
     todos.value = []
+    loadError.value = '待办提醒加载失败，请检查网络后重试'
   } finally {
     loading.value = false
   }
@@ -172,6 +202,8 @@ function openEdit(row) {
 }
 
 async function handleSave() {
+  // validate 先行（真环境内联错误 + scroll-to-error）；桩/无表单环境由快检兜底
+  if (!(await validateFormFields(formRef, ['title']))) return
   if (!form.value.title?.trim()) {
     ElMessage.warning('请输入提醒标题')
     return
@@ -193,7 +225,7 @@ async function handleSave() {
     }
     dialogVisible.value = false
     await loadTodos()
-  } catch (e) {
+  } catch {
     ElMessage.error(isEdit.value ? '更新失败' : '创建失败')
   } finally {
     saving.value = false
@@ -214,7 +246,7 @@ async function handleSendDue() {
   try {
     await reminderApi.sendDue()
     ElMessage.success('到期提醒已触发')
-  } catch (e) {
+  } catch {
     ElMessage.error('触发失败')
   }
 }
@@ -248,11 +280,5 @@ onMounted(loadTodos)
   border-radius: var(--ac-radius-md);
   border: 1px solid var(--ac-border);
   padding: 16px;
-}
-
-/* 空状态装饰 */
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 </style>

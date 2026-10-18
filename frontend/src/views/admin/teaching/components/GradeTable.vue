@@ -27,7 +27,7 @@
           </template>
         </el-table-column>
         <template #empty>
-          <el-empty description="暂无成绩数据，请调整筛选条件" :image-size="80" />
+          <EmptyState title="暂无成绩数据，请调整筛选条件" icon="chart" />
         </template>
       </el-table>
 
@@ -49,6 +49,8 @@
 </template>
 
 <script setup lang="ts">
+import EmptyState from '@/components/ui/EmptyState.vue'
+
 /**
  * 成绩管理列表（表格 + 分页）
  * <p>展示学生成绩明细（含分数段徽章、异常标记），分页变化经 search 事件上抛重新取数，

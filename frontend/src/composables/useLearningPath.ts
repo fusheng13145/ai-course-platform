@@ -16,6 +16,11 @@ export function useLearningPath() {
   const currentPath = ref(null)
   const generating = ref(false)
   const loading = ref(false)
+  /**
+   * 加载失败提示文案：非空即表示学习路径数据不可信。
+   * 失败时列表被置空并显示"暂无学习路径"，学生易误判为"我确实没有学习路径"。
+   */
+  const loadError = ref('')
 
   /* ---- 计算属性 ---- */
   const completedNodeCount = computed(() => {
@@ -32,6 +37,7 @@ export function useLearningPath() {
   /* ---- 加载学习路径列表 ---- */
   async function loadPaths() {
     loading.value = true
+    loadError.value = ''
     try {
       const res = await learningPathApi.getMyPaths()
       const list = res.data || res || []
@@ -50,7 +56,9 @@ export function useLearningPath() {
         selectPath(paths.value[0].id)
       }
     } catch (e) {
-      logger.error('加载学习路径失败:', e)
+      logger.error('加载学习路径失败', e)
+      paths.value = []
+      loadError.value = '学习路径加载失败，请检查网络后重试'
     } finally {
       loading.value = false
     }
@@ -97,7 +105,7 @@ export function useLearningPath() {
             knowledgePointName: t.knowledgePointName || '',
           }))
         : []
-    } catch (e) {
+    } catch {
       // API 可能不存在，忽略错误
       dailyTasks.value = []
     }
@@ -183,6 +191,7 @@ export function useLearningPath() {
     currentPath,
     generating,
     loading,
+    loadError,
     completedNodeCount,
     overallProgress,
     overallProgressText,

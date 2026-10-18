@@ -1,8 +1,9 @@
 import { ref, reactive, computed, watch, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import knowledgeApi from '@/api/knowledge'
 import { isPageEnvelope, pickList, unwrap } from '@/utils/response'
 import { getChartTheme, getMonoSeries, getMonoStatus } from '@/utils/chartTheme'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /**
  * 课程知识点 Tab 数据逻辑（拆分自 components/CourseKnowledgeTab.vue，2026-08-29）
@@ -12,6 +13,13 @@ export function useKnowledgeTab(courseIdRef) {
   const searchText = ref('')
   const treeLoading = ref(false)
   const tableLoading = ref(false)
+  /**
+   * 加载失败提示文案：非空即表示知识点树/列表数据不可信。
+   * 原实现失败后静默置空 → 树与表格只剩「暂无知识点」，教师会误判该课程没有知识点（失败可见）。
+   * 树与列表在同一轮 loadAll 内并发加载，故**只在 loadAll 开头复位一次**、两个 loader 均可置位，
+   * 彼此不会复位对方的失败信号。
+   */
+  const loadError = ref('')
   const treeData = ref([])
   const list = ref([])
 
@@ -120,6 +128,7 @@ export function useKnowledgeTab(courseIdRef) {
 
   async function loadAll() {
     if (!courseIdRef.value) return
+    loadError.value = ''
     await Promise.all([loadTree(), loadList(), loadGraph()])
   }
 
@@ -129,7 +138,7 @@ export function useKnowledgeTab(courseIdRef) {
       let res
       try {
         res = await knowledgeApi.getTree(Number(courseIdRef.value))
-      } catch (e) {
+      } catch {
         res = await knowledgeApi.getKnowledgePoints(Number(courseIdRef.value))
       }
       const payload = res?.data?.data ?? res?.data ?? res
@@ -146,14 +155,15 @@ export function useKnowledgeTab(courseIdRef) {
       } else {
         treeData.value = []
       }
-    } catch (e) {
+    } catch {
       try {
         const r = await knowledgeApi.getKnowledgePoints(Number(courseIdRef.value))
         // 同 P1-10：`list || data || res` 的 `||` 会把 records 形状彻底吞掉
         list.value = pickList(unwrap(r))
         treeData.value = buildTree(list.value)
-      } catch (e2) {
+      } catch {
         treeData.value = []
+        loadError.value = '知识点树加载失败，请检查网络后重试'
       }
     } finally {
       treeLoading.value = false
@@ -164,12 +174,15 @@ export function useKnowledgeTab(courseIdRef) {
     tableLoading.value = true
     try {
       const res = await knowledgeApi.getKnowledgePoints(Number(courseIdRef.value))
-      list.value = pickList(unwrap(res)).map((k) => ({
+      list.value = pickList<{ importance?: number; weight?: number; [key: string]: unknown }>(
+        unwrap(res),
+      ).map((k) => ({
         ...k,
         importance: k.importance ?? k.weight ?? 1,
       }))
-    } catch (e) {
+    } catch {
       list.value = []
+      loadError.value = '知识点列表加载失败，请检查网络后重试'
     } finally {
       tableLoading.value = false
     }
@@ -180,7 +193,7 @@ export function useKnowledgeTab(courseIdRef) {
       const res = await knowledgeApi.getRelationGraphData(Number(courseIdRef.value))
       const d = res.data || res || {}
       updateForce(d.nodes || [], d.links || d.edges || [])
-    } catch (e) {
+    } catch {
       updateForce(
         list.value.map((k) => ({
           id: k.id,
@@ -205,8 +218,6 @@ export function useKnowledgeTab(courseIdRef) {
       children: n.children?.length ? buildTreeSelect(n.children) : undefined,
     }))
   }
-
-  function handleNodeClick() {}
 
   function openCreateDialog() {
     isEdit.value = false
@@ -255,7 +266,14 @@ export function useKnowledgeTab(courseIdRef) {
 
   async function handleDelete(row) {
     try {
-      await ElMessageBox.confirm(`确定删除「${row.name}」？`, '提示', { type: 'warning' })
+      // D2-2：明确连带影响（子节点一并删除）与恢复路径
+      const ok = await confirmDanger({
+        verb: '删除',
+        target: '知识点',
+        subject: row.name,
+        impact: '其子节点也将被一并删除',
+      })
+      if (!ok) return
       await knowledgeApi.deleteKnowledgePoint(row.id)
       ElMessage.success('已删除')
       await loadAll()
@@ -297,7 +315,7 @@ export function useKnowledgeTab(courseIdRef) {
       }
       await loadAll()
       aiVisible.value = false
-    } catch (e) {
+    } catch {
       // fallback
       const sentences = aiText.value
         .split(/[。！？\n]+/)
@@ -396,6 +414,7 @@ export function useKnowledgeTab(courseIdRef) {
 
   return {
     searchText,
+    loadError,
     treeLoading,
     tableLoading,
     treeData,
@@ -414,7 +433,6 @@ export function useKnowledgeTab(courseIdRef) {
     forceOption,
     treeOption,
     loadAll,
-    handleNodeClick,
     openCreateDialog,
     openEditDialog,
     savePoint,

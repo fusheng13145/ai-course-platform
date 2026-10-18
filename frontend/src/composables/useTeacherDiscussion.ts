@@ -1,33 +1,47 @@
 import logger from '@/utils/logger'
-import { unwrap } from '@/utils/response'
+import { firstNonEmptyArray, pickList, unwrap } from '@/utils/response'
 import { ref, watch } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
-import discussionApi from '@/api/discussion'
+import { ElMessage } from 'element-plus'
+import discussionApi, {
+  normalizeDiscussionPost,
+  normalizeDiscussionTopic,
+  type DiscussionLikeResult,
+} from '@/api/discussion'
+import { confirmDanger } from '@/utils/dangerConfirm'
 
 /**
  * 教师课程讨论页数据逻辑（拆分自 teacher/tools/Discussion.vue，2026-08-29）
  * @param {import('vue').Ref} courseIdRef 课程 ID
  */
-export function useTeacherDiscussion(courseIdRef) {
+export function useTeacherDiscussion<T extends number | string | null | undefined>(
+  courseIdRef: import('vue').Ref<T>,
+) {
   const loading = ref(false)
 
   /* ---------- 话题列表 ---------- */
   const topicLoading = ref(false)
-  const topics = ref([])
+  const topics = ref<DiscussionTopic[]>([])
   const keyword = ref('')
+  /**
+   * 加载失败提示文案：非空即表示话题列表数据不可信。
+   * 接口层只记日志不弹窗，失败后列表被置空 → 页面会显示「暂无话题」，
+   * 教师会据此误判班级零讨论，故必须补一条持久提示（失败可见）。
+   */
+  const loadError = ref('')
 
   async function loadTopics() {
     if (!courseIdRef.value) return
     topicLoading.value = true
+    loadError.value = ''
     try {
       const r = await discussionApi.getTopics(courseIdRef.value, {
         keyword: keyword.value || undefined,
       })
-      const body = unwrap(r)
-      const list = body?.records || body?.list || body || []
-      topics.value = Array.isArray(list) ? list : []
+      topics.value = pickList<DiscussionTopic>(unwrap(r)).map(normalizeDiscussionTopic)
     } catch (e) {
       logger.error('加载话题列表失败', e)
+      topics.value = []
+      loadError.value = '话题列表加载失败，请检查网络后重试'
     } finally {
       topicLoading.value = false
     }
@@ -67,29 +81,32 @@ export function useTeacherDiscussion(courseIdRef) {
 
   /* ---------- 话题详情 ---------- */
   const detailDialog = ref(false)
-  const currentTopic = ref(null)
+  const currentTopic = ref<DiscussionTopic | null>(null)
   const postLoading = ref(false)
-  const posts = ref([])
+  const posts = ref<DiscussionPost[]>([])
   const replyText = ref('')
   const replySubmitting = ref(false)
 
-  async function openDetail(t) {
+  async function openDetail(t: DiscussionTopic) {
     currentTopic.value = t
     detailDialog.value = true
     await loadPosts(t.id)
   }
 
-  async function loadPosts(id) {
+  async function loadPosts(id: number | string) {
     postLoading.value = true
     try {
       const r = await discussionApi.getTopicDetail(id)
-      const body = unwrap(r)
       // 兼容 Map 结构：topic 字段 + posts 列表
-      const map = unwrap(body) || {}
+      const map = unwrap<DiscussionTopicDetail>(r) || {}
       if (!currentTopic.value?.content && map.topic)
-        currentTopic.value = { ...currentTopic.value, ...map.topic }
-      const list = map.posts || map?.records || map?.list || []
-      posts.value = Array.isArray(list) ? list : []
+        currentTopic.value = normalizeDiscussionTopic({
+          ...(currentTopic.value || {}),
+          ...map.topic,
+        })
+      posts.value = firstNonEmptyArray<DiscussionPost>(map.posts, map.records, map.list).map(
+        normalizeDiscussionPost,
+      )
     } catch (e) {
       logger.error('加载话题详情失败', e)
     } finally {
@@ -100,12 +117,13 @@ export function useTeacherDiscussion(courseIdRef) {
   async function submitReply() {
     if (!replyText.value.trim()) return ElMessage.warning('请输入回复内容')
     if (!currentTopic.value) return
+    const topicId = currentTopic.value.id
     replySubmitting.value = true
     try {
-      await discussionApi.replyTopic(currentTopic.value.id, { content: replyText.value.trim() })
+      await discussionApi.replyTopic(topicId, { content: replyText.value.trim() })
       ElMessage.success('回复成功')
       replyText.value = ''
-      await loadPosts(currentTopic.value.id)
+      await loadPosts(topicId)
       loadTopics()
     } catch (e) {
       logger.error('回复失败', e)
@@ -114,22 +132,29 @@ export function useTeacherDiscussion(courseIdRef) {
     }
   }
 
-  async function likePost(p) {
+  async function likePost(p: DiscussionPost) {
     try {
-      await discussionApi.likePost(p.id)
-      ElMessage.success('已点赞')
-      p.likeCount = (p.likeCount || 0) + 1
+      const result = unwrap<DiscussionLikeResult>(await discussionApi.likePost(p.id))
+      if (!result) return
+      p.likeCount = result.likeCount
+      p.likes = result.likeCount
+      p.liked = result.liked
+      ElMessage.success(result.liked ? '已点赞' : '已取消点赞')
     } catch (e) {
       logger.error('点赞失败', e)
     }
   }
 
-  async function removePost(p) {
+  async function removePost(p: DiscussionPost) {
+    if (!currentTopic.value) return
+    const topicId = currentTopic.value.id
     try {
-      await ElMessageBox.confirm('确认删除该回复？', '提示', { type: 'warning' })
+      // D2-2：删除回复不可逆，明确不可逆性与恢复路径
+      const ok = await confirmDanger({ verb: '删除', target: '回复' })
+      if (!ok) return
       await discussionApi.deletePost(p.id)
       ElMessage.success('已删除')
-      await loadPosts(currentTopic.value.id)
+      await loadPosts(topicId)
       loadTopics()
     } catch (e) {
       if (e !== 'cancel' && e?.type !== 'cancel') logger.error('删除回复失败', e)
@@ -151,9 +176,16 @@ export function useTeacherDiscussion(courseIdRef) {
   async function closeTopic() {
     if (!currentTopic.value) return
     try {
-      await ElMessageBox.confirm('确认关闭该话题？关闭后学生将无法继续回复。', '提示', {
-        type: 'warning',
+      // D2-2：明确后果（学生无法继续回复）与可逆性（可重新打开）
+      const ok = await confirmDanger({
+        verb: '关闭',
+        target: '话题',
+        impact: '学生将无法继续回复，已有回复仍可查看',
+        irreversible: false,
+        note: '之后可重新打开话题',
+        confirmText: '确定关闭',
       })
+      if (!ok) return
       await discussionApi.closeTopic(currentTopic.value.id)
       ElMessage.success('话题已关闭')
       currentTopic.value.status = 'CLOSED'
@@ -167,12 +199,14 @@ export function useTeacherDiscussion(courseIdRef) {
     () => courseIdRef.value,
     () => {
       topics.value = []
+      loadError.value = ''
       if (courseIdRef.value) loadTopics()
     },
   )
 
   return {
     loading,
+    loadError,
     topicLoading,
     topics,
     keyword,

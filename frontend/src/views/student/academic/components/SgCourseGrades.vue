@@ -41,13 +41,11 @@
         </div>
       </div>
 
-      <el-empty
+      <EmptyState
         v-if="!loading && Object.keys(groupedByCourse).length === 0"
-        description="暂无成绩记录"
-        :image-size="100"
-      >
-        <template #image><div class="empty-deco">📉</div></template>
-      </el-empty>
+        :title="emptyText"
+        icon="chart"
+      />
 
       <!-- 完整表格（折叠） -->
       <div v-if="list.length > 0" class="table-section">
@@ -92,6 +90,7 @@
 <script setup lang="ts">
 import { formatTime } from '@/utils/datetime'
 import { ArrowDown } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { useStudentGrades } from '@/composables/useStudentGrades'
 
 defineProps({
@@ -99,6 +98,8 @@ defineProps({
   groupedByCourse: { type: Object, default: () => ({}) },
   list: { type: Array, default: () => [] },
   showTable: { type: Boolean, default: false },
+  // D2-1：双态空文案由父页（Grades.vue）按 loadError 切换，失败时不得谎称「暂无成绩记录」
+  emptyText: { type: String, default: '暂无成绩记录' },
 })
 defineEmits(['update:showTable'])
 
@@ -260,11 +261,6 @@ const { getGradeLevelTag, getGradeLevelType, getGradeLevelLabel, getGradeClass }
 .level-fail {
   background: var(--accent-soft);
   color: var(--accent-strong);
-}
-
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 
 .expand-fade-enter-active {

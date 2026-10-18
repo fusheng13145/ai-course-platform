@@ -84,9 +84,7 @@
         </el-table-column>
       </el-table>
       <div v-if="!loading && !examList.length" class="empty-wrap">
-        <el-empty description="暂无试卷，点击右上角「新建试卷」开始创建">
-          <template #image><div class="empty-deco">📝</div></template>
-        </el-empty>
+        <EmptyState title="暂无试卷，点击右上角「新建试卷」开始创建" icon="checks" />
       </div>
       <div v-if="total > pageSize" class="pagination-wrap">
         <el-pagination
@@ -107,6 +105,7 @@
 
 <script setup lang="ts">
 import { Search } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 defineProps({
   loading: { type: Boolean, default: false },
@@ -172,10 +171,6 @@ function getStatusText(s) {
 }
 .empty-wrap {
   padding: 30px 0;
-}
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 .pagination-wrap {
   display: flex;

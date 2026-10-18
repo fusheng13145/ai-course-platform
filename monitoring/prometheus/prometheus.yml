@@ -3,11 +3,20 @@
 #
 # 鉴权说明：
 # 生产环境 APP_ACTUATOR_SECURED=true 时，/api/actuator/prometheus 要求 HTTP Basic 鉴权
-# （具备 ACTUATOR 角色）。以下 basic_auth 凭据通过 Prometheus 进程环境变量注入
-# （ACTUATOR_BASIC_USER / ACTUATOR_BASIC_PASSWORD，由 docker-compose 从 .env 透传），
-# 与后端 APP_ACTUATOR_BASIC_USER/PASSWORD 必须完全一致。
-# 若未配置口令，抓取将因 401 失败（fail-closed），便于第一时间发现配置缺失。
-# Prometheus 原生支持配置文件内的 ${VAR} 环境变量插值（v2.24+）。
+# （凭据来自后端 APP_ACTUATOR_BASIC_USER/PASSWORD）。若口令不匹配，抓取以 401 失败
+# （fail-closed，便于第一时间发现配置缺失，而不是静默无指标）。
+#
+# ⚠️ **Prometheus 不会对配置文件做环境变量插值**（2026-10-07 真机 A/B 实测，v2.53.0）：
+#   同一容器、同一网络、同一目标，`basic_auth.password: "${ACTUATOR_BASIC_PASSWORD}"`
+#   的抓取结果为 401（整串按字面量发出），把同一口令写成字面值则 target `up`。
+#   本文件此前声称"原生支持 ${VAR} 插值（v2.24+）"是错的——照它接线会让**应用侧指标全缺**
+#   而监控面板/告警规则仍显示组件健康（只有 backend 这一个 job 静默失效）。
+#   同目录 alertmanager.yml 头部记过同一条规则（Alertmanager 亦然），当时没推广到 Prometheus。
+# 因此口令改用 Prometheus 真实支持的 `password_file`，文件由 docker-compose 的顶层 `secrets:`
+#   挂载到 `/run/secrets/actuator_basic_password`（与 backend 的 DR-24 落点同一套机制，
+#   配置文件里不落明文；准备方式与两个坑——末尾换行、Linux 下 nobody 可读——见 compose 尾部注释）；
+#   用户名非机密，在此字面写死。**若改 .env 的 APP_ACTUATOR_BASIC_USER，必须同步改下面
+#   username 这一行**，否则抓取以 401 fail-closed（可见失败，不会静默采到脏数据）。
 
 global:
   scrape_interval: 15s
@@ -29,8 +38,8 @@ scrape_configs:
     metrics_path: "/api/actuator/prometheus"
     scheme: http
     basic_auth:
-      username: "${ACTUATOR_BASIC_USER:-monitor}"
-      password: "${ACTUATOR_BASIC_PASSWORD:-}"
+      username: "monitor"
+      password_file: "/run/secrets/actuator_basic_password"
     static_configs:
       - targets: ["backend:8080"]
 

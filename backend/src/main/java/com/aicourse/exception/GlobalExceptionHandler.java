@@ -11,6 +11,7 @@ import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.multipart.MaxUploadSizeExceededException;
+import org.springframework.web.multipart.MultipartException;
 import org.springframework.web.multipart.support.MissingServletRequestPartException;
 import org.springframework.web.method.annotation.HandlerMethodValidationException;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
@@ -211,6 +212,28 @@ public class GlobalExceptionHandler {
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
                 .body(ApiResponse.error(ApiCode.BAD_REQUEST, "缺少必需上传文件: " + e.getRequestPartName()));
+    }
+
+    /**
+     * 请求整体不是 multipart（如给分片端点发普通 POST）——Spring 在解析
+     * {@code @RequestParam MultipartFile} 前抛 {@link MultipartException}。
+     *
+     * <p>D1-2 批次 2 端到端实测：分片端点由「恒 501」改为真实实现后，这类请求
+     * 落入 {@link Exception} 兜底记为「系统未知异常」并返回 500，把「客户端请求体裁
+     * 写错」表现成「服务端故障」。按语义返回 400。</p>
+     *
+     * <p>{@link org.springframework.web.multipart.MaxUploadSizeExceededException} 是 {@code MultipartException}
+     * 的子类（对 spring-web 6.1.13 的 jar 用 {@code javap} 取证），Spring 选取最具体的 handler，
+     * 故超大文件仍走上方 413 的专用分支。{@link MissingServletRequestPartException} 则<b>不是</b>
+     * 其子类——它继承 {@code jakarta.servlet.ServletException}，两条分支互不遮蔽。</p>
+     */
+    @ExceptionHandler(MultipartException.class)
+    public ResponseEntity<ApiResponse<Void>> handleNotMultipart(MultipartException e) {
+        log.warn("请求不是 multipart 或未携带文件分片：{}", e.getMessage());
+        return ResponseEntity
+                .status(HttpStatus.BAD_REQUEST)
+                .body(ApiResponse.error(ApiCode.BAD_REQUEST,
+                        "分片上传须为 multipart/form-data 且携带 file 字段"));
     }
 
     /**

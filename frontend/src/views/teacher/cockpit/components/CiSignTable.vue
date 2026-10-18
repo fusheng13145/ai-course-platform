@@ -4,7 +4,7 @@
       <span class="muted">课程签到记录 {{ data.length }} 条</span>
       <el-button type="primary" :icon="Plus" @click="$emit('open-sign')">发起签到</el-button>
     </div>
-    <el-table :data="data" size="small" border empty-text="暂无签到">
+    <el-table :data="data" size="small" border :empty-text="emptyText">
       <el-table-column prop="title" label="标题" min-width="160" />
       <el-table-column label="状态" width="96" align="center">
         <template #default="{ row }"
@@ -51,6 +51,8 @@ import { Plus, Promotion, SwitchButton, Document } from '@element-plus/icons-vue
 
 defineProps({
   data: { type: Array, default: () => [] },
+  /** 空态文案（失败时由页面传入「未能加载」文案，默认保留原语义） */
+  emptyText: { type: String, default: '暂无签到' },
 })
 defineEmits(['open-sign', 'publish', 'close', 'open-records'])
 

@@ -11,7 +11,21 @@ vi.mock('vue-router', () => ({ useRoute: () => ({ params: {}, query: {} }) }))
  * 用显式断言而非 any（项目 lint 口径为 0 error / 0 warning，any 会触发
  * @typescript-eslint/no-explicit-any 告警）。
  */
-type AssistantInternal = { messages: Array<{ role: string; content: string; time?: string }> }
+type AssistantInternal = {
+  loading: boolean
+  messages: Array<{
+    role: string
+    content: string
+    time?: string
+    loading?: boolean
+    sources?: Array<{
+      documentId?: number
+      documentName?: string
+      relevanceScore?: number
+      snippet?: string
+    }>
+  }>
+}
 const assistantVm = (wrapper: { vm: unknown }) => wrapper.vm as unknown as AssistantInternal
 
 // Mock DOMPurify (markdown rendering)
@@ -38,10 +52,10 @@ vi.mock('@/api/ai', () => ({
 }))
 
 // Mock Course API
-const mockGetCourseList = vi.fn()
+const mockGetAllCourses = vi.fn()
 vi.mock('@/api/course', () => ({
   default: {
-    getCourseList: mockGetCourseList,
+    getAllCourses: mockGetAllCourses,
   },
 }))
 
@@ -82,7 +96,7 @@ describe('AIAssistant 页面渲染', () => {
   beforeEach(async () => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
-    mockGetCourseList.mockResolvedValue({ data: { list: [] } })
+    mockGetAllCourses.mockResolvedValue([])
     mockGetSessions.mockResolvedValue({ data: [] })
 
     const mod = await import('../AIAssistant.vue')
@@ -318,7 +332,7 @@ describe('AIAssistant 页面渲染', () => {
       expect(sidebar.classes()).not.toContain('collapsed')
     })
 
-    it('对话列表为空时显示 el-empty', () => {
+    it('对话列表为空时侧栏展示空态（D2-3 后由 EmptyState 承载）', () => {
       wrapper.vm.conversations = []
       expect(wrapper.vm.conversations).toHaveLength(0)
     })
@@ -390,6 +404,96 @@ describe('AIAssistant 页面渲染', () => {
 
       expect(wrapper.find('.ai-bubble').exists()).toBe(true)
       expect(wrapper.find('.ai-bubble .message-text').text()).toContain('AI 回复')
+    })
+
+    it('AI 气泡内渲染 RAG 检索出处（文档名 / 相关度 / 片段）', async () => {
+      const wrapper = mount(AIAssistant, {
+        global: {
+          stubs: {
+            'el-icon': true,
+            'el-button': { template: '<button><slot /></button>' },
+            'el-input': true,
+            'el-select': true,
+            'el-option': true,
+            'el-empty': true,
+          },
+        },
+      })
+      assistantVm(wrapper).messages = [
+        {
+          role: 'assistant',
+          content: '三次握手通过同步初始序号建立可靠连接',
+          time: '12:01',
+          sources: [
+            {
+              documentId: 9,
+              documentName: '第6章 传输层',
+              relevanceScore: 0.9937,
+              snippet: 'SYN=1, seq=x',
+            },
+          ],
+        },
+      ]
+      await nextTick()
+
+      const sources = wrapper.find('.message-sources')
+      expect(sources.exists()).toBe(true)
+      expect(sources.text()).toContain('课程资料出处')
+      expect(sources.find('.source-name').text()).toBe('第6章 传输层')
+      expect(sources.find('.source-score').text()).toContain('99%')
+      expect(sources.find('.source-snippet').text()).toBe('SYN=1, seq=x')
+    })
+
+    it('无出处（降级为纯 LLM 直答）时不渲染溯源区块', async () => {
+      const wrapper = mount(AIAssistant, {
+        global: {
+          stubs: {
+            'el-icon': true,
+            'el-button': { template: '<button><slot /></button>' },
+            'el-input': true,
+            'el-select': true,
+            'el-option': true,
+            'el-empty': true,
+          },
+        },
+      })
+      assistantVm(wrapper).messages = [
+        { role: 'assistant', content: 'AI 回复', time: '12:01', sources: [] },
+      ]
+      await nextTick()
+
+      expect(wrapper.find('.message-sources').exists()).toBe(false)
+    })
+
+    it('回答进行中只有一个气泡：占位气泡内显示输入动画，不另起 loading 气泡', async () => {
+      const wrapper = mount(AIAssistant, {
+        global: {
+          stubs: {
+            'el-icon': true,
+            'el-button': { template: '<button><slot /></button>' },
+            'el-input': true,
+            'el-select': true,
+            'el-option': true,
+            'el-empty': true,
+          },
+        },
+      })
+      const vm = assistantVm(wrapper)
+      vm.messages = [{ role: 'assistant', content: '', time: '12:01', loading: true }]
+      vm.loading = true
+      await nextTick()
+
+      // 打字机期间曾同时出现「已回答气泡」和独立的 loading 气泡，故按数量卡死
+      expect(wrapper.findAll('.message-row.assistant')).toHaveLength(1)
+      expect(wrapper.find('.ai-bubble .typing-indicator').exists()).toBe(true)
+      expect(wrapper.find('.ai-bubble .message-actions').exists()).toBe(false)
+
+      vm.messages = [{ role: 'assistant', content: '完整回答', time: '12:01', loading: false }]
+      vm.loading = false
+      await nextTick()
+
+      expect(wrapper.find('.typing-indicator').exists()).toBe(false)
+      expect(wrapper.find('.ai-bubble .message-actions').exists()).toBe(true)
     })
 
     it('有消息时不显示 welcome-area', async () => {

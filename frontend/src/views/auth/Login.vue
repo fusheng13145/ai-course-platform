@@ -58,47 +58,55 @@
           label-width="0"
           size="large"
           class="form-wrap"
+          scroll-to-error
         >
-          <div class="field">
-            <label>用户名</label>
-            <el-input
-              ref="usernameRef"
-              v-model="form.username"
-              placeholder="用户名 / 邮箱"
-              autocomplete="off"
-              name="login-username"
-              readonly
-              class="auth-input"
-              @focus="onInputFocus"
-            />
-          </div>
-          <div class="field">
-            <label>密码</label>
-            <el-input
-              ref="passwordRef"
-              v-model="form.password"
-              type="password"
-              placeholder="密码"
-              autocomplete="off"
-              name="login-password"
-              readonly
-              class="auth-input"
-              @focus="onInputFocus"
-              @keyup.enter="handleLogin"
-            />
-          </div>
+          <el-form-item prop="username">
+            <div class="field">
+              <label>用户名</label>
+              <el-input
+                ref="usernameRef"
+                v-model="form.username"
+                placeholder="用户名 / 邮箱"
+                autocomplete="off"
+                name="login-username"
+                readonly
+                class="auth-input"
+                v-bind="inputA11y('用户名', true)"
+                @focus="onInputFocus"
+              />
+            </div>
+          </el-form-item>
+          <el-form-item prop="password">
+            <div class="field">
+              <label>密码</label>
+              <el-input
+                ref="passwordRef"
+                v-model="form.password"
+                type="password"
+                placeholder="密码"
+                autocomplete="off"
+                name="login-password"
+                readonly
+                class="auth-input"
+                v-bind="inputA11y('密码', true)"
+                @focus="onInputFocus"
+                @keyup.enter="handleLogin"
+              />
+            </div>
+          </el-form-item>
           <div class="flex between mb-12">
             <el-checkbox v-model="form.remember">记住我</el-checkbox>
             <router-link to="/forgot-password" class="forgot">忘记密码？</router-link>
           </div>
           <button
             class="btn btn-primary btn-lg btn-block"
-            :disabled="auth.isLoading"
+            :disabled="auth.isLoading || loginSubmitting"
+            v-bind="buttonA11y('登录', auth.isLoading || loginSubmitting)"
             type="button"
             @click="handleLogin"
           >
-            <span v-if="auth.isLoading" class="btn-loader-dot"></span>
-            {{ auth.isLoading ? '登录中...' : '登 录' }}
+            <span v-if="auth.isLoading || loginSubmitting" class="btn-loader-dot"></span>
+            {{ auth.isLoading || loginSubmitting ? '登录中...' : '登 录' }}
           </button>
         </el-form>
 
@@ -118,14 +126,35 @@ import { useAuthStore } from '@/stores/auth'
 import { resolvePostAuthRedirect } from '@/utils/redirect'
 import { ElMessage } from 'element-plus'
 import ThemeSwitcher from '@/components/ThemeSwitcher.vue'
+import { inputA11y, buttonA11y } from '@/composables/useA11y'
+import { useFormSubmit, type ElFormLike } from '@/composables/useFormSubmit'
 
 const router = useRouter()
 const route = useRoute()
 const auth = useAuthStore()
-const formRef = ref(null)
+const formRef = ref<ElFormLike | null>(null)
 const usernameRef = ref(null)
 const passwordRef = ref(null)
 const showError = ref(false)
+
+// D2-4：表单提交守卫——校验（含首错滚动定位）+ 提交防重复（回车连按/双击）
+const { submitting: loginSubmitting, run: runLogin } = useFormSubmit(formRef, async () => {
+  try {
+    await auth.login({
+      username: form.username,
+      password: form.password,
+      rememberMe: form.remember,
+    })
+    ElMessage.success('登录成功')
+    // 缺陷修复（P0-6）：redirect 参数来自 URL、攻击者可控，必须校验为站内路径，
+    // 否则 `?redirect=//evil.example` 会在登录成功瞬间把用户送出站点（开放重定向）。
+    router.push(resolvePostAuthRedirect(route.query.redirect, auth.getDefaultRoute()))
+  } catch (e) {
+    showError.value = true
+    if (e?.response?.data?.message) ElMessage.error(e.response.data.message)
+    else ElMessage.error('登录失败，请检查用户名和密码')
+  }
+})
 
 const features = ['AI 智能辅导', '学习数据分析', '知识图谱构建']
 
@@ -151,26 +180,14 @@ function onInputFocus() {
 }
 
 async function handleLogin() {
+  // 快检（与 rules 同口径）：表单未挂载/测试桩环境下保持确定性；真实环境由
+  // 下方 runLogin 的 validate 承担内联错误 + 首错滚动定位（D2-4）
   if (!form.username || !form.password) {
     ElMessage.warning('请填写用户名和密码')
     showError.value = true
     return
   }
-  try {
-    await auth.login({
-      username: form.username,
-      password: form.password,
-      rememberMe: form.remember,
-    })
-    ElMessage.success('登录成功')
-    // 缺陷修复（P0-6）：redirect 参数来自 URL、攻击者可控，必须校验为站内路径，
-    // 否则 `?redirect=//evil.example` 会在登录成功瞬间把用户送出站点（开放重定向）。
-    router.push(resolvePostAuthRedirect(route.query.redirect, auth.getDefaultRoute()))
-  } catch (e) {
-    showError.value = true
-    if (e?.response?.data?.message) ElMessage.error(e.response.data.message)
-    else ElMessage.error('登录失败，请检查用户名和密码')
-  }
+  await runLogin()
 }
 
 onMounted(() => {
@@ -311,6 +328,15 @@ onMounted(() => {
   flex-direction: column;
   gap: 6px;
   flex: 1;
+}
+/* D2-4：el-form-item 包裹后收平默认间距（间距由 .form-wrap gap 承担），
+   并让内容区回归块级，避免默认 flex 行布局影响 .field 纵向结构 */
+.form-wrap :deep(.el-form-item) {
+  margin-bottom: 0;
+}
+.form-wrap :deep(.el-form-item__content) {
+  display: block;
+  line-height: inherit;
 }
 .form-foot {
   text-align: center;

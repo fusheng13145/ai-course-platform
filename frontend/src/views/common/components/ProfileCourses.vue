@@ -23,10 +23,11 @@
         </div>
         <div class="course-pct">{{ c.progress }}%</div>
       </div>
-      <el-empty
+      <EmptyState
         v-if="!loading && courses.length === 0"
-        description="还没有在学课程"
-        :image-size="72"
+        title="还没有在学课程"
+        icon="book"
+        size="compact"
       />
     </div>
   </ProfileCard>
@@ -35,6 +36,7 @@
 <script setup lang="ts">
 import { Reading, ArrowRight } from '@element-plus/icons-vue'
 import ProfileCard from './ProfileCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 个人中心「我的课程」区块

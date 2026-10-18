@@ -104,18 +104,35 @@
           </div>
         </div>
 
-        <el-empty v-if="!loading && exams.length === 0" description="暂无考试" :image-size="120">
-          <template #image><div class="empty-deco">📝</div></template>
-        </el-empty>
+        <EmptyState v-if="!loading && exams.length === 0" :title="emptyText" icon="list" />
       </div>
     </section>
   </div>
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { Search, Collection, Document, Timer, List } from '@element-plus/icons-vue'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
+
+/** 考试卡片行（duration/timeLimit 等字段名存在历史分叉，故均可选） */
+interface ExamCardRow {
+  id?: number | string
+  type?: string
+  title?: string
+  courseName?: string
+  totalScore?: number
+  duration?: number
+  timeLimit?: number
+  questionCount?: number
+  description?: string
+  startTime?: string
+  endTime?: string
+  completed?: boolean
+  status?: string
+}
 
 /**
  * 学生考试列表视图
@@ -123,7 +140,7 @@ import StatCard from '@/components/ui/StatCard.vue'
  * 全部状态经 props 注入，交互经事件上抛父组件（useStudentExams）。</p>
  */
 defineProps({
-  exams: { type: Array, default: () => [] },
+  exams: { type: Array as PropType<ExamCardRow[]>, default: () => [] },
   loading: { type: Boolean, default: false },
   keyword: { type: String, default: '' },
   statusFilter: { type: String, default: '' },
@@ -133,6 +150,11 @@ defineProps({
   getExamStatusType: { type: Function, required: true },
   getExamStatusLabel: { type: Function, required: true },
   formatTime: { type: Function, required: true },
+  /**
+   * 空态文案。默认值是"确实没有考试"的语义；调用方在**加载失败**时应传入
+   * 失败文案，避免把"取不到数据"渲染成"暂无考试"。
+   */
+  emptyText: { type: String, default: '暂无考试' },
 })
 
 const emit = defineEmits(['update:keyword', 'update:status-filter', 'enter'])
@@ -238,10 +260,5 @@ const emit = defineEmits(['update:keyword', 'update:status-filter', 'enter'])
 .exam-time {
   font-size: 12px;
   color: var(--ac-text-muted);
-}
-
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 </style>

@@ -1,6 +1,7 @@
 <template>
   <!-- AI 生成 对话框 -->
   <el-dialog
+    ref="dialogRef"
     :model-value="modelValue"
     title="AI 智能生成题目"
     width="520px"
@@ -39,9 +40,11 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
 import { MagicStick } from '@element-plus/icons-vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 
-defineProps({
+const props = defineProps({
   modelValue: { type: Boolean, default: false },
   loading: { type: Boolean, default: false },
   form: { type: Object, default: () => ({}) },
@@ -49,5 +52,9 @@ defineProps({
   typeOpts: { type: Array, default: () => [] },
   diffOpts: { type: Array, default: () => [] },
 })
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, computed(() => props.modelValue))
+
 defineEmits(['update:modelValue', 'closed', 'update:kpText', 'generate'])
 </script>

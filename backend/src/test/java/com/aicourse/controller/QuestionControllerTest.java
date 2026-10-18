@@ -4,6 +4,7 @@ import com.aicourse.entity.Question;
 import com.aicourse.service.AIService;
 import com.aicourse.service.QuestionService;
 import com.aicourse.vo.QuestionStatsVO;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -31,6 +32,17 @@ class QuestionControllerTest extends ControllerTestBase {
     private AIService aiService;
     @MockitoBean
     private com.aicourse.service.KnowledgePointService knowledgePointService;
+    @MockitoBean
+    private com.aicourse.service.component.ai.AiGenerationPolicy aiGenerationPolicy;
+
+    /**
+     * 治理开关缺省即「允许」（与 {@code AiGenerationPolicy} 口径一致，缺省必须等于现状）：
+     * 既有出题用例的行为不因此改变；被禁用的用例在自身内部覆盖该桩。
+     */
+    @BeforeEach
+    void allowAiGenerationByDefault() {
+        lenient().when(aiGenerationPolicy.isTeacherQuestionGenerationEnabled()).thenReturn(true);
+    }
 
     private Question sampleQuestion() {
         Question q = new Question();
@@ -394,6 +406,64 @@ class QuestionControllerTest extends ControllerTestBase {
     void generateBatchByAI_student_forbidden_403() throws Exception {
         mockMvc.perform(post("/questions/generate-by-ai/batch").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
+    }
+
+    // ==================== 角色矩阵：限制教师出题权限（治理开关） ====================
+
+    @Test
+    @DisplayName("治理开关关闭：TEACHER 出题返回 403，且不得委托生成（阴性对照：不只是状态码）")
+    void generateByAIBasic_disabledForTeacher_returns403() throws Exception {
+        when(aiGenerationPolicy.isTeacherQuestionGenerationEnabled()).thenReturn(false);
+        mockMvc.perform(post("/questions/ai-generate").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\":1,\"type\":\"SINGLE\",\"difficulty\":\"EASY\"}").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(aiService, never()).generateQuestion(any(), any(), any(), anyInt());
+    }
+
+    @Test
+    @DisplayName("治理开关关闭：ADMIN 不受限，仍可出题（治理者保留能力）")
+    void generateByAIBasic_disabledButAdmin_returns200() throws Exception {
+        when(aiGenerationPolicy.isTeacherQuestionGenerationEnabled()).thenReturn(false);
+        when(aiService.generateQuestion(any(), any(), any(), anyInt())).thenReturn("admin-text");
+        mockMvc.perform(post("/questions/ai-generate").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\":1,\"type\":\"SINGLE\",\"difficulty\":\"EASY\"}").with(withUser(9L, "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.questions").value("admin-text"));
+    }
+
+    @Test
+    @DisplayName("治理开关关闭：批量出题入口同样 403，且不得落库（两个入口必须同口径）")
+    void generateBatchByAI_disabledForTeacher_returns403() throws Exception {
+        when(aiGenerationPolicy.isTeacherQuestionGenerationEnabled()).thenReturn(false);
+        mockMvc.perform(post("/questions/generate-by-ai/batch").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\":1,\"type\":\"SINGLE\",\"difficulty\":\"EASY\",\"count\":1}").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(questionService, never()).generateBatchByAI(any(), any(), any(), any(), anyInt(), any());
+    }
+
+    @Test
+    @DisplayName("逐人名单（V10 修订）：被点名限制的教师出题 403，且不得委托生成")
+    void generateByAIBasic_userRestricted_returns403() throws Exception {
+        when(aiGenerationPolicy.isUserRestricted(1L)).thenReturn(true);
+        mockMvc.perform(post("/questions/ai-generate").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\":1,\"type\":\"SINGLE\",\"difficulty\":\"EASY\"}").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(aiService, never()).generateQuestion(any(), any(), any(), anyInt());
+    }
+
+    @Test
+    @DisplayName("逐人名单：即使被点名，ADMIN 仍不受限（治理者保留能力，判定优先级如实钉住）")
+    void generateByAIBasic_restrictedAdmin_returns200() throws Exception {
+        when(aiGenerationPolicy.isUserRestricted(9L)).thenReturn(true);
+        when(aiService.generateQuestion(any(), any(), any(), anyInt())).thenReturn("admin-text");
+        mockMvc.perform(post("/questions/ai-generate").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\":1,\"type\":\"SINGLE\",\"difficulty\":\"EASY\"}").with(withUser(9L, "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.questions").value("admin-text"));
     }
 
     @Test

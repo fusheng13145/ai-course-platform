@@ -7,6 +7,14 @@
     @closed="onClosed"
   >
     <div v-loading="taskLoading" class="task-panel">
+      <!-- 任务点内容加载失败持久提示（不自动消失） -->
+      <el-alert
+        v-if="loadError"
+        :title="loadError"
+        type="error"
+        :closable="false"
+        class="load-error-alert"
+      />
       <!-- 视频任务点 -->
       <template v-if="task && isVideo">
         <div v-if="videoSrc" class="video-wrap">
@@ -79,13 +87,18 @@
             </div>
             <p class="quiz-q-stem">{{ q.content }}</p>
 
-            <!-- 单选 -->
+            <!-- 单选（提交值为选项字母，与题库 correct_answers 口径一致） -->
             <el-radio-group
               v-if="isSingle(q.type)"
               v-model="quizAnswers[q.id]"
               class="opt-vertical"
             >
-              <el-radio v-for="(opt, oi) in q._options" :key="oi" :value="oi" class="opt-item">
+              <el-radio
+                v-for="(opt, oi) in q._options"
+                :key="oi"
+                :value="letter(oi)"
+                class="opt-item"
+              >
                 <span class="opt-label">{{ letter(oi) }}.</span> {{ opt }}
               </el-radio>
             </el-radio-group>
@@ -96,7 +109,12 @@
               v-model="quizAnswers[q.id]"
               class="opt-vertical"
             >
-              <el-checkbox v-for="(opt, oi) in q._options" :key="oi" :label="oi" class="opt-item">
+              <el-checkbox
+                v-for="(opt, oi) in q._options"
+                :key="oi"
+                :label="letter(oi)"
+                class="opt-item"
+              >
                 <span class="opt-label">{{ letter(oi) }}.</span> {{ opt }}
               </el-checkbox>
             </el-checkbox-group>
@@ -150,7 +168,7 @@
             />
           </div>
         </div>
-        <el-empty v-else description="该课程暂无可用测验题目" :image-size="80" />
+        <EmptyState v-else title="该课程暂无可用测验题目" icon="list" size="compact" />
       </template>
     </div>
   </el-drawer>
@@ -160,6 +178,7 @@
 import { ref, computed, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { Select, VideoPlay, Files, InfoFilled, Check, Close } from '@element-plus/icons-vue'
 import { formatTime } from '@/utils/datetime'
 import logger from '@/utils/logger'
@@ -193,6 +212,8 @@ const visible = computed({
 })
 
 const taskLoading = ref(false)
+/** 任务点内容加载失败持久提示（单路，不自动消失） */
+const loadError = ref('')
 const drawerSize = computed(() => (window.innerWidth < 768 ? '100%' : '620px'))
 
 const isVideo = computed(() => props.task?.taskType === 'VIDEO')
@@ -270,7 +291,7 @@ async function markDocDone() {
     // task 为父组件传入的共享对象引用（activeTask），嵌套属性同步完成任务状态，非 prop 整体替换
     props.task.completed = true
     emit('task-completed')
-  } catch (e) {
+  } catch {
     ElMessage.error('操作失败')
   } finally {
     docLoading.value = false
@@ -286,11 +307,13 @@ function goAssignments() {
 /* ---- 任务点数据加载与抽屉关闭清理 ---- */
 async function openTask(task) {
   taskLoading.value = true
+  loadError.value = ''
   try {
     if (isVideo.value) await loadVideo(task)
     else if (isQuiz.value) await loadQuiz()
   } catch (e) {
     logger.warn('任务点加载失败:', e)
+    loadError.value = '任务点内容加载失败，请检查网络后重试'
   } finally {
     taskLoading.value = false
   }
@@ -318,6 +341,9 @@ watch(
 }
 .task-alert {
   margin: var(--ac-spacing-md) 0;
+}
+.load-error-alert {
+  margin-bottom: var(--ac-spacing-md);
 }
 .video-wrap {
   background: var(--ink);

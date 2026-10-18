@@ -1,5 +1,15 @@
 <template>
   <div class="knowledge-tab">
+    <!-- 加载失败提示：见 useKnowledgeTab.loadError 注释（失败不得渲染成「暂无知识点」） -->
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      show-icon
+      style="margin-bottom: 12px"
+    />
+
     <!-- 工具栏 -->
     <KntToolbar
       :search-text="searchText"
@@ -19,6 +29,7 @@
         :table-loading="tableLoading"
         :force-option="forceOption"
         :tree-option="treeOption"
+        :empty-text="loadError ? '知识点列表未能加载，请查看上方提示后重试' : '暂无知识点'"
         @edit="openEditDialog"
         @delete="handleDelete"
       />
@@ -59,6 +70,7 @@ const courseIdRef = toRef(props, 'courseId')
 
 const {
   searchText,
+  loadError,
   treeLoading,
   tableLoading,
   treeData,

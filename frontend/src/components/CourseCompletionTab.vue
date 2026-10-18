@@ -1,5 +1,6 @@
 <template>
   <div class="completion-tab">
+    <div v-if="loadNotice" class="completion-notice" role="alert">{{ loadNotice }}</div>
     <!-- 概览统计卡 -->
     <div class="stats-row">
       <div class="stat-card">
@@ -23,7 +24,7 @@
           </svg>
         </div>
         <div class="stat-info">
-          <span class="stat-val">{{ overview.avgSubmissionRate }}%</span>
+          <span class="stat-val">{{ overview.avgSubmissionRate == null ? '—' : `${overview.avgSubmissionRate}%` }}</span>
           <span class="stat-lbl">平均提交率</span>
         </div>
       </div>
@@ -39,7 +40,7 @@
           </svg>
         </div>
         <div class="stat-info">
-          <span class="stat-val">{{ overview.avgScore }}</span>
+          <span class="stat-val">{{ overview.avgScore ?? '—' }}</span>
           <span class="stat-lbl">平均成绩</span>
         </div>
       </div>
@@ -98,6 +99,7 @@ const courseIdRef = toRef(props, 'courseId')
 const {
   loadingAssignments,
   loadingStudents,
+  loadNotice,
   viewMode,
   overview,
   assignmentStats,
@@ -109,6 +111,15 @@ const {
 <style scoped>
 .completion-tab {
   padding: 4px 0;
+}
+.completion-notice {
+  margin: 0 0 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--warn);
+  border-radius: var(--ac-radius-sm);
+  color: var(--warn);
+  background: var(--warn-soft);
+  font-size: 13px;
 }
 .stats-row {
   display: grid;

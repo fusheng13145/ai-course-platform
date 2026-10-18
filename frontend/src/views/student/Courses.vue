@@ -5,6 +5,14 @@
       subtitle="选择课程查看学习概览，或凭课程 ID 加入新课"
       icon="book"
     />
+    <!-- 加载失败持久提示（不自动消失） -->
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      class="load-error-alert"
+    />
     <!-- 分割视图：左课程树 + 右内容 -->
     <div class="split-view animate-in d1">
       <aside class="split-aside">
@@ -29,7 +37,11 @@
         </div>
         <div class="sa-body">
           <el-skeleton v-if="loading" :rows="3" animated />
-          <el-empty v-else-if="courses.length === 0" description="暂无课程" :image-size="70" />
+          <EmptyState
+            v-else-if="courses.length === 0"
+            :title="loadError ? '课程列表未能加载，请查看上方提示后重试' : '暂无课程'"
+            icon="book"
+          />
           <template v-else>
             <div
               v-for="c in courses"
@@ -233,6 +245,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import RingProgress from '@/components/charts/RingProgress.vue'
 import { toast } from '@/composables/useToast'
 import { sanitizeHtml } from '@/utils/sanitize'
+import logger from '@/utils/logger'
 import studentApi from '@/api/student'
 
 // 渐变对齐 AppShell avatarStyle 6 色渐变风格（令牌色系：赭红/蓝/绿/琥珀/紫/青）
@@ -249,6 +262,7 @@ const courses = ref([])
 const todos = ref({ assignments: [], exams: [], signIns: [] })
 const activeCourse = ref(null)
 const loading = ref(true)
+const loadError = ref('')
 const showJoin = ref(false)
 const joinCourseId = ref('')
 const joining = ref(false)
@@ -280,6 +294,7 @@ function nextTaskText(courseId) {
 
 async function load() {
   loading.value = true
+  loadError.value = ''
   try {
     const res = await studentApi.getStudentDashboard()
     const d = res?.data?.data || res?.data || {}
@@ -295,7 +310,11 @@ async function load() {
     }))
     if (courses.value.length) selectCourse(courses.value[0])
   } catch (e) {
-    toast.show('课程数据加载失败：' + (e?.message || '网络错误'), 'error')
+    // 失败时给出持久提示（不再是转瞬即逝的 toast），列表空态文案也据此诚实化
+    loadError.value = '课程数据加载失败，请检查网络后重试'
+    courses.value = []
+    todos.value = { assignments: [], exams: [], signIns: [] }
+    logger.warn('[student/Courses] 课程数据加载失败:', e?.message || e)
   } finally {
     loading.value = false
   }
@@ -317,7 +336,7 @@ async function selectCourse(c) {
       meta: parts.length ? parts.join(' · ') : '已加入',
       description: course.description,
     }
-  } catch (e) {
+  } catch {
     /* 详情补全失败不阻塞列表展示 */
   }
 }
@@ -346,6 +365,9 @@ onMounted(load)
 </script>
 
 <style scoped>
+.load-error-alert {
+  margin-bottom: 12px;
+}
 .sa-title {
   font-size: 13.5px;
 }

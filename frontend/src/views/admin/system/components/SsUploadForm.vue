@@ -41,7 +41,7 @@
         @keyup.enter="confirmFormat('image')"
         @blur="confirmFormat('image')"
       />
-      <el-button v-else size="small" @click="showInput('image')"
+      <el-button v-else size="small" v-bind="buttonA11y('添加图片地址')" @click="showInput('image')"
         ><el-icon><Plus /></el-icon
       ></el-button>
     </el-form-item>
@@ -63,7 +63,7 @@
         @keyup.enter="confirmFormat('doc')"
         @blur="confirmFormat('doc')"
       />
-      <el-button v-else size="small" @click="showInput('doc')"
+      <el-button v-else size="small" v-bind="buttonA11y('添加文档地址')" @click="showInput('doc')"
         ><el-icon><Plus /></el-icon
       ></el-button>
     </el-form-item>
@@ -77,6 +77,7 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 import { Upload, Document, Plus } from '@element-plus/icons-vue'
+import { buttonA11y } from '@/composables/useA11y'
 
 /**
  * 系统设置 — 上传配置表单

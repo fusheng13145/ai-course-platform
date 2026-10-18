@@ -3,6 +3,15 @@
     <PageHeader compact title="课程试卷" subtitle="试卷管理、发布与统计" icon="document">
       <el-button type="primary" :icon="Plus" @click="openCreate">新建试卷</el-button>
     </PageHeader>
+    <!-- 加载失败提示：见 loadError 注释（失败不得渲染成「暂无试卷」） -->
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      show-icon
+      style="margin-bottom: var(--ac-spacing-md)"
+    />
     <div v-loading="loading">
       <!-- 试卷表格（列表 + 分页 + 行操作） -->
       <CeExamTable
@@ -10,6 +19,9 @@
         :total="total"
         :page="page"
         :size="size"
+        :empty-text="
+          loadError ? '试卷列表未能加载，请查看上方提示后重试' : '暂无试卷，点击右上角新建'
+        "
         @publish="publish"
         @view-questions="viewQuestions"
         @view-stats="viewStats"
@@ -32,38 +44,44 @@
     />
 
     <!-- 查看题目 对话框 -->
-    <el-dialog v-model="ques.visible" v-loading="ques.loading" title="试卷题目" width="640px">
-      <el-table :data="ques.list" size="small" empty-text="暂无题目" max-height="420">
-        <el-table-column label="#" width="56">
-          <template #default="{ row }">{{ row.orderIndex ?? '--' }}</template>
-        </el-table-column>
-        <el-table-column label="题干" min-width="320">
-          <template #default="{ row }">{{
-            row.question?.stem || row.question?.title || '（无题干）'
-          }}</template>
-        </el-table-column>
-        <el-table-column label="类型" width="92">
-          <template #default="{ row }">
-            <el-tag size="small" :type="typeTag(row.question?.type)" effect="light">{{
-              typeLabel(row.question?.type)
-            }}</el-tag>
-          </template>
-        </el-table-column>
-        <el-table-column label="分值" width="70">
-          <template #default="{ row }">{{ row.points ?? '--' }}</template>
-        </el-table-column>
-      </el-table>
+    <!-- v-loading 不能挂在 <el-dialog> 上：弹层渲染在 teleport 的非元素根上，
+         runtime directive 无处安放（Vue 告警 + 遮罩实际不生效），改由 dialog 内的包裹层承担。 -->
+    <el-dialog ref="dialogRef1" v-model="ques.visible" title="试卷题目" width="640px">
+      <div v-loading="ques.loading">
+        <el-table :data="ques.list" size="small" empty-text="暂无题目" max-height="420">
+          <el-table-column label="#" width="56">
+            <template #default="{ row }">{{ row.orderIndex ?? '--' }}</template>
+          </el-table-column>
+          <el-table-column label="题干" min-width="320">
+            <template #default="{ row }">{{
+              row.question?.content || row.question?.stem || row.question?.title || '（无题干）'
+            }}</template>
+          </el-table-column>
+          <el-table-column label="类型" width="92">
+            <template #default="{ row }">
+              <el-tag size="small" :type="typeTag(row.question?.type)" effect="light">{{
+                typeLabel(row.question?.type)
+              }}</el-tag>
+            </template>
+          </el-table-column>
+          <el-table-column label="分值" width="70">
+            <template #default="{ row }">{{ row.points ?? '--' }}</template>
+          </el-table-column>
+        </el-table>
+      </div>
     </el-dialog>
 
     <!-- 统计 对话框 -->
-    <el-dialog v-model="stat.visible" v-loading="stat.loading" title="试卷统计" width="620px">
-      <div v-if="stat.items.length" class="stat-grid">
-        <div v-for="(it, i) in stat.items" :key="i" class="mini-stat">
-          <span class="mini-num">{{ it.value }}</span>
-          <span class="mini-label">{{ it.label }}</span>
+    <el-dialog ref="dialogRef2" v-model="stat.visible" title="试卷统计" width="620px">
+      <div v-loading="stat.loading">
+        <div v-if="stat.items.length" class="stat-grid">
+          <div v-for="(it, i) in stat.items" :key="i" class="mini-stat">
+            <span class="mini-num">{{ it.value }}</span>
+            <span class="mini-label">{{ it.label }}</span>
+          </div>
         </div>
+        <EmptyState v-else title="暂无统计数据" icon="chart" size="compact" />
       </div>
-      <el-empty v-else description="暂无统计数据" :image-size="70" />
     </el-dialog>
   </div>
 </template>
@@ -71,11 +89,14 @@
 <script setup lang="ts">
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
-import { ref, reactive, onMounted, watch } from 'vue'
+import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import examApi from '@/api/exam'
+import { confirmDanger } from '@/utils/dangerConfirm'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import CeExamTable from './components/CeExamTable.vue'
 import CeExamFormDialog from './components/CeExamFormDialog.vue'
@@ -86,9 +107,15 @@ import CeExamFormDialog from './components/CeExamFormDialog.vue'
  * 与新建编辑表单（CeExamFormDialog）分别下沉。</p>
  */
 const route = useRoute()
-const courseId = route.params.id
+const courseId = computed(() => Number(route.params.id))
 
 const loading = ref(false)
+/**
+ * 加载失败提示文案：非空即表示试卷列表数据不可信。
+ * 原实现失败仅 logger.error 后静默置空 → 页面显示「暂无试卷，点击右上角新建」，
+ * 教师会误判该课程确实没有试卷（失败可见）。
+ */
+const loadError = ref('')
 const all = ref([])
 const list = ref([])
 const total = ref(0)
@@ -121,14 +148,17 @@ function typeTag(t) {
 
 async function load() {
   loading.value = true
+  loadError.value = ''
   try {
-    const r = await examApi.getExamPaperList({ courseId })
-    const body = unwrap(r)
-    all.value = body?.records || body?.list || body || []
-    total.value = body?.total ?? body?.totalElements ?? all.value.length
+    all.value = await examApi.getAllExamPapersByCourse(courseId.value)
+    total.value = all.value.length
     applyPage()
   } catch (e) {
     logger.error('加载试卷失败', e)
+    all.value = []
+    list.value = []
+    total.value = 0
+    loadError.value = '试卷列表加载失败，请检查网络后重试'
   } finally {
     loading.value = false
   }
@@ -191,7 +221,7 @@ async function save() {
       ElMessage.success('试卷已更新')
     } else {
       await examApi.createExamPaper({
-        courseId,
+        courseId: courseId.value,
         title: form.title,
         description: form.description,
         duration: form.duration,
@@ -219,17 +249,20 @@ async function publish(row) {
 }
 
 async function remove(row) {
+  const ok = await confirmDanger({
+    verb: '删除',
+    target: '试卷',
+    subject: row.title,
+    impact: '将一并移除该试卷关联的学生作答记录与成绩明细',
+  })
+  if (!ok) return
   try {
-    await ElMessageBox.confirm(`确认删除试卷「${row.title}」？此操作不可恢复。`, '删除确认', {
-      type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-    })
     await examApi.deleteExamPaper(row.id)
     ElMessage.success('试卷已删除')
     load()
   } catch (e) {
-    if (e !== 'cancel' && e?.toLowerCase) logger.error('删除试卷失败', e)
+    logger.error('删除试卷失败', e)
+    ElMessage.error('删除失败')
   }
 }
 
@@ -275,6 +308,17 @@ const STAT_LABELS = {
   submitRate: '提交率',
 }
 const stat = reactive({ visible: false, loading: false, items: [] })
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+const dialogRef1 = ref(null)
+const dialogRef2 = ref(null)
+useDialogFocus(
+  dialogRef1,
+  computed(() => ques.visible),
+)
+useDialogFocus(
+  dialogRef2,
+  computed(() => stat.visible),
+)
 async function viewStats(row) {
   stat.visible = true
   stat.loading = true

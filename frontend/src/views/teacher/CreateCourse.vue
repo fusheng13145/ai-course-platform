@@ -1,7 +1,7 @@
 <template>
   <div class="fade-in content-card form-root">
     <PageHeader title="创建课程" subtitle="填写课程基本信息，提交后进入审核流程" icon="book" />
-    <el-form ref="formRef" :model="form" :rules="rules" label-width="100px">
+    <el-form ref="formRef" :model="form" :rules="rules" label-width="100px" scroll-to-error>
       <el-form-item label="课程名称" prop="name"
         ><el-input v-model="form.name" placeholder="输入课程名称"
       /></el-form-item>

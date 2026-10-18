@@ -4,7 +4,7 @@
       <span class="muted">课程投票记录 {{ data.length }} 条</span>
       <el-button type="primary" :icon="Plus" @click="$emit('open-vote')">发起投票</el-button>
     </div>
-    <el-table :data="data" size="small" border empty-text="暂无投票">
+    <el-table :data="data" size="small" border :empty-text="emptyText">
       <el-table-column prop="title" label="标题" min-width="180" />
       <el-table-column label="类型" width="100" align="center">
         <template #default="{ row }"
@@ -47,6 +47,8 @@ import { Plus, SwitchButton, DataAnalysis } from '@element-plus/icons-vue'
 
 defineProps({
   data: { type: Array, default: () => [] },
+  /** 空态文案（失败时由页面传入「未能加载」文案，默认保留原语义） */
+  emptyText: { type: String, default: '暂无投票' },
 })
 defineEmits(['open-vote', 'close', 'open-result'])
 

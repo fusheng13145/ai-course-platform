@@ -13,20 +13,29 @@
 
       <div class="lc-progress">
         <div class="lc-progress-num">
-          <span class="done">{{ center.completedTasks }}</span>
+          <span class="done">{{ loadError ? '--' : center.completedTasks }}</span>
           <span class="sep">/</span>
-          <span class="total">{{ center.totalTasks }}</span>
+          <span class="total">{{ loadError ? '--' : center.totalTasks }}</span>
           <span class="unit">个任务点</span>
         </div>
         <el-progress
-          :percentage="center.completionPercent || 0"
+          :percentage="loadError ? 0 : center.completionPercent || 0"
           :stroke-width="12"
           :color="center.completionPercent >= 100 ? 'var(--ac-success)' : 'var(--ac-primary)'"
           style="flex: 1; max-width: 420px"
         />
-        <span class="lc-percent">{{ center.completionPercent || 0 }}%</span>
+        <span class="lc-percent">{{ loadError ? '--' : (center.completionPercent || 0) + '%' }}</span>
       </div>
     </div>
+
+    <!-- 加载失败持久提示（不自动消失） -->
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      class="load-error-alert"
+    />
 
     <!-- 章节任务点树 -->
     <div class="lc-tree-card">
@@ -34,10 +43,10 @@
         <span class="lc-tree-title">课程章节</span>
         <span class="lc-tree-hint">按顺序解锁 · 完成前置任务点方可进入后续内容</span>
       </div>
-      <el-empty
+      <EmptyState
         v-if="!loading && center.chapters.length === 0"
-        description="本课程暂无章节任务点"
-        :image-size="100"
+        :title="loadError ? '学习中心内容未能加载，请查看上方提示后重试' : '本课程暂无章节任务点'"
+        icon="layers"
       />
       <chapter-tree v-else :nodes="center.chapters" @open-task="openTask" />
     </div>
@@ -56,7 +65,7 @@
 import logger from '@/utils/logger'
 import { ref, reactive, onMounted } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import EmptyState from '@/components/ui/EmptyState.vue'
 import { unwrap } from '@/utils/response'
 import studentApi from '@/api/student'
 import ChapterTree from '../components/ChapterTree.vue'
@@ -73,6 +82,7 @@ const courseId = route.params.id
 
 /* ---- 页面状态 ---- */
 const loading = ref(false)
+const loadError = ref('')
 const center = reactive({
   courseId: null,
   courseName: '',
@@ -89,6 +99,7 @@ const activeTask = ref(null)
 /** 加载学习中心总览（课程信息 + 章节树 + 进度） */
 async function load() {
   loading.value = true
+  loadError.value = ''
   try {
     const res = await studentApi.getLearningCenter(courseId)
     const d = unwrap(res) || {}
@@ -100,7 +111,7 @@ async function load() {
     center.completionPercent = d.completionPercent || 0
   } catch (e) {
     logger.error('加载学习中心失败:', e)
-    ElMessage.error('加载学习中心失败')
+    loadError.value = '学习中心加载失败，请检查网络后重试'
   } finally {
     loading.value = false
   }
@@ -174,6 +185,9 @@ onMounted(load)
   color: var(--ac-primary);
   min-width: 44px;
   text-align: right;
+}
+.load-error-alert {
+  margin-bottom: var(--ac-spacing-md);
 }
 .lc-tree-card {
   background: var(--ac-bg-elevated);

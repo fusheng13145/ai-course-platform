@@ -56,6 +56,7 @@ const CONTRACT: Array<
   ['ragDeleteDocument', 'delete', '/rag/documents/9', [9], []],
   ['ragBuildIndex', 'post', '/rag/index/build/3', [3], []],
   ['ragClearIndex', 'delete', '/rag/index/3', [3], []],
+  ['ragBuildCourseKnowledgeBase', 'post', '/rag/course/3/build', [3], []],
 ]
 
 describe('rag 契约（方法 / URL / 参数落点）', () => {

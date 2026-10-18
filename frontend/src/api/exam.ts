@@ -1,12 +1,19 @@
 import request from './request'
+import { fetchAllPages } from '@/utils/response'
 /** 获取考试试卷列表 */
 export const getExamPaperList = (params = {}) => request.get('/exam-papers', { params })
+/** 读取所有匹配的试卷，供无分页控件的列表/计数页面使用。 */
+export const getAllExamPapers = (filters = {}) =>
+  fetchAllPages((page, size) => getExamPaperList({ ...filters, page, size }))
 /**
  * 按课程分页获取试卷（后端 GET /exam-papers/course/{courseId}）。
  * CourseExamPanel 一直按这个名字调用，此前 api 层缺该导出，面板加载试卷列表必然 TypeError。
  */
 export const listByCourse = (courseId, params = {}) =>
   request.get(`/exam-papers/course/${courseId}`, { params })
+/** 读取指定课程的全部试卷。 */
+export const getAllExamPapersByCourse = (courseId, filters = {}) =>
+  fetchAllPages((page, size) => listByCourse(courseId, { ...filters, page, size }))
 /** 根据ID获取试卷 */
 export const getExamPaperById = (id) => request.get(`/exam-papers/${id}`)
 /** 创建考试试卷 */
@@ -97,7 +104,9 @@ export const getCheatingDetect = (sessionId) =>
  */
 export default {
   getExamPaperList,
+  getAllExamPapers,
   listByCourse,
+  getAllExamPapersByCourse,
   getExamPaperById,
   createExamPaper,
   updateExamPaper,

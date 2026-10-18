@@ -64,6 +64,7 @@ import Modal from '@/components/ui/Modal.vue'
 import DropdownMenu from '@/components/ui/DropdownMenu.vue'
 import { toast } from '@/composables/useToast'
 import notificationApi from '@/api/notification'
+import { confirmDanger } from '@/utils/dangerConfirm'
 import NmNoticeList from './components/NmNoticeList.vue'
 import NmPublishDrawer from './components/NmPublishDrawer.vue'
 
@@ -125,7 +126,7 @@ async function load() {
     ])
     unread.value = unreadRes?.data?.data?.list || unreadRes?.data?.list || []
     read.value = readRes?.data?.data?.list || readRes?.data?.list || []
-  } catch (e) {
+  } catch {
     toast.show('通知加载失败', 'error')
   } finally {
     loading.value = false
@@ -144,7 +145,7 @@ async function doRead(n) {
     n.isRead = true
     unread.value = unread.value.filter((x) => x.id !== n.id)
     read.value.unshift(n)
-  } catch (e) {
+  } catch {
     toast.show('操作失败', 'error')
   }
 }
@@ -159,13 +160,21 @@ function openMenu(e, n) {
 
 async function doDelete(n) {
   ctx.value.visible = false
+  // D2-2：删除类操作必须二次确认（原实现右键菜单点击即删，无任何确认）
+  const ok = await confirmDanger({
+    verb: '删除',
+    target: '通知',
+    subject: n.title || n.id,
+    impact: '该通知将从发送记录中移除，学生端已收到的内容不受影响',
+  })
+  if (!ok) return
   try {
     await notificationApi.deleteNotification(n.id)
     const src = n.isRead ? read.value : unread.value
     const i = src.findIndex((x) => x.id === n.id)
     if (i > -1) src.splice(i, 1)
     toast.show('通知已删除', 'ok')
-  } catch (e) {
+  } catch {
     toast.show('删除失败', 'error')
   }
 }

@@ -5,6 +5,15 @@
         <el-button type="primary" :icon="Plus" @click="openCreate()">新建任务</el-button>
       </PageHeader>
 
+      <!-- 加载失败持久提示（不自动消失） -->
+      <el-alert
+        v-if="loadError"
+        :title="loadError"
+        type="error"
+        :closable="false"
+        class="load-error-alert"
+      />
+
       <div class="l1-card animate-in d1">
         <el-table v-if="tasks.length" :data="pagedTasks" size="small" empty-text="暂无任务">
           <el-table-column prop="title" label="标题" min-width="180" show-overflow-tooltip>
@@ -50,7 +59,11 @@
             </template>
           </el-table-column>
         </el-table>
-        <el-empty v-else-if="!loading" description="暂无任务，点击右上角新建" :image-size="72" />
+        <EmptyState
+          v-else-if="!loading"
+          :title="loadError ? '任务列表未能加载，请查看上方提示后重试' : '暂无任务，点击右上角新建'"
+          icon="list"
+        />
 
         <div v-if="tasks.length" class="pager">
           <el-pagination
@@ -69,6 +82,7 @@
 
     <!-- 新建 / 编辑对话框 -->
     <el-dialog
+    ref="dialogRef1"
       v-model="dialogVisible"
       :title="dialogMode === 'create' ? '新建任务' : '编辑任务'"
       width="520px"
@@ -125,7 +139,7 @@
     </el-dialog>
 
     <!-- 延长截止对话框 -->
-    <el-dialog v-model="extendVisible" title="延长截止日期" width="460px" @closed="resetExtend">
+    <el-dialog ref="dialogRef2" v-model="extendVisible" title="延长截止日期" width="460px" @closed="resetExtend">
       <el-form :model="extendForm" label-width="88px">
         <el-form-item label="新截止">
           <el-date-picker
@@ -155,18 +169,21 @@
 
 <script setup lang="ts">
 import logger from '@/utils/logger'
-import { unwrap } from '@/utils/response'
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { ElMessage } from 'element-plus'
 import taskApi from '@/api/task'
+import EmptyState from '@/components/ui/EmptyState.vue'
+import { confirmDanger } from '@/utils/dangerConfirm'
 import PageHeader from '@/components/PageHeader.vue'
 import { Plus, Edit, Delete, Calendar } from '@element-plus/icons-vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 
 const route = useRoute()
-const courseId = route.params.id
+const courseId = computed(() => Number(route.params.id))
 
 const loading = ref(false)
+const loadError = ref('')
 const saving = ref(false)
 const tasks = ref([])
 
@@ -180,6 +197,9 @@ const pagedTasks = computed(() => {
 const taskTypes = ['视频', '测验', '作业', '文档', '讨论']
 
 const dialogVisible = ref(false)
+const dialogRef1 = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef1, dialogVisible)
 const dialogMode = ref('create')
 const editingId = ref(null)
 const form = reactive({
@@ -191,6 +211,9 @@ const form = reactive({
 })
 
 const extendVisible = ref(false)
+const dialogRef2 = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef2, extendVisible)
 const extendId = ref(null)
 const extendForm = reactive({ newDueDate: '', reason: '' })
 
@@ -203,13 +226,14 @@ function taskTypeTag(type) {
 
 async function load() {
   loading.value = true
+  loadError.value = ''
   try {
-    const r = await taskApi.getTaskList({ courseId })
-    const body = unwrap(r)
-    tasks.value = body?.records || body?.list || body || []
+    tasks.value = await taskApi.getAllTasks({ courseId: courseId.value })
     if (page.value > 1 && (page.value - 1) * size.value >= tasks.value.length) page.value = 1
   } catch (e) {
     logger.error('加载任务列表失败', e)
+    tasks.value = []
+    loadError.value = '任务列表加载失败，请检查网络后重试'
   } finally {
     loading.value = false
   }
@@ -247,7 +271,7 @@ async function save() {
   saving.value = true
   try {
     const payload = {
-      courseId,
+      courseId: courseId.value,
       title: form.title.trim(),
       taskType: form.taskType,
       description: form.description,
@@ -313,22 +337,20 @@ async function saveExtend() {
 }
 
 async function remove(row) {
-  try {
-    await ElMessageBox.confirm(`确认删除任务「${row.title}」？此操作不可恢复。`, '删除确认', {
-      type: 'warning',
-      confirmButtonText: '删除',
-      cancelButtonText: '取消',
-      confirmButtonClass: 'el-button--danger',
-    })
-  } catch {
-    return
-  }
+  const ok = await confirmDanger({
+    verb: '删除',
+    target: '任务',
+    subject: row.title,
+    impact: '将一并移除该任务的附件、提交记录与学生成绩，且无法恢复',
+  })
+  if (!ok) return
   try {
     await taskApi.deleteTask(row.id)
     ElMessage.success('已删除')
     await load()
   } catch (e) {
     logger.error('删除任务失败', e)
+    ElMessage.error('删除失败')
   }
 }
 
@@ -337,6 +359,10 @@ watch(() => route.params.id, load)
 </script>
 
 <style scoped>
+.load-error-alert {
+  margin-bottom: var(--ac-spacing-md);
+}
+
 .hint {
   margin-left: 10px;
   font-size: 12px;

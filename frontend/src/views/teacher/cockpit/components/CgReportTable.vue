@@ -3,11 +3,11 @@
     <!-- 无成绩方案：空状态 + 新建 -->
     <div v-if="!policy" class="l1-card">
       <div class="l1-body">
-        <el-empty description="该课程尚未配置成绩方案">
+        <EmptyState :title="policyEmptyText" icon="chart">
           <el-button type="primary" :icon="Plus" @click="emit('open-policy')"
             >新建成绩方案</el-button
           >
-        </el-empty>
+        </EmptyState>
       </div>
     </div>
 
@@ -47,7 +47,7 @@
           :closable="false"
           show-icon
         />
-        <el-table v-if="report.length" :data="report" size="small" border max-height="560">
+        <el-table v-if="report.length" :data="paged" size="small" border max-height="560">
           <el-table-column prop="studentName" label="学生" min-width="110" fixed />
           <el-table-column
             v-for="c in policy.components"
@@ -79,7 +79,18 @@
             </template>
           </el-table-column>
         </el-table>
-        <el-empty v-else description="暂无学生成绩" :image-size="72" />
+        <!-- D2-5：课程成绩报告无界（大课程数百行），客户端分页仅超一页时出现 -->
+        <div v-if="showPager" class="pager-wrap">
+          <el-pagination
+            small
+            layout="total, prev, pager, next"
+            :total="total"
+            :page-size="pageSize"
+            :current-page="page"
+            @current-change="onPageChange"
+          />
+        </div>
+        <EmptyState v-else :title="emptyText" icon="chart" />
       </div>
     </div>
   </div>
@@ -88,14 +99,25 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { Plus, View, DataAnalysis } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
+import { useClientPagination } from '@/composables/useClientPagination'
 
 const props = defineProps({
   policy: { type: Object, default: null },
   report: { type: Array, default: () => [] },
   reportLoading: { type: Boolean, default: false },
+  /** 报告表格空态文案（失败时由页面传入「未能加载」文案，默认保留原语义） */
+  emptyText: { type: String, default: '暂无学生成绩' },
+  /** 「无成绩方案」空态文案（方案加载失败时由页面传入「未能加载」文案） */
+  policyEmptyText: { type: String, default: '该课程尚未配置成绩方案' },
 })
 
 const emit = defineEmits(['open-policy', 'open-score', 'preview'])
+
+// D2-5：成绩报告按课程人数伸缩（大课程数百行），渲染层客户端分页（每页 20）
+const { page, pageSize, total, paged, showPager, onPageChange } = useClientPagination(
+  () => props.report,
+)
 
 /** 后端 FinalGradeVO 在本组件用到的键（report 数组的元素形状） */
 type ReportRow = {
@@ -136,6 +158,12 @@ function findScore(row, key) {
 <style scoped>
 .warn-line {
   margin-bottom: 10px;
+}
+/* D2-5：分页器右对齐 */
+.pager-wrap {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 10px;
 }
 .score-cell {
   display: inline-block;

@@ -16,6 +16,16 @@
       <StatCard label="当前版本" :value="currentVersion" icon="check" tone="ok" />
     </div>
 
+    <!-- 加载失败提示：见 loadError 注释（失败不得静默渲染成「暂无版本记录」与 0 值读数） -->
+    <el-alert
+      v-if="loadError"
+      :title="loadError"
+      type="error"
+      :closable="false"
+      show-icon
+      style="margin-bottom: var(--ac-spacing-md)"
+    />
+
     <section class="l1-card">
       <div class="l1-head">
         <span class="l1-ico"
@@ -66,7 +76,7 @@
             v-loading="loading"
             :data="versions"
             style="width: 100%"
-            empty-text="暂无版本记录"
+            :empty-text="versionsError ? '版本记录未能加载，请查看上方提示后重试' : '暂无版本记录'"
           >
             <el-table-column prop="id" label="版本ID" width="80" />
             <el-table-column label="版本号" width="120">
@@ -101,25 +111,24 @@
               </template>
             </el-table-column>
             <template #empty>
-              <el-empty description="暂无版本记录">
-                <template #image><div class="empty-deco">🗂️</div></template>
-              </el-empty>
+              <EmptyState
+                :title="versionsError ? '版本记录未能加载，请查看上方提示后重试' : '暂无版本记录'"
+                icon="layers"
+              />
             </template>
           </el-table>
         </div>
-        <el-empty v-else description="请先选择资源" :image-size="80">
-          <template #image><div class="empty-deco">🗂️</div></template>
-        </el-empty>
+        <EmptyState v-else title="请先选择资源" desc="在上方资源下拉框选择后查看版本" icon="folder" />
       </div>
     </section>
 
     <!-- 新建版本弹窗 -->
-    <el-dialog v-model="dialogVisible" title="新建版本" width="520px" append-to-body>
-      <el-form label-width="80px">
+    <el-dialog ref="dialogRef1" v-model="dialogVisible" title="新建版本" width="520px" append-to-body>
+      <el-form ref="formRef" :model="form" :rules="rules" label-width="80px" scroll-to-error>
         <el-form-item label="资源">
           <el-input :model-value="selectedResourceName" disabled />
         </el-form-item>
-        <el-form-item label="更新说明">
+        <el-form-item label="更新说明" prop="changeLog">
           <el-input
             v-model="form.changeLog"
             type="textarea"
@@ -135,7 +144,7 @@
     </el-dialog>
 
     <!-- 回滚确认 -->
-    <el-dialog v-model="rollbackVisible" title="确认回滚" width="400px" append-to-body>
+    <el-dialog ref="dialogRef2" v-model="rollbackVisible" title="确认回滚" width="400px" append-to-body>
       <p>确定回滚到 v{{ rollbackTarget?.versionNumber || '?' }}？</p>
       <p style="font-size: 13px; color: var(--ac-text-muted)">当前版本将被替换为所选版本的内容。</p>
       <template #footer>
@@ -156,6 +165,9 @@ import versionApi from '@/api/resourceVersion'
 import resourceApi from '@/api/resource'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
+import { validateFormFields, type ElFormLike } from '@/composables/useFormSubmit'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -165,22 +177,50 @@ const resources = ref([])
 const versions = ref([])
 const activeVersionId = ref(null)
 const dialogVisible = ref(false)
+const dialogRef1 = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef1, dialogVisible)
 const rollbackVisible = ref(false)
+const dialogRef2 = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef2, rollbackVisible)
 const rollbackTarget = ref(null)
 const form = ref({ changeLog: '' })
+const formRef = ref<ElFormLike | null>(null)
+// D2-4：必填规则声明（原为手写 if 校验），blur 内联错误 + 提交时首错滚动定位
+const rules = {
+  changeLog: [{ required: true, message: '请输入更新说明', trigger: 'blur' }],
+}
+
+/**
+ * 两路独立加载错误（失败可见）：
+ * - resourcesError：资源下拉列表加载失败（原实现仅 console.error 后静默清空，
+ *   管理员会误判平台无任何资源）；
+ * - versionsError：版本历史/当前版本加载失败（原实现 allSettled 后不检测 rejected，
+ *   任一接口失败都被静默忽略，表格渲染成「暂无版本记录」）。
+ * 两路互不复位，由 loadError 聚合展示，避免一路成功清掉另一路的失败提示。
+ */
+const resourcesError = ref('')
+const versionsError = ref('')
+const loadError = computed(() =>
+  [resourcesError.value, versionsError.value].filter(Boolean).join('；'),
+)
 
 const selectedResourceName = computed(() => {
   const r = resources.value.find((x) => x.id === selectedResourceId.value)
   return r ? r.name || r.title : ''
 })
 
-const versionCount = computed(() => versions.value.length)
+/** 版本总数：加载失败时不得谎报 0，改显 '--' */
+const versionCount = computed(() => (versionsError.value ? '--' : versions.value.length))
 const currentVersion = computed(() => {
+  if (versionsError.value) return '--'
   const v = versions.value.find((x) => x.id === activeVersionId.value)
   return v ? v.versionNumber || v.version || '—' : '—'
 })
 
 async function loadResources() {
+  resourcesError.value = ''
   try {
     // 缺陷修复（2026-10-04）：原写法 `resourceApi.getResourceList?.({ size: 200 })` 有两重失效——
     // ① getResourceList 的首参是 courseId，传对象会拼出 `/resources/course/[object Object]`；
@@ -192,17 +232,21 @@ async function loadResources() {
   } catch (e) {
     console.error('加载资源列表失败:', e)
     resources.value = []
+    resourcesError.value = '资源列表加载失败，请检查网络后重试'
   }
 }
 
 async function loadVersions() {
   if (!selectedResourceId.value) return
   loading.value = true
+  versionsError.value = ''
   try {
     const [histRes, activeRes] = await Promise.allSettled([
       versionApi.getVersionHistory(selectedResourceId.value),
       versionApi.getActiveVersion(selectedResourceId.value),
     ])
+    // 失败可见：allSettled 不抛错，必须逐路检测 rejected，否则失败被静默吞掉
+    const notices: string[] = []
     if (histRes.status === 'fulfilled') {
       const data =
         histRes.value.data?.list ||
@@ -211,13 +255,24 @@ async function loadVersions() {
         histRes.value ||
         []
       versions.value = Array.isArray(data) ? data : []
+    } else {
+      console.error('加载版本历史失败:', histRes.reason)
+      versions.value = []
+      notices.push('版本历史加载失败')
     }
     if (activeRes.status === 'fulfilled') {
       activeVersionId.value = activeRes.value.data?.id || activeRes.value.id || null
+    } else {
+      console.error('加载当前版本失败:', activeRes.reason)
+      activeVersionId.value = null
+      notices.push('当前版本加载失败')
     }
+    versionsError.value = notices.length ? `${notices.join('、')}，请检查网络后重试` : ''
   } catch (e) {
     console.error('加载版本历史失败:', e)
     versions.value = []
+    activeVersionId.value = null
+    versionsError.value = '版本信息加载失败，请检查网络后重试'
   } finally {
     loading.value = false
   }
@@ -229,6 +284,8 @@ function openCreateVersion() {
 }
 
 async function handleCreateVersion() {
+  // validate 先行（真环境内联错误 + scroll-to-error）；桩/无表单环境由快检兜底
+  if (!(await validateFormFields(formRef, ['changeLog']))) return
   if (!form.value.changeLog?.trim()) {
     ElMessage.warning('请输入更新说明')
     return
@@ -242,7 +299,7 @@ async function handleCreateVersion() {
     ElMessage.success('新版本已创建')
     dialogVisible.value = false
     await loadVersions()
-  } catch (e) {
+  } catch {
     ElMessage.error('创建版本失败')
   } finally {
     saving.value = false
@@ -262,7 +319,7 @@ async function confirmRollback() {
     ElMessage.success('回滚成功')
     rollbackVisible.value = false
     await loadVersions()
-  } catch (e) {
+  } catch {
     ElMessage.error('回滚失败')
   } finally {
     rollingBack.value = false
@@ -306,9 +363,4 @@ onMounted(loadResources)
   flex-wrap: wrap;
 }
 
-/* 空状态装饰 */
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
-}
 </style>

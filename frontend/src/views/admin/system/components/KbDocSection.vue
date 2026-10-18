@@ -22,6 +22,14 @@
         <el-button :disabled="!selectedCourseId" :loading="indexing" @click="$emit('clear-index')">
           <el-icon><Delete /></el-icon>清空索引
         </el-button>
+        <el-button
+          plain
+          :disabled="!selectedCourseId"
+          :loading="buildingFromCourse"
+          @click="$emit('build-from-course')"
+        >
+          <el-icon><MagicStick /></el-icon>从课程资料构建
+        </el-button>
         <div class="spacer"></div>
         <el-input
           :model-value="keyword"
@@ -32,6 +40,28 @@
           @keyup.enter="$emit('search')"
         />
       </div>
+    </div>
+
+    <!-- 课程知识库构建结果（失败/降级常驻可见，不静默、不误报为已入库） -->
+    <el-alert
+      v-if="buildError"
+      :title="buildError"
+      type="error"
+      :closable="false"
+      show-icon
+      class="build-alert"
+    />
+    <el-alert
+      v-else-if="buildResult"
+      :title="buildResult.note || '课程知识库构建已完成'"
+      :type="buildResult.mode === 'LOCAL' ? 'warning' : 'success'"
+      :closable="false"
+      show-icon
+      class="build-alert"
+    />
+    <div v-if="buildResult && !buildError" class="build-summary">
+      本次识别课程资料 {{ buildResult.total ?? 0 }} 条 · 已写入 {{ buildResult.added ?? 0 }} 条 ·
+      跳过 {{ buildResult.skipped ?? 0 }} 条（知识库中已存在）
     </div>
 
     <!-- 文档表格 -->
@@ -78,9 +108,7 @@
           </template>
         </el-table-column>
         <template #empty>
-          <el-empty description="请选择课程后查看知识库文档">
-            <template #image><div class="empty-deco">📚</div></template>
-          </el-empty>
+          <EmptyState title="请选择课程后查看知识库文档" icon="book" />
         </template>
       </el-table>
     </div>
@@ -88,11 +116,12 @@
 </template>
 
 <script setup lang="ts">
-import { Plus, Refresh, Delete, Document } from '@element-plus/icons-vue'
+import { Plus, Refresh, Delete, Document, MagicStick } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 知识库文档管理区
- * <p>课程选择/新建/重建索引/清空索引/搜索工具栏 + 文档列表表格。</p>
+ * <p>课程选择/新建/重建索引/清空索引/从课程资料构建/搜索工具栏 + 文档列表表格。</p>
  */
 defineProps({
   /** 课程列表 */
@@ -107,6 +136,12 @@ defineProps({
   loading: { type: Boolean, default: false },
   /** 索引操作加载态 */
   indexing: { type: Boolean, default: false },
+  /** 课程知识库构建进行中 */
+  buildingFromCourse: { type: Boolean, default: false },
+  /** 构建失败/引擎不可用的常驻错误信息（空串表示无错误） */
+  buildError: { type: String, default: '' },
+  /** 最近一次构建结果（mode/total/added/skipped/note） */
+  buildResult: { type: Object, default: null },
   /** 内容预览截断函数 */
   preview: { type: Function, required: true },
 })
@@ -119,6 +154,7 @@ defineEmits([
   'open-add',
   'build-index',
   'clear-index',
+  'build-from-course',
   'open-edit',
   'remove-doc',
 ])
@@ -154,6 +190,14 @@ defineEmits([
   align-items: center;
   gap: 6px;
 }
+.build-alert {
+  margin-bottom: 10px;
+}
+.build-summary {
+  margin-bottom: 12px;
+  font-size: 13px;
+  color: var(--ac-text-secondary);
+}
 .doc-icon {
   color: var(--ac-text-muted);
 }
@@ -162,9 +206,5 @@ defineEmits([
   align-items: center;
   justify-content: center;
   gap: 8px;
-}
-.empty-deco {
-  font-size: 38px;
-  filter: grayscale(0.2);
 }
 </style>

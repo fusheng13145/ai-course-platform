@@ -5,12 +5,12 @@
       <div class="chart-card">
         <div class="chart-title">用户注册趋势</div>
         <v-chart v-if="hasUserTrend" :option="userTrendOption" style="height: 340px" autoresize />
-        <el-empty v-else description="暂无用户注册趋势数据" :image-size="80" />
+        <EmptyState v-else title="暂无用户注册趋势数据" icon="chart" />
       </div>
       <div class="chart-card">
         <div class="chart-title">课程类别分布</div>
         <v-chart v-if="hasCategory" :option="categoryPieOption" style="height: 340px" autoresize />
-        <el-empty v-else description="暂无课程类别数据" :image-size="80" />
+        <EmptyState v-else title="暂无课程类别数据" icon="chart" />
       </div>
     </div>
 
@@ -33,7 +33,7 @@
           </div>
         </div>
       </template>
-      <el-empty v-else description="暂无学习时长热力图数据" :image-size="80" />
+      <EmptyState v-else title="暂无学习时长热力图数据" icon="chart" />
     </div>
 
     <!-- 图表区域第二行：角色活跃度 + 成绩分布 -->
@@ -46,12 +46,12 @@
           style="height: 320px"
           autoresize
         />
-        <el-empty v-else description="暂无角色活跃度数据" :image-size="80" />
+        <EmptyState v-else title="暂无角色活跃度数据" icon="chart" />
       </div>
       <div class="chart-card">
         <div class="chart-title">成绩分布直方图</div>
         <v-chart v-if="hasGradeDist" :option="gradeDistOption" style="height: 320px" autoresize />
-        <el-empty v-else description="暂无成绩分布数据" :image-size="80" />
+        <EmptyState v-else title="暂无成绩分布数据" icon="chart" />
       </div>
     </div>
 
@@ -59,16 +59,18 @@
     <div class="chart-card full-width animate-in d3">
       <div class="chart-title">热门课程 TOP10</div>
       <v-chart v-if="hasTopCourses" :option="topCoursesOption" style="height: 420px" autoresize />
-      <el-empty v-else description="暂无热门课程数据" :image-size="80" />
+      <EmptyState v-else title="暂无热门课程数据" icon="chart" />
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
+import EmptyState from '@/components/ui/EmptyState.vue'
+
 /**
  * 数据分析图表区域
  * <p>聚合展示六类图表（用户趋势/课程分布/学习热力图/角色活跃度/成绩分布/热门课程 TOP10），
- * 配置对象与空态标志均由父组件（useAnalytics）注入；无数据时展示 el-empty 降级。</p>
+ * 配置对象与空态标志均由父组件（useAnalytics）注入；无数据时展示 EmptyState 降级。</p>
  */
 defineProps({
   userTrendOption: { type: Object, required: true },

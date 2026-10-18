@@ -1,6 +1,7 @@
 <template>
   <!-- 话题详情 -->
   <el-dialog
+    ref="dialogRef"
     :model-value="modelValue"
     :title="currentTopic?.title || '话题详情'"
     width="680px"
@@ -40,15 +41,25 @@
         </div>
         <p class="pi-content">{{ p.content }}</p>
         <div class="pi-foot">
-          <el-button text size="small" @click="$emit('like', p)">
-            <el-icon><Pointer /></el-icon>赞 {{ p.likeCount || 0 }}
+          <el-button
+            text
+            size="small"
+            :type="p.liked ? 'primary' : 'default'"
+            @click="$emit('like', p)"
+          >
+            <el-icon><Pointer /></el-icon>{{ p.liked ? '已赞' : '赞' }} {{ p.likeCount || 0 }}
           </el-button>
           <el-button text size="small" type="danger" @click="$emit('remove-post', p)"
             >删除</el-button
           >
         </div>
       </div>
-      <el-empty v-if="!postLoading && posts.length === 0" description="暂无回复" :image-size="56" />
+      <EmptyState
+        v-if="!postLoading && posts.length === 0"
+        title="暂无回复"
+        icon="message"
+        size="compact"
+      />
     </div>
 
     <div class="reply-box">
@@ -68,25 +79,41 @@
 </template>
 
 <script setup lang="ts">
+import { ref, computed } from 'vue'
 import { Top, SwitchButton, Pointer } from '@element-plus/icons-vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
-defineProps({
-  modelValue: { type: Boolean, default: false },
-  currentTopic: { type: Object, default: null },
-  posts: { type: Array, default: () => [] },
-  postLoading: { type: Boolean, default: false },
-  replyText: { type: String, default: '' },
-  replySubmitting: { type: Boolean, default: false },
-})
-defineEmits([
-  'update:modelValue',
-  'update:replyText',
-  'toggle-pin',
-  'close-topic',
-  'like',
-  'remove-post',
-  'submit-reply',
-])
+const props = withDefaults(
+  defineProps<{
+    modelValue?: boolean
+    currentTopic?: DiscussionTopic | null
+    posts?: DiscussionPost[]
+    postLoading?: boolean
+    replyText?: string
+    replySubmitting?: boolean
+  }>(),
+  {
+    modelValue: false,
+    currentTopic: null,
+    posts: () => [],
+    postLoading: false,
+    replyText: '',
+    replySubmitting: false,
+  },
+)
+const dialogRef = ref(null)
+// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
+useDialogFocus(dialogRef, computed(() => props.modelValue))
+defineEmits<{
+  'update:modelValue': [value: boolean]
+  'update:replyText': [value: string]
+  'toggle-pin': []
+  'close-topic': []
+  like: [post: DiscussionPost]
+  'remove-post': [post: DiscussionPost]
+  'submit-reply': []
+}>()
 </script>
 
 <style scoped>

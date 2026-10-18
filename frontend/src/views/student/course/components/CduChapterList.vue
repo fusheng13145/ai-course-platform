@@ -38,12 +38,13 @@
         </el-button>
       </div>
     </div>
-    <el-empty v-if="chapters.length === 0" description="暂无章节内容" :image-size="100" />
+    <EmptyState v-if="chapters.length === 0" :title="emptyText" icon="layers" />
   </div>
 </template>
 
 <script setup lang="ts">
 import { Select, Timer, ArrowRight } from '@element-plus/icons-vue'
+import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 章节学习 Tab — 章节列表视图
@@ -52,6 +53,8 @@ import { Select, Timer, ArrowRight } from '@element-plus/icons-vue'
 defineProps({
   /** 章节列表（含 completed/current/progress 派生字段） */
   chapters: { type: Array, required: true },
+  /** 空态文案（父页面按加载失败态透传诚实提示，默认保留原语义） */
+  emptyText: { type: String, default: '暂无章节内容' },
 })
 
 defineEmits(['enter'])
