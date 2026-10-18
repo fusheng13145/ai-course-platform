@@ -1385,9 +1385,22 @@ const props = defineProps<{
    这与被修掉的那条 finding 属同一类缺陷——自信地陈述一件代码并不支持的结论，只不过这次落在"纠正注释"上。
    二选一：把措辞软化为"本用例用 `get`"，或把 `:63`（"元素必须存在否则测试必须失败"的同一形状）一并迁到 `get`。
    后者是**查询路径变更、不是断言变更**，优先选后者。
-2. `:115-116` 对仓库约定的引用偏弱：`AppShell.shortcuts.test.ts:94-105` 其实是普通 `addEventListener` 测试监听、
-   `useTheme.test.ts:20` 是 matchMedia 桩里的 `vi.fn()`；真正的 `vi.spyOn` 先例是
-   `useQuestions.test.ts:586` 与 `chartTheme.test.ts:74`。改掉引用对象，别留一个撑不住的"仓库惯例"说法。
+2. ⚠️ **`:115-116` 不要声称"仓库惯例"——这个先例不存在。** 控制器实测：
+   全仓 `grep "spyOn(document|window, ['\"]addEventListener"` **只有 `Modal.compat.test.ts:138` 这一处**。
+   两份评审在此各执一词且都不准，事实是：
+   - `AppShell.shortcuts.test.ts:94-105` 是 `window.addEventListener(FOCUS_GLOBAL_SEARCH_EVENT, heard)`，
+     普通测试监听，**不是**对 `addEventListener` 的 spy；
+   - `useTheme.test.ts:20` 是 matchMedia 桩里的 `vi.fn()`，而它的 `:24-27` 恰恰是
+     `Object.defineProperty(window,'matchMedia',...)` **手改全局且不还原**——拿它当反面例子才对。
+   ⇒ 正确措辞：不援引惯例，直接说理由——用 `vi.spyOn` 是因为 `addEventListener` 继承自
+   `EventTarget.prototype`，tinyspy 的 restore 走 `Reflect.deleteProperty`（`tinyspy/dist/index.js:135-137`），
+   能把 own 属性整个删掉、恢复原状；手工赋值反而会往 `document` 上留一个 own 属性。
+   顺带把注释里 `vue-test-utils.cjs.js:7247-7251 / :1477-1492` 的行号改标成 vitest 实际加载的
+   `esm-bundler` 构建（同一份逻辑在它的 `:1457-1469`）。
+   **这是本任务族第三次出现"自信陈述一件代码不支持的结论"**（我一次、实现者一次、评审一次），
+   所以措辞宁可写弱一档也不要写一个撑不住的名字。
+2b. `:137-148` 第二个 `spyOn` 落在 `try` 之外：理论上两次 `spyOn` 之间抛异常会让 `addEventListener`
+    在本文件后续用例里保持被 mock。实际不可达，但把两个 spy 的安装一起挪进 `try`（或先开 `try`）即可闭掉。
 3. ⚠️ **load-bearing**：`mounted` 是**模块作用域**数组，而 `afterEach` 挂在单个 `describe` 内。
    本任务 Step 4 要往同一文件**追加第二个顶层 `describe`**，届时第一个块的 `afterEach` 会清空共享数组
    （`mounted.length = 0`），**把 finding 5 刚清掉的僵尸 `.overlay` 节点与残留 keydown 监听原样带回来**，
