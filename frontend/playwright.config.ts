@@ -8,6 +8,9 @@ const BASE_URL = `http://localhost:${PORT}`
 
 export default defineConfig({
   testDir: './e2e',
+  // 视觉回归有自己的 config（playwright.visual.ts）：那边 workers:1、快照进 __snapshots__、
+  // 端口 5175。留在这里被扫到，流程套件就会在 5173 上跑基线并假红。
+  testIgnore: /[/\\]visual[/\\]/,
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,

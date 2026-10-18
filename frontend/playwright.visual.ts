@@ -10,6 +10,8 @@ export default defineConfig({
   testDir: './e2e/visual',
   fullyParallel: false,
   workers: 1,
+  // 与流程 config 一致：CI 里遗留的 .only 必须直接失败，否则会静默把 24 张基线的矩阵缩成 1 张
+  forbidOnly: !!process.env.CI,
   retries: 0,
   timeout: 60000,
   reporter: [['list']],
