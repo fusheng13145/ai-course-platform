@@ -1,6 +1,28 @@
 <script setup>
-import { onMounted, onBeforeUnmount } from 'vue'
-const emit = defineEmits(['close'])
+import { computed, onMounted, onBeforeUnmount } from 'vue'
+
+/**
+ * 可见性通道（Task 7）。三态语义：
+ * - `undefined`＝不传：**13 个存量调用点（12 个文件）全是这一类**，可见性由外层 `v-if` 决定，
+ *   所以「没传」必须继续等于「可见」。
+ * - `true`＝开、`false`＝关，供 Phase 4 的 `v-model="visible"` 写法使用。
+ *
+ * `default: undefined` 是承重的，不能删：Boolean prop 缺省且**没有** default 时，Vue 会把
+ * 「没传」强制成 `false`（vue 3.5.43 `resolvePropValue` 的 shouldCast 分支：
+ * runtime-core.esm-bundler.js:5140-5145、同一逻辑在 runtime-core.cjs.js:5117-5122。
+ * 我不断言 vitest 实际加载哪份构建——变异 M1（删掉 default）会让 Modal.compat.test.ts 的
+ * 8 条立刻转红，那才是本机证明该转换真的发生了的证据）。
+ * 否则 open 恒为 false，全部老页面一打开就是空白。同 Drawer.vue:27-32（Task 11 撞出来的同一条）。
+ */
+const props = defineProps({
+  modelValue: { type: Boolean, default: undefined },
+})
+// 双通道：`close` 是 13 个存量调用点唯一在听的，`update:modelValue` 是 v-model 的另一条腿。
+const emit = defineEmits(['close', 'update:modelValue'])
+
+// 缺省视为 true——false 才是「关」，undefined 不是。
+const open = computed(() => props.modelValue !== false)
+
 onMounted(() => {
   document.addEventListener('keydown', onEsc)
 })
@@ -10,13 +32,16 @@ function onEsc(e) {
 }
 function close() {
   emit('close')
+  // 只有调用点真的在用 v-model（modelValue 显式为 true）才回写，
+  // 免得给 13 个只 @close 的老调用点发没人听的事件。
+  if (props.modelValue === true) emit('update:modelValue', false)
 }
 function onOverlay(e) {
   if (e.target === e.currentTarget) close()
 }
 </script>
 <template>
-  <div class="overlay" @mousedown.self="onOverlay">
+  <div v-if="open" class="overlay" @mousedown.self="onOverlay">
     <div
       class="modal"
       :class="{
