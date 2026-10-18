@@ -1928,6 +1928,24 @@ git commit -m "test(ui): 补齐 5 个裸奔原语现状断言，Phase 4/5 动它
 - Consumes: `Modal`（Task 7–10）、`Drawer`（Task 11）的可识别标记
 - Produces: `OVERLAY_MARKERS`（`<el-dialog` / `<Modal` / `<modal` / `<Drawer` / `<drawer` / `<el-drawer`）与 `EXPECTED_OVERLAY_MIN` 受控常量；Phase 4 每迁移一批，总数不降
 
+> ⚠️ **本任务必须排在 Task 11 之后**（控制器实测发现，不是推测）。
+> 用 `MK=['<el-dialog','<Modal','<modal','<ui-modal','<Drawer','<drawer','<el-drawer']` 去注释扫描全仓，实测：
+> **弹层 73 个文件 / 82 个开标签**（`el-dialog` 63、`Modal` 13、`Drawer` 2、`el-drawer` 4），
+> 而"未接焦点管理"的文件**恰好就是那 4 个 `<el-drawer>` 使用者**：
+> `views/admin/governance/components/EgEventsDrawer.vue`、
+> `views/student/academic/components/DscDetailDrawer.vue`、
+> `views/student/course/components/TaskDrawer.vue`、
+> `views/teacher/cockpit/components/CdsDetailDrawer.vue`。
+> ⇒ 两条结论：
+> ① **D2-7 的"弹层 100% 接入"从来只覆盖 `el-dialog`**，抽屉不在扫描范围内——这是 4 个真实缺口，
+>    不是护栏误报。Task 11 给 `ui/Drawer` 内部接入焦点之后，这 4 处要么改用 `ui/Drawer`、
+>    要么补手接 `useDialogFocus`，二者都能让它合规。
+> ② **若 Task 13 先于 Task 11 落地，护栏会立刻红在这 4 个合法未接线的文件上**，
+>    而执行者面对 4 条红灯最省事的做法就是把抽屉标记删掉或放宽——那正是本任务要防的事。
+>    故顺序改为 **Task 11 → Task 13**；本任务开工前须重跑扫描，确认 `未接焦点 = []` 才允许把抽屉纳入标记集。
+> 地板值按实测设：`EXPECTED_OVERLAY_COMPONENT_MIN = 73`、`EXPECTED_OVERLAY_MIN = 82`
+> （**开工时须重测**，Task 7-11 会改变数字；这两个值只升不降）。
+
 - [ ] **Step 1: 先测准当前口径（消解 spec §9.4 的 54/55 与 63/65 差异）**
 
 **要测的是"所有弹层实现"的并集，不只是 `el-dialog`**——`EXPECTED_OVERLAY_MIN` 守的是弹层总数，
