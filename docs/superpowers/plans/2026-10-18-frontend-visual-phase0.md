@@ -6,7 +6,7 @@
 
 **Architecture:** 视觉 harness 走**独立** Playwright 配置文件，不与既有 9 个流程 spec 共用 `projects`/`screenshot` 设置；确定性靠 `page.clock` 冻结时间 + 真后端固定种子数据 + 文本稳定态轮询达成，而非盲目 `waitForTimeout`。原语补强走 TDD：先把 12 个存量 `Modal` 调用点的行为钉成测试，再加能力，保证向后兼容是"测出来的"而不是"看起来没问题"。
 
-**Tech Stack:** Vue 3.5 `<script setup>` · Element Plus 2.4.4 · Vitest 3.2.7（jsdom + `@vue/test-utils`）· Playwright 1.62（`toHaveScreenshot` / `page.clock` / `storageState`）· 无 SCSS 新增（新层用原生 CSS）
+**Tech Stack:** Vue 3.5 `<script setup>` · Element Plus 2.4.4 · Vitest 3.2.7（jsdom + `@vue/test-utils`）· **Playwright 1.63.0**（`toHaveScreenshot` / `page.clock` / `storageState`）· 无 SCSS 新增（新层用原生 CSS）
 
 **Spec:** `docs/superpowers/specs/2026-10-18-frontend-visual-upgrade-design.md` — 本计划实现其 **§4 Phase 0a 与 Phase 0b**，并消解 §9 的第 2、3、4、5 项未验证条。执行时两份同读。
 
@@ -46,7 +46,10 @@
    后端须以 `RATELIMIT_LOGIN_LIMIT=200` 启动。本计划用 `storageState` 把登录次数压到每角色 1 次（共 3 次），但限流仍须放宽以防重跑。
 3. **Playwright 支持 `page.clock`。** 该 API 自 1.45 起提供。
    Run: `npx playwright --version`
-   Expected: `Version 1.62.x`（若 < 1.45 则本计划不适用，停下报告）。
+   Expected: `Version 1.63.0`（若 < 1.45 则本计划不适用，停下报告）。
+   **版本影响写法**：1.63 的 `Clock` 接口实测只有 `fastForward / install({time}) / pauseAt / resume /
+   runFor / setFixedTime / setSystemTime` —— **没有 `pause()`**，且 `install` 不接受 `pauseAt` 选项。
+   时钟相关代码须按此写，见 Task 1 Step 3。
 
 ---
 
@@ -127,25 +130,34 @@ export async function setTheme(page: Page, theme: ThemeName): Promise<void> {
  * 不冻结则同一份代码每天截出不同的图，基线失去意义。
  * 固定到本计划撰写日的上午九点整——刻意避开零点/整日边界，边界值最易暴露格式化差异。
  *
- * 必须带 `pauseAt`：`clock.install({ time })` 只是把起点挪到 time，时钟**仍按真实速率前进**
- * （实测约 310ms/300ms），到截图那一刻页面时间 = 09:00:05 + 真实耗时，秒级文案照旧会漂，
- * "二次跑零 diff"就变成随机红灯。`pauseAt` 让时间推进到该刻即停，推进量由参数决定、不由机器快慢决定。
- * 若实测发现 `pauseAt` 不驱动 rAF（动画因此不跑完），退路是 install → runFor(5000) → pause() 两步，
- * 并把本注释改成实际生效的那一种。
+ * 必须真的停下来：`clock.install({ time })` 只把起点挪到 time，时钟**仍按真实速率前进**
+ * （实测 400ms 真实时间走 416ms 页面时间），到截图那一刻页面时间 = 09:00:0x + 真实耗时，
+ * 秒级相对文案照旧会漂，Task 4 的"二次跑零 diff"就变成随机红灯。
+ *
+ * API 事实（本机 Playwright 1.63.0，实测自 `playwright-core/types/types.d.ts` 的 `Clock` 接口）：
+ *   `install` 只接受 `{ time }`；`pauseAt` 是**独立方法**；**没有 `pause()`**。
+ *   把 `pauseAt` 写进 install 的选项里会被静默忽略，且 `npm run typecheck:gate` 报 TS2353、
+ *   把存量错误从 402 抬到 403 —— 即"看着生效、实际既没冻结又弄脏棘轮"。
+ * 故正确写法是两步：install 定起点 → `pauseAt(起点 + 5000)` 让它停在该刻。
+ * 注意 `pauseAt` 在导航之前调用时不会触发页面 timer，动画推进须交给 `settlePage`（见下）。
  */
+export const CLOCK_T0 = new Date('2026-10-18T09:00:00')
 export async function freezeClock(page: Page): Promise<void> {
-  const t0 = new Date('2026-10-18T09:00:00')
-  await page.clock.install({ time: t0, pauseAt: new Date(t0.getTime() + 5000) })
+  await page.clock.install({ time: CLOCK_T0 })
+  await page.clock.pauseAt(new Date(CLOCK_T0.getTime() + 5000))
 }
 
 /**
- * 稳定态收敛。顺序有意义：先等网络空闲，让迟到的数据把动画排上队，
- * 再一次性推进到 pauseAt（已越过 ECharts ~1000ms 与 CountUp 的时长），最后校文本不再变。
- * 这比 waitForTimeout 可靠——固定毫秒数在慢机器上会截到半截动画。
+ * 稳定态收敛。顺序有意义：先等网络空闲让迟到的数据把动画排上队，
+ * 再一次性把时钟推进 5000ms（越过 ECharts ~1000ms 与 CountUp 的时长并停住），
+ * 然后读字体、校文本不再变。这比 waitForTimeout 可靠——固定毫秒数在慢机器上会截到半截动画。
+ *
+ * 截图时刻的页面时间 = 09:00:10.000（freezeClock 停在 +5000，此处再 +5000）。
+ * Task 4/14 若断言任何绝对时间文案，须按这个值算，不是 09:00:00。
  */
 export async function settlePage(page: Page): Promise<void> {
   await page.waitForLoadState('networkidle')
-  await page.clock.runFor(0) // 触发已排队的 rAF/timer 回调 flush
+  await page.clock.runFor(5000)
   await page.evaluate(() => document.fonts.ready.then(() => undefined))
   await waitForStableText(page)
 }
@@ -154,6 +166,9 @@ export async function settlePage(page: Page): Promise<void> {
  * 关键文本稳定判定：连续两轮读数相同才放行。
  * 零匹配也算稳定——一个没有任何统计卡的页面（登录页就是）不可能"还在动画中"，
  * 若在此等超时，抛出的诊断"可能仍在动画中"是假的，且会把多数锚点页拖成随机红。
+ *
+ * 每轮轮询先 `runFor(120)` 再读数：时钟已停在 pauseAt，页面定时器不会自己走，
+ * 不推时钟的话"正在变化的数字"永远不变，第 3 条 helper 测试（数字跑到 7 才放行）无法成立。
  */
 export async function waitForStableText(page: Page, timeout = 15000): Promise<void> {
   let prev: string | null = null
@@ -167,7 +182,7 @@ export async function waitForStableText(page: Page, timeout = 15000): Promise<vo
     if (now === '') return // 页面无统计类文本 → 天然稳定
     if (now === prev) return
     prev = now
-    await page.waitForTimeout(120)
+    await page.clock.runFor(120)
   }
   throw new Error(`文本未收敛到稳定态（可能仍在动画中）·最后读数: ${prev}`)
 }
@@ -309,9 +324,11 @@ test('waitForStableText 在文本仍在变时不立即返回', async ({ page }) 
 ```
 
 Run: `PW_PORT=5175 npx playwright test -c playwright.visual.ts helpers`
-Expected: 三条 PASS。**若第二条 FAIL，说明 Step 3 的 `pauseAt` 写法在本机 Playwright 1.62 上不冻结**
-——按 Step 3 注释的退路改成 `install({ time })` → `runFor(5000)` → `pause()`，并把该处注释改成实际生效的那种；
-不得把这条断言删掉或改成"前进量 < 某阈值"来蒙过。
+Expected: 三条 PASS。**若第二条 FAIL，说明 `pauseAt` 没真的停住时钟**——此时**不要**去找 `pause()`
+（本机 Playwright 1.63.0 的 `Clock` 接口里没有这个方法，实测自 `playwright-core/types/types.d.ts`），
+也**不要**把断言改成"前进量 < 某阈值"或删除它。改法是核对 `install` 只收 `{ time }`、
+`pauseAt` 必须作为独立 `await` 调用（写成 install 选项会被静默忽略并让 typecheck 报 TS2353）。
+第三条若停在 `'0'` 而非 `'7'`，是 `waitForStableText` 没在每轮推时钟——见其注释。
 
 - [ ] **Step 5c: 把 visual 从流程 config 里摘出去（本任务交付的另一半）**
 
@@ -656,8 +673,14 @@ Expected: 24 passed，`frontend/e2e/visual/__snapshots__/anchors.spec.ts/` 下�
 
 - [ ] **Step 4: 二次跑确认自洽（关键，不能跳）**
 
-Run: `PW_PORT=5175 npx playwright test -c playwright.visual.ts`
-Expected: 24 passed，**零 diff**。若第二次跑出 diff，说明某个动态源还没被钉住（常见：图片懒加载、WebSocket 通知计数、`Math.random()` 生成的图谱布局）。逐个定位后补进 `freezeClock` / `maskSelectors`，**不得**靠调大 `maxDiffPixelRatio` 掩盖——那等于关掉这层防护。
+Run: `PW_PORT=5175 npx playwright test -c playwright.visual.ts anchors --repeat-each=2`
+Expected: 48 passed，**零 diff**。`--repeat-each=2` 是刻意加的：Task 1 的"先等网络空闲再推时钟"这个顺序
+（评审 finding #8）没有自己的测试——它能被间接证明的唯一方式，是让同一页在同一进程里连跑两次还稳定。
+若某锚点跑出 diff，说明某个动态源还没被钉住（常见：图片懒加载、WebSocket 通知计数、
+`Math.random()` 生成的图谱布局）。逐个定位后补进 `freezeClock` / `maskSelectors`，**不得**靠调大
+`maxDiffPixelRatio` 掩盖——那等于关掉这层防护。
+截图时刻的页面时间 = **09:00:10.000**（`freezeClock` 停在 +5000，`settlePage` 再推 5000）；
+若某页断言或显示绝对时间，按此值核对，不要按 09:00:00。
 
 - [ ] **Step 5: 逐张人工核验并记录（24 张全看，不抽样）**
 
