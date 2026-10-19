@@ -16,8 +16,37 @@
  * （coreBundle.js 里 `comparator === 'pixelmatch'` 那支只传 `{ threshold }`，
  * 于是 includeAA 取默认 false、alpha 取默认 0.1）。自己实现一份"看起来一样"的判据
  * 必然与跑测器漂开，届时注释里的数就不是门禁里的数。
- * 取法与自检：见 loadPixelmatch() 的注释与 --selfcheck 模式（--selfcheck 拿一对已知图
- * 与 Playwright 自己报出的计数核对，不匹配即退出码 3）。
+ * 取法与自检：见 loadPixelmatch() 与 loadPlaywrightPng() 的注释。
+ *
+ * 【--selfcheck 到底在验什么（2026-10-19 改过——原文是一句做不到的承诺）】
+ *   旧版本这里写着"拿一对已知图与 Playwright 自己报出的计数核对，不匹配即退出码 3"，
+ *   而实现只打印就 return，**全文件没有任何一条路径能给出退出码 3**。
+ *   那句承诺还有个更硬的前提错误：`toHaveScreenshot` 只比**同名**的 expected/actual，
+ *   所以"Playwright 对 login-light vs login-dark 这一对报过的计数"从来不存在；
+ *   盘上确实有 Playwright 自报数的记录（`tools/kat-falsification.cjs` 头的 1,394、
+ *   `helpers.spec.ts` 的同一格），但那一对图**全是 git-ignored 的探针产物**，
+ *   重建要先跑一次带浏览器的探针 ⇒ 入库产物里没有"可重建且带 Playwright 报数"的图对。
+ *   照原承诺做 (a) 只能编一个"已知好数"当参照，那正是本轮要拆掉的假信心，所以不编。
+ *
+ *   现在改成有牙齿、且参照可真的执行的那一件事：**与 Playwright 比对时实际跑的那两个组件对账**。
+ *   Playwright 的 `compareImages()` 只用到两样东西（coreBundle.js 逐字核实）：
+ *     ① 解码 `PNG.sync.read(buffer)` —— `coreBundle.js:7873`，`PNG` 来自
+ *        `require("./utilsBundle")`（`coreBundle.js:7963`）；
+ *     ② 计数 `import_pixelmatch.default(expected.data, actual.data, …, { threshold: options.threshold ?? 0.2 })`
+ *        —— `coreBundle.js:7896-7898`（只传 threshold ⇒ includeAA=false、alpha 默认 0.1）。
+ *   `--selfcheck` 拿**同一对已提交基线**跑两条路径：本工具的 decodePng vs Playwright 那份 pngjs
+ *   （逐字节比 RGBA），以及本工具的计数 vs "那份 pngjs 解码 + 那份 pixelmatch"的计数。
+ *   **任一不符 ⇒ 退出码 3。** 参照不是某个历史数字，是跑测器用的解码器与分类器本身。
+ *
+ * 【三道守卫的分工——别把它们当同一件事】
+ *   · `--selfcheck`（本文件）：离线、不要浏览器，只守"尺的输入端与 Playwright 同源"（PNG 解码那条路径）。
+ *     helpers.spec.ts 的 filter0/filter3 KAT 抓的就是这一类的现行 bug（Average 过滤少一层括号
+ *     ⇒ radius 计数从跑测器的 1,394 漂到 2,257）。
+ *   · `sensitivity.spec.ts` 的 `[探针无效] 两条路径判定分叉` 与 `尺不同源`：**日常**那道门，
+ *     每次探针都拿真跑测器真报出的计数与真判据对账，覆盖整条 pipeline（含 ratio/判据分支）。
+ *   · `sensitivity.spec.ts` 的 `[量程结论] …（成功测量不是回归失败）`：极性与回归相反，FAILED 才是检出了。
+ *   前一条不能替后一条：自检不需要浏览器，所以它证明不了 Playwright 的判据分支；
+ *   探针那条要后端与 dev server，所以它不是"随手能跑的验尺命令"。
  *
  * 【口径纪律】所有读数都绑定一组 (threshold, maxDiffPixelRatio)。默认**读交付配置**
  * （从 visual-helpers.ts 的 SNAPSHOT_THRESHOLDS 现取，不复制字面量）。
@@ -220,6 +249,39 @@ function loadPixelmatch() {
   return new Function(`${shim}\n${block}\nreturn require_pixelmatch();`)()
 }
 
+/**
+ * 取 **Playwright 比对时真正用的那份 PNG 解码器**（pngjs 的 `PNG.sync.read`）。
+ * 出处不是文档转述：coreBundle.js 的 `compareImages()` 里 `decode()` 对 image/png 就是
+ * `PNG.sync.read(buffer)`（`:7873`），而那个 `PNG` 是 `({ PNG } = require("./utilsBundle"))`（`:7963`）。
+ * 所以 utilsBundle 里的 PNG 与跑测器解出来的像素是同一份实现——这才是"参照"，
+ * 而不是某个注释里抄来的历史数字。
+ * 为什么可以 require 它而 coreBundle 不行：package 的 `exports` 白名单只约束**裸包名/子路径说明符**，
+ * 按**绝对文件路径**require 不走 exports 解析（本机实测：`PNG? function`）。
+ * 取不到就抛——自检宁可红，也不要拿一份猜的解码器当参照。
+ */
+function loadPlaywrightPng() {
+  for (let dir = __dirname; ; dir = path.dirname(dir)) {
+    const cand = path.join(dir, 'node_modules', 'playwright-core', 'lib', 'utilsBundle.js')
+    if (fs.existsSync(cand)) {
+      const ub = require(cand)
+      if (!ub || typeof ub.PNG !== 'function' || typeof ub.PNG.sync?.read !== 'function') {
+        throw new Error(`${cand} 里没有 PNG.sync.read——Playwright 版本变了，解码参照要重新核`)
+      }
+      return ub.PNG
+    }
+    const parent = path.dirname(dir)
+    if (parent === dir) break
+  }
+  throw new Error('找不到 playwright-core/lib/utilsBundle.js——解码参照没了，--selfcheck 无从对账')
+}
+
+/** 用跑测器那份 pngjs 解一张图（与 coreBundle.js:7873 同一调用式）。 */
+function decodeWithPlaywrightPng(file) {
+  const PNG = loadPlaywrightPng()
+  const img = PNG.sync.read(fs.readFileSync(file))
+  return { width: img.width, height: img.height, data: img.data }
+}
+
 /* --------------------------------------------------------------------- 度量 */
 
 /**
@@ -322,6 +384,81 @@ function measure(expectedFile, actualFile, opts) {
 
 /* ------------------------------------------------------------------ CLI 装配 */
 
+/**
+ * `--selfcheck` 的实现（唯一会给出退出码 3 的地方；3 = 尺与跑测器不同源）。
+ * 参照是 **Playwright 比对时真跑的那两个组件**：pngjs 的 `PNG.sync.read`（coreBundle.js:7873/7963）
+ * 与 bundle 里那份 pixelmatch（:7896-7898）。不是某个抄进注释的历史数字——那种参照一旦那轮配置变了就作废。
+ * 输入用**已提交的两张基线** ⇒ 不需要浏览器与后端，随时能跑（这是它相对探针 ①② 的唯一优势，
+ * 也是它只能覆盖解码这一段的代价，见文件头"三道守卫的分工"）。
+ * 两步对账：
+ *   ① 逐字节：本工具 decodePng 的 RGBA == Playwright 那份 pngjs 的 RGBA（尺寸也得相等）；
+ *   ② 计数：本工具 pixelmatch 计数 == 用 pngjs 的像素喂同一份 pixelmatch 得到的计数。
+ */
+function selfcheck(opts) {
+  const pair = ['login-light.png', 'login-dark.png'].map((f) => path.join(SNAP_DIR, f))
+  const problems = []
+  const pixelmatch = loadPixelmatch()
+  const refPixels = []
+
+  for (const f of pair) {
+    const ours = decodePng(f)
+    const ref = decodeWithPlaywrightPng(f)
+    refPixels.push(ref)
+    if (ours.width !== ref.width || ours.height !== ref.height) {
+      problems.push(`${path.basename(f)}：尺寸 ${ours.width}x${ours.height} ≠ pngjs 的 ${ref.width}x${ref.height}`)
+      continue
+    }
+    let diffAt = -1
+    let diffCount = 0
+    for (let i = 0; i < ours.data.length; i++) {
+      if (ours.data[i] !== ref.data[i]) {
+        diffCount++
+        if (diffAt < 0) diffAt = i
+      }
+    }
+    if (diffAt >= 0) {
+      problems.push(
+        `${path.basename(f)}：本工具与 pngjs 解出 ${diffCount} 个字节不同（首个 @offset ${diffAt}，` +
+          `本工具 ${ours.data[diffAt]} vs pngjs ${ref.data[diffAt]}）——unfilter 那一支有 bug`,
+      )
+    }
+  }
+
+  if (refPixels[0].width === refPixels[1].width && refPixels[0].height === refPixels[1].height) {
+    const { width, height } = refPixels[0]
+    const refCount = pixelmatch(
+      refPixels[0].data,
+      refPixels[1].data,
+      Buffer.alloc(width * height * 4),
+      width,
+      height,
+      { threshold: opts.threshold },
+    )
+    const mine = measure(pair[0], pair[1], opts)
+    console.log(fmt({ ...mine, deliveryConfig: opts.deliveryConfig }))
+    console.log(
+      `对账 解码=PNG.sync.read(playwright-core/lib/utilsBundle.js) 计数=coreBundle 里的 require_pixelmatch · ` +
+        `pngjs 路径计数 ${refCount} · 本工具计数 ${mine.pixelmatchCount}`,
+    )
+    if (refCount !== mine.pixelmatchCount) {
+      problems.push(`计数不同源：pngjs 喂进去的像素得到 ${refCount}，本工具得到 ${mine.pixelmatchCount}`)
+    }
+  } else {
+    problems.push('两张图尺寸不一致，无法按 Playwright 的路径复算计数（本工具本来也会在这里抛）')
+  }
+
+  if (problems.length > 0) {
+    console.error('SELFCHECK: **尺与跑测器不同源** —— 本轮所有像素读数一律不可引用：\n  ' + problems.join('\n  '))
+    process.exitCode = 3
+    return
+  }
+  console.log(
+    'SELFCHECK: 通过——解码与 Playwright 用的那份 pngjs 逐字节相同，计数与"那份 pngjs + bundle 那份 pixelmatch' +
+      '（即跑测器 compareImages 的全部输入）"相等。免检额/ratio 那一段不在本命令覆盖内，由 sensitivity.spec.ts 的' +
+      ' `[探针无效] 两条路径判定分叉` 与 `尺不同源` 在日常跑测里对账。',
+  )
+}
+
 function parseArgv(argv) {
   const opts = { bands: false, json: false }
   const positional = []
@@ -381,10 +518,7 @@ function main() {
   }
 
   if (positional[0] === '--selfcheck') {
-    // 拿一对"已知 Playwright 报过数"的图核对尺：见 --table 的产物与 sensitivity 断言
-    const r = measure(path.join(SNAP_DIR, 'login-light.png'), path.join(SNAP_DIR, 'login-dark.png'), opts)
-    console.log(fmt({ ...r, deliveryConfig: opts.deliveryConfig }))
-    console.log('SELFCHECK: 尺已加载（pixelmatch 计数与字节差同时给出即视为可用；与跑测器计数的相等性由 sensitivity.spec.ts 断言）')
+    selfcheck(opts)
     return
   }
 
@@ -431,7 +565,7 @@ function main() {
       '用法：measure-diff.cjs <expected.png> <actual.png> [--bands] [--json] [--threshold=t] [--ratio=r]\n' +
         '     measure-diff.cjs --table <capturesDir> [<baselineDir>]   逐张对比取证图与基线\n' +
         '     measure-diff.cjs --manifest <dir>                        基线 sha256 清单（篡改痕迹）\n' +
-        '     measure-diff.cjs --selfcheck                             尺能否加载',
+        '     measure-diff.cjs --selfcheck                             尺与跑测器是否同源（不同源 → 退出码 3）',
     )
   }
   const r = measure(positional[0], positional[1], opts)
