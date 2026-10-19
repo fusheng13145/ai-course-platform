@@ -56,7 +56,16 @@ interface MeasureReading {
  * 不在这里重写判据——重写出来的"看起来一样"的尺必然与跑测器漂开。
  */
 function measureAgainstBaseline(expected: string, actual: string): MeasureReading {
-  const out = execFileSync(process.execPath, [MEASURER, expected, actual, '--json'], { encoding: 'utf8' })
+  // 显式传 t=0 / r=0，与下面 assertZeroDiff 的注释口径一致。
+  // 不传的话比较器默认读**交付配置**（当前 r=0.0001 ⇒ 免检额 130 px；任何 r>0 都会吸收掉 count ≤ 免检额 的漂移），
+  // 打印出来的就是交付口径的数，而这条用例的注释声明的是"归零验证用零免检额"——注释与代码各说一套
+  // 正是 Step 1f/1g 要清的那类问题。（真正的判据本来就不看 `failed`：下面要求 md5 相等且 byteDiffPx===0，
+  // 比任何一档 t/r 都硬。）
+  const out = execFileSync(
+    process.execPath,
+    [MEASURER, expected, actual, '--json', '--threshold=0', '--ratio=0'],
+    { encoding: 'utf8' },
+  )
   return JSON.parse(out) as MeasureReading
 }
 
@@ -232,8 +241,10 @@ async function runAnchor(page: Page, anchor: AnchorSpec, theme: ThemeName, testI
   if (pinState) {
     assertPinCoverage(anchor, pinState)
     // 日期锚点的"归零"判据（brief Step 1 的判定式：钉载荷后计数必须归 0，不是"变小"）。
-    // toHaveScreenshot 在 r=0.0005 下会把 618 px 的漂移**吸收掉**，所以"绿"根本不证明零漂移；
-    // 这里用同一个 mask、同一组截图参数另截一张，交给已入库的比较器按 t=0/r=0 读死数。
+    // toHaveScreenshot 的"绿"根本不证明零漂移：交付档 r=0.0001 只有 130 px 免检额，但**判据是分类器计数**，
+    //   字节差 618 / 计数 321 那种漂移在 0.0005 下被整体吸收、在 0.0001 下也只按 321 这个数变红，
+    //   而"618 个像素真的变了"这件事从来不在 ratio 的账里。
+    // 这里用同一个 mask、同一组截图参数另截一张，交给已入库的比较器按 t=0/r=0 读死数，并**要求 md5 相等**。
     await assertZeroDiff(page, anchor, theme, testInfo)
     console.log(`[pin] ${anchor.slug}/${theme} 钉掉 ${pinState.served.length} 次请求：${JSON.stringify(pinState.served)}`)
     if (pinState.unpinnedTodayBearing.length > 0) {
@@ -244,9 +255,9 @@ async function runAnchor(page: Page, anchor: AnchorSpec, theme: ThemeName, testI
 }
 
 /**
- * 钉死之后才算得出的那条：与已提交基线**逐字节相同**。
- * 口径 t=0 / r=0（不是交付配置的 0.0005——那条会吸收 648 px 以内的一切，
- * 用它验"归零"等于没验），只对本套件里声明了 pinPaths 的锚点跑。
+ * 钉死之后才算得出的那条：**与已提交基线 md5 相等且字节差 0**（spec §6.16 的措辞规矩：md5 相等才许说"逐字节相同"）。
+ * 读数口径 t=0 / r=0——交付那一档的 ratio（当前 0.0001 ⇒ 130 px）会吸收 `count ≤ 免检额` 的一切，
+ * 用它验"归零"等于没验。只对本套件里声明了 pinPaths 的锚点跑（现在 = 4 张日期图）。
  */
 async function assertZeroDiff(page: Page, anchor: AnchorSpec, theme: ThemeName, testInfo: TestInfo): Promise<void> {
   const arg = `${snapName(anchor.slug, theme)}.png`

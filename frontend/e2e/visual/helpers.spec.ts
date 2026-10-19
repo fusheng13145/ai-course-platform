@@ -187,13 +187,18 @@ test('snapName / maskOf / storagePathFor 的形状与同步签名', async ({ pag
  * 4b 这一轮里这个常量**在飞的过程中就被另一个代理改过**（0.2→0.05→0.02），
  * 而后 60+ 个任务都要读它——它当时只靠散文保护，现在有一条断言保护。
  * 规矩：**只许收紧**（把这条断言与注释一起改），不许放宽。
- * 放宽的后果有实测依据：交付配置 t=0 下 radius 单卡档计数 198 / 字节差 280，
- * 而 648 px 的免检额已经把它吸掉了；再放宽就是连 1,394（5 卡档）都可能放过。
- * 重生成这两个数：
- *   cd frontend && PW_LADDER=radius npx playwright test -c playwright.visual.ts sensitivity
+ *
+ * 【这一格为什么从 0.0005 收到 0.0001】Task 4c Step 4 实测（命令与出处见 visual-helpers.ts 的
+ * SNAPSHOT_THRESHOLDS 注释块）：日期漂移被载荷钉死抵住之后，4 张日期锚点与基线 **md5 相等、字节差 0**，
+ * 于是 r 可以一路收到 0.0001（免检额 1440×900×0.0001 = 129.6 ≈ 130 px）而整表仍 22 绿——
+ * **三次独立全量 anchors 全绿**（各 `34 passed / 2 failed`，红的是 error-404 明暗 = 缺陷 D-1），
+ * 外加 0.0002 一档单次全绿。残余真抖动最大实测 46 px（`student-courses-modal` 暗，Task 4b §R2.3 的读数，
+ * 本会话未重测）⇒ 130 对 46 还有约 2.8 倍余量，这条余量是本档唯一的软肋。
+ * 收到 0.0001 的直接收益：`radius` 单卡页 198 px 与 `border` 单卡页…（见判定表）从**漏检**变**检出**。
+ * 再往 0 收不行：0 会让那条 46 px 抖动和任何未来的薄改动一起把整表点红，而那不是回归。
  */
 test('量程常量钉死，改动必须显式决策', () => {
-  expect(SNAPSHOT_THRESHOLDS).toEqual({ threshold: 0, maxDiffPixelRatio: 0.0005 })
+  expect(SNAPSHOT_THRESHOLDS).toEqual({ threshold: 0, maxDiffPixelRatio: 0.0001 })
 })
 
 /**

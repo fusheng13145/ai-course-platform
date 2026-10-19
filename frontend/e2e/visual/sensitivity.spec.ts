@@ -29,7 +29,11 @@ import {
  *   红 + `[量程结论] … 检出`      = **检测到了**（好消息；消息里自带计数/字节差/Δmax）
  *   红 + `[探针无效]`             = 测量本身不成立（注入没落地 / 两条路径判据分叉 / 尺寸不符）——
  *                                  这种红**必须修**，它不是量程结论，别往里加阈值
- *   绿 + `[量程结论] … 漏检`      = **假绿**：改动被逐像素吸收，这正是 Task 4 图谱基线事故的复现
+ *   绿 + `[量程结论] … 零效应`    = 注入**不产生任何像素差**（计数 0 且字节差 0、与基线 md5 相等）：
+ *                                  收 ratio 完全无用，要改的是注入本身/换证据形式。浅色 `inset` 档就是这一类
+ *   绿 + `[量程结论] … 全被抗锯齿分类器吸收` = 计数 0 而字节差 > 0：t=0 下 AA 判别整类跳过，**免检额没参与**，
+ *                                  收 ratio 同样无用（这一类的存在本身就是 spec §6.16 说"绿≠一致"的实测形态）
+ *   绿 + `[量程结论] … 漏检`      = **假绿**：改动被免检额吸收，这正是 Task 4 图谱基线事故的复现（处置 = 收 ratio）
  *   绿 + `[量程结论] … 地板`      = noise 档（不注入）读数，量的是渲染抖动本身
  *   SKIPPED                       = 该档选择器在这个锚点零命中，注入是空操作，无结论
  *
@@ -135,7 +139,11 @@ const LADDER: Record<string, LadderStep> = {
     settled: [],
     settledByTheme: {
       light: ['rgba(24, 32, 48, 0.12)', 'rgba(24, 32, 48, 0.13)'],
-      dark: ['rgba(0, 0, 0, 0.8)', 'rgba(0, 0, 0, 1)'],
+      // ⚠️ alpha=1 的阴影层被 Chromium **序列化回 `rgb(0, 0, 0)`**（不是 `rgba(0, 0, 0, 1)`）。
+      // 本次跑暗色这一档时终态核对就是按后者写的，于是空操作守卫判 `[探针无效]`：
+      // 实测计算值 `rgba(0, 0, 0, 0.8) 0px 1px 2px 0px, rgb(0, 0, 0) 0px 4px 14px 0px`。
+      // 修的是这条**期望串**（不是把守卫放宽）——守卫本身这次是正确的：它拒绝把没核对过的注入当量程结论。
+      dark: ['rgba(0, 0, 0, 0.8)', 'rgb(0, 0, 0)'],
     },
     shape: '卡片环境阴影 ×2（比计划幅度大约 1.3 倍；历史读数都挂在这条，浅色口径）',
   },
@@ -409,7 +417,8 @@ for (const slug of PROBE_ANCHORS) {
       // 用它重跑 noise 档就能重新量出漂移本身（注释里那些 618/321 就是这么重生的），
       // 但那一轮的证据文件里 pinned=false，不得当交付口径引用。
       const nopin = process.env.PW_VISUAL_NOPIN === '1'
-      if (anchor.pinPaths?.length && !nopin) await installPayloadPin(page, anchor)
+      let pinShift = 0
+      if (anchor.pinPaths?.length && !nopin) pinShift = (await installPayloadPin(page, anchor)).shiftDays
 
       await freezeClock(page)
       await page.goto(anchor.path)
@@ -498,7 +507,7 @@ for (const slug of PROBE_ANCHORS) {
         `[probe] ${slug}/${PROBE_THEME} 档 ${LAD}（${STEP.shape}）· 期望图=未注入基线 ${width}x${height} · ` +
           `threshold=${THRESHOLDS.threshold} maxDiffPixelRatio=${THRESHOLDS.maxDiffPixelRatio} · ` +
           `口径=${IS_DELIVERY_SCALE ? '交付量程' : '非交付量程（env 已改 t/r，禁止当交付读数引用）'} · ` +
-          `钉载荷=${anchor.pinPaths?.length ? (nopin ? '已按 PW_VISUAL_NOPIN 关掉' : '开') : '该锚点未声明'} · ` +
+          `钉载荷=${anchor.pinPaths?.length ? (nopin ? '已按 PW_VISUAL_NOPIN 关掉（= 真走后端，量的是漂移本身）' : pinShift > 0 ? `开，但按 PW_PIN_SHIFT_DAYS 模拟服务端第 +${pinShift} 天（**非交付读数**）` : '开') : '该锚点未声明'} · ` +
           `命中${STEP.watch}=${after.matched || '—'}个 · ${STEP.prop}: ${before.values[0] ?? '(未读)'} → ${after.values[0] ?? '(未读)'}`,
       )
       console.log(`[probe-reading] ${readingText(reading)}`)
@@ -512,6 +521,7 @@ for (const slug of PROBE_ANCHORS) {
         maxDiffPixelRatio: THRESHOLDS.maxDiffPixelRatio,
         deliveryScale: IS_DELIVERY_SCALE,
         pinned: !!anchor.pinPaths?.length && !nopin,
+        pinShiftDays: pinShift,
         guardOff: !TRANSITION_KILL,
         imageWidth: width,
         imageHeight: height,
@@ -555,8 +565,25 @@ for (const slug of PROBE_ANCHORS) {
             `比较器从 playwright-core 的 coreBundle.js 取 pixelmatch，这里对不上就是取错了或被比图不一致。`,
         )
       }
-      // ③ 结论
-      const verdict = LAD === 'noise' ? '地板' : pwFailed ? '检出' : '漏检（被免检额吸收 = 假绿）'
+      // ③ 结论。判绿的三种情形**处置方向不同**，混写成一句"漏检（被免检额吸收）"就是归因错误：
+      //   · 计数 0 且字节差 0        → **零效应**：注入不改变画面一个像素（浅色 inset：白卡叠白高光，
+      //                               实测与基线 md5 相等）。收 ratio 完全无用。
+      //   · 计数 0 但字节差 > 0      → **全被抗锯齿分类器吸收**：t=0 下 `antialiased()`（coreBundle.js:7012/7030-7060）
+      //                               把这些像素整类跳过，**免检额根本没参与**——收 ratio 同样无用，要收的是 threshold
+      //                               已经到底了，所以只能换证据形式（定向裁剪 / 计算样式）。
+      //   · 0 < 计数 ≤ 免检额        → **被免检额吸收**：这才是收 ratio 能救的那一类。
+      const zeroEffect = !pwFailed && reading.pixelmatchCount === 0 && reading.byteDiffPx === 0 && LAD !== 'noise'
+      const aaAbsorbed = !pwFailed && reading.pixelmatchCount === 0 && reading.byteDiffPx > 0 && LAD !== 'noise'
+      const verdict =
+        LAD === 'noise'
+          ? '地板'
+          : pwFailed
+            ? '检出'
+            : zeroEffect
+              ? '零效应（注入不产生任何像素差，收 ratio 无用）'
+              : aaAbsorbed
+                ? `全被抗锯齿分类器吸收（字节差 ${reading.byteDiffPx}、计数 0；免检额未参与，收 ratio 无用）`
+                : '漏检（被免检额吸收 = 假绿）'
       console.log(`[量程结论] ${slug}/${PROBE_THEME} 档 ${LAD} · ${STEP.shape} · ${verdict} · ${readingText(reading)}`)
       recordEvidence({ slug, theme: PROBE_THEME, ladder: LAD, detected: pwFailed, verdict, playwrightCount: pwCount })
       if (pwError) {

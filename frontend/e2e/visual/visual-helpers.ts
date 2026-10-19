@@ -61,10 +61,15 @@ export async function setTheme(page: Page, theme: ThemeName): Promise<void> {
  * 为什么是 `install({ time })` + `pauseAt(...)` 两步（本机 Playwright 1.63 实测，三种写法只有这一种真的停）：
  * - 只 `install({ time })`：把起点挪到 time 但**仍按真实速率前进**——真实等 400ms，页面 Date.now() 前进 416ms。
  *   于是截图时刻 = 09:00:05 + 真实耗时，秒级文案照旧会漂，Task 4 的"二次跑零 diff"变成随机红灯。
- * - `install({ time, pauseAt })`：`pauseAt` **不是这个版本 install 的选项**（types.d.ts 里 install 只收 time），
- *   传进去被静默忽略，实测照样漂 416ms；且它过不了 vue-tsc 的多余属性检查。
- * - `install({ time })` → `runFor(5000)` → `pause()`：这个版本的 Clock 根本没有 `pause()`
- *   （只导出 install/fastForward/pauseAt/resume/runFor/setFixedTime/setSystemTime）。
+ * - `install({ time, pauseAt })`：`pauseAt` **不是这个版本 install 的选项**——
+ *   `playwright-core/types/types.d.ts:20486-20492` 里 `install(options?: { time?: number|string|Date })`
+ *   的参数对象只有 `time` 一个键；传进去被静默忽略，实测照样漂 416ms；且它过不了 vue-tsc 的多余属性检查。
+ * - `install({ time })` → `runFor(5000)` → `pause()`：这个版本的 Clock 根本没有 `pause()`。
+ *   证据（按**当前安装的这份** types.d.ts 逐行核过，旧注释写的 `:20466-20480` 撑不住这条——那是 `install()` 的 JSDoc）：
+ *   `export interface Clock` = `types.d.ts:20450-20581`，区间内的方法只有
+ *   `fastForward:20465`、`install:20486`、`pauseAt:20525`、`resume:20530`、`runFor:20545`、
+ *   `setFixedTime:20564`、`setSystemTime:20580`——**确无 `pause()`**；
+ *   文件里那个 `pause(): Promise<void>` 在 `:4050`，属 `Page` 接口，不是 Clock。
  *   `pauseAt(时刻)` 正是"推进到该刻即停"的那一个：实测之后页面 Date.now() 差值恒为 0。
  * 关键性质：推进量由参数决定，不由机器快慢决定。
  *
@@ -100,7 +105,9 @@ export async function freezeClock(page: Page): Promise<void> {
  * runFor 只推进假时钟，所以补多少都与机器快慢无关。
  *
  * 这条不变式顺带钉住的是**帧数**：fake requestAnimationFrame 同属 runFor 驱动的定时器
- * （Playwright clock 的 install 清单里就有 requestAnimationFrame，types.d.ts:20468-20478），
+ * （被 fake 的清单在真正执行的那份代码里：`playwright-core/lib/coreBundle.js:12023` 内嵌的
+ * `packages/injected/src/clock.ts` 源串——`setTimeout / setInterval / Date / performance /
+ * requestAnimationFrame / cancelAnimationFrame`，types.d.ts 的 JSDoc 不列这些，故不引它），
  * ECharts 入场动画的收尾帧、力导向布局的步数都只由这个常量决定。
  * 图谱锚点没有它就没有可比基线——力导向每 16ms 一步、要 510 步才收敛
  * （算式与余量见 CLOCK_FRAME_SETTLE_MS 注释）。
@@ -163,8 +170,11 @@ export async function waitForStableText(page: Page, timeout = 15000): Promise<nu
  * 把 Math.random 钉成固定序列（mulberry32，种子写死在代码里）。
  *
  * 只有 `AnchorSpec.pinRandom` 的锚点才开，为什么不并进 freezeClock：
- * Playwright 的 clock 只 fake 时间类 API（types.d.ts:20468-20478 的 install 清单里
- * 没有 Math.random），所以冻结时钟挡不住随机源；但**全局**钉会把其它页面里
+ * Playwright 的 clock 只 fake 时间类 API（被 fake 的清单在真正执行的那份代码里：
+ * `playwright-core/lib/coreBundle.js:12023` 内嵌的 `packages/injected/src/clock.ts` 源串——
+ * `setTimeout / setInterval / Date / performance / requestAnimationFrame / cancelAnimationFrame`；
+ * 该源串里**没有 Math.random**，仓库内也没有单独的 clock.ts 磁盘文件可引），所以冻结时钟挡不住随机源；
+ * 但**全局**钉会把其它页面里
  * "真该暴露出来的随机"一并抹平成假稳定，而需要它的锚点是少数（现在就一个）。
  *
  * 那一个为什么必须有：ECharts 力导向布局用 Math.random() 播节点初值
@@ -224,9 +234,12 @@ export interface AnchorSpec {
  * 返回**不含扩展名**的名字——但注意扩展名不是模板免费给的：
  * 1.63 实测 `toHaveScreenshot(snapName(..))` 直接抛
  * `Screenshot name "x-light" must have a '.png' or '.webp' extension`
- * （matchers/expect.js:12597 先按 arg 的 extname 定 mimeType，无扩展名就进不到比对），
- * 而模板里的 `{ext}` 正是从 arg 的扩展名反推出来的（workerProcessEntry.js:1258
- * `basename(subPath, ext)`），arg 带 `.png` 时 `{arg}` 仍是去掉扩展名的部分，
+ * （mimeType 由 **arg 的扩展名**决定：`playwright/lib/matchers/expect.js:12437`
+ * `getMimeTypeForPath(basename(this.expectedPath))`；无扩展名时在
+ * `expect.js:12595-12597` 的 `screenshotType` 门卫就抛出，压根进不到比对），
+ * 而模板里的 `{ext}` 正是从 arg 的扩展名反推出来的（`playwright/lib/worker/workerProcessEntry.js:1266`
+ * `basename(subPath, ext)`，同一段路径解析在 `:1244-1267`——旧注释写的 `:1258` 是错的行号，
+ * 本次按当前安装的这份逐字核过改定），arg 带 `.png` 时 `{arg}` 仍是去掉扩展名的部分，
  * 落盘名 `x-light.png`，不会出现 `.png.png`。
  * 结论：**消费方在调用处补 `.png`**（见 anchors.spec.ts），本函数保持无扩展名返回值——
  * 这是 helpers.spec.ts 已钉住的契约，Task 5+ 同样按 `snapName(..) + '.png'` 用。
@@ -236,63 +249,124 @@ export function snapName(slug: string, theme: ThemeName): string {
 }
 
 /**
- * 全仓唯一截图阈值来源。这两个数**是测量结果**（Task 4b 第 2 轮，22 张真基线上跑出来的，见下方实测块）：
- * 原来那组 (0.2 / 0.002) 在真基线上对三档注入全部失明，连哨兵档都不报警，已按逐级下探收到 (0 / 0.0005)。
- * 再动它们必须重新测量：放宽 = 直接退回"零 diff 不可解释"；未经验证的收紧 = 把噪声当成改动。
+ * 全仓唯一截图阈值来源。**这两个数是测量结果，不是偏好**：
+ * Task 4b 第 2 轮在 22 张真基线上逐级下探定出 `(0 / 0.0005)`；Task 4c Step 4 在**日期漂移被载荷钉死抵住之后**
+ * 把它**收紧**到 `(0 / 0.0001)`（免检额 130 px）——三次独立全量 anchors 全绿，见下面"收紧的过程"。
+ * 再动它们必须重新测量并重跑全量：**只许收紧**（连同 `helpers.spec.ts` 的钉桩单测一起改），
+ * 放宽 = 直接退回"零 diff 不可解释"；未经验证的收紧 = 把噪声当成改动。
  *
- * 【唯一来源的机械约束】anchors.spec.ts 与 sensitivity.spec.ts 都从这里取值，
- * 不在各自 spec 里写字面量——两处各写一份就一定会漂，
- * 而"量程测量"用的阈值和"基线回归"用的阈值一旦不是同一组，测出来的结论对回归无效。
+ * 【唯一来源的机械约束（不是散文）】`anchors.spec.ts` 与 `sensitivity.spec.ts` 都从这里取值、不写字面量；
+ * `tools/measure-diff.cjs` 的默认口径也是**从这里现取**（`deliveryThresholds()` 解析这一行，不复制数字）。
+ * 机械版本 = `helpers.spec.ts` 的"量程常量钉死"与"阈值只有一个来源，消费侧不写字面量"两条单测。
  *
- * 【这两个数在 pixelmatch 里到底是什么】comparators 调 pixelmatch(expected, actual, diff, w, h, { threshold })
- * （playwright-core/lib/coreBundle.js:7896，只传 threshold，其余走 pixelmatch 默认 includeAA:false），
- * 判据是 `|colorDelta| > 35215 × threshold²`，其中 YIQ 亮度差 y 单独贡献 0.5053·y²：
- * - threshold 0.2 → 需要单通道差 δ > 52.8/255 ≈ **20.6% 的明度跳变**才算"不同像素"；
- * - threshold 0.05 → δ > 13.2（5.2%）；0.02 → δ > 5.3（2.1%）；0 → 任何不相等都算，
- *   但**仍会**被 pixelmatch 的抗锯齿判别（antialiased()）整类跳过——
- *   所以"降到 0"不等于"逐字节比"，圆角/描边这种本来就长在 AA 边缘上的改动可能一条都不计。
- * maxDiffPixelRatio 0.002 再乘一层宽松度：1440×H 的整页图按 H=1200 算是 3456 个像素的免检额，
- * 而一次阴影增强恰好就是"几千个弱差像素"的形状。
- * 这两条合起来就是 Task 4 图谱基线假绿（0.33% 像素差被判相同）的机制解释。
+ * 【这两个数在 pixelmatch 里到底是什么】file:line 一律按**当前安装的** playwright-core 逐行核过：
+ *   比较器**只把 threshold 交给 pixelmatch**：`coreBundle.js:7896-7898` ⇒ `includeAA` 取默认 false、alpha 取默认 0.1；
+ *   逐像素闸 `|colorDelta| > 35215·t²`：`:7005`，YIQ 亮度项 `0.5053·y²`：`:7106`
+ *     ⇒ 中性/明度类改动要求 **Δ > 264.0 × t**（0.2→52.8、0.05→13.2、0.02→5.28、0.01→2.64，均为 /255）。
+ *       这条对**纯色度类**改动不精确成立；本套件的注入全是明度/中性类，够用。
+ *   **t=0 仍不等于逐字节比**：`antialiased()` 在 `:7012` 被调用、函数体 `:7030-7060`，它把 AA 像素整类跳过；
+ *       实测跳过率（同一对图，字节差 → 计数）：radius 浅色 5 卡页 1,983 → 1,394（**吃掉 30%**）、
+ *       inset 暗色 5 卡页 3,610 → 107（**吃掉 97%**）、border 浅色 5 卡页 7,196 → 158（**吃掉 98%**）。
+ *   免检额 = w·h·ratio，失败判据是 `count > 免检额`：`coreBundle.js:7903` 起。
+ *   ⚠️ **两道闸不得混为一谈**（spec §6.12）；⚠️ **措辞受数值约束**（spec §6.16）：
+ *   只有 **md5 相等**才许写"逐字节相同/一字不差"，其余一律写"计数 N（字节差 M）"。
  *
- * 【Task 4b 第 2 轮·真基线实测（22 张已提交基线，1440×900=1,296,000 px）】
- * 判据口径：期望图 = 该锚点**未注入**的已提交基线逐字节副本；被测图 = 注入后的现场渲染。
- * FAILED=检测到了，PASSED=被逐像素吸收（假绿），SKIPPED=选择器零命中（注入是空操作，不是"检不出"）。
- * 尺与跑测器同源（pixelmatch 从 coreBundle.js 抠出，与 Playwright 自己报的数逐点核对过，
- * 全部一字不差：gross 1,234,282 / shadow 55,903·21,059 / radius 1,394 / 漂移 321·295·110·111 / 抖动 13）。
+ * 【Task 4c Step 3/4 重测 · 交付口径 t=0 / r=0.0001（免检额 130 px）· 2026-10-19 本机】
+ * 判据口径：期望图 = 该锚点**未注入**的已提交基线的逐字节副本；被测图 = 注入后的现场渲染
+ *   （与回归**同一组**截图参数、同一个 mask、同一份可比性前置 `assertComparableRender`）。
+ * 极性：**红 = 检出了**（成功的测量结果）；**绿 = 被免检额吸收 = 假绿**；SKIPPED = 选择器零命中（注入是空操作，不是"检不出"）。
+ * 尺与跑测器同源的机械版本 = `sensitivity.spec.ts` 的"两条路径同判"与"跑测器计数 == 比较器计数"两条断言
+ *   （不是注释里说同源就算同源）；每条读数同时写进 `tools/evidence/probe-results.json`（git-ignored，每次跑重生成）。
+ * 锚点：5 卡页 = `admin-dashboard`、1 卡页 = `admin-courses-table`；`login` 没有 `.l1-card` ⇒ `.l1-card` 系档位在它上面恒 SKIPPED。
+ * ⚠️ 计数只由 threshold 决定、与 ratio 无关 ⇒ 下表计数在 0.0005 与 0.0001 两档交付配置下是同一批实测；
+ *    "在 r=0.0001 下"这一列只是把计数与 130 比。
  *
- * 在**原生产配置 (0.2 / 0.002)** 下四档**全部 PASSED**：连"整页 3% 明度差"的哨兵档都不报警。
- * 逐级下探的响应曲线（像素数 = pixelmatch 判为不同的像素，免检额 r=0.002→2592 / 0.0005→648 / 0→0）：
- *   gross(body filter brightness 0.97)：最大单通道色差只有 **8/255**（白底 255×0.97=247），
- *     t=0.2/0.1/0.05 全是 **0 个像素**，t=0.02 起 1,015,094 个 → 哨兵档要求 threshold ≤ 0.02
- *   shadow(.l1-card alpha .05/.06→.12/.13)：最大色差 20/255；5 卡页 t=0.05 起报警（4496 个），
- *     1 卡页要等到 t=0.02（4704 个）→ 两页都报警要求 threshold ≤ 0.02
- *   radius(.l1-card 16px→14px)：最大色差 19/255；**threshold 降到 0 也只有 1394 / 198 个**，
- *     198 < 2592 → 杀它的是 maxDiffPixelRatio 而不是 threshold（第 1 轮自检台的预测在真基线上一字应验）。
- *     r=0.0005 只救得了 5 卡页（1394 > 648），1 卡页仍瞎（198 < 648）；要两页都报警只能 r=0。
+ *   档（注入）                    light 5卡/1卡                     dark 5卡/1卡                    r=0.0001 判定
+ *   noise（不注入，地板）          0 / 0                             0 / 0                            地板=0
+ *                                 **与基线 md5 相等、字节差 0**（login 明暗亦然，共 6 格皆是）⇒ 这里才许写"逐字节相同"
+ *   gross  body brightness(.97)   1,234,282 / 1,243,769             1,234,504 / 1,247,775            检出 ≈9,500×
+ *                                 Δmax 8/255（login 1,245,012 / 1,232,535）
+ *   shadow  α .05/.06→.12/.13      55,903 / 21,059                   61,655 / 20,416                  检出 162×~475×
+ *   （≈1.3 倍计划幅度）             Δmax 20 / 12；dark Δmax 9 / 7      字节差 65,670 / 23,785
+ *   shadow-plan α .06→.10          62,700 / 21,603                   20,690 / 7,164                   检出 55×~484×
+ *   （**正好 Phase 1 计划幅度**；    Δmax 7 / 6                       Δmax **2 / 1**；字节差 27,747 / 7,230
+ *     暗色取同绝对增量 .5→.54）
+ *   radius  16px→14px              1,394 / 198                       2,198 / 373                      **四格全检出** 1.5×~17×
+ *                                 Δmax 19 / 18；字节差 1,983 / 280    Δmax 143 / 140；字节差 3,065 / 464
+ *                                 （0.0005 下 1 卡页 198<648 曾漏检 ⇒ 收到 0.0001 的**直接收益**）
+ *   inset   inset 0 1px 0 α.25     **0 / 0**                          **107 / 24**                     **恒漏检**
+ *                                 浅色：与基线 **md5 相等、字节差 0** ⇒ 效应本身为 0（白卡上叠白高光），任何 ratio 都看不见
+ *                                 暗色：Δmax 58/255、字节差 3,610 / 1,182，但分类器只计 107 / 24（AA 吃掉 97%）
+ *   surface --surface→--surface-2  387,024 / 161,743                 398,286 / 172,049                检出 1,248×~3,072×
+ *                                 Δmax 8 / 8                         Δmax 10 / 10
+ *   border  --line→--line-strong   158 / **26**                       7,095 / 2,374                    三格检出（1.2×/55×/18×）
+ *                                 Δmax 41；字节差 7,196 / 2,392        Δmax 98 / 92；字节差 7,249 / 2,402  **浅色 1 卡页仍漏检**（26 px）
  *
- * 【为什么最终是 (0, 0.0005) 而不是 (0, 0)】r=0 在**当前这 22 张基线**上跑不通，但不是因为渲染抖动：
- *   ① 三个探针锚点（login / admin-dashboard / admin-courses-table）的不注入复截**逐字节相同**（0 px，
- *      连 t=0/r=0 都是 0）→ 静态渲染的复现性是完美的，这条支持收紧。
- *   ② 但 4 张基线（student-dashboard 明/暗、admin-governance-analytics 明/暗）与"改动前的代码"的新截图
- *      差 110~321 个像素，且**两次独立跑测的产物 md5 完全一致** → 不是抖动，是**确定性的内容漂移**：
- *      漂移点全在图表的时间轴标签行（y 537..544 / y 696..703），标签整组往后挪了一天
- *      （基线 10-05..10-18 → 今日 10-06..10-19；分析页 2026-09-25 → 09-26）。
- *      根因：freezeClock 只钉得住浏览器时钟，**图轴日期是后端按真实日期算出来的**，
- *      所以这 4 张基线只在"截它的那一天"有效，每天零点集体漂一次。
- *   ③ student-courses-modal 另有 1~46 个像素的**真抖动**（同一条路径两次跑一次红一次绿，红在 y 21..34 顶栏）。
- * 于是 r 的下限由 ②（321 px）而不是由 ③ 决定：0.0005（免检额 648）是"22 张仍全绿"的最小档。
- * 把 ② 修掉（遮罩时间轴标签带 / 让后端日期也可钉 / 换成与日期无关的锚点）之后 r 才能到 0，
- * radius 那档才可能在单卡页也报警——这条记在 LEDGER 的准入前提里，不在这里偷偷放宽。
+ *   重生成（每条 ~15s；需后端 8080 与 5175；工作目录 `frontend/`）：
+ *     PW_LADDER=<档> PW_PORT=5175 npx playwright test -c playwright.visual.ts sensitivity              # 浅色
+ *     PW_LADDER=<档> PW_PROBE_THEME=dark PW_PORT=5175 npx playwright test -c playwright.visual.ts sensitivity   # 暗色
+ *   免检额与逐张读数的独立核对（不参与采集的只读比较器）：
+ *     node e2e/visual/tools/measure-diff.cjs <基线.png> <取证图.png> --bands
+ *     node e2e/visual/tools/measure-diff.cjs --manifest e2e/visual/__snapshots__/anchors.spec.ts --json
  *
- * 【这组数现在能保证什么、不能保证什么】（全部是真跑出来的，不是推断）
- *   保证：整页明度类改动（gross 形状，96% 像素报警）、卡片阴影类改动（shadow 形状，免检额的 32~86 倍）一定报警。
- *   不保证：圆角/描边类改动——只有当它铺到 ≥ 649 个像素时才发现（5 卡页 16→14 是 1394，1 卡页 198 就漏了）。
- *   不保证：任何长在图表时间轴标签带里的改动（648 个像素以内一律吸收）。
- * 任何放宽这两个数的改动，必须重跑 sensitivity 四档并把读数留在 LEDGER；
- * 反过来"收紧"也要：每下调一格都要重跑 anchors 确认 22 张仍相等，否则就是把噪声当成改动。
+ * 【收紧的过程（Step 4，每档都是整表 anchors 真跑）】
+ *   r=0.0005（Task 4b 交付档）  → `34 passed / 2 failed`（红 = error-404 明暗，缺陷 D-1）
+ *   r=0.0002（免检额 259 px）    → `34 passed / 2 failed`，1 次
+ *   r=0.0001（免检额 130 px）    → `34 passed / 2 failed` × **3 次独立全量** ⇒ **采纳为交付配置**
+ *   r=0（免检额 0）              → **未采纳**：唯一真抖动 `student-courses-modal` 的历史读数是暗色 46 px
+ *                                  （Task 4b §R2.3；**本会话未重测它**），130 对它只有约 2.8 倍余量，
+ *                                  0 会把这种 1~46 px 的抖动直接变成随机红灯。
+ *   之所以现在能往下收：**4 张日期锚点的漂移已被载荷钉死抵住**（见下面的漂移块），
+ *   而不是因为把抖动放宽了。
+ *
+ * 【Task 4b 的旧读数（引用时必须带它自己的配置——它们大多**不是**交付口径）】
+ *   在**原生产配置 (0.2 / 0.002)** 下四档**全部 PASSED**：连"整页 3% 明度差"的哨兵档都不报警
+ *     ——失明的主因是**逐像素闸**（t=0.2 ⇒ 要求 Δ > 52.8/255，而 gross 只有 8/255，一个像素都不计数），
+ *     不是免检额；免检额是另一道闸，两者不得混为一谈（spec §6.12）。
+ *   逐级下探矩阵（t=0.2/0.1/0.05/0.02/0，r=0）里被引用最多的几个数，**都是那个扫描口径**：
+ *     gross t=0.02 起 1,015,094；shadow(×2 幅度) t=0.05 的 4,496（5 卡页）与 1 卡页要等到 t=0.02 的 4,704；
+ *     radius t=0 的 1,394 / 198。
+ *   ⚠️ 旧注释里"一次阴影增强恰好就是几千个弱差像素的形状"教的是**错的机理**：那句是 t=0.05 的 5 卡页读数 4,496，
+ *     在交付口径 t=0 下同一注入是 **55,903 / 21,059**（浅）、在旧配置 t=0.2 下是 **0 个像素**。
+ *   ⚠️ 旧注释把 gross 1,234,282 / shadow 55,903·21,059 / radius 1,394 / 漂移 321·295·110·111 / 抖动 13
+ *     说成"与 Playwright 一字不差"。本次复核：**gross/shadow/radius 三组在交付口径下逐字复现**
+ *     （1,234,282 / 1,243,769 / 55,903 / 21,059 / 1,394 / 198 全部由本会话的已入库命令重生成，见上表）；
+ *     而 **漂移的 321/295/110/111 与抖动的 13 出自被否决的中间配置 `{0.02, 0}`**，不能与前者并列同级引用；
+ *     "一字不差"这个措辞本身也已被 spec §6.16 禁用（只有 md5 相等才许写）。
+ *   ⚠️ radius 的字节差 **1,983** 在已提交报告的表格里查无原始读数（spec §6.12 已记），
+ *     本会话由 `measure-diff.cjs` 现场重算得 **1,983**（浅 5 卡页）——现在它有出处了。
+ *
+ * 【这组数现在保证什么、不保证什么（交付口径 t=0 / r=0.0001 = 免检额 130 px）】
+ *   保证（每项都是**两主题 × 两版式**实测，见上表）：
+ *     整页明度类 ≈9,500×；卡片阴影类**含 Phase 1 的精确幅度** `--sh-l1 .06→.10`（浅色 55×~484×、暗色 55×~160×）；
+ *     局部表面色阶 `--surface→--surface-2`（1,248×~3,072×，两主题）；暗色描边加深（18×~55×）。
+ *   不保证：
+ *     ① **内高光 inset**：浅色**效应本身为 0**（白卡叠白高光，与基线 md5 相等）—— ratio 收到多少都看不见；
+ *        暗色有效应但薄到 24~107 px（Δmax 58/255 而 AA 吃掉 97%）⇒ **仍低于 130**。
+ *        ⇒ Phase 1 对 inner highlight **两主题都不得报"零 diff"**（spec §6.15 ④），判据改非像素的：
+ *           逐卡 `getComputedStyle().boxShadow` 含 `inset 0 1px 0` + 对该 1px 行做定向裁剪比对。
+ *     ② **1px 描边在单卡页**（26 px）与**任何 < 130 px 的形状**。
+ *     ③ 圆角到 0.0001 只是"刚过线"：单卡页 198 px = 1.5× 余量，且它的上界是**几何定的**
+ *        （16→14px 只重绘四角弧，4·(π/4)(16²−14²) = 189 px，实测 198 已核实）
+ *        ⇒ Phase 2 的准入门不是继续压 ratio，而是**给圆角配非像素判据**（逐卡 `borderRadius` 计算值等式 + 角部定向裁剪）。
+ *   任何**放宽**这两个数的改动必须重跑 sensitivity 全矩阵并把读数写进台账（`docs/visual-upgrade/LEDGER.md` 已入库）；
+ *   **收紧**同样要跑：每下调一格都要整量 anchors 重跑并确认 22 张仍绿（Step 4 就是三次独立全量才采纳的）。
+ *
+ * 【门禁现在每天还到期吗？——日期漂移块，Task 4c Step 1】
+ *   旧的"每天零点集体漂一次"这件事**已由载荷钉死接管**（`installPayloadPin` + `__fixtures__/*.json`，
+ *   `route.fulfill` 供数 ⇒ 服务端 `LocalDate.now()` 到不了被比对的那份载荷）。
+ *   实测（服务器日 = 基线次日）：4 张日期锚点与基线 **md5 相等、字节差 0、计数 0**；
+ *   同一批图关掉钉死（`PW_VISUAL_NOPIN=1`）立刻是 321/618（student 明暗）与 112/222（analytics 明暗），
+ *   差异带 y 537..544 / y 696..703 ⇒ 抵住的是真的，不是巧合。
+ *   重生成：`PW_LADDER=noise PW_PROBE_SLUGS=student-dashboard,admin-governance-analytics PW_VISUAL_NOPIN=1
+ *            PW_PORT=5175 npx playwright test -c playwright.visual.ts sensitivity`（去掉 NOPIN 即钉住那组）
+ *   ⚠️ **换来的新盲区要一起记账**：被钉的那 2 个端点从此**退出像素治理**——产品若改了这两个端点的数据结构，
+ *      本套件不会红，要红得先重录 fixture（重录会让画面与已提交基线不符，那才是真红）。
+ *      所以"钉住"不是一劳永逸：`assertPinCoverage` 钉住"页面必须真消费被钉端点"，`assertZeroDiff` 钉住
+ *      "钉了以后必须仍与基线逐字节相同"，两者共同把"悄悄退回真后端"变成红。**门禁到期这件事没有消失，
+ *      只是从"每天必然红一次"换成了"若 fixture 与产品脱节就红"。**
  */
-export const SNAPSHOT_THRESHOLDS = { threshold: 0, maxDiffPixelRatio: 0.0005 }
+export const SNAPSHOT_THRESHOLDS = { threshold: 0, maxDiffPixelRatio: 0.0001 }
 
 /**
  * 会话夹具路径。定义在 helper 而非 global-setup：消费者是 anchors.spec.ts /
@@ -313,11 +387,17 @@ export function maskOf(page: Page, selectors: string[] = []): Locator[] {
  * 载荷钉死（payload pin）——Task 4c Step 1 的"首选路线"，不是遮罩
  * ============================================================================ *
  * 【为什么不用遮罩】评审给的算术决定了这一点，不能靠直觉：
- *   1440×900 = 1,296,000 px，交付配置 r=0.0005 ⇒ 免检额 648 px，而 student-dashboard
- *   一天的日期漂移就是**字节差 618 / 分类器计数 321**（重生成：
- *   `cd frontend && PW_PORT=5175 PW_LADDER=noise PW_PROBE_SLUGS=student-dashboard PW_PROBE_CAPTURE=1 npx playwright test -c playwright.visual.ts sensitivity`
- *   然后 `node e2e/visual/tools/measure-diff.cjs --table e2e/visual/__snapshots__/sensitivity.spec.ts`）。
- *   618 对 648 = **余量 5%**，不是原先以为的 2 倍。遮掉标签带 = 那一带**永久**退出比较，
+ *   22 张基线实测全部 1440×900 = 1,296,000 px。Task 4b 当时交付档 r=0.0005 ⇒ 免检额 648 px，
+ *   而 student-dashboard **一天的**日期漂移就是**计数 321 / 字节差 618**（余量 5%，不是原先以为的 2 倍）。
+ *   Task 4c 复测：**两个主题各 321/618（student-dashboard）与 112/222（admin-governance-analytics）**，
+ *   差异带 y 537..544 / y 696..703，与 4b 的读数同带同量级。重生成（**必须带 NOPIN**——
+ *   装了钉死这一轮的漂移就是 0，那不是"漂移没发生"而是"漂移被抵住"，两件事别混）：
+ *   `cd frontend && PW_LADDER=noise PW_PROBE_THEME=light PW_VISUAL_NOPIN=1 \
+ *      PW_PROBE_SLUGS=student-dashboard,admin-governance-analytics PW_PORT=5175 \
+ *      npx playwright test -c playwright.visual.ts sensitivity`
+ *   （把 NOPIN 换成 `PW_PIN_SHIFT_DAYS=1|2|3` 即是"服务端第 +k 天"的模拟，用于跨天外推；
+ *    k=1 与真实 +1 天**不等价**（334/630 vs 321/618），所以模拟只用来证"漂移始终不归零"，不用来证幅度。）
+ *   遮掉标签带 = 那一带**永久**退出比较，
  *   而 Phase 1/2 的改动（卡片阴影、圆角）恰好长在图表面板那一带里——盲区与改动区重叠，
  *   遮罩等于把门禁的受益人换成空气。
  * 【更要紧的】同一个 `LocalDate.now()` 窗口**还会重新取数**（StudentVisualizationComponent
@@ -365,6 +445,8 @@ export interface PinState {
   served: string[]
   /** 审计信息：/api 下**未**声明钉死、但响应体里带服务端"今天"字符串的端点 */
   unpinnedTodayBearing: string[]
+  /** 本轮回放的日期偏移（天）；>0 = 取证用的"服务端第 +k 天"模拟，非交付口径 */
+  shiftDays: number
 }
 
 export function fixturePathFor(slug: string): string {
@@ -422,6 +504,32 @@ export function loadPinManifest(slug: string): PinManifest {
 }
 
 /**
+ * **模拟服务端日期的偏移**（Task 4c Step 1 的"≥3 天"那一半的取证开关）。
+ *
+ * 【它为什么必须存在】brief 要求"必须证漂移在 **≥3 天**跨度上仍 ≤ X，只量今天这一天的差不算闭"。
+ * 而一次会话里真实日历只能推进一天，改系统日期会把后端 JWT 的过期判定 / Redis TTL / 登录限流窗口
+ * 一起弄坏（且控制者明令不得自行重启后端）⇒ 这条路按字面**不可执行**，如实报为发现（见报告 §5）。
+ * 【它证的是什么】fixture 里的日期已被 `backshiftDays` 回拨到**基线那天**，所以
+ * `PW_PIN_SHIFT_DAYS=k` 回放的就是"服务端在基线日 +k 天会返回的那份载荷"：
+ *  - k=0（默认）= 交付口径，钉住后与基线的差必须为 0；
+ *  - k=1 应当**复现今天真实的 +1 天漂移**（今天的服务器日就是基线次日）——这是校准，
+ *    拿它和 `PW_VISUAL_NOPIN=1`（真走后端、真漂移）在同一次里的读数对账；
+ *    两者一致才说明"只平移日期"这个模拟是忠实的（本批两个 fixture 的序列值全 0，
+ *    所以"同窗口重新取数"不会改变几何；这条限制在 k=1 的校准里被实测检验，不是靠说）；
+ *  - k=2、k=3 外推出"换到第 3 天漂移仍在、且不会自己回到 0"，而 k=0 恒为 0。
+ * 【口径】设了它这一轮就**不是交付读数**：证据里记 `pinShiftDays`，日志明写"模拟"。
+ */
+export function pinShiftDays(): number {
+  const raw = process.env.PW_PIN_SHIFT_DAYS
+  if (raw === undefined || raw === '') return 0
+  const k = Number(raw)
+  if (!Number.isInteger(k) || k < 0 || k > 30) {
+    throw new Error(`[载荷钉死] PW_PIN_SHIFT_DAYS=${raw} 需为 0..30 的整数（k=天偏移，0=交付口径）`)
+  }
+  return k
+}
+
+/**
  * 装上钉死：**只**拦 AnchorSpec.pinPaths 声明的 GET；其余请求 fallback 走真后端。
  * 返回的 state 交给 assertPinCoverage 验"声明的端点真的都被请求过"——
  * 钉了却没人调用 = fixture 过期或路径写错，那种"绿"和没钉一样，必须红。
@@ -429,7 +537,8 @@ export function loadPinManifest(slug: string): PinManifest {
 export async function installPayloadPin(page: Page, anchor: AnchorSpec): Promise<PinState> {
   const paths = anchor.pinPaths ?? []
   const manifest = loadPinManifest(anchor.slug)
-  const state: PinState = { served: [], unpinnedTodayBearing: [] }
+  const shift = pinShiftDays()
+  const state: PinState = { served: [], unpinnedTodayBearing: [], shiftDays: shift }
   const serverToday = localDay(new Date())
 
   await page.route((url) => paths.includes(`${url.pathname}${url.search}`), async (route) => {
@@ -439,7 +548,11 @@ export async function installPayloadPin(page: Page, anchor: AnchorSpec): Promise
     const hit = manifest.requests[key]
     if (!hit) return route.fallback()
     state.served.push(key)
-    await route.fulfill({ status: hit.status, contentType: hit.contentType, body: hit.body })
+    await route.fulfill({
+      status: hit.status,
+      contentType: hit.contentType,
+      body: shift === 0 ? hit.body : shiftIsoDates(hit.body, shift),
+    })
   })
 
   // 审计（不是断言）：页面还在消费哪些"带今天日期"的 /api 响应。
