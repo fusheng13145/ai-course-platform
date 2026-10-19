@@ -1214,7 +1214,7 @@ Task 4c 的**结论全部独立复现成立**（评审用入库的只读尺离�
    ⇒ **钉桩的有效性悄悄依赖"基线做于 10-18"**，而没有任何断言说这件事。
    修法：record 模式先 flush 再像素断言（或跳过像素断言），并把基线日写进 manifest。
 
-**4c-fix-B（后做，三项 + 两条我认下的 Minor）**
+**4c-fix-B（后做，四项 5–8：测量诚实性与引用规矩）**
 5. 反证矩阵第 2 步的 9 格只断言"抛错了"（`anchors.spec.ts:373`），通用守卫状态只**打印不断言**
    ⇒ 会话被踢、白页、JS 崩都能让格子"绿成真守卫"。teacher 格与矩阵 B 是安全的，标题那句"9 个专属断言真会因空响应而红"不完全成立。
    修法：加两条——`stubApiToEmpty` 命中请求数 > 0、`location.pathname` 就是该锚点；并按锚把"通用守卫=也红"记进 LEDGER。
@@ -1227,11 +1227,39 @@ Task 4c 的**结论全部独立复现成立**（评审用入库的只读尺离�
    只是没扫完这两个文件。改成按 token/选择器名引（`--sh-l1`、design-system.css 里的 `.l1-card` 规则）。
 8. **`1440×900` 与 129.6 无人断言**（评审 Q2 后半）：加 6 行到 `helpers.spec.ts`——逐张读 IHDR 确认 1440×900，
    并断言 `w*h*r === 129.6`。理由：Phase 2 的全部余量都是 `计数 ÷ (w·h·r)`，这个分母今天只是"真"。
-9. 单一来源检查只覆盖两个文件（`helpers.spec.ts:210-213`）⇒ Task 14 的 motion-observation 可以写阈值字面量而全绿；
-   改成遍历 `e2e/visual/` 下所有 spec。另：`--update-snapshots` 那道门（`global-setup.ts:66`）**没有自动化测试**，
-   删掉那行所有套件仍绿 ⇒ 补一条 `spawnSync` 级断言，或在注释里明说它只被手工证明过。
+**4c-fix-C（B 之后做，四项 9–12：守卫的内容性、日志诚实、开关统一）**
 
-**结构性一条（评审记 Minor，我提到与功能项同级来做）**：`visual-helpers.ts` 现在 969 行、至少四种职责
+9. **新项（4c-fix-A 评审实测，比 A 轮四项都重）：钉桩载荷是空的，而"数据已到位"守卫照样绿。**
+   `__fixtures__/student-dashboard.json` 钉的是 `/api/student/analytics/visualization`
+   （`durationTrend` 14 × `seconds:0`、`radarData: []`、`heatmapData: []`），
+   而 `DATA_ARRIVAL_CHECKS['student-dashboard']` 的三条是 `.l1-card ≥ 1`、
+   `requireSomeStat`（某个 `.s-value` 含 `[1-9]`）、`canvas ≥ 1`——**三条都不看被钉的那份载荷**：
+   统计卡来自**未被钉**的 `/api/student/dashboard`（走真后端），趋势图全 0 也照样画出一个 canvas。
+   ⇒ 读者看到"到位断言绿 ＋ 钉桩复现 md5 相等"，就会相信**分析数据到位了**，而被钉区域其实是空的。
+   `admin-governance-analytics` 同型：被钉的 `/api/analytics/users/growth?days=30` 是 30 × `{newUsers:0, cumulativeUsers:0}`，
+   守卫查的 canvas 与非零统计卡都来自别处。
+   **两条限定也要写进结论，别把它当本轮新造的 bug**：① 这是**基线既有**状态（`4ca2ea4` 的 fixture 就已是全 0，
+   本轮只重打时间戳）；② 反证矩阵证明守卫抓得住 `data:null`，但抓不住"结构完整而数值全 0"这一形态——
+   守卫是**存在性**断言，不是**内容**断言。
+   **裁定（R-CF1）**：修法是**给被钉载荷加一条内容断言**（钉住的 `data` 必须非平凡：
+   序列长度 > 0 且至少一个数值字段非 0），**不是**去改后端种子数据——后者属数据所有权、越界。
+   若某些账号确实没有分析数据，则该锚点的"被钉区域"**不得作为数据到位的证据**，
+   LEDGER 与量程注释都要这样写；`canvas ≥ 1` 这类存在性检查不许再被称作"数据到位"。
+10. **record 模式的日志在说谎**：`anchors.spec.ts:288-291` 的"fixture 已写成"分支被**全部 12 个锚点**进入，
+    而其中 10 个非钉桩锚点 `flushRecord` 为 null（什么都没写）⇒ 全量录制跑会打出十个"已写成"且
+    **顺手跳过 22 张里非钉桩那些的像素比对**。只能靠"文档里的录制命令总带 `-g`"侥幸避开。
+    修：日志与跳过都按 `flushRecord` 真的执行过来门控。
+11. **`PW_VISUAL_NOPIN` 两个消费者的取法语度不一样**（评审在 A 轮顺手记的越界项，归 B）：
+    anchors 拒绝任何"真值但不等于 `0`/`''`"的值，探针只认 `=== '1'`
+    ⇒ `PW_VISUAL_NOPIN=true` 在**探针**侧会被静默忽略、钉桩照装。这正是 A3 要清除的"开关被静默接受"同一类，
+    只是换了个消费者。统一成一套取法，非法值一律 fail-fast。
+12. 单一来源检查只覆盖两个文件（`helpers.spec.ts` 里读 `anchors.spec.ts`/`sensitivity.spec.ts` 的那条）
+    ⇒ Task 14 的 motion-observation 可以写阈值字面量而全绿；改成遍历 `e2e/visual/` 下所有 spec
+    （注意负向正则会被散文注释里含 `threshold: 0` 误红，要么锚定到代码上下文要么排除注释行）。
+    另：`--update-snapshots` 那道门（`global-setup.ts` 首个语句）**没有自动化测试**——删掉那行所有套件仍绿，
+    目前只有手工反证 ⇒ 补一条 `spawnSync` 级断言，或在注释里明写"仅手工证明过"。
+
+**结构性一条（评审记 Minor，我提到与功能项同级来做）**：`visual-helpers.ts` 现在 **1125 行**（A 轮又加了约 100 行，写它之前必读盘）、至少四种职责
 （时钟/稳定态原语、118 行量程账本、payload 录制+回放+审计 229 行、12 格到位矩阵 + guards + ANCHORS 注册表），
 **而它是本仓单写者冲突最严重的那个文件（两个代理死在它里面）**。
 拆成 `payload-pin.ts` + `data-arrival.ts`、把量程账本搬进 `docs/visual-upgrade/evidence/`——
