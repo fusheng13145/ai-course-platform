@@ -1,4 +1,7 @@
 import type { Locator, Page } from '@playwright/test'
+import { createHash } from 'node:crypto'
+import { mkdirSync, readFileSync, writeFileSync } from 'node:fs'
+import { dirname, join } from 'node:path'
 
 export const THEME_KEY = 'fz-theme'
 export type ThemeName = 'light' | 'dark'
@@ -205,6 +208,13 @@ export interface AnchorSpec {
    * 四条通用防护一条都拦不住——它得专门看图本身。
    */
   requirePaintedGraph?: boolean
+  /**
+   * **钉死响应载荷**的端点（pathname+search，GET）。非空即表示：这些端点的响应改由
+   * `e2e/visual/__fixtures__/<slug>.json` 提供，不再走服务端，见 pinPayloadSection 注释块。
+   * 只钉"日期窗口由服务端 LocalDate.now() 回推"的那几个端点，其余请求照旧走真后端——
+   * 钉全屏就等于把"数据确已到位"这件事一起钉死了（那正是 Step 2 要堵的洞）。
+   */
+  pinPaths?: string[]
 }
 
 /**
@@ -299,6 +309,477 @@ export function maskOf(page: Page, selectors: string[] = []): Locator[] {
   return selectors.map((s) => page.locator(s))
 }
 
+/* ============================================================================ *
+ * 载荷钉死（payload pin）——Task 4c Step 1 的"首选路线"，不是遮罩
+ * ============================================================================ *
+ * 【为什么不用遮罩】评审给的算术决定了这一点，不能靠直觉：
+ *   1440×900 = 1,296,000 px，交付配置 r=0.0005 ⇒ 免检额 648 px，而 student-dashboard
+ *   一天的日期漂移就是**字节差 618 / 分类器计数 321**（重生成：
+ *   `cd frontend && PW_PORT=5175 PW_LADDER=noise PW_PROBE_SLUGS=student-dashboard PW_PROBE_CAPTURE=1 npx playwright test -c playwright.visual.ts sensitivity`
+ *   然后 `node e2e/visual/tools/measure-diff.cjs --table e2e/visual/__snapshots__/sensitivity.spec.ts`）。
+ *   618 对 648 = **余量 5%**，不是原先以为的 2 倍。遮掉标签带 = 那一带**永久**退出比较，
+ *   而 Phase 1/2 的改动（卡片阴影、圆角）恰好长在图表面板那一带里——盲区与改动区重叠，
+ *   遮罩等于把门禁的受益人换成空气。
+ * 【更要紧的】同一个 `LocalDate.now()` 窗口**还会重新取数**（StudentVisualizationComponent
+ *   的 buildDurationTrend 用 today.minusDays(13)、buildHeatmapData 用 today.minusDays(6) 去查库），
+ *   所以换一天动的可能不只是轴标签文字，而是整条 series 的几何。遮标签带挡不住后者。
+ * 【钉载荷做的是另一件事】把"服务端按今天算"换成"读一份入库的固定响应"，日期与数值**一起**冻住，
+ *   被比对的区域一个像素都不遮。代价与边界：
+ *   ① 只钉 AnchorSpec.pinPaths 声明的那几个端点（现在每个日期锚点各 1 个），
+ *      其余请求照旧打真后端——否则"数据确已到位"会被一起钉成假命题（Step 2 的洞就是这么来的）；
+ *   ② fixture 是从**真后端录下来的**，录的那一次必须先过 arrival 断言（录空态 = 基线空态，
+ *      所以 record 模式在写出 fixture 前就跑一次 DATA_ARRIVAL_CHECKS）；
+ *   ③ 钉死之后这几个端点**不再被像素门禁覆盖**：产品若改图表数据结构，本套件不会红，
+ *      要红得先重录（重录会让图与已提交基线不符 ⇒ 那时才是真红）。这条盲区要写进 LEDGER。
+ * 【回看一天的偏移怎么补】录制时把载荷里所有 ISO 日期整体回拨到冻结时钟那一天
+ *   （CLOCK_EPOCH = 2026-10-18，见 freezeClock），于是 fixture 复现的是**基线当天**的画面。
+ *   服务端今天的值与基线当天是否相同，不由注释说：由"钉了之后 4 张日期锚点与已提交基线
+ *   逐字节相同（md5 相等）"这条硬断言说——它不成立就必须显式重生成基线，而不是悄悄放宽阈值。
+ */
+
+/** fixture 落点（入库；不是 .auth/ 那种含令牌的会话夹具） */
+export const FIXTURE_DIR = 'e2e/visual/__fixtures__'
+
+export interface PinnedResponse {
+  status: number
+  contentType: string
+  body: string
+}
+
+export interface PinManifest {
+  slug: string
+  /** 录制时刻（Node 侧真实时间） */
+  recordedAt: string
+  /** 录制时服务端的本地日（= 后端 LocalDate.now() 的日） */
+  serverDateAtRecord: string
+  /** 冻结时钟那一日的 YYYY-MM-DD */
+  clockDate: string
+  /** serverDateAtRecord − clockDate 的天数；录制时用它把日期整体回拨到基线当天 */
+  backshiftDays: number
+  /** key = pathname + search */
+  requests: Record<string, PinnedResponse>
+}
+
+export interface PinState {
+  /** 实际被钉掉的请求 key（含重复） */
+  served: string[]
+  /** 审计信息：/api 下**未**声明钉死、但响应体里带服务端"今天"字符串的端点 */
+  unpinnedTodayBearing: string[]
+}
+
+export function fixturePathFor(slug: string): string {
+  return join(process.cwd(), FIXTURE_DIR, `${slug}.json`)
+}
+
+function isoDay(d: Date): string {
+  return d.toISOString().slice(0, 10)
+}
+
+/**
+ * **本地**日历日。服务端那侧是 `LocalDate.now()`（JVM 默认时区），
+ * 用 toISOString 的 UTC 日会在"本地已跨天、UTC 还没跨天"的时段（本地 00:00–08:00，+08 区）
+ * 少算一天——少算的那天正好把回拨量弄错，fixture 就复现不出基线画面。
+ */
+function localDay(d: Date): string {
+  const p = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`
+}
+
+/** 冻结时钟那一天的日历日：与 freezeClock 共用 CLOCK_EPOCH，别在这儿另写一个日期 */
+export const CLOCK_DATE = localDay(new Date(CLOCK_EPOCH.getTime() + CLOCK_WARMUP_MS))
+
+const ISO_DATE_RE = /20\d\d-(?:0[1-9]|1[0-2])-(?:[0-2]\d|3[01])/g
+
+/**
+ * 把载荷里所有 ISO 日期（含 `2026-10-19T08:00:00` 这种日期时间的前半段）整体回拨 `days` 天。
+ * 只在**录制**时跑一次，产出的 fixture 从此不再变——服务时逐字回放到盘上那份。
+ * 用文本替换而不是解析重序列化，是为了不让 JSON 的键序/数字格式改动混进载荷。
+ */
+export function shiftIsoDates(body: string, days: number): string {
+  if (days === 0) return body
+  return body.replace(ISO_DATE_RE, (m) => {
+    const d = new Date(`${m}T00:00:00Z`)
+    d.setUTCDate(d.getUTCDate() - days)
+    return isoDay(d)
+  })
+}
+
+export function loadPinManifest(slug: string): PinManifest {
+  const file = fixturePathFor(slug)
+  let raw: PinManifest
+  try {
+    raw = JSON.parse(readFileSync(file, 'utf8')) as PinManifest
+  } catch (e) {
+    throw new Error(
+      `[载荷钉死] 读不到 ${file}：${(e as Error).message}\n` +
+        `重录命令：cd frontend && PW_PORT=5175 PW_RECORD_PAYLOADS=1 npx playwright test -c playwright.visual.ts anchors -g "${slug}"`,
+    )
+  }
+  if (!raw || raw.slug !== slug || !raw.requests || Object.keys(raw.requests).length === 0) {
+    throw new Error(`[载荷钉死] ${file} 形状不对（slug 不符或 requests 为空）——宁可红，不拿空 fixture 当钉住`)
+  }
+  return raw
+}
+
+/**
+ * 装上钉死：**只**拦 AnchorSpec.pinPaths 声明的 GET；其余请求 fallback 走真后端。
+ * 返回的 state 交给 assertPinCoverage 验"声明的端点真的都被请求过"——
+ * 钉了却没人调用 = fixture 过期或路径写错，那种"绿"和没钉一样，必须红。
+ */
+export async function installPayloadPin(page: Page, anchor: AnchorSpec): Promise<PinState> {
+  const paths = anchor.pinPaths ?? []
+  const manifest = loadPinManifest(anchor.slug)
+  const state: PinState = { served: [], unpinnedTodayBearing: [] }
+  const serverToday = localDay(new Date())
+
+  await page.route((url) => paths.includes(`${url.pathname}${url.search}`), async (route) => {
+    const req = route.request()
+    if (req.method() !== 'GET') return route.fallback()
+    const key = `${new URL(req.url()).pathname}${new URL(req.url()).search}`
+    const hit = manifest.requests[key]
+    if (!hit) return route.fallback()
+    state.served.push(key)
+    await route.fulfill({ status: hit.status, contentType: hit.contentType, body: hit.body })
+  })
+
+  // 审计（不是断言）：页面还在消费哪些"带今天日期"的 /api 响应。
+  // 它们多数不落在画上（未读数、时间戳字段），所以只报数、不判红；判红由零 diff 那条负责。
+  page.on('response', (res) => {
+    const u = new URL(res.url())
+    if (!u.pathname.startsWith('/api/') || paths.includes(`${u.pathname}${u.search}`)) return
+    void res
+      .text()
+      .then((t) => {
+        if (t.includes(serverToday)) state.unpinnedTodayBearing.push(`${u.pathname}${u.search}`)
+      })
+      .catch(() => undefined)
+  })
+  return state
+}
+
+export function assertPinCoverage(anchor: AnchorSpec, state: PinState): void {
+  const declared = anchor.pinPaths ?? []
+  const missing = declared.filter((p) => !state.served.includes(p))
+  if (missing.length > 0) {
+    throw new Error(
+      `[载荷钉死] ${anchor.slug} 声明要钉 ${JSON.stringify(declared)}，但页面没请求它们：${JSON.stringify(missing)}\n` +
+        `钉了却没用上 = fixture 与产品已脱节，这次的"零 diff"不是钉出来的。要么改 pinPaths，要么重录 fixture。`,
+    )
+  }
+}
+
+/**
+ * 录制模式（PW_RECORD_PAYLOADS=1）：不装 route，改为收集真响应并按 CLOCK_DATE 回拨落盘。
+ * 落盘前必须先过 arrival 断言——把空态录进 fixture 等于把"数据到位"钉成假命题。
+ */
+export function attachPayloadRecorder(page: Page, anchor: AnchorSpec): () => Promise<void> {
+  const paths = anchor.pinPaths ?? []
+  const captured = new Map<string, PinnedResponse>()
+  const wanted = new Set(paths)
+  // res.text() 是异步的：不把这些 promise 收着等完，flush 时可能还没落地，
+  // 症状是"明明请求过的端点报没等到"（本机第一次录制就是这么炸的）。
+  const pending = new Set<Promise<void>>()
+  const seen: string[] = []
+  page.on('response', (res) => {
+    const u = new URL(res.url())
+    const key = `${u.pathname}${u.search}`
+    if (!u.pathname.startsWith('/api/') || res.request().method() !== 'GET') return
+    seen.push(key)
+    if (!wanted.has(key)) return
+    const p = res
+      .text()
+      .then((body) => {
+        captured.set(key, { status: res.status(), contentType: res.headers()['content-type'] ?? 'application/json', body })
+      })
+      .catch(() => undefined)
+    pending.add(p)
+    void p.finally(() => pending.delete(p))
+  })
+  return async () => {
+    for (let i = 0; i < 5 && pending.size > 0; i++) await Promise.all([...pending])
+    const serverNow = new Date()
+    const serverDate = localDay(serverNow)
+    const manifest: PinManifest = {
+      slug: anchor.slug,
+      recordedAt: serverNow.toISOString(),
+      serverDateAtRecord: serverDate,
+      clockDate: CLOCK_DATE,
+      // 整天差用日历日算，不用毫秒差 round：跨月/跨夏令时都不会差一天
+      backshiftDays: Math.round((Date.parse(`${serverDate}T00:00:00Z`) - Date.parse(`${CLOCK_DATE}T00:00:00Z`)) / 86400000),
+      requests: {},
+    }
+    for (const [key, v] of captured) {
+      if (!wanted.has(key)) continue
+      manifest.requests[key] = { ...v, body: shiftIsoDates(v.body, manifest.backshiftDays) }
+    }
+    const absent = paths.filter((p) => !manifest.requests[p])
+    if (absent.length > 0) {
+      // 常见的错法是把 search 漏了：key 是 pathname+search，逐字比。
+      // 把 pathname 对得上的真实 key 一起打出来，一眼能看出差在哪个 query。
+      const near = absent.map((p) => {
+        const base = p.split('?')[0]
+        const hits = [...new Set(seen.filter((k) => k.split('?')[0] === base))]
+        return `${base} → 实测 ${JSON.stringify(hits)}`
+      })
+      throw new Error(
+        `[载荷录制] ${anchor.slug} 没等到这些端点的响应，拒绝写半成品 fixture：${JSON.stringify(absent)}\n` +
+          `按 pathname 找相近的真实 key：${JSON.stringify(near)}\n` +
+          `本次页面实际请求过的 /api GET：${JSON.stringify([...new Set(seen)])}\n` +
+          `两种可能：pinPaths 里的 search 写错了（key 是 pathname+search，逐字比），或这一页已经不再取这份数（那要重选钉哪个端点）。`,
+      )
+    }
+    mkdirSync(dirname(fixturePathFor(anchor.slug)), { recursive: true })
+    writeFileSync(fixturePathFor(anchor.slug), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
+    console.log(`[pin-record] ${anchor.slug} → ${fixturePathFor(anchor.slug)}（回拨 ${manifest.backshiftDays} 天，端点 ${Object.keys(manifest.requests).length} 个）`)
+  }
+}
+
+/* ============================================================================ *
+ * 每个锚点自己的"数据确已到位"断言（spec §6.14）
+ * ============================================================================ *
+ * 【为什么通用守卫不够】Task 4b 记过一次真实事故：后端瞬时失败把 teacher-dashboard 渲染成
+ * 空态，而 `.error-boundary` 计数 0、`#app` 非空、URL 没被改写、data-theme 也对——四条全过。
+ * 空态是一张"长得很正常"的图，只有看**这页该有的东西在不在**才拦得住。
+ * 【为什么它们必须一次读全表】所有判定都基于同一次 evaluate 的快照：
+ * 断言之间不能再有等待/推进，否则"到位"的时点与截图的时点不是同一帧，读数会自相矛盾。
+ * 【为什么必须是抛错而不是 expect】这套检查同时被 anchors 与 sensitivity 共用（见 assertComparableRender），
+ * 探针那边要的是"立刻可归因的失败"，polling 版 expect 会把 20s 超时伪装成量程结论。
+ */
+
+interface ArrivalSnapshot {
+  path: string
+  l1Card: number
+  statValues: string[]
+  treeRows: number
+  tableRows: number
+  canvas: number
+  formItems: number
+  filledInputs: number
+  heroStats: string[]
+  shellTabs: number
+  headings: string[]
+}
+
+const hasNonZeroDigit = (s: string): boolean => /[1-9]/.test(s)
+
+async function readArrival(page: Page): Promise<ArrivalSnapshot> {
+  return page.evaluate(() => {
+    const q = (sel: string) => document.querySelectorAll(sel).length
+    const txt = (sel: string) => Array.from(document.querySelectorAll(sel)).map((e) => (e.textContent ?? '').trim())
+    const filled = Array.from(document.querySelectorAll('input, textarea')).filter(
+      (el) => ((el as HTMLInputElement).value ?? '').trim() !== '',
+    ).length
+    return {
+      path: location.pathname,
+      l1Card: q('.l1-card'),
+      statValues: txt('.s-value'),
+      treeRows: q('.tree-row'),
+      tableRows: q('.el-table__row'),
+      canvas: q('canvas'),
+      formItems: q('.el-form-item'),
+      filledInputs: filled,
+      heroStats: txt('.hero-stat__value'),
+      shellTabs: q('.shell-tab'),
+      headings: txt('h1, h2, h3'),
+    }
+  })
+}
+
+export interface ArrivalCheck {
+  /** 这条断言在验什么——直接进失败消息，别让读红的人去猜选择器 */
+  what: string
+  run: (page: Page) => Promise<void>
+}
+
+/** 至少一个统计值带非零数字（全 0 / 全空 = 后端没给数，正是那次事故的样子） */
+function requireSomeStat(s: ArrivalSnapshot, where: string): void {
+  if (s.statValues.length === 0) throw new Error(`${where}：一个 .s-value 都没有——统计卡没渲染`)
+  if (!s.statValues.some(hasNonZeroDigit)) {
+    throw new Error(`${where}：.s-value 全部为 0/空/占位 ${JSON.stringify(s.statValues)}——数据没到位，不得当基线`)
+  }
+}
+
+export const DATA_ARRIVAL_CHECKS: Record<string, ArrivalCheck> = {
+  login: {
+    what: '登录表单两个字段真渲染（本页无数据接口，钉的是页面身份不是数据）',
+    run: async (page) => {
+      const s = await readArrival(page)
+      if (s.formItems < 2) throw new Error(`登录页只渲染出 ${s.formItems} 个 .el-form-item（要 ≥2）`)
+    },
+  },
+  'admin-dashboard': {
+    what: '管理工作台 ≥1 张 .l1-card 且统计值里有非零数',
+    run: async (page) => {
+      const s = await readArrival(page)
+      if (s.l1Card < 1) throw new Error(`管理工作台 .l1-card = ${s.l1Card}（要 ≥1）`)
+      requireSomeStat(s, '管理工作台')
+    },
+  },
+  'student-dashboard': {
+    what: '学生工作台 ≥1 张 .l1-card、统计值有非零数、且图表 canvas 真存在',
+    run: async (page) => {
+      const s = await readArrival(page)
+      if (s.l1Card < 1) throw new Error(`学生工作台 .l1-card = ${s.l1Card}（要 ≥1）`)
+      requireSomeStat(s, '学生工作台')
+      if (s.canvas < 1) throw new Error('学生工作台的图表 canvas 没渲染——日期载荷钉死后画面不再来自后端，这一条是唯一还能看出"图没画"的判据')
+    },
+  },
+  'teacher-dashboard': {
+    what: '教师工作台 ≥1 张 .l1-card 且统计值里有非零数（**就是那次事故的那一页**）',
+    run: async (page) => {
+      const s = await readArrival(page)
+      if (s.l1Card < 1) throw new Error(`教师工作台 .l1-card = ${s.l1Card}（要 ≥1）——空态页面正是这样：非空壳、无错误边界、断言全绿`)
+      requireSomeStat(s, '教师工作台')
+    },
+  },
+  'admin-courses-table': {
+    what: '课程表格真有新行（.el-table__row ≥1）',
+    run: async (page) => {
+      const s = await readArrival(page)
+      if (s.tableRows < 1) throw new Error(`课程表格行数 = ${s.tableRows}（要 ≥1）——空表基线会把"数据没了"判成"改版了"`)
+      requireSomeStat(s, '课程管理')
+    },
+  },
+  'admin-system-form': {
+    // ⚠️ 这一页的画面**不随接口变**（实测：把 /api/system-configs 五个端点全打空，
+    // #app 节点数 1909→1909、有值输入框 26→26 一字不变——表单渲染的是组件内默认值）。
+    // 所以这条只能是**结构性**断言（表单确实挂载），它证伪的方式是"拿错页跑"（见 anchors.spec.ts 矩阵 B），
+    // 不是"接口打空"。这条限制如实报上去，不假装它是数据到位断言。
+    // 阈值取 ≥10 条目 / ≥1 开关 / ≥5 已填输入框：实测本页 35/8/26，而登录页只有 2/0/≤2，
+    // 三个数都取在中段，既不会因为表单加减字段就假炸，也不会让别的页面混过去。
+    what: '系统设置的表单确实挂载（≥10 个字段、≥1 个开关、≥5 个已回填输入框）',
+    run: async (page) => {
+      const s = await readArrival(page)
+      if (s.formItems < 10 || s.filledInputs < 5) {
+        throw new Error(`系统设置不像系统设置：.el-form-item=${s.formItems}（要 ≥10）、已回填输入框=${s.filledInputs}（要 ≥5）`)
+      }
+      const switches = await page.evaluate(() => document.querySelectorAll('.el-switch').length)
+      if (switches < 1) throw new Error(`系统设置没有 .el-switch（实测 ${switches}）——设置面板没挂载`)
+    },
+  },
+  'student-courses-modal': {
+    what: '课程大厅真列出课程卡（.tree-row ≥1）',
+    run: async (page) => {
+      const s = await readArrival(page)
+      if (s.treeRows < 1) throw new Error(`课程大厅 .tree-row = ${s.treeRows}（要 ≥1）`)
+    },
+  },
+  'student-learning-center': {
+    what: '学习中心外壳真挂上（.shell-tab ≥1 且有课程名标题）',
+    run: async (page) => {
+      const s = await readArrival(page)
+      if (s.shellTabs < 1) throw new Error(`学习中心 .shell-tab = ${s.shellTabs}（要 ≥1）——壳页没挂载就是白屏/空态`)
+      if (s.headings.every((h) => h === '')) throw new Error('学习中心没有任何非空标题：课程名没到位')
+    },
+  },
+  'student-knowledge-graph': {
+    what: '图谱页统计卡非零（真画出内容由 anchors.spec.ts 的 assertGraphPainted 另三道判据把关）',
+    run: async (page) => {
+      const s = await readArrival(page)
+      requireSomeStat(s, '知识图谱')
+    },
+  },
+  'admin-governance-analytics': {
+    what: '分析页 ≥1 个 canvas 且统计值有非零数',
+    run: async (page) => {
+      const s = await readArrival(page)
+      if (s.canvas < 1) throw new Error('分析页没有 canvas——图表整块没渲染')
+      requireSomeStat(s, '治理分析')
+    },
+  },
+  'admin-profile': {
+    what: '个人中心真回填了资料（有值的 input/textarea ≥1 且 hero 统计非空）',
+    run: async (page) => {
+      const s = await readArrival(page)
+      if (s.filledInputs < 1) throw new Error('个人中心的资料字段全空——用户数据没到位')
+      if (!s.heroStats.some((v) => v !== '' && v !== '0')) throw new Error(`个人中心 hero 统计为空/零 ${JSON.stringify(s.heroStats)}`)
+    },
+  },
+  'error-404': {
+    what: '错误页真的是 404（钉的是页面身份：换成正则路由它就红）',
+    run: async (page) => {
+      const s = await readArrival(page)
+      if (!s.headings.some((h) => h.includes('404'))) throw new Error(`404 页标题不是 404：${JSON.stringify(s.headings)}（path=${s.path}）`)
+    },
+  },
+}
+
+export async function assertAnchorArrival(page: Page, slug: string): Promise<void> {
+  const check = DATA_ARRIVAL_CHECKS[slug]
+  if (!check) throw new Error(`[数据到位] 锚点 ${slug} 没有专属断言——新锚点必须先加一条，通用守卫拦不住空态（spec §6.14）`)
+  try {
+    await check.run(page)
+  } catch (e) {
+    throw new Error(`[数据到位] ${slug} 未通过：${check.what}\n${(e as Error).message}`)
+  }
+}
+
+/**
+ * 每个锚点"这一页自己的数据端点"前缀，供 anchors.spec.ts 的空态可证伪矩阵打桩用。
+ * 名单不是猜的：逐个锚点挂 response 监听跑一遍真实导航量出来的（GET /api/** 全集里
+ * 去掉外壳类 /api/auth/permissions 与 /api/notifications/unread-count）。
+ * 为什么要按锚点收窄而不是一把梭空掉整个 /api：
+ * 实测发现把 /api/auth/permissions 之类也打空时，暗色/浅色锚点会连 `data-theme` 都拿不到，
+ * 于是红的是**通用守卫**而不是本页的专属断言——那种红证明不了专属断言堵得住这个洞。
+ * 'ALL' = 这一页没有可辨识的独立数据端点（学习中心走的是各模块端点），打全部非外壳 GET。
+ */
+export const DATA_PATHS: Record<string, string[]> = {
+  'admin-dashboard': ['/api/admin/statistics', '/api/analytics/dashboard'],
+  'student-dashboard': ['/api/student/analytics/visualization', '/api/student/courses', '/api/student/dashboard'],
+  'teacher-dashboard': ['/api/courses/my', '/api/teacher/dashboard/v2'],
+  'admin-courses-table': ['/api/courses'],
+  'admin-system-form': ['/api/system-configs'],
+  'student-courses-modal': ['/api/student/courses', '/api/student/dashboard'],
+  'student-learning-center': ['ALL'],
+  'student-knowledge-graph': ['/api/knowledge', '/api/student/courses'],
+  'admin-governance-analytics': [
+    '/api/analytics/users/growth',
+    '/api/analytics/heatmap/platform',
+    '/api/analytics/dashboard',
+    '/api/analytics/courses/ranking',
+  ],
+  'admin-profile': ['ALL'],
+}
+
+/** 外壳与会话类端点：把它们也打空会得到 /login 重定向或主题丢失，红得无法归因 */
+export const SHELL_KEEP_ALIVE_PATHS = ['/api/auth/', '/api/notifications/']
+
+/* ============================================================================ *
+ * 可比性前置：anchors 与 sensitivity 共用同一份（Task 4c Step 1g "口径共享"）
+ * ============================================================================ *
+ * 原来 anchors 有 5 条（时刻、data-theme、#app 非空、.error-boundary、/403|/503、URL 未跳 /login），
+ * 而探针自称"同口径"实际只有 3 条——少的那 3 条正是"未登录/错误页/403"三种"看着像页面"的落点。
+ * 探针在那三种画面上量出来的读数长得和真读数一模一样，却是彻底的假数（上一轮就差点这么喂台账）。
+ * 现在两边都调这一个函数，缺一条两边一起红，不可能只有一边瞎。
+ */
+export async function assertGenericGuards(page: Page, anchor: AnchorSpec, theme: ThemeName): Promise<void> {
+  const fail = (msg: string): never => {
+    throw new Error(`[可比性] ${anchor.slug}/${theme}：${msg}`)
+  }
+  const now = await page.evaluate(() => Date.now())
+  if (now !== SNAPSHOT_PAGE_TIME_MS) fail(`截图时刻 ${now} ≠ 常量 ${SNAPSHOT_PAGE_TIME_MS}（多推进/少推进了 ${now - SNAPSHOT_PAGE_TIME_MS}ms，帧数不可比）`)
+  const attrs = await page.evaluate(() => ({
+    theme: document.documentElement.getAttribute('data-theme') ?? '',
+    appEmpty: (document.querySelector('#app')?.textContent ?? '').trim() === '',
+    errorBoundaries: document.querySelectorAll('.error-boundary').length,
+    path: location.pathname,
+    href: location.href,
+  }))
+  if (attrs.theme !== theme) fail(`data-theme="${attrs.theme}" 与要求的 ${theme} 不符——主题没注入成功，两张图会是同一张图换了名字`)
+  if (attrs.appEmpty) fail('#app 是空的（SPA 白屏）')
+  if (attrs.errorBoundaries > 0) fail(`命中 ${attrs.errorBoundaries} 个 .error-boundary（报错边界页长得像正常页）`)
+  if (anchor.role !== 'ANON') {
+    if (attrs.href.includes('/login')) fail(`被守卫踢回 /login（会话没带上）：${attrs.href}`)
+    if (/\/(403|503)$/.test(attrs.path)) fail(`落在 ${attrs.path}：后端不可达或角色不符也会渲染成"正常页"，四条通用守卫一条都不拦`)
+  }
+}
+
+/** 通用守卫 + 该锚点自己的数据到位断言。anchors 与 sensitivity 都调这一个，不许各自抄一份。 */
+export async function assertComparableRender(page: Page, anchor: AnchorSpec, theme: ThemeName): Promise<void> {
+  await assertGenericGuards(page, anchor, theme)
+  await assertAnchorArrival(page, anchor.slug)
+}
+
 /**
  * 12 个锚点是 spec §4 Phase 0a 选定的"每一类版式的代表"，不是随便 12 页：
  * 工作台 ×3 端（卡片+统计+图表混排）、表格页代表（54 个文件在用 el-table）、
@@ -321,7 +802,19 @@ export function maskOf(page: Page, selectors: string[] = []): Locator[] {
 export const ANCHORS: readonly AnchorSpec[] = [
   { slug: 'login', title: '登录页', role: 'ANON', path: '/login' },
   { slug: 'admin-dashboard', title: '管理工作台', role: 'ADMIN', path: '/admin/dashboard' },
-  { slug: 'student-dashboard', title: '学生工作台', role: 'STUDENT', path: '/student/dashboard' },
+  {
+    slug: 'student-dashboard',
+    title: '学生工作台',
+    role: 'STUDENT',
+    path: '/student/dashboard',
+    /**
+     * 后端按 LocalDate.now() 回推 14 天窗口并重新取数：
+     * StudentVisualizationComponent.java 的 getVisualizationData → buildDurationTrend(today.minusDays(13))
+     * 与 buildHeatmapData(today.minusDays(6))，前端 SdVizSection.vue 把 `t.date.slice(5)` 直接铺进 xAxis.data。
+     * page.clock 管得到浏览器、管不到服务端 ⇒ 每天零点这张基线集体漂一次（实测见 SNAPSHOT_THRESHOLDS 注释）。
+     */
+    pinPaths: ['/api/student/analytics/visualization'],
+  },
   { slug: 'teacher-dashboard', title: '教师工作台', role: 'TEACHER', path: '/teacher/dashboard' },
   { slug: 'admin-courses-table', title: '课程管理（表格代表）', role: 'ADMIN', path: '/admin/courses' },
   { slug: 'admin-system-form', title: '系统设置（表单代表）', role: 'ADMIN', path: '/admin/system' },
@@ -345,7 +838,18 @@ export const ANCHORS: readonly AnchorSpec[] = [
     pinRandom: true,
     requirePaintedGraph: true,
   },
-  { slug: 'admin-governance-analytics', title: '治理分析（图表代表）', role: 'ADMIN', path: '/admin/analytics' },
+  {
+    slug: 'admin-governance-analytics',
+    title: '治理分析（图表代表）',
+    role: 'ADMIN',
+    path: '/admin/analytics',
+    /**
+     * AdminAnalyticsComponent.getUserGrowthTrend：endDate = LocalDate.now()、
+     * startDate = endDate.minusDays(days - 1)，且同窗口还重新取数；
+     * 消费端 useAnalytics.ts 把后端 d.date 直接铺进 xAxis.data ⇒ 与 student-dashboard 同因。
+     */
+    pinPaths: ['/api/analytics/users/growth?days=30'],
+  },
   { slug: 'admin-profile', title: '个人中心', role: 'ADMIN', path: '/admin/profile' },
   { slug: 'error-404', title: '404', role: 'ANON', path: '/__no-such-route__' },
 ]

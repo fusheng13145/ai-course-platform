@@ -36,7 +36,45 @@ const AUTH_DIR = dirname(join(process.cwd(), storagePathFor(ROLES[0])))
  *   localStorage，请求侧靠 withCredentials 自动携带），所以夹具里的会话在 `cookies[]`，
  *   `origins[].localStorage` 只有 user/permissions/引导已读标记。判"空夹具"要两处都看。
  */
+/**
+ * `--update-snapshots` 的机械闸门（Task 4c Step 1c）。
+ *
+ * 【它挡的是什么】这一条命令会**重写全部 22 张基线**，而在本轮之前它毫无机械阻力：
+ * 计划里两处（Task 4 建立基线步、LEDGER 表头那句"改基线用"）给的都是**不带文件过滤**的
+ * `npx playwright test -c playwright.visual.ts --update-snapshots`。
+ * 叠上原来探针默认档 `gross`（任何不带过滤的 visual 跑天然带 3 条设计好的红），
+ * 后来的代理会被训练成"红了也别管"，而真正危险的那次红——把缺陷吸收进重新生成的基线——
+ * 恰恰混在这片红里看不出来。日期漂移那 618 px 字节差就是靠这个口子能被静默洗掉的。
+ *
+ * 【口径】必须显式带 `PW_ALLOW_UPDATE_SNAPSHOTS=1` 才放行；同时打印一条提醒：
+ * 先跑 `anchors`（不带 --update-snapshots）看清红的是哪几张、为什么红，再决定要不要重生成。
+ * 本闸只拦 `--update-snapshots` / `-u` 两个写法，不拦 `--llm`/其它。
+ * 为什么放在 global-setup 而不是各 spec：这里是"整个跑测即将开始"的唯一入口，
+ * 拦在导入期连一张图都不会被写。
+ */
+function assertUpdateSnapshotsAllowed(): void {
+  const argv = process.argv
+  const wantsUpdate = argv.includes('--update-snapshots') || argv.includes('-u') || argv.includes('--update')
+  if (!wantsUpdate) return
+  if (process.env.PW_ALLOW_UPDATE_SNAPSHOTS === '1') {
+    console.log(
+      '[gate] --update-snapshots 已被 PW_ALLOW_UPDATE_SNAPSHOTS=1 显式承认放行。\n' +
+        '       它会重写**匹配到的**每一条基线：请务必带文件/用例过滤（-g），' +
+        '并在跑完后逐张复核新图；把缺陷吸收进基线是本仓不可挽回的一类错误。',
+    )
+    return
+  }
+  throw new Error(
+    '[gate] 拒绝了 --update-snapshots：它会重写全部 22 张已提交基线，而"红了就重生成"正是本套件最禁止的动作。\n' +
+      '  先看红的是什么：PW_PORT=5175 npx playwright test -c playwright.visual.ts anchors -g "<slug>"\n' +
+      '  读数与出处：node e2e/visual/tools/measure-diff.cjs <基线.png> <取证图.png> --bands\n' +
+      '  确认这次重生成合理之后，显式承认：PW_ALLOW_UPDATE_SNAPSHOTS=1 <同一条命令>\n' +
+      '  （理由见计划 Task 4c Step 1c 与 spec §6.12/§6.16。）',
+  )
+}
+
 export default async function globalSetup() {
+  assertUpdateSnapshotsAllowed()
   // 显式建目录：Playwright 写 storageState 时自己也会 mkdirIfNeeded，这里留一次是把
   // "夹具目录归 setup 管"这个意图写进代码，不承担正确性。
   mkdirSync(AUTH_DIR, { recursive: true })

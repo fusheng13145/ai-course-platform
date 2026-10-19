@@ -1,4 +1,9 @@
 import { expect, test } from '@playwright/test'
+import { execFileSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
+import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import zlib from 'node:zlib'
 import {
   freezeClock,
   maskOf,
@@ -6,10 +11,69 @@ import {
   settlePage,
   snapName,
   SNAPSHOT_PAGE_TIME_MS,
+  SNAPSHOT_THRESHOLDS,
   storagePathFor,
   THEME_KEY,
   waitForStableText,
 } from './visual-helpers'
+
+/** 手写一个最小 PNG 编码器（只用于下面那条解码回归；过滤类型按参数选） */
+function encodePng(w: number, h: number, colorType: 2 | 6, filterType: 0 | 3): Buffer {
+  const ch = colorType === 2 ? 3 : 4
+  const rows: Buffer[] = []
+  let prev: Buffer | null = null
+  for (let y = 0; y < h; y++) {
+    const row = Buffer.alloc(w * ch)
+    for (let x = 0; x < w; x++) {
+      row[x * ch] = (x * 37 + y * 11) & 255
+      row[x * ch + 1] = (x * 91 + y * 7) & 255
+      row[x * ch + 2] = (x * 13 + y * 57) & 255
+      if (ch === 4) row[x * ch + 3] = ((x + y) * 13) & 255
+    }
+    const f = Buffer.alloc(row.length)
+    for (let i = 0; i < row.length; i++) {
+      const a = i >= ch ? row[i - ch] : 0
+      const b = prev ? prev[i] : 0
+      const pred = filterType === 0 ? 0 : (a + b) >> 1
+      f[i] = (row[i] - pred) & 255
+    }
+    rows.push(Buffer.concat([Buffer.from([filterType]), f]))
+    prev = row
+  }
+  const ihdr = Buffer.alloc(13)
+  ihdr.writeUInt32BE(w, 0)
+  ihdr.writeUInt32BE(h, 4)
+  ihdr[8] = 8
+  ihdr[9] = colorType
+  const chunk = (type: string, data: Buffer): Buffer => {
+    const len = Buffer.alloc(4)
+    len.writeUInt32BE(data.length)
+    const t = Buffer.from(type, 'ascii')
+    const body = Buffer.concat([t, data])
+    const c = Buffer.alloc(4)
+    c.writeUInt32BE(crc32(body))
+    return Buffer.concat([len, body, c])
+  }
+  return Buffer.concat([
+    Buffer.from([0x89, 0x50, 0x4e, 0x47, 13, 10, 26, 10]),
+    chunk('IHDR', ihdr),
+    chunk('IDAT', zlib.deflateSync(Buffer.concat(rows))),
+    chunk('IEND', Buffer.alloc(0)),
+  ])
+}
+
+function crc32(buf: Buffer): number {
+  let c = 0xffffffff
+  for (const b of buf) {
+    c ^= b
+    for (let k = 0; k < 8; k++) c = c & 1 ? 0xedb88320 ^ (c >>> 1) : c >>> 1
+  }
+  return (c ^ 0xffffffff) >>> 0
+}
+
+function md5(file: string): string {
+  return createHash('md5').update(readFileSync(file)).digest('hex')
+}
 
 // helper 自身的测试（smoke.spec.ts 只管主题注入在页面上生效）。
 // 为什么值得单开：settlePage / freezeClock 是 24 张基线的公共依赖，它们出错的方式是
@@ -113,3 +177,113 @@ test('snapName / maskOf / storagePathFor 的形状与同步签名', async ({ pag
   expect(storagePathFor('STUDENT')).toBe('e2e/visual/.auth/student.json')
   expect(storagePathFor('ADMIN')).toBe('e2e/visual/.auth/admin.json')
 })
+
+/* ------------------------------------------------------------------ *
+ * Task 4c Step 1b / 1c：量程常量与 22 张基线的"篡改痕迹"
+ * ------------------------------------------------------------------ */
+
+/**
+ * 量程常量钉死（Step 1b）。
+ * 4b 这一轮里这个常量**在飞的过程中就被另一个代理改过**（0.2→0.05→0.02），
+ * 而后 60+ 个任务都要读它——它当时只靠散文保护，现在有一条断言保护。
+ * 规矩：**只许收紧**（把这条断言与注释一起改），不许放宽。
+ * 放宽的后果有实测依据：交付配置 t=0 下 radius 单卡档计数 198 / 字节差 280，
+ * 而 648 px 的免检额已经把它吸掉了；再放宽就是连 1,394（5 卡档）都可能放过。
+ * 重生成这两个数：
+ *   cd frontend && PW_LADDER=radius npx playwright test -c playwright.visual.ts sensitivity
+ */
+test('量程常量钉死，改动必须显式决策', () => {
+  expect(SNAPSHOT_THRESHOLDS).toEqual({ threshold: 0, maxDiffPixelRatio: 0.0005 })
+})
+
+/**
+ * 单来源的机械版本：两处消费方都必须**引用**这个常量，不许各自再写一份字面量。
+ * 上一轮"量程测量用的阈值"和"回归用的阈值"不是同一组数，正是靠这个约定挡住的；
+ * 散文挡不住并发代理（Task 4b 那次 00:43 的覆盖事故就是并发写的）。
+ */
+test('阈值只有一个来源，消费侧不写字面量', () => {
+  const anchors = readFileSync(join(process.cwd(), 'e2e/visual/anchors.spec.ts'), 'utf8')
+  const probe = readFileSync(join(process.cwd(), 'e2e/visual/sensitivity.spec.ts'), 'utf8')
+  expect(anchors).toContain('...SNAPSHOT_THRESHOLDS')
+  // anchors 侧任何 `threshold:` / `maxDiffPixelRatio:` 字面量都会让比较口径悄悄换掉
+  expect(anchors).not.toMatch(/threshold:\s*[\d.]/)
+  expect(anchors).not.toMatch(/maxDiffPixelRatio:\s*[\d.]/)
+  // 探针的 fallback 必须指向同一常量；env 旋钮只许收紧（由 sensitivity.spec.ts 自己 fail fast）
+  expect(probe).toContain('SNAPSHOT_THRESHOLDS.threshold')
+  expect(probe).toContain('SNAPSHOT_THRESHOLDS.maxDiffPixelRatio')
+})
+
+/**
+ * 22 张基线的 sha256 清单（Step 1c 的"篡改痕迹"）。
+ * 症状设计成"基线被换掉即红"——包括被 `--update-snapshots` 换掉、也包括被别的代理覆盖掉。
+ * 重算清单（改基线时必须同步这里，且要逐张复核新图）：
+ *   cd frontend && node e2e/visual/tools/measure-diff.cjs --manifest e2e/visual/__snapshots__/anchors.spec.ts --json
+ * 张数写成 22 而不是 24：`error-404` 两张按缺陷 D-1（错误路由从不写 data-theme）拒收，
+ * 引用这个数一律写 22/24 并带原因。
+ */
+const BASELINE_SHA256: Record<string, string> = {
+  'admin-courses-table-dark.png': '4fceb28bd3390934207b32576f35b7d1113d403d3f36f758d30e0992351f113d',
+  'admin-courses-table-light.png': 'a16b22e487a6390833bc115e8176d6eb6f87439e1e27c83d19a25e1b0122e517',
+  'admin-dashboard-dark.png': 'd8162bbfaf8c40074592b4eda13bc212cd81b920727b1c03306b60265a72e985',
+  'admin-dashboard-light.png': 'f97e461499d12b40345443ca8fe5ad2e9f3479f81688352021caebfe59ee2baf',
+  'admin-governance-analytics-dark.png': 'fdcf4eca3fd2a3f77789f673e882f51192283b662e35753ef36abb2bf26cde1a',
+  'admin-governance-analytics-light.png': 'd0a57821fc4ebcde8481f8a1f1f8bac35e13d99c614a2a6b37a6430e11a35ae7',
+  'admin-profile-dark.png': 'd3838b8d9582abadc639792e32b80420d6446affd39fdd47f6e1faf842292ead',
+  'admin-profile-light.png': '5deaacad8f257fcb651cb8a56faa35aad0e83dafdd6c2b4cffd4dd5782de1e68',
+  'admin-system-form-dark.png': '5719dc5155c4c0e5171b2a44e3f35fca86fbbce8a6381fb6b1f9db784636a76a',
+  'admin-system-form-light.png': 'f2924fa041f6a3a435445e337995a297808e62c2d9f3257904930127bdc35d1c',
+  'login-dark.png': 'bae3de236ef5afcf99ce00a17b95011b945e6f22224982f1a90e67abb74c72e4',
+  'login-light.png': 'aa253c2a88df0586be3ded71a824678f7804fe07a69ec2d4b3912238697a6b2d',
+  'student-courses-modal-dark.png': '737739917fe742e17aef3706e3ec88f0fe386c73d7fb83939891b5212f695038',
+  'student-courses-modal-light.png': 'b6a9882cdb6bf55af9a711fb0b7b4cbc83ff7e716be550ceed86fa5aa5673263',
+  'student-dashboard-dark.png': 'f45ad39a511257101bef54cfddb12a4ab41b3867c748d4fe36913457a717b7db',
+  'student-dashboard-light.png': '3b09fb5563abf9308b829875ddd13d46158ebfb06b53baf27a45353f4b1c259f',
+  'student-knowledge-graph-dark.png': '787954e0647d4cfb0bf58fc2b0b2693555d19380772c8f7ce14809693aa006aa',
+  'student-knowledge-graph-light.png': '35e7caf803ca83f70c23d2a08372019883495770b603769234fafd4bde548c84',
+  'student-learning-center-dark.png': '88cce625da003e8be1f6abf27d6d541dcac54ceb6071104a4db79805fc33e790',
+  'student-learning-center-light.png': '5ac5cda3d46030111d3358f216a05ea6838a7f86c02abb460ceb7183c7731b62',
+  'teacher-dashboard-dark.png': '76be1c8a6b0333abab02e04427b2d45ef6576f45ef75c48c4a0fc020d7f8f1bf',
+  'teacher-dashboard-light.png': '7f44ad35146c4ebe438814245a290b70fe448cba607ca41a68d9a57adec42a01',
+}
+
+test('22 张已提交基线的 sha256 与入库清单一致（篡改/重生成即红）', () => {
+  const dir = join(process.cwd(), 'e2e/visual/__snapshots__/anchors.spec.ts')
+  const onDisk = readdirSync(dir)
+    .filter((f) => f.toLowerCase().endsWith('.png'))
+    .sort()
+  expect(onDisk.length, '基线张数变了：22 是"12 锚点 × 明暗 − error 两张（D-1 拒收）"').toBe(22)
+  expect([...Object.keys(BASELINE_SHA256)].sort()).toEqual(onDisk)
+  for (const f of onDisk) {
+    const digest = createHash('sha256').update(readFileSync(join(dir, f))).digest('hex')
+    expect(digest, `${f} 与入库清单不符——若这是有意的重生成，必须逐张复核后连同清单一起改`).toBe(BASELINE_SHA256[f])
+  }
+})
+
+/**
+ * 比较器的解码回归（Task 4c Step 1g 的尺本身）。
+ * 为什么这条必须存在：本机第一次实现 `measure-diff.cjs` 时把 Average 过滤写成
+ * `line[x] + (a + b) >> 1`（JS 里 `+` 比 `>>` 结合更紧 ⇒ 少一层括号就是另一种算法），
+ * 症状是凡 Chromium 用 Average 过滤的行全部解错，radius 档计数从跑测器的 1394 漂到 2257。
+ * **同一张图的两种过滤编码必须解成同一样东西**——这条不变式一断，红就在这里，
+ * 而不是等某个 LEDGER 数字与跑测器对不上才发现。
+ * 检出方式是 Playwright 的 `[探针无效] 尺不同源` 断言（sensitivity.spec.ts），
+ * 本用例则在没有注入可跑的时候也能拦住它。
+ */
+test('measure-diff 的 PNG 解码与过滤类型无关（同一张图 filter0 与 filter3 必须解成同一份 RGBA）', () => {
+  const dir = join(process.cwd(), 'e2e/visual', 'tools', 'evidence')
+  mkdirSync(dir, { recursive: true })
+  const a = join(dir, 'kat-filter0.png')
+  const b = join(dir, 'kat-filter3.png')
+  const w = 41
+  const h = 17
+  writeFileSync(a, encodePng(w, h, 2, 0))
+  writeFileSync(b, encodePng(w, h, 2, 3))
+  expect(md5(a)).not.toBe(md5(b)) // 两种编码的字节确实不同，否则这条用例什么都没测
+  const out = execFileSync(process.execPath, [join(process.cwd(), 'e2e/visual/tools/measure-diff.cjs'), a, b, '--json'], {
+    encoding: 'utf8',
+  })
+  const reading = JSON.parse(out) as { byteDiffPx: number; pixelmatchCount: number }
+  expect(reading.byteDiffPx, '同一张图换了过滤类型就解成不同像素——比较器的 unfilter 有 bug').toBe(0)
+  expect(reading.pixelmatchCount).toBe(0)
+})
+

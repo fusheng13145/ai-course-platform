@@ -1,0 +1,14 @@
+{
+  "slug": "student-dashboard",
+  "recordedAt": "2026-10-19T00:45:35.288Z",
+  "serverDateAtRecord": "2026-10-19",
+  "clockDate": "2026-10-18",
+  "backshiftDays": 1,
+  "requests": {
+    "/api/student/analytics/visualization": {
+      "status": 200,
+      "contentType": "application/json",
+      "body": "{\"code\":200,\"message\":\"success\",\"data\":{\"durationTrend\":[{\"date\":\"2026-10-05\",\"seconds\":0},{\"date\":\"2026-10-06\",\"seconds\":0},{\"date\":\"2026-10-07\",\"seconds\":0},{\"date\":\"2026-10-08\",\"seconds\":0},{\"date\":\"2026-10-09\",\"seconds\":0},{\"date\":\"2026-10-10\",\"seconds\":0},{\"date\":\"2026-10-11\",\"seconds\":0},{\"date\":\"2026-10-12\",\"seconds\":0},{\"date\":\"2026-10-13\",\"seconds\":0},{\"date\":\"2026-10-14\",\"seconds\":0},{\"date\":\"2026-10-15\",\"seconds\":0},{\"date\":\"2026-10-16\",\"seconds\":0},{\"date\":\"2026-10-17\",\"seconds\":0},{\"date\":\"2026-10-18\",\"seconds\":0}],\"radarData\":[],\"heatmapData\":[]},\"timestamp\":\"2026-10-18T08:45:32.9216126\"}"
+    }
+  }
+}

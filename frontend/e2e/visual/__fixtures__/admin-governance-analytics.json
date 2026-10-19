@@ -1,0 +1,14 @@
+{
+  "slug": "admin-governance-analytics",
+  "recordedAt": "2026-10-19T00:48:34.796Z",
+  "serverDateAtRecord": "2026-10-19",
+  "clockDate": "2026-10-18",
+  "backshiftDays": 1,
+  "requests": {
+    "/api/analytics/users/growth?days=30": {
+      "status": 200,
+      "contentType": "application/json",
+      "body": "{\"code\":200,\"message\":\"success\",\"data\":[{\"date\":\"2026-09-19\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-09-20\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-09-21\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-09-22\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-09-23\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-09-24\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-09-25\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-09-26\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-09-27\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-09-28\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-09-29\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-09-30\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-10-01\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-10-02\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-10-03\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-10-04\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-10-05\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-10-06\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-10-07\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-10-08\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-10-09\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-10-10\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-10-11\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-10-12\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-10-13\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-10-14\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-10-15\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-10-16\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-10-17\",\"newUsers\":0,\"cumulativeUsers\":0},{\"date\":\"2026-10-18\",\"newUsers\":0,\"cumulativeUsers\":0}],\"timestamp\":\"2026-10-18T08:48:32.4524048\"}"
+    }
+  }
+}
