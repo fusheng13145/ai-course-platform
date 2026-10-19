@@ -12,6 +12,7 @@ import {
   freezeClock,
   loadPinManifest,
   maskOf,
+  pngSize,
   setTheme,
   settlePage,
   snapName,
@@ -267,6 +268,57 @@ test('22 张已提交基线的 sha256 与入库清单一致（篡改/重生成�
     const digest = createHash('sha256').update(readFileSync(join(dir, f))).digest('hex')
     expect(digest, `${f} 与入库清单不符——若这是有意的重生成，必须逐张复核后连同清单一起改`).toBe(BASELINE_SHA256[f])
   }
+})
+
+/**
+ * B8：把 Phase 2 全部余量的**分母**钉住。
+ *
+ * 【原先缺什么】这一族算术在这个仓里被引用了十几次——`129.6`（当前档）、`648`（r=0.0005 那几轮）、
+ * `2592`（原生产配置），spec §6.12/§6.17 与 `visual-helpers.ts` 的量程注释都靠它把"计数"折算成"几倍余量"。
+ * 但**没有任何一条断言**读过基线的 IHDR，也没有任何一条算式被跑过：
+ * `1440×900` 今天只是"真"（评审手读过 22 张）。这件事有两个方向会翻车：
+ *   ① 某页一旦**真的能滚**（Phase 4 的结构收敛最容易碰），fullPage 截图就变长，
+ *      免检额随**期望图**面积一起涨 ⇒ 同一个 198 px 的圆角改动从 1.53× 掉到 0.46× —— **绿得没意义**
+ *      （spec §6.12 末把它与"只有实际页变高、期望图没变 ⇒ sizesMismatchError 直接红"分开说过，
+ *       一条是变瞎、一条是变红，别混）。
+ *   ② `maxDiffPixelRatio` 一旦改动，注释里所有"几倍余量"当场作废，而没有任何东西会提醒。
+ * 【这一条同时钉两件事】(a) 每张已提交基线的宽高；(b) `w·h·r` 重算出来正是注释引用的那三个数。
+ *      r **从 `SNAPSHOT_THRESHOLDS` 读**，不在这重写一遍 `0.0001`——收紧它必须让这条红、
+ *      逼着人去把注释与台账里的数一起改，而不是让注释静默失效。
+ * 【比较口径】判据是 `count > expected.width * expected.height * ratio`（**无 ceil、无取整**，
+ *   `playwright-core/lib/coreBundle.js:7903` 取的是**期望图**的尺寸、`:7910` 才是那道 `>` 比较；
+ *   本机安装的是 playwright-core 1.63.0）。所以"免检额 130 px"是 129.6 的**向上**简写：
+ *   计数恰好 130 的那一格是**红**的。下面把方向也钉住，免得哪天有人拿"130 免检"当判据。
+ * 【为什么复用 `pngSize` 而不是再写一个读头函数】这仓已经有**两把**会读 PNG 头的东西
+ *   （`tools/measure-diff.cjs` 的 chunk 扫描、`sensitivity.spec.ts` 的私有 `pngSize`）。
+ *   第三份副本一旦写出，"免检额"就有三个可能不一致的来源；`pngSize` 已上收到 `visual-helpers.ts`，
+ *   两边同一份（它只读 8 字节头、不还原像素，判据仍然只有那把尺）。
+ * 【与 sha256 清单那条的分工】上面那条管"图没被换过"，本条管"图**长多大**"。
+ *   `error-404` 那两张（缺陷 D-1）哪天补齐进清单时，本条会跟着多读两张——**这是有意的**：
+ *   新增基线的尺寸同样要落进这条分母，不能只在清单里多个名字。
+ */
+test('每张已提交基线都是 1440×900，且免检额算式与注释里的引用一致', () => {
+  const dir = join(process.cwd(), 'e2e/visual/__snapshots__/anchors.spec.ts')
+  const ratio = SNAPSHOT_THRESHOLDS.maxDiffPixelRatio
+
+  for (const f of Object.keys(BASELINE_SHA256).sort()) {
+    const { width, height } = pngSize(join(dir, f))
+    expect(`${width}x${height}`, `${f} 的尺寸不再是 1440x900 ⇒ 免检额的分母变了（这一页真能滚？还是视口配置被动过？）`).toBe('1440x900')
+    expect(
+      width * height * ratio,
+      `${f} 自己的免检额与注释引用的 129.6 不符（w·h·r = ${width}·${height}·${ratio}）`,
+    ).toBeCloseTo(129.6, 6)
+  }
+
+  // ② 算术本身：注释里引用过的三个数必须由同一个分母重算出来。
+  const IMAGE_PX = 1440 * 900
+  expect(IMAGE_PX * ratio).toBeCloseTo(129.6, 6) // 当前交付档（r=0.0001）
+  expect(IMAGE_PX * 0.0005).toBe(648) // Task 4b/4c Step 1 那几轮的交付档
+  expect(IMAGE_PX * 0.002).toBe(2592) // 原生产配置（spec §6.12 判它作废的那一档）
+
+  // ③ 方向：129.6 不是整数，"免检额 130"只是向上简写 ⇒ 计数 130 必须算红。
+  expect(Number.isInteger(IMAGE_PX * ratio), '免检额一旦变成整数，"130 px"这个简写与判据的关系就要重写').toBe(false)
+  expect(130, '130 不再大于免检额 ⇒ 注释里"免检额 130 px"那类写法全部要按新数重抄').toBeGreaterThan(IMAGE_PX * ratio)
 })
 
 /**

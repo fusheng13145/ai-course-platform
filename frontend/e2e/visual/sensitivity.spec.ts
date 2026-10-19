@@ -11,6 +11,7 @@ import {
   freezeClock,
   installPayloadPin,
   maskOf,
+  pngSize,
   setTheme,
   settlePage,
   SNAPSHOT_THRESHOLDS,
@@ -273,12 +274,8 @@ if (knobRatio !== undefined && !(knobRatio >= 0 && knobRatio <= SNAPSHOT_THRESHO
   throw new Error(`[探针无效] PW_PROBE_RATIO=${knobRatio} 比交付配置 maxDiffPixelRatio=${SNAPSHOT_THRESHOLDS.maxDiffPixelRatio} 宽松——同上，拒绝`)
 }
 
-/** 读 PNG 头（IHDR）拿宽高，用来把 maxDiffPixelRatio 折算成"免检像素数" */
-function pngSize(file: string): { width: number; height: number } {
-  const buf = readFileSync(file)
-  if (buf.readUInt32BE(0) !== 0x89504e47) throw new Error(`${file} 不是 PNG`)
-  return { width: buf.readUInt32BE(16), height: buf.readUInt32BE(20) }
-}
+/** 读 PNG 头拿宽高的那份逻辑已上收到 `visual-helpers.ts` 的 `pngSize`（B8：单一来源，
+ *  免检额的两处消费方不许各写一份）。 */
 
 /* -------------------------------------------------- 只读比较器（已入库那把尺） */
 
