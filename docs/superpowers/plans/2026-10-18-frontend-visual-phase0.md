@@ -2076,6 +2076,16 @@ function onOverlay(e: MouseEvent) {
 `Modal` 接上后 `aria-modal="true"` 才算说得通；**`Drawer` 在 Phase 4 迁入同一套陷阱之前，仍然不许写 `aria-modal`**。
 若本步骤代价过大而无法完成，处置**不是**把 `aria-modal` 悄悄留在 `Modal` 上，
 而是把两个原语一起改成 `aria-modal` 缺省、并在 LEDGER 写明"本阶段撤下该属性的原因与恢复条件"。
+
+- [ ] **Step 4c: 收口两原语的写回对称性（R-B，Task 7 修复轮之后必然不对称）**
+
+Task 7 修复轮把 `Modal.close()` 改成"**以 `open.value` 为闸，开着就 emit `update:modelValue(false)`**"，
+而 `Drawer` 保持 `8b827aa` 的 `if (props.modelValue === true)` 写法 ⇒ 从那一刻起两原语关闭通道**语义不同**。
+本步骤把 `Drawer` 收到同一套（一处 `open` 闸 + 无条件写回），并**两边各配一条会红的断言**：
+`:model-value` 绑 `ref(undefined)` 也须能被关闭按钮、遮罩、Esc 三条入口关掉。
+不留这条的后果是具体的：Phase 4 要批量写 `v-model="visible"`，若两原语对同一个绑定表现不同，
+排查要按页做，而不是按原语做一次。`NmPublishDrawer.vue:5-6` 的双转发与 `--sh-drawer` 缺 ltr token
+（Task 11 修复轮主动交底、因不属其所有权而交回）也一并在本步骤或 Phase 4 处理，不许再拖到"以后重构"。
 > Task 6 把遮罩关闭钉在 `mousedown.self` 上，改成 `click` 会让那条 pin 变红。
 > 这不是障碍而是**故意保留的决策点**：`mousedown` 与 `click` 的差别在"拖拽选中文字越过遮罩时是否关闭"，
 > 属交互语义变更，需单独评估而非在加 `closeOnClickModal` 时顺手改掉。
