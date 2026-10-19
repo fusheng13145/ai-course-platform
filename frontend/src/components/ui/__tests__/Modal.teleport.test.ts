@@ -2,7 +2,7 @@
    本文件必须自己造两个「带 transform 的父容器」组件（Host / Inner）才能复现包含块条件：
    Teleport 的落点是相对**调用方 DOM** 而言的，用一个真实包裹层才有意义，
    而 Modal.vue 本身不能变成测试夹具。vue/one-component-per-file 针对的是产品组件，不是测试宿主。 */
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it, vi } from 'vitest'
 import { defineComponent, h, nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 import Modal from '../Modal.vue'
@@ -136,5 +136,39 @@ describe('Modal Teleport 行为', () => {
     wrapper.unmount()
     await nextTick()
     expect(document.body.querySelector('.overlay')).toBeNull()
+  })
+
+  it('关闭态带透传属性时不打 fall-through 的 dev 警告（Modal.vue 残余价值 (a) 的可证伪面）', async () => {
+    /**
+     * 为什么这一条要入库：`Modal.vue` 注释把 `defineOptions({ inheritAttrs: false })` 的剩余价值 (a)
+     * 写成"抑制关闭态的 dev 警告"，而 Task 8 修复轮 1 之前**没有任何入库用例碰过"关闭态 + 透传属性"**
+     * 这个组合 ⇒ 把 `inheritAttrs` 翻成 `true`，`src/components/ui/` 全绿、控制台一条 `[Vue warn]` 都不出，
+     * 那句"实测"当时不可证伪（等于没有依据）。
+     * 机制：`v-if="open"` 为假时模板不读 `$attrs` ⇒ `markAttrsAccessed()` 不执行，
+     * `inheritAttrs !== false` 时 runtime-core.cjs.js 的 fall-through 分支走到
+     * `Extraneous non-props attributes … teleport root nodes` 那条 dev 警告。
+     * 变异实测（两轮都是实跑）：翻 `true` ⇒ **只有本用例转红**，报出的正是那条警告；
+     * 还原后回到本文件全绿。
+     * ⚠️ 开启态在两种设置下都不响（`v-bind="$attrs"` 已把 attrs 标成 accessed，那条分支自己就是死的），
+     * 所以那半句**故意不钉**——钉了得到的是翻不红的断言，属虚假覆盖。
+     */
+    const warns: string[] = []
+    const spy = vi.spyOn(console, 'warn').mockImplementation((...args: unknown[]) => {
+      warns.push(args.map(String).join(' '))
+    })
+    try {
+      track(
+        mount(Modal, {
+          props: { modelValue: false },
+          attrs: { 'data-test': 'x', class: 'extra-cls' },
+          attachTo: document.body,
+        }),
+      )
+      await nextTick()
+    } finally {
+      spy.mockRestore()
+    }
+    expect(document.body.querySelector('.overlay')).toBeNull()
+    expect(warns.filter((w) => /Extraneous non-props attributes/.test(w))).toEqual([])
   })
 })

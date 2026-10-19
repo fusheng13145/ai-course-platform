@@ -37,11 +37,15 @@ import { computed, onMounted, onBeforeUnmount } from 'vue'
  * 根是 Teleport 时**根本没有可抑制的运行时落点**——fall-through 只在 `root.shapeFlag & (1 | 6)` 时才
  * `cloneVNode(root, fallthroughAttrs)`（判定在该文件 :4707-4718，条件行 :4711），而 Teleport 根的 shapeFlag
  * 是 64（:7871）；:4704 的 `getChildRoot` 也只下钻 patchFlag 2048（DEV_ROOT_FRAGMENT）的根，本组件的 Teleport
- * 根带的是 patchFlag 8（PROPS，编译产物实测）。变异实测：把本行翻成 `inheritAttrs: true`，
- * `src/components/ui/` 97 条**一条不红**——旧理由连被证伪的资格都没有，所以它不能当依据。剩下的两条价值：
+ * 根带的是 patchFlag 8（PROPS，编译产物实测）。变异实测（修复轮 1，当时 `src/components/ui/` 共 97 条）：
+ * 把本行翻成 `inheritAttrs: true` **一条都不红**——旧理由连被证伪的资格都没有，所以它不能当依据。
+ * 剩下的两条价值，现在各由一条入库用例兜着（不再只靠一次性探针）：
  * (a) 抑制**关闭态**的 dev 警告：`v-if="open"` 短路后模板不再读 `$attrs`，`markAttrsAccessed()`（:3477-3479）
- *     不被调用，:4719 那条 `Extraneous non-props attributes … teleport root nodes` 就会响——实测
- *     `inheritAttrs: true` 时关闭态打出该警告、开启态不打（开启态 `$attrs` 被读到，那条分支自己就是死的）；
+ *     不被调用，:4719 那条 `Extraneous non-props attributes … teleport root nodes` 就会响。
+ *     入库面：`__tests__/Modal.teleport.test.ts` 的「关闭态带透传属性时不打 fall-through 的 dev 警告」，
+ *     变异复跑实测 `1 failed | 97 passed (98)`，红的就是它、报的就是那条警告文本。
+ *     ⚠️ 开启态在两种设置下都不响（`$attrs` 被 `v-bind` 读到，那条分支自己就是死的），
+ *     那半句**故意不钉**——钉上得到的是翻不红的断言，属虚假覆盖；
  * (b) 根哪天**换回元素根**时 :4711 立即生效（判定式 `shapeFlag & (1 | 6)`），届时 `v-bind="$attrs"` 与运行时
  *     自动套用**才会真的落两遍**（实测：卸掉 `<Teleport>` 再翻 `inheritAttrs: true` ⇒ `.overlay` 的
  *     `extra-cls` 计数 1→2，`Modal.teleport.test.ts` 那条计数断言报 `expected 2 to be 1`）。
