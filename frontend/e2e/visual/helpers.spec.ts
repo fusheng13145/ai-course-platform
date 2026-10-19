@@ -5,6 +5,7 @@ import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import zlib from 'node:zlib'
 import {
+  applyEvidenceWrite,
   freezeClock,
   maskOf,
   setTheme,
@@ -298,5 +299,46 @@ test('measure-diff 的 PNG 解码与过滤类型无关（同一张图 filter0 �
   const reading = JSON.parse(out) as { byteDiffPx: number; pixelmatchCount: number }
   expect(reading.byteDiffPx, '同一张图换了过滤类型就解成不同像素——比较器的 unfilter 有 bug').toBe(0)
   expect(reading.pixelmatchCount).toBe(0)
+})
+
+/**
+ * Task 4c-fix-A A2：取证账本（`probe-results.json`）的**写入语义**。
+ * 【原先错在哪】`all[key] = {...旧格, ...新}`——只在"这一格没测成"时才该存在的字段
+ * （`skipped:true` + `reason`）会活到后一条同格读数上，反向同理（`pixelmatchCount`/`verdict`
+ * 会活到一条 skipped 记录上）。`890e3c0` 给 key 打上 `@nopin`/`@shift+k` 之后**跨口径**的覆盖没了，
+ * 但**同一个 key 跨轮次**的字段残留还在：读账本的人要么把量到了的一格当成没量到，
+ * 要么把没测成的一格当成有读数——两种都是"会被误信的读数"。
+ * 【为什么这条断言放在这里而不是靠探针跑】这个残留要在"同一格先 SKIPPED 再量成功"
+ * 或反序时才现形，而 `login` × `.l1-card` 系档位的 SKIPPED 是由页面结构决定的，
+ * 本仓当前**造不出**那个转换（要改 CSS 作用域或改锚点名单）⇒ 它是**潜伏缺陷**，
+ * 盘上也没有现成反例。潜伏的东西只能用纯函数断言钉住，所以 `applyEvidenceWrite` 放在 helper 里、
+ * 探针只薄薄一层落盘包装。**如实记：这条不是在描述一次实测到的事故，是在描述一条已被消除的能力。**
+ */
+test('取证账本默认整格替换（不留上一轮的 skipped 残渣），只有本轮第二笔才 merge', () => {
+  const key = 'login/light/inset'
+  const cell = (all: Record<string, unknown>): Record<string, unknown> => all[key] as Record<string, unknown>
+
+  // 第一笔：某轮把这格判成 SKIPPED
+  const skipped = applyEvidenceWrite({}, key, { slug: 'login', theme: 'light', ladder: 'inset', skipped: true, reason: '选择器零命中，注入是空操作' })
+  expect(cell(skipped).skipped).toBe(true)
+
+  // 第二笔：另一轮同一格真量出了读数——上一轮的 skipped/reason 必须**不能**活下来
+  const fresh = applyEvidenceWrite(skipped, key, { slug: 'login', theme: 'light', ladder: 'inset', pixelmatchCount: 12, byteDiffPx: 40 })
+  expect(cell(fresh).pixelmatchCount, '新读数的字段没写进去').toBe(12)
+  expect(cell(fresh).skipped, '上一轮的 skipped 活到了这一轮的读数上：读账本会把量到的一格当成没量到').toBeUndefined()
+  expect(cell(fresh).reason).toBeUndefined()
+  expect(cell(fresh).key).toBe(key)
+
+  // 第三笔：**本轮**的判定笔仍必须 merge 到本轮第一笔的读数上（读数先落盘、判定后落盘是刻意的）
+  const verdict = applyEvidenceWrite(fresh, key, { verdict: '检出', detected: true, playwrightCount: 12 }, true)
+  expect(cell(verdict).pixelmatchCount, 'merge 语义丢了——判定那一笔会把本轮刚写的读数覆盖掉').toBe(12)
+  expect(cell(verdict).verdict).toBe('检出')
+  expect(cell(verdict).skipped, 'merge 只许用于本轮第二笔，别把历史残渣又带回来').toBeUndefined()
+
+  // 兄弟格不受影响（替换是"这一格"的替换，不是重写整本账）
+  const siblingKey = 'admin-dashboard/light/shadow'
+  const withSibling = applyEvidenceWrite(verdict, siblingKey, { slug: 'admin-dashboard', theme: 'light', ladder: 'shadow', pixelmatchCount: 55903 })
+  expect(cell(withSibling).pixelmatchCount).toBe(12)
+  expect((withSibling[siblingKey] as Record<string, unknown>).pixelmatchCount).toBe(55903)
 })
 

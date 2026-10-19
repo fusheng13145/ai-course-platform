@@ -66,7 +66,10 @@
  * 常用重生成命令（LEDGER/注释里引用读数时把这条一起写上）：
  *   cd frontend && node e2e/visual/tools/measure-diff.cjs \
  *     e2e/visual/__snapshots__/anchors.spec.ts/student-dashboard-light.png \
- *     e2e/visual/tools/evidence/student-dashboard-light.png --bands
+ *     e2e/visual/tools/evidence/student-dashboard-light-zerodiff-captured.png --bands
+ *   （取证图的名字带**数据路径标签**：无标签=交付口径（钉住、交付 t/r），
+ *     `@nopin`=关掉钉死真走后端=量的是漂移本身，`@shift+k`=模拟服务端第 +k 天。
+ *     同一格的不同轮次从此不共用一个文件名——A2 修的就是这件事。）
  */
 'use strict'
 
@@ -527,9 +530,16 @@ function main() {
     const baselineDir = positional[2] || SNAP_DIR
     const files = fs.readdirSync(capturesDir).filter((f) => f.toLowerCase().endsWith('.png')).sort()
     const rows = []
+    console.log(
+      '# 每一行都是「这张取证图 vs 它自己那张已提交基线」。文件名尾的 `@…` 是**数据路径标签**（无 = 交付口径：' +
+        '钉住载荷 + 交付 t/r）；`@nopin` = 关掉钉死真走后端，量的是**漂移本身**而不是残余噪声，' +
+        '`@shift+k` = 模拟服务端第 +k 天。同一格的不同轮次各占一个文件名，**不再互相覆盖**（A2）。',
+    )
     for (const f of files) {
-      // 取证图叫 `<slug>-<theme>[-<档>-probe[-captured]].png`，基线叫 `<slug>-<theme>.png`：
-      // 按前者截出 slug+theme 再回基线目录找同名图，找不到就跳过（不是错误——目录里混着探针产物）。
+      // 取证图叫 `<slug>-<theme>[-<档>-probe[-captured]|-zerodiff-captured][@标签].png`，
+      // 基线叫 `<slug>-<theme>.png`：按前者截出 slug+theme 再回基线目录找同名图，
+      // 找不到就跳过（不是错误——目录里混着探针产物）。标签段落在 `-captured` 之后，
+      // 所以下面这条"到 .png 之前允许多个 -或. 起头的小段"的正则一并吃得住它。
       const m = f.match(/^(.+-(?:light|dark))(?:[.-].*)?\.png$/)
       if (!m) {
         console.log(`SKIP ${f}：文件名截不出 <slug>-<theme>，无从配对`)
@@ -552,7 +562,7 @@ function main() {
     )
     for (const r of rows) {
       console.log(
-        `${path.basename(r.actual).padEnd(38)} 计数 ${String(r.pixelmatchCount).padStart(7)} · 字节差 ${String(r.byteDiffPx).padStart(7)}` +
+        `${path.basename(r.actual).padEnd(58)} 计数 ${String(r.pixelmatchCount).padStart(7)} · 字节差 ${String(r.byteDiffPx).padStart(7)}` +
           ` · Δmax ${String(r.maxChannelDelta).padStart(3)}/255 · 免检 ${r.allowancePx.toFixed(0)} · ${r.failed ? '红' : '绿'} · md5 ${r.md5.equal ? '相同' : '不同'}` +
           (r.bbox ? ` · 包围盒 y ${r.bbox.minY}..${r.bbox.maxY}` : ''),
       )

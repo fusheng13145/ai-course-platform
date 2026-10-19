@@ -383,6 +383,77 @@ export function maskOf(page: Page, selectors: string[] = []): Locator[] {
   return selectors.map((s) => page.locator(s))
 }
 
+/** 取证产物所属那一轮的数据路径（哪条路径取的数 + 哪一档尺）。 */
+export interface EvidenceScale {
+  /** 这一轮关掉了载荷钉死 = 真走后端，量的是漂移本身，不是交付口径 */
+  nopin?: boolean
+  /** PW_PIN_SHIFT_DAYS：模拟服务端第 +k 天 */
+  shift?: number
+  /** 这一轮实际用的 threshold */
+  t?: number
+  /** 这一轮实际用的 maxDiffPixelRatio */
+  r?: number
+}
+
+/**
+ * 取证产物（**PNG 文件名**与 `probe-results.json` 的 key）共用的那一段口径标签。
+ *
+ * 【为什么要有这一条】`890e3c0` 只给 JSON 的 key 打了标，PNG 的文件名没打，于是
+ * "钉住的读数"与"`PW_VISUAL_NOPIN=1` 关掉钉死后的漂移读数"**共用同一个文件名**：
+ * 后跑的那轮把前一轮的图原地覆盖掉。症状当时就在盘上——`--table` 同一格里并列出
+ * `student-dashboard-light-noise-probe-captured.png 计数 321 … md5 不同`（NOPIN 轮的）与
+ * `student-dashboard-light.png 计数 0 md5 相同`（钉住的），读的人以为量出了两种结论，
+ * 其实量的是两件事的两张图，其中一张已经被删掉。JSON 那侧当时修了，PNG 这侧没修。
+ * 【为什么放在 helper 而不是各 spec 各写一份】标签必须由**一个函数**生成：
+ * JSON 的 key 与 PNG 的文件名一旦各写一份就会漂开，而"漂开"的表现正是上面那条——
+ * 一份带标签、一份不带，覆盖又回来了。sensitivity 的 `evidenceKey()` 现在就是转发到这里。
+ * 【交付口径 = 空串】钉住 + 交付 t/r 时不带任何标签，于是：
+ *   ① 已入库的引用不受影响（`tools/kat-falsification.cjs` 就写死了
+ *      `evidence/admin-dashboard-light-radius-probe-captured.png` 这个名字）；
+ *   ② 文件名仍在 `e2e/visual/tools/evidence/` 目录规则之下（`frontend/.gitignore:60` 排的是**整个目录**），
+ *      不会因为加了 `@tag` 而变成未追踪但也没被忽略的名字——探针的 `arg`（`*-probe.png`，落在
+ *      `__snapshots__/` 里那条）则**不能**打标：`.gitignore:53-55` 的模式是结尾匹配，
+ *      `...-probe@nopin.png` 会脱出 `*-probe.png` 规则、把测量产物变成待入库文件。
+ *      标签只加在取证文件名上，不加在 Playwright 的期望图上。
+ */
+export function evidenceTags(o: EvidenceScale): string[] {
+  const tags: string[] = []
+  if (o.nopin) tags.push('nopin')
+  if ((o.shift ?? 0) > 0) tags.push(`shift+${o.shift}`)
+  if (Number.isFinite(o.t) && o.t !== SNAPSHOT_THRESHOLDS.threshold) tags.push(`t=${o.t}`)
+  if (Number.isFinite(o.r) && o.r !== SNAPSHOT_THRESHOLDS.maxDiffPixelRatio) tags.push(`r=${o.r}`)
+  return tags
+}
+
+/** 直接拼进文件名的那一段：`''`（交付口径）或 `@nopin` / `@shift+1` / `@t=0.01,r=0` 之类。 */
+export function evidenceTagSuffix(o: EvidenceScale): string {
+  const tags = evidenceTags(o)
+  return tags.length > 0 ? `@${tags.join(',')}` : ''
+}
+
+/**
+ * 写一格取证读数（`probe-results.json` 那本账）。纯函数，便于 helpers.spec.ts 直接断言它的语义。
+ *
+ * 【默认整格替换，不再 merge——这是 A2 的另一半】原先这里是 `{...旧格, ...新}`，
+ * 于是**只在"这一格没测成"时才该存在的字段（`skipped:true` + `reason`）会活到后一条同格读数上**，
+ * 反向也一样（`pixelmatchCount`/`verdict` 会活到一条 skipped 记录上）：
+ * 读 JSON 的人要么把量到了的一格当成没量到，要么把没测成的一格当成有读数。
+ * `890e3c0` 把 key 打上标签之后**跨口径**的覆盖没了，但**同一格跨轮次**的字段残留还在，
+ * 因为 key 相同的那两笔写的本来就是同一次测量的不同阶段。默认替换把残留清掉。
+ * 【唯一还该 merge 的地方 = 同一轮的第二笔】探针必须"先落读数、后落判定"
+ * （判绿/判红都必须在读数已经落盘之后），那一笔只往本轮自己的读数上补三个字段，
+ * 安全的前提是第一笔刚刚把整格替换过。
+ */
+export function applyEvidenceWrite(
+  all: Record<string, unknown>,
+  key: string,
+  entry: Record<string, unknown>,
+  mergeIntoThisRunCell = false,
+): Record<string, unknown> {
+  const prev = mergeIntoThisRunCell ? ((all[key] as Record<string, unknown> | undefined) ?? {}) : {}
+  return { ...all, [key]: { ...prev, ...entry, at: new Date().toISOString(), key } }
+}
+
 /* ============================================================================ *
  * 载荷钉死（payload pin）——Task 4c Step 1 的"首选路线"，不是遮罩
  * ============================================================================ *

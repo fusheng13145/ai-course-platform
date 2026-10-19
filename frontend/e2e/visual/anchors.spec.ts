@@ -12,6 +12,7 @@ import {
   attachPayloadRecorder,
   DATA_ARRIVAL_CHECKS,
   DATA_PATHS,
+  evidenceTagSuffix,
   freezeClock,
   installPayloadPin,
   maskOf,
@@ -32,7 +33,12 @@ const COURSE_LIST_PATH = '/student/courses'
 /** 列表页的数据源：/student/courses 的 .tree-row 就是它 courses[0..] 的渲染结果 */
 const COURSE_LIST_API = '/api/student/dashboard'
 
-/** 离线取证图与比较器读数的落点（.gitignore 里 e2e/visual/tools/evidence/ 已排除） */
+/**
+ * 离线取证图与比较器读数的落点（.gitignore 里 `e2e/visual/tools/evidence/` 整目录已排除，
+ * 所以文件名加什么标签都不会变成"未追踪但也没被忽略"的东西）。
+ * 这里每张图的名字都带**数据路径标签**（`@nopin` / `@shift+k`，交付口径不带）——
+ * 见 visual-helpers.ts 的 `evidenceTagSuffix()` 与下面 assertZeroDiff 的注释（A2）。
+ */
 const EVIDENCE_DIR = join(process.cwd(), 'e2e', 'visual', 'tools', 'evidence')
 const MEASURER = join(process.cwd(), 'e2e', 'visual', 'tools', 'measure-diff.cjs')
 
@@ -245,7 +251,7 @@ async function runAnchor(page: Page, anchor: AnchorSpec, theme: ThemeName, testI
     //   字节差 618 / 计数 321 那种漂移在 0.0005 下被整体吸收、在 0.0001 下也只按 321 这个数变红，
     //   而"618 个像素真的变了"这件事从来不在 ratio 的账里。
     // 这里用同一个 mask、同一组截图参数另截一张，交给已入库的比较器按 t=0/r=0 读死数，并**要求 md5 相等**。
-    await assertZeroDiff(page, anchor, theme, testInfo)
+    await assertZeroDiff(page, anchor, theme, testInfo, pinState)
     console.log(`[pin] ${anchor.slug}/${theme} 钉掉 ${pinState.served.length} 次请求：${JSON.stringify(pinState.served)}`)
     if (pinState.unpinnedTodayBearing.length > 0) {
       console.log(`[pin-audit] ${anchor.slug} 仍在消费带"今天"日期的未钉端点 ${pinState.unpinnedTodayBearing.length} 个：${JSON.stringify([...new Set(pinState.unpinnedTodayBearing)])}`)
@@ -258,12 +264,30 @@ async function runAnchor(page: Page, anchor: AnchorSpec, theme: ThemeName, testI
  * 钉死之后才算得出的那条：**与已提交基线 md5 相等且字节差 0**（spec §6.16 的措辞规矩：md5 相等才许说"逐字节相同"）。
  * 读数口径 t=0 / r=0——交付那一档的 ratio（当前 0.0001 ⇒ 130 px）会吸收 `count ≤ 免检额` 的一切，
  * 用它验"归零"等于没验。只对本套件里声明了 pinPaths 的锚点跑（现在 = 4 张日期图）。
+ *
+ * 【取证文件名带口径标签（A2）】原先这张图叫 `evidence/<slug>-<theme>.png`，
+ * **与已提交基线逐字同名**、又不带任何标签，于是两件事叠在一起：
+ *   ① 读 `--table` 的人在同一个目录里看到 `student-dashboard-light.png 计数 0 md5 相同`，
+ *      分不清那是"基线自比"还是"钉住后重截的那张"；
+ *   ② `PW_PIN_SHIFT_DAYS=1 … anchors` 那一轮（RED-5 用来证"钉歪一点就整表红"的那次跑）
+ *      会把这张钉住读数的图**原地覆盖成漂移图**，下一个读 `--table` 的人拿到的是被换过的证据。
+ * 现在改名 `-zerodiff-captured` 并接上 `evidenceTagSuffix()`（与探针的 JSON key / PNG 名同一个函数）。
+ * 交付口径 = 空标签 ⇒ 默认那轮仍是 `<slug>-<theme>-zerodiff-captured.png`，只有 `PW_PIN_SHIFT_DAYS>0` 时才出现 `@shift+k`。
+ * t/r **不进这里的标签**：这张图永远按 `--threshold=0 --ratio=0` 读（见 measureAgainstBaseline，
+ * 那是这条判据本身的定义而不是一个会变动的口径），标上 `@r=0` 只会让每一张都带标签、把"标签=有例外"弄失效。
  */
-async function assertZeroDiff(page: Page, anchor: AnchorSpec, theme: ThemeName, testInfo: TestInfo): Promise<void> {
+async function assertZeroDiff(
+  page: Page,
+  anchor: AnchorSpec,
+  theme: ThemeName,
+  testInfo: TestInfo,
+  pinState: PinState,
+): Promise<void> {
   const arg = `${snapName(anchor.slug, theme)}.png`
   const baseline = testInfo.snapshotPath(arg, { kind: 'screenshot' })
   mkdirSync(EVIDENCE_DIR, { recursive: true })
-  const capture = join(EVIDENCE_DIR, arg)
+  const scaleTag = evidenceTagSuffix({ shift: pinState.shiftDays })
+  const capture = join(EVIDENCE_DIR, `${snapName(anchor.slug, theme)}-zerodiff-captured${scaleTag}.png`)
   // 与 toHaveScreenshot 完全同一组参数（含 mask）——Task 4c Step 1e：两条路径必须共用 mask，
   // 否则离线自检台与跑测器的读数会静默分叉，而喂给台账的是前者。
   writeFileSync(capture, await page.screenshot({

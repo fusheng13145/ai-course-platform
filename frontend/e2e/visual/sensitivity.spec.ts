@@ -5,7 +5,9 @@ import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from
 import { dirname, join } from 'node:path'
 import {
   ANCHORS,
+  applyEvidenceWrite,
   assertComparableRender,
+  evidenceTagSuffix,
   freezeClock,
   installPayloadPin,
   maskOf,
@@ -320,17 +322,28 @@ function readingText(r: MeasureReading): string {
  *   `slug/theme/ladder@nopin`（真走后端 = 漂移本身）
  *   `slug/theme/ladder@shift+k`（模拟服务端第 +k 天）
  * 顺带把扫描档的 t/r 也编进去，免得收紧扫描覆盖交付口径那格。
+ * 【标签本身不在这里算】转发到 `visual-helpers.ts` 的 `evidenceTagSuffix()`——
+ * JSON 的 key 与**取证 PNG 的文件名**必须共用同一个函数，各写一份就会漂开，
+ * 而漂开的现状就是 A2 那条：key 打了标、文件名没打标，同一格里两轮读数互相覆盖（见 Task 4c-fix-A）。
  */
 function evidenceKey(slug: string, theme: ThemeName, ladder: string, opts: { nopin: boolean; shift: number; t: number; r: number }): string {
-  const tags: string[] = []
-  if (opts.nopin) tags.push('nopin')
-  if (opts.shift > 0) tags.push(`shift+${opts.shift}`)
-  if (Number.isFinite(opts.t) && opts.t !== SNAPSHOT_THRESHOLDS.threshold) tags.push(`t=${opts.t}`)
-  if (Number.isFinite(opts.r) && opts.r !== SNAPSHOT_THRESHOLDS.maxDiffPixelRatio) tags.push(`r=${opts.r}`)
-  return `${slug}/${theme}/${ladder}${tags.length > 0 ? `@${tags.join(',')}` : ''}`
+  return `${slug}/${theme}/${ladder}${evidenceTagSuffix(opts)}`
 }
 
-function recordEvidence(entry: Record<string, unknown>): void {
+/**
+ * 写一格读数。
+ * 【默认整格替换，不再 merge——merge 是 A2 的另一半】原先 `all[key] = {...旧, ...新}`，
+ * 于是**只在"这一格没测成"时才该存在的字段（`skipped:true` + `reason`）会活到后一条同格读数里**：
+ * 读 `probe-results.json` 的人会看到一格既有有效 `pixelmatchCount` 又写着 `skipped:true`，
+ * 或反过来把这一格当成"没量到"而绕过去。`890e3c0` 把 key 打上标签之后，跨口径的覆盖没了，
+ * 但**同一格跨轮次**的字段残留还在。默认替换就是把这个残留清掉。
+ * 【唯一还允许 merge 的地方】同一轮的第二笔：读数必须先落盘、判定后落盘
+ * （`判绿/判红都必须在读数已经落盘之后`），那一笔只补 verdict/detected/playwrightCount。
+ * 它安全是因为第一笔刚刚替换过整格，merge 的对象必然是本轮自己的读数。
+ * 语义在 `visual-helpers.ts` 的 `applyEvidenceWrite()`（纯函数，helpers.spec.ts 直接对它下断言）：
+ * 默认**整格替换**，只有同一轮的第二笔（判定）才 merge。
+ */
+function recordEvidence(entry: Record<string, unknown>, mergeIntoThisRunCell = false): void {
   mkdirSync(EVIDENCE_DIR, { recursive: true })
   let all: Record<string, unknown> = {}
   try {
@@ -349,8 +362,8 @@ function recordEvidence(entry: Record<string, unknown>): void {
       r: Number(entry.maxDiffPixelRatio),
     },
   )
-  all[key] = { ...((all[key] as Record<string, unknown> | undefined) ?? {}), ...entry, at: new Date().toISOString(), key }
-  writeFileSync(RESULTS, `${JSON.stringify(all, null, 2)}\n`, 'utf8')
+  const next = applyEvidenceWrite(all, key, entry, mergeIntoThisRunCell)
+  writeFileSync(RESULTS, `${JSON.stringify(next, null, 2)}\n`, 'utf8')
 }
 
 /**
@@ -449,6 +462,11 @@ for (const slug of PROBE_ANCHORS) {
       const nopin = process.env.PW_VISUAL_NOPIN === '1'
       let pinShift = 0
       if (anchor.pinPaths?.length && !nopin) pinShift = (await installPayloadPin(page, anchor)).shiftDays
+      // 这一轮走的**到底是哪条数据路径**——取证 PNG 的文件名与 probe-results.json 的 key 共用这一段标签
+      // （都由 visual-helpers.ts 的 evidenceTagSuffix() 生成，两处各写一份就会漂开，见 A2）。
+      // 交付口径（钉住 + 交付 t/r）得到**空串**：文件名与以前逐字相同，
+      // 于是 `tools/kat-falsification.cjs` 写死的那个名字与 `.gitignore` 的规则都不受影响。
+      const scaleTag = evidenceTagSuffix({ nopin, shift: pinShift, t: THRESHOLDS.threshold, r: THRESHOLDS.maxDiffPixelRatio })
 
       await freezeClock(page)
       await page.goto(anchor.path)
@@ -519,7 +537,7 @@ for (const slug of PROBE_ANCHORS) {
       //   但 Step 1 若采纳"遮标签带"，离线自检台与跑测器的读数就会静默分叉，
       //   而喂给 LEDGER 的是前者。现在两条路径共用 mask，并由下面的 ①②断言把分叉判红。
       mkdirSync(EVIDENCE_DIR, { recursive: true })
-      const capture = join(EVIDENCE_DIR, `${snapName(slug, PROBE_THEME)}-${LAD}-probe-captured.png`)
+      const capture = join(EVIDENCE_DIR, `${snapName(slug, PROBE_THEME)}-${LAD}-probe-captured${scaleTag}.png`)
       writeFileSync(
         capture,
         await page.screenshot({
@@ -530,7 +548,7 @@ for (const slug of PROBE_ANCHORS) {
           mask: maskOf(page, anchor.maskSelectors),
         }),
       )
-      if (process.env.PW_PROBE_CAPTURE) copyFileSync(capture, join(dirname(expected), `${snapName(slug, PROBE_THEME)}-${LAD}-probe-captured.png`))
+      if (process.env.PW_PROBE_CAPTURE) copyFileSync(capture, join(dirname(expected), `${snapName(slug, PROBE_THEME)}-${LAD}-probe-captured${scaleTag}.png`))
       const reading = measureWith(expected, capture, THRESHOLDS.threshold, THRESHOLDS.maxDiffPixelRatio)
 
       console.log(
@@ -618,7 +636,7 @@ for (const slug of PROBE_ANCHORS) {
                 ? `全被抗锯齿分类器吸收（字节差 ${reading.byteDiffPx}、计数 0；免检额未参与，收 ratio 无用）`
                 : '漏检（被免检额吸收 = 假绿）'
       console.log(`[量程结论] ${slug}/${PROBE_THEME} 档 ${LAD} · ${STEP.shape} · ${verdict} · ${readingText(reading)}`)
-      recordEvidence({ slug, theme: PROBE_THEME, ladder: LAD, detected: pwFailed, verdict, playwrightCount: pwCount, nopin, pinShiftDays: pinShift, threshold: THRESHOLDS.threshold, maxDiffPixelRatio: THRESHOLDS.maxDiffPixelRatio })
+      recordEvidence({ slug, theme: PROBE_THEME, ladder: LAD, detected: pwFailed, verdict, playwrightCount: pwCount, nopin, pinShiftDays: pinShift, threshold: THRESHOLDS.threshold, maxDiffPixelRatio: THRESHOLDS.maxDiffPixelRatio }, true)
       if (pwError) {
         throw new Error(
           LAD === 'noise'
