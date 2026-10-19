@@ -42,9 +42,14 @@ import { computed, onMounted, onBeforeUnmount } from 'vue'
  * (a) 抑制**关闭态**的 dev 警告：`v-if="open"` 短路后模板不再读 `$attrs`，`markAttrsAccessed()`（:3477-3479）
  *     不被调用，:4719 那条 `Extraneous non-props attributes … teleport root nodes` 就会响——实测
  *     `inheritAttrs: true` 时关闭态打出该警告、开启态不打（开启态 `$attrs` 被读到，那条分支自己就是死的）；
- * (b) 根哪天不再是 Teleport（换回元素根或 fragment 根）时 :4711 立即生效，届时 `v-bind="$attrs"` 与运行时
- *     自动套用**才会真的落两遍**（实测：卸掉 `<Teleport>` 再翻 `inheritAttrs: true` ⇒ `.overlay` 的 class
- *     变成 `overlay extra-cls extra-cls`）。这是把设计留在"显式"一侧的前瞻，不是当下的机制。
+ * (b) 根哪天**换回元素根**时 :4711 立即生效（判定式 `shapeFlag & (1 | 6)`），届时 `v-bind="$attrs"` 与运行时
+ *     自动套用**才会真的落两遍**（实测：卸掉 `<Teleport>` 再翻 `inheritAttrs: true` ⇒ `.overlay` 的
+ *     `extra-cls` 计数 1→2，`Modal.teleport.test.ts` 那条计数断言报 `expected 2 to be 1`）。
+ *     ⚠️ 这半句只覆盖元素根，别写成"任何非 Teleport 根"：单元素 fragment 要经 `getChildRoot`（:4772）与
+ *     `filterSingleRoot`（:4795）钻出那个元素才算元素根，而**真正的多子 fragment 根本钻不出来**——`filterSingleRoot`
+ *     见第二个真子节点就 `return`（:4795 起的循环体），`getChildRoot` 于是原样返回这个 fragment（:4777），
+ *     它的 shapeFlag 实测是 **16**（`createVNode(Fragment, null, [两个元素]).shapeFlag`），`& (1 | 6)` 为 0
+ *     ⇒ 照旧只走 :4719 那条 dev 警告、一次都不落。所以这是把设计留在"显式"一侧的前瞻，不是当下的机制。
  * 以上行号只成立于本机已装的 vue 3.5.43（`node_modules/@vue/runtime-core`）；锚点请以函数名与警告文本为准。
  * 尺寸档已声明为 props，故不在 `$attrs` 里，`wide=""` 这个属性不会跟着落到 `.overlay`（旧行为会）。
  * 现存 13 个调用点一个都不传 class/data-*（grep 全部 `<Modal` 开标签：只有 v-if、尺寸档、@close），
