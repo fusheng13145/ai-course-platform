@@ -2743,6 +2743,7 @@ Expected: 全绿；视觉 24 项零 diff；`test` 用例数相对 Phase 0 开始
 | §4 Phase 0b-4 | `width`/`title`/`#footer`/`#header`/`@closed`/遮罩开关 语义齐平 | |
 | §4 Phase 0b-5 | ui 原语补测（7 个裸奔组件） | |
 | §4 Phase 0b-6 | 焦点护栏实现无关 + 破坏性自证通过 | |
+| §6.11/§2.6 | **凡由 `prefers-reduced-motion` / `animation: none` 条件化掉的布局效应，不得声称被基线覆盖** | Task 8 实测：`.animate-in`(both)/`.fade-in`(forwards) 的填充把 `translateY(0)` 永久留在计算值里 ⇒ 成为 `position: fixed` 的包含块，困住两处现存 Modal；而 reduce 下这类被设成 `animation:none` ⇒ 包含块消失 ⇒ **22 张基线结构上拍不到**。证据形式＝DOM 结构断言（渲染位置在 `document.body` 之下）＋no-preference 下的定向复核，不是整页像素 |
 | §9.2 | `$el` 可达性实测结论（选 3-A 还是 3-B） | |
 | §9.3 | ~~EP 2.4.4~~ **EP 已安装 2.14.7，声明已于 2026-10-19 收紧为精确 `2.14.7`（`058b907`）**：`el-dialog` 默认 teleport 行为须按 2.14.7 实测，**不得引用版本号**，只能引已安装路径；原引的 `popup-manager/pom-hd:*` 是控制器凭空造的假路径，已作废 | |
 | §6.17 ① | 暗色像素证据的**前提**被机械守住：`threshold` 保持 0（暗色 `shadow-plan` 档 Δmax 只有 2/255 与 1/255，t 回到 0.01 即失明而**计数不会告诉你**） | 判据＝`helpers.spec.ts` 的字面单测；Task 15 须核这条断言仍在，且**1440×900 与 `w*h*r===129.6` 目前无人断言**（4c-fix-B 待补） |

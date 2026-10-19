@@ -108,15 +108,38 @@ Top 5：`layouts/components/AppSidebar.vue` 19、`views/auth/Login.vue` 18、`vi
 | ⚠️ **依赖版本漂移：声明 ≠ 已安装**（Task 5 评审实测，本节所有 EP 行为断言的前提）：`frontend/package.json:32` 声明 `element-plus: ^2.4.4`，而 `package-lock.json:3448` 与实际安装均为 **2.14.7**；`package.json:43` 声明 `@playwright/test: ^1.62.0` 而安装 **1.63.0**（旧版浏览器二进制仍在 `AppData/Local/ms-playwright`，锁与机器不一致）。⇒ 本文凡是"EP 在 `x.y.z` 下如何做"的表述一律**不得引用版本号**，只能引用已安装路径。`^` 未锁 ⇒ 任意一次 `npm install` 都可能换掉 Phase 3（覆写层收敛）与 Phase 4（`el-drawer` 迁移）所依赖的 EP 内部行为。**处置（2026-10-19，使用方拍板后已执行）**：`package.json` 与 `package-lock.json` 的声明由 `^2.4.4` **收紧为精确 `2.14.7`**（已安装即此版本）；`npm ls element-plus` 退出码 0、解析 `element-plus@2.14.7`，`node_modules` 未被改动。代价已认下：**"按 2.4.4 写的假设"从此显式作废**，EP 的补丁更新要人工点头才进得来。**同型的 `@playwright/test` 暂未动**（声明 `^1.62.0`、实装 1.63.0）：它只影响测试工具自身、不影响产品像素，且本机 `AppData/Local/ms-playwright` 存的正是 1.63.0 对应的浏览器二进制，收紧它须连带确认 CI 的 `playwright install` 版本——等使用方一句话再动 | `package.json` vs `package-lock.json` vs `node_modules`；`npm ls` 复验 |
 | 抽屉/弹窗**叠在 EP 对话框之上会被压住**——这是 Phase 4/5 的结构前提，不是假想：现有 `EgEventsDrawer → InResultDialog` 一叠就中 | 由 Phase 0b 评审实测确认 |
 
-### 2.6 已核为"当前未爆"的一条风险
+### 2.6 一条我当时判成"当前未爆"、实为**现存缺陷**的风险（Task 8 实测更正，2026-10-19）
 
 `.animate-in` 用 `animation: rise-in ... both`（`design-system.css:1358-1359`），`both` 填充会保留
 `transform: translateY(0)`，**成为 `position: fixed` 后代的包含块**——即 `ui/Modal` 的遮罩若落在带 `transform`
 的祖先内，会被困在该祖先里而不是铺满视口。
 
-实测三例均为兄弟级、**当前未被困**：`views/student/Courses.vue:17`（`.split-view.animate-in`）vs `:221`（`<Modal>`）；
-`views/teacher/Dashboard.vue:5,24` vs `:129`；`views/common/Notifications.vue:21` vs `:130`。
-⇒ 本文将其记为 **Phase 4 扩量时必须用测试钉住的前瞻风险**，不记作现存缺陷。
+我原先只测了三例、都是兄弟级，于是写下"**当前未被困**，记为 Phase 4 前瞻风险、不记作现存缺陷"（§2.6 旧文）。
+**这个结论错在样本量：13 个使用点我只看了 3 个。** Task 8 逐个核完，实测有**两处当下就生效的包含块**：
+
+| # | 被困的 Modal | 祖先 | 生效的那条 CSS | 为什么是"会赢"而非"存在但被覆盖" |
+|---|---|---|---|---|
+| 1 | `views/student/components/SdCourseGrid.vue:111`（`<Modal narrow>`，就在该组件模板根之内） | `<section class="l1-card animate-in d2">`（:2） | `design-system.css:1358-1359` `.animate-in{animation: rise-in .42s var(--ease-out) **both**}`，`rise-in` 的 `to` 是 `transform: translateY(0)` | 该类只在 `design-system.css` 定义、无第二份；全仓 `grep "(transform\|filter\|backdrop-filter)[^;]*!important"` 命中 **0 条** ⇒ 没有 `!important` 压得住它 |
+| 2 | `views/teacher/tools/KnowledgeManagement.vue:96` 的 `<ExcelImportDialog>`（其模板根即 `<Modal wide>`） | 页面根 `<div class="fade-in">`（:2） | `index.scss:506-508` `.fade-in{animation: fadeIn .35s … **forwards**}`，`fadeIn` 的 `to` 是 `transform: translateY(0)` | `.fade-in` 在 `design-system.css` 只出现在 reduce 块里（:1381），定义就在 `index.scss:506`，无竞争者 |
+
+**两者都不是"动画跑完就没了"**：`both`/`forwards` 是**填充**，动画结束后 `translateY(0)` 永久留在计算值里，
+而 `translateY(0)` ≠ `none` ⇒ 包含块**永久存在**。症状也不同（读 CSS 而非猜）：#1 的 `.l1-card` 带 `overflow: hidden`
+（`design-system.css:62`），`inset: 0` 的遮罩被**裁进卡片里**（"弹窗缩在卡片中间"）；
+#2 的根不裁剪，遮罩铺满内容区但**盖不住侧栏与顶栏**，`z-index` 也落在内容区层叠上下文内。
+其余 11 处 Task 8 逐个核为**未被困**（都在 `</section>`/`</div>` 之后做兄弟）；
+全仓 `will-change` **0 处**，EP `.el-loading-mask` 的 `backdrop-filter`（`index.scss:372`）是**子节点**、不构成祖先。
+
+> **⚠️ 这条缺陷 22 张基线在结构上拍不到，必须随结论一起报。**
+> `design-system.css:1379-1382` 在 `@media (prefers-reduced-motion: reduce)` 里给 `.animate-in, .fade-in`
+> 写了 `animation: none` ⇒ 计算 `transform` 回 `none` ⇒ **包含块在 reduce 下消失**，
+> 而视觉基线正是 `reducedMotion: 'reduce'` + `animations: 'disabled'` 采集的（§6.11 记的就是这套）。
+> ⇒ 它只在 `no-preference`（默认）的真实浏览器里出现。这不推翻量程结论，而是划出它的一条边界：
+> **基线能证明"像素没变"，不能证明"这个缺陷没发生"**——凡由 reduce/`animation:none` 条件化掉的布局效应，
+> 基线一律失明（与 §6.11"过渡属性不得充当证据"是同一根源的**另一半**：那条说过渡不产生证据，这条说条件重置会**抹掉**证据）。
+> 处置：#1/#2 属**现存缺陷**，由 Task 8 的 Teleport 直接消解（Teleport 到 body 即脱离任何本地祖先）；
+> 关闭后须以 **DOM 结构断言**（Modal 的渲染位置在 `document.body` 之下）而非像素来锁，
+> 并把"reduce 条件化会抹掉布局证据"写进 Phase 1/5 的证据口径。
+> 另记我当时错的形式：**样本 3/13 就下"未爆"结论**，且把"三例覆盖"当成"全部使用点"。
 
 ---
 
