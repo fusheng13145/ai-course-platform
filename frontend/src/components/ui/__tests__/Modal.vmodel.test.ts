@@ -97,8 +97,12 @@ describe('Modal v-model 通道', () => {
   })
 
   it('不传 modelValue 时关闭同样双发——门卫是 open，不是 modelValue===true', async () => {
-    // Task 7 修复轮新契约（评审 M-1 的裁定）：brief 的 Interfaces 原文就是「两 emit 同时触发」，
-    // 从未授权 === true 守卫。13 个老调用点没人绑 v-model（grep `<Modal` 全仓 0 处 model 绑定），
+    // 门卫取派生值 open、不取 `modelValue === true`，依据要写清（Task 8 复核修正，别照旧注释理解）：
+    // Interfaces 原文「关闭时同时触发 close 与 update:modelValue」确实支持这个改动；但 `=== true`
+    // **并非未授权的发明**——它就是 brief Step 3 示例代码逐字的写法（task-7-brief.md 的 close()：
+    // `if (props.modelValue === true) emit('update:modelValue', false)`），后由控制器裁定作废。
+    // 裁定可以改文本，不能把改前的文本说成从来不存在。
+    // 现状：13 个老调用点没人绑 v-model（grep `<Modal` 全仓 0 处 model 绑定），
     // 多收一个无人监听的 update:modelValue 在 Vue 里无害。
     const wrapper = factory()
     await wrapper.find('.modal-head .t-icon-btn').trigger('click')
