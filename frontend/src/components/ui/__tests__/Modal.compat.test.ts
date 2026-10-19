@@ -10,6 +10,19 @@ import { track, unmountTracked } from './helpers/trackMount'
 // 后续任务（Task 7-10）的新能力可另开文件（如 Modal.vmodel.test.ts），但挂载/卸载
 // 夹具必须共用 helpers/trackMount，不得复制第二份——全部用例 attachTo document.body，
 // 不卸载就会把 .overlay 节点连同 document keydown 监听留成僵尸实例，污染 body 作用域查询。
+//
+// ⚠️ Task 8 起 Modal 走 `<Teleport to="body">`：遮罩子树**不在** wrapper 的元素树里，
+// `wrapper.find/get('.modal')` 一律取不到，所以本文件的查询全走 document.body。
+// 「节点必须存在」由此前的 `get`（缺即抛）改写成 `expect(el).not.toBeNull()`——
+// 语义等价（缺节点就红），只是报错更直白；「不存在」用 `toBeNull()`。
+// 这只改「怎么取节点」，一条断言的**判定对象**都没动，特别是那三条尺寸档：
+// 它们仍断言 `.modal` 上渲染出的 class 列表，绝不许换成 `wrapper.props('wide')`
+//（prop 断言在模板读错源、13 个调用点全塌回 640px 的情况下照样绿，等于自己拆网）。
+
+/** 卸载夹具挂在**文件级**，不套在任何 describe 内：登记表 `registry` 是模块作用域的，
+ *  把它放进某个 describe 只对该块生效，同文件的第二个顶层 describe 就会把僵尸 `.overlay`
+ *  和残留 keydown 监听原样留给后面的用例（Task 8 评审 Step 3b-3 的 load-bearing 项）。 */
+afterEach(unmountTracked)
 
 function factory(
   props: Record<string, unknown> = {},
@@ -25,32 +38,36 @@ function factory(
   return track(wrapper)
 }
 
-describe('Modal 现状兼容钉', () => {
-  afterEach(unmountTracked)
+/** Teleport 后要在 body 子树里触发事件：原生 dispatch 即可，Vue 的监听器就挂在元素上。
+ *  bubbles 必须为 true——「按内容区不该关」那条靠的就是事件冒泡到 .overlay 后被 `.self` 挡掉。 */
+function fire(el: Element | null, type: 'click' | 'mousedown'): void {
+  expect(el, `Teleport 后 body 里找不到 ${type} 目标节点`).not.toBeNull()
+  el!.dispatchEvent(new MouseEvent(type, { bubbles: true }))
+}
 
+describe('Modal 现状兼容钉', () => {
   it('默认宽度 640px 档（无修饰 prop）', () => {
-    // 用 get 而非 find：get 缺元素即抛，且错误信息带上 DOM，和 EmptyState.test.ts 的既有约定一致。
-    // 注意别误信旧稿的说法——find 落空并不会返回空 wrapper 让 classes() 得到 []：它返回
-    // createWrapperError 的代理，除 exists/then 外的任何属性读取都会被 get trap 抛错
-    // （vue-test-utils.cjs.js:7247-7251 与 :1477-1492）。所以 find 同样能锁住「缺 .modal 即失败」，
-    // 只是报错比 get 更晦涩，故统一用 get。
-    const w = factory().get('.modal')
-    expect(w.classes()).not.toContain('wide')
-    expect(w.classes()).not.toContain('narrow')
-    expect(w.classes()).not.toContain('xwide')
+    factory()
+    const el = document.body.querySelector('.modal')
+    expect(el).not.toBeNull()
+    expect(el!.classList.contains('wide')).toBe(false)
+    expect(el!.classList.contains('narrow')).toBe(false)
+    expect(el!.classList.contains('xwide')).toBe(false)
   })
 
-  it.each(['wide', 'xwide', 'narrow'])('%s 走 $attrs 布尔通道', async (size) => {
-    // 用 attrs 而非 props：现状 Modal.vue 是从 $attrs 读尺寸档（模板里 .modal 的 :class 三元判断），
-    // 组件并未声明这些 props；用 props 传未声明键在 VTU 下的落点与 attrs 不同。
+  it.each(['wide', 'xwide', 'narrow'])('%s 走属性通道落到 .modal 的 class 上', async (size) => {
+    // 仍用 attrs 传：这跟线上 `<Modal wide>` 的编译结果等价——VTU 把 attrs 与 props 合并进
+    // 同一个 vnode props 对象（vue-test-utils.cjs.js:8278-8300），所以测的是生产通道。
+    // Task 8 起 Modal.vue **声明**了这三个 props，模板改读 props.wide（sizeClass computed）；
+    // 若有人只改声明不改读取，这里拿到的 class 列表就会缺该档 ⇒ 本条红。
     const wrapper = factory({}, {}, { [size]: '' })
     await wrapper.vm.$nextTick()
-    expect(wrapper.find('.modal').classes()).toContain(size)
+    expect(document.body.querySelector('.modal')?.classList.contains(size)).toBe(true)
   })
 
-  it('点击关闭按钮 emit close', async () => {
+  it('点击关闭按钮 emit close', () => {
     const wrapper = factory()
-    await wrapper.find('.modal-head .t-icon-btn').trigger('click')
+    fire(document.body.querySelector('.modal-head .t-icon-btn'), 'click')
     expect(wrapper.emitted('close')).toHaveLength(1)
   })
 
@@ -63,30 +80,32 @@ describe('Modal 现状兼容钉', () => {
     wrapper.unmount()
   })
 
-  it('按下遮罩本体 emit close；按下内容区不 emit', async () => {
-    // jsdom 下 trigger('mousedown') 令 e.target === 该元素本体，故 .self 守卫在遮罩上成立
+  it('按下遮罩本体 emit close；按下内容区不 emit', () => {
+    // jsdom 下把 mousedown 直接 dispatch 到元素本体，令 e.target === 该元素，故 .self 守卫在遮罩上成立。
+    // 卸载点：这条要 emit() 计数，而 unmount() 会 removeEventHistory（vue-test-utils.cjs.js:7863）、
+    // emit() 起手又对已卸载实例早退（runtime-core.cjs.js:4484）——所以必须先取完证据再摘。
     const content = factory()
-    await content.find('.modal').trigger('mousedown')
+    fire(document.body.querySelector('.modal'), 'mousedown')
     expect(content.emitted('close')).toBeUndefined()
     content.unmount()
 
     const overlay = factory()
-    await overlay.find('.overlay').trigger('mousedown')
+    fire(document.body.querySelector('.overlay'), 'mousedown')
     expect(overlay.emitted('close')).toHaveLength(1)
     overlay.unmount()
   })
 
   it('title 插槽渲染、sub 无则不渲染、footer 无则不渲染', () => {
-    const wrapper = factory()
-    expect(wrapper.find('.modal-title').text()).toBe('标题')
-    expect(wrapper.find('.modal-sub').exists()).toBe(false)
-    expect(wrapper.find('.modal-foot').exists()).toBe(false)
+    factory()
+    expect(document.body.querySelector('.modal-title')?.textContent).toBe('标题')
+    expect(document.body.querySelector('.modal-sub')).toBeNull()
+    expect(document.body.querySelector('.modal-foot')).toBeNull()
   })
 
   it('foot 与 sub 提供时渲染', () => {
-    const wrapper = factory({}, { sub: '副标', footer: '<button>确定</button>' })
-    expect(wrapper.find('.modal-sub').text()).toBe('副标')
-    expect(wrapper.find('.modal-foot button').text()).toBe('确定')
+    factory({}, { sub: '副标', footer: '<button>确定</button>' })
+    expect(document.body.querySelector('.modal-sub')?.textContent).toBe('副标')
+    expect(document.body.querySelector('.modal-foot button')?.textContent).toBe('确定')
   })
 
   it('卸载必须摘掉挂载期注册的 document keydown 监听（后续 Esc 不能打到僵尸实例）', async () => {
@@ -97,10 +116,14 @@ describe('Modal 现状兼容钉', () => {
     // 被调用都会绿，它钉不住任何东西；而调用点全靠 v-if 反复开关实例，残留 handler 是真实
     // 的内存/幽灵回调来源。故把观察点钉在注册表本身。
     //
-    // 拦截改用 vi.spyOn + mockRestore（仓内既有习惯：AppShell.shortcuts.test.ts 用 window
-    // 事件、useTheme.test.ts / useQuestions.test.ts:586 用 vi.fn / vi.spyOn 而非手改全局）。
-    // 相比「把绑定的原函数赋回全局」，mockRestore 会把 document 上的 own 属性整个删掉、还原到
-    // EventTarget.prototype，不在 document 上留下 own 属性残迹。
+    // 拦截用 vi.spyOn + mockRestore。这里**不援引任何「仓库惯例」**（Task 8 评审 Step 3b-2：
+    // 全仓 grep `spyOn(document|window, ['"]addEventListener` 只有本文件这一处，先例并不存在；
+    // AppShell.shortcuts.test.ts 的 window 那条是普通监听不是 spy，useTheme.test.ts 的 :24-27
+    // 反倒是「手改全局且不还原」的例子，只能当反面）。选 spyOn 的理由只讲机制：
+    // `addEventListener` 是从 EventTarget.prototype 继承来的，不是 document 的 own 属性，
+    // tinyspy 的 restore 走 Reflect.deleteProperty（tinyspy/dist/index.js:135-137），
+    // 把 spy 留下的 own 属性整个删掉、恢复成继承来的原型方法；手工赋值则会在 document 上
+    // 永久留下一个 own 属性。
     //
     // 注册记录成 [type, listener, capture] 三元组，并按三元组身份比对：DOM 的移除匹配是
     // (type, callback, capture)——若将来有人 addEventListener('keydown', fn, true) 却用
@@ -119,20 +142,24 @@ describe('Modal 现状兼容钉', () => {
     const added: Registration[] = []
     const removed: Registration[] = []
 
-    const addSpy = vi
-      .spyOn(document, 'addEventListener')
-      .mockImplementation((type, listener, options) => {
-        added.push([type, listener as EventListener, captureOf(options)])
-        rawAdd(type, listener as EventListener, options)
-      })
-    const removeSpy = vi
-      .spyOn(document, 'removeEventListener')
-      .mockImplementation((type, listener, options) => {
-        removed.push([type, listener as EventListener, captureOf(options)])
-        rawRemove(type, listener as EventListener, options)
-      })
-
+    // 两个 spy 的安装**都在 try 之内**（Step 3b-2b）：否则两次 spyOn 之间抛异常会让
+    // addEventListener 在本文件后续用例里保持被 mock。实际不可达，但不值得留这个形状。
+    let addSpy: ReturnType<typeof vi.spyOn> | undefined
+    let removeSpy: ReturnType<typeof vi.spyOn> | undefined
     try {
+      addSpy = vi
+        .spyOn(document, 'addEventListener')
+        .mockImplementation((type, listener, options) => {
+          added.push([type, listener as EventListener, captureOf(options)])
+          rawAdd(type, listener as EventListener, options)
+        })
+      removeSpy = vi
+        .spyOn(document, 'removeEventListener')
+        .mockImplementation((type, listener, options) => {
+          removed.push([type, listener as EventListener, captureOf(options)])
+          rawRemove(type, listener as EventListener, options)
+        })
+
       const wrapper = factory()
       await wrapper.vm.$nextTick()
       const keydownAdds = added.filter(([t]) => t === 'keydown')
@@ -150,8 +177,8 @@ describe('Modal 现状兼容钉', () => {
       )
       expect(leaked).toEqual([])
     } finally {
-      addSpy.mockRestore()
-      removeSpy.mockRestore()
+      addSpy?.mockRestore()
+      removeSpy?.mockRestore()
     }
   })
 })

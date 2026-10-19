@@ -18,6 +18,10 @@ export interface TrackedWrapper {
    * 哪个构建在被执行不是想当然——Modal setup 里 throw 探针取栈帧，实测见
    * vue-test-utils.cjs.js:8495 的 mount 帧）。isConnected 定义在 Node 上，够本文件用。
    * nodeType===8 的事实在 Modal.vmodel.test.ts「modelValue=false 不渲染遮罩」里断言钉住。
+   * Task 8 给 Modal 装上 `<Teleport>` 后重测仍然成立（实测 nodeType=8、nodeName=#comment、
+   * isConnected=true）：关闭态的占位符仍是 Comment，Teleport 的锚点没有顶掉它，本声明不用改。
+   * 但注意 `isConnected` 判据从此只反映**原位锚点**是否还挂着，不反映 body 上那块遮罩——
+   * 遮罩的清理只能靠 unmount 本身，别拿 isConnected 当「遮罩已消失」的证据。
    */
   readonly element: Node
   unmount(): void

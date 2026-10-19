@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from 'vitest'
+import { nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 import Modal from '../Modal.vue'
 import { track, unmountTracked } from './helpers/trackMount'
@@ -7,10 +8,13 @@ import { track, unmountTracked } from './helpers/trackMount'
  * Modal 的 v-model 通道（Task 7）
  * ==============================
  * Task 7 只加「可见性门 + update:modelValue 第二通道」，**不加 Teleport**（Teleport 归 Task 8，
- * 见 task-7-brief 的修正说明与 progress.md 的 R-T6-4）。所以本文件的查询一律用 `wrapper.find`：
- * 内容仍在 wrapper 的元素树内，Task 8 引入 Teleport 时会把这里的查询一起迁到 `document.body`。
+ * 见 task-7-brief 的修正说明与 progress.md 的 R-T6-4）。Task 8 已经把 Teleport 落地，
+ * 所以本文件的查询也随之一律走 `document.body`：遮罩不在 wrapper 的元素树里，
+ * `wrapper.find('.overlay')` 从这一点起**恒为落空**，用它判"渲染没渲染"会得到假绿/假红。
+ * 「节点不存在」用 `toBeNull()`，「节点必须存在」用 `not.toBeNull()`——判定对象一条没改，
+ * 改的只是取节点的方式。
  *
- * 缺省语义是本任务唯一的破/不破分水岭：13 个调用点（12 个文件）一个都不传 modelValue，
+ * 缺省语义是本文件唯一的破/不破分水岭：13 个调用点（12 个文件）一个都不传 modelValue，
  * 全靠外层 `v-if` 控制可见性，所以「没传」必须继续等于「可见」。
  * `不传 modelValue 时仍渲染` 那条与 Modal.compat.test.ts 的 legacy 钉一起把这一点钉住。
  *
@@ -34,32 +38,44 @@ function factory(props: ModalProps = {}, slots: Record<string, string> = { title
   return track(wrapper)
 }
 
-describe('Modal v-model 通道', () => {
-  afterEach(unmountTracked)
+/** Teleport 后要在 body 子树里触发事件：原生 dispatch 即可，Vue 的监听器就挂在元素上。
+ *  bubbles 必须 true——「按内容区不该关」依赖事件冒到 .overlay 再被 `.self` 挡掉。 */
+async function fireOn(sel: string, type: 'click' | 'mousedown'): Promise<void> {
+  const el = document.body.querySelector(sel)
+  expect(el, `Teleport 后 body 里找不到 ${sel}`).not.toBeNull()
+  el!.dispatchEvent(new MouseEvent(type, { bubbles: true }))
+  await nextTick()
+}
 
+/** 卸载夹具挂**文件级**（不套 describe）：registry 是模块作用域的，见 trackMount。 */
+afterEach(unmountTracked)
+
+describe('Modal v-model 通道', () => {
   it('modelValue=false 时不渲染遮罩', () => {
     const wrapper = factory({ modelValue: false })
-    expect(wrapper.find('.overlay').exists()).toBe(false)
+    expect(document.body.querySelector('.overlay')).toBeNull()
     // trackMount 把 element 定为 Node 的事实依据：单根 v-if 关闭时组件根是 Comment 占位节点
     // （nodeType 8），`element: Element` 的旧声明在这条用例会说谎。
+    // Task 8 上 Teleport 后重测仍成立（实测 nodeType=8、nodeName=#comment、isConnected=true）：
+    // 占位符落在原位置，Teleport 的锚点没有顶掉它，所以这条不用跟着改。
     expect(wrapper.element.nodeType).toBe(8)
   })
 
   it('modelValue=true 时渲染', () => {
-    const wrapper = factory({ modelValue: true })
-    expect(wrapper.find('.overlay').exists()).toBe(true)
+    factory({ modelValue: true })
+    expect(document.body.querySelector('.overlay')).not.toBeNull()
   })
 
   it('关闭时同时 emit close 与 update:modelValue(false)，两通道都通', async () => {
     const wrapper = factory({ modelValue: true })
-    await wrapper.find('.modal-head .t-icon-btn').trigger('click')
+    await fireOn('.modal-head .t-icon-btn', 'click')
     expect(wrapper.emitted('close')).toHaveLength(1)
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
   })
 
   it('不传 modelValue 时仍渲染（12 个老调用点用 v-if 自行控制可见性）', () => {
-    const wrapper = factory()
-    expect(wrapper.find('.overlay').exists()).toBe(true)
+    factory()
+    expect(document.body.querySelector('.overlay')).not.toBeNull()
   })
 
   // 以下各条钉的是 brief Step 3 代码里其余可写错的分支与 Task 7 修复轮（评审 I-1/M-1/M-3）
@@ -68,12 +84,13 @@ describe('Modal v-model 通道', () => {
   it('可见性是响应式而非初值：true→false 会撤掉整棵遮罩，false→true 会重新挂上', async () => {
     // 若 `open` 只在挂载时算一次（或 v-if 写成了 v-once / 常量），这条会红。
     // Phase 4 的 `v-model="visible"` 调用点正是靠这个边沿反复开关，Modal 实例全程存活。
+    // Teleport 不影响这条的判据：开关的是 Teleport **内部**的 v-if，不是 Teleport 本身。
     const wrapper = factory({ modelValue: true })
-    expect(wrapper.find('.overlay').exists()).toBe(true)
+    expect(document.body.querySelector('.overlay')).not.toBeNull()
     await wrapper.setProps({ modelValue: false })
-    expect(wrapper.find('.overlay').exists()).toBe(false)
+    expect(document.body.querySelector('.overlay')).toBeNull()
     await wrapper.setProps({ modelValue: true })
-    expect(wrapper.find('.overlay').exists()).toBe(true)
+    expect(document.body.querySelector('.overlay')).not.toBeNull()
   })
 
   it('Esc 与关闭按钮共用同一 close 通道：两个入口都双发', async () => {
@@ -91,7 +108,7 @@ describe('Modal v-model 通道', () => {
     // M-3：此前只有按钮与 Esc 两条入口钉了双发，onOverlay 这条路没有。
     // 变异证明：onOverlay 改成直接 emit('close') 后本条转红。
     const wrapper = factory({ modelValue: true })
-    await wrapper.find('.overlay').trigger('mousedown')
+    await fireOn('.overlay', 'mousedown')
     expect(wrapper.emitted('close')).toHaveLength(1)
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
   })
@@ -105,7 +122,7 @@ describe('Modal v-model 通道', () => {
     // 现状：13 个老调用点没人绑 v-model（grep `<Modal` 全仓 0 处 model 绑定），
     // 多收一个无人监听的 update:modelValue 在 Vue 里无害。
     const wrapper = factory()
-    await wrapper.find('.modal-head .t-icon-btn').trigger('click')
+    await fireOn('.modal-head .t-icon-btn', 'click')
     expect(wrapper.emitted('close')).toHaveLength(1)
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
   })
@@ -116,8 +133,8 @@ describe('Modal v-model 通道', () => {
     // 显式传 key=undefined 与 v-model 绑定一个空 ref 在 Vue 侧同为「有 key、值 undefined」
     // （setFullProps 的 castValues 仍 hasOwn，isAbsent=false，取值走 default=undefined）。
     const wrapper = factory({ modelValue: undefined })
-    expect(wrapper.find('.overlay').exists()).toBe(true)
-    await wrapper.find('.modal-head .t-icon-btn').trigger('click')
+    expect(document.body.querySelector('.overlay')).not.toBeNull()
+    await fireOn('.modal-head .t-icon-btn', 'click')
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
   })
 
