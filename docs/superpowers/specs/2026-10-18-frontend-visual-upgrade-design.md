@@ -227,6 +227,10 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 上表已由 d2e1cf8 加到第 6 项，"这五项"是加进来之前的计数，引用核验于 2026-10-19 纠正）。
 第 5 项必须在 Phase 0b 内闭掉，不得带着它进入结构收敛；若补焦点陷阱代价过大，
 则**撤下 `aria-modal`**，而不是留着一个说不通的属性。
+> **第 5 项的范围比标题宽（Task 11 复核实测，2026-10-19）**：`aria-modal` 无陷阱这个缺陷类**不止两个载体**——
+> `frontend/src/components/OnboardingGuide.vue:19` 同样写着 `aria-modal="true"` 且没有任何陷阱。
+> 该原语不在 Phase 0b 的 Modal/Drawer 收口范围内，但**Phase 4 准入门按"全部自建弹层"判，不按"这两个组件"判**；
+> 否则会出现"两个原语干净、第三个仍在说谎"的假闭口。陷阱落地时须把它一并接上或撤下该属性。
 
 65 处 `el-dialog` → `ui/Modal`；8 处 `el-tabs` → `TabGroup`；4 处 `el-drawer` → `ui/Drawer`。
 
