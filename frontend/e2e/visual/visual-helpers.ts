@@ -355,15 +355,27 @@ export function snapName(slug: string, theme: ThemeName): string {
  * 【门禁现在每天还到期吗？——日期漂移块，Task 4c Step 1】
  *   旧的"每天零点集体漂一次"这件事**已由载荷钉死接管**（`installPayloadPin` + `__fixtures__/*.json`，
  *   `route.fulfill` 供数 ⇒ 服务端 `LocalDate.now()` 到不了被比对的那份载荷）。
- *   实测（服务器日 = 基线次日）：4 张日期锚点与基线 **md5 相等、字节差 0、计数 0**；
- *   同一批图关掉钉死（`PW_VISUAL_NOPIN=1`）立刻是 321/618（student 明暗）与 112/222（analytics 明暗），
- *   差异带 y 537..544 / y 696..703 ⇒ 抵住的是真的，不是巧合。
+ *   实测（服务器日 = 基线次日 = 2026-10-19，逐数带口径；下面每个数各自的 t/r 是 Step 1f 要求的，不是可选的）：
+ *   ① **钉住那组**：4 张日期锚点与基线 **md5 相等、字节差 0、计数 0**
+ *      （**t=0 / r=0 口径**——这条走 `assertZeroDiff`，比较器被显式传 `--threshold=0 --ratio=0`，
+ *       见 anchors.spec.ts 的 `measureAgainstBaseline`；md5 与字节差本来就不看 ratio，计数在 t=0 下也不看，
+ *       所以这组数与交付 ratio 是 0.0005 还是 0.0001 **无关**）。
+ *   ② **关掉钉死（`PW_VISUAL_NOPIN=1`）那组**：**计数 321 / 字节差 618**（student 明暗同值）与
+ *      **计数 112 / 字节差 222**（analytics 明暗同值），差异带 y 537..544 / y 696..703。
+ *      ⚠️ **这两组数采于 `t=0 / r=0.0005` 那一轮**（Step 1 做的时候交付档还是 0.0005 ⇒ 免检额 648 px；
+ *      出处：spec §6.12 末"漂移那几轮跑在 r=0.0005"、task-4c-report §5.2 表 + §5.3 第 2 条）。
+ *      计数只由 threshold 决定，所以 321/112 在今天的 0.0001 下**是同一个数**；
+ *      但**"它被判绿还是判红"是 ratio 的性质**：321 在那一轮（648）绿、在这一档（129.6）红；
+ *      112 在两档都绿（112 < 129.6 < 648）。⇒ 把 321 或 112 直接除以 129.6 就是误读，
+ *      上面阶梯表那条"计数与 ratio 无关，只有与 130 比的那一列才是 0.0001 口径"说的正是这件事。
+ *   ⇒ 抵住的是真的，不是巧合。
  *   重生成：`PW_LADDER=noise PW_PROBE_SLUGS=student-dashboard,admin-governance-analytics PW_VISUAL_NOPIN=1
  *            PW_PORT=5175 npx playwright test -c playwright.visual.ts sensitivity`（去掉 NOPIN 即钉住那组）
  *   ⚠️ **`PW_VISUAL_NOPIN` 只被上面那条探针命令认**：把它拼到 `anchors` 上是**无效且有害**的，
  *      `anchors.spec.ts` 现在在导入期直接抛（A3）。原因：探针这条读的是"不注入也非零"的**计数**，
- *      而 anchors 只有一条 r=0.0001（免检额 130 px）的像素判据 + 挂在 `if (pinState)` 里的
- *      `assertZeroDiff`——NOPIN 下钉桩没装 ⇒ 判据整个消失，112 px 那格（analytics 的真实漂移）会**报绿**。
+ *      而 anchors 只有一条 r=0.0001（免检额 129.6 px，**当前交付配置**）的像素判据 + 挂在 `if (pinState)` 里的
+ *      `assertZeroDiff`——NOPIN 下钉桩没装 ⇒ 判据整个消失，112 px 那格（analytics 的真实漂移，
+ *      **t=0 / r=0.0005 那一轮的计数**）会**报绿**。
  *      "静默接受一个它不实现的开关"因此不是小毛病，它给的是反向对照的反面结论。
  *   ⚠️ **换来的新盲区要一起记账**：被钉的那 2 个端点从此**退出像素治理**——产品若改了这两个端点的数据结构，
  *      本套件不会红，要红得先重录 fixture（重录会让画面与已提交基线不符，那才是真红）。
@@ -463,16 +475,30 @@ export function applyEvidenceWrite(
  * 载荷钉死（payload pin）——Task 4c Step 1 的"首选路线"，不是遮罩
  * ============================================================================ *
  * 【为什么不用遮罩】评审给的算术决定了这一点，不能靠直觉：
- *   22 张基线实测全部 1440×900 = 1,296,000 px。Task 4b 当时交付档 r=0.0005 ⇒ 免检额 648 px，
- *   而 student-dashboard **一天的**日期漂移就是**计数 321 / 字节差 618**（余量 5%，不是原先以为的 2 倍）。
- *   Task 4c 复测：**两个主题各 321/618（student-dashboard）与 112/222（admin-governance-analytics）**，
+ *   22 张基线实测全部 1440×900 = 1,296,000 px（这件事**从今天起由断言管**：
+ *   `helpers.spec.ts` 的"每张已提交基线都是 1440×900，且免检额算式与注释一致"逐张读 IHDR，
+ *   并把 `1,296,000 × SNAPSHOT_THRESHOLDS.maxDiffPixelRatio` 与注释里引用的免检额对齐——
+ *   在这之前它只是"真"，没有任何东西钉着它）。
+ *   Task 4b 当时交付档 **r=0.0005** ⇒ 免检额 648 px，
+ *   而 student-dashboard **一天的**日期漂移就是**计数 321 / 字节差 618（t=0 / r=0.0005 口径）**
+ *   （对 648 的余量 5%，不是原先以为的 2 倍）。
+ *   Task 4c 复测：两个主题各 **计数 321 / 字节差 618**（student-dashboard）与
+ *   **计数 112 / 字节差 222**（admin-governance-analytics），**同样是 t=0 / r=0.0005 那一轮的数**
+ *   （计数只由 threshold 决定，所以两档交付配置下数值不变；变的是"这一格判绿还是判红"），
  *   差异带 y 537..544 / y 696..703，与 4b 的读数同带同量级。重生成（**必须带 NOPIN**——
  *   装了钉死这一轮的漂移就是 0，那不是"漂移没发生"而是"漂移被抵住"，两件事别混）：
  *   `cd frontend && PW_LADDER=noise PW_PROBE_THEME=light PW_VISUAL_NOPIN=1 \
  *      PW_PROBE_SLUGS=student-dashboard,admin-governance-analytics PW_PORT=5175 \
  *      npx playwright test -c playwright.visual.ts sensitivity`
  *   （把 NOPIN 换成 `PW_PIN_SHIFT_DAYS=1|2|3` 即是"服务端第 +k 天"的模拟，用于跨天外推；
- *    k=1 与真实 +1 天**不等价**（334/630 vs 321/618），所以模拟只用来证"漂移始终不归零"，不用来证幅度。）
+ *    k=1 与真实 +1 天**不等价**（**计数 334 / 字节差 630（student）**、**计数 198 / 字节差 338（analytics）**，
+ *    **t=0 口径**：探针那三轮按比较器 t=0/r=0 读，RED-5 那条 `anchors` 跑则是在**收紧后的 r=0.0001** 下由
+ *    跑测器自报同样的 334/198 ⇒ 计数与 ratio 无关，两处的数本来就是同一批），
+ *    所以模拟只用来证"漂移始终不归零"，不用来证幅度。
+ *    ⚠️ **别把这里的 198 与阶梯表里 `radius` 在 1 卡页的 198 混成同一个数**——同值不同物
+ *    （一个是模拟 k=1 的 analytics 漂移计数，一个是 16→14px 圆角的检出计数）；
+ *    同理 618 在这里是 student 漂移的**字节差**，而 `docs/visual-upgrade/evidence/phase0-measurements.md`
+ *    §6 逐张表 #6 里的 618 是**采样色数**。引用这类数必须同时给**档名 + 锚点 + t/r**。）
  *   遮掉标签带 = 那一带**永久**退出比较，
  *   而 Phase 1/2 的改动（卡片阴影、圆角）恰好长在图表面板那一带里——盲区与改动区重叠，
  *   遮罩等于把门禁的受益人换成空气。
