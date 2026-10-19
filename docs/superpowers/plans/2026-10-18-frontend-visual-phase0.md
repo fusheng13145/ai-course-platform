@@ -1654,8 +1654,17 @@ const props = defineProps<{
    ⇒ 正确措辞：不援引惯例，直接说理由——用 `vi.spyOn` 是因为 `addEventListener` 继承自
    `EventTarget.prototype`，tinyspy 的 restore 走 `Reflect.deleteProperty`（`tinyspy/dist/index.js:135-137`），
    能把 own 属性整个删掉、恢复原状；手工赋值反而会往 `document` 上留一个 own 属性。
-   顺带把注释里 `vue-test-utils.cjs.js:7247-7251 / :1477-1492` 的行号改标成 vitest 实际加载的
-   `esm-bundler` 构建（同一份逻辑在它的 `:1457-1469`）。
+   ~~顺带把注释里 `vue-test-utils.cjs.js:7247-7251 / :1477-1492` 的行号改标成 vitest 实际加载的
+   `esm-bundler` 构建（同一份逻辑在它的 `:1457-1469`）。~~
+   **⚠️ 这半句是错的，2026-10-19 由两路独立证据推翻，别照着做**：Task 7 修复轮在 `Modal` setup 里打了一次
+   调用栈探针，实测执行的是 **`runtime-core.cjs.js` / `vue-test-utils.cjs.js`**（mount 落在 `cjs.js:8495`）；
+   只读复核又从解析链独立得到同一结论——`@vue/test-utils@2.5.1` 的 `exports` 把 `"node"` 排在 `"import"` 之前，
+   而 `vue/index.js` 在 `NODE_ENV!=='production'`（vitest 设为 `test`）时 `require('./dist/vue.cjs.js')`，
+   后者再链到 `runtime-dom.cjs.js` → `@vue/runtime-core` 的 cjs。控制器 08:25 静态复核 `exports` 字段与此一致。
+   ⇒ **被执行的构建是 cjs**，`esm-bundler` 只作"同一逻辑的另一份"备注。入库代码里的注释已经改对
+   （`Modal.vue:11`、`Drawer.vue:41`、`Drawer.test.ts:382` 三处都明写那份不在测试里执行）。
+   教训方向反过来也成立：**"我们已核过 vitest 加载哪份构建"这种话，必须由探针或解析链在当轮重跑，
+   不能靠上一轮评审的结论**——那轮评审的"纠正"本身把对的方向改成了错的，还被写进了两份文档。
    **这是本任务族第三次出现"自信陈述一件代码不支持的结论"**（我一次、实现者一次、评审一次），
    所以措辞宁可写弱一档也不要写一个撑不住的名字。
 2b. `:137-148` 第二个 `spyOn` 落在 `try` 之外：理论上两次 `spyOn` 之间抛异常会让 `addEventListener`
@@ -1742,8 +1751,10 @@ describe('Modal 焦点接入前提', () => {
 Run: `npx vitest run src/components/ui/__tests__/Modal.focus.test.ts`
 
 > **控制器已先用源码把这条未知量收窄（spec §9.2 原记"未实测、不得凭推断"）**：
-> `@vue/runtime-core/dist/runtime-core.esm-bundler.js:8532-8546`（同一逻辑在 `runtime-core.cjs.js:8457-8471`）
-> 的 exposeProxy，其 `get` 在 `key in target`
+> `@vue/runtime-core/dist/runtime-core.cjs.js:8457-8471` 的 exposeProxy，其 `get` 在 `key in target`
+> （**构建归因以 2026-10-19 的调用栈探针＋解析链为准：vitest 执行的是 cjs 这份**；
+> 同一逻辑在 `runtime-core.esm-bundler.js:8532-8546`，那份不在测试里跑。
+> 我曾在 `7da1233` 把两者顺序写反，那次改动本身就是一次错归因，已在此纠正。）
 > 不成立时**回落到 `publicPropertiesMap[key]`**，而 `$el` 正是这张 public properties 表里的键；
 > 组件完全未 `expose()` 时更直接返回 `instance.proxy`（同样含 `$el`）。
 > ⇒ **两条路径都拿得到 `$el`，预期走 Step 3-A。** 探针仍要跑，但它现在的角色是**确认**而非**探索**：
