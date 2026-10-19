@@ -123,7 +123,8 @@ Top 5：`layouts/components/AppSidebar.vue` 19、`views/auth/Login.vue` 18、`vi
 | 2 | `views/teacher/tools/KnowledgeManagement.vue:96` 的 `<ExcelImportDialog>`（其模板根即 `<Modal wide>`） | 页面根 `<div class="fade-in">`（:2） | `index.scss:506-508` `.fade-in{animation: fadeIn .35s … **forwards**}`，`fadeIn` 的 `to` 是 `transform: translateY(0)` | `.fade-in` 在 `design-system.css` 只出现在 reduce 块里（:1381），定义就在 `index.scss:506`，无竞争者 |
 
 **两者都不是"动画跑完就没了"**：`both`/`forwards` 是**填充**，动画结束后 `translateY(0)` 永久留在计算值里，
-而 `translateY(0)` ≠ `none` ⇒ 包含块**永久存在**。症状也不同（读 CSS 而非猜）：#1 的 `.l1-card` 带 `overflow: hidden`
+而 `translateY(0)` ≠ `none` ⇒ 包含块**永久存在**。**机制由 CSS 直读证成；下面的症状是推断，尚无像素实证**
+（要铁证须在 `no-preference` 下对这两页出定向截图对，见本节末的盲区条）：#1 的 `.l1-card` 带 `overflow: hidden`
 （`design-system.css:62`），`inset: 0` 的遮罩被**裁进卡片里**（"弹窗缩在卡片中间"）；
 #2 的根不裁剪，遮罩铺满内容区但**盖不住侧栏与顶栏**，`z-index` 也落在内容区层叠上下文内。
 其余 11 处 Task 8 逐个核为**未被困**（都在 `</section>`/`</div>` 之后做兄弟）；

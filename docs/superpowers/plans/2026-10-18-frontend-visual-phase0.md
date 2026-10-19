@@ -1838,8 +1838,18 @@ import Modal from '../Modal.vue'
 
 // 探针：确认经模板 ref 能否拿到 $el。这是 spec §9.2 记为"未实测"的前提。
 // 结论决定 Modal 内部接焦点的写法：拿得到就沿用 dialogRef.$el 口径（与 63 个
-// el-dialog 完全同构，Phase 4 迁移点可原样保留 ref 用法）；拿不到就改为
-// Modal 自持根引用并 defineExpose 一个同形的 $el getter。
+> **⚠️ 这块探针的前提已被 Task 8 改掉，照抄会得到假结论。** Task 8 把模板根换成
+> `<Teleport to="body" :disabled="!toBody">`（`c869ad9`）之后，开启态下组件的 `$el` 是
+> **Teleport 的起始锚点注释**（`instance.vnode.el = subTree.el`），`nodeType` 为 **8 而非 1**；
+> 真正的遮罩节点住在 **target（`document.body`）里**，不再是 `$el` 本身。
+> ⇒ 下面 `expect(el?.nodeType).toBe(1)` 这条**今天就应该红**；把它当"3-A 可行"的证据是错的。
+> **正确做法**：先跑一次探针把 `$el` 的实际 `nodeType`、`parentNode`、以及
+> `document.body.querySelector('.overlay')` 是否可达**记进 LEDGER `P0b-MODAL-02`**，
+> 再按实测选 3-A/3-B——只读评审已判定"3-A 死、3-B 必需"，但那是**静态推断**，
+> 本任务的规矩是用实测签字（见规则：库行为断言须当轮重测）。
+> 另：`Modal.vmodel.test.ts` 与 `helpers/trackMount.ts` 里"`nodeType 8` 是 v-if 关闭态的占位注释"
+> 的说法也要按上面的事实改写——关闭态与开启态的根**都**是注释类节点，区别在住在哪儿。
+
 describe('Modal 焦点接入前提', () => {
   it('模板 ref 能取到 $el 且即遮罩节点', async () => {
     const wrapper = mount(Modal, { props: { modelValue: true }, slots: { title: 'T' }, attachTo: document.body })
@@ -2054,6 +2064,16 @@ Run: `npx vitest run src/components/ui/__tests__/Modal.a11y.test.ts`
 Expected: FAIL——无 `role`/`aria-modal`、无滚动锁、无 `closed` 事件。
 
 - [ ] **Step 3: 写滚动锁 composable**
+
+> **⚠️ 开工前先读 `frontend/src/components/ui/Drawer.vue` 的滚动锁现状，否则会做出第二套。**
+> 只读评审实测：`Drawer.vue:108-120` **已经内联实现**了一份同样的引用计数锁，
+> 用的就是 `document.body.dataset.overlayCount` 这个键（还多带一个 `overlayOverflowPrev` 还原键，
+> 见该文件对 `:142-143` 分支的说明），并且已配单测。
+> ⇒ 本步不是"从零建一个 composable 再让 Drawer 以后接"，而是**把 Drawer 已有的那份抽出来共用**：
+> `Modal` 与 `Drawer` 必须走同一个计数器（否则两处各自 +1、彼此看不见，嵌套弹层最后一个关闭才还原这条就废了），
+> 迁移时**保留 `overlayOverflowPrev` 的语义**，并给"两处各自计数"这个形状补一条会红的断言。
+> 另记评审发现的一处口径不一致：`Drawer.vue:142-143` 那条"计数归 0 但没有 prev 键就什么都不动"的分支
+> **只有注释、没有测试**，抽取时一并钉住。
 
 Create `frontend/src/composables/useOverlayScrollLock.ts`:
 
