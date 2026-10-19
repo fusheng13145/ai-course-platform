@@ -1,6 +1,7 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { mount } from '@vue/test-utils'
 import Modal from '../Modal.vue'
+import { track, unmountTracked } from './helpers/trackMount'
 
 /**
  * Modal 的 v-model 通道（Task 7）
@@ -11,13 +12,10 @@ import Modal from '../Modal.vue'
  *
  * 缺省语义是本任务唯一的破/不破分水岭：13 个调用点（12 个文件）一个都不传 modelValue，
  * 全靠外层 `v-if` 控制可见性，所以「没传」必须继续等于「可见」。
- * `不传 modelValue 时仍渲染` 那条 + Modal.compat.test.ts 的 10 条一起把这一点钉住。
+ * `不传 modelValue 时仍渲染` 那条与 Modal.compat.test.ts 的 legacy 钉一起把这一点钉住。
+ *
+ * 挂载/卸载夹具走 helpers/trackMount（与 Modal.compat.test.ts 共用，此处不再复制登记表）。
  */
-interface TrackedWrapper {
-  readonly element: Element
-  unmount(): void
-}
-const mounted: TrackedWrapper[] = []
 
 /** 显式建模，和 Drawer.test.ts 的 DrawerProps 同一写法（避免用 Record<string, unknown> 绕过类型） */
 interface ModalProps {
@@ -28,27 +26,23 @@ interface ModalProps {
  * 与 brief 的唯一写法差别：brief 的四个用例各自内联 `mount(...)`，这里统一走 factory()。
  * 挂载选项逐字相同（props / slots.title='T' / attachTo: document.body），断言一字未改，
  * 差别只是每个 wrapper 都被登记、由 afterEach 卸载——本文件全部 attach 到 body，
- * 不卸载就会把 `.overlay` 与 document keydown 监听留给后面的用例。Task 8 会把本文件的
- * 查询迁到 `document.body.querySelector`（计划 Task 8 Step 4 点名 Modal.vmodel.test.ts），
- * 那时僵尸节点会直接污染断言。这是 Modal.compat.test.ts:10-14 同一处置的前置应用。
+ * 不卸载就会把 `.overlay` 与 document keydown 监听留给后面的用例（Task 8 迁 body 查询后
+ * 僵尸节点会直接污染断言）。
  */
 function factory(props: ModalProps = {}, slots: Record<string, string> = { title: 'T' }) {
   const wrapper = mount(Modal, { props, slots, attachTo: document.body })
-  mounted.push(wrapper)
-  return wrapper
+  return track(wrapper)
 }
 
 describe('Modal v-model 通道', () => {
-  afterEach(() => {
-    for (const w of mounted) {
-      if (w.element.isConnected) w.unmount()
-    }
-    mounted.length = 0
-  })
+  afterEach(unmountTracked)
 
   it('modelValue=false 时不渲染遮罩', () => {
     const wrapper = factory({ modelValue: false })
     expect(wrapper.find('.overlay').exists()).toBe(false)
+    // trackMount 把 element 定为 Node 的事实依据：单根 v-if 关闭时组件根是 Comment 占位节点
+    // （nodeType 8），`element: Element` 的旧声明在这条用例会说谎。
+    expect(wrapper.element.nodeType).toBe(8)
   })
 
   it('modelValue=true 时渲染', () => {
@@ -68,8 +62,8 @@ describe('Modal v-model 通道', () => {
     expect(wrapper.find('.overlay').exists()).toBe(true)
   })
 
-  // 以下三条钉的是 brief Step 3 代码里另外三个可写错的分支，
-  // 每条都在报告里做过变异证明（改坏 → 本条转红 → 还原）。
+  // 以下各条钉的是 brief Step 3 代码里其余可写错的分支与 Task 7 修复轮（评审 I-1/M-1/M-3）
+  // 的新契约；每条在报告里做过变异证明（改坏 → 本条转红 → 还原）。
 
   it('可见性是响应式而非初值：true→false 会撤掉整棵遮罩，false→true 会重新挂上', async () => {
     // 若 `open` 只在挂载时算一次（或 v-if 写成了 v-once / 常量），这条会红。
@@ -83,7 +77,7 @@ describe('Modal v-model 通道', () => {
   })
 
   it('Esc 与关闭按钮共用同一 close 通道：两个入口都双发', async () => {
-    // 现有 onEsc 与按钮 @click 都调 close()（Modal.vue:30-32 与 :33-38，按钮在 :60）。
+    // onEsc 与按钮 @click 都调 close()（`<script setup>` 的 onEsc/模板 .t-icon-btn）。
     // 若日后有人把 Esc 分支写成只 emit close，Phase 4 的 `v-model` 调用点会「按 Esc 关不掉」，
     // 而 Modal.compat.test.ts 只钉了 close 这一路，抓不到 update:modelValue 缺失。
     const wrapper = factory({ modelValue: true })
@@ -93,13 +87,61 @@ describe('Modal v-model 通道', () => {
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
   })
 
-  it('不传 modelValue 时只 emit close，不 emit update:modelValue（缺省通道的负半边）', async () => {
-    // 钉住 brief 的门卫 `if (props.modelValue === true)`：老调用点没绑 v-model，
-    // 给它们补一个没人听的 update 事件是噪声；缺省语义的完整表述是
-    // 「不传 = 恒可见 + 仍走旧的单一 close 通道」。
+  it('遮罩 mousedown.self 同样是双通道入口（modelValue:true 下双发）', async () => {
+    // M-3：此前只有按钮与 Esc 两条入口钉了双发，onOverlay 这条路没有。
+    // 变异证明：onOverlay 改成直接 emit('close') 后本条转红。
+    const wrapper = factory({ modelValue: true })
+    await wrapper.find('.overlay').trigger('mousedown')
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
+  })
+
+  it('不传 modelValue 时关闭同样双发——门卫是 open，不是 modelValue===true', async () => {
+    // Task 7 修复轮新契约（评审 M-1 的裁定）：brief 的 Interfaces 原文就是「两 emit 同时触发」，
+    // 从未授权 === true 守卫。13 个老调用点没人绑 v-model（grep `<Modal` 全仓 0 处 model 绑定），
+    // 多收一个无人监听的 update:modelValue 在 Vue 里无害。
     const wrapper = factory()
     await wrapper.find('.modal-head .t-icon-btn').trigger('click')
     expect(wrapper.emitted('close')).toHaveLength(1)
+    expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
+  })
+
+  it('v-model 绑 ref<boolean|undefined>()（显式传 undefined）时能被关闭，不会渲染得出关不掉', async () => {
+    // 评审 M-1 的原始事故形状：props.modelValue 为 undefined ⇒ open 为 true（渲染遮罩），
+    // 旧实现里 close() 的 `=== true` 守卫让三个入口（按钮/遮罩/Esc）都发不出回写，弹窗锁死。
+    // 显式传 key=undefined 与 v-model 绑定一个空 ref 在 Vue 侧同为「有 key、值 undefined」
+    // （setFullProps 的 castValues 仍 hasOwn，isAbsent=false，取值走 default=undefined）。
+    const wrapper = factory({ modelValue: undefined })
+    expect(wrapper.find('.overlay').exists()).toBe(true)
+    await wrapper.find('.modal-head .t-icon-btn').trigger('click')
+    expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
+  })
+
+  it('关闭态（modelValue:false）按 Esc 什么都不 emit', async () => {
+    // 评审 I-1：`v-if` 只摘子树、不销毁实例，keydown 监听整个挂载期常驻 document。
+    // 不加 open 门卫时，这条必红（旧实现照发 close）；compat 的 `Esc emit close` 钉只测
+    // 「开着时 Esc 有效」，抓不到「关着时 Esc 不该响」，所以本条是新能力侧的独有钉。
+    const wrapper = factory({ modelValue: false })
+    await wrapper.vm.$nextTick()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.emitted('close')).toBeUndefined()
     expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+  })
+
+  it('开过→父组件置 false 关掉的实例，再按 Esc 不补发幽灵 close', async () => {
+    // I-1 的真实事故剧本：Phase 4 的 `v-model="visible"` 调用点里实例全程存活。
+    // 第一次 Esc 正常双发；父组件据此写回 false 后，第二次 Esc 不得再产生任何事件——
+    // 否则一次按键会 re-fire 树上所有「曾经开过、现已关闭」Modal 的 close
+    // （其中 5 个存量站点 `@close="emit('close')"` 会把它原样递给各自的父组件）。
+    const wrapper = factory({ modelValue: true })
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    await wrapper.setProps({ modelValue: false })
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    expect(wrapper.emitted('update:modelValue')).toHaveLength(1)
   })
 })

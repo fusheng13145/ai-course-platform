@@ -1,22 +1,15 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import { mount } from '@vue/test-utils'
 import Modal from '../Modal.vue'
+import { track, unmountTracked } from './helpers/trackMount'
 
 // 13 个调用点的实际用法抽成三类：尺寸档、@close、插槽有无。
-// 这一组测试是 Phase 4 每批迁移前的「存量不破」门禁：加能力之前先把现状钉死，
-// 后续 Task 7-10 只在本文件追加断言、不另开文件。一旦它们变红，说明改的是
-// 不兼容而非纯增强——红的是信号，不是待修的 bug。
+// 这一组测试是 Phase 4 每批迁移前的「存量不破」门禁：加能力之前先把现状钉死。
+// 一旦它们变红，说明改的是不兼容而非纯增强——红的是信号，不是待修的 bug。
 //
-// 每个 factory() 挂载的 wrapper 都登记进 mounted，由下面的 afterEach 统一卸载：
-// 本文件所有用例都 attachTo document.body，不卸载就会把 .overlay 节点连同它们的
-// document keydown 监听留到整份文件结束。今天用例之间互不污染（断言都是 wrapper
-// 作用域，注册表用例也只记录自己那一次挂载），但 Task 8 要往本文件追加断言——那时
-// 任何 body 作用域的查询都会先撞上这些僵尸实例，所以先把场地清干净。
-interface TrackedWrapper {
-  readonly element: Element
-  unmount(): void
-}
-const mounted: TrackedWrapper[] = []
+// 后续任务（Task 7-10）的新能力可另开文件（如 Modal.vmodel.test.ts），但挂载/卸载
+// 夹具必须共用 helpers/trackMount，不得复制第二份——全部用例 attachTo document.body，
+// 不卸载就会把 .overlay 节点连同 document keydown 监听留成僵尸实例，污染 body 作用域查询。
 
 function factory(
   props: Record<string, unknown> = {},
@@ -29,19 +22,11 @@ function factory(
     slots: { title: '标题', ...slots },
     attachTo: document.body,
   })
-  mounted.push(wrapper)
-  return wrapper
+  return track(wrapper)
 }
 
 describe('Modal 现状兼容钉', () => {
-  afterEach(() => {
-    // 卸载本文件创建、且仍未卸载的 wrapper。监听清理用例会自己 unmount（那是被测动作），
-    // 卸载后元素从 body 摘掉、isConnected 变 false，这里据此跳过、避免二次 unmount。
-    for (const w of mounted) {
-      if (w.element.isConnected) w.unmount()
-    }
-    mounted.length = 0
-  })
+  afterEach(unmountTracked)
 
   it('默认宽度 640px 档（无修饰 prop）', () => {
     // 用 get 而非 find：get 缺元素即抛，且错误信息带上 DOM，和 EmptyState.test.ts 的既有约定一致。
@@ -56,7 +41,7 @@ describe('Modal 现状兼容钉', () => {
   })
 
   it.each(['wide', 'xwide', 'narrow'])('%s 走 $attrs 布尔通道', async (size) => {
-    // 用 attrs 而非 props：现状 Modal.vue 是从 $attrs 读尺寸档（Modal.vue:22-26），
+    // 用 attrs 而非 props：现状 Modal.vue 是从 $attrs 读尺寸档（模板里 .modal 的 :class 三元判断），
     // 组件并未声明这些 props；用 props 传未声明键在 VTU 下的落点与 attrs 不同。
     const wrapper = factory({}, {}, { [size]: '' })
     await wrapper.vm.$nextTick()
@@ -153,7 +138,8 @@ describe('Modal 现状兼容钉', () => {
       const keydownAdds = added.filter(([t]) => t === 'keydown')
       // 挂载期确实往 document 挂了 keydown：用 >0 而非 ===1，为 Phase 0b 的焦点管理预留
       //（允许再加别的 keydown，只要卸载时一起摘干净就不算破兼容）。
-      // 这条同时也把「至少 1 个 keydown 挂在 document」钉死：现状 Modal.vue:5 确实挂 document，
+      // 这条同时也把「至少 1 个 keydown 挂在 document」钉死：现状 Modal.vue 的 `<script setup>`
+      // onMounted 块确实挂 document，
       // Esc 用例也已钉住 document 通道；但若 Task 9 像 OnboardingGuide.vue:252 那样合法地把
       // keydown 改挂 window，本行会因 spy 只盯 document 而红——那需要连 spy 目标一起挪到 window
       // 的同步改动，不是兼容回归，别被这盏红灯唬住。
