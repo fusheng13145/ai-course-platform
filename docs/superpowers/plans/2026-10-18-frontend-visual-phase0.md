@@ -1436,8 +1436,14 @@ function onEsc(e: KeyboardEvent) {
   if (e.key === 'Escape') close()
 }
 function close() {
+  // 修复轮（`6d2379d`，评审 I-1/M-1 裁定）加的两件事，本块已按末态更新：
+  // ① 以派生值 `open` 为闸——`v-if` 只摘子树不摘实例，常挂的 document keydown 在"已挂载但关闭"态
+  //    会对树上每个曾开过的 Modal 各发一次 close，其中 5 个调用点还把它原样转发给上一层；
+  // ② 写回不再要求 `modelValue === true`——读侧 `!== false` 把 undefined 当开，写侧要求 true 才算开，
+  //    绑 `ref<boolean|undefined>` 的调用点会渲染出来却关不掉（按钮/遮罩/Esc 三个入口同一条路径）。
+  if (!open.value) return
   emit('close')
-  if (props.modelValue === true) emit('update:modelValue', false)
+  emit('update:modelValue', false)
 }
 function onOverlay(e: MouseEvent) {
   if (e.target === e.currentTarget) close()
@@ -1638,7 +1644,15 @@ const props = defineProps<{
 > 确认方式不是目视：逐档位比对 `getComputedStyle().width`
 > 与 `design-system.css` 的 640/880/1060/460 四值。
 
-- [ ] **Step 3b: 先修 Task 6 遗留的三处，再动本任务**（评审明确非阻塞，但第三条会被本任务直接踩响）
+- [ ] **Step 3b: 先修 Task 6/Task 7 遗留的四处，再动本任务**（评审明确非阻塞，但第三条会被本任务直接踩响）
+
+0. **Task 7 复核留下的 Minor，本任务顺手闭掉**：`Modal.vmodel.test.ts:100-101` 的注释写
+   "brief 的 Interfaces 原文就是…、**从未授权** `=== true` 守卫"。前半句对，后半句**错**——
+   `=== true` 正是 brief Step 3 示例代码逐字写的（`task-7-brief.md:71`），本计划原先的代码块也照抄了它
+   （已由修复轮更新，见 Task 7 Step 3 末态）。改成实话：
+   "与 Interfaces 原文一致；`=== true` 是 Step 3 示例代码的写法，按控制器裁定作废"。
+   ⇒ 这条与我今晚被抓到的三次同形：**把"我的裁定"回溯说成"原文从未如此"**。裁定可以改文本，
+   但不能把改前的文本说成从来不存在。
 
 1. `Modal.compat.test.ts:51` 的注释结尾写着"故统一用 get"，而**同一文件 `:63/:84/:89/:96-98/:103-104` 仍是 `find`**。
    这与被修掉的那条 finding 属同一类缺陷——自信地陈述一件代码并不支持的结论，只不过这次落在"纠正注释"上。
