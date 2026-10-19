@@ -1193,6 +1193,50 @@ git commit -m "test(visual): 钉死图表日期漂移、堵掉空态过守卫，
 
 ---
 
+### Task 4c-fix: 仪表本身要修的 7 项（评审 0 Critical / 7 Important / 9 Minor，判 Needs fixes）
+
+Task 4c 的**结论全部独立复现成立**（评审用入库的只读尺离线重算了每一格，且核过没留下方、`__snapshots__` 未被动过），
+要修的是**仪器自身**——按规则 ⑦ 拆成两小轮，一轮最多 4 项，每轮独立收口。
+
+**4c-fix-A（先做，四项，都是"读数会被误信"那一类）**
+1. `measure-diff.cjs:19-20` 声称 `--selfcheck` 不匹配就退出码 3，实现（`:383-389`）只打印并 return，
+   **全代码没人设过 exit 3** ⇒ 后来人跑它"验尺"永远不会失败。要么删掉这句，要么让它真的比一次 Playwright 报过的数。
+2. 取证 PNG 文件名没带口径标签：JSON key 已修（`@nopin`/`@shift+k`/非交付 t,r），
+   但 `sensitivity.spec.ts:522` 的 `-probe-captured.png` 与 `anchors.spec.ts:266` 的 `evidence/${slug}-${theme}.png`
+   **仍未打标** ⇒ 现在盘上就是 NOPIN 轮覆盖了钉桩轮（`--table` 同一格里"计数 321 md5 不同"与"计数 0 md5 相同"并存）。
+   `recordEvidence` 还会把 `skipped:true` 合进后一条同格读数。修法：文件名带同样的标签，或按 run 落时间戳子目录。
+3. `PW_VISUAL_NOPIN` 只有探针认（`sensitivity.spec.ts:449`），`anchors.spec.ts:196-202` 只读 `PW_RECORD_PAYLOADS`
+   ⇒ 照着报告 §5.2 或 `visual-helpers.ts:361` 的注释去跑 `PW_VISUAL_NOPIN=1 … anchors` 的代理
+   会拿到 4 张 md5 相同的图，得出"连真后端都不漂"——**恰好是它本该做的反向对照**。让 anchors 认它，或不认就 fail-fast。
+4. 重录 fixture 的那条路在采纳配置下**走不通**：record 模式不装钉桩 ⇒ 页面是活数据，
+   `toHaveScreenshot`（r=0.0001，130 px）在 `flushRecord` **之前**就跑，`student-dashboard`（321 px）必红、fixture 永远写不出；
+   `admin-governance-analytics`（112 px）反而静默写成。且录制端总把日期归一到 `CLOCK_DATE`=2026-10-18
+   ⇒ **钉桩的有效性悄悄依赖"基线做于 10-18"**，而没有任何断言说这件事。
+   修法：record 模式先 flush 再像素断言（或跳过像素断言），并把基线日写进 manifest。
+
+**4c-fix-B（后做，三项 + 两条我认下的 Minor）**
+5. 反证矩阵第 2 步的 9 格只断言"抛错了"（`anchors.spec.ts:373`），通用守卫状态只**打印不断言**
+   ⇒ 会话被踢、白页、JS 崩都能让格子"绿成真守卫"。teacher 格与矩阵 B 是安全的，标题那句"9 个专属断言真会因空响应而红"不完全成立。
+   修法：加两条——`stubApiToEmpty` 命中请求数 > 0、`location.pathname` 就是该锚点；并按锚把"通用守卫=也红"记进 LEDGER。
+6. 第 1f 的残留：漂移段 `visual-helpers.ts:355-367` 引 321/618、112/222、334/198 **没带自己的 r**
+   （那几轮实测跑在 `r=0.0005`）。计数在 `t=0` 下与 ratio 无关，``:281-282` 对阶梯表说了这句免责，
+   把它移到漂移段即可。
+7. **计划自己立的规矩被违反**：`sensitivity.spec.ts:97/98/99/360` 与 `visual-helpers.ts:912-913`
+   用行号引用 `theme.css` / `design-system.css` / `useStudentKnowledgeGraph.ts`——**Phase 1/2 要改的正是这些行**。
+   同一个 diff 里别处已经把这类引用删掉了（`SkgGraphPanel.vue:10`、`theme.css:205`、`Courses.vue:46-74`），
+   只是没扫完这两个文件。改成按 token/选择器名引（`--sh-l1`、design-system.css 里的 `.l1-card` 规则）。
+8. **`1440×900` 与 129.6 无人断言**（评审 Q2 后半）：加 6 行到 `helpers.spec.ts`——逐张读 IHDR 确认 1440×900，
+   并断言 `w*h*r === 129.6`。理由：Phase 2 的全部余量都是 `计数 ÷ (w·h·r)`，这个分母今天只是"真"。
+9. 单一来源检查只覆盖两个文件（`helpers.spec.ts:210-213`）⇒ Task 14 的 motion-observation 可以写阈值字面量而全绿；
+   改成遍历 `e2e/visual/` 下所有 spec。另：`--update-snapshots` 那道门（`global-setup.ts:66`）**没有自动化测试**，
+   删掉那行所有套件仍绿 ⇒ 补一条 `spawnSync` 级断言，或在注释里明说它只被手工证明过。
+
+**结构性一条（评审记 Minor，我提到与功能项同级来做）**：`visual-helpers.ts` 现在 969 行、至少四种职责
+（时钟/稳定态原语、118 行量程账本、payload 录制+回放+审计 229 行、12 格到位矩阵 + guards + ANCHORS 注册表），
+**而它是本仓单写者冲突最严重的那个文件（两个代理死在它里面）**。
+拆成 `payload-pin.ts` + `data-arrival.ts`、把量程账本搬进 `docs/visual-upgrade/evidence/`——
+**在 Phase 1 之前做比之后便宜**。
+
 ### Task 5: 台账 LEDGER.md 落地，用 Phase 0 自身当首批真实行
 
 台账必须先于改动存在，否则"改前截图"字段无处可取。首批行就记 Phase 0 自己的单元——顺带验证协议真的写得下去，而不是一份好看但没人填的模板。
