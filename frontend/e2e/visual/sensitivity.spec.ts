@@ -310,6 +310,26 @@ function readingText(r: MeasureReading): string {
   )
 }
 
+/**
+ * 证据写盘的 key。
+ * ⚠️ 原来 key 只有 `slug/theme/ladder`，于是**同一格的漂移读数会把钉住读数原地覆盖掉**：
+ * `PW_VISUAL_NOPIN=1` 与 `PW_PIN_SHIFT_DAYS=k` 那几轮量的明明是另一件事（漂移本身），
+ * 却写进交付口径那一格的 key 里——最后跑的那轮赢，前一轮的读数在盘上消失，只剩控制台日志。
+ * 现在把"这一轮到底走的哪条数据路径"编进 key：
+ *   `slug/theme/ladder`（钉住 = 交付口径）
+ *   `slug/theme/ladder@nopin`（真走后端 = 漂移本身）
+ *   `slug/theme/ladder@shift+k`（模拟服务端第 +k 天）
+ * 顺带把扫描档的 t/r 也编进去，免得收紧扫描覆盖交付口径那格。
+ */
+function evidenceKey(slug: string, theme: ThemeName, ladder: string, opts: { nopin: boolean; shift: number; t: number; r: number }): string {
+  const tags: string[] = []
+  if (opts.nopin) tags.push('nopin')
+  if (opts.shift > 0) tags.push(`shift+${opts.shift}`)
+  if (Number.isFinite(opts.t) && opts.t !== SNAPSHOT_THRESHOLDS.threshold) tags.push(`t=${opts.t}`)
+  if (Number.isFinite(opts.r) && opts.r !== SNAPSHOT_THRESHOLDS.maxDiffPixelRatio) tags.push(`r=${opts.r}`)
+  return `${slug}/${theme}/${ladder}${tags.length > 0 ? `@${tags.join(',')}` : ''}`
+}
+
 function recordEvidence(entry: Record<string, unknown>): void {
   mkdirSync(EVIDENCE_DIR, { recursive: true })
   let all: Record<string, unknown> = {}
@@ -318,8 +338,18 @@ function recordEvidence(entry: Record<string, unknown>): void {
   } catch {
     all = {}
   }
-  const key = `${String(entry.slug)}/${String(entry.theme)}/${String(entry.ladder)}`
-  all[key] = { ...((all[key] as Record<string, unknown> | undefined) ?? {}), ...entry, at: new Date().toISOString() }
+  const key = evidenceKey(
+    String(entry.slug),
+    String(entry.theme) as ThemeName,
+    String(entry.ladder),
+    {
+      nopin: entry.nopin === true,
+      shift: Number(entry.pinShiftDays ?? 0),
+      t: Number(entry.threshold),
+      r: Number(entry.maxDiffPixelRatio),
+    },
+  )
+  all[key] = { ...((all[key] as Record<string, unknown> | undefined) ?? {}), ...entry, at: new Date().toISOString(), key }
   writeFileSync(RESULTS, `${JSON.stringify(all, null, 2)}\n`, 'utf8')
 }
 
@@ -444,7 +474,7 @@ for (const slug of PROBE_ANCHORS) {
         //（那就不再是 Phase 1/2 的形状了）。
         if (after.matched === 0) {
           console.log(`[probe-skip] ${slug} 档 ${LAD}：${STEP.watch} 零命中（matched=${after.matched}）`)
-          recordEvidence({ slug, theme: PROBE_THEME, ladder: LAD, skipped: true, reason: '选择器零命中，注入是空操作' })
+          recordEvidence({ slug, theme: PROBE_THEME, ladder: LAD, skipped: true, nopin, pinShiftDays: pinShift, threshold: THRESHOLDS.threshold, maxDiffPixelRatio: THRESHOLDS.maxDiffPixelRatio, reason: '选择器零命中，注入是空操作' })
           test.skip(true, `档 ${LAD} 的选择器 ${STEP.watch} 在 ${slug} 零命中——注入是空操作，无量程结论`)
           return
         }
@@ -521,6 +551,7 @@ for (const slug of PROBE_ANCHORS) {
         maxDiffPixelRatio: THRESHOLDS.maxDiffPixelRatio,
         deliveryScale: IS_DELIVERY_SCALE,
         pinned: !!anchor.pinPaths?.length && !nopin,
+        nopin,
         pinShiftDays: pinShift,
         guardOff: !TRANSITION_KILL,
         imageWidth: width,
@@ -576,7 +607,9 @@ for (const slug of PROBE_ANCHORS) {
       const aaAbsorbed = !pwFailed && reading.pixelmatchCount === 0 && reading.byteDiffPx > 0 && LAD !== 'noise'
       const verdict =
         LAD === 'noise'
-          ? '地板'
+          ? pwFailed
+            ? '地板非零（抖动或确定性漂移，须用 PW_VISUAL_NOPIN/PW_PIN_SHIFT_DAYS 归因）'
+            : '地板'
           : pwFailed
             ? '检出'
             : zeroEffect
@@ -585,13 +618,17 @@ for (const slug of PROBE_ANCHORS) {
                 ? `全被抗锯齿分类器吸收（字节差 ${reading.byteDiffPx}、计数 0；免检额未参与，收 ratio 无用）`
                 : '漏检（被免检额吸收 = 假绿）'
       console.log(`[量程结论] ${slug}/${PROBE_THEME} 档 ${LAD} · ${STEP.shape} · ${verdict} · ${readingText(reading)}`)
-      recordEvidence({ slug, theme: PROBE_THEME, ladder: LAD, detected: pwFailed, verdict, playwrightCount: pwCount })
+      recordEvidence({ slug, theme: PROBE_THEME, ladder: LAD, detected: pwFailed, verdict, playwrightCount: pwCount, nopin, pinShiftDays: pinShift, threshold: THRESHOLDS.threshold, maxDiffPixelRatio: THRESHOLDS.maxDiffPixelRatio })
       if (pwError) {
         throw new Error(
-          `[量程结论] ${slug}/${PROBE_THEME} 档 ${LAD}（${STEP.shape}）**检出**——这是成功的测量，不是回归失败。\n` +
-            `  ${readingText(reading)}\n  口径=${IS_DELIVERY_SCALE ? '交付量程' : '非交付量程（env 已改 t/r）'} · 免检额 ${allowancePx.toFixed(2)} px\n` +
-            `  跑测器原文：${pwError.split('\n')[0]}\n` +
-            `  重生成：cd frontend && PW_LADDER=${LAD} PW_PROBE_SLUGS=${slug} PW_PROBE_THEME=${PROBE_THEME} npx playwright test -c playwright.visual.ts sensitivity`,
+          LAD === 'noise'
+            ? `[地板非零] ${slug}/${PROBE_THEME} 不注入却与基线不符——这不是"检出"，是**地板本身不干净**：` +
+              `要么这一页有抖动，要么有确定性漂移（日期锚点请用 PW_VISUAL_NOPIN=1 对照归因）。\n  ${readingText(reading)}\n  先归因再谈阈值：**不要**用放宽阈值把这一条压下去，也不要 --update-snapshots 吸收。\n` +
+              `  重生成：cd frontend && PW_LADDER=noise PW_PROBE_SLUGS=${slug} PW_PROBE_THEME=${PROBE_THEME} npx playwright test -c playwright.visual.ts sensitivity`
+            : `[量程结论] ${slug}/${PROBE_THEME} 档 ${LAD}（${STEP.shape}）**检出**——这是成功的测量，不是回归失败。\n` +
+              `  ${readingText(reading)}\n  口径=${IS_DELIVERY_SCALE ? '交付量程' : '非交付量程（env 已改 t/r）'} · 免检额 ${allowancePx.toFixed(2)} px\n` +
+              `  跑测器原文：${pwError.split('\n')[0]}\n` +
+              `  重生成：cd frontend && PW_LADDER=${LAD} PW_PROBE_SLUGS=${slug} PW_PROBE_THEME=${PROBE_THEME} npx playwright test -c playwright.visual.ts sensitivity`,
         )
       }
     })

@@ -271,8 +271,16 @@ test('22 张已提交基线的 sha256 与入库清单一致（篡改/重生成�
  * 症状是凡 Chromium 用 Average 过滤的行全部解错，radius 档计数从跑测器的 1394 漂到 2257。
  * **同一张图的两种过滤编码必须解成同一样东西**——这条不变式一断，红就在这里，
  * 而不是等某个 LEDGER 数字与跑测器对不上才发现。
- * 检出方式是 Playwright 的 `[探针无效] 尺不同源` 断言（sensitivity.spec.ts），
- * 本用例则在没有注入可跑的时候也能拦住它。
+ *
+ * 【这条断言自己被证伪过吗？证伪脚本已入库，一条命令可重放】
+ *   cd frontend && node e2e/visual/tools/kat-falsification.cjs
+ *   好尺：KAT 对 byteDiffPx 0；radius 计数 1,394 / 字节差 1,983。
+ *   把注释点名那个括号错误注入一份坏尺副本：**KAT 对 byteDiffPx = 696 ⇒ 这条断言会红**；
+ *   同一把坏尺上 radius 计数 = **2,257**（与跑测器的 1,394 差 863）⇒ 本注释里那个历史数**可重放**，
+ *   不再是转述。脚本还证了反方向：**不是所有"少写括号"都会变**——把括号挪到 `avg` 外面那一版
+ *   与正确写法**语义相同**（KAT 0、radius 1,394），所以"少个括号就一定错"这种说法本身也不成立。
+ *   另注：跑测器自己的 `[探针无效] 尺不同源` 断言（`sensitivity.spec.ts`）才是日常的门，
+ *   本用例是"没有注入可跑时也能拦住"的那道。
  */
 test('measure-diff 的 PNG 解码与过滤类型无关（同一张图 filter0 与 filter3 必须解成同一份 RGBA）', () => {
   const dir = join(process.cwd(), 'e2e/visual', 'tools', 'evidence')
