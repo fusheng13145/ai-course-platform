@@ -121,6 +121,7 @@ beforeEach(() => {
   vi.stubGlobal('cancelAnimationFrame', () => {})
   // 滚动锁是 body 上的引用计数状态，跨用例必须清零，否则「还原」类断言会读到上一条的残留。
   delete document.body.dataset.overlayCount
+  delete document.body.dataset.overlayOverflowPrev
   document.body.style.overflow = ''
 })
 
@@ -135,6 +136,7 @@ afterEach(() => {
   for (const h of hosts) h.remove()
   hosts.length = 0
   delete document.body.dataset.overlayCount
+  delete document.body.dataset.overlayOverflowPrev
   document.body.style.overflow = ''
   vi.unstubAllGlobals()
 })
@@ -166,7 +168,10 @@ describe('Drawer — 可见性与传送', () => {
     expect(overlay?.parentElement).toBe(document.body)
     expect(panel()?.parentElement).toBe(overlay)
     expect(panel()?.getAttribute('role')).toBe('dialog')
-    expect(panel()?.getAttribute('aria-modal')).toBe('true')
+    // I-1：aria-modal 已撤回。它原本是 brief（task-11-brief.md:88）点名的，但本仓没有任何
+    // focus trap，声明模态等于给读屏一个假承诺（Tab 照样走得到背景内容）。
+    // 断言写成「必须没有这个属性」：谁在 trap 之前把它挂回来，这条就红。
+    expect(panel()?.getAttribute('aria-modal')).toBeNull()
   })
 
   it('teleported=false → 留在挂载点内（与 Modal 同名通道）', async () => {
@@ -193,6 +198,28 @@ describe('Drawer — 可见性与传送', () => {
     expect(panels()).toHaveLength(2)
   })
 
+  it('placement 拼错 → 开发态 warn，且类名退回 rtl（不会静默产出「零圆角抽屉」）', async () => {
+    // 校验器只 warn、不拦值：执行路径 runtime-core.cjs.js:5270-5271
+    // （`if (validator && !validator(value, props)) warn$1('Invalid prop: custom validator check failed…')`，
+    // warn 完非法值照样留在 props 上；warn$1 落在 :20-55，无 warnHandler 时走 console.warn :47）。
+    // 所以真正拦住「placement="right" = 一个直角抽屉」的是模板里的 placementClass，
+    // 两条各有一条断言：缺 warn 那条=拼错无人知道，缺类名那条=拼错静默改外观。
+    const typo = { modelValue: true, placement: 'right' } as unknown as DrawerProps
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    try {
+      const { wrapper } = factory(typo)
+      await settle(wrapper)
+      expect(warnSpy.mock.calls.map((c) => String(c[0])).join('\n')).toContain(
+        'Invalid prop: custom validator check failed for prop "placement"',
+      )
+      expect(lastPanel()?.classList.contains('rtl')).toBe(true)
+      expect(lastPanel()?.classList.contains('right')).toBe(false)
+    } finally {
+      // 卸载交给 afterEach 的 wrappers 登记表，这里只负责把 console 还给后面的用例。
+      warnSpy.mockRestore()
+    }
+  })
+
   it('wide 仍走 $attrs 布尔通道，且类落在渲染后的 .drawer 上', async () => {
     // 属性契约（Task 6 的 R-T6-3）：wide 不声明进 props，模板从 $attrs 读。
     // 断言看**渲染出来的 classList**，不看 props 值——把 wide 声明进 props 却忘了改模板
@@ -200,6 +227,10 @@ describe('Drawer — 可见性与传送', () => {
     const wide = factory({}, {}, { wide: '' })
     await settle(wide.wrapper)
     expect(lastPanel()?.classList.contains('wide')).toBe(true)
+    // Minor-5：wide 是 Drawer 自己吃掉的修饰属性，不该跟着 $attrs 落到遮罩上——
+    // .drawer-overlay 里没有 .wide 规则，落上去只是一枚死属性（NmPublishDrawer.vue:4 就是这么传的）。
+    expect(lastOverlay()?.hasAttribute('wide')).toBe(false)
+    expect(lastOverlay()?.hasAttribute('class')).toBe(true)
 
     const plain = factory({ modelValue: true })
     await settle(plain.wrapper)
@@ -266,6 +297,39 @@ describe('Drawer — 关闭通道', () => {
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
   })
 
+  it('非受控调用点（不传 modelValue）只 emit close，不发 update:modelValue', async () => {
+    // Minor-3 选的契约 = 照搬 Modal 的两条腿：close 恒发（RagDocs.vue:90 只 @close），
+    // update:modelValue 只在真的受控（modelValue===true）时回写。
+    // 变异「close() 无条件发两条」会把这条打红（那正是改动前的写法，也是给非受控调用点
+    // 发没人听的事件那一种噪声）。
+    const { wrapper } = factory({}, { default: '<div class="probe">x</div>' })
+    await settle(wrapper)
+    fire(document.body.querySelector('.drawer-head .t-icon-btn'), 'click')
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+  })
+
+  it('两个抽屉叠着开：一次 Esc 两个都关（钉住现状，不是背书这个行为）', async () => {
+    // I-3：Esc 按「打开中的实例」逐个挂 document keydown，所以两个实例共享同一次 keydown，
+    // 一次 Esc 全关。注释此前写的是「常挂版才会全关」——那是对着不存在的代码写的（评审认定 Important）。
+    // 这条用例的作用是**行为锁**：以后有人建了弹层栈、改成 topmost-only，这条必红，
+    // 改动就得在评审里显式认领。「只关最上面一层」需要 Modal 与 Drawer 共用的栈，归 Phase 0b/Task 10，
+    // 本轮不建（已作为准入门待办记进 task-11-report §Fix round 1）。
+    const first = factory({ modelValue: true }, { title: '第一层' })
+    await settle(first.wrapper)
+    const second = factory({ modelValue: true }, { title: '第二层' })
+    await settle(second.wrapper)
+    expect(panels()).toHaveLength(2)
+
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await settle(first.wrapper)
+
+    expect(first.wrapper.emitted('close')).toHaveLength(1)
+    expect(second.wrapper.emitted('close')).toHaveLength(1)
+    expect(first.wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
+    expect(second.wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
+  })
+
   it('按下遮罩本体 emit close；按下面板内不 emit（mousedown 通道不变）', async () => {
     const overlay = factory({ modelValue: true })
     await settle(overlay.wrapper)
@@ -314,8 +378,13 @@ describe('Drawer — 关闭通道', () => {
 
   it('卸载必须摘掉打开期间挂上的 document keydown 监听', async () => {
     // 观察点是监听器注册表，不是 emitted 计数：VTU 的 unmount() 会 removeEventHistory
-    // （vue-test-utils.cjs.js:7601-7610、7857-7867），Vue 的 emit() 对已卸载实例起手即 return
-    // （runtime-core.cjs.js:4483-4484），所以「卸载后再按 Esc、断言 emitted 不增长」不可能失败。
+    // （**执行的那份构建**是 vue-test-utils.cjs.js:7601-7610 定义 + 同文件 :7857-7867 的
+    // VueWrapper.unmount() 调用它；esm-bundler 那份里同一对代码在 :7581/:7843，但测试不跑它），
+    // Vue 的 emit() 对已卸载实例起手即 return（runtime-core.cjs.js:4483-4484）。
+    // 「哪份构建在跑」不是引 package.json 的 exports 猜的，是同一轮 vitest 里打到的栈帧：
+    // VueWrapper.get → vue-test-utils.cjs.js:7333、callWithErrorHandling → runtime-core.cjs.js:200、
+    // emit → 同文件 :4483/:4545、setupStatefulComponent → 同文件 :8257（探针跑完即删，未入库）。
+    // 所以「卸载后再按 Esc、断言 emitted 不增长」不可能失败。
     // 调用点靠 v-if 反复开关实例（RagDocs.vue:90），残留 handler 是真实的幽灵回调来源。
     interface RawListeners {
       addEventListener: (type: string, listener: EventListener, options?: unknown) => void
@@ -391,6 +460,25 @@ describe('Drawer — 滚动锁与焦点', () => {
     await settle(wrapper)
     expect(document.body.dataset.overlayCount).toBe('1')
     expect(document.body.style.overflow).toBe('hidden')
+  })
+
+  it('归零时还原「上锁前」的 overflow，不清掉页面自己的非计数锁', async () => {
+    // Minor-4：改动前是 `next > 0 ? 'hidden' : ''`，归零无条件写 ''。
+    // 页面自己给 body 挂的 overflow（不属于这套计数，例如某处 `document.body.style.overflow='scroll'`）
+    // 会被抽屉的开合顺带抹平。现在由 0→1 那次把原值记进 dataset，归零按原值还原。
+    document.body.style.overflow = 'scroll'
+    const { wrapper } = factory({ modelValue: true })
+    await settle(wrapper)
+    expect(document.body.style.overflow).toBe('hidden')
+    expect(document.body.dataset.overlayCount).toBe('1')
+    expect(document.body.dataset.overlayOverflowPrev).toBe('scroll')
+
+    await wrapper.setProps({ modelValue: false })
+    await settle(wrapper)
+    expect(document.body.style.overflow).toBe('scroll')
+    expect(document.body.dataset.overlayCount).toBe('0')
+    // 归还后不留键：下一次上锁要记的是那时的新原值，不是这次的旧值。
+    expect(document.body.dataset.overlayOverflowPrev).toBeUndefined()
   })
 
   it('v-if 式调用点卸载即归还滚动锁（RagDocs.vue:90 正是该形态）', async () => {
