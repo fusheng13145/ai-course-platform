@@ -255,7 +255,9 @@ async function runAnchor(page: Page, anchor: AnchorSpec, theme: ThemeName, testI
   //
   // 【已知缺陷 · error-404 两主题恒红，勿用 --update-snapshots 吸收】
   // /403 /404 /503 三个错误页拿不到 data-theme：全仓只有 useTheme 的 applyTheme 会写这个属性
-  // （useTheme.ts:15），而 applyTheme 只在调用过 useTheme() 的组件里跑（ThemeSwitcher / Profile），
+  // （`src/composables/useTheme.ts` 里 `applyTheme()` 那行 `document.documentElement.setAttribute('data-theme', …)`，
+  //  定位：`grep -n "setAttribute('data-theme'" src/composables/useTheme.ts`），
+  // 而 applyTheme 只在调用过 useTheme() 的组件里跑（ThemeSwitcher / Profile），
   // 错误页既无 AppShell 也无 ThemeSwitcher → <html> 上永远没有 data-theme，
   // theme.css 的 [data-theme='dark'] 整块不生效，暗色用户看到的仍是 :root 的浅色 token。
   // 后果：这两张基线的明与暗必然逐像素相同，正是本断言要拦的事，所以按 Task 4 Step 3 的口径
@@ -402,22 +404,38 @@ for (const theme of ['light', 'dark'] as ThemeName[]) {
  * 一条你从没让它红过的断言不是守卫。通用守卫这次绿还是红**另外报出来**：
  * 只有"通用守卫绿 + 专属断言红"这个组合才等于复现了那次事故，
  * 而该组合由单独一条用例逐字钉住（teacher-dashboard，就是事故那一页），不靠矩阵去暗示。
+ * 【B5 加的两条前提（2026-10-19 修复轮）】"抛了"本身不是证据：会话被踢、白页、JS 崩同样让它抛。
+ *   现在每格先断言 `桩命中数 > 0` 与 `location.pathname === 该锚点路由`，再断言 arrival 抛。
+ *   标题那句"9 个专属断言真会因空响应而红"在加这两条之前**并不完全成立**——它现在才成立。
  * 【极性】这里 expect(arrivalThrew).toBe(true) 的绿 = "守卫确实可红"，与量程探针那种
  * "FAILED=检出了"的反极性不是一回事——那条要报的是测量结论，本条要报的是断言的有效性。
  * 【为什么不装 payload pin】本组用例要的就是"真后端给空响应"，钉死会把空态一起钉没了。
  * 【截图】一律不做 toHaveScreenshot：本组只验断言，不产基线，也就没有"顺手吸收缺陷"的口子。
  */
 
-/** 需要保住的会话/外壳端点：把它们也打空会得到 /login 重定向，红得无法归因（那就不是本用例要证的） */
-async function stubApiToEmpty(page: Page, slug: string): Promise<void> {
+/** 需要保住的会话/外壳端点：把它们也打空会得到 /login 重定向，红得无法归因（那就不是本用例要证的）
+ *
+ * 【B5：返回值是这条用例的**前提**，不是装饰】原先它返回 `void`，于是第 2 步那 9 格
+ * 只有"arrival 抛了没抛"这一条断言，而**没有任何断言说"桩真的命中过、页面真的还在这条路由上"**。
+ * 两端都会被误信：
+ *   ① 会话被踢 / 白页 / JS 崩 ⇒ `assertAnchorArrival` **照样抛** ⇒ `threw` 非空 ⇒ **格子绿**，
+ *      读起来是"这条专属断言真会因空响应而红"，实际测的是"这一页没登录"。这是主洞。
+ *   ② 桩没命中（slug 打错、端点改名、这一页不发 GET）⇒ 页面是**正常有数据**的画面 ⇒
+ *      `threw` 为空 ⇒ **格子红**，读起来是"这条守卫是空的（spec §6.14）"，实际是"实验没做成"。方向完全相反。
+ * 现在 ① 由"pathname 仍是该锚点的路由"拦住、② 由"命中请求数 > 0"拦住，两条都在 arrival 断言**之前**跑，
+ * 所以前提不成立时报的是前提，不再让矩阵去猜。通用守卫状态仍**只报不判**（那是另一件事，见下面矩阵的 ②）。
+ */
+async function stubApiToEmpty(page: Page, slug: string): Promise<{ served: string[] }> {
   const prefixes = DATA_PATHS[slug]
   if (!prefixes) throw new Error(`锚点 ${slug} 没有 DATA_PATHS 条目——空态可证伪矩阵无法收窄，先补名单`)
+  const served: string[] = []
   await page.route('**/api/**', async (route) => {
     const u = new URL(route.request().url())
     if (route.request().method() !== 'GET') return route.fallback()
     if (SHELL_KEEP_ALIVE_PATHS.some((k) => u.pathname.startsWith(k))) return route.fallback()
     const mine = prefixes.includes('ALL') || prefixes.some((p) => u.pathname.startsWith(p))
     if (!mine) return route.fallback()
+    served.push(u.pathname)
     await route.fulfill({
       status: 200,
       contentType: 'application/json',
@@ -426,6 +444,7 @@ async function stubApiToEmpty(page: Page, slug: string): Promise<void> {
       body: JSON.stringify({ code: 200, message: 'ok', data: null }),
     })
   })
+  return { served }
 }
 
 /**
@@ -454,11 +473,19 @@ for (const role of ['STUDENT', 'TEACHER', 'ADMIN'] as const) {
       test(`${anchor.slug} 的空态必须被它自己的数据到位断言拦下`, async ({ page }) => {
         // 先走真实列表把 __FROM_COURSE_LIST__ 解析出来，再装空桩（桩装上后就没有课程可解析了）
         const target = await resolvePath(page, anchor)
+        const wantPathname = new URL(target, 'http://localhost').pathname
         await setTheme(page, 'light')
-        await stubApiToEmpty(page, anchor.slug)
+        const stub = await stubApiToEmpty(page, anchor.slug)
         await freezeClock(page)
         await page.goto(target)
         await settlePage(page)
+
+        // ⓪ 两条**前提**（B5）。它们必须排在 arrival 断言前面：arrival 抛不抛只有在
+        //    "桩命中了、页面还在这条路由上"成立时才是"空态能不能被专属断言拦住"的证据。
+        //    缺这一对，会话被踢/白页/JS 崩都会让格子绿在"抛了"上（= 评审 4c-fix 第 5 条的成因）。
+        expect(stub.served.length, `${anchor.slug}：桩命中 0 个请求 ⇒ 这一页根本没被打空，本用例什么都没测（名单见 DATA_PATHS）`).toBeGreaterThan(0)
+        const pathNow = await page.evaluate(() => location.pathname)
+        expect(pathNow, `${anchor.slug}：打空后落在 ${pathNow} 而不是该锚点的路由 ${wantPathname} ⇒ 红/绿都归因不到空态`).toBe(wantPathname)
 
         // ① 专属断言必须红——这一条是本用例的硬要求：一条从没红过的断言不是守卫
         let threw = ''
@@ -473,6 +500,8 @@ for (const role of ['STUDENT', 'TEACHER', 'ADMIN'] as const) {
         //    某些页把整页数据打空会连带让 #app 也空掉/主题丢失，那时通用守卫也红，
         //    本用例仍然证明了专属断言可红，但"只有专属断言拦得住"这个洞在该页不成立——
         //    这句必须写清楚，不然矩阵里 9 个绿会读成"9 次都复现了那次事故"。
+        //    ⚠️ 这一行 `[falsify] …通用守卫=也红/绿` 是**台账要逐锚记的数据**（spec §6.14 的措辞范围由它定），
+        //    评审无法从 stdout 之外复算，所以每轮收尾要把 9 行逐锚抄进 LEDGER。
         let genericGreen = true
         let genericErr = ''
         try {
@@ -482,7 +511,8 @@ for (const role of ['STUDENT', 'TEACHER', 'ADMIN'] as const) {
           genericErr = (e as Error).message.split('\n')[0]
         }
         console.log(
-          `[falsify] ${anchor.slug} 专属断言=红 ✓ · 通用守卫=${genericGreen ? '绿（= 这次复现了"只有专属断言拦得住"）' : `也红：${genericErr}`}`,
+          `[falsify] ${anchor.slug} 专属断言=红 ✓ · 桩命中 ${stub.served.length} 请求 · path=${pathNow} · ` +
+            `通用守卫=${genericGreen ? '绿（= 这次复现了"只有专属断言拦得住"）' : `也红：${genericErr}`}`,
         )
       })
     }
