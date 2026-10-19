@@ -508,7 +508,11 @@ export interface PinManifest {
   recordedAt: string
   /** 录制时服务端的本地日（= 后端 LocalDate.now() 的日） */
   serverDateAtRecord: string
-  /** 冻结时钟那一日的 YYYY-MM-DD */
+  /**
+   * 这份载荷被归一到哪一天 = **基线日**（`BASELINE_DAY`）。
+   * 回放时由 `loadPinManifest()` 核两件事：它必须等于 BASELINE_DAY，
+   * 且 `backshiftDays` 必须真等于 `serverDateAtRecord − clockDate`（A4 的 ②③）。
+   */
   clockDate: string
   /** serverDateAtRecord − clockDate 的天数；录制时用它把日期整体回拨到基线当天 */
   backshiftDays: number
@@ -546,6 +550,36 @@ function localDay(d: Date): string {
 /** 冻结时钟那一天的日历日：与 freezeClock 共用 CLOCK_EPOCH，别在这儿另写一个日期 */
 export const CLOCK_DATE = localDay(new Date(CLOCK_EPOCH.getTime() + CLOCK_WARMUP_MS))
 
+/**
+ * **基线日**（A4 的另一半：把这件事从"隐含假设"变成"被断言的事实"）。
+ *
+ * 【原先没人断言什么】录制端把 fixture 里所有 ISO 日期整体回拨到 `CLOCK_DATE`（`attachPayloadRecorder`
+ * 的 `backshiftDays = serverDate − CLOCK_DATE`），回放时逐字供那份回拨过的载荷。
+ * 于是"**钉住后必须与已提交基线 md5 相等**"这条判据成立的前提是：
+ * **那 22 张基线本身做于 `CLOCK_EPOCH` 那一天（2026-10-18）**。这件事原先只写在注释里，
+ * 没有任何断言：如果哪天有人把 `CLOCK_EPOCH` 往后挪一天（为了让相对时间文案"今天/昨天"继续对得上），
+ * 基线拍的是一天、fixture 归一到另一天 ⇒ 4 张日期图**永久红**，而红得像"产品把图表改了"，
+ * 重录 fixture 也救不回来（重录归一到新的 CLOCK_DATE，基线仍是旧的）——这是最难归因的一种红。
+ * 【现在写死成一个具名常量，并三处断言它】
+ *   ① 本文件导入期：`CLOCK_DATE === BASELINE_DAY`（改 CLOCK_EPOCH 必须同时决策基线日，否则整套件起不来）；
+ *   ② `loadPinManifest()`：fixture 的 `clockDate` 必须等于它（fixture 归一到哪一天是**读 manifest**，不是硬推）；
+ *   ③ `loadPinManifest()`：`backshiftDays` 必须真等于 `serverDateAtRecord − clockDate`（防手改 fixture）。
+ * 行为证明见 Task 4c-fix-A 报告 A4（把 ① 弄红一次、把 ② 弄红一次）。
+ * 【它管的只有"日期"】基线的**画面内容**由那 22 张 sha256 清单管（helpers.spec.ts），
+ * 两边管的是不同的事，别把这条当"基线没被换过"的证据。
+ */
+export const BASELINE_DAY = '2026-10-18'
+
+/** ① 导入期就钉住：冻结时钟的那一天必须就是基线拍的那一天 */
+if (CLOCK_DATE !== BASELINE_DAY) {
+  throw new Error(
+    `[口径] CLOCK_DATE=${CLOCK_DATE} 而 BASELINE_DAY=${BASELINE_DAY} —— 两者必须同一天，否则日期锚点的\n` +
+      `  "钉住后与基线 md5 相等"永远不可能成立（基线拍于 BASELINE_DAY 那天，fixture 却被归一到 CLOCK_DATE 那天）。\n` +
+      `  两个合法处置：① 把 CLOCK_EPOCH 改回去；② 有意换基线日 ⇒ 把 BASELINE_DAY 一起改，并且**必须重拍全部 22 张基线**\n` +
+      `  （那是 --update-snapshots 级的动作，要走 global-setup 那道显式承认闸门，还要同步 helpers.spec.ts 的 sha256 清单）。`,
+  )
+}
+
 const ISO_DATE_RE = /20\d\d-(?:0[1-9]|1[0-2])-(?:[0-2]\d|3[01])/g
 
 /**
@@ -562,6 +596,46 @@ export function shiftIsoDates(body: string, days: number): string {
   })
 }
 
+/**
+ * A4 的 ②③，抽成纯函数好让 `helpers.spec.ts` 能直接把它弄红（`loadPinManifest` 要先读盘才走得到这里，
+ * 拿真实文件做反向测试会污染入库的 `__fixtures__`）。
+ * 只查 manifest **自己声明**的那三个日期字段，不碰 requests。
+ */
+export function assertManifestDates(
+  m: Pick<PinManifest, 'serverDateAtRecord' | 'clockDate' | 'backshiftDays'>,
+  where: string,
+): void {
+  // ② 这份载荷归一到哪一天，是 manifest **自己写的**，不是由 CLOCK_EPOCH 反推的。
+  //    不等 = 这份 fixture 复现的是另一天的画面，钉住它去比基线永远不会 md5 相等。
+  if (m.clockDate !== BASELINE_DAY) {
+    throw new Error(
+      `[载荷钉死] ${where} 的 clockDate=${JSON.stringify(m.clockDate)} 与 BASELINE_DAY=${BASELINE_DAY} 不符。\n` +
+        `  含义：这份 fixture 把日期归一到了**另一天**，而 22 张基线拍于 ${BASELINE_DAY} ⇒ 日期锚点会永久红。\n` +
+        `  处置只有两种，且都必须显式：① 重录（PW_RECORD_PAYLOADS=1 那条，落盘端按 BASELINE_DAY 回拨）；\n` +
+        `  ② 有意换基线日 ⇒ 同时改 BASELINE_DAY 与 CLOCK_EPOCH，并**重拍全部 22 张基线**\n` +
+        `     （走 global-setup 那道 --update-snapshots 显式承认闸门，同步 helpers.spec.ts 的 sha256 清单）。`,
+    )
+  }
+  // ③ manifest 三个日期字段必须自洽：backshiftDays 真等于 serverDateAtRecord − clockDate。
+  //    手改过 fixture（比如只挪 clockDate 想让 md5 对上）在这里就红，而不是变成一张"看不出来"的图。
+  const implied = Math.round(
+    (Date.parse(`${m.serverDateAtRecord}T00:00:00Z`) - Date.parse(`${m.clockDate}T00:00:00Z`)) / 86400000,
+  )
+  if (!Number.isInteger(m.backshiftDays) || m.backshiftDays !== implied) {
+    throw new Error(
+      `[载荷钉死] ${where} 的 backshiftDays=${m.backshiftDays} 与其自身日期不符（` +
+        `serverDateAtRecord=${m.serverDateAtRecord} − clockDate=${m.clockDate} ⇒ 应为 ${implied}）` +
+        `——这份 fixture 被手改过或落盘时算错，重录它。`,
+    )
+  }
+}
+
+/**
+ * 读一份 fixture，并把**这份 fixture 自己声明的基线日**核对掉（A4 的 ②③）。
+ * 原先这里只查形状（slug 对、requests 非空），日期字段一个字都不查
+ * ⇒ "钉住后与基线 md5 相等"这条判据的前提（基线做于 `CLOCK_EPOCH` 那天）从来没人验过，
+ * 前提破了表现为"永久红而且重录也救不回来"，归因方向会被带去查产品改动。
+ */
 export function loadPinManifest(slug: string): PinManifest {
   const file = fixturePathFor(slug)
   let raw: PinManifest
@@ -570,12 +644,16 @@ export function loadPinManifest(slug: string): PinManifest {
   } catch (e) {
     throw new Error(
       `[载荷钉死] 读不到 ${file}：${(e as Error).message}\n` +
-        `重录命令：cd frontend && PW_PORT=5175 PW_RECORD_PAYLOADS=1 npx playwright test -c playwright.visual.ts anchors -g "${slug}"`,
+        `重录命令：cd frontend && PW_PORT=5175 PW_RECORD_PAYLOADS=1 npx playwright test -c playwright.visual.ts anchors -g "${slug}"\n` +
+        `  （录制模式**先落 fixture 再**决定像素断言——Task 4c-fix-A A4 修的正是这条次序；\n` +
+        `   那一轮会打 [pin-record] 与 [record] 两行，然后**必须**再跑一次不带 PW_RECORD_PAYLOADS 的同一条命令，\n` +
+        `   由 assertZeroDiff 判"新 fixture 能不能复现基线"。别拿录制那一轮的红/绿当结论。）`,
     )
   }
   if (!raw || raw.slug !== slug || !raw.requests || Object.keys(raw.requests).length === 0) {
     throw new Error(`[载荷钉死] ${file} 形状不对（slug 不符或 requests 为空）——宁可红，不拿空 fixture 当钉住`)
   }
+  assertManifestDates(raw, file)
   return raw
 }
 
@@ -692,9 +770,12 @@ export function attachPayloadRecorder(page: Page, anchor: AnchorSpec): () => Pro
       slug: anchor.slug,
       recordedAt: serverNow.toISOString(),
       serverDateAtRecord: serverDate,
-      clockDate: CLOCK_DATE,
+      // A4：回拨目标是**基线日**（具名常量、入库），不是"CLOCK_EPOCH 反推出来的那一天"。
+      // 两者当前由本文件导入期那条断言强制相等；写成 BASELINE_DAY 是为了让这份 manifest
+      // **自己声明**它归一到哪天，回放侧 loadPinManifest 会核这一条——硬推的话这件事从不出现在数据里。
+      clockDate: BASELINE_DAY,
       // 整天差用日历日算，不用毫秒差 round：跨月/跨夏令时都不会差一天
-      backshiftDays: Math.round((Date.parse(`${serverDate}T00:00:00Z`) - Date.parse(`${CLOCK_DATE}T00:00:00Z`)) / 86400000),
+      backshiftDays: Math.round((Date.parse(`${serverDate}T00:00:00Z`) - Date.parse(`${BASELINE_DAY}T00:00:00Z`)) / 86400000),
       requests: {},
     }
     for (const [key, v] of captured) {

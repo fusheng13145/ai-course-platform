@@ -6,7 +6,11 @@ import { join } from 'node:path'
 import zlib from 'node:zlib'
 import {
   applyEvidenceWrite,
+  assertManifestDates,
+  BASELINE_DAY,
+  CLOCK_DATE,
   freezeClock,
+  loadPinManifest,
   maskOf,
   setTheme,
   settlePage,
@@ -362,5 +366,53 @@ test('NOPIN 只有探针认：anchors 在导入期拒绝它，探针仍实现它
   )
   // ③ 分工的另一半：探针必须**真的**实现这个开关，否则 anchors 的报错会把人指向一条同样无效的命令
   expect(probe, '探针那边的 PW_VISUAL_NOPIN 没了，而 anchors 的报错还把人往那儿指').toContain("process.env.PW_VISUAL_NOPIN === '1'")
+})
+
+/**
+ * Task 4c-fix-A A4：**基线日必须是个被断言的事实，不是一句注释**。
+ * 【原先错在哪】录制端把 fixture 的 ISO 日期整体回拨到 `CLOCK_DATE`（由 `CLOCK_EPOCH` 反推），
+ * 于是"钉住后与 22 张基线 md5 相等"这条判据隐含依赖"**基线拍于 CLOCK_EPOCH 那一天**"——
+ * 这句话原先只活在注释里，没有任何东西断言它。前提一旦破（比如有人挪 CLOCK_EPOCH），
+ * 4 张日期图**永久红**，而且重录也救不回来（重录归一到新的那天，基线还是旧的），
+ * 归因方向会被带去查"产品改了图表"。
+ * 【这一条钉住三件事】① 冻结时钟那一天 == 基线日（正向 + 与导入期那条抛同源）；
+ * ② 两份入库 fixture 自己声明的 clockDate == 基线日；③ backshiftDays 与自身日期自洽。
+ * ②③ 用真文件跑正向、用内存对象跑反向——反向不能改 `__fixtures__`，那是入库产物。
+ */
+test('基线日是断言不是假设：时钟日、fixture 声明日、回拨量三者必须互洽', () => {
+  // ① 正向。导入期那条抛（visual-helpers.ts 的 CLOCK_DATE !== BASELINE_DAY）与本行同源，
+  //   差别是这里红在 helpers，那条红在**任何**套件导入时——所以 mutation 只需手工做一次（见报告 A4）。
+  expect(CLOCK_DATE, '冻结时钟的那一天不再是基线日 ⇒ 日期锚点的 md5 判据永远不可能成立').toBe(BASELINE_DAY)
+
+  // ②③ 正向：两份入库 fixture 必须原样通过（这条就是"手改 fixture 想让 md5 对上"的拦截网）
+  for (const slug of ['student-dashboard', 'admin-governance-analytics']) {
+    expect(() => loadPinManifest(slug), `${slug}.json 没过日期自洽检查`).not.toThrow()
+    const m = loadPinManifest(slug)
+    expect(m.clockDate).toBe(BASELINE_DAY)
+  }
+
+  // ② 反向：clockDate 指到别的日子必须抛（这一格红 = 基线日与 fixture 脱节）
+  const badDay = { serverDateAtRecord: '2026-10-19', clockDate: '2026-10-17', backshiftDays: 2 }
+  let threwDay = ''
+  try {
+    assertManifestDates(badDay, '内存里的一份坏 manifest')
+  } catch (e) {
+    threwDay = (e as Error).message
+  }
+  expect(threwDay, 'clockDate 与 BASELINE_DAY 不符却放行了——"永久红"那个盲区又回来了').toContain('clockDate')
+
+  // ③ 反向：只挪 backshiftDays（手改 fixture 最常见的形状）也必须抛
+  const badShift = { serverDateAtRecord: '2026-10-19', clockDate: BASELINE_DAY, backshiftDays: 5 }
+  let threwShift = ''
+  try {
+    assertManifestDates(badShift, '内存里的一份坏 manifest')
+  } catch (e) {
+    threwShift = (e as Error).message
+  }
+  expect(threwShift, 'backshiftDays 与自身日期不符却放行了——这是"只挪 clockDate 想让 md5 对上"的那条路').toContain('backshiftDays')
+
+  // 顺带钉住自洽算法本身：正例的 implied 必须真等于 fixture 里那个数
+  const ok = { serverDateAtRecord: '2026-10-20', clockDate: BASELINE_DAY, backshiftDays: 2 }
+  expect(() => assertManifestDates(ok, '跨月自洽例')).not.toThrow()
 })
 

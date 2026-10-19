@@ -264,6 +264,34 @@ async function runAnchor(page: Page, anchor: AnchorSpec, theme: ThemeName, testI
   // 图谱代表必须真的"有图"——上一轮它截的是占位空态，四条通用断言全绿（见 assertGraphPainted）
   if (anchor.requirePaintedGraph) await assertGraphPainted(page)
 
+  // ───────── A4：录制模式必须**先落 fixture**，而且不再跑那条像素断言 ─────────
+  // 【原先为什么这条路走不通】`flushRecord()` 写在 `toHaveScreenshot` **之后**。
+  // 录制模式不装钉桩（`recording` 分支只 `attachPayloadRecorder`），所以这一页渲染的是**真后端今天的数据**；
+  // 而 `toHaveScreenshot` 用的是交付那一档 r=0.0001（1440×900 ⇒ 免检额 129.6 ≈ 130 px），
+  // `student-dashboard` 一天的漂移正好是 **321 px** ⇒ 像素断言先炸，函数直接抛出，
+  // **`flushRecord()` 永远执行不到、fixture 永远写不出来**（实测见 Task 4c-fix-A 报告 A4：
+  // 两次 `321 pixels (ratio 0.01 of all image pixels) are different.`、`__fixtures__/student-dashboard.json`
+  // 一个字节没动）。而 `admin-governance-analytics` 的漂移只有 112 px < 130 ⇒ 它**静默写成**。
+  // 合起来就是：两条错误消息把下一个代理支去跑的这条重录命令，**对那个真正需要重录的锚点是走不通的**，
+  // 对不需要重录的那个反而"成功"。
+  // 【为什么仍然先跑 assertComparableRender】录制端有条硬规矩："别把空态录成 fixture"
+  // （`attachPayloadRecorder` 的注释，`visual-helpers.ts`），它靠的就是**落盘之前**先过一遍
+  // `assertAnchorArrival`——而 `assertComparableRender` 里就含这一条（见该函数体）。
+  // 所以顺序必须是：守卫（含 arrival）→ flush → 像素断言（录制模式下跳过），不能简单提前到 goto 之前。
+  if (flushRecord) await flushRecord()
+  if (recording) {
+    // 【录制模式为什么跳过像素断言】这一页现在是**真后端今天**的画面，
+    // 拿它跟"基线那一天"比是另一个命题（那个命题由钉住 + assertZeroDiff 回答，命令是不带
+    // PW_RECORD_PAYLOADS 的那条）。在这里让它红，只会把"fixture 已写成"这个唯一有用的结论
+    // 埋进一条像素报错里；在这里让它绿（112 px 那种）更是假绿。
+    // 判据没有放松：arrival / 可比性 / 图谱有墨 三条都真跑过，只是不比图。
+    console.log(
+      `[record] ${anchor.slug}/${theme}：fixture 已写成 ⇒ 本轮**不**做像素比对（录制模式量的是载荷不是画面）。\n` +
+        `         下一步用钉住那轮验它能不能复现基线：PW_PORT=5175 npx playwright test -c playwright.visual.ts anchors -g "${anchor.slug}"`,
+    )
+    return
+  }
+
   // `.png` 在这里补，不在 snapName 里补：Playwright 1.63 的 toHaveScreenshot 先对**传入的 arg**
   // 取 extname 决定 mimeType（matchers/expect.js:12437 的 getMimeTypeForPath(basename(expectedPath))），
   // 无扩展名直接抛 `Screenshot name "login-light" must have a '.png' or '.webp' extension`
@@ -296,7 +324,7 @@ async function runAnchor(page: Page, anchor: AnchorSpec, theme: ThemeName, testI
       console.log(`[pin-audit] ${anchor.slug} 仍在消费带"今天"日期的未钉端点 ${pinState.unpinnedTodayBearing.length} 个：${JSON.stringify([...new Set(pinState.unpinnedTodayBearing)])}`)
     }
   }
-  if (flushRecord) await flushRecord()
+  // A4：`flushRecord()` 已经挪到像素断言**之前**（录制模式在那儿就 return 了），这里不再出现。
 }
 
 /**
@@ -340,8 +368,15 @@ async function assertZeroDiff(
   if (r.md5.equal && r.byteDiffPx === 0) return
   throw new Error(
     `[零漂移] ${anchor.slug}/${theme} 钉了载荷仍与基线不符：${describeReading(r)}\n` +
-      `要么 fixture 不是基线那一天的画面（重录：PW_PORT=5175 PW_RECORD_PAYLOADS=1 npx playwright test -c playwright.visual.ts anchors -g "${anchor.slug}"），` +
-      `要么这一带真的有别的改动。禁止用 --update-snapshots 把它吸收掉。`,
+      `两条可能，按这个顺序排（A4 把第一条的次序弄对了——录制模式现在**先落 fixture 再**跳像素断言，\n` +
+      `  所以这条命令真的能写出 fixture；原先它会在 toHaveScreenshot 上先炸掉，flushRecord 永远跑不到）：\n` +
+      `  ① fixture 与基线那一天脱节 ⇒ 重录：cd frontend && PW_PORT=5175 PW_RECORD_PAYLOADS=1 \\\n` +
+      `       npx playwright test -c playwright.visual.ts anchors -g "${anchor.slug}"\n` +
+      `     那一轮**不比图**（录制的是载荷），看到 [pin-record] 写过盘之后，必须再跑一次**不带** PW_RECORD_PAYLOADS 的同一条命令，\n` +
+      `     由本条判据说"新 fixture 能不能复现基线"。重录会改动入库的 __fixtures__/${anchor.slug}.json，那是有意的改动、要一起提交。\n` +
+      `  ② 基线日这件事本身变了 ⇒ 查 visual-helpers.ts 的 BASELINE_DAY 与这份 fixture 的 clockDate\n` +
+      `     （loadPinManifest 已经在比这两个值，红在那里说明是这一条；本条红在像素上说明 ① 或真有产品改动）。\n` +
+      `  都不是的话才是这一带真的有别的改动。禁止用 --update-snapshots 把它吸收掉。`,
   )
 }
 
