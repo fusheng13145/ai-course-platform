@@ -43,10 +43,16 @@ export const SNAPSHOT_PAGE_TIME_MS =
   CLOCK_FRAME_SETTLE_MS
 
 /**
- * 主题必须在导航前落到 localStorage：useTheme 在模块作用域读一次初值
- * （useTheme.ts:6），页面起来后才写入就来不及了。addInitScript 而非 evaluate——
+ * 主题必须在导航前落到 localStorage：useTheme 在**模块作用域**读一次初值
+ * （`src/composables/useTheme.ts` 里那条 `const theme = ref(localStorage.getItem(THEME_KEY) || 'dark')`，
+ *  定位：`grep -n "const theme = ref" src/composables/useTheme.ts`；"默认值是 dark"这件事由计划
+ *  Global Constraints 明写，别按行号引它），页面起来后才写入就来不及了。
+ * addInitScript 而非 evaluate——
  * Chromium 新版对 about:blank 的 localStorage 访问抛 SecurityError，
- * 且 addInitScript 对每次导航幂等（test-helpers.ts:196-199 实测结论）。
+ * 且 addInitScript 对每次导航幂等（`e2e/test-helpers.ts` 的 `setLocalStorageAuth` 上方那段实测结论）。
+ * ⚠️ 引用 `src/**` / `e2e/**` 一律按**声明名 / 选择器名 / 函数名**引，不写行号：Phase 1/2/4/5 会往
+ *    这些文件里插行，行号在改动落地那一刻就指到别处（计划 Global Constraints 的"引用禁行号"条）。
+ *    指向 `node_modules/**` 的行号**不在此列**——那不是我们改的文件，且它随安装的版本被锁死。
  */
 export async function setTheme(page: Page, theme: ThemeName): Promise<void> {
   await page.addInitScript((t) => localStorage.setItem('fz-theme', t), theme)
@@ -1086,14 +1092,19 @@ export async function assertComparableRender(page: Page, anchor: AnchorSpec, the
  *
  * 路径逐条核过 src/router/index.ts 的**路由表**（不是文件目录）：
  * admin 端的 children 是平铺的，`views/admin/governance/Analytics.vue` 挂在
- * router/index.ts:187 的 `path: 'analytics'` 上，真实 URL 是 `/admin/analytics`；
- * 写成 `/admin/governance/analytics` 会被 :562 的 `/:pathMatch(.*)*` 兜住，
+ * `src/router/index.ts` 里 **admin 那条 children 的 `path: 'analytics'`** 上，真实 URL 是 `/admin/analytics`。
+ * ⚠️ 这里**不写行号**，而且行号本来就不可用：`grep -n "path: 'analytics'" src/router/index.ts`
+ * 本机有 4 处命中（教师 cockpit ×2、教师 tools ×1、admin governance ×1），按行号引必然引错一条，
+ * Phase 4/5 改动路由表时全体位移。现查现用（输出直接指出哪一条是 admin 的）：
+ *   `grep -n -A1 "path: 'analytics'" src/router/index.ts | grep -B1 governance`
+ * 写成 `/admin/governance/analytics` 会被路由表**末尾那条 catch-all `path: '/:pathMatch(.*)*'`** 兜住，
  * 截出来是一张 404 页——而 404 页恰好也是"渲染正常、非空壳"，断言全绿。
  *
  * 图谱锚点带 `?courseId=`：默认的 `courseList[0]`（= /api/courses 列表首项 4060）
  * 在种子里 **0 个知识点**，不带参数截到的永远是占位图（上一轮缺陷 D-3）。
- * 查询参数有效是因为 useStudentKnowledgeGraph.ts:150 先读 `route.query.courseId`，
- * `:155` 的 courseList[0] 只是它的兜底。
+ * 查询参数有效是因为 `src/composables/useStudentKnowledgeGraph.ts` 的 **`loadCourseList()`**
+ * 先读 `route.query.courseId || route.params.courseId || route.params.id`，
+ * 同一个函数里 `courseList[0].id` 那条 `else if` 分支只是它的兜底。
  */
 export const ANCHORS: readonly AnchorSpec[] = [
   { slug: 'login', title: '登录页', role: 'ANON', path: '/login' },
@@ -1122,8 +1133,9 @@ export const ANCHORS: readonly AnchorSpec[] = [
     role: 'STUDENT',
     /**
      * 4001 = Python程序设计（A班）。选它不是照抄评审建议，是逐课实测出来的：
-     * 拿学生会话打 GET /api/knowledge/relations/graph/{id}（就是 loadGraphData :170
-     * 调的那个端点），38 门课里 4001 有 8 节点 10 边，而列表首项 4060 与 4047、
+     * 拿学生会话打 GET /api/knowledge/relations/graph/{id}（就是 `loadGraphData()` 里
+     * 那条 `knowledgeRelationApi.getGraphData(...)` 的 await），
+     * 38 门课里 4001 有 8 节点 10 边，而列表首项 4060 与 4047、
      * 以及 2/3/4/5/6 都是 0 节点 0 边；4007 更多（65 节点 120 边）。
      * 8 个节点在 520px 高的面板里画得开、10 条边与 8 组标签都看得清，
      * 所以取 4001（节点圆点本身不画是另一回事，见 task-4-report 的缺陷 D-9，与选哪门课无关）；

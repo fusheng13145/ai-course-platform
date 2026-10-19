@@ -96,12 +96,20 @@ const PROBE_THEME: ThemeName = process.env.PW_PROBE_THEME === 'dark' ? 'dark' : 
  * 档位与 Phase 1/2 的对应关系（每条都标了出处，别把探针幅度当成计划幅度）：
  *   gross       —— 哨兵档：整页 brightness(0.97)，"连这都看不见就全线作废"
  *   shadow      —— **2 倍于计划幅度**（alpha .05/.06 → .12/.13），历史读数都挂在它上
- *   shadow-plan —— 正好是计划幅度：theme.css:52 的 --sh-l1 环境层 0.06 → 0.10（spec §4 Phase 1"接触阴影 1px 高 alpha + 环境阴影 alpha 0.06 → 0.10"）
- *   radius      —— Phase 2 的薄档：--r-l1 16px → 14px（theme.css:46）
- *   inset       —— Phase 1 的内高光：现仓内两处 inset 高光的实际值（design-system.css:41 alpha .25、:282 alpha .18）取 .25
+ *   shadow-plan —— 正好是计划幅度：`theme.css` 里 **`:root` 的 `--sh-l1`** 那条声明的环境层
+ *                  0.06 → 0.10（定位：`grep -n -- '--sh-l1:' src/styles/theme.css`；
+ *                  spec §4 Phase 1"接触阴影 1px 高 alpha + 环境阴影 alpha 0.06 → 0.10"）
+ *   radius      —— Phase 2 的薄档：`--r-l1` 16px → 14px（`grep -n -- '--r-l1:' src/styles/theme.css`）
+ *   inset       —— Phase 1 的内高光：现仓内两处 inset 高光的实际值——
+ *                  `design-system.css` 的 **`.brand-mark` 规则**（alpha .25）与
+ *                  **`.btn-primary` 规则**（alpha .18）各一条 `box-shadow` 尾项，取 .25
  *   surface     —— Phase 1 的暗色主机制：--surface → --surface-2（浅色 #fff→#f7f8fa，暗色 #171d26→#1c2330）
  *   border      —— 暗色"描边优先"：--line → --line-strong
  *   noise       —— 不注入，同一条路径再截一次去比同一张基线 = **噪声地板**
+ * 【为什么这里（以及全仓注释）不写"某文件第几行"这种指针】Phase 1（阴影 alpha）与
+ *   Phase 5（硬编码色）要改的**正是这几条声明**，插一行下面全都位移——行号引用会在改动落地的那一刻
+ *   指到别的条文上（计划 Global Constraints 的"引用禁行号"条，同型事故已记四次）。
+ *   选择器名与 token 名是**被改动对象本身**，改值不改名，所以按名字引；要精确到行就自己现查（命令已写在上面）。
  * 为什么 inset/surface/border 三档必须存在：Task 4b 只用"t=0 什么都能报"论证过 shadow/gross，
  * 而那个论证只在 pixelmatch 的抗锯齿分类器不吃掉高光边缘时成立——radius 恰恰演示了会被吃。
  * 这三档没量出来之前，Phase 1 不得对"内高光/局部色阶/描边"报零 diff（spec §6.15 ④）。
@@ -175,7 +183,8 @@ const LADDER: Record<string, LadderStep> = {
   },
   inset: {
     // 保留外层阴影不动，只在末尾追加一条 1px 顶部内高光 ⇒ 内高光是唯一变量。
-    // 高光值取自本仓既有两处 inset（design-system.css:41 的 .25、:282 的 .18）。
+    // 高光值取自本仓既有两处 inset（`design-system.css` 的 `.brand-mark` 规则里那条 .25、
+    // `.btn-primary` 规则里那条 .18——按选择器名引，理由见上面 ladder 档说明）。
     // 外层阴影按主题各写一份，否则暗色下这条注入会把暗色阴影换成浅色值（那就不是单变量了）。
     css: cssByTheme(
       '.l1-card{box-shadow:0 1px 2px rgba(24,32,48,0.05),0 4px 14px rgba(24,32,48,0.06),inset 0 1px 0 rgba(255,255,255,0.25)!important}',
@@ -369,8 +378,8 @@ function recordEvidence(entry: Record<string, unknown>, mergeIntoThisRunCell = f
 /**
  * 空操作守卫用的计算样式读数。
  *
- * 【真基线上量出来的一个坑，非离线自检台所能发现】`.l1-card` 带
- * `transition: box-shadow 0.25s var(--ease-out)`（design-system.css:63）。
+ * 【真基线上量出来的一个坑，非离线自检台所能发现】`design-system.css` 的 **`.l1-card` 规则**里那条
+ * `transition: box-shadow 0.25s var(--ease-out)`（定位：`grep -n -A8 '^\.l1-card {' src/styles/design-system.css`）。
  * 本页时钟是被 freezeClock 停住的，注入后过渡**开始了但推进不了**，
  * 于是 getComputedStyle('.l1-card').boxShadow 在注入后仍读回旧值——
  * 第一版守卫正是这样误报"注入被优先级挡掉"（shadow 档两个锚点都炸），
