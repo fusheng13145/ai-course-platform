@@ -30,6 +30,45 @@ import {
 
 /** 课程列表页自身的 URL——__FROM_COURSE_LIST__ 先到这里取 id，再进壳页 */
 const COURSE_LIST_PATH = '/student/courses'
+
+/* -------------------------------------------------------------------------- *
+ * A3：`PW_VISUAL_NOPIN` **只有探针认**，anchors 认它就等于给自己发一张假绿
+ * -------------------------------------------------------------------------- *
+ * 【原先的行为】这个开关只在 `sensitivity.spec.ts`（`const nopin = process.env.PW_VISUAL_NOPIN === '1'`）
+ * 被读；本套件从头到尾没读过它，于是照着台账/报告里的 NOPIN 命令把它拼到 anchors 上时，
+ * Playwright **一声不响地接受**这个环境变量、照常装钉桩，跑出来的还是那 4 张"与基线 md5 相同"的图。
+ * 【为什么"静默接受"比"报错"严重得多】拿 NOPIN 去跑 anchors 的人，本意是做**反向对照**
+ * （"关掉钉死，看漂移是不是真的还在"）。装模作样地忽略它，他就得到
+ * "连真后端都不漂"——**恰好是他本来想做的那件事的反面结论**，而且四条 md5 证据看起来完全支持它。
+ * 【为什么不改成"让 anchors 也认它"】那更危险，不是更安全：
+ *   `installPayloadPin` 不装 ⇒ `pinState` 为 null ⇒ `assertZeroDiff` 整条被跳过（它就挂在 `if (pinState)` 里），
+ *   于是这套件唯一那条"钉住后必须仍与基线逐字节相同"的硬判据消失；剩下的只有 `toHaveScreenshot`
+ *   那一档 r=0.0001（免检额 130 px）。实测（A2 那轮 NOPIN 对照）：
+ *     student-dashboard 计数 321 → 红；
+ *     admin-governance-analytics 计数 112 → **绿**（112 < 130，而字节差是实打实的 222）。
+ *   也就是说"认它"的结果是**一半随机红、一半假绿**，正是本仓要避免的那一类读数。
+ * 【现在的处置】在导入期就抛：一条测试都不会跑，也不可能被读成"跑过了"。
+ *   消息里给出真正该跑的那条命令（探针侧，工作目录 `frontend/`，需要后端 8080 + dev server 5175）。
+ * 【`0` 与空串算"显式关掉"，放行】与探针的判据保持一致（只有 `=== '1'` 才开），
+ *   其余任何非空值（`true` / `yes` / `2`…）都当"想开却没开成"来拒——静默忽略一个拼错的开关
+ *   和静默忽略 `1` 是同一个毛病。
+ */
+const NOPIN_ENV = 'PW_VISUAL_NOPIN'
+const nopinRaw = process.env[NOPIN_ENV]
+if (nopinRaw !== undefined && nopinRaw !== '' && nopinRaw !== '0') {
+  throw new Error(
+    `[口径] anchors.spec.ts 拒绝 ${NOPIN_ENV}=${nopinRaw}：这个开关**只有量程探针认**，本套件从来只走钉住那条路。\n` +
+      `  照它跑 anchors 不会给你反向对照——钉桩照装、assertZeroDiff 照绿，而你会以为关掉了。\n` +
+      `  反向对照（真走后端、量漂移本身）跑这条：\n` +
+      `    cd frontend && PW_LADDER=noise PW_PROBE_THEME=light PW_VISUAL_NOPIN=1 \\\n` +
+      `      PW_PROBE_SLUGS=student-dashboard,admin-governance-analytics PW_PORT=5175 \\\n` +
+      `      npx playwright test -c playwright.visual.ts sensitivity\n` +
+      `  读数落 e2e/visual/tools/evidence/probe-results.json 与 *-probe-captured@nopin.png（A2 之后两轮不再互相覆盖）。\n` +
+      `  要模拟"服务端第 +k 天"改把 PW_PIN_SHIFT_DAYS=k 加到**上面这条**；把它加到 anchors 上是另一件事\n` +
+      `  （那是在检验"钉歪一点整表就红"，见 Task 4c 报告的 RED-5，那条**是**认这个开关的）。`,
+  )
+}
+
 /** 列表页的数据源：/student/courses 的 .tree-row 就是它 courses[0..] 的渲染结果 */
 const COURSE_LIST_API = '/api/student/dashboard'
 

@@ -360,6 +360,11 @@ export function snapName(slug: string, theme: ThemeName): string {
  *   差异带 y 537..544 / y 696..703 ⇒ 抵住的是真的，不是巧合。
  *   重生成：`PW_LADDER=noise PW_PROBE_SLUGS=student-dashboard,admin-governance-analytics PW_VISUAL_NOPIN=1
  *            PW_PORT=5175 npx playwright test -c playwright.visual.ts sensitivity`（去掉 NOPIN 即钉住那组）
+ *   ⚠️ **`PW_VISUAL_NOPIN` 只被上面那条探针命令认**：把它拼到 `anchors` 上是**无效且有害**的，
+ *      `anchors.spec.ts` 现在在导入期直接抛（A3）。原因：探针这条读的是"不注入也非零"的**计数**，
+ *      而 anchors 只有一条 r=0.0001（免检额 130 px）的像素判据 + 挂在 `if (pinState)` 里的
+ *      `assertZeroDiff`——NOPIN 下钉桩没装 ⇒ 判据整个消失，112 px 那格（analytics 的真实漂移）会**报绿**。
+ *      "静默接受一个它不实现的开关"因此不是小毛病，它给的是反向对照的反面结论。
  *   ⚠️ **换来的新盲区要一起记账**：被钉的那 2 个端点从此**退出像素治理**——产品若改了这两个端点的数据结构，
  *      本套件不会红，要红得先重录 fixture（重录会让画面与已提交基线不符，那才是真红）。
  *      所以"钉住"不是一劳永逸：`assertPinCoverage` 钉住"页面必须真消费被钉端点"，`assertZeroDiff` 钉住

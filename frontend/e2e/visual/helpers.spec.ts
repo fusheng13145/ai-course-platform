@@ -342,3 +342,25 @@ test('取证账本默认整格替换（不留上一轮的 skipped 残渣），�
   expect((withSibling[siblingKey] as Record<string, unknown>).pixelmatchCount).toBe(55903)
 })
 
+/**
+ * Task 4c-fix-A A3：`PW_VISUAL_NOPIN` 的**分工**必须有人守着。
+ * 原先只有探针读这个开关，`anchors` 从头到尾没读过 ⇒ 照着台账/报告的 NOPIN 命令把它拼到 anchors 上的人
+ * 会拿到 4 张"与基线 md5 相同"的取证图，然后得出"连真后端都不漂"——**恰好是他想做的那个反向对照的反面**。
+ * 现在 anchors 在导入期直接抛（行为证明见 Task 4c-fix-A 报告）。这条断言守的是"那道抛别被删掉"：
+ * 本文件的读源码断言是这仓既有的做法（见上面"阈值只有一个来源"那条），
+ * 因为并发代理会把注释和守卫一起改掉（Task 4b 那次常量在飞的过程中就被改过）。
+ * ⚠️ 这是**源码文本**级断言，不是行为级：行为级的那次跑测在报告里手工记了命令与输出。
+ */
+test('NOPIN 只有探针认：anchors 在导入期拒绝它，探针仍实现它', () => {
+  const anchors = readFileSync(join(process.cwd(), 'e2e/visual/anchors.spec.ts'), 'utf8')
+  const probe = readFileSync(join(process.cwd(), 'e2e/visual/sensitivity.spec.ts'), 'utf8')
+  // ① anchors 必须**读**这个变量——不读就是静默忽略，那正是 A3 的毛病本身
+  expect(anchors, 'anchors 又不认 PW_VISUAL_NOPIN 了：静默接受一个本套件不实现的开关 = 假反向对照').toContain('process.env[NOPIN_ENV]')
+  // ② 而且读了它必须是为了抛，不是为了接受
+  expect(anchors, 'anchors 里 PW_VISUAL_NOPIN 那道导入期抛被删了——它必须继续抛（见 Task 4c-fix-A A3）').toMatch(
+    /nopinRaw !== undefined[\s\S]{0,120}?throw new Error/,
+  )
+  // ③ 分工的另一半：探针必须**真的**实现这个开关，否则 anchors 的报错会把人指向一条同样无效的命令
+  expect(probe, '探针那边的 PW_VISUAL_NOPIN 没了，而 anchors 的报错还把人往那儿指').toContain("process.env.PW_VISUAL_NOPIN === '1'")
+})
+
