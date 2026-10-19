@@ -104,14 +104,22 @@ describe('Modal Teleport 行为', () => {
      * 「只落一份」用**出现次数**判，不用整串字符串比：旧写法 `toBe('overlay extra-cls')` 把 Vue 的
      * class 合并顺序也钉成了契约（`mergeProps` 先静后绑不是公开承诺，编译器等价改写就会假红），
      * 而它要防的其实是"同一份 class 落两遍"。次数写法保住原意又与顺序无关；
-     * 变异实测：`.overlay` 上再叠一个 `v-bind="$attrs"` 时 `extra-cls` 计数变 2，本条转红。
+     * 变异实测（两轮都实跑过，还原后回到 10 files / 97 tests）：
+     * - 静态 class 写成 `class="overlay overlay"` ⇒ 上面 `times(overlay!, 'overlay')` 那条报
+     *   `expected 2 to be 1`（修复轮 2 复跑，报错落在那一行）。
+     * - 卸掉模板根 `<Teleport>` 再翻 `inheritAttrs: true`（元素根世界）⇒ `times(overlay!, 'extra-cls')`
+     *   那条同样报 `expected 2 to be 1`；这是 `Modal.vue` 注释里残余价值 (b) 的对偶实验。
+     * ⚠️ 反过来，"给 `.overlay` 再叠第二个 `v-bind="$attrs"`"**不是**这两条断言的可达对偶实验：它在编译期就是
+     * `SyntaxError: Duplicate attribute`，用例根本不跑（第一轮记为 M8 并作废，`acecd4a` 提交信息里也写了这条）。
      */
     const times = (el: Element, token: string) =>
       el.getAttribute('class')!.split(/\s+/).filter((c) => c === token).length
     // .overlay：自己的类与透传的类各一份，没有第二遍。
     expect(times(overlay!, 'overlay')).toBe(1)
     expect(times(overlay!, 'extra-cls')).toBe(1)
-    // .modal 这一侧此前没钉（评审 I-... Minor）：透传属性**不该**出现在它身上（落点裁定是 .overlay），
+    // `.modal` 这一侧此前没钉，由修复轮的 commit `acecd4a` 补上（可 `git show acecd4a --
+    // frontend/src/components/ui/__tests__/Modal.teleport.test.ts` 复核）：透传属性**不该**出现在它身上
+    // （落点裁定是 .overlay），
     // 而它自己的 class（静态 `modal` + `sizeClass` 的 wide）也只落一遍。
     expect(times(modal!, 'extra-cls')).toBe(0)
     expect(modal!.getAttribute('data-test')).toBeNull()
