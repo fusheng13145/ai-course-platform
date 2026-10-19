@@ -28,7 +28,7 @@
 
 | 议题 | 定案 | 依据 |
 | --- | --- | --- |
-| C 档能否直接开工 | **不能**。须先补强 `ui/Modal` 至与 `el-dialog` 能力齐平、并把焦点覆盖率护栏改为对弹层实现无关（两者同为 Phase 4 的准入门槛） | `ui/Modal` 无 v-model / 无 Teleport / 无焦点管理 / 无滚动锁；而 D2-7 已把 `ref="dialogRef"` + `useDialogFocus()` 铺到**全部 `el-dialog`（63 处）并由机械护栏在构建期强制**；**抽屉不在其覆盖范围内**——Phase 0b 实测 4 个 `<el-drawer>` 使用者是全仓唯一未接焦点管理的弹层（旧护栏的扫描键只有 `<el-dialog`，所以从未照出来）。直接替换等于拆掉整条键盘可达性资产，且护栏同时变红 |
+| C 档能否直接开工 | **不能**。须先补强 `ui/Modal` 至与 `el-dialog` 能力齐平、并把焦点覆盖率护栏改为对弹层实现无关（两者同为 Phase 4 的准入门槛） | `ui/Modal` 无 Teleport / 无焦点管理 / 无滚动锁（**无 v-model 一项已由 Task 7 闭掉**，见 §2.5 同表）；而 D2-7 已把 `ref="dialogRef"` + `useDialogFocus()` 铺到**全部 `el-dialog`（63 处）并由机械护栏在构建期强制**；**抽屉不在其覆盖范围内**——Phase 0b 实测 4 个 `<el-drawer>` 使用者是全仓唯一未接焦点管理的弹层（旧护栏的扫描键只有 `<el-dialog`，所以从未照出来）。直接替换等于拆掉整条键盘可达性资产，且护栏同时变红 |
 | 证据留存形态 | **两层**：机器层进 git（24 张锚点基线，滚动更新）；记录层 `LEDGER.md` 一份表 + 精选证据图 | 全量 per-unit 截图估算 240–320 张 PNG（约 20–40 MB）进 git 不可持续，且没人回看；判据以文本表格保全，图只留失败项与代表项 |
 | 暗色实现路径 | **独立一套表现层设计**（描边优先 + 抬亮表面），不是浅色值换色镜像 | 黑投影在深色底上不可见，现 `--sh-*` 暗色值实际只增噪声 |
 | 新依赖范围 | `lucide-vue-next`（推荐）+ `motion-v`（限 4 处）+ 自研 `v-ripple`（零依赖） | 见 §7 逐条代价账 |
@@ -91,20 +91,21 @@ Top 5：`layouts/components/AppSidebar.vue` 19、`views/auth/Login.vue` 18、`vi
 | `--sh-l1` 环境阴影 alpha 仅 `0.06` | `styles/theme.css:52` |
 | 卡片 16px / 控件 6px 的圆角错位 | `theme.css:46`（`--r-l1:16px`）vs `theme.css:149`（`--ac-radius-sm:6px`），控件套用在 `index.scss:202,319` |
 | `.el-card` 被主动削平：`box-shadow: none !important` | `styles/index.scss:179` |
-| 暗色 EP 覆写是独立一套 `!important` 集群，与浅色覆写不对齐 | `styles/index.scss:513-620` |
+| 暗色 EP 覆写是独立一块，与浅色覆写不对齐 | `styles/index.scss:513-620`。**措辞已按引用核验更正**：原文称它是"独立一套 `!important` 集群"名实不符——该块内只有 **5** 条 `!important`（全文 98 条，其余 93 条在块外），块内主体是 `--el-*` 变量赋值。所以"暗色要单独收敛"的依据是**它与浅色覆写写了两套值**，不是它自带 `!important` 权重 |
 | 65 个 dialog 的焦点管理原语；注释自陈"全仓 64 个对话框此前 `.focus()` 零调用" | `composables/useDialogFocus.ts:1-29,41-57` |
 | D2-7 收官记录：分六批把焦点管理铺到"**含 `<el-dialog` 的 54 个组件 100% 接入**"，并新增上述机械护栏 | `docs/项目现状分析与未来发展规划-2026-10-13.md:634`（D2-7 行，第六批段） |
 | 护栏去注释扫描得 **54** 文件；本文 grep 含注释得 **55** 文件 / 65 开标签——差 1 个文件的 `<el-dialog` 写在 HTML 注释里 | 两者口径不同，Phase 0 精算时对齐为单一口径 |
 | a11y 原语已复活并在用（`inputA11y`/`buttonA11y`/`landmarkA11y`/`liveRegionA11y`），auth 三页输入控件与提交按钮已接线 | `composables/useA11y.ts`；D2-7 第一批段（同上 :634） |
 | `useDialogFocus` 经 `dialogRef.value.$el` 取根元素 | `useDialogFocus.ts:50` |
-| `ui/Modal` 全文只有 `close` 事件 + Esc，无 Teleport / 无 v-model / 无焦点管理 | `components/ui/Modal.vue:1-17,56-65` |
+| `ui/Modal` 无 Teleport / 无焦点管理 / 无滚动锁。**"无 v-model"这一条已由 Task 7（`37b9414`）闭掉**，本行按引用核验更新；行号也从 `1-17,56-65` 改为 Task 7 后的 **`1-42, 81-90`**（旧号只成立于 `2b01f9a`） | `components/ui/Modal.vue@2b01f9a:1-17,56-65` → 现读 `Modal.vue@37b9414` |
 | `StatCard` 与 `PageHeader` **各抄了一份约 70 条的手写 SVG path 表**（两份重复、可能已不同步） | `components/ui/StatCard.vue:12-75`、`components/PageHeader.vue:20-82` |
 | ECharts 不读 CSS 变量，故图表色走独立 JS 色板 | `utils/chartTheme.ts:1-3,29-48`（102 行，明暗两套 PALETTE） |
 | 三端 Dashboard 结构不同脏度 | `views/admin/Dashboard.vue`（105 行薄壳，委派 `Ad*` 组件）；`views/student/Dashboard.vue:99-115` 自带重复 `.fade-in`+`@keyframes`；`views/teacher/Dashboard.vue:237-242` 六组硬编码渐变封面色 + `:342,362,380` 硬编码 rgba/圆角 |
 | 登录三页各自复制同一套样式且互不一致 | `views/auth/Login.vue:218-225,263-272,362-381`（含伪玻璃卡与多处 `!important`）、`Register.vue`、`ForgotPassword.vue` |
 | e2e 端口陷阱：5173 被别的项目占用时 `reuseExistingServer` 会**静默复用并测出假缺陷** | `frontend/playwright.config.ts:3-6,34-40` |
 | e2e 截图策略为 `only-on-failure`，成功即无图 | `playwright.config.ts:25` |
-| **自有 z 阶整体低于 Element Plus 一层**：本文体系是 `--z-modal: 100` / `--z-menu: 130` / `--z-toast: 160`，而 EP 弹层用全局递增计数器、**从 2000 起**（`popup-manager/pom-hd:2108` `this.zIndex = 2000`、`:2125` `nextZIndex(){ return ++this.zIndex }`，由 `useDialog:132` 消费）。⇒ EP 的任何弹层天然盖在自建浮层之上 | `theme.css:59-66` vs EP 源码 |
+| **自有 z 阶整体低于 Element Plus 一层**：本文体系是 `--z-modal: 100` / `--z-menu: 130` / `--z-toast: 160`，而 EP 弹层用全局递增计数器、**从 2000 起**。⇒ EP 的任何弹层天然盖在自建浮层之上。**本行原写的 EP 源码路径是我（控制器）凭空造的，已作废**：`popup-manager/pom-hd:2108`、`:2125`、`useDialog:132` 三个引用在已安装的包里**一个都不存在**（2.14.7 里连 `es/components/popup/` 这个目录都没有）。现已改为在装包内可核对的三条：`element-plus/es/hooks/use-z-index/index.mjs:8` `const defaultInitialZIndex = 2e3`、`:19-23` `nextZIndex()`、`element-plus/es/components/dialog/src/use-dialog.mjs:139` `zIndex.value = nextZIndex()`。**结论不变，只有证据换了**——这正说明"结论对"不能给"引用编"免罚 | `theme.css:60-66` vs 已安装 EP（见下条版本漂移） |
+| ⚠️ **依赖版本漂移：声明 ≠ 已安装**（Task 5 评审实测，本节所有 EP 行为断言的前提）：`frontend/package.json:32` 声明 `element-plus: ^2.4.4`，而 `package-lock.json:3448` 与实际安装均为 **2.14.7**；`package.json:43` 声明 `@playwright/test: ^1.62.0` 而安装 **1.63.0**（旧版浏览器二进制仍在 `AppData/Local/ms-playwright`，锁与机器不一致）。⇒ 本文凡是"EP 在 `x.y.z` 下如何做"的表述一律**不得引用版本号**，只能引用已安装路径。`^` 未锁 ⇒ 任意一次 `npm install` 都可能换掉 Phase 3（覆写层收敛）与 Phase 4（`el-drawer` 迁移）所依赖的 EP 内部行为。**是否按已安装版本收紧声明，本轮不擅自动依赖，留给使用方拍板** | `package.json` vs `package-lock.json` vs `node_modules` |
 | 抽屉/弹窗**叠在 EP 对话框之上会被压住**——这是 Phase 4/5 的结构前提，不是假想：现有 `EgEventsDrawer → InResultDialog` 一叠就中 | 由 Phase 0b 评审实测确认 |
 
 ### 2.6 已核为"当前未爆"的一条风险
@@ -222,7 +223,8 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 | 5 | ⚠️ **`aria-modal="true"` 但没有焦点陷阱** —— 语义与实现不一致，比不写更糟：读屏会以为已被模态封闭，而 Tab 仍能走出去 | 同上 |
 | 6 | **Esc 会一次关掉所有已打开的抽屉**（每个实例各自往 `document` 绑 keydown），Phase 4 的 4 处抽屉叠加场景下必须改成"只关最上层"。现状已被测试钉为已知行为，改动须显式拆锁 | Phase 0b Task 11 复核 I-3 |
 
-**这五项 `Modal` 与 `Drawer` 两者都还缺**（Task 7-11 的落地状态决定各差几项）。
+**这六项 `Modal` 与 `Drawer` 两者都还缺**（Task 7-11 的落地状态决定各差几项；
+上表已由 d2e1cf8 加到第 6 项，"这五项"是加进来之前的计数，引用核验于 2026-10-19 纠正）。
 第 5 项必须在 Phase 0b 内闭掉，不得带着它进入结构收敛；若补焦点陷阱代价过大，
 则**撤下 `aria-modal`**，而不是留着一个说不通的属性。
 
@@ -348,7 +350,15 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
     除非 Task 4c 先消除图表日期漂移（4 张基线确定性差 110–321 px；**根因由后端代码与差异几何证明，不由 md5 证明**：
     `StudentVisualizationComponent.java:50,74` 用 `LocalDate.now()` 回推 x 轴、`SdVizSection.vue:93,162` 直接渲染该串，
     而实测差异恰好是**每页一条 8 px 高的横带**（`page.clock` 管不到服务端）；
-    且同一窗口还会**重新取数**，换一天可能动的是 series 几何而非文字），
+    **admin 那两张此前缺后端引证，现按引用核验补齐**：`AdminAnalyticsComponent.java:343-344`
+    （`LocalDate endDate = LocalDate.now()` / `startDate = endDate.minusDays(days - 1)`），
+    链路为 `useAnalytics.ts:483 getUserGrowth(30)` → `AnalyticsController.java:237-242 /users/growth` → 该组件，
+    消费端 `useAnalytics.ts:535` 把后端 `d.date` 直接铺进 `xAxis.data`；
+    且同一窗口还会**重新取数**（`StudentVisualizationComponent.java:59,134` 用 `today.minusDays(13/6)` 去查库），
+    换一天可能动的是 series 几何而非文字），
+    ⚠️ 同处两个读数已按核验分档：**"字节差 618 / 计数 321 / AA 吃掉 297"可加合（618=321+297）、属已证**；
+    而 **`1983`（radius 字节差）在已提交报告的表格里查无原始读数**，仅存在于评审一轮的离线重算转述 ⇒
+    引用它必须标"离线重算、不可重生成"，不得与前者并列当同级证据。
     并把 `maxDiffPixelRatio` 推进到 `0.0001`（免检额 130 px，残余抖动实测最大 46 px ⇒ 可及）且 22 张仍零 diff。
     **但 `0.0001` 也救不了圆角**：16→14px 只重绘四个角弧，`4·(π/4)(16²−14²)=189 px`（实测 198），
     这是几何上界 ⇒ Phase 2 的准入门是**为非像素判据**（逐卡 `borderRadius` 计算值等式 + 角部定向裁剪），
@@ -422,8 +432,8 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 2. **Phase 0b 的 `$el` 可达性**是设计成立的前提，未实测（见 Phase 0b 末段）。若结论为不可达，
    Modal 的焦点接入方案须改为组件自持引用，属设计微调不影响阶段划分。
 3. **`append-to-body` 存量分布未测准**：属性解析对多行标签的布尔属性有漏计，仅确认至少 1 处显式使用
-   （`views/admin/teaching/components/RmUploadDialog.vue:2`）。EP 2.4.4 的 `el-dialog` 默认 teleport 行为
-   **不凭记忆断言**，列为 Phase 0 实测项。
+   （`views/admin/teaching/components/RmUploadDialog.vue:2`）。已安装 EP（当前 2.14.7，见 §2.5 版本漂移条）
+   的 `el-dialog` 默认 teleport 行为**不凭记忆断言**，列为 Phase 0 实测项。
 4. **2 处 `<el-dialog>` 属性未解析成功**（65 vs 63，原因见 §2.1），Phase 0 精算后可能给 Modal 增加能力项。
    同理，护栏口径（54）与本文 grep 口径（55）的 1 个文件差异须对齐为单一口径，否则 Phase 4 的"总数不降"断言会失真。
 5. **⚠️ 焦点覆盖率护栏是本批最容易踩的既有机制**（`useDialogFocus.coverage.test.ts`，见 §2.1 末行）。

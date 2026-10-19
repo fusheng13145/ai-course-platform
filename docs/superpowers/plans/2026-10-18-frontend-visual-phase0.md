@@ -68,6 +68,18 @@
 - **凡涉及库/VM 内部行为的断言，必须给出实际读过的 `file:line` 并用变异自证可证伪。**
   本任务族已三次出现"自信陈述而代码不支持"（控制器 1、实现者 1、评审 1），第三次是同一条评审链上
   两份评审互相矛盾、由控制器 grep 定案"该仓库惯例并不存在"。措辞宁可写弱一档。
+- **⚠️ 引用会被本项目继续改动的文档时，禁止用行号，必须用锚点或带 SHA 的指针。**
+  第四条同型事故（Task 5 评审实测，2026-10-19）：台账把 8 处 `design.md:345`／`计划 2272` 这类
+  **行号**指针照抄进去，而它引用的是 `6d1d9e1` **之前**的文本——那一版我刚插进了约 11 行，
+  所以这些指针**在它入库的那一刻就已经指到别的条文上了**，最坏一处（`:341-343`）现在指的正是
+  "两道闸不得混为一谈"那段，而同一行的结论与该段相反。行号指针在代码上尚可靠 commit 固定，
+  **在我们一天改十几次的两份规格里等于没有固定**。规矩：
+  ① 规格类引用一律写 **章节/Task/Step 名**（`spec §6.13`、`计划 Task 13 Step 6`），不写行号；
+  ② 必须写行号时（如"该行文本逐字如下"）要在同一格里给出 **它成立的那个 commit**，
+     如 `docs/.../design.md@6d1d9e1:341-343`，并在引用旁写明"读法是 `sed -n '341,343p' <(git show 6d1d9e1:…)`"；
+  ③ **永远不许用 `HEAD` 当锚**——本任务族里 HEAD 一天前移了十几次，
+     `git show HEAD:` 只在一句会话内有效，写进台账就立刻失效；
+  ④ 指向 `progress.md` 的行号（我持续追加）同理，只许指 §标题。
 
 ---
 
@@ -241,12 +253,17 @@ export interface AnchorSpec {
  * `{platform}` 会原样落进文件名。
  *
  * 返回**不含扩展名**的名字，但**扩展名要由调用方补 `.png`**——不是模板免费给的。
- * 机制实测（Playwright 1.63）：`toHaveScreenshot("x-light")` 直接抛
+ * 机制实测（已安装的 @playwright/test 是 1.63.0；package.json 只声明 ^1.62.0，勿引版本号）：
+ * `toHaveScreenshot("x-light")` 直接抛
  * `Screenshot name "x-light" must have a '.png' or '.webp' extension`，
- * 因为 `matchers/expect.js:12597` 先按**传入 arg 的 extname** 定 mimeType，没扩展名根本进不到比对；
- * 而模板尾部的 `{ext}` 是**从 arg 的扩展名反推**出来的（`workerProcessEntry.js:1258` 的
- * `basename(subPath, ext)`），arg 带 `.png` 时 `{arg}` 仍是去掉扩展名的部分，
+ * 因为 `playwright/lib/matchers/expect.js:12437` 的 `getMimeTypeForPath(basename(this.expectedPath))`
+ * 先按**传入 arg 的 extname** 定 mimeType（同一链条的报错在 `:12595-12597`），没扩展名根本进不到比对；
+ * 而模板尾部的 `{ext}` 是**从 arg 的扩展名反推**出来的
+ * （`playwright/lib/worker/workerProcessEntry.js:1244-1274`，其中 `:1266` 的 `basename(subPath, ext)` 是关键），
+ * arg 带 `.png` 时 `{arg}` 仍是去掉扩展名的部分，
  * 落盘名 `x-light.png`，**不会**得到 `light.png.png`。
+ * （本行原先写的 `workerProcessEntry.js:1258` 与裸文件名路径都是错的，2026-10-19 引用核验改定；
+ * 交付代码注释 `frontend/e2e/visual/anchors.spec.ts:173` 里还留着同一条假号，由 Task 4c Step 1e 一并清。）
  * 所以：helper 保持无扩展名返回值，调用处写 `${snapName(slug, theme)}.png`。
  */
 export function snapName(slug: string, theme: ThemeName): string {
@@ -1046,10 +1063,21 @@ Phase 1 要动的三样形态里**只量过两样**：shadow-alpha（32~86 倍�
 离线自检台与 Playwright 的读数就会**静默分叉**，而喂给 LEDGER 的是前者。
 本步把 mask 传进两条路径，并加一条断言：同一对图，两条路径的计数相等。
 
-> 顺带一处评审 Minor（本任务既然要动这个文件就一并改，别留假引用）：交付注释里的
-> `workerProcessEntry.js:1258` 实际在 `playwright/lib/worker/workerProcessEntry.js:1266`，
-> 结论成立但行号指错。评审已逐条验过其余库引用（`coreBundle.js:21599-21624 / :7896 / :6962 / :7005 / :7012 / :7069`、
-> `types.d.ts:20466-20480`、`matchers/expect.js:12597`）**全部准确**，只有这一处要改。
+> 顺带一处引用核验（本任务既然要动这个文件就一并改，别留假引用）。**这条我在 `2bbcfa2` 只加了注记、没改原引用，
+> 属于"commit message 说改了但没改到"，现按核验结果改定**：
+> - `workerProcessEntry.js:1258` 的两处原引用，一处在本文件 Task 1 的代码注释块（已改为
+>   `playwright/lib/worker/workerProcessEntry.js:1244-1274`，关键行 `:1266`），另一处**仍在交付代码里**：
+>   `frontend/e2e/visual/anchors.spec.ts:173` ⇒ 由本步清掉。
+> - `extname`→mimeType 那半句应指 `playwright/lib/matchers/expect.js:12437`
+>   （`getMimeTypeForPath(basename(this.expectedPath))`），报错在 `:12595-12597`；只写 `:12597` 是可核但不精确。
+> - `coreBundle.js:21599-21624 / :7896 / :6962 / :7005 / :7012` 核验属实
+>   （`:7005` 是 `maxDelta = 35215 * threshold * threshold`，与 `:7106` 合起来推出 `Δ > 264.0 × t`，
+>   故 spec 第 12 条的 52.8/255 那条对**中性/明度类**改动精确成立；对纯色度类不精确，
+>   我们的注入全是明度类，够用）。`:7069` 能解析但文档没给它命题，要证"高光被 AA 吃掉"应引 `:7030-7060`。
+> - ⚠️ **`types.d.ts:20466-20480` 撑不住"1.63 的 `Clock` 没有 `pause()`"**——那段是 `install()` 的 JSDoc。
+>   正确证据：`playwright-core/types/types.d.ts:20450-20581`（`export interface Clock` 整块，
+>   方法只在 20465/20486/20525/20530/20545/20564/20580，区间内确无 `pause()`；别处那个 `pause()` 属 `Page`）。
+>   ⇒ **我上一轮写的"其余全部准确"这句本身过强，一并撤回。**
 
 - [ ] **Step 1f: 把 `visual-helpers.ts` 的量程注释重写成"每个数都自带它的配置"**
 
@@ -1191,7 +1219,7 @@ Create `docs/visual-upgrade/LEDGER.md`:
 > **这条样例行是按 Task 4/4b/5 的实测回填过的版本**，之前写的"24 张""diff 像素比 __实测__ %""全绿"三处都不成立：
 > 数量是 22/24；"零 diff"必须写成"计数为 0 并带量程出处"；**验证栏只能写那一行真的跑过的命令**，
 > 不许留模板套话（模板套话会让后面 60+ 行看起来都做了全量验证，而实际上没有）。
-| P0b-MODAL-01 | `ui/Modal` 无 Teleport（`Modal.vue:19` 根为 `.overlay`） | 待 Phase 0b Task 8 回填 | 待回填 | 待回填 | 待回填 | 待回填 | 待回填 | 待回填 |
+| P0b-MODAL-01 | `ui/Modal` 无 Teleport（`Modal.vue@2b01f9a:19` 根为 `.overlay`；Task 7 落地后该行已移到 **:44**，读组件一律带 commit） | 待 Phase 0b Task 8 回填 | 待回填 | 待回填 | 待回填 | 待回填 | 待回填 | 待回填 |
 ```
 
 `__实测__` 是**必须在提交前替换掉的占位**：跑 `PW_PORT=5175 npx playwright test -c playwright.visual.ts` 后把实际 diff 比填入。留占位即视为该任务未完成。
@@ -1258,7 +1286,7 @@ describe('Modal 现状兼容钉', () => {
   })
 
   it.each(['wide', 'xwide', 'narrow'])('%s 走 $attrs 布尔通道', async (size) => {
-    // 用 attrs 而非 props：现状 Modal.vue 是从 $attrs 读尺寸档（Modal.vue:22-26），
+    // 用 attrs 而非 props：现状 Modal.vue 是从 $attrs 读尺寸档（旧文写 :22-26，Task 7 后为 **:47-50**），
     // 组件并未声明这些 props；用 props 传未声明键在 VTU 下的落点与 attrs 不同。
     const wrapper = factory({}, {}, { [size]: '' })
     await wrapper.vm.$nextTick()
@@ -1315,7 +1343,7 @@ describe('Modal 现状兼容钉', () => {
     const lenAtUnmount = emittedBeforeUnmount?.length ?? 0
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
     await new Promise((r) => setTimeout(r, 0))
-    // 监听若未 removeEventListener（Modal.vue:8 的 onBeforeUnmount），残留 handler 会对
+    // 监听若未 removeEventListener（旧文写 Modal.vue:8，Task 7 后 `onBeforeUnmount` 在 **:29**），残留 handler 会对
     // 已卸载实例再次触发 emit；Vue 仍会把事件记进 emitted 数组，长度因此增长。
     expect(wrapper.emitted('close')?.length ?? 0).toBe(lenAtUnmount)
   })
@@ -1597,7 +1625,7 @@ const props = defineProps<{
 > ⇒ **红 = 实现错，绿 = 实现对。**
 > ❌ **禁止**把这三条改成 `wrapper.props('wide')` 之类的 prop 值断言：那种写法即使模板还在读 `$attrs`、
 > 13 个调用点已经全塌成 640px，它照样绿——等于亲手拆掉这张网。断言对象必须是 `.modal` 上**渲染出的 class 列表**。
-> ⚠️ 这张网的**已知边界**（评审指出，须承认而非假装全覆盖）：jsdom 不应用 `<style scoped>`（`Modal.vue:77-85`），
+> ⚠️ 这张网的**已知边界**（评审指出，须承认而非假装全覆盖）：jsdom 不应用 `<style scoped>`（旧文写 `Modal.vue:77-85`，Task 7 后样式块起于 **:80**），
 > 所以 vitest 只能证明"class 挂上了"，不能证明"宽度按 CSS 真的生效"。
 > 若 Phase 1 把 `.modal.wide` 这条规则改名而 class 不动，vitest 仍绿。补这个缺口的只有 Playwright 基线。
 > **注意口径（控制器实测）**：`<Modal` 共 **13 处使用、分布在 12 个文件**
@@ -1714,7 +1742,8 @@ describe('Modal 焦点接入前提', () => {
 Run: `npx vitest run src/components/ui/__tests__/Modal.focus.test.ts`
 
 > **控制器已先用源码把这条未知量收窄（spec §9.2 原记"未实测、不得凭推断"）**：
-> `@vue/runtime-core/dist/runtime-core.cjs.js:8457-8471` 的 exposeProxy，其 `get` 在 `key in target`
+> `@vue/runtime-core/dist/runtime-core.esm-bundler.js:8532-8546`（同一逻辑在 `runtime-core.cjs.js:8457-8471`）
+> 的 exposeProxy，其 `get` 在 `key in target`
 > 不成立时**回落到 `publicPropertiesMap[key]`**，而 `$el` 正是这张 public properties 表里的键；
 > 组件完全未 `expose()` 时更直接返回 `instance.proxy`（同样含 `$el`）。
 > ⇒ **两条路径都拿得到 `$el`，预期走 Step 3-A。** 探针仍要跑，但它现在的角色是**确认**而非**探索**：
@@ -2025,8 +2054,12 @@ function onOverlay(e: MouseEvent) {
 - [ ] **Step 4b: 焦点陷阱——`aria-modal` 的债在这一笔还清，建一次、`Modal` 与 `Drawer` 共用**
 
 这不是可选加项，是 **Task 11 评审裁定的 R-1**：`Drawer` 曾写 `aria-modal="true"` 却没有陷阱，
-**语义与实现不一致比不写更糟**（读屏以为已被模态封闭，Tab 仍能走到背后的页面上），
-故该属性已从 `Drawer` 撤下，`role="dialog"` 保留。撤下的东西要由本步骤在共用的陷阱上重新挣回来，
+**语义与实现不一致比不写更糟**（读屏以为已被模态封闭，Tab 仍能走到背后的页面上），故裁定撤下该属性、`role="dialog"` 保留。
+> **时态要说准（引用核验抓出来的、我自己写错的一处）**：这条裁定**在 `37b9414`/当前 HEAD 上还没落地**——
+> HEAD 的 `Drawer.vue:138` 仍是 `aria-modal="true"`（`role="dialog"` 在 `:137`），撤下只存在于 Task 11 修复轮的工作树里。
+> 台账 `P0b-DRAWER-01` 那句"HEAD 上仍是 `true`，说明裁定尚未落地"才是对的写法。
+> 引用已落地动作时一律写成"控制者已裁定、落地在某次未提交/某 commit"，**不许把在飞状态写成既成事实**。
+撤下的东西要由本步骤在共用的陷阱上重新挣回来，
 否则 Phase 4 准入门第 5 项闭不掉（spec 明文：**要么补陷阱，要么撤 `aria-modal`，不许留一个说不通的属性**）。
 
 新建 `frontend/src/composables/useFocusTrap.ts`，签名 `useFocusTrap(rootRef: Ref<HTMLElement | null>, active: Ref<boolean>): void`，
