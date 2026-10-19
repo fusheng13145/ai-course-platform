@@ -1907,9 +1907,16 @@ Run: `npx vitest run src/components/ui/__tests__/Modal.focus.test.ts`
 > 我曾在 `7da1233` 把两者顺序写反，那次改动本身就是一次错归因，已在此纠正。）
 > 不成立时**回落到 `publicPropertiesMap[key]`**，而 `$el` 正是这张 public properties 表里的键；
 > 组件完全未 `expose()` 时更直接返回 `instance.proxy`（同样含 `$el`）。
-> ⇒ **两条路径都拿得到 `$el`，预期走 Step 3-A。** 探针仍要跑，但它现在的角色是**确认**而非**探索**：
-> 若它意外 FAIL，说明我对 Vue 内部的理解又错了（本任务族已错过三次），
-> 停下来报告、不要直接改用 3-B。
+> ⇒ **本段原先写的"两条路径都拿得到 `$el`，预期走 Step 3-A；若意外 FAIL 停下报告"已被 Task 8 实测推翻，现倒过来。**
+> Task 8 修复轮钉住的事实（`Modal.vmodel.test.ts:65-66/76-79`，源码证据 `runtime-core.cjs.js:1051`、`:6222`）：
+> Teleport 之后**开、关两态的组件根都是 `teleport start` 锚点注释**（`nodeType === 8`），遮罩住在 target 里。
+> ⇒ 计划里那句 `expect(el?.nodeType).toBe(1)`（`:1894`）**今天必红，且红是预期**，不再是"我理解错了"的信号；
+> **3-A 原样沿用 `dialogRef.$el` 口径这条路已死**，3-B（自持根引用／`defineExpose`）是预期路线。
+> 探针仍要跑，角色从"确认"变回"探索"，且要把 Task 8 留下的**两条未入库读数接成入库断言**：
+> ① `rootRef` 在开态能否触到真遮罩；② Teleport 内的模板 ref 是否拿到真元素。
+> **另记一条 3-B 自身的坑**（`③/④` 那两条探针都没碰它）：`defineExpose({ $el })` 里放 `computed` 时
+> `exposeProxy` 会自动 `.value` 解包（见本节上方），但解包发生在**哪一层**要实测，别按推断写。
+> 关闭态还会往 `document.body` 的直接子节点留一条 `<!--v-if-->` 注释 ⇒ 任何"按 body 子节点计数"的断言都会踩。
 
 Run: `npx vitest run src/components/ui/__tests__/Modal.focus.test.ts`
 
