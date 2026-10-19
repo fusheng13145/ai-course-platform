@@ -5,10 +5,13 @@ import { computed, onMounted, onBeforeUnmount } from 'vue'
  * 遮罩为什么必须 Teleport 到 body（Task 8，spec §2.6 的包含块陷阱）：
  * `.overlay` 是 `position: fixed; inset: 0`，而 fixed 会被**任何计算值非 `none`** 的
  * `transform` / `filter` / `backdrop-filter` / `will-change` 祖先重新包含。本仓实测两处今日就生效：
- * `views/student/components/SdCourseGrid.vue:111`（Modal 在模板根 `section.l1-card.animate-in.d2` 之内，
- * `.animate-in` 以 `both` 填充出永久 `translateY(0)`，而 `.l1-card` 还 `overflow: hidden` ⇒ 遮罩被裁进卡片）、
- * `views/teacher/tools/KnowledgeManagement.vue:96`（`<ExcelImportDialog>` 的根即 `<Modal wide>`，挂在
- * 页面根 `div.fade-in` 下，`.fade-in` 以 `forwards` 填充同一条 `translateY(0)`）。
+ * `views/student/components/SdCourseGrid.vue` 中嵌在模板根 `<section class="l1-card animate-in d2">` 之内的那个
+ * `<Modal narrow>`（`.animate-in` 以 `both` 填充出永久 `translateY(0)`，而 `.l1-card` 还 `overflow: hidden`
+ * ⇒ 遮罩被裁进卡片），以及 `views/teacher/tools/KnowledgeManagement.vue` 页面根 `<div class="fade-in">` 之下的
+ * `<ExcelImportDialog>`（其模板根即 `<Modal wide>`，`.fade-in` 以 `forwards` 填充同一条 `translateY(0)`）。
+ * 这两处只给类名/选择器锚、不写行号：`SdCourseGrid.vue`、`KnowledgeManagement.vue`、`design-system.css` 的
+ * `.animate-in` 规则、`index.scss` 的 `.fade-in` 规则全是 Phase 1–3 要动的文件，行号必漂
+ * （台账 `P0b-MODAL-01` 里的行号各带"只成立于某 commit"的限定，那是另一套口径，别与本处混用）。
  * 这条陷阱 **Playwright 基线拍不到**：`prefers-reduced-motion: reduce` 把 `.animate-in/.fade-in` 降为
  * `animation: none`，而基线正是在 reduce + `animations: 'disabled'` 下采集的（spec §6.11）。
  * 结构保证由 `__tests__/Modal.teleport.test.ts` 钉，不靠截图。
@@ -29,7 +32,20 @@ import { computed, onMounted, onBeforeUnmount } from 'vue'
  * 时 `.overlay` 只有 `class="overlay"`、`.modal` 只有 `class="modal"`，两处都**静默丢掉**。
  * Task 8 之前根元素是 `.overlay`，这些属性落在那儿，所以这里的 `v-bind="$attrs"` 是**维持原落点**
  * （brief Step 3 顺口提的「落到 .modal 上」反而会把 class 的落点从 .overlay 挪走，属行为变更，没采纳）。
- * 配套 `inheritAttrs: false`：手工绑定后不再让运行时二次套用，避免同一个 class 落两遍。
+ * 配套 `defineOptions({ inheritAttrs: false })` 是**保险，不是承重**（Task 8 修复轮把被执行的那份
+ * runtime-core.cjs.js 逐行开过之后重写；旧文"手工绑定后不再让运行时二次套用，避免同一个 class 落两遍"不成立）：
+ * 根是 Teleport 时**根本没有可抑制的运行时落点**——fall-through 只在 `root.shapeFlag & (1 | 6)` 时才
+ * `cloneVNode(root, fallthroughAttrs)`（判定在该文件 :4707-4718，条件行 :4711），而 Teleport 根的 shapeFlag
+ * 是 64（:7871）；:4704 的 `getChildRoot` 也只下钻 patchFlag 2048（DEV_ROOT_FRAGMENT）的根，本组件的 Teleport
+ * 根带的是 patchFlag 8（PROPS，编译产物实测）。变异实测：把本行翻成 `inheritAttrs: true`，
+ * `src/components/ui/` 97 条**一条不红**——旧理由连被证伪的资格都没有，所以它不能当依据。剩下的两条价值：
+ * (a) 抑制**关闭态**的 dev 警告：`v-if="open"` 短路后模板不再读 `$attrs`，`markAttrsAccessed()`（:3477-3479）
+ *     不被调用，:4719 那条 `Extraneous non-props attributes … teleport root nodes` 就会响——实测
+ *     `inheritAttrs: true` 时关闭态打出该警告、开启态不打（开启态 `$attrs` 被读到，那条分支自己就是死的）；
+ * (b) 根哪天不再是 Teleport（换回元素根或 fragment 根）时 :4711 立即生效，届时 `v-bind="$attrs"` 与运行时
+ *     自动套用**才会真的落两遍**（实测：卸掉 `<Teleport>` 再翻 `inheritAttrs: true` ⇒ `.overlay` 的 class
+ *     变成 `overlay extra-cls extra-cls`）。这是把设计留在"显式"一侧的前瞻，不是当下的机制。
+ * 以上行号只成立于本机已装的 vue 3.5.43（`node_modules/@vue/runtime-core`）；锚点请以函数名与警告文本为准。
  * 尺寸档已声明为 props，故不在 `$attrs` 里，`wide=""` 这个属性不会跟着落到 `.overlay`（旧行为会）。
  * 现存 13 个调用点一个都不传 class/data-*（grep 全部 `<Modal` 开标签：只有 v-if、尺寸档、@close），
  * 这条纯为 Phase 4 的 65 个迁移点兜底。`@close` 不受影响：`close` 已声明进 emits，不会进 `$attrs`。
@@ -44,6 +60,16 @@ const props = defineProps({
    * `default: undefined` 与 modelValue 同一条理由（Boolean 缺省无 default 会被 cast 成 false，
    * 于是 `props.teleported !== false` 为 false ⇒ **默认反而不 teleport**，方向正好写反）。
    * 变异实测：删掉这个 `default` 后 `Modal.teleport.test.ts` 第一条转红。
+   *
+   * ⚠️ 交 Task 9/10（本轮不实现，只把事实交接清楚）：**挂载期内翻转 `teleported` 会搬动 DOM 节点**。
+   * Vue 的 `disabled` 翻转走 `moveTeleport`（本机 vue 3.5.43 的 runtime-core.cjs.js:1193-1216，
+   * 由 Teleport 的 patch 分支 :1111 调用），它对每个子 vnode 调渲染器的 `move`——**同一批 DOM 节点被
+   * insert 进新容器，不是卸载重建** ⇒ 挂在遮罩上的监听器随节点搬走、不丢；而元素被搬动会**失焦**
+   * （浏览器把 `document.activeElement` 落回 body；jsdom 不建模，本轮未实测）。焦点方案别假设"翻一下
+   * `teleported` 焦点还在原处"。
+   *
+   * ⚠️ 同一次交接的第二半：根是 Teleport 时组件的 `$el` **不是遮罩**（开/关两态都是 Teleport 的
+   * `teleport start` 锚点注释，nodeType 8），实测与含义见 LEDGER 的 `P0b-MODAL-02` 行。
    */
   teleported: { type: Boolean, default: undefined },
   /**
