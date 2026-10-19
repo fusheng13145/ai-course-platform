@@ -54,16 +54,29 @@ describe('Modal v-model 通道', () => {
   it('modelValue=false 时不渲染遮罩', () => {
     const wrapper = factory({ modelValue: false })
     expect(document.body.querySelector('.overlay')).toBeNull()
-    // trackMount 把 element 定为 Node 的事实依据：单根 v-if 关闭时组件根是 Comment 占位节点
-    // （nodeType 8），`element: Element` 的旧声明在这条用例会说谎。
-    // Task 8 上 Teleport 后重测仍成立（实测 nodeType=8、nodeName=#comment、isConnected=true）：
-    // 占位符落在原位置，Teleport 的锚点没有顶掉它，所以这条不用跟着改。
+    // trackMount 把 element 定为 Node 的事实依据：组件根是注释节点（nodeType 8），`element: Element`
+    // 的旧声明在这条用例会说谎。
+    // ⚠️ 但它是**哪一条**注释，Task 8 修复轮重测后改了口径（评审 I-3；旧注释说"关闭态的 v-if 占位符
+    // 仍是 Comment、Teleport 的锚点没有顶掉它"——把两回事说成一回事）：`initialVNode.el = subTree.el`
+    // （本机 vue 3.5.43 的 runtime-core.cjs.js:6222），而 Teleport 挂载时 `n2.el = createComment('teleport start')`
+    // （:1051）与 open 无关 ⇒ 开、关两态的 `$el` 是同一条 `teleport start` 锚点注释。v-if 的占位注释
+    // 确实也生成了，但它被挂进 Teleport 的 **target（document.body）** 里，不是组件根。
+    // 变异实测：把模板根的 `<Teleport>` 摘掉 ⇒ 本条 `data` 变成 'v-if'、转红。
     expect(wrapper.element.nodeType).toBe(8)
+    expect((wrapper.element as Comment).data).toBe('teleport start')
   })
 
   it('modelValue=true 时渲染', () => {
-    factory({ modelValue: true })
-    expect(document.body.querySelector('.overlay')).not.toBeNull()
+    const wrapper = factory({ modelValue: true })
+    const overlay = document.body.querySelector('.overlay')
+    expect(overlay).not.toBeNull()
+    // 开启态的 `$el` **仍是**那条 `teleport start` 注释，住在调用方容器里；遮罩本体住在 body 下——
+    // 二者既不是同一节点、也不在同一父节点下（这就是 LEDGER `P0b-MODAL-02` 记给 Task 9 的那件事：
+    // 指望 `dialogRef.$el` 就是弹层本体的方案在 Teleport 根下拿不到面板）。
+    expect(wrapper.element.nodeType).toBe(8)
+    expect((wrapper.element as Comment).data).toBe('teleport start')
+    expect(wrapper.element.parentElement).not.toBe(document.body)
+    expect(overlay!.parentElement).toBe(document.body)
   })
 
   it('关闭时同时 emit close 与 update:modelValue(false)，两通道都通', async () => {

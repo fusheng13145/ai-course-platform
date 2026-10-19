@@ -12,15 +12,16 @@ import { track, unmountTracked } from './helpers/trackMount'
  * Task 8：把 spec §2.6 的「transform 包含块」陷阱钉成测试。
  *
  * 为什么必须钉：`position: fixed` 的后代会被**任何计算值非 `none`** 的
- * `transform` / `filter` / `backdrop-filter` / `will-change` 祖先包含。本仓实测两处**今日就生效**：
- * - `views/student/components/SdCourseGrid.vue:111` 的 `<Modal narrow>` 就在模板根
- *   `<section class="l1-card animate-in d2">` 之内；`.animate-in` 是
+ * `transform` / `filter` / `backdrop-filter` / `will-change` 祖先包含。本仓实测两处**今日就生效**
+ * （锚点一律给选择器/类名，不给行号——下面点名的两个视图与两条 CSS 规则都是 Phase 1–3 的改动对象）：
+ * - `views/student/components/SdCourseGrid.vue` 里嵌在该组件模板根
+ *   `<section class="l1-card animate-in d2">` 之内的 `<Modal narrow>`；`.animate-in` 是
  *   `animation: rise-in 0.42s var(--ease-out) both`（design-system.css 的 `.animate-in` 规则），
  *   `rise-in` 的 `to` 帧是 `transform: translateY(0)` —— `both` 是**填充**，动画跑完这一帧永久留在
  *   计算值里，而 `translateY(0)` ≠ `none` ⇒ 包含块永久存在。`.l1-card` 还带 `overflow: hidden`，
  *   于是 `inset: 0` 的遮罩被裁进卡片，表现就是「弹窗缩在卡片中间」。
- * - `views/teacher/tools/KnowledgeManagement.vue:96` 的 `<ExcelImportDialog>`（其模板根即 `<Modal wide>`）
- *   挂在页面根 `<div class="fade-in">` 下；`.fade-in` 是 `animation: fadeIn .35s ... forwards`
+ * - `views/teacher/tools/KnowledgeManagement.vue` 页面根 `<div class="fade-in">` 之下的
+ *   `<ExcelImportDialog>`（其模板根即 `<Modal wide>`）；`.fade-in` 是 `animation: fadeIn .35s ... forwards`
  *   （index.scss 的 `.fade-in` 规则），`to` 帧同样是 `translateY(0)`，机制一模一样。
  *
  * ⚠️ 这条缺陷**基线拍不到**：design-system.css 的 `prefers-reduced-motion: reduce` 块把
@@ -80,12 +81,13 @@ describe('Modal Teleport 行为', () => {
     // 实测过的行为差别：根从 `<div class="overlay">` 换成 `<Teleport>` 之后，Vue **不再**把
     // class / data-* 这些 fall-through attrs 自动贴到任何元素上——探针跑出来是
     // `.overlay` 只剩 `class="overlay"`、`.modal` 只剩 `class="modal"`，属性静默消失。
-    // Task 8 之前它们落在根 `.overlay` 上，所以 Modal.vue 显式写了 `v-bind="$attrs"` + `inheritAttrs:false`
-    // 把**原落点**保住（挪到 `.modal` 会改变 class 的落点，没采纳）。
+    // Task 8 之前它们落在根 `.overlay` 上，所以 Modal.vue 显式写了 `v-bind="$attrs"` 把**原落点**保住
+    // （挪到 `.modal` 会改变 class 的落点，没采纳；`inheritAttrs:false` 的角色见 Modal.vue 注释——
+    // 它是保险不是承重，Teleport 根本来就没有可抑制的运行时二次套用）。
     // 现存 13 个调用点一个都不传 class/data-*，这条钉的是 Phase 4 的 65 个迁移点。
     track(
       mount(Modal, {
-        props: {},
+        props: { wide: '' },
         attrs: { 'data-test': 'x', class: 'extra-cls' },
         slots: { title: 'T' },
         attachTo: document.body,
@@ -93,11 +95,30 @@ describe('Modal Teleport 行为', () => {
     )
     await nextTick()
     const overlay = document.body.querySelector('.overlay')
+    const modal = document.body.querySelector('.modal')
     expect(overlay).not.toBeNull()
+    expect(modal).not.toBeNull()
     expect(overlay!.getAttribute('data-test')).toBe('x')
     expect(overlay!.classList.contains('extra-cls')).toBe(true)
-    // 只落一份：inheritAttrs:false 若被删，运行时会自动再套一次，class 会重复出现。
-    expect(overlay!.getAttribute('class')).toBe('overlay extra-cls')
+    /**
+     * 「只落一份」用**出现次数**判，不用整串字符串比：旧写法 `toBe('overlay extra-cls')` 把 Vue 的
+     * class 合并顺序也钉成了契约（`mergeProps` 先静后绑不是公开承诺，编译器等价改写就会假红），
+     * 而它要防的其实是"同一份 class 落两遍"。次数写法保住原意又与顺序无关；
+     * 变异实测：`.overlay` 上再叠一个 `v-bind="$attrs"` 时 `extra-cls` 计数变 2，本条转红。
+     */
+    const times = (el: Element, token: string) =>
+      el.getAttribute('class')!.split(/\s+/).filter((c) => c === token).length
+    // .overlay：自己的类与透传的类各一份，没有第二遍。
+    expect(times(overlay!, 'overlay')).toBe(1)
+    expect(times(overlay!, 'extra-cls')).toBe(1)
+    // .modal 这一侧此前没钉（评审 I-... Minor）：透传属性**不该**出现在它身上（落点裁定是 .overlay），
+    // 而它自己的 class（静态 `modal` + `sizeClass` 的 wide）也只落一遍。
+    expect(times(modal!, 'extra-cls')).toBe(0)
+    expect(modal!.getAttribute('data-test')).toBeNull()
+    expect(times(modal!, 'modal')).toBe(1)
+    expect(times(modal!, 'wide')).toBe(1)
+    // 尺寸档已是 prop，不再是 attr ⇒ 不该跟着透传落到 .overlay（Modal.vue 注释里的那条旧行为对比）。
+    expect(times(overlay!, 'wide')).toBe(0)
   })
 
   it('卸载后 body 上不残留遮罩节点', async () => {
