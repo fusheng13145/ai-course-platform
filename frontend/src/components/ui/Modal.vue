@@ -1,6 +1,7 @@
 <script setup>
 import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
 import { useDialogFocus } from '@/composables/useDialogFocus'
+import { useOverlayScrollLock } from '@/composables/useOverlayScrollLock'
 
 /**
  * 遮罩为什么必须 Teleport 到 body（Task 8，spec §2.6 的包含块陷阱）：
@@ -113,6 +114,19 @@ const sizeClass = computed(() => ({
   xwide: props.xwide === '' || props.xwide === true,
   narrow: props.narrow === '' || props.narrow === true,
 }))
+
+/**
+ * 滚动锁（Task 10A）。与 Drawer.vue 调**同一个** composable、读写同一个
+ * `document.body.dataset.overlayCount`，所以「弹窗上叠抽屉、最后一个关闭才还原滚动」
+ * 成立的是引用计数而不是各自的布尔——两处各自计数会同时把两个原语的既有用例打红
+ * （配方与实跑读数见 task-10A-report 子步骤 3 的变异段）。
+ * 语义（还原上锁前的原值、归 0 无原值时什么都不动、脏值按 0 重开、开着被卸载归还）
+ * 全部在 `composables/useOverlayScrollLock.ts`，本文件只留接线。
+ * ⚠️ 与上面 `open` 同源：三态里 `undefined`（13 个存量调用点全都不传 modelValue、由外层 v-if 决定）
+ * 也是「开」，所以挂载即上锁是**有意的**——那正是那些调用点的可见性形状。
+ * 焦点段（下面那两块）一字未动：R-T9-1 的时序契约与它无关。
+ */
+useOverlayScrollLock(open)
 
 /**
  * 焦点接入（Task 9）。走台账 P0b-MODAL-04 行定档的 3-B 分支，实测读数全在那一行里：
