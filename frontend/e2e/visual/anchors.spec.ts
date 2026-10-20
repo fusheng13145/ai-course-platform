@@ -439,12 +439,18 @@ for (const theme of ['light', 'dark'] as ThemeName[]) {
  *   **这两条都不是渲染成功的证据**：一页**没挂载完就停住**时，`pathname` 不会变（路由早就解析完了），
  *   桩也照样命中过 ≥1 个请求（请求是导航初期发的）——两条前提都满足，格子照样绿。
  *   白页与 JS 崩恰恰就是这个形状。所以那句标题原先吹过了，现在的口径是：
- * 【矩阵证明的是 **7／9 格属"事故形状"**（外加 teacher 专例与矩阵 B）】"事故形状"＝四条通用守卫**全绿**
+ * 【矩阵现在覆盖 **7 格，全是"事故形状"**（外加 teacher 专例与矩阵 B）】"事故形状"＝四条通用守卫**全绿**
  *   而该页专属的"数据已到位"断言**红**（Task 4b 那次 teacher-dashboard 空态就是这个组合，逐字复现由
- *   下面那条 teacher 专例钉住，不靠矩阵暗示）。9 格里有 2 格（`student-learning-center`／`admin-profile`）
- *   的通用守卫**也红**，所以那两格不算复现了事故——它们**仍然证伪了自己的专属断言**（这一条没作废），
- *   只是触发条件比"事故"更强。**把这两格从矩阵里删掉是错的**（题面明写），删了就等于把
- *   "专属断言可红"这份证据一起删掉；它们的形态归第 14 项取证，**本棒不定性**。
+ *   下面那条 teacher 专例钉住，不靠矩阵暗示）。
+ * 【R-C2-4 改判：原先归到本矩阵的 `student-learning-center`／`admin-profile` 两格已移出，见下】第 13 项当时把
+ *   这两格留在矩阵里、并把标题写成"9 格里 7 格属事故形状、另外两格仍证伪了自己的专属断言只是触发条件更强"，
+ *   题面还明写"把这两格从矩阵里删掉是错的"。**那个前提被 C2b 的 S2 实测否证了**：把桩的接管面锚回 pathname
+ *   前缀后主题回来了（壳层正常挂上、`pageerror=0`），可这两格在真实接口被清空时各自的到位断言**根本不红**
+ *   （`[falsify] … 专属断言=绿 ✗`，桩命中的已是 `/api/courses` 这类真接口）——那两格不是"触发条件比事故更强"，
+ *   而是**空转格**：它们既没测到空载荷、也没测到专属断言。§11.4 早规定"不许留成每次跑都有已知红的常态"，
+ *   也**不许悄悄从可证伪名单删掉**（那等于缩小矩阵、此后无人再测这件事）。⇒ 按 R-C2-4 把这两格从
+ *   `EMPTY_API_FALSIFIABLE` 移到下面那张**只减不增的缺口表** `NOT_FALSIFIABLE_BY_ARRIVAL_ASSERTION`，
+ *   并各生成一条**反向守卫**（钉"当前缺陷在场"：打空流程里专属断言不红＝通过），两个方向都有牙。
  * 【本项的交付物：每格再加两条前提】`page.on('pageerror')` 计数为 **0**，以及**壳层真的渲染了**
  *   （`.app`／`.topbar` 在场，即 `AppShell.vue` 的根与 `AppTopbar.vue` 的 header 都挂上了）。
  *   这两条排的正是 pathname 排不掉的那两种形状：未捕获错误与挂载中途停住。判据本体见
@@ -520,14 +526,15 @@ async function stubApiToEmpty(
 }
 
 /**
- * 接口打空后**画面确实变空**的那些锚点（逐个实测出来的：桩装上后 #app 里的数据元素确实没了）。
- * admin-system-form 不在这里面——见下面矩阵 B 的说明，它这一页渲染的是组件内默认值，
- * 把 /api/system-configs 打空后 DOM 一字不变（实测 app 节点数 1909→1909、filled 26→26），
- * 所以它的专属断言只能用"拿错页跑"来证伪。
- * 【这 9 格里只有 7 格属"事故形状"（4c-fix-C 第 13 项把标题改口的地方）】另外两格
- * （`student-learning-center`／`admin-profile`）的通用守卫**也红**，且 C2 步实测它们连壳层都没挂上
- * （读数与登记见下面 `PREMISE_NOT_MET_STRONGER_THAN_ACCIDENT`；条数由「7／9 计数」那条用例钉成断言）。
- * 这 9 个名字**一个都不许删**——它们全都证伪了自己的专属断言，只是能证到的东西不一样。
+ * 接口打空后**画面确实变空**、且该页专属"数据已到位"断言**真会因此变红**的那 7 个锚点（逐个实测出来的：
+ * 桩把这一页的 `/api/` GET 打空后，`assertAnchorArrival` 抛）。admin-system-form 不在这里面——见下面矩阵 B 的
+ * 说明，它这一页渲染的是组件内默认值，把 /api/system-configs 打空后 DOM 一字不变（实测 app 节点数 1909→1909、
+ * filled 26→26），所以它的专属断言只能用"拿错页跑"来证伪。
+ * 【R-C2-4：`student-learning-center`／`admin-profile` 两格已从本名单移出（不是删除）】它们在真实接口被清空时
+ *   到位断言根本不红（空转），已移到下面的 `NOT_FALSIFIABLE_BY_ARRIVAL_ASSERTION` 并各有一条反向守卫钉住缺陷在场。
+ *   移出本名单是为了消掉两条天天红的矩阵格（§11.4"不许留已知红常态"），**覆盖面没缩**——那两格由缺口表继续测。
+ * 【这里 7 个名字一个都不许随便删】删一条＝这一格不再被"接口打空、专属断言必须红"测到；要移出必须先证明它
+ *   变成了空转（专属断言不红），并按 R-C2-4 移进缺口表、同批配反向守卫，不能只从这张表删掉了事。
  */
 const EMPTY_API_FALSIFIABLE = [
   'admin-dashboard',
@@ -535,11 +542,27 @@ const EMPTY_API_FALSIFIABLE = [
   'teacher-dashboard',
   'admin-courses-table',
   'student-courses-modal',
-  'student-learning-center',
   'student-knowledge-graph',
   'admin-governance-analytics',
-  'admin-profile',
 ]
+
+/**
+ * **只减不增的空转缺口表（R-C2-4）**：这一页在桩把它的 `/api/` GET 打空后，自身的"数据已到位"断言**不红**——
+ * 即 §6.14 要的"专属断言必须能因空响应而红"这条准入门在这两个锚点上**一直没有证据**。
+ * 参照先例是 `coverage-lib.ts` 的 `KNOWN_UNWIRED_EL_DRAWER_FILES`（只减不增、双向都红的缺口表）与
+ * `motion-observation.spec.ts` 里把"没有动效"钉成 `toBe(0)` 的反向守卫：这里把"到位断言抓不到空载荷"
+ * 这个坏样子钉成一条**当前能通过**的断言，它一红就说明缺陷被修好了 ⇒ 把锚点搬回可证伪名单、同批删本表条目。
+ * 【值写的是**当前实测依据**（不是散文，改任何数字都要同步下面两条用例与 LEDGER）】
+ * 【措辞纪律（R-C2-5）】下面每条只说"**桩给出的 `data:null` 形态下**"的行为——真后端"没有数据"的实测形态是
+ *   **信封里根本没有 `data` 键**（台账 `P0a-GUARD-07` 的 S3），桩发的 `data:null` 与 `data:[]` 都不是那两页
+ *   实测过的形状；所以这里绝不写"后端返回空时／页面在空数据下的行为"。
+ */
+const NOT_FALSIFIABLE_BY_ARRIVAL_ASSERTION: Record<string, string> = {
+  'student-learning-center':
+    'C2b S2 实测（桩给 data:null 形态下）：[falsify] 专属断言=绿 ✗ · 桩命中真接口 /api/student/courses、/api/student/courses/1/learning-center、/api/courses/1 · 通用守卫绿（壳层正常挂上、pageerror=0）· 到位断言查 .shell-tab 不小于 1 与非空标题，二者都由壳层与路由名供给 ⇒ 空转',
+  'admin-profile':
+    'C2b S2 实测（桩给 data:null 形态下）：[falsify] 专属断言=绿 ✗ · 桩命中真接口 /api/courses · 通用守卫绿（壳层正常挂上、pageerror=0）· 到位断言查 filled 输入框不小于 1 与 hero 统计非空非零，回填来自未被接管的外壳类端点（/api/auth/ 在保活名单里）⇒ 空转',
+}
 
 /**
  * 第 13 项两条新前提的**读数**（也是第 14 项 ① 的取证读数——工单明写"这条与第 13 项的两条前提是
@@ -588,46 +611,81 @@ function renderPreconditionFindings(probe: RenderProbe, pageErrors: readonly str
 }
 
 /**
- * 第 13 项那两条新前提**实测不成立**的那两格（`DATA_PATHS` 里两个 `'ALL'` 锚点），连同 C2 步 2026-10-21
- * 的逐格读数登记在下面（读数取自 `probeRenderShape` 与通用守卫的完整理由列表，命令见报告 C2 节）。
- * 【这张表登记的是**结论降级**，不是放行，也不是定性】它只改变"这一格能证到什么"：
- *  · 前提成立（那 7 格）⇒ 这一格证的是"页面渲染正常而数据空，专属断言仍红"＝**事故形状**；
- *  · 前提不成立（这两格）⇒ 这一格证的只是"专属断言会红"，**不能**算事故形状（触发条件比事故更强）。
- * 【为什么不是把这两格删掉】题面明写删掉是错的——它们确实证伪了自己的守卫；删格等于把那份证据一起删。
- * 【为什么不是让它们直接红】红会盖掉"arrival 可红"这条仍在成立的主张，而且并发代理最省事的出路
- *   就是删守卫（本仓已为此写过三次教训）。所以判据按**双向**钉：注册条目与实测必须互洽——
- *   这两格哪天前提变成成立（页面修好了），本条当场红、提示把分类与 LEDGER 一起改；
- *   那 7 格任何一格前提塌了，同样当场红。两个方向都有牙。
- * 【读数怎么读】`data-theme=""` 与"壳层两块都不在场"与 `#app` 直接子节点 0 是**观察**；
- *   `pageerror=0` 也一并记着（这一格没有未捕获错误）。**这一族到底是什么缺陷、还是不是缺陷，
- *   归第 14 项取证与控制器定性，本文件不写"打桩假象"也不写"已确认缺陷"。**
- *   题面原先那句"渲染成空态"是**推测**，本棒的实测读数（`#app>*=0`、`.app=0`）与它不一致，照实记在这里。
- * 【这两条字符串是**被断言的**，不是散文】注册条目里必须逐字写着本轮实测的那五个读数
- *   （见下面 `registered` 分支里那条 `toContain`）——读数漂了而登记没改，格子当场红。
- *   这样"登记"就不会退化成第二轮要修的旧注释（本仓为这句话写过三次教训）。
- * 【14① 还有一层观察一并记着，但**不**钉进判据】这两格"桩命中"的那唯一一个请求是
- *   `/src/api/auth.ts`——`'ALL'` 那一类前缀会把 `page.route` 通配范围里的 **dev server 源码模块**
- *   一起吃掉（通配串本身写在 `stubApiToEmpty` 函数体里，注释里不复述它：块注释里写那个串会
- *   以星号加斜杠收尾，正好把本注释提前关掉——本棒踩过一次，报的是 `ReferenceError: api is not defined`），
- *   而这一页在被打空之前**一个后端数据接口都没发出去**。所以 B5 的 `served.length > 0` 这条前提
- *   在这两格上是被一个模块请求满足的，它并不等于"这一页的接口被打空了"。本棒只把这条**报出来**
- *   （每格都打印端点清单），不改 ⓪ 那条判据——改判据属第 13 项点名的两条前提之外的口径变更，留给控制器。
- * 【S1 之后上面那两段是**改前记录**（R-C2-1，台账 `P0a-GUARD-07`）】接管面已锚到 pathname 前缀，
- *   模块请求从此进不了 `served` 清单；下面这张表里登记的五个读数因此是**改前**读数。
- *   改后读数由 C2b 的 S2 重跑这两格给出（红与绿都照实报），而"这两格还算不算触发条件比事故更强"
- *   这类**重分类**连同 7／9 计数与 spec §11.4 的措辞都归控制器——本棒不动那张表的内容。
- * 【14② 的对照结果（只报观察）】把桩体从 `data: null` 换成 `data: []` 后，这两格打出的五个读数
- *   与 `data: null` 那一态**逐字相同**（`data-theme=""`、`#app>*=0`、`.app=0`、`.topbar` 不在场、
- *   `pageerror=0`，命中的也还是那一个 dev server 模块请求）——**`data-theme` 没有回来**。
- *   ⇒ 按题面给的口径照实写：**触发条件不是 `data:null`**（也不是 `data` 的另一种空值形态）。
- *   本棒到此为止，不挑一个能自洽的解释交差，也不给"壳层／页面组件不容忍 null 载荷"这个名字定性。
+ * 第 13 项两条新前提**实测不成立**那一族的登记表（`DATA_PATHS` 里 `'ALL'` 锚点用）。
+ * 【本轮状态：表已**清空**，判据本体一字未动】这张表当初是为 `student-learning-center`／`admin-profile`
+ *   两格建的——当时它们的前提（壳层挂没挂、有没有未捕获错误）实测不成立，所以登记成"结论降级、不算事故形状"。
+ *   C2b 的 S1 把桩的接管面锚回 pathname 前缀后重跑这两格：**前提现在成立了**（壳层正常挂上、`pageerror=0`），
+ *   而它自己那条双向判据的红话要求"前提成立 ⇒ 触发条件变了 ⇒ 把注册条目删掉并同步 LEDGER 与 spec §11.4"。
+ *   ⇒ 按那句红话的要求**删掉这两条登记**（不是放宽判据让它绿——判据与 `registered` 分支原样留着，
+ *   将来任何一格前提塌了或变成成立，它照样在矩阵里当场响）。
+ * 【改前那五个读数（`data-theme=""`、`#app>*=0`、`.app=0`、`.topbar` 不在场、`pageerror=0`）已转录到
+ *   LEDGER `P0a-GUARD-07`——这里不重复抄，指针即来源】这两格改后的新形态（到位断言在桩给 `data:null`
+ *   形态下根本不红＝空转）由上面的 `NOT_FALSIFIABLE_BY_ARRIVAL_ASSERTION` 缺口表与它的反向守卫继续测，
+ *   覆盖面没有因为清空本表而缩小。
+ * 【为什么判据本体与下面矩阵里的 `registered` 分支都留着】清空表不等于拆表——双向判据是这族"登记会退化成
+ *   旧注释"事故的防线（本仓写过三次教训），留着它对空表是惰性的、对未来新格是有牙的。
  */
-const PREMISE_NOT_MET_STRONGER_THAN_ACCIDENT: Record<string, string> = {
-  'student-learning-center':
-    'C2 步实测：data-theme="" · #app>*=0 · .app=0 · .topbar=0 · pageerror=0 · pathname 未变 · 桩命中 1 请求（本轮打印的端点清单是 /src/api/auth.ts，不是后端接口）',
-  'admin-profile':
-    'C2 步实测：data-theme="" · #app>*=0 · .app=0 · .topbar=0 · pageerror=0 · pathname 未变 · 桩命中 1 请求（本轮打印的端点清单是 /src/api/auth.ts，不是后端接口）',
-}
+const PREMISE_NOT_MET_STRONGER_THAN_ACCIDENT: Record<string, string> = {}
+
+/**
+ * R-C2-4 缺口表的**结构一致性**判据（纯静态、不起浏览器）——把"只减不增、双向都有牙"钉成断言，
+ * 参照 `KNOWN_UNWIRED_EL_DRAWER_FILES` 的 `novel`／`stale` 形状：
+ *  · 表里的每个锚点必须是真锚点、有 `DATA_PATHS`、带会话（不是 ANON），且**不在** `EMPTY_API_FALSIFIABLE` 里；
+ *  · 反过来任何一格若被搬回可证伪名单而**表里条目没删** ⇒ 两表相交非空 ⇒ 当场红；
+ *  · 两表并起来必须正好是第 13 项那 9 格（谁从任一张表悄悄删掉一条 ⇒ 红），把"缺口表只减不增"落到可失败的门上。
+ * 【为什么单独一条而不是塞进反向守卫】反向守卫那两条是浏览器用例（要真打空流程），跑得起但慢、且只在各自锚点
+ *   上判"这一格空转还在不在"；这条是纯集合关系断言，专抓"两张表被分别编辑到自相矛盾"这种结构性漂移。
+ */
+test('空态缺口表与可证伪矩阵互斥且并集仍是那 9 格（R-C2-4 只减不增、双向有牙）', () => {
+  const gapSlugs = Object.keys(NOT_FALSIFIABLE_BY_ARRIVAL_ASSERTION)
+  // ① 缺口表条目必须是真锚点、有打桩面、带会话、且已移出可证伪矩阵
+  for (const slug of gapSlugs) {
+    const anchor = ANCHORS.find((a) => a.slug === slug)
+    expect(
+      anchor,
+      `${slug} 登记在缺口表里却不是 ANCHORS 中的锚点（拼错名或锚点被删，先修表）`,
+    ).toBeTruthy()
+    expect(
+      DATA_PATHS[slug],
+      `${slug} 缺口表条目没有 DATA_PATHS ⇒ 反向守卫根本打不出空态，这条登记是空的`,
+    ).toBeTruthy()
+    expect(
+      anchor!.role,
+      `${slug} 是 ANON 锚点——缺口表的反向守卫按 role 取会话夹具，ANON 进不来`,
+    ).not.toBe('ANON')
+    expect(
+      EMPTY_API_FALSIFIABLE,
+      `${slug} 同时在缺口表与 EMPTY_API_FALSIFIABLE 里——要么搬回可证伪名单时就删掉本表条目，` +
+        '要么它确实还空转就不该留在矩阵里天天红。两表不许相交（R-C2-4）',
+    ).not.toContain(slug)
+  }
+  // ② 矩阵里的任何一格都不许出现在缺口表（反向：若某锚点被搬回可证伪名单而表里没删 ⇒ 这里红）
+  const overlap = EMPTY_API_FALSIFIABLE.filter((s) => gapSlugs.includes(s))
+  expect(
+    overlap,
+    `两表相交于 ${JSON.stringify(overlap)}——按 R-C2-4，一格从缺口表搬回可证伪名单时必须**同批**删掉缺口表条目，` +
+      '留着的条目会变成"永远绿在一条早已不成立的登记上"的通行证',
+  ).toEqual([])
+  // ③ 两表并集必须正好等于第 13 项那 9 格（谁从任一张表悄悄删掉一条 ⇒ 覆盖面缩小，红）
+  const union = [...EMPTY_API_FALSIFIABLE, ...gapSlugs].sort()
+  expect(
+    union,
+    '可证伪矩阵 ＋ 空转缺口表 的并集不再是第 13 项那 9 格——矩阵只许"移格到缺口表"，不许把格删出覆盖面；' +
+      '这一格若真的不再需要空态守卫（锚点删除），要连 DATA_ARRIVAL_CHECKS 与本判据一起重定',
+  ).toEqual(
+    [
+      'admin-courses-table',
+      'admin-dashboard',
+      'admin-governance-analytics',
+      'admin-profile',
+      'student-courses-modal',
+      'student-dashboard',
+      'student-knowledge-graph',
+      'student-learning-center',
+      'teacher-dashboard',
+    ].sort(),
+  )
+})
 
 for (const role of ['STUDENT', 'TEACHER', 'ADMIN'] as const) {
   const subset = ANCHORS.filter((a) => a.role === role && EMPTY_API_FALSIFIABLE.includes(a.slug))
@@ -734,8 +792,9 @@ for (const role of ['STUDENT', 'TEACHER', 'ADMIN'] as const) {
           ).toEqual([])
         }
 
-        // ① 专属断言必须红——这一条是矩阵的硬要求（9 格全判，含注册表里那两格：
-        //    它们证的只是"这条守卫会红"，不是"事故形状"）。一条从没红过的断言不是守卫。
+        // ① 专属断言必须红——这一条是矩阵的硬要求（现 7 格全是事故形状：通用守卫绿＋专属断言红）。
+        //    一条从没红过的断言不是守卫。R-C2-4 后那两格空转锚点已移出本矩阵、改由下面的反向守卫钉
+        //    （那里断言的是"专属断言不红＝缺陷在场"，极性相反，别在这里把它们算回来）。
         expect(
           threw,
           `${anchor.slug}：接口全空却过了"数据已到位"断言——这条守卫是空的（spec §6.14）`,
@@ -746,54 +805,125 @@ for (const role of ['STUDENT', 'TEACHER', 'ADMIN'] as const) {
 }
 
 /**
- * 第 13 项那两格（前提实测不成立）与那 7 格（事故形状）的**计数本身**必须是断言。
- * 【为什么单独一条】标题从"9 格都复现事故"降级成"7／9 属事故形状"之后，这个 7 就是交付口径；
- * 口径写在散文里就会漂（本轮第 13 项要修的正是"标题吹过了"）。所以这里把
- * 矩阵格数、注册表条数、以及"7"这个数一起钉住，并断言注册表不能把矩阵的格子删掉
- * （题面明写"把这两格从矩阵里删掉是错的"——删格会让 `EMPTY_API_FALSIFIABLE` 少一个，红在这里）。
+ * 空态覆盖面的**计数本身必须是断言**（第 13 项立、R-C2-4 改口径）。
+ * 【口径为什么重写，不是只把 9 改成 7】第 13 项那句"7／9 属事故形状"的**分母 9**当时含两格
+ * （`student-learning-center`／`admin-profile`）——它们"仍在证伪自己的专属断言、只是触发条件比事故更强"。
+ * C2b 实测否证了这个说法：这两格在真实接口被清空时到位断言**根本不红**，属**空转格**，不是"更强的事故形状"。
+ * ⇒ R-C2-4 把它们从可证伪矩阵移出、放进只减不增的缺口表 `NOT_FALSIFIABLE_BY_ARRIVAL_ASSERTION`。
+ * 于是口径变成 **7 格可证伪（事故形状）＋ 2 格空转（缺口表）＝ 覆盖面仍是那 9 个锚点**——
+ * 分母从"证伪了自己的 9 格"改写成"数据到位断言被打空流程试过的 9 格"，两半各有独立计数、都不许漂。
+ * 缺口表条目与矩阵互斥、并集＝那 9 格的结构约束由上面那条「互斥且并集」用例守；这条只管**数**。
  */
-test('空态矩阵的 7／9 计数是断言不是散文（第 13 项的标题口径）', () => {
-  // 矩阵的 9 格必须**逐个**仍是已声明锚点：注册表不是"从矩阵里挪走"的中转站
-  for (const slug of Object.keys(PREMISE_NOT_MET_STRONGER_THAN_ACCIDENT)) {
-    expect(
-      EMPTY_API_FALSIFIABLE,
-      `${slug} 被从 EMPTY_API_FALSIFIABLE 里删掉了——那等于把题面明令不许删的那两格移出矩阵，` +
-        '注册表只能改变"这一格能证到什么"，不能取消这一格',
-    ).toContain(slug)
-    expect(
-      DATA_PATHS[slug],
-      `${slug} 没有 DATA_PATHS 条目——注册表登记的格子得真能打桩`,
-    ).toBeTruthy()
-    // 取证用例按 role 取 storageState，ANON 锚点没有会话可用 ⇒ 注册表只许收带会话的锚点
-    const registeredAnchor = ANCHORS.find((a) => a.slug === slug)!
-    expect(
-      registeredAnchor.role,
-      `${slug} 是 ANON 锚点——注册表里不能放它（第 14 项② 那条取证用例按 role 取会话夹具）`,
-    ).not.toBe('ANON')
-  }
-  // 9 格里 2 格属"触发条件比事故更强"⇒ 事故形状那一族是 7 格（外加 teacher 专例与矩阵 B，它们不计在这 9 里）
+test('空态覆盖面的计数是断言不是散文（R-C2-4：7 可证伪 ＋ 2 空转 ＝ 覆盖面仍是那 9 格）', () => {
+  // 可证伪矩阵＝7 格事故形状，每格仍必须是有会话、能打桩的真锚点
   expect(
     EMPTY_API_FALSIFIABLE.length,
-    '矩阵格数不再是 9（anchors 的 EMPTY_API_FALSIFIABLE 变了）⇒ 标题那句 7／9 与 LEDGER 都要同批改',
-  ).toBe(9)
+    `可证伪矩阵格数不再是 7（现 ${EMPTY_API_FALSIFIABLE.length}）——R-C2-4 后矩阵只收"打空后专属断言会红"的格，` +
+      '空转那两格在缺口表里，别把它们算回来也别从矩阵删掉别的东西',
+  ).toBe(7)
+  for (const slug of EMPTY_API_FALSIFIABLE) {
+    expect(
+      DATA_PATHS[slug],
+      `${slug} 在可证伪矩阵里却没有 DATA_PATHS 条目 ⇒ 桩打不出空态`,
+    ).toBeTruthy()
+    const a = ANCHORS.find((x) => x.slug === slug)!
+    expect(a.role, `${slug} 是 ANON 锚点——矩阵按 role 取会话，ANON 进不来`).not.toBe('ANON')
+  }
+  // 空转缺口表＝2 格（实测依据写在表里，条目本身的有效性由「互斥且并集」用例断言）
+  expect(
+    Object.keys(NOT_FALSIFIABLE_BY_ARRIVAL_ASSERTION).length,
+    '空转缺口表不再是 2 格 ⇒ 某格到位断言被修好后，要把它**搬回 EMPTY_API_FALSIFIABLE** 并同批删本表条目，' +
+      '不能只删不搬、也不能悄悄长大（R-C2-4 只减不增）',
+  ).toBe(2)
+  // 第 13 项那张前提不成立登记表已清空（改前读数转录到 LEDGER P0a-GUARD-07；判据本体留着，见上方注释）
   expect(
     Object.keys(PREMISE_NOT_MET_STRONGER_THAN_ACCIDENT).length,
-    '"两条前提实测不成立"那族不再是 2 格 ⇒ 7／9 这个计数（含 LEDGER 与 spec §11.4 的引用）要同批重数',
-  ).toBe(2)
-  expect(
-    EMPTY_API_FALSIFIABLE.filter((s) => !PREMISE_NOT_MET_STRONGER_THAN_ACCIDENT[s]).length,
-    '事故形状那一族的格数不等于 7——标题那句"7／9 属事故形状"与实测漂开了（第 13 项）',
-  ).toBe(7)
-  // teacher 专例与矩阵 B 的锚点不许混进这 9 格（它们各自另有判据）
+    'PREMISE_NOT_MET_STRONGER_THAN_ACCIDENT 又长出条目了——R-C2-4 已按它自己红话的要求把这两格删登记，' +
+      '这两格现在的形态由缺口表 + 反向守卫描述，别回到旧的"触发条件比事故更强"那一格',
+  ).toBe(0)
+  // teacher 专例与矩阵 B 的锚点不许混进矩阵那 7 格（它们各自另有判据）
   expect(
     EMPTY_API_FALSIFIABLE.filter((s) => s === 'teacher-dashboard').length,
     'teacher 专例被并计数了',
   ).toBe(1)
   expect(
     EMPTY_API_FALSIFIABLE.includes('admin-system-form'),
-    '矩阵 B（接口打空对 admin-system-form 无效）不许进这 9 格——它用的是"拿错页跑"那种证伪',
+    '矩阵 B（接口打空对 admin-system-form 无效）不许进可证伪矩阵——它用的是"拿错页跑"那种证伪',
   ).toBe(false)
 })
+
+/* ----------------------------------------------------------------------------
+ * R-C2-4 的**反向守卫**：把这两格"当前坏在空转"这件事钉成一条**当前能绿**的断言。
+ * 【形状照 motion-observation 把"没有动效"钉成 toBe(0)】那条钉的是"今天确实没有入场动效"，
+ *   它一红就说明有人加了动效 ⇒ 改判据；这里钉的是"今天这两格的到位断言对桩给 data:null 形态全盲"，
+ *   它一红就说明这两页的到位断言已经真的依赖数据了 ⇒ 把锚点搬回 EMPTY_API_FALSIFIABLE、同批删缺口表条目、
+ *   并同步 LEDGER P0a-GUARD-06／07／08 与 spec §11.4（§11 归控制器，本文件只到提示为止）。
+ * 【为什么不是"让它红"而是"让它绿但钉住缺陷在场"】§11.4 早规定不许留成每次跑都有已知红的常态——
+ *   那会把真回归淹死在噪声里；而直接从可证伪名单删掉等于悄悄拆掉 §6.14 的覆盖面。反向守卫两个方向都有牙：
+ *   缺陷还在 ⇒ 这条绿（不打扰别人），缺陷被修好 ⇒ 这条红（提醒搬回矩阵）。
+ * 【两条有效性前提照样跑】桩命中 > 0、pathname 仍是该锚点路由——否则"专属断言不红"绿在"实验没做成"上，
+ *   与改前那个"绿在假命中"的坑同族。壳层挂没挂与 pageerror 也一并打出来当取证读数。
+ * ---------------------------------------------------------------------------- */
+for (const slug of Object.keys(NOT_FALSIFIABLE_BY_ARRIVAL_ASSERTION)) {
+  const gapAnchor = ANCHORS.find((a) => a.slug === slug)!
+  const gapRole = gapAnchor.role === 'ANON' ? 'STUDENT' : gapAnchor.role
+  test.describe(`空态空转缺口 · ${gapAnchor.role}`, () => {
+    test.use({ storageState: storagePathFor(gapRole) })
+    test(`${slug}：桩给 data:null 形态下到位断言不红（缺陷在场，R-C2-4 反向守卫）`, async ({
+      page,
+    }) => {
+      const pageErrors: string[] = []
+      page.on('pageerror', (err) => pageErrors.push(String(err && err.message ? err.message : err)))
+      const target = await resolvePath(page, gapAnchor)
+      const wantPathname = new URL(target, 'http://localhost').pathname
+      await setTheme(page, 'light')
+      const stub = await stubApiToEmpty(page, slug)
+      await freezeClock(page)
+      await page.goto(target)
+      await settlePage(page)
+
+      const pathNow = await page.evaluate(() => location.pathname)
+      const probe = await probeRenderShape(page)
+      const preconditions = renderPreconditionFindings(probe, pageErrors)
+      let threw = ''
+      try {
+        await assertAnchorArrival(page, slug)
+      } catch (e) {
+        threw = (e as Error).message
+      }
+
+      // 有效性两前提（不是对产品的主张，只是保证"这次打空真做成了"）
+      expect(
+        stub.served.length,
+        `${slug}：桩命中 0 个请求 ⇒ 这一页根本没被打空，反向守卫绿在"实验没做成"上（缺口表登记见 NOT_FALSIFIABLE_BY_ARRIVAL_ASSERTION）`,
+      ).toBeGreaterThan(0)
+      expect(
+        pathNow,
+        `${slug}：打空后落在 ${pathNow} 而不是该锚点路由 ${wantPathname} ⇒ 绿/红都归因不到空态`,
+      ).toBe(wantPathname)
+      // 壳层必须真挂上、无未捕获错误——否则这条就绿在"应用又被打碎"上（改前那格正是这个假命中）
+      expect(
+        preconditions,
+        `${slug}：本轮壳层/错误前提不成立（${preconditions.join('\n  ')}）⇒ 这不是"页面正常渲染而到位断言抓不到空载荷"，` +
+          `是 harness 又把应用打碎了，与缺口表登记的形态不符，先查接管面（helpers 那条 pathname 守卫）`,
+      ).toEqual([])
+
+      console.log(
+        `[缺口·空转] ${slug} 桩给 data:null 形态下：专属断言=${threw ? '红' : '绿（= 缺陷在场）'} · ` +
+          `桩命中 ${stub.served.length} 请求（端点 ${JSON.stringify([...new Set(stub.served)])}）· ` +
+          `data-theme="${probe.theme}" · #app>*=${probe.appChildCount} · .app=${probe.appCount} · pageerror=${pageErrors.length}`,
+      )
+      // 反向断言：这两页的到位断言在桩给 data:null 形态下**不红**＝当前缺陷在场（今天绿）。
+      expect(
+        threw,
+        `${slug} 转红了 ⇒ 这一页的"数据已到位"断言现在真的依赖数据了——缺陷已修。按 R-C2-4 的转组动作处置：` +
+          `把 ${slug} 从 NOT_FALSIFIABLE_BY_ARRIVAL_ASSERTION 搬回 EMPTY_API_FALSIFIABLE、同批删本表条目，` +
+          '并同步 LEDGER P0a-GUARD-06／07／08 与 spec §11.4（§11 归控制器）。本轮实测依据：' +
+          NOT_FALSIFIABLE_BY_ARRIVAL_ASSERTION[slug],
+      ).toBe('')
+    })
+  })
+}
 
 /**
  * 第 13 项交付物的**入库反例（第一条：`pageerror` 计数为 0）**。
@@ -904,9 +1034,9 @@ test('第 13 项前提二有牙：摘掉 .topbar 或整个 .app（白页）都�
  *   `[取证 14①]` 那一行是同一套数，工单明写"别做两遍"）；本条只补 `data: []` 这一态，
  *   两态并排起来就是 ② 要的对照。
  */
-for (const slug of Object.keys(PREMISE_NOT_MET_STRONGER_THAN_ACCIDENT)) {
+for (const slug of Object.keys(NOT_FALSIFIABLE_BY_ARRIVAL_ASSERTION)) {
   const probeAnchor = ANCHORS.find((a) => a.slug === slug)!
-  // 注册表里的锚点**必须带会话**（ANON 没有 storageState 可取）。这一条由「7／9 计数」那条用例断言，
+  // 缺口表里的锚点**必须带会话**（ANON 没有 storageState 可取）。这一条由「互斥且并集」那条用例断言，
   // 这里只做类型收窄——不写 `as`，因为那会把"万一有人登记了一个 ANON 锚点"这件事糊掉。
   const probeRole = probeAnchor.role === 'ANON' ? 'STUDENT' : probeAnchor.role
   test.describe(`第 14 项② 取证 · ${probeAnchor.role}`, () => {
