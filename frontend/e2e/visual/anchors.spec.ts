@@ -417,9 +417,22 @@ for (const theme of ['light', 'dark'] as ThemeName[]) {
  * 一条你从没让它红过的断言不是守卫。通用守卫这次绿还是红**另外报出来**：
  * 只有"通用守卫绿 + 专属断言红"这个组合才等于复现了那次事故，
  * 而该组合由单独一条用例逐字钉住（teacher-dashboard，就是事故那一页），不靠矩阵去暗示。
- * 【B5 加的两条前提（2026-10-19 修复轮）】"抛了"本身不是证据：会话被踢、白页、JS 崩同样让它抛。
- *   现在每格先断言 `桩命中数 > 0` 与 `location.pathname === 该锚点路由`，再断言 arrival 抛。
- *   标题那句"9 个专属断言真会因空响应而红"在加这两条之前**并不完全成立**——它现在才成立。
+ * 【B5 的两条前提**拦不住白页与 JS 崩**（4c-fix-C 的 C2 步第 13 项改口）】B5 那轮加的两条是
+ *   `桩命中数 > 0` 与 `location.pathname === 该锚点路由`，而当时把标题写成"加了这两条就成立"。
+ *   **这两条都不是渲染成功的证据**：一页**没挂载完就停住**时，`pathname` 不会变（路由早就解析完了），
+ *   桩也照样命中过 ≥1 个请求（请求是导航初期发的）——两条前提都满足，格子照样绿。
+ *   白页与 JS 崩恰恰就是这个形状。所以那句标题原先吹过了，现在的口径是：
+ * 【矩阵证明的是 **7／9 格属"事故形状"**（外加 teacher 专例与矩阵 B）】"事故形状"＝四条通用守卫**全绿**
+ *   而该页专属的"数据已到位"断言**红**（Task 4b 那次 teacher-dashboard 空态就是这个组合，逐字复现由
+ *   下面那条 teacher 专例钉住，不靠矩阵暗示）。9 格里有 2 格（`student-learning-center`／`admin-profile`）
+ *   的通用守卫**也红**，所以那两格不算复现了事故——它们**仍然证伪了自己的专属断言**（这一条没作废），
+ *   只是触发条件比"事故"更强。**把这两格从矩阵里删掉是错的**（题面明写），删了就等于把
+ *   "专属断言可红"这份证据一起删掉；它们的形态归第 14 项取证，**本棒不定性**。
+ * 【本项的交付物：每格再加两条前提】`page.on('pageerror')` 计数为 **0**，以及**壳层真的渲染了**
+ *   （`.app`／`.topbar` 在场，即 `AppShell.vue` 的根与 `AppTopbar.vue` 的 header 都挂上了）。
+ *   这两条排的正是 pathname 排不掉的那两种形状：未捕获错误与挂载中途停住。判据本体见
+ *   `renderPreconditionFindings`（纯函数），它的两个"能红"反例各入库成一条用例（见本节末尾），
+ *   用 `page.setContent` 与 `page.evaluate`/`addInitScript` 造，**不改 `src/` 一个字**。
  * 【4c-fix-C 第 9 项补的边界（R-CF1，读矩阵结论时必须带着）】本矩阵证的是守卫抓得住
  *   `data:null` 这一形态；它**抓不住**"结构完整而数值全 0"——那种载荷渲染出的 DOM 存在性一条不缺。
  *   内容层面的那道口在钉桩侧：`assertPinnedPayloadContent`（visual-helpers 的 R-CF1 注释块，
@@ -469,6 +482,10 @@ async function stubApiToEmpty(page: Page, slug: string): Promise<{ served: strin
  * admin-system-form 不在这里面——见下面矩阵 B 的说明，它这一页渲染的是组件内默认值，
  * 把 /api/system-configs 打空后 DOM 一字不变（实测 app 节点数 1909→1909、filled 26→26），
  * 所以它的专属断言只能用"拿错页跑"来证伪。
+ * 【这 9 格里只有 7 格属"事故形状"（4c-fix-C 第 13 项把标题改口的地方）】另外两格
+ * （`student-learning-center`／`admin-profile`）的通用守卫**也红**，且 C2 步实测它们连壳层都没挂上
+ * （读数与登记见下面 `PREMISE_NOT_MET_STRONGER_THAN_ACCIDENT`；条数由「7／9 计数」那条用例钉成断言）。
+ * 这 9 个名字**一个都不许删**——它们全都证伪了自己的专属断言，只是能证到的东西不一样。
  */
 const EMPTY_API_FALSIFIABLE = [
   'admin-dashboard',
@@ -482,12 +499,97 @@ const EMPTY_API_FALSIFIABLE = [
   'admin-profile',
 ]
 
+/**
+ * 第 13 项两条新前提的**读数**（也是第 14 项 ① 的取证读数——工单明写"这条与第 13 项的两条前提是
+ * 同一套读数，别做两遍"，所以这里一次取齐、两处共用）：
+ *  `theme`＝`data-theme` 的**实际值**（空串就照实记空串，不解释）；
+ *  `appCount`／`topbarCount`＝壳层两块（`AppShell.vue` 根 `.app`、`AppTopbar.vue` 的 `header.topbar`）在场数；
+ *  `appChildCount`＝`#app > *` 的**直接子节点数**（"页面到底挂上去东西没有"的读数，白页时它是 0）。
+ */
+interface RenderProbe {
+  theme: string
+  appCount: number
+  appChildCount: number
+  topbarCount: number
+}
+
+async function probeRenderShape(page: Page): Promise<RenderProbe> {
+  return await page.evaluate(() => ({
+    theme: document.documentElement.getAttribute('data-theme') ?? '',
+    appCount: document.querySelectorAll('.app').length,
+    appChildCount: document.querySelectorAll('#app > *').length,
+    topbarCount: document.querySelectorAll('.topbar').length,
+  }))
+}
+
+/**
+ * 第 13 项两条新前提的**判据本体**（纯函数 ⇒ "它会不会红"不必靠一次真事故来证明，
+ * 下面两条反例用例直接喂合成页）。返回违规清单，**空＝两条前提都成立**。
+ * 【为什么这两条排在 arrival 断言之前】它们和 B5 那两条同一个地位：前提不成立时红话必须说"实验没做成"，
+ * 而不是让矩阵去猜"这条专属断言真会因空响应而红"。
+ * 【为什么不复用通用守卫的 `#app 非空` 那一条】那条查的是 `#app` 的 **textContent** 非空——
+ * 一个"挂载中途停住但已经把壳子的文字画出来"的页面它照样绿；而本条查的是**壳层自己的两个节点在不在场**，
+ * 加上 `pageerror` 计数（未捕获错误的直接读数），这两样才是 pathname 拦不住的那两种形状。
+ */
+function renderPreconditionFindings(probe: RenderProbe, pageErrors: readonly string[]): string[] {
+  const out: string[] = []
+  if (pageErrors.length > 0) {
+    out.push(
+      `pageerror 计数 ${pageErrors.length} 不为 0——这一格跑在"JS 崩"的画面上，` +
+        `而崩在哪与空响应无关：${pageErrors.join(' ｜ ')}`,
+    )
+  }
+  if (probe.appCount === 0) out.push('.app 不在场（AppShell 的根没挂上＝挂载中途停住或白页）')
+  if (probe.topbarCount === 0)
+    out.push('.topbar 不在场（AppTopbar 的 header 没挂上＝壳层只有一半）')
+  return out
+}
+
+/**
+ * 第 13 项那两条新前提**实测不成立**的那两格（`DATA_PATHS` 里两个 `'ALL'` 锚点），连同 C2 步 2026-10-21
+ * 的逐格读数登记在下面（读数取自 `probeRenderShape` 与通用守卫的完整理由列表，命令见报告 C2 节）。
+ * 【这张表登记的是**结论降级**，不是放行，也不是定性】它只改变"这一格能证到什么"：
+ *  · 前提成立（那 7 格）⇒ 这一格证的是"页面渲染正常而数据空，专属断言仍红"＝**事故形状**；
+ *  · 前提不成立（这两格）⇒ 这一格证的只是"专属断言会红"，**不能**算事故形状（触发条件比事故更强）。
+ * 【为什么不是把这两格删掉】题面明写删掉是错的——它们确实证伪了自己的守卫；删格等于把那份证据一起删。
+ * 【为什么不是让它们直接红】红会盖掉"arrival 可红"这条仍在成立的主张，而且并发代理最省事的出路
+ *   就是删守卫（本仓已为此写过三次教训）。所以判据按**双向**钉：注册条目与实测必须互洽——
+ *   这两格哪天前提变成成立（页面修好了），本条当场红、提示把分类与 LEDGER 一起改；
+ *   那 7 格任何一格前提塌了，同样当场红。两个方向都有牙。
+ * 【读数怎么读】`data-theme=""` 与"壳层两块都不在场"与 `#app` 直接子节点 0 是**观察**；
+ *   `pageerror=0` 也一并记着（这一格没有未捕获错误）。**这一族到底是什么缺陷、还是不是缺陷，
+ *   归第 14 项取证与控制器定性，本文件不写"打桩假象"也不写"已确认缺陷"。**
+ *   题面原先那句"渲染成空态"是**推测**，本棒的实测读数（`#app>*=0`、`.app=0`）与它不一致，照实记在这里。
+ * 【这两条字符串是**被断言的**，不是散文】注册条目里必须逐字写着本轮实测的那五个读数
+ *   （见下面 `registered` 分支里那条 `toContain`）——读数漂了而登记没改，格子当场红。
+ *   这样"登记"就不会退化成第二轮要修的旧注释（本仓为这句话写过三次教训）。
+ * 【14① 还有一层观察一并记着，但**不**钉进判据】这两格"桩命中"的那唯一一个请求是
+ *   `/src/api/auth.ts`——`'ALL'` 那一类前缀会把 `page.route` 通配范围里的 **dev server 源码模块**
+ *   一起吃掉（通配串本身写在 `stubApiToEmpty` 函数体里，注释里不复述它：块注释里写那个串会
+ *   以星号加斜杠收尾，正好把本注释提前关掉——本棒踩过一次，报的是 `ReferenceError: api is not defined`），
+ *   而这一页在被打空之前**一个后端数据接口都没发出去**。所以 B5 的 `served.length > 0` 这条前提
+ *   在这两格上是被一个模块请求满足的，它并不等于"这一页的接口被打空了"。本棒只把这条**报出来**
+ *   （每格都打印端点清单），不改 ⓪ 那条判据——改判据属第 13 项点名的两条前提之外的口径变更，留给控制器。
+ */
+const PREMISE_NOT_MET_STRONGER_THAN_ACCIDENT: Record<string, string> = {
+  'student-learning-center':
+    'C2 步实测：data-theme="" · #app>*=0 · .app=0 · .topbar=0 · pageerror=0 · pathname 未变 · 桩命中 1 请求（本轮打印的端点清单是 /src/api/auth.ts，不是后端接口）',
+  'admin-profile':
+    'C2 步实测：data-theme="" · #app>*=0 · .app=0 · .topbar=0 · pageerror=0 · pathname 未变 · 桩命中 1 请求（本轮打印的端点清单是 /src/api/auth.ts，不是后端接口）',
+}
+
 for (const role of ['STUDENT', 'TEACHER', 'ADMIN'] as const) {
   const subset = ANCHORS.filter((a) => a.role === role && EMPTY_API_FALSIFIABLE.includes(a.slug))
   test.describe(`空态守卫可证伪 · ${role}`, () => {
     test.use({ storageState: storagePathFor(role) })
     for (const anchor of subset) {
       test(`${anchor.slug} 的空态必须被它自己的数据到位断言拦下`, async ({ page }) => {
+        // 未捕获错误的监听必须**在第一次导航之前**挂上：`resolvePath` 对 __FROM_COURSE_LIST__
+        // 会先走一次列表页导航，"挂载中途崩"完全可能就发生在那一段（挂在 goto 之后就漏计了）。
+        const pageErrors: string[] = []
+        page.on('pageerror', (err) =>
+          pageErrors.push(String(err && err.message ? err.message : err)),
+        )
         // 先走真实列表把 __FROM_COURSE_LIST__ 解析出来，再装空桩（桩装上后就没有课程可解析了）
         const target = await resolvePath(page, anchor)
         const wantPathname = new URL(target, 'http://localhost').pathname
@@ -497,44 +599,247 @@ for (const role of ['STUDENT', 'TEACHER', 'ADMIN'] as const) {
         await page.goto(target)
         await settlePage(page)
 
-        // ⓪ 两条**前提**（B5）。它们必须排在 arrival 断言前面：arrival 抛不抛只有在
-        //    "桩命中了、页面还在这条路由上"成立时才是"空态能不能被专属断言拦住"的证据。
-        //    缺这一对，会话被踢/白页/JS 崩都会让格子绿在"抛了"上（= 评审 4c-fix 第 5 条的成因）。
-        expect(stub.served.length, `${anchor.slug}：桩命中 0 个请求 ⇒ 这一页根本没被打空，本用例什么都没测（名单见 DATA_PATHS）`).toBeGreaterThan(0)
+        // ── 先把**全部读数**取齐并打印，再做断言 ──────────────────────────────────────────
+        // 原先这里"前提不成立就直接抛"，于是那两格永远打印不出通用守卫的完整理由列表
+        // ——而第 14 项 ① 要的正是那份完整列表。所以顺序改成：测量 → 打印 → 断言。
         const pathNow = await page.evaluate(() => location.pathname)
-        expect(pathNow, `${anchor.slug}：打空后落在 ${pathNow} 而不是该锚点的路由 ${wantPathname} ⇒ 红/绿都归因不到空态`).toBe(wantPathname)
-
-        // ① 专属断言必须红——这一条是本用例的硬要求：一条从没红过的断言不是守卫
+        const probe = await probeRenderShape(page)
+        const preconditions = renderPreconditionFindings(probe, pageErrors)
         let threw = ''
         try {
           await assertAnchorArrival(page, anchor.slug)
         } catch (e) {
           threw = (e as Error).message
         }
-        expect(threw, `${anchor.slug}：接口全空却过了"数据已到位"断言——这条守卫是空的（spec §6.14）`).not.toBe('')
-
-        // ② 通用守卫这次的地位：**报**出来，不当断言（只有 teacher-dashboard 那一条当断言，见下）。
-        //    某些页把整页数据打空会连带让 #app 也空掉/主题丢失，那时通用守卫也红，
-        //    本用例仍然证明了专属断言可红，但"只有专属断言拦得住"这个洞在该页不成立——
-        //    这句必须写清楚，不然矩阵里 9 个绿会读成"9 次都复现了那次事故"。
-        //    ⚠️ 这一行 `[falsify] …通用守卫=也红/绿` 是**台账要逐锚记的数据**（spec §6.14 的措辞范围由它定），
-        //    评审无法从 stdout 之外复算，所以每轮收尾要把 9 行逐锚抄进 LEDGER。
-        let genericGreen = true
-        let genericErr = ''
+        // 【C2 步第 14 项 ①：打的是**完整**理由列表】原先 `(e.message.split('\n'))[0]` 按第一行截断，
+        // 而 `assertGenericGuards` 内部**先查 data-theme、后查 #app 非空** ⇒ 截断后那份读数
+        // 分不开"挂载中途崩"与"渲染成空态"。现在逐条打，并把第 13 项那套读数（pageerror 数／
+        // `#app > *` 数／`.topbar` 在场）打在同一处——工单明写这两处是同一套读数，只做一遍。
+        let genericReasons: string[] = []
         try {
           await assertGenericGuards(page, anchor, 'light')
         } catch (e) {
-          genericGreen = false
-          genericErr = (e as Error).message.split('\n')[0]
+          genericReasons = (e as Error).message
+            .split('\n')
+            .map((l) => l.trim())
+            .filter((l) => l !== '')
         }
+        // ⚠️ 这几行 `[falsify]`／`[取证 14①]` 是**台账与 spec §6.14 措辞范围的数据来源**，
+        //    评审无法从 stdout 之外复算，所以每轮收尾要把 9 格逐锚抄进 LEDGER。
         console.log(
-          `[falsify] ${anchor.slug} 专属断言=红 ✓ · 桩命中 ${stub.served.length} 请求 · path=${pathNow} · ` +
-            `通用守卫=${genericGreen ? '绿（= 这次复现了"只有专属断言拦得住"）' : `也红：${genericErr}`}`,
+          `[falsify] ${anchor.slug} 专属断言=${threw ? '红 ✓' : '绿 ✗'} · 桩命中 ${stub.served.length} 请求（端点 ${JSON.stringify([...new Set(stub.served)])}）· ` +
+            `path=${pathNow} · 通用守卫=${genericReasons.length === 0 ? '绿（= 事故形状）' : `也红，完整理由 ${genericReasons.length} 条（逐条见下行）`}\n` +
+            `         [取证 14①] data-theme="${probe.theme}" · #app>*=${probe.appChildCount} · .app=${probe.appCount} · ` +
+            `.topbar=${probe.topbarCount > 0 ? '在场' : '不在场'} · pageerror=${pageErrors.length}` +
+            (pageErrors.length > 0 ? `（${pageErrors.join(' ｜ ')}）` : '') +
+            ` · 第13项两条前提=${preconditions.length === 0 ? '成立' : `不成立 ${preconditions.length} 条`}`,
         )
+        for (const [i, r] of genericReasons.entries()) {
+          console.log(`         [取证 14①·理由 ${i + 1}] ${r}`)
+        }
+        for (const [i, r] of preconditions.entries()) {
+          console.log(`         [第13项·前提不成立 ${i + 1}] ${r}`)
+        }
+
+        // ── 断言部分 ──────────────────────────────────────────────────────────────────
+        // ⓪ B5 那两条前提：桩真的命中过、页面还在这条路由上。
+        //    【别把它们读成"渲染成功了"】pathname 与桩命中都**拦不住白页与 JS 崩**（第 13 项）。
+        expect(
+          stub.served.length,
+          `${anchor.slug}：桩命中 0 个请求 ⇒ 这一页根本没被打空，本用例什么都没测（名单见 DATA_PATHS）`,
+        ).toBeGreaterThan(0)
+        expect(
+          pathNow,
+          `${anchor.slug}：打空后落在 ${pathNow} 而不是该锚点的路由 ${wantPathname} ⇒ 红/绿都归因不到空态`,
+        ).toBe(wantPathname)
+
+        // ⓪b 第 13 项补的**两条新前提**（本项的交付物）：`pageerror` 计数为 0、壳层真的渲染了（`.app`／`.topbar` 在场）。
+        //    判据本体是纯函数 `renderPreconditionFindings`，它"能红"由本节末尾那两条反例用例入库证明
+        //    （合成页 + `page.evaluate`／`addInitScript`，`src/` 一字未动）。这里按注册表**双向**判：
+        const registered = PREMISE_NOT_MET_STRONGER_THAN_ACCIDENT[anchor.slug] !== undefined
+        if (registered) {
+          expect(
+            preconditions.length,
+            `${anchor.slug}：它登记在"两条前提实测不成立"那一族（${PREMISE_NOT_MET_STRONGER_THAN_ACCIDENT[anchor.slug]}），` +
+              '但现在前提成立了 ⇒ 触发条件变了，这一格升回"事故形状"：把注册条目删掉并同步 LEDGER 与 spec §11.4 的读数（别只改这张表）',
+          ).toBeGreaterThan(0)
+          // 登记串必须逐字写着**本轮**这四个读数——读数漂了而登记没改，这条红（登记不是散文）
+          expect(
+            PREMISE_NOT_MET_STRONGER_THAN_ACCIDENT[anchor.slug],
+            `${anchor.slug} 的登记读数与本轮实测不符：登记里必须原样写着 data-theme／#app>*／.app／.topbar／pageerror 这五个当前值` +
+              `（本轮实测：data-theme="${probe.theme}" · #app>*=${probe.appChildCount} · .app=${probe.appCount} · ` +
+              `.topbar=${probe.topbarCount} · pageerror=${pageErrors.length}）`,
+          ).toContain(
+            `data-theme="${probe.theme}" · #app>*=${probe.appChildCount} · .app=${probe.appCount} · .topbar=${probe.topbarCount} · pageerror=${pageErrors.length}`,
+          )
+        } else {
+          expect(
+            preconditions,
+            `${anchor.slug}：第 13 项那两条前提不成立（命中 ${preconditions.length} 条）⇒ 这一格不再是"渲染正常而数据空"的画面，` +
+              `事故形状（通用守卫绿＋专属断言红）在这页不成立。读数：data-theme="${probe.theme}" · #app>*=${probe.appChildCount} · ` +
+              `.app=${probe.appCount} · .topbar=${probe.topbarCount} · pageerror=${pageErrors.length}\n  ${preconditions.join('\n  ')}\n` +
+              '  两种处置（都不许把这格从矩阵删掉）：① 页面本来就该渲染出壳层 ⇒ 这是产品侧的事，按第 14 项取证走；' +
+              '② 确实测量到的是"触发条件比事故更强"⇒ 把它登记进 PREMISE_NOT_MET_STRONGER_THAN_ACCIDENT 并同批改 LEDGER 的 7/9 计数',
+          ).toEqual([])
+        }
+
+        // ① 专属断言必须红——这一条是矩阵的硬要求（9 格全判，含注册表里那两格：
+        //    它们证的只是"这条守卫会红"，不是"事故形状"）。一条从没红过的断言不是守卫。
+        expect(
+          threw,
+          `${anchor.slug}：接口全空却过了"数据已到位"断言——这条守卫是空的（spec §6.14）`,
+        ).not.toBe('')
       })
     }
   })
 }
+
+/**
+ * 第 13 项那两格（前提实测不成立）与那 7 格（事故形状）的**计数本身**必须是断言。
+ * 【为什么单独一条】标题从"9 格都复现事故"降级成"7／9 属事故形状"之后，这个 7 就是交付口径；
+ * 口径写在散文里就会漂（本轮第 13 项要修的正是"标题吹过了"）。所以这里把
+ * 矩阵格数、注册表条数、以及"7"这个数一起钉住，并断言注册表不能把矩阵的格子删掉
+ * （题面明写"把这两格从矩阵里删掉是错的"——删格会让 `EMPTY_API_FALSIFIABLE` 少一个，红在这里）。
+ */
+test('空态矩阵的 7／9 计数是断言不是散文（第 13 项的标题口径）', () => {
+  // 矩阵的 9 格必须**逐个**仍是已声明锚点：注册表不是"从矩阵里挪走"的中转站
+  for (const slug of Object.keys(PREMISE_NOT_MET_STRONGER_THAN_ACCIDENT)) {
+    expect(
+      EMPTY_API_FALSIFIABLE,
+      `${slug} 被从 EMPTY_API_FALSIFIABLE 里删掉了——那等于把题面明令不许删的那两格移出矩阵，` +
+        '注册表只能改变"这一格能证到什么"，不能取消这一格',
+    ).toContain(slug)
+    expect(
+      DATA_PATHS[slug],
+      `${slug} 没有 DATA_PATHS 条目——注册表登记的格子得真能打桩`,
+    ).toBeTruthy()
+    // 取证用例按 role 取 storageState，ANON 锚点没有会话可用 ⇒ 注册表只许收带会话的锚点
+    const registeredAnchor = ANCHORS.find((a) => a.slug === slug)!
+    expect(
+      registeredAnchor.role,
+      `${slug} 是 ANON 锚点——注册表里不能放它（第 14 项② 那条取证用例按 role 取会话夹具）`,
+    ).not.toBe('ANON')
+  }
+  // 9 格里 2 格属"触发条件比事故更强"⇒ 事故形状那一族是 7 格（外加 teacher 专例与矩阵 B，它们不计在这 9 里）
+  expect(
+    EMPTY_API_FALSIFIABLE.length,
+    '矩阵格数不再是 9（anchors 的 EMPTY_API_FALSIFIABLE 变了）⇒ 标题那句 7／9 与 LEDGER 都要同批改',
+  ).toBe(9)
+  expect(
+    Object.keys(PREMISE_NOT_MET_STRONGER_THAN_ACCIDENT).length,
+    '"两条前提实测不成立"那族不再是 2 格 ⇒ 7／9 这个计数（含 LEDGER 与 spec §11.4 的引用）要同批重数',
+  ).toBe(2)
+  expect(
+    EMPTY_API_FALSIFIABLE.filter((s) => !PREMISE_NOT_MET_STRONGER_THAN_ACCIDENT[s]).length,
+    '事故形状那一族的格数不等于 7——标题那句"7／9 属事故形状"与实测漂开了（第 13 项）',
+  ).toBe(7)
+  // teacher 专例与矩阵 B 的锚点不许混进这 9 格（它们各自另有判据）
+  expect(
+    EMPTY_API_FALSIFIABLE.filter((s) => s === 'teacher-dashboard').length,
+    'teacher 专例被并计数了',
+  ).toBe(1)
+  expect(
+    EMPTY_API_FALSIFIABLE.includes('admin-system-form'),
+    '矩阵 B（接口打空对 admin-system-form 无效）不许进这 9 格——它用的是"拿错页跑"那种证伪',
+  ).toBe(false)
+})
+
+/**
+ * 第 13 项交付物的**入库反例（第一条：`pageerror` 计数为 0）**。
+ * 【工单给的做法】用 `page.addInitScript`／`page.evaluate` 抛一个未捕获错误，**不改 `src/`**。
+ *   这里用 `page.evaluate` 里的 `setTimeout(throw …)`——**异步**抛出才会走 `pageerror`，
+ *   同步 throw 只会 reject `evaluate` 的 Promise，那条前提是抓不到它的（本棒实测过这个差别，
+ *   写反了就会得到"这条永不成立"的假绿，所以底本与反例都断言）。
+ * 【为什么反例必须入库而不是写在报告里】本轮最重的一条教训就是"反例只存在于未入 git 的过程记录"
+ *   ⇒ 交付面得是跟着仓库跑、每次跑测都重做一次断言的内容。
+ */
+test('第 13 项前提一有牙：合成页里抛一个未捕获错误就判红（不改 src/）', async ({ page }) => {
+  const pageErrors: string[] = []
+  page.on('pageerror', (err) => pageErrors.push(String(err && err.message ? err.message : err)))
+  await page.setContent(
+    '<div id="app"><div class="app"><header class="topbar">合成顶栏</header><main>合成内容</main></div></div>',
+  )
+  // 底本：壳层两块都在、没有未捕获错误 ⇒ 判据必须给空清单，否则下面的"红"什么也没证明
+  const pathBefore = await page.evaluate(() => location.pathname)
+  expect(
+    renderPreconditionFindings(await probeRenderShape(page), pageErrors),
+    '合成壳层底本就被判违规——判据把"在场"那一侧写反了，本条读数以它为零基',
+  ).toEqual([])
+  expect(pageErrors, '底本不该有未捕获错误').toEqual([])
+
+  // 反例：页面上下文里异步抛一个没人接的错误（等价于"挂载中途 JS 崩"）
+  await page.evaluate(() => {
+    setTimeout(() => {
+      throw new Error('合成：挂载中途抛的未捕获错误')
+    }, 0)
+  })
+  await page.waitForTimeout(150)
+  expect(
+    pageErrors.length,
+    'pageerror 监听没抓到异步抛出的错误 ⇒ 这条前提在任何真页上都永不成立（它是假绿，不是守卫）。' +
+      '本棒实测：同步 throw 只会 reject evaluate 的 Promise，必须走 setTimeout',
+  ).toBe(1)
+  const bad = renderPreconditionFindings(await probeRenderShape(page), pageErrors)
+  expect(bad, '未捕获错误没被前提一抓住——第 13 项那条"能红"是假的').toHaveLength(1)
+  expect(bad[0], '红话要带计数与错误本身，别让下一个人回整页里猜').toContain(
+    'pageerror 计数 1 不为 0',
+  )
+  expect(bad[0]).toContain('挂载中途抛的未捕获错误')
+  // 顺带证那句标题改口的**机理**：JS 崩的时候 pathname 根本没变——所以旧的那两条前提拦不住它。
+  // （比的是**同一次会话里崩前崩后**那两个读数，不是某个魔法字符串：`setContent` 之后
+  //   `location.pathname` 在不同 Chromium 上可能是 `blank`（about:blank）也可能是 `/`，
+  //   写死任何一个都会变成"绿在一个环境常量上"的那种假断言——本棒第一版就写死成 `/` 而红在这里。）
+  expect(
+    await page.evaluate(() => location.pathname),
+    '崩了之后 pathname 竟然变了——本用例主张的"pathname 看不见 JS 崩"这条实物不成立，措辞要重定',
+  ).toBe(pathBefore)
+})
+
+/**
+ * 第 13 项交付物的**入库反例（第二条：壳层真的渲染了＝`.app`／`.topbar` 在场）**。
+ * 【两个形状都验】① 只摘掉 `.topbar`＝"壳层只挂了一半"；② 再摘掉整个 `.app`＝**白页**
+ *   （`#app > *` 落到 0）。②正是题面点名的那个洞：这种页面上 `location.pathname` 不变、
+ *   桩也命中过 ≥1 个请求，两条旧前提都满足而格子照样绿——本条把"照样绿"变成"当场红"。
+ * 【同样不改 `src/`】移除动作走 `page.evaluate`，只作用在一次性合成 DOM 上。
+ */
+test('第 13 项前提二有牙：摘掉 .topbar 或整个 .app（白页）都判红，而 pathname 全程不变（不改 src/）', async ({
+  page,
+}) => {
+  await page.setContent(
+    '<div id="app"><div class="app"><header class="topbar">合成顶栏</header><main>合成内容</main></div></div>',
+  )
+  const pathBefore = await page.evaluate(() => location.pathname)
+  expect(
+    renderPreconditionFindings(await probeRenderShape(page), []),
+    '合成壳层底本就被判违规——本条的两次摘除都以它为零基',
+  ).toEqual([])
+
+  // ① 只摘顶栏 ⇒ 只剩一条违规
+  await page.evaluate(() => document.querySelector('.topbar')?.remove())
+  const noTopbar = renderPreconditionFindings(await probeRenderShape(page), [])
+  expect(noTopbar, '壳层只剩一半却没被抓住——前提二没有牙').toHaveLength(1)
+  expect(noTopbar[0]).toContain('.topbar 不在场')
+
+  // ② 再摘掉整个 `.app` ⇒ 白页形状：两条都违，且 `#app > *` 读数落到 0
+  await page.evaluate(() => document.querySelector('.app')?.remove())
+  const blankProbe = await probeRenderShape(page)
+  const blank = renderPreconditionFindings(blankProbe, [])
+  expect(blank, '白页形状（壳层全没）却没被抓住——第 13 项要堵的那个洞原样留着').toHaveLength(2)
+  expect(
+    blank.map((s) => (s.startsWith('.app') ? 'app' : 'topbar')).sort(),
+    '两条违规的身份不对（红话要指得出是哪一块不在场）',
+  ).toEqual(['app', 'topbar'])
+  expect(
+    blankProbe.appChildCount,
+    '#app 的直接子节点数没随摘除归零——probeRenderShape 的选择器写错了，取证读数 14① 也一起作废',
+  ).toBe(0)
+  // **这就是那句标题改口的实物**：白页上 pathname 一点没变（旧的两条前提都满足），
+  // 而第 13 项这两条新前提把它判红。
+  expect(
+    await page.evaluate(() => location.pathname),
+    '白页形状下 pathname 竟然变了——本用例主张的"pathname 拦不住白页"这条实物不成立，措辞要重定',
+  ).toBe(pathBefore)
+})
 
 /**
  * 那次事故的**逐字复现**（spec §6.14 点名的就是这一页）：

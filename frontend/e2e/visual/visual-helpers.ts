@@ -1248,26 +1248,66 @@ export function readNopinEnv(): boolean {
  * 探针在那三种画面上量出来的读数长得和真读数一模一样，却是彻底的假数（上一轮就差点这么喂台账）。
  * 现在两边都调这一个函数，缺一条两边一起红，不可能只有一边瞎。
  */
-export async function assertGenericGuards(page: Page, anchor: AnchorSpec, theme: ThemeName): Promise<void> {
-  const fail = (msg: string): never => {
-    throw new Error(`[可比性] ${anchor.slug}/${theme}：${msg}`)
-  }
+/**
+ * 通用守卫的**逐条理由清单**（4c-fix-C 的 C2 步第 13／14 项把它从"第一条即抛"改成"全量收集"）。
+ * 【原先缺什么】`assertGenericGuards` 命中第一条就抛，而它内部的次序是
+ * **先查 `data-theme`、后查 `#app` 非空** ⇒ 调用方拿到的那句理由**分不开**
+ * "挂载中途崩"与"渲染成空态"这两种形状（第 13 项点名的正是这一点，第 14 项 ① 要的是完整列表）。
+ * 【现在】把所有判据都跑完、把失败理由**逐条**返回；空数组＝这一页四条通用判据全过。
+ * 判据本身、判据次序、每条的措辞**一字未改**——改的只是"第一条就抛"这个出口形状。
+ * 【为什么仍然只有一处判据】collect 与 assert 在同一份代码里，anchors 与 sensitivity 共用，
+ * 不许任何一侧再抄一份"看起来一样"的尺（Task 4c Step 1g 那条口径没变）。
+ */
+export async function collectGenericGuardReasons(
+  page: Page,
+  anchor: AnchorSpec,
+  theme: ThemeName,
+): Promise<string[]> {
+  const reasons: string[] = []
   const now = await page.evaluate(() => Date.now())
-  if (now !== SNAPSHOT_PAGE_TIME_MS) fail(`截图时刻 ${now} ≠ 常量 ${SNAPSHOT_PAGE_TIME_MS}（多推进/少推进了 ${now - SNAPSHOT_PAGE_TIME_MS}ms，帧数不可比）`)
+  if (now !== SNAPSHOT_PAGE_TIME_MS)
+    reasons.push(
+      `截图时刻 ${now} ≠ 常量 ${SNAPSHOT_PAGE_TIME_MS}（多推进/少推进了 ${now - SNAPSHOT_PAGE_TIME_MS}ms，帧数不可比）`,
+    )
   const attrs = await page.evaluate(() => ({
     theme: document.documentElement.getAttribute('data-theme') ?? '',
     appEmpty: (document.querySelector('#app')?.textContent ?? '').trim() === '',
+    appChildCount: document.querySelectorAll('#app > *').length,
     errorBoundaries: document.querySelectorAll('.error-boundary').length,
     path: location.pathname,
     href: location.href,
   }))
-  if (attrs.theme !== theme) fail(`data-theme="${attrs.theme}" 与要求的 ${theme} 不符——主题没注入成功，两张图会是同一张图换了名字`)
-  if (attrs.appEmpty) fail('#app 是空的（SPA 白屏）')
-  if (attrs.errorBoundaries > 0) fail(`命中 ${attrs.errorBoundaries} 个 .error-boundary（报错边界页长得像正常页）`)
+  if (attrs.theme !== theme)
+    reasons.push(
+      `data-theme="${attrs.theme}" 与要求的 ${theme} 不符——主题没注入成功，两张图会是同一张图换了名字`,
+    )
+  if (attrs.appEmpty)
+    reasons.push(`#app 是空的（SPA 白屏，#app 直接子节点数 ${attrs.appChildCount}）`)
+  if (attrs.errorBoundaries > 0)
+    reasons.push(`命中 ${attrs.errorBoundaries} 个 .error-boundary（报错边界页长得像正常页）`)
   if (anchor.role !== 'ANON') {
-    if (attrs.href.includes('/login')) fail(`被守卫踢回 /login（会话没带上）：${attrs.href}`)
-    if (/\/(403|503)$/.test(attrs.path)) fail(`落在 ${attrs.path}：后端不可达或角色不符也会渲染成"正常页"，四条通用守卫一条都不拦`)
+    if (attrs.href.includes('/login'))
+      reasons.push(`被守卫踢回 /login（会话没带上）：${attrs.href}`)
+    if (/\/(403|503)$/.test(attrs.path))
+      reasons.push(
+        `落在 ${attrs.path}：后端不可达或角色不符也会渲染成"正常页"，四条通用守卫一条都不拦`,
+      )
   }
+  return reasons
+}
+
+export async function assertGenericGuards(
+  page: Page,
+  anchor: AnchorSpec,
+  theme: ThemeName,
+): Promise<void> {
+  const reasons = await collectGenericGuardReasons(page, anchor, theme)
+  if (reasons.length === 0) return
+  // 整份列表一起抛：调用方要么只取第一行（旧口径的读数不变），要么逐条打印（第 14 项 ① 要的就是这个）。
+  throw new Error(
+    `[可比性] ${anchor.slug}/${theme}：通用守卫命中 ${reasons.length} 条理由（逐条列出，不再只报第一条）\n` +
+      reasons.map((r, i) => `  ${i + 1}. ${r}`).join('\n'),
+  )
 }
 
 /** 通用守卫 + 该锚点自己的数据到位断言。anchors 与 sensitivity 都调这一个，不许各自抄一份。 */
