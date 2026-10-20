@@ -4,6 +4,8 @@ import { createHash } from 'node:crypto'
 import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import zlib from 'node:zlib'
+// 第 12 项：把 `--update-snapshots` 那道门本体导进来验它的牙（取值口径见该用例注释）
+import { assertUpdateSnapshotsAllowed } from './global-setup'
 import {
   ANCHORS,
   applyEvidenceWrite,
@@ -234,17 +236,86 @@ test('量程常量钉死，改动必须显式决策', () => {
  * 单来源的机械版本：两处消费方都必须**引用**这个常量，不许各自再写一份字面量。
  * 上一轮"量程测量用的阈值"和"回归用的阈值"不是同一组数，正是靠这个约定挡住的；
  * 散文挡不住并发代理（Task 4b 那次 00:43 的覆盖事故就是并发写的）。
+ *
+ * 【4c-fix-C 第 12 项把负向半边从两个文件扩到扫遍所有 spec】原先这条只读 `anchors.spec.ts` 与
+ * `sensitivity.spec.ts` ⇒ Task 14 的 `motion-observation.spec.ts` 写一份 `threshold: 0.2` 也全绿，
+ * 而"比较口径有第二份来源"这件事从此不被任何东西看见。扩面要有两条精度限定，缺一条就假红：
+ *  ① **排除整行注释**——计划原话就是"负向正则会被散文注释里含 `threshold: 0` 误红"。
+ *     本仓现状立刻有一处：本文件讲 `stripCommentLines` 的那段注释逐字写着 `threshold: 0`。
+ *  ② **放行"钉常量本身"的那一行**——「量程常量钉死」那条断言必须把 `0` 与 `0.0001` 写出来才有牙
+ *     （它判的就是常量的值）。放行判据是"同一行引用了 `SNAPSHOT_THRESHOLDS`"，
+ *     不是"给某个文件开后门"——把常量写进别的行也照样红。
+ * 【正例】本仓现况下扫遍五个 spec **应当仍然全绿**（`motion-observation.spec.ts` 与 `smoke.spec.ts`
+ * 全文不出现阈值字面量，也不用 `toHaveScreenshot`），所以这条是"新增一个绿的正例"；
+ * 会红的反例见报告：往任一 spec 塞一行 `threshold: 0.2` 立刻红。
  */
-test('阈值只有一个来源，消费侧不写字面量', () => {
-  const anchors = readFileSync(join(process.cwd(), 'e2e/visual/anchors.spec.ts'), 'utf8')
-  const probe = readFileSync(join(process.cwd(), 'e2e/visual/sensitivity.spec.ts'), 'utf8')
+test('阈值只有一个来源：消费侧引用常量，且 e2e/visual/ 下所有 spec 都不写字面量（第 12 项扫遍）', () => {
+  const dir = join(process.cwd(), 'e2e/visual')
+  const anchors = readFileSync(join(dir, 'anchors.spec.ts'), 'utf8')
+  const probe = readFileSync(join(dir, 'sensitivity.spec.ts'), 'utf8')
   expect(anchors).toContain('...SNAPSHOT_THRESHOLDS')
-  // anchors 侧任何 `threshold:` / `maxDiffPixelRatio:` 字面量都会让比较口径悄悄换掉
-  expect(anchors).not.toMatch(/threshold:\s*[\d.]/)
-  expect(anchors).not.toMatch(/maxDiffPixelRatio:\s*[\d.]/)
   // 探针的 fallback 必须指向同一常量；env 旋钮只许收紧（由 sensitivity.spec.ts 自己 fail fast）
   expect(probe).toContain('SNAPSHOT_THRESHOLDS.threshold')
   expect(probe).toContain('SNAPSHOT_THRESHOLDS.maxDiffPixelRatio')
+  // 负向半边：扫遍 e2e/visual/ 下**所有** spec，而不是点名两个
+  const specs = readdirSync(dir)
+    .filter((f) => f.endsWith('.spec.ts'))
+    .sort()
+  expect(specs, 'e2e/visual/ 下的 spec 集合变了——本条的覆盖面跟着变，先数清楚再加文件（现 5 个）').toEqual([
+    'anchors.spec.ts',
+    'helpers.spec.ts',
+    'motion-observation.spec.ts',
+    'sensitivity.spec.ts',
+    'smoke.spec.ts',
+  ])
+  for (const f of specs) {
+    const offenders = stripCommentLines(readFileSync(join(dir, f), 'utf8'))
+      .split('\n')
+      .filter((line) => /(threshold|maxDiffPixelRatio):\s*[\d.]/.test(line) && !line.includes('SNAPSHOT_THRESHOLDS'))
+    expect(offenders, `${f} 的代码面出现不引用 SNAPSHOT_THRESHOLDS 的阈值字面量——比较口径有了第二份来源（第 12 项）`).toEqual([])
+  }
+})
+
+/**
+ * 4c-fix-C 第 12 项另一半：`--update-snapshots` 那道门（`global-setup.ts` 默认导出的第一条语句）
+ * **原先没有自动化测试**——把那句调用删掉，全部套件照样绿，22 张已提交基线从此可以被一次
+ * "红了就重生成"洗掉。本条把两半都钉上：
+ * ① **调用点**（源码级）：它必须是默认导出体里的**第一条语句**且**不带实参**
+ *   （带实参就等于生产路径不再读 `process.argv`，门形同虚设）。删掉那行 ⇒ ① 红，这就是题面要的"能红"。
+ * ② **牙**（行为级）：三种写法都拦得住，`PW_ALLOW_UPDATE_SNAPSHOTS=1` 才放行，
+ *   不带旗标的正常跑测不被误伤。
+ * 【为什么不做成计划里提的 `spawnSync` 形态——如实记这条取舍】任何 spawnSync 要真验这道门，
+ * 就得把 `--update-snapshots` 交给 runner；而在"门已被删掉"这个**待验场景**下，那一跑会当场重写
+ * （或按 `-g` 过滤后 prune 掉）22 张基线——围栏明令**永不**跑该旗标，所以 spawnSync 形态在本仓
+ * 是"验它的代价就是它的破坏"。② 因此走进程内调用：只喂合成 argv 与一个环境变量的副本，
+ * `finally` 原样还原，Playwright 从不收到那个旗标（本条自己一次都没跑过 `--update-snapshots`）。
+ * 判据的另一半早就有自动化了：基线 sha256 清单那条用例——门被绕过时它兜底变红。
+ */
+test('--update-snapshots 闸门（第 12 项）：调用点是 globalSetup 第一条语句，且三种写法都拦得住', () => {
+  // ① 调用点：删掉这句、或给它塞实参（生产路径就不再读 process.argv）都让本条红
+  const setupRaw = stripCommentLines(readFileSync(join(process.cwd(), 'e2e/visual/global-setup.ts'), 'utf8'))
+  expect(
+    setupRaw,
+    'globalSetup 的第一条语句不再是 assertUpdateSnapshotsAllowed()——这道门又回到"只有手工证明过"的状态（第 12 项）',
+  ).toMatch(/export default async function globalSetup\(\) \{\s*assertUpdateSnapshotsAllowed\(\)/)
+  // ② 牙：三种写法各钉一条，报错文案点名"拒绝了"
+  const base = ['/node/bin/node', '/repo/frontend/node_modules/.bin/playwright', 'test', '-c', 'playwright.visual.ts']
+  const envRaw = process.env.PW_ALLOW_UPDATE_SNAPSHOTS
+  try {
+    expect(() => assertUpdateSnapshotsAllowed([...base, '--update-snapshots']), '长写法没被拦——门对最常见的拼法失效').toThrow(/拒绝了 --update-snapshots/)
+    expect(() => assertUpdateSnapshotsAllowed([...base, '-u']), '短写法 -u 没被拦——只认长写法的门等于没门').toThrow(/拒绝了/)
+    expect(() => assertUpdateSnapshotsAllowed([...base, '--update']), '缩写 --update 没被拦——同上，三种写法是本闸的口径')
+      .toThrow(/拒绝了/)
+    // 不带任何 update 旗标的正常跑测必须一声不响地过（误伤会让每一次跑测都红）
+    expect(() => assertUpdateSnapshotsAllowed([...base])).not.toThrow()
+    // 显式承认才放行
+    process.env.PW_ALLOW_UPDATE_SNAPSHOTS = '1'
+    expect(() => assertUpdateSnapshotsAllowed([...base, '--update-snapshots']), 'PW_ALLOW_UPDATE_SNAPSHOTS=1 仍被抛——放行通道断了，只会逼人绕过这道门').not.toThrow()
+    expect(() => assertUpdateSnapshotsAllowed([...base, '-u']), '承认过的值下 -u 仍被抛——放行口径与拦的口径不一致').not.toThrow()
+  } finally {
+    if (envRaw === undefined) delete process.env.PW_ALLOW_UPDATE_SNAPSHOTS
+    else process.env.PW_ALLOW_UPDATE_SNAPSHOTS = envRaw
+  }
 })
 
 /**

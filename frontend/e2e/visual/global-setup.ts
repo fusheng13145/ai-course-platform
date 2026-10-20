@@ -51,9 +51,18 @@ const AUTH_DIR = dirname(join(process.cwd(), storagePathFor(ROLES[0])))
  * 本闸只拦 `--update-snapshots` / `-u` 两个写法，不拦 `--llm`/其它。
  * 为什么放在 global-setup 而不是各 spec：这里是"整个跑测即将开始"的唯一入口，
  * 拦在导入期连一张图都不会被写。
+ *
+ * 【4c-fix-C 第 12 项补的自动化守卫为什么长这样】这道门原先**只有手工反证**——删掉下面
+ * `globalSetup` 里那句调用，全部套件照样绿。现在由 `helpers.spec.ts`
+ * 「--update-snapshots 闸门」那条用例钉两半：调用点（本文件默认导出的第一条语句、且不带实参）
+ * ＋ 这道门的牙（三种写法都拦、显式承认才放行）。
+ * 为此本函数导出，并把 argv 做成**缺省读 `process.argv` 的可选参数**——
+ * 生产路径的取值表达式一字未变（默认实参就是它），而用例可以喂合成 argv，
+ * 不必去改 `process.argv`、更不必真的把 `--update-snapshots` 交给 runner
+ * （围栏明令永不跑该旗标：门一旦真的失效，那一跑就把 22 张已提交基线重写掉，
+ *   这正是计划提的 `spawnSync` 形态验不下去的原因，取舍理由写在用例注释里）。
  */
-function assertUpdateSnapshotsAllowed(): void {
-  const argv = process.argv
+export function assertUpdateSnapshotsAllowed(argv: string[] = process.argv): void {
   const wantsUpdate = argv.includes('--update-snapshots') || argv.includes('-u') || argv.includes('--update')
   if (!wantsUpdate) return
   if (process.env.PW_ALLOW_UPDATE_SNAPSHOTS === '1') {
