@@ -1,6 +1,7 @@
 <script setup>
 import { computed, getCurrentInstance, onBeforeUnmount, onMounted, ref, useAttrs, watch } from 'vue'
 import { useDialogFocus } from '@/composables/useDialogFocus'
+import { useOverlayScrollLock } from '@/composables/useOverlayScrollLock'
 
 /**
  * 抽屉原语 —— 与 Modal 同通道（Task 11）
@@ -106,42 +107,21 @@ function onOverlay(e) {
 }
 
 /**
- * 引用计数滚动锁。状态键与 Modal（Task 10 的 useOverlayScrollLock）共用
- * `document.body.dataset.overlayCount`，所以两个原语已经是同一把锁：
- * 抽屉叠在弹窗上时，最后一个关闭才还原滚动。
+ * 引用计数滚动锁：状态与实现在 `@/composables/useOverlayScrollLock`，Modal 与本原语
+ * 调同一个函数、读写同一个 `document.body.dataset.overlayCount`，所以两个原语是**一把锁**：
+ * 抽屉叠在弹窗上时最后一个关闭才还原滚动。
  *
- * 该 composable 尚未落地（Task 10 未派发），先在本文件内实现同键同语义的版本，
- * 落地后把这段换成 `useOverlayScrollLock(open)` 即可，无需改任何调用点。
- * 与 Task 10 草案的三处差别都是故意的，见 Drawer.test.ts 的对应用例：
- * - 用实例内 `locked` 标志保幂等，避免「关闭态挂载」被当成开→关过渡而白扣 1；
- * - 卸载时归还计数，覆盖 v-if 式调用点（RagDocs.vue:90）在打开状态下直接卸载的形态；
- * - 归零时**还原**上锁前记下的 `body.style.overflow`，不是无条件写 ''（评审 Minor-4）：
- *   页面自己写的非计数锁（`overflow: hidden/scroll/auto`）不该被抽屉的开关顺带抹掉。
- *   原值存在与计数同域的 `body.dataset.overlayOverflowPrev`，由真正完成 0→1 的那次上锁写入，
- *   所以多个抽屉/弹窗交错关闭时谁先抢到 0 都能拿到同一个原值。
+ * 抽取（Task 10A）时逐条保住的语义，连同"为什么这么选"都在那个文件里，本文件不再复述实现细节；
+ * 本文件的可证伪面留在 Drawer.test.ts 的「滚动锁与焦点」一节：
+ * - 归零时**还原上锁前记下的 `body.style.overflow`**（`body.dataset.overlayOverflowPrev`），
+ *   不是无条件写 ''（评审 Minor-4）；
+ * - 计数归 0 而 prev 键不存在时**什么都不动**（这把锁不是我上的，宁可不还原也不猜别人的值）；
+ * - 关闭态挂载不扣数、开着被卸载归还（v-if 式调用点 RagDocs.vue 正是该形态，
+ *   归还时机由 composable 的 onScopeDispose 提供，见下面 onBeforeUnmount 的注释）；
+ * - 脏值消毒口径是「只接受正整数」，与抽取前的 `Number.isFinite` 不同——差别与理由见
+ *   composable 的 `count()` 注释与它的「非整数脏值按 0 重开」用例。
  */
-let locked = false
-/** 上锁前的内联 overflow 存在这里（body dataset，与计数同域），归零时按它还原 */
-const OVERFLOW_PREV_KEY = 'overlayOverflowPrev'
-function setScrollLock(on) {
-  if (on === locked) return
-  locked = on
-  // 计数读回来不是数字时按 0 重开：否则 NaN 会让 overflow 恒被置回 ''，
-  // 一个页面里只要有一次脏写就再也锁不住滚动。
-  const raw = Number(document.body.dataset.overlayCount)
-  const base = Number.isFinite(raw) ? raw : 0
-  const next = Math.max(0, base + (on ? 1 : -1))
-  if (on && base === 0) document.body.dataset.overlayOverflowPrev = document.body.style.overflow
-  document.body.dataset.overlayCount = String(next)
-  if (next > 0) {
-    document.body.style.overflow = 'hidden'
-  } else if (OVERFLOW_PREV_KEY in document.body.dataset) {
-    document.body.style.overflow = document.body.dataset[OVERFLOW_PREV_KEY]
-    delete document.body.dataset[OVERFLOW_PREV_KEY]
-  }
-  // next 归 0 但没找到原值：说明这把锁不是我上的（计数被外部写过），
-  // 此时**什么都不动**——宁可不还原，也不去猜别人该是什么值。
-}
+useOverlayScrollLock(open)
 
 /**
  * Esc 监听只在打开期间挂载：这条只解决「关闭态发幽灵 close」，**不解决层叠**。
@@ -164,7 +144,6 @@ let opener = null
 watch(
   open,
   (on, off) => {
-    setScrollLock(on)
     bindEsc(on)
     if (on && !off) opener = document.activeElement
     if (!on && off) {
@@ -192,7 +171,10 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
-  setScrollLock(false)
+  // 滚动锁不在这里归还：useOverlayScrollLock 的 onScopeDispose 负责，
+  // 时机就在本钩子之后、子树卸载之前（本机 vue 3.5.43 的 runtime-core.cjs.js
+  // unmountComponent 里 `scope.stop()` 是同步调用），所以既有那条
+  // 「v-if 式调用点卸载即归还滚动锁」不 await 也读得到归还后的值。
   bindEsc(false)
 })
 </script>
