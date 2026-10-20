@@ -118,9 +118,11 @@ describe('useFocusTrap — 回绕与可聚焦集合', () => {
     expect(document.activeElement).toBe(b)
     dispose()
   })
-  // 跑红配方：① 删 `{ immediate: true }` ⇒ 第一处 `expected false to be true`；
-  // ② 尾界判定 `idx === items.length - 1` 改成 `idx >= items.length`（永不回绕）⇒ 同红；
-  // ③ 中段防误伤的反向变异：任何非尾元素 Tab 也 preventDefault+focus ⇒ 第三处 `expected false to be true`。
+  // 跑红配方：① 删 `{ immediate: true }` ⇒ 本文件实跑 4 failed，三处断言全报
+  //   `expected false to be true`（监听根本没挂，没人拦也没人允许回绕）；
+  // ② 尾界判定 `idx === items.length - 1` 改成永不成立的比较（永不回绕）⇒ 同 4 红；
+  // ③ 反向变异"任何元素 Tab 都 preventDefault+focus(first)" ⇒ 中段防误伤那处红
+  //   （`expected false to be true`；本轮未实跑，红法为构造保证——该断言就在同一条用例里）。
 
   it('可聚焦集合复用 DIALOG_FOCUSABLE_SELECTOR：select/textarea 在环内，disabled 不入环', async () => {
     // 文档序：button → select → textarea → button[disabled]。
@@ -147,8 +149,10 @@ describe('useFocusTrap — 回绕与可聚焦集合', () => {
   // （缺 select/textarea 的"看着差不多"版）⇒ 本文件实跑 1 failed，报错原文
   // `expected <button id="t2-btn"></button> to be <textarea id="t2-ta"></textarea>`
   // （环只剩 [btn]，首的回绕尾变成 btn 自己）。
-  // 配方二（**本轮未实跑**，推断红法、如实标注）：把选择器里的 `:not([disabled])` 摘掉
-  // ⇒ disabled 尾按钮入环、textarea 不再是尾，第一处 `defaultPrevented` 就该红。
+  // 配方二（**未实跑**，推断红法、如实标注为推断）：把导入的口径换成"不排除 disabled"的
+  // 自写清单 ⇒ disabled 尾按钮入环、textarea 不再是尾；回绕调用 focus() 时 jsdom 不给
+  // disabled 元素焦点，红点是 activeElement 身份断言（`expected <button id="t2-btn">… to be
+  // <textarea…>`——焦点留在 btn），`defaultPrevented` 半边仍绿，所以这半边的独占证据在身份断言。
 
   it('display:none 的控件跳过——自身隐藏与祖先隐藏都算', async () => {
     // 文档序：v1 → v2 → hidden(自身 display:none) → deep(祖先 span 被隐藏)。
@@ -272,7 +276,9 @@ describe('useFocusTrap — 嵌套分层', () => {
       expect(tab(i2).defaultPrevented).toBe(true)
       expect(document.activeElement).toBe(i1)
       // 核心钉：整次事件里焦点只被移动了一次（内层自己的回绕）。
-      // `contains` 守卫摘掉后外层也会计一次（把焦点抢去 o1 再由内层抢回）⇒ 这里红。
+      // `contains` 守卫摘掉后：本序（内层先注册）下外层还会再动一次焦点、这里红；
+      // 产品挂载序（外层先注册）下误抢会被内层纠正回来、红点挪到身份断言——
+      // 两种序都红，红面不同，独占证据见下方配方注释。
       expect(focusSpy).toEqual([i1])
 
       const o2 = outer.querySelector('#t6-o2') as HTMLElement
@@ -289,8 +295,10 @@ describe('useFocusTrap — 嵌套分层', () => {
     }
   })
   // 跑红配方：注释掉处理函数里 `if (!current || !root.contains(current)) return` ⇒
-  // 本文件实跑 1 failed，红在第一处身份断言 `expect(document.activeElement).toBe(i1)`，
+  // 本文件实跑 1 failed（**内层先注册**序），红在身份断言 `expect(document.activeElement).toBe(i1)`，
   // 报错原文 `expected <button id="t6-o1"></button> to be <button id="t6-i1"></button>`
-  // （外层把内层焦点拽走——"各层只管各层"被破坏：外层对不在自己面板里的 Tab 出手了；
-  // focusSpy 那条是第二道钉子，同次变异下也红，但身份断言先响）。
+  // （外层把内层焦点拽走，内层注册在前、纠正不及）。**产品挂载序**（外层先注册）下末态可能
+  // 碰巧正确（外层误抢、内层后注册抢回 i1），届时红的是这里的 `focusSpy` 计数（2 次移动）——
+  // 所以本条用"焦点移动次数恰为 1"当独占钉子；反方向半段（焦点在外层时内层哑火）在两种序下
+  // 末态都可能碰巧对，**不**充当该变异的独占证据，如实标注（未实跑产品序变体）。
 })
