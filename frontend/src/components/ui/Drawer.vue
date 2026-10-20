@@ -20,7 +20,7 @@ import { useOverlayScrollLock } from '@/composables/useOverlayScrollLock'
  *    `NmPublishDrawer.drawerGate.test.ts` / `RagDocs.drawerGate.test.ts`。
  * 2. Esc 关抽屉：`el-drawer` 有这个通道，Drawer 此前没有；监听只在打开期间挂在 document 上，
  *    关闭态按 Esc 不发幽灵 `close`。**同页多个抽屉叠着开时一次 Esc 会把它们全部关掉**
- *    （没有弹层栈，见 :145 那条注释；「只关最上面一层」已记为 Phase 4 准入门待办）。
+ *    （没有弹层栈，见下面 `bindEsc` 上方那段注释；「只关最上面一层」已记为 Phase 4 准入门待办）。
  * 3. 滚动锁与焦点：进出抽屉锁 body 滚动、把焦点送进面板、关闭时还给打开前的元素并 emit `closed`。
  *
  * 焦点陷阱与 `aria-modal`（Task 10B 补上最后一块）：`useFocusTrap(rootRef, open)` 与 Modal 共用
