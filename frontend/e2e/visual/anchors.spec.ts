@@ -9,12 +9,14 @@ import {
   assertGenericGuards,
   assertAnchorArrival,
   assertPinCoverage,
+  assertPinnedPayloadContent,
   attachPayloadRecorder,
   DATA_ARRIVAL_CHECKS,
   DATA_PATHS,
   evidenceTagSuffix,
   freezeClock,
   installPayloadPin,
+  loadPinManifest,
   maskOf,
   pinRandom,
   settlePage,
@@ -315,6 +317,12 @@ async function runAnchor(page: Page, anchor: AnchorSpec, theme: ThemeName, testI
 
   if (pinState) {
     assertPinCoverage(anchor, pinState)
+    // R-CF1（4c-fix-C 第 9 项）：存在性断言 ≠ 内容断言。被钉的载荷自己必须非平凡
+    // （data 内序列长度 > 0 且至少一个数值字段非 0）；全 0 且未登记的直接红，
+    // 已登记的（今天这两个锚点，账号确实没分析数据）放行但**每次打印结论降级**——
+    // "被钉区域不得作为数据到位的证据"从台账措辞走进了运行时日志。见 visual-helpers 的
+    // assertPinnedPayloadContent / PIN_PAYLOAD_TRIVIAL_EXCUSED 与 LEDGER `P0a-GUARD-02`。
+    assertPinnedPayloadContent(anchor, loadPinManifest(anchor.slug))
     // 日期锚点的"归零"判据（brief Step 1 的判定式：钉载荷后计数必须归 0，不是"变小"）。
     // toHaveScreenshot 的"绿"根本不证明零漂移：交付档 r=0.0001 只有 130 px 免检额，但**判据是分类器计数**，
     //   字节差 618 / 计数 321 那种漂移在 0.0005 下被整体吸收、在 0.0001 下也只按 321 这个数变红，
@@ -407,6 +415,10 @@ for (const theme of ['light', 'dark'] as ThemeName[]) {
  * 【B5 加的两条前提（2026-10-19 修复轮）】"抛了"本身不是证据：会话被踢、白页、JS 崩同样让它抛。
  *   现在每格先断言 `桩命中数 > 0` 与 `location.pathname === 该锚点路由`，再断言 arrival 抛。
  *   标题那句"9 个专属断言真会因空响应而红"在加这两条之前**并不完全成立**——它现在才成立。
+ * 【4c-fix-C 第 9 项补的边界（R-CF1，读矩阵结论时必须带着）】本矩阵证的是守卫抓得住
+ *   `data:null` 这一形态；它**抓不住**"结构完整而数值全 0"——那种载荷渲染出的 DOM 存在性一条不缺。
+ *   内容层面的那道口在钉桩侧：`assertPinnedPayloadContent`（visual-helpers 的 R-CF1 注释块，
+ *   LEDGER `P0a-GUARD-02`）。别把"矩阵 9 格全绿"读成"到位断言是内容断言"。
  * 【极性】这里 expect(arrivalThrew).toBe(true) 的绿 = "守卫确实可红"，与量程探针那种
  * "FAILED=检出了"的反极性不是一回事——那条要报的是测量结论，本条要报的是断言的有效性。
  * 【为什么不装 payload pin】本组用例要的就是"真后端给空响应"，钉死会把空态一起钉没了。

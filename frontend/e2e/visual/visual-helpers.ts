@@ -388,6 +388,14 @@ export function snapName(slug: string, theme: ThemeName): string {
  *      所以"钉住"不是一劳永逸：`assertPinCoverage` 钉住"页面必须真消费被钉端点"，`assertZeroDiff` 钉住
  *      "钉了以后必须仍与基线逐字节相同"，两者共同把"悄悄退回真后端"变成红。**门禁到期这件事没有消失，
  *      只是从"每天必然红一次"换成了"若 fixture 与产品脱节就红"。**
+ *   ⚠️ **R-CF1（4c-fix-C 第 9 项）再加一条不得混读的账**：这两份被钉载荷本身**全 0**——
+ *      student-dashboard 的 `durationTrend` 14 × `seconds:0` 且 radar/heatmap 皆空数组，
+ *      admin-governance-analytics 的 growth 30 × `newUsers:0, cumulativeUsers:0`。这是**基线既有**状态
+ *      （`4ca2ea4` 的 fixture 就已是全 0，C 轮只重打时间戳），不是本轮新造的 bug；而反证矩阵只证明过
+ *      守卫抓得住 `data:null`，抓不住"结构完整而数值全 0"这一形态。⇒ 对这两个锚点，"到位断言绿"
+ *      只到 DOM 存在性层面；**被钉区域永远不得被引用为"分析数据到位"的证据**，`canvas ≥ 1` 这类
+ *      存在性检查也不得再被称作"数据到位"。机器面由 `assertPinnedPayloadContent` 把住（未登记的全 0 载荷
+ *      直接红），措辞账登记在 LEDGER `P0a-GUARD-02`。
  */
 export const SNAPSHOT_THRESHOLDS = { threshold: 0, maxDiffPixelRatio: 0.0001 }
 
@@ -939,12 +947,14 @@ export const DATA_ARRIVAL_CHECKS: Record<string, ArrivalCheck> = {
     },
   },
   'student-dashboard': {
-    what: '学生工作台 ≥1 张 .l1-card、统计值有非零数、且图表 canvas 真存在',
+    what:
+      '学生工作台 ≥1 张 .l1-card、统计值有非零数、且图表 canvas 真存在——三条都是**存在性**断言：' +
+      '被钉的分析载荷全 0（R-CF1，见 PIN_PAYLOAD_TRIVIAL_EXCUSED 与 LEDGER P0a-GUARD-02），被钉区域**不是**数据到位的证据',
     run: async (page) => {
       const s = await readArrival(page)
       if (s.l1Card < 1) throw new Error(`学生工作台 .l1-card = ${s.l1Card}（要 ≥1）`)
       requireSomeStat(s, '学生工作台')
-      if (s.canvas < 1) throw new Error('学生工作台的图表 canvas 没渲染——日期载荷钉死后画面不再来自后端，这一条是唯一还能看出"图没画"的判据')
+      if (s.canvas < 1) throw new Error('学生工作台的图表 canvas 没渲染——日期载荷钉死后画面不再来自后端，这一条是唯一还能看出"图没画"的判据（它只证"画了"，不证"画的是有内容的数"）')
     },
   },
   'teacher-dashboard': {
@@ -1003,10 +1013,12 @@ export const DATA_ARRIVAL_CHECKS: Record<string, ArrivalCheck> = {
     },
   },
   'admin-governance-analytics': {
-    what: '分析页 ≥1 个 canvas 且统计值有非零数',
+    what:
+      '分析页 ≥1 个 canvas 且统计值有非零数——存在性断言；被钉的 growth 载荷全 0 ⇒ 被钉区域不是数据到位证据（R-CF1，' +
+      'canvas ≥ 1 这类检查不得再被称作"数据到位"）',
     run: async (page) => {
       const s = await readArrival(page)
-      if (s.canvas < 1) throw new Error('分析页没有 canvas——图表整块没渲染')
+      if (s.canvas < 1) throw new Error('分析页没有 canvas——图表整块没渲染（注意：它只证"画了"，不证"画的是有内容的数"）')
       requireSomeStat(s, '治理分析')
     },
   },
@@ -1066,6 +1078,138 @@ export const DATA_PATHS: Record<string, string[]> = {
 
 /** 外壳与会话类端点：把它们也打空会得到 /login 重定向或主题丢失，红得无法归因 */
 export const SHELL_KEEP_ALIVE_PATHS = ['/api/auth/', '/api/notifications/']
+
+/* ============================================================================ *
+ * R-CF1（4c-fix-C 第 9 项）：被钉载荷的**内容**断言——存在性断言不等于内容断言
+ * ============================================================================ *
+ * 【原先错在哪】`__fixtures__/student-dashboard.json` 钉的是 `/api/student/analytics/visualization`，
+ * 而那份载荷是 `durationTrend` 14 × `seconds:0`、`radarData: []`、`heatmapData: []`（admin-governance-analytics
+ * 同型：growth 30 × `{newUsers:0, cumulativeUsers:0}`）。上面 DATA_ARRIVAL_CHECKS 的三条
+ * （`.l1-card ≥ 1`、`requireSomeStat`、`canvas ≥ 1`）**一条都不看被钉的这份载荷**：
+ * 统计卡来自未被钉的 `/api/student/dashboard`（走真后端），趋势图全 0 也照样画出一个 canvas。
+ * ⇒ 读者看到"到位断言绿 ＋ 钉桩复现 md5 相等"，就会相信**分析数据到位了**，而被钉区域其实是空的。
+ * 【两条限定（结论必须带着走，别当本轮新造的 bug）】
+ *   ① 这是**基线既有**状态——`4ca2ea4` 的 fixture 就已是全 0，C 轮只重打了时间戳；
+ *   ② 空态可证伪矩阵（anchors.spec.ts Step 2）证明守卫抓得住 `data:null`，但抓不住
+ *     "结构完整而数值全 0"这一形态——那组守卫是**存在性**断言，不是**内容**断言。
+ * 【裁定（R-CF1）的落法】给被钉载荷加一条内容断言（钉住的 `data` 必须非平凡：
+ * 序列长度 > 0 且至少一个数值字段非 0），**不动后端种子数据**（那属数据所有权、越界）。
+ * 若某些账号确实没有分析数据（今天这两个锚点就是，载荷来自真后端录制），则该锚点的
+ * "被钉区域"**不得作为数据到位的证据**——这条由 `PIN_PAYLOAD_TRIVIAL_EXCUSED` 显式登记、
+ * 每次跑都用日志把结论降级说出来，并登记在 LEDGER `P0a-GUARD-02`。
+ * 【为什么不是"全 0 就直接绿、只在注释里提醒"】那等于回到本项要修的起点（注释挡不住误读）。
+ * 也不是"全 0 就一律红"：那会把**已核实的账号事实**变成永久红，而最省事的出路又会是删断言。
+ * 所以判据是三分的：非平凡 ⇒ 正常绿；平凡且已登记 ⇒ 绿但明说"被钉区域不是数据到位证据"；
+ * 平凡且未登记 ⇒ **抛**。登记表与实测全 0 集合的一致性由 `helpers.spec.ts` 的 R-CF1 用例双向钉住。
+ */
+
+/** inspectPinnedPayload 的普查结果（口径见函数注释）。 */
+export interface PinnedPayloadContent {
+  nonTrivial: boolean
+  /** data 内最深嵌套里最长的**数组**长度（"序列"） */
+  maxSeqLen: number
+  /** data 内非零有限数的个数 */
+  nonZeroCount: number
+  detail: string
+}
+
+function countPinnedContent(node: unknown, acc: { maxSeqLen: number; nonZeroCount: number }): void {
+  if (Array.isArray(node)) {
+    if (node.length > acc.maxSeqLen) acc.maxSeqLen = node.length
+    for (const v of node) countPinnedContent(v, acc)
+    return
+  }
+  if (node !== null && typeof node === 'object') {
+    for (const v of Object.values(node as Record<string, unknown>)) countPinnedContent(v, acc)
+    return
+  }
+  if (typeof node === 'number' && Number.isFinite(node) && node !== 0) acc.nonZeroCount += 1
+}
+
+/**
+ * 普查一份被钉响应：只走 `data` **内部**——信封上的 `code:200` 不是内容，
+ * 否则任何响应都"非平凡"，这条断言就又成了一条永不成立的判据。
+ * 非平凡 := 至少一个序列长度 > 0 **且** data 内至少一个数值字段非 0（R-CF1 原文口径）。
+ */
+export function inspectPinnedPayload(body: string, where: string): PinnedPayloadContent {
+  let parsed: { data?: unknown }
+  try {
+    parsed = JSON.parse(body) as { data?: unknown }
+  } catch (e) {
+    throw new Error(
+      `[钉桩内容] ${where} 的响应体不是合法 JSON：${(e as Error).message}\n` +
+        `  被钉响应应为 JSON；解不开说明 fixture 被手改过或录制写坏了，重录它，别把解不开当成"有内容"。`,
+    )
+  }
+  const acc = { maxSeqLen: 0, nonZeroCount: 0 }
+  countPinnedContent(parsed.data, acc)
+  return {
+    nonTrivial: acc.maxSeqLen > 0 && acc.nonZeroCount > 0,
+    maxSeqLen: acc.maxSeqLen,
+    nonZeroCount: acc.nonZeroCount,
+    detail: `data 内最长序列 ${acc.maxSeqLen}、非零数值 ${acc.nonZeroCount}`,
+  }
+}
+
+/**
+ * 按 R-CF1 第二款"该账号确实没有分析数据"**登记在案**的钉桩锚点。
+ * 登记在这里 = 台账措辞降级（"被钉区域不作数据到位证据"），**不是**放行内容断言——
+ * 载荷全 0 而未登记的钉桩锚点会当场抛；登记条目若对不上实测（比如重录后载荷有内容了），
+ * `helpers.spec.ts` 的 R-CF1 一致性断言会红，逼着同一批里把表和 LEDGER 一起改。
+ */
+export const PIN_PAYLOAD_TRIVIAL_EXCUSED: Record<string, string> = {
+  'student-dashboard':
+    '被钉 /api/student/analytics/visualization：durationTrend 14 × seconds:0、radarData []、heatmapData []（fixture 自 4ca2ea4 录制即此形状，来自真后端）⇒ 该学生账号基线日无分析数据。',
+  'admin-governance-analytics':
+    '被钉 /api/analytics/users/growth?days=30：30 × {newUsers:0, cumulativeUsers:0}（同上）⇒ 该 admin 账号 30 天窗口内无增长数据。',
+}
+
+/**
+ * 回放侧的内容门：anchors 在 `assertPinCoverage` 之后、`assertZeroDiff` 之前调用
+ * （放在覆盖检查之后，是为了让"声明了却没被消费"那种红先按原归因报出来）。
+ * 只在**交付口径**（装了钉桩）跑；录制模式产不出 pinState，由下一次回放跑补上这一课。
+ */
+export function assertPinnedPayloadContent(anchor: AnchorSpec, manifest: PinManifest): void {
+  const trivial: string[] = []
+  const details: string[] = []
+  for (const key of anchor.pinPaths ?? []) {
+    const hit = manifest.requests[key]
+    if (!hit) continue // key 缺失由 assertPinCoverage 先拦住，这里不重复报
+    const v = inspectPinnedPayload(hit.body, `${anchor.slug} → ${key}`)
+    if (!v.nonTrivial) {
+      trivial.push(key)
+      details.push(`${key}：${v.detail}`)
+    }
+  }
+  const census = details.join('；')
+  if (trivial.length === 0) {
+    if (PIN_PAYLOAD_TRIVIAL_EXCUSED[anchor.slug]) {
+      console.log(
+        `[钉桩内容] ${anchor.slug}：被钉载荷现已非平凡——PIN_PAYLOAD_TRIVIAL_EXCUSED 里的豁免已过时，\n` +
+          `           必须同批删登记条目并更新 LEDGER P0a-GUARD-02（helpers.spec.ts 的一致性断言此刻就会红）。`,
+      )
+    }
+    return
+  }
+  const reason = PIN_PAYLOAD_TRIVIAL_EXCUSED[anchor.slug]
+  if (reason) {
+    console.log(
+      `[钉桩内容] ${anchor.slug}：被钉载荷平凡（${JSON.stringify(trivial)}；普查 ${census}）\n` +
+        `           ⇒ 按 R-CF1（4c-fix-C 第 9 项），本锚点**被钉区域不得作为"数据到位"的证据**；\n` +
+        `           canvas ≥ 1 这类存在性检查只证明画面不空，证明不了被钉区域里的数值是真的。登记依据：${reason}`,
+    )
+    return
+  }
+  throw new Error(
+    `[钉桩内容] ${anchor.slug}：被钉载荷（${JSON.stringify(trivial)}）没有内容——序列全 0 或全空（普查：${census}）。\n` +
+      `两种处置（R-CF1 裁定；**改后端种子数据不在本仓权限内**）：\n` +
+      `  ① 该账号确实没有这类数 ⇒ 先拿真后端 curl 一次证实（别拿 fixture 自己当证据），再把它加进\n` +
+      `     PIN_PAYLOAD_TRIVIAL_EXCUSED（登记依据要写形状与出处）并同步 LEDGER 的措辞降级条目；\n` +
+      `  ② fixture 是录歪/录坏的新形态 ⇒ 重录（cd frontend && PW_PORT=5175 PW_RECORD_PAYLOADS=1 \\\n` +
+      `       npx playwright test -c playwright.visual.ts anchors -g "${anchor.slug}"），随后不带 PW_RECORD_PAYLOADS 再跑一次，\n` +
+      `     由本门复查。别把这条断言删掉或降成日志——"钉桩内容"一旦不可证，本项修的洞就原样回来。`,
+  )
+}
 
 /* ============================================================================ *
  * 可比性前置：anchors 与 sensitivity 共用同一份（Task 4c Step 1g "口径共享"）

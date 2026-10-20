@@ -5,13 +5,17 @@ import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import zlib from 'node:zlib'
 import {
+  ANCHORS,
   applyEvidenceWrite,
   assertManifestDates,
+  assertPinnedPayloadContent,
   BASELINE_DAY,
   CLOCK_DATE,
   freezeClock,
+  inspectPinnedPayload,
   loadPinManifest,
   maskOf,
+  PIN_PAYLOAD_TRIVIAL_EXCUSED,
   pngSize,
   setTheme,
   settlePage,
@@ -19,6 +23,8 @@ import {
   SNAPSHOT_PAGE_TIME_MS,
   SNAPSHOT_THRESHOLDS,
   storagePathFor,
+  type AnchorSpec,
+  type PinManifest,
   THEME_KEY,
   waitForStableText,
 } from './visual-helpers'
@@ -466,5 +472,74 @@ test('基线日是断言不是假设：时钟日、fixture 声明日、回拨量
   // 顺带钉住自洽算法本身：正例的 implied 必须真等于 fixture 里那个数
   const ok = { serverDateAtRecord: '2026-10-20', clockDate: BASELINE_DAY, backshiftDays: 2 }
   expect(() => assertManifestDates(ok, '跨月自洽例')).not.toThrow()
+})
+
+/**
+ * Task 4c-fix-C 第 9 项（R-CF1）：被钉载荷的**内容**断言必须有牙。
+ * 【原先错在哪】两份入库 fixture 的载荷全 0（student-dashboard：durationTrend 14 × seconds:0，
+ * radar 与 heatmap 皆空；admin-governance-analytics：growth 30 × 全 0），而各锚点的"数据到位"
+ * 断言只看 DOM 存在性、不看被钉载荷 ⇒ "到位绿 ＋ 复现 md5 相等"被读成"分析数据到位了"。
+ * 【这条断言钉四件事】① 普查口径只走 `data` 内部（信封上的 code:200 不算内容，否则永不成立）；
+ * ② 合成反例：未登记的钉桩锚点吃到全 0 载荷必须抛（**反例喂合成样本**，不碰 `__fixtures__` 入库产物）；
+ * ③ 已登记的两条豁免对真 fixture 不抛（豁免 = 措辞降级，由 assertPinnedPayloadContent 打日志）；
+ * ④ 登记表与实测必须双向一致：fixture 重录出内容后忘删豁免 ⇒ 红；新钉桩锚点全 0 没登记 ⇒ 也红。
+ */
+test('被钉载荷内容断言（R-CF1）：普查只走 data、合成反例必红、豁免表与 fixture 必须互洽', () => {
+  // ① 合成全 0（形状逐字照抄 fixture 被钉端点的样子）：序列长 14 但数值全 0 ⇒ 平凡
+  const trivialBody = JSON.stringify({
+    code: 200,
+    message: 'success',
+    data: {
+      durationTrend: Array.from({ length: 14 }, (_, i) => ({ date: `2026-10-${String(i + 5).padStart(2, '0')}`, seconds: 0 })),
+      radarData: [],
+      heatmapData: [],
+    },
+  })
+  const v = inspectPinnedPayload(trivialBody, '合成·全0')
+  expect(v.nonTrivial, '14 长序列全 seconds:0 竟被判非平凡——口径＝序列 >0 且至少一个数值非 0').toBe(false)
+  expect(v.maxSeqLen).toBe(14)
+  expect(v.nonZeroCount, 'data 信封上的 code:200 被当成内容了——普查必须只走 data 内部').toBe(0)
+  // 正例：同样形状里给一个非 0 数值 ⇒ 非平凡；data:null（矩阵已能拦的形状）也须判平凡
+  expect(inspectPinnedPayload(JSON.stringify({ code: 200, data: [{ date: '2026-10-05', seconds: 120 }] }), '合成·有内容').nonTrivial).toBe(true)
+  expect(inspectPinnedPayload(JSON.stringify({ code: 200, data: null }), '合成·data:null').nonTrivial).toBe(false)
+
+  // ② 合成反例：一个**不在登记表里**的钉桩锚点吃到全 0 载荷必须抛
+  const synthSlug = 'synthetic-new-pin'
+  const synthAnchor = { slug: synthSlug, title: synthSlug, role: 'ADMIN', path: '/x', pinPaths: ['/api/synthetic'] } as AnchorSpec
+  const synthManifest: PinManifest = {
+    slug: synthSlug,
+    recordedAt: '',
+    serverDateAtRecord: BASELINE_DAY,
+    clockDate: BASELINE_DAY,
+    backshiftDays: 0,
+    requests: { '/api/synthetic': { status: 200, contentType: 'application/json', body: trivialBody } },
+  }
+  let threw = ''
+  try {
+    assertPinnedPayloadContent(synthAnchor, synthManifest)
+  } catch (e) {
+    threw = (e as Error).message
+  }
+  expect(threw, '未登记的钉桩锚点吃到全 0 载荷却放行——内容断言没有牙').toContain('没有内容')
+
+  // ③ 登记表里的两条对**入库 fixture** 必须不抛（豁免 = 放行但每次打结论降级日志）
+  for (const slug of Object.keys(PIN_PAYLOAD_TRIVIAL_EXCUSED)) {
+    const anchor = ANCHORS.find((a) => a.slug === slug)
+    expect(anchor, `${slug} 在登记表里却不是已声明锚点——登记条目悬空`).toBeTruthy()
+    expect(() => assertPinnedPayloadContent(anchor!, loadPinManifest(slug)), `${slug} 已登记豁免仍被抛——豁免语义被改坏`).not.toThrow()
+  }
+
+  // ④ 双向一致：当前实测全 0 的钉桩锚点集合 == 登记表集合
+  //    （重录出内容却不删豁免 ⇒ trivialNow 少一条、红；新钉桩全 0 未登记 ⇒ trivialNow 多一条、红）
+  const trivialNow = ANCHORS.filter((a) => (a.pinPaths?.length ?? 0) > 0)
+    .filter((a) => {
+      const m = loadPinManifest(a.slug)
+      return (a.pinPaths ?? []).some((k) => m.requests[k] && !inspectPinnedPayload(m.requests[k].body, `${a.slug}/${k}`).nonTrivial)
+    })
+    .map((a) => a.slug)
+    .sort()
+  expect(trivialNow, '登记表与实测全 0 集合漂开了（一侧变化必须同批改另一侧与 LEDGER P0a-GUARD-02）').toEqual(
+    Object.keys(PIN_PAYLOAD_TRIVIAL_EXCUSED).sort(),
+  )
 })
 
