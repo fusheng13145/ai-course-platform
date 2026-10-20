@@ -575,7 +575,8 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 | 9 | **完成**（两轮复开到席；实现者撞 turn 上限、控制器接手验收） | `8218ee8`/`5f314ca`/`e268c23`/`9bda5ad`/`f00e438` ＋ 台账 `d876188` ＋ 修复 `efa4cc7`/`cb82387` | 焦点接入的**前半**（Modal 自持面板侧 `rootRef` ＋ `open && mounted` 适配器）已入库，三条可证伪焦点用例与 P-a/P-b/P-c 三条读数也入库；**`defineExpose` 那半按 R-T9-7 主动不做**（见 §11.5）。控制器自验：目录门 11 files / 105 tests、全包 165 files / 1749 tests、lint 静默、棘轮 402 持平，并**独立复跑了那条决定性变异**（写 `defineExpose` ⇒ 18 failed / 87 passed，与执行者记数逐字相符）。**尚未过任务级评审** |
 | 10A 引用计数滚动锁 | **完成**（复核到席） | `4445ef6`/`88c8ee6`/`8e03639`/`d72bab8` ＋ 必修 `98f5439` | Drawer 的内联锁抽成 `useOverlayScrollLock` 并与 Modal 共用一把计数器；复核退回三条必修（新行抄入占位词会炸 Task 15 的残留检查；三处把变异读数指向不入 git 的报告；**"13 个挂载点全被 v-if 门着"这个前提没有入库守卫** ⇒ 已补可重放配方并登记为缺口、归 Task 13） |
 | 10B ARIA／焦点陷阱／焦点返还／`closed`／遮罩开关 | **落地；两轮复开到席，第 2 轮抓出**我**写的假对比并已改**（该轮修复未再开第三席，见 R-T10B-2） | `95f95c5`/`27eb3c6`/`4a13985`/`2c3a912` ＋ 必修 `275375c` ＋ 第 2 轮更正（未提交态见下条 commit） | 新建唯一一份 `useFocusTrap`，两原语各一行接线；Modal 抬到 Drawer 已交付的形状。**P-d 实测**：EP 2.14.7 的 `el-dialog` **确实**挂 `ElFocusTrap` ⇒ 本棒是 parity。**第 2 轮纠出两条我的失真**：① "EP 绑容器元素、不吃 `stopPropagation` 这一刀"是**假的**（它的 keydown 也绑冒泡，`focus-trap…mjs:89` 无 capture 参数）；② 我把第三个反例写成"未定位"，其实一层事件转发就找得到（`NmNoticeList.vue:15`）⇒ 少查就当保守。**边界如实兜住**：无 `focusout` 拽回、无 `focusableStack`；子节点 `stopPropagation()` 会静解除陷阱（今天全仓零命中，但没人守） |
-| 10C / 13 / 14 / 15 | **未派发** | — | 10C＝R-B 写回对称、`NmPublishDrawer.vue` 双转发、`--sh-drawer` 缺 ltr token；Task 13 的地板值 73 / 82 **开工须重测**，且 `el-dialog` 有 **65（原始 grep）／63（解析式）／64（composable 头注释、无口径）** 三个数并存——按原始口径同式是 **84**，护栏会低两格设防 |
+| 10C 写回对称／双转发／`--sh-drawer` 与 ltr 两档 | **完成**（第 1 轮复开到席，两条 Important 归正在 `11787de`） | `d79aed8`/`ba63a3a`/`3cff12a`/`900da2a` ＋ 我改错锚 `a07f5a7` ＋ 复核必修 `11787de` | Drawer 的 `close()` 收到 Modal 形状（**方向不许反**）；`NmPublishDrawer` 双转发收成一条腿；补 `--sh-drawer-ltr` 明暗两档与暗色 `--sh-drawer`（**存量缺陷、非本棒引入**）。**我派单里的两处错引被执行者与复核各自抓到一个**：`37b9414` 不是 Modal 现状的证据（定形在 `6d2379d`），`5c221c8` 更在定形**之前**、不可能"保持"它；另"没有一道门会解析 `theme.css`"半错——`format:check` 的 glob 含 `css` |
+| 13 / 14 / 15 | **未派发** | — | Task 13 的地板值 73 / 82 **开工须重测**，且 `el-dialog` 有 **65（原始 grep）／63（解析式）／64（composable 头注释、无口径）** 三个数并存 ⇒ 按原始口径同式是 **84**，护栏会低两格设防 |
 | 验收包（本会话任务清单第 24 项） | 未交 | — | 形态已定：① 裁定清单含"若错代价"；② 三道门禁结论；③ LEDGER 列数自校＋实跑数字；④ **未定性的事单独列**，不混进"已完成" |
 
 ### 11.3 三道门禁的当前结论（正文在 §6，这里只给判到哪一步）
@@ -610,6 +611,12 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 - **台账占位词未消**：LEDGER 里 `P0b-GUARD-01` 与 `P0b-DRAWER-01` 两行仍带"待回填"（前者等 Task 13，属正常；
   后者那格本可由 Task 11 修复轮**已有实测**直接填，不必等新证据）。Task 15 Step 5 会 grep 这两个占位词并要求
   **无输出**，所以现在不清就是收口时炸。
+- **视觉套件在 D-1 修好之前结构性不能全绿**（10C 的基线复跑把这条从"22/24"的旧账逼成待拍项）：
+  `error-404` 的明暗两张**照跑**却**没有入库基线**（Task 4 按 D-1 主动拒收：error 路由从不写 `data-theme`），
+  于是每次都红在通用守卫 `assertComparableRender`（读数 `data-theme=` 空值），**不是红在像素**。
+  控制器 2026-10-20 实测：`PW_PORT=5175 npx playwright test -c playwright.visual.ts` = **55 passed / 2 failed**，
+  两条失败正是这两张。⇒ Task 15 必须**二选一并写进台账**：修 D-1（产品缺陷，让 error 路由也写 `data-theme`），
+  或给这两条加**带理由的显式排除**；不许留成"每次跑都有两条已知红"的常态——那会把真正的回归淹死在噪声里。
 
 ### 11.5 控制者裁定（新会话不得重开，除非带来新证据）
 
@@ -686,20 +693,21 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
   **本会话两次被上限切断**（150 turn 与 Chat 日配额），判活看产物、不看"没通知"。
 - 依赖收紧**逐条授权**，不接受顺手批量清 `^` 范围。
 
-### 11.7 事实基线与可重放命令（读数截至 `4a13985`，Task 10B 落地之后）
+### 11.7 事实基线与可重放命令（读数截至 `11787de`，Task 10 三棒全部落地之后）
 
 | 事实 | 现值 | 重放命令 |
 | --- | --- | --- |
 | 视觉阈值单一来源 | `{ threshold: 0, maxDiffPixelRatio: 0.0001 }`（1440×900 免检额 **129.6 px**） | `grep -n 'export const SNAPSHOT_THRESHOLDS' frontend/e2e/visual/visual-helpers.ts` |
-| ui 原语套件 | **13 files / 127 tests**（`4a13985` 起；此前 11 / 105、再前 10 / 98 与 97 — 旧读数一律按 commit 限定后再读） | `cd frontend && npx vitest run src/components/ui/` |
-| 全包单元测试门 | **169 files / 1785 tests 全绿**（控制器作为合入门跑，`4a13985` 态；此前 `d876188` 是 165 / 1749） | `cd frontend && npx vitest run`（**必须在 `frontend/` 里跑**：仓库根跑会得到"no tests"的假读数，本会话踩过两次、第二次是刚把这条写进本表之后当场复发的 ⇒ 靠记性不成立，命令要连着 `cd frontend &&` 一起复制） |
-| 两目录合跑门（弹层与 composable 的落地面） | **56 files / 582 tests 全绿**（`4a13985` 态） | `cd frontend && npx vitest run src/components/ui/ src/composables/__tests__/` |
+| ui 原语套件 | **13 files / 132 tests**（`d79aed8` 起；此前 13 / 127、11 / 105、10 / 98 与 97 — 旧读数一律按 commit 限定后再读） | `cd frontend && npx vitest run src/components/ui/` |
+| 全包单元测试门 | **169 files / 1790 tests 全绿**（控制器作为合入门跑，`900da2a` 态；此前 `4a13985` 是 169 / 1785、`d876188` 是 165 / 1749） | `cd frontend && npx vitest run`（**必须在 `frontend/` 里跑**：仓库根跑会得到"no tests"的假读数，本会话踩过两次、第二次是刚把这条写进本表之后当场复发的 ⇒ 靠记性不成立，命令要连着 `cd frontend &&` 一起复制） |
+| 两目录合跑门（弹层与 composable 的落地面） | **56 files / 587 tests 全绿**（`900da2a` 态；此前 `4a13985` 是 56 / 582） | `cd frontend && npx vitest run src/components/ui/ src/composables/__tests__/` |
 | 类型棘轮 | 402 / 402 持平（只许下降） | `cd frontend && npm run typecheck:gate` |
 | Lint | 本轮静默；**只覆盖 `src/**`** | `cd frontend && npm run lint` |
 | Format | 存量红（约 108 个文件，且 CI 在跑）⇒ **禁写"lint/format 全绿"**，引用前重测 | `cd frontend && npm run format:check` |
 | Element Plus | 声明已收紧为精确 **`2.14.7`**（`058b907`）；`@playwright/test` 仍声明 `^1.62.0` 而装的是 1.63.0，**收紧须另行授权** | `cd frontend && npm ls element-plus` |
 | LEDGER 列数 | 表内每一行都是 **9** | 命令见本小节末的副本（表格单元里放它会因转义而失真） |
-| 基线可复现前提 | 后端与引擎须在听：8080 / 3306 / 6379 / 7687 / 8001 / 8002（本轮六个全在）；重启只能走 `start-backend.bat` | `netstat -ano \| grep LISTENING` 再看上述端口 |
+| 视觉基线门（弹层与 token 改动的像素面） | **55 passed ／ 2 failed**（控制器 2026-10-20 实跑；两条失败是 `error-404` 明暗、红在通用守卫 `data-theme=` 空值，**无一条红在像素**，见 §11.4 末条）⇒ 10A／10B／10C 在**已入库的 22 张基线上像素中性**；浅色 ltr 与旧手算值逐字相同也是同一结论的机械面 | `cd frontend && PW_PORT=5175 npx playwright test -c playwright.visual.ts`（**前提**：8080／3306／6379 与三台引擎在听；会话一重启就要走 `start-backend.bat` 重来） |
+| 基线可复现前提 | 后端与引擎须在听：8080 / 3306 / 6379 / 7687 / 8001 / 8002（本会话两次实测：起初只有 MySQL/Redis 在听，起完 `start-backend.bat` 后六个全回）；重启只能走 `start-backend.bat` | `netstat -ano \| grep LISTENING` 再看上述端口 |
 
 LEDGER 列数自校的**原文在 `docs/visual-upgrade/LEDGER.md`「表内书写规则」节**（唯一来源），此处只放一份可直接复制的副本：
 
@@ -716,24 +724,15 @@ awk -F'|' '/^\|/ {print NR": "(NF-2)}' docs/visual-upgrade/LEDGER.md
 
 ### 11.8 下一批次（按此顺序；每步之前先跑 §11.7 与 `git status`）
 
-1. **Task 10C**（最后一棒）：R-B 写回对称（Modal 与 `Drawer` 的 `close()` 闸与无条件写回收到同一套）、
-   `NmPublishDrawer.vue:5-6` 的双转发、`--sh-drawer` 缺 ltr token。
-   10A/10B 已把前置清掉：滚动锁共用一把计数器、焦点陷阱与 `aria-modal` 两原语同形。
-   **10B 的第 2 轮修复（`275375c` 之后那条更正）不再开第三席**（判例同 R-T8-R3／R-T9-9）：
-   它改的三条都可机械核对——EP 绑相已由控制器逐字读源码（`focus-trap…mjs:89` 无 capture 参数）、
-   第三处反例已回源码定位（`NmNoticeList.vue:15` → `@open`）、口径与指针逐条 grep 命中；
-   **兜底仍是末尾 whole-branch review，且"该轮无独立复核"已登记在案。**
-   本批留给 10C／Task 13／Playwright 的三条缺口：`focusout` 拽回与弹层栈（含"只关最上层"）、
-   **不可聚焦触发物下"焦点返还"等于不返还**（R-T10B-1）、子节点 `stopPropagation()` 会静解除陷阱（R-T10B-2）。
-2. **Task 13**（把焦点覆盖率护栏改为弹层实现无关）。地板值以计划现文为准：**73 / 82**；示例代码里抄着的
+1. **Task 13**（把焦点覆盖率护栏改为弹层实现无关）。地板值以计划现文为准：**73 / 82**；示例代码里抄着的
    60 / 54 是草稿、不是取值依据；开工须重测，且 LEDGER `P0b-GUARD-01` 那行的占位词由它消。
    **本会话新增一条判据**：Task 9 已把 Modal 的焦点做成**组件内部自持**（`P0b-MODAL-04`），所以"扫调用点开标签
    有没有 `ref` ＋ `useDialogFocus`"这种口径从此**测不出真假**——护栏必须改成"弹层组件自身是否接了焦点"，
    否则覆盖率 100% 与零焦点覆盖可以同时为真（这正是 `P0b-MODAL-04` 必要性栏点出的那道缺口）。
-3. **Task 14**（非基线动效抽检组）——补 reduce 模式下基线照不到的另一半；与 §11.4 的三条包含块边界一起做才有意义。
-4. **4c-fix-C**（8 项，编号 9–16），含 `data-theme=""` 三步取证与 `visual-helpers.ts` 的纯搬迁拆分。
-5. **Task 15**（Phase 0 收口）：占位词 grep 须无输出、LEDGER 列数自校须全 9、三道门禁逐条给结论。
-6. **验收包**：按 §11.2 末行那四条形态呈报，未定性的事单独列。
+2. **Task 14**（非基线动效抽检组）——补 reduce 模式下基线照不到的另一半；与 §11.4 的三条包含块边界一起做才有意义。
+3. **4c-fix-C**（8 项，编号 9–16），含 `data-theme=""` 三步取证与 `visual-helpers.ts` 的纯搬迁拆分。
+4. **Task 15**（Phase 0 收口）：占位词 grep 须无输出、LEDGER 列数自校须全 9、三道门禁逐条给结论。
+5. **验收包**：按 §11.2 末行那四条形态呈报，未定性的事单独列。
 
 - 每次动手前必查：**leyon 会在会话之间甚至同一轮之内自己改文件并 commit**，所以 `git status` 与
   `git log --oneline -5` 必须重跑，行号类引用一律重取；文档份数保持最少（§10），状态只更新本节。
