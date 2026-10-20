@@ -205,7 +205,7 @@ describe('Modal 焦点接入的可达性前提（Task 9 Step 1）', () => {
      * - 在 Modal.vue 里补一句 defineExpose({ close }) ⇒ 本行报
      *   `AssertionError: expected 'function' to be 'undefined'`（实跑 `Tests 1 failed / 104 passed (105)`）；
      *   这条才是"绑定挂在 proxy 上"那一说法的对偶实验，比改期望值本身有意义。
-     * - 按 R-T9-2 把 defineExpose({ $el: computed(...) }) 写进 Modal ⇒ 本条上面那行
+     * - 按 brief Step 3-B（R-T9-2 认定的 3-B 路线，现已被 R-T9-7 撤销）把 defineExpose({ $el: computed(...) }) 写进 Modal ⇒ 本条上面那行
      *   `nodeType` 断言先红，报 `AssertionError: expected 1 to be 8`（P-b 量的就是 expose 这一件事）。
      */
     expect(typeof captured!.close).toBe('undefined')
@@ -243,7 +243,8 @@ describe('defineExpose 一个 $el 时会发生什么（P-c，钉在探针上）'
     const wrapper = track(mount(ExposeProbe, { attachTo: document.body }))
     await nextTick()
     // 与上面 P-a 的对照实验：形状完全相同，差别只有一个 expose({ $el: ... })。
-    // VTU 的 createVMProxy（本机 @vue/test-utils 3.5.x 的 vue-test-utils.cjs.js:7617-7646）把
+    // VTU 的 createVMProxy（本机 **@vue/test-utils 2.5.1**，`package.json` 声明 `^2.4.6`；
+    // 被执行的是 vue-test-utils.cjs.js，其 :7617-7646）把
     // `key in vm.$.exposed` 排在 setupState 与 vm 之前，而 VueWrapper.element 就是 this.vm.$el
     // （:7788-7790）⇒ wrapper.element 从"锚点注释"变成"面板元素"。
     // 后果（本轮实跑，把这段 expose 原样写进 Modal.vue 之后）：
@@ -260,8 +261,9 @@ describe('defineExpose 一个 $el 时会发生什么（P-c，钉在探针上）'
 
 describe('Modal 的焦点行为（Task 9 Step 4）', () => {
   /**
-   * 三条用例各有一个能把它跑红的改法，逐条写在注释里；本轮全部实跑过，报错原文与汇总行
-   * 都在 task-9-report.md（那份未入 git，所以这里只写"怎么红"，不写"红过"当依据）。
+   * 三条用例各有一个能把它跑红的改法，逐条写在注释里；**报错原文与汇总行在台账 `P0b-MODAL-04`
+   * 的"有效性"栏**（那一行是本任务唯一入 git 的记录——实现者撞 150 turn 上限，
+   * `task-9-report.md` 从未写出，所以任何"读数在某份报告里"的说法都不可复核，一律以那一行为准）。
    * 为什么是这三条（控制器裁定 R-T9-6）：brief Step 4 的第二条「禁用首个控件时焦点跳过」
    * 在 Modal 上是**伪命题**——头部关闭按钮永远不带 disabled，改不改跳过逻辑它都绿，
    * 所以换成了下面这三条各自可证伪的。
@@ -337,7 +339,10 @@ describe('Modal 的焦点行为（Task 9 Step 4）', () => {
     //   那两条 el-dialog 的既有接线点也是同一结果，所以"聚焦到关闭按钮"**就是** parity 的落点。
     //   要改落点只能改原语选择器或给面板加 tabindex——两者都超出本任务范围（控制器裁定 R-T9-5 明令不做）。
     expect(document.activeElement).not.toBe(document.body.querySelector('.probe-input'))
-    // 焦点确实在面板内部（读屏/键盘用户不再被留在背景页里），这条用的是原语自己导出的选择器。
+    // ⚠️ 这一条**不是焦点断言**，别把它当"焦点进来了"的证据：`querySelector` 只看 DOM 顺序，
+    // 与 `document.activeElement` 无关，任何焦点接线的破坏都红不了它（第 1 轮评审就是按这个理由判的）。
+    // 它钉的是"面板里文档序第一个可聚焦控件是谁"，为本块上面那条 `activeElement` 断言提供落点口径；
+    // 真正会红的只有上面与下面那两条 `activeElement`/`focus` 侧的断言。
     expect(document.querySelector(DIALOG_FOCUSABLE_SELECTOR)).toBe(closeBtn)
     /**
      * 怎么把本条跑红（三条改动本轮都实跑过，每次都是 `Tests 3 failed / 102 passed (105)`，
