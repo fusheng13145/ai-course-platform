@@ -92,9 +92,17 @@ const isWide = computed(() => attrs.wide === '' || attrs.wide === true)
  * （`@close` 发得出，但 `update:modelValue` 不写回）。Phase 4 要批量写 `v-model="visible"`，
  * 两原语对同一个绑定表现不同 ⇒ 排查得按页做而不是按原语做一次。
  *
- * **方向是单向的**：收 Drawer 到 Modal，不反改 Modal——Task 6/7 的兼容钉住的是 Modal 的形状
- * （`git show 37b9414:frontend/src/components/ui/Modal.vue` 的 close() 就是这个形状，
- * 且 Modal.vmodel.test.ts 有「门卫是 open，不是 modelValue===true」的既有红面）。
+ * **方向是单向的**：收 Drawer 到 Modal，不反改 Modal——Modal 那条形状由 `6d2379d`
+ * （"Modal 加 close() 的 open 门卫并按控制器裁定改双发契约"，Task 7 修复轮）定形并一直保留到今天，
+ * `Modal.vmodel.test.ts` 的「不传 modelValue 时关闭同样双发——门卫是 open，不是 modelValue===true」
+ * 就是它的红面。
+ * ⚠️ 顺带记一处**题面引用被自己的命令否证**（我核对过才这么写）：`37b9414`（Task 7 首棒）的
+ * `close()` 写的恰恰是本棒刚从 Drawer 删掉的那一型——
+ * `emit('close')` 加 `if (props.modelValue === true) emit(...)`，所以 `git show 37b9414` 不是
+ * "Modal 现状"的证据，而是"漂移起点"的证据。根因因此很清楚：Drawer 当年（Task 11）**逐字照搬的是
+ * 37b9414 那版 Modal**，其后 `6d2379d` 把 Modal 抬到 open 闸、Drawer 没跟上，
+ * 而它的注释一直自称"逐字照搬 Modal"——注释对着上游的新形状说话，代码还停在旧形状。
+ * 本棒收的就是这笔差。
  *
  * 代价与 Modal 侧同判：非受控调用点（`RagDocs.vue` 的 `v-if` + `@close` 那一型，只听 `close`）
  * 多收一个没人监听的 `update:modelValue(false)`——Vue 里无害。受控调用点上两条腿成对发出，
