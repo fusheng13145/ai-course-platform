@@ -9,6 +9,7 @@ import zlib from 'node:zlib'
 import { assertUpdateSnapshotsAllowed } from './global-setup'
 import {
   ANCHORS,
+  apiStubTakesPathname,
   applyEvidenceWrite,
   assertManifestDates,
   assertPinnedPayloadContent,
@@ -317,6 +318,122 @@ function findThresholdLiterals(sources: { file: string; text: string }[]): strin
     })
   }
   return offenders
+}
+
+/**
+ * 空态桩**接管面**的两把尺共用的候选清单（4c-fix-C2b 的 S1／R-C2-1 判据原文给的形状）。
+ * 【为什么这三张清单要放在这里而不是各写一份】工单 S1 第 2 条要的是一条"会红的守卫"，
+ *   它必须同时量两件事：判据本体（`apiStubTakesPathname`）收不收模块路径，以及
+ *   `anchors.spec.ts` 里 `page.route` 的第一个参数还锚不锚 pathname 前缀。两边共用同一份样本，
+ *   才不会"行为面绿、接线面绿、但两边量的不是同一批 URL"（本仓为这种分裂写过四次教训）。
+ * 【API 那张的出处】`/api/courses` 与 `/api/student/courses/1/learning-center` 是 S1 改后那两格
+ *   实测打印出来的真接口（改前它们不在 `served` 里，因为页面在取数之前就被打断了），
+ *   另两条取自 `DATA_PATHS` 已登记的锚点前缀。
+ * 【MODULE 那两条是工单点名的两类，但两者被"旧口径"吃到的方式不同】
+ *   `/src/api/auth.ts` ＝ dev server 的**源码模块**，也是本轮事故的本体：它的路径里逐字含 `/api/`
+ *   那一段，所以旧那个按子串命中的 route 参数**真的**会收它。
+ *   `/node_modules/.vite/deps/api.js` ＝ **预打包产物**，同一族的下一形态：注意它含的是 `/api.js`
+ *   而不是 `/api/`，旧通配串其实收不到它——它代表的是判据原文**不许**的那类放宽
+ *   （"看起来像 API 就行"，即只要路径里有 api 这一段就接管），一旦有人这样放宽，它就中招。
+ *   下面 ① 那组把这两层差别各自钉住，别让"两类都排除"这句话糊成一次断言。
+ * 【SHELL 那两条】归 `SHELL_KEEP_ALIVE_PATHS`：它们**也是** `/api/` 前缀，但打空会得到 /login 重定向，
+ *   红得无法归因——所以它们必须由判据本体的第二段排除，而不是靠 route 的参数排除。
+ */
+const STUB_PATHS_API = [
+  '/api/courses',
+  '/api/courses/1',
+  '/api/student/courses/1/learning-center',
+  '/api/admin/statistics',
+  '/api/knowledge/relations/graph/4001',
+]
+const STUB_PATHS_MODULE = ['/src/api/auth.ts', '/node_modules/.vite/deps/api.js']
+const STUB_PATHS_SHELL = ['/api/auth/permissions', '/api/notifications/unread-count']
+/** URL 由 pathname 拼出来：正则那一侧要的是完整 URL，判据本体那一侧要的是 pathname，同源派生才不会漂。 */
+const stubUrlOf = (p: string): string => `http://localhost:5175${p}`
+
+/**
+ * 接管面的**源码级**判据本体：读 `anchors.spec.ts`，切出 `stubApiToEmpty` 的函数体，
+ * 检查它的 `page.route` 第一个参数与判据接线。返回违规清单，**空＝绿**。
+ * 【为什么源码级与行为级两条都要】行为级那半只证明 `apiStubTakesPathname` 本身不收模块路径；
+ *   但桩真正拦不拦得到模块请求还取决于 route 的参数——把那个参数改回按子串命中的通配串，
+ *   行为级那半**照样全绿**（判据本体没错，错的是它前面的那道门）。工单明写"只改匹配不配守卫＝
+ *   这条 bug 还能回来"，这条就是它要的入库面。
+ * 【两种合法写法（R-C2-1 原话的二选一）】① route 参数是**锚定到 pathname 前缀的正则**——
+ *   本函数把它从源码里取出来、`new RegExp` 还原、再喂同一批样本（正则必须收真接口、拒模块两类）；
+ *   ② 保留通配串但在回调最前面加 `pathname.startsWith('/api/')` 那道守卫。
+ *   两种都算合格，两种都不满足就是红。**不许**改成"看着像 API 就行"。
+ * 【两条负向钉】体内必须真的调用判据本体（否则判据有两份副本），且不许把
+ *   `prefixes.includes('ALL')` 那种收窄又抄回 anchors——抄回去的那一刻，第二把尺就自由了。
+ * 【行号是真的】沿用 `sliceTopLevelFunction` 的 `startLine`，红话给的是文件里的坐标
+ *   （`stripCommentLines` 会塌行号，所以只在"取代码面"时逐行过滤，不改索引）。
+ */
+function stubMatcherFindings(src: string): string[] {
+  const { text, startLine } = sliceTopLevelFunction(src, /async function stubApiToEmpty\(/)
+  if (!text)
+    return [
+      '没能在 anchors.spec.ts 里定位到 stubApiToEmpty 的函数体——本条守卫的作用域塌了（改名或搬走都要同批改这里）',
+    ]
+  const numbered = text
+    .split('\n')
+    .map((line, i) => ({ n: startLine + i, line }))
+    .filter((c) => !isFullLineComment(c.line))
+  const code = numbered.map((c) => c.line).join('\n')
+  const at = (re: RegExp): string => {
+    const hit = numbered.find((c) => re.test(c.line))
+    return hit ? `第 ${hit.n} 行「${hit.line.trim().slice(0, 72)}」` : '未命中'
+  }
+  const findings: string[] = []
+  const routeArg = /page\.route\(\s*(.+?),\s*async/.exec(code)?.[1]
+  if (!routeArg) {
+    findings.push(
+      `stubApiToEmpty 体内找不到形如 page.route(<参数>, async …) 的接管声明（定位：${at(
+        /page\.route\(/,
+      )}）——本条守卫量不到匹配面了`,
+    )
+  } else if (routeArg.startsWith('/') && routeArg.endsWith('/') && routeArg.length > 2) {
+    let re: RegExp | null = null
+    try {
+      re = new RegExp(routeArg.slice(1, -1))
+    } catch {
+      re = null
+    }
+    if (!re) {
+      findings.push(`page.route 的第一个参数看着像正则却构造不出来：${routeArg}`)
+    } else {
+      for (const u of STUB_PATHS_MODULE.map(stubUrlOf)) {
+        if (re.test(u))
+          findings.push(
+            `接管面把 dev server 的模块 URL 也算成接口（R-C2-1 的本体）：${u}；参数=${routeArg}`,
+          )
+      }
+      for (const u of STUB_PATHS_API.map(stubUrlOf)) {
+        if (!re.test(u))
+          findings.push(
+            `接管面连真接口都不收了——本条守卫的作用面塌了（桩什么都没打就等于实验没做成）：${u}；参数=${routeArg}`,
+          )
+      }
+    }
+  } else if (!/pathname\.startsWith\(['"]\/api\/['"]\)/.test(code)) {
+    findings.push(
+      `page.route 的参数是 ${routeArg}（不按子串锚定 pathname 的正则），而回调最前面也没有 pathname.startsWith('/api/') 那道守卫——` +
+        '这就是改前那个形态：按 URL 里含 /api/ 那一段命中，会把源码模块一起 fulfill 成 JSON（R-C2-1 给的两种合法写法一种都不满足）',
+    )
+  }
+  if (!code.includes('apiStubTakesPathname(')) {
+    findings.push(
+      `stubApiToEmpty 体内没走 visual-helpers 那份判据本体 apiStubTakesPathname（定位：${at(
+        /apiStubTakesPathname\(/,
+      )}）——外壳保活与 DATA_PATHS 收窄又变成第二把尺`,
+    )
+  }
+  if (/prefixes\.includes\(\s*['"]ALL['"]\s*\)/.test(code)) {
+    findings.push(
+      `stubApiToEmpty 体内重新写了一遍 ALL 判定（定位：${at(
+        /prefixes\.includes\(/,
+      )}）：判据唯一来源是 apiStubTakesPathname，抄回来就等于把 S1 那次修复拆掉一半`,
+    )
+  }
+  return findings
 }
 
 // helper 自身的测试（smoke.spec.ts 只管主题注入在页面上生效）。
@@ -1627,4 +1744,96 @@ test('闸门注释自陈的"拦几种写法"必须与实际判据同条数（F7�
     setupRaw,
     '那句"本闸只拦两个写法"回来了——它比判据少一种（第 12 项之后第三种是 --update）',
   ).not.toMatch(/本闸只拦[^\n]*两个写法/)
+})
+
+/**
+ * S1／R-C2-1 的入库守卫（工单 S1 第 2 条判据原文：喂一份候选 URL 清单，断言模块后缀那两类被排除、
+ * 真接口被保留）。放在 F5／F6 同一族里——那两条的形状就是"尺本体 ＋ 它自己的反例"。
+ * 【五组断言，缺一组这条守卫就是半瞎的】
+ *   ① 判据本体在 `ALL` 那类不收窄的锚点上仍不收模块路径（这是本轮 bug 的现场），并**分层**断言反例是真的：
+ *      两条模块样本都要含 api 这一段（"看起来像 API 就行"那种放宽会收它们），其中事故本体那条还要含
+ *      `/api/` 那一段（改前那个按子串命中的 route 参数收的正是它）——少一层，本条就绿在样本被改干净上；
+ *   ② 非 ALL 锚点的前缀收窄语义没被这次改动动坏（正例一条、误收别家前例一条）；
+ *   ③ 边界：`/api` 与 `/apifoo` 都不是数据接口；
+ *   ④ 外壳与会话类端点即使在 ALL 锚点下也走 fallback（否则红会挪到 /login 去，归因不到空态）；
+ *   ⑤ 接线面：`anchors.spec.ts` 里那份 `page.route` 参数与判据调用由 `stubMatcherFindings` 量，
+ *      真实源码必须 0 违规，另两条**内存变异**（不落盘）各自必须报出违规——
+ *      没有这两条，"接线"那半边可能绿得只是因为文件恰好没人动过。
+ */
+test('空态桩的接管面锚在 pathname 前缀：模块两类被排除、真接口被保留，anchors 的匹配面自己也没漂（R-C2-1）', () => {
+  // ① 判据本体的行为面（`'ALL'` ＝ 不做前缀收窄那一类，正是出事的那两格）
+  for (const p of STUB_PATHS_API) {
+    expect(apiStubTakesPathname(p, ['ALL']), `真接口没被接管——桩打空了个寂寞：${p}`).toBe(true)
+  }
+  for (const p of STUB_PATHS_MODULE) {
+    // 反例形状必须是真的：只要路径里出现 api 这一段，"看起来像 API 就行"那种放宽就会收它（判据原文不许），
+    // 而现判据按 pathname 前缀判定，两条都不收。样本若哪天连 api 都不含了，本条守卫拦的就是不存在的洞。
+    expect(p, `样本已不含 api 这一段，放宽口径也不会误收它，反例塌了：${p}`).toMatch(/api/)
+    expect(
+      apiStubTakesPathname(p, ['ALL']),
+      `接管面吃进了 dev server 的模块路径：${p}——改前就是这条把 JS 模块 fulfill 成 JSON 的`,
+    ).toBe(false)
+  }
+  // 事故本体那条还必须落在**改前那个 route 参数**的命中面里（路径里含 /api/ 那一段），
+  // 否则本轮改的就不是 R-C2-1 说的那个洞。`api.js` 那条按旧口径本来就收不到，所以这里恰好是 1 条。
+  expect(
+    STUB_PATHS_MODULE.filter((p) => p.includes('/api/')),
+    '旧口径（按 URL 里含 /api/ 那一段命中）现在一个模块样本都不收了——那条 bug 的形状变了，判据要重定',
+  ).toHaveLength(1)
+  // ④ 外壳类：它们是 /api/ 前缀，但必须被第二段排除
+  for (const p of STUB_PATHS_SHELL) {
+    expect(
+      apiStubTakesPathname(p, ['ALL']),
+      `外壳/会话端点被接管了（打空它会得到 /login 重定向，红无法归因到空态）：${p}`,
+    ).toBe(false)
+  }
+  // ② 非 ALL 锚点的收窄语义（这次改动不该碰它）
+  expect(apiStubTakesPathname('/api/courses', ['/api/courses'])).toBe(true)
+  expect(
+    apiStubTakesPathname('/api/courses', ['/api/admin/statistics']),
+    '前缀收窄失效——其它锚点的打桩面被扩大了，矩阵那 7 格的读数要全部重算',
+  ).toBe(false)
+  // ③ 边界：这两个都不是数据接口
+  expect(apiStubTakesPathname('/api', ['ALL']), '/api 本身不是接口前缀').toBe(false)
+  expect(apiStubTakesPathname('/apifoo/bar', ['ALL']), '/apifoo 不是 /api/ 前缀').toBe(false)
+
+  // ⑤ 接线面：读 anchors 的源码，真实文件必须 0 违规
+  const dir = join(process.cwd(), 'e2e/visual')
+  const anchorsRaw = readFileSync(join(dir, 'anchors.spec.ts'), 'utf8')
+  const findings = stubMatcherFindings(anchorsRaw)
+  expect(
+    findings,
+    `空态桩的匹配面不再锚定到 pathname 前缀（或判据本体被抄了第二份）——R-C2-1 那条 bug 回来了。\n  ${findings.join(
+      '\n  ',
+    )}`,
+  ).toEqual([])
+
+  // 变异一：route 参数换回按子串命中的通配串（正是改前那一行），且回调里没有第二道守卫
+  const LEGACY_GLOB = '**/api/**'
+  const m1 = anchorsRaw.replace(/page\.route\([^,]+,/, `page.route('${LEGACY_GLOB}',`)
+  expect(m1, '变异一没落地（route 声明的写法变了，本条反例要跟着改）').not.toBe(anchorsRaw)
+  const f1 = stubMatcherFindings(m1)
+  expect(
+    f1.length,
+    `变异一（换回按子串命中的通配串）本该红，却报 ${f1.length} 条——接线那半边是假保护：${JSON.stringify(
+      f1,
+    )}`,
+  ).toBe(1)
+  expect(f1[0], '变异一的红话必须点名两种合法写法都不满足，否则下一个人不知道往哪改').toContain(
+    "pathname.startsWith('/api/')",
+  )
+
+  // 变异二：把判据本体调用换回体内那份旧收窄（route 参数仍是锚定的，漂的这把尺在第二段）
+  const m2 = anchorsRaw.replace(
+    'apiStubTakesPathname(u.pathname, prefixes)',
+    "prefixes.includes('ALL') || prefixes.some((p) => u.pathname.startsWith(p))",
+  )
+  expect(m2, '变异二没落地（stubApiToEmpty 的调用写法变了，本条反例要跟着改）').not.toBe(anchorsRaw)
+  const f2 = stubMatcherFindings(m2).join('\n')
+  expect(f2, '变异二没被抓住——判据本体可以从调用点被静默摘掉而全表照绿').toContain(
+    '没走 visual-helpers 那份判据本体',
+  )
+  expect(f2, '变异二没被抓住——ALL 判定抄回 anchors 就是判据的第二把尺').toContain(
+    '重新写了一遍 ALL 判定',
+  )
 })
