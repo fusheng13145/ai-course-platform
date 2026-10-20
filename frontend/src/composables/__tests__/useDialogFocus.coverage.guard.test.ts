@@ -104,6 +104,28 @@ describe('覆盖率护栏逻辑（Task 13）', () => {
     }
   })
 
+  it('行注释层是读数中性的：加了它 82 / 73 不变，但被 // 注释掉的接线不再算数', () => {
+    const threeLayer = (t: string) =>
+      t
+        .replace(/<!--[\s\S]*?-->/g, '')
+        .replace(/\/\*[\s\S]*?\*\//g, '')
+        .replace(/^\s*\*.*$/gm, '')
+    const sources = readOverlaySources()
+    const totalsOf = (strip: (t: string) => string) =>
+      overlayTotals(classifyOverlays(sources.map((s) => src(s.file, strip(s.text)))))
+    expect(
+      totalsOf(threeLayer).tags,
+      '三层与四层剥离读到不同的开标签总数——说明有 <Modal> / <el-drawer> 之类字样落进了整行 // 注释里，' +
+        '这时地板值必须重测、口径不能悄悄改',
+    ).toBe(totalsOf(stripOverlayNoise).tags)
+    expect(totalsOf(threeLayer).files).toBe(totalsOf(stripOverlayNoise).files)
+    // 剩下的是这一层存在的理由本身：被 // 注释掉的接线不能算已接线
+    const commented = '<template><el-dialog ref="d"></el-dialog></template>\n//useDialogFocus(d, v)'
+    expect(threeLayer(commented)).toContain('useDialogFocus(')
+    expect(stripOverlayNoise(commented)).not.toContain('useDialogFocus(')
+    expect(legacyOffenders(classifyOverlays([src('c.vue', commented)])).elDialog).toEqual(['c.vue'])
+  })
+
   it('地板表与缺口表是同一口径的产物（合计 82、缺口 4 个）', () => {
     expect(Object.values(BASELINE_TAG_BY_MARKER).reduce((a, b) => a + b, 0)).toBe(82)
     expect(KNOWN_UNWIRED_EL_DRAWER_FILES).toHaveLength(4)

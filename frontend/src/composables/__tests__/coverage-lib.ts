@@ -38,13 +38,18 @@ export const SRC = join(process.cwd(), 'src')
  *   的"第二口径"用例，命令可重放）——护栏改版前只剥 HTML 注释，所以它口径下的数本来就不是 82。
  *
  * 实跑（`cd frontend`，spec §11.7 的脚本；两个反直觉点都已由本口径消解）：
- * `{"<el-dialog":63,"<Modal":13,"<Drawer":2,"<el-drawer":4,"_合计":82,"_文件数":73}`
+ * `{"<el-dialog":63,"<el-drawer":4,"<Modal":13,"<Drawer":2,"_合计":82,"_文件数":73}`
+ *
+ * 第四层（比 §11.7 那三条多出来的一条，**读数不变**）：整行 `//` 行注释。加它的理由是接线判定——
+ * 把 `useDialogFocus(d, v)` 用 `//` 注释掉，前三层剥完那行还在文本里、护栏会照样绿；
+ * 而它改变不了开标签计数（实测两种剥法同为 82 / 73，命令见 guard 用例「行注释层是读数中性的」）。
  */
 export function stripOverlayNoise(text: string): string {
   return text
     .replace(/<!--[\s\S]*?-->/g, '')
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/^\s*\*.*$/gm, '')
+    .replace(/^\s*\/\/.*$/gm, '')
 }
 
 /** 义务一：调用点必须手接 `useDialogFocus` 的两种开标签。 */
