@@ -282,15 +282,18 @@ async function runAnchor(page: Page, anchor: AnchorSpec, theme: ThemeName, testI
   // （`attachPayloadRecorder` 的注释，`visual-helpers.ts`），它靠的就是**落盘之前**先过一遍
   // `assertAnchorArrival`——而 `assertComparableRender` 里就含这一条（见该函数体）。
   // 所以顺序必须是：守卫（含 arrival）→ flush → 像素断言（录制模式下跳过），不能简单提前到 goto 之前。
-  if (flushRecord) await flushRecord()
-  if (recording) {
-    // 【录制模式为什么跳过像素断言】这一页现在是**真后端今天**的画面，
-    // 拿它跟"基线那一天"比是另一个命题（那个命题由钉住 + assertZeroDiff 回答，命令是不带
-    // PW_RECORD_PAYLOADS 的那条）。在这里让它红，只会把"fixture 已写成"这个唯一有用的结论
-    // 埋进一条像素报错里；在这里让它绿（112 px 那种）更是假绿。
-    // 判据没有放松：arrival / 可比性 / 图谱有墨 三条都真跑过，只是不比图。
+  // 【4c-fix-C 第 10 项：日志与跳过都必须过"flushRecord 真的执行过"这一道门】
+  // 原先 A4 把 flush 提前之后，跳过与"已写成"日志仍然只按 `recording` 判——**全部 12 个锚点**都进
+  // 那个分支，而其中 10 个非钉桩锚点 flushRecord 为 null（`__fixtures__/` 一个字节都没写），
+  // 于是全量录制跑会打出十个"fixture 已写成"，并**顺手跳过 22 张里非钉桩那些的像素比对**——
+  // 只能靠"文档里的录制命令总带 `-g`"侥幸避开。从本轮起：`已写成` 三个字只出现在真的写完盘
+  // 的那条分支里；录制模式下非钉桩锚点走正常像素比对（那是真读数：这一页画的是真后端今天的画面，
+  // 漂不漂都照实报，不再被静默豁免）。
+  if (flushRecord) {
+    await flushRecord()
     console.log(
-      `[record] ${anchor.slug}/${theme}：fixture 已写成 ⇒ 本轮**不**做像素比对（录制模式量的是载荷不是画面）。\n` +
+      `[record] ${anchor.slug}/${theme}：fixture 已写成（flushRecord 真的执行完了落盘；这一句现在只对钉桩锚点成立）\n` +
+        `         ⇒ 本轮**不**做像素比对（录制模式量的是载荷不是画面）。\n` +
         `         下一步用钉住那轮验它能不能复现基线：PW_PORT=5175 npx playwright test -c playwright.visual.ts anchors -g "${anchor.slug}"`,
     )
     return

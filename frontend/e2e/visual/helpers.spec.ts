@@ -543,3 +543,26 @@ test('被钉载荷内容断言（R-CF1）：普查只走 data、合成反例必�
   )
 })
 
+/**
+ * Task 4c-fix-C 第 10 项：record 模式的日志与跳过必须过"flushRecord 真的执行过"这一道门。
+ * 【原先错在哪】A4 把 flush 提前之后，`已写成` 日志与像素跳过仍只按 `recording` 判——全部 12 个锚点
+ * 都进那条分支，其中 10 个非钉桩锚点 `flushRecord` 为 null（`__fixtures__/` 一个字节都没写），
+ * 于是全量录制跑打出十个"fixture 已写成"并顺手跳过非钉桩那些的像素比对。
+ * 行为反证（本棒实跑，原文见报告第 10 节）：修前 `PW_RECORD_PAYLOADS=1 ... anchors -g "login"`
+ * 打出 `login/light 已写成` ＋ `login/dark 已写成` 两条谎（login 没有 pinPaths，什么都没写）；
+ * 修后同一条命令 0 条 `已写成`、且真的跑了像素比对。本条是防"那道门被改回去"的入库面。
+ */
+test('录制模式的"已写成"与像素跳过只认 flushRecord（第 10 项）', () => {
+  const anchorsRaw = readFileSync(join(process.cwd(), 'e2e/visual/anchors.spec.ts'), 'utf8')
+  // ① 落盘、日志、return 必须在同一个 `if (flushRecord) {` 分支里（顺序：flush → 日志 → return）
+  expect(
+    anchorsRaw,
+    '录制模式的跳过又不再按 flushRecord 判了——十个假"已写成"与静默跳像素会原样回来（4c-fix-C 第 10 项）',
+  ).toMatch(/if \(flushRecord\) \{\s*await flushRecord\(\)[\s\S]{0,600}?已写成[\s\S]{0,500}?return\s*\}/)
+  // ② 旧形态（按 recording 布尔提前 return）不许回来——负向半边就是本轮改掉的那个 bug 本身
+  expect(
+    anchorsRaw,
+    '`if (recording) {` 式提前 return 回来了：那是"12 个锚点全进、10 个什么都没写"的同型错误',
+  ).not.toMatch(/if \(recording\) \{/)
+})
+
