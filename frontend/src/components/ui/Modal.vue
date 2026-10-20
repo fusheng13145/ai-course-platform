@@ -1,5 +1,6 @@
 <script setup>
-import { computed, onMounted, onBeforeUnmount } from 'vue'
+import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { useDialogFocus } from '@/composables/useDialogFocus'
 
 /**
  * 遮罩为什么必须 Teleport 到 body（Task 8，spec §2.6 的包含块陷阱）：
@@ -113,10 +114,64 @@ const sizeClass = computed(() => ({
   narrow: props.narrow === '' || props.narrow === true,
 }))
 
+/**
+ * 焦点接入（Task 9）。走台账 P0b-MODAL-04 行定档的 3-B 分支，实测读数全在那一行里：
+ * 模板根是 <Teleport>，组件的 $el 开、关两态都是 teleport start 锚点注释（nodeType 8），
+ * 注释上没有 querySelector，而 useDialogFocus.ts:50-51 读的正是 dialogRef.value.$el ——
+ * 那条路**静默 return**（不报错、不红，焦点永远进不去），所以本组件自持面板侧的 rootRef。
+ *
+ * ⚠️ 本任务不改 useDialogFocus.ts（控制器裁定 R-T9-1）：它的 watch(visible) 不带 immediate，
+ * 那就是 63 个存量 el-dialog 接线的时序契约。后果是「挂载即打开」这条路永远等不到边沿，
+ * 而 13 个存量 <Modal> 调用点**全是**这个形状（外层 v-if、挂载时已开）。所以适配器把可见性
+ * 折成 open && mounted —— onMounted 里翻 mounted 这件事本身就构成一次 false→true 边沿，
+ * 两条开启路径（v-model 翻转 / v-if 挂载）都接得上。Drawer.vue 的焦点接入（Task 11）同一写法。
+ * 不许用 setTimeout 绕：那会把原语的 nextTick 加 rAF 双等待改掉，波及全部 63 个接线点。
+ */
+const rootRef = ref(null)
+const mounted = ref(false)
+useDialogFocus(
+  computed(() => ({ $el: rootRef.value ?? undefined })),
+  computed(() => open.value && mounted.value),
+)
+
+/**
+ * ⚠️ 3-B 的「对外等价面」这半**没有落地**（控制器裁定 R-T9-2 要求 defineExpose 一个同形的 $el，
+ * 本轮实测否证了它可与既有钉共存这一前提，故在此处留注释而非留代码；台账 P0b-MODAL-04 行有全文）：
+ *
+ * 1) 机制本身成立（探针已入库，见 Modal.focus.test.ts 的 P-c 两条）：expose 的对象被**原样**存进
+ *    instance.exposed，dev 只 warn「重复调用」与「不是纯对象」、没有任何 $ 前缀守卫；解包发生在
+ *    getComponentPublicInstance 里的 new Proxy(proxyRefs(markRaw(instance.exposed)), ...)，其 get 在
+ *    key in target 成立时直接返回 target[key]（**没有 $ 前缀守卫**，grep "Exposing a property" 与
+ *    "key[0] === '$'" 在本机 vue 3.5.43 的 runtime-core.cjs.js
+ *    expose 路径上 0 命中），只有不成立才回落到 publicPropertiesMap —— 内置 $el 被同名键顶掉。
+ * 2) 但顶掉的不只是调用方模板 ref：VTU 的 createVMProxy（vue-test-utils.cjs.js:7617-7646）把
+ *    vm.$.exposed 排在 setupState 与 vm 之前，而 VueWrapper.element 就是 this.vm.$el（:7788-7790）
+ *    ⇒ wrapper.element 一起跟着变。实跑后果：npx vitest run src/components/ui/ 从 100 绿变
+ *    **18 failed**，因为关闭态 rootRef 为 null、内置 $el 拿不到 ⇒ wrapper.element 是 undefined ⇒
+ *    helpers/trackMount.ts:48 那句 w.element.isConnected 抛 TypeError，整个 Modal 测试族的
+ *    afterEach 崩掉、僵尸实例与 document keydown 监听互相污染（Modal.vmodel 11 条全红、
+ *    Modal.compat 5 红、Modal.teleport 1 红）。
+ * 3) 让关闭态回落内置锚点（defineExpose 的 $el 写成 rootRef.value ?? inst.vnode.el，inst 取
+ *    getCurrentInstance()）能把伤害收到 1 条：Modal.vmodel.test.ts 的「modelValue=true 时渲染」
+ *    仍报 expected 1 to be 8 —— 那条用例钉的就是「开启态的 $el 仍是 teleport start 注释」，
+ *    与 defineExpose($el) 在定义上互斥，不是可以两边都要的工程问题。
+ * 4) 那两个文件（Modal.vmodel.test.ts / helpers/trackMount.ts）都在本任务的改动许可之外，而
+ *    本轮硬门禁是「既有测试一条不许红」⇒ 只接内部焦点、不写 defineExpose。Phase 4 的迁移规矩
+ *    因此是：**迁到 Modal 时把 ref 与 useDialogFocus 那两行删掉**（Modal 内部已接），不要指望
+ *    dialogRef.$el；存量 13 个调用点一个都没这么写（两条 ref= 反查命令退出码均为 1，命令在台账里）。
+ *    要恢复这半个方案，需控制器先授权改那两处钉与夹具，再连同 P-b 那条用例一起重签。
+ */
+
 // keydown 监听整个挂载期常驻 document：模板根的 `v-if` 只摘子树、不销毁实例，
 // 所以「关闭态必须哑火」的门只能放在 close() 里（评审 I-1）。
 onMounted(() => {
   document.addEventListener('keydown', onEsc)
+})
+// 挂载这件事本身要成为一次可见性边沿（见上面焦点接入段的 R-T9-1 说明）。
+// 与 keydown 那个 hook 分成两次注册：Vue 允许同名 hook 并存，各自职责单一，
+// Task 10 接滚动锁时不必动焦点这段。
+onMounted(() => {
+  mounted.value = true
 })
 onBeforeUnmount(() => document.removeEventListener('keydown', onEsc))
 function onEsc(e) {
@@ -141,7 +196,7 @@ function onOverlay(e) {
 <template>
   <Teleport to="body" :disabled="!toBody">
     <div v-if="open" class="overlay" v-bind="$attrs" @mousedown.self="onOverlay">
-      <div class="modal" :class="sizeClass" @click.stop>
+      <div ref="rootRef" class="modal" :class="sizeClass" @click.stop>
         <div class="modal-head">
           <div>
             <div class="modal-title"><slot name="title" /></div>
