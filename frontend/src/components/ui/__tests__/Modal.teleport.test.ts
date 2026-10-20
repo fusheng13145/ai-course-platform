@@ -104,7 +104,8 @@ describe('Modal Teleport 行为', () => {
      * 「只落一份」用**出现次数**判，不用整串字符串比：旧写法 `toBe('overlay extra-cls')` 把 Vue 的
      * class 合并顺序也钉成了契约（`mergeProps` 先静后绑不是公开承诺，编译器等价改写就会假红），
      * 而它要防的其实是"同一份 class 落两遍"。次数写法保住原意又与顺序无关；
-     * 变异实测（两轮都实跑过，还原后回到 10 files / 97 tests）：
+     * 变异实测（两轮都实跑过；**还原后回到当时那份 10 files / 97 tests**——本文件末尾那条关闭态用例
+     * 落地之后该目录基线是 98，引用旧读数须按 commit 限定，见 LEDGER `P0b-MODAL-03`）：
      * - 静态 class 写成 `class="overlay overlay"` ⇒ 上面 `times(overlay!, 'overlay')` 那条报
      *   `expected 2 to be 1`（修复轮 2 复跑，报错落在那一行）。
      * - 卸掉模板根 `<Teleport>` 再翻 `inheritAttrs: true`（元素根世界）⇒ `times(overlay!, 'extra-cls')`
@@ -157,7 +158,7 @@ describe('Modal Teleport 行为', () => {
       warns.push(args.map(String).join(' '))
     })
     try {
-      track(
+      const wrapper = track(
         mount(Modal, {
           props: { modelValue: false },
           attrs: { 'data-test': 'x', class: 'extra-cls' },
@@ -165,10 +166,20 @@ describe('Modal Teleport 行为', () => {
         }),
       )
       await nextTick()
+      /**
+       * 先证明"挂载真的发生了"再谈"没打警告"。只断言 `.overlay` 为 null **排除不了假绿**：
+       * 组件压根没挂上、或根不是 Teleport 时，`.overlay` 同样是 null，那条警告也同样不出——
+       * 复核（第 2 轮 scoped re-review）就是按这个理由判我台账里那句"已排除假绿退路"说过头的。
+       * 这两条与 `Modal.vmodel.test.ts` 钉 `$el` 身份用的是同一个事实（LEDGER `P0b-MODAL-02`）：
+       * 关态的组件根是 `teleport start` 锚点注释。变异实测（本轮实跑）：摘掉模板根的 `<Teleport>`
+       * ⇒ `data` 变成 `'v-if'`，这两条与 vmodel 那两条一起转红。
+       */
+      expect(wrapper.element.nodeType).toBe(8)
+      expect((wrapper.element as Comment).data).toBe('teleport start')
+      expect(document.body.querySelector('.overlay')).toBeNull()
     } finally {
       spy.mockRestore()
     }
-    expect(document.body.querySelector('.overlay')).toBeNull()
     expect(warns.filter((w) => /Extraneous non-props attributes/.test(w))).toEqual([])
   })
 })
