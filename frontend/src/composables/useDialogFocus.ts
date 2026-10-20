@@ -6,7 +6,15 @@ import type { ComputedRef, Ref } from 'vue'
  * ============================
  * Element Plus 的 `el-dialog` 打开时默认把焦点放在对话框容器（`role=dialog`）
  * 上，读屏软件能读到对话框标题，但**键盘用户仍需多次 Tab 才能到达首个
- * 输入框**；且全仓 64 个对话框此前无任何焦点管理（`.focus()` 零调用）。
+ * 输入框**；且那 **63 个 `<el-dialog` 开标签**此前无任何焦点管理（`.focus()` 零调用）。
+ * 63 的口径（原写"全仓 64 个对话框"——64 不对应任何一种已入库口径，2026-10-21 按 spec §11.5
+ * R-T9-1 的唯一豁免只改这句注释，函数体与签名一字未动）：＝ `coverage-lib.ts` 的
+ * `stripOverlayNoise` 四层剥离（HTML 注释、JS 块注释、块注释续行、整行 `//`）后，在 `src/**`
+ * 的 `.vue`（跳过 `__tests__`）里数出的 `<el-dialog` **开标签**数，与入库地板
+ * `BASELINE_TAG_BY_MARKER['<el-dialog']` 同一个数。重放：
+ * `cd frontend && npx vitest run src/composables/__tests__/useDialogFocus.coverage.test.ts`；
+ * 手工同尺见 spec §11.7「弹层计数口径」。另两个岔数不写在这里：原始 `git grep -o` 得 65
+ * （含 2 处注释散文）、命中文件数 55——本句要说的是"调用点没有焦点管理"，属标签面。
  *
  * 本原语在对话框打开后，把焦点移入**首个可聚焦控件**（输入框 / 选择器 /
  * 文本域 / 按钮 / 自定义 tabindex），遵循 WAI-ARIA APG「打开即焦点入框」惯例。
