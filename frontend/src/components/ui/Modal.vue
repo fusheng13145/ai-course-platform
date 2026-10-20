@@ -1,6 +1,7 @@
 <script setup>
-import { computed, ref, onMounted, onBeforeUnmount } from 'vue'
+import { computed, getCurrentInstance, onMounted, onBeforeUnmount, ref, watch } from 'vue'
 import { useDialogFocus } from '@/composables/useDialogFocus'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 import { useOverlayScrollLock } from '@/composables/useOverlayScrollLock'
 
 /**
@@ -99,14 +100,28 @@ const props = defineProps({
   wide: { type: [Boolean, String], default: undefined },
   xwide: { type: [Boolean, String], default: undefined },
   narrow: { type: [Boolean, String], default: undefined },
+  /**
+   * 以下三条是 Task 10B 把 Modal 抬到 `Drawer.vue` 已交付形状的直接照搬（声明、默认值、
+   * 三态语义一个都不改；为什么 `closeOnClickModal` 必须是 `{ type: Boolean, default: undefined }`：
+   * 与 `modelValue`/`teleported` 同一条理由——Boolean 缺省无 `default` 会被 cast 成 `false`，
+   * "不传"就变成"禁用遮罩关闭"，13 个存量调用点的遮罩全灭。缺省与 `true` 都是「可点遮罩关」，
+   * 只有显式 `false` 才是「不可」，对齐 `el-dialog` 的 `close-on-click-modal`。
+   */
+  closeOnClickModal: { type: Boolean, default: undefined },
+  ariaLabel: { type: String, default: undefined },
+  ariaLabelledby: { type: String, default: undefined },
 })
-// 双通道：`close` 是 13 个存量调用点唯一在听的，`update:modelValue` 是 v-model 的另一条腿。
-const emit = defineEmits(['close', 'update:modelValue'])
+// 双通道 + `closed`：`close` 是 13 个存量调用点唯一在听的，`update:modelValue` 是 v-model 的另一条腿，
+// `closed` 属**可见性下降沿**（父级把值落下来才算关闭，与 Drawer.vue 同名同语义，Phase 4 一套迁移规则）。
+const emit = defineEmits(['close', 'update:modelValue', 'closed'])
 
 // 缺省视为 true——false 才是「关」，undefined 不是。
 const open = computed(() => props.modelValue !== false)
 // 同一口径：`teleported` 只有显式 false 才原位渲染。
 const toBody = computed(() => props.teleported !== false)
+
+/** 同页多个 Modal 时 id 不能撞车，用实例 uid 生成（与 Drawer.vue 的 titleId 同一口径，前缀换 modal-） */
+const titleId = `modal-title-${getCurrentInstance()?.uid ?? 0}`
 
 // 原先这是模板里内联的 `$attrs` 三档判断；收成 computed 与 props 声明同批落地（见上 ①）。
 const sizeClass = computed(() => ({
@@ -148,6 +163,37 @@ const mounted = ref(false)
 useDialogFocus(
   computed(() => ({ $el: rootRef.value ?? undefined })),
   computed(() => open.value && mounted.value),
+)
+
+/**
+ * 焦点陷阱（Task 10B）：与 Drawer.vue 调**同一个** `useFocusTrap`，四条要求
+ * （Tab 环内回绕、只在开关边沿装卸、跳过禁用/不可见、嵌套各管各层）与它们的跑红配方
+ * 都在 `composables/useFocusTrap.ts` 与其单测里，本文件只留接线。
+ * `aria-modal="true"`（见模板）依赖这条接线——R-1 当年撤下 aria-modal 的理由就是
+ * "没有 focus trap 时声明模态是假承诺"，10B 建完陷阱才挂回（实测 EP 2.14.7 的
+ * `el-dialog` 本来就锁焦点，出处记在台账 `P0b-FOCUS-01`，本组件与它是**对齐**不是更严）。
+ */
+useFocusTrap(rootRef, open)
+
+/**
+ * 焦点返还 + `closed`：形状逐字照搬 Drawer.vue 的 watch(open, …, { immediate: true })。
+ * ⚠️ `{ immediate: true }` 是**承重的**（R-T10-2）：13 个存量 `<Modal>` 调用点全是
+ * "外层 v-if、挂载时已开"的形状，不带 immediate 的 watch 永远等不到上升沿 ⇒ 记不到
+ * opener ⇒ 关闭时焦点返还静默失效。证伪面在 `Modal.a11y.test.ts` 的
+ * 「v-if 挂载即开 → 关闭仍返还焦点」那条（删 immediate 它就红）。
+ */
+let opener = null
+watch(
+  open,
+  (on, off) => {
+    if (on && !off) opener = document.activeElement
+    if (!on && off) {
+      emit('closed')
+      opener?.focus?.()
+      opener = null
+    }
+  },
+  { immediate: true },
 )
 
 /**
@@ -207,16 +253,32 @@ function close() {
   emit('update:modelValue', false)
 }
 function onOverlay(e) {
+  // 开关必须在 .self/target 判定之前生效（Drawer.vue 同一条注释）：否则按下遮罩已经关掉，
+  // 再补一次开关判定。通道保持 Task 6 的 R-T6 裁定：**mousedown 不改成 click**
+  // （拖拽选中文字越过遮罩时是否关闭，属交互语义，动它要单独立台账行）。
+  // 评审记过 `.self` 与 `e.target === e.currentTarget` 是重复守卫（保留其一即可）；
+  // 本行**照抄 Drawer 已交付形状、两条都留**——"抬到 Drawer 形状"优先于消重，
+  // 单点化两处一起动属 10C/后续棒的事，这里不悄悄做。
+  if (props.closeOnClickModal === false) return
   if (e.target === e.currentTarget) close()
 }
 </script>
 <template>
   <Teleport to="body" :disabled="!toBody">
     <div v-if="open" class="overlay" v-bind="$attrs" @mousedown.self="onOverlay">
-      <div ref="rootRef" class="modal" :class="sizeClass" @click.stop>
+      <div
+        ref="rootRef"
+        class="modal"
+        :class="sizeClass"
+        role="dialog"
+        aria-modal="true"
+        :aria-label="ariaLabel || null"
+        :aria-labelledby="ariaLabelledby ?? ($slots.title ? titleId : null)"
+        @click.stop
+      >
         <div class="modal-head">
           <div>
-            <div class="modal-title"><slot name="title" /></div>
+            <div :id="titleId" class="modal-title"><slot name="title" /></div>
             <div v-if="$slots.sub" class="modal-sub"><slot name="sub" /></div>
           </div>
           <div style="flex: 1"></div>
