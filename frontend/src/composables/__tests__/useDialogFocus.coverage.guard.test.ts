@@ -1,6 +1,4 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { join } from 'node:path'
 import {
   BASELINE_TAG_BY_MARKER,
   KNOWN_UNWIRED_EL_DRAWER_FILES,
@@ -8,7 +6,6 @@ import {
   OVERLAY_MARKERS,
   PRIMITIVE_OVERLAY_MARKERS,
   PRIMITIVE_REQUIRED_CALLS,
-  SRC,
   classifyOverlays,
   countMarker,
   diffAgainstAllowlist,
@@ -59,25 +56,44 @@ describe('覆盖率护栏逻辑（Task 13）', () => {
   })
 
   it('HTML 注释里的标记不计入（65 与 63 的差就是这一层）', () => {
+    // 形状照抄真仓的两处散文（EpStatsDialog.vue 与 CourseExams.vue 的对话框注释，都紧贴一个真开标签），
+    // 但**喂合成样本、不读那两个活文件**：Phase 4 第一批就把它们搬成 <Modal>，
+    // 把反例钉在将被迁移的文件上，护栏会在"迁移成功"那一刻判红、且红话说的是反的（I-1）。
+    // 真仓读数只有一个归口，就是 coverage.test.ts 的逐 marker 地板表。
+    const prose = [
+      '<template>',
+      '  <!-- v-loading 不能绑在 <el-dialog> 上：弹层内容在 teleport 的非元素根上，运行时指令无处安放 -->',
+      '  <el-dialog ref="dialogRef" :model-value="modelValue" />',
+      '</template>',
+    ].join('\n')
+    // 先钉样本形状本身：它不依赖被检的口径，所以口径一旦被动，下面的断言一定被跑到而不是被上面跳过
+    expect(
+      countMarker(prose, '<el-dialog'),
+      '原始 grep 的 65 就是这么来的：注释散文里的 <el-dialog 被当成使用点',
+    ).toBe(2)
+    expect(countMarker(stripOverlayNoise(prose), '<el-dialog')).toBe(1)
+    expect(classifyOverlays([src('prose.vue', prose)])[0].byMarker['<el-dialog']).toBe(1)
     expect(classifyOverlays([src('a.vue', '<!-- <el-dialog /> -->')])).toEqual([])
-    // 真实反例（spec §11.7 第②点）：这两个文件的注释散文里写着 "v-loading 不能绑在 <el-dialog> 上"
-    for (const rel of [
-      'views/teacher/assessment/components/EpStatsDialog.vue',
-      'views/teacher/cockpit/CourseExams.vue',
-    ]) {
-      const raw = readFileSync(join(SRC, rel), 'utf8')
-      expect(
-        countMarker(htmlOnly(raw), '<el-dialog'),
-        `${rel} 应当至少有一个真弹层`,
-      ).toBeGreaterThan(0)
-      expect(
-        countMarker(stripOverlayNoise(raw), '<el-dialog'),
-        `${rel}：注释散文里的 <el-dialog 被算进了使用点（原始 grep 的 65 就是这么来的）`,
-      ).toBeLessThan(countMarker(raw, '<el-dialog'))
-    }
   })
 
   it('JS 块注释与其续行不计入（只剥 HTML 注释会得到 89，不是 82）', () => {
+    // 先钉"护栏把自己算进地板"这个害处本身，再钉机制：口径被改坏时这条一定跑到（见变异记录）
+    const docOnly = [
+      '<script setup>',
+      '/**',
+      ' * 用法：<Modal title="x">内容</Modal>',
+      ' * Phase 4 要把 4 处裸 <el-drawer> 迁到这里',
+      ' */',
+      '</script>',
+      '<template><div class="drawer" /></template>',
+    ].join('\n')
+    expect(
+      overlayTotals(classifyOverlays([src('doc-only.vue', docOnly)])).tags,
+      '原语的说明块被当成调用点，地板值就会把护栏自己算进去',
+    ).toBe(0)
+    // 上面那行就是"第二口径 89、现口径 82"的机制本身。真仓的载体是 Modal.vue 与 Drawer.vue 的
+    // 说明块（`<Modal wide>`／`<el-drawer>` 的散文），同样**不在这里读那两个活文件**：
+    // 护栏自己的注释一改就红、红的是散文不是护栏，而 Phase 4 迁移一定会重写它们（I-1）。
     const doc = [
       '/**',
       ' * 用法：',
@@ -91,17 +107,10 @@ describe('覆盖率护栏逻辑（Task 13）', () => {
       countMarker(htmlOnly(doc), '<Modal'),
       '第二口径必须能在同一份样本上数出 <Modal',
     ).toBeGreaterThan(0)
-    // 同一个机制的真仓面：两个原语自己的说明块里有 <Modal> / <el-drawer> 字样
-    for (const rel of ['components/ui/Modal.vue', 'components/ui/Drawer.vue']) {
-      const raw = readFileSync(join(SRC, rel), 'utf8')
-      expect(
-        countMarker(htmlOnly(raw), '<Modal') + countMarker(htmlOnly(raw), '<el-drawer'),
-      ).toBeGreaterThan(0)
-      expect(
-        overlayTotals(classifyOverlays([src(rel, raw)])).tags,
-        `${rel}：原语的说明块被当成调用点，地板值就会把护栏自己算进去`,
-      ).toBe(0)
-    }
+    expect(
+      countMarker(htmlOnly(docOnly), '<Modal') + countMarker(htmlOnly(docOnly), '<el-drawer'),
+      '只剥 HTML 注释的第二口径应当能在这里数到 2——数不到就说明两口径已同化，89 那个岔数不再成立',
+    ).toBe(2)
   })
 
   it('行注释层是读数中性的：加了它 82 / 73 不变，但被 // 注释掉的接线不再算数', () => {

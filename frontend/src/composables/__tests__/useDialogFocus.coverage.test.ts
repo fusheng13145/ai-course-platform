@@ -42,13 +42,17 @@ const records = classifyOverlays()
 const totals = overlayTotals(records)
 
 describe('Task 13 弹层焦点覆盖率护栏（实现无关）', () => {
-  it('地板：弹层总数与文件数只升不降（现值 82 / 73，口径见 coverage-lib 的 stripOverlayNoise）', () => {
+  it('地板：弹层开标签总数只升不降（现值 82，口径见 coverage-lib 的 stripOverlayNoise）', () => {
     expect(
       totals.tags,
       `弹层开标签总数 ${totals.tags} 低于地板 ${EXPECTED_OVERLAY_MIN}——迁移过程中总数只升不降，` +
         '下降意味着有弹层凭空消失或扫描退化。',
     ).toBeGreaterThanOrEqual(EXPECTED_OVERLAY_MIN)
+  })
 
+  // 两条地板分开放：红的含义不同——总数那条说的是"有弹层消失"，文件数那条说的是"扫描逻辑退化"。
+  // 并成一个 it 时，一次失败只给一个消息，排查会先怀疑错的那半边。
+  it('地板：含弹层的 .vue 文件数只升不降（现值 73）', () => {
     expect(
       totals.files,
       `含弹层的 .vue 文件数 ${totals.files} 低于地板 ${EXPECTED_OVERLAY_COMPONENT_MIN}——扫描逻辑可能退化。`,

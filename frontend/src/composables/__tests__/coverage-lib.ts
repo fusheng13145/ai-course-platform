@@ -34,8 +34,9 @@ export const SRC = join(process.cwd(), 'src')
  *   其中 2 处是注释散文、不是使用点（按 65 定地板＝86，本会话已否证过一次，见 spec §11.7）。
  * - JS 块注释 `/* … *\/` 与其续行（行首只余 `*` 的那些行）：`Modal.vue`／`Drawer.vue` 的说明块里
  *   写着 `<Modal>`／`<el-drawer>` 字样。**只剥 HTML 注释不剥这三行**时 `<Modal` 会数到 19、
- *   `<el-drawer` 数到 5、合计虚高到 **89**（实跑读数见 `useDialogFocus.coverage.guard.test.ts`
- *   的"第二口径"用例，命令可重放）——护栏改版前只剥 HTML 注释，所以它口径下的数本来就不是 82。
+ *   `<el-drawer` 数到 5、合计虚高到 **89**——护栏改版前只剥 HTML 注释，所以它口径下的数本来就不是 82。
+ *   真仓的 89／82 用 spec §11.7「弹层计数口径」那条命令重放；`useDialogFocus.coverage.guard.test.ts`
+ *   的"第二口径"用例只钉机制（喂合成样本，故不随 Phase 4 迁移变红）。
  *
  * 实跑（`cd frontend`，spec §11.7 的脚本；两个反直觉点都已由本口径消解）：
  * `{"<el-dialog":63,"<el-drawer":4,"<Modal":13,"<Drawer":2,"_合计":82,"_文件数":73}`
