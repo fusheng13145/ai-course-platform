@@ -130,6 +130,35 @@ function selfReadsNopinEnv(src: string): boolean {
 }
 
 /**
+ * `--update-snapshots` 闸门的三条源级钉（C1 修复轮 1 的 F3／复核 I-4）。
+ * 【原先缺什么】第 12 项只钉了调用点那一句的**形态**。复核席构造：把 `global-setup.ts` 里
+ * `assertUpdateSnapshotsAllowed` 的默认实参从 `= process.argv` 改成 `= []` ⇒ 调用点那句一字未变、
+ * ① 照样 match，② 全程喂合成 argv 也照样绿，而**生产路径从此看不到那个旗标**——门死了且无人报警。
+ * 题面注释里那句"生产取值表达式一字未变"原先只是声称，没有任何断言钉它。
+ * 【两条合起来才封住】签名钉拦"改默认值"，调用点钉拦"改调用点（塞实参）"；
+ * 两条各管一条旁路，缺任何一条都留一个静默删门的口子。下面 F3 那条用例把两条旁路都在内存里走一遍。
+ * 【第三条】`playwright.visual.ts` 的 `globalSetup:` 必须仍指向该文件——复核席记为"次一等的第二条路径"：
+ * 把那行从 config 删掉，上面两条源级钉读的都是 `global-setup.ts` 原文，两边照绿而门根本不再执行。
+ * 这条是工单 F3 点名两条之外的「顺带」半条（出处＝复核 I-4 的修法句），不是自创。
+ */
+const GATE_SIGNATURE =
+  /export function assertUpdateSnapshotsAllowed\(argv: string\[\] = process\.argv\)/
+const GATE_CALL_SITE =
+  /export default async function globalSetup\(\) \{\s*assertUpdateSnapshotsAllowed\(\)/
+const GATE_WIRED_IN_CONFIG = /globalSetup:\s*['"]\.\/e2e\/visual\/global-setup\.ts['"]/
+
+/** 三条钉的匹配器本体：闸门用例与 F3 的内存等价复刻共用，不许两边各写一把尺（F1 同款理由）。 */
+function gateSignatureIsLive(src: string): boolean {
+  return GATE_SIGNATURE.test(src)
+}
+function gateCallSiteIsLive(src: string): boolean {
+  return GATE_CALL_SITE.test(src)
+}
+function gateIsWiredIntoConfig(src: string): boolean {
+  return GATE_WIRED_IN_CONFIG.test(src)
+}
+
+/**
  * 递归列出 `dir` 下所有 `.spec.ts`（C1 修复轮 1 的 F2c／复核 I-3 第 3 处缺口）。
  * 【原先缺什么】判据用的是 `readdirSync(dir).filter(endsWith('.spec.ts'))`——**不递归**。
  * 而 runner 的 `testDir: './e2e/visual'` 收的是整棵树 ⇒ 放进子目录的一份 spec 会**同时**逃过这条扫描
@@ -528,6 +557,9 @@ test('阈值扫描判据自己会红：合成反例两类都拦、合法形态�
  * "红了就重生成"洗掉。本条把两半都钉上：
  * ① **调用点**（源码级）：它必须是默认导出体里的**第一条语句**且**不带实参**
  *   （带实参就等于生产路径不再读 `process.argv`，门形同虚设）。删掉那行 ⇒ ① 红，这就是题面要的"能红"。
+ * ①b **签名**（源码级，C1 修复轮 1 的 F3 补）：默认实参必须逐字是 `argv: string[] = process.argv`。
+ *   原先这一半没人钉——把默认值改成 `= []` 就能在**不动调用点一个字**的前提下把门做成死的。
+ * ①c **接线**（同上，复核 I-4 的"顺带"半条）：`playwright.visual.ts` 的 `globalSetup:` 仍指向该文件。
  * ② **牙**（行为级）：三种写法都拦得住，`PW_ALLOW_UPDATE_SNAPSHOTS=1` 才放行，
  *   不带旗标的正常跑测不被误伤。
  * 【为什么不做成计划里提的 `spawnSync` 形态——如实记这条取舍】任何 spawnSync 要真验这道门，
@@ -543,9 +575,22 @@ test('--update-snapshots 闸门（第 12 项）：调用点是 globalSetup 第�
     readFileSync(join(process.cwd(), 'e2e/visual/global-setup.ts'), 'utf8'),
   )
   expect(
-    setupRaw,
-    'globalSetup 的第一条语句不再是 assertUpdateSnapshotsAllowed()——这道门又回到"只有手工证明过"的状态（第 12 项）',
-  ).toMatch(/export default async function globalSetup\(\) \{\s*assertUpdateSnapshotsAllowed\(\)/)
+    gateCallSiteIsLive(setupRaw),
+    'globalSetup 的第一条语句不再是**不带实参**的 assertUpdateSnapshotsAllowed()——这道门又回到"只有手工证明过"的状态（第 12 项）',
+  ).toBe(true)
+  // ①b 签名（F3 补的那半）：默认实参就是生产取值表达式，改它等于删门
+  expect(
+    gateSignatureIsLive(setupRaw),
+    'assertUpdateSnapshotsAllowed 的默认实参不再逐字是 argv: string[] = process.argv——把默认值改成 [] 就能在不动调用点的前提下让门永远看不到旗标（复核 I-4）',
+  ).toBe(true)
+  // ①c 接线（F3 顺带的那半条）：源级两条钉读的都是 global-setup.ts 原文，config 不指它时门根本不会执行
+  const configRaw = stripCommentLines(
+    readFileSync(join(process.cwd(), 'playwright.visual.ts'), 'utf8'),
+  )
+  expect(
+    gateIsWiredIntoConfig(configRaw),
+    'playwright.visual.ts 里 globalSetup: 不再指向 ./e2e/visual/global-setup.ts——门体还在但没人调用它（复核 I-4 的次一路径）',
+  ).toBe(true)
   // ② 牙：三种写法各钉一条，报错文案点名"拒绝了"
   const base = [
     '/node/bin/node',
@@ -584,6 +629,66 @@ test('--update-snapshots 闸门（第 12 项）：调用点是 globalSetup 第�
     if (envRaw === undefined) delete process.env.PW_ALLOW_UPDATE_SNAPSHOTS
     else process.env.PW_ALLOW_UPDATE_SNAPSHOTS = envRaw
   }
+})
+
+/**
+ * C1 修复轮 1 的 F3（复核 I-4）：**内存等价复刻**——证明上面那三条源级钉真的会红。
+ * 【为什么不去把默认值真改掉再跑】要验"门已失效"就得把 `--update-snapshots` 交给 runner，
+ * 而那一跑会当场重写／prune 掉 22 张已提交基线；围栏明令该旗标**永不**跑（本轮一次都没跑过）。
+ * 复核席给的是同一思路的另一半：旁路是**源级**的，所以红面也可以在源级证——
+ * 把源码字符串在内存里按那种改法改一遍，喂给**同一个匹配函数**，断言它不再 match。
+ * 【两侧都钉，缺一侧就是空转】每条变异都先断言"替换真的发生了"（`!== raw`），
+ * 否则"不再 match"会因为字符串根本没变而假成立；再各钉一条"另一条旁路与它无关"，
+ * 这正是"为什么必须两条一起"的证据：改默认值只被签名钉拦住、改调用点只被调用点钉拦住。
+ */
+test('闸门源级钉自己会红：内存里复刻「改默认实参」与「改调用点」两条旁路（F3 等价复刻，未跑任何 update-snapshots）', () => {
+  const setupRaw = stripCommentLines(
+    readFileSync(join(process.cwd(), 'e2e/visual/global-setup.ts'), 'utf8'),
+  )
+  const configRaw = stripCommentLines(
+    readFileSync(join(process.cwd(), 'playwright.visual.ts'), 'utf8'),
+  )
+  // 现状：三条都成立（与上一条用例同一把尺，这里只是将下面的变异比较锚在真实现上）
+  expect(
+    gateSignatureIsLive(setupRaw),
+    '现况下签名钉就不成立——下面的等价复刻全部失去意义，先看上一条用例',
+  ).toBe(true)
+  expect(gateCallSiteIsLive(setupRaw), '现况下调用点钉就不成立——同上').toBe(true)
+  expect(gateIsWiredIntoConfig(configRaw), '现况下接线钉就不成立——同上').toBe(true)
+
+  // 变异①＝复核席构造的那条静默删门路径：默认实参改成空数组，调用点一字未动。
+  const mutatedDefaultArg = setupRaw.replace('argv: string[] = process.argv', 'argv: string[] = []')
+  expect(mutatedDefaultArg === setupRaw, '替换没发生：本条等价复刻是空转，变异构造要重定').toBe(
+    false,
+  )
+  expect(
+    gateSignatureIsLive(mutatedDefaultArg),
+    '默认实参已被改成 []，签名钉却没红——这条旁路又没人看着了',
+  ).toBe(false)
+  // 这条就是复核席那句"① 仍 match"的入库版：单靠调用点钉拦不住改默认值，所以 F3 要补签名钉。
+  expect(
+    gateCallSiteIsLive(mutatedDefaultArg),
+    '调用点钉对这条旁路必须无感（无感才证明"只钉调用点"不够）',
+  ).toBe(true)
+
+  // 变异②：给调用点塞实参 ⇒ 调用点钉红、签名钉仍绿（两条各管一条旁路，缺一留一孔）。
+  const mutatedCallSite = setupRaw.replace(
+    'export default async function globalSetup() {\n  assertUpdateSnapshotsAllowed()',
+    'export default async function globalSetup() {\n  assertUpdateSnapshotsAllowed([])',
+  )
+  expect(mutatedCallSite === setupRaw, '替换没发生：本条等价复刻是空转，变异构造要重定').toBe(false)
+  expect(gateCallSiteIsLive(mutatedCallSite), '调用点被塞了实参，调用点钉却没红').toBe(false)
+  expect(
+    gateSignatureIsLive(mutatedCallSite),
+    '签名钉不该管调用点这一族（误伤会把两条旁路混成一条）',
+  ).toBe(true)
+
+  // 变异③＝接线被拆：config 里那行换成别的文件（或删除）⇒ 前两条读的是 global-setup.ts 原文，照绿而门不执行。
+  const unwiredConfig = configRaw.replace('./e2e/visual/global-setup.ts', './some-other-setup.ts')
+  expect(unwiredConfig === configRaw, '替换没发生：本条等价复刻是空转，变异构造要重定').toBe(false)
+  expect(gateIsWiredIntoConfig(unwiredConfig), 'globalSetup 已不指向闸门文件，接线钉却没红').toBe(
+    false,
+  )
 })
 
 /**
