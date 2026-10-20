@@ -57,47 +57,72 @@ test.describe('动效观察（非基线）', () => {
       if (shot.overlay === 'dialog') {
         // R-T14-3 legacy 侧载体：/admin/courses 表格首行"查看"→ CourseManagement.vue 的 <el-dialog append-to-body>
         await page.getByRole('button', { name: '查看' }).first().click()
-        await page.locator('.el-dialog').first().waitFor({ state: 'visible', timeout: 10000 })
+        const panel = page.locator('.el-dialog').first()
+        await panel.waitFor({ state: 'visible', timeout: 10000 })
 
-        // R-T14-2 双拍：紧贴触发拍 a、200ms 后拍 b（EP el-dialog 的 dialog-fade 是 .3s，200ms 正落中段）。
-        const a = await page.screenshot()
+        // R-T14-2 双拍（R-T14-7 收窄到元素级）：紧贴触发拍 a、200ms 后拍 b
+        //（EP el-dialog 的 dialog-fade 是 .3s，200ms 正落中段）。
+        // 为什么不是 locator.screenshot()：本会话实测 `locator.screenshot()` 会做元素稳定等待、
+        // 把这一层弹层裁到**动画终态**才落笔（dialog-fade 收尾后 opacity 已恒为 1），
+        // 于是连拍两字节相同、dialog-open 当场假红——它和 animations:'disabled' 是同一族"强制落终态"，
+        // 与"看动效正在跑"这个目的正好相反。page.screenshot({ clip }) 用节点 boundingBox 裁到
+        // 那块矩形、**不等稳定**，才既收窄了字节面（避开同页 v-loading 遮罩的 opacity 过渡假绿源）
+        // 又留住中段像素。
+        const box = await panel.boundingBox()
+        expect(box, `${shot.name}：弹层已 visible 却拿不到 boundingBox ⇒ 元素级裁剪无从下手`).not.toBeNull()
+        const clip = { x: box!.x, y: box!.y, width: box!.width, height: box!.height }
+        const a = await page.screenshot({ clip })
         await page.waitForTimeout(200)
-        const b = await page.screenshot()
+        const b = await page.screenshot({ clip })
         writeFileSync(join(MOTION_DIR, `${shot.name}.png`), a)
         writeFileSync(join(MOTION_DIR, `${shot.name}-mid.png`), b)
-        // 判据极性：**a !== b 才算"这一页此刻确实有动效在跑"**。
+        // 判据极性：**a !== b 才算"这块弹层此刻确实有动效在跑"**。
+        // ui/Modal 与 ui/Drawer 的原语面板没有 CSS 入场动效（design-system.css 的 .overlay/.modal
+        // 块无 animation/transition，Drawer.vue 样式块只有按钮级 transition）；el-dialog 侧会动。
         // 若 a === b：先查触发有没有真打开（上面 waitFor visible 已证），再调小 200→80–120ms 重试；
         // 调完仍相同就是真发现（该弹层无 CSS 入场动效），照实写 LEDGER，不许删断言换"人工看图确认"。
         expect(
           Buffer.compare(a, b),
-          `${shot.name}：连拍两字节完全相同 ⇒ 这一页此刻没有动效在跑，观察组测了个空。dialog-open 是 legacy el-dialog，EP dialog-fade 应给它入场；红了先查触发与时长，再判是不是真发现。`,
+          `${shot.name}：连拍两字节完全相同 ⇒ 这块弹层此刻没有动效在跑，观察组测了个空。dialog-open 是 legacy el-dialog，EP dialog-fade 应给它入场；红了先查触发与时长，再判是不是真发现。`,
         ).not.toBe(0)
       } else if (shot.overlay === 'modal') {
         // R-T14-3 自持侧载体：/admin/users 页头"新增用户"→ UmCreateDialog（模板根即 <Modal wide>，Teleport 到 body）
         await page.getByRole('button', { name: '新增用户' }).first().click()
-        await page.locator('.overlay .modal').first().waitFor({ state: 'visible', timeout: 10000 })
+        const panel = page.locator('.modal').first()
+        await panel.waitFor({ state: 'visible', timeout: 10000 })
+        const box = await panel.boundingBox()
+        expect(box, `${shot.name}：面板已 visible 却拿不到 boundingBox ⇒ 元素级裁剪无从下手`).not.toBeNull()
+        const clip = { x: box!.x, y: box!.y, width: box!.width, height: box!.height }
 
-        // R-T14-2 双拍。**先按 not.toBe(0) 极性跑一次拿到实测读数**：ui/Modal 的 `.overlay`/`.modal`
-        // 静态读 CSS 无 animation/transition（`design-system.css` 的 .overlay/.modal 块 + Modal.vue scoped 块，
-        // rise-in 只挂 .animate-in 页面区块、不挂弹层），预期两字节相同 ⇒ 是真发现。
-        // 若真相同，按 R-T14-2 处置：调小时长重试；调完仍相同则把极性改成 toBe(0)（不是删断言），
-        // 反过来把"该弹层无 CSS 入场动效"钉成一条会响的入库断言——将来给 .modal 加过渡它就红、逼重录。
-        const a = await page.screenshot()
+        // R-T14-2 双拍（R-T14-7 收窄到元素级：page.screenshot({ clip }) 裁到 .modal 那块矩形，
+        // 不用 locator.screenshot()——理由见 dialog 分支，它会等稳定把画面裁到终态、对动效不敏感）。
+        // 结论措辞对齐证据面：ui/Modal 的 .overlay/.modal 原语面板**没有 CSS 入场动效**
+        //（design-system.css 的 .overlay/.modal 块 + Modal.vue scoped 块都无 animation/transition，
+        // rise-in 只挂 .animate-in 页面区块、不挂弹层）⇒ 元素级两字节相同是真发现。
+        const a = await page.screenshot({ clip })
         await page.waitForTimeout(100)
-        const b = await page.screenshot()
+        const b = await page.screenshot({ clip })
         writeFileSync(join(MOTION_DIR, `${shot.name}.png`), a)
         writeFileSync(join(MOTION_DIR, `${shot.name}-mid.png`), b)
-        // 实测读数（本会话）：200ms 与 100ms 两种间隔下 a 与 b 均**逐字节相同**（Buffer.compare 返回 0）。
-        // 触发确实开了弹层（上面 .overlay .modal 的 waitFor visible 已过），所以不是"没打开"；
-        // 调小间隔仍相同 ⇒ 是真发现：ui/Modal 原语**没有 CSS 入场动效**（design-system.css 的 .overlay/.modal
-        // 与 Modal.vue scoped 块都没有 animation/transition，rise-in 只挂 .animate-in 页面区块）。
-        // R-T14-2 不许删这条断言换成"人工看图确认"——这里**保留机检**，只是把极性改成实测到的 toBe(0)：
-        // 它现在是"该原语无入场动效"这条结论的入库面，谁哪天给 .modal 加过渡，这条立刻转红、逼重录观察组。
         expect(
           Buffer.compare(a, b),
-          `${shot.name}：ui/Modal 无 CSS 入场动效 ⇒ 连拍两字节应逐字节相同（本会话 200ms/100ms 两间隔实测均为 0）。` +
-            `这条若转红，说明 .modal/.overlay 新增了 animation/transition —— 那是动效面变化，须重跑本组并按新形状改判据。`,
+          `${shot.name}：ui/Modal 无 CSS 入场动效 ⇒ 元素级连拍两字节应逐字节相同。` +
+            `这条若转红，说明 .modal 新增了 animation/transition —— 那是动效面变化，须重跑本组并按新形状改判据。`,
         ).toBe(0)
+
+        // R-T14-7 对偶实验：证明上面那条 toBe(0) 真会红，而不是"这把尺子本来就量不出动效"。
+        // 用例内 page.addStyleTag 注入一个入场过渡（**绝不改 frontend/src/，注入只活在用例里、随页面销毁**），
+        // 再对同一 clip 矩形双拍——rise-in 的 opacity/translateY 正在跑，两字节必须不同。
+        // 没有这条，"谁日后给 .modal 加动效这条就立刻转红"只是推断。
+        await page.addStyleTag({ content: '.modal{animation:rise-in 0.42s both}' })
+        const c = await page.screenshot({ clip })
+        await page.waitForTimeout(100)
+        const d = await page.screenshot({ clip })
+        expect(
+          Buffer.compare(c, d),
+          `${shot.name}：注入 rise-in 后元素级两字节仍相同 ⇒ 这把尺子对动效不敏感，上一条 toBe(0) 的"加动效就转红"是假的。` +
+            `红了才说明本判据确实能区分"有动效/无动效"。`,
+        ).not.toBe(0)
       } else {
         // 页级观察（admin-dashboard/admin-courses）：截图前已经跑过 matchMedia 自证，
         // 这里只落一张静态画面，不做双拍（双拍归 R-T14-2 的两个 overlay 用例）。
