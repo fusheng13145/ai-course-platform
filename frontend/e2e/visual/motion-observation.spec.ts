@@ -106,3 +106,46 @@ test.describe('动效观察（非基线）', () => {
     })
   }
 })
+
+test.describe('降级对照（故意不做 test.use 覆盖，读 config 的 reduce 真值）', () => {
+  // R-T14-6（本轮核心）：题面 Step 3 原本拿"anchors admin-dashboard 明暗零 diff"**间接**推
+  // "CSS 动效在 reduce 下停了"，那条推理已作废——`animations:'disabled'` **不在** config
+  // （playwright.visual.ts 全文只有 use.contextOptions.reducedMotion），它是 anchors.spec.ts
+  // 里每次 toHaveScreenshot 的**截图级**选项；本仓 sensitivity.spec.ts 的注释已把机制写死：
+  // 它在截图瞬间把 root.getAnimations() 里每个有限动画都 animation.finish() 强制落到终态。
+  // ⇒ 基线像素稳定由截图级终态强制保证，与媒体查询无关，"没停二次跑就会飘"不成立。
+  // 所以这里换成**直接读数**：**不写** test.use({ reducedMotion })，让它吃 config 的
+  // contextOptions.reducedMotion='reduce'，进去读两样东西——媒体查询命中，且 .animate-in 的
+  // animationName 归零。这两条一起把 spec §6.7「动效降级被证明」从推断升级为实测。
+  // 与上一个 describe 的 matchMedia===false 那条合起来是完整闭环：那条证"能被翻回 no-preference"，
+  // 这条证"不翻时确实吃 config 的 reduce 且 reduce 真把 CSS 入场动效关掉了"。
+  // 载体 .animate-in 选 /admin/dashboard（AdChartPanels/AdQuickEntries/AdStatCards 都用 animate-in；
+  // design-system.css 的 .animate-in 是 `animation: rise-in 0.42s var(--ease-out) both`，
+  // 其 @media (prefers-reduced-motion: reduce) 块把 .animate-in/.fade-in 打成 animation:none）。
+  test.use({ storageState: storagePathFor('ADMIN') })
+
+  test('reduce 未被覆盖：matchMedia 命中 true 且 .animate-in 的 animationName 为 none', async ({ page }) => {
+    await setTheme(page, 'light')
+    await page.goto('/admin/dashboard')
+    await page.waitForLoadState('networkidle')
+
+    const q = await page.evaluate(() => {
+      const el = document.querySelector('.animate-in')
+      return {
+        hasAnchor: el !== null,
+        media: matchMedia('(prefers-reduced-motion: reduce)').matches,
+        anim: el ? getComputedStyle(el).animationName : '(no .animate-in on page)',
+      }
+    })
+
+    expect(q.hasAnchor, '/admin/dashboard 上没有 .animate-in ⇒ 选错载体，这条对照测了个空').toBe(true)
+    expect(
+      q.media,
+      '不写 test.use 覆盖时 matchMedia 读到 false ⇒ config 的 contextOptions.reducedMotion=reduce 根本没落到 context，全仓基线的"降级"前提是假的',
+    ).toBe(true)
+    expect(
+      q.anim,
+      'reduce 下 .animate-in 的 animationName 不是 none ⇒ 媒体查询没把 CSS 入场动效关掉（design-system.css 的 reduce 块应把它打成 animation:none）',
+    ).toBe('none')
+  })
+})
