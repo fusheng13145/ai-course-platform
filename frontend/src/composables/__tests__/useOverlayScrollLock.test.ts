@@ -83,10 +83,13 @@ describe('useOverlayScrollLock — 引用计数滚动锁', () => {
     disposeInner()
     disposeOuter()
   })
-  // 跑红配方：本条是"两处各自计数"的靶子——把 composable 的计数从 body dataset 换成
-  // 函数内的局部变量（`let n = 0`，两个实例各有一份），第二个实例上锁时 overlayCount()
-  // 读 dataset 恒 0，本条第一处断言就报 `expected 1 to be 2`。组件侧同一形状由
-  // Modal.scrolllock.test.ts 的 Modal×Drawer 那条再钉一遍（实跑结果见报告）。
+  // 跑红配方：本条是"两处各自计数"的靶子，有两个可跑的世界，**报错文本不一样，别混着写**：
+  // 世界 A（把 composable 的计数从 body dataset 换成函数内局部变量 `let n = 0`）：
+  //   dataset 从头到尾没人写，`overlayCount()` 读回 0 ⇒ 本条第一处断言报 `expected 0 to be 2`。
+  // 世界 B（M7 实跑的那次：把 `Drawer.vue` 换成自己那把键 `drawerOverlayCount`）：
+  //   dataset 里只有 Modal 那一个 +1 ⇒ 报 `expected 1 to be 2`，三条 Modal×Drawer 用例一起红。
+  // 组件侧同一形状由 `Modal.scrolllock.test.ts` 的 Modal×Drawer 那条再钉一遍；
+  // 两个世界的实跑读数都记在台账 `P0b-SCROLLLOCK-01` 的"有效性"栏（报告文件不入 git，不算依据）。
 
   it('从未打开过的实例：挂载与卸载都不许动计数', async () => {
     // 计划草稿的 watch(open, (on, off) => { if (on === off) return }, { immediate: true })

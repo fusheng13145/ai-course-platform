@@ -83,7 +83,8 @@ describe('Modal — 滚动锁（引用计数）', () => {
 
   it('Modal 与 Drawer 同时开着 ⇒ 计数 2；关一个仍 hidden 且 1；关第二个才还原', async () => {
     // 这一条就是"两处各自计数"的靶子：Modal 与 Drawer 各自一套计数器时，
-    // overlayCount()（读共享键）在两个都开着时只会是 1。变异 M7 的实跑读数见报告。
+    // overlayCount()（读共享键）在两个都开着时只会是 1。变异 M7 的实跑读数记在台账
+    // `P0b-SCROLLLOCK-01` 的"有效性"栏（报告文件不入 git，按本表证据纪律不算依据）。
     document.body.style.overflow = 'scroll'
     const modal = mountModal({ modelValue: true })
     await settle()
