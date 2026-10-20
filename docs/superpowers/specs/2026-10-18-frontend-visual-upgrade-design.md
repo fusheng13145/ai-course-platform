@@ -577,7 +577,10 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 | 10B ARIA／焦点陷阱／焦点返还／`closed`／遮罩开关 | **落地；两轮复开到席，第 2 轮抓出**我**写的假对比并已改**（该轮修复未再开第三席，见 R-T10B-2） | `95f95c5`/`27eb3c6`/`4a13985`/`2c3a912` ＋ 必修 `275375c` ＋ 第 2 轮更正（未提交态见下条 commit） | 新建唯一一份 `useFocusTrap`，两原语各一行接线；Modal 抬到 Drawer 已交付的形状。**P-d 实测**：EP 2.14.7 的 `el-dialog` **确实**挂 `ElFocusTrap` ⇒ 本棒是 parity。**第 2 轮纠出两条我的失真**：① "EP 绑容器元素、不吃 `stopPropagation` 这一刀"是**假的**（它的 keydown 也绑冒泡，`focus-trap…mjs:89` 无 capture 参数）；② 我把第三个反例写成"未定位"，其实一层事件转发就找得到（`NmNoticeList.vue:15`）⇒ 少查就当保守。**边界如实兜住**：无 `focusout` 拽回、无 `focusableStack`；子节点 `stopPropagation()` 会静解除陷阱（今天全仓零命中，但没人守） |
 | 10C 写回对称／双转发／`--sh-drawer` 与 ltr 两档 | **完成**（第 1 轮复开到席，两条 Important 归正在 `11787de`） | `d79aed8`/`ba63a3a`/`3cff12a`/`900da2a` ＋ 我改错锚 `a07f5a7` ＋ 复核必修 `11787de` | Drawer 的 `close()` 收到 Modal 形状（**方向不许反**）；`NmPublishDrawer` 双转发收成一条腿；补 `--sh-drawer-ltr` 明暗两档与暗色 `--sh-drawer`（**存量缺陷、非本棒引入**）。**我派单里的两处错引被执行者与复核各自抓到一个**：`37b9414` 不是 Modal 现状的证据（定形在 `6d2379d`），`5c221c8` 更在定形**之前**、不可能"保持"它；另"没有一道门会解析 `theme.css`"半错——`format:check` 的 glob 含 `css` |
 | 13 焦点覆盖率护栏改"弹层实现无关" | **落地；第 1 轮复开到席（判"通过，但 I-1 须在 Phase 4 第一批之前落地"），I-1 与四条措辞更正已在 LEDGER `P0b-GUARD-03` 收口** | `e8d4b1f`/`076460e`/`037eb38`/`fc7438c` ＋ 复核必修（本行所述那一棒） | 地板值由我复现（`63＋13＋2＋4＝82`、`73` 文件；我先前"应是 84"是**把注释里的 `<el-dialog>` 当使用点**算错的，已收回），护栏把扫描键换成**冻结口径 ＋ 两类义务**：`el-dialog`/`el-drawer` 要调用点接线，`ui/Modal`/`ui/Drawer` **禁止**调用点留死接线（R-T9-7 的机器化），另加**只减不增的缺口表**装 `el-drawer` 那 4 个用户（新增缺口红、修掉一条也红）。**它否证了我 §11.7 的重放命令**：`git grep -- 'src/**/*.vue'` 命中不到 `src/App.vue`（我用 `router-view` 实测证实），已按全 `.vue` 面复算，82/73 不变。**复核抓到的 I-1**：护栏单测把 65→63 与 89→82 两个反例**读在将被 Phase 4 迁移的活文件上**（`EpStatsDialog.vue`、`CourseExams.vue`、`Modal.vue`、`Drawer.vue`），迁移成功那一刻会红、且报错把成功说成失败 ⇒ 反例改喂合成样本，活文件读数只留 `coverage.test.ts` 的逐 marker 表那一处归口（它的红话是"重测＋改表"，语义正确）。变异复跑两次：删 HTML 层 ⇒ `<el-dialog` 读到 **65**，删块注释与续行两层 ⇒ 读到 **89**，都是当场重现那两个岔数、跑完即还原 |
-| 14 / 15 | **未派发** | — | Task 14（非基线动效抽检组）与 Task 15（收口）待派；Task 15 还须消掉 `P0b-GUARD-01`／`P0b-DRAWER-01` 两行占位词，并拍 §11.4 末条那个二选一 |
+| 14 非基线动效抽检组 | **落地；第 1 轮复核判 Spec compliance Fail／Task quality Needs fixes（无 Critical），修复轮 1 在飞** | `9fcd900`/`a3bbb3b`/`8168908` ＋ 修复轮 | 四张观察图＋两张中段图入库（`docs/visual-upgrade/evidence/P0a/motion/`），`Modal` 与 `el-dialog` 两类载体各一格；观察组每条截图前读 `matchMedia` **证伪了"覆盖不成立"这个可能**。**复核抓出两条判据级问题**：① 题面 Step 3 拿"anchors 零 diff"间接证降级生效**推理作废**（`animations: 'disabled'` 是 `anchors.spec.ts:307/:364` 的截图级终态强制，config 里没有它）⇒ 见 **R-T14-6**；② 全视口字节相等被用来钉"这一个弹层没动效"，**证据面宽于结论面**（`UserManagement.vue` 2 处 `animate-in` 是假红源、`v-loading` 遮罩是假绿源）⇒ 见 **R-T14-7**。**控制器独立认可的事实面**：`ui/Modal`／`ui/Drawer` 原语确实无入场动效（读 CSS 而非读测试），`modal-open` 与 `-mid` 两图 `sha1` 相同（`45a85143…`）而 `dialog-open` 两张不同。围栏全守住：`src/**` 0 改动、`__snapshots__` 0 改动、棘轮 402 持平 |
+| 15 Phase 0 收口与 Phase 1–3 准入 | **未派发** | — | 题面已核对与计划现文逐字一致（行区间 2760–末）。它手上要清的两件实测账：8 处 `待回填`（见 §11.4）与 `error-404` 那个二选一；另外 `npm run typecheck` **今天不可能绿**（`scripts/check-types.cjs:26` 跑的就是同一个
+  `node_modules/vue-tsc/bin/vue-tsc.js`，它数出 **402 条／90 文件**存量），题面 Step 1 那句"全绿"要按棘轮口径
+  （`typecheck:gate` 只许下降）改写后才能执行，否则第一棒就会被一条不可能满足的判据卡住 |
 | 验收包（本会话任务清单第 24 项） | 未交 | — | 形态已定：① 裁定清单含"若错代价"；② 三道门禁结论；③ LEDGER 列数自校＋实跑数字；④ **未定性的事单独列**，不混进"已完成" |
 
 ### 11.3 三道门禁的当前结论（正文在 §6，这里只给判到哪一步）
@@ -616,9 +619,22 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
   **谁先跑完谁定性**，在那之前不得称它"已修"或"非缺陷"。
 - 空态制度化风险（R-CF1）：`__fixtures__/student-dashboard.json` 钉的是**全 0 载荷**，而"数据已到位"守卫是存在性断言
   ⇒ 空态能被守卫放过。裁定是**加内容断言**，不动后端种子数据。
-- **台账占位词未消**：LEDGER 里 `P0b-GUARD-01` 与 `P0b-DRAWER-01` 两行仍带"待回填"（前者等 Task 13，属正常；
-  后者那格本可由 Task 11 修复轮**已有实测**直接填，不必等新证据）。Task 15 Step 5 会 grep 这两个占位词并要求
-  **无输出**，所以现在不清就是收口时炸。
+- **台账占位词未消**：LEDGER 里 `P0b-GUARD-01` 与 `P0b-DRAWER-01` 两行仍带"待回填"。
+  `P0b-GUARD-01` 的实测值**现在已经在仓里了**（`P0b-GUARD-02`／`P0b-GUARD-03` 两行的六次变异与两条地板读数），
+  它那 **7** 处占位词属**转录**而非新证据；`P0b-DRAWER-01` 那 1 格本可由 Task 11 修复轮**已有实测**直接填。
+  （2026-10-20 实测计数：全表 `待回填` 共 **8 处**＝`P0b-GUARD-01` 七处 ＋ `P0b-DRAWER-01` 一处；
+  `P0a-MOTION-01` 为零处。）
+  Task 15 Step 5 会 grep 这两个占位词并要求**无输出**，所以现在不清就是收口时炸。
+- **§6.7 的降级证据在修复轮落地前仍是空头**（R-T14-6）：Task 14 交付的观察组证明了
+  "`test.use` 能把 config 的 `reduce` 翻回 `no-preference`"（四格截图前逐条读 `matchMedia === false`），
+  但**没有**"未覆盖时读到 `reduce`"的反向读数，而它原先拿去顶这个缺口的"anchors 零 diff"已被判无效
+  （`animations: 'disabled'` 才是像素确定性的来源）。修复轮 1 的对照用例落地前，
+  **"CSS 动效在降级下确实停了"这句话在本仓没有一条可重放的直接证据**——引用 §6.7 时按"待证"处理。
+- **抽屉动效不对称（R-T14-8，未爆、归 Phase 4 处置）**：EP `el-drawer` 有真滑入
+  （`drawer.scss:210` 的 `.el-drawer-fade` ＋ `:235/:239` 的 `translateX(±100%)`），
+  `ui/Drawer` 的原语面板**无任何入场动效**（其样式块只有一处按钮级 `transition: all 0.15s`）
+  ⇒ 迁那 4 处裸 `el-drawer` 会**静默删一次可见动效**，且这类删除既不在像素基线里（reduce 下拍不到）、
+  也不在单测里。要么补过渡并录改前面，要么书面接受弃用，**不许两边都不选**。
 - **视觉套件在 D-1 修好之前结构性不能全绿**（10C 的基线复跑把这条从"22/24"的旧账逼成待拍项）：
   `error-404` 的明暗两张**照跑**却**没有入库基线**（Task 4 按 D-1 主动拒收：error 路由从不写 `data-theme`），
   于是每次都红在通用守卫 `assertComparableRender`（读数 `data-theme=` 空值），**不是红在像素**。
@@ -680,6 +696,37 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
   `addEventListener("keydown", onKeydown)`，**没有第三个 capture 参数**，同样绑冒泡、同样会被截住；
   EP 真多出来的是同文件 `:90-91` 的 `focusin`／`focusout`，而那正是上一条已经声明"本实现不兜"的那块。
   ⇒ 这属本任务族一直防的"机制洗白"形状（把对手的实现说成更强或更弱来抬高自己那条结论），已收回并改正。
+- **R-T14-6（Task 14 第 1 轮复核，判据级）**：**基线零 diff 不能证明 `prefers-reduced-motion` 降级生效**。
+  计划 Task 14 Step 3 原写"若 reduce 下动效没停，同一页二次跑就会飘"——控制器实跑核出该推理作废：
+  `animations: 'disabled'` **不在** `playwright.visual.ts`（grep 0 命中），它是 `anchors.spec.ts:307`／`:364`
+  每次 `toHaveScreenshot` 的**截图级选项**，而 `sensitivity.spec.ts:386-387` 早已写明它的实现是
+  `root.getAnimations()` 逐个 `animation.finish()` ⇒ **像素确定性由它提供，与媒体查询无关**。
+  ⇒ §6.7"动效降级被证明"从此**只认直接读数**：未做 `test.use` 覆盖的对照用例里
+  `matchMedia('(prefers-reduced-motion: reduce)').matches === true` **且** `/admin/dashboard` 上
+  `.animate-in` 的 `getComputedStyle().animationName === 'none'`（该页确有 `animate-in`：
+  路由 `src/router/index.ts:58-59` → `views/admin/Dashboard.vue`，子组件 `AdStatCards.vue` 等用它；
+  定义 `design-system.css:1358-1359` 为 `rise-in 0.42s var(--ease-out) both`）。
+  代价：若这条直接读数为 false／非 `none`，则**全部 22 张基线是在动效开着时截的**，
+  §6.7 的降级结论与"reduce 抹掉布局证据"那条都要重写——所以它必须真跑，不许沿用"间接证"。
+- **R-T14-7（同一复核）**：观察组的"有没有动"判据**证据面不得宽于结论面**。
+  全视口 `page.screenshot()` 的字节相等被用来钉"这一个弹层没有入场动效"是越界的：
+  `modal-open` 那页（`views/admin/user/UserManagement.vue` 含 2 处 `animate-in`）有**假红源**，
+  `dialog-open` 那页的 `v-loading` 遮罩有**假绿源**（EP `.el-loading-mask` 自带 opacity 过渡），
+  而本组**故意不冻时钟**（冻了动画就停，正是要看的东西）。
+  ⇒ 规矩：双拍改**元素级**（`locator.screenshot()`），且任何"应当相同／应当不同"的字节断言
+  **必须配一条对偶实验**证明它会朝反方向红（在不改 `src/` 的前提下用 `page.addStyleTag` 注入过渡）。
+  没有对偶的"这条日后会响"属推断，不得写进台账。
+  顺带定案一条**事实**（控制器独立核过 CSS，非读测试）：`ui/Modal` 与 `ui/Drawer` 的原语面板**都没有**入场动效——
+  `design-system.css:732` 起的 `.overlay`／`.modal` 两块无 `animation`／`transition`／`transform`，
+  `Drawer.vue` 样式块只有一处按钮级 `transition: all 0.15s`。
+- **R-T14-8（同一复核，代价登记）**：Task 14 把观察格里的一格从 `drawer-open` 换成 `modal-open` 是**合法的**
+  （派发附录给了"legacy 侧 `.el-dialog`／`.el-drawer` 任选其一"），**但代价是真的**：
+  EP `theme-chalk/src/drawer.scss:210` 有 `.el-drawer-fade`、`:235`／`:239` 是
+  `transform: translateX(-100%)`／`(100%)`（`element-plus/dist/index.css` 内确有 `el-drawer-fade`）
+  ⇒ **`el-drawer` 今天真会滑入，而 `ui/Drawer` 全无入场动效**。
+  ⇒ Phase 4 迁那 4 处裸 `el-drawer` 时会**静默删掉一次可见动效**——这正是项目主"每改必留改前改后"最容易被漏的一类，
+  因为它不在像素基线里（reduce 下拍不到）、也不在单测里。处置归 Phase 4：**要么给 `ui/Drawer` 补过渡并录改前面，
+  要么书面接受"抽屉滑入被弃"**，不许两边都不选。
 - **推送口径（2026-10-19 19:32 起的现行指令，覆盖更早节奏）**：本批次**一次都不推**，全部任务完成后由 leyon 亲自验收；
   截至 `bfb9992`，本地 `main` 比 `origin/leyon` **领先 106 个 commit**（按天：10-18 有 25、10-19 有 70、10-20 有 11）。
   验收清单以 `git log --oneline origin/leyon..HEAD` 现取，别抄这里的数。
@@ -797,9 +844,29 @@ console.log(JSON.stringify(out));
    否则覆盖率 100% 与零焦点覆盖可以同时为真（这正是 `P0b-MODAL-04` 必要性栏点出的那道缺口）。
    **Phase 4 动手前必读 `P0b-GUARD-03`**：它把"反例不许钉在将被迁移的活文件上"写成了规矩，
    第一棒迁移就会撞上（`EpStatsDialog.vue`、`CourseExams.vue` 与两原语的说明散文都在迁移面上）。
-2. **Task 14**（非基线动效抽检组）——补 reduce 模式下基线照不到的另一半；与 §11.4 的三条包含块边界一起做才有意义。
+2. **Task 14 已落地（`9fcd900`…`8168908`），第 1 轮复核判 Fail／Needs fixes，修复轮 1 在飞**：
+   要落的是 **R-T14-6**（降级改直接读数，**这条顺带把 §6.7 从推断升级为实测**）、**R-T14-7**
+   （双拍收窄到元素级＋对偶注入实验）、**R-T14-9**（台账三处过头措辞）、**R-T14-10**（该 spec 的 prettier）。
+   **另有一条 Phase 4 前置由本棒测出、不在修复轮内**：**R-T14-8** 的抽屉动效不对称
+   （EP `el-drawer` 真滑入、`ui/Drawer` 全无入场动效）⇒ 迁 4 处裸 `el-drawer` 会静默删一次可见动效，
+   须由 Phase 4 那棒选边（补过渡并录改前面／书面接受弃用）。
 3. **4c-fix-C**（8 项，编号 9–16），含 `data-theme=""` 三步取证与 `visual-helpers.ts` 的纯搬迁拆分。
 4. **Task 15**（Phase 0 收口）：占位词 grep 须无输出、LEDGER 列数自校须全 9、三道门禁逐条给结论。
+   **控制器已经把两条实测替它做掉了**，回填时直接引：① **§9.3** 的 `append-to-body` 分布＝
+   全仓 **40 处／35 个文件**、全部裸布尔写法（`append-to-body="…"` 与 `:append-to-body="…"` 各 0 命中）；
+   按文件面对齐 `grep -rl '<el-dialog'` 得 **55 个文件**（这就是 §9.4 那个 raw 口径的 55，含 2 个只在
+   注释里写标记的文件），其中 **33 写了、22 没写**；多出的 2 处写在 `<el-drawer>` 上
+   （`EgEventsDrawer.vue`、`DscDetailDrawer.vue`）。**EP 2.14.7 的默认值是"不 teleport"**：
+   `dialog.mjs:14` `appendToBody: Boolean` 无默认、`dialog.mjs:18-21` 与 `:132` 的 `appendTo` 默认 `"body"`，
+   而 `dialog.vue_vue_type_script_setup_true_lang.mjs:59-60` 是
+   `disabled: appendTo !== 'body' ? false : !appendToBody` ⇒ **缺省 `disabled` 为真**。
+   这与 `ui/Modal` 的 `teleported` 缺省 **true** 方向相反 ⇒ 那 22 个不写该属性的调用点迁过来会
+   **改变渲染位置**（层叠上下文与包含块跟着变，Task 8 那一族正是此风险面）。**不许**写成"缺省已对齐"。
+   ② **§9.4** 的 54／55 现值＝**55**（同一条命令今天跑出来的，别抄 54）。
+   **还有一条判据要改写才能执行**：题面 Step 1 写"跑 `npm run typecheck`…Expected 全绿"，
+   而本仓 vue-tsc 存量 **402 条／90 文件** ⇒ 该步只能按棘轮口径（`typecheck:gate` 只许下降）判，
+   否则第一棒会卡死在一条不可能满足的判据上。Step 2 表格里"§6.7 动效降级"那一格
+   在修复轮 R-T14-6 落地前**只能填"待直接读数"**，不许拿 anchors 零 diff 顶（见 R-T14-6）。
 5. **验收包**：按 §11.2 末行那四条形态呈报，未定性的事单独列。
 
 - 每次动手前必查：**leyon 会在会话之间甚至同一轮之内自己改文件并 commit**，所以 `git status` 与
