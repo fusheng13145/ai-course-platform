@@ -15,8 +15,11 @@ import { flushPromises, mount } from '@vue/test-utils'
  * 三条断言的分工：
  * - A 门本身：drawerOpen=false 时 DOM 里既没有遮罩也没有面板；true 才有。
  * - B 关闭链：Esc → 页面的 drawerOpen 落回 false → 面板消失且滚动锁归还（计数归 0）。
- * - C 转发形状：受控关闭时页面收到**两次**相同的 update:modelValue(false)（NmPublishDrawer.vue:5-6
- *   两条腿都转发），但状态只变一次——这条不是背书它，是把现状钉住，业务页归他人所有。
+ * - C 转发形状：受控关闭时页面收到**一次** update:modelValue(false)、状态变一次。
+ *   **这条在 Task 10C 被显式拆过锁**：原样钉的是"两次相同写回、状态只变一次"（双转发现状），
+ *   本棒按裁定删掉 `@close` 那条重复写回后它必然转红（`expected 1 to be 2`，实跑在册），
+ *   改钉为"一条腿一次写回"是**批准的行为变更**、不是放宽——判据方向没动，动的是被钉的现状。
+ *   ⚠️ 别把本条读成"overlayCount 由它保护"：滚动锁归还是 B 的职责，C 只管写回次数。
  */
 
 const mocks = vi.hoisted(() => ({
@@ -129,7 +132,9 @@ describe('NmPublishDrawer 调用点 — 可见性门与关闭链', () => {
     expect(document.body.style.overflow).toBe('')
   })
 
-  it('抽屉头部关闭按钮同样把页面的 drawerOpen 关掉（@close 腿在受控调用点上仍承重）', async () => {
+  it('抽屉头部关闭按钮同样把页面的 drawerOpen 关掉（Task 10C 起承重腿是 update:modelValue，不是 @close）', async () => {
+    // 这条在改前证明的是"close 腿也接得住"；双转发删掉后它证明的是"不需要 close 腿也接得住"——
+    // 同一次点击、同一个终态（drawerOpen 落 false、面板消失），只是写回通道收窄成一条。
     const wrapper = mountPage()
     await flushPromises()
     pageVm(wrapper).drawerOpen = true
@@ -144,11 +149,13 @@ describe('NmPublishDrawer 调用点 — 可见性门与关闭链', () => {
     expect(panels()).toHaveLength(0)
   })
 
-  it('受控关闭：页面收到两次相同的 update:modelValue(false)，但状态只变一次（C，现状锁）', async () => {
-    // 双份来自 NmPublishDrawer.vue:5-6 把 close 与 update:modelValue 两条腿**都**转发成同一个
-    // 父级事件，不是原语多发。第二次写入 ref 值未变、不触发 effect（Vue 的 ref setter 走
-    // hasChanged 判定），所以状态层面幂等——这条把「两次 emit / 一次变化」量出来记在案上，
-    // 谁改业务页的转发形状或改原语契约，这条就红。
+  it('受控关闭：页面收到一次 update:modelValue(false)、状态变一次（C，Task 10C 拆锁后的形状）', async () => {
+    // 写回只剩 `@update:model-value` 这一条腿（NmPublishDrawer.vue 的注释写明留哪条为什么）：
+    // Drawer 的 close() 从此成对发 close 与 update:modelValue(false)，`close` 这条腿在本组件不接，
+    // 所以一次关闭 = 一次写回。改前这条钉的是 handlerCalls 2 / stateChanges 1（双转发），
+    // 删腿后同一对读数变成 1 / 1；stateChanges 仍是 1 —— 两次写回里第二次本来就因
+    // Vue 的 ref setter 走 hasChanged 判定而不触发 effect，那正是当时判"状态层面幂等"的依据。
+    // 这条仍是**会红的断言**：谁把 @close 那条腿加回来，handlerCalls 回到 2、本条转红。
     const drawerOpen = ref(true)
     let handlerCalls = 0
     let stateChanges = 0
@@ -174,7 +181,7 @@ describe('NmPublishDrawer 调用点 — 可见性门与关闭链', () => {
     await nextTick()
     await flushPromises()
 
-    expect(handlerCalls).toBe(2)
+    expect(handlerCalls).toBe(1)
     expect(stateChanges).toBe(1)
     expect(drawerOpen.value).toBe(false)
     expect(panels()).toHaveLength(0)

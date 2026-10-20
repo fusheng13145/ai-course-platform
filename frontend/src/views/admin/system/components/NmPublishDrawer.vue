@@ -1,10 +1,17 @@
 <template>
-  <Drawer
-    :model-value="modelValue"
-    wide
-    @update:model-value="emit('update:modelValue', $event)"
-    @close="emit('update:modelValue', false)"
-  >
+  <!--
+    写回只留 `update:modelValue` 这一条腿（Task 10C 收掉的双转发）。
+    改前这里是 `@update:model-value="emit('update:modelValue', $event)"` 加
+    `@close="emit('update:modelValue', false)"` 两条并存 —— 同一件"关"的事被写回两次。
+    为什么留这条：本页是**受控**调用点（`NotificationManagement.vue` 用 `v-model="drawerOpen"`，
+    下面再把值透传给 `:model-value`），v-model 的语义通道就是 `update:modelValue`；
+    而 Task 10C 把 Drawer 的 close() 收到 Modal 形状之后，`close` 与 `update:modelValue(false)`
+    是**成对发出**的，`@close` 上再挂一次写回等于每次关闭多发一条相同事件。
+    `close` 那条腿的受众是非受控调用点（`RagDocs.vue` 的 `v-if` ＋ `@close` 那一型），
+    本组件不属这一型，故这里不听它——留着它不接是安全的：Drawer 面板消失由父级把
+    `drawerOpen` 落下来驱动，而那条已经由 `update:modelValue` 送达。
+  -->
+  <Drawer :model-value="modelValue" wide @update:model-value="emit('update:modelValue', $event)">
     <template #title>发布通知</template>
     <template #sub>选择接收对象后由系统批量写入通知</template>
     <div class="form-grid">
