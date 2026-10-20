@@ -572,8 +572,10 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 | 4b | 完成（两轮独立评审 0 Critical） | `f568130..777d9bd` | 5+2 条 Important 全部转成 4c 步骤，未丢弃 |
 | 4c → 拆为 4c-fix A/B/C | **未闭** | A：`4ca2ea4..d5a44aa`（评审 Approved） | B 轮已落地并交出 B5 逐锚实测，但**账内没有 B 轮复核结论**；C 轮 8 项（编号 9–16）未派，含 `data-theme=""` 三步取证、`PW_VISUAL_NOPIN` 语义统一、单一来源清扫加 `--update-snapshots` 门测、`visual-helpers.ts` 纯搬迁拆分、`smoke.spec.ts` 与 `global-setup.ts` 残留的 5 处行号引用 |
 | 8 | **完成**（两轮复核都到席了） | 第 2 轮 `478c72e`/`b4821e3`/`38600e4` ＋ 控制器补钉 `2fc628d`/`eb5d38a` ＋ 第 3 轮 `78f5f0e` | scoped re-review 判 I-1…I-6 **全部 ADDRESSED**、无新增 Critical/Important，并独立跑出 10 files / 98 tests；它退回的两条 Minor 由控制器第 3 轮自修（补挂载证明 ＋ 给过期"97"读数加限定）。**R-T8-R3**：第 3 轮 16 行未再开复核席，兜底是末尾 whole-branch review |
-| 9 | **已落地，未复核**（实现者撞上限，控制器接手验收） | `8218ee8`/`5f314ca`/`e268c23`/`9bda5ad`/`f00e438` ＋ 台账 `d876188` | 焦点接入的**前半**（Modal 自持面板侧 `rootRef` ＋ `open && mounted` 适配器）已入库，三条可证伪焦点用例与 P-a/P-b/P-c 三条读数也入库；**`defineExpose` 那半按 R-T9-7 主动不做**（见 §11.5）。控制器自验：目录门 11 files / 105 tests、全包 165 files / 1749 tests、lint 静默、棘轮 402 持平，并**独立复跑了那条决定性变异**（写 `defineExpose` ⇒ 18 failed / 87 passed，与执行者记数逐字相符）。**尚未过任务级评审** |
-| 10 / 13 / 14 / 15 | **未派发** | — | Task 10 已预检并裁定拆成 10A/10B/10C（R-T10-3，题面 Files 清单漏了三个必须动的文件）；Task 13 的地板值 73 / 82 开工须重测；Task 9 的 brief 已抽好、R-T9-1…R-T9-7 全部在案 |
+| 9 | **完成**（两轮复开到席；实现者撞 turn 上限、控制器接手验收） | `8218ee8`/`5f314ca`/`e268c23`/`9bda5ad`/`f00e438` ＋ 台账 `d876188` ＋ 修复 `efa4cc7`/`cb82387` | 焦点接入的**前半**（Modal 自持面板侧 `rootRef` ＋ `open && mounted` 适配器）已入库，三条可证伪焦点用例与 P-a/P-b/P-c 三条读数也入库；**`defineExpose` 那半按 R-T9-7 主动不做**（见 §11.5）。控制器自验：目录门 11 files / 105 tests、全包 165 files / 1749 tests、lint 静默、棘轮 402 持平，并**独立复跑了那条决定性变异**（写 `defineExpose` ⇒ 18 failed / 87 passed，与执行者记数逐字相符）。**尚未过任务级评审** |
+| 10A 引用计数滚动锁 | **完成**（复核到席） | `4445ef6`/`88c8ee6`/`8e03639`/`d72bab8` ＋ 必修 `98f5439` | Drawer 的内联锁抽成 `useOverlayScrollLock` 并与 Modal 共用一把计数器；复核退回三条必修（新行抄入占位词会炸 Task 15 的残留检查；三处把变异读数指向不入 git 的报告；**"13 个挂载点全被 v-if 门着"这个前提没有入库守卫** ⇒ 已补可重放配方并登记为缺口、归 Task 13） |
+| 10B ARIA／焦点陷阱／焦点返还／`closed`／遮罩开关 | **落地，第 1 轮必修已改，复核第 2 轮在飞** | `95f95c5`/`27eb3c6`/`4a13985`/`2c3a912` ＋ 必修 `275375c` | 新建唯一一份 `useFocusTrap`，两原语各一行接线；Modal 抬到 Drawer 已交付的形状。**P-d 实测**：已安装 EP 2.14.7 的 `el-dialog` **确实**挂 `ElFocusTrap`（`trapped: visible`）⇒ 本棒是 parity，我预留的"比 EP 更严"分支没被触发。**边界如实兜住**：无 `focusout` 拽回、无 `focusableStack`，click→body→Tab 那条 jsdom 造不出绿面故不立用例；陷阱听 document 冒泡阶段 ⇒ 子节点 `stopPropagation` 会静解除它（今天全仓零命中，但没人守） |
+| 10C / 13 / 14 / 15 | **未派发** | — | 10C＝R-B 写回对称、`NmPublishDrawer.vue` 双转发、`--sh-drawer` 缺 ltr token；Task 13 的地板值 73 / 82 **开工须重测**，且 `el-dialog` 有 **65（原始 grep）／63（解析式）／64（composable 头注释、无口径）** 三个数并存——按原始口径同式是 **84**，护栏会低两格设防 |
 | 验收包（本会话任务清单第 24 项） | 未交 | — | 形态已定：① 裁定清单含"若错代价"；② 三道门禁结论；③ LEDGER 列数自校＋实跑数字；④ **未定性的事单独列**，不混进"已完成" |
 
 ### 11.3 三道门禁的当前结论（正文在 §6，这里只给判到哪一步）
@@ -640,8 +642,18 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
   script-setup 的绑定从来就不挂在 `instance.proxy` 上 ⇒ expose 是**加键不是收窄**；
   真实存量代价只剩 `wrapper.element` 那一条。**由此立一条派单纪律**：控制器写给执行者的"机制结论"，
   即便来自控制器自己读源码，也只算待证伪假设，派发词里必须显式允许执行者推翻它。
-- **R-T8-R3 / R-T10-1…R-T10-3**：见 §11.8 与过程账（Task 10 拆三棒、`aria-modal` 必须排在焦点陷阱之后、
-  焦点返还草图缺 `immediate` 会死在自己的用例上）。
+- **R-T10-3／R-T10-4**：计划 Task 10 拆成 10A（滚动锁抽取）／10B（ARIA＋焦点陷阱＋焦点返还＋`closed`＋遮罩开关）／
+  10C（R-B 写回对称、`NmPublishDrawer` 双转发、`--sh-drawer` 的 ltr token）——题面 Files 清单漏掉 `Drawer.vue` 等
+  三个必须动的文件，照它执行正好做出 Step 3 自己警告的"第二套计数器"。R-T10-4 原写"若实测 EP 不锁焦点，
+  `ui/Modal` 就比 `el-dialog` 更严"：**这条分支没被触发**——P-d 实测已安装的 EP 2.14.7 的 `el-dialog`
+  确实挂 `ElFocusTrap`（`trapped: visible`）⇒ 10B 记为 **parity**，别把那句备选当成既成结论引用。
+- **R-T10B-1（复核纠我）**：台账结论栏原写"关闭后焦点返还**触发元素**"说满了。触发物不可聚焦时
+  （已实测两处：`SdCourseGrid.vue` 的 `<div class="course-card join-card" @click>`、
+  `Notifications.vue` 的 `<div class="notice-card" @click>`）上升沿那一刻的 `document.activeElement` 就是 `body`
+  ⇒ 等于不返还；`<button>` 触发物在点击时是否获得焦点本身是引擎差异（Safari 不聚焦）。
+  措辞已降级为"返还上升沿那一刻的 `document.activeElement`"，**这条可证伪缺口归 Task 13 或 Playwright 键盘侧**，
+  不给 10C。同一轮还纠出：我派给复核的词里把"实现者拆掉了重复遮罩守卫"写成已接受的披露——**那件事没发生**
+  （两条守卫都还在，代码与台账都说"两条都留"）⇒ 派单里凡"我已接受某条披露"，必须先回源码核对。
 - **推送口径（2026-10-19 19:32 起的现行指令，覆盖更早节奏）**：本批次**一次都不推**，全部任务完成后由 leyon 亲自验收；
   截至 `bfb9992`，本地 `main` 比 `origin/leyon` **领先 106 个 commit**（按天：10-18 有 25、10-19 有 70、10-20 有 11）。
   验收清单以 `git log --oneline origin/leyon..HEAD` 现取，别抄这里的数。
@@ -654,19 +666,23 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 - 库行为与陈述性断言先自证：`file:line` ＋变异实验，且**变异必须真能跑**（编译期报错不是测试失败，M8 已因此作废）；
   变异证据必须写明它跑在哪个世界（Teleport 根 / 元素根），否则归错位置（M10a/b 与 M6 的教训）。
 - 被执行的那份构建要当轮重测：vitest 跑的是 `runtime-core.cjs.js`（＋`vue-test-utils.cjs.js`），**不是** `esm-bundler`。
-- 台账结构自校每次改完都跑（见 §11.7）；单元格内**不得出现竖线**，一格一行。
+- 台账结构自校每次改完都跑（见 §11.7）；单元格内**不得出现竖线字符**（含转义写法与 `A|B` 交替式，
+  要写多模式搜索一律 `grep -e`），一格一行、**一行之内更不得出现换行**——本会话就是用一个含换行的编辑串
+  把一条已交付的行从中间切成四截，而当时的列数自校只按"以竖线开头"筛行，**根本看不见后三截**。
+  ⇒ 自校要同时看两件事：每行列数是否为 9，**以及表区行数是否连续**（`grep -c '^|'` 与表内逻辑行数对得上）。
 - 子代理：单个 brief 控制在 4–5 个可验证子步、每步一个 commit、报告边写边落盘；
   实现者不并行（只有只读评审可并行），全包测试套件由控制器作为合入门跑一次。
   **本会话两次被上限切断**（150 turn 与 Chat 日配额），判活看产物、不看"没通知"。
 - 依赖收紧**逐条授权**，不接受顺手批量清 `^` 范围。
 
-### 11.7 事实基线与可重放命令（读数截至 `d876188`，Task 9 落地之后）
+### 11.7 事实基线与可重放命令（读数截至 `4a13985`，Task 10B 落地之后）
 
 | 事实 | 现值 | 重放命令 |
 | --- | --- | --- |
 | 视觉阈值单一来源 | `{ threshold: 0, maxDiffPixelRatio: 0.0001 }`（1440×900 免检额 **129.6 px**） | `grep -n 'export const SNAPSHOT_THRESHOLDS' frontend/e2e/visual/visual-helpers.ts` |
-| ui 原语套件 | **11 files / 105 tests**（`9bda5ad` 起；此前 10 / 98，`2fc628d` 之前是 97 — 旧读数须按 commit 限定读） | `cd frontend && npx vitest run src/components/ui/` |
-| 全包单元测试门 | **165 files / 1749 tests 全绿**（控制器作为合入门跑，`d876188` 态） | `cd frontend && npx vitest run`（**必须在 `frontend/` 里跑**：仓库根跑会得到"11 failed / no tests"的假读数，本会话踩过一次并如实记在过程账） |
+| ui 原语套件 | **13 files / 127 tests**（`4a13985` 起；此前 11 / 105、再前 10 / 98 与 97 — 旧读数一律按 commit 限定后再读） | `cd frontend && npx vitest run src/components/ui/` |
+| 全包单元测试门 | **169 files / 1785 tests 全绿**（控制器作为合入门跑，`4a13985` 态；此前 `d876188` 是 165 / 1749） | `cd frontend && npx vitest run`（**必须在 `frontend/` 里跑**：仓库根跑会得到"no tests"的假读数，本会话踩过两次、第二次是刚把这条写进本表之后当场复发的 ⇒ 靠记性不成立，命令要连着 `cd frontend &&` 一起复制） |
+| 两目录合跑门（弹层与 composable 的落地面） | **56 files / 582 tests 全绿**（`4a13985` 态） | `cd frontend && npx vitest run src/components/ui/ src/composables/__tests__/` |
 | 类型棘轮 | 402 / 402 持平（只许下降） | `cd frontend && npm run typecheck:gate` |
 | Lint | 本轮静默；**只覆盖 `src/**`** | `cd frontend && npm run lint` |
 | Format | 存量红（约 108 个文件，且 CI 在跑）⇒ **禁写"lint/format 全绿"**，引用前重测 | `cd frontend && npm run format:check` |
@@ -689,16 +705,16 @@ awk -F'|' '/^\|/ {print NR": "(NF-2)}' docs/visual-upgrade/LEDGER.md
 
 ### 11.8 下一批次（按此顺序；每步之前先跑 §11.7 与 `git status`）
 
-1. **补 Task 9 的复核**（Task 8 已收口，见 §11.2 第 8 行）。diff 包现取：
-   `bash <sdd>/scripts/review-package docs/superpowers/plans/2026-10-18-frontend-visual-phase0.md 78f5f0e 610d01b`
-   （7 个提交：`8218ee8`/`5f314ca`/`e268c23`/`9bda5ad`/`f00e438`/`d876188`/`610d01b`）。
-   **没有 `task-9-report.md`**（实现者撞 150 turn 上限、没写报告），所以复核只能按"台账 `P0b-MODAL-04` 的
-   四栏读数 ＋ 控制器自验的三条门 ＋ R-T9-7 那次独立变异"这三样问：**它是否把已落地的前半钉成了可证伪的**、
-   **`defineExpose` 不做这条裁定是否与 P-b/P-c 的钉法自相矛盾**、**Phase 4 迁移规矩改写有没有留痕**。
-   上一棒 Task 8 的教训在这里同样适用：落地不等于已复核。
-2. **Task 10**（滚动锁 ＋ ARIA ＋ 焦点返还 ＋ 事件语义）。**已裁定拆成 10A/10B/10C**（R-T10-3：题面 Files 清单漏掉
-   `Drawer.vue` 等三个必须动的文件，照清单执行正好做出 Step 3 自己警告的"第二套计数器"）；
-   `aria-modal` 必须排在焦点陷阱之后（R-T10-1），焦点返还要在挂载边沿也跑一次（R-T10-2，缺 `immediate` 会死在自己的用例上）。
+1. **Task 10B 的第 2 轮复核**（第 1 轮已回：判 Spec compliant ＋ 三条必修文档项，已在 `275375c` 改完；
+   它同时纠出**我派单里的一处假前提**——我说实现者"拆掉了重复遮罩守卫"，实际两条都留着）。
+   diff 包现取：`bash <sdd>/scripts/review-package docs/superpowers/plans/2026-10-18-frontend-visual-phase0.md 2c3a912 HEAD`。
+   要它验的重点是**结构**而不是代码：`P0b-FOCUS-01` 那一行曾被我的多行编辑串切成四截（列数自校看不见后三截），
+   缝合后需独立确认 9 列、表区连续、四处改动逐条可 grep 到。
+2. **Task 10C**（最后一棒）：R-B 写回对称（Modal 与 Drawer 的 `close()` 闸与无条件写回收到同一套）、
+   `NmPublishDrawer.vue:5-6` 的双转发、`--sh-drawer` 缺 ltr token。
+   10A/10B 已把前置清掉：滚动锁共用一把计数器、焦点陷阱与 `aria-modal` 两原语同形；
+   另有两条**明确留下的缺口**要在这一棒或 Task 13/14 收：`focusout` 拽回与弹层栈（含"只关最上层"），
+   以及"关闭后焦点返还"在**不可聚焦触发物**下等于不返还（R-T10B-1）。
 3. **Task 13**（把焦点覆盖率护栏改为弹层实现无关）。地板值以计划现文为准：**73 / 82**；示例代码里抄着的
    60 / 54 是草稿、不是取值依据；开工须重测，且 LEDGER `P0b-GUARD-01` 那行的占位词由它消。
    **本会话新增一条判据**：Task 9 已把 Modal 的焦点做成**组件内部自持**（`P0b-MODAL-04`），所以"扫调用点开标签
