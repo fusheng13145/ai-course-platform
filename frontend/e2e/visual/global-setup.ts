@@ -48,7 +48,11 @@ const AUTH_DIR = dirname(join(process.cwd(), storagePathFor(ROLES[0])))
  *
  * 【口径】必须显式带 `PW_ALLOW_UPDATE_SNAPSHOTS=1` 才放行；同时打印一条提醒：
  * 先跑 `anchors`（不带 --update-snapshots）看清红的是哪几张、为什么红，再决定要不要重生成。
- * 本闸只拦 `--update-snapshots` / `-u` 两个写法，不拦 `--llm`/其它。
+ * 本闸拦 `--update-snapshots`／`-u`／`--update` 三种写法（判据是 argv 里出现这三个之一即拒），
+ * 不拦 `--llm`／其它。**这一句在 4c-fix-C 的 C2 步之前写的是"只拦两个写法"**——那是 F3／第 12 项
+ * 把第三种 `--update` 加进行为级断言之后的滞后措辞；条数现在由 `helpers.spec.ts`
+ * 「闸门注释自陈的“拦几种写法”必须与实际判据同条数」那条用例钉住（注释与 `argv.includes(...)`
+ * 两侧都不许漂），所以改判据要同批改这句，别再让它滞后一次。
  * 为什么放在 global-setup 而不是各 spec：这里是"整个跑测即将开始"的唯一入口，
  * 拦在导入期连一张图都不会被写。
  *

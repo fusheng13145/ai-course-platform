@@ -130,6 +130,32 @@ function selfReadsNopinEnv(src: string): boolean {
 }
 
 /**
+ * F6（R-C1F-1 第 3 条，C2 步）：上面这把尺的**作用域**。
+ * 【原先缺什么】F1 只把"拼法"从两种扩到四种，**扫描面仍点名的两个文件**
+ * （`anchors.spec.ts`／`sensitivity.spec.ts`）⇒ 第三份、第四份 spec 自己现读 `PW_VISUAL_NOPIN`
+ * 无人看：新文件（或以后新增的文件）里写一份 `=== '1'`，第 11 项那条"取法单一来源"照样全绿。
+ * 【现口径】`e2e/visual/` 下**所有** `.spec.ts`（按 F2 那条 `listSpecFiles` 递归收，不再造一遍遍历），
+ * 只豁免下面登记的那一个文件。
+ * 【`visual-helpers.ts` 为什么"不在扫描面"而不是"被豁免"】`listSpecFiles` 只收 `.spec.ts`，
+ * 而那里 `parseNopinValue`／`readNopinEnv` 两处是这个开关的**唯一定义处**——把它们算进负向断言就是误伤。
+ * 工单 F6 那句"除 `visual-helpers.ts` 外"说的正是这件事，它由遍历器的名字过滤器天然兑现，
+ * 下面 `NOPIN 取法单一来源` 那条用例把"被扫面恰好是那四份 spec"钉住（防止有人哪天把 `.ts` 一起扫进来）。
+ * 【豁免只有 `helpers.spec.ts` 一个，且它不是空白支票】本文件是这把尺的用例所在地，
+ * 必然逐字写着被禁的写法（F1 的八行合成样本、`readNopinEnv` 接线用例的 env 读写、
+ * F5 尺本体用例的接线样本、F6 那条扩面有牙用例的注入样本）。所以豁免**按用例体登记**，
+ * 由 `helpers.spec.ts` 里"自读写法只许落在登记过的用例体内"那条断言兜住——
+ * 在这个文件里新写一处**没登记**的自读，那条就红。
+ * 【按符号定位，不按行号】用例改名会让切片定位不到，所以下面那条断言同时钉"每个登记位都必须切得到东西"。
+ */
+const NOPIN_SELF_READ_EXEMPT = ['helpers.spec.ts']
+const NOPIN_SELF_READ_SCOPES: RegExp[] = [
+  /^test\('自读 NOPIN 那把尺覆盖四种拼法/,
+  /^test\('readNopinEnv 的 env 面与纯函数面同一条口径/,
+  /^test\('剥注释那把尺自己有用例/,
+  /^test\('自读 NOPIN 的作用域扩面后有牙/,
+]
+
+/**
  * `--update-snapshots` 闸门的三条源级钉（C1 修复轮 1 的 F3／复核 I-4）。
  * 【原先缺什么】第 12 项只钉了调用点那一句的**形态**。复核席构造：把 `global-setup.ts` 里
  * `assertUpdateSnapshotsAllowed` 的默认实参从 `= process.argv` 改成 `= []` ⇒ 调用点那句一字未变、
@@ -1011,17 +1037,18 @@ test('取证账本默认整格替换（不留上一轮的 skipped 残渣），�
  * **排除整行注释**：两份文件都留着解释这段历史的注释、里面就写着那个变量名，不排除会把守卫自己弄成假红）；
  * ③ anchors 的导入期抛仍在原位；
  * ④ 探针那条"读到开就不装钉桩"的分支仍在原位（否则 anchors 的报错把人指向一条同样无效的命令）。
- * ⚠️ ①–④ 是**源码文本**级；行为级证据是四条导入期跑测（`--list` 不启动浏览器、不写文件）：
+ * ①–④ 是**源码文本**级；行为级证据是四条导入期跑测（`--list` 不启动浏览器、不写文件）：
  * `PW_VISUAL_NOPIN=true` ⇒ anchors 与 sensitivity **都**抛（第 11 项交付物本体），
  * `=1` ⇒ anchors 抛、探针那条例向命令正常列出用例。命令与读数见报告第 11 节。
+ * 【C2 步的 F6 改的是②的**作用域**】②原先只读两个具名文件 ⇒ 第三、第四份 spec 自读那个开关无人看。
+ * 现在②跑在 `listSpecFiles` 收来的"除豁免文件外的所有 spec"上（现况四份：anchors／
+ * motion-observation／sensitivity／smoke），被扫集合本身钉死，扩面有没有牙由
+ * 下面那条「作用域扩面后有牙」用例喂内存注入样本证（不在盘上改任何 spec）。
  */
-test('NOPIN 取法单一来源（第 11 项）：两个消费者只经 readNopinEnv，分工两道门仍在', () => {
-  const anchors = stripCommentLines(
-    readFileSync(join(process.cwd(), 'e2e/visual/anchors.spec.ts'), 'utf8'),
-  )
-  const probe = stripCommentLines(
-    readFileSync(join(process.cwd(), 'e2e/visual/sensitivity.spec.ts'), 'utf8'),
-  )
+test('NOPIN 取法单一来源（第 11 项／F6 扫遍所有 spec）：消费者只经 readNopinEnv，分工两道门仍在', () => {
+  const dir = join(process.cwd(), 'e2e/visual')
+  const anchors = stripCommentLines(readFileSync(join(dir, 'anchors.spec.ts'), 'utf8'))
+  const probe = stripCommentLines(readFileSync(join(dir, 'sensitivity.spec.ts'), 'utf8'))
   // ① 取值入口：两处都必须是共享函数，而不是各自现读
   expect(
     anchors,
@@ -1030,17 +1057,58 @@ test('NOPIN 取法单一来源（第 11 项）：两个消费者只经 readNopin
   expect(probe, '探针又不通过 readNopinEnv() 取这个开关了——同一道门少了一个消费者').toContain(
     'readNopinEnv()',
   )
-  // ② 负向半边就是本轮改掉的那个毛病本身：代码面再出现自读 env 的写法。
-  //   【F1（复核 I-2）】原先这里是**两条判据、四种拼法只认两种**（点号与 `[NOPIN_ENV]`），
-  //   方括号加引号那种写法当场溜过 ⇒ 换成 `SELF_READ_NOPIN_ENV` 一把尺，尺的本体与它的反例见上一条用例。
+  // ② 负向半边：代码面再出现自读 env 的写法（**四种拼法一条正则全拦**，F1）。
+  //   【F1（复核 I-2）】原先这里只认两种拼法（点号与 `[NOPIN_ENV]`），方括号加引号那种当场溜过。
+  //   【F6（R-C1F-1 ③）】原先这里只读**两个具名文件**，第三份 spec 自读无人看 ⇒ 改成扫被豁免之外的一切 spec。
+  const scanned = listSpecFiles(dir).filter((f) => !NOPIN_SELF_READ_EXEMPT.includes(f))
   expect(
-    anchors,
-    'anchors 里又出现自读 NOPIN 开关的写法（四种拼法之一）：单一来源破了，两个消费者的力度会重新分岔',
-  ).not.toMatch(SELF_READ_NOPIN_ENV)
+    scanned,
+    'NOPIN 自读守卫的被扫面变了——现在它读的是"除豁免文件外的所有 spec"，新增文件会自动落进来，' +
+      '而豁免名单只有 helpers.spec.ts 一个（理由与它的位置级约束见上一条常量注释）。现况 4 份',
+  ).toEqual([
+    'anchors.spec.ts',
+    'motion-observation.spec.ts',
+    'sensitivity.spec.ts',
+    'smoke.spec.ts',
+  ])
+  for (const f of scanned) {
+    const code = stripCommentLines(readFileSync(join(dir, f), 'utf8'))
+    expect(
+      code,
+      `${f} 的代码面又出现自读 NOPIN 开关的写法（四种拼法之一）：单一来源破了，消费者力度会重新分岔（第 11 项／F6）`,
+    ).not.toMatch(SELF_READ_NOPIN_ENV)
+  }
+  // ②b `visual-helpers.ts` **不在扫描面**是因为遍历器只收 `.spec.ts`（那里是开关的唯一定义处）。
+  //   这句原先只是声称，现在钉住：定义确实只在该文件里出现两处，而它不在被扫集合内。
+  const helpersDefs = stripCommentLines(readFileSync(join(dir, 'visual-helpers.ts'), 'utf8'))
   expect(
-    probe,
-    '探针里又出现自读 NOPIN 开关的写法（四种拼法之一）：`=== 1` 那一版会让 true 与 yes 被静默忽略（第 11 项题面）',
-  ).not.toMatch(SELF_READ_NOPIN_ENV)
+    helpersDefs,
+    'visual-helpers.ts 里 readNopinEnv 的定义不见了——被扫面的排除项失去依据（那两处是唯一定义处）',
+  ).toContain('export function readNopinEnv')
+  expect(scanned, '遍历器开始收非 .spec.ts 文件了——开关的定义处会被负向断言误伤').not.toContain(
+    'visual-helpers.ts',
+  )
+  // ②c 豁免文件不是空白支票：helpers.spec.ts 里的自读写法必须**全部**落在登记过的用例体内。
+  const selfFile = stripCommentLines(readFileSync(join(dir, 'helpers.spec.ts'), 'utf8'))
+  const selfLines = selfFile.split('\n').filter((l) => selfReadsNopinEnv(l))
+  expect(
+    selfLines.length,
+    '本文件的自读写法一处也没有了——豁免面空转，应把 helpers.spec.ts 从豁免名单里摘出去重测',
+  ).toBeGreaterThan(0)
+  const scopeTexts = NOPIN_SELF_READ_SCOPES.map((re) => sliceTopLevelFunction(selfFile, re).text)
+  expect(
+    scopeTexts.filter((t) => t !== '').length,
+    '有登记位置定位不到（用例改名或切片判据变了）——豁免会静默扩大到整份文件',
+  ).toBe(NOPIN_SELF_READ_SCOPES.length)
+  const insideCount = scopeTexts.reduce(
+    (n, t) => n + t.split('\n').filter((l) => selfReadsNopinEnv(l)).length,
+    0,
+  )
+  expect(
+    insideCount,
+    `本文件有 ${selfLines.length - insideCount} 处自读写法落在四个登记用例体之外——豁免按位置给，不按文件给：` +
+      '要么改回 readNopinEnv()，要么把这处新增显式登记进 NOPIN_SELF_READ_SCOPES 并说明为什么',
+  ).toBe(selfLines.length)
   // ③ 分工·anchors 侧：取到"开"必须是为了在导入期抛，不是为了接受
   expect(
     anchors,
@@ -1370,4 +1438,193 @@ test('第 10 项守卫收紧后不误红也不空红：插注释与块外合法�
   const noFlushFindings = recordingGateFindings(noFlush)
   expect(noFlushFindings.length, '块里没有 flush 调用却没判违规——正向半边没牙').toBe(1)
   expect(noFlushFindings[0]).toContain('flush 调用 未命中')
+})
+
+/* ------------------------------------------------------------------ *
+ * 4c-fix-C 的 C2 步：三条守卫加固（F5 尺本体／F6 自读负向扩到所有 spec／F7 注释措辞）
+ * ------------------------------------------------------------------ */
+
+/**
+ * 复核 I-1（C2 步的 F5，R-C1F-2 授权）：**这把被三条守卫共用的尺自己以前没有用例**。
+ * 【为什么这条是上位形状】`isFullLineComment`／`stripCommentLines` 现在被三条负向守卫共用
+ *  （F1 的自读 NOPIN、F2 的阈值扫描、F4 的第 10 项录制门）。一把被多人用的尺**没有任何断言**，
+ *  意味着"把尺改窄一点（注释当代码）"会让三条守卫一起假红、"改宽一点（代码当注释）"会让三条
+ *  **一起假绿**——而假绿这一侧恰好是本轮复核抓过四次的那个形状（存在性断言冒充内容断言）。
+ *  本仓已经有过实证：`91f541b` 态那五条散文假红就是这把尺**生效时**才看得见的，尺本身坏了就连它一起瞎。
+ * 【钉两侧加一条反例，按工单口径】命中侧＝整行 `//`、整行 `/* … *\/`、块注释续行 ` *`（三种各带缩进与
+ *  制表符两版）；不命中侧＝行尾注释、行尾块注释、内容长得像注释的字符串字面量、空行；
+ *  合成反例＝喂一行带行尾注释的代码，**代码部分必须仍在输出里**。
+ * 【顺带钉住"它塌行号"这个口径】`findThresholdLiterals` 与 `recordingGateFindings` 的红话都要带
+ *  文件里的真行号，所以它们**不**用这把尺做定位（各自逐行走）。这条今天成立、明天若有人让它
+ *  保号，那两个判据的实现就该简化——所以把它钉住而不是只写在注释里。
+ * 【最后一段是"尺与消费者的接线"】只断言尺本身还不够：尺改了但消费者不再调用它，用例照样绿。
+ *  所以这里对两条共用它的负向守卫各验一次"注释里的写法不计数／代码行的写法计数"。
+ */
+test('剥注释那把尺自己有用例：整行三种形态判为注释、行尾注释不许（F5，复核 I-1）', () => {
+  // —— 命中侧：三种整行形态，各带无缩进／空格缩进／制表符缩进 ——
+  const commentForms = [
+    '// 整行行注释',
+    '  // 空格缩进的行注释',
+    '\t// 制表符缩进的行注释',
+    '/* 整行块注释 */',
+    '  /* 缩进后的整行块注释 */',
+    '\t/* 制表符缩进的整行块注释 */',
+    '/** doc 块的开行 */',
+    ' * 块注释的续行',
+    '\t * 制表符缩进的续行',
+  ]
+  for (const line of commentForms) {
+    expect(
+      isFullLineComment(line),
+      `${JSON.stringify(line)} 没被判为整行注释——尺被改窄会把注释当代码，共用它的三条负向守卫一起假红`,
+    ).toBe(true)
+  }
+  // —— 不命中侧：真代码一行都不许被排掉（这一侧失效的症状是**假绿**，比假红贵）——
+  const codeForms = [
+    'code(); // 行尾注释',
+    '  const a = 1 /* 行尾块注释 */',
+    "  return '/* 这是字符串字面量，不是注释 */'",
+    '  if (x) { // 带条件与花括号的真代码行',
+    'const kept = 1',
+    '',
+  ]
+  for (const line of codeForms) {
+    expect(
+      isFullLineComment(line),
+      `${JSON.stringify(line)} 被判成了注释——尺被放宽会把真代码排掉，三条负向守卫当场变成假绿`,
+    ).toBe(false)
+  }
+  // —— 工单点名要的合成反例：喂一行行尾注释，断言**代码部分仍留存** ——
+  const mixed = ['const kept = compute(1); // 只解释为什么取 1', '// 这一行整行都是注释'].join('\n')
+  const stripped = stripCommentLines(mixed)
+  expect(stripped, '行尾注释那行的代码部分被一起剥掉了——尺放宽了（假绿那一侧）').toContain(
+    'const kept = compute(1);',
+  )
+  expect(stripped, '整行注释还留在输出里——尺改窄了（假红那一侧）').not.toContain(
+    '这一行整行都是注释',
+  )
+  // 行尾那一截**整行原样留存**：这把尺的口径是"行首就是注释标记"，不是"删掉标记之后的部分"。
+  // 反过来写（连行尾注释一起吃掉）会把 `'http://x'` 之后的真违规一起遮掉——那是 F2 记过的假绿代价。
+  expect(
+    stripped.split('\n')[0],
+    '行尾注释被一起吃掉了——口径已不是"只剥整行注释"，F2 那条"同代码行尾注释仍会红"的残留说明要重写',
+  ).toBe('const kept = compute(1); // 只解释为什么取 1')
+  // —— 口径另一半：它**塌行号**（两个带真行号的判据因此都不用它做定位，见各自注释）——
+  expect(
+    stripped.split('\n'),
+    'stripCommentLines 不再塌行号了——F2／F4 那两条"红话带真行号"的口径要重定',
+  ).toHaveLength(1)
+
+  // —— 尺与共用它的两条守卫的**接线**（缺这一段，"三条守卫共用一把尺"仍是注释里的声称）——
+  // ① F1 那一侧：同一条被禁写法**写成整行注释**时，匹配器本身仍然认它 ⇒ 消费侧必须先过这把尺，
+  //    否则两份 spec 里那些解释历史的注释会让守卫当场假红（11.4 节实测过：raw 命中、stripped 不命中）。
+  const bannedAsComment = '  // const legacy = process.env[NOPIN_ENV]'
+  expect(
+    selfReadsNopinEnv(bannedAsComment),
+    '匹配器现在连注释里的写法都不认了——那 F1 的四种拼法断言先红，这把尺也就没东西可排了',
+  ).toBe(true)
+  expect(
+    selfReadsNopinEnv(stripCommentLines(bannedAsComment)),
+    '剥完注释仍认出来——F1 那条负向守卫没接上这把尺，散文注释会让它假红',
+  ).toBe(false)
+  // ② F2 那一侧：带**行尾注释**的违规行仍必须被报出来（它是代码行，不许因为尾巴上有注释就免检）。
+  const ratioNum = 0.4
+  const trailingViolation = `  const opts = { threshold: ${ratioNum} } // 放宽一档`
+  expect(
+    isFullLineComment(trailingViolation),
+    '行尾注释让这一整行被判成注释了——阈值扫描会放过它（假绿），本条口径要从"整行"改成别的判据',
+  ).toBe(false)
+  expect(
+    findThresholdLiterals([{ file: 'synthetic-e.spec.ts', text: trailingViolation }]),
+    '带行尾注释的阈值字面量没被报出来——F2 的扫描与这把尺脱钩了',
+  ).toHaveLength(1)
+  // ③ F4 那一侧：同一条判据在 `runAnchor` 体内插一行**整行注释**必须仍绿（F4 用例①的底本口径）。
+  expect(
+    recordingGateFindings(
+      "async function runAnchor(): void {\n  if (flushRecord) {\n    // 解释为什么先落盘\n    await flushRecord()\n    console.log('fixture 已写成')\n    return\n  }\n}\nconst NEXT = 1\n",
+    ),
+    '往块首插一行整行注释被判违规——第 10 项那条守卫也没接上这把尺（F4 的收紧白做）',
+  ).toEqual([])
+})
+
+/**
+ * C2 步的 F6（R-C1F-1 第 3 条）：**扩面之后到底有没有牙**。
+ * 【为什么光靠上一条用例不够】把作用域从"两个具名文件"改成"除豁免外的所有 spec"之后，
+ * 现况全绿——而这份绿可能只因为新进来的那两份（motion-observation／smoke）**恰好没写**那种写法。
+ * 这正是复核 I-3 那一族的形状："覆盖面扩了，但没人验过它对新增内容成立"。
+ * 【所以这里对每份被扫文件各塞一种被禁拼法】注入在**内存里**做，四种拼法轮着来（F1 那一条正则
+ * 认全四种），断言剥过注释的代码面当场认出来。任何 spec 文件一字未动、不落盘。
+ * 【每条都先证"注入真的发生了"】`injected === raw` 必须先为假——否则"没被拦住"会因为字符串
+ * 根本没变而假成立（F3 那两条等价复刻同款纪律）。
+ */
+test('自读 NOPIN 的作用域扩面后有牙：四份被扫 spec 各塞一种拼法都当场红（F6 反例入库）', () => {
+  const dir = join(process.cwd(), 'e2e/visual')
+  const scanned = listSpecFiles(dir).filter((f) => !NOPIN_SELF_READ_EXEMPT.includes(f))
+  expect(
+    scanned.length,
+    '被扫面塌到 3 份以下——本条只对"除豁免文件外的所有 spec"这个作用域有意义',
+  ).toBeGreaterThanOrEqual(3)
+  const spellings = [
+    'process.env.PW_VISUAL_NOPIN === "1"',
+    'process.env[NOPIN_ENV]',
+    'process.env["PW_VISUAL_NOPIN"]',
+    "process.env[ 'PW_VISUAL_NOPIN' ]",
+  ]
+  scanned.forEach((f, i) => {
+    const raw = readFileSync(join(dir, f), 'utf8')
+    const spelling = spellings[i % spellings.length]
+    const injected = `const legacySelfRead = ${spelling}\n${raw}`
+    expect(injected === raw, `往 ${f} 的注入没发生：本条反例是空转`).toBe(false)
+    expect(
+      selfReadsNopinEnv(spelling),
+      `${spelling} 连尺本体都不认——F1 那条四种拼法的断言先红，本条的读数没有意义`,
+    ).toBe(true)
+    expect(
+      selfReadsNopinEnv(stripCommentLines(injected)),
+      `${f} 里塞进 ${spelling} 却没被拦住——F6 的扩面只是换个说法，第三份 spec 自读 env 仍无人看`,
+    ).toBe(true)
+  })
+})
+
+/**
+ * C2 步的 F7（Minor M-2）：`global-setup.ts` 那句口径注释滞后于实际判据 ⇒ 措辞对齐。
+ * 【原先错在哪】注释写"本闸只拦 `--update-snapshots` / `-u` **两个写法**"，而 F3／第 12 项的
+ * 行为级断言现在拦**三种**（多一个 `--update`）——判据变了而注释没变，读注释的人会以为
+ * `--update` 能溜过去（其实不能），这属于本仓一直在清的"注释与代码各说一套"。
+ * 【为什么这条守卫放在这里而不是只改注释】只改注释的话，将来再往判据里加第四种写法时，
+ * 注释又会滞后一次——而没有任何东西会提醒。所以这条断言把**注释里自陈的写法条数**与
+ * **实际判据里的条数**钉成同一个数：改了 `assertUpdateSnapshotsAllowed` 的 `argv.includes(...)`
+ * 而没同步那句注释，这条就红。
+ * 【两侧都验】注释不许少于判据（滞后，本项的病），也不许多于判据（把没拦的写法吹成拦了——
+ * 那正是 `.gitattributes` 那笔过度声称的同型毛病）。
+ */
+test('闸门注释自陈的"拦几种写法"必须与实际判据同条数（F7，Minor M-2）', () => {
+  const dir = join(process.cwd(), 'e2e/visual')
+  const setupRaw = readFileSync(join(dir, 'global-setup.ts'), 'utf8')
+  // 实际判据：函数体里 argv.includes(...) 拦掉的那几个旗标（逐个取出来，不数总数）
+  const gateBody = sliceTopLevelFunction(setupRaw, /export function assertUpdateSnapshotsAllowed\(/)
+  expect(gateBody.text, '定位不到 assertUpdateSnapshotsAllowed 的函数体——本条判据塌了').not.toBe('')
+  const wanted = [...gateBody.text.matchAll(/argv\.includes\(\s*'([^']+)'\s*\)/g)]
+    .map((m) => m[1])
+    .sort()
+  expect(
+    wanted,
+    '闸门实际拦的写法集合变了——那句注释与 helpers 的行为级断言都要同批改（本条红话给出实测集合）',
+  ).toEqual(['--update', '--update-snapshots', '-u'])
+  // 注释自陈：那句"本闸拦 … 三种写法"里逐字列出的旗标
+  const claim = setupRaw.match(/本闸拦([^\n]*)/)
+  expect(
+    claim,
+    '闸门注释里那句"本闸拦…"找不到了——措辞被改成不自陈条数，本条守卫会空转',
+  ).toBeTruthy()
+  const claimed = [...(claim?.[1] ?? '').matchAll(/`(-?[-\w]+)`/g)].map((m) => m[1]).sort()
+  expect(
+    claimed,
+    `注释自陈拦 ${JSON.stringify(claimed)}，实际判据拦 ${JSON.stringify(wanted)}——两侧必须逐字相同（F7）`,
+  ).toEqual(wanted)
+  // 滞后形态本身也要能红：老那句"只拦两个写法"不许回来
+  expect(
+    setupRaw,
+    '那句"本闸只拦两个写法"回来了——它比判据少一种（第 12 项之后第三种是 --update）',
+  ).not.toMatch(/本闸只拦[^\n]*两个写法/)
 })
