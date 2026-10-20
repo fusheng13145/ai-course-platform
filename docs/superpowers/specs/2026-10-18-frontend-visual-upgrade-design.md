@@ -571,8 +571,9 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 | 4 | 完成 | `daa60c7..f568130` | 基线 **22/24**，缺的 2 张原因记在 LEDGER `P0a-HARNESS-01`；准出判据已据实由 24 改 22 |
 | 4b | 完成（两轮独立评审 0 Critical） | `f568130..777d9bd` | 5+2 条 Important 全部转成 4c 步骤，未丢弃 |
 | 4c → 拆为 4c-fix A/B/C | **未闭** | A：`4ca2ea4..d5a44aa`（评审 Approved） | B 轮已落地并交出 B5 逐锚实测，但**账内没有 B 轮复核结论**；C 轮 8 项（编号 9–16）未派，含 `data-theme=""` 三步取证、`PW_VISUAL_NOPIN` 语义统一、单一来源清扫加 `--update-snapshots` 门测、`visual-helpers.ts` 纯搬迁拆分、`smoke.spec.ts` 与 `global-setup.ts` 残留的 5 处行号引用 |
-| 8 | **落地但未复核** | 第 2 轮 `478c72e`/`b4821e3`/`38600e4` ＋ 控制器补钉 `2fc628d`/`eb5d38a` | scoped re-review 代理**被 Chat 日配额切断**（19 次工具调用、880 s 后中断），未产出任何复核结论。修复轮计数停在 2/5 |
-| 9 / 10 / 13 / 14 / 15 | **未派发** | — | Task 9 的 brief 已抽好，派单前三条实测已记进 §11.5 的 R-T9-1/2/3 |
+| 8 | **完成**（两轮复核都到席了） | 第 2 轮 `478c72e`/`b4821e3`/`38600e4` ＋ 控制器补钉 `2fc628d`/`eb5d38a` ＋ 第 3 轮 `78f5f0e` | scoped re-review 判 I-1…I-6 **全部 ADDRESSED**、无新增 Critical/Important，并独立跑出 10 files / 98 tests；它退回的两条 Minor 由控制器第 3 轮自修（补挂载证明 ＋ 给过期"97"读数加限定）。**R-T8-R3**：第 3 轮 16 行未再开复核席，兜底是末尾 whole-branch review |
+| 9 | **已落地，未复核**（实现者撞上限，控制器接手验收） | `8218ee8`/`5f314ca`/`e268c23`/`9bda5ad`/`f00e438` ＋ 台账 `d876188` | 焦点接入的**前半**（Modal 自持面板侧 `rootRef` ＋ `open && mounted` 适配器）已入库，三条可证伪焦点用例与 P-a/P-b/P-c 三条读数也入库；**`defineExpose` 那半按 R-T9-7 主动不做**（见 §11.5）。控制器自验：目录门 11 files / 105 tests、全包 165 files / 1749 tests、lint 静默、棘轮 402 持平，并**独立复跑了那条决定性变异**（写 `defineExpose` ⇒ 18 failed / 87 passed，与执行者记数逐字相符）。**尚未过任务级评审** |
+| 10 / 13 / 14 / 15 | **未派发** | — | Task 10 已预检并裁定拆成 10A/10B/10C（R-T10-3，题面 Files 清单漏了三个必须动的文件）；Task 13 的地板值 73 / 82 开工须重测；Task 9 的 brief 已抽好、R-T9-1…R-T9-7 全部在案 |
 | 验收包（本会话任务清单第 24 项） | 未交 | — | 形态已定：① 裁定清单含"若错代价"；② 三道门禁结论；③ LEDGER 列数自校＋实跑数字；④ **未定性的事单独列**，不混进"已完成" |
 
 ### 11.3 三道门禁的当前结论（正文在 §6，这里只给判到哪一步）
@@ -615,8 +616,29 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 - **R-T9-2**：Task 9 的三条探针读数（`rootRef` 开态是否触到真遮罩 / Teleport 内模板 ref 是否真元素 /
   `defineExpose({ $el })` 的解包层次）**必须全部转成入库断言**；③ 之前先在 `runtime-core.cjs.js` 查 `$` 前缀暴露键
   有无守卫或告警，**不许假设**。计划里 `expect(el?.nodeType).toBe(1)` 今天必红且**红是预期**（`d4a4445` 已倒置 3-A/3-B）。
+- **R-T9-5 / R-T9-6**（Task 9 计划瑕疵的处置，已由 `9bda5ad` 落地）：Modal 的 `.modal-head` 把关闭按钮排在
+  default slot **之前**，而原语按**文档顺序**取首个命中 ⇒ 首焦落在 `.modal-head .t-icon-btn`，
+  计划写的 `toBe('INPUT')` 是注定红且红得没信息量 ⇒ 改钉**节点身份**，并在注释里写明这**就是**与 `el-dialog`
+  对齐的结果（EP 对话框头部同样有关闭钮在前）；**不许**为凑绿去改原语选择器或加 `tabindex`。
+  计划那条"禁用首个控件跳过"在 Modal 语境翻不红（关闭钮永不 `disabled`）⇒ 撤下，换三条真能红的
+  （首焦身份 / `false→true` 再入焦 / 挂载即开能进焦）。
+- **R-T9-7**（Task 9 末态）**：`defineExpose({ $el })` 那半**主动不做**，Task 9 以"3-B 前半落地"收口。
+  判据是控制器**独立复跑**的变异（写上去 ⇒ 目录门 105 全绿变 18 failed / 87 passed；回落写法收到 1 条，
+  而那 1 条是 Task 8 复核批准过的 `Modal.vmodel.test.ts` 开启态 `$el` 钉）：shadow 会顺带改掉 VTU 的
+  `wrapper.element`，`helpers/trackMount.ts` 的 `w.element.isConnected` 在关闭态抛 TypeError。
+  **连带改掉的是迁移规矩**：Phase 4 把弹层从 `el-dialog` 搬到 `<Modal>` 时，**删掉调用方的 `ref` 与
+  `useDialogFocus(dlg, visible)` 两行，焦点由组件内部负责**（Modal 与 Drawer 同形）。
+  重开条件：若真出现必须由调用方读 `$el` 的站点，须作为独立 LEDGER 单元，同时改那两处钉/夹具，缺一即 18 红复发。
+- **R-T9-2 的代价栏被执行者推翻**（它是对的）："`defineExpose` 会把父级可见面从"全部 setup 绑定"收窄"
+  **不成立**——`hasSetupBinding`（`runtime-core.cjs.js:3435`）要求 `!state.__isScriptSetup`，
+  script-setup 的绑定从来就不挂在 `instance.proxy` 上 ⇒ expose 是**加键不是收窄**；
+  真实存量代价只剩 `wrapper.element` 那一条。**由此立一条派单纪律**：控制器写给执行者的"机制结论"，
+  即便来自控制器自己读源码，也只算待证伪假设，派发词里必须显式允许执行者推翻它。
+- **R-T8-R3 / R-T10-1…R-T10-3**：见 §11.8 与过程账（Task 10 拆三棒、`aria-modal` 必须排在焦点陷阱之后、
+  焦点返还草图缺 `immediate` 会死在自己的用例上）。
 - **推送口径（2026-10-19 19:32 起的现行指令，覆盖更早节奏）**：本批次**一次都不推**，全部任务完成后由 leyon 亲自验收；
-  截至 `eb5d38a`，本地 `main` 比 `origin/leyon` **领先 95 个 commit**。验收清单以 `git log --oneline origin/leyon..HEAD` 为准。
+  截至 `d876188`，本地 `main` 比 `origin/leyon` **领先 103 个 commit**（按天：10-18 有 25、10-19 有 70、10-20 有 8）。
+  验收清单以 `git log --oneline origin/leyon..HEAD` 现取，别抄这里的数。
 
 ### 11.6 纪律（违反即返工，全部来自本会话真实翻车）
 
@@ -637,7 +659,8 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 | 事实 | 现值 | 重放命令 |
 | --- | --- | --- |
 | 视觉阈值单一来源 | `{ threshold: 0, maxDiffPixelRatio: 0.0001 }`（1440×900 免检额 **129.6 px**） | `grep -n 'export const SNAPSHOT_THRESHOLDS' frontend/e2e/visual/visual-helpers.ts` |
-| ui 原语套件 | **10 files / 98 tests**（`2fc628d` 起，此前是 97） | `cd frontend && npx vitest run src/components/ui/` |
+| ui 原语套件 | **11 files / 105 tests**（`9bda5ad` 起；此前 10 / 98，`2fc628d` 之前是 97 — 旧读数须按 commit 限定读） | `cd frontend && npx vitest run src/components/ui/` |
+| 全包单元测试门 | **165 files / 1749 tests 全绿**（控制器作为合入门跑，`d876188` 态） | `cd frontend && npx vitest run`（**必须在 `frontend/` 里跑**：仓库根跑会得到"11 failed / no tests"的假读数，本会话踩过一次并如实记在过程账） |
 | 类型棘轮 | 402 / 402 持平（只许下降） | `cd frontend && npm run typecheck:gate` |
 | Lint | 本轮静默；**只覆盖 `src/**`** | `cd frontend && npm run lint` |
 | Format | 存量红（约 108 个文件，且 CI 在跑）⇒ **禁写"lint/format 全绿"**，引用前重测 | `cd frontend && npm run format:check` |
