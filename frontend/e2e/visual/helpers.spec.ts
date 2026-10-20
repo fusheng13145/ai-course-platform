@@ -1,7 +1,8 @@
 import { expect, test } from '@playwright/test'
 import { execFileSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdirSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import zlib from 'node:zlib'
 // 第 12 项：把 `--update-snapshots` 那道门本体导进来验它的牙（取值口径见该用例注释）
@@ -99,10 +100,14 @@ function md5(file: string): string {
  * 口径是"行首（忽略缩进）就是注释标记"，多行字符串中间的行不在此列——本仓那两个守卫的目标写法
  * 都在行首，够用且可预测；真要扩面时改这里，别改断言。
  */
+function isFullLineComment(line: string): boolean {
+  return /^\s*(\/\/|\/\*|\*)/.test(line)
+}
+
 function stripCommentLines(src: string): string {
   return src
     .split('\n')
-    .filter((line) => !/^\s*(\/\/|\/\*|\*)/.test(line))
+    .filter((line) => !isFullLineComment(line))
     .join('\n')
 }
 
@@ -122,6 +127,65 @@ const SELF_READ_NOPIN_ENV = /process\.env\s*[.\[]\s*["']?(PW_VISUAL_NOPIN|NOPIN_
 /** 匹配器本体：消费者守卫与 F1 那条反例用例共用**同一个**表达式，不许两边各写一把尺。 */
 function selfReadsNopinEnv(src: string): boolean {
   return SELF_READ_NOPIN_ENV.test(src)
+}
+
+/**
+ * 递归列出 `dir` 下所有 `.spec.ts`（C1 修复轮 1 的 F2c／复核 I-3 第 3 处缺口）。
+ * 【原先缺什么】判据用的是 `readdirSync(dir).filter(endsWith('.spec.ts'))`——**不递归**。
+ * 而 runner 的 `testDir: './e2e/visual'` 收的是整棵树 ⇒ 放进子目录的一份 spec 会**同时**逃过这条扫描
+ * 与"文件集合钉住"那条断言（后者只列顶层名），覆盖面静默缩水而全表照绿。
+ * 先例取本仓现成的 `src/composables/__tests__/coverage-lib.ts` 的 `readVueSources`（递归＋跳过测试目录）。
+ * 【跳过这三个目录】`__snapshots__`／`__fixtures__`／`__tests__`——那三处是产物不是 spec。
+ * 这里有个真实的陷阱：`snapshotPathTemplate` 让 `__snapshots__` 下面存在一个**目录名就叫
+ * `anchors.spec.ts`** 的目录，所以判据必须"先看是不是目录、再看名字"（本函数就是那个顺序）；
+ * 反过来写会把产物目录当 spec 收进扫描面，`readFileSync` 当场在目录上炸开。
+ * 【返回相对路径、`/` 分隔】这样"钉住集合"那条断言能原样写出子目录里的文件（`sub/x.spec.ts`），
+ * 且比较结果不随宿主的路径分隔符变。
+ */
+function listSpecFiles(dir: string, rel = ''): string[] {
+  const out: string[] = []
+  for (const entry of readdirSync(dir)) {
+    const full = join(dir, entry)
+    const relPath = rel ? `${rel}/${entry}` : entry
+    if (statSync(full).isDirectory()) {
+      if (['__snapshots__', '__fixtures__', '__tests__'].includes(entry)) continue
+      out.push(...listSpecFiles(full, relPath))
+      continue
+    }
+    if (entry.endsWith('.spec.ts')) out.push(relPath)
+  }
+  return out.sort()
+}
+
+/**
+ * 阈值键扫描的判据本体（C1 修复轮 1 的 F2a＋F2b／复核 I-3 第 1、2 处缺口）。
+ * 【原先缺什么 (a)】扫描逻辑整段内联在那条用例的 for 循环里 ⇒ "这条扫描会红"只有未入 git 的
+ * 过程记录能证，交付面缺内容。抽成纯函数后反例可以喂**合成文件**，跟着仓库每次跑。
+ * 【原先缺什么 (b)】放行判据是"同一行提到 `SNAPSHOT_THRESHOLDS` 这个名字就放过"，
+ * 于是 `{ ...SNAPSHOT_THRESHOLDS, threshold: 0.5 }` **一行即绕开**（复核席实测守卫放过）——
+ * 而 spread 后面紧跟覆盖键恰恰是最该拦的那种：名字在场、值却不是常量给的。
+ * 【现口径：钉的是"没有本地覆盖"】剥整行注释后，`threshold`／`maxDiffPixelRatio` 这两个键的**值以数字开头**
+ * 即违规，与同一行有没有提到那个名字**无关**。
+ * 【两侧都不许误伤，两种形态本仓真实存在】值是同享常量的属性引用（探针的
+ * `threshold: knob ?? SNAPSHOT_THRESHOLDS.threshold`、账本里的 `threshold: THRESHOLDS.threshold`）放行；
+ * 类型声明（`threshold: number`）放行——判据是"数值字面量"，**不是**"键名出现过"。
+ * 本棒按"键名即红"那把放宽的尺实测过五个 spec 的剥注释文本：anchors 2 条＋sensitivity 8 条
+ * ＋本文件 1 条 = **11 条假红**（本文件那 1 条已随本轮改成属性断言，放宽的代价仍剩 10 条）。
+ * 定义处 `visual-helpers.ts` 不在扫描面内：`listSpecFiles` 只收 `.spec.ts`。
+ * 【行号是真的】按原始行逐行走、用 `isFullLineComment` 跳过注释行而**不塌缩索引**，
+ * 所以返回串里的行号就是文件里的行号（`stripCommentLines` 会改变行号，不能拿它做定位）。
+ */
+function findThresholdLiterals(sources: { file: string; text: string }[]): string[] {
+  const offenders: string[] = []
+  for (const src of sources) {
+    src.text.split('\n').forEach((line, i) => {
+      if (isFullLineComment(line)) return
+      if (/(?:threshold|maxDiffPixelRatio)\s*:\s*[\d.]/.test(line)) {
+        offenders.push(`${src.file}:${i + 1}  ${line.trim()}`)
+      }
+    })
+  }
+  return offenders
 }
 
 // helper 自身的测试（smoke.spec.ts 只管主题注入在页面上生效）。
@@ -247,7 +311,25 @@ test('snapName / maskOf / storagePathFor 的形状与同步签名', async ({ pag
  * 再往 0 收不行：0 会让那条 46 px 抖动和任何未来的薄改动一起把整表点红，而那不是回归。
  */
 test('量程常量钉死，改动必须显式决策', () => {
-  expect(SNAPSHOT_THRESHOLDS).toEqual({ threshold: 0, maxDiffPixelRatio: 0.0001 })
+  // 【C1 修复轮 1 的 F2b 改了这条的写法，牙没变】原先是
+  // `expect(SNAPSHOT_THRESHOLDS).toEqual({ threshold: 0, maxDiffPixelRatio: 0.0001 })`——
+  // 那一行既是"钉常量本身"、又逐字写着 `threshold:` 加数值，正是新扫描判据要拦的形态。
+  // 旧守卫靠"同一行提到 SNAPSHOT_THRESHOLDS 就放行"躲过去，而那条放行判据本身就是假绿口
+  // （`{ ...SNAPSHOT_THRESHOLDS, threshold: 0.5 }` 同样提到那个名字）。
+  // 现改成"逐键取属性 + 钉形状"：两个数值仍逐个写死（收紧它照样红在这里），
+  // 但不再用 `键: 数字` 的对象字面量写法 ⇒ 本文件不再需要任何放行豁免，扫描面保持"零后门"。
+  expect(
+    SNAPSHOT_THRESHOLDS.threshold,
+    '交付档 threshold 变了——放宽必须与量程注释、LEDGER 一起显式决策',
+  ).toBe(0)
+  expect(
+    SNAPSHOT_THRESHOLDS.maxDiffPixelRatio,
+    '交付档 maxDiffPixelRatio 变了——本仓所有"免检额几倍余量"的算术随之作废，见 §6.12 与台账',
+  ).toBe(0.0001)
+  expect(
+    Object.keys(SNAPSHOT_THRESHOLDS).sort(),
+    '常量多了键：新增的比较口径不会自动落进上面两条断言，必须一起补',
+  ).toEqual(['maxDiffPixelRatio', 'threshold'])
 })
 
 /**
@@ -260,12 +342,14 @@ test('量程常量钉死，改动必须显式决策', () => {
  * 而"比较口径有第二份来源"这件事从此不被任何东西看见。扩面要有两条精度限定，缺一条就假红：
  *  ① **排除整行注释**——计划原话就是"负向正则会被散文注释里含 `threshold: 0` 误红"。
  *     本仓现状立刻有一处：本文件讲 `stripCommentLines` 的那段注释逐字写着 `threshold: 0`。
- *  ② **放行"钉常量本身"的那一行**——「量程常量钉死」那条断言必须把 `0` 与 `0.0001` 写出来才有牙
- *     （它判的就是常量的值）。放行判据是"同一行引用了 `SNAPSHOT_THRESHOLDS`"，
- *     不是"给某个文件开后门"——把常量写进别的行也照样红。
- * 【正例】本仓现况下扫遍五个 spec **应当仍然全绿**（`motion-observation.spec.ts` 与 `smoke.spec.ts`
+ *  ② ~~放行"同一行引用了 `SNAPSHOT_THRESHOLDS`"的那一行~~ ——**这条放行判据已由 C1 修复轮 1 的 F2b 撤销**：
+ *     它只看"有没有提到那个名字"，于是 `{ ...SNAPSHOT_THRESHOLDS, threshold: 0.5 }` 一行即绕开。
+ *     现口径是钉**没有本地覆盖**：判据本体见 `findThresholdLiterals`（值以数字开头即违规，与名字在场无关）。
+ *     「量程常量钉死」那条断言同步改成逐键属性断言，因此本文件不再需要豁免——扫描面零后门。
+ * 【正例】本仓现况下扫遍所有 spec **应当仍然全绿**（`motion-observation.spec.ts` 与 `smoke.spec.ts`
  * 全文不出现阈值字面量，也不用 `toHaveScreenshot`），所以这条是"新增一个绿的正例"；
- * 会红的反例见报告：往任一 spec 塞一行 `threshold: 0.2` 立刻红。
+ * 会红的反例原先只在过程记录里，C1 修复轮 1 的 F2a 已把它抽成 `findThresholdLiterals` 并入库一条
+ * 喂合成文件的用例（纯字面量、spread 加覆盖两种形态都在里面），不再依赖任何人的手工证明。
  */
 test('阈值只有一个来源：消费侧引用常量，且 e2e/visual/ 下所有 spec 都不写字面量（第 12 项扫遍）', () => {
   const dir = join(process.cwd(), 'e2e/visual')
@@ -275,13 +359,12 @@ test('阈值只有一个来源：消费侧引用常量，且 e2e/visual/ 下所�
   // 探针的 fallback 必须指向同一常量；env 旋钮只许收紧（由 sensitivity.spec.ts 自己 fail fast）
   expect(probe).toContain('SNAPSHOT_THRESHOLDS.threshold')
   expect(probe).toContain('SNAPSHOT_THRESHOLDS.maxDiffPixelRatio')
-  // 负向半边：扫遍 e2e/visual/ 下**所有** spec，而不是点名两个
-  const specs = readdirSync(dir)
-    .filter((f) => f.endsWith('.spec.ts'))
-    .sort()
+  // 负向半边：扫遍 e2e/visual/ 下**所有** spec（F2c 后是递归收，子目录里的也算），而不是点名两个
+  const specs = listSpecFiles(dir)
   expect(
     specs,
-    'e2e/visual/ 下的 spec 集合变了——本条的覆盖面跟着变，先数清楚再加文件（现 5 个）',
+    'e2e/visual/ 下的 spec 集合变了——本条的覆盖面跟着变，先数清楚再加文件（现 5 个，全在顶层；子目录里的会带相对路径）。' +
+      '新增文件若写了阈值字面量，本条的下一条断言就会点名它',
   ).toEqual([
     'anchors.spec.ts',
     'helpers.spec.ts',
@@ -289,19 +372,154 @@ test('阈值只有一个来源：消费侧引用常量，且 e2e/visual/ 下所�
     'sensitivity.spec.ts',
     'smoke.spec.ts',
   ])
-  for (const f of specs) {
-    const offenders = stripCommentLines(readFileSync(join(dir, f), 'utf8'))
-      .split('\n')
-      .filter(
-        (line) =>
-          /(threshold|maxDiffPixelRatio):\s*[\d.]/.test(line) &&
-          !line.includes('SNAPSHOT_THRESHOLDS'),
-      )
+  const sources = specs.map((f) => ({ file: f, text: readFileSync(join(dir, f), 'utf8') }))
+  const offenders = findThresholdLiterals(sources)
+  // 读数两个口径都写进红话：剥注释后应为 0 条；不剥则本文件自己就有散文命中——这正是"为什么不剥会假红"的实物
+  expect(
+    offenders,
+    `${sources.length} 个 spec 的代码面出现阈值字面量（比较口径有了第二份来源，第 12 项／F2b）：\n  ${offenders.join('\n  ')}\n` +
+      `  口径：剥整行注释后按"键的值是数字面量"判，本仓现况 5 个 spec 共 0 条；同一路不剥注释时本文件命中 9 条散文（本轮实测，91f541b 态是 5 条）。`,
+  ).toEqual([])
+})
+
+/**
+ * C1 修复轮 1 的 F2a＋F2b（复核 I-3 第 1、2 处缺口）：把"这条扫描会红"从过程记录变成入库断言。
+ * 【原先缺什么】第 12 项交付时反例只在未入 git 的报告与台账单元格的重放说明里（手工），
+ * 用例体内除了"文件集合相等"没有任何合成负例 ⇒ 按围栏口径等于"这条改写没测"。
+ * 【两侧都钉】命中侧两条正是复核席构造出来的那两个旁路形态；不命中侧四条是本仓真实存在的合法写法，
+ * 把它们钉住是为了下一条棒不会为了"更严"把判据放宽成"键名即红"——那把尺本棒实测在剥注释后有 10 条假红。
+ * 【为什么合成数值要走 `${}` 插值】这些样本字符串写在**被扫描的文件本身**（`helpers.spec.ts`）里，
+ * 逐字写出 `threshold: 0.5` 会让本文件自己成为违规行、上一条用例当场红（本棒实测过这个自命中陷阱）。
+ * 插值后源码面是 `threshold: ${num}`（冒号后不是数字，判据不认），喂给函数的字符串仍是真形态。
+ * 【已知残留，未在本轮修】键名带引号那种（`{"threshold": 0.5}`）不命中——冒号前多一个引号，
+ * 判据（与第 12 项原口径一致）要求键名紧接可选空白再跟冒号。放宽它会新增假红面，本轮不动，记进报告。
+ */
+test('阈值扫描判据自己会红：合成反例两类都拦、合法形态与真实清单都放行（F2 反例入库）', () => {
+  const num = 0.5
+  const ratioNum = 0.2
+  const knobNum = 0.05
+
+  // —— 命中侧：两种形态各一条（纯字面量／spread 后面跟着覆盖键）——
+  const pureLiteral = findThresholdLiterals([
+    {
+      file: 'synthetic-a.spec.ts',
+      text: `  await expect(page).toHaveScreenshot("x.png", { threshold: ${num} })`,
+    },
+  ])
+  expect(pureLiteral, '纯字面量阈值没被拦住——扫描面形同虚设').toHaveLength(1)
+  expect(
+    pureLiteral[0],
+    '违规串必须带定位信息（文件与真行号），别让下一个人对着整文件猜',
+  ).toContain('synthetic-a.spec.ts:1')
+
+  const spreadOverride = findThresholdLiterals([
+    {
+      file: 'synthetic-b.spec.ts',
+      text: `  const opts = { ...SNAPSHOT_THRESHOLDS, threshold: ${num} }`,
+    },
+  ])
+  expect(
+    spreadOverride,
+    '{ ...SNAPSHOT_THRESHOLDS, 覆盖键 } 这种一行即绕开旧放行判据的形态没被拦住',
+  ).toHaveLength(1)
+  // 这条断言钉的是"为什么旧判据会放它走"：违规行里**确实提到**那个常量名，
+  // 所以"名字在场即放行"这套逻辑当场放过它——现口径只看值是不是本地字面量。
+  expect(spreadOverride[0], '拦下的这一行本来就含常量名——这正是旧放行判据的假绿口').toContain(
+    'SNAPSHOT_THRESHOLDS',
+  )
+
+  const trailingComment = findThresholdLiterals([
+    {
+      file: 'synthetic-c.spec.ts',
+      text: `  await expect(page).toHaveScreenshot("x", { maxDiffPixelRatio: ${ratioNum} }) // 放宽一档`,
+    },
+  ])
+  expect(
+    trailingComment,
+    '代码行尾的同行注释不改变"键值本地字面量"这件事，仍须命中（不塌行号的口径）',
+  ).toHaveLength(1)
+  expect(trailingComment[0]).toContain('synthetic-c.spec.ts:1')
+
+  // 真行号：第三条才是违规行时，报的必须是 3 而不是剥掉注释后的 1。
+  const numbered = findThresholdLiterals([
+    {
+      file: 'synthetic-d.spec.ts',
+      text: `// 历史注释里写着 ${'threshold'}: 0 不算\n/** 块注释也不算 */\n  const opts = { threshold: ${knobNum} }\n`,
+    },
+  ])
+  expect(numbered, '两条注释行之间的真违规行没被拦').toHaveLength(1)
+  expect(numbered[0], '行号被 stripCommentLines 塌过就不是文件里的真坐标').toContain(
+    'synthetic-d.spec.ts:3',
+  )
+
+  // —— 不命中侧：本仓真实存在的四种合法写法 ——
+  const legal = findThresholdLiterals([
+    {
+      file: 'synthetic-legal.spec.ts',
+      text: [
+        '  const specs = { ...SNAPSHOT_THRESHOLDS }',
+        '  const t = knobThreshold ?? SNAPSHOT_THRESHOLDS.threshold',
+        '  threshold: THRESHOLDS.threshold,',
+        '  threshold: number',
+      ].join('\n'),
+    },
+  ])
+  expect(
+    legal,
+    `四种合法写法被判违规（假红，判据被放宽成"键名即红"了？）：\n  ${legal.join('\n  ')}`,
+  ).toEqual([])
+
+  // —— 整行注释不许计入（第 12 项那条精度限定的本体）——
+  // 这两条样本里的数值也走插值：它们的**内容**是注释、但**物理行是代码行**，
+  // 逐字写出数字会让本文件自己变成违规行（本棒第一轮就是这么红的，实测 2 条）。
+  const commentSample = `  // 原先这里写着 threshold: ${num}，现已收进常量`
+  const docSample = ` * 免检额算式 threshold: ${num} 与 0.0001 都要写出来才有牙`
+  expect(
+    findThresholdLiterals([{ file: 'synthetic-comment.spec.ts', text: commentSample }]),
+  ).toEqual([])
+  expect(findThresholdLiterals([{ file: 'synthetic-doc.spec.ts', text: docSample }])).toEqual([])
+
+  // —— F2c：递归遍历本体也得有入库证据（只在 os.tmpdir() 下造，跑完删；不碰仓库树）——
+  // 上面"钉住集合"那条断言在**现况无子目录**时，与退化成一层的 `readdirSync().filter()` **完全同值**
+  // ——这正是"守卫绿在不存在的东西上"那一族。所以这里拿一个临时目录把两侧都逼出来：
+  //  ① 子目录里的 spec 必须被收进来（漏了就等于复核 I-3 那条旁路还在）；
+  //  ② `__snapshots__` 里那份**同名像 spec** 的产物必须被排除（本仓 `__snapshots__/anchors.spec.ts/`
+  //     真实存在的是一个目录，这里额外造一个文件形态的诱饵，让"跳过"这件事在测试面有后果）。
+  const tmp = join(tmpdir(), `visual-spec-walk-${process.pid}`)
+  try {
+    mkdirSync(join(tmp, 'nested'), { recursive: true })
+    mkdirSync(join(tmp, '__snapshots__', 'anchors.spec.ts'), { recursive: true })
+    writeFileSync(join(tmp, 'top.spec.ts'), 'test("top", () => {})\n')
+    writeFileSync(join(tmp, 'nested', 'deep.spec.ts'), 'test("deep", () => {})\n')
+    writeFileSync(join(tmp, '__snapshots__', 'anchors.spec.ts', 'a.png'), '不是 spec\n')
+    writeFileSync(join(tmp, '__snapshots__', 'ghost.spec.ts'), 'test("ghost", () => {})\n')
     expect(
-      offenders,
-      `${f} 的代码面出现不引用 SNAPSHOT_THRESHOLDS 的阈值字面量——比较口径有了第二份来源（第 12 项）`,
-    ).toEqual([])
+      listSpecFiles(tmp),
+      '递归遍历退化成一列了——子目录里的 spec 会同时逃过本条扫描与"钉住集合"那条断言（复核 I-3 第 3 处）',
+    ).toEqual(['nested/deep.spec.ts', 'top.spec.ts'])
+  } finally {
+    rmSync(tmp, { recursive: true, force: true })
   }
+
+  // —— 真实清单必须为空（这就是"新增一个绿的正例"跟着仓库跑的那一半）——
+  const dir = join(process.cwd(), 'e2e/visual')
+  const real = listSpecFiles(dir).map((f) => ({
+    file: f,
+    text: readFileSync(join(dir, f), 'utf8'),
+  }))
+  expect(findThresholdLiterals(real), '本仓五个 spec 的代码面出现阈值字面量').toEqual([])
+
+  // —— 分口径读数入库：同一路判据**不剥注释**在本文件必有色 ——
+  // 这一条就是"为什么非剥注释不可"的实物证据。散文命中数随措辞增减，所以钉"至少 1 条"，
+  // 具体数写进红话；哪天降到 0，说明剥注释这一层已经没东西可拦，口径要重写而不是静默留着。
+  const selfRaw = readFileSync(join(dir, 'helpers.spec.ts'), 'utf8')
+  const unstripped = selfRaw
+    .split('\n')
+    .filter((l) => /(?:threshold|maxDiffPixelRatio)\s*:\s*[\d.]/.test(l))
+  expect(
+    unstripped.length,
+    `不剥注释时本文件的散文命中已为 ${unstripped.length} 条（91f541b 态实测是 5 条）——剥注释这层失去要拦的对象，本条口径要重定`,
+  ).toBeGreaterThan(0)
 })
 
 /**
