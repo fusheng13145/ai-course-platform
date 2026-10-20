@@ -159,6 +159,82 @@ function gateIsWiredIntoConfig(src: string): boolean {
 }
 
 /**
+ * 取一个顶层函数的源码切片（C1 修复轮 1 的 F4／复核 I-5：把守卫的作用域收到函数体内）。
+ * 【切法】从匹配 `header` 的那一行起，到下一个**顶层**定义为止——判据是行首无缩进的
+ * `async function`／`function`／`test(`／`const`，即本仓 spec 里顶层成员的统一写法。
+ * 【返回值带 startLine】切片里的行号要能换回**文件里的真行号**，否则红话里的坐标没用
+ * （`stripCommentLines` 会塌行号，所以本函数与下面的判据都不用它，见 `recordingGateFindings`）。
+ */
+function sliceTopLevelFunction(src: string, header: RegExp): { text: string; startLine: number } {
+  const lines = src.split('\n')
+  const start = lines.findIndex((l) => header.test(l))
+  if (start === -1) return { text: '', startLine: 0 }
+  let end = lines.length
+  for (let i = start + 1; i < lines.length; i++) {
+    if (/^(?:async function |function |test\(|const )/.test(lines[i])) {
+      end = i
+      break
+    }
+  }
+  return { text: lines.slice(start, end).join('\n'), startLine: start + 1 }
+}
+
+/**
+ * 第 10 项那条守卫的判据本体（C1 修复轮 1 的 F4／复核 I-5）。
+ * 【原先缺什么】两半都作用于**整份 `anchors.spec.ts`**，且是三条源级守卫里唯一没跟上"剥注释"口径的：
+ *  ① 正向要求 `if (flushRecord) {` 之后**紧跟** `await flushRecord()` ⇒ 往块首插一行解释注释就当场假红
+ *    （复核席实测块总长 350、`已写成` 在偏移 +108，600 的距离窗本身够用，红的是"紧跟"这一条）；
+ *  ② 负向 `/if \(recording\) \{/` 不剥注释又全文件 ⇒ `anchors.spec.ts` 里那句
+ *    `if (recording) flushRecord = attachPayloadRecorder(...)` 只是**碰巧没写花括号**才不红，
+ *    在任何历史注释里逐字写出旧形态同样会红，而红话不指位置。
+ * 【三处一起收紧】作用域＝`runAnchor` 函数体切片；先剥整行注释再匹配；红话带文件里的真行号与片段。
+ * 【返回的是违规清单，不是布尔】空＝绿。这样合成反例（F4 那条用例）与真实扫描共用同一个函数，
+ * 而不是一边写判据、一边写"我以为的判据"。
+ * 【已知残留，本轮不动，记进报告】`runAnchor` 体内那行无花括号的 `if (recording) ...`
+ * 若哪天被加上花括号（合法改写，不是旧形态），本条负向仍会红。把负向收紧成
+ * "按 recording 开的块里带 return"能消掉它，但那会同时放过"带花括号、块里没有 return 的中间形态"，
+ * 属判据口径变更——工单 F4 给的收紧项是作用域／剥注释／定位三条，不含这条，所以留给控制器裁定。
+ */
+function recordingGateFindings(src: string): string[] {
+  const { text, startLine } = sliceTopLevelFunction(src, /async function runAnchor\(/)
+  if (!text)
+    return [
+      '没能在 anchors.spec.ts 里定位到 runAnchor 的函数体——本条守卫的作用域塌了（头部判据失配就是这条红）',
+    ]
+  const code = text
+    .split('\n')
+    .map((line, i) => ({ n: startLine + i, line }))
+    .filter((c) => !isFullLineComment(c.line))
+  const joined = code.map((c) => c.line).join('\n')
+  const findings: string[] = []
+  const at = (re: RegExp): string => {
+    const hit = code.find((c) => re.test(c.line))
+    return hit ? `第 ${hit.n} 行「${hit.line.trim().slice(0, 72)}」` : '未命中'
+  }
+  if (
+    !/if \(flushRecord\) \{\s*await flushRecord\(\)[\s\S]{0,600}?已写成[\s\S]{0,500}?return\s*\}/.test(
+      joined,
+    )
+  ) {
+    findings.push(
+      'runAnchor 体内不再是「if (flushRecord) { → await flushRecord() → 已写成日志 → return }` 这一块' +
+        '（第 10 项那道门被拆开了；十个假"已写成"与静默跳像素会原样回来）。\n' +
+        `    定位：块首 ${at(/if \(flushRecord\) \{/)}；flush 调用 ${at(/await flushRecord\(\)/)}；` +
+        `日志 ${at(/已写成/)}；提前返回 ${at(/return/)}`,
+    )
+  }
+  for (const c of code) {
+    if (/if \(recording\) \{/.test(c.line)) {
+      findings.push(
+        `第 ${c.n} 行又出现按 recording 布尔开的块「${c.line.trim().slice(0, 72)}」：` +
+          '那是"12 个锚点全进、10 个什么都没写"的同型错误（旧形态半边）',
+      )
+    }
+  }
+  return findings
+}
+
+/**
  * 递归列出 `dir` 下所有 `.spec.ts`（C1 修复轮 1 的 F2c／复核 I-3 第 3 处缺口）。
  * 【原先缺什么】判据用的是 `readdirSync(dir).filter(endsWith('.spec.ts'))`——**不递归**。
  * 而 runner 的 `testDir: './e2e/visual'` 收的是整棵树 ⇒ 放进子目录的一份 spec 会**同时**逃过这条扫描
@@ -1220,19 +1296,78 @@ test('被钉载荷内容断言（R-CF1）：普查只走 data、合成反例必�
  * 行为反证（本棒实跑，原文见报告第 10 节）：修前 `PW_RECORD_PAYLOADS=1 ... anchors -g "login"`
  * 打出 `login/light 已写成` ＋ `login/dark 已写成` 两条谎（login 没有 pinPaths，什么都没写）；
  * 修后同一条命令 0 条 `已写成`、且真的跑了像素比对。本条是防"那道门被改回去"的入库面。
+ * 【C1 修复轮 1 的 F4 收紧了三处，判据本体移到 `recordingGateFindings`】原先两半都跑在**整份文件、
+ * 不剥注释**的文本上，是同轮三条源级守卫里唯一没跟上剥注释口径的：往块首插一行解释注释即假红
+ * （正向半边要求 `{` 之后**紧跟** flush），而负向半边只因为 `anchors.spec.ts` 里那句
+ * `if (recording) flushRecord = ...` 碰巧没写花括号才不红。现改为
+ * **作用域＝`runAnchor` 函数体切片 ＋ 先剥整行注释 ＋ 红话带文件里的真行号与片段**，
+ * 两种不误红情形与旧形态仍红都由下面那条 F4 用例喂内存源码钉住（`anchors.spec.ts` 一字未动）。
  */
 test('录制模式的"已写成"与像素跳过只认 flushRecord（第 10 项）', () => {
+  // 判据本体见 `recordingGateFindings`（F4：作用域＝runAnchor 体内、先剥注释、红话带真行号）。
+  // 这里只把它的返回值判空——合成反例（插一行注释／块外写合法的 if (recording) { ／旧形态仍红）
+  // 由下面那条 F4 用例喂**内存里的源码**跑同一个函数，不去改 anchors.spec.ts 落盘。
   const anchorsRaw = readFileSync(join(process.cwd(), 'e2e/visual/anchors.spec.ts'), 'utf8')
-  // ① 落盘、日志、return 必须在同一个 `if (flushRecord) {` 分支里（顺序：flush → 日志 → return）
+  const findings = recordingGateFindings(anchorsRaw)
   expect(
-    anchorsRaw,
-    '录制模式的跳过又不再按 flushRecord 判了——十个假"已写成"与静默跳像素会原样回来（4c-fix-C 第 10 项）',
-  ).toMatch(
-    /if \(flushRecord\) \{\s*await flushRecord\(\)[\s\S]{0,600}?已写成[\s\S]{0,500}?return\s*\}/,
+    findings,
+    `录制模式那道门又松了（第 10 项／F4 收紧后的判据）。命中 ${findings.length} 条：\n  ${findings.join('\n  ')}`,
+  ).toEqual([])
+})
+
+/**
+ * C1 修复轮 1 的 F4（复核 RR-6 第 1、3 条／I-5）：收紧后的守卫**对两种正常改动不误红、对旧形态仍红**。
+ * 【为什么这两条要入库】原先两半都跑在整份文件的不剥注释文本上——一次补解释注释或加花括号就会打出
+ * 一句"旧形态回来了"的红而红话不指位置；并发代理最省事的出路就是删守卫。
+ * 收紧若无负例配对，就等于"改完没人证明它不误红"，所以下面四个变异全在内存里做，
+ * `anchors.spec.ts` 一字未动（围栏：改动面只有 helpers.spec.ts）。
+ */
+test('第 10 项守卫收紧后不误红也不空红：插注释与块外合法写法放行、旧形态仍红（F4 反例入库）', () => {
+  const anchorsRaw = readFileSync(join(process.cwd(), 'e2e/visual/anchors.spec.ts'), 'utf8')
+  // 现况必须绿——下面三条变异都以它为底本，这条不成立时其余三条的读数没有意义。
+  expect(recordingGateFindings(anchorsRaw), '本仓现况被判违规').toEqual([])
+
+  // ① 复核席那条最容易踩的：往 `if (flushRecord) {` 与 `await flushRecord()` 之间插一行解释注释。
+  //    旧口径（整文件、不剥注释、要求"紧跟"）当场红；现口径剥掉那一行注释后仍绿。
+  const withInsertedComment = anchorsRaw.replace(
+    '  if (flushRecord) {\n    await flushRecord()',
+    '  if (flushRecord) {\n    // 解释：先落盘再打这句，否则日志会在没写完盘时出现（A4 的次序纪律）\n    await flushRecord()',
   )
-  // ② 旧形态（按 recording 布尔提前 return）不许回来——负向半边就是本轮改掉的那个 bug 本身
+  expect(withInsertedComment === anchorsRaw, '变异① 没插入成功：本条等价复刻是空转').toBe(false)
   expect(
-    anchorsRaw,
-    '`if (recording) {` 式提前 return 回来了：那是"12 个锚点全进、10 个什么都没写"的同型错误',
-  ).not.toMatch(/if \(recording\) \{/)
+    recordingGateFindings(withInsertedComment),
+    '往块首插一行注释被判成旧形态回来了——这条红会把下一个人推向"删守卫"',
+  ).toEqual([])
+
+  // ② 块外（准确说：`runAnchor` 作用域之外）写一个合法的 `if (recording) { ... }`。
+  //    旧口径作用于整份文件，这一条会连带红；现口径只扫函数体切片，绿。
+  const outsideRunAnchor = `const RECORDING_NOTE = 'x'\nfunction someOtherHelper(recording: boolean): void {\n  if (recording) {\n    console.log('  与录制分支无关的一处合法分支')\n  }\n}\n\nasync function runAnchor(recording: boolean): Promise<void> {\n  if (flushRecord) {\n    await flushRecord()\n    console.log('fixture 已写成')\n    return\n  }\n}\n`
+  expect(
+    recordingGateFindings(outsideRunAnchor),
+    'runAnchor 体外的合法 if (recording) { 被判违规——作用域没切进函数体（复核 RR-6 第 1 条）',
+  ).toEqual([])
+
+  // ③ 旧形态必须仍红（绿了就是"收紧"变成了拆掉）：flush 不在花括号块里、日志与跳过按 recording 判。
+  //    这条就是 `dee6ddc` 之前那个形状——正向半边与负向半边各抓它一半，所以应当给两条违规。
+  const oldShape = `async function runAnchor(recording: boolean): Promise<void> {\n  if (flushRecord) await flushRecord()\n  if (recording) {\n    console.log('fixture 已写成')\n    return\n  }\n}\nasync function nextOne(): void {}\n`
+  const oldFindings = recordingGateFindings(oldShape)
+  expect(
+    oldFindings.length,
+    '旧形态（按 recording 提前 return、flush 不在同一块里）被判成合法——守卫被放宽成空转了',
+  ).toBeGreaterThanOrEqual(2)
+  // 正向半边给的定位必须说得出"块首不存在"，而不是笼统一句红（F4 的第 3 处收紧）
+  expect(oldFindings[0], '正向半边的定位信息没指出块首未命中——红话又变成让人猜整文件了').toContain(
+    '块首 未命中',
+  )
+  expect(oldFindings[1], '负向那条红话必须带文件里的真行号，别让下一个人对着整文件猜').toContain(
+    '第 3 行',
+  )
+
+  // ④ 另一半的旧形态：块里根本没有 flush 调用（把 `await flushRecord()` 删掉）⇒ 正向半边红，
+  //    且定位信息要指出块首在哪、flush 调用未命中。
+  const noFlush = anchorsRaw.replace('    await flushRecord()\n', '')
+  expect(noFlush === anchorsRaw, '变异④ 没删掉 await flushRecord()：本条等价复刻是空转').toBe(false)
+  const noFlushFindings = recordingGateFindings(noFlush)
+  expect(noFlushFindings.length, '块里没有 flush 调用却没判违规——正向半边没牙').toBe(1)
+  expect(noFlushFindings[0]).toContain('flush 调用 未命中')
 })
