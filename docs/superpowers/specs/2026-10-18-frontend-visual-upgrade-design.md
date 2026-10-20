@@ -576,7 +576,7 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 | 10A 引用计数滚动锁 | **完成**（复核到席） | `4445ef6`/`88c8ee6`/`8e03639`/`d72bab8` ＋ 必修 `98f5439` | Drawer 的内联锁抽成 `useOverlayScrollLock` 并与 Modal 共用一把计数器；复核退回三条必修（新行抄入占位词会炸 Task 15 的残留检查；三处把变异读数指向不入 git 的报告；**"13 个挂载点全被 v-if 门着"这个前提没有入库守卫** ⇒ 已补可重放配方并登记为缺口、归 Task 13） |
 | 10B ARIA／焦点陷阱／焦点返还／`closed`／遮罩开关 | **落地；两轮复开到席，第 2 轮抓出**我**写的假对比并已改**（该轮修复未再开第三席，见 R-T10B-2） | `95f95c5`/`27eb3c6`/`4a13985`/`2c3a912` ＋ 必修 `275375c` ＋ 第 2 轮更正（未提交态见下条 commit） | 新建唯一一份 `useFocusTrap`，两原语各一行接线；Modal 抬到 Drawer 已交付的形状。**P-d 实测**：EP 2.14.7 的 `el-dialog` **确实**挂 `ElFocusTrap` ⇒ 本棒是 parity。**第 2 轮纠出两条我的失真**：① "EP 绑容器元素、不吃 `stopPropagation` 这一刀"是**假的**（它的 keydown 也绑冒泡，`focus-trap…mjs:89` 无 capture 参数）；② 我把第三个反例写成"未定位"，其实一层事件转发就找得到（`NmNoticeList.vue:15`）⇒ 少查就当保守。**边界如实兜住**：无 `focusout` 拽回、无 `focusableStack`；子节点 `stopPropagation()` 会静解除陷阱（今天全仓零命中，但没人守） |
 | 10C 写回对称／双转发／`--sh-drawer` 与 ltr 两档 | **完成**（第 1 轮复开到席，两条 Important 归正在 `11787de`） | `d79aed8`/`ba63a3a`/`3cff12a`/`900da2a` ＋ 我改错锚 `a07f5a7` ＋ 复核必修 `11787de` | Drawer 的 `close()` 收到 Modal 形状（**方向不许反**）；`NmPublishDrawer` 双转发收成一条腿；补 `--sh-drawer-ltr` 明暗两档与暗色 `--sh-drawer`（**存量缺陷、非本棒引入**）。**我派单里的两处错引被执行者与复核各自抓到一个**：`37b9414` 不是 Modal 现状的证据（定形在 `6d2379d`），`5c221c8` 更在定形**之前**、不可能"保持"它；另"没有一道门会解析 `theme.css`"半错——`format:check` 的 glob 含 `css` |
-| 13 / 14 / 15 | **未派发** | — | Task 13 的地板值 73 / 82 **开工须重测**，且 `el-dialog` 有 **65（原始 grep）／63（解析式）／64（composable 头注释、无口径）** 三个数并存 ⇒ 按原始口径同式是 **84**，护栏会低两格设防 |
+| 13 / 14 / 15 | **未派发** | — | **Task 13 的地板值已由控制器在本会话复现，不必再猜**：剥掉 HTML 注释**与 JS 注释**后数开标签得 `el-dialog` 63 ＋ `Modal` 13 ＋ `Drawer` 2 ＋ `el-drawer` 4 ＝ **82**，含任一弹层的 `.vue` 文件数 ＝ **73** ⇒ 计划题注的 73 / 82 **精确复现**（命令见 §11.7）。我先前那句"按原始口径应是 84、护栏低两格设防"**是我算错的，收回**：原始 grep 的 65 里含**两处写在注释里的** `<el-dialog>`（`EpStatsDialog.vue`、`CourseExams.vue` 的"v-loading 不能绑在 `<el-dialog>` 上"说明），那不是弹层使用点。**剩下的真活**是把扫描键从字面量 `<el-dialog` 改成"弹层实现无关 ＋ 口径写死"，并跑破坏性自证 |
 | 验收包（本会话任务清单第 24 项） | 未交 | — | 形态已定：① 裁定清单含"若错代价"；② 三道门禁结论；③ LEDGER 列数自校＋实跑数字；④ **未定性的事单独列**，不混进"已完成" |
 
 ### 11.3 三道门禁的当前结论（正文在 §6，这里只给判到哪一步）
@@ -715,6 +715,36 @@ LEDGER 列数自校的**原文在 `docs/visual-upgrade/LEDGER.md`「表内书写
 # 每行必须是 9；同时肉眼核表区内没有空行断开（空行会把一张表切成两张，列数自检照样过）
 awk -F'|' '/^\|/ {print NR": "(NF-2)}' docs/visual-upgrade/LEDGER.md
 ```
+
+
+弹层计数口径（Task 13 的地板值来源；本会话由控制器实测复现，`cd frontend` 后执行）：
+
+```bash
+node -e '
+const {execSync}=require("child_process"),fs=require("fs");
+const strip=(f)=>fs.readFileSync(f,"utf8")
+  .replace(/<!--[\s\S]*?-->/g,"")          // HTML 注释
+  .replace(/\/\*[\s\S]*?\*\//g,"")        // JS 块注释
+  .replace(/^\s*\*.*$/gm,"");              // JS 块注释的续行
+const pats=["<el-dialog","<Modal","<Drawer","<el-drawer"];
+const all=new Set();
+for(const p of pats)for(const f of execSync(`git grep -l "${p}" -- src/**/*.vue`,{encoding:"utf8"})
+  .trim().split(/?
+/).filter(Boolean))all.add(f);
+const out={};for(const p of pats){out[p]=0;for(const f of all)out[p]+=strip(f).split(p).length-1;}
+out._合计=pats.reduce((a,p)=>a+out[p],0);
+out._文件数=[...all].filter(f=>pats.some(p=>strip(f).includes(p))).length;
+console.log(JSON.stringify(out));
+'
+```
+
+实测读数（`11787de` 态）＝ `{"<el-dialog":63,"<Modal":13,"<Drawer":2,"<el-drawer":4,"_合计":82,"_文件数":73}`：
+计划 Task 13 题注的 **73 / 82 由此复现**。两个反直觉点必须一起记住：
+① **只剥 HTML 注释不剥 JS 注释**时 `<Modal` 会数到 19（`Modal.vue`／`Drawer.vue` 的说明块里有 `<Modal>` 字样），
+   合计虚高到 89 —— 护栏现文只剥 HTML 注释（`useDialogFocus.coverage.test.ts` 的去注释步骤），
+   所以它口径下的数**本来就不是 82**；Task 13 改扫描键时要把这条口径写死在断言旁。
+② 原始 `git grep -o "<el-dialog"` 得 65，多出的两处是**写在注释里**的说明
+   （`EpStatsDialog.vue`、`CourseExams.vue` 的"v-loading 不能绑在 `<el-dialog>` 上"），不是使用点。
 
 - 单元格内出现任何竖线（含转义写法）都会把该行撑成 10/11 列——`awk -F'|'` 是逐字符切分，反斜杠挡不住它。
 
