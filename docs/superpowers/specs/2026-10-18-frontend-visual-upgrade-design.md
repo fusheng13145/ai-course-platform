@@ -574,7 +574,7 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 | 8 | **完成**（两轮复核都到席了） | 第 2 轮 `478c72e`/`b4821e3`/`38600e4` ＋ 控制器补钉 `2fc628d`/`eb5d38a` ＋ 第 3 轮 `78f5f0e` | scoped re-review 判 I-1…I-6 **全部 ADDRESSED**、无新增 Critical/Important，并独立跑出 10 files / 98 tests；它退回的两条 Minor 由控制器第 3 轮自修（补挂载证明 ＋ 给过期"97"读数加限定）。**R-T8-R3**：第 3 轮 16 行未再开复核席，兜底是末尾 whole-branch review |
 | 9 | **完成**（两轮复开到席；实现者撞 turn 上限、控制器接手验收） | `8218ee8`/`5f314ca`/`e268c23`/`9bda5ad`/`f00e438` ＋ 台账 `d876188` ＋ 修复 `efa4cc7`/`cb82387` | 焦点接入的**前半**（Modal 自持面板侧 `rootRef` ＋ `open && mounted` 适配器）已入库，三条可证伪焦点用例与 P-a/P-b/P-c 三条读数也入库；**`defineExpose` 那半按 R-T9-7 主动不做**（见 §11.5）。控制器自验：目录门 11 files / 105 tests、全包 165 files / 1749 tests、lint 静默、棘轮 402 持平，并**独立复跑了那条决定性变异**（写 `defineExpose` ⇒ 18 failed / 87 passed，与执行者记数逐字相符）。**尚未过任务级评审** |
 | 10A 引用计数滚动锁 | **完成**（复核到席） | `4445ef6`/`88c8ee6`/`8e03639`/`d72bab8` ＋ 必修 `98f5439` | Drawer 的内联锁抽成 `useOverlayScrollLock` 并与 Modal 共用一把计数器；复核退回三条必修（新行抄入占位词会炸 Task 15 的残留检查；三处把变异读数指向不入 git 的报告；**"13 个挂载点全被 v-if 门着"这个前提没有入库守卫** ⇒ 已补可重放配方并登记为缺口、归 Task 13） |
-| 10B ARIA／焦点陷阱／焦点返还／`closed`／遮罩开关 | **落地，第 1 轮必修已改，复核第 2 轮在飞** | `95f95c5`/`27eb3c6`/`4a13985`/`2c3a912` ＋ 必修 `275375c` | 新建唯一一份 `useFocusTrap`，两原语各一行接线；Modal 抬到 Drawer 已交付的形状。**P-d 实测**：已安装 EP 2.14.7 的 `el-dialog` **确实**挂 `ElFocusTrap`（`trapped: visible`）⇒ 本棒是 parity，我预留的"比 EP 更严"分支没被触发。**边界如实兜住**：无 `focusout` 拽回、无 `focusableStack`，click→body→Tab 那条 jsdom 造不出绿面故不立用例；陷阱听 document 冒泡阶段 ⇒ 子节点 `stopPropagation` 会静解除它（今天全仓零命中，但没人守） |
+| 10B ARIA／焦点陷阱／焦点返还／`closed`／遮罩开关 | **落地；两轮复开到席，第 2 轮抓出**我**写的假对比并已改**（该轮修复未再开第三席，见 R-T10B-2） | `95f95c5`/`27eb3c6`/`4a13985`/`2c3a912` ＋ 必修 `275375c` ＋ 第 2 轮更正（未提交态见下条 commit） | 新建唯一一份 `useFocusTrap`，两原语各一行接线；Modal 抬到 Drawer 已交付的形状。**P-d 实测**：EP 2.14.7 的 `el-dialog` **确实**挂 `ElFocusTrap` ⇒ 本棒是 parity。**第 2 轮纠出两条我的失真**：① "EP 绑容器元素、不吃 `stopPropagation` 这一刀"是**假的**（它的 keydown 也绑冒泡，`focus-trap…mjs:89` 无 capture 参数）；② 我把第三个反例写成"未定位"，其实一层事件转发就找得到（`NmNoticeList.vue:15`）⇒ 少查就当保守。**边界如实兜住**：无 `focusout` 拽回、无 `focusableStack`；子节点 `stopPropagation()` 会静解除陷阱（今天全仓零命中，但没人守） |
 | 10C / 13 / 14 / 15 | **未派发** | — | 10C＝R-B 写回对称、`NmPublishDrawer.vue` 双转发、`--sh-drawer` 缺 ltr token；Task 13 的地板值 73 / 82 **开工须重测**，且 `el-dialog` 有 **65（原始 grep）／63（解析式）／64（composable 头注释、无口径）** 三个数并存——按原始口径同式是 **84**，护栏会低两格设防 |
 | 验收包（本会话任务清单第 24 项） | 未交 | — | 形态已定：① 裁定清单含"若错代价"；② 三道门禁结论；③ LEDGER 列数自校＋实跑数字；④ **未定性的事单独列**，不混进"已完成" |
 
@@ -648,12 +648,23 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
   `ui/Modal` 就比 `el-dialog` 更严"：**这条分支没被触发**——P-d 实测已安装的 EP 2.14.7 的 `el-dialog`
   确实挂 `ElFocusTrap`（`trapped: visible`）⇒ 10B 记为 **parity**，别把那句备选当成既成结论引用。
 - **R-T10B-1（复核纠我）**：台账结论栏原写"关闭后焦点返还**触发元素**"说满了。触发物不可聚焦时
-  （已实测两处：`SdCourseGrid.vue` 的 `<div class="course-card join-card" @click>`、
-  `Notifications.vue` 的 `<div class="notice-card" @click>`）上升沿那一刻的 `document.activeElement` 就是 `body`
+  （已实测**三处**：`SdCourseGrid.vue` 的 `<div class="course-card join-card" @click>`、
+  `Notifications.vue` 的 `<div class="notice-card" @click>`，以及第 1 轮评审举、我起初回话说"未定位"的
+  `NotificationManagement.vue:31`——第 2 轮复核替我找到路径：它由 `NmNoticeList.vue:15` 的
+  `<div class="row-card" @click="emit('open', n)">` 经 `@open="openNotice"` 打开，同一失败形状。
+  ⇒ **核不够就写"未定位"也是一种失真**：那句当时读起来像保守，实际是我少查了一层转发）
+  上升沿那一刻的 `document.activeElement` 就是 `body`
   ⇒ 等于不返还；`<button>` 触发物在点击时是否获得焦点本身是引擎差异（Safari 不聚焦）。
-  措辞已降级为"返还上升沿那一刻的 `document.activeElement`"，**这条可证伪缺口归 Task 13 或 Playwright 键盘侧**，
+  措辞已降级为"返还上升沿那一刻的 `document.activeElement`"，**这条可证伪缺口归 Task 13 或后续真的
+  Playwright 键盘用例**（第 2 轮纠我：Task 14 是**非基线动效抽检组**、不是键盘用例的落点，我原来把它当归属写错了），
   不给 10C。同一轮还纠出：我派给复核的词里把"实现者拆掉了重复遮罩守卫"写成已接受的披露——**那件事没发生**
   （两条守卫都还在，代码与台账都说"两条都留"）⇒ 派单里凡"我已接受某条披露"，必须先回源码核对。
+- **R-T10B-2（第 2 轮纠出的第二条我的假对比）**：我在台账里写"EP 绑在容器元素上，**不吃这一刀**"
+  （指子节点 `stopPropagation()` 会解除陷阱那一刀）。**错**：已安装的
+  `element-plus/es/components/focus-trap/src/focus-trap.vue_vue_type_script_lang.mjs:89` 是
+  `addEventListener("keydown", onKeydown)`，**没有第三个 capture 参数**，同样绑冒泡、同样会被截住；
+  EP 真多出来的是同文件 `:90-91` 的 `focusin`／`focusout`，而那正是上一条已经声明"本实现不兜"的那块。
+  ⇒ 这属本任务族一直防的"机制洗白"形状（把对手的实现说成更强或更弱来抬高自己那条结论），已收回并改正。
 - **推送口径（2026-10-19 19:32 起的现行指令，覆盖更早节奏）**：本批次**一次都不推**，全部任务完成后由 leyon 亲自验收；
   截至 `bfb9992`，本地 `main` 比 `origin/leyon` **领先 106 个 commit**（按天：10-18 有 25、10-19 有 70、10-20 有 11）。
   验收清单以 `git log --oneline origin/leyon..HEAD` 现取，别抄这里的数。
@@ -705,25 +716,24 @@ awk -F'|' '/^\|/ {print NR": "(NF-2)}' docs/visual-upgrade/LEDGER.md
 
 ### 11.8 下一批次（按此顺序；每步之前先跑 §11.7 与 `git status`）
 
-1. **Task 10B 的第 2 轮复核**（第 1 轮已回：判 Spec compliant ＋ 三条必修文档项，已在 `275375c` 改完；
-   它同时纠出**我派单里的一处假前提**——我说实现者"拆掉了重复遮罩守卫"，实际两条都留着）。
-   diff 包现取：`bash <sdd>/scripts/review-package docs/superpowers/plans/2026-10-18-frontend-visual-phase0.md 2c3a912 HEAD`。
-   要它验的重点是**结构**而不是代码：`P0b-FOCUS-01` 那一行曾被我的多行编辑串切成四截（列数自校看不见后三截），
-   缝合后需独立确认 9 列、表区连续、四处改动逐条可 grep 到。
-2. **Task 10C**（最后一棒）：R-B 写回对称（Modal 与 Drawer 的 `close()` 闸与无条件写回收到同一套）、
+1. **Task 10C**（最后一棒）：R-B 写回对称（Modal 与 `Drawer` 的 `close()` 闸与无条件写回收到同一套）、
    `NmPublishDrawer.vue:5-6` 的双转发、`--sh-drawer` 缺 ltr token。
-   10A/10B 已把前置清掉：滚动锁共用一把计数器、焦点陷阱与 `aria-modal` 两原语同形；
-   另有两条**明确留下的缺口**要在这一棒或 Task 13/14 收：`focusout` 拽回与弹层栈（含"只关最上层"），
-   以及"关闭后焦点返还"在**不可聚焦触发物**下等于不返还（R-T10B-1）。
-3. **Task 13**（把焦点覆盖率护栏改为弹层实现无关）。地板值以计划现文为准：**73 / 82**；示例代码里抄着的
+   10A/10B 已把前置清掉：滚动锁共用一把计数器、焦点陷阱与 `aria-modal` 两原语同形。
+   **10B 的第 2 轮修复（`275375c` 之后那条更正）不再开第三席**（判例同 R-T8-R3／R-T9-9）：
+   它改的三条都可机械核对——EP 绑相已由控制器逐字读源码（`focus-trap…mjs:89` 无 capture 参数）、
+   第三处反例已回源码定位（`NmNoticeList.vue:15` → `@open`）、口径与指针逐条 grep 命中；
+   **兜底仍是末尾 whole-branch review，且"该轮无独立复核"已登记在案。**
+   本批留给 10C／Task 13／Playwright 的三条缺口：`focusout` 拽回与弹层栈（含"只关最上层"）、
+   **不可聚焦触发物下"焦点返还"等于不返还**（R-T10B-1）、子节点 `stopPropagation()` 会静解除陷阱（R-T10B-2）。
+2. **Task 13**（把焦点覆盖率护栏改为弹层实现无关）。地板值以计划现文为准：**73 / 82**；示例代码里抄着的
    60 / 54 是草稿、不是取值依据；开工须重测，且 LEDGER `P0b-GUARD-01` 那行的占位词由它消。
    **本会话新增一条判据**：Task 9 已把 Modal 的焦点做成**组件内部自持**（`P0b-MODAL-04`），所以"扫调用点开标签
    有没有 `ref` ＋ `useDialogFocus`"这种口径从此**测不出真假**——护栏必须改成"弹层组件自身是否接了焦点"，
    否则覆盖率 100% 与零焦点覆盖可以同时为真（这正是 `P0b-MODAL-04` 必要性栏点出的那道缺口）。
-4. **Task 14**（非基线动效抽检组）——补 reduce 模式下基线照不到的另一半；与 §11.4 的三条包含块边界一起做才有意义。
-5. **4c-fix-C**（8 项，编号 9–16），含 `data-theme=""` 三步取证与 `visual-helpers.ts` 的纯搬迁拆分。
-6. **Task 15**（Phase 0 收口）：占位词 grep 须无输出、LEDGER 列数自校须全 9、三道门禁逐条给结论。
-7. **验收包**：按 §11.2 末行那四条形态呈报，未定性的事单独列。
+3. **Task 14**（非基线动效抽检组）——补 reduce 模式下基线照不到的另一半；与 §11.4 的三条包含块边界一起做才有意义。
+4. **4c-fix-C**（8 项，编号 9–16），含 `data-theme=""` 三步取证与 `visual-helpers.ts` 的纯搬迁拆分。
+5. **Task 15**（Phase 0 收口）：占位词 grep 须无输出、LEDGER 列数自校须全 9、三道门禁逐条给结论。
+6. **验收包**：按 §11.2 末行那四条形态呈报，未定性的事单独列。
 
 - 每次动手前必查：**leyon 会在会话之间甚至同一轮之内自己改文件并 commit**，所以 `git status` 与
   `git log --oneline -5` 必须重跑，行号类引用一律重取；文档份数保持最少（§10），状态只更新本节。
