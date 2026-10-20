@@ -577,10 +577,8 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 | 10B ARIA／焦点陷阱／焦点返还／`closed`／遮罩开关 | **落地；两轮复开到席，第 2 轮抓出**我**写的假对比并已改**（该轮修复未再开第三席，见 R-T10B-2） | `95f95c5`/`27eb3c6`/`4a13985`/`2c3a912` ＋ 必修 `275375c` ＋ 第 2 轮更正（未提交态见下条 commit） | 新建唯一一份 `useFocusTrap`，两原语各一行接线；Modal 抬到 Drawer 已交付的形状。**P-d 实测**：EP 2.14.7 的 `el-dialog` **确实**挂 `ElFocusTrap` ⇒ 本棒是 parity。**第 2 轮纠出两条我的失真**：① "EP 绑容器元素、不吃 `stopPropagation` 这一刀"是**假的**（它的 keydown 也绑冒泡，`focus-trap…mjs:89` 无 capture 参数）；② 我把第三个反例写成"未定位"，其实一层事件转发就找得到（`NmNoticeList.vue:15`）⇒ 少查就当保守。**边界如实兜住**：无 `focusout` 拽回、无 `focusableStack`；子节点 `stopPropagation()` 会静解除陷阱（今天全仓零命中，但没人守） |
 | 10C 写回对称／双转发／`--sh-drawer` 与 ltr 两档 | **完成**（第 1 轮复开到席，两条 Important 归正在 `11787de`） | `d79aed8`/`ba63a3a`/`3cff12a`/`900da2a` ＋ 我改错锚 `a07f5a7` ＋ 复核必修 `11787de` | Drawer 的 `close()` 收到 Modal 形状（**方向不许反**）；`NmPublishDrawer` 双转发收成一条腿；补 `--sh-drawer-ltr` 明暗两档与暗色 `--sh-drawer`（**存量缺陷、非本棒引入**）。**我派单里的两处错引被执行者与复核各自抓到一个**：`37b9414` 不是 Modal 现状的证据（定形在 `6d2379d`），`5c221c8` 更在定形**之前**、不可能"保持"它；另"没有一道门会解析 `theme.css`"半错——`format:check` 的 glob 含 `css` |
 | 13 焦点覆盖率护栏改"弹层实现无关" | **落地；第 1 轮复开到席（判"通过，但 I-1 须在 Phase 4 第一批之前落地"），I-1 与四条措辞更正已在 LEDGER `P0b-GUARD-03` 收口** | `e8d4b1f`/`076460e`/`037eb38`/`fc7438c` ＋ 复核必修（本行所述那一棒） | 地板值由我复现（`63＋13＋2＋4＝82`、`73` 文件；我先前"应是 84"是**把注释里的 `<el-dialog>` 当使用点**算错的，已收回），护栏把扫描键换成**冻结口径 ＋ 两类义务**：`el-dialog`/`el-drawer` 要调用点接线，`ui/Modal`/`ui/Drawer` **禁止**调用点留死接线（R-T9-7 的机器化），另加**只减不增的缺口表**装 `el-drawer` 那 4 个用户（新增缺口红、修掉一条也红）。**它否证了我 §11.7 的重放命令**：`git grep -- 'src/**/*.vue'` 命中不到 `src/App.vue`（我用 `router-view` 实测证实），已按全 `.vue` 面复算，82/73 不变。**复核抓到的 I-1**：护栏单测把 65→63 与 89→82 两个反例**读在将被 Phase 4 迁移的活文件上**（`EpStatsDialog.vue`、`CourseExams.vue`、`Modal.vue`、`Drawer.vue`），迁移成功那一刻会红、且报错把成功说成失败 ⇒ 反例改喂合成样本，活文件读数只留 `coverage.test.ts` 的逐 marker 表那一处归口（它的红话是"重测＋改表"，语义正确）。变异复跑两次：删 HTML 层 ⇒ `<el-dialog` 读到 **65**，删块注释与续行两层 ⇒ 读到 **89**，都是当场重现那两个岔数、跑完即还原 |
-| 14 非基线动效抽检组 | **落地；第 1 轮复核判 Spec compliance Fail／Task quality Needs fixes（无 Critical），修复轮 1 在飞** | `9fcd900`/`a3bbb3b`/`8168908` ＋ 修复轮 | 四张观察图＋两张中段图入库（`docs/visual-upgrade/evidence/P0a/motion/`），`Modal` 与 `el-dialog` 两类载体各一格；观察组每条截图前读 `matchMedia` **证伪了"覆盖不成立"这个可能**。**复核抓出两条判据级问题**：① 题面 Step 3 拿"anchors 零 diff"间接证降级生效**推理作废**（`animations: 'disabled'` 是 `anchors.spec.ts:307/:364` 的截图级终态强制，config 里没有它）⇒ 见 **R-T14-6**；② 全视口字节相等被用来钉"这一个弹层没动效"，**证据面宽于结论面**（`UserManagement.vue` 2 处 `animate-in` 是假红源、`v-loading` 遮罩是假绿源）⇒ 见 **R-T14-7**。**控制器独立认可的事实面**：`ui/Modal`／`ui/Drawer` 原语确实无入场动效（读 CSS 而非读测试），`modal-open` 与 `-mid` 两图 `sha1` 相同（`45a85143…`）而 `dialog-open` 两张不同。围栏全守住：`src/**` 0 改动、`__snapshots__` 0 改动、棘轮 402 持平 |
-| 15 Phase 0 收口与 Phase 1–3 准入 | **未派发** | — | 题面已核对与计划现文逐字一致（行区间 2760–末）。它手上要清的两件实测账：8 处 `待回填`（见 §11.4）与 `error-404` 那个二选一；另外 `npm run typecheck` **今天不可能绿**（`scripts/check-types.cjs:26` 跑的就是同一个
-  `node_modules/vue-tsc/bin/vue-tsc.js`，它数出 **402 条／90 文件**存量），题面 Step 1 那句"全绿"要按棘轮口径
-  （`typecheck:gate` 只许下降）改写后才能执行，否则第一棒就会被一条不可能满足的判据卡住 |
+| 14 非基线动效抽检组 | **完成**（两轮修复到席；第 3 席由控制器实跑复验替代，见 R-T14-11） | `9fcd900`/`a3bbb3b`/`8168908` ＋ 修复轮 1 `600bb48`/`c0a9365`/`abd83d8`/`8d6ee99`/`c73005b` ＋ 修复轮 2 `b7106ff`/`33bc127` | 四张观察图＋两张中段图入库（`docs/visual-upgrade/evidence/P0a/motion/`），`Modal` 与 `el-dialog` 两类载体各一格。**两轮复核共抓出五条**：① 题面 Step 3 拿"anchors 零 diff"间接证降级生效**推理作废**（`animations: 'disabled'` 是 `toHaveScreenshot` 的截图级终态强制，config 里没有它）⇒ **R-T14-6**，现改为直接读数一对：未覆盖态 `matchMedia` 为 true ＋ `.animate-in` 的 `animationName` 为 `none`，**并补了正读数配对**（覆盖态读到 `rise-in`）——负读数单独存在时，"把基础规则与 reduce 块一起删"这种退化会绿；② 全视口字节相等被用来钉"这一个弹层没动效"，**证据面宽于结论面** ⇒ **R-T14-7**，双拍改 `page.screenshot({clip})` 裁到节点矩形＋`addStyleTag` 注入的对偶实验（含节点级 `getAnimations({subtree:false})` 读数与其局限：fill both 跑完仍计数，只证节点挂着这条动画、不证仍在 active 区间）；③ `locator.screenshot()` 会等几何稳定、把入场等到终态（`playwright-core/lib/coreBundle.js:20067/:20069`），**但它只裁带 transform 的入场，纯 opacity 不吃这一刀**；④ 台账三处过头措辞与文件头那句作废归因（**R-T14-9**）；⑤ **可重放性精度限定**（**R-T14-8** 之外的 W4）：重跑会重写这 6 张图，控制器三次实跑每次都脏同样 3 张（`admin-dashboard`、`dialog-open`、`dialog-open-mid`）⇒ **"命令可重放"成立于判据与断言（5 passed），不成立于那 6 个像素文件**；`modal-open` 与 `-mid` **三次都同 sha1** ⇒ "两原语无入场动效"是可复现的真发现。**引用这对 sha1 要带 commit**：第 1 轮是 `45a85143…`、修复轮 1 重写后是 `dda79d88b170…`，哈希不是稳定标识。围栏：`src/**` 0 改动、`__snapshots__` 0 改动、`.gitattributes` 与 design spec 未碰、棘轮 402 持平、prettier 单文件 exit 0 |
+| 15 Phase 0 收口与 Phase 1–3 准入 | **未派发** | — | 题面已核对与计划现文逐字一致（行区间 2760–末）。它手上要清的两件实测账：8 处 `待回填`（见 §11.4）与 `error-404` 那个二选一；另外 `npm run typecheck` **今天不可能绿**（`scripts/check-types.cjs:26` 跑的就是同一个 `node_modules/vue-tsc/bin/vue-tsc.js`，它数出 **402 条／90 文件**存量），题面 Step 1 那句"全绿"要按棘轮口径 （`typecheck:gate` 只许下降）改写后才能执行，否则第一棒就会被一条不可能满足的判据卡住 |
 | 验收包（本会话任务清单第 24 项） | 未交 | — | 形态已定：① 裁定清单含"若错代价"；② 三道门禁结论；③ LEDGER 列数自校＋实跑数字；④ **未定性的事单独列**，不混进"已完成" |
 
 ### 11.3 三道门禁的当前结论（正文在 §6，这里只给判到哪一步）
@@ -625,11 +623,20 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
   （2026-10-20 实测计数：全表 `待回填` 共 **8 处**＝`P0b-GUARD-01` 七处 ＋ `P0b-DRAWER-01` 一处；
   `P0a-MOTION-01` 为零处。）
   Task 15 Step 5 会 grep 这两个占位词并要求**无输出**，所以现在不清就是收口时炸。
-- **§6.7 的降级证据在修复轮落地前仍是空头**（R-T14-6）：Task 14 交付的观察组证明了
-  "`test.use` 能把 config 的 `reduce` 翻回 `no-preference`"（四格截图前逐条读 `matchMedia === false`），
-  但**没有**"未覆盖时读到 `reduce`"的反向读数，而它原先拿去顶这个缺口的"anchors 零 diff"已被判无效
-  （`animations: 'disabled'` 才是像素确定性的来源）。修复轮 1 的对照用例落地前，
-  **"CSS 动效在降级下确实停了"这句话在本仓没有一条可重放的直接证据**——引用 §6.7 时按"待证"处理。
+- **§6.7「动效降级被证明」现已有直接读数**（R-T14-6 落地，`600bb48` ＋ 修复轮 2 的正读数 `b7106ff`）：
+  未覆盖态 `matchMedia('(prefers-reduced-motion: reduce)') === true` 且 `/admin/dashboard` 上
+  `.animate-in` 的 `animationName === 'none'`，覆盖态正读数 `=== 'rise-in'`（**这一对是必要的**：
+  只有负读数时，"把 `design-system.css:1358-1359` 的基础规则与 `:1380-1382` 的 reduce 块一起删掉"
+  这种退化会两侧都读 `none` 而长绿）。史料保留：本棒之前它靠"anchors 零 diff"间接顶，
+  而 `animations: 'disabled'` 是 `toHaveScreenshot` 的**截图级**终态强制（不是 config），
+  像素确定性与媒体查询无关——**那句推理已作废，不许再被引用回台账**。
+- **跑全量视觉套件的口径变了，且它会弄脏工作树**（新事实，Task 15 Step 1 必须知道）：
+  `e2e/visual/` 没有 `testMatch` 限制 ⇒ 观察组那 5 条现在**也被全量收走**，
+  本节先前那条 **"55 passed ／ 2 failed" 是观察组存在之前的读数，已不可比**（重跑请先数条数、别抄这个数）。
+  更要紧的是 `motion-observation` **每次跑都无条件重写**已入库的 6 张观察图
+  （控制器三次实跑每次都脏同样 3 张：`admin-dashboard`、`dialog-open`、`dialog-open-mid`）
+  ⇒ 全量跑完必须 `git checkout -- docs/visual-upgrade/evidence/P0a/motion/` 还原，
+  否则"验收时工作树干净"这条会被这 6 个文件一直挂着。
 - **抽屉动效不对称（R-T14-8，未爆、归 Phase 4 处置）**：EP `el-drawer` 有真滑入
   （`drawer.scss:210` 的 `.el-drawer-fade` ＋ `:235/:239` 的 `translateX(±100%)`），
   `ui/Drawer` 的原语面板**无任何入场动效**（其样式块只有一处按钮级 `transition: all 0.15s`）
@@ -727,6 +734,25 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
   ⇒ Phase 4 迁那 4 处裸 `el-drawer` 时会**静默删掉一次可见动效**——这正是项目主"每改必留改前改后"最容易被漏的一类，
   因为它不在像素基线里（reduce 下拍不到）、也不在单测里。处置归 Phase 4：**要么给 `ui/Drawer` 补过渡并录改前面，
   要么书面接受"抽屉滑入被弃"**，不许两边都不选。
+- **R-T14-9（观察图的可重放性分两层）**：**判据与断言可重放**（`motion-observation` 三次实跑均 5 passed），
+  **那 6 个像素文件不可重放**（每次跑都无条件重写；三次都脏同样 3 张，含那张页级 fullPage 图）。
+  ⇒ 台账凡写"命令入库可重放"必须**指明重放的是哪一层**；
+  并且**成对的 sha1 不是稳定标识**——第 1 轮 `45a85143…`、修复轮 1 重写后 `dda79d88b170…`，
+  引用它必须带 commit，否则下一个人拿旧哈希去核对新图会误判"交付物被改动过"。
+- **R-T14-10（`locator.screenshot()` 的适用边界，别写成普适禁令）**：它确实会等元素稳定
+  （`playwright-core/lib/coreBundle.js:20067` 打 `waiting for element to be stable`、
+  `:20069` 走 `checkElementStates(["visible","stable"])`），因而把入场动画等到终态；
+  **但稳定判据是几何的**（比 `getBoundingClientRect`），所以**只裁带 `transform` 的位移入场**——
+  本仓两个都带（`rise-in` 是 `translateY(10px)`、EP `dialog-fade-in` 是 `translateY(-20px)`），
+  而**纯 opacity 的过渡不吃这一刀**。要"看动效在跑"就一律 `page.screenshot({ clip })` 用节点矩形自裁。
+- **R-T14-11（不开第 3 席的裁定与代价）**：修复轮 2 的五条活是"两条补读数＋三处入库文字＋一条精度限定"，
+  **全可机械核对**，故控制器实跑复验替代复核席：`cd frontend && PW_PORT=5175 npx playwright test
+  -c playwright.visual.ts motion-observation` 得 5 passed (20.4s)、`modal-open` 与 `-mid` 仍同 sha1
+  `dda79d88b170…` 且与入库态逐字节一致、跑完只对该图片目录还原一次、台账三条自校（18 行全 9 列／
+  `^|` 18／`wc -l` 204／`待回填` 仍 8 处）由控制器重跑通过、文件头那句作废归因经 `sed` 目视确认已改。
+  **代价**：本轮没有独立视角兜"实现者自证"的错——判据级问题（如 R-T14-6/7）已由前两席抓到并修完，
+  余下三条是文字与一条断言，风险低于一次全组实跑；兜底交给批末的 whole-branch review。
+  判例同 R-T10C-1（可机械核对的更正不再开第二席）。
 - **推送口径（2026-10-19 19:32 起的现行指令，覆盖更早节奏）**：本批次**一次都不推**，全部任务完成后由 leyon 亲自验收；
   截至 `bfb9992`，本地 `main` 比 `origin/leyon` **领先 106 个 commit**（按天：10-18 有 25、10-19 有 70、10-20 有 11）。
   验收清单以 `git log --oneline origin/leyon..HEAD` 现取，别抄这里的数。
@@ -761,7 +787,8 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 | Format | 存量红（约 108 个文件，且 CI 在跑）⇒ **禁写"lint/format 全绿"**，引用前重测 | `cd frontend && npm run format:check` |
 | Element Plus | 声明已收紧为精确 **`2.14.7`**（`058b907`）；`@playwright/test` 仍声明 `^1.62.0` 而装的是 1.63.0，**收紧须另行授权** | `cd frontend && npm ls element-plus` |
 | LEDGER 列数 | 表内每一行都是 **9** | 命令见本小节末的副本（表格单元里放它会因转义而失真） |
-| 视觉基线门（弹层与 token 改动的像素面） | **55 passed ／ 2 failed**（控制器 2026-10-20 实跑；两条失败是 `error-404` 明暗、红在通用守卫 `data-theme=` 空值，**无一条红在像素**，见 §11.4 末条）⇒ 10A／10B／10C 在**已入库的 22 张基线上像素中性**；浅色 ltr 与旧手算值逐字相同也是同一结论的机械面 | `cd frontend && PW_PORT=5175 npx playwright test -c playwright.visual.ts`（**前提**：8080／3306／6379 与三台引擎在听；会话一重启就要走 `start-backend.bat` 重来） |
+| 视觉基线门（弹层与 token 改动的像素面） | **该读数已不可比**：`e2e/visual/` 无 `testMatch` 限制，Task 14 的 5 条观察用例现在也被全量收走，而这条 **55 passed ／ 2 failed 是观察组存在之前（`fc7438c` 态）的数** ⇒ 引用前先数条数、别抄 55。两条失败仍是 `error-404` 明暗、红在通用守卫 `data-theme=` 空值（**无一条红在像素**，见 §11.4 末条），据此得到的"10A／10B／10C 在已入库的 22 张基线上**像素中性**"结论**仍然成立**（它数的是基线格、不是总条数）；浅色 ltr 与旧手算值逐字相同是同一结论的机械面 | `cd frontend && PW_PORT=5175 npx playwright test -c playwright.visual.ts`（**前提**：8080／3306／6379 与三台引擎在听；会话一重启就要走 `start-backend.bat` 重来。**跑完必看**：这一跑会重写 `docs/visual-upgrade/evidence/P0a/motion/` 里若干张已入库观察图，须只对该目录还原，见 §11.4 新条与本小节末的动效观察组行） |
+| 动效观察组（非基线，Task 14 交付） | `motion-observation` **5 passed（约 20.4s，控制器 2026-10-20 实跑）**＝4 格观察图 ＋ 1 条降级对照（未覆盖态读 `matchMedia === true` 与 `.animate-in` 的 `animationName === 'none'`，另有覆盖态正读数 `rise-in` 配对，防"基础规则与 reduce 块一起删"的退化绿）。**判据可重放、那 6 个像素文件不可重放**：三次实跑每次都脏同样 3 张（`admin-dashboard`、`dialog-open`、`dialog-open-mid`），而 `modal-open` 与 `modal-open-mid` **每次同 sha1** ⇒ "两原语无 CSS 入场动效"是可复现的真发现 | `cd frontend && PW_PORT=5175 npx playwright test -c playwright.visual.ts motion-observation`，随后 `sha1sum docs/visual-upgrade/evidence/P0a/motion/*.png` 与 `git status --short` 同看，跑完只对该图片目录 `git checkout --` 还原一次 |
 | 基线可复现前提 | 后端与引擎须在听：8080 / 3306 / 6379 / 7687 / 8001 / 8002（本会话两次实测：起初只有 MySQL 与 Redis 在听，起完 `start-backend.bat` 后六个全回）；重启只能走 `start-backend.bat` | 端口检查命令见本小节末"端口检查"代码块（管道命令不能放进表格单元，会把本行撑成 4 列——2026-10-20 实测本行就是这样，已改） |
 
 LEDGER 列数自校的**原文在 `docs/visual-upgrade/LEDGER.md`「表内书写规则」节**（唯一来源），此处只放一份可直接复制的副本：
@@ -844,12 +871,19 @@ console.log(JSON.stringify(out));
    否则覆盖率 100% 与零焦点覆盖可以同时为真（这正是 `P0b-MODAL-04` 必要性栏点出的那道缺口）。
    **Phase 4 动手前必读 `P0b-GUARD-03`**：它把"反例不许钉在将被迁移的活文件上"写成了规矩，
    第一棒迁移就会撞上（`EpStatsDialog.vue`、`CourseExams.vue` 与两原语的说明散文都在迁移面上）。
-2. **Task 14 已落地（`9fcd900`…`8168908`），第 1 轮复核判 Fail／Needs fixes，修复轮 1 在飞**：
-   要落的是 **R-T14-6**（降级改直接读数，**这条顺带把 §6.7 从推断升级为实测**）、**R-T14-7**
-   （双拍收窄到元素级＋对偶注入实验）、**R-T14-9**（台账三处过头措辞）、**R-T14-10**（该 spec 的 prettier）。
-   **另有一条 Phase 4 前置由本棒测出、不在修复轮内**：**R-T14-8** 的抽屉动效不对称
-   （EP `el-drawer` 真滑入、`ui/Drawer` 全无入场动效）⇒ 迁 4 处裸 `el-drawer` 会静默删一次可见动效，
-   须由 Phase 4 那棒选边（补过渡并录改前面／书面接受弃用）。
+2. **Task 14 已收口**（`9fcd900`…`8168908` 落地，第 1 轮复核判 Fail／Needs fixes，
+   修复轮 1 `600bb48`…`c73005b` ＋ 修复轮 2 `b7106ff`/`33bc127`，第 3 席由控制器实跑复验替代 ⇒ **R-T14-11**）。
+   五条 findings 全闭：**R-T14-6**（§6.7 改为直接读数、负读数配了正读数）、**R-T14-7**（双拍裁到节点矩形＋对偶注入实验）、
+   **R-T14-9**（可重放性分两层、sha1 不是稳定标识）、**R-T14-10**（`locator.screenshot()` 只裁带 transform 的入场）、
+   以及台账三处措辞与文件头那句作废归因。
+   **留给下一棒的三件**：① **R-T14-8 的抽屉动效不对称归 Phase 4**（EP `el-drawer` 真滑入、`ui/Drawer` 全无 ⇒
+   迁 4 处裸 `el-drawer` 会静默删一次可见动效，须补过渡并录改前面、或书面接受弃用）；
+   ② **`.gitattributes` 的注释过度声称**（它写观察图有路径级规则，实际只覆盖 `__snapshots__`）属 `4a9a70c` 遗留，
+   **交 4c-fix-C 的单源清扫**那一棒，本棒按许可面未碰该文件；
+   ③ 写法 (b)（`contextOptions.reducedMotion`）与 `anchors -g admin-dashboard` 的 3 passed **仍未重放**，
+   台账已把它们标成"报告内观测、不作交付证据"。
+   **另有一条 Task 15 必须知道的操作性事实**：全量视觉套件现在收 5 条观察用例、且每次都重写那 6 张图 ⇒
+   §11.7 的"55 passed／2 failed"不可比，跑完要对图片目录还原（见 §11.4 新条）。
 3. **4c-fix-C**（8 项，编号 9–16），含 `data-theme=""` 三步取证与 `visual-helpers.ts` 的纯搬迁拆分。
 4. **Task 15**（Phase 0 收口）：占位词 grep 须无输出、LEDGER 列数自校须全 9、三道门禁逐条给结论。
    **控制器已经把两条实测替它做掉了**，回填时直接引：① **§9.3** 的 `append-to-body` 分布＝
