@@ -168,10 +168,12 @@ describe('Drawer — 可见性与传送', () => {
     expect(overlay?.parentElement).toBe(document.body)
     expect(panel()?.parentElement).toBe(overlay)
     expect(panel()?.getAttribute('role')).toBe('dialog')
-    // I-1：aria-modal 已撤回。它原本是 brief（task-11-brief.md:88）点名的，但本仓没有任何
-    // focus trap，声明模态等于给读屏一个假承诺（Tab 照样走得到背景内容）。
-    // 断言写成「必须没有这个属性」：谁在 trap 之前把它挂回来，这条就红。
-    expect(panel()?.getAttribute('aria-modal')).toBeNull()
+    // aria-modal 的历史（Task 10B 改写本断言，认领为**批准的行为变更**、不是放宽）：
+    // Task 11 评审 R-1 撤下它时立的补回前提就是"共享 focus trap 落地"（旧断言注释自陈
+    // "谁在 trap 之前把它挂回来，这条就红"）。10B 把 useFocusTrap 建好并接上（Drawer.test.ts
+    // 「陷阱接线」条钉接线本身），前提成立 ⇒ 断言方向翻成"必须是 true"。
+    // 反向钉子仍在：谁把陷阱接线拆了而留着 aria-modal，红的是「陷阱接线」那条。
+    expect(panel()?.getAttribute('aria-modal')).toBe('true')
   })
 
   it('teleported=false → 留在挂载点内（与 Modal 同名通道）', async () => {
@@ -539,5 +541,28 @@ describe('Drawer — 滚动锁与焦点', () => {
     const closeBtn = panel()?.querySelector('.drawer-head .t-icon-btn')
     expect(document.activeElement).toBe(closeBtn)
     expect(panel()?.contains(document.activeElement)).toBe(true)
+  })
+
+  it('陷阱接线（Task 10B）：面板尾元素按 Tab 回绕到首个可聚焦控件——拆掉 useFocusTrap 那行本条就红', async () => {
+    // Drawer 消费共享陷阱的组件面钉子。四条要求的语义面在 useFocusTrap.test.ts（单元）与
+    // Modal.a11y.test.ts（组件面），这里只钉"Drawer 真的接了"——与 aria-modal 挂回互为前提：
+    // 接线拆掉而 aria-modal 留着 ⇒ 本条红（`expected false to be true`），"假承诺"不能只靠注释防。
+    const { wrapper } = factory(
+      { modelValue: true },
+      {
+        title: 'T',
+        default: '<input class="probe-input" /><button class="probe-last">尾</button>',
+      },
+    )
+    await settle(wrapper)
+    const closeBtn = panel()?.querySelector('.drawer-head .t-icon-btn')
+    const last = panel()?.querySelector('.probe-last')
+    expect(closeBtn).not.toBeNull()
+    expect(last).not.toBeNull()
+    ;(last as HTMLElement).focus()
+    const e = new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true })
+    last!.dispatchEvent(e)
+    expect(e.defaultPrevented).toBe(true)
+    expect(document.activeElement).toBe(closeBtn)
   })
 })

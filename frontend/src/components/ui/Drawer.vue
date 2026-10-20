@@ -1,6 +1,7 @@
 <script setup>
 import { computed, getCurrentInstance, onBeforeUnmount, onMounted, ref, useAttrs, watch } from 'vue'
 import { useDialogFocus } from '@/composables/useDialogFocus'
+import { useFocusTrap } from '@/composables/useFocusTrap'
 import { useOverlayScrollLock } from '@/composables/useOverlayScrollLock'
 
 /**
@@ -22,8 +23,10 @@ import { useOverlayScrollLock } from '@/composables/useOverlayScrollLock'
  *    （没有弹层栈，见 :145 那条注释；「只关最上面一层」已记为 Phase 4 准入门待办）。
  * 3. 滚动锁与焦点：进出抽屉锁 body 滚动、把焦点送进面板、关闭时还给打开前的元素并 emit `closed`。
  *
- * `aria-modal` **不在能力清单里**（Task 11 评审 I-1 撤回）：没有 focus trap 时声明模态是假承诺，
- * 详见模板里 role 那一行的注释；补回的前提是 Phase 0b 的共享 focus trap 落地。
+ * 焦点陷阱与 `aria-modal`（Task 10B 补上最后一块）：`useFocusTrap(rootRef, open)` 与 Modal 共用
+ * 同一份实现，陷阱在场才挂回 `aria-modal="true"`（Task 11 评审 R-1 撤下它的补回前提由此兑现）。
+ * 实测已装的 EP 2.14.7：`el-dialog` 本来就带 ElFocusTrap（台账 `P0b-FOCUS-01` 有路径与读数），
+ * 所以两原语与 `el-dialog`/`el-drawer` 是**对齐**，不是更严。
  *
  * `wide` 保持 **attribute 契约**（不声明成 prop）：调用点写 `wide` 裸属性，模板从 `useAttrs()`
  * 读（就是 `$attrs` 那份），并且**只**给面板用——`overlayAttrs` 已把它从遮罩的透传里剔掉。
@@ -124,6 +127,13 @@ function onOverlay(e) {
 useOverlayScrollLock(open)
 
 /**
+ * 焦点陷阱接线（Task 10B）。与 Modal.vue 同一行、同一个 composable：Tab 回绕、跳过禁用/不可见、
+ * 只在开关边沿装卸、嵌套各管各层——语义与跑红配方都在 `composables/useFocusTrap.ts` 与其单测；
+ * Drawer 侧的消费面由 Drawer.test.ts「陷阱接线」一条钉（摘掉这行它就红）。
+ */
+useFocusTrap(rootRef, open)
+
+/**
  * Esc 监听只在打开期间挂载：这条只解决「关闭态发幽灵 close」，**不解决层叠**。
  * 每个「打开中的抽屉」各自往 document 挂一个 keydown，所以两个抽屉叠着开时
  * 一次 Esc 会把它们**一起**关掉（评审 I-3 认定的就是这件事，此前注释写反了）。
@@ -180,13 +190,13 @@ onBeforeUnmount(() => {
 </script>
 <template>
   <Teleport to="body" :disabled="teleported === false">
-    <!-- aria-modal 已撤回：没有 focus trap 时声明模态是假承诺（Tab 仍走得到背景）。等 Phase 0b 的共享 focus trap（Task 10 建一次、Modal 同用）到位再挂回。 -->
     <div v-if="open" v-bind="overlayAttrs" class="drawer-overlay" @mousedown.self="onOverlay">
       <div
         ref="rootRef"
         class="drawer"
         :class="[placementClass, { wide: isWide }]"
         role="dialog"
+        aria-modal="true"
         :aria-label="ariaLabel || null"
         :aria-labelledby="ariaLabelledby ?? ($slots.title ? titleId : null)"
       >
