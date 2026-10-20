@@ -177,7 +177,9 @@ async function assertGraphPainted(page: Page): Promise<void> {
       return total + n
     }, 0)
   })
-  console.log(`[graph] painted=${painted}px（门槛 ${GRAPH_MIN_PAINTED_PX}）——重生成：本行每次跑都打`)
+  console.log(
+    `[graph] painted=${painted}px（门槛 ${GRAPH_MIN_PAINTED_PX}）——重生成：本行每次跑都打`,
+  )
   expect(painted, '图谱画布存在但一个像素都没画上去').toBeGreaterThanOrEqual(GRAPH_MIN_PAINTED_PX)
 }
 
@@ -230,7 +232,12 @@ async function resolvePath(page: Page, anchor: AnchorSpec): Promise<string> {
  * 会把 Task 3 写好的夹具原地覆盖成空会话。这是本任务最容易踩的坑，
  * 且现象是"基线全都截成登录页"而非报错，所以用一条显式断言兜住（见 assertGenericGuards）。
  */
-async function runAnchor(page: Page, anchor: AnchorSpec, theme: ThemeName, testInfo: TestInfo): Promise<void> {
+async function runAnchor(
+  page: Page,
+  anchor: AnchorSpec,
+  theme: ThemeName,
+  testInfo: TestInfo,
+): Promise<void> {
   await setTheme(page, theme)
   // 随机源必须在导航前钉：ECharts 力导向用 Math.random() 播节点初值，
   // 而冻结时钟挡不住它（只 fake 时间类 API）。只有声明了的锚点开，理由见 pinRandom 注释。
@@ -334,9 +341,13 @@ async function runAnchor(page: Page, anchor: AnchorSpec, theme: ThemeName, testI
     //   而"618 个像素真的变了"这件事从来不在 ratio 的账里。
     // 这里用同一个 mask、同一组截图参数另截一张，交给已入库的比较器按 t=0/r=0 读死数，并**要求 md5 相等**。
     await assertZeroDiff(page, anchor, theme, testInfo, pinState)
-    console.log(`[pin] ${anchor.slug}/${theme} 钉掉 ${pinState.served.length} 次请求：${JSON.stringify(pinState.served)}`)
+    console.log(
+      `[pin] ${anchor.slug}/${theme} 钉掉 ${pinState.served.length} 次请求：${JSON.stringify(pinState.served)}`,
+    )
     if (pinState.unpinnedTodayBearing.length > 0) {
-      console.log(`[pin-audit] ${anchor.slug} 仍在消费带"今天"日期的未钉端点 ${pinState.unpinnedTodayBearing.length} 个：${JSON.stringify([...new Set(pinState.unpinnedTodayBearing)])}`)
+      console.log(
+        `[pin-audit] ${anchor.slug} 仍在消费带"今天"日期的未钉端点 ${pinState.unpinnedTodayBearing.length} 个：${JSON.stringify([...new Set(pinState.unpinnedTodayBearing)])}`,
+      )
     }
   }
   // A4：`flushRecord()` 已经挪到像素断言**之前**（录制模式在那儿就 return 了），这里不再出现。
@@ -369,16 +380,22 @@ async function assertZeroDiff(
   const baseline = testInfo.snapshotPath(arg, { kind: 'screenshot' })
   mkdirSync(EVIDENCE_DIR, { recursive: true })
   const scaleTag = evidenceTagSuffix({ shift: pinState.shiftDays })
-  const capture = join(EVIDENCE_DIR, `${snapName(anchor.slug, theme)}-zerodiff-captured${scaleTag}.png`)
+  const capture = join(
+    EVIDENCE_DIR,
+    `${snapName(anchor.slug, theme)}-zerodiff-captured${scaleTag}.png`,
+  )
   // 与 toHaveScreenshot 完全同一组参数（含 mask）——Task 4c Step 1e：两条路径必须共用 mask，
   // 否则离线自检台与跑测器的读数会静默分叉，而喂给台账的是前者。
-  writeFileSync(capture, await page.screenshot({
-    fullPage: true,
-    animations: 'disabled',
-    caret: 'hide',
-    scale: 'css',
-    mask: maskOf(page, anchor.maskSelectors),
-  }))
+  writeFileSync(
+    capture,
+    await page.screenshot({
+      fullPage: true,
+      animations: 'disabled',
+      caret: 'hide',
+      scale: 'css',
+      mask: maskOf(page, anchor.maskSelectors),
+    }),
+  )
   const r = measureAgainstBaseline(baseline, capture)
   if (r.md5.equal && r.byteDiffPx === 0) return
   throw new Error(
@@ -454,10 +471,19 @@ for (const theme of ['light', 'dark'] as ThemeName[]) {
  *      `threw` 为空 ⇒ **格子红**，读起来是"这条守卫是空的（spec §6.14）"，实际是"实验没做成"。方向完全相反。
  * 现在 ① 由"pathname 仍是该锚点的路由"拦住、② 由"命中请求数 > 0"拦住，两条都在 arrival 断言**之前**跑，
  * 所以前提不成立时报的是前提，不再让矩阵去猜。通用守卫状态仍**只报不判**（那是另一件事，见下面矩阵的 ②）。
+ * 【`dataShape` 这个参数是第 14 项 ② 要的】题面要给同两格把桩从 `data: null` 换成 `data: []`，
+ *   看 `data-theme` 回不回得来——回得来才立得住"壳层／页面组件不容忍 null 载荷"这个名字。
+ *   缺省 `'null'` 保持上面矩阵那 9 格的现有形状不变（那是第 13 项的交付面），只有取证用例显式传 `'emptyArray'`。
+ *   **加了这个参数不等于本仓支持任意空值形态**：桩体只有这两种，第三种要另写。
  */
-async function stubApiToEmpty(page: Page, slug: string): Promise<{ served: string[] }> {
+async function stubApiToEmpty(
+  page: Page,
+  slug: string,
+  dataShape: 'null' | 'emptyArray' = 'null',
+): Promise<{ served: string[] }> {
   const prefixes = DATA_PATHS[slug]
-  if (!prefixes) throw new Error(`锚点 ${slug} 没有 DATA_PATHS 条目——空态可证伪矩阵无法收窄，先补名单`)
+  if (!prefixes)
+    throw new Error(`锚点 ${slug} 没有 DATA_PATHS 条目——空态可证伪矩阵无法收窄，先补名单`)
   const served: string[] = []
   await page.route('**/api/**', async (route) => {
     const u = new URL(route.request().url())
@@ -471,7 +497,12 @@ async function stubApiToEmpty(page: Page, slug: string): Promise<{ served: strin
       contentType: 'application/json',
       // 空响应而不是 5xx：5xx 会被错误边界接住（那条守卫本来就能拦），
       // 而"接口 200、data 空"才是那次事故的样子——四条通用守卫对它全盲。
-      body: JSON.stringify({ code: 200, message: 'ok', data: null }),
+      // 第 14 项 ② 要的就是把"空"换成 `[]` 这一态，所以这里由 `dataShape` 决定，不再写死。
+      body: JSON.stringify({
+        code: 200,
+        message: 'ok',
+        data: dataShape === 'emptyArray' ? [] : null,
+      }),
     })
   })
   return { served }
@@ -570,6 +601,11 @@ function renderPreconditionFindings(probe: RenderProbe, pageErrors: readonly str
  *   而这一页在被打空之前**一个后端数据接口都没发出去**。所以 B5 的 `served.length > 0` 这条前提
  *   在这两格上是被一个模块请求满足的，它并不等于"这一页的接口被打空了"。本棒只把这条**报出来**
  *   （每格都打印端点清单），不改 ⓪ 那条判据——改判据属第 13 项点名的两条前提之外的口径变更，留给控制器。
+ * 【14② 的对照结果（只报观察）】把桩体从 `data: null` 换成 `data: []` 后，这两格打出的五个读数
+ *   与 `data: null` 那一态**逐字相同**（`data-theme=""`、`#app>*=0`、`.app=0`、`.topbar` 不在场、
+ *   `pageerror=0`，命中的也还是那一个 dev server 模块请求）——**`data-theme` 没有回来**。
+ *   ⇒ 按题面给的口径照实写：**触发条件不是 `data:null`**（也不是 `data` 的另一种空值形态）。
+ *   本棒到此为止，不挑一个能自洽的解释交差，也不给"壳层／页面组件不容忍 null 载荷"这个名字定性。
  */
 const PREMISE_NOT_MET_STRONGER_THAN_ACCIDENT: Record<string, string> = {
   'student-learning-center':
@@ -842,6 +878,70 @@ test('第 13 项前提二有牙：摘掉 .topbar 或整个 .app（白页）都�
 })
 
 /**
+ * 第 14 项 ②（C2 步）：**同两格把桩从 `data: null` 换成 `data: []`，只取证、不定性。**
+ * 【题面给的判据怎么读】"若 `data-theme` 回来了，缺陷的名字才立得住（壳层／页面组件不容忍 null 载荷）；
+ *   若仍为空，说明触发条件不是 `data:null` ⇒ 照实写，别挑一个能自洽的解释交差。"
+ *   本条因此**只打印读数**，对产品侧不下结论：断言的部分只有"这次取证真的做成了"那两条
+ *   （桩命中 > 0、pathname 仍是该锚点的路由）——它们不成立时读数没有意义，而不是"结果不合我意就红"。
+ * 【红线（工单原话）】在定性之前，任何注释与台账行都**不许**把它写成"打桩假象"或"已确认缺陷"。
+ *   `docs/superpowers/specs/…-design.md` §11.4 那条"未定性、谁先跑完谁定性"归控制器，本棒没动它。
+ * 【为什么不复用矩阵那条】矩阵已经把 `data: null` 那一态的完整读数打出来了（第 13 项的两条前提与
+ *   `[取证 14①]` 那一行是同一套数，工单明写"别做两遍"）；本条只补 `data: []` 这一态，
+ *   两态并排起来就是 ② 要的对照。
+ */
+for (const slug of Object.keys(PREMISE_NOT_MET_STRONGER_THAN_ACCIDENT)) {
+  const probeAnchor = ANCHORS.find((a) => a.slug === slug)!
+  // 注册表里的锚点**必须带会话**（ANON 没有 storageState 可取）。这一条由「7／9 计数」那条用例断言，
+  // 这里只做类型收窄——不写 `as`，因为那会把"万一有人登记了一个 ANON 锚点"这件事糊掉。
+  const probeRole = probeAnchor.role === 'ANON' ? 'STUDENT' : probeAnchor.role
+  test.describe(`第 14 项② 取证 · ${probeAnchor.role}`, () => {
+    test.use({ storageState: storagePathFor(probeRole) })
+    test(`${slug}：桩换成 data: [] 后的读数（只报观察，不据此定性）`, async ({ page }) => {
+      const pageErrors: string[] = []
+      page.on('pageerror', (err) => pageErrors.push(String(err && err.message ? err.message : err)))
+      const target = await resolvePath(page, probeAnchor)
+      const wantPathname = new URL(target, 'http://localhost').pathname
+      await setTheme(page, 'light')
+      const stub = await stubApiToEmpty(page, slug, 'emptyArray')
+      await freezeClock(page)
+      await page.goto(target)
+      await settlePage(page)
+
+      const pathNow = await page.evaluate(() => location.pathname)
+      const probe = await probeRenderShape(page)
+      let genericReasons: string[] = []
+      try {
+        await assertGenericGuards(page, probeAnchor, 'light')
+      } catch (e) {
+        genericReasons = (e as Error).message
+          .split('\n')
+          .map((l) => l.trim())
+          .filter((l) => l !== '')
+      }
+      // 取证有效性——这两条不成立时下面那行读数没有意义（它们不是对产品的主张）
+      expect(stub.served.length, `${slug}：桩命中 0 个请求 ⇒ 这次对照根本没做成`).toBeGreaterThan(0)
+      expect(pathNow, `${slug}：落在 ${pathNow} 而不是 ${wantPathname} ⇒ 对照的页不是同一页`).toBe(
+        wantPathname,
+      )
+      console.log(
+        `[取证 14②] ${slug} 桩体 data=[] ⇒ data-theme="${probe.theme}"（回到 light 了吗：` +
+          `${probe.theme === 'light' ? '回来了' : '没回来'}）· #app>*=${probe.appChildCount} · .app=${probe.appCount} · ` +
+          `.topbar=${probe.topbarCount > 0 ? '在场' : '不在场'} · pageerror=${pageErrors.length}` +
+          (pageErrors.length > 0 ? `（${pageErrors.join(' ｜ ')}）` : '') +
+          ` · 桩命中 ${stub.served.length} 请求（端点 ${JSON.stringify([...new Set(stub.served)])}）· 通用守卫理由 ${genericReasons.length} 条`,
+      )
+      for (const [i, r] of genericReasons.entries()) {
+        console.log(`         [取证 14②·理由 ${i + 1}] ${r}`)
+      }
+      console.log(
+        `         [取证 14②·对照] 同格 data:null 那一态的读数见上一条矩阵用例的 [取证 14①] 行；` +
+          `两态是否同形只由这两行 stdout 判定，本棒**不写结论**（定性归控制器，spec §11.4 未定性那条）。`,
+      )
+    })
+  })
+}
+
+/**
  * 那次事故的**逐字复现**（spec §6.14 点名的就是这一页）：
  * 后端瞬时失败让 teacher-dashboard 渲染成空态，而 .error-boundary 计数 0、#app 非空、
  * URL 未被改写、data-theme 也对——四条通用守卫全过。
@@ -868,15 +968,24 @@ test.describe('事故复现 · TEACHER 会话', () => {
     await freezeClock(page)
     await page.goto('/teacher/dashboard')
     await settlePage(page)
-    await assertGenericGuards(page, ANCHORS.find((a) => a.slug === 'teacher-dashboard')!, 'light')
+    await assertGenericGuards(
+      page,
+      ANCHORS.find((a) => a.slug === 'teacher-dashboard')!,
+      'light',
+    )
     let threw = ''
     try {
       await assertAnchorArrival(page, 'teacher-dashboard')
     } catch (e) {
       threw = (e as Error).message
     }
-    expect(threw, '四条通用守卫都过的空态，专属断言也必须拦得住——这条红了就是那次事故重演').not.toBe('')
-    console.log(`[falsify] teacher-dashboard 复现成功：通用守卫绿 + 专属断言红（${threw.split('\n')[0]}）`)
+    expect(
+      threw,
+      '四条通用守卫都过的空态，专属断言也必须拦得住——这条红了就是那次事故重演',
+    ).not.toBe('')
+    console.log(
+      `[falsify] teacher-dashboard 复现成功：通用守卫绿 + 专属断言红（${threw.split('\n')[0]}）`,
+    )
   })
 })
 
@@ -909,10 +1018,18 @@ test.describe('空态守卫可证伪 · ADMIN（系统设置）', () => {
     // 这一半是本用例的主张，必须断言而不是打印：落到 /login 的话 onSelf 也非空，
     // 所以先由 assertGenericGuards 确认真到了这一页，再让 onSelf 绿。
     await assertGenericGuards(page, anchor, 'light')
-    expect(onSelf, '接口打空后 admin-system-form 的断言变红了——"本页画面不随接口变"这句已失效，需重测').toBe('')
-    console.log(`[falsify] admin-system-form 接口打空后自己的断言=绿（= 本页画面不随接口变，见本用例说明）`)
+    expect(
+      onSelf,
+      '接口打空后 admin-system-form 的断言变红了——"本页画面不随接口变"这句已失效，需重测',
+    ).toBe('')
+    console.log(
+      `[falsify] admin-system-form 接口打空后自己的断言=绿（= 本页画面不随接口变，见本用例说明）`,
+    )
 
-    const anon = await page.context().browser()!.newContext({ baseURL: process.env.PW_BASE_URL ?? 'http://localhost:5175' })
+    const anon = await page
+      .context()
+      .browser()!
+      .newContext({ baseURL: process.env.PW_BASE_URL ?? 'http://localhost:5175' })
     const p2 = await anon.newPage()
     await p2.goto('/login')
     await p2.waitForLoadState('networkidle')
