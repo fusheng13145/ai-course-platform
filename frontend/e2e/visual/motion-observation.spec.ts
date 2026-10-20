@@ -32,7 +32,12 @@ test.describe('动效观察（非基线）', () => {
   // 取顶层写法，理由：test.d.ts 注明 colorScheme/reducedMotion 这类可在用例间不同而不必重建 context。
   test.use({ storageState: storagePathFor('ADMIN'), reducedMotion: 'no-preference' })
 
-  const shots: Array<{ name: string; path: string; overlay?: 'dialog' | 'modal'; fullPage?: boolean }> = [
+  const shots: Array<{
+    name: string
+    path: string
+    overlay?: 'dialog' | 'modal'
+    fullPage?: boolean
+  }> = [
     { name: 'admin-dashboard', path: '/admin/dashboard', fullPage: true },
     { name: 'admin-courses', path: '/admin/courses' },
     { name: 'dialog-open', path: '/admin/courses', overlay: 'dialog' },
@@ -48,7 +53,9 @@ test.describe('动效观察（非基线）', () => {
       // R-T14-1 降级自证：截图之前，页面里读一次 media query。
       // `prefers-reduced-motion: reduce` 读的是 context 层的 reducedMotion，与页面时钟、与 CSS 都无关，
       // 所以它就是"config 的降级到底有没有被 test.use 覆盖掉"的直接读数。为 true ⇒ 覆盖失效、四张图全是静态图。
-      const reduce = await page.evaluate(() => matchMedia('(prefers-reduced-motion: reduce)').matches)
+      const reduce = await page.evaluate(
+        () => matchMedia('(prefers-reduced-motion: reduce)').matches,
+      )
       expect(
         reduce,
         `${shot.name}：matchMedia 仍报 reduce ⇒ config 的 contextOptions.reducedMotion='reduce' 未被覆盖，本组会全截成静态图`,
@@ -69,7 +76,10 @@ test.describe('动效观察（非基线）', () => {
         // 那块矩形、**不等稳定**，才既收窄了字节面（避开同页 v-loading 遮罩的 opacity 过渡假绿源）
         // 又留住中段像素。
         const box = await panel.boundingBox()
-        expect(box, `${shot.name}：弹层已 visible 却拿不到 boundingBox ⇒ 元素级裁剪无从下手`).not.toBeNull()
+        expect(
+          box,
+          `${shot.name}：弹层已 visible 却拿不到 boundingBox ⇒ 元素级裁剪无从下手`,
+        ).not.toBeNull()
         const clip = { x: box!.x, y: box!.y, width: box!.width, height: box!.height }
         const a = await page.screenshot({ clip })
         await page.waitForTimeout(200)
@@ -91,7 +101,10 @@ test.describe('动效观察（非基线）', () => {
         const panel = page.locator('.modal').first()
         await panel.waitFor({ state: 'visible', timeout: 10000 })
         const box = await panel.boundingBox()
-        expect(box, `${shot.name}：面板已 visible 却拿不到 boundingBox ⇒ 元素级裁剪无从下手`).not.toBeNull()
+        expect(
+          box,
+          `${shot.name}：面板已 visible 却拿不到 boundingBox ⇒ 元素级裁剪无从下手`,
+        ).not.toBeNull()
         const clip = { x: box!.x, y: box!.y, width: box!.width, height: box!.height }
 
         // R-T14-2 双拍（R-T14-7 收窄到元素级：page.screenshot({ clip }) 裁到 .modal 那块矩形，
@@ -126,7 +139,10 @@ test.describe('动效观察（非基线）', () => {
       } else {
         // 页级观察（admin-dashboard/admin-courses）：截图前已经跑过 matchMedia 自证，
         // 这里只落一张静态画面，不做双拍（双拍归 R-T14-2 的两个 overlay 用例）。
-        writeFileSync(join(MOTION_DIR, `${shot.name}.png`), await page.screenshot({ fullPage: shot.fullPage }))
+        writeFileSync(
+          join(MOTION_DIR, `${shot.name}.png`),
+          await page.screenshot({ fullPage: shot.fullPage }),
+        )
       }
     })
   }
@@ -149,7 +165,9 @@ test.describe('降级对照（故意不做 test.use 覆盖，读 config 的 redu
   // 其 @media (prefers-reduced-motion: reduce) 块把 .animate-in/.fade-in 打成 animation:none）。
   test.use({ storageState: storagePathFor('ADMIN') })
 
-  test('reduce 未被覆盖：matchMedia 命中 true 且 .animate-in 的 animationName 为 none', async ({ page }) => {
+  test('reduce 未被覆盖：matchMedia 命中 true 且 .animate-in 的 animationName 为 none', async ({
+    page,
+  }) => {
     await setTheme(page, 'light')
     await page.goto('/admin/dashboard')
     await page.waitForLoadState('networkidle')
@@ -163,7 +181,9 @@ test.describe('降级对照（故意不做 test.use 覆盖，读 config 的 redu
       }
     })
 
-    expect(q.hasAnchor, '/admin/dashboard 上没有 .animate-in ⇒ 选错载体，这条对照测了个空').toBe(true)
+    expect(q.hasAnchor, '/admin/dashboard 上没有 .animate-in ⇒ 选错载体，这条对照测了个空').toBe(
+      true,
+    )
     expect(
       q.media,
       '不写 test.use 覆盖时 matchMedia 读到 false ⇒ config 的 contextOptions.reducedMotion=reduce 根本没落到 context，全仓基线的"降级"前提是假的',
