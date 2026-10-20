@@ -201,7 +201,12 @@ describe('Modal 焦点接入的可达性前提（Task 9 Step 1）', () => {
      * setupState 正是带那个标记的，所以 `<script setup>` 的绑定从来就不挂在 instance.proxy 上。
      * ⇒ expose 一个键对这张面是**加**不是**减**；Phase 4 的迁移点不会从这里继承到
      *   "读不到别的绑定"那道闸（它们本来就只读得到 public properties）。
-     * 可翻红：把期望改成 `'function'` 即红（那才是"绑定挂在 proxy 上"的世界，即 Options API）。
+     * 两个方向的改动都实跑过，都能把本条跑红：
+     * - 在 Modal.vue 里补一句 defineExpose({ close }) ⇒ 本行报
+     *   `AssertionError: expected 'function' to be 'undefined'`（实跑 `Tests 1 failed / 104 passed (105)`）；
+     *   这条才是"绑定挂在 proxy 上"那一说法的对偶实验，比改期望值本身有意义。
+     * - 按 R-T9-2 把 defineExpose({ $el: computed(...) }) 写进 Modal ⇒ 本条上面那行
+     *   `nodeType` 断言先红，报 `AssertionError: expected 1 to be 8`（P-b 量的就是 expose 这一件事）。
      */
     expect(typeof captured!.close).toBe('undefined')
   })
@@ -224,8 +229,11 @@ describe('defineExpose 一个 $el 时会发生什么（P-c，钉在探针上）'
     expect((exposed as unknown as { nodeType?: number }).nodeType).toBe(1)
     /**
      * 怎么把这三条跑红（三种各自独立的改法，本轮都实跑过）：
-     * - 把 expose 的键改名 `$panel` ⇒ `$el` 回落内置那条锚点注释，`toBeInstanceOf(Element)` 红；
-     * - 把探针里 `ref: rootRef` 从 .pcp-panel 挪到 .pcp-overlay ⇒ identity 那条红；
+     * - 把 expose 的键改名 `$panel` ⇒ 父级读到的 `$el` 回落内置那条锚点注释，报
+     *   `AssertionError: expected Comment{ …(1) } to be an instance of Element`；本块两条用例一起红
+     *   （实跑 `Tests 2 failed / 103 passed (105)`，第二条也红，因为 wrapper.element 跟着回到注释）；
+     * - 把探针里 `ref: rootRef` 从 .pcp-panel 挪到 .pcp-overlay ⇒ 两条的 identity 都红，报
+     *   `AssertionError: expected <div class="pcp-overlay">…(1)</div> to be <div class="pcp-panel"></div>`；
      * - 把 Modal.vmodel.test.ts 的「modelValue=true 时渲染」拿去对照：Modal 若真写上这个 expose，
      *   那条会报 `expected 1 to be 8`（见 Modal.vue 的 ⚠️ 注释与台账 P0b-MODAL-04 行）。
      */
@@ -239,7 +247,8 @@ describe('defineExpose 一个 $el 时会发生什么（P-c，钉在探针上）'
     // `key in vm.$.exposed` 排在 setupState 与 vm 之前，而 VueWrapper.element 就是 this.vm.$el
     // （:7788-7790）⇒ wrapper.element 从"锚点注释"变成"面板元素"。
     // 后果（本轮实跑，把这段 expose 原样写进 Modal.vue 之后）：
-    //   src/components/ui/ = 18 failed / 82 passed（共 100），4 个文件红；
+    //   src/components/ui/ = **18 failed / 87 passed（共 105）**，4 个文件红
+    //   （Modal.vmodel 11 条全红、Modal.compat 5 红、Modal.teleport 1 红、本文件 1 红）；
     //   关闭态 rootRef 为 null ⇒ wrapper.element 是 undefined ⇒
     //   helpers/trackMount.ts:48 的 `w.element.isConnected` 抛
     //   `TypeError: Cannot read properties of undefined (reading 'isConnected')`，
@@ -331,10 +340,16 @@ describe('Modal 的焦点行为（Task 9 Step 4）', () => {
     // 焦点确实在面板内部（读屏/键盘用户不再被留在背景页里），这条用的是原语自己导出的选择器。
     expect(document.querySelector(DIALOG_FOCUSABLE_SELECTOR)).toBe(closeBtn)
     /**
-     * 怎么跑红（三选一，本轮都实跑过）：
-     * - 删掉 Modal.vue 里那句 useDialogFocus(...) ⇒ activeElement 停在 body，本条红；
-     * - 把模板上的 `ref="rootRef"` 摘掉 ⇒ 原语拿到 rootRef.value 为 null，静默 return，本条红；
-     * - 把适配器写成 computed(() => ({ $el: undefined })) ⇒ 同上，本条红。
+     * 怎么把本条跑红（三条改动本轮都实跑过，每次都是 `Tests 3 failed / 102 passed (105)`，
+     * 红的就是本块三条——它们同源于"焦点根本没进来"，所以不承诺一对一独占）：
+     * - 删掉 Modal.vue 里那句 useDialogFocus(...) ⇒ activeElement 停在 body；
+     * - 把模板上的 `ref="rootRef"` 摘掉 ⇒ 原语拿到 rootRef.value 为 null，静默 return；
+     * - 把适配器写成 computed(() => ({ $el: undefined })) ⇒ 同上，静默 return。
+     * 报错原文：AssertionError: expected <body><div data-v-app></div>... （activeElement 那两条）
+     * 与 AssertionError: expected [] to have a length of 1 but got +0（数次数那条）。
+     * ⚠️ 曾经试过的一种改法**不算**变异：把适配器写成 ({ $el: undefined as HTMLElement | undefined })
+     *   ——`<script setup>` 是 JS，那个类型断言不是可运行变异，它让文件编译失败、
+     *   vitest 报 "no tests"（编译期错误不是测试失败，不能拿它当证伪证据）。
      */
   })
 
@@ -354,11 +369,12 @@ describe('Modal 的焦点行为（Task 9 Step 4）', () => {
     expect(document.activeElement).toBe(closeBtn)
     expect(focusCalls).toHaveLength(1)
     /**
-     * 本条独有的对偶实验（其余三条用例在它都绿，所以它不是重复覆盖）：
-     * 把 Modal.vue 里那个可见性源从 `computed(() => open.value && mounted.value)` 折成
-     * `mounted`（丢掉 open 这一半）⇒ 挂载时翻 mounted 就发一次边沿，但此刻面板还没渲染、
-     * rootRef 为 null，原语静默 return；真正 false→true 时可见性没有新边沿 ⇒ 焦点永远不来，
-     * **只有本条转红**（本轮实跑：`Tests 1 failed / 99 passed (100)`）。
+     * 本条是三条里**唯一**能独占转红的那条：把 Modal.vue 里那个可见性源从
+     * `computed(() => open.value && mounted.value)` 折成 `mounted`（丢掉 open 这一半）⇒
+     * 挂载时翻 mounted 发了一次边沿，但那一刻面板还没渲染、rootRef 为 null，原语静默 return；
+     * 真正 false→true 时可见性没有新边沿 ⇒ 焦点永远不来。
+     * 本轮实跑：`Tests 1 failed / 104 passed (105)`，红的只有本条。
+     * （另外两条只把"挂载即打开"这一条路走通，看不出这条边沿，所以本条不是重复覆盖。）
      */
   })
 
@@ -377,12 +393,15 @@ describe('Modal 的焦点行为（Task 9 Step 4）', () => {
     await settle(wrapper)
     expect(focusCalls).toHaveLength(1)
     /**
-     * 本条是 R-T9-1 那条适配器的**证伪面**：把可见性源改回 brief/原语口径的 `open`
-     * （即 `useDialogFocus(dialogRef, open)`，不带 mounted）⇒ 挂载即打开永远等不到边沿
-     * （watch 没有 immediate，这是原语的时序契约），focusCalls 变成 0 ⇒ 本条与第一条一起红，
-     * 而 false→true 那条照旧绿（本轮实跑：`Tests 2 failed / 98 passed (100)`）。
-     * 反向：把 useDialogFocus(...) 调用两次 ⇒ focusCalls 变 2，**只有本条**红（另两条比的是
-     * 落点身份，不数次数）。没有这条用例的话，"删掉 mounted 这一半"这个改法不会有任何测试拦住。
+     * 两个方向的改动都能把它跑红，本轮都实跑过：
+     * - 退回 brief/原语口径的可见性源（写 `open`，丢掉 mounted 这一半）⇒ 挂载即打开永远等不到
+     *   边沿（watch 没有 immediate，那是原语的时序契约），focusCalls 停在 0；
+     *   实跑 `Tests 2 failed / 103 passed (105)`，红的是本条与第一条（落点身份），
+     *   **false→true 那条照旧绿** ⇒ 本条正是 R-T9-1 那条适配器独有的证伪面；
+     * - 把 useDialogFocus(...) 调用两次 ⇒ focusCalls 变 2，实跑 `Tests 2 failed / 103 passed (105)`，
+     *   红的是本条与 false→true 那条（两条都比次数），第一条照旧绿。
+     * 修正一处口径：本块注释初稿写过"双重接线只有本条红"，那句不实——按上面的实跑，
+     * 数次数的断言有两条（本条与 false→true 那条），所以它红两条。落点身份那条不数次数，故绿。
      */
   })
 })

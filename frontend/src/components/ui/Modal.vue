@@ -146,11 +146,12 @@ useDialogFocus(
  *    expose 路径上 0 命中），只有不成立才回落到 publicPropertiesMap —— 内置 $el 被同名键顶掉。
  * 2) 但顶掉的不只是调用方模板 ref：VTU 的 createVMProxy（vue-test-utils.cjs.js:7617-7646）把
  *    vm.$.exposed 排在 setupState 与 vm 之前，而 VueWrapper.element 就是 this.vm.$el（:7788-7790）
- *    ⇒ wrapper.element 一起跟着变。实跑后果：npx vitest run src/components/ui/ 从 100 绿变
- *    **18 failed**，因为关闭态 rootRef 为 null、内置 $el 拿不到 ⇒ wrapper.element 是 undefined ⇒
+ *    ⇒ wrapper.element 一起跟着变。实跑后果：npx vitest run src/components/ui/ 从 105 全绿变
+ *    **18 failed / 87 passed（共 105）、4 个文件红**（Modal.vmodel 11 条全红、Modal.compat 5 红、
+ *    Modal.teleport 1 红、本任务用例 1 红），因为关闭态 rootRef 为 null、内置 $el 拿不到 ⇒
+ *    wrapper.element 是 undefined ⇒
  *    helpers/trackMount.ts:48 那句 w.element.isConnected 抛 TypeError，整个 Modal 测试族的
- *    afterEach 崩掉、僵尸实例与 document keydown 监听互相污染（Modal.vmodel 11 条全红、
- *    Modal.compat 5 红、Modal.teleport 1 红）。
+ *    afterEach 崩掉、僵尸实例与 document keydown 监听互相污染。
  * 3) 让关闭态回落内置锚点（defineExpose 的 $el 写成 rootRef.value ?? inst.vnode.el，inst 取
  *    getCurrentInstance()）能把伤害收到 1 条：Modal.vmodel.test.ts 的「modelValue=true 时渲染」
  *    仍报 expected 1 to be 8 —— 那条用例钉的就是「开启态的 $el 仍是 teleport start 注释」，
