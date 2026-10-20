@@ -570,7 +570,7 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 | 12 | 完成（review clean） | `999862c..b3965a7` | — |
 | 4 | 完成 | `daa60c7..f568130` | 基线 **22/24**，缺的 2 张原因记在 LEDGER `P0a-HARNESS-01`；准出判据已据实由 24 改 22 |
 | 4b | 完成（两轮独立评审 0 Critical） | `f568130..777d9bd` | 5+2 条 Important 全部转成 4c 步骤，未丢弃 |
-| 4c → 拆为 4c-fix A/B/C | **A／B 已闭；C1 已闭、修复轮 1 在飞；C2／C3 未派** | A：`4ca2ea4..d5a44aa`（评审 Approved）；B：`f40c5e7`（**这格原先写"账内没有 B 轮复核结论"是错的**——B 轮评审正是 C 轮第 13–16 项的来源，2026-10-21 复核席独立复现后更正）；C1：`202166a`/`dee6ddc`/`fe589ab`/`b0104c6`/`91f541b`/`23a1bd6`/`82f9c0d`/`0effefd` ＋ 台账 `P0a-GUARD-02…05` | C1＝计划第 9–12 项 ＋ 两件别棒账（`.gitattributes` 注释过度声称、`useDialogFocus` 头注释那个从未量过的 64）。复核判 **Spec compliance Pass／Task quality Approved（有保留）**，留五条 Important：**全是"守卫自己还有可构造的假绿／假红通道"**——NOPIN 负向只认两种拼法（第三种旁路时四条断言全绿）、阈值扫描无反例入库＋`{...SNAPSHOT_THRESHOLDS, threshold: 0.5}` 一行即绕过＋`readdirSync` 不递归、`--update-snapshots` 门可被"把默认实参改成 `= []`"静默删掉而两条守卫都察觉不到、第 10 项守卫是三兄弟里唯一没跟上"剥注释"口径的（往块首插一行注释即假红）。⇒ **本轮最有价值的产出不是那四项落地，而是复核席把"守卫本身"当成被测对象**：其中一条（A3 旧守卫绿在历史注释上）是"存在性断言冒充内容断言"在本仓第四次现身，且这次犯它的是守卫自己。**未闭**：C2＝第 13/14 项（工单已备）、C3＝第 15 项 1184 行纯搬迁（单写者冲突最重，单独一棒）、第 16 项归控制器（LEDGER 现存 **49 处**裸行号指针）。读数：helpers 20 passed、anchors 34/2（红的两条仍是 D-1 的 `error-404` 明暗）、全量 **65 passed／2 failed**、`--list` **67 tests in 5 files**、vitest 57/606、棘轮 402 持平、台账 22 行全 9 列 |
+| 4c → 拆为 4c-fix A/B/C | **A／B 已闭；C1 已闭（含修复轮 1，五条 Important 全落）；C2／C3 未派** | A：`4ca2ea4..d5a44aa`（评审 Approved）；B：`f40c5e7`（**这格原先写"账内没有 B 轮复核结论"是错的**——B 轮评审正是 C 轮第 13–16 项的来源，2026-10-21 复核席独立复现后更正）；C1：`202166a`/`dee6ddc`/`fe589ab`/`b0104c6`/`91f541b`/`23a1bd6`/`82f9c0d`/`0effefd` ＋ 台账 `P0a-GUARD-02…05` | C1＝计划第 9–12 项 ＋ 两件别棒账（`.gitattributes` 注释过度声称、`useDialogFocus` 头注释那个从未量过的 64）。复核判 **Spec compliance Pass／Task quality Approved（有保留）**，留五条 Important：**全是"守卫自己还有可构造的假绿／假红通道"**——NOPIN 负向只认两种拼法（第三种旁路时四条断言全绿）、阈值扫描无反例入库＋`{...SNAPSHOT_THRESHOLDS, threshold: 0.5}` 一行即绕过＋`readdirSync` 不递归、`--update-snapshots` 门可被"把默认实参改成 `= []`"静默删掉而两条守卫都察觉不到、第 10 项守卫是三兄弟里唯一没跟上"剥注释"口径的（往块首插一行注释即假红）。⇒ **本轮最有价值的产出不是那四项落地，而是复核席把"守卫本身"当成被测对象**：其中一条（A3 旧守卫绿在历史注释上）是"存在性断言冒充内容断言"在本仓第四次现身，且这次犯它的是守卫自己。**未闭**：C2＝第 13/14 项（工单已备）、C3＝第 15 项 1184 行纯搬迁（单写者冲突最重，单独一棒）、第 16 项归控制器（LEDGER 现存 **49 处**裸行号指针）。读数：helpers 20 passed、anchors 34/2（红的两条仍是 D-1 的 `error-404` 明暗）、全量 **65 passed／2 failed**、`--list` **67 tests in 5 files**、vitest 57/606、棘轮 402 持平、台账 22 行全 9 列 |
 | 8 | **完成**（两轮复核都到席了） | 第 2 轮 `478c72e`/`b4821e3`/`38600e4` ＋ 控制器补钉 `2fc628d`/`eb5d38a` ＋ 第 3 轮 `78f5f0e` | scoped re-review 判 I-1…I-6 **全部 ADDRESSED**、无新增 Critical/Important，并独立跑出 10 files / 98 tests；它退回的两条 Minor 由控制器第 3 轮自修（补挂载证明 ＋ 给过期"97"读数加限定）。**R-T8-R3**：第 3 轮 16 行未再开复核席，兜底是末尾 whole-branch review |
 | 9 | **完成**（两轮复开到席；实现者撞 turn 上限、控制器接手验收） | `8218ee8`/`5f314ca`/`e268c23`/`9bda5ad`/`f00e438` ＋ 台账 `d876188` ＋ 修复 `efa4cc7`/`cb82387` | 焦点接入的**前半**（Modal 自持面板侧 `rootRef` ＋ `open && mounted` 适配器）已入库，三条可证伪焦点用例与 P-a/P-b/P-c 三条读数也入库；**`defineExpose` 那半按 R-T9-7 主动不做**（见 §11.5）。控制器自验：目录门 11 files / 105 tests、全包 165 files / 1749 tests、lint 静默、棘轮 402 持平，并**独立复跑了那条决定性变异**（写 `defineExpose` ⇒ 18 failed / 87 passed，与执行者记数逐字相符）。**尚未过任务级评审** |
 | 10A 引用计数滚动锁 | **完成**（复核到席） | `4445ef6`/`88c8ee6`/`8e03639`/`d72bab8` ＋ 必修 `98f5439` | Drawer 的内联锁抽成 `useOverlayScrollLock` 并与 Modal 共用一把计数器；复核退回三条必修（新行抄入占位词会炸 Task 15 的残留检查；三处把变异读数指向不入 git 的报告；**"13 个挂载点全被 v-if 门着"这个前提没有入库守卫** ⇒ 已补可重放配方并登记为缺口、归 Task 13） |
@@ -773,6 +773,25 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 - **R-T15-5（占位词是转录，不是等新证据）**：`P0b-GUARD-01` 那 7 处的实测值已经在 `P0b-GUARD-02`／`P0b-GUARD-03` 里，
   `P0b-DRAWER-01` 那 1 处 Task 11 修复轮当时就量过 ⇒ Task 15 照抄并给指针，**原期望值不删**；
   **不许删行蒙过，也不许换个占位词续命**（`grep` 要求无输出的正当性就在于"没有待办形状的文字"）。
+- **R-C1F-1（C1 修复轮 1 的三条残留，我裁定不再开第五轮）**：
+  ① F4 负向半边仍有那条已知假红通道（`runAnchor` 体内那行**无花括号**的 `if (recording) …`
+  一旦有人给它加花括号就会红）⇒ **不改判据**：把它收紧成"块里带 `return` 才算旧形态"是**判据口径变更**，
+  收益是消掉一条"将来才会踩"的假红，代价是可能漏掉真旧形态的变体；红话现已带行号与片段，
+  踩到的人一次就能定位。** residual 已在 `helpers.spec.ts:193` 与报告里登记，不许假装没有。**
+  ② F2 判据不认引号键（`{"threshold": 0.5}` 这类 JSON 写法）⇒ 接受，理由同上（TS spec 里不这么写）；
+  **行尾注释里的 `threshold: 0.x` 仍会假红**是**故意保留**的：剥行尾注释会把真违规一起遮掉，
+  假绿比假红贵（这是本仓一贯的取向，记在这里当判例）。
+  ③ F1 的自读负向只扫那两个消费者 ⇒ **第三份 spec 自己现读 env 无人看**这条成立，
+  归 C2 那棒扩面（F6），因为 `helpers.spec.ts` 正是 C2 要动的文件，同棒改比另起一棒便宜。
+- **R-C1F-2**：复核席 I-1（`stripCommentLines` 自己没有断言）**授权补**，归 C2 的 F5——
+  它现在被三条守卫共用（F1／F2／F4），一把被多人用的尺自己没有用例，是这轮所有"假保护"问题的**上位形状**。
+  判据：整行注释判定与"行尾注释不算注释"两种形态各钉一条，**并且**给它一条合成反例。
+- **R-C1F-3（本轮不开第 3 席，改由控制器逐条读源码复验）**：修复轮 1 五条 commit 的改动面
+  我核过只有 `frontend/e2e/visual/helpers.spec.ts` ＋ LEDGER（**没有动 `src/**`、没有动 config、
+  没有动 `__snapshots__`／`__fixtures__`**），四条新构造我逐条读实现确认（共用一把尺、递归收 `.spec.ts`、
+  内存等价复刻、定位失败即红），条数 **71** 与台账四自校我自己重跑过。
+  **代价如实记**：这一轮没有独立视角兜"实现者自证"；下一个复核席留给 C2（那里有 `data-theme=""` 取证，
+  比守卫加固更需要第二双眼睛）。判例同 R-T14-11。
 - **推送口径（2026-10-19 19:32 起的现行指令，覆盖更早节奏）**：本批次**一次都不推**，全部任务完成后由 leyon 亲自验收；
   截至 `bfb9992`，本地 `main` 比 `origin/leyon` **领先 106 个 commit**（按天：10-18 有 25、10-19 有 70、10-20 有 11）。
   验收清单以 `git log --oneline origin/leyon..HEAD` 现取，别抄这里的数。
@@ -821,7 +840,7 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 | Format | 存量红（约 108 个文件，且 CI 在跑）⇒ **禁写"lint/format 全绿"**，引用前重测 | `cd frontend && npm run format:check` |
 | Element Plus ／ Playwright 声明 | EP 已收紧为精确 **`2.14.7`**（`058b907`）；`@playwright/test` 也已于 **`428c337`** 由 `^1.62.0` 收紧为精确 **`1.63.0`**（**逐条授权**，项目主 2026-10-21 批准；其余 `^` 范围一律未动）。同步改的两处是 `package.json` 与 `package-lock.json` 的 `packages[""].devDependencies`——**lockfileVersion 3 里那格记的就是声明区间，不同步改会让 `npm ci` 报 in sync 失败** | `cd frontend && npm ls element-plus @playwright/test`（另：`npm ci --dry-run` 是同步性的判据，它不删 `node_modules`） |
 | LEDGER 列数 | 表内每一行都是 **9** | 命令见本小节末的副本（表格单元里放它会因转义而失真） |
-| 视觉基线门（弹层与 token 改动的像素面） | **该读数已不可比**：`e2e/visual/` 无 `testMatch` 限制，Task 14 的 5 条观察用例现在也被全量收走，而这条 **55 passed ／ 2 failed 是观察组存在之前（`fc7438c` 态）的数** ⇒ 引用前先数条数、别抄 55；**`--list` 实测条数 `Total: 67 tests in 5 files`**（控制器 2026-10-21 于 `0effefd` 态亲测；演进是 **64 → 66 → 67**， 64 是 `428c337` 态、66 由 4c-fix-C 第 11 项的守卫加两条、67 由第 12 项的守卫再加一条。 这条不启动浏览器也不写文件（`--list` **不执行 globalSetup**，是 4c-fix-C 实测的），是安全的先数法）。两条失败仍是 `error-404` 明暗、红在通用守卫 `data-theme=` 空值（**无一条红在像素**，见 §11.4 末条），据此得到的"10A／10B／10C 在已入库的 22 张基线上**像素中性**"结论**仍然成立**（它数的是基线格、不是总条数）；浅色 ltr 与旧手算值逐字相同是同一结论的机械面 | `cd frontend && PW_PORT=5175 npx playwright test -c playwright.visual.ts`（**前提**：8080／3306／6379 与三台引擎在听；会话一重启就要走 `start-backend.bat` 重来。**跑完必看**：这一跑会重写 `docs/visual-upgrade/evidence/P0a/motion/` 里若干张已入库观察图，须只对该目录还原，见 §11.4 新条与本小节末的动效观察组行） |
+| 视觉基线门（弹层与 token 改动的像素面） | **该读数已不可比**：`e2e/visual/` 无 `testMatch` 限制，Task 14 的 5 条观察用例现在也被全量收走，而这条 **55 passed ／ 2 failed 是观察组存在之前（`fc7438c` 态）的数** ⇒ 引用前先数条数、别抄 55；**`--list` 实测条数 `Total: 71 tests in 5 files`**（控制器 2026-10-21 于 `b8a89bc` 态亲测；演进 **64 → 66 → 67 → 71**， 64 是 `428c337` 态、66 由 4c-fix-C 第 11 项的守卫加两条、67 由第 12 项的守卫再加一条、**71 由 C1 修复轮 1 的 F1／F2／F3／F4 各净增一条**（helpers 那条用例数同步 20 → 24）。 这条不启动浏览器也不写文件（`--list` **不执行 globalSetup**，是 4c-fix-C 实测的），是安全的先数法）。两条失败仍是 `error-404` 明暗、红在通用守卫 `data-theme=` 空值（**无一条红在像素**，见 §11.4 末条），据此得到的"10A／10B／10C 在已入库的 22 张基线上**像素中性**"结论**仍然成立**（它数的是基线格、不是总条数）；浅色 ltr 与旧手算值逐字相同是同一结论的机械面 | `cd frontend && PW_PORT=5175 npx playwright test -c playwright.visual.ts`（**前提**：8080／3306／6379 与三台引擎在听；会话一重启就要走 `start-backend.bat` 重来。**跑完必看**：这一跑会重写 `docs/visual-upgrade/evidence/P0a/motion/` 里若干张已入库观察图，须只对该目录还原，见 §11.4 新条与本小节末的动效观察组行） |
 | 动效观察组（非基线，Task 14 交付） | `motion-observation` **5 passed（约 20.4s，控制器 2026-10-20 实跑）**＝4 格观察图 ＋ 1 条降级对照（未覆盖态读 `matchMedia === true` 与 `.animate-in` 的 `animationName === 'none'`，另有覆盖态正读数 `rise-in` 配对，防"基础规则与 reduce 块一起删"的退化绿）。**判据可重放、那 6 个像素文件不可重放**：三次实跑每次都脏同样 3 张（`admin-dashboard`、`dialog-open`、`dialog-open-mid`），而 `modal-open` 与 `modal-open-mid` **每次同 sha1** ⇒ "两原语无 CSS 入场动效"是可复现的真发现 | `cd frontend && PW_PORT=5175 npx playwright test -c playwright.visual.ts motion-observation`，随后 `sha1sum docs/visual-upgrade/evidence/P0a/motion/*.png` 与 `git status --short` 同看，跑完只对该图片目录 `git checkout --` 还原一次 |
 | 基线可复现前提 | 后端与引擎须在听：8080 / 3306 / 6379 / 7687 / 8001 / 8002（本会话两次实测：起初只有 MySQL 与 Redis 在听，起完 `start-backend.bat` 后六个全回）；重启只能走 `start-backend.bat` | 端口检查命令见本小节末"端口检查"代码块（管道命令不能放进表格单元，会把本行撑成 4 列——2026-10-20 实测本行就是这样，已改） |
 
