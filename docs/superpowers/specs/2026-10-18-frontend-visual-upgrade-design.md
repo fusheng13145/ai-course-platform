@@ -576,7 +576,8 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 | 10A 引用计数滚动锁 | **完成**（复核到席） | `4445ef6`/`88c8ee6`/`8e03639`/`d72bab8` ＋ 必修 `98f5439` | Drawer 的内联锁抽成 `useOverlayScrollLock` 并与 Modal 共用一把计数器；复核退回三条必修（新行抄入占位词会炸 Task 15 的残留检查；三处把变异读数指向不入 git 的报告；**"13 个挂载点全被 v-if 门着"这个前提没有入库守卫** ⇒ 已补可重放配方并登记为缺口、归 Task 13） |
 | 10B ARIA／焦点陷阱／焦点返还／`closed`／遮罩开关 | **落地；两轮复开到席，第 2 轮抓出**我**写的假对比并已改**（该轮修复未再开第三席，见 R-T10B-2） | `95f95c5`/`27eb3c6`/`4a13985`/`2c3a912` ＋ 必修 `275375c` ＋ 第 2 轮更正（未提交态见下条 commit） | 新建唯一一份 `useFocusTrap`，两原语各一行接线；Modal 抬到 Drawer 已交付的形状。**P-d 实测**：EP 2.14.7 的 `el-dialog` **确实**挂 `ElFocusTrap` ⇒ 本棒是 parity。**第 2 轮纠出两条我的失真**：① "EP 绑容器元素、不吃 `stopPropagation` 这一刀"是**假的**（它的 keydown 也绑冒泡，`focus-trap…mjs:89` 无 capture 参数）；② 我把第三个反例写成"未定位"，其实一层事件转发就找得到（`NmNoticeList.vue:15`）⇒ 少查就当保守。**边界如实兜住**：无 `focusout` 拽回、无 `focusableStack`；子节点 `stopPropagation()` 会静解除陷阱（今天全仓零命中，但没人守） |
 | 10C 写回对称／双转发／`--sh-drawer` 与 ltr 两档 | **完成**（第 1 轮复开到席，两条 Important 归正在 `11787de`） | `d79aed8`/`ba63a3a`/`3cff12a`/`900da2a` ＋ 我改错锚 `a07f5a7` ＋ 复核必修 `11787de` | Drawer 的 `close()` 收到 Modal 形状（**方向不许反**）；`NmPublishDrawer` 双转发收成一条腿；补 `--sh-drawer-ltr` 明暗两档与暗色 `--sh-drawer`（**存量缺陷、非本棒引入**）。**我派单里的两处错引被执行者与复核各自抓到一个**：`37b9414` 不是 Modal 现状的证据（定形在 `6d2379d`），`5c221c8` 更在定形**之前**、不可能"保持"它；另"没有一道门会解析 `theme.css`"半错——`format:check` 的 glob 含 `css` |
-| 13 / 14 / 15 | **未派发** | — | **Task 13 的地板值已由控制器在本会话复现，不必再猜**：剥掉 HTML 注释**与 JS 注释**后数开标签得 `el-dialog` 63 ＋ `Modal` 13 ＋ `Drawer` 2 ＋ `el-drawer` 4 ＝ **82**，含任一弹层的 `.vue` 文件数 ＝ **73** ⇒ 计划题注的 73 / 82 **精确复现**（命令见 §11.7）。我先前那句"按原始口径应是 84、护栏低两格设防"**是我算错的，收回**：原始 grep 的 65 里含**两处写在注释里的** `<el-dialog>`（`EpStatsDialog.vue`、`CourseExams.vue` 的"v-loading 不能绑在 `<el-dialog>` 上"说明），那不是弹层使用点。**剩下的真活**是把扫描键从字面量 `<el-dialog` 改成"弹层实现无关 ＋ 口径写死"，并跑破坏性自证 |
+| 13 焦点覆盖率护栏改"弹层实现无关" | **落地**（六次破坏性自证全实跑；评审在飞） | `e8d4b1f`/`076460e`/`037eb38`/`fc7438c` | 地板值由我复现（`63＋13＋2＋4＝82`、`73` 文件；我先前"应是 84"是**把注释里的 `<el-dialog>` 当使用点**算错的，已收回），护栏把扫描键换成**冻结口径 ＋ 两类义务**：`el-dialog`/`el-drawer` 要调用点接线，`ui/Modal`/`ui/Drawer` **禁止**调用点留死接线（R-T9-7 的机器化），另加**只减不增的缺口表**装 `el-drawer` 那 4 个用户（新增缺口红、修掉一条也红）。**它否证了我 §11.7 的重放命令**：`git grep -- 'src/**/*.vue'` 命中不到 `src/App.vue`（我用 `router-view` 实测证实），已按全 `.vue` 面复算，82/73 不变 |
+| 14 / 15 | **未派发** | — | Task 14（非基线动效抽检组）与 Task 15（收口）待派；Task 15 还须消掉 `P0b-GUARD-01`／`P0b-DRAWER-01` 两行占位词，并拍 §11.4 末条那个二选一 |
 | 验收包（本会话任务清单第 24 项） | 未交 | — | 形态已定：① 裁定清单含"若错代价"；② 三道门禁结论；③ LEDGER 列数自校＋实跑数字；④ **未定性的事单独列**，不混进"已完成" |
 
 ### 11.3 三道门禁的当前结论（正文在 §6，这里只给判到哪一步）
@@ -693,14 +694,14 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
   **本会话两次被上限切断**（150 turn 与 Chat 日配额），判活看产物、不看"没通知"。
 - 依赖收紧**逐条授权**，不接受顺手批量清 `^` 范围。
 
-### 11.7 事实基线与可重放命令（读数截至 `11787de`，Task 10 三棒全部落地之后）
+### 11.7 事实基线与可重放命令（读数截至 `fc7438c`，Task 10 三棒与 Task 13 全部落地之后）
 
 | 事实 | 现值 | 重放命令 |
 | --- | --- | --- |
 | 视觉阈值单一来源 | `{ threshold: 0, maxDiffPixelRatio: 0.0001 }`（1440×900 免检额 **129.6 px**） | `grep -n 'export const SNAPSHOT_THRESHOLDS' frontend/e2e/visual/visual-helpers.ts` |
 | ui 原语套件 | **13 files / 132 tests**（`d79aed8` 起；此前 13 / 127、11 / 105、10 / 98 与 97 — 旧读数一律按 commit 限定后再读） | `cd frontend && npx vitest run src/components/ui/` |
-| 全包单元测试门 | **169 files / 1790 tests 全绿**（控制器作为合入门跑，`900da2a` 态；此前 `4a13985` 是 169 / 1785、`d876188` 是 165 / 1749） | `cd frontend && npx vitest run`（**必须在 `frontend/` 里跑**：仓库根跑会得到"no tests"的假读数，本会话踩过两次、第二次是刚把这条写进本表之后当场复发的 ⇒ 靠记性不成立，命令要连着 `cd frontend &&` 一起复制） |
-| 两目录合跑门（弹层与 composable 的落地面） | **56 files / 587 tests 全绿**（`900da2a` 态；此前 `4a13985` 是 56 / 582） | `cd frontend && npx vitest run src/components/ui/ src/composables/__tests__/` |
+| 全包单元测试门 | **170 files / 1808 tests 全绿**（控制器作为合入门跑，`fc7438c` 态；历史：169/1790 ＠`900da2a`、169/1785 ＠`4a13985`、165/1749 ＠`d876188`） | `cd frontend && npx vitest run`（**必须在 `frontend/` 里跑**：仓库根跑会得到"no tests"的假读数，本会话踩过两次、第二次是刚把这条写进本表之后当场复发的 ⇒ 靠记性不成立，命令要连着 `cd frontend &&` 一起复制） |
+| 两目录合跑门（弹层与 composable 的落地面） | **57 files / 605 tests 全绿**（`fc7438c` 态；历史 56/587 ＠`900da2a`、56/582 ＠`4a13985`） | `cd frontend && npx vitest run src/components/ui/ src/composables/__tests__/` |
 | 类型棘轮 | 402 / 402 持平（只许下降） | `cd frontend && npm run typecheck:gate` |
 | Lint | 本轮静默；**只覆盖 `src/**`** | `cd frontend && npm run lint` |
 | Format | 存量红（约 108 个文件，且 CI 在跑）⇒ **禁写"lint/format 全绿"**，引用前重测 | `cd frontend && npm run format:check` |
@@ -728,7 +729,7 @@ const strip=(f)=>fs.readFileSync(f,"utf8")
   .replace(/^\s*\*.*$/gm,"");              // JS 块注释的续行
 const pats=["<el-dialog","<Modal","<Drawer","<el-drawer"];
 const all=new Set();
-for(const p of pats)for(const f of execSync(`git grep -l "${p}" -- src/**/*.vue`,{encoding:"utf8"})
+for(const p of pats)for(const f of execSync(`git grep -l "${p}" -- "*.vue"`,{encoding:"utf8"})
   .trim().split(/?
 /).filter(Boolean))all.add(f);
 const out={};for(const p of pats){out[p]=0;for(const f of all)out[p]+=strip(f).split(p).length-1;}
@@ -745,6 +746,10 @@ console.log(JSON.stringify(out));
    所以它口径下的数**本来就不是 82**；Task 13 改扫描键时要把这条口径写死在断言旁。
 ② 原始 `git grep -o "<el-dialog"` 得 65，多出的两处是**写在注释里**的说明
    （`EpStatsDialog.vue`、`CourseExams.vue` 的"v-loading 不能绑在 `<el-dialog>` 上"），不是使用点。
+③ **pathspec 的坑（Task 13 的执行者指出、我用 `router-view` 实测证实）**：`git grep … -- 'src/**/*.vue'`
+   **命中不到 `src/App.vue`**（git 的 `**/` 要求至少一层目录），而 `-- '*.vue'` 命中得到。
+   上面的读数已改用 `-- "*.vue"`。今天两条路径给出的数**相同**，只是因为 `App.vue` 恰好没有弹层标记——
+   **等值是巧合，不是等价**；护栏实际读的是 FS 遍历，所以任何"用 grep 复现护栏口径"的尝试都必须先把文件面统一。
 
 - 单元格内出现任何竖线（含转义写法）都会把该行撑成 10/11 列——`awk -F'|'` 是逐字符切分，反斜杠挡不住它。
 
@@ -754,8 +759,11 @@ console.log(JSON.stringify(out));
 
 ### 11.8 下一批次（按此顺序；每步之前先跑 §11.7 与 `git status`）
 
-1. **Task 13**（把焦点覆盖率护栏改为弹层实现无关）。地板值以计划现文为准：**73 / 82**；示例代码里抄着的
-   60 / 54 是草稿、不是取值依据；开工须重测，且 LEDGER `P0b-GUARD-01` 那行的占位词由它消。
+1. **先收 Task 13 的评审**（护栏已落地 `e8d4b1f`…`fc7438c`，六次破坏性自证入档；评审在飞）。
+   收完要做两件登记：① §6 的 Phase 4 准入门第 6 项（护栏实现无关）由它判是否可闭；
+   ② 它留下的 `el-drawer` **只减不增缺口表**要在 Task 15 的准出清单里显影（4 个用户仍未接焦点）。
+   原判据保留：**地板值以计划现文为准：73 / 82**（我已在 §11.7 给出口径与命令并复现，注意 pathspec 的坑）；
+   示例代码里抄着的 60 / 54 是草稿、不是取值依据；LEDGER `P0b-GUARD-01` 那行的占位词由它消。
    **本会话新增一条判据**：Task 9 已把 Modal 的焦点做成**组件内部自持**（`P0b-MODAL-04`），所以"扫调用点开标签
    有没有 `ref` ＋ `useDialogFocus`"这种口径从此**测不出真假**——护栏必须改成"弹层组件自身是否接了焦点"，
    否则覆盖率 100% 与零焦点覆盖可以同时为真（这正是 `P0b-MODAL-04` 必要性栏点出的那道缺口）。
