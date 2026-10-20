@@ -555,7 +555,7 @@ const EMPTY_API_FALSIFIABLE = [
  * 【值写的是**当前实测依据**（不是散文，改任何数字都要同步下面两条用例与 LEDGER）】
  * 【措辞纪律（R-C2-5）】下面每条只说"**桩给出的 `data:null` 形态下**"的行为——真后端"没有数据"的实测形态是
  *   **信封里根本没有 `data` 键**（台账 `P0a-GUARD-07` 的 S3），桩发的 `data:null` 与 `data:[]` 都不是那两页
- *   实测过的形状；所以这里绝不写"后端返回空时／页面在空数据下的行为"。
+ *   实测过的形状；所以这些结论**不许**改写成"接口自己给空值时这一页会怎样"那一类口径（那会冒充真实形状）。
  */
 const NOT_FALSIFIABLE_BY_ARRIVAL_ASSERTION: Record<string, string> = {
   'student-learning-center':
@@ -797,7 +797,7 @@ for (const role of ['STUDENT', 'TEACHER', 'ADMIN'] as const) {
         //    （那里断言的是"专属断言不红＝缺陷在场"，极性相反，别在这里把它们算回来）。
         expect(
           threw,
-          `${anchor.slug}：接口全空却过了"数据已到位"断言——这条守卫是空的（spec §6.14）`,
+          `${anchor.slug}：桩给 data:null 形态下却过了"数据已到位"断言——这条守卫是空的（spec §6.14）`,
         ).not.toBe('')
       })
     }
