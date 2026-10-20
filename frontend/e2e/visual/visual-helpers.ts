@@ -1079,6 +1079,27 @@ export const DATA_PATHS: Record<string, string[]> = {
 /** 外壳与会话类端点：把它们也打空会得到 /login 重定向或主题丢失，红得无法归因 */
 export const SHELL_KEEP_ALIVE_PATHS = ['/api/auth/', '/api/notifications/']
 
+/** 空态桩的**接管面**判据本体（R-C2-1／4c-fix-C2b 的 S1）。纯函数 ⇒ "它会不会吃掉源码模块"
+ *  能像 F5／F6 那样入库断言，不必等一次真事故来证明（helpers.spec.ts 那条守卫喂候选清单）。
+ * 【为什么要有这个名字，而不是把判据写在回调里】`page.route` 的第一个参数是 **URL 通配串**，
+ *  它的语义是"URL 里含某一段"而不是"pathname 以某一段开头"。dev server 的**源码模块请求**
+ *  `/src/api/auth.ts`（以及预打包产物 `/node_modules/.vite/deps/api.js`）都含 `/api/` 那一段，
+ *  于是 `'ALL'` 那一类不做前缀收窄的锚点会把**一个 JS 模块**也 fulfill 成一段 JSON ——
+ *  应用在自己的模块图上就断了，剩下的白屏、主题丢失、专属断言红全是下游后果。
+ *  非 `'ALL'` 锚点当时不受影响（它们要求 pathname 以 `/api/…` 开头），这正是"只有两格红"的原因。
+ * 【判据（不许放宽成"看起来像 API 就行"）】三段按序，任何一段不满足就**不接管**：
+ *  ① `pathname` 必须以 `/api/` **开头**（前缀，不是子串）——模块路径一律落在接管面之外；
+ *  ② 不在 `SHELL_KEEP_ALIVE_PATHS` 里（外壳类打空会让红无法归因到空态）；
+ *  ③ 命中该锚点 `DATA_PATHS` 的前缀，或该锚点登记为 `'ALL'`。
+ * 【接线】`anchors.spec.ts` 的 `stubApiToEmpty` 既把 route 的通配串换成**锚到 pathname 前缀的正则**，
+ *  又在回调里走本函数收窄——两道都要：前者让模块请求根本不进回调（漏改判据也不会打碎应用），
+ *  后者保留 `'ALL'` 与前缀名单的既有语义。改任何一段都要同步 helpers 那条守卫，别只改一边。 */
+export function apiStubTakesPathname(pathname: string, prefixes: readonly string[]): boolean {
+  if (!pathname.startsWith('/api/')) return false
+  if (SHELL_KEEP_ALIVE_PATHS.some((k) => pathname.startsWith(k))) return false
+  return prefixes.includes('ALL') || prefixes.some((p) => pathname.startsWith(p))
+}
+
 /* ============================================================================ *
  * R-CF1（4c-fix-C 第 9 项）：被钉载荷的**内容**断言——存在性断言不等于内容断言
  * ============================================================================ *

@@ -5,6 +5,7 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   ANCHORS,
+  apiStubTakesPathname,
   assertComparableRender,
   assertGenericGuards,
   assertAnchorArrival,
@@ -22,7 +23,6 @@ import {
   readNopinEnv,
   settlePage,
   setTheme,
-  SHELL_KEEP_ALIVE_PATHS,
   snapName,
   SNAPSHOT_THRESHOLDS,
   storagePathFor,
@@ -471,6 +471,14 @@ for (const theme of ['light', 'dark'] as ThemeName[]) {
  *      `threw` 为空 ⇒ **格子红**，读起来是"这条守卫是空的（spec §6.14）"，实际是"实验没做成"。方向完全相反。
  * 现在 ① 由"pathname 仍是该锚点的路由"拦住、② 由"命中请求数 > 0"拦住，两条都在 arrival 断言**之前**跑，
  * 所以前提不成立时报的是前提，不再让矩阵去猜。通用守卫状态仍**只报不判**（那是另一件事，见下面矩阵的 ②）。
+ * 【`served` 到底是什么清单（S1 的语义澄清，R-C2-1）】它记的是"**被本桩接管的路径**"，
+ *   不是"这一页发过的全部请求"。改前那半句差距很大：接管面按"URL 里含 /api/ 这一段"命中，
+ *   于是 dev server 的源码模块请求也进了清单，`served.length > 0` 这条前提（矩阵 ⓪，第 13 项的 B5）
+ *   能被**一个模块请求**满足——看着满足、实际那一页一个后端数据接口都没发出去，属"假命中"。
+ *   现口径：通配串已锚到 pathname 前缀（判据本体 `apiStubTakesPathname`，在 visual-helpers.ts），
+ *   进得来这份清单的按构造都是 `/api/` 开头的**数据请求** ⇒ ⓪ 重新等于"这一页的接口被打空了"。
+ *   清单里若再出现非 `/api/` 开头的一条，就是接管面又漂了，由 helpers.spec.ts 那条
+ *   「匹配面锚定在 pathname 前缀」的守卫当场红（它喂候选 URL 清单，模块后缀那两类必须被排除）。
  * 【`dataShape` 这个参数是第 14 项 ② 要的】题面要给同两格把桩从 `data: null` 换成 `data: []`，
  *   看 `data-theme` 回不回得来——回得来才立得住"壳层／页面组件不容忍 null 载荷"这个名字。
  *   缺省 `'null'` 保持上面矩阵那 9 格的现有形状不变（那是第 13 项的交付面），只有取证用例显式传 `'emptyArray'`。
@@ -485,12 +493,15 @@ async function stubApiToEmpty(
   if (!prefixes)
     throw new Error(`锚点 ${slug} 没有 DATA_PATHS 条目——空态可证伪矩阵无法收窄，先补名单`)
   const served: string[] = []
-  await page.route('**/api/**', async (route) => {
-    const u = new URL(route.request().url())
-    if (route.request().method() !== 'GET') return route.fallback()
-    if (SHELL_KEEP_ALIVE_PATHS.some((k) => u.pathname.startsWith(k))) return route.fallback()
-    const mine = prefixes.includes('ALL') || prefixes.some((p) => u.pathname.startsWith(p))
-    if (!mine) return route.fallback()
+  // 【S1／R-C2-1：接管面锚到 pathname 前缀】第一个参数换成锚定正则——它要求 `/api/` 紧跟在 host 之后，
+  // 所以 dev server 的源码模块请求（`/src/api/auth.ts`）与预打包产物（`/node_modules/.vite/deps/api.js`）
+  // 根本进不来这个回调，也就再不会被 fulfill 成一段 JSON。
+  // 回调里再走 `apiStubTakesPathname`（外壳保活与 DATA_PATHS 前缀收窄都在它里面，判据只有一份）。
+  await page.route(/^https?:\/\/[^/]+\/api\//, async (route) => {
+    const req = route.request()
+    if (req.method() !== 'GET') return route.fallback()
+    const u = new URL(req.url())
+    if (!apiStubTakesPathname(u.pathname, prefixes)) return route.fallback()
     served.push(u.pathname)
     await route.fulfill({
       status: 200,
@@ -601,6 +612,10 @@ function renderPreconditionFindings(probe: RenderProbe, pageErrors: readonly str
  *   而这一页在被打空之前**一个后端数据接口都没发出去**。所以 B5 的 `served.length > 0` 这条前提
  *   在这两格上是被一个模块请求满足的，它并不等于"这一页的接口被打空了"。本棒只把这条**报出来**
  *   （每格都打印端点清单），不改 ⓪ 那条判据——改判据属第 13 项点名的两条前提之外的口径变更，留给控制器。
+ * 【S1 之后上面那两段是**改前记录**（R-C2-1，台账 `P0a-GUARD-07`）】接管面已锚到 pathname 前缀，
+ *   模块请求从此进不了 `served` 清单；下面这张表里登记的五个读数因此是**改前**读数。
+ *   改后读数由 C2b 的 S2 重跑这两格给出（红与绿都照实报），而"这两格还算不算触发条件比事故更强"
+ *   这类**重分类**连同 7／9 计数与 spec §11.4 的措辞都归控制器——本棒不动那张表的内容。
  * 【14② 的对照结果（只报观察）】把桩体从 `data: null` 换成 `data: []` 后，这两格打出的五个读数
  *   与 `data: null` 那一态**逐字相同**（`data-theme=""`、`#app>*=0`、`.app=0`、`.topbar` 不在场、
  *   `pageerror=0`，命中的也还是那一个 dev server 模块请求）——**`data-theme` 没有回来**。
