@@ -106,6 +106,24 @@ function stripCommentLines(src: string): string {
     .join('\n')
 }
 
+/**
+ * 「谁又自读 NOPIN 那个开关」这把尺（C1 修复轮 1 的 F1／复核 I-2）。
+ * 【原先缺什么】负向半边只有两条判据：`process.env.PW_VISUAL_NOPIN`（点号）与 `process.env[NOPIN_ENV]`，
+ * 于是 `process.env["PW_VISUAL_NOPIN"]` 这种**同一件事的第三种拼法**能整条溜过去——复核席在内存里
+ * 给探针加一行这种写法，四条断言全绿而"两个消费者力度分岔"原样回来了。
+ * 【现口径】`[.\[]` 与两侧引号**都是可选**的，所以点号、裸名方括号、双引号、单引号加空格四种拼法都命中；
+ * 而另一种开关（`process.env.PW_RECORD_PAYLOADS`）与唯一合法取法（`readNopinEnv()`）都不命中。
+ * 【为什么不是"引号必选那一版"】本条最早给过 `process\.env[\[.]\s*(["']PW_VISUAL_NOPIN["']|NOPIN_ENV)`
+ * 这类写法，它把引号做成必选 ⇒ **漏掉的恰恰是原本要拦的那一种**（点号写法）。
+ * 下面那条「四种拼法」用例是这次错误的永久拦截网：想改这把尺，先在那里加拼法，别只改这里。
+ */
+const SELF_READ_NOPIN_ENV = /process\.env\s*[.\[]\s*["']?(PW_VISUAL_NOPIN|NOPIN_ENV)["']?/
+
+/** 匹配器本体：消费者守卫与 F1 那条反例用例共用**同一个**表达式，不许两边各写一把尺。 */
+function selfReadsNopinEnv(src: string): boolean {
+  return SELF_READ_NOPIN_ENV.test(src)
+}
+
 // helper 自身的测试（smoke.spec.ts 只管主题注入在页面上生效）。
 // 为什么值得单开：settlePage / freezeClock 是 24 张基线的公共依赖，它们出错的方式是
 // "每页都假红"或"每页都假绿"，比 smoke 的用例更隐蔽——上一轮的 #1/#2 两个缺陷正是
@@ -261,7 +279,10 @@ test('阈值只有一个来源：消费侧引用常量，且 e2e/visual/ 下所�
   const specs = readdirSync(dir)
     .filter((f) => f.endsWith('.spec.ts'))
     .sort()
-  expect(specs, 'e2e/visual/ 下的 spec 集合变了——本条的覆盖面跟着变，先数清楚再加文件（现 5 个）').toEqual([
+  expect(
+    specs,
+    'e2e/visual/ 下的 spec 集合变了——本条的覆盖面跟着变，先数清楚再加文件（现 5 个）',
+  ).toEqual([
     'anchors.spec.ts',
     'helpers.spec.ts',
     'motion-observation.spec.ts',
@@ -271,8 +292,15 @@ test('阈值只有一个来源：消费侧引用常量，且 e2e/visual/ 下所�
   for (const f of specs) {
     const offenders = stripCommentLines(readFileSync(join(dir, f), 'utf8'))
       .split('\n')
-      .filter((line) => /(threshold|maxDiffPixelRatio):\s*[\d.]/.test(line) && !line.includes('SNAPSHOT_THRESHOLDS'))
-    expect(offenders, `${f} 的代码面出现不引用 SNAPSHOT_THRESHOLDS 的阈值字面量——比较口径有了第二份来源（第 12 项）`).toEqual([])
+      .filter(
+        (line) =>
+          /(threshold|maxDiffPixelRatio):\s*[\d.]/.test(line) &&
+          !line.includes('SNAPSHOT_THRESHOLDS'),
+      )
+    expect(
+      offenders,
+      `${f} 的代码面出现不引用 SNAPSHOT_THRESHOLDS 的阈值字面量——比较口径有了第二份来源（第 12 项）`,
+    ).toEqual([])
   }
 })
 
@@ -293,25 +321,47 @@ test('阈值只有一个来源：消费侧引用常量，且 e2e/visual/ 下所�
  */
 test('--update-snapshots 闸门（第 12 项）：调用点是 globalSetup 第一条语句，且三种写法都拦得住', () => {
   // ① 调用点：删掉这句、或给它塞实参（生产路径就不再读 process.argv）都让本条红
-  const setupRaw = stripCommentLines(readFileSync(join(process.cwd(), 'e2e/visual/global-setup.ts'), 'utf8'))
+  const setupRaw = stripCommentLines(
+    readFileSync(join(process.cwd(), 'e2e/visual/global-setup.ts'), 'utf8'),
+  )
   expect(
     setupRaw,
     'globalSetup 的第一条语句不再是 assertUpdateSnapshotsAllowed()——这道门又回到"只有手工证明过"的状态（第 12 项）',
   ).toMatch(/export default async function globalSetup\(\) \{\s*assertUpdateSnapshotsAllowed\(\)/)
   // ② 牙：三种写法各钉一条，报错文案点名"拒绝了"
-  const base = ['/node/bin/node', '/repo/frontend/node_modules/.bin/playwright', 'test', '-c', 'playwright.visual.ts']
+  const base = [
+    '/node/bin/node',
+    '/repo/frontend/node_modules/.bin/playwright',
+    'test',
+    '-c',
+    'playwright.visual.ts',
+  ]
   const envRaw = process.env.PW_ALLOW_UPDATE_SNAPSHOTS
   try {
-    expect(() => assertUpdateSnapshotsAllowed([...base, '--update-snapshots']), '长写法没被拦——门对最常见的拼法失效').toThrow(/拒绝了 --update-snapshots/)
-    expect(() => assertUpdateSnapshotsAllowed([...base, '-u']), '短写法 -u 没被拦——只认长写法的门等于没门').toThrow(/拒绝了/)
-    expect(() => assertUpdateSnapshotsAllowed([...base, '--update']), '缩写 --update 没被拦——同上，三种写法是本闸的口径')
-      .toThrow(/拒绝了/)
+    expect(
+      () => assertUpdateSnapshotsAllowed([...base, '--update-snapshots']),
+      '长写法没被拦——门对最常见的拼法失效',
+    ).toThrow(/拒绝了 --update-snapshots/)
+    expect(
+      () => assertUpdateSnapshotsAllowed([...base, '-u']),
+      '短写法 -u 没被拦——只认长写法的门等于没门',
+    ).toThrow(/拒绝了/)
+    expect(
+      () => assertUpdateSnapshotsAllowed([...base, '--update']),
+      '缩写 --update 没被拦——同上，三种写法是本闸的口径',
+    ).toThrow(/拒绝了/)
     // 不带任何 update 旗标的正常跑测必须一声不响地过（误伤会让每一次跑测都红）
     expect(() => assertUpdateSnapshotsAllowed([...base])).not.toThrow()
     // 显式承认才放行
     process.env.PW_ALLOW_UPDATE_SNAPSHOTS = '1'
-    expect(() => assertUpdateSnapshotsAllowed([...base, '--update-snapshots']), 'PW_ALLOW_UPDATE_SNAPSHOTS=1 仍被抛——放行通道断了，只会逼人绕过这道门').not.toThrow()
-    expect(() => assertUpdateSnapshotsAllowed([...base, '-u']), '承认过的值下 -u 仍被抛——放行口径与拦的口径不一致').not.toThrow()
+    expect(
+      () => assertUpdateSnapshotsAllowed([...base, '--update-snapshots']),
+      'PW_ALLOW_UPDATE_SNAPSHOTS=1 仍被抛——放行通道断了，只会逼人绕过这道门',
+    ).not.toThrow()
+    expect(
+      () => assertUpdateSnapshotsAllowed([...base, '-u']),
+      '承认过的值下 -u 仍被抛——放行口径与拦的口径不一致',
+    ).not.toThrow()
   } finally {
     if (envRaw === undefined) delete process.env.PW_ALLOW_UPDATE_SNAPSHOTS
     else process.env.PW_ALLOW_UPDATE_SNAPSHOTS = envRaw
@@ -327,26 +377,36 @@ test('--update-snapshots 闸门（第 12 项）：调用点是 globalSetup 第�
  * 引用这个数一律写 22/24 并带原因。
  */
 const BASELINE_SHA256: Record<string, string> = {
-  'admin-courses-table-dark.png': '4fceb28bd3390934207b32576f35b7d1113d403d3f36f758d30e0992351f113d',
-  'admin-courses-table-light.png': 'a16b22e487a6390833bc115e8176d6eb6f87439e1e27c83d19a25e1b0122e517',
+  'admin-courses-table-dark.png':
+    '4fceb28bd3390934207b32576f35b7d1113d403d3f36f758d30e0992351f113d',
+  'admin-courses-table-light.png':
+    'a16b22e487a6390833bc115e8176d6eb6f87439e1e27c83d19a25e1b0122e517',
   'admin-dashboard-dark.png': 'd8162bbfaf8c40074592b4eda13bc212cd81b920727b1c03306b60265a72e985',
   'admin-dashboard-light.png': 'f97e461499d12b40345443ca8fe5ad2e9f3479f81688352021caebfe59ee2baf',
-  'admin-governance-analytics-dark.png': 'fdcf4eca3fd2a3f77789f673e882f51192283b662e35753ef36abb2bf26cde1a',
-  'admin-governance-analytics-light.png': 'd0a57821fc4ebcde8481f8a1f1f8bac35e13d99c614a2a6b37a6430e11a35ae7',
+  'admin-governance-analytics-dark.png':
+    'fdcf4eca3fd2a3f77789f673e882f51192283b662e35753ef36abb2bf26cde1a',
+  'admin-governance-analytics-light.png':
+    'd0a57821fc4ebcde8481f8a1f1f8bac35e13d99c614a2a6b37a6430e11a35ae7',
   'admin-profile-dark.png': 'd3838b8d9582abadc639792e32b80420d6446affd39fdd47f6e1faf842292ead',
   'admin-profile-light.png': '5deaacad8f257fcb651cb8a56faa35aad0e83dafdd6c2b4cffd4dd5782de1e68',
   'admin-system-form-dark.png': '5719dc5155c4c0e5171b2a44e3f35fca86fbbce8a6381fb6b1f9db784636a76a',
   'admin-system-form-light.png': 'f2924fa041f6a3a435445e337995a297808e62c2d9f3257904930127bdc35d1c',
   'login-dark.png': 'bae3de236ef5afcf99ce00a17b95011b945e6f22224982f1a90e67abb74c72e4',
   'login-light.png': 'aa253c2a88df0586be3ded71a824678f7804fe07a69ec2d4b3912238697a6b2d',
-  'student-courses-modal-dark.png': '737739917fe742e17aef3706e3ec88f0fe386c73d7fb83939891b5212f695038',
-  'student-courses-modal-light.png': 'b6a9882cdb6bf55af9a711fb0b7b4cbc83ff7e716be550ceed86fa5aa5673263',
+  'student-courses-modal-dark.png':
+    '737739917fe742e17aef3706e3ec88f0fe386c73d7fb83939891b5212f695038',
+  'student-courses-modal-light.png':
+    'b6a9882cdb6bf55af9a711fb0b7b4cbc83ff7e716be550ceed86fa5aa5673263',
   'student-dashboard-dark.png': 'f45ad39a511257101bef54cfddb12a4ab41b3867c748d4fe36913457a717b7db',
   'student-dashboard-light.png': '3b09fb5563abf9308b829875ddd13d46158ebfb06b53baf27a45353f4b1c259f',
-  'student-knowledge-graph-dark.png': '787954e0647d4cfb0bf58fc2b0b2693555d19380772c8f7ce14809693aa006aa',
-  'student-knowledge-graph-light.png': '35e7caf803ca83f70c23d2a08372019883495770b603769234fafd4bde548c84',
-  'student-learning-center-dark.png': '88cce625da003e8be1f6abf27d6d541dcac54ceb6071104a4db79805fc33e790',
-  'student-learning-center-light.png': '5ac5cda3d46030111d3358f216a05ea6838a7f86c02abb460ceb7183c7731b62',
+  'student-knowledge-graph-dark.png':
+    '787954e0647d4cfb0bf58fc2b0b2693555d19380772c8f7ce14809693aa006aa',
+  'student-knowledge-graph-light.png':
+    '35e7caf803ca83f70c23d2a08372019883495770b603769234fafd4bde548c84',
+  'student-learning-center-dark.png':
+    '88cce625da003e8be1f6abf27d6d541dcac54ceb6071104a4db79805fc33e790',
+  'student-learning-center-light.png':
+    '5ac5cda3d46030111d3358f216a05ea6838a7f86c02abb460ceb7183c7731b62',
   'teacher-dashboard-dark.png': '76be1c8a6b0333abab02e04427b2d45ef6576f45ef75c48c4a0fc020d7f8f1bf',
   'teacher-dashboard-light.png': '7f44ad35146c4ebe438814245a290b70fe448cba607ca41a68d9a57adec42a01',
 }
@@ -359,8 +419,12 @@ test('22 张已提交基线的 sha256 与入库清单一致（篡改/重生成�
   expect(onDisk.length, '基线张数变了：22 是"12 锚点 × 明暗 − error 两张（D-1 拒收）"').toBe(22)
   expect([...Object.keys(BASELINE_SHA256)].sort()).toEqual(onDisk)
   for (const f of onDisk) {
-    const digest = createHash('sha256').update(readFileSync(join(dir, f))).digest('hex')
-    expect(digest, `${f} 与入库清单不符——若这是有意的重生成，必须逐张复核后连同清单一起改`).toBe(BASELINE_SHA256[f])
+    const digest = createHash('sha256')
+      .update(readFileSync(join(dir, f)))
+      .digest('hex')
+    expect(digest, `${f} 与入库清单不符——若这是有意的重生成，必须逐张复核后连同清单一起改`).toBe(
+      BASELINE_SHA256[f],
+    )
   }
 })
 
@@ -397,7 +461,10 @@ test('每张已提交基线都是 1440×900，且免检额算式与注释里的�
 
   for (const f of Object.keys(BASELINE_SHA256).sort()) {
     const { width, height } = pngSize(join(dir, f))
-    expect(`${width}x${height}`, `${f} 的尺寸不再是 1440x900 ⇒ 免检额的分母变了（这一页真能滚？还是视口配置被动过？）`).toBe('1440x900')
+    expect(
+      `${width}x${height}`,
+      `${f} 的尺寸不再是 1440x900 ⇒ 免检额的分母变了（这一页真能滚？还是视口配置被动过？）`,
+    ).toBe('1440x900')
     expect(
       width * height * ratio,
       `${f} 自己的免检额与注释引用的 129.6 不符（w·h·r = ${width}·${height}·${ratio}）`,
@@ -411,8 +478,13 @@ test('每张已提交基线都是 1440×900，且免检额算式与注释里的�
   expect(IMAGE_PX * 0.002).toBe(2592) // 原生产配置（spec §6.12 判它作废的那一档）
 
   // ③ 方向：129.6 不是整数，"免检额 130"只是向上简写 ⇒ 计数 130 必须算红。
-  expect(Number.isInteger(IMAGE_PX * ratio), '免检额一旦变成整数，"130 px"这个简写与判据的关系就要重写').toBe(false)
-  expect(130, '130 不再大于免检额 ⇒ 注释里"免检额 130 px"那类写法全部要按新数重抄').toBeGreaterThan(IMAGE_PX * ratio)
+  expect(
+    Number.isInteger(IMAGE_PX * ratio),
+    '免检额一旦变成整数，"130 px"这个简写与判据的关系就要重写',
+  ).toBe(false)
+  expect(130, '130 不再大于免检额 ⇒ 注释里"免检额 130 px"那类写法全部要按新数重抄').toBeGreaterThan(
+    IMAGE_PX * ratio,
+  )
 })
 
 /**
@@ -443,9 +515,13 @@ test('measure-diff 的 PNG 解码与过滤类型无关（同一张图 filter0 �
   writeFileSync(a, encodePng(w, h, 2, 0))
   writeFileSync(b, encodePng(w, h, 2, 3))
   expect(md5(a)).not.toBe(md5(b)) // 两种编码的字节确实不同，否则这条用例什么都没测
-  const out = execFileSync(process.execPath, [join(process.cwd(), 'e2e/visual/tools/measure-diff.cjs'), a, b, '--json'], {
-    encoding: 'utf8',
-  })
+  const out = execFileSync(
+    process.execPath,
+    [join(process.cwd(), 'e2e/visual/tools/measure-diff.cjs'), a, b, '--json'],
+    {
+      encoding: 'utf8',
+    },
+  )
   const reading = JSON.parse(out) as { byteDiffPx: number; pixelmatchCount: number }
   expect(reading.byteDiffPx, '同一张图换了过滤类型就解成不同像素——比较器的 unfilter 有 bug').toBe(0)
   expect(reading.pixelmatchCount).toBe(0)
@@ -466,28 +542,56 @@ test('measure-diff 的 PNG 解码与过滤类型无关（同一张图 filter0 �
  */
 test('取证账本默认整格替换（不留上一轮的 skipped 残渣），只有本轮第二笔才 merge', () => {
   const key = 'login/light/inset'
-  const cell = (all: Record<string, unknown>): Record<string, unknown> => all[key] as Record<string, unknown>
+  const cell = (all: Record<string, unknown>): Record<string, unknown> =>
+    all[key] as Record<string, unknown>
 
   // 第一笔：某轮把这格判成 SKIPPED
-  const skipped = applyEvidenceWrite({}, key, { slug: 'login', theme: 'light', ladder: 'inset', skipped: true, reason: '选择器零命中，注入是空操作' })
+  const skipped = applyEvidenceWrite({}, key, {
+    slug: 'login',
+    theme: 'light',
+    ladder: 'inset',
+    skipped: true,
+    reason: '选择器零命中，注入是空操作',
+  })
   expect(cell(skipped).skipped).toBe(true)
 
   // 第二笔：另一轮同一格真量出了读数——上一轮的 skipped/reason 必须**不能**活下来
-  const fresh = applyEvidenceWrite(skipped, key, { slug: 'login', theme: 'light', ladder: 'inset', pixelmatchCount: 12, byteDiffPx: 40 })
+  const fresh = applyEvidenceWrite(skipped, key, {
+    slug: 'login',
+    theme: 'light',
+    ladder: 'inset',
+    pixelmatchCount: 12,
+    byteDiffPx: 40,
+  })
   expect(cell(fresh).pixelmatchCount, '新读数的字段没写进去').toBe(12)
-  expect(cell(fresh).skipped, '上一轮的 skipped 活到了这一轮的读数上：读账本会把量到的一格当成没量到').toBeUndefined()
+  expect(
+    cell(fresh).skipped,
+    '上一轮的 skipped 活到了这一轮的读数上：读账本会把量到的一格当成没量到',
+  ).toBeUndefined()
   expect(cell(fresh).reason).toBeUndefined()
   expect(cell(fresh).key).toBe(key)
 
   // 第三笔：**本轮**的判定笔仍必须 merge 到本轮第一笔的读数上（读数先落盘、判定后落盘是刻意的）
-  const verdict = applyEvidenceWrite(fresh, key, { verdict: '检出', detected: true, playwrightCount: 12 }, true)
-  expect(cell(verdict).pixelmatchCount, 'merge 语义丢了——判定那一笔会把本轮刚写的读数覆盖掉').toBe(12)
+  const verdict = applyEvidenceWrite(
+    fresh,
+    key,
+    { verdict: '检出', detected: true, playwrightCount: 12 },
+    true,
+  )
+  expect(cell(verdict).pixelmatchCount, 'merge 语义丢了——判定那一笔会把本轮刚写的读数覆盖掉').toBe(
+    12,
+  )
   expect(cell(verdict).verdict).toBe('检出')
   expect(cell(verdict).skipped, 'merge 只许用于本轮第二笔，别把历史残渣又带回来').toBeUndefined()
 
   // 兄弟格不受影响（替换是"这一格"的替换，不是重写整本账）
   const siblingKey = 'admin-dashboard/light/shadow'
-  const withSibling = applyEvidenceWrite(verdict, siblingKey, { slug: 'admin-dashboard', theme: 'light', ladder: 'shadow', pixelmatchCount: 55903 })
+  const withSibling = applyEvidenceWrite(verdict, siblingKey, {
+    slug: 'admin-dashboard',
+    theme: 'light',
+    ladder: 'shadow',
+    pixelmatchCount: 55903,
+  })
   expect(cell(withSibling).pixelmatchCount).toBe(12)
   expect((withSibling[siblingKey] as Record<string, unknown>).pixelmatchCount).toBe(55903)
 })
@@ -503,32 +607,83 @@ test('取证账本默认整格替换（不留上一轮的 skipped 残渣），�
  * 那句话只剩 `sensitivity.spec.ts` 里解释历史的注释，源码里已经没有了 ⇒ 它守的是已被换掉的实现，属假保护。
  * 【A3 的分工没有作废】anchors 读到"开"必须**拒绝运行**（认了这个开关会让 `assertZeroDiff` 整条消失，
  * 见 A3 与第 11 项两处注释块）；探针读到"开"才做**反向对照**。作废的只是"各自现读 env"这一件事。
- * 【本条守四件事】① 两个消费者都只能经 `readNopinEnv()` 取值；② 谁都不许再自读
- * `process.env.PW_VISUAL_NOPIN`／`process.env[NOPIN_ENV]`（**排除整行注释**：两份文件都留着解释这段历史的
- * 注释、里面就写着那个变量名，不排除会把守卫自己弄成假红）；③ anchors 的导入期抛仍在原位；
+ * 【本条守四件事】① 两个消费者都只能经 `readNopinEnv()` 取值；② 谁都不许再自读那个开关——**四种拼法
+ * 一条正则全拦**（点号、`[NOPIN_ENV]`、`["PW_VISUAL_NOPIN"]`、`[ 'PW_VISUAL_NOPIN' ]`；F1 之前只认前两种，
+ * **排除整行注释**：两份文件都留着解释这段历史的注释、里面就写着那个变量名，不排除会把守卫自己弄成假红）；
+ * ③ anchors 的导入期抛仍在原位；
  * ④ 探针那条"读到开就不装钉桩"的分支仍在原位（否则 anchors 的报错把人指向一条同样无效的命令）。
  * ⚠️ ①–④ 是**源码文本**级；行为级证据是四条导入期跑测（`--list` 不启动浏览器、不写文件）：
  * `PW_VISUAL_NOPIN=true` ⇒ anchors 与 sensitivity **都**抛（第 11 项交付物本体），
  * `=1` ⇒ anchors 抛、探针那条例向命令正常列出用例。命令与读数见报告第 11 节。
  */
 test('NOPIN 取法单一来源（第 11 项）：两个消费者只经 readNopinEnv，分工两道门仍在', () => {
-  const anchors = stripCommentLines(readFileSync(join(process.cwd(), 'e2e/visual/anchors.spec.ts'), 'utf8'))
-  const probe = stripCommentLines(readFileSync(join(process.cwd(), 'e2e/visual/sensitivity.spec.ts'), 'utf8'))
+  const anchors = stripCommentLines(
+    readFileSync(join(process.cwd(), 'e2e/visual/anchors.spec.ts'), 'utf8'),
+  )
+  const probe = stripCommentLines(
+    readFileSync(join(process.cwd(), 'e2e/visual/sensitivity.spec.ts'), 'utf8'),
+  )
   // ① 取值入口：两处都必须是共享函数，而不是各自现读
-  expect(anchors, 'anchors 又不通过 readNopinEnv() 取这个开关了——第 11 项的统一取法被绕开').toContain('readNopinEnv()')
-  expect(probe, '探针又不通过 readNopinEnv() 取这个开关了——同一道门少了一个消费者').toContain('readNopinEnv()')
-  // ② 负向半边就是本轮改掉的那个毛病本身：代码面再出现自读 env 的写法
-  expect(anchors, 'anchors 里又出现自读 process.env.PW_VISUAL_NOPIN：单一来源破了，两个消费者的力度会重新分岔').not.toMatch(/process\.env\.PW_VISUAL_NOPIN/)
-  expect(probe, '探针里又出现自读 process.env.PW_VISUAL_NOPIN：`=== 1` 那一版会让 true 与 yes 被静默忽略（第 11 项题面）').not.toMatch(/process\.env\.PW_VISUAL_NOPIN/)
-  expect(anchors, 'anchors 又改回 process.env[NOPIN_ENV] 现读——那是 A3 那一版的写法').not.toContain('process.env[NOPIN_ENV]')
-  expect(probe, '探针又改回 process.env[NOPIN_ENV] 现读').not.toContain('process.env[NOPIN_ENV]')
+  expect(
+    anchors,
+    'anchors 又不通过 readNopinEnv() 取这个开关了——第 11 项的统一取法被绕开',
+  ).toContain('readNopinEnv()')
+  expect(probe, '探针又不通过 readNopinEnv() 取这个开关了——同一道门少了一个消费者').toContain(
+    'readNopinEnv()',
+  )
+  // ② 负向半边就是本轮改掉的那个毛病本身：代码面再出现自读 env 的写法。
+  //   【F1（复核 I-2）】原先这里是**两条判据、四种拼法只认两种**（点号与 `[NOPIN_ENV]`），
+  //   方括号加引号那种写法当场溜过 ⇒ 换成 `SELF_READ_NOPIN_ENV` 一把尺，尺的本体与它的反例见上一条用例。
+  expect(
+    anchors,
+    'anchors 里又出现自读 NOPIN 开关的写法（四种拼法之一）：单一来源破了，两个消费者的力度会重新分岔',
+  ).not.toMatch(SELF_READ_NOPIN_ENV)
+  expect(
+    probe,
+    '探针里又出现自读 NOPIN 开关的写法（四种拼法之一）：`=== 1` 那一版会让 true 与 yes 被静默忽略（第 11 项题面）',
+  ).not.toMatch(SELF_READ_NOPIN_ENV)
   // ③ 分工·anchors 侧：取到"开"必须是为了在导入期抛，不是为了接受
   expect(
     anchors,
     'anchors 的 `if (readNopinEnv()) throw` 被删了——静默接受一个本套件不实现的开关 = 假反向对照（A3）',
   ).toMatch(/if \(readNopinEnv\(\)\) \{\s*throw new Error/)
   // ④ 分工·探针侧：读到"开"才做反向对照，所以那条不装钉桩的分支必须还在
-  expect(probe, '探针那边的 !nopin 分支没了——开关在探针侧不再起作用，而 anchors 的报错还把人往那儿指').toMatch(/pinPaths\?\.length && !nopin/)
+  expect(
+    probe,
+    '探针那边的 !nopin 分支没了——开关在探针侧不再起作用，而 anchors 的报错还把人往那儿指',
+  ).toMatch(/pinPaths\?\.length && !nopin/)
+})
+
+/**
+ * C1 修复轮 1 的 F1（复核 I-2）：上面那把尺**自己的反例**，入库跟着仓库跑。
+ * 【原先缺什么】负向半边原先只认两种拼法，复核席构造 `process.env["PW_VISUAL_NOPIN"]` 一条就把它旁路掉了
+ * （四条断言全绿）。"第三种写法能溜"这件事过去只有未入 git 的过程记录能证，
+ * 本条把它变成每次跑测都重做一次断言的内容。
+ * 【两侧都钉】漏拦＝静默旁路，所以四种拼法**都**必须命中；误伤＝守卫假红，所以两种合法写法**都不许**命中。
+ * 【这里为什么允许出现被禁的写法】本条喂的是**合成字符串**，不是任何 spec 的源码；
+ * 上一条用例读的只有 `anchors.spec.ts` 与 `sensitivity.spec.ts` 两个文件（`visual-helpers.ts` 里
+ * 那两处是合法定义，扩进去就误伤）。**若将来把该守卫的作用域扩到扫遍所有 spec，本文件要与
+ * `visual-helpers.ts` 同列豁免**，否则这八行合成样本会当场变成假红——这是设计，不是疏忽。
+ */
+test('自读 NOPIN 那把尺覆盖四种拼法、且不误伤两种合法写法（F1 反例入库）', () => {
+  // 命中侧：四种拼法各一条。前两条是旧守卫本来就认的，后两条是旧守卫溜过去的那一族。
+  for (const spelling of [
+    'const nopin = process.env.PW_VISUAL_NOPIN === "1"',
+    'const nopin = !!process.env[NOPIN_ENV]',
+    'const legacy = process.env["PW_VISUAL_NOPIN"] === "1" ? false : nopin',
+    "const spaced = process.env[ 'PW_VISUAL_NOPIN' ]",
+  ]) {
+    expect(selfReadsNopinEnv(spelling), `${spelling} 没被拦住——负向守卫又开了一条静默旁路`).toBe(
+      true,
+    )
+  }
+  // 不命中侧：另一个开关（录制模式）与唯一合法取法，都是本仓真实存在的写法。
+  for (const legal of [
+    'const recording = process.env.PW_RECORD_PAYLOADS === "1"',
+    'const nopin = readNopinEnv()',
+  ]) {
+    expect(selfReadsNopinEnv(legal), `${legal} 是合法写法却被拦——守卫在这里会假红`).toBe(false)
+  }
 })
 
 /**
@@ -543,9 +698,17 @@ test('parseNopinValue：三种合法语义钉死，非法值逐个断言会抛�
   expect(parseNopinValue('0'), '显式 0 必须判"关"（关掉开关的合法写法）').toBe(false)
   expect(parseNopinValue('1'), '1 必须判"开"（探针的反向对照档）').toBe(true)
   // 非法值：**每个单独一条**，钉的是"抛"这件事，不是"返回了个假值"
-  expect(() => parseNopinValue('true'), 'true 被静默读成"没开"——第 11 项题面那个分裂的原样复发').toThrow(/非法值/)
-  expect(() => parseNopinValue('yes'), 'yes 被静默读成"没开"——同上，非法值一律 fail-fast').toThrow(/非法值/)
-  expect(() => parseNopinValue('2'), '2 被静默读成"没开"——同上；1 之外的数字也算拼错的开关').toThrow(/非法值/)
+  expect(
+    () => parseNopinValue('true'),
+    'true 被静默读成"没开"——第 11 项题面那个分裂的原样复发',
+  ).toThrow(/非法值/)
+  expect(() => parseNopinValue('yes'), 'yes 被静默读成"没开"——同上，非法值一律 fail-fast').toThrow(
+    /非法值/,
+  )
+  expect(
+    () => parseNopinValue('2'),
+    '2 被静默读成"没开"——同上；1 之外的数字也算拼错的开关',
+  ).toThrow(/非法值/)
 })
 
 /**
@@ -565,7 +728,10 @@ test('readNopinEnv 的 env 面与纯函数面同一条口径（接线断言，�
     process.env.PW_VISUAL_NOPIN = '1'
     expect(readNopinEnv(), 'env 为 1 时 readNopinEnv 必须判"开"').toBe(true)
     process.env.PW_VISUAL_NOPIN = 'true'
-    expect(() => readNopinEnv(), 'env 为 true 时没抛——readNopinEnv 绕开了 parseNopinValue，单一来源名存实亡').toThrow(/非法值/)
+    expect(
+      () => readNopinEnv(),
+      'env 为 true 时没抛——readNopinEnv 绕开了 parseNopinValue，单一来源名存实亡',
+    ).toThrow(/非法值/)
   } finally {
     if (raw === undefined) delete process.env.PW_VISUAL_NOPIN
     else process.env.PW_VISUAL_NOPIN = raw
@@ -586,7 +752,9 @@ test('readNopinEnv 的 env 面与纯函数面同一条口径（接线断言，�
 test('基线日是断言不是假设：时钟日、fixture 声明日、回拨量三者必须互洽', () => {
   // ① 正向。导入期那条抛（visual-helpers.ts 的 CLOCK_DATE !== BASELINE_DAY）与本行同源，
   //   差别是这里红在 helpers，那条红在**任何**套件导入时——所以 mutation 只需手工做一次（见报告 A4）。
-  expect(CLOCK_DATE, '冻结时钟的那一天不再是基线日 ⇒ 日期锚点的 md5 判据永远不可能成立').toBe(BASELINE_DAY)
+  expect(CLOCK_DATE, '冻结时钟的那一天不再是基线日 ⇒ 日期锚点的 md5 判据永远不可能成立').toBe(
+    BASELINE_DAY,
+  )
 
   // ②③ 正向：两份入库 fixture 必须原样通过（这条就是"手改 fixture 想让 md5 对上"的拦截网）
   for (const slug of ['student-dashboard', 'admin-governance-analytics']) {
@@ -603,7 +771,9 @@ test('基线日是断言不是假设：时钟日、fixture 声明日、回拨量
   } catch (e) {
     threwDay = (e as Error).message
   }
-  expect(threwDay, 'clockDate 与 BASELINE_DAY 不符却放行了——"永久红"那个盲区又回来了').toContain('clockDate')
+  expect(threwDay, 'clockDate 与 BASELINE_DAY 不符却放行了——"永久红"那个盲区又回来了').toContain(
+    'clockDate',
+  )
 
   // ③ 反向：只挪 backshiftDays（手改 fixture 最常见的形状）也必须抛
   const badShift = { serverDateAtRecord: '2026-10-19', clockDate: BASELINE_DAY, backshiftDays: 5 }
@@ -613,7 +783,10 @@ test('基线日是断言不是假设：时钟日、fixture 声明日、回拨量
   } catch (e) {
     threwShift = (e as Error).message
   }
-  expect(threwShift, 'backshiftDays 与自身日期不符却放行了——这是"只挪 clockDate 想让 md5 对上"的那条路').toContain('backshiftDays')
+  expect(
+    threwShift,
+    'backshiftDays 与自身日期不符却放行了——这是"只挪 clockDate 想让 md5 对上"的那条路',
+  ).toContain('backshiftDays')
 
   // 顺带钉住自洽算法本身：正例的 implied 必须真等于 fixture 里那个数
   const ok = { serverDateAtRecord: '2026-10-20', clockDate: BASELINE_DAY, backshiftDays: 2 }
@@ -636,29 +809,49 @@ test('被钉载荷内容断言（R-CF1）：普查只走 data、合成反例必�
     code: 200,
     message: 'success',
     data: {
-      durationTrend: Array.from({ length: 14 }, (_, i) => ({ date: `2026-10-${String(i + 5).padStart(2, '0')}`, seconds: 0 })),
+      durationTrend: Array.from({ length: 14 }, (_, i) => ({
+        date: `2026-10-${String(i + 5).padStart(2, '0')}`,
+        seconds: 0,
+      })),
       radarData: [],
       heatmapData: [],
     },
   })
   const v = inspectPinnedPayload(trivialBody, '合成·全0')
-  expect(v.nonTrivial, '14 长序列全 seconds:0 竟被判非平凡——口径＝序列 >0 且至少一个数值非 0').toBe(false)
+  expect(v.nonTrivial, '14 长序列全 seconds:0 竟被判非平凡——口径＝序列 >0 且至少一个数值非 0').toBe(
+    false,
+  )
   expect(v.maxSeqLen).toBe(14)
   expect(v.nonZeroCount, 'data 信封上的 code:200 被当成内容了——普查必须只走 data 内部').toBe(0)
   // 正例：同样形状里给一个非 0 数值 ⇒ 非平凡；data:null（矩阵已能拦的形状）也须判平凡
-  expect(inspectPinnedPayload(JSON.stringify({ code: 200, data: [{ date: '2026-10-05', seconds: 120 }] }), '合成·有内容').nonTrivial).toBe(true)
-  expect(inspectPinnedPayload(JSON.stringify({ code: 200, data: null }), '合成·data:null').nonTrivial).toBe(false)
+  expect(
+    inspectPinnedPayload(
+      JSON.stringify({ code: 200, data: [{ date: '2026-10-05', seconds: 120 }] }),
+      '合成·有内容',
+    ).nonTrivial,
+  ).toBe(true)
+  expect(
+    inspectPinnedPayload(JSON.stringify({ code: 200, data: null }), '合成·data:null').nonTrivial,
+  ).toBe(false)
 
   // ② 合成反例：一个**不在登记表里**的钉桩锚点吃到全 0 载荷必须抛
   const synthSlug = 'synthetic-new-pin'
-  const synthAnchor = { slug: synthSlug, title: synthSlug, role: 'ADMIN', path: '/x', pinPaths: ['/api/synthetic'] } as AnchorSpec
+  const synthAnchor = {
+    slug: synthSlug,
+    title: synthSlug,
+    role: 'ADMIN',
+    path: '/x',
+    pinPaths: ['/api/synthetic'],
+  } as AnchorSpec
   const synthManifest: PinManifest = {
     slug: synthSlug,
     recordedAt: '',
     serverDateAtRecord: BASELINE_DAY,
     clockDate: BASELINE_DAY,
     backshiftDays: 0,
-    requests: { '/api/synthetic': { status: 200, contentType: 'application/json', body: trivialBody } },
+    requests: {
+      '/api/synthetic': { status: 200, contentType: 'application/json', body: trivialBody },
+    },
   }
   let threw = ''
   try {
@@ -672,7 +865,10 @@ test('被钉载荷内容断言（R-CF1）：普查只走 data、合成反例必�
   for (const slug of Object.keys(PIN_PAYLOAD_TRIVIAL_EXCUSED)) {
     const anchor = ANCHORS.find((a) => a.slug === slug)
     expect(anchor, `${slug} 在登记表里却不是已声明锚点——登记条目悬空`).toBeTruthy()
-    expect(() => assertPinnedPayloadContent(anchor!, loadPinManifest(slug)), `${slug} 已登记豁免仍被抛——豁免语义被改坏`).not.toThrow()
+    expect(
+      () => assertPinnedPayloadContent(anchor!, loadPinManifest(slug)),
+      `${slug} 已登记豁免仍被抛——豁免语义被改坏`,
+    ).not.toThrow()
   }
 
   // ④ 双向一致：当前实测全 0 的钉桩锚点集合 == 登记表集合
@@ -680,13 +876,17 @@ test('被钉载荷内容断言（R-CF1）：普查只走 data、合成反例必�
   const trivialNow = ANCHORS.filter((a) => (a.pinPaths?.length ?? 0) > 0)
     .filter((a) => {
       const m = loadPinManifest(a.slug)
-      return (a.pinPaths ?? []).some((k) => m.requests[k] && !inspectPinnedPayload(m.requests[k].body, `${a.slug}/${k}`).nonTrivial)
+      return (a.pinPaths ?? []).some(
+        (k) =>
+          m.requests[k] && !inspectPinnedPayload(m.requests[k].body, `${a.slug}/${k}`).nonTrivial,
+      )
     })
     .map((a) => a.slug)
     .sort()
-  expect(trivialNow, '登记表与实测全 0 集合漂开了（一侧变化必须同批改另一侧与 LEDGER P0a-GUARD-02）').toEqual(
-    Object.keys(PIN_PAYLOAD_TRIVIAL_EXCUSED).sort(),
-  )
+  expect(
+    trivialNow,
+    '登记表与实测全 0 集合漂开了（一侧变化必须同批改另一侧与 LEDGER P0a-GUARD-02）',
+  ).toEqual(Object.keys(PIN_PAYLOAD_TRIVIAL_EXCUSED).sort())
 })
 
 /**
@@ -704,11 +904,12 @@ test('录制模式的"已写成"与像素跳过只认 flushRecord（第 10 项�
   expect(
     anchorsRaw,
     '录制模式的跳过又不再按 flushRecord 判了——十个假"已写成"与静默跳像素会原样回来（4c-fix-C 第 10 项）',
-  ).toMatch(/if \(flushRecord\) \{\s*await flushRecord\(\)[\s\S]{0,600}?已写成[\s\S]{0,500}?return\s*\}/)
+  ).toMatch(
+    /if \(flushRecord\) \{\s*await flushRecord\(\)[\s\S]{0,600}?已写成[\s\S]{0,500}?return\s*\}/,
+  )
   // ② 旧形态（按 recording 布尔提前 return）不许回来——负向半边就是本轮改掉的那个 bug 本身
   expect(
     anchorsRaw,
     '`if (recording) {` 式提前 return 回来了：那是"12 个锚点全进、10 个什么都没写"的同型错误',
   ).not.toMatch(/if \(recording\) \{/)
 })
-
