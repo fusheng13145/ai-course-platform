@@ -19,6 +19,7 @@ import {
   loadPinManifest,
   maskOf,
   pinRandom,
+  readNopinEnv,
   settlePage,
   setTheme,
   SHELL_KEEP_ALIVE_PATHS,
@@ -51,16 +52,17 @@ const COURSE_LIST_PATH = '/student/courses'
  *   也就是说"认它"的结果是**一半随机红、一半假绿**，正是本仓要避免的那一类读数。
  * 【现在的处置】在导入期就抛：一条测试都不会跑，也不可能被读成"跑过了"。
  *   消息里给出真正该跑的那条命令（探针侧，工作目录 `frontend/`，需要后端 8080 + dev server 5175）。
- * 【`0` 与空串算"显式关掉"，放行】与探针的判据保持一致（只有 `=== '1'` 才开），
- *   其余任何非空值（`true` / `yes` / `2`…）都当"想开却没开成"来拒——静默忽略一个拼错的开关
- *   和静默忽略 `1` 是同一个毛病。
+ * 【取法在 4c-fix-C 第 11 项统一】"读到什么算开、什么算关"不再是本文件自己的一套：
+ *   `readNopinEnv()`（`visual-helpers.ts`，与 `pinShiftDays()` 同款"env 解析归 helper"的先例）定义唯一口径——
+ *   未设置 / 空串 / `0` ⇒ 关；`1` ⇒ 开；**其余值当场抛**（fail-fast）。
+ *   旧版这里曾写"0 与空串放行、其余非空都拒"，语义上与新口径一致（拒 = 抛），差别只在那道抛由
+ *   共享函数发出、探针侧从此也走同一道门——`PW_VISUAL_NOPIN=true` 在探针侧被静默忽略的那种分裂结束了。
  */
 const NOPIN_ENV = 'PW_VISUAL_NOPIN'
-const nopinRaw = process.env[NOPIN_ENV]
-if (nopinRaw !== undefined && nopinRaw !== '' && nopinRaw !== '0') {
+if (readNopinEnv()) {
   throw new Error(
-    `[口径] anchors.spec.ts 拒绝 ${NOPIN_ENV}=${nopinRaw}：这个开关**只有量程探针认**，本套件从来只走钉住那条路。\n` +
-      `  照它跑 anchors 不会给你反向对照——钉桩照装、assertZeroDiff 照绿，而你会以为关掉了。\n` +
+    `[口径] anchors.spec.ts 拒绝带 ${NOPIN_ENV}=1 运行：这个开关**只有量程探针认**，本套件从来只走钉住那条路。\n` +
+      `  照它跑 anchors 不会给你反向对照——要么钉桩照装而你以为关掉了，要么 assertZeroDiff 整个消失。\n` +
       `  反向对照（真走后端、量漂移本身）跑这条：\n` +
       `    cd frontend && PW_LADDER=noise PW_PROBE_THEME=light PW_VISUAL_NOPIN=1 \\\n` +
       `      PW_PROBE_SLUGS=student-dashboard,admin-governance-analytics PW_PORT=5175 \\\n` +

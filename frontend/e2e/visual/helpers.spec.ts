@@ -15,8 +15,10 @@ import {
   inspectPinnedPayload,
   loadPinManifest,
   maskOf,
+  parseNopinValue,
   PIN_PAYLOAD_TRIVIAL_EXCUSED,
   pngSize,
+  readNopinEnv,
   setTheme,
   settlePage,
   snapName,
@@ -85,6 +87,21 @@ function crc32(buf: Buffer): number {
 
 function md5(file: string): string {
   return createHash('md5').update(readFileSync(file)).digest('hex')
+}
+
+/**
+ * 剥掉**整行注释**（`//`、块注释起始 `/*`、块注释续行 `*`），只留代码面。
+ * 第 11 项与第 12 项的源码级负向断言都要用它：这几份 spec 里留着大量"原先错在哪"的历史注释，
+ * 里面逐字写着被禁的那个写法（如 `process.env.PW_VISUAL_NOPIN === '1'`）和 `threshold: 0` 之类的散文。
+ * 不排除注释行，负向守卫会**假红**；只排注释行而不动代码，正向断言照旧。
+ * 口径是"行首（忽略缩进）就是注释标记"，多行字符串中间的行不在此列——本仓那两个守卫的目标写法
+ * 都在行首，够用且可预测；真要扩面时改这里，别改断言。
+ */
+function stripCommentLines(src: string): string {
+  return src
+    .split('\n')
+    .filter((line) => !/^\s*(\/\/|\/\*|\*)/.test(line))
+    .join('\n')
 }
 
 // helper 自身的测试（smoke.spec.ts 只管主题注入在页面上生效）。
@@ -405,25 +422,83 @@ test('取证账本默认整格替换（不留上一轮的 skipped 残渣），�
 })
 
 /**
- * Task 4c-fix-A A3：`PW_VISUAL_NOPIN` 的**分工**必须有人守着。
- * 原先只有探针读这个开关，`anchors` 从头到尾没读过 ⇒ 照着台账/报告的 NOPIN 命令把它拼到 anchors 上的人
- * 会拿到 4 张"与基线 md5 相同"的取证图，然后得出"连真后端都不漂"——**恰好是他想做的那个反向对照的反面**。
- * 现在 anchors 在导入期直接抛（行为证明见 Task 4c-fix-A 报告）。这条断言守的是"那道抛别被删掉"：
- * 本文件的读源码断言是这仓既有的做法（见上面"阈值只有一个来源"那条），
- * 因为并发代理会把注释和守卫一起改掉（Task 4b 那次常量在飞的过程中就被改过）。
- * ⚠️ 这是**源码文本**级断言，不是行为级：行为级的那次跑测在报告里手工记了命令与输出。
+ * Task 4c-fix-A A3 → 4c-fix-C 第 11 项：`PW_VISUAL_NOPIN` 的**取法只有一个来源**，而 A3 的分工仍是两道门。
+ * 【A3 那一版为什么必须改写】A3 交付时 anchors 自己现读 env（`process.env[NOPIN_ENV]` ＋ `nopinRaw !== undefined`
+ * 那道抛），探针自己写 `=== '1'`——本文件旧断言逐字钉着那两个写法。第 11 项把取法收进 `visual-helpers.ts`
+ * 的 `readNopinEnv()` 之后，那两个写法在两个消费者里都不存在了 ⇒ 旧断言的两条 anchors 侧判据**必然红**
+ * （续棒棒 2026-10-21 实跑确认：`helpers` 由 17 passed 变 16 passed／1 failed，红在 `toContain` 那一行
+ * ——它同时是"第 11 项写完没跑过 helpers 套件"的直接证据）。
+ * 旧断言第三条（探针必须含 `process.env.PW_VISUAL_NOPIN === '1'`）改后**仍然绿，但绿在注释上**：
+ * 那句话只剩 `sensitivity.spec.ts` 里解释历史的注释，源码里已经没有了 ⇒ 它守的是已被换掉的实现，属假保护。
+ * 【A3 的分工没有作废】anchors 读到"开"必须**拒绝运行**（认了这个开关会让 `assertZeroDiff` 整条消失，
+ * 见 A3 与第 11 项两处注释块）；探针读到"开"才做**反向对照**。作废的只是"各自现读 env"这一件事。
+ * 【本条守四件事】① 两个消费者都只能经 `readNopinEnv()` 取值；② 谁都不许再自读
+ * `process.env.PW_VISUAL_NOPIN`／`process.env[NOPIN_ENV]`（**排除整行注释**：两份文件都留着解释这段历史的
+ * 注释、里面就写着那个变量名，不排除会把守卫自己弄成假红）；③ anchors 的导入期抛仍在原位；
+ * ④ 探针那条"读到开就不装钉桩"的分支仍在原位（否则 anchors 的报错把人指向一条同样无效的命令）。
+ * ⚠️ ①–④ 是**源码文本**级；行为级证据是四条导入期跑测（`--list` 不启动浏览器、不写文件）：
+ * `PW_VISUAL_NOPIN=true` ⇒ anchors 与 sensitivity **都**抛（第 11 项交付物本体），
+ * `=1` ⇒ anchors 抛、探针那条例向命令正常列出用例。命令与读数见报告第 11 节。
  */
-test('NOPIN 只有探针认：anchors 在导入期拒绝它，探针仍实现它', () => {
-  const anchors = readFileSync(join(process.cwd(), 'e2e/visual/anchors.spec.ts'), 'utf8')
-  const probe = readFileSync(join(process.cwd(), 'e2e/visual/sensitivity.spec.ts'), 'utf8')
-  // ① anchors 必须**读**这个变量——不读就是静默忽略，那正是 A3 的毛病本身
-  expect(anchors, 'anchors 又不认 PW_VISUAL_NOPIN 了：静默接受一个本套件不实现的开关 = 假反向对照').toContain('process.env[NOPIN_ENV]')
-  // ② 而且读了它必须是为了抛，不是为了接受
-  expect(anchors, 'anchors 里 PW_VISUAL_NOPIN 那道导入期抛被删了——它必须继续抛（见 Task 4c-fix-A A3）').toMatch(
-    /nopinRaw !== undefined[\s\S]{0,120}?throw new Error/,
-  )
-  // ③ 分工的另一半：探针必须**真的**实现这个开关，否则 anchors 的报错会把人指向一条同样无效的命令
-  expect(probe, '探针那边的 PW_VISUAL_NOPIN 没了，而 anchors 的报错还把人往那儿指').toContain("process.env.PW_VISUAL_NOPIN === '1'")
+test('NOPIN 取法单一来源（第 11 项）：两个消费者只经 readNopinEnv，分工两道门仍在', () => {
+  const anchors = stripCommentLines(readFileSync(join(process.cwd(), 'e2e/visual/anchors.spec.ts'), 'utf8'))
+  const probe = stripCommentLines(readFileSync(join(process.cwd(), 'e2e/visual/sensitivity.spec.ts'), 'utf8'))
+  // ① 取值入口：两处都必须是共享函数，而不是各自现读
+  expect(anchors, 'anchors 又不通过 readNopinEnv() 取这个开关了——第 11 项的统一取法被绕开').toContain('readNopinEnv()')
+  expect(probe, '探针又不通过 readNopinEnv() 取这个开关了——同一道门少了一个消费者').toContain('readNopinEnv()')
+  // ② 负向半边就是本轮改掉的那个毛病本身：代码面再出现自读 env 的写法
+  expect(anchors, 'anchors 里又出现自读 process.env.PW_VISUAL_NOPIN：单一来源破了，两个消费者的力度会重新分岔').not.toMatch(/process\.env\.PW_VISUAL_NOPIN/)
+  expect(probe, '探针里又出现自读 process.env.PW_VISUAL_NOPIN：`=== 1` 那一版会让 true 与 yes 被静默忽略（第 11 项题面）').not.toMatch(/process\.env\.PW_VISUAL_NOPIN/)
+  expect(anchors, 'anchors 又改回 process.env[NOPIN_ENV] 现读——那是 A3 那一版的写法').not.toContain('process.env[NOPIN_ENV]')
+  expect(probe, '探针又改回 process.env[NOPIN_ENV] 现读').not.toContain('process.env[NOPIN_ENV]')
+  // ③ 分工·anchors 侧：取到"开"必须是为了在导入期抛，不是为了接受
+  expect(
+    anchors,
+    'anchors 的 `if (readNopinEnv()) throw` 被删了——静默接受一个本套件不实现的开关 = 假反向对照（A3）',
+  ).toMatch(/if \(readNopinEnv\(\)\) \{\s*throw new Error/)
+  // ④ 分工·探针侧：读到"开"才做反向对照，所以那条不装钉桩的分支必须还在
+  expect(probe, '探针那边的 !nopin 分支没了——开关在探针侧不再起作用，而 anchors 的报错还把人往那儿指').toMatch(/pinPaths\?\.length && !nopin/)
+})
+
+/**
+ * 4c-fix-C 第 11 项：`parseNopinValue` 抽成纯函数的**唯一理由**就是"能被本文件直接弄红"
+ * （见 visual-helpers.ts 里那句原话）。所以这里逐个值断言，不用一条 `toBeTruthy` 糊过去——
+ * 糊过去的话，"某几个非法值被放行"这种回归正好落在盲区里，而那是 A3 清除过的那类假读数。
+ * 合法语义只有三种：未设置／空串／`0` 判关；`1` 判开；其余抛。
+ */
+test('parseNopinValue：三种合法语义钉死，非法值逐个断言会抛（第 11 项纯函数面）', () => {
+  expect(parseNopinValue(undefined), '未设置必须判"关"——这是默认交付路径').toBe(false)
+  expect(parseNopinValue(''), '空串必须判"关"（A3 那版也放行空串，语义未变）').toBe(false)
+  expect(parseNopinValue('0'), '显式 0 必须判"关"（关掉开关的合法写法）').toBe(false)
+  expect(parseNopinValue('1'), '1 必须判"开"（探针的反向对照档）').toBe(true)
+  // 非法值：**每个单独一条**，钉的是"抛"这件事，不是"返回了个假值"
+  expect(() => parseNopinValue('true'), 'true 被静默读成"没开"——第 11 项题面那个分裂的原样复发').toThrow(/非法值/)
+  expect(() => parseNopinValue('yes'), 'yes 被静默读成"没开"——同上，非法值一律 fail-fast').toThrow(/非法值/)
+  expect(() => parseNopinValue('2'), '2 被静默读成"没开"——同上；1 之外的数字也算拼错的开关').toThrow(/非法值/)
+})
+
+/**
+ * 第 11 项：`readNopinEnv()` 必须是"读 env 后走同一解析"，不许自己再判一遍。
+ * 上面那条钉解析本身，这条钉**接线**——把 `readNopinEnv` 改回 `process.env.PW_VISUAL_NOPIN === '1'`
+ * 会让这条红（而 `parseNopinValue` 的单元测试仍绿），那正是"两个消费者力度不一样"能悄悄回来的路径。
+ * 本条改的是**本进程**的 env，所以在 `finally` 里原样还原；各 spec 的取值发生在导入期（早已取完），
+ * 本文件的用例不读这个开关，所以互不影响。
+ */
+test('readNopinEnv 的 env 面与纯函数面同一条口径（接线断言，跑完原样还原 env）', () => {
+  const raw = process.env.PW_VISUAL_NOPIN
+  try {
+    delete process.env.PW_VISUAL_NOPIN
+    expect(readNopinEnv(), 'env 未设置时 readNopinEnv 必须判"关"').toBe(false)
+    process.env.PW_VISUAL_NOPIN = '0'
+    expect(readNopinEnv(), 'env 为 0 时 readNopinEnv 必须判"关"').toBe(false)
+    process.env.PW_VISUAL_NOPIN = '1'
+    expect(readNopinEnv(), 'env 为 1 时 readNopinEnv 必须判"开"').toBe(true)
+    process.env.PW_VISUAL_NOPIN = 'true'
+    expect(() => readNopinEnv(), 'env 为 true 时没抛——readNopinEnv 绕开了 parseNopinValue，单一来源名存实亡').toThrow(/非法值/)
+  } finally {
+    if (raw === undefined) delete process.env.PW_VISUAL_NOPIN
+    else process.env.PW_VISUAL_NOPIN = raw
+  }
 })
 
 /**

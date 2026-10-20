@@ -12,6 +12,7 @@ import {
   installPayloadPin,
   maskOf,
   pngSize,
+  readNopinEnv,
   setTheme,
   settlePage,
   SNAPSHOT_THRESHOLDS,
@@ -87,6 +88,17 @@ const PROBE_ANCHORS: string[] =
  * 所以暗色必须能整轮重跑，而不是在注释里断言"暗色也一样"。
  */
 const PROBE_THEME: ThemeName = process.env.PW_PROBE_THEME === 'dark' ? 'dark' : 'light'
+
+/**
+ * `PW_VISUAL_NOPIN` 的统一取法（4c-fix-C 第 11 项）。
+ * 【原先错在哪】这里曾自写 `process.env.PW_VISUAL_NOPIN === '1'`，而 anchors 那侧拒绝任何
+ * "真值但非 0/空串"的值——`PW_VISUAL_NOPIN=true` 在探针侧被**静默忽略**、钉桩照装，
+ * 与 A3 清除过的"开关被静默接受"同型，只是换了个消费者。
+ * 【现在】取法只在 `visual-helpers.ts` 的 `readNopinEnv()` 一处定义：
+ * 未设置 / 空串 / `0` ⇒ 关；`1` ⇒ 开（本探针的反向对照档）；其余值**导入期当场抛**。
+ * 放在模块作用域是为了让非法值在任何一张图截出来之前就红，而不是跑到某条用例里才炸。
+ */
+const nopin = readNopinEnv()
 
 /**
  * ladder 档。`watch`/`prop`/`settled` 是**空操作守卫**用的：
@@ -465,7 +477,7 @@ for (const slug of PROBE_ANCHORS) {
       // 那漂移会混进量程里。PW_VISUAL_NOPIN=1 是**取证用的反面对照**：
       // 用它重跑 noise 档就能重新量出漂移本身（注释里那些 618/321 就是这么重生的），
       // 但那一轮的证据文件里 pinned=false，不得当交付口径引用。
-      const nopin = process.env.PW_VISUAL_NOPIN === '1'
+      // 取法不在这里现读——`nopin` 是模块作用域那份（`readNopinEnv()`，第 11 项统一，非法值到不了这一行）。
       let pinShift = 0
       if (anchor.pinPaths?.length && !nopin) pinShift = (await installPayloadPin(page, anchor)).shiftDays
       // 这一轮走的**到底是哪条数据路径**——取证 PNG 的文件名与 probe-results.json 的 key 共用这一段标签

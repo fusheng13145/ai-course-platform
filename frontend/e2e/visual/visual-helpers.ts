@@ -1211,6 +1211,35 @@ export function assertPinnedPayloadContent(anchor: AnchorSpec, manifest: PinMani
   )
 }
 
+/* -------------------------------------------------------------------------- *
+ * 4c-fix-C 第 11 项：`PW_VISUAL_NOPIN` 的取法只有这一个函数（消费者是 anchors 与 sensitivity）
+ * -------------------------------------------------------------------------- *
+ * 【原先错在哪】两个消费者的力度不一样：anchors 拒绝任何"真值但不等于 0/空串"的值，
+ * 探针只认 `=== '1'` ⇒ `PW_VISUAL_NOPIN=true` 在**探针**侧被静默忽略、钉桩照装——
+ * 这正是 A3 要清除的"开关被静默接受"同一类毛病，只是换了个消费者。
+ * 【统一后的口径】合法值只有三种语义：未设置 / 空串 / `0` ⇒ 关；`1` ⇒ 开；
+ * **其余一律当场抛**（fail-fast），谁都不许把一个拼错的开关读成"没开"。
+ * 消费侧的差异只剩一件事（那是分工，不是取法分歧，见 A3 注释块）：
+ * anchors 读到"开"必须拒绝运行（本套件只走钉住那条路），探针读到"开"才做反向对照。
+ * 与 `pinShiftDays()` 同款先例：env 的解析与 fail-fast 归 helper，不归各 spec 各写一份。
+ */
+
+/** 纯函数：把 `PW_VISUAL_NOPIN` 的原始值解析成布尔；非法值抛。拆出来是为了能被 helpers.spec.ts 直接弄红。 */
+export function parseNopinValue(raw: string | undefined): boolean {
+  if (raw === undefined || raw === '' || raw === '0') return false
+  if (raw === '1') return true
+  throw new Error(
+    `[口径] PW_VISUAL_NOPIN=${JSON.stringify(raw)} 是非法值：只接受 未设置/空串/0（关）或 1（开）。\n` +
+      `  把一个拼错的开关静默读成"没开"正是 A3 清除过的那类假读数，两个消费者（anchors 与 sensitivity）\n` +
+      `  现在共用本函数取法，非法值一律 fail-fast（第 11 项）。`,
+  )
+}
+
+/** 读环境后走统一解析（导入期调用：非法值在任何一张图被截出来之前就抛）。 */
+export function readNopinEnv(): boolean {
+  return parseNopinValue(process.env.PW_VISUAL_NOPIN)
+}
+
 /* ============================================================================ *
  * 可比性前置：anchors 与 sensitivity 共用同一份（Task 4c Step 1g "口径共享"）
  * ============================================================================ *
