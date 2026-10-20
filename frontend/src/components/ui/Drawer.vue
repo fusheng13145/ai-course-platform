@@ -289,11 +289,13 @@ onBeforeUnmount(() => {
   left: 0;
   right: auto;
   border-radius: 0 var(--r-l1) var(--r-l1) 0;
-  /* --sh-drawer（theme.css:56）的 x 偏移是 -18px，为**右侧**抽屉写的：
-     直接沿用到 ltr，投影会跑到面板右边缘之外、贴着屏幕右侧的左边缘反而没有阴影。
-     这里按同源值把 x 取反。theme.css 里缺 --sh-drawer-ltr，而该文件不在本任务所有权内，
-     所以先就地取反并把「补 token」记入报告待办；数值与 theme.css:56 逐字同源。 */
-  box-shadow: 18px 0 56px rgba(24, 32, 48, 0.18);
+  /* 左向抽屉读左向 token。--sh-drawer 的 x 偏移是 -18px，为**右侧**抽屉写的：直接沿用到 ltr，
+     投影会跑到面板右边缘之外、贴着屏幕右侧的那条左边缘反而没有阴影。
+     Task 10C 起 theme.css 两向各有档位（且明暗两套都给了值），所以这里读 token、不再手算反号
+     ——此前是组件内写死一份与 theme.css 同源的字面量，两处各存一份、缺一处就漂移。
+     浅色侧读数与手算版逐字相同（18px 0 56px rgba(24, 32, 48, 0.18)）⇒ 浅色像素不变；
+     变化只在暗色：ltr 现在拿到暗色档位，不再继承浅色那枚蓝灰投影。 */
+  box-shadow: var(--sh-drawer-ltr);
 }
 .drawer-head {
   padding: 16px 22px;
