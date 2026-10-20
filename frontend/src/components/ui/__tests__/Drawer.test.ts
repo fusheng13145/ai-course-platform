@@ -299,16 +299,51 @@ describe('Drawer — 关闭通道', () => {
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
   })
 
-  it('非受控调用点（不传 modelValue）只 emit close，不发 update:modelValue', async () => {
-    // Minor-3 选的契约 = 照搬 Modal 的两条腿：close 恒发（RagDocs.vue:90 只 @close），
-    // update:modelValue 只在真的受控（modelValue===true）时回写。
-    // 变异「close() 无条件发两条」会把这条打红（那正是改动前的写法，也是给非受控调用点
-    // 发没人听的事件那一种噪声）。
+  it('不传 modelValue 时关闭按钮也写回 update:modelValue(false)（Task 10C 写回对称，取代 Minor-3 旧契约）', async () => {
+    // 这条用例改前断言的是**相反**的行为（「close 恒发、update:modelValue 只在 modelValue===true
+    // 时发」），而那正是 Modal 与 Drawer 的形状差——Modal 的门卫是派生值 open（Modal.vue 的 close()），
+    // 三态里 undefined 与 true 都是「开」，所以 Modal 在 undefined 下同样双发。
+    // Task 10C 按裁定把 Drawer 收到 Modal 那一套（**不反改 Modal**：Task 6/7 的兼容钉住的是 Modal 形状）。
+    // ⇒ 本条从此与 Modal.vmodel.test.ts 的「不传 modelValue 时关闭同样双发」同判，两条一起构成对称面。
+    // 非受控调用点因此多收一个没人监听的 update:modelValue(false)——Vue 里无害，与 Modal 的 13 个存量点同一处置。
     const { wrapper } = factory({}, { default: '<div class="probe">x</div>' })
     await settle(wrapper)
     fire(document.body.querySelector('.drawer-head .t-icon-btn'), 'click')
     expect(wrapper.emitted('close')).toHaveLength(1)
-    expect(wrapper.emitted('update:modelValue')).toBeUndefined()
+    expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
+  })
+
+  it('不传 modelValue 时按遮罩同样双发（三条入口里的手势入口）', async () => {
+    // 与上一条分开的理由：onOverlay 走的是另一条调用路径（Drawer.vue 的 onOverlay → close()），
+    // 三条入口各自有一条红面，任何一条被改成"只发 close"时只有它自己红。
+    const { wrapper } = factory({ modelValue: undefined })
+    await settle(wrapper)
+    fire(document.body.querySelector('.drawer-overlay'), 'mousedown')
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
+  })
+
+  it('不传 modelValue 时按 Esc 同样双发（三条入口里的键盘入口）', async () => {
+    const { wrapper } = factory({ modelValue: undefined })
+    await settle(wrapper)
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await settle(wrapper)
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
+  })
+
+  it('显式传 undefined（v-model 绑空 ref 的形状）关闭时同样双发', async () => {
+    // 与上面三条的区别不是吹毛求疵：「不传」走 Boolean prop 的 isAbsent 分支、
+    // 「显式 undefined」走 default=undefined，两条路都让 props.modelValue === undefined，
+    // 但 Phase 4 的 `v-model="visible"` 里 visible 是 ref<boolean|undefined>() 时命中的是后者。
+    // Modal 侧同形状的钉子是 Modal.vmodel.test.ts 的「v-model 绑 ref<boolean|undefined>()… 能被关闭」
+    // （评审 M-1 的原始事故形状：渲染得出、关不掉）。
+    const { wrapper } = factory({ modelValue: undefined })
+    await settle(wrapper)
+    expect(panel()).not.toBeNull()
+    fire(document.body.querySelector('.drawer-head .t-icon-btn'), 'click')
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
   })
 
   it('两个抽屉叠着开：一次 Esc 两个都关（钉住现状，不是背书这个行为）', async () => {

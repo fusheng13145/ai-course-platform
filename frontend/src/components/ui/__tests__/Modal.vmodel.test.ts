@@ -151,6 +151,26 @@ describe('Modal v-model 通道', () => {
     expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
   })
 
+  // 下面两条是 Task 10C 的**对称面**：上面已钉「不传 modelValue 时关闭按钮双发」，
+  // 这里把另外两条入口（Esc、遮罩）在同一形状（modelValue: undefined）下也钉上。
+  // 这两条在 10C 开工当天就是**绿的**——它们记的是 Modal 既有形状，作用是给 Drawer 的
+  // 对齐目标一个入库参照（Drawer.test.ts 的「写回对称」三条与这四条一一对应）。
+  it('不传 modelValue 时按 Esc 同样双发（10C 对称面：Modal 侧今日即绿）', async () => {
+    const wrapper = factory({ modelValue: undefined })
+    expect(document.body.querySelector('.overlay')).not.toBeNull()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await wrapper.vm.$nextTick()
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
+  })
+
+  it('不传 modelValue 时按遮罩 mousedown 同样双发（10C 对称面：Modal 侧今日即绿）', async () => {
+    const wrapper = factory({ modelValue: undefined })
+    await fireOn('.overlay', 'mousedown')
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    expect(wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
+  })
+
   it('关闭态（modelValue:false）按 Esc 什么都不 emit', async () => {
     // 评审 I-1：`v-if` 只摘子树、不销毁实例，keydown 监听整个挂载期常驻 document。
     // 不加 open 门卫时，这条必红（旧实现照发 close）；compat 的 `Esc emit close` 钉只测

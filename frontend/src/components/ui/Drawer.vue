@@ -83,20 +83,35 @@ const overlayAttrs = computed(() => {
 const isWide = computed(() => attrs.wide === '' || attrs.wide === true)
 
 /**
- * 关闭契约 = Modal 的那一条，逐字照搬（Modal.vue 的 close()：`close` 恒发，
- * `update:modelValue` 只在调用点真的受控时发）。选它而不是自创一条的理由：
- * 本任务的章程就是「两原语一套通道，Phase 4 只写一套迁移规则」，
- * 而 `close`/`update:modelValue` 各自的受众在存量调用点里都真实存在
- * （`RagDocs.vue:90` 只听 `close`；`NmPublishDrawer.vue:5-6` 两条都听；
- * Phase 4 要收的 4 个 el-drawer 里 3 个用 `:model-value` + `@update:model-value`）。
- * 被砍掉的只有一种噪声：非受控调用点收到没人听的 `update:modelValue(false)`。
- * 残留：受控形态下两条腿同时发，经 `NmPublishDrawer.vue:5-6` 的双转发会让页面收到两次
- * 相同的 `update:modelValue(false)`——那是业务页的转发形状（不在本任务所有权内），
- * 状态层面幂等（`drawerOpen` 第二次写入不触发，已由该用例量出来），故保留契约不动。
+ * 关闭契约 = Modal 的那一条，逐字对齐（Task 10C 写回对称，R-B）。两边同一个形状：
+ * 门卫取派生值 `open`（三态里 `undefined` 与 `true` 都是「开」，只有 `false` 是「关」），
+ * 门后 `close` 与 `update:modelValue(false)` **无条件成对发出**。
+ *
+ * 改动前这里是 `emit('close')` + `if (props.modelValue === true) emit('update:modelValue', false)`
+ * ——`=== true` 那道闸让「不传 modelValue」的调用点关得掉 Modal、**关不掉 Drawer**
+ * （`@close` 发得出，但 `update:modelValue` 不写回）。Phase 4 要批量写 `v-model="visible"`，
+ * 两原语对同一个绑定表现不同 ⇒ 排查得按页做而不是按原语做一次。
+ *
+ * **方向是单向的**：收 Drawer 到 Modal，不反改 Modal——Task 6/7 的兼容钉住的是 Modal 的形状
+ * （`git show 37b9414:frontend/src/components/ui/Modal.vue` 的 close() 就是这个形状，
+ * 且 Modal.vmodel.test.ts 有「门卫是 open，不是 modelValue===true」的既有红面）。
+ *
+ * 代价与 Modal 侧同判：非受控调用点（`RagDocs.vue` 的 `v-if` + `@close` 那一型，只听 `close`）
+ * 多收一个没人监听的 `update:modelValue(false)`——Vue 里无害。受控调用点上两条腿成对发出，
+ * 所以业务页只该转发一条腿（v-model 语义下的 `update:modelValue`）；两条腿都往父级转发，
+ * 一次关闭就会发两次写回。
+ *
+ * ⚠️ 那道 `open` 闸在 Drawer 这边**今天没有红面**（不是我有遗漏，是三条入口都在源头挡住了）：
+ * 关闭按钮与遮罩都在 `v-if="open"` 之内，Esc 由下面的 `bindEsc(on)` 只在打开期间挂。实测删掉这一行
+ * 跑 `npx vitest run src/components/ui/` 是 132 条一条不红；保留它只为与 Modal 逐字同形——
+ * 同样那行在 Modal 里是**承重的**（Modal 的 keydown 常驻整个挂载期、`v-if` 不销毁实例，
+ * 关闭态 Esc 哑火那条就是它的红面）。谁把 Drawer 的 Esc 改成常驻挂载，这条闸立刻变成承重，
+ * 届时应同步补一条「关闭态按 Esc 什么都不发」的对称红面（现在那条钉的是"监听没挂"，不是这道闸）。
  */
 function close() {
+  if (!open.value) return
   emit('close')
-  if (props.modelValue === true) emit('update:modelValue', false)
+  emit('update:modelValue', false)
 }
 
 function onEsc(e) {
