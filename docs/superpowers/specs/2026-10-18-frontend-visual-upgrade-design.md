@@ -536,3 +536,144 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
   - 基线快照：`frontend/e2e/visual/__snapshots__/`
   - 批次登记：`docs/项目手册.md` 附录 D **DR-94**；D2-8 措辞改写见 §8
   - **不新建** README、实施参考、任务分解等配套文件；实施计划走 `superpowers:writing-plans` 的产物路径。
+  - 会话对接快照**写进本文 §11**（同一份文档的最后一节），不另开 HANDOFF/进度类文件；状态只允许更新 §11，
+    不得把状态写回 §1–§10（那十节是判据，判据被状态污染就没法是"约束权威"了）。
+
+---
+
+## 11. 对接快照（新会话先读这一节）
+
+- 截至 commit **`eb5d38a`**（2026-10-20 本会话末态）。本节只记**状态、未闭合项与纪律**；
+  凡判据原文一律指回 §1–§10 或 LEDGER 行 ID，不复述、不改写。
+- 所有数值都带"截至某 commit"的限定。**引用前先跑 §11.7 的命令**——本项目已有读数漂移前科（§2 前言）。
+
+### 11.1 读序（照这个顺序，五分钟内能接上）
+
+1. 本节（状态与缺口）→ 2. §1（需求原话与四轮加码＝不可协商项）→ 3. §6（验收标准；第 12、15、16、17 条是三道门禁的正文）
+4. `docs/visual-upgrade/LEDGER.md`（唯一台账表，每行 9 栏；**行 ID 是唯一可引用的坐标，行号不是**）
+5. `docs/visual-upgrade/evidence/phase0-measurements.md`（读数转录，每节标注了"可重生成 / 不可重生成"）
+6. `docs/superpowers/plans/2026-10-18-frontend-visual-phase0.md`（18 个 `### Task` 标题，执行载体）
+7. `.superpowers/sdd/2026-10-18-frontend-visual-phase0/progress.md`（SDD 过程账：派发、复核、裁定逐条）
+   —— **该目录被 git 忽略**，`git clean -fdx` 会毁掉它。承重裁定已全部回写进 §/LEDGER，别把它当唯一副本。
+
+### 11.2 Phase 0 任务状态（结论列照 §5 的三问口径，不自行加判据）
+
+| Task | 结论 | commit 锚 | 未闭合的部分 |
+| --- | --- | --- | --- |
+| 1 | 完成（1 轮修复后 Approved，9 项 finding） | 过程账有两条 complete 行且**起点对不齐**（`072743b..9c73f65` 与 `08b6676..9c73f65`）⇒ 别抄，用 `git log --oneline -- frontend/playwright.visual.ts` 现取 | — |
+| 2 | 完成（Approved，0 Critical/Important） | `9c73f65..4a9a70c` | — |
+| 3 | 完成（Approved） | `4a9a70c..daa60c7` | — |
+| 5 | 完成（Needs fixes → `cdcb304` 修复 ＋ `84b3551` 证据可 pin 化，2 Critical 全闭） | `34181db..84b3551` | — |
+| 6 | 完成（1 轮修复后 clean） | `f702400..cb909c4` | 3 条非阻塞遗留全部转进 Task 8 Step 3b |
+| 7 | 完成（复核 6 项全 ADDRESSED） | `2b01f9a..6d2379d` | 1 条新 Minor 转 Task 8 Step 3b 第 0 条 |
+| 11 | 完成（修复轮复核 6 项全 ADDRESSED、无新增 Critical/Important） | `999862c` ＋ `8b827aa` | 焦点陷阱本身按 R-1 留给 Task 10；**LEDGER `P0b-DRAWER-01` 仍写着"待回填（由 Task 11 修复轮替换）"而未消**（见 §11.4 末条） |
+| 12 | 完成（review clean） | `999862c..b3965a7` | — |
+| 4 | 完成 | `daa60c7..f568130` | 基线 **22/24**，缺的 2 张原因记在 LEDGER `P0a-HARNESS-01`；准出判据已据实由 24 改 22 |
+| 4b | 完成（两轮独立评审 0 Critical） | `f568130..777d9bd` | 5+2 条 Important 全部转成 4c 步骤，未丢弃 |
+| 4c → 拆为 4c-fix A/B/C | **未闭** | A：`4ca2ea4..d5a44aa`（评审 Approved） | B 轮已落地并交出 B5 逐锚实测，但**账内没有 B 轮复核结论**；C 轮 8 项（编号 9–16）未派，含 `data-theme=""` 三步取证、`PW_VISUAL_NOPIN` 语义统一、单一来源清扫加 `--update-snapshots` 门测、`visual-helpers.ts` 纯搬迁拆分、`smoke.spec.ts` 与 `global-setup.ts` 残留的 5 处行号引用 |
+| 8 | **落地但未复核** | 第 2 轮 `478c72e`/`b4821e3`/`38600e4` ＋ 控制器补钉 `2fc628d`/`eb5d38a` | scoped re-review 代理**被 Chat 日配额切断**（19 次工具调用、880 s 后中断），未产出任何复核结论。修复轮计数停在 2/5 |
+| 9 / 10 / 13 / 14 / 15 | **未派发** | — | Task 9 的 brief 已抽好，派单前三条实测已记进 §11.5 的 R-T9-1/2/3 |
+| 验收包（本会话任务清单第 24 项） | 未交 | — | 形态已定：① 裁定清单含"若错代价"；② 三道门禁结论；③ LEDGER 列数自校＋实跑数字；④ **未定性的事单独列**，不混进"已完成" |
+
+### 11.3 三道门禁的当前结论（正文在 §6，这里只给判到哪一步）
+
+- **Phase 1（token 层）**：**带条件放行**，见 §6 第 15 条四条件（含 Step 1g 前置）。不是无条件 GO。
+- **Phase 2（阴影/层次）**：**准入门＝非像素判据**。`e46416a` 把这条恢复回原判据——我曾判"1.5× 余量、可降级为
+  hardening"，被几何上限表推翻（比值区间 0.46×–2.71×，见 §2.6 与 LEDGER `P0b-MODAL-01`）。
+- **Phase 4（结构收敛 65 处 `el-dialog`）**：准入门 6 项中 **5 项未闭**（清单见计划 Phase 4 gate 节；
+  第 2 项已按"迁移时点"收窄，不是全站静态计数）。
+
+### 11.4 未爆缺陷与未定性项（不要把"未爆"读成"已修"）
+
+- 产品缺陷 **D-1 / D-5 / D-6 / D-8 / D-9** 在 LEDGER"缺陷清单"节，含对比度比值与受影响锚点图；
+  **这些比值目前没有任何已入库命令能重算**（该节自己写明，判定见 `证据 §2`）。
+- 包含块陷阱：两处**今日就生效**（`SdCourseGrid.vue` 内嵌 `<Modal narrow>`、`KnowledgeManagement.vue` 页面根下的
+  `<ExcelImportDialog>`），机制与"基线为何拍不到"见 §2.6 与 LEDGER `P0b-MODAL-01`。Task 8 的 Teleport 让遮罩搬到
+  `document.body`、脱离一切祖先包含块，**但这条解法只覆盖 `ui/Modal` 自己**：① 谁显式写 `:teleported="false"`
+  谁就自愿回到陷阱里（本会话实测调用点**一处都不写** `teleported`）；② `OnboardingGuide.vue` 这类**自带覆盖层**
+  （其样式里有 `position: fixed` 加 `z-index: 3000` 那组）的弹层不在 Modal 的保护范围内，§6 Phase 4 门第 5 条已把
+  范围扩到"所有自有覆盖层"，那条**仍未闭**；③ reduce 下 24 张基线在结构上拍不到这类缺陷，别拿基线绿当反证。
+- **未定性（我明确不代业务方定性）**：接口返回空时 `student-learning-center` 与 `admin-profile` 两格渲染出
+  `data-theme=""`。与 D-1"error 路由从不写 `data-theme`"同族但触发条件不同；三步最小取证已写进 4c-fix-C，
+  **谁先跑完谁定性**，在那之前不得称它"已修"或"非缺陷"。
+- 空态制度化风险（R-CF1）：`__fixtures__/student-dashboard.json` 钉的是**全 0 载荷**，而"数据已到位"守卫是存在性断言
+  ⇒ 空态能被守卫放过。裁定是**加内容断言**，不动后端种子数据。
+- **台账占位词未消**：LEDGER 里 `P0b-GUARD-01` 与 `P0b-DRAWER-01` 两行仍带"待回填"（前者等 Task 13，属正常；
+  后者那格本可由 Task 11 修复轮**已有实测**直接填，不必等新证据）。Task 15 Step 5 会 grep 这两个占位词并要求
+  **无输出**，所以现在不清就是收口时炸。
+
+### 11.5 控制者裁定（新会话不得重开，除非带来新证据）
+
+- **R-1**：`Drawer` 的 `aria-modal` 撤下、`role="dialog"` 保留；焦点陷阱 Modal/Drawer **共用一套**，归 Task 10 建一次。
+- **R-B**：Modal 与 Drawer 的 `v-model` 写回保持逐字对称（`git show 37b9414` 为既有现状证据）。
+- **R-CF1**：见上条；修法限于测试面。
+- **MODAL-03**：`Modal.vue` 里 `defineOptions({ inheritAttrs: false })` 的残余价值 (a) 是这行今天**唯一**站得住的
+  机制性理由（(b) 属前瞻）⇒ 补了入库用例而不是降级措辞。开启态那半句**故意不钉**（翻不红的断言＝虚假覆盖）。
+- **R-T9-1**：Task 9 的焦点时序缺口在 **Modal 侧**补，`useDialogFocus` 的 `watch(visible)` **不加 `immediate`、一行不改**
+  （它是 63 处 `el-dialog` 的时序契约）；Modal 内用 `open && mounted` 适配，使"挂载即开"也能进一次焦点。
+  **代价**：现存 13 个 `<Modal>` 站点全是 `v-if` 挂载即开，若只测 `setProps(false→true)` 会正好避开这个坑而用例照样绿。
+- **R-T9-2**：Task 9 的三条探针读数（`rootRef` 开态是否触到真遮罩 / Teleport 内模板 ref 是否真元素 /
+  `defineExpose({ $el })` 的解包层次）**必须全部转成入库断言**；③ 之前先在 `runtime-core.cjs.js` 查 `$` 前缀暴露键
+  有无守卫或告警，**不许假设**。计划里 `expect(el?.nodeType).toBe(1)` 今天必红且**红是预期**（`d4a4445` 已倒置 3-A/3-B）。
+- **推送口径（2026-10-19 19:32 起的现行指令，覆盖更早节奏）**：本批次**一次都不推**，全部任务完成后由 leyon 亲自验收；
+  截至 `eb5d38a`，本地 `main` 比 `origin/leyon` **领先 95 个 commit**。验收清单以 `git log --oneline origin/leyon..HEAD` 为准。
+
+### 11.6 纪律（违反即返工，全部来自本会话真实翻车）
+
+- 引用必须能被读者解开：文档用**章节锚**、台账用**行 ID ＋列名**、代码位置用**符号/选择器名**；
+  行号只作辅助且必须标"可能已漂"。**永不以 `HEAD` 为锚**（`progress.md` 只能按标题引，它一直在长）。
+  派发词也算文档——本会话我的派发词第 7 次被证伪，就是因为它抄了行号。
+- 库行为与陈述性断言先自证：`file:line` ＋变异实验，且**变异必须真能跑**（编译期报错不是测试失败，M8 已因此作废）；
+  变异证据必须写明它跑在哪个世界（Teleport 根 / 元素根），否则归错位置（M10a/b 与 M6 的教训）。
+- 被执行的那份构建要当轮重测：vitest 跑的是 `runtime-core.cjs.js`（＋`vue-test-utils.cjs.js`），**不是** `esm-bundler`。
+- 台账结构自校每次改完都跑（见 §11.7）；单元格内**不得出现竖线**，一格一行。
+- 子代理：单个 brief 控制在 4–5 个可验证子步、每步一个 commit、报告边写边落盘；
+  实现者不并行（只有只读评审可并行），全包测试套件由控制器作为合入门跑一次。
+  **本会话两次被上限切断**（150 turn 与 Chat 日配额），判活看产物、不看"没通知"。
+- 依赖收紧**逐条授权**，不接受顺手批量清 `^` 范围。
+
+### 11.7 事实基线与可重放命令（读数截至 `eb5d38a`）
+
+| 事实 | 现值 | 重放命令 |
+| --- | --- | --- |
+| 视觉阈值单一来源 | `{ threshold: 0, maxDiffPixelRatio: 0.0001 }`（1440×900 免检额 **129.6 px**） | `grep -n 'export const SNAPSHOT_THRESHOLDS' frontend/e2e/visual/visual-helpers.ts` |
+| ui 原语套件 | **10 files / 98 tests**（`2fc628d` 起，此前是 97） | `cd frontend && npx vitest run src/components/ui/` |
+| 类型棘轮 | 402 / 402 持平（只许下降） | `cd frontend && npm run typecheck:gate` |
+| Lint | 本轮静默；**只覆盖 `src/**`** | `cd frontend && npm run lint` |
+| Format | 存量红（约 108 个文件，且 CI 在跑）⇒ **禁写"lint/format 全绿"**，引用前重测 | `cd frontend && npm run format:check` |
+| Element Plus | 声明已收紧为精确 **`2.14.7`**（`058b907`）；`@playwright/test` 仍声明 `^1.62.0` 而装的是 1.63.0，**收紧须另行授权** | `cd frontend && npm ls element-plus` |
+| LEDGER 列数 | 表内每一行都是 **9** | 命令见本小节末的副本（表格单元里放它会因转义而失真） |
+| 基线可复现前提 | 后端与引擎须在听：8080 / 3306 / 6379 / 7687 / 8001 / 8002（本轮六个全在）；重启只能走 `start-backend.bat` | `netstat -ano \| grep LISTENING` 再看上述端口 |
+
+LEDGER 列数自校的**原文在 `docs/visual-upgrade/LEDGER.md`「表内书写规则」节**（唯一来源），此处只放一份可直接复制的副本：
+
+```bash
+# 每行必须是 9；同时肉眼核表区内没有空行断开（空行会把一张表切成两张，列数自检照样过）
+awk -F'|' '/^\|/ {print NR": "(NF-2)}' docs/visual-upgrade/LEDGER.md
+```
+
+- 单元格内出现任何竖线（含转义写法）都会把该行撑成 10/11 列——`awk -F'|'` 是逐字符切分，反斜杠挡不住它。
+
+- **工具坑**：SDD 的 `scripts/task-brief` 在本计划上围栏相位失配（Task 10 曾抽出 882 行、13/14/15 报 `not found`）。
+  现改用行区间 `sed -n 'A,Bp'` 抽取并逐条核首行标题：10＝2009–2289、13＝2455–2687、14＝2688–2759、15＝2760–末。
+  **计划文件一旦改动，这些区间立即作废**，必须重取行号再抽。
+
+### 11.8 下一批次（按此顺序；每步之前先跑 §11.7 与 `git status`）
+
+1. **补 Task 8 的复核**（配额恢复后的第一件事）。diff 包已生成并留盘：
+   `.superpowers/sdd/2026-10-18-frontend-visual-phase0/review-4e59f03..eb5d38a.diff`（6 commits，71 KB），
+   finding 清单是 I-1…I-6，逐条见过程账"Task 8 记 `fix round 2/5`"节与 LEDGER `P0b-MODAL-03`。
+   **不要**因为"代码已落地且用例能红"就跳过它——本轮的教训恰恰是落地的那轮自己造过假证据。
+2. **Task 9**（焦点接入）。派单前置三条已实测并写死在 §11.5 的 R-T9-1/2；brief 已抽好（156 行，含计划里
+   重复出现的 `Step 4` 标题一处，属计划瑕疵、不必纠结）。
+3. **Task 10**（滚动锁 ＋ ARIA ＋ 焦点返还 ＋ 事件语义）。含 Step 4b"焦点陷阱 Modal/Drawer 共用一套"（R-1）
+   与 Step 4c"写回对称"（R-B）；`Drawer.vue` **已内联实现** `overlayCount` 计数锁，抽取共用时别写第二份。
+4. **Task 13**（把焦点覆盖率护栏改为弹层实现无关）。地板值以计划现文为准：**73 / 82**；示例代码里抄着的
+   60 / 54 是草稿、不是取值依据；开工须重测，且 LEDGER `P0b-GUARD-01` 那行的占位词由它消。
+5. **Task 14**（非基线动效抽检组）——补 reduce 模式下基线照不到的另一半；与 ①②③ 三条包含块边界一起做才有意义。
+6. **4c-fix-C**（8 项，编号 9–16），含 `data-theme=""` 三步取证与 `visual-helpers.ts` 的纯搬迁拆分。
+7. **Task 15**（Phase 0 收口）：占位词 grep 须无输出、LEDGER 列数自校须全 9、三道门禁逐条给结论。
+8. **验收包**：按 §11.2 末行那四条形态呈报，未定性的事单独列。
+
+- 每次动手前必查：**leyon 会在会话之间甚至同一轮之内自己改文件并 commit**，所以 `git status` 与
+  `git log --oneline -5` 必须重跑，行号类引用一律重取；文档份数保持最少（§10），状态只更新本节。
