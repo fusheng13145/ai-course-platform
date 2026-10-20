@@ -809,9 +809,9 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 | 类型棘轮 | 402 / 402 持平（只许下降） | `cd frontend && npm run typecheck:gate` |
 | Lint | 本轮静默；**只覆盖 `src/**`** | `cd frontend && npm run lint` |
 | Format | 存量红（约 108 个文件，且 CI 在跑）⇒ **禁写"lint/format 全绿"**，引用前重测 | `cd frontend && npm run format:check` |
-| Element Plus | 声明已收紧为精确 **`2.14.7`**（`058b907`）；`@playwright/test` 仍声明 `^1.62.0` 而装的是 1.63.0，**收紧须另行授权** | `cd frontend && npm ls element-plus` |
+| Element Plus ／ Playwright 声明 | EP 已收紧为精确 **`2.14.7`**（`058b907`）；`@playwright/test` 也已于 **`428c337`** 由 `^1.62.0` 收紧为精确 **`1.63.0`**（**逐条授权**，项目主 2026-10-21 批准；其余 `^` 范围一律未动）。同步改的两处是 `package.json` 与 `package-lock.json` 的 `packages[""].devDependencies`——**lockfileVersion 3 里那格记的就是声明区间，不同步改会让 `npm ci` 报 in sync 失败** | `cd frontend && npm ls element-plus @playwright/test`（另：`npm ci --dry-run` 是同步性的判据，它不删 `node_modules`） |
 | LEDGER 列数 | 表内每一行都是 **9** | 命令见本小节末的副本（表格单元里放它会因转义而失真） |
-| 视觉基线门（弹层与 token 改动的像素面） | **该读数已不可比**：`e2e/visual/` 无 `testMatch` 限制，Task 14 的 5 条观察用例现在也被全量收走，而这条 **55 passed ／ 2 failed 是观察组存在之前（`fc7438c` 态）的数** ⇒ 引用前先数条数、别抄 55。两条失败仍是 `error-404` 明暗、红在通用守卫 `data-theme=` 空值（**无一条红在像素**，见 §11.4 末条），据此得到的"10A／10B／10C 在已入库的 22 张基线上**像素中性**"结论**仍然成立**（它数的是基线格、不是总条数）；浅色 ltr 与旧手算值逐字相同是同一结论的机械面 | `cd frontend && PW_PORT=5175 npx playwright test -c playwright.visual.ts`（**前提**：8080／3306／6379 与三台引擎在听；会话一重启就要走 `start-backend.bat` 重来。**跑完必看**：这一跑会重写 `docs/visual-upgrade/evidence/P0a/motion/` 里若干张已入库观察图，须只对该目录还原，见 §11.4 新条与本小节末的动效观察组行） |
+| 视觉基线门（弹层与 token 改动的像素面） | **该读数已不可比**：`e2e/visual/` 无 `testMatch` 限制，Task 14 的 5 条观察用例现在也被全量收走，而这条 **55 passed ／ 2 failed 是观察组存在之前（`fc7438c` 态）的数** ⇒ 引用前先数条数、别抄 55；**`--list` 实测条数 `Total: 64 tests in 5 files`**（`428c337` 态，这条不启动浏览器也不写文件，是安全的先数法）。两条失败仍是 `error-404` 明暗、红在通用守卫 `data-theme=` 空值（**无一条红在像素**，见 §11.4 末条），据此得到的"10A／10B／10C 在已入库的 22 张基线上**像素中性**"结论**仍然成立**（它数的是基线格、不是总条数）；浅色 ltr 与旧手算值逐字相同是同一结论的机械面 | `cd frontend && PW_PORT=5175 npx playwright test -c playwright.visual.ts`（**前提**：8080／3306／6379 与三台引擎在听；会话一重启就要走 `start-backend.bat` 重来。**跑完必看**：这一跑会重写 `docs/visual-upgrade/evidence/P0a/motion/` 里若干张已入库观察图，须只对该目录还原，见 §11.4 新条与本小节末的动效观察组行） |
 | 动效观察组（非基线，Task 14 交付） | `motion-observation` **5 passed（约 20.4s，控制器 2026-10-20 实跑）**＝4 格观察图 ＋ 1 条降级对照（未覆盖态读 `matchMedia === true` 与 `.animate-in` 的 `animationName === 'none'`，另有覆盖态正读数 `rise-in` 配对，防"基础规则与 reduce 块一起删"的退化绿）。**判据可重放、那 6 个像素文件不可重放**：三次实跑每次都脏同样 3 张（`admin-dashboard`、`dialog-open`、`dialog-open-mid`），而 `modal-open` 与 `modal-open-mid` **每次同 sha1** ⇒ "两原语无 CSS 入场动效"是可复现的真发现 | `cd frontend && PW_PORT=5175 npx playwright test -c playwright.visual.ts motion-observation`，随后 `sha1sum docs/visual-upgrade/evidence/P0a/motion/*.png` 与 `git status --short` 同看，跑完只对该图片目录 `git checkout --` 还原一次 |
 | 基线可复现前提 | 后端与引擎须在听：8080 / 3306 / 6379 / 7687 / 8001 / 8002（本会话两次实测：起初只有 MySQL 与 Redis 在听，起完 `start-backend.bat` 后六个全回）；重启只能走 `start-backend.bat` | 端口检查命令见本小节末"端口检查"代码块（管道命令不能放进表格单元，会把本行撑成 4 列——2026-10-20 实测本行就是这样，已改） |
 
@@ -932,7 +932,15 @@ console.log(JSON.stringify(out));
    **还有一条判据要改写才能执行**：题面 Step 1 写"跑 `npm run typecheck`…Expected 全绿"，
    而本仓 vue-tsc 存量 **402 条／90 文件** ⇒ 该步只能按棘轮口径（`typecheck:gate` 只许下降）判，
    否则第一棒会卡死在一条不可能满足的判据上。Step 2 表格里"§6.7 动效降级"那一格
-   在修复轮 R-T14-6 落地前**只能填"待直接读数"**，不许拿 anchors 零 diff 顶（见 R-T14-6）。
+   现在**有直接读数可填了**（R-T14-6 已随 Task 14 修复轮落地，入库 commit `600bb48` ＋ `b7106ff`，
+   负读数还配了正读数）——但仍**不许**拿 anchors 零 diff 顶，那条推理已作废（见 R-T14-6）。
+   **DR-94 那一棒还要顺手同步两处手册读数**（`docs/项目手册.md` 在 Task 15 的许可面内，Step 6 就 `git add` 它）：
+   技术栈表里 **`:171` 仍写 Element Plus `^2.4.4`**（实际已于 `058b907` 收紧为精确 `2.14.7`，
+   全手册 `2.14.7` 出现 **0 次**）、**`:178` 仍写 Playwright `^1.62.0`**（已于 `428c337` 收紧为精确 `1.63.0`）。
+   这不是新缺陷，是 **DR-93 已经登记过的那类"权威基准落后于自己订的读数"**——
+   所以改的时候要把两条都指到 DR-93，而不是当作一次普通的表格编辑；
+   `docs/项目现状分析与未来发展规划-2026-10-13.md:124` 与 `docs/历史归档/上线前审查报告-2026-09-08.md:90`
+   里的旧版本数是**带日期的历史快照，不许回改**。
 5. **验收包**：按 §11.2 末行那四条形态呈报，未定性的事单独列。
 
 - 每次动手前必查：**leyon 会在会话之间甚至同一轮之内自己改文件并 commit**，所以 `git status` 与

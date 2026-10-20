@@ -263,7 +263,7 @@ export interface AnchorSpec {
  * `{platform}` 会原样落进文件名。
  *
  * 返回**不含扩展名**的名字，但**扩展名要由调用方补 `.png`**——不是模板免费给的。
- * 机制实测（已安装的 @playwright/test 是 1.63.0；package.json 只声明 ^1.62.0，勿引版本号）：
+ * 机制实测（已安装的 @playwright/test 是 1.63.0；package.json 当时只声明 ^1.62.0、已于 `428c337` 收紧为精确 1.63.0，但"勿引版本号、只引已安装行为"这条规矩不变）：
  * `toHaveScreenshot("x-light")` 直接抛
  * `Screenshot name "x-light" must have a '.png' or '.webp' extension`，
  * 因为 `playwright/lib/matchers/expect.js:12437` 的 `getMimeTypeForPath(basename(this.expectedPath))`
