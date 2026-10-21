@@ -32,7 +32,7 @@ export default [
     desc: '点这里进 AI 教学中心，选知识点就能生成题目草稿，改完再入库。',
     anchor: 'nav:t-ai',
     scope: 'shell',
-    action: { type: 'navigate', to: '/teacher/ai-center' },
+    action: { type: 'navigate', to: '/teacher/ai' },
     expect: '进入 AI 教学中心，引导结束',
   },
 ]

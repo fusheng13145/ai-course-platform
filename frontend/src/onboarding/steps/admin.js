@@ -9,7 +9,7 @@ export default [
     id: 'governance',
     title: '治理大盘',
     desc: '全校教学运行状态在这一页，异常从这里的卡片点进去。',
-    anchor: 'nav:governance',
+    anchor: 'nav:dashboard',
     scope: 'shell',
   },
   {
@@ -32,7 +32,7 @@ export default [
     desc: '点这里进审计——谁在什么时候改过什么都在这一张表里。',
     anchor: 'nav:audit',
     scope: 'shell',
-    action: { type: 'navigate', to: '/admin/audit' },
-    expect: '进入审计页，引导结束',
+    action: { type: 'navigate', to: '/admin/logs' },
+    expect: '进入操作日志页，引导结束',
   },
 ]
