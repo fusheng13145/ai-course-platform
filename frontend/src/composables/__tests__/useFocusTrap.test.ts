@@ -250,7 +250,7 @@ describe('useFocusTrap — 装载/卸载边沿', () => {
   // "翻转到冲刷之间"这个真实窗口的唯一钉子。
 })
 
-describe('useFocusTrap — 前进一格钩子 __trapAdvance（R-T3-2 交给引导卡片的测试面）', () => {
+describe('useFocusTrap — 前进一格钩子 __trapAdvance（交给引导卡片的测试面）', () => {
   it('开态在面板元素上挂出钩子：连走 4 格焦点始终留在 root 内并回绕到首；关边沿摘掉', async () => {
     // 这条是 OnboardingGuide.focus.test.js 那条"12 次 Tab 不逃逸"的地基：钩子若写成
     // "永远 focus(root)"或干脆不挂，上面那条会绿在这里红——所以正读数（至少走过 2 个

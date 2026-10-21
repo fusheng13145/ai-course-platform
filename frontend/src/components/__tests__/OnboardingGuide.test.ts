@@ -5,7 +5,7 @@ import { createRouter, createWebHistory } from 'vue-router'
 import OnboardingGuide from '../OnboardingGuide.vue'
 
 /**
- * OnboardingGuide 单元测试（Task 3 按 v2 形状**重签**，11 条用例一条没删）
+ * OnboardingGuide 单元测试（按 v2 形状**重签**，11 条用例一条没删）
  * <p>重签的两处口径变化：</p>
  * <ol>
  *   <li>身份改由宿主以 props 给（改前组件自己 useAuthStore()，同一份取值两条路）——
@@ -14,7 +14,7 @@ import OnboardingGuide from '../OnboardingGuide.vue'
  *   <li>出口语义分离：Esc 与点洞外＝`paused@n`（改前四个出口都往 `…:done:v1:<id>` 写 '1'，
  *       "完成"与"中途 Esc"在数据上是同一件事）。存储断言因此读 v2 键与 status。</li>
  * </ol>
- * <p>聚光那三条原来钉的是 `.ob-spotlight` 与 `.ob-overlay.has-target`（Task 2 交付后模板里
+ * <p>聚光那三条原来钉的是 `.ob-spotlight` 与 `.ob-overlay.has-target`（改版后模板里
  * 已不存在的残留），换成钉 `.ob-scrim` 四块矩形与 `.ob-ring`。</p>
  * <p>组件 Teleport 到 body，断言一律走 document 查询，不用 wrapper.html()。
  * 宿主用 render 函数而非 template 字符串，避免依赖运行时模板编译器。

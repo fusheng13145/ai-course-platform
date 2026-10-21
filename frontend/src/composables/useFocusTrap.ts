@@ -51,7 +51,7 @@ function visibleFocusables(root: HTMLElement): HTMLElement[] {
 }
 
 /**
- * 测试/宿主用的"前进一格"钩子挂在面板元素上的形状（R-T3-2）。
+ * 测试/宿主用的"前进一格"钩子挂在面板元素上的形状。
  * 只在本文件里主动挂与摘，类型不外溢到调用点：Modal／Drawer 从不读它。
  */
 type TrapAdvanceHost = HTMLElement & { __trapAdvance?: () => void }
@@ -96,7 +96,7 @@ export function useFocusTrap(rootRef: Ref<HTMLElement | null>, active: Ref<boole
    * 「前进一格 Tab」——只转调 `visibleFocusables` 做"下一个可聚焦、尾首回绕"，
    * 与上面 onKeydown 共用同一个环（不长第二套"什么算可聚焦"）。挂在面板元素上供
    * 测试与宿主代触发用：jsdom 不实现 Tab 的顺序聚焦导航，没有这个钩子就只能手工
-   * `focus()`，那测不到陷阱本身（判据 4 会变空壳）。
+   * `focus()`，那测不到陷阱本身。
    */
   function trapAdvance(): void {
     const root = rootRef.value

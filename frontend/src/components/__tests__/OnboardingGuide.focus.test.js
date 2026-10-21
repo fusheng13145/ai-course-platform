@@ -3,16 +3,17 @@ import { mount, flushPromises } from '@vue/test-utils'
 import { createPinia } from 'pinia'
 import { createRouter, createWebHistory } from 'vue-router'
 import OnboardingGuide from '@/components/OnboardingGuide.vue'
-import { readState } from '@/onboarding/state'
+import { readState, writeStatus } from '@/onboarding/state'
+import { DIALOG_FOCUSABLE_SELECTOR } from '@/composables/useDialogFocus'
 
 /**
- * 出口语义与焦点陷阱接线（判据 3／4／5）。
+ * 出口语义与焦点陷阱接线。
  * <p>改前四条出口（跳过／Esc／点遮罩／开始使用）往同一个键写 '1'，"完成"与"中途 Esc"
- * 在数据上是同一件事；焦点更是一次不响——组件根本没接 useFocusTrap（判据 4 的空壳面）。</p>
+ * 在数据上是同一件事；焦点更是一次不响——组件根本没接 useFocusTrap。</p>
  * <p>定时器口径沿用旧 OnboardingGuide.test.ts：只 fake setTimeout，用来按住 onMounted 的
- * 600ms 自动弹（R-T3-6）；每条测试末尾 unmount，否则上一个实例的定时器会在下一条里把面板又打开。
+ * 600ms 自动弹；每条测试末尾 unmount，否则上一个实例的定时器会在下一条里把面板又打开。
  * 探针（锚点元素）全部放进 beforeEach 的 body HTML——不许用 `document.body.innerHTML +=`，
- * 那会整块重建 body、把 teleport 中的卡片一起换掉，"卡片已消失"就变成必然（R-T3-5）。
+ * 那会整块重建 body、把 teleport 中的卡片一起换掉，"卡片已消失"就变成必然。
  * 断言一律走 document 查询（组件 Teleport 到 body）。</p>
  */
 
@@ -180,5 +181,88 @@ describe('OnboardingGuide 出口语义与焦点', () => {
     expect(console.warn).toHaveBeenCalledWith(expect.stringContaining('anchor-miss'))
     expect(document.querySelector('.ob-card')).not.toBeNull()
     wrapper.unmount()
+  })
+
+  it('跨角色 resume：paused@3 记的是别的角色时从第 1 步起，不照着别人的锚点跳', async () => {
+    writeStatus(USER, 'paused', 3, 'admin') // 存一份 admin 的 paused@3
+    const wrapper = mount(OnboardingGuide, {
+      attachTo: document.body,
+      props: { userId: USER, role: 'student' }, // 换成 student 挂载
+      global: { plugins: [createPinia(), router] },
+    })
+    wrapper.vm.resume()
+    await wrapper.vm.$nextTick()
+    // 三端都是 5 步，Math.min 会把 3 夹住不报错，但锚点与文案是 admin 的 ⇒ 必须回第 1 步
+    expect(wrapper.vm.getIndex()).toBe(0)
+    wrapper.unmount()
+  })
+
+  it('Shift+Tab 回绕（判据 4 的反向半边）：卡内首元素上 Shift+Tab ⇒ 回绕到尾且不逃逸', async () => {
+    const wrapper = await open()
+    const card = document.querySelector('.ob-card')
+    const items = Array.from(card.querySelectorAll(DIALOG_FOCUSABLE_SELECTOR))
+    const first = items[0]
+    const last = items[items.length - 1]
+    first.focus()
+    // 向 document 派发真实 Shift+Tab：读组件级陷阱的回绕语义（共享层的正向已有用例，这里不重复）
+    const evt = new KeyboardEvent('keydown', {
+      key: 'Tab',
+      shiftKey: true,
+      bubbles: true,
+      cancelable: true,
+    })
+    document.dispatchEvent(evt)
+    await wrapper.vm.$nextTick()
+    expect(evt.defaultPrevented, '首元素 Shift+Tab 必须被陷阱拦下').toBe(true)
+    expect(card.contains(document.activeElement), 'Shift+Tab 后焦点不得逃出卡内').toBe(true)
+    expect(document.activeElement, '首元素的 Shift+Tab 回绕到尾元素').toBe(last)
+    wrapper.unmount()
+  })
+
+  it('捕获监听随可见性装卸：开边沿挂一个、关边沿摘回，关掉后再点锚点不前进', async () => {
+    // 探针：证明"关边沿真摘了"必须看监听账——行为面上 onDocumentClick 有 visible 闸，摘不摘都不前进
+    const added = []
+    const removed = []
+    const rawAdd = document.addEventListener.bind(document)
+    const rawRemove = document.removeEventListener.bind(document)
+    const capOf = (o) => (typeof o === 'boolean' ? o : !!o?.capture)
+    const addSpy = vi.spyOn(document, 'addEventListener').mockImplementation((t, fn, o) => {
+      added.push([t, fn, capOf(o)])
+      rawAdd(t, fn, o)
+    })
+    const removeSpy = vi.spyOn(document, 'removeEventListener').mockImplementation((t, fn, o) => {
+      removed.push([t, fn, capOf(o)])
+      rawRemove(t, fn, o)
+    })
+
+    const wrapper = mount(OnboardingGuide, {
+      attachTo: document.body,
+      props: { userId: USER, role: 'student' },
+      global: { plugins: [createPinia(), router] },
+    })
+    wrapper.vm.show()
+    await wrapper.vm.$nextTick()
+    await wrapper.vm.$nextTick()
+    const clickAdds = added.filter(([t, , cap]) => t === 'click' && cap === true)
+    expect(clickAdds, '开边沿须在 document 上挂恰好一个捕获 click').toHaveLength(1)
+
+    await wrapper.vm.__goto(1)
+    document.querySelector('button[data-exit="skipped"]').click()
+    await flushPromises()
+    const leaks = clickAdds.filter(
+      ([t, fn, cap]) => !removed.some(([rt, rf, rc]) => rt === t && rf === fn && rc === cap),
+    )
+    expect(leaks, '关边沿必须把捕获 click 摘回：关闭态不留 document 级监听').toEqual([])
+
+    const before = wrapper.vm.getIndex()
+    document
+      .querySelector('[data-onboard="nav:ai-assistant"]')
+      .dispatchEvent(new MouseEvent('click', { bubbles: true, cancelable: true }))
+    await flushPromises()
+    expect(wrapper.vm.getIndex(), '关掉后再点锚点不得前进').toBe(before)
+
+    wrapper.unmount()
+    addSpy.mockRestore()
+    removeSpy.mockRestore()
   })
 })

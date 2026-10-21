@@ -90,4 +90,11 @@ describe('onboarding state 契约 v2', () => {
     localStorage.setItem(k2(3), JSON.stringify({ status: 'wat', atStep: 9 }))
     expect(readState(3)).toEqual({ status: 'idle', atStep: 0 })
   })
+
+  it('v2 记录带 role：writeStatus 把 role 落进 JSON，readState 仍不泄漏进契约返回值', () => {
+    writeStatus(7, 'paused', 2, 'teacher')
+    // 直接读落盘原文钉"形状里有 role"——不复用 readState 的读法，否则实现漏写会一起绿
+    expect(localStorage.getItem(k2(7))).toContain('"role":"teacher"')
+    expect(readState(7)).toEqual({ status: 'paused', atStep: 2 })
+  })
 })

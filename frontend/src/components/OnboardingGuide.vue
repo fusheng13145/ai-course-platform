@@ -3,7 +3,7 @@
     <Transition name="ob-fade">
       <div v-if="visible" class="ob-overlay">
         <!-- 洞外压暗：几何层给的四块矩形（上/下/左/右），洞本身没有元素 ⇒ 点击天然落到真实控件上。
-             点这四块＝暂停并记住当前步，不再等于永久完成（spec §3.3 出口表）。 -->
+             点这四块＝暂停并记住当前步，不再等于永久完成。 -->
         <div
           v-for="(r, i) in scrimRects"
           :key="i"
@@ -82,25 +82,18 @@
 </template>
 
 <script setup>
-import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRouter } from 'vue-router'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 import { loadSteps, validateSteps } from '@/onboarding/steps/loader'
 import { resolveAnchor } from '@/onboarding/anchors'
 import { useSpotlightOverlay } from '@/composables/useSpotlightOverlay'
-import { readState, writeStatus, migrateV1IfPresent } from '@/onboarding/state'
+import { readState, readStoredRole, writeStatus, migrateV1IfPresent } from '@/onboarding/state'
 
 /**
- * 新用户引导卡片。四个单元各管一件事（spec §3.1），本组件只负责卡片、进度、出口与焦点交接，
- * **不读也不写 localStorage**：存储是 `onboarding/state` 的契约 v2（done / skipped@n / paused@n
- * 三态可区分——改前四条出口往同一个键写 '1'，"完成"与"中途 Esc"在数据上是同一件事）；
- * 找元素只走 `onboarding/anchors` 的注册表（改前用 `.sidebar`／`.topbar` 这类布局类名，
- * 视觉批次一改就静默定位失败）；几何（挖洞、视口感知定位、滚动跟随）只走 `useSpotlightOverlay`。
- *
- * userId／role 由宿主 AppShell 以 props 给出（改前组件自己 useAuthStore()，同一份身份两条路取值）。
- * 「已看过」仍按账号记键（DR-52／D2-9 定案口径不变）：换账号登录会重新看到，同账号退出不打扰；
- * 登出不清这个键。v1 标记由 state.migrateV1IfPresent 迁移成 done，老用户绝不再莫名重弹。
- * 宿主可经 ref 调 show()（用户菜单「新手引导」，从第 1 步）或 resume()（从 paused@n 续看）。
+ * 新用户引导卡片：只管卡片、进度、出口与焦点交接，不读也不写 localStorage。
+ * 存储走 `onboarding/state`（三态可区分），找元素走 `onboarding/anchors` 注册表，几何走 `useSpotlightOverlay`。
+ * 身份由宿主以 props 给（userId／role）；宿主经 ref 调 show() 从第 1 步、resume() 从 paused@n 续看。
  */
 
 const props = defineProps({
@@ -123,7 +116,7 @@ const active = computed(() => visible.value)
 const isLast = computed(() => index.value >= steps.value.length - 1)
 const current = computed(() => steps.value[index.value])
 
-// 焦点交接（判据 4）：卡片开时锁卡内，Tab 永不逃到背景页——改前这块根本没接线
+// 焦点交接：卡片开时锁卡内，Tab 永不逃到背景页——改前这块根本没接线
 useFocusTrap(cardEl, active)
 
 const { scrimRects, ringStyle, cardStyle, placement, anchorMiss, refresh, follow } =
@@ -131,14 +124,14 @@ const { scrimRects, ringStyle, cardStyle, placement, anchorMiss, refresh, follow
     getTarget: () => (current.value.anchor ? resolveAnchor(current.value.anchor) : null),
     cardRef: cardEl,
     onAnchorMiss: () => {
-      // 不静默：锚点解析失败必须留痕（spec §3.2），但卡片仍可用，不能把引导变成一块砖
+      // 不静默：锚点解析失败必须留痕，但卡片仍可用，不能把引导变成一块砖
       console.warn(
         `[onboarding] anchor-miss:${current.value.anchor ?? '(none)'}（第 ${index.value + 1} 步，降级为居中卡片且不阻塞点击）`,
       )
     },
   })
 
-/** Task 2 交出的 refresh 是 rAF 延迟版（R-T2-4 前送本棒），所以冲帧归本组件负责（R-T3-4） */
+/** refresh 是 rAF 延迟版，所以冲帧归本组件负责 */
 const flushFrames = (n) =>
   new Promise((resolve) => {
     const step = (left) => (left <= 0 ? resolve() : requestAnimationFrame(() => step(left - 1)))
@@ -157,6 +150,11 @@ async function relocate() {
 }
 
 function open(at) {
+  // 显式打开时取消待发的自动弹，否则它会在几百毫秒后把已打开的卡片重置回第 1 步
+  if (autoTimer) {
+    clearTimeout(autoTimer)
+    autoTimer = null
+  }
   visible.value = true
   index.value = Math.min(at, steps.value.length - 1)
   nextTick(() => {
@@ -168,11 +166,17 @@ function open(at) {
 const show = () => open(0)
 const resume = () => {
   const st = readState(props.userId)
-  open(st.status === 'paused' ? st.atStep : 0)
+  if (st.status !== 'paused') {
+    open(0)
+    return
+  }
+  // 记录属于别的角色时不能照着它的第 n 步跳：三端都是 5 步，Math.min 夹得住不报错，但锚点与文案是别人的
+  const storedRole = readStoredRole(props.userId)
+  open(!storedRole || storedRole === props.role ? st.atStep : 0)
 }
 
 function exit(status) {
-  writeStatus(props.userId, status, index.value)
+  writeStatus(props.userId, status, index.value, props.role)
   visible.value = false
   emit(status, { atStep: index.value })
 }
@@ -199,7 +203,7 @@ async function onAnchorClick(event) {
   if (!isLast.value) return next()
   const action = current.value.action
   const el = current.value.anchor ? resolveAnchor(current.value.anchor) : null
-  // 顺序是 spec §3.2 的落点：先撤卡片（陷阱随 active 关边沿摘掉）再执行动作，
+  // 先撤卡片（陷阱随 active 关边沿摘掉）再执行动作，
   // 否则动作打开的弹层与本层 trap 抢焦点（两 trap 冲突）。
   visible.value = false
   consumingAnchorClick = true
@@ -212,7 +216,7 @@ async function onAnchorClick(event) {
   exit('done')
 }
 
-/** 洞内真元素被点 ⇒ 交给引导消费（判据 3 的真实面，不只是测试钩子）。
+/** 洞内真元素被点 ⇒ 交给引导消费，不只是测试钩子。
  *  捕获阶段：必须赶在真实控件自己的导航处理器之前吃掉；
  *  只在当前锚点子树内响应，卡片／洞外压暗块／背景一律不拦。 */
 function onDocumentClick(event) {
@@ -233,10 +237,16 @@ function onKeydown(e) {
 }
 
 let autoTimer = null
+
+// 捕获阶段监听随可见性装卸：开边沿挂、关边沿摘，关闭态不得留下 document 级监听（与焦点陷阱同一条口径）
+watch(visible, (on) => {
+  if (on) document.addEventListener('click', onDocumentClick, true)
+  else document.removeEventListener('click', onDocumentClick, true)
+})
+
 onMounted(() => {
   window.addEventListener('keydown', onKeydown)
-  document.addEventListener('click', onDocumentClick, true)
-  migrateV1IfPresent(props.userId)
+  migrateV1IfPresent(props.userId, props.role)
   const st = readState(props.userId)
   if (st.status === 'idle') autoTimer = setTimeout(() => open(0), 600)
   else if (st.status === 'paused') autoTimer = setTimeout(() => resume(), 600)
@@ -244,6 +254,7 @@ onMounted(() => {
 onBeforeUnmount(() => {
   if (autoTimer) clearTimeout(autoTimer)
   window.removeEventListener('keydown', onKeydown)
+  // 开着被卸载（路由切换／v-if）：watch 边沿不会再跑，这里兜底把捕获监听摘回去
   document.removeEventListener('click', onDocumentClick, true)
 })
 
@@ -253,7 +264,7 @@ defineExpose({
   getIndex: () => index.value,
   __trapStep: () => {
     // 交给真实陷阱实现代触发 Tab（jsdom 不实现顺序聚焦导航）。
-    // 钩子缺失必须抛：写成可选链的话"陷阱被摘掉"这条测试仍绿，判据 4 变成空壳（R-T3-3）。
+    // 钩子缺失必须抛：写成可选链的话"陷阱被摘掉"这条测试仍绿，等于什么都没测。
     const advance = cardEl.value?.__trapAdvance
     if (typeof advance !== 'function') {
       throw new Error('[onboarding] 焦点陷阱未装载：卡片元素上没有 __trapAdvance 钩子')
@@ -335,17 +346,6 @@ defineExpose({
 .ob-body {
   text-align: center;
   padding: 6px 4px 14px;
-}
-.ob-icon {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  background: var(--accent-soft, rgba(37, 99, 168, 0.12));
-  color: var(--accent, var(--info));
-  margin-bottom: 10px;
 }
 .ob-title {
   margin: 0 0 6px;
