@@ -15,7 +15,7 @@ const BY_ROLE = {
   admin: flatten(ADMIN_SECTIONS),
 }
 
-// 期望值来自 spec §3.4 的定档表，不从 steps 文件反抄
+// 期望值钉死定档内容，不从 steps 文件反抄
 const EXPECTED_NAV = {
   student: ['ai-assistant', 'graph'],
   teacher: ['t-assess', 't-grades', 't-ai'],
@@ -38,7 +38,7 @@ describe('导航锚点键必须真的来自 menus.ts', () => {
       const expected = [...EXPECTED_NAV[role]].sort()
       expect(
         actual,
-        `${role} 端 nav 锚点集合与 spec §3.4 不符：实际 ${actual.join(', ')}，期望 ${expected.join(', ')}`,
+        `${role} 端 nav 锚点集合与三端定档表不符：实际 ${actual.join(', ')}，期望 ${expected.join(', ')}`,
       ).toEqual(expected)
     })
   }

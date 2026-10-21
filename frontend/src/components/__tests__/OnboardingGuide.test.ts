@@ -44,7 +44,7 @@ function v2Raw(id: number): (V2Record & { seenAt?: string }) | null {
   return raw ? (JSON.parse(raw) as V2Record & { seenAt?: string }) : null
 }
 
-/** 落盘形状含 seenAt（spec §3.3），比较状态与步号时把它剥掉——seenAt 本身另有两条断言钉 */
+/** 落盘形状含 seenAt，比较状态与步号时把它剥掉——seenAt 本身另有两条断言钉 */
 function v2State(id: number): V2Record | null {
   const raw = v2Raw(id)
   return raw ? { status: raw.status, atStep: raw.atStep } : null
@@ -62,7 +62,7 @@ function countLabel() {
   return document.body.querySelector('.ob-count')?.textContent?.trim()
 }
 
-/** Task 2 的 refresh 是 rAF 延迟版：几何断言前冲两帧（R-T3-4 同口径） */
+/** refresh 是 rAF 延迟版：几何断言前冲两帧才读得到 */
 async function frames(n = 2) {
   for (let i = 0; i < n; i++) {
     await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()))
@@ -207,9 +207,9 @@ describe('OnboardingGuide 重开入口与出口语义', () => {
 
     press('ArrowRight')
     await flushPromises()
-    await frames() // refresh 是 rAF 延迟版（Task 2 交付面）：不等一帧就读不到降级后的 centered
+    await frames() // refresh 是 rAF 延迟版：不等一帧就读不到降级后的 centered
     expect(countLabel()).toBe('2 / 5')
-    // 锚点元素在隔离环境里不存在，解析失败应降级为居中卡片而不是报错（spec §3.2）
+    // 锚点元素在隔离环境里不存在，解析失败应降级为居中卡片而不是报错
     expect(card()!.className).toContain('centered')
 
     guide.value!.show()
@@ -278,7 +278,7 @@ describe('OnboardingGuide 重开入口与出口语义', () => {
 
     expect(card(), '老用户绝不再莫名重弹').toBeNull()
     expect(v2State(USER)).toEqual({ status: 'done', atStep: 0 })
-    // 落盘形状钉满 spec §3.3 的 {status, atStep, seenAt}：seenAt 是这条记录唯一的时间面
+    // 落盘形状钉满 {status, atStep, seenAt}：seenAt 是这条记录唯一的时间面
     expect(v2Raw(USER)!.seenAt, 'v2 记录必须带 seenAt').toBeTypeOf('string')
     expect(localStorage.getItem(v1Key(USER)), '两键并存：v1 不删，留作回滚证据').toBe('1')
     wrapper.unmount()
@@ -286,7 +286,7 @@ describe('OnboardingGuide 重开入口与出口语义', () => {
 })
 
 /**
- * 聚光几何接线契约（原「聚光高亮」三条，按 Task 2 交付的 DOM 形状重签）：
+ * 聚光几何接线契约（原「聚光高亮」三条，按现行 DOM 形状重签）：
  * <p>改前模板里是 `.ob-spotlight`（一块 `0 0 0 9999px` 的巨大阴影）＋ `.ob-overlay.has-target`
  * 透明套；现在是四块 `.ob-scrim` 矩形拼洞 ＋ 一块 `.ob-ring` 描边，锚点解析不到时两者都不渲染、
  * 卡片退化为居中态。断言因此钉 rect 元素与 centered，不再钉那两个已不存在的类名。</p>

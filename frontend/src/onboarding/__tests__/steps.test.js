@@ -3,7 +3,7 @@ import { validateSteps, loadSteps } from '../steps/loader'
 
 const step = (over) => ({ id: 'x', title: 't', desc: 'd', scope: 'shell', ...over })
 
-describe('steps 排序不变式（spec §3.4）', () => {
+describe('steps 排序不变式', () => {
   it('page 锚点只能是最后一步', () => {
     expect(() => validateSteps([step({ anchor: 'join-course', scope: 'page' }), step({})])).toThrow(
       /page 锚点只能是最后一步/,

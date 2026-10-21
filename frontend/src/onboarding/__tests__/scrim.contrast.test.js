@@ -18,7 +18,7 @@ const varOf = (block, name) => {
   return m ? m[1] : null
 }
 
-describe('暗色 scrim 可见性（spec §4 判据 2）', () => {
+describe('暗色 scrim 可见性', () => {
   it('暗色 scrim 压在本体底色上，最大单通道差 ≥ 24/255', () => {
     const darkAt = css.search(/\[data-theme=['"]dark['"]\]/)
     const dark = darkAt >= 0 ? css.slice(darkAt) : ''

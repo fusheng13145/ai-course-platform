@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach } from 'vitest'
 import { ALL_ANCHOR_KEYS, isRegisteredAnchor, resolveAnchor } from '../anchors'
 import { loadSteps } from '../steps/loader'
 
-// 反例喂合成 DOM，不读活文件（Task 13 I-1 的教训：断言不许钉在会被改的活文件上）
+// 反例喂合成 DOM，不读活文件：断言不许钉在会被改的活文件上
 describe('anchors 注册表', () => {
   beforeEach(() => {
     document.body.innerHTML = ''

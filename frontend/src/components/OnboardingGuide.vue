@@ -138,13 +138,15 @@ const flushFrames = (n) =>
     step(n)
   })
 
+let disposed = false
+
 async function relocate() {
-  if (!visible.value) return
+  if (disposed || !visible.value) return
   await nextTick()
   refresh()
   await flushFrames(2)
   // 冲帧期间已被关掉／卸载：不要再对消失的目标调 follow()（它内部还有 320ms 定时器）
-  if (!visible.value) return
+  if (disposed || !visible.value) return
   const el = current.value.anchor ? resolveAnchor(current.value.anchor) : null
   if (el) follow(el)
 }
@@ -252,6 +254,7 @@ onMounted(() => {
   else if (st.status === 'paused') autoTimer = setTimeout(() => resume(), 600)
 })
 onBeforeUnmount(() => {
+  disposed = true
   if (autoTimer) clearTimeout(autoTimer)
   window.removeEventListener('keydown', onKeydown)
   // 开着被卸载（路由切换／v-if）：watch 边沿不会再跑，这里兜底把捕获监听摘回去

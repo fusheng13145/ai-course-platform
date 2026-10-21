@@ -6,7 +6,7 @@ const PAD = 6
 
 /**
  * 只负责几何：不认锚点键、不读存储、不渲染卡片。
- * getTarget() 由调用方给（Task 3 里它接 anchors.resolveAnchor）。
+ * getTarget() 由调用方给，调用侧负责把它接到锚点解析。
  */
 export function useSpotlightOverlay({ getTarget, cardRef, onAnchorMiss }) {
   const rects = ref([])
@@ -16,6 +16,7 @@ export function useSpotlightOverlay({ getTarget, cardRef, onAnchorMiss }) {
   const anchorMiss = ref(false)
   let raf = 0
   let scrollTimer = 0
+  let disposed = false
 
   function refresh() {
     raf = 0
@@ -56,12 +57,13 @@ export function useSpotlightOverlay({ getTarget, cardRef, onAnchorMiss }) {
   }
 
   function schedule() {
-    if (raf) return
+    if (disposed || raf) return
     raf = requestAnimationFrame(refresh)
   }
 
   /** 改前只读 rect、从不滚动 ⇒ 目标在视口外时聚光框跑到屏外 */
   function follow(el) {
+    if (disposed) return
     el?.scrollIntoView?.({ block: 'center', inline: 'center', behavior: 'smooth' })
     window.clearTimeout(scrollTimer)
     scrollTimer = window.setTimeout(schedule, 320)
@@ -70,6 +72,7 @@ export function useSpotlightOverlay({ getTarget, cardRef, onAnchorMiss }) {
   window.addEventListener('resize', schedule)
   window.addEventListener('scroll', schedule, true)
   onBeforeUnmount(() => {
+    disposed = true
     if (raf) cancelAnimationFrame(raf)
     raf = 0
     window.clearTimeout(scrollTimer)

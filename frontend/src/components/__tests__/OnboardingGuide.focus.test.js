@@ -42,6 +42,12 @@ const open = async () => {
   return wrapper
 }
 
+const frames = (n) =>
+  new Promise((resolve) => {
+    const step = (left) => (left <= 0 ? resolve() : requestAnimationFrame(() => step(left - 1)))
+    step(n)
+  })
+
 describe('OnboardingGuide 出口语义与焦点', () => {
   beforeEach(() => {
     localStorage.clear()
@@ -76,7 +82,7 @@ describe('OnboardingGuide 出口语义与焦点', () => {
         `第 ${i + 1} 次 Tab 逃到 ${a?.tagName}.${a?.className}`,
       ).toBe(true)
     }
-    // 正读数（R-T3-3）：只钉"没逃出去"会绿在"焦点一动不动"上——钩子被摘掉时同样成立。
+    // 正读数：只钉"没逃出去"会绿在"焦点一动不动"上——钩子被摘掉时同样成立。
     // 陷阱真的在环里走，必须至少走过 2 个不同元素。
     expect(
       visited.size,
@@ -113,7 +119,7 @@ describe('OnboardingGuide 出口语义与焦点', () => {
     wrapper.unmount()
   })
 
-  it('真点洞内的锚点元素 ⇒ 同样被引导消费（判据 3 的真实面，不是钩子面）', async () => {
+  it('真点洞内的锚点元素 ⇒ 同样被引导消费（真实面，不是钩子面）', async () => {
     const wrapper = await open()
     const push = vi.spyOn(router, 'push')
     await wrapper.vm.__goto(1)
@@ -132,7 +138,7 @@ describe('OnboardingGuide 出口语义与焦点', () => {
     await wrapper.vm.__goto(4)
     const el = document.getElementById('join')
     const clicked = vi.spyOn(el, 'click')
-    // 点之前卡片必须在场：否则后面那条"卡片没了"是必然绿（R-T3-5）
+    // 点之前卡片必须在场：否则后面那条"卡片没了"是必然绿
     expect(document.querySelector('.ob-card')).not.toBeNull()
     await wrapper.vm.__anchorClick({ preventDefault() {}, stopPropagation() {} })
     await flushPromises()
@@ -197,7 +203,7 @@ describe('OnboardingGuide 出口语义与焦点', () => {
     wrapper.unmount()
   })
 
-  it('Shift+Tab 回绕（判据 4 的反向半边）：卡内首元素上 Shift+Tab ⇒ 回绕到尾且不逃逸', async () => {
+  it('Shift+Tab 回绕（反向半边）：卡内首元素上 Shift+Tab ⇒ 回绕到尾且不逃逸', async () => {
     const wrapper = await open()
     const card = document.querySelector('.ob-card')
     const items = Array.from(card.querySelectorAll(DIALOG_FOCUSABLE_SELECTOR))
@@ -264,5 +270,15 @@ describe('OnboardingGuide 出口语义与焦点', () => {
     wrapper.unmount()
     addSpy.mockRestore()
     removeSpy.mockRestore()
+  })
+
+  it('show() 后切到带锚点那一步、随即卸载 ⇒ 卸载后帧链与 follow 都停住', async () => {
+    const wrapper = await open()
+    const scrolled = vi.spyOn(window.HTMLElement.prototype, 'scrollIntoView')
+    wrapper.vm.__goto(1)
+    wrapper.unmount()
+    await frames(3)
+    expect(document.querySelectorAll('.ob-scrim').length, '卸载后不得再有后续写入').toBe(0)
+    expect(scrolled, '卸载后不得再对锚点调 follow()').not.toHaveBeenCalled()
   })
 })
