@@ -6,7 +6,7 @@ export default [
     scope: 'shell',
   },
   {
-    id: 'governance',
+    id: 'dashboard',
     title: '治理大盘',
     desc: '全校教学运行状态在这一页，异常从这里的卡片点进去。',
     anchor: 'nav:dashboard',

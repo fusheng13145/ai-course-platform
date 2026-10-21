@@ -27,6 +27,7 @@ describe('steps 排序不变式（spec §3.4）', () => {
 
   it('未注册锚点红', () => {
     expect(() =>
+      // 两枚：单枚会先触发长度不变式，掩盖这里要测的锚点校验
       validateSteps([step({ anchor: 'nav:nope-not-registered' }), step({})]),
     ).not.toThrow()
     // nav: 前缀天然"已注册"，真正的漂移由 steps.keys.test.js 按 menus.ts 兜住

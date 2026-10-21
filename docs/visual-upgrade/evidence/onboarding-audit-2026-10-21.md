@@ -11,6 +11,8 @@
   `6_step2_card_at_vh_900/1080/1440`、`5_side_user_when_collapsed`）转录自控制器重放输出
   `.superpowers/sdd/2026-10-21-onboarding-redesign/audit-replay-1.log` … `audit-replay-4.log`。
 - F12 的 `npm view driver.js version → 1.10.2` 转录自 spec §1，本次未重跑。
+- `frontend/test-results/` 是每次 Playwright 运行的清空目标（两份配置都没设 `outputDir`），所以原始读数
+  必须转录入库；2026-10-21 控制器正是被一次官方视觉运行清空该目录后，按原脚本重放才恢复的。
 
 ## 12 行改前事实
 

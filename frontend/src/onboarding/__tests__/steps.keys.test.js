@@ -15,6 +15,13 @@ const BY_ROLE = {
   admin: flatten(ADMIN_SECTIONS),
 }
 
+// 期望值来自 spec §3.4 的定档表，不从 steps 文件反抄
+const EXPECTED_NAV = {
+  student: ['ai-assistant', 'graph'],
+  teacher: ['t-assess', 't-grades', 't-ai'],
+  admin: ['dashboard', 'users', 'audit'],
+}
+
 describe('导航锚点键必须真的来自 menus.ts', () => {
   for (const role of ['student', 'teacher', 'admin']) {
     it(`${role} 端每个 nav: 锚点都能在 menus.ts 找到对应 key`, () => {
@@ -22,12 +29,17 @@ describe('导航锚点键必须真的来自 menus.ts', () => {
         .map((s) => s.anchor)
         .filter((a) => a?.startsWith('nav:'))
         .map((a) => a.slice(4))
-      expect(used.length).toBeGreaterThanOrEqual(2)
       const ghost = used.filter((k) => !BY_ROLE[role].has(k))
       expect(
         ghost,
         `menus.ts 里没有这些 key：${ghost.join(', ')}——改 steps 或补菜单，不要留幽灵锚点`,
       ).toEqual([])
+      const actual = [...new Set(used)].sort()
+      const expected = [...EXPECTED_NAV[role]].sort()
+      expect(
+        actual,
+        `${role} 端 nav 锚点集合与 spec §3.4 不符：实际 ${actual.join(', ')}，期望 ${expected.join(', ')}`,
+      ).toEqual(expected)
     })
   }
 })
