@@ -502,8 +502,9 @@ export const ANCHORS: readonly AnchorSpec[] = [
    * 当场判红（"钉了却没用上"），而把差集凑成非空更是自欺（简报「不要为了凑数硬钉」那条）。
    * 所以 §11.4 记的「login 暗格红过一次 425 px」**不归因于跨套件数据耦合**，
    * 也不得被 (a) 的解除顺手算成已解决：它是暗色首帧/渲染时序那一族的事（另案）。
-   * 复核方式（工作目录 `frontend/`）：
-   *   `npx playwright test -c test-results/pin-gap/pin-gap.config.ts`（一次性脚本，gitignore 目录）
+   * 复核方式（工作目录 `frontend/`，工具自 Task 0 修复轮 1 起**入库**，跑任何官方套件都不会被清空）：
+   *   `npx playwright test -c e2e/visual/tools/pin-gap.config.ts`
+   *   （差集取证：三格实测 GET 清单 vs 各自 pinPaths，读数另落 `test-results/pin-gap/` 与 tmpdir）
    */
   { slug: 'login', title: '登录页', role: 'ANON', path: '/login' },
   { slug: 'admin-dashboard', title: '管理工作台', role: 'ADMIN', path: '/admin/dashboard' },
@@ -522,7 +523,8 @@ export const ANCHORS: readonly AnchorSpec[] = [
      * 准入条件 (a)「跑过 9 个流程 e2e spec 之后紧接着跑视觉套件，基线确定性变红」的根因是
      * **本锚点只钉住了一个端点的载荷，而这一页还消费四条没钉的 GET**（差集由只读脚本当场量出来，
      * 命令与读数见 `.superpowers/sdd/2026-10-21-onboarding-redesign/task-0-report.md` 步骤 1；
-     * 台账 `P0a-PINGAP-01`）：统计卡来自 `/api/student/dashboard`、未读角标来自
+     * 台账行**待出路③ 落地后按简报第 6 步补 `P0a-PINGAP-01`——现在还没有那一行**，
+     * 别按这个注释去 LEDGER 里找它，找不到属预期）：统计卡来自 `/api/student/dashboard`、未读角标来自
      * `/api/notifications/unread-count`、课程卡来自 `/api/student/courses?page=1&size=100`、
      * 权限来自 `/api/auth/permissions`。流程套件写真后端数据 ⇒ 这四条的响应变 ⇒ 画上跟着变 ⇒ 基线跟不上，
      * 而被钉的那一条从头到尾没参与这次红（改前包围盒 x 1159..1252 / y 18..234 起于顶栏，
@@ -530,9 +532,16 @@ export const ANCHORS: readonly AnchorSpec[] = [
      * ⇒ 现在把这一页**实测发出的每一条 GET** 都钉住，跨套件数据耦合不再进画面。
      * 【代价与边界，读这条结论时必须带着】
      *  ① 钉全屏之后，本锚点的"数据确已到位"里凡来自这些端点的那一半**不再是真后端的证据**
-     *     （payload-pin.ts 顶部那条"钉全屏就等于把数据到位一起钉死"的限制，本格现在适用面变宽了）；
+     *     （这条边界**不是 `payload-pin.ts` 顶部的原文**，而是由那里第 ①③ 两款推论出来的——
+     *     原先把它写成"payload-pin.ts 顶部那条'钉全屏就等于把数据到位一起钉死'的限制"是转述反了方向，
+     *     原文说的是"只钉声明的端点、其余打真后端"。修复轮 1 的 M-3 改口，本格适用面变宽这件事不变）；
      *     `DATA_ARRIVAL_CHECKS` 的 `.l1-card`／`.s-value`／`canvas` 三条本来就是**存在性**断言，
      *     R-CF1 早已把"被钉区域不作数据到位证据"写进 LEDGER `P0a-GUARD-02`，此处只是把范围扩到整页。
+     *     ①′ 两格钉全屏的**后果**由两条断言接手，不再靠本注释兜（修复轮 1 的 I-1／I-2）：
+     *       `assertBackendCanary` 在装钉桩**之前**用一个不入 pinPaths 的探针键证"真后端＋真会话仍可用"
+     *       （否则 `.auth` 过期、后端下线、契约改名这三族故障在这两格的像素上永远看不出来，
+     *        连"被守卫踢回 /login"那条通用守卫都对它们永久失效）；
+     *       `assertAllApiGetsPinned` 反过来断"本页发出的每条 GET 都被声明过"，漏钉当场红并点名那条键。
      *  ② 只钉 GET：`installPayloadPin` 与 `attachPayloadRecorder` 都只处理 GET，本锚点实测**没有**非 GET 的
      *     `/api` 请求（`nonGetApi` 为空），所以差集里没有"钉不了的漏网项"。
      *  ③ 键必须逐字等于实测的 `pathname+search`（`?page=1&size=100` 不是可省的修饰，
@@ -549,9 +558,11 @@ export const ANCHORS: readonly AnchorSpec[] = [
      * ⇒ 准入条件 (a) 的"两轮 40/0"判据**仍未达成**，还差项目主授权的**出路③**（重录受影响的基线）。
      * ⚠️ **出路③ 落地时这 5 条 pinPaths 必须原样留着**：二者是串联关系而非二选一——
      *    重录出新基线后若没有这些钉桩，下一次流程套件照样把它写脏（就是本条注释要修的那件事）。
-     *    重放本轮读数（工作目录 `frontend/`，脚本在 gitignore 的 `test-results/pin-gap/`）：
+     *    重放本轮读数（工作目录 `frontend/`；两条工具自修复轮 1 起**入库**在 `e2e/visual/tools/`，
+     *    不再住在会被官方套件清空的 `test-results/` 里）：
      *      `PW_PORT=5175 npx playwright test -c playwright.visual.ts anchors --grep-invert "error-404"`
-     *      `PW_PORT=5175 node test-results/pin-gap/check-live.mjs`（真后端值 vs fixture 值，复用会话不重登）
+     *      `PW_PORT=5175 node e2e/visual/tools/check-live.mjs`（真后端值 vs fixture 值，复用会话不重登）
+     *      `npx playwright test -c e2e/visual/tools/pin-gap.config.ts`（差集取证，现值应为 5/0 与 7/0）
      */
     pinPaths: [
       '/api/student/analytics/visualization',
@@ -599,8 +610,25 @@ export const ANCHORS: readonly AnchorSpec[] = [
      * 原先只钉 1 条 ⇒ 其余 6 条（仪表汇总 / 课程排行 / 平台热力 / 课程列表 / 未读角标 / 权限）
      * 照旧走真后端，流程套件一改后端状态这张基线就跟不上（暗格间歇红）。
      * 现在把实测发出的每一条 GET 都钉住。边界与代价同 student-dashboard 那三条
-     * （① 被钉区域不再作"数据到位"的证据、② 只钉 GET 且本页无非 GET 请求、③ search 逐字参与键）。
-     * 清单与 `data-arrival.ts` 的 `DATA_PATHS['admin-governance-analytics']` 独立对得上。
+     * （① 被钉区域不再作"数据到位"的证据、② 只钉 GET 且本页无非 GET 请求、③ search 逐字参与键），
+     * 那三条末尾的 ①′ 两条断言（canary 与全集覆盖）同样适用于本格。
+     * 【"与 DATA_PATHS 独立对得上"这句收窄到 4/7（修复轮 1 的 I-3③）】原先写"清单与
+     *  `data-arrival.ts` 的 `DATA_PATHS['admin-governance-analytics']` 独立对得上"，那是把 7 条说满了：
+     *  对得上的只有 `/api/analytics/users/growth`、`/api/analytics/dashboard`、
+     *  `/api/analytics/courses/ranking`、`/api/analytics/heatmap/platform` **四条**（本格其余三条键
+     *  `/api/courses?page=1&size=100`、`/api/notifications/unread-count`、`/api/auth/permissions`
+     *  都不在那一页的 `DATA_PATHS` 里）。`/api/courses` 那条来自**外壳**而不是这一页：
+     *  `src/layouts/components/AppSidebar.vue` 给 ADMIN 取"全库课程"填课程目录（该文件 `courses.value = body.records…`
+     *  那一段，现读；行号随文件增长会漂，故只给符号）。
+     *  ⇒ "两轮独立测量同形"这句只对那四条成立，另外三条的独立佐证是外壳代码本身，不是那张表。
+     * 【⚠️ 被钉的 `/api/analytics/dashboard` 里冻着一个**真·后端缺陷**（修复轮 1 的 I-5 ⇒ LEDGER `D-10`）】
+     *  fixture 的该键响应体带着 `"error":"统计数据加载异常: … Unknown column 'finalScore' in 'field list' …
+     *  CourseEnrollmentMapper"`，同时 `gradeDistribution:[0,0,0,0,0]`、`roleActivity:[]`；
+     *  消费端 `src/composables/useAnalytics.ts` 走 EmptyState 把它画成"没有数据"。
+     *  录那一次真后端与此 fixture 的 `data` 全等 ⇒ 这是**当前缺陷**、不是历史噪声。
+     *  原先该端点未钉 ⇒ 谁修了这个列、分析锚点就会红、就会被看见；现在被钉桩永久挡住。
+     *  ⇒ **修 `finalScore` 那一列必须同批重录 fixture 与基线**（只改后端的话这一格照样绿，那叫把修复藏进桩里）。
+     *  本轮不改数据、不改后端，只登记。
      */
     pinPaths: [
       '/api/analytics/users/growth?days=30',
