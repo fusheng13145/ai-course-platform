@@ -537,6 +537,21 @@ export const ANCHORS: readonly AnchorSpec[] = [
      *     `/api` 请求（`nonGetApi` 为空），所以差集里没有"钉不了的漏网项"。
      *  ③ 键必须逐字等于实测的 `pathname+search`（`?page=1&size=100` 不是可省的修饰，
      *     少了 search 就是"钉了却没命中"，由 `assertPinCoverage` 当场红）。
+     *
+     * 【补钉之后的实跑结论：耦合解除了，判据没解除——别把这两件事混成一句】
+     * 已生效的那半：跑完流程套件（它确实又写进一条通知）之后连跑两轮 `anchors`，
+     * 两轮的实截**逐字节相同**，且画面显示的是 fixture 里的 `42` 而**真后端此刻已是 `43`**
+     * ⇒ 跨套件写入不再进画面，这一族红确实被钉住了。
+     * 没解除的那半：`student-dashboard` 明暗两格仍各红 **152／148 px**（免检额 129.6），
+     * 包围盒 `x 1159..1252 / y 18..234` 起于顶栏未读角标——**基线那天画的是 30 与 39**。
+     * 录制端只回拨载荷里的 ISO **日期字符串**（`shiftIsoDates`），**数值一个都不回拨**，
+     * 而未读数是随时间单调累积的计数 ⇒ 今天录的 fixture 忠实复现的是今天的 42，永远画不出 2026-10-18 的 30/39。
+     * ⇒ 准入条件 (a) 的"两轮 40/0"判据**仍未达成**，还差项目主授权的**出路③**（重录受影响的基线）。
+     * ⚠️ **出路③ 落地时这 5 条 pinPaths 必须原样留着**：二者是串联关系而非二选一——
+     *    重录出新基线后若没有这些钉桩，下一次流程套件照样把它写脏（就是本条注释要修的那件事）。
+     *    重放本轮读数（工作目录 `frontend/`，脚本在 gitignore 的 `test-results/pin-gap/`）：
+     *      `PW_PORT=5175 npx playwright test -c playwright.visual.ts anchors --grep-invert "error-404"`
+     *      `PW_PORT=5175 node test-results/pin-gap/check-live.mjs`（真后端值 vs fixture 值，复用会话不重登）
      */
     pinPaths: [
       '/api/student/analytics/visualization',
