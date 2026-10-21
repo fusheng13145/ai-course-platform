@@ -39,12 +39,18 @@ import { BASELINE_DAY, localDay, type AnchorSpec } from './visual-helpers'
  *   所以换一天动的可能不只是轴标签文字，而是整条 series 的几何。遮标签带挡不住后者。
  * 【钉载荷做的是另一件事】把"服务端按今天算"换成"读一份入库的固定响应"，日期与数值**一起**冻住，
  *   被比对的区域一个像素都不遮。代价与边界：
- *   ① 只钉 AnchorSpec.pinPaths 声明的那几个端点（现在每个日期锚点各 1 个），
- *      其余请求照旧打真后端——否则"数据确已到位"会被一起钉成假命题（Step 2 的洞就是这么来的）；
+ *   ① 只钉 AnchorSpec.pinPaths 声明的那几个端点。**Task 0（2026-10-21）之后这两个日期锚点各 5／7 个**
+ *      （现值逐字读 `visual-helpers.ts` 的 ANCHORS，本文件不复制清单），且那是"本页实测发出的每一条 GET"
+ *      ⇒ 原先那句"其余请求照旧打真后端"从此**只对非钉桩锚点、以及交互之后才发的请求成立**，
+ *      不再对这两格的首屏成立。它原先靠"少钉"兜着的那件事（"数据确已到位"里凡来自未钉端点的那一半
+ *      仍是真后端的证据）改由 I-1 的 canary 断言 `assertBackendCanary` 显式接手——
+ *      用一个**不入 pinPaths** 的探针端点、在装钉桩**之前**证"真后端＋真会话仍可用"；
+ *      "钉得全不全"也不再只靠注释，由 I-2 的 `assertAllApiGetsPinned` 当场判红；
  *   ② fixture 是从**真后端录下来的**，录的那一次必须先过 arrival 断言（录空态 = 基线空态，
  *      所以 record 模式在写出 fixture 前就跑一次 DATA_ARRIVAL_CHECKS）；
- *   ③ 钉死之后这几个端点**不再被像素门禁覆盖**：产品若改图表数据结构，本套件不会红，
- *      要红得先重录（重录会让图与已提交基线不符 ⇒ 那时才是真红）。这条盲区要写进 LEDGER。
+ *   ③ 钉死之后这几个端点**不再被像素门禁覆盖**；Task 0 把这两格的盲区口径从"那一个端点"扩到**整页首屏数据**：
+ *      产品若改图表数据结构，本套件不会红，要红得先重录（重录会让图与已提交基线不符 ⇒ 那时才是真红）。
+ *      这条盲区要写进 LEDGER。
  * 【回看一天的偏移怎么补】录制时把载荷里所有 ISO 日期整体回拨到冻结时钟那一天
  *   （CLOCK_EPOCH = 2026-10-18，见 freezeClock），于是 fixture 复现的是**基线当天**的画面。
  *   服务端今天的值与基线当天是否相同，不由注释说：由"钉了之后 4 张日期锚点与已提交基线
@@ -83,6 +89,13 @@ export interface PinState {
   served: string[]
   /** 审计信息：/api 下**未**声明钉死、但响应体里带服务端"今天"字符串的端点 */
   unpinnedTodayBearing: string[]
+  /**
+   * 这一页**发出去的每一条** `/api/` GET 键（pathname+search，去重、按出现序），由 I-2 的
+   * `page.on('request')` 收集；`assertAllApiGetsPinned` 拿它判"全集 ⊆ pinPaths"。
+   * 口径边界（读结论时必须带着）：只覆盖到**调用断言那一刻为止**发出的请求，
+   * 截图之后才发的交互请求不在账上——那条探针另由 I-1 的 canary 与流程套件负责。
+   */
+  observedApiGets: string[]
   /** 本轮回放的日期偏移（天）；>0 = 取证用的"服务端第 +k 天"模拟，非交付口径 */
   shiftDays: number
 }
@@ -200,15 +213,20 @@ export function pinShiftDays(): number {
 
 /**
  * 装上钉死：**只**拦 AnchorSpec.pinPaths 声明的 GET；其余请求 fallback 走真后端。
- * 返回的 state 交给 assertPinCoverage 验"声明的端点真的都被请求过"——
- * 钉了却没人调用 = fixture 过期或路径写错，那种"绿"和没钉一样，必须红。
+ * 返回的 state 交给两条方向相反的断言用：
+ *  - `assertPinCoverage` 验"声明的端点真的都被请求过"（钉了却没人调用 = fixture 过期或路径写错，
+ *    那种"绿"和没钉一样，必须红）；
+ *  - `assertAllApiGetsPinned`（修复轮 1 的 I-2）验"这一页发出去的每条 GET 都被声明了"（全集 ⊆ pinPaths）。
+ * 本函数还顺手用 `page.on('request')` 把这一页发过的全部 `/api/` GET 键收进 `state.observedApiGets`——
+ * 收集与判定分开：这里只测量，判红在那条断言里（它必须是纯函数，才能被 helpers.spec.ts 喂合成样本弄红）。
  */
 export async function installPayloadPin(page: Page, anchor: AnchorSpec): Promise<PinState> {
   const paths = anchor.pinPaths ?? []
   const manifest = loadPinManifest(anchor.slug)
   const shift = pinShiftDays()
-  const state: PinState = { served: [], unpinnedTodayBearing: [], shiftDays: shift }
+  const state: PinState = { served: [], unpinnedTodayBearing: [], observedApiGets: [], shiftDays: shift }
   const serverToday = localDay(new Date())
+  const observed = new Set<string>()
 
   await page.route((url) => paths.includes(`${url.pathname}${url.search}`), async (route) => {
     const req = route.request()
@@ -222,6 +240,22 @@ export async function installPayloadPin(page: Page, anchor: AnchorSpec): Promise
       contentType: hit.contentType,
       body: shift === 0 ? hit.body : shiftIsoDates(hit.body, shift),
     })
+  })
+
+  // I-2：全集侧的账本。`request` 事件对**被 fulfill 的请求同样触发**，所以这份清单是"这一页发过的全部 GET"，
+  // 与 `served`（被钉桩接管的那一份）刚好是判"钉得全不全"需要的两个面。
+  // canary 探针键（`CANARY_PROBE_PATH`）**显式不收**：它按设计就不入 pinPaths，收进来会让 I-1 与 I-2
+  // 互相把对方判红。这里靠键名逐字豁免，同时 `page.request` 走的探针本来也不进 `page.on('request')`
+  // （Playwright 的 page.route/请求事件都不作用于 APIRequestContext）⇒ 双保险，不是二选一。
+  page.on('request', (req) => {
+    if (req.method() !== 'GET') return
+    const u = new URL(req.url())
+    if (!u.pathname.startsWith('/api/')) return
+    const key = `${u.pathname}${u.search}`
+    if (key === CANARY_PROBE_PATH) return
+    if (observed.has(key)) return
+    observed.add(key)
+    state.observedApiGets.push(key)
   })
 
   // 审计（不是断言）：页面还在消费哪些"带今天日期"的 /api 响应。
@@ -248,6 +282,121 @@ export function assertPinCoverage(anchor: AnchorSpec, state: PinState): void {
         `钉了却没用上 = fixture 与产品已脱节，这次的"零 diff"不是钉出来的。要么改 pinPaths，要么重录 fixture。`,
     )
   }
+}
+
+/**
+ * I-2 的**判据本体**（纯函数 ⇒ 它"会不会红"能像 F2a／F5 那样入库喂合成样本，不必等产品真加一条 GET）。
+ * 返回**漏钉的键清单**，空＝这一页发过的每条 `/api/` GET 都在 `pinPaths` 里。
+ * 逐字比较（`pathname+search`），与 `installPayloadPin` 的 route 匹配、`attachPayloadRecorder` 的落盘键
+ * 同一把尺——少了 search 就是"钉了却没命中"，本条也不许把它算成已钉。
+ */
+export function findUnpinnedApiGets(observed: readonly string[], declared: readonly string[]): string[] {
+  return observed.filter((k) => !declared.includes(k))
+}
+
+/**
+ * I-2：把"pinPaths 是否覆盖该页 GET 全集"从一条 `console.log` 升成断言。
+ * 【为什么必须有这条】上一轮的差集是**一次性脚本量出来的**，产品在这一页加一条 GET、
+ * 或把 `?size=100` 改成别的 query，跨套件耦合立刻回来而**没有一条入库断言会红**
+ * （`assertPinCoverage` 只判"钉了的有没有被消费"这一个方向，方向相反、拦不住它）。
+ * 【只对声明了 pinPaths 的锚点判】`login` 那类匿名页按设计不钉任何东西，
+ * 给它加"全集必须为空"会变成一条谁都得绕的约束——它的路径由简报第 2 步"不为凑数硬钉"另案处理。
+ */
+export function assertAllApiGetsPinned(anchor: AnchorSpec, state: PinState): void {
+  const declared = anchor.pinPaths ?? []
+  if (declared.length === 0) return
+  const unpinned = findUnpinnedApiGets(state.observedApiGets, declared)
+  if (unpinned.length > 0) {
+    throw new Error(
+      `[钉桩覆盖] ${anchor.slug} 这一页发出了 pinPaths 之外的「/api/」GET：${JSON.stringify(unpinned)}\n` +
+        `  pinPaths 现值：${JSON.stringify(declared)}\n` +
+        `  本轮实测全集：${JSON.stringify(state.observedApiGets)}\n` +
+        `含义：跨套件数据耦合从这条键回来了——流程套件写真后端数据时它的响应会变，画面跟着变，基线跟不上。\n` +
+        `合法处置只有两种，且都必须显式：① 把这条键（逐字带 search）加进 ANCHORS 的 pinPaths\n` +
+        `   并**同批重录** fixture（PW_RECORD_PAYLOADS=1 那条命令；重录会改动入库的 __fixtures__，那是有意的改动）；\n` +
+        `   ② 证实这一页不再消费它 ⇒ 反过来改 pinPaths 并同步 data-arrival.ts 的 DATA_PATHS。\n` +
+        `禁止的出路：把本条断言放宽成 console.log（那正是它被升成断言之前的形状）。`,
+    )
+  }
+}
+
+/**
+ * I-1：canary 探针的**键**——一个按设计**不入任何 pinPaths** 的端点。
+ * 选 `/api/notifications?page=1&size=5` 的理由（复核席给出、本棒核对后端确认）：
+ * 它是 `NotificationController.getUserNotifications`（`@GetMapping("")`，page/size 都有缺省值），
+ * 任何登录用户都能打（收件人由 `Authentication` 主体决定，无角色注解），
+ * 而前端只在**点开通知弹层**时才发它 ⇒ 视觉锚点的首屏不会自然产生这条请求，钉桩清单里也就没有它。
+ */
+export const CANARY_PROBE_PATH = '/api/notifications?page=1&size=5'
+
+/**
+ * I-1 的**判据本体**（纯函数，理由同上——"这条会不会红"必须能在 helpers.spec.ts 里喂合成样本证明）。
+ * 要证的只有一件事：**真后端仍在、真会话仍被认、契约名还没改**。
+ * 返回违规清单，空＝可用。口径收得很窄，因为它挡的是"整页被 fixture 供数之后画面全绿的另一种原因"：
+ *  ① 非 200（会话过期／后端下线 ⇒ 401/403/5xx 或代理层错误）；
+ *  ② 解不出 JSON（dev server 把未知路径兜成 index.html 时状态也是 200）；
+ *  ③ 信封结构不在（契约改名／路由被挪走：`code` 不是数字，或 `data` 这个键根本没有）。
+ * 它**不**判业务数值（未读数多少与本条无关），也不判权限角色——判的是"这条探针打得通"。
+ */
+export function canaryFindings(status: number, bodyText: string): string[] {
+  const findings: string[] = []
+  if (status !== 200) findings.push(`HTTP ${status}（期望 200 ⇒ 会话过期、后端下线或被守卫拦回都会落在这里）`)
+  let parsed: unknown = null
+  try {
+    parsed = JSON.parse(bodyText)
+  } catch {
+    findings.push('响应体不是 JSON（dev server 对未知路径回 index.html 时状态仍是 200，只判状态会放过）')
+  }
+  if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+    const env = parsed as Record<string, unknown>
+    if (typeof env.code !== 'number') findings.push(`信封缺 code（实读到 ${JSON.stringify(Object.keys(env)).slice(0, 120)}）`)
+    if (!('data' in env)) findings.push('信封缺 data 键（契约改名或被挪走的形状）')
+  }
+  return findings
+}
+
+/**
+ * I-1：**不经钉桩**的后端＋会话 canary，装在 `runAnchor` 里、`installPayloadPin` **之前**。
+ * 【它要堵的洞】两格现在把本页全部 GET 都钉住了 ⇒ 路由守卫 `fetchPermissions` 的 401/过期分支
+ *   在这两格的跑测里**永不触发**：`.auth` 会话过期、后端下线、契约改名，画面照样全绿，
+ *   连 `assertGenericGuards` 那条"被守卫踢回 /login"的守卫都对它们永久失效
+ *   （`visual-helpers.ts` 的 collectGenericGuardReasons 里那句 `href.includes('/login')`
+ *    要真有一次导航被踢回去才说得话，而两格的导航所需的全部响应都由 fixture 应答）。
+ * 【为什么走 `page.request` 而不是页内 fetch】`page.route` 与 `page.on('request')` 都**不作用于**
+ *   APIRequestContext（Playwright 文档明写 routing 只覆盖页面发出的请求），
+ *   所以这条探针天生不经钉桩、也天生不进 I-2 的全集清单；会话由 context 的 cookie jar 带上
+ *   （本项目凭据是 HttpOnly Cookie，`global-setup.ts` 注释在案），不需要也不允许在这里读令牌。
+ * 【为什么放在装钉桩之前】放后面任何一条 route 一旦把探针键也接住（比如有人手滑把它加进 pinPaths），
+ *   这条断言就绿在 fixture 上、失去意义；本函数另外显式拒绝"探针键已在 pinPaths"的那种配置。
+ * 【极性】失败即该锚点判红，报错前缀 `[canary]` 与像素红（`[零漂移]`／`toHaveScreenshot`）
+ *   在 stdout 里一眼分得开——这条红说的是"harness 之外没人给我担保后端了"，不是"画面变了"。
+ */
+export async function assertBackendCanary(page: Page, anchor: AnchorSpec): Promise<void> {
+  const declared = anchor.pinPaths ?? []
+  if (declared.length === 0) return
+  if (declared.includes(CANARY_PROBE_PATH)) {
+    throw new Error(
+      `[canary] ${anchor.slug} 把探针键 ${CANARY_PROBE_PATH} 写进 pinPaths 了。\n` +
+        `  这条断言的全部力量来自"它一定走真后端"；被钉桩接住以后它绿在 fixture 上，等于没测。\n` +
+        `  要么把探针键从 pinPaths 删掉，要么把探针换成另一条同样不被首屏消费的端点并同步本函数。`,
+    )
+  }
+  const res = await page.request.get(CANARY_PROBE_PATH)
+  const text = await res.text()
+  const findings = canaryFindings(res.status(), text)
+  if (findings.length > 0) {
+    throw new Error(
+      `[canary] ${anchor.slug}：不经钉桩的探针 ${CANARY_PROBE_PATH} 没能证明"真后端＋真会话仍可用"——\n` +
+        `  ${findings.join('\n  ')}\n` +
+        `  这条红**不是像素红**：这一格的画面全部由 __fixtures__ 供数，所以后端下线、会话过期、\n` +
+        `  契约改名这三族故障在像素上永远看不出来（见本函数注释）。先修环境或契约，再谈基线。\n` +
+        `  禁止的出路：把本条降成 console.log，或给探针键加钉桩。`,
+    )
+  }
+  console.log(
+    `[canary] ${anchor.slug}：${CANARY_PROBE_PATH} ⇒ HTTP 200 且信封完整（真后端＋真会话仍可用；` +
+      `这一条不经钉桩，与像素红分开）`,
+  )
 }
 
 /**
@@ -396,12 +545,35 @@ export function inspectPinnedPayload(body: string, where: string): PinnedPayload
  * 登记在这里 = 台账措辞降级（"被钉区域不作数据到位证据"），**不是**放行内容断言——
  * 载荷全 0 而未登记的钉桩锚点会当场抛；登记条目若对不上实测（比如重录后载荷有内容了），
  * `helpers.spec.ts` 的 R-CF1 一致性断言会红，逼着同一批里把表和 LEDGER 一起改。
+ * 【Task 0 之后本表的值必须写**全部**平凡键】两格各钉 5／7 条以后，"平凡"不再只有那一条分析端点：
+ * 未读数这种**裸数值**载荷（`data` 是数字、没有数组）按 inspectPinnedPayload 的口径同样判平凡
+ * （最长序列 0），admin 格那条还是 `0`。所以下面每条依据逐键写形状，运行时日志里那句
+ * `被钉载荷平凡([...])` 与这里必须是同一组键——键集合由 `PIN_PAYLOAD_TRIVIAL_KEYS` 与
+ * `helpers.spec.ts` 的 ④ 逐键钉住（修复轮 1 的 I-4①；原先 ④ 用 `.some()` 只比 slug 集合，
+ * 键集合漂开它看不见）。
  */
 export const PIN_PAYLOAD_TRIVIAL_EXCUSED: Record<string, string> = {
   'student-dashboard':
-    '被钉 /api/student/analytics/visualization：durationTrend 14 × seconds:0、radarData []、heatmapData []（fixture 自 4ca2ea4 录制即此形状，来自真后端）⇒ 该学生账号基线日无分析数据。',
+    '两条平凡键：① 被钉 /api/student/analytics/visualization：durationTrend 14 × seconds:0、radarData []、heatmapData []（fixture 自 4ca2ea4 录制即此形状，来自真后端）⇒ 该学生账号基线日无分析数据；' +
+    '② 被钉 /api/notifications/unread-count：data 是裸数值 42、无数组 ⇒ 按 inspectPinnedPayload 口径"最长序列 0"即平凡（Task 0 新钉的键，登记于修复轮 1）。其余三条（permissions／student/courses／student/dashboard）普查非平凡。',
   'admin-governance-analytics':
-    '被钉 /api/analytics/users/growth?days=30：30 × {newUsers:0, cumulativeUsers:0}（同上）⇒ 该 admin 账号 30 天窗口内无增长数据。',
+    '两条平凡键：① 被钉 /api/analytics/users/growth?days=30：30 × {newUsers:0, cumulativeUsers:0}（同上）⇒ 该 admin 账号 30 天窗口内无增长数据；' +
+    '② 被钉 /api/notifications/unread-count：data 是裸数值 0 ⇒ 序列长度 0 且非零数值 0（Task 0 新钉的键，登记于修复轮 1）。其余五条（permissions／courses／heatmap／dashboard／ranking）普查非平凡。',
+}
+
+/**
+ * 上面那两条豁免**各自覆盖哪些键**——按 `pathname+search` 逐字列出、**排序后**比较。
+ * 【为什么要单独一张表而不是从理由散文里读】豁免按 slug 登记，运行时只问"这个 slug 有没有登记"，
+ * 于是"多钉了一条平凡键"这件事在旧形状下**没有任何入库面看得见**（I-4① 点名的就是这个盲区：
+ * `helpers.spec.ts` 的 ④ 当时用 `.some()`，slug 级一致就绿）。有了这张表，④ 才能逐键判相等。
+ * 【改这张表的唯一合法时机】重录 fixture 之后同一批：平凡集合变了 ⇒ ④ 当场红 ⇒ 在这里改键、
+ *   同步 `PIN_PAYLOAD_TRIVIAL_EXCUSED` 的依据文本与 LEDGER `P0a-GUARD-02`。
+ * 【本表不参与运行时判定】运行时行为一字未动（仍是"有登记即放行加降级日志"），
+ *   它只把"登记的到底是什么"变成可失败的断言面。
+ */
+export const PIN_PAYLOAD_TRIVIAL_KEYS: Record<string, readonly string[]> = {
+  'student-dashboard': ['/api/notifications/unread-count', '/api/student/analytics/visualization'],
+  'admin-governance-analytics': ['/api/analytics/users/growth?days=30', '/api/notifications/unread-count'],
 }
 
 /**

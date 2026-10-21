@@ -21,6 +21,8 @@ import {
 } from './visual-helpers'
 import { apiStubTakesPathname, assertAnchorArrival, DATA_ARRIVAL_CHECKS, DATA_PATHS } from './data-arrival'
 import {
+  assertAllApiGetsPinned,
+  assertBackendCanary,
   assertPinCoverage,
   assertPinnedPayloadContent,
   attachPayloadRecorder,
@@ -248,10 +250,18 @@ async function runAnchor(
 
   // 载荷钉死要装在**导航前**，且只有声明了 pinPaths 的锚点才装（理由见 payload-pin.ts 顶部那块 pin 注释）。
   // PW_RECORD_PAYLOADS=1 时反过来录写真后端响应——录制模式不产量程结论，只产 fixture。
+  //
+  // 【修复轮 1 的 I-1：canary 必须排在装钉桩之前，且两种模式都跑】
+  // Task 0 把这两格本页发过的**每一条 GET** 都钉住了 ⇒ 页面再也不打真后端，
+  // 于是"被守卫踢回 /login（会话没带上）"那条通用守卫（visual-helpers 的 collectGenericGuardReasons）
+  // 对这两格**永久失效**：`.auth` 过期、后端下线、契约改名，画面照样全绿。
+  // 现在用一条不经钉桩的探针（`page.request` 不受 page.route 作用）先把"真后端＋真会话仍可用"钉住，
+  // 失败即该锚点判红、前缀 [canary] 与像素红分得开。录制模式同样跑（它本来就要打真后端，顺带自证环境）。
   const recording = process.env.PW_RECORD_PAYLOADS === '1'
   let flushRecord: (() => Promise<void>) | null = null
   let pinState: PinState | null = null
   if ((anchor.pinPaths?.length ?? 0) > 0) {
+    await assertBackendCanary(page, anchor)
     if (recording) flushRecord = attachPayloadRecorder(page, anchor)
     else pinState = await installPayloadPin(page, anchor)
   }
@@ -328,6 +338,12 @@ async function runAnchor(
 
   if (pinState) {
     assertPinCoverage(anchor, pinState)
+    // 修复轮 1 的 I-2：反方向的那半条 coverage——这一页发过的每条 GET 都必须被声明过。
+    // 原先这里只有下面那条 [pin-audit] 的 console.log（报数不判红），
+    // 所以"产品在这一页加一条 GET／把 ?size=100 改成别的 query"这种漂移是**静默**的：
+    // assertPinCoverage 判的是"钉了的有没有被消费"，方向相反、拦不住它。
+    // 判红排在 assertPinCoverage 之后：两条都成立时"零 diff"才既不是钉歪的、也不是漏钉的。
+    assertAllApiGetsPinned(anchor, pinState)
     // R-CF1（4c-fix-C 第 9 项）：存在性断言 ≠ 内容断言。被钉的载荷自己必须非平凡
     // （data 内序列长度 > 0 且至少一个数值字段非 0）；全 0 且未登记的直接红，
     // 已登记的（今天这两个锚点，账号确实没分析数据）放行但**每次打印结论降级**——
@@ -341,9 +357,12 @@ async function runAnchor(
     // 这里用同一个 mask、同一组截图参数另截一张，交给已入库的比较器按 t=0/r=0 读死数，并**要求 md5 相等**。
     await assertZeroDiff(page, anchor, theme, testInfo, pinState)
     console.log(
-      `[pin] ${anchor.slug}/${theme} 钉掉 ${pinState.served.length} 次请求：${JSON.stringify(pinState.served)}`,
+      `[pin] ${anchor.slug}/${theme} 钉掉 ${pinState.served.length} 次请求：${JSON.stringify(pinState.served)}｜本页 GET 全集 ${pinState.observedApiGets.length} 条：${JSON.stringify(pinState.observedApiGets)}`,
     )
     if (pinState.unpinnedTodayBearing.length > 0) {
+      // 这条日志在 I-2 之后**应当永不打印**（漏钉的先由 assertAllApiGetsPinned 判红）。
+      // 留着它是诊断：真打出来就说明"全集 ⊆ pinPaths"那条被改坏了，或这条键在截图之后才发出来
+      // （那种键不归本条断言管，归 I-1 的 canary 与流程套件那一族）。
       console.log(
         `[pin-audit] ${anchor.slug} 仍在消费带"今天"日期的未钉端点 ${pinState.unpinnedTodayBearing.length} 个：${JSON.stringify([...new Set(pinState.unpinnedTodayBearing)])}`,
       )

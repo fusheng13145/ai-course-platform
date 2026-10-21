@@ -26,14 +26,20 @@ import {
 } from './visual-helpers'
 import { apiStubTakesPathname } from './data-arrival'
 import {
+  assertAllApiGetsPinned,
   assertManifestDates,
   assertPinnedPayloadContent,
+  CANARY_PROBE_PATH,
+  canaryFindings,
+  findUnpinnedApiGets,
   inspectPinnedPayload,
   loadPinManifest,
   parseNopinValue,
   PIN_PAYLOAD_TRIVIAL_EXCUSED,
+  PIN_PAYLOAD_TRIVIAL_KEYS,
   readNopinEnv,
   type PinManifest,
+  type PinState,
 } from './payload-pin'
 import { pngSize } from './tools/png-size'
 
@@ -1380,6 +1386,44 @@ test('基线日是断言不是假设：时钟日、fixture 声明日、回拨量
 })
 
 /**
+ * 修复轮 1 的 I-4①：把"钉桩锚点的平凡键集合 vs 登记表"那条比较抽成**判据本体**（纯函数）。
+ * 【为什么不是直接在用例里 toEqual】本仓的规矩是"守卫自己也要测"——一条从没红过的比较不是守卫。
+ *   写成纯函数后，下面那条用例既拿真 fixture 跑一遍（绿的那半），又喂四组合成表证明它有牙（红的半）。
+ * 【口径】两侧都排序后逐键比；只登记**有平凡键**的锚点（某锚点全部键都非平凡 ⇒ 它不该出现在任一侧，
+ *   这与旧 `.some()` 折成 slug 集合的行为一致，免得把"非平凡"这件事也当成豁免）。
+ */
+function trivialKeyFindings(
+  measured: Record<string, readonly string[]>,
+  declared: Record<string, readonly string[]>,
+): string[] {
+  const findings: string[] = []
+  const slugs = [...new Set([...Object.keys(measured), ...Object.keys(declared)])].sort()
+  for (const slug of slugs) {
+    const m = [...(measured[slug] ?? [])].sort()
+    const d = [...(declared[slug] ?? [])].sort()
+    if (m.join('\u0000') !== d.join('\u0000')) {
+      findings.push(`${slug}：实测平凡键 ${JSON.stringify(m)} ≠ 登记表 ${JSON.stringify(d)}`)
+    }
+  }
+  return findings
+}
+
+/** 从**入库 fixture** 实量每个钉桩锚点的平凡键集合（只读，不写盘、不重录）。 */
+function measureTrivialKeysBySlug(): Record<string, string[]> {
+  const out: Record<string, string[]> = {}
+  for (const a of ANCHORS.filter((x) => (x.pinPaths?.length ?? 0) > 0)) {
+    const m = loadPinManifest(a.slug)
+    const trivial = (a.pinPaths ?? [])
+      .filter(
+        (k) => m.requests[k] && !inspectPinnedPayload(m.requests[k].body, `${a.slug}/${k}`).nonTrivial,
+      )
+      .sort()
+    if (trivial.length > 0) out[a.slug] = trivial
+  }
+  return out
+}
+
+/**
  * Task 4c-fix-C 第 9 项（R-CF1）：被钉载荷的**内容**断言必须有牙。
  * 【原先错在哪】两份入库 fixture 的载荷全 0（student-dashboard：durationTrend 14 × seconds:0，
  * radar 与 heatmap 皆空；admin-governance-analytics：growth 30 × 全 0），而各锚点的"数据到位"
@@ -1457,22 +1501,164 @@ test('被钉载荷内容断言（R-CF1）：普查只走 data、合成反例必�
     ).not.toThrow()
   }
 
-  // ④ 双向一致：当前实测全 0 的钉桩锚点集合 == 登记表集合
-  //    （重录出内容却不删豁免 ⇒ trivialNow 少一条、红；新钉桩全 0 未登记 ⇒ trivialNow 多一条、红）
-  const trivialNow = ANCHORS.filter((a) => (a.pinPaths?.length ?? 0) > 0)
-    .filter((a) => {
-      const m = loadPinManifest(a.slug)
-      return (a.pinPaths ?? []).some(
-        (k) =>
-          m.requests[k] && !inspectPinnedPayload(m.requests[k].body, `${a.slug}/${k}`).nonTrivial,
-      )
-    })
-    .map((a) => a.slug)
-    .sort()
+  const measuredTrivialKeysBySlug = measureTrivialKeysBySlug()
+  // ④ 逐键一致（修复轮 1 的 I-4①，**取代**原先"只比 slug 集合"那半条）：
+  //    当前实测的 `slug → 平凡键列表` 必须与 `PIN_PAYLOAD_TRIVIAL_KEYS` 逐键相等。
+  //    【为什么原先那条不够】旧写法用 `.some()` 折成 slug 级集合 ⇒ Task 0 新钉的
+  //    `/api/notifications/unread-count`（裸数值、按口径判平凡）混在已经登记的 slug 里，
+  //    键集合从"每格 1 条"漂成"每格 2 条"而本文件照样全绿——盲区登记在 findings I-4。
+  //    集合级的那半条仍然留着（它管"豁免表与键表不许各自漂"），只是不再单独充当平凡集合的守卫。
+  const trivialNow = Object.keys(measuredTrivialKeysBySlug).sort()
   expect(
     trivialNow,
     '登记表与实测全 0 集合漂开了（一侧变化必须同批改另一侧与 LEDGER P0a-GUARD-02）',
   ).toEqual(Object.keys(PIN_PAYLOAD_TRIVIAL_EXCUSED).sort())
+  expect(
+    trivialKeyFindings(measuredTrivialKeysBySlug, PIN_PAYLOAD_TRIVIAL_KEYS),
+    '平凡键集合与 PIN_PAYLOAD_TRIVIAL_KEYS 不相等 ⇒ 一侧变化必须同批改另一侧、' +
+      '`PIN_PAYLOAD_TRIVIAL_EXCUSED` 的依据文本与 LEDGER P0a-GUARD-02（修复轮 1 的 I-4①）',
+  ).toEqual([])
+  expect(
+    Object.keys(PIN_PAYLOAD_TRIVIAL_KEYS).sort(),
+    'PIN_PAYLOAD_TRIVIAL_KEYS 与 PIN_PAYLOAD_TRIVIAL_EXCUSED 两张表的 slug 集合分家了 ⇒ ' +
+      '只改一张等于"登记了一条没有依据的豁免"或"写了一段没有键的依据"',
+  ).toEqual(Object.keys(PIN_PAYLOAD_TRIVIAL_EXCUSED).sort())
+  for (const slug of Object.keys(PIN_PAYLOAD_TRIVIAL_KEYS)) {
+    const anchor = ANCHORS.find((a) => a.slug === slug)
+    expect(anchor, `${slug} 的平凡键登记悬空：ANCHORS 里已没有这个锚点`).toBeTruthy()
+    expect(
+      (anchor!.pinPaths ?? []).length,
+      `${slug} 登记了平凡键却已不再声明 pinPaths——豁免表是给钉桩用的，先删条目`,
+    ).toBeGreaterThan(0)
+    for (const k of PIN_PAYLOAD_TRIVIAL_KEYS[slug]) {
+      expect(
+        anchor!.pinPaths ?? [],
+        `${slug} 登记的平凡键 ${k} 不在它的 pinPaths 里：键必须逐字（含 search）对得上才叫"被钉的载荷"`,
+      ).toContain(k)
+    }
+  }
+})
+
+/**
+ * 修复轮 1 的 I-4①：上面那条逐键比较**有牙**的证据（全喂合成表，不碰 `__fixtures__`、不重录）。
+ * 【要证的三件事】① 少登记一条键会红；② 多登记一条键也会红（两侧对称，不是"实测必须被登记覆盖"）；
+ * ③ search 逐字参与比较——`/api/x` 与 `/api/x?page=1&size=100` 是两条键，
+ *   把带 query 的那条写成裸 pathname 不许被算成"已登记"（Task 0 的 pinPaths 全靠这条口径）。
+ * 【零基】最后一条"两侧完全相同 ⇒ 空清单"必须有，否则前三条红可能红在判据写反上。
+ */
+test('平凡键逐键比较有牙：少一条、多一条、search 写漏都红，而相同两侧给空清单（修复轮 1 的 I-4①）', () => {
+  const same = { 'x-anchor': ['/api/a', '/api/b?page=1'] }
+  expect(trivialKeyFindings(same, same), '两侧逐字相同却报违规——判据写反了，上面三条红的归因全部作废').toEqual(
+    []
+  )
+  // ① 登记表少一条键（真实漂法：Task 0 新钉的裸数值端点没进表）
+  expect(
+    trivialKeyFindings({ 'x-anchor': ['/api/a', '/api/b?page=1'] }, { 'x-anchor': ['/api/a'] }),
+    '登记表漏了一条平凡键却放行——I-4① 要修的正是这个盲区',
+  ).toHaveLength(1)
+  // ② 登记表多一条键（真实漂法：重录后那条键已有内容，表没删）
+  expect(
+    trivialKeyFindings({ 'x-anchor': ['/api/a'] }, { 'x-anchor': ['/api/a', '/api/b?page=1'] }),
+    '登记表里挂着一条实测已非平凡的键却放行——豁免只能与实测逐键相等',
+  ).toHaveLength(1)
+  // ③ search 逐字：pathname 相同、query 不同 ⇒ 必须算两条键
+  expect(
+    trivialKeyFindings({ 'x-anchor': ['/api/b?page=1&size=100'] }, { 'x-anchor': ['/api/b'] }),
+    '把带 search 的键写成裸 pathname 竟被判相等——钉桩与录制都按 pathname+search 逐字比，这张表不许例外',
+  ).toHaveLength(1)
+  // ④ slug 一侧多出整格（新钉桩锚点全 0 却没登记）
+  expect(
+    trivialKeyFindings({ 'x-anchor': ['/api/a'], 'y-anchor': ['/api/z'] }, { 'x-anchor': ['/api/a'] }),
+    '新钉桩锚点有平凡键却没登记 ⇒ 判据必须点名那一格',
+  ).toEqual(['y-anchor：实测平凡键 ["/api/z"] ≠ 登记表 []'])
+})
+
+/**
+ * 修复轮 1 的 I-2：「这一页发出的每条 GET 都被声明过」那条断言**有牙**的证据。
+ * 【形状】判据本体是纯函数 `findUnpinnedApiGets`（两侧都按 pathname+search 逐字比），
+ *   `assertAllApiGetsPinned` 只是把它的清单包成红话——所以反例喂**合成 PinState**，
+ *   不去给活锚点临时加 pinPaths（那会把入库 fixture 拖进一次真跑测，且断言会被下一次重录漂掉）。
+ * 【两侧都要钉】漏钉红（本条主张家）、全集被覆盖时绿（否则"永不成立的判据比没判据更坏"）、
+ *   未声明 pinPaths 的锚点整条跳过（`login` 那一格的既有口径）。
+ */
+test('钉桩覆盖断言有牙：漏一条键红、逐字含 search、未声明 pinPaths 的锚点跳过（修复轮 1 的 I-2）', () => {
+  const stateOf = (observed: string[]): PinState => ({
+    served: observed,
+    unpinnedTodayBearing: [],
+    observedApiGets: observed,
+    shiftDays: 0,
+  })
+  const anchorOf = (pinPaths: string[] | undefined) =>
+    ({ slug: 'synthetic-i2', title: 'synthetic', role: 'STUDENT', path: '/x', pinPaths }) as AnchorSpec
+
+  // ① 零基：全集 ⊆ pinPaths ⇒ 不抛
+  const ok = anchorOf(['/api/a', '/api/b?page=1&size=100'])
+  expect(() => assertAllApiGetsPinned(ok, stateOf(['/api/a', '/api/b?page=1&size=100']))).not.toThrow()
+  // ② 漏一条（真实漂法：产品在这一页新加一条 GET，或把 size=100 改成别的 query）
+  let threw = ''
+  try {
+    assertAllApiGetsPinned(anchorOf(['/api/a']), stateOf(['/api/a', '/api/notifications?page=1&size=5']))
+  } catch (e) {
+    threw = (e as Error).message
+  }
+  expect(threw, '页面发了 pinPaths 之外的 GET 却放行——跨套件耦合就是这么静默回来的').toContain(
+    '[钉桩覆盖]',
+  )
+  expect(threw, '红话必须点名漏的是哪一条键，否则下一个人回整页里猜').toContain(
+    '/api/notifications?page=1&size=5',
+  )
+  // ③ search 逐字：把带 query 的键写成裸 pathname ⇒ 那条实测键算漏钉
+  expect(
+    findUnpinnedApiGets(['/api/b?page=1&size=100'], ['/api/b']),
+    'pathname 相同、query 不同却算已钉——与 installPayloadPin 的匹配口径分家了',
+  ).toEqual(['/api/b?page=1&size=100'])
+  // ④ 未声明 pinPaths 的锚点整条跳过（login 那一格按简报"不为凑数硬钉"，不许被这条判红）
+  expect(
+    () => assertAllApiGetsPinned(anchorOf(undefined), stateOf(['/api/whatever'])),
+    '没声明 pinPaths 的匿名锚点被这条判红——它管的是"钉了的格钉全没有"，不是"每页都必须钉"',
+  ).not.toThrow()
+  // ⑤ 探针键不许被钉（钉了以后 I-1 那条 canary 就绿在 fixture 上，等于没测）
+  for (const a of ANCHORS.filter((x) => (x.pinPaths?.length ?? 0) > 0)) {
+    expect(
+      a.pinPaths ?? [],
+      `${a.slug} 把 canary 探针键 ${CANARY_PROBE_PATH} 钉住了 ⇒ assertBackendCanary 从此绿在 fixture 上`,
+    ).not.toContain(CANARY_PROBE_PATH)
+  }
+})
+
+/**
+ * 修复轮 1 的 I-1：canary 那条"真后端＋真会话仍可用"的判据**有牙**的证据。
+ * 【为什么必须配正例】这条断言要拦的是"整页被 fixture 供数之后，后端下线/会话过期/契约改名都不会红"，
+ *   如果它自己也永不成立（比如把 200 判成违规），那它就成了第二个假绿。
+ *   所以 200 加完整信封那一侧必须给空清单，三种坏形状各点名一条理由。
+ * 【它测的是判据本体】`canaryFindings(status, body)` 是纯函数；真打后端那一次由 anchors 跑测时
+ *   每个钉桩锚点各跑一次（stdout 的 `[canary]` 行就是它的重放读数）。
+ */
+test('canary 判据有牙：401、HTML 兜页、缺 data 键三种都红，而 200 加完整信封放行（修复轮 1 的 I-1）', () => {
+  // 零基（正例）：形状照后端 ApiResponse 信封，data 为空数组也算"结构在"（本条不判业务数值）
+  expect(
+    canaryFindings(200, JSON.stringify({ code: 200, message: 'success', data: [] })),
+    '真后端正常信封被判违规 ⇒ 这条 canary 在所有锚点上都会假红，没人会信它的读数',
+  ).toEqual([])
+  // ① 会话过期／后端下线：401（信封本身是完整的 ⇒ 只该报状态那一条理由，
+  //    这样"命中第一条就返回"与"信封判据写反"两种毛病都能被这一条分开抓住）
+  const f401 = canaryFindings(401, JSON.stringify({ code: 401, message: '未认证', data: null }))
+  expect(f401, '401 没被抓住——"被踢回 /login 那条守卫对钉桩锚点永久失效"这个洞原样留着').toHaveLength(1)
+  expect(f401[0]).toContain('HTTP 401')
+  // ② dev server 把未知路径兜成 index.html：状态 200 而体不是 JSON
+  const fHtml = canaryFindings(200, '<!doctype html><html><head><title>AI 课程平台</title>')
+  expect(fHtml, 'HTML 兜页放行了——只判状态等于没判').toHaveLength(1)
+  expect(fHtml[0]).toContain('不是 JSON')
+  // ③ 契约改名／被挪走：信封缺 data 键
+  const fNoData = canaryFindings(200, JSON.stringify({ code: 200, message: 'ok' }))
+  expect(fNoData, '信封里没有 data 键却放行——契约改名正落在这一族').toHaveLength(1)
+  expect(fNoData[0]).toContain('data')
+  // ④ 非 JSON 且非 200 同时发生 ⇒ 两条理由都要在（不许命中第一条就返回）
+  expect(canaryFindings(502, '<html>Bad Gateway</html>')).toHaveLength(2)
+  // ⑤ 探针键必须与两格的 pinPaths 无交集（这条用例与上面 I-2 的第⑤条同判据，两处都钉防漂）
+  expect(CANARY_PROBE_PATH.startsWith('/api/'), '探针键不是 /api/ 路径 ⇒ 它根本不会经 dev server 代理').toBe(
+    true,
+  )
 })
 
 /**
