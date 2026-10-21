@@ -632,6 +632,12 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
   **(c) 已解除**（D2-8 措辞按 spec §8 改文本、原措辞保留为史料）、
   **只剩 (a) 跨套件数据隔离**——三条出路里"重录 22 张基线"那条需要 `--update-snapshots`，**须项目主点头**，
   我不自行执行；另两条（钉全未钉端点／书面改判据并给替代证据）都在测试与文档许可面内。
+- **2026-10-21 追加（控制器自主验收）：(a) 已解除，走的是"①＋③-lite"。** ① 由 Task 0 把三格实测未钉 GET 全纳入
+  `pinPaths`（`admin-governance-analytics` 1→7、`student-dashboard` 1→5，`336c343..b69e1e6`），helpers 里有"页面 GET 全集 ⊆ 钉桩集"的独立断言；
+  ③-lite 经项目主 2026-10-21 授权（回复"甲"）**只重录 `student-dashboard` 明暗两张**（`93b09cb`；light `c016886c…`、dark `31e4c0bf…`），
+  其余 20 张未动。判据＝`anchors --grep-invert "error-404"` 连续两轮 **40 passed／0 failed**（两轮日志在 SDD 工作区，不入 git）。
+  **跨套件顺序（先跑 9 个流程 spec 再跑视觉套件）本轮没有重放**：解除依据是钉桩覆盖面断言＋全钉后两轮字节一致，不是对原触发序列的重放；
+  原"恒红 152／148 px""2 failed／1 passed"读数保留为改前史料（§11.4 末条）。台账行 `P0a-PINGAP-01`。
 - **2026-10-21 排期变更（项目主定）**：**(a) 解除之后、Phase 1 开工之前，插入"新人引导改造"一批**，
   设计见 `docs/superpowers/specs/2026-10-21-onboarding-redesign-design.md`（含 12 条改前实测读数与 7 条裁定）。连带三条：
   ① 该批**不新增像素基线**——理由与本节上面那条同源，(a) 未解除前新增基线＝新增不可复现资产，改用色差与 rect 两条非像素判据；
@@ -740,6 +746,12 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
   ② 书面把判据改成"视觉套件连续两轮零 diff"并**给出替代证据**（说明跨套件场景为什么不需要它）；
   ③ 钉全载荷后**重录受影响的基线**——这需要 `--update-snapshots`，**blast radius 是 22 张判据资产，须项目主点头**，
      且要按 LEDGER 规则在结论为"保留"的前提下方可执行。
+  **2026-10-21 追加（控制器）：本条已按 ①＋③-lite 解除。** ① 的钉桩覆盖面由 Task 0 落地（页面 GET 全集 ⊆ `pinPaths`，另加 canary 与逐键平凡表）；
+  ③-lite 只重录 `student-dashboard` 明暗两张（`93b09cb`），旧基线 sha1 `3d1b9669…`／`5c7a75eb…` 换为 `c016886c…`／`31e4c0bf…`，
+  **不设 `PW_RECORD_PAYLOADS`**，fixture 与 `D-10` 均未重冻。两轮 `anchors --grep-invert "error-404"` 都是 40 passed／0 failed。
+  **"22 张二次跑零 diff"的适用范围须按 provenance 读**：现 22 张里 20 张仍是 `bf40e41` 的真后端录制原样，
+  2 张是 2026-10-21 由钉桩载荷重录；旧句指的是 `bf40e41` 那一次全目录的两次零 diff，不能直接套到这两张新图上。
+  上述原始读数（152／148 px、2 failed／1 passed、三条出路）保留为史料。
 
 ### 11.5 控制者裁定（新会话不得重开，除非带来新证据）
 
@@ -1000,7 +1012,7 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 | Format | 存量红（约 108 个文件，且 CI 在跑）⇒ **禁写"lint/format 全绿"**，引用前重测 | `cd frontend && npm run format:check` |
 | Element Plus ／ Playwright 声明 | EP 已收紧为精确 **`2.14.7`**（`058b907`）；`@playwright/test` 也已于 **`428c337`** 由 `^1.62.0` 收紧为精确 **`1.63.0`**（**逐条授权**，项目主 2026-10-21 批准；其余 `^` 范围一律未动）。同步改的两处是 `package.json` 与 `package-lock.json` 的 `packages[""].devDependencies`——**lockfileVersion 3 里那格记的就是声明区间，不同步改会让 `npm ci` 报 in sync 失败** | `cd frontend && npm ls element-plus @playwright/test`（另：`npm ci --dry-run` 是同步性的判据，它不删 `node_modules`） |
 | LEDGER 列数 | 表内每一行都是 **9** | 命令见本小节末的副本（表格单元里放它会因转义而失真） |
-| 视觉基线门（弹层与 token 改动的像素面） | **该读数已不可比**：`e2e/visual/` 无 `testMatch` 限制，Task 14 的 5 条观察用例现在也被全量收走，而这条 **55 passed ／ 2 failed 是观察组存在之前（`fc7438c` 态）的数** ⇒ 引用前先数条数、别抄 55；**`--list` 实测条数 `Total: 85 tests in 5 files`**（**现值 85**，2026-10-21 控制器现量；演进 **64 → 66 → 67 → 71 → 79 → 80（`e4718cb` 态）→ 81（`92ce3da` 态）→ 84（`77bc02a` 态：Task 0 修复轮 1 在 helpers 净增三条——不经钉桩的 canary、"该页 GET 全集 ⊆ pinPaths"断言、平凡载荷表改逐键比对）→ **85**（用例落在 `9481fcb`、账面收口在 `b69e1e6`：修复轮 2 的 M-b 给 canary 再加一条"顶层裸数组"反例，helpers 31→32）**；64 是 `428c337` 态、66 由 4c-fix-C 第 11 项的守卫加两条、67 由第 12 项的守卫再加一条、**71 由 C1 修复轮 1 的 F1／F2／F3／F4 各净增一条**（helpers 那条用例数同步 20 → 24）、**79 由 C2 第 13 项的三条前提／取证用例再加八条**、**80 由 C2b 的 S1 入库守卫再加一条**、**81 由 C2c 的空转缺口表与那条"计数是断言"用例净增一条**（逐 spec：anchors 42＋helpers 32＋motion 5＋sensitivity 3＋smoke 3；**28→31→32 全部落在 helpers**，anchors 未增）。 这条不启动浏览器也不写文件（`--list` **不执行 globalSetup**，是 4c-fix-C 实测的），是安全的先数法）。两条失败仍是 `error-404` 明暗、红在通用守卫 `data-theme=` 空值（**无一条红在像素**，见 §11.4 末条），据此得到的"10A／10B／10C 在已入库的 22 张基线上**像素中性**"结论**仍然成立**（它数的是基线格、不是总条数）；浅色 ltr 与旧手算值逐字相同是同一结论的机械面 | `cd frontend && PW_PORT=5175 npx playwright test -c playwright.visual.ts`（**前提**：8080／3306／6379 与三台引擎在听；会话一重启就要走 `start-backend.bat` 重来。**跑完必看**：这一跑会重写 `docs/visual-upgrade/evidence/P0a/motion/` 里若干张已入库观察图，须只对该目录还原，见 §11.4 新条与本小节末的动效观察组行） |
+| 视觉基线门（弹层与 token 改动的像素面） | **该读数已不可比**：`e2e/visual/` 无 `testMatch` 限制，Task 14 的 5 条观察用例现在也被全量收走，而这条 **55 passed ／ 2 failed 是观察组存在之前（`fc7438c` 态）的数** ⇒ 引用前先数条数、别抄 55；**`--list` 实测条数 `Total: 85 tests in 5 files`**（**现值 85**，2026-10-21 控制器现量；演进 **64 → 66 → 67 → 71 → 79 → 80（`e4718cb` 态）→ 81（`92ce3da` 态）→ 84（`77bc02a` 态：Task 0 修复轮 1 在 helpers 净增三条——不经钉桩的 canary、"该页 GET 全集 ⊆ pinPaths"断言、平凡载荷表改逐键比对）→ **85**（用例落在 `9481fcb`、账面收口在 `b69e1e6`：修复轮 2 的 M-b 给 canary 再加一条"顶层裸数组"反例，helpers 31→32）**；64 是 `428c337` 态、66 由 4c-fix-C 第 11 项的守卫加两条、67 由第 12 项的守卫再加一条、**71 由 C1 修复轮 1 的 F1／F2／F3／F4 各净增一条**（helpers 那条用例数同步 20 → 24）、**79 由 C2 第 13 项的三条前提／取证用例再加八条**、**80 由 C2b 的 S1 入库守卫再加一条**、**81 由 C2c 的空转缺口表与那条"计数是断言"用例净增一条**（逐 spec：anchors 42＋helpers 32＋motion 5＋sensitivity 3＋smoke 3；**28→31→32 全部落在 helpers**，anchors 未增）。 这条不启动浏览器也不写文件（`--list` **不执行 globalSetup**，是 4c-fix-C 实测的），是安全的先数法）。两条失败仍是 `error-404` 明暗、红在通用守卫 `data-theme=` 空值（**无一条红在像素**，见 §11.4 末条），据此得到的"10A／10B／10C 在已入库的 22 张基线上**像素中性**"结论**仍然成立**（它数的是基线格、不是总条数）；浅色 ltr 与旧手算值逐字相同是同一结论的机械面 | `cd frontend && PW_PORT=5175 npx playwright test -c playwright.visual.ts`（**前提**：8080／3306／6379 与三台引擎在听；会话一重启就要走 `start-backend.bat` 重来。**跑完必看**：这一跑会重写 `docs/visual-upgrade/evidence/P0a/motion/` 里若干张已入库观察图，须只对该目录还原，见 §11.4 新条与本小节末的动效观察组行；(a) 已于 2026-10-21 按 ①＋③-lite 解除，见 §11.4 末条与 LEDGER `P0a-PINGAP-01`） |
 | 动效观察组（非基线，Task 14 交付） | `motion-observation` **5 passed（约 20.4s，控制器 2026-10-20 实跑）**＝4 格观察图 ＋ 1 条降级对照（未覆盖态读 `matchMedia === true` 与 `.animate-in` 的 `animationName === 'none'`，另有覆盖态正读数 `rise-in` 配对，防"基础规则与 reduce 块一起删"的退化绿）。**判据可重放、那 6 个像素文件不可重放**：三次实跑每次都脏同样 3 张（`admin-dashboard`、`dialog-open`、`dialog-open-mid`），而 `modal-open` 与 `modal-open-mid` **每次同 sha1** ⇒ "两原语无 CSS 入场动效"是可复现的真发现 | `cd frontend && PW_PORT=5175 npx playwright test -c playwright.visual.ts motion-observation`，随后 `sha1sum docs/visual-upgrade/evidence/P0a/motion/*.png` 与 `git status --short` 同看，跑完只对该图片目录 `git checkout --` 还原一次 |
 | 基线可复现前提 | 后端与引擎须在听：8080 / 3306 / 6379 / 7687 / 8001 / 8002（本会话两次实测：起初只有 MySQL 与 Redis 在听，起完 `start-backend.bat` 后六个全回）；重启只能走 `start-backend.bat` | 端口检查命令见本小节末"端口检查"代码块（管道命令不能放进表格单元，会把本行撑成 4 列——2026-10-20 实测本行就是这样，已改） |
 
