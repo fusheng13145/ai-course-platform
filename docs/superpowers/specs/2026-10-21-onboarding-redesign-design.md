@@ -138,10 +138,16 @@
 | # | student | teacher | admin |
 | --- | --- | --- | --- |
 | 1 | 欢迎（无锚点）：一句"这是什么"，删掉宣传语 | 同左（教师口径） | 同左（管理口径） |
-| 2 | `nav:ai-assistant`（shell） | `nav:t-assess`（试题与考试，shell） | `nav:governance`（治理大盘，shell） |
+| 2 | `nav:ai-assistant`（shell） | `nav:t-assess`（试题与考试，shell） | `nav:dashboard`（治理大盘，shell） |
 | 3 | `nav:graph`（知识图谱，shell） | `nav:t-grades`（成绩总览，shell） | `nav:users`（用户与账号，shell） |
 | 4 | `side-user`（shell，"随时从这儿重看"，文案与实际弹层位置一致） | 同左 | 同左 |
 | 5 | **激活动作**`join-course`（page，课程大厅「+ 加入课程」）——点它即结束引导并真的开始用 | **激活动作**`nav:t-ai`（AI 教学中心，出题从这里开始） | **激活动作**`nav:audit`（审计，先看清谁动过什么） |
+
+**2026-10-21 控制器实测更正（原文保留为史料）**：本表第 2 行 admin 原写 `nav:governance`（治理大盘），但
+`frontend/src/layouts/menus.ts` 里 `governance` 是「运行监管」、`dashboard` 才是「治理大盘」⇒ 已改为 `nav:dashboard`，
+Task 1 的 `admin.js` 同步。另两处激活动作路由以实际路由为准：teacher 用 `/teacher/ai`（原写 `/teacher/ai-center`，
+该路由不存在），admin 用 `/admin/logs`（原写 `/admin/audit`，该路由不存在；anchor 仍取可见的 `nav:audit` 组，
+子项折叠与否不影响导航）。原文值保留在本句里，不另删史料行。
 
 每步文案统一三句式：**这是什么 → 点这里会发生什么 → 你什么时候会再用到它**。
 （现状：5 步里 2 步是纯宣传语、0 步有"点这里会怎样"。）
