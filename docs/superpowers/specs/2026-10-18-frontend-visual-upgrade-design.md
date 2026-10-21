@@ -504,11 +504,52 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
    这条由"完全无证据"提升为"有截图与数值证据，但主观判定仍为自评"。
 2. **Phase 0b 的 `$el` 可达性**是设计成立的前提，未实测（见 Phase 0b 末段）。若结论为不可达，
    Modal 的焦点接入方案须改为组件自持引用，属设计微调不影响阶段划分。
+   **【Phase 0 实测结论（Task 15 回填，2026-10-21）——上面那句"未实测"是当时的真实状态，保留为史料，不删】**
+   已实测，且**原判据的分支方向被实测坐实**：`$el` **不可达面板**——开启态 `wrapper.element` 与调用方模板 ref 的
+   `$refs.dlg.$el` 两条通道同值，都是 `#comment`（nodeType 8、`data` 等于 `teleport start`），
+   其父节点是调用方容器；而 `.overlay` 的父节点是 `document.body` ⇒ 二者既不同节点也不同父（计划 Task 9 Step 1 的
+   `expect(el?.nodeType).toBe(1)` 因此**注定红**，`d4a4445` 已把 3-A/3-B 倒置）。
+   **3-A 死、3-B 可行是实测不是推断**；Teleport 内的模板 ref 拿得到真元素（`instanceof Element` 为真、父为 body）。
+   定档：3-B 的**前半**已落地（`Modal` 自持 `rootRef` ＋ `open && mounted` 适配器，见 LEDGER `P0b-MODAL-04`），
+   `defineExpose` 那半**按 R-T9-7 主动不做**（变异实测：写上去 ⇒ 目录门 105 全绿变 18 failed／87 passed，
+   因为 shadow 会顺带改掉 VTU 的 `wrapper.element`，`helpers/trackMount.ts` 的 `isConnected` 在关闭态抛 TypeError）。
+   连带改掉一条迁移规矩：Phase 4 把弹层从 `el-dialog` 搬到 `<Modal>` 时**删掉调用方的 `ref` 与 `useDialogFocus` 两行**，
+   焦点由组件内部负责（照搬那两行会静默无焦点）。
+   "属设计微调不影响阶段划分"这一句判断成立，但**代价被实测推翻了一半**：控制器原先写的"`defineExpose` 会把父级可见面收窄"
+   不成立（`hasSetupBinding` 要求 `!state.__isScriptSetup`，script-setup 的绑定从来就不挂在 `instance.proxy` 上 ⇒ expose 是加键不是收窄）。
+   证据位置：`src/components/ui/__tests__/Modal.vmodel.test.ts`（两条 `$el` 身份断言）、
+   `Modal.focus.test.ts`（P-a／P-b／P-c 三条读数）、LEDGER `P0b-MODAL-02` 与 `P0b-MODAL-04`。
 3. **`append-to-body` 存量分布未测准**：属性解析对多行标签的布尔属性有漏计，仅确认至少 1 处显式使用
    （`views/admin/teaching/components/RmUploadDialog.vue:2`）。已安装 EP（当前 2.14.7，见 §2.5 版本漂移条）
    的 `el-dialog` 默认 teleport 行为**不凭记忆断言**，列为 Phase 0 实测项。
+   **【Phase 0 实测结论（Task 15 回填）——原句的"未测准／仅确认 1 处"当时是推测，保留为史料】**
+   分布已测准（口径：全仓 `grep`，含 `<el-drawer>`）：`append-to-body` **40 处／35 个文件，全部裸布尔写法**
+   （`append-to-body="…"` 与 `:append-to-body="…"` 各 **0** 命中）；按文件面 `grep -rl '<el-dialog'` 得 **55** 个文件，
+   其中 **33 写了、22 没写**；多出的 2 处写在 `<el-drawer>` 上（`EgEventsDrawer.vue`、`DscDetailDrawer.vue`）。
+   EP 2.14.7 的默认值按文件内容读，不凭记忆：`dialog.mjs:14` 是 `appendToBody: Boolean` **无默认**、
+   `appendTo` 默认 `"body"`（同文件 `:18-21` 与 `:132`），而 `dialog.vue_vue_type_script_setup_true_lang.mjs:59-60` 是
+   `disabled: appendTo !== 'body' ? false : !appendToBody` ⇒ **缺省 `disabled` 为真，即 `el-dialog` 缺省不 teleport**。
+   **结论两句（不得压缩成"缺省已对齐"）**：① `ui/Modal` 的 `teleported` 缺省是 `true`（`Modal.vue` 的 `toBody = props.teleported !== false`），
+   与 EP 的方向**相反**；② 那 **22 个不写 `append-to-body`** 的调用点迁移到 `<Modal>` 会**改变渲染位置**，
+   层叠上下文与包含块跟着变——正是 §2.6 那一族风险面（Task 8 已实测两处今日生效的包含块陷阱）。
+   原推测里"漏计"的方向被否证：不是多行标签的布尔属性被漏计，而是属性解析压根没跑过多行标签这一形态，实测用**标签级正则**重数。
+   证据位置：本条结论与命令全文在 §11.8 第 4 条；行为面测试在 `Modal.teleport.test.ts`（两个方向各一条，且各有变异红过）。
 4. **2 处 `<el-dialog>` 属性未解析成功**（65 vs 63，原因见 §2.1），Phase 0 精算后可能给 Modal 增加能力项。
    同理，护栏口径（54）与本文 grep 口径（55）的 1 个文件差异须对齐为单一口径，否则 Phase 4 的"总数不降"断言会失真。
+   **【Phase 0 实测结论（Task 15 回填）——原句的两个猜测都被实测换掉，猜测层保留为史料】**
+   65 与 63 的差**不是**"属性值内含 `>` 截断正则"：多出的 2 处是**写在 HTML 注释里的说明散文**
+   （`EpStatsDialog.vue` 与 `CourseExams.vue` 各一句"v-loading 不能绑在 `<el-dialog>` 上"），不是使用点，
+   也不是解析失败。口径从此有四个数、各属各的尺，**且不得互相换算**：raw `git grep -o` = 65；
+   四层剥离（HTML 注释、JS 块注释、块注释续行、整行 `//`）后的开标签面 = **63**；
+   raw `grep -rl '<el-dialog'` 的文件面 = **55**（含上述 2 个只在注释里写标记的文件，剥注释口径不再计入它们）；
+   护栏合并四类标记（`el-dialog` 63 ＋ `Modal` 13 ＋ `Drawer` 2 ＋ `el-drawer` 4）= **82 个开标签／73 个文件**。
+   原句的"54 与 55 差 1 个文件"对齐为**单一数字 55**（题面 Task 15 附录 R-T15-3 实测；54 是护栏草稿值，废止）。
+   Phase 4 的"总数不降"断言从此**只认护栏的两个地板常量** `EXPECTED_OVERLAY_MIN = 82` 与
+   `EXPECTED_OVERLAY_COMPONENT_MIN = 73`（`coverage-lib.ts` 的 `BASELINE_TAG_BY_MARKER` 逐 marker 另钉一档），
+   不再拿 grep 数当判据——见 LEDGER `P0b-GUARD-02`、`P0b-GUARD-03` 与 §11.7 末的弹层计数口径块。
+   "可能给 Modal 增加能力项"这一句**部分成立但不是本条的原因**：实测没发现任何被漏解析的属性，
+   而 Phase 4 迁移确实还缺两条通道（任意宽度、字符串 `title`），那两条记在 §4 Phase 4 准入门第 1、2 项，
+   状态见 §11.3（5 项未闭、第 5 项半闭）——不并入本条的口径账。
 5. **⚠️ 焦点覆盖率护栏是本批最容易踩的既有机制**（`useDialogFocus.coverage.test.ts`，见 §2.1 末行）。
    它以字面量 `<el-dialog` 为扫描键并写死 `≥ 50` 的防空转下限——**这是为"永远别有人漏接线"设计的，
    不是为"弹层可换实现"设计的**。Phase 4 若按原样迁移，第一批就会红；若为了让它绿而直接删断言或调低阈值，
