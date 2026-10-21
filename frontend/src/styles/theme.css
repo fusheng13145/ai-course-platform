@@ -69,6 +69,9 @@
   --z-modal: 100;
   --z-menu: 130;
   --z-toast: 160;
+  /* 引导层必须压过 EP 弹层：EP 默认 z-index 从 2000 起（读已安装的
+     element-plus/es/hooks/use-z-index/index.mjs，不引版本号） */
+  --z-onboarding: 3000;
 
   /* ========== 布局尺寸 ========== */
   --sidebar-w: 244px;
@@ -84,6 +87,10 @@
   /* ========== 焦点环 / 品牌光晕 ========== */
   --focus-ring: 0 0 0 3px rgba(193, 59, 48, 0.14);
   --accent-glow: 0 6px 18px rgba(193, 59, 48, 0.18);
+
+  /* 明：保持改前值，别顺手"统一"成暗色值 */
+  --onboarding-scrim: rgba(10, 14, 24, 0.45);
+  --onboarding-ring: 2px solid var(--accent);
 
   /* ========== 字体 ========== */
   --font:
@@ -243,6 +250,11 @@
      0.65 是按阶梯推得的取值，不是量出来的观感结论（暗色主观质量与像素读数见台账本行"有效性"栏）。 */
   --sh-drawer: -18px 0 56px rgba(0, 0, 0, 0.65);
   --sh-drawer-ltr: 18px 0 56px rgba(0, 0, 0, 0.65);
+
+  /* 暗：改前用同一个 rgba(10,14,24,.45) 压 rgb(15,20,25) 的近黑底色，合成后只差 3/255 ⇒ 等于没压。
+     0.66 的黑压上去合成后单通道差 > 24/255（判据 2 阈值），且高于本仓已知盲区 8/255。 */
+  --onboarding-scrim: rgba(0, 0, 0, 0.66);
+  --onboarding-glow: 0 0 0 4px rgba(193, 59, 48, 0.28);
 
   --el-bg-color: var(--surface);
   --el-bg-color-page: var(--bg);

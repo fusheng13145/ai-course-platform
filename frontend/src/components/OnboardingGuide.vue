@@ -268,36 +268,28 @@ onUnmounted(() => {
 .ob-overlay {
   position: fixed;
   inset: 0;
-  z-index: 3000;
-  background: rgba(10, 14, 24, 0.45);
-  backdrop-filter: blur(1px);
-}
-/*
- * 有目标元素时遮罩自身必须透明：改由 .ob-spotlight 的巨大 box-shadow 只压暗「目标以外」区域，
- * 目标元素因此保持原亮度并带一圈描边——否则整屏（含目标）一起被压暗，等于没有高亮。
- */
-.ob-overlay.has-target {
-  background: transparent;
-  backdrop-filter: none;
-}
-.ob-spotlight {
-  position: fixed;
-  z-index: 1;
-  border-radius: 10px;
-  /* 0 0 0 9999px 的投影铺满目标以外区域，形成聚光；目标框本身不投影，故保持明亮 */
-  box-shadow: 0 0 0 9999px rgba(10, 14, 24, 0.45);
-  outline: 2px solid var(--accent, var(--info));
-  outline-offset: 2px;
+  z-index: var(--z-onboarding);
   pointer-events: none;
-  transition:
-    top 0.22s var(--ease-out, ease),
-    left 0.22s var(--ease-out, ease),
-    width 0.22s var(--ease-out, ease),
-    height 0.22s var(--ease-out, ease);
+}
+.ob-scrim {
+  position: fixed;
+  background: var(--onboarding-scrim);
+  z-index: var(--z-onboarding);
+  pointer-events: auto;
+}
+.ob-ring {
+  position: fixed;
+  box-sizing: border-box;
+  border: var(--onboarding-ring);
+  box-shadow: var(--onboarding-glow, none);
+  border-radius: 10px;
+  z-index: var(--z-onboarding);
+  pointer-events: none;
 }
 .ob-card {
   position: fixed;
-  z-index: 2;
+  z-index: calc(var(--z-onboarding) + 1);
+  pointer-events: auto;
   width: 320px;
   background: var(--ac-bg-elevated, var(--surface));
   color: var(--ac-text-primary, var(--ink));
