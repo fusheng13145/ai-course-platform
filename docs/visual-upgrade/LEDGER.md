@@ -17,6 +17,10 @@
 只许指到条目/段落标题（如 progress.md「进度」下"Task 11: 复核 Needs fixes"条目）。
 **永不用 `HEAD` 当锚**：2026-10-19 一天内 HEAD 移动约 15 次，`HEAD:` 作为标签入库即失效。
 **`证据 §N`**（2026-10-19 补，结构性洞）= `docs/visual-upgrade/evidence/phase0-measurements.md` 的章节锚。
+**2026-10-21 起本目录有两本读数账，引用必须带文件名**：`phase0-measurements.md` 是**逐档量程与像素读数**的转录本
+（`证据 §N` 单写时默认指它）；`snapshot-thresholds-ledger.md` 是**阈值常量的账本**（第 15 项从
+`visual-helpers.ts` 里搬出来的那 143 行，含每档的 t/r 与免检额算术），引用它一律写全名或"阈值账本 §…"，
+不许混进 `证据 §N` —— 否则下一位读者会以为同一张表里有两套数。
 Phase 0 的实测表已从**未入 git、且被 agent 追加改写**的 `task-4-report.md` / `task-4b-report.md` **逐字转录**进该文件，
 它因此有 commit 可钉，而报告没有——报告行号属"永远无法钉"的一类（不是"改动太快"那一类）。
 **凡台账引用的像素数、pixelmatch 计数、最大单通道色差、免检额算术、对比度比值，一律指 `证据 §N`**，
@@ -73,6 +77,19 @@ Phase 0 的实测表已从**未入 git、且被 agent 追加改写**的 `task-4-
   **已知漂移（`a212fc1` 起）**：`visual-helpers.ts:344` → 现 `:350`；`:72` → 现 `:78`；
   `sensitivity.spec.ts:273-277` 的 `免检额` 输出行已上移。⇒ 引这些指针时先 `grep` 符号名再定行，
   或直接把指针改成符号名（本表 `P0a-THRESH-01` 起的新写入一律用符号名，不再新增裸行号）。
+- **`P0a-HARNESS-02`（4c-fix-C 第 15 项）之后，上面那条"历史坐标"规则升级为必须**：
+  `visual-helpers.ts` 已被拆成四个文件（1418 → 551 行），所以**本表里所有写 `visual-helpers.ts:NNN` 的旧行号
+  在当前文件里既对不上内容、也常常对不上文件** —— 按符号名去找，去向是：
+  载荷钉桩与录制回放（`installPayloadPin`／`loadPinManifest`／`attachPayloadRecorder`／`assertPinCoverage`／
+  `assertPinnedPayloadContent`／`inspectPinnedPayload`／`parseNopinValue`／`readNopinEnv`／`pinShiftDays`／
+  `localDay` 等）→ **`payload-pin.ts`**；到位矩阵（`DATA_ARRIVAL_CHECKS`／`assertAnchorArrival`／`readArrival`／
+  `DATA_PATHS`／`SHELL_KEEP_ALIVE_PATHS`／`apiStubTakesPathname`）→ **`data-arrival.ts`**；
+  `pngSize` → **`tools/png-size.ts`**；`SNAPSHOT_THRESHOLDS` 上方那 143 行量程账本 →
+  **`docs/visual-upgrade/evidence/snapshot-thresholds-ledger.md`**（常量本体与指针仍留源码）。
+  **既有裸行号一根不重写**（重写等于改那一棒的记录）；这就是计划第 16 项那笔账的收口形态：
+  不给 49 处旧指针逐个改地址，而是给一张"符号现在在哪"的映射，加一条"读旧指针必须 `git show <该读数所属提交>:<路径>`"。
+  **新写入仍只许符号名。** 本表指向 `anchors.spec.ts`／`helpers.spec.ts` 的旧行号同理解释为历史坐标——
+  第 15 项之后它们各自长了几百行。
 
 ## 表
 
