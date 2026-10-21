@@ -217,9 +217,26 @@ Phase 0 的实测表已从**未入 git、且被 agent 追加改写**的 `task-4-
 ## 复核与抽样说明（spec §5 的反向约束）
 
 **2026-10-21 收口时清点**（原文写"本表当前 5 条已定档结论"，那是 2026-10-18 的快照、**计数早已过期**，此处按实数更新，原判断保留在下段）：
-本表现 **28 个数据行**（`^| P0` 计数；全表含表头与分隔行是 30 行）⇒ **25 条 `保留`**（含带已知残余／带未闭限定的申报）、**3 条 `需调`**
+本表现 **29 个数据行**（`^| P0` 计数；全表含表头与分隔行是 31 行）⇒ **26 条 `保留`**（含带已知残余／带未闭限定的申报；新增的 `P0a-GATECOV-01` 判保留）、**3 条 `需调`**
 （`P0b-DRAWER-01`＝评审 Needs fixes 后按实测改判；`P0a-CLOSEOUT-02`＝Task 15 Step 2 逐条准出，三条决定准入的仍开；
 `P0a-CLOSEOUT-03`＝Step 7 准入判断，**结论＝不准入（有保留）**）、**`回退` 为 0**。
+
+上面那三个数是快照，**每追加一行就过期**（2026-10-21 我自己在一天里把它写错两次）。现量口径随文入库，可直接复制：
+
+```bash
+# 数据行数／全表行数（含表头与分隔行）
+grep -c "^| P0" docs/visual-upgrade/LEDGER.md ; grep -c "^|" docs/visual-upgrade/LEDGER.md
+# 结论栏分类计数（取第 8 列；行首是粗体标记的先剥两字符，所以"保留（带已知残余…"那类算进保留）
+# 刻意不写正则转义：反斜杠经 shell 单引号会被吃掉，2026-10-21 第一版入库命令就是这么写坏的（当场跑不通）
+node -e 'const fs=require("fs");
+const rows=fs.readFileSync("docs/visual-upgrade/LEDGER.md","utf8").split(String.fromCharCode(10)).filter(l=>l.startsWith("| P0"));
+const c={保:0,需:0,回:0,other:[]};
+rows.forEach(l=>{let v=l.split("|")[8].trim(); if(v.slice(0,2)==="**") v=v.slice(2);
+ if(v.indexOf("保留")===0)c.保++; else if(v.indexOf("需调")===0)c.需++; else if(v.indexOf("回退")===0)c.回++; else c.other.push(v.slice(0,30));});
+console.log("数据行="+rows.length, "保留="+c.保, "需调="+c.需, "回退="+c.回, "other="+JSON.stringify(c.other));'
+```
+
+2026-10-21 自主验收当场跑出的结果＝**数据行 29／保留 26／需调 3／回退 0／other 空**（上段那三个数就是这次读数，命令本身已当场验证可跑）。
 
 `回退` 仍为 0 这件事现在**比 5 条样本时更有意义、也仍不充分**：Phase 0b 的弹层行（MODAL／DRAWER／SCROLLLOCK／FOCUS／GUARD）
 是真的会失败的那一类，它们全部判"保留"且都带可重放的破坏性自证；
