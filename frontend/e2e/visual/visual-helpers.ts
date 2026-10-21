@@ -495,6 +495,16 @@ export async function assertComparableRender(page: Page, anchor: AnchorSpec, the
  * 同一个函数里 `courseList[0].id` 那条 `else if` 分支只是它的兜底。
  */
 export const ANCHORS: readonly AnchorSpec[] = [
+  /**
+   * 【Task 0（2026-10-21）实测：这一格没有未钉端点，出路① 对它无从下手】
+   * 只读脚本量过一次：打开 `/login` 发出的 GET `/api/` **共 0 条**（匿名页，业务请求一条不发；
+   * 非 GET 也是 0）。⇒ `pinPaths` **保持不写**——硬钉一个不存在的端点会被 `assertPinCoverage`
+   * 当场判红（"钉了却没用上"），而把差集凑成非空更是自欺（简报「不要为了凑数硬钉」那条）。
+   * 所以 §11.4 记的「login 暗格红过一次 425 px」**不归因于跨套件数据耦合**，
+   * 也不得被 (a) 的解除顺手算成已解决：它是暗色首帧/渲染时序那一族的事（另案）。
+   * 复核方式（工作目录 `frontend/`）：
+   *   `npx playwright test -c test-results/pin-gap/pin-gap.config.ts`（一次性脚本，gitignore 目录）
+   */
   { slug: 'login', title: '登录页', role: 'ANON', path: '/login' },
   { slug: 'admin-dashboard', title: '管理工作台', role: 'ADMIN', path: '/admin/dashboard' },
   {
@@ -507,8 +517,34 @@ export const ANCHORS: readonly AnchorSpec[] = [
      * StudentVisualizationComponent.java 的 getVisualizationData → buildDurationTrend(today.minusDays(13))
      * 与 buildHeatmapData(today.minusDays(6))，前端 SdVizSection.vue 把 `t.date.slice(5)` 直接铺进 xAxis.data。
      * page.clock 管得到浏览器、管不到服务端 ⇒ 每天零点这张基线集体漂一次（实测见 SNAPSHOT_THRESHOLDS 注释）。
+     *
+     * 【Task 0（2026-10-21，出路①）：下面这一条从来不够，红不在它身上】
+     * 准入条件 (a)「跑过 9 个流程 e2e spec 之后紧接着跑视觉套件，基线确定性变红」的根因是
+     * **本锚点只钉住了一个端点的载荷，而这一页还消费四条没钉的 GET**（差集由只读脚本当场量出来，
+     * 命令与读数见 `.superpowers/sdd/2026-10-21-onboarding-redesign/task-0-report.md` 步骤 1；
+     * 台账 `P0a-PINGAP-01`）：统计卡来自 `/api/student/dashboard`、未读角标来自
+     * `/api/notifications/unread-count`、课程卡来自 `/api/student/courses?page=1&size=100`、
+     * 权限来自 `/api/auth/permissions`。流程套件写真后端数据 ⇒ 这四条的响应变 ⇒ 画上跟着变 ⇒ 基线跟不上，
+     * 而被钉的那一条从头到尾没参与这次红（改前包围盒 x 1159..1252 / y 18..234 起于顶栏，
+     * 明 152 px／暗 148 px，免检额 129.6 px ⇒ 超线）。
+     * ⇒ 现在把这一页**实测发出的每一条 GET** 都钉住，跨套件数据耦合不再进画面。
+     * 【代价与边界，读这条结论时必须带着】
+     *  ① 钉全屏之后，本锚点的"数据确已到位"里凡来自这些端点的那一半**不再是真后端的证据**
+     *     （payload-pin.ts 顶部那条"钉全屏就等于把数据到位一起钉死"的限制，本格现在适用面变宽了）；
+     *     `DATA_ARRIVAL_CHECKS` 的 `.l1-card`／`.s-value`／`canvas` 三条本来就是**存在性**断言，
+     *     R-CF1 早已把"被钉区域不作数据到位证据"写进 LEDGER `P0a-GUARD-02`，此处只是把范围扩到整页。
+     *  ② 只钉 GET：`installPayloadPin` 与 `attachPayloadRecorder` 都只处理 GET，本锚点实测**没有**非 GET 的
+     *     `/api` 请求（`nonGetApi` 为空），所以差集里没有"钉不了的漏网项"。
+     *  ③ 键必须逐字等于实测的 `pathname+search`（`?page=1&size=100` 不是可省的修饰，
+     *     少了 search 就是"钉了却没命中"，由 `assertPinCoverage` 当场红）。
      */
-    pinPaths: ['/api/student/analytics/visualization'],
+    pinPaths: [
+      '/api/student/analytics/visualization',
+      '/api/student/dashboard',
+      '/api/student/courses?page=1&size=100',
+      '/api/notifications/unread-count',
+      '/api/auth/permissions',
+    ],
   },
   { slug: 'teacher-dashboard', title: '教师工作台', role: 'TEACHER', path: '/teacher/dashboard' },
   { slug: 'admin-courses-table', title: '课程管理（表格代表）', role: 'ADMIN', path: '/admin/courses' },
@@ -543,8 +579,23 @@ export const ANCHORS: readonly AnchorSpec[] = [
      * AdminAnalyticsComponent.getUserGrowthTrend：endDate = LocalDate.now()、
      * startDate = endDate.minusDays(days - 1)，且同窗口还重新取数；
      * 消费端 useAnalytics.ts 把后端 d.date 直接铺进 xAxis.data ⇒ 与 student-dashboard 同因。
+     *
+     * 【Task 0（2026-10-21，出路①）】与 student-dashboard 同一条修法：这一页实测发出 7 条 GET，
+     * 原先只钉 1 条 ⇒ 其余 6 条（仪表汇总 / 课程排行 / 平台热力 / 课程列表 / 未读角标 / 权限）
+     * 照旧走真后端，流程套件一改后端状态这张基线就跟不上（暗格间歇红）。
+     * 现在把实测发出的每一条 GET 都钉住。边界与代价同 student-dashboard 那三条
+     * （① 被钉区域不再作"数据到位"的证据、② 只钉 GET 且本页无非 GET 请求、③ search 逐字参与键）。
+     * 清单与 `data-arrival.ts` 的 `DATA_PATHS['admin-governance-analytics']` 独立对得上。
      */
-    pinPaths: ['/api/analytics/users/growth?days=30'],
+    pinPaths: [
+      '/api/analytics/users/growth?days=30',
+      '/api/analytics/dashboard',
+      '/api/analytics/courses/ranking',
+      '/api/analytics/heatmap/platform?days=30',
+      '/api/courses?page=1&size=100',
+      '/api/notifications/unread-count',
+      '/api/auth/permissions',
+    ],
   },
   { slug: 'admin-profile', title: '个人中心', role: 'ADMIN', path: '/admin/profile' },
   { slug: 'error-404', title: '404', role: 'ANON', path: '/__no-such-route__' },
