@@ -84,7 +84,7 @@
             </div>
           </div>
         </div>
-        <div class="course-card join-card" @click="showJoin = true">
+        <div class="course-card join-card" data-onboard="join-course" @click="showJoin = true">
           <div class="join-card-inner">
             <div class="join-card-icon">
               <svg

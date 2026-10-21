@@ -17,6 +17,7 @@
           <!-- 一级菜单项 -->
           <div
             class="nav-item"
+            :data-onboard="`nav:${item.key}`"
             :class="{ active: isActive(item), expanded: isExpanded(item.key) }"
             @click="handleNavClick(item)"
           >
@@ -31,6 +32,7 @@
               <template v-for="child in item.children" :key="child.key">
                 <div
                   class="nav-sub-item"
+                  :data-onboard="`nav:${child.key}`"
                   :class="{
                     active: !child.children && isActive(child),
                     expanded: child.children && isExpanded(child.key),
@@ -56,6 +58,7 @@
                       v-for="leaf in child.children"
                       :key="leaf.key"
                       class="nav-sub-item nav-leaf"
+                      :data-onboard="`nav:${leaf.key}`"
                       :class="{ active: isActive(leaf) }"
                       @click="router.push(leaf.path)"
                     >
@@ -71,7 +74,7 @@
       </template>
     </nav>
 
-    <div class="side-user" @click="emit('user-menu')">
+    <div class="side-user" data-onboard="side-user" @click="emit('user-menu')">
       <span class="avatar lg" :style="avatarStyle">{{ avatarInitial }}</span>
       <div class="u-meta">
         <div class="u-name">{{ auth.userName }}</div>
