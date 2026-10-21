@@ -9,10 +9,7 @@ import {
   assertComparableRender,
   evidenceTagSuffix,
   freezeClock,
-  installPayloadPin,
   maskOf,
-  pngSize,
-  readNopinEnv,
   setTheme,
   settlePage,
   SNAPSHOT_THRESHOLDS,
@@ -21,6 +18,8 @@ import {
   type AnchorSpec,
   type ThemeName,
 } from './visual-helpers'
+import { installPayloadPin, readNopinEnv } from './payload-pin'
+import { pngSize } from './tools/png-size'
 
 /**
  * 这不是回归测试，是**量程测量**：故意注入一个已知幅度的视觉改动，看基线是否报警。
@@ -94,7 +93,7 @@ const PROBE_THEME: ThemeName = process.env.PW_PROBE_THEME === 'dark' ? 'dark' : 
  * 【原先错在哪】这里曾自写 `process.env.PW_VISUAL_NOPIN === '1'`，而 anchors 那侧拒绝任何
  * "真值但非 0/空串"的值——`PW_VISUAL_NOPIN=true` 在探针侧被**静默忽略**、钉桩照装，
  * 与 A3 清除过的"开关被静默接受"同型，只是换了个消费者。
- * 【现在】取法只在 `visual-helpers.ts` 的 `readNopinEnv()` 一处定义：
+ * 【现在】取法只在 `payload-pin.ts` 的 `readNopinEnv()` 一处定义：
  * 未设置 / 空串 / `0` ⇒ 关；`1` ⇒ 开（本探针的反向对照档）；其余值**导入期当场抛**。
  * 放在模块作用域是为了让非法值在任何一张图截出来之前就红，而不是跑到某条用例里才炸。
  */
@@ -286,7 +285,7 @@ if (knobRatio !== undefined && !(knobRatio >= 0 && knobRatio <= SNAPSHOT_THRESHO
   throw new Error(`[探针无效] PW_PROBE_RATIO=${knobRatio} 比交付配置 maxDiffPixelRatio=${SNAPSHOT_THRESHOLDS.maxDiffPixelRatio} 宽松——同上，拒绝`)
 }
 
-/** 读 PNG 头拿宽高的那份逻辑已上收到 `visual-helpers.ts` 的 `pngSize`（B8：单一来源，
+/** 读 PNG 头拿宽高的那份逻辑已上收到 `tools/png-size.ts` 的 `pngSize`（B8：单一来源，
  *  免检额的两处消费方不许各写一份）。 */
 
 /* -------------------------------------------------- 只读比较器（已入库那把尺） */

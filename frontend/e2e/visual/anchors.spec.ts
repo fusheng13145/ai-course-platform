@@ -5,31 +5,30 @@ import { mkdirSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import {
   ANCHORS,
-  apiStubTakesPathname,
   assertComparableRender,
   assertGenericGuards,
-  assertAnchorArrival,
-  assertPinCoverage,
-  assertPinnedPayloadContent,
-  attachPayloadRecorder,
-  DATA_ARRIVAL_CHECKS,
-  DATA_PATHS,
   evidenceTagSuffix,
   freezeClock,
-  installPayloadPin,
-  loadPinManifest,
   maskOf,
   pinRandom,
-  readNopinEnv,
   settlePage,
   setTheme,
   snapName,
   SNAPSHOT_THRESHOLDS,
   storagePathFor,
   type AnchorSpec,
-  type PinState,
   type ThemeName,
 } from './visual-helpers'
+import { apiStubTakesPathname, assertAnchorArrival, DATA_ARRIVAL_CHECKS, DATA_PATHS } from './data-arrival'
+import {
+  assertPinCoverage,
+  assertPinnedPayloadContent,
+  attachPayloadRecorder,
+  installPayloadPin,
+  loadPinManifest,
+  readNopinEnv,
+  type PinState,
+} from './payload-pin'
 
 /** 课程列表页自身的 URL——__FROM_COURSE_LIST__ 先到这里取 id，再进壳页 */
 const COURSE_LIST_PATH = '/student/courses'
@@ -53,7 +52,7 @@ const COURSE_LIST_PATH = '/student/courses'
  * 【现在的处置】在导入期就抛：一条测试都不会跑，也不可能被读成"跑过了"。
  *   消息里给出真正该跑的那条命令（探针侧，工作目录 `frontend/`，需要后端 8080 + dev server 5175）。
  * 【取法在 4c-fix-C 第 11 项统一】"读到什么算开、什么算关"不再是本文件自己的一套：
- *   `readNopinEnv()`（`visual-helpers.ts`，与 `pinShiftDays()` 同款"env 解析归 helper"的先例）定义唯一口径——
+ *   `readNopinEnv()`（`payload-pin.ts`，与 `pinShiftDays()` 同款"env 解析归 helper"的先例）定义唯一口径——
  *   未设置 / 空串 / `0` ⇒ 关；`1` ⇒ 开；**其余值当场抛**（fail-fast）。
  *   旧版这里曾写"0 与空串放行、其余非空都拒"，语义上与新口径一致（拒 = 抛），差别只在那道抛由
  *   共享函数发出、探针侧从此也走同一道门——`PW_VISUAL_NOPIN=true` 在探针侧被静默忽略的那种分裂结束了。
@@ -247,7 +246,7 @@ async function runAnchor(
   // 24 张就只有 23 张落在同一个页面时间上。解析完再装时钟，页面时间口径全表一致。
   const target = await resolvePath(page, anchor)
 
-  // 载荷钉死要装在**导航前**，且只有声明了 pinPaths 的锚点才装（理由见 visual-helpers 的 pin 注释块）。
+  // 载荷钉死要装在**导航前**，且只有声明了 pinPaths 的锚点才装（理由见 payload-pin.ts 顶部那块 pin 注释）。
   // PW_RECORD_PAYLOADS=1 时反过来录写真后端响应——录制模式不产量程结论，只产 fixture。
   const recording = process.env.PW_RECORD_PAYLOADS === '1'
   let flushRecord: (() => Promise<void>) | null = null
@@ -261,7 +260,7 @@ async function runAnchor(
   await page.goto(target)
   await settlePage(page)
 
-  // 可比性前置 + 该锚点自己的"数据确已到位"断言：整组都在 visual-helpers 里，
+  // 可比性前置（visual-helpers）＋该锚点自己的"数据确已到位"断言（data-arrival），
   // anchors 与 sensitivity 共用同一份（上一版探针自称同口径、实际少三条，见 assertComparableRender）。
   //
   // 【已知缺陷 · error-404 两主题恒红，勿用 --update-snapshots 吸收】
@@ -288,7 +287,7 @@ async function runAnchor(
   // 合起来就是：两条错误消息把下一个代理支去跑的这条重录命令，**对那个真正需要重录的锚点是走不通的**，
   // 对不需要重录的那个反而"成功"。
   // 【为什么仍然先跑 assertComparableRender】录制端有条硬规矩："别把空态录成 fixture"
-  // （`attachPayloadRecorder` 的注释，`visual-helpers.ts`），它靠的就是**落盘之前**先过一遍
+  // （`attachPayloadRecorder` 的注释，`payload-pin.ts`），它靠的就是**落盘之前**先过一遍
   // `assertAnchorArrival`——而 `assertComparableRender` 里就含这一条（见该函数体）。
   // 所以顺序必须是：守卫（含 arrival）→ flush → 像素断言（录制模式下跳过），不能简单提前到 goto 之前。
   // 【4c-fix-C 第 10 项：日志与跳过都必须过"flushRecord 真的执行过"这一道门】
@@ -332,7 +331,7 @@ async function runAnchor(
     // R-CF1（4c-fix-C 第 9 项）：存在性断言 ≠ 内容断言。被钉的载荷自己必须非平凡
     // （data 内序列长度 > 0 且至少一个数值字段非 0）；全 0 且未登记的直接红，
     // 已登记的（今天这两个锚点，账号确实没分析数据）放行但**每次打印结论降级**——
-    // "被钉区域不得作为数据到位的证据"从台账措辞走进了运行时日志。见 visual-helpers 的
+    // "被钉区域不得作为数据到位的证据"从台账措辞走进了运行时日志。见 payload-pin.ts 的
     // assertPinnedPayloadContent / PIN_PAYLOAD_TRIVIAL_EXCUSED 与 LEDGER `P0a-GUARD-02`。
     assertPinnedPayloadContent(anchor, loadPinManifest(anchor.slug))
     // 日期锚点的"归零"判据（brief Step 1 的判定式：钉载荷后计数必须归 0，不是"变小"）。
@@ -458,7 +457,7 @@ for (const theme of ['light', 'dark'] as ThemeName[]) {
  *   用 `page.setContent` 与 `page.evaluate`/`addInitScript` 造，**不改 `src/` 一个字**。
  * 【4c-fix-C 第 9 项补的边界（R-CF1，读矩阵结论时必须带着）】本矩阵证的是守卫抓得住
  *   `data:null` 这一形态；它**抓不住**"结构完整而数值全 0"——那种载荷渲染出的 DOM 存在性一条不缺。
- *   内容层面的那道口在钉桩侧：`assertPinnedPayloadContent`（visual-helpers 的 R-CF1 注释块，
+ *   内容层面的那道口在钉桩侧：`assertPinnedPayloadContent`（payload-pin.ts 的 R-CF1 注释块，
  *   LEDGER `P0a-GUARD-02`）。别把"矩阵 9 格全绿"读成"到位断言是内容断言"。
  * 【极性】这里 expect(arrivalThrew).toBe(true) 的绿 = "守卫确实可红"，与量程探针那种
  * "FAILED=检出了"的反极性不是一回事——那条要报的是测量结论，本条要报的是断言的有效性。
@@ -481,7 +480,7 @@ for (const theme of ['light', 'dark'] as ThemeName[]) {
  *   不是"这一页发过的全部请求"。改前那半句差距很大：接管面按"URL 里含 /api/ 这一段"命中，
  *   于是 dev server 的源码模块请求也进了清单，`served.length > 0` 这条前提（矩阵 ⓪，第 13 项的 B5）
  *   能被**一个模块请求**满足——看着满足、实际那一页一个后端数据接口都没发出去，属"假命中"。
- *   现口径：通配串已锚到 pathname 前缀（判据本体 `apiStubTakesPathname`，在 visual-helpers.ts），
+ *   现口径：通配串已锚到 pathname 前缀（判据本体 `apiStubTakesPathname`，在 data-arrival.ts），
  *   进得来这份清单的按构造都是 `/api/` 开头的**数据请求** ⇒ ⓪ 重新等于"这一页的接口被打空了"。
  *   清单里若再出现非 `/api/` 开头的一条，就是接管面又漂了，由 helpers.spec.ts 那条
  *   「匹配面锚定在 pathname 前缀」的守卫当场红（它喂候选 URL 清单，模块后缀那两类必须被排除）。

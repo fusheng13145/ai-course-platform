@@ -9,20 +9,11 @@ import zlib from 'node:zlib'
 import { assertUpdateSnapshotsAllowed } from './global-setup'
 import {
   ANCHORS,
-  apiStubTakesPathname,
   applyEvidenceWrite,
-  assertManifestDates,
-  assertPinnedPayloadContent,
   BASELINE_DAY,
   CLOCK_DATE,
   freezeClock,
-  inspectPinnedPayload,
-  loadPinManifest,
   maskOf,
-  parseNopinValue,
-  PIN_PAYLOAD_TRIVIAL_EXCUSED,
-  pngSize,
-  readNopinEnv,
   setTheme,
   settlePage,
   snapName,
@@ -30,10 +21,21 @@ import {
   SNAPSHOT_THRESHOLDS,
   storagePathFor,
   type AnchorSpec,
-  type PinManifest,
   THEME_KEY,
   waitForStableText,
 } from './visual-helpers'
+import { apiStubTakesPathname } from './data-arrival'
+import {
+  assertManifestDates,
+  assertPinnedPayloadContent,
+  inspectPinnedPayload,
+  loadPinManifest,
+  parseNopinValue,
+  PIN_PAYLOAD_TRIVIAL_EXCUSED,
+  readNopinEnv,
+  type PinManifest,
+} from './payload-pin'
+import { pngSize } from './tools/png-size'
 
 /** 手写一个最小 PNG 编码器（只用于下面那条解码回归；过滤类型按参数选） */
 function encodePng(w: number, h: number, colorType: 2 | 6, filterType: 0 | 3): Buffer {
@@ -137,7 +139,7 @@ function selfReadsNopinEnv(src: string): boolean {
  * 无人看：新文件（或以后新增的文件）里写一份 `=== '1'`，第 11 项那条"取法单一来源"照样全绿。
  * 【现口径】`e2e/visual/` 下**所有** `.spec.ts`（按 F2 那条 `listSpecFiles` 递归收，不再造一遍遍历），
  * 只豁免下面登记的那一个文件。
- * 【`visual-helpers.ts` 为什么"不在扫描面"而不是"被豁免"】`listSpecFiles` 只收 `.spec.ts`，
+ * 【`payload-pin.ts` 为什么"不在扫描面"而不是"被豁免"】`listSpecFiles` 只收 `.spec.ts`，
  * 而那里 `parseNopinValue`／`readNopinEnv` 两处是这个开关的**唯一定义处**——把它们算进负向断言就是误伤。
  * 工单 F6 那句"除 `visual-helpers.ts` 外"说的正是这件事，它由遍历器的名字过滤器天然兑现，
  * 下面 `NOPIN 取法单一来源` 那条用例把"被扫面恰好是那四份 spec"钉住（防止有人哪天把 `.ts` 一起扫进来）。
@@ -421,7 +423,7 @@ function stubMatcherFindings(src: string): string[] {
   }
   if (!code.includes('apiStubTakesPathname(')) {
     findings.push(
-      `stubApiToEmpty 体内没走 visual-helpers 那份判据本体 apiStubTakesPathname（定位：${at(
+      `stubApiToEmpty 体内没走 data-arrival 那份判据本体 apiStubTakesPathname（定位：${at(
         /apiStubTakesPathname\(/,
       )}）——外壳保活与 DATA_PATHS 收窄又变成第二把尺`,
     )
@@ -549,8 +551,8 @@ test('snapName / maskOf / storagePathFor 的形状与同步签名', async ({ pag
  * 而后 60+ 个任务都要读它——它当时只靠散文保护，现在有一条断言保护。
  * 规矩：**只许收紧**（把这条断言与注释一起改），不许放宽。
  *
- * 【这一格为什么从 0.0005 收到 0.0001】Task 4c Step 4 实测（命令与出处见 visual-helpers.ts 的
- * SNAPSHOT_THRESHOLDS 注释块）：日期漂移被载荷钉死抵住之后，4 张日期锚点与基线 **md5 相等、字节差 0**，
+ * 【这一格为什么从 0.0005 收到 0.0001】Task 4c Step 4 实测（命令与出处见
+ * `docs/visual-upgrade/evidence/snapshot-thresholds-ledger.md` 那份 SNAPSHOT_THRESHOLDS 量程账本）：日期漂移被载荷钉死抵住之后，4 张日期锚点与基线 **md5 相等、字节差 0**，
  * 于是 r 可以一路收到 0.0001（免检额 1440×900×0.0001 = 129.6 ≈ 130 px）而整表仍 22 绿——
  * **三次独立全量 anchors 全绿**（各 `34 passed / 2 failed`，红的是 error-404 明暗 = 缺陷 D-1），
  * 外加 0.0002 一档单次全绿。残余真抖动最大实测 46 px（`student-courses-modal` 暗，Task 4b §R2.3 的读数，
@@ -974,7 +976,7 @@ test('22 张已提交基线的 sha256 与入库清单一致（篡改/重生成�
  * B8：把 Phase 2 全部余量的**分母**钉住。
  *
  * 【原先缺什么】这一族算术在这个仓里被引用了十几次——`129.6`（当前档）、`648`（r=0.0005 那几轮）、
- * `2592`（原生产配置），spec §6.12/§6.17 与 `visual-helpers.ts` 的量程注释都靠它把"计数"折算成"几倍余量"。
+ * `2592`（原生产配置），spec §6.12/§6.17 与 `docs/visual-upgrade/evidence/snapshot-thresholds-ledger.md` 的量程账本都靠它把"计数"折算成"几倍余量"。
  * 但**没有任何一条断言**读过基线的 IHDR，也没有任何一条算式被跑过：
  * `1440×900` 今天只是"真"（评审手读过 22 张）。这件事有两个方向会翻车：
  *   ① 某页一旦**真的能滚**（Phase 4 的结构收敛最容易碰），fullPage 截图就变长，
@@ -991,7 +993,7 @@ test('22 张已提交基线的 sha256 与入库清单一致（篡改/重生成�
  *   计数恰好 130 的那一格是**红**的。下面把方向也钉住，免得哪天有人拿"130 免检"当判据。
  * 【为什么复用 `pngSize` 而不是再写一个读头函数】这仓已经有**两把**会读 PNG 头的东西
  *   （`tools/measure-diff.cjs` 的 chunk 扫描、`sensitivity.spec.ts` 的私有 `pngSize`）。
- *   第三份副本一旦写出，"免检额"就有三个可能不一致的来源；`pngSize` 已上收到 `visual-helpers.ts`，
+ *   第三份副本一旦写出，"免检额"就有三个可能不一致的来源；`pngSize` 已上收到 `tools/png-size.ts`，
  *   两边同一份（它只读 8 字节头、不还原像素，判据仍然只有那把尺）。
  * 【与 sha256 清单那条的分工】上面那条管"图没被换过"，本条管"图**长多大**"。
  *   `error-404` 那两张（缺陷 D-1）哪天补齐进清单时，本条会跟着多读两张——**这是有意的**：
@@ -1195,15 +1197,15 @@ test('NOPIN 取法单一来源（第 11 项／F6 扫遍所有 spec）：消费�
       `${f} 的代码面又出现自读 NOPIN 开关的写法（四种拼法之一）：单一来源破了，消费者力度会重新分岔（第 11 项／F6）`,
     ).not.toMatch(SELF_READ_NOPIN_ENV)
   }
-  // ②b `visual-helpers.ts` **不在扫描面**是因为遍历器只收 `.spec.ts`（那里是开关的唯一定义处）。
+  // ②b `payload-pin.ts` **不在扫描面**是因为遍历器只收 `.spec.ts`（那里是开关的唯一定义处）。
   //   这句原先只是声称，现在钉住：定义确实只在该文件里出现两处，而它不在被扫集合内。
-  const helpersDefs = stripCommentLines(readFileSync(join(dir, 'visual-helpers.ts'), 'utf8'))
+  const helpersDefs = stripCommentLines(readFileSync(join(dir, 'payload-pin.ts'), 'utf8'))
   expect(
     helpersDefs,
-    'visual-helpers.ts 里 readNopinEnv 的定义不见了——被扫面的排除项失去依据（那两处是唯一定义处）',
+    'payload-pin.ts 里 readNopinEnv 的定义不见了——被扫面的排除项失去依据（那两处是唯一定义处）',
   ).toContain('export function readNopinEnv')
   expect(scanned, '遍历器开始收非 .spec.ts 文件了——开关的定义处会被负向断言误伤').not.toContain(
-    'visual-helpers.ts',
+    'payload-pin.ts',
   )
   // ②c 豁免文件不是空白支票：helpers.spec.ts 里的自读写法必须**全部**落在登记过的用例体内。
   const selfFile = stripCommentLines(readFileSync(join(dir, 'helpers.spec.ts'), 'utf8'))
@@ -1245,9 +1247,9 @@ test('NOPIN 取法单一来源（第 11 项／F6 扫遍所有 spec）：消费�
  * 本条把它变成每次跑测都重做一次断言的内容。
  * 【两侧都钉】漏拦＝静默旁路，所以四种拼法**都**必须命中；误伤＝守卫假红，所以两种合法写法**都不许**命中。
  * 【这里为什么允许出现被禁的写法】本条喂的是**合成字符串**，不是任何 spec 的源码；
- * 上一条用例读的只有 `anchors.spec.ts` 与 `sensitivity.spec.ts` 两个文件（`visual-helpers.ts` 里
+ * 上一条用例读的只有 `anchors.spec.ts` 与 `sensitivity.spec.ts` 两个文件（`payload-pin.ts` 里
  * 那两处是合法定义，扩进去就误伤）。**若将来把该守卫的作用域扩到扫遍所有 spec，本文件要与
- * `visual-helpers.ts` 同列豁免**，否则这八行合成样本会当场变成假红——这是设计，不是疏忽。
+ * `payload-pin.ts` 同列豁免**，否则这八行合成样本会当场变成假红——这是设计，不是疏忽。
  */
 test('自读 NOPIN 那把尺覆盖四种拼法、且不误伤两种合法写法（F1 反例入库）', () => {
   // 命中侧：四种拼法各一条。前两条是旧守卫本来就认的，后两条是旧守卫溜过去的那一族。
@@ -1272,7 +1274,7 @@ test('自读 NOPIN 那把尺覆盖四种拼法、且不误伤两种合法写法�
 
 /**
  * 4c-fix-C 第 11 项：`parseNopinValue` 抽成纯函数的**唯一理由**就是"能被本文件直接弄红"
- * （见 visual-helpers.ts 里那句原话）。所以这里逐个值断言，不用一条 `toBeTruthy` 糊过去——
+ * （见 payload-pin.ts 里那句原话）。所以这里逐个值断言，不用一条 `toBeTruthy` 糊过去——
  * 糊过去的话，"某几个非法值被放行"这种回归正好落在盲区里，而那是 A3 清除过的那类假读数。
  * 合法语义只有三种：未设置／空串／`0` 判关；`1` 判开；其余抛。
  */
@@ -1831,7 +1833,7 @@ test('空态桩的接管面锚在 pathname 前缀：模块两类被排除、真�
   expect(m2, '变异二没落地（stubApiToEmpty 的调用写法变了，本条反例要跟着改）').not.toBe(anchorsRaw)
   const f2 = stubMatcherFindings(m2).join('\n')
   expect(f2, '变异二没被抓住——判据本体可以从调用点被静默摘掉而全表照绿').toContain(
-    '没走 visual-helpers 那份判据本体',
+    '没走 data-arrival 那份判据本体',
   )
   expect(f2, '变异二没被抓住——ALL 判定抄回 anchors 就是判据的第二把尺').toContain(
     '重新写了一遍 ALL 判定',
