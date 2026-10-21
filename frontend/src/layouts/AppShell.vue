@@ -24,8 +24,10 @@
     </div>
   </div>
 
-  <!-- 新用户引导（首次进入自动展示，三端共用；用户菜单可重新唤起） -->
-  <OnboardingGuide ref="guideRef" />
+  <!-- 新用户引导（首次进入自动展示，三端共用；用户菜单可重新唤起）。
+       身份由宿主以 props 给（组件不再自己 useAuthStore，避免同一份取值两条路）：
+       role 在这里是 "ADMIN"/"TEACHER"/"STUDENT"，steps 配置按小写角色索引。 -->
+  <OnboardingGuide ref="guideRef" :user-id="auth.userId" :role="role.toLowerCase()" />
 
   <!-- 键盘快捷键说明（D2-7 第八批：按 ? 打开/关闭） -->
   <KeyboardShortcutsDialog v-model="shortcutsHelpVisible" />

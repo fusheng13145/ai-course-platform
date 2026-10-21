@@ -51,6 +51,12 @@ function visibleFocusables(root: HTMLElement): HTMLElement[] {
 }
 
 /**
+ * 测试/宿主用的"前进一格"钩子挂在面板元素上的形状（R-T3-2）。
+ * 只在本文件里主动挂与摘，类型不外溢到调用点：Modal／Drawer 从不读它。
+ */
+type TrapAdvanceHost = HTMLElement & { __trapAdvance?: () => void }
+
+/**
  * 把焦点陷阱绑到（面板元素 ref，可见性 ref）上。组件侧接线一行：
  * `useFocusTrap(rootRef, open)` —— Modal.vue 与 Drawer.vue 各自一调，共用本实现。
  * `active: Ref<boolean>` 接得住 `ComputedRef<boolean>`（与 useOverlayScrollLock 同一条类型理由：
@@ -86,6 +92,44 @@ export function useFocusTrap(rootRef: Ref<HTMLElement | null>, active: Ref<boole
     }
   }
 
+  /**
+   * 「前进一格 Tab」——只转调 `visibleFocusables` 做"下一个可聚焦、尾首回绕"，
+   * 与上面 onKeydown 共用同一个环（不长第二套"什么算可聚焦"）。挂在面板元素上供
+   * 测试与宿主代触发用：jsdom 不实现 Tab 的顺序聚焦导航，没有这个钩子就只能手工
+   * `focus()`，那测不到陷阱本身（判据 4 会变空壳）。
+   */
+  function trapAdvance(): void {
+    const root = rootRef.value
+    if (!root || !active.value) return
+    const items = visibleFocusables(root)
+    if (items.length === 0) return
+    const current = document.activeElement as HTMLElement | null
+    const idx = current ? items.indexOf(current) : -1
+    // 焦点在容器本体（idx=-1）或尾元素上 ⇒ 回绕到首，与 onKeydown 的边界语义同一口径
+    ;(idx >= 0 && idx < items.length - 1 ? items[idx + 1] : items[0]).focus()
+  }
+
+  /**
+   * 钩子单独一条 post 边沿 watch（active 的装载/卸载那半段一字未动）。
+   * 为什么不能塞进上面那个 watch：面板本体是 `v-if` 的，`active` 翻真的那个 pre-flush
+   * 时刻根节点还不存在（OnboardingGuide 的卡片就是这个形状），post 边沿才拿得到元素。
+   */
+  let hookedOn: TrapAdvanceHost | null = null
+  const syncHook = (): void => {
+    const root = rootRef.value as TrapAdvanceHost | null
+    if (active.value && root) {
+      if (hookedOn && hookedOn !== root) delete hookedOn.__trapAdvance
+      root.__trapAdvance = trapAdvance
+      hookedOn = root
+      return
+    }
+    if (hookedOn) {
+      delete hookedOn.__trapAdvance
+      hookedOn = null
+    }
+  }
+  const stopHook = watch([active, rootRef], syncHook, { immediate: true, flush: 'post' })
+
   const stop = watch(
     active,
     (on) => {
@@ -99,6 +143,11 @@ export function useFocusTrap(rootRef: Ref<HTMLElement | null>, active: Ref<boole
 
   onScopeDispose(() => {
     stop()
+    stopHook()
+    if (hookedOn) {
+      delete hookedOn.__trapAdvance
+      hookedOn = null
+    }
     // 开着就被卸载（v-if、路由切换）：把本层那个 keydown 摘回去；没挂过就一个都不动。
     if (bound) {
       bound = false

@@ -250,6 +250,65 @@ describe('useFocusTrap — 装载/卸载边沿', () => {
   // "翻转到冲刷之间"这个真实窗口的唯一钉子。
 })
 
+describe('useFocusTrap — 前进一格钩子 __trapAdvance（R-T3-2 交给引导卡片的测试面）', () => {
+  it('开态在面板元素上挂出钩子：连走 4 格焦点始终留在 root 内并回绕到首；关边沿摘掉', async () => {
+    // 这条是 OnboardingGuide.focus.test.js 那条"12 次 Tab 不逃逸"的地基：钩子若写成
+    // "永远 focus(root)"或干脆不挂，上面那条会绿在这里红——所以正读数（至少走过 2 个
+    // 不同元素）与"回绕到首"两处都要钉，光钉"没逃出去"绿在焦点一动不动上。
+    const root = panel(
+      '<button id="t7-a"></button><button id="t7-b"></button><button id="t7-c"></button>',
+    ) as HTMLElement & { __trapAdvance?: () => void }
+    const [active, dispose] = mountTrap(root, true)
+    await nextTick()
+    expect(typeof root.__trapAdvance, '开态必须把钩子挂到面板元素上').toBe('function')
+
+    const a = root.querySelector('#t7-a') as HTMLElement
+    const seen: Element[] = []
+    for (let i = 0; i < 4; i++) {
+      root.__trapAdvance!()
+      seen.push(document.activeElement as Element)
+    }
+    expect(
+      seen.every((el) => root.contains(el)),
+      `钩子把焦点送到了 root 之外：${seen.map((el) => el.id || el.tagName).join(' → ')}`,
+    ).toBe(true)
+    expect(new Set(seen).size, '四轮必须真的在环里走位').toBeGreaterThanOrEqual(2)
+    // 起点是容器本体（不在环里）⇒ 首格到 a，其后 b → c → 尾首回绕又回到 a
+    expect(seen.map((el) => el.id)).toEqual(['t7-a', 't7-b', 't7-c', 't7-a'])
+    expect(document.activeElement).toBe(a)
+
+    // 关闭边沿：钩子必须随 active 一起摘掉（与 keydown 监听同一条生命周期）
+    active.value = false
+    await nextTick()
+    expect(root.__trapAdvance, '关边沿要把 __trapAdvance 摘掉').toBeUndefined()
+
+    // 再打开：钩子回来，且仍然只在环内走
+    active.value = true
+    await nextTick()
+    expect(typeof root.__trapAdvance).toBe('function')
+    const b = root.querySelector('#t7-b') as HTMLElement
+    b.focus()
+    root.__trapAdvance!()
+    expect(document.activeElement).toBe(root.querySelector('#t7-c'))
+    dispose()
+  })
+
+  it('开着被卸载：onScopeDispose 同样把钩子摘掉，不留悬挂引用', async () => {
+    const root = panel('<button id="t8-a"></button>') as HTMLElement & {
+      __trapAdvance?: () => void
+    }
+    const [, dispose] = mountTrap(root, true)
+    await nextTick()
+    expect(typeof root.__trapAdvance).toBe('function')
+    dispose()
+    expect(root.__trapAdvance, 'scope 释放后不得留下指向已销毁实例的钩子').toBeUndefined()
+  })
+  // 跑红配方：① 把 syncHook 里 `root.__trapAdvance = trapAdvance` 删掉 ⇒ 第一条
+  //   `expected 'undefined' to be 'function'`；② 把 trapAdvance 的尾首回绕改成
+  //   `items[idx + 1]`（越界取到 undefined 时不兜底）⇒ 第三格抛错或 seen 少一项；
+  //   ③ 关边沿与 onScopeDispose 两处 delete 任一删掉 ⇒ 对应那条的 undefined 断言红。
+})
+
 describe('useFocusTrap — 嵌套分层', () => {
   it('两层各管各层：焦点在内层时外层哑火；焦点在外层时内层哑火', async () => {
     const outer = panel('<button id="t6-o1"></button><button id="t6-o2"></button>')

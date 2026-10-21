@@ -1,23 +1,37 @@
 <template>
   <Teleport to="body">
     <Transition name="ob-fade">
-      <div
-        v-if="visible"
-        class="ob-overlay"
-        :class="{ 'has-target': !!targetEl }"
-        @click.self="skip"
-      >
-        <!-- 聚光高亮：仅当定位到目标元素时渲染——挖空目标区域、其余范围加深，使目标真正被「点亮」 -->
-        <div v-if="targetEl" class="ob-spotlight" :style="spotStyle" aria-hidden="true"></div>
-        <!-- 定位到目标元素旁的气泡（target 存在时）；否则居中卡片 -->
+      <div v-if="visible" class="ob-overlay">
+        <!-- 洞外压暗：几何层给的四块矩形（上/下/左/右），洞本身没有元素 ⇒ 点击天然落到真实控件上。
+             点这四块＝暂停并记住当前步，不再等于永久完成（spec §3.3 出口表）。 -->
+        <div
+          v-for="(r, i) in scrimRects"
+          :key="i"
+          class="ob-scrim"
+          :style="{
+            top: r.top + 'px',
+            left: r.left + 'px',
+            width: r.width + 'px',
+            height: r.height + 'px',
+          }"
+          @click="exit('paused')"
+        ></div>
+        <!-- 目标描边：锚点解析不到（anchorMiss）时不画，卡片退化为居中态且不阻塞点击 -->
+        <div
+          v-if="current.anchor && !anchorMiss"
+          class="ob-ring"
+          :style="ringStyle"
+          aria-hidden="true"
+        ></div>
         <div
           ref="cardEl"
           class="ob-card"
-          :class="{ centered: !targetEl }"
+          :class="{ centered: !current.anchor || anchorMiss }"
           :style="cardStyle"
+          :data-placement="placement"
           role="dialog"
           aria-modal="true"
-          aria-label="新用户引导"
+          :aria-labelledby="`ob-title-${current.id}`"
           tabindex="-1"
         >
           <div class="ob-head">
@@ -31,15 +45,24 @@
           </div>
 
           <div class="ob-body">
-            <!-- 内部图标常量（受控），无需净化 -->
-            <!-- eslint-disable-next-line vue/no-v-html -->
-            <div class="ob-icon" v-html="steps[index].icon"></div>
-            <h3 class="ob-title">{{ steps[index].title }}</h3>
-            <p class="ob-desc">{{ steps[index].desc }}</p>
+            <h3 :id="`ob-title-${current.id}`" class="ob-title">{{ current.title }}</h3>
+            <p class="ob-desc">{{ current.desc }}</p>
           </div>
 
           <div class="ob-foot">
-            <button class="ob-btn ghost" type="button" @click="skip">跳过</button>
+            <div class="ob-foot-left">
+              <button
+                class="ob-btn ghost"
+                type="button"
+                data-exit="skipped"
+                @click="exit('skipped')"
+              >
+                跳过
+              </button>
+              <button class="ob-btn ghost" type="button" data-exit="paused" @click="exit('paused')">
+                稍后再看
+              </button>
+            </div>
             <div class="ob-foot-right">
               <button v-if="index > 0" class="ob-btn ghost" type="button" @click="prev">
                 上一步
@@ -47,7 +70,9 @@
               <button v-if="!isLast" class="ob-btn primary" type="button" @click="next">
                 下一步
               </button>
-              <button v-else class="ob-btn primary" type="button" @click="finish">开始使用</button>
+              <button v-else class="ob-btn primary" type="button" @click="onAnchorClick">
+                开始使用
+              </button>
             </div>
           </div>
         </div>
@@ -57,210 +82,192 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import { useAuthStore } from '@/stores/auth'
+import { ref, computed, nextTick, onMounted, onBeforeUnmount } from 'vue'
+import { useRouter } from 'vue-router'
+import { useFocusTrap } from '@/composables/useFocusTrap'
+import { loadSteps, validateSteps } from '@/onboarding/steps/loader'
+import { resolveAnchor } from '@/onboarding/anchors'
+import { useSpotlightOverlay } from '@/composables/useSpotlightOverlay'
+import { readState, writeStatus, migrateV1IfPresent } from '@/onboarding/state'
 
 /**
- * 新用户引导教程（无第三方依赖实现）。
+ * 新用户引导卡片。四个单元各管一件事（spec §3.1），本组件只负责卡片、进度、出口与焦点交接，
+ * **不读也不写 localStorage**：存储是 `onboarding/state` 的契约 v2（done / skipped@n / paused@n
+ * 三态可区分——改前四条出口往同一个键写 '1'，"完成"与"中途 Esc"在数据上是同一件事）；
+ * 找元素只走 `onboarding/anchors` 的注册表（改前用 `.sidebar`／`.topbar` 这类布局类名，
+ * 视觉批次一改就静默定位失败）；几何（挖洞、视口感知定位、滚动跟随）只走 `useSpotlightOverlay`。
  *
- * 背景：原规划采用 driver.js 集成 3-5 步引导（见 docs/软件产品路线图.md D5），
- * 受离线依赖安装限制，本组件以原生 Vue + CSS 实现等价能力：
- * - 支持按 CSS 选择器**聚光高亮**目标元素（挖空目标区域、只压暗其余范围，并给目标描边）
- *   并把气泡定位到其旁；目标不存在时回退居中卡片（此时遮罩整屏压暗）；
- * - 首次进入自动触发，跳过/完成即写入 localStorage，不再自动重复打扰；
- * - 宿主可经组件 ref 调用暴露的 show() 重新唤起（AppShell 用户菜单「新手引导」）；
- * - 三端共用（挂载于 AppShell.vue，admin/teacher/student 均生效）。
- *
- * 「已看过」标记**按账号**记录（2026-10-13 由产品定案）：
- * 键名带当前用户 id，因此同一浏览器**换账号登录会重新看到引导**（每个账号首次登录都看得到），
- * 而同账号退出再登录不再打扰。标记只由本组件读写，登出（stores/auth.ts resetAuthState）
- * 不清除它——清除即等于"换账号"语义被破坏。
- *
- * 未来如需替换为 driver.js：仅需在本组件内换用 driver.js API，对外接口不变。
+ * userId／role 由宿主 AppShell 以 props 给出（改前组件自己 useAuthStore()，同一份身份两条路取值）。
+ * 「已看过」仍按账号记键（DR-52／D2-9 定案口径不变）：换账号登录会重新看到，同账号退出不打扰；
+ * 登出不清这个键。v1 标记由 state.migrateV1IfPresent 迁移成 done，老用户绝不再莫名重弹。
+ * 宿主可经 ref 调 show()（用户菜单「新手引导」，从第 1 步）或 resume()（从 paused@n 续看）。
  */
 
-/** done 标记键前缀；实际键为 `${前缀}:${userId}`（按账号隔离） */
-const STORAGE_KEY_PREFIX = 'ai-course:onboarding:done:v1'
+const props = defineProps({
+  userId: { type: [Number, String], default: null },
+  role: { type: String, default: 'student' },
+})
+const emit = defineEmits(['done', 'paused', 'skipped'])
+const router = useRouter()
 
-const auth = useAuthStore()
-/** 当前账号的标记键；userId 缺失（异常态）时退化为 anon 段，保证不越权压其他账号 */
-const storageKey = computed(() => `${STORAGE_KEY_PREFIX}:${auth.userId ?? 'anon'}`)
-
-/** 写入「已看过」标记（隐私模式等场景静默降级） */
-function markDone() {
-  try {
-    localStorage.setItem(storageKey.value, '1')
-  } catch {
-    /* 隐私模式等场景静默降级 */
-  }
-}
-
-/** 是否已看过当前账号的引导 */
-function hasSeen() {
-  try {
-    return localStorage.getItem(storageKey.value) === '1'
-  } catch {
-    // 无 localStorage 可用则每次展示
-    return false
-  }
-}
-
-const steps = [
-  {
-    icon: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 3 3 7.5 12 12l9-4.5L12 3Z"/><path d="M3 12.5 12 17l9-4.5"/><path d="M3 17 12 21l9-4.5"/></svg>',
-    title: '欢迎来到 AI 课程平台',
-    desc: '一个融合知识图谱与大语言模型的智能助教系统，覆盖课程学习、智能问答、学情分析与教学管理全流程。',
-  },
-  {
-    icon: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>',
-    title: '左侧导航栏',
-    desc: '所有功能入口都在这条侧边栏：课程、作业、考试、知识图谱、学情分析等，按角色自动适配。',
-    target: '.sidebar',
-  },
-  {
-    icon: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M4 6h16M4 12h16M4 18h10"/></svg>',
-    title: '顶栏快捷操作',
-    desc: '顶栏提供侧边栏折叠、通知中心、主题切换（浅色/深色）与个人菜单，方便快速切换。',
-    target: '.topbar',
-  },
-  {
-    icon: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="11" cy="11" r="7"/><path d="m21 21-4.35-4.35"/></svg>',
-    title: 'AI 智能助手',
-    desc: '基于知识图谱 + RAG 的智能问答、学习路径推荐、AI 出题与学情建议，让 AI 深度参与教与学。',
-  },
-  {
-    icon: '<svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M20 6 9 17l-5-5"/></svg>',
-    title: '准备就绪',
-    desc: '以上就是核心功能概览。随时可在左下角用户菜单里点「新手引导」重新查看本指引。祝学习愉快！',
-  },
-]
+const steps = computed(() => {
+  const list = loadSteps(props.role)
+  validateSteps(list)
+  return list
+})
 
 const visible = ref(false)
 const index = ref(0)
-const targetEl = ref(null)
-const pos = ref({ top: 0, left: 0, width: 0, height: 0 })
-const cardWidth = 320
-/** 气泡卡片元素：弹出后聚焦它，键盘用户可立即用 Esc / ← / →（不必先点一下卡片） */
 const cardEl = ref(null)
-const isLast = computed(() => index.value >= steps.length - 1)
+const active = computed(() => visible.value)
+const isLast = computed(() => index.value >= steps.value.length - 1)
+const current = computed(() => steps.value[index.value])
 
-/** 聚光层内边距：在目标矩形外扩一圈，避免描边紧贴元素边缘 */
-const SPOT_PAD = 6
-/**
- * 聚光层位置/尺寸：跟随目标元素矩形（外扩 SPOT_PAD）。
- * 与气泡一样由 locate() 写入的 pos 驱动，resize/scroll/切步都会同步更新。
- */
-const spotStyle = computed(() => {
-  if (!targetEl.value) return {}
-  const { top, left, width, height } = pos.value
-  return {
-    top: `${top - SPOT_PAD}px`,
-    left: `${left - SPOT_PAD}px`,
-    width: `${width + SPOT_PAD * 2}px`,
-    height: `${height + SPOT_PAD * 2}px`,
-  }
-})
+// 焦点交接（判据 4）：卡片开时锁卡内，Tab 永不逃到背景页——改前这块根本没接线
+useFocusTrap(cardEl, active)
 
-const cardStyle = computed(() => {
-  if (!targetEl.value) return {}
-  const { top, left, width, height } = pos.value
-  // 气泡优先放目标下方；视口底部空间不足时放上方
-  const gap = 12
-  let cardTop = top + height + gap
-  if (cardTop + 240 > window.innerHeight && top > 240) {
-    cardTop = top - gap - 240
-  }
-  let cardLeft = left + width / 2 - cardWidth / 2
-  cardLeft = Math.max(12, Math.min(cardLeft, window.innerWidth - cardWidth - 12))
-  return { top: `${cardTop}px`, left: `${cardLeft}px` }
-})
+const { scrimRects, ringStyle, cardStyle, placement, anchorMiss, refresh, follow } =
+  useSpotlightOverlay({
+    getTarget: () => (current.value.anchor ? resolveAnchor(current.value.anchor) : null),
+    cardRef: cardEl,
+    onAnchorMiss: () => {
+      // 不静默：锚点解析失败必须留痕（spec §3.2），但卡片仍可用，不能把引导变成一块砖
+      console.warn(
+        `[onboarding] anchor-miss:${current.value.anchor ?? '(none)'}（第 ${index.value + 1} 步，降级为居中卡片且不阻塞点击）`,
+      )
+    },
+  })
 
-function locate() {
-  const step = steps[index.value]
-  targetEl.value = null
-  if (step?.target) {
-    const el = document.querySelector(step.target)
-    if (el) {
-      targetEl.value = el
-      const rect = el.getBoundingClientRect()
-      pos.value = { top: rect.top, left: rect.left, width: rect.width, height: rect.height }
-      return
-    }
-  }
-  // 无目标或目标不存在：居中展示
-  pos.value = { top: 0, left: 0, width: 0, height: 0 }
+/** Task 2 交出的 refresh 是 rAF 延迟版（R-T2-4 前送本棒），所以冲帧归本组件负责（R-T3-4） */
+const flushFrames = (n) =>
+  new Promise((resolve) => {
+    const step = (left) => (left <= 0 ? resolve() : requestAnimationFrame(() => step(left - 1)))
+    step(n)
+  })
+
+async function relocate() {
+  if (!visible.value) return
+  await nextTick()
+  refresh()
+  await flushFrames(2)
+  // 冲帧期间已被关掉／卸载：不要再对消失的目标调 follow()（它内部还有 320ms 定时器）
+  if (!visible.value) return
+  const el = current.value.anchor ? resolveAnchor(current.value.anchor) : null
+  if (el) follow(el)
 }
 
-function show() {
+function open(at) {
   visible.value = true
-  index.value = 0
+  index.value = Math.min(at, steps.value.length - 1)
   nextTick(() => {
-    locate()
-    // 弹出即聚焦卡片：键盘用户可直接 Esc 跳过 / ←→ 翻步，无需先用鼠标点卡片
     cardEl.value?.focus?.()
+    relocate()
   })
 }
 
-function hide() {
+const show = () => open(0)
+const resume = () => {
+  const st = readState(props.userId)
+  open(st.status === 'paused' ? st.atStep : 0)
+}
+
+function exit(status) {
+  writeStatus(props.userId, status, index.value)
   visible.value = false
-}
-
-/** 供外部主动唤起（AppShell 用户菜单「新手引导」）：总是回到第 1 步 */
-defineExpose({ show })
-
-function skip() {
-  markDone()
-  hide()
-}
-
-function prev() {
-  if (index.value > 0) {
-    index.value -= 1
-    nextTick(locate)
-  }
+  emit(status, { atStep: index.value })
 }
 
 function next() {
-  if (index.value < steps.length - 1) {
-    index.value += 1
-    nextTick(locate)
-  } else {
-    finish()
+  if (isLast.value) return
+  index.value += 1
+  relocate()
+}
+function prev() {
+  if (index.value > 0) {
+    index.value -= 1
+    relocate()
   }
 }
 
-function finish() {
-  markDone()
-  hide()
+/** 动作执行期间为真：激活动作步要 el.click() 真点一下，那次点击不能再被本层当"用户点了洞内"吃回去 */
+let consumingAnchorClick = false
+
+/** 中间步骤：点击被引导消费（前进、不导航、不写终态）；激活动作步：先 release 再真执行并结束 */
+async function onAnchorClick(event) {
+  event?.preventDefault?.()
+  event?.stopPropagation?.()
+  if (!isLast.value) return next()
+  const action = current.value.action
+  const el = current.value.anchor ? resolveAnchor(current.value.anchor) : null
+  // 顺序是 spec §3.2 的落点：先撤卡片（陷阱随 active 关边沿摘掉）再执行动作，
+  // 否则动作打开的弹层与本层 trap 抢焦点（两 trap 冲突）。
+  visible.value = false
+  consumingAnchorClick = true
+  try {
+    if (action?.type === 'navigate') await router.push(action.to)
+    else if (action?.type === 'click-anchor') el?.click()
+  } finally {
+    consumingAnchorClick = false
+  }
+  exit('done')
+}
+
+/** 洞内真元素被点 ⇒ 交给引导消费（判据 3 的真实面，不只是测试钩子）。
+ *  捕获阶段：必须赶在真实控件自己的导航处理器之前吃掉；
+ *  只在当前锚点子树内响应，卡片／洞外压暗块／背景一律不拦。 */
+function onDocumentClick(event) {
+  if (!visible.value || consumingAnchorClick) return
+  const key = current.value?.anchor
+  if (!key) return
+  const el = resolveAnchor(key)
+  const target = event?.target
+  if (!el || !(target instanceof Node) || !el.contains(target)) return
+  onAnchorClick(event).catch((err) => console.warn('[onboarding] 出口动作执行失败', err))
 }
 
 function onKeydown(e) {
   if (!visible.value) return
-  if (e.key === 'Escape') skip()
+  if (e.key === 'Escape') exit('paused')
   if (e.key === 'ArrowRight') next()
   if (e.key === 'ArrowLeft') prev()
 }
 
-/** 自动弹出定时器句柄：卸载时清除，避免组件销毁后仍弹出「幽灵引导」 */
-let autoShowTimer = null
-
+let autoTimer = null
 onMounted(() => {
-  // 监听器无条件注册：已跳过的用户经菜单重开时同样需要 Esc/←/→ 与 resize/scroll 定位
-  window.addEventListener('resize', locate)
-  // 捕获阶段监听滚动：目标元素随内容滚动时气泡与聚光层需同步跟随
-  window.addEventListener('scroll', locate, true)
   window.addEventListener('keydown', onKeydown)
-  // 首次进入触发；当前账号已完成后不再自动打扰（换账号登录会重新看到）
-  if (hasSeen()) return
-  // 等待首屏渲染稳定后再弹出（避免定位到未布局完成的目标）
-  autoShowTimer = window.setTimeout(show, 600)
+  document.addEventListener('click', onDocumentClick, true)
+  migrateV1IfPresent(props.userId)
+  const st = readState(props.userId)
+  if (st.status === 'idle') autoTimer = setTimeout(() => open(0), 600)
+  else if (st.status === 'paused') autoTimer = setTimeout(() => resume(), 600)
+})
+onBeforeUnmount(() => {
+  if (autoTimer) clearTimeout(autoTimer)
+  window.removeEventListener('keydown', onKeydown)
+  document.removeEventListener('click', onDocumentClick, true)
 })
 
-onUnmounted(() => {
-  if (autoShowTimer) window.clearTimeout(autoShowTimer)
-  window.removeEventListener('resize', locate)
-  window.removeEventListener('scroll', locate, true)
-  window.removeEventListener('keydown', onKeydown)
+defineExpose({
+  show,
+  resume,
+  getIndex: () => index.value,
+  __trapStep: () => {
+    // 交给真实陷阱实现代触发 Tab（jsdom 不实现顺序聚焦导航）。
+    // 钩子缺失必须抛：写成可选链的话"陷阱被摘掉"这条测试仍绿，判据 4 变成空壳（R-T3-3）。
+    const advance = cardEl.value?.__trapAdvance
+    if (typeof advance !== 'function') {
+      throw new Error('[onboarding] 焦点陷阱未装载：卡片元素上没有 __trapAdvance 钩子')
+    }
+    advance()
+  },
+  __key: onKeydown,
+  __scrimClick: () => exit('paused'),
+  __anchorClick: onAnchorClick,
+  __relocate: relocate,
+  __goto: async (n) => {
+    index.value = n
+    await relocate()
+  },
 })
 </script>
 
@@ -357,6 +364,11 @@ onUnmounted(() => {
   justify-content: space-between;
 }
 .ob-foot-right {
+  display: flex;
+  gap: 8px;
+}
+/* 左侧两个「退出」出口（跳过／稍后再看）并排，右侧翻页；本仓 style 段只许追加 */
+.ob-foot-left {
   display: flex;
   gap: 8px;
 }
