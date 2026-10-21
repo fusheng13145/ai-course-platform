@@ -73,4 +73,22 @@ describe('computeScrimRects', () => {
     const rects = computeScrimRects({ top: 0, left: 0, width: 1000, height: 800 }, VP(1000, 800), 6)
     expect(rects.every((r) => r.width <= 0 || r.height <= 0)).toBe(true)
   })
+
+  it('目标完全在视口外 ⇒ 四块仍都在视口内，面积和＝视口', () => {
+    const vp = VP(1000, 800)
+    for (const t of [
+      { top: 900, left: 300, width: 200, height: 100 },
+      { top: -200, left: 300, width: 200, height: 100 },
+    ]) {
+      const rects = computeScrimRects(t, vp, 6)
+      for (const r of rects) {
+        expect(r.top).toBeGreaterThanOrEqual(0)
+        expect(r.left).toBeGreaterThanOrEqual(0)
+        expect(r.top + r.height).toBeLessThanOrEqual(vp.height)
+        expect(r.left + r.width).toBeLessThanOrEqual(vp.width)
+      }
+      const area = rects.reduce((s, r) => s + r.width * r.height, 0)
+      expect(area).toBe(vp.width * vp.height)
+    }
+  })
 })

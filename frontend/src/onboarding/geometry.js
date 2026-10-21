@@ -28,13 +28,15 @@ export function computeCardPlacement({ targetRect: t, cardSize: c, viewport: v, 
   return null
 }
 
-/** 洞外压暗＝四块矩形（上/下/左/右）。洞本身没有元素 ⇒ 点击天然落到真实控件上。 */
+/** 洞外压暗＝四块矩形（上/下/左/右）。洞本身没有元素 ⇒ 点击天然落到真实控件上。
+ *  四边界都夹到视口内：目标完全在视口外时，未夹的洞顶会落到 894（视口 800）⇒ 压暗块自己跑出屏外。 */
 export function computeScrimRects(t, v, pad = 6) {
+  const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x))
   const hole = {
-    top: Math.max(0, t.top - pad),
-    left: Math.max(0, t.left - pad),
-    right: Math.min(v.width, t.left + t.width + pad),
-    bottom: Math.min(v.height, t.top + t.height + pad),
+    top: clamp(t.top - pad, 0, v.height),
+    left: clamp(t.left - pad, 0, v.width),
+    right: clamp(t.left + t.width + pad, 0, v.width),
+    bottom: clamp(t.top + t.height + pad, 0, v.height),
   }
   const mid = Math.max(0, hole.bottom - hole.top)
   return [

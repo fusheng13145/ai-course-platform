@@ -15,6 +15,7 @@ export function useSpotlightOverlay({ getTarget, cardRef, onAnchorMiss }) {
   const placement = ref('centered')
   const anchorMiss = ref(false)
   let raf = 0
+  let scrollTimer = 0
 
   function refresh() {
     raf = 0
@@ -62,13 +63,16 @@ export function useSpotlightOverlay({ getTarget, cardRef, onAnchorMiss }) {
   /** 改前只读 rect、从不滚动 ⇒ 目标在视口外时聚光框跑到屏外 */
   function follow(el) {
     el?.scrollIntoView?.({ block: 'center', inline: 'center', behavior: 'smooth' })
-    window.setTimeout(schedule, 320)
+    window.clearTimeout(scrollTimer)
+    scrollTimer = window.setTimeout(schedule, 320)
   }
 
   window.addEventListener('resize', schedule)
   window.addEventListener('scroll', schedule, true)
   onBeforeUnmount(() => {
     if (raf) cancelAnimationFrame(raf)
+    raf = 0
+    window.clearTimeout(scrollTimer)
     window.removeEventListener('resize', schedule)
     window.removeEventListener('scroll', schedule, true)
   })
