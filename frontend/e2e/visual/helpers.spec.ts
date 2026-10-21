@@ -1662,6 +1662,32 @@ test('canary 判据有牙：401、HTML 兜页、缺 data 键三种都红，而 2
 })
 
 /**
+ * 修复轮 2 的 M-b：上面那条用例把三种坏形状钉住了，但**第四种没进账**——
+ * `canaryFindings` 原先写的是 `parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)`，
+ * 那个 `!Array.isArray` 让"合法 JSON 但顶层是数组"的响应体**整段信封检查被跳过**，一条理由都不产生
+ * ⇒ 契约改名族里"后端把返回形状改成裸数组"这一支挡不住（复核席 findings M-b）。
+ * 【两条都要配】负读数（裸数组必须红）配正读数（信封里套数组绝不能红）——
+ *   后者是"这条 canary 在所有锚点上都会假红"的那族反例，缺了它这次最小改动就可能把门焊死。
+ * 【只改这一处】探针路径、断言强度、`[钉桩内容]` 那两条降级日志、判据读数都不动。
+ */
+test('canary 判据对顶层裸数组体也给一条理由并点名探针键，而信封里套数组仍放行（修复轮 2 的 M-b）', () => {
+  // 零基（正例）：数组落在 data 里、外层仍是 {code,message,data} 信封 ⇒ 一条都不该报
+  expect(
+    canaryFindings(200, JSON.stringify({ code: 200, message: 'success', data: [{ id: 1 }] })),
+    '把"信封里套数组"判成违规 ⇒ 后端今天就有这种载荷，这条 canary 会全锚点假红',
+  ).toEqual([])
+  // 红例：顶层是裸数组（状态仍是 200，所以只靠状态判据抓不到）
+  const fArr = canaryFindings(200, JSON.stringify([{ id: 1 }, { id: 2 }]))
+  expect(fArr, '顶层数组放行 ⇒ "后端把返回形状改成裸数组"这一族契约漂移无人挡').toHaveLength(1)
+  expect(fArr[0]).toContain('数组')
+  expect(fArr[0], '理由必须点名是哪一条探针 ⇒ 否则读红话的人还得翻 CANARY_PROBE_PATH 才知道谁坏').toContain(
+    CANARY_PROBE_PATH,
+  )
+  // 状态与形状同时坏 ⇒ 两条理由都要在（不许命中第一条就返回）
+  expect(canaryFindings(401, '[]'), '401 加裸数组只报了一条 ⇒ 收集改成短路，形状那半永远看不见').toHaveLength(2)
+})
+
+/**
  * Task 4c-fix-C 第 10 项：record 模式的日志与跳过必须过"flushRecord 真的执行过"这一道门。
  * 【原先错在哪】A4 把 flush 提前之后，`已写成` 日志与像素跳过仍只按 `recording` 判——全部 12 个锚点
  * 都进那条分支，其中 10 个非钉桩锚点 `flushRecord` 为 null（`__fixtures__/` 一个字节都没写），
