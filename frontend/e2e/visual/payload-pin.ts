@@ -315,7 +315,9 @@ export function assertAllApiGetsPinned(anchor: AnchorSpec, state: PinState): voi
         `合法处置只有两种，且都必须显式：① 把这条键（逐字带 search）加进 ANCHORS 的 pinPaths\n` +
         `   并**同批重录** fixture（PW_RECORD_PAYLOADS=1 那条命令；重录会改动入库的 __fixtures__，那是有意的改动）；\n` +
         `   ② 证实这一页不再消费它 ⇒ 反过来改 pinPaths 并同步 data-arrival.ts 的 DATA_PATHS。\n` +
-        `禁止的出路：把本条断言放宽成 console.log（那正是它被升成断言之前的形状）。`,
+        `禁止的出路：把本条断言放宽成 console.log（那正是它被升成断言之前的形状）。\n` +
+        `覆盖面口径（读这条红时必须带着，修复轮 2 的 M-c 补）：本条只量到**调用断言那一刻为止**发出的请求，\n` +
+        `  截图之后才由交互产生的 GET 不在账上——那一段由 I-1 的 canary 与流程套件负责，本条不假装管得了它。`,
     )
   }
 }
@@ -335,7 +337,9 @@ export const CANARY_PROBE_PATH = '/api/notifications?page=1&size=5'
  * 返回违规清单，空＝可用。口径收得很窄，因为它挡的是"整页被 fixture 供数之后画面全绿的另一种原因"：
  *  ① 非 200（会话过期／后端下线 ⇒ 401/403/5xx 或代理层错误）；
  *  ② 解不出 JSON（dev server 把未知路径兜成 index.html 时状态也是 200）；
- *  ③ 信封结构不在（契约改名／路由被挪走：`code` 不是数字，或 `data` 这个键根本没有）。
+ *  ③ 信封结构不在（契约改名／路由被挪走：`code` 不是数字，或 `data` 这个键根本没有）；
+ *  ④ 顶层是**数组**而不是信封（修复轮 2 的 M-b 补上——原先那半句 `!Array.isArray(parsed)` 把整个信封
+ *     检查跳过 ⇒ "后端把返回形状改成裸数组"这一族一条理由都不产生，而它同属"契约改名"族）。
  * 它**不**判业务数值（未读数多少与本条无关），也不判权限角色——判的是"这条探针打得通"。
  */
 export function canaryFindings(status: number, bodyText: string): string[] {
@@ -347,7 +351,12 @@ export function canaryFindings(status: number, bodyText: string): string[] {
   } catch {
     findings.push('响应体不是 JSON（dev server 对未知路径回 index.html 时状态仍是 200，只判状态会放过）')
   }
-  if (parsed !== null && typeof parsed === 'object' && !Array.isArray(parsed)) {
+  if (Array.isArray(parsed)) {
+    findings.push(
+      `响应体顶层是裸数组、不是 {code,data} 信封（探针 ${CANARY_PROBE_PATH} ⇒ 后端把返回形状改成数组就是这一族，` +
+        `实读 ${JSON.stringify(parsed).slice(0, 120)}）`,
+    )
+  } else if (parsed !== null && typeof parsed === 'object') {
     const env = parsed as Record<string, unknown>
     if (typeof env.code !== 'number') findings.push(`信封缺 code（实读到 ${JSON.stringify(Object.keys(env)).slice(0, 120)}）`)
     if (!('data' in env)) findings.push('信封缺 data 键（契约改名或被挪走的形状）')
