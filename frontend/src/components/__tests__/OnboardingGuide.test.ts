@@ -303,6 +303,7 @@ describe('OnboardingGuide 挖洞与描边', () => {
   afterEach(() => {
     while (mounted.length) mounted.pop()!.unmount()
     vi.restoreAllMocks()
+    vi.unstubAllGlobals()
     vi.useRealTimers()
     localStorage.clear()
     document.body.replaceChildren()
@@ -357,6 +358,32 @@ describe('OnboardingGuide 挖洞与描边', () => {
     expect(scrims()).toHaveLength(0)
     expect(document.body.querySelector('.ob-ring')).toBeNull()
     expect(card()!.className).toContain('centered')
+    wrapper.unmount()
+  })
+
+  // 浏览器实测（330 宽）逼出来的一条：几何层"五个候选位都放不下"时返回 null，
+  // 组合层据此把 placement 写成 centered，而 centered 类原先只绑"无锚点／锚点解析失败"——
+  // 于是卡片既没有 top/left 也没有居中类，实测落在覆盖层的静态位置（左上角，压住顶栏）。
+  // 锚点明明在场（四块压暗矩形与描边都在），所以这条不是锚点解析失败的降级，是"没有可放位"的降级。
+  it('锚点在场但没有任何候选位放得下（视口窄于卡片）⇒ 卡片退化为居中态，不是左上角', async () => {
+    const anchor = document.createElement('aside')
+    anchor.setAttribute('data-onboard', 'nav:ai-assistant')
+    document.body.appendChild(anchor)
+    // 320 宽的卡片在 330 视口里两侧各只剩 5px：五个候选全不满足 8px 安全边距
+    vi.stubGlobal('innerWidth', 330)
+
+    const { wrapper, guide } = await mountHost()
+    guide.value!.show()
+    await flushPromises()
+    await guide.value!.__goto(1)
+    await frames()
+
+    expect(scrims(), '锚点在场：压暗块必须照画（否则这条就退化成上一条的空读数）').toHaveLength(4)
+    expect(card()!.getAttribute('data-placement')).toBe('centered')
+    expect(
+      card()!.className,
+      'placement 已是 centered 而类没跟上 ⇒ 卡片会掉在 (0,0) 压住顶栏（330 宽实测形状）',
+    ).toContain('centered')
     wrapper.unmount()
   })
 })

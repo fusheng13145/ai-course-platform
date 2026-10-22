@@ -127,10 +127,15 @@ export async function fillLoginField(page: Page, input: Locator, value: string) 
  *
  * 该浮层是 `position: fixed; inset: 0` 的整屏遮罩，未点「跳过 / 开始使用」之前会拦截页面上
  * 的一切点击（实测：Playwright 报 `<div class="ob-overlay"> intercepts pointer events` 并反复重试）。
- * 「已看过」标记自 2026-10-13 起**按账号**写入（键 `ai-course:onboarding:done:v1:<userId>`），
+ * 「已看过」标记自 2026-10-13 起**按账号**写入（v1 键 `ai-course:onboarding:done:v1:<userId>`，
+ * 契约 v2 起改读 `ai-course:onboarding:v2:<userId>` 那条 `{status, atStep, role, seenAt}`），
  * 所以旧 e2e 里 `localStorage.setItem('ai-course:onboarding:done:v1', '1')` 那种写裸前缀键的
  * 做法已经不再命中判定分支——等于没关。这里改按真实用户行为点掉它：点一次即由组件自己写入
- * 正确键，同一上下文后续导航不再弹出。浮层在 AppShell 挂载 600ms 后才出现，故先等过那个延时。
+ * 正确键，同一上下文后续导航不再弹出。
+ * 【点掉的语义是 skipped 不是 done】「跳过」按钮在出口语义分离后写 `skipped@0`；
+ * 这一条只用于"把浮层弄走好测别的页面"，不代表激活动作发生过——引导本身的三态断言在
+ * `e2e/onboarding.spec.ts`，别拿这里的读数当完成率的证据。
+ * 浮层在 AppShell 挂载 600ms 后才出现，故先等过那个延时。
  */
 export async function dismissOnboarding(page: Page) {
   await page.waitForTimeout(900)
@@ -221,9 +226,13 @@ export async function setLocalStorageAuth(page: Page, role: string = 'STUDENT') 
     }) => {
       localStorage.setItem('user', JSON.stringify(user))
       localStorage.setItem('permissions', JSON.stringify(permissions))
-      // 关闭首次引导层。键必须带账号段：OnboardingGuide 读 `...:done:v1:<userId>`
-      // （2026-10-13 起按账号隔离），本夹具的 user.id 固定为 1，故写 `:1`。
+      // 关闭首次引导层。键必须带账号段：引导读的是 `…:<userId>`（2026-10-13 起按账号隔离），
+      // 本夹具的 user.id 固定为 1，故写 `:1`。
+      // v1 键保留是给迁移断言用的（写 v1 ⇒ 组件按"老用户"迁成 done，绝不再莫名重弹），
+      // 两键并存的读法见 LEDGER `P0c-ONB-03`；v2 才是现在真正被读的那一条。
+      // `dismissOnboarding` 仍按真实用户行为点「跳过」——那个按钮现在写的是 `skipped`，不再是 `done`。
       localStorage.setItem('ai-course:onboarding:done:v1:1', '1')
+      localStorage.setItem('ai-course:onboarding:v2:1', JSON.stringify({ status: 'done', atStep: 0 }))
     },
     { user, permissions },
   )

@@ -64,12 +64,22 @@ vi.mock('../components/KeyboardShortcutsDialog.vue', () => ({
 import AppShell from '../AppShell.vue'
 import { FOCUS_GLOBAL_SEARCH_EVENT } from '@/composables/useKeyboardShortcuts'
 
+/**
+ * 用例里挂出来的壳层。为什么要有这个登记：AppShell 的快捷键挂在 **window** 上，
+ * 只靠各用例末尾自己 `unmount()` 的话，一条断言失败就等于那条用例的监听器留到下一条——
+ * 下一条于是同时被两个壳层响应（`heard` 计数翻倍、说明层被来回 toggle），
+ * 红的是没失败的用例。变异实测过这一条：把 `?` 的遮罩守卫改坏，连带把后面两条也弄红。
+ */
+const mounted: ReturnType<typeof mount>[] = []
+
 function mountShell() {
-  return mount(AppShell, {
+  const wrapper = mount(AppShell, {
     props: { role: 'ADMIN', profilePath: '/admin/profile' },
     attachTo: document.body,
     global: { stubs: { 'router-view': true } },
   })
+  mounted.push(wrapper)
+  return wrapper
 }
 
 function press(key: string, init: KeyboardEventInit = {}): KeyboardEvent {
@@ -108,6 +118,7 @@ describe('AppShell — D2-7 全局快捷键接线', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mocks.guideProps.length = 0
+    mounted.length = 0
     document.body.replaceChildren()
     // jsdom 未实现 Element.scrollTo（AppShell 回顶 watcher 依赖）
     if (!Element.prototype.scrollTo) Element.prototype.scrollTo = vi.fn()
@@ -118,6 +129,9 @@ describe('AppShell — D2-7 全局快捷键接线', () => {
     })
   })
   afterEach(() => {
+    // 先卸载再清 DOM：只 replaceChildren() 的话组件仍活着，window 上那个 keydown 监听
+    // 会带着这一条用例的状态跑进下一条（用例中途失败时尤其致命——它自己的 unmount 根本没执行）
+    while (mounted.length) mounted.pop()!.unmount()
     document.body.replaceChildren()
   })
 

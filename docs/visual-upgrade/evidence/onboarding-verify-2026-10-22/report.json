@@ -1332,18 +1332,18 @@
           "title": "AI 助手",
           "placement": "centered",
           "card": {
-            "top": 0,
-            "left": 0,
-            "bottom": 207,
-            "right": 320,
+            "top": 256,
+            "left": 5,
+            "bottom": 464,
+            "right": 325,
             "width": 320,
             "height": 207
           },
           "cardExact": {
-            "top": 0,
-            "left": 0,
-            "bottom": 207.17,
-            "right": 320,
+            "top": 256.41,
+            "left": 5,
+            "bottom": 463.59,
+            "right": 325,
             "height": 207.17
           },
           "cardOffset": {
@@ -3741,18 +3741,18 @@
           "title": "试题与考试",
           "placement": "centered",
           "card": {
-            "top": 0,
-            "left": 0,
-            "bottom": 207,
-            "right": 320,
+            "top": 256,
+            "left": 5,
+            "bottom": 464,
+            "right": 325,
             "width": 320,
             "height": 207
           },
           "cardExact": {
-            "top": 0,
-            "left": 0,
-            "bottom": 207.17,
-            "right": 320,
+            "top": 256.41,
+            "left": 5,
+            "bottom": 463.59,
+            "right": 325,
             "height": 207.17
           },
           "cardOffset": {
@@ -8477,17 +8477,17 @@
             "title": "先看审计",
             "placement": "above",
             "card": {
-              "top": 323,
+              "top": 322,
               "left": 8,
-              "bottom": 530,
+              "bottom": 529,
               "right": 328,
               "width": 320,
               "height": 207
             },
             "cardExact": {
-              "top": 322.88,
+              "top": 321.88,
               "left": 8,
-              "bottom": 530.05,
+              "bottom": 529.05,
               "right": 328,
               "height": 207.17
             },
@@ -8502,9 +8502,9 @@
             "cardFullyVisible": true,
             "scrimCount": 4,
             "ringRect": {
-              "top": 535.88,
+              "top": 534.88,
               "left": -240,
-              "bottom": 588.81,
+              "bottom": 587.81,
               "right": -4
             },
             "ringFullyInView": false,
@@ -8521,18 +8521,18 @@
           "title": "治理大盘",
           "placement": "centered",
           "card": {
-            "top": 0,
-            "left": 0,
-            "bottom": 207,
-            "right": 320,
+            "top": 256,
+            "left": 5,
+            "bottom": 464,
+            "right": 325,
             "width": 320,
             "height": 207
           },
           "cardExact": {
-            "top": 0,
-            "left": 0,
-            "bottom": 207.17,
-            "right": 320,
+            "top": 256.41,
+            "left": 5,
+            "bottom": 463.59,
+            "right": 325,
             "height": 207.17
           },
           "cardOffset": {

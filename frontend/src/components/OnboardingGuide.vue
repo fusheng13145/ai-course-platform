@@ -26,7 +26,7 @@
         <div
           ref="cardEl"
           class="ob-card"
-          :class="{ centered: !current.anchor || anchorMiss }"
+          :class="{ centered: !current.anchor || anchorMiss || placement === 'centered' }"
           :style="cardStyle"
           :data-placement="placement"
           role="dialog"

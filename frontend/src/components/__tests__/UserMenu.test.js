@@ -125,9 +125,18 @@ describe('UserMenu 单一来源', () => {
 
   // 堆叠层级在 jsdom 里量不到（没有布局、没有真堆叠上下文），只能把源码钉住：
   // 删掉那条 scoped 例外、或把 token 调到 EP 弹层之下，这条必须红。
-  it('层级守卫：本组件只补一条 scoped 层级例外，且 --z-shell-menu 落在 EP 弹层与引导层之间', () => {
+  // 层级必须绑在 `.pop-menu` 这条选择器上：只匹配 "z-index: var(--z-shell-menu)" 的话，
+  // 把它挪到 .menu-item／.mi-ico 上照样绿，而弹层本体又掉回 --z-menu(130) 那档——
+  // 正是本轮评审抓到的那条缺陷的另一种复发形态。浏览器面的真实叠放读数另有一条（e2e 引导套件）。
+  it('层级守卫：本组件只给 .pop-menu 补一条 scoped 层级例外，且 --z-shell-menu 落在 EP 弹层与引导层之间', () => {
     const vue = readSource('../UserMenu.vue')
-    expect(vue).toMatch(/z-index:\s*var\(--z-shell-menu\)/)
+    const rule = /\.pop-menu\s*\{([^}]*)\}/.exec(vue)
+    expect(rule, '.pop-menu 这条 scoped 规则不在源码里 ⇒ 层级例外没了主').not.toBeNull()
+    expect(
+      /z-index:\s*var\(--z-shell-menu\)/.test(rule[1]),
+      '.pop-menu 规则里没有 z-index: var(--z-shell-menu) ⇒ 弹层掉回全局 --z-menu(130)',
+    ).toBe(true)
+    expect(vue.match(/z-index:/g) || [], '本组件只许补这一条层级例外').toHaveLength(1)
 
     const css = readSource('../../styles/theme.css')
     // 两个数都从文件里解析后比大小：token 允许被合理重调，写死数值既挡不住改错方向也挡不住正常调参

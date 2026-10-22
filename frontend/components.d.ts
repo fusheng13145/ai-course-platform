@@ -108,6 +108,7 @@ declare module 'vue' {
     TabGroup: typeof import('./src/components/ui/TabGroup.vue')['default']
     ThemeSwitcher: typeof import('./src/components/ThemeSwitcher.vue')['default']
     TreeView: typeof import('./src/components/ui/TreeView.vue')['default']
+    UserMenu: typeof import('./src/components/UserMenu.vue')['default']
   }
   export interface GlobalDirectives {
     vLoading: typeof import('element-plus/es')['ElLoadingDirective']
