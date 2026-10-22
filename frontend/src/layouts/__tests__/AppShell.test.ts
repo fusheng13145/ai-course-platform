@@ -179,4 +179,52 @@ describe('AppShell 用户菜单', () => {
     expect(mocks.guideResume).toHaveBeenCalledTimes(1)
     wrapper.unmount()
   })
+
+  /**
+   * 上一条只钉了监听半边。这条从真实触发物走完整链路：顶栏头像（真 AtbUserMenu）
+   * 展开菜单 → 点「新手引导」→ 派发重开事件 → 壳层监听把请求送到唯一的引导 ref。
+   * 顶栏替身只负责把真实用户区组件挂进来，导航与接口逻辑仍不在本用例目标内。
+   */
+  it('链路：点顶栏头像菜单里的「新手引导」，续看走 resume 不从头 show', async () => {
+    const { default: AtbUserMenu } = await import('../components/topbar/AtbUserMenu.vue')
+    const wrapper = mount(AppShell, {
+      props: { role: 'ADMIN', profilePath: '/admin/profile' },
+      attachTo: document.body,
+      global: {
+        stubs: {
+          'router-view': true,
+          KeyboardShortcutsDialog: true,
+          AppTopbar: {
+            name: 'AppTopbar',
+            props: {
+              role: { type: String },
+              notificationPath: { type: String },
+              profilePath: { type: String },
+            },
+            components: { AtbUserMenu },
+            template:
+              '<div class="topbar-stub"><AtbUserMenu :role="role" :profile-path="profilePath" /></div>',
+          },
+        },
+      },
+    })
+    await flushPromises()
+
+    // 顶栏确实挂的是真实用户区（替身没生效时这条就是空转，先把它钉住）
+    const avatar = wrapper.get('.user-btn')
+    await avatar.trigger('click')
+    await flushPromises()
+    expect(menuItems().map((el) => el.textContent?.trim())).toEqual([
+      '个人中心',
+      '新手引导',
+      '退出登录',
+    ])
+
+    itemByLabel('新手引导')!.click()
+    await flushPromises()
+    expect(mocks.guideResume).toHaveBeenCalledTimes(1)
+    expect(mocks.guideShow).not.toHaveBeenCalled()
+    expect(menuEl()).toBeNull()
+    wrapper.unmount()
+  })
 })

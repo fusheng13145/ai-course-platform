@@ -26,7 +26,8 @@ import { iconHtml } from '@/layouts/icons'
 /**
  * 壳层用户菜单
  * <p>侧栏底部用户区与顶栏头像共用这一份：弹层跟随触发物位置，关闭由本组件负责。
- * 外观类（.pop-menu/.menu-item）取 design-system.css 的全局定义，这里不再抄一份。</p>
+ * 外观类（.pop-menu/.menu-item）取 design-system.css 的全局定义，这里不再抄一份；
+ * 沿用只管外观不管层级——层级由下面那一条 scoped 例外给出。</p>
  */
 const props = defineProps({
   items: { type: Array, required: true },
@@ -71,3 +72,21 @@ onBeforeUnmount(() => {
   document.removeEventListener('keydown', onDocKeydown)
 })
 </script>
+
+<style scoped>
+/* 层级例外，不是第二份外观抄本：全局 .pop-menu 的 z-index 是 --z-menu(130)，
+   会被 toast(160) 与 EP 弹层(2000 起)压在下面——本菜单由壳层常驻渲染，落点正是那一档。
+   这里只补这一条属性，外观规则继续沿用全局那份。 */
+.pop-menu {
+  z-index: var(--z-shell-menu);
+}
+
+/* 图标盒：SVG 由 iconHtml 按 14 出图，行内盒负责居中与占位（缺了它图标会撑不满行高、
+   与文字基线错位），尺寸与旧实现逐字同值 */
+.mi-ico {
+  display: grid;
+  place-items: center;
+  width: 15px;
+  height: 15px;
+}
+</style>

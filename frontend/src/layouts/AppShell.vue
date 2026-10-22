@@ -50,7 +50,7 @@ import { useAuthStore } from '@/stores/auth'
 import { announce } from '@/composables/useAnnouncer'
 import {
   useGlobalHotkeys,
-  hasOpenOverlay,
+  hasBlockingOverlay,
   FOCUS_GLOBAL_SEARCH_EVENT,
 } from '@/composables/useKeyboardShortcuts'
 import OnboardingGuide from '@/components/OnboardingGuide.vue'
@@ -135,14 +135,16 @@ useGlobalHotkeys([
   { key: '/', handler: focusGlobalSearch },
   {
     // ?：打开/关闭快捷键说明。allowWhenOverlayOpen 放行给处理器自行判断——
-    // 已打开时按 ? 关闭（toggle）；其他弹层打开时不叠加。
+    // 已打开时按 ? 关闭（toggle）；有阻塞遮罩在场时不叠加。
+    // 这里判的是 hasBlockingOverlay 而不是 hasOpenOverlay：后者只认 .el-overlay，
+    // 引导层渲染的是 .ob-overlay，用它的结果是说明面板直接盖在引导上面。
     key: '?',
     handler: () => {
       if (shortcutsHelpVisible.value) {
         shortcutsHelpVisible.value = false
         return
       }
-      if (typeof document !== 'undefined' && hasOpenOverlay()) return
+      if (typeof document !== 'undefined' && hasBlockingOverlay()) return
       shortcutsHelpVisible.value = true
     },
     allowWhenOverlayOpen: true,

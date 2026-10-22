@@ -10,6 +10,12 @@ const strip = (s) =>
     .replace(/\/\*[\s\S]*?\*\//g, '')
     .replace(/^\s*\/\/.*$/gm, '')
 
+/**
+ * 源码读取走变量传参：路径写成字面量的 `new URL('./x.vue', import.meta.url)` 会被
+ * Vite 的静态资源引用改写掉（URL 不再是 file:），只有非字面量才原样留给 fs。
+ */
+const readSource = (rel) => strip(fs.readFileSync(new URL(rel, import.meta.url), 'utf8'))
+
 const items = USER_MENU_ITEMS({
   router: { push: vi.fn() },
   role: 'STUDENT',
@@ -114,6 +120,42 @@ describe('UserMenu 单一来源', () => {
         /'新手引导'|"新手引导"/,
       )
       expect(src).toMatch(/USER_MENU_ITEMS/)
+    }
+  })
+
+  // 堆叠层级在 jsdom 里量不到（没有布局、没有真堆叠上下文），只能把源码钉住：
+  // 删掉那条 scoped 例外、或把 token 调到 EP 弹层之下，这条必须红。
+  it('层级守卫：本组件只补一条 scoped 层级例外，且 --z-shell-menu 落在 EP 弹层与引导层之间', () => {
+    const vue = readSource('../UserMenu.vue')
+    expect(vue).toMatch(/z-index:\s*var\(--z-shell-menu\)/)
+
+    const css = readSource('../../styles/theme.css')
+    // 两个数都从文件里解析后比大小：token 允许被合理重调，写死数值既挡不住改错方向也挡不住正常调参
+    const tokenValue = (name) => {
+      const hit = new RegExp(`--${name}:\\s*(-?\\d+)`).exec(css)
+      expect(hit, `theme.css 里解析不到 --${name}`).not.toBeNull()
+      return Number(hit[1])
+    }
+    const shellMenu = tokenValue('z-shell-menu')
+    const onboarding = tokenValue('z-onboarding')
+    const EP_FLOOR = 2000 // EP 弹层的 z-index 起点（theme.css 的 --z-onboarding 注释同源）
+    expect(shellMenu >= EP_FLOOR, `${shellMenu} 压不过 EP 弹层起点 ${EP_FLOOR}`).toBe(true)
+    expect(shellMenu < onboarding, `${shellMenu} 盖过了引导层 ${onboarding}`).toBe(true)
+  })
+
+  it('图标盒守卫：.mi-ico 的四条属性在源码里（jsdom 不套 scoped 样式，量不到计算值）', () => {
+    const vue = readSource('../UserMenu.vue')
+    const box = /\.mi-ico\s*\{([^}]*)\}/.exec(vue)
+    expect(box, '.mi-ico 规则不在源码里 ⇒ 图标盒又变成无样式钩子').not.toBeNull()
+    for (const [prop, value] of [
+      ['display', 'grid'],
+      ['place-items', 'center'],
+      ['width', '15px'],
+      ['height', '15px'],
+    ]) {
+      expect(new RegExp(`${prop}:\\s*${value}`).test(box[1]), `.mi-ico 缺 ${prop}: ${value}`).toBe(
+        true,
+      )
     }
   })
 })

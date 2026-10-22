@@ -6,7 +6,7 @@ import { reactive, nextTick } from 'vue'
  * AppShell 全局快捷键接线（D2-7 第八批：快捷键体系）
  *
  * <p>锁定壳层接线：①Ctrl/⌘+K 与 / 派发 FOCUS_GLOBAL_SEARCH_EVENT（消费方为
- * AtbGlobalSearch）；②? 打开/关闭快捷键说明弹层（再按 ? 关闭；其他弹层打开时
+ * AtbGlobalSearch）；②? 打开/关闭快捷键说明弹层（再按 ? 关闭；EP 弹层与引导层在场时
  * 不叠加）；③输入态下 / 不触发（守卫在原语层，这里验证接线未绕过）。</p>
  */
 
@@ -166,6 +166,25 @@ describe('AppShell — D2-7 全局快捷键接线', () => {
     expect(wrapper.get('.ks-stub').attributes('data-visible')).toBe('false')
 
     window.removeEventListener(FOCUS_GLOBAL_SEARCH_EVENT, heard)
+    wrapper.unmount()
+  })
+
+  // 改前缺陷：? 那条绑定走 allowWhenOverlayOpen 自行判断，而它判的是 hasOpenOverlay
+  // （只认 .el-overlay）⇒ 引导开着时按 ? 会把说明面板盖在引导上面。摘掉遮罩后同一条测试给正读数。
+  it('引导遮罩在场时按 ? 不叠加说明层，遮罩摘掉后 ? 恢复响应', async () => {
+    const wrapper = mountShell()
+    await flushPromises()
+
+    const ob = putOverlay('ob-overlay', true)
+
+    press('?')
+    await nextTick()
+    expect(wrapper.get('.ks-stub').attributes('data-visible')).toBe('false')
+
+    ob.remove()
+    press('?')
+    await nextTick()
+    expect(wrapper.get('.ks-stub').attributes('data-visible')).toBe('true')
     wrapper.unmount()
   })
 
