@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   logout: vi.fn(),
   guideShow: vi.fn(),
+  guideResume: vi.fn(),
+  guideProps: [] as Record<string, unknown>[],
   beforeEach: vi.fn(),
   afterEach: vi.fn(),
   route: {
@@ -32,7 +34,7 @@ vi.mock('vue-router', () => ({
   useRoute: () => mocks.route,
 }))
 vi.mock('@/stores/auth', () => ({
-  useAuthStore: () => ({ logout: mocks.logout }),
+  useAuthStore: () => ({ logout: mocks.logout, userId: 'u-1' }),
 }))
 vi.mock('../components/AppSidebar.vue', () => ({
   default: { name: 'AppSidebar', template: '<div class="sidebar-stub" />' },
@@ -43,8 +45,10 @@ vi.mock('../components/AppTopbar.vue', () => ({
 vi.mock('@/components/OnboardingGuide.vue', () => ({
   default: {
     name: 'OnboardingGuide',
-    setup(_p: unknown, { expose }: { expose: (o: unknown) => void }) {
-      expose({ show: mocks.guideShow })
+    props: { userId: { type: [Number, String], default: null }, role: { type: String } },
+    setup(props: Record<string, unknown>, { expose }: { expose: (o: unknown) => void }) {
+      mocks.guideProps.push({ ...props })
+      expose({ show: mocks.guideShow, resume: mocks.guideResume })
       return () => null
     },
   },
@@ -64,6 +68,7 @@ function mountShell() {
 describe('AppShell — D2-7 无障碍接线', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.guideProps.length = 0
     resetAnnouncerForTest()
     // jsdom 未实现 Element.scrollTo：AppShell 既有「路由切换回顶」watcher 依赖它，
     // 不补桩会同步抛出并中断 scheduler flush 队列（后续播报 watcher 不执行）
@@ -126,6 +131,14 @@ describe('AppShell — D2-7 无障碍接线', () => {
     const wrapper = mountShell()
     await flushPromises()
     expect(document.getElementById('a11y-announcer')).toBeNull()
+    wrapper.unmount()
+  })
+
+  // 组件不再自读 auth store，身份全靠壳层喂；这两个 prop 少传一个就是静默退化
+  it('壳层把 userId 与 role 交给引导组件', async () => {
+    const wrapper = mountShell()
+    await flushPromises()
+    expect(mocks.guideProps).toEqual([{ userId: 'u-1', role: 'admin' }])
     wrapper.unmount()
   })
 })

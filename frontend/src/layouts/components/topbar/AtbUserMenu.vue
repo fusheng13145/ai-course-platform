@@ -1,16 +1,25 @@
 <template>
   <!-- 用户头像下拉 -->
-  <button class="user-btn" @click="showUserMenu">
+  <button class="user-btn" @click="openMenuFrom('.user-btn')">
     <span class="avatar" :style="avatarStyle">{{ avatarInitial }}</span>
     <span class="user-name-text">{{ auth.userName }}</span>
   </button>
+
+  <!-- 与侧栏底部用户区同一份 items；顶栏在头像下方展开 -->
+  <UserMenu
+    v-if="menuOpen"
+    :items="menuItems"
+    :anchor-rect="menuRect"
+    @closed="menuOpen = false"
+  />
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { iconHtml } from '../../icons'
+import UserMenu from '@/components/UserMenu.vue'
+import { reopenOnboarding, USER_MENU_ITEMS } from '@/components/userMenuItems'
 
 const props = defineProps({
   role: { type: String, required: true },
@@ -34,47 +43,25 @@ const avatarStyle = computed(() => {
   return { background: gradients[idx] }
 })
 
-/* ---- 用户菜单（动态 DOM 弹出） ---- */
-function showUserMenu() {
-  const items = [
-    {
-      label: '个人中心',
-      icon: 'user',
-      action: () => router.push(props.profilePath || `/${props.role.toLowerCase()}/profile`),
-    },
-    {
-      label: '退出登录',
-      icon: 'logout',
-      danger: true,
-      action: () => auth.logout().then(() => router.push('/login')),
-    },
-  ]
-  const menu = document.createElement('div')
-  menu.className = 'pop-menu'
-  menu.style.left = 'auto'
-  menu.style.right = '16px'
-  menu.style.top = '52px'
-  items.forEach((it) => {
-    const el = document.createElement('div')
-    el.className = `menu-item ${it.danger ? 'danger' : ''}`
-    el.innerHTML = `<span style="display:grid;place-items:center;width:15px;height:15px">${iconHtml(it.icon, 14)}</span> ${it.label}`
-    el.onclick = () => {
-      menu.remove()
-      it.action()
-    }
-    menu.appendChild(el)
-  })
-  document.body.appendChild(menu)
-  setTimeout(() => {
-    const off = (e) => {
-      if (!menu.contains(e.target)) {
-        menu.remove()
-        document.removeEventListener('mousedown', off)
-      }
-    }
-    document.addEventListener('mousedown', off)
-  })
+/* ---- 用户菜单（单一来源 UserMenu，跟随本组件的头像按钮） ---- */
+const menuOpen = ref(false)
+const menuRect = ref({ top: 0, left: 0 })
+function openMenuFrom(selector) {
+  const el = document.querySelector(selector)
+  if (!el) return
+  const r = el.getBoundingClientRect()
+  menuRect.value = { top: r.top, left: r.left, bottom: r.bottom }
+  menuOpen.value = true
 }
+const menuItems = computed(() =>
+  USER_MENU_ITEMS({
+    router,
+    role: props.role,
+    profilePath: props.profilePath,
+    logout: () => auth.logout(),
+    onGuide: reopenOnboarding,
+  }),
+)
 </script>
 
 <style scoped>

@@ -36,6 +36,32 @@ function press(key: string, init: KeyboardEventInit = {}): KeyboardEvent {
   return event
 }
 
+/**
+ * 遮罩判据是「可见且有面积」，jsdom 的 getBoundingClientRect 恒返回 0×0，
+ * 所以「弹层真的开着」这种读数必须自己补面积，裸节点等于收起态。
+ */
+function putOverlay(open: boolean): HTMLElement {
+  const el = document.createElement('div')
+  el.className = 'el-overlay'
+  el.style.display = open ? 'block' : 'none'
+  if (open) {
+    el.getBoundingClientRect = () =>
+      ({
+        width: 800,
+        height: 600,
+        top: 0,
+        left: 0,
+        right: 800,
+        bottom: 600,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect
+  }
+  document.body.appendChild(el)
+  return el
+}
+
 describe('useKeyboardShortcuts — 全局快捷键原语', () => {
   beforeEach(() => {
     document.body.replaceChildren()
@@ -89,7 +115,7 @@ describe('useKeyboardShortcuts — 全局快捷键原语', () => {
     wrapper.unmount()
   })
 
-  it('弹层遮罩守卫：.el-overlay 打开时不触发；allowWhenOverlayOpen 可豁免', () => {
+  it('弹层遮罩守卫：可见的 .el-overlay 打开时不触发；allowWhenOverlayOpen 可豁免', () => {
     const guarded = vi.fn()
     const exempt = vi.fn()
     const wrapper = mountWithBindings([
@@ -97,9 +123,7 @@ describe('useKeyboardShortcuts — 全局快捷键原语', () => {
       { key: '?', handler: exempt, allowWhenOverlayOpen: true },
     ])
 
-    const overlay = document.createElement('div')
-    overlay.className = 'el-overlay'
-    document.body.appendChild(overlay)
+    const overlay = putOverlay(true)
 
     press('/')
     expect(guarded).not.toHaveBeenCalled()
@@ -152,12 +176,13 @@ describe('useKeyboardShortcuts — 全局快捷键原语', () => {
     expect(isEditableTarget(window)).toBe(false)
   })
 
-  it('hasOpenOverlay：以 .el-overlay 存在与否判定', () => {
+  it('hasOpenOverlay：判可见且有面积，节点光"存在"不算打开', () => {
     expect(hasOpenOverlay(document)).toBe(false)
-    const overlay = document.createElement('div')
-    overlay.className = 'el-overlay'
-    document.body.appendChild(overlay)
+    const overlay = putOverlay(true)
     expect(hasOpenOverlay(document)).toBe(true)
+    // EP 收起态就是这个形状：节点还在 DOM 里，只是 display:none
+    overlay.style.display = 'none'
+    expect(hasOpenOverlay(document)).toBe(false)
     overlay.remove()
   })
 })

@@ -14,6 +14,8 @@ const mocks = vi.hoisted(() => ({
   push: vi.fn(),
   logout: vi.fn(),
   guideShow: vi.fn(),
+  guideResume: vi.fn(),
+  guideProps: [] as Record<string, unknown>[],
   beforeEach: vi.fn(),
   afterEach: vi.fn(),
   route: {
@@ -32,7 +34,7 @@ vi.mock('vue-router', () => ({
   useRoute: () => mocks.route,
 }))
 vi.mock('@/stores/auth', () => ({
-  useAuthStore: () => ({ logout: mocks.logout }),
+  useAuthStore: () => ({ logout: mocks.logout, userId: 'u-1' }),
 }))
 vi.mock('../components/AppSidebar.vue', () => ({
   default: { name: 'AppSidebar', template: '<div class="sidebar-stub" />' },
@@ -43,8 +45,10 @@ vi.mock('../components/AppTopbar.vue', () => ({
 vi.mock('@/components/OnboardingGuide.vue', () => ({
   default: {
     name: 'OnboardingGuide',
-    setup(_p: unknown, { expose }: { expose: (o: unknown) => void }) {
-      expose({ show: mocks.guideShow })
+    props: { userId: { type: [Number, String], default: null }, role: { type: String } },
+    setup(props: Record<string, unknown>, { expose }: { expose: (o: unknown) => void }) {
+      mocks.guideProps.push({ ...props })
+      expose({ show: mocks.guideShow, resume: mocks.guideResume })
       return () => null
     },
   },
@@ -74,9 +78,36 @@ function press(key: string, init: KeyboardEventInit = {}): KeyboardEvent {
   return event
 }
 
+/**
+ * 遮罩判的是「可见且有面积」，而 jsdom 的 getBoundingClientRect 恒返回 0×0，
+ * 所以正向读数必须自己补这块面积（反向读数用裸节点，天然 0×0）。
+ */
+function putOverlay(className: string, visible: boolean): HTMLElement {
+  const el = document.createElement('div')
+  el.className = className
+  el.style.display = visible ? 'block' : 'none'
+  if (visible) {
+    el.getBoundingClientRect = () =>
+      ({
+        width: 800,
+        height: 600,
+        top: 0,
+        left: 0,
+        right: 800,
+        bottom: 600,
+        x: 0,
+        y: 0,
+        toJSON: () => ({}),
+      }) as DOMRect
+  }
+  document.body.appendChild(el)
+  return el
+}
+
 describe('AppShell — D2-7 全局快捷键接线', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mocks.guideProps.length = 0
     document.body.replaceChildren()
     // jsdom 未实现 Element.scrollTo（AppShell 回顶 watcher 依赖）
     if (!Element.prototype.scrollTo) Element.prototype.scrollTo = vi.fn()
@@ -126,9 +157,7 @@ describe('AppShell — D2-7 全局快捷键接线', () => {
     const wrapper = mountShell()
     await flushPromises()
 
-    const overlay = document.createElement('div')
-    overlay.className = 'el-overlay'
-    document.body.appendChild(overlay)
+    putOverlay('el-overlay', true)
 
     press('/')
     expect(heard).not.toHaveBeenCalled()
@@ -136,8 +165,33 @@ describe('AppShell — D2-7 全局快捷键接线', () => {
     await nextTick()
     expect(wrapper.get('.ks-stub').attributes('data-visible')).toBe('false')
 
-    overlay.remove()
     window.removeEventListener(FOCUS_GLOBAL_SEARCH_EVENT, heard)
+    wrapper.unmount()
+  })
+
+  // 改前 F11 的产品症状：EP 收起态在 body 里留一个 display:none 的 .el-overlay，
+  // 存在性守卫把它当成"弹层开着"，于是全站快捷键集体失灵。
+  it('常驻的隐藏 .el-overlay 在场时 Ctrl+K 与 / 照常响应', async () => {
+    const heard = vi.fn()
+    window.addEventListener(FOCUS_GLOBAL_SEARCH_EVENT, heard)
+    const wrapper = mountShell()
+    await flushPromises()
+
+    putOverlay('el-overlay el-modal-dialog', false)
+
+    press('k', { ctrlKey: true })
+    press('/')
+    expect(heard).toHaveBeenCalledTimes(2)
+
+    window.removeEventListener(FOCUS_GLOBAL_SEARCH_EVENT, heard)
+    wrapper.unmount()
+  })
+
+  // 组件不再自读 auth store，身份全靠壳层喂；这两个 prop 少传一个就是静默退化
+  it('壳层把 userId 与 role 交给引导组件', async () => {
+    const wrapper = mountShell()
+    await flushPromises()
+    expect(mocks.guideProps).toEqual([{ userId: 'u-1', role: 'admin' }])
     wrapper.unmount()
   })
 

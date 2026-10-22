@@ -1,9 +1,11 @@
 <template>
-  <!-- eslint-disable vue/no-v-html -->
-  <!-- v-html 仅用于内部 SVG 图标常量（受控输入），无需净化 -->
   <div class="app">
     <!-- 侧边栏（深色，手风琴二级菜单 + mini 折叠） -->
-    <AppSidebar :role="role" :sidebar-mini="sidebarMini" @user-menu="showUserMenu" />
+    <AppSidebar
+      :role="role"
+      :sidebar-mini="sidebarMini"
+      @user-menu="openMenuFrom('.side-user')"
+    />
 
     <!-- 主区 -->
     <div class="main">
@@ -31,16 +33,29 @@
 
   <!-- 键盘快捷键说明（D2-7 第八批：按 ? 打开/关闭） -->
   <KeyboardShortcutsDialog v-model="shortcutsHelpVisible" />
+
+  <!-- 用户菜单：跟随侧栏底部用户区的位置弹出，与顶栏头像共用同一份 items -->
+  <UserMenu
+    v-if="menuOpen"
+    :items="menuItems"
+    :anchor-rect="menuRect"
+    @closed="menuOpen = false"
+  />
 </template>
 
 <script setup>
-import { ref, computed, watch, nextTick, onBeforeUnmount } from 'vue'
+import { ref, computed, watch, nextTick, onMounted, onBeforeUnmount } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
-import { iconHtml } from './icons'
 import { announce } from '@/composables/useAnnouncer'
-import { useGlobalHotkeys, FOCUS_GLOBAL_SEARCH_EVENT } from '@/composables/useKeyboardShortcuts'
+import {
+  useGlobalHotkeys,
+  hasOpenOverlay,
+  FOCUS_GLOBAL_SEARCH_EVENT,
+} from '@/composables/useKeyboardShortcuts'
 import OnboardingGuide from '@/components/OnboardingGuide.vue'
+import UserMenu from '@/components/UserMenu.vue'
+import { REOPEN_ONBOARDING_EVENT, USER_MENU_ITEMS } from '@/components/userMenuItems'
 import KeyboardShortcutsDialog from './components/KeyboardShortcutsDialog.vue'
 import AppSidebar from './components/AppSidebar.vue'
 import AppTopbar from './components/AppTopbar.vue'
@@ -48,7 +63,7 @@ import AppTopbar from './components/AppTopbar.vue'
 /**
  * 应用布局骨架
  * <p>整体壳：深色侧边栏（手风琴菜单/mini 折叠）+ 顶栏（搜索/通知/主题/用户菜单）
- * + 内容区（路由过渡）；共享侧边栏折叠状态，用户菜单（个人中心/新手引导/退出）经动态 DOM 弹出。</p>
+ * + 内容区（路由过渡）；共享侧边栏折叠状态，用户菜单由 UserMenu 组件按触发物位置弹出。</p>
  */
 const props = defineProps({
   role: { type: String, required: true },
@@ -127,59 +142,37 @@ useGlobalHotkeys([
         shortcutsHelpVisible.value = false
         return
       }
-      if (typeof document !== 'undefined' && document.querySelector('.el-overlay')) return
+      if (typeof document !== 'undefined' && hasOpenOverlay()) return
       shortcutsHelpVisible.value = true
     },
     allowWhenOverlayOpen: true,
   },
 ])
 
-/* ---- 用户菜单（动态 DOM 弹出，侧边栏底部用户区共用） ---- */
-function showUserMenu() {
-  const items = [
-    {
-      label: '个人中心',
-      icon: 'user',
-      action: () => router.push(props.profilePath || `/${props.role.toLowerCase()}/profile`),
-    },
-    {
-      label: '新手引导',
-      icon: 'grad',
-      action: () => guideRef.value?.show(),
-    },
-    {
-      label: '退出登录',
-      icon: 'logout',
-      danger: true,
-      action: () => auth.logout().then(() => router.push('/login')),
-    },
-  ]
-  const menu = document.createElement('div')
-  menu.className = 'pop-menu'
-  menu.style.left = 'auto'
-  menu.style.right = '16px'
-  menu.style.top = '52px'
-  items.forEach((it) => {
-    const el = document.createElement('div')
-    el.className = `menu-item ${it.danger ? 'danger' : ''}`
-    el.innerHTML = `<span style="display:grid;place-items:center;width:15px;height:15px">${iconHtml(it.icon, 14)}</span> ${it.label}`
-    el.onclick = () => {
-      menu.remove()
-      it.action()
-    }
-    menu.appendChild(el)
-  })
-  document.body.appendChild(menu)
-  setTimeout(() => {
-    const off = (e) => {
-      if (!menu.contains(e.target)) {
-        menu.remove()
-        document.removeEventListener('mousedown', off)
-      }
-    }
-    document.addEventListener('mousedown', off)
-  })
+/* ---- 用户菜单（与顶栏头像同一份 items） ---- */
+const menuOpen = ref(false)
+const menuRect = ref({ top: 0, left: 0 })
+function openMenuFrom(selector) {
+  const el = document.querySelector(selector)
+  if (!el) return
+  const r = el.getBoundingClientRect()
+  menuRect.value = { top: r.top, left: r.left, bottom: r.bottom }
+  menuOpen.value = true
 }
+const menuItems = computed(() =>
+  USER_MENU_ITEMS({
+    router,
+    role: props.role,
+    profilePath: props.profilePath,
+    logout: () => auth.logout(),
+    onGuide: () => guideRef.value?.resume(),
+  }),
+)
+
+// 顶栏用户区在 AppTopbar 之下，拿不到引导实例：重开请求经窗口事件送到这唯一的 ref
+const reopenGuide = () => guideRef.value?.resume()
+onMounted(() => window.addEventListener(REOPEN_ONBOARDING_EVENT, reopenGuide))
+onBeforeUnmount(() => window.removeEventListener(REOPEN_ONBOARDING_EVENT, reopenGuide))
 </script>
 
 <style scoped>
@@ -233,39 +226,5 @@ function showUserMenu() {
     opacity: 0;
     transform: none;
   }
-}
-</style>
-
-<style>
-/* 用户菜单（动态 DOM，非 scoped） */
-.pop-menu {
-  position: fixed;
-  z-index: 3000;
-  background: var(--surface);
-  border: 1px solid var(--line, rgba(0, 0, 0, 0.08));
-  border-radius: 10px;
-  box-shadow: 0 12px 32px rgba(15, 23, 42, 0.16);
-  padding: 6px;
-  min-width: 148px;
-}
-.menu-item {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 8px 12px;
-  border-radius: 6px;
-  font-size: 13px;
-  color: var(--ink);
-  cursor: pointer;
-  transition: background 0.15s;
-}
-.menu-item:hover {
-  background: var(--surface-3, rgba(0, 0, 0, 0.05));
-}
-.menu-item.danger {
-  color: var(--accent-strong);
-}
-.menu-item.danger:hover {
-  background: rgba(176, 80, 69, 0.08);
 }
 </style>

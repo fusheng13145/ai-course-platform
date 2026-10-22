@@ -11,8 +11,9 @@ import { onBeforeUnmount, onMounted } from 'vue'
  *   输入态判据覆盖 input/textarea/select/contenteditable；
  * - **带修饰与不带修饰互斥**：`Ctrl+K` 不会命中「裸 k」绑定，反之亦然——避免
  *   「注册了 k 就在任何输入里按 k 都触发」这类经典事故；
- * - **弹层打开时不穿透**：`.el-overlay`（el-dialog/el-drawer 的遮罩）存在时，
- *   非显式豁免的快捷键不触发——避免用户在弹层里按 `/` 把焦点跳到弹层外的搜索框；
+ * - **弹层打开时不穿透**：可见且有面积的 `.el-overlay`（el-dialog/el-drawer 的遮罩）或引导层
+ *   `.ob-overlay` 在场时，非显式豁免的快捷键不触发——避免用户在弹层里按 `/` 把焦点跳到弹层外的
+ *   搜索框；判定认的是「可见」而非「存在」，常驻的 `display:none` 遮罩不得掐死全站快捷键；
  * - **preventDefault**：`/`（Firefox 快速查找）、`Ctrl+K`（Chrome 地址栏）都是浏览器
  *   保留行为，命中后必须阻止默认，否则快捷键名存实亡；
  * - 生命周期随组件挂载/卸载自动注册/清理。
@@ -38,7 +39,7 @@ export interface HotkeyBinding {
   handler: () => void
   /** 输入态（input/textarea/select/contenteditable）是否也触发；默认 false——打字不被劫持 */
   allowInEditable?: boolean
-  /** 有弹层遮罩（.el-overlay）打开时是否也触发；默认 false——弹层内不穿透到壳层动作 */
+  /** 有遮罩（EP 弹层或引导层）打开时是否也触发；默认 false——弹层内不穿透到壳层动作 */
   allowWhenOverlayOpen?: boolean
 }
 
@@ -54,11 +55,25 @@ export function isEditableTarget(target: EventTarget | null | undefined): boolea
   return attr === '' || attr === 'true' || attr === 'plaintext-only'
 }
 
+/** 节点是否真的可见：display 不为 none、visibility 不为 hidden、且有面积。
+ *  改前只判 querySelector 存在 ⇒ 页面上常驻一个 display:none 的 .el-overlay，全站快捷键永久失效。 */
+function isVisible(el: Element): boolean {
+  const cs = getComputedStyle(el)
+  if (cs.display === 'none' || cs.visibility === 'hidden') return false
+  const r = el.getBoundingClientRect()
+  return r.width > 0 && r.height > 0
+}
+
 /** 是否存在打开的弹层遮罩（Element Plus 的 el-dialog / el-drawer 均渲染为 .el-overlay） */
 export function hasOpenOverlay(doc: Document = document): boolean {
-  return typeof doc?.querySelector === 'function'
-    ? Boolean(doc.querySelector('.el-overlay'))
-    : false
+  if (typeof doc?.querySelector !== 'function') return false
+  return [...doc.querySelectorAll('.el-overlay')].some((el) => isVisible(el))
+}
+
+/** 阻塞壳层热键的遮罩：EP 弹层 ＋ 自建引导层（引导渲染的是 .ob-overlay，改前谁都不认它） */
+export function hasBlockingOverlay(doc: Document = document): boolean {
+  if (typeof doc?.querySelector !== 'function') return false
+  return [...doc.querySelectorAll('.el-overlay, .ob-overlay')].some((el) => isVisible(el))
 }
 
 /**
@@ -75,7 +90,7 @@ export function useGlobalHotkeys(bindings: HotkeyBinding[]): void {
       if (wantsMod !== hasMod || event.altKey) continue
       if (event.key.toLowerCase() !== binding.key.toLowerCase()) continue
       if (!binding.allowInEditable && isEditableTarget(event.target)) continue
-      if (!binding.allowWhenOverlayOpen && hasOpenOverlay()) continue
+      if (!binding.allowWhenOverlayOpen && hasBlockingOverlay()) continue
       event.preventDefault()
       binding.handler()
       return
