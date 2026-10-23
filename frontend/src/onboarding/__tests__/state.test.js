@@ -3,7 +3,6 @@ import {
   readState,
   writeStatus,
   migrateV1IfPresent,
-  onTransition,
   KEY_V1_PREFIX,
   KEY_V2_PREFIX,
 } from '../state'
@@ -71,19 +70,6 @@ describe('onboarding state 契约 v2', () => {
       Object.defineProperty(window, 'localStorage', { configurable: true, value: real })
       warn.mockRestore()
     }
-  })
-
-  it('onTransition 收到 (from,to)，解绑后不再回调', () => {
-    const cb = vi.fn()
-    const off = onTransition(cb)
-    writeStatus(9, 'paused', 1)
-    writeStatus(9, 'done', 5)
-    expect(cb).toHaveBeenCalledTimes(2)
-    expect(cb.mock.calls[1][0]).toEqual({ status: 'paused', atStep: 1 })
-    expect(cb.mock.calls[1][1]).toEqual({ status: 'done', atStep: 5 })
-    off()
-    writeStatus(9, 'skipped', 3)
-    expect(cb).toHaveBeenCalledTimes(2)
   })
 
   it('脏值（status 不在枚举内）读成 idle，不把坏 JSON 抛给调用方', () => {

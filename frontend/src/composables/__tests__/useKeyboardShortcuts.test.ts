@@ -4,7 +4,6 @@ import { defineComponent } from 'vue'
 import {
   useGlobalHotkeys,
   isEditableTarget,
-  hasOpenOverlay,
   type HotkeyBinding,
 } from '@/composables/useKeyboardShortcuts'
 
@@ -174,15 +173,5 @@ describe('useKeyboardShortcuts — 全局快捷键原语', () => {
     expect(isEditableTarget(plain)).toBe(false)
     expect(isEditableTarget(null)).toBe(false)
     expect(isEditableTarget(window)).toBe(false)
-  })
-
-  it('hasOpenOverlay：判可见且有面积，节点光"存在"不算打开', () => {
-    expect(hasOpenOverlay(document)).toBe(false)
-    const overlay = putOverlay(true)
-    expect(hasOpenOverlay(document)).toBe(true)
-    // EP 收起态就是这个形状：节点还在 DOM 里，只是 display:none
-    overlay.style.display = 'none'
-    expect(hasOpenOverlay(document)).toBe(false)
-    overlay.remove()
   })
 })

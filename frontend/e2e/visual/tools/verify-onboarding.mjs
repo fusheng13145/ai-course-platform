@@ -300,7 +300,10 @@ for (const role of ROLES) {
   await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'))
   await page.waitForTimeout(120)
   per.lightProbe.push({
-    at: '第 5 步（激活步，页面内锚点）',
+    // 标签更正（R-19b）：第 5 步的锚点 student 在页面内（join-course 卡），teacher/admin
+    // 在侧栏导航上——旧标签把三端都写成"页面内锚点"，六格浅色读数里只有 student 那格
+    // 的参照物真的是页面内卡片。读数本身有效（参照物是真读的），只是标签错。
+    at: '第 5 步（激活步；锚点位置按端不同：student 页面内，teacher/admin 侧栏导航）',
     ...(await page.evaluate(readGuideInBrowser, GUIDE_OPTS)),
   })
   await shot(`${role}-light-step-5`)(page)

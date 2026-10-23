@@ -10,13 +10,6 @@ const STATUSES = ['done', 'skipped', 'paused']
 const keyV2 = (userId) => `${KEY_V2_PREFIX}:${userId ?? ANON}`
 const keyV1 = (userId) => `${KEY_V1_PREFIX}:${userId ?? ANON}`
 
-const listeners = new Set()
-
-export function onTransition(cb) {
-  listeners.add(cb)
-  return () => listeners.delete(cb)
-}
-
 export function readState(userId) {
   try {
     const raw = localStorage.getItem(keyV2(userId))
@@ -46,7 +39,6 @@ export function readStoredRole(userId) {
 }
 
 export function writeStatus(userId, status, atStep, role = null) {
-  const from = readState(userId)
   try {
     localStorage.setItem(
       keyV2(userId),
@@ -57,7 +49,10 @@ export function writeStatus(userId, status, atStep, role = null) {
     console.warn(`[onboarding] 写入失败（status=${status}@${atStep}），下次将按未看过处理`)
     return
   }
-  listeners.forEach((cb) => cb(from, { status, atStep }))
+  // 【R-19b】原先这里有一条 `listeners.forEach((cb) => cb(from, {...}))`，给 `onTransition()`
+  // 的订阅者回放 (from, to)——但订阅 API 全仓零生产调用（只被它自己的测试用），属"只被
+  // 测试保护的孤儿导出"，已连同订阅端、`listeners` 集合与开头的 `const from = readState()`
+  // 一起删除（那次读的返回值只喂给了这条广播，没有别的消费者）。
 }
 
 export function migrateV1IfPresent(userId, role = null) {

@@ -64,11 +64,18 @@ function isVisible(el: Element): boolean {
   return r.width > 0 && r.height > 0
 }
 
-/** 是否存在打开的弹层遮罩（Element Plus 的 el-dialog / el-drawer 均渲染为 .el-overlay） */
-export function hasOpenOverlay(doc: Document = document): boolean {
-  if (typeof doc?.querySelector !== 'function') return false
-  return [...doc.querySelectorAll('.el-overlay')].some((el) => isVisible(el))
-}
+/**
+ * 【已删除 · R-19b】此处原有 `hasOpenOverlay(doc)` —— 只认 `.el-overlay` 的旧判据。
+ *
+ * 删除理由（不是"看着没用"，是核过调用点）：**生产零调用点**。热键循环里判的是
+ * `hasBlockingOverlay`（`.el-overlay` ＋ 引导层 `.ob-overlay`），`AppShell.vue` 的 `?` 分支
+ * 也只调 `hasBlockingOverlay`；它此前只被两条用例使用，属"只被测试保护的孤儿导出"。
+ *
+ * 留下的成本不是几行代码，而是**两套"什么算遮罩"的判据并存**：按名字选中它的后果是
+ * 引导层（`.ob-overlay`）被当成"没有遮罩"——`AppShell.shortcuts.test.ts` 记的改前缺陷
+ * （引导开着按 `?` 把快捷键说明面板盖在引导上面）就是这个坑。判据只保留一份：
+ * 见下一条 `hasBlockingOverlay`。原有用例的三条读数已并入它的用例（`keyboardShortcuts.overlay.test.js`）。
+ */
 
 /** 阻塞壳层热键的遮罩：EP 弹层 ＋ 自建引导层（引导渲染的是 .ob-overlay，改前谁都不认它） */
 export function hasBlockingOverlay(doc: Document = document): boolean {
