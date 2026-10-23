@@ -282,3 +282,57 @@ v2 写 `done@4`）。student 那格的动作实测是**弹窗**：`.modal` 出�
 一份计划吃 5 个棒：① 改前读数入库＋锚点与 steps 骨架（含排序不变式）② 几何层与视口四档测试
 ③ 状态契约 v2 与出口语义 ④ 壳层收口（UserMenu＋快捷键守卫，独立可回滚）⑤ 三端 e2e 与文案落地。
 ②③ 有接口依赖但无文件冲突，可并行；④ 单独一棒单独判（回滚面最大）。
+
+---
+
+## 8. 交付状态（2026-10-23 收口，判据 1–9 逐条结论）
+
+新会话从这里接手：§1 是改前事实、§4 是准出表、本节是**按 §4 逐条判过之后的现状**。
+过程账（每一棒的裁定与修复轮）在 `.superpowers/sdd/2026-10-21-onboarding-redesign/progress.md`（gitignore，不入 git）；
+账面账在 `docs/visual-upgrade/LEDGER.md` 的 `P0c-ONB-01…05` ＋ `P0b-FOCUS-02`。
+
+**收口点**：`main` 本地 `456bf34`，批次区间 `8f9466f..456bf34`（Task 1–5 各棒另见 LEDGER 行的 commit 指针）。
+**未做且经项目主明示跳过**：整枝最终评审、`finishing-a-development-branch`、任何推送（上游 `origin/leyon` 一字未动）。
+
+### 8.1 判据逐条
+
+| 判据 | 结论 | 由什么测到 | 保留（别当成已了结） |
+| --- | --- | --- | --- |
+| 1 四档视口整卡可见 | ⚠️ 有保留 | 单测 `geometry.test.js`（900／1080／1440／375 四档，10 运行时）＋ e2e 走完 5 步逐帧 `cardFullyVisible`（钉 1440×900） | 浏览器面 375 档 `cardFullyVisible` 实测 **false**，底边差 **0.17px**：单测用的是 245px 常量卡高，真卡片随文案变长。判据 1 在窄屏那一档只能说"差一口气"，不能说达成 |
+| 2 暗色合成色差 ≥ 24/255 | ✅ | 单测 `scrim.contrast.test.js`（参照 `--surface` 25／侧栏渐变暗端 32）＋ e2e 暗色那条（参照＝洞内元素有效底色） | 量程＝**计算样式按 alpha 合成后再比单通道差，不是渲染像素**；本批按排期裁定不新增像素基线 |
+| 3 洞内点击前进且不写终态／激活动作真执行 | ✅ | e2e 各一条（中间步骤断 `readStatus()` 为 null 且 URL 不变；末步 student 断弹窗、teacher／admin 断 URL 变化）＋ 组件级 `OnboardingGuide.focus.test.js` | 生产面靠 document 捕获监听（只在当前锚点子树内消费）；若日后有锚点自带导航处理器，需复核 `preventDefault` 的顺序 |
+| 4 Tab 12 次与 Shift+Tab 留在卡内 | ✅ jsdom 面 | `OnboardingGuide.focus.test.js`（正向 12 次＋至少走过 2 个不同元素的正读数、反向 Shift+Tab 回绕）＋共享层 `useFocusTrap.test.ts` 8 例 | **浏览器面一次没做**（jsdom 不实现顺序聚焦导航，`__trapAdvance` 是转调同一可聚焦环的代触发钩子）；判据 4 的真实键盘取证仍是一张空头支票，见 §8.2 |
+| 5 三态可区分且 paused 续看 | ✅ | 单测 `state.test.js`（9 条）＋ e2e 三条（Esc→`paused@2`→刷新见 `3 / 5`；跳过→`skipped`；末步→`done`） | 三态只落本地 `localStorage`，**没有服务端口径**，"完成率"目前只是本地可区分，不可跨设备 |
+| 6 两处用户菜单 items 逐字相同、第 5 步文案对位 | ✅ | `UserMenu.vue` ＋ `userMenuItems.js` 单一来源、`UserMenu.test.js` 源码级守卫（两处都不得自带字面量）、`AppShell.test.ts` 全链（顶栏点击→`resume`） | 菜单方向键导航未做；`openMenuFrom` 仍按 `document.querySelector` 取首个 |
+| 7 隐藏 `.el-overlay` 在场时 Ctrl+K 响应、`.ob-overlay` 在场时不响应 | ✅ | `keyboardShortcuts.overlay.test.js`（正向用例在 jsdom 里 stub rect）＋ `AppShell.shortcuts.test.ts`（`?` 那条正反配对）＋ 三次变异 | jsdom 恒 0×0 是这条的量程天花板；层级关系（菜单 2100 压过 EP、低于引导 3000）已由 e2e 叠放两条补上浏览器面 |
+| 8 锚点集合相等、改类名必红 | ✅ | `anchors.test.js` 双向包含、`steps.keys.test.js` 每端精确集合、`anchors.bindings.test.js` 剥注释后钉四处绑定，两次变异 | 精确集合是手工钉的：spec §3.4 那张表改了要同步改测试（有意设计成人必须看见） |
+| 9 三端 e2e 各一条 ＋ 三项门禁按实跑入账 | ✅ | `onboarding.spec.ts` **17 passed（18.7s）**；`npm run test` 180 files／1895 tests；`typecheck:gate` 402 条／90 文件持平（未 `--sync`）；`lint` 零问题（覆盖面只 `src/**`，e2e 面为 0）；`size:gate` JS 3119.8／3400 KB、EP 735.14／830 KB、echarts 805.06／900 KB、xlsx 323.28／380 KB、其余 1256.32／1300 KB、EP CSS 381.6／420 KB 全部在预算内（dist 构建时间晚于本批最后一笔源码提交） | 全流程未写"全绿"式结论；`anchors` 基线面 40 passed／0 failed 由控制器 2026-10-23 实跑（排除 D-1 那两格 `error-404`） |
+
+### 8.2 待完成（本批没做、需要一次决定或一次工）
+
+1. **判据 4 的浏览器面**：真键盘 Tab／Shift+Tab 在真浏览器里走 12 次仍留在卡内。现在只有 jsdom 代触发。
+2. **判据 1 的 375 档那 0.17px**：要么把卡片实测高度喂进几何（`FALLBACK` 245 常量退为兜底），要么承认窄屏允许贴边并把它写进 §4 改成可判定口径。现在两头不一致。
+3. **整枝最终评审 ＋ 收分支**：经项目主明示未做；`finishing-a-development-branch` 尚未走。
+4. **推送**：未做，需项目主单独点头（本地只留 `main`，上游 `origin/leyon` 未动）。
+5. **D-1 那两条恒红**（`error-404` 明暗格，LEDGER `P1-ERRTHEME-01`／`P1-ERROR404-01`）属视觉升级批，本批只排除、未修。
+6. `hasOpenOverlay` 现在**没有生产调用点**（`?` 改判 `hasBlockingOverlay` 之后），要么降级为内部函数、要么在文档里钉住它作为"EP-only 探针"的对外语义。
+7. `onTransition` 只有测试在用（为壳层埋点预留，最终没接）。留或删要一次决定。
+8. 取证脚本 `verify-onboarding.mjs` 给 lightProbe 硬编码的 `at` 标签写"页面内锚点"，而 teacher／admin 末步锚点在侧栏 ⇒ 六格浅色读数里只有 student 那一格是页面内卡片。读数本身有效（参照物是真读的），标签要改。
+9. 环境前提：会话重启会带走后端（8080）与引擎；`.auth/{student,teacher,admin}.json` 过期时 e2e 直接跳 `/login`。重放配方见 LEDGER `P0c-ONB-05` 验证栏。
+
+### 8.3 可扩展（不欠，但可以往前推）
+
+- **完成率上报后端**：v2 已有 `status`／`atStep`／`role`／`seenAt`，加一张表与一次 emit 即可从"本地可区分"升到"可统计"，需要隐私口径。
+- **steps 外置**：三份 `.js` 改成后端/JSON 配置，文案与步骤可由产品改，排序不变式仍由 `validateSteps` 守。
+- **菜单完整键盘语义**：`role="menu"` 内方向键移动焦点、Home／End、Esc 归还焦点给触发物。
+- **UserMenu 跟随重定位**：`pos` 目前只在 setup 期算一次，开着时滚动／改窗不重排；`openMenuFrom` 改模板 ref 去掉"取首个 `.user-btn`"。
+- **`.pop-menu` 样式收敛**：现存 design-system 全局 ＋ `ui/DropdownMenu.vue` scoped 两份副本，外加 `UserMenu.vue` 的一条层级例外；`DropdownMenu` 那张私有 ICONS 表也仍与 `layouts/icons.ts` 并行。属视觉批次口径。
+- **引导像素基线**：本批按排期裁定不加（spec §3.5 写明代价＝"长什么样"没有回归网）；若 Phase 1 的 scrim 家族落定，可一并纳入。
+- **锚点注册表扩容**：目前只有 `side-user`／`join-course` 两个裸键加 `nav:*`；页内元素级锚点（如某个按钮/卡片）需要新裸键时，`anchors.test.js` 的双向包含会自动要求"有步骤用它"。
+
+### 8.4 未证与未定性（禁止当结论引用）
+
+- 浅色主题压暗的**可见性判断**：数值已取到（页面卡片 107/255 看得见、侧栏 11/255 看不见），但"用户实际会不会觉得没压暗"仍是主观判断，只有 rect 与色差两个非像素读数。
+- 真实浏览器里的焦点顺序导航（判据 4）——见 §8.2 第 1 条。
+- 375 档"整卡可见"——浏览器面实测差 0.17px 为 false。
+- 完成率的可跨设备性：无服务端口径。
