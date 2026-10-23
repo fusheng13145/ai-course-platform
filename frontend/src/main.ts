@@ -51,6 +51,7 @@ import router from './router'
 import './styles/index.scss'
 import './styles/design-system.css'
 import { initMonitoring, captureFrontendError } from './monitoring'
+import { applyStoredTheme } from './composables/useTheme'
 
 const app = createApp(App)
 for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
@@ -72,5 +73,14 @@ initMonitoring()
 app.config.errorHandler = (err, instance, info) => {
   captureFrontendError(err, info, instance?.$options?.name)
 }
+
+/* ============================================
+ * 首屏前把已存主题落到 <html data-theme> 上（缺陷 D-1）
+ * `useTheme()` 只在被组件调用时（它的 onMounted）才写 `data-theme`，而 /403、/404、/503
+ * 三个错误页没有 AppShell、也没有 ThemeSwitcher，从不调用它 ⇒ 暗色用户在这三页上看到的
+ * 是 :root 的浅色令牌；视觉基线面表现为 /404 明暗两张**逐像素相同**并被判红。
+ * 放在 mount 之前：之后无论首屏落到哪个路由，文档根上都已经有正确的主题属性。
+ * ============================================ */
+applyStoredTheme()
 
 app.mount('#app')

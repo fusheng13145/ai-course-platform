@@ -278,15 +278,32 @@ async function runAnchor(
   // 可比性前置（visual-helpers）＋该锚点自己的"数据确已到位"断言（data-arrival），
   // anchors 与 sensitivity 共用同一份（上一版探针自称同口径、实际少三条，见 assertComparableRender）。
   //
-  // 【已知缺陷 · error-404 两主题恒红，勿用 --update-snapshots 吸收】
-  // /403 /404 /503 三个错误页拿不到 data-theme：全仓只有 useTheme 的 applyTheme 会写这个属性
-  // （`src/composables/useTheme.ts` 里 `applyTheme()` 那行 `document.documentElement.setAttribute('data-theme', …)`，
-  //  定位：`grep -n "setAttribute('data-theme'" src/composables/useTheme.ts`），
-  // 而 applyTheme 只在调用过 useTheme() 的组件里跑（ThemeSwitcher / Profile），
-  // 错误页既无 AppShell 也无 ThemeSwitcher → <html> 上永远没有 data-theme，
-  // theme.css 的 [data-theme='dark'] 整块不生效，暗色用户看到的仍是 :root 的浅色 token。
-  // 后果：这两张基线的明与暗必然逐像素相同，正是本断言要拦的事，所以按 Task 4 Step 3 的口径
-  // 记为真实缺陷（缺陷 D-1，另开修页任务），不入库。修好后这 2 张自动补生成，无需改本文件。
+  // 【已修 · error-404 的明暗两张一度逐像素相同（缺陷 D-1）】本块原为"已知缺陷 · 勿用
+  // --update-snapshots 吸收"，现按修复改写；旧说法在同一条提交的 diff 里可追溯。
+  // 【改前症状与根因】/403 /404 /503 三个错误页拿不到 data-theme：全仓只有 `applyTheme()` 会写这个属性
+  // （`src/composables/useTheme.ts` 的 `document.documentElement.setAttribute('data-theme', …)`），
+  // 而它原先只在 `useTheme()` 的 `onMounted` 里跑，调用点只有 ThemeSwitcher / Profile；
+  // 错误页既无 AppShell 也无 ThemeSwitcher → `<html>` 上永远没有 data-theme，
+  // `src/styles/theme.css` 的 `[data-theme='dark']` 整块不生效，暗色用户看到的仍是 `:root` 的浅色令牌
+  // ⇒ 这两张基线的明与暗**必然逐像素相同**——正是本断言要拦的事（Task 4 Step 3 记为缺陷 D-1）。
+  // 【怎么修的】`useTheme.ts` 导出 `applyStoredTheme()`（函数体就是调既有 `applyTheme()`，
+  // 不复制"偏好 → 生效值"的解析），`src/main.ts` 在 `app.mount('#app')` **之前**调它 ⇒
+  // 任何路由的首屏都已有正确的 data-theme；三个错误页的模板**一字未改**，同族一并受益
+  // （403 / 503 与 404 同属"无 AppShell 的独立整页"，形态相同）。
+  // 【基线】这 2 张已入库（归属用 `git log --oneline -- e2e/visual/__snapshots__/anchors.spec.ts/error-404-light.png` 查）：
+  //   error-404-light.png `235799d9…`／error-404-dark.png `b8081cf3…`。**md5 必须不同**：
+  //   相同就说明 data-theme 又丢了——这是"明暗真的分开了"最直接的一条读数（比肉眼看图硬）。
+  // 【旧块留给我们一条教训】它写着"修好后这 2 张自动补生成，无需改本文件"，而补生成必须带
+  // `-g "error-404"` 过滤：不带过滤的 `--update-snapshots` 会重写全部基线。这条约束现在由
+  // global-setup 的闸门（须显式 `PW_ALLOW_UPDATE_SNAPSHOTS=1`）与 `helpers.spec.ts` 的用例钉着。
+  // 【同上一条修复的连带面（待重生成，不是新缺陷）】同一次改动会让另外 **2 张 dark 基线**翻面：
+  // 视觉基线 · dark · STUDENT › student-knowledge-graph 与 · dark · ADMIN › admin-governance-analytics。
+  // 机理是 D-1 的**第二个载体**：`src/utils/chartTheme.ts` 的 `resolveTheme()` 读 `<html data-theme>`，
+  // 属性缺失时回落 `matchMedia`——改前图表在"属性还没写上"的那一刻初始化，吃的是**浅色板**
+  // （`text:#1f2733`、`sliceBorder:#ffffff`），而这两张基线正是那个状态下采的。
+  // 像素面直接对上令牌：knowledge-graph @(579,751) 基线 `[30,38,50]`→实际 `[238,241,246]`；
+  // analytics @(1071,443) 基线 `[255,255,255]`→实际 `[14,19,24]`。这两张的重生成待裁定，
+  // 在它落地前 `anchors` 是 41/43（详见本文件归属提交的正文）。
   await assertComparableRender(page, anchor, theme)
   // 图谱代表必须真的"有图"——上一轮它截的是占位空态，四条通用断言全绿（见 assertGraphPainted）
   if (anchor.requirePaintedGraph) await assertGraphPainted(page)
