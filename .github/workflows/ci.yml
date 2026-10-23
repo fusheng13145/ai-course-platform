@@ -67,6 +67,11 @@ jobs:
       - name: Format check (Prettier)
         run: npm run format:check
 
+      - name: Format check (Prettier, e2e)
+        # R-21：e2e 的 29 个文件此前零格式覆盖——format:check 的 glob 只写 src/**。
+        # 本步只负责 e2e；src 的存量格式债不在本批范围，仍由上面那一步承担。
+        run: npm run format:check:e2e
+
       - name: Unit tests (Vitest) + Coverage gate
         # 覆盖率门禁：阈值见 frontend/vitest.config.ts（渐进收敛基线，只许上调）
         run: npm run test:coverage
@@ -645,6 +650,32 @@ jobs:
         run: pytest -q
 
   # ------------------------------------------------------------------
+  # 启动器守卫（scripts/tests）—— 85 例，纯标准库 + pytest
+  # 决策（DR-50 残项）：此前只在本机跑，两个 python 作业只扫 python-services/。
+  # 启动器是"一键姿态"的唯一入口，它坏了没有任何门禁会说话，故单列一个作业。
+  # 依赖面：仅 pytest（用例只用 monkeypatch / tmp_path / mock，不装 uvicorn、fastapi）。
+  # ------------------------------------------------------------------
+  launcher-tests:
+    name: Launcher Guard Tests (scripts/tests)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install pytest
+        run: pip install pytest
+
+      - name: Launcher decision tests
+        # 必须在仓库根执行：用例按 scripts/tests 的相对路径导入 scripts/*.py。
+        run: python -m pytest scripts/tests -q
+
+  # ------------------------------------------------------------------
   # 前端 E2E（Playwright）全栈冒烟测试  [P3 #5]
   # 决策：采用「全栈」方案——后端 jar 连 MySQL/Redis service 容器，前端构建后以
   # vite preview 提供静态资源（playwright.config.ts 经 PW_WEB_SERVER_COMMAND 覆盖 dev），
@@ -740,6 +771,10 @@ jobs:
           COOKIE_SECURE: "false"
           REQUIRE_HTTPS: "false"
           CSRF_ENABLED: "false"
+          # DR-85：本作业 52 例真实登录，默认 10 次/60s 的 IP 桶会在第 11 次返 429 且不记日志，
+          # 造成"红灯集合每轮不同"。该键**只允许**出现在此步骤 env（一次性进程环境）：
+          # 禁止写入 .env / docker-compose.yml / scripts/start-all.py（那三处会让阈值长期生效）。
+          RATELIMIT_LOGIN_LIMIT: "200"
           PW_WEB_SERVER_COMMAND: "npm run preview -- --port 5173 --strictPort"
         run: |
           java -jar ../backend/target/backend-0.0.1-SNAPSHOT.jar --server.port=8080 > ../backend-e2e.log 2>&1 &
