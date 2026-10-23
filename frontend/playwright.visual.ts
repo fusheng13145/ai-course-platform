@@ -9,6 +9,9 @@ const BASE_URL = `http://localhost:${PORT}`
 export default defineConfig({
   globalSetup: './e2e/visual/global-setup.ts',
   testDir: './e2e/visual',
+  // 与流程套件分开落点（见 playwright.config.ts 的 outputDir 注释）；
+  // 注意：取证图是测试里显式 page.screenshot({ path }) 写出的，不归 outputDir 管。
+  outputDir: './test-results/visual',
   fullyParallel: false,
   workers: 1,
   // 与流程 config 一致：CI 里遗留的 .only 必须直接失败，否则会静默把 24 张基线的矩阵缩成 1 张

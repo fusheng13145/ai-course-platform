@@ -11,6 +11,9 @@ export default defineConfig({
   // 视觉回归有自己的 config（playwright.visual.ts）：那边 workers:1、快照进 __snapshots__、
   // 端口 5175。留在这里被扫到，流程套件就会在 5173 上跑基线并假红。
   testIgnore: /[/\\]visual[/\\]/,
+  // 显式落点：默认 test-results/ 与视觉套件共用，先跑完视觉再跑流程会互相清空产物。
+  // 两者都落在 gitignore 的 test-results/ 下，跑测不再往工作树里写已跟踪文件。
+  outputDir: './test-results/flow',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: process.env.CI ? 2 : 0,
