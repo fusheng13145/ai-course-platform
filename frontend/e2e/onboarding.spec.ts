@@ -526,3 +526,58 @@ test.describe('新人引导 · 真实键盘焦点陷阱', () => {
     }
   })
 })
+
+/* ============================================================================
+ * 判据 1 · 375 档整卡可见（R-07）
+ * ----------------------------------------------------------------------------
+ * 【为什么要有这一条】判据 1 是"四档视口下每一步卡片整卡完全可见"，但浏览器面此前只有
+ * 1440×900 一档（上面 15 条显式钉了那个 viewport），**375 档一条读数都没有**。
+ * 改前更麻烦：`guideSnapshot().cardFullyVisible` 要求四边各留 8px，而 spec §4-1 的原文
+ * 只有"整卡完全可见"——8px 是几何实现的**设计目标缓冲**，被误当成了判据 ⇒ 375 档
+ * "卡底离视口边 7.83px"这种**完整可见**的状态被判成 false（假阴性，R-07 的根因）。
+ * 本用例把 375 档的真实读数补上：判据按原文（矩形在视口内即可），8px 目标降为只读读数
+ * `cardMarginPx` / `cardBufferOk`——**贴边余量继续可见，只是不再冒充判据**。
+ * ========================================================================== */
+test.describe('新人引导 · 375 档整卡可见（判据 1）', () => {
+  test.use({
+    storageState: 'e2e/visual/.auth/student.json',
+    viewport: { width: 375, height: 667 },
+  })
+
+  test('375×667 五步整卡完全可见；8px 缓冲只作读数', async ({ page }) => {
+    await page.goto('/student/dashboard')
+    await resetGuide(page)
+    // 逐帧走完 5 步：判据 1 的原文是"**每一步**卡片整卡完全可见"，只钉一步等于只钉一步的运气。
+    // 每步都打一行余量读数——它与 8px 目标的差就是 R-07 的全部内容。
+    const margins: Array<{ step: string; margin: number | null; bufferOk: boolean }> = []
+    for (let i = 1; i <= 5; i++) {
+      const s = await guideSnapshot(page)
+      margins.push({ step: s.count, margin: s.cardMarginPx, bufferOk: s.cardBufferOk })
+      console.log(
+        `[R-07] 375×667 第 ${i} 步（${s.count}）：cardMarginPx=${s.cardMarginPx}` +
+          ` · cardBufferOk=${s.cardBufferOk} · cardRect=${JSON.stringify(s.cardRect)}`,
+      )
+      expect(s.count, `第 ${i} 步：引导没走到位，这一帧的读数无效`).toBe(`${i} / 5`)
+      expect(
+        s.cardFullyVisible,
+        `375×667 第 ${i} 步整卡未完全可见：cardRect=${JSON.stringify(s.cardRect)}` +
+          '（判据＝矩形落在视口内，不是四边各 8px）',
+      ).toBe(true)
+      expect(
+        s.cardMarginPx,
+        `第 ${i} 步：四边最小余量读不到 ⇒ 这条用例量不到贴边程度`,
+      ).not.toBeNull()
+      expect(
+        s.cardMarginPx as number,
+        `第 ${i} 步四边最小余量 ${s.cardMarginPx}px：负值＝真的有边出界（判据未达成），非负＝完整可见`,
+      ).toBeGreaterThanOrEqual(0)
+      if (i < 5) {
+        // 切步会让卡片重新定位（锚点不同），等几何层落定再量下一帧
+        await page.keyboard.press('ArrowRight')
+        await page.waitForTimeout(400)
+      }
+    }
+    // 末步之后卡片还在（激活动作要点击才执行），这里只留一条读数自证"五帧都量到了"
+    expect(margins, `五步余量读数：${JSON.stringify(margins)}`).toHaveLength(5)
+  })
+})

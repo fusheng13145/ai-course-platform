@@ -25,6 +25,13 @@ export async function resetGuide(page: Page) {
 }
 
 /**
+ * 视口判定的亚像素容差（px）。只用来吸收 `getBoundingClientRect` 的浮点取整
+ * （`bottom` 会算出 667.0000000001 这种值），**不是**给几何实现留的缓冲——
+ * 缓冲（四边各 8px）是设计目标，见 `guideSnapshot()` 的 `cardBufferOk` 只读读数。
+ */
+export const VIEWPORT_EPS = 0.5
+
+/**
  * 一帧引导的全部可读形状。
  *
  * 色差一条的参照物是**洞内被露出的那个元素**的有效底色，不是 `document.body`：
@@ -36,7 +43,8 @@ export async function resetGuide(page: Page) {
  * **量程：这是计算样式层面的合成，不是渲染像素**（本改造明确不加像素基线）。
  */
 export const guideSnapshot = (page: Page) =>
-  page.evaluate(() => {
+  // EPS 走参数传入：`page.evaluate` 的回调在浏览器里执行，读不到 Node 侧的模块级常量
+  page.evaluate((eps: number) => {
     const parse = (s: string) => {
       const str = String(s || '').trim()
       const m = /rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.]+))?\s*\)/.exec(str)
@@ -112,13 +120,32 @@ export const guideSnapshot = (page: Page) =>
       count: document.querySelector('.ob-count')?.textContent?.trim() ?? '',
       title: document.querySelector('.ob-title')?.textContent?.trim() ?? '',
       placement: (card as HTMLElement | null)?.dataset?.placement ?? '',
+      /**
+       * 判据 1 的判决：**整卡完全可见**。判据原文见 spec §4-1「四档视口下每一步卡片整卡完全可见」，
+       * 里面没有任何像素缓冲。
+       *
+       * 【改前为什么是假阴性（R-07）】原实现要求四边各留 **8px**（`r.top >= 8`、`r.bottom <= innerHeight - 8`），
+       * 而 8px 是几何实现自己的**设计目标缓冲**，不是判据。于是 375 档"卡底离视口边 7.83px"
+       * 这种**完整可见**的状态被判成 false——判据没错，判决函数把它读错了。
+       * 现在按原文判：矩形落在视口内即成立，`EPS = 0.5` 只吸收亚像素取整（`bottom` 可能算出
+       * 667.0000001 这类值）。贴边余量不被容忍度盖掉——它另有 `cardMarginPx` / `cardBufferOk`
+       * 两个**只读读数**，8px 目标继续可见。
+       */
       cardFullyVisible:
         !!r &&
-        r.top >= 8 &&
-        r.left >= 8 &&
-        r.bottom <= innerHeight - 8 &&
-        r.right <= innerWidth - 8,
+        r.top >= -eps &&
+        r.left >= -eps &&
+        r.bottom <= innerHeight + eps &&
+        r.right <= innerWidth + eps,
       cardRect: r ? { top: r.top, left: r.left, bottom: r.bottom, right: r.right } : null,
+      /** 四边最小余量 px（两位小数）：**只读读数、不参与断言**。8px 是设计目标，不是判据 */
+      cardMarginPx: r
+        ? Number(Math.min(r.top, r.left, innerHeight - r.bottom, innerWidth - r.right).toFixed(2))
+        : null,
+      /** 设计目标（四边各 ≥8px 缓冲）是否满足：**只读读数、不参与断言**；false 不代表判据未达成 */
+      cardBufferOk: r
+        ? Math.min(r.top, r.left, innerHeight - r.bottom, innerWidth - r.right) >= 8
+        : false,
       scrimCount: document.querySelectorAll('.ob-scrim').length,
       scrimBg: scrim ? getComputedStyle(scrim).backgroundColor : '',
       themeAttr: document.documentElement.getAttribute('data-theme'),
@@ -139,7 +166,7 @@ export const guideSnapshot = (page: Page) =>
         scrimColor && bodyBg ? maxDelta(over(scrimColor, bodyBg), bodyBg.slice(0, 3)) : null,
       v2: v2key ? localStorage.getItem(v2key) : null,
     }
-  })
+  }, VIEWPORT_EPS)
 
 export const readStatus = (page: Page) =>
   page.evaluate(() => {
