@@ -16,7 +16,19 @@ import {
  * 【只用 storageState，绝不 loginAs】登录端点按 IP 限流（10 次/60 秒、429 还不打日志），
  * 三端 ×N 条重登会把失败集合变成随机集合。夹具在 `e2e/visual/.auth/`，由视觉 config 的
  * globalSetup 生成；这一份流程 config 不带 globalSetup，所以**夹具过期时会跳 /login**——
- * 那种红不是产品缺陷，重生成：`PW_PORT=5175 npx playwright test -c playwright.visual.ts helpers --grep "会话"`。
+ * 那种红不是产品缺陷。
+ *
+ * 【⚠️ 三份 `.auth/*.json` 绑定 origin，含端口】本套件按 `playwright.config.ts` 默认跑
+ * `http://localhost:5173`，而夹具是**按某个具体端口**生成的：Playwright 只对
+ * `origins[].origin` **完全相等**（scheme+host+**port**）的 `localStorage` 生效；cookie 是
+ * 域级（`localhost`）、不比分端口，所以**症状极具误导性**——会话看着"有 cookie"，
+ * 但 `user`／`permissions` 没被还原，路由守卫判定未登录，整份套件连既有用例一起红在
+ * `resetGuide` 的 `waitForSelector('.ob-card')` 上（页面其实是 `/login`）。
+ * 2026-10-23 实测就是这个原因让 18 条全红，一度被误读成"引导打不开"。
+ * ⇒ 换端口（`PW_PORT`）或换机器后必须按 LEDGER `P0c-ONB-05` 的配方**按同一端口**重生成：
+ *   `cd frontend && PW_PORT=5173 PW_BASE_URL=http://localhost:5173 npx playwright test -c playwright.visual.ts helpers --grep "settlePage"`
+ * （`--grep` 只负责触发 globalSetup 的三次 `loginAs` 并把 `storageState` 写盘；`settlePage`
+ *   是现版本里确实能匹配到的用例名。跑 5175 一档时把 `5173` 全换成 `5175`，两处必须同改。）
  * 【视口】显式钉 1440×900：项目默认的 1280×720 与取证脚本用的那一档不是同一档，
  * 卡片定位是视口函数，换档等于换判据。
  */
@@ -48,7 +60,19 @@ for (const { role, lastTitle } of ROLES) {
       const urlBefore = page.url()
       await page.locator('.ob-card').getByRole('button', { name: '开始使用' }).click()
       await expect(page.locator('.ob-card')).toHaveCount(0)
-      expect((await readStatus(page))?.status).toBe('done')
+      // 【为什么是 poll 而不是直接读】这是**测试与异步落盘的竞态**，不是产品缺陷：
+      // `onAnchorClick` 先把 `visible` 置 false（卡片当场消失），再 `await router.push(...)`，
+      // 之后才 `exit('done')` 写 localStorage；teacher／admin 正是导航型动作，`router.push`
+      // 要跨一次路由解析。于是"卡片没了"与"状态落了"之间有一段真空，`toHaveCount(0)` 一过就读，
+      // 约 1/3 概率抢在写盘之前拿到 null（R-06 取证轮实测 3 轮红 1 轮）。
+      // 用 poll 等它落盘，**判据强度一字未降**：超时仍红、值仍必须是 'done'；
+      // 只是不再把"还没写完"读成"没写"。产品侧的写序未动（改它属行为变更，不在本轮）。
+      await expect
+        .poll(async () => (await readStatus(page))?.status, {
+          message: '末步激活动作应写 done：等了 5s 仍未落盘',
+          timeout: 5000,
+        })
+        .toBe('done')
       // "引导关了"不等于"用户开始用了"：激活动作必须真执行，且两端执行的是两种不同的事。
       // student 那一步的动作是点页面里的加入课程卡 ⇒ 只能断弹窗；teacher／admin 是导航 ⇒ 断 URL。
       if (role === 'student') {
@@ -237,6 +261,9 @@ test.describe('新人引导 · 弹层叠放', () => {
  * `docs/visual-upgrade/evidence/onboarding-tab-2026-10-23/sequence.json`，带本地时
  * `captured_at` 与运行时的 HEAD。**断言失败也照样落盘**——漏出的元素与步序正是这条用例
  * 要留下的东西（R-06 风险栏：跑出真缺陷不算失败，放宽断言才算）。
+ *
+ * 【落盘默认关，`PW_ONBOARDING_EVIDENCE=1` 才写】见 `EVIDENCE_ENABLED` 的注释：
+ * 取证是有意动作，不该是每次跑测的副作用。
  * ========================================================================== */
 
 /** 仓库根：优先问 git（`cwd` 是 frontend 还是仓库根都能对），拿不到再退回 `../` */
@@ -269,6 +296,25 @@ const TAB_EVIDENCE_DIR = join(
 const SEQUENCE_PATH = join(TAB_EVIDENCE_DIR, 'sequence.json')
 const SEQUENCE_REL = 'docs/visual-upgrade/evidence/onboarding-tab-2026-10-23/sequence.json'
 
+/**
+ * 取证落盘开关：**默认关**，显式带 `PW_ONBOARDING_EVIDENCE=1` 才写 `sequence.json`。
+ *
+ * 【为什么默认关】取证是**有意的动作**，不是每次跑测的副作用。这份证据已经入库，而它带
+ * `captured_at`（本地时）与 `worktree_porcelain_at_write` 两格天然逐次不同 ⇒ 默认写就是
+ * "跑一次脏一次"：日常跑套件、CI、乃至 rebase 前顺手跑一遍，工作树都会多出一次与本轮改动
+ * 无关的 diff，读 diff 的人还得逐个排除它。默认关之后，"这份证据是不是刚跑出来的"由
+ * **有没有显式带开关**回答，而不是靠猜时间戳。
+ *
+ * 【用法（Git Bash / bash 同法；PowerShell 用 `$env:PW_ONBOARDING_EVIDENCE='1'` 前置）】
+ *   cd frontend && PW_ONBOARDING_EVIDENCE=1 npx playwright test onboarding.spec.ts -g "真实键盘"
+ *   cd frontend && PW_ONBOARDING_EVIDENCE=1 npx playwright test onboarding.spec.ts --reporter=list
+ *
+ * 【红了更该开】断言失败时这份序列是这条用例唯一的产出（漏出的元素与步序）。开关关着却跑出红时，
+ * `writeSequence()` 会往 stderr 打一行"带开关重跑"的提示，不会静默吞掉。
+ * 【关着时不写任何文件，连目录都不建】——`mkdirSync` 也在闸内，否则空目录也会出现在工作树里。
+ */
+const EVIDENCE_ENABLED = process.env.PW_ONBOARDING_EVIDENCE === '1'
+
 /** 取证时点：**本地时**带偏移（`evidence` 要能被本地时直接读，UTC 会误导） */
 const localStamp = (d: Date): string => {
   const pad = (n: number) => String(Math.abs(Math.trunc(n))).padStart(2, '0')
@@ -298,6 +344,17 @@ interface TabCapture {
 }
 
 const writeSequence = (capture: TabCapture, failure: string | null): void => {
+  if (!EVIDENCE_ENABLED) {
+    // 关着跑出红：这份序列本该是唯一产出，至少把"怎么拿到它"打给人看，别静默吞掉
+    if (failure) {
+      console.warn(
+        '[onboarding] 取证默认关（PW_ONBOARDING_EVIDENCE 未置 1）：本条红了但没落 sequence.json。\n' +
+          '  要留下漏出的元素与步序，带开关重跑：\n' +
+          '    cd frontend && PW_ONBOARDING_EVIDENCE=1 npx playwright test onboarding.spec.ts -g "真实键盘"',
+      )
+    }
+    return
+  }
   const porcelain = runGit(['status', '--porcelain']).split('\n').filter(Boolean)
   const presses = capture.forward.length + capture.backward.length
   const payload = {
