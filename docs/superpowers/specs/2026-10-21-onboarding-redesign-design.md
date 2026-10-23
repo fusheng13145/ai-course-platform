@@ -301,7 +301,7 @@ v2 写 `done@4`）。student 那格的动作实测是**弹窗**：`.modal` 出�
 | 1 四档视口整卡可见 | ⚠️ 有保留 | 单测 `geometry.test.js`（900／1080／1440／375 四档，10 运行时）＋ e2e 走完 5 步逐帧 `cardFullyVisible`（钉 1440×900） | 浏览器面 375 档 `cardFullyVisible` 实测 **false**，底边差 **0.17px**：单测用的是 245px 常量卡高，真卡片随文案变长。判据 1 在窄屏那一档只能说"差一口气"，不能说达成 |
 | 2 暗色合成色差 ≥ 24/255 | ✅ | 单测 `scrim.contrast.test.js`（参照 `--surface` 25／侧栏渐变暗端 32）＋ e2e 暗色那条（参照＝洞内元素有效底色） | 量程＝**计算样式按 alpha 合成后再比单通道差，不是渲染像素**；本批按排期裁定不新增像素基线 |
 | 3 洞内点击前进且不写终态／激活动作真执行 | ✅ | e2e 各一条（中间步骤断 `readStatus()` 为 null 且 URL 不变；末步 student 断弹窗、teacher／admin 断 URL 变化）＋ 组件级 `OnboardingGuide.focus.test.js` | 生产面靠 document 捕获监听（只在当前锚点子树内消费）；若日后有锚点自带导航处理器，需复核 `preventDefault` 的顺序 |
-| 4 Tab 12 次与 Shift+Tab 留在卡内 | ✅ jsdom 面 | `OnboardingGuide.focus.test.js`（正向 12 次＋至少走过 2 个不同元素的正读数、反向 Shift+Tab 回绕）＋共享层 `useFocusTrap.test.ts` 8 例 | **浏览器面一次没做**（jsdom 不实现顺序聚焦导航，`__trapAdvance` 是转调同一可聚焦环的代触发钩子）；判据 4 的真实键盘取证仍是一张空头支票，见 §8.2 |
+| 4 Tab 12 次与 Shift+Tab 留在卡内 | ✅ jsdom 面 ＋ **浏览器面（2026-10-23 补）** | `OnboardingGuide.focus.test.js`（正向 12 次＋至少走过 2 个不同元素的正读数、反向 Shift+Tab 回绕）＋共享层 `useFocusTrap.test.ts` 8 例；**真实键盘**由 `onboarding.spec.ts` 新增用例补齐（`page.keyboard.press` 12 次正向 + 6 次反向，每步断言 `activeElement` 在 `.ob-card` 内，正向回绕 2 次/反向 1 次；commit `e8ad9b5`） | 量程＝**真实浏览器**，取证序列在 `docs/visual-upgrade/evidence/onboarding-tab-2026-10-23/sequence.json`（`verdict.result = passed`）。`__trapAdvance` 代触发路径仍在单测里保留，作为组件级快速回归 |
 | 5 三态可区分且 paused 续看 | ✅ | 单测 `state.test.js`（9 条）＋ e2e 三条（Esc→`paused@2`→刷新见 `3 / 5`；跳过→`skipped`；末步→`done`） | 三态只落本地 `localStorage`，**没有服务端口径**，"完成率"目前只是本地可区分，不可跨设备 |
 | 6 两处用户菜单 items 逐字相同、第 5 步文案对位 | ✅ | `UserMenu.vue` ＋ `userMenuItems.js` 单一来源、`UserMenu.test.js` 源码级守卫（两处都不得自带字面量）、`AppShell.test.ts` 全链（顶栏点击→`resume`） | 菜单方向键导航未做；`openMenuFrom` 仍按 `document.querySelector` 取首个 |
 | 7 隐藏 `.el-overlay` 在场时 Ctrl+K 响应、`.ob-overlay` 在场时不响应 | ✅ | `keyboardShortcuts.overlay.test.js`（正向用例在 jsdom 里 stub rect）＋ `AppShell.shortcuts.test.ts`（`?` 那条正反配对）＋ 三次变异 | jsdom 恒 0×0 是这条的量程天花板；层级关系（菜单 2100 压过 EP、低于引导 3000）已由 e2e 叠放两条补上浏览器面 |
@@ -310,7 +310,7 @@ v2 写 `done@4`）。student 那格的动作实测是**弹窗**：`.modal` 出�
 
 ### 8.2 待完成（本批没做、需要一次决定或一次工）
 
-1. **判据 4 的浏览器面**：真键盘 Tab／Shift+Tab 在真浏览器里走 12 次仍留在卡内。现在只有 jsdom 代触发。
+1. ~~**判据 4 的浏览器面**：真键盘 Tab／Shift+Tab 在真浏览器里走 12 次仍留在卡内。~~ **✅ 2026-10-23 已闭**（`e8ad9b5`，`page.keyboard.press` 18 次、序列入库，见 §8.1 判据 4）。
 2. **判据 1 的 375 档那 0.17px**：要么把卡片实测高度喂进几何（`FALLBACK` 245 常量退为兜底），要么承认窄屏允许贴边并把它写进 §4 改成可判定口径。现在两头不一致。
 3. **整枝最终评审 ＋ 收分支**：经项目主明示未做；`finishing-a-development-branch` 尚未走。
 4. **推送**：未做，需项目主单独点头（本地只留 `main`，上游 `origin/leyon` 未动）。

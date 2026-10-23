@@ -270,6 +270,8 @@ Batch 0 买的是**交付物存在**，Batch 1 买的是**可信度**，Batch 2 
 | R-03 | ✅ 已接线（待 CI 取证） | `4b84f19` | `ci.yml` 命中 1 次且只在 `frontend-e2e` 步骤 env；YAML 解析 12 个作业 |
 | R-05 | ✅ 已接线（待 CI 取证） | `4b84f19` | `pytest scripts/tests -q` = **85 passed**（0.62s）；新作业只装 pytest |
 | R-21 | ✅ 本机清零 | `393996c` | `eslint e2e` **125→0**；`prettier --check e2e` **17→0**；`npm run lint` exit 0；vitest **180 文件 / 1895 例**全绿；`typecheck:gate` 402/90 持平 |
+| R-06 | ✅ 已闭（浏览器面） | `e8ad9b5` | 18 例全绿（36.8s）；真实键盘 **12 次 Tab + 6 次 Shift+Tab**，`activeElement` 全程在 `.ob-card`，正向回绕 2 次/反向 1 次；序列入库 `evidence/onboarding-tab-2026-10-23/` |
+| R-08 | ✅ 已闭（含 D-1 第二载体） | `ea48fe1` + `c0b94ce` | 基线 **22→24**，`anchors` 两轮 **43/43**；两张 error-404 md5 不同；连带重采 2 张暗色图表基线（`data-theme` 缺失→`resolveTheme()` 回落 light，属同缺陷第二载体） |
 | R-22 | 🟡 部分 | 随批文档提交 | 索引 4→5 组、§22.1 分支实况、§16.1 与 B.2 的 scripts-tests 句已就地改写；历史段落中的旧表述未全量清扫 |
 | R-02 | ⛔ 阻塞 | — | 本机 SSH 代理 `127.0.0.1:65532` 未监听，`git ls-remote` 连不上；命令已备（见下） |
 
