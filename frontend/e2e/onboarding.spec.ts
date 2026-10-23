@@ -1,5 +1,14 @@
 import { test, expect } from '@playwright/test'
-import { resetGuide, guideSnapshot, readStatus } from './onboarding-helpers'
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, writeFileSync } from 'node:fs'
+import { join } from 'node:path'
+import {
+  resetGuide,
+  guideSnapshot,
+  readStatus,
+  focusProbe,
+  type FocusProbe,
+} from './onboarding-helpers'
 
 /**
  * 三端新人引导 e2e（改前 F10 那条"e2e 面零断言"就是这里补上的）。
@@ -200,5 +209,263 @@ test.describe('新人引导 · 弹层叠放', () => {
     expect(m, '菜单没弹出来').not.toBeNull()
     expect(m!.z.obScrim, '引导的压暗块不在场，这条就是空读数').not.toBeNull()
     expect(m!.onScrim, `菜单点上的顶元素是 ${m!.hit}，不是压暗块（z=${m!.z.obScrim}）`).toBe(true)
+  })
+})
+
+/* ============================================================================
+ * 判据 4 · 真实键盘焦点陷阱（路线图 R-06）
+ * ----------------------------------------------------------------------------
+ * 【这条用例要闭掉的是哪张空头支票】判据 4（Tab 12 次 / Shift+Tab 回绕仍留在卡内）此前
+ * 只有 jsdom 面证据：`OnboardingGuide.focus.test.js` 那两条走的是 `__trapStep()` →
+ * `useFocusTrap.ts` 挂在卡片元素上的 `__trapAdvance`，即"转调同一个可聚焦环"的**代触发钩子**。
+ * jsdom 不实现顺序聚焦导航，代触发能证明的只有"环是怎么算的"，证不了"真实 keydown 打进来、
+ * 焦点会不会漏到背景页"。本用例钉的是后者：**只用 `page.keyboard.press()`，
+ * 全程不碰 `__trapStep` / `__trapAdvance` / `locator.focus()`**。
+ * spec §8.2 第 1 条把它列为待完成、§8.4 明确"禁止当结论引用"，就是这一段。
+ *
+ * 【断言口径（只有一条判据）】每次按键后读 `document.activeElement`，判
+ * `.ob-card.contains(activeElement)`——`focusProbe().inCard`。`.ob-card` 是
+ * OnboardingGuide 模板里包住全部可聚焦控件的那个节点（`role="dialog"` 就挂在它上面；
+ * 组件没有 `[data-onboarding-card]` 之类属性，造一个等于改 `src/**`，本轮不许）。
+ * 除这条之外只加两条**防空转**的量：12 次正向必须走过环上每一个控件（否则"留在卡内"
+ * 可能只是原地不动），以及回绕次数下限（否则"回绕"这一半根本没被走到）。
+ *
+ * 【步序为什么钉第 2 步】第 2 步 `index>0` 才有「上一步」、又非末步还有「下一步」⇒
+ * 卡内 4 个可聚焦控件，12 次 Tab 正好 3 圈、两次"尾→首"回绕；第 1 步只有 3 个，圈数与回绕数都更薄。
+ *
+ * 【取证】逐步读数（tagName ＋ 可读标识 ＋ 卡内环下标）落
+ * `docs/visual-upgrade/evidence/onboarding-tab-2026-10-23/sequence.json`，带本地时
+ * `captured_at` 与运行时的 HEAD。**断言失败也照样落盘**——漏出的元素与步序正是这条用例
+ * 要留下的东西（R-06 风险栏：跑出真缺陷不算失败，放宽断言才算）。
+ * ========================================================================== */
+
+/** 仓库根：优先问 git（`cwd` 是 frontend 还是仓库根都能对），拿不到再退回 `../` */
+const REPO_ROOT = (() => {
+  try {
+    return execFileSync('git', ['rev-parse', '--show-toplevel'], {
+      cwd: process.cwd(),
+      encoding: 'utf8',
+    }).trim()
+  } catch {
+    return join(process.cwd(), '..')
+  }
+})()
+
+const runGit = (args: string[]): string => {
+  try {
+    return execFileSync('git', args, { cwd: REPO_ROOT, encoding: 'utf8' }).trim()
+  } catch {
+    return '(git 不可用)'
+  }
+}
+
+const TAB_EVIDENCE_DIR = join(
+  REPO_ROOT,
+  'docs',
+  'visual-upgrade',
+  'evidence',
+  'onboarding-tab-2026-10-23',
+)
+const SEQUENCE_PATH = join(TAB_EVIDENCE_DIR, 'sequence.json')
+const SEQUENCE_REL = 'docs/visual-upgrade/evidence/onboarding-tab-2026-10-23/sequence.json'
+
+/** 取证时点：**本地时**带偏移（`evidence` 要能被本地时直接读，UTC 会误导） */
+const localStamp = (d: Date): string => {
+  const pad = (n: number) => String(Math.abs(Math.trunc(n))).padStart(2, '0')
+  const offsetMinutes = -d.getTimezoneOffset()
+  const sign = offsetMinutes >= 0 ? '+' : '-'
+  return (
+    `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}` +
+    `T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}` +
+    `${sign}${pad(offsetMinutes / 60)}:${pad(offsetMinutes % 60)}`
+  )
+}
+
+interface FocusReading extends FocusProbe {
+  /** 本方向的第几次按键（1 起） */
+  step: number
+  key: 'Tab' | 'Shift+Tab'
+}
+
+interface TabCapture {
+  step: { count: string; title: string; placement: string }
+  start: FocusProbe | null
+  forward: FocusReading[]
+  backward: FocusReading[]
+  visited: number[]
+  forwardWraps: number
+  backwardWraps: number
+}
+
+const writeSequence = (capture: TabCapture, failure: string | null): void => {
+  const porcelain = runGit(['status', '--porcelain']).split('\n').filter(Boolean)
+  const presses = capture.forward.length + capture.backward.length
+  const payload = {
+    title: '判据 4 · 真实键盘焦点陷阱取证（路线图 R-06）',
+    judgement:
+      '引导改造准出判据 4：真实键盘 Tab 12 次与 Shift+Tab 回绕之后，document.activeElement 仍在引导卡子树内',
+    captured_at: localStamp(new Date()),
+    commit: runGit(['rev-parse', '--short', 'HEAD']),
+    commit_subject: runGit(['log', '-1', '--pretty=%s']),
+    commit_note:
+      '`commit` 是取证运行时工作树的 HEAD。本条用例与 import 它的首个提交可由 ' +
+      `\`git log --oneline -- ${SEQUENCE_REL}\` 直接读出（evidence 与该用例同一提交入库，` +
+      '所以当时的 HEAD 恰好是它的父提交）。',
+    worktree_porcelain_at_write: porcelain,
+    run: {
+      command: 'cd frontend && npx playwright test onboarding.spec.ts --reporter=list',
+      project: 'chromium',
+      role: 'student',
+      route: '/student/dashboard',
+      viewport: '1440x900',
+    },
+    assertion: {
+      card_root_selector: '.ob-card',
+      per_press: 'document.activeElement 满足 .ob-card.contains(activeElement)',
+      focusable_ring:
+        '卡内 tabIndex >= 0 且 getClientRects().length > 0 的元素，按 DOM 序（＝Tab 序）；由浏览器口径判定，不抄陷阱的选择器',
+      not_used: '全程未调用 __trapStep / __trapAdvance / locator.focus()，只用 page.keyboard.press',
+    },
+    step: capture.step,
+    card: {
+      selector: '.ob-card',
+      focusable_count: capture.start ? capture.start.ringSize : null,
+      focusable_labels: capture.start ? capture.start.ring : [],
+    },
+    focus_at_start: capture.start,
+    forward: {
+      key: 'Tab',
+      presses: capture.forward.length,
+      all_inside_card: capture.forward.every((r) => r.inCard),
+      visited_ring_indices: capture.visited,
+      tail_to_head_wraps: capture.forwardWraps,
+      sequence: capture.forward,
+    },
+    backward: {
+      key: 'Shift+Tab',
+      presses: capture.backward.length,
+      all_inside_card: capture.backward.every((r) => r.inCard),
+      head_to_tail_wraps: capture.backwardWraps,
+      sequence: capture.backward,
+    },
+    verdict: failure
+      ? { result: 'failed', detail: failure }
+      : {
+          result: 'passed',
+          detail:
+            `${presses} 次真实按键后 activeElement 全程在 .ob-card 子树内；` +
+            `正向尾→首回绕 ${capture.forwardWraps} 次、反向首→尾回绕 ${capture.backwardWraps} 次`,
+        },
+  }
+  mkdirSync(TAB_EVIDENCE_DIR, { recursive: true })
+  writeFileSync(SEQUENCE_PATH, JSON.stringify(payload, null, 2) + '\n', 'utf8')
+}
+
+test.describe('新人引导 · 真实键盘焦点陷阱', () => {
+  test.use({
+    storageState: 'e2e/visual/.auth/student.json',
+    viewport: { width: 1440, height: 900 },
+  })
+
+  test('真实键盘：Tab 12 次 + Shift+Tab 回绕，activeElement 全程在卡内', async ({ page }) => {
+    const capture: TabCapture = {
+      step: { count: '', title: '', placement: '' },
+      start: null,
+      forward: [],
+      backward: [],
+      visited: [],
+      forwardWraps: 0,
+      backwardWraps: 0,
+    }
+    let failure: string | null = null
+
+    /** 按一次真实键 → 读一次 activeElement → 当场断言仍在卡内（读数先落 capture，红了也在证据里） */
+    const press = async (
+      key: 'Tab' | 'Shift+Tab',
+      bucket: FocusReading[],
+      step: number,
+    ): Promise<FocusReading> => {
+      await page.keyboard.press(key)
+      const reading: FocusReading = { step, key, ...(await focusProbe(page)) }
+      bucket.push(reading)
+      await expect
+        .poll(async () => (await focusProbe(page)).inCard, {
+          message:
+            `${key} 第 ${step} 次之后 activeElement 逃出引导卡：落在 ${reading.path}；` +
+            `卡内可聚焦环 ${reading.ringSize} 个（${reading.ring.join(' / ')}）`,
+        })
+        .toBe(true)
+      return reading
+    }
+
+    try {
+      await page.goto('/student/dashboard')
+      await resetGuide(page)
+      // 走到第 2 步。ArrowRight 走的是组件已有的窗口级快捷键，不是本用例的被测面；
+      // 被测面从下面第一次 `Tab` 才开始。
+      await page.keyboard.press('ArrowRight')
+      await page.waitForTimeout(300)
+
+      const snap = await guideSnapshot(page)
+      capture.step = { count: snap.count, title: snap.title, placement: snap.placement }
+      expect(snap.count, '必须先真的走到第 2 步：本用例的可聚焦环就是第 2 步那几个控件').toBe(
+        '2 / 5',
+      )
+
+      const start = await focusProbe(page)
+      capture.start = start
+      expect(start.cardPresent, '引导卡不在场，后面每一次按键读到的都会是空读数').toBe(true)
+      expect(
+        start.ringSize,
+        `卡内可聚焦控件只有 ${start.ringSize} 个（${start.ring.join(' / ') || '空'}），回绕这一半量不到`,
+      ).toBeGreaterThanOrEqual(2)
+
+      // ---- 正向：真实 Tab 12 次 ----
+      for (let i = 1; i <= 12; i++) await press('Tab', capture.forward, i)
+
+      const visited = Array.from(
+        new Set(capture.forward.map((r) => r.ringIndex).filter((idx) => idx >= 0)),
+      ).sort((a, b) => a - b)
+      capture.visited = visited
+      const ringSize = capture.forward[capture.forward.length - 1].ringSize
+      expect(
+        visited.length,
+        `12 次 Tab 只走过 ${visited.length} 个控件（环上 ${ringSize} 个：${capture.forward[0].ring.join(' / ')}）` +
+          ' ⇒ 焦点没真的在环上移动，"留在卡内"就只是原地不动',
+      ).toBe(ringSize)
+
+      const forwardWraps = capture.forward.filter(
+        (r, i) => i > 0 && capture.forward[i - 1].ringIndex === r.ringSize - 1 && r.ringIndex === 0,
+      ).length
+      capture.forwardWraps = forwardWraps
+      const forwardPath = capture.forward.map((r) => r.ringIndex).join('→')
+      expect(
+        forwardWraps,
+        `12 次 Tab 里"尾→首"回绕只发生 ${forwardWraps} 次（环 ${ringSize} 个 ⇒ 至少 2 次）｜序列 ${forwardPath}`,
+      ).toBeGreaterThanOrEqual(2)
+
+      // ---- 反向：真实 Shift+Tab，至少走满一圈（覆盖一次"首→尾"回绕）----
+      const reversePath: FocusReading[] = [capture.forward[capture.forward.length - 1]]
+      const reversePresses = ringSize + 2
+      for (let i = 1; i <= reversePresses; i++) {
+        reversePath.push(await press('Shift+Tab', capture.backward, i))
+      }
+      const backwardWraps = reversePath.filter(
+        (r, i) => i > 0 && reversePath[i - 1].ringIndex === 0 && r.ringIndex === r.ringSize - 1,
+      ).length
+      capture.backwardWraps = backwardWraps
+      expect(
+        backwardWraps,
+        `Shift+Tab 按了 ${reversePresses} 次仍未出现"首→尾"回绕｜序列 ${reversePath
+          .map((r) => r.ringIndex)
+          .join('→')}`,
+      ).toBeGreaterThanOrEqual(1)
+    } catch (err) {
+      failure = err instanceof Error ? err.message : String(err)
+      throw err
+    } finally {
+      // 绿了要留证，红了更要留证：漏出的元素与步序是这条用例唯一的产出
+      writeSequence(capture, failure)
+    }
   })
 })

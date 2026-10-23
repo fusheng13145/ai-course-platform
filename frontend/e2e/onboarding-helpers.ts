@@ -146,3 +146,97 @@ export const readStatus = (page: Page) =>
     const k = Object.keys(localStorage).find((x) => x.startsWith('ai-course:onboarding:v2:'))
     return k ? JSON.parse(localStorage.getItem(k) as string) : null
   })
+
+/* -------------------------------------------------------------------------- *
+ * 判据 4 的真实键盘读数（路线图 R-06）
+ * -------------------------------------------------------------------------- *
+ * `focusProbe` 只回答一个问题：**此刻** `document.activeElement` 落在引导卡的哪里。
+ * 判据 4 的断言就建在它的 `inCard` 一格上（`card.contains(activeElement)`），其余字段
+ * 只为把读数写进 evidence、让"看起来绿了"和"环真的在动"分得开。
+ *
+ * 【为什么用 `tabIndex >= 0` 而不是抄一份 `DIALOG_FOCUSABLE_SELECTOR`】
+ * 顺序聚焦导航里"谁算可聚焦"由**浏览器**决定，不是由焦点陷阱那份选择器决定。把陷阱的
+ * 选择器抄进 e2e 当量尺，就等于用被测口径去量被测对象——它写错时读数会跟着一起错。
+ * 所以这里用的是平台自己的判定：元素 `tabIndex >= 0`（`<div>` 无 tabindex 时是 -1，天然排除；
+ * `tabindex="-1"` 的卡片根同样落选）且 `getClientRects().length > 0`（收掉 display:none、
+ * 未渲染、脱离文档的元素）。`disabled` 另判一次——`tabIndex` 仍报 0。
+ *
+ * 【为什么是 `closest` 的等价物而不是 `.closest('[data-onboarding-card]')`】
+ * 组件没有那个属性（`OnboardingGuide.vue` 的卡片根只有 `class="ob-card"`＋`role="dialog"`），
+ * 造一个就得改 `src/**`。所以根节点取 `.ob-card`——它正是模板里包住全部可聚焦控件的那个节点，
+ * `contains()` 判的是"在卡子树内"，含卡片根本身（打开时焦点先交给卡片）。
+ * -------------------------------------------------------------------------- */
+
+/** `focusProbe` 的返回形状（跨 `page.evaluate` 的序列化结果） */
+export interface FocusProbe {
+  /** 引导卡在不在场：不在场时后面所有格子都是空读数 */
+  cardPresent: boolean
+  /** 判据 4 唯一被断言的那一格：activeElement 在 `.ob-card` 子树内 */
+  inCard: boolean
+  /** 焦点是不是还停在卡片根上（打开瞬间的交接位；`tabindex="-1"` 故不在可聚焦环里） */
+  atCardRoot: boolean
+  tag: string | null
+  label: string | null
+  /** 可读标识：`button[data-exit=skipped].ob-btn.ghost` 这一形 */
+  path: string | null
+  /** activeElement 在卡内可聚焦环上的下标；卡片根与"不在环上"都读 -1，靠 atCardRoot/inCard 区分 */
+  ringIndex: number
+  ringSize: number
+  ring: string[]
+  /** 逃出卡片时落在哪个元素上——红的时候这一格才是要看的 */
+  outsidePath: string | null
+}
+
+export const focusProbe = (page: Page) =>
+  page.evaluate((): FocusProbe => {
+    const card = document.querySelector<HTMLElement>('.ob-card')
+    const active = document.activeElement as HTMLElement | null
+
+    const clsOf = (n: HTMLElement) =>
+      (n.getAttribute('class') ?? '').trim().split(/\s+/).filter(Boolean).slice(0, 2).join('.')
+    const labelOf = (n: HTMLElement) => {
+      const text = (n.textContent ?? '').replace(/\s+/g, ' ').trim()
+      if (text) return text.slice(0, 16)
+      return n.getAttribute('aria-label') ?? n.getAttribute('data-exit') ?? ''
+    }
+    const pathOf = (n: HTMLElement) => {
+      const exit = n.getAttribute('data-exit')
+      const cls = clsOf(n)
+      return `${n.tagName.toLowerCase()}${exit ? `[data-exit=${exit}]` : ''}${cls ? `.${cls}` : ''}`
+    }
+
+    if (!card) {
+      return {
+        cardPresent: false,
+        inCard: false,
+        atCardRoot: false,
+        tag: active ? active.tagName.toLowerCase() : null,
+        label: active ? labelOf(active) : null,
+        path: active ? pathOf(active) : null,
+        ringIndex: -1,
+        ringSize: 0,
+        ring: [],
+        outsidePath: active ? pathOf(active) : null,
+      }
+    }
+
+    // 浏览器口径的顺序聚焦环：tabIndex >= 0 且真的渲染出盒子，DOM 序即 Tab 序
+    // （卡片内这几个控件都没有正 tabindex，所以"DOM 序"与"Tab 序"是同一个序列）
+    const ring = Array.from(card.querySelectorAll<HTMLElement>('*')).filter(
+      (n) => n.tabIndex >= 0 && !(n as HTMLButtonElement).disabled && n.getClientRects().length > 0,
+    )
+    const inCard = !!active && card.contains(active)
+
+    return {
+      cardPresent: true,
+      inCard,
+      atCardRoot: active === card,
+      tag: active ? active.tagName.toLowerCase() : null,
+      label: active ? labelOf(active) : null,
+      path: active ? pathOf(active) : null,
+      ringIndex: active ? ring.indexOf(active) : -1,
+      ringSize: ring.length,
+      ring: ring.map(labelOf),
+      outsidePath: inCard || !active ? null : pathOf(active),
+    }
+  })
