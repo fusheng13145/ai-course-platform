@@ -53,7 +53,9 @@ for (const { role, lastTitle } of ROLES) {
       }
     })
 
-    test('中途点洞内真元素只前进：URL 不变、不写 done（改前是点一下即永久跳过）', async ({ page }) => {
+    test('中途点洞内真元素只前进：URL 不变、不写 done（改前是点一下即永久跳过）', async ({
+      page,
+    }) => {
       await page.goto(`/${role}/dashboard`)
       await resetGuide(page)
       await page.keyboard.press('ArrowRight')
@@ -75,7 +77,7 @@ for (const { role, lastTitle } of ROLES) {
       await page.keyboard.press('ArrowRight')
       await page.keyboard.press('Escape')
       await expect(page.locator('.ob-card')).toHaveCount(0)
-      expect((await readStatus(page))).toMatchObject({ status: 'paused', atStep: 2 })
+      expect(await readStatus(page)).toMatchObject({ status: 'paused', atStep: 2 })
       await page.reload()
       await page.waitForSelector('.ob-card')
       expect((await guideSnapshot(page)).count).toBe('3 / 5')
@@ -85,7 +87,7 @@ for (const { role, lastTitle } of ROLES) {
       await page.goto(`/${role}/dashboard`)
       await resetGuide(page)
       await page.locator('.ob-card').getByRole('button', { name: '跳过' }).click()
-      expect((await readStatus(page))).toMatchObject({ status: 'skipped' })
+      expect(await readStatus(page)).toMatchObject({ status: 'skipped' })
       await page.reload()
       // 自动弹出走的是 600ms 定时器；不等过去就断言 toHaveCount(0) 是假绿
       await page.waitForTimeout(1200)
@@ -143,7 +145,9 @@ test.describe('新人引导 · 弹层叠放', () => {
     return {
       cx,
       cy,
-      hit: top ? `${top.tagName.toLowerCase()}.${(top as HTMLElement).className.trim().split(/\s+/)[0]}` : null,
+      hit: top
+        ? `${top.tagName.toLowerCase()}.${(top as HTMLElement).className.trim().split(/\s+/)[0]}`
+        : null,
       overEpOverlay: !!(top && top.closest('.el-overlay')),
       inMenu: !!(top && top.closest('.pop-menu')),
       onScrim: !!(top && top.classList.contains('ob-scrim')),
@@ -170,7 +174,9 @@ test.describe('新人引导 · 弹层叠放', () => {
     await page.waitForSelector('.el-dialog', { timeout: 10000 })
     // EP 的遮罩铺满视口，所以菜单所在那点正被它盖着；菜单由 JS 触发——
     // "能不能挂载"是组件状态，"谁盖住谁"才是要量的那一件事，两者分开取。
-    await page.evaluate(() => document.querySelector<HTMLElement>('[data-onboard="side-user"]')?.click())
+    await page.evaluate(() =>
+      document.querySelector<HTMLElement>('[data-onboard="side-user"]')?.click(),
+    )
     await page.waitForTimeout(300)
     const m = await page.evaluate(menuTopPoint)
     expect(m, '菜单没弹出来').not.toBeNull()
@@ -186,7 +192,9 @@ test.describe('新人引导 · 弹层叠放', () => {
     // 且当前锚点不是 side-user，这次 JS 点击不会被引导当"点洞内"消费掉，菜单得以与引导同时在场
     await page.keyboard.press('ArrowRight')
     await page.waitForTimeout(300)
-    await page.evaluate(() => document.querySelector<HTMLElement>('[data-onboard="side-user"]')?.click())
+    await page.evaluate(() =>
+      document.querySelector<HTMLElement>('[data-onboard="side-user"]')?.click(),
+    )
     await page.waitForTimeout(300)
     const m = await page.evaluate(menuTopPoint)
     expect(m, '菜单没弹出来').not.toBeNull()

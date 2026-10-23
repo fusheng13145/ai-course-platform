@@ -67,7 +67,8 @@ const AUTH_DIR = dirname(join(process.cwd(), storagePathFor(ROLES[0])))
  *   这正是计划提的 `spawnSync` 形态验不下去的原因，取舍理由写在用例注释里）。
  */
 export function assertUpdateSnapshotsAllowed(argv: string[] = process.argv): void {
-  const wantsUpdate = argv.includes('--update-snapshots') || argv.includes('-u') || argv.includes('--update')
+  const wantsUpdate =
+    argv.includes('--update-snapshots') || argv.includes('-u') || argv.includes('--update')
   if (!wantsUpdate) return
   if (process.env.PW_ALLOW_UPDATE_SNAPSHOTS === '1') {
     console.log(
@@ -94,7 +95,9 @@ export default async function globalSetup() {
   const browser = await chromium.launch()
   try {
     for (const role of ROLES) {
-      const ctx = await browser.newContext({ baseURL: process.env.PW_BASE_URL || 'http://localhost:5175' })
+      const ctx = await browser.newContext({
+        baseURL: process.env.PW_BASE_URL || 'http://localhost:5175',
+      })
       const page = await ctx.newPage()
       await loginAs(page, role)
       // 落盘路径必须与 storagePathFor 完全一致（相对 cwd），否则 spec 侧 ENOENT

@@ -15,7 +15,6 @@ import {
   SNAPSHOT_THRESHOLDS,
   snapName,
   storagePathFor,
-  type AnchorSpec,
   type ThemeName,
 } from './visual-helpers'
 import { installPayloadPin, readNopinEnv } from './payload-pin'
@@ -78,9 +77,9 @@ import { pngSize } from './tools/png-size'
  * **确定性漂移**（两次截到的图彼此逐字节相同，但都不等于已提交基线 = 产品真的变了）。
  * 判据只有靠双跑：单次读数分不出这两者，而它们的处置方向完全相反。
  */
-const PROBE_ANCHORS: string[] =
-  process.env.PW_PROBE_SLUGS?.split(',').map((s) => s.trim()).filter(Boolean)
-  ?? ['login', 'admin-dashboard', 'admin-courses-table']
+const PROBE_ANCHORS: string[] = process.env.PW_PROBE_SLUGS?.split(',')
+  .map((s) => s.trim())
+  .filter(Boolean) ?? ['login', 'admin-dashboard', 'admin-courses-table']
 
 /**
  * 探针主题。Step 3 的暗色量程就靠它：**spec §6.13 明令不得用浅色结论代证暗色**，
@@ -137,7 +136,10 @@ interface LadderStep {
   shape: string
 }
 
-const cssByTheme = (light: string, dark: string): Partial<Record<ThemeName, string>> => ({ light, dark })
+const cssByTheme = (light: string, dark: string): Partial<Record<ThemeName, string>> => ({
+  light,
+  dark,
+})
 const cssBoth = (both: string): Partial<Record<ThemeName, string>> => ({ light: both, dark: both })
 
 const LADDER: Record<string, LadderStep> = {
@@ -262,8 +264,10 @@ const INJECT = STEP.css[PROBE_THEME] ?? ''
  * ② 允许收紧方向的扫描，但证据文件里 `deliveryScale:false`，
  *    且日志明写"非交付口径"——喂台账前必须换回默认（无旋钮）重跑。
  */
-const knobThreshold = process.env.PW_PROBE_THRESHOLD === undefined ? undefined : Number(process.env.PW_PROBE_THRESHOLD)
-const knobRatio = process.env.PW_PROBE_RATIO === undefined ? undefined : Number(process.env.PW_PROBE_RATIO)
+const knobThreshold =
+  process.env.PW_PROBE_THRESHOLD === undefined ? undefined : Number(process.env.PW_PROBE_THRESHOLD)
+const knobRatio =
+  process.env.PW_PROBE_RATIO === undefined ? undefined : Number(process.env.PW_PROBE_RATIO)
 const THRESHOLDS = {
   threshold: knobThreshold ?? SNAPSHOT_THRESHOLDS.threshold,
   maxDiffPixelRatio: knobRatio ?? SNAPSHOT_THRESHOLDS.maxDiffPixelRatio,
@@ -275,14 +279,22 @@ const THRESHOLDS = {
  * 且日志明写——喂台账前必须换回默认（无旋钮）重跑。
  */
 const IS_DELIVERY_SCALE = knobThreshold === undefined && knobRatio === undefined
-if (knobThreshold !== undefined && !(knobThreshold >= 0 && knobThreshold <= SNAPSHOT_THRESHOLDS.threshold)) {
+if (
+  knobThreshold !== undefined &&
+  !(knobThreshold >= 0 && knobThreshold <= SNAPSHOT_THRESHOLDS.threshold)
+) {
   throw new Error(
     `[探针无效] PW_PROBE_THRESHOLD=${knobThreshold} 比交付配置 threshold=${SNAPSHOT_THRESHOLDS.threshold} 宽松。` +
       '量程只许往更灵敏扫；放宽过的读数会伪装成交付口径（Task 4b 的 {0.02,0} 事故）。',
   )
 }
-if (knobRatio !== undefined && !(knobRatio >= 0 && knobRatio <= SNAPSHOT_THRESHOLDS.maxDiffPixelRatio)) {
-  throw new Error(`[探针无效] PW_PROBE_RATIO=${knobRatio} 比交付配置 maxDiffPixelRatio=${SNAPSHOT_THRESHOLDS.maxDiffPixelRatio} 宽松——同上，拒绝`)
+if (
+  knobRatio !== undefined &&
+  !(knobRatio >= 0 && knobRatio <= SNAPSHOT_THRESHOLDS.maxDiffPixelRatio)
+) {
+  throw new Error(
+    `[探针无效] PW_PROBE_RATIO=${knobRatio} 比交付配置 maxDiffPixelRatio=${SNAPSHOT_THRESHOLDS.maxDiffPixelRatio} 宽松——同上，拒绝`,
+  )
 }
 
 /** 读 PNG 头拿宽高的那份逻辑已上收到 `tools/png-size.ts` 的 `pngSize`（B8：单一来源，
@@ -314,9 +326,13 @@ interface MeasureReading {
 function measureWith(expected: string, actual: string, t: number, r: number): MeasureReading {
   // 显式把本轮口径传给比较器：它默认读交付配置，而扫描档时探针用的可能是收紧后的 t/r。
   // 不传就会拿"交付口径的计数"去和"扫描口径的跑测器计数"比，①②两条一致性断言必然假炸。
-  const out = execFileSync(process.execPath, [MEASURER, expected, actual, '--json', `--threshold=${t}`, `--ratio=${r}`], {
-    encoding: 'utf8',
-  })
+  const out = execFileSync(
+    process.execPath,
+    [MEASURER, expected, actual, '--json', `--threshold=${t}`, `--ratio=${r}`],
+    {
+      encoding: 'utf8',
+    },
+  )
   return JSON.parse(out) as MeasureReading
 }
 
@@ -343,7 +359,12 @@ function readingText(r: MeasureReading): string {
  * JSON 的 key 与**取证 PNG 的文件名**必须共用同一个函数，各写一份就会漂开，
  * 而漂开的现状就是 A2 那条：key 打了标、文件名没打标，同一格里两轮读数互相覆盖（见 Task 4c-fix-A）。
  */
-function evidenceKey(slug: string, theme: ThemeName, ladder: string, opts: { nopin: boolean; shift: number; t: number; r: number }): string {
+function evidenceKey(
+  slug: string,
+  theme: ThemeName,
+  ladder: string,
+  opts: { nopin: boolean; shift: number; t: number; r: number },
+): string {
   return `${slug}/${theme}/${ladder}${evidenceTagSuffix(opts)}`
 }
 
@@ -478,12 +499,18 @@ for (const slug of PROBE_ANCHORS) {
       // 但那一轮的证据文件里 pinned=false，不得当交付口径引用。
       // 取法不在这里现读——`nopin` 是模块作用域那份（`readNopinEnv()`，第 11 项统一，非法值到不了这一行）。
       let pinShift = 0
-      if (anchor.pinPaths?.length && !nopin) pinShift = (await installPayloadPin(page, anchor)).shiftDays
+      if (anchor.pinPaths?.length && !nopin)
+        pinShift = (await installPayloadPin(page, anchor)).shiftDays
       // 这一轮走的**到底是哪条数据路径**——取证 PNG 的文件名与 probe-results.json 的 key 共用这一段标签
       // （都由 visual-helpers.ts 的 evidenceTagSuffix() 生成，两处各写一份就会漂开，见 A2）。
       // 交付口径（钉住 + 交付 t/r）得到**空串**：文件名与以前逐字相同，
       // 于是 `tools/kat-falsification.cjs` 写死的那个名字与 `.gitignore` 的规则都不受影响。
-      const scaleTag = evidenceTagSuffix({ nopin, shift: pinShift, t: THRESHOLDS.threshold, r: THRESHOLDS.maxDiffPixelRatio })
+      const scaleTag = evidenceTagSuffix({
+        nopin,
+        shift: pinShift,
+        t: THRESHOLDS.threshold,
+        r: THRESHOLDS.maxDiffPixelRatio,
+      })
 
       await freezeClock(page)
       await page.goto(anchor.path)
@@ -508,14 +535,31 @@ for (const slug of PROBE_ANCHORS) {
         // 不是缺陷复发，也别为了"让它跑起来"去改锚点名单或改 ladder 的 CSS
         //（那就不再是 Phase 1/2 的形状了）。
         if (after.matched === 0) {
-          console.log(`[probe-skip] ${slug} 档 ${LAD}：${STEP.watch} 零命中（matched=${after.matched}）`)
-          recordEvidence({ slug, theme: PROBE_THEME, ladder: LAD, skipped: true, nopin, pinShiftDays: pinShift, threshold: THRESHOLDS.threshold, maxDiffPixelRatio: THRESHOLDS.maxDiffPixelRatio, reason: '选择器零命中，注入是空操作' })
-          test.skip(true, `档 ${LAD} 的选择器 ${STEP.watch} 在 ${slug} 零命中——注入是空操作，无量程结论`)
+          console.log(
+            `[probe-skip] ${slug} 档 ${LAD}：${STEP.watch} 零命中（matched=${after.matched}）`,
+          )
+          recordEvidence({
+            slug,
+            theme: PROBE_THEME,
+            ladder: LAD,
+            skipped: true,
+            nopin,
+            pinShiftDays: pinShift,
+            threshold: THRESHOLDS.threshold,
+            maxDiffPixelRatio: THRESHOLDS.maxDiffPixelRatio,
+            reason: '选择器零命中，注入是空操作',
+          })
+          test.skip(
+            true,
+            `档 ${LAD} 的选择器 ${STEP.watch} 在 ${slug} 零命中——注入是空操作，无量程结论`,
+          )
           return
         }
         if (!TRANSITION_KILL) {
-          console.log(`[probe-guard-off] ${slug} 档 ${LAD}：守卫已按 PW_PROBE_SKIP_GUARD 关掉，` +
-            `只取证不参与判读（before=${before.values[0] ?? ''} / after=${after.values[0] ?? ''}）`)
+          console.log(
+            `[probe-guard-off] ${slug} 档 ${LAD}：守卫已按 PW_PROBE_SKIP_GUARD 关掉，` +
+              `只取证不参与判读（before=${before.values[0] ?? ''} / after=${after.values[0] ?? ''}）`,
+          )
         } else {
           // 命中了却没变 = 注入被更高优先级挡掉（或 !important 写错），测量无效，必须炸出来
           if (JSON.stringify(before.values) === JSON.stringify(after.values)) {
@@ -538,9 +582,16 @@ for (const slug of PROBE_ANCHORS) {
 
       const arg = `${snapName(slug, PROBE_THEME)}-${LAD}-probe.png`
       const expected = testInfo.snapshotPath(arg, { kind: 'screenshot' })
-      const baseline = join(dirname(expected), '..', 'anchors.spec.ts', `${snapName(slug, PROBE_THEME)}.png`)
+      const baseline = join(
+        dirname(expected),
+        '..',
+        'anchors.spec.ts',
+        `${snapName(slug, PROBE_THEME)}.png`,
+      )
       if (!existsSync(baseline)) {
-        throw new Error(`[探针无效] 未找到该锚点的已提交基线：${baseline}——没有"未注入的原图"就没法量量程`)
+        throw new Error(
+          `[探针无效] 未找到该锚点的已提交基线：${baseline}——没有"未注入的原图"就没法量量程`,
+        )
       }
       mkdirSync(dirname(expected), { recursive: true })
       // 每次都从已提交基线重新复制：期望图永远是"未注入的原图"，绝不可能是上一轮的注入产物
@@ -554,7 +605,10 @@ for (const slug of PROBE_ANCHORS) {
       //   但 Step 1 若采纳"遮标签带"，离线自检台与跑测器的读数就会静默分叉，
       //   而喂给 LEDGER 的是前者。现在两条路径共用 mask，并由下面的 ①②断言把分叉判红。
       mkdirSync(EVIDENCE_DIR, { recursive: true })
-      const capture = join(EVIDENCE_DIR, `${snapName(slug, PROBE_THEME)}-${LAD}-probe-captured${scaleTag}.png`)
+      const capture = join(
+        EVIDENCE_DIR,
+        `${snapName(slug, PROBE_THEME)}-${LAD}-probe-captured${scaleTag}.png`,
+      )
       writeFileSync(
         capture,
         await page.screenshot({
@@ -565,8 +619,20 @@ for (const slug of PROBE_ANCHORS) {
           mask: maskOf(page, anchor.maskSelectors),
         }),
       )
-      if (process.env.PW_PROBE_CAPTURE) copyFileSync(capture, join(dirname(expected), `${snapName(slug, PROBE_THEME)}-${LAD}-probe-captured${scaleTag}.png`))
-      const reading = measureWith(expected, capture, THRESHOLDS.threshold, THRESHOLDS.maxDiffPixelRatio)
+      if (process.env.PW_PROBE_CAPTURE)
+        copyFileSync(
+          capture,
+          join(
+            dirname(expected),
+            `${snapName(slug, PROBE_THEME)}-${LAD}-probe-captured${scaleTag}.png`,
+          ),
+        )
+      const reading = measureWith(
+        expected,
+        capture,
+        THRESHOLDS.threshold,
+        THRESHOLDS.maxDiffPixelRatio,
+      )
 
       console.log(
         `[probe] ${slug}/${PROBE_THEME} 档 ${LAD}（${STEP.shape}）· 期望图=未注入基线 ${width}x${height} · ` +
@@ -638,8 +704,10 @@ for (const slug of PROBE_ANCHORS) {
       //                               把这些像素整类跳过，**免检额根本没参与**——收 ratio 同样无用，要收的是 threshold
       //                               已经到底了，所以只能换证据形式（定向裁剪 / 计算样式）。
       //   · 0 < 计数 ≤ 免检额        → **被免检额吸收**：这才是收 ratio 能救的那一类。
-      const zeroEffect = !pwFailed && reading.pixelmatchCount === 0 && reading.byteDiffPx === 0 && LAD !== 'noise'
-      const aaAbsorbed = !pwFailed && reading.pixelmatchCount === 0 && reading.byteDiffPx > 0 && LAD !== 'noise'
+      const zeroEffect =
+        !pwFailed && reading.pixelmatchCount === 0 && reading.byteDiffPx === 0 && LAD !== 'noise'
+      const aaAbsorbed =
+        !pwFailed && reading.pixelmatchCount === 0 && reading.byteDiffPx > 0 && LAD !== 'noise'
       const verdict =
         LAD === 'noise'
           ? pwFailed
@@ -652,18 +720,34 @@ for (const slug of PROBE_ANCHORS) {
               : aaAbsorbed
                 ? `全被抗锯齿分类器吸收（字节差 ${reading.byteDiffPx}、计数 0；免检额未参与，收 ratio 无用）`
                 : '漏检（被免检额吸收 = 假绿）'
-      console.log(`[量程结论] ${slug}/${PROBE_THEME} 档 ${LAD} · ${STEP.shape} · ${verdict} · ${readingText(reading)}`)
-      recordEvidence({ slug, theme: PROBE_THEME, ladder: LAD, detected: pwFailed, verdict, playwrightCount: pwCount, nopin, pinShiftDays: pinShift, threshold: THRESHOLDS.threshold, maxDiffPixelRatio: THRESHOLDS.maxDiffPixelRatio }, true)
+      console.log(
+        `[量程结论] ${slug}/${PROBE_THEME} 档 ${LAD} · ${STEP.shape} · ${verdict} · ${readingText(reading)}`,
+      )
+      recordEvidence(
+        {
+          slug,
+          theme: PROBE_THEME,
+          ladder: LAD,
+          detected: pwFailed,
+          verdict,
+          playwrightCount: pwCount,
+          nopin,
+          pinShiftDays: pinShift,
+          threshold: THRESHOLDS.threshold,
+          maxDiffPixelRatio: THRESHOLDS.maxDiffPixelRatio,
+        },
+        true,
+      )
       if (pwError) {
         throw new Error(
           LAD === 'noise'
             ? `[地板非零] ${slug}/${PROBE_THEME} 不注入却与基线不符——这不是"检出"，是**地板本身不干净**：` +
-              `要么这一页有抖动，要么有确定性漂移（日期锚点请用 PW_VISUAL_NOPIN=1 对照归因）。\n  ${readingText(reading)}\n  先归因再谈阈值：**不要**用放宽阈值把这一条压下去，也不要 --update-snapshots 吸收。\n` +
-              `  重生成：cd frontend && PW_LADDER=noise PW_PROBE_SLUGS=${slug} PW_PROBE_THEME=${PROBE_THEME} npx playwright test -c playwright.visual.ts sensitivity`
+                `要么这一页有抖动，要么有确定性漂移（日期锚点请用 PW_VISUAL_NOPIN=1 对照归因）。\n  ${readingText(reading)}\n  先归因再谈阈值：**不要**用放宽阈值把这一条压下去，也不要 --update-snapshots 吸收。\n` +
+                `  重生成：cd frontend && PW_LADDER=noise PW_PROBE_SLUGS=${slug} PW_PROBE_THEME=${PROBE_THEME} npx playwright test -c playwright.visual.ts sensitivity`
             : `[量程结论] ${slug}/${PROBE_THEME} 档 ${LAD}（${STEP.shape}）**检出**——这是成功的测量，不是回归失败。\n` +
-              `  ${readingText(reading)}\n  口径=${IS_DELIVERY_SCALE ? '交付量程' : '非交付量程（env 已改 t/r）'} · 免检额 ${allowancePx.toFixed(2)} px\n` +
-              `  跑测器原文：${pwError.split('\n')[0]}\n` +
-              `  重生成：cd frontend && PW_LADDER=${LAD} PW_PROBE_SLUGS=${slug} PW_PROBE_THEME=${PROBE_THEME} npx playwright test -c playwright.visual.ts sensitivity`,
+                `  ${readingText(reading)}\n  口径=${IS_DELIVERY_SCALE ? '交付量程' : '非交付量程（env 已改 t/r）'} · 免检额 ${allowancePx.toFixed(2)} px\n` +
+                `  跑测器原文：${pwError.split('\n')[0]}\n` +
+                `  重生成：cd frontend && PW_LADDER=${LAD} PW_PROBE_SLUGS=${slug} PW_PROBE_THEME=${PROBE_THEME} npx playwright test -c playwright.visual.ts sensitivity`,
         )
       }
     })

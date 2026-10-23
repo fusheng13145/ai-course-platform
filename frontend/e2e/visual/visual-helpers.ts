@@ -1,5 +1,4 @@
 import type { Locator, Page } from '@playwright/test'
-import { createHash } from 'node:crypto'
 import { assertAnchorArrival } from './data-arrival'
 
 export const THEME_KEY = 'fz-theme'
@@ -465,7 +464,11 @@ export async function assertGenericGuards(
 }
 
 /** 通用守卫 + 该锚点自己的数据到位断言。anchors 与 sensitivity 都调这一个，不许各自抄一份。 */
-export async function assertComparableRender(page: Page, anchor: AnchorSpec, theme: ThemeName): Promise<void> {
+export async function assertComparableRender(
+  page: Page,
+  anchor: AnchorSpec,
+  theme: ThemeName,
+): Promise<void> {
   await assertGenericGuards(page, anchor, theme)
   await assertAnchorArrival(page, anchor.slug)
 }
@@ -573,10 +576,30 @@ export const ANCHORS: readonly AnchorSpec[] = [
     ],
   },
   { slug: 'teacher-dashboard', title: '教师工作台', role: 'TEACHER', path: '/teacher/dashboard' },
-  { slug: 'admin-courses-table', title: '课程管理（表格代表）', role: 'ADMIN', path: '/admin/courses' },
-  { slug: 'admin-system-form', title: '系统设置（表单代表）', role: 'ADMIN', path: '/admin/system' },
-  { slug: 'student-courses-modal', title: '学生课程（弹层代表）', role: 'STUDENT', path: '/student/courses' },
-  { slug: 'student-learning-center', title: '学习中心（壳页代表）', role: 'STUDENT', path: '__FROM_COURSE_LIST__' },
+  {
+    slug: 'admin-courses-table',
+    title: '课程管理（表格代表）',
+    role: 'ADMIN',
+    path: '/admin/courses',
+  },
+  {
+    slug: 'admin-system-form',
+    title: '系统设置（表单代表）',
+    role: 'ADMIN',
+    path: '/admin/system',
+  },
+  {
+    slug: 'student-courses-modal',
+    title: '学生课程（弹层代表）',
+    role: 'STUDENT',
+    path: '/student/courses',
+  },
+  {
+    slug: 'student-learning-center',
+    title: '学习中心（壳页代表）',
+    role: 'STUDENT',
+    path: '__FROM_COURSE_LIST__',
+  },
   {
     slug: 'student-knowledge-graph',
     title: '知识图谱（图谱代表）',

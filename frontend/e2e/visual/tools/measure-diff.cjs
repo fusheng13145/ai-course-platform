@@ -93,7 +93,10 @@ function deliveryThresholds() {
   const m = src.match(
     /export const SNAPSHOT_THRESHOLDS\s*=\s*\{\s*threshold:\s*([-\d.e]+)\s*,\s*maxDiffPixelRatio:\s*([-\d.e]+)\s*\}/,
   )
-  if (!m) throw new Error(`未能从 ${HELPERS_TS} 解析 SNAPSHOT_THRESHOLDS——它的写法变了，本命令会给出假口径`)
+  if (!m)
+    throw new Error(
+      `未能从 ${HELPERS_TS} 解析 SNAPSHOT_THRESHOLDS——它的写法变了，本命令会给出假口径`,
+    )
   return { threshold: Number(m[1]), maxDiffPixelRatio: Number(m[2]) }
 }
 
@@ -128,7 +131,10 @@ function decodePng(file) {
     off += 12 + len
   }
   if (!ihdr) throw new Error(`${file} 缺 IHDR`)
-  if (ihdr.interlace !== 0) throw new Error(`${file} 是隔行 PNG，本解码器不支持（Adam7 的读法与 pixelmatch 的邻域判据不同口径）`)
+  if (ihdr.interlace !== 0)
+    throw new Error(
+      `${file} 是隔行 PNG，本解码器不支持（Adam7 的读法与 pixelmatch 的邻域判据不同口径）`,
+    )
   if (ihdr.bitDepth !== 8) throw new Error(`${file} bitDepth=${ihdr.bitDepth}，只支持 8`)
   const channels = { 0: 1, 2: 3, 4: 2, 6: 4 }[ihdr.colorType]
   if (!channels) throw new Error(`${file} colorType=${ihdr.colorType}（调色板等不支持）`)
@@ -240,7 +246,8 @@ function loadPixelmatch() {
   const text = fs.readFileSync(bundle, 'utf8')
   const marker = 'var require_pixelmatch = __commonJS({'
   const start = text.indexOf(marker)
-  if (start < 0) throw new Error(`${bundle} 里找不到 require_pixelmatch——Playwright 版本变了，尺的来源要重新核`)
+  if (start < 0)
+    throw new Error(`${bundle} 里找不到 require_pixelmatch——Playwright 版本变了，尺的来源要重新核`)
   const end = text.indexOf('\n});', start)
   if (end < 0) throw new Error('require_pixelmatch 块的收尾没找到')
   const block = text.slice(start, end + 4)
@@ -248,7 +255,6 @@ function loadPixelmatch() {
     'var __getOwnPropNames = Object.getOwnPropertyNames;' +
     'var __commonJS = (cb, mod) => function __require() {' +
     ' return mod || (0, cb[__getOwnPropNames(cb)[0]])((mod = { exports: {} }).exports, mod), mod.exports; };'
-  // eslint-disable-next-line no-new-func
   return new Function(`${shim}\n${block}\nreturn require_pixelmatch();`)()
 }
 
@@ -341,7 +347,12 @@ function measure(expectedFile, actualFile, opts) {
       } else if (da > 0) byteDiffPx++
       if (rgb > maxChannelDelta) {
         maxChannelDelta = rgb
-        maxAt = { x, y, expected: [a.data[i], a.data[i + 1], a.data[i + 2]], actual: [b.data[i], b.data[i + 1], b.data[i + 2]] }
+        maxAt = {
+          x,
+          y,
+          expected: [a.data[i], a.data[i + 1], a.data[i + 2]],
+          actual: [b.data[i], b.data[i + 1], b.data[i + 2]],
+        }
       }
       sumDelta += rgb
     }
@@ -357,11 +368,22 @@ function measure(expectedFile, actualFile, opts) {
     for (let y = 0; y < h; y++) {
       if (rowHits[y] > 0 && start < 0) start = y
       if (rowHits[y] === 0 && start >= 0) {
-        bands.push({ from: start, to: y - 1, rows: y - start, px: rowHits.slice(start, y).reduce((s, v) => s + v, 0) })
+        bands.push({
+          from: start,
+          to: y - 1,
+          rows: y - start,
+          px: rowHits.slice(start, y).reduce((s, v) => s + v, 0),
+        })
         start = -1
       }
     }
-    if (start >= 0) bands.push({ from: start, to: h - 1, rows: h - start, px: rowHits.slice(start, h).reduce((s, v) => s + v, 0) })
+    if (start >= 0)
+      bands.push({
+        from: start,
+        to: h - 1,
+        rows: h - start,
+        px: rowHits.slice(start, h).reduce((s, v) => s + v, 0),
+      })
   }
   return {
     expected: expectedFile,
@@ -408,7 +430,9 @@ function selfcheck(opts) {
     const ref = decodeWithPlaywrightPng(f)
     refPixels.push(ref)
     if (ours.width !== ref.width || ours.height !== ref.height) {
-      problems.push(`${path.basename(f)}：尺寸 ${ours.width}x${ours.height} ≠ pngjs 的 ${ref.width}x${ref.height}`)
+      problems.push(
+        `${path.basename(f)}：尺寸 ${ours.width}x${ours.height} ≠ pngjs 的 ${ref.width}x${ref.height}`,
+      )
       continue
     }
     let diffAt = -1
@@ -444,14 +468,19 @@ function selfcheck(opts) {
         `pngjs 路径计数 ${refCount} · 本工具计数 ${mine.pixelmatchCount}`,
     )
     if (refCount !== mine.pixelmatchCount) {
-      problems.push(`计数不同源：pngjs 喂进去的像素得到 ${refCount}，本工具得到 ${mine.pixelmatchCount}`)
+      problems.push(
+        `计数不同源：pngjs 喂进去的像素得到 ${refCount}，本工具得到 ${mine.pixelmatchCount}`,
+      )
     }
   } else {
     problems.push('两张图尺寸不一致，无法按 Playwright 的路径复算计数（本工具本来也会在这里抛）')
   }
 
   if (problems.length > 0) {
-    console.error('SELFCHECK: **尺与跑测器不同源** —— 本轮所有像素读数一律不可引用：\n  ' + problems.join('\n  '))
+    console.error(
+      'SELFCHECK: **尺与跑测器不同源** —— 本轮所有像素读数一律不可引用：\n  ' +
+        problems.join('\n  '),
+    )
     process.exitCode = 3
     return
   }
@@ -488,13 +517,26 @@ function fmt(r) {
   const lines = []
   const tag = r.deliveryConfig ? '交付口径' : '非交付口径（显式指定）'
   lines.push(`CONFIG t=${r.threshold} r=${r.maxDiffPixelRatio} · ${tag}`)
-  lines.push(`尺寸 ${r.width}x${r.height} = ${r.imagePixels} px · 免检额 ${r.allowancePx.toFixed(2)} px`)
-  lines.push(`md5 ${r.md5.expected} vs ${r.md5.actual} → ${r.md5.equal ? '相等（可写"一字不差"）' : '不等（禁止写"一字不差"，spec §6.16）'}`)
-  lines.push(`byteDiffPx ${r.byteDiffPx} · rgbByteDiffPx ${r.rgbByteDiffPx} · pixelmatchCount ${r.pixelmatchCount}`)
+  lines.push(
+    `尺寸 ${r.width}x${r.height} = ${r.imagePixels} px · 免检额 ${r.allowancePx.toFixed(2)} px`,
+  )
+  lines.push(
+    `md5 ${r.md5.expected} vs ${r.md5.actual} → ${r.md5.equal ? '相等（可写"一字不差"）' : '不等（禁止写"一字不差"，spec §6.16）'}`,
+  )
+  lines.push(
+    `byteDiffPx ${r.byteDiffPx} · rgbByteDiffPx ${r.rgbByteDiffPx} · pixelmatchCount ${r.pixelmatchCount}`,
+  )
   lines.push(`分类器吸收 ${r.byteDiffPx - r.pixelmatchCount} px（仅在 t=0 时才等于"被 AA 吃掉"）`)
-  lines.push(`maxChannelDelta ${r.maxChannelDelta}/255 @ ${r.maxChannelDeltaAt ? `${r.maxChannelDeltaAt.x},${r.maxChannelDeltaAt.y} ${JSON.stringify(r.maxChannelDeltaAt.expected)}→${JSON.stringify(r.maxChannelDeltaAt.actual)}` : '—'}`)
-  lines.push(`判定 ${r.failed ? `FAIL（${r.pixelmatchCount} > ${r.allowancePx.toFixed(2)}）` : `PASS（${r.pixelmatchCount} ≤ ${r.allowancePx.toFixed(2)}）`}`)
-  if (r.bbox) lines.push(`差异包围盒 x ${r.bbox.minX}..${r.bbox.maxX} · y ${r.bbox.minY}..${r.bbox.maxY}（${r.bbox.w}x${r.bbox.h}）`)
+  lines.push(
+    `maxChannelDelta ${r.maxChannelDelta}/255 @ ${r.maxChannelDeltaAt ? `${r.maxChannelDeltaAt.x},${r.maxChannelDeltaAt.y} ${JSON.stringify(r.maxChannelDeltaAt.expected)}→${JSON.stringify(r.maxChannelDeltaAt.actual)}` : '—'}`,
+  )
+  lines.push(
+    `判定 ${r.failed ? `FAIL（${r.pixelmatchCount} > ${r.allowancePx.toFixed(2)}）` : `PASS（${r.pixelmatchCount} ≤ ${r.allowancePx.toFixed(2)}）`}`,
+  )
+  if (r.bbox)
+    lines.push(
+      `差异包围盒 x ${r.bbox.minX}..${r.bbox.maxX} · y ${r.bbox.minY}..${r.bbox.maxY}（${r.bbox.w}x${r.bbox.h}）`,
+    )
   for (const b of r.bands) lines.push(`  带 y ${b.from}..${b.to}（${b.rows} 行）= ${b.px} px`)
   return lines.join('\n')
 }
@@ -510,7 +552,13 @@ function main() {
       .readdirSync(dir)
       .filter((f) => f.toLowerCase().endsWith('.png'))
       .sort()
-      .map((f) => ({ file: f, sha256: crypto.createHash('sha256').update(fs.readFileSync(path.join(dir, f))).digest('hex') }))
+      .map((f) => ({
+        file: f,
+        sha256: crypto
+          .createHash('sha256')
+          .update(fs.readFileSync(path.join(dir, f)))
+          .digest('hex'),
+      }))
     if (opts.json) return console.log(JSON.stringify(rows, null, 2))
     console.log(`# ${rows.length} 张基线的篡改痕迹（sha256）· ${dir}`)
     for (const r of rows) console.log(`${r.sha256}  ${r.file}`)
@@ -528,7 +576,10 @@ function main() {
   if (positional[0] === '--table') {
     const capturesDir = positional[1]
     const baselineDir = positional[2] || SNAP_DIR
-    const files = fs.readdirSync(capturesDir).filter((f) => f.toLowerCase().endsWith('.png')).sort()
+    const files = fs
+      .readdirSync(capturesDir)
+      .filter((f) => f.toLowerCase().endsWith('.png'))
+      .sort()
     const rows = []
     console.log(
       '# 每一行都是「这张取证图 vs 它自己那张已提交基线」。文件名尾的 `@…` 是**数据路径标签**（无 = 交付口径：' +
@@ -579,7 +630,9 @@ function main() {
     )
   }
   const r = measure(positional[0], positional[1], opts)
-  console.log(opts.json ? JSON.stringify(r, null, 2) : fmt({ ...r, deliveryConfig: opts.deliveryConfig }))
+  console.log(
+    opts.json ? JSON.stringify(r, null, 2) : fmt({ ...r, deliveryConfig: opts.deliveryConfig }),
+  )
   if (r.bands.length) console.log(`带数 ${r.bands.length}`)
 }
 

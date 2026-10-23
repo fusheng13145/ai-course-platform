@@ -131,7 +131,7 @@ function stripCommentLines(src: string): string {
  * 这类写法，它把引号做成必选 ⇒ **漏掉的恰恰是原本要拦的那一种**（点号写法）。
  * 下面那条「四种拼法」用例是这次错误的永久拦截网：想改这把尺，先在那里加拼法，别只改这里。
  */
-const SELF_READ_NOPIN_ENV = /process\.env\s*[.\[]\s*["']?(PW_VISUAL_NOPIN|NOPIN_ENV)["']?/
+const SELF_READ_NOPIN_ENV = /process\.env\s*(?:\.|\[)\s*["']?(PW_VISUAL_NOPIN|NOPIN_ENV)["']?/
 
 /** 匹配器本体：消费者守卫与 F1 那条反例用例共用**同一个**表达式，不许两边各写一把尺。 */
 function selfReadsNopinEnv(src: string): boolean {
@@ -1415,7 +1415,8 @@ function measureTrivialKeysBySlug(): Record<string, string[]> {
     const m = loadPinManifest(a.slug)
     const trivial = (a.pinPaths ?? [])
       .filter(
-        (k) => m.requests[k] && !inspectPinnedPayload(m.requests[k].body, `${a.slug}/${k}`).nonTrivial,
+        (k) =>
+          m.requests[k] && !inspectPinnedPayload(m.requests[k].body, `${a.slug}/${k}`).nonTrivial,
       )
       .sort()
     if (trivial.length > 0) out[a.slug] = trivial
@@ -1548,9 +1549,10 @@ test('被钉载荷内容断言（R-CF1）：普查只走 data、合成反例必�
  */
 test('平凡键逐键比较有牙：少一条、多一条、search 写漏都红，而相同两侧给空清单（修复轮 1 的 I-4①）', () => {
   const same = { 'x-anchor': ['/api/a', '/api/b?page=1'] }
-  expect(trivialKeyFindings(same, same), '两侧逐字相同却报违规——判据写反了，上面三条红的归因全部作废').toEqual(
-    []
-  )
+  expect(
+    trivialKeyFindings(same, same),
+    '两侧逐字相同却报违规——判据写反了，上面三条红的归因全部作废',
+  ).toEqual([])
   // ① 登记表少一条键（真实漂法：Task 0 新钉的裸数值端点没进表）
   expect(
     trivialKeyFindings({ 'x-anchor': ['/api/a', '/api/b?page=1'] }, { 'x-anchor': ['/api/a'] }),
@@ -1568,7 +1570,10 @@ test('平凡键逐键比较有牙：少一条、多一条、search 写漏都红�
   ).toHaveLength(1)
   // ④ slug 一侧多出整格（新钉桩锚点全 0 却没登记）
   expect(
-    trivialKeyFindings({ 'x-anchor': ['/api/a'], 'y-anchor': ['/api/z'] }, { 'x-anchor': ['/api/a'] }),
+    trivialKeyFindings(
+      { 'x-anchor': ['/api/a'], 'y-anchor': ['/api/z'] },
+      { 'x-anchor': ['/api/a'] },
+    ),
     '新钉桩锚点有平凡键却没登记 ⇒ 判据必须点名那一格',
   ).toEqual(['y-anchor：实测平凡键 ["/api/z"] ≠ 登记表 []'])
 })
@@ -1589,15 +1594,26 @@ test('钉桩覆盖断言有牙：漏一条键红、逐字含 search、未声明 
     shiftDays: 0,
   })
   const anchorOf = (pinPaths: string[] | undefined) =>
-    ({ slug: 'synthetic-i2', title: 'synthetic', role: 'STUDENT', path: '/x', pinPaths }) as AnchorSpec
+    ({
+      slug: 'synthetic-i2',
+      title: 'synthetic',
+      role: 'STUDENT',
+      path: '/x',
+      pinPaths,
+    }) as AnchorSpec
 
   // ① 零基：全集 ⊆ pinPaths ⇒ 不抛
   const ok = anchorOf(['/api/a', '/api/b?page=1&size=100'])
-  expect(() => assertAllApiGetsPinned(ok, stateOf(['/api/a', '/api/b?page=1&size=100']))).not.toThrow()
+  expect(() =>
+    assertAllApiGetsPinned(ok, stateOf(['/api/a', '/api/b?page=1&size=100'])),
+  ).not.toThrow()
   // ② 漏一条（真实漂法：产品在这一页新加一条 GET，或把 size=100 改成别的 query）
   let threw = ''
   try {
-    assertAllApiGetsPinned(anchorOf(['/api/a']), stateOf(['/api/a', '/api/notifications?page=1&size=5']))
+    assertAllApiGetsPinned(
+      anchorOf(['/api/a']),
+      stateOf(['/api/a', '/api/notifications?page=1&size=5']),
+    )
   } catch (e) {
     threw = (e as Error).message
   }
@@ -1643,7 +1659,10 @@ test('canary 判据有牙：401、HTML 兜页、缺 data 键三种都红，而 2
   // ① 会话过期／后端下线：401（信封本身是完整的 ⇒ 只该报状态那一条理由，
   //    这样"命中第一条就返回"与"信封判据写反"两种毛病都能被这一条分开抓住）
   const f401 = canaryFindings(401, JSON.stringify({ code: 401, message: '未认证', data: null }))
-  expect(f401, '401 没被抓住——"被踢回 /login 那条守卫对钉桩锚点永久失效"这个洞原样留着').toHaveLength(1)
+  expect(
+    f401,
+    '401 没被抓住——"被踢回 /login 那条守卫对钉桩锚点永久失效"这个洞原样留着',
+  ).toHaveLength(1)
   expect(f401[0]).toContain('HTTP 401')
   // ② dev server 把未知路径兜成 index.html：状态 200 而体不是 JSON
   const fHtml = canaryFindings(200, '<!doctype html><html><head><title>AI 课程平台</title>')
@@ -1656,9 +1675,10 @@ test('canary 判据有牙：401、HTML 兜页、缺 data 键三种都红，而 2
   // ④ 非 JSON 且非 200 同时发生 ⇒ 两条理由都要在（不许命中第一条就返回）
   expect(canaryFindings(502, '<html>Bad Gateway</html>')).toHaveLength(2)
   // ⑤ 探针键必须与两格的 pinPaths 无交集（这条用例与上面 I-2 的第⑤条同判据，两处都钉防漂）
-  expect(CANARY_PROBE_PATH.startsWith('/api/'), '探针键不是 /api/ 路径 ⇒ 它根本不会经 dev server 代理').toBe(
-    true,
-  )
+  expect(
+    CANARY_PROBE_PATH.startsWith('/api/'),
+    '探针键不是 /api/ 路径 ⇒ 它根本不会经 dev server 代理',
+  ).toBe(true)
 })
 
 /**
@@ -1680,11 +1700,15 @@ test('canary 判据对顶层裸数组体也给一条理由并点名探针键，�
   const fArr = canaryFindings(200, JSON.stringify([{ id: 1 }, { id: 2 }]))
   expect(fArr, '顶层数组放行 ⇒ "后端把返回形状改成裸数组"这一族契约漂移无人挡').toHaveLength(1)
   expect(fArr[0]).toContain('数组')
-  expect(fArr[0], '理由必须点名是哪一条探针 ⇒ 否则读红话的人还得翻 CANARY_PROBE_PATH 才知道谁坏').toContain(
-    CANARY_PROBE_PATH,
-  )
+  expect(
+    fArr[0],
+    '理由必须点名是哪一条探针 ⇒ 否则读红话的人还得翻 CANARY_PROBE_PATH 才知道谁坏',
+  ).toContain(CANARY_PROBE_PATH)
   // 状态与形状同时坏 ⇒ 两条理由都要在（不许命中第一条就返回）
-  expect(canaryFindings(401, '[]'), '401 加裸数组只报了一条 ⇒ 收集改成短路，形状那半永远看不见').toHaveLength(2)
+  expect(
+    canaryFindings(401, '[]'),
+    '401 加裸数组只报了一条 ⇒ 收集改成短路，形状那半永远看不见',
+  ).toHaveLength(2)
 })
 
 /**

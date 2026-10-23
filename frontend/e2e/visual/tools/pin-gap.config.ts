@@ -41,6 +41,9 @@ export default defineConfig({
     video: 'off',
   },
   projects: [
-    { name: 'pin-gap', use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } } },
+    {
+      name: 'pin-gap',
+      use: { ...devices['Desktop Chrome'], viewport: { width: 1440, height: 900 } },
+    },
   ],
 })

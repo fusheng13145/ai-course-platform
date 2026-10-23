@@ -19,7 +19,11 @@ import { join } from 'node:path'
  */
 const BASE = `http://localhost:${process.env.PW_PORT || '5175'}`
 const CELLS = [
-  { slug: 'student-dashboard', role: 'student', keys: ['/api/notifications/unread-count', '/api/student/dashboard'] },
+  {
+    slug: 'student-dashboard',
+    role: 'student',
+    keys: ['/api/notifications/unread-count', '/api/student/dashboard'],
+  },
   {
     slug: 'admin-governance-analytics',
     role: 'admin',

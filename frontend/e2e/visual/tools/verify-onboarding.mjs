@@ -51,7 +51,13 @@ function readGuideInBrowser(opts) {
     if (m) return [Number(m[1]), Number(m[2]), Number(m[3]), m[4] === undefined ? 1 : Number(m[4])]
     const h = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(str)
     if (h) {
-      const hex = h[1].length === 3 ? h[1].split('').map((c) => c + c).join('') : h[1]
+      const hex =
+        h[1].length === 3
+          ? h[1]
+              .split('')
+              .map((c) => c + c)
+              .join('')
+          : h[1]
       return [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16)).concat(1)
     }
     return null
@@ -64,7 +70,11 @@ function readGuideInBrowser(opts) {
   }
   const label = (el) => {
     if (!el || !el.tagName) return String(el)
-    const cls = (typeof el.className === 'string' ? el.className : '').trim().split(/\s+/).filter(Boolean).slice(0, 3)
+    const cls = (typeof el.className === 'string' ? el.className : '')
+      .trim()
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 3)
     const onboard = el.dataset && el.dataset.onboard ? `[data-onboard=${el.dataset.onboard}]` : ''
     return `${el.tagName.toLowerCase()}${onboard}${cls.length ? '.' + cls.join('.') : ''}`
   }
@@ -184,7 +194,12 @@ function readGuideInBrowser(opts) {
     ringFullyInView: ring
       ? (() => {
           const rr = ring.getBoundingClientRect()
-          return rr.top >= 0 && rr.left >= 0 && rr.bottom <= window.innerHeight && rr.right <= window.innerWidth
+          return (
+            rr.top >= 0 &&
+            rr.left >= 0 &&
+            rr.bottom <= window.innerHeight &&
+            rr.right <= window.innerWidth
+          )
         })()
       : null,
     revealedAnchor: revealed?.dataset?.onboard ?? null,
@@ -201,12 +216,18 @@ function readGuideInBrowser(opts) {
     surfaceToken,
     bgToken,
     bodyBg,
-    deltaOnRevealed: scrimColor && effective ? MAX(over(scrimColor, effective), effective.slice(0, 3)) : null,
-    deltaOnSurface: scrimColor && surfaceToken ? MAX(over(scrimColor, surfaceToken), surfaceToken.slice(0, 3)) : null,
+    deltaOnRevealed:
+      scrimColor && effective ? MAX(over(scrimColor, effective), effective.slice(0, 3)) : null,
+    deltaOnSurface:
+      scrimColor && surfaceToken
+        ? MAX(over(scrimColor, surfaceToken), surfaceToken.slice(0, 3))
+        : null,
     deltaOnBody: scrimColor && bodyBg ? MAX(over(scrimColor, bodyBg), bodyBg.slice(0, 3)) : null,
     threshold: opts.threshold,
     anchorsInDom: document.querySelectorAll('[data-onboard]').length,
-    anchorKeys: Array.from(document.querySelectorAll('[data-onboard]')).map((e) => e.dataset.onboard),
+    anchorKeys: Array.from(document.querySelectorAll('[data-onboard]')).map(
+      (e) => e.dataset.onboard,
+    ),
     v2Raw: (() => {
       const k = Object.keys(localStorage).find((x) => x.startsWith('ai-course:onboarding:v2:'))
       if (!k) return null
@@ -244,7 +265,14 @@ const report = {
 }
 
 for (const role of ROLES) {
-  const per = { mainWalkDark: [], lightProbe: [], activation: {}, narrowWalk: {}, tinyWalk: {}, miniSidebarWalk: [] }
+  const per = {
+    mainWalkDark: [],
+    lightProbe: [],
+    activation: {},
+    narrowWalk: {},
+    tinyWalk: {},
+    miniSidebarWalk: [],
+  }
 
   // —— 主走查：1440×900，默认暗色，逐步骤读数＋截图 ——
   const ctx = await browser.newContext({
@@ -254,7 +282,8 @@ for (const role of ROLES) {
   const consoleHits = []
   ctx.on('console', (msg) => {
     const t = msg.text()
-    if (t.includes('onboarding') || t.includes('anchor-miss')) consoleHits.push(`${msg.type()}: ${t}`)
+    if (t.includes('onboarding') || t.includes('anchor-miss'))
+      consoleHits.push(`${msg.type()}: ${t}`)
   })
   const page = await ctx.newPage()
   await openFreshGuide(page, role)
@@ -270,13 +299,19 @@ for (const role of ROLES) {
   // —— 浅色对照：同一步在 data-theme 切到 light 后重读（主题必须在清完引导之后再设）——
   await page.evaluate(() => document.documentElement.setAttribute('data-theme', 'light'))
   await page.waitForTimeout(120)
-  per.lightProbe.push({ at: '第 5 步（激活步，页面内锚点）', ...(await page.evaluate(readGuideInBrowser, GUIDE_OPTS)) })
+  per.lightProbe.push({
+    at: '第 5 步（激活步，页面内锚点）',
+    ...(await page.evaluate(readGuideInBrowser, GUIDE_OPTS)),
+  })
   await shot(`${role}-light-step-5`)(page)
   await page.keyboard.press('ArrowLeft')
   await page.waitForTimeout(320)
   await page.keyboard.press('ArrowLeft')
   await page.waitForTimeout(320)
-  per.lightProbe.push({ at: '第 3 步（shell 导航锚点，洞压在侧栏渐变上）', ...(await page.evaluate(readGuideInBrowser, GUIDE_OPTS)) })
+  per.lightProbe.push({
+    at: '第 3 步（shell 导航锚点，洞压在侧栏渐变上）',
+    ...(await page.evaluate(readGuideInBrowser, GUIDE_OPTS)),
+  })
   await shot(`${role}-light-step-3`)(page)
 
   // —— 激活动作真的执行了吗：末步点「开始使用」后，弹窗面（student）或 URL（teacher/admin）——
@@ -289,7 +324,11 @@ for (const role of ROLES) {
   await page.locator('.ob-card').getByRole('button', { name: '开始使用' }).click()
   await page.waitForTimeout(1200)
   const urlAfter = page.url()
-  const dialogTitle = await page.locator('.modal .modal-title').first().textContent().catch(() => null)
+  const dialogTitle = await page
+    .locator('.modal .modal-title')
+    .first()
+    .textContent()
+    .catch(() => null)
   const dialogCount = await page.locator('.modal').count()
   per.activation = {
     urlBefore,
@@ -314,10 +353,18 @@ for (const role of ROLES) {
   await pageDash.goto(`${BASE}/${role}/dashboard`)
   await pageDash.waitForTimeout(1400)
   per.dashboardPrimaryActions = await pageDash.evaluate(() =>
-    Array.from(document.querySelectorAll('.content button, .content [role="button"], .content .btn, .content .course-card'))
+    Array.from(
+      document.querySelectorAll(
+        '.content button, .content [role="button"], .content .btn, .content .course-card',
+      ),
+    )
       .map((el) => ({
         text: (el.textContent || '').replace(/\s+/g, ' ').trim().slice(0, 28),
-        cls: (typeof el.className === 'string' ? el.className : '').trim().split(/\s+/).slice(0, 3).join('.'),
+        cls: (typeof el.className === 'string' ? el.className : '')
+          .trim()
+          .split(/\s+/)
+          .slice(0, 3)
+          .join('.'),
         onboard: el.dataset?.onboard ?? null,
       }))
       .filter((x) => x.text)
@@ -433,7 +480,9 @@ for (const role of ROLES) {
   await ctxM.close()
 
   report.roles[role] = per
-  console.log(`[verify] ${role}：主走查 ${per.mainWalkDark.length} 步 · 色差（洞内参照）${per.mainWalkDark.map((s) => s.deltaOnRevealed ?? '-').join('/')}`)
+  console.log(
+    `[verify] ${role}：主走查 ${per.mainWalkDark.length} 步 · 色差（洞内参照）${per.mainWalkDark.map((s) => s.deltaOnRevealed ?? '-').join('/')}`,
+  )
 }
 
 // —— 层级读数：真实叠放面（用户菜单 vs EP 弹层的遮罩 vs 引导的压暗块）——
@@ -458,7 +507,9 @@ for (const role of ROLES) {
       !el
         ? null
         : `${el.tagName.toLowerCase()}${
-            typeof el.className === 'string' && el.className.trim() ? '.' + el.className.trim().split(/\s+/)[0] : ''
+            typeof el.className === 'string' && el.className.trim()
+              ? '.' + el.className.trim().split(/\s+/)[0]
+              : ''
           }`
     return {
       menuPoint: { cx, cy },
@@ -493,7 +544,14 @@ for (const role of ROLES) {
   await pageD.waitForTimeout(400)
   await pageD.evaluate(() => document.querySelector('[data-onboard="side-user"]')?.click())
   await pageD.waitForTimeout(300)
-  report.stackingMenuOverEpDialog = { ...(await pageD.evaluate(hitTest)), dialogTitle: await pageD.locator('.el-dialog .el-dialog__title').first().textContent().catch(() => null) }
+  report.stackingMenuOverEpDialog = {
+    ...(await pageD.evaluate(hitTest)),
+    dialogTitle: await pageD
+      .locator('.el-dialog .el-dialog__title')
+      .first()
+      .textContent()
+      .catch(() => null),
+  }
   await shot('stacking-menu-over-ep-dialog')(pageD)
   await ctxD.close()
 
@@ -520,14 +578,22 @@ for (const role of ROLES) {
   await ctxG.close()
 
   const tokens = await (async () => {
-    const c = await browser.newContext({ viewport: { width: 1440, height: 900 }, storageState: 'e2e/visual/.auth/teacher.json' })
+    const c = await browser.newContext({
+      viewport: { width: 1440, height: 900 },
+      storageState: 'e2e/visual/.auth/teacher.json',
+    })
     const p = await c.newPage()
     await p.goto(`${BASE}/teacher/dashboard`)
     await p.waitForTimeout(1200)
     const v = await p.evaluate(() => {
       const root = getComputedStyle(document.documentElement)
       const tok = (n) => root.getPropertyValue(n).trim()
-      return { menu: tok('--z-menu'), shellMenu: tok('--z-shell-menu'), toast: tok('--z-toast'), onboarding: tok('--z-onboarding') }
+      return {
+        menu: tok('--z-menu'),
+        shellMenu: tok('--z-shell-menu'),
+        toast: tok('--z-toast'),
+        onboarding: tok('--z-onboarding'),
+      }
     })
     await c.close()
     return v

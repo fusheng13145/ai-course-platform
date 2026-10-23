@@ -1,6 +1,7 @@
 import js from '@eslint/js'
 import pluginVue from 'eslint-plugin-vue'
 import prettier from 'eslint-config-prettier'
+import globals from 'globals'
 import vueParser from 'vue-eslint-parser'
 import tseslint from 'typescript-eslint'
 
@@ -75,6 +76,51 @@ export default tseslint.config(
       'no-constant-condition': 'off',
       'prefer-const': 'warn',
     },
+  },
+  // ------------------------------------------------------------------
+  // e2e/ 覆盖面（2026-10-23，R-21）
+  // 背景：lint / format:check 两个 glob 原先只写 src/**，而 CI 的 frontend-quality
+  // 跑的正是 npm run lint —— e2e 的 29 个文件（24 ts + 3 cjs + 2 mjs）因此零覆盖，
+  // 视觉与引导两批新增的用例从未被任何 lint 门看过。LEDGER 的 P0a-GATECOV-01
+  // 已把"e2e eslint 净增 0"收回为空转门读数。
+  // 顺序纪律：先让 e2e 在现有规则下清零，再把 package.json 的 glob 扩到 e2e/。
+  // 规则强度与 src 保持一致，不新增、不放宽。
+  {
+    files: ['e2e/**/*.ts'],
+    languageOptions: {
+      parser: tseslint.parser,
+      ecmaVersion: 2022,
+      sourceType: 'module',
+    },
+    plugins: { '@typescript-eslint': tseslint.plugin },
+    rules: {
+      // TS 自身做未定义符号检查；page.evaluate 回调里还会引用浏览器全局。
+      'no-undef': 'off',
+      'no-unused-vars': 'off',
+      '@typescript-eslint/no-unused-vars': [
+        'warn',
+        { argsIgnorePattern: '^_', varsIgnorePattern: '^_', caughtErrorsIgnorePattern: '^_' },
+      ],
+      'no-empty': 'error',
+      // e2e 的 console 是取证输出（逐步 activeElement / 读数 / 探针日志），
+      // 不是产品代码里的调试残留；src 侧仍保持 error/warn 白名单。
+      'no-console': 'off',
+    },
+  },
+  {
+    files: ['e2e/**/*.cjs'],
+    languageOptions: { ecmaVersion: 2022, sourceType: 'commonjs', globals: globals.node },
+  },
+  {
+    files: ['e2e/**/*.mjs'],
+    // 这些 mjs 是 Playwright 驱动器：文件本身跑在 Node，但 page.evaluate 回调跑在浏览器，
+    // 因此两套全局都要认（否则 document / getComputedStyle 会被判 no-undef）。
+    languageOptions: {
+      ecmaVersion: 2022,
+      sourceType: 'module',
+      globals: { ...globals.node, ...globals.browser },
+    },
+    rules: { 'no-console': 'off' },
   },
   prettier
 )

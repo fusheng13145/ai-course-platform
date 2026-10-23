@@ -31,7 +31,8 @@ const hasNonZeroDigit = (s: string): boolean => /[1-9]/.test(s)
 async function readArrival(page: Page): Promise<ArrivalSnapshot> {
   return page.evaluate(() => {
     const q = (sel: string) => document.querySelectorAll(sel).length
-    const txt = (sel: string) => Array.from(document.querySelectorAll(sel)).map((e) => (e.textContent ?? '').trim())
+    const txt = (sel: string) =>
+      Array.from(document.querySelectorAll(sel)).map((e) => (e.textContent ?? '').trim())
     const filled = Array.from(document.querySelectorAll('input, textarea')).filter(
       (el) => ((el as HTMLInputElement).value ?? '').trim() !== '',
     ).length
@@ -61,7 +62,9 @@ export interface ArrivalCheck {
 function requireSomeStat(s: ArrivalSnapshot, where: string): void {
   if (s.statValues.length === 0) throw new Error(`${where}：一个 .s-value 都没有——统计卡没渲染`)
   if (!s.statValues.some(hasNonZeroDigit)) {
-    throw new Error(`${where}：.s-value 全部为 0/空/占位 ${JSON.stringify(s.statValues)}——数据没到位，不得当基线`)
+    throw new Error(
+      `${where}：.s-value 全部为 0/空/占位 ${JSON.stringify(s.statValues)}——数据没到位，不得当基线`,
+    )
   }
 }
 
@@ -70,7 +73,8 @@ export const DATA_ARRIVAL_CHECKS: Record<string, ArrivalCheck> = {
     what: '登录表单两个字段真渲染（本页无数据接口，钉的是页面身份不是数据）',
     run: async (page) => {
       const s = await readArrival(page)
-      if (s.formItems < 2) throw new Error(`登录页只渲染出 ${s.formItems} 个 .el-form-item（要 ≥2）`)
+      if (s.formItems < 2)
+        throw new Error(`登录页只渲染出 ${s.formItems} 个 .el-form-item（要 ≥2）`)
     },
   },
   'admin-dashboard': {
@@ -89,14 +93,20 @@ export const DATA_ARRIVAL_CHECKS: Record<string, ArrivalCheck> = {
       const s = await readArrival(page)
       if (s.l1Card < 1) throw new Error(`学生工作台 .l1-card = ${s.l1Card}（要 ≥1）`)
       requireSomeStat(s, '学生工作台')
-      if (s.canvas < 1) throw new Error('学生工作台的图表 canvas 没渲染——日期载荷钉死后画面不再来自后端，这一条是唯一还能看出"图没画"的判据（它只证"画了"，不证"画的是有内容的数"）')
+      if (s.canvas < 1)
+        throw new Error(
+          '学生工作台的图表 canvas 没渲染——日期载荷钉死后画面不再来自后端，这一条是唯一还能看出"图没画"的判据（它只证"画了"，不证"画的是有内容的数"）',
+        )
     },
   },
   'teacher-dashboard': {
     what: '教师工作台 ≥1 张 .l1-card 且统计值里有非零数（**就是那次事故的那一页**）',
     run: async (page) => {
       const s = await readArrival(page)
-      if (s.l1Card < 1) throw new Error(`教师工作台 .l1-card = ${s.l1Card}（要 ≥1）——空态页面正是这样：非空壳、无错误边界、断言全绿`)
+      if (s.l1Card < 1)
+        throw new Error(
+          `教师工作台 .l1-card = ${s.l1Card}（要 ≥1）——空态页面正是这样：非空壳、无错误边界、断言全绿`,
+        )
       requireSomeStat(s, '教师工作台')
     },
   },
@@ -104,7 +114,10 @@ export const DATA_ARRIVAL_CHECKS: Record<string, ArrivalCheck> = {
     what: '课程表格真有新行（.el-table__row ≥1）',
     run: async (page) => {
       const s = await readArrival(page)
-      if (s.tableRows < 1) throw new Error(`课程表格行数 = ${s.tableRows}（要 ≥1）——空表基线会把"数据没了"判成"改版了"`)
+      if (s.tableRows < 1)
+        throw new Error(
+          `课程表格行数 = ${s.tableRows}（要 ≥1）——空表基线会把"数据没了"判成"改版了"`,
+        )
       requireSomeStat(s, '课程管理')
     },
   },
@@ -119,10 +132,13 @@ export const DATA_ARRIVAL_CHECKS: Record<string, ArrivalCheck> = {
     run: async (page) => {
       const s = await readArrival(page)
       if (s.formItems < 10 || s.filledInputs < 5) {
-        throw new Error(`系统设置不像系统设置：.el-form-item=${s.formItems}（要 ≥10）、已回填输入框=${s.filledInputs}（要 ≥5）`)
+        throw new Error(
+          `系统设置不像系统设置：.el-form-item=${s.formItems}（要 ≥10）、已回填输入框=${s.filledInputs}（要 ≥5）`,
+        )
       }
       const switches = await page.evaluate(() => document.querySelectorAll('.el-switch').length)
-      if (switches < 1) throw new Error(`系统设置没有 .el-switch（实测 ${switches}）——设置面板没挂载`)
+      if (switches < 1)
+        throw new Error(`系统设置没有 .el-switch（实测 ${switches}）——设置面板没挂载`)
     },
   },
   'student-courses-modal': {
@@ -136,8 +152,10 @@ export const DATA_ARRIVAL_CHECKS: Record<string, ArrivalCheck> = {
     what: '学习中心外壳真挂上（.shell-tab ≥1 且有课程名标题）',
     run: async (page) => {
       const s = await readArrival(page)
-      if (s.shellTabs < 1) throw new Error(`学习中心 .shell-tab = ${s.shellTabs}（要 ≥1）——壳页没挂载就是白屏/空态`)
-      if (s.headings.every((h) => h === '')) throw new Error('学习中心没有任何非空标题：课程名没到位')
+      if (s.shellTabs < 1)
+        throw new Error(`学习中心 .shell-tab = ${s.shellTabs}（要 ≥1）——壳页没挂载就是白屏/空态`)
+      if (s.headings.every((h) => h === ''))
+        throw new Error('学习中心没有任何非空标题：课程名没到位')
     },
   },
   'student-knowledge-graph': {
@@ -153,7 +171,10 @@ export const DATA_ARRIVAL_CHECKS: Record<string, ArrivalCheck> = {
       'canvas ≥ 1 这类检查不得再被称作"数据到位"）',
     run: async (page) => {
       const s = await readArrival(page)
-      if (s.canvas < 1) throw new Error('分析页没有 canvas——图表整块没渲染（注意：它只证"画了"，不证"画的是有内容的数"）')
+      if (s.canvas < 1)
+        throw new Error(
+          '分析页没有 canvas——图表整块没渲染（注意：它只证"画了"，不证"画的是有内容的数"）',
+        )
       requireSomeStat(s, '治理分析')
     },
   },
@@ -162,21 +183,26 @@ export const DATA_ARRIVAL_CHECKS: Record<string, ArrivalCheck> = {
     run: async (page) => {
       const s = await readArrival(page)
       if (s.filledInputs < 1) throw new Error('个人中心的资料字段全空——用户数据没到位')
-      if (!s.heroStats.some((v) => v !== '' && v !== '0')) throw new Error(`个人中心 hero 统计为空/零 ${JSON.stringify(s.heroStats)}`)
+      if (!s.heroStats.some((v) => v !== '' && v !== '0'))
+        throw new Error(`个人中心 hero 统计为空/零 ${JSON.stringify(s.heroStats)}`)
     },
   },
   'error-404': {
     what: '错误页真的是 404（钉的是页面身份：换成正则路由它就红）',
     run: async (page) => {
       const s = await readArrival(page)
-      if (!s.headings.some((h) => h.includes('404'))) throw new Error(`404 页标题不是 404：${JSON.stringify(s.headings)}（path=${s.path}）`)
+      if (!s.headings.some((h) => h.includes('404')))
+        throw new Error(`404 页标题不是 404：${JSON.stringify(s.headings)}（path=${s.path}）`)
     },
   },
 }
 
 export async function assertAnchorArrival(page: Page, slug: string): Promise<void> {
   const check = DATA_ARRIVAL_CHECKS[slug]
-  if (!check) throw new Error(`[数据到位] 锚点 ${slug} 没有专属断言——新锚点必须先加一条，通用守卫拦不住空态（spec §6.14）`)
+  if (!check)
+    throw new Error(
+      `[数据到位] 锚点 ${slug} 没有专属断言——新锚点必须先加一条，通用守卫拦不住空态（spec §6.14）`,
+    )
   try {
     await check.run(page)
   } catch (e) {
@@ -195,7 +221,11 @@ export async function assertAnchorArrival(page: Page, slug: string): Promise<voi
  */
 export const DATA_PATHS: Record<string, string[]> = {
   'admin-dashboard': ['/api/admin/statistics', '/api/analytics/dashboard'],
-  'student-dashboard': ['/api/student/analytics/visualization', '/api/student/courses', '/api/student/dashboard'],
+  'student-dashboard': [
+    '/api/student/analytics/visualization',
+    '/api/student/courses',
+    '/api/student/dashboard',
+  ],
   'teacher-dashboard': ['/api/courses/my', '/api/teacher/dashboard/v2'],
   'admin-courses-table': ['/api/courses'],
   'admin-system-form': ['/api/system-configs'],

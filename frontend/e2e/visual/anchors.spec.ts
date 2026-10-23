@@ -19,7 +19,12 @@ import {
   type AnchorSpec,
   type ThemeName,
 } from './visual-helpers'
-import { apiStubTakesPathname, assertAnchorArrival, DATA_ARRIVAL_CHECKS, DATA_PATHS } from './data-arrival'
+import {
+  apiStubTakesPathname,
+  assertAnchorArrival,
+  DATA_ARRIVAL_CHECKS,
+  DATA_PATHS,
+} from './data-arrival'
 import {
   assertAllApiGetsPinned,
   assertBackendCanary,

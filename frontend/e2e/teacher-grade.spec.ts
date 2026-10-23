@@ -28,8 +28,20 @@ const courses = [{ id: 1, name: '数据结构', teacherId: 1, code: 'CS201', sem
 
 /** 学情：只提供作业/考试均分与学号，不提供总评 */
 const studentProgress = [
-  { studentId: 5, studentNo: '2023001', studentName: '张三', avgAssignmentScore: 80, avgExamScore: 90 },
-  { studentId: 6, studentNo: '2023002', studentName: '李四', avgAssignmentScore: 68, avgExamScore: null },
+  {
+    studentId: 5,
+    studentNo: '2023001',
+    studentName: '张三',
+    avgAssignmentScore: 80,
+    avgExamScore: 90,
+  },
+  {
+    studentId: 6,
+    studentNo: '2023002',
+    studentName: '李四',
+    avgAssignmentScore: 68,
+    avgExamScore: null,
+  },
 ]
 
 /** 成绩方案报表：总评与构成项；页面等级由总评推出（85→B，72→C） */
@@ -47,13 +59,22 @@ const courseReport = [
     studentName: '李四',
     finalScore: 72,
     components: [
-      { key: 'homework', name: '第三章作业', weight: 0.4, score: 72, contribution: 29, graded: false },
+      {
+        key: 'homework',
+        name: '第三章作业',
+        weight: 0.4,
+        score: 72,
+        contribution: 29,
+        graded: false,
+      },
     ],
   },
 ]
 
 const pendingTasks = [{ id: 7, courseId: 1, title: '第三章作业', pendingCount: 1 }]
-const tasksOfCourse = [{ id: 7, courseId: 1, title: '第三章作业', type: 'homework', status: 'published' }]
+const tasksOfCourse = [
+  { id: 7, courseId: 1, title: '第三章作业', type: 'homework', status: 'published' },
+]
 
 const submissions = [
   {
@@ -185,9 +206,7 @@ test.describe('成绩管理（教师端主链路）', () => {
     const row = page.locator('tr', { hasText: '李四' })
     await expect(row).toBeVisible()
     // 任务列表与提交记录都必须走登记表，不能落到兜底
-    expect(served).toEqual(
-      expect.arrayContaining(['/api/tasks', '/api/submissions/task/7']),
-    )
+    expect(served).toEqual(expect.arrayContaining(['/api/tasks', '/api/submissions/task/7']))
     expect(fallback.filter((path) => path.startsWith('/api/submissions/task/'))).toEqual([])
 
     await row.getByText('AI 评分').click()

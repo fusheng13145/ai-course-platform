@@ -42,16 +42,26 @@ const variants = {
 
 const KATA = path.join(__dirname, 'evidence', 'kat-filter0.png')
 const KATB = path.join(__dirname, 'evidence', 'kat-filter3.png')
-const RAD_E = path.join(__dirname, '..', '__snapshots__', 'sensitivity.spec.ts', 'admin-dashboard-light-radius-probe.png')
+const RAD_E = path.join(
+  __dirname,
+  '..',
+  '__snapshots__',
+  'sensitivity.spec.ts',
+  'admin-dashboard-light-radius-probe.png',
+)
 const RAD_C = path.join(__dirname, 'evidence', 'admin-dashboard-light-radius-probe-captured.png')
 
 function run(file, a, b) {
-  const out = execFileSync(process.execPath, [file, a, b, '--json', '--threshold=0', '--ratio=0'], { encoding: 'utf8' })
+  const out = execFileSync(process.execPath, [file, a, b, '--json', '--threshold=0', '--ratio=0'], {
+    encoding: 'utf8',
+  })
   return JSON.parse(out)
 }
 
 function show(tag, r) {
-  console.log(`${tag}: byteDiffPx=${r.byteDiffPx} rgbByteDiffPx=${r.rgbByteDiffPx} count=${r.pixelmatchCount}`)
+  console.log(
+    `${tag}: byteDiffPx=${r.byteDiffPx} rgbByteDiffPx=${r.rgbByteDiffPx} count=${r.pixelmatchCount}`,
+  )
 }
 
 console.log('=== 对照：好尺 ===')

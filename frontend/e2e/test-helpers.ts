@@ -232,7 +232,10 @@ export async function setLocalStorageAuth(page: Page, role: string = 'STUDENT') 
       // 两键并存的读法见 LEDGER `P0c-ONB-03`；v2 才是现在真正被读的那一条。
       // `dismissOnboarding` 仍按真实用户行为点「跳过」——那个按钮现在写的是 `skipped`，不再是 `done`。
       localStorage.setItem('ai-course:onboarding:done:v1:1', '1')
-      localStorage.setItem('ai-course:onboarding:v2:1', JSON.stringify({ status: 'done', atStep: 0 }))
+      localStorage.setItem(
+        'ai-course:onboarding:v2:1',
+        JSON.stringify({ status: 'done', atStep: 0 }),
+      )
     },
     { user, permissions },
   )

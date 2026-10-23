@@ -40,10 +40,17 @@ export const guideSnapshot = (page: Page) =>
     const parse = (s: string) => {
       const str = String(s || '').trim()
       const m = /rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:[,\s/]+([\d.]+))?\s*\)/.exec(str)
-      if (m) return [Number(m[1]), Number(m[2]), Number(m[3]), m[4] === undefined ? 1 : Number(m[4])]
+      if (m)
+        return [Number(m[1]), Number(m[2]), Number(m[3]), m[4] === undefined ? 1 : Number(m[4])]
       const h = /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.exec(str)
       if (h) {
-        const hex = h[1].length === 3 ? h[1].split('').map((c) => c + c).join('') : h[1]
+        const hex =
+          h[1].length === 3
+            ? h[1]
+                .split('')
+                .map((c) => c + c)
+                .join('')
+            : h[1]
         return [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16)).concat(1)
       }
       return null
@@ -106,24 +113,30 @@ export const guideSnapshot = (page: Page) =>
       title: document.querySelector('.ob-title')?.textContent?.trim() ?? '',
       placement: (card as HTMLElement | null)?.dataset?.placement ?? '',
       cardFullyVisible:
-        !!r && r.top >= 8 && r.left >= 8 && r.bottom <= innerHeight - 8 && r.right <= innerWidth - 8,
-      cardRect: r
-        ? { top: r.top, left: r.left, bottom: r.bottom, right: r.right }
-        : null,
+        !!r &&
+        r.top >= 8 &&
+        r.left >= 8 &&
+        r.bottom <= innerHeight - 8 &&
+        r.right <= innerWidth - 8,
+      cardRect: r ? { top: r.top, left: r.left, bottom: r.bottom, right: r.right } : null,
       scrimCount: document.querySelectorAll('.ob-scrim').length,
       scrimBg: scrim ? getComputedStyle(scrim).backgroundColor : '',
       themeAttr: document.documentElement.getAttribute('data-theme'),
       revealedElement: describe(revealed),
       /** 命中点常在锚点的子节点上（图标／文字 span），所以另给一个"它属于哪个锚点键"的读数 */
       revealedAnchorKey:
-        revealed instanceof Element ? revealed.closest('[data-onboard]')?.getAttribute('data-onboard') ?? null : null,
+        revealed instanceof Element
+          ? (revealed.closest('[data-onboard]')?.getAttribute('data-onboard') ?? null)
+          : null,
       effectiveBgSource: source,
       effectiveBg: effective,
       bodyBg: bodyBg ? bodyBg.join(',') : '',
       /** scrim 合成到"洞内那个元素"之上后与该元素的单通道最大差——判据用的就是这一格 */
-      deltaOnRevealed: scrimColor && effective ? maxDelta(over(scrimColor, effective), effective) : null,
+      deltaOnRevealed:
+        scrimColor && effective ? maxDelta(over(scrimColor, effective), effective) : null,
       /** 同一把尺量页面基底：只为把"参照选错会得到什么数"留在读数里，不参与断言 */
-      deltaOnBody: scrimColor && bodyBg ? maxDelta(over(scrimColor, bodyBg), bodyBg.slice(0, 3)) : null,
+      deltaOnBody:
+        scrimColor && bodyBg ? maxDelta(over(scrimColor, bodyBg), bodyBg.slice(0, 3)) : null,
       v2: v2key ? localStorage.getItem(v2key) : null,
     }
   })

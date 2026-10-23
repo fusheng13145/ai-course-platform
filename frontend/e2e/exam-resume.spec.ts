@@ -74,7 +74,9 @@ async function apiLogin(username: string): Promise<APIRequestContext> {
   })
   const body = await res.json().catch(() => ({}))
   if (body.code !== 200) {
-    throw new Error(`账号 ${username} 登录失败：HTTP ${res.status()} code=${body.code} msg=${body.message}`)
+    throw new Error(
+      `账号 ${username} 登录失败：HTTP ${res.status()} code=${body.code} msg=${body.message}`,
+    )
   }
   return ctx
 }
@@ -100,7 +102,9 @@ async function call(
   })
   const body = await res.json().catch(() => ({}))
   if (body.code !== 200) {
-    throw new Error(`${method} ${path} 失败：HTTP ${res.status()} code=${body.code} msg=${body.message}`)
+    throw new Error(
+      `${method} ${path} 失败：HTTP ${res.status()} code=${body.code} msg=${body.message}`,
+    )
   }
   return body.data
 }
@@ -339,13 +343,19 @@ test.describe('Q-3 断线续考与实时通道重连', () => {
 
     const duringOutage = await fetchSession()
     expect(duringOutage.status, '自动保存失败绝不能把会话推成交卷状态').toBe('STARTED')
-    expect(answeredCount(duringOutage.answers), '断线期间的作答尚未落库（符合预期，靠内存续跑）').toBe(1)
+    expect(
+      answeredCount(duringOutage.answers),
+      '断线期间的作答尚未落库（符合预期，靠内存续跑）',
+    ).toBe(1)
 
     // ---- F. 断线重连：指数退避（1s→2s→4s，间隔递增）----
     // 预算给到 150s：故障检测本身要等一个 30s 心跳周期（实测 ~31s），
     // 之后才是退避序列 1s/2s/4s；这两个 30s 与自动保存节拍重叠，但仍要留够余量。
     await expect
-      .poll(() => chan.attempts.length - outageAttemptsBase, { timeout: 150_000, intervals: [2000] })
+      .poll(() => chan.attempts.length - outageAttemptsBase, {
+        timeout: 150_000,
+        intervals: [2000],
+      })
       .toBeGreaterThanOrEqual(3)
     const retries = chan.attempts.slice(outageAttemptsBase)
     const gaps = retries.slice(1).map((t, i) => t - retries[i])
@@ -380,22 +390,34 @@ test.describe('Q-3 断线续考与实时通道重连', () => {
       .toBeGreaterThan(attemptsBeforeReload)
     // 不只是「发起过尝试」，而是真的重新连通并能收发（心跳回到拦截层）
     await expect
-      .poll(() => chan.hasHeartbeatAfter(framesBeforeReload), { timeout: 50_000, intervals: [1000] })
+      .poll(() => chan.hasHeartbeatAfter(framesBeforeReload), {
+        timeout: 50_000,
+        intervals: [1000],
+      })
       .toBe(true)
 
     // ---- E. 刷新续答：命中恢复路径，作答回填 + 剩余时间以服务端为准 ----
     await expect(card).toBeVisible()
     await card.getByRole('button', { name: '开始考试' }).click()
     await page.getByRole('button', { name: '确定' }).click()
-    await expect(page.locator('.el-message').filter({ hasText: '已恢复上次未完成的作答' })).toBeVisible()
+    await expect(
+      page.locator('.el-message').filter({ hasText: '已恢复上次未完成的作答' }),
+    ).toBeVisible()
     await expect(page.locator('.answer-area .el-radio').nth(0).locator('input')).toBeChecked()
     await page.locator('.nav-dot').nth(1).click()
     await expect(page.locator('.answer-area .el-radio').nth(1).locator('input')).toBeChecked()
 
     const t1 = await remainingSeconds(page)
     expect(t1, '恢复后倒计时被重置为满时长 = 退出重进即可无限续时').toBeLessThan(t0)
-    const serverRemaining = await call(studentCtx, 'GET', `/exam-sessions/${sessionId}/time-remaining`)
-    expect(Math.abs(t1 - serverRemaining), `前端倒计时 ${t1}s 与服务端 ${serverRemaining}s 偏离过大`).toBeLessThanOrEqual(8)
+    const serverRemaining = await call(
+      studentCtx,
+      'GET',
+      `/exam-sessions/${sessionId}/time-remaining`,
+    )
+    expect(
+      Math.abs(t1 - serverRemaining),
+      `前端倒计时 ${t1}s 与服务端 ${serverRemaining}s 偏离过大`,
+    ).toBeLessThanOrEqual(8)
 
     // ---- 收尾：正式交卷走通（answers 以 Map 上报，400 回归护栏），并验证「交卷 ≠ 阅卷」口径 ----
     await page.getByRole('button', { name: '提交试卷' }).click()

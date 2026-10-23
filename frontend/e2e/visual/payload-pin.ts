@@ -147,7 +147,8 @@ export function assertManifestDates(
   // ③ manifest 三个日期字段必须自洽：backshiftDays 真等于 serverDateAtRecord − clockDate。
   //    手改过 fixture（比如只挪 clockDate 想让 md5 对上）在这里就红，而不是变成一张"看不出来"的图。
   const implied = Math.round(
-    (Date.parse(`${m.serverDateAtRecord}T00:00:00Z`) - Date.parse(`${m.clockDate}T00:00:00Z`)) / 86400000,
+    (Date.parse(`${m.serverDateAtRecord}T00:00:00Z`) - Date.parse(`${m.clockDate}T00:00:00Z`)) /
+      86400000,
   )
   if (!Number.isInteger(m.backshiftDays) || m.backshiftDays !== implied) {
     throw new Error(
@@ -179,7 +180,9 @@ export function loadPinManifest(slug: string): PinManifest {
     )
   }
   if (!raw || raw.slug !== slug || !raw.requests || Object.keys(raw.requests).length === 0) {
-    throw new Error(`[载荷钉死] ${file} 形状不对（slug 不符或 requests 为空）——宁可红，不拿空 fixture 当钉住`)
+    throw new Error(
+      `[载荷钉死] ${file} 形状不对（slug 不符或 requests 为空）——宁可红，不拿空 fixture 当钉住`,
+    )
   }
   assertManifestDates(raw, file)
   return raw
@@ -224,23 +227,31 @@ export async function installPayloadPin(page: Page, anchor: AnchorSpec): Promise
   const paths = anchor.pinPaths ?? []
   const manifest = loadPinManifest(anchor.slug)
   const shift = pinShiftDays()
-  const state: PinState = { served: [], unpinnedTodayBearing: [], observedApiGets: [], shiftDays: shift }
+  const state: PinState = {
+    served: [],
+    unpinnedTodayBearing: [],
+    observedApiGets: [],
+    shiftDays: shift,
+  }
   const serverToday = localDay(new Date())
   const observed = new Set<string>()
 
-  await page.route((url) => paths.includes(`${url.pathname}${url.search}`), async (route) => {
-    const req = route.request()
-    if (req.method() !== 'GET') return route.fallback()
-    const key = `${new URL(req.url()).pathname}${new URL(req.url()).search}`
-    const hit = manifest.requests[key]
-    if (!hit) return route.fallback()
-    state.served.push(key)
-    await route.fulfill({
-      status: hit.status,
-      contentType: hit.contentType,
-      body: shift === 0 ? hit.body : shiftIsoDates(hit.body, shift),
-    })
-  })
+  await page.route(
+    (url) => paths.includes(`${url.pathname}${url.search}`),
+    async (route) => {
+      const req = route.request()
+      if (req.method() !== 'GET') return route.fallback()
+      const key = `${new URL(req.url()).pathname}${new URL(req.url()).search}`
+      const hit = manifest.requests[key]
+      if (!hit) return route.fallback()
+      state.served.push(key)
+      await route.fulfill({
+        status: hit.status,
+        contentType: hit.contentType,
+        body: shift === 0 ? hit.body : shiftIsoDates(hit.body, shift),
+      })
+    },
+  )
 
   // I-2：全集侧的账本。`request` 事件对**被 fulfill 的请求同样触发**，所以这份清单是"这一页发过的全部 GET"，
   // 与 `served`（被钉桩接管的那一份）刚好是判"钉得全不全"需要的两个面。
@@ -290,7 +301,10 @@ export function assertPinCoverage(anchor: AnchorSpec, state: PinState): void {
  * 逐字比较（`pathname+search`），与 `installPayloadPin` 的 route 匹配、`attachPayloadRecorder` 的落盘键
  * 同一把尺——少了 search 就是"钉了却没命中"，本条也不许把它算成已钉。
  */
-export function findUnpinnedApiGets(observed: readonly string[], declared: readonly string[]): string[] {
+export function findUnpinnedApiGets(
+  observed: readonly string[],
+  declared: readonly string[],
+): string[] {
   return observed.filter((k) => !declared.includes(k))
 }
 
@@ -344,12 +358,15 @@ export const CANARY_PROBE_PATH = '/api/notifications?page=1&size=5'
  */
 export function canaryFindings(status: number, bodyText: string): string[] {
   const findings: string[] = []
-  if (status !== 200) findings.push(`HTTP ${status}（期望 200 ⇒ 会话过期、后端下线或被守卫拦回都会落在这里）`)
+  if (status !== 200)
+    findings.push(`HTTP ${status}（期望 200 ⇒ 会话过期、后端下线或被守卫拦回都会落在这里）`)
   let parsed: unknown = null
   try {
     parsed = JSON.parse(bodyText)
   } catch {
-    findings.push('响应体不是 JSON（dev server 对未知路径回 index.html 时状态仍是 200，只判状态会放过）')
+    findings.push(
+      '响应体不是 JSON（dev server 对未知路径回 index.html 时状态仍是 200，只判状态会放过）',
+    )
   }
   if (Array.isArray(parsed)) {
     findings.push(
@@ -358,7 +375,8 @@ export function canaryFindings(status: number, bodyText: string): string[] {
     )
   } else if (parsed !== null && typeof parsed === 'object') {
     const env = parsed as Record<string, unknown>
-    if (typeof env.code !== 'number') findings.push(`信封缺 code（实读到 ${JSON.stringify(Object.keys(env)).slice(0, 120)}）`)
+    if (typeof env.code !== 'number')
+      findings.push(`信封缺 code（实读到 ${JSON.stringify(Object.keys(env)).slice(0, 120)}）`)
     if (!('data' in env)) findings.push('信封缺 data 键（契约改名或被挪走的形状）')
   }
   return findings
@@ -429,7 +447,11 @@ export function attachPayloadRecorder(page: Page, anchor: AnchorSpec): () => Pro
     const p = res
       .text()
       .then((body) => {
-        captured.set(key, { status: res.status(), contentType: res.headers()['content-type'] ?? 'application/json', body })
+        captured.set(key, {
+          status: res.status(),
+          contentType: res.headers()['content-type'] ?? 'application/json',
+          body,
+        })
       })
       .catch(() => undefined)
     pending.add(p)
@@ -448,7 +470,10 @@ export function attachPayloadRecorder(page: Page, anchor: AnchorSpec): () => Pro
       // **自己声明**它归一到哪天，回放侧 loadPinManifest 会核这一条——硬推的话这件事从不出现在数据里。
       clockDate: BASELINE_DAY,
       // 整天差用日历日算，不用毫秒差 round：跨月/跨夏令时都不会差一天
-      backshiftDays: Math.round((Date.parse(`${serverDate}T00:00:00Z`) - Date.parse(`${BASELINE_DAY}T00:00:00Z`)) / 86400000),
+      backshiftDays: Math.round(
+        (Date.parse(`${serverDate}T00:00:00Z`) - Date.parse(`${BASELINE_DAY}T00:00:00Z`)) /
+          86400000,
+      ),
       requests: {},
     }
     for (const [key, v] of captured) {
@@ -473,7 +498,9 @@ export function attachPayloadRecorder(page: Page, anchor: AnchorSpec): () => Pro
     }
     mkdirSync(dirname(fixturePathFor(anchor.slug)), { recursive: true })
     writeFileSync(fixturePathFor(anchor.slug), `${JSON.stringify(manifest, null, 2)}\n`, 'utf8')
-    console.log(`[pin-record] ${anchor.slug} → ${fixturePathFor(anchor.slug)}（回拨 ${manifest.backshiftDays} 天，端点 ${Object.keys(manifest.requests).length} 个）`)
+    console.log(
+      `[pin-record] ${anchor.slug} → ${fixturePathFor(anchor.slug)}（回拨 ${manifest.backshiftDays} 天，端点 ${Object.keys(manifest.requests).length} 个）`,
+    )
   }
 }
 
@@ -582,7 +609,10 @@ export const PIN_PAYLOAD_TRIVIAL_EXCUSED: Record<string, string> = {
  */
 export const PIN_PAYLOAD_TRIVIAL_KEYS: Record<string, readonly string[]> = {
   'student-dashboard': ['/api/notifications/unread-count', '/api/student/analytics/visualization'],
-  'admin-governance-analytics': ['/api/analytics/users/growth?days=30', '/api/notifications/unread-count'],
+  'admin-governance-analytics': [
+    '/api/analytics/users/growth?days=30',
+    '/api/notifications/unread-count',
+  ],
 }
 
 /**
