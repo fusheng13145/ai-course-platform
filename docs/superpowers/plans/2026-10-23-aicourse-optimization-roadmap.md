@@ -272,6 +272,9 @@ Batch 0 买的是**交付物存在**，Batch 1 买的是**可信度**，Batch 2 
 | R-21 | ✅ 本机清零 | `393996c` | `eslint e2e` **125→0**；`prettier --check e2e` **17→0**；`npm run lint` exit 0；vitest **180 文件 / 1895 例**全绿；`typecheck:gate` 402/90 持平 |
 | R-06 | ✅ 已闭（浏览器面） | `e8ad9b5` | 18 例全绿（36.8s）；真实键盘 **12 次 Tab + 6 次 Shift+Tab**，`activeElement` 全程在 `.ob-card`，正向回绕 2 次/反向 1 次；序列入库 `evidence/onboarding-tab-2026-10-23/` |
 | R-08 | ✅ 已闭（含 D-1 第二载体） | `ea48fe1` + `c0b94ce` | 基线 **22→24**，`anchors` 两轮 **43/43**；两张 error-404 md5 不同；连带重采 2 张暗色图表基线（`data-theme` 缺失→`resolveTheme()` 回落 light，属同缺陷第二载体） |
+| R-07 | ✅ 已闭（**假阴性修正**，未改判据） | `938fc6b` | 根因是判决函数把 §3 的 8px 设计缓冲**当成了判据**：375 档五步余量实测 27.5/8/8/8/**7.83px**，整卡本就完全可见。`cardFullyVisible` 回归 §4 原文，8px 降为只读读数；新增 375×667 五步 e2e；onboarding **19 例绿**（lead 独立复跑） |
+| R-19b | ✅ 已闭（两个孤儿都删） | `5fa216e` | `hasOpenOverlay`（两套遮罩判据并存的风险）、`onTransition`+listeners+写侧广播删除；探针第 5 步标签按端更正；受影响三文件 vitest 24 passed |
+| 收尾 | 引导批九条判据 **9/9 达成**（§16.1 该行转 ✅，2026-10-23） | `938fc6b`＋`5fa216e` | B.2 用例数 181/**1899**（R-19b −2 例孤儿测试）；全量 vitest、typecheck 402/90、build 由 lead 复跑通过 |
 | R-22 | 🟡 部分 | 随批文档提交 | 索引 4→5 组、§22.1 分支实况、§16.1 与 B.2 的 scripts-tests 句已就地改写；历史段落中的旧表述未全量清扫 |
 | R-02 | ⛔ 阻塞 | — | 本机 SSH 代理 `127.0.0.1:65532` 未监听，`git ls-remote` 连不上；命令已备（见下） |
 
