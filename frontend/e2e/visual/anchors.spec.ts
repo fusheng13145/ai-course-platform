@@ -296,14 +296,24 @@ async function runAnchor(
   // 【旧块留给我们一条教训】它写着"修好后这 2 张自动补生成，无需改本文件"，而补生成必须带
   // `-g "error-404"` 过滤：不带过滤的 `--update-snapshots` 会重写全部基线。这条约束现在由
   // global-setup 的闸门（须显式 `PW_ALLOW_UPDATE_SNAPSHOTS=1`）与 `helpers.spec.ts` 的用例钉着。
-  // 【同上一条修复的连带面（待重生成，不是新缺陷）】同一次改动会让另外 **2 张 dark 基线**翻面：
-  // 视觉基线 · dark · STUDENT › student-knowledge-graph 与 · dark · ADMIN › admin-governance-analytics。
-  // 机理是 D-1 的**第二个载体**：`src/utils/chartTheme.ts` 的 `resolveTheme()` 读 `<html data-theme>`，
-  // 属性缺失时回落 `matchMedia`——改前图表在"属性还没写上"的那一刻初始化，吃的是**浅色板**
-  // （`text:#1f2733`、`sliceBorder:#ffffff`），而这两张基线正是那个状态下采的。
-  // 像素面直接对上令牌：knowledge-graph @(579,751) 基线 `[30,38,50]`→实际 `[238,241,246]`；
-  // analytics @(1071,443) 基线 `[255,255,255]`→实际 `[14,19,24]`。这两张的重生成待裁定，
-  // 在它落地前 `anchors` 是 41/43（详见本文件归属提交的正文）。
+  // 【这两张是 D-1 第二载体的连带重采，不是"把红吸收成绿"】依赖上一条提交 `ea48fe1`
+  // （`applyStoredTheme()` + `main.ts` 挂载前调用）的源码修复，**不可单独 revert**：
+  // 只回退本提交会让这两张新基线对着旧代码，`anchors` 立刻 2 条红。
+  // 涉及两条：视觉基线 · dark · STUDENT › student-knowledge-graph、· dark · ADMIN › admin-governance-analytics。
+  // ① 机理（D-1 的**第二个载体**）：`src/utils/chartTheme.ts:5-10` 的 `resolveTheme()` 读 `<html data-theme>`，
+  //    属性缺失时回落 `matchMedia('(prefers-color-scheme: dark)')`，而 Playwright 上下文没设 `colorScheme`
+  //    ⇒ 固定解析成 light。改前图表在"主题还没写上"的那一刻初始化（`buildGraphOption()` / `useAnalytics`），
+  //    吃的是浅色板，之后那次 `emitThemeChange` 重绘并不能把颜色全刷新 ⇒ **这两张基线是在缺陷在场时采的**，
+  //    主题提前落地后它们必须翻面。
+  // ② 令牌（`getChartTheme()`）：`text` dark `#eef1f6` / light `#1f2733`；
+  //    `sliceBorder` dark `#0f1419` / light `#ffffff`。
+  // ③ 像素（重采前的 max-delta 点，取到的值逐字节就是 ② 的令牌值）：
+  //    knowledge-graph 2715 px `[30,38,50]`→`[238,241,246]`；analytics 92106 px `[255,255,255]`→`[14,19,24]`。
+  // ④ A/B：把 `main.ts`/`useTheme.ts` 的改动 stash 掉再跑这两组（含各自的 falsify 用例）⇒ 6 passed
+  //    ⇒ 翻面确由该修复引入，且确定性（两轮红的集合一字不差）。
+  // 重采后：`student-knowledge-graph-dark.png` `b7b49be9…`（155537 B）／
+  //   `admin-governance-analytics-dark.png` `a8aae56a…`（166261 B）。两张新 md5 与前一轮失败时的
+  //   `-actual.png` 逐字节相同（确定性自证）；`-g "anchors"` 两轮均 **43 passed**。
   await assertComparableRender(page, anchor, theme)
   // 图谱代表必须真的"有图"——上一轮它截的是占位空态，四条通用断言全绿（见 assertGraphPainted）
   if (anchor.requirePaintedGraph) await assertGraphPainted(page)
