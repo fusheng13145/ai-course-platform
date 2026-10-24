@@ -565,11 +565,14 @@ async function stubApiToEmpty(
       // 空响应而不是 5xx：5xx 会被错误边界接住（那条守卫本来就能拦），
       // 而"接口 200、data 空"才是那次事故的样子——四条通用守卫对它全盲。
       // 第 14 项 ② 要的就是把"空"换成 `[]` 这一态，所以这里由 `dataShape` 决定，不再写死。
-      body: JSON.stringify({
-        code: 200,
-        message: 'ok',
-        data: dataShape === 'emptyArray' ? [] : null,
-      }),
+      // 【R-09】信封形状对齐真实后端：全局 Jackson `default-property-inclusion: non_null`
+      // （application.yaml:114）⇒ data 为 null 的真实响应**没有 data 键**（message 为 'success'）；
+      // 旧桩写死 `"data": null` 与实况不符。emptyArray 态（真实空列表 data:[]）保持键在场。
+      body: JSON.stringify(
+        dataShape === 'emptyArray'
+          ? { code: 200, message: 'success', data: [] }
+          : { code: 200, message: 'success' },
+      ),
     })
   })
   return { served }
