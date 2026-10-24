@@ -201,6 +201,21 @@ Phase 0 的实测表已从**未入 git、且被 agent 追加改写**的 `task-4-
   （不冻时钟实时等 4s 仍是 0，`reducedMotion: 'no-preference'` 仍是 0）⇒ 基线画的是"边 + 节点标签"，没有节点本身
   （`证据 §8.4`，原始出处 `task-4-report.md` §F-5 D-9）。
   受影响锚点图：`student-knowledge-graph-light.png`、`student-knowledge-graph-dark.png`（`证据 §7` 表 #17/#18）。
+  **⛔ 更正前一条"修复尝试证伪"记录（2026-10-24，随 D-9 修复批）**：该次 `animation: false` 实验
+  **做在了错误的 composable 上**——改的是 `useKnowledgeGraph.ts`（教师侧/其他页），而锚点页面
+  `/student/knowledge-graph` 实际消费 `useStudentKnowledgeGraph.ts`（本轮以页内实例探针确认）。
+  该次实验对锚点页面零效果的原因因此不是"假设错"，而是"改错文件"。
+  **✅ 修复（2026-10-24）**：页内探针（`__vueParentComponent` 链取 vue-echarts 实例）实证——
+  8 个节点 circle path `scale=[0,0]`、**动画器为空**、`getItemVisual(i,'symbolSize')` 取不到值，
+  而 force 布局坐标已就位（[384,228] 等）、父 group scale=[1,1]；**手改 scale=[6,6] 后圆点
+  即刻全部渲染**（截图入库证据随台账）⇒ scale=[0,0] 是唯一堵点、渲染路径健康。
+  修复＝在正确的文件 `useStudentKnowledgeGraph.ts` 上设 `animation: false` ＋ `layoutAnimation: false`：
+  真实浏览器（未冻结时钟）探针复测 selfScale=[6,6]（=12px，importance 5 经 symbolSize 函数解析），
+  **8 个彩色圆点 + 边 + 标签全部渲染**（按难度着色）。
+  **⚠️ 双态声明**：视觉基线（冻结时钟）的字节**不变**——冻结时钟下 force 的逐帧 symbol reveal
+  仍不前进，钉桩运行里六色扫描仍会是 0 圆点像素；这是 harness 固有限制（与本清单多格的
+  frozen-clock 家族同类），不是修复无效。真实用户的缺陷已消除。`useStudentKnowledgeGraph` 单测
+  5 例绿；anchors 两格复测绿（字节未变）。
   **⛔ 修复尝试证伪（2026-10-24，随 FE-05 批）——本条保持开项**：入场动画假设（冻结时钟下
   scale 0→1 不前进）被原地实验证伪——根级与系列级双写 `animation: false` 后，两主题像素与
   基线**完全一致**（节点仍 scale 0），改动已撤销不入库（无效果代码不得混入缺陷修复）。

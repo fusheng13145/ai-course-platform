@@ -99,6 +99,12 @@ export function useStudentKnowledgeGraph() {
           return `${link.relationType === 'PREREQUISITE' ? '前置依赖' : '关联'}`
         },
       },
+      // D-9：关闭入场动画 + 布局动画。力导向图节点 symbol 以 scale [0,0] 起步、由入场动画推到
+      // 目标尺寸，冻结时钟（视觉基线）下动画永不前进 ⇒ 节点圆点不画（两主题）。d9 探针实证：
+      // 动画器为空、手改 scale 后圆点即刻出现；animation:false 后真实浏览器已渲染圆点，
+      // 但冻结时钟下 force 的逐帧布局 reveal 仍不走——再关 layoutAnimation 让布局同步完成。
+      animation: false,
+      layoutAnimation: false,
       animationDurationUpdate: 500,
       animationEasingUpdate: 'quarticIn',
       series: [
