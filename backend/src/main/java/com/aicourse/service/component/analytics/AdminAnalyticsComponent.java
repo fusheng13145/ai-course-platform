@@ -159,11 +159,13 @@ public class AdminAnalyticsComponent {
             enrollAgg.select(
                     "COUNT(*) AS total",
                     "COALESCE(SUM(progress >= 100), 0) AS completed",
-                    "COALESCE(SUM(finalScore >= 90), 0) AS excellent",
-                    "COALESCE(SUM(finalScore >= 80 AND finalScore < 90), 0) AS good",
-                    "COALESCE(SUM(finalScore >= 70 AND finalScore < 80), 0) AS medium",
-                    "COALESCE(SUM(finalScore >= 60 AND finalScore < 70), 0) AS pass",
-                    "COALESCE(SUM(finalScore < 60), 0) AS fail"
+                    // D-10：列名必须是建表的 snake_case（final_score，V1:267）——
+                    // 驼峰 finalScore 是 Unknown column，曾让整个 dashboard 数据块退化成空
+                    "COALESCE(SUM(final_score >= 90), 0) AS excellent",
+                    "COALESCE(SUM(final_score >= 80 AND final_score < 90), 0) AS good",
+                    "COALESCE(SUM(final_score >= 70 AND final_score < 80), 0) AS medium",
+                    "COALESCE(SUM(final_score >= 60 AND final_score < 70), 0) AS pass",
+                    "COALESCE(SUM(final_score < 60), 0) AS fail"
             );
             long completedCount = 0;
             long excellent = 0, good = 0, medium = 0, pass = 0, fail = 0;

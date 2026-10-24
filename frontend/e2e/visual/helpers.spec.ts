@@ -923,9 +923,13 @@ test('闸门源级钉自己会红：内存里复刻「改默认实参」与「�
  * 症状设计成"基线被换掉即红"——包括被 `--update-snapshots` 换掉、也包括被别的代理覆盖掉。
  * 重算清单（改基线时必须同步这里，且要逐张复核新图）：
  *   cd frontend && node e2e/visual/tools/measure-diff.cjs --manifest e2e/visual/__snapshots__/anchors.spec.ts --json
- * 张数为 24 = 12 锚点 × 明暗全集。2026-10-24 同步时补齐三笔"只动基线没动清单"的欠账：
- * error-404 ×2（`ea48fe1`，D-1 修复入库）、student-dashboard 明暗 ×2（`93b09cb`，经授权重录）、
- * admin-governance-analytics-dark 与 student-knowledge-graph-dark ×2（`c0b94ce`，D-1 第二载体重采）。
+ * 张数为 24 = 12 锚点 × 明暗全集。2026-10-24 同步两笔：
+ * ① 补齐三笔"只动基线没动清单"的欠账：error-404 ×2（`ea48fe1`）、student-dashboard 明暗 ×2
+ *    （`93b09cb`，经授权重录）、admin-governance-analytics-dark 与 student-knowledge-graph-dark ×2
+ *    （`c0b94ce`，D-1 第二载体重采）；
+ * ② FE-04（D-10 修复）重录 4 张：admin-governance-analytics 明暗 ×2（fixture 同批重录）、
+ *    admin-dashboard 明暗 ×2（该锚点未钉桩走真后端，D-10 修复令成绩分布与完成率卡变真数据，
+ *    属同一后端修复的合法爆炸半径）。四张新图均已逐张人工复核（明暗各一，见台账）。
  * 同步以"工作树除本文件外干净、字节与 HEAD 一致"为前提取证，引用这个数一律带张数与原因。
  */
 const BASELINE_SHA256: Record<string, string> = {
@@ -933,12 +937,12 @@ const BASELINE_SHA256: Record<string, string> = {
     '4fceb28bd3390934207b32576f35b7d1113d403d3f36f758d30e0992351f113d',
   'admin-courses-table-light.png':
     'a16b22e487a6390833bc115e8176d6eb6f87439e1e27c83d19a25e1b0122e517',
-  'admin-dashboard-dark.png': 'd8162bbfaf8c40074592b4eda13bc212cd81b920727b1c03306b60265a72e985',
-  'admin-dashboard-light.png': 'f97e461499d12b40345443ca8fe5ad2e9f3479f81688352021caebfe59ee2baf',
+  'admin-dashboard-dark.png': '09b835515abae5a38da80b7a4789de8e98860400e96307ac548c0068e897846c',
+  'admin-dashboard-light.png': 'f682c2ad0a412d2623243511ffcc4d99c95aa9248db200d13433dfa5ce440fff',
   'admin-governance-analytics-dark.png':
-    '86e93625edf252cb32ef53eb89f4a174f56dab25dd6610304f42e1dc6241b6a1',
+    '74247f93978a6010052467b14bae8b6ec5cf3b4ba77d57a6169f2d35574b1c96',
   'admin-governance-analytics-light.png':
-    'd0a57821fc4ebcde8481f8a1f1f8bac35e13d99c614a2a6b37a6430e11a35ae7',
+    'adb1b86e9960c0f94e5fe0fe46b0099523732db8f2c4436cfac5c04573ebe5d8',
   'admin-profile-dark.png': 'd3838b8d9582abadc639792e32b80420d6446affd39fdd47f6e1faf842292ead',
   'admin-profile-light.png': '5deaacad8f257fcb651cb8a56faa35aad0e83dafdd6c2b4cffd4dd5782de1e68',
   'admin-system-form-dark.png': '5719dc5155c4c0e5171b2a44e3f35fca86fbbce8a6381fb6b1f9db784636a76a',

@@ -489,9 +489,9 @@ export function useAnalytics() {
         const statsData = statsRes.value.data || statsRes.value
         if (statsData.totalUsers !== undefined) {
           coreMetrics.value[0].value = formatNumber(statsData.totalUsers)
-          coreMetrics.value[0].change = statsData.userGrowth
-            ? Math.round(statsData.userGrowth * 100)
-            : 0
+          // 后端 userGrowth/growthRate 已是百分数（newUsers*100/total，AdminAnalyticsComponent），
+          // 直接取整作百分点差值——此前再乘 100 会把 54.1% 显示成 5410.0%（D-10 修复轮发现）
+          coreMetrics.value[0].change = statsData.userGrowth ? Math.round(statsData.userGrowth) : 0
         }
         if (statsData.totalCourses !== undefined) {
           coreMetrics.value[1].value = formatNumber(statsData.totalCourses)
@@ -501,10 +501,10 @@ export function useAnalytics() {
           coreMetrics.value[2].value = formatNumber(statsData.dailyActiveUsers)
         }
         if (statsData.completionRate !== undefined) {
-          coreMetrics.value[3].value = (statsData.completionRate * 100).toFixed(1) + '%'
+          coreMetrics.value[3].value = Number(statsData.completionRate).toFixed(1) + '%'
         }
         if (statsData.growthRate !== undefined) {
-          coreMetrics.value[4].value = (statsData.growthRate * 100).toFixed(1) + '%'
+          coreMetrics.value[4].value = Number(statsData.growthRate).toFixed(1) + '%'
         }
         if (statsData.categoryDistribution) {
           const entries = Object.entries(statsData.categoryDistribution)
