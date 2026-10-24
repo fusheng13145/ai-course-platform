@@ -57,7 +57,8 @@ export const deleteTask = (id: number) => request.delete(`/tasks/${id}`)
 export const publishTask = (id: number) => request.post(`/tasks/${id}/publish`)
 
 // 任务增强 API
-export const extendDeadline = (id: number, data: { deadline: string }) =>
+// 契约＝后端 TaskController extendDeadline：TaskCreateDTO 的 newDueDate + reason（原误标为 deadline）
+export const extendDeadline = (id: number, data: { newDueDate: string; reason?: string }) =>
   request.post(`/tasks/${id}/extend-deadline`, data)
 /**
  * 导出函数 copyTask：业务逻辑处理

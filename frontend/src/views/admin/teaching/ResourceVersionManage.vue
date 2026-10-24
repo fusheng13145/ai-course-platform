@@ -261,7 +261,9 @@ async function loadVersions() {
       notices.push('版本历史加载失败')
     }
     if (activeRes.status === 'fulfilled') {
-      activeVersionId.value = activeRes.value.data?.id || activeRes.value.id || null
+      // 信封两形态兼容：body 在 data 里或（历史裸返回）就是响应体本身
+      const body = (activeRes.value.data ?? activeRes.value) as { id?: number | string } | null
+      activeVersionId.value = body?.id || null
     } else {
       console.error('加载当前版本失败:', activeRes.reason)
       activeVersionId.value = null

@@ -53,3 +53,16 @@ Top 12 JS 块：echarts 805.06 ／ element-plus 735.14 ／ xlsx 323.28 ／ Cours
 - 本件只测量不治理；`size:gate` 上限**未动**（棘轮只紧不松，收紧属 FE-11 治理批的评审动作）。
 - 读数为单次构建实测，无并行构建方差控制；复现命令见文首。
 - `@element-plus/icons-vue` 落点的证据链：`vite.config.ts:105`（`id.includes('element-plus')`）+ `node_modules/@element-plus/icons-vue` 路径含该子串；未做逐字节 dump 反查（如需可于 FE-11 治理批补 `rollup` 模块清单取证）。
+
+## 六、R-15 后治第一批对照（2026-10-24，`4820b48`，FE-11）
+
+| 项 | 治前（本文件 §二） | 治后 | 说明 |
+| --- | --- | --- | --- |
+| html2canvas | package.json 声明、零引用、分块 0 | **依赖已卸载**（含 lockfile），manualChunks 死分支删除 | 字节无变化（本就不在产物里），清掉的是依赖面与死配置 |
+| xlsx 块 | 323.28 KiB，被 3 个成绩 composable **静态 import** ⇒ 成绩路由整载 | 323.28 KiB（**树摇保留**）+ 新增 0.15 KiB 包装块 | 两层拆分：静态 import 进 `utils/xlsxExport.ts`，调用方 `await import('@/utils/xlsxExport')`——成绩相关路由首载不再背 xlsx，点"导出"才拉取 |
+| JS 合计 | 3119.54 KiB | 3121.77 KiB（+2.23） | 增量为包装块与动态加载机制；六项读数仍全部在预算内（xlsx 323.28/380 ✓） |
+| ⚠️ 单层动态 import 反例 | — | **已实测并否决** | 直接 `await import('xlsx')` 令 Rollup 对动态命名空间放弃树摇 ⇒ 块涨到 **481.74 KiB**、击穿 380 预算（当场复跑取证）。两层拆分才两全，此坑记入证据 |
+| icons 按需 | FE-11 候选 | **降级，保持候选** | `:is` 字符串名动态解析遍布 ≥7 组件（`fileIcon(row)`/`tab.icon`/`'CircleCheckFilled'` 等），模板静态 resolver 覆盖不到，树摇会**静默断供**（图标消失且无报错）；治理须先把动态站点逐一改为组件对象传递，工作量与回归面超本批红线 |
+| size:gate 预算 | 六项 | **未动** | 字节量级未变（xlsx 块大小不变），收紧无据；真实收益在**加载时机**（路由首载 −323 KiB），不在总量 |
+
+> 口径提醒：`size:gate` 的"JS 合计"是**全量字节**口径；R-15 的目标是"首屏/路由 JS 显著下降"——本批的成绩页路由侧净减 ≈323 KiB，总量口径几乎持平，两者不矛盾。

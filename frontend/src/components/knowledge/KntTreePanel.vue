@@ -69,7 +69,7 @@ const treeRef = ref(null)
 
 function expandAll() {
   const nodes = treeRef.value?.store?.nodesMap
-  if (nodes) Object.values(nodes).forEach((n) => n.expand())
+  if (nodes) Object.values(nodes).forEach((n) => (n as { expand: () => void }).expand())
 }
 
 function handleExpand() {

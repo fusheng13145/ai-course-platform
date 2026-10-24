@@ -72,7 +72,7 @@ import AcPathPanel from './components/AcPathPanel.vue'
 
 const courseLoading = ref(false)
 const courseOptions = ref([])
-const courseId = ref('')
+const courseId = ref<string | number>('')
 const loading = ref(false)
 const activeTab = ref('qa')
 

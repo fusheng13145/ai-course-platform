@@ -38,6 +38,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import SeExamTopbar from './SeExamTopbar.vue'
 import SeQuestionView from './SeQuestionView.vue'
 
@@ -49,7 +50,7 @@ import SeQuestionView from './SeQuestionView.vue'
  */
 defineProps({
   paper: { type: Object, default: null },
-  questions: { type: Array, default: () => [] },
+  questions: { type: Array as PropType<{ id: number | string }[]>, default: () => [] },
   questionsLoading: { type: Boolean, default: false },
   submitting: { type: Boolean, default: false },
   currentIndex: { type: Number, default: 0 },

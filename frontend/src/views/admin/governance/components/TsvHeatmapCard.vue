@@ -27,6 +27,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { Sunny } from '@element-plus/icons-vue'
 
 /**
@@ -35,9 +36,9 @@ import { Sunny } from '@element-plus/icons-vue'
  */
 defineProps({
   /** 时段标签数组 */
-  timeSlots: { type: Array, required: true },
+  timeSlots: { type: Array as PropType<(string | number)[]>, required: true },
   /** 星期顺序（MON..SAT, SUN） */
-  dayOrder: { type: Array, required: true },
+  dayOrder: { type: Array as PropType<string[]>, required: true },
   /** 星期标签函数 */
   dayLabel: { type: Function, required: true },
   /** 单元样式（色阶）函数 */

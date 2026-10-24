@@ -194,7 +194,8 @@ async function loadNotices() {
   try {
     const res = await notificationApi.getNotificationList({ page: 1, size: 20 })
     const data = unwrap(res)
-    const list = data?.records || data?.list || []
+    // unwrap 返回 unknown：分页信封两种键名（records/list）兜底后收窄为数组
+    const list = (data?.records || data?.list || []) as Record<string, unknown>[]
     notices.value = list.map((n) => ({
       ...n,
       group: groupByMonth(n.createdAt || n.time),

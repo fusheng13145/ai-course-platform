@@ -367,7 +367,7 @@ export function useKnowledgeTab(courseIdRef) {
       target: l.target || l.targetName || l.targetId,
     }))
     if (treeData.value?.[0])
-      treeOption.value.series[0].data = transformTree(treeData.value[0]) as Record<
+      treeOption.value.series[0].data = transformTree(treeData.value[0]) as unknown as Record<
         string,
         unknown
       >[]

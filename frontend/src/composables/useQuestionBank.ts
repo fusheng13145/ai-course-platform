@@ -97,7 +97,7 @@ export function useQuestionBank() {
       const body = unwrap(r)
       const list = body?.records || body?.list || body || []
       questionList.value = Array.isArray(list) ? list : []
-      total.value = body?.total ?? body?.count ?? questionList.value.length
+      total.value = Number(body?.total ?? body?.count ?? questionList.value.length)
     } catch (e) {
       logger.error('加载题目列表失败', e)
       ElMessage.error('加载题目列表失败')

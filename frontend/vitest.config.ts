@@ -1,9 +1,13 @@
-import { defineConfig } from 'vitest/config'
+import { defineConfig, type UserConfig } from 'vitest/config'
 import vue from '@vitejs/plugin-vue'
 import { resolve } from 'path'
 
+// @vitejs/plugin-vue 的类型按其依赖的 vite 版本声明，与 vitest/config 内嵌的 Vite 类型
+// 存在版本错位（TS2769）——运行时无差，经 unknown 双段收窄对齐（类型债棘轮 B0）
+const vuePlugin = vue() as unknown as UserConfig['plugins']
+
 export default defineConfig({
-  plugins: [vue()],
+  plugins: [vuePlugin],
   test: {
     environment: 'jsdom',
     globals: true,

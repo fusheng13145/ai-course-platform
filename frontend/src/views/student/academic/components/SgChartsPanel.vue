@@ -45,14 +45,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, type PropType } from 'vue'
 import { getChartTheme, getMonoSeries, monoScore } from '@/utils/chartTheme'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
 const props = defineProps({
   loading: { type: Boolean, default: false },
   groupedByCourse: { type: Object, default: () => ({}) },
-  list: { type: Array, default: () => [] },
+  list: { type: Array as PropType<{ score?: number | string | null }[]>, default: () => [] },
   // D2-1：双态空文案由父页（Grades.vue）按 loadError 切换——失败时不得把
   // 「加载失败」显示成「选课不足」或「暂无考试记录」
   radarEmptyText: {

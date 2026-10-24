@@ -37,6 +37,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { ArrowLeft, AlarmClock } from '@element-plus/icons-vue'
 
 /**
@@ -45,7 +46,7 @@ import { ArrowLeft, AlarmClock } from '@element-plus/icons-vue'
  */
 defineProps({
   paper: { type: Object, default: null },
-  questions: { type: Array, default: () => [] },
+  questions: { type: Array as PropType<{ id: number | string }[]>, default: () => [] },
   currentIndex: { type: Number, default: 0 },
   remainingMinutes: { type: Number, default: 0 },
   countdownDisplay: { type: String, default: '00:00' },

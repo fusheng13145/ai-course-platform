@@ -79,7 +79,7 @@ async function sendQa() {
       res = await aiApi.qaAsk({ courseId: props.courseId, question: text })
     }
     const data = unwrap(res) || {}
-    if (data.sessionId) sessionId.value = data.sessionId
+    if (data.sessionId) sessionId.value = data.sessionId as string
     // answer/sources 由控制器按展示口径 HTML 转义下发，还原后再插值（插值本身不解析 HTML）
     messages.value.push({
       role: 'ai',

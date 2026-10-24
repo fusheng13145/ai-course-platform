@@ -116,7 +116,9 @@ async function loadMonthData() {
       })
     } else if (typeof rawStudyDays === 'object' && rawStudyDays !== null) {
       Object.entries(rawStudyDays).forEach(([date, info]) => {
-        const minutes = typeof info === 'number' ? info : info?.minutes || 30
+        // info 兼容两种形态：纯分钟数（number）或 { minutes } 对象
+        const minutes =
+          typeof info === 'number' ? info : (info as { minutes?: number } | null)?.minutes || 30
         newMap.set(date, {
           minutes: minutes,
           durationText: minutes >= 60 ? `${Math.floor(minutes / 60)}h` : `${minutes}m`,

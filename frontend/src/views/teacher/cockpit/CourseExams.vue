@@ -285,7 +285,7 @@ async function viewQuestions(row) {
   try {
     const r = await examApi.getExamQuestions(row.id)
     const body = unwrap(r)
-    ques.list = Array.isArray(body) ? body : body?.records || body?.list || []
+    ques.list = (Array.isArray(body) ? body : body?.records || body?.list || []) as typeof ques.list
   } catch (e) {
     logger.error('加载试卷题目失败', e)
   } finally {
