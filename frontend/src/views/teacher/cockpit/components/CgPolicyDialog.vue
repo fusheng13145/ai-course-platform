@@ -12,7 +12,7 @@
       </el-form-item>
       <el-form-item label="构成项">
         <div class="comp-list">
-          <div v-for="(c, i) in policyForm.components" :key="i" class="comp-row">
+          <div v-for="(c, i) in policyForm.components" :key="c.rowKey" class="comp-row">
             <el-input v-model="c.key" placeholder="标识 key" class="comp-key" />
             <el-input v-model="c.name" placeholder="名称" class="comp-name" />
             <el-input-number
@@ -74,8 +74,13 @@ const weightSum = computed(() =>
 const weightBalanced = computed(() => Math.abs(weightSum.value - 100) <= 0.01)
 const weightSumText = computed(() => Math.round(weightSum.value * 100) / 100)
 
+// 行标识仅用于 v-for 稳定键：删除中间行时已聚焦的输入框不因下标复用而错位；
+// savePolicy 的 payload 是显式映射（key/name/weight），rowKey 不会外泄到后端
+let rowKeySeq = 0
+const nextRowKey = () => ++rowKeySeq
+
 function addComponent() {
-  policyForm.components.push({ key: '', name: '', weight: 0 })
+  policyForm.components.push({ key: '', name: '', weight: 0, rowKey: nextRowKey() })
 }
 function removeComponent(i) {
   policyForm.components.splice(i, 1)
@@ -85,13 +90,16 @@ function open(existing) {
   if (existing) {
     policyForm.id = existing.id
     policyForm.name = existing.name
-    policyForm.components = (existing.components || []).map((c) => ({ ...c }))
+    policyForm.components = (existing.components || []).map((c) => ({
+      ...c,
+      rowKey: nextRowKey(),
+    }))
   } else {
     policyForm.id = null
     policyForm.name = ''
     policyForm.components = [
-      { key: 'usual', name: '平时', weight: 40 },
-      { key: 'final', name: '期末', weight: 60 },
+      { key: 'usual', name: '平时', weight: 40, rowKey: nextRowKey() },
+      { key: 'final', name: '期末', weight: 60, rowKey: nextRowKey() },
     ]
   }
 }
