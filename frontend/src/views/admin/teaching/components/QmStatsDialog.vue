@@ -29,11 +29,11 @@
         </div>
       </div>
 
-      <div v-if="stats.recentUsage?.length > 0" class="recent-usage">
+      <div v-if="recentUsage.length > 0" class="recent-usage">
         <h4>近期使用记录</h4>
         <el-timeline>
           <el-timeline-item
-            v-for="(record, idx) in stats.recentUsage.slice(0, 5)"
+            v-for="(record, idx) in recentUsage"
             :key="idx"
             :timestamp="record.time || record.date"
             placement="top"
@@ -65,6 +65,8 @@ useDialogFocus(
   dialogRef,
   computed(() => props.modelValue),
 )
+
+const recentUsage = computed(() => props.stats?.recentUsage?.slice(0, 5) ?? [])
 
 const emit = defineEmits(['update:model-value'])
 </script>

@@ -18,7 +18,7 @@
         <el-icon><Warning /></el-icon>异常成绩预警
       </div>
       <div v-if="abnormalGrades.length > 0" class="abnormal-list">
-        <div v-for="(item, idx) in abnormalGrades.slice(0, 5)" :key="idx" class="abnormal-item">
+        <div v-for="(item, idx) in topAbnormalGrades" :key="idx" class="abnormal-item">
           <div class="abnormal-info">
             <span class="name">{{ item.studentName }}</span>
             <span class="score" :class="item.score < 60 ? 'low' : 'high'">{{ item.score }}分</span>
@@ -32,6 +32,7 @@
 </template>
 
 <script setup lang="ts">
+import { computed } from 'vue'
 import { Warning } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
@@ -40,7 +41,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
  * <p>成绩分布（五档柱状图）、各课程平均分对比（横向条形图）、
  * 异常成绩预警列表（取前 5 条，低于 60 分标红）。</p>
  */
-defineProps({
+const props = defineProps({
   /** 成绩分布图配置 */
   distributionOption: { type: Object, required: true },
   /** 课程平均分对比图配置 */
@@ -48,6 +49,8 @@ defineProps({
   /** 异常成绩列表 */
   abnormalGrades: { type: Array, default: () => [] },
 })
+
+const topAbnormalGrades = computed(() => props.abnormalGrades.slice(0, 5))
 </script>
 
 <style scoped>

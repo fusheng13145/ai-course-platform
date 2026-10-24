@@ -7,7 +7,7 @@
     <div class="chart-card pending-card">
       <div class="chart-title">待批阅任务</div>
       <div v-if="pendingTasks.length > 0" class="pending-list">
-        <div v-for="t in pendingTasks.slice(0, 5)" :key="t.id" class="pending-item">
+        <div v-for="t in visibleTasks" :key="t.id" class="pending-item">
           <span>{{ t.taskName || t.title || '未命名' }}</span>
           <el-tag type="warning" size="small">
             {{ t.pendingCount == null ? '待批阅' : `${t.pendingCount}份` }}
@@ -31,14 +31,17 @@
 </template>
 
 <script setup>
+import { computed } from 'vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
-defineProps({
+const props = defineProps({
   distOption: { type: Object, default: () => ({}) },
   pendingTasks: { type: Array, default: () => [] },
   pendingLoading: { type: Boolean, default: false },
   pendingUnavailable: { type: Boolean, default: false },
 })
+
+const visibleTasks = computed(() => props.pendingTasks.slice(0, 5))
 </script>
 
 <style scoped>
