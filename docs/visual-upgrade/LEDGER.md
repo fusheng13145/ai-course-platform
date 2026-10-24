@@ -159,6 +159,12 @@ Phase 0 的实测表已从**未入 git、且被 agent 追加改写**的 `task-4-
   同一个数字 3.21:1，挂错门槛就变成假缺陷。
   未决：副标题 `.brand-sub` 约 1.05:1 是**推算值不是量出来的**，`证据 §8.1` 末行与 §10.3 明确要求标"待复测"
   （原始出处 `task-4-report.md` §5 D-5 与 §F-6 Minor 6）。
+  **✅ 修复（FE-05，`5561aac`，2026-10-24）**：根因是 `.brand-side` 底色写死品牌红而文字用 `var(--surface)`，
+  暗色下该令牌翻成 `#171d26` 深墨压红底。修复＝文字改主题无关白 + opacity 档位上调
+  （feat-item 0.88→0.94、brand-sub 0.78→0.92）。精确 WCAG 读数（同"合成色"口径）：纯白 5.34、
+  feat-item 合成 4.89、brand-sub 合成 4.75（门槛 4.5，全部带余量）；brand-title 5.34（门槛 3）。
+  原文"未决"的 brand-sub 一并复测过线。login 明暗两张基线同批重录并逐张人工看图
+  （light 红是 opacity 档位变化的合法影响面），sha256 清单同步。
 
 - **D-6 · 管理页角色徽章 1.22:1（且上一轮记成了 3.80:1，真实缺陷比记录的更严重）**
   实测：`/admin/profile` 暗色下 `.role-tag--admin` 的计算样式 `color: rgb(193,59,48)`（即 `#c13b30`）、
@@ -169,6 +175,10 @@ Phase 0 的实测表已从**未入 git、且被 agent 追加改写**的 `task-4-
   **必须记下这次更正**：上一轮把文字对比度误记为 3.80:1，`证据 §8.2` 的更正记录已证伪（原始出处 `task-4-report.md` §5 D-6 与 §F-6 Minor 5）——
   那个 3.85:1 是旁边 34px/700 的近白字（`.hero-avatar__img`，`ProfileHero.vue:133-136`）与徽章底配出来的对，
   不可能是徽章文字（CSS 只允许 `#c13b30`）。真实值是 **1.22:1**。
+  **✅ 修复（FE-05，`5561aac`，2026-10-24）**：暗色限定覆盖改浅色 pill 反转配色
+  （`background: rgba(255,235,232,.92)` + `color: #8f2a20`）。读数：文字对 pill 6.51:1（门槛 4.5）、
+  pill 对横幅红 4.17:1（非文本门槛 3），双门槛带余量；浅色侧不动（admin-profile-light 基线实测未变）。
+  admin-profile-dark 基线重录并人工看图，sha256 清单同步。
 
 - **D-8 · 暗色知识图谱标签用浅色主题的墨 ⇒ 1.13:1，肉眼几乎看不见**
   实测：暗色下标签墨色 `#1f2733` 画在 `rgb(23,29,38)` 面板上 = **1.13:1**（正文，门槛 4.5:1）；
@@ -179,6 +189,11 @@ Phase 0 的实测表已从**未入 git、且被 agent 追加改写**的 `task-4-
   headless Chromium 默认 light；`updateChartOption()` 之后只换节点色、不重建 `series[0].label.color`
   （`证据 §8.3` 根因段，原始出处 `task-4-report.md` §F-5 D-8）。
   受影响锚点图：`student-knowledge-graph-dark.png`。
+  **✅ 修复核实（2026-10-24，随 FE-05 批，无新代码）**：本条根因前提（`data-theme` 晚于图表求值写入）
+  已被 R-08 的 D-1 修复拆除（`applyStoredTheme()` 提前到 mount 前，`ea48fe1`），`c0b94ce` 重采的
+  暗色图谱基线里标签墨已是暗色令牌——本会话逐图复核：8 组节点标签全部清晰可读。残余边界：
+  会话**中途**切主题不会重建 graphOption（`onThemeChange` 全仓无消费者），标签色保持旧主题直到
+  刷新——登记为已知边界（影响面：切主题后需刷新才换图表配色），不属本缺陷（缺陷测的是初始态）。
 
 - **D-9 · 图谱节点圆点根本不画（两主题）**
   实测：zrender 显示列表里 8 个 `path` 元素 `scaleX = scaleY = 0`、`shape = { symbolType:'circle', width:2, height:2 }`；
@@ -186,6 +201,11 @@ Phase 0 的实测表已从**未入 git、且被 agent 追加改写**的 `task-4-
   （不冻时钟实时等 4s 仍是 0，`reducedMotion: 'no-preference'` 仍是 0）⇒ 基线画的是"边 + 节点标签"，没有节点本身
   （`证据 §8.4`，原始出处 `task-4-report.md` §F-5 D-9）。
   受影响锚点图：`student-knowledge-graph-light.png`、`student-knowledge-graph-dark.png`（`证据 §7` 表 #17/#18）。
+  **⛔ 修复尝试证伪（2026-10-24，随 FE-05 批）——本条保持开项**：入场动画假设（冻结时钟下
+  scale 0→1 不前进）被原地实验证伪——根级与系列级双写 `animation: false` 后，两主题像素与
+  基线**完全一致**（节点仍 scale 0），改动已撤销不入库（无效果代码不得混入缺陷修复）。
+  根因收窄：不是入场动画时序；symbolSize 数据侧下限 10 亦排除（`nodeSize()` 最小 10）。
+  下一步需持 zrender 显示列表探针的专项取证（复刻 task-4-report 的量法）定位 scale=0 的写入方。
   与 `P0a-GUARD-01` 的关系：三道守卫的判据只到"有墨/没墨"（下限 300 px、实测 6051 px），
   **节点不画不在其覆盖范围内**，别把"守卫过了"读成"图画全了"。
 
