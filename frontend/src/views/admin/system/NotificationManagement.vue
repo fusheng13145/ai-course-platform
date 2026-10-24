@@ -82,7 +82,15 @@ const read = ref([])
 
 const detailNotice = ref(null)
 const drawerOpen = ref(false)
-const ctx = ref({ visible: false, x: 0, y: 0, items: [], notice: null })
+// 右键菜单状态：items 允许字符串分隔符（'-'）与动作项两种形态
+type ContextMenuItem = { text: string; icon: string; danger?: boolean; onClick: () => void }
+const ctx = ref<{
+  visible: boolean
+  x: number
+  y: number
+  items: Array<string | ContextMenuItem>
+  notice?: Record<string, unknown> | null
+}>({ visible: false, x: 0, y: 0, items: [], notice: null })
 
 const noticeGroups = computed(() => [
   {
@@ -152,7 +160,9 @@ async function doRead(n) {
 
 function openMenu(e, n) {
   const r = e.currentTarget.getBoundingClientRect()
-  const ops = [{ text: '查看详情', icon: 'eye', onClick: () => openNotice(n) }]
+  const ops: Array<string | ContextMenuItem> = [
+    { text: '查看详情', icon: 'eye', onClick: () => openNotice(n) },
+  ]
   if (!n.isRead) ops.push({ text: '标记已读', icon: 'check', onClick: () => doRead(n) })
   ops.push('-', { text: '删除', icon: 'trash', danger: true, onClick: () => doDelete(n) })
   ctx.value = { visible: true, x: r.left, y: r.bottom + 4, items: ops }
