@@ -128,7 +128,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref, type PropType } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 import { toast } from '@/composables/useToast'
 import studentApi from '@/api/student'
@@ -139,7 +139,18 @@ import studentApi from '@/api/student'
  * 通过 emit('joined') 通知父组件刷新课程列表。</p>
  */
 defineProps({
-  courses: { type: Array, default: () => [] },
+  courses: {
+    type: Array as PropType<
+      {
+        courseId?: number | string
+        name?: string
+        cover?: string
+        progress?: number
+        nextTask?: string
+      }[]
+    >,
+    default: () => [],
+  },
   loading: { type: Boolean, default: false },
 })
 
