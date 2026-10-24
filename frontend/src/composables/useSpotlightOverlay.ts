@@ -1,17 +1,32 @@
-import { ref, computed, onBeforeUnmount } from 'vue'
+import { ref, computed, onBeforeUnmount, type Ref } from 'vue'
 import { computeCardPlacement, computeScrimRects } from '@/onboarding/geometry'
 
 const FALLBACK = { width: 320, height: 245 }
 const PAD = 6
 
+interface Rect {
+  top: number
+  left: number
+  width: number
+  height: number
+}
+
 /**
  * 只负责几何：不认锚点键、不读存储、不渲染卡片。
  * getTarget() 由调用方给，调用侧负责把它接到锚点解析。
  */
-export function useSpotlightOverlay({ getTarget, cardRef, onAnchorMiss }) {
-  const rects = ref([])
-  const ring = ref(null)
-  const cardStyle = ref({})
+export function useSpotlightOverlay({
+  getTarget,
+  cardRef,
+  onAnchorMiss,
+}: {
+  getTarget: () => Element | null
+  cardRef: Ref<HTMLElement | null>
+  onAnchorMiss?: () => void
+}) {
+  const rects = ref<Rect[]>([])
+  const ring = ref<Rect | null>(null)
+  const cardStyle = ref<Record<string, string>>({})
   const placement = ref('centered')
   const anchorMiss = ref(false)
   let raf = 0
@@ -62,7 +77,7 @@ export function useSpotlightOverlay({ getTarget, cardRef, onAnchorMiss }) {
   }
 
   /** 改前只读 rect、从不滚动 ⇒ 目标在视口外时聚光框跑到屏外 */
-  function follow(el) {
+  function follow(el: Element | null | undefined) {
     if (disposed) return
     el?.scrollIntoView?.({ block: 'center', inline: 'center', behavior: 'smooth' })
     window.clearTimeout(scrollTimer)
@@ -91,5 +106,13 @@ export function useSpotlightOverlay({ getTarget, cardRef, onAnchorMiss }) {
       : {},
   )
 
-  return { scrimRects: computed(() => rects.value), ringStyle, cardStyle, placement, anchorMiss, refresh: schedule, follow }
+  return {
+    scrimRects: computed(() => rects.value),
+    ringStyle,
+    cardStyle,
+    placement,
+    anchorMiss,
+    refresh: schedule,
+    follow,
+  }
 }
