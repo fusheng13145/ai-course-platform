@@ -1,4 +1,6 @@
-export default [
+import type { OnboardingStep } from './types'
+
+const steps: OnboardingStep[] = [
   {
     id: 'welcome',
     title: '这里是教师端',
@@ -36,3 +38,5 @@ export default [
     expect: '进入 AI 教学中心，引导结束',
   },
 ]
+
+export default steps

@@ -7,10 +7,19 @@ export const KEY_V2_PREFIX = 'ai-course:onboarding:v2'
 const ANON = 'anon'
 const STATUSES = ['done', 'skipped', 'paused']
 
-const keyV2 = (userId) => `${KEY_V2_PREFIX}:${userId ?? ANON}`
-const keyV1 = (userId) => `${KEY_V1_PREFIX}:${userId ?? ANON}`
+export type OnboardingStatus = 'done' | 'skipped' | 'paused'
 
-export function readState(userId) {
+export interface OnboardingReadState {
+  status: OnboardingStatus | 'idle'
+  atStep: number
+}
+
+type UserId = number | string | null | undefined
+
+const keyV2 = (userId: UserId) => `${KEY_V2_PREFIX}:${userId ?? ANON}`
+const keyV1 = (userId: UserId) => `${KEY_V1_PREFIX}:${userId ?? ANON}`
+
+export function readState(userId: UserId): OnboardingReadState {
   try {
     const raw = localStorage.getItem(keyV2(userId))
     if (!raw) return { status: 'idle', atStep: 0 }
@@ -27,7 +36,7 @@ export function readState(userId) {
 
 /** resume() 的跨角色判断要取落盘里的 role；readState 的返回形状不含 role（不泄漏进契约），
  *  所以单开这条窄读，只在角色比对时读一次。 */
-export function readStoredRole(userId) {
+export function readStoredRole(userId: UserId): string | null {
   try {
     const raw = localStorage.getItem(keyV2(userId))
     if (!raw) return null
@@ -38,7 +47,12 @@ export function readStoredRole(userId) {
   }
 }
 
-export function writeStatus(userId, status, atStep, role = null) {
+export function writeStatus(
+  userId: UserId,
+  status: string,
+  atStep: number,
+  role: string | null | undefined = null,
+): void {
   try {
     localStorage.setItem(
       keyV2(userId),
@@ -55,7 +69,10 @@ export function writeStatus(userId, status, atStep, role = null) {
   // 一起删除（那次读的返回值只喂给了这条广播，没有别的消费者）。
 }
 
-export function migrateV1IfPresent(userId, role = null) {
+export function migrateV1IfPresent(
+  userId: UserId,
+  role: string | null | undefined = null,
+): boolean {
   try {
     if (localStorage.getItem(keyV2(userId))) return false
     if (localStorage.getItem(keyV1(userId)) !== '1') return false

@@ -9,22 +9,22 @@ const NAV_PREFIX = 'nav:'
 
 // jsdom 没有 CSS 全局（typeof window.CSS === 'undefined'），不能用 CSS.escape。
 // 属性值已由双引号包裹，只需转义反斜杠与双引号。
-const esc = (v) => String(v).replace(/["\\]/g, '\\$&')
+const esc = (v: unknown): string => String(v).replace(/["\\]/g, '\\$&')
 
 /** 裸键 → 选择器。新增裸键必须同时被某一步用到，否则 anchors.test.js 红。 */
-const BARE = {
+const BARE: Record<string, string> = {
   'side-user': '[data-onboard="side-user"]',
   'join-course': '[data-onboard="join-course"]',
 }
 
-export const ALL_ANCHOR_KEYS = Object.keys(BARE)
+export const ALL_ANCHOR_KEYS: string[] = Object.keys(BARE)
 
-export function isRegisteredAnchor(key) {
+export function isRegisteredAnchor(key: unknown): boolean {
   if (typeof key !== 'string') return false
   return key.startsWith(NAV_PREFIX) || Object.prototype.hasOwnProperty.call(BARE, key)
 }
 
-export function resolveAnchor(key, root = document) {
+export function resolveAnchor(key: string, root: ParentNode = document): Element | null {
   if (!isRegisteredAnchor(key)) {
     throw new Error(`未注册锚点：${String(key)}（加进 BARE 或改 steps，不要静默返回 null）`)
   }
