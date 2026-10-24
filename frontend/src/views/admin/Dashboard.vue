@@ -31,7 +31,7 @@ import analyticsApi from '@/api/analytics'
 import { toast } from '@/composables/useToast'
 
 const overview = ref({})
-const dash = ref({})
+const dash = ref<{ completionRate?: number; gradeDistribution?: number[] }>({})
 const trendData = ref([])
 const gradeDist = ref([])
 const deptData = ref([])

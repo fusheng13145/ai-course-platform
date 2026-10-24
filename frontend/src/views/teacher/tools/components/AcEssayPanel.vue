@@ -60,7 +60,7 @@ async function runCorrect() {
     const r = await aiApi.essayCorrect({ content: essayText.value.trim() })
     const body = unwrap(r)
     const data = unwrap(body) || {}
-    essayResult.value = data.result || data.corrected || data.feedback || '（暂无批改结果）'
+    essayResult.value = String(data.result || data.corrected || data.feedback || '（暂无批改结果）')
     ElMessage.success('批改完成')
   } catch (e) {
     logger.error('作文批改失败', e)
@@ -79,7 +79,7 @@ async function runPolish() {
     const data = unwrap(body) || {}
     const polished = data.result || data.polished || data.content || ''
     if (polished) {
-      essayText.value = polished
+      essayText.value = String(polished)
       ElMessage.success('已润色')
     } else {
       ElMessage.warning('未返回润色结果')

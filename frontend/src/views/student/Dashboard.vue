@@ -47,7 +47,7 @@ import SdCourseGrid from './components/SdCourseGrid.vue'
  */
 const courses = ref([])
 const todos = ref({ assignments: [], exams: [], signIns: [] })
-const summary = ref({})
+const summary = ref<{ courseCount?: number; unreadCount?: number }>({})
 const loading = ref(true)
 
 const avgProgress = computed(() => {

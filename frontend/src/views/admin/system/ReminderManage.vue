@@ -167,7 +167,8 @@ const dialogRef = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
 useDialogFocus(dialogRef, dialogVisible)
 const isEdit = ref(false)
-const form = ref({ title: '', content: '', remindAt: null, targetUserId: '' })
+// id 仅编辑态存在（loadTodos 回填行数据时写入）；其余字段与新建表单同形
+const form = ref<{ id?: number | string; title: string; content: string; remindAt: null; targetUserId: string }>({ title: '', content: '', remindAt: null, targetUserId: '' })
 const formRef = ref<ElFormLike | null>(null)
 // D2-4：必填规则声明（原为手写 if 校验），blur 内联错误 + 提交时首错滚动定位
 const rules = {

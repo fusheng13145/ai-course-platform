@@ -59,7 +59,7 @@ export function useExamPapers() {
       const body = unwrap(r)
       const list = body?.records || body?.list || body || []
       examList.value = Array.isArray(list) ? list : []
-      total.value = body?.total ?? body?.count ?? examList.value.length
+      total.value = Number(body?.total ?? body?.count ?? examList.value.length)
     } catch (e) {
       logger.error('加载试卷列表失败', e)
       ElMessage.error('加载试卷列表失败')
@@ -180,7 +180,7 @@ export function useExamPapers() {
       try {
         const r = await examApi.getExamQuestions(row.id)
         const body = unwrap(r)
-        examQuestions.value = Array.isArray(body) ? body : body?.list || body?.records || []
+        examQuestions.value = (Array.isArray(body) ? body : body?.list || body?.records || []) as typeof examQuestions.value
       } catch (e) {
         logger.error('加载题目失败', e)
         examQuestions.value = []

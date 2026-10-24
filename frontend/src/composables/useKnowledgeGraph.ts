@@ -16,7 +16,8 @@ import { confirmDanger } from '@/utils/dangerConfirm'
 export function useKnowledgeGraph() {
   const courseLoading = ref(false)
   const courseOptions = ref([])
-  const courseId = ref('')
+  // 字符串（统一路由 ?courseId=）与数字（驾驶舱 /teacher/courses/:id/knowledge 直入）两种来源
+  const courseId = ref<string | number>('')
   const loading = ref(false)
   /**
    * 知识点列表 / 图谱两路加载各自独立记录失败，避免并发加载时被成功方复位而互相串味；
@@ -111,7 +112,13 @@ export function useKnowledgeGraph() {
   const editingId = ref(null)
   const kpForm = reactive({ name: '', description: '', difficulty: 'MEDIUM', importance: 2 })
 
-  function openForm(row) {
+  function openForm(row?: {
+    id?: number | string
+    name?: string
+    description?: string
+    difficulty?: string
+    importance?: number
+  }) {
     if (row) {
       isEdit.value = true
       editingId.value = row.id

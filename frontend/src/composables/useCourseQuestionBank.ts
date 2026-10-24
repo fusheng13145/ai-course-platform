@@ -78,8 +78,8 @@ export function useCourseQuestionBank(courseIdRef) {
         keyword: filters.keyword || undefined,
       })
       const body = unwrap(r)
-      list.value = body?.records || body?.list || body || []
-      total.value = body?.total ?? body?.totalElements ?? list.value.length
+      list.value = (body?.records || body?.list || body || []) as typeof list.value
+      total.value = Number(body?.total ?? body?.totalElements ?? list.value.length)
     } catch (e) {
       logger.error('加载题库失败', e)
       list.value = []

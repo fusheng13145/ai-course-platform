@@ -176,7 +176,7 @@ export const useAuthStore = defineStore('auth', () => {
         permissionsLoaded.value = true
         // 服务端若回传角色，作为路由鉴权的权威来源，压过可篡改的本地 user.role
         if (typeof data === 'object' && (data.role || data.userRole)) {
-          serverRole.value = data.role || data.userRole
+          serverRole.value = String(data.role || data.userRole)
         }
         const storage = persistent.value ? localStorage : sessionStorage
         storage.setItem('permissions', JSON.stringify(data))
@@ -247,7 +247,7 @@ export const useAuthStore = defineStore('auth', () => {
       const data = unwrap(response)
       if (data.user) {
         // 令牌已写入 HttpOnly Cookie，前端仅持有内存态占位，不持久化
-        token.value = data.token || ''
+        token.value = String(data.token || '')
         user.value = data.user
         persistent.value = remember
         clearAllStorage()

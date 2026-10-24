@@ -398,7 +398,7 @@ async function loadSubmissions() {
     })
     if (sequence !== submissionLoadSequence || taskId !== selectedTaskId.value) return
     const payload = unwrap(response)
-    const rows = pickList(payload)
+    const rows = pickList(payload) as Record<string, unknown>[]
     submissions.value = rows.map((row) => ({
       ...row,
       fileUrls: normalizeFileUrls(row.fileUrls),

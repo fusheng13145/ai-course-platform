@@ -69,7 +69,8 @@ import CgScoreDialog from './components/CgScoreDialog.vue'
 import CgPreviewDialog from './components/CgPreviewDialog.vue'
 
 const route = useRoute()
-const courseId = route.params.id
+// route.params.id 类型是 string | string[]（同名段重复时为数组）；本路由标量，收窄为 string
+const courseId = String(route.params.id)
 
 const loading = ref(false)
 const reportLoading = ref(false)
@@ -129,7 +130,7 @@ async function loadReport() {
   try {
     const r = await gradeApi.getCourseReport(courseId)
     const body = unwrap(r)
-    report.value = body?.records || body?.list || body || []
+    report.value = (body?.records || body?.list || body || []) as typeof report.value
   } catch (e) {
     logger.error('加载成绩报告失败', e)
     report.value = []

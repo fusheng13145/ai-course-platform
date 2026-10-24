@@ -88,9 +88,9 @@ async function loadWeak() {
     const r = await aiApi.weakPointsAnalysis({ courseId: props.courseId })
     const body = unwrap(r)
     const data = unwrap(body) || {}
-    weakPoints.value = data.weakPoints || data.list || data.points || []
+    weakPoints.value = (data.weakPoints || data.list || data.points || []) as typeof weakPoints.value
     weakStats.value = data.userStats || data.stats || null
-    weakSummary.value = data.summary || ''
+    weakSummary.value = String(data.summary || '')
   } catch (e) {
     logger.error('薄弱点分析失败', e)
     weakError.value = '薄弱点分析加载失败，请稍后重试'

@@ -11,9 +11,32 @@
  * - 识别/朗读失败一律静默降级，不干扰主流程。
  */
 
+/**
+ * Web Speech 识别器的最小结构面：TS 内置 dom lib（ES2020）尚无 SpeechRecognition 声明，
+ * 这里只声明本 composable 触碰得到的成员（其余浏览器实现成员不进入类型面）。
+ */
+interface SpeechRecognitionLike {
+  lang: string
+  continuous: boolean
+  interimResults: boolean
+  onresult:
+    | ((
+        event: {
+          resultIndex: number
+          results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }>
+        },
+      ) => void)
+    | null
+  onerror: ((e: { error?: string }) => void) | null
+  onend: (() => void) | null
+  start(): void
+  stop(): void
+  abort(): void
+}
+
 interface SpeechRecognitionWindow extends Window {
-  SpeechRecognition?: typeof SpeechRecognition
-  webkitSpeechRecognition?: typeof SpeechRecognition
+  SpeechRecognition?: new () => SpeechRecognitionLike
+  webkitSpeechRecognition?: new () => SpeechRecognitionLike
 }
 
 /** 语音识别是否可用 */

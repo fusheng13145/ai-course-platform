@@ -69,8 +69,8 @@ async function loadAdvice() {
     const r = await aiApi.learningAdvice({ courseId: props.courseId })
     const body = unwrap(r)
     const data = unwrap(body) || {}
-    adviceSummary.value = data.summary || ''
-    adviceItems.value = data.items || data.list || []
+    adviceSummary.value = String(data.summary || '')
+    adviceItems.value = (data.items || data.list || []) as typeof adviceItems.value
   } catch (e) {
     logger.error('学习建议加载失败', e)
     adviceError.value = '学习建议加载失败，请稍后重试'
