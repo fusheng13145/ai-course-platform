@@ -79,6 +79,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { Bell, Warning } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
@@ -98,9 +99,25 @@ defineProps({
   /** 预警占比 */
   riskRate: { type: Number, default: 0 },
   /** 分组预警（label/atRisk/total/atRiskRate） */
-  riskGroups: { type: Array, required: true },
+  riskGroups: {
+    type: Array as PropType<
+      { key: string; label: string; atRisk: number; total: number; atRiskRate: number }[]
+    >,
+    required: true,
+  },
   /** 预警明细（studentName/courseName/progress/finalScore/level） */
-  riskDetails: { type: Array, required: true },
+  riskDetails: {
+    type: Array as PropType<
+      {
+        studentName?: string
+        courseName?: string
+        progress?: number
+        finalScore?: number | string | null
+        level?: string
+      }[]
+    >,
+    required: true,
+  },
 })
 
 defineEmits(['update:riskDim', 'load-risk'])
