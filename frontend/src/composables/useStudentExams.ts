@@ -3,8 +3,10 @@ import { formatTime } from '@/utils/datetime'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import logger from '@/utils/logger'
 import examApi from '@/api/exam'
-import { pickList, unwrap } from '@/utils/response'
 import { confirmDanger } from '@/utils/dangerConfirm'
+import { useStudentExamList } from '@/composables/useStudentExamList'
+import { useStudentExamSheet } from '@/composables/useStudentExamSheet'
+import { useStudentExamTimers } from '@/composables/useStudentExamTimers'
 
 /** 服务端会话状态：进行中（对应后端 ExamSessionStatus.STARTED） */
 const SESSION_STATUS_STARTED = 'STARTED'
@@ -31,54 +33,24 @@ function unwrapPayload<T>(res: unknown): T | null {
 }
 
 /**
- * 学生考试业务逻辑
- * <p>承载学生考试页三视图（列表/答题/结果）的全部状态与操作：
- * 考试列表（搜索/状态筛选/已完成标记）、进入考试（启动会话 + 倒计时 + 自动保存）、
- * 答题交互（单选/多选/判断/简答 + 题目导航 + 作答收集）、提交与成绩结果。</p>
+ * 学生考试业务逻辑（编排层，FE-06 拆分后的公共入口）
+ * <p>承载学生考试页三视图（列表/答题/结果）的**视图切换与会话编排**；
+ * 列表域见 useStudentExamList、作答域见 useStudentExamSheet、
+ * 倒计时/自动保存定时器域见 useStudentExamTimers。</p>
+ * <p>对外导出面与拆分前逐名一致（Exams.vue 消费，勿改名）。</p>
  */
 export function useStudentExams() {
   /* ---- 视图模式：list / exam / result ---- */
   const viewMode = ref('list')
 
-  /* ---- 列表页状态 ---- */
-  const searchKeyword = ref('')
-  const statusFilter = ref('')
-  const listLoading = ref(false)
-  /**
-   * 加载失败提示文案：非空即表示考试列表数据不可信。
-   * 失败时列表被置空并显示"暂无考试"，学生易误判为"当前没有可参加的考试"。
-   */
-  const loadError = ref('')
-  const examList = ref([])
-  /** 课程上下文过滤：非空时仅展示该课程的考试（课程侧边栏/驾驶舱直入） */
-  const courseIdFilter = ref(null)
-
-  /* ---- 答题状态 ---- */
+  /* ---- 答题会话状态 ---- */
   const currentExamPaper = ref(null)
   // 显式标注联合类型：默认 ref(null) 会推导为 Ref<null>，恢复/新建两条路径都要写入会话ID
   const sessionId = ref<number | string | null>(null)
-  const questions = ref([])
-  const questionsLoading = ref(false)
-  const currentIndex = ref(0)
-  const answers = ref({} as Record<number, string | number | boolean>) // 单选/判断答案（单选为选项字母）
-  const multiAnswers = ref({} as Record<number, string[]>) // 多选答案（选项字母数组）
-  const textAnswers = ref({} as Record<number, string>) // 简答答案
   const defaultScore = 10
-
-  /* ---- 倒计时 ---- */
-  let countdownTimer = null
-  /**
-   * 超时自动交卷的重试定时器句柄。
-   * <p>归零交卷因瞬时网络故障失败时，前端须"兜底到底"周期性重试（详见 submitExamOnTimeout）；
-   * 该定时器与 countdown/autoSave 一并纳入 cleanupTimers 清理，避免组件卸载/成功交卷后残留。</p>
-   */
-  let timeoutSubmitRetryTimer: ReturnType<typeof setTimeout> | null = null
-  const totalSeconds = ref(0)
-  const remainingSeconds = ref(0)
 
   /* ---- 成绩结果 ---- */
   const examResult = ref({} as Record<string, unknown>)
-  const autoSaveTimer = ref(null)
   const submitting = ref(false)
 
   /**
@@ -87,52 +59,11 @@ export function useStudentExams() {
    */
   let autoSaveFailureNotified = false
 
+  /* ---- 子域 ---- */
+  const list = useStudentExamList()
+  const sheet = useStudentExamSheet()
+
   /* ---- 计算属性 ---- */
-
-  /** 课程上下文子集（统计卡与列表共同基准；统一入口未设置过滤时为全部） */
-  const courseScopedExams = computed(() => {
-    if (courseIdFilter.value == null) return examList.value
-    return examList.value.filter((e) => String(e.courseId) === String(courseIdFilter.value))
-  })
-
-  /** 过滤后的考试列表（课程 + 关键字 + 状态） */
-  const filteredExams = computed(() => {
-    let list = courseScopedExams.value
-    if (searchKeyword.value) {
-      list = list.filter((e) => e.title?.includes(searchKeyword.value))
-    }
-    if (statusFilter.value) {
-      list = list.filter((e) => {
-        if (statusFilter.value === 'completed') return e.completed
-        if (statusFilter.value === 'available') return !e.completed && e.status !== 'EXPIRED'
-        if (statusFilter.value === 'expired') return e.status === 'EXPIRED'
-        return true
-      })
-    }
-    return list
-  })
-
-  /** 考试总数 */
-  const totalExams = computed(() => courseScopedExams.value.length)
-  /** 可参加：未完成且未过期 */
-  const availableExams = computed(
-    () => courseScopedExams.value.filter((e) => !e.completed && e.status !== 'EXPIRED').length,
-  )
-  /** 已完成 */
-  const completedExams = computed(() => courseScopedExams.value.filter((e) => e.completed).length)
-
-  /** 当前题目 */
-  const currentQuestion = computed(() => questions.value[currentIndex.value] || null)
-
-  /** 剩余分钟数 */
-  const remainingMinutes = computed(() => Math.floor(remainingSeconds.value / 60))
-
-  /** 倒计时显示文本 */
-  const countdownDisplay = computed(() => {
-    const m = Math.floor(remainingSeconds.value / 60)
-    const s = remainingSeconds.value % 60
-    return `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`
-  })
 
   /** 结果提示信息（P1-21：后端 result 返回 ExamSession，学生得分字段为 totalScore 而非 score） */
   const resultMessage = computed(() => {
@@ -144,62 +75,7 @@ export function useStudentExams() {
     return '未达到及格线，建议复习后再次尝试。'
   })
 
-  /* ---- 方法：列表页 ---- */
-
-  async function loadExamList() {
-    listLoading.value = true
-    loadError.value = ''
-    try {
-      // 课程上下文必须走**服务端**按课程过滤，不能只在已加载的第 1 页里做客户端筛选：
-      // GET /exam-papers 是分页接口（默认 page=1、size=10，且本页没有分页控件），
-      // 实测库存 114 份试卷时第 1 页只有 10 份、按 id 升序排列 → 老师刚发布的课程试卷
-      // 大概率压根不在列表里，而 SeExamList/Exams.vue 的承诺是「仅展示本课程考试」。
-      // 课程入口取足够大的 size，覆盖单课程规模，避免同一缺陷在课程维度复现。
-      const res =
-        courseIdFilter.value != null
-          ? await examApi.getAllExamPapersByCourse(courseIdFilter.value)
-          : await examApi.getAllExamPapers()
-      // 两个 getAll* 已由 fetchAllPages 解包为数组（不再有 data 信封）；
-      // pickList 对数组原样透传，同时防御信封形态回归。
-      examList.value = pickList(unwrap(res))
-
-      // 标记已完成状态（检查是否有提交记录）
-      try {
-        const sessionRes = await examApi.getMyExamSessions()
-        const sessions = sessionRes.data || sessionRes || []
-        const submittedIds = new Set(
-          (Array.isArray(sessions) ? sessions : [])
-            .filter((s) => s.status === 'SUBMITTED' || s.status === 'GRADED')
-            .map((s) => s.examPaperId),
-        )
-        examList.value.forEach((e) => {
-          if (submittedIds.has(e.id)) e.completed = true
-        })
-      } catch {
-        /* 忽略 */
-      }
-    } catch (e) {
-      logger.error('加载考试列表失败', e)
-      examList.value = []
-      loadError.value = '考试列表加载失败，请检查网络后重试'
-    } finally {
-      listLoading.value = false
-    }
-  }
-
-  function getExamStatusType(exam) {
-    if (exam.completed) return 'info'
-    if (exam.status === 'EXPIRED') return 'info'
-    return 'warning'
-  }
-
-  function getExamStatusLabel(exam) {
-    if (exam.completed) return '已完成'
-    if (exam.status === 'EXPIRED') return '已过期'
-    return '进行中'
-  }
-
-  /* ---- 方法：进入考试 ---- */
+  /* ---- 方法：进入考试（会话编排） ---- */
 
   /**
    * 查询该试卷上「进行中」的会话，用于中途退出后续答。
@@ -274,18 +150,18 @@ export function useStudentExams() {
       if (resumed && resumed.id !== undefined && resumed.id !== null) {
         // ---- 恢复流程：复用既有会话，不新建 ----
         sessionId.value = resumed.id
-        await loadQuestions(exam.id)
+        await sheet.loadQuestions(exam.id)
         currentExamPaper.value = exam
-        restoreAnswers(parseSavedAnswers(resumed.answers))
+        sheet.restoreAnswers(sheet.parseSavedAnswers(resumed.answers))
 
-        totalSeconds.value = duration * 60
+        timers.totalSeconds.value = duration * 60
         // 已考时长以服务端为准：避免每次退出重进都重置为满时长（等价无限续时）
         const remaining = await fetchRemainingSeconds(resumed.id)
-        remainingSeconds.value = remaining ?? totalSeconds.value
+        timers.remainingSeconds.value = remaining ?? timers.totalSeconds.value
 
         viewMode.value = 'exam'
-        startCountdown()
-        startAutoSave()
+        timers.startCountdown()
+        timers.startAutoSave()
         ElMessage.success('已恢复上次未完成的作答，请继续答题')
         return
       }
@@ -299,15 +175,15 @@ export function useStudentExams() {
       }
       sessionId.value = sid
 
-      await loadQuestions(exam.id)
+      await sheet.loadQuestions(exam.id)
       currentExamPaper.value = exam
 
-      totalSeconds.value = duration * 60
-      remainingSeconds.value = totalSeconds.value
+      timers.totalSeconds.value = duration * 60
+      timers.remainingSeconds.value = timers.totalSeconds.value
 
       viewMode.value = 'exam'
-      startCountdown()
-      startAutoSave()
+      timers.startCountdown()
+      timers.startAutoSave()
       ElMessage.success('考试已开始，祝你好运！')
     } catch (e) {
       // P1-22：开始考试失败不再静默吞掉，给出明确提示
@@ -316,142 +192,12 @@ export function useStudentExams() {
     }
   }
 
-  /* ---- 方法：加载题目 ---- */
-
-  async function loadQuestions(paperId) {
-    questionsLoading.value = true
-    try {
-      const res = await examApi.getExamQuestions(paperId)
-      const data = res.data || res || []
-      if (!Array.isArray(data) || data.length === 0) {
-        throw new Error('该试卷暂无可用题目，请联系老师确认后重试')
-      }
-      questions.value = data
-      // 初始化答案对象
-      answers.value = {}
-      multiAnswers.value = {}
-      textAnswers.value = {}
-    } catch (e) {
-      logger.error('加载题目失败:', e)
-      throw e
-    } finally {
-      questionsLoading.value = false
-    }
-  }
-
-  /* ---- 方法：答题导航 ---- */
-
-  function goToQuestion(index) {
-    saveCurrentAnswer()
-    currentIndex.value = index
-  }
-
-  function prevQuestion() {
-    if (currentIndex.value > 0) {
-      goToQuestion(currentIndex.value - 1)
-    }
-  }
-
-  function nextQuestion() {
-    if (currentIndex.value < questions.value.length - 1) {
-      goToQuestion(currentIndex.value + 1)
-    }
-  }
-
-  function isQuestionAnswered(index) {
-    const q = questions.value[index]
-    if (!q) return false
-    if (q.type === 'MULTIPLE_CHOICE') {
-      return multiAnswers.value[index]?.length > 0
-    }
-    if (q.type === 'SHORT_ANSWER') {
-      return !!textAnswers.value[index]
-    }
-    return answers.value[index] !== undefined && answers.value[index] !== null
-  }
-
-  /* ---- 方法：题目类型处理 ---- */
-
-  function getQuestionTypeName(type) {
-    const map = {
-      SINGLE_CHOICE: '单选题',
-      MULTIPLE_CHOICE: '多选题',
-      TRUE_FALSE: '判断题',
-      SHORT_ANSWER: '简答题',
-    }
-    return map[type] || '未知题型'
-  }
-
-  function getQuestionTypeTag(type) {
-    const map = {
-      SINGLE_CHOICE: '',
-      MULTIPLE_CHOICE: 'warning',
-      TRUE_FALSE: 'info',
-      SHORT_ANSWER: 'success',
-    }
-    return map[type] || ''
-  }
-
-  function parseOptions(options) {
-    if (!options) return []
-    if (typeof options === 'string') {
-      try {
-        const parsed = JSON.parse(options)
-        return Array.isArray(parsed) ? parsed : [options]
-      } catch {
-        return options.split('\n').filter(Boolean)
-      }
-    }
-    return Array.isArray(options) ? options : [options]
-  }
-
-  /* ---- 方法：倒计时 ---- */
-
-  function startCountdown() {
-    if (countdownTimer) clearInterval(countdownTimer)
-    countdownTimer = setInterval(() => {
-      if (remainingSeconds.value > 0) {
-        remainingSeconds.value--
-        // 归零（剩余 0 秒）不再提示「剩余时间：0 分钟」——该文案具有误导性；
-        // 自动交卷提示由下一个 tick 的「考试时间已到」分支统一给出。
-        if (
-          remainingSeconds.value > 0 &&
-          remainingSeconds.value <= 300 &&
-          remainingSeconds.value % 60 === 0
-        ) {
-          ElMessage.warning(`剩余时间：${Math.ceil(remainingSeconds.value / 60)} 分钟`)
-        }
-      } else {
-        // 时间到时停止倒计时并自动交卷。交卷失败（如断网）由 submitExamOnTimeout
-        // 兜底重试，直到服务端确认收卷，避免考试卡在「已到时却未交卷」的悬空态。
-        clearInterval(countdownTimer)
-        countdownTimer = null
-        ElMessage.warning('考试时间已到，将自动提交试卷')
-        submitExamOnTimeout()
-      }
-    }, 1000)
-  }
-
   /* ---- 方法：自动保存 ---- */
-
-  function startAutoSave() {
-    if (autoSaveTimer.value) clearInterval(autoSaveTimer.value)
-    autoSaveTimer.value = setInterval(() => {
-      autoSaveAnswers()
-    }, 30000) // 每30秒
-  }
-
-  function stopAutoSave() {
-    if (autoSaveTimer.value) {
-      clearInterval(autoSaveTimer.value)
-      autoSaveTimer.value = null
-    }
-  }
 
   async function autoSaveAnswers(): Promise<boolean> {
     if (!sessionId.value || submitting.value) return false
     try {
-      const answerData = collectAnswers()
+      const answerData = sheet.collectAnswers()
       // 使用专用的自动保存 API
       await examApi.autoSaveAnswers(sessionId.value, { answers: answerData })
       if (!autoSaveFailureNotified) return true
@@ -475,111 +221,22 @@ export function useStudentExams() {
     }
   }
 
-  /**
-   * 收集当前作答，按「题目ID → 答案」组织。
-   *
-   * <p><b>必须是对象而不是数组</b>：后端 ExamSubmitDTO.answers 声明为 {@code Map<String,Object>}，
-   * 阅卷（ExamSessionGradingService.autoGrade）按 {@code String.valueOf(questionId)} 取值。
-   * 历史上此处送的是数组，Jackson 无法把 JSON 数组反序列化为 Map → 直接 400，
-   * 导致自动保存与正式交卷双双失效（退出后恢复也就拿不到任何作答）。</p>
-   */
-  function collectAnswers(): Record<string, unknown> {
-    const result: Record<string, unknown> = {}
-    questions.value.forEach((q, idx) => {
-      const questionId = q.id ?? q.questionId
-      if (questionId === undefined || questionId === null) return
-      if (q.type === 'MULTIPLE_CHOICE') {
-        result[String(questionId)] = multiAnswers.value[idx] || []
-      } else if (q.type === 'SHORT_ANSWER') {
-        result[String(questionId)] = textAnswers.value[idx] || ''
-      } else {
-        result[String(questionId)] = answers.value[idx] ?? ''
-      }
-    })
-    return result
-  }
-
-  /**
-   * 解析服务端落库的 answers 字段，归一为「题目ID → 答案」映射。
-   *
-   * <p>兼容历史/异常形态：JSON 字符串、对象、{@code { answers: ... }} 包裹、
-   * 以及 {@code [ { questionId, answer } ]} 数组。解析不出来时返回空对象（不阻断进入考试）。</p>
-   */
-  function parseSavedAnswers(raw: unknown, depth = 0): Record<string, unknown> {
-    if (raw === null || raw === undefined || raw === '') return {}
-
-    let parsed: unknown = raw
-    if (typeof raw === 'string') {
-      try {
-        parsed = JSON.parse(raw)
-      } catch {
-        logger.warn('已保存的作答不是合法 JSON，跳过回填')
-        return {}
-      }
-    }
-
-    // 数组形态：按 questionId 重新索引
-    if (Array.isArray(parsed)) {
-      const mapped: Record<string, unknown> = {}
-      for (const item of parsed) {
-        const record = item as { questionId?: number | string; answer?: unknown }
-        if (record && record.questionId !== undefined && record.questionId !== null) {
-          mapped[String(record.questionId)] = record.answer
-        }
-      }
-      return mapped
-    }
-
-    if (typeof parsed !== 'object') return {}
-
-    const container = parsed as Record<string, unknown>
-    // 仅解一层：历史数据可能是 { answers: {...} } 包裹
-    if (depth === 0 && container.answers !== undefined && container.answers !== null) {
-      return parseSavedAnswers(container.answers, depth + 1)
-    }
-    return container
-  }
-
-  /**
-   * 把已保存作答按题目ID回填到当前题目列表。
-   * <p>按题目ID匹配而非下标匹配，可容忍题目顺序变化（后端存在题目乱序）。</p>
-   */
-  function restoreAnswers(saved: Record<string, unknown>) {
-    if (Object.keys(saved).length === 0) return
-    questions.value.forEach((q, idx) => {
-      const questionId = q.id ?? q.questionId
-      if (questionId === undefined || questionId === null) return
-      const key = String(questionId)
-      if (!Object.prototype.hasOwnProperty.call(saved, key)) return
-
-      const value = saved[key]
-      if (q.type === 'MULTIPLE_CHOICE') {
-        multiAnswers.value[idx] = Array.isArray(value) ? (value as string[]) : []
-      } else if (q.type === 'SHORT_ANSWER') {
-        textAnswers.value[idx] = typeof value === 'string' ? value : String(value ?? '')
-      } else {
-        answers.value[idx] = value as string | number | boolean
-      }
-    })
-  }
-
-  function saveCurrentAnswer() {
-    // 当前答案已在响应式数据中，此方法用于扩展逻辑
-  }
-
   /* ---- 方法：提交试卷 ---- */
 
   async function confirmSubmit() {
     if (submitting.value) return
-    const unansweredCount = questions.value.filter((_, idx) => !isQuestionAnswered(idx)).length
+    const unansweredCount = sheet.questions.value.filter(
+      (_, idx) => !sheet.isQuestionAnswered(idx),
+    ).length
 
     // D2-2：交卷为不可逆操作，确认语明确影响范围与后果
     const ok = await confirmDanger({
       verb: '提交',
       target: '试卷',
-      impact: unansweredCount > 0
-        ? `您还有 ${unansweredCount} 道题目未作答，未作答题目将按 0 分计入成绩`
-        : '提交后将无法继续修改答案',
+      impact:
+        unansweredCount > 0
+          ? `您还有 ${unansweredCount} 道题目未作答，未作答题目将按 0 分计入成绩`
+          : '提交后将无法继续修改答案',
       irreversible: true,
       recovery: '请确认作答无误后再提交',
       confirmText: '确认提交',
@@ -603,7 +260,7 @@ export function useStudentExams() {
 
     submitting.value = true
     try {
-      const answerData = collectAnswers()
+      const answerData = sheet.collectAnswers()
       const res = await examApi.submitExam(sessionId.value, { answers: answerData })
       // 交卷已由服务端接受：此后不再发送自动保存请求，避免终态会话收到无效写入。
       cleanupTimers()
@@ -708,26 +365,8 @@ export function useStudentExams() {
   function resetExamState() {
     sessionId.value = null
     currentExamPaper.value = null
-    questions.value = []
-    currentIndex.value = 0
-    answers.value = {}
-    multiAnswers.value = {}
-    textAnswers.value = {}
+    sheet.resetSheet()
     examResult.value = {}
-  }
-
-  function cleanupTimers() {
-    if (countdownTimer) {
-      clearInterval(countdownTimer)
-      countdownTimer = null
-    }
-    // 复用 stopAutoSave：与自动保存启动/停止保持单一实现，避免两处清理逻辑漂移。
-    stopAutoSave()
-    // 清理超时交卷重试定时器（组件卸载 / 成功交卷 / 手动退出均须清掉，避免残留重试）
-    if (timeoutSubmitRetryTimer) {
-      clearTimeout(timeoutSubmitRetryTimer)
-      timeoutSubmitRetryTimer = null
-    }
   }
 
   function getResultClass() {
@@ -738,10 +377,29 @@ export function useStudentExams() {
     return 'fail'
   }
 
+  /* ---- 定时器域（在交卷/保存动作声明之后装配，回调经 handlers 注入） ---- */
+
+  /** 超时自动交卷的重试定时器句柄（编排层私有，随 cleanupTimers 一并清理）。 */
+  let timeoutSubmitRetryTimer: ReturnType<typeof setTimeout> | null = null
+  const timers = useStudentExamTimers({
+    onTimeout: submitExamOnTimeout,
+    onAutoSave: autoSaveAnswers,
+  })
+
+  function cleanupTimers() {
+    // 复用定时器域的单一清理实现，再补清编排层私有的超时交卷重试定时器
+    // （组件卸载 / 成功交卷 / 手动退出均须清掉，避免残留重试）。
+    timers.cleanupTimers()
+    if (timeoutSubmitRetryTimer) {
+      clearTimeout(timeoutSubmitRetryTimer)
+      timeoutSubmitRetryTimer = null
+    }
+  }
+
   /* ---- 生命周期 ---- */
 
   onMounted(() => {
-    loadExamList()
+    list.loadExamList()
   })
 
   onUnmounted(() => {
@@ -750,43 +408,43 @@ export function useStudentExams() {
 
   return {
     viewMode,
-    searchKeyword,
-    statusFilter,
-    courseIdFilter,
-    listLoading,
-    loadError,
-    examList,
+    searchKeyword: list.searchKeyword,
+    statusFilter: list.statusFilter,
+    courseIdFilter: list.courseIdFilter,
+    listLoading: list.listLoading,
+    loadError: list.loadError,
+    examList: list.examList,
     currentExamPaper,
     sessionId,
     submitting,
-    questions,
-    questionsLoading,
-    currentIndex,
-    answers,
-    multiAnswers,
-    textAnswers,
+    questions: sheet.questions,
+    questionsLoading: sheet.questionsLoading,
+    currentIndex: sheet.currentIndex,
+    answers: sheet.answers,
+    multiAnswers: sheet.multiAnswers,
+    textAnswers: sheet.textAnswers,
     defaultScore,
-    remainingMinutes,
-    countdownDisplay,
+    remainingMinutes: timers.remainingMinutes,
+    countdownDisplay: timers.countdownDisplay,
     examResult,
-    filteredExams,
-    totalExams,
-    availableExams,
-    completedExams,
-    currentQuestion,
+    filteredExams: list.filteredExams,
+    totalExams: list.totalExams,
+    availableExams: list.availableExams,
+    completedExams: list.completedExams,
+    currentQuestion: sheet.currentQuestion,
     resultMessage,
-    loadExamList,
-    getExamStatusType,
-    getExamStatusLabel,
+    loadExamList: list.loadExamList,
+    getExamStatusType: list.getExamStatusType,
+    getExamStatusLabel: list.getExamStatusLabel,
     enterExam,
-    loadQuestions,
-    goToQuestion,
-    prevQuestion,
-    nextQuestion,
-    isQuestionAnswered,
-    getQuestionTypeName,
-    getQuestionTypeTag,
-    parseOptions,
+    loadQuestions: sheet.loadQuestions,
+    goToQuestion: sheet.goToQuestion,
+    prevQuestion: sheet.prevQuestion,
+    nextQuestion: sheet.nextQuestion,
+    isQuestionAnswered: sheet.isQuestionAnswered,
+    getQuestionTypeName: sheet.getQuestionTypeName,
+    getQuestionTypeTag: sheet.getQuestionTypeTag,
+    parseOptions: sheet.parseOptions,
     confirmSubmit,
     confirmExitExam,
     backToList,
