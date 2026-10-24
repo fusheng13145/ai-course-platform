@@ -1,6 +1,5 @@
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
-import * as XLSX from 'xlsx'
 import logger from '@/utils/logger'
 import examApi from '@/api/exam'
 import courseApi from '@/api/course'
@@ -311,13 +310,14 @@ export function useGrades() {
     fetchGrades()
   }
 
-  /** 客户端 XLSX 导出当前列表 */
-  function exportGrades() {
+  /** 客户端 XLSX 导出当前列表（xlsx 按需动态加载：323KB 大库只应在点导出时进内存） */
+  async function exportGrades() {
     if (gradeList.value.length === 0) {
       ElMessage.warning('暂无可导出的成绩数据')
       return
     }
     try {
+      const { downloadXlsx } = await import('@/utils/xlsxExport')
       const exportData = gradeList.value.map((item, idx) => ({
         序号: idx + 1,
         学生姓名: item.studentName || item.fullName || '-',
@@ -327,11 +327,9 @@ export function useGrades() {
         提交时间: item.submitTime || item.createdAt || '-',
         状态: item.status || '-',
       }))
-      const ws = XLSX.utils.json_to_sheet(exportData)
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, '成绩报表')
-      XLSX.writeFile(
-        wb,
+      downloadXlsx(
+        exportData,
+        '成绩报表',
         `成绩报表_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.xlsx`,
       )
       ElMessage.success('报表已下载')

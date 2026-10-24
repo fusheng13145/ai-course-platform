@@ -105,9 +105,9 @@ export default defineConfig(({ mode }) => ({
             if (id.includes('element-plus')) return 'element-plus'
             if (id.includes('echarts') || id.includes('zrender')) return 'echarts'
             // 仅保留真实依赖的独立分块。历史上引用的 exceljs / pdfjs-dist / jspdf /
-            // marked / markdown 均不在 package.json 内，属死配置（分支永不命中），已删除。
+            // marked / markdown 均不在 package.json 内，属死配置（分支永不命中），已删除；
+            // html2canvas 同类（FE-11：全仓零引用，依赖已卸载），分支随之删除。
             if (id.includes('xlsx')) return 'xlsx'
-            if (id.includes('html2canvas')) return 'html2canvas'
             if (id.includes('dompurify')) return 'dompurify'
             if (id.includes('vue') || id.includes('pinia') || id.includes('vue-router'))
               return 'vue-vendor'

@@ -5,7 +5,6 @@ import analyticsApi from '@/api/analytics'
 import gradeApi from '@/api/grade'
 import courseApi from '@/api/course'
 import taskApi from '@/api/task'
-import * as XLSX from 'xlsx'
 import { getChartTheme, monoScore } from '@/utils/chartTheme'
 import { pickList, unwrap } from '@/utils/response'
 import logger from '@/utils/logger'
@@ -456,13 +455,15 @@ export function useTeacherGrades() {
     await loadGradeData()
   }
 
-  function handleExport() {
+  /** xlsx 按需动态加载：323KB 大库只应在点导出时进内存（FE-11） */
+  async function handleExport() {
     const rows = filteredGradeList.value
     if (rows.length === 0) {
       ElMessage.warning('暂无可导出的成绩数据')
       return
     }
     try {
+      const { downloadXlsx } = await import('@/utils/xlsxExport')
       const exportData = rows.map((row, index) => ({
         序号: index + 1,
         课程: row.courseName,
@@ -476,10 +477,9 @@ export function useTeacherGrades() {
           .map((detail) => `${detail.taskName}：${detail.score ?? '未评分'}`)
           .join('；'),
       }))
-      const workbook = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(exportData), '学生成绩')
-      XLSX.writeFile(
-        workbook,
+      downloadXlsx(
+        exportData,
+        '学生成绩',
         `学生成绩_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.xlsx`,
       )
       ElMessage.success('成绩已导出')
