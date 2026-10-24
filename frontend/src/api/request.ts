@@ -10,7 +10,7 @@ import {
   resolveNetworkErrorMessage,
   isIdempotentMethod,
   extractFieldErrorSummary,
-} from '@/api/requestError'
+} from '@/utils/requestError'
 
 // 全局 Loading 进度条已抽离至 @/utils/loadingBar（HTTP 层不直接操作 DOM）
 

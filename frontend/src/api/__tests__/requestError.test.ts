@@ -6,7 +6,7 @@ import {
   extractFieldErrorSummary,
   STATUS_MESSAGES,
   IDEMPOTENT_METHODS,
-} from '../requestError'
+} from '@/utils/requestError'
 
 describe('requestError 纯函数层（FE-07）', () => {
   describe('getStatusMessage', () => {
