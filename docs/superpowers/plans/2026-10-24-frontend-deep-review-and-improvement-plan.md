@@ -127,11 +127,13 @@ FE-10/11/12/13/14 全部沿用既有母文档的触发条件与重启信号；�
 
 ## §7 执行台账（状态节——状态只写这里，不改 §3 判据）
 
-| 项 | 状态 | 提交 | 本机验收读数 |
+| 项 | 状态 | 提交 | 本机验收读数（2026-10-24） |
 | --- | --- | --- | --- |
-| 评估 | ✅ 本批完成 | 随本文件入库 | 九维度读数见 §2（2026-10-24 本机现量，钉 main@0660775） |
-| FE-01 | ⏳ 本批实施中 | — | 待填 |
-| FE-02 | ⏳ 本批实施中 | — | 待填 |
-| FE-03 | ⏳ 本批实施中 | — | 待填 |
-| P0 回归门 | ⏳ | — | 待填（vitest / lint / typecheck 402-90 / build+size / playwright 流程 / visual 两轮 ×24 张） |
-| FE-04…FE-14 | ⏳ 未启动 | — | 按 §3 判据与 §4.2 顺序挂账 |
+| 评估 | ✅ 完成 | `a869ae0` | 九维度读数见 §2（钉 main@0660775，`.ua` 图谱 3328 节点/5725 边交叉验证）；文档索引 5→6 组 |
+| FE-01 | ✅ 已闭 | `cba40b4` | 4 处同源 `toLocaleString('zh-CN')` 版 formatDateTime 删除（三面板 + CctAssignmentTable，末者名为 formatDate 实为完整时间），统一 import `utils/datetime`；三面板组件测试 14 例绿；12 视觉锚点不含宿主页 CourseDetail、e2e 无日期文本断言（零基线扰动取证） |
+| FE-02 | ✅ 已闭 | `e1db2c0` | CgtSidePanel/GradeAnalyticsPanel/QmStatsDialog 三处切片转 computed，QmStatsDialog 的 v-if 同步收敛；GradeAnalyticsPanel 测试 2 例绿；`typecheck:gate` 402/90 持平（GradeAnalyticsPanel 的 4 条 TS2339 为基线 byFile 存量，非本批引入） |
+| FE-03 | ✅ 已闭 | `2097cbe` | CgPolicyDialog 构成项行改自增 rowKey 稳定键（savePolicy 为显式映射，rowKey 不外泄）；其余 31 处 key=index 逐点定性豁免：BarChart（下标参与几何定位 + 数据全量替换）、DropdownMenu（全量替换无行内态）、OnboardingGuide（静态步进、刚收口不碰）、其余 display-only 列表（无重排状态可错位）；InVoteDialog/QmEditDialog 因 form 由父组件共享，升格 P1 与父组件同批改造（记 FE-06 批附页） |
+| 计划外发现 | ✅ 已闭 | `7ac9ef3` | 视觉第 1 轮 84 passed + 1 red：helpers.spec 的 sha256 篡改守卫仍钉 22 张且 4 哈希过期（R-08 三次基线入库均未同步清单：`ea48fe1` error-404 ×2、`93b09cb` student-dashboard ×2、`c0b94ce` 暗色图表 ×2；当轮只跑 anchors 未跑 helpers）。按"工作树=HEAD 字节"取证后清单同步 24 张全集；非本批引入 |
+| P0 回归门 | ✅ 全绿 | — | vitest **181 文件 / 1899 例** ×2（改动前后各一）；lint 0/0；`typecheck:gate` **402/90 持平**；build 2.29s + `size:gate` 五项全过（JS 合计 3119.55/3400、echarts 805.06/900、EP 735.14/830、xlsx 323.28/380、其余 1256.07/1300、EP CSS 381.6/420）；Playwright 流程 **54 passed**（2.8m；52 口径 + R-06/R-07 各新增 1 例）；视觉 **85 passed 两轮**（含 anchors 24 张零差异）；跑测后 `git status --porcelain docs/` 三张 motion 取证图被改写，按 K-03 纪律 `git checkout --` 还原后为空 |
+| 观察挂账 | 🟡 待下批 | — | ① 手册 §243 行/B.2 的 e2e "35 例" 为 2026-10-18 时点读数，现量流程套件 54 例（R-06/R-07 批次增量未回写 B.2，本批未改用例数故不代写）；② onboarding.spec 17 例（手册 REQ-FE-008 行）与 e2e 现量的对账建议随 R-22 下批一并做 |
+| FE-04…FE-14 | ⏳ 未启动 | — | P1：FE-08（零代码先量）→ FE-04/FE-05（基线批，不得同日混做）→ FE-06/07/09；P2 按 §3 挂账（FE-10/11/12/13/14） |
