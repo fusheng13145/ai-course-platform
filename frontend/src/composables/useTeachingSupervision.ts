@@ -10,8 +10,15 @@ import analyticsApi from '@/api/analytics'
  * 分类分布与热力色阶等展示辅助函数。</p>
  */
 export function useTeachingSupervision() {
+  /** 概览统计（页面五张 StatCard 消费的键；其余后端键经 Object.assign 不受影响） */
+  type OverviewStats = {
+    totalCourses?: number
+    activeCourses?: number
+    roleDistribution?: { student?: number; teacher?: number }
+    totalEnrollments?: number
+  }
   const loading = ref(false)
-  const overview = reactive({} as Record<string, unknown>)
+  const overview = reactive({} as OverviewStats)
   const courseStats = reactive({} as Record<string, unknown>)
   const heatCells = ref([])
   const aiMonitor = reactive({} as Record<string, unknown>)
@@ -25,8 +32,8 @@ export function useTeachingSupervision() {
   const categoryMax = computed(() =>
     Math.max(1, ...categoryKeys.value.map((k) => categoryDistribution.value[k])),
   )
-  const topCourses = computed(() => courseStats.topCourses || [])
-  const aiAlerts = computed(() => aiMonitor.alerts || [])
+  const topCourses = computed(() => (courseStats.topCourses as unknown[]) || [])
+  const aiAlerts = computed(() => (aiMonitor.alerts as unknown[]) || [])
 
   // 学习预警（全校掉队聚合）
   const riskDim = ref('school')
@@ -140,6 +147,7 @@ export function useTeachingSupervision() {
     loadAll,
     dayLabel,
     barWidth,
+    heatValue,
     cellStyle,
     legendStyle,
     alertType,

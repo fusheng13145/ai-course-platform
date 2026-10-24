@@ -1,7 +1,7 @@
 <template>
   <!-- 新建/编辑知识点对话框 -->
   <el-dialog
-  ref="dialogRef1"
+    ref="dialogRef1"
     :model-value="formDialogVisible"
     :title="isEdit ? '编辑知识点' : '新建知识点'"
     width="560px"
@@ -71,7 +71,7 @@
 
   <!-- 关联关系对话框 -->
   <el-dialog
-  ref="dialogRef2"
+    ref="dialogRef2"
     :model-value="relationVisible"
     title="管理关联关系"
     width="520px"
@@ -125,10 +125,14 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { ref, computed } from 'vue'
 import { Delete } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { useDialogFocus } from '@/composables/useDialogFocus'
+
+/** 课程/知识点下拉项（el-option 消费 id + name） */
+type IdNameOption = { id: number | string; name: string }
 
 /**
  * 知识管理对话框（新建/编辑 + 关联关系）
@@ -141,21 +145,26 @@ const props = defineProps({
   submitting: { type: Boolean, default: false },
   kpForm: { type: Object, required: true },
   formRules: { type: Object, default: () => ({}) },
-  courseList: { type: Array, default: () => [] },
+  courseList: { type: Array as PropType<IdNameOption[]>, default: () => [] },
   flatTreeOptions: { type: Array, default: () => [] },
   relationVisible: { type: Boolean, default: false },
   currentKpForRelation: { type: Object, default: null },
   newPrereqId: { type: [Number, String], default: null },
-  availablePrereqs: { type: Array, default: () => [] },
-  prerequisitesList: { type: Array, default: () => [] },
+  availablePrereqs: { type: Array as PropType<IdNameOption[]>, default: () => [] },
+  prerequisitesList: { type: Array as PropType<IdNameOption[]>, default: () => [] },
 })
 const dialogRef1 = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef1, computed(() => props.formDialogVisible))
+useDialogFocus(
+  dialogRef1,
+  computed(() => props.formDialogVisible),
+)
 const dialogRef2 = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef2, computed(() => props.relationVisible))
-
+useDialogFocus(
+  dialogRef2,
+  computed(() => props.relationVisible),
+)
 
 const emit = defineEmits([
   'update:formVisible',

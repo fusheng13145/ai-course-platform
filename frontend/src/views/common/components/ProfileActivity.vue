@@ -36,6 +36,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { Bell, ArrowRight } from '@element-plus/icons-vue'
 import { formatTime } from '@/utils/datetime'
 import ProfileCard from './ProfileCard.vue'
@@ -48,7 +49,19 @@ import EmptyState from '@/components/ui/EmptyState.vue'
  */
 defineProps({
   /** 动态项（type/title/due/courseId/color/icon） */
-  activities: { type: Array, default: () => [] },
+  activities: {
+    type: Array as PropType<
+      {
+        courseId?: number | string
+        color?: string
+        icon?: string
+        type?: string
+        title?: string
+        due?: string
+      }[]
+    >,
+    default: () => [],
+  },
   /** 加载态 */
   loading: { type: Boolean, default: false },
 })

@@ -33,6 +33,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { VideoCamera } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
@@ -42,7 +43,19 @@ import EmptyState from '@/components/ui/EmptyState.vue'
  */
 defineProps({
   /** 会话列表（含 enrich 后的风险字段） */
-  sessions: { type: Array, required: true },
+  sessions: {
+    type: Array as PropType<
+      {
+        id: number | string
+        examPaperId?: number | string
+        studentId?: number | string
+        startTime?: string
+        riskLevel?: string
+        riskScore?: number | string
+      }[]
+    >,
+    required: true,
+  },
   /** 当前选中会话 id */
   selectedId: { type: [String, Number], default: null },
   /** 加载态（空态文案） */
