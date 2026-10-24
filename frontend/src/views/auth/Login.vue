@@ -237,7 +237,11 @@ onMounted(() => {
   position: relative;
   overflow: hidden;
   background: #c13b30;
-  color: var(--surface);
+  /* D-5：面板底色写死为品牌红（主题无关），文字必须同为主题无关的白——
+     原用 var(--surface) 在暗色下翻成 #171d26 深墨，压红底只剩 2.96:1（门槛 4.5:1）。
+     改白后：纯白 5.34:1；.feat-item（opacity .94）4.89:1、.brand-sub（opacity .92）4.75:1，
+     正文三项全部带余量过 4.5 门槛。 */
+  color: #fff;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -279,7 +283,8 @@ onMounted(() => {
 }
 .brand-sub {
   font-size: 13px;
-  opacity: 0.78;
+  /* D-5：0.78 档合成对比度仅 3.83（<4.5）；0.92 档 4.75 带余量过线 */
+  opacity: 0.92;
   margin-bottom: 28px;
 }
 .features {
@@ -293,7 +298,8 @@ onMounted(() => {
   align-items: center;
   gap: 9px;
   font-size: 13px;
-  opacity: 0.88;
+  /* D-5：0.88 档合成对比度 4.47 差一线（<4.5）；0.94 档 4.89 带余量过线 */
+  opacity: 0.94;
 }
 .feat-item svg {
   color: var(--ok);

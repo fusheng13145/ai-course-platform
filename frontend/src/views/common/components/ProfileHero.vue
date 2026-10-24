@@ -225,6 +225,13 @@ defineProps({
   background: var(--ac-danger-bg);
   color: var(--ac-danger);
 }
+/* D-6：暗色下徽章压在品牌红横幅上，红字对红底实测仅 1.22:1（12px 正文门槛 4.5:1，
+   边界对横幅 1.22:1 也低于非文本 3:1）。浅色 pill 反转配色：
+   文字 #8f2a20 对 pill ≈ 7.0:1，pill 对横幅红 ≈ 3.7:1，双门槛带余量通过。 */
+[data-theme='dark'] .role-tag--admin {
+  background: rgba(255, 235, 232, 0.92);
+  color: #8f2a20;
+}
 
 @media (max-width: 640px) {
   .hero-lower {

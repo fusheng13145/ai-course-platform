@@ -943,14 +943,14 @@ const BASELINE_SHA256: Record<string, string> = {
     '74247f93978a6010052467b14bae8b6ec5cf3b4ba77d57a6169f2d35574b1c96',
   'admin-governance-analytics-light.png':
     'adb1b86e9960c0f94e5fe0fe46b0099523732db8f2c4436cfac5c04573ebe5d8',
-  'admin-profile-dark.png': 'd3838b8d9582abadc639792e32b80420d6446affd39fdd47f6e1faf842292ead',
+  'admin-profile-dark.png': '3812a7af483d790a360e7f63805154ebb82732ded382bc0e7502a741ef383228',
   'admin-profile-light.png': '5deaacad8f257fcb651cb8a56faa35aad0e83dafdd6c2b4cffd4dd5782de1e68',
   'admin-system-form-dark.png': '5719dc5155c4c0e5171b2a44e3f35fca86fbbce8a6381fb6b1f9db784636a76a',
   'admin-system-form-light.png': 'f2924fa041f6a3a435445e337995a297808e62c2d9f3257904930127bdc35d1c',
   'error-404-dark.png': 'b2d03c673791a14b37bb9c6f92cf46f862108051620f0cabfcbe1faf53afe0a4',
   'error-404-light.png': '809f74a1a39c30d0c0675b83e49e9c00ddf5eaea66dcb4515642d9bcb38eed13',
-  'login-dark.png': 'bae3de236ef5afcf99ce00a17b95011b945e6f22224982f1a90e67abb74c72e4',
-  'login-light.png': 'aa253c2a88df0586be3ded71a824678f7804fe07a69ec2d4b3912238697a6b2d',
+  'login-dark.png': '57f30e074e7bacc0edf41d754657a7b3a2d250fbcc513674a6ecc15422b6630b',
+  'login-light.png': '993767cd136e969c380fd886ef339bc4e9270204fe42ee54a6dc2f4bd557074e',
   'student-courses-modal-dark.png':
     '737739917fe742e17aef3706e3ec88f0fe386c73d7fb83939891b5212f695038',
   'student-courses-modal-light.png':
