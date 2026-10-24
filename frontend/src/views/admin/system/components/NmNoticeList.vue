@@ -99,15 +99,38 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import CollapsePanel from '@/components/ui/CollapsePanel.vue'
+
+/** 列表行（页面壳 unread/read 数组的元素，字段以本列表消费为准） */
+type NoticeRow = {
+  id: number | string
+  title?: string
+  category?: string
+  priority?: string
+  createdAt?: string
+  type?: string
+  isRead?: boolean
+}
+/** 分组（未读/已读两组：组头元信息 + 行引用，由页面壳构造） */
+type NoticeGroup = {
+  key: string
+  label: string
+  icon: string
+  open: boolean
+  icoBg: string
+  icoColor: string
+  icoPath: string
+  rows: NoticeRow[]
+}
 
 /**
  * 通知公告管理 — 通知列表（未读/已读分组 + 行操作）。
  * <p>拆分子组件：纯展示 + 文案映射；行操作（打开/标记已读/菜单）通过 emit 交还页面壳。</p>
  */
 defineProps({
-  /** 分组数组（含 rows 引用/图标/文案，由页面壳按未读/已读构造） */
-  groups: { type: Array, default: () => [] },
+  /** 分组数组（key/label/icon/open/icoBg/icoColor/icoPath/rows，由页面壳按未读/已读构造） */
+  groups: { type: Array as PropType<NoticeGroup[]>, default: () => [] },
   loading: { type: Boolean, default: false },
 })
 

@@ -33,15 +33,25 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { Calendar, Select } from '@element-plus/icons-vue'
+
+/** 今日任务（useLearningPath.loadDailyTasks 映射的元素） */
+type DailyTask = {
+  id: number | string
+  title?: string
+  completed?: boolean
+  priority?: string
+  knowledgePointName?: string
+}
 
 /**
  * 学习路径 — 今日任务面板
  * <p>优先级标识 + 勾选完成交互。</p>
  */
 defineProps({
-  /** 今日任务列表 */
-  dailyTasks: { type: Array, required: true },
+  /** 今日任务列表（id/title/completed/priority/knowledgePointName） */
+  dailyTasks: { type: Array as PropType<DailyTask[]>, required: true },
 })
 
 defineEmits(['toggle'])

@@ -138,6 +138,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { ref, computed } from 'vue'
 import { Delete } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -154,15 +155,34 @@ const props = defineProps({
   submitting: { type: Boolean, default: false },
   examForm: { type: Object, required: true },
   formRules: { type: Object, default: () => ({}) },
-  courseOptions: { type: Array, default: () => [] },
-  selectedQuestions: { type: Array, default: () => [] },
+  /** 课程下拉（id/name） */
+  courseOptions: {
+    type: Array as PropType<{ id: number | string; name: string }[]>,
+    default: () => [],
+  },
+  /** 已选题目（id/type/content/stem/title/score；score 经 v-model 就地编辑） */
+  selectedQuestions: {
+    type: Array as PropType<
+      {
+        id?: number | string
+        type?: string
+        content?: string
+        stem?: string
+        title?: string
+        score?: number
+      }[]
+    >,
+    default: () => [],
+  },
   totalSelectedScore: { type: Number, default: 0 },
   getQuestionTypeName: { type: Function, required: true },
 })
 const dialogRef = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef, computed(() => props.modelValue))
-
+useDialogFocus(
+  dialogRef,
+  computed(() => props.modelValue),
+)
 
 const emit = defineEmits(['update:modelValue', 'open-picker', 'remove-question', 'submit'])
 
