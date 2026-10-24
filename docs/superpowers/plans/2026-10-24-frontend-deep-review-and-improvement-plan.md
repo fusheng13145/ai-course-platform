@@ -159,3 +159,39 @@ FE-10/11/12/13/14 全部沿用既有母文档的触发条件与重启信号；�
 | R-09 开工状态 | ✅ 已闭（2026-10-24：桩信封对齐 non_null 真实形状——null 态无 data 键、emptyArray 态 data:[]；/src/ 防护确认在位；helpers 32/32 + anchors 42/42 + 视觉两轮 85/85） | — | **侦察更新：②"命中清单无 /src/"已在位**——`stubApiToEmpty`（anchors.spec.ts:543）的 route 已锚定 `/api/` 前缀正则（S1/R-C2-1 修复），源码模块进不了回调；**剩余核心＝①桩信封形状**：现桩返回 `{code:200,message:'ok',data:null|[]}`（含 data 键，由 dataShape 参数支撑第 14 项②的 null/[] 两态），R-09 判据要求的"信封无 data 键"须先**用真后端验证各端点空响应的真实形状**（起后端逐端点 curl），确认后改桩体并保持 dataShape 两态机制、跑空态守卫全套 + R-C2-4 判据（689-736 行）。anchors.spec.ts 单一写者（K-09），独立提交 |
 | R-10 开工状态 | 🟡 侦察完成（2026-10-24，R-09 已闭解禁；供承接会话执行） | — | 空转根因（anchors.spec.ts:613-617 缺口表）：student-learning-center 断言查 `.shell-tab`≥1 与非空标题（壳层/路由名供给，桩后仍非空）；admin-profile 查 filled 输入框与 hero 统计（/api/auth/ 保活端点回填）。**转正设计**：① student-learning-center 的 DATA_ARRIVAL_CHECKS（data-arrival.ts:151）改为断言 `/api/student/courses/1/learning-center` 供给的数据驱动内容（学习中心 LcStatGrid/LcCalendarPanel 数据面元素——先读页组件选稳定选择器）；② admin-profile（:181）改为断言 `/api/courses` 供给的课程数据面（ProfileCourses 列表行）。**证伪协议（每页一条反向守卫）**：真实后端绿 → 桩空红 → 缺口表 613-617 删该行、EMPTY_API_FALSIFIABLE 加回（R-C2-4 同批、9 格并集 689-736 行保持绿）→ anchors 全表 + R-C2-4 + 反向守卫三绿才算闭。data-arrival.ts/anchors.spec.ts 单一写者（K-09），独立提交 |
 | 未启动 | ⏳ 挂账 | — | R-10 实施（按上行动作）、FE-12/13（视觉 Phase 1–6，D-R5 顺序约束）、FE-14（巨型 composable 族推广）、FE-10 B8…（剩余 48 文件，同 PropType 路线复制） |
+
+---
+
+## §8 完成情况总览与剩余清单（2026-10-24 收口快照，钉 `origin/leyon@e1745b9`）
+
+> 本节是给"新会话/评审者"的**一页式状态**：做了什么、剩什么、从哪进入。逐批明细在 §7；判据本体在 §3 不变。
+
+### 8.1 已完成（按批，全部本机验证 + 已推送）
+
+| 批 | 提交 | 内容 |
+| --- | --- | --- |
+| P0 快赢批 | `a869ae0`/`cba40b4`/`e1db2c0`/`2097cbe` | FE-01 四处 formatDateTime 单源化、FE-02 模板切片转 computed、FE-03 成绩方案行稳定键；方案文档与索引落盘 |
+| P0 计划外 | `7ac9ef3` | helpers sha256 基线清单同步 22→24（R-08 遗留欠账） |
+| P1 批 | `2cfc724`/`c7da1df`+`01a4103`/`4060e38`/`7c35af5`/`9bb2dba`/`5561aac` | FE-08 bundle 构成分解、FE-07 requestError 提纯、FE-06 useStudentExams 三域拆解、FE-09 首两件 TS 化、**FE-04 D-10 修复**（后端 SQL 列名+显示口径+四基线重录）、**FE-05 D-5/D-6 修复**（D-8 核实已修、D-9 证伪后转修复批） |
+| P2 批 | `2cfc724` 后续 `4820b48`/`351f53c` | FE-11（html2canvas 死依赖卸载 + xlsx 两层拆分按需加载；icons 降级登记）、FE-10 B0 |
+| B 批序列 | `e2dfff5`/`0d08f96`/`63f9bab`/`69561c0`/`2d620b1`/`b3fdc60`/`0531521` | FE-10 B1…B7 七轮棘轮：**402 条/90 文件 → 287 条/48 文件**（TabGroup variant 改名、≤2 错误簇、3 错误簇、两大户、TsvRiskCard、KntPathPlanner——每批 byFile 逐键核对零变形） |
+| 视觉缺陷 | `d8abf2d` 等 | **D-1…D-10 全部闭环**（D-9 经页内实例探针定位修复；LEDGER 含证伪更正与双态声明） |
+| 路线图项 | `78b3d35` 等 | R-02 推送闭合（main:leyon 口径）、**R-09 闭合**（桩信封对齐 non_null 真实形状，空态守卫矩阵真实形状全绿） |
+
+### 8.2 剩余待完成（按依赖序，§7 已登记执行序/侦察）
+
+| 项 | 状态 | 进入点 |
+| --- | --- | --- |
+| **R-10 两页空转格转正** | 🟡 侦察完成，下会话首任务 | §7 R-10 行：转正设计（两页断言改数据驱动）+ 证伪协议 + 单写者约束 |
+| **Phase 1–6 视觉升级** | ⏳ 前置＝R-10 | 视觉 spec §11 准入门（部分条件已由 D 批闭合）；D-R5 顺序约束 |
+| **FE-14 巨型 composable 族** | ⏳ | FE-06 模式已验证；目标 useAnalytics 689/useKnowledgeGraph 591/useTeacherGrades 588/useAIAssistant 514/useQuestions 506/useCourseDetail 502 |
+| **FE-10 B8…** | ⏳ | 剩余 48 文件（SdCourseGrid 11、NmNoticeList/LpDailyTasksPanel/ExamFormDialog 各 10……），PropType 路线已验证可复制 |
+| **远端 10 条 dependabot 分支** | ⏳ 待项目主处置 | 合并与否属新决策（vue 3.5.44/playwright 1.64.1/minio 9.0.3 等） |
+
+### 8.3 明确不做（继承 + 本方案新增，含重启信号）
+
+继承路线图 AG-1…9 与视觉线既有裁定；本方案新增 N-1…N-6（i18n、虚拟滚动、TanStack Query、Pinia 扩张、husky、EP 样式按需）见 §5。
+
+### 8.4 当前门禁读数（2026-10-24，全部本机）
+
+vitest **182 文件 / 1912 例**全绿 ｜ lint 0/0 ｜ 类型棘轮 **287/48**（七轮：402→311→287）｜ build 3.44s + size:gate 六项全过 ｜ Playwright 流程 **54/54** ｜ 视觉全表两轮 **85/85**（24 张基线）｜ **R-09 后空态守卫矩阵在真实形状信封下全绿** ｜ src 下 .js 文件 **0**（onboarding 已 TS 化）｜ B.2 已同步。
