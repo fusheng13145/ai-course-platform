@@ -72,7 +72,7 @@ export function useCourseInteraction(courseIdRef) {
     try {
       const r = await interactionApi.getSignInList(courseIdRef.value)
       const body = unwrap(r)
-      signIns.value = body?.records || body?.list || body || []
+      signIns.value = (body?.records || body?.list || body || []) as typeof signIns.value
     } catch (e) {
       logger.error('加载签到列表失败', e)
       signIns.value = []
@@ -84,7 +84,7 @@ export function useCourseInteraction(courseIdRef) {
     try {
       const r = await interactionApi.getVoteList(courseIdRef.value)
       const body = unwrap(r)
-      votes.value = body?.records || body?.list || body || []
+      votes.value = (body?.records || body?.list || body || []) as typeof votes.value
     } catch (e) {
       logger.error('加载投票列表失败', e)
       votes.value = []
@@ -156,7 +156,7 @@ export function useCourseInteraction(courseIdRef) {
     try {
       const r = await interactionApi.getSignInRecords(row.id)
       const body = unwrap(r)
-      records.value = body?.records || body?.list || body || []
+      records.value = (body?.records || body?.list || body || []) as typeof records.value
     } catch (e) {
       logger.error('加载签到记录失败', e)
     }

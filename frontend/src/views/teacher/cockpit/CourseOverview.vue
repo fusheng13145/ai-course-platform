@@ -121,11 +121,11 @@ async function load() {
     const d = unwrap(res) || {}
     ov.value = d.overview || {}
     ct.value = d.content || {}
-    lr.value = d.learning || {}
-    grading.value = d.grading || {}
-    trend.value = d.trend || []
-    atRisk.value = d.atRiskStudents || []
-    chapterTree.value = d.chapterTree || []
+    lr.value = (d.learning || {}) as typeof lr.value
+    grading.value = (d.grading || {}) as typeof grading.value
+    trend.value = (d.trend || []) as typeof trend.value
+    atRisk.value = (d.atRiskStudents || []) as typeof atRisk.value
+    chapterTree.value = (d.chapterTree || []) as typeof chapterTree.value
     aiInsight.value = d.aiInsight || null
 
     trendOption.value.xAxis.data = trend.value.map((t) => t.date)

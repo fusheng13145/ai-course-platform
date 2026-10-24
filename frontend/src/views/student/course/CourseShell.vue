@@ -92,7 +92,7 @@ async function loadCourse() {
   loadError.value = ''
   try {
     const res = await courseApi.getCourseById(courseId.value)
-    const c = unwrap(res)
+    const c = unwrap(res) as { name?: string; teacherName?: string; progress?: number; enrollment?: { progress?: number } } | null
     if (c) {
       courseName.value = c.name || ''
       courseTeacher.value = c.teacherName || ''

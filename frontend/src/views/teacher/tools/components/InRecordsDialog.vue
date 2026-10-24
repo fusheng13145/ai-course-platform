@@ -63,13 +63,16 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
+import { ref, computed, type PropType } from 'vue'
 import { useDialogFocus } from '@/composables/useDialogFocus'
 import { EditPen } from '@element-plus/icons-vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
-  recordList: { type: Array, default: () => [] },
+  recordList: {
+    type: Array as PropType<{ studentId: number | string; studentName: string }[]>,
+    default: () => [],
+  },
   recordLoading: { type: Boolean, default: false },
   currentSign: { type: Object, default: null },
   markVisible: { type: Boolean, default: false },

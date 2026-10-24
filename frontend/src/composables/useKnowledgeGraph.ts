@@ -225,7 +225,14 @@ export function useKnowledgeGraph() {
         content: extractText.value.trim(),
       })
       const body = unwrap(r)
-      const res = unwrap(body) || {}
+      const res = (unwrap(body) || {}) as {
+        nodeCount?: number
+        relationCount?: number
+        nodes?: unknown[]
+        points?: unknown[]
+        relations?: unknown[]
+        links?: unknown[]
+      }
       extractResult.value = res
       extractRaw.value = JSON.stringify(
         {
@@ -376,7 +383,11 @@ export function useKnowledgeGraph() {
     try {
       const r = await knowledgeApi.getRelationGraphData(courseId.value)
       const body = unwrap(r)
-      const g = unwrap(body) || {}
+      const g = (unwrap(body) || {}) as {
+        nodes?: { id?: number | string; name?: string; difficultyLevel?: string; difficulty?: string; importance?: number }[]
+        links?: { source?: number | string; target?: number | string; from?: number | string; to?: number | string }[]
+        relations?: { source?: number | string; target?: number | string; from?: number | string; to?: number | string }[]
+      }
       graphNodes.value = Array.isArray(g.nodes) ? g.nodes : []
       graphLinks.value = (g.links || g.relations || []).map((l) => ({
         source: l.source ?? l.from,

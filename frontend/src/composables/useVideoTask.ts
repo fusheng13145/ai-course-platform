@@ -45,10 +45,10 @@ export function useVideoTask({ courseId, getTask, onTaskCompleted }) {
       totalDuration: s.totalDuration || 0,
       completed: !!s.completed,
     })
-    localWatched.value = s.watchedDuration || 0
+    localWatched.value = Number(s.watchedDuration || 0)
     const t = unwrap(taskRes) || {}
-    videoSrc.value = t.attachmentUrl || t.videoUrl || ''
-    videoDuration.value = s.totalDuration || 0
+    videoSrc.value = String(t.attachmentUrl || t.videoUrl || '')
+    videoDuration.value = Number(s.totalDuration || 0)
   }
 
   /** 元数据就绪：按服务端续播位置定位（定位失败静默降级） */
