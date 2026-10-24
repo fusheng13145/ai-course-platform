@@ -24,6 +24,10 @@ interface ArrivalSnapshot {
   heroStats: string[]
   shellTabs: number
   headings: string[]
+  /** admin-profile：/api/courses 供给的课程行（ProfileCourses .course-item） */
+  courseItems: number
+  /** student-learning-center：/api/student/courses/:id/learning-center 供给的任务点总数 */
+  lcTaskTotal: number
 }
 
 const hasNonZeroDigit = (s: string): boolean => /[1-9]/.test(s)
@@ -48,6 +52,8 @@ async function readArrival(page: Page): Promise<ArrivalSnapshot> {
       heroStats: txt('.hero-stat__value'),
       shellTabs: q('.shell-tab'),
       headings: txt('h1, h2, h3'),
+      courseItems: q('.course-item'),
+      lcTaskTotal: Number(txt('.lc-progress-num .total')[0] ?? 0) || 0,
     }
   })
 }

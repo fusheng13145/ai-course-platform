@@ -611,10 +611,13 @@ const EMPTY_API_FALSIFIABLE = [
  *   实测过的形状；所以这些结论**不许**改写成"接口自己给空值时这一页会怎样"那一类口径（那会冒充真实形状）。
  */
 const NOT_FALSIFIABLE_BY_ARRIVAL_ASSERTION: Record<string, string> = {
+  // 【R-10（2026-10-24）实测定案：两格均不可转正，本表保留】转正尝试与探针证据见各行补强理由与
+  // LEDGER/方案文档 §7；若未来页面数据面变化（learning-center 有真实任务点数据、admin 加课程面），
+  // 按各行补强理由重评转正。
   'student-learning-center':
-    'C2b S2 实测（桩给 data:null 形态下）：[falsify] 专属断言=绿 ✗ · 桩命中真接口 /api/student/courses、/api/student/courses/1/learning-center、/api/courses/1 · 通用守卫绿（壳层正常挂上、pageerror=0）· 到位断言查 .shell-tab 不小于 1 与非空标题，二者都由壳层与路由名供给 ⇒ 空转',
+    'C2b S2 实测（桩给 data:null 形态下）：[falsify] 专属断言=绿 ✗ · 桩命中真接口 /api/student/courses、/api/student/courses/1/learning-center、/api/courses/1 · 通用守卫绿（壳层正常挂上、pageerror=0）· 到位断言查 .shell-tab 不小于 1 与非空标题，二者都由壳层与路由名供给 ⇒ 空转。【R-10 补强（2026-10-24）】页内数据面探针：learning-center 端点真实返回 totalTasks=0/chapters=0（课程 1–3 实测，其余课程无数据）——该页在真实后端下本就渲染 0/0，数据驱动断言没有可用的绿态，转正不可行',
   'admin-profile':
-    'C2b S2 实测（桩给 data:null 形态下）：[falsify] 专属断言=绿 ✗ · 桩命中真接口 /api/courses · 通用守卫绿（壳层正常挂上、pageerror=0）· 到位断言查 filled 输入框不小于 1 与 hero 统计非空非零，回填来自未被接管的外壳类端点（/api/auth/ 在保活名单里）⇒ 空转',
+    'C2b S2 实测（桩给 data:null 形态下）：[falsify] 专属断言=绿 ✗ · 桩命中真接口 /api/courses · 通用守卫绿（壳层正常挂上、pageerror=0）· 到位断言查 filled 输入框不小于 1 与 hero 统计非空非零，回填来自未被接管的外壳类端点（/api/auth/ 在保活名单里）⇒ 空转。【R-10 补强（2026-10-24）】另经 useProfile.ts:87 实证：非 STUDENT 角色根本不发起课程数据加载，该页对 admin 不渲染任何被桩端点的数据面 ⇒ 空转是页面设计使然，转正需先改产品代码',
 }
 
 /**
@@ -868,11 +871,11 @@ for (const role of ['STUDENT', 'TEACHER', 'ADMIN'] as const) {
  * 缺口表条目与矩阵互斥、并集＝那 9 格的结构约束由上面那条「互斥且并集」用例守；这条只管**数**。
  */
 test('空态覆盖面的计数是断言不是散文（R-C2-4：7 可证伪 ＋ 2 空转 ＝ 覆盖面仍是那 9 格）', () => {
-  // 可证伪矩阵＝7 格事故形状，每格仍必须是有会话、能打桩的真锚点
+  // 可证伪矩阵＝7 格事故形状（R-10 实测定案：两格空转不可转正，留在缺口表），每格仍必须是有会话、能打桩的真锚点
   expect(
     EMPTY_API_FALSIFIABLE.length,
     `可证伪矩阵格数不再是 7（现 ${EMPTY_API_FALSIFIABLE.length}）——R-C2-4 后矩阵只收"打空后专属断言会红"的格，` +
-      '空转那两格在缺口表里，别把它们算回来也别从矩阵删掉别的东西',
+      'admin-profile 那格在缺口表里（admin 不渲染被桩数据面，R-10 实测定案），别把它算回来也别从矩阵删掉别的东西',
   ).toBe(7)
   for (const slug of EMPTY_API_FALSIFIABLE) {
     expect(
@@ -882,10 +885,11 @@ test('空态覆盖面的计数是断言不是散文（R-C2-4：7 可证伪 ＋ 2
     const a = ANCHORS.find((x) => x.slug === slug)!
     expect(a.role, `${slug} 是 ANON 锚点——矩阵按 role 取会话，ANON 进不来`).not.toBe('ANON')
   }
-  // 空转缺口表＝2 格（实测依据写在表里，条目本身的有效性由「互斥且并集」用例断言）
+  // 空转缺口表＝2 格（R-10 实测定案：两格均不可转正——见各行 R-10 补强理由；实测依据写在表里，
+  // 条目本身的有效性由「互斥且并集」用例断言）
   expect(
     Object.keys(NOT_FALSIFIABLE_BY_ARRIVAL_ASSERTION).length,
-    '空转缺口表不再是 2 格 ⇒ 某格到位断言被修好后，要把它**搬回 EMPTY_API_FALSIFIABLE** 并同批删本表条目，' +
+    '空转缺口表不再是 2 格 ⇒ 缺口表条目变化必须走 R-C2-4 同批搬移（搬回矩阵或配反向守卫），' +
       '不能只删不搬、也不能悄悄长大（R-C2-4 只减不增）',
   ).toBe(2)
   // 第 13 项那张前提不成立登记表已清空（改前读数转录到 LEDGER P0a-GUARD-07；判据本体留着，见上方注释）
