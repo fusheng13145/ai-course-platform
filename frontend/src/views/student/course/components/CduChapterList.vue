@@ -43,6 +43,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { Select, Timer, ArrowRight } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
@@ -52,7 +53,20 @@ import EmptyState from '@/components/ui/EmptyState.vue'
  */
 defineProps({
   /** 章节列表（含 completed/current/progress 派生字段） */
-  chapters: { type: Array, required: true },
+  chapters: {
+    type: Array as PropType<
+      {
+        id?: number | string
+        title?: string
+        description?: string
+        duration?: number
+        completed?: boolean
+        current?: boolean
+        progress?: number
+      }[]
+    >,
+    required: true,
+  },
   /** 空态文案（父页面按加载失败态透传诚实提示，默认保留原语义） */
   emptyText: { type: String, default: '暂无章节内容' },
 })

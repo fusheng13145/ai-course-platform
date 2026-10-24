@@ -41,10 +41,23 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
+interface CoChapterNode {
+  id?: number | string
+  title?: string
+  taskCount?: number
+  submittedCount?: number
+  studentCount?: number
+  completionRate?: number
+  isPublished?: boolean
+  taskPoints?: unknown[]
+  children?: CoChapterNode[]
+}
+
 defineProps({
-  chapterTree: { type: Array, default: () => [] },
+  chapterTree: { type: Array as PropType<CoChapterNode[]>, default: () => [] },
   // 加载失败时由父组件传入诚实文案，避免把「失败」显示成「暂无章节」
   emptyText: { type: String, default: '暂无章节' },
 })
