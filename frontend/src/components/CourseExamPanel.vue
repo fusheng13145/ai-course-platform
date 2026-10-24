@@ -169,6 +169,7 @@ import { Plus } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import examApi from '@/api/exam'
 import { confirmDanger } from '@/utils/dangerConfirm'
+import { formatDateTime } from '@/utils/datetime'
 import { validateFormFields } from '@/composables/useFormSubmit'
 import { useDialogFocus } from '@/composables/useDialogFocus'
 
@@ -229,11 +230,6 @@ function getStatusName(status) {
 function isOverdue(date) {
   if (!date) return false
   return new Date(date) < new Date()
-}
-
-function formatDateTime(date) {
-  if (!date) return '-'
-  return new Date(date).toLocaleString('zh-CN')
 }
 
 async function loadExams() {

@@ -54,7 +54,7 @@
       </el-table-column>
       <el-table-column label="截止时间" width="155">
         <template #default="{ row }">
-          <span class="time-text">{{ formatDate(row.dueDate) }}</span>
+          <span class="time-text">{{ formatDateTime(row.dueDate) }}</span>
         </template>
       </el-table-column>
     </el-table>
@@ -64,6 +64,7 @@
 
 <script setup>
 import EmptyState from '@/components/ui/EmptyState.vue'
+import { formatDateTime } from '@/utils/datetime'
 
 defineProps({
   loading: { type: Boolean, default: false },
@@ -75,9 +76,7 @@ function getRateColor(rate) {
   if (rate >= 60) return 'var(--warn)'
   return 'var(--accent)'
 }
-function formatDate(d) {
-  return d ? new Date(d).toLocaleString('zh-CN') : '-'
-}
+
 </script>
 
 <style scoped>

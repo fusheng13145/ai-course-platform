@@ -128,6 +128,7 @@ import { ref, computed, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import { confirmDanger } from '@/utils/dangerConfirm'
+import { formatDateTime } from '@/utils/datetime'
 import resourceApi from '@/api/resource'
 import { useDialogFocus } from '@/composables/useDialogFocus'
 
@@ -208,11 +209,6 @@ function formatFileSize(size) {
   if (size < 1024) return size + ' B'
   if (size < 1024 * 1024) return (size / 1024).toFixed(1) + ' KB'
   return (size / (1024 * 1024)).toFixed(1) + ' MB'
-}
-
-function formatDateTime(date) {
-  if (!date) return '-'
-  return new Date(date).toLocaleString('zh-CN')
 }
 
 async function loadResources() {
