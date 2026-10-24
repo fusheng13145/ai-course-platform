@@ -5,6 +5,12 @@ import router from '@/router'
 import { useAuthStore } from '@/stores/auth'
 import { showLoading, hideLoading } from '@/utils/loadingBar'
 import { getRequestKey, generateReqKey } from '@/api/requestKey'
+import {
+  getStatusMessage,
+  resolveNetworkErrorMessage,
+  isIdempotentMethod,
+  extractFieldErrorSummary,
+} from '@/api/requestError'
 
 // 全局 Loading 进度条已抽离至 @/utils/loadingBar（HTTP 层不直接操作 DOM）
 
@@ -127,23 +133,7 @@ function isNetworkError(error) {
   return !error.response && !!error.message
 }
 
-/* ============================================
- * 幂等性判定（P1-7）
- * ============================================ */
-/**
- * 仅 HTTP 语义上「可安全重复」的方法才允许自动重试。
- *
- * 缺陷修复（P1-7）：原实现对所有请求（含 POST/PUT/DELETE）在网络抖动时自动重试一次。
- * 交卷（POST /exam-sessions/{id}/submit）、上传、批改等请求并非真正幂等——
- * 首次请求可能已被服务端处理但响应在回程丢失，重试会产生**重复提交/重复记录**。
- * 故重试白名单只保留 GET/HEAD/OPTIONS。
- */
-const IDEMPOTENT_METHODS = ['get', 'head', 'options']
-
-function isIdempotentMethod(method) {
-  const m = (method || 'get').toLowerCase()
-  return IDEMPOTENT_METHODS.includes(m)
-}
+/* 幂等性判定与状态码/网络错误文案已抽离至 @/api/requestError（FE-07） */
 
 /* ============================================
  * 401 单飞刷新（P0-4）
@@ -243,30 +233,7 @@ function cloneConfigForRetry(config) {
   return cloned
 }
 
-/* 根据状态码获取友好提示信息 */
-function getStatusMessage(status) {
-  const messages = {
-    400: '请求参数错误，请检查输入',
-    401: '登录已过期，请重新登录',
-    403: '抱歉，您没有权限执行此操作',
-    404: '请求的资源不存在',
-    405: '请求方法不被允许',
-    408: '请求超时，请稍后重试',
-    409: '数据冲突，请刷新后重试',
-    410: '资源已被删除',
-    413: '上传文件过大',
-    415: '不支持的媒体类型',
-    422: '数据校验失败',
-    423: '资源已被锁定',
-    429: '操作过于频繁，请稍后再试',
-    500: '服务器内部错误，请联系管理员',
-    501: '服务器不支持此功能',
-    502: '网关错误，服务暂时不可用',
-    503: '服务维护中，请稍后访问',
-    504: '网关超时，请稍后重试',
-  }
-  return messages[status] || `请求失败 (${status})`
-}
+/* 状态码 → 文案映射已抽离至 @/api/requestError 的 getStatusMessage（FE-07） */
 
 /* ============================================
  * 请求拦截器
@@ -343,15 +310,7 @@ service.interceptors.response.use(
 
     /* ---- 网络错误处理（无响应）---- */
     if (isNetworkError(error)) {
-      let networkMsg = '网络异常'
-
-      if (error.message.includes('timeout') || error.message.includes('Timeout')) {
-        networkMsg = '请求超时，请检查网络连接'
-      } else if (error.message.includes('Network Error')) {
-        networkMsg = '网络不可用，请检查网络设置'
-      } else if (error.message.includes('ERR_INTERNET_DISCONNECTED')) {
-        networkMsg = '网络已断开，请连接后重试'
-      }
+      const networkMsg = resolveNetworkErrorMessage(error.message)
 
       // 探针静默期不弹toast（/503 页自带状态展示与重试 UI）
       if (!probeSilence) {
@@ -441,10 +400,7 @@ service.interceptors.response.use(
         /* 校验失败：尝试提取字段级错误信息 */
         const detail = error.response?.data?.detail
         if (Array.isArray(detail) && detail.length > 0) {
-          const fieldErrors = detail
-            .map((d) => d?.msg || d?.message)
-            .filter(Boolean)
-            .join('; ')
+          const fieldErrors = extractFieldErrorSummary(detail)
           showThrottledMessage('error', fieldErrors || '数据校验失败')
         } else {
           showThrottledMessage('error', serverMsg || '数据校验失败，请检查输入')
