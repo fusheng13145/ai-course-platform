@@ -919,12 +919,14 @@ test('闸门源级钉自己会红：内存里复刻「改默认实参」与「�
 })
 
 /**
- * 22 张基线的 sha256 清单（Step 1c 的"篡改痕迹"）。
+ * 24 张基线的 sha256 清单（Step 1c 的"篡改痕迹"）。
  * 症状设计成"基线被换掉即红"——包括被 `--update-snapshots` 换掉、也包括被别的代理覆盖掉。
  * 重算清单（改基线时必须同步这里，且要逐张复核新图）：
  *   cd frontend && node e2e/visual/tools/measure-diff.cjs --manifest e2e/visual/__snapshots__/anchors.spec.ts --json
- * 张数写成 22 而不是 24：`error-404` 两张按缺陷 D-1（错误路由从不写 data-theme）拒收，
- * 引用这个数一律写 22/24 并带原因。
+ * 张数为 24 = 12 锚点 × 明暗全集。2026-10-24 同步时补齐三笔"只动基线没动清单"的欠账：
+ * error-404 ×2（`ea48fe1`，D-1 修复入库）、student-dashboard 明暗 ×2（`93b09cb`，经授权重录）、
+ * admin-governance-analytics-dark 与 student-knowledge-graph-dark ×2（`c0b94ce`，D-1 第二载体重采）。
+ * 同步以"工作树除本文件外干净、字节与 HEAD 一致"为前提取证，引用这个数一律带张数与原因。
  */
 const BASELINE_SHA256: Record<string, string> = {
   'admin-courses-table-dark.png':
@@ -934,23 +936,25 @@ const BASELINE_SHA256: Record<string, string> = {
   'admin-dashboard-dark.png': 'd8162bbfaf8c40074592b4eda13bc212cd81b920727b1c03306b60265a72e985',
   'admin-dashboard-light.png': 'f97e461499d12b40345443ca8fe5ad2e9f3479f81688352021caebfe59ee2baf',
   'admin-governance-analytics-dark.png':
-    'fdcf4eca3fd2a3f77789f673e882f51192283b662e35753ef36abb2bf26cde1a',
+    '86e93625edf252cb32ef53eb89f4a174f56dab25dd6610304f42e1dc6241b6a1',
   'admin-governance-analytics-light.png':
     'd0a57821fc4ebcde8481f8a1f1f8bac35e13d99c614a2a6b37a6430e11a35ae7',
   'admin-profile-dark.png': 'd3838b8d9582abadc639792e32b80420d6446affd39fdd47f6e1faf842292ead',
   'admin-profile-light.png': '5deaacad8f257fcb651cb8a56faa35aad0e83dafdd6c2b4cffd4dd5782de1e68',
   'admin-system-form-dark.png': '5719dc5155c4c0e5171b2a44e3f35fca86fbbce8a6381fb6b1f9db784636a76a',
   'admin-system-form-light.png': 'f2924fa041f6a3a435445e337995a297808e62c2d9f3257904930127bdc35d1c',
+  'error-404-dark.png': 'b2d03c673791a14b37bb9c6f92cf46f862108051620f0cabfcbe1faf53afe0a4',
+  'error-404-light.png': '809f74a1a39c30d0c0675b83e49e9c00ddf5eaea66dcb4515642d9bcb38eed13',
   'login-dark.png': 'bae3de236ef5afcf99ce00a17b95011b945e6f22224982f1a90e67abb74c72e4',
   'login-light.png': 'aa253c2a88df0586be3ded71a824678f7804fe07a69ec2d4b3912238697a6b2d',
   'student-courses-modal-dark.png':
     '737739917fe742e17aef3706e3ec88f0fe386c73d7fb83939891b5212f695038',
   'student-courses-modal-light.png':
     'b6a9882cdb6bf55af9a711fb0b7b4cbc83ff7e716be550ceed86fa5aa5673263',
-  'student-dashboard-dark.png': 'f45ad39a511257101bef54cfddb12a4ab41b3867c748d4fe36913457a717b7db',
-  'student-dashboard-light.png': '3b09fb5563abf9308b829875ddd13d46158ebfb06b53baf27a45353f4b1c259f',
+  'student-dashboard-dark.png': 'a0f2141a9a47fae5fe3bbe3425e63e1adb74b252b70ef53823680dad28ce63f7',
+  'student-dashboard-light.png': 'b25114351a0aae9adb9d32ad809b0fdb8d175ec97f1642bee020ea504bb78f2b',
   'student-knowledge-graph-dark.png':
-    '787954e0647d4cfb0bf58fc2b0b2693555d19380772c8f7ce14809693aa006aa',
+    'e803441b2d9841cf4a534bd8a4a780c5f5eecd56f1ca8d2a1eff369f5b917b0e',
   'student-knowledge-graph-light.png':
     '35e7caf803ca83f70c23d2a08372019883495770b603769234fafd4bde548c84',
   'student-learning-center-dark.png':
@@ -961,12 +965,15 @@ const BASELINE_SHA256: Record<string, string> = {
   'teacher-dashboard-light.png': '7f44ad35146c4ebe438814245a290b70fe448cba607ca41a68d9a57adec42a01',
 }
 
-test('22 张已提交基线的 sha256 与入库清单一致（篡改/重生成即红）', () => {
+test('24 张已提交基线的 sha256 与入库清单一致（篡改/重生成即红）', () => {
   const dir = join(process.cwd(), 'e2e/visual/__snapshots__/anchors.spec.ts')
   const onDisk = readdirSync(dir)
     .filter((f) => f.toLowerCase().endsWith('.png'))
     .sort()
-  expect(onDisk.length, '基线张数变了：22 是"12 锚点 × 明暗 − error 两张（D-1 拒收）"').toBe(22)
+  expect(
+    onDisk.length,
+    '基线张数变了：24 是"12 锚点 × 明暗"全集（D-1 修复后 error 两张已入库）',
+  ).toBe(24)
   expect([...Object.keys(BASELINE_SHA256)].sort()).toEqual(onDisk)
   for (const f of onDisk) {
     const digest = createHash('sha256')
