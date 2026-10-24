@@ -118,6 +118,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import {
   Promotion,
   MagicStick,
@@ -135,8 +136,13 @@ import {
  * `points`（同时兼容 `{value,label}` 与 `{id,name}` 两种选项形状）。</p>
  */
 defineProps({
-  /** 候选知识点选项（{value,label} 或 {id,name}） */
-  points: { type: Array, default: () => [] },
+  /** 候选知识点选项（{value,label} 或 {id,name} 两种形状兼容） */
+  points: {
+    type: Array as PropType<
+      { value?: number | string; id?: number | string; label?: string; name?: string }[]
+    >,
+    default: () => [],
+  },
   /** 起点知识点 */
   pathSource: { type: [Number, String], default: null },
   /** 目标知识点 */
