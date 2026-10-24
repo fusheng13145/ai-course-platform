@@ -65,6 +65,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
@@ -76,7 +77,7 @@ defineProps({
   userTrendOption: { type: Object, required: true },
   categoryPieOption: { type: Object, required: true },
   heatmapOption: { type: Object, required: true },
-  heatmapColors: { type: Array, default: () => [] },
+  heatmapColors: { type: Array as PropType<string[]>, default: () => [] },
   roleActivityOption: { type: Object, required: true },
   gradeDistOption: { type: Object, required: true },
   topCoursesOption: { type: Object, required: true },

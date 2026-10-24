@@ -1,7 +1,7 @@
 <template>
   <div>
     <PageHeader title="登录日志" subtitle="全平台登录行为审计 · 状态筛选" icon="log">
-      <TabGroup :tabs="filterTabs" :active="activeTab" style="seg" @change="onTabChange" />
+      <TabGroup :tabs="filterTabs" :active="activeTab" variant="seg" @change="onTabChange" />
     </PageHeader>
 
     <!-- 加载失败提示：非空即表示本页读数不可信（失败不得渲染成「暂无登录记录」） -->

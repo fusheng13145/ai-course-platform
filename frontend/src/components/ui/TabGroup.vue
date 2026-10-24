@@ -1,11 +1,17 @@
-<script setup>
-import { ref, watch } from 'vue'
+<script setup lang="ts">
+import { ref, watch, type PropType } from 'vue'
 import { sanitizeHtml } from '@/utils/sanitize'
 
 const props = defineProps({
-  tabs: { type: Array, required: true }, // [{key, label, icon, badge}]
+  tabs: {
+    type: Array as PropType<{ key: string; label: string; icon?: string; badge?: string | number }[]>,
+    required: true,
+  }, // [{key, label, icon, badge}]
   active: { type: String, default: '' },
-  style: { type: String, default: 'pill' }, // pill | line | seg
+  // B1：原 prop 名 `style` 与 Vue 保留属性同名，调用点写 style="seg" 是靠 prop 遮蔽才不落到
+  // HTML style 属性上的隐患写法；改名 variant 后语义显式。档位值不做联合类型收紧：
+  // 「未知值不校验、原样拼进类名」是测试文档化的既有契约。
+  variant: { type: String, default: 'pill' }, // pill | line | seg
 })
 const emit = defineEmits(['change'])
 const cur = ref(props.active)
@@ -13,13 +19,13 @@ watch(
   () => props.active,
   (v) => (cur.value = v),
 )
-function select(key) {
+function select(key: string) {
   cur.value = key
   emit('change', key)
 }
 </script>
 <template>
-  <div :class="`tabs-${style}`">
+  <div :class="`tabs-${variant}`">
     <div
       v-for="t in tabs"
       :key="t.key"

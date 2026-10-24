@@ -5,12 +5,12 @@ import TabGroup from '../TabGroup.vue'
 /**
  * Task 12：TabGroup（UmDetailDialog、LoginLogs 两个调用点）现状快照。
  * 契约来源（TabGroup.vue 现状行号）：
- * - props：tabs（必填 Array）/ active / style（:5-9），emit：change（:10）
- * - 内部 cur + watch(props.active)（:11-15）：既接受父组件回写，也在点击时自行高亮，
+ * - props：tabs（必填 Array）/ active / variant（B1 自 style 改名：原名撞 Vue 保留属性），emit：change
+ * - 内部 cur + watch(props.active)（既接受父组件回写，也在点击时自行高亮），
  *   这是一个「半受控」组件——Phase 5 若把它改成纯受控，红的是下面第 4、5 两个用例。
- * - style prop 决定根类名 tabs-pill / tabs-line / tabs-seg（:22），且它是个声明过的 prop，
- *   所以 <TabGroup style="seg"> 不会把 seg 落进 HTML 的 style 属性（:22 + 调用点 LoginLogs.vue:4）。
- * - tabs[].icon 走 sanitizeHtml（:32）、tabs[].badge 是 `!= null` 判断（:34）。
+ * - variant prop 决定根类名 tabs-pill / tabs-line / tabs-seg；
+ *   改名后调用点写 variant="seg"（LoginLogs.vue:4 / UmDetailDialog.vue:9）。
+ * - tabs[].icon 走 sanitizeHtml、tabs[].badge 是 `!= null` 判断。
  * 类名与 StatCard 无任何重叠，别照搬别处的选择器。
  */
 
@@ -24,18 +24,17 @@ function mountTabs(props: Record<string, unknown> = {}) {
 }
 
 describe('TabGroup 现状', () => {
-  it('style prop 决定根类名，且不落进 HTML 的 style 属性', () => {
-    const w = mountTabs({ style: 'seg' })
+  it('variant prop 决定根类名', () => {
+    const w = mountTabs({ variant: 'seg' })
     expect(w.classes()).toEqual(['tabs-seg'])
-    // style 是声明过的 prop（:8），Vue 把它当 prop 消费而不是 attr；
-    // 若 Phase 5 改成从 $attrs 读尺寸档（像 Modal 那样），这一行会先红
+    // variant 是声明过的 prop，不会被当作 attr 落进 HTML style 属性
     expect(w.attributes('style')).toBeUndefined()
-    expect(mountTabs({ style: 'line' }).classes()).toEqual(['tabs-line'])
+    expect(mountTabs({ variant: 'line' }).classes()).toEqual(['tabs-line'])
   })
 
-  it('缺省 style 为 pill；未知值不校验、原样拼进类名', () => {
+  it('缺省 variant 为 pill；未知值不校验、原样拼进类名', () => {
     expect(mountTabs().classes()).toEqual(['tabs-pill'])
-    expect(mountTabs({ style: 'nope' }).classes()).toEqual(['tabs-nope'])
+    expect(mountTabs({ variant: 'nope' }).classes()).toEqual(['tabs-nope'])
   })
 
   it('每个 tab 渲染一个 .tab-i，顺序同 tabs；active 命中才挂 active 类', () => {

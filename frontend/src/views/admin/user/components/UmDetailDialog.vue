@@ -6,7 +6,7 @@
       <TabGroup
         :tabs="detailTabs"
         :active="detailTab"
-        style="pill"
+        variant="pill"
         @change="emit('update:detailTab', $event)"
       />
       <div class="mt-16">
