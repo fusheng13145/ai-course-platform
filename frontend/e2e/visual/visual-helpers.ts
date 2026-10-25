@@ -647,12 +647,23 @@ export const ANCHORS: readonly AnchorSpec[] = [
     title: '学生课程（弹层代表）',
     role: 'STUDENT',
     path: '/student/courses',
+    /**
+     * 【P1-TOKEN-01 发现并遮罩】顶栏通知铃的未读角标走真后端（这三格不像 student-dashboard
+     * 那样钉桩），未读数被流程套件/演示操作写脏后角标随之漂移——2026-10-25 实测：隔夜从 0 涨到 70，
+     * 角标 ~50 px，满页几何的免检额（1440×H×0.0001，H≥1116 ⇒ ≥216 px）盖得住它 ⇒ 套件静默
+     * 通过、但基线里冻着过期数据态（本批重录曾把 "70" 角标吸进基线，Δmax 207 顶穿了阴影档
+     * 读数）。遮罩是钉桩学说里对"合法随数据变化区域"的正解（maskSelectors 的存在目的）；
+     * 只遮 `.n-badge` 这一块，不遮铃本体。
+     */
+    maskSelectors: ['button[title="通知"]'],
   },
   {
     slug: 'student-learning-center',
     title: '学习中心（壳页代表）',
     role: 'STUDENT',
     path: '__FROM_COURSE_LIST__',
+    /** 同 student-courses-modal：未读角标合法漂移，遮罩（见上） */
+    maskSelectors: ['button[title="通知"]'],
   },
   {
     slug: 'student-knowledge-graph',
@@ -672,6 +683,8 @@ export const ANCHORS: readonly AnchorSpec[] = [
     path: '/student/knowledge-graph?courseId=4001',
     pinRandom: true,
     requirePaintedGraph: true,
+    /** 同 student-courses-modal：未读角标合法漂移，遮罩（见那一格的注释） */
+    maskSelectors: ['button[title="通知"]'],
   },
   {
     slug: 'admin-governance-analytics',

@@ -49,7 +49,10 @@
   --r-chip: 999px;
 
   /* ========== 阴影（随浮层高度递增）========== */
-  --sh-l1: 0 1px 2px rgba(24, 32, 48, 0.05), 0 4px 14px rgba(24, 32, 48, 0.06);
+  /* 【P1-TOKEN-01】双成对结构的幅度定标：接触层（1px 高 alpha）不动、环境层 0.06→0.10——
+     这是 spec §4 Phase 1 的原文幅度，也是 sensitivity 套件 shadow-plan 档量程化时锁定的
+     单变量读法（"接触层不动 ⇒ 单变量"，量程账本已按它给出计数/字节差/Δmax 读数）。 */
+  --sh-l1: 0 1px 2px rgba(24, 32, 48, 0.05), 0 4px 14px rgba(24, 32, 48, 0.1);
   --sh-l1-hover: 0 2px 4px rgba(24, 32, 48, 0.07), 0 10px 28px rgba(24, 32, 48, 0.1);
   --sh-l2: 0 1px 2px rgba(24, 32, 48, 0.05);
   --sh-pop: 0 8px 24px rgba(24, 32, 48, 0.14), 0 2px 6px rgba(24, 32, 48, 0.08);
@@ -236,9 +239,14 @@
   --warn-soft: rgba(181, 121, 8, 0.18);
   --info-soft: rgba(37, 99, 168, 0.18);
   --violet-soft: rgba(109, 79, 161, 0.18);
-  --sh-l1: 0 1px 2px rgba(0, 0, 0, 0.4), 0 4px 14px rgba(0, 0, 0, 0.5);
-  --sh-l1-hover: 0 2px 4px rgba(0, 0, 0, 0.6), 0 10px 28px rgba(0, 0, 0, 0.7);
-  --sh-l2: 0 1px 2px rgba(0, 0, 0, 0.3);
+  /* 【P1-TOKEN-01】暗色阴影重排：spec §4 Phase 1"阴影只留给真浮层（modal / drawer / pop），
+     因为黑投影在深色底上不可见"——卡面三档（l1/l1-hover/l2）在暗色置 none，层级感改由
+     描边优先 + 抬亮表面承担（后续单元）；pop/drawer/modal 三档保留原值不动。
+     EP 三枚 box-shadow 变量在暗色重映射到 --sh-pop：EP 的 dropdown/popover/tooltip 都是
+     真浮层，不能跟着 --sh-l1 一起丢阴影（浅色侧映射不变）。 */
+  --sh-l1: none;
+  --sh-l1-hover: none;
+  --sh-l2: none;
   --sh-pop: 0 8px 24px rgba(0, 0, 0, 0.6);
   --sh-modal: 0 32px 90px rgba(0, 0, 0, 0.7);
   /* 存量缺陷的修复位（Task 10C 发现、非本棒引入）：暗色块此前只重排 l1 / l1-hover / l2 / pop / modal
@@ -270,4 +278,9 @@
   --el-text-color-placeholder: var(--ink-4);
   --el-border-color: var(--line);
   --el-border-color-light: var(--line-2);
+  /* 【P1-TOKEN-01】EP 弹层（dropdown/popover/tooltip）是真浮层，暗色保阴影：
+     三枚变量从已置 none 的 --sh-l1/--sh-l2 重映射到保留的 --sh-pop（浅色侧映射不变）。 */
+  --el-box-shadow: var(--sh-pop);
+  --el-box-shadow-light: var(--sh-pop);
+  --el-box-shadow-lighter: var(--sh-pop);
 }
