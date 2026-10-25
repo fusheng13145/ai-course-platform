@@ -1,7 +1,7 @@
 {
-  "errors": 210,
-  "files": 40,
-  "note": "2026-09-13 首次接入 vue-tsc 的存量基线；棘轮制，只许下降（2026-10-04 同步：587 条）（2026-10-04 同步：586 条）（2026-10-07 同步：576 条）（2026-10-08 同步：564 条）（2026-10-09 同步：563 条）（2026-10-10 同步：562 条）（2026-10-13 同步：490 条）（2026-10-13 同步：408 条）（2026-10-13 同步：407 条）（2026-10-14 同步：402 条）（2026-10-24 同步：389 条 / 76 文件，FE-10 B0 清零 14 个单错误文件——其中 task.ts 的 extendDeadline 参数类型按后端 TaskCreateDTO 契约纠正为 newDueDate+reason）（2026-10-24 B1 同步：386 条 / 73 文件——TabGroup 的 style prop 改名 variant 并 TS 化，消解 3 处保留名摩擦）（2026-10-24 B2 同步：361 条 / 60 文件——≤2 错误文件簇清零 13 文件；useSpeech 补 Web Speech 识别器最小类型面；useKnowledgeGraph 的 courseId 放宽 string|number 并定型 openForm 形状）（2026-10-24 B3 同步：358 条 / 58 文件——CdStudentsTab 审批列的 v-if 移入槽位作用域（原 row 解析到组件级 undefined，一并消除潜在渲染缺陷）、NotificationManagement 右键菜单状态定型允许分隔符与 danger 项）（2026-10-24 B4 同步：337 条 / 51 文件——3 错误文件簇清零 7 文件（含 useKnowledgeGraph 残留 3 处 unknown 收窄）；AiaChatPanel/InRecordsDialog 经 props PropType 定型而非模板内 cast（Vue 模板不支持对象字面量类型 cast））（2026-10-24 B4 同步：337 条 / 51 文件——3 错误簇清零 7 文件，useKnowledgeGraph 残留 3 处 unknown 补收窄；AiaChatPanel/InRecordsDialog 经 props PropType 定型而非模板内 cast——Vue 模板不支持对象字面量类型 cast）（2026-10-24 B5 同步：311 条 / 50 文件——两大户 CduChapterList/CoChapterTree 经 chapters/chapterTree PropType 接口定型清零）（2026-10-24 B6 同步：299 条 / 49 文件——TsvRiskCard 经 riskGroups/riskDetails PropType 定型清零）（2026-10-24 B7 同步：287 条 / 48 文件——KntPathPlanner 经 points PropType 定型清零）（2026-10-24 B9 同步：246 条 / 44 文件——NmNoticeList/LpDailyTasksPanel/ExamFormDialog 经 PropType 定型清零，并补记 B8 欠账（SdCourseGrid 287→276，上次同步未落盘）；ExamFormDialog 为零引用孤儿组件，删除与否待项目主决策）（2026-10-24 同步：210 条）（2026-10-25 B10 同步：210 条 / 40 文件——TeachingSupervision/EgSessionList/ProfileActivity/KmDialogs 四户定型清零（36 条）；useTeachingSupervision 概览具名定型 + topCourses/aiAlerts 收窄 unknown[]；连带修复真实渲染缺陷：heatValue 自 TS 迁移（217c48c）起从未进入返回块，TsvHeatmapCard 的 required heatValue 一直收到 undefined（该页不在 12 视觉锚点内，视觉门抓不到）；TsvHeatmapCard.dayOrder PropType 由 string[] 纠正为 number[]（B5 遗留的父级 number[] 形态））",
+  "errors": 167,
+  "files": 34,
+  "note": "2026-09-13 首次接入 vue-tsc 的存量基线；棘轮制，只许下降（2026-10-04 同步：587 条）（2026-10-04 同步：586 条）（2026-10-07 同步：576 条）（2026-10-08 同步：564 条）（2026-10-09 同步：563 条）（2026-10-10 同步：562 条）（2026-10-13 同步：490 条）（2026-10-13 同步：408 条）（2026-10-13 同步：407 条）（2026-10-14 同步：402 条）（2026-10-24 同步：389 条 / 76 文件，FE-10 B0 清零 14 个单错误文件——其中 task.ts 的 extendDeadline 参数类型按后端 TaskCreateDTO 契约纠正为 newDueDate+reason）（2026-10-24 B1 同步：386 条 / 73 文件——TabGroup 的 style prop 改名 variant 并 TS 化，消解 3 处保留名摩擦）（2026-10-24 B2 同步：361 条 / 60 文件——≤2 错误文件簇清零 13 文件；useSpeech 补 Web Speech 识别器最小类型面；useKnowledgeGraph 的 courseId 放宽 string|number 并定型 openForm 形状）（2026-10-24 B3 同步：358 条 / 58 文件——CdStudentsTab 审批列的 v-if 移入槽位作用域（原 row 解析到组件级 undefined，一并消除潜在渲染缺陷）、NotificationManagement 右键菜单状态定型允许分隔符与 danger 项）（2026-10-24 B4 同步：337 条 / 51 文件——3 错误文件簇清零 7 文件（含 useKnowledgeGraph 残留 3 处 unknown 收窄）；AiaChatPanel/InRecordsDialog 经 props PropType 定型而非模板内 cast（Vue 模板不支持对象字面量类型 cast））（2026-10-24 B4 同步：337 条 / 51 文件——3 错误簇清零 7 文件，useKnowledgeGraph 残留 3 处 unknown 补收窄；AiaChatPanel/InRecordsDialog 经 props PropType 定型而非模板内 cast——Vue 模板不支持对象字面量类型 cast）（2026-10-24 B5 同步：311 条 / 50 文件——两大户 CduChapterList/CoChapterTree 经 chapters/chapterTree PropType 接口定型清零）（2026-10-24 B6 同步：299 条 / 49 文件——TsvRiskCard 经 riskGroups/riskDetails PropType 定型清零）（2026-10-24 B7 同步：287 条 / 48 文件——KntPathPlanner 经 points PropType 定型清零）（2026-10-24 B9 同步：246 条 / 44 文件——NmNoticeList/LpDailyTasksPanel/ExamFormDialog 经 PropType 定型清零，并补记 B8 欠账（SdCourseGrid 287→276，上次同步未落盘）；ExamFormDialog 为零引用孤儿组件，删除与否待项目主决策）（2026-10-24 同步：210 条）（2026-10-25 B10 同步：210 条 / 40 文件——TeachingSupervision/EgSessionList/ProfileActivity/KmDialogs 四户定型清零（36 条）；useTeachingSupervision 概览具名定型 + topCourses/aiAlerts 收窄 unknown[]；连带修复真实渲染缺陷：heatValue 自 TS 迁移（217c48c）起从未进入返回块，TsvHeatmapCard 的 required heatValue 一直收到 undefined（该页不在 12 视觉锚点内，视觉门抓不到）；TsvHeatmapCard.dayOrder PropType 由 string[] 纠正为 number[]（B5 遗留的父级 number[] 形态））（2026-10-25 B11 同步：167 条 / 34 文件——五个 8 错误户定型清零（EmCheatingDialog 的 cheatingLogs、ProfileCourses 的 courses、ChapterTree 的 tasks 换 TaskNode、LpPathSelector 的 paths、CourseProctor 的 sessions/paperMap/risk/events 与三处 arr 收窄）+ CoChapterTree 的 taskPoints 换 CoChapterTaskPoint（B5 后父级新暴露形态顺手收口），共 43 条）",
   "scope": "src/**/*.{ts,vue} + e2e/**/*.ts + *.config.ts，strict:false",
   "nextSteps": [
     "收敛 145 处手写防御式双取值（res.data?.records || res.data?.list || res.data || res）为统一解包工具",
@@ -9,11 +9,6 @@
     "上述完成后开启 strict 的迁移（实测 strict:true 存量 2774 条 / 257 文件）"
   ],
   "byFile": {
-    "src/views/admin/teaching/components/EmCheatingDialog.vue": 8,
-    "src/views/common/components/ProfileCourses.vue": 8,
-    "src/views/student/components/ChapterTree.vue": 8,
-    "src/views/student/study/components/LpPathSelector.vue": 8,
-    "src/views/teacher/cockpit/CourseProctor.vue": 8,
     "src/views/admin/system/RagDocs.vue": 7,
     "src/composables/useProfile.ts": 6,
     "src/composables/useStudentExams.ts": 6,
@@ -47,7 +42,6 @@
     "src/views/teacher/assessment/components/QbAiDialog.vue": 4,
     "src/views/teacher/assessment/components/QbFilterBar.vue": 4,
     "src/views/teacher/assessment/components/QbFormDialog.vue": 4,
-    "src/views/teacher/cockpit/CourseChapters.vue": 4,
-    "src/views/teacher/cockpit/components/CoChapterTree.vue": 3
+    "src/views/teacher/cockpit/CourseChapters.vue": 4
   }
 }

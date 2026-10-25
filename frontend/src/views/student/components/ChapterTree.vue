@@ -50,7 +50,12 @@
           <el-icon v-else class="task-go"><ArrowRight /></el-icon>
         </div>
 
-        <EmptyState v-if="chapter.tasks.length === 0" title="本章暂无任务点" icon="list" size="compact" />
+        <EmptyState
+          v-if="chapter.tasks.length === 0"
+          title="本章暂无任务点"
+          icon="list"
+          size="compact"
+        />
 
         <!-- 递归子章节 -->
         <chapter-tree
@@ -81,6 +86,15 @@ import {
   Notebook,
 } from '@element-plus/icons-vue'
 
+/** 任务点（tasks 的元素：id/unlocked/completed/taskType/title，点击经 open-task 上抛） */
+interface TaskNode {
+  id: number | string
+  unlocked?: boolean
+  completed?: boolean
+  taskType?: string
+  title?: string
+}
+
 /** 章节节点（children 为递归同型；tasks 仅整体迭代与随 open-task 事件上抛） */
 interface ChapterNode {
   id?: number | string
@@ -89,7 +103,7 @@ interface ChapterNode {
   completedTasks?: number
   totalTasks?: number
   allCompleted?: boolean
-  tasks?: unknown[]
+  tasks?: TaskNode[]
   children?: ChapterNode[]
 }
 

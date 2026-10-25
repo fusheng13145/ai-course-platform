@@ -33,6 +33,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { ref, computed } from 'vue'
 import { useDialogFocus } from '@/composables/useDialogFocus'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -44,8 +45,22 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 const props = defineProps({
   /** 弹窗显隐（v-model） */
   modelValue: { type: Boolean, default: false },
-  /** 作弊检测日志列表 */
-  cheatingLogs: { type: Array, required: true },
+  /** 作弊检测日志列表（studentName/studentId/detectedAt|time/type/description|detail/riskLevel） */
+  cheatingLogs: {
+    type: Array as PropType<
+      {
+        studentName?: string
+        studentId?: number | string
+        detectedAt?: string
+        time?: string
+        type?: string
+        description?: string
+        detail?: string
+        riskLevel?: string
+      }[]
+    >,
+    required: true,
+  },
   /** 风险等级 → 评分映射函数 */
   getRiskLevel: { type: Function, required: true },
 })

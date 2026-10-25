@@ -44,6 +44,13 @@
 import type { PropType } from 'vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
+/** 任务点（taskPoints 的元素：id/title/taskType） */
+interface CoChapterTaskPoint {
+  id: number | string
+  title?: string
+  taskType?: string
+}
+
 interface CoChapterNode {
   id?: number | string
   title?: string
@@ -52,7 +59,7 @@ interface CoChapterNode {
   studentCount?: number
   completionRate?: number
   isPublished?: boolean
-  taskPoints?: unknown[]
+  taskPoints?: CoChapterTaskPoint[]
   children?: CoChapterNode[]
 }
 

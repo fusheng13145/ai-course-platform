@@ -34,6 +34,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { Reading, ArrowRight } from '@element-plus/icons-vue'
 import ProfileCard from './ProfileCard.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -44,7 +45,18 @@ import EmptyState from '@/components/ui/EmptyState.vue'
  */
 defineProps({
   /** 课程列表项（courseId/courseName/progress/_bg/_fg） */
-  courses: { type: Array, default: () => [] },
+  courses: {
+    type: Array as PropType<
+      {
+        courseId: number | string
+        courseName?: string
+        progress?: number
+        _bg?: string
+        _fg?: string
+      }[]
+    >,
+    default: () => [],
+  },
   /** 加载态 */
   loading: { type: Boolean, default: false },
   /** 课程名首字符（用于封面） */

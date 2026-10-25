@@ -234,15 +234,28 @@ const sessionsError = ref('')
 const riskError = ref('')
 const eventsError = ref('')
 const loadError = computed(() => sessionsError.value || riskError.value || eventsError.value)
-const sessions = ref([])
-const paperMap = ref({}) // examPaperId -> title
+
+/** 进行中考试会话行（getActiveExams 返回，字段以页面表格消费为准） */
+type ProctorSession = {
+  id: number | string
+  examPaperId?: number | string
+  courseId?: number | string
+  studentName?: string
+  student?: string
+  startTime?: string
+  endTime?: string
+  status?: string
+}
+
+const sessions = ref<ProctorSession[]>([])
+const paperMap = ref<Record<string, string>>({}) // examPaperId -> title
 const onlyThisCourse = ref(false)
 
 const selected = ref(null)
 const selectedRisk = ref(null)
 
-const risk = reactive({ loading: false, list: [] })
-const events = reactive({ loading: false, list: [] })
+const risk = reactive({ loading: false, list: [] as unknown[] })
+const events = reactive({ loading: false, list: [] as unknown[] })
 
 const riskTotal = ref(0)
 const eventsTotal = ref(0)
@@ -299,7 +312,7 @@ async function load() {
     // 进行中考试会话
     const r = await examApi.getActiveExams()
     const body = unwrap(r)
-    const arr = Array.isArray(body) ? body : body?.records || body?.list || []
+    const arr = (Array.isArray(body) ? body : body?.records || body?.list || []) as ProctorSession[]
     sessions.value = arr
 
     // 关联试卷标题（getActiveExams 仅含 examPaperId）
@@ -346,7 +359,7 @@ async function loadRisk(session) {
   try {
     const r = await proctorApi.getExamRisk(session.id)
     const body = unwrap(r)
-    const arr = Array.isArray(body) ? body : body?.records || body?.list || []
+    const arr = (Array.isArray(body) ? body : body?.records || body?.list || []) as unknown[]
     risk.list = arr
     riskTotal.value = arr.length
   } catch (e) {
@@ -395,7 +408,7 @@ async function loadEvents(risk) {
     if (!targetId) return
     const r = await proctorApi.getSessionEvents(targetId)
     const body = unwrap(r)
-    const arr = Array.isArray(body) ? body : body?.records || body?.list || []
+    const arr = (Array.isArray(body) ? body : body?.records || body?.list || []) as unknown[]
     events.list = arr
     eventsTotal.value = arr.length
   } catch (e) {

@@ -29,13 +29,20 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
+
 /**
  * 学习路径 — 路径选择器（左栏）
  * <p>我的学习路径卡片列表（名称/状态/节点数/进度）。</p>
  */
 defineProps({
-  /** 路径列表 */
-  paths: { type: Array, required: true },
+  /** 路径列表（id/name/status/totalStages） */
+  paths: {
+    type: Array as PropType<
+      { id: number | string; name?: string; status?: string; totalStages?: number }[]
+    >,
+    required: true,
+  },
   /** 当前选中路径 id */
   selectedPathId: { type: [String, Number], default: null },
   /** 路径进度计算函数 */
