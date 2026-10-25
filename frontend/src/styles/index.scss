@@ -198,8 +198,11 @@ body,
 }
 
 /* 按钮：莫兰迪主色 */
+/* 【P2-RADIUS-01】控件路径摘除 6px（spec §4 Phase 2）：primary/default 按钮与输入框
+   由 --ac-radius-sm(6) 升 --ac-radius-lg(=--r-ctl 10px 控件档)；菜单项/卡片/表格
+   非控件路径保持原档。 */
 .el-button--primary {
-  border-radius: var(--ac-radius-sm) !important;
+  border-radius: var(--ac-radius-lg) !important;
   font-weight: 500;
   transition: all var(--ac-transition-fast) !important;
 }
@@ -238,7 +241,7 @@ body,
 .el-button--default {
   --el-button-hover-bg-color: var(--ac-bg-hover) !important;
   --el-button-hover-border-color: var(--ac-border) !important;
-  border-radius: var(--ac-radius-sm) !important;
+  border-radius: var(--ac-radius-lg) !important;
 }
 
 .el-button:not(.is-text):not(.is-link):active {
@@ -316,7 +319,7 @@ body,
 
 /* 输入框：柔和聚焦环 */
 .el-input__wrapper {
-  border-radius: var(--ac-radius-sm) !important;
+  border-radius: var(--ac-radius-lg) !important;
   box-shadow: 0 0 0 1px var(--ac-border) inset !important;
   transition: all var(--ac-transition-fast) !important;
 }

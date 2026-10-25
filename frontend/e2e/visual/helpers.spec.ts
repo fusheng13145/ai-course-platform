@@ -942,6 +942,11 @@ test('闸门源级钉自己会红：内存里复刻「改默认实参」与「�
  * 另含一处数据态差异——顶栏未读角标（昨录时未读>0、今录时已清零），该区域自此经 maskSelectors 遮罩恒在的铃铛按钮容器（见 ANCHORS 的 student-courses-modal 注释；首版遮 .n-badge 因元素随计数 0↔N 出没而失稳，实跑 6 红后换容器）；lc-light 仅剩角标带 114 px。
  * 逐张人工看图 + measure-diff 读数（Δmax：浅 7–8 / 暗 16–50 纯 token 效果；学生 5 张
  * 170–207 为角标移除项主导）见 LEDGER `P1-TOKEN-01`。
+ * 2026-10-25 P2-RADIUS-01（圆角五阶对齐 + 控件路径摘 6px）重录 14 张：--r-l3 9→6 补齐
+ * 16/12/10/6/999 五阶；EP base 映射改 --r-ctl（默认控件 9→10、small=calc(10-1)=9）；
+ * 覆写层 primary/default 按钮与输入框从 --ac-radius-sm(6) 升控件档 10（spec 明文项）；
+ * 四枚同值别名单源化（sm/lg/xl/EP-small 改引阶梯，零视觉）。角部族读数（计数 9–786、
+ * Δmax 18–207）与计算值断言（默认 10/small 9/tag 6/l3 6）见 LEDGER `P2-RADIUS-01`。
  * 2026-10-25 P1-TOKEN-04（暗色表面抬亮 + 描边优先）重录 11 张暗色图（error-404-dark 无表面/
  * 描边消费不变、全部浅色图零变化）：表面三阶各 +3/通道、line 阶梯上移一档（Δmax 17＝
  * +15/+15/+17 逐通道算术）、.l1-card 暗色 1px 上高光边（--edge-hi，与 L3 凹槽单源）。
@@ -958,33 +963,33 @@ test('闸门源级钉自己会红：内存里复刻「改默认实参」与「�
  */
 const BASELINE_SHA256: Record<string, string> = {
   'admin-courses-table-dark.png':
-    '2d6cea843e1ea1705218354e8d4da9ced8571cdf7d9f9f912068063ada6097c2',
+    '0ad033167aca7e61130d5905deb956c72d3e928ec52a256399d59cba2175594d',
   'admin-courses-table-light.png':
-    '396dac9b27ebb1f6cff36258938efc4adb94a7ee4e16aa91964ffb86f75bc1d0',
-  'admin-dashboard-dark.png': '87c38339aa05cde85041fb410fc9d91a066c96b4f79760e24b19f2191de5a986',
-  'admin-dashboard-light.png': '9f97efdf36a3cf4f81a792385336b83172d91ff44398e95d05b84c6b724e6a71',
+    'f45cfbba990f4aed1672cd1aea1887f8395b920b125a2d8d86f840fc4b4420f5',
+  'admin-dashboard-dark.png': '419e47c5f813de00eb67656f19fc653f79fdac150a62144ea0faeab4fdf3582e',
+  'admin-dashboard-light.png': '5a2c90af56942ce80a1684d2cc8e1babac90334a4b100c052e2d2bf8e0d45ac2',
   'admin-governance-analytics-dark.png':
-    '91c0848dbd07ddf53b0ec4a0bd03670efab454fa6675563b3f4c6c2452083e8e',
+    '0f08c0dfab1ed02e8a3b62080ae8278a4170f3c568d8fde485d47414833388fd',
   'admin-governance-analytics-light.png':
-    '64d223b4d5d84ade82b20bcb9815a96f1377363ea962434747dc19be365f048d',
-  'admin-profile-dark.png': 'a7fbd9fefe468b28f388c38f831f721e36ef225b9402b89ce26085fa3a9b9708',
-  'admin-profile-light.png': '72d549dda9d77a6bca4dd471b2d017545c35b7dac505e25c397cbd6469ddf834',
-  'admin-system-form-dark.png': '7d3bd4e5effee76750d566d758e0bb8107a6fe8909020c04927e91f2504d95db',
-  'admin-system-form-light.png': '6c00487e1d70da9109a24a8df528645f3e6dff8a9c3bb1a0fcf920a2fef5d50f',
+    '7fc0346bca6d9e26bfd61471d6efec21f5d486e28726ceb3e500c5fc5fd1b3e2',
+  'admin-profile-dark.png': '16e68415fde60152c159a4657a7d741b984e5e23a72be3500acc26082471f1f7',
+  'admin-profile-light.png': 'ca48afc75247d71e04177f806d2f6807c1e27046a498b97317a65ea56bff6062',
+  'admin-system-form-dark.png': 'e7c30bfd4bb459654abe2705272db0a91cd3346b3df5de0df411b818bf5a169b',
+  'admin-system-form-light.png': '176af323ce1c70aadf086c0870fa2b00b1fade85ea09ec4744687c28ef1bbb0f',
   'error-404-dark.png': 'b2d03c673791a14b37bb9c6f92cf46f862108051620f0cabfcbe1faf53afe0a4',
   'error-404-light.png': '0755e2afbe53f433ddc690495c8b188d39a989abc0403b75e0ecd2b6e77691a7',
   'login-dark.png': 'bd00fb206ee2e7cc293436197fa76b5e976ced62a347751b5d38950fa76d9451',
   'login-light.png': 'b12a00b1867f06c363e74e9d548b85c95d981c7acf576286f663d10b905e8258',
   'student-courses-modal-dark.png':
-    'aa242103d8bffcdeae7c2e727da3084a4f53fd6b084111f8aadc35e9623dbac9',
+    '66c3d161e5065957926a4cb6db7110c4949b1b3866a5216b02f0de23424b9654',
   'student-courses-modal-light.png':
-    '4ffc5467c54f73171219c782924173715fb6800449fbb839c9856579b11e3331',
+    '9c7a4b2cb4b1acf2e8f2acf002eea9d7dbc92f532aef9e0fd92f9067cafd109e',
   'student-dashboard-dark.png': 'f50e8aaf0a4dc7d3755ac4f5940d90058c533159547713a403c4001132b09380',
   'student-dashboard-light.png': 'c9ed18ecae454c43a42a0ec3118d20bb0b257e8355b673e92a3d7ef56d7914b5',
   'student-knowledge-graph-dark.png':
-    '70345ad751c250667b2abd91e1a196783838fcbb00104cfc3c13557217852881',
+    'a8a76119be10a2325b48f5d4a33e26acaf3aa7cbdda3a3608bad967ef64301a7',
   'student-knowledge-graph-light.png':
-    '2f47e076b2e2ebf8bb38a842e38c31d4c7bc2aa304e37bd02a6b7d355027ac2e',
+    '42ccc962e11217a5cb96dd64fe89bacc29829a49d6b5ebedc6647300d1f9d792',
   'student-learning-center-dark.png':
     '8442459143e9eddfe3ae4819a8561b660e34e33eb1a44d20a36516d9f8dd6c2c',
   'student-learning-center-light.png':

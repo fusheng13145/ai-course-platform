@@ -46,10 +46,13 @@
   --line-strong: #c2c9d4;
 
   /* ========== 圆角（随层级递减）========== */
+  /* 【P2-RADIUS-01】圆角五阶 16/12/10/6/999 对齐（spec §4 Phase 2）：--r-l3 9→6
+     补齐最内阶（16→12→10→6 相邻差 4/2/4，chip 收胶囊）；--r-ctl 自本单元起为
+     EP 控件基准（--el-border-radius-base 改映射到它，控件 9→10）。 */
   --r-l1: 16px;
   --r-l2: 12px;
-  --r-ctl: 10px; /* 【P1-TOKEN-03】控件圆角档（spec §4 Phase 1 精确值；零消费者，Phase 2 圆角阶对齐时启用） */
-  --r-l3: 9px;
+  --r-ctl: 10px; /* 控件档（P1-TOKEN-03 定义，本单元起接入 EP base） */
+  --r-l3: 6px;
   --r-chip: 999px;
 
   /* ========== 阴影（随浮层高度递增）========== */
@@ -185,10 +188,14 @@
   --ac-shadow-xl: var(--sh-modal);
   --ac-shadow-colored: 0 4px 14px rgba(193, 59, 48, 0.35);
 
-  --ac-radius-sm: 6px;
+  /* 【P2-RADIUS-01】legacy 半径别名单源化（同值改引阶梯，调用点零改动）：
+     sm(6)→r-l3、lg(10)→r-ctl、xl(12)→r-l2——"把 --ac-radius-sm 从控件路径上摘掉"
+     落在源头（独立 6px 不复存在）。md(8px) 离五阶且消费面 77 处，保持独立值，
+     别名收敛归 Phase 5（挂账见 LEDGER P2-RADIUS-01）。 */
+  --ac-radius-sm: var(--r-l3);
   --ac-radius-md: 8px;
-  --ac-radius-lg: 10px;
-  --ac-radius-xl: 12px;
+  --ac-radius-lg: var(--r-ctl);
+  --ac-radius-xl: var(--r-l2);
 
   --ac-spacing-xs: 4px;
   --ac-spacing-sm: 8px;
@@ -227,8 +234,8 @@
   --el-fill-color-blank: var(--surface);
   --el-fill-color-light: var(--surface-3);
   --el-fill-color-lighter: var(--surface-2);
-  --el-border-radius-base: var(--r-l3);
-  --el-border-radius-small: 6px;
+  --el-border-radius-base: var(--r-ctl); /* 【P2-RADIUS-01】EP 控件基准 9→10（控件档） */
+  --el-border-radius-small: var(--r-l3); /* 同值单源（6px 归阶梯） */
   --el-border-radius-round: var(--r-chip);
   --el-font-family: var(--font);
   --el-font-size-base: 14px;
