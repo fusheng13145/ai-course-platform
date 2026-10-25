@@ -24,7 +24,9 @@
           :color="center.completionPercent >= 100 ? 'var(--ac-success)' : 'var(--ac-primary)'"
           style="flex: 1; max-width: 420px"
         />
-        <span class="lc-percent">{{ loadError ? '--' : (center.completionPercent || 0) + '%' }}</span>
+        <span class="lc-percent">{{
+          loadError ? '--' : (center.completionPercent || 0) + '%'
+        }}</span>
       </div>
     </div>
 
@@ -78,7 +80,7 @@ import TaskDrawer from './components/TaskDrawer.vue'
  * 本组件仅负责数据加载与事件编排（@task-completed 触发进度刷新）。</p>
  */
 const route = useRoute()
-const courseId = route.params.id
+const courseId = route.params.id as string
 
 /* ---- 页面状态 ---- */
 const loading = ref(false)
@@ -102,7 +104,14 @@ async function load() {
   loadError.value = ''
   try {
     const res = await studentApi.getLearningCenter(courseId)
-    const d = unwrap(res) || {}
+    const d = (unwrap(res) || {}) as {
+      courseId?: number | string
+      courseName?: string
+      chapters?: unknown[]
+      totalTasks?: number
+      completedTasks?: number
+      completionPercent?: number
+    }
     center.courseId = d.courseId
     center.courseName = d.courseName
     center.chapters = d.chapters || []

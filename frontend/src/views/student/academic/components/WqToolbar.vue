@@ -19,8 +19,13 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 defineProps({
-  knowledgePointTags: { type: Array, default: () => [] },
+  /** 知识点标签（id/name/count） */
+  knowledgePointTags: {
+    type: Array as PropType<{ id: number | string; name?: string; count?: number }[]>,
+    default: () => [],
+  },
   selectedKpId: { type: [Number, String], default: null },
 })
 defineEmits(['update:selectedKpId'])

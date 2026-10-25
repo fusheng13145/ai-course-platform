@@ -124,6 +124,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { Search, Edit, Select, Close, CopyDocument, Delete } from '@element-plus/icons-vue'
 import { resolveReviewStatus } from '@/composables/useQuestionBank'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -141,8 +142,14 @@ defineProps({
   loading: { type: Boolean, default: false },
   list: { type: Array, default: () => [] },
   filters: { type: Object, default: () => ({}) },
-  typeOpts: { type: Array, default: () => [] },
-  diffOpts: { type: Array, default: () => [] },
+  typeOpts: {
+    type: Array as PropType<{ value: string | number; label?: string }[]>,
+    default: () => [],
+  },
+  diffOpts: {
+    type: Array as PropType<{ value: string | number; label?: string }[]>,
+    default: () => [],
+  },
   total: { type: Number, default: 0 },
   page: { type: Number, default: 1 },
   size: { type: Number, default: 10 },

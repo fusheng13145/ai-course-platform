@@ -108,6 +108,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { ArrowLeft, ArrowRight, Reading, Share } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
@@ -121,7 +122,10 @@ defineProps({
   graphOption: { type: Object, required: true },
   filteredNodeCount: { type: Number, default: 0 },
   selectedNode: { type: Object, default: null },
-  prerequisiteNodes: { type: Array, default: () => [] },
+  prerequisiteNodes: {
+    type: Array as PropType<{ id: number | string; name?: string }[]>,
+    default: () => [],
+  },
   subsequentNodes: { type: Array, default: () => [] },
   getDifficultyTagType: { type: Function, required: true },
   getDifficultyLabel: { type: Function, required: true },

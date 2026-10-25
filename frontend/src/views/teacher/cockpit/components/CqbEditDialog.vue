@@ -48,6 +48,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { ref, computed } from 'vue'
 import { useDialogFocus } from '@/composables/useDialogFocus'
 const props = defineProps({
@@ -55,12 +56,21 @@ const props = defineProps({
   editing: { type: Boolean, default: false },
   saving: { type: Boolean, default: false },
   form: { type: Object, default: () => ({}) },
-  typeOpts: { type: Array, default: () => [] },
-  diffOpts: { type: Array, default: () => [] },
+  typeOpts: {
+    type: Array as PropType<{ value: string | number; label?: string }[]>,
+    default: () => [],
+  },
+  diffOpts: {
+    type: Array as PropType<{ value: string | number; label?: string }[]>,
+    default: () => [],
+  },
 })
 const dialogRef = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef, computed(() => props.modelValue))
+useDialogFocus(
+  dialogRef,
+  computed(() => props.modelValue),
+)
 
 defineEmits(['update:modelValue', 'closed', 'save'])
 </script>

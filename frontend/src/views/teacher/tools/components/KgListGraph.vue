@@ -62,6 +62,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { Files, Plus, Refresh, Share } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
@@ -71,7 +72,18 @@ import EmptyState from '@/components/ui/EmptyState.vue'
  * （节点可拖拽、画布可缩放平移、按难度配色、按重要度定大小）；操作经事件上抛父组件。</p>
  */
 defineProps({
-  points: { type: Array, default: () => [] },
+  points: {
+    type: Array as PropType<
+      {
+        id: number | string
+        name?: string
+        difficulty?: string
+        description?: string
+        importance?: number
+      }[]
+    >,
+    default: () => [],
+  },
   pointLoading: { type: Boolean, default: false },
   diffType: { type: Function, required: true },
   diffText: { type: Function, required: true },
