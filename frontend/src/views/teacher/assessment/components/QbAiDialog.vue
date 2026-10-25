@@ -82,6 +82,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { ref, computed } from 'vue'
 import { MagicStick } from '@element-plus/icons-vue'
 import { useDialogFocus } from '@/composables/useDialogFocus'
@@ -96,14 +97,19 @@ const props = defineProps({
   /** AI 表单（共享对象：courseId/type/difficulty/knowledgePoints） */
   aiForm: { type: Object, required: true },
   /** 课程列表 */
-  courseList: { type: Array, required: true },
+  courseList: {
+    type: Array as PropType<{ id: number | string; name?: string; title?: string }[]>,
+    required: true,
+  },
   /** 生成加载态 */
   aiGenerating: { type: Boolean, default: false },
 })
 const dialogRef = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef, computed(() => props.modelValue))
-
+useDialogFocus(
+  dialogRef,
+  computed(() => props.modelValue),
+)
 
 defineEmits(['update:modelValue', 'generate'])
 </script>

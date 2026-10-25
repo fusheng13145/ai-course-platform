@@ -73,6 +73,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { ref, computed, watch } from 'vue'
 import dayjs from 'dayjs'
 import { ArrowLeft, ArrowRight } from '@element-plus/icons-vue'
@@ -86,7 +87,10 @@ const props = defineProps({
   /** 当前选中日期（父组件持有，用于驱动月度数据加载） */
   currentDate: { type: Date, default: () => new Date() },
   /** 每日学习数据 Map（key: 'YYYY-MM-DD'，value: { minutes, durationText }） */
-  studyDaysMap: { type: Map, default: () => new Map() },
+  studyDaysMap: {
+    type: Map as PropType<Map<string, { minutes?: number; durationText?: string }>>,
+    default: () => new Map(),
+  },
   /** 今日概要（studyMinutes/completedCourses/progressPercent） */
   todaySummary: { type: Object, default: () => ({}) },
   /** 加载态（控制空状态提示显示） */

@@ -13,6 +13,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import StatCard from '@/components/ui/StatCard.vue'
 
 /**
@@ -20,7 +21,10 @@ import StatCard from '@/components/ui/StatCard.vue'
  * <p>拆分子组件：与日历面板解耦，仅消费 stats 数组做纯展示。</p>
  */
 defineProps({
-  stats: { type: Array, default: () => [] },
+  stats: {
+    type: Array as PropType<{ label: string; value: string | number; icon?: string }[]>,
+    default: () => [],
+  },
 })
 
 // 每个统计卡的色调（与拆分前页面硬编码一致）

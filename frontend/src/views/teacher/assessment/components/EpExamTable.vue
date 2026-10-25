@@ -104,13 +104,17 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
 defineProps({
   loading: { type: Boolean, default: false },
   examList: { type: Array, default: () => [] },
-  courseList: { type: Array, default: () => [] },
+  courseList: {
+    type: Array as PropType<{ id: number | string; name?: string; title?: string }[]>,
+    default: () => [],
+  },
   filters: { type: Object, default: () => ({}) },
   total: { type: Number, default: 0 },
   page: { type: Number, default: 1 },
