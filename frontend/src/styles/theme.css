@@ -244,17 +244,23 @@
 [data-theme='dark'] {
   --bg: #0f1419;
   --bg-deep: #0a0e13;
-  --surface: #171d26;
-  --surface-2: #1c2330;
-  --surface-3: #223044;
+  /* 【P1-TOKEN-04】表面抬亮一档（spec §4 Phase 1 暗"抬亮表面——浮得越高底色越亮"）：
+     三层表面各 +3/通道（#171d26→#1a2029 等），页面基底 --bg/--bg-deep 不动——
+     抬的是"浮起物"，不是画布；阶梯序保持。 */
+  --surface: #1a2029;
+  --surface-2: #1f2633;
+  --surface-3: #253347;
   --surface-invert: #f3f4f6;
   --ink: #eef1f6;
   --ink-2: #b7bec9;
   --ink-3: #8b94a3;
   --ink-4: #4b5565;
-  --line: #273244;
-  --line-2: #364255;
-  --line-strong: #4b5565;
+  /* 【P1-TOKEN-04】描边优先（spec 暗"高度靠描边优先"）：line 阶梯整体上移一档
+     （line←原 line-2 值、line-2←原 line-strong 值、line-strong 再 +15/通道）——
+     卡片边框另有硬编码亮线（Phase 5 清理面），此处抬的是表格/输入/分隔线等 chrome 描边。 */
+  --line: #364255;
+  --line-2: #4b5565;
+  --line-strong: #5a6578;
   --accent-soft: rgba(193, 59, 48, 0.18);
   --accent-softer: rgba(193, 59, 48, 0.1);
   --ok-soft: rgba(46, 125, 79, 0.18);
@@ -262,8 +268,11 @@
   --info-soft: rgba(37, 99, 168, 0.18);
   --violet-soft: rgba(109, 79, 161, 0.18);
   /* 【P1-TOKEN-02】暗色 L3 凹槽：spec §4 Phase 1 暗色"配 1px 上高光边"——只留顶边
-     高光（低 alpha 白），内阴影省略（黑投影在深底不可见，同 --sh-* 暗色重排的道理）。 */
-  --l3-groove: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+     高光（低 alpha 白），内阴影省略（黑投影在深底不可见，同 --sh-* 暗色重排的道理）。
+     【P1-TOKEN-04】抽出 --edge-hi 单源：卡片（design-system 的 .l1-card 暗色规则）
+     与 L3 凹槽共用同一枚 1px 上高光边。 */
+  --edge-hi: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  --l3-groove: var(--edge-hi);
   /* 【P1-TOKEN-01】暗色阴影重排：spec §4 Phase 1"阴影只留给真浮层（modal / drawer / pop），
      因为黑投影在深色底上不可见"——卡面三档（l1/l1-hover/l2）在暗色置 none，层级感改由
      描边优先 + 抬亮表面承担（后续单元）；pop/drawer/modal 三档保留原值不动。

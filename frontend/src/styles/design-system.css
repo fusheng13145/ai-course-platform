@@ -65,6 +65,14 @@ body {
 .l1-card.hoverable:hover {
   box-shadow: var(--sh-l1-hover);
 }
+
+/* 【P1-TOKEN-04】暗色卡片 1px 上高光边（spec §4 Phase 1 暗"配 1px 上高光边"）：
+   浅色卡片的浮起感来自 --sh-l1 双影，暗色侧阴影已按"只留给真浮层"撤除（P1-TOKEN-01），
+   层级感改由抬亮表面＋描边＋这枚顶边高光承担；token 与 L3 凹槽共用 --edge-hi 单源。
+   hoverable:hover 的 none 影在此态不冲突（悬停本就无浮起意图）。 */
+[data-theme='dark'] .l1-card {
+  box-shadow: var(--edge-hi);
+}
 .l1-head {
   display: flex;
   align-items: center;

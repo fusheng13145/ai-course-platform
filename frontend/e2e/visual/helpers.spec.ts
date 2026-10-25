@@ -942,6 +942,10 @@ test('闸门源级钉自己会红：内存里复刻「改默认实参」与「�
  * 另含一处数据态差异——顶栏未读角标（昨录时未读>0、今录时已清零），该区域自此经 maskSelectors 遮罩恒在的铃铛按钮容器（见 ANCHORS 的 student-courses-modal 注释；首版遮 .n-badge 因元素随计数 0↔N 出没而失稳，实跑 6 红后换容器）；lc-light 仅剩角标带 114 px。
  * 逐张人工看图 + measure-diff 读数（Δmax：浅 7–8 / 暗 16–50 纯 token 效果；学生 5 张
  * 170–207 为角标移除项主导）见 LEDGER `P1-TOKEN-01`。
+ * 2026-10-25 P1-TOKEN-04（暗色表面抬亮 + 描边优先）重录 11 张暗色图（error-404-dark 无表面/
+ * 描边消费不变、全部浅色图零变化）：表面三阶各 +3/通道、line 阶梯上移一档（Δmax 17＝
+ * +15/+15/+17 逐通道算术）、.l1-card 暗色 1px 上高光边（--edge-hi，与 L3 凹槽单源）。
+ * 读数 Δmax 17–22 见 LEDGER `P1-TOKEN-04`。
  * 2026-10-25 P1-TOKEN-02（表面阶浅色 + L3 凹槽）重录 14 张：--bg 压深一档（#eef0f4→#e9ebf0，
  * 恒差 Δ5）波及全部 12 张浅色图；--l3-groove 凹槽（浅=白.5 顶高光+内阴影 / 暗=1px 白.06 高光边，
  * 消费点 .l3-block）另改 admin-dashboard 与 student-courses-modal 明暗 4 张（暗面仅此 2 张、
@@ -954,38 +958,38 @@ test('闸门源级钉自己会红：内存里复刻「改默认实参」与「�
  */
 const BASELINE_SHA256: Record<string, string> = {
   'admin-courses-table-dark.png':
-    '454e96afce6d12155c79424445a1c9425afb57b970bd17079aa3c84320322e9c',
+    '2d6cea843e1ea1705218354e8d4da9ced8571cdf7d9f9f912068063ada6097c2',
   'admin-courses-table-light.png':
     '396dac9b27ebb1f6cff36258938efc4adb94a7ee4e16aa91964ffb86f75bc1d0',
-  'admin-dashboard-dark.png': 'ee1c7172911882500d8e8e24447625c7eedf1871737b3e347b4da88123c7a25f',
+  'admin-dashboard-dark.png': '87c38339aa05cde85041fb410fc9d91a066c96b4f79760e24b19f2191de5a986',
   'admin-dashboard-light.png': '9f97efdf36a3cf4f81a792385336b83172d91ff44398e95d05b84c6b724e6a71',
   'admin-governance-analytics-dark.png':
-    'f26b806cd9390f68ce9fffe74c1e1c0066f1427ffe72a1c56a1ce5129ec2a8b6',
+    '91c0848dbd07ddf53b0ec4a0bd03670efab454fa6675563b3f4c6c2452083e8e',
   'admin-governance-analytics-light.png':
     '64d223b4d5d84ade82b20bcb9815a96f1377363ea962434747dc19be365f048d',
-  'admin-profile-dark.png': 'efdd0d12e176c5550aa5106848ee72880a9394d0fe09a454ef9a388cb9c78d4f',
+  'admin-profile-dark.png': 'a7fbd9fefe468b28f388c38f831f721e36ef225b9402b89ce26085fa3a9b9708',
   'admin-profile-light.png': '72d549dda9d77a6bca4dd471b2d017545c35b7dac505e25c397cbd6469ddf834',
-  'admin-system-form-dark.png': 'd863946a02e3b378d68fc2346c6870a986b6153b5a793034c6f144a8771af37a',
+  'admin-system-form-dark.png': '7d3bd4e5effee76750d566d758e0bb8107a6fe8909020c04927e91f2504d95db',
   'admin-system-form-light.png': '6c00487e1d70da9109a24a8df528645f3e6dff8a9c3bb1a0fcf920a2fef5d50f',
   'error-404-dark.png': 'b2d03c673791a14b37bb9c6f92cf46f862108051620f0cabfcbe1faf53afe0a4',
   'error-404-light.png': '0755e2afbe53f433ddc690495c8b188d39a989abc0403b75e0ecd2b6e77691a7',
-  'login-dark.png': '57f30e074e7bacc0edf41d754657a7b3a2d250fbcc513674a6ecc15422b6630b',
+  'login-dark.png': 'bd00fb206ee2e7cc293436197fa76b5e976ced62a347751b5d38950fa76d9451',
   'login-light.png': 'b12a00b1867f06c363e74e9d548b85c95d981c7acf576286f663d10b905e8258',
   'student-courses-modal-dark.png':
-    'c09063406807f9121979f38286469cf7ede13f006326e763d8478fad5a1441a6',
+    'aa242103d8bffcdeae7c2e727da3084a4f53fd6b084111f8aadc35e9623dbac9',
   'student-courses-modal-light.png':
     '4ffc5467c54f73171219c782924173715fb6800449fbb839c9856579b11e3331',
-  'student-dashboard-dark.png': 'c65a1c07916615bc84fab314e829e103d34a44ff8e01fb69b58ba5f46d5fde55',
+  'student-dashboard-dark.png': 'f50e8aaf0a4dc7d3755ac4f5940d90058c533159547713a403c4001132b09380',
   'student-dashboard-light.png': 'c9ed18ecae454c43a42a0ec3118d20bb0b257e8355b673e92a3d7ef56d7914b5',
   'student-knowledge-graph-dark.png':
-    '3071d2454f1ca54ef6e6cb62ade526b4d58b35b9194d4576afbbac4f582bae83',
+    '70345ad751c250667b2abd91e1a196783838fcbb00104cfc3c13557217852881',
   'student-knowledge-graph-light.png':
     '2f47e076b2e2ebf8bb38a842e38c31d4c7bc2aa304e37bd02a6b7d355027ac2e',
   'student-learning-center-dark.png':
-    '731cf2d6f935fe3e46fe8b8649aa8c729dac4520ba9111b2945deacde2a1b499',
+    '8442459143e9eddfe3ae4819a8561b660e34e33eb1a44d20a36516d9f8dd6c2c',
   'student-learning-center-light.png':
     '8aa2cf21373ebf8bed20c87e4aee29c3939bb8dcf676902d2be6172561f51166',
-  'teacher-dashboard-dark.png': '7e26ded9f9017bb56baec7dc79f0080a9cbcf17b9c201a07faf1c6d3e03a82eb',
+  'teacher-dashboard-dark.png': '5d192e9bb4ab4cefd377c77b61dce221875de90a1466234408b787f9258f5eb0',
   'teacher-dashboard-light.png': '1ac428c1a74b49609a957f19a7bd014b8bb1068574bbe93a81868278c0db3a8b',
 }
 
