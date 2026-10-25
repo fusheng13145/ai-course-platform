@@ -135,7 +135,7 @@ FE-10/11/12/13/14 全部沿用既有母文档的触发条件与重启信号；�
 | FE-03 | ✅ 已闭 | `2097cbe` | CgPolicyDialog 构成项行改自增 rowKey 稳定键（savePolicy 为显式映射，rowKey 不外泄）；其余 31 处 key=index 逐点定性豁免：BarChart（下标参与几何定位 + 数据全量替换）、DropdownMenu（全量替换无行内态）、OnboardingGuide（静态步进、刚收口不碰）、其余 display-only 列表（无重排状态可错位）；InVoteDialog/QmEditDialog 因 form 由父组件共享，升格 P1 与父组件同批改造（记 FE-06 批附页） |
 | 计划外发现 | ✅ 已闭 | `7ac9ef3` | 视觉第 1 轮 84 passed + 1 red：helpers.spec 的 sha256 篡改守卫仍钉 22 张且 4 哈希过期（R-08 三次基线入库均未同步清单：`ea48fe1` error-404 ×2、`93b09cb` student-dashboard ×2、`c0b94ce` 暗色图表 ×2；当轮只跑 anchors 未跑 helpers）。按"工作树=HEAD 字节"取证后清单同步 24 张全集；非本批引入 |
 | P0 回归门 | ✅ 全绿 | — | vitest **181 文件 / 1899 例** ×2（改动前后各一）；lint 0/0；`typecheck:gate` **402/90 持平**；build 2.29s + `size:gate` 五项全过（JS 合计 3119.55/3400、echarts 805.06/900、EP 735.14/830、xlsx 323.28/380、其余 1256.07/1300、EP CSS 381.6/420）；Playwright 流程 **54 passed**（2.8m；52 口径 + R-06/R-07 各新增 1 例）；视觉 **85 passed 两轮**（含 anchors 24 张零差异）；跑测后 `git status --porcelain docs/` 三张 motion 取证图被改写，按 K-03 纪律 `git checkout --` 还原后为空 |
-| 观察挂账 | 🟡 待下批 | — | ① 手册 §243 行/B.2 的 e2e "35 例" 为 2026-10-18 时点读数，现量流程套件 54 例（R-06/R-07 批次增量未回写 B.2，本批未改用例数故不代写）；② onboarding.spec 17 例（手册 REQ-FE-008 行）与 e2e 现量的对账建议随 R-22 下批一并做 |
+| 观察挂账 | ✅ 已闭（2026-10-25 文档收口批） | — | ① 手册 §243/B.2/§19 表三处 e2e 读数已同步 54 例口径（2026-10-25 实跑 54 passed，含 52→54 的 R-06/R-07 两增注记）；② onboarding 17 例已并入 B.2 的历史分档叙述（35＋17＋2）。挂账期间原文：35 例为 2026-10-18 时点读数——按"本批未改用例数故不代写"纪律留至本批统一收口 |
 | **P1 批（2026-10-24 续）** | | | |
 | FE-08 | ✅ 已闭 | `2cfc724` | 构成分解 + 六项读数入 `evidence/bundle-composition-2026-10-24.md`（零代码）：JS 3119.54 KiB，较 2026-10-13 +106.34 全在"其余功能块"；三个 FE-11 候选（icons 落 EP 块内、xlsx 动态 import、html2canvas 死依赖零引用） |
 | FE-07 | ✅ 已闭 | `c7da1df`+`01a4103` | 纯函数层提至 `src/utils/requestError.ts`（首版落 api/ 被死代码守卫正确拦截后按守卫语义归位）；request.ts 504→460 行；+13 例单测；422 边角行为逐字等价 |
@@ -185,36 +185,49 @@ FE-10/11/12/13/14 全部沿用既有母文档的触发条件与重启信号；�
 
 ---
 
-## §8 完成情况总览与剩余清单（2026-10-24 收口快照，钉 `origin/leyon@e1745b9`）
+## §8 完成情况总览与剩余清单（2026-10-25 第二快照；上一快照 2026-10-24 钉 `origin/leyon@e1745b9`）
 
 > 本节是给"新会话/评审者"的**一页式状态**：做了什么、剩什么、从哪进入。逐批明细在 §7；判据本体在 §3 不变。
 
-### 8.1 已完成（按批，全部本机验证 + 已推送）
+### 8.1 已完成（截至 2026-10-25，全部本机验证；10-24 快照所列各批之外的新增）
 
-| 批 | 提交 | 内容 |
+| 线 | 提交（代表） | 内容 |
 | --- | --- | --- |
-| P0 快赢批 | `a869ae0`/`cba40b4`/`e1db2c0`/`2097cbe` | FE-01 四处 formatDateTime 单源化、FE-02 模板切片转 computed、FE-03 成绩方案行稳定键；方案文档与索引落盘 |
-| P0 计划外 | `7ac9ef3` | helpers sha256 基线清单同步 22→24（R-08 遗留欠账） |
-| P1 批 | `2cfc724`/`c7da1df`+`01a4103`/`4060e38`/`7c35af5`/`9bb2dba`/`5561aac` | FE-08 bundle 构成分解、FE-07 requestError 提纯、FE-06 useStudentExams 三域拆解、FE-09 首两件 TS 化、**FE-04 D-10 修复**（后端 SQL 列名+显示口径+四基线重录）、**FE-05 D-5/D-6 修复**（D-8 核实已修、D-9 证伪后转修复批） |
-| P2 批 | `2cfc724` 后续 `4820b48`/`351f53c` | FE-11（html2canvas 死依赖卸载 + xlsx 两层拆分按需加载；icons 降级登记）、FE-10 B0 |
-| B 批序列 | `e2dfff5`/`0d08f96`/`63f9bab`/`69561c0`/`2d620b1`/`b3fdc60`/`0531521` | FE-10 B1…B7 七轮棘轮：**402 条/90 文件 → 287 条/48 文件**（TabGroup variant 改名、≤2 错误簇、3 错误簇、两大户、TsvRiskCard、KntPathPlanner——每批 byFile 逐键核对零变形） |
-| 视觉缺陷 | `d8abf2d` 等 | **D-1…D-10 全部闭环**（D-9 经页内实例探针定位修复；LEDGER 含证伪更正与双态声明） |
-| 路线图项 | `78b3d35` 等 | R-02 推送闭合（main:leyon 口径）、**R-09 闭合**（桩信封对齐 non_null 真实形状，空态守卫矩阵真实形状全绿） |
+| FE-14 六户收官 | `b416d07`/`9e71a7c`/`f1f0f34`/`6ed7fbc`/`0b9bb56`/`2d5b0fc` | useAnalytics/useKnowledgeGraph/useTeacherGrades/useAIAssistant/useQuestions/useCourseDetail 六户全部拆解（797/689/591/588/514/502 → 全 <500 行，导出面逐名不变、页面零改动）——**FE-14 完成** |
+| FE-10 B8…B16 | `53b15df`…`da01bd7` | 棘轮 **287→13 条 / 48→5 文件**（九轮：B8 SdCourseGrid、B9+孤儿组件发现、B10 heatValue 渲染缺陷修复、B11 五户、B12 五户、B13 六户+LearningCenter、B14 六户、B15 七户、B16 六户）；连带钓出并修复真实缺陷 2 件（heatValue 未入返回块、RagDocs TS2554） |
+| R-10 闭（实测定案） | `5ca0365` | 两格空转均不可转正（learning-center 真实 0/0、admin 无课程数据面）；转正前提项挂账 |
+| **视觉 Phase 1 全收口** | `ef0ec43`/`d699d50`/`2462169`/`4c21a72`/`7c59a5d` | P1-FULLPAGE-01（D-7 修复：扩视口至内容实高，14 张变长 1116–2874px，首屏之下首次进基线）；P1-TOKEN-01（阴影族：浅环境层 .10+暗色只留真浮层+EP 重映射；18 张重录；连带修未读角标漂移→8 格遮罩）；P1-TOKEN-02（表面阶浅色+L3 凹槽 --l3-groove；14 张重录；§6.15④ 双轨证据首次落地；scrim 注释翻车当场修复）；P1-TOKEN-03（新 token 五条：--r-ctl/--scrim×2/--glow-brand/--ease-spring/--t-xslow，零基线扰动）；P1-TOKEN-04（暗色三件套：表面+3/通道、line 阶梯上移、--edge-hi 卡片上高光边；11 张暗图重录）——**spec §4 Phase 1 四改动面全部落地** |
+| **视觉 Phase 2 收口** | `d7a8016` | P2-RADIUS-01（五阶 16/12/10/6/999 对齐、EP base→--r-ctl、覆写层控件路径摘 6px、四别名单源化；14 张重录；主证据＝计算值断言+角部裁剪）——**spec §4 Phase 2 两条一次落齐** |
+| 挂账收口 | `36ab8fb` | teacher/admin 五未钉锚点补铃铛遮罩（8 格全遮、钉桩 2 格刻意不遮） |
+| 推送 | — | `e1745b9..36ab8fb` → origin/leyon（2026-10-25 上午，项目主授权；SSH 本地代理口失效经直连 ssh.github.com:443 完成） |
 
-### 8.2 剩余待完成（按依赖序，§7 已登记执行序/侦察）
+### 8.2 剩余待办（按依赖序；产品路线视角分三档）
 
-| 项 | 状态 | 进入点 |
-| --- | --- | --- |
-| **R-10 两页空转格转正** | 🟡 侦察完成，下会话首任务 | §7 R-10 行：转正设计（两页断言改数据驱动）+ 证伪协议 + 单写者约束 |
-| **Phase 1–6 视觉升级** | ⏳ 前置＝R-10 | 视觉 spec §11 准入门（部分条件已由 D 批闭合）；D-R5 顺序约束 |
-| **FE-14 巨型 composable 族** | ⏳ | FE-06 模式已验证；目标 useAnalytics 689/useKnowledgeGraph 591/useTeacherGrades 588/useAIAssistant 514/useQuestions 506/useCourseDetail 502 |
-| **FE-10 B8…** | ⏳ | 剩余 48 文件（SdCourseGrid 11、NmNoticeList/LpDailyTasksPanel/ExamFormDialog 各 10……），PropType 路线已验证可复制 |
-| **远端 10 条 dependabot 分支** | ⏳ 待项目主处置 | 合并与否属新决策（vue 3.5.44/playwright 1.64.1/minio 9.0.3 等） |
+**A. 视觉升级主线（spec Phase 3–6，判据与顺序见视觉 spec §4/§11）**
 
-### 8.3 明确不做（继承 + 本方案新增，含重启信号）
+| 项 | 进入点与要点 |
+| --- | --- |
+| **Phase 3 EP 覆写层收敛** | `index.scss` 98 条 `!important` → ≤25：能走 `--el-*` 变量全走变量、删与 design-system 重复选择器、删自削规则、确需保留的逐条注释理由；浅暗两套同步收敛；EP 暗色弹层 --sh-pop 合并档随本批评估退役 |
+| **Phase 4 结构收敛（FE-13）** | el-dialog 82 开标签/73 文件 → ui/Modal 迁移；准入门 6 项状态见视觉 spec §11.3；迁移时删调用方 ref+useDialogFocus 两行（R-T9-7）；22 处 teleport 缺省方向差异逐点核对；抽屉动效不对称（R-T14-8）补过渡或书面弃用；护栏地板 82/73 只紧不松 |
+| **Phase 5 页面级升级与硬编码清理** | `.btn` 族字面量（8/7/9px）与 `.brand-mark` 9px；`--ac-radius-md`(8px,77 处)；卡片硬编码亮边框 4 处 rgba(227,230,236,.7)；--ac-* 别名族收敛（radius 已单源、color/spacing/transition 待）；--edge-hi 推广 .l2-panel 逐点判；D-2/D-4 存量基线缺陷；§2.4 硬编码污染全站残余计数对基线下降幅度报告 |
+| **Phase 6 微交互与依赖** | 三项新依赖（lucide-vue-next/motion-v/自研 v-ripple）均未引入（§7 新依赖零引入实况）；--ease-spring/--t-xslow/--glow-brand 首个消费单元在此启用（LEDGER P1-TOKEN-03 引用纪律：生效须给消费点） |
 
-继承路线图 AG-1…9 与视觉线既有裁定；本方案新增 N-1…N-6（i18n、虚拟滚动、TanStack Query、Pinia 扩张、husky、EP 样式按需）见 §5。
+**B. 工程债尾量**
 
-### 8.4 当前门禁读数（2026-10-24，全部本机）
+| 项 | 进入点 |
+| --- | --- |
+| **FE-10 B17 清零冲刺** | 余 **13 条 / 5 文件**（LcCalendarPanel 4 清零后残余见 byFile 现量）——距 402→0 一步；清零后 typecheck-baseline.json 可评估退役为全绿门 |
+| R-10 转正前提项 | 造 learning-center 任务点数据 + admin 个人中心课程数据面（须改产品代码，项目主决策） |
+| ExamFormDialog 孤儿组件 | 零引用实锤（B9 发现）；删除与否项目主决策（utils/permission.ts 死代码先例同口径） |
+| 远端 10 条 dependabot 分支 | vue 3.5.44/playwright 1.64.1/minio 9.0.3 等；合并属新决策（项目主） |
+| CI e2e 进主触发链 | R-04 已接线待 3 连绿；`workflow_dispatch` 现状未变 |
 
-vitest **182 文件 / 1912 例**全绿 ｜ lint 0/0 ｜ 类型棘轮 **287/48**（七轮：402→311→287）｜ build 3.44s + size:gate 六项全过 ｜ Playwright 流程 **54/54** ｜ 视觉全表两轮 **85/85**（24 张基线）｜ **R-09 后空态守卫矩阵在真实形状信封下全绿** ｜ src 下 .js 文件 **0**（onboarding 已 TS 化）｜ B.2 已同步。
+**C. 产品路线（源自 2026-10-13 规划文档维度表，非本轮启动）**：D2-6 响应式专项（108 路由窄屏核查）、D2-10 信息架构收口核验余量、阶段二/三各项（引擎能力、容器化、产品化决策）——判据与排期以该文档与手册为准，本方案不重开。
+
+### 8.3 明确不做（继承，含重启信号）
+
+路线图 AG-1…9 与视觉线既有裁定 + 本方案 N-1…N-6（i18n、虚拟滚动、TanStack Query、Pinia 扩张、husky、EP 样式按需）见 §5。
+
+### 8.4 当前门禁读数（2026-10-25，全部本机）
+
+vitest **182 文件 / 1912 例**全绿 ｜ lint 0/0 ｜ 类型棘轮 **13 条 / 5 文件**（十七轮：402→…→13）｜ build ~2.5s + size:gate 六项全过 ｜ Playwright 流程 **54/54** ｜ 视觉全表两轮 **85/85**（24 张基线，**满页几何**：高 900–2874 逐张现算免检额 129.6–413.9）｜ 视觉 spec **Phase 1+2 已落地**（token 纵深四单元+新 token 批+圆角五阶）｜ 空态守卫矩阵真实形状全绿 ｜ src 下 .js 文件 **0** ｜ 未读角标 8 格遮罩免疫（活跃通知源环境实测） ｜ B.2 已同步 54 例口径（本批）。
