@@ -7,11 +7,14 @@
 
 :root {
   /* ========== 中性色阶（背景由浅入深，营造层级）========== */
-  --bg: #eef0f4; /* L0 页面基底 */
+  /* 【P1-TOKEN-02】--bg 压深一档：#eef0f4→#e9ebf0（HSL L 95.3%→93.1%），与 --surface(#fff)
+     拉开 ≈6.9 级明度（spec §4 Phase 1"压深一档使拉开约 6 级"）；--bg-deep(#e4e7ec, L≈90.8%)
+     仍深于基底一档，阶梯不倒置。--surface-2 收至 spec 精确值 #f6f7f9。 */
+  --bg: #e9ebf0; /* L0 页面基底 */
   --bg-deep: #e4e7ec; /* 侧栏/凹陷区 */
   --surface: #ffffff; /* L1 一级模块卡片 */
-  --surface-2: #f7f8fa; /* L2 二级分组面板 */
-  --surface-3: #eff1f5; /* L3 三级内嵌区 */
+  --surface-2: #f6f7f9; /* L2 二级分组面板 */
+  --surface-3: #eff1f5; /* L3 三级内嵌区（凹槽感由 --l3-groove 承担，色值不动） */
   --surface-invert: #1d2433;
 
   /* ========== 墨色阶 ========== */
@@ -53,6 +56,14 @@
      这是 spec §4 Phase 1 的原文幅度，也是 sensitivity 套件 shadow-plan 档量程化时锁定的
      单变量读法（"接触层不动 ⇒ 单变量"，量程账本已按它给出计数/字节差/Δmax 读数）。 */
   --sh-l1: 0 1px 2px rgba(24, 32, 48, 0.05), 0 4px 14px rgba(24, 32, 48, 0.1);
+
+  /* 【P1-TOKEN-02】L3 凹槽（spec §4 Phase 1"inset 内阴影 + 顶边内高光"）：
+     顶边 1px 白高光（alpha .5——仓内既有 inset 高光先例 .18/.25 在色面上、此处是灰面，
+     取可见性与之相当的档）＋ 2px 内阴影收顶。消费点＝design-system.css 的 .l3-block。
+     暗色档在暗色主题块内（1px 上高光边、无内阴影——黑投影在深底不可见）。
+     （措辞注意：注释里不写字面量暗色选择器——scrim.contrast.test 按"全文首次出现处"
+     切暗块，字面量会把切片起点骗进 :root 尾部、读到浅色 scrim，本批实测翻过一次。） */
+  --l3-groove: inset 0 1px 0 rgba(255, 255, 255, 0.5), inset 0 2px 4px rgba(24, 32, 48, 0.06);
   --sh-l1-hover: 0 2px 4px rgba(24, 32, 48, 0.07), 0 10px 28px rgba(24, 32, 48, 0.1);
   --sh-l2: 0 1px 2px rgba(24, 32, 48, 0.05);
   --sh-pop: 0 8px 24px rgba(24, 32, 48, 0.14), 0 2px 6px rgba(24, 32, 48, 0.08);
@@ -239,6 +250,9 @@
   --warn-soft: rgba(181, 121, 8, 0.18);
   --info-soft: rgba(37, 99, 168, 0.18);
   --violet-soft: rgba(109, 79, 161, 0.18);
+  /* 【P1-TOKEN-02】暗色 L3 凹槽：spec §4 Phase 1 暗色"配 1px 上高光边"——只留顶边
+     高光（低 alpha 白），内阴影省略（黑投影在深底不可见，同 --sh-* 暗色重排的道理）。 */
+  --l3-groove: inset 0 1px 0 rgba(255, 255, 255, 0.06);
   /* 【P1-TOKEN-01】暗色阴影重排：spec §4 Phase 1"阴影只留给真浮层（modal / drawer / pop），
      因为黑投影在深色底上不可见"——卡面三档（l1/l1-hover/l2）在暗色置 none，层级感改由
      描边优先 + 抬亮表面承担（后续单元）；pop/drawer/modal 三档保留原值不动。

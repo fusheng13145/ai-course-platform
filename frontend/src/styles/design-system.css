@@ -224,12 +224,17 @@ body {
 }
 
 /* ========== L3 三级内嵌区 ========== */
+/* 【P1-TOKEN-02】凹槽化：由"更深底色"改为 inset 内阴影 + 顶边内高光（token --l3-groove，
+   明暗两主题各一档）；配合 --bg 压深后 L3 与页面底的明度关系脱离"同色"。
+   证据形态按 spec §6.15 ④：整页像素只作辅助，主证据＝逐块计算值断言（boxShadow 含
+   inset 0 1px 0）＋顶边 1px 行定向裁剪比对（见 LEDGER P1-TOKEN-02）。 */
 .l3-block {
   background: var(--surface-3);
   border: 1px solid var(--line);
   border-radius: var(--r-l3);
   padding: 12px 14px;
   margin-bottom: 10px;
+  box-shadow: var(--l3-groove);
 }
 .l3-title {
   font-size: 12.5px;
