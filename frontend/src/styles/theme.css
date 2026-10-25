@@ -48,6 +48,7 @@
   /* ========== 圆角（随层级递减）========== */
   --r-l1: 16px;
   --r-l2: 12px;
+  --r-ctl: 10px; /* 【P1-TOKEN-03】控件圆角档（spec §4 Phase 1 精确值；零消费者，Phase 2 圆角阶对齐时启用） */
   --r-l3: 9px;
   --r-chip: 999px;
 
@@ -96,13 +97,23 @@
 
   /* ========== 动效 ========== */
   --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  /* 【P1-TOKEN-03】动效补档（spec"时长/曲线各补一档"，零消费者）：
+     spring＝标准过冲曲线（微交互弹入族，Phase 6 启用）；xslow＝大面板迁移动画档 */
+  --ease-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
   --t-fast: 150ms;
   --t-norm: 250ms;
   --t-slow: 400ms;
+  --t-xslow: 600ms;
 
   /* ========== 焦点环 / 品牌光晕 ========== */
   --focus-ring: 0 0 0 3px rgba(193, 59, 48, 0.14);
   --accent-glow: 0 6px 18px rgba(193, 59, 48, 0.18);
+  /* 【P1-TOKEN-03】品牌光晕通用档（值同 --accent-glow 起步；Phase 6 微交互接入，
+     届时旧名可别名到本 token 收敛单源） */
+  --glow-brand: 0 6px 18px rgba(193, 59, 48, 0.18);
+  /* 【P1-TOKEN-03】弹层压暗通用档（值同 --onboarding-scrim 起步，两主题各一档；
+     Phase 4 弹层迁移接入） */
+  --scrim: rgba(10, 14, 24, 0.45);
 
   /* 明：保持改前值，别顺手"统一"成暗色值 */
   --onboarding-scrim: rgba(10, 14, 24, 0.45);
@@ -279,6 +290,7 @@
      0.66 的黑压在目标层底色（`--surface`／侧栏渐变）上合成差 > 24/255（可见性阈值），且高于本仓已知盲区 8/255；
      页面基底 `--bg` 更暗，不能拿它当判据探针。 */
   --onboarding-scrim: rgba(0, 0, 0, 0.66);
+  --scrim: rgba(0, 0, 0, 0.66);
   --onboarding-glow: 0 0 0 4px rgba(193, 59, 48, 0.28);
 
   --el-bg-color: var(--surface);
