@@ -67,7 +67,8 @@ export function useStudentExams() {
 
   /** 结果提示信息（P1-21：后端 result 返回 ExamSession，学生得分字段为 totalScore 而非 score） */
   const resultMessage = computed(() => {
-    const score = examResult.value.totalScore
+    const raw = examResult.value.totalScore
+    const score = raw == null ? null : Number(raw)
     if (score == null) return '成绩正在批阅中，请稍后查看...'
     if (score >= 90) return '表现优秀！继续保持！'
     if (score >= 75) return '良好水平，再接再厉！'
@@ -370,7 +371,8 @@ export function useStudentExams() {
   }
 
   function getResultClass() {
-    const score = examResult.value.totalScore
+    const raw = examResult.value.totalScore
+    const score = raw == null ? 0 : Number(raw)
     if (score >= 90) return 'excellent'
     if (score >= 75) return 'good'
     if (score >= 60) return 'pass'

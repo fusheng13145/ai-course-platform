@@ -12,7 +12,12 @@
         </div>
         <span class="cat-cnt">{{ cnt }}</span>
       </div>
-      <EmptyState v-if="!categoryKeys.length" title="暂无课程分类数据" icon="chart" size="compact" />
+      <EmptyState
+        v-if="!categoryKeys.length"
+        title="暂无课程分类数据"
+        icon="chart"
+        size="compact"
+      />
     </div>
     <div class="sub-label" style="margin-top: 18px">热门课程 Top5</div>
     <div class="top-list">
@@ -29,6 +34,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { DataLine } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
@@ -40,9 +46,21 @@ defineProps({
   /** 分类 → 数量映射 */
   categoryDistribution: { type: Object, required: true },
   /** 分类键数组（空态判断） */
-  categoryKeys: { type: Array, required: true },
-  /** 热门课程列表 */
-  topCourses: { type: Array, required: true },
+  categoryKeys: { type: Array as PropType<string[]>, required: true },
+  /** 热门课程列表（courseName|name/courseId|id/enrollmentCount|count） */
+  topCourses: {
+    type: Array as PropType<
+      {
+        courseName?: string
+        name?: string
+        courseId?: number | string
+        id?: number | string
+        enrollmentCount?: number
+        count?: number
+      }[]
+    >,
+    required: true,
+  },
   /** 数量 → 条宽百分比函数 */
   barWidth: { type: Function, required: true },
 })

@@ -88,7 +88,17 @@ export function useProfile(getUser) {
     loading.value = true
     try {
       const res = await studentApi.getStudentDashboard()
-      const d = unwrap(res) || {}
+      const d = (unwrap(res) || {}) as {
+        courses?: { progress?: number | string | null; [key: string]: unknown }[]
+        enrolledCourses?: number
+        avgScore?: number
+        averageScore?: number
+        streakDays?: number
+        consecutiveDays?: number
+        pendingTasks?: number
+        todoCount?: number
+        unreadCount?: number
+      }
 
       courses.value = (d.courses || []).slice(0, 6).map((c, i) => {
         const p = c.progress != null ? Math.round(Number(c.progress)) : 0

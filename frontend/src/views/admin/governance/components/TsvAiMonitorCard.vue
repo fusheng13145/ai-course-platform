@@ -26,6 +26,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { WarnTriangleFilled } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
@@ -36,8 +37,11 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 defineProps({
   /** AI 监控汇总（loginCount/operationCount/alerts/error） */
   aiMonitor: { type: Object, required: true },
-  /** 告警列表 */
-  aiAlerts: { type: Array, required: true },
+  /** 告警列表（level/title/detail） */
+  aiAlerts: {
+    type: Array as PropType<{ level?: string; title?: string; detail?: string }[]>,
+    required: true,
+  },
   /** 等级 → 标签色函数 */
   alertType: { type: Function, required: true },
 })

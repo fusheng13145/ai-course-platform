@@ -147,8 +147,9 @@ const results = ref([])
 async function loadDocs() {
   loading.value = true
   try {
-    const res = await ragApi.ragListDocuments()
-    const d = res?.data || res || {}
+    // courseId 形参传 undefined：axios 会丢弃 undefined 的 query 参数，请求与旧调用逐字相同
+    const res = await ragApi.ragListDocuments(undefined)
+    const d = (res?.data || res || {}) as { documents?: unknown[] }
     docs.value = d.documents || []
   } catch {
     toast.show('文档加载失败', 'error')
@@ -182,7 +183,7 @@ async function doUpload() {
   uploading.value = true
   try {
     const res = await ragApi.ragAddDocument(f.courseId, f.name.trim(), f.content.trim())
-    const d = res?.data || res || {}
+    const d = (res?.data || res || {}) as { status?: string; id?: number | string }
     if (d.status === 'ok' || d.id) {
       toast.show('文档已上传并入库', 'ok')
       showUpload.value = false
@@ -201,7 +202,7 @@ async function doUpload() {
 async function removeDoc(d) {
   try {
     const res = await ragApi.ragDeleteDocument(d.id)
-    const dd = res?.data || res || {}
+    const dd = (res?.data || res || {}) as { status?: string; deleted?: boolean }
     if (dd.status === 'ok' || dd.deleted) {
       docs.value = docs.value.filter((x) => x.id !== d.id)
       toast.show('文档已删除', 'ok')
@@ -223,7 +224,7 @@ async function doRetrieve() {
   retrieving.value = true
   try {
     const res = await ragApi.ragRetrieve({ query: query.value.trim(), topK: 5 })
-    const d = res?.data || res || {}
+    const d = (res?.data || res || {}) as { results?: unknown[] }
     results.value = d.results || []
   } catch {
     toast.show('检索失败', 'error')
