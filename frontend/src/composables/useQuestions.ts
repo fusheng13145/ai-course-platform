@@ -5,22 +5,22 @@ import questionApi from '@/api/question'
 import courseApi from '@/api/course'
 import request from '@/api/request'
 import { pickList, readTotal, unwrap } from '@/utils/response'
-import { confirmDanger } from '@/utils/dangerConfirm'
+import { useQuestionEditDialog } from './useQuestionEditDialog'
+import { useQuestionAiGenerate } from './useQuestionAiGenerate'
+import { useQuestionTransfer } from './useQuestionTransfer'
 
-/** 选项标签（A-H） */
-export const OPTION_LABELS = ['A', 'B', 'C', 'D', 'E', 'F', 'G', 'H']
+// 选项标签经编排层重导出，消费方（页面与学生端作答组件）的导入路径不变
+export { OPTION_LABELS } from './useQuestionsShared'
 
 /**
- * 题库管理（管理端）业务逻辑
- * <p>承载题库管理页全部状态与操作：题目列表（筛选/搜索/分页/统计）、题目增删改
- * （选择题选项编排/判断题/填空简答编程题答案处理）、AI 智能出题、题目统计、
- * 易错题榜、批量导出（xlsx 文件流）与批量导入（.xlsx 解析入库）。</p>
+ * 题库管理（管理端）业务逻辑（编排层）
+ * <p>承载题目列表（筛选/搜索/分页/统计）、课程加载、题目统计与易错题榜、展示辅助；
+ * 增删改对话框拆见 useQuestionEditDialog，AI 出题拆见 useQuestionAiGenerate，
+ * 批量导入导出拆见 useQuestionTransfer。</p>
  */
 export function useQuestions() {
   /* ---- 加载状态 ---- */
   const loading = ref(false)
-  const saving = ref(false)
-  const aiGenerating = ref(false)
 
   /* ---- 统计数据 ---- */
   const questionStats = ref([
@@ -49,53 +49,9 @@ export function useQuestions() {
   const questionList = ref([])
   const courseList = ref([])
 
-  /* ---- 对话框状态 ---- */
-  const showEditDialog = ref(false)
-  const showAIDialog = ref(false)
+  /* ---- 统计对话框 ---- */
   const showStatsDialog = ref(false)
-  const isEditing = ref(false)
   const currentStats = ref(null)
-  const editingId = ref(null)
-
-  /* ---- 题目表单 ---- */
-  const questionFormRef = ref(null)
-  const questionForm = reactive({
-    type: 'SINGLE_CHOICE',
-    difficulty: 'MEDIUM',
-    courseId: '',
-    content: '',
-    options: [
-      { content: '', isCorrect: false },
-      { content: '', isCorrect: false },
-      { content: '', isCorrect: false },
-      { content: '', isCorrect: false },
-    ],
-    answer: '',
-    explanation: '',
-    score: 5,
-  })
-
-  const questionRules = {
-    type: [{ required: true, message: '请选择题型', trigger: 'change' }],
-    difficulty: [{ required: true, message: '请选择难度', trigger: 'change' }],
-    content: [{ required: true, message: '请输入题目内容', trigger: 'blur' }],
-    score: [{ required: true, message: '请设置分值', trigger: 'blur' }],
-  }
-
-  /* ---- AI 表单 ---- */
-  const aiFormRef = ref(null)
-  const aiForm = reactive({
-    topic: '',
-    type: 'MIXED',
-    difficulty: 'MIXED',
-    count: 5,
-    courseId: '',
-    requirements: '',
-  })
-
-  const aiRules = {
-    topic: [{ required: true, message: '请输入知识点或主题', trigger: 'blur' }],
-  }
 
   /* ---- 课程与题目加载 ---- */
 
@@ -148,178 +104,11 @@ export function useQuestions() {
     // 其他统计数据可以从API获取或计算
   }
 
-  /* ---- 创建/编辑题目 ---- */
+  const editDialog = useQuestionEditDialog({ fetchQuestions })
+  const aiGenerate = useQuestionAiGenerate({ fetchQuestions })
+  const transfer = useQuestionTransfer({ filters, fetchQuestions })
 
-  function openCreateDialog() {
-    isEditing.value = false
-    editingId.value = null
-    Object.assign(questionForm, {
-      type: 'SINGLE_CHOICE',
-      difficulty: 'MEDIUM',
-      courseId: '',
-      content: '',
-      options: [
-        { content: '', isCorrect: false },
-        { content: '', isCorrect: false },
-        { content: '', isCorrect: false },
-        { content: '', isCorrect: false },
-      ],
-      answer: '',
-      explanation: '',
-      score: 5,
-    })
-    showEditDialog.value = true
-  }
-
-  function editQuestion(row) {
-    isEditing.value = true
-    editingId.value = row.id
-
-    // 填充表单数据
-    Object.assign(questionForm, {
-      type: row.type || 'SINGLE_CHOICE',
-      difficulty: row.difficulty || 'MEDIUM',
-      courseId: row.courseId || '',
-      content: row.content || '',
-      answer: row.answer || '',
-      explanation: row.explanation || '',
-      score: row.score || 5,
-    })
-
-    // 处理选择题选项
-    if (row.options && Array.isArray(row.options)) {
-      questionForm.options = row.options.map((opt) => ({
-        content: opt.content || opt.text || '',
-        isCorrect: opt.isCorrect === true || opt.isAnswer === true,
-      }))
-    } else {
-      questionForm.options = [
-        { content: '', isCorrect: false },
-        { content: '', isCorrect: false },
-        { content: '', isCorrect: false },
-        { content: '', isCorrect: false },
-      ]
-    }
-
-    showEditDialog.value = true
-  }
-
-  async function saveQuestion() {
-    if (!questionFormRef.value) return
-
-    await questionFormRef.value.validate(async (valid) => {
-      if (!valid) return
-
-      saving.value = true
-      try {
-        const payload: Record<string, unknown> = {
-          type: questionForm.type,
-          difficulty: questionForm.difficulty,
-          courseId: questionForm.courseId,
-          content: questionForm.content,
-          score: questionForm.score,
-          explanation: questionForm.explanation,
-        }
-
-        // 根据题型处理答案
-        if (isChoiceType(questionForm.type)) {
-          payload.options = questionForm.options.map((opt) => opt.content)
-          payload.answer = questionForm.options
-            .map((opt, idx) => (opt.isCorrect ? OPTION_LABELS[idx] : null))
-            .filter(Boolean)
-            .join(',')
-        } else if (questionForm.type === 'TRUE_FALSE') {
-          payload.answer = String(questionForm.answer)
-        } else {
-          payload.answer = questionForm.answer
-        }
-
-        if (isEditing.value && editingId.value) {
-          await questionApi.updateQuestion(editingId.value, payload)
-          ElMessage.success('更新成功')
-        } else {
-          await questionApi.createQuestion(payload)
-          ElMessage.success('创建成功')
-        }
-
-        showEditDialog.value = false
-        fetchQuestions()
-      } catch (error) {
-        logger.error('保存题目失败:', error)
-        ElMessage.error('保存失败')
-      } finally {
-        saving.value = false
-      }
-    })
-  }
-
-  async function deleteQuestion(row) {
-    try {
-      // D2-2：题干截断进 subject，并明确不可逆性与恢复路径
-      const ok = await confirmDanger({
-        verb: '删除',
-        target: '题目',
-        subject: `${row.content.slice(0, 50)}...`,
-      })
-      if (!ok) return
-
-      await questionApi.deleteQuestion(row.id)
-      ElMessage.success('删除成功')
-      fetchQuestions()
-    } catch (e) {
-      if (e !== 'cancel') ElMessage.error('删除失败')
-    }
-  }
-
-  /* ---- 选项操作 ---- */
-
-  function addOption() {
-    questionForm.options.push({ content: '', isCorrect: false })
-  }
-
-  function removeOption(index) {
-    questionForm.options.splice(index, 1)
-  }
-
-  /* ---- AI 智能出题 ---- */
-
-  async function generateByAI() {
-    if (!aiFormRef.value) return
-
-    await aiFormRef.value.validate(async (valid) => {
-      if (!valid) return
-
-      aiGenerating.value = true
-      try {
-        const payload: Record<string, unknown> = {
-          topic: aiForm.topic,
-          type: aiForm.type,
-          difficulty: aiForm.difficulty,
-          count: aiForm.count,
-          courseId: aiForm.courseId || undefined,
-          requirements: aiForm.requirements || undefined,
-        }
-
-        const res = await questionApi.generateByAI(payload)
-        const generated = res.data?.questions || res.data || []
-
-        if (Array.isArray(generated) && generated.length > 0) {
-          ElMessage.success(`成功生成 ${generated.length} 道题目`)
-          showAIDialog.value = false
-          fetchQuestions()
-        } else {
-          ElMessage.warning('未生成有效题目')
-        }
-      } catch (error) {
-        logger.error('AI生成题目失败:', error)
-        ElMessage.error('AI生成失败，请稍后重试')
-      } finally {
-        aiGenerating.value = false
-      }
-    })
-  }
-
-  /* ---- 统计 / 易错题 / 导出 / 导入 ---- */
+  /* ---- 统计 / 易错题 ---- */
 
   async function viewStats(row) {
     showStatsDialog.value = true
@@ -357,68 +146,7 @@ export function useQuestions() {
     }
   }
 
-  /** 批量导出：调用后端 /teacher/questions/export 生成 xlsx 文件流下载（按当前课程筛选） */
-  async function handleExport() {
-    try {
-      ElMessage({ message: '正在导出题库...', duration: 0 })
-      const res = await questionApi.exportQuestionsExcel({
-        courseId: filters.courseId || undefined,
-      })
-      ElMessage.closeAll()
-      const blob = new Blob([res.data || res], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `题库导出_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.xlsx`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
-      ElMessage.success('导出成功')
-    } catch (e) {
-      ElMessage.closeAll()
-      logger.error('导出题库失败:', e)
-      ElMessage.error('导出失败，请稍后重试')
-    }
-  }
-
-  /** 批量导入：选择 .xlsx 文件后调用后端 /teacher/questions/import-excel 解析入库
-   * 表头约定：题型/题干/选项(JSON)/正确答案/难度/分值/知识点/解析 */
-  function handleImport() {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = '.xlsx'
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0]
-      if (!file) return
-      try {
-        ElMessage({ message: '正在导入题目...', duration: 0 })
-        const formData = new FormData()
-        formData.append('file', file)
-        if (filters.courseId) formData.append('courseId', filters.courseId)
-        const res = await questionApi.importQuestionsExcel(formData)
-        ElMessage.closeAll()
-        const result = res.data || {}
-        ElMessage.success(
-          `导入完成：成功 ${result.importedCount ?? 0} / 共 ${result.total ?? 0} 题`,
-        )
-        fetchQuestions()
-      } catch (err) {
-        ElMessage.closeAll()
-        logger.error('导入题目失败:', err)
-        ElMessage.error('导入失败，请检查文件格式（.xlsx，8 列表头）')
-      }
-    }
-    input.click()
-  }
-
   /* ---- 展示辅助 ---- */
-
-  function isChoiceType(type) {
-    return ['SINGLE_CHOICE', 'MULTIPLE_CHOICE'].includes(type)
-  }
 
   function getTypeText(type) {
     const map = {
@@ -465,39 +193,39 @@ export function useQuestions() {
 
   return {
     loading,
-    saving,
-    aiGenerating,
+    saving: editDialog.saving,
+    aiGenerating: aiGenerate.aiGenerating,
     questionStats,
     filters,
     pagination,
     questionList,
     courseList,
-    showEditDialog,
-    showAIDialog,
+    showEditDialog: editDialog.showEditDialog,
+    showAIDialog: aiGenerate.showAIDialog,
     showStatsDialog,
-    isEditing,
+    isEditing: editDialog.isEditing,
     currentStats,
-    editingId,
-    questionFormRef,
-    questionForm,
-    questionRules,
-    aiFormRef,
-    aiForm,
-    aiRules,
+    editingId: editDialog.editingId,
+    questionFormRef: editDialog.questionFormRef,
+    questionForm: editDialog.questionForm,
+    questionRules: editDialog.questionRules,
+    aiFormRef: aiGenerate.aiFormRef,
+    aiForm: aiGenerate.aiForm,
+    aiRules: aiGenerate.aiRules,
     fetchCourses,
     fetchQuestions,
-    openCreateDialog,
-    editQuestion,
-    saveQuestion,
-    deleteQuestion,
-    addOption,
-    removeOption,
-    generateByAI,
+    openCreateDialog: editDialog.openCreateDialog,
+    editQuestion: editDialog.editQuestion,
+    saveQuestion: editDialog.saveQuestion,
+    deleteQuestion: editDialog.deleteQuestion,
+    addOption: editDialog.addOption,
+    removeOption: editDialog.removeOption,
+    generateByAI: aiGenerate.generateByAI,
     viewStats,
     viewErrorProne,
-    handleExport,
-    handleImport,
-    isChoiceType,
+    handleExport: transfer.handleExport,
+    handleImport: transfer.handleImport,
+    isChoiceType: editDialog.isChoiceType,
     getTypeText,
     getTypeTagType,
     getDifficultyValue,
