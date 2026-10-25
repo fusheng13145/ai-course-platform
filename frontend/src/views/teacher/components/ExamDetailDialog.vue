@@ -62,6 +62,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { ref, computed } from 'vue'
 import { useDialogFocus } from '@/composables/useDialogFocus'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -73,7 +74,19 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   currentExam: { type: Object, default: null },
-  examDetailQuestions: { type: Array, default: () => [] },
+  examDetailQuestions: {
+    type: Array as PropType<
+      {
+        id?: number | string
+        type?: string
+        content?: string
+        stem?: string
+        title?: string
+        score?: number
+      }[]
+    >,
+    default: () => [],
+  },
   getStatusType: { type: Function, required: true },
   getStatusText: { type: Function, required: true },
   getQuestionTypeName: { type: Function, required: true },

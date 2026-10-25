@@ -14,6 +14,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import StatCard from '@/components/ui/StatCard.vue'
 
 /**
@@ -23,7 +24,19 @@ import StatCard from '@/components/ui/StatCard.vue'
  */
 defineProps({
   /** 指标数组（label/value/change/icon/tone/toneColor） */
-  coreMetrics: { type: Array, required: true },
+  coreMetrics: {
+    type: Array as PropType<
+      {
+        label: string
+        value: string | number
+        change?: number
+        icon?: string
+        tone?: string
+        toneColor?: string
+      }[]
+    >,
+    required: true,
+  },
   /** 指标脚注格式化函数 */
   metricFoot: { type: Function, required: true },
 })

@@ -18,7 +18,9 @@ export function useStudentGrades() {
   const loadError = ref('')
   const showTable = ref(false)
   const courseMap = ref({} as Record<string, string>)
-  const examMap = ref({} as Record<string, { title: string; courseId: string; totalScore: number }>)
+  const examMap = ref(
+    {} as Record<string, { title?: string; courseId?: number | string; totalScore?: number }>,
+  )
 
   /* ---- 计算属性 ---- */
   const avgScore = computed(() => {
@@ -113,7 +115,7 @@ export function useStudentGrades() {
       const exams = pickList<{
         id: number
         title?: string
-        courseId?: number
+        courseId?: number | string
         totalScore?: number
       }>(examRes)
       exams.forEach((e) => {
@@ -128,7 +130,13 @@ export function useStudentGrades() {
       list.value = (Array.isArray(sessions) ? sessions : [])
         .filter((s) => s.status === 'SUBMITTED' || s.status === 'GRADED')
         .map((s) => {
-          const exam = examMap.value[s.examPaperId] || {}
+          const exam =
+            examMap.value[s.examPaperId] ||
+            ({} as {
+              title?: string
+              courseId?: number | string
+              totalScore?: number
+            })
           return {
             id: s.id,
             examTitle: exam.title || '考试',

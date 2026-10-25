@@ -122,7 +122,7 @@ const loading = ref(false)
 const passRate = ref<number | null>(0)
 const excellentRate = ref<number | null>(0)
 const buckets = ref([])
-const extra = ref({})
+const extra = ref<{ count?: number; avgScore?: number; maxScore?: number; minScore?: number }>({})
 /**
  * 加载失败提示文案：非空即表示课程指标 / 成绩分布读数不可信。
  * 原实现两路接口串行 await、任一步失败即被 catch 静默吞掉 → 页面照常显示 0 值卡片与空直方图，

@@ -103,6 +103,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import BarChart from '@/components/charts/BarChart.vue'
 import DonutChart from '@/components/charts/DonutChart.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -112,7 +113,18 @@ defineProps({
   trendData: { type: Array, default: () => [] },
   gradeDist: { type: Array, default: () => [] },
   deptData: { type: Array, default: () => [] },
-  topCourses: { type: Array, default: () => [] },
+  topCourses: {
+    type: Array as PropType<
+      {
+        courseId?: number | string
+        courseName?: string
+        courseCode?: string
+        category?: string
+        enrollmentCount?: number
+      }[]
+    >,
+    default: () => [],
+  },
 })
 </script>
 

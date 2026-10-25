@@ -18,12 +18,18 @@
         <span class="conv-title">{{ conv.title || '新对话' }}</span>
         <span class="conv-time">{{ formatTime(conv.time) }}</span>
       </div>
-      <EmptyState v-if="conversations.length === 0" title="暂无历史对话" icon="message" size="compact" />
+      <EmptyState
+        v-if="conversations.length === 0"
+        title="暂无历史对话"
+        icon="message"
+        size="compact"
+      />
     </div>
   </aside>
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { Plus, ChatDotRound } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
@@ -33,7 +39,10 @@ import EmptyState from '@/components/ui/EmptyState.vue'
  */
 defineProps({
   showSidebar: { type: Boolean, default: true },
-  conversations: { type: Array, default: () => [] },
+  conversations: {
+    type: Array as PropType<{ id: number | string; title?: string; time?: string }[]>,
+    default: () => [],
+  },
   currentConvId: { type: [Number, String], default: null },
   formatTime: { type: Function, required: true },
 })
