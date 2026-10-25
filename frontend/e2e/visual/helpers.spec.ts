@@ -942,23 +942,27 @@ test('闸门源级钉自己会红：内存里复刻「改默认实参」与「�
  * 另含一处数据态差异——顶栏未读角标（昨录时未读>0、今录时已清零），该区域自此经 maskSelectors 遮罩恒在的铃铛按钮容器（见 ANCHORS 的 student-courses-modal 注释；首版遮 .n-badge 因元素随计数 0↔N 出没而失稳，实跑 6 红后换容器）；lc-light 仅剩角标带 114 px。
  * 逐张人工看图 + measure-diff 读数（Δmax：浅 7–8 / 暗 16–50 纯 token 效果；学生 5 张
  * 170–207 为角标移除项主导）见 LEDGER `P1-TOKEN-01`。
+ * 2026-10-25 P1-TOKEN-01 挂账收口：teacher/admin 五个未钉桩壳页锚点（admin-dashboard/
+ * teacher-dashboard/admin-courses-table/admin-system-form/admin-profile）补同款铃铛遮罩并
+ * 重录 10 张——至此 12 锚点中凡渲染顶栏铃铛且未钉 unread-count 的 8 格全部遮罩，钉桩的
+ * student-dashboard 与 admin-governance-analytics 保持不遮（角标画 fixture 值、确定性可验）。
  * 同步以"工作树除本文件外干净、字节与 HEAD 一致"为前提取证，引用这个数一律带张数与原因。
  */
 const BASELINE_SHA256: Record<string, string> = {
   'admin-courses-table-dark.png':
-    'b744b5c7fa3409375927ca903ee8271f82b3684564e11f54f9785f62804524c2',
+    '454e96afce6d12155c79424445a1c9425afb57b970bd17079aa3c84320322e9c',
   'admin-courses-table-light.png':
-    '1266a47661b7cdb149dfd84058a6f2f90f41b58871dc0bb44ed7d3c554ab93c4',
-  'admin-dashboard-dark.png': '09ff3c6a1a77127c2f84180de823136236db6b93cc0793bd8473db0a01c9c24f',
-  'admin-dashboard-light.png': '8659e93985ca5082a08b7e42770d070d4b43cd993da032b248aea71c322815a3',
+    '1da19b8eb8fa88a8c6e05d908122047a722da5ac401fce87a38f8009ee558094',
+  'admin-dashboard-dark.png': 'd8ccdf01c33b46a6d0357047f2521717b11af8b46e7aa78535e0d44477a07dee',
+  'admin-dashboard-light.png': '6778ca24fade7d2b2962245ec930ea1be72ce9a321523d4d8fc3fe76de55f065',
   'admin-governance-analytics-dark.png':
     'f26b806cd9390f68ce9fffe74c1e1c0066f1427ffe72a1c56a1ce5129ec2a8b6',
   'admin-governance-analytics-light.png':
     '9db40481dcde8f91480818521531b22abff1c0bad3ed98cbac09b9533c8df227',
-  'admin-profile-dark.png': '898e4befc20a95dd0f6f29c9dd96f58e689710e89890517fd3bfd334b1dba229',
-  'admin-profile-light.png': '968a282fa2bd1790e270e8eec4645d1cb2a5a0f21fbdcc4a81eafb47357a0f17',
-  'admin-system-form-dark.png': '5719dc5155c4c0e5171b2a44e3f35fca86fbbce8a6381fb6b1f9db784636a76a',
-  'admin-system-form-light.png': 'f2924fa041f6a3a435445e337995a297808e62c2d9f3257904930127bdc35d1c',
+  'admin-profile-dark.png': 'efdd0d12e176c5550aa5106848ee72880a9394d0fe09a454ef9a388cb9c78d4f',
+  'admin-profile-light.png': 'ad784c9a53be03c61528df4e615950fae161baf2385475d9fa85de8db55783a0',
+  'admin-system-form-dark.png': 'd863946a02e3b378d68fc2346c6870a986b6153b5a793034c6f144a8771af37a',
+  'admin-system-form-light.png': 'ee1e6f3c189b813148167d915e26463597c3118e932a3a2a85b785aabe1d1be5',
   'error-404-dark.png': 'b2d03c673791a14b37bb9c6f92cf46f862108051620f0cabfcbe1faf53afe0a4',
   'error-404-light.png': '809f74a1a39c30d0c0675b83e49e9c00ddf5eaea66dcb4515642d9bcb38eed13',
   'login-dark.png': '57f30e074e7bacc0edf41d754657a7b3a2d250fbcc513674a6ecc15422b6630b',
@@ -977,8 +981,8 @@ const BASELINE_SHA256: Record<string, string> = {
     '731cf2d6f935fe3e46fe8b8649aa8c729dac4520ba9111b2945deacde2a1b499',
   'student-learning-center-light.png':
     '17b30cef7dd35d4c2a5b1ec7dfc12881c9c76be13804b46310252a9e89946208',
-  'teacher-dashboard-dark.png': '9f0098a2187dbbdb17695e92cdc36ce29456ab51a22a042c3ba7b970d20b0eed',
-  'teacher-dashboard-light.png': 'cd6dc208c2de1ee60a83a75f5659de68f1d8b2479fbfb611da4b4d67e7bbbe1a',
+  'teacher-dashboard-dark.png': '7e26ded9f9017bb56baec7dc79f0080a9cbcf17b9c201a07faf1c6d3e03a82eb',
+  'teacher-dashboard-light.png': 'b540c087794f18f52570c56c3c8eb78a1cf52716f6e4adc295c6773fe2d54bb5',
 }
 
 test('24 张已提交基线的 sha256 与入库清单一致（篡改/重生成即红）', () => {

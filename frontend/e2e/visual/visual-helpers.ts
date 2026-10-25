@@ -564,7 +564,14 @@ export const ANCHORS: readonly AnchorSpec[] = [
    *   （差集取证：三格实测 GET 清单 vs 各自 pinPaths，读数另落 `test-results/pin-gap/` 与 tmpdir）
    */
   { slug: 'login', title: '登录页', role: 'ANON', path: '/login' },
-  { slug: 'admin-dashboard', title: '管理工作台', role: 'ADMIN', path: '/admin/dashboard' },
+  {
+    slug: 'admin-dashboard',
+    title: '管理工作台',
+    role: 'ADMIN',
+    path: '/admin/dashboard',
+    /** 未读角标合法漂移，遮恒在的铃铛按钮容器（同 student-courses-modal，P1-TOKEN-01 挂账收口） */
+    maskSelectors: ['button[title="通知"]'],
+  },
   {
     slug: 'student-dashboard',
     title: '学生工作台',
@@ -629,18 +636,29 @@ export const ANCHORS: readonly AnchorSpec[] = [
       '/api/auth/permissions',
     ],
   },
-  { slug: 'teacher-dashboard', title: '教师工作台', role: 'TEACHER', path: '/teacher/dashboard' },
+  {
+    slug: 'teacher-dashboard',
+    title: '教师工作台',
+    role: 'TEACHER',
+    path: '/teacher/dashboard',
+    /** 未读角标合法漂移，遮恒在的铃铛按钮容器（同 student-courses-modal，P1-TOKEN-01 挂账收口） */
+    maskSelectors: ['button[title="通知"]'],
+  },
   {
     slug: 'admin-courses-table',
     title: '课程管理（表格代表）',
     role: 'ADMIN',
     path: '/admin/courses',
+    /** 未读角标合法漂移，遮恒在的铃铛按钮容器（同 student-courses-modal，P1-TOKEN-01 挂账收口） */
+    maskSelectors: ['button[title="通知"]'],
   },
   {
     slug: 'admin-system-form',
     title: '系统设置（表单代表）',
     role: 'ADMIN',
     path: '/admin/system',
+    /** 未读角标合法漂移，遮恒在的铃铛按钮容器（同 student-courses-modal，P1-TOKEN-01 挂账收口） */
+    maskSelectors: ['button[title="通知"]'],
   },
   {
     slug: 'student-courses-modal',
@@ -730,6 +748,13 @@ export const ANCHORS: readonly AnchorSpec[] = [
       '/api/auth/permissions',
     ],
   },
-  { slug: 'admin-profile', title: '个人中心', role: 'ADMIN', path: '/admin/profile' },
+  {
+    slug: 'admin-profile',
+    title: '个人中心',
+    role: 'ADMIN',
+    path: '/admin/profile',
+    /** 未读角标合法漂移，遮恒在的铃铛按钮容器（同 student-courses-modal，P1-TOKEN-01 挂账收口） */
+    maskSelectors: ['button[title="通知"]'],
+  },
   { slug: 'error-404', title: '404', role: 'ANON', path: '/__no-such-route__' },
 ]
