@@ -265,6 +265,60 @@ export function snapName(slug: string, theme: ThemeName): string {
 export const SNAPSHOT_THRESHOLDS = { threshold: 0, maxDiffPixelRatio: 0.0001 }
 
 /**
+ * 视口扩张的封顶高度（P1-FULLPAGE-01）。Chromium 截图硬上限是 16384px，
+ * 这里收在 8000：12 个锚点今日实测最长内容远低于它（逐张读数见 LEDGER `P1-FULLPAGE-01`），
+ * 真超过封顶的页会在 CAP 处截断——那是"内容超长"的有名边界，不是静默丢覆盖。
+ */
+export const FULLPAGE_MAX_HEIGHT = 8000
+
+/**
+ * 把视口扩到内容实高再截图（Phase 1 首单元 `P1-FULLPAGE-01`，修缺陷 D-7）。
+ *
+ * 【为什么必须有这一步】`fullPage: true` 在壳页等于没开：`AppShell.vue` 的 `.app` 是
+ * `height: 100vh`、滚动发生在内部容器 `.content`（`flex: 1; overflow-y: auto`）——
+ * 文档本身从不滚动，Playwright 的 fullPage 按**文档**高度算，于是 24 张基线全是
+ * 1440×900 首屏，首屏之下的内容一张都没进基线（`evidence/phase0-measurements.md` §8 D-7：
+ * admin-dashboard 的两张图表在首屏之下被切掉）。
+ *
+ * 【修法】settle 之后、截图之前，把视口高度扩到"内容装得下"：
+ * 目标 = `.content` 的 scrollHeight + 页面 chrome（window.innerHeight − content.clientHeight，
+ * 即头部等不随内容滚的部分）＋ 非壳页回落 document.scrollHeight，三者取大、封顶
+ * FULLPAGE_MAX_HEIGHT，`setViewportSize` 只改高度不改宽度。
+ *
+ * 【为什么敢在 settle 之后 resize 而不再 settle】settlePage 的不变式是页面 `Date.now()`
+ * 恒等于 SNAPSHOT_PAGE_TIME_MS 且 anchors 逐张断言它——再跑一次 settle 会把总推进量
+ * 多加 2×WARMUP+预算+帧沉降、当场打破它。而视口 resize **不推进假时钟**（clock fake 的
+ * 是时间类 API，不是布局）、布局重算是渲染器同步完成的；宽度不变 ⇒ echarts 不触发
+ * autoresize（画布宽没变）、el-table 列宽不重算。留下的 `waitForTimeout(100)` 是
+ * **真实**毫秒等待（同 waitForStableText 的兜底写法），只等合成器提交一帧，不碰假时钟。
+ *
+ * 【代价——有意接受并写进基线语义】100vh 元素（.app / .sidebar）随视口拉高：基线里
+ * 侧栏比用户真实滚动时更长。这是"整页内容一屏呈"的标准合成几何，不是缺陷；
+ * 免检额分母随之从 1440×900 变成逐张 1440×H（w·h·r 现算），引用旧数 129.6/648/2592
+ * 只准作为"1440×900 几何下的历史换算"，不得拿来当新基线的免检额（`helpers.spec.ts`
+ * 的几何用例已按此重写）。超过 CAP 的页在 CAP 处截断。
+ *
+ * @returns 实际落到的视口高度（≤ FULLPAGE_MAX_HEIGHT；未扩的页返回当前 innerHeight）
+ */
+export async function expandViewportToContent(page: Page): Promise<number> {
+  const target = await page.evaluate(() => {
+    const content = document.querySelector<HTMLElement>('.content')
+    const doc = document.scrollingElement
+    const chrome = content ? window.innerHeight - content.clientHeight : 0
+    const contentHeight = content ? content.scrollHeight + chrome : 0
+    return Math.max(Math.ceil(contentHeight), doc?.scrollHeight ?? 0, window.innerHeight)
+  })
+  const capped = Math.min(target, FULLPAGE_MAX_HEIGHT)
+  const { width } = page.viewportSize() ?? { width: 1440 }
+  if (capped > (page.viewportSize()?.height ?? 900)) {
+    await page.setViewportSize({ width, height: capped })
+    // 真实等待合成器提交一帧；不推进假时钟（clock 被 freeze 停住，rAF 只能靠 runFor）。
+    await page.waitForTimeout(100)
+  }
+  return capped
+}
+
+/**
  * 会话夹具路径。定义在 helper 而非 global-setup：消费者是 anchors.spec.ts /
  * motion-observation.spec.ts，让它们去 import global-setup 会形成"配置导入设置"的反向依赖。
  * 路径相对 frontend/（Playwright 的 storageState 按 cwd 解析），全仓只用这一种写法，

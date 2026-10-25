@@ -8,6 +8,7 @@ import {
   assertComparableRender,
   assertGenericGuards,
   evidenceTagSuffix,
+  expandViewportToContent,
   freezeClock,
   maskOf,
   pinRandom,
@@ -348,6 +349,14 @@ async function runAnchor(
     )
     return
   }
+
+  // ───────── P1-FULLPAGE-01（缺陷 D-7）：截图前把视口扩到内容实高 ─────────
+  // `fullPage: true` 在壳页等于没开（.app 100vh、滚动在 .content 内部）⇒ 24 张基线全是
+  // 1440×900 首屏、首屏之下零覆盖。修法与代价（100vh 元素随视口拉高、免检额分母变逐张
+  // 1440×H、CAP 截断）都在 expandViewportToContent 的注释里；它不重跑 settle——
+  // SNAPSHOT_PAGE_TIME_MS 的不变式由 anchors 每张的 Date.now() 断言守着，这里只许换几何。
+  // assertZeroDiff 的对照截图在同一个已扩视口里拍，两条采集路径天然同几何（Task 4c Step 1e 的规矩）。
+  await expandViewportToContent(page)
 
   // `.png` 在这里补，不在 snapName 里补：Playwright 1.63 的 toHaveScreenshot 先对**传入的 arg**
   // 取 extname 决定 mimeType（matchers/expect.js:12437 的 getMimeTypeForPath(basename(expectedPath))），

@@ -13,6 +13,7 @@ import {
   BASELINE_DAY,
   CLOCK_DATE,
   freezeClock,
+  FULLPAGE_MAX_HEIGHT,
   maskOf,
   setTheme,
   settlePage,
@@ -930,21 +931,27 @@ test('闸门源级钉自己会红：内存里复刻「改默认实参」与「�
  * ② FE-04（D-10 修复）重录 4 张：admin-governance-analytics 明暗 ×2（fixture 同批重录）、
  *    admin-dashboard 明暗 ×2（该锚点未钉桩走真后端，D-10 修复令成绩分布与完成率卡变真数据，
  *    属同一后端修复的合法爆炸半径）。四张新图均已逐张人工复核（明暗各一，见台账）。
+ * 2026-10-25 P1-FULLPAGE-01（缺陷 D-7）全量重录 14 张：视口扩到内容实高后，7 个可滚页
+ * （admin-dashboard/courses-table/governance-analytics/profile、student-dashboard/
+ * knowledge-graph、teacher-dashboard）明暗各一变长（1116–2874px，首屏之下内容首次进基线），
+ * 均逐张人工看图；其余 10 张（login/error-404/admin-system-form/student-courses-modal/
+ * student-learning-center）sha256 与上一版逐字节相同——expandViewportToContent 对内容不超
+ * 视口的页零扰动，机器可证。
  * 同步以"工作树除本文件外干净、字节与 HEAD 一致"为前提取证，引用这个数一律带张数与原因。
  */
 const BASELINE_SHA256: Record<string, string> = {
   'admin-courses-table-dark.png':
-    '4fceb28bd3390934207b32576f35b7d1113d403d3f36f758d30e0992351f113d',
+    '8b11ef7a5ff0252b4cf0caea69a3ba00c3951b0aad44e174808ac8368224537e',
   'admin-courses-table-light.png':
-    'a16b22e487a6390833bc115e8176d6eb6f87439e1e27c83d19a25e1b0122e517',
-  'admin-dashboard-dark.png': '09b835515abae5a38da80b7a4789de8e98860400e96307ac548c0068e897846c',
-  'admin-dashboard-light.png': 'f682c2ad0a412d2623243511ffcc4d99c95aa9248db200d13433dfa5ce440fff',
+    'd2999b0f1837572d2f673bcd094f84457d4b4e39d7f21e286bd9761d849636f8',
+  'admin-dashboard-dark.png': '02a82dfee735563fab01c84eea7daea43c462cb5af7f2234cad19435ee266c98',
+  'admin-dashboard-light.png': '139ddcd94a618383570d9f9a2ccf1bf64602ef7806145103c029dd25d986bd78',
   'admin-governance-analytics-dark.png':
-    '74247f93978a6010052467b14bae8b6ec5cf3b4ba77d57a6169f2d35574b1c96',
+    '24d39795b7c4a93362ab90ff7a391d9b5ceb19788873e51de44272a66ed018c5',
   'admin-governance-analytics-light.png':
-    'adb1b86e9960c0f94e5fe0fe46b0099523732db8f2c4436cfac5c04573ebe5d8',
-  'admin-profile-dark.png': '3812a7af483d790a360e7f63805154ebb82732ded382bc0e7502a741ef383228',
-  'admin-profile-light.png': '5deaacad8f257fcb651cb8a56faa35aad0e83dafdd6c2b4cffd4dd5782de1e68',
+    '55e2c907c30661bfca07c7f73ad03e02c7c9ed893575f549280f024f3c69e285',
+  'admin-profile-dark.png': '1713dc26ac3784dc9b7b44f8346a818a696879cc917f69d04c51f28e53566b1f',
+  'admin-profile-light.png': '0846a70a396b6f8372fb4196e459425200dd5d1026b93010a9760591abc46f30',
   'admin-system-form-dark.png': '5719dc5155c4c0e5171b2a44e3f35fca86fbbce8a6381fb6b1f9db784636a76a',
   'admin-system-form-light.png': 'f2924fa041f6a3a435445e337995a297808e62c2d9f3257904930127bdc35d1c',
   'error-404-dark.png': 'b2d03c673791a14b37bb9c6f92cf46f862108051620f0cabfcbe1faf53afe0a4',
@@ -955,18 +962,18 @@ const BASELINE_SHA256: Record<string, string> = {
     '737739917fe742e17aef3706e3ec88f0fe386c73d7fb83939891b5212f695038',
   'student-courses-modal-light.png':
     'b6a9882cdb6bf55af9a711fb0b7b4cbc83ff7e716be550ceed86fa5aa5673263',
-  'student-dashboard-dark.png': 'a0f2141a9a47fae5fe3bbe3425e63e1adb74b252b70ef53823680dad28ce63f7',
-  'student-dashboard-light.png': 'b25114351a0aae9adb9d32ad809b0fdb8d175ec97f1642bee020ea504bb78f2b',
+  'student-dashboard-dark.png': '4b66860a84765f69e5321118d5c5cc9355f240d0f3d75535c7a7235fea376ac2',
+  'student-dashboard-light.png': 'd3c00c65a44ba5987799fd0f2d9b2b45309194e47de63e500f59b5eed74f0ed7',
   'student-knowledge-graph-dark.png':
-    'e803441b2d9841cf4a534bd8a4a780c5f5eecd56f1ca8d2a1eff369f5b917b0e',
+    '8b79d4e274b7bc078ec2a7fa613f38998dd07987b5d88d97f3850753f587c2d7',
   'student-knowledge-graph-light.png':
-    '35e7caf803ca83f70c23d2a08372019883495770b603769234fafd4bde548c84',
+    'eedf6247d59043432e25929d1a5b07f5d6e0fabc2511c0190745e128471eaf99',
   'student-learning-center-dark.png':
     '88cce625da003e8be1f6abf27d6d541dcac54ceb6071104a4db79805fc33e790',
   'student-learning-center-light.png':
     '5ac5cda3d46030111d3358f216a05ea6838a7f86c02abb460ceb7183c7731b62',
-  'teacher-dashboard-dark.png': '76be1c8a6b0333abab02e04427b2d45ef6576f45ef75c48c4a0fc020d7f8f1bf',
-  'teacher-dashboard-light.png': '7f44ad35146c4ebe438814245a290b70fe448cba607ca41a68d9a57adec42a01',
+  'teacher-dashboard-dark.png': 'c7682aa59d8f9b94a0834b0a1b7e84855063ec91bbc3e7b54299f81e1ede1ed4',
+  'teacher-dashboard-light.png': '4a608e66c75b1c507266b6b3c865f1a75e882b9140ff8968141f99af4c28a954',
 }
 
 test('24 张已提交基线的 sha256 与入库清单一致（篡改/重生成即红）', () => {
@@ -992,49 +999,61 @@ test('24 张已提交基线的 sha256 与入库清单一致（篡改/重生成�
 /**
  * B8：把 Phase 2 全部余量的**分母**钉住。
  *
- * 【原先缺什么】这一族算术在这个仓里被引用了十几次——`129.6`（当前档）、`648`（r=0.0005 那几轮）、
+ * 【P1-FULLPAGE-01 改写（2026-10-25）】基线几何从"清一色 1440×900"变为"宽 1440 × 逐页实高 H"
+ * （expandViewportToContent 把视口扩到内容实高、封顶 FULLPAGE_MAX_HEIGHT，修缺陷 D-7）。
+ * 本条随之改判：宽度仍逐张钉死 1440；高度钉在 [900, FULLPAGE_MAX_HEIGHT] 区间——
+ * **每张基线的免检额从此是 w·h·r 现算**，旧数 129.6 只对 1440×900 成立，量程账本里
+ * 1440×900 几何下的各档读数仍按旧分母引用（历史读数不改），**新引用必须带几何**。
+ * 内容变高 ⇒ sha256 那条先红（图被换过）⇒ 逐张人工复核后才许连清单一起改——
+ * 分母的每一次变化都走那道门，本条只拦"几何越界"（宽度漂移 / 视口配置被动过 / 超 CAP）。
+ *
+ * 【原先缺什么】这一族算术在这个仓里被引用了十几次——`129.6`（1440×900 几何的当前档）、`648`（r=0.0005 那几轮）、
  * `2592`（原生产配置），spec §6.12/§6.17 与 `docs/visual-upgrade/evidence/snapshot-thresholds-ledger.md` 的量程账本都靠它把"计数"折算成"几倍余量"。
- * 但**没有任何一条断言**读过基线的 IHDR，也没有任何一条算式被跑过：
- * `1440×900` 今天只是"真"（评审手读过 22 张）。这件事有两个方向会翻车：
+ * 在"清一色 1440×900"的年代它有两个翻车方向：
  *   ① 某页一旦**真的能滚**（Phase 4 的结构收敛最容易碰），fullPage 截图就变长，
  *      免检额随**期望图**面积一起涨 ⇒ 同一个 198 px 的圆角改动从 1.53× 掉到 0.46× —— **绿得没意义**
  *      （spec §6.12 末把它与"只有实际页变高、期望图没变 ⇒ sizesMismatchError 直接红"分开说过，
- *       一条是变瞎、一条是变红，别混）。
+ *       一条是变瞎、一条是变红，别混）。P1-FULLPAGE-01 就是把"变长"从隐患变成**显式几何**：
+ *      每张图多高、免检额多大，逐张现算、有 sha256 把门。
  *   ② `maxDiffPixelRatio` 一旦改动，注释里所有"几倍余量"当场作废，而没有任何东西会提醒。
- * 【这一条同时钉两件事】(a) 每张已提交基线的宽高；(b) `w·h·r` 重算出来正是注释引用的那三个数。
+ * 【这一条现在钉的是】(a) 每张基线宽 1440、高在 [900, CAP]；(b) 1440×900 几何下的三个历史算术常量
+ *      仍由同一分母重算出来（量程账本的历史读数引用它们）。
  *      r **从 `SNAPSHOT_THRESHOLDS` 读**，不在这重写一遍 `0.0001`——收紧它必须让这条红、
  *      逼着人去把注释与台账里的数一起改，而不是让注释静默失效。
  * 【比较口径】判据是 `count > expected.width * expected.height * ratio`（**无 ceil、无取整**，
  *   `playwright-core/lib/coreBundle.js:7903` 取的是**期望图**的尺寸、`:7910` 才是那道 `>` 比较；
- *   本机安装的是 playwright-core 1.63.0）。所以"免检额 130 px"是 129.6 的**向上**简写：
- *   计数恰好 130 的那一格是**红**的。下面把方向也钉住，免得哪天有人拿"130 免检"当判据。
+ *   本机安装的是 playwright-core 1.63.0）。1440×900 几何下"免检额 130 px"是 129.6 的**向上**简写：
+ *   计数恰好 130 的那一格是**红**的；逐页几何下同理按 w·h·r 现算、不取整。方向断言保留在
+ *   1440×900 分母上（那是"简写不取整"这件事的最小可证样本）。
  * 【为什么复用 `pngSize` 而不是再写一个读头函数】这仓已经有**两把**会读 PNG 头的东西
  *   （`tools/measure-diff.cjs` 的 chunk 扫描、`sensitivity.spec.ts` 的私有 `pngSize`）。
  *   第三份副本一旦写出，"免检额"就有三个可能不一致的来源；`pngSize` 已上收到 `tools/png-size.ts`，
  *   两边同一份（它只读 8 字节头、不还原像素，判据仍然只有那把尺）。
  * 【与 sha256 清单那条的分工】上面那条管"图没被换过"，本条管"图**长多大**"。
- *   `error-404` 那两张（缺陷 D-1）哪天补齐进清单时，本条会跟着多读两张——**这是有意的**：
  *   新增基线的尺寸同样要落进这条分母，不能只在清单里多个名字。
  */
-test('每张已提交基线都是 1440×900，且免检额算式与注释里的引用一致', () => {
+test('每张已提交基线宽 1440、高在 [900, CAP] 内；1440×900 历史免检额算式仍成立', () => {
   const dir = join(process.cwd(), 'e2e/visual/__snapshots__/anchors.spec.ts')
   const ratio = SNAPSHOT_THRESHOLDS.maxDiffPixelRatio
 
   for (const f of Object.keys(BASELINE_SHA256).sort()) {
     const { width, height } = pngSize(join(dir, f))
     expect(
-      `${width}x${height}`,
-      `${f} 的尺寸不再是 1440x900 ⇒ 免检额的分母变了（这一页真能滚？还是视口配置被动过？）`,
-    ).toBe('1440x900')
+      width,
+      `${f} 的宽度不再是 1440 ⇒ 视口配置被动过（P1-FULLPAGE-01 只改高度不改宽度）`,
+    ).toBe(1440)
+    expect(height, `${f} 的高度低于视口 900 ⇒ 内容没量到或几何逻辑被动过`).toBeGreaterThanOrEqual(
+      900,
+    )
     expect(
-      width * height * ratio,
-      `${f} 自己的免检额与注释引用的 129.6 不符（w·h·r = ${width}·${height}·${ratio}）`,
-    ).toBeCloseTo(129.6, 6)
+      height,
+      `${f} 的高度超过 FULLPAGE_MAX_HEIGHT=${FULLPAGE_MAX_HEIGHT} ⇒ 超长页要在台账显式登记截断边界，不得静默`,
+    ).toBeLessThanOrEqual(FULLPAGE_MAX_HEIGHT)
   }
 
-  // ② 算术本身：注释里引用过的三个数必须由同一个分母重算出来。
+  // ② 1440×900 几何的历史算术：量程账本各档读数的引用基准，逐数现算。
   const IMAGE_PX = 1440 * 900
-  expect(IMAGE_PX * ratio).toBeCloseTo(129.6, 6) // 当前交付档（r=0.0001）
+  expect(IMAGE_PX * ratio).toBeCloseTo(129.6, 6) // 1440×900 交付档（r=0.0001）
   expect(IMAGE_PX * 0.0005).toBe(648) // Task 4b/4c Step 1 那几轮的交付档
   expect(IMAGE_PX * 0.002).toBe(2592) // 原生产配置（spec §6.12 判它作废的那一档）
 

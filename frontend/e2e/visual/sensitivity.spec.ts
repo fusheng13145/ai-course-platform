@@ -8,6 +8,7 @@ import {
   applyEvidenceWrite,
   assertComparableRender,
   evidenceTagSuffix,
+  expandViewportToContent,
   freezeClock,
   maskOf,
   setTheme,
@@ -518,6 +519,12 @@ for (const slug of PROBE_ANCHORS) {
 
       // ↓ 与 anchors.runAnchor **同一份**可比性前置（少一条整轮读数作废，见文件头）
       await assertComparableRender(page, anchor, PROBE_THEME)
+
+      // ↓ P1-FULLPAGE-01：探针捕获必须与 anchors 基线**同几何**——期望图是每次从已提交基线
+      //   复制来的（下面的 copyFileSync），基线已扩到内容实高，这里不扩就会"expected 1440x2874
+      //   vs actual 1440x900"直接炸在 measure-diff 的尺寸卫兵上（首跑实测）。注入守卫读的是
+      //   .l1-card 的计算样式，扩视口（只改高度）不触碰它。
+      await expandViewportToContent(page)
 
       // ↓ 空操作守卫：注入前后各读一次计算样式。noise 档不注入 ⇒ 一次都不读（见上面那条更正）
       let before = { matched: 0, values: [] as string[] }
