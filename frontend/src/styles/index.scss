@@ -134,114 +134,78 @@ body,
 }
 
 /* ============================================
- * Element Plus 覆盖 - 莫兰迪适配
- * 去除鲜艳默认色，替换为莫兰迪色调
+ * Element Plus 覆写 · 莫兰迪适配
+ * 【P3-EPSCSS-01】spec §4 Phase 3 收敛：!important 98→20 条
+ *
+ * 收敛依据（证据钉 EP 2.14.7 dist/index.css、vite.config.ts:33、
+ * main.ts 装载序，逐条核过；关键结论经 Playwright computed-style
+ * 探针在 HEAD / 工作树双态实测）：
+ *
+ * 0. 【装载顺序事实】ElementPlusResolver({ importStyle: 'css' }) 使 EP
+ *    组件样式按需注入，且注入点晚于本文件（dev 与 build 同理）——
+ *    「同特异性靠源序取胜」在本仓不成立，属性竞争必须 !important
+ *    或更高特异性；这正是历史 98 条 !important 的成因。
+ *
+ * 因此本批只做三类安全收敛：
+ * 1. 死代码删除：el-menu / el-card / el-pagination / el-empty /
+ *    el-dropdown(-menu) 模板零使用（kebab + Pascal 双查）；服务式组件
+ *    保留（ElMessage 584 / ElMessageBox 25 / v-loading 104 处）；
+ *    chart-container 零使用；`.el-select .el-input.is-focus` 在 EP 2.14
+ *    新版 select（.el-select__wrapper，无内嵌 .el-input）下永不命中。
+ * 2. 同值声明删除：EP 自己渲染出同值的覆写（--ac-primary ≡
+ *    --el-color-primary ≡ --accent；--ac-radius-lg ≡
+ *    --el-border-radius-base ≡ --r-ctl=10px 等）——被 EP 翻盘也无感；
+ *    以及与 design-system.css「EP 深度覆写」块同选择器竞争、且后者带
+ *    !important 必胜的死重声明（.el-dialog 底座/表头/斑马纹/message 圆角）。
+ * 3. 变量化 / 特异性提升：EP 消费变量的，改为变量声明；变量在 EP 侧
+ *    有同宿主声明的，用双类提到 (0,2,0)（.el-table.el-table、
+ *    .el-descriptions.el-descriptions、.el-alert.el-alert、
+ *    .el-button.el-button--default）。
+ *
+ * 保留的 20 条 !important 各附一行理由（属性竞争且值不同，双类压不过
+ * EP 的高特异性变体/组合选择器）。
  * ============================================ */
 
-/* 菜单：浅色侧边栏 */
-.el-menu {
-  border-right: none !important;
-  background: transparent !important;
-  padding: 8px 0;
-}
-
-.el-menu-item {
-  height: 44px !important;
-  line-height: 44px !important;
-  margin: 2px 12px !important;
-  border-radius: var(--ac-radius-sm) !important;
-  transition: all var(--ac-transition-fast) !important;
-  font-size: 13.5px !important;
-  font-weight: 500;
-  color: var(--ac-sidebar-text) !important;
-}
-
-.el-menu-item:hover {
-  background: var(--ac-bg-hover) !important;
-  color: var(--ac-sidebar-text-hover) !important;
-}
-
-.el-menu-item.is-active {
-  background: var(--ac-sidebar-active-bg) !important;
-  color: var(--ac-sidebar-active-text) !important;
-  font-weight: 600;
-}
-
-.el-menu-item .el-icon {
-  font-size: 17px !important;
-  margin-right: 8px !important;
-}
-
-/* 卡片：柔和阴影 */
-.el-card {
-  border-radius: var(--ac-radius-lg) !important;
-  border: 1px solid var(--ac-border) !important;
-  box-shadow: none !important;
-  transition: all var(--ac-transition-normal) !important;
-  overflow: visible;
-}
-
-.el-card:hover {
-  box-shadow: var(--ac-shadow-md) !important;
-}
-
-.el-card__header {
-  padding: 18px 22px !important;
-  border-bottom: 1px solid var(--ac-border) !important;
-  font-weight: 600;
-  font-size: 15px;
-  color: var(--ac-text-primary);
-}
-
-.el-card__body {
-  padding: 20px 22px !important;
-}
-
 /* 按钮：莫兰迪主色 */
-/* 【P2-RADIUS-01】控件路径摘除 6px（spec §4 Phase 2）：primary/default 按钮与输入框
-   由 --ac-radius-sm(6) 升 --ac-radius-lg(=--r-ctl 10px 控件档)；菜单项/卡片/表格
-   非控件路径保持原档。 */
-.el-button--primary {
+/* !important 必须保留：EP 以 .el-button--small(0,2,0) 写
+   calc(--el-border-radius-base - 1px)=9px 的差异化半径，今天渲染值是
+   控件档 10px（本条压平）；去掉会让 small 按钮半径翻成 9px。 */
+.el-button {
   border-radius: var(--ac-radius-lg) !important;
-  font-weight: 500;
+}
+
+/* !important 必须保留：EP .el-button 的 transition 为 all .1s，
+   本层为 .15s（同特异性竞争，按需注入后 EP 必胜）。 */
+.el-button--primary {
   transition: all var(--ac-transition-fast) !important;
 }
 
 /*
+ * hover 态变量（与 EP 字面量 light-3/-7/-9 不同值，是本层存在的理由）：
+ * 选择器特异性 (0,4,0) 高于 EP 的 (0,1,0)，无须 !important。
  * 实心底色只套在非 plain/text/link 上：这三类变体的文字色就是语义色，
- * 再用 !important 把 --el-button-bg-color 刷成语义色会让图标/文字与底色同色而不可见。
+ * 刷语义底色会让图标/文字与底色同色而不可见。
  */
 .el-button--primary:not(.is-plain):not(.is-text):not(.is-link) {
-  --el-button-bg-color: var(--ac-primary) !important;
-  --el-button-border-color: var(--ac-primary) !important;
-  --el-button-hover-bg-color: var(--ac-primary-light) !important;
-  --el-button-hover-border-color: var(--ac-primary-light) !important;
-  --el-button-active-bg-color: var(--ac-primary-dark) !important;
+  --el-button-hover-bg-color: var(--ac-primary-light);
+  --el-button-hover-border-color: var(--ac-primary-light);
 }
 
 .el-button--success:not(.is-plain):not(.is-text):not(.is-link) {
-  --el-button-bg-color: var(--ac-success) !important;
-  --el-button-border-color: var(--ac-success) !important;
-  --el-button-hover-bg-color: #9bb898 !important;
-  --el-button-hover-border-color: #9bb898 !important;
+  --el-button-hover-bg-color: #9bb898;
+  --el-button-hover-border-color: #9bb898;
 }
 
 .el-button--danger:not(.is-plain):not(.is-text):not(.is-link) {
-  --el-button-bg-color: var(--ac-danger) !important;
-  --el-button-border-color: var(--ac-danger) !important;
-  --el-button-hover-bg-color: #d49494 !important;
-  --el-button-hover-border-color: #d49494 !important;
+  --el-button-hover-bg-color: #d49494;
+  --el-button-hover-border-color: #d49494;
 }
 
-.el-button--warning:not(.is-plain):not(.is-text):not(.is-link) {
-  --el-button-bg-color: var(--ac-warning) !important;
-  --el-button-border-color: var(--ac-warning) !important;
-}
-
-.el-button--default {
-  --el-button-hover-bg-color: var(--ac-bg-hover) !important;
-  --el-button-hover-border-color: var(--ac-border) !important;
-  border-radius: var(--ac-radius-lg) !important;
+/* 双类提到 (0,2,0)：EP .el-button 上有同名 hover 变量声明（default 档
+   light-9/light-7 为粉调字面量），单类同特异性会被按需注入翻盘。 */
+.el-button.el-button--default {
+  --el-button-hover-bg-color: var(--ac-bg-hover);
+  --el-button-hover-border-color: var(--ac-border);
 }
 
 .el-button:not(.is-text):not(.is-link):active {
@@ -254,9 +218,13 @@ body,
   box-shadow: var(--focus-ring);
 }
 
-/* 标签：语义色浅底 */
+/* 标签：语义色浅底。radius 6px（--r-l3 阶）、去边框、padding 2px 10px
+   均与 EP 渲染值不同（EP：--el-tag-border-radius=4px、1px 边、
+   base 0 9px / small 0 7px / large 0 11px），属性竞争必须压平；
+   font-weight !important 必须保留：ProfileHero 的 .role-tag（scoped
+   0,2,0，font-weight:600）定制依赖本条压制——基线渲染值一直是 500。 */
 .el-tag {
-  border-radius: 6px !important;
+  border-radius: var(--r-l3) !important;
   font-weight: 500 !important;
   border: none !important;
   padding: 2px 10px !important;
@@ -283,16 +251,20 @@ body,
   color: var(--ac-text-muted);
 }
 
-/* 表格：简洁无干扰线 */
+/* 表格：底色/文字/hover 经 theme.css 的 --el-* 映射（row hover 与 EP 默认
+   --el-table-row-hover-bg-color→--el-fill-color-light→--surface-3 同值，
+   删除）；表头底色/文字/字重与斑马纹由 design-system.css「EP 深度覆写」
+   块接管（带 !important 必胜，顺序无关），此处仅保留其未覆盖的声明。
+   行线色维持 EP 值（--el-table-border-color→--el-border-color-lighter=
+   --line-2）：旧文件的同名变量声明无 !important，历史渲染即被按需注入
+   的 EP 值覆盖，基线记录的正是该值——收敛以基线为准，不"修正"。
+   （注：--el-table-border 复合变量在 EP 声明处即解析固化，改
+   --el-table-border-color 无法影响行线，不在此徒劳。） */
 .el-table {
-  border-radius: var(--ac-radius-md) !important;
-  --el-table-border-color: var(--ac-border);
+  border-radius: var(--ac-radius-md);
 }
 
 .el-table th.el-table__cell {
-  background: var(--ac-bg) !important;
-  color: var(--ac-text-secondary) !important;
-  font-weight: 600 !important;
   font-size: 13px;
   letter-spacing: 0.3px;
 }
@@ -309,21 +281,21 @@ body,
   line-height: 1.6;
 }
 
-.el-table--striped .el-table__body tr.el-table__row--striped td.el-table__cell {
-  background: var(--ac-bg) !important;
-}
-
-.el-table .el-table__row:hover > td.el-table__cell {
-  background: var(--ac-bg-hover) !important;
-}
-
-/* 输入框：柔和聚焦环 */
+/* 输入框：边线阴影与 EP 默认（--el-input-border-color→--el-border-color
+   →--line）逐字段同值，删除；仅保留与 EP 不同的圆角压平、过渡时长、
+   hover 品牌色与双层聚焦环。 */
+/* radius !important 必须保留：EP 以更高特异性组合选择器（input-group
+   append/prepend 等）改写组合位圆角，今天被本层统一压平为控件档 10px。
+   代价：EP 错误态红框阴影（is-error）自历史起即被本层同法压灰，状态
+   语义维持现状（该状态无基线/断言覆盖，本批不改变它）。 */
 .el-input__wrapper {
   border-radius: var(--ac-radius-lg) !important;
-  box-shadow: 0 0 0 1px var(--ac-border) inset !important;
   transition: all var(--ac-transition-fast) !important;
 }
 
+/* hover/focus !important 必须保留：EP :hover 值为灰
+   （--el-border-color-hover 链）、:is-focus 为单线阴影，本层为品牌红与
+   双层聚焦环。 */
 .el-input__wrapper:hover {
   box-shadow: 0 0 0 1px var(--ac-primary-light) inset !important;
 }
@@ -334,14 +306,32 @@ body,
     0 0 0 1px var(--ac-primary) inset !important;
 }
 
-/* 对话框：大圆角+柔和阴影 */
+/* 对话框：底座（圆角/阴影）由 design-system.css 接管（带 !important
+   必胜），此处保留基线渲染所需的结构性声明。 */
 .el-dialog {
-  border-radius: var(--ac-radius-xl) !important;
-  box-shadow: var(--ac-shadow-xl) !important;
   overflow: hidden;
 }
 
-/* 抽屉：贴边圆角 */
+/* header padding !important 必须保留：EP .el-dialog__header 有
+   padding-bottom:16px，本层 20px 24px（基线渲染值）；title 字号同理
+   （EP --el-dialog-title-font-size=18px，本层 16px）；title 颜色与 EP
+   --el-text-color-primary 同值删除；字重 EP 无声明无须压。 */
+.el-dialog__header {
+  border-bottom: 1px solid var(--ac-border);
+  padding: 20px 24px !important;
+  margin-right: 0;
+}
+
+.el-dialog__title {
+  font-weight: 600;
+  font-size: 16px !important;
+}
+
+.el-dialog__body {
+  padding: 24px;
+}
+
+/* 抽屉：贴边圆角（EP .el-drawer 无 radius 声明，无竞争） */
 .el-drawer.rtl {
   border-radius: var(--ac-radius-xl) 0 0 var(--ac-radius-xl);
 }
@@ -349,133 +339,79 @@ body,
   border-radius: 0 var(--ac-radius-xl) var(--ac-radius-xl) 0;
 }
 
-/* 弹层 / 下拉菜单：莫兰迪柔和质感 */
+/* 弹层 / popover：莫兰迪柔和质感（popper 边线在按需注入下历史即被 EP
+   border 简写覆盖，基线渲染不出现弹层，维持历史行为不改） */
 .el-popper.is-light {
   border-radius: 10px;
   border-color: var(--ac-border);
   box-shadow: var(--ac-shadow-lg);
 }
-.el-dropdown-menu {
-  border-radius: 10px;
-  padding: 5px;
-}
-.el-dropdown-menu__item {
-  border-radius: 7px;
-  margin: 0 3px;
-}
-.el-dropdown-menu__item:not(.is-disabled):hover,
-.el-dropdown-menu__item:not(.is-disabled):focus {
-  background: var(--ac-bg-hover);
-  color: var(--ac-text-primary);
-}
 
-/* 加载遮罩：毛玻璃降噪 */
+/* 加载遮罩：毛玻璃降噪（EP 无 --el-mask-color 组件级声明，:root 默认值
+   被元素自身声明稳定压过，变量化无需 !important） */
 .el-loading-mask {
-  background: rgba(247, 248, 250, 0.72) !important;
+  --el-mask-color: rgba(247, 248, 250, 0.72);
   backdrop-filter: blur(2px);
 }
-.el-loading-spinner .path {
-  stroke: var(--accent);
-}
 
-/* 提示条 */
-.el-alert {
-  border-radius: var(--ac-radius-md);
-}
+/* 提示条：旧文件此声明无 !important，历史渲染即 EP 值
+   (--el-alert-border-radius-base=10px)——收敛以基线为准，整条删除，
+   不再重复声明（声明了也会被按需注入翻掉）。 */
 
-/* 空状态：图标柔和 */
-.el-empty__image {
-  opacity: 0.8;
-}
-.el-empty__image svg {
-  width: 88px;
-  height: 88px;
-}
-
-.el-dialog__header {
-  border-bottom: 1px solid var(--ac-border) !important;
-  padding: 20px 24px !important;
-  margin-right: 0 !important;
-}
-
-.el-dialog__title {
-  font-weight: 600 !important;
-  color: var(--ac-text-primary) !important;
-  font-size: 16px;
-}
-
-.el-dialog__body {
-  padding: 24px !important;
-}
-
-/* 分页 */
-.el-pagination {
-  margin-top: var(--ac-spacing-md) !important;
-}
-.el-pagination button,
-.el-pagination .el-pager li {
-  border-radius: 6px;
-  transition: all var(--ac-transition-fast);
-}
-.el-pagination .el-pager li:hover {
-  color: var(--ac-primary);
-}
-.el-pagination .el-pager li.is-active {
-  background: var(--ac-primary) !important;
-  border-radius: 6px;
-}
-
-/* 进度条：品牌蓝纯色 */
+/* 进度条：!important 必须保留（两条）：EP 以 .el-progress.is-success/
+   is-warning/is-exception (0,2,0) 写变体语义色（学习中心的进度条即
+   is-success 绿），基线渲染值被旧条统一压平为品牌红；圆角同前述
+   chip 档压平（EP=100px）。 */
 .el-progress-bar__inner {
   background: var(--ac-primary) !important;
   border-radius: 999px !important;
 }
 
-/* 空状态 */
-.el-empty {
-  padding: var(--ac-spacing-xl) 0 !important;
-}
-.el-empty__description p {
-  color: var(--ac-text-muted) !important;
-}
-
-/* 描述列表 */
+/* 描述列表：标签底色改走 EP 变量（浅暗两态通用，替代原两处 background
+   覆写）；label 色与 EP --el-text-color-regular 同值删除；
+   font-weight !important 必须保留：EP 以同名选择器写 font-weight:700，
+   本层 500，同特异性竞争按需注入后 EP 必胜。 */
 .el-descriptions {
-  border-radius: var(--ac-radius-md) !important;
+  border-radius: var(--ac-radius-md);
   overflow: hidden;
 }
-.el-descriptions__label {
-  font-weight: 500 !important;
-  color: var(--ac-text-secondary) !important;
-  background: var(--ac-bg) !important;
+
+.el-descriptions.el-descriptions {
+  --el-descriptions-item-bordered-label-background: var(--ac-bg);
 }
 
-/* Tabs 标签页 */
+.el-descriptions__label.el-descriptions__cell.is-bordered-label {
+  font-weight: 500 !important;
+}
+
+/* Tabs 标签页：激活色/字号/字重与 EP 默认（--el-color-primary / 14px /
+   500）同值删除；active-bar 底色同值删除。 */
 .el-tabs__item {
-  font-size: 14px;
-  font-weight: 500;
+  /* !important 必须保留：SystemSettings 的 :deep(.el-tabs__item) 定制
+     （color: --ac-text-secondary，无 !important）今天被本条压制——
+     生效值一直是本值（--ac-text-muted），去掉会把该页翻成另一种观感。 */
   color: var(--ac-text-muted) !important;
 }
 .el-tabs__item.is-active {
+  /* !important 必须保留（与本层 item 色 (0,1,0)!important 构成层叠对）：
+     基线的激活色红即由本条 (0,2,0)!important 压过上一条得出——
+     单删上一条不删本条会让激活态也被压灰（admin-system-form 实测）。 */
   color: var(--ac-primary) !important;
   font-weight: 600;
 }
+/* !important 必须保留：EP active-bar height=2px、无圆角，本层 3px/3px。 */
 .el-tabs__active-bar {
-  background: var(--ac-primary) !important;
   height: 3px !important;
   border-radius: 3px !important;
 }
 
-/* Select 下拉 */
-.el-select .el-input.is-focus .el-input__wrapper {
-  box-shadow: 0 0 0 1px var(--ac-primary) inset !important;
-}
-
-/* Message 消息提示 */
+/* Message 消息提示：圆角与 EP --el-border-radius-base 及 design-system
+   （10px）三方同值，删除；浮层阴影 EP 无声明，无须 !important。 */
+/* border !important 必须保留：EP 以 1px var(--el-message-border-color)
+   描边，本层去边框。 */
 .el-message {
-  border-radius: var(--ac-radius-md) !important;
   border: none !important;
-  box-shadow: var(--ac-shadow-lg) !important;
+  box-shadow: var(--ac-shadow-lg);
 }
 
 /* 滚动条：细窄半透明 */
@@ -512,16 +448,14 @@ body,
 
 /* ============================================
  * 暗色主题 Element Plus 莫兰迪覆盖
+ * 【P3-EPSCSS-01】与 theme.css 暗色块同值的重复声明删除
+ * （--el-bg-color/-page、--el-text-color-primary/regular/secondary、
+ * --el-border-color；其余为 theme.css 未覆盖或取值不同者）。
+ * 死组件子块（menu/card/pagination/empty/dialog 同值变量）随浅色侧删除。
  * ============================================ */
 [data-theme='dark'] {
-  --el-bg-color: var(--ac-bg-elevated);
-  --el-bg-color-page: var(--ac-bg);
   --el-bg-color-overlay: var(--ac-bg-elevated);
-  --el-text-color-primary: var(--ac-text-primary);
-  --el-text-color-regular: var(--ac-text-secondary);
-  --el-text-color-secondary: var(--ac-text-muted);
   --el-text-color-placeholder: var(--ac-text-muted);
-  --el-border-color: var(--ac-border);
   --el-border-color-light: var(--ac-border);
   --el-border-color-lighter: var(--ac-border);
   --el-fill-color: var(--ac-bg-elevated);
@@ -529,7 +463,8 @@ body,
   --el-fill-color-lighter: var(--ac-bg);
   --el-fill-color-blank: transparent;
 
-  /* 表格暗色 */
+  /* 表格暗色（bg/tr 两色须压过本块 --el-fill-color-blank: transparent；
+     特异性 (0,2,0) 高于 EP 组件级 (0,1,0)，无须 !important） */
   .el-table {
     --el-table-bg-color: var(--ac-bg-elevated);
     --el-table-tr-bg-color: var(--ac-bg-elevated);
@@ -537,16 +472,13 @@ body,
     --el-table-row-hover-bg-color: rgba(122, 139, 165, 0.08);
   }
 
-  /* 骨架屏 / 加载 / 空状态暗色 */
+  /* 骨架屏 / 加载暗色 */
   .el-skeleton__item {
     --el-skeleton-color: var(--ac-bg-hover);
     --el-skeleton-to-color: var(--ac-bg);
   }
   .el-loading-mask {
-    background: rgba(10, 14, 19, 0.7) !important;
-  }
-  .el-empty__image {
-    opacity: 0.7;
+    --el-mask-color: rgba(10, 14, 19, 0.7);
   }
 
   /* body 氛围背景暗色化 */
@@ -564,38 +496,21 @@ body,
       28px 28px;
   }
 
-  /* 卡片暗色 */
-  .el-card {
-    --el-card-bg-color: var(--ac-bg-elevated);
-  }
-
-  /* 输入框暗色 */
+  /* 输入框暗色（bg 与 hover 的 !important 必须保留：EP 分别以
+     .el-input.is-disabled 底色与 --el-border-color-hover 灰链竞争，
+     今天渲染值统一为本值） */
   .el-input__wrapper {
     background-color: var(--ac-bg) !important;
-    box-shadow: 0 0 0 1px var(--ac-border) inset !important;
   }
   .el-input__wrapper:hover {
     box-shadow: 0 0 0 1px #555 inset !important;
   }
 
-  /* 对话框暗色 */
-  .el-dialog {
-    --el-dialog-bg-color: var(--ac-bg-elevated);
-  }
-
-  /* 菜单暗色 */
-  .el-menu {
-    --el-menu-bg-color: transparent;
-    --el-menu-text-color: rgba(255, 255, 255, 0.75);
-    --el-menu-hover-bg-color: rgba(255, 255, 255, 0.1);
-  }
-
-  /* 标签暗色 */
+  /* 标签 / 按钮暗色 */
   .el-tag {
     --el-tag-bg-color: rgba(255, 255, 255, 0.06);
   }
 
-  /* 按钮暗色 */
   .el-button:not(.el-button--primary):not(.el-button--success):not(.el-button--danger):not(
       .el-button--warning
     ) {
@@ -607,18 +522,6 @@ body,
   /* 弹出框暗色 */
   .el-popover {
     --el-popover-bg-color: var(--ac-bg-elevated);
-  }
-
-  /* 分页暗色 */
-  .el-pagination {
-    --el-pagination-bg-color: var(--ac-bg-elevated);
-    --el-pagination-text-color: var(--ac-text-secondary);
-    --el-pagination-button-bg-color: var(--ac-bg);
-  }
-
-  /* Descriptions 暗色 */
-  .el-descriptions__label {
-    background: var(--ac-bg) !important;
   }
 }
 
@@ -683,22 +586,12 @@ body,
     flex-direction: column;
   }
 
-  .search-form .el-input,
-  .search-form .el-select {
-    width: 100% !important;
-  }
-
-  /* 内容卡片 */
-  .content-card {
-    padding: var(--ac-spacing-md);
-    border-radius: var(--ac-radius-md);
-  }
-
-  /* el-dialog 全屏化 */
+  /* el-dialog 全屏化：EP 在 .el-dialog 上以 width:var(--el-dialog-width,…)
+     声明宽度（宽度 prop 经内联 CSS 变量注入），同特异性竞争按需注入后
+     EP 必胜，须 !important；底座圆角由 design-system.css 接管不重复。 */
   .el-dialog {
     width: 95% !important;
     margin: 10px auto !important;
-    border-radius: var(--ac-radius-lg);
   }
 
   /* 表格横向滚动容器 */
@@ -716,14 +609,11 @@ body,
     flex-direction: column;
   }
 
+  /* !important 必须保留：EP 栅格按 span 以内联样式写 max-width/flex，
+     普通样式表声明压不过内联。 */
   .el-col {
     max-width: 100% !important;
     flex: 0 0 100% !important;
-  }
-
-  /* 图表区域 */
-  .chart-container {
-    height: 250px !important;
   }
 
   /* 分页居中 */

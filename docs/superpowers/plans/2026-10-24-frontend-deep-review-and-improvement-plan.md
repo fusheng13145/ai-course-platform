@@ -181,7 +181,9 @@ FE-10/11/12/13/14 全部沿用既有母文档的触发条件与重启信号；�
 | FE-10 B12 | ✅ 已闭（2026-10-25） | e57e972 | 棘轮 **167→136 条 / 34→29 文件**：头部五户定型清零 31 条——RagDocs（`ragListDocuments()` 补 `undefined` 实参消 TS2554——axios 丢弃 undefined query 参数、请求逐字不变；四处信封局部定型）、useProfile（loadDashboard 信封具名定型含 courses 元素形状）、useStudentExams（totalScore 两处 `raw == null ? … : Number(raw)` 归一收窄，运行时恒等）、TsvAiMonitorCard（aiAlerts）、TsvCourseStatsCard（topCourses/categoryKeys）。回归门：vitest 182/1912、lint 0/0、typecheck **136/29 持平**（byFile 合计自校一致）、build 2.41s + size:gate 全过、流程 **54/54**、视觉两轮 **85/85**（涉改组件均不在锚点页渲染路径：Tsv* 在 TeachingSupervision（无锚点）、RagDocs 无锚点、useProfile 的 loadDashboard 对 ADMIN 早退——admin-profile 锚点不受影响）、docs/ 零污染、跑后已恢复 5173 夹具 |
 | P1-TOKEN-01 | ✅ 已闭（2026-10-25） | f25b8f8 | 视觉 Phase 1 首个 token 单元（阴影族）：浅色 `--sh-l1` 环境层 .06→.10（接触层不动，与 sensitivity shadow-plan 档的单变量读法一致）；暗色卡面三档阴影置 none（"只留给真浮层"，pop/drawer/modal 保留）+ EP 三枚 box-shadow 变量暗色重映射到 --sh-pop（弹层保影）。**18 张基线重录**（逐张看图，Δmax 浅 7–8 / 暗 16–50 纯 token 效果）。**连带钓出并修**：学生三锚点顶栏未读角标未钉桩、被活跃通知源（当日 49 条"新考试通知"、门禁运行中仍在到账）实时污染、~50px 常低于满页免检额被静默吸收——加 `maskSelectors: ['button[title="通知"]']`（首版遮 .n-badge 因元素随计数出没失稳、实跑 6 红换恒在容器）；学生 5 张旧基线 Δmax 170–207 为角标数据态项、与 token 效果分离记账。回归门：重录 42/42、anchors 两轮零 diff、视觉两轮 **85/85**、helpers 32/32、vitest 182/1912、lint 0/0、typecheck 136/29 持平、build+size:gate 全过、流程 54/54。LEDGER 行 `P1-TOKEN-01`；挂账：teacher/admin 角标未遮（红了同款一行收口）、EP 暗色弹层 --sh-pop 合并档待 Phase 4 退役 |
 | FE-10 B11 | ✅ 已闭（2026-10-25） | `4bc7e5a` | 棘轮 **210→167 条 / 40→34 文件**：五个 8 错误户定型清零——EmCheatingDialog 的 cheatingLogs、ProfileCourses 的 courses、ChapterTree 的 tasks 换 TaskNode 接口、LpPathSelector 的 paths、CourseProctor 的 sessions（ProctorSession）/paperMap/risk/events 与三处 arr 显式收窄（risk/events 行经 pick() 形状不可知消费，定型为 unknown[]）+ CoChapterTree 的 taskPoints 换 CoChapterTaskPoint（B5 定型后父级新暴露的同形 3 条，顺手收口），共 43 条。回归门：vitest 182/1912、lint 0/0、typecheck **167/34 持平**（byFile 合计自校一致）、build 2.37s + size:gate 全过、流程 **54/54**、视觉两轮 **85/85**、docs/ 零污染、跑后已恢复 5173 夹具 |
-| 未启动 | ⏳ 挂账 | — | FE-12 Phase 1 余单元（P1-ERRTHEME-01 已随 `ea48fe1` 闭合；下一单元按视觉 spec §4 Phase 1 顺序：theme.css token 纵深——每单元像素证据现可覆盖全页）、FE-14 余量（useQuestions 506 / useCourseDetail 502，按前四批模式逐个拆、每拆独立提交）、FE-10 B12…（剩余 34 文件 / 现量 167 条，PropType 路线复制；下一头部户：RagDocs 7 / useProfile 6 / useStudentExams 6 / TsvAiMonitorCard 6 / TsvCourseStatsCard 6）、R-10 转正前提项（造任务点数据/admin 加课程面，须先改产品代码）、ExamFormDialog 孤儿组件删除决策（项目主）、远端 10 条 dependabot 分支（项目主处置） |
+| **P3-EPSCSS-01（2026-10-25，Phase 3 开工即收口）** | | | |
+| P3-EPSCSS-01 | ✅ 已闭（2026-10-25） | 本批 | **spec §4 Phase 3 落地**：`index.scss` !important **98→25 条**（目标 ≤25，逐条带理由）——死组件块删除（el-menu/el-card/el-pagination/el-empty/el-dropdown＋chart-container＋`.el-select .el-input.is-focus` 死选择器）、同值声明删除（--ac-primary≡--el-color-primary、--ac-radius-lg≡--el-border-radius-base 等 P2-RADIUS-01 单源化红利）、loading/descriptions 转 `--el-*` 变量（浅暗统一）、四处双类提特异性（.el-table.el-table 撤回/alert 撤回——基线渲染即 EP 值）。**核心架构事实入账**：ElementPlusResolver importStyle='css'（vite.config.ts:33）使 EP 样式按需注入晚于 index.scss——同特异性源序不可赢，98 条的历史成因即此；**基线＝历史翻盘后的渲染值**为本批方法论铁律（五轮真红 tag 4px/small 按钮 9px/role-tag 600/progress is-success 绿/tabs is-active 灰均按此还原）。**--sh-pop 暗色合并档退役裁定：推迟 Phase 4**（暗色弹层阴影唯一供给源，退役＝视觉变更）。回归门：**零基线重录**——视觉全表两轮 **85/85**、anchors 两轮 42/42、helpers 32/32、vitest 182/1912、lint 0/0、typecheck 13/5 持平、build 3.90s＋size:gate 六项全过（读数与 HEAD stash 对照逐字节一致）、流程 **54/54**、docs/ 零污染、跑后 5173 夹具已重绑 |
+| 未启动 | ⏳ 挂账 | — | FE-12 Phase 3 余量（P3-EPSCSS-01 已收口 §4 Phase 3 全部两条；Phase 3 无其余单元，下一批按 spec §4 顺序进 Phase 4 结构收敛——准入门 6 项状态见视觉 spec §11.3，焦点护栏改写须先于首批迁移单独合入）、R-10 转正前提项（造任务点数据/admin 加课程面，须先改产品代码）、ExamFormDialog 孤儿组件删除决策（项目主）、远端 10 条 dependabot 分支（项目主处置）、CI e2e 进主触发链（R-04 已接线待 3 连绿） |
 
 ---
 
@@ -203,12 +205,12 @@ FE-10/11/12/13/14 全部沿用既有母文档的触发条件与重启信号；�
 
 ### 8.2 剩余待办（按依赖序；产品路线视角分三档）
 
-**A. 视觉升级主线（spec Phase 3–6，判据与顺序见视觉 spec §4/§11）**
+**A. 视觉升级主线（spec Phase 4–6；Phase 3 已于 2026-10-25 随 P3-EPSCSS-01 收口，判据与顺序见视觉 spec §4/§11）**
 
 | 项 | 进入点与要点 |
 | --- | --- |
-| **Phase 3 EP 覆写层收敛** | `index.scss` 98 条 `!important` → ≤25：能走 `--el-*` 变量全走变量、删与 design-system 重复选择器、删自削规则、确需保留的逐条注释理由；浅暗两套同步收敛；EP 暗色弹层 --sh-pop 合并档随本批评估退役 |
-| **Phase 4 结构收敛（FE-13）** | el-dialog 82 开标签/73 文件 → ui/Modal 迁移；准入门 6 项状态见视觉 spec §11.3；迁移时删调用方 ref+useDialogFocus 两行（R-T9-7）；22 处 teleport 缺省方向差异逐点核对；抽屉动效不对称（R-T14-8）补过渡或书面弃用；护栏地板 82/73 只紧不松 |
+| ~~**Phase 3 EP 覆写层收敛**~~ | ✅ **已闭（`P3-EPSCSS-01`，2026-10-25）**：!important 98→25（≤25 达标，逐条理由）；死组件块/同值声明删除；loading/descriptions 变量化；**零基线重录**（两轮 85/85）。架构事实入账：EP 样式按需注入晚于本文件（vite.config.ts:33），同特异性源序不可赢；`--sh-pop` 暗色合并档退役裁定推迟 Phase 4 |
+| **Phase 4 结构收敛（FE-13）** | el-dialog 82 开标签/73 文件 → ui/Modal 迁移；准入门 6 项状态见视觉 spec §11.3；迁移时删调用方 ref+useDialogFocus 两行（R-T9-7）；22 处 teleport 缺省方向差异逐点核对；抽屉动效不对称（R-T14-8）补过渡或书面弃用；护栏地板 82/73 只紧不松；**随本批评估 `--sh-pop` 合并档退役与 per-layer 分档** |
 | **Phase 5 页面级升级与硬编码清理** | `.btn` 族字面量（8/7/9px）与 `.brand-mark` 9px；`--ac-radius-md`(8px,77 处)；卡片硬编码亮边框 4 处 rgba(227,230,236,.7)；--ac-* 别名族收敛（radius 已单源、color/spacing/transition 待）；--edge-hi 推广 .l2-panel 逐点判；D-2/D-4 存量基线缺陷；§2.4 硬编码污染全站残余计数对基线下降幅度报告 |
 | **Phase 6 微交互与依赖** | 三项新依赖（lucide-vue-next/motion-v/自研 v-ripple）均未引入（§7 新依赖零引入实况）；--ease-spring/--t-xslow/--glow-brand 首个消费单元在此启用（LEDGER P1-TOKEN-03 引用纪律：生效须给消费点） |
 
@@ -228,6 +230,6 @@ FE-10/11/12/13/14 全部沿用既有母文档的触发条件与重启信号；�
 
 路线图 AG-1…9 与视觉线既有裁定 + 本方案 N-1…N-6（i18n、虚拟滚动、TanStack Query、Pinia 扩张、husky、EP 样式按需）见 §5。
 
-### 8.4 当前门禁读数（2026-10-25，全部本机）
+### 8.4 当前门禁读数（2026-10-25，P3-EPSCSS-01 后，全部本机）
 
-vitest **182 文件 / 1912 例**全绿 ｜ lint 0/0 ｜ 类型棘轮 **13 条 / 5 文件**（十七轮：402→…→13）｜ build ~2.5s + size:gate 六项全过 ｜ Playwright 流程 **54/54** ｜ 视觉全表两轮 **85/85**（24 张基线，**满页几何**：高 900–2874 逐张现算免检额 129.6–413.9）｜ 视觉 spec **Phase 1+2 已落地**（token 纵深四单元+新 token 批+圆角五阶）｜ 空态守卫矩阵真实形状全绿 ｜ src 下 .js 文件 **0** ｜ 未读角标 8 格遮罩免疫（活跃通知源环境实测） ｜ B.2 已同步 54 例口径（本批）。
+vitest **182 文件 / 1912 例**全绿 ｜ lint 0/0 ｜ 类型棘轮 **13 条 / 5 文件**（十七轮：402→…→13）｜ build 3.90s + size:gate 六项全过（其余 1263.06/1300、JS 3126.54/3400、EP CSS 381.6/420——与 HEAD stash 对照逐字节一致）｜ Playwright 流程 **54/54** ｜ 视觉全表两轮 **85/85**（24 张基线，**满页几何**：高 900–2874 逐张现算免检额 129.6–413.9；**本批零基线重录**）｜ 视觉 spec **Phase 1+2+3 已落地**（token 纵深四单元+新 token 批+圆角五阶+**EP 覆写层收敛 98→25**）｜ 空态守卫矩阵真实形状全绿 ｜ src 下 .js 文件 **0** ｜ 未读角标 8 格遮罩免疫（活跃通知源环境实测） ｜ B.2 已同步 54 例口径。
