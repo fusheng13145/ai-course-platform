@@ -11,6 +11,8 @@ import taskApi from '@/api/task'
 import examApi from '@/api/exam'
 import { pickList } from '@/utils/response'
 import { confirmDanger } from '@/utils/dangerConfirm'
+import { useCourseDetailChapters } from './useCourseDetailChapters'
+import { useCourseDetailNotices } from './useCourseDetailNotices'
 
 /** 文案映射 */
 const STATUS_TEXT = { APPROVED: '已通过', REJECTED: '已拒绝' }
@@ -18,9 +20,10 @@ const DIFF_NAME = { BEGINNER: '入门', EASY: '初级', MEDIUM: '中级', HARD: 
 const ENROLL_NAME = { OPEN: '开放报名', APPROVAL: '需审核', RESTRICTED: '限制报名' }
 
 /**
- * 课程详情（教师）数据与业务逻辑
- * <p>承载课程详情页的状态与操作：课程/章节/学生/通知/统计等并行加载（Promise.allSettled 容错）、
- * 课程编辑、章节 CRUD 与拖拽排序、学生选课审核、通知发送/删除，以及各类文案工具函数。</p>
+ * 课程详情（教师）数据与业务逻辑（编排层）
+ * <p>承载课程/学生/统计等并行加载（Promise.allSettled 容错）、课程编辑、学生选课审核
+ * 与文案工具；章节 CRUD 与拖拽排序拆见 useCourseDetailChapters，通知发送/删除拆见
+ * useCourseDetailNotices。</p>
  */
 export function useCourseDetail() {
   const route = useRoute()
@@ -61,7 +64,8 @@ export function useCourseDetail() {
   const studentsError = ref('')
   const notificationsError = ref('')
   const loadError = computed(
-    () => courseError.value || chaptersError.value || studentsError.value || notificationsError.value,
+    () =>
+      courseError.value || chaptersError.value || studentsError.value || notificationsError.value,
   )
 
   /* ---- 对话框状态 ---- */
@@ -88,66 +92,6 @@ export function useCourseDetail() {
   })
   const savingCourse = ref(false)
 
-  const chapterDialogVisible = ref(false)
-  const editingChapter = ref(null)
-  const chapterForm = reactive({ title: '', duration: 0, orderIndex: 0, content: '' })
-  const savingChapter = ref(false)
-  const dragChanged = ref(false)
-  const originalChapters = ref([])
-  const savingOrder = ref(false)
-
-  const notificationDialogVisible = ref(false)
-  const notificationForm = reactive({ title: '', content: '' })
-  const sendingNotification = ref(false)
-
-  /** 初始化：路由参数变化时并行加载全部子模块（单项失败不阻塞） */
-  async function initData() {
-    const courseId = route.params.id
-    if (!courseId) {
-      ElMessage.error('缺少课程 ID')
-      return
-    }
-    course.id = courseId
-    activeTab.value = 'info'
-    Object.assign(course, {
-      name: '',
-      code: '',
-      category: '',
-      description: '',
-      credits: null,
-      difficulty: '',
-      approvalStatus: '',
-      enrollmentType: '',
-      maxStudents: null,
-      semester: '',
-      year: '',
-      startDate: '',
-      endDate: '',
-    })
-    stats.totalStudents = null
-    resourceCount.value = null
-    taskCount.value = null
-    examCount.value = null
-    chapters.value = []
-    students.value = []
-    notifications.value = []
-    courseError.value = ''
-    chaptersError.value = ''
-    studentsError.value = ''
-    notificationsError.value = ''
-
-    await Promise.allSettled([
-      loadCourse(),
-      loadChapters(),
-      loadStudents(),
-      loadNotifications(),
-      loadStats(),
-      loadResourceCount(),
-      loadTaskCount(),
-      loadExamCount(),
-    ])
-  }
-
   async function loadCourse() {
     courseError.value = ''
     try {
@@ -171,7 +115,7 @@ export function useCourseDetail() {
       chaptersError.value = '章节列表加载失败，请检查网络后重试'
     } finally {
       chaptersLoading.value = false
-      originalChapters.value = JSON.parse(JSON.stringify(chapters.value))
+      chapterDomain.syncBaseline(chapters.value)
     }
   }
 
@@ -246,6 +190,57 @@ export function useCourseDetail() {
     loadExamCount()
   }
 
+  const chapterDomain = useCourseDetailChapters({ course, chapters, loadChapters })
+  const noticeDomain = useCourseDetailNotices({ course, notifications, loadNotifications })
+
+  /** 初始化：路由参数变化时并行加载全部子模块（单项失败不阻塞） */
+  async function initData() {
+    const courseId = route.params.id
+    if (!courseId) {
+      ElMessage.error('缺少课程 ID')
+      return
+    }
+    course.id = courseId
+    activeTab.value = 'info'
+    Object.assign(course, {
+      name: '',
+      code: '',
+      category: '',
+      description: '',
+      credits: null,
+      difficulty: '',
+      approvalStatus: '',
+      enrollmentType: '',
+      maxStudents: null,
+      semester: '',
+      year: '',
+      startDate: '',
+      endDate: '',
+    })
+    stats.totalStudents = null
+    resourceCount.value = null
+    taskCount.value = null
+    examCount.value = null
+    chapters.value = []
+    students.value = []
+    notifications.value = []
+    courseError.value = ''
+    chaptersError.value = ''
+    studentsError.value = ''
+    notificationsError.value = ''
+
+    await Promise.allSettled([
+      loadCourse(),
+      loadChapters(),
+      loadStudents(),
+      loadNotifications(),
+      loadStats(),
+      loadResourceCount(),
+      loadTaskCount(),
+      loadExamCount(),
+    ])
+  }
+
   /* ---- 文案工具 ---- */
   function getStatusText(s) {
     return STATUS_TEXT[s] || '审核中'
@@ -292,84 +287,6 @@ export function useCourseDetail() {
     }
   }
 
-  /* ---- 章节操作 ---- */
-  function showAddChapterDialog() {
-    editingChapter.value = null
-    Object.assign(chapterForm, {
-      title: '',
-      duration: 0,
-      orderIndex: chapters.value.length,
-      content: '',
-    })
-    chapterDialogVisible.value = true
-  }
-  function editChapter(row) {
-    editingChapter.value = row
-    Object.assign(chapterForm, {
-      title: row.title,
-      duration: row.duration || 0,
-      orderIndex: row.orderIndex || 0,
-      content: row.content || '',
-    })
-    chapterDialogVisible.value = true
-  }
-  async function saveChapter() {
-    if (!chapterForm.title.trim()) return ElMessage.warning('请输入章节名称')
-    savingChapter.value = true
-    try {
-      const payload = { ...chapterForm, courseId: Number(course.id) }
-      if (editingChapter.value) {
-        await chapterApi.updateChapter(editingChapter.value.id, payload)
-        ElMessage.success('更新成功')
-      } else {
-        await chapterApi.createChapter(payload)
-        ElMessage.success('添加成功')
-      }
-      chapterDialogVisible.value = false
-      await loadChapters()
-    } catch (e) {
-      ElMessage.error(e.response?.data?.message || '保存失败')
-    } finally {
-      savingChapter.value = false
-    }
-  }
-  async function deleteChapter(row) {
-    try {
-      // D2-2：明确连带影响（子章节与任务点一并移除）与不可逆性
-      const ok = await confirmDanger({
-        verb: '删除',
-        target: '章节',
-        subject: row.title,
-        impact: '将一并移除该章节下的子章节与任务点',
-      })
-      if (!ok) return
-      await chapterApi.deleteChapter(row.id)
-      chapters.value = chapters.value.filter((c) => c.id !== row.id)
-      ElMessage.success('已删除')
-    } catch (e) {
-      if (e !== 'cancel') ElMessage.error('删除失败')
-    }
-  }
-  async function saveChapterOrder() {
-    savingOrder.value = true
-    try {
-      await chapterApi.batchReorder({
-        orderList: chapters.value.map((c, idx) => ({ id: c.id, orderIndex: idx })),
-      })
-      dragChanged.value = false
-      originalChapters.value = JSON.parse(JSON.stringify(chapters.value))
-      ElMessage.success('排序已保存')
-    } catch {
-      ElMessage.error('保存排序失败')
-    } finally {
-      savingOrder.value = false
-    }
-  }
-  function resetChapterOrder() {
-    chapters.value = JSON.parse(JSON.stringify(originalChapters.value))
-    dragChanged.value = false
-  }
-
   /* ---- 学生操作 ---- */
   async function approveStudent(row) {
     try {
@@ -400,50 +317,6 @@ export function useCourseDetail() {
     }
   }
 
-  /* ---- 通知操作 ---- */
-  function showNotificationDialog() {
-    notificationForm.title = ''
-    notificationForm.content = ''
-    notificationDialogVisible.value = true
-  }
-  async function sendNotification() {
-    if (!notificationForm.title.trim() || !notificationForm.content.trim())
-      return ElMessage.warning('请填写完整')
-    sendingNotification.value = true
-    try {
-      await notificationApi.sendNotification({
-        title: notificationForm.title,
-        content: notificationForm.content,
-        courseId: Number(course.id),
-        category: 'COURSE',
-      })
-      ElMessage.success('发送成功')
-      notificationDialogVisible.value = false
-      await loadNotifications()
-    } catch (e) {
-      ElMessage.error(e.response?.data?.message || '发送失败')
-    } finally {
-      sendingNotification.value = false
-    }
-  }
-  async function deleteNotification(row) {
-    try {
-      // D2-2：明确连带影响（学生不可见）与不可逆性
-      const ok = await confirmDanger({
-        verb: '删除',
-        target: '通知',
-        subject: row.title,
-        impact: '删除后学生将无法再查看该通知',
-      })
-      if (!ok) return
-      await notificationApi.deleteNotification(row.id)
-      notifications.value = notifications.value.filter((n) => n.id !== row.id)
-      ElMessage.success('已删除')
-    } catch (e) {
-      if (e !== 'cancel') ElMessage.error('删除失败')
-    }
-  }
-
   return {
     route,
     activeTab,
@@ -467,15 +340,15 @@ export function useCourseDetail() {
     editDialogVisible,
     editForm,
     savingCourse,
-    chapterDialogVisible,
-    editingChapter,
-    chapterForm,
-    savingChapter,
-    dragChanged,
-    savingOrder,
-    notificationDialogVisible,
-    notificationForm,
-    sendingNotification,
+    chapterDialogVisible: chapterDomain.chapterDialogVisible,
+    editingChapter: chapterDomain.editingChapter,
+    chapterForm: chapterDomain.chapterForm,
+    savingChapter: chapterDomain.savingChapter,
+    dragChanged: chapterDomain.dragChanged,
+    savingOrder: chapterDomain.savingOrder,
+    notificationDialogVisible: noticeDomain.notificationDialogVisible,
+    notificationForm: noticeDomain.notificationForm,
+    sendingNotification: noticeDomain.sendingNotification,
     initData,
     updateResourceCount,
     updateTaskCount,
@@ -487,16 +360,16 @@ export function useCourseDetail() {
     formatDateTime,
     showEditDialog,
     saveCourse,
-    showAddChapterDialog,
-    editChapter,
-    saveChapter,
-    deleteChapter,
-    saveChapterOrder,
-    resetChapterOrder,
+    showAddChapterDialog: chapterDomain.showAddChapterDialog,
+    editChapter: chapterDomain.editChapter,
+    saveChapter: chapterDomain.saveChapter,
+    deleteChapter: chapterDomain.deleteChapter,
+    saveChapterOrder: chapterDomain.saveChapterOrder,
+    resetChapterOrder: chapterDomain.resetChapterOrder,
     approveStudent,
     rejectStudent,
-    showNotificationDialog,
-    sendNotification,
-    deleteNotification,
+    showNotificationDialog: noticeDomain.showNotificationDialog,
+    sendNotification: noticeDomain.sendNotification,
+    deleteNotification: noticeDomain.deleteNotification,
   }
 }
