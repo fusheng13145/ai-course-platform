@@ -7,7 +7,13 @@ import { pickList, readTotal, unwrap } from '@/utils/response'
 const ROLE_LABELS = { ADMIN: '管理员', TEACHER: '教师', STUDENT: '学生' }
 
 export function useUserManagement() {
-  const overview = ref({} as Record<string, unknown>)
+  const overview = ref(
+    {} as {
+      totalUsers?: number
+      roleDistribution?: { teacher?: number; student?: number; admin?: number }
+      [key: string]: unknown
+    },
+  )
   const search = ref('')
   const loading = ref(true)
   const groups = ref([

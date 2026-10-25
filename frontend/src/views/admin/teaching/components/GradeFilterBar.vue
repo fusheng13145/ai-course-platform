@@ -50,6 +50,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 
 /**
@@ -61,7 +62,10 @@ defineProps({
   /** 筛选条件对象（courseId/semester/keyword） */
   filters: { type: Object, required: true },
   /** 课程下拉选项 */
-  courseList: { type: Array, default: () => [] },
+  courseList: {
+    type: Array as PropType<{ id: number | string; name?: string; title?: string }[]>,
+    default: () => [],
+  },
   /** 仅显示异常开关 */
   showAbnormalOnly: { type: Boolean, default: false },
 })

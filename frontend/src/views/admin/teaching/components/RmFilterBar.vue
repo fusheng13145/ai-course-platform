@@ -43,10 +43,14 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { Search, Upload } from '@element-plus/icons-vue'
 
 defineProps({
-  courseList: { type: Array, default: () => [] },
+  courseList: {
+    type: Array as PropType<{ id: number | string; name?: string; title?: string }[]>,
+    default: () => [],
+  },
   selectedCourseId: { type: [Number, String], default: null },
   keyword: { type: String, default: '' },
   typeFilter: { type: String, default: '' },

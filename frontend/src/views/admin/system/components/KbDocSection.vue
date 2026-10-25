@@ -116,6 +116,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { Plus, Refresh, Delete, Document, MagicStick } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
@@ -125,7 +126,10 @@ import EmptyState from '@/components/ui/EmptyState.vue'
  */
 defineProps({
   /** 课程列表 */
-  courseList: { type: Array, required: true },
+  courseList: {
+    type: Array as PropType<{ id: number | string; name?: string; title?: string }[]>,
+    required: true,
+  },
   /** 当前选中课程（v-model） */
   selectedCourseId: { type: [String, Number], default: null },
   /** 关键词（v-model） */

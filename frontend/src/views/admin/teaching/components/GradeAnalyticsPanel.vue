@@ -32,6 +32,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { computed } from 'vue'
 import { Warning } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -47,7 +48,12 @@ const props = defineProps({
   /** 课程平均分对比图配置 */
   courseCompareOption: { type: Object, required: true },
   /** 异常成绩列表 */
-  abnormalGrades: { type: Array, default: () => [] },
+  abnormalGrades: {
+    type: Array as PropType<
+      { studentName?: string; score?: number | string; courseName?: string }[]
+    >,
+    default: () => [],
+  },
 })
 
 const topAbnormalGrades = computed(() => props.abnormalGrades.slice(0, 5))

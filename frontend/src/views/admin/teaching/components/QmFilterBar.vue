@@ -70,6 +70,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { Search } from '@element-plus/icons-vue'
 import { buttonA11y } from '@/composables/useA11y'
 
@@ -83,7 +84,10 @@ defineProps({
   type: { type: String, default: '' },
   difficulty: { type: String, default: '' },
   courseId: { type: [String, Number], default: '' },
-  courseList: { type: Array, default: () => [] },
+  courseList: {
+    type: Array as PropType<{ id: number | string; name?: string; title?: string }[]>,
+    default: () => [],
+  },
 })
 
 const emit = defineEmits([
