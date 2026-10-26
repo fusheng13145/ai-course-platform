@@ -18,7 +18,7 @@ function makeRecords(n) {
 }
 
 const stubs = {
-  'el-dialog': { template: '<div><slot /></div>' },
+  Modal: { template: '<div><slot /></div>' },
   'el-table': {
     props: ['data'],
     template: '<div class="tbl-stub">{{ (data || []).length }}</div>',

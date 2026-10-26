@@ -1,6 +1,6 @@
 <template>
-  <el-dialog
-    ref="dialogRef"
+  <Modal
+   
     :model-value="modelValue"
     title="录入成绩"
     width="420px"
@@ -26,25 +26,23 @@
       <el-button @click="emit('update:modelValue', false)">取消</el-button>
       <el-button type="primary" :loading="saving" @click="saveScore">保存</el-button>
     </template>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
+import { ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { unwrap } from '@/utils/response'
 import logger from '@/utils/logger'
 import gradeApi from '@/api/grade'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   target: { type: Object, default: () => ({}) },
   policyId: { type: [Number, String], default: null },
 })
-const dialogRef = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef, computed(() => props.modelValue))
 
 const emit = defineEmits(['update:modelValue', 'saved'])
 

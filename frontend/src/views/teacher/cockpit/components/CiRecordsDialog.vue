@@ -1,7 +1,7 @@
 <template>
   <!-- 签到记录 -->
-  <el-dialog
-    ref="dialogRef"
+  <Modal
+   
     :model-value="modelValue"
     title="签到记录"
     width="520px"
@@ -46,14 +46,13 @@
         @current-change="onPageChange"
       />
     </div>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
 import { Check } from '@element-plus/icons-vue'
 import { useClientPagination } from '@/composables/useClientPagination'
+import Modal from '@/components/ui/Modal.vue'
 
 /**
  * 签到记录对话框（D2-5：记录数无界，渲染层客户端分页，每页 20；
@@ -64,12 +63,7 @@ const props = defineProps({
   records: { type: Array, default: () => [] },
 })
 
-const dialogRef = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(
-  dialogRef,
-  computed(() => props.modelValue),
-)
 defineEmits(['update:modelValue', 'mark'])
 
 const {

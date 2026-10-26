@@ -46,9 +46,9 @@
     />
 
     <!-- 查看题目 对话框 -->
-    <!-- v-loading 不能挂在 <el-dialog> 上：弹层渲染在 teleport 的非元素根上，
+    <!-- v-loading 不能挂在 <Modal> 上：弹层渲染在 teleport 的非元素根上，
          runtime directive 无处安放（Vue 告警 + 遮罩实际不生效），改由 dialog 内的包裹层承担。 -->
-    <el-dialog ref="dialogRef1" v-model="ques.visible" title="试卷题目" width="640px">
+    <Modal v-model="ques.visible" title="试卷题目" width="640px">
       <div v-loading="ques.loading">
         <el-table :data="ques.list" size="small" empty-text="暂无题目" max-height="420">
           <el-table-column label="#" width="56">
@@ -71,10 +71,10 @@
           </el-table-column>
         </el-table>
       </div>
-    </el-dialog>
+    </Modal>
 
     <!-- 统计 对话框 -->
-    <el-dialog ref="dialogRef2" v-model="stat.visible" title="试卷统计" width="620px">
+    <Modal v-model="stat.visible" title="试卷统计" width="620px">
       <div v-loading="stat.loading">
         <div v-if="stat.items.length" class="stat-grid">
           <div v-for="(it, i) in stat.items" :key="i" class="mini-stat">
@@ -84,7 +84,7 @@
         </div>
         <EmptyState v-else title="暂无统计数据" icon="chart" size="compact" />
       </div>
-    </el-dialog>
+    </Modal>
   </div>
 </template>
 
@@ -92,7 +92,6 @@
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
 import { ref, reactive, computed, onMounted, watch } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
 import { useRoute } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
@@ -111,6 +110,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import CeExamTable from './components/CeExamTable.vue'
 import CeExamFormDialog from './components/CeExamFormDialog.vue'
+import Modal from '@/components/ui/Modal.vue'
 
 /**
  * 课程试卷页（拆分子组件后页面壳）。
@@ -366,17 +366,6 @@ const STAT_LABELS = {
   submitRate: '提交率',
 }
 const stat = reactive({ visible: false, loading: false, items: [] })
-// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-const dialogRef1 = ref(null)
-const dialogRef2 = ref(null)
-useDialogFocus(
-  dialogRef1,
-  computed(() => ques.visible),
-)
-useDialogFocus(
-  dialogRef2,
-  computed(() => stat.visible),
-)
 async function viewStats(row) {
   stat.visible = true
   stat.loading = true

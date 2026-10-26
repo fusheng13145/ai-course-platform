@@ -81,8 +81,8 @@
     </div>
 
     <!-- 新建 / 编辑对话框 -->
-    <el-dialog
-    ref="dialogRef1"
+    <Modal
+   
       v-model="dialogVisible"
       :title="dialogMode === 'create' ? '新建任务' : '编辑任务'"
       width="520px"
@@ -136,10 +136,10 @@
           dialogMode === 'create' ? '创建' : '保存'
         }}</el-button>
       </template>
-    </el-dialog>
+    </Modal>
 
     <!-- 延长截止对话框 -->
-    <el-dialog ref="dialogRef2" v-model="extendVisible" title="延长截止日期" width="460px" @closed="resetExtend">
+    <Modal v-model="extendVisible" title="延长截止日期" width="460px" @closed="resetExtend">
       <el-form :model="extendForm" label-width="88px">
         <el-form-item label="新截止">
           <el-date-picker
@@ -163,7 +163,7 @@
         <el-button @click="extendVisible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="saveExtend">确定延长</el-button>
       </template>
-    </el-dialog>
+    </Modal>
   </div>
 </template>
 
@@ -177,7 +177,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
 import { confirmDanger } from '@/utils/dangerConfirm'
 import PageHeader from '@/components/PageHeader.vue'
 import { Plus, Edit, Delete, Calendar } from '@element-plus/icons-vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 
 const route = useRoute()
 const courseId = computed(() => Number(route.params.id))
@@ -197,9 +197,7 @@ const pagedTasks = computed(() => {
 const taskTypes = ['视频', '测验', '作业', '文档', '讨论']
 
 const dialogVisible = ref(false)
-const dialogRef1 = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef1, dialogVisible)
 const dialogMode = ref('create')
 const editingId = ref(null)
 const form = reactive({
@@ -211,9 +209,7 @@ const form = reactive({
 })
 
 const extendVisible = ref(false)
-const dialogRef2 = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef2, extendVisible)
 const extendId = ref(null)
 const extendForm = reactive({ newDueDate: '', reason: '' })
 

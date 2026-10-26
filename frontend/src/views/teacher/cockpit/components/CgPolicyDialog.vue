@@ -1,6 +1,6 @@
 <template>
-  <el-dialog
-    ref="dialogRef"
+  <Modal
+   
     :model-value="modelValue"
     :title="policyForm.id ? '编辑成绩方案' : '新建成绩方案'"
     width="560px"
@@ -42,7 +42,7 @@
         >保存</el-button
       >
     </template>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
@@ -52,16 +52,14 @@ import { unwrap } from '@/utils/response'
 import logger from '@/utils/logger'
 import gradeApi from '@/api/grade'
 import { Plus, Delete } from '@element-plus/icons-vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
   policy: { type: Object, default: null },
   courseId: { type: [Number, String], default: null },
 })
-const dialogRef = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef, computed(() => props.modelValue))
 
 const emit = defineEmits(['update:modelValue', 'saved'])
 

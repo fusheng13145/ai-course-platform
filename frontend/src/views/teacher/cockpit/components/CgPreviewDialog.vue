@@ -1,6 +1,6 @@
 <template>
-  <el-dialog
-    ref="dialogRef"
+  <Modal
+   
     :model-value="modelValue"
     title="总评预览"
     width="420px"
@@ -36,15 +36,15 @@
       </el-table-column>
       <el-table-column prop="contribution" label="计入总评" width="86" align="center" />
     </el-table>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, watch, computed } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import { ref, watch } from 'vue'
 import { unwrap } from '@/utils/response'
 import logger from '@/utils/logger'
 import gradeApi from '@/api/grade'
+import Modal from '@/components/ui/Modal.vue'
 
 const props = defineProps({
   modelValue: { type: Boolean, default: false },
@@ -52,12 +52,7 @@ const props = defineProps({
   student: { type: Object, default: () => ({}) },
 })
 
-const dialogRef = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(
-  dialogRef,
-  computed(() => props.modelValue),
-)
 const emit = defineEmits(['update:modelValue'])
 
 const data = ref(null)
