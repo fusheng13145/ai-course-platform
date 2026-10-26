@@ -1,12 +1,9 @@
 <template>
   <!-- AI提取对话框 -->
-  <el-dialog
-    ref="dialogRef"
+  <Modal
     :model-value="modelValue"
     title="AI提取知识点"
     width="560px"
-    append-to-body
-    destroy-on-close
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <el-form>
@@ -27,20 +24,17 @@
         >开始提取</el-button
       >
     </template>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
-const props = defineProps({
+import Modal from '@/components/ui/Modal.vue'
+
+defineProps({
   modelValue: { type: Boolean, default: false },
   aiText: { type: String, default: '' },
   aiExtracting: { type: Boolean, default: false },
 })
-const dialogRef = ref(null)
-// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef, computed(() => props.modelValue))
 
 defineEmits(['update:modelValue', 'update:aiText', 'extract'])
 </script>

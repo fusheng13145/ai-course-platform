@@ -1,12 +1,9 @@
 <template>
   <!-- 新建/编辑对话框 -->
-  <el-dialog
-    ref="dialogRef"
+  <Modal
     :model-value="modelValue"
     :title="isEdit ? '编辑知识点' : '新建知识点'"
     width="520px"
-    append-to-body
-    destroy-on-close
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <el-form ref="formRef" :model="form" :rules="rules" label-width="90px" scroll-to-error>
@@ -53,14 +50,14 @@
         isEdit ? '保存' : '创建'
       }}</el-button>
     </template>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import { ref } from 'vue'
+import Modal from '@/components/ui/Modal.vue'
 
-const props = defineProps({
+defineProps({
   modelValue: { type: Boolean, default: false },
   isEdit: { type: Boolean, default: false },
   form: { type: Object, default: () => ({}) },
@@ -68,9 +65,6 @@ const props = defineProps({
   submitting: { type: Boolean, default: false },
   flatTreeOptions: { type: Array, default: () => [] },
 })
-const dialogRef = ref(null)
-// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef, computed(() => props.modelValue))
 const emit = defineEmits(['update:modelValue', 'submit'])
 
 const formRef = ref(null)
