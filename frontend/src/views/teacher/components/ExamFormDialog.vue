@@ -1,10 +1,9 @@
 <template>
-  <el-dialog
-    ref="dialogRef"
+  <Modal
+
     :model-value="modelValue"
     :title="isEdit ? '编辑试卷' : '创建试卷'"
     width="720px"
-    destroy-on-close
     @update:model-value="emit('update:modelValue', $event)"
   >
     <el-form ref="formRef" :model="examForm" :rules="formRules" label-width="100px" scroll-to-error>
@@ -134,22 +133,22 @@
         isEdit ? '保存修改' : '创建试卷'
       }}</el-button>
     </template>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
 import type { PropType } from 'vue'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { Delete } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 
 /**
  * 试卷创建/编辑对话框
  * <p>表单对象/校验/课程/已选题目经 props 注入（共享 reactive 对象编辑嵌套属性）；
  * 题库入口/移除题目/保存经事件上抛。表单校验能力经 defineExpose 暴露。</p>
  */
-const props = defineProps({
+defineProps({
   modelValue: { type: Boolean, default: false },
   isEdit: { type: Boolean, default: false },
   submitting: { type: Boolean, default: false },
@@ -177,12 +176,7 @@ const props = defineProps({
   totalSelectedScore: { type: Number, default: 0 },
   getQuestionTypeName: { type: Function, required: true },
 })
-const dialogRef = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(
-  dialogRef,
-  computed(() => props.modelValue),
-)
 
 const emit = defineEmits(['update:modelValue', 'open-picker', 'remove-question', 'submit'])
 

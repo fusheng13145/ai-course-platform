@@ -1,12 +1,11 @@
 <template>
   <!-- 编辑课程对话框 -->
-  <el-dialog
-  ref="dialogRef1"
+  <Modal
+
     :model-value="editVisible"
     title="编辑课程信息"
     width="600px"
     append-to-body
-    destroy-on-close
     @update:model-value="emit('update:editVisible', $event)"
   >
     <el-form :model="editForm" label-width="100px" class="edit-form">
@@ -59,16 +58,15 @@
         >保存修改</el-button
       >
     </template>
-  </el-dialog>
+  </Modal>
 
   <!-- 章节对话框 -->
-  <el-dialog
-  ref="dialogRef2"
+  <Modal
+
     :model-value="chapterVisible"
     :title="editingChapter ? '编辑章节' : '添加章节'"
     width="520px"
     append-to-body
-    destroy-on-close
     @update:model-value="emit('update:chapterVisible', $event)"
   >
     <el-form :model="chapterForm" label-width="88px">
@@ -92,16 +90,15 @@
         >保存</el-button
       >
     </template>
-  </el-dialog>
+  </Modal>
 
   <!-- 发送通知对话框 -->
-  <el-dialog
-  ref="dialogRef3"
+  <Modal
+
     :model-value="noticeVisible"
     title="发送课程通知"
     width="520px"
     append-to-body
-    destroy-on-close
     @update:model-value="emit('update:noticeVisible', $event)"
   >
     <el-form :model="notificationForm" label-width="76px">
@@ -124,18 +121,17 @@
         >发送</el-button
       >
     </template>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 /**
  * 课程详情对话框组（编辑课程 / 章节 / 发送通知）
  * <p>表单对象经 props 注入（共享 reactive 对象编辑嵌套属性），可见性 v-model 双向，
  * 提交动作经事件上抛（useCourseDetail）。</p>
  */
-const props = defineProps({
+defineProps({
   editVisible: { type: Boolean, default: false },
   editForm: { type: Object, required: true },
   categories: { type: Array, default: () => [] },
@@ -148,15 +144,9 @@ const props = defineProps({
   notificationForm: { type: Object, required: true },
   sendingNotification: { type: Boolean, default: false },
 })
-const dialogRef1 = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef1, computed(() => props.editVisible))
-const dialogRef2 = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef2, computed(() => props.chapterVisible))
-const dialogRef3 = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef3, computed(() => props.noticeVisible))
 
 
 const emit = defineEmits([

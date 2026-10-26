@@ -1,6 +1,6 @@
 <template>
-  <el-dialog
-    ref="dialogRef"
+  <Modal
+
     :model-value="modelValue"
     title="课程详情"
     width="700px"
@@ -40,27 +40,21 @@
       <el-button @click="emit('update:modelValue', false)">关闭</el-button>
       <el-button type="primary" @click="emit('manage')">管理课程</el-button>
     </template>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 /**
  * 教师课程管理 — 课程详情对话框。
  * <p>拆分子组件：展示类组件，文案映射（难度/报名方式/状态）自包含。</p>
  */
-const props = defineProps({
+defineProps({
   modelValue: { type: Boolean, default: false },
   course: { type: Object, default: null },
 })
 
-const dialogRef = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(
-  dialogRef,
-  computed(() => props.modelValue),
-)
 
 const emit = defineEmits(['update:modelValue', 'manage'])
 

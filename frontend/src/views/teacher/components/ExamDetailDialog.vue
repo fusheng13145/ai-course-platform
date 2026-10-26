@@ -1,6 +1,6 @@
 <template>
-  <el-dialog
-    ref="dialogRef"
+  <Modal
+
     :model-value="modelValue"
     title="试卷详情"
     width="700px"
@@ -58,20 +58,19 @@
       >
       <el-button type="warning" @click="emit('copy', currentExam)">复制试卷</el-button>
     </template>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
 import type { PropType } from 'vue'
-import { ref, computed } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import Modal from '@/components/ui/Modal.vue'
 
 /**
  * 试卷详情对话框
  * <p>基本信息（状态/分数/人数统计）+ 题目预览列表；发布/复制操作经事件上抛。</p>
  */
-const props = defineProps({
+defineProps({
   modelValue: { type: Boolean, default: false },
   currentExam: { type: Object, default: null },
   examDetailQuestions: {
@@ -92,12 +91,7 @@ const props = defineProps({
   getQuestionTypeName: { type: Function, required: true },
 })
 
-const dialogRef = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(
-  dialogRef,
-  computed(() => props.modelValue),
-)
 
 const emit = defineEmits(['update:modelValue', 'publish', 'copy'])
 </script>
