@@ -1,7 +1,7 @@
 <template>
   <!-- 查看题目对话框 -->
-  <el-dialog
-    ref="dialogRef"
+  <Modal
+   
     :model-value="modelValue"
     title="试卷题目"
     width="720px"
@@ -29,26 +29,20 @@
       </el-table>
       <EmptyState v-if="!examQuestions.length" title="暂无题目" icon="list" size="compact" />
     </template>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import Modal from '@/components/ui/Modal.vue'
 
-const props = defineProps({
+defineProps({
   modelValue: { type: Boolean, default: false },
   currentExam: { type: Object, default: null },
   examQuestions: { type: Array, default: () => [] },
 })
 
-const dialogRef = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(
-  dialogRef,
-  computed(() => props.modelValue),
-)
 defineEmits(['update:modelValue'])
 
 function getStatusType(s) {

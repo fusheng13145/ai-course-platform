@@ -1,11 +1,10 @@
 <template>
-  <el-dialog
-    ref="dialogRef"
+  <Modal
+   
     :model-value="modelValue"
     title="AI 智能出题"
     width="600px"
     append-to-body
-    destroy-on-close
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <el-alert
@@ -78,20 +77,19 @@
         ><el-icon><MagicStick /></el-icon>开始生成</el-button
       >
     </template>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
 import type { PropType } from 'vue'
-import { ref, computed } from 'vue'
 import { MagicStick } from '@element-plus/icons-vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 
 /**
  * 题库管理 — AI 智能出题对话框
  * <p>课程/题型/难度/知识点（可自定义）配置，生成逻辑委托 composable。</p>
  */
-const props = defineProps({
+defineProps({
   /** 弹窗显隐（v-model） */
   modelValue: { type: Boolean, default: false },
   /** AI 表单（共享对象：courseId/type/difficulty/knowledgePoints） */
@@ -104,12 +102,7 @@ const props = defineProps({
   /** 生成加载态 */
   aiGenerating: { type: Boolean, default: false },
 })
-const dialogRef = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(
-  dialogRef,
-  computed(() => props.modelValue),
-)
 
 defineEmits(['update:modelValue', 'generate'])
 </script>

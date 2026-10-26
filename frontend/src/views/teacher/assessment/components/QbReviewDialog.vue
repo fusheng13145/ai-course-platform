@@ -1,11 +1,10 @@
 <template>
-  <el-dialog
-    ref="dialogRef"
+  <Modal
+   
     :model-value="modelValue"
     title="题目审核"
     width="520px"
     append-to-body
-    destroy-on-close
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <el-form label-position="top">
@@ -28,17 +27,16 @@
       <el-button @click="$emit('update:modelValue', false)">取消</el-button>
       <el-button type="primary" :loading="reviewing" @click="$emit('submit')">提交审核</el-button>
     </template>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 /**
  * 题库管理 — 题目审核对话框
  * <p>通过/驳回单选 + 审核意见，提交逻辑委托 composable。</p>
  */
-const props = defineProps({
+defineProps({
   /** 弹窗显隐（v-model） */
   modelValue: { type: Boolean, default: false },
   /** 审核表单（共享对象：status/comment） */
@@ -46,9 +44,7 @@ const props = defineProps({
   /** 提交加载态 */
   reviewing: { type: Boolean, default: false },
 })
-const dialogRef = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef, computed(() => props.modelValue))
 
 
 defineEmits(['update:modelValue', 'submit'])
