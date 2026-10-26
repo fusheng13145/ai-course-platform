@@ -595,6 +595,11 @@ export const PIN_PAYLOAD_TRIVIAL_EXCUSED: Record<string, string> = {
   'admin-governance-analytics':
     '两条平凡键：① 被钉 /api/analytics/users/growth?days=30：30 × {newUsers:0, cumulativeUsers:0}（同上）⇒ 该 admin 账号 30 天窗口内无增长数据；' +
     '② 被钉 /api/notifications/unread-count：data 是裸数值 0 ⇒ 序列长度 0 且非零数值 0（Task 0 新钉的键，登记于修复轮 1）。其余五条（permissions／courses／heatmap／dashboard／ranking）普查非平凡。',
+  'admin-dashboard':
+    '三条平凡键（P4-DRIFT-01 钉桩批，2026-10-26，真后端 curl 证实非 fixture 自证）：' +
+    '① 被钉 /api/admin/statistics/user-growth?days=30：30 × {newUsers:0, cumulativeUsers:0}（admin-governance-analytics 同款）⇒ admin 账号 30 天窗口无增长数据；' +
+    '② 被钉 /api/admin/statistics/overview：data 是 KPI 对象（totalUsers/totalCourses/totalEnrollments/roleDistribution/activeCourses），无数组 ⇒ "最长序列 0"即平凡（但含 7 个非零数值，KPI 本身有真值）；' +
+    '③ 被钉 /api/notifications/unread-count：data 是裸数值 0 ⇒ 序列长度 0 且非零数值 0。其余四条（analytics/dashboard／permissions／courses?page=1&size=100／statistics/courses）普查非平凡。',
 }
 
 /**
@@ -611,6 +616,11 @@ export const PIN_PAYLOAD_TRIVIAL_KEYS: Record<string, readonly string[]> = {
   'student-dashboard': ['/api/notifications/unread-count', '/api/student/analytics/visualization'],
   'admin-governance-analytics': [
     '/api/analytics/users/growth?days=30',
+    '/api/notifications/unread-count',
+  ],
+  'admin-dashboard': [
+    '/api/admin/statistics/overview',
+    '/api/admin/statistics/user-growth?days=30',
     '/api/notifications/unread-count',
   ],
 }

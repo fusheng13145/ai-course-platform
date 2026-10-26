@@ -571,6 +571,26 @@ export const ANCHORS: readonly AnchorSpec[] = [
     path: '/admin/dashboard',
     /** 未读角标合法漂移，遮恒在的铃铛按钮容器（同 student-courses-modal，P1-TOKEN-01 挂账收口） */
     maskSelectors: ['button[title="通知"]'],
+    /**
+     * 【P4-DRIFT-01（2026-10-26，方案①：归因→钉桩→重录）】admin-dashboard 明暗两张 + noise 探针
+     * 自 P3 收口后持续确定性红（HEAD stash 对照同读数，LEDGER `P4-GATE-01` 行定性）。
+     * 归因：AdminAnalyticsComponent.java:345-346 按 `LocalDate.now()` 回推趋势日期窗口，
+     * 前端 Dashboard.vue:77 把 `item.date` 经 fmtDate 铺进图表 x 轴——page.clock 管不到服务端，
+     * 与 student-dashboard 同源（"每天零点基线集体漂一次"）。缺口带 y 1131..1139（8px 标签行），
+     * 计数 945 / Δmax 116@358,1131，三轮读数逐字一致。
+     * ⇒ 处置照抄 student-dashboard 既有配方（Task 0 出路①）：钉住本页实测发出的每一条 GET。
+     * 预填 4 条（data-arrival.ts:229 的两条数据源 + student-dashboard 先例的权限/角标两条），
+     * 漏钉由 assertAllApiGetsPinned 当场红点名补全。
+     */
+    pinPaths: [
+      '/api/admin/statistics/overview',
+      '/api/admin/statistics/user-growth?days=30',
+      '/api/admin/statistics/courses',
+      '/api/analytics/dashboard',
+      '/api/auth/permissions',
+      '/api/notifications/unread-count',
+      '/api/courses?page=1&size=100',
+    ],
   },
   {
     slug: 'student-dashboard',

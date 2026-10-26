@@ -966,8 +966,8 @@ const BASELINE_SHA256: Record<string, string> = {
     '0ad033167aca7e61130d5905deb956c72d3e928ec52a256399d59cba2175594d',
   'admin-courses-table-light.png':
     'f45cfbba990f4aed1672cd1aea1887f8395b920b125a2d8d86f840fc4b4420f5',
-  'admin-dashboard-dark.png': '419e47c5f813de00eb67656f19fc653f79fdac150a62144ea0faeab4fdf3582e',
-  'admin-dashboard-light.png': '5a2c90af56942ce80a1684d2cc8e1babac90334a4b100c052e2d2bf8e0d45ac2',
+  'admin-dashboard-dark.png': 'cf4a0bd44202e81789370bb0dcaf7255e28ca21941e0d00bf96e66e7f1e9a2ab',
+  'admin-dashboard-light.png': 'f6b225fe9ce07efe6c8ba69dcb96b983ec8879e75b24bf8c8e639cec5434da26',
   'admin-governance-analytics-dark.png':
     '0f08c0dfab1ed02e8a3b62080ae8278a4170f3c568d8fde485d47414833388fd',
   'admin-governance-analytics-light.png':
