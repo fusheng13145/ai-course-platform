@@ -43,7 +43,7 @@ S1「确认学生端有提交入口」走查结论：**入口不存在，不是�
 |---|------|------|
 | F1 | `ExamPaper.status` 持久化为枚举 name（`DRAFT`/`PUBLISHED`/`ARCHIVED`），而 `CeExamTable.vue:25/35` 判 `row.status === '已发布'` → 已发布卷恒显示「草稿」且发布按钮恒显 | 前端 bug，T04 修复（状态映射常量） |
 | F2 | `aiGradeSubmission` 把建议分写进 `submissionData` JSON（`aiSuggestedScore`/`aiHighlights`/`aiSuggestions`），评语写 `aiFeedback` 字段，**不写 score/status** | 「AI 预批→一键回填」零后端改可行：前端解析返回的 Submission 即可 |
-| F3 | `AutoComposeDTO.typeRules` 的 key 与 `Question.type` 直接分组匹配（`questionsByType.getOrDefault(type)`），即题库实际值 `SINGLE/MULTIPLE/JUDGE/FILL/ESSAY/CODE`；DTO 注释里的 `SINGLE_CHOICE` 风格是误导 | auto-compose 表单直接复用现役 `TYPE_OPTS`，勿按注释造 key |
+| F3 | `AutoComposeDTO.typeRules` 的 key 与 `Question.type` 直接分组匹配（`questionsByType.getOrDefault(type)`），即题库实际值 `SINGLE/MULTIPLE/JUDGE/FILL/ESSAY/CODE`；DTO 注释里的 `SINGLE_CHOICE` 风格是误导 | auto-compose 表单直接复用现役 `TYPE_OPTS`，勿按注释造 key。**【2026-10-26 更正（QA 终验批 2 实查，前提写反了，原文保留备查）】** 实库真相恰与 F3 相反：题库 Question.type 实际值是 **`SINGLE_CHOICE(38)/MULTIPLE_CHOICE(10)/TRUE_FALSE(8)/FILL_BLANK(7)/ESSAY(5)`**（courseId=4007 全部 68 题实查 + V2 列注释 + V5 seed `'essay'→'ESSAY'` 映射 + QuestionVO.allowableValues 三重印证），**无 SINGLE/JUDGE/FILL/CODE**；DTO 注释才是贴近实库的一方。且 `ExamPaperServiceImpl` 对 typeRules/difficultyRatio 均**精确 key 匹配**（错 key 直接 400「没有匹配到符合条件的题目」）。另：**difficulty 实库为小写 `easy/medium/hard`**（大写 EASY→400）。前端已按实库值对齐（`src/constants/questionTypes.ts`，已删除实库不存在的 CODE 题型） |
 | F4 | `GET /exam-papers/{id}/questions` 返回 `{id, orderIndex, points, question:{…}}` 包装结构，前端 `normalizeExamQuestions` 已归一化为扁平对象（`score = points`）；教师视角含标准答案 | 编辑回显直接用 `getExamQuestions`，已选题目 id 取归一化后的 `question.id` |
 | F5 | `GET /tasks/pending-grading` 返回 `List<Task>`（教师本人维度），`useCourseGradesTab` 已按 courseId 过滤为 `pendingTasks` | 下钻连接器数据就绪 |
 | F6 | `CourseGradesTab.vue` 挂载于 `views/teacher/CourseDetail.vue`（`/teacher/courses/:id/detail`） | 下钻目标为同课程另一路由，`router.push` 即可 |
@@ -194,7 +194,7 @@ interface ExamPaper {
 interface AutoComposeDTO {
   courseId: number; title: string; description?: string
   totalScore?: number; duration?: number
-  typeRules: Record<string, number>      // key 必须是题库 Question.type 实际值：SINGLE/MULTIPLE/JUDGE/FILL/ESSAY/CODE（F3，勿按 DTO 注释的 *_CHOICE 风格）
+  typeRules: Record<string, number>      // key 必须是题库 Question.type 实际值（F3——⚠️ 见 §0.4 F3 的 2026-10-26 更正：实库为 *_CHOICE 风格 SINGLE_CHOICE/MULTIPLE_CHOICE/TRUE_FALSE/FILL_BLANK/ESSAY，difficultyRatio key 为小写 easy/medium/hard）
   difficultyRatio?: Record<'EASY'|'MEDIUM'|'HARD', number>  // 百分比
   questionCount?: number; shuffleQuestions?: boolean; shuffleOptions?: boolean
 }

@@ -127,6 +127,12 @@
 import type { PropType } from 'vue'
 import { Search, Edit, Select, Close, CopyDocument, Delete } from '@element-plus/icons-vue'
 import { resolveReviewStatus } from '@/composables/useQuestionBank'
+import {
+  questionTypeLabel,
+  questionTypeTag,
+  questionDifficultyLabel,
+  questionDifficultyTag,
+} from '@/constants/questionTypes'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
@@ -142,12 +148,13 @@ defineProps({
   loading: { type: Boolean, default: false },
   list: { type: Array, default: () => [] },
   filters: { type: Object, default: () => ({}) },
+  // 选项来自 constants/questionTypes 的 readonly 契约常量（实库值），声明为只读接收
   typeOpts: {
-    type: Array as PropType<{ value: string | number; label?: string }[]>,
+    type: Array as PropType<readonly { value: string; label: string }[]>,
     default: () => [],
   },
   diffOpts: {
-    type: Array as PropType<{ value: string | number; label?: string }[]>,
+    type: Array as PropType<readonly { value: string; label: string }[]>,
     default: () => [],
   },
   total: { type: Number, default: 0 },
@@ -172,39 +179,20 @@ defineEmits([
   'remove',
 ])
 
+// 题型/难度标签与色板统一走 constants/questionTypes 实库契约
+// （2026-10-26 F3 更正：实库 type 为 *_CHOICE 风格、difficulty 为小写；
+// 此前本地 TYPE_OPTS 用 'SINGLE' 旧风格，实库行恒显示原始英文串）
 function typeLabel(t) {
-  const TYPE_OPTS = [
-    { value: 'SINGLE', label: '单选题' },
-    { value: 'MULTIPLE', label: '多选题' },
-    { value: 'JUDGE', label: '判断题' },
-    { value: 'FILL', label: '填空题' },
-    { value: 'ESSAY', label: '简答题' },
-    { value: 'CODE', label: '编程题' },
-  ]
-  return TYPE_OPTS.find((o) => o.value === t)?.label || t || '未知'
+  return questionTypeLabel(t)
 }
 function diffLabel(d) {
-  const DIFF_OPTS = [
-    { value: 'EASY', label: '简单' },
-    { value: 'MEDIUM', label: '中等' },
-    { value: 'HARD', label: '困难' },
-  ]
-  return DIFF_OPTS.find((o) => o.value === d)?.label || d || '未知'
+  return questionDifficultyLabel(d)
 }
 function typeTag(t) {
-  return (
-    {
-      SINGLE: 'primary',
-      MULTIPLE: 'success',
-      JUDGE: 'warning',
-      FILL: 'info',
-      ESSAY: '',
-      CODE: 'danger',
-    }[t] || 'info'
-  )
+  return questionTypeTag(t)
 }
 function diffTag(d) {
-  return { EASY: 'success', MEDIUM: 'warning', HARD: 'danger' }[d] || 'info'
+  return questionDifficultyTag(d)
 }
 </script>
 

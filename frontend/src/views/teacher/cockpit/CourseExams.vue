@@ -33,13 +33,15 @@
       />
     </div>
 
-    <!-- 新建 / 编辑 对话框 -->
+    <!-- 新建 / 编辑 对话框（自研 Modal；保存 payload 携带选题清单） -->
     <CeExamFormDialog
       v-model="dialog.visible"
       :editing="dialog.editing"
       :saving="dialog.saving"
       :form="form"
+      :course-id="courseId"
       @save="save"
+      @adopted="onAdopted"
       @closed="resetForm"
     />
 
@@ -96,6 +98,15 @@ import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import examApi from '@/api/exam'
 import { confirmDanger } from '@/utils/dangerConfirm'
+import {
+  questionTypeLabel,
+  questionTypeTag,
+} from '@/constants/questionTypes'
+import type {
+  ExamFormSavePayload,
+  ExamPaper,
+  SelectedQuestion,
+} from '@/composables/useExamCompose'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import CeExamTable from './components/CeExamTable.vue'
@@ -122,28 +133,12 @@ const total = ref(0)
 const page = ref(1)
 const size = ref(10)
 
-const TYPE_OPTS = [
-  { value: 'SINGLE', label: '单选题' },
-  { value: 'MULTIPLE', label: '多选题' },
-  { value: 'JUDGE', label: '判断题' },
-  { value: 'FILL', label: '填空题' },
-  { value: 'ESSAY', label: '简答题' },
-  { value: 'CODE', label: '编程题' },
-]
+// 题型标签/色板统一走 constants/questionTypes 契约（禁魔法字符串，选题区/组卷共用）
 function typeLabel(t) {
-  return TYPE_OPTS.find((o) => o.value === t)?.label || t || '未知'
+  return questionTypeLabel(t)
 }
 function typeTag(t) {
-  return (
-    {
-      SINGLE: 'primary',
-      MULTIPLE: 'success',
-      JUDGE: 'warning',
-      FILL: 'info',
-      ESSAY: '',
-      CODE: 'danger',
-    }[t] || 'info'
-  )
+  return questionTypeTag(t)
 }
 
 async function load() {
@@ -204,12 +199,22 @@ function openEdit(row) {
   dialog.editing = true
   dialog.visible = true
 }
-async function save() {
+/**
+ * 保存（两段式，设计 D5/§4.2）：先落试卷字段（create/update），再在有题目清单时
+ * 调 saveExamQuestions 批量替换题目（端点已上线）。题目段失败给明确提示，
+ * 绝不静默丢弃（试卷字段已保存，教师可重新编辑补交题目）。
+ *
+ * questionsLoaded 语义：编辑态且本次会话已成功回显该卷已有题目时，即使清单为空
+ * 也提交批量替换（教师清空所有题目是合法意图）；回显失败则不动该卷已有题目。
+ */
+async function save(payload: ExamFormSavePayload = { selectedQuestions: [], questionsLoaded: false }) {
   if (!form.title.trim()) {
     ElMessage.warning('请输入试卷标题')
     return
   }
+  const selected: SelectedQuestion[] = payload.selectedQuestions ?? []
   dialog.saving = true
+  let paperId: number | null = dialog.editing ? form.id : null
   try {
     if (dialog.editing) {
       await examApi.updateExamPaper(form.id, {
@@ -218,16 +223,43 @@ async function save() {
         duration: form.duration,
         totalScore: form.totalScore,
       })
-      ElMessage.success('试卷已更新')
     } else {
-      await examApi.createExamPaper({
+      const res = await examApi.createExamPaper({
         courseId: courseId.value,
         title: form.title,
         description: form.description,
         duration: form.duration,
         totalScore: form.totalScore,
       })
-      ElMessage.success('试卷已创建')
+      const created = unwrap<ExamPaper>(res)
+      paperId = Number(created?.id)
+      if (!paperId || !Number.isFinite(paperId)) {
+        throw new Error('创建试卷未返回 id，无法保存题目清单')
+      }
+    }
+    const shouldSaveQuestions =
+      selected.length > 0 || (dialog.editing && payload.questionsLoaded === true)
+    let questionsSaved = false
+    if (paperId && shouldSaveQuestions) {
+      try {
+        await examApi.saveExamQuestions(
+          paperId,
+          selected.map((q, i) => ({
+            questionId: q.questionId,
+            points: q.score,
+            orderIndex: i + 1,
+          })),
+        )
+        questionsSaved = true
+      } catch (questionError) {
+        logger.error('保存试卷题目失败', questionError)
+        ElMessage.error('试卷已保存，但题目清单保存失败，请重新编辑该试卷后重试')
+      }
+    }
+    if (!shouldSaveQuestions) {
+      ElMessage.success(dialog.editing ? '试卷已更新' : '试卷已创建')
+    } else if (questionsSaved) {
+      ElMessage.success(selected.length > 0 ? '试卷与题目已保存' : '试卷已保存（题目已清空）')
     }
     dialog.visible = false
     load()
@@ -238,7 +270,33 @@ async function save() {
   }
 }
 
+/**
+ * 自动组卷成功（设计 D6）：表单切换为编辑该新卷并同步卷面字段。
+ * form.id 与题目清单已由 useExamCompose 写入/回显，这里只补 editing 标志与字段。
+ */
+function onAdopted(paper: ExamPaper | null) {
+  if (!paper || paper.id == null) return
+  dialog.editing = true
+  Object.assign(form, {
+    id: Number(paper.id),
+    title: paper.title || form.title,
+    description: paper.description ?? form.description,
+    duration: paper.duration || form.duration,
+    totalScore: paper.totalScore || form.totalScore,
+  })
+}
+
 async function publish(row) {
+  // 发布前二次确认（F7 防呆：草稿态才显示按钮 + confirmDanger 规范文案）
+  const ok = await confirmDanger({
+    verb: '发布',
+    target: '试卷',
+    subject: row.title,
+    impact: '发布后学生将可见该试卷并可进入作答',
+    irreversible: false,
+    note: '发布后请避免再修改题目，以免影响已作答数据',
+  })
+  if (!ok) return
   try {
     await examApi.publishExam(row.id)
     ElMessage.success('试卷已发布')

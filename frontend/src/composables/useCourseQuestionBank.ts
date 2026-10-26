@@ -4,10 +4,23 @@ import { ref, reactive, computed, watch, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import questionApi from '@/api/question'
 import { resolveReviewStatus } from '@/composables/useQuestionBank'
+import {
+  QUESTION_TYPE_OPTIONS,
+  QUESTION_DIFFICULTY_OPTIONS,
+  questionTypeLabel,
+  questionTypeTag,
+  questionDifficultyLabel,
+  questionDifficultyTag,
+} from '@/constants/questionTypes'
 import { confirmDanger } from '@/utils/dangerConfirm'
 
 /**
  * 课程题库页数据逻辑（拆分自 teacher/cockpit/CourseQuestionBank.vue，2026-08-29）
+ *
+ * 题型/难度契约（2026-10-26 F3 更正）：type/difficulty 全部走 constants/questionTypes
+ * 实库值（*_CHOICE 风格 + 小写难度）。后端写侧把请求的 type/difficulty **原样落库**
+ * （QuestionServiceImpl.generateByAI 直接 setType(type)），错值会造成题库数据裂缝
+ * ——选题区/组卷按 SINGLE_CHOICE 精确匹配，旧风格 'SINGLE' 落库即永久失配。
  * @param {import('vue').Ref} courseIdRef 课程 ID
  */
 export function useCourseQuestionBank(courseIdRef) {
@@ -18,19 +31,9 @@ export function useCourseQuestionBank(courseIdRef) {
   const page = ref(1)
   const size = ref(10)
 
-  const TYPE_OPTS = [
-    { value: 'SINGLE', label: '单选题' },
-    { value: 'MULTIPLE', label: '多选题' },
-    { value: 'JUDGE', label: '判断题' },
-    { value: 'FILL', label: '填空题' },
-    { value: 'ESSAY', label: '简答题' },
-    { value: 'CODE', label: '编程题' },
-  ]
-  const DIFF_OPTS = [
-    { value: 'EASY', label: '简单' },
-    { value: 'MEDIUM', label: '中等' },
-    { value: 'HARD', label: '困难' },
-  ]
+  // 题型/难度选项统一引用共享契约（导出名保留，宿主 CourseQuestionBank.vue 绑定零改动）
+  const TYPE_OPTS = QUESTION_TYPE_OPTIONS
+  const DIFF_OPTS = QUESTION_DIFFICULTY_OPTIONS
 
   const filters = reactive({ type: '', difficulty: '', keyword: '' })
 
@@ -44,25 +47,16 @@ export function useCourseQuestionBank(courseIdRef) {
   )
 
   function typeLabel(t) {
-    return TYPE_OPTS.find((o) => o.value === t)?.label || t || '未知'
+    return questionTypeLabel(t)
   }
   function diffLabel(d) {
-    return DIFF_OPTS.find((o) => o.value === d)?.label || d || '未知'
+    return questionDifficultyLabel(d)
   }
   function typeTag(t) {
-    return (
-      {
-        SINGLE: 'primary',
-        MULTIPLE: 'success',
-        JUDGE: 'warning',
-        FILL: 'info',
-        ESSAY: '',
-        CODE: 'danger',
-      }[t] || 'info'
-    )
+    return questionTypeTag(t)
   }
   function diffTag(d) {
-    return { EASY: 'success', MEDIUM: 'warning', HARD: 'danger' }[d] || 'info'
+    return questionDifficultyTag(d)
   }
 
   async function load() {
@@ -113,8 +107,8 @@ export function useCourseQuestionBank(courseIdRef) {
   const dialog = reactive({ visible: false, editing: false, saving: false })
   const form = reactive({
     id: null,
-    type: 'SINGLE',
-    difficulty: 'MEDIUM',
+    type: 'SINGLE_CHOICE',
+    difficulty: 'medium',
     content: '',
     correctAnswers: '',
     explanation: '',
@@ -122,8 +116,8 @@ export function useCourseQuestionBank(courseIdRef) {
 
   function resetForm() {
     form.id = null
-    form.type = 'SINGLE'
-    form.difficulty = 'MEDIUM'
+    form.type = 'SINGLE_CHOICE'
+    form.difficulty = 'medium'
     form.content = ''
     form.correctAnswers = ''
     form.explanation = ''
@@ -226,13 +220,14 @@ export function useCourseQuestionBank(courseIdRef) {
     }
   }
 
-  // AI 生成
+  // AI 生成（后端把请求 type/difficulty 原样落库，见 QuestionServiceImpl.generateByAI，
+  // 故这里必须送实库值；QuestionGenerateDTO 的 allowableValues 仅是文档注解、无运行时校验）
   const ai = reactive({ visible: false, loading: false })
-  const aiForm = reactive({ type: 'SINGLE', difficulty: 'MEDIUM' })
+  const aiForm = reactive({ type: 'SINGLE_CHOICE', difficulty: 'medium' })
   const kpText = ref('')
   function resetAIForm() {
-    aiForm.type = 'SINGLE'
-    aiForm.difficulty = 'MEDIUM'
+    aiForm.type = 'SINGLE_CHOICE'
+    aiForm.difficulty = 'medium'
     kpText.value = ''
   }
   function openAIDialog() {

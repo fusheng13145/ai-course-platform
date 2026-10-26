@@ -50,12 +50,13 @@ const props = defineProps({
   loading: { type: Boolean, default: false },
   form: { type: Object, default: () => ({}) },
   kpText: { type: String, default: '' },
+  // 选项来自 constants/questionTypes 的 readonly 契约常量（实库值），声明为只读接收
   typeOpts: {
-    type: Array as PropType<{ value: string | number; label?: string }[]>,
+    type: Array as PropType<readonly { value: string; label: string }[]>,
     default: () => [],
   },
   diffOpts: {
-    type: Array as PropType<{ value: string | number; label?: string }[]>,
+    type: Array as PropType<readonly { value: string; label: string }[]>,
     default: () => [],
   },
 })

@@ -79,12 +79,13 @@ const CqbQuestionTable = (await import('@/views/teacher/cockpit/components/CqbQu
   .default
 const CqbEditDialog = (await import('@/views/teacher/cockpit/components/CqbEditDialog.vue')).default
 
-/** 后端 /questions 列表行的真实形状（entity/Question 序列化结果） */
+/** 后端 /questions 列表行的真实形状（entity/Question 序列化结果）。
+ *  type/difficulty 为实库值（2026-10-26 F3 更正：*_CHOICE 风格 + 小写难度）。 */
 const ENTITY_ROW = {
   id: 1,
   courseId: 42,
-  type: 'SINGLE',
-  difficulty: 'MEDIUM',
+  type: 'SINGLE_CHOICE',
+  difficulty: 'medium',
   content: '题干',
   correctAnswers: 'A',
   explanation: '解析',
@@ -206,8 +207,8 @@ describe('useCourseQuestionBank — 编辑回填读实体键（缺陷 1 读侧�
     mod.openEdit({ ...ENTITY_ROW })
 
     expect(mod.form.id).toBe(1)
-    expect(mod.form.type).toBe('SINGLE')
-    expect(mod.form.difficulty).toBe('MEDIUM')
+    expect(mod.form.type).toBe('SINGLE_CHOICE')
+    expect(mod.form.difficulty).toBe('medium')
     expect(mod.form.content).toBe('题干')
     expect(mod.form.correctAnswers).toBe('A')
     expect(mod.form.explanation).toBe('解析')
@@ -219,8 +220,8 @@ describe('useCourseQuestionBank — 编辑回填读实体键（缺陷 1 读侧�
 
     mod.openEdit({
       id: 2,
-      type: 'JUDGE',
-      difficulty: 'EASY',
+      type: 'TRUE_FALSE',
+      difficulty: 'easy',
       stem: '旧题干',
       answer: 'true',
       analysis: '旧解析',
@@ -319,6 +320,42 @@ describe('CourseQuestionBank.vue — 弹窗 @closed 接线（缺陷 4 的真实�
 
     expect(dialog.props('editing')).toBe(false)
     expect(dialog.props('form')).toMatchObject({ content: '', id: null })
+  })
+})
+
+describe('useCourseQuestionBank — 题型/难度实库契约（2026-10-26 F3 更正）', () => {
+  beforeEach(() => {
+    vi.clearAllMocks()
+    mocks.getQuestionList.mockResolvedValue({ code: 200, data: { records: [], total: 0 } })
+  })
+
+  it('新建/AI 表单默认值与 DIFF 选项必须是实库值（*_CHOICE 风格 + 小写难度；写侧原样落库）', () => {
+    const { mod } = withSetup()
+    mod.openCreate()
+    expect(mod.form.type).toBe('SINGLE_CHOICE')
+    expect(mod.form.difficulty).toBe('medium')
+
+    mod.openAIDialog()
+    expect(mod.aiForm.type).toBe('SINGLE_CHOICE')
+    expect(mod.aiForm.difficulty).toBe('medium')
+
+    // 选项 key 全部为实库值，不含旧风格与实库不存在的 CODE
+    const typeKeys = mod.TYPE_OPTS.map((o) => o.value)
+    expect(typeKeys).toEqual(['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_BLANK', 'ESSAY'])
+    expect(mod.DIFF_OPTS.map((o) => o.value)).toEqual(['easy', 'medium', 'hard'])
+  })
+
+  it('写侧 payload 的 type/difficulty 原样为实库值', async () => {
+    mocks.createQuestion.mockResolvedValue({ code: 200, data: ENTITY_ROW })
+    const { mod } = withSetup()
+    mod.openCreate()
+    Object.assign(mod.form, { content: '题干', correctAnswers: 'A', explanation: '' })
+
+    await mod.save()
+
+    const payload = mocks.createQuestion.mock.calls[0][0]
+    expect(payload.type).toBe('SINGLE_CHOICE')
+    expect(payload.difficulty).toBe('medium')
   })
 })
 

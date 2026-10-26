@@ -240,22 +240,22 @@ export function primitiveOnlySitesWithDeadWiring(records: OverlayRecord[]): stri
 }
 
 /* ------------------------------------------------------------------ *
- * 地板值（口径同上，实跑于 Task 13 开工时；来源＝spec §11.7 的脚本，读数 73 / 82；批阅闭环批（2026-10-26）新增 CduAssignmentTab 一处 <Modal，83；同批同步文件数地板 73→74）
+ * 地板值（口径同上，实跑于 Task 13 开工时；来源＝spec §11.7 的脚本，读数 73 / 82；批阅闭环批（2026-10-26）新增 CduAssignmentTab 一处 <Modal，83；同批同步文件数地板 73→74；试卷线批（2026-10-26）CeExamFormDialog <el-dialog→<Modal 迁移 + 新增 CesAutoComposeModal 一处 <Modal ⇒ 84，同批同步文件数地板 74→75）
  * ------------------------------------------------------------------ */
 
 /** Task 13 落地时逐 marker 的实测开标签数——Phase 4 每迁移一批就按同一命令重测、只改这张表。 */
 export const BASELINE_TAG_BY_MARKER: Readonly<Record<string, number>> = {
-  '<el-dialog': 59,
-  '<Modal': 18,
+  '<el-dialog': 58,
+  '<Modal': 20,
   '<Drawer': 2,
   '<el-drawer': 4,
 }
 
 /** 弹层开标签总数地板＝**只升不降**：一个 `<el-dialog` 变成一个 `<Modal` 时总数不变，下降即有弹层凭空消失。 */
-export const EXPECTED_OVERLAY_MIN = 83
+export const EXPECTED_OVERLAY_MIN = 84
 
 /** 含弹层的 `.vue` 文件数地板，同样只升不降。 */
-export const EXPECTED_OVERLAY_COMPONENT_MIN = 74
+export const EXPECTED_OVERLAY_COMPONENT_MIN = 75
 
 /**
  * 已知缺口清单（`<el-drawer>` 的 4 个使用者）：旧扫描键只有 `<el-dialog`，抽屉从来不在射程内

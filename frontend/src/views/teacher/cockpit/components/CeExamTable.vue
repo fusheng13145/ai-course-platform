@@ -22,17 +22,17 @@
           <template #default="{ row }">
             <el-tag
               size="small"
-              :type="row.status === '已发布' ? 'success' : 'info'"
+              :type="statusView(row).tagType"
               effect="light"
             >
-              {{ row.status === '已发布' ? '已发布' : '草稿' }}
+              {{ statusView(row).label }}
             </el-tag>
           </template>
         </el-table-column>
         <el-table-column label="操作" width="300" fixed="right">
           <template #default="{ row }">
             <el-button
-              v-if="row.status !== '已发布'"
+              v-if="statusView(row).canPublish"
               link
               type="success"
               :icon="Promotion"
@@ -76,10 +76,14 @@
 <script setup lang="ts">
 import { Promotion, View, DataAnalysis, CopyDocument, Edit, Delete } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import { examPaperStatusView } from '@/constants/examPaperStatus'
 
 /**
  * 课程试卷 — 试卷列表表格（含分页与行操作）。
  * <p>拆分子组件：纯展示 + 行操作 emit；数据/分页状态由页面壳持有。</p>
+ * <p>状态契约（设计 F1 修复）：ExamPaper.status 持久化为枚举 name
+ * （DRAFT/PUBLISHED/ARCHIVED），展示与发布按钮判定只走 examPaperStatusView 映射，
+ * 禁止判 '已发布' 等魔法字符串（此前已发布卷恒显「草稿」且发布按钮恒显）。</p>
  */
 defineProps({
   list: { type: Array, default: () => [] },
@@ -89,6 +93,11 @@ defineProps({
   /** 列表空态文案（失败时由页面传入「未能加载」文案，默认保留原语义） */
   emptyText: { type: String, default: '暂无试卷，点击右上角新建' },
 })
+
+/** 状态展示视图（label/tagType/canPublish），未知状态静默降级 */
+function statusView(row: { status?: string } | null | undefined) {
+  return examPaperStatusView(row?.status)
+}
 
 const emit = defineEmits([
   'publish',

@@ -31,6 +31,11 @@ vi.mock('@/api/exam', () => ({
     getExamStatistics: mocks.getExamStatistics,
   },
 }))
+// 试卷线批（2026-10-26）：CeExamFormDialog 挂选题区后模块图引入 @/api/question
+// （→ request.ts → @/router，浅挂载也会加载模块），必须一并 mock 拦住路由副作用。
+vi.mock('@/api/question', () => ({
+  default: { getQuestionList: vi.fn().mockResolvedValue({ code: 200, data: { records: [] } }) },
+}))
 vi.mock('vue-router', () => ({ useRoute: () => mocks.route }))
 vi.mock('element-plus', () => ({
   ElMessage: Object.assign(vi.fn(), {

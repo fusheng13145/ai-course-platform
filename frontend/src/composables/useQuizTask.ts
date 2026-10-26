@@ -5,7 +5,16 @@ import { unwrap } from '@/utils/response'
 import studentApi from '@/api/student'
 import questionApi from '@/api/question'
 
-/** 客观题类型（可参与随堂测验即时判分的题型） */
+/**
+ * 客观题类型（可参与随堂测验即时判分的题型）。
+ *
+ * 契约判定（2026-10-26 F3 更正）：实库 Question.type 为 *_CHOICE 风格
+ * （SINGLE_CHOICE/MULTIPLE_CHOICE/TRUE_FALSE，见 constants/questionTypes.ts 头注）。
+ * 本文件是**只读消费方**——只按 type 过滤抽题与选择作答形态，不存在任何写 type 的路径；
+ * 下游判分（StudentTaskComponent#submitQuiz）按 questionId 比对答案、与 type 无关。
+ * 因此保留旧风格（SINGLE/MULTIPLE/JUDGE）作容错读：万一存在迁移前落库的历史行
+ * 仍能进测验，不会造成数据裂缝；新建/编辑/组卷等写侧一律用实库值，不在此列。
+ */
 const OBJ_TYPES = ['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'SINGLE', 'MULTIPLE', 'JUDGE']
 
 /**

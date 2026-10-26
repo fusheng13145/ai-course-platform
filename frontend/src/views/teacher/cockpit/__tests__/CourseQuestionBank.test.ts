@@ -105,8 +105,9 @@ describe('CourseQuestionBank — 加载失败可见', () => {
       '题库列表未能加载，请查看上方提示后重试',
     )
     expect(wrapper.text()).not.toContain('该课程暂无题目')
-    // 题型种类为前端常量，不受失败影响
-    expect(statValue(wrapper, '题型种类')).toBe(6)
+    // 题型种类为前端常量（constants/questionTypes 实库契约，2026-10-26 起 5 种、
+    // 已删实库不存在的 CODE），不受加载失败影响
+    expect(statValue(wrapper, '题型种类')).toBe(5)
   })
 
   it('阴性对照：加载成功（空列表）时无提示，空态保留原引导语义且统计为 0', async () => {
@@ -127,8 +128,8 @@ describe('CourseQuestionBank — 加载失败可见', () => {
       data: {
         total: 2,
         list: [
-          { id: 1, type: 'SINGLE', difficulty: 'EASY', isActive: true },
-          { id: 2, type: 'JUDGE', difficulty: 'HARD', isActive: false },
+          { id: 1, type: 'SINGLE_CHOICE', difficulty: 'easy', isActive: true },
+          { id: 2, type: 'TRUE_FALSE', difficulty: 'hard', isActive: false },
         ],
       },
     })
