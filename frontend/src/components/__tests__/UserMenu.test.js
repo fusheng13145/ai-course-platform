@@ -147,7 +147,7 @@ describe('UserMenu 单一来源', () => {
     }
     const shellMenu = tokenValue('z-shell-menu')
     const onboarding = tokenValue('z-onboarding')
-    const EP_FLOOR = 2000 // EP 弹层的 z-index 起点（theme.css 的 --z-onboarding 注释同源）
+    const EP_FLOOR = 2300 // EP 弹层的 z-index 起点（App.vue el-config-provider :z-index="2300"，与 theme.css --z-onboarding 注释同源；P4-GATE-01 起由 2000 抬至 2300，下界必须跟随真实起点，否则钉测护不住 e2e 实测的 z=2310 遮罩）
     expect(shellMenu >= EP_FLOOR, `${shellMenu} 压不过 EP 弹层起点 ${EP_FLOOR}`).toBe(true)
     expect(shellMenu < onboarding, `${shellMenu} 盖过了引导层 ${onboarding}`).toBe(true)
   })

@@ -31,7 +31,12 @@ let rafQueue: FrameRequestCallback[] = []
 const extras: HTMLElement[] = []
 
 function factory(props: ModalProps = {}, slots: Record<string, string> = {}) {
-  const wrapper = mount(Modal, { props, slots, attachTo: document.body })
+  const wrapper = mount(Modal, {
+    props,
+    slots,
+    attachTo: document.body,
+    global: { stubs: { transition: false } },
+  })
   return track(wrapper)
 }
 

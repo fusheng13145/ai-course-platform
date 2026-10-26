@@ -1,4 +1,4 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { nextTick } from 'vue'
 import { mount } from '@vue/test-utils'
 import Modal from '../Modal.vue'
@@ -34,8 +34,31 @@ interface ModalProps {
  * 僵尸节点会直接污染断言）。
  */
 function factory(props: ModalProps = {}, slots: Record<string, string> = { title: 'T' }) {
-  const wrapper = mount(Modal, { props, slots, attachTo: document.body })
+  const wrapper = mount(Modal, { props, slots, attachTo: document.body, global: { stubs: { transition: false } } })
   return track(wrapper)
+}
+
+/**
+ * rAF 用可控队列替换（P4-GATE-01 起**必须**：组件加了 <Transition>，真实 rAF 的
+ * 异步性会跨用例泄漏——上一条用例的 leave 完成回调在下一条执行中触发，
+ * DOM/监听器状态错位；Modal.a11y.test.ts / Drawer.test.ts 同一做法）。
+ */
+let rafQueue: FrameRequestCallback[] = []
+
+/** 冲帧：leave→after-leave 的链路至少要两帧（Vue 的 nextFrame 双 rAF）。 */
+function flushFrames() {
+  const q = rafQueue
+  rafQueue = []
+  q.forEach((cb) => cb(0))
+}
+
+/** 等渲染 + 冲帧（三轮，理由同 Drawer.test.ts 的 settle：边沿落在哪轮 flush 不可预判）。 */
+async function settle(wrapper: { vm: { $nextTick(): Promise<void> } }) {
+  for (let i = 0; i < 3; i++) {
+    await wrapper.vm.$nextTick()
+    flushFrames()
+  }
+  await wrapper.vm.$nextTick()
 }
 
 /** Teleport 后要在 body 子树里触发事件：原生 dispatch 即可，Vue 的监听器就挂在元素上。
@@ -48,7 +71,26 @@ async function fireOn(sel: string, type: 'click' | 'mousedown'): Promise<void> {
 }
 
 /** 卸载夹具挂**文件级**（不套 describe）：registry 是模块作用域的，见 trackMount。 */
-afterEach(unmountTracked)
+beforeEach(() => {
+  rafQueue = []
+  vi.stubGlobal('requestAnimationFrame', (cb: FrameRequestCallback) => {
+    rafQueue.push(cb)
+    return rafQueue.length
+  })
+  vi.stubGlobal('cancelAnimationFrame', () => {})
+})
+
+afterEach(() => {
+  unmountTracked()
+  // Teleport 落点在 body：不赌 unmount 连带摘掉传送节点，直接清场（a11y/Drawer 同处置）。
+  document.body.querySelectorAll('.overlay, .modal').forEach((n) => n.remove())
+  ;(document.activeElement as HTMLElement | null)?.blur?.()
+  delete document.body.dataset.overlayCount
+  delete document.body.dataset.overlayOverflowPrev
+  document.body.style.overflow = ''
+  rafQueue = []
+  vi.unstubAllGlobals()
+})
 
 describe('Modal v-model 通道', () => {
   it('modelValue=false 时不渲染遮罩', () => {
@@ -100,7 +142,10 @@ describe('Modal v-model 通道', () => {
     // Teleport 不影响这条的判据：开关的是 Teleport **内部**的 v-if，不是 Teleport 本身。
     const wrapper = factory({ modelValue: true })
     expect(document.body.querySelector('.overlay')).not.toBeNull()
+    // P4-GATE-01 起关闭走 <Transition> 离开动画：节点在 after-leave 才摘除，
+    // 断言前必须冲完 leave 帧（settle 内含双 rAF），否则 leave-from 类还在、节点未摘。
     await wrapper.setProps({ modelValue: false })
+    await settle(wrapper)
     expect(document.body.querySelector('.overlay')).toBeNull()
     await wrapper.setProps({ modelValue: true })
     expect(document.body.querySelector('.overlay')).not.toBeNull()

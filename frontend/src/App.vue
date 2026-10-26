@@ -1,11 +1,19 @@
 <template>
-  <AppErrorBoundary ref="errorBoundaryRef">
-    <router-view />
-  </AppErrorBoundary>
+  <!-- ElConfigProvider（P4-GATE-01，准入门 #3）：EP 弹层计数器起点 2000→2300。
+       没有它，EP 弹层 z（2000+ 递增）会盖在自建 modal(2200)/drawer(2250) 之上，
+       modal 内的 select 下拉反而被自己的面板压住。2300 起点让 EP 弹层恒在
+       原语层之上（modal 内下拉可弹出），又低于引导层 3000——层叠序见
+       theme.css z-index 段注释。仅影响 EP 内部计数器，不碰任何自建层。 -->
+  <ElConfigProvider :z-index="2300">
+    <AppErrorBoundary ref="errorBoundaryRef">
+      <router-view />
+    </AppErrorBoundary>
+  </ElConfigProvider>
 </template>
 
 <script setup>
 import { ref, onErrorCaptured } from 'vue'
+import { ElConfigProvider } from 'element-plus'
 import AppErrorBoundary from '@/components/AppErrorBoundary.vue'
 
 const errorBoundaryRef = ref(null)

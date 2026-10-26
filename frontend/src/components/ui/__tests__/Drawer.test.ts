@@ -61,6 +61,7 @@ function factory(
     attrs,
     slots: { title: '标题', ...slots },
     attachTo: host,
+    global: { stubs: { transition: false } },
   })
   wrappers.push(wrapper)
   return { wrapper, host }
@@ -349,9 +350,11 @@ describe('Drawer — 关闭通道', () => {
   it('两个抽屉叠着开：一次 Esc 两个都关（钉住现状，不是背书这个行为）', async () => {
     // I-3：Esc 按「打开中的实例」逐个挂 document keydown，所以两个实例共享同一次 keydown，
     // 一次 Esc 全关。注释此前写的是「常挂版才会全关」——那是对着不存在的代码写的（评审认定 Important）。
-    // 这条用例的作用是**行为锁**：以后有人建了弹层栈、改成 topmost-only，这条必红，
-    // 改动就得在评审里显式认领。「只关最上面一层」需要 Modal 与 Drawer 共用的栈，归 Phase 0b/Task 10，
-    // 本轮不建（已作为准入门待办记进 task-11-report §Fix round 1）。
+    // 【P4-GATE-01 显式拆锁（spec §11.3 准入 #6 授权）】弹层栈已建（overlayEscStack.ts，
+    // Modal/Drawer 共用），旧全局广播行为被替换为 topmost-only：Esc 只关最后开的一层，
+    // 下层保持开着。原「一次 Esc 两个都关」的断言按新契约重写如下——
+    // 这是行为语义的迁移，不是断言放宽；迁移点的 4 处 el-drawer 叠加场景（EP 的
+    // close-on-press-escape 同为 topmost-only）自此对齐。
     const first = factory({ modelValue: true }, { title: '第一层' })
     await settle(first.wrapper)
     const second = factory({ modelValue: true }, { title: '第二层' })
@@ -359,12 +362,25 @@ describe('Drawer — 关闭通道', () => {
     expect(panels()).toHaveLength(2)
 
     document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
-    await settle(first.wrapper)
+    await settle(second.wrapper)
 
-    expect(first.wrapper.emitted('close')).toHaveLength(1)
+    // 只关栈顶（second，后开者在上）；first 不收到任何关闭信号
     expect(second.wrapper.emitted('close')).toHaveLength(1)
-    expect(first.wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
     expect(second.wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
+    expect(first.wrapper.emitted('close')).toBeUndefined()
+    expect(first.wrapper.emitted('update:modelValue')).toBeUndefined()
+
+    // 模拟 v-model 父级写回（迁移点的真实形状）：second 真关、出栈（open 下降沿）
+    await second.wrapper.setProps({ modelValue: false })
+    await settle(second.wrapper)
+    expect(panels()).toHaveLength(1)
+
+    // 再按 Esc → 轮到 first
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape' }))
+    await settle(first.wrapper)
+    expect(first.wrapper.emitted('close')).toHaveLength(1)
+    expect(first.wrapper.emitted('update:modelValue')?.[0]).toEqual([false])
+    expect(second.wrapper.emitted('close')).toHaveLength(1) // 仍只有一次
   })
 
   it('按下遮罩本体 emit close；按下面板内不 emit（mousedown 通道不变）', async () => {

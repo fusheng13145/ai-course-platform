@@ -3,6 +3,7 @@ import { computed, getCurrentInstance, onMounted, onBeforeUnmount, ref, watch } 
 import { useDialogFocus } from '@/composables/useDialogFocus'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 import { useOverlayScrollLock } from '@/composables/useOverlayScrollLock'
+import { overlayEscIsTop, overlayEscPush, overlayEscRemove } from '@/composables/overlayEscStack'
 
 /**
  * 遮罩为什么必须 Teleport 到 body（Task 8，spec §2.6 的包含块陷阱）：
@@ -110,6 +111,21 @@ const props = defineProps({
   closeOnClickModal: { type: Boolean, default: undefined },
   ariaLabel: { type: String, default: undefined },
   ariaLabelledby: { type: String, default: undefined },
+  /**
+   * 任意宽度通道（P4-GATE-01，准入门 #1）。优先级高于尺寸档：传了 width 就以它为准，
+   * 尺寸档（wide/xwide/narrow）继续服务不传 width 的调用点。数字按 px，字符串原样
+   * （"48rem" / "min(90vw, 720px)" 都合法）——与 el-dialog 的 width prop 同语义，
+   * 迁移点 `width="600"` / `:width="600"` 可原样平移，不必改写成尺寸档。
+   */
+  width: { type: [String, Number], default: undefined },
+  /**
+   * 字符串标题通道（P4-GATE-01，准入门 #2 的迁移期规则）。与 #title 插槽并存，
+   * **插槽优先**（fallback 链：slot 有内容用 slot，否则渲染 title prop）——
+   * 13 个存量调用点全走插槽不受影响；Phase 4 的 9 处 `title="字符串"`
+   * （el-dialog/el-drawer 来源）可原样平移，不必改写成插槽。
+   * aria-labelledby 联动见模板：title prop 有值时同样指向 titleId。
+   */
+  title: { type: String, default: undefined },
 })
 // 双通道 + `closed`：`close` 是 13 个存量调用点唯一在听的，`update:modelValue` 是 v-model 的另一条腿，
 // `closed` 属**可见性下降沿**（父级把值落下来才算关闭，与 Drawer.vue 同名同语义，Phase 4 一套迁移规则）。
@@ -129,6 +145,13 @@ const sizeClass = computed(() => ({
   xwide: props.xwide === '' || props.xwide === true,
   narrow: props.narrow === '' || props.narrow === true,
 }))
+
+/** 任意宽度（P4-GATE-01 #1）：width prop 优先于尺寸档；数字补 px、字符串原样。 */
+const widthStyle = computed(() => {
+  if (props.width === undefined || props.width === '') return null
+  const w = typeof props.width === 'number' ? `${props.width}px` : props.width
+  return { width: w }
+})
 
 /**
  * 滚动锁（Task 10A）。与 Drawer.vue 调**同一个** composable、读写同一个
@@ -176,25 +199,37 @@ useDialogFocus(
 useFocusTrap(rootRef, open)
 
 /**
- * 焦点返还 + `closed`：形状逐字照搬 Drawer.vue 的 watch(open, …, { immediate: true })。
- * ⚠️ `{ immediate: true }` 是**承重的**（R-T10-2）：13 个存量 `<Modal>` 调用点全是
- * "外层 v-if、挂载时已开"的形状，不带 immediate 的 watch 永远等不到上升沿 ⇒ 记不到
- * opener ⇒ 关闭时焦点返还静默失效。证伪面在 `Modal.a11y.test.ts` 的
- * 「v-if 挂载即开 → 关闭仍返还焦点」那条（删 immediate 它就红）。
+ * 焦点返还 + `closed`（P4-GATE-01 起拆成两段）：
+ * - watch(open, immediate) 只负责**记 opener** 与 **Esc 栈进出**——它仍是 prop 边沿；
+ * - `emit('closed')` 与焦点返还移到 **@after-leave**（离开过渡结束之后）——准入门 #4：
+ *   「closed 在 prop 边沿触发，不是离开过渡结束之后（现在根本没有离开过渡）」，
+ *   本批补上 `<Transition name="overlay-anim">` 并把 closed 挂到 after-leave，
+ *   与 el-dialog 的 @closed 时机（离开动画后）对齐，迁移点语义可平移。
+ * ⚠️ `{ immediate: true }` 仍承重（R-T10-2）：13 个存量 `<Modal>` 调用点是
+ * "外层 v-if、挂载时已开"的形状，不带 immediate 记不到 opener。
+ * ⚠️ v-if 式调用点直接销毁实例时没有 leave 动画、closed 不会发——与旧行为等价
+ * （旧 watch 的下降沿同样只在 modelValue 翻转时出现），无回归。
  */
 let opener = null
 watch(
   open,
   (on, off) => {
-    if (on && !off) opener = document.activeElement
+    if (on && !off) {
+      opener = document.activeElement
+      overlayEscPush(close)
+    }
     if (!on && off) {
-      emit('closed')
-      opener?.focus?.()
-      opener = null
+      overlayEscRemove(close)
     }
   },
   { immediate: true },
 )
+
+function onAfterLeave() {
+  emit('closed')
+  opener?.focus?.()
+  opener = null
+}
 
 /**
  * ⚠️ 3-B 的「对外等价面」这半**没有落地**（要求来自 brief Step 3-B 的 defineExpose 一个同形的 $el，
@@ -236,9 +271,17 @@ onMounted(() => {
 onMounted(() => {
   mounted.value = true
 })
-onBeforeUnmount(() => document.removeEventListener('keydown', onEsc))
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onEsc)
+  // 兜底出栈：v-if 式调用点直接销毁实例时没有可见性下降沿，栈里可能还挂着本实例。
+  overlayEscRemove(close)
+})
 function onEsc(e) {
-  if (e.key === 'Escape') close()
+  // 「Esc 只关最上层」（P4-GATE-01，准入门 #6）：共享栈见 overlayEscStack.ts。
+  // 本实例不在栈顶时必须**不消费**这次按键——但监听是常驻的，返回即可，
+  // 栈顶实例自己的监听会收到同一次事件并处理（keydown 无冒泡拦截需求）。
+  if (e.key !== 'Escape' || !overlayEscIsTop(close)) return
+  close()
 }
 // 门卫是派生值 open，不是 `modelValue === true`（Task 7 修复轮，评审 I-1/M-1 的裁定）：
 // - 不 gate open：一次 Esc 会给树上所有「曾开过、已关闭、仍存活」的实例补发幽灵 close，
@@ -249,6 +292,11 @@ function onEsc(e) {
 // 两条各由 Modal.vmodel.test.ts 的红灯钉死（关闭态 Esc 哑火 / undefined 可关闭）。
 function close() {
   if (!open.value) return
+  // ⚠️ 不在这里出栈（P4-GATE-01 定案）：出栈只由 watch(open) 下降沿与卸载驱动——
+  // close 后父级不落值（拒绝关闭）时实例仍开着，再按 Esc 必须重试同实例
+  // （对齐 el-dialog 的 close-on-press-escape 语义；实测出栈先行会把 a11y 的
+  // 「关闭按钮后再按 Esc 照常」打红）。多实例让位依赖父级写回（v-model），
+  // 与迁移点的真实形状一致。
   emit('close')
   emit('update:modelValue', false)
 }
@@ -265,42 +313,47 @@ function onOverlay(e) {
 </script>
 <template>
   <Teleport to="body" :disabled="!toBody">
-    <div v-if="open" class="overlay" v-bind="$attrs" @mousedown.self="onOverlay">
-      <div
-        ref="rootRef"
-        class="modal"
-        :class="sizeClass"
-        role="dialog"
-        aria-modal="true"
-        :aria-label="ariaLabel || null"
-        :aria-labelledby="ariaLabelledby ?? ($slots.title ? titleId : null)"
-        @click.stop
-      >
-        <div class="modal-head">
-          <div>
-            <div :id="titleId" class="modal-title"><slot name="title" /></div>
-            <div v-if="$slots.sub" class="modal-sub"><slot name="sub" /></div>
+    <Transition name="overlay-anim" @after-leave="onAfterLeave">
+      <div v-if="open" class="overlay" v-bind="$attrs" @mousedown.self="onOverlay">
+        <div
+          ref="rootRef"
+          class="modal"
+          :class="sizeClass"
+          :style="widthStyle"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="ariaLabel || null"
+          :aria-labelledby="
+            ariaLabelledby ?? ($slots.title || title ? titleId : null)
+          "
+          @click.stop
+        >
+          <div class="modal-head">
+            <div>
+              <div :id="titleId" class="modal-title"><slot name="title">{{ title }}</slot></div>
+              <div v-if="$slots.sub" class="modal-sub"><slot name="sub" /></div>
+            </div>
+            <div style="flex: 1"></div>
+            <button class="t-icon-btn" @click="close">
+              <svg
+                viewBox="0 0 24 24"
+                width="17"
+                height="17"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <div style="flex: 1"></div>
-          <button class="t-icon-btn" @click="close">
-            <svg
-              viewBox="0 0 24 24"
-              width="17"
-              height="17"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
+          <div class="modal-body"><slot /></div>
+          <div v-if="$slots.footer" class="modal-foot"><slot name="footer" /></div>
         </div>
-        <div class="modal-body"><slot /></div>
-        <div v-if="$slots.footer" class="modal-foot"><slot name="footer" /></div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 </template>
 <style scoped>
@@ -382,5 +435,23 @@ function onOverlay(e) {
 .t-icon-btn:hover {
   background: var(--surface-3);
   color: var(--ink);
+}
+/* 进入/离开过渡（P4-GATE-01，准入门 #4）：只做遮罩淡入淡出，面板不动——
+   与 el-dialog 的 15vh 上滑不是一回事，迁移点不该期待面板动画；
+   closed 的发出时机挂在 after-leave 上（见 onAfterLeave）。
+   prefers-reduced-motion 降级为瞬时（与 design-system.css 既有约定一致）。 */
+.overlay-anim-enter-active,
+.overlay-anim-leave-active {
+  transition: opacity 0.18s ease;
+}
+.overlay-anim-enter-from,
+.overlay-anim-leave-to {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .overlay-anim-enter-active,
+  .overlay-anim-leave-active {
+    transition: none;
+  }
 }
 </style>

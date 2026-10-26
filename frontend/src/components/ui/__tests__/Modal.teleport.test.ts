@@ -53,7 +53,7 @@ describe('Modal Teleport 行为', () => {
   afterEach(unmountTracked)
 
   it('遮罩渲染到 body 下，不在带 transform 的父容器内', async () => {
-    track(mount(Host, { attachTo: document.body }))
+    track(mount(Host, { attachTo: document.body, global: { stubs: { transition: false } } }))
     await nextTick()
     const overlay = document.body.querySelector('.overlay')
     expect(overlay).not.toBeNull()
@@ -91,6 +91,7 @@ describe('Modal Teleport 行为', () => {
         attrs: { 'data-test': 'x', class: 'extra-cls' },
         slots: { title: 'T' },
         attachTo: document.body,
+        global: { stubs: { transition: false } },
       }),
     )
     await nextTick()
@@ -163,6 +164,7 @@ describe('Modal Teleport 行为', () => {
           props: { modelValue: false },
           attrs: { 'data-test': 'x', class: 'extra-cls' },
           attachTo: document.body,
+          global: { stubs: { transition: false } },
         }),
       )
       await nextTick()

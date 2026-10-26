@@ -3,6 +3,7 @@ import { computed, getCurrentInstance, onBeforeUnmount, onMounted, ref, useAttrs
 import { useDialogFocus } from '@/composables/useDialogFocus'
 import { useFocusTrap } from '@/composables/useFocusTrap'
 import { useOverlayScrollLock } from '@/composables/useOverlayScrollLock'
+import { overlayEscIsTop, overlayEscPush, overlayEscRemove } from '@/composables/overlayEscStack'
 
 /**
  * 抽屉原语 —— 与 Modal 同通道（Task 11）
@@ -58,6 +59,13 @@ const props = defineProps({
   closeOnClickModal: { type: Boolean, default: undefined },
   ariaLabel: { type: String, default: undefined },
   ariaLabelledby: { type: String, default: undefined },
+  // 任意宽度通道（P4-GATE-01，准入门 #1）与 Modal 同一条：数字按 px、字符串原样，
+  // 优先级高于 wide 档。要迁移的 4 处 el-drawer 需要 460 / 560px、TaskDrawer 还是
+  // JS 算出的 100%|620px——width prop 是它们的落点。
+  width: { type: [String, Number], default: undefined },
+  // 字符串标题通道（P4-GATE-01，准入门 #2 的迁移期规则），与 Modal 同语义：
+  // 插槽优先（fallback 链），aria-labelledby 联动。
+  title: { type: String, default: undefined },
 })
 const emit = defineEmits(['close', 'update:modelValue', 'closed'])
 
@@ -81,6 +89,13 @@ const overlayAttrs = computed(() => {
   return rest
 })
 const isWide = computed(() => attrs.wide === '' || attrs.wide === true)
+
+/** 任意宽度（P4-GATE-01 #1）：width prop 优先于 wide 档；数字补 px、字符串原样。 */
+const widthStyle = computed(() => {
+  if (props.width === undefined || props.width === '') return null
+  const w = typeof props.width === 'number' ? `${props.width}px` : props.width
+  return { width: w }
+})
 
 /**
  * 关闭契约 = Modal 的那一条，逐字对齐（Task 10C 写回对称，R-B）。两边同一个形状：
@@ -118,12 +133,19 @@ const isWide = computed(() => attrs.wide === '' || attrs.wide === true)
  */
 function close() {
   if (!open.value) return
+  // ⚠️ 不在这里出栈（P4-GATE-01 定案，与 Modal.close 同一条）：出栈只由
+  // watch(open) 下降沿与卸载驱动——拒绝关闭（父级不落值）后再按 Esc 重试同实例，
+  // 对齐 el-dialog；多实例让位依赖父级写回（v-model 迁移形状）。
   emit('close')
   emit('update:modelValue', false)
 }
 
 function onEsc(e) {
-  if (e.key === 'Escape') close()
+  // 「Esc 只关最上层」（P4-GATE-01，准入门 #6）：共享栈见 overlayEscStack.ts。
+  // 旧全局广播（一次 Esc 全关）已被本条替换，Drawer.test.ts 的对应断言
+  // 按 spec §11.3 #6 的拆锁授权同步重写。
+  if (e.key !== 'Escape' || !overlayEscIsTop(close)) return
+  close()
 }
 
 function onOverlay(e) {
@@ -178,15 +200,28 @@ watch(
   open,
   (on, off) => {
     bindEsc(on)
-    if (on && !off) opener = document.activeElement
+    if (on && !off) {
+      opener = document.activeElement
+      overlayEscPush(close)
+    }
     if (!on && off) {
-      emit('closed')
-      opener?.focus?.()
-      opener = null
+      overlayEscRemove(close)
     }
   },
   { immediate: true },
 )
+
+/**
+ * `closed` + 焦点返还移到离开过渡结束（P4-GATE-01，准入门 #4）——
+ * 语义与迁移规则与 Modal.onAfterLeave 同一条，详见那边的注释。
+ * bindEsc 的关闭侧出栈仍在这里（边沿即时），Transition 的 after-leave
+ * 只承载 closed 与焦点返还。
+ */
+function onAfterLeave() {
+  emit('closed')
+  opener?.focus?.()
+  opener = null
+}
 
 /**
  * 焦点接入。useDialogFocus 的 watch 不带 immediate，只认「false→true 的边沿」；
@@ -209,53 +244,60 @@ onBeforeUnmount(() => {
   // unmountComponent 里 `scope.stop()` 是同步调用），所以既有那条
   // 「v-if 式调用点卸载即归还滚动锁」不 await 也读得到归还后的值。
   bindEsc(false)
+  // 兜底出栈：v-if 式调用点直接销毁实例时没有可见性下降沿。
+  overlayEscRemove(close)
 })
 </script>
 <template>
   <Teleport to="body" :disabled="teleported === false">
-    <div v-if="open" v-bind="overlayAttrs" class="drawer-overlay" @mousedown.self="onOverlay">
-      <div
-        ref="rootRef"
-        class="drawer"
-        :class="[placementClass, { wide: isWide }]"
-        role="dialog"
-        aria-modal="true"
-        :aria-label="ariaLabel || null"
-        :aria-labelledby="ariaLabelledby ?? ($slots.title ? titleId : null)"
-      >
-        <div class="drawer-head">
-          <div>
-            <div :id="titleId" class="modal-title">
-              <slot name="title" />
+    <Transition name="overlay-anim" @after-leave="onAfterLeave">
+      <div v-if="open" v-bind="overlayAttrs" class="drawer-overlay" @mousedown.self="onOverlay">
+        <div
+          ref="rootRef"
+          class="drawer"
+          :class="[placementClass, { wide: isWide }]"
+          :style="widthStyle"
+          role="dialog"
+          aria-modal="true"
+          :aria-label="ariaLabel || null"
+          :aria-labelledby="
+            ariaLabelledby ?? ($slots.title || title ? titleId : null)
+          "
+        >
+          <div class="drawer-head">
+            <div>
+              <div :id="titleId" class="modal-title">
+                <slot name="title">{{ title }}</slot>
+              </div>
+              <div v-if="$slots.sub" class="modal-sub">
+                <slot name="sub" />
+              </div>
             </div>
-            <div v-if="$slots.sub" class="modal-sub">
-              <slot name="sub" />
-            </div>
+            <div style="flex: 1"></div>
+            <button class="t-icon-btn" @click="close">
+              <svg
+                viewBox="0 0 24 24"
+                width="17"
+                height="17"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
           </div>
-          <div style="flex: 1"></div>
-          <button class="t-icon-btn" @click="close">
-            <svg
-              viewBox="0 0 24 24"
-              width="17"
-              height="17"
-              fill="none"
-              stroke="currentColor"
-              stroke-width="2"
-              stroke-linecap="round"
-              stroke-linejoin="round"
-            >
-              <path d="M18 6 6 18M6 6l12 12" />
-            </svg>
-          </button>
-        </div>
-        <div class="drawer-body">
-          <slot />
-        </div>
-        <div v-if="$slots.footer" class="drawer-foot">
-          <slot name="footer" />
+          <div class="drawer-body">
+            <slot />
+          </div>
+          <div v-if="$slots.footer" class="drawer-foot">
+            <slot name="footer" />
+          </div>
         </div>
       </div>
-    </div>
+    </Transition>
   </Teleport>
 </template>
 <style scoped>
@@ -351,5 +393,22 @@ onBeforeUnmount(() => {
 .t-icon-btn:hover {
   background: var(--surface-3);
   color: var(--ink);
+}
+/* 进入/离开过渡（P4-GATE-01，准入门 #4）：与 Modal 同名同时长（遮罩淡入淡出，
+   面板不动——抽屉的滑入动画属 Phase 6 微交互面，本批不掺）。closed 挂在
+   after-leave（见 onAfterLeave）；reduce 降级瞬时。 */
+.overlay-anim-enter-active,
+.overlay-anim-leave-active {
+  transition: opacity 0.18s ease;
+}
+.overlay-anim-enter-from,
+.overlay-anim-leave-to {
+  opacity: 0;
+}
+@media (prefers-reduced-motion: reduce) {
+  .overlay-anim-enter-active,
+  .overlay-anim-leave-active {
+    transition: none;
+  }
 }
 </style>
