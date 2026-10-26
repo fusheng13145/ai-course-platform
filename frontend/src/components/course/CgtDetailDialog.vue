@@ -1,10 +1,8 @@
 <template>
-  <el-dialog
-    ref="dialogRef"
+  <Modal
     :model-value="modelValue"
     title="学生成绩详情"
     width="600px"
-    append-to-body
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <template v-if="currentStudent">
@@ -110,12 +108,11 @@
         />
       </div>
     </template>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
@@ -123,7 +120,7 @@ import EmptyState from '@/components/ui/EmptyState.vue'
  * <p>教师成绩页与学生课程成绩页共用；角色差异以 props 表达：
  * `detailed`（「课程」行 + 满分/提交时间列 + 空态）、`selectedCourseName`（课程名回退）。</p>
  */
-const props = defineProps({
+defineProps({
   /** 弹窗显隐（v-model） */
   modelValue: { type: Boolean, default: false },
   /** 当前查看的学生成绩（含 details 明细） */
@@ -133,13 +130,6 @@ const props = defineProps({
   /** 是否展示完整明细（教师成绩页为 true） */
   detailed: { type: Boolean, default: false },
 })
-
-const dialogRef = ref(null)
-// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(
-  dialogRef,
-  computed(() => props.modelValue),
-)
 
 defineEmits(['update:modelValue'])
 </script>

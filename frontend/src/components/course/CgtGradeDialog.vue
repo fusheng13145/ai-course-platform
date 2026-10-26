@@ -1,10 +1,8 @@
 <template>
-  <el-dialog
-    ref="dialogRef"
+  <Modal
     :model-value="modelValue"
     title="批阅作业"
     width="480px"
-    append-to-body
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <el-form v-if="gradingStudent" label-width="80px">
@@ -38,18 +36,17 @@
         确认评分
       </el-button>
     </template>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 /**
  * 批阅作业对话框（成绩域共享实现）
  * <p>教师成绩页与学生课程成绩页共用；角色差异以 props 表达：
  * `showTask`（是否显示「任务」行）、`currentTaskName`（任务名回退）。</p>
  */
-const props = defineProps({
+defineProps({
   /** 弹窗显隐（v-model） */
   modelValue: { type: Boolean, default: false },
   /** 当前批阅的学生行 */
@@ -63,11 +60,6 @@ const props = defineProps({
   /** 任务名回退显示 */
   currentTaskName: { type: String, default: '' },
 })
-const dialogRef = ref(null)
-// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef, computed(() => props.modelValue))
-
-
 defineEmits(['update:modelValue', 'submit'])
 </script>
 

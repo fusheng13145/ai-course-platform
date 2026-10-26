@@ -245,8 +245,8 @@ export function primitiveOnlySitesWithDeadWiring(records: OverlayRecord[]): stri
 
 /** Task 13 落地时逐 marker 的实测开标签数——Phase 4 每迁移一批就按同一命令重测、只改这张表。 */
 export const BASELINE_TAG_BY_MARKER: Readonly<Record<string, number>> = {
-  '<el-dialog': 63,
-  '<Modal': 13,
+  '<el-dialog': 61,
+  '<Modal': 15,
   '<Drawer': 2,
   '<el-drawer': 4,
 }
