@@ -240,13 +240,13 @@ export function primitiveOnlySitesWithDeadWiring(records: OverlayRecord[]): stri
 }
 
 /* ------------------------------------------------------------------ *
- * 地板值（口径同上，实跑于 Task 13 开工时；来源＝spec §11.7 的脚本，读数 73 / 82；批阅闭环批（2026-10-26）新增 CduAssignmentTab 一处 <Modal，83；同批同步文件数地板 73→74；试卷线批（2026-10-26）CeExamFormDialog <el-dialog→<Modal 迁移 + 新增 CesAutoComposeModal 一处 <Modal ⇒ 84，同批同步文件数地板 74→75）
+ * 地板值（口径同上，实跑于 Task 13 开工时；来源＝spec §11.7 的脚本，读数 73 / 82；批阅闭环批（2026-10-26）新增 CduAssignmentTab 一处 <Modal，83；同批同步文件数地板 73→74；试卷线批（2026-10-26）CeExamFormDialog <el-dialog→<Modal 迁移 + 新增 CesAutoComposeModal 一处 <Modal ⇒ 84，同批同步文件数地板 74→75；批 3a（2026-10-26）views/admin/teaching 12 处 <el-dialog→<Modal 迁移（ResourceVersionManage 2 处 + 其余 10 文件各 1 处）⇒ 84 / 75 不变）
  * ------------------------------------------------------------------ */
 
 /** Task 13 落地时逐 marker 的实测开标签数——Phase 4 每迁移一批就按同一命令重测、只改这张表。 */
 export const BASELINE_TAG_BY_MARKER: Readonly<Record<string, number>> = {
-  '<el-dialog': 58,
-  '<Modal': 20,
+  '<el-dialog': 46,
+  '<Modal': 32,
   '<Drawer': 2,
   '<el-drawer': 4,
 }

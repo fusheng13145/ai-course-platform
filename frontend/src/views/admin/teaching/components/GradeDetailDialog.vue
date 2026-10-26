@@ -1,10 +1,8 @@
 <template>
-  <el-dialog
-    ref="dialogRef"
+  <Modal
     :model-value="modelValue"
     title="成绩详情"
     width="600px"
-    destroy-on-close
     @update:model-value="emit('update:modelValue', $event)"
   >
     <div v-if="grade" class="grade-detail">
@@ -42,18 +40,17 @@
         </el-table>
       </div>
     </div>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 /**
  * 成绩详情对话框
  * <p>展示单条成绩的基本信息（学生/课程/考试/得分/排名/提交时间）与答题明细表；
  * 可见性通过 v-model 双向绑定。</p>
  */
-const props = defineProps({
+defineProps({
   /** 对话框可见性（v-model） */
   modelValue: { type: Boolean, default: false },
   /** 当前选中的成绩记录 */
@@ -61,13 +58,6 @@ const props = defineProps({
   /** 分数段样式函数 */
   getScoreClass: { type: Function, required: true },
 })
-
-const dialogRef = ref(null)
-// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(
-  dialogRef,
-  computed(() => props.modelValue),
-)
 
 const emit = defineEmits(['update:modelValue'])
 </script>

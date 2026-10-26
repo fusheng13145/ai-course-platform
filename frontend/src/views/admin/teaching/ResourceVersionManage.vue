@@ -123,7 +123,7 @@
     </section>
 
     <!-- 新建版本弹窗 -->
-    <el-dialog ref="dialogRef1" v-model="dialogVisible" title="新建版本" width="520px" append-to-body>
+    <Modal v-model="dialogVisible" title="新建版本" width="520px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="80px" scroll-to-error>
         <el-form-item label="资源">
           <el-input :model-value="selectedResourceName" disabled />
@@ -141,10 +141,10 @@
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="handleCreateVersion">创建</el-button>
       </template>
-    </el-dialog>
+    </Modal>
 
     <!-- 回滚确认 -->
-    <el-dialog ref="dialogRef2" v-model="rollbackVisible" title="确认回滚" width="400px" append-to-body>
+    <Modal v-model="rollbackVisible" title="确认回滚" width="400px">
       <p>确定回滚到 v{{ rollbackTarget?.versionNumber || '?' }}？</p>
       <p style="font-size: 13px; color: var(--ac-text-muted)">当前版本将被替换为所选版本的内容。</p>
       <template #footer>
@@ -153,7 +153,7 @@
           >确认回滚</el-button
         >
       </template>
-    </el-dialog>
+    </Modal>
   </div>
 </template>
 
@@ -166,8 +166,8 @@ import resourceApi from '@/api/resource'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import Modal from '@/components/ui/Modal.vue'
 import { validateFormFields, type ElFormLike } from '@/composables/useFormSubmit'
-import { useDialogFocus } from '@/composables/useDialogFocus'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -177,13 +177,7 @@ const resources = ref([])
 const versions = ref([])
 const activeVersionId = ref(null)
 const dialogVisible = ref(false)
-const dialogRef1 = ref(null)
-// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef1, dialogVisible)
 const rollbackVisible = ref(false)
-const dialogRef2 = ref(null)
-// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef2, rollbackVisible)
 const rollbackTarget = ref(null)
 const form = ref({ changeLog: '' })
 const formRef = ref<ElFormLike | null>(null)

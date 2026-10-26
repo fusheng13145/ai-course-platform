@@ -1,10 +1,8 @@
 <template>
-  <el-dialog
-    ref="dialogRef"
+  <Modal
     :model-value="modelValue"
     title="作弊检测记录"
     width="700px"
-    destroy-on-close
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <div v-if="cheatingLogs.length > 0">
@@ -29,20 +27,19 @@
       </div>
     </div>
     <EmptyState v-else title="暂无作弊检测记录" icon="alert" />
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
 import type { PropType } from 'vue'
-import { ref, computed } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 
 /**
  * 作弊检测日志对话框
  * <p>异常记录列表（学生/时间/类型/风险等级）。</p>
  */
-const props = defineProps({
+defineProps({
   /** 弹窗显隐（v-model） */
   modelValue: { type: Boolean, default: false },
   /** 作弊检测日志列表（studentName/studentId/detectedAt|time/type/description|detail/riskLevel） */
@@ -64,13 +61,6 @@ const props = defineProps({
   /** 风险等级 → 评分映射函数 */
   getRiskLevel: { type: Function, required: true },
 })
-
-const dialogRef = ref(null)
-// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(
-  dialogRef,
-  computed(() => props.modelValue),
-)
 
 defineEmits(['update:modelValue'])
 </script>

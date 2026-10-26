@@ -1,10 +1,8 @@
 <template>
-  <el-dialog
-    ref="dialogRef"
+  <Modal
     :model-value="modelValue"
     title="试卷统计分析"
     width="650px"
-    destroy-on-close
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <div v-if="statistics" class="stats-detail">
@@ -45,17 +43,16 @@
         <v-chart :option="gradeChartOption" style="height: 250px" autoresize />
       </div>
     </div>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 /**
  * 试卷统计对话框
  * <p>平均/最高/最低分、参考率/及格率、作弊嫌疑数 + 成绩分布柱状图。</p>
  */
-const props = defineProps({
+defineProps({
   /** 弹窗显隐（v-model） */
   modelValue: { type: Boolean, default: false },
   /** 统计数据对象 */
@@ -63,13 +60,6 @@ const props = defineProps({
   /** ECharts 分布图配置 */
   gradeChartOption: { type: Object, required: true },
 })
-
-const dialogRef = ref(null)
-// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(
-  dialogRef,
-  computed(() => props.modelValue),
-)
 
 defineEmits(['update:modelValue'])
 </script>

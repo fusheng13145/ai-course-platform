@@ -1,5 +1,5 @@
 <template>
-  <el-dialog ref="dialogRef" v-model="visible" title="上传资源" width="520px" append-to-body>
+  <Modal v-model="visible" title="上传资源" width="520px">
     <el-form label-width="80px">
       <el-form-item label="所属课程">
         <el-input :model-value="currentCourseName" disabled />
@@ -34,14 +34,14 @@
       <el-button @click="emit('close')">取消</el-button>
       <el-button type="primary" :loading="uploading" @click="submit">上传</el-button>
     </template>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import { UploadFilled } from '@element-plus/icons-vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 
 defineProps({
   currentCourseName: { type: String, default: '' },
@@ -50,9 +50,6 @@ defineProps({
 const emit = defineEmits(['close', 'upload'])
 
 const visible = ref(true)
-const dialogRef = ref(null)
-// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef, visible)
 const uploadRef = ref(null)
 const form = reactive({ description: '' })
 const selectedFile = ref(null)

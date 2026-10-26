@@ -1,10 +1,8 @@
 <template>
-  <el-dialog
-    ref="dialogRef"
+  <Modal
     :model-value="modelValue"
     title="创建查重任务"
     width="480px"
-    destroy-on-close
     @update:model-value="emit('update:modelValue', $event)"
   >
     <el-form
@@ -24,22 +22,18 @@
       <el-button @click="emit('update:modelValue', false)">取消</el-button>
       <el-button type="primary" :loading="creating" @click="handleCreate"> 确认创建 </el-button>
     </template>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed } from 'vue'
+import { ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import plagiarismApi from '@/api/plagiarismCheck'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 
-const props = defineProps({
+defineProps({
   modelValue: { type: Boolean, default: false },
 })
-const dialogRef = ref(null)
-// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef, computed(() => props.modelValue))
-
 
 const emit = defineEmits(['update:modelValue', 'created'])
 
