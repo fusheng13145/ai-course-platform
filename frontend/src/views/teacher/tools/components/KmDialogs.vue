@@ -1,11 +1,10 @@
 <template>
   <!-- 新建/编辑知识点对话框 -->
-  <el-dialog
-    ref="dialogRef1"
+  <Modal
+
     :model-value="formDialogVisible"
     :title="isEdit ? '编辑知识点' : '新建知识点'"
     width="560px"
-    destroy-on-close
     @update:model-value="emit('update:formVisible', $event)"
   >
     <el-form ref="formRef" :model="kpForm" :rules="formRules" label-width="100px" scroll-to-error>
@@ -67,11 +66,11 @@
         isEdit ? '保存修改' : '创建'
       }}</el-button>
     </template>
-  </el-dialog>
+  </Modal>
 
   <!-- 关联关系对话框 -->
-  <el-dialog
-    ref="dialogRef2"
+  <Modal
+
     :model-value="relationVisible"
     title="管理关联关系"
     width="520px"
@@ -121,15 +120,15 @@
         <EmptyState v-else title="暂无前置依赖" icon="list" size="compact" />
       </div>
     </div>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
 import type { PropType } from 'vue'
-import { ref, computed } from 'vue'
+import { ref } from 'vue'
 import { Delete } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 
 /** 课程/知识点下拉项（el-option 消费 id + name） */
 type IdNameOption = { id: number | string; name: string }
@@ -139,7 +138,7 @@ type IdNameOption = { id: number | string; name: string }
  * <p>表单对象/校验/课程选项经 props 注入；保存与关联操作经事件上抛父组件
  * （useKnowledgeManagement）。表单校验能力经 defineExpose 暴露。</p>
  */
-const props = defineProps({
+defineProps({
   formDialogVisible: { type: Boolean, default: false },
   isEdit: { type: Boolean, default: false },
   submitting: { type: Boolean, default: false },
@@ -153,18 +152,8 @@ const props = defineProps({
   availablePrereqs: { type: Array as PropType<IdNameOption[]>, default: () => [] },
   prerequisitesList: { type: Array as PropType<IdNameOption[]>, default: () => [] },
 })
-const dialogRef1 = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(
-  dialogRef1,
-  computed(() => props.formDialogVisible),
-)
-const dialogRef2 = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(
-  dialogRef2,
-  computed(() => props.relationVisible),
-)
 
 const emit = defineEmits([
   'update:formVisible',

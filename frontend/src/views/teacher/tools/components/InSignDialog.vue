@@ -1,7 +1,7 @@
 <template>
   <!-- 发起签到 -->
-  <el-dialog
-    ref="dialogRef"
+  <Modal
+
     :model-value="modelValue"
     title="发起签到"
     width="460px"
@@ -34,23 +34,17 @@
         >发起并发布</el-button
       >
     </template>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
-const props = defineProps({
+import Modal from '@/components/ui/Modal.vue'
+defineProps({
   modelValue: { type: Boolean, default: false },
   submitting: { type: Boolean, default: false },
   form: { type: Object, default: () => ({}) },
 })
 
-const dialogRef = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(
-  dialogRef,
-  computed(() => props.modelValue),
-)
 defineEmits(['update:modelValue', 'submit'])
 </script>

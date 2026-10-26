@@ -1,7 +1,7 @@
 <template>
   <!-- 签到记录 -->
-  <el-dialog
-    ref="dialogRef"
+  <Modal
+
     :model-value="modelValue"
     title="签到记录"
     width="640px"
@@ -59,15 +59,15 @@
         </el-form-item>
       </el-form>
     </div>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed, type PropType } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import { type PropType } from 'vue'
 import { EditPen } from '@element-plus/icons-vue'
+import Modal from '@/components/ui/Modal.vue'
 
-const props = defineProps({
+defineProps({
   modelValue: { type: Boolean, default: false },
   recordList: {
     type: Array as PropType<{ studentId: number | string; studentName: string }[]>,
@@ -80,12 +80,7 @@ const props = defineProps({
   markSubmitting: { type: Boolean, default: false },
 })
 
-const dialogRef = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(
-  dialogRef,
-  computed(() => props.modelValue),
-)
 defineEmits(['update:modelValue', 'open-mark', 'mark-submit'])
 
 function recordStatusType(s) {

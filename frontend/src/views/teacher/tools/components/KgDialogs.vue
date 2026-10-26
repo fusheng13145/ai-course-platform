@@ -1,7 +1,7 @@
 <template>
   <!-- 新建/编辑知识点 -->
-  <el-dialog
-  ref="dialogRef1"
+  <Modal
+
     :model-value="formDialog"
     :title="isEdit ? '编辑知识点' : '新建知识点'"
     width="520px"
@@ -37,11 +37,11 @@
       <el-button @click="emit('update:formDialog', false)">取消</el-button>
       <el-button type="primary" :loading="formSubmitting" @click="emit('submit')">保存</el-button>
     </template>
-  </el-dialog>
+  </Modal>
 
   <!-- AI 抽取 -->
-  <el-dialog
-  ref="dialogRef2"
+  <Modal
+
     :model-value="extractDialog"
     title="AI 抽取知识点"
     width="620px"
@@ -95,20 +95,19 @@
         <pre>{{ extractRaw }}</pre>
       </div>
     </div>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
 import { MagicStick } from '@element-plus/icons-vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 
 /**
  * 知识图谱对话框（新建/编辑 + AI 抽取）
  * <p>表单对象经 props 注入（共享 reactive 对象编辑嵌套属性）；AI 抽取展示节点/关系
  * 结果与 JSON 概览。操作经事件上抛父组件（useKnowledgeGraph）。</p>
  */
-const props = defineProps({
+defineProps({
   formDialog: { type: Boolean, default: false },
   isEdit: { type: Boolean, default: false },
   formSubmitting: { type: Boolean, default: false },
@@ -123,12 +122,8 @@ const props = defineProps({
   nodeName: { type: Function, required: true },
   relText: { type: Function, required: true },
 })
-const dialogRef1 = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef1, computed(() => props.formDialog))
-const dialogRef2 = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef2, computed(() => props.extractDialog))
 
 
 const emit = defineEmits([
