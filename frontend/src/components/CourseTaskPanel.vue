@@ -77,8 +77,8 @@
       />
     </div>
 
-    <el-dialog
-      ref="dialogRef"
+    <Modal
+
     v-model="taskDialogVisible"
       :title="editingTask ? '编辑作业' : '创建作业'"
       width="600px"
@@ -143,7 +143,7 @@
         <el-button @click="taskDialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="saveTask">保存</el-button>
       </template>
-    </el-dialog>
+    </Modal>
   </div>
 </template>
 
@@ -157,7 +157,7 @@ import { validateFormFields } from '@/composables/useFormSubmit'
 import taskApi from '@/api/task'
 import { confirmDanger } from '@/utils/dangerConfirm'
 import { formatDateTime } from '@/utils/datetime'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 
 const props = defineProps({
   courseId: { type: Number, required: true },
@@ -170,9 +170,7 @@ const loading = ref(false)
 const loadError = ref('')
 const taskFilter = ref('')
 const taskDialogVisible = ref(false)
-const dialogRef = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef, taskDialogVisible)
 const editingTask = ref(null)
 const saving = ref(false)
 

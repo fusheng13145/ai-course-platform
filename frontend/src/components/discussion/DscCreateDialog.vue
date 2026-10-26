@@ -1,6 +1,6 @@
 <template>
-  <el-dialog
-    ref="dialogRef"
+  <Modal
+
     :model-value="modelValue"
     :title="dialogTitle"
     width="560px"
@@ -29,18 +29,17 @@
       <el-button @click="$emit('update:modelValue', false)">取消</el-button>
       <el-button type="primary" :loading="submitting" @click="$emit('submit')">发布</el-button>
     </template>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 /**
  * 发起/发布话题对话框（讨论域共享实现）
  * <p>学生端（发起讨论）与教师端（发布话题）共用同一组件；角色差异以 props 表达：
  * `dialogTitle`（标题）、`showChapter`（教师端「章节」字段）、`contentPlaceholder`（占位文案）。</p>
  */
-const props = defineProps({
+defineProps({
   /** 弹窗显隐（v-model） */
   modelValue: { type: Boolean, default: false },
   /** 话题表单（共享对象：title/content，教师端另含 chapterId） */
@@ -54,9 +53,7 @@ const props = defineProps({
   /** 内容框占位文案 */
   contentPlaceholder: { type: String, default: '想讨论什么？' },
 })
-const dialogRef = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef, computed(() => props.modelValue))
 
 
 defineEmits(['update:modelValue', 'submit'])

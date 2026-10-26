@@ -1,6 +1,6 @@
 <template>
-  <el-dialog
-    ref="dialogRef"
+  <Modal
+
     :model-value="modelValue"
     title="键盘快捷键"
     width="480px"
@@ -18,12 +18,11 @@
     <p class="ks-tip">
       单键快捷键（<kbd>/</kbd> 与 <kbd>?</kbd>）在输入框获得焦点时不触发，不会打断输入。
     </p>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 
 /**
  * 键盘快捷键说明弹层（D2-7 第八批）
@@ -31,17 +30,12 @@ import { useDialogFocus } from '@/composables/useDialogFocus'
  * <p>快捷键体系的「自说明」入口：按 `?` 打开本弹层（再按一次或 Esc 关闭）。
  * 内容与 useKeyboardShortcuts 的实际绑定保持同源口径——新增快捷键时须同步本表。</p>
  */
-const props = defineProps({
+defineProps({
   /** 弹窗显隐（v-model） */
   modelValue: { type: Boolean, default: false },
 })
 
-const dialogRef = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(
-  dialogRef,
-  computed(() => props.modelValue),
-)
 
 /** 快捷键清单（keyList 逐枚渲染为 kbd 键帽） */
 const SHORTCUTS = [

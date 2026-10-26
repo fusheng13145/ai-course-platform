@@ -1,7 +1,7 @@
 <template>
   <!-- 发起投票 -->
-  <el-dialog
-    ref="dialogRef"
+  <Modal
+
     :model-value="modelValue"
     title="发起投票"
     width="520px"
@@ -44,20 +44,19 @@
       <el-button @click="$emit('update:modelValue', false)">取消</el-button>
       <el-button type="primary" :loading="submitting" @click="$emit('submit')">发起</el-button>
     </template>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
 import { Delete, Plus } from '@element-plus/icons-vue'
 import { buttonA11y } from '@/composables/useA11y'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 
 /**
  * 发起投票对话框（互动域共享实现）
  * <p>教师「互动工具」页与「课程互动」页共用；标题/选项数组/多选数据结构一致。</p>
  */
-const props = defineProps({
+defineProps({
   /** 弹窗显隐（v-model） */
   modelValue: { type: Boolean, default: false },
   /** 投票表单（共享对象：title / options[] / multiple） */
@@ -65,9 +64,7 @@ const props = defineProps({
   /** 提交加载态 */
   submitting: { type: Boolean, default: false },
 })
-const dialogRef = ref(null)
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef, computed(() => props.modelValue))
 
 
 defineEmits(['update:modelValue', 'submit'])
