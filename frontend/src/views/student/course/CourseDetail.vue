@@ -56,21 +56,32 @@
           />
         </div>
       </el-tab-pane>
+
+      <!-- 作业任务 Tab：已发布任务的提交入口 + 我的成绩/评语展示（S1/S2 最小面） -->
+      <el-tab-pane label="作业任务" name="assignments" lazy>
+        <div class="tab-content-card">
+          <CduAssignmentTab :course-id="String(route.params.id)" />
+        </div>
+      </el-tab-pane>
     </el-tabs>
   </div>
 </template>
 
 <script setup lang="ts">
+import { useRoute } from 'vue-router'
 import { useStudentCourseDetail } from '@/composables/useStudentCourseDetail'
 import CduHeader from './components/CduHeader.vue'
 import CduInfoTab from './components/CduInfoTab.vue'
 import CduChapterList from './components/CduChapterList.vue'
 import CduLearningMode from './components/CduLearningMode.vue'
+import CduAssignmentTab from './components/CduAssignmentTab.vue'
 
 /**
  * 学生课程详情页（页面壳）
- * <p>头部卡 + Tabs（简介/章节学习）编排，学习模式双视图切换，业务逻辑委托 useStudentCourseDetail。</p>
+ * <p>头部卡 + Tabs（简介/章节学习/作业任务）编排，学习模式双视图切换，业务逻辑委托 useStudentCourseDetail；作业任务页签业务委托 CduAssignmentTab。</p>
  */
+
+const route = useRoute()
 
 const {
   pageLoading,

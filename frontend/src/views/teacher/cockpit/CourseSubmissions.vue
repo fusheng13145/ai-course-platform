@@ -67,7 +67,23 @@
             </div>
           </div>
           <div class="l1-body flush">
-            <div v-if="submissions.length" class="tbl-wrap">
+            <!-- 状态筛选 chips（待批阅 = SUBMITTED + RESUBMITTED） -->
+            <div v-if="submissions.length" class="filter-chips">
+              <button
+                v-for="opt in SUBMISSION_FILTER_OPTIONS"
+                :key="opt.value"
+                type="button"
+                class="chip"
+                :class="{ 'is-active': statusFilter === opt.value }"
+                @click="statusFilter = opt.value"
+              >
+                {{ opt.label }}
+                <span v-if="opt.value === 'PENDING' && pendingCount" class="chip-badge">{{
+                  pendingCount
+                }}</span>
+              </button>
+            </div>
+            <div v-if="filteredSubmissions.length" class="tbl-wrap">
               <table class="tbl">
                 <thead>
                   <tr>
@@ -80,13 +96,13 @@
                   </tr>
                 </thead>
                 <tbody>
-                  <tr v-for="row in submissions" :key="row.id">
+                  <tr v-for="row in filteredSubmissions" :key="row.id">
                     <td class="cell-main">
                       {{ row.studentName || row.studentNo || `学生 #${row.studentId ?? row.id}` }}
                     </td>
                     <td>
-                      <span class="tag" :class="getSubmissionStatusClass(row.status)">{{
-                        getSubmissionStatusLabel(row.status)
+                      <span class="tag" :class="submissionStatusView(row.status).tagClass">{{
+                        submissionStatusView(row.status).label
                       }}</span>
                     </td>
                     <td class="num strong">{{ row.score != null ? row.score : '—' }}</td>
@@ -102,23 +118,15 @@
                         <button
                           type="button"
                           class="op-link"
-                          :disabled="saving"
+                          :disabled="gradeModal.visible"
                           @click="openGrade(row)"
                         >
                           批改
                         </button>
                         <button
                           type="button"
-                          class="op-link"
-                          :disabled="row._ai || saving"
-                          @click="aiGrade(row)"
-                        >
-                          {{ row._ai ? 'AI 评分中…' : 'AI 评分' }}
-                        </button>
-                        <button
-                          type="button"
                           class="op-link danger"
-                          :disabled="saving"
+                          :disabled="returnModal.visible"
                           @click="openReturn(row)"
                         >
                           退回
@@ -150,7 +158,13 @@
               show-icon
             />
             <EmptyState
-              v-else-if="!submissionsLoading && selectedTask"
+              v-else-if="!submissionsLoading && selectedTask && submissions.length"
+              title="当前筛选下暂无提交记录"
+              icon="list"
+              size="compact"
+            />
+            <EmptyState
+              v-else-if="!submissionsLoading && selectedTask && !submissions.length"
               title="暂无提交记录"
               icon="list"
             />
@@ -160,19 +174,22 @@
       </div>
     </div>
 
-    <!-- 批改弹窗（内嵌打分 + 评语） -->
-    <Modal v-if="gradeVisible" narrow @close="closeGrade">
+    <!-- 批改弹窗（内嵌打分 + 评语 + AI 预批建议区） -->
+    <Modal v-if="gradeModal.visible" narrow @close="closeAll">
       <template #title>批改作业</template>
       <template #sub
-        >学生：<b>{{ gradingRow?.studentName }}</b></template
+        >学生：<b>{{ gradeModal.row?.studentName }}</b></template
       >
       <div>
         <div class="l3-block">
-          <div class="strong small mb-8">{{ gradingRow?.studentName }} 的提交内容</div>
-          <span v-if="gradingRow?.content">{{ gradingRow?.content }}</span>
-          <div v-if="gradingRow?.fileUrls?.length" class="attachment-list">
+          <div class="strong small mb-8">{{ gradeModal.row?.studentName }} 的提交内容</div>
+          <span v-if="gradeModal.row?.content">{{ gradeModal.row?.content }}</span>
+          <div v-if="gradeModal.row?.fileUrls?.length" class="attachment-list">
             <span class="muted">附件：</span>
-            <template v-for="(fileUrl, index) in gradingRow.fileUrls" :key="`${fileUrl}-${index}`">
+            <template
+              v-for="(fileUrl, index) in gradeModal.row.fileUrls"
+              :key="`${fileUrl}-${index}`"
+            >
               <a
                 v-if="getSafeAttachmentUrl(fileUrl)"
                 :href="getSafeAttachmentUrl(fileUrl)"
@@ -184,26 +201,67 @@
               <span v-else class="tag red">附件 {{ index + 1 }}（链接无效）</span>
             </template>
           </div>
-          <span v-if="!gradingRow?.content && !gradingRow?.fileUrls?.length" class="muted"
+          <span v-if="!gradeModal.row?.content && !gradeModal.row?.fileUrls?.length" class="muted"
             >无内容</span
           >
         </div>
+
+        <!-- AI 预批建议区：预批 → 建议展示 → 采纳回填 → 教师确认提交（不改分，最终走 /grade） -->
+        <div class="ai-block">
+          <div class="ai-head">
+            <span class="strong small">AI 预批建议</span>
+            <button
+              type="button"
+              class="op-link"
+              :disabled="gradeModal.aiLoading || !gradeRowHasContent"
+              @click="runAiPreview"
+            >
+              {{ gradeModal.aiLoading ? 'AI 预批中…' : 'AI 预批' }}
+            </button>
+          </div>
+          <div v-if="!gradeRowHasContent" class="small muted ai-empty">
+            该提交无文本或附件内容，无法进行 AI 预批
+          </div>
+          <div v-else-if="gradeModal.aiResult" class="ai-result">
+            <div class="ai-line">
+              <span class="muted small">建议分：</span>
+              <b>{{ gradeModal.aiResult.suggestedScore ?? '—' }}</b>
+              <span class="muted small">/ {{ gradeModal.maxScore }}</span>
+            </div>
+            <div v-if="gradeModal.aiResult.highlights" class="ai-line small">
+              <span class="muted">亮点：</span>{{ gradeModal.aiResult.highlights }}
+            </div>
+            <div v-if="gradeModal.aiResult.suggestions" class="ai-line small">
+              <span class="muted">改进：</span>{{ gradeModal.aiResult.suggestions }}
+            </div>
+            <div v-if="gradeModal.aiResult.feedback" class="ai-line small">
+              <span class="muted">AI 评语：</span>{{ gradeModal.aiResult.feedback }}
+            </div>
+            <button type="button" class="btn btn-plain btn-sm" @click="applyAiSuggestion">
+              采纳建议（回填后可修改）
+            </button>
+          </div>
+          <div v-else class="small muted ai-empty">
+            点击「AI 预批」获取建议分与评语，采纳后仍需人工确认提交
+          </div>
+        </div>
+
         <div class="form-grid">
           <div class="field">
-            <label>评分（0-{{ gradingMaxScore }}）</label>
+            <label>评分（0-{{ gradeModal.maxScore }}）</label>
             <input
-              v-model.number="gradeForm.score"
+              v-model.number="gradeModal.form.score"
               class="input"
               type="number"
               min="0"
-              :max="gradingMaxScore"
+              :max="gradeModal.maxScore"
               step="0.1"
             />
           </div>
           <div class="field span-2">
             <label>评语</label
             ><textarea
-              v-model="gradeForm.feedback"
+              v-model="gradeModal.form.feedback"
               class="textarea"
               placeholder="指出亮点与错误之处…"
               maxlength="5000"
@@ -213,21 +271,21 @@
         </div>
       </div>
       <template #footer>
-        <button class="btn btn-plain" :disabled="saving" @click="closeGrade">取消</button>
-        <button class="btn btn-primary" :disabled="saving || !gradingRow" @click="saveGrade">
+        <button class="btn btn-plain" @click="closeAll">取消</button>
+        <button class="btn btn-primary" :disabled="!gradeModal.row" @click="submitGrade">
           提交批改
         </button>
       </template>
     </Modal>
 
     <!-- 退回弹窗 -->
-    <Modal v-if="returnVisible" narrow @close="closeReturn">
+    <Modal v-if="returnModal.visible" narrow @close="closeAll">
       <template #title>退回重做</template>
       <div class="form-grid">
         <div class="field span-2">
           <label>退回原因</label
           ><textarea
-            v-model="returnForm.reason"
+            v-model="returnModal.form.reason"
             class="textarea"
             placeholder="请说明退回原因"
             maxlength="1000"
@@ -236,23 +294,25 @@
         </div>
       </div>
       <template #footer>
-        <button class="btn btn-plain" :disabled="saving" @click="closeReturn">取消</button>
-        <button class="btn btn-primary btn-warn" :disabled="saving" @click="saveReturn">
-          确认退回
-        </button>
+        <button class="btn btn-plain" @click="closeAll">取消</button>
+        <button class="btn btn-primary btn-warn" @click="submitReturn">确认退回</button>
       </template>
     </Modal>
   </div>
 </template>
 
-<script setup lang="ts">
+<script setup>
 import logger from '@/utils/logger'
 import { pickList, readTotal, unwrap } from '@/utils/response'
-import { ref, reactive, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
-import { ElMessage } from 'element-plus'
 import taskApi from '@/api/task'
 import submissionApi from '@/api/submission'
+import {
+  useSubmissionGrading,
+  SUBMISSION_FILTER_OPTIONS,
+  submissionStatusView,
+} from '@/composables/useSubmissionGrading'
 import Modal from '@/components/ui/Modal.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import PageHeader from '@/components/PageHeader.vue'
@@ -262,7 +322,6 @@ const courseId = computed(() => Number(route.params.id))
 
 const loading = ref(false)
 const submissionsLoading = ref(false)
-const saving = ref(false)
 const taskNotice = ref('')
 const submissionNotice = ref('')
 
@@ -275,20 +334,26 @@ const submissionPage = ref(1)
 const submissionPageSize = ref(20)
 const submissionTotal = ref(0)
 
-const gradeVisible = ref(false)
-const gradingRow = ref(null)
-const gradeForm = reactive<{ score: number | string | null; feedback: string }>({
-  score: null,
-  feedback: '',
+// 批阅域逻辑（状态筛选 / 批改流 / 退回流）收敛到 useSubmissionGrading
+const {
+  statusFilter,
+  filteredSubmissions,
+  pendingCount,
+  gradeModal,
+  gradeRowHasContent,
+  returnModal,
+  openGrade,
+  runAiPreview,
+  applyAiSuggestion,
+  submitGrade,
+  openReturn,
+  submitReturn,
+  closeAll,
+} = useSubmissionGrading({
+  courseId,
+  submissions,
+  onGraded: loadSubmissions,
 })
-const gradingMaxScore = computed(() => {
-  const value = Number(gradingRow.value?.maxScore ?? selectedTask.value?.maxScore)
-  return Number.isFinite(value) && value >= 0 ? value : 1000
-})
-
-const returnVisible = ref(false)
-const returnRow = ref(null)
-const returnForm = reactive({ reason: '' })
 
 let taskLoadSequence = 0
 let submissionLoadSequence = 0
@@ -392,13 +457,14 @@ async function loadSubmissions() {
   submissionNotice.value = ''
   submissionsLoading.value = true
   try {
-    const response = await submissionApi.getTaskSubmissions(taskId, {
-      page: submissionPage.value,
-      size: submissionPageSize.value,
-    })
+    const payload = unwrap(
+      await submissionApi.getTaskSubmissions(taskId, {
+        page: submissionPage.value,
+        size: submissionPageSize.value,
+      }),
+    )
     if (sequence !== submissionLoadSequence || taskId !== selectedTaskId.value) return
-    const payload = unwrap(response)
-    const rows = pickList(payload) as Record<string, unknown>[]
+    const rows = pickList(payload)
     submissions.value = rows.map((row) => ({
       ...row,
       fileUrls: normalizeFileUrls(row.fileUrls),
@@ -465,122 +531,6 @@ function getTaskTypeClass(value) {
     : 'blue'
 }
 
-function getSubmissionStatusLabel(value) {
-  const labels = {
-    GRADED: '已批改',
-    RETURNED: '已退回',
-    SUBMITTED: '待批改',
-    RESUBMITTED: '重新提交待批改',
-  }
-  const normalized = String(value || '').toUpperCase()
-  return labels[normalized] || '状态未知'
-}
-
-function getSubmissionStatusClass(value) {
-  const normalized = String(value || '').toUpperCase()
-  if (normalized === 'GRADED') return 'green'
-  if (normalized === 'RETURNED') return 'red'
-  if (['SUBMITTED', 'RESUBMITTED'].includes(normalized)) return 'amber'
-  return ''
-}
-
-function resetGrade() {
-  gradingRow.value = null
-  gradeForm.score = null
-  gradeForm.feedback = ''
-}
-function openGrade(row) {
-  gradingRow.value = row
-  gradeForm.score = row.score != null ? Number(row.score) : null
-  gradeForm.feedback = row.feedback || ''
-  gradeVisible.value = true
-}
-
-// 修复：模板多语句表达式与 prettier(semi:false) 冲突会产生 Vue 编译器无法解析的换行格式，
-// 提取为方法（关闭批改/退回弹窗时同步重置表单）
-function closeGrade() {
-  gradeVisible.value = false
-  resetGrade()
-}
-function closeReturn() {
-  returnVisible.value = false
-  resetReturn()
-}
-
-async function saveGrade() {
-  if (gradeForm.score == null || gradeForm.score === '') {
-    ElMessage.warning('请填写分数')
-    return
-  }
-  const score = Number(gradeForm.score)
-  if (!gradingRow.value || !Number.isFinite(score)) {
-    ElMessage.warning('请输入有效分数')
-    return
-  }
-  if (score < 0 || score > gradingMaxScore.value) {
-    ElMessage.warning(`分数需在 0 至 ${gradingMaxScore.value} 之间`)
-    return
-  }
-  saving.value = true
-  try {
-    await submissionApi.gradeSubmission(gradingRow.value.id, {
-      score,
-      feedback: gradeForm.feedback,
-    })
-    ElMessage.success('批改已提交')
-    closeGrade()
-    await loadSubmissions()
-  } catch (error) {
-    logger.error('批改失败', error)
-    ElMessage.error('提交批改失败，请稍后重试')
-  } finally {
-    saving.value = false
-  }
-}
-
-async function aiGrade(row) {
-  row._ai = true
-  try {
-    await submissionApi.aiGrade(row.id)
-    ElMessage.success('AI 评分完成')
-    await loadSubmissions()
-  } catch (e) {
-    logger.error('AI 评分失败', e)
-    ElMessage.error('AI 评分失败，请稍后重试')
-  } finally {
-    row._ai = false
-  }
-}
-
-function resetReturn() {
-  returnRow.value = null
-  returnForm.reason = ''
-}
-function openReturn(row) {
-  returnRow.value = row
-  returnForm.reason = ''
-  returnVisible.value = true
-}
-async function saveReturn() {
-  if (!returnRow.value) return
-  if (!returnForm.reason.trim()) {
-    ElMessage.warning('请填写退回原因')
-    return
-  }
-  saving.value = true
-  try {
-    await submissionApi.returnSubmission(returnRow.value?.id, { reason: returnForm.reason })
-    ElMessage.success('已退回')
-    closeReturn()
-    await loadSubmissions()
-  } catch (error) {
-    logger.error('退回失败', error)
-    ElMessage.error('退回失败，请稍后重试')
-  } finally {
-    saving.value = false
-  }
-}
-
 onMounted(loadTasks)
 watch(
   () => [route.params.id, route.query.taskId],
@@ -592,9 +542,9 @@ watch(
     submissionTotal.value = 0
     taskNotice.value = ''
     submissionNotice.value = ''
+    statusFilter.value = 'ALL'
     submissionLoadSequence++
-    closeGrade()
-    closeReturn()
+    closeAll()
     loadTasks()
   },
 )
@@ -638,6 +588,77 @@ watch(
 .task-item.is-active {
   border-color: var(--accent);
   background: var(--accent-softer);
+}
+
+/* ====== 状态筛选 chips ====== */
+.filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 12px 16px 0;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border: 1px solid var(--line);
+  background: var(--surface);
+  color: var(--ink-2);
+  border-radius: 999px;
+  padding: 4px 12px;
+  font-size: 12.5px;
+  font-family: inherit;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.chip:hover {
+  border-color: var(--line-strong);
+}
+.chip.is-active {
+  border-color: var(--accent);
+  color: var(--accent);
+  background: var(--accent-softer);
+}
+.chip-badge {
+  min-width: 18px;
+  text-align: center;
+  border-radius: 999px;
+  background: var(--warn, #b57908);
+  color: #fff;
+  font-size: 11px;
+  padding: 0 5px;
+  line-height: 18px;
+}
+
+/* ====== AI 预批建议区 ====== */
+.ai-block {
+  border: 1px solid var(--line-2);
+  border-radius: 8px;
+  padding: 10px 12px;
+  margin-bottom: 14px;
+}
+.ai-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.ai-empty {
+  line-height: 1.7;
+}
+.ai-result {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.ai-line {
+  line-height: 1.7;
+}
+.ai-block .btn-sm {
+  align-self: flex-start;
+  margin-top: 8px;
+  font-size: 12.5px;
+  padding: 4px 12px;
 }
 
 /* ====== 提取的内联样式 ====== */

@@ -260,6 +260,46 @@ class ExamPaperControllerTest extends ControllerTestBase {
     }
 
     @Test
+    @DisplayName("POST /exam-papers/1/questions - 教师批量替换试卷题目返回200，清单透传")
+    void replaceQuestions_authorized_passes_security() throws Exception {
+        ExamQuestion saved = new ExamQuestion();
+        saved.setId(77L);
+        saved.setExamPaperId(1L);
+        saved.setQuestionId(9L);
+        saved.setOrderIndex(0);
+        ExamPaper paper = new ExamPaper();
+        paper.setId(1L);
+        when(examPaperService.getById(eq(1L))).thenReturn(paper);
+        when(examPaperService.replaceExamQuestions(eq(1L), any()))
+                .thenReturn(List.of(saved));
+        mockMvc.perform(post("/exam-papers/1/questions").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"questions\":[{\"questionId\":9,\"points\":5,\"orderIndex\":0}]}")
+                        .with(withUser(1L, "TEACHER", "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data[0].id").value(77))
+                .andExpect(jsonPath("$.data[0].questionId").value(9));
+        verify(examPaperService).replaceExamQuestions(eq(1L), any());
+        verify(examPaperAccessControl).assertCanManage(any(), any());
+    }
+
+    @Test
+    @DisplayName("POST /exam-papers/1/questions - 未认证返回401")
+    void replaceQuestions_unauthorized_returns_401() throws Exception {
+        mockMvc.perform(post("/exam-papers/1/questions").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"questions\":[{\"questionId\":9}]}"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("POST /exam-papers/1/questions - STUDENT角色返回403")
+    void replaceQuestions_student_forbidden_403() throws Exception {
+        mockMvc.perform(post("/exam-papers/1/questions").contentType(MediaType.APPLICATION_JSON)
+                .content("{\"questions\":[{\"questionId\":9}]}").with(withUser(2L, "STUDENT")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("POST /exam-papers/auto-compose - 教师自动组卷返回200，ID透传")
     void autoCompose_authorized_passes_security() throws Exception {
         ExamPaper paper = new ExamPaper();

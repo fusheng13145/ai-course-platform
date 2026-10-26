@@ -8,6 +8,9 @@ export const submitTask = (taskId, data) => request.post('/submissions', { ...da
  * 导出函数 getMySubmissions：获取/查询数据
  */
 export const getMySubmissions = (params = {}) => request.get('/submissions', { params })
+/** 读取当前学生的全部提交（跨任务分组展示成绩/评语用，避免分页截断漏行）。 */
+export const getAllMySubmissions = (filters = {}) =>
+  fetchAllPages((page, size) => getMySubmissions({ ...filters, page, size }))
 /**
  * 导出函数 getTaskSubmissions：获取/查询数据
  */
@@ -50,6 +53,7 @@ export const recordView = (id) => request.post(`/submissions/${id}/view`)
 export default {
   submitTask,
   getMySubmissions,
+  getAllMySubmissions,
   getTaskSubmissions,
   getAllTaskSubmissions,
   gradeSubmission,

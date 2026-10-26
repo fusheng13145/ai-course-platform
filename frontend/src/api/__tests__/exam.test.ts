@@ -1,5 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { getExamQuestions, listByCourse, normalizeExamQuestions } from '@/api/exam'
+import {
+  autoComposeExamPaper,
+  getExamQuestions,
+  listByCourse,
+  normalizeExamQuestions,
+  saveExamQuestions,
+} from '@/api/exam'
 
 /**
  * P0-2 契约护栏（2026-09-21）
@@ -17,12 +23,13 @@ import { getExamQuestions, listByCourse, normalizeExamQuestions } from '@/api/ex
 
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
+  post: vi.fn(),
 }))
 
 vi.mock('@/api/request', () => ({
   default: {
     get: mocks.get,
-    post: vi.fn(),
+    post: mocks.post,
     put: vi.fn(),
     delete: vi.fn(),
   },
@@ -233,5 +240,54 @@ describe('exam 模块：listByCourse', () => {
     expect(mocks.get).toHaveBeenNthCalledWith(2, '/exam-papers/course/7', {
       params: { page: 2, size: 100 },
     })
+  })
+})
+
+/**
+ * autoComposeExamPaper / saveExamQuestions 契约（2026-10-26 批阅闭环批）
+ *
+ * - autoCompose：后端 POST /exam-papers/auto-compose 直接建卷并写入题目，返回 DRAFT 试卷；
+ *   typeRules 的 key 必须是题库 Question.type 实际值（F3），封装只做透传不加工。
+ * - saveExamQuestions：批量替换语义，body 形状与后端 ExamQuestion 实体对齐
+ *   （{ questions: [{ questionId, points, orderIndex }] }）。
+ */
+describe('exam 模块：autoComposeExamPaper / saveExamQuestions', () => {
+  beforeEach(() => {
+    mocks.post.mockReset()
+  })
+
+  it('autoComposeExamPaper POST /exam-papers/auto-compose，payload 原样透传', async () => {
+    mocks.post.mockResolvedValue({ code: 200, message: '自动组卷成功', data: { id: 9 } })
+
+    const dto = {
+      courseId: 7,
+      title: '期中测验',
+      totalScore: 100,
+      duration: 60,
+      typeRules: { SINGLE: 5, ESSAY: 2 },
+      difficultyRatio: { EASY: 30, MEDIUM: 50, HARD: 20 },
+    }
+    await autoComposeExamPaper(dto)
+
+    expect(mocks.post).toHaveBeenCalledTimes(1)
+    expect(mocks.post).toHaveBeenCalledWith('/exam-papers/auto-compose', dto)
+  })
+
+  it('saveExamQuestions POST /exam-papers/{id}/questions，题目清单包在 questions 字段内', async () => {
+    mocks.post.mockResolvedValue({ code: 200, message: '保存成功', data: [] })
+
+    const items = [
+      { questionId: 6, points: 5, orderIndex: 0 },
+      { questionId: 7, points: 8, orderIndex: 1 },
+    ]
+    await saveExamQuestions(9, items)
+
+    expect(mocks.post).toHaveBeenCalledWith('/exam-papers/9/questions', { questions: items })
+  })
+
+  it('两个封装均已在默认导出对象中登记', async () => {
+    const examApi = (await import('@/api/exam')).default
+    expect(typeof examApi.autoComposeExamPaper).toBe('function')
+    expect(typeof examApi.saveExamQuestions).toBe('function')
   })
 })

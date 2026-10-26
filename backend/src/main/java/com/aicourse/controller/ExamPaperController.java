@@ -12,6 +12,7 @@ import com.aicourse.entity.Course;
 import com.aicourse.entity.ExamPaper;
 import com.aicourse.entity.ExamPaperStatus;
 import com.aicourse.dto.AutoComposeDTO;
+import com.aicourse.dto.ExamQuestionBatchDTO;
 import com.aicourse.entity.ExamQuestion;
 import com.aicourse.entity.Question;
 import com.aicourse.security.RoleUtil;
@@ -304,6 +305,24 @@ public class ExamPaperController {
         examPaperService.publishExamPaper(id);
         ExamPaper paper = examPaperService.getById(id);
         return ApiResponse.success("发布成功", paper);
+    }
+
+    /**
+     * 批量替换试卷题目（教师/管理员权限，手动选题保存通道）。
+     * @param id 试卷ID
+     * @param body 题目清单（questionId/points/orderIndex，与 ExamQuestion 实体对齐）
+     * @param auth 认证信息
+     * @return 写入后的关联行列表
+     */
+    @PostMapping("/{id}/questions")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "批量替换试卷题目")
+    public ApiResponse<List<ExamQuestion>> replaceQuestions(@PathVariable Long id,
+            @Valid @RequestBody ExamQuestionBatchDTO body, Authentication auth) {
+        // 归属校验：与 update/delete/publish 同口径，仅试卷所属课程的授课教师或管理员可操作
+        examPaperAccessControl.assertCanManage(examPaperService.getById(id), auth);
+        List<ExamQuestion> saved = examPaperService.replaceExamQuestions(id, body.getQuestions());
+        return ApiResponse.success("保存成功", saved);
     }
 
     /**

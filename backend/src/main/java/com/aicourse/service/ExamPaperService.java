@@ -1,10 +1,14 @@
 package com.aicourse.service;
 
 import com.aicourse.entity.ExamPaper;
+import com.aicourse.entity.ExamQuestion;
 import com.aicourse.dto.AutoComposeDTO;
+import com.aicourse.dto.ExamQuestionBatchDTO;
 import com.aicourse.vo.ExamPaperDetailVO;
 import com.aicourse.vo.ExamPaperStatsVO;
 import com.baomidou.mybatisplus.extension.service.IService;
+
+import java.util.List;
 
 
 /**
@@ -47,5 +51,15 @@ public interface ExamPaperService extends IService<ExamPaper> {
      * @return 生成的试卷
      */
     ExamPaper autoComposeExamPaper(AutoComposeDTO dto, Long creatorId);
+
+    /**
+     * 批量替换试卷题目（手动选题保存通道）。
+     * <p>语义为批量替换：先清空该卷原有关联行，再按清单写入；points/orderIndex 缺省时自动补齐，
+     * 并回填卷面 questionCount / totalScore（与自动组卷落库口径一致）。</p>
+     * @param paperId 试卷ID
+     * @param questions 题目清单（questionId 必填，points/orderIndex 可缺省）
+     * @return 写入后的关联行列表
+     */
+    List<ExamQuestion> replaceExamQuestions(Long paperId, List<ExamQuestionBatchDTO.ExamQuestionItem> questions);
 
 }

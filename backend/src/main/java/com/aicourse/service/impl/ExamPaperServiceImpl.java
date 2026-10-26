@@ -16,6 +16,7 @@ import com.aicourse.vo.ExamPaperQuestionItemVO;
 import com.aicourse.vo.ExamPaperStatsPaperVO;
 import com.aicourse.vo.ExamPaperStatsVO;
 import com.aicourse.dto.AutoComposeDTO;
+import com.aicourse.dto.ExamQuestionBatchDTO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import org.springframework.cache.annotation.CacheEvict;
@@ -387,6 +388,78 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
         }
 
         return examPaper;
+    }
+
+    /**
+     * 批量替换试卷题目（手动选题保存通道）。
+     *
+     * <p>参照 {@link #autoComposeExamPaper} 的题目写入逻辑：清空旧关联行 → 按清单写入，
+     * points 缺省回落题库题目分值（再缺省为 5，与自动组卷兜底一致），orderIndex 缺省按清单顺序。
+     * 写入后回填卷面 questionCount / totalScore，保证列表与统计口径一致。</p>
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(cacheNames = "examPapers", key = "#paperId")
+    public List<ExamQuestion> replaceExamQuestions(Long paperId,
+            List<ExamQuestionBatchDTO.ExamQuestionItem> questions) {
+        ExamPaper examPaper = this.getById(paperId);
+        if (examPaper == null) {
+            throw new BusinessException("试卷不存在");
+        }
+        if (questions == null || questions.isEmpty()) {
+            throw new BusinessException("题目清单不能为空");
+        }
+
+        // 题目合法性校验：题目必须存在，且属于该试卷课程题库（防跨课程拼卷）
+        List<Long> questionIds = questions.stream()
+                .map(ExamQuestionBatchDTO.ExamQuestionItem::getQuestionId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (questionIds.size() != questions.size()) {
+            throw new BusinessException("题目ID不能为空");
+        }
+        Map<Long, Question> questionById = questionService.listByIds(questionIds).stream()
+                .collect(Collectors.toMap(Question::getId, q -> q));
+        for (Long questionId : questionIds) {
+            Question question = questionById.get(questionId);
+            if (question == null) {
+                throw new BusinessException("部分题目不存在，请刷新后重试");
+            }
+            if (!Objects.equals(question.getCourseId(), examPaper.getCourseId())) {
+                throw new BusinessException("存在不属于该课程题库的题目，请重新选择");
+            }
+        }
+
+        // 批量替换：先清空旧关联行，再写入新清单
+        LambdaQueryWrapper<ExamQuestion> removeWrapper = new LambdaQueryWrapper<ExamQuestion>()
+                .eq(ExamQuestion::getExamPaperId, paperId);
+        examQuestionService.remove(removeWrapper);
+
+        List<ExamQuestion> rows = new ArrayList<>(questions.size());
+        BigDecimal totalScore = BigDecimal.ZERO;
+        for (int i = 0; i < questions.size(); i++) {
+            ExamQuestionBatchDTO.ExamQuestionItem item = questions.get(i);
+            Question question = questionById.get(item.getQuestionId());
+            BigDecimal points = item.getPoints() != null ? item.getPoints()
+                    : (question.getScore() != null ? question.getScore() : BigDecimal.valueOf(5));
+            ExamQuestion eq = new ExamQuestion();
+            eq.setExamPaperId(paperId);
+            eq.setQuestionId(item.getQuestionId());
+            eq.setOrderIndex(item.getOrderIndex() != null ? item.getOrderIndex() : i);
+            eq.setPoints(points);
+            rows.add(eq);
+            totalScore = totalScore.add(points);
+        }
+        examQuestionService.saveBatch(rows);
+
+        // 回填卷面题目数与总分（与 autoComposeExamPaper 落库口径一致）
+        examPaper.setQuestionCount(rows.size());
+        examPaper.setTotalScore(totalScore);
+        this.updateById(examPaper);
+
+        log.info("批量替换试卷题目: paperId={}, count={}, totalScore={}", paperId, rows.size(), totalScore);
+        return rows;
     }
 
     // ===================== 缓存一致性（2026-09-14 修复） =====================

@@ -92,6 +92,7 @@
         :pending-tasks="pendingTasks"
         :pending-loading="loading"
         :pending-unavailable="pendingUnavailable"
+        @grade-task="handleGradeTask"
       />
     </div>
 
@@ -102,6 +103,7 @@
 
 <script setup>
 import { toRef } from 'vue'
+import { useRouter } from 'vue-router'
 import { Search, Download, Top, Bottom, EditPen, Refresh } from '@element-plus/icons-vue'
 import CgtGradeTable from './course/CgtGradeTable.vue'
 import CgtSidePanel from './course/CgtSidePanel.vue'
@@ -127,6 +129,16 @@ const {
   viewDetail,
   handleExport,
 } = useCourseGradesTab(courseIdRef)
+
+// 待批任务下钻：作业批改页已支持 ?taskId= 直达选中任务（CourseSubmissions.loadTasks）
+const router = useRouter()
+function handleGradeTask(task) {
+  if (!task || task.id == null) return
+  router.push({
+    path: `/teacher/courses/${props.courseId}/submissions`,
+    query: { taskId: String(task.id) },
+  })
+}
 </script>
 
 <style scoped>

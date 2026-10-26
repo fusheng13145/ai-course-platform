@@ -23,6 +23,20 @@ export const updateExamPaper = (id, data) => request.put(`/exam-papers/${id}`, d
 /** 删除考试试卷 */
 export const deleteExamPaper = (id) => request.delete(`/exam-papers/${id}`)
 /**
+ * 自动组卷（教师/管理员）：按题型数量与难度比例从题库抽题，后端直接建卷并写入题目。
+ * body 为 AutoComposeDTO；typeRules 的 key 必须是题库 Question.type 实际值
+ * （SINGLE/MULTIPLE/JUDGE/FILL/ESSAY/CODE，注意不是 DTO 注释里的 *_CHOICE 风格）。
+ * → ExamPaper（DRAFT，题目已写入）
+ */
+export const autoComposeExamPaper = (data) => request.post('/exam-papers/auto-compose', data)
+/**
+ * 批量替换试卷题目（批量替换语义：先清空该卷原有关联行再写入）。
+ * body: { questions: [{ questionId, points, orderIndex }] }，与后端 ExamQuestion 实体对齐。
+ * 返回写入后的关联行列表；后端会同步回填卷面 questionCount / totalScore。
+ */
+export const saveExamQuestions = (id, questions) =>
+  request.post(`/exam-papers/${id}/questions`, { questions })
+/**
  * 试卷题目解包归一化。
  *
  * 后端 `/exam-papers/{id}/questions` 返回的是「试卷-题目关联」包装结构
@@ -111,6 +125,8 @@ export default {
   createExamPaper,
   updateExamPaper,
   deleteExamPaper,
+  autoComposeExamPaper,
+  saveExamQuestions,
   getExamQuestions,
   startExam,
   submitExam,
