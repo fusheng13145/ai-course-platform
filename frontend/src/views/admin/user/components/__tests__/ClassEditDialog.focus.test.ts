@@ -4,8 +4,12 @@ import { mount, flushPromises } from '@vue/test-utils'
 /**
  * ClassEditDialog 打开聚焦（D2-7）
  *
- * <p>el-dialog 默认焦点停在容器，键盘用户需多次 Tab 才到首字段。接入
- * useDialogFocus 后：打开 → 焦点移入首个可聚焦输入（本对话框为班级名称）。</p>
+ * <p>批 3b 起该对话框由 ui/Modal 承载（el-dialog 等价替换）：调用方 ref="dialogRef"
+ * 与 useDialogFocus 接线按 R-T9-7 删除，焦点职责由 Modal 内部接线接管——
+ * 接线若被误删/误改，Modal 自身的 focus 套件与本用例会一起红。</p>
+ * <p>原语契约（Modal.focus.test.ts 已钉）：打开 → 焦点移入面板内首个可聚焦控件；
+ * 面板头部关闭按钮在 DOM 序最前，故落点为 `.modal-head .t-icon-btn`
+ * （与 el-dialog「危险操作不默认聚焦确认」的安全惯例同源，不是行为回退）。</p>
  */
 
 const rafQueue: FrameRequestCallback[] = []
@@ -24,8 +28,7 @@ afterEach(() => {
 import ClassEditDialog from '@/views/admin/user/components/ClassEditDialog.vue'
 
 const stubs = {
-  // el-dialog 桩：渲染默认插槽（真实环境为 teleport + 过渡，焦点逻辑在 rAF 后执行）
-  'el-dialog': { template: '<div class="dialog-stub"><slot /></div>' },
+  // Modal 用真实组件：焦点行为正是本用例要守的契约，不能桩掉
   'el-form': { template: '<form><slot /></form>' },
   'el-form-item': { template: '<div><slot /></div>' },
   'el-input': {
@@ -64,23 +67,26 @@ async function flushFocus() {
   }
 }
 
-describe('ClassEditDialog — D2-7 打开聚焦', () => {
-  it('modelValue 由 false → true：焦点移入首个输入框', async () => {
+describe('ClassEditDialog — D2-7 打开聚焦（Modal 承载后）', () => {
+  it('modelValue 由 false → true：焦点移入弹层面板首个可聚焦控件', async () => {
     const wrapper = mountDialog()
     expect(document.activeElement).toBe(document.body)
 
     await wrapper.setProps({ modelValue: true })
     await flushFocus()
 
-    const first = wrapper.get('.dialog-stub input')
-    expect(document.activeElement).toBe(first.element)
+    // Modal 遮罩 Teleport 到 body，须从 document 上取
+    const first = document.body.querySelector('.modal-head .t-icon-btn')
+    expect(first).not.toBeNull()
+    expect(document.activeElement).toBe(first)
     wrapper.unmount() // 卸载归还焦点，避免污染后续用例
   })
 
-  it('保持关闭：不抢焦点', async () => {
+  it('保持关闭：不抢焦点，弹层不渲染（v-if 卸载契约，强于旧 el-dialog 隐藏态）', async () => {
     const wrapper = mountDialog()
     await flushFocus()
     expect(document.activeElement).toBe(document.body)
-    expect(wrapper.find('.dialog-stub input').exists()).toBe(true)
+    expect(document.body.querySelector('.overlay')).toBeNull()
+    wrapper.unmount()
   })
 })

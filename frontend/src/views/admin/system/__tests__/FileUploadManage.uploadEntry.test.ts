@@ -61,7 +61,8 @@ function mountPage() {
           template:
             '<input class="num-stub" type="text" :value="modelValue" @input="$emit(\'update:modelValue\', Number($event.target.value))" />',
         },
-        'el-dialog': { template: '<div class="dialog-stub"><slot /></div>' },
+        // 批 3b 迁移后弹层由 ui/Modal 承载；原位渲染插槽的桩与原 el-dialog 桩等价
+        Modal: { template: '<div class="dialog-stub"><slot /></div>' },
         EmptyState: { props: ['title'], template: '<div class="empty-stub" />' },
         PageHeader: { template: '<div />' },
         StatCard: { template: '<div />' },

@@ -106,12 +106,10 @@
     </section>
 
     <!-- 新建/编辑弹窗 -->
-    <el-dialog
-      ref="dialogRef"
-    v-model="dialogVisible"
+    <Modal
+      v-model="dialogVisible"
       :title="isEdit ? '编辑提醒' : '新建提醒'"
       width="520px"
-      append-to-body
     >
       <el-form ref="formRef" :model="form" :rules="rules" label-width="80px" scroll-to-error>
         <el-form-item label="标题" prop="title">
@@ -136,7 +134,7 @@
         <el-button @click="dialogVisible = false">取消</el-button>
         <el-button type="primary" :loading="saving" @click="handleSave">保存</el-button>
       </template>
-    </el-dialog>
+    </Modal>
   </div>
 </template>
 
@@ -148,8 +146,8 @@ import reminderApi from '@/api/reminder'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import Modal from '@/components/ui/Modal.vue'
 import { validateFormFields, type ElFormLike } from '@/composables/useFormSubmit'
-import { useDialogFocus } from '@/composables/useDialogFocus'
 
 const loading = ref(false)
 const saving = ref(false)
@@ -163,9 +161,6 @@ const totalCount = computed(() => todos.value.length)
 const pendingCount = computed(() => todos.value.filter((t) => t.status === 'PENDING').length)
 const completedCount = computed(() => todos.value.filter((t) => t.status === 'COMPLETED').length)
 const dialogVisible = ref(false)
-const dialogRef = ref(null)
-// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef, dialogVisible)
 const isEdit = ref(false)
 // id 仅编辑态存在（loadTodos 回填行数据时写入）；其余字段与新建表单同形
 const form = ref<{ id?: number | string; title: string; content: string; remindAt: null; targetUserId: string }>({ title: '', content: '', remindAt: null, targetUserId: '' })

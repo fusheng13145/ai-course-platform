@@ -1,10 +1,8 @@
 <template>
-  <el-dialog
-    ref="dialogRef"
+  <Modal
     :model-value="modelValue"
     title="操作日志详情"
     width="560px"
-    append-to-body
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <el-descriptions v-if="log" :column="1" border>
@@ -44,26 +42,19 @@
         >关闭</el-button
       ></template
     >
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 import { formatDateTime } from '@/utils/datetime'
 import { useOperationLogs } from '@/composables/useOperationLogs'
 
-const props = defineProps({
+defineProps({
   modelValue: { type: Boolean, default: false },
   log: { type: Object, default: null },
 })
 
-const dialogRef = ref(null)
-// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(
-  dialogRef,
-  computed(() => props.modelValue),
-)
 defineEmits(['update:modelValue'])
 
 const { moduleLabel, actionLabel, isSuccess } = useOperationLogs()

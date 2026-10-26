@@ -213,12 +213,10 @@
     </section>
 
     <!-- 进度弹窗 -->
-    <el-dialog
-      ref="dialogRef"
+    <Modal
       v-model="progressVisible"
       title="上传进度"
       width="520px"
-      append-to-body
       @closed="stopProgressPolling"
     >
       <div v-if="currentSession" class="progress-detail">
@@ -251,13 +249,12 @@
           </template>
         </p>
       </div>
-    </el-dialog>
+    </Modal>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
 import { ElMessage } from 'element-plus'
 import { Refresh, Document, Close, Connection } from '@element-plus/icons-vue'
 import uploadApi from '@/api/fileUpload'
@@ -268,6 +265,7 @@ import { confirmDanger } from '@/utils/dangerConfirm'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import Modal from '@/components/ui/Modal.vue'
 
 interface UploadSession {
   id: number
@@ -305,9 +303,6 @@ const completedCount = computed(
   () => sessions.value.filter((s) => s.status === 'MERGED' || s.status === 'COMPLETED').length,
 )
 const progressVisible = ref(false)
-// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-const dialogRef = ref(null)
-useDialogFocus(dialogRef, progressVisible)
 const currentSession = ref<UploadSession | null>(null)
 // 列表失败反馈统一原语（D2-1）：loading + 错误态 banner + 双态空文案
 const { loading, listError, run, emptyDescription } = useListFeedback({

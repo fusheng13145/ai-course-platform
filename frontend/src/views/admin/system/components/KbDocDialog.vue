@@ -1,10 +1,8 @@
 <template>
-  <el-dialog
-    ref="dialogRef"
+  <Modal
     :model-value="modelValue"
     :title="dialogMode === 'add' ? '新建知识库文档' : '编辑文档内容'"
     width="560px"
-    append-to-body
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <el-form label-width="80px">
@@ -27,17 +25,16 @@
       <el-button @click="$emit('update:modelValue', false)">取消</el-button>
       <el-button type="primary" :loading="saving" @click="$emit('save')">保存</el-button>
     </template>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import Modal from '@/components/ui/Modal.vue'
 /**
  * 知识库文档新增/编辑弹窗
  * <p>所属课程只读展示 + 名称（仅新增）+ 内容文本域；保存逻辑委托 composable。</p>
  */
-const props = defineProps({
+defineProps({
   /** 弹窗显隐（v-model） */
   modelValue: { type: Boolean, default: false },
   /** add=新建 / edit=编辑 */
@@ -49,10 +46,6 @@ const props = defineProps({
   /** 保存加载态 */
   saving: { type: Boolean, default: false },
 })
-const dialogRef = ref(null)
-// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef, computed(() => props.modelValue))
-
 
 defineEmits(['update:modelValue', 'save'])
 </script>

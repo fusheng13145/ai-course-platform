@@ -18,7 +18,8 @@ function makeRows(n, prefix) {
 }
 
 const stubs = {
-  'el-dialog': { template: '<div><slot /></div>' },
+  // 批 3b 迁移后弹层由 ui/Modal 承载；本套件只断分页逻辑，Modal 原位渲染插槽的桩与原 el-dialog 桩等价
+  Modal: { template: '<div><slot /></div>' },
   'el-table': {
     props: ['data'],
     // 计数放独立 span（避免与空态插槽文本混杂），并暴露 #empty 供空态断言

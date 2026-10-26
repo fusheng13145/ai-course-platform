@@ -1,10 +1,8 @@
 <template>
-  <el-dialog
-    ref="dialogRef"
+  <Modal
     :model-value="modelValue"
     :title="editing ? '编辑班级' : '新建班级'"
     width="520px"
-    append-to-body
     @update:model-value="emit('update:modelValue', $event)"
   >
     <el-form ref="formRef" :model="form" :rules="rules" label-width="88px" scroll-to-error>
@@ -34,19 +32,19 @@
       <el-button @click="emit('update:modelValue', false)">取消</el-button>
       <el-button type="primary" :loading="saving" @click="emit('save')">保存</el-button>
     </template>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
-import { useDialogFocus } from '@/composables/useDialogFocus'
+import { ref } from 'vue'
+import Modal from '@/components/ui/Modal.vue'
 
 /**
  * 班级新建/编辑对话框
  * <p>表单对象与校验规则由父组件（useClassrooms）注入（共享 reactive 对象编辑嵌套属性）；
  * 保存动作经 save 事件上抛；表单校验能力经 defineExpose 暴露给父组件调用。</p>
  */
-const props = defineProps({
+defineProps({
   /** 对话框可见性（v-model） */
   modelValue: { type: Boolean, default: false },
   /** 编辑态（true=编辑 / false=新建） */
@@ -58,10 +56,6 @@ const props = defineProps({
   /** 保存中状态 */
   saving: { type: Boolean, default: false },
 })
-const dialogRef = ref(null)
-// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef, computed(() => props.modelValue))
-
 
 const emit = defineEmits(['update:modelValue', 'save'])
 

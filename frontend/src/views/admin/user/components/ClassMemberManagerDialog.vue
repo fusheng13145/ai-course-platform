@@ -1,11 +1,9 @@
 <template>
   <!-- 成员管理主对话框 -->
-  <el-dialog
-  ref="dialogRef1"
+  <Modal
     :model-value="modelValue"
     :title="`成员管理 · ${currentClass?.name || ''}`"
     width="720px"
-    append-to-body
     @update:model-value="emit('update:modelValue', $event)"
   >
     <div class="student-toolbar">
@@ -51,15 +49,13 @@
         @current-change="membersOnPageChange"
       />
     </div>
-  </el-dialog>
+  </Modal>
 
   <!-- 添加学生对话框 -->
-  <el-dialog
-  ref="dialogRef2"
+  <Modal
     :model-value="addVisible"
     title="添加学生到班级"
     width="620px"
-    append-to-body
     @update:model-value="emit('update:addVisible', $event)"
   >
     <div class="student-toolbar">
@@ -100,15 +96,14 @@
         @current-change="candidatesOnPageChange"
       />
     </div>
-  </el-dialog>
+  </Modal>
 </template>
 
 <script setup lang="ts">
-import { ref, computed } from 'vue'
 import { Plus, Search } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import Modal from '@/components/ui/Modal.vue'
 import { useClientPagination } from '@/composables/useClientPagination'
-import { useDialogFocus } from '@/composables/useDialogFocus'
 
 /**
  * 班级成员管理（成员列表 + 添加学生双对话框）
@@ -136,13 +131,6 @@ const props = defineProps({
   /** 候选搜索关键字（双向） */
   candidateKeyword: { type: String, default: '' },
 })
-const dialogRef1 = ref(null)
-// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef1, computed(() => props.modelValue))
-const dialogRef2 = ref(null)
-// D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-useDialogFocus(dialogRef2, computed(() => props.addVisible))
-
 
 const emit = defineEmits([
   'update:modelValue',
