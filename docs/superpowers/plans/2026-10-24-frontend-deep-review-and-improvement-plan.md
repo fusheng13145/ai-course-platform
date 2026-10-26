@@ -190,11 +190,11 @@ FE-10/11/12/13/14 全部沿用既有母文档的触发条件与重启信号；�
 
 ---
 
-## §8 完成情况总览与剩余清单（2026-10-25 第二快照；上一快照 2026-10-24 钉 `origin/leyon@e1745b9`）
+## §8 完成情况总览与剩余清单（2026-10-26 第三快照；上一快照 2026-10-25 钉 `origin/leyon@e1745b9`）
 
 > 本节是给"新会话/评审者"的**一页式状态**：做了什么、剩什么、从哪进入。逐批明细在 §7；判据本体在 §3 不变。
 
-### 8.1 已完成（截至 2026-10-25，全部本机验证；10-24 快照所列各批之外的新增）
+### 8.1 已完成（截至 2026-10-26，全部本机验证；10-24 快照所列各批之外的新增）
 
 | 线 | 提交（代表） | 内容 |
 | --- | --- | --- |
@@ -204,6 +204,8 @@ FE-10/11/12/13/14 全部沿用既有母文档的触发条件与重启信号；�
 | **视觉 Phase 1 全收口** | `ef0ec43`/`d699d50`/`2462169`/`4c21a72`/`7c59a5d` | P1-FULLPAGE-01（D-7 修复：扩视口至内容实高，14 张变长 1116–2874px，首屏之下首次进基线）；P1-TOKEN-01（阴影族：浅环境层 .10+暗色只留真浮层+EP 重映射；18 张重录；连带修未读角标漂移→8 格遮罩）；P1-TOKEN-02（表面阶浅色+L3 凹槽 --l3-groove；14 张重录；§6.15④ 双轨证据首次落地；scrim 注释翻车当场修复）；P1-TOKEN-03（新 token 五条：--r-ctl/--scrim×2/--glow-brand/--ease-spring/--t-xslow，零基线扰动）；P1-TOKEN-04（暗色三件套：表面+3/通道、line 阶梯上移、--edge-hi 卡片上高光边；11 张暗图重录）——**spec §4 Phase 1 四改动面全部落地** |
 | **视觉 Phase 2 收口** | `d7a8016` | P2-RADIUS-01（五阶 16/12/10/6/999 对齐、EP base→--r-ctl、覆写层控件路径摘 6px、四别名单源化；14 张重录；主证据＝计算值断言+角部裁剪）——**spec §4 Phase 2 两条一次落齐** |
 | 挂账收口 | `36ab8fb` | teacher/admin 五未钉锚点补铃铛遮罩（8 格全遮、钉桩 2 格刻意不遮） |
+| **视觉 Phase 3 收口** | `6820dd0` | P3-EPSCSS-01（EP 覆写层 !important **98→25** 达标、死块/同值声明删除、loading/descriptions 变量化；零基线重录两轮 85/85；架构事实入账：EP 样式按需注入晚于 index.scss，同特异性源序不可赢）——**spec §4 Phase 3 两条一次落齐** |
+| **视觉 Phase 4 开工（2026-10-26，同日三批）** | `b3b50e5`/`ada81c9`/`b896379` | **P4-GATE-01**（准入门批：#3 层叠收口——z 阶 `--z-modal 100→2200`/`--z-drawer 80→2250`＋EP 起点 2300＋shell-menu 2500；原语五件套 width/title/closed/Esc 栈；e2e 钓出并修复 shell-menu z 序回归一条；Gate.p4 钉测 7 例）；**P4-MIG-01**（迁移 1/6：components/course 2 弹层）；**P4-MIG-02**（迁移 2/6：components/knowledge 2 弹层，`destroy-on-close` 删除先例入账）——三批 QA 独立验证均 route=NoOne，护栏现量 **59/17 守恒 73 文件/82 标签**，余 59 开标签/69 文件 |
 | 推送 | — | `e1745b9..36ab8fb` → origin/leyon（2026-10-25 上午，项目主授权；SSH 本地代理口失效经直连 ssh.github.com:443 完成） |
 
 ### 8.2 剩余待办（按依赖序；产品路线视角分三档）
@@ -236,3 +238,43 @@ FE-10/11/12/13/14 全部沿用既有母文档的触发条件与重启信号；�
 ### 8.4 当前门禁读数（2026-10-26，P4-MIG-02 后，全部本机）
 
 vitest **183 文件 / 1919 例**全绿 ｜ lint 0/0 ｜ 类型棘轮 **13 条 / 5 文件**持平（十七轮：402→…→13）｜ build 3.64s + size:gate 六项全过（其余 1263.7/1300、JS 3127.2/3400、EP CSS 381.6/420）｜ Playwright 流程 **54/54**（`.auth` 夹具重绑坑第 3 次按 P0c-ONB-05 配方处置）｜ 视觉全表 **3 轮 82/85**（24 张基线零重录；3 条 admin-dashboard 预存确定性漂移——HEAD stash 对照实验同 3 条同读数 945/413.86/1549/Δmax 116@358,1131 定性非本批引入，按套件纪律不吸收；P3 时点为 85/85，漂移发生于 P3 后，归因配方 PW_VISUAL_NOPIN/PW_PIN_SHIFT_DAYS 在案）｜ 视觉 spec **Phase 1+2+3 已落地；Phase 4 准入门 #3 已收口（P4-GATE-01）＋迁移本体 2/6 批已闭（P4-MIG-01 course、P4-MIG-02 knowledge，护栏 59/17 守恒）**｜ 空态守卫矩阵真实形状全绿 ｜ src 下 .js 文件 **0** ｜ 未读角标 8 格遮罩免疫 ｜ B.2 已同步 54 例口径 ｜ 本机后端 e2e 启动配方更新：宿主注入 SERVER_PORT 覆盖 8080，须带 `--server.port=8080` 程序参。
+
+### 8.5 规划结束基线（Definition of Done，2026-10-26 固化）
+
+> 本节回答「**整个规划怎样算结束**」：全部行项达到各自判据的已闭/已决策落账态，且 D 节量尺全部实测成立。
+> 基线一经固化不随批漂移；量尺的**当前值**以收口当日实跑为准、与 D 节冻结值对照解释偏差。逐项判据本体在 §3 不变，本节只给收口态。
+
+**A. 视觉升级主线（spec §4 Phase 4–6；spec §4 的判据原文优先于本节概括）**
+
+| # | 收口判据 | 结束态验证 |
+| --- | --- | --- |
+| A1 | **结构收敛（Phase 4）**：`<el-dialog`/`<el-drawer` 在 `frontend/src` **全仓 0 命中**（现 59+4）；8 处 `el-tabs` → TabGroup（spec 计数）；按目录 6 批全闭（course/knowledge 已清，余 admin/teacher/student/auth|common） | `git grep -c "<el-dialog\|<el-drawer" frontend/src` = 0；LEDGER 每批一行 |
+| A2 | **护栏收口**：`BASELINE_TAG_BY_MARKER` 的 legacy 两项归零、primitive 承接总数守恒；`EXPECTED_OVERLAY_MIN`/`COMPONENT_MIN` 迁移完成后按同一命令重测更新且**只升不降**；`KNOWN_UNWIRED_EL_DRAWER_FILES` 缺口表**清空**（4 处迁 Drawer 后逐条删除） | 护栏 2 文件 20 例绿；表值与实跑重放一致 |
+| A3 | **迁移连带项落账**：22 处 teleport 缺省方向差异逐点核对；抽屉动效不对称（R-T14-8）补过渡或书面弃用；`--sh-pop` 暗色合并档退役评估（退役或书面保留）；调用方 `ref`+`useDialogFocus` 两行全仓 0 残留 | `git grep -c "useDialogFocus(" frontend/src/views frontend/src/components` = 0（composables 自身与测试除外） |
+| A4 | **页面级升级（Phase 5）**：`.btn` 族字面量 8/7/9px、`--ac-radius-md`(8px,77 处)、卡片硬编码亮边框 4 处、`--ac-*` 别名族（color/spacing/transition）、`--edge-hi` 推广 `.l2-panel`——各项收敛或书面豁免落账；§2.4 硬编码污染计数**对基线下降幅度报告**交付 | 报告文件入 `docs/visual-upgrade/evidence/` |
+| A5 | **微交互与依赖（Phase 6）**：三项新依赖（lucide-vue-next/motion-v/自研 v-ripple）逐一「引入＋首消费点」或「书面不引入」；`--ease-spring`/`--t-xslow`/`--glow-brand` 各有首个消费单元（LEDGER 引用纪律：生效须给消费点） | package.json 变更（若有）+ LEDGER 行 |
+
+**B. 工程债尾量（§8.2 B 档）**
+
+| # | 收口判据 | 结束态验证 |
+| --- | --- | --- |
+| B1 | **类型棘轮清零**：FE-10 B17 把 13 条/5 文件 → **0**；`typecheck-baseline.json` 退役为全绿门的决策落账（退役，或书面保留理由） | `npm run typecheck` 输出 0 error |
+| B2 | **R-10 转正前提项**：造数据转正或书面永久挂账（含理由），二选一落账 | LEDGER/plan 状态行更新 |
+| B3 | **孤儿组件决策**：ExamFormDialog（FE-10 B9 发现）与 CgtGradeDialog（P4-MIG-01 发现）删除或保留，项目主决策落账 | plan/LEDGER 状态行更新 |
+| B4 | **dependabot 10 分支**：逐条合并或关闭落账 | 远端分支数归零或书面保留清单 |
+| B5 | **CI e2e 进主触发链**：R-04 接线后 3 连绿转 push/PR 触发，或书面维持 `workflow_dispatch` | workflow 文件现状与决策记录一致 |
+
+**C. 不在本方案结束基线内**（防误读）：产品路线 C 档（D2-6 响应式专项、阶段二/三）判据归 2026-10-13 规划文档与手册；admin-dashboard 3 条预存漂移在归因闭合前是**独立挂账**（既不算红也不算绿，见 D-3）；本机验证口径不含推送与 CI 绿（推送归项目主）。
+
+**D. 全程门禁量尺（每批必跑；结束当日终测对照）**
+
+| 量尺 | 冻结值（2026-10-26） | 结束判据 |
+| --- | --- | --- |
+| vitest | **183 文件 / 1919 例**全绿 | 失败 0（用例数随新增测试自然增长） |
+| lint | 0 error / 0 warning | 持平 |
+| typecheck | 13 条 / 5 文件（棘轮，只降不升） | **0**（B1 清零后棘轮退役决策落地） |
+| build + size:gate | build 3.64s；六项 echarts 805/900、EP 735/830、xlsx 323/380、其余 1263.7/1300、JS 3127.2/3400、EP CSS 381.6/420 | build 成功＋六项在**预算线**内（预算线是硬门禁，实际读数允许浮动） |
+| 流程 e2e | **54/54**（前置：后端 `RATELIMIT_LOGIN_LIMIT=200`＋`--server.port=8080` 起、5173 夹具重绑） | 全绿（用例数允许按判据增长） |
+| 视觉全表 | **85 例，3 轮 82/85**（3 条 admin-dashboard 预存漂移，HEAD stash 对照定性非批次引入） | **漂移归因闭合**（PW_VISUAL_NOPIN/PW_PIN_SHIFT_DAYS 配方落账）或基线经授权重录——**不许带病收口**；其余 82 例零 diff |
+| 视觉基线资产 | 24 张基线 + sha256 清单同步 | 清单同步、K-03 docs/ 零污染纪律每批执行 |
+| 台账 | LEDGER 每批一行（9 列）不断链 | Phase 4–6 每批有行；结束行（CLOSEOUT 类）落账 |
