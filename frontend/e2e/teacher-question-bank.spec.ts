@@ -87,7 +87,8 @@ test.describe('题库管理（教师端主链路）', () => {
     await page.getByRole('button', { name: /新建题目/ }).click()
     await expect(page.getByPlaceholder('请输入题干内容')).toBeVisible()
 
-    const dialog = page.locator('.el-dialog', { hasText: '新建题目' })
+    // 对话框按 role+可及名定位：载体已换成 ui/Modal，`.el-dialog` 在这个页面上根本不存在
+    const dialog = page.getByRole('dialog', { name: /新建题目/ })
 
     // 题型（必填）：单选（:visible 排除残留 popper 选项）
     await dialog.locator('.el-select').nth(0).click()

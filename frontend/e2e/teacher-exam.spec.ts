@@ -98,7 +98,8 @@ test.describe('试卷管理（教师端主链路）', () => {
     await page.getByPlaceholder('请输入试卷标题').fill('期末综合卷')
 
     // 选择所属课程（对话框作用域定位；:visible 排除关闭状态下表格筛选下拉的残留 popper 选项）
-    const dialog = page.locator('.el-dialog', { hasText: '新建试卷' })
+    // 对话框按 role+可及名定位：载体已换成 ui/Modal，`.el-dialog` 在这个页面上根本不存在
+    const dialog = page.getByRole('dialog', { name: /新建试卷/ })
     await dialog.locator('.el-select').first().click()
     await page.locator('.el-select-dropdown__item:visible', { hasText: '数据结构' }).first().click()
 

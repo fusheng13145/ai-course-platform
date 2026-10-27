@@ -203,10 +203,17 @@ test.describe('新人引导 · 弹层叠放', () => {
     })
     await page.reload()
     await page.waitForTimeout(1200)
-    await page.getByRole('button', { name: /新建题目/ }).click()
-    await page.waitForSelector('.el-dialog', { timeout: 10000 })
+    // 载体换成 EP 的二次确认框（dangerConfirm → ElMessageBox）：它仍渲染 .el-overlay。
+    // 原来等的是 `.el-dialog`，而本页的对话框早在 Phase 4 迁移批 59365c5 换成了 ui/Modal，
+    // 那个类名在这个页面上已经不存在——等它就是一条永远超时的空判据。
+    await page
+      .getByRole('button', { name: /^删除$/ })
+      .first()
+      .click()
+    await page.waitForSelector('.el-overlay', { timeout: 10000 })
     // EP 的遮罩铺满视口，所以菜单所在那点正被它盖着；菜单由 JS 触发——
     // "能不能挂载"是组件状态，"谁盖住谁"才是要量的那一件事，两者分开取。
+    // 只开确认框不点「确认」，题目不会被删掉。
     await page.evaluate(() =>
       document.querySelector<HTMLElement>('[data-onboard="side-user"]')?.click(),
     )
