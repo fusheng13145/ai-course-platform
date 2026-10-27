@@ -1,11 +1,13 @@
 # 前端硬编码样式计数报告
 
-> 由 `node frontend/scripts/count-hardcoded-style.cjs --write` 生成于 2026-10-27 15:27 UTC。
+> 由 `node frontend/scripts/count-hardcoded-style.cjs --write` 生成于 2026-10-27 17:15 UTC。
 > 判据本体见 `docs/前端待办项.md` P5-04；基线（2026-10-19 实测，`.vue` 内行数）：
 > `border-radius:` 313／6 位十六进制色 175／`rgba(` 110／`box-shadow:` 73／含渐变的文件 22。
 > 该基线当年没有留命令，口径按最宽的解释落地：**命中行数**＝该行至少一次命中（含 `var()` 写法），
 > **出现次数**＝逐次累计，**其中字面量**＝按 `;` 切段后段内不含 `var(` 的命中次数。
 > 三列同表给出，判「硬编码有没有降」看第三列；前两列只用于和历史读数对齐。
+> **注释不计**（2026-10-28 起，`stripComments` 先剥 `/* */` 与行首 `//`）：本工具初版把注释里的色值
+> 也算进字面量，于是"给某个值写一句解释"会让读数变差——那是反向激励。此前入库的读数含注释。
 > 「处数」＝radius／角位 radius／shadow／hex6／rgba／hsl 六类**字面量**次数合计，不含 gradient（渐变单列）。
 > 对某一历史版本重跑同口径：`git archive <commit> frontend | tar -x -C <tmp>` 后加 `--root=<tmp>/frontend`。
 
@@ -16,8 +18,8 @@
 | border-radius: | 319 | 319 | 150 |
 | border-*-radius:（角位） | 4 | 4 | 4 |
 | box-shadow: | 73 | 73 | 19 |
-| 6 位十六进制色 | 106 | 181 | 171 |
-| rgba( | 104 | 104 | 84 |
+| 6 位十六进制色 | 104 | 179 | 170 |
+| rgba( | 103 | 103 | 83 |
 | hsl( | 0 | 0 | 0 |
 | gradient( | 83 | 83 | 71 |
 | 含渐变的文件数 | 22 | — | — |
@@ -42,11 +44,11 @@
 
 | 类别 | 命中行数 | 出现次数 | 其中字面量 |
 | --- | --- | --- | --- |
-| border-radius: | 56 | 56 | 14 |
+| border-radius: | 56 | 56 | 8 |
 | border-*-radius:（角位） | 0 | 0 | 0 |
 | box-shadow: | 39 | 39 | 6 |
-| 6 位十六进制色 | 74 | 79 | 73 |
-| rgba( | 59 | 65 | 65 |
+| 6 位十六进制色 | 70 | 73 | 67 |
+| rgba( | 57 | 63 | 63 |
 | hsl( | 0 | 0 | 0 |
 | gradient( | 21 | 21 | 15 |
 | 含渐变的文件数 | 3 | — | — |
@@ -55,8 +57,8 @@
 
 | 文件 | 处数 |
 | --- | --- |
-| `src/styles/theme.css` | 99 |
-| `src/styles/design-system.css` | 40 |
+| `src/styles/theme.css` | 91 |
+| `src/styles/design-system.css` | 34 |
 | `src/styles/index.scss` | 19 |
 
 
@@ -93,14 +95,14 @@
 | `--ac-primary-light` | 1 | 15 | 12 |
 | `--ac-radius-lg` | 1 | 46 | 43 |
 | `--ac-radius-md` | 1 | 92 | 84 |
-| `--ac-radius-sm` | 1 | 26 | 27 |
+| `--ac-radius-sm` | 1 | 26 | 26 |
 | `--ac-radius-xl` | 1 | 9 | 5 |
 | `--ac-shadow-lg` | 1 | 5 | 3 |
 | `--ac-shadow-md` | 1 | 8 | 8 |
 | `--ac-shadow-sm` | 1 | 22 | 22 |
 | `--ac-shadow-xl` | 1 | 2 | 2 |
 | `--ac-spacing-lg` | 1 | 79 | 78 |
-| `--ac-spacing-md` | 1 | 193 | 190 |
+| `--ac-spacing-md` | 1 | 192 | 189 |
 | `--ac-spacing-sm` | 1 | 59 | 55 |
 | `--ac-spacing-xl` | 1 | 10 | 10 |
 | `--ac-spacing-xs` | 1 | 8 | 8 |

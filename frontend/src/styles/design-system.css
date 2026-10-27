@@ -28,7 +28,7 @@ body {
 .brand-mark {
   width: 32px;
   height: 32px;
-  border-radius: 9px;
+  border-radius: var(--r-ctl);
   flex-shrink: 0;
   background: linear-gradient(135deg, var(--accent) 0%, #8f2a21 100%);
   display: grid;
@@ -327,13 +327,13 @@ body {
   height: 26px;
   padding: 0 10px;
   font-size: 12px;
-  border-radius: 7px;
+  border-radius: var(--r-l3);
 }
 .btn-lg {
   height: 38px;
   padding: 0 20px;
   font-size: 14px;
-  border-radius: 9px;
+  border-radius: var(--r-ctl);
 }
 .btn-block {
   width: 100%;
@@ -531,7 +531,7 @@ table.tbl {
   color: var(--info);
   cursor: pointer;
   padding: 3px 7px;
-  border-radius: 5px;
+  border-radius: var(--r-l3);
   white-space: nowrap;
 }
 .op-link:hover {
@@ -865,7 +865,7 @@ table.tbl {
   padding: 8px 11px;
   font-size: 13px;
   color: var(--ink-2);
-  border-radius: 7px;
+  border-radius: var(--r-l3);
   cursor: pointer;
   transition: all 0.12s;
 }
@@ -1048,7 +1048,7 @@ table.tbl {
 .empty-state .e-ico {
   width: 62px;
   height: 62px;
-  border-radius: 18px;
+  border-radius: var(--r-l1);
   margin: 0 auto 12px;
   background: var(--surface-3);
   display: grid;

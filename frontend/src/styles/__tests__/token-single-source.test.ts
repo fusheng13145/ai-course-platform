@@ -12,6 +12,7 @@ type StyleAudit = {
   PATTERNS: AuditPattern[]
   countLiteralDecls: (line: string, re: RegExp) => number
   literalSegments: (text: string, re: RegExp) => string[]
+  stripComments: (text: string) => string
 }
 // .cjs 脚本没有类型声明，按导出的形状双段收窄
 const req = createRequire(join(process.cwd(), 'virtual.cjs'))
@@ -28,7 +29,7 @@ function styleBearing(dir: string, out: { file: string; text: string }[] = []) {
     const full = join(dir, entry)
     if (statSync(full).isDirectory()) styleBearing(full, out)
     else if (/\.(vue|css|scss)$/.test(entry))
-      out.push({ file: full, text: readFileSync(full, 'utf8') })
+      out.push({ file: full, text: audit.stripComments(readFileSync(full, 'utf8')) })
   }
   return out
 }
@@ -36,8 +37,8 @@ function styleBearing(dir: string, out: { file: string; text: string }[] = []) {
 /** 卡面亮边那一枚色值（含空格差异的两种写法） */
 const CARD_RGB = /rgba\(\s*227,\s*230,\s*236\s*,/
 
-/** 已登记的离阶圆角：确有意图偏离五阶，改动要另批走像素重录 */
-const ALLOWED_OFF_SCALE = ['5px', '7px', '9px', '18px', '50%']
+/** 圆角只许剩几何圆（等宽高元素的 50%）；5/7/9/18px 已在 P5-05b 归进五阶，棘轮只许向紧 */
+const ALLOWED_OFF_SCALE = ['50%']
 
 describe('样式令牌单源', () => {
   it('计数仪器本身判得开字面量与 var()（阴性对照先行）', () => {
@@ -48,6 +49,11 @@ describe('样式令牌单源', () => {
     ).toBe(1)
     expect(audit.countLiteralDecls('  border-radius: var(--r-ctl);', radius)).toBe(0)
     expect(audit.countLiteralDecls('  color: var(--ink, #1f2733);', reOf('hex6'))).toBe(0)
+    // 注释里的色值不是硬编码：不剥注释的话，越写文档读数越红
+    expect(
+      audit.literalSegments('/* 改前是 rgba(227, 230, 236, 0.7) */\nborder-radius: 10px;', radius),
+      '注释没被剥掉，读数会把解释当债务',
+    ).toEqual(['border-radius: 10px'])
   })
 
   it('卡面亮色描边全站只允许 theme.css 里一枚定义', () => {

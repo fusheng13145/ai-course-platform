@@ -962,39 +962,39 @@ test('闸门源级钉自己会红：内存里复刻「改默认实参」与「�
  */
 const BASELINE_SHA256: Record<string, string> = {
   'admin-courses-table-dark.png':
-    '0ad033167aca7e61130d5905deb956c72d3e928ec52a256399d59cba2175594d',
+    'a8d3266df186d1955ae8adcb528fcff99e39909971c3ab465e3d4b3c9e1b6a5d',
   'admin-courses-table-light.png':
-    'f45cfbba990f4aed1672cd1aea1887f8395b920b125a2d8d86f840fc4b4420f5',
-  'admin-dashboard-dark.png': 'cf4a0bd44202e81789370bb0dcaf7255e28ca21941e0d00bf96e66e7f1e9a2ab',
-  'admin-dashboard-light.png': 'f6b225fe9ce07efe6c8ba69dcb96b983ec8879e75b24bf8c8e639cec5434da26',
+    'c8f47453b9e32c85562fb6bcd6ab0f98dbe09c00745b8ee7933d02ff36f72893',
+  'admin-dashboard-dark.png': 'e9b6dde5d4a6a63a130aeb357839d951adc000477009110ef65888123ccbe30a',
+  'admin-dashboard-light.png': '153d9bed086877c4fb54c23a090447ab84258d3fedeb2e64818a3c90aec6766d',
   'admin-governance-analytics-dark.png':
-    '0f08c0dfab1ed02e8a3b62080ae8278a4170f3c568d8fde485d47414833388fd',
+    '496fb40099ff2092ed9440d6ed31f9d6675b822855edcfbb65b6a5bb0e802456',
   'admin-governance-analytics-light.png':
-    '7fc0346bca6d9e26bfd61471d6efec21f5d486e28726ceb3e500c5fc5fd1b3e2',
-  'admin-profile-dark.png': '16e68415fde60152c159a4657a7d741b984e5e23a72be3500acc26082471f1f7',
-  'admin-profile-light.png': 'ca48afc75247d71e04177f806d2f6807c1e27046a498b97317a65ea56bff6062',
-  'admin-system-form-dark.png': 'b21299259fd234dfbf27d35b55a784e4a32e3b347f1f1e94b42246de0e7ee1c4',
-  'admin-system-form-light.png': 'e5d44823a453cd19eda9add94c298d1a94643e16be8ccfe2b711a2483e44b6b5',
+    '76aa878c7eef431833a8de619522325bee242ac5dbabaab0f3e07dc971dcd311',
+  'admin-profile-dark.png': '107e8941fe891bffdf6b1076179f7612cf276b9941f7b56981f25d392ac4a2e8',
+  'admin-profile-light.png': '93deeaa4b621abe487c1e73b03c79dbf7ec69f38ca771724439b089bc23915c9',
+  'admin-system-form-dark.png': 'cdba672e9e35ed0cb2312286a303fe226ab1e3aa416029e0342634472ef6a031',
+  'admin-system-form-light.png': 'c7818a7bf0a34b6da8753178b812b4fedf73c94d5d15346b169df48fe040a99d',
   'error-404-dark.png': 'b2d03c673791a14b37bb9c6f92cf46f862108051620f0cabfcbe1faf53afe0a4',
   'error-404-light.png': '0755e2afbe53f433ddc690495c8b188d39a989abc0403b75e0ecd2b6e77691a7',
-  'login-dark.png': 'bd00fb206ee2e7cc293436197fa76b5e976ced62a347751b5d38950fa76d9451',
-  'login-light.png': 'b12a00b1867f06c363e74e9d548b85c95d981c7acf576286f663d10b905e8258',
+  'login-dark.png': 'c57f5e4db9a85653dab2a359fc4a183b65a8716647a86abae1c2257350545ab9',
+  'login-light.png': '451ad3801b50483fa655e61d6cb1b2806c00aa2a446e05c5e336496ee6f1619e',
   'student-courses-modal-dark.png':
-    '66c3d161e5065957926a4cb6db7110c4949b1b3866a5216b02f0de23424b9654',
+    '1c3706b48129a17f3386534b4770b3a09dfac97ee9a8afda63fdd9422b99e189',
   'student-courses-modal-light.png':
-    '9c7a4b2cb4b1acf2e8f2acf002eea9d7dbc92f532aef9e0fd92f9067cafd109e',
-  'student-dashboard-dark.png': 'f50e8aaf0a4dc7d3755ac4f5940d90058c533159547713a403c4001132b09380',
-  'student-dashboard-light.png': 'c9ed18ecae454c43a42a0ec3118d20bb0b257e8355b673e92a3d7ef56d7914b5',
+    'ef2eec5dea0994d9b60e2e43a83fa34875a5d00d0ebbb3bd7d5d412b2901a3de',
+  'student-dashboard-dark.png': 'a20b463cc0d3c80ab5f818929aa52c15c47bc396830dc779f82772ba6ea860b2',
+  'student-dashboard-light.png': '57af63c484a9563ddd23f43168ecb35d1f36960692a7bca9c641de3177263d82',
   'student-knowledge-graph-dark.png':
-    'a8a76119be10a2325b48f5d4a33e26acaf3aa7cbdda3a3608bad967ef64301a7',
+    '4bdaeeec6369219d1fdfe3c26afc78585163d58b82b94836d6a78522d38ac90c',
   'student-knowledge-graph-light.png':
-    '42ccc962e11217a5cb96dd64fe89bacc29829a49d6b5ebedc6647300d1f9d792',
+    'e639e36165194500cbd5501a4befe1dd33fa919c012f1695eb690d545b0ba82e',
   'student-learning-center-dark.png':
-    '8442459143e9eddfe3ae4819a8561b660e34e33eb1a44d20a36516d9f8dd6c2c',
+    '0c3d2d7f46c8f8d1da2832d10e345f08c08096d20f0cfd8f573db852162b2be8',
   'student-learning-center-light.png':
-    '8aa2cf21373ebf8bed20c87e4aee29c3939bb8dcf676902d2be6172561f51166',
-  'teacher-dashboard-dark.png': '5d192e9bb4ab4cefd377c77b61dce221875de90a1466234408b787f9258f5eb0',
-  'teacher-dashboard-light.png': '1ac428c1a74b49609a957f19a7bd014b8bb1068574bbe93a81868278c0db3a8b',
+    '0395239497ec61ba16706c87ca4891dc70d2782903dd64f164232326f11e2df4',
+  'teacher-dashboard-dark.png': '30cbb78b5cfc11b04badd5788e25de211a9162693ab94b688c2fe6e2e15ed324',
+  'teacher-dashboard-light.png': '418fa48e4fdc6fc429c2792008653d90d89c384b9ba9449302bf901460c2f404',
 }
 
 test('24 张已提交基线的 sha256 与入库清单一致（篡改/重生成即红）', () => {

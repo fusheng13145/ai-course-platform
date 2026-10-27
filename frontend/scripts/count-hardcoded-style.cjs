@@ -60,6 +60,14 @@ function argValue(name) {
 }
 
 /**
+ * 剥掉注释再数：CSS 块注释整段去，行首 `//` 去一行（行中的 `//` 留给 url() 之类）。
+ * 不剥就会把"解释某个色值"的注释数成硬编码，越写文档越红。
+ */
+function stripComments(text) {
+  return text.replace(/\/\*[\s\S]*?\*\//g, '').replace(/^\s*\/\/.*$/gm, '')
+}
+
+/**
  * 字面量判定：把一行按 `;` 切成声明段，段内不含 `var(` 才把它的命中算作字面量。
  * 模式本身要求冒号（`box-shadow:`），所以 transition 列表里的属性名不会被误计。
  * 这样 `border-radius: var(--r-l1)` 不计、`border-radius: 10px` 计，
@@ -76,7 +84,8 @@ function countLiteralDecls(line, re) {
 }
 
 /** 与 countLiteralDecls 同一判定，返回被判定为字面量的声明段，供守卫断言取值集合。 */
-function literalSegments(text, re) {
+function literalSegments(rawText, re) {
+  const text = stripComments(rawText)
   // 带 g 标志的正则有 lastIndex 状态，test 逐段复用时必须换一枚无状态的
   const probe = new RegExp(re.source, re.flags.replace('g', ''))
   const out = []
@@ -101,7 +110,7 @@ function measure(files, base) {
   let gradientFiles = 0
   const perFile = []
   for (const file of files) {
-    const text = fs.readFileSync(file, 'utf8')
+    const text = stripComments(fs.readFileSync(file, 'utf8'))
     const rows = text.split(/\r?\n/)
     let fileHasGradient = false
     let hardcodeTotal = 0
@@ -148,12 +157,12 @@ function tokenAudit(styleFiles, base) {
   const consumers = collectAll(scanDirs)
   const styleSet = new Set(styleFiles)
   const texts = consumers.map((f) => ({
-    raw: fs.readFileSync(f, 'utf8'),
+    raw: stripComments(fs.readFileSync(f, 'utf8')),
     inStyles: styleSet.has(f),
   }))
   const defs = new Map()
   for (const f of styleFiles) {
-    const raw = fs.readFileSync(f, 'utf8')
+    const raw = stripComments(fs.readFileSync(f, 'utf8'))
     for (const m of raw.matchAll(/(--[a-z][a-z0-9-]*)\s*:/g)) {
       const name = m[1]
       defs.set(name, (defs.get(name) || 0) + 1)
@@ -256,6 +265,8 @@ function buildReport(base) {
     '> 该基线当年没有留命令，口径按最宽的解释落地：**命中行数**＝该行至少一次命中（含 `var()` 写法），',
     '> **出现次数**＝逐次累计，**其中字面量**＝按 `;` 切段后段内不含 `var(` 的命中次数。',
     '> 三列同表给出，判「硬编码有没有降」看第三列；前两列只用于和历史读数对齐。',
+    '> **注释不计**（2026-10-28 起，`stripComments` 先剥 `/* */` 与行首 `//`）：本工具初版把注释里的色值',
+    '> 也算进字面量，于是"给某个值写一句解释"会让读数变差——那是反向激励。此前入库的读数含注释。',
     '> 「处数」＝radius／角位 radius／shadow／hex6／rgba／hsl 六类**字面量**次数合计，不含 gradient（渐变单列）。',
     '> 对某一历史版本重跑同口径：`git archive <commit> frontend | tar -x -C <tmp>` 后加 `--root=<tmp>/frontend`。',
     '',
@@ -275,11 +286,16 @@ function main() {
   if (usedArg) {
     // 只给消费点读数：`--used=--ac-radius-md,--card-line` 逐名列出 var() 消费数
     const src = path.join(base, 'src')
-    const rows = tokenAudit(walk(src, []).filter((f) => !f.endsWith('.vue') && isStyleSource(f, base)), base)
+    const rows = tokenAudit(
+      walk(src, []).filter((f) => !f.endsWith('.vue') && isStyleSource(f, base)),
+      base,
+    )
     for (const raw of usedArg.split(',')) {
       const name = `--${raw.trim().replace(/^-+/, '')}`
       const hit = rows.find((r) => r.name === name)
-      console.log(`${name}: ${hit ? `var() 消费 ${hit.used}／定义 ${hit.defined} 处` : '未在 src/styles 里定义'}`)
+      console.log(
+        `${name}: ${hit ? `var() 消费 ${hit.used}／定义 ${hit.defined} 处` : '未在 src/styles 里定义'}`,
+      )
     }
     return
   }
@@ -291,7 +307,7 @@ function main() {
   }
 }
 
-module.exports = { PATTERNS, countLiteralDecls, literalSegments }
+module.exports = { PATTERNS, countLiteralDecls, literalSegments, stripComments }
 
 // 被守卫测试 require 时只取口径函数，不重跑计数
 if (require.main === module) main()
