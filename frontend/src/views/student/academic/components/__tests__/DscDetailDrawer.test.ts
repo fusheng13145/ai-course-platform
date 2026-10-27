@@ -16,8 +16,8 @@ function mountDrawer(posts: unknown[] = [], postLoading = false) {
     },
     global: {
       stubs: {
-        // el-drawer 桩：渲染默认插槽，使抽屉内内容可断言
-        'el-drawer': {
+        // Drawer 桩：渲染默认插槽，使抽屉内内容可断言（真组件 Teleport 到 body，批 3b 同款等价桩）
+        Drawer: {
           props: ['modelValue'],
           template: '<div class="drawer-stub"><slot /></div>',
         },

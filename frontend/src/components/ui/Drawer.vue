@@ -8,8 +8,9 @@ import { overlayEscIsTop, overlayEscPush, overlayEscRemove } from '@/composables
 /**
  * 抽屉原语 —— 与 Modal 同通道（Task 11）
  * ======================================
- * Phase 4 要把 4 处裸 `<el-drawer>`（EgEventsDrawer / DscDetailDrawer / TaskDrawer /
- * CdsDetailDrawer）收进来，而它们恰是全仓弹层里唯一没有任何焦点管理的一组。
+ * Phase 4 已把 4 处裸 `<el-drawer>`（EgEventsDrawer / DscDetailDrawer / TaskDrawer /
+ * CdsDetailDrawer）收进来（2026-10-27，P4-MIG-06，`<el-drawer` 全仓 0 命中），而它们恰是全仓弹层里
+ * 唯一没有任何焦点管理的一组。
  * 所以这里的通道命名与语义**逐字对齐 Modal**（modelValue / teleported / closeOnClickModal /
  * ariaLabel / ariaLabelledby + close / update:modelValue / closed），Phase 4 只需一套迁移规则。
  *

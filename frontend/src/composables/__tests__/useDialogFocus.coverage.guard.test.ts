@@ -135,9 +135,9 @@ describe('覆盖率护栏逻辑（Task 13）', () => {
     expect(legacyOffenders(classifyOverlays([src('c.vue', commented)])).elDialog).toEqual(['c.vue'])
   })
 
-  it('地板表与缺口表是同一口径的产物（合计 84、缺口 4 个）', () => {
+  it('地板表与缺口表是同一口径的产物（合计 84、缺口 0 个——P4-MIG-06 已清空）', () => {
     expect(Object.values(BASELINE_TAG_BY_MARKER).reduce((a, b) => a + b, 0)).toBe(84)
-    expect(KNOWN_UNWIRED_EL_DRAWER_FILES).toHaveLength(4)
+    expect(KNOWN_UNWIRED_EL_DRAWER_FILES).toHaveLength(0)
   })
 
   it('legacy 调用点漏接 useDialogFocus 会被列为 offender', () => {

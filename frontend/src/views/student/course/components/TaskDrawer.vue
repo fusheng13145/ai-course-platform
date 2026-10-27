@@ -1,9 +1,8 @@
 <template>
-  <el-drawer
+  <Drawer
     v-model="visible"
     :title="drawerTitle"
-    :size="drawerSize"
-    direction="rtl"
+    :width="drawerSize"
     @closed="onClosed"
   >
     <div v-loading="taskLoading" class="task-panel">
@@ -37,7 +36,7 @@
           class="task-alert"
         />
         <div v-else-if="!videoSrc" class="no-resource">
-          <el-icon :size="40" color="var(--ac-text-muted)"><VideoPlay /></el-icon>
+          <el-icon :width="40" color="var(--ac-text-muted)"><VideoPlay /></el-icon>
           <p>该视频任务点暂未配置视频资源</p>
           <el-button type="primary" @click="markVideoFallback">标记为已观看</el-button>
         </div>
@@ -69,7 +68,7 @@
       <!-- 作业任务点 -->
       <template v-else-if="task && isAssignment">
         <div class="assignment-panel">
-          <el-icon :size="40" color="var(--ac-danger)"><Files /></el-icon>
+          <el-icon :width="40" color="var(--ac-danger)"><Files /></el-icon>
           <h3>{{ task.title }}</h3>
           <p v-if="task.dueDate" class="muted">截止：{{ formatTime(task.dueDate, '--') }}</p>
           <p class="muted">作业请在「待办 / 作业」区域提交，提交后本任务点自动完成。</p>
@@ -171,7 +170,7 @@
         <EmptyState v-else title="该课程暂无可用测验题目" icon="list" size="compact" />
       </template>
     </div>
-  </el-drawer>
+  </Drawer>
 </template>
 
 <script setup lang="ts">
@@ -185,6 +184,7 @@ import logger from '@/utils/logger'
 import studentApi from '@/api/student'
 import { useVideoTask } from '@/composables/useVideoTask'
 import { useQuizTask } from '@/composables/useQuizTask'
+import Drawer from '@/components/ui/Drawer.vue'
 
 /**
  * 任务点抽屉组件

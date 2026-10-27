@@ -1,9 +1,8 @@
 <template>
-  <el-drawer
+  <Drawer
     :model-value="modelValue"
     title="违规事件核查"
-    size="460px"
-    append-to-body
+    width="460px"
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <div v-if="eventsLoading" v-loading="true" style="height: 200px"></div>
@@ -56,12 +55,13 @@
         <EmptyState v-if="!events.length" title="该会话暂无违规事件" icon="alert" size="compact" />
       </div>
     </template>
-  </el-drawer>
+  </Drawer>
 </template>
 
 <script setup lang="ts">
 import type { PropType } from 'vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import Drawer from '@/components/ui/Drawer.vue'
 
 /** 违规事件行（治理事件展示字段子集） */
 interface ExamEventRow {

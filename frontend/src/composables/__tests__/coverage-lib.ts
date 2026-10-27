@@ -247,8 +247,8 @@ export function primitiveOnlySitesWithDeadWiring(records: OverlayRecord[]): stri
 export const BASELINE_TAG_BY_MARKER: Readonly<Record<string, number>> = {
   '<el-dialog': 0,
   '<Modal': 78,
-  '<Drawer': 2,
-  '<el-drawer': 4,
+  '<Drawer': 6,
+  '<el-drawer': 0,
 }
 
 /** 弹层开标签总数地板＝**只升不降**：一个 `<el-dialog` 变成一个 `<Modal` 时总数不变，下降即有弹层凭空消失。 */
@@ -258,18 +258,17 @@ export const EXPECTED_OVERLAY_MIN = 84
 export const EXPECTED_OVERLAY_COMPONENT_MIN = 75
 
 /**
- * 已知缺口清单（`<el-drawer>` 的 4 个使用者）：旧扫描键只有 `<el-dialog`，抽屉从来不在射程内
- * ——spec §9.5 第 5 条与计划 Task 13 题注指出的就是这 4 个**真实**未接线点（不是误报）。
+ * 已知缺口清单（`<el-drawer>` 的未接线使用者）：旧扫描键只有 `<el-dialog`，抽屉从来不在射程内
+ * ——spec §9.5 第 5 条与计划 Task 13 题注指出的就是 4 个**真实**未接线点（不是误报）。
  * 本棒不许改 view（Task 13 的许可面只有护栏），所以它登记成一张**只许清空**的表：
  * ① 新增一个未接线的 el-drawer ⇒ `novel` 非空即红；② 谁把这 4 处补了 `useDialogFocus` 或改用
  * `ui/Drawer` ⇒ `stale` 非空即红，必须同时删掉这行条目。⇒ 它既能拦退化，也不给"豁免表悄悄长大"留缝。
  * EP 2.14.7 的 `el-drawer` 自己挂了 focus-trap（`node_modules/element-plus/es/components/drawer/src/`
  * `drawer.vue_vue_type_script_setup_true_lang.mjs` 里 `import focus_trap_default`），
  * 所以这 4 处缺的是**本仓的首焦＋关闭返还**，不是"完全没有陷阱"。
+ *
+ * ✅ **已清空（2026-10-27，P4-MIG-06）**：4 处（EgEventsDrawer / DscDetailDrawer / TaskDrawer /
+ * CdsDetailDrawer）全部迁至 `ui/Drawer`（原语内部已接 useDialogFocus＋焦点陷阱＋滚动锁＋Esc），
+ * `<el-drawer` 全仓 0 命中。表保持空数组值守卫——`novel`/`stale` 双向红继续拦退化。
  */
-export const KNOWN_UNWIRED_EL_DRAWER_FILES: readonly string[] = [
-  'views/admin/governance/components/EgEventsDrawer.vue',
-  'views/student/academic/components/DscDetailDrawer.vue',
-  'views/student/course/components/TaskDrawer.vue',
-  'views/teacher/cockpit/components/CdsDetailDrawer.vue',
-]
+export const KNOWN_UNWIRED_EL_DRAWER_FILES: readonly string[] = []

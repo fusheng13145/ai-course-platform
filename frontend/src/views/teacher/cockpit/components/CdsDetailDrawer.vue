@@ -1,8 +1,8 @@
 <template>
-  <el-drawer
+  <Drawer
     :model-value="modelValue"
     :title="detail.title || '话题详情'"
-    size="460px"
+    width="460px"
     @update:model-value="$emit('update:modelValue', $event)"
     @closed="emit('closed')"
   >
@@ -80,12 +80,13 @@
         >
       </div>
     </div>
-  </el-drawer>
+  </Drawer>
 </template>
 
 <script setup lang="ts">
 import { User, Top, Pointer, Delete, Promotion, Check, CircleClose } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import Drawer from '@/components/ui/Drawer.vue'
 
 withDefaults(
   defineProps<{

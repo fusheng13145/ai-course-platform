@@ -1,9 +1,8 @@
 <template>
-  <el-drawer
+  <Drawer
     :model-value="modelValue"
     :title="currentTopic?.title || '话题详情'"
-    size="560px"
-    append-to-body
+    width="560px"
     @update:model-value="$emit('update:modelValue', $event)"
   >
     <div v-if="currentTopic" class="detail-head">
@@ -107,12 +106,13 @@
       :closable="false"
       show-icon
     />
-  </el-drawer>
+  </Drawer>
 </template>
 
 <script setup lang="ts">
 import { Star, User, Bell, Pointer } from '@element-plus/icons-vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
+import Drawer from '@/components/ui/Drawer.vue'
 
 /**
  * 话题详情抽屉
