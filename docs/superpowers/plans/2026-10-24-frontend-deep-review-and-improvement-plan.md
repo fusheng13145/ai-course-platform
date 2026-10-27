@@ -239,7 +239,7 @@ FE-10/11/12/13/14 全部沿用既有母文档的触发条件与重启信号；�
 
 ### 8.4 当前门禁读数（2026-10-26，核心闭环批后，全部本机）
 
-vitest **190 文件 / 1986 例**全绿（核心闭环两批 +32 例：useSubmissionGrading 18/useStudentAssignments 10/CduAssignmentTab 4/useExamCompose 15/Picker 8/questionTypes 4/题库契约 2/exam+submission 契约扩充）｜ lint 0/0 ｜ 类型棘轮 **13 条 / 5 文件**持平 ｜ build + size:gate 六项全过（其余 1289.18/1300、JS 3152.67/3400、EP CSS 381.6/420）｜ 护栏 **el-dialog 0/el-drawer 0（双清零）/Modal 78/Drawer 6＝总数 84、文件数 75**（三数同步，只升不降；KNOWN_UNWIRED 抽屉缺口表已清空）｜ 后端新增端点 ExamPaperControllerTest 33 例绿（含选题端点 3 例）＋**真实后端冒烟两轮 15+ 步全过**（批 1 批阅链/批 2 组卷发布链）｜ Playwright 流程 **54/54** ｜ 视觉全表 **84/84**（dialog-open 观察用例随 legacy 载体退役减 1；**P4-DRIFT-01 漂移归因闭合（2026-10-26，方案①）**：admin-dashboard 钉桩 7 端点＋fixture 入库＋平凡键豁免登记＋2 张基线重录＋sha256 同步；NOPIN 对照漂移复现证明钉桩有效；钉桩页序列 student 5/governance 7/admin 7，admin 格被钉区域措辞降级入 R-CF1 豁免表）｜ Phase 4 结构收敛**整体收官＋尾部清单清空（2026-10-27，P4-A3-01）**：**el-dialog/el-drawer/el-tabs 全仓 0 命中**（7 批迁移）＋A3 四项连带清算全闭（teleport 考古 26 处翻转点核对通过/R-T14-8 书面弃用/--sh-pop 书面保留/useDialogFocus 0 残留）｜ **核心闭环：创建→选题→保存→发布→学生提交→批阅 全链可用（QA 真实冒烟实证）**｜ 本机后端 e2e 配方：`--server.port=8080` 程序参兜底宿主注入。
+vitest **190 文件 / 1986 例**全绿（核心闭环两批 +32 例：useSubmissionGrading 18/useStudentAssignments 10/CduAssignmentTab 4/useExamCompose 15/Picker 8/questionTypes 4/题库契约 2/exam+submission 契约扩充）｜ lint 0/0 ｜ 类型棘轮 **0 条（P4-B1-01 清零，基线写死 0，新增即红）** ｜ build + size:gate 六项全过（其余 1289.18/1300、JS 3152.67/3400、EP CSS 381.6/420）｜ 护栏 **el-dialog 0/el-drawer 0（双清零）/Modal 78/Drawer 6＝总数 84、文件数 75**（三数同步，只升不降；KNOWN_UNWIRED 抽屉缺口表已清空）｜ 后端新增端点 ExamPaperControllerTest 33 例绿（含选题端点 3 例）＋**真实后端冒烟两轮 15+ 步全过**（批 1 批阅链/批 2 组卷发布链）｜ Playwright 流程 **54/54** ｜ 视觉全表 **84/84**（dialog-open 观察用例随 legacy 载体退役减 1；**P4-DRIFT-01 漂移归因闭合（2026-10-26，方案①）**：admin-dashboard 钉桩 7 端点＋fixture 入库＋平凡键豁免登记＋2 张基线重录＋sha256 同步；NOPIN 对照漂移复现证明钉桩有效；钉桩页序列 student 5/governance 7/admin 7，admin 格被钉区域措辞降级入 R-CF1 豁免表）｜ Phase 4 结构收敛**整体收官＋尾部清单清空（2026-10-27，P4-A3-01）**：**el-dialog/el-drawer/el-tabs 全仓 0 命中**（7 批迁移）＋A3 四项连带清算全闭（teleport 考古 26 处翻转点核对通过/R-T14-8 书面弃用/--sh-pop 书面保留/useDialogFocus 0 残留）｜ **核心闭环：创建→选题→保存→发布→学生提交→批阅 全链可用（QA 真实冒烟实证）**｜ 本机后端 e2e 配方：`--server.port=8080` 程序参兜底宿主注入。
 
 ### 8.5 规划结束基线（Definition of Done，2026-10-26 固化）
 
@@ -260,7 +260,7 @@ vitest **190 文件 / 1986 例**全绿（核心闭环两批 +32 例：useSubmiss
 
 | # | 收口判据 | 结束态验证 |
 | --- | --- | --- |
-| B1 | **类型棘轮清零**：FE-10 B17 把 13 条/5 文件 → **0**；`typecheck-baseline.json` 退役为全绿门的决策落账（退役，或书面保留理由） | `npm run typecheck` 输出 0 error |
+| B1 | ✅ **已达成（2026-10-27，P4-B1-01）**：13 条/5 文件 → **0**（三级来源判定修真类型，零 any 擦除）；`typecheck-baseline.json` **书面保留**——基线 0 即全绿门（errors>0 必红＝与「0 error」判据同一语义），且 only-down 棘轮防未来擅自回松、check-types.cjs 保留 vue-tsc 崩溃拒放行护栏（QA 探针实证阻断与精确定位）；退役反而是无增益的脚本改写 | `npm run typecheck` 输出 0 error（exit 0）；`node scripts/check-types.cjs` 0 条/通过；LEDGER `P4-B1-01` 行 |
 | B2 | **R-10 转正前提项**：造数据转正或书面永久挂账（含理由），二选一落账 | LEDGER/plan 状态行更新 |
 | B3 | **孤儿组件决策**：ExamFormDialog（FE-10 B9 发现）与 CgtGradeDialog（P4-MIG-01 发现）删除或保留，项目主决策落账 | plan/LEDGER 状态行更新 |
 | B4 | **dependabot 10 分支**：逐条合并或关闭落账 | 远端分支数归零或书面保留清单 |
