@@ -98,7 +98,7 @@ function iconSvg(name, size = 18) {
   border-radius: var(--r-l1);
   padding: 16px 18px;
   box-shadow: var(--sh-l1);
-  border: 1px solid rgba(227, 230, 236, 0.7);
+  border: 1px solid var(--card-line);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -139,7 +139,7 @@ function iconSvg(name, size = 18) {
   top: 12px;
   width: 36px;
   height: 36px;
-  border-radius: 10px;
+  border-radius: var(--r-ctl);
   display: grid;
   place-items: center;
 }

@@ -57,7 +57,7 @@ body {
   background: var(--surface);
   border-radius: var(--r-l1);
   box-shadow: var(--sh-l1);
-  border: 1px solid rgba(227, 230, 236, 0.7);
+  border: 1px solid var(--card-line);
   margin-bottom: 18px;
   overflow: hidden;
   transition: box-shadow 0.25s var(--ease-out);
@@ -83,7 +83,7 @@ body {
 .l1-head .l1-ico {
   width: 34px;
   height: 34px;
-  border-radius: 10px;
+  border-radius: var(--r-ctl);
   display: grid;
   place-items: center;
   background: var(--accent-soft);
@@ -124,7 +124,7 @@ body {
   border-radius: var(--r-l1);
   padding: 16px 18px;
   box-shadow: var(--sh-l1);
-  border: 1px solid rgba(227, 230, 236, 0.7);
+  border: 1px solid var(--card-line);
   display: flex;
   flex-direction: column;
   gap: 8px;
@@ -166,7 +166,7 @@ body {
   top: 12px;
   width: 36px;
   height: 36px;
-  border-radius: 10px;
+  border-radius: var(--r-ctl);
   display: grid;
   place-items: center;
 }
@@ -274,7 +274,7 @@ body {
   gap: 6px;
   height: 32px;
   padding: 0 14px;
-  border-radius: 8px;
+  border-radius: var(--ac-radius-md);
   font-size: 13px;
   font-weight: 500;
   cursor: pointer;
@@ -356,7 +356,7 @@ body {
 .t-icon-btn {
   width: 32px;
   height: 32px;
-  border-radius: 8px;
+  border-radius: var(--ac-radius-md);
   border: none;
   background: transparent;
   display: grid;
@@ -396,7 +396,7 @@ body {
 .textarea {
   width: 100%;
   border: 1px solid var(--line-2);
-  border-radius: 8px;
+  border-radius: var(--ac-radius-md);
   padding: 8px 11px;
   font-size: 13px;
   color: var(--ink);
@@ -436,7 +436,7 @@ body {
 .radio-card {
   flex: 1;
   border: 1.5px solid var(--line-2);
-  border-radius: 10px;
+  border-radius: var(--r-ctl);
   padding: 10px 12px;
   cursor: pointer;
   transition: all 0.16s;
@@ -549,7 +549,7 @@ table.tbl {
   width: 110px;
   height: 6px;
   background: var(--surface-3);
-  border-radius: 999px;
+  border-radius: var(--r-chip);
   overflow: hidden;
   display: inline-block;
   vertical-align: middle;
@@ -557,7 +557,7 @@ table.tbl {
 .mini-progress > i {
   display: block;
   height: 100%;
-  border-radius: 999px;
+  border-radius: var(--r-chip);
   background: linear-gradient(90deg, #d3554a, var(--accent));
   transition: width 0.6s var(--ease-out);
 }
@@ -674,7 +674,7 @@ table.tbl {
   font-size: 10px;
   background: var(--surface-3);
   color: var(--ink-3);
-  border-radius: 999px;
+  border-radius: var(--r-chip);
   padding: 1px 7px;
 }
 .tab-i.active .tab-badge {
@@ -686,7 +686,7 @@ table.tbl {
   gap: 6px;
   padding: 4px;
   background: var(--surface-3);
-  border-radius: 10px;
+  border-radius: var(--r-ctl);
   width: fit-content;
   max-width: 100%;
   min-width: 0;
@@ -697,7 +697,7 @@ table.tbl {
   flex-shrink: 0;
   flex-shrink: 0;
   padding: 6px 16px;
-  border-radius: 8px;
+  border-radius: var(--ac-radius-md);
   font-size: 13px;
   color: var(--ink-2);
   cursor: pointer;
@@ -720,14 +720,14 @@ table.tbl {
 .tabs-seg {
   display: inline-flex;
   background: var(--surface-3);
-  border-radius: 8px;
+  border-radius: var(--ac-radius-md);
   padding: 3px;
   gap: 2px;
 }
 .tabs-seg .tab-i {
   padding: 4px 12px;
   font-size: 12px;
-  border-radius: 6px;
+  border-radius: var(--r-l3);
   color: var(--ink-3);
   cursor: pointer;
   user-select: none;
@@ -852,7 +852,7 @@ table.tbl {
   position: fixed;
   min-width: 168px;
   background: var(--surface);
-  border-radius: 10px;
+  border-radius: var(--r-ctl);
   box-shadow: var(--sh-pop);
   border: 1px solid var(--line);
   padding: 5px;
@@ -950,7 +950,7 @@ table.tbl {
   border-radius: var(--r-l1);
   overflow: hidden;
   box-shadow: var(--sh-l1);
-  border: 1px solid rgba(227, 230, 236, 0.7);
+  border: 1px solid var(--card-line);
   cursor: pointer;
   transition:
     transform 0.22s var(--ease-out),
@@ -1026,7 +1026,7 @@ table.tbl {
   background: var(--surface);
   border-radius: var(--r-l1);
   box-shadow: var(--sh-l1);
-  border: 1px solid rgba(227, 230, 236, 0.7);
+  border: 1px solid var(--card-line);
   position: sticky;
   top: 0;
   max-height: calc(100vh - var(--topbar-h) - 40px);
@@ -1119,7 +1119,7 @@ table.tbl {
   background: var(--surface-invert);
   color: #eef1f6;
   font-size: 13px;
-  border-radius: 10px;
+  border-radius: var(--r-ctl);
   box-shadow: var(--sh-pop);
   pointer-events: auto;
 }
@@ -1129,7 +1129,7 @@ table.tbl {
   position: relative;
   overflow: hidden;
   background: var(--surface-3);
-  border-radius: 8px;
+  border-radius: var(--ac-radius-md);
 }
 .skeleton::after {
   content: '';
@@ -1328,7 +1328,7 @@ table.tbl {
   box-shadow: var(--sh-modal) !important;
 }
 .el-message {
-  border-radius: 10px !important;
+  border-radius: var(--r-ctl) !important;
 }
 .el-table th.el-table__cell {
   background: var(--surface-2) !important;

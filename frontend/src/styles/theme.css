@@ -44,6 +44,9 @@
   --line: #e3e6ec;
   --line-2: #d4d9e1;
   --line-strong: #c2c9d4;
+  /* 卡面描边：原先在四处卡片规则里各写一份同一个亮色，收成一枚。
+     暗色档暂不覆写（覆写会改像素，代价见 docs/前端待办项.md P5-05 行）。 */
+  --card-line: rgba(227, 230, 236, 0.7);
 
   /* ========== 圆角（随层级递减）========== */
   /* 【P2-RADIUS-01】圆角五阶 16/12/10/6/999 对齐（spec §4 Phase 2）：--r-l3 9→6
@@ -178,9 +181,7 @@
   --ac-text-regular: var(--ink-2);
   --ac-text-muted: var(--ink-3);
   --ac-text-tertiary: var(--ink-3);
-  --ac-text-placeholder: var(--ink-4);
   --ac-border: var(--line);
-  --ac-border-color: var(--line);
   --ac-border-strong: var(--line-2);
   --ac-bg: var(--bg);
   --ac-bg-base: var(--bg);
@@ -188,22 +189,15 @@
   --ac-bg-elevated: var(--surface);
   --ac-bg-hover: var(--surface-3);
 
-  --ac-sidebar-bg: var(--sidebar-bg-start);
-  --ac-sidebar-text: var(--sidebar-text);
-  --ac-sidebar-text-hover: var(--sidebar-text-hover);
-  --ac-sidebar-active-bg: rgba(193, 59, 48, 0.16);
-  --ac-sidebar-active-text: var(--sidebar-sub-active);
-
   --ac-shadow-sm: var(--sh-l2);
   --ac-shadow-md: var(--sh-l1);
   --ac-shadow-lg: var(--sh-pop);
   --ac-shadow-xl: var(--sh-modal);
-  --ac-shadow-colored: 0 4px 14px rgba(193, 59, 48, 0.35);
 
   /* 【P2-RADIUS-01】legacy 半径别名单源化（同值改引阶梯，调用点零改动）：
      sm(6)→r-l3、lg(10)→r-ctl、xl(12)→r-l2——"把 --ac-radius-sm 从控件路径上摘掉"
-     落在源头（独立 6px 不复存在）。md(8px) 离五阶且消费面 77 处，保持独立值，
-     别名收敛归 Phase 5（挂账见 LEDGER P2-RADIUS-01）。 */
+     落在源头（独立 6px 不复存在）。md(8px) 离五阶且消费面 92 处，保持独立值，
+     别名收敛归 Phase 5（挂账见 docs/前端待办项.md P5-05 行）。 */
   --ac-radius-sm: var(--r-l3);
   --ac-radius-md: 8px;
   --ac-radius-lg: var(--r-ctl);
@@ -216,9 +210,9 @@
   --ac-spacing-xl: 32px;
   --ac-spacing-xxl: 48px;
 
-  --ac-transition-fast: 0.15s ease;
-  --ac-transition-normal: 0.25s ease;
-  --ac-transition-slow: 0.35s ease;
+  /* 时长单源到 --t-* 档（150ms 与 0.15s 同值）；缓动仍写 ease，仓内没有 ease 的 token。 */
+  --ac-transition-fast: var(--t-fast) ease;
+  --ac-transition-normal: var(--t-norm) ease;
 
   /* ========== Element Plus CSS 变量覆写 ========== */
   --el-color-primary: var(--accent);
