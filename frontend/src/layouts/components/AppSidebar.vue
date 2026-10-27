@@ -74,7 +74,11 @@
       </template>
     </nav>
 
-    <div class="side-user" data-onboard="side-user" @click="emit('user-menu')">
+    <div
+      class="side-user"
+      data-onboard="side-user"
+      @click="emit('user-menu', $event.currentTarget)"
+    >
       <span class="avatar lg" :style="avatarStyle">{{ avatarInitial }}</span>
       <div class="u-meta">
         <div class="u-name">{{ auth.userName }}</div>

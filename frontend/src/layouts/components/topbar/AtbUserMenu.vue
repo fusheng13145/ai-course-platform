@@ -1,17 +1,18 @@
 <template>
   <!-- 用户头像下拉 -->
-  <button class="user-btn" @click="openMenuFrom('.user-btn')">
+  <button
+    ref="triggerEl"
+    class="user-btn"
+    aria-haspopup="menu"
+    :aria-expanded="menuOpen"
+    @click="openMenu"
+  >
     <span class="avatar" :style="avatarStyle">{{ avatarInitial }}</span>
     <span class="user-name-text">{{ auth.userName }}</span>
   </button>
 
   <!-- 与侧栏底部用户区同一份 items；顶栏在头像下方展开 -->
-  <UserMenu
-    v-if="menuOpen"
-    :items="menuItems"
-    :anchor-rect="menuRect"
-    @closed="menuOpen = false"
-  />
+  <UserMenu v-if="menuOpen" :items="menuItems" :trigger-el="triggerEl" @closed="menuOpen = false" />
 </template>
 
 <script setup>
@@ -45,12 +46,10 @@ const avatarStyle = computed(() => {
 
 /* ---- 用户菜单（单一来源 UserMenu，跟随本组件的头像按钮） ---- */
 const menuOpen = ref(false)
-const menuRect = ref({ top: 0, left: 0 })
-function openMenuFrom(selector) {
-  const el = document.querySelector(selector)
-  if (!el) return
-  const r = el.getBoundingClientRect()
-  menuRect.value = { top: r.top, left: r.left, bottom: r.bottom }
+// 模板 ref 而不是 document.querySelector('.user-btn')：后者取的是文档里第一个同名元素，
+// 顶栏与侧栏任何一处再长出一个 .user-btn，菜单就会锚到别人的矩形上去。
+const triggerEl = ref(null)
+function openMenu() {
   menuOpen.value = true
 }
 const menuItems = computed(() =>

@@ -1,11 +1,7 @@
 <template>
   <div class="app">
     <!-- 侧边栏（深色，手风琴二级菜单 + mini 折叠） -->
-    <AppSidebar
-      :role="role"
-      :sidebar-mini="sidebarMini"
-      @user-menu="openMenuFrom('.side-user')"
-    />
+    <AppSidebar :role="role" :sidebar-mini="sidebarMini" @user-menu="openUserMenu" />
 
     <!-- 主区 -->
     <div class="main">
@@ -38,7 +34,7 @@
   <UserMenu
     v-if="menuOpen"
     :items="menuItems"
-    :anchor-rect="menuRect"
+    :trigger-el="menuTrigger"
     @closed="menuOpen = false"
   />
 </template>
@@ -153,12 +149,11 @@ useGlobalHotkeys([
 
 /* ---- 用户菜单（与顶栏头像同一份 items） ---- */
 const menuOpen = ref(false)
-const menuRect = ref({ top: 0, left: 0 })
-function openMenuFrom(selector) {
-  const el = document.querySelector(selector)
-  if (!el) return
-  const r = el.getBoundingClientRect()
-  menuRect.value = { top: r.top, left: r.left, bottom: r.bottom }
+// 侧栏把触发元素随事件递过来：菜单是 position:fixed，矩形要现量，
+// 存一份快照会在侧栏滚动后把菜单留在原地
+const menuTrigger = ref(null)
+function openUserMenu(el) {
+  menuTrigger.value = el instanceof HTMLElement ? el : null
   menuOpen.value = true
 }
 const menuItems = computed(() =>
