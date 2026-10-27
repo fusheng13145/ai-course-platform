@@ -14,7 +14,7 @@ import { loginAs } from './test-helpers'
  *   GET  /api/tasks/pending-grading                     待批阅任务（必须带 courseId 才能跳转）
  *   GET  /api/tasks?courseId=…                          提交页任务列表
  *   GET  /api/submissions/task/{id}                     提交页提交记录
- *   POST /api/submissions/{id}/ai-grade                 AI 评分请求
+ *   POST /api/submissions/{id}/ai-grade                 AI 预批请求（批改弹窗内触发）
  *
  * 成绩表已无 AI 按钮：批阅入口在「待批阅任务 → 课程驾驶舱 · 作业批改」，本文件按真实产品路径走。
  *
@@ -209,9 +209,13 @@ test.describe('成绩管理（教师端主链路）', () => {
     expect(served).toEqual(expect.arrayContaining(['/api/tasks', '/api/submissions/task/7']))
     expect(fallback.filter((path) => path.startsWith('/api/submissions/task/'))).toEqual([])
 
-    await row.getByText('AI 评分').click()
+    // 行内那个「AI 评分」按钮自 dd116a8 起搬进了批改弹窗（行内只剩「批改」），
+    // 断言跟着改准：开弹窗 → 点「AI 预批」→ 预批完成提示 + 请求打在提交 id 上
+    await row.getByRole('button', { name: '批改', exact: true }).click()
+    const gradeDialog = page.getByRole('dialog', { name: /批改作业/ })
+    await gradeDialog.getByRole('button', { name: /AI 预批/ }).click()
 
-    await expect(page.getByText('AI 评分完成')).toBeVisible()
+    await expect(page.getByText(/AI 预批完成/)).toBeVisible()
     // 评分对象是提交 id（101），不是 studentId
     expect(served).toContain('/api/submissions/101/ai-grade')
     expect(fallback).not.toContain('/api/submissions/101/ai-grade')
