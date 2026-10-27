@@ -88,12 +88,12 @@ JWT_MIN_BYTES = 32
 #   (b) 能被 .env 的每一个消费者**原样送达**（不被解释、截断或转义）；
 #   (c) 在 shell / dotenv / 引号语境下无特殊语义。
 #
-# 消费者 1 —— start-backend.bat:19-21：
+# 消费者 1 —— 旧 start-backend.bat 的 `for /f ... set "%%a"`（2026-10-27 三份启动器合并后已移除）：
 #     for /f "usebackq delims=" %%a in (`type "%ENV_FILE%" ^| findstr /v "^#" ^| findstr /v "^$"`) do (
 #         set "%%a" 2>nul
 #     )
 #   该块运行在 setlocal enabledelayedexpansion 之下。**逐个字符实跑 cmd 比对**的结论
-#   （复现脚本：`.workbuddy/tmp/probe_bat_chars.py`）：
+#   （复现脚本当时在 `.workbuddy/tmp/probe_bat_chars.py`，未入库；原文见本文件的 git 历史）：
 #     会被破坏 →  !  ^  &  <  >  |
 #        !  被延迟展开吞掉（enabledelayedexpansion 的经典坑）
 #        ^  被当作转义符
@@ -102,6 +102,11 @@ JWT_MIN_BYTES = 32
 #   ⚠ 反面案例（这才是本池必须窄的根本原因）：若放行 `!`，随机命中时它会在这一步被吞掉，
 #     而生成的口令很可能**只有这一个特殊字符** → 到 Java 层反被 PasswordPolicy 拒绝 →
 #     恰好亲手制造出我们正要修的那种"生成的口令导致拒启"缺陷。故 `!` 必须排除。
+#   ⚠ 消费者 1 已随启动器合并消失，但**本池不放宽**：放宽是一次独立决策，需要
+#     ① 重新清点仍在读 `.env` 的 shell/cmd 侧用法（`docker compose` 插值，
+#     calibration/run_backend.sh 与 run_calib.sh 的 grep+read 循环，scripts/init-app-db-user.sh），
+#     ② 逐字符重做上面的比对并留读数。
+#     只做"少一个消费者"就顺手扩池，等于把口令强度的证据链剪断。
 #
 # 消费者 2 —— docker compose 的 .env 插值 / dotenv 解析：
 #     $  会触发变量插值            → 排除

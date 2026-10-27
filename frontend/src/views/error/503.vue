@@ -43,7 +43,7 @@ const redirectTarget = computed(() => {
 
 const statusText = computed(() => {
   if (exhausted.value) {
-    return '仍未连接到后端服务。请确认启动脚本（start-all.bat / start-backend.bat）正在运行，且 8080 端口已监听。'
+    return '仍未连接到后端服务。请确认启动脚本（start.bat）正在运行，且 8080 端口已监听。'
   }
   if (checking.value) return `正在连接后端服务…（第 ${polls.value + 1} 次检测）`
   return `等待后端服务就绪…（已检测 ${polls.value} / ${MAX_POLLS} 次）`

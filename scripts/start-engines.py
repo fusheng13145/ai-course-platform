@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-一键拉起后端全链：Neo4j(7687) -> KG(8001) -> RAG(8002)，再交给 start-backend.bat 起 Java。
+一键拉起后端全链：Neo4j(7687) -> KG(8001) -> RAG(8002)，再交给 start.bat backend 起 Java。
 =========================================================================================
 为什么需要它：手册 §18.5 把引擎启动写成五条手工 cmd 步骤，三个坑各自都能把演示判成"AI 没接上"：
   1) 两个 FastAPI 服务**只读进程环境、不读 `.env`**（DR-39，全文无 dotenv），所以
@@ -143,7 +143,7 @@ def offline_flags(env: dict, exists=default_exists) -> dict:
 
 
 def should_start(enabled_flag) -> bool:
-    """.env 里显式写 false/0/no 一律优先（与 start-backend.bat 第 5 步同口径）。"""
+    """.env 里显式写 false/0/no 一律优先（与 start-all.py 的 backend_env() 同口径）。"""
     if enabled_flag is None:
         return True
     return str(enabled_flag).strip().lower() not in ("false", "0", "no", "off")
@@ -420,7 +420,7 @@ def main(argv=None) -> int:
     if is_port_listening(8080) and todo:
         print(
             "[WARN] 后端已在跑而引擎刚起：Java 只在启动那一刻探测引擎，"
-            "需重启 start-backend.bat 才会切到 mode=ENGINE。"
+            "需重启 start.bat backend 才会切到 mode=ENGINE。"
         )
     if final["kg"] and not final["neo4j"]:
         print("[INFO] Neo4j 端口未起 -> KG 只能是内存图或尚未初始化，见上一行 backend 判定")

@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-单窗口统一启动器：一个控制台拉起完整演示栈。
+单窗口统一启动器：一个控制台拉起完整演示栈（或按子命令只起后端 / 只起前端）。
 =================================================================
-为什么要它：`start-backend.bat` + `start-frontend.bat` 的结构本身就是 **5 个 cmd 窗口**：
+为什么要它：旧的两份分步启动器（`start-backend.bat` + `start-frontend.bat`，已合并进本文件）
+的结构本身就是 **5 个 cmd 窗口**：
   ① start-backend.bat 自己（第 6 步 `mvnw.cmd spring-boot:run` 前台占住控制台）
   ②③④ scripts/start-engines.py 的 `spawn_detached()` 用 `CREATE_NEW_CONSOLE` 给
      Neo4j console / KG / RAG 各开一个新窗口
@@ -13,15 +14,17 @@
 用管道接进同一个控制台**，逐行加 `[neo4j] [kg] [rag] [api] [web]` 前缀，同时各自落一份
 `logs/<name>.log`（仓库根 `.gitignore` 已忽略 `*.log`）。
 
-与既有两份启动器的关系：**本文件只做加法**，`start-backend.bat`、`start-frontend.bat`、
-`scripts/start-engines.py` 一行未改，手工分步姿态与无 python 环境的兜底继续可用。
+与旧三份启动器的关系：**本文件是唯一实现**。`start-all.bat` / `start-backend.bat` /
+`start-frontend.bat` 已于 2026-10-27 合并成一份 `start.bat`（只做 python 定位与子命令透传），
+batch 里那份"注入口径 + 择口 + 探活"的复刻随之删除——两套并行逻辑必然分叉。
 判定层直接复用 `scripts/start-engines.py`（文件名带连字符，不能用 import 语句，故用
 importlib 显式加载），`.env` 解析、`sk-` 形状门、离线位门、"只补没在跑的"这些已经过
-真跑取证的规则不复制第二份——复制就会分叉。
+真跑取证的规则不复制第二份。
 
 语义口径（与手册 §17/§18.5/§25、DR-36/DR-37/DR-38/DR-39/DR-50 对齐）：
   - **接管不重启**：端口已在监听的服务一律不拉起、不杀（双实例共用一套 MySQL/Redis
     却各自计限流、日志分叉，DR-36 实测）；收尸清单只含本启动器真正起的子进程。
+    合并后连"要不要强起第二个实例"的询问也没有了——那个选项本身就是 DR-36 的病根。
   - **子树收尸**：`mvnw.cmd` 下面挂着 java，只杀父会让 java 被重生并抢不到 8080（本机实测），
     因此 Ctrl+C 走 `taskkill /T /F`。用鼠标点 X 关窗时，子进程与本进程共用同一控制台，
     Windows 会给它们投递 CTRL_CLOSE_EVENT，仍然会断——与"关窗即断演示"的既有口径一致。
@@ -30,11 +33,16 @@ importlib 显式加载），`.env` 解析、`sk-` 形状门、离线位门、"�
   - **就绪判据**：引擎=端口在听**且**探针有响应（uvicorn 先绑口后装载）；后端=`/probe` 返 200
     （复合 `/health` 无 Key 恒 503，拿它判存活会把健康后端判成死，DR-28）；
     前端=5173/5174/5175 双栈探测（Vite 实测只绑 `[::1]`，单栈探测是假 DOWN）。
+  - **按子命令收窄依赖门**：`frontend` 不需要 JDK/MySQL/Redis，只查 Node；
+    `backend` 需要 MySQL/Redis/JDK，缺 Node 只降级（原本也起不了前端）。
 
-用法（仓库根双击 `start-all.bat`，或手动）：
-    python scripts\\start-all.py               # 拉起缺的，接管在跑的，一个窗口看全部日志
-    python scripts\\start-all.py --status      # 只报五进程状态，不起任何进程、不注入环境
+用法（仓库根双击 `start.bat`，或手动）：
+    python scripts\\start-all.py               # = all：拉起缺的，接管在跑的，一个窗口看全部日志
+    python scripts\\start-all.py backend       # 只起引擎 + 后端（原 start-backend.bat 的姿态）
+    python scripts\\start-all.py frontend      # 只起 Vite（原 start-frontend.bat 的姿态）
+    python scripts\\start-all.py status        # 只报五进程状态，不起任何进程、不注入环境（同 --status）
     python scripts\\start-all.py --no-color     # 控制台不支持 ANSI 时用纯文本前缀
+    start.bat backend --no-color               # 薄壳把子命令与开关原样透传
 
 守卫测试：`python -m pytest scripts/tests -q`（决策与形态；起进程与等端口由真跑取证）。
 """
@@ -77,6 +85,51 @@ MAX_PENDING = 8192
 
 # 后端启动必备的两把钥匙：缺任何一把都必须 fail-fast，且报错文本只准出现变量名
 REQUIRED_KEYS = ("MYSQL_ROOT_PASSWORD", "JWT_SECRET")
+
+# 子命令：三份 .bat 合并后，唯一入口是 start.bat，它把第一个参数原样透传到这里
+MODE_ALL, MODE_BACKEND, MODE_FRONTEND, MODE_STATUS = "all", "backend", "frontend", "status"
+MODES = (MODE_ALL, MODE_BACKEND, MODE_FRONTEND, MODE_STATUS)
+
+
+def parse_args(argv: list) -> tuple:
+    """拆出 (mode, flags, 非法输入)。非法为 None 表示可用。
+
+    `--status` 是 `status` 子命令的旧写法，继续接受。位置参数只认第一个当子命令，
+    出现第二个（例如 `start.bat backend all`）就判非法——与其"默默取第一个"，
+    不如让用户看见自己敲了两个互相矛盾的动词。
+    """
+    flags = [a for a in argv if a.startswith("-")]
+    words = [a for a in argv if not a.startswith("-")]
+    if "--status" in flags:
+        return MODE_STATUS, flags, None
+    mode = words[0] if words else MODE_ALL
+    if mode not in MODES or len(words) > 1:
+        return mode, flags, " ".join(words) or mode
+    return mode, flags, None
+
+
+def wanted_services(mode: str) -> dict:
+    """子命令该管哪些服务——依赖门、接管判定与收尸清单都按这张表收窄。
+
+    引擎组跟着 api 走：`backend` 也要拉引擎，这正是旧 start-backend.bat 第 5 步的语义。
+    """
+    api = mode in (MODE_ALL, MODE_BACKEND)
+    web = mode in (MODE_ALL, MODE_FRONTEND)
+    return {"neo4j": api, "kg": api, "rag": api, "api": api, "web": web}
+
+
+def color_enabled(flags: list, vt_available: bool) -> bool:
+    """`--no-color` 的生效口径。合并前这个开关写在 docstring 里但 main 从不读它——
+    开关只准在真正被消费的地方声明，否则文档与行为各说一套。"""
+    return vt_available and "--no-color" not in flags
+
+
+def usage(sink: "Sink") -> None:
+    sink.info("用法：start.bat [all|backend|frontend|status] [--no-color]")
+    sink.info("      all       起缺的、接管在跑的，一个窗口看全部日志（默认）")
+    sink.info("      backend   只起 Python 引擎 + Spring Boot")
+    sink.info("      frontend  只起 Vite（5173/5174/5175 择口）")
+    sink.info("      status    只报五进程状态，不起任何进程")
 
 
 class MissingCredential(RuntimeError):
@@ -195,6 +248,15 @@ def health_ok(status) -> bool:
     return status == 200
 
 
+API_PROBE_URL = "http://127.0.0.1:8080/api/actuator/health/probe"
+
+
+def api_is_up(timeout: float = 3.0) -> bool:
+    """8080 上是否有能返 200 的 `/probe`。单独一个口是为了让"起 Vite 前的实话"
+    与"就绪判定"共用同一把尺，而不是在两个地方各写一遍 URL。"""
+    return health_ok(http_probe_status(API_PROBE_URL, timeout=timeout))
+
+
 def apply_java_home(env: dict, java_home: str) -> dict:
     """把 `<JAVA_HOME>\\bin` 前置到**已存在**的 PATH 键上，并顺带收敛历史遗留的键名变体。
 
@@ -222,7 +284,7 @@ def shell_path_gap(env: dict):
     """PATH 里缺 System32 时返回该目录，否则 None。
 
     只提示不擅自改写：从 sh 类壳里起 java/mvnw 会缺系统目录，那时该做的是改用
-    `start-all.bat`（cmd 窗口天然带 System32），而不是让启动器替用户修 PATH 藏住问题。
+    `start.bat`（cmd 窗口天然带 System32），而不是让启动器替用户修 PATH 藏住问题。
     """
     system_root = ""
     for key, value in env.items():
@@ -474,7 +536,7 @@ def wait_for_api(sink: Sink, proc, timeout: float = API_READY_TIMEOUT) -> bool:
         if proc is not None and proc.poll() is not None:
             sink.info(f"[FAIL] 后端进程提前退出（exit {proc.returncode}），见 logs/api.log 末尾")
             return False
-        if health_ok(http_probe_status("http://127.0.0.1:8080/api/actuator/health/probe")):
+        if health_ok(http_probe_status(API_PROBE_URL)):
             return True
         time.sleep(2.0)
     return False
@@ -492,17 +554,22 @@ def wait_for_web(port: int, timeout: float = WEB_READY_TIMEOUT) -> bool:
 # ------------------------------------------------------------------ 编排
 
 
-def build_want(env: dict, sink: Sink) -> dict:
-    """want 里带 `.env` 显式开关与"环境不具备"的判定，缺 Neo4j 安装位只降级不报错。"""
+def build_want(env: dict, sink: Sink, mode: str = MODE_ALL) -> dict:
+    """want 里带 `.env` 显式开关与"环境不具备"的判定，缺 Neo4j 安装位只降级不报错。
+
+    再按子命令收窄：`frontend` 模式下 want["api"] 必须是 False，否则"只起前端"会顺手
+    把整个后端拉起来——那正是这次合并要消灭的第二套行为。
+    """
+    scope = wanted_services(mode)
     neo4j_home = eng.discover_neo4j_home(env)
     want = {
-        "neo4j": bool(neo4j_home) and eng.should_start(env.get("NEO4J_ENABLED")),
-        "kg": eng.should_start(env.get("KG_ENABLED")),
-        "rag": eng.should_start(env.get("RAG_ENABLED")),
-        "api": True,
-        "web": True,
+        "neo4j": scope["neo4j"] and bool(neo4j_home) and eng.should_start(env.get("NEO4J_ENABLED")),
+        "kg": scope["kg"] and eng.should_start(env.get("KG_ENABLED")),
+        "rag": scope["rag"] and eng.should_start(env.get("RAG_ENABLED")),
+        "api": scope["api"],
+        "web": scope["web"],
     }
-    if not neo4j_home and want["kg"]:
+    if not neo4j_home and scope["kg"]:
         sink.info(
             "[WARN] 找不到 Neo4j 安装目录（.env 的 NEO4J_HOME 或本机默认位）。"
             "KG 会回落内存图，重启即丢；把 NEO4J_HOME=<安装目录> 写进 .env。"
@@ -525,7 +592,7 @@ def print_status(sink: Sink, status: dict, env: dict, app_title: str) -> None:
     for name in ("neo4j", "kg", "rag"):
         sink.info(f"{name:6s} :{PORTS[name]}  {eng.describe(name, status[name])}")
     if status["api"]:
-        code = http_probe_status("http://127.0.0.1:8080/api/actuator/health/probe")
+        code = http_probe_status(API_PROBE_URL)
         sink.info(f"{'api':6s} :8080  {'UP (probe HTTP %s)' % code if health_ok(code) else '端口在听但 /probe 未返 200（HTTP %s）' % code}")
     else:
         sink.info("api    :8080  DOWN")
@@ -575,7 +642,7 @@ def start_api(env: dict, java_home, sink: Sink):
     if gap:
         sink.put("api", f"[WARN] PATH 里没有 {gap}（多半是从 Git Bash 之类的壳里启动的）。"
                         f"mvnw.cmd 会报 'powershell 不是内部或外部命令' 之类看不懂的错——"
-                        f"请改用 start-all.bat 在 cmd 窗口里启动。")
+                        f"请改用 start.bat 在 cmd 窗口里启动。")
     cmd = [
         "cmd",
         "/c",
@@ -615,63 +682,88 @@ def cleanup(children: dict, sink: Sink) -> None:
 
 def main(argv=None) -> int:
     argv = list(sys.argv[1:] if argv is None else argv)
-    sink = Sink(enable_vt_colors()).start()
+    mode, flags, illegal = parse_args(argv)
+    sink = Sink(color_enabled(flags, enable_vt_colors())).start()
     LOG_DIR.mkdir(exist_ok=True)
 
     env = eng.merged_env()
     status = snapshot()
     app_title = read_app_title()
+    scope = wanted_services(mode)
 
     sink.info("=" * 62)
-    sink.info(" AI Course Platform - 单窗口统一启动器（neo4j/kg/rag/api/web）")
+    if illegal is not None:
+        sink.info(f"[ERROR] 无法识别的子命令：{illegal}")
+        usage(sink)
+        sink.close()
+        return 2
+    sink.info(f" AI Course Platform - 统一启动器  mode={mode}（neo4j/kg/rag/api/web）")
     sink.info("=" * 62)
 
-    if "--status" in argv:
+    if mode == MODE_STATUS:
         print_status(sink, status, env, app_title)
         sink.close()
         return 0
 
-    # 依赖门：MySQL/Redis 是手工本机服务，缺了就只能上报（本阶段 Docker 搁置，§17）
-    if not port_in_use(DB_PORT):
-        sink.info("[ERROR] 本机 3306 无 MySQL 监听。启动：net start MySQL84；"
-                  "服务名不确定用 sc query type=service | findstr /i mysql。"
-                  "本机没有 MySQL 请回项目主，不要起容器（Docker 已搁置，§17）。")
-        sink.close()
-        return 1
-    if not port_in_use(CACHE_PORT):
-        sink.info("[ERROR] 本机 6379 无 Redis 监听。Redis 是必需依赖（缓存/限流/AI 配额/验证码），"
-                  "后端会 fail-fast。启动：net start Redis。缺件请回项目主（§17）。")
-        sink.close()
-        return 1
+    # 依赖门按子命令收窄：MySQL/Redis/JDK 只有真要起后端时才必需（旧 start-frontend.bat 也不查它们）
+    if scope["api"]:
+        if not port_in_use(DB_PORT):
+            sink.info("[ERROR] 本机 3306 无 MySQL 监听。启动：net start MySQL84；"
+                      "服务名不确定用 sc query type=service | findstr /i mysql。"
+                      "本机没有 MySQL 请回项目主，不要起容器（Docker 已搁置，§17）。")
+            sink.close()
+            return 1
+        if not port_in_use(CACHE_PORT):
+            sink.info("[ERROR] 本机 6379 无 Redis 监听。Redis 是必需依赖（缓存/限流/AI 配额/验证码），"
+                      "后端会 fail-fast。启动：net start Redis。缺件请回项目主（§17）。")
+            sink.close()
+            return 1
 
-    java_home = discover_java_home(env, lambda p: Path(p).exists())
-    if not java_home:
-        sink.info("[ERROR] 未找到 JDK 21（JAVA_HOME 指向的目录不存在，且默认位无 java.exe）。"
-                  "请设 JAVA_HOME 或安装 Temurin 21；本脚本不会静默回落。")
-        sink.close()
-        return 1
+        java_home = discover_java_home(env, lambda p: Path(p).exists())
+        if not java_home:
+            sink.info("[ERROR] 未找到 JDK 21（JAVA_HOME 指向的目录不存在，且默认位无 java.exe）。"
+                      "请设 JAVA_HOME 或安装 Temurin 21；本脚本不会静默回落。")
+            sink.close()
+            return 1
+    else:
+        java_home = None
 
-    node, npm_cli = locate_node(env, shutil.which)
-    if not node:
-        sink.info("[WARN] 未找到 Node.js（PATH 与 WorkBuddy 托管位都没有）。前端不会启动；"
-                  "后端与引擎不受影响。请装 Node 20+ 后重跑。")
+    if scope["web"]:
+        node, npm_cli = locate_node(env, shutil.which)
+        if not node:
+            if mode == MODE_FRONTEND:
+                sink.info("[ERROR] 未找到 Node.js（PATH 与 WorkBuddy 托管位都没有）。"
+                          "frontend 模式除了 Vite 不起别的东西，缺 Node 无事可做。请装 Node 20+ 后重跑。")
+                sink.close()
+                return 1
+            sink.info("[WARN] 未找到 Node.js（PATH 与 WorkBuddy 托管位都没有）。前端不会启动；"
+                      "后端与引擎不受影响。请装 Node 20+ 后重跑。")
+    else:
+        node, npm_cli = None, None
 
-    try:
-        # 这一次只为 fail-fast 校验密钥并给前端备环境；后端的开关在下面按"当下在册引擎"重算
-        run_env = backend_env(
-            dict(os.environ),
-            env,
-            redis_open=not redis_needs_auth(),
-            kg_up=status["kg"],
-            rag_up=status["rag"],
-        )
-    except MissingCredential as exc:
-        sink.info(f"[ERROR] {exc}")
-        sink.close()
-        return 1
-    sink.info("[OK] 依赖门与环境变量就绪（Redis 免密已按端口探明；密钥值从不打印）")
+    if scope["api"]:
+        try:
+            # 这一次只为 fail-fast 校验密钥并给前端备环境；后端的开关在下面按"当下在册引擎"重算
+            run_env = backend_env(
+                dict(os.environ),
+                env,
+                redis_open=not redis_needs_auth(),
+                kg_up=status["kg"],
+                rag_up=status["rag"],
+            )
+        except MissingCredential as exc:
+            sink.info(f"[ERROR] {exc}")
+            sink.close()
+            return 1
+        sink.info("[OK] 依赖门与环境变量就绪（Redis 免密已按端口探明；密钥值从不打印）")
+    else:
+        # frontend 模式不碰数据库也不签 JWT：把 .env 并进进程环境就够了，
+        # 拿 backend_env 去校验 MYSQL_ROOT_PASSWORD/JWT_SECRET 会让"只起前端"莫名失败。
+        run_env = dict(os.environ)
+        run_env.update(env)
+        sink.info("[OK] frontend 模式：只查 Node 与开发口，不校验数据库/签名密钥")
 
-    want = build_want(env, sink)
+    want = build_want(env, sink, mode)
     todo, adopted = todo_and_adopt(status, want)
     children = dict.fromkeys(SERVICES, None)
     if adopted:
@@ -691,13 +783,13 @@ def main(argv=None) -> int:
         else:
             # 引擎若是本次拉起来的，开场快照里仍是 False；必须在起后端的前一行现探重算，
             # 否则一键启动出来的后端永远停在 native，mode=ENGINE 还得靠人手重启一次。
-            flags = engine_flags(port_in_use)
+            engine_live = engine_flags(port_in_use)
             run_env = backend_env(
                 dict(os.environ),
                 env,
                 redis_open=not redis_needs_auth(),
-                kg_up=flags["kg"],
-                rag_up=flags["rag"],
+                kg_up=engine_live["kg"],
+                rag_up=engine_live["rag"],
             )
             children["api"] = start_api(run_env, java_home, sink)
             ok = wait_for_api(sink, children["api"])
@@ -709,6 +801,11 @@ def main(argv=None) -> int:
 
     web_port = None
     if "web" in todo and node:
+        if mode == MODE_FRONTEND and not api_is_up():
+            # 与旧 start-frontend.bat 同口径：后端不在也照样起 Vite，只把"每个 API 都会失败"说在前面
+            sink.info("[INFO] 8080 上没有在听的后端（复合 /health 无 AI Key 时返 503 属设计，见 §25）。"
+                      "Vite 照常起，但页面里每个 API 请求都会失败。"
+                      "要连后端一起起：start.bat（不带子命令）。")
         web_port = pick_dev_port(port_in_use)
         if web_port is None:
             sink.info("[ERROR] 5173/5174/5175 全被占用（双栈探测）。不要改用 5176+，"
@@ -725,14 +822,17 @@ def main(argv=None) -> int:
     print_status(sink, final, env, app_title)
 
     engines_just_up = any(children[name] is not None for name in ("neo4j", "kg", "rag"))
-    if engines_just_up and children["api"] is None and final["api"]:
+    if scope["api"] and engines_just_up and children["api"] is None and final["api"]:
         sink.info("[WARN] 后端是本次之前就在跑的，而引擎刚起：Java 只在启动那一刻探测引擎端口，"
-                  "需重启本启动器（或 start-backend.bat）才会切到 mode=ENGINE。")
+                  "需重启本启动器（start.bat backend）才会切到 mode=ENGINE。")
     if final["kg"] and not final["neo4j"]:
         sink.info("[INFO] Neo4j 未起 -> KG 只能走内存图，图谱重启即丢。")
-    if final["web"] and final["api"]:
+    if final["web"]:
         entry = web_port or prefer_own_dev_port(port_in_use, http_page_title, app_title)
-        sink.info("[INFO] 演示入口：http://localhost:%s/ ；Ctrl+C 只终止本启动器起的进程。" % entry)
+        if entry:
+            sink.info("[INFO] 演示入口：http://localhost:%s/ ；Ctrl+C 只终止本启动器起的进程。" % entry)
+            if scope["api"] and not final["api"]:
+                sink.info("[INFO] 后端此刻未就绪，页面会报接口失败；日志见 logs/api.log。")
 
     if not any(child is not None for child in children.values()):
         sink.info("[OK] 没有需要托管的进程（全部接管或全部已退出），本次退出，不杀任何东西。")

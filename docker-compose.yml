@@ -11,9 +11,9 @@
 # 设置后自动启用 requirepass 并同步到后端。
 #
 # 【使用路径】
-# 1) 本地开发（默认，推荐）：start-backend.bat 优先使用本机 MySQL(3306) / Redis(6379)；
-#    本机缺失时脚本自动兜底：MySQL 走本编排的容器(宿主 3307)，Redis 可 `docker compose up -d redis`。
-#    本编排仅作基础设施兜底，不参与后端/前端启动。
+# 1) 本地开发（默认，推荐）：start.bat（all / backend）只连本机 MySQL(3306) / Redis(6379)，
+#    缺件即 fail-fast 并回项目主——脚本内**没有任何 docker 分支**（原"探测 3307 则切数据源"已删除）。
+#    本编排只作基础设施兜底，且需人工显式启动，不参与后端/前端的自动拉起。
 # 2) 容器化部署（上线/给他人快速体验/本机无 MySQL、Redis 时）：
 #    docker compose --profile full up -d --build
 #    （backend/frontend 带 profiles:["full"]，不加 --profile 仅起 mysql + redis 两个基础设施）。
@@ -49,7 +49,7 @@
 # 4) 宿主端口**全部默认只绑 127.0.0.1**（含前端入口，需要给同组同学访问时显式
 #    FRONTEND_HOST_BIND=0.0.0.0），且端口号可用 .env 覆盖：
 #    数字默认值保持不变（3307/6379/8080/80…），
-#    因为 start-backend.bat 与各文档已按这些数字写明兜底路径；改的只是
+#    因为 start.bat 与各文档已按这些数字写明兜底路径；改的只是
 #    「谁能在网络上访问到」而不是「监听哪个号」。冲突时改宿主端口即可：
 #      MYSQL_HOST_PORT / REDIS_HOST_PORT / BACKEND_HOST_PORT /
 #      FRONTEND_HTTP_PORT / PROMETHEUS_HOST_PORT / ALERTMANAGER_HOST_PORT /
@@ -154,8 +154,11 @@ services:
         'if [ -n "$$REDIS_PASSWORD" ]; then exec redis-server --appendonly yes --requirepass "$$REDIS_PASSWORD"; else exec redis-server --appendonly yes; fi',
       ]
     ports:
-      # 默认 6379 与 start-backend.bat 的本机兜底路径一致；本机已跑原生 Redis 时
-      # 会端口冲突 → 设 REDIS_HOST_PORT=16379 之类换掉宿主侧端口（容器内仍是 6379）。
+      # 宿主口默认同样取 6379：目的是"用容器顶替本机 Redis"时后端无需改配置。
+      # ⚠️ 本机路径不会自动用上这个容器——start.bat 只探本机 6379（scripts/start-all.py 的 CACHE_PORT），
+      #   既不拉容器也不读 REDIS_HOST_PORT。本机已跑原生 Redis 时二者抢同一个口，必须二选一：
+      #   停掉原生服务，或设 REDIS_HOST_PORT=16379 之类换掉宿主侧端口（容器内仍是 6379，
+      #   compose 形态的 backend 走服务名 redis:6379 不受影响，换口只影响"从宿主机直连"这一用法）。
       # 与 mysql 同理只绑回环：requirepass 之外再加一层不可达保护。
       - "${REDIS_HOST_BIND:-127.0.0.1}:${REDIS_HOST_PORT:-6379}:6379"
     volumes:
@@ -214,8 +217,8 @@ services:
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       # 安全开关：**默认安全**，不因本文件的部署形态把生产默认值降到 false。
-      # ⚠️ 纠偏（2026-09-16）：原注释只写「本地 HTTP 联调由 start-backend.bat 经 local profile 放宽」，
-      #   该句仅覆盖 start-backend.bat 这条路径，对 `docker compose --profile full` **完全不适用** —— 这正是缺陷根源。
+      # ⚠️ 纠偏（2026-09-16）：原注释只写「本地 HTTP 联调由本机启动器经 local profile 放宽」，
+      #   该句仅覆盖 start.bat 这条路径，对 `docker compose --profile full` **完全不适用** —— 这正是缺陷根源。
       #   事实：`--profile full` 起的是**明文 HTTP 单机栈**（frontend/nginx.conf 只 listen 80、compose 无证书卷，
       #   不存在任何 TLS 终止）。因此必须按部署形态显式决策：
       #     · 纯 HTTP 评估（仅限本机 / 受信内网）：**必须显式**在 .env 置 REQUIRE_HTTPS=false 与 COOKIE_SECURE=false，
@@ -397,7 +400,7 @@ services:
       # backend 抓取恒 401 → 应用侧指标全缺，而其余 6 个 job 与面板/告警仍显示健康（静默失效）。
       # 真机 A/B 取证：同容器同网络下 `${VAR}` 形态 401、同口令写成字面值则 target `up`。
       # 现改走 Prometheus 真实支持的 `password_file`，凭据由本文件的顶层 `secrets:` 挂载
-      # 到 /run/secrets（与 backend 的 DR-24 落点同一套机制，见 docs/密钥注入与Secret管理.md §3.1）。
+      # 到 /run/secrets（与 backend 的 DR-24 落点同一套机制，见 docs/部署文档.md 的文件式密钥章节）。
       # 用户名非机密、只能字面写死：须与 prometheus.yml 的 username: "monitor"
       # 及 backend 的 APP_ACTUATOR_BASIC_USER 三者一致，不一致则 401 fail-closed。
       TZ: Asia/Shanghai
@@ -621,7 +624,7 @@ volumes:
 
 # ===================== 文件式凭据（Compose secrets，非 Swarm 也支持） =====================
 # 挂载落点固定为容器内 `/run/secrets/<secret 名>`，与 backend 的 Spring configtree 落点同一套机制
-# （见 docs/密钥注入与Secret管理.md §2/§3.1、DR-24）。
+# （见 docs/部署文档.md 的文件式密钥章节与 DR-24）。
 # ⚠️ 源目录沿用仓库既有约定 `deploy/secrets/`（已被 .gitignore 的 `deploy/secrets/*` 排除，
 #    仅保留 .gitkeep，不会入库）；不想落在仓库内可用 `ACTUATOR_BASIC_PASSWORD_FILE=/abs/path`。
 # ⚠️ 内容 = 口令本身，**末尾不要换行**（Prometheus 读 password_file 会把换行当作口令的一部分 → 恒 401）：

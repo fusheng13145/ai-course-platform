@@ -8,7 +8,7 @@ spring:
   # 统一从「密钥目录」读取敏感配置：目录内每个文件名即属性名，文件内容即属性值。
   #   例：/run/secrets/SPRING_DATASOURCE_PASSWORD  →  提供 ${SPRING_DATASOURCE_PASSWORD}
   # 该目录是 Docker Compose `secrets:`、K8s Secret 卷、Vault Agent 渲染输出的共同落点，
-  # 因此应用侧无需引入 Spring Cloud 即可被 Vault/Secret Manager 覆盖（见 docs/密钥注入与Secret管理.md）。
+  # 因此应用侧无需引入 Spring Cloud 即可被 Vault/Secret Manager 覆盖（见 docs/部署文档.md 的文件式密钥章节）。
   # optional: 前缀保证「目录不存在」时静默跳过——本地 Windows 开发无 /run/secrets 属预期，不影响启动。
   # 【优先级铁律】环境变量 > 本 import 的文件。生产中若改用文件式密钥，必须同时移除同名明文 env，
   # 否则明文 env 会静默覆盖文件值（安全意图被绕过而不报错）。
@@ -181,7 +181,7 @@ jwt:
 
 # ===================== HttpOnly Cookie 认证 & 传输安全配置 =====================
 # 【安全默认值】默认按生产姿态：Cookie Secure 开、强制 HTTPS 通道。
-# 本地 HTTP 联调请激活 local profile（start-backend.bat 已默认激活），
+# 本地 HTTP 联调请激活 local profile（start.bat 的 all/backend 模式已默认激活），
 # 由 application-local.yaml 显式关闭这两项——即「默认安全，开发显式放宽」，
 # 杜绝「忘记在生产打开 Secure」这类靠人肉运维的乐观假设。
 app:
@@ -385,7 +385,7 @@ knowledge-graph:
 # ===================== Python RAG 服务配置 =====================
 # 注意（职责边界）：RAG 检索引擎（BM25 / 向量检索 / embedding / 融合）由团队另一成员负责，
 # 本端不再内置引擎实现，仅保留 RAGService 标准化接口 + 本 HTTP 代理；rag.enabled=true 时调用 Python 端
-# /api/v1/rag/* 契约（权威单一事实来源见 docs/项目手册.md 第八部分），未启用或不可达时降级返回 {"code":503}（AI 问答自动回退纯 LLM）。
+# /api/v1/rag/* 契约（权威单一事实来源见 docs/系统架构设计.md 的集成契约章节），未启用或不可达时降级返回 {"code":503}（AI 问答自动回退纯 LLM）。
 rag:
   # 是否启用 Python RAG 服务（默认关闭）
   enabled: ${RAG_ENABLED:false}

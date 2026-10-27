@@ -1,5 +1,5 @@
 """
-`scripts/start-all.py` 与 `start-all.bat` 的守卫测试（单窗口统一启动器）。
+`scripts/start-all.py` 与 `start.bat` 的守卫测试（三份启动器合并后的唯一入口）。
 
 为什么测决策而不是子进程：本文件的每一条都对应一个**已经在本机踩过或已写进手册**的坑，
 而这些坑全都是"判定"层面的，起进程部分只能真跑取证（另见 test_start_engines.py 的口径）：
@@ -29,7 +29,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "scripts" / "start-all.py"
-BAT_PATH = ROOT / "start-all.bat"
+BAT_PATH = ROOT / "start.bat"
 
 
 def _load_module():
@@ -436,18 +436,21 @@ def test_new_window_detector_negative_control():
     assert new_window_hits('start /min cmd /c "java -jar app.jar"') != []
 
 
-def test_start_all_bat_is_ascii_crlf_and_launches_the_orchestrator():
+def test_start_bat_is_ascii_crlf_and_forwards_the_subcommand():
     """DR-37：cmd 在 chcp 65001 之前按字节偏移读 .bat，非 ASCII 注释行会被切成命令；裸 & 还会被当分隔符。"""
     raw = BAT_PATH.read_bytes()
-    assert b"\r\n" in raw, "start-all.bat 必须是 CRLF"
+    assert b"\r\n" in raw, "start.bat 必须是 CRLF"
+    assert raw.replace(b"\r\n", b"").count(b"\n") == 0, "start.bat 不得混用裸 LF"
     raw.decode("ascii")  # 非 ASCII 直接抛
     text = raw.decode("ascii").replace("\r\n", "\n")
     assert "start-all.py" in text
     assert "call " in text  # call 才能把解释器的返回值收回上层
+    assert "!SUB!" in text and "!ARGS!" in text  # 子命令与开关必须原样透传，薄壳不解释语义
+    assert ">/dev/null" not in text, "Git Bash 会把 >nul 改写成 >/dev/null，cmd 认不了这个落点"
     assert new_window_hits(text) == []
 
 
-def test_start_all_bat_scanner_negative_control():
+def test_start_bat_scanner_negative_control():
     """阴性对照：先证明形态检测器会拒绝坏样本。"""
     bad = ("@echo off\r\nrem 中文注释\nstart /min cmd".encode("utf-8"))
     try:
@@ -458,6 +461,9 @@ def test_start_all_bat_scanner_negative_control():
     assert ascii_ok is False, "含中文的 .bat 必须被 ASCII 检查拦下"
     assert b"\r\n" in bad
     assert new_window_hits(bad.decode("utf-8")) != []
+    # 裸 LF 混排也必须被抓到（Git Bash 改写行尾是真实踩过的坑）
+    mixed = "@echo off\r\nchcp 65001 >/dev/null\n".encode("ascii")
+    assert mixed.replace(b"\r\n", b"").count(b"\n") > 0
 
 
 def test_secret_is_never_echoed_from_the_bat():
@@ -466,3 +472,195 @@ def test_secret_is_never_echoed_from_the_bat():
     for line in text.replace("\r\n", "\n").split("\n"):
         if line.strip().lower().startswith("echo"):
             assert not re.search(r"[!%]DEEPSEEK_API_KEY[!%]", line)
+
+
+# ------------------------------------------- 子命令层（三份启动器合并的意义所在）
+
+
+def test_parse_args_defaults_to_all_and_reads_the_subcommand():
+    assert sa.parse_args([]) == (sa.MODE_ALL, [], None)
+    assert sa.parse_args(["backend"]) == (sa.MODE_BACKEND, [], None)
+    assert sa.parse_args(["frontend"]) == (sa.MODE_FRONTEND, [], None)
+    assert sa.parse_args(["status"]) == (sa.MODE_STATUS, [], None)
+
+
+def test_parse_args_keeps_the_legacy_status_flag():
+    """`--status` 是老写法，删除它会直接弄坏既有习惯与文档里的命令。"""
+    mode, flags, illegal = sa.parse_args(["--status"])
+    assert (mode, illegal) == (sa.MODE_STATUS, None)
+    assert "--status" in flags
+
+
+def test_parse_args_treats_flags_as_flags_not_as_a_subcommand():
+    mode, flags, illegal = sa.parse_args(["--no-color"])
+    assert mode == sa.MODE_ALL and illegal is None and flags == ["--no-color"]
+    mode, flags, illegal = sa.parse_args(["backend", "--no-color"])
+    assert mode == sa.MODE_BACKEND and flags == ["--no-color"] and illegal is None
+
+
+def test_parse_args_rejects_two_positional_words_instead_of_silently_picking_one():
+    """`start.bat backend all` 是自相矛盾的输入：报错比"取第一个"更可查。"""
+    mode, _flags, illegal = sa.parse_args(["backend", "all"])
+    assert illegal == "backend all"
+    assert mode == sa.MODE_BACKEND
+    assert sa.parse_args(["nonsense"])[2] == "nonsense"
+
+
+def test_parse_args_negative_control_for_a_typo_in_a_known_mode():
+    """阴性对照：拼错的子命令必须落到非法分支，不能被 `in MODES` 的写法放过。"""
+    assert sa.parse_args(["all1"])[2] == "all1"
+    assert sa.parse_args(["all"])[2] is None
+
+
+def test_wanted_services_scopes_every_service_by_subcommand():
+    assert sa.wanted_services(sa.MODE_ALL) == {
+        "neo4j": True, "kg": True, "rag": True, "api": True, "web": True,
+    }
+    backend = sa.wanted_services(sa.MODE_BACKEND)
+    assert backend["api"] is True and backend["web"] is False
+    # 引擎跟着 api 走：backend 模式仍要拉引擎，这是旧 start-backend.bat 第 5 步的语义
+    assert backend["kg"] is True and backend["rag"] is True
+    frontend = sa.wanted_services(sa.MODE_FRONTEND)
+    assert frontend["web"] is True and frontend["api"] is False
+    assert frontend["neo4j"] is False and frontend["kg"] is False and frontend["rag"] is False
+
+
+def test_wanted_services_negative_control():
+    """阴性对照：`backend` 与 `frontend` 不能塌成同一张表，否则子命令毫无意义。"""
+    assert sa.wanted_services(sa.MODE_BACKEND) != sa.wanted_services(sa.MODE_FRONTEND)
+    assert sa.wanted_services("all") == sa.wanted_services(sa.MODE_ALL)
+
+
+class _SinkStub:
+    """build_want 只需要一个能收 info/put 的对象；不真起 Sink 线程，避免测试里出现控制台。"""
+
+    def __init__(self):
+        self.lines = []
+
+    def info(self, text):
+        self.lines.append(text)
+
+    def put(self, name, line):
+        self.lines.append(f"[{name}] {line}")
+
+
+def test_build_want_cuts_the_backend_and_engines_out_of_frontend_mode():
+    """子命令说不要的服务，`.env` 里写了开关也不准偷偷起来。"""
+    want = sa.build_want({"KG_ENABLED": "true", "RAG_ENABLED": "true"}, _SinkStub(), sa.MODE_FRONTEND)
+    assert want["api"] is False
+    assert want["kg"] is False and want["rag"] is False and want["neo4j"] is False
+    assert want["web"] is True
+
+
+def test_build_want_keeps_the_api_and_drops_the_web_in_backend_mode():
+    want = sa.build_want({}, _SinkStub(), sa.MODE_BACKEND)
+    assert want["api"] is True and want["web"] is False
+
+
+def test_color_enabled_honours_the_documented_no_color_flag():
+    """合并前 `--no-color` 只写在 docstring 里、main 从不读它——开关必须在使用处生效。"""
+    assert sa.color_enabled([], True) is True
+    assert sa.color_enabled(["--no-color"], True) is False
+    assert sa.color_enabled(["--no-color"], False) is False
+    # 阴性对照：vt 不可用时即使没带开关也不该上色
+    assert sa.color_enabled([], False) is False
+
+
+def _engine_loop(body: str):
+    """在 main 的 AST 里找到调用 start_engine 的那个 for 循环。"""
+    for node in ast.walk(ast.parse(body.strip())):
+        if isinstance(node, ast.For) and "start_engine(" in ast.unparse(node):
+            return node
+    raise AssertionError("main() 里找不到拉起引擎的 for 循环——引擎语义被改走了别的路")
+
+
+def test_engine_bring_up_can_never_abort_the_run():
+    """引擎是可选件：起不来只报 FAIL，循环体里出现 return / SystemExit 就是"因引擎卡住后端"。"""
+    loop = _engine_loop(function_source("main"))
+    dumped = ast.unparse(loop)
+    assert "return" not in dumped
+    assert "SystemExit" not in dumped and "sys.exit" not in dumped
+
+
+def test_engine_loop_detector_negative_control():
+    """阴性对照：检测器必须能抓住"引擎失败就 return"的写法。"""
+    body = (
+        "def main():\n"
+        "    for name in todo:\n"
+        "        ok, proc = start_engine(name, env, sink)\n"
+        "        if not ok:\n"
+        "            return 1\n"
+    )
+    loop = _engine_loop(body)
+    assert "return" in ast.unparse(loop)
+
+
+def test_probe_url_has_a_single_definition_in_the_orchestrator():
+    """就绪判定、状态打印、frontend 提示共用同一个 URL；抄第二份就会有一处判错。"""
+    text = MODULE_PATH.read_text(encoding="utf-8")
+    assert text.count("http://127.0.0.1:8080/api/actuator/health/probe") == 1
+
+
+def _api_guarded_lines(tree) -> set:
+    """返回"处在受 api 开关保护的 if 分支内"的行号集合（else 分支不算保护）。
+
+    `ast.unparse` 会把源码里的双引号规范成单引号，所以比较前统一引号——
+    不然这个检测器永远匹配不上，测试会以"恒真"的形态假绿。
+    """
+    lines = set()
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.If):
+            continue
+        test = ast.unparse(node.test).replace('"', "'")
+        if test in {"scope['api']"} or test == "'api' in todo":
+            for stmt in node.body:
+                for inner in ast.walk(stmt):
+                    lines.add(getattr(inner, "lineno", -1))
+    return lines
+
+
+def _backend_env_lines(tree) -> list:
+    return [
+        node.lineno
+        for node in ast.walk(tree)
+        if isinstance(node, ast.Call) and ast.unparse(node.func) == "backend_env"
+    ]
+
+
+def test_frontend_mode_does_not_gate_on_database_credentials():
+    """只起 Vite 时不该要求 MYSQL_ROOT_PASSWORD/JWT_SECRET——旧 start-frontend.bat 也不查。
+
+    用 AST 而不是切字符串：`backend_env(` 在 main 里出现两次都合法（开场校验一次、
+    起后端前按"当下在册引擎"重算一次），要判的是它们是否**都落在受 api 开关保护的分支里**。
+    """
+    tree = ast.parse(function_source("main").strip())
+    calls = _backend_env_lines(tree)
+    assert calls, "main() 里不再调用 backend_env( —— 这条守卫失去意义，请先确认改动是否有意"
+    guarded = _api_guarded_lines(tree)
+    assert set(calls) <= guarded, f"存在不受 api 开关保护的 backend_env 调用：{sorted(calls)} vs 受保护 {sorted(guarded)}"
+
+
+def test_credential_gate_detector_negative_control():
+    """阴性对照：把 backend_env 挪到 if 外面（或放进 else），检测器必须判它越界。"""
+    body = (
+        "def main():\n"
+        "    run_env = backend_env({}, env, redis_open=True, kg_up=False, rag_up=False)\n"
+        '    if scope["api"]:\n'
+        "        pass\n"
+        "    else:\n"
+        "        other = backend_env({}, env, redis_open=True, kg_up=False, rag_up=False)\n"
+    )
+    tree = ast.parse(body)
+    calls = _backend_env_lines(tree)
+    guarded = _api_guarded_lines(tree)
+    assert len(calls) == 2, "样本里应有两次 backend_env 调用（一次在 if 外、一次在 else 分支）"
+    assert not (set(calls) <= guarded), "越界写法必须被判出来，否则真实断言成了恒假的安慰剂"
+    assert not (set(calls) & guarded)
+
+
+def test_wrapper_bat_holds_no_decision_logic():
+    """判定全在 Python：薄壳里出现 netstat / choice 就说明端口与实例判定又回到 batch 了。"""
+    text = BAT_PATH.read_bytes().decode("ascii").lower()
+    assert "netstat" not in text
+    assert "choice" not in text
+    assert "mvnw" not in text and "vite" not in text
