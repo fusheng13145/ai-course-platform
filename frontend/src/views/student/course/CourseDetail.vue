@@ -18,9 +18,17 @@
     />
 
     <!-- Tabs 主内容区 -->
-    <el-tabs v-model="activeTab" class="main-tabs">
+    <!-- P4-MIG-07：el-tabs→TabGroup；简介/章节 pane 内容 v-show（等价全挂载隐藏）、
+         作业任务 pane 原标 lazy → v-if（首次激活才挂载） -->
+    <TabGroup
+      :tabs="MAIN_TABS"
+      :active="activeTab"
+      variant="line"
+      class="main-tabs"
+      @change="activeTab = $event"
+    />
+    <div v-show="activeTab === 'info'">
       <!-- 课程简介 Tab -->
-      <el-tab-pane label="课程简介" name="info">
         <CduInfoTab
           :course="course"
           :chapters="chapters"
@@ -30,10 +38,10 @@
           :get-difficulty-type="getDifficultyType"
           @enroll="handleEnroll"
         />
-      </el-tab-pane>
+    </div>
 
+    <div v-show="activeTab === 'chapters'">
       <!-- 章节学习 Tab -->
-      <el-tab-pane label="章节学习" name="chapters">
         <div class="tab-content-card">
           <!-- 章节列表视图 -->
           <CduChapterList
@@ -55,15 +63,14 @@
             @complete="markChapterComplete"
           />
         </div>
-      </el-tab-pane>
+    </div>
 
+    <div v-if="activeTab === 'assignments'">
       <!-- 作业任务 Tab：已发布任务的提交入口 + 我的成绩/评语展示（S1/S2 最小面） -->
-      <el-tab-pane label="作业任务" name="assignments" lazy>
         <div class="tab-content-card">
           <CduAssignmentTab :course-id="String(route.params.id)" />
         </div>
-      </el-tab-pane>
-    </el-tabs>
+    </div>
   </div>
 </template>
 
@@ -75,11 +82,18 @@ import CduInfoTab from './components/CduInfoTab.vue'
 import CduChapterList from './components/CduChapterList.vue'
 import CduLearningMode from './components/CduLearningMode.vue'
 import CduAssignmentTab from './components/CduAssignmentTab.vue'
+import TabGroup from '@/components/ui/TabGroup.vue'
 
 /**
  * 学生课程详情页（页面壳）
  * <p>头部卡 + Tabs（简介/章节学习/作业任务）编排，学习模式双视图切换，业务逻辑委托 useStudentCourseDetail；作业任务页签业务委托 CduAssignmentTab。</p>
  */
+
+const MAIN_TABS = [
+  { key: 'info', label: '课程简介' },
+  { key: 'chapters', label: '章节学习' },
+  { key: 'assignments', label: '作业任务' },
+]
 
 const route = useRoute()
 

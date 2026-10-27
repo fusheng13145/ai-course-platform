@@ -36,9 +36,16 @@
           show-icon
           style="margin-bottom: var(--ac-spacing-md)"
         />
-        <el-tabs v-model="activeTab" class="inter-tabs">
+        <!-- P4-MIG-07：el-tabs→TabGroup；pane 内容 v-show（等价 el-tabs 全挂载隐藏语义） -->
+        <TabGroup
+          :tabs="INTER_TABS"
+          :active="activeTab"
+          variant="line"
+          class="inter-tabs"
+          @change="activeTab = $event"
+        />
           <!-- 签到 -->
-          <el-tab-pane label="签到" name="sign">
+          <div v-show="activeTab === 'sign'">
             <InSignPanel
               :sign-list="signList"
               :sign-loading="signLoading"
@@ -53,10 +60,10 @@
               @publish="handlePublish"
               @close="handleCloseSignIn"
             />
-          </el-tab-pane>
+          </div>
 
           <!-- 投票 -->
-          <el-tab-pane label="投票" name="vote">
+          <div v-show="activeTab === 'vote'">
             <InVotePanel
               :vote-list="voteList"
               :vote-loading="voteLoading"
@@ -70,8 +77,7 @@
               @open-result="openResult"
               @close="handleCloseVote"
             />
-          </el-tab-pane>
-        </el-tabs>
+          </div>
       </template>
     </div>
 
@@ -121,6 +127,11 @@ import InRecordsDialog from './components/InRecordsDialog.vue'
 import InVoteDialog from '@/components/interaction/InVoteDialog.vue'
 import InResultDialog from '@/components/interaction/InResultDialog.vue'
 import { useInteraction } from '@/composables/useInteraction'
+import TabGroup from '@/components/ui/TabGroup.vue'
+const INTER_TABS = [
+  { key: 'sign', label: '签到' },
+  { key: 'vote', label: '投票' },
+]
 
 const courseLoading = ref(false)
 const courseOptions = ref([])
@@ -213,7 +224,8 @@ onMounted(loadCourses)
   color: var(--ac-text-muted);
 }
 
-.inter-tabs :deep(.el-tabs__header) {
+/* P4-MIG-07：原 :deep(.el-tabs__header) 间距规则平移到 TabGroup 根 */
+.inter-tabs {
   margin-bottom: var(--ac-spacing-md);
 }
 

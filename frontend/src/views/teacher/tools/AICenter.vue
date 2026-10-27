@@ -27,32 +27,38 @@
       </el-alert>
 
       <template v-else>
-        <el-tabs v-model="activeTab" class="ai-tabs">
+        <!-- P4-MIG-07：el-tabs→TabGroup；pane 内容 v-show（等价 el-tabs 全挂载隐藏语义） -->
+        <TabGroup
+          :tabs="AI_TABS"
+          :active="activeTab"
+          variant="line"
+          class="ai-tabs"
+          @change="activeTab = $event"
+        />
           <!-- 智能答疑 -->
-          <el-tab-pane label="智能答疑" name="qa">
+          <div v-show="activeTab === 'qa'">
             <AcQaPanel :course-id="courseId" />
-          </el-tab-pane>
+          </div>
 
           <!-- 薄弱点分析 -->
-          <el-tab-pane label="薄弱点分析" name="weak">
+          <div v-show="activeTab === 'weak'">
             <AcWeakPanel :course-id="courseId" />
-          </el-tab-pane>
+          </div>
 
           <!-- 学习建议 -->
-          <el-tab-pane label="学习建议" name="advice">
+          <div v-show="activeTab === 'advice'">
             <AcAdvicePanel :course-id="courseId" />
-          </el-tab-pane>
+          </div>
 
           <!-- 作文批改 -->
-          <el-tab-pane label="作文批改" name="essay">
+          <div v-show="activeTab === 'essay'">
             <AcEssayPanel />
-          </el-tab-pane>
+          </div>
 
           <!-- 学习路径 -->
-          <el-tab-pane label="学习路径" name="path">
+          <div v-show="activeTab === 'path'">
             <AcPathPanel :course-id="courseId" />
-          </el-tab-pane>
-        </el-tabs>
+          </div>
       </template>
     </div>
   </div>
@@ -69,6 +75,14 @@ import AcWeakPanel from './components/AcWeakPanel.vue'
 import AcAdvicePanel from './components/AcAdvicePanel.vue'
 import AcEssayPanel from './components/AcEssayPanel.vue'
 import AcPathPanel from './components/AcPathPanel.vue'
+import TabGroup from '@/components/ui/TabGroup.vue'
+const AI_TABS = [
+  { key: 'qa', label: '智能答疑' },
+  { key: 'weak', label: '薄弱点分析' },
+  { key: 'advice', label: '学习建议' },
+  { key: 'essay', label: '作文批改' },
+  { key: 'path', label: '学习路径' },
+]
 
 const courseLoading = ref(false)
 const courseOptions = ref([])
@@ -127,7 +141,8 @@ onMounted(async () => {
   color: var(--ac-text-muted);
 }
 
-.ai-tabs :deep(.el-tabs__header) {
+/* P4-MIG-07：原 :deep(.el-tabs__header) 间距规则平移到 TabGroup 根 */
+.ai-tabs {
   margin-bottom: var(--ac-spacing-md);
 }
 

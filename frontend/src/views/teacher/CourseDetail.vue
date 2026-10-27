@@ -76,22 +76,26 @@
     />
 
     <!-- 主 Tab 区 -->
-    <el-tabs v-model="activeTab" class="main-tabs">
-      <el-tab-pane label="课程首页" name="info">
+    <!-- 主 Tab 区（P4-MIG-07：el-tabs→TabGroup；12 组 pane 内容 v-show 等价全挂载隐藏，
+         原 .main-tabs 卡片样式承载于容器 div——原 el-tabs 根即卡片盒） -->
+    <div class="main-tabs">
+      <TabGroup
+        :tabs="MAIN_TABS"
+        :active="activeTab"
+        variant="line"
+        @change="activeTab = $event"
+      />
+      <div v-show="activeTab === 'info'">
         <CdInfoTab
           :course="course"
           :get-difficulty-name="getDifficultyName"
           :get-enrollment-type-name="getEnrollmentTypeName"
           :format-date="formatDate"
         />
-      </el-tab-pane>
-      <el-tab-pane label="授课进度" name="progress"
-        ><CourseProgressTab :course-id="course.id"
-      /></el-tab-pane>
-      <el-tab-pane label="学习情况" name="learningStatus"
-        ><CourseLearningStatusTab :course-id="course.id"
-      /></el-tab-pane>
-      <el-tab-pane label="章节管理" name="chapters">
+      </div>
+      <div v-show="activeTab === 'progress'"><CourseProgressTab :course-id="course.id" /></div>
+      <div v-show="activeTab === 'learningStatus'"><CourseLearningStatusTab :course-id="course.id" /></div>
+      <div v-show="activeTab === 'chapters'">
         <CdChaptersTab
           :chapters="chapters"
           :chapters-loading="chaptersLoading"
@@ -104,26 +108,22 @@
           @save-order="saveChapterOrder"
           @reset-order="resetChapterOrder"
         />
-      </el-tab-pane>
-      <el-tab-pane label="课程资料上传" name="resources">
+      </div>
+      <div v-show="activeTab === 'resources'">
         <CourseResourcePanel
           :course-id="Number(course.id)"
           @resource-updated="updateResourceCount"
         />
-      </el-tab-pane>
-      <el-tab-pane label="作业管理" name="tasks">
+      </div>
+      <div v-show="activeTab === 'tasks'">
         <CourseTaskPanel :course-id="Number(course.id)" @task-updated="updateTaskCount" />
-      </el-tab-pane>
-      <el-tab-pane label="作业完成情况" name="completion"
-        ><CourseCompletionTab :course-id="course.id"
-      /></el-tab-pane>
-      <el-tab-pane label="考试管理" name="exams">
+      </div>
+      <div v-show="activeTab === 'completion'"><CourseCompletionTab :course-id="course.id" /></div>
+      <div v-show="activeTab === 'exams'">
         <CourseExamPanel :course-id="Number(course.id)" @exam-updated="updateExamCount" />
-      </el-tab-pane>
-      <el-tab-pane label="成绩管理" name="grades"
-        ><CourseGradesTab :course-id="course.id"
-      /></el-tab-pane>
-      <el-tab-pane label="学生管理" name="students">
+      </div>
+      <div v-show="activeTab === 'grades'"><CourseGradesTab :course-id="course.id" /></div>
+      <div v-show="activeTab === 'students'">
         <CdStudentsTab
           :students="students"
           :students-loading="studentsLoading"
@@ -131,12 +131,12 @@
           @approve="approveStudent"
           @reject="rejectStudent"
         />
-      </el-tab-pane>
-      <el-tab-pane label="知识管理" name="knowledge">
+      </div>
+      <div v-show="activeTab === 'knowledge'">
         <CdKbBuildPanel :course-id="Number(course.id)" />
         <CourseKnowledgeTab :course-id="course.id" />
-      </el-tab-pane>
-      <el-tab-pane label="通知管理" name="notifications">
+      </div>
+      <div v-show="activeTab === 'notifications'">
         <CdNotificationsTab
           :notifications="notifications"
           :notifications-loading="notificationsLoading"
@@ -145,8 +145,8 @@
           @send="showNotificationDialog"
           @delete="deleteNotification"
         />
-      </el-tab-pane>
-    </el-tabs>
+      </div>
+    </div>
 
     <!-- 三个对话框 -->
     <CdDialogs
@@ -190,6 +190,21 @@ import CdStudentsTab from './components/CdStudentsTab.vue'
 import CdNotificationsTab from './components/CdNotificationsTab.vue'
 import CdKbBuildPanel from './components/CdKbBuildPanel.vue'
 import CdDialogs from './components/CdDialogs.vue'
+import TabGroup from '@/components/ui/TabGroup.vue'
+const MAIN_TABS = [
+  { key: 'info', label: '课程首页' },
+  { key: 'progress', label: '授课进度' },
+  { key: 'learningStatus', label: '学习情况' },
+  { key: 'chapters', label: '章节管理' },
+  { key: 'resources', label: '课程资料上传' },
+  { key: 'tasks', label: '作业管理' },
+  { key: 'completion', label: '作业完成情况' },
+  { key: 'exams', label: '考试管理' },
+  { key: 'grades', label: '成绩管理' },
+  { key: 'students', label: '学生管理' },
+  { key: 'knowledge', label: '知识管理' },
+  { key: 'notifications', label: '通知管理' },
+]
 
 /**
  * 课程详情页面（教师）
@@ -315,10 +330,11 @@ watch(
   border: 1px solid var(--ac-border);
   padding: 6px 20px 16px;
 }
-:deep(.main-tabs .el-tabs__header) {
+/* P4-MIG-07：原 :deep(.el-tabs__*) 定制平移到 TabGroup 结构（特异性压过组件档 .tabs-line .tab-i） */
+.main-tabs :deep(.tabs-line) {
   margin-bottom: 16px;
 }
-:deep(.main-tabs .el-tabs__item) {
+.main-tabs :deep(.tabs-line .tab-i) {
   height: 42px;
   line-height: 42px;
   padding: 0 18px;
@@ -327,13 +343,10 @@ watch(
   color: var(--ac-text-secondary);
   transition: color 0.15s;
 }
-:deep(.main-tabs .el-tabs__item.is-active) {
+.main-tabs :deep(.tabs-line .tab-i.active) {
   color: var(--ac-primary);
   font-weight: 600;
-}
-:deep(.main-tabs .el-tabs__active-bar) {
-  height: 3px;
-  border-radius: 2px;
+  border-bottom-width: 3px;
 }
 @media (max-width: 1024px) {
   .detail-header {

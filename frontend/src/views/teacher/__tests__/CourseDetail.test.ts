@@ -73,8 +73,6 @@ function mountPage() {
           props: ['title', 'type'],
           template: '<div class="alert-stub">{{ title }}</div>',
         },
-        'el-tabs': { template: '<div><slot /></div>', props: ['modelValue'] },
-        'el-tab-pane': { template: '<div><slot /></div>', props: ['label', 'name'] },
         CdChaptersTab: tabStub(
           ['chapters', 'chaptersLoading', 'dragChanged', 'savingOrder', 'emptyText'],
           'chapters-stub',

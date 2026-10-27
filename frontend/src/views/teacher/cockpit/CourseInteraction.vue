@@ -69,9 +69,16 @@
           show-icon
           style="margin-bottom: var(--ac-spacing-md)"
         />
-        <el-tabs v-model="activeTab" class="it-tabs">
+        <!-- P4-MIG-07：el-tabs→TabGroup；pane 内容 v-show（等价 el-tabs 全挂载隐藏语义） -->
+        <TabGroup
+          :tabs="IT_TABS"
+          :active="activeTab"
+          variant="line"
+          class="it-tabs"
+          @change="activeTab = $event"
+        />
           <!-- 签到 -->
-          <el-tab-pane label="签到" name="signin">
+          <div v-show="activeTab === 'signin'">
             <CiSignTable
               :data="signIns"
               :empty-text="signError ? '签到记录未能加载，请查看上方提示后重试' : '暂无签到'"
@@ -80,10 +87,10 @@
               @close="closeSignIn"
               @open-records="openRecords"
             />
-          </el-tab-pane>
+          </div>
 
           <!-- 投票 -->
-          <el-tab-pane label="投票" name="vote">
+          <div v-show="activeTab === 'vote'">
             <CiVoteTable
               :data="votes"
               :empty-text="voteError ? '投票记录未能加载，请查看上方提示后重试' : '暂无投票'"
@@ -91,8 +98,7 @@
               @close="closeVote"
               @open-result="openVoteResult"
             />
-          </el-tab-pane>
-        </el-tabs>
+          </div>
       </div>
     </section>
 
@@ -132,6 +138,11 @@ import CiRecordsDialog from './components/CiRecordsDialog.vue'
 import InVoteDialog from '@/components/interaction/InVoteDialog.vue'
 import InResultDialog from '@/components/interaction/InResultDialog.vue'
 import { useCourseInteraction } from '@/composables/useCourseInteraction'
+import TabGroup from '@/components/ui/TabGroup.vue'
+const IT_TABS = [
+  { key: 'signin', label: '签到' },
+  { key: 'vote', label: '投票' },
+]
 
 const route = useRoute()
 const courseIdRef = toRef(route.params, 'id')

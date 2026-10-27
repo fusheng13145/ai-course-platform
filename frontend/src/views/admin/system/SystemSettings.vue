@@ -3,38 +3,43 @@
     <PageHeader title="系统设置" subtitle="平台全局配置与参数管理" icon="settings" />
 
     <div class="settings-container card-base animate-in d1">
-      <el-tabs v-model="activeTab" type="border-card" class="settings-tabs">
+      <!-- P4-MIG-07：el-tabs(border-card)→TabGroup（seg 为最近盒型）；五组 pane 内容
+           v-show（等价 el-tabs 全挂载隐藏语义），原 :deep EP 内部类样式平移到 .tab-i/.settings-pane -->
+      <TabGroup
+        :tabs="SETTINGS_TABS"
+        :active="activeTab"
+        variant="seg"
+        class="settings-tabs"
+        @change="activeTab = $event"
+      />
+      <div v-show="activeTab === 'basic'" class="settings-pane">
         <!-- 基础设置 -->
-        <el-tab-pane label="基础设置" name="basic">
           <SsBasicForm
             :form="forms.basic"
             :rules="basicRules"
             :saving="saving.basic"
             @save="saveSettings('basic')"
           />
-        </el-tab-pane>
-
+      </div>
+      <div v-show="activeTab === 'security'" class="settings-pane">
         <!-- 安全设置 -->
-        <el-tab-pane label="安全设置" name="security">
           <SsSecurityForm
             :form="forms.security"
             :saving="saving.security"
             @save="saveSettings('security')"
           />
-        </el-tab-pane>
-
+      </div>
+      <div v-show="activeTab === 'email'" class="settings-pane">
         <!-- 邮件配置 -->
-        <el-tab-pane label="邮件配置" name="email">
           <SsEmailForm
             :form="forms.email"
             :saving="saving.email"
             @save="saveSettings('email')"
             @test-email="sendTestEmail"
           />
-        </el-tab-pane>
-
+      </div>
+      <div v-show="activeTab === 'upload'" class="settings-pane">
         <!-- 上传配置 -->
-        <el-tab-pane label="上传配置" name="upload">
           <SsUploadForm
             :form="forms.upload"
             :input-visible="inputVisible"
@@ -45,17 +50,15 @@
             :saving="saving.upload"
             @save="saveSettings('upload')"
           />
-        </el-tab-pane>
-
+      </div>
+      <div v-show="activeTab === 'notification'" class="settings-pane">
         <!-- 通知设置 -->
-        <el-tab-pane label="通知设置" name="notification">
           <SsNotificationForm
             :form="forms.notification"
             :saving="saving.notification"
             @save="saveSettings('notification')"
           />
-        </el-tab-pane>
-      </el-tabs>
+      </div>
     </div>
   </div>
 </template>
@@ -68,6 +71,15 @@ import SsSecurityForm from './components/SsSecurityForm.vue'
 import SsEmailForm from './components/SsEmailForm.vue'
 import SsUploadForm from './components/SsUploadForm.vue'
 import SsNotificationForm from './components/SsNotificationForm.vue'
+import TabGroup from '@/components/ui/TabGroup.vue'
+
+const SETTINGS_TABS = [
+  { key: 'basic', label: '基础设置' },
+  { key: 'security', label: '安全设置' },
+  { key: 'email', label: '邮件配置' },
+  { key: 'upload', label: '上传配置' },
+  { key: 'notification', label: '通知设置' },
+]
 
 /**
  * 系统设置页（页面壳）
@@ -102,34 +114,27 @@ const {
   overflow: hidden;
 }
 
-/* Tabs 样式覆盖 */
+/* Tabs 样式覆盖（P4-MIG-07：原 :deep(.el-tabs__*) 定制平移到 TabGroup 结构） */
 .settings-tabs {
-  --el-border-color: var(--ac-border);
-}
-
-.settings-tabs :deep(.el-tabs__header) {
-  background: var(--ac-bg);
-  margin: 0;
+  width: 100%;
+  border-radius: 0;
   border-bottom: 1px solid var(--ac-border);
 }
 
-.settings-tabs :deep(.el-tabs__item) {
+.settings-tabs :deep(.tab-i) {
   padding: 12px 24px;
   font-size: 14px;
   color: var(--ac-text-secondary);
   transition: all var(--ac-transition-normal);
 }
 
-.settings-tabs :deep(.el-tabs__item.is-active) {
+.settings-tabs :deep(.tab-i.active) {
   color: var(--ac-primary);
   font-weight: 600;
 }
 
-.settings-tabs :deep(.el-tabs__content) {
+.settings-pane {
   padding: var(--ac-spacing-xl);
-}
-
-.settings-tabs :deep(.el-tab-pane) {
   max-width: 700px;
 }
 
@@ -138,7 +143,7 @@ const {
     overflow-x: auto;
   }
 
-  .settings-tabs :deep(.el-tabs__content) {
+  .settings-pane {
     padding: var(--ac-spacing-md);
   }
 

@@ -57,8 +57,6 @@ function mountPage() {
           props: ['title', 'type'],
           template: '<div class="alert-stub">{{ title }}</div>',
         },
-        'el-tabs': { template: '<div><slot /></div>', props: ['modelValue'] },
-        'el-tab-pane': { template: '<div><slot /></div>', props: ['label', 'name'] },
         CduHeader: {
           props: ['course', 'enrollment', 'getProgressColor'],
           template: '<div class="header-stub">{{ course.name }}</div>',

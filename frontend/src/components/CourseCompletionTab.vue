@@ -63,33 +63,44 @@
       </div>
     </div>
 
-    <!-- Tab 切换：按作业 / 按学生 -->
-    <el-tabs v-model="viewMode" class="view-tabs">
-      <el-tab-pane label="按作业查看" name="assignment">
-        <CctAssignmentTable :loading="loadingAssignments" :data="assignmentStats" />
+    <!-- Tab 切换：按作业 / 按学生（P4-MIG-07：el-tabs→TabGroup，内容改 v-show 条件渲染
+         ——等价 el-tabs「全部挂载、隐藏非活动 pane」的默认语义） -->
+    <TabGroup
+      :tabs="VIEW_MODE_TABS"
+      :active="viewMode"
+      variant="line"
+      class="view-tabs"
+      @change="viewMode = $event"
+    />
+    <div v-show="viewMode === 'assignment'">
+      <CctAssignmentTable :loading="loadingAssignments" :data="assignmentStats" />
 
-        <!-- 成绩分布图 -->
-        <div v-if="assignmentStats.length > 0" class="chart-section">
-          <div class="chart-card">
-            <div class="chart-title">成绩分布直方图</div>
-            <v-chart :option="gradeDistOption" style="height: 260px" autoresize />
-          </div>
+      <!-- 成绩分布图 -->
+      <div v-if="assignmentStats.length > 0" class="chart-section">
+        <div class="chart-card">
+          <div class="chart-title">成绩分布直方图</div>
+          <v-chart :option="gradeDistOption" style="height: 260px" autoresize />
         </div>
-      </el-tab-pane>
-
-      <el-tab-pane label="按学生查看" name="student">
-        <CctStudentTable :loading="loadingStudents" :data="studentStats" />
-      </el-tab-pane>
-    </el-tabs>
+      </div>
+    </div>
+    <div v-show="viewMode === 'student'">
+      <CctStudentTable :loading="loadingStudents" :data="studentStats" />
+    </div>
   </div>
 </template>
 
 <script setup>
 import { toRef } from 'vue'
+import TabGroup from '@/components/ui/TabGroup.vue'
 import { Document } from '@element-plus/icons-vue'
 import CctAssignmentTable from './course/CctAssignmentTable.vue'
 import CctStudentTable from './course/CctStudentTable.vue'
 import { useCourseCompletionTab } from '@/composables/useCourseCompletionTab'
+
+const VIEW_MODE_TABS = [
+  { key: 'assignment', label: '按作业查看' },
+  { key: 'student', label: '按学生查看' },
+]
 
 const props = defineProps({
   courseId: { type: [Number, String], required: true },

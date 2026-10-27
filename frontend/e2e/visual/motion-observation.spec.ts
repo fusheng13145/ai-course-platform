@@ -45,12 +45,11 @@ test.describe('动效观察（非基线）', () => {
   const shots: Array<{
     name: string
     path: string
-    overlay?: 'dialog' | 'modal'
+    overlay?: 'modal'
     fullPage?: boolean
   }> = [
     { name: 'admin-dashboard', path: '/admin/dashboard', fullPage: true },
     { name: 'admin-courses', path: '/admin/courses' },
-    { name: 'dialog-open', path: '/admin/courses', overlay: 'dialog' },
     { name: 'modal-open', path: '/admin/users', overlay: 'modal' },
   ]
 
@@ -85,50 +84,10 @@ test.describe('动效观察（非基线）', () => {
         ).toBe('rise-in')
       }
 
-      if (shot.overlay === 'dialog') {
-        // R-T14-3 legacy 侧载体：/admin/courses 表格首行"查看"→ CourseManagement.vue 的 <el-dialog append-to-body>
-        await page.getByRole('button', { name: '查看' }).first().click()
-        const panel = page.locator('.el-dialog').first()
-        await panel.waitFor({ state: 'visible', timeout: 10000 })
-
-        // R-T14-2 双拍（R-T14-7 收窄到元素级）：紧贴触发拍 a、200ms 后拍 b
-        //（EP el-dialog 的 dialog-fade 是 .3s，200ms 正落中段）。
-        // 为什么不是 locator.screenshot()：本会话实测它会做元素稳定等待、把这一层弹层裁到
-        // **动画终态**才落笔（dialog-fade 收尾后 opacity 已恒为 1），于是连拍两字节相同、
-        // dialog-open 当场假红——与"看动效正在跑"这个目的正好相反。
-        // 机制出处（不是从"我跑不出来"倒推的）：已安装 playwright-core 1.63.0 的
-        // lib/coreBundle.js 里 screenshotElement() 调 _waitAndScrollIntoViewIfNeeded(…, waitForVisible: true)，
-        // 那条路径先打日志 "waiting for element to be stable"，再调 checkElementStates(node, ['visible','stable'])；
-        // stable 的判据是逐 rAF 取 element.getBoundingClientRect()，x/y/width/height 任一变了就继续等。
-        // ⇒ **限定必须一起写**（否则下一个人会把"永远别用 locator.screenshot()"当成普适真理）：
-        //   那是**几何**判据，只对**带 transform 的入场**致命——本仓两个入场恰好都带（design-system.css 的
-        //   rise-in 是 translateY(10px)、EP 的 dialog-fade-in 是 translateY(-20px) 且挂在面板父节点上）；
-        //   **纯 opacity 的入场不吃这一刀**：rect 从头到尾不变，locator.screenshot() 不会等它。
-        //   它和 toHaveScreenshot 的 `animations` 选项也只是"效果同类"（都把画面落到终态），机制不等同
-        //   （后者是截图瞬间对 getAnimations() 里每个有限动画逐个 finish()）。
-        // page.screenshot({ clip }) 用节点 boundingBox 裁到那块矩形、**不等稳定**，才既收窄了字节面
-        // （避开同页 v-loading 遮罩的 opacity 过渡假绿源）又留住中段像素。
-        const box = await panel.boundingBox()
-        expect(
-          box,
-          `${shot.name}：弹层已 visible 却拿不到 boundingBox ⇒ 元素级裁剪无从下手`,
-        ).not.toBeNull()
-        const clip = { x: box!.x, y: box!.y, width: box!.width, height: box!.height }
-        const a = await page.screenshot({ clip })
-        await page.waitForTimeout(200)
-        const b = await page.screenshot({ clip })
-        writeFileSync(join(MOTION_DIR, `${shot.name}.png`), a)
-        writeFileSync(join(MOTION_DIR, `${shot.name}-mid.png`), b)
-        // 判据极性：**a !== b 才算"这块弹层此刻确实有动效在跑"**。
-        // ui/Modal 与 ui/Drawer 的原语面板没有 CSS 入场动效（design-system.css 的 .overlay/.modal
-        // 块无 animation/transition，Drawer.vue 样式块只有按钮级 transition）；el-dialog 侧会动。
-        // 若 a === b：先查触发有没有真打开（上面 waitFor visible 已证），再调小 200→80–120ms 重试；
-        // 调完仍相同就是真发现（该弹层无 CSS 入场动效），照实写 LEDGER，不许删断言换"人工看图确认"。
-        expect(
-          Buffer.compare(a, b),
-          `${shot.name}：连拍两字节完全相同 ⇒ 这块弹层此刻没有动效在跑，观察组测了个空。dialog-open 是 legacy el-dialog，EP dialog-fade 应给它入场；红了先查触发与时长，再判是不是真发现。`,
-        ).not.toBe(0)
-      } else if (shot.overlay === 'modal') {
+      // P4-MIG-05 后 legacy 侧载体已不存在（el-dialog 全仓 0 命中，CourseManagement 的
+      // <el-dialog> 已迁 Modal）——EP dialog-fade 入场动效随载体退役，dialog-open 观察用例
+      // 一并退役（2026-10-27，P4-MIG-07）。自持侧载体（下方 modal 分支）继续守 Modal 侧动效面。
+      if (shot.overlay === 'modal') {
         // R-T14-3 自持侧载体：/admin/users 页头"新增用户"→ UmCreateDialog（模板根即 <Modal wide>，Teleport 到 body）
         await page.getByRole('button', { name: '新增用户' }).first().click()
         const panel = page.locator('.modal').first()
