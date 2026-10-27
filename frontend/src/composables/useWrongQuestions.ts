@@ -3,6 +3,14 @@ import { ElMessage } from 'element-plus'
 import logger from '@/utils/logger'
 import wrongQuestionApi from '@/api/wrongQuestion'
 
+/** 知识点筛选标签形状（与 WqToolbar 的 knowledgePointTags prop 契约一致） */
+export interface KnowledgePointTag {
+  /** 知识点 ID；缺失时回退为知识点名作为稳定 key */
+  id: string | number
+  name: string
+  count: number
+}
+
 /**
  * 学生错题页数据逻辑（拆分自 student/academic/WrongQuestions.vue，2026-08-29）
  */
@@ -30,8 +38,8 @@ export function useWrongQuestions() {
   })
 
   /* ---- 知识点分类标签 ---- */
-  const knowledgePointTags = computed(() => {
-    const map = {}
+  const knowledgePointTags = computed((): KnowledgePointTag[] => {
+    const map: Record<string, KnowledgePointTag> = {}
     questions.value.forEach((q) => {
       if (q.knowledgePointName) {
         const key = q.knowledgePointName

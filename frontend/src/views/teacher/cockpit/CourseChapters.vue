@@ -185,7 +185,27 @@ const courseId = route.params.id
 
 const loading = ref(false)
 const saving = ref(false)
-const tree = ref([])
+/**
+ * 章节树节点：与后端 GET /teacher/courses/{courseId}/chapters/tree 返回对齐
+ * （契约见 api/teacher.ts：id,title,content,orderIndex,duration,isPublished,parentId,
+ * taskCount,submittedCount,completionRate,taskPoints[],children[]）。
+ */
+interface ChapterTreeNode {
+  id: number | string
+  title: string
+  content?: string
+  orderIndex?: number
+  duration?: number
+  isPublished?: boolean
+  parentId?: number | string | null
+  taskCount?: number
+  submittedCount?: number
+  completionRate?: number | string
+  taskPoints?: { id: number | string; title?: string; taskType?: string }[]
+  children?: ChapterTreeNode[]
+}
+
+const tree = ref<ChapterTreeNode[]>([])
 /**
  * 加载失败提示文案：非空即表示章节树数据不可信。
  * 原实现失败仅 logger.error 后静默 → 页面显示「暂无章节 / 点击右上角新增章节」，
@@ -197,7 +217,18 @@ const openSet = reactive(new Set())
 const dialogVisible = ref(false)
 const dialogMode = ref('create')
 const editingId = ref(null)
-const form = reactive({ title: '', content: '', orderIndex: 0, duration: 0 })
+/**
+ * 对话框表单：title/content/orderIndex/duration 为提交字段；
+ * sortOrder/isPublished 仅由对话框 v-model 写入（历史遗留：保存时未提交，保持零行为变更故声明为可选）。
+ */
+const form = reactive<{
+  title: string
+  content: string
+  orderIndex: number
+  duration: number
+  sortOrder?: number
+  isPublished?: boolean
+}>({ title: '', content: '', orderIndex: 0, duration: 0 })
 
 /** 批量导入（Excel）状态 */
 const showImport = ref(false)
@@ -280,7 +311,8 @@ async function load() {
   try {
     const r = await teachingApi.getChapterTree(courseId)
     const body = unwrap(r)
-    const list = body?.records || body?.list || body || []
+    // 后端历史上可能返回 records/list 分页包装或裸数组（防御式双取值），统一窄化为章节树节点数组
+    const list = (body?.records || body?.list || body || []) as ChapterTreeNode[]
     tree.value = list
     list.forEach((n) => openSet.add(n.id))
   } catch (e) {

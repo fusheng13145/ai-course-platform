@@ -67,6 +67,7 @@
 </template>
 
 <script setup lang="ts">
+import type { PropType } from 'vue'
 import { ref } from 'vue'
 import Modal from '@/components/ui/Modal.vue'
 
@@ -83,8 +84,11 @@ defineProps({
   form: { type: Object, required: true },
   /** 校验规则 */
   rules: { type: Object, required: true },
-  /** 课程列表 */
-  courseList: { type: Array, required: true },
+  /** 课程列表（来源 courseApi.getAllMyCourses；部分历史响应形态用 title 兜底，故就地取消费形状） */
+  courseList: {
+    type: Array as PropType<{ id: number | string; name?: string; title?: string }[]>,
+    required: true,
+  },
   /** 保存加载态 */
   submitting: { type: Boolean, default: false },
 })

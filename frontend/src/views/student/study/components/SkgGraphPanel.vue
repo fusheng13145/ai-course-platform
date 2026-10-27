@@ -126,7 +126,11 @@ defineProps({
     type: Array as PropType<{ id: number | string; name?: string }[]>,
     default: () => [],
   },
-  subsequentNodes: { type: Array, default: () => [] },
+  /** 后续知识点（与 prerequisiteNodes 同一图谱节点形状，来源 useStudentKnowledgeGraph） */
+  subsequentNodes: {
+    type: Array as PropType<{ id: number | string; name?: string }[]>,
+    default: () => [],
+  },
   getDifficultyTagType: { type: Function, required: true },
   getDifficultyLabel: { type: Function, required: true },
   getMasteryColor: { type: Function, required: true },

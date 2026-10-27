@@ -21,7 +21,10 @@
         <div v-for="(item, idx) in topAbnormalGrades" :key="idx" class="abnormal-item">
           <div class="abnormal-info">
             <span class="name">{{ item.studentName }}</span>
-            <span class="score" :class="item.score < 60 ? 'low' : 'high'">{{ item.score }}分</span>
+            <!-- score 兼容后端数值/数字字符串，比较前经 Number() 收敛（NaN 时与原 undefined 行为一致归入 high） -->
+            <span class="score" :class="Number(item.score) < 60 ? 'low' : 'high'">{{
+              item.score
+            }}分</span>
           </div>
           <span class="course">{{ item.courseName }}</span>
         </div>
