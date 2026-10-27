@@ -24,7 +24,7 @@ function applyTheme() {
  * `/503` 三个错误页既无 AppShell 也无 ThemeSwitcher，**从不调用它** ⇒ `<html>` 上永远
  * 没有 `data-theme`，`styles/theme.css` 的 `[data-theme='dark']` 整块不生效，暗色用户在这
  * 三页上看到的是 `:root` 的浅色令牌。症状在视觉基线面表现为 `/404` 的明暗两张**逐像素
- * 相同**，被 `assertComparableRender` 判红（`docs/visual-upgrade/LEDGER.md` 缺陷 D-1）。
+ * 相同**，被 `assertComparableRender` 判红（历史缺陷 D-1，修复见 commit `ea48fe1`）。
  *
  * 【为什么不复制一份解析逻辑】这里只把 `applyTheme()` 摆到入口够得着的位置：
  * "偏好 → 生效值"（含 `system` 走 `matchMedia`）的解析全仓只有 `applyTheme()` 一处，
