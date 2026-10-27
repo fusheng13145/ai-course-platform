@@ -5,7 +5,7 @@
 - 原始取证是一次性 Playwright 脚本（真登录 `student`、复用会话夹具躲登录限流），读数与 17 张截图落在
   `frontend/test-results/onboarding-audit-2026-10-21/`；该目录被 gitignore，故本文件是它的入库转录。
 - 2026-10-21 由控制器重放原四个审计脚本并恢复 `readings.json` ＋ 17 张 PNG，读数与
-  `docs/superpowers/specs/2026-10-21-onboarding-redesign-design.md` §1 逐条一致；唯一的脚本改动是给登录竞态加了一个稳定输入助手。
+  `docs/历史归档/收口批次-2026-10/onboarding-redesign/2026-10-21-onboarding-redesign-design.md` §1 逐条一致；唯一的脚本改动是给登录竞态加了一个稳定输入助手。
 - 本棒未重跑任何审计脚本或 Playwright。脚本 1 未写进 `readings.json` 的键
   （`1_persistent_el_overlay`、`2_hotkey_ab`、`3_side_user_menu`、`4_topbar_user_menu_items`、
   `6_step2_card_at_vh_900/1080/1440`、`5_side_user_when_collapsed`）转录自控制器重放输出

@@ -27,7 +27,7 @@
 
 | 类别 | 数量 | 性质 |
 | --- | --- | --- |
-| `docs/superpowers/plans/2026-10-23-aicourse-optimization-roadmap.md` | 1 | **v1 本体，唯一有价值的东西** |
+| `docs/进行中/2026-10-23-aicourse-optimization-roadmap.md` | 1 | **v1 本体，唯一有价值的东西** |
 | `frontend/e2e/visual/.auth/{admin,student,teacher}.json` | 3 | **含活跃会话凭据**：`ai_course_token` 是 3 段式 JWT（`eyJ` 开头、359 字符）、`ai_course_refresh` 32 字符；三份 cookie 的 `expires` 均为 **2026-10-30 08:20（本地时）** |
 | `frontend/e2e/visual/__snapshots__/sensitivity.spec.ts/*-probe.png` | 54 | 探针图 |
 | `frontend/e2e/visual/tools/evidence/*.png` | 49 | 取证残留 |
@@ -53,6 +53,8 @@
 ---
 
 ## §1 话术边界（答辩现场唯一口径）
+
+> **2026-10-27 校准（本节冻结于 2026-10-23，以下事实已变）**：① 类型存量 **402/90 → 0/0**（`P4-B1-01`，门禁基线写死 0）；② 视觉 **Phase 1–4 已收口**（Phase 5/6 未开工），`error-404` 基线缺口随 Phase 1 全页重录消解；③ CI `frontend-e2e` 仍为 `workflow_dispatch`（按作业名定位，不引行号）；④ 文档目录已由 `docs/superpowers/` 迁为 `docs/进行中/` ＋ `docs/历史归档/收口批次-2026-10/`。**其余"不能说的四类"仍有效**——尤其"本机"限定与目标环境零实跑。
 
 ### 1.1 可以说的三句（本机限定词不可省）
 
@@ -96,7 +98,7 @@
 | R-05 | `scripts/tests/` 进 CI | P0 | — | 0.5–1 | 新作业在主触发链 green 一次 | 不变（升 P0 确认） |
 | R-06 | 判据 4 真实浏览器 Tab 取证 | P1 | R-19a | 0.5–1 | 正向 12 次 + 反向回绕，`activeElement` 全程在卡内 | **降级** |
 | R-07 | 判据 1 的 375 档 0.17px | P1 | — | 0.3 | 同一次 diff 内改口径 + 改测试 | **冲突裁定：改口径** |
-| R-08 | 视觉 D-1 `error-404` 明暗两格 | P0 | R-19a | 1–2 | 基线 22 → **24** 张，`anchors` 两轮全绿 | 改「不阻塞 R-04」 |
+| R-08 | 视觉 D-1 `error-404` 明暗两格 | P0 | R-19a | 1–2 | 基线 22 → **24** 张，`anchors` 两轮全绿 | ✅ **已闭**（`ea48fe1` + `c0b94ce`） |
 | R-09 | 视觉桩体按真实空态形状重做 | P2 | — | 1.5–2.5 | 桩形状含"信封无 `data` 键"、命中清单无 `/src/` | **后置** |
 | R-10 | 两页空转格转正 | P2 | R-09 | 1–1.5 | 缺口表减 2 行、各一条反向守卫 | **后置** |
 | R-11 | 类型债 402 → 0（六批） | P2 | — | 13.5–18 | 每批 errors+files 双降且 `byFile` 键集合一致 | **降级** |
@@ -275,7 +277,7 @@ Batch 0 买的是**交付物存在**，Batch 1 买的是**可信度**，Batch 2 
 | R-07 | ✅ 已闭（**假阴性修正**，未改判据） | `938fc6b` | 根因是判决函数把 §3 的 8px 设计缓冲**当成了判据**：375 档五步余量实测 27.5/8/8/8/**7.83px**，整卡本就完全可见。`cardFullyVisible` 回归 §4 原文，8px 降为只读读数；新增 375×667 五步 e2e；onboarding **19 例绿**（lead 独立复跑） |
 | R-19b | ✅ 已闭（两个孤儿都删） | `5fa216e` | `hasOpenOverlay`（两套遮罩判据并存的风险）、`onTransition`+listeners+写侧广播删除；探针第 5 步标签按端更正；受影响三文件 vitest 24 passed |
 | 收尾 | 引导批九条判据 **9/9 达成**（§16.1 该行转 ✅，2026-10-23） | `938fc6b`＋`5fa216e` | B.2 用例数 181/**1899**（R-19b −2 例孤儿测试）；全量 vitest、typecheck 402/90、build 由 lead 复跑通过 |
-| R-22 | 🟡 部分 | 随批文档提交 | 索引 4→5 组、§22.1 分支实况、§16.1 与 B.2 的 scripts-tests 句已就地改写；历史段落中的旧表述未全量清扫 |
+| R-22 | ✅ 已闭（2026-10-27 文档重构批） | 文档重构批 | 索引重写（现行层级与状态锚点）、§16.1/B.2 与现状同步（typecheck 0、vitest 190/1988、CI 12、视觉 24 张）、`superpowers/` 迁层完成；历史段落保留原读数并加校准注记 |
 | R-02 | ✅ 已落地 | `5dec1aa`（远端） | 2026-10-24 按项目主 2026-10-23 指示执行 `git push origin main:leyon`：`0660775..5dec1aa`（17 提交纯快进）；推送前 K-01 重跑 `origin/leyon...main` = `0 17`（快进成立）。⚠️ 实况修正：执行时 `origin/leyon` 已在 `0660775`（本轮会话开始时的 main 旧尖，说明此前已有一轮推送），本文件 §0.1 N6 的"领先 228 未推送"读数就此作废；`origin/main` 保持 `4bbf276` 未动（等里程碑授权）；远端另有 10 条 dependabot 分支待处置（见推送报告）。本地 `leyon@694f659` 残留未推送（K-12 约束不变） |
 
 > **推送口径（项目主 2026-10-23 指示：不建新分支，直接推远端 `leyon`，里程碑后再推 `main`）**：
@@ -361,7 +363,7 @@ Batch 0 买的是**交付物存在**，Batch 1 买的是**可信度**，Batch 2 
 | R-04 | `cd frontend && npx playwright test --list` | `Total: 52 tests in 10 files` | 实核 2026-10-23 16:0x |
 | R-05 | `pytest scripts/tests -q` | `85 passed` | 实核 2026-10-23，17.17s |
 | R-06 | 新增用例：`cd frontend && npx playwright test onboarding --grep "Tab"` | 绿；取证序列入库带时点 | 待执行 |
-| R-07 | `grep -c "整卡可见" docs/superpowers/specs/2026-10-21-onboarding-redesign-design.md` | §4 判据 1 段内现 **1** → 目标 **0** | 实核（§4 现文） |
+| R-07 | `grep -c "整卡可见" docs/历史归档/收口批次-2026-10/onboarding-redesign/2026-10-21-onboarding-redesign-design.md` | §4 判据 1 段内现 **1** → 目标 **0** | 实核（§4 现文） |
 | R-08 | `ls frontend/e2e/visual/__snapshots__/anchors.spec.ts/ \| wc -l` | 现 **22** → 目标 **24** | 实核 2026-10-23 |
 | R-08 | `cd frontend && npx playwright test -c playwright.visual.ts --list` | `Total: 85 tests in 5 files`（其中 `anchors.spec.ts` **42 例**） | 实核 2026-10-23 |
 | R-11 | `cd frontend && node scripts/check-types.cjs` | `当前错误 402 条 / 90 个文件`（与基线持平即通过） | 实核 2026-10-23 |
@@ -380,5 +382,5 @@ Batch 0 买的是**交付物存在**，Batch 1 买的是**可信度**，Batch 2 
 
 ## 附：本文件自身的位置与一处自我提醒
 
-- 落盘：`docs/superpowers/plans/2026-10-23-aicourse-optimization-roadmap.md`（覆盖同名路径，在 **main 工作树**上，git 上为未跟踪新文件）。这是本版**唯一的写操作**。
+- 落盘：`docs/进行中/2026-10-23-aicourse-optimization-roadmap.md`（覆盖同名路径，在 **main 工作树**上，git 上为未跟踪新文件）。这是本版**唯一的写操作**。
 - **一处自我提醒**：v1 栽在"文件写在工作树里、主线在别处、切分支就没了"。本版的风险**没有消失**——只要 R-02 不执行，这个文件依然只是本机的一个未跟踪文件。⇒ **R-22 的第 3 条（文档索引 +5 组）必须在 R-02 的同一批里完成**，否则下一轮读到的仍是"索引里 4 组、第 5 组不知道在哪"。

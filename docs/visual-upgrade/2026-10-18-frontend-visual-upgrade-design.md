@@ -571,7 +571,7 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 - Phase 4 按目录分批，**每批一个 commit**，任何一批撞测试且无法当场解释，整批回退而非局部修补。
 - 新依赖与 `package-lock.json` 变更单独成 commit，便于依赖层与样式层回滚互不牵连。
 - 文档落点（遵循"份数尽量少"）：
-  - 设计与本台账：`docs/superpowers/specs/2026-10-18-frontend-visual-upgrade-design.md`（本文，唯一）
+  - 设计与本台账：`docs/visual-upgrade/2026-10-18-frontend-visual-upgrade-design.md`（本文，唯一）
     + `docs/visual-upgrade/LEDGER.md`（唯一台账表）
   - 证据图：`docs/visual-upgrade/evidence/`（按 §5 策略，非全量）
   - 基线快照：`frontend/e2e/visual/__snapshots__/`
@@ -587,13 +587,14 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
 - 截至 commit **`eb5d38a`**（2026-10-20 本会话末态）。本节只记**状态、未闭合项与纪律**；
   凡判据原文一律指回 §1–§10 或 LEDGER 行 ID，不复述、不改写。
 - 所有数值都带"截至某 commit"的限定。**引用前先跑 §11.7 的命令**——本项目已有读数漂移前科（§2 前言）。
+- **2026-10-27 校准（后加，不改下文冻结态）**：§11 正文冻结于 `eb5d38a`（2026-10-20）。此后 Phase 1–4 已全部落地：Phase 1/2/3 分别由 `P1-*` / `P2-RADIUS-01` / `P3-EPSCSS-01` 收口，Phase 4 由 `P4-MIG-01～07` ＋ `P4-A3-01` 收官（el-dialog / el-drawer / el-tabs 全仓 0 命中）。**现状与读数一律以下列两处为准**：`docs/visual-upgrade/LEDGER.md`（逐批证据）与 `docs/进行中/2026-10-24-frontend-deep-review-and-improvement-plan.md` **§8.4 / §8.5**（门禁读数与 DoD）。§11.2 / §11.3 中"带条件放行""Phase 4 准入门 5 项未闭"等是 2026-10-20 的当时结论，保留为史料，不得当作现状引用。**Phase 5/6 仍未开工。**
 
 ### 11.1 读序（照这个顺序，五分钟内能接上）
 
 1. 本节（状态与缺口）→ 2. §1（需求原话与四轮加码＝不可协商项）→ 3. §6（验收标准；第 12、15、16、17 条是三道门禁的正文）
 4. `docs/visual-upgrade/LEDGER.md`（唯一台账表，每行 9 栏；**行 ID 是唯一可引用的坐标，行号不是**）
 5. `docs/visual-upgrade/evidence/phase0-measurements.md`（读数转录，每节标注了"可重生成 / 不可重生成"）
-6. `docs/superpowers/plans/2026-10-18-frontend-visual-phase0.md`（18 个 `### Task` 标题，执行载体）
+6. `docs/历史归档/收口批次-2026-10/visual-phase0/2026-10-18-frontend-visual-phase0.md`（18 个 `### Task` 标题，执行载体）
 7. `.superpowers/sdd/2026-10-18-frontend-visual-phase0/progress.md`（SDD 过程账：派发、复核、裁定逐条）
    —— **该目录被 git 忽略**，`git clean -fdx` 会毁掉它。承重裁定已全部回写进 §/LEDGER，别把它当唯一副本。
 
@@ -639,7 +640,7 @@ EP 2.4.4 确实写死样式、必须保留 `!important` 的，逐条加一行注
   **跨套件顺序（先跑 9 个流程 spec 再跑视觉套件）本轮没有重放**：解除依据是钉桩覆盖面断言＋全钉后两轮字节一致，不是对原触发序列的重放；
   原"恒红 152／148 px""2 failed／1 passed"读数保留为改前史料（§11.4 末条）。台账行 `P0a-PINGAP-01`。
 - **2026-10-21 排期变更（项目主定）**：**(a) 解除之后、Phase 1 开工之前，插入"新人引导改造"一批**，
-  设计见 `docs/superpowers/specs/2026-10-21-onboarding-redesign-design.md`（含 12 条改前实测读数与 7 条裁定）。连带三条：
+  设计见 `docs/历史归档/收口批次-2026-10/onboarding-redesign/2026-10-21-onboarding-redesign-design.md`（含 12 条改前实测读数与 7 条裁定）。连带三条：
   ① 该批**不新增像素基线**——理由与本节上面那条同源，(a) 未解除前新增基线＝新增不可复现资产，改用色差与 rect 两条非像素判据；
   ② 压暗色值先做成局部 token，**Phase 1 并入 scrim 家族**（同一条色值改两次、多一次同步，已认下）；
   ③ 它落地即把 Phase 4 准入门**第 5 项从"半闭"推到"闭"**——那个未接焦点陷阱的第三载体 `OnboardingGuide.vue` 正是本批对象。
@@ -1032,7 +1033,7 @@ awk '/^\|/ { if ($0 !~ /\|$/) print FILENAME":"NR": 表格行未以竖线结尾�
 # 同一把尺也要量本 spec 自己的表格区（§11.2／§11.7 都是表）：
 awk '/^\|/ { if ($0 !~ /\|$/) print NR": 未以竖线结尾" }
      !/^\|/ && !/^[[:space:]]*$/ { if (prev ~ /^\|/) print NR": 表格后续行" }
-     { prev = $0 }' docs/superpowers/specs/2026-10-18-frontend-visual-upgrade-design.md
+     { prev = $0 }' docs/visual-upgrade/2026-10-18-frontend-visual-upgrade-design.md
 ```
 
 端口检查（放在表外，因为带管道的命令进表格单元会把该行撑出第 4 列）：
