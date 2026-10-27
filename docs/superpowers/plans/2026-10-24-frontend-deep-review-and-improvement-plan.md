@@ -239,7 +239,7 @@ FE-10/11/12/13/14 全部沿用既有母文档的触发条件与重启信号；�
 
 ### 8.4 当前门禁读数（2026-10-26，核心闭环批后，全部本机）
 
-vitest **190 文件 / 1986 例**全绿（核心闭环两批 +32 例：useSubmissionGrading 18/useStudentAssignments 10/CduAssignmentTab 4/useExamCompose 15/Picker 8/questionTypes 4/题库契约 2/exam+submission 契约扩充）｜ lint 0/0 ｜ 类型棘轮 **13 条 / 5 文件**持平 ｜ build + size:gate 六项全过（其余 1289.18/1300、JS 3152.67/3400、EP CSS 381.6/420）｜ 护栏 **el-dialog 0（全仓清零）/Modal 78/el-drawer 4/Drawer 2＝总数 84、文件数 75**（三数同步，只升不降）｜ 后端新增端点 ExamPaperControllerTest 33 例绿（含选题端点 3 例）＋**真实后端冒烟两轮 15+ 步全过**（批 1 批阅链/批 2 组卷发布链）｜ Playwright 流程 **54/54** ｜ 视觉全表 **两轮 85/85**（**P4-DRIFT-01 漂移归因闭合（2026-10-26，方案①）**：admin-dashboard 钉桩 7 端点＋fixture 入库＋平凡键豁免登记＋2 张基线重录＋sha256 同步；NOPIN 对照漂移复现证明钉桩有效；钉桩页序列 student 5/governance 7/admin 7，admin 格被钉区域措辞降级入 R-CF1 豁免表）｜ Phase 4 准入门已收＋迁移 **5/6 批＋收官批**（**el-dialog 全仓 0 命中**——course/knowledge/admin/teacher/components+layouts 全清；余 el-drawer 4 处＋el-tabs 8 处两条小线）｜ **核心闭环：创建→选题→保存→发布→学生提交→批阅 全链可用（QA 真实冒烟实证）**｜ 本机后端 e2e 配方：`--server.port=8080` 程序参兜底宿主注入。
+vitest **190 文件 / 1986 例**全绿（核心闭环两批 +32 例：useSubmissionGrading 18/useStudentAssignments 10/CduAssignmentTab 4/useExamCompose 15/Picker 8/questionTypes 4/题库契约 2/exam+submission 契约扩充）｜ lint 0/0 ｜ 类型棘轮 **13 条 / 5 文件**持平 ｜ build + size:gate 六项全过（其余 1289.18/1300、JS 3152.67/3400、EP CSS 381.6/420）｜ 护栏 **el-dialog 0/el-drawer 0（双清零）/Modal 78/Drawer 6＝总数 84、文件数 75**（三数同步，只升不降；KNOWN_UNWIRED 抽屉缺口表已清空）｜ 后端新增端点 ExamPaperControllerTest 33 例绿（含选题端点 3 例）＋**真实后端冒烟两轮 15+ 步全过**（批 1 批阅链/批 2 组卷发布链）｜ Playwright 流程 **54/54** ｜ 视觉全表 **84/84**（dialog-open 观察用例随 legacy 载体退役减 1；**P4-DRIFT-01 漂移归因闭合（2026-10-26，方案①）**：admin-dashboard 钉桩 7 端点＋fixture 入库＋平凡键豁免登记＋2 张基线重录＋sha256 同步；NOPIN 对照漂移复现证明钉桩有效；钉桩页序列 student 5/governance 7/admin 7，admin 格被钉区域措辞降级入 R-CF1 豁免表）｜ Phase 4 结构收敛**整体收官（2026-10-27）**：**el-dialog/el-drawer/el-tabs 全仓 0 命中**（7 批迁移 c2eb20f 收官）；余 22 处 teleport 逐点核对＋R-T14-8 抽屉动效两项尾部清单｜ **核心闭环：创建→选题→保存→发布→学生提交→批阅 全链可用（QA 真实冒烟实证）**｜ 本机后端 e2e 配方：`--server.port=8080` 程序参兜底宿主注入。
 
 ### 8.5 规划结束基线（Definition of Done，2026-10-26 固化）
 
@@ -250,7 +250,7 @@ vitest **190 文件 / 1986 例**全绿（核心闭环两批 +32 例：useSubmiss
 
 | # | 收口判据 | 结束态验证 |
 | --- | --- | --- |
-| A1 | **结构收敛（Phase 4）**：`<el-dialog`/`<el-drawer` 在 `frontend/src` **全仓 0 命中**（现 59+4）；8 处 `el-tabs` → TabGroup（spec 计数）；按目录 6 批全闭（course/knowledge 已清，余 admin/teacher/student/auth|common） | `git grep -c "<el-dialog\|<el-drawer" frontend/src` = 0；LEDGER 每批一行 |
+| A1 | **结构收敛（Phase 4）**：**已达成（2026-10-27）**：`<el-dialog`/`<el-drawer`/`<el-tabs` 全仓 0 命中（7 批迁移，P4-MIG-01～07） | `git grep -c "<el-dialog\|<el-drawer" frontend/src` = 0；LEDGER 每批一行 |
 | A2 | **护栏收口**：`BASELINE_TAG_BY_MARKER` 的 legacy 两项归零、primitive 承接总数守恒；`EXPECTED_OVERLAY_MIN`/`COMPONENT_MIN` 迁移完成后按同一命令重测更新且**只升不降**；`KNOWN_UNWIRED_EL_DRAWER_FILES` 缺口表**清空**（4 处迁 Drawer 后逐条删除） | 护栏 2 文件 20 例绿；表值与实跑重放一致 |
 | A3 | **迁移连带项落账**：22 处 teleport 缺省方向差异逐点核对；抽屉动效不对称（R-T14-8）补过渡或书面弃用；`--sh-pop` 暗色合并档退役评估（退役或书面保留）；调用方 `ref`+`useDialogFocus` 两行全仓 0 残留 | `git grep -c "useDialogFocus(" frontend/src/views frontend/src/components` = 0（composables 自身与测试除外） |
 | A4 | **页面级升级（Phase 5）**：`.btn` 族字面量 8/7/9px、`--ac-radius-md`(8px,77 处)、卡片硬编码亮边框 4 处、`--ac-*` 别名族（color/spacing/transition）、`--edge-hi` 推广 `.l2-panel`——各项收敛或书面豁免落账；§2.4 硬编码污染计数**对基线下降幅度报告**交付 | 报告文件入 `docs/visual-upgrade/evidence/` |
