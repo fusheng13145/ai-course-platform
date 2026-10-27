@@ -4,340 +4,190 @@
 
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.x-green)](https://spring.io/projects/spring-boot)
 [![Vue](https://img.shields.io/badge/Vue-3.5.x-brightgreen)](https://vuejs.org/)
-[![Element Plus](https://img.shields.io/badge/Element%20Plus-2.4.x-blue)](https://element-plus.org/)
+[![Element Plus](https://img.shields.io/badge/Element%20Plus-2.14.7-blue)](https://element-plus.org/)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](https://opensource.org/licenses/MIT)
 
 ## 项目概述
 
-基于知识图谱+LLM的AI助教系统是一套融合人工智能与教学管理的现代化在线教育系统。系统面向学生、教师与管理员三大核心角色，提供个性化学习体验、高效的教学支持及全面的管理能力。
+面向高校课程教学的 AI 课程平台，服务**学生 / 教师 / 管理员**三类角色，提供个性化学习、教学支持与管理治理。
 
-**核心能力域**：多角色 RBAC、课程/章节/选课管理、题库与在线考试（防作弊）、作业批改与查重、知识图谱可视化与学习路径规划、AI 智能问答/出题/批改/学情建议、数据分析与学情报告、WebSocket 实时通知。
+**核心能力域**：多角色 RBAC、课程／章节／选课与审批、题库与在线考试（防作弊）、作业布置／提交／批改／查重、知识图谱可视化与学习路径规划、AI 问答／出题／批改／学情建议、数据分析与学情报告、WebSocket 实时通知、内容审核与运维治理。
 
-**里程碑状态**：核心功能已完成、可交付且可扩展，本机全栈实测可用（最新一轮三套测试与全部门禁读数见下表，出处为手册附录 **B.2**）。⚠️ **已完成 / 进行中 / 待完成三态的唯一索引是手册 §16.1**——对外表述必须按「🟡 进行中」行的残项降级，「⏳ 待完成」行**一律不得主张**。
+**当前阶段**：大创赛交付与答辩，主形态是**本机全栈真跑 + 录屏演示**。Docker 编排自 2026-10-08 起有意搁置（文件与知识都在，本机不再执行），公网上线（A 路径）只有预案。
 
-**2026-10 更新**：侧边栏改为**三级动态课程导航**（考试/成绩/作业/图谱/教学工具收敛为每门课程下的独立页签，**108 条路由 / 289 个 `.vue`**，2026-10-27 `find` 复核口径；旧记「93 条路由 / 281 个 `.vue`」为早期快照）；知识图谱改为**可拖拽力导向布局**并修正学习路径规划语义；Flyway 新增 **V5 富种子**（48 表互联、12 教师 + 150 学生、春秋双学期）与 **V6 计算机网络示范课**（course 4007：14 章节 / 65 知识点 / 120 关系边 / 8 套试卷 / 60 条选课），供参赛演示直接使用；**2026-10-06 起这两个脚本移入 `db/seed-demo`，`prod` profile 的 Flyway `locations` 整目录排除 → 演示数据不进生产库**；同批另加 **V7 前向修正**（V6 落库后的示范课文案已按实测 65 知识点 / 56 题改正，V6 本体因 Flyway 校验和冻结不可回改，见手册 DR-19）；**2026-10-13 另加结构迁移 V8–V11**（AI 调用日志、学期注册表、AI 出题限制名单、内容审核列），故**当前库表 51 张**——`index.sql` 已于 2026-10-17 回补至 **51 表**（含 V8/V11 的 12 个加列），`V1` 因 Flyway 校验和冻结仍为 48 张；口径与护栏见手册 **DR-61**（口径见 `docs/项目手册.md` §13/§13.1，生产约束与实测取证见 §24.5）。
+**想知道"做到哪了、还剩什么"**：定位与状态看 `docs/项目手册.md`；未完成事项看 `docs/前端待办项.md`／`docs/后端待办项.md`。对外表述不得高于待办文档里已闭行的证据。
 
-> **职责边界**：知识图谱引擎（图谱构建、多跳推理、GraphRAG）与 RAG 检索引擎（BM25 / 向量检索 / embedding / 融合）均由团队另一成员以 Python 微服务实现（kg **8001** / rag **8002**，三端（kg/rag/lora）均已接入真实引擎实现）。本端（Java 后端）实现**消费侧**与**标准化集成层** `com.aicourse.integration`：`ContractPaths` 常量（调用约定唯一事实来源，55 个契约常量）+ `KnowledgeGraphContract` / `RagContract` 契约接口（强类型 record）+ 双实现（本地 BFS / 禁用态默认不依赖 Python；HTTP 远端经 `knowledge-graph.enabled` / `rag.enabled=true` 调 Python 8001 / 8002，成功时返回 `mode=ENGINE`）。其中 `POST /api/knowledge/path/plan` 在引擎未启用/不可达时由消费侧**本地 BFS 兜底**；`max_hops` 自 2026-10-05 起**仅用于「是否采纳」判定、不再参与遍历剪枝**，上限不足时仍回传真实最短跳数（语义表见 `docs/项目手册.md` §35.2）。RAG 未接入时返回 `{"code":503}` 且 AI 问答自动回退纯 LLM。**LoRA 微调（8003）引擎侧已交付并本机 `mode=ENGINE` 真跑坐实（2026-10-18，手册 DR-78）**：残项为三条——无 Dockerfile、Java 侧未消费数据集/语料六端点、两个启动器全文无 `8003`（一键姿态不拉起，须手工 `uvicorn`）。**完整对接契约见 `docs/项目手册.md`（第八部分，唯一标准基准）。**
-
-> **⚠️ 参考项目方法学边界（避免误导）**：`大创赛/类似项目/DeepSeek-RAG-Chatbot` 的 GraphRAG 实体抽取采用正则 `\b[A-Z][a-z]+...`，**仅支持英文实体**，且为单机通用文档问答工具，与本项目的**中文知识图谱**（`knowledge_points` / `knowledge_point_relations`）在语言适配、领域建模、工程规模上均不可类比。**请勿将其作为本项目中文 KG 方案的对标或引用依据**；本项目中文 KG 的关系建模以 `相关论文/`（杜彩丽 IPA/IREM、中职计算机网络多源异构 KG 等）与 PRD 接口矩阵为准。
+> **⚠️ 参考项目的方法学边界**：`大创赛/类似项目/DeepSeek-RAG-Chatbot` 的 GraphRAG 实体抽取用正则 `\b[A-Z][a-z]+...`，**仅支持英文实体**，且是单机通用文档问答工具，与本项目的中文知识图谱（`knowledge_points`／`knowledge_point_relations`）在语言适配、领域建模、工程规模上不可类比。**不得把它当成本项目中文 KG 方案的对标或引用依据**；中文 KG 的关系建模以 `相关论文/`（杜彩丽 IPA／IREM、中职计算机网络多源异构 KG 等）与 PRD 接口矩阵为准。
 
 ---
 
-## 文档导航
+## 文档地图（九份权威文档）
 
-项目文档已整合为**单一权威手册** `docs/项目手册.md`（后续所有任务唯一依据，统一标准基准），按**十一个部分** + 四个附录组织：
-
-| 部分                              | 主题                                                           |
-| --------------------------------- | -------------------------------------------------------------- |
-| 第一部分 项目总览与背景           | 定位目标、参赛与申报要点、外部研究支撑精华                     |
-| 第二部分 需求与技术基线           | 角色权限、三端功能、AI 能力、核心流程、非功能需求、产品演进    |
-| 第三部分 系统架构                 | 总体架构、技术栈、目录结构、核心设计决策、标准化集成层         |
-| 第四部分 数据模型与接口           | 数据模型（当前库表 **51** 张；`index.sql` 已回补至 51，`V1` 冻结于 48，见手册 DR-61）、接口矩阵、功能需求点完成明细                    |
-| **第五部分 已实现功能**（活章节） | 已落地并验证的功能清单，随任务推进持续同步                     |
-| 第六部分 开发指南                 | 环境、启动、编码规范、测试、质量门禁、CI、开发协作             |
-| 第七部分 部署与运维               | 部署、健康检查、日志、备份、故障、安全加固、性能、监控告警体系 |
-| 第八部分 Python 微服务集成契约    | KG(8001)/RAG(8002)/LoRA(8003) 完整契约与降级语义               |
-| 第九部分 测试·质量·完成度评估     | 测试体系、质量门禁、完成度量化结论、安全机制、验收标准         |
-| **第十部分 下一步计划**（活章节） | P0/P1/P2 待办清单与状态标记，随任务推进持续同步                |
-| **第十一部分 产品化转化路线**（2026-09-14 新增） | 多租户 SaaS / 小程序 / 桌面形态可行性、目标形态、核心模块、架构与 M1–M4 路线（详见 `docs/产品化转化方案.md`） |
-| 附录A 术语表                      | 领域术语与缩略语统一释义                                       |
-| 附录B 统计口径（唯一基准）        | 全局统计数字唯一来源，取代旧「数据口径权威总表」               |
-| 附录C 贡献与 PR 流程              | 分支策略、编码规范、PR 流程（原 CONTRIBUTING 内容）            |
-| 附录D 审查修正台账                | 逐轮对抗式复核的实测清单、已修复缺陷确认与新增发现             |
-
-> 快速索引：架构设计 / 开发测试 / 部署运维 / 知识图谱与 RAG 契约 / 需求与路线图 / 交付进度 / **统计口径唯一基准** → 均见 `docs/项目手册.md` 相应部分。
-
-**文档分层（2026-10-27 复核）**——四层各司其职，避免平行文档：
-
-| 层 | 位置 | 说明 |
+| 文档 | 定位 | 什么时候看它 |
 | --- | --- | --- |
-| ① 权威规范 | `docs/项目手册.md` | **唯一事实基准**，与他人冲突时以手册为准 |
-| ② 导航 | `docs/文档索引.md` | 全仓文档的定位、时效与读者地图 |
-| ③ 专题与在办 | `docs/产品化转化方案.md`<br>`docs/密钥注入与Secret管理.md`<br>`docs/项目现状分析与未来发展规划-2026-10-13.md`<br>`docs/进行中/`（未收官的执行计划）<br>`docs/visual-upgrade/`（视觉升级设计定稿＋LEDGER＋证据） | 单一专题的**当前有效**方案／操作指南；`进行中/` 与 `visual-upgrade/` 属同一专题层，分别承载在办计划与视觉主线状态锚点。⚠️ **端到端与压力结论不再另立专题文档**——唯一来源是手册 **§43**，缺陷台账见手册**附录 D**。末项为**现状分析＋未来规划活文档**（含第二部分 §5 逐批次实施台账），属规划性质、非规范，冲突以手册为准 |
-| ④ 归档 | `docs/历史归档/` | 时点性报告与**已收口批次**冻结原文（**31 份报告 + 1 份目录 README = 32 个文件**，2026-10-27 复核；收口批次在 `收口批次-2026-10/`，含 5 个批次的 spec/plan/PRD；收录判据与冻结声明见该目录 `README.md`）|
+| `docs/项目手册.md` | **总入口与总账本**：项目是什么、角色与权限、功能清单、里程碑、术语、协作约定、审计台账 DR-1…DR-95、结构性计数 | 接手项目的第一读；口径争议时的仲裁 |
+| `docs/PRD产品规划.md` | 需求基线与验收标准、演示脚本、14 维度 140 项规划、产品化路线 M1–M4 | 判断"该不该做、做到什么算好" |
+| `docs/系统架构设计.md` | 模块与进程拓扑、数据模型、接口契约（`ContractPaths` 为唯一路径来源）、架构决策记录 | 改后端／引擎边界之前 |
+| `docs/后端开发规范.md` | 分层、异常与事务、鉴权、缓存、日志、批处理、AI 降级的编码约定 | 写 Java 之前 |
+| `docs/前端开发规范.md` | 目录与命名、组件与设计令牌、状态与请求层、可访问性的编码约定 | 写 Vue/TS 之前 |
+| `docs/部署文档.md` | 三种部署形态与当前选择、启动步骤与依赖自检、`.env` 与文件式密钥、健康判据、Compose 搁置与 A 路径预案、备份恢复、故障排查 | 起不来、要演示、要上线 |
+| `docs/测试文档.md` | **测试与质量读数的唯一来源**：分层与命令、门禁判据、e2e／视觉前置、全栈四件套与压力、CI 12 作业、证据纪律 | 跑验证、引用数字、判红 |
+| `docs/前端待办项.md` | 前端未完成事项（视觉 Phase 5/6、体验与无障碍缺口、工程尾量、明确不做） | 排下一批工作 |
+| `docs/后端待办项.md` | 后端／引擎／基础设施未完成事项（性能与契约、CI 与集成层、A 路径断链、明确不做） | 排下一批工作 |
 
-> 历轮审查与端到端验证的**结论索引**见手册 **附录D 审查修正台账**（含每条发现的处置状态与原文溯源坐标）。
+**数字纪律**：结构性计数只写在手册 §8，测试读数只写在测试文档 §2。本 README **不复制任何读数**——同一数字在两处各写一套，必然漂移。
 
 ---
 
 ## 技术栈
 
-| 层级               | 技术                         | 版本                  |
-| ------------------ | ---------------------------- | --------------------- |
-| 后端框架           | Spring Boot                  | 3.5.15（JDK 21）      |
-| ORM                | MyBatis-Plus                 | 3.5.7                 |
-| 安全               | Spring Security + JWT        | 6.x / jjwt 0.12.6     |
-| 数据库             | MySQL                        | 8.0+                  |
-| 缓存               | Redis                        | 7.x（**必选**）       |
-| 前端框架           | Vue 3                        | 3.5.x                 |
-| 构建工具           | Vite                         | 8.x                   |
-| UI库               | Element Plus                 | 2.4.x                 |
+| 层级 | 技术 | 版本 |
+| --- | --- | --- |
+| 后端框架 | Spring Boot | 3.5.15（JDK 21） |
+| ORM | MyBatis-Plus | 3.5.7 |
+| 安全 | Spring Security + JWT | 6.x / jjwt 0.12.6 |
+| 数据库迁移 | Flyway | 结构 V1–V4、V8–V11（`db/migration`，全环境）＋ 演示种子 V5–V7（`db/seed-demo`，prod 排除） |
+| 数据库 / 缓存 | MySQL / Redis | 8.4 / 7.x（Redis 为**必选**依赖） |
+| 前端框架 | Vue + Vite | 3.5.x / 8.1.5 |
+| UI 库 | Element Plus | **2.14.7（精确锁定）** |
 | 状态 / 路由 / 图表 | Pinia / Vue Router / ECharts | 2.1.x / 4.2.x / 6.1.x |
-| 实时通信           | WebSocket                    | 集成Spring WebSocket  |
-| 限流熔断           | Sentinel                     | 下游流控 + 慢调用熔断 |
-| 数据库迁移         | Flyway                       | 7 个脚本：结构迁移 V1–V4（`db/migration`，全环境）+ 演示种子 V5–V7（`db/seed-demo`，prod 排除） |
-| 图数据库（可选）   | Neo4j                        | 5.x，本阶段用**本机独立实例**（compose `rag` 路径已搁置，§18.5）；缺失时 KG 回落内存图 |
-| 代码质量门禁       | JaCoCo / SpotBugs / ArchUnit | LINE≥85%+BRANCH≥65%（阻断）/ 0 bug（阻断）/ 6 条架构守护 |
-| 前端 Lint          | ESLint                       | **9.39.5 + flat config**（`frontend/eslint.config.js`） |
-| KB/RAG（Python）   | FastAPI 契约服务             | rag 8002 / kg 8001    |
+| 测试 | Vitest / Playwright / Testcontainers | 3.2.7 / **1.63.0（精确锁定）** / — |
+| 质量门禁 | JaCoCo / SpotBugs / ArchUnit | LINE ≥85% 且 BRANCH ≥65%（阻断）／0 bug（阻断）／6 条架构守护 |
+| 实时通信 | Spring WebSocket | 通知与监考 |
+| 限流熔断 | Sentinel | 下游流控 + 慢调用熔断 |
+| AI 引擎 | Python FastAPI | KG 8001 / RAG 8002 / LoRA 8003 |
+| 图数据库（可选） | Neo4j | 5.26，本机独立实例；缺失时 KG 自动回落内存图 |
 
-## Python 侧服务（KB / RAG）
+数据面口径：当前库表 **51** 张；`index.sql`（测试库建表脚本）已回补至 51，`V1` 因 Flyway 校验和冻结仍为 48 张——漂移管控见 `docs/后端待办项.md` S-03 与手册 DR-61。
 
-Java 后端通过 HTTP 契约（`com.aicourse.integration.rag.RagContract`）与 Python 微服务对接，代码位于 `python-services/`：
+### Python 侧三服务
+
+Java 后端经标准化集成层 `com.aicourse.integration` 与 Python 微服务对接（`ContractPaths` 是调用约定的唯一事实来源）：
 
 | 服务 | 目录 | 端口 | 说明 |
-| ---- | ---- | ---- | ---- |
-| 知识图谱服务 | `python-services/kg_service/` | 8001 | **11 个契约端点**；`kg_store.py` 支持 **Neo4j 与内存双后端**（Neo4j 不可达时自动回落内存图），GraphRAG 多跳推理与学习路径规划；CI 护栏 `test_kg_contract.py`（含 Neo4j service 容器） |
-| RAG 检索引擎 | `python-services/rag_service/` | 8002 | **9 个契约端点** + `rag_engine.py` 真实混合检索引擎（BM25 + 向量 + RRF 融合，重依赖懒加载）；CI 护栏 `test_rag_contract.py`。⚠️ 语料落在 gitignore 的 `data/`，演示前用 `python scripts\seed-rag-corpus.py` 从 `scripts/rag_corpus.json` 重放并重建索引（副本现覆盖课程 1 与示范课 4007，口径见手册 §18.5） |
-| LoRA 微调服务 | `fine_tune_service/`（**引擎侧已交付**，本机 `pytest -q` 53 passed，手册 DR-78） | 8003 | `lora_service.py` 覆盖 §37 八端点 + 数据集/语料六端点，真实 PEFT 训练/导出/推理；**残项**：无 Dockerfile、compose 服务块仍注释、未纳入一键启动器（`start-engines.py`/`start-all.py` 全文无 8003），Java 侧未消费数据集端点 |
+| --- | --- | --- | --- |
+| 知识图谱 | `python-services/kg_service/` | 8001 | 11 个契约端点；`kg_store.py` 支持 Neo4j 与内存双后端（不可达时自动回落内存图）；多跳路径规划在图库侧完成，Java 侧只做本地 BFS 兜底；CI 护栏 `test_kg_contract.py` |
+| RAG 检索 | `python-services/rag_service/` | 8002 | 9 个契约端点 + `rag_engine.py` 真实混合检索（BM25 + 向量 + RRF，重依赖懒加载）。⚠️ 语料落在 gitignore 的 `data/`，演示前用 `python scripts/seed-rag-corpus.py` 从 `scripts/rag_corpus.json` 重放并重建索引（覆盖课程 1 与示范课 4007） |
+| LoRA 微调 | `python-services/fine_tune_service/` | 8003 | 八条契约端点 + 数据集／语料六端点，真实 PEFT 训练／导出／推理。**残项**：无 Dockerfile、compose 服务块仍注释、一键启动器不拉起（须手工 `uvicorn`）、Java 侧未消费数据集端点 |
 
-容器化启动知识图谱栈（`docker compose --profile rag up -d neo4j`，需先在 `.env` 配 `NEO4J_PASSWORD`）的用法与前置已随 2026-10-08 的编排搁置**整体转入手册 §24.2**（含重新启用前提清单①–⑤），本阶段不再执行。**但"搁置 Docker"不等于"搁置引擎"**：本阶段以本机独立 Neo4j 5.26 + `uvicorn` 两进程运行 KG(8001) / RAG(8002)，自 2026-10-10 起这三个进程**由 `start-backend.bat` 第 5 步自己拉起**（`scripts/start-engines.py`，**DR-50**），起后再开启 Java 侧对接，2026-10-08 运行验收实测路径规划 / 子图 / 摄取与检索问答均为 `mode=ENGINE`。**未起 Neo4j 仍不阻塞**：KG 自动回落内存图。三进程的启动顺序、必须导出到引擎进程的环境变量与取证清单见手册 **§18.5**。
-
-> 早期 RAG 成员上传的 Streamlit 原型（原 `python-services/deepgraph_rag/`，端口 8501）不参与正式功能：2026-10 先归档至仓库根 `archive/deepgraph_rag/`（`7c6ced0`），随后 `archive/` 冷备份目录整体退跟踪并移出工作区（`91d3970`，2026-10-14）——现仅存于历史提交，仓库内无此目录。
+- `max_hops` 自 2026-10-05 起**只用于"是否采纳"判定，不参与遍历剪枝**，上限不足时仍回传真实最短跳数（语义见 `docs/系统架构设计.md`）。
+- **AI 面失败不伪装成功**：大模型调用失败一律返回 HTTP 503 + `code=503`，`message` 指认病因（凭据被拒／额度／未配置／空响应）。没有有效凭据时 AI 端点就是不可用——这比"200 带一句客套话"更该先知道（DR-74）。
+- 早期 RAG 成员的 Streamlit 原型（原 `python-services/deepgraph_rag/`，8501）不参与正式功能：先归档至仓库根 `archive/deepgraph_rag/`（`7c6ced0`），随后该冷备份目录整体退跟踪并移出工作区（`91d3970`）——现仅存于历史提交。
 
 ---
 
 ## 快速开始
 
-项目提供两条启动路径：**本地开发**（**本阶段唯一使用的路径**——本机 MySQL / Redis + `start-all.bat` 单窗口启动器，或 `start-backend.bat` + `start-frontend.bat` 两份分步启动器）与 **容器化部署**（**2026-10-08 起整体搁置**：编排文件、镜像版本、用法与重新启用前提清单已全部归档到 `docs/项目手册.md` §24.2，仓库文件一件没删、CI 的 `docker`／`trivy-scan` 作业照常按容器判定，但**本机不再执行**）。详细步骤见 `docs/项目手册.md`（第六部分开发 / 第七部分部署）。
+### 依赖纪律（先看这条）
 
-> ⚠️ **本阶段的依赖纪律**：开发阶段**仅使用本地服务**。**必要**依赖（MySQL 3306 / Redis 6379 / JDK 21 / Node 20.19+）由两份 `.bat` 启动时自检，缺失即报错退出；**可选**依赖（Neo4j 7687 / KG 8001 / RAG 8002 / LoRA 8003）缺失只降级不阻塞——`KG_ENABLED` / `RAG_ENABLED` 保持关闭，检索退化为 Java 原生 Provider 直答。⚠️ 但**AI 面不是"功能仍可用"**：大模型调用失败现在如实返回 **HTTP 503 + `code=503`**（凭据被拒/额度/未配置/空响应，`message` 指认病因，手册 DR-74-B），不再有"200 带一句客套话"的形态——无有效凭据时 AI 端点就是不可用，这比假可用更该先知道。任一必要依赖本机没有时，**不要自行 `docker pull`、也不要安装替代物 → 直接上报项目主**。可选依赖的启动方式与本轮运行验收见手册 **§18.5**。
+- **必要**：JDK 21、Node 20.19+、本机在跑的 MySQL 8.4（3306）与 Redis（6379）。两份 `.bat` 启动时自检，缺失即报错退出。
+- **可选**：Neo4j（7687／7474）、KG 8001、RAG 8002、LoRA 8003——缺失只降级不阻塞（`KG_ENABLED`／`RAG_ENABLED` 关闭时走 Java 本地 Provider 与 BFS 兜底）。
+- 本机缺**必要**依赖时：**上报项目主**，不要自行 `docker pull`、也不要安装替代物。启动器（`start.bat` → `scripts/start-all.py`）已不含任何 docker 分支（原"探测 3307 则切数据源"的路径已删除）。
 
-### 方式一：本地开发（推荐）
-
-前置：JDK 21、Node 20.19+，以及**本机在跑的 MySQL 8.4（3306）与 Redis（6379）**。缺任何依赖 → **上报项目主，不要自行拉容器**（本阶段 Docker 编排搁置，手册 §17 / §24.2）。AI 图谱/检索引擎（Neo4j 7687 + KG 8001 + RAG 8002）为**可选**前置：不起也能演示（走 Java 原生 Provider）。自 2026-10-10 起**不必再照抄手工命令**——`start-backend.bat` 第 5 步会调 `scripts/start-engines.py` 按 Neo4j → KG → RAG 只补缺失的进程并代它们导出必需的环境变量（**DR-50**）；单独起法、判定口径与取证见手册 **§18.5**。
+### 三步起栈
 
 ```bash
-# 数据库初始化（首次）
+# ① 建库（首次；结构由 Flyway 在应用启动时自动迁移）
 mysql -u root -p -e "CREATE DATABASE ai_course_platform CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-mysql -u root -p ai_course_platform < backend/src/main/resources/index.sql
 
-start-all.bat            # 一个脚本、一个窗口起完整项目（Neo4j / KG / RAG / Java / Vite）——推荐入口，手册 §18.6
+# ② 配密钥：复制模板后填入 MYSQL_ROOT_PASSWORD 与 JWT_SECRET（缺任一即 fail-fast；值不回显、不提交）
+cp .env.example .env
 
-start-backend.bat        # 分步：后端六步自检（第 5 步拉起 Neo4j / KG / RAG）后 spring-boot:run
-start-frontend.bat       # 分步：前端另开一个终端
+# ③ 一键起完整项目（Neo4j / KG / RAG / Java / Vite，单窗口中继日志；已在跑的服务接管不重启）
+start.bat
 ```
 
-- **`start-all.bat`**（2026-10-10 新增，**DR-53**）：把五条服务日志**中继进同一个控制台**（逐行 `[neo4j] [kg] [rag] [api] [web]` 前缀，同时镜像写 `logs/<name>.log`），实测**整条演示栈只占一个窗口**；已在跑的服务一律**接管不重启**，退出时只收本次真起起来的进程树。判定口径与真跑读数见手册 **§18.6**，`start-backend.bat` / `start-frontend.bat` / `scripts/start-engines.py` **一行未改**，两条入口可混用。
+同一个入口按子命令分段：`start.bat backend`（引擎 + 后端，六步自检，第 5 步按 Neo4j → KG → RAG **只补缺失进程**并代引擎导出 `NEO4J_URI`／`DEEPSEEK_API_KEY`／`HF_HUB_OFFLINE`）、`start.bat frontend`（只起 Vite，在 5173／5174／5175 中取第一个空闲口）、`start.bat status`（什么都不起，只报五进程状态）。判定逻辑只在 `scripts/start-all.py` 一处，`.bat` 是薄壳；逐步口径与重启语义见 `docs/部署文档.md` §3。
 
-两个脚本各自做什么（逐步口径见手册 **§18.2 / §18.3**）：
+### 访问与判活
 
-- **`start-backend.bat`**：读 `.env`（缺 `JWT_SECRET` / `MYSQL_ROOT_PASSWORD` 直接 fail-fast，无弱默认）→ 校验 JDK 21 → 探测本机 3306 / 6379（未监听只提示 `net start MySQL84` / `net start Redis` 后退出，**脚本已不含任何 docker 分支**）→ 检查可选的 `DEEPSEEK_API_KEY`（先判在不在、再按前缀 `sk-` 判形状，占位串打 `[WARN]` 而非 `[OK]`，全程不打印值，DR-38）→ **拉起 Python 引擎链**（`call python scripts\start-engines.py`：Neo4j 走 `bin\neo4j.bat console`，KG/RAG 各开一个窗口，**只补没在监听的**、绝不重启已监听服务，并代引擎导出 `NEO4J_URI` / `DEEPSEEK_API_KEY` / `HF_HUB_OFFLINE`），再按刚验证过的端口**为本次进程**置 `KG_ENABLED` / `RAG_ENABLED=true`（`.env` 已写值含显式 `false` 一律优先；找不到 python 或缺 Neo4j 安装位只告警并打印手工 uvicorn 兜底，**不阻断 Java 启动**，DR-50）→ 8080 被占用时**默认不启第二个实例**（双实例共用一套 MySQL/Redis 却各自计限流、日志分叉，DR-36）→ 以 `profiles=local` 启动。
-- **`start-frontend.bat`**：定位 Node → 依赖检查（`node_modules` 已存在则跳过 `install`，另提示 lockfile 时间戳供 `npm ci` 判断）→ 探后端 `GET /api/actuator/health/probe` → 在 **5173 / 5174 / 5175** 中取第一个空闲端口起 Vite。
+| 项 | 值 |
+| --- | --- |
+| 前端 | `http://localhost:5173`（脚本自动择空） |
+| 后端 API | `http://localhost:8080/api` ｜ Swagger `/api/swagger-ui.html` |
+| 编排／容器探针 | **只打** `GET /api/actuator/health/probe`（`readinessState` + `database` + `redis` + `diskSpace`，200＝实例可服务） |
+| 人读整体状态 | `GET /api/actuator/health`——它聚合可选依赖，**无 AI／邮件凭据时返 503 属设计**，不代表服务不可用 |
 
-访问：前端 http://localhost:5173（脚本自动择空）｜ API http://localhost:8080/api ｜ Swagger http://localhost:8080/api/swagger-ui.html ｜ 探活 http://localhost:8080/api/actuator/health/probe
+- `llmProvider` 组件 UP 只说明"填了东西"，**不证明凭据有效**（只静态判非空白）；有效性用 `python scripts/probe-llm-chain.py engine|chains` 实测。
+- Vite `strictPort: true`：5173 被占时**直接退出而不自动换口**，所以 `start.bat frontend` 预先探测（双栈）并显式传 `--port`；手动起用 `cd frontend && npx vite --port 5174`。本机 Vite 实测只监听 `[::1]`，请用 `http://localhost:5173/`（`127.0.0.1` 反而连不上）。
+- 后端 CORS 白名单只含 **5173／5174／5175**（`localhost` 与 `127.0.0.1` 两种写法），**5176 及以上端口登录会被 403 拒绝**。
+- 手动跑 jar **必须显式** `java -jar backend/target/backend-0.0.1-SNAPSHOT.jar --server.port=8080`，否则端口可能被外部环境变量覆盖，报错误的端口。
+- 本机 Redis 是**无密码**模式：手动启动**勿注入** `SPRING_DATA_REDIS_PASSWORD`，注入会让启动校验 fail-fast。
+- 本地 HTTP 联调需 `COOKIE_SECURE=false`、`REQUIRE_HTTPS=false`、`CSRF_ENABLED=false`（`start.bat` 的 all/backend 模式已代劳）；CSRF 校验失败返回 403 并提示缺失 `X-XSRF-TOKEN`。
+- **依赖源已迁到官方 registry**：`frontend/package-lock.json` 的 `resolved` 全部为 `registry.npmjs.org`（仅 xlsx 的 `cdn.sheetjs.com` tarball 原样保留）。本机**不需要为此改 npm 配置**——npm 默认的 `replace-registry-host=npmjs` 会把官方主机名重写到你所配置的镜像源，同一份 lockfile 同时服务 CI（官方源）与本机（镜像提速），`integrity` 哈希与源无关。
 
-> 📦 **依赖源已迁移到官方 registry**（2026-10-08，DR-35 相邻项闭合）：`frontend/package-lock.json` 的 509 条 `resolved` 已全部改为 `registry.npmjs.org`（仅 `cdn.sheetjs.com` 的 xlsx tarball 按原样保留）。**本机不需要为此改 npm 配置**——npm 默认的 `replace-registry-host=npmjs` 会把官方主机名重写到**你配置的**镜像源，所以同一份 lockfile 同时服务 CI（官方源）与本机（npmmirror 提速），`integrity` 哈希与源无关。取证见手册 §24.2.3 根因 G 续写。
-
-> 前端 dev server 为 `strictPort: true`：5173 被其他应用占用时 Vite **直接退出而不自动换口**——`start-frontend.bat` 因此预先探测端口并显式传 `--port`。手动起则用 `cd frontend && npx vite --port 5174`。后端 CORS 白名单只含 `5173 / 5174 / 5175`（`application.yaml:220-226`，`localhost` 与 `127.0.0.1` 两种写法），**5176 及以上端口登录会被 403 拒绝**。本机 Vite 实测监听 `[::1]`，请用 `http://localhost:5173/`（`127.0.0.1` 反而连不上）。
-
-> 本机未装 MySQL / Redis 时：**按上面的依赖纪律上报项目主**，不要自行拉容器（编排搁置，用法与配置留档见手册 §24.2）。
-> `start-backend.bat` 里原先"探测 3307 则切数据源"的分支**已删除**——脚本现在不含任何 docker 路径。
-
-#### 健康检查与常见排障（2026-09-14 补充）
-
-- **探活**：人读整体状态用 `GET http://localhost:8080/api/actuator/health`；**编排/容器探针请用 `GET /api/actuator/health/probe`**（返回 200 即实例可服务）。
-- **不要**因为 `/health` 返回 `503 / {"status":"DOWN"}` 就判定服务不可用：整体健康度会把**可选依赖**一并聚合。
-  典型场景是**未注入 AI / 邮件凭据**——`llmProvider`（未配置 API Key）与 `mail`（SMTP 认证失败）会报 DOWN，
-  但业务接口全部正常。以完整 `.env` 启动（含 `DEEPSEEK_API_KEY` / `MAIL_USERNAME` / `MAIL_PASSWORD`）后即为 `UP`。
-- **`probe` 组**（`readinessState` + `database` + `redis` + `diskSpace`）就是为这条边界建的：AI/邮件凭据缺失属**按契约降级**，不属"实例不可服务"，所以不计入探针。⚠️ 反向别读错：`llmProvider` 组件 UP 只说明"填了东西"，**不证明凭据有效**（只静态判非空白）；有效性用 `python scripts/probe-llm-chain.py engine|chains` 实测（手册 DR-75 两条假绿之一）。
-  ⚠️ 反例：compose 的 backend 探针原先打的是综合 `/health`，在没有 `DEEPSEEK_API_KEY` 的机器上恒 503 → 容器反复重启、`frontend` 的 `service_healthy` 依赖卡死、整栈起不来（2026-10-07 实跑发现，见手册 §25 / 附录 D **DR-28**）。
-- 另可用 `GET /api/actuator/health/readiness` / `/liveness`（Spring 内建组，只含生命周期状态，不含 DB/Redis）。
-- **手动用 jar 启动务必显式指定端口**：`java -jar backend/target/backend-0.0.1-SNAPSHOT.jar --server.port=8080`。
-  否则端口可能被外部环境变量覆盖，出现 `Port xxxxx was already in use` 而并非 8080 冲突。
-- 本机 Redis 为**无密码**模式：手动启动**勿注入** `SPRING_DATA_REDIS_PASSWORD`（注入会使 RedisStartupValidator fail-fast）。
-- 本地 HTTP 联调需关闭传输层强制：`COOKIE_SECURE=false`、`REQUIRE_HTTPS=false`、`CSRF_ENABLED=false`
-  （`start-backend.bat` 已代劳）。CSRF 校验失败会返回 403 且提示缺失 `X-XSRF-TOKEN`。
-
-### 方式二：Docker 容器化部署（**本阶段搁置，以下内容转为留档**）
-
-> 🗄️ **2026-10-08 状态**：本节命令**当前不在本机执行**（镜像与容器已从本机全部移除，约 8.7 GB 释放；16 个数据卷一个没动）。文件与知识都保留着，`docker-compose.yml`／三份 `Dockerfile`／`.dockerignore` **不可删**（CI 的 `docker`、`trivy-scan` 作业仍按它们判定）。**重新启用前请先读手册 §24.2 的「重新启用前提清单①–⑤」**（钉版本拉取 → `.env` 必填键 → 存量卷一次性 `chown` → `REQUIRE_HTTPS`/`COOKIE_SECURE` 显式决策 → 用 `/api/actuator/health/probe` 探活）。
->
-> 🗺️ **2026-10-17 定案与指针**：当前阶段**不上公网**（走「本机真跑 + 录屏演示」），但「一台云主机 + 本编排」的**完整上线执行序**——五项待拍板决策、逐 Phase 命令与判据、14 条已知断链点——已固化在 **`docs/项目手册.md` §24.6「单机云主机上线全链路（A 路径预案）」**。要真上线时按那一节走，不要只凭本节命令拼。以下原文保留供后续参考。
-
-```bash
-cp .env.example .env      # Windows: copy .env.example .env（共 36 个生效键 + 注释示例，填入真实强密码与密钥）
-docker compose --profile full up -d --build
-# 可选叠加 profile（compose 共 12 个服务 / 12 个命名卷）：
-#   --profile ops      每日全量备份（mysql-backup：入口守护循环，周期 BACKUP_INTERVAL_SECONDS，默认 86400s）
-#   --profile monitor  Prometheus + Grafana + Loki + Promtail + node-exporter + Alertmanager
-#   --profile rag      Neo4j 5-community（知识图谱真图库后端，需 NEO4J_PASSWORD）
-# 注：`mysql` 与 `redis` 无 profile，任何 `up` 都会拉起；其余服务须显式指定 profile。
-# ⚠️ 启用 --profile monitor 前还需一枚文件式凭据（Prometheus 不插值配置文件、只读 password_file，DR-30）：
-#      mkdir -p deploy/secrets
-#      printf %s "$APP_ACTUATOR_BASIC_PASSWORD" > deploy/secrets/actuator_basic_password   # 末尾不可有换行
-```
-
-> 🔄 **从 2026-10-08 之前的版本升级上来（编排重新启用时），先做这一件事**（DR-34：两个镜像已真正非 root 运行——backend uid/gid **10001**、frontend uid/gid **101**；⚠️ **下面这条一次性迁移本轮未执行**，已随 Docker 一并顺延，执行前先确认卷仍在）：
-> Docker 只在**卷首次创建**时把镜像内挂载点的属主传给卷，所以**存量** `aicourse_uploads-data` / `aicourse_backups-data`
-> 仍是 root:root，直接换新镜像会让**教学资源上传与每日备份静默 500**（容器照常 Healthy，问题只在写文件时暴露）。
-> ```bash
-> docker run --rm -v aicourse_uploads-data:/v alpine:3 sh -c 'ls -la /v | head -40'   # 先看有没有既有文件
-> docker run --rm -v aicourse_uploads-data:/v alpine:3 sh -c 'chown -R 10001:10001 /v'
-> docker run --rm -v aicourse_backups-data:/v  alpine:3 sh -c 'chown -R 10001:10001 /v'
-> ```
-> 空卷可以直接删卷让 compose 重建（新卷自动是 10001:10001）；**有既有文件的库必须走上面的 in-place chown，不要删卷**。
-> 范围只有这两卷：`--profile ops` 的 mysql-backup 容器写的是**另一个卷** `mysql-backups:/backups`（它未声明 `user`，仍以 root 运行），
-> 与 backend 的 `backups-data:/app/backups` 互不相干，**不要顺手 chown 它**。
-> 完整取证（含"存量卷不改会 Permission denied"的对照实验、上传/下载全链路复验）见 `docs/项目手册.md` §24.2.4。
-
-> ⚠️ **务必先选一条路径再启动。** `--profile full` 起的是一个**明文 HTTP 单机栈**：`frontend/nginx.conf`
-> 在容器内监听 **8080**（DR-34 非 root 化后 nginx 以 uid 101 运行，绑不了 <1024 的特权端口），
-> compose 把它映射回**宿主机 80**（`${FRONTEND_HOST_BIND:-127.0.0.1}:${FRONTEND_HTTP_PORT:-80}:8080`），
-> 且**没有挂载任何证书卷**，因此不存在 TLS 终止。
->
-> ⚠️ **2026-10-17 纠正一处方向性错误（手册 DR-70）**：本节旧文本称「backend 的 `REQUIRE_HTTPS` / `COOKIE_SECURE` 生产默认是 `true`，照默认启动会被 302 到不存在的 443」——**容器形态不成立**。`application-prod.yml:45`/`:47` 确实是 `${…:true}`，但 `docker-compose.yml:225-226` 注入容器的是 `COOKIE_SECURE: ${COOKIE_SECURE:-false}` 与 `REQUIRE_HTTPS: ${REQUIRE_HTTPS:-false}`，**环境变量优先级高于 profile 默认** ⇒ 编排形态下不填即为 **false**：不会被 302 拦住，而是**安静地以明文跑起来**（公网部署＝口令与 JWT 裸奔，且不报错）。「默认 true → 全站 302」描述的是 jar 直跑或显式置 true 的情形。⇒ 下面两条路径的真实差别是**"要不要显式把开关拧到 true"**，不是"要不要关掉强制"。
->
-> 这是本部署形态下最容易踩的坑，故拆成两条路径：**显式置 true 却没有 TLS 终止**时，`/api/**` 会被 `requiresSecure()` 302 到不存在的 443，症状是**首页能打开、所有接口报错**；**留空/置 false** 时站点正常可用但全程明文。
->
-> 📌 **修复 B3（2026-09-16）**：`REQUIRE_HTTPS` / `COOKIE_SECURE` 现为**全 profile 可覆盖**（含 `prod`）。
-> 此前 `application-prod.yml` 把 `require-https` 硬编码为 `true`，会**静默忽略**上面的 `.env` 开关——即容器/主配置填了 `REQUIRE_HTTPS=false` 也无用，明文栈无法自救。现已改为默认 `true`、可被环境变量覆盖，两条路径的开关在 `prod` profile 下同样生效。
-> ⚠️ 本条的「默认 `true`」指的是 **yml 层**的占位符默认；编排形态在容器上注入的是 **env 默认 `false`**，而 env 优先于 yml 默认 ⇒ 实际默认值是 false（上条 DR-70）。两句不冲突，但连读容易误解，故在此点明。
-
-#### 前置条件：必须填写的环境变量
-
-`.env` 中以下变量**必须**替换为真实值，留空或照抄占位符会直接拒绝启动：
-
-> 推荐一次性生成全部强密钥（脚本已内置 `PasswordPolicy` 自检，生成即必过）：
-> `python scripts/generate-secrets.py --write` —— 直接写入 `.env` 对应键；去掉 `--write` 则仅打印。
-
-| 变量 | 要求 | 未替换的后果 |
-| --- | --- | --- |
-| `MYSQL_ROOT_PASSWORD` | ≥16 位强随机 | compose 插值失败、直接报错退出 |
-| `JWT_SECRET` | ≥32 字节随机（`openssl rand -base64 48`） | compose 插值失败、直接报错退出 |
-| `REDIS_PASSWORD` | 强随机（backend 与健康探针自动同步） | 删掉该行 → compose 插值失败；仅留占位符 → 能启动，但 Redis 以**弱口令**运行 |
-| `GRAFANA_ADMIN_PASSWORD` | 强随机（叠加 `--profile monitor` 时） | compose 插值失败、直接报错退出 |
-| `NEO4J_PASSWORD` | 强随机（叠加 `--profile rag` 时） | compose 以 `${NEO4J_PASSWORD:?…}` **插值失败、直接报错退出**（neo4j 服务的 `NEO4J_AUTH` 行） |
-| `MYSQL_APP_PASSWORD` | 可留空 | 留空则 compose 回退用 `MYSQL_ROOT_PASSWORD` 连接业务库（backend 服务的 `SPRING_DATASOURCE_PASSWORD: ${MYSQL_APP_PASSWORD:-${MYSQL_ROOT_PASSWORD}}`）；生产建议独立建业务账号 |
-| `APP_ADMIN_INITIAL_PASSWORD` | 8–32 位，含大小写字母 + 数字 + 特殊字符（**共 4 类**） | **启动 fail-fast 拒绝启动**（`.env.example` 里的 `CHANGE_ME_*` 是**刻意不合规**的占位符，属有意设计——宁可拒绝启动，也不允许"照抄示例"形成公开的已知 admin 口令）。注意：`openssl rand -base64 32` 输出 44 字符、**超 8–32 上限**，不要用它生成此项，请用上面的脚本 |
-
-> ⚠️ **`DEMO_ACCOUNTS_ENABLED` 默认值两处不一致（已知，按环境生效范围区分）**：`application.yaml:216` 为 `${DEMO_ACCOUNTS_ENABLED:true}`（本地开发默认保留演示账号），compose backend 服务的 `DEMO_ACCOUNTS_ENABLED: ${DEMO_ACCOUNTS_ENABLED:-false}` 为容器化默认加固。容器里未显式传值即为 `false`（自动停用并改密），本地 `start-backend.bat` 未设则为 `true`。**生产必须显式 `=false`**，并注意其收敛范围自 2026-10-06 起为「口令等于种子哈希」的**全部 170 个**种子账号（V1 内置 8 个 + V5/V6 号段 162 个；此前只覆盖 V1 的 8 个）。⚠️ 同日 V5/V6/V7 已移出 prod 的 Flyway `locations`，故**全新生产库里实际只有 V1 的 8 个**待收敛，170 这个数字只在开发库或被误用的旧库上出现（见下方「生产边界」与手册 §24.5 / DR-18）。
-
-#### 路径 ①：本地 / 内网评估（HTTP 明文，仅限本机或内网）
-
-在 `.env` 中**显式**放宽传输层强制：
-
-```dotenv
-REQUIRE_HTTPS=false
-COOKIE_SECURE=false
-CSRF_ENABLED=true      # 保持 true，不要关
-```
-
-- **原因**：nginx 容器内只听 **8080**（宿主机侧仍是 80，访问 URL 不变）、compose 未挂载任何证书卷，没有任何 TLS 终止；一旦 `REQUIRE_HTTPS=true`，`/api/**` 会被 302 到不存在的 443。⚠️ 编排形态下该两项的注入默认值**本就是 false**（`docker-compose.yml:225-226`，见上方 DR-70），这里显式写出是把姿态**钉住**、不靠默认值。
-- **风险**：令牌与口令将**明文传输**，可被同网段嗅探。**禁止用于公网**，仅限本机 / 受信内网。
-- 访问：前端 http://localhost ｜ API http://localhost:8080/api
-- 跨域：前端经 nginx 反代 `/api` 与后端**同源**，HTTP 侧无需开放 CORS；`CORS_ALLOWED_ORIGINS` 留空在 **HTTP** 侧确实是 fail-closed（`APP_CORS_DEV_FALLBACK=false` + `application-prod.yml:25-26`），**但 WebSocket 不是**——`backend/src/main/java/com/aicourse/websocket/WebSocketConfig.java:43-45` 在 origins 为空时**硬回退 `http://localhost:5173`** 且不受该开关管，公网域名下同域 `wss://` 握手照样被拒 ⇒ **同域上线也要把真实 origin 填进这个键**（判据与取证动作见手册 §24.6 Phase 5）。
-
-#### 路径 ②：生产上线（**必须显式**置 `true`）
-
-**在 `.env` 显式写** `REQUIRE_HTTPS=true`、`COOKIE_SECURE=true`。⚠️ 这里不是"保持默认"——`docker-compose.yml:225-226`
-注入的是 `${…:-false}`，**默认即明文**（见上方 DR-70），"什么都不填"得到的是口令与 JWT 走公网且不报错，而不是安全。
-置 true 之后**必须**满足以下前置条件之一，否则全站 API 不可用（症状：首页能打开、`/api/**` 被 302 到不存在的 443）：
-
-1. **前置 TLS 终止反代（推荐）**：在本栈之前再放一层反向代理 / 负载均衡（入口 nginx、SLB、CDN 等）终止 TLS，
-   并且该代理**必须回传** `X-Forwarded-Proto: https`，后端才认定为安全通道（`forward-headers-strategy` 现行值是 **none**，
-   协议修正只由 `TrustedForwardedProtoFilter` 读该头完成）；或
-2. **为前端容器补齐 443 + 证书**：给 `frontend/nginx.conf` 增加 `listen 443 ssl` 与证书挂载，并把 compose 的端口映射改为 `443:443`
-   （该服务现在**连 `volumes:` 都没有**，且 `X-Forwarded-Proto` 不能再用 `$scheme`）。
-
-> 两条路径下 `CSRF_ENABLED` 都应保持 `true`（另注意它在 prod 是**假开关**：`application-prod.yml:52-53` 硬编码 `true`、无 `${}` 占位符，改了也不生效）。
-> 同域上线**仍要**填 `CORS_ALLOWED_ORIGINS`，否则 `/api/ws` 握手被拒——原因见上方路径①的「跨域」条与手册 §24.6 Phase 5。
-> 生产部署前请逐项核对 `docs/项目手册.md` 第七部分安全加固检查清单；**从零到公网可访问的完整顺序、判据与已知断链见 §24.6**。
+> Docker／Compose 与"一台云主机上线"的全部内容（12 服务与 profile、必填环境变量清单、存量卷 `chown` 一次性迁移、TLS 与两条传输层路径、监控与备份、14 条断链）已收在 `docs/部署文档.md` §5／§6／§7／§9。**编排当前搁置，本节不再重复命令**。
 
 ---
 
 ## 演示账号
 
-| 角色   | 用户名               | 密码   | 说明                     |
-| ------ | -------------------- | ------ | ------------------------ |
-| 管理员 | admin                | 123456 | 系统管理员，拥有全部权限 |
-| 教师   | teacher / teacher2   | 123456 | 张教授 / 李副教授        |
-| 学生   | student / student2~5 | 123456 | 王同学等                 |
+| 角色 | 用户名 | 口令 | 说明 |
+| --- | --- | --- | --- |
+| 管理员 | `admin` | `123456` | 全部权限 |
+| 教师 | `teacher` / `teacher2` | `123456` | 张教授 / 李副教授 |
+| 学生 | `student` / `student2`~`student5` | `123456` | 以上 8 个为 **V1 内置**（`SeedAccounts.DEMO_USERNAMES` 是单一来源） |
+| 教师（富种子） | `ts01`…`ts12` | `123456` | V5：12 位教师 + 150 名学生 `st001`…`st150` |
+| 示范课 | 上述学生号段 | `123456` | V6：计算机网络 **course 4007**（14 章节 / 65 知识点 / 120 关系边 / 8 套试卷 / 60 条选课） |
 
-以上 8 个为 **V1 内置**演示账号（`SeedAccounts.DEMO_USERNAMES` 单一事实来源）。导入富种子迁移后另有：
+演示账号合计 **170 个**。`DEMO_ACCOUNTS_ENABLED` 在 `application.yaml` 默认 `true`（本地开发保留演示账号），compose 的 backend 服务默认 `false`（容器化默认加固）——**生产必须显式 `false`** 并提供 `APP_ADMIN_INITIAL_PASSWORD`，否则启动 fail-fast。加固器按"口令仍等于种子哈希"筛选，已改密的账号绝不覆盖。
 
-| 来源    | 用户名             | 密码   | 说明                                                       |
-| ------- | ------------------ | ------ | ---------------------------------------------------------- |
-| `V5` 富种子 | `ts01`…`ts12`      | 123456 | 12 位教师，邮箱 `ts01@aicourse.com`；另 150 名学生 `st001`…`st150`（`@stu.aicourse.com`） |
-| `V6` 示范课 | 同上号段内选课学生 | 123456 | 计算机网络示范课 **course 4007**，60 条选课 / 65 知识点 / 120 关系边 |
-
-> ⚠️ **生产边界（务必读）**：演示数据不进生产库，2026-10-06 已落地并实跑取证（`docs/项目手册.md` §24.5 / 附录 D **DR-18**）。两道防线各自到位：
-> ① **数据面**：V5/V6 移入 `db/seed-demo`，`application-prod.yml` 把 `spring.flyway.locations` 覆盖为 `classpath:db/migration` 单目录 → 激活 prod（jar 直跑或 compose 的 `SPRING_PROFILES_ACTIVE`）后全新生产库只跑到 **V4**，162 个号段演示账号与示范课 4007 不入库（本机 Flyway API 对照实跑：单目录 8 账号 / 无 4007，双目录 170 账号 / 有 4007）；该布局由 `DemoSeedMigrationIsolationTest` 5 例钉住。
-> ② **弱口令面**：`DEMO_ACCOUNTS_ENABLED=false` 的启动期加固器按**「口令仍等于种子哈希」**筛选，把 V1 内置（因 `baseline-on-migrate` 而无法排除）的 **8 个**账号停用并重置为不可知口令；同口径下若跑过 V5/V6 也一并收敛（历史上共 170 个）。已改密账号绝不覆盖，加固幂等。
-> ⚠️ **唯一残余风险是部署流程，不是代码**：把一个灌过 V5/V6 的开发库直接当生产库**不会报错**——Flyway 11.7.2 默认 `ignoreMigrationPatterns=[*:future]`，找不到的已应用迁移被静默忽略，只留一条 WARN。因此上线前须按 §29 核对生产库 `flyway_schema_history` **不含 version 5 / 6 / 7**（干净库应为 `{1,2,3,4,8,9,10,11}`），并核对 `users` 只剩 V1 内置 8 个账号、`courses` 无示范课 4007。⚠️ **旧判据「最高版本为 4」自 V8–V11（2026-10-13）起已失效**——全新生产库最高版本就是 11，被污染的旧库也会被向前补齐到 11，该数字不再具区分度（手册 **DR-62**）。另注：演示 SQL 仍打进 jar（约 5.9 MB，prod 不执行），只占包体。
->
-> 演示密码仅限开发/演示环境，生产环境务必修改（见 `docs/项目手册.md` 第七部分 §29 安全加固检查清单）。
+> ⚠️ **生产边界**：演示数据不进生产库——V5–V7 位于 `db/seed-demo`，prod 的 Flyway `locations` 整目录排除，由 `DemoSeedMigrationIsolationTest` 钉住。**但唯一残余风险在部署流程而不是代码**：把灌过 V5/V6 的旧库直接当生产库**不会报错**（Flyway 默认 `ignoreMigrationPatterns=[*:future]`，静默忽略 + 一条 WARN）。所以上线前核对的是"**版本集合不含 5/6/7、`users` 只剩 V1 的 8 个、无 course 4007**"，**不是"最高版本=4"**（自 V8–V11 起该判据已失效，DR-62）。清单见 `docs/部署文档.md` §7。
 
 ---
 
-## 测试与质量
+## 质量与验证
 
 ```bash
-# 后端：单元测试 + 集成测试 + JaCoCo/SpotBugs/ArchUnit 门禁
-cd backend && mvn test -Dtest='!*IT,!Phase1Phase3IntegrationTest' -DfailIfNoTests=false
-# 完整门禁（含覆盖率与 SpotBugs 阻断）：mvn -B verify
+# 后端（单元口径 + 覆盖率 / SpotBugs / ArchUnit 全部门禁）
+cd backend && mvn -B -o clean verify -DskipITs
 
-# 前端：ESLint（9 + flat config）+ 类型棘轮 + vitest + 构建校验
-cd frontend && npm run lint && npm run typecheck:gate && npx vitest run && npm run build
-```
+# 前端（静态门 → 单测 → 构建与体积）
+cd frontend && npm run lint && npm run typecheck && npm run test && npm run build && npm run size:gate
 
-**当前实测基线**：本机当前口径 = `mvn -B -o clean verify -DskipITs`（编排 2026-10-08 起搁置，Testcontainers 集成层交回 CI `backend` 作业取数）。⚠️ **下表数值一律从手册附录 B.2 抄取，B.2 是唯一来源**；改 B.2 后必须同步此处，两处不一致时以 B.2 为准。构建纪律（JaCoCo exec 落在 `${user.home}`、被所有 worktree 共用，**带覆盖率的构建必须串行**）见手册 §3 告警块与 §24.2.3 根因 D。
+# 浏览器侧（前置条件必读）
+cd frontend && PW_PORT=5174 npx playwright test                          # 流程 e2e
+cd frontend && PW_PORT=5175 npx playwright test -c playwright.visual.ts   # 视觉回归
 
-| 门禁 | 读数（当前本机口径） |
-| --- | --- |
-| 后端单元测试 | **3019 用例 / 0 失败 / 0 错误 / 0 跳过**（2026-10-18 16:2x→16:3x 本机 `mvn -B -o clean verify -DskipITs` BUILD SUCCESS 02:52，213 份 surefire 报告；增长链与覆盖率见手册 B.2 与 **D.20**） |
-| 后端集成测试 | **12 用例 / 0 失败**（含 IT 那轮，现由 CI 取数） |
-| JaCoCo | **LINE 89.08%（15236/17104）/ BRANCH 70.71%（5059/7155）**（358 类，2026-10-18 16:3x 同轮；BRANCH 带 ±1 噪声、`jacoco.csv` 口径较 `<report>` 级多约 12 行，两者不等价，见 B.2）→ 在**阈值未降低**（LINE ≥ 85% / BRANCH ≥ 65%）的前提下达标，靠补真实测试而非降阈值 |
-| ArchUnit | **6 条**架构守护全通过 |
-| SpotBugs | **0 缺陷**（`failOnError=true` 硬阻断，13 个框架性 `<Match>` 豁免） |
-| 前端单测 / ESLint | **190 文件 / 1988 用例全绿**；lint **0 error / 0 warning**（覆盖 `src` + `e2e`）；`size:gate` **六项**预算全过（JS 3122.37 / 3400 KB）；`npm run build` EXIT 0（2026-10-27 复跑） |
-| 前端类型检查 | **0 条 / 0 文件**；`typecheck-baseline.json` 基线写死 0（新增即红，2026-10-27 `P4-B1-01`） |
-| Python 引擎与启动器 | 分目录 `pytest -q`：`kg_service` **29** / `rag_service` **54** / `fine_tune_service` **53** passed；仓库根 `pytest scripts/tests -q` **85 passed**（2026-10-18 16:1x 复跑） |
-| CI | 3 个工作流；`ci.yml` **12 个作业**（含 `python-fine-tune-contract`、`launcher-tests`；`frontend-e2e` 暂为 `workflow_dispatch`）——**本机绿不等于 CI 绿**，且本机对 Actions 结果不可观测（手册 §21.1）。⚠️  workflows 的存量红灯本轮**有意暂置**，留待后续优化（项目主指令第 5 条） |
-质量门禁基线（渐进收敛制，只许上调不得下调）：JaCoCo LINE ≥ 85% / BRANCH ≥ 65%（生产收敛目标指令覆盖 ≥ 85%）、SpotBugs 0 error、ArchUnit 架构约束。测试方法、契约测试清单与 CI 流水线见 `docs/项目手册.md` 第六部分。
-
-### 端到端全链路与压力测试（四件套）
-
-`scripts/e2e/` 下有**四件套**实机脚本（仅依赖 Python 标准库），**改动后端后必跑**。用例规模、运行前提（`FLUSHDB`、双姿态、cookie jar、造数据契约）与读数一律见手册 **§43**——README 只给命令顺序，不复制数字；历史结果快照**未入库**（原 `archive/deliverables/` 目录已不存在，2026-10-27 核实），本地重跑生成的 `e2e_*_result.json` 落在脚本目录（已 gitignore）。
-
-```bash
-# 前置：MySQL(3306) 与 Redis(6379) 已运行；仓库根有 .env；
-#       backend/target/backend-0.0.1-SNAPSHOT.jar 已是最新（改了后端代码务必先重新打包）
-
-# ── 第 1 轮：功能姿态（CSRF 关、登录限流 200）────────────────────
-# 必须以「后台任务」方式常驻启动，前台运行会阻塞且进程可能被回收
+# 全栈四件套（第 1 轮功能姿态 / 第 2 轮安全姿态，不可混用）
 python scripts/run-backend-for-e2e.py functional
-
-cd scripts/e2e
-python e2e_verify_network_course.py   # ① 主链路（建课→审批→资料→作业→考试→成绩）
-python e2e_deep_verify.py             # ② 多维深度（A 协同/B 边界/C 越权/D 一致性/E 分片上传（成功路径 + 状态机守卫，批次 2 已整段重写）/F 退回重交/G 版本）
-python e2e_stress_verify.py           # ④ 压力与稳定性（加 --quick 走快速档）
-
-# ── 第 2 轮：安全姿态（CSRF 默认开、登录限流默认阈值）──────────────
-# 先停掉功能姿态后端，再：
+python scripts/e2e/e2e_verify_network_course.py     # 主链路（建课→审批→资料→作业→考试→成绩）
+python scripts/e2e/e2e_deep_verify.py               # 多维深度（协同/边界/越权/一致性/分片/退回重交/版本）
+python scripts/e2e/e2e_stress_verify.py             # 压力与稳定性（--quick 走快速档）
 python scripts/run-backend-for-e2e.py secure
-cd scripts/e2e
-python e2e_security_verify.py         # ③ 安全维度（CSRF 双提交 + 双层登录限流）
+python scripts/e2e/e2e_security_verify.py           # CSRF 双提交 + 双层登录限流
 ```
 
-> **姿态纪律**：功能轮与安全轮**不可混用配置** —— 安全轮若沿用功能姿态（CSRF 关、限流放宽），CSRF 与限流用例会全部失效。两轮起测前脚本均会自行 `FLUSHDB`，无需手工清 Redis。
+- **读数唯一来源**：`docs/测试文档.md` §2；引用时连同**日期与口径**（单元 vs 含 IT）一起引。
+- **e2e 前置**：流程套件要求后端以 `RATELIMIT_LOGIN_LIMIT=200` 起、三份 `.auth` 会话夹具与端口匹配；视觉套件固定 5175 且**不用 `--update-snapshots` 吸收未知漂移**。缺前置时的红灯是环境问题，不是产品缺陷（判红纪律见 `docs/测试文档.md` §4）。
+- **登录保护是两层**：速率层 `RateLimitFilter`（IP 滑动窗口 10 次/60 秒）与尝试层 `AuthSessionComponent`（同账号连续失败 5 次锁定 15 分钟）；尝试层阈值更低，失败路径下先触发，**必须分层断言**。
+- **CI**：`.github/workflows/ci.yml` 12 个作业；`frontend-e2e` 仍是 `workflow_dispatch` 手动触发，且 Actions 结果本机不可观测 ⇒ **本机绿不等于 CI 绿**。DR-20／DR-23／DR-26 连同 Docker 相关项经项目主定案为"留待后续推进"，不是本轮遗漏（逐项前置见 `docs/后端待办项.md`）。
 
-> **登录保护为两层**：① 速率层 `RateLimitFilter`（IP 滑动窗口 10 次/60 秒）；② 尝试层 `AuthSessionComponent`（同账号连续失败 5 次锁定 15 分钟）。尝试层阈值更低、失败路径下先触发，验证时须分层断言。详见 `docs/项目手册.md` 附录 D 的 2026-09-17 条目。
->
-> ⚠️ **DR-36（2026-10-08 已修复）改写了上面这层的真实历史**：速率层四种规则（`login`/`register`/`verify`/`ai`）**共用同一条 Lua**，而该脚本越界引用了不存在的 `ARGV[2]` → 脚本每次报错、只回落实例内存计数，**Redis 侧限流在修复前从未生效**（副作用：计数键无 TTL 慢性泄漏；多实例部署时限流额度按实例数放大）。修复为一处下标更正 + 一条从真实调用现场取参的守卫用例（含阴性对照），机制、A/B 取证与规约升见手册 **附录 D.12.3 DR-36** 与 **§19.1「脚本内联 DSL 的下标一致性」**。
+---
 
-最近一次全栈复跑为 **2026-10-06**（以示范课 4007 为主链路对象，功能 + 安全双姿态），其后 2026-10-07/08 的收口轮又复验过安全维度。E2E 四件套与压力测试的**读数唯一来源是 `docs/项目手册.md` §43**，README 不复制数字；最早那轮的时点报告在 `docs/历史归档/端到端全链路与压力测试报告-2026-09-17.md`。
+## 已知边界（表述不得越过这条线）
 
-> 📌 **仍开放的半边**：`ci.yml` 的 `frontend-e2e` 作业为 `workflow_dispatch` 手动触发，不在 push/PR 触发链上 ⇒ **本机 Playwright 全绿不等于 CI 绿**，E2E 门禁在主干上没有强制力（**DR-20 未闭合半边**，2026-10-08 经项目主定案留待后续，手册 §D.12.5）。演示或放行前建议按上面的顺序本机实跑一轮。
->
-> 📌 **2026-10-08 定案**：**DR-20 / DR-23 / DR-26 连同 Docker 相关项，经项目主明确为「留待后续推进」，不是本轮遗漏**；逐项「本轮为何不做 / 重新拾起的前置 / 现在的兜底状态」见手册 **§D.12.5**。当前里程碑判定（核心功能已完成、可交付且可扩展）以手册第五部分与 §43 的实测门禁为准。
+- 只有**本机原生进程**这一条部署形态可执行；Compose 搁置、A 路径从未在目标环境实跑（断链清单见 `docs/部署文档.md` §6 与 `docs/后端待办项.md` §6）。
+- 集成层（12 例 Testcontainers）与 Trivy 漏洞库侧**只在 CI 有读数**。
+- 视觉基线覆盖 12 个锚点页，非锚点页的渲染缺陷抓不到；无障碍只有近似读数，**不构成 WCAG 合规结论**。
+- 压力读数来自本机笔记本单实例，**不是生产容量结论**。
+- 微调引擎可用 ≠ 能力可售：小样本必然过拟合，推理文本会退化为语料外乱码（`docs/后端待办项.md` §7 AG-2）。
+- 多租户、计费、小程序、桌面端属产品化路线 M1–M4；当前代码是**单租户**（`tenant_id` 零命中）。
+
+---
+
+## 参与贡献
+
+> 由 AI 代理参与本仓工作时，先读根目录 [`agent.md`](agent.md)：那份文件只写**代理该怎么干活**（职责边界、验证链、密钥与 Windows 约束、不可宣称清单），不承载架构／规范／测试判据——判据一律在 `docs/` 九份文档里。
+
+1. 先读 `docs/项目手册.md` §6（分支与推送、提交与评审、密钥与敏感信息、证据纪律、Windows 本机约定）。
+2. 动手前认领对应待办文档里的条目——判据、进入点、代价与「明确不做」都在 `docs/前端待办项.md`／`docs/后端待办项.md`。
+3. 提交前过 `.github/pull_request_template.md` 的自检清单；**数据点改动只改唯一来源**（测试文档 §2 或手册 §8）。
+4. 涉及 Python 契约字段时：同步 `ContractPaths` 常量 + `docs/系统架构设计.md` 的集成契约章节 + 两侧契约测试。
+5. 报告 Bug／提需求请使用 Issue 模板（`.github/ISSUE_TEMPLATE/`）。
 
 ---
 
 ## 许可证
 
-本项目基于 [MIT License](LICENSE) 开源。
-
-- 完整许可证文本见仓库根目录 [`LICENSE`](LICENSE)。
-- 参与贡献请阅读 [`docs/项目手册.md`](docs/项目手册.md)（附录 C：分支策略、编码规范、质量门禁与 PR 流程）。
-- 报告 Bug / 提需求请使用 Issue 模板（`.github/ISSUE_TEMPLATE/`）。
+本项目基于 [MIT License](LICENSE) 开源，完整文本见仓库根目录 [`LICENSE`](LICENSE)。

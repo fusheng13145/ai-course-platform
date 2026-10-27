@@ -9,7 +9,7 @@ import com.aicourse.vo.KnowledgePathPlanVO;
  * 整体由团队另一成员负责（Python 微服务，端口 8001）。本端按下游对接契约仅保留
  * 标准化接口与本 HTTP 代理，并通过 {@code knowledge-graph.enabled=true}（{@code KG_ENABLED}）
  * + {@code KG_BASE_URL}（默认 http://localhost:8001）启用，调用 Python 端实现的
- * {@code /api/v1/graph/*} 契约（权威单一事实来源见 docs/项目手册.md 第八部分）。
+ * {@code /api/v1/graph/*} 契约（权威单一事实来源见 docs/系统架构设计.md 的集成契约章节）。
  * </p>
  * <p>
  * 与 {@code RAGService} 的契约保持一致：服务未启用或不可达时返回 503 占位；

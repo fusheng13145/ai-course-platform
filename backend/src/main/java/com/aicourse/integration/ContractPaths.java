@@ -12,7 +12,7 @@ package com.aicourse.integration;
  *   <li>状态码与模式语义（{@code 503} = 引擎未接入/不可用；{@code ENGINE}/{@code LOCAL}/{@code UNAVAILABLE}）。</li>
  * </ul>
  * 任何 Java 侧 HTTP 调用或 Python 侧实现都必须严格对齐此处常量，避免两端字段名漂移。
- * 对应文档：docs/项目手册.md 第八部分（Python 微服务集成契约，唯一标准基准）。
+ * 对应文档：docs/系统架构设计.md 的集成契约章节（Python 微服务契约，唯一标准基准）。
  */
 public final class ContractPaths {
 

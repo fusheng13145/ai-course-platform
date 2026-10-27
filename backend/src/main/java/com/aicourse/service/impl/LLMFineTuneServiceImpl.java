@@ -17,9 +17,8 @@ import lombok.extern.slf4j.Slf4j;
  * 大模型微调（LoRA/PEFT）服务实现类
  * 通过HTTP调用Python微调微服务（端口 8003）
  * <p>
- * Python 端需实现的 API 契约见《项目手册》§37「LoRA 微调服务（8003）契约」。
- * 原注释引用的 {@code docs/Python接口契约-微调服务.md} 已删除、内容并入手册
- * （见手册 §13 的文档收敛说明），此处更新为有效指引（2026-09-23）。
+ * Python 端需实现的 API 契约见 docs/系统架构设计.md 的集成契约章节（8003 八条端点）。
+ * 早期独立契约文档（{@code docs/Python接口契约-微调服务.md}）已删除，内容并入该文档。
  */
 @Service
 @Slf4j

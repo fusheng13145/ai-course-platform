@@ -7,7 +7,7 @@ package com.aicourse.service;
  * 支持 LoRA 低秩适配微调，可在不更新全量参数的情况下
  * 定制课程专属的大模型回答风格和知识体系
  * <p>
- * Python端需实现的API契约见 docs/Python接口契约-微调服务.md
+ * Python端需实现的API契约见 docs/系统架构设计.md 的集成契约章节
  */
 public interface LLMFineTuneService {
 

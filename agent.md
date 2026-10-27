@@ -1,0 +1,237 @@
+# agent.md · 本项目的开发代理工作说明
+
+> **定位**：写给**在本仓库工作的 AI 开发代理**（含 Qoder 代理与其它自动化工具）的操作约束。它不描述产品，也不承载架构／规范／测试的判据本体——那些在 `docs/` 九份权威文档里。本文只回答一个问题：**代理在这个仓库里该怎么干活**。
+> **冲突处理**：本文与九份文档不一致时，**以九份文档为准**，并请把本文改对；本文与仓库实际状态不一致时，以实测为准并同步修正本文。
+> **版本**：2026-10-27（同日完成三份启动脚本合并，见 `docs/项目手册.md` DR-96）。
+
+---
+
+## 1. 代理的定位
+
+- 本项目由**一名项目主 + 代理**协作推进：代理负责查证、实现、验证、写文档；项目主负责产品口径、对外宣称与不可逆动作的授权。
+- 代理是**口径守门人**而不是产出堆砌者：宁可少做一步，不可多宣称半句。任何"已完成／全绿／已达标"的表述都必须能指到一次实跑读数或一条机械断言。
+- 工作节奏：**一天一批次**，一批一个主题、一次提交、一份摘要。不做跨主题大杂烩改动。
+- 代理的默认动作是**继续推进**，只在两类事情上停下来问：不可逆／影响共享状态的动作，和产品口径的取舍。
+
+---
+
+## 2. 权威信息源与阅读顺序
+
+| 想知道 | 唯一来源 |
+| --- | --- |
+| 项目是什么、角色权限、功能清单、里程碑、术语、协作约定、审计台账 DR-1…DR-96、结构性计数 | `docs/项目手册.md`（结构性数字**只**写在 §8） |
+| 需求、验收标准、演示脚本、14 维度 140 项规划、M1–M4 | `docs/PRD产品规划.md` |
+| 进程拓扑、数据模型、接口契约、架构决策 | `docs/系统架构设计.md` |
+| 后端怎么写 | `docs/后端开发规范.md` |
+| 前端怎么写 | `docs/前端开发规范.md` |
+| 怎么起、密钥怎么放、健康怎么判、上线预案 | `docs/部署文档.md` |
+| 测试怎么跑、门禁判什么、**读数是多少** | `docs/测试文档.md`（测试读数**只**写在 §2） |
+| 前端／后端还剩什么没做 | `docs/前端待办项.md`／`docs/后端待办项.md` |
+
+**三条阅读纪律**：
+
+1. 动手前先读对应待办项条目（判据、进入点、代价、「明确不做」都在那里），不要新开判据。
+2. **引用禁行号**：文档之间用章节名或条目编号（DR-xx／R-xx／FE-xx／D-x／AG-x）；行号会随迁移漂移，本仓已有过行号指针入库即失效的先例。
+3. 不在第二处复制数字。发现两处不一致，**保留证据、当场收敛到一处**并记入台账。
+
+---
+
+## 3. 职责范围
+
+### 3.1 可自主做（不必逐次确认）
+
+- 读代码、检索、跑验证（lint／typecheck／vitest／pytest／`--list`／只读的 `mvn -o -q validate`）。
+- 在同批次范围内编辑源码、测试、文档，并跑完整验证链。
+- 新增或修正**机械守卫**（断言、ArchUnit 规则、CI 步骤、棘轮基线的**收紧方向**）。
+- 修复验证暴露出的真实缺陷（补测试锁住它），并如实记录改前／改后。
+- 删除**本轮自己创建的**临时产物（草稿脚本、探针输出、临时目录）。
+
+### 3.2 必须先取得项目主授权
+
+- 任何**不可逆**或影响共享状态的动作：`git commit`／`git push`、删除跟踪文件、删分支／远端 ref、`git reset --hard`、`clean -fd`、DROP／TRUNCATE、改数据库结构、装或升依赖、改 `.env` 语义、放宽任何阈值。
+- 推送口径：只 `git push origin main:leyon`，**逐批授权**（上一批的批准不覆盖下一批）；**绝不 `git push --all`**（本地历史残留分支含机器产物）。
+- 产品口径取舍：某能力对外怎么说、某条待办做还是书面挂账。
+- 涉及密钥的处理：见 §5.4。
+
+### 3.3 禁止
+
+- **禁止**把凭据值打印、粘贴、提交、写进任何文档或日志；禁止提交 `.env`、`frontend/.auth/*.json`、`deploy/secrets/*`。
+- **禁止**用 `git rm`／`git mv`／`git restore --worktree`（本仓库父目录含中文路径，已发生过工作树静默丢失）。移除文件用文件操作 + `git add` 记录删除。
+- **禁止**为了变绿改判据：覆盖率阈值、`size:gate` 预算、类型棘轮、视觉阈值、e2e 超时、登录限流阈值，一律只朝紧的方向动。
+- **禁止**用 `--update-snapshots` 吸收未归因的视觉红；补基线必须显式授权环境变量 + `-g` 过滤，且逐张看图。
+- **禁止**引入"看起来一样"的第二套实现（同一规则两处各写一份必然分叉——启动器合并就是为这件事付过学费，DR-96）。
+- **禁止**在未取证的情况下写"全绿／已达标／生产可用／WCAG 合规"（对照 §7 不可宣称清单）。
+- **禁止**顺手做超出批次边界的清理（哪怕明显正确）。
+
+---
+
+## 4. 可用工具与设施
+
+### 4.1 环境前置（本机）
+
+| 件 | 版本 | 缺失时 |
+| --- | --- | --- |
+| JDK | 21 | 启动器 fail-fast，不静默回落 |
+| Maven | 由 `backend/mvnw.cmd` 提供 | 不要求系统 Maven |
+| Node | 20.19+（本机实测 24.18） | `start.bat frontend` 报错退出 |
+| Python | 3.11 | 启动器与引擎都必需（唯一入口 `start.bat` 是薄壳） |
+| MySQL / Redis | 8.4 / 7.x，**本机手工服务** | 上报项目主，**不要自己拉容器** |
+| Neo4j | 5.26 可选 | KG 自动回落内存图 |
+
+### 4.2 启动与演示
+
+```bat
+start.bat                    :: 全栈单窗口（接管不重启、五路日志、Ctrl+C 子树收尸）
+start.bat backend            :: 引擎 + 后端
+start.bat frontend           :: 只起 Vite
+start.bat status             :: 只报五进程状态，不起任何进程
+```
+
+判定逻辑全在 `scripts/start-all.py`；`start.bat` 只负责找解释器与透传参数。
+
+### 4.3 验证命令（改什么跑什么）
+
+```bash
+# 后端：单元口径 + JaCoCo + SpotBugs + ArchUnit（同一轮全过）
+cd backend && mvn -B -o clean verify -DskipITs
+# 含集成层（需 Docker；本机自 2026-10-08 不跑，权威读数在 CI）
+cd backend && mvn -B -o clean verify
+# 给全栈四件套准备 jar
+cd backend && mvn -o package -DskipTests
+
+# 前端静态门与单测
+cd frontend && npm run lint && npm run typecheck && npm run lint:api-refs
+cd frontend && npm run test && npm run build && npm run size:gate
+cd frontend && npm run format:check && npm run format:check:e2e
+# 浏览器侧（前置条件必读 docs/测试文档.md §4.3／§4.4）
+cd frontend && PW_PORT=5174 npx playwright test
+cd frontend && PW_PORT=5175 npx playwright test -c playwright.visual.ts
+
+# 引擎与启动器（仓库根）
+python -m pytest python-services/kg_service -q          # 29
+python -m pytest python-services/rag_service -q         # 54
+python -m pytest python-services/fine_tune_service -q   # 53（1 例真实训练按 skipif 跳过）
+python -m pytest scripts/tests -q                       # 97
+
+# 全栈四件套：两种姿态不可混用
+python scripts/run-backend-for-e2e.py functional        # CSRF 关、登录限流 200（后台常驻）
+python scripts/e2e/e2e_verify_network_course.py
+python scripts/e2e/e2e_deep_verify.py
+python scripts/e2e/e2e_stress_verify.py
+python scripts/run-backend-for-e2e.py secure            # 重启为默认 CSRF + 默认限流
+python scripts/e2e/e2e_security_verify.py
+
+# 结构性数字与密钥（只读派生结论）
+python scripts/audit-stats.py
+python scripts/generate-secrets.py --write              # 只改已存在的键行
+# 引擎数据重建（目录被清或换机后）
+python scripts/seed-rag-corpus.py
+python scripts/fine_tune_dataset.py
+python scripts/sync-kg-to-python.py <courseId>
+```
+
+### 4.4 代理自身的工作工具
+
+- **检索与读**：Glob / Grep / Read（优先按文件与符号定位，不做全仓扫描式猜）；跨模块的开放问题派 `Explore` 子代理。
+- **改**：Edit（改已有文件，优先）／Write（新建文件）。**不要用 shell 的 `sed`／`echo >` 改文件**（见 §5.5）。
+- **跑**：Bash（Git Bash，POSIX 语法）；长任务用后台 + 完成通知，不轮询、不 `sleep` 等待。
+- **规划与跟踪**：Plan／Task 列表；一个批次一条主线任务，子步 ≤4–5 条。
+- **对外**：GitHub 的 MCP **写类**工具（建 PR、评论、改文件）在本仓历史实测中报 schema 错且**真的没生效**——开 PR 走浏览器，判据看 `git ls-remote` 的当场读数；用之前先做一次无害写入复验，若已修复再改回本条。
+- **子代理注意**：单代理有 turn 预算，重活预拆小步、每步留产物；若它死在破坏性编辑中途，先验完整性再收编，**不要直接回滚**。
+
+### 4.5 CI 与门禁位置
+
+- `.github/workflows/ci.yml` 12 个作业；`frontend-e2e` 仅 `workflow_dispatch`。
+- push 事件对 `docs/**`、`archive/**`、`*.md` 走 `paths-ignore` ⇒ **纯文档改动不会触发 CI**，不能拿"CI 没红"当验证。
+- PR 全量跑；`.github/pull_request_template.md` 是合并前自检清单。
+
+---
+
+## 5. 使用规范
+
+### 5.1 一批次的标准循环
+
+1. **认领**：从对应待办项取一条（或项目主直接指派），复述判据与出口条件。
+2. **建改前证据**：需要视觉／性能／行为对比的，先跑一次留下改前读数，再动手。
+3. **动手**：最小实现；同批改测试；不把无关清理夹带进来。
+4. **验证**：跑齐 §4.3 里与本批相关的每一层，记录命令与时点。
+5. **收口**：更新唯一来源的读数、把结论写成"可主张／不可主张"两栏、给出 commit 建议信息（**不自行提交**）。
+
+### 5.2 证据纪律
+
+- 每个结论都要有**一条可重放命令**；只有截图没有命令的不算交付证据。
+- 数字带**时点 + 口径**（后端"单元口径"与"含 IT"是两套，不可拼接引用）。
+- RED → GREEN **成对**留痕：先留失败断言原文，再留通过读数。
+- 像素类结论：只有与基线 **md5 相等且字节差 0** 才说"逐字节相同"；`threshold:0` 仍会跳过抗锯齿像素。
+- 读数量程要写清：免检额随几何变，引用必须带截图尺寸。
+
+### 5.3 机械守卫的写法
+
+- 负向断言（"零命中""不存在"）必须配**阴性对照**：先证明检测器能抓住人造违规样例。
+- 断言不要钉在**会被迁移的活文件**上（路径、文件名会变）；钉语义、钉结构，不钉行号。
+- 静态扫描要防"扫的是空气"的恒真假绿：先断言扫描窗口里确实有待测代码。
+- `ast.unparse` 会把双引号规范成单引号——按源码文本子串匹配前必须归一化，否则守卫恒假。
+
+### 5.4 密钥与敏感信息
+
+- **永不回显值**，包括报错、日志、diff 片段与对话正文；需要判断状态时只引用 `python scripts/audit-stats.py` 的派生结论（键名、长度、`OK/EMPTY/FAIL`）。
+- 值只进 `.env`（模板 `.env.example`，36 键）与 `deploy/secrets/`；会话夹具 `frontend/e2e/visual/.auth/*.json` 内含令牌，同样严禁入库与打印。口令类值必须 8–32 位且同时含大小写字母、数字、特殊字符四类；**不要用 `openssl rand -base64 32`**（输出 44 字符会超上限）。
+- 凭据一旦贴进对话即已外泄（本机转录 + 供应商侧），唯一止血是到控制台轮换；轮换 `JWT_SECRET` 会使所有会话失效，必须在演示彩排之前做。
+- 形状门：`DEEPSEEK_API_KEY` 必须纯 ASCII 且以 `sk-` 开头；把中文备注写在同一行键值上会让请求在发出前失败（DR-82）。
+
+### 5.5 Windows 与仓库约束
+
+- 含中文的父目录：所有工具用**绝对路径**，不要在 shell 里拼相对路径。
+- `.bat` 必须**纯 ASCII + CRLF**（DR-37）。写 `.bat` 用 Write 工具再转行尾，**不要在 Git Bash 里 heredoc/echo**——shell 会把 `>nul` 改写成 `>/dev/null`（本轮实测踩过），且 `Write` 产出的是 LF。
+- Vite 实测只绑 `[::1]`：本机访问一律用 `localhost`，`127.0.0.1` 反而连不上；开发口只用 5173／5174／5175，**5176+ 会被 CORS 白名单拒登录**。
+- 覆盖率构建**必须串行且 `clean`**：JaCoCo exec 落在 `${user.home}`，全仓库共用，并发跑会把对方的 exec 截成 0 字节。
+- 产物不入库：`target/`、`dist/`、`node_modules/`、`test-results/`、`e2e/visual/tools/evidence/`、`logs/`、`*.log`、`e2e_*_result.json`、`.auth`。跑完视觉／e2e 后 `git status` 复核，工作树不应多出临时文件。
+
+### 5.6 沟通与交付格式
+
+- 中文沟通；结论先行、简短；引用文件用绝对路径链接，源码位置给"文件:行"但**不作为文档间的引用**。
+- 待拍板事项要**摆代价 + 给推荐**，不代替项目主决定；不要堆选项，给一条最可执行的。
+- 收尾摘要写：改了什么（表格／清单）、验证**实跑了什么与没跑什么**、行为变化、下一步建议。未验证的事情不写进结论。
+
+---
+
+## 6. 已知陷阱：红灯先判这些
+
+| 现象 | 先怀疑 | 判据 |
+| --- | --- | --- |
+| e2e 大面积 403／429、每轮红灯集合不同 | 后端未按 `RATELIMIT_LOGIN_LIMIT=200` 启动（DR-85） | `loginAs` 报错文本会点名该环境变量 |
+| e2e 整批跳 `/login` | `.auth` 会话过期或端口变了（夹具与 origin 含端口绑定） | 按配方重生成夹具，而不是改断言 |
+| 视觉全表突然整片红 | 基线批归因污染（一次跑验了多个缺陷批） | HEAD stash 对照 + 一轮只验一个缺陷批 |
+| 后端 `Failures: 0` 但套件不绿 | 上下文加载失败记成 **Errors** | 同时读 failures 与 errors；契约测试库结构由 3 条守卫钉住 |
+| 覆盖率显示 0% 或异常低 | 并发覆盖率构建互截 exec；或非 `clean` 累积旧报告 | 串行 + `clean` 重跑 |
+| 体积读数与源码不符 | `dist/` 早于最后一笔源码提交 | 先 `npm run build` 再 `size:gate` |
+| grep 零命中就下"不存在"结论 | 搜索面不对（打包产物、生成文件、被忽略目录） | 换目录／换口径复验，负向断言配正读数 |
+| 脚本改文件后 diff 整片变 | shell 改写行尾或字符（`nul`、`&`、`!`） | 用 Edit/Write 改文件，改完看 `git diff --numstat` 是否只有预期几行 |
+| 一次跑测把另一套件的夹具弄脏 | 视觉套件按 5175 重生成 `.auth` | 两套端口分开，跑完按配方恢复 5173 夹具 |
+
+---
+
+## 7. 不可宣称清单（任何代理产出都不许越过这条线）
+
+| 不能这么说 | 原因 | 出处 |
+| --- | --- | --- |
+| "CI 已绿／受 CI 门禁保护" | 本机对 Actions 结果不可观测；`frontend-e2e` 仅手动触发 | `docs/测试文档.md` §7、§11 |
+| "集成层本机验证过" | 本机自 2026-10-08 只跑 `-DskipITs`；12 例 IT 由 CI 取数 | `docs/测试文档.md` §2.1 |
+| "依赖无漏洞" | Trivy 漏洞库侧只在 CI 有读数；本机 `npm audit` 须带官方 registry | `docs/后端待办项.md` I-05 |
+| "无障碍已达标／WCAG 合规" | 只有近似控制台读数，非 axe、非门禁 | `docs/测试文档.md` §4.5 |
+| "全站无视觉回归" | 基线只覆盖 12 个锚点页 | `docs/前端待办项.md` §1 |
+| "生产可承载 N QPS" | 压力是本机笔记本单实例 | `docs/测试文档.md` §6 |
+| "已具备上线能力" | A 路径从未在目标环境实跑，只有预案与断链清单 | `docs/部署文档.md` §6 |
+| "微调能力可售" | 小样本必然过拟合，推理文本会退化为语料外乱码 | `docs/后端待办项.md` §7 AG-2 |
+| "跨设备完成率" | 引导三态只落本地 `localStorage` | `docs/前端待办项.md` §4 |
+| "类型系统已严格" | `strict:false`，基线 0 只表示当前无错误 | `docs/前端待办项.md` §4 |
+
+---
+
+## 8. 新会话接手清单（第一次动手前）
+
+1. `git status --porcelain` + `git log --oneline -8`：确认工作树状态与最近批次（项目主会在会话之间自己提交）。
+2. 读 `docs/项目手册.md` §1 与 §6；读对应端的待办项，认领一条。
+3. 跑最小读数确认环境：`python -m pytest scripts/tests -q`、`cd frontend && npm run lint && npm run typecheck`；需要后端时 `start.bat status`。
+4. 确认授权边界：本批是否触碰 §3.2 的清单；触碰就先问，问完再做。
+5. 开工，收口按 §5.1 第 5 步交付。

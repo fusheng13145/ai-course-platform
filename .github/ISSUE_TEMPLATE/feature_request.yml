@@ -6,7 +6,7 @@ body:
   - type: markdown
     attributes:
       value: |
-        感谢提出建议！建议将按 `docs/项目手册.md` 第十部分（下一步计划与演进路线）的价值/成本框架评估。
+        感谢提出建议！建议将按 `docs/PRD产品规划.md`（需求基线与 14 维度规划表）的价值/成本框架评估。
   - type: textarea
     id: problem
     attributes:

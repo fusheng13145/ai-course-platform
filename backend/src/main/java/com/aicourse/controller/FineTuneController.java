@@ -18,7 +18,7 @@ import org.springframework.web.bind.annotation.*;
  * 对外暴露 Python 微调微服务（端口 8003）的编排入口：健康检查 / 启动任务 / 状态查询 / 列表 / 取消 / 推理 / 权重导出。
  * 降级语义：{@code fine-tune.enabled=false} 或 Python 服务不可达时返回明确不可用信息（HTTP 503 语义），不抛 500。
  * 路径受 SecurityConfig {@code /admin/** hasRole(ADMIN)} 保护。
- * 对接契约见 docs/Python接口契约-微调服务.md
+ * 对接契约见 docs/系统架构设计.md 的集成契约章节。
  */
 @RestController
 @RequestMapping("/admin/fine-tune")

@@ -202,7 +202,7 @@ jobs:
 
             ### 安装与部署
             - Docker Compose：`docker compose up -d --build`（镜像：`ghcr.io/${{ github.repository }}`）
-            - 完整运维说明见 `docs/项目手册.md` 第七部分
+            - 完整运维说明见 `docs/部署文档.md`
 
             ### 变更内容
             自动聚合自 PR 标题；完整变更记录见 Git History。
