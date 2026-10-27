@@ -1,6 +1,6 @@
 # 前端硬编码样式计数报告
 
-> 由 `node frontend/scripts/count-hardcoded-style.cjs --write` 生成于 2026-10-27 12:46 UTC。
+> 由 `node frontend/scripts/count-hardcoded-style.cjs --write` 生成于 2026-10-27 15:27 UTC。
 > 判据本体见 `docs/前端待办项.md` P5-04；基线（2026-10-19 实测，`.vue` 内行数）：
 > `border-radius:` 313／6 位十六进制色 175／`rgba(` 110／`box-shadow:` 73／含渐变的文件 22。
 > 该基线当年没有留命令，口径按最宽的解释落地：**命中行数**＝该行至少一次命中（含 `var()` 写法），

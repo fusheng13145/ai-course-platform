@@ -34,7 +34,12 @@ interface ModalProps {
  * 僵尸节点会直接污染断言）。
  */
 function factory(props: ModalProps = {}, slots: Record<string, string> = { title: 'T' }) {
-  const wrapper = mount(Modal, { props, slots, attachTo: document.body, global: { stubs: { transition: false } } })
+  const wrapper = mount(Modal, {
+    props,
+    slots,
+    attachTo: document.body,
+    global: { stubs: { transition: false } },
+  })
   return track(wrapper)
 }
 

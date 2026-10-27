@@ -1,7 +1,6 @@
 <template>
   <!-- AI 生成 对话框 -->
   <Modal
-   
     :model-value="modelValue"
     title="AI 智能生成题目"
     width="520px"

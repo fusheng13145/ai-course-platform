@@ -190,7 +190,9 @@ describe('useAiGovernance — 逐人限制名单（V10）', () => {
     expect(mocks.unrestrictAiGeneration).toHaveBeenCalledWith(7)
     expect(mocks.getAiRestrictions).toHaveBeenCalled()
 
-    mocks.unrestrictAiGeneration.mockRejectedValue({ response: { data: { message: '该教师不在限制名单内：7' } } })
+    mocks.unrestrictAiGeneration.mockRejectedValue({
+      response: { data: { message: '该教师不在限制名单内：7' } },
+    })
     expect(await state.unrestrict(7)).toBe(false)
     expect(state.restrictionActionError.value).toContain('不在限制名单内')
   })

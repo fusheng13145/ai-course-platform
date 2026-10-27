@@ -45,7 +45,10 @@ function mountPage() {
     global: {
       stubs: {
         // 自定义 el-alert 桩：渲染 title，使 wrapper.text() 可断言持久提示文案
-        'el-alert': { props: ['title', 'type'], template: '<div class="alert-stub">{{ title }}</div>' },
+        'el-alert': {
+          props: ['title', 'type'],
+          template: '<div class="alert-stub">{{ title }}</div>',
+        },
         'el-icon': true,
       },
       directives: { loading: { mounted() {}, updated() {} } },

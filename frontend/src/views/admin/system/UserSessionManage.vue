@@ -10,28 +10,28 @@
     <div class="stat-grid">
       <StatCard
         label="在线用户数"
-        :value="statsError ? '--' : (stats.active || 0)"
+        :value="statsError ? '--' : stats.active || 0"
         icon="users"
         tone="var(--accent-soft)"
         tone-color="var(--accent)"
       />
       <StatCard
         label="总会话数"
-        :value="statsError ? '--' : (stats.total || 0)"
+        :value="statsError ? '--' : stats.total || 0"
         icon="list"
         tone="var(--info-soft)"
         tone-color="var(--info)"
       />
       <StatCard
         label="异常会话"
-        :value="statsError ? '--' : (stats.abnormalCount || 0)"
+        :value="statsError ? '--' : stats.abnormalCount || 0"
         icon="shield"
         tone="var(--warn-soft)"
         tone-color="var(--warn)"
       />
       <StatCard
         label="游客会话"
-        :value="statsError ? '--' : (stats.guestCount || 0)"
+        :value="statsError ? '--' : stats.guestCount || 0"
         icon="clock"
         tone="var(--violet-soft)"
         tone-color="var(--violet)"
@@ -133,22 +133,22 @@
           />
           <el-descriptions :column="3" border>
             <el-descriptions-item label="总会话数">{{
-              statsError ? '--' : (stats.total || 0)
+              statsError ? '--' : stats.total || 0
             }}</el-descriptions-item>
             <el-descriptions-item label="活跃会话">{{
-              statsError ? '--' : (stats.active || 0)
+              statsError ? '--' : stats.active || 0
             }}</el-descriptions-item>
             <el-descriptions-item label="游客会话">{{
-              statsError ? '--' : (stats.guestCount || 0)
+              statsError ? '--' : stats.guestCount || 0
             }}</el-descriptions-item>
             <el-descriptions-item label="异常会话">{{
-              statsError ? '--' : (stats.abnormalCount || 0)
+              statsError ? '--' : stats.abnormalCount || 0
             }}</el-descriptions-item>
             <el-descriptions-item label="今日新增会话">{{
-              statsError ? '--' : (stats.todayNew || 0)
+              statsError ? '--' : stats.todayNew || 0
             }}</el-descriptions-item>
             <el-descriptions-item label="昨日新增会话">{{
-              statsError ? '--' : (stats.yesterdayNew || 0)
+              statsError ? '--' : stats.yesterdayNew || 0
             }}</el-descriptions-item>
           </el-descriptions>
         </div>
@@ -181,13 +181,23 @@ const statsFeedback = useListFeedback({
   failMessage: '会话统计加载失败，上方与会话概览读数暂不可信。',
   toastMessage: '会话统计加载失败',
 })
-const { loading, listError: usersError, run: runUsers, emptyDescription: usersEmptyText } =
-  usersFeedback
+const {
+  loading,
+  listError: usersError,
+  run: runUsers,
+  emptyDescription: usersEmptyText,
+} = usersFeedback
 const { listError: statsError, run: runStats } = statsFeedback
 const onlineUsers = ref([])
 // D2-5：在线用户无界（getOnlineUsers 全量返回），渲染层客户端分页（每页 20）
-const { page, pageSize, total, paged: pagedOnlineUsers, showPager, onPageChange } =
-  useClientPagination(() => onlineUsers.value)
+const {
+  page,
+  pageSize,
+  total,
+  paged: pagedOnlineUsers,
+  showPager,
+  onPageChange,
+} = useClientPagination(() => onlineUsers.value)
 const stats = reactive({
   total: 0,
   active: 0,

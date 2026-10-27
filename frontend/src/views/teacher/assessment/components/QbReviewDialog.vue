@@ -1,6 +1,5 @@
 <template>
   <Modal
-   
     :model-value="modelValue"
     title="题目审核"
     width="520px"
@@ -45,7 +44,6 @@ defineProps({
   reviewing: { type: Boolean, default: false },
 })
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-
 
 defineEmits(['update:modelValue', 'submit'])
 </script>

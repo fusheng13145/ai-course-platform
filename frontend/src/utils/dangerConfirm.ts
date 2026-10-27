@@ -41,9 +41,10 @@ export const DEFAULT_RECOVERY = '如需恢复，请联系平台管理员协助�
 
 /** 拼接规范化确认文案（纯函数，便于单测）。 */
 export function buildDangerMessage(options: DangerConfirmOptions): string {
-  const subject = options.subject !== undefined && options.subject !== null && options.subject !== ''
-    ? `「${options.subject}」`
-    : ''
+  const subject =
+    options.subject !== undefined && options.subject !== null && options.subject !== ''
+      ? `「${options.subject}」`
+      : ''
   let msg = `确定${options.verb}${options.target}${subject}？`
   const clauses: string[] = []
   if (options.impact) clauses.push(options.impact)

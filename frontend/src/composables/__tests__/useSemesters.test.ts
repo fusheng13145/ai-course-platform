@@ -82,7 +82,11 @@ describe('useSemesters — 学期管理', () => {
     await state.list()
     mocks.getSemesters.mockClear()
 
-    const ok = await state.create({ name: '2026-2027-1', startDate: '2026-09-01', endDate: '2027-01-15' })
+    const ok = await state.create({
+      name: '2026-2027-1',
+      startDate: '2026-09-01',
+      endDate: '2027-01-15',
+    })
     await flushPromises()
 
     expect(ok).toBe(true)
@@ -97,12 +101,18 @@ describe('useSemesters — 学期管理', () => {
 
   it('创建失败：透传后端原因（如重名 409），返回 false 且不刷新列表', async () => {
     mocks.getSemesters.mockResolvedValue({ data: [] })
-    mocks.createSemester.mockRejectedValue({ response: { data: { message: '学期名称已存在：2026-2027-1' } } })
+    mocks.createSemester.mockRejectedValue({
+      response: { data: { message: '学期名称已存在：2026-2027-1' } },
+    })
     const state = withSetup()
     await state.list()
     mocks.getSemesters.mockClear()
 
-    const ok = await state.create({ name: '2026-2027-1', startDate: '2026-09-01', endDate: '2027-01-15' })
+    const ok = await state.create({
+      name: '2026-2027-1',
+      startDate: '2026-09-01',
+      endDate: '2027-01-15',
+    })
     await flushPromises()
 
     expect(ok).toBe(false)

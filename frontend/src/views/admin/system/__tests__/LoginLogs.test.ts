@@ -40,10 +40,14 @@ window.matchMedia = vi.fn().mockImplementation((query: string) => ({
 })) as unknown as typeof window.matchMedia
 
 const STATS_OK = {
-  data: { data: { todayCount: 12, totalCount: 300, failedCount: 4, weekCount: 60, successRate: 96 } },
+  data: {
+    data: { todayCount: 12, totalCount: 300, failedCount: 4, weekCount: 60, successRate: 96 },
+  },
 }
 const LIST_OK = {
-  data: { data: { list: [{ id: 1, username: 'admin', ipAddress: '10.0.0.1', loginStatus: 'SUCCESS' }] } },
+  data: {
+    data: { list: [{ id: 1, username: 'admin', ipAddress: '10.0.0.1', loginStatus: 'SUCCESS' }] },
+  },
 }
 const TRENDS_OK = { data: { data: [{ date: '2026-10-01', totalCount: 3 }] } }
 
@@ -70,7 +74,8 @@ function mountPage() {
         PageHeader: { props: ['title', 'subtitle', 'icon'], template: '<div><slot /></div>' },
         StatCard: {
           props: ['label', 'value', 'icon', 'tone', 'toneColor', 'foot'],
-          template: '<div class="sc-stub" :data-label="label">{{ label }}|{{ value }}|{{ foot }}</div>',
+          template:
+            '<div class="sc-stub" :data-label="label">{{ label }}|{{ value }}|{{ foot }}</div>',
         },
         BarChart: true,
       },
@@ -80,7 +85,10 @@ function mountPage() {
 }
 
 function statValue(wrapper: Awaited<ReturnType<typeof mountPage>>, label: string) {
-  return wrapper.findAllComponents(StatCard).find((c) => c.props('label') === label)?.props('value')
+  return wrapper
+    .findAllComponents(StatCard)
+    .find((c) => c.props('label') === label)
+    ?.props('value')
 }
 
 describe('LoginLogs — 加载失败可见（三路独立归因）', () => {

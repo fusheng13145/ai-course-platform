@@ -604,9 +604,7 @@ describe('useKnowledgeTab — 加载失败可见', () => {
   it('失败后再成功：提示必须被清空（每次 loadAll 都复位，不是一次失败永久残留）', async () => {
     // 首轮为挂载时 onMounted 触发的 loadAll（列表失败），次轮显式 loadAll 成功
     mocks.getTree.mockResolvedValue({ data: [] })
-    mocks.getKnowledgePoints
-      .mockRejectedValueOnce(new Error('500'))
-      .mockResolvedValue({ data: [] })
+    mocks.getKnowledgePoints.mockRejectedValueOnce(new Error('500')).mockResolvedValue({ data: [] })
     const { state } = withSetup()
     await flushPromises()
     expect(state.loadError.value).not.toBe('')
@@ -626,4 +624,3 @@ describe('useKnowledgeTab — 加载失败可见', () => {
     expect(mocks.getTree).not.toHaveBeenCalled()
   })
 })
-

@@ -220,9 +220,7 @@ describe('入口的续传出口（验收线③）', () => {
     await pickFile(wrapper, bigFile('讲义.pdf', 1))
     await clickStartAndWaitFailure(wrapper)
 
-    expect(ElMessage.error).toHaveBeenCalledWith(
-      '上传未完成，可点「按磁盘真值续传」补齐缺失分片',
-    )
+    expect(ElMessage.error).toHaveBeenCalledWith('上传未完成，可点「按磁盘真值续传」补齐缺失分片')
     expect(wrapper.find('[data-testid="upload-result"]').exists()).toBe(false)
   })
 

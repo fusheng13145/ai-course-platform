@@ -142,6 +142,4 @@ function fileIcon(row) {
   justify-content: center;
   align-items: center;
 }
-
-
 </style>

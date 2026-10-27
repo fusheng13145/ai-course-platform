@@ -72,7 +72,9 @@
 
     <!-- 提交弹层（自研 Modal：内部自接焦点，调用方不接 useDialogFocus） -->
     <Modal v-if="submitModal.visible" narrow @close="closeSubmit">
-      <template #title>{{ submitModal.task?.status === 'RETURNED' ? '重新提交' : '提交作业' }}</template>
+      <template #title>{{
+        submitModal.task?.status === 'RETURNED' ? '重新提交' : '提交作业'
+      }}</template>
       <template #sub
         ><b>{{ submitModal.task?.title }}</b
         ><span v-if="submitModal.task?.dueDate" class="muted">
@@ -92,13 +94,7 @@
         </div>
         <div class="field span-2">
           <label>附件（可选）</label>
-          <input
-            type="file"
-            multiple
-            class="input"
-            :disabled="uploading"
-            @change="onFileChange"
-          />
+          <input type="file" multiple class="input" :disabled="uploading" @change="onFileChange" />
           <div v-if="submitModal.form.fileUrls.length" class="uploaded-list">
             <span
               v-for="(url, index) in submitModal.form.fileUrls"

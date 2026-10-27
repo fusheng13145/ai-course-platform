@@ -1,6 +1,5 @@
 <template>
   <Modal
-   
     :model-value="modelValue"
     title="AI 智能出题"
     width="600px"

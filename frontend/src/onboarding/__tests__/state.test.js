@@ -1,11 +1,5 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
-import {
-  readState,
-  writeStatus,
-  migrateV1IfPresent,
-  KEY_V1_PREFIX,
-  KEY_V2_PREFIX,
-} from '../state'
+import { readState, writeStatus, migrateV1IfPresent, KEY_V1_PREFIX, KEY_V2_PREFIX } from '../state'
 
 const k1 = (id) => `${KEY_V1_PREFIX}:${id ?? 'anon'}`
 const k2 = (id) => `${KEY_V2_PREFIX}:${id ?? 'anon'}`

@@ -1,7 +1,6 @@
 <template>
   <!-- 编辑课程对话框 -->
   <Modal
-
     :model-value="editVisible"
     title="编辑课程信息"
     width="600px"
@@ -62,7 +61,6 @@
 
   <!-- 章节对话框 -->
   <Modal
-
     :model-value="chapterVisible"
     :title="editingChapter ? '编辑章节' : '添加章节'"
     width="520px"
@@ -94,7 +92,6 @@
 
   <!-- 发送通知对话框 -->
   <Modal
-
     :model-value="noticeVisible"
     title="发送课程通知"
     width="520px"
@@ -147,7 +144,6 @@ defineProps({
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-
 
 const emit = defineEmits([
   'update:editVisible',

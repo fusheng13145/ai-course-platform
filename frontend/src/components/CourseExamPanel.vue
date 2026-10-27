@@ -77,8 +77,7 @@
     </div>
 
     <Modal
-
-    v-model="examDialogVisible"
+      v-model="examDialogVisible"
       :title="editingExam ? '编辑试卷' : '创建试卷'"
       width="700px"
       append-to-body

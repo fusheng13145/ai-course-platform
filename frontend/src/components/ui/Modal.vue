@@ -323,14 +323,14 @@ function onOverlay(e) {
           role="dialog"
           aria-modal="true"
           :aria-label="ariaLabel || null"
-          :aria-labelledby="
-            ariaLabelledby ?? ($slots.title || title ? titleId : null)
-          "
+          :aria-labelledby="ariaLabelledby ?? ($slots.title || title ? titleId : null)"
           @click.stop
         >
           <div class="modal-head">
             <div>
-              <div :id="titleId" class="modal-title"><slot name="title">{{ title }}</slot></div>
+              <div :id="titleId" class="modal-title">
+                <slot name="title">{{ title }}</slot>
+              </div>
               <div v-if="$slots.sub" class="modal-sub"><slot name="sub" /></div>
             </div>
             <div style="flex: 1"></div>

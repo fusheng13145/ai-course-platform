@@ -26,12 +26,7 @@
         </div>
         <div class="field">
           <label>时长（分钟）</label>
-          <el-input-number
-            v-model="form.duration"
-            :min="1"
-            :max="600"
-            controls-position="right"
-          />
+          <el-input-number v-model="form.duration" :min="1" :max="600" controls-position="right" />
         </div>
       </div>
       <!-- 题型 × 数量：typeRules key 与题库 Question.type 实际值一致（设计 F3） -->

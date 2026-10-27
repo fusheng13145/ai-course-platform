@@ -35,30 +35,30 @@
           class="ai-tabs"
           @change="activeTab = $event"
         />
-          <!-- 智能答疑 -->
-          <div v-show="activeTab === 'qa'">
-            <AcQaPanel :course-id="courseId" />
-          </div>
+        <!-- 智能答疑 -->
+        <div v-show="activeTab === 'qa'">
+          <AcQaPanel :course-id="courseId" />
+        </div>
 
-          <!-- 薄弱点分析 -->
-          <div v-show="activeTab === 'weak'">
-            <AcWeakPanel :course-id="courseId" />
-          </div>
+        <!-- 薄弱点分析 -->
+        <div v-show="activeTab === 'weak'">
+          <AcWeakPanel :course-id="courseId" />
+        </div>
 
-          <!-- 学习建议 -->
-          <div v-show="activeTab === 'advice'">
-            <AcAdvicePanel :course-id="courseId" />
-          </div>
+        <!-- 学习建议 -->
+        <div v-show="activeTab === 'advice'">
+          <AcAdvicePanel :course-id="courseId" />
+        </div>
 
-          <!-- 作文批改 -->
-          <div v-show="activeTab === 'essay'">
-            <AcEssayPanel />
-          </div>
+        <!-- 作文批改 -->
+        <div v-show="activeTab === 'essay'">
+          <AcEssayPanel />
+        </div>
 
-          <!-- 学习路径 -->
-          <div v-show="activeTab === 'path'">
-            <AcPathPanel :course-id="courseId" />
-          </div>
+        <!-- 学习路径 -->
+        <div v-show="activeTab === 'path'">
+          <AcPathPanel :course-id="courseId" />
+        </div>
       </template>
     </div>
   </div>

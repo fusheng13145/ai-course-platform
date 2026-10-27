@@ -67,7 +67,13 @@ function mountPage() {
 
 const COURSES = [
   { id: 1, name: '计算机网络', approvalStatus: 'PENDING', status: 'ACTIVE', teacherName: '张老师' },
-  { id: 2, name: '数据结构', approvalStatus: 'APPROVED', status: 'INACTIVE', teacherName: '李老师' },
+  {
+    id: 2,
+    name: '数据结构',
+    approvalStatus: 'APPROVED',
+    status: 'INACTIVE',
+    teacherName: '李老师',
+  },
 ]
 
 describe('CourseManagement 加载失败反馈（D2-1）', () => {

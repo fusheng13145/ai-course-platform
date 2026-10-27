@@ -14,50 +14,50 @@
       />
       <div v-show="activeTab === 'basic'" class="settings-pane">
         <!-- 基础设置 -->
-          <SsBasicForm
-            :form="forms.basic"
-            :rules="basicRules"
-            :saving="saving.basic"
-            @save="saveSettings('basic')"
-          />
+        <SsBasicForm
+          :form="forms.basic"
+          :rules="basicRules"
+          :saving="saving.basic"
+          @save="saveSettings('basic')"
+        />
       </div>
       <div v-show="activeTab === 'security'" class="settings-pane">
         <!-- 安全设置 -->
-          <SsSecurityForm
-            :form="forms.security"
-            :saving="saving.security"
-            @save="saveSettings('security')"
-          />
+        <SsSecurityForm
+          :form="forms.security"
+          :saving="saving.security"
+          @save="saveSettings('security')"
+        />
       </div>
       <div v-show="activeTab === 'email'" class="settings-pane">
         <!-- 邮件配置 -->
-          <SsEmailForm
-            :form="forms.email"
-            :saving="saving.email"
-            @save="saveSettings('email')"
-            @test-email="sendTestEmail"
-          />
+        <SsEmailForm
+          :form="forms.email"
+          :saving="saving.email"
+          @save="saveSettings('email')"
+          @test-email="sendTestEmail"
+        />
       </div>
       <div v-show="activeTab === 'upload'" class="settings-pane">
         <!-- 上传配置 -->
-          <SsUploadForm
-            :form="forms.upload"
-            :input-visible="inputVisible"
-            :input-value="inputValue"
-            :show-input="showInput"
-            :confirm-format="confirmFormat"
-            :remove-format="removeFormat"
-            :saving="saving.upload"
-            @save="saveSettings('upload')"
-          />
+        <SsUploadForm
+          :form="forms.upload"
+          :input-visible="inputVisible"
+          :input-value="inputValue"
+          :show-input="showInput"
+          :confirm-format="confirmFormat"
+          :remove-format="removeFormat"
+          :saving="saving.upload"
+          @save="saveSettings('upload')"
+        />
       </div>
       <div v-show="activeTab === 'notification'" class="settings-pane">
         <!-- 通知设置 -->
-          <SsNotificationForm
-            :form="forms.notification"
-            :saving="saving.notification"
-            @save="saveSettings('notification')"
-          />
+        <SsNotificationForm
+          :form="forms.notification"
+          :saving="saving.notification"
+          @save="saveSettings('notification')"
+        />
       </div>
     </div>
   </div>

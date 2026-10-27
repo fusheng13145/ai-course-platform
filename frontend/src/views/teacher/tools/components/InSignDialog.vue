@@ -1,7 +1,6 @@
 <template>
   <!-- 发起签到 -->
   <Modal
-
     :model-value="modelValue"
     title="发起签到"
     width="460px"

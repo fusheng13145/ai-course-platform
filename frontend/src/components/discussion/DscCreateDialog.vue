@@ -1,6 +1,5 @@
 <template>
   <Modal
-
     :model-value="modelValue"
     :title="dialogTitle"
     width="560px"
@@ -54,7 +53,6 @@ defineProps({
   contentPlaceholder: { type: String, default: '想讨论什么？' },
 })
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-
 
 defineEmits(['update:modelValue', 'submit'])
 </script>

@@ -28,7 +28,8 @@ const stubs = {
   'el-pagination': {
     props: ['total', 'pageSize', 'currentPage'],
     emits: ['current-change'],
-    template: '<div class="pager-stub" :data-total="total" @click="$emit(\'current-change\', 3)" />',
+    template:
+      '<div class="pager-stub" :data-total="total" @click="$emit(\'current-change\', 3)" />',
   },
 }
 

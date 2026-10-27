@@ -218,7 +218,11 @@ describe('ai.qaStream - SSE 流式解析', () => {
   it('空 sources 末帧：仍回调 onSources([]) 以区分「检索为空」与「缺帧」', async () => {
     vi.stubGlobal(
       'fetch',
-      vi.fn().mockResolvedValue(makeSSEResponse(['data: {"token":"A"}\n\n', 'data: {"sources":[]}\n\n'])),
+      vi
+        .fn()
+        .mockResolvedValue(
+          makeSSEResponse(['data: {"token":"A"}\n\n', 'data: {"sources":[]}\n\n']),
+        ),
     )
     const onSources = vi.fn()
 

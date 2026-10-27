@@ -97,15 +97,8 @@ import { ElMessage } from 'element-plus'
 import { Plus } from '@element-plus/icons-vue'
 import examApi from '@/api/exam'
 import { confirmDanger } from '@/utils/dangerConfirm'
-import {
-  questionTypeLabel,
-  questionTypeTag,
-} from '@/constants/questionTypes'
-import type {
-  ExamFormSavePayload,
-  ExamPaper,
-  SelectedQuestion,
-} from '@/composables/useExamCompose'
+import { questionTypeLabel, questionTypeTag } from '@/constants/questionTypes'
+import type { ExamFormSavePayload, ExamPaper, SelectedQuestion } from '@/composables/useExamCompose'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import PageHeader from '@/components/PageHeader.vue'
 import CeExamTable from './components/CeExamTable.vue'
@@ -207,7 +200,9 @@ function openEdit(row) {
  * questionsLoaded 语义：编辑态且本次会话已成功回显该卷已有题目时，即使清单为空
  * 也提交批量替换（教师清空所有题目是合法意图）；回显失败则不动该卷已有题目。
  */
-async function save(payload: ExamFormSavePayload = { selectedQuestions: [], questionsLoaded: false }) {
+async function save(
+  payload: ExamFormSavePayload = { selectedQuestions: [], questionsLoaded: false },
+) {
   if (!form.title.trim()) {
     ElMessage.warning('请输入试卷标题')
     return

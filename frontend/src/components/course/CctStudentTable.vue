@@ -26,7 +26,10 @@
       </el-table-column>
       <el-table-column label="平均成绩" width="100" align="center" sortable prop="avgScore">
         <template #default="{ row }">
-          <span class="avg-score" :class="{ 'low-score': row.avgScore != null && row.avgScore < 60 }">
+          <span
+            class="avg-score"
+            :class="{ 'low-score': row.avgScore != null && row.avgScore < 60 }"
+          >
             {{ row.avgScore ?? '—' }}
           </span>
         </template>

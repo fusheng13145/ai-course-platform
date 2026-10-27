@@ -341,7 +341,13 @@ describe('useCourseQuestionBank — 题型/难度实库契约（2026-10-26 F3 �
 
     // 选项 key 全部为实库值，不含旧风格与实库不存在的 CODE
     const typeKeys = mod.TYPE_OPTS.map((o) => o.value)
-    expect(typeKeys).toEqual(['SINGLE_CHOICE', 'MULTIPLE_CHOICE', 'TRUE_FALSE', 'FILL_BLANK', 'ESSAY'])
+    expect(typeKeys).toEqual([
+      'SINGLE_CHOICE',
+      'MULTIPLE_CHOICE',
+      'TRUE_FALSE',
+      'FILL_BLANK',
+      'ESSAY',
+    ])
     expect(mod.DIFF_OPTS.map((o) => o.value)).toEqual(['easy', 'medium', 'hard'])
   })
 

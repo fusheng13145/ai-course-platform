@@ -58,29 +58,29 @@
         <el-form-item prop="email">
           <div class="field">
             <label>注册邮箱</label>
-          <el-input
-            v-model="form.email"
-            placeholder="请输入注册邮箱"
-            :disabled="step > 1"
-            class="auth-input"
-            v-bind="inputA11y('注册邮箱', true)"
-          >
-            <template #prefix
-              ><svg
-                viewBox="0 0 24 24"
-                width="16"
-                height="16"
-                fill="none"
-                stroke="currentColor"
-                stroke-width="1.8"
-                stroke-linecap="round"
-                stroke-linejoin="round"
-              >
-                <path
-                  d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM22 6l-10 7L2 6"
-                /></svg
-            ></template>
-          </el-input>
+            <el-input
+              v-model="form.email"
+              placeholder="请输入注册邮箱"
+              :disabled="step > 1"
+              class="auth-input"
+              v-bind="inputA11y('注册邮箱', true)"
+            >
+              <template #prefix
+                ><svg
+                  viewBox="0 0 24 24"
+                  width="16"
+                  height="16"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="1.8"
+                  stroke-linecap="round"
+                  stroke-linejoin="round"
+                >
+                  <path
+                    d="M4 4h16a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2zM22 6l-10 7L2 6"
+                  /></svg
+              ></template>
+            </el-input>
           </div>
         </el-form-item>
 

@@ -107,7 +107,10 @@ async function mountPage() {
           template: '<div class="alert-stub">{{ title }}</div>',
         },
         // D2-3：空态统一为 EmptyState；桩声明 title，便于断言空态文案是否诚实化
-        EmptyState: { props: ['title', 'desc', 'icon', 'size'], template: '<div class="empty-stub">{{ title }}</div>' },
+        EmptyState: {
+          props: ['title', 'desc', 'icon', 'size'],
+          template: '<div class="empty-stub">{{ title }}</div>',
+        },
       },
       // element-plus 的 loading 指令在全局插件里注册，测试环境需自带，否则 Vue 告警淹没断言
       directives: { loading: { mounted() {}, updated() {} } },

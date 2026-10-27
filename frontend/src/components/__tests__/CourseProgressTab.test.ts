@@ -46,7 +46,8 @@ function mountTab() {
         },
         CptChapterTable: {
           props: ['loading', 'chapterList', 'emptyText'],
-          template: '<div class="table-stub" :data-len="(chapterList || []).length">{{ emptyText }}</div>',
+          template:
+            '<div class="table-stub" :data-len="(chapterList || []).length">{{ emptyText }}</div>',
         },
         CptRingChart: true,
         CptCompareCards: true,

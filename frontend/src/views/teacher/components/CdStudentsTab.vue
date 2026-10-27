@@ -36,7 +36,9 @@
              row 解析到组件级 undefined——既类型错也拿不到真实行的审批状态，FE-10 B3） -->
         <template #default="{ row }">
           <template v-if="row.approvalStatus === 'PENDING'">
-            <el-button text size="small" type="success" @click="emit('approve', row)">通过</el-button>
+            <el-button text size="small" type="success" @click="emit('approve', row)"
+              >通过</el-button
+            >
             <el-button text size="small" type="danger" @click="emit('reject', row)">拒绝</el-button>
           </template>
         </template>

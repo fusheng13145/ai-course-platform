@@ -1,5 +1,12 @@
 <template>
-  <el-form ref="formRef" :model="form" label-width="140px" :rules="rules" class="settings-form" scroll-to-error>
+  <el-form
+    ref="formRef"
+    :model="form"
+    label-width="140px"
+    :rules="rules"
+    class="settings-form"
+    scroll-to-error
+  >
     <el-divider content-position="left"
       ><el-icon><Setting /></el-icon>站点信息</el-divider
     >

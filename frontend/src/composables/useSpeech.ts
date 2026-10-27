@@ -20,12 +20,10 @@ interface SpeechRecognitionLike {
   continuous: boolean
   interimResults: boolean
   onresult:
-    | ((
-        event: {
-          resultIndex: number
-          results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }>
-        },
-      ) => void)
+    | ((event: {
+        resultIndex: number
+        results: ArrayLike<ArrayLike<{ transcript: string }> & { isFinal: boolean }>
+      }) => void)
     | null
   onerror: ((e: { error?: string }) => void) | null
   onend: (() => void) | null

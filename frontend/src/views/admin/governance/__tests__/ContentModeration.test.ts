@@ -111,7 +111,13 @@ describe('ContentModeration 封禁作者确认框（D2-2）', () => {
     expect(options.cancelButtonText).toBe('仅处置内容')
 
     // 关键语义：确认 = 封禁作者 + 继续处置内容
-    expect(mocks.applyAction).toHaveBeenCalledWith('discussion-posts', 7, 'DELETE', 'reason-x', true)
+    expect(mocks.applyAction).toHaveBeenCalledWith(
+      'discussion-posts',
+      7,
+      'DELETE',
+      'reason-x',
+      true,
+    )
   })
 
   it('取消封禁 → 不中止处置，applyAction 收到 banAuthor=false', async () => {
@@ -122,7 +128,13 @@ describe('ContentModeration 封禁作者确认框（D2-2）', () => {
 
     expect(mocks.confirm).toHaveBeenCalledTimes(1)
     // 关键语义：取消 ≠ 放弃处置内容，而是「仅处置内容」
-    expect(mocks.applyAction).toHaveBeenCalledWith('discussion-posts', 7, 'DELETE', 'reason-x', false)
+    expect(mocks.applyAction).toHaveBeenCalledWith(
+      'discussion-posts',
+      7,
+      'DELETE',
+      'reason-x',
+      false,
+    )
   })
 
   it('隐藏（HIDE）同样询问封禁作者，取消则仅隐藏', async () => {

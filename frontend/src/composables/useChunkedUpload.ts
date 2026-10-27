@@ -229,7 +229,11 @@ export function useChunkedUpload() {
         status.value = 'UPLOADING'
         localStorage.setItem(
           key,
-          JSON.stringify({ sessionId: sid, totalChunks: plan.totalChunks, chunkSize: plan.chunkSize }),
+          JSON.stringify({
+            sessionId: sid,
+            totalChunks: plan.totalChunks,
+            chunkSize: plan.chunkSize,
+          }),
         )
       }
 
@@ -253,7 +257,12 @@ export function useChunkedUpload() {
       status.value = row.status ?? 'COMPLETED'
       uploadedChunks.value = plan.totalChunks
       localStorage.removeItem(key)
-      return { sessionId: sid, fileName: file.name, totalChunks: plan.totalChunks, uploadPath: uploadPath.value }
+      return {
+        sessionId: sid,
+        fileName: file.name,
+        totalChunks: plan.totalChunks,
+        uploadPath: uploadPath.value,
+      }
     } catch (err) {
       status.value = 'FAILED'
       error.value = err instanceof Error ? err.message : String(err)

@@ -89,7 +89,9 @@
             show-essence
             enable-course-gate
             :empty-text="
-              loadError ? '话题列表未能加载，请查看上方提示后重试' : '暂无话题，点击「发起讨论」开始吧'
+              loadError
+                ? '话题列表未能加载，请查看上方提示后重试'
+                : '暂无话题，点击「发起讨论」开始吧'
             "
             @load="loadTopics"
             @refresh="loadTopics"

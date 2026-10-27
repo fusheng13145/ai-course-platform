@@ -112,7 +112,9 @@ describe('useListFeedback', () => {
   })
 
   it('toastMessage 缺省时回退为 failMessage', async () => {
-    const { run } = withSetup({ failMessage: '上传会话加载失败，请稍后刷新；已保留上次显示的数据。' })
+    const { run } = withSetup({
+      failMessage: '上传会话加载失败，请稍后刷新；已保留上次显示的数据。',
+    })
     await run(async () => {
       throw new Error('boom')
     })

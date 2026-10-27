@@ -20,11 +20,7 @@
         </el-table-column>
         <el-table-column label="状态" width="92">
           <template #default="{ row }">
-            <el-tag
-              size="small"
-              :type="statusView(row).tagType"
-              effect="light"
-            >
+            <el-tag size="small" :type="statusView(row).tagType" effect="light">
               {{ statusView(row).label }}
             </el-tag>
           </template>

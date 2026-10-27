@@ -35,7 +35,9 @@
         <Collection :size="20" />
       </div>
       <div class="stat-info">
-        <span class="stat-val">{{ loadFailed ? '--' : completedChapters + '/' + totalChapters }}</span>
+        <span class="stat-val">{{
+          loadFailed ? '--' : completedChapters + '/' + totalChapters
+        }}</span>
         <span class="stat-lbl">已完成章节</span>
       </div>
     </div>

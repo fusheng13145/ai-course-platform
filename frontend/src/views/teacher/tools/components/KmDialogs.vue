@@ -1,7 +1,6 @@
 <template>
   <!-- 新建/编辑知识点对话框 -->
   <Modal
-
     :model-value="formDialogVisible"
     :title="isEdit ? '编辑知识点' : '新建知识点'"
     width="560px"
@@ -70,7 +69,6 @@
 
   <!-- 关联关系对话框 -->
   <Modal
-
     :model-value="relationVisible"
     title="管理关联关系"
     width="520px"

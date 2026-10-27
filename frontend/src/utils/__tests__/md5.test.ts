@@ -54,9 +54,7 @@ describe('md5Hex', () => {
 
   it('接受 ArrayBuffer（File.slice 的产物形态）', () => {
     const bytes = randomBytes(4096, 11)
-    expect(md5Hex(bytes.buffer as ArrayBuffer)).toBe(
-      createHash('md5').update(bytes).digest('hex'),
-    )
+    expect(md5Hex(bytes.buffer as ArrayBuffer)).toBe(createHash('md5').update(bytes).digest('hex'))
   })
 
   it('输出固定 32 位小写十六进制', () => {

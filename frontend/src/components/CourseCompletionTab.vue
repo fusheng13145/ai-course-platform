@@ -24,7 +24,9 @@
           </svg>
         </div>
         <div class="stat-info">
-          <span class="stat-val">{{ overview.avgSubmissionRate == null ? '—' : `${overview.avgSubmissionRate}%` }}</span>
+          <span class="stat-val">{{
+            overview.avgSubmissionRate == null ? '—' : `${overview.avgSubmissionRate}%`
+          }}</span>
           <span class="stat-lbl">平均提交率</span>
         </div>
       </div>

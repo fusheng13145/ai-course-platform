@@ -34,9 +34,7 @@
           <button class="act-btn--del" @click="emit('remove', row)">移除</button>
         </template>
       </el-table-column>
-      <template #empty
-        ><EmptyState title="该班级暂无学生" icon="users"
-      /></template>
+      <template #empty><EmptyState title="该班级暂无学生" icon="users" /></template>
     </el-table>
     <!-- D2-5：班级成员无界（大班级数百人），客户端分页仅超一页时出现 -->
     <div v-if="membersShowPager" class="pager-wrap">
@@ -81,9 +79,7 @@
           <button class="act-btn act-btn--approve" @click="emit('add', row)">添加</button>
         </template>
       </el-table-column>
-      <template #empty
-        ><EmptyState title="无可添加学生" icon="users"
-      /></template>
+      <template #empty><EmptyState title="无可添加学生" icon="users" /></template>
     </el-table>
     <!-- D2-5：候选学生为全量学生池（可达数千），客户端分页仅超一页时出现 -->
     <div v-if="candidatesShowPager" class="pager-wrap">

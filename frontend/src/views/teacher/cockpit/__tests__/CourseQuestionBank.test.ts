@@ -83,7 +83,10 @@ function mountPage() {
 }
 
 function statValue(wrapper: Awaited<ReturnType<typeof mountPage>>, label: string) {
-  return wrapper.findAllComponents(StatCard).find((c) => c.props('label') === label)?.props('value')
+  return wrapper
+    .findAllComponents(StatCard)
+    .find((c) => c.props('label') === label)
+    ?.props('value')
 }
 
 describe('CourseQuestionBank — 加载失败可见', () => {

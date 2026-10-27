@@ -64,7 +64,10 @@ function mountPage() {
           template: '<div class="match-table-stub">{{ emptyText }}</div>',
         },
         PcCreateDialog: true,
-        PageHeader: { props: ['title', 'subtitle', 'icon', 'iconBg'], template: '<div><slot /></div>' },
+        PageHeader: {
+          props: ['title', 'subtitle', 'icon', 'iconBg'],
+          template: '<div><slot /></div>',
+        },
         StatCard: {
           props: ['label', 'value', 'icon', 'tone'],
           template: '<div class="sc-stub" :data-label="label">{{ label }}|{{ value }}</div>',
@@ -77,7 +80,10 @@ function mountPage() {
 }
 
 function statValue(wrapper: Awaited<ReturnType<typeof mountPage>>, label: string) {
-  return wrapper.findAllComponents(StatCard).find((c) => c.props('label') === label)?.props('value')
+  return wrapper
+    .findAllComponents(StatCard)
+    .find((c) => c.props('label') === label)
+    ?.props('value')
 }
 
 describe('PlagiarismCheckManage — 加载失败可见', () => {
@@ -109,7 +115,9 @@ describe('PlagiarismCheckManage — 加载失败可见', () => {
     const wrapper = mountPage()
     await flushPromises()
 
-    await wrapper.findComponent(PcTaskTable).vm.$emit('view-detail', { id: 7, assignmentTitle: '作业A' })
+    await wrapper
+      .findComponent(PcTaskTable)
+      .vm.$emit('view-detail', { id: 7, assignmentTitle: '作业A' })
     await flushPromises()
 
     expect(wrapper.find('.alert-stub').exists()).toBe(true)

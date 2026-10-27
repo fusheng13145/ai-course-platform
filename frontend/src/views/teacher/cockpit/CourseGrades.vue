@@ -22,9 +22,7 @@
         :policy="policy"
         :report="report"
         :report-loading="reportLoading"
-        :empty-text="
-          reportError ? '成绩报告未能加载，请查看上方提示后重试' : '暂无学生成绩'
-        "
+        :empty-text="reportError ? '成绩报告未能加载，请查看上方提示后重试' : '暂无学生成绩'"
         :policy-empty-text="
           policyError ? '成绩方案未能加载，请查看上方提示后重试' : '该课程尚未配置成绩方案'
         "

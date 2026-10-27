@@ -38,7 +38,7 @@ describe('暗色 scrim 可见性', () => {
     // 不是页面基底 --bg；拿 --bg 当探针会把"洞外压暗不可见"误判成 scrim 不够黑。
     for (const name of ['surface', 'sidebar-bg-end']) {
       const raw = varOf(dark, name) ?? varOf(css, name)
-      const body = raw ? rgb(raw) ?? hex(raw) : null
+      const body = raw ? (rgb(raw) ?? hex(raw)) : null
       expect(body, `底色变量解析失败：--${name}=${raw}`).not.toBeNull()
       const delta = deltaOver(body)
       expect(delta, `--${name} 上合成后只差 ${delta}/255，阈值 24`).toBeGreaterThanOrEqual(24)

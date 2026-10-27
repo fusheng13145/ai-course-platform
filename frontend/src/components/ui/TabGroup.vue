@@ -4,7 +4,9 @@ import { sanitizeHtml } from '@/utils/sanitize'
 
 const props = defineProps({
   tabs: {
-    type: Array as PropType<{ key: string; label: string; icon?: string; badge?: string | number }[]>,
+    type: Array as PropType<
+      { key: string; label: string; icon?: string; badge?: string | number }[]
+    >,
     required: true,
   }, // [{key, label, icon, badge}]
   active: { type: String, default: '' },

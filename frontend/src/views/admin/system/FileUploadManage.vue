@@ -28,7 +28,8 @@
         <div>
           <h3 class="l1-title">本地文件分片上传</h3>
           <p class="l1-sub">
-            选文件后按分片大小切片，每片带前端实算的 MD5 由服务端逐片比对；中断后用「按磁盘真值续传」补齐服务端报告的缺失分片
+            选文件后按分片大小切片，每片带前端实算的 MD5
+            由服务端逐片比对；中断后用「按磁盘真值续传」补齐服务端报告的缺失分片
           </p>
         </div>
       </div>
@@ -76,7 +77,9 @@
           >
             {{ status === 'FAILED' ? '按磁盘真值续传' : '开始上传' }}
           </el-button>
-          <el-button v-if="isUploading" type="danger" @click="cancelUploadFlow">取消本次上传</el-button>
+          <el-button v-if="isUploading" type="danger" @click="cancelUploadFlow"
+            >取消本次上传</el-button
+          >
         </div>
 
         <div class="upload-state">
@@ -182,11 +185,7 @@
                   >
                     <el-icon><Connection /></el-icon>合并
                   </el-button>
-                  <el-button
-                    size="small"
-                    type="danger"
-                    @click="handleCancel(row)"
-                  >
+                  <el-button size="small" type="danger" @click="handleCancel(row)">
                     <el-icon><Close /></el-icon>取消
                   </el-button>
                 </template>
@@ -213,12 +212,7 @@
     </section>
 
     <!-- 进度弹窗 -->
-    <Modal
-      v-model="progressVisible"
-      title="上传进度"
-      width="520px"
-      @closed="stopProgressPolling"
-    >
+    <Modal v-model="progressVisible" title="上传进度" width="520px" @closed="stopProgressPolling">
       <div v-if="currentSession" class="progress-detail">
         <p><strong>文件：</strong>{{ currentSession.fileName || '未知' }}</p>
         <p><strong>大小：</strong>{{ formatSize(currentSession.fileSize) }}</p>

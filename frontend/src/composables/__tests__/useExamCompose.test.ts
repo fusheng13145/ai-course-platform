@@ -154,7 +154,9 @@ describe('useExamCompose - 勾选与合计', () => {
   it('questionContentOf：content 为主，stem/title 兜底，空返回空串', () => {
     expect(questionContentOf(makeQuestion({ content: '主题干', stem: '旧题干' }))).toBe('主题干')
     expect(questionContentOf(makeQuestion({ content: null, stem: '旧题干' }))).toBe('旧题干')
-    expect(questionContentOf(makeQuestion({ content: null, stem: null, title: '标题' }))).toBe('标题')
+    expect(questionContentOf(makeQuestion({ content: null, stem: null, title: '标题' }))).toBe(
+      '标题',
+    )
     expect(questionContentOf(makeQuestion({ content: '', stem: '', title: '' }))).toBe('')
     expect(questionContentOf(null)).toBe('')
   })
@@ -245,7 +247,9 @@ describe('useExamCompose - 自动组卷', () => {
 
     expect(paper?.id).toBe(88)
     expect(formId.value).toBe(88)
-    expect(message.warning).toHaveBeenCalledWith('自动组卷完成，但题目清单回显失败，请重新打开该试卷查看')
+    expect(message.warning).toHaveBeenCalledWith(
+      '自动组卷完成，但题目清单回显失败，请重新打开该试卷查看',
+    )
   })
 })
 
@@ -255,7 +259,10 @@ describe('useExamCompose - reset', () => {
   })
 
   it('reset：清空题库/勾选/筛选/页码', async () => {
-    mocks.getQuestionList.mockResolvedValue({ code: 200, data: { records: [makeQuestion({})], total: 1 } })
+    mocks.getQuestionList.mockResolvedValue({
+      code: 200,
+      data: { records: [makeQuestion({})], total: 1 },
+    })
     const { compose } = setup()
     await compose.loadBank()
     compose.toggleQuestion(makeQuestion({ id: 1 }))

@@ -106,11 +106,7 @@
     </section>
 
     <!-- 新建/编辑弹窗 -->
-    <Modal
-      v-model="dialogVisible"
-      :title="isEdit ? '编辑提醒' : '新建提醒'"
-      width="520px"
-    >
+    <Modal v-model="dialogVisible" :title="isEdit ? '编辑提醒' : '新建提醒'" width="520px">
       <el-form ref="formRef" :model="form" :rules="rules" label-width="80px" scroll-to-error>
         <el-form-item label="标题" prop="title">
           <el-input v-model="form.title" placeholder="提醒标题" />
@@ -163,7 +159,13 @@ const completedCount = computed(() => todos.value.filter((t) => t.status === 'CO
 const dialogVisible = ref(false)
 const isEdit = ref(false)
 // id 仅编辑态存在（loadTodos 回填行数据时写入）；其余字段与新建表单同形
-const form = ref<{ id?: number | string; title: string; content: string; remindAt: null; targetUserId: string }>({ title: '', content: '', remindAt: null, targetUserId: '' })
+const form = ref<{
+  id?: number | string
+  title: string
+  content: string
+  remindAt: null
+  targetUserId: string
+}>({ title: '', content: '', remindAt: null, targetUserId: '' })
 const formRef = ref<ElFormLike | null>(null)
 // D2-4：必填规则声明（原为手写 if 校验），blur 内联错误 + 提交时首错滚动定位
 const rules = {

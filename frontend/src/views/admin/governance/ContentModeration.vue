@@ -15,7 +15,14 @@
       title="处置口径：隐藏可恢复（学生/教师视角立即不可见，管理员仍可见）；删除为物理删、不可恢复（讨论回复会连同其楼中楼一并删除）；封禁作者等于停用该账号，立即无法登录（不是「仅禁止发帖」）。处置动作由操作日志自动留痕。"
     />
 
-    <el-alert v-if="loadError" class="note" type="error" :closable="false" show-icon :title="loadError" />
+    <el-alert
+      v-if="loadError"
+      class="note"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="loadError"
+    />
     <el-alert
       v-if="actionError"
       class="note"
@@ -293,17 +300,13 @@ async function onAction(
 
   let reason = ''
   try {
-    const res = await ElMessageBox.prompt(
-      `${warn}\n处置对象：${rowLabel(row)}`,
-      `确认${verb}`,
-      {
-        confirmButtonText: `确认${verb}`,
-        cancelButtonText: '取消',
-        inputPlaceholder: '处置原因（可选，建议填写）',
-        inputValue: '',
-        type: action === 'DELETE' ? 'warning' : 'info',
-      },
-    )
+    const res = await ElMessageBox.prompt(`${warn}\n处置对象：${rowLabel(row)}`, `确认${verb}`, {
+      confirmButtonText: `确认${verb}`,
+      cancelButtonText: '取消',
+      inputPlaceholder: '处置原因（可选，建议填写）',
+      inputValue: '',
+      type: action === 'DELETE' ? 'warning' : 'info',
+    })
     reason = String(res.value ?? '')
   } catch {
     return // 用户取消

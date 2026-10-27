@@ -180,7 +180,9 @@ export function useExamPapers() {
       try {
         const r = await examApi.getExamQuestions(row.id)
         const body = unwrap(r)
-        examQuestions.value = (Array.isArray(body) ? body : body?.list || body?.records || []) as typeof examQuestions.value
+        examQuestions.value = (
+          Array.isArray(body) ? body : body?.list || body?.records || []
+        ) as typeof examQuestions.value
       } catch (e) {
         logger.error('加载题目失败', e)
         examQuestions.value = []

@@ -1,6 +1,5 @@
 <template>
   <Modal
-
     :model-value="modelValue"
     :title="isEdit ? '编辑试卷' : '创建试卷'"
     width="720px"

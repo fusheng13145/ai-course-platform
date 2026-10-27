@@ -118,7 +118,12 @@
             </template>
           </el-table>
         </div>
-        <EmptyState v-else title="请先选择资源" desc="在上方资源下拉框选择后查看版本" icon="folder" />
+        <EmptyState
+          v-else
+          title="请先选择资源"
+          desc="在上方资源下拉框选择后查看版本"
+          icon="folder"
+        />
       </div>
     </section>
 
@@ -358,5 +363,4 @@ onMounted(loadResources)
   gap: 10px;
   flex-wrap: wrap;
 }
-
 </style>

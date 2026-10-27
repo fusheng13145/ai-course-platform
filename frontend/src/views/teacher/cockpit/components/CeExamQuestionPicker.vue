@@ -66,7 +66,8 @@
     <!-- 合计行 + 分页 -->
     <div class="picker-foot">
       <span class="picked-summary">
-        已选 <b>{{ selected.length }}</b> 题，合计 <b class="picked-total">{{ selectedTotal }}</b> 分
+        已选 <b>{{ selected.length }}</b> 题，合计
+        <b class="picked-total">{{ selectedTotal }}</b> 分
       </span>
       <el-pagination
         v-if="total > pageSize"

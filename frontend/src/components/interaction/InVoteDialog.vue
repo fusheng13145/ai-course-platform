@@ -1,7 +1,6 @@
 <template>
   <!-- 发起投票 -->
   <Modal
-
     :model-value="modelValue"
     title="发起投票"
     width="520px"
@@ -65,7 +64,6 @@ defineProps({
   submitting: { type: Boolean, default: false },
 })
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-
 
 defineEmits(['update:modelValue', 'submit'])
 </script>

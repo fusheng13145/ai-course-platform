@@ -88,7 +88,10 @@ async function loadWeak() {
     const r = await aiApi.weakPointsAnalysis({ courseId: props.courseId })
     const body = unwrap(r)
     const data = unwrap(body) || {}
-    weakPoints.value = (data.weakPoints || data.list || data.points || []) as typeof weakPoints.value
+    weakPoints.value = (data.weakPoints ||
+      data.list ||
+      data.points ||
+      []) as typeof weakPoints.value
     weakStats.value = data.userStats || data.stats || null
     weakSummary.value = String(data.summary || '')
   } catch (e) {

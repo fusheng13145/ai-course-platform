@@ -1,6 +1,5 @@
 <template>
   <Modal
-   
     :model-value="modelValue"
     title="总评预览"
     width="420px"

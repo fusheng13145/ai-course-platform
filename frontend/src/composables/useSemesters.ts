@@ -50,7 +50,9 @@ export function useSemesters() {
   const submitting = ref(false)
 
   const activeCount = computed(() => semesters.value.filter((s) => s.status === 'ACTIVE').length)
-  const archivedCount = computed(() => semesters.value.filter((s) => s.status === 'ARCHIVED').length)
+  const archivedCount = computed(
+    () => semesters.value.filter((s) => s.status === 'ARCHIVED').length,
+  )
 
   async function list() {
     loading.value = true
@@ -106,7 +108,9 @@ export function useSemesters() {
     submitting.value = true
     actionError.value = ''
     try {
-      const res = (await adminApi.archiveExpiredSemesters()) as { data?: { archivedCount?: number } }
+      const res = (await adminApi.archiveExpiredSemesters()) as {
+        data?: { archivedCount?: number }
+      }
       const count = res?.data?.archivedCount ?? 0
       await list()
       return count

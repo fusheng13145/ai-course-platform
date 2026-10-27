@@ -77,28 +77,28 @@
           class="it-tabs"
           @change="activeTab = $event"
         />
-          <!-- 签到 -->
-          <div v-show="activeTab === 'signin'">
-            <CiSignTable
-              :data="signIns"
-              :empty-text="signError ? '签到记录未能加载，请查看上方提示后重试' : '暂无签到'"
-              @open-sign="openSignInDialog"
-              @publish="publish"
-              @close="closeSignIn"
-              @open-records="openRecords"
-            />
-          </div>
+        <!-- 签到 -->
+        <div v-show="activeTab === 'signin'">
+          <CiSignTable
+            :data="signIns"
+            :empty-text="signError ? '签到记录未能加载，请查看上方提示后重试' : '暂无签到'"
+            @open-sign="openSignInDialog"
+            @publish="publish"
+            @close="closeSignIn"
+            @open-records="openRecords"
+          />
+        </div>
 
-          <!-- 投票 -->
-          <div v-show="activeTab === 'vote'">
-            <CiVoteTable
-              :data="votes"
-              :empty-text="voteError ? '投票记录未能加载，请查看上方提示后重试' : '暂无投票'"
-              @open-vote="openVoteDialog"
-              @close="closeVote"
-              @open-result="openVoteResult"
-            />
-          </div>
+        <!-- 投票 -->
+        <div v-show="activeTab === 'vote'">
+          <CiVoteTable
+            :data="votes"
+            :empty-text="voteError ? '投票记录未能加载，请查看上方提示后重试' : '暂无投票'"
+            @open-vote="openVoteDialog"
+            @close="closeVote"
+            @open-result="openVoteResult"
+          />
+        </div>
       </div>
     </section>
 

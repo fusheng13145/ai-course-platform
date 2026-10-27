@@ -81,9 +81,7 @@ describe('CourseTasks — 加载失败可见', () => {
 
     expect(wrapper.find('.alert-stub').exists()).toBe(true)
     expect(wrapper.text()).toContain('任务列表加载失败，请检查网络后重试')
-    expect(wrapper.get('.empty-stub').text()).toContain(
-      '任务列表未能加载，请查看上方提示后重试',
-    )
+    expect(wrapper.get('.empty-stub').text()).toContain('任务列表未能加载，请查看上方提示后重试')
     expect(wrapper.text()).not.toContain('暂无任务，点击右上角新建')
     expect(wrapper.find('.tbl-stub').exists()).toBe(false)
   })

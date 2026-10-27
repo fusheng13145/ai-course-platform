@@ -78,8 +78,7 @@
     </div>
 
     <Modal
-
-    v-model="taskDialogVisible"
+      v-model="taskDialogVisible"
       :title="editingTask ? '编辑作业' : '创建作业'"
       width="600px"
       append-to-body

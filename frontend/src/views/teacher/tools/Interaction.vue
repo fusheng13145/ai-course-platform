@@ -44,40 +44,36 @@
           class="inter-tabs"
           @change="activeTab = $event"
         />
-          <!-- 签到 -->
-          <div v-show="activeTab === 'sign'">
-            <InSignPanel
-              :sign-list="signList"
-              :sign-loading="signLoading"
-              :empty-text="
-                signError
-                  ? '签到记录未能加载，请查看上方提示后重试'
-                  : '暂无签到，点击「发起签到」'
-              "
-              @open-sign="openSignInDialog"
-              @refresh="loadSignInList"
-              @open-records="openRecords"
-              @publish="handlePublish"
-              @close="handleCloseSignIn"
-            />
-          </div>
+        <!-- 签到 -->
+        <div v-show="activeTab === 'sign'">
+          <InSignPanel
+            :sign-list="signList"
+            :sign-loading="signLoading"
+            :empty-text="
+              signError ? '签到记录未能加载，请查看上方提示后重试' : '暂无签到，点击「发起签到」'
+            "
+            @open-sign="openSignInDialog"
+            @refresh="loadSignInList"
+            @open-records="openRecords"
+            @publish="handlePublish"
+            @close="handleCloseSignIn"
+          />
+        </div>
 
-          <!-- 投票 -->
-          <div v-show="activeTab === 'vote'">
-            <InVotePanel
-              :vote-list="voteList"
-              :vote-loading="voteLoading"
-              :empty-text="
-                voteError
-                  ? '投票记录未能加载，请查看上方提示后重试'
-                  : '暂无投票，点击「发起投票」'
-              "
-              @open-vote="openVoteDialog"
-              @refresh="loadVoteList"
-              @open-result="openResult"
-              @close="handleCloseVote"
-            />
-          </div>
+        <!-- 投票 -->
+        <div v-show="activeTab === 'vote'">
+          <InVotePanel
+            :vote-list="voteList"
+            :vote-loading="voteLoading"
+            :empty-text="
+              voteError ? '投票记录未能加载，请查看上方提示后重试' : '暂无投票，点击「发起投票」'
+            "
+            @open-vote="openVoteDialog"
+            @refresh="loadVoteList"
+            @open-result="openResult"
+            @close="handleCloseVote"
+          />
+        </div>
       </template>
     </div>
 

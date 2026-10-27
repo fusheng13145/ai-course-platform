@@ -85,9 +85,7 @@ const selectedTask = ref(null)
  */
 const tasksError = ref('')
 const matchesError = ref('')
-const loadError = computed(() =>
-  [tasksError.value, matchesError.value].filter(Boolean).join('；'),
-)
+const loadError = computed(() => [tasksError.value, matchesError.value].filter(Boolean).join('；'))
 
 // 分页
 const taskPage = reactive({ page: 1, size: 10, total: 0 })

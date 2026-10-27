@@ -62,7 +62,8 @@ export interface UseStudentAssignmentsOptions {
 
 /** 归一化附件字段：兼容 JSON 数组字符串 / 逗号分隔 / 数组（与教师端 normalizeFileUrls 同口径） */
 export function normalizeAttachmentUrls(value: unknown): string[] {
-  if (Array.isArray(value)) return value.filter((item): item is string => typeof item === 'string' && item.trim() !== '')
+  if (Array.isArray(value))
+    return value.filter((item): item is string => typeof item === 'string' && item.trim() !== '')
   if (typeof value !== 'string' || !value.trim()) return []
   const raw = value.trim()
   try {
@@ -104,9 +105,9 @@ export function useStudentAssignments(options: UseStudentAssignmentsOptions) {
     const taskId = Number(task.id)
     const submission = latestSubmissionByTask(taskId)
     const rawStatus = String((submission?.status as string) || '').toUpperCase()
-    const status = (submission && rawStatus in STUDENT_ASSIGNMENT_STATUS_LABELS
-      ? rawStatus
-      : 'NOT_SUBMITTED') as StudentAssignmentRow['status']
+    const status = (
+      submission && rawStatus in STUDENT_ASSIGNMENT_STATUS_LABELS ? rawStatus : 'NOT_SUBMITTED'
+    ) as StudentAssignmentRow['status']
     return {
       taskId,
       title: String(task.title ?? `任务 #${taskId}`),
@@ -132,9 +133,7 @@ export function useStudentAssignments(options: UseStudentAssignmentsOptions) {
 
   const rows: ComputedRef<StudentAssignmentRow[]> = computed(() =>
     // 仅展示已发布任务；isPublished 缺失时按发布处理（兼容历史数据）
-    tasks.value
-      .filter((task) => task.isPublished !== false)
-      .map((task) => toRow(task)),
+    tasks.value.filter((task) => task.isPublished !== false).map((task) => toRow(task)),
   )
 
   /** 加载任务列表 + 我的全部提交 */
@@ -198,7 +197,7 @@ export function useStudentAssignments(options: UseStudentAssignmentsOptions) {
         const res = await commonApi.uploadFile(file)
         const data = unwrap<Record<string, string> | string>(res)
         const url =
-          typeof data === 'string' ? data : ((data?.url as string) || (data?.fileUrl as string) || '')
+          typeof data === 'string' ? data : (data?.url as string) || (data?.fileUrl as string) || ''
         if (url) submitModal.form.fileUrls.push(url)
       }
       ElMessage.success('附件上传成功')

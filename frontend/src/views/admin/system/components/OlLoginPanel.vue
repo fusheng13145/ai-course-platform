@@ -228,6 +228,4 @@ onMounted(() => {
 .status-dot--fail i {
   background: var(--accent);
 }
-
-
 </style>

@@ -69,7 +69,10 @@ describe('CduAssignmentTab - 学生作业任务页签（S1/S2 最小面）', () 
     expect(buttons.filter((text) => text === '提交作业')).toHaveLength(0)
     expect(buttons.filter((text) => text === '重新提交')).toHaveLength(1)
 
-    await wrapper.findAll('button').find((b) => b.text() === '重新提交')!.trigger('click')
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === '重新提交')!
+      .trigger('click')
     await flushPromises()
     expect(wrapper.find('.modal-stub').exists()).toBe(true)
     expect(wrapper.text()).toContain('作答内容')
@@ -80,7 +83,10 @@ describe('CduAssignmentTab - 学生作业任务页签（S1/S2 最小面）', () 
   it('空内容提交被拦截，不发起请求', async () => {
     const wrapper = mountTab()
     await flushPromises()
-    await wrapper.findAll('button').find((b) => b.text() === '重新提交')!.trigger('click')
+    await wrapper
+      .findAll('button')
+      .find((b) => b.text() === '重新提交')!
+      .trigger('click')
     await flushPromises()
 
     const confirm = wrapper.findAll('button').find((b) => b.text() === '确认提交')!

@@ -96,14 +96,10 @@ const { loading, loadError, list, showTable, avgScore, rankDisplay, groupedByCou
 // D2-1：双态空文案下传给子面板——加载失败时不得把「失败」显示成
 // 「暂无成绩记录 / 暂无考试记录 / 选课不足」，让学生误判自己没考过试。
 const LOAD_FAILED_TEXT = '成绩数据未能加载，请查看上方提示后重试'
-const gradesEmptyText = computed(() =>
-  loadError.value ? LOAD_FAILED_TEXT : '暂无成绩记录',
-)
+const gradesEmptyText = computed(() => (loadError.value ? LOAD_FAILED_TEXT : '暂无成绩记录'))
 const trendEmptyText = computed(() => (loadError.value ? LOAD_FAILED_TEXT : '暂无考试记录'))
 const radarEmptyText = computed(() =>
-  loadError.value
-    ? LOAD_FAILED_TEXT
-    : '选课不足（至少3门），暂无法生成多维对比分析',
+  loadError.value ? LOAD_FAILED_TEXT : '选课不足（至少3门），暂无法生成多维对比分析',
 )
 
 const route = useRoute()

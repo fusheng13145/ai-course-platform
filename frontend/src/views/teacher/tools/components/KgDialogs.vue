@@ -1,7 +1,6 @@
 <template>
   <!-- 新建/编辑知识点 -->
   <Modal
-
     :model-value="formDialog"
     :title="isEdit ? '编辑知识点' : '新建知识点'"
     width="520px"
@@ -41,7 +40,6 @@
 
   <!-- AI 抽取 -->
   <Modal
-
     :model-value="extractDialog"
     title="AI 抽取知识点"
     width="620px"
@@ -124,7 +122,6 @@ defineProps({
 })
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-
 
 const emit = defineEmits([
   'update:formDialog',

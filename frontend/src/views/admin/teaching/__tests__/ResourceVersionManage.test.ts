@@ -70,7 +70,10 @@ function mountPage() {
           props: ['title', 'desc', 'icon', 'size'],
           template: '<div class="empty-stub">{{ title }}</div>',
         },
-        PageHeader: { props: ['title', 'subtitle', 'icon', 'iconBg'], template: '<div><slot /></div>' },
+        PageHeader: {
+          props: ['title', 'subtitle', 'icon', 'iconBg'],
+          template: '<div><slot /></div>',
+        },
         StatCard: {
           props: ['label', 'value', 'icon', 'tone'],
           template: '<div class="sc-stub" :data-label="label">{{ label }}|{{ value }}</div>',
@@ -83,7 +86,10 @@ function mountPage() {
 }
 
 function statValue(wrapper: Awaited<ReturnType<typeof mountPage>>, label: string) {
-  return wrapper.findAllComponents(StatCard).find((c) => c.props('label') === label)?.props('value')
+  return wrapper
+    .findAllComponents(StatCard)
+    .find((c) => c.props('label') === label)
+    ?.props('value')
 }
 
 /** 选中资源（id=101）并触发版本加载 */

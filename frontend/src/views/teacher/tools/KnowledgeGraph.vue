@@ -54,11 +54,7 @@
               <el-button size="small" :loading="engineSyncing" @click="syncKnowledgeGraphEngine">
                 <el-icon><Refresh /></el-icon>同步到图谱引擎
               </el-button>
-              <el-button
-                size="small"
-                :loading="engineSubGraphLoading"
-                @click="loadEngineSubGraph"
-              >
+              <el-button size="small" :loading="engineSubGraphLoading" @click="loadEngineSubGraph">
                 <el-icon><DataLine /></el-icon>查看引擎子图
               </el-button>
             </div>
@@ -94,7 +90,9 @@
             >
               来源：{{ engineModeText(engineSubGraphMode) }}
             </el-tag>
-            <span v-if="engineSubGraphNote" class="engine-note-inline">{{ engineSubGraphNote }}</span>
+            <span v-if="engineSubGraphNote" class="engine-note-inline">{{
+              engineSubGraphNote
+            }}</span>
           </div>
         </section>
 

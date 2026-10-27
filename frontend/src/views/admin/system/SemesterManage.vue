@@ -1,10 +1,6 @@
 <template>
   <div>
-    <PageHeader
-      title="学期管理"
-      subtitle="创建学期 · 归档过期学期（治理维度）"
-      icon="calendar"
-    />
+    <PageHeader title="学期管理" subtitle="创建学期 · 归档过期学期（治理维度）" icon="calendar" />
 
     <!-- 口径声明：必须常驻，避免把"归档"误读成"冻结课程" -->
     <el-alert
@@ -15,7 +11,14 @@
       title="学期表与课程归属尚未绑定：courses.semester 仍是自由文本列，归档只改变学期自身的状态与列表分组，不会冻结或改动任何课程。"
     />
 
-    <el-alert v-if="loadError" class="note" type="error" :closable="false" show-icon :title="loadError" />
+    <el-alert
+      v-if="loadError"
+      class="note"
+      type="error"
+      :closable="false"
+      show-icon
+      :title="loadError"
+    />
     <el-alert
       v-if="actionError"
       class="note"

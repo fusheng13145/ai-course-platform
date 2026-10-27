@@ -279,6 +279,4 @@ onMounted(() => {
   background: rgba(59, 130, 246, 0.08);
   transform: translateY(-1px);
 }
-
-
 </style>

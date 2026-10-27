@@ -100,7 +100,9 @@ export interface UseSubmissionGradingOptions {
 /**
  * 解析 AI 建议失败安全：任何字段缺失/类型不符都静默降级，绝不抛异常。
  */
-export function parseAiSuggestion(submission: Partial<Submission> | null | undefined): AiSuggestionResult | null {
+export function parseAiSuggestion(
+  submission: Partial<Submission> | null | undefined,
+): AiSuggestionResult | null {
   if (!submission) return null
   let suggestedScore: number | null = null
   let highlights = ''

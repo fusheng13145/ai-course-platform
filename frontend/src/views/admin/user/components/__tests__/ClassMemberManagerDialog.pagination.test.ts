@@ -33,7 +33,8 @@ const stubs = {
   'el-pagination': {
     props: ['total', 'pageSize', 'currentPage'],
     emits: ['current-change'],
-    template: '<div class="pager-stub" :data-total="total" @click="$emit(\'current-change\', 3)" />',
+    template:
+      '<div class="pager-stub" :data-total="total" @click="$emit(\'current-change\', 3)" />',
   },
   EmptyState: { props: ['title'], template: '<div class="empty-stub">{{ title }}</div>' },
 }
@@ -54,7 +55,10 @@ function mountDialog(props = {}) {
 
 describe('ClassMemberManagerDialog — D2-5 双表分页', () => {
   it('两表均 ≤20：全量渲染且无分页器', () => {
-    const wrapper = mountDialog({ studentList: makeRows(8, 'M'), filteredCandidates: makeRows(12, 'C') })
+    const wrapper = mountDialog({
+      studentList: makeRows(8, 'M'),
+      filteredCandidates: makeRows(12, 'C'),
+    })
     const counts = wrapper.findAll('.tbl-count')
     expect(counts[0].text()).toBe('8')
     expect(counts[1].text()).toBe('12')

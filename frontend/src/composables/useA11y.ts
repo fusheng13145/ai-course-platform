@@ -36,7 +36,10 @@ export function inputA11y(label, required = false, errorId = '') {
  *   el-button / 原生 button 的 attribute 对象（v-bind 展开）；
  *   aria-busy 取字面量联合而非 string，避免原生 button 的属性类型不兼容
  */
-export function buttonA11y(label: string, loading = false): { 'aria-label': string; 'aria-busy': 'true' | 'false' } {
+export function buttonA11y(
+  label: string,
+  loading = false,
+): { 'aria-label': string; 'aria-busy': 'true' | 'false' } {
   return {
     'aria-label': label,
     'aria-busy': loading ? 'true' : 'false',

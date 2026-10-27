@@ -41,11 +41,9 @@ import { track, unmountTracked } from './helpers/trackMount'
 const Host = defineComponent({
   setup() {
     return () =>
-      h(
-        'div',
-        { style: 'transform: translateY(0px); height: 300px; overflow: hidden' },
-        [h(Modal, { modelValue: true }, { title: () => '标题' })],
-      )
+      h('div', { style: 'transform: translateY(0px); height: 300px; overflow: hidden' }, [
+        h(Modal, { modelValue: true }, { title: () => '标题' }),
+      ])
   },
 })
 
@@ -115,7 +113,10 @@ describe('Modal Teleport 行为', () => {
      * `SyntaxError: Duplicate attribute`，用例根本不跑（第一轮记为 M8 并作废，`acecd4a` 提交信息里也写了这条）。
      */
     const times = (el: Element, token: string) =>
-      el.getAttribute('class')!.split(/\s+/).filter((c) => c === token).length
+      el
+        .getAttribute('class')!
+        .split(/\s+/)
+        .filter((c) => c === token).length
     // .overlay：自己的类与透传的类各一份，没有第二遍。
     expect(times(overlay!, 'overlay')).toBe(1)
     expect(times(overlay!, 'extra-cls')).toBe(1)

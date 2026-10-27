@@ -1,6 +1,5 @@
 <template>
   <Modal
-   
     :model-value="modelValue"
     :title="policyForm.id ? '编辑成绩方案' : '新建成绩方案'"
     width="560px"

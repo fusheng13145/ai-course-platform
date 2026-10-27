@@ -27,7 +27,11 @@
           <template #default="{ row }">{{ row.pendingGrading ?? '--' }}</template>
         </el-table-column>
       </el-table>
-      <EmptyState v-if="!loading && completionTable.length === 0" title="暂无课程完成数据" icon="chart" />
+      <EmptyState
+        v-if="!loading && completionTable.length === 0"
+        title="暂无课程完成数据"
+        icon="chart"
+      />
     </div>
   </div>
 </template>

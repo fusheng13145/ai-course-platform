@@ -79,7 +79,13 @@ export function useSystemHealth() {
     const h = health.value
     const py = h.pythonServices ?? {}
     const headerRows: EngineHealthRow[] = [
-      { key: 'database', label: '数据库', status: textOf(h.database), tone: toneOf(h.database), detail: '' },
+      {
+        key: 'database',
+        label: '数据库',
+        status: textOf(h.database),
+        tone: toneOf(h.database),
+        detail: '',
+      },
       { key: 'redis', label: 'Redis', status: textOf(h.redis), tone: toneOf(h.redis), detail: '' },
     ]
     const engineRows = PY_ENGINES.map<EngineHealthRow>((e) => {

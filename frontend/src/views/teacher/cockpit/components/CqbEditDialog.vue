@@ -1,7 +1,6 @@
 <template>
   <!-- 新建 / 编辑 对话框 -->
   <Modal
-   
     :model-value="modelValue"
     :title="editing ? '编辑题目' : '新建题目'"
     width="560px"

@@ -79,7 +79,12 @@ describe('AcAdvicePanel 失败反馈双态（D2-1）', () => {
 
   it('加载成功且有数据：渲染建议条目，不显示空态', async () => {
     learningAdvice.mockResolvedValue({
-      data: { data: { summary: '总体良好', items: [{ level: 'HIGH', title: '矩阵运算', detail: '偏弱' }] } },
+      data: {
+        data: {
+          summary: '总体良好',
+          items: [{ level: 'HIGH', title: '矩阵运算', detail: '偏弱' }],
+        },
+      },
     })
     const wrapper = mountPanel(AcAdvicePanel)
     await flushPromises()

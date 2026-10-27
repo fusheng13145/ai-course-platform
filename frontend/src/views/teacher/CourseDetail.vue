@@ -79,12 +79,7 @@
     <!-- 主 Tab 区（P4-MIG-07：el-tabs→TabGroup；12 组 pane 内容 v-show 等价全挂载隐藏，
          原 .main-tabs 卡片样式承载于容器 div——原 el-tabs 根即卡片盒） -->
     <div class="main-tabs">
-      <TabGroup
-        :tabs="MAIN_TABS"
-        :active="activeTab"
-        variant="line"
-        @change="activeTab = $event"
-      />
+      <TabGroup :tabs="MAIN_TABS" :active="activeTab" variant="line" @change="activeTab = $event" />
       <div v-show="activeTab === 'info'">
         <CdInfoTab
           :course="course"
@@ -94,14 +89,18 @@
         />
       </div>
       <div v-show="activeTab === 'progress'"><CourseProgressTab :course-id="course.id" /></div>
-      <div v-show="activeTab === 'learningStatus'"><CourseLearningStatusTab :course-id="course.id" /></div>
+      <div v-show="activeTab === 'learningStatus'">
+        <CourseLearningStatusTab :course-id="course.id" />
+      </div>
       <div v-show="activeTab === 'chapters'">
         <CdChaptersTab
           :chapters="chapters"
           :chapters-loading="chaptersLoading"
           :drag-changed="dragChanged"
           :saving-order="savingOrder"
-          :empty-text="chaptersError ? '章节列表未能加载，请查看上方提示后重试' : '暂无章节，点击上方添加'"
+          :empty-text="
+            chaptersError ? '章节列表未能加载，请查看上方提示后重试' : '暂无章节，点击上方添加'
+          "
           @add="showAddChapterDialog"
           @edit="editChapter"
           @delete="deleteChapter"

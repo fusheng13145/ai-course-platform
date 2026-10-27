@@ -1,7 +1,6 @@
 <template>
   <!-- 话题详情 -->
   <Modal
-
     :model-value="modelValue"
     :title="currentTopic?.title || '话题详情'"
     width="680px"

@@ -48,7 +48,10 @@ describe('useCourseCompletionTab pagination and attempt aggregation', () => {
       { studentId: 13, isActive: true, approvalStatus: 'PENDING' },
     ])
     mocks.getTeacherStudents.mockResolvedValue({
-      data: [{ id: 11, fullName: '林一' }, { id: 12, username: 'stu12' }],
+      data: [
+        { id: 11, fullName: '林一' },
+        { id: 12, username: 'stu12' },
+      ],
     })
     mocks.getAllTaskSubmissions.mockResolvedValue([
       { id: 101, studentId: 11, attemptNumber: 1, status: 'GRADED', score: '80' },

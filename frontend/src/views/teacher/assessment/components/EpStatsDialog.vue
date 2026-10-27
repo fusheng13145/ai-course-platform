@@ -3,7 +3,6 @@
   <!-- v-loading 不能绑在 <Modal> 上：弹层内容在 teleport 的非元素根上，运行时指令无处安放
        （Vue 告警 + 遮罩静默失效）。改由插槽内的包裹层承担，同 CourseProctor.vue:88 的写法。 -->
   <Modal
-   
     :model-value="modelValue"
     title="试卷统计"
     width="560px"

@@ -129,7 +129,9 @@ describe('useModeration — 内容审核', () => {
   it('解除封禁：非经审核封禁（404）走失败分支，不静默成功', async () => {
     mocks.getBannedAuthors.mockResolvedValue({ data: [] })
     mocks.unbanAuthor.mockRejectedValue({
-      response: { data: { message: '该账号不是经内容审核封禁的账号（或不存在），无法在此解除：7' } },
+      response: {
+        data: { message: '该账号不是经内容审核封禁的账号（或不存在），无法在此解除：7' },
+      },
     })
     const state = withSetup()
 

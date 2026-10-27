@@ -160,9 +160,7 @@ export function useExamCompose(options: UseExamComposeOptions) {
   function toggleQuestion(question: BankQuestion): void {
     if (!question || question.id == null) return
     if (isSelected(question.id)) {
-      selectedQuestions.value = selectedQuestions.value.filter(
-        (q) => q.questionId !== question.id,
-      )
+      selectedQuestions.value = selectedQuestions.value.filter((q) => q.questionId !== question.id)
       return
     }
     selectedQuestions.value.push({

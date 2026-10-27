@@ -1,6 +1,5 @@
 <template>
   <Modal
-   
     :model-value="modelValue"
     title="录入成绩"
     width="420px"

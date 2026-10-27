@@ -1,7 +1,6 @@
 <template>
   <!-- 签到记录 -->
   <Modal
-   
     :model-value="modelValue"
     title="签到记录"
     width="520px"

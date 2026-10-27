@@ -181,7 +181,10 @@ import { buttonA11y } from '@/composables/useA11y'
  * 全部交互经事件上抛（useAIAssistant）；DOM 引用经 register-refs 事件回传父级。</p>
  */
 defineProps({
-  courseList: { type: Array as PropType<{ id: number | string; name: string }[]>, default: () => [] },
+  courseList: {
+    type: Array as PropType<{ id: number | string; name: string }[]>,
+    default: () => [],
+  },
   selectedCourseId: { type: [Number, String], default: null },
   messages: { type: Array as PropType<ChatMessage[]>, default: () => [] },
   inputMessage: { type: String, default: '' },

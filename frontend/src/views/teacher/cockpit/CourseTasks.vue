@@ -82,7 +82,6 @@
 
     <!-- 新建 / 编辑对话框 -->
     <Modal
-   
       v-model="dialogVisible"
       :title="dialogMode === 'create' ? '新建任务' : '编辑任务'"
       width="520px"

@@ -1,7 +1,6 @@
 <template>
   <!-- 投票结果 -->
   <Modal
-
     :model-value="modelValue"
     title="投票结果"
     width="520px"

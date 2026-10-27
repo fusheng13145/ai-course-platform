@@ -87,7 +87,11 @@
           @current-change="onPageChange"
         />
       </div>
-      <EmptyState v-if="!loading && filteredStudents.length === 0" :title="emptyText" icon="users" />
+      <EmptyState
+        v-if="!loading && filteredStudents.length === 0"
+        :title="emptyText"
+        icon="users"
+      />
     </div>
   </div>
 </template>

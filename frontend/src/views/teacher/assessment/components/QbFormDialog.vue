@@ -1,6 +1,5 @@
 <template>
   <Modal
-   
     :model-value="modelValue"
     :title="isEdit ? '编辑题目' : '新建题目'"
     width="720px"
@@ -93,7 +92,6 @@ defineProps({
   submitting: { type: Boolean, default: false },
 })
 // D2-7：打开即聚焦首个可聚焦控件（WAI-ARIA APG「焦点入框」惯例）
-
 
 defineEmits(['update:modelValue', 'save'])
 

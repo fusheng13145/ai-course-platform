@@ -44,10 +44,17 @@ const stubs = {
 }
 
 function mountAny(comp, props) {
-  return mount(comp, { props, global: { stubs, directives: { loading: { mounted() {}, updated() {} } } } })
+  return mount(comp, {
+    props,
+    global: { stubs, directives: { loading: { mounted() {}, updated() {} } } },
+  })
 }
 
-const rowKey = { CctStudentTable: 'data', ClsStudentTable: 'filteredStudents', CgtGradeTable: 'filteredGrades' }
+const rowKey = {
+  CctStudentTable: 'data',
+  ClsStudentTable: 'filteredStudents',
+  CgtGradeTable: 'filteredGrades',
+}
 
 describe.each([
   ['CctStudentTable', CctStudentTable, '暂无学生数据'],

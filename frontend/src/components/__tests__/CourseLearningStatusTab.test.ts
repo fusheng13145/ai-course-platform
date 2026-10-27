@@ -126,9 +126,7 @@ describe('CourseLearningStatusTab — 加载失败可见', () => {
   })
 
   it('失败后再成功：提示与失败标记必须被清空（每次 load 复位）', async () => {
-    mocks.getClassAnalytics
-      .mockRejectedValueOnce(new Error('500'))
-      .mockResolvedValue({ data: {} })
+    mocks.getClassAnalytics.mockRejectedValueOnce(new Error('500')).mockResolvedValue({ data: {} })
     mocks.getAllStudents.mockRejectedValueOnce(new Error('500')).mockResolvedValue([])
 
     const first = mountTab()

@@ -210,7 +210,11 @@ import StatCard from '@/components/ui/StatCard.vue'
 import CollapsePanel from '@/components/ui/CollapsePanel.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
 import BarChart from '@/components/charts/BarChart.vue'
-import { useAIUsageByCourse, AI_USAGE_RANGES, type AiUsageCourseRow } from '@/composables/useAIUsageByCourse'
+import {
+  useAIUsageByCourse,
+  AI_USAGE_RANGES,
+  type AiUsageCourseRow,
+} from '@/composables/useAIUsageByCourse'
 import {
   useAiGovernance,
   type AiRestrictionRow,

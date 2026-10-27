@@ -144,6 +144,4 @@ const emit = defineEmits(['edit', 'stats', 'delete', 'update:page', 'update:size
   color: var(--ac-danger);
   background: rgba(196, 128, 128, 0.12);
 }
-
-
 </style>

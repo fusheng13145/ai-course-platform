@@ -1,7 +1,6 @@
 <template>
   <!-- 查看题目对话框 -->
   <Modal
-   
     :model-value="modelValue"
     title="试卷题目"
     width="720px"

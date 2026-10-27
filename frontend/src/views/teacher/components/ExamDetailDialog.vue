@@ -1,6 +1,5 @@
 <template>
   <Modal
-
     :model-value="modelValue"
     title="试卷详情"
     width="700px"

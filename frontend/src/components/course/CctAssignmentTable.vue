@@ -31,7 +31,9 @@
               :color="getRateColor(row.submissionRate)"
               :status="row.submissionRate === 100 ? 'success' : undefined"
             />
-            <span class="completion-text">{{ row.submissionRate == null ? '—' : `${row.submissionRate}%` }}</span>
+            <span class="completion-text">{{
+              row.submissionRate == null ? '—' : `${row.submissionRate}%`
+            }}</span>
           </div>
         </template>
       </el-table-column>
@@ -76,7 +78,6 @@ function getRateColor(rate) {
   if (rate >= 60) return 'var(--warn)'
   return 'var(--accent)'
 }
-
 </script>
 
 <style scoped>

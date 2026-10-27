@@ -59,7 +59,14 @@ function session(id: number, extra = {}) {
   return {
     code: 200,
     message: 'ok',
-    data: { id, filename: 'lecture.pdf', fileSize: 5 * KB, totalChunks: 3, status: 'UPLOADING', ...extra },
+    data: {
+      id,
+      filename: 'lecture.pdf',
+      fileSize: 5 * KB,
+      totalChunks: 3,
+      status: 'UPLOADING',
+      ...extra,
+    },
   }
 }
 
@@ -68,11 +75,19 @@ beforeEach(() => {
   localStorage.clear()
   api.createSession.mockResolvedValue(session(101))
   api.uploadChunk.mockResolvedValue(session(101))
-  api.mergeChunks.mockResolvedValue(session(101, { status: 'COMPLETED', uploadPath: '2026/10/abc.pdf' }))
+  api.mergeChunks.mockResolvedValue(
+    session(101, { status: 'COMPLETED', uploadPath: '2026/10/abc.pdf' }),
+  )
   api.getProgress.mockResolvedValue({
     code: 200,
     message: 'ok',
-    data: { uploaded: 0, total: 3, percentage: '0.0%', status: 'UPLOADING', missingIndexes: [0, 1, 2] },
+    data: {
+      uploaded: 0,
+      total: 3,
+      percentage: '0.0%',
+      status: 'UPLOADING',
+      missingIndexes: [0, 1, 2],
+    },
   })
 })
 
@@ -98,7 +113,12 @@ describe('分片计划（阈值与分片大小是被消费的旋钮）', () => {
 
   it('默认参数下 2GB 文件既不超后端 totalChunks ≤ 4096，单片也不超 multipart 50MB', () => {
     const { planChunks } = useChunkedUpload()
-    const huge = { size: 2 * 1024 * 1024 * 1024, name: 'a.bin', lastModified: 1, type: '' } as unknown as File
+    const huge = {
+      size: 2 * 1024 * 1024 * 1024,
+      name: 'a.bin',
+      lastModified: 1,
+      type: '',
+    } as unknown as File
     const plan = planChunks(huge)
     expect(plan.totalChunks).toBeLessThanOrEqual(4096)
     expect(plan.chunkSize).toBeLessThanOrEqual(50 * 1024 * 1024)
@@ -174,9 +194,9 @@ describe('上传报文（验收线②：前端 MD5 ↔ 后端逐片实算比对�
 describe('断点续传以磁盘真值驱动（验收线③）', () => {
   it('同指纹的既有会话：只补服务端报告的缺失分片', async () => {
     // 第一轮：片 0 落盘成功、片 1 被打断 → 会话记录必须留下（见下方"分片失败后保留"同源断言）
-    api.uploadChunk.mockResolvedValueOnce(session(101, { uploadedChunks: 1 })).mockRejectedValueOnce(
-      new Error('网络中断'),
-    )
+    api.uploadChunk
+      .mockResolvedValueOnce(session(101, { uploadedChunks: 1 }))
+      .mockRejectedValueOnce(new Error('网络中断'))
     const first = useChunkedUpload()
     const opts = { chunkThreshold: 2 * KB, chunkSize: 2 * KB }
     await expect(first.upload(makeFile('lecture.pdf', 5 * KB), opts)).rejects.toThrow('网络中断')
@@ -185,7 +205,13 @@ describe('断点续传以磁盘真值驱动（验收线③）', () => {
     api.getProgress.mockResolvedValue({
       code: 200,
       message: 'ok',
-      data: { uploaded: 1, total: 3, percentage: '33.3%', status: 'UPLOADING', missingIndexes: [1, 2] },
+      data: {
+        uploaded: 1,
+        total: 3,
+        percentage: '33.3%',
+        status: 'UPLOADING',
+        missingIndexes: [1, 2],
+      },
     })
     api.uploadChunk.mockResolvedValue(session(101))
     api.createSession.mockClear()
@@ -204,7 +230,13 @@ describe('断点续传以磁盘真值驱动（验收线③）', () => {
     api.getProgress.mockResolvedValue({
       code: 200,
       message: 'ok',
-      data: { uploaded: 3, total: 3, percentage: '100.0%', status: 'UPLOADING', missingIndexes: [] },
+      data: {
+        uploaded: 3,
+        total: 3,
+        percentage: '100.0%',
+        status: 'UPLOADING',
+        missingIndexes: [],
+      },
     })
     localStorage.setItem(
       'ai-course:chunked-upload:lecture.pdf:5120:1730000000000',
@@ -224,7 +256,13 @@ describe('断点续传以磁盘真值驱动（验收线③）', () => {
     api.getProgress.mockResolvedValue({
       code: 200,
       message: 'ok',
-      data: { uploaded: 3, total: 3, percentage: '100.0%', status: 'COMPLETED', missingIndexes: [] },
+      data: {
+        uploaded: 3,
+        total: 3,
+        percentage: '100.0%',
+        status: 'COMPLETED',
+        missingIndexes: [],
+      },
     })
     const { upload } = useChunkedUpload()
     await upload(makeFile('lecture.pdf', 5 * KB), { chunkThreshold: 2 * KB, chunkSize: 2 * KB })
@@ -251,11 +289,19 @@ describe('断点续传以磁盘真值驱动（验收线③）', () => {
     api.getProgress.mockResolvedValue({
       code: 200,
       message: 'ok',
-      data: { uploaded: 3, total: 3, percentage: '100.0%', status: 'UPLOADING', missingIndexes: [] },
+      data: {
+        uploaded: 3,
+        total: 3,
+        percentage: '100.0%',
+        status: 'UPLOADING',
+        missingIndexes: [],
+      },
     })
     const { upload } = useChunkedUpload()
     await upload(makeFile('lecture.pdf', 5 * KB), { chunkThreshold: 2 * KB, chunkSize: 2 * KB })
-    expect(localStorage.getItem('ai-course:chunked-upload:lecture.pdf:5120:1730000000000')).toBeNull()
+    expect(
+      localStorage.getItem('ai-course:chunked-upload:lecture.pdf:5120:1730000000000'),
+    ).toBeNull()
   })
 
   it('分片失败后保留会话记录，下一次从缺失处续传', async () => {
@@ -267,7 +313,9 @@ describe('断点续传以磁盘真值驱动（验收线③）', () => {
     expect(api.mergeChunks).not.toHaveBeenCalled()
     expect(status.value).toBe('FAILED')
     expect(error.value).toBe('分片校验失败')
-    expect(localStorage.getItem('ai-course:chunked-upload:lecture.pdf:5120:1730000000000')).toContain('101')
+    expect(
+      localStorage.getItem('ai-course:chunked-upload:lecture.pdf:5120:1730000000000'),
+    ).toContain('101')
   })
 
   it('服务端缺片 400 的错误口径透传给调用方', async () => {

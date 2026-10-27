@@ -21,7 +21,9 @@
         </svg>
       </div>
       <div class="stat-info">
-        <span class="stat-val">{{ loadFailed ? '--' : (overview.avgOnlineHours ?? '-') + 'h' }}</span>
+        <span class="stat-val">{{
+          loadFailed ? '--' : (overview.avgOnlineHours ?? '-') + 'h'
+        }}</span>
         <span class="stat-lbl">人均在线时长</span>
       </div>
     </div>
@@ -38,7 +40,9 @@
         </svg>
       </div>
       <div class="stat-info">
-        <span class="stat-val">{{ loadFailed ? '--' : (overview.avgEngagement ?? '-') + '%' }}</span>
+        <span class="stat-val">{{
+          loadFailed ? '--' : (overview.avgEngagement ?? '-') + '%'
+        }}</span>
         <span class="stat-lbl">平均参与度</span>
       </div>
     </div>
@@ -56,7 +60,9 @@
         </svg>
       </div>
       <div class="stat-info">
-        <span class="stat-val">{{ loadFailed ? '--' : (overview.avgCompletion ?? '-') + '%' }}</span>
+        <span class="stat-val">{{
+          loadFailed ? '--' : (overview.avgCompletion ?? '-') + '%'
+        }}</span>
         <span class="stat-lbl">平均学习完成率</span>
       </div>
     </div>

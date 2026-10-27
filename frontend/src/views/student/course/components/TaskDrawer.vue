@@ -1,10 +1,5 @@
 <template>
-  <Drawer
-    v-model="visible"
-    :title="drawerTitle"
-    :width="drawerSize"
-    @closed="onClosed"
-  >
+  <Drawer v-model="visible" :title="drawerTitle" :width="drawerSize" @closed="onClosed">
     <div v-loading="taskLoading" class="task-panel">
       <!-- 任务点内容加载失败持久提示（不自动消失） -->
       <el-alert

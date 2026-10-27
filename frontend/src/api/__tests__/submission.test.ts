@@ -15,9 +15,10 @@ describe('submission API pagination helpers', () => {
       .mockResolvedValueOnce({ code: 200, data: { records: [{ id: 1 }], total: 101 } })
       .mockResolvedValueOnce({ code: 200, data: { records: [{ id: 2 }], total: 101 } })
 
-    await expect(
-      submissionApi.getAllTaskSubmissions(31, { status: 'GRADED' }),
-    ).resolves.toEqual([{ id: 1 }, { id: 2 }])
+    await expect(submissionApi.getAllTaskSubmissions(31, { status: 'GRADED' })).resolves.toEqual([
+      { id: 1 },
+      { id: 2 },
+    ])
     expect(mocks.get).toHaveBeenNthCalledWith(1, '/submissions/task/31', {
       params: { status: 'GRADED', page: 1, size: 100 },
     })

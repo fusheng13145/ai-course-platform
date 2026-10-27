@@ -7,13 +7,7 @@
           >把课程简介、章节正文与审核通过的资源一键灌入知识库，已存在的文档会自动跳过</span
         >
       </div>
-      <el-button
-        type="primary"
-        plain
-        :disabled="!courseId"
-        :loading="building"
-        @click="build"
-      >
+      <el-button type="primary" plain :disabled="!courseId" :loading="building" @click="build">
         <el-icon><MagicStick /></el-icon>从课程资料构建
       </el-button>
     </div>

@@ -1,6 +1,5 @@
 <template>
   <Modal
-
     :model-value="modelValue"
     title="键盘快捷键"
     width="480px"

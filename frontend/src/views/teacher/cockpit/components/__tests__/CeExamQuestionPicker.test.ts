@@ -12,8 +12,7 @@ const stubs = {
   'el-select': {
     props: ['modelValue'],
     emits: ['change'],
-    template:
-      '<div class="select-stub" @click="$emit(\'change\', \'JUDGE\')">filter</div>',
+    template: '<div class="select-stub" @click="$emit(\'change\', \'JUDGE\')">filter</div>',
   },
   'el-option': true,
   'el-checkbox': {
@@ -25,8 +24,7 @@ const stubs = {
   'el-input-number': {
     props: ['modelValue'],
     emits: ['change'],
-    template:
-      '<input class="pts-input" :value="modelValue" @change="$emit(\'change\', 6)" />',
+    template: '<input class="pts-input" :value="modelValue" @change="$emit(\'change\', 6)" />',
   },
   'el-tag': { template: '<span class="tag-stub"><slot /></span>' },
   'el-pagination': {

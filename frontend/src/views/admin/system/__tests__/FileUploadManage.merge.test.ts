@@ -59,7 +59,10 @@ const TableStub = {
 const ColumnStub = {
   name: 'ElTableColumn',
   setup(_, { slots }) {
-    const rows = inject('stubRows', computed(() => []))
+    const rows = inject(
+      'stubRows',
+      computed(() => []),
+    )
     return () =>
       h(
         'div',
@@ -168,7 +171,13 @@ describe('FileUploadManage — D1-2 批次 2 合并接线', () => {
 
   it('进度弹窗展示磁盘真值 missingIndexes', async () => {
     mocks.getProgress.mockResolvedValue({
-      data: { uploaded: 2, total: 4, percentage: '50.0%', status: 'CANCELLED', missingIndexes: [1, 3] },
+      data: {
+        uploaded: 2,
+        total: 4,
+        percentage: '50.0%',
+        status: 'CANCELLED',
+        missingIndexes: [1, 3],
+      },
     })
     const wrapper = mountPage()
     await flushPromises()

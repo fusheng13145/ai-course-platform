@@ -41,10 +41,12 @@
     <div class="picker-head">
       <div class="picker-summary">
         <span class="picker-title">试卷题目</span>
-        <el-tag size="small" type="info" effect="light" round>{{ selectedQuestions.length }}</el-tag>
+        <el-tag size="small" type="info" effect="light" round>{{
+          selectedQuestions.length
+        }}</el-tag>
         <span class="summary-total">
-          已选合计 <b :class="{ 'total-warn': scoreMismatch }">{{ selectedTotalScore }}</b> /
-          总分 {{ form.totalScore }} 分
+          已选合计 <b :class="{ 'total-warn': scoreMismatch }">{{ selectedTotalScore }}</b> / 总分
+          {{ form.totalScore }} 分
         </span>
         <span v-if="scoreMismatch" class="mismatch-hint">选题合计与总分不一致</span>
       </div>

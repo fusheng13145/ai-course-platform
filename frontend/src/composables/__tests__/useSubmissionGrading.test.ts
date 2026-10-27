@@ -38,7 +38,11 @@ function makeSubmission(overrides: Partial<Submission>): Submission {
 function setup(submissions: Submission[]) {
   const list = ref<Submission[]>(submissions)
   const onGraded = vi.fn()
-  const grading = useSubmissionGrading({ courseId: ref<number | null>(7), submissions: list, onGraded })
+  const grading = useSubmissionGrading({
+    courseId: ref<number | null>(7),
+    submissions: list,
+    onGraded,
+  })
   return { list, onGraded, grading }
 }
 
@@ -177,7 +181,11 @@ describe('useSubmissionGrading - AI 预批与采纳回填', () => {
       id: 7,
       content: '作答',
       aiFeedback: 'AI 评语',
-      submissionData: JSON.stringify({ aiSuggestedScore: 92, aiHighlights: '亮点', aiSuggestions: '建议' }),
+      submissionData: JSON.stringify({
+        aiSuggestedScore: 92,
+        aiHighlights: '亮点',
+        aiSuggestions: '建议',
+      }),
     })
     mocks.aiGrade.mockResolvedValue({ code: 200, data: row })
     const { grading } = setup([row])
@@ -257,7 +265,12 @@ describe('useSubmissionGrading - closeAll', () => {
 describe('parseAiSuggestion - 纯函数边界', () => {
   it('submissionData 缺失但 aiFeedback 有值时仍产出建议', () => {
     const result = parseAiSuggestion({ aiFeedback: '只有评语' })
-    expect(result).toEqual({ suggestedScore: null, highlights: '', suggestions: '', feedback: '只有评语' })
+    expect(result).toEqual({
+      suggestedScore: null,
+      highlights: '',
+      suggestions: '',
+      feedback: '只有评语',
+    })
   })
 
   it('空入参与非对象 JSON 返回 null', () => {

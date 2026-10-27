@@ -29,47 +29,47 @@
     />
     <div v-show="activeTab === 'info'">
       <!-- 课程简介 Tab -->
-        <CduInfoTab
-          :course="course"
-          :chapters="chapters"
-          :enrollment="enrollment"
-          :estimated-duration="estimatedDuration"
-          :enrolling="enrolling"
-          :get-difficulty-type="getDifficultyType"
-          @enroll="handleEnroll"
-        />
+      <CduInfoTab
+        :course="course"
+        :chapters="chapters"
+        :enrollment="enrollment"
+        :estimated-duration="estimatedDuration"
+        :enrolling="enrolling"
+        :get-difficulty-type="getDifficultyType"
+        @enroll="handleEnroll"
+      />
     </div>
 
     <div v-show="activeTab === 'chapters'">
       <!-- 章节学习 Tab -->
-        <div class="tab-content-card">
-          <!-- 章节列表视图 -->
-          <CduChapterList
-            v-if="!learningMode"
-            :chapters="chapters"
-            :empty-text="chaptersError ? '章节列表未能加载，请查看上方提示后重试' : '暂无章节内容'"
-            @enter="enterLearning"
-          />
+      <div class="tab-content-card">
+        <!-- 章节列表视图 -->
+        <CduChapterList
+          v-if="!learningMode"
+          :chapters="chapters"
+          :empty-text="chaptersError ? '章节列表未能加载，请查看上方提示后重试' : '暂无章节内容'"
+          @enter="enterLearning"
+        />
 
-          <!-- 学习模式视图 -->
-          <CduLearningMode
-            v-else
-            :current-chapter="currentChapter"
-            :current-chapter-video="currentChapterVideo"
-            :learning-time-display="learningTimeDisplay"
-            :completing="completing"
-            :video-src="videoSrc"
-            @exit="exitLearning"
-            @complete="markChapterComplete"
-          />
-        </div>
+        <!-- 学习模式视图 -->
+        <CduLearningMode
+          v-else
+          :current-chapter="currentChapter"
+          :current-chapter-video="currentChapterVideo"
+          :learning-time-display="learningTimeDisplay"
+          :completing="completing"
+          :video-src="videoSrc"
+          @exit="exitLearning"
+          @complete="markChapterComplete"
+        />
+      </div>
     </div>
 
     <div v-if="activeTab === 'assignments'">
       <!-- 作业任务 Tab：已发布任务的提交入口 + 我的成绩/评语展示（S1/S2 最小面） -->
-        <div class="tab-content-card">
-          <CduAssignmentTab :course-id="String(route.params.id)" />
-        </div>
+      <div class="tab-content-card">
+        <CduAssignmentTab :course-id="String(route.params.id)" />
+      </div>
     </div>
   </div>
 </template>

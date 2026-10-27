@@ -35,7 +35,9 @@
       <VChart v-if="heatRows.length" :option="heatOption" autoresize style="height: 180px" />
       <EmptyState
         v-else
-        :title="vizError ? '近 7 天暂无学习记录（数据加载失败，请查看上方提示）' : '近 7 天暂无学习记录'"
+        :title="
+          vizError ? '近 7 天暂无学习记录（数据加载失败，请查看上方提示）' : '近 7 天暂无学习记录'
+        "
         icon="chart"
         size="compact"
       />

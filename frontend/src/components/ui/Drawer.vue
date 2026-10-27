@@ -261,9 +261,7 @@ onBeforeUnmount(() => {
           role="dialog"
           aria-modal="true"
           :aria-label="ariaLabel || null"
-          :aria-labelledby="
-            ariaLabelledby ?? ($slots.title || title ? titleId : null)
-          "
+          :aria-labelledby="ariaLabelledby ?? ($slots.title || title ? titleId : null)"
         >
           <div class="drawer-head">
             <div>

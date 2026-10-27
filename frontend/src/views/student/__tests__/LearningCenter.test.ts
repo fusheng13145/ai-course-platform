@@ -87,7 +87,13 @@ describe('LearningCenter — 加载失败可见', () => {
 
   it('阴性对照：加载成功（空章节）时无提示，空态保留原语义且读数为 0', async () => {
     mocks.getLearningCenter.mockResolvedValue({
-      data: { courseName: '测试课程', chapters: [], totalTasks: 0, completedTasks: 0, completionPercent: 0 },
+      data: {
+        courseName: '测试课程',
+        chapters: [],
+        totalTasks: 0,
+        completedTasks: 0,
+        completionPercent: 0,
+      },
     })
     const wrapper = mountPage()
     await flushPromises()
@@ -120,7 +126,13 @@ describe('LearningCenter — 加载失败可见', () => {
 
   it('失败后再成功：提示必须被清空（每次 load 复位）', async () => {
     mocks.getLearningCenter.mockRejectedValueOnce(new Error('500')).mockResolvedValue({
-      data: { courseName: '测试课程', chapters: [], totalTasks: 0, completedTasks: 0, completionPercent: 0 },
+      data: {
+        courseName: '测试课程',
+        chapters: [],
+        totalTasks: 0,
+        completedTasks: 0,
+        completionPercent: 0,
+      },
     })
     const first = mountPage()
     await flushPromises()

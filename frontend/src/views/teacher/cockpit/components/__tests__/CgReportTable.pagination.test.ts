@@ -20,7 +20,8 @@ function makeReport(n) {
 const stubs = {
   'el-table': {
     props: ['data'],
-    template: '<div class="tbl-stub"><span class="tbl-count">{{ (data || []).length }}</span></div>',
+    template:
+      '<div class="tbl-stub"><span class="tbl-count">{{ (data || []).length }}</span></div>',
   },
   'el-table-column': true,
   'el-pagination': {
