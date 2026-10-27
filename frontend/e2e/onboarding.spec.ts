@@ -258,7 +258,7 @@ test.describe('新人引导 · 弹层叠放', () => {
  * 卡内 4 个可聚焦控件，12 次 Tab 正好 3 圈、两次"尾→首"回绕；第 1 步只有 3 个，圈数与回绕数都更薄。
  *
  * 【取证】逐步读数（tagName ＋ 可读标识 ＋ 卡内环下标）落
- * `docs/visual-upgrade/evidence/onboarding-tab-2026-10-23/sequence.json`，带本地时
+ * `frontend/e2e/visual/tools/evidence/onboarding-tab/sequence.json`（已 gitignore），带本地时
  * `captured_at` 与运行时的 HEAD。**断言失败也照样落盘**——漏出的元素与步序正是这条用例
  * 要留下的东西（R-06 风险栏：跑出真缺陷不算失败，放宽断言才算）。
  *
@@ -288,13 +288,14 @@ const runGit = (args: string[]): string => {
 
 const TAB_EVIDENCE_DIR = join(
   REPO_ROOT,
-  'docs',
-  'visual-upgrade',
+  'frontend',
+  'e2e',
+  'visual',
+  'tools',
   'evidence',
-  'onboarding-tab-2026-10-23',
+  'onboarding-tab',
 )
 const SEQUENCE_PATH = join(TAB_EVIDENCE_DIR, 'sequence.json')
-const SEQUENCE_REL = 'docs/visual-upgrade/evidence/onboarding-tab-2026-10-23/sequence.json'
 
 /**
  * 取证落盘开关：**默认关**，显式带 `PW_ONBOARDING_EVIDENCE=1` 才写 `sequence.json`。
@@ -365,9 +366,9 @@ const writeSequence = (capture: TabCapture, failure: string | null): void => {
     commit: runGit(['rev-parse', '--short', 'HEAD']),
     commit_subject: runGit(['log', '-1', '--pretty=%s']),
     commit_note:
-      '`commit` 是取证运行时工作树的 HEAD。本条用例与 import 它的首个提交可由 ' +
-      `\`git log --oneline -- ${SEQUENCE_REL}\` 直接读出（evidence 与该用例同一提交入库，` +
-      '所以当时的 HEAD 恰好是它的父提交）。',
+      '`commit` 是取证运行时工作树的 HEAD，用来把这份读数钉到某一次提交之后。' +
+      '本条用例本身的入库点用 `git log --oneline -- frontend/e2e/onboarding.spec.ts` 读；' +
+      'sequence.json 落在 gitignore 目录里，**不是入库资产**，只是当轮运行的现场记录。',
     worktree_porcelain_at_write: porcelain,
     run: {
       command: 'cd frontend && npx playwright test onboarding.spec.ts --reporter=list',

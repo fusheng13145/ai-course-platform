@@ -10,9 +10,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
  *   npm run dev -- --port 5175 --strictPort &                               ← 本脚本自己不起服务，复用同端口
  *   PW_PORT=5175 node e2e/visual/tools/verify-onboarding.mjs
  *
- * 【为什么脚本入库、产物也入库】`test-results/` 被两份 Playwright config 共用且都没设 `outputDir`
- * ——任何一次跑测都会整目录清空，落在里面的证据活不过下一次 `npx playwright test`。
- * 报告与截图因此固定写到 `docs/visual-upgrade/evidence/onboarding-verify-2026-10-22/`（入库面）。
+ * 【产物落点】`<脚本目录>/evidence/onboarding-verify/`，整目录被 `frontend/.gitignore` 排除。
+ * 选它而不是 `test-results/`：两份 Playwright config 每次跑测都会清空各自的 outputDir，
+ * 落在里面的证据活不过下一次跑测。需要留证时把读数写进批次说明或 commit，不入库图片。
  *
  * 【量程声明，读结论前必看】色差分量的算法是：取**洞内被露出的那个元素**的有效底色，
  * 把 scrim 的计算样式按 alpha 合成到它上面，再与未合成的它比单通道差。
@@ -26,10 +26,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
  */
 const PORT = process.env.PW_PORT || '5175'
 const BASE = `http://localhost:${PORT}`
-const OUT_URL = new URL(
-  '../../../../docs/visual-upgrade/evidence/onboarding-verify-2026-10-22/',
-  import.meta.url,
-)
+const OUT_URL = new URL('./evidence/onboarding-verify/', import.meta.url)
 const OUT = fileURLToPath(OUT_URL)
 const ROLES = ['student', 'teacher', 'admin']
 /** 可见性阈值：与既有单测（`src/onboarding/__tests__/scrim.contrast.test.js`）同一把尺，不在此处放宽。 */

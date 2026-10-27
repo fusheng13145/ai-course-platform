@@ -52,9 +52,8 @@ e2e/visual/**/*-actual.png
 # 单写前一条会漏掉后一类（模式是结尾匹配，不是包含匹配）。
 e2e/visual/**/*-probe.png
 e2e/visual/**/*-probe-*.png
-# I-2 取证脚本从 %TEMP% 搬进仓库后，它把产物写到 `<脚本目录>/evidence/`（`OUT = path.join(__dirname, 'evidence')`）。
-# 精选的前后对比图**已另存到 `docs/visual-upgrade/evidence/P0b-DRAWER-01/` 并入库**，
-# 这里排掉的是"就地重跑"产生的那一份，避免同一张图在树里出现两个副本、
+# 取证脚本从 %TEMP% 搬进仓库后，它把产物写到 `<脚本目录>/evidence/`。
+# 这里整目录排除：探针图与现场读数**不入库**，避免同一张图在树里出现两个副本、
 # 更避免重跑一次就把入库判据悄悄换成新机器的读数（那正是本仓最贵的一类污染）。
 # 注意模式相对 `frontend/` 解析，不能写成 `frontend/e2e/...`。
 e2e/visual/tools/evidence/

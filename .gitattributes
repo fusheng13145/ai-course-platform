@@ -22,17 +22,14 @@
 *.woff binary
 *.woff2 binary
 
-# 视觉基线 PNG（`e2e/visual/__snapshots__` 下的 *-light.png / *-dark.png，22 张判据资产）
+# 视觉基线 PNG（`e2e/visual/__snapshots__` 下的 *-light.png / *-dark.png，24 张判据资产）
 # 按路径再声明一次。**路径级规则只有下面那一条，覆盖面就是 `frontend/e2e/visual/__snapshots__/**`。**
-# Task 14 的动效观察图（`docs/visual-upgrade/evidence/P0a/motion/`）**不在路径级规则里**——
-# 它们吃的是上面全局 `*.png binary` 那一行。实测（4c-fix-C C1b 棒，2026-10-21）：
-# 对 `__snapshots__/anchors.spec.ts/login-dark.png` 与对该目录的 `admin-courses.png`
-# 分别跑 `git check-attr -a`，两处都得 `binary: set`（后者来源是全局规则），
-# 且 `git check-ignore -v` 对该目录无命中（没被忽略）。
-# 原注释把这两个目录一起说成"按路径再声明一次"，属**过度声称**（Task 14 两棒按许可面没碰本文件，
-# 由 C1b 棒更正）。**没有为了让注释成立而新增规则**：加一条路径规则是行为变更、要单独授权，
-# 而今天的全局规则已经给出同一个 `binary: set` 读数，两者之间没有待修的缺口。
-# 上面的 `*.png binary` 实测已经生效，但基线是 Phase 0 的判据资产，
+# 动效观察图（`frontend/e2e/visual/tools/evidence/motion/`）**既不在路径级规则里也不入库**——
+# 该目录整条被 `frontend/.gitignore` 排除；树内不存在需要判属性的动效图。
+# 实测（2026-10-21）：对 `__snapshots__/anchors.spec.ts/login-dark.png` 跑 `git check-attr -a`
+# 得 `binary: set`（路径级规则与全局 `*.png binary` 两行都给同一个读数，不存在待修的缺口）。
+# 加一条路径规则是行为变更、要单独授权，所以这里只保留**再声明一次**：
+# 上面的 `*.png binary` 实测已经生效，但基线是判据资产，
 # 路径级规则保证它不依赖全局规则的存续。
 # 为什么必须是 binary：本机 core.autocrlf=true（`git config --get core.autocrlf` 实测），
 # PNG 一旦被当作文本，`git add` 的 clean 过滤会剥掉字节流里的 CR——实测同一份含 CRLF 的

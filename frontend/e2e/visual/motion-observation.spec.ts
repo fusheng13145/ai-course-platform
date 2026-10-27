@@ -25,11 +25,10 @@ import { setTheme, storagePathFor } from './visual-helpers'
  *  - 本组要求 reducedMotion 被显式覆盖回 no-preference —— 这正是附录 R-T14-1 要自证的事。
  * ========================================================================== */
 
-// 证据目录：仓库根 docs/visual-upgrade/evidence/P0a/motion/。
-// Playwright 从 frontend/ 起跑（config 的 testDir/webServer 都相对它），process.cwd() 是 frontend，
-// 所以仓库根 docs/ 是 `../docs`。用 join(process.cwd(), '..', ...) 而不是硬编码字符串，
-// 免得下一次 config 挪 cwd 时悄悄写到别处。
-const MOTION_DIR = join(process.cwd(), '..', 'docs', 'visual-upgrade', 'evidence', 'P0a', 'motion')
+// 证据目录：`frontend/e2e/visual/tools/evidence/motion/`（`.gitignore` 已排除 `e2e/visual/tools/evidence/` 整目录）。
+// Playwright 从 frontend/ 起跑（config 的 testDir/webServer 都相对它），process.cwd() 就是 frontend，
+// 所以取证落在 cwd 之下而不是仓库根的文档目录——跑测不再需要事后 `git checkout --` 还原 docs/。
+const MOTION_DIR = join(process.cwd(), 'e2e', 'visual', 'tools', 'evidence', 'motion')
 mkdirSync(MOTION_DIR, { recursive: true })
 
 test.describe('动效观察（非基线）', () => {

@@ -255,9 +255,8 @@ export function snapName(slug: string, theme: ThemeName): string {
 /**
  * 全仓唯一截图阈值来源。**这两个数是测量结果，不是偏好**。
  * 量程账本（这两个数怎么量出来的、各档计数与字节差、免检额算术、保证什么不保证什么、收紧的过程、
- * 日期漂移那一块）已按 4c-fix-C 第 15 项整块搬进
- * `docs/visual-upgrade/evidence/snapshot-thresholds-ledger.md`——动这两个数之前先读那里，
- * 改完必须重跑 sensitivity 全矩阵并把读数写进 `docs/visual-upgrade/LEDGER.md`。
+ * 日期漂移那一块）的唯一文档落点是 `docs/测试文档.md` §4.4——动这两个数之前先读那里，
+ * 改完必须重跑 sensitivity 全矩阵并把新读数刷进 `docs/测试文档.md` §2 与该批 commit 说明。
  * 【唯一来源的机械约束（不是散文）】`anchors.spec.ts` 与 `sensitivity.spec.ts` 都从这里取值、
  * 不写字面量；`tools/measure-diff.cjs` 的 `deliveryThresholds()` 从这一行现取；
  * 机械版本 = `helpers.spec.ts` 的「量程常量钉死」与「阈值只有一个来源」两条用例。
