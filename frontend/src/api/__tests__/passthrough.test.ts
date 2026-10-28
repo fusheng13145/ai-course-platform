@@ -191,6 +191,12 @@ const ROWS: Array<[string, Method, string, () => Promise<unknown>]> = [
     () => interactionApi.markSignIn(5, {}),
   ],
   ['interaction.createVote', 'post', '/interaction/vote', () => interactionApi.createVote({})],
+  [
+    'interaction.publishVote',
+    'post',
+    '/interaction/vote/6/publish',
+    () => interactionApi.publishVote(6),
+  ],
   ['interaction.closeVote', 'post', '/interaction/vote/6/close', () => interactionApi.closeVote(6)],
   [
     'interaction.getVoteList',
@@ -416,7 +422,7 @@ describe('纯转发模块契约（method + URL）', () => {
     }
     expect(counts.permission).toBe(6)
     expect(counts.grade).toBe(5)
-    expect(counts.interaction).toBe(11)
+    expect(counts.interaction).toBe(12)
   })
 })
 

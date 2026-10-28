@@ -21,8 +21,10 @@ export const getSignInRecords = (id) => request.get(`/interaction/sign-in/${id}/
 export const markSignIn = (id, data) => request.post(`/interaction/sign-in/${id}/manual`, data)
 
 /* ===== 投票 ===== */
-// 发起投票 body: { courseId, title, options[], multiple? } → Vote
+// 发起投票 body: { courseId, title, options(JSON 字符串), voteMode } → Vote
 export const createVote = (data) => request.post('/interaction/vote', data)
+/** 发布投票，开始接受学生投票 */
+export const publishVote = (id) => request.post(`/interaction/vote/${id}/publish`)
 /**
  * 导出函数 closeVote：业务逻辑处理
  */
@@ -45,6 +47,7 @@ export default {
   getSignInRecords,
   markSignIn,
   createVote,
+  publishVote,
   closeVote,
   getVoteList,
   getVoteDetail,

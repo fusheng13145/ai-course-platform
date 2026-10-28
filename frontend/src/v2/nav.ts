@@ -18,6 +18,7 @@ const PATHS: Record<V2Role, Record<string, string>> = {
     bank: '/v2/teacher/bank',
     exams: '/v2/teacher/exams',
     grades: '/v2/teacher/grades',
+    interaction: '/v2/teacher/interaction',
     inbox: '/v2/teacher/inbox',
     analytics: '/v2/teacher/analytics',
     resources: '/v2/teacher/resources',
@@ -84,16 +85,23 @@ export function navGroups(role: V2Role): V2NavGroup[] {
       path: PATHS[role][item.id] || ROLE_HOME[role],
     })),
   }))
-  // 原型 v2 的教师侧栏只有「资源中心」，旧端另有题库／试卷／成绩三条真实能力；
+  // 原型 v2 的教师侧栏只有「资源中心」，旧端另有题库／试卷／成绩与课堂互动等真实能力；
   // 迁移期按旧端功能面补齐，避免删旧前端时丢入口。
   if (role === 'teacher') {
     const insertAt = groups.findIndex((group) => group.label === '平台')
-    groups.splice(insertAt >= 0 ? insertAt : groups.length, 0, {
+    const at = insertAt >= 0 ? insertAt : groups.length
+    groups.splice(at, 0, {
       label: '试题与学情',
       items: [
         { id: 'bank', label: '题库管理', icon: 'doc', path: PATHS.teacher.bank },
         { id: 'exams', label: '试卷库', icon: 'clipboard', path: PATHS.teacher.exams },
         { id: 'grades', label: '成绩管理', icon: 'award', path: PATHS.teacher.grades },
+      ],
+    })
+    groups.splice(at + 1, 0, {
+      label: '课堂与知识',
+      items: [
+        { id: 'interaction', label: '课堂互动', icon: 'message', path: PATHS.teacher.interaction },
       ],
     })
   }
@@ -247,6 +255,11 @@ const TEACHER_PAGES: Record<string, V2PageDef> = {
     title: '成绩管理',
     kicker: 'TEACHER / GRADES',
     desc: '按课程查看学情与正式总评，导出成绩并进入待批阅任务。',
+  },
+  interaction: {
+    title: '课堂互动',
+    kicker: 'TEACHER / INTERACTION',
+    desc: '发起签到与投票，查看签到记录、补签与投票结果。',
   },
   inbox: {
     title: '教学任务',
