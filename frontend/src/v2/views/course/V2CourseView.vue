@@ -51,6 +51,10 @@
         :course="courseRecord"
       />
       <GradingTab v-else-if="currentTab === 'grading'" :course-id="courseId" :role="role" />
+      <ChaptersTab
+        v-else-if="currentTab === 'chapters' && role === 'teacher'"
+        :course-id="courseId"
+      />
       <ReaderTab
         v-else-if="currentTab === 'chapters' && role === 'student'"
         :course-id="courseId"
@@ -97,6 +101,7 @@ import ModuleTab from './tabs/ModuleTab.vue'
 import V2TeacherBankView from '../teacher/V2TeacherBankView.vue'
 import V2TeacherExamsView from '../teacher/V2TeacherExamsView.vue'
 import ProctorTab from './tabs/ProctorTab.vue'
+import ChaptersTab from './tabs/ChaptersTab.vue'
 import { courseTabs, type V2Role } from '../../nav'
 import { useV2Ui } from '../../composables/ui'
 import { loadCourse, getCourses, type V2CourseDetail } from '../../data/api'
