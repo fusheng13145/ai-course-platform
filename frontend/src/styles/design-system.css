@@ -185,6 +185,11 @@ body {
   margin-bottom: 12px;
   overflow: hidden;
 }
+/* 暗色里 L1 卡片与 L3 凹槽都靠这枚 1px 顶边内高光立住，只有 L2 面板什么都没有，
+   读成一块平贴的深色。补同一枚边，三档同源；Δ≈14/通道，是齐平不是跃升。 */
+[data-theme='dark'] .l2-panel {
+  box-shadow: var(--edge-hi);
+}
 .l2-head {
   display: flex;
   align-items: center;
@@ -681,12 +686,15 @@ table.tbl {
   background: var(--accent-soft);
   color: var(--accent);
 }
+/* 两枚托盘（pill／seg）里都坐着一枚抬起的 `.tab-i.active`（白底＋--sh-l2）。
+   托盘本身是平的，抬起的那枚就失去了"抬起来"的参照——凹槽一给，关系才成立。 */
 .tabs-pill {
   display: flex;
   gap: 6px;
   padding: 4px;
   background: var(--surface-3);
   border-radius: var(--r-ctl);
+  box-shadow: var(--l3-groove);
   width: fit-content;
   max-width: 100%;
   min-width: 0;
@@ -721,6 +729,7 @@ table.tbl {
   display: inline-flex;
   background: var(--surface-3);
   border-radius: var(--ac-radius-md);
+  box-shadow: var(--l3-groove);
   padding: 3px;
   gap: 2px;
 }
@@ -1045,6 +1054,8 @@ table.tbl {
   text-align: center;
   color: var(--ink-3);
 }
+/* 图标底板原是 --sh-l2 抬起：一个装饰方块浮在卡片上，是这页最像模板的一处。
+   改凹槽后图标读成"坐在占位里"，暗色侧也从无质感变有边。 */
 .empty-state .e-ico {
   width: 62px;
   height: 62px;
@@ -1054,7 +1065,7 @@ table.tbl {
   display: grid;
   place-items: center;
   color: var(--ink-3);
-  box-shadow: var(--sh-l2);
+  box-shadow: var(--l3-groove);
 }
 .empty-state .e-title {
   font-size: 14px;

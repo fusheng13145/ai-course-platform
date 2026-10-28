@@ -89,6 +89,24 @@ describe('样式令牌单源', () => {
     )
   })
 
+  it('凹槽令牌 --l3-groove 只落在登记过的四处承载面上', () => {
+    // 阴性对照：计数打不到消费写法时本条会因"读不到"而假绿
+    expect(
+      (audit.stripComments('  box-shadow: var(--l3-groove);').match(/var\(--l3-groove\)/g) ?? [])
+        .length,
+      '假阴性：凹槽消费没被抓到',
+    ).toBe(1)
+    const hits = styleBearing(SRC)
+      .map((f) => ({
+        file: f.file.replace(/\\/g, '/').replace(/^.*?\/src\//, 'src/'),
+        n: (f.text.match(/var\(--l3-groove\)/g) ?? []).length,
+      }))
+      .filter((h) => h.n > 0)
+    expect(hits, '凹槽令牌没有消费点，凹槽语言断了').toEqual([
+      { file: 'src/styles/design-system.css', n: 4 },
+    ])
+  })
+
   it('零消费的 --ac-* 别名已清算，不许再被写回来', () => {
     const retired = [
       '--ac-border-color',

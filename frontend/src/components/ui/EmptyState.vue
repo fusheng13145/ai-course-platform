@@ -60,7 +60,7 @@ const ICONS = {
 .e-ico {
   width: 62px;
   height: 62px;
-  border-radius: 18px;
+  border-radius: var(--r-l1);
   margin: 0 auto 12px;
   background: var(--surface-3);
   display: grid;
@@ -88,7 +88,7 @@ const ICONS = {
 .empty-state.is-compact .e-ico {
   width: 44px;
   height: 44px;
-  border-radius: 12px;
+  border-radius: var(--r-l2);
   margin-bottom: 8px;
 }
 .empty-state.is-compact .e-ico svg {

@@ -959,22 +959,29 @@ test('闸门源级钉自己会红：内存里复刻「改默认实参」与「�
  * 重录 10 张——至此 12 锚点中凡渲染顶栏铃铛且未钉 unread-count 的 8 格全部遮罩，钉桩的
  * student-dashboard 与 admin-governance-analytics 保持不遮（角标画 fixture 值、确定性可验）。
  * 同步以"工作树除本文件外干净、字节与 HEAD 一致"为前提取证，引用这个数一律带张数与原因。
+ * 2026-10-28 P5-05b 第二批（surface-3 凹槽推广 + 暗色 L2 顶边）重录 9 张：`.tabs-pill`／
+ * `.tabs-seg`／`.empty-state .e-ico` 三处接 `--l3-groove`（消费点 1→4，由
+ * `src/styles/__tests__/token-single-source.test.ts` 钉死），暗色 `.l2-panel` 补 `--edge-hi`；
+ * `EmptyState.vue` 的 scoped 副本圆角 18→`--r-l1`（上一批改的是全局那枚，而组件副本才是生效位）。
+ * byteDiff 与 pixelmatch 两口径并记（亮 468–4114、暗 6–66）：暗色那条 1px 顶边高光
+ * 988 字节差只被 pixelmatch 计 6 点，交付门因此看不见它，能看见的是零漂移那道 byteDiff。
+ * 逐锚点账与看图见 docs/前端待办项.md §2.1。
  */
 const BASELINE_SHA256: Record<string, string> = {
   'admin-courses-table-dark.png':
     'a8d3266df186d1955ae8adcb528fcff99e39909971c3ab465e3d4b3c9e1b6a5d',
   'admin-courses-table-light.png':
     'c8f47453b9e32c85562fb6bcd6ab0f98dbe09c00745b8ee7933d02ff36f72893',
-  'admin-dashboard-dark.png': 'e9b6dde5d4a6a63a130aeb357839d951adc000477009110ef65888123ccbe30a',
+  'admin-dashboard-dark.png': 'e4b192fbdf9f1a5f6bd33e0ad2e8aad4dfe9f3ffd9ab89a1fa0e62a800e86c08',
   'admin-dashboard-light.png': '153d9bed086877c4fb54c23a090447ab84258d3fedeb2e64818a3c90aec6766d',
   'admin-governance-analytics-dark.png':
     '496fb40099ff2092ed9440d6ed31f9d6675b822855edcfbb65b6a5bb0e802456',
   'admin-governance-analytics-light.png':
     '76aa878c7eef431833a8de619522325bee242ac5dbabaab0f3e07dc971dcd311',
-  'admin-profile-dark.png': '107e8941fe891bffdf6b1076179f7612cf276b9941f7b56981f25d392ac4a2e8',
-  'admin-profile-light.png': '93deeaa4b621abe487c1e73b03c79dbf7ec69f38ca771724439b089bc23915c9',
-  'admin-system-form-dark.png': 'cdba672e9e35ed0cb2312286a303fe226ab1e3aa416029e0342634472ef6a031',
-  'admin-system-form-light.png': 'c7818a7bf0a34b6da8753178b812b4fedf73c94d5d15346b169df48fe040a99d',
+  'admin-profile-dark.png': 'dcbbe819911642ca8129f4ef20e92bb3f0906d152f60ee0cd6109ca198330d61',
+  'admin-profile-light.png': '9193e75e8180587edd1a94877ed0119cbaa606aa595452371d20e876fccbd984',
+  'admin-system-form-dark.png': 'e5ea06e14d8ef48714bd7e40cff4930c1b3cb1a3a2eb49839d68dfd0d783478e',
+  'admin-system-form-light.png': 'e71d4ded06754afd4fb2e54350c8e339ded83795e988319206d914b602bfcf13',
   'error-404-dark.png': 'b2d03c673791a14b37bb9c6f92cf46f862108051620f0cabfcbe1faf53afe0a4',
   'error-404-light.png': '0755e2afbe53f433ddc690495c8b188d39a989abc0403b75e0ecd2b6e77691a7',
   'login-dark.png': 'c57f5e4db9a85653dab2a359fc4a183b65a8716647a86abae1c2257350545ab9',
@@ -983,16 +990,16 @@ const BASELINE_SHA256: Record<string, string> = {
     '1c3706b48129a17f3386534b4770b3a09dfac97ee9a8afda63fdd9422b99e189',
   'student-courses-modal-light.png':
     'ef2eec5dea0994d9b60e2e43a83fa34875a5d00d0ebbb3bd7d5d412b2901a3de',
-  'student-dashboard-dark.png': 'a20b463cc0d3c80ab5f818929aa52c15c47bc396830dc779f82772ba6ea860b2',
-  'student-dashboard-light.png': '57af63c484a9563ddd23f43168ecb35d1f36960692a7bca9c641de3177263d82',
+  'student-dashboard-dark.png': '986a01bb19d2821f22263f6887959d66855e7ad321ad9345918beb32b1b7cc95',
+  'student-dashboard-light.png': 'ee65f752b8d92e7f2805f0079c71355d030c4d018dac2e02e74a0ab891bd7ddd',
   'student-knowledge-graph-dark.png':
     '4bdaeeec6369219d1fdfe3c26afc78585163d58b82b94836d6a78522d38ac90c',
   'student-knowledge-graph-light.png':
     'e639e36165194500cbd5501a4befe1dd33fa919c012f1695eb690d545b0ba82e',
   'student-learning-center-dark.png':
-    '0c3d2d7f46c8f8d1da2832d10e345f08c08096d20f0cfd8f573db852162b2be8',
+    '04c0c2aa6781708cc407665ab6c5870234b48456f51e9ee6b7b08d7915e2c92e',
   'student-learning-center-light.png':
-    '0395239497ec61ba16706c87ca4891dc70d2782903dd64f164232326f11e2df4',
+    '5eee9aa4ef0fde63124b56620ed894d7b86111c5751e44dff551809feb38f9b8',
   'teacher-dashboard-dark.png': '30cbb78b5cfc11b04badd5788e25de211a9162693ab94b688c2fe6e2e15ed324',
   'teacher-dashboard-light.png': '418fa48e4fdc6fc429c2792008653d90d89c384b9ba9449302bf901460c2f404',
 }
