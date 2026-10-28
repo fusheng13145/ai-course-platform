@@ -110,15 +110,18 @@ export interface V2CourseTab {
 export const COURSE_TABS = navData.course_tabs as Record<V2Role, V2CourseTab[]>
 export const ADMIN_COURSE_TABS = navData.admin_course_tabs as V2CourseTab[]
 
-const TEACHER_BANK_TAB: V2CourseTab = { id: 'bank', label: '课程题库', icon: 'doc' }
+const TEACHER_EXTRA_TABS: V2CourseTab[] = [
+  { id: 'bank', label: '课程题库', icon: 'doc' },
+  { id: 'proctor', label: '在线监考', icon: 'shield' },
+]
 
 export function courseTabs(role: V2Role): V2CourseTab[] {
   if (role === 'admin') return ADMIN_COURSE_TABS
   const tabs = [...(COURSE_TABS[role] || [])]
-  // 旧端教师课程页签含「课程题库」，原型 v2 漏了这一项；迁移期补回。
-  if (role === 'teacher' && !tabs.some((tab) => tab.id === 'bank')) {
+  // 旧端教师课程页签另有「课程题库」「在线监考」，原型 v2 漏了；迁移期补回。
+  if (role === 'teacher') {
     const examsIndex = tabs.findIndex((tab) => tab.id === 'exams')
-    tabs.splice(examsIndex >= 0 ? examsIndex : 1, 0, TEACHER_BANK_TAB)
+    tabs.splice(examsIndex >= 0 ? examsIndex : 1, 0, ...TEACHER_EXTRA_TABS)
   }
   return tabs
 }

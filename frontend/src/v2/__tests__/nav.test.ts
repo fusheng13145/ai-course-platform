@@ -73,12 +73,15 @@ describe('v2 导航与路由一致性', () => {
     }
   })
 
-  it('课程页签数量与原型 IA 对齐，并补回教师侧旧端的课程题库页签', () => {
+  it('课程页签数量与原型 IA 对齐，并补回教师侧旧端的题库与监考页签', () => {
     expect(COURSE_TABS.student).toHaveLength(8)
     expect(COURSE_TABS.teacher).toHaveLength(11)
     expect(ADMIN_COURSE_TABS).toHaveLength(10)
-    expect(courseTabs('teacher')).toHaveLength(COURSE_TABS.teacher.length + 1)
-    expect(courseTabs('teacher').map((tab) => tab.id)).toContain('bank')
+    const teacherTabs = courseTabs('teacher').map((tab) => tab.id)
+    expect(courseTabs('teacher')).toHaveLength(COURSE_TABS.teacher.length + 2)
+    expect(teacherTabs).toContain('bank')
+    expect(teacherTabs).toContain('proctor')
+    expect(courseTabs('student').map((tab) => tab.id)).not.toContain('proctor')
   })
 
   it('教师侧栏补回题库/试卷/成绩入口，且都命中真实路由', () => {

@@ -67,6 +67,7 @@
         v-else-if="currentTab === 'exams' && role === 'teacher'"
         :course-id="courseId"
       />
+      <ProctorTab v-else-if="currentTab === 'proctor'" :course-id="courseId" />
       <ExamTab v-else-if="currentTab === 'exams'" :role="role" />
       <SettingsTab
         v-else-if="currentTab === 'settings' || currentTab === 'approval'"
@@ -95,6 +96,7 @@ import SettingsTab from './tabs/SettingsTab.vue'
 import ModuleTab from './tabs/ModuleTab.vue'
 import V2TeacherBankView from '../teacher/V2TeacherBankView.vue'
 import V2TeacherExamsView from '../teacher/V2TeacherExamsView.vue'
+import ProctorTab from './tabs/ProctorTab.vue'
 import { courseTabs, type V2Role } from '../../nav'
 import { useV2Ui } from '../../composables/ui'
 import { loadCourse, getCourses, type V2CourseDetail } from '../../data/api'
