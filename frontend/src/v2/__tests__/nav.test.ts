@@ -73,10 +73,20 @@ describe('v2 导航与路由一致性', () => {
     }
   })
 
-  it('课程页签数量与原型 IA 对齐', () => {
+  it('课程页签数量与原型 IA 对齐，并补回教师侧旧端的课程题库页签', () => {
     expect(COURSE_TABS.student).toHaveLength(8)
     expect(COURSE_TABS.teacher).toHaveLength(11)
     expect(ADMIN_COURSE_TABS).toHaveLength(10)
+    expect(courseTabs('teacher')).toHaveLength(COURSE_TABS.teacher.length + 1)
+    expect(courseTabs('teacher').map((tab) => tab.id)).toContain('bank')
+  })
+
+  it('教师侧栏补回题库/试卷入口，且都命中真实路由', () => {
+    const paths = navGroups('teacher').flatMap((group) => group.items.map((item) => item.path))
+    for (const path of ['/v2/teacher/bank', '/v2/teacher/exams']) {
+      expect(paths, `教师侧栏缺少 ${path}`).toContain(path)
+      expect(resolves(path), `${path} 是死链`).toBe(true)
+    }
   })
 
   it('每个全局页面定义都有标题与描述', () => {

@@ -15,6 +15,8 @@ const PATHS: Record<V2Role, Record<string, string>> = {
   teacher: {
     home: '/v2/teacher/home',
     courses: '/v2/teacher/courses',
+    bank: '/v2/teacher/bank',
+    exams: '/v2/teacher/exams',
     inbox: '/v2/teacher/inbox',
     analytics: '/v2/teacher/analytics',
     resources: '/v2/teacher/resources',
@@ -73,7 +75,7 @@ const protoNav = navData.nav as Record<
 >
 
 export function navGroups(role: V2Role): V2NavGroup[] {
-  return (protoNav[role] || []).map((group) => ({
+  const groups: V2NavGroup[] = (protoNav[role] || []).map((group) => ({
     label: group.label,
     advisorOnly: group.advisorOnly,
     items: group.items.map((item) => ({
@@ -81,6 +83,19 @@ export function navGroups(role: V2Role): V2NavGroup[] {
       path: PATHS[role][item.id] || ROLE_HOME[role],
     })),
   }))
+  // 原型 v2 的教师侧栏只有「资源中心」，旧端另有「试题与考试」两条真实能力；
+  // 迁移期按旧端功能面补齐，避免删旧前端时丢入口。
+  if (role === 'teacher') {
+    const insertAt = groups.findIndex((group) => group.label === '平台')
+    groups.splice(insertAt >= 0 ? insertAt : groups.length, 0, {
+      label: '试题与考试',
+      items: [
+        { id: 'bank', label: '题库管理', icon: 'doc', path: PATHS.teacher.bank },
+        { id: 'exams', label: '试卷库', icon: 'clipboard', path: PATHS.teacher.exams },
+      ],
+    })
+  }
+  return groups
 }
 
 export interface V2CourseTab {
@@ -93,8 +108,17 @@ export interface V2CourseTab {
 export const COURSE_TABS = navData.course_tabs as Record<V2Role, V2CourseTab[]>
 export const ADMIN_COURSE_TABS = navData.admin_course_tabs as V2CourseTab[]
 
+const TEACHER_BANK_TAB: V2CourseTab = { id: 'bank', label: '课程题库', icon: 'doc' }
+
 export function courseTabs(role: V2Role): V2CourseTab[] {
-  return role === 'admin' ? ADMIN_COURSE_TABS : COURSE_TABS[role] || []
+  if (role === 'admin') return ADMIN_COURSE_TABS
+  const tabs = [...(COURSE_TABS[role] || [])]
+  // 旧端教师课程页签含「课程题库」，原型 v2 漏了这一项；迁移期补回。
+  if (role === 'teacher' && !tabs.some((tab) => tab.id === 'bank')) {
+    const examsIndex = tabs.findIndex((tab) => tab.id === 'exams')
+    tabs.splice(examsIndex >= 0 ? examsIndex : 1, 0, TEACHER_BANK_TAB)
+  }
+  return tabs
 }
 
 export function courseTabPath(role: V2Role, courseId: number | string, tab: string): string {
@@ -198,6 +222,16 @@ const TEACHER_PAGES: Record<string, V2PageDef> = {
     kicker: 'TEACHER / COURSES',
     desc: '我负责的课程、教学班与待批阅；进入课程空间完成教学动作。',
     special: 'courses',
+  },
+  bank: {
+    title: '题库管理',
+    kicker: 'TEACHER / QUESTION BANK',
+    desc: '课程题库的筛选、创建、审核、复制与 AI 出题。',
+  },
+  exams: {
+    title: '试卷库',
+    kicker: 'TEACHER / EXAM PAPERS',
+    desc: '试卷的创建、编辑、题目明细、统计与发布。',
   },
   inbox: {
     title: '教学任务',

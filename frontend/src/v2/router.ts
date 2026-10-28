@@ -26,6 +26,8 @@ const authRedirect = () => {
 const V2GlobalPage = () => import('./views/V2GlobalPage.vue')
 const V2CoursesView = () => import('./views/V2CoursesView.vue')
 const V2CourseView = () => import('./views/course/V2CourseView.vue')
+const V2TeacherBankView = () => import('./views/teacher/V2TeacherBankView.vue')
+const V2TeacherExamsView = () => import('./views/teacher/V2TeacherExamsView.vue')
 
 const page = (
   path: string,
@@ -128,6 +130,16 @@ export const v2Routes: RouteRecordRaw[] = [
         path: 'teacher/courses/:id/:tab?',
         component: V2CourseView,
         meta: { role: 'TEACHER', v2course: true, title: '课程空间' },
+      },
+      {
+        path: 'teacher/bank',
+        component: V2TeacherBankView,
+        meta: { role: 'TEACHER', v2page: 'bank', title: '题库管理' },
+      },
+      {
+        path: 'teacher/exams',
+        component: V2TeacherExamsView,
+        meta: { role: 'TEACHER', v2page: 'exams', title: '试卷库' },
       },
       page('teacher/inbox', 'TEACHER', 'inbox', '教学任务'),
       page('teacher/analytics', 'TEACHER', 'analytics', '学情分析'),
