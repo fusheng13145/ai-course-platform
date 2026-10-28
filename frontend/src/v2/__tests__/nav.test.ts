@@ -34,16 +34,33 @@ describe('v2 导航与路由一致性', () => {
     }
   })
 
-  it('v2 登录/注册是公开路由，且不会被兜底 404 拦截', () => {
-    for (const path of ['/v2/login', '/v2/register']) {
+  it('v2 登录/注册/找回密码/法务/错误页是公开路由，且不会被兜底 404 拦截', () => {
+    for (const path of [
+      '/v2/login',
+      '/v2/register',
+      '/v2/forgot-password',
+      '/v2/agreement',
+      '/v2/privacy',
+      '/v2/403',
+      '/v2/404',
+      '/v2/503',
+    ]) {
       const matched = router.resolve(path).matched
       const leaf = matched[matched.length - 1]
       expect(leaf, `${path} 未命中路由`).toBeTruthy()
       expect(leaf.path, `${path} 落到了兜底`).not.toBe(CATCH_ALL)
+      expect(leaf.path, `${path} 落到了 v2 兜底`).not.toContain(':pathMatch')
       expect(
         matched.some((record) => record.meta?.requiresAuth === false),
         `${path} 不是公开路由`,
       ).toBe(true)
+    }
+  })
+
+  it('v2 三端首页不被 v2 兜底 404 拦截', () => {
+    for (const path of ['/v2/student/home', '/v2/teacher/home', '/v2/admin/home']) {
+      const leaf = router.resolve(path).matched.at(-1)
+      expect(leaf?.path, `${path} 被 v2 兜底接走`).not.toContain(':pathMatch')
     }
   })
 

@@ -113,9 +113,11 @@
           <input v-model="form.agree" type="checkbox" />
           <span>
             我已阅读并同意
-            <a class="av-link" href="/agreement" target="_blank" rel="noreferrer">用户服务协议</a>
+            <router-link class="av-link" to="/v2/agreement" target="_blank"
+              >用户服务协议</router-link
+            >
             与
-            <a class="av-link" href="/privacy" target="_blank" rel="noreferrer">隐私政策</a>
+            <router-link class="av-link" to="/v2/privacy" target="_blank">隐私政策</router-link>
           </span>
         </label>
 

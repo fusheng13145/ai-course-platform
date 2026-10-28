@@ -625,7 +625,8 @@ router.beforeEach(async (to, from, next) => {
     // 不可达 ≠ 无权限：改落 /503 连接失败页（自带轮询重试，后端就绪后自动回到原目标），
     // 角色判定只在服务端真正给出结论（ok/expired）之后才进行。
     if (verdict === 'unavailable') {
-      next({ path: '/503', query: { redirect: to.fullPath } })
+      const unavailablePath = to.path.startsWith('/v2') ? '/v2/503' : '/503'
+      next({ path: unavailablePath, query: { redirect: to.fullPath } })
       return
     }
   }
@@ -636,7 +637,7 @@ router.beforeEach(async (to, from, next) => {
     // 仅在服务端确认过的会话里作为回退（ADMIN 还额外要求 permissionsLoaded）。
     // 因此手工把 localStorage 的 user.role 改成 ADMIN 并不能进入管理端。
     if (authStore.effectiveRole !== requiredRole) {
-      next('/403')
+      next(to.path.startsWith('/v2') ? '/v2/403' : '/403')
       return
     }
   }

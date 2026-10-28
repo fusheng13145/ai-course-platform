@@ -6,6 +6,9 @@ const V2Shell = () => import('./V2Shell.vue')
 const V2HomeView = () => import('./views/V2HomeView.vue')
 const V2LoginView = () => import('./views/auth/V2LoginView.vue')
 const V2RegisterView = () => import('./views/auth/V2RegisterView.vue')
+const V2ForgotPasswordView = () => import('./views/auth/V2ForgotPasswordView.vue')
+const V2LegalView = () => import('./views/legal/V2LegalView.vue')
+const V2ErrorView = () => import('./views/error/V2ErrorView.vue')
 
 function homeFor(roleValue: unknown): string {
   const role = String(roleValue || '')
@@ -47,6 +50,38 @@ export const v2Routes: RouteRecordRaw[] = [
     component: V2RegisterView,
     meta: { requiresAuth: false, title: '注册' },
     beforeEnter: authRedirect,
+  },
+  {
+    path: '/v2/forgot-password',
+    component: V2ForgotPasswordView,
+    meta: { requiresAuth: false, title: '找回密码' },
+  },
+  {
+    path: '/v2/agreement',
+    component: V2LegalView,
+    props: { kind: 'agreement' },
+    meta: { requiresAuth: false, title: '用户服务协议' },
+  },
+  {
+    path: '/v2/privacy',
+    component: V2LegalView,
+    props: { kind: 'privacy' },
+    meta: { requiresAuth: false, title: '隐私政策' },
+  },
+  {
+    path: '/v2/403',
+    component: V2ErrorView,
+    meta: { requiresAuth: false, v2error: '403', title: '无权限' },
+  },
+  {
+    path: '/v2/404',
+    component: V2ErrorView,
+    meta: { requiresAuth: false, v2error: '404', title: '页面不存在' },
+  },
+  {
+    path: '/v2/503',
+    component: V2ErrorView,
+    meta: { requiresAuth: false, v2error: '503', title: '服务连接失败' },
   },
   {
     path: '/v2',
@@ -138,5 +173,10 @@ export const v2Routes: RouteRecordRaw[] = [
       page('admin/system', 'ADMIN', 'system', '系统设置'),
       page('admin/profile', 'ADMIN', 'profile', '个人中心'),
     ],
+  },
+  {
+    path: '/v2/:pathMatch(.*)*',
+    component: V2ErrorView,
+    meta: { requiresAuth: false, v2error: '404', title: '页面不存在' },
   },
 ]

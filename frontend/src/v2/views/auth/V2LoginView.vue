@@ -36,7 +36,7 @@
             <input v-model="form.remember" type="checkbox" />
             <span>记住我</span>
           </label>
-          <a class="av-link" href="/forgot-password">忘记密码？</a>
+          <router-link class="av-link" to="/v2/forgot-password">忘记密码？</router-link>
         </div>
         <p v-if="error" class="av-error" role="alert">{{ error }}</p>
         <button class="btn btn-primary btn-block av-submit" type="submit" :disabled="submitting">
