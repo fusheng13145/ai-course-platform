@@ -31,6 +31,7 @@ const V2TeacherExamsView = () => import('./views/teacher/V2TeacherExamsView.vue'
 const V2CreateCourseView = () => import('./views/teacher/V2CreateCourseView.vue')
 const V2TeacherGradesView = () => import('./views/teacher/V2TeacherGradesView.vue')
 const V2InteractionView = () => import('./views/teacher/V2InteractionView.vue')
+const V2KnowledgeManagementView = () => import('./views/teacher/V2KnowledgeManagementView.vue')
 
 const page = (
   path: string,
@@ -158,6 +159,11 @@ export const v2Routes: RouteRecordRaw[] = [
         path: 'teacher/interaction',
         component: V2InteractionView,
         meta: { role: 'TEACHER', v2page: 'interaction', title: '课堂互动' },
+      },
+      {
+        path: 'teacher/knowledge-management',
+        component: V2KnowledgeManagementView,
+        meta: { role: 'TEACHER', v2page: 'knowledge', title: '知识点管理' },
       },
       page('teacher/inbox', 'TEACHER', 'inbox', '教学任务'),
       page('teacher/analytics', 'TEACHER', 'analytics', '学情分析'),

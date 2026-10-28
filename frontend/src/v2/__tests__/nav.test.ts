@@ -84,13 +84,14 @@ describe('v2 导航与路由一致性', () => {
     expect(courseTabs('student').map((tab) => tab.id)).not.toContain('proctor')
   })
 
-  it('教师侧栏补回题库/试卷/成绩/互动入口，且都命中真实路由', () => {
+  it('教师侧栏补回题库/试卷/成绩/互动/知识点入口，且都命中真实路由', () => {
     const paths = navGroups('teacher').flatMap((group) => group.items.map((item) => item.path))
     for (const path of [
       '/v2/teacher/bank',
       '/v2/teacher/exams',
       '/v2/teacher/grades',
       '/v2/teacher/interaction',
+      '/v2/teacher/knowledge-management',
     ]) {
       expect(paths, `教师侧栏缺少 ${path}`).toContain(path)
       expect(resolves(path), `${path} 是死链`).toBe(true)

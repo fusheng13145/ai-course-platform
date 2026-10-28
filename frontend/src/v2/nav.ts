@@ -19,6 +19,7 @@ const PATHS: Record<V2Role, Record<string, string>> = {
     exams: '/v2/teacher/exams',
     grades: '/v2/teacher/grades',
     interaction: '/v2/teacher/interaction',
+    knowledge: '/v2/teacher/knowledge-management',
     inbox: '/v2/teacher/inbox',
     analytics: '/v2/teacher/analytics',
     resources: '/v2/teacher/resources',
@@ -102,6 +103,7 @@ export function navGroups(role: V2Role): V2NavGroup[] {
       label: '课堂与知识',
       items: [
         { id: 'interaction', label: '课堂互动', icon: 'message', path: PATHS.teacher.interaction },
+        { id: 'knowledge', label: '知识点管理', icon: 'path', path: PATHS.teacher.knowledge },
       ],
     })
   }
@@ -260,6 +262,11 @@ const TEACHER_PAGES: Record<string, V2PageDef> = {
     title: '课堂互动',
     kicker: 'TEACHER / INTERACTION',
     desc: '发起签到与投票，查看签到记录、补签与投票结果。',
+  },
+  knowledge: {
+    title: '知识点管理',
+    kicker: 'TEACHER / KNOWLEDGE',
+    desc: '维护知识点结构、层级、前置依赖与批量导入。',
   },
   inbox: {
     title: '教学任务',
