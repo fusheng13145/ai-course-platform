@@ -1,90 +1,374 @@
 <template>
-  <div>
-    <div class="analytics-toolbar">
-      <div class="tabs" role="tablist" aria-label="时间范围">
-        <button :class="{ 'is-active': range === 'midterm' }" @click="range = 'midterm'">
-          本次期中
-        </button>
-        <button :class="{ 'is-active': range === 'term' }" @click="range = 'term'">学期累计</button>
+  <section class="analytics">
+    <div class="course-tab-bar">
+      <div>
+        <p class="card-kicker">COURSE / ANALYTICS</p>
+        <h2>成绩与学情</h2>
       </div>
-      <span class="compare-chip">对比上次 +3.1 分</span>
+      <div class="course-tab-actions">
+        <select
+          v-if="!courseId"
+          v-model.number="picked"
+          class="input course-pick"
+          aria-label="选择课程"
+        >
+          <option :value="0">选择课程</option>
+          <option v-for="course in courses" :key="course.id" :value="Number(course.id)">
+            {{ course.name || course.title }}
+          </option>
+        </select>
+        <button class="btn btn-ghost" :disabled="loading" @click="load">刷新</button>
+      </div>
     </div>
-    <div class="module-grid">
-      <section class="card analytics-card">
-        <header class="card-head">
-          <div>
-            <p class="card-kicker">DISTRIBUTION / MIDTERM</p>
-            <h2>分数段分布</h2>
-          </div>
-          <span class="chart-unit">人</span>
-        </header>
-        <div class="bar-chart">
-          <div v-for="(value, index) in distribution" :key="index" class="bar-col">
-            <span class="bar-val">{{ value }}</span>
-            <i class="bar" :style="{ '--v': `${Math.round((value / max) * 100)}%` }"></i>
-            <span>{{ labels[index] }}</span>
-          </div>
-        </div>
-        <div class="card-foot"><span>均分 82.4</span><span>8 人低于 60 分</span></div>
-      </section>
-      <section class="card analytics-card">
-        <header class="card-head">
-          <div>
-            <p class="card-kicker">MASTERY / WEAK SPOTS</p>
-            <h2>班级薄弱点</h2>
-          </div>
-        </header>
-        <ul class="weak-list">
-          <li v-for="item in weak" :key="item.label" class="weak-item" :class="`tone-${item.tone}`">
-            <span>{{ item.label }}</span>
-            <b>{{ item.value }}%</b>
-            <span class="weak-bar"><i :style="{ '--p': `${item.value}%` }"></i></span>
-          </li>
-        </ul>
-      </section>
+
+    <div v-if="loadError" class="callout">
+      <span>NOTICE / 数据可用性</span>
+      <p>{{ loadError }}</p>
     </div>
-    <div class="module-grid" style="margin-top: 14px">
+
+    <div v-if="loading && !metrics.length" class="empty-state compact">
+      <b>正在加载课程指标…</b>
+    </div>
+    <div v-else-if="metrics.length" class="stat-grid kpi-grid">
+      <V2Stat v-for="metric in metrics" :key="metric.label" :metric="metric" role="teacher" />
+    </div>
+
+    <div class="analytics-grid">
       <section class="card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">SIGNAL / AI</p>
-            <h2>可执行建议</h2>
+            <p class="card-kicker">DISTRIBUTION / GRADES</p>
+            <h2>
+              分数段分布 <span class="chip chip-mute">{{ extra.count ?? 0 }} 人</span>
+            </h2>
+          </div>
+          <span class="head-hint">仅统计已录入成绩的学生</span>
+        </header>
+        <div v-if="buckets.length" class="bar-chart">
+          <div v-for="bucket in buckets" :key="bucket.range" class="bar-col">
+            <span class="bar-val">{{ bucket.count }}</span>
+            <i class="bar" :style="{ '--v': `${bucket.pct}%` }"></i>
+            <span class="bar-label">{{ bucket.range }}</span>
+          </div>
+        </div>
+        <div v-else-if="histError" class="empty-state compact">
+          <b>成绩分布未能加载</b>
+          <p>请查看上方提示后重试。</p>
+        </div>
+        <div v-else class="empty-state compact">
+          <b>尚无人成绩可统计</b>
+          <p>批阅完成并录入总评后，这里会出现分数段分布。</p>
+        </div>
+        <footer v-if="extra.count" class="card-foot">
+          <span>均分 {{ display(extra.avgScore) }}</span>
+          <span>最高 {{ display(extra.maxScore) }} · 最低 {{ display(extra.minScore) }}</span>
+        </footer>
+      </section>
+
+      <section class="card">
+        <header class="card-head">
+          <div>
+            <p class="card-kicker">RATES / QUALITY</p>
+            <h2>及格与优秀</h2>
           </div>
         </header>
-        <ol class="insight-steps">
-          <li><b>先补概念</b><span>拥塞控制掌握度 42%，建议用 2 分钟讲解 + 5 道变式题。</span></li>
-          <li><b>再练变式</b><span>子网划分错误集中在掩码借位，安排 10 道同类题。</span></li>
-          <li><b>最后回访</b><span>对 8 名低于 60 分的学生发起一对一提醒。</span></li>
-        </ol>
-      </section>
-      <aside class="card side-card">
-        <p class="card-kicker">INSIGHT / 提示</p>
-        <h2>统计口径</h2>
-        <p class="side-body">分数段与薄弱点来自已批阅成绩；AI 建议分数不计入统计。</p>
-        <ul class="side-list">
-          <li>样本不足时不生成班级结论</li>
-          <li>薄弱点阈值 60%</li>
-          <li>课程级聚合，可切教学班</li>
+        <ul class="rate-list">
+          <li>
+            <span class="r-label">及格率（≥60）</span>
+            <span class="r-track"><i :style="{ width: `${passRatePct}%` }" /></span>
+            <b class="r-num">{{ rateText(passRate) }}</b>
+          </li>
+          <li>
+            <span class="r-label">优秀率（≥90）</span>
+            <span class="r-track r-track--ok"
+              ><i :style="{ width: `${excellentRatePct}%` }"
+            /></span>
+            <b class="r-num">{{ rateText(excellentRate) }}</b>
+          </li>
         </ul>
-        <p class="caveat">示例数据 · 学情聚合端点已存在，本版未接入</p>
-      </aside>
+        <p v-if="histError" class="modal-hint">读数不可用，未回退成 0%。</p>
+        <p v-else-if="!extra.count" class="modal-hint">没有成绩样本，比率不计。</p>
+      </section>
     </div>
-  </div>
+  </section>
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
+import V2Stat from '../../../components/V2Stat.vue'
+import { useV2Ui } from '../../../composables/ui'
+import analyticsApi from '@/api/analytics'
+import { getAllMyCourses } from '@/api/course'
+import logger from '@/utils/logger'
+import type { V2Metric } from '../../../nav'
 
-const range = ref<'midterm' | 'term'>('midterm')
-const distribution = computed(() =>
-  range.value === 'midterm' ? [4, 9, 18, 21, 8] : [12, 24, 41, 52, 19],
-)
-const labels = ['<60', '60–69', '70–79', '80–89', '90+']
-const max = computed(() => Math.max(...distribution.value, 1))
-const weak = [
-  { label: '拥塞控制', value: 42, tone: 'danger' },
-  { label: '子网划分', value: 58, tone: 'warn' },
-  { label: '路由算法', value: 61, tone: 'warn' },
-  { label: '三次握手', value: 73, tone: 'ok' },
+const BUCKET_ORDER = [
+  '0-59（不及格）',
+  '60-69（及格）',
+  '70-79（中等）',
+  '80-89（良好）',
+  '90-100（优秀）',
 ]
+
+interface Bucket {
+  range: string
+  count: number
+  pct: number
+}
+
+interface ExtraStats {
+  count?: number
+  avgScore?: number | null
+  maxScore?: number | null
+  minScore?: number | null
+}
+
+interface HistogramPayload {
+  total?: number
+  distribution?: Record<string, number>
+  passRate?: number | null
+  excellentRate?: number | null
+  average?: number | null
+  maxScore?: number | null
+  minScore?: number | null
+}
+
+const props = defineProps<{ courseId?: number }>()
+const { toast } = useV2Ui()
+
+const loading = ref(false)
+const metrics = ref<V2Metric[]>([])
+const buckets = ref<Bucket[]>([])
+const extra = ref<ExtraStats>({})
+const passRate = ref<number | null>(null)
+const excellentRate = ref<number | null>(null)
+const histError = ref(false)
+const loadError = ref('')
+const picked = ref(0)
+const courses = ref<{ id: number | string; name?: string; title?: string }[]>([])
+
+const passRatePct = computed(() => toPct(passRate.value))
+const excellentRatePct = computed(() => toPct(excellentRate.value))
+
+function toPct(value: number | null): number {
+  if (value === null || value === undefined) return 0
+  const number = Number(value)
+  if (!Number.isFinite(number)) return 0
+  return number >= 0 && number <= 1.0001 ? Math.round(number * 100) : Math.round(number)
+}
+
+function display(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '—'
+  return String(value)
+}
+
+function pctValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '—'
+  return `${toPct(Number(value))}%`
+}
+
+/** 无样本或读数不可用时不谎报 0% */
+function rateText(value: number | null): string {
+  if (histError.value || value === null || !extra.value.count) return '—'
+  return `${toPct(value)}%`
+}
+
+async function load() {
+  const target = props.courseId || picked.value
+  if (!target) {
+    metrics.value = []
+    buckets.value = []
+    extra.value = {}
+    passRate.value = null
+    excellentRate.value = null
+    histError.value = false
+    loadError.value = ''
+    return
+  }
+  loading.value = true
+  loadError.value = ''
+  histError.value = false
+  const notices: string[] = []
+  // 两路端点相互独立：任一路失败不得拖垮另一路，也不得把失败伪装成 0 值
+  const [courseRes, histRes] = await Promise.allSettled([
+    analyticsApi.getCourseAnalytics(target),
+    analyticsApi.getGradeHistogram(target),
+  ])
+
+  if (courseRes.status === 'fulfilled') {
+    const body = courseRes.value as { data?: Record<string, unknown> }
+    const a = (body?.data ?? body ?? {}) as Record<string, unknown>
+    metrics.value = [
+      {
+        label: '选课学生',
+        value: display(a.enrollmentCount ?? 0),
+        unit: '人',
+        note: '课程级',
+        icon: 'users',
+      },
+      {
+        label: '平均分',
+        value: display(a.averageScore),
+        unit: '分',
+        note: '已录入成绩',
+        icon: 'chart',
+        tone: 'warn',
+      },
+      {
+        label: '平均进度',
+        value: pctValue(a.averageProgress),
+        note: '章节完成度口径',
+        icon: 'check',
+        tone: 'ok',
+      },
+    ]
+  } else {
+    logger.error('加载课程指标失败', courseRes.reason)
+    metrics.value = []
+    notices.push('课程指标未能加载。')
+  }
+
+  if (histRes.status === 'fulfilled') {
+    const body = histRes.value as { data?: HistogramPayload }
+    const h = (body?.data ?? body ?? {}) as HistogramPayload
+    const total = Number(h.total) || 0
+    buckets.value =
+      total > 0
+        ? BUCKET_ORDER.map((range) => ({
+            range,
+            count: Number(h.distribution?.[range] ?? 0),
+            pct: 0,
+          })).map((bucket) => ({
+            ...bucket,
+            pct: Math.round((bucket.count / Math.max(1, total)) * 100),
+          }))
+        : []
+    passRate.value = h.passRate ?? 0
+    excellentRate.value = h.excellentRate ?? 0
+    extra.value =
+      total > 0
+        ? { count: total, avgScore: h.average, maxScore: h.maxScore, minScore: h.minScore }
+        : {}
+  } else {
+    logger.error('加载成绩分布失败', histRes.reason)
+    buckets.value = []
+    extra.value = {}
+    passRate.value = null
+    excellentRate.value = null
+    histError.value = true
+    notices.push('成绩分布未能加载。')
+  }
+
+  loadError.value = notices.join('')
+  if (notices.length) toast('部分学情读数不可用', 'warn')
+  loading.value = false
+}
+
+watch(() => props.courseId, load, { immediate: true })
+watch(picked, load)
+
+async function loadCourses() {
+  try {
+    courses.value = (await getAllMyCourses()) as typeof courses.value
+  } catch (error) {
+    logger.error('加载教师课程失败', error)
+    courses.value = []
+  }
+}
+
+// 全局「学情分析」页没有课程上下文，需要自带课程选择器
+onMounted(() => {
+  if (!props.courseId) void loadCourses()
+})
 </script>
+
+<style scoped>
+.analytics {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.analytics-grid {
+  display: grid;
+  grid-template-columns: 1.4fr 1fr;
+  gap: 14px;
+}
+.head-hint {
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+.bar-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  height: 190px;
+  padding: 8px 4px 0;
+}
+.bar-col {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  height: 100%;
+}
+.bar-col .bar {
+  width: 100%;
+  max-width: 46px;
+  height: var(--v, 0%);
+  min-height: 2px;
+  border-radius: 6px 6px 2px 2px;
+  background: var(--accent);
+}
+.bar-val {
+  font-family: var(--font-display);
+  font-size: 13px;
+}
+.bar-label {
+  font-size: 9px;
+  color: var(--ink-3);
+  text-align: center;
+}
+.rate-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.rate-list li {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 6px;
+}
+.r-label {
+  font-size: 11px;
+  color: var(--ink-2);
+}
+.r-track {
+  height: 10px;
+  border-radius: 6px;
+  background: var(--surface-3);
+  overflow: hidden;
+}
+.r-track i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.2s ease;
+}
+.r-track--ok i {
+  background: var(--ok);
+}
+.r-num {
+  font-family: var(--font-display);
+  font-size: 18px;
+}
+@media (max-width: 1100px) {
+  .analytics-grid {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

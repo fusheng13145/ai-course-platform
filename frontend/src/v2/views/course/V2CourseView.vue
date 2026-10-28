@@ -60,7 +60,7 @@
         v-else-if="currentTab === 'chapters' && role === 'student'"
         :course-id="courseId"
       />
-      <AnalyticsTab v-else-if="currentTab === 'analytics'" />
+      <AnalyticsTab v-else-if="currentTab === 'analytics'" :course-id="courseId" />
       <GraphTab v-else-if="currentTab === 'graph'" />
       <AiTab v-else-if="currentTab === 'ai'" :role="role" />
       <GradesTab v-else-if="currentTab === 'grades'" :role="role" />
