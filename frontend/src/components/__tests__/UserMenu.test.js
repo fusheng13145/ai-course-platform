@@ -56,7 +56,12 @@ const leftOf = (w) => Number(/left:\s*(-?\d+)px/.exec(w.find('.pop-menu').attrib
 
 describe('UserMenu 单一来源', () => {
   it('常量顺序固定且含「新手引导」', () => {
-    expect(items.map((i) => i.label)).toEqual(['个人中心', '新手引导', '退出登录'])
+    expect(items.map((i) => i.label)).toEqual([
+      '个人中心',
+      '新手引导',
+      '体验新版（v2）',
+      '退出登录',
+    ])
   })
 
   it('渲染出的 items 与常量逐字相同', () => {

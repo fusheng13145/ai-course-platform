@@ -30,6 +30,7 @@ export const USER_MENU_ITEMS = ({
     action: () => router.push(profilePath || `/${role.toLowerCase()}/profile`),
   },
   { label: '新手引导', icon: 'grad', action: () => onGuide() },
+  { label: '体验新版（v2）', icon: 'star', action: () => router.push('/v2') },
   {
     label: '退出登录',
     icon: 'logout',

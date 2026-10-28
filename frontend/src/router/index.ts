@@ -3,6 +3,7 @@ import type { RouteRecordRaw } from 'vue-router'
 import NProgress from 'nprogress'
 import { useAuthStore } from '@/stores/auth'
 import { COURSE_TABS } from '@/layouts/menus'
+import { v2Routes } from '@/v2/router'
 
 // 管理端课程页签文案取自 layouts/menus 的单一来源，避免路由与侧边栏各抄一份而分叉
 const ADMIN_TAB_TITLES = Object.fromEntries(
@@ -557,6 +558,8 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
+  // 新版前端（v2）：独立壳层与 /v2 路由命名空间，旧端路由与视图不改。
+  ...v2Routes,
   // 404 路由必须放在最后，否则会拦截所有后续路由匹配
   {
     path: '/:pathMatch(.*)*',
@@ -595,7 +598,9 @@ router.beforeEach(async (to, from, next) => {
   }
 
   if (!authStore.isLoggedIn) {
-    next({ path: '/login', query: { redirect: to.fullPath } })
+    // v2 有独立登录页：/v2/** 的深链接回 /v2/login，旧端仍回 /login。
+    const loginPath = to.path.startsWith('/v2') ? '/v2/login' : '/login'
+    next({ path: loginPath, query: { redirect: to.fullPath } })
     return
   }
 
@@ -609,7 +614,8 @@ router.beforeEach(async (to, from, next) => {
     // 两条导航互相取消 → 过期用户看到「仍已登录、点击无反应，再点才跳登录」。
     const verdict = await authStore.fetchPermissions()
     if (verdict === 'expired') {
-      next({ path: '/login', query: { redirect: to.fullPath } })
+      const loginPath = to.path.startsWith('/v2') ? '/v2/login' : '/login'
+      next({ path: loginPath, query: { redirect: to.fullPath } })
       return
     }
     // 缺陷修复（2026-10-16 启动崩溃）：服务端不可达（网络错误/5xx，典型即后端尚未

@@ -103,6 +103,7 @@ describe('AppShell 用户菜单', () => {
     expect(menuItems().map((el) => el.textContent?.trim())).toEqual([
       '个人中心',
       '新手引导',
+      '体验新版（v2）',
       '退出登录',
     ])
 
@@ -217,6 +218,7 @@ describe('AppShell 用户菜单', () => {
     expect(menuItems().map((el) => el.textContent?.trim())).toEqual([
       '个人中心',
       '新手引导',
+      '体验新版（v2）',
       '退出登录',
     ])
 

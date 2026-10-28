@@ -212,11 +212,18 @@ function handleAuthExpired() {
   if (now - lastLoginRedirectAt < LOGIN_REDIRECT_DEDUPE_MS) return
   lastLoginRedirectAt = now
   const from = router.currentRoute?.value?.fullPath
-  if (from && from !== '/login' && from !== '/register') {
-    router.push({ path: '/login', query: { redirect: from } })
+  const loginPath = String(from || '').startsWith('/v2') ? '/v2/login' : '/login'
+  if (
+    from &&
+    from !== loginPath &&
+    from !== '/login' &&
+    from !== '/register' &&
+    from !== '/v2/register'
+  ) {
+    router.push({ path: loginPath, query: { redirect: from } })
     return
   }
-  router.push('/login')
+  router.push(loginPath)
 }
 
 /**
