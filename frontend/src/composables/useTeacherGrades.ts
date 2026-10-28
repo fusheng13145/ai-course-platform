@@ -97,8 +97,25 @@ function emptyOverview() {
   }
 }
 
+export type TeacherGradesTone = 'info' | 'ok' | 'warn' | 'error'
+
+export interface TeacherGradesHost {
+  /** 提示通道：默认走 ElMessage，v2 传入自己的 toast */
+  notify?: (message: string, tone: TeacherGradesTone) => void
+  /** 打开待批阅任务：默认跳旧端提交记录页，v2 传入 v2 路由 */
+  openGrading?: (task: PendingTask) => Promise<void> | void
+}
+
 /** 教师成绩页：使用课程学情列表和正式加权总评，不把当前教师自身记录当成全班成绩。 */
-export function useTeacherGrades() {
+export function useTeacherGrades(host: TeacherGradesHost = {}) {
+  const notify =
+    host.notify ||
+    ((message: string, tone: TeacherGradesTone) => {
+      if (tone === 'ok') ElMessage.success(message)
+      else if (tone === 'warn') ElMessage.warning(message)
+      else if (tone === 'error') ElMessage.error(message)
+      else ElMessage.info(message)
+    })
   const router = useRouter()
   let loadSequence = 0
   let courseOptionsSequence = 0
@@ -352,7 +369,7 @@ export function useTeacherGrades() {
   async function handleExport() {
     const rows = filteredGradeList.value
     if (rows.length === 0) {
-      ElMessage.warning('暂无可导出的成绩数据')
+      notify('暂无可导出的成绩数据', 'warn')
       return
     }
     try {
@@ -375,10 +392,10 @@ export function useTeacherGrades() {
         '学生成绩',
         `学生成绩_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.xlsx`,
       )
-      ElMessage.success('成绩已导出')
+      notify('成绩已导出', 'ok')
     } catch (error) {
       logger.error('导出成绩失败:', error)
-      ElMessage.error('导出失败，请稍后重试')
+      notify('导出失败，请稍后重试', 'error')
     }
   }
 
@@ -389,17 +406,19 @@ export function useTeacherGrades() {
 
   async function goToGrading(task: PendingTask) {
     if (task.courseId == null || task.id == null) {
-      ElMessage.warning('该待批阅任务缺少课程信息，请从课程作业页进入')
+      notify('该待批阅任务缺少课程信息，请从课程作业页进入', 'warn')
       return
     }
     try {
-      await router.push({
-        path: `/teacher/courses/${task.courseId}/submissions`,
-        query: { taskId: String(task.id) },
-      })
+      if (host.openGrading) await host.openGrading(task)
+      else
+        await router.push({
+          path: `/teacher/courses/${task.courseId}/submissions`,
+          query: { taskId: String(task.id) },
+        })
     } catch (error) {
       logger.error('打开待批阅任务失败:', error)
-      ElMessage.error('无法打开该任务，请稍后重试')
+      notify('无法打开该任务，请稍后重试', 'error')
     }
   }
 

@@ -160,6 +160,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
+import { useRoute } from 'vue-router'
 import taskApi from '@/api/task'
 import submissionApi from '@/api/submission'
 import { pickList, unwrap } from '@/utils/response'
@@ -182,6 +183,7 @@ interface TaskRow {
 }
 
 const props = defineProps<{ courseId: number; role: V2Role }>()
+const route = useRoute()
 const ui = useV2Ui()
 
 const tasks = ref<TaskRow[]>([])
@@ -313,7 +315,9 @@ async function loadTasks() {
     const response = await taskApi.getAllTasks({ courseId: props.courseId })
     tasks.value = Array.isArray(response) ? (response as TaskRow[]) : []
     if (tasks.value.length) {
-      selectedTaskId.value = tasks.value[0].id
+      const fromQuery = Number(route.query.taskId)
+      const wanted = tasks.value.find((task) => task.id === fromQuery)
+      selectedTaskId.value = wanted ? wanted.id : tasks.value[0].id
       await loadSubmissions()
     }
   } finally {

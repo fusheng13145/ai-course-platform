@@ -29,6 +29,7 @@ const V2CourseView = () => import('./views/course/V2CourseView.vue')
 const V2TeacherBankView = () => import('./views/teacher/V2TeacherBankView.vue')
 const V2TeacherExamsView = () => import('./views/teacher/V2TeacherExamsView.vue')
 const V2CreateCourseView = () => import('./views/teacher/V2CreateCourseView.vue')
+const V2TeacherGradesView = () => import('./views/teacher/V2TeacherGradesView.vue')
 
 const page = (
   path: string,
@@ -146,6 +147,11 @@ export const v2Routes: RouteRecordRaw[] = [
         path: 'teacher/exams',
         component: V2TeacherExamsView,
         meta: { role: 'TEACHER', v2page: 'exams', title: '试卷库' },
+      },
+      {
+        path: 'teacher/grades',
+        component: V2TeacherGradesView,
+        meta: { role: 'TEACHER', v2page: 'grades', title: '成绩管理' },
       },
       page('teacher/inbox', 'TEACHER', 'inbox', '教学任务'),
       page('teacher/analytics', 'TEACHER', 'analytics', '学情分析'),

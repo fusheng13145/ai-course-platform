@@ -17,6 +17,7 @@ const PATHS: Record<V2Role, Record<string, string>> = {
     courses: '/v2/teacher/courses',
     bank: '/v2/teacher/bank',
     exams: '/v2/teacher/exams',
+    grades: '/v2/teacher/grades',
     inbox: '/v2/teacher/inbox',
     analytics: '/v2/teacher/analytics',
     resources: '/v2/teacher/resources',
@@ -83,15 +84,16 @@ export function navGroups(role: V2Role): V2NavGroup[] {
       path: PATHS[role][item.id] || ROLE_HOME[role],
     })),
   }))
-  // 原型 v2 的教师侧栏只有「资源中心」，旧端另有「试题与考试」两条真实能力；
+  // 原型 v2 的教师侧栏只有「资源中心」，旧端另有题库／试卷／成绩三条真实能力；
   // 迁移期按旧端功能面补齐，避免删旧前端时丢入口。
   if (role === 'teacher') {
     const insertAt = groups.findIndex((group) => group.label === '平台')
     groups.splice(insertAt >= 0 ? insertAt : groups.length, 0, {
-      label: '试题与考试',
+      label: '试题与学情',
       items: [
         { id: 'bank', label: '题库管理', icon: 'doc', path: PATHS.teacher.bank },
         { id: 'exams', label: '试卷库', icon: 'clipboard', path: PATHS.teacher.exams },
+        { id: 'grades', label: '成绩管理', icon: 'award', path: PATHS.teacher.grades },
       ],
     })
   }
@@ -237,6 +239,11 @@ const TEACHER_PAGES: Record<string, V2PageDef> = {
     title: '试卷库',
     kicker: 'TEACHER / EXAM PAPERS',
     desc: '试卷的创建、编辑、题目明细、统计与发布。',
+  },
+  grades: {
+    title: '成绩管理',
+    kicker: 'TEACHER / GRADES',
+    desc: '按课程查看学情与正式总评，导出成绩并进入待批阅任务。',
   },
   inbox: {
     title: '教学任务',
