@@ -79,6 +79,7 @@
         :role="role"
         :course="courseForSettings"
         :course-id="courseId"
+        @updated="applyCourseUpdate"
       />
       <ModuleTab v-else :block="block" :role="role" :note="moduleNote" />
     </div>
@@ -232,6 +233,22 @@ async function load() {
 }
 
 onMounted(load)
+
+/** 设置页保存后直接用 PUT 响应回填：后端课程缓存未随更新失效，重新读会拿到旧值 */
+function applyCourseUpdate(course: Record<string, unknown>) {
+  if (!detail.value) return
+  detail.value = { ...detail.value, ...course } as typeof detail.value
+  setCourseContext({
+    id: courseId.value,
+    name: String(detail.value?.name || fallbackName.value || ''),
+    code: String(detail.value?.code || ''),
+    semester: String(detail.value?.semester || ''),
+    credits: detail.value?.credits == null ? null : Number(detail.value.credits),
+    teacher: String(detail.value?.teacher || ''),
+    status: statusChip.value.text,
+  })
+}
+
 watch(() => route.params.id, load)
 watch(
   () => route.params.tab,
