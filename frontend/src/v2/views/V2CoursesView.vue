@@ -3,9 +3,7 @@
     <V2PageHead :kicker="kicker" :title="def.title" :sub="def.desc" :source="source">
       <template #actions>
         <button class="btn btn-ghost" @click="notReady('筛选')">筛选</button>
-        <button class="btn btn-primary" @click="notReady(primaryLabel)">
-          {{ primaryLabel }}
-        </button>
+        <button class="btn btn-primary" @click="onPrimary">{{ primaryLabel }}</button>
       </template>
     </V2PageHead>
 
@@ -105,11 +103,15 @@ function open(id: number) {
 }
 
 function notReady(label: string) {
-  if (role.value === 'teacher' && label === '新建课程') {
-    toast('新建课程仍在旧版（/teacher/courses/create）可用', 'info')
+  toast(`演示数据：${label}尚未接入`, 'warn')
+}
+
+function onPrimary() {
+  if (role.value === 'teacher') {
+    router.push('/v2/teacher/courses/create')
     return
   }
-  toast(`演示数据：${label}尚未接入`, 'warn')
+  notReady(primaryLabel.value)
 }
 
 onMounted(async () => {

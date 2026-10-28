@@ -89,6 +89,15 @@ describe('v2 导航与路由一致性', () => {
     }
   })
 
+  it('新建课程不被课程空间的 :id 动态段吞掉', () => {
+    const leaf = router.resolve('/v2/teacher/courses/create').matched.slice(-1)[0]
+    expect(leaf.meta.v2page, '创建课程落到了课程空间路由').toBe('createCourse')
+    expect(leaf.meta.v2course).toBeUndefined()
+    expect(
+      router.resolve('/v2/teacher/courses/4060/overview').matched.slice(-1)[0].meta.v2course,
+    ).toBe(true)
+  })
+
   it('每个全局页面定义都有标题与描述', () => {
     for (const role of ROLES) {
       for (const [page, def] of Object.entries(PAGE_DEFS[role])) {

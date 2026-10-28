@@ -645,54 +645,12 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.course-tab-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-end;
-  gap: 14px;
-  flex-wrap: wrap;
-  margin-bottom: 14px;
-  padding-bottom: 12px;
-  border-bottom: 1px solid var(--line);
-}
-.course-tab-bar h2 {
-  margin: 4px 0 0;
-  font-family: 'Noto Serif SC', Georgia, serif;
-  font-size: 22px;
-  font-weight: 600;
-}
-.course-tab-actions {
-  display: flex;
-  gap: 8px;
-}
-.filter-row {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 8px;
-  width: 100%;
-}
 .filter-course {
   height: 34px;
   width: auto;
   min-width: 150px;
   padding: 0 8px;
   font-size: 11px;
-}
-.w-60 {
-  width: 60px;
-}
-.w-80 {
-  width: 80px;
-}
-.w-96 {
-  width: 96px;
-}
-.w-140 {
-  width: 140px;
-}
-.w-260 {
-  width: 260px;
 }
 .exam-title {
   display: block;
@@ -711,49 +669,6 @@ onMounted(async () => {
   font-size: 9px;
   color: var(--ink-3);
   margin-top: 3px;
-}
-.row-actions {
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.row-actions .danger {
-  color: var(--danger);
-}
-.empty-state.compact {
-  padding: 26px 12px;
-}
-.v2-pager {
-  display: flex;
-  gap: 6px;
-}
-.form-grid {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 12px;
-}
-.span-2 {
-  grid-column: span 2;
-}
-.form-error {
-  margin: 10px 0 0;
-  padding: 8px 10px;
-  border-radius: 6px;
-  background: var(--danger-soft);
-  color: var(--danger);
-  font-size: 11px;
-}
-.modal-text {
-  margin: 0 0 14px;
-  font-size: 12px;
-  line-height: 1.75;
-  color: var(--ink-2);
-}
-.modal-hint {
-  margin: 12px 0 0;
-  font-size: 10px;
-  line-height: 1.7;
-  color: var(--ink-3);
 }
 .stats-grid {
   display: grid;
@@ -787,18 +702,7 @@ onMounted(async () => {
 .stats-item b.danger {
   color: var(--danger);
 }
-.btn-danger {
-  background: var(--danger);
-  border-color: var(--danger);
-  color: #fff;
-}
 @media (max-width: 720px) {
-  .form-grid {
-    grid-template-columns: 1fr;
-  }
-  .span-2 {
-    grid-column: span 1;
-  }
   .stats-grid {
     grid-template-columns: 1fr 1fr;
   }

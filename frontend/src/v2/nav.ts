@@ -223,6 +223,11 @@ const TEACHER_PAGES: Record<string, V2PageDef> = {
     desc: '我负责的课程、教学班与待批阅；进入课程空间完成教学动作。',
     special: 'courses',
   },
+  createCourse: {
+    title: '创建课程',
+    kicker: 'TEACHER / NEW COURSE',
+    desc: '填写课程基本信息，提交后进入审核流程。',
+  },
   bank: {
     title: '题库管理',
     kicker: 'TEACHER / QUESTION BANK',

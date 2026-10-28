@@ -28,6 +28,7 @@ const V2CoursesView = () => import('./views/V2CoursesView.vue')
 const V2CourseView = () => import('./views/course/V2CourseView.vue')
 const V2TeacherBankView = () => import('./views/teacher/V2TeacherBankView.vue')
 const V2TeacherExamsView = () => import('./views/teacher/V2TeacherExamsView.vue')
+const V2CreateCourseView = () => import('./views/teacher/V2CreateCourseView.vue')
 
 const page = (
   path: string,
@@ -125,6 +126,11 @@ export const v2Routes: RouteRecordRaw[] = [
         path: 'teacher/courses',
         component: V2CoursesView,
         meta: { role: 'TEACHER', v2page: 'courses', title: '我的课程' },
+      },
+      {
+        path: 'teacher/courses/create',
+        component: V2CreateCourseView,
+        meta: { role: 'TEACHER', v2page: 'createCourse', title: '创建课程' },
       },
       {
         path: 'teacher/courses/:id/:tab?',
