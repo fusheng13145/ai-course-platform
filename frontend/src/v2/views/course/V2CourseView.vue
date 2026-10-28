@@ -61,6 +61,10 @@
         :course-id="courseId"
       />
       <AnalyticsTab v-else-if="currentTab === 'analytics'" :course-id="courseId" />
+      <KnowledgeGraphTab
+        v-else-if="currentTab === 'graph' && role === 'teacher'"
+        :course-id="courseId"
+      />
       <GraphTab v-else-if="currentTab === 'graph'" />
       <AiTab v-else-if="currentTab === 'ai'" :role="role" />
       <GradesTab v-else-if="currentTab === 'grades'" :role="role" />
@@ -110,6 +114,7 @@ import ProctorTab from './tabs/ProctorTab.vue'
 import ChaptersTab from './tabs/ChaptersTab.vue'
 import TasksTab from './tabs/TasksTab.vue'
 import DiscussionTab from './tabs/DiscussionTab.vue'
+import KnowledgeGraphTab from './tabs/KnowledgeGraphTab.vue'
 import { courseTabs, type V2Role } from '../../nav'
 import { useV2Ui } from '../../composables/ui'
 import { loadCourse, getCourses, type V2CourseDetail } from '../../data/api'
