@@ -20,6 +20,17 @@
         </button>
       </div>
       <div class="palette-results">
+        <!-- 结果区限高 330px：状态条排在分组之前并吸顶，24 条命中也不会把失败提示挤到折叠线以下 -->
+        <p v-if="searchState === 'loading' && !results.length" class="palette-status">
+          正在检索全站…
+        </p>
+        <p v-else-if="searchState === 'error'" class="palette-status is-error" role="alert">
+          <span>检索服务暂不可用</span>
+          <button type="button" class="palette-retry" @click="retrySearch">重试</button>
+        </p>
+        <p v-else-if="hasKeyword && !results.length" class="palette-status">
+          没有匹配结果，试试更短的关键词。
+        </p>
         <template v-for="section in sections" :key="section.id">
           <p class="palette-group">{{ section.heading }}</p>
           <template v-for="item in section.items" :key="item.key">
@@ -52,16 +63,6 @@
             </div>
           </template>
         </template>
-        <p v-if="searchState === 'loading' && !results.length" class="palette-status">
-          正在检索全站…
-        </p>
-        <p v-else-if="searchState === 'error'" class="palette-status is-error" role="alert">
-          <span>检索服务暂不可用</span>
-          <button type="button" class="palette-retry" @click="retrySearch">重试</button>
-        </p>
-        <p v-else-if="hasKeyword && !results.length" class="palette-status">
-          没有匹配结果，试试更短的关键词。
-        </p>
       </div>
       <div class="palette-foot">
         <span>↑↓ 选择 · ↵ 打开</span>
@@ -100,7 +101,7 @@ interface Item {
 
 interface ServerHit {
   type?: string
-  id?: number | string
+  id?: number | string | null
   title?: string
   snippet?: string
   score?: number
@@ -129,6 +130,8 @@ const searchState = ref<SearchState>('idle')
  */
 let requestSeq = 0
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
+/** 关键词变化后的下一轮 results 直接回到第一条；其余结果变化按 key 保留选中 */
+let resetActiveOnResults = true
 
 const items = computed<Item[]>(() => {
   const list: Array<Omit<Item, 'key'>> = []
@@ -198,11 +201,14 @@ const sections = computed(() => {
 })
 
 /** 服务端命中落到 v2 页面：没有承接页的角色一律返回 null（展示但不可点） */
-function serverRoute(type: string, id?: number | string): string | null {
+function serverRoute(type: string, id?: number | string | null): string | null {
   const current = role.value
   if (type === 'course') {
-    if (id === undefined || id === '') return null
-    return `/v2/${current}/courses/${id}/overview`
+    // 后端可能给 null / 空串：不拦住会拼出 /courses/null/overview
+    if (id === undefined || id === null) return null
+    const courseId = String(id).trim()
+    if (!courseId || courseId === 'null' || courseId === 'undefined') return null
+    return `/v2/${current}/courses/${courseId}/overview`
   }
   if (type === 'question') {
     if (current === 'teacher') return '/v2/teacher/bank'
@@ -222,7 +228,7 @@ function serverRoute(type: string, id?: number | string): string | null {
   return null
 }
 
-function toServerItem(hit: ServerHit): Item {
+function toServerItem(hit: ServerHit, index: number): Item {
   const type = String(hit?.type || '').toLowerCase()
   const known = TYPE_META[type]
   const path = serverRoute(type, hit?.id)
@@ -235,7 +241,8 @@ function toServerItem(hit: ServerHit): Item {
   }
   if (!path) metaParts.push('暂无可打开入口')
   return {
-    key: `server:${type}:${String(hit?.id ?? '')}`,
+    // 同一 type 可能有多条缺 id 的命中，必须带下标才能保证 Vue key 唯一
+    key: `server:${index}:${type}:${String(hit?.id ?? '')}`,
     label,
     meta: metaParts.join(' · '),
     icon: known ? known.icon : 'search',
@@ -260,7 +267,7 @@ async function runSearch(keyword: string) {
     const hits = await searchAll(keyword)
     if (seq !== requestSeq) return
     const rows: ServerHit[] = Array.isArray(hits) ? hits : []
-    serverItems.value = rows.map((hit) => toServerItem(hit))
+    serverItems.value = rows.map((hit, index) => toServerItem(hit, index))
     searchState.value = 'done'
   } catch {
     if (seq !== requestSeq) return
@@ -281,6 +288,8 @@ watch(
   (keyword) => {
     cancelPending()
     serverItems.value = []
+    activeIndex.value = 0
+    resetActiveOnResults = true
     if (!keyword) {
       searchState.value = 'idle'
       return
@@ -293,8 +302,26 @@ watch(
   },
 )
 
-watch(results, () => {
-  activeIndex.value = 0
+/**
+ * 服务端命中是异步追加的：不能像关键词变化那样把选中项打回 0，
+ * 否则用户已用 ↓ 选好的条目会在响应落地时被换掉，紧接着的回车会打开错误入口。
+ * 按 key 追住当前条目；条目真的消失时才夹回有效范围。
+ */
+watch(results, (next, previous) => {
+  if (resetActiveOnResults) {
+    resetActiveOnResults = false
+    activeIndex.value = 0
+    return
+  }
+  const current = previous[activeIndex.value]
+  const kept = current ? next.findIndex((item) => item.key === current.key) : -1
+  if (kept !== -1) {
+    activeIndex.value = kept
+    return
+  }
+  if (activeIndex.value >= next.length) {
+    activeIndex.value = Math.max(next.length - 1, 0)
+  }
 })
 
 watch(paletteOpen, async (open) => {
@@ -382,6 +409,9 @@ onBeforeUnmount(() => {
 
 /* 失败与空态必须一眼可分：失败走警示色与左边框，空态维持中性 */
 .palette-status.is-error {
+  position: sticky;
+  top: 0;
+  z-index: 1;
   display: flex;
   align-items: center;
   justify-content: space-between;

@@ -194,6 +194,86 @@ describe('v2 命令面板接入服务端全站检索', () => {
     expect(router.push).toHaveBeenCalledWith('/v2/student/courses/4007/overview')
   })
 
+  it('24 条本地命中并存时，检索失败状态仍排在结果区最前，无需滚动即可见', async () => {
+    dataApi.getCourses.mockResolvedValue(
+      Array.from({ length: 24 }, (_, i) => ({
+        id: 5000 + i,
+        name: `课程 ${i + 1}`,
+        code: `C${i + 1}`,
+      })),
+    )
+    // 从关闭态打开面板，让 getCourses 真正灌满本地课程条目
+    ui.open.value = false
+    const wrapper = mountPalette()
+    ui.open.value = true
+    await flushPromises()
+
+    searchApi.searchAll.mockRejectedValueOnce(new Error('503'))
+    await typeKeyword(wrapper, '课')
+
+    // 本地命中已顶到 24 条上限
+    expect(wrapper.findAll('.palette-item')).toHaveLength(24)
+
+    vi.advanceTimersByTime(250)
+    await flushPromises()
+
+    const results = wrapper.find('.palette-results')
+    const status = results.find('.palette-status.is-error')
+    expect(status.exists()).toBe(true)
+    expect(status.text()).toContain('检索服务暂不可用')
+    expect(status.text()).toContain('重试')
+    // 状态条是结果区第一个子节点：330px 滚动容器里不会被 24 条命中挤到折叠线以下
+    expect(results.element.firstElementChild).toBe(status.element)
+  })
+
+  it('服务端响应落地时不重置键盘选中，回车仍打开原条目', async () => {
+    const pending = deferred<Hit[]>()
+    searchApi.searchAll.mockReturnValueOnce(pending.promise)
+
+    const wrapper = mountPalette()
+    await typeKeyword(wrapper, '学')
+    vi.advanceTimersByTime(250)
+    await flushPromises()
+    expect(searchApi.searchAll).toHaveBeenCalledTimes(1)
+
+    // 请求在途时用 ↓ 选中第 3 条本地命中：学习任务
+    await wrapper.find('input').trigger('keydown', { key: 'ArrowDown' })
+    await wrapper.find('input').trigger('keydown', { key: 'ArrowDown' })
+    expect(wrapper.find('.palette-item.is-active').text()).toContain('学习任务')
+
+    pending.resolve([{ type: 'course', id: 4007, title: '服务端命中', snippet: '', score: 1 }])
+    await flushPromises()
+
+    // 服务端结果追加后，选中项仍停在原条目
+    const active = wrapper.find('.palette-item.is-active')
+    expect(active.text()).toContain('学习任务')
+    expect(active.text()).not.toContain('服务端命中')
+
+    await wrapper.find('input').trigger('keydown', { key: 'Enter' })
+    expect(router.push).toHaveBeenCalledWith('/v2/student/tasks')
+  })
+
+  it('课程命中缺少 id 时不可点，重复缺 id 的命中也能共存', async () => {
+    searchApi.searchAll.mockResolvedValueOnce([
+      { type: 'course', id: null, title: '空 ID 课程', snippet: '', score: 0.9 },
+      { type: 'course', id: null, title: '另一个空 ID 课程', snippet: '', score: 0.8 },
+    ])
+    const wrapper = mountPalette()
+    await typeKeyword(wrapper, '空')
+    vi.advanceTimersByTime(250)
+    await flushPromises()
+
+    expect(wrapper.html()).not.toContain('/courses/null/overview')
+    const disabled = wrapper.findAll('.palette-item.is-disabled')
+    expect(disabled.length).toBe(2)
+    expect(disabled[0].text()).toContain('空 ID 课程')
+    expect(disabled[0].text()).toContain('暂无可打开入口')
+    expect(disabled[1].text()).toContain('另一个空 ID 课程')
+
+    await wrapper.find('input').trigger('keydown', { key: 'Enter' })
+    expect(router.push).not.toHaveBeenCalled()
+  })
+
   it('管理员侧的笔记命中展示但不可点，未知类型同理', async () => {
     ui.role.value = 'admin'
     searchApi.searchAll.mockResolvedValue([
