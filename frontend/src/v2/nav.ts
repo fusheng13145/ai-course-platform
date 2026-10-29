@@ -235,6 +235,7 @@ const STUDENT_PAGES: Record<string, V2PageDef> = {
     kicker: 'STUDENT / TASKS',
     desc: '跨课程作业、考试与提醒；按截止时间排序。',
     moduleId: 'tasks',
+    special: 'tasks',
   },
   academic: {
     title: '学业档案',
@@ -385,18 +386,21 @@ const ADMIN_PAGES: Record<string, V2PageDef> = {
     kicker: 'ADMIN / USERS',
     desc: '全校用户、角色与账号状态；管理员只做治理。',
     moduleId: 'users',
+    special: 'users',
   },
   roles: {
     title: '角色与权限',
     kicker: 'ADMIN / ROLES',
     desc: '角色矩阵与权限边界；院系级只读。',
     moduleId: 'roles',
+    special: 'roles',
   },
   semesters: {
     title: '学期管理',
     kicker: 'ADMIN / SEMESTERS',
     desc: '学期注册表与归档；课程编号按学期唯一。',
     moduleId: 'semesters',
+    special: 'semesters',
   },
   approvals: {
     title: '课程审批',

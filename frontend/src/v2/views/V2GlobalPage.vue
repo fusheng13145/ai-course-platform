@@ -29,6 +29,7 @@
     <AnalyticsTab v-else-if="def.special === 'analytics'" />
     <AiTab v-else-if="def.special === 'assistant'" :role="role" />
     <V2MessagesBody v-else-if="def.special === 'messages'" />
+    <component :is="specialBodyComponent" v-else-if="specialBodyComponent" :key="page" />
 
     <template v-else-if="block">
       <div v-if="block.metrics.length" class="stat-grid kpi-grid">
@@ -58,7 +59,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, defineAsyncComponent, type AsyncComponentLoader } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import V2PageHead from '../components/V2PageHead.vue'
 import V2Stat from '../components/V2Stat.vue'
@@ -69,6 +70,7 @@ import ExamGovernanceBody from './specials/V2ExamGovernanceBody.vue'
 import AnalyticsTab from './course/tabs/AnalyticsTab.vue'
 import AiTab from './course/tabs/AiTab.vue'
 import V2MessagesBody from './specials/V2MessagesBody.vue'
+import { specialBodyLoader } from './specials/registry'
 import { pageDef, type V2Role } from '../nav'
 import { useV2Ui } from '../composables/ui'
 import { demoBlock } from '../data/pageData'
@@ -79,6 +81,12 @@ const { role, toast } = useV2Ui()
 
 const page = computed(() => String(route.meta.v2page || 'home'))
 const def = computed(() => pageDef(role.value as V2Role, page.value))
+
+// 显式分支之外的页面按约定懒加载 <Special>Body.vue；文件未落地则保持 null，走示例块兜底。
+const specialBodyComponent = computed(() => {
+  const loader = specialBodyLoader(def.value.special)
+  return loader ? defineAsyncComponent(loader as AsyncComponentLoader) : null
+})
 
 interface TabDef {
   id: string
