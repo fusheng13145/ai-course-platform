@@ -79,6 +79,81 @@
       </div>
     </section>
 
+    <!-- 课程资源 -->
+    <section class="card table-card">
+      <header class="card-head">
+        <div>
+          <p class="card-kicker">COURSE / RESOURCES</p>
+          <h2>
+            课程资源 <span class="chip chip-mute">{{ resources.length }} 个</span>
+          </h2>
+        </div>
+        <button class="btn btn-primary btn-sm" @click="uploadOpen = true">上传资源</button>
+      </header>
+
+      <div v-if="resourceError" class="callout">
+        <span>ERROR / 资源加载失败</span>
+        <p>{{ resourceError }}</p>
+      </div>
+
+      <div v-if="resources.length" class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th>文件名称</th>
+              <th class="w-96">类型</th>
+              <th class="w-96" title="后端资源实体未保存文件大小，缺失时以 — 展示">大小</th>
+              <th class="w-140">上传时间</th>
+              <th class="w-96">操作</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr v-for="(row, index) in resources" :key="rowKey(row, index)">
+              <td>
+                <b class="res-name" :title="row.fileName || ''">{{
+                  row.fileName || '未命名资源'
+                }}</b>
+              </td>
+              <td>
+                <span class="chip" :class="typeMeta(row.fileType).chip">{{
+                  typeMeta(row.fileType).label
+                }}</span>
+              </td>
+              <td>{{ formatSize(row.fileSize) }}</td>
+              <td>{{ formatTime(row.uploadTime) }}</td>
+              <td>
+                <div class="row-actions">
+                  <button
+                    class="text-btn"
+                    :disabled="downloadingId === row.id"
+                    @click="download(row)"
+                  >
+                    {{ downloadingId === row.id ? '下载中…' : '下载' }}
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <div v-else-if="resourceLoading" class="empty-state compact"><b>正在加载课程资源…</b></div>
+      <div v-else class="empty-state compact">
+        <span class="e-ico"><V2Icon name="file" /></span>
+        <b>{{ resourceError ? '资源列表未能加载' : '暂无课程资源' }}</b>
+        <p>
+          {{
+            resourceError ? '请查看上方提示后重试。' : '点击右上角「上传资源」上传第一份课程资料。'
+          }}
+        </p>
+      </div>
+    </section>
+
+    <ResourceUploadDialog
+      v-model:open="uploadOpen"
+      :course-id="courseId"
+      @success="onResourceUploaded"
+    />
+
     <!-- 新增 / 编辑章节 -->
     <V2Modal
       v-model:open="dialogOpen"
@@ -160,9 +235,11 @@
 import { computed, reactive, ref, watch } from 'vue'
 import V2Modal from '../../../components/V2Modal.vue'
 import V2Icon from '../../../components/V2Icon.vue'
+import ResourceUploadDialog from '../ResourceUploadDialog.vue'
 import { useV2Ui } from '../../../composables/ui'
 import chapterApi from '@/api/chapter'
 import teachingApi from '@/api/teacher'
+import resourceApi from '@/api/resource'
 import { unwrap } from '@/utils/response'
 import logger from '@/utils/logger'
 
@@ -183,6 +260,16 @@ interface ChapterNode {
   completionRate?: number | string
   taskPoints?: TaskPoint[]
   children?: ChapterNode[]
+}
+
+interface ResourceRow {
+  id: number | string
+  fileName?: string
+  fileType?: string
+  fileSize?: number | null
+  uploadTime?: string
+  description?: string
+  visibleToAll?: boolean
 }
 
 const IMPORT_NOTES = [
@@ -216,6 +303,13 @@ const pickedFile = ref<File | null>(null)
 const fileInput = ref<HTMLInputElement | null>(null)
 
 const confirm = reactive({ open: false, node: null as ChapterNode | null, busy: false })
+
+/* ---- 课程资源 ---- */
+const resources = ref<ResourceRow[]>([])
+const resourceLoading = ref(false)
+const resourceError = ref('')
+const downloadingId = ref<number | string | null>(null)
+const uploadOpen = ref(false)
 
 const flatCount = computed(() =>
   tree.value.reduce((sum, node) => sum + 1 + (node.children?.length || 0), 0),
@@ -261,6 +355,79 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+async function loadResources() {
+  if (!props.courseId) return
+  resourceLoading.value = true
+  resourceError.value = ''
+  try {
+    // GET /resources/course/{courseId} → ApiResponse<List<Resource>>；非数组一律视为失败，
+    // 避免把「响应形状变了」渲染成一张空表（空态与失败态必须可区分）。
+    const body = unwrap(await resourceApi.getResourceList(props.courseId))
+    if (!Array.isArray(body)) throw new Error('资源列表响应格式无效')
+    resources.value = body as ResourceRow[]
+  } catch (error) {
+    logger.error('加载课程资源失败', error)
+    resources.value = []
+    resourceError.value = '课程资源加载失败，请检查网络后重试'
+    toast('课程资源加载失败', 'danger')
+  } finally {
+    resourceLoading.value = false
+  }
+}
+
+function typeMeta(fileType?: string): { label: string; chip: string } {
+  const type = String(fileType || '').toLowerCase()
+  if (/pdf|word|excel|sheet|document|text\//.test(type)) return { label: '文档', chip: 'chip-info' }
+  if (/image/.test(type)) return { label: '图片', chip: 'chip-ok' }
+  if (/video/.test(type)) return { label: '视频', chip: 'chip-warn' }
+  if (/audio/.test(type)) return { label: '音频', chip: 'chip-danger' }
+  return { label: '其他', chip: 'chip-mute' }
+}
+
+/** Resource 实体没有 fileSize 字段（见后端 Resource.java），缺失时如实显示 —，不做估算 */
+function formatSize(size?: number | null): string {
+  if (typeof size !== 'number' || !Number.isFinite(size) || size < 0) return '—'
+  if (size < 1024) return `${size} B`
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function formatTime(value?: string): string {
+  if (!value) return '—'
+  return String(value).replace('T', ' ').slice(0, 16)
+}
+
+async function download(row: ResourceRow) {
+  if (downloadingId.value === row.id) return
+  downloadingId.value = row.id
+  try {
+    const payload = await resourceApi.downloadResource(row.id)
+    if (typeof URL.createObjectURL !== 'function') {
+      window.open(`/api/resources/download/${row.id}`, '_blank', 'noopener')
+      return
+    }
+    const blob = payload instanceof Blob ? payload : new Blob([payload as BlobPart])
+    const url = URL.createObjectURL(blob)
+    const link = document.createElement('a')
+    link.href = url
+    link.download = row.fileName || `resource-${row.id}`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    URL.revokeObjectURL(url)
+  } catch (error) {
+    toast('资源下载失败，请稍后重试', 'danger')
+    logger.error('下载课程资源失败', error)
+  } finally {
+    downloadingId.value = null
+  }
+}
+
+async function onResourceUploaded() {
+  toast('课程资源已上传', 'ok')
+  await loadResources()
 }
 
 function resetForm() {
@@ -388,7 +555,14 @@ async function runImport() {
   }
 }
 
-watch(() => props.courseId, load, { immediate: true })
+watch(
+  () => props.courseId,
+  () => {
+    void load()
+    void loadResources()
+  },
+  { immediate: true },
+)
 </script>
 
 <style scoped>
@@ -486,5 +660,13 @@ watch(() => props.courseId, load, { immediate: true })
 .cover-name {
   font-size: 11px;
   color: var(--ink-3);
+}
+.res-name {
+  display: block;
+  max-width: 320px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 550;
 }
 </style>
