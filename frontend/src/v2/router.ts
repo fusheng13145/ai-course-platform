@@ -1,5 +1,7 @@
-import type { RouteRecordRaw } from 'vue-router'
+import { createRouter, createWebHistory } from 'vue-router'
+import type { RouteRecordRaw, Router, RouterHistory } from 'vue-router'
 import { useAuthStore } from '@/stores/auth'
+import { installRouterGuard } from '@/router/guard'
 import { ROLE_HOME } from './types'
 
 const V2Shell = () => import('./V2Shell.vue')
@@ -234,3 +236,24 @@ export const v2Routes: RouteRecordRaw[] = [
     meta: { requiresAuth: false, v2error: '404', title: '页面不存在' },
   },
 ]
+
+/**
+ * 给任意 router 装上 v2 的鉴权守卫：落点固定在本命名空间内，
+ * 因此旧 router 摘除后 v2 仍能独立完成登录态校验、权限探针与角色门禁。
+ */
+export function installV2Guards(router: Router): void {
+  installRouterGuard(router, () => ({
+    loginPath: '/v2/login',
+    forbiddenPath: '/v2/403',
+    unavailablePath: '/v2/503',
+  }))
+}
+
+/**
+ * 独立可用的 v2 router（测试传 createMemoryHistory，正式环境用浏览器历史）。
+ */
+export function createV2Router(history: RouterHistory = createWebHistory()): Router {
+  const router = createRouter({ history, routes: v2Routes })
+  installV2Guards(router)
+  return router
+}
