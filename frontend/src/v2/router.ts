@@ -24,6 +24,7 @@ const authRedirect = () => {
   return homeFor(auth.effectiveRole || auth.userRole) || '/v2/login'
 }
 const V2GlobalPage = () => import('./views/V2GlobalPage.vue')
+const V2AdminQuestionsView = () => import('./views/admin/V2AdminQuestionsView.vue')
 const V2CoursesView = () => import('./views/V2CoursesView.vue')
 const V2CourseView = () => import('./views/course/V2CourseView.vue')
 const V2TeacherBankView = () => import('./views/teacher/V2TeacherBankView.vue')
@@ -202,6 +203,11 @@ export const v2Routes: RouteRecordRaw[] = [
       page('admin/exam-governance', 'ADMIN', 'examGovernance', '考试治理'),
       page('admin/grades', 'ADMIN', 'grades', '成绩与预警'),
       page('admin/ai-usage', 'ADMIN', 'aiUsage', 'AI 使用与治理'),
+      {
+        path: 'admin/questions',
+        component: V2AdminQuestionsView,
+        meta: { role: 'ADMIN', v2page: 'adminQuestions', title: '题库管理' },
+      },
       page('admin/moderation', 'ADMIN', 'moderation', '内容审核'),
       page('admin/notices', 'ADMIN', 'notices', '通知公告'),
       page('admin/audit', 'ADMIN', 'audit', '操作与登录日志'),

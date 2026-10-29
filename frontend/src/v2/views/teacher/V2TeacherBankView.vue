@@ -591,7 +591,7 @@ function openEdit(row: QuestionRow) {
     difficulty: row.difficulty || 'MEDIUM',
     courseId: String(row.courseId ?? (isCourseScope.value ? props.courseId : '') ?? ''),
     content: row.content || row.stem || '',
-    answer: row.answer || '',
+    answer: String(row.correctAnswers ?? row.answer ?? ''),
     explanation: row.explanation || row.analysis || '',
   })
   formError.value = ''
@@ -615,7 +615,8 @@ async function saveForm() {
       difficulty: form.difficulty,
       courseId: form.courseId ? Number(form.courseId) : undefined,
       content: form.content.trim(),
-      answer: form.answer.trim(),
+      // 后端 Question 实体字段是 correctAnswers；旧端一直发 answer，答案其实没落库
+      correctAnswers: form.answer.trim(),
       explanation: form.explanation.trim(),
     }
     if (editingId.value) await updateQuestion(editingId.value, payload)

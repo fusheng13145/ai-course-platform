@@ -46,6 +46,7 @@ const PATHS: Record<V2Role, Record<string, string>> = {
     grades: '/v2/admin/grades',
     aiUsage: '/v2/admin/ai-usage',
     moderation: '/v2/admin/moderation',
+    adminQuestions: '/v2/admin/questions',
     notices: '/v2/admin/notices',
     audit: '/v2/admin/audit',
     sessions: '/v2/admin/sessions',
@@ -104,6 +105,21 @@ export function navGroups(role: V2Role): V2NavGroup[] {
       items: [
         { id: 'interaction', label: '课堂互动', icon: 'message', path: PATHS.teacher.interaction },
         { id: 'knowledge', label: '知识点管理', icon: 'path', path: PATHS.teacher.knowledge },
+      ],
+    })
+  }
+  // 管理员侧栏同理：原型只有治理类入口，旧端另有题库/试卷/资源等内容面
+  if (role === 'admin') {
+    const insertAt = groups.findIndex((group) => group.label === '平台')
+    groups.splice(insertAt >= 0 ? insertAt : groups.length, 0, {
+      label: '内容与资源',
+      items: [
+        {
+          id: 'adminQuestions',
+          label: '题库管理',
+          icon: 'doc',
+          path: PATHS.admin.adminQuestions,
+        },
       ],
     })
   }
@@ -397,6 +413,11 @@ const ADMIN_PAGES: Record<string, V2PageDef> = {
     kicker: 'ADMIN / GRADES',
     desc: '课程与班级维度的成绩概览；管理员只读，不改分。',
     special: 'grades',
+  },
+  adminQuestions: {
+    title: '题库管理',
+    kicker: 'ADMIN / QUESTION BANK',
+    desc: '全校题目维护：筛选、编辑、AI 出题、统计与易错题榜单。',
   },
   aiUsage: {
     title: 'AI 使用与治理',
