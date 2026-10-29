@@ -94,9 +94,7 @@
         >
           {{ role === 'teacher' ? '课程设置' : '查看审批记录' }}
         </button>
-        <button v-else class="btn btn-ghost btn-block" @click="goTab('tasks')">
-          查看学习任务
-        </button>
+        <button v-else class="btn btn-ghost btn-block" @click="goTab('tasks')">查看学习任务</button>
       </section>
 
       <section class="card">
