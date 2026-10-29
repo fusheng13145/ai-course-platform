@@ -30,46 +30,6 @@ function moduleBlock(role: 'student' | 'teacher' | 'admin', id: string): V2DemoB
 
 /* ------------------------------ student ------------------------------ */
 
-function messagesBlock(): V2DemoBlock {
-  const rows = IA.messages as Array<{
-    title: string
-    meta: string
-    time: string
-    unread: boolean
-    kind: string
-  }>
-  return {
-    metrics: [
-      {
-        label: '未读',
-        value: rows.filter((m) => m.unread).length,
-        unit: '条',
-        icon: 'bell',
-        tone: 'warn',
-      },
-      { label: '今日', value: 3, unit: '条', icon: 'message' },
-      { label: '课程通知', value: 2, unit: '条', icon: 'book', tone: 'info' },
-    ],
-    table: {
-      title: '通知列表',
-      columns: ['标题', '摘要', '类型', '时间', '状态'],
-      rows: rows.map((m) => [
-        m.title,
-        m.meta,
-        m.kind,
-        m.time,
-        chip(m.unread ? '未读' : '已读', m.unread ? 'warn' : 'mute'),
-      ]),
-    },
-    side: {
-      title: '三种通知',
-      body: '系统公告、课程通知与班级通知的发送者与受众不同，不能混用一个入口。',
-      items: ['系统：管理员发布', '课程：授课教师发布', '班级：班主任发布'],
-    },
-    note: '示例数据：通知列表后端已有接口，本版尚未接入。',
-  }
-}
-
 function academicBlock(sub: string): V2DemoBlock | null {
   if (sub === 'wrong') return moduleBlock('student', 'wrong')
   if (sub === 'path') return moduleBlock('student', 'path')
@@ -796,7 +756,6 @@ export function demoBlock(
   page: string,
   sub = '',
 ): V2DemoBlock | null {
-  if (page === 'messages') return messagesBlock()
   if (page === 'profile') return profileBlock()
   if (role === 'student') {
     if (page === 'academic') return academicBlock(sub)

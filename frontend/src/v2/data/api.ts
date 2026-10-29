@@ -161,7 +161,11 @@ export interface V2Notification {
   kind: string
 }
 
-export async function loadNotifications(): Promise<V2Notification[]> {
+/**
+ * 通知列表归一。
+ * 默认把失败吞成 []（抽屉等降级场景沿用），页面需要区分空态与失败态时传 throwOnError。
+ */
+export async function loadNotifications(throwOnError = false): Promise<V2Notification[]> {
   try {
     const payload = unwrap<unknown>(
       await notificationApi.getNotificationList({ page: 1, size: 20 }),
@@ -177,7 +181,8 @@ export async function loadNotifications(): Promise<V2Notification[]> {
         kind: String(item.type ?? '系统'),
       }
     })
-  } catch {
+  } catch (error) {
+    if (throwOnError) throw error
     return []
   }
 }

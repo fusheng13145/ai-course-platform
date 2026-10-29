@@ -28,6 +28,7 @@
     <ExamGovernanceBody v-else-if="def.special === 'examGovernance'" />
     <AnalyticsTab v-else-if="def.special === 'analytics'" />
     <AiTab v-else-if="def.special === 'assistant'" :role="role" />
+    <V2MessagesBody v-else-if="def.special === 'messages'" />
 
     <template v-else-if="block">
       <div v-if="block.metrics.length" class="stat-grid kpi-grid">
@@ -67,6 +68,7 @@ import AiUsageBody from './specials/V2AiUsageBody.vue'
 import ExamGovernanceBody from './specials/V2ExamGovernanceBody.vue'
 import AnalyticsTab from './course/tabs/AnalyticsTab.vue'
 import AiTab from './course/tabs/AiTab.vue'
+import V2MessagesBody from './specials/V2MessagesBody.vue'
 import { pageDef, type V2Role } from '../nav'
 import { useV2Ui } from '../composables/ui'
 import { demoBlock } from '../data/pageData'
@@ -125,7 +127,7 @@ const sub = computed(() => {
 
 const block = computed(() => demoBlock(role.value as V2Role, page.value, sub.value))
 const source = computed<'api' | 'demo' | 'mixed'>(() => {
-  if (page.value === 'messages') return 'mixed'
+  if (page.value === 'messages') return 'api'
   if (page.value === 'examGovernance') return 'api'
   return 'demo'
 })
