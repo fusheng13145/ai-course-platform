@@ -65,6 +65,7 @@
         :course-id="courseId"
       />
       <AnalyticsTab v-else-if="currentTab === 'analytics'" :course-id="courseId" />
+      <AdminReadOnlyTab v-else-if="adminReadOnly" :tab="currentTab" />
       <KnowledgeGraphTab
         v-else-if="currentTab === 'graph' && role === 'teacher'"
         :course-id="courseId"
@@ -112,6 +113,7 @@ import CourseOverviewTab from './tabs/CourseOverviewTab.vue'
 import GradingTab from './tabs/GradingTab.vue'
 import ReaderTab from './tabs/ReaderTab.vue'
 import AnalyticsTab from './tabs/AnalyticsTab.vue'
+import AdminReadOnlyTab from './tabs/AdminReadOnlyTab.vue'
 import GraphTab from './tabs/GraphTab.vue'
 import AiTab from './tabs/AiTab.vue'
 import GradesTab from './tabs/GradesTab.vue'
@@ -142,6 +144,12 @@ const courseId = computed(() => Number(route.params.id) || 0)
 const currentTab = computed(() => String(route.params.tab || 'overview'))
 const tabs = computed(() => courseTabs(role.value as V2Role))
 const validTab = computed(() => tabs.value.some((tab) => tab.id === currentTab.value))
+
+// 管理员在这些页签没有任何接口数据面；渲染示例读数会让学生/教师读数被误当成平台事实。
+const ADMIN_READONLY_TABS = new Set(['content', 'bank', 'exams', 'grades', 'graph', 'aiUsage'])
+const adminReadOnly = computed(
+  () => role.value === 'admin' && ADMIN_READONLY_TABS.has(currentTab.value),
+)
 
 const courseLabel = computed(
   () =>
