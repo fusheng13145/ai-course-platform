@@ -131,17 +131,18 @@ const sub = computed(() => {
 })
 
 const block = computed(() => demoBlock(role.value as V2Role, page.value, sub.value))
-const source = computed<'api' | 'demo' | 'mixed'>(() => {
+const source = computed<'api' | 'demo' | 'mixed' | undefined>(() => {
   // 显式分支中的考试治理与消息已接真实接口。
   if (page.value === 'messages' || page.value === 'examGovernance') return 'api'
-  // 其余页面只有约定 Body 真实存在、模板会渲染正文时才标「接口数据」；
-  // loader 为 null 时仍走下方示例块，保持「示例数据」。
-  return specialBodyComponent.value ? 'api' : 'demo'
+  // 约定 Body 真实存在时模板渲染的是接口正文，不再标「示例数据」；
+  // loader 为 null 时才轮到示例块，没有示例块则不挂来源章。
+  if (specialBodyComponent.value) return 'api'
+  return block.value ? 'demo' : undefined
 })
 const tableKicker = computed(() => `${role.value.toUpperCase()} / ${page.value.toUpperCase()}`)
 
 const actions = computed(() => {
-  if (page.value === 'academic') return ['导出成绩']
+  // 学业档案的导出端点尚未提供，本页不挂「导出成绩」以免 toast 成演示动作。
   if (page.value === 'advising') return ['发送班级通知']
   if (page.value === 'inbox') return ['批量确认', '导出']
   if (page.value === 'resources') return ['上传资源', '导出']

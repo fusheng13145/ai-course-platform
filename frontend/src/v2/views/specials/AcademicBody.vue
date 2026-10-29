@@ -14,14 +14,16 @@
       <button class="btn btn-sm" :disabled="loading" @click="load">重试</button>
     </div>
 
-    <div v-else-if="loading && !loaded" class="empty-state compact">
+    <div v-else-if="loading && !hasData" class="empty-state compact">
       <b>正在加载成绩…</b>
     </div>
 
-    <div v-else-if="!hasData" class="empty-state">
-      <span class="e-ico"><V2Icon name="award" /></span>
-      <b>暂无成绩记录</b>
-      <p>作业批改或考试出分后会显示在这里。</p>
+    <!-- 后端 getGrades 聚合异常时也返回 { courses: [] }，与真·空态不可区分；
+         这里按“未能获取”呈现并给重试，不向学生断言“暂无成绩”。 -->
+    <div v-else-if="!hasData" class="callout" role="status">
+      <span>WAIT / 成绩</span>
+      <p>成绩数据未能获取（可能暂无成绩或服务暂不可用）。</p>
+      <button class="btn btn-sm" :disabled="loading" @click="load">重试</button>
     </div>
 
     <template v-else>
@@ -145,7 +147,6 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import V2Icon from '../../components/V2Icon.vue'
 import V2Stat from '../../components/V2Stat.vue'
 import { useV2Ui } from '../../composables/ui'
 import type { V2Metric } from '../../nav'

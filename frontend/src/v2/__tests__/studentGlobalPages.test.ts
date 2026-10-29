@@ -7,7 +7,7 @@ const studentApi = vi.hoisted(() => ({
   getAllMyCourses: vi.fn(),
   getGrades: vi.fn(),
 }))
-const taskApi = vi.hoisted(() => ({ getAllTasks: vi.fn() }))
+const taskApi = vi.hoisted(() => ({ getTaskById: vi.fn() }))
 const authApi = vi.hoisted(() => ({
   updateCurrentUser: vi.fn(),
   changePassword: vi.fn(),
@@ -23,6 +23,7 @@ const uiState = vi.hoisted(() => ({
   auth: {
     user: {} as Record<string, unknown>,
     userId: 11 as number | null,
+    resetAuthState: vi.fn(),
   },
 }))
 
@@ -116,6 +117,18 @@ const courseTaskFixtures: Record<number, Record<string, unknown>[]> = {
   ],
 }
 
+const taskFixtures: Record<number, Record<string, unknown>> = Object.fromEntries(
+  Object.values(courseTaskFixtures)
+    .flat()
+    .map((task) => [Number(task.id), task]),
+)
+
+function mockTaskDetailsById() {
+  taskApi.getTaskById.mockImplementation((id: number) =>
+    Promise.resolve(envelope(taskFixtures[id] ?? null)),
+  )
+}
+
 beforeEach(() => {
   vi.clearAllMocks()
   uiState.theme.value = 'light'
@@ -134,7 +147,7 @@ beforeEach(() => {
   studentApi.getCompletedAssignments.mockResolvedValue(envelope([]))
   studentApi.getAllMyCourses.mockResolvedValue(envelope({ records: [] }))
   studentApi.getGrades.mockResolvedValue(envelope({ courses: [] }))
-  taskApi.getAllTasks.mockResolvedValue([])
+  taskApi.getTaskById.mockResolvedValue(envelope(null))
   authApi.updateCurrentUser.mockResolvedValue(envelope({}))
   authApi.changePassword.mockResolvedValue(envelope(null))
   userApi.getProfile.mockResolvedValue(
@@ -159,9 +172,7 @@ describe('v2 学生全局页 · 任务', () => {
     studentApi.getAllMyCourses.mockResolvedValue(envelope({ records: [COURSE_A, COURSE_B] }))
     studentApi.getPendingAssignments.mockResolvedValue(envelope(pendingFixtures))
     studentApi.getCompletedAssignments.mockResolvedValue(envelope(completedFixtures))
-    taskApi.getAllTasks.mockImplementation(({ courseId }: { courseId: number }) =>
-      Promise.resolve(courseTaskFixtures[courseId] ?? []),
-    )
+    mockTaskDetailsById()
 
     const wrapper = mountTasks()
     await settle()
@@ -180,9 +191,10 @@ describe('v2 学生全局页 · 任务', () => {
     expect(text).toContain('88 / 100')
     expect(text).not.toContain('示例数据')
     expect(wrapper.find('.callout.danger').exists()).toBe(false)
-    // 已完成作业的标题/课程靠课程任务列表补齐（与 Task 7 的任务 + 提交聚合同口径）
-    expect(taskApi.getAllTasks).toHaveBeenCalledWith({ courseId: 4007 })
-    expect(taskApi.getAllTasks).toHaveBeenCalledWith({ courseId: 4008 })
+    // 只为“确实有已完成提交”的任务补详情，不再按每门已选课程扇出 /tasks。
+    expect(taskApi.getTaskById).toHaveBeenCalledTimes(2)
+    expect(taskApi.getTaskById).toHaveBeenCalledWith(9003)
+    expect(taskApi.getTaskById).toHaveBeenCalledWith(9004)
     wrapper.unmount()
   })
 
@@ -193,20 +205,27 @@ describe('v2 学生全局页 · 任务', () => {
     studentApi.getCompletedAssignments.mockResolvedValue(
       envelope([{ id: 5599, taskId: 9999, status: 'SUBMITTED' }]),
     )
-    taskApi.getAllTasks.mockResolvedValue(courseTaskFixtures[4007])
 
     const wrapper = mountTasks()
     await settle()
 
     const navigable = wrapper.findAll('tr').find((node) => node.text().includes('实验一报告'))
     expect(navigable?.classes()).toContain('row-link')
+    expect(navigable?.attributes('role')).toBe('link')
     await navigable?.trigger('click')
     expect(router.push).toHaveBeenCalledWith('/v2/student/courses/4007/tasks')
+
+    router.push.mockClear()
+    await navigable?.trigger('keydown', { key: ' ' })
+    expect(router.push, '键盘 Space 应和点击同效').toHaveBeenCalledWith(
+      '/v2/student/courses/4007/tasks',
+    )
 
     router.push.mockClear()
     const orphan = wrapper.findAll('tr').find((node) => node.text().includes('任务 #9999'))
     expect(orphan, '未补齐任务信息的已完成行仍应可见').toBeTruthy()
     expect(orphan?.classes()).not.toContain('row-link')
+    expect(orphan?.attributes('role')).toBeUndefined()
     await orphan?.trigger('click')
     expect(router.push).not.toHaveBeenCalled()
     wrapper.unmount()
@@ -245,7 +264,7 @@ describe('v2 学生全局页 · 任务', () => {
     studentApi.getAllMyCourses.mockResolvedValue(envelope([COURSE_A]))
     studentApi.getPendingAssignments.mockRejectedValueOnce(new Error('500'))
     studentApi.getCompletedAssignments.mockResolvedValue(envelope([completedFixtures[0]]))
-    taskApi.getAllTasks.mockResolvedValue(courseTaskFixtures[4007])
+    mockTaskDetailsById()
 
     const wrapper = mountTasks()
     await settle()
@@ -253,6 +272,93 @@ describe('v2 学生全局页 · 任务', () => {
     expect(wrapper.find('.callout.danger').text()).toContain('待办任务加载失败')
     expect(wrapper.text()).toContain('实验二报告')
     expect(wrapper.text()).not.toContain('暂无已完成作业')
+    wrapper.unmount()
+  })
+
+  it('加载中 KPI 显示 —，而不是误导性的 0', async () => {
+    studentApi.getPendingAssignments.mockReturnValue(new Promise(() => {}))
+    studentApi.getCompletedAssignments.mockReturnValue(new Promise(() => {}))
+
+    const wrapper = mountTasks()
+    await flushPromises()
+
+    const stats = wrapper.findAll('.stat')
+    expect(stats).toHaveLength(3)
+    for (const stat of stats) {
+      expect(stat.text(), `KPI 在加载中应显示 —：${stat.text()}`).toContain('—')
+    }
+    wrapper.unmount()
+  })
+
+  it('重试进行中显示加载态，不回落到空态', async () => {
+    const wrapper = mountTasks()
+    await settle()
+    expect(wrapper.text()).toContain('暂无待办任务')
+
+    let resolvePending: (value: unknown) => void = () => {}
+    const pending = new Promise((resolve) => {
+      resolvePending = resolve
+    })
+    studentApi.getPendingAssignments.mockReturnValueOnce(pending)
+    await findButton(wrapper, '刷新')?.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('正在加载待办任务…')
+    expect(wrapper.text()).not.toContain('暂无待办任务')
+    expect(wrapper.findAll('.stat').every((stat) => stat.text().includes('—'))).toBe(true)
+
+    resolvePending(envelope([]))
+    await settle()
+    expect(wrapper.text()).toContain('暂无待办任务')
+    wrapper.unmount()
+  })
+
+  it('已退回不计数为已完成，但仍保留在表内提示重交', async () => {
+    studentApi.getCompletedAssignments.mockResolvedValue(
+      envelope([
+        { ...completedFixtures[0], status: 'GRADED' },
+        {
+          id: 5502,
+          taskId: 9004,
+          status: 'RETURNED',
+          submittedAt: '2026-10-02T11:00:00',
+          attemptNumber: 1,
+        },
+      ]),
+    )
+    mockTaskDetailsById()
+
+    const wrapper = mountTasks()
+    await settle()
+
+    const completedStat = wrapper.findAll('.stat').find((node) => node.text().includes('已完成'))
+    expect(completedStat?.text(), 'RETURNED 不应计入已完成').not.toContain('2')
+    expect(completedStat?.text()).toContain('1')
+    expect(wrapper.text()).toContain('已退回待重交')
+    wrapper.unmount()
+  })
+
+  it('taskId 缺失的已完成提交保留提交行并给出说明', async () => {
+    studentApi.getCompletedAssignments.mockResolvedValue(
+      envelope([
+        {
+          id: 5601,
+          taskId: null,
+          status: 'GRADED',
+          score: 90,
+          maxScore: 100,
+          submittedAt: '2026-10-03T10:00:00',
+        },
+      ]),
+    )
+
+    const wrapper = mountTasks()
+    await settle()
+
+    expect(wrapper.text()).toContain('提交 #5601')
+    expect(wrapper.text()).toContain('1 条已完成记录缺少任务标识')
+    expect(wrapper.text()).toContain('90 / 100')
+    expect(taskApi.getTaskById).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 })
@@ -363,10 +469,11 @@ describe('v2 学生全局页 · 学业档案（仅成绩）', () => {
     wrapper.unmount()
   })
 
-  it('空态与失败态分离，失败可重试', async () => {
+  it('空载荷不冒充“暂无成绩”，按未能获取呈现并给重试', async () => {
     const empty = mountAcademic()
     await settle()
-    expect(empty.text()).toContain('暂无成绩记录')
+    expect(empty.text()).toContain('成绩数据未能获取（可能暂无成绩或服务暂不可用）')
+    expect(empty.text()).not.toContain('暂无成绩记录')
     expect(empty.find('.callout.danger').exists()).toBe(false)
     empty.unmount()
 
@@ -374,7 +481,7 @@ describe('v2 学生全局页 · 学业档案（仅成绩）', () => {
     const failed = mountAcademic()
     await settle()
     expect(failed.find('.callout.danger').text()).toContain('成绩数据加载失败')
-    expect(failed.text()).not.toContain('暂无成绩记录')
+    expect(failed.text()).not.toContain('成绩数据未能获取（可能暂无成绩或服务暂不可用）')
 
     studentApi.getGrades.mockResolvedValueOnce(gradesPayload)
     await failed.find('.callout.danger button').trigger('click')
@@ -382,6 +489,28 @@ describe('v2 学生全局页 · 学业档案（仅成绩）', () => {
     expect(failed.find('.callout.danger').exists()).toBe(false)
     expect(failed.text()).toContain('计算机网络')
     failed.unmount()
+  })
+
+  it('重试进行中显示加载态，不回落到不可判定空态', async () => {
+    const wrapper = mountAcademic()
+    await settle()
+    expect(wrapper.text()).toContain('成绩数据未能获取')
+
+    let resolveGrades: (value: unknown) => void = () => {}
+    const pending = new Promise((resolve) => {
+      resolveGrades = resolve
+    })
+    studentApi.getGrades.mockReturnValueOnce(pending)
+    await findButton(wrapper, '重试')?.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('正在加载成绩…')
+    expect(wrapper.text()).not.toContain('成绩数据未能获取')
+
+    resolveGrades(gradesPayload)
+    await settle()
+    expect(wrapper.text()).toContain('计算机网络')
+    wrapper.unmount()
   })
 })
 
@@ -433,6 +562,44 @@ describe('v2 学生全局页 · 个人中心', () => {
     wrapper.unmount()
   })
 
+  it('留空邮箱不下发空字符串，避免被后端当成清空', async () => {
+    const wrapper = mountProfile()
+    await settle()
+
+    await wrapper.find('[data-field="email"]').setValue('')
+    await findButton(wrapper, '保存修改')?.trigger('click')
+    await settle()
+
+    expect(authApi.updateCurrentUser).toHaveBeenCalledTimes(1)
+    expect(authApi.updateCurrentUser).toHaveBeenCalledWith({
+      fullName: '林知远',
+      phone: '13800138000',
+    })
+    expect(authApi.updateCurrentUser.mock.calls[0][0]).not.toHaveProperty('email', '')
+    wrapper.unmount()
+  })
+
+  it('教师 / 管理员个人中心不显示学生专属的学号与提示', async () => {
+    uiState.role.value = 'teacher'
+    userApi.getProfile.mockResolvedValueOnce(
+      envelope({
+        id: 11,
+        username: 'wanglaoshi',
+        fullName: '王老师',
+        email: 'wang@example.com',
+        role: 'TEACHER',
+      }),
+    )
+    const wrapper = mountProfile()
+    await settle()
+
+    expect(wrapper.text()).not.toContain('学号')
+    expect(wrapper.text()).not.toContain('用户名、学号由管理员维护')
+    expect(wrapper.text()).toContain('用户名由管理员维护')
+    expect(wrapper.text()).toContain('王老师')
+    wrapper.unmount()
+  })
+
   it('保存失败显式报错，不静默吞掉', async () => {
     authApi.updateCurrentUser.mockRejectedValueOnce(new Error('500'))
     const wrapper = mountProfile()
@@ -471,6 +638,9 @@ describe('v2 学生全局页 · 个人中心', () => {
       confirmPassword: 'Abc12345!',
     })
     expect(uiState.toast).toHaveBeenCalledWith('密码已修改，请重新登录', 'ok')
+    // 后端改密即吊销会话：本地登录态必须清空并回登录页
+    expect(uiState.auth.resetAuthState).toHaveBeenCalledTimes(1)
+    expect(router.push).toHaveBeenCalledWith('/v2/login')
     wrapper.unmount()
   })
 
@@ -501,12 +671,14 @@ describe('v2 学生全局页 · 个人中心', () => {
     wrapper.unmount()
   })
 
-  it('资料接口失败时保留登录缓存并显式提示，不回落示例数据', async () => {
+  it('资料接口失败时用危险提示保留登录缓存，不回落示例数据', async () => {
     userApi.getProfile.mockRejectedValueOnce(new Error('500'))
     const wrapper = mountProfile()
     await settle()
 
-    expect(wrapper.text()).toContain('详细资料未能加载')
+    const callout = wrapper.find('.callout.danger')
+    expect(callout.exists(), '资料加载失败必须是危险提示而非普通状态条').toBe(true)
+    expect(callout.text()).toContain('详细资料未能加载')
     expect(wrapper.text()).toContain('林知远')
     const email = wrapper.find('[data-field="email"]').element as HTMLInputElement
     const phone = wrapper.find('[data-field="phone"]').element as HTMLInputElement

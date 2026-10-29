@@ -32,7 +32,7 @@
         <p>{{ pendingError }}</p>
         <button class="btn btn-sm" :disabled="loading" @click="load">重试</button>
       </div>
-      <div v-else-if="loading && !loaded" class="empty-state compact">
+      <div v-else-if="loading && !pendingRows.length" class="empty-state compact">
         <b>正在加载待办任务…</b>
       </div>
       <div v-else-if="!pendingRows.length" class="empty-state compact">
@@ -56,9 +56,11 @@
               :key="row.key"
               :class="{ 'row-link': row.courseId != null }"
               :tabindex="row.courseId != null ? 0 : undefined"
+              :role="row.courseId != null ? 'link' : undefined"
               :aria-label="row.courseId != null ? `打开课程任务：${row.title}` : undefined"
               @click="openRow(row)"
               @keydown.enter="openRow(row)"
+              @keydown.space.prevent="openRow(row)"
             >
               <td class="t-course">{{ row.courseName }}</td>
               <td>
@@ -89,7 +91,7 @@
         <p>{{ completedError }}</p>
         <button class="btn btn-sm" :disabled="loading" @click="load">重试</button>
       </div>
-      <div v-else-if="loading && !loaded" class="empty-state compact">
+      <div v-else-if="loading && !completedRows.length" class="empty-state compact">
         <b>正在加载已完成作业…</b>
       </div>
       <div v-else-if="!completedRows.length" class="empty-state compact">
@@ -115,9 +117,11 @@
               :key="row.key"
               :class="{ 'row-link': row.courseId != null }"
               :tabindex="row.courseId != null ? 0 : undefined"
+              :role="row.courseId != null ? 'link' : undefined"
               :aria-label="row.courseId != null ? `打开课程任务：${row.title}` : undefined"
               @click="openRow(row)"
               @keydown.enter="openRow(row)"
+              @keydown.space.prevent="openRow(row)"
             >
               <td class="t-course">{{ row.courseName }}</td>
               <td>
@@ -162,6 +166,7 @@ interface TaskRow {
   chip: string
   score: string
   submittedAt: string
+  returned: boolean
 }
 
 const router = useRouter()
@@ -191,10 +196,16 @@ const courseCount = computed(() => {
   return ids.size
 })
 
+/** 已退回的记录仍在表内，但不计入「已完成」——学生还需要重新提交。 */
+const completedCount = computed(() => completedRows.value.filter((row) => !row.returned).length)
+
 const metrics = computed<V2Metric[]>(() => [
   {
     label: '待完成',
-    value: pendingRows.value.length,
+    value:
+      pendingError.value || ((!loaded.value || loading.value) && !pendingRows.value.length)
+        ? '—'
+        : pendingRows.value.length,
     unit: '项',
     note: '跨课程待办',
     icon: 'clock',
@@ -202,15 +213,23 @@ const metrics = computed<V2Metric[]>(() => [
   },
   {
     label: '已完成',
-    value: completedRows.value.length,
+    value:
+      completedError.value || ((!loaded.value || loading.value) && !completedRows.value.length)
+        ? '—'
+        : completedCount.value,
     unit: '项',
-    note: '含待批改与已批改',
+    note: '不含已退回待重交',
     icon: 'check',
     tone: 'ok',
   },
   {
     label: '覆盖课程',
-    value: courseCount.value,
+    value:
+      pendingError.value ||
+      completedError.value ||
+      ((!loaded.value || loading.value) && !pendingRows.value.length && !completedRows.value.length)
+        ? '—'
+        : courseCount.value,
     unit: '门',
     note: '有任务记录',
     icon: 'book',
@@ -280,6 +299,7 @@ function toPendingRow(raw: RawRow, index: number): TaskRow {
     chip: overdue ? 'chip-danger' : 'chip-warn',
     score: '—',
     submittedAt: '—',
+    returned: false,
   }
 }
 
@@ -302,25 +322,24 @@ function latestSubmissionPerTask(rows: RawRow[]): RawRow[] {
   return [...byTask.values()]
 }
 
-async function loadTaskMap(courseIds: number[]): Promise<Record<string, RawRow>> {
-  if (!courseIds.length) return {}
-  const results = await Promise.allSettled(
-    courseIds.map((courseId) => taskApi.getAllTasks({ courseId })),
-  )
+async function loadTaskDetails(taskIds: number[]): Promise<Record<string, RawRow>> {
+  // 只取“确实有已完成提交”的任务详情，不再按每门已选课程扇出 /tasks。
+  // 同一次加载内按 taskId 去重（latestSubmissionPerTask 已保证唯一，这里再兜一层）。
+  const uniqueIds = [...new Set(taskIds)]
+  if (!uniqueIds.length) return {}
+  const results = await Promise.allSettled(uniqueIds.map((id) => taskApi.getTaskById(id)))
   const map: Record<string, RawRow> = {}
   let failed = 0
-  for (const result of results) {
+  results.forEach((result, index) => {
     if (result.status === 'rejected') {
       failed += 1
-      continue
+      return
     }
-    for (const task of asRecords(result.value)) {
-      const id = idOrNull(task.id)
-      if (id != null) map[String(id)] = task
-    }
-  }
+    const task = unwrap(result.value)
+    if (isRecord(task)) map[String(uniqueIds[index])] = task
+  })
   if (failed) {
-    notices.value.push('部分课程的任务详情未能加载，已完成作业可能只显示任务编号。')
+    notices.value.push('部分已完成作业的任务详情未能加载，仅显示任务编号。')
   }
   return map
 }
@@ -333,17 +352,20 @@ function toCompletedRow(sub: RawRow, tasks: Record<string, RawRow>, index: numbe
   const meta = COMPLETED_STATUS[status] || { label: status || '已完成', chip: 'chip-mute' }
   const score = numberOrNull(sub.score)
   const maxScore = numberOrNull(sub.maxScore) ?? numberOrNull(task?.maxScore)
+  const fallbackTitle =
+    taskId != null ? `任务 #${taskId}` : sub.id != null ? `提交 #${sub.id}` : '已完成提交'
   return {
-    key: `completed-${sub.id ?? index}`,
+    key: `completed-${taskId != null ? 'task' : 'sub'}-${sub.id ?? taskId ?? index}`,
     courseId,
     courseName: courseNameOf(courseId),
-    title: String(task?.title ?? (taskId != null ? `任务 #${taskId}` : '任务')),
+    title: String(task?.title ?? fallbackTitle),
     dueDate: fmtTime(task?.dueDate ?? task?.deadline),
     dueRaw: String(task?.dueDate ?? task?.deadline ?? ''),
     statusLabel: meta.label,
     chip: meta.chip,
     score: score == null ? '—' : maxScore == null ? String(score) : `${score} / ${maxScore}`,
     submittedAt: fmtTime(sub.submittedAt),
+    returned: status === 'RETURNED',
   }
 }
 
@@ -372,15 +394,8 @@ async function load() {
     notices.value.push('课程名称未能加载，暂以「课程 #编号」显示。')
   }
 
-  const courseIds = new Set<number>()
-  for (const key of Object.keys(courseNames.value)) courseIds.add(Number(key))
-
   if (pendingRes.status === 'fulfilled') {
     const rows = asRecords(unwrap(pendingRes.value))
-    for (const row of rows) {
-      const id = idOrNull(row.courseId)
-      if (id != null) courseIds.add(id)
-    }
     pendingRows.value = rows
       .map(toPendingRow)
       .sort((a, b) => String(a.dueRaw || '9999').localeCompare(String(b.dueRaw || '9999')))
@@ -391,14 +406,20 @@ async function load() {
   }
 
   if (completedRes.status === 'fulfilled') {
-    const submissions = latestSubmissionPerTask(asRecords(unwrap(completedRes.value)))
-    if (submissions.length) {
-      const tasks = await loadTaskMap([...courseIds])
-      completedRows.value = submissions
-        .map((sub, index) => toCompletedRow(sub, tasks, index))
-        .sort((a, b) => String(b.submittedAt).localeCompare(String(a.submittedAt)))
-    } else {
-      completedRows.value = []
+    const allSubmissions = asRecords(unwrap(completedRes.value))
+    const submissions = latestSubmissionPerTask(allSubmissions)
+    // taskId 缺失的提交不能丢：保留一行按 submission id 展示，并在页内说明。
+    const orphans = allSubmissions.filter((sub) => idOrNull(sub.taskId) == null)
+    const taskIds = submissions
+      .map((sub) => idOrNull(sub.taskId))
+      .filter((id): id is number => id != null)
+    const tasks = taskIds.length ? await loadTaskDetails(taskIds) : {}
+    completedRows.value = [
+      ...submissions.map((sub, index) => toCompletedRow(sub, tasks, index)),
+      ...orphans.map((sub, index) => toCompletedRow(sub, {}, index)),
+    ].sort((a, b) => String(b.submittedAt).localeCompare(String(a.submittedAt)))
+    if (orphans.length) {
+      notices.value.push(`${orphans.length} 条已完成记录缺少任务标识，仅显示提交信息。`)
     }
   } else {
     logger.error('已完成作业加载失败', completedRes.reason)

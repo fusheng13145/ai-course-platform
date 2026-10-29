@@ -1,7 +1,12 @@
 <template>
   <!-- 学生个人中心：基本资料 / 安全 / 偏好；活动、课程与卡片三面不在本页提供 -->
   <section class="profile-body">
-    <div v-if="notice" class="callout" role="status">
+    <div v-if="loadError" class="callout danger" role="alert">
+      <span>ERROR / 资料</span>
+      <p>{{ loadError }}</p>
+      <button class="btn btn-sm" :disabled="profileLoading" @click="loadProfile">重新加载</button>
+    </div>
+    <div v-else-if="notice" class="callout" role="status">
       <span>INFO / 资料</span>
       <p>{{ notice }}</p>
       <button class="btn btn-sm" :disabled="profileLoading" @click="loadProfile">重新加载</button>
@@ -30,7 +35,7 @@
             <dt>用户名</dt>
             <dd>{{ profile.username || '—' }}</dd>
           </div>
-          <div>
+          <div v-if="isStudent">
             <dt>学号</dt>
             <dd>{{ profile.studentId || '—' }}</dd>
           </div>
@@ -49,7 +54,9 @@
         </dl>
 
         <p class="profile-hint">
-          用户名、学号由管理员维护；姓名、邮箱、手机号可自助修改，手机号留空表示不修改。
+          <template v-if="isStudent">用户名、学号由管理员维护；</template>
+          <template v-else>用户名由管理员维护；</template>
+          姓名、邮箱、手机号可自助修改，留空表示不修改。
         </p>
 
         <div class="form-grid">
@@ -181,6 +188,7 @@
 
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { useV2Ui } from '../../composables/ui'
 import authApi from '@/api/auth'
 import userApi from '@/api/user'
@@ -204,6 +212,7 @@ interface ProfileUser {
 }
 
 const ui = useV2Ui()
+const router = useRouter()
 const { toast, theme, setTheme } = ui
 
 const cached = ((ui.auth?.user as ProfileUser | null) ?? {}) as ProfileUser
@@ -221,11 +230,14 @@ const profileLoading = ref(false)
 const saveError = ref('')
 const passwordError = ref('')
 const notice = ref('')
+const loadError = ref('')
 
+const roleText = computed(() => String(profile.value.role ?? '').toUpperCase())
+const isStudent = computed(() => roleText.value === '' || roleText.value === 'STUDENT')
 const displayName = computed(() => profile.value.fullName || profile.value.username || '未登录')
 const avatarText = computed(() => displayName.value.trim().slice(0, 1) || '云')
 const roleLabel = computed(() => {
-  const raw = String(profile.value.role ?? '').toUpperCase()
+  const raw = roleText.value
   if (raw === 'ADMIN') return '管理员'
   if (raw === 'TEACHER') return '教师'
   if (raw === 'STUDENT') return '学生'
@@ -270,6 +282,7 @@ function syncAuthUser(next: ProfileUser) {
 
 async function loadProfile() {
   notice.value = ''
+  loadError.value = ''
   const id = currentUserId()
   if (id == null) {
     notice.value = '未获取到当前账号标识，以下展示登录会话中的资料。'
@@ -281,7 +294,7 @@ async function loadProfile() {
     if (payload && typeof payload === 'object') applyProfile(payload)
   } catch (reason) {
     logger.error('加载个人信息失败', reason)
-    notice.value = '详细资料未能加载，以下展示登录会话中的资料。'
+    loadError.value = '详细资料未能加载，以下展示登录会话中的资料。'
   } finally {
     profileLoading.value = false
   }
@@ -306,11 +319,14 @@ async function save() {
   }
   saving.value = true
   try {
-    // 后端 UserUpdateDTO 白名单：fullName / phone / email / avatar / bio
-    const payload: Record<string, string> = { fullName, email }
+    // 后端 UserUpdateDTO 白名单：fullName / phone / email / avatar / bio。
+    // 留空表示“不修改”，不能把空字符串当清空下发。
+    const payload: Record<string, string> = { fullName }
+    if (email) payload.email = email
     if (phone) payload.phone = phone
     const updated = unwrap<ProfileUser | null>(await authApi.updateCurrentUser(payload))
-    const patch: ProfileUser = { fullName, email }
+    const patch: ProfileUser = { fullName }
+    if (email) patch.email = email
     if (phone) patch.phone = phone
     const merged: ProfileUser = {
       ...profile.value,
@@ -318,6 +334,7 @@ async function save() {
       ...patch,
     }
     profile.value = merged
+    form.email = merged.email ?? ''
     syncAuthUser(merged)
     toast('资料已更新', 'ok')
   } catch (reason) {
@@ -365,6 +382,9 @@ async function changePassword() {
     password.newPassword = ''
     password.confirmPassword = ''
     toast('密码已修改，请重新登录', 'ok')
+    // 后端改密成功即吊销全部会话：本地登录态必须同步清空，否则页面仍显示已登录。
+    ui.auth?.resetAuthState?.()
+    router.push('/v2/login')
   } catch (reason) {
     logger.error('修改密码失败', reason)
     passwordError.value = '密码修改失败，请核对当前密码后重试'
@@ -380,6 +400,12 @@ onMounted(loadProfile)
 .profile-body {
   display: grid;
   gap: 14px;
+}
+.callout.danger {
+  border-left-color: var(--danger);
+}
+.callout.danger > span {
+  color: var(--danger);
 }
 .profile-grid {
   display: grid;
