@@ -52,7 +52,14 @@
       </template>
       <div class="reader-actions">
         <button class="btn btn-ghost" @click="step(-1)">上一节</button>
-        <button class="btn btn-primary" @click="markDone">标记完成</button>
+        <button
+          class="btn btn-primary"
+          :class="{ 'is-done': activeDone }"
+          :disabled="!activeChapter || marking || activeDone"
+          @click="markDone"
+        >
+          {{ activeDone ? '已完成' : marking ? '提交中…' : '标记完成' }}
+        </button>
       </div>
     </article>
 
@@ -76,6 +83,7 @@
 import { computed, onMounted, ref } from 'vue'
 import DOMPurify from 'dompurify'
 import chapterApi from '@/api/chapter'
+import learningRecordApi from '@/api/learningRecord'
 import { pickList, unwrap } from '@/utils/response'
 import { useV2Ui } from '../../../composables/ui'
 
@@ -94,6 +102,9 @@ const ui = useV2Ui()
 const chapters = ref<ChapterRow[]>([])
 const activeId = ref<number | null>(null)
 const sourceNote = ref('接口数据：章节来自 /chapters/course/{id}，正文按需读取 /chapters/{id}。')
+/** 已完成章节：由 POST /learning-records 的成功回执与挂载时的读数共同维护 */
+const doneChapterIds = ref(new Set<number>())
+const marking = ref(false)
 
 const activeChapter = computed(
   () => chapters.value.find((item) => item.id === activeId.value) || chapters.value[0],
@@ -102,6 +113,8 @@ const activeChapter = computed(
 const activeIndex = computed(() =>
   chapters.value.findIndex((item) => item.id === activeChapter.value?.id),
 )
+
+const activeDone = computed(() => doneChapterIds.value.has(activeChapter.value?.id ?? -1))
 
 function clean(html: string): string {
   return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
@@ -160,10 +173,54 @@ function step(delta: number) {
 }
 
 function markDone() {
-  ui.toast('演示数据：标记完成尚未接入学习记录接口', 'warn')
+  const chapter = activeChapter.value
+  if (!chapter || marking.value || doneChapterIds.value.has(chapter.id)) return
+  const chapterId = chapter.id
+  marking.value = true
+  // 与旧端 useStudentCourseDetail#markChapterComplete 同口径：章节级 COMPLETE 记录，
+  // 字段仅 courseId / chapterId / actionType / duration，不臆造 progress
+  learningRecordApi
+    .createLearningRecord({
+      courseId: props.courseId,
+      chapterId,
+      actionType: 'COMPLETE',
+      duration: 0,
+    })
+    .then(() => {
+      doneChapterIds.value = new Set(doneChapterIds.value).add(chapterId)
+      ui.toast('本章已标记完成', 'ok')
+    })
+    .catch(() => {
+      ui.toast('标记完成失败，请稍后重试', 'danger')
+    })
+    .finally(() => {
+      marking.value = false
+    })
+}
+
+/**
+ * 已完成章节的读数：GET /learning-records 返回当前用户全部学习记录，
+ * 章节完成态是本课程下 actionType=COMPLETE 的 chapterId 集合。
+ * 读数失败只影响「已完成」标记，不影响阅读正文与提交，故静默降级。
+ */
+async function loadCompletedChapters() {
+  try {
+    const payload = unwrap(await learningRecordApi.getMyLearningRecords())
+    const done = new Set(doneChapterIds.value)
+    pickList<Record<string, unknown>>(payload).forEach((row) => {
+      if (String(row.actionType ?? '').toUpperCase() !== 'COMPLETE') return
+      if (Number(row.courseId) !== props.courseId) return
+      const chapterId = Number(row.chapterId)
+      if (Number.isFinite(chapterId) && chapterId > 0) done.add(chapterId)
+    })
+    doneChapterIds.value = done
+  } catch {
+    // 读数不可达时保持「未完成」态：按钮仍可提交，不冒充已完成
+  }
 }
 
 onMounted(async () => {
+  void loadCompletedChapters()
   try {
     const payload = unwrap(await chapterApi.getChapters(props.courseId))
     chapters.value = flatten(pickList(payload) as Array<Record<string, unknown>>)
@@ -186,6 +243,16 @@ onMounted(async () => {
   font-size: 12.5px;
   line-height: 1.9;
   color: var(--ink-2);
+}
+.reader-actions .btn:disabled {
+  cursor: default;
+  opacity: 0.7;
+  transform: none;
+}
+.reader-actions .btn.is-done {
+  background: var(--ok-soft);
+  border-color: transparent;
+  color: var(--ok);
 }
 .chapter-item.is-child {
   padding-left: 20px;
