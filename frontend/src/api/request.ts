@@ -1,7 +1,6 @@
 import logger from '@/utils/logger'
 import axios from 'axios'
-import { ElMessage } from 'element-plus'
-import router from '@/router'
+import { apiHost } from '@/api/apiHost'
 import { useAuthStore } from '@/stores/auth'
 import { showLoading, hideLoading } from '@/utils/loadingBar'
 import { getRequestKey, generateReqKey } from '@/api/requestKey'
@@ -34,7 +33,7 @@ function showThrottledMessage(type, message) {
       if (t < cutoff) messageCache.delete(k)
     }
   }
-  ElMessage[type](message)
+  apiHost().message[type](message)
 }
 
 /**
@@ -211,7 +210,7 @@ function handleAuthExpired() {
   const now = Date.now()
   if (now - lastLoginRedirectAt < LOGIN_REDIRECT_DEDUPE_MS) return
   lastLoginRedirectAt = now
-  const from = router.currentRoute?.value?.fullPath
+  const from = apiHost().currentPath()
   const loginPath = String(from || '').startsWith('/v2') ? '/v2/login' : '/login'
   if (
     from &&
@@ -220,10 +219,10 @@ function handleAuthExpired() {
     from !== '/register' &&
     from !== '/v2/register'
   ) {
-    router.push({ path: loginPath, query: { redirect: from } })
+    apiHost().push({ path: loginPath, query: { redirect: from } })
     return
   }
-  router.push(loginPath)
+  apiHost().push(loginPath)
 }
 
 /**

@@ -256,6 +256,14 @@ import { useListFeedback } from '@/composables/useListFeedback'
 import { useClientPagination } from '@/composables/useClientPagination'
 import { MAX_CHUNK_SIZE, useChunkedUpload } from '@/composables/useChunkedUpload'
 import { confirmDanger } from '@/utils/dangerConfirm'
+import {
+  formatUploadSize as formatSize,
+  pickUploadProgress,
+  pickUploadSessions,
+  uploadStatusLabel as statusLabel,
+  uploadStatusTone,
+  uploadToneToTagType,
+} from '@/utils/uploadDisplay'
 import PageHeader from '@/components/PageHeader.vue'
 import StatCard from '@/components/ui/StatCard.vue'
 import EmptyState from '@/components/ui/EmptyState.vue'
@@ -271,14 +279,6 @@ interface UploadSession {
   progress: number
   status: string
   createdAt?: string | null
-}
-
-interface UploadProgress {
-  uploaded?: number | null
-  total?: number | null
-  percentage?: string | null
-  status?: string | null
-  missingIndexes?: number[] | null
 }
 
 const sessions = ref<UploadSession[]>([])
@@ -382,47 +382,25 @@ async function cancelUploadFlow() {
 }
 
 function statusType(s?: string) {
-  if (s === 'MERGED' || s === 'COMPLETED') return 'success'
-  if (s === 'UPLOADING') return 'warning'
-  if (s === 'CANCELLED' || s === 'FAILED') return 'danger'
-  return 'info'
-}
-function statusLabel(s?: string) {
-  const map = {
-    UPLOADING: '上传中',
-    MERGED: '已合并',
-    COMPLETED: '已完成',
-    CANCELLED: '已取消',
-    FAILED: '失败',
-    PENDING: '待上传',
-  }
-  return map[s] || s || '未知状态'
-}
-function formatSize(bytes?: number | null) {
-  if (bytes == null || !Number.isFinite(bytes) || bytes < 0) return '--'
-  if (bytes < 1024) return bytes + 'B'
-  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + 'KB'
-  return (bytes / (1024 * 1024)).toFixed(1) + 'MB'
+  return uploadToneToTagType(uploadStatusTone(s))
 }
 
 async function refreshList() {
   await run(async () => {
-    const res = await uploadApi.listSessions()
-    const payload = res?.data
-    const list = Array.isArray(payload)
-      ? payload
-      : Array.isArray(payload?.records)
-        ? payload.records
-        : Array.isArray(payload?.list)
-          ? payload.list
-          : null
+    const list = pickUploadSessions(await uploadApi.listSessions())
     if (!list) throw new Error('上传会话响应格式无效')
-    sessions.value = list.map((s) => ({
-      ...s,
-      fileName: s.filename || s.fileName,
-      // 进度由已上传分片数/总分片数推导（实体无 progress 字段）
-      progress: s.totalChunks > 0 ? Math.round(((s.uploadedChunks || 0) / s.totalChunks) * 100) : 0,
-    }))
+    sessions.value = list.map((s) => {
+      const row = s as unknown as UploadSession
+      return {
+        ...row,
+        fileName: row.filename || row.fileName,
+        // 进度由已上传分片数/总分片数推导（实体无 progress 字段）
+        progress:
+          row.totalChunks && row.totalChunks > 0
+            ? Math.round(((row.uploadedChunks || 0) / row.totalChunks) * 100)
+            : 0,
+      }
+    })
   })
 }
 
@@ -500,23 +478,16 @@ async function refreshProgress(silent = false) {
   progressRefreshing.value = true
   progressError.value = ''
   try {
-    const res = await uploadApi.getProgress(session.id)
-    const data = (res?.data || {}) as UploadProgress
+    const view = pickUploadProgress(await uploadApi.getProgress(session.id))
     if (currentSession.value?.id !== session.id) return
-    progressMissing.value = Array.isArray(data.missingIndexes) ? data.missingIndexes : []
+    progressMissing.value = view.missing
 
-    const total = Number(data.total ?? session.totalChunks ?? 0)
-    const uploaded = Number(data.uploaded ?? session.uploadedChunks ?? 0)
-    const progress =
-      total > 0 && Number.isFinite(uploaded)
-        ? Math.min(100, Math.max(0, Math.round((uploaded / total) * 100)))
-        : session.progress
     const updated: UploadSession = {
       ...session,
-      progress,
-      status: data.status || session.status,
-      totalChunks: total || session.totalChunks,
-      uploadedChunks: Number.isFinite(uploaded) ? uploaded : session.uploadedChunks,
+      progress: view.percent ?? session.progress,
+      status: view.status || session.status,
+      totalChunks: view.total ?? session.totalChunks,
+      uploadedChunks: view.uploaded ?? session.uploadedChunks,
     }
     currentSession.value = updated
     sessions.value = sessions.value.map((item) => (item.id === updated.id ? updated : item))

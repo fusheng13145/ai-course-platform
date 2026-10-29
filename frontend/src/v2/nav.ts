@@ -9,6 +9,7 @@ const PATHS: Record<V2Role, Record<string, string>> = {
     courses: '/v2/student/courses',
     tasks: '/v2/student/tasks',
     academic: '/v2/student/academic',
+    exams: '/v2/student/exams',
     messages: '/v2/student/messages',
     profile: '/v2/student/profile',
   },
@@ -47,6 +48,7 @@ const PATHS: Record<V2Role, Record<string, string>> = {
     aiUsage: '/v2/admin/ai-usage',
     moderation: '/v2/admin/moderation',
     adminQuestions: '/v2/admin/questions',
+    adminUploads: '/v2/admin/uploads',
     notices: '/v2/admin/notices',
     audit: '/v2/admin/audit',
     sessions: '/v2/admin/sessions',
@@ -87,6 +89,18 @@ export function navGroups(role: V2Role): V2NavGroup[] {
       path: PATHS[role][item.id] || ROLE_HOME[role],
     })),
   }))
+  // 原型 v2 的学生侧栏「学业」组只有学业档案，旧端另有跨课程的考试入口；
+  // 迁移期按旧端功能面补齐，避免删旧前端时丢入口（与 M-02 课程空间那一路同源）。
+  if (role === 'student') {
+    const academic = groups.find((group) => group.items.some((item) => item.id === 'academic'))
+    const item = { id: 'exams', label: '我的考试', icon: 'clipboard', path: PATHS.student.exams }
+    if (academic) academic.items.push(item)
+    else
+      groups.splice(1, 0, {
+        label: '学业',
+        items: [item],
+      })
+  }
   // 原型 v2 的教师侧栏只有「资源中心」，旧端另有题库／试卷／成绩与课堂互动等真实能力；
   // 迁移期按旧端功能面补齐，避免删旧前端时丢入口。
   if (role === 'teacher') {
@@ -119,6 +133,12 @@ export function navGroups(role: V2Role): V2NavGroup[] {
           label: '题库管理',
           icon: 'doc',
           path: PATHS.admin.adminQuestions,
+        },
+        {
+          id: 'adminUploads',
+          label: '上传会话',
+          icon: 'upload',
+          path: PATHS.admin.adminUploads,
         },
       ],
     })
@@ -221,6 +241,12 @@ const STUDENT_PAGES: Record<string, V2PageDef> = {
     kicker: 'STUDENT / ACADEMIC',
     desc: '成绩、错题与学习路径；成绩以教师提交批阅为准。',
     special: 'academic',
+  },
+  exams: {
+    title: '我的考试',
+    kicker: 'STUDENT / EXAMS',
+    desc: '跨课程的考试：开考、作答、倒计时与断线续考；交卷以服务端判分为准。',
+    special: 'exams',
   },
   messages: {
     title: '消息',
@@ -418,6 +444,11 @@ const ADMIN_PAGES: Record<string, V2PageDef> = {
     title: '题库管理',
     kicker: 'ADMIN / QUESTION BANK',
     desc: '全校题目维护：筛选、编辑、AI 出题、统计与易错题榜单。',
+  },
+  adminUploads: {
+    title: '上传会话监控',
+    kicker: 'ADMIN / UPLOADS',
+    desc: '上传会话的状态与磁盘分片进度：本地分片上传、合并已齐片的会话、取消仍在进行的会话。',
   },
   aiUsage: {
     title: 'AI 使用与治理',

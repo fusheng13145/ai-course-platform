@@ -135,17 +135,20 @@ export async function loadAdminOverview(): Promise<{
   overview: Record<string, unknown>
   dashboard: Record<string, unknown>
 }> {
-  try {
-    const [overviewResponse, statsResponse] = await Promise.all([
-      adminApi.getOverview(),
-      analyticsApi.getDashboardStats(),
-    ])
-    return {
-      overview: unwrap<Record<string, unknown>>(overviewResponse) || {},
-      dashboard: unwrap<Record<string, unknown>>(statsResponse) || {},
-    }
-  } catch {
-    return { overview: {}, dashboard: {} }
+  // 分路归因：统计路失败不得把总览路一起清成空（与学情页 4c 批同判据）
+  const [overviewResult, statsResult] = await Promise.allSettled([
+    adminApi.getOverview(),
+    analyticsApi.getDashboardStats(),
+  ])
+  return {
+    overview:
+      overviewResult.status === 'fulfilled'
+        ? unwrap<Record<string, unknown>>(overviewResult.value) || {}
+        : {},
+    dashboard:
+      statsResult.status === 'fulfilled'
+        ? unwrap<Record<string, unknown>>(statsResult.value) || {}
+        : {},
   }
 }
 

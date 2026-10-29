@@ -25,6 +25,7 @@ const authRedirect = () => {
 }
 const V2GlobalPage = () => import('./views/V2GlobalPage.vue')
 const V2AdminQuestionsView = () => import('./views/admin/V2AdminQuestionsView.vue')
+const V2AdminUploadsView = () => import('./views/admin/V2AdminUploadsView.vue')
 const V2CoursesView = () => import('./views/V2CoursesView.vue')
 const V2CourseView = () => import('./views/course/V2CourseView.vue')
 const V2TeacherBankView = () => import('./views/teacher/V2TeacherBankView.vue')
@@ -33,6 +34,7 @@ const V2CreateCourseView = () => import('./views/teacher/V2CreateCourseView.vue'
 const V2TeacherGradesView = () => import('./views/teacher/V2TeacherGradesView.vue')
 const V2InteractionView = () => import('./views/teacher/V2InteractionView.vue')
 const V2KnowledgeManagementView = () => import('./views/teacher/V2KnowledgeManagementView.vue')
+const V2StudentExamsView = () => import('./views/student/V2StudentExamsView.vue')
 
 const page = (
   path: string,
@@ -117,6 +119,11 @@ export const v2Routes: RouteRecordRaw[] = [
       },
       page('student/tasks', 'STUDENT', 'tasks', '学习任务'),
       page('student/academic', 'STUDENT', 'academic', '学业档案'),
+      {
+        path: 'student/exams',
+        component: V2StudentExamsView,
+        meta: { role: 'STUDENT', v2page: 'exams', title: '我的考试' },
+      },
       page('student/messages', 'STUDENT', 'messages', '消息'),
       page('student/profile', 'STUDENT', 'profile', '个人中心'),
       page('student/assistant', 'STUDENT', 'assistant', 'AI 助手'),
@@ -207,6 +214,11 @@ export const v2Routes: RouteRecordRaw[] = [
         path: 'admin/questions',
         component: V2AdminQuestionsView,
         meta: { role: 'ADMIN', v2page: 'adminQuestions', title: '题库管理' },
+      },
+      {
+        path: 'admin/uploads',
+        component: V2AdminUploadsView,
+        meta: { role: 'ADMIN', v2page: 'adminUploads', title: '上传会话监控' },
       },
       page('admin/moderation', 'ADMIN', 'moderation', '内容审核'),
       page('admin/notices', 'ADMIN', 'notices', '通知公告'),

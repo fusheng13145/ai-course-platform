@@ -86,12 +86,12 @@ function makeSessions() {
     },
     {
       id: 8,
-      fileName: '已取消.pdf',
+      fileName: '待补传.pdf',
       fileSize: 1024,
       totalChunks: 2,
       uploadedChunks: 1,
       progress: 50,
-      status: 'CANCELLED',
+      status: 'FAILED',
       createdAt: '2026-10-17 09:05',
     },
   ]
@@ -175,7 +175,7 @@ describe('FileUploadManage — D1-2 批次 2 合并接线', () => {
         uploaded: 2,
         total: 4,
         percentage: '50.0%',
-        status: 'CANCELLED',
+        status: 'FAILED',
         missingIndexes: [1, 3],
       },
     })
@@ -186,5 +186,24 @@ describe('FileUploadManage — D1-2 批次 2 合并接线', () => {
     await flushPromises()
 
     expect(wrapper.get('.progress-missing').text()).toContain('缺失分片序号：1、3')
+  })
+
+  /**
+   * M-12a 实测纠偏：后端 merge/cancel 都会删掉分片目录（FileUploadSessionServiceImpl:331/:408），
+   * 因此终态会话的 progress 只能报 uploaded=0、missingIndexes=[全部]——那不是「还缺这些片」，
+   * 而是目录已回收。原用例把 CANCELLED 与 missingIndexes=[1,3] 并列，是后端给不出的形状。
+   */
+  it('已回收目录的终态会话不谎报缺片，也不把进度改写成 0%', async () => {
+    mocks.getProgress.mockResolvedValue({
+      data: { uploaded: 0, total: 2, status: 'COMPLETED', missingIndexes: [0, 1] },
+    })
+    const wrapper = mountPage()
+    await flushPromises()
+
+    await findButtonByText(wrapper, '查看进度').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.progress-missing').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('缺失分片序号')
   })
 })

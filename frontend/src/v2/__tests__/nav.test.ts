@@ -107,6 +107,13 @@ describe('v2 导航与路由一致性', () => {
     ).toBe(true)
   })
 
+  it('学生侧栏补回「我的考试」全局入口，且命中真实路由（M-02）', () => {
+    const paths = navGroups('student').flatMap((group) => group.items.map((item) => item.path))
+    expect(paths, '学生侧栏缺少 /v2/student/exams').toContain('/v2/student/exams')
+    expect(resolves('/v2/student/exams'), '/v2/student/exams 是死链').toBe(true)
+    expect(pageDef('student', 'exams').title).toBe('我的考试')
+  })
+
   it('每个全局页面定义都有标题与描述', () => {
     for (const role of ROLES) {
       for (const [page, def] of Object.entries(PAGE_DEFS[role])) {

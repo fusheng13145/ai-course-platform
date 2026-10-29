@@ -78,6 +78,10 @@
         :course-id="courseId"
       />
       <ProctorTab v-else-if="currentTab === 'proctor'" :course-id="courseId" />
+      <StudentExamPanel
+        v-else-if="currentTab === 'exams' && role === 'student'"
+        :course-id="courseId"
+      />
       <ExamTab v-else-if="currentTab === 'exams'" :role="role" />
       <SettingsTab
         v-else-if="currentTab === 'settings' || currentTab === 'approval'"
@@ -117,6 +121,7 @@ import TasksTab from './tabs/TasksTab.vue'
 import DiscussionTab from './tabs/DiscussionTab.vue'
 import KnowledgeGraphTab from './tabs/KnowledgeGraphTab.vue'
 import AiCenterTab from './tabs/AiCenterTab.vue'
+import StudentExamPanel from '../exam/StudentExamPanel.vue'
 import { courseTabs, type V2Role } from '../../nav'
 import { useV2Ui } from '../../composables/ui'
 import { loadCourse, getCourses, type V2CourseDetail } from '../../data/api'
@@ -204,11 +209,12 @@ const scope = computed(() => {
   return { label: '当前范围', title: '全部学生', detail: '教学班模型待接入；当前按课程聚合' }
 })
 
-const block = computed(() => courseTabBlock(role.value as V2Role, currentTab.value, courseId.value))
+const block = computed(() => courseTabBlock(role.value as V2Role, currentTab.value))
 const moduleNote = computed(
   () =>
+    block.value?.note ||
     COURSE_TAB_NOTES[currentTab.value] ||
-    '示例数据：该课程页签的后端聚合端点尚未接入；旧版对应页面仍可使用。',
+    '后端聚合端点尚未接入；旧版对应页面仍可使用。',
 )
 
 function goTab(tab: string) {

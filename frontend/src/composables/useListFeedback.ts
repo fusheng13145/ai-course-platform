@@ -1,5 +1,6 @@
 import { ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { apiHost } from '@/api/apiHost'
+import logger from '@/utils/logger'
 
 /**
  * 列表页失败反馈统一原语（D2-1）
@@ -40,6 +41,8 @@ export interface UseListFeedbackOptions {
   emptyText?: string
   /** 列表加载失败时的空态文案；默认「无法确认数据，请查看上方提示后重试」 */
   errorEmptyText?: string
+  /** 失败时的提示通道；默认走 HTTP 层宿主（apiHost），调用方可注入自有 toast */
+  notify?: (message: string) => void
 }
 
 const DEFAULT_FAIL_MESSAGE = '数据加载失败，请稍后重试'
@@ -54,6 +57,7 @@ export function useListFeedback(options: UseListFeedbackOptions = {}) {
   const toastMessage = options.toastMessage ?? failMessage
   const emptyText = options.emptyText ?? DEFAULT_EMPTY_TEXT
   const errorEmptyText = options.errorEmptyText ?? DEFAULT_ERROR_EMPTY_TEXT
+  const notify = options.notify ?? ((message: string) => apiHost().message.error(message))
 
   /**
    * 执行一次列表加载：自动管理 loading、失败降级与 toast。
@@ -66,9 +70,11 @@ export function useListFeedback(options: UseListFeedbackOptions = {}) {
     listError.value = ''
     try {
       return await fetcher()
-    } catch {
+    } catch (error) {
       listError.value = failMessage
-      ElMessage.error(toastMessage)
+      notify(toastMessage)
+      // 对用户只给动作文案，原始错误仍要留痕，否则排障时只剩一句「加载失败」
+      logger.error('[useListFeedback] 列表加载失败', error)
       return null
     } finally {
       loading.value = false

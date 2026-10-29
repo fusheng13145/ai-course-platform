@@ -38,6 +38,15 @@ vi.mock('@/stores/auth', () => ({
   })),
 }))
 
+// HTTP 层不再静态引 ElMessage 与旧端 router，三件外设改为宿主注入。
+// 这里用同一组 spy 注册宿主，因此既有断言（提示文案、跳转形状）语义保持不变。
+import { setApiHost } from '@/api/apiHost'
+setApiHost({
+  message: mockElMessage,
+  push: mockRouterPush,
+  currentPath: () => mockRouterCurrentRoute.value.fullPath,
+})
+
 describe('request.js - API 请求层', () => {
   let request
   let cancelAllPendingRequests

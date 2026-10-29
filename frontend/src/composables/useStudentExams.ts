@@ -3,7 +3,7 @@ import { formatTime } from '@/utils/datetime'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import logger from '@/utils/logger'
 import examApi from '@/api/exam'
-import { confirmDanger } from '@/utils/dangerConfirm'
+import { confirmDanger, type DangerConfirmOptions } from '@/utils/dangerConfirm'
 import { useStudentExamList } from '@/composables/useStudentExamList'
 import { useStudentExamSheet } from '@/composables/useStudentExamSheet'
 import { useStudentExamTimers } from '@/composables/useStudentExamTimers'
@@ -39,7 +39,39 @@ function unwrapPayload<T>(res: unknown): T | null {
  * 倒计时/自动保存定时器域见 useStudentExamTimers。</p>
  * <p>对外导出面与拆分前逐名一致（Exams.vue 消费，勿改名）。</p>
  */
-export function useStudentExams() {
+/**
+ * 考试流的交互宿主。默认全部沿用 Element Plus（旧端行为逐字不变），
+ * v2 侧注入自有 toast 与确认弹层，使同一套编排不必再长第二份。
+ */
+export interface ExamUiHost {
+  notify?: {
+    info: (message: string) => void
+    success: (message: string) => void
+    warning: (message: string) => void
+    error: (message: string) => void
+  }
+  confirmStart?: (message: string, title: string) => Promise<boolean>
+  dangerConfirm?: (options: DangerConfirmOptions) => Promise<boolean>
+}
+
+async function epConfirmStart(message: string, title: string): Promise<boolean> {
+  try {
+    await ElMessageBox.confirm(message, title, {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'info',
+    })
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function useStudentExams(host: ExamUiHost = {}) {
+  const notify = host.notify ?? ElMessage
+  const confirmStart = host.confirmStart ?? epConfirmStart
+  const dangerConfirm = host.dangerConfirm ?? confirmDanger
+
   /* ---- 视图模式：list / exam / result ---- */
   const viewMode = ref('list')
 
@@ -126,23 +158,15 @@ export function useStudentExams() {
    */
   async function enterExam(exam) {
     if (exam.completed) {
-      ElMessage.info('该考试已完成')
+      notify.info('该考试已完成')
       return
     }
 
-    try {
-      await ElMessageBox.confirm(
-        `确定开始「${exam.title}」吗？\n进入后将启动倒计时。`,
-        '确认开始考试',
-        {
-          confirmButtonText: '确定',
-          cancelButtonText: '取消',
-          type: 'info',
-        },
-      )
-    } catch {
-      return // 用户取消，静默返回
-    }
+    const started = await confirmStart(
+      `确定开始「${exam.title}」吗？\n进入后将启动倒计时。`,
+      '确认开始考试',
+    )
+    if (!started) return // 用户取消，静默返回
 
     try {
       const resumed = await tryResumeSession(exam.id)
@@ -163,7 +187,7 @@ export function useStudentExams() {
         viewMode.value = 'exam'
         timers.startCountdown()
         timers.startAutoSave()
-        ElMessage.success('已恢复上次未完成的作答，请继续答题')
+        notify.success('已恢复上次未完成的作答，请继续答题')
         return
       }
 
@@ -185,11 +209,11 @@ export function useStudentExams() {
       viewMode.value = 'exam'
       timers.startCountdown()
       timers.startAutoSave()
-      ElMessage.success('考试已开始，祝你好运！')
+      notify.success('考试已开始，祝你好运！')
     } catch (e) {
       // P1-22：开始考试失败不再静默吞掉，给出明确提示
       logger.error('开始考试失败:', e)
-      ElMessage.error(e?.response?.data?.message || e?.message || '开始考试失败，请稍后重试')
+      notify.error(e?.response?.data?.message || e?.message || '开始考试失败，请稍后重试')
     }
   }
 
@@ -204,7 +228,7 @@ export function useStudentExams() {
       if (!autoSaveFailureNotified) return true
       // 上一次失败、本次成功：复位提示标记，下一轮故障仍能重新提示（不吞掉后续独立故障）
       autoSaveFailureNotified = false
-      ElMessage.success('网络恢复，作答已重新同步到服务端')
+      notify.success('网络恢复，作答已重新同步到服务端')
       return true
     } catch (e) {
       // 自动保存失败（断网 / 5xx）时**绝不**回退到 submit。
@@ -216,7 +240,7 @@ export function useStudentExams() {
       logger.warn('自动保存失败，作答保留在本地，将在下一次定时器重试:', e)
       if (!autoSaveFailureNotified) {
         autoSaveFailureNotified = true
-        ElMessage.warning('网络异常，本次自动保存未成功；请勿关闭页面，作答已暂存本地并会持续重试')
+        notify.warning('网络异常，本次自动保存未成功；请勿关闭页面，作答已暂存本地并会持续重试')
       }
       return false
     }
@@ -231,7 +255,7 @@ export function useStudentExams() {
     ).length
 
     // D2-2：交卷为不可逆操作，确认语明确影响范围与后果
-    const ok = await confirmDanger({
+    const ok = await dangerConfirm({
       verb: '提交',
       target: '试卷',
       impact:
@@ -255,7 +279,7 @@ export function useStudentExams() {
   async function submitExam(): Promise<boolean> {
     if (submitting.value) return false
     if (sessionId.value === null) {
-      ElMessage.error('考试会话已失效，请返回考试列表后重新进入')
+      notify.error('考试会话已失效，请返回考试列表后重新进入')
       return false
     }
 
@@ -279,7 +303,7 @@ export function useStudentExams() {
       return true
     } catch (e) {
       logger.error('提交试卷失败:', e)
-      ElMessage.error('提交失败，作答仍保留在本页；请检查网络后重试')
+      notify.error('提交失败，作答仍保留在本页；请检查网络后重试')
       return false
     } finally {
       submitting.value = false
@@ -314,7 +338,7 @@ export function useStudentExams() {
   async function confirmExitExam() {
     if (submitting.value) return
     // D2-2：退出考试确认语明确后果（进度保留方式、重新进入条件、超时仍会 auto-submit）
-    const ok = await confirmDanger({
+    const ok = await dangerConfirm({
       verb: '退出',
       target: '考试',
       impact: '已作答的进度将保留，退出后需在考试有效期内重新进入才能继续作答',
@@ -329,7 +353,7 @@ export function useStudentExams() {
       // 先自动保存一次。若同步失败，保留答题状态与定时器，不让“进度已保留”的提示失真。
       const saved = await autoSaveAnswers()
       if (!saved) {
-        ElMessage.warning('作答尚未成功同步，已保留在本页；请恢复网络后重试退出')
+        notify.warning('作答尚未成功同步，已保留在本页；请恢复网络后重试退出')
         return
       }
       cleanupTimers()
@@ -354,12 +378,12 @@ export function useStudentExams() {
       const res = await examApi.getScoreReport(sessionId.value)
       const report = res.data || res || {}
       // P1-21：后端成绩报告字段为学生得分 totalScore（percentage 为百分制），原读 report.score 恒为 '--'
-      ElMessage.info(
+      notify.info(
         `详细报告：得分 ${report.totalScore ?? '--'} / 百分制 ${report.percentage ?? '--'}`,
       )
     } catch (e) {
       logger.error('获取成绩报告失败:', e)
-      ElMessage.info('成绩详情加载失败')
+      notify.info('成绩详情加载失败')
     }
   }
 
@@ -386,6 +410,7 @@ export function useStudentExams() {
   const timers = useStudentExamTimers({
     onTimeout: submitExamOnTimeout,
     onAutoSave: autoSaveAnswers,
+    notify,
   })
 
   function cleanupTimers() {
