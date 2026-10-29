@@ -66,6 +66,7 @@
         :course-id="courseId"
       />
       <GraphTab v-else-if="currentTab === 'graph'" />
+      <AiCenterTab v-else-if="currentTab === 'ai' && role === 'teacher'" :course-id="courseId" />
       <AiTab v-else-if="currentTab === 'ai'" :role="role" />
       <GradesTab v-else-if="currentTab === 'grades'" :role="role" />
       <V2TeacherBankView
@@ -115,6 +116,7 @@ import ChaptersTab from './tabs/ChaptersTab.vue'
 import TasksTab from './tabs/TasksTab.vue'
 import DiscussionTab from './tabs/DiscussionTab.vue'
 import KnowledgeGraphTab from './tabs/KnowledgeGraphTab.vue'
+import AiCenterTab from './tabs/AiCenterTab.vue'
 import { courseTabs, type V2Role } from '../../nav'
 import { useV2Ui } from '../../composables/ui'
 import { loadCourse, getCourses, type V2CourseDetail } from '../../data/api'

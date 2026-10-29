@@ -191,6 +191,17 @@ describe('decodeHtml - 还原 AIController 的展示层转义', () => {
     expect(decodeHtml('it&apos;s')).toBe("it's")
   })
 
+  it('还原 HtmlUtils.htmlEscape 对全角标点产生的具名与数字实体', () => {
+    // 模型回答里的中文弯引号会被后端转成 &ldquo;/&rdquo;，只解 5 个实体会在页面上露出实体码
+    expect(decodeHtml('主机位数由&ldquo;地址总位数－网络前缀&rdquo;得出')).toBe(
+      '主机位数由“地址总位数－网络前缀”得出',
+    )
+    expect(decodeHtml('A&nbsp;B…')).toBe('A B…')
+    expect(decodeHtml('&#8212;')).toBe('—')
+    // 二次转义仍只解一层
+    expect(decodeHtml('&amp;ldquo;')).toBe('&ldquo;')
+  })
+
   it('&amp; 最后还原：二次转义不会被打平成可解析标签', () => {
     // 后端只转义一次；若把 &amp; 先还原，&amp;lt; 会变成 &lt; 再变成 <，等于多解一层
     expect(decodeHtml('&amp;lt;p&amp;gt;')).toBe('&lt;p&gt;')
