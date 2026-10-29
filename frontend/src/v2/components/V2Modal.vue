@@ -2,7 +2,9 @@
   <Teleport to="body">
     <div v-if="open" class="modal-layer v2-modal-layer" @click.self="closeOnBackdrop && close()">
       <section
+        ref="panel"
         class="v2-modal-panel"
+        tabindex="-1"
         :style="{ '--v2-modal-w': width }"
         role="dialog"
         aria-modal="true"
@@ -29,8 +31,14 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted } from 'vue'
+import { onBeforeUnmount, onMounted, ref } from 'vue'
 import V2Icon from './V2Icon.vue'
+import {
+  announce,
+  lockViewportScroll,
+  trapFocus,
+  unlockViewportScroll,
+} from '../composables/useOverlayA11y'
 
 const props = withDefaults(
   defineProps<{
@@ -54,8 +62,23 @@ function onKey(event: KeyboardEvent) {
   if (event.key === 'Escape' && props.open) close()
 }
 
-onMounted(() => window.addEventListener('keydown', onKey))
-onBeforeUnmount(() => window.removeEventListener('keydown', onKey))
+const panel = ref<HTMLElement | null>(null)
+let releaseFocusTrap: (() => void) | null = null
+
+onMounted(() => {
+  window.addEventListener('keydown', onKey)
+  releaseFocusTrap = trapFocus(panel.value)
+  lockViewportScroll()
+  announce(`对话框已打开：${props.title}`)
+})
+
+onBeforeUnmount(() => {
+  window.removeEventListener('keydown', onKey)
+  releaseFocusTrap?.()
+  releaseFocusTrap = null
+  unlockViewportScroll()
+  announce('对话框已关闭')
+})
 </script>
 
 <style scoped>
