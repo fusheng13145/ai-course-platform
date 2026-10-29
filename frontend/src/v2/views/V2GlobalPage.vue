@@ -95,11 +95,8 @@ interface TabDef {
 
 const tabs = computed<TabDef[]>(() => {
   if (page.value === 'academic') {
-    return [
-      { id: 'grades', label: '成绩' },
-      { id: 'wrong', label: '错题本' },
-      { id: 'path', label: '学习路径' },
-    ]
+    // 本期学业档案只提供成绩；错题本 / 学习路径尚无后端与正文，先不挂空页签。
+    return [{ id: 'grades', label: '成绩' }]
   }
   if (page.value === 'inbox') {
     return [
@@ -135,9 +132,11 @@ const sub = computed(() => {
 
 const block = computed(() => demoBlock(role.value as V2Role, page.value, sub.value))
 const source = computed<'api' | 'demo' | 'mixed'>(() => {
-  if (page.value === 'messages') return 'api'
-  if (page.value === 'examGovernance') return 'api'
-  return 'demo'
+  // 显式分支中的考试治理与消息已接真实接口。
+  if (page.value === 'messages' || page.value === 'examGovernance') return 'api'
+  // 其余页面只有约定 Body 真实存在、模板会渲染正文时才标「接口数据」；
+  // loader 为 null 时仍走下方示例块，保持「示例数据」。
+  return specialBodyComponent.value ? 'api' : 'demo'
 })
 const tableKicker = computed(() => `${role.value.toUpperCase()} / ${page.value.toUpperCase()}`)
 
