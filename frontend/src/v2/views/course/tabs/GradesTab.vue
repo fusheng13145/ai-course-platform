@@ -24,7 +24,17 @@
       <b>成绩数据未能加载</b>
       <p>这不是「暂无成绩」：请查看上方提示后重试。</p>
     </div>
+    <!--
+      课程条目缺失 ≠ 暂无成绩：后端 getGrades 吞异常后会返回 { courses: [] }，
+      因此响应里找不到本课程时只能判定为「未能获取」，不能冒充空态。
+    -->
     <div v-else-if="!gradeCourse" class="empty-state compact">
+      <span class="e-ico"><V2Icon name="award" /></span>
+      <b>成绩数据未能获取（可能暂不可用）</b>
+      <p>成绩服务未返回本课程的数据；这不等于「暂无成绩」，请稍后重试。</p>
+      <button class="btn btn-sm" @click="loadStudentGrades">重试</button>
+    </div>
+    <div v-else-if="!gradeItems.length" class="empty-state compact">
       <span class="e-ico"><V2Icon name="award" /></span>
       <b>本课程暂无成绩记录</b>
       <p>作业批改或考试出分后会显示在这里。</p>
@@ -91,10 +101,6 @@
               </tr>
             </tbody>
           </table>
-        </div>
-        <div v-else class="empty-state compact">
-          <b>本课程暂无已出分的成绩项</b>
-          <p>教师批改作业或考试出分后会显示在这里。</p>
         </div>
       </section>
     </template>
@@ -252,6 +258,34 @@ const STATUS_CHIP: Record<string, string> = {
   PENDING: 'chip-warn',
 }
 
+function attemptTime(row: GradeAssignment): number {
+  if (!row.submittedAt) return Number.NEGATIVE_INFINITY
+  const time = new Date(String(row.submittedAt).replace(' ', 'T')).getTime()
+  return Number.isFinite(time) ? time : Number.NEGATIVE_INFINITY
+}
+
+/**
+ * 同一 taskId 重新提交会插入新行，/student/grades 会返回全部提交。
+ * 成绩页按 taskId 分组只保留最新一次尝试，避免同一作业出现重复成绩行。
+ */
+function latestAttemptPerTask(rows: GradeAssignment[]): GradeAssignment[] {
+  const latest = new Map<string, GradeAssignment>()
+  const order: string[] = []
+  for (const row of rows) {
+    const key = String(row.taskId ?? `submission-${row.submissionId ?? order.length}`)
+    const current = latest.get(key)
+    if (!current) {
+      latest.set(key, row)
+      order.push(key)
+      continue
+    }
+    const timeDelta = attemptTime(row) - attemptTime(current)
+    const idDelta = Number(row.submissionId ?? 0) - Number(current.submissionId ?? 0)
+    if (timeDelta > 0 || (timeDelta === 0 && idDelta > 0)) latest.set(key, row)
+  }
+  return order.map((key) => latest.get(key) as GradeAssignment)
+}
+
 const loading = ref(false)
 const loadError = ref('')
 const gradeCourse = ref<GradeCoursePayload | null>(null)
@@ -269,10 +303,10 @@ const gradeItems = computed<GradeItem[]>(() => {
   const course = gradeCourse.value
   if (!course) return []
   const items: GradeItem[] = []
-  for (const row of course.assignments || []) {
+  for (const row of latestAttemptPerTask(course.assignments || [])) {
     const status = String(row.status || '').toUpperCase()
     items.push({
-      key: `a-${row.submissionId ?? row.taskId}`,
+      key: `a-${row.taskId ?? row.submissionId}`,
       title: row.title || '作业',
       kind: '作业',
       score: row.score == null ? null : Number(row.score),

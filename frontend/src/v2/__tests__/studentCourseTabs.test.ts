@@ -102,6 +102,9 @@ describe('v2 学生课程 · 作业页签', () => {
       { id: 9002, title: '错过截止的作业', dueDate: '2020-01-01T00:00:00', isPublished: true },
       { id: 9003, title: '已批改的作业', dueDate: '2020-02-01T00:00:00', isPublished: true },
       { id: 9004, title: '草稿不该出现', isPublished: false },
+      { id: 9005, title: '未明确发布的任务' },
+      { id: 9006, title: '测验不该出现', taskType: 'QUIZ', isPublished: true },
+      { id: 9007, title: '视频不该出现', taskType: 'VIDEO', isPublished: true },
     ])
     submissionApi.getAllMySubmissions.mockResolvedValue([
       { id: 5503, taskId: 9003, status: 'GRADED', score: 88, maxScore: 100, attemptNumber: 1 },
@@ -116,8 +119,11 @@ describe('v2 学生课程 · 作业页签', () => {
     expect(wrapper.text()).toContain('逾期')
     expect(wrapper.text()).toContain('已完成')
     expect(wrapper.text()).toContain('88 / 100')
-    // 草稿任务对学生不可见
+    // 草稿、isPublished 缺失、测验 / 视频任务都不进入作业提交列表
     expect(wrapper.text()).not.toContain('草稿不该出现')
+    expect(wrapper.text()).not.toContain('未明确发布的任务')
+    expect(wrapper.text()).not.toContain('测验不该出现')
+    expect(wrapper.text()).not.toContain('视频不该出现')
     wrapper.unmount()
   })
 
@@ -155,6 +161,7 @@ describe('v2 学生课程 · 作业页签', () => {
           description: '提交实验报告',
           dueDate: '2099-01-01T00:00:00',
           maxScore: 100,
+          isPublished: true,
         },
         submission: null,
       },
@@ -179,6 +186,40 @@ describe('v2 学生课程 · 作业页签', () => {
       fileUrls: [],
     })
     expect(toast).toHaveBeenCalledWith('提交成功，等待教师批改', 'ok')
+    // 提交成功后按响应收口：表单消失，不依赖刷新结果
+    expect(wrapper.find('.modal-stub textarea').exists()).toBe(false)
+    expect(wrapper.text()).toContain('该作业当前不可再提交')
+    wrapper.unmount()
+  })
+
+  it('提交成功后刷新失败也不会回退成可重复提交的表单', async () => {
+    taskApi.getAllTasks.mockResolvedValue([
+      {
+        id: 9001,
+        title: '实验一报告',
+        dueDate: '2099-01-01T00:00:00',
+        isPublished: true,
+      },
+    ])
+
+    const wrapper = mountTasks()
+    await flushPromises()
+    await findButton(wrapper, '查看详情')?.trigger('click')
+    await flushPromises()
+    await wrapper.find('.modal-stub textarea').setValue('刷新失败也要算已提交')
+
+    // 提交动作本身成功，但随后的列表刷新失败
+    taskApi.getAllTasks.mockRejectedValueOnce(new Error('502'))
+    const buttons = wrapper.findAll('.modal-stub button')
+    await buttons[buttons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(submissionApi.submitTask).toHaveBeenCalledTimes(1)
+    expect(wrapper.find('.modal-stub textarea').exists()).toBe(false)
+    expect(wrapper.text()).toContain('该作业当前不可再提交')
+    // 刷新失败明确暴露为失败态，而不是「暂无作业」
+    expect(wrapper.find('.callout.danger').text()).toContain('作业列表加载失败')
+    expect(wrapper.text()).not.toContain('本课程暂无已发布作业')
     wrapper.unmount()
   })
 
@@ -207,6 +248,36 @@ describe('v2 学生课程 · 作业页签', () => {
     expect(textarea.value).toBe('保留这段作答')
     // 提交按钮仍在，可直接重试
     expect(findButton(wrapper, '提交作业')).toBeTruthy()
+    wrapper.unmount()
+  })
+})
+
+describe('v2 课程 · 教师任务页签（回归守卫）', () => {
+  it('教师仍看到任务管理列表、发布态与新建入口', async () => {
+    taskApi.getAllTasks.mockResolvedValue([
+      {
+        id: 9100,
+        title: '期中项目',
+        taskType: '作业',
+        dueDate: '2099-01-01T00:00:00',
+        isPublished: true,
+      },
+      { id: 9101, title: '未发布草稿', taskType: '作业', isPublished: false },
+    ])
+
+    const wrapper = mountTasks('teacher')
+    await flushPromises()
+
+    expect(taskApi.getAllTasks).toHaveBeenCalledWith({ courseId: COURSE_ID })
+    expect(chapterApi.getChapters).toHaveBeenCalledWith(COURSE_ID)
+    expect(wrapper.text()).toContain('课程任务')
+    expect(wrapper.text()).toContain('期中项目')
+    expect(wrapper.text()).toContain('未发布草稿')
+    expect(wrapper.text()).toContain('已发布')
+    expect(wrapper.text()).toContain('草稿')
+    expect(findButton(wrapper, '新建任务')).toBeTruthy()
+    // 教师视图不触发学生侧数据聚合
+    expect(submissionApi.getAllMySubmissions).not.toHaveBeenCalled()
     wrapper.unmount()
   })
 })
@@ -265,9 +336,24 @@ describe('v2 学生课程 · 成绩页签', () => {
   })
 
   it('空态与失败态可区分，且不提供假导出', async () => {
+    // 真·空态：课程条目存在，但作业 / 考试都为空
+    studentApi.getGrades.mockResolvedValueOnce({
+      data: {
+        courses: [
+          {
+            courseId: COURSE_ID,
+            courseName: '计算机网络',
+            finalScore: null,
+            assignments: [],
+            exams: [],
+          },
+        ],
+      },
+    })
     const empty = mountGrades()
     await flushPromises()
     expect(empty.text()).toContain('本课程暂无成绩记录')
+    expect(empty.text()).not.toContain('成绩数据未能获取')
     expect(empty.find('.callout.danger').exists()).toBe(false)
     expect(empty.text()).toContain('不提供「导出成绩」')
     expect(findButton(empty, '导出成绩')).toBeUndefined()
@@ -279,6 +365,66 @@ describe('v2 学生课程 · 成绩页签', () => {
     expect(failed.find('.callout.danger').text()).toContain('成绩数据加载失败')
     expect(failed.text()).not.toContain('本课程暂无成绩记录')
     failed.unmount()
+  })
+
+  it('课程条目缺失（后端吞异常）显示不确定态并可重试，不冒充空成绩', async () => {
+    // StudentDashboardComponent#getGrades 捕获异常后返回 { courses: [] }
+    studentApi.getGrades.mockResolvedValueOnce({ data: { courses: [] } })
+    const wrapper = mountGrades()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('成绩数据未能获取（可能暂不可用）')
+    expect(wrapper.text()).not.toContain('本课程暂无成绩记录')
+    const retry = findButton(wrapper, '重试')
+    expect(retry).toBeTruthy()
+
+    await retry?.trigger('click')
+    await flushPromises()
+    expect(studentApi.getGrades).toHaveBeenCalledTimes(2)
+    wrapper.unmount()
+  })
+
+  it('同一任务多次提交只保留最新一次，成绩行不重复', async () => {
+    studentApi.getGrades.mockResolvedValue({
+      data: {
+        courses: [
+          {
+            courseId: COURSE_ID,
+            courseName: '计算机网络',
+            finalScore: 86.5,
+            assignments: [
+              {
+                submissionId: 5501,
+                taskId: 9001,
+                title: '实验一',
+                score: 70,
+                maxScore: 100,
+                status: 'GRADED',
+                submittedAt: '2026-10-01T10:00:00',
+              },
+              {
+                submissionId: 5502,
+                taskId: 9001,
+                title: '实验一',
+                score: 92,
+                maxScore: 100,
+                status: 'GRADED',
+                submittedAt: '2026-10-05T10:00:00',
+              },
+            ],
+            exams: [],
+          },
+        ],
+      },
+    })
+
+    const wrapper = mountGrades()
+    await flushPromises()
+
+    expect(wrapper.findAll('tbody tr')).toHaveLength(1)
+    expect(wrapper.text()).toContain('92')
+    expect(wrapper.text()).not.toContain('70')
+    wrapper.unmount()
   })
 
   it('管理员仍走既有演示视图（本期不动）', async () => {
@@ -341,6 +487,31 @@ describe('v2 学生课程 · 讨论页签', () => {
     await flushPromises()
 
     expect(discussionApi.replyTopic).toHaveBeenCalledWith(1, { content: '我也想参加' })
+    wrapper.unmount()
+  })
+
+  it('回复失败保留输入内容并恢复按钮，可直接重试', async () => {
+    discussionApi.getTopics.mockResolvedValue({ data: { records: [topic] } })
+    discussionApi.getTopicDetail.mockResolvedValue({ data: { topic, posts: [] } })
+    discussionApi.replyTopic.mockRejectedValueOnce(new Error('502'))
+
+    const wrapper = mountDiscussion('student')
+    await flushPromises()
+    await findButton(wrapper, '进入话题')?.trigger('click')
+    await flushPromises()
+
+    await wrapper.find('.modal-stub textarea').setValue('需要保留的回复')
+    const buttons = wrapper.findAll('.modal-stub button')
+    await buttons[buttons.length - 1].trigger('click')
+    await flushPromises()
+
+    expect(discussionApi.replyTopic).toHaveBeenCalledWith(1, { content: '需要保留的回复' })
+    expect(wrapper.find('.form-error').text()).toContain('回复失败')
+    const textarea = wrapper.find('.modal-stub textarea').element as HTMLTextAreaElement
+    expect(textarea.value).toBe('需要保留的回复')
+    const retry = findButton(wrapper, '发表回复')
+    expect(retry).toBeTruthy()
+    expect(retry?.attributes('disabled')).toBeUndefined()
     wrapper.unmount()
   })
 

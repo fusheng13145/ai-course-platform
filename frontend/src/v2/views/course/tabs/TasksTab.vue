@@ -413,10 +413,34 @@ interface StudentAssignmentRow {
   attachmentUrl: string
   dueDate: string
   maxScore: number | null
+  /** 后端提交校验为 Boolean.TRUE.equals(isPublished)，null 不能按已发布处理 */
+  isPublished: boolean
   status: StudentStatus
   statusLabel: string
   chip: string
   submission: StudentSubmissionView | null
+}
+
+/** 测验 / 视频 / 文档 / 讨论任务不在「课程作业」的文本 + 附件提交链路内 */
+const NON_SUBMISSION_TASK_TYPES = new Set([
+  'QUIZ',
+  '测验',
+  'VIDEO',
+  '视频',
+  'DOC',
+  'DOCUMENT',
+  'READING',
+  '文档',
+  'DISCUSSION',
+  '讨论',
+])
+
+function isSubmissionTaskType(value: unknown): boolean {
+  return !NON_SUBMISSION_TASK_TYPES.has(
+    String(value ?? '')
+      .trim()
+      .toUpperCase(),
+  )
 }
 
 const studentRows = ref<StudentAssignmentRow[]>([])
@@ -505,6 +529,7 @@ function toStudentRow(
     attachmentUrl: String(task.attachmentUrl ?? ''),
     dueDate,
     maxScore: task.maxScore == null ? null : Number(task.maxScore),
+    isPublished: task.isPublished === true,
     status,
     statusLabel: STUDENT_STATUS_LABEL[status],
     chip: STUDENT_STATUS_CHIP[status],
@@ -531,8 +556,9 @@ async function loadStudent() {
       unknown
     >[]
     studentRows.value = taskList
-      // 仅展示已发布任务；isPublished 缺失时按发布处理（与旧端一致）
-      .filter((task) => task.isPublished !== false)
+      // 后端提交校验为 Boolean.TRUE.equals(isPublished)：null / 缺失都不算已发布。
+      // 测验 / 视频 / 文档 / 讨论任务另走学习中心或考试入口，不出现在文本 + 附件提交表单里。
+      .filter((task) => task.isPublished === true && isSubmissionTaskType(task.taskType))
       .map((task) => toStudentRow(task, latestSubmissionOf(submissionList, Number(task.id))))
       .sort((a, b) => {
         const rank = (row: StudentAssignmentRow) =>
@@ -576,9 +602,12 @@ function safeUrl(value?: string): string {
 }
 
 const canSubmitDetail = computed(() => {
-  const status = studentDetail.value?.status
+  const detail = studentDetail.value
+  if (!detail || !detail.isPublished || !isSubmissionTaskType(detail.taskType)) return false
   // 逾期仍可提交：后端按「允许迟交但计逾期扣分」处理（SubmissionWriteComponent）
-  return status === 'NOT_SUBMITTED' || status === 'OVERDUE' || status === 'RETURNED'
+  return (
+    detail.status === 'NOT_SUBMITTED' || detail.status === 'OVERDUE' || detail.status === 'RETURNED'
+  )
 })
 
 async function fetchStudentDetail(taskId: number) {
@@ -639,41 +668,98 @@ function removeStudentAttachment(url: string) {
   studentForm.fileUrls = studentForm.fileUrls.filter((item) => item !== url)
 }
 
+/** 提交成功后立刻用响应（或本地兜底）落定已提交态，不等待列表/详情刷新 */
+function applySubmittedSubmission(
+  taskId: number,
+  response: unknown,
+  fallback: { content: string; fileUrls: string[]; isResubmission: boolean },
+) {
+  const raw = unwrap<Record<string, unknown>>(response)
+  const parsed = raw && typeof raw === 'object' && raw.id != null ? toStudentSubmission(raw) : null
+  let submission: StudentSubmissionView
+  if (parsed && SUBMISSION_STATUSES.includes(parsed.status as StudentStatus)) {
+    submission = parsed
+    if (!submission.content) submission.content = fallback.content
+  } else {
+    const status: StudentStatus = fallback.isResubmission ? 'RESUBMITTED' : 'SUBMITTED'
+    submission = {
+      id: parsed?.id ?? 0,
+      status,
+      score: null,
+      maxScore: studentDetail.value?.maxScore ?? null,
+      feedback: null,
+      content: fallback.content,
+      fileUrls: fallback.fileUrls,
+      submittedAt: new Date().toISOString(),
+    }
+  }
+  const status = submission.status as StudentStatus
+  const apply = (row: StudentAssignmentRow) => {
+    row.status = status
+    row.statusLabel = STUDENT_STATUS_LABEL[status]
+    row.chip = STUDENT_STATUS_CHIP[status]
+    row.submission = submission
+  }
+  if (studentDetail.value?.taskId === taskId) {
+    apply(studentDetail.value)
+    studentDetailSubmission.value = submission
+    studentForm.content = ''
+    studentForm.fileUrls = []
+  }
+  const row = studentRows.value.find((item) => item.taskId === taskId)
+  if (row) apply(row)
+}
+
+async function refreshStudentAfterSubmit(taskId: number) {
+  await loadStudent()
+  const refreshed = studentRows.value.find((row) => row.taskId === taskId)
+  if (refreshed && studentDetail.value?.taskId === taskId) {
+    // 刷新不得把刚确认的提交态退回「待完成」（后端读取可能延迟）
+    if (refreshed.status !== 'NOT_SUBMITTED' && refreshed.status !== 'OVERDUE') {
+      studentDetail.value = { ...refreshed }
+      studentDetailSubmission.value = refreshed.submission
+      studentForm.content = ''
+      studentForm.fileUrls = []
+    }
+  }
+  try {
+    const body = await fetchStudentDetail(taskId)
+    if (body?.assignment && studentDetail.value?.taskId === taskId) {
+      const merged = toStudentRow(body.assignment, body.submission ?? null)
+      if (merged.status !== 'NOT_SUBMITTED' && merged.status !== 'OVERDUE') {
+        Object.assign(studentDetail.value, merged)
+        studentDetailSubmission.value = merged.submission
+        studentForm.content = ''
+        studentForm.fileUrls = []
+      }
+    }
+  } catch (error) {
+    logger.warn('提交后刷新作业详情失败', error)
+  }
+}
+
 async function submitStudent() {
   const detail = studentDetail.value
   if (!detail || studentSubmitting.value) return
   const content = studentForm.content.trim()
-  if (!content && !studentForm.fileUrls.length) {
+  const fileUrls = [...studentForm.fileUrls]
+  if (!content && !fileUrls.length) {
     studentFormError.value = '请填写作答内容或上传附件'
     return
   }
+  const isResubmission = Boolean(studentDetailSubmission.value)
   studentSubmitting.value = true
   studentFormError.value = ''
   try {
     // 旧端 CduAssignmentTab 同口径：POST /submissions 白名单 DTO —— { taskId, content, fileUrls }
-    await submissionApi.submitTask(detail.taskId, {
+    const response = await submissionApi.submitTask(detail.taskId, {
       content,
-      fileUrls: [...studentForm.fileUrls],
+      fileUrls,
     })
     toast('提交成功，等待教师批改', 'ok')
-    await loadStudent()
-    const refreshed = studentRows.value.find((row) => row.taskId === detail.taskId)
-    if (refreshed) {
-      studentDetail.value = { ...refreshed }
-      studentDetailSubmission.value = refreshed.submission
-      studentForm.content = refreshed.submission?.content ?? ''
-      studentForm.fileUrls = []
-    }
-    try {
-      const body = await fetchStudentDetail(detail.taskId)
-      if (body?.assignment) {
-        const merged = toStudentRow(body.assignment, body.submission ?? null)
-        Object.assign(studentDetail.value, merged)
-        studentDetailSubmission.value = merged.submission
-      }
-    } catch (error) {
-      logger.warn('提交后刷新作业详情失败', error)
-    }
+    // 提交已成功：先按响应落定已提交态，后续刷新失败也不会留下可重复提交的表单
+    applySubmittedSubmission(detail.taskId, response, { content, fileUrls, isResubmission })
+    await refreshStudentAfterSubmit(detail.taskId)
   } catch (error) {
     logger.error('作业提交失败', error)
     // 失败保留表单与已上传附件，允许直接重试
