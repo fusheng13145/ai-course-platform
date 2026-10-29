@@ -25,6 +25,7 @@
     </div>
 
     <AiUsageBody v-if="def.special === 'aiUsage'" />
+    <ExamGovernanceBody v-else-if="def.special === 'examGovernance'" />
     <AnalyticsTab v-else-if="def.special === 'analytics'" />
     <AiTab v-else-if="def.special === 'assistant'" :role="role" />
 
@@ -63,6 +64,7 @@ import V2Stat from '../components/V2Stat.vue'
 import V2Table from '../components/V2Table.vue'
 import V2Icon from '../components/V2Icon.vue'
 import AiUsageBody from './specials/V2AiUsageBody.vue'
+import ExamGovernanceBody from './specials/V2ExamGovernanceBody.vue'
 import AnalyticsTab from './course/tabs/AnalyticsTab.vue'
 import AiTab from './course/tabs/AiTab.vue'
 import { pageDef, type V2Role } from '../nav'
@@ -122,7 +124,11 @@ const sub = computed(() => {
 })
 
 const block = computed(() => demoBlock(role.value as V2Role, page.value, sub.value))
-const source = computed<'demo' | 'mixed'>(() => (page.value === 'messages' ? 'mixed' : 'demo'))
+const source = computed<'api' | 'demo' | 'mixed'>(() => {
+  if (page.value === 'messages') return 'mixed'
+  if (page.value === 'examGovernance') return 'api'
+  return 'demo'
+})
 const tableKicker = computed(() => `${role.value.toUpperCase()} / ${page.value.toUpperCase()}`)
 
 const actions = computed(() => {

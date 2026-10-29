@@ -405,7 +405,7 @@ const ADMIN_PAGES: Record<string, V2PageDef> = {
   examGovernance: {
     title: '考试治理',
     kicker: 'ADMIN / EXAMS',
-    desc: '考试会话、风险事件与考试安排；不替代教师批阅。',
+    desc: '全校试卷与进行中考试会话：筛选、题目与统计、强制交卷与作弊检测；不替代教师批阅。',
     special: 'examGovernance',
   },
   grades: {

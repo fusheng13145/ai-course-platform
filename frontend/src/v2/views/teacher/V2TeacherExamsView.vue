@@ -197,26 +197,7 @@
     <V2Modal v-model:open="statsOpen" title="试卷统计" kicker="PAPER / STATISTICS" width="620px">
       <p class="modal-text">{{ currentExam?.title || '试卷' }}</p>
       <div v-if="statsLoading" class="modal-hint">正在加载统计…</div>
-      <div v-else-if="examStats" class="stats-grid">
-        <div class="stats-item">
-          <span>参考人数</span><b>{{ statValue('attemptCount', 'participantCount') }}</b>
-        </div>
-        <div class="stats-item">
-          <span>平均分</span><b class="ok">{{ statValue('avgScore') }}</b>
-        </div>
-        <div class="stats-item">
-          <span>最高分</span><b class="warn">{{ statValue('maxScore') }}</b>
-        </div>
-        <div class="stats-item">
-          <span>最低分</span><b class="danger">{{ statValue('minScore') }}</b>
-        </div>
-        <div class="stats-item">
-          <span>及格率</span><b>{{ formatRate(examStats.passRate) }}</b>
-        </div>
-        <div class="stats-item">
-          <span>提交数</span><b>{{ statValue('submitCount') }}</b>
-        </div>
-      </div>
+      <V2PaperStats v-else-if="examStats" :stats="examStats" />
       <div v-else class="modal-hint">暂无统计数据。</div>
       <template #footer>
         <button class="btn btn-ghost" @click="statsOpen = false">关闭</button>
@@ -266,6 +247,7 @@ import V2PageHead from '../../components/V2PageHead.vue'
 import V2Stat from '../../components/V2Stat.vue'
 import V2Icon from '../../components/V2Icon.vue'
 import V2Modal from '../../components/V2Modal.vue'
+import V2PaperStats from '../../components/V2PaperStats.vue'
 import { useV2Ui } from '../../composables/ui'
 import type { V2Metric } from '../../nav'
 
@@ -410,21 +392,6 @@ function courseNameOf(row: ExamRow): string {
 
 function questionCountOf(row: ExamRow): number {
   return Number(row.questionCount ?? (Array.isArray(row.questions) ? row.questions.length : 0))
-}
-
-function statValue(...keys: string[]): string {
-  for (const key of keys) {
-    const value = examStats.value?.[key]
-    if (value != null && value !== '') return String(value)
-  }
-  return '—'
-}
-
-function formatRate(value: unknown): string {
-  const num = Number(value)
-  if (!Number.isFinite(num)) return '—'
-  const pct = num <= 1 ? num * 100 : num
-  return `${Math.round(pct * 10) / 10}%`
 }
 
 async function loadCourses() {
@@ -670,42 +637,7 @@ onMounted(async () => {
   color: var(--ink-3);
   margin-top: 3px;
 }
-.stats-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-}
-.stats-item {
-  padding: 12px;
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  background: var(--surface-2);
-}
-.stats-item span {
-  display: block;
-  font-size: 10px;
-  color: var(--ink-3);
-}
-.stats-item b {
-  display: block;
-  margin-top: 4px;
-  font-family: var(--font-display);
-  font-size: 20px;
-  color: var(--ink);
-}
-.stats-item b.ok {
-  color: var(--ok);
-}
-.stats-item b.warn {
-  color: var(--warn);
-}
-.stats-item b.danger {
-  color: var(--danger);
-}
 @media (max-width: 720px) {
-  .stats-grid {
-    grid-template-columns: 1fr 1fr;
-  }
   .exam-title,
   .cell-sub {
     max-width: 200px;
