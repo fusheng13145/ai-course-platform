@@ -51,7 +51,11 @@
         :course="courseRecord"
       />
       <GradingTab v-else-if="currentTab === 'grading'" :course-id="courseId" :role="role" />
-      <TasksTab v-else-if="currentTab === 'tasks' && role === 'teacher'" :course-id="courseId" />
+      <TasksTab
+        v-else-if="currentTab === 'tasks' && (role === 'teacher' || role === 'student')"
+        :course-id="courseId"
+        :role="role"
+      />
       <ChaptersTab
         v-else-if="currentTab === 'chapters' && role === 'teacher'"
         :course-id="courseId"
@@ -68,7 +72,7 @@
       <GraphTab v-else-if="currentTab === 'graph'" />
       <AiCenterTab v-else-if="currentTab === 'ai' && role === 'teacher'" :course-id="courseId" />
       <AiTab v-else-if="currentTab === 'ai'" :role="role" />
-      <GradesTab v-else-if="currentTab === 'grades'" :role="role" />
+      <GradesTab v-else-if="currentTab === 'grades'" :role="role" :course-id="courseId" />
       <V2TeacherBankView
         v-else-if="currentTab === 'bank' && role === 'teacher'"
         :course-id="courseId"
@@ -91,8 +95,9 @@
         @updated="applyCourseUpdate"
       />
       <DiscussionTab
-        v-else-if="currentTab === 'discussion' && role === 'teacher'"
+        v-else-if="currentTab === 'discussion' && (role === 'teacher' || role === 'student')"
         :course-id="courseId"
+        :role="role"
       />
       <ModuleTab v-else :block="block" :role="role" :note="moduleNote" />
     </div>

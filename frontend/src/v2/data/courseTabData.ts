@@ -17,11 +17,9 @@ function fromModule(
 }
 
 function rawCourseTabBlock(role: 'student' | 'teacher' | 'admin', tab: string): V2DemoBlock | null {
-  if (role === 'student') {
-    if (tab === 'tasks') return fromModule('student', 'tasks')
-    if (tab === 'discussion') return fromModule('student', 'discussion')
-    return null
-  }
+  // 学生「作业 / 讨论 / 成绩」已接真实接口（V2CourseView → TasksTab / DiscussionTab / GradesTab），
+  // 示例层不再供数；教师端全部走真组件。
+  if (role === 'student') return null
   if (role === 'teacher') return null
   if (tab === 'content') return fromModule('teacher', 'chapters')
   if (tab === 'bank') return fromModule('teacher', 'bank')

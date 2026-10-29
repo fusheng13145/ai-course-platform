@@ -101,7 +101,7 @@
       kicker="DISCUSSION / THREAD"
       width="760px"
     >
-      <div class="thread-actions">
+      <div v-if="isTeacher" class="thread-actions">
         <span class="chip" :class="detail.pinned ? 'chip-accent' : 'chip-mute'">
           {{ detail.pinned ? '已置顶' : '未置顶' }}
         </span>
@@ -111,6 +111,9 @@
         <button class="text-btn" @click="askToggleClose">
           {{ detail.closed ? '重新打开' : '关闭话题' }}
         </button>
+      </div>
+      <div v-else-if="detail.closed" class="thread-actions">
+        <span class="chip chip-mute">话题已关闭</span>
       </div>
       <p v-if="detail.content" class="topic-body">{{ detail.content }}</p>
 
@@ -126,7 +129,9 @@
             <button class="text-btn" @click="likePost(post)">
               {{ post.liked ? '取消点赞' : '点赞' }} {{ post.likeCount ?? 0 }}
             </button>
-            <button class="text-btn danger" @click="askDeletePost(post)">删除</button>
+            <button v-if="isTeacher" class="text-btn danger" @click="askDeletePost(post)">
+              删除
+            </button>
           </div>
         </li>
       </ul>
@@ -173,10 +178,11 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import V2Modal from '../../../components/V2Modal.vue'
 import V2Icon from '../../../components/V2Icon.vue'
 import { useV2Ui } from '../../../composables/ui'
+import type { V2Role } from '../../../nav'
 import discussionApi, {
   normalizeDiscussionPost,
   normalizeDiscussionTopic,
@@ -200,8 +206,12 @@ interface Row {
   [key: string]: unknown
 }
 
-const props = defineProps<{ courseId: number }>()
+const props = withDefaults(defineProps<{ courseId: number; role?: V2Role }>(), {
+  role: 'teacher',
+})
 const { toast } = useV2Ui()
+/** 置顶 / 关闭 / 删除只对教师渲染；学生可读、可回、可点赞、可发新话题 */
+const isTeacher = computed(() => props.role === 'teacher')
 
 const topics = ref<Row[]>([])
 const loading = ref(false)
