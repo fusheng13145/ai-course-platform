@@ -24,7 +24,17 @@
       </button>
     </div>
 
-    <AiUsageBody v-if="def.special === 'aiUsage'" />
+    <div
+      v-if="notProvidedCopy"
+      class="card empty-state"
+      role="status"
+      data-testid="page-not-provided"
+    >
+      <span class="e-ico"><V2Icon name="shield" /></span>
+      <b>{{ notProvidedCopy.head }}</b>
+      <p>{{ notProvidedCopy.detail }}</p>
+    </div>
+
     <ExamGovernanceBody v-else-if="def.special === 'examGovernance'" />
     <AnalyticsTab v-else-if="def.special === 'analytics'" />
     <AiTab v-else-if="def.special === 'assistant'" :role="role" />
@@ -65,12 +75,12 @@ import V2PageHead from '../components/V2PageHead.vue'
 import V2Stat from '../components/V2Stat.vue'
 import V2Table from '../components/V2Table.vue'
 import V2Icon from '../components/V2Icon.vue'
-import AiUsageBody from './specials/V2AiUsageBody.vue'
 import ExamGovernanceBody from './specials/V2ExamGovernanceBody.vue'
 import AnalyticsTab from './course/tabs/AnalyticsTab.vue'
 import AiTab from './course/tabs/AiTab.vue'
 import V2MessagesBody from './specials/V2MessagesBody.vue'
 import { specialBodyLoader } from './specials/registry'
+import { notProvidedCopy as copyFor, pageDisposition } from '../notProvided'
 import { pageDef, type V2Role } from '../nav'
 import { useV2Ui } from '../composables/ui'
 import { demoBlock } from '../data/pageData'
@@ -81,6 +91,13 @@ const { role, toast } = useV2Ui()
 
 const page = computed(() => String(route.meta.v2page || 'home'))
 const def = computed(() => pageDef(role.value as V2Role, page.value))
+
+// 判为不提供／后端缺口的页面：正文只给明确空态，绝不回落示例读数（判据见前端待办项 §11.8.3）。
+const notProvidedCopy = computed(() => {
+  const disposition = pageDisposition(role.value as V2Role, page.value)
+  if (disposition === 'provided') return null
+  return copyFor(role.value as V2Role, page.value)
+})
 
 // 显式分支之外的页面按约定懒加载 <Special>Body.vue；文件未落地则保持 null，走示例块兜底。
 const specialBodyComponent = computed(() => {
@@ -124,6 +141,8 @@ const sub = computed(() => {
 
 const block = computed(() => demoBlock(role.value as V2Role, page.value, sub.value))
 const source = computed<'api' | 'demo' | 'mixed' | undefined>(() => {
+  // 「不提供」与「后端尚未提供」既不是接口读数也不是示例读数，不挂来源章。
+  if (notProvidedCopy.value) return undefined
   // 显式分支中的考试治理与消息已接真实接口。
   if (page.value === 'messages' || page.value === 'examGovernance') return 'api'
   // 约定 Body 真实存在时模板渲染的是接口正文，不再标「示例数据」；

@@ -1,5 +1,6 @@
 import navData from './data/nav.json'
 import { ROLE_HOME, type V2Role } from './types'
+import { courseTabHidden, pageDisposition } from './notProvided'
 
 export { ROLE_HOME, ROLE_KICKER, ROLE_LABEL, LEGACY_HOME, type V2Role } from './types'
 
@@ -143,7 +144,11 @@ export function navGroups(role: V2Role): V2NavGroup[] {
       ],
     })
   }
-  return groups
+  // 本轮判为不提供的页面：导航不留入口，避免点进去只有示例读数（判据见前端待办项 §11.8.3）。
+  for (const group of groups) {
+    group.items = group.items.filter((item) => pageDisposition(role, item.id) !== 'hidden')
+  }
+  return groups.filter((group) => group.items.length > 0)
 }
 
 export interface V2CourseTab {
@@ -169,7 +174,7 @@ export function courseTabs(role: V2Role): V2CourseTab[] {
     const examsIndex = tabs.findIndex((tab) => tab.id === 'exams')
     tabs.splice(examsIndex >= 0 ? examsIndex : 1, 0, ...TEACHER_EXTRA_TABS)
   }
-  return tabs
+  return tabs.filter((tab) => !courseTabHidden(role, tab.id))
 }
 
 export function courseTabPath(role: V2Role, courseId: number | string, tab: string): string {

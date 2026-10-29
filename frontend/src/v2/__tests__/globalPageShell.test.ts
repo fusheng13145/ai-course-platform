@@ -169,9 +169,9 @@ describe('v2 全局页壳层：真实页面不得再戴「示例数据」章', (
     }
   })
 
-  it('没有真实 Body 的页面仍如实标「示例数据」（阴性对照）', async () => {
-    uiState.role.value = 'teacher'
-    route.meta.v2page = 'resources'
+  it('既无真实 Body 也非「不提供」的页面仍如实标「示例数据」（阴性对照）', async () => {
+    uiState.role.value = 'student'
+    route.meta.v2page = 'courses'
     const wrapper = mountPage()
     await settle()
     expect(sourceChipText(wrapper)).toBe('示例数据')
@@ -231,6 +231,29 @@ describe('v2 全局页壳层：收件箱不留空控件', () => {
     expect(actionTexts).not.toContain('批量确认')
     expect(actionTexts).not.toContain('导出')
     expect(sourceChipText(wrapper)).toBe('接口数据')
+    wrapper.unmount()
+  })
+})
+
+describe('v2 全局页壳层：判为不提供的页面不留示例读数', () => {
+  it.each([
+    ['admin', 'audit', '本版不提供'],
+    ['admin', 'notices', '本版不提供'],
+    ['admin', 'aiUsage', '后端尚未提供'],
+    ['teacher', 'advising', '后端尚未提供'],
+    ['student', 'assistant', '本版不提供'],
+  ] as const)('%s/%s 渲染不提供空态且不挂来源章', async (role, pageName, phrase) => {
+    uiState.role.value = role
+    route.meta.v2page = pageName
+    const wrapper = mountPage()
+    await settle()
+    const body = wrapper.find('[data-testid="page-not-provided"]')
+    expect(body.exists(), `${role}/${pageName} 未渲染不提供空态`).toBe(true)
+    expect(body.text()).toContain(phrase)
+    expect(wrapper.text(), `${role}/${pageName} 仍有示例读数`).not.toContain('示例数据')
+    expect(wrapper.find('.page-kicker .chip').exists(), `${role}/${pageName} 仍挂来源章`).toBe(
+      false,
+    )
     wrapper.unmount()
   })
 })
