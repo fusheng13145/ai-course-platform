@@ -1,74 +1,26 @@
 import { ElMessage } from 'element-plus'
-import logger from '@/utils/logger'
-import questionApi from '@/api/question'
+import { createQuestionTransfer, type QuestionTransferDeps } from '@/utils/questionTransfer'
 
 /**
- * 题库批量导入导出域（xlsx 文件流）
- * <p>导出走后端 /teacher/questions/export 生成文件流下载（按当前课程筛选）；
- * 导入选 .xlsx 文件后交后端 /teacher/questions/import-excel 解析入库，
- * 表头约定：题型/题干/选项(JSON)/正确答案/难度/分值/知识点/解析。</p>
+ * 旧端题库批量导入导出的薄适配器（Element Plus 提示宿主）。
+ *
+ * <p>业务逻辑与文案在 `@/utils/questionTransfer`（EP-free，v2 复用同一份）；
+ * 这里只把宿主接口映射到 ElMessage，对外签名保持
+ * `useQuestionTransfer({ filters, fetchQuestions }) -> { handleExport, handleImport }`，
+ * 旧调用方与既有测试无需改动。</p>
  */
-export function useQuestionTransfer(deps) {
-  const { filters, fetchQuestions } = deps
-
-  /** 批量导出：调用后端 /teacher/questions/export 生成 xlsx 文件流下载（按当前课程筛选） */
-  async function handleExport() {
-    try {
-      ElMessage({ message: '正在导出题库...', duration: 0 })
-      const res = await questionApi.exportQuestionsExcel({
-        courseId: filters.courseId || undefined,
-      })
-      ElMessage.closeAll()
-      const blob = new Blob([res.data || res], {
-        type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-      })
-      const url = window.URL.createObjectURL(blob)
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `题库导出_${new Date().toLocaleDateString('zh-CN').replace(/\//g, '-')}.xlsx`
-      document.body.appendChild(link)
-      link.click()
-      document.body.removeChild(link)
-      window.URL.revokeObjectURL(url)
-      ElMessage.success('导出成功')
-    } catch (e) {
-      ElMessage.closeAll()
-      logger.error('导出题库失败:', e)
-      ElMessage.error('导出失败，请稍后重试')
-    }
-  }
-
-  /** 批量导入：选择 .xlsx 文件后调用后端 /teacher/questions/import-excel 解析入库 */
-  function handleImport() {
-    const input = document.createElement('input')
-    input.type = 'file'
-    input.accept = '.xlsx'
-    input.onchange = async (e) => {
-      const file = (e.target as HTMLInputElement).files?.[0]
-      if (!file) return
-      try {
-        ElMessage({ message: '正在导入题目...', duration: 0 })
-        const formData = new FormData()
-        formData.append('file', file)
-        if (filters.courseId) formData.append('courseId', filters.courseId)
-        const res = await questionApi.importQuestionsExcel(formData)
-        ElMessage.closeAll()
-        const result = res.data || {}
-        ElMessage.success(
-          `导入完成：成功 ${result.importedCount ?? 0} / 共 ${result.total ?? 0} 题`,
-        )
-        fetchQuestions()
-      } catch (err) {
-        ElMessage.closeAll()
-        logger.error('导入题目失败:', err)
-        ElMessage.error('导入失败，请检查文件格式（.xlsx，8 列表头）')
-      }
-    }
-    input.click()
-  }
-
-  return {
-    handleExport,
-    handleImport,
-  }
+export function useQuestionTransfer(
+  deps: Pick<QuestionTransferDeps, 'filters' | 'fetchQuestions'>,
+) {
+  const { handleExport, handleImport } = createQuestionTransfer({
+    ...deps,
+    notify: {
+      loading: (message) => ElMessage({ message, duration: 0 }),
+      close: () => ElMessage.closeAll(),
+      success: (message) => ElMessage.success(message),
+      error: (message) => ElMessage.error(message),
+    },
+  })
+  // 对外只暴露原来那两个动作；busy 仅服务于 v2 按钮禁用，旧端不需要
+  return { handleExport, handleImport }
 }

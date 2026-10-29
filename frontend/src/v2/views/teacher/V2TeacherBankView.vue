@@ -8,6 +8,8 @@
       source="api"
     >
       <template #actions>
+        <button class="btn btn-ghost" :disabled="transferBusy" @click="handleImport">导入</button>
+        <button class="btn btn-ghost" :disabled="transferBusy" @click="handleExport">导出</button>
         <button class="btn btn-ghost" @click="openAi">AI 出题</button>
         <button class="btn btn-primary" @click="openCreate">新建题目</button>
       </template>
@@ -18,6 +20,8 @@
         <h2>课程题库</h2>
       </div>
       <div class="course-tab-actions">
+        <button class="btn btn-ghost" :disabled="transferBusy" @click="handleImport">导入</button>
+        <button class="btn btn-ghost" :disabled="transferBusy" @click="handleExport">导出</button>
         <button class="btn btn-ghost" @click="openAi">AI 出题</button>
         <button class="btn btn-primary" @click="openCreate">新建题目</button>
       </div>
@@ -340,6 +344,7 @@ import {
 } from '@/api/question'
 import { getAllMyCourses } from '@/api/course'
 import { pickList, unwrap } from '@/utils/response'
+import { createQuestionTransfer } from '@/utils/questionTransfer'
 import { resolveReviewStatus } from '@/composables/useQuestionBank'
 import {
   QUESTION_DIFFICULTY_OPTIONS,
@@ -379,7 +384,7 @@ interface CourseRow {
 }
 
 const props = defineProps<{ courseId?: number }>()
-const { toast } = useV2Ui()
+const { toast, toasts, dismissToast } = useV2Ui()
 
 const isCourseScope = computed(() => Number(props.courseId) > 0)
 const allQuestions = ref<QuestionRow[]>([])
@@ -388,6 +393,33 @@ const loading = ref(false)
 const page = ref(1)
 const pageSize = ref(10)
 const filters = reactive({ courseId: '', type: '', difficulty: '', keyword: '' })
+
+/* 批量导入导出：逻辑与旧端同源于 utils/questionTransfer，提示走 v2 toast */
+let transferToastId: number | null = null
+const {
+  handleExport,
+  handleImport,
+  busy: transferBusy,
+} = createQuestionTransfer({
+  filters,
+  fetchQuestions: loadQuestions,
+  notify: {
+    loading(message) {
+      toast(message, 'info')
+      transferToastId = toasts.value[toasts.value.length - 1]?.id ?? null
+    },
+    close() {
+      if (transferToastId !== null) dismissToast(transferToastId)
+      transferToastId = null
+    },
+    success(message) {
+      toast(message, 'ok')
+    },
+    error(message) {
+      toast(message, 'danger')
+    },
+  },
+})
 
 const formOpen = ref(false)
 const editingId = ref<number | null>(null)

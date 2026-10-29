@@ -7,6 +7,8 @@
       source="api"
     >
       <template #actions>
+        <button class="btn btn-ghost" :disabled="transferBusy" @click="handleImport">导入</button>
+        <button class="btn btn-ghost" :disabled="transferBusy" @click="handleExport">导出</button>
         <button class="btn btn-ghost" :disabled="errorLoading" @click="loadErrorProne">
           {{ errorLoading ? '拉取中…' : '易错题榜单' }}
         </button>
@@ -317,6 +319,7 @@ import { getAllCourses } from '@/api/course'
 import { QUESTION_TYPE_OPTIONS, questionTypeLabel } from '@/constants/questionTypes'
 import { resolveReviewStatus } from '@/composables/useQuestionBank'
 import { pickList, unwrap } from '@/utils/response'
+import { createQuestionTransfer } from '@/utils/questionTransfer'
 import logger from '@/utils/logger'
 import type { V2Metric } from '../../nav'
 
@@ -343,7 +346,7 @@ interface QuestionRow {
   [key: string]: unknown
 }
 
-const { toast } = useV2Ui()
+const { toast, toasts, dismissToast } = useV2Ui()
 
 const courses = ref<CourseOption[]>([])
 const rows = ref<QuestionRow[]>([])
@@ -358,6 +361,33 @@ const errorLoading = ref(false)
 const errorOpen = ref(false)
 
 const filters = reactive({ keyword: '', type: '', difficulty: '', courseId: '' })
+
+/* 批量导入导出：逻辑与旧端同源于 utils/questionTransfer，导出按当前课程筛选（空即全校） */
+let transferToastId: number | null = null
+const {
+  handleExport,
+  handleImport,
+  busy: transferBusy,
+} = createQuestionTransfer({
+  filters,
+  fetchQuestions: loadRows,
+  notify: {
+    loading(message) {
+      toast(message, 'info')
+      transferToastId = toasts.value[toasts.value.length - 1]?.id ?? null
+    },
+    close() {
+      if (transferToastId !== null) dismissToast(transferToastId)
+      transferToastId = null
+    },
+    success(message) {
+      toast(message, 'ok')
+    },
+    error(message) {
+      toast(message, 'danger')
+    },
+  },
+})
 
 const formOpen = ref(false)
 const formError = ref('')
