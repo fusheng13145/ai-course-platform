@@ -442,7 +442,9 @@ describe('v2 管理员 / 学期管理', () => {
     expect(adminApi.createSemester).toHaveBeenCalledTimes(1)
     expect(wrapper.find('.modal-stub').exists()).toBe(true)
     expect(wrapper.find('.modal-stub').text()).toContain('学期名称已存在')
-    expect(wrapper.find('[data-testid="semester-name"]').element.value).toBe('2026-2027-1')
+    expect((wrapper.find('[data-testid="semester-name"]').element as HTMLInputElement).value).toBe(
+      '2026-2027-1',
+    )
     wrapper.unmount()
   })
 
@@ -583,7 +585,9 @@ describe('v2 管理员 / 行政班', () => {
 
     expect(wrapper.find('.modal-stub').exists()).toBe(true)
     expect(wrapper.find('.modal-stub').text()).toContain('班级编号已存在')
-    expect(wrapper.find('[data-testid="class-code"]').element.value).toBe('CS2202')
+    expect((wrapper.find('[data-testid="class-code"]').element as HTMLInputElement).value).toBe(
+      'CS2202',
+    )
     expect(classroomApi.getClassroomList).toHaveBeenCalledTimes(1)
     wrapper.unmount()
   })

@@ -439,14 +439,14 @@ describe('v2 教师收件箱三块真实读数', () => {
     expect(text).not.toContain('示例数据')
   })
 
-  it('页面壳遗留的「提醒」页签在挂载时隐藏，卸载时恢复', async () => {
+  it('收件箱不改写祖先 DOM，也不留隐藏的僵尸页签', async () => {
     const Host = defineComponent({
       render() {
         return h('section', { class: 'module' }, [
           h(
             'div',
             { class: 'page-tabs' },
-            ['待批阅', '待发布', '考试与监考', '提醒'].map((label) => h('button', label)),
+            ['A', 'B', 'C', 'D'].map((label) => h('button', label)),
           ),
           h(InboxBody),
         ])
@@ -458,13 +458,12 @@ describe('v2 教师收件箱三块真实读数', () => {
 
     const buttons = wrapper.findAll('.page-tabs button')
     expect(buttons).toHaveLength(4)
-    expect(buttons[0].attributes('style') ?? '').not.toContain('display: none')
-    expect(buttons[3].attributes('style')).toContain('display: none')
-    expect(buttons[3].attributes('data-inbox-hidden')).toBe('true')
-
-    const reminder = buttons[3].element as HTMLButtonElement
+    // 正文只渲染自己的三块，页签的取舍归壳层
+    expect(wrapper.findAll('[data-block]')).toHaveLength(3)
+    for (const button of buttons) {
+      expect(button.attributes('style') ?? '').not.toContain('display: none')
+      expect(button.attributes('data-inbox-hidden')).toBeUndefined()
+    }
     wrapper.unmount()
-    expect(reminder.style.display).toBe('')
-    expect(reminder.hasAttribute('data-inbox-hidden')).toBe(false)
   })
 })

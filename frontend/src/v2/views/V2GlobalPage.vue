@@ -98,14 +98,6 @@ const tabs = computed<TabDef[]>(() => {
     // 本期学业档案只提供成绩；错题本 / 学习路径尚无后端与正文，先不挂空页签。
     return [{ id: 'grades', label: '成绩' }]
   }
-  if (page.value === 'inbox') {
-    return [
-      { id: 'grading', label: '待批阅' },
-      { id: 'publish', label: '待发布' },
-      { id: 'proctor', label: '考试与监考' },
-      { id: 'reminders', label: '提醒' },
-    ]
-  }
   if (page.value === 'advising') {
     return [
       { id: 'overview', label: '我的班级' },
@@ -143,8 +135,8 @@ const tableKicker = computed(() => `${role.value.toUpperCase()} / ${page.value.t
 
 const actions = computed(() => {
   // 学业档案的导出端点尚未提供，本页不挂「导出成绩」以免 toast 成演示动作。
+  // 收件箱三块由正文自带动作，壳层不再挂「批量确认 / 导出」这类只会 toast 的演示动作。
   if (page.value === 'advising') return ['发送班级通知']
-  if (page.value === 'inbox') return ['批量确认', '导出']
   if (page.value === 'resources') return ['上传资源', '导出']
   return []
 })

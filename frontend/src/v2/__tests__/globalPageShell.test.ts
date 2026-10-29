@@ -199,3 +199,38 @@ describe('v2 全局页壳层：真实页面不得再戴「示例数据」章', (
     wrapper.unmount()
   })
 })
+
+const openApi = vi.hoisted(() => {
+  const stub = () =>
+    new Proxy({} as Record<string, unknown>, {
+      get: () => async () => ({ code: 200, message: 'ok', data: { list: [], records: [] } }),
+    })
+  return { teacher: stub(), exam: stub() }
+})
+vi.mock('@/api/teacher', () => ({ default: openApi.teacher }))
+vi.mock('@/api/exam', () => ({ default: openApi.exam }))
+
+describe('v2 全局页壳层：收件箱不留空控件', () => {
+  beforeEach(() => {
+    uiState.role.value = 'teacher'
+    route.meta.v2page = 'inbox'
+    const extras = taskApi as unknown as Record<string, unknown>
+    extras.getPendingGrading = vi.fn(async () => envelope([]))
+    const userExtras = userApi as unknown as Record<string, unknown>
+    userExtras.getTeacherStudents = vi.fn(async () => envelope([]))
+  })
+
+  it('收件箱不挂页签，也不挂只会 toast 的演示动作', async () => {
+    const wrapper = mountPage()
+    await settle()
+    await vi.waitFor(() => {
+      expect(wrapper.find('.inbox-body').exists(), '收件箱正文未渲染').toBe(true)
+    })
+    expect(wrapper.findAll('.page-tabs button')).toHaveLength(0)
+    const actionTexts = wrapper.findAll('.page-head-actions button').map((node) => node.text())
+    expect(actionTexts).not.toContain('批量确认')
+    expect(actionTexts).not.toContain('导出')
+    expect(sourceChipText(wrapper)).toBe('接口数据')
+    wrapper.unmount()
+  })
+})

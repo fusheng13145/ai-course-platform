@@ -408,7 +408,8 @@ async function download(row: ResourceRow) {
       window.open(`/api/resources/download/${row.id}`, '_blank', 'noopener')
       return
     }
-    const blob = payload instanceof Blob ? payload : new Blob([payload as BlobPart])
+    const body = (payload as { data?: unknown }).data ?? payload
+    const blob = body instanceof Blob ? body : new Blob([body as BlobPart])
     const url = URL.createObjectURL(blob)
     const link = document.createElement('a')
     link.href = url

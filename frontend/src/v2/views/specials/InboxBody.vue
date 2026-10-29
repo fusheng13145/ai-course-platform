@@ -1,5 +1,5 @@
 <template>
-  <section ref="root" class="inbox-body">
+  <section class="inbox-body">
     <section class="card table-card" data-block="grading">
       <header class="card-head">
         <div>
@@ -226,7 +226,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import V2Icon from '../../components/V2Icon.vue'
 import teacherApi from '@/api/teacher'
@@ -269,7 +269,6 @@ interface ProctorRow {
 }
 
 const router = useRouter()
-const root = ref<HTMLElement | null>(null)
 
 const courses = ref<CourseRow[]>([])
 const studentNames = ref<Map<number, string>>(new Map())
@@ -293,7 +292,6 @@ const proctorChip = computed(() =>
 )
 
 let loadSeq = 0
-let reminderTab: HTMLElement | null = null
 
 const isDict = (value: unknown): value is Dict =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value)
@@ -547,33 +545,11 @@ async function loadAll() {
 }
 
 /**
- * V2GlobalPage 仍为 inbox 硬编码四个页签，其中「提醒」本期明确不实现（任务范围外）。
- * 任务边界禁止修改全局页，因此仅在本 Body 挂载时隐藏该页签，卸载时恢复；
- * 待全局页清理这批硬编码页签后删除本段。
+ * 收件箱三块（待批阅 / 待发布 / 监考）各自独立加载；「提醒」本期明确不实现，
+ * 因此全局页不再为 inbox 挂页签，避免留下点了不做事的控件。
  */
-function hideRemindersTab() {
-  const container = root.value?.closest('.module')
-  const tablist = container?.querySelector('.page-tabs')
-  if (!tablist) return
-  const tabs = Array.from(tablist.querySelectorAll<HTMLButtonElement>('button'))
-  reminderTab = tabs.find((tab) => tab.textContent?.trim() === '提醒') ?? null
-  if (reminderTab) {
-    reminderTab.style.display = 'none'
-    reminderTab.setAttribute('data-inbox-hidden', 'true')
-  }
-}
-
 onMounted(() => {
-  hideRemindersTab()
   loadAll()
-})
-
-onBeforeUnmount(() => {
-  if (reminderTab) {
-    reminderTab.style.display = ''
-    reminderTab.removeAttribute('data-inbox-hidden')
-    reminderTab = null
-  }
 })
 </script>
 
