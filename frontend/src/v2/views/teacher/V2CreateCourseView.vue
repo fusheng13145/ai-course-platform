@@ -87,7 +87,10 @@
           </div>
           <span v-if="uploadError" class="form-error">{{ uploadError }}</span>
           <span v-else class="modal-hint">仅支持图片，大小不超过 2 MB。</span>
-          <img v-if="form.coverImage" :src="form.coverImage" class="cover-img" alt="课程封面" />
+          <img v-if="coverSrc" :src="coverSrc" class="cover-img" alt="课程封面" />
+          <span v-else-if="form.coverImage" class="form-error"
+            >封面地址协议不受支持，已拒绝预览</span
+          >
         </div>
       </div>
 
@@ -104,12 +107,13 @@
 </template>
 
 <script setup lang="ts">
-import { reactive, ref } from 'vue'
+import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import V2PageHead from '../../components/V2PageHead.vue'
 import { useV2Ui } from '../../composables/ui'
 import { createCourse } from '@/api/course'
 import commonApi from '@/api/common'
+import { safeUrl } from '@/utils/safeUrl'
 
 const CATEGORIES = ['编程开发', '人工智能', '数据分析', '设计创意', '其他']
 const DIFFICULTY_OPTIONS = [
@@ -147,6 +151,13 @@ const uploadError = ref('')
 const formError = ref('')
 const fileName = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
+
+/**
+ * 封面预览地址（F-3）：`form.coverImage` 取自 `POST /upload` 的响应字段，
+ * 属外部可控输入，绑定 `:src` 前过协议白名单——`javascript:`／`data:`／`file:`
+ * 之类一律解析为空串，`<img>` 不渲染。提交给后端的仍是原值，不改写数据。
+ */
+const coverSrc = computed(() => safeUrl(form.coverImage))
 
 function pickCover() {
   const input = fileInput.value

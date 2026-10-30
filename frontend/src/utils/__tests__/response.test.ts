@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest'
 import {
-  decodeHtml,
+  decodeAiDisplayText,
   fetchAllPages,
   firstNonEmptyArray,
   hasNonEmptyArray,
@@ -182,39 +182,52 @@ describe('isPageEnvelope - 区分空分页信封与单个实体', () => {
   })
 })
 
-describe('decodeHtml - 还原 AIController 的展示层转义', () => {
+describe('decodeAiDisplayText - 还原 AIController 的展示层转义（F-2 更名，原名 decodeHtml）', () => {
   it('还原后端 answer/sources 实际下发的实体', () => {
-    expect(decodeHtml('SYN=1, seq=x &amp; ACK=1')).toBe('SYN=1, seq=x & ACK=1')
-    expect(decodeHtml('&lt;TIME_WAIT&gt;')).toBe('<TIME_WAIT>')
-    expect(decodeHtml('r&quot;seq&quot;')).toBe('r"seq"')
-    expect(decodeHtml('it&#39;s')).toBe("it's")
-    expect(decodeHtml('it&apos;s')).toBe("it's")
+    expect(decodeAiDisplayText('SYN=1, seq=x &amp; ACK=1')).toBe('SYN=1, seq=x & ACK=1')
+    expect(decodeAiDisplayText('&lt;TIME_WAIT&gt;')).toBe('<TIME_WAIT>')
+    expect(decodeAiDisplayText('r&quot;seq&quot;')).toBe('r"seq"')
+    expect(decodeAiDisplayText('it&#39;s')).toBe("it's")
+    expect(decodeAiDisplayText('it&apos;s')).toBe("it's")
   })
 
   it('还原 HtmlUtils.htmlEscape 对全角标点产生的具名与数字实体', () => {
     // 模型回答里的中文弯引号会被后端转成 &ldquo;/&rdquo;，只解 5 个实体会在页面上露出实体码
-    expect(decodeHtml('主机位数由&ldquo;地址总位数－网络前缀&rdquo;得出')).toBe(
+    expect(decodeAiDisplayText('主机位数由&ldquo;地址总位数－网络前缀&rdquo;得出')).toBe(
       '主机位数由“地址总位数－网络前缀”得出',
     )
-    expect(decodeHtml('A&nbsp;B…')).toBe('A B…')
-    expect(decodeHtml('&#8212;')).toBe('—')
+    expect(decodeAiDisplayText('A&nbsp;B…')).toBe('A B…')
+    expect(decodeAiDisplayText('&#8212;')).toBe('—')
     // 二次转义仍只解一层
-    expect(decodeHtml('&amp;ldquo;')).toBe('&ldquo;')
+    expect(decodeAiDisplayText('&amp;ldquo;')).toBe('&ldquo;')
   })
 
   it('&amp; 最后还原：二次转义不会被打平成可解析标签', () => {
     // 后端只转义一次；若把 &amp; 先还原，&amp;lt; 会变成 &lt; 再变成 <，等于多解一层
-    expect(decodeHtml('&amp;lt;p&amp;gt;')).toBe('&lt;p&gt;')
+    expect(decodeAiDisplayText('&amp;lt;p&amp;gt;')).toBe('&lt;p&gt;')
   })
 
   it('非字符串（缺字段 / null / 数字）一律归空串，不把 undefined 播进气泡', () => {
-    expect(decodeHtml(undefined)).toBe('')
-    expect(decodeHtml(null)).toBe('')
-    expect(decodeHtml(42)).toBe('')
-    expect(decodeHtml({})).toBe('')
+    expect(decodeAiDisplayText(undefined)).toBe('')
+    expect(decodeAiDisplayText(null)).toBe('')
+    expect(decodeAiDisplayText(42)).toBe('')
+    expect(decodeAiDisplayText({})).toBe('')
   })
 
   it('普通中文文本原样返回', () => {
-    expect(decodeHtml('三次握手用于同步初始序号')).toBe('三次握手用于同步初始序号')
+    expect(decodeAiDisplayText('三次握手用于同步初始序号')).toBe('三次握手用于同步初始序号')
+  })
+
+  it('它是文本解码器不是净化器：解码结果里会出现可执行片段，只许落插值', () => {
+    // F-2 的判据本体。后端把 <script> 转成 &lt;script&gt;，解码后就又变回可执行形状，
+    // 所以"安全"完全依赖调用侧把它交给 {{ }}（Vue 自动转义）而不是 v-html——
+    // 这条禁令由 src/v2/__tests__/xssSurface.test.ts 静态扫描钉住，本用例只记录语义。
+    const decoded = decodeAiDisplayText('&lt;script&gt;alert(1)&lt;/script&gt;')
+    expect(decoded).toBe('<script>alert(1)</script>')
+    expect(decoded).not.toBe('')
+    // 净化是 utils/sanitize 的职责，两者不可混用
+    expect(
+      decodeAiDisplayText('&lt;a href=&quot;javascript:alert(1)&quot;&gt;点&lt;/a&gt;'),
+    ).toContain('javascript:')
   })
 })

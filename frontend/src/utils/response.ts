@@ -44,12 +44,17 @@ export function unwrap<T = ApiPayload>(res: unknown): T | null | undefined {
 /**
  * 还原后端展示层转义（AIController 对 answer/sources 统一做了 HTML 转义）。
  *
- * 视图侧要么用 {{ }} 插值、要么经 renderMarkdown 再转义一次后 sanitize，
- * 因此这里的还原只用于展示，不会把内容重新注入 DOM。
+ * 名字即判据（P-12 处置清单 F-2）：**这是文本解码器，不是净化器**——它把实体还原成
+ * 字面字符，输出里可能出现 `<script>` 这样的可执行片段，因此返回值只能落 Vue 插值
+ * `{{ }}`（自动转义），**禁止进入任何 `v-html` 位点**。该禁令由
+ * `src/v2/__tests__/xssSurface.test.ts` 静态扫描机械钉住。
+ *
+ * 待办口径：后端 B-13⑭ 裁定「AIController 停止 HTML 转义、返回纯文本契约」后，
+ * 前端同批摘掉本函数；现状是 1 转义＋1 解码＋1 插值自动转义＝净 0。
  *
  * @param text 后端下发的已转义文本
  */
-export function decodeHtml(text) {
+export function decodeAiDisplayText(text) {
   if (typeof text !== 'string') return ''
   return text
     .replace(/&lt;/g, '<')

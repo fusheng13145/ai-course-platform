@@ -21,7 +21,8 @@
     "test:coverage": "vitest run --coverage",
     "test:e2e": "playwright test",
     "test:e2e:ui": "playwright test --ui",
-    "test:e2e:report": "playwright show-report"
+    "test:e2e:report": "playwright show-report",
+    "probe:narrow": "node tools/p10-narrow-overflow.mjs --label=verify"
   },
   "dependencies": {
     "@vueuse/core": "^11.3.0",

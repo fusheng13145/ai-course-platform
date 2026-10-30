@@ -141,7 +141,7 @@ const sub = computed(() => {
 
 const block = computed(() => demoBlock(role.value as V2Role, page.value, sub.value))
 const source = computed<'api' | 'demo' | 'mixed' | undefined>(() => {
-  // 「不提供」与「后端尚未提供」既不是接口读数也不是示例读数，不挂来源章。
+  // 「待扩展」与「待扩展（后端未落地）」既不是接口读数也不是示例读数，不挂来源章。
   if (notProvidedCopy.value) return undefined
   // 显式分支中的考试治理与消息已接真实接口。
   if (page.value === 'messages' || page.value === 'examGovernance') return 'api'

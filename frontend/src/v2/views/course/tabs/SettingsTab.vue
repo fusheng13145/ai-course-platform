@@ -65,7 +65,7 @@
         <span class="chip chip-warn">待接入</span>
       </header>
       <div class="empty-state compact">
-        <b>后端尚未提供教学班接口</b>
+        <b>教学班接口待扩展</b>
         <p>
           teaching_class 与选课名单的作用域端点落地后，这里改为真实班级列表；当前不展示样本数据。
         </p>

@@ -30,7 +30,7 @@
               <span v-if="isChip(cell)" class="chip" :class="`chip-${cell.chip}`">{{
                 cell.text
               }}</span>
-              <!-- eslint-disable-next-line vue/no-v-html -- 仅渲染原型静态快照，已过 DOMPurify -->
+              <!-- eslint-disable-next-line vue/no-v-html -- 仅渲染原型静态快照，走 utils/sanitize 的表格档位（无内联 style） -->
               <span v-else-if="isHtml(cell)" v-html="clean(cell)"></span>
               <template v-else>{{ cell }}</template>
             </td>
@@ -46,9 +46,9 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import DOMPurify from 'dompurify'
 import V2Icon from './V2Icon.vue'
 import type { V2Table } from '../nav'
+import { sanitizeTableCellHtml } from '@/utils/sanitize'
 import { useV2Ui } from '../composables/ui'
 
 const props = withDefaults(defineProps<{ table: V2Table; kicker?: string }>(), {
@@ -79,11 +79,9 @@ const isChip = (cell: Cell): cell is { text?: string; chip?: string } =>
 const isHtml = (cell: Cell): cell is string =>
   typeof cell === 'string' && /<\/?(b|small|span|i|strong|br|time)\b/.test(cell)
 
+/** 白名单档位本体在 utils/sanitize 的 TABLE 档（F-1：位点不再自带 DOMPurify 配置） */
 function clean(html: string): string {
-  return DOMPurify.sanitize(html, {
-    ALLOWED_TAGS: ['b', 'small', 'span', 'i', 'strong', 'br', 'time'],
-    ALLOWED_ATTR: ['class', 'style'],
-  })
+  return sanitizeTableCellHtml(html)
 }
 
 function notReady(action: string) {

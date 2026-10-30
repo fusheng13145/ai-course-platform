@@ -71,11 +71,11 @@ describe('v2 全局页 Body 注册表', () => {
 
   it('全局页保留既有显式分支，异步组件之后仍有示例块兜底（含「示例数据」警示）', () => {
     const source = readFileSync(PAGE, 'utf8')
-    // aiUsage 已从显式分支改判为「后端尚未提供」（B-13④），由 notProvidedCopy 分支接管
+    // aiUsage 已从显式分支改判为「待扩展」空态（B-13④），由 notProvidedCopy 分支接管
     for (const special of ['examGovernance', 'analytics', 'assistant', 'messages']) {
       expect(source, `显式分支 ${special} 被移除`).toContain(`def.special === '${special}'`)
     }
-    expect(source, 'aiUsage 的「后端尚未提供」处置被移除').toContain('notProvidedCopy')
+    expect(source, 'aiUsage 的「待扩展」处置被移除').toContain('notProvidedCopy')
     expect(source, '缺少按约定加载的异步组件').toContain('specialBodyComponent')
     expect(source, '示例块兜底被移除').toContain('v-else-if="block"')
     expect(source, '示例块警示被移除').toContain('示例数据')

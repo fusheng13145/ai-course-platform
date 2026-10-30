@@ -7,7 +7,7 @@ function navIds(role: 'student' | 'teacher' | 'admin'): string[] {
 }
 
 describe('v2 不提供清单的判定', () => {
-  it('判为不提供的页面按角色落到 hidden / unavailable', () => {
+  it('判为待扩展的页面按角色落到 hidden / unavailable', () => {
     expect(pageDisposition('student', 'assistant')).toBe('hidden')
     expect(pageDisposition('teacher', 'resources')).toBe('hidden')
     expect(pageDisposition('admin', 'audit')).toBe('hidden')
@@ -47,7 +47,7 @@ describe('v2 不提供清单的判定', () => {
     }
   })
 
-  it('教师班主任那组入口保留但标为后端尚未提供，不静默消失', () => {
+  it('教师班主任那组入口保留但标为待扩展，不静默消失', () => {
     const ids = navIds('teacher')
     expect(ids).toContain('advising')
     expect(pageDisposition('teacher', 'advising')).toBe('unavailable')

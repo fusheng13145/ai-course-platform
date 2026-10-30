@@ -235,20 +235,20 @@ describe('v2 全局页壳层：收件箱不留空控件', () => {
   })
 })
 
-describe('v2 全局页壳层：判为不提供的页面不留示例读数', () => {
+describe('v2 全局页壳层：判为待扩展的页面不留示例读数', () => {
   it.each([
-    ['admin', 'audit', '本版不提供'],
-    ['admin', 'notices', '本版不提供'],
-    ['admin', 'aiUsage', '后端尚未提供'],
-    ['teacher', 'advising', '后端尚未提供'],
-    ['student', 'assistant', '本版不提供'],
-  ] as const)('%s/%s 渲染不提供空态且不挂来源章', async (role, pageName, phrase) => {
+    ['admin', 'audit', '待扩展：'],
+    ['admin', 'notices', '待扩展：'],
+    ['admin', 'aiUsage', '待扩展：跨课程 AI 用量聚合'],
+    ['teacher', 'advising', '待扩展：该页签无可用数据面'],
+    ['student', 'assistant', '待扩展：'],
+  ] as const)('%s/%s 渲染待扩展空态且不挂来源章', async (role, pageName, phrase) => {
     uiState.role.value = role
     route.meta.v2page = pageName
     const wrapper = mountPage()
     await settle()
     const body = wrapper.find('[data-testid="page-not-provided"]')
-    expect(body.exists(), `${role}/${pageName} 未渲染不提供空态`).toBe(true)
+    expect(body.exists(), `${role}/${pageName} 未渲染待扩展空态`).toBe(true)
     expect(body.text()).toContain(phrase)
     expect(wrapper.text(), `${role}/${pageName} 仍有示例读数`).not.toContain('示例数据')
     expect(wrapper.find('.page-kicker .chip').exists(), `${role}/${pageName} 仍挂来源章`).toBe(

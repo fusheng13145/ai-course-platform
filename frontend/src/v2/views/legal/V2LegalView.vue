@@ -28,7 +28,7 @@
           <h1>{{ doc.title }}</h1>
           <p class="lv-sub">{{ doc.subtitle }}</p>
         </header>
-        <!-- eslint-disable-next-line vue/no-v-html -- 法务静态文案，已过 DOMPurify -->
+        <!-- eslint-disable-next-line vue/no-v-html -- 法务静态文案，走 utils/sanitize 的法务档位（无内联 style） -->
         <div class="lv-body" v-html="safeHtml"></div>
         <footer class="lv-foot">
           <span>云枢教学平台 · v2</span>
@@ -45,12 +45,12 @@
 
 <script setup lang="ts">
 import { computed } from 'vue'
-import DOMPurify from 'dompurify'
 import '../../styles/record.css'
 import '../../styles/shell-fix.css'
 import '../../styles/typography.css'
 import V2Sprite from '../../components/V2Sprite.vue'
 import V2Icon from '../../components/V2Icon.vue'
+import { sanitizeLegalHtml } from '@/utils/sanitize'
 import { useV2Ui } from '../../composables/ui'
 import { useV2Root } from '../../composables/useV2Root'
 import legal from '../../data/legal.json'
@@ -63,12 +63,8 @@ const doc = computed(() => legal[props.kind])
 const otherPath = computed(() => (props.kind === 'agreement' ? '/privacy' : '/agreement'))
 const otherLabel = computed(() => (props.kind === 'agreement' ? '隐私政策' : '用户服务协议'))
 
-const safeHtml = computed(() =>
-  DOMPurify.sanitize(doc.value.html, {
-    ALLOWED_TAGS: ['section', 'h2', 'p', 'strong', 'ul', 'li', 'br', 'span', 'em'],
-    ALLOWED_ATTR: ['class'],
-  }),
-)
+/** 档位本体在 utils/sanitize 的 LEGAL 档：与原本地配置同集（section/h2/p/strong/ul/li/br/span/em ＋ class） */
+const safeHtml = computed(() => sanitizeLegalHtml(doc.value.html))
 </script>
 
 <style scoped>

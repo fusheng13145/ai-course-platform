@@ -37,7 +37,7 @@
         <span>{{ chapters.length }} 个章节</span>
         <span>{{ activeChapter?.published ? '已发布' : '草稿' }}</span>
       </div>
-      <!-- eslint-disable-next-line vue/no-v-html -- 章节正文已过 DOMPurify -->
+      <!-- eslint-disable-next-line vue/no-v-html -- 章节正文经 utils/sanitize 的显式白名单（排除 style 属性），唯一入口见 sanitize.ts -->
       <div v-if="activeChapter?.html" class="reader-content" v-html="activeChapter.html"></div>
       <template v-else>
         <p v-if="activeChapter?.loading">章节正文加载中…</p>
@@ -66,14 +66,18 @@
     <aside class="card toc-panel">
       <p class="card-kicker">ON THIS PAGE</p>
       <h2>本节目录</h2>
-      <a
+      <!-- F-4：目录项原本是无 href 语义的 javascript:void(0) 链接——键盘可达性与
+           CSP 收紧两头都不成立，改为真 <button>（外观由本组件 scoped 样式承接，
+           全局 .toc-panel a 规则不再匹配任何东西） -->
+      <button
         v-for="chapter in chapters.slice(0, 8)"
         :key="chapter.id"
-        href="javascript:void(0)"
+        type="button"
+        class="toc-link"
         @click="selectChapter(chapter.id)"
       >
         {{ chapter.title }}
-      </a>
+      </button>
       <div class="toc-note">{{ chapters.length }} 个章节 · 真实数据</div>
     </aside>
   </div>
@@ -81,9 +85,9 @@
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
-import DOMPurify from 'dompurify'
 import chapterApi from '@/api/chapter'
 import learningRecordApi from '@/api/learningRecord'
+import { sanitizeHtml } from '@/utils/sanitize'
 import { pickList, unwrap } from '@/utils/response'
 import { useV2Ui } from '../../../composables/ui'
 
@@ -116,10 +120,6 @@ const activeIndex = computed(() =>
 
 const activeDone = computed(() => doneChapterIds.value.has(activeChapter.value?.id ?? -1))
 
-function clean(html: string): string {
-  return DOMPurify.sanitize(html, { USE_PROFILES: { html: true } })
-}
-
 function flatten(rows: Array<Record<string, unknown>>, depth = 0): ChapterRow[] {
   const result: ChapterRow[] = []
   rows.forEach((row, index) => {
@@ -136,7 +136,7 @@ function flatten(rows: Array<Record<string, unknown>>, depth = 0): ChapterRow[] 
               ? `完成度 ${row.completionRate}%`
               : '章节',
       published: row.isPublished !== false,
-      html: row.content ? clean(String(row.content)) : '',
+      html: row.content ? sanitizeHtml(String(row.content)) : '',
       loading: false,
       depth,
     })
@@ -154,7 +154,7 @@ async function ensureContent(chapter?: ChapterRow) {
   try {
     const payload = unwrap(await chapterApi.getChapterById(chapter.id)) as Record<string, unknown>
     const content = payload?.content
-    if (content) chapter.html = clean(String(content))
+    if (content) chapter.html = sanitizeHtml(String(content))
   } catch {
     ui.toast('章节正文加载失败，请稍后重试', 'danger')
   } finally {
@@ -256,5 +256,31 @@ onMounted(async () => {
 }
 .chapter-item.is-child {
   padding-left: 20px;
+}
+/* F-4：目录项由 <a href="javascript:void(0)"> 改为 <button>，
+   外观逐条承接 record.css 里 body[data-app="v2"] .toc-panel a 那组规则
+   （display:block / padding:6px 0 / 下边框 / 9.5px / --ink-2），
+   并补上按钮 UA 默认样式的复位（浏览器不继承字体、自带边框与底色）。
+   全局规则此后匹配不到任何元素，视觉结果与改前一致。 */
+.toc-panel .toc-link {
+  display: block;
+  width: 100%;
+  padding: 6px 0;
+  border: 0;
+  border-bottom: 1px solid var(--line);
+  background: none;
+  font-family: inherit;
+  font-size: 9.5px;
+  line-height: inherit;
+  color: var(--ink-2);
+  text-align: left;
+  cursor: pointer;
+}
+.toc-panel .toc-link:hover {
+  color: var(--accent);
+}
+.toc-panel .toc-link:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
 }
 </style>

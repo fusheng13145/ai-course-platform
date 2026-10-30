@@ -1,0 +1,1020 @@
+{
+  "meta": {
+    "label": "smoke",
+    "base": "http://localhost:5176",
+    "port": 5176,
+    "narrowViewports": [
+      "360x740"
+    ],
+    "controlViewport": [
+      "1440x900"
+    ],
+    "settleMs": 1200,
+    "startedAt": "2026-10-30T06:59:42.773Z",
+    "authFixtures": {
+      "student": {
+        "cookieCount": 2,
+        "localStorageKeys": [
+          "user",
+          "permissions"
+        ],
+        "originCountInFixture": 1,
+        "reused": true
+      },
+      "teacher": {
+        "cookieCount": 2,
+        "localStorageKeys": [
+          "user",
+          "permissions"
+        ],
+        "originCountInFixture": 1,
+        "reused": true
+      },
+      "admin": {
+        "cookieCount": 2,
+        "localStorageKeys": [
+          "user",
+          "permissions"
+        ],
+        "originCountInFixture": 1,
+        "reused": true
+      }
+    },
+    "courseIdByRole": {
+      "student": null,
+      "teacher": null,
+      "admin": null
+    },
+    "courseTabsByRole": {
+      "student": [],
+      "teacher": [],
+      "admin": []
+    }
+  },
+  "routeUniverse": [
+    {
+      "path": "/teacher/courses/create",
+      "meta": {
+        "role": "TEACHER",
+        "v2page": "createCourse",
+        "title": "创建课程"
+      },
+      "name": null
+    },
+    {
+      "path": "/teacher/advising/profile",
+      "meta": {
+        "role": "TEACHER",
+        "v2page": "advisingProfile",
+        "title": "班级画像"
+      },
+      "name": null
+    },
+    {
+      "path": "/teacher/advising/alerts",
+      "meta": {
+        "role": "TEACHER",
+        "v2page": "advisingAlerts",
+        "title": "学生预警"
+      },
+      "name": null
+    },
+    {
+      "path": "/teacher/advising/notices",
+      "meta": {
+        "role": "TEACHER",
+        "v2page": "advisingNotices",
+        "title": "班级通知"
+      },
+      "name": null
+    },
+    {
+      "path": "/student/courses/:id/:tab?",
+      "meta": {
+        "role": "STUDENT",
+        "v2course": true,
+        "title": "课程空间"
+      },
+      "name": null
+    },
+    {
+      "path": "/teacher/courses/:id/:tab?",
+      "meta": {
+        "role": "TEACHER",
+        "v2course": true,
+        "title": "课程空间"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/courses/:id/:tab?",
+      "meta": {
+        "role": "ADMIN",
+        "v2course": true,
+        "title": "课程治理"
+      },
+      "name": null
+    },
+    {
+      "path": "/student/home",
+      "meta": {
+        "role": "STUDENT",
+        "v2page": "home",
+        "title": "工作台"
+      },
+      "name": null
+    },
+    {
+      "path": "/student/courses",
+      "meta": {
+        "role": "STUDENT",
+        "v2page": "courses",
+        "title": "我的课程"
+      },
+      "name": null
+    },
+    {
+      "path": "/student/tasks",
+      "meta": {
+        "role": "STUDENT",
+        "v2page": "tasks",
+        "title": "学习任务"
+      },
+      "name": null
+    },
+    {
+      "path": "/student/academic",
+      "meta": {
+        "role": "STUDENT",
+        "v2page": "academic",
+        "title": "学业档案"
+      },
+      "name": null
+    },
+    {
+      "path": "/student/exams",
+      "meta": {
+        "role": "STUDENT",
+        "v2page": "exams",
+        "title": "我的考试"
+      },
+      "name": null
+    },
+    {
+      "path": "/student/messages",
+      "meta": {
+        "role": "STUDENT",
+        "v2page": "messages",
+        "title": "消息"
+      },
+      "name": null
+    },
+    {
+      "path": "/student/profile",
+      "meta": {
+        "role": "STUDENT",
+        "v2page": "profile",
+        "title": "个人中心"
+      },
+      "name": null
+    },
+    {
+      "path": "/student/assistant",
+      "meta": {
+        "role": "STUDENT",
+        "v2page": "assistant",
+        "title": "AI 助手"
+      },
+      "name": null
+    },
+    {
+      "path": "/teacher/home",
+      "meta": {
+        "role": "TEACHER",
+        "v2page": "home",
+        "title": "教学工作台"
+      },
+      "name": null
+    },
+    {
+      "path": "/teacher/courses",
+      "meta": {
+        "role": "TEACHER",
+        "v2page": "courses",
+        "title": "我的课程"
+      },
+      "name": null
+    },
+    {
+      "path": "/teacher/bank",
+      "meta": {
+        "role": "TEACHER",
+        "v2page": "bank",
+        "title": "题库管理"
+      },
+      "name": null
+    },
+    {
+      "path": "/teacher/exams",
+      "meta": {
+        "role": "TEACHER",
+        "v2page": "exams",
+        "title": "试卷库"
+      },
+      "name": null
+    },
+    {
+      "path": "/teacher/grades",
+      "meta": {
+        "role": "TEACHER",
+        "v2page": "grades",
+        "title": "成绩管理"
+      },
+      "name": null
+    },
+    {
+      "path": "/teacher/interaction",
+      "meta": {
+        "role": "TEACHER",
+        "v2page": "interaction",
+        "title": "课堂互动"
+      },
+      "name": null
+    },
+    {
+      "path": "/teacher/knowledge-management",
+      "meta": {
+        "role": "TEACHER",
+        "v2page": "knowledge",
+        "title": "知识点管理"
+      },
+      "name": null
+    },
+    {
+      "path": "/teacher/inbox",
+      "meta": {
+        "role": "TEACHER",
+        "v2page": "inbox",
+        "title": "教学任务"
+      },
+      "name": null
+    },
+    {
+      "path": "/teacher/analytics",
+      "meta": {
+        "role": "TEACHER",
+        "v2page": "analytics",
+        "title": "学情分析"
+      },
+      "name": null
+    },
+    {
+      "path": "/teacher/resources",
+      "meta": {
+        "role": "TEACHER",
+        "v2page": "resources",
+        "title": "资源中心"
+      },
+      "name": null
+    },
+    {
+      "path": "/teacher/advising",
+      "meta": {
+        "role": "TEACHER",
+        "v2page": "advising",
+        "title": "我的班级"
+      },
+      "name": null
+    },
+    {
+      "path": "/teacher/messages",
+      "meta": {
+        "role": "TEACHER",
+        "v2page": "messages",
+        "title": "消息"
+      },
+      "name": null
+    },
+    {
+      "path": "/teacher/profile",
+      "meta": {
+        "role": "TEACHER",
+        "v2page": "profile",
+        "title": "个人中心"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/home",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "home",
+        "title": "治理总览"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/courses",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "courses",
+        "title": "课程目录"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/colleges",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "colleges",
+        "title": "学院与专业"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/classes",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "adminClasses",
+        "title": "行政班"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/users",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "users",
+        "title": "用户与账号"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/roles",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "roles",
+        "title": "角色与权限"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/semesters",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "semesters",
+        "title": "学期管理"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/approvals",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "approvals",
+        "title": "课程审批"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/teaching-classes",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "teachingClasses",
+        "title": "教学班监管"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/enrollments",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "enrollments",
+        "title": "选课与名单"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/supervision",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "supervision",
+        "title": "教学监督"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/exam-governance",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "examGovernance",
+        "title": "考试治理"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/grades",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "grades",
+        "title": "成绩与预警"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/ai-usage",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "aiUsage",
+        "title": "AI 使用与治理"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/questions",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "adminQuestions",
+        "title": "题库管理"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/uploads",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "adminUploads",
+        "title": "上传会话监控"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/moderation",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "moderation",
+        "title": "内容审核"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/notices",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "notices",
+        "title": "通知公告"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/audit",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "audit",
+        "title": "操作与登录日志"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/sessions",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "sessions",
+        "title": "会话管理"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/system",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "system",
+        "title": "系统设置"
+      },
+      "name": null
+    },
+    {
+      "path": "/admin/profile",
+      "meta": {
+        "role": "ADMIN",
+        "v2page": "profile",
+        "title": "个人中心"
+      },
+      "name": null
+    },
+    {
+      "path": "/login",
+      "meta": {
+        "requiresAuth": false,
+        "title": "登录"
+      },
+      "name": null
+    },
+    {
+      "path": "/register",
+      "meta": {
+        "requiresAuth": false,
+        "title": "注册"
+      },
+      "name": null
+    },
+    {
+      "path": "/forgot-password",
+      "meta": {
+        "requiresAuth": false,
+        "title": "找回密码"
+      },
+      "name": null
+    },
+    {
+      "path": "/agreement",
+      "meta": {
+        "requiresAuth": false,
+        "title": "用户服务协议"
+      },
+      "name": null
+    },
+    {
+      "path": "/privacy",
+      "meta": {
+        "requiresAuth": false,
+        "title": "隐私政策"
+      },
+      "name": null
+    },
+    {
+      "path": "/403",
+      "meta": {
+        "requiresAuth": false,
+        "v2error": "403",
+        "title": "无权限"
+      },
+      "name": null
+    },
+    {
+      "path": "/404",
+      "meta": {
+        "requiresAuth": false,
+        "v2error": "404",
+        "title": "页面不存在"
+      },
+      "name": null
+    },
+    {
+      "path": "/503",
+      "meta": {
+        "requiresAuth": false,
+        "v2error": "503",
+        "title": "服务连接失败"
+      },
+      "name": null
+    },
+    {
+      "path": "/",
+      "meta": {
+        "requiresAuth": true,
+        "title": "新版工作台"
+      },
+      "name": null
+    },
+    {
+      "path": "/:pathMatch(.*)*",
+      "meta": {
+        "requiresAuth": false,
+        "v2error": "404",
+        "title": "页面不存在"
+      },
+      "name": null
+    }
+  ],
+  "rows": [
+    {
+      "group": "guest",
+      "route": "/login",
+      "concretePath": "/login",
+      "tabLabel": "",
+      "title": "登录",
+      "v2page": "",
+      "control": false,
+      "viewport": "360x740",
+      "verdict": "OK",
+      "innerWidth": 360,
+      "docScrollWidth": 360,
+      "docOver": 0,
+      "mainScroll": null,
+      "mainClient": null,
+      "mainOver": 0,
+      "mainClip": null,
+      "landingPath": "/login",
+      "offenders": [],
+      "error": null
+    },
+    {
+      "group": "guest",
+      "route": "/register",
+      "concretePath": "/register",
+      "tabLabel": "",
+      "title": "注册",
+      "v2page": "",
+      "control": false,
+      "viewport": "360x740",
+      "verdict": "OK",
+      "innerWidth": 360,
+      "docScrollWidth": 360,
+      "docOver": 0,
+      "mainScroll": null,
+      "mainClient": null,
+      "mainOver": 0,
+      "mainClip": null,
+      "landingPath": "/register",
+      "offenders": [],
+      "error": null
+    },
+    {
+      "group": "guest",
+      "route": "/forgot-password",
+      "concretePath": "/forgot-password",
+      "tabLabel": "",
+      "title": "找回密码",
+      "v2page": "",
+      "control": false,
+      "viewport": "360x740",
+      "verdict": "OK",
+      "innerWidth": 360,
+      "docScrollWidth": 360,
+      "docOver": 0,
+      "mainScroll": null,
+      "mainClient": null,
+      "mainOver": 0,
+      "mainClip": null,
+      "landingPath": "/forgot-password",
+      "offenders": [],
+      "error": null
+    },
+    {
+      "group": "guest",
+      "route": "/agreement",
+      "concretePath": "/agreement",
+      "tabLabel": "",
+      "title": "用户服务协议",
+      "v2page": "",
+      "control": false,
+      "viewport": "360x740",
+      "verdict": "OK",
+      "innerWidth": 360,
+      "docScrollWidth": 360,
+      "docOver": 0,
+      "mainScroll": null,
+      "mainClient": null,
+      "mainOver": 0,
+      "mainClip": null,
+      "landingPath": "/agreement",
+      "offenders": [],
+      "error": null
+    },
+    {
+      "group": "guest",
+      "route": "/privacy",
+      "concretePath": "/privacy",
+      "tabLabel": "",
+      "title": "隐私政策",
+      "v2page": "",
+      "control": false,
+      "viewport": "360x740",
+      "verdict": "OK",
+      "innerWidth": 360,
+      "docScrollWidth": 360,
+      "docOver": 0,
+      "mainScroll": null,
+      "mainClient": null,
+      "mainOver": 0,
+      "mainClip": null,
+      "landingPath": "/privacy",
+      "offenders": [],
+      "error": null
+    },
+    {
+      "group": "guest",
+      "route": "/403",
+      "concretePath": "/403",
+      "tabLabel": "",
+      "title": "无权限",
+      "v2page": "",
+      "control": false,
+      "viewport": "360x740",
+      "verdict": "OK",
+      "innerWidth": 360,
+      "docScrollWidth": 360,
+      "docOver": 0,
+      "mainScroll": null,
+      "mainClient": null,
+      "mainOver": 0,
+      "mainClip": null,
+      "landingPath": "/403",
+      "offenders": [],
+      "error": null
+    },
+    {
+      "group": "guest",
+      "route": "/404",
+      "concretePath": "/404",
+      "tabLabel": "",
+      "title": "页面不存在",
+      "v2page": "",
+      "control": false,
+      "viewport": "360x740",
+      "verdict": "OK",
+      "innerWidth": 360,
+      "docScrollWidth": 360,
+      "docOver": 0,
+      "mainScroll": null,
+      "mainClient": null,
+      "mainOver": 0,
+      "mainClip": null,
+      "landingPath": "/404",
+      "offenders": [],
+      "error": null
+    },
+    {
+      "group": "guest",
+      "route": "/503",
+      "concretePath": "/503",
+      "tabLabel": "",
+      "title": "服务连接失败",
+      "v2page": "",
+      "control": false,
+      "viewport": "360x740",
+      "verdict": "OK",
+      "innerWidth": 360,
+      "docScrollWidth": 360,
+      "docOver": 0,
+      "mainScroll": null,
+      "mainClient": null,
+      "mainOver": 0,
+      "mainClip": null,
+      "landingPath": "/503",
+      "offenders": [],
+      "error": null
+    },
+    {
+      "group": "guest",
+      "route": "/",
+      "concretePath": "/",
+      "tabLabel": "",
+      "title": "新版工作台",
+      "v2page": "",
+      "control": false,
+      "viewport": "360x740",
+      "verdict": "REDIRECT",
+      "innerWidth": 360,
+      "docScrollWidth": 360,
+      "docOver": 0,
+      "mainScroll": null,
+      "mainClient": null,
+      "mainOver": 0,
+      "mainClip": null,
+      "landingPath": "/login",
+      "offenders": [],
+      "error": null
+    },
+    {
+      "group": "guest",
+      "route": "/:pathMatch(.*)*",
+      "concretePath": "/p10-not-a-real-route",
+      "tabLabel": "",
+      "title": "页面不存在",
+      "v2page": "",
+      "control": false,
+      "viewport": "360x740",
+      "verdict": "OK",
+      "innerWidth": 360,
+      "docScrollWidth": 360,
+      "docOver": 0,
+      "mainScroll": null,
+      "mainClient": null,
+      "mainOver": 0,
+      "mainClip": null,
+      "landingPath": "/p10-not-a-real-route",
+      "offenders": [],
+      "error": null
+    },
+    {
+      "group": "guest",
+      "route": "/login",
+      "concretePath": "/login",
+      "tabLabel": "",
+      "title": "登录",
+      "v2page": "",
+      "control": true,
+      "viewport": "1440x900",
+      "verdict": "OK",
+      "innerWidth": 1440,
+      "docScrollWidth": 1440,
+      "docOver": 0,
+      "mainScroll": null,
+      "mainClient": null,
+      "mainOver": 0,
+      "mainClip": null,
+      "landingPath": "/login",
+      "offenders": [],
+      "error": null
+    },
+    {
+      "group": "guest",
+      "route": "/register",
+      "concretePath": "/register",
+      "tabLabel": "",
+      "title": "注册",
+      "v2page": "",
+      "control": true,
+      "viewport": "1440x900",
+      "verdict": "OK",
+      "innerWidth": 1440,
+      "docScrollWidth": 1440,
+      "docOver": 0,
+      "mainScroll": null,
+      "mainClient": null,
+      "mainOver": 0,
+      "mainClip": null,
+      "landingPath": "/register",
+      "offenders": [],
+      "error": null
+    },
+    {
+      "group": "guest",
+      "route": "/forgot-password",
+      "concretePath": "/forgot-password",
+      "tabLabel": "",
+      "title": "找回密码",
+      "v2page": "",
+      "control": true,
+      "viewport": "1440x900",
+      "verdict": "OK",
+      "innerWidth": 1440,
+      "docScrollWidth": 1440,
+      "docOver": 0,
+      "mainScroll": null,
+      "mainClient": null,
+      "mainOver": 0,
+      "mainClip": null,
+      "landingPath": "/forgot-password",
+      "offenders": [],
+      "error": null
+    },
+    {
+      "group": "guest",
+      "route": "/agreement",
+      "concretePath": "/agreement",
+      "tabLabel": "",
+      "title": "用户服务协议",
+      "v2page": "",
+      "control": true,
+      "viewport": "1440x900",
+      "verdict": "OK",
+      "innerWidth": 1440,
+      "docScrollWidth": 1440,
+      "docOver": 0,
+      "mainScroll": null,
+      "mainClient": null,
+      "mainOver": 0,
+      "mainClip": null,
+      "landingPath": "/agreement",
+      "offenders": [],
+      "error": null
+    },
+    {
+      "group": "guest",
+      "route": "/privacy",
+      "concretePath": "/privacy",
+      "tabLabel": "",
+      "title": "隐私政策",
+      "v2page": "",
+      "control": true,
+      "viewport": "1440x900",
+      "verdict": "OK",
+      "innerWidth": 1440,
+      "docScrollWidth": 1440,
+      "docOver": 0,
+      "mainScroll": null,
+      "mainClient": null,
+      "mainOver": 0,
+      "mainClip": null,
+      "landingPath": "/privacy",
+      "offenders": [],
+      "error": null
+    },
+    {
+      "group": "guest",
+      "route": "/403",
+      "concretePath": "/403",
+      "tabLabel": "",
+      "title": "无权限",
+      "v2page": "",
+      "control": true,
+      "viewport": "1440x900",
+      "verdict": "OK",
+      "innerWidth": 1440,
+      "docScrollWidth": 1440,
+      "docOver": 0,
+      "mainScroll": null,
+      "mainClient": null,
+      "mainOver": 0,
+      "mainClip": null,
+      "landingPath": "/403",
+      "offenders": [],
+      "error": null
+    },
+    {
+      "group": "guest",
+      "route": "/404",
+      "concretePath": "/404",
+      "tabLabel": "",
+      "title": "页面不存在",
+      "v2page": "",
+      "control": true,
+      "viewport": "1440x900",
+      "verdict": "OK",
+      "innerWidth": 1440,
+      "docScrollWidth": 1440,
+      "docOver": 0,
+      "mainScroll": null,
+      "mainClient": null,
+      "mainOver": 0,
+      "mainClip": null,
+      "landingPath": "/404",
+      "offenders": [],
+      "error": null
+    },
+    {
+      "group": "guest",
+      "route": "/503",
+      "concretePath": "/503",
+      "tabLabel": "",
+      "title": "服务连接失败",
+      "v2page": "",
+      "control": true,
+      "viewport": "1440x900",
+      "verdict": "OK",
+      "innerWidth": 1440,
+      "docScrollWidth": 1440,
+      "docOver": 0,
+      "mainScroll": null,
+      "mainClient": null,
+      "mainOver": 0,
+      "mainClip": null,
+      "landingPath": "/503",
+      "offenders": [],
+      "error": null
+    },
+    {
+      "group": "guest",
+      "route": "/",
+      "concretePath": "/",
+      "tabLabel": "",
+      "title": "新版工作台",
+      "v2page": "",
+      "control": true,
+      "viewport": "1440x900",
+      "verdict": "REDIRECT",
+      "innerWidth": 1440,
+      "docScrollWidth": 1440,
+      "docOver": 0,
+      "mainScroll": null,
+      "mainClient": null,
+      "mainOver": 0,
+      "mainClip": null,
+      "landingPath": "/login",
+      "offenders": [],
+      "error": null
+    },
+    {
+      "group": "guest",
+      "route": "/:pathMatch(.*)*",
+      "concretePath": "/p10-not-a-real-route",
+      "tabLabel": "",
+      "title": "页面不存在",
+      "v2page": "",
+      "control": true,
+      "viewport": "1440x900",
+      "verdict": "OK",
+      "innerWidth": 1440,
+      "docScrollWidth": 1440,
+      "docOver": 0,
+      "mainScroll": null,
+      "mainClient": null,
+      "mainOver": 0,
+      "mainClip": null,
+      "landingPath": "/p10-not-a-real-route",
+      "offenders": [],
+      "error": null
+    }
+  ],
+  "unmeasured": [],
+  "groups": {
+    "guest": 10,
+    "student": 9,
+    "teacher": 18,
+    "admin": 23
+  },
+  "finishedAt": "2026-10-30T07:00:41.025Z"
+}

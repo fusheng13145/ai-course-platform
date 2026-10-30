@@ -27,7 +27,7 @@ function rawCourseTabBlock(role: 'student' | 'teacher' | 'admin', tab: string): 
 }
 
 export const COURSE_TAB_NOTES: Record<string, string> = {
-  classes: '教学班接口后端尚未提供；本页签不提供班级读数。',
+  classes: '教学班与组织接口尚未落地；本页签待扩展，暂不提供班级读数。',
   content: '课程内容由授课教师在课程上下文中维护；管理员只读。',
   bank: '课程题库由授课教师维护；管理员只读。',
   analytics: '学情统计按课程聚合；管理员只读。',

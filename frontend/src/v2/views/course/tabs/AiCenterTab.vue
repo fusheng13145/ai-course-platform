@@ -206,7 +206,7 @@
 import { onMounted, ref, watch } from 'vue'
 import { useV2Ui } from '../../../composables/ui'
 import aiApi from '@/api/ai'
-import { unwrap, decodeHtml } from '@/utils/response'
+import { unwrap, decodeAiDisplayText } from '@/utils/response'
 import logger from '@/utils/logger'
 
 interface Source {
@@ -310,12 +310,12 @@ async function askQa() {
     if (data.sessionId) sessionId.value = String(data.sessionId)
     messages.value.push({
       role: 'ai',
-      content: decodeHtml(data.answer) || '（暂无回答）',
+      content: decodeAiDisplayText(data.answer) || '（暂无回答）',
       sources: Array.isArray(data.sources)
         ? data.sources.map((source) => ({
             ...source,
-            documentName: decodeHtml(source.documentName),
-            snippet: decodeHtml(source.snippet),
+            documentName: decodeAiDisplayText(source.documentName),
+            snippet: decodeAiDisplayText(source.snippet),
           }))
         : [],
     })

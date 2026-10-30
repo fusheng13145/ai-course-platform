@@ -347,6 +347,7 @@ import submissionApi from '@/api/submission'
 import studentApi from '@/api/student'
 import commonApi from '@/api/common'
 import { unwrap } from '@/utils/response'
+import { safeUrl } from '@/utils/safeUrl'
 import logger from '@/utils/logger'
 
 interface TaskRow {
@@ -590,16 +591,7 @@ function scoreText(row: StudentAssignmentRow): string {
   return max == null ? String(score) : `${score} / ${max}`
 }
 
-/** 附件链接安全化：仅放行 http(s)，非法值返回空串（与旧端同口径） */
-function safeUrl(value?: string): string {
-  if (typeof value !== 'string' || !value.trim()) return ''
-  try {
-    const url = new URL(value.trim(), window.location.origin)
-    return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : ''
-  } catch {
-    return ''
-  }
-}
+/** 附件链接安全化：实现已上提到 utils/safeUrl（F-3），口径一字未改——仅放行 http(s)，非法值返回空串 */
 
 const canSubmitDetail = computed(() => {
   const detail = studentDetail.value
