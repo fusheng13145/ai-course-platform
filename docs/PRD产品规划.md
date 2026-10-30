@@ -166,9 +166,9 @@
 
 | 主题能力 | 知识图谱（KG 8001） | LLM | 当前界面落点 |
 | --- | --- | --- | --- |
-| 教什么（结构化课程知识） | 知识点树 `GET /knowledge/points/tree/{courseId}`、关系与前置 `/points/{id}/relations|prerequisites|successors` | 知识点抽取 `ingestKnowledgeGraph` | 教师：课程「知识图谱」页签（`KnowledgeGraphTab` 已接真）＋知识点管理页 |
+| 教什么（结构化课程知识） | 知识点树 `GET /knowledge/points/tree/{courseId}`、关系与前置 `/points/{id}/relations\|prerequisites\|successors` | 知识点抽取 `ingestKnowledgeGraph` | 教师：课程「知识图谱」页签（`KnowledgeGraphTab` 已接真）＋知识点管理页 |
 | 学得怎么样 | 掌握度 `/points/{id}/mastery/{userId}` | 薄弱点 `/ai/analysis/weak-points`、学情建议 | 教师：AI 教学助手页签（真）｜学生：**待扩展** |
-| 怎么学 | 前置 DAG 约束路径 | `/ai/learning-path/generate-personalized`、`/ai/recommendations/learning|questions` | 教师：路径生成（真）｜学生：**待扩展** |
+| 怎么学 | 前置 DAG 约束路径 | `/ai/learning-path/generate-personalized`、`/ai/recommendations/learning\|questions` | 教师：路径生成（真）｜学生：**待扩展** |
 | 答疑 | 图谱子图召回 | `/ai/qa/ask`（RAG 8002 语料） | 教师：AI 问答（真）｜学生：**待扩展（头号）** |
 | 作业与考试 | 知识点↔题目关联 | 出题／批改／作文润色 | 三端均已接真 |
 | 治理与可观测 | — | 调用日志与配额 | **待扩展**（B-13④ 聚合端点） |
