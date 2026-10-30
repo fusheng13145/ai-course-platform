@@ -69,9 +69,13 @@ export function useStudentExamSheet() {
       return multiAnswers.value[index]?.length > 0
     }
     if (q.type === 'SHORT_ANSWER') {
-      return !!textAnswers.value[index]
+      return !!textAnswers.value[index]?.trim()
     }
-    return answers.value[index] !== undefined && answers.value[index] !== null
+    const value = answers.value[index]
+    if (value === undefined || value === null) return false
+    // 自动保存会把未答题写成空串；空串不是作答，判断题的 false 才是
+    if (typeof value === 'string') return value.trim().length > 0
+    return true
   }
 
   /* ---- 题目类型展示 ---- */
