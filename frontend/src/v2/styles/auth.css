@@ -29,8 +29,8 @@
   height: 34px;
   display: grid;
   place-items: center;
-  border-radius: 7px;
-  background: #171b22;
+  border-radius: var(--r-sm);
+  background: var(--brand-mark-bg);
   color: #fff;
   font-family: var(--font-display);
   font-weight: 700;
@@ -79,7 +79,7 @@
   display: grid;
   grid-template-columns: minmax(0, 1.04fr) minmax(360px, 0.96fr);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--r-card);
   background: var(--surface);
   box-shadow: var(--sh-pop);
   overflow: hidden;
