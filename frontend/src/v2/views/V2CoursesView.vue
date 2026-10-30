@@ -3,7 +3,22 @@
     <V2PageHead :kicker="kicker" :title="def.title" :sub="def.desc" :source="source">
       <template #actions>
         <button class="btn btn-ghost" @click="notReady('筛选')">筛选</button>
-        <button class="btn btn-primary" @click="onPrimary">{{ primaryLabel }}</button>
+        <select
+          v-if="role === 'student'"
+          v-model="selectedCourseId"
+          class="input join-course-select"
+          aria-label="选择要加入的课程"
+        >
+          <option value="" disabled>
+            {{ joinable.length ? '选择要加入的课程' : '暂无可加入的课程' }}
+          </option>
+          <option v-for="course in joinable" :key="course.id" :value="course.id">
+            {{ course.name }}
+          </option>
+        </select>
+        <button class="btn btn-primary" :disabled="joining" @click="onPrimary">
+          {{ primaryLabel }}
+        </button>
       </template>
     </V2PageHead>
 
@@ -69,15 +84,20 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import V2PageHead from '../components/V2PageHead.vue'
 import V2Icon from '../components/V2Icon.vue'
+import studentApi from '@/api/student'
 import { pageDef, type V2Role } from '../nav'
 import { useV2Ui } from '../composables/ui'
-import { getCourses, type V2CourseCard } from '../data/api'
+import { getCourses, getCourseCatalog, type V2CourseCard } from '../data/api'
 
 const router = useRouter()
 const { role, toast } = useV2Ui()
 const courses = ref<V2CourseCard[]>([])
 const filter = ref<'all' | 'active' | 'done'>('all')
 const source = ref<'api' | 'demo'>('api')
+// 学生「加入课程」：从课程目录里挑一门未选课程，走真实选课写口（非演示动作）。
+const selectedCourseId = ref<number | ''>('')
+const joinable = ref<V2CourseCard[]>([])
+const joining = ref(false)
 
 const def = computed(() => pageDef(role.value as V2Role, 'courses'))
 const kicker = computed(() => `${String(role.value).toUpperCase()} / COURSES · 2026 秋`)
@@ -106,9 +126,42 @@ function notReady(label: string) {
   toast(`演示数据：${label}尚未接入`, 'warn')
 }
 
-function onPrimary() {
+/** 可加入课程 = 课程目录剔除已在修课程（按 id 去重，剔除 id<=0 的脏行）。 */
+async function refreshJoinable() {
+  const joined = new Set(courses.value.map((course) => course.id))
+  const catalog = await getCourseCatalog()
+  joinable.value = catalog.filter((course) => course.id > 0 && !joined.has(course.id))
+}
+
+async function joinSelectedCourse() {
+  const courseId = Number(selectedCourseId.value)
+  if (!courseId) {
+    toast(joinable.value.length ? '请先选择要加入的课程' : '暂无可加入的课程', 'warn')
+    return
+  }
+  joining.value = true
+  try {
+    // 后端契约：StudentController.enrollCourse —— POST /student/courses/{courseId}/enroll，
+    // courseId 走路径参数、无请求体；服务层落库 isActive=true，故 GET /student/courses 立刻可见。
+    await studentApi.enrollCourse(courseId)
+    toast('已加入课程', 'ok')
+    selectedCourseId.value = ''
+    courses.value = await getCourses('student', true)
+    await refreshJoinable()
+  } catch {
+    toast('加入课程失败：课程可能未通过审核、已满员或已加入', 'warn')
+  } finally {
+    joining.value = false
+  }
+}
+
+async function onPrimary() {
   if (role.value === 'teacher') {
     router.push('/teacher/courses/create')
+    return
+  }
+  if (role.value === 'student') {
+    await joinSelectedCourse()
     return
   }
   notReady(primaryLabel.value)
@@ -117,5 +170,6 @@ function onPrimary() {
 onMounted(async () => {
   courses.value = await getCourses(role.value as V2Role)
   source.value = courses.value.length ? 'api' : 'demo'
+  if (role.value === 'student') await refreshJoinable()
 })
 </script>

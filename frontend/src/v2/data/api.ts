@@ -100,6 +100,20 @@ export async function getCourses(role: V2Role, force = false): Promise<V2CourseC
   return rows
 }
 
+/**
+ * 课程目录（全量 GET /courses，任何已登录角色可读，CourseController.list 无 @PreAuthorize）。
+ * 学生「加入课程」用它在本地剔除已选课程，得到「可加入」候选；
+ * 真正的加入走 studentApi.enrollCourse（POST /student/courses/{courseId}/enroll）。
+ */
+export async function getCourseCatalog(): Promise<V2CourseCard[]> {
+  try {
+    const payload = unwrap<unknown>(await courseApi.getAllCourses())
+    return pickList(payload).map((row) => normalizeCard(row as Record<string, unknown>))
+  } catch {
+    return []
+  }
+}
+
 export async function loadCourse(role: V2Role, id: number): Promise<V2CourseDetail | null> {
   try {
     const response =
