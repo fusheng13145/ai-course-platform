@@ -19,7 +19,11 @@
       </nav>
     </div>
     <div class="topbar-actions">
-      <button class="search-trigger" aria-label="全局搜索" @click="paletteOpen = true">
+      <button
+        class="search-trigger"
+        aria-label="全局搜索：搜索页面、课程、教学班 Ctrl K"
+        @click="paletteOpen = true"
+      >
         <V2Icon name="search" />
         <span class="search-label">搜索页面、课程、教学班</span>
         <kbd>Ctrl K</kbd>
@@ -47,7 +51,7 @@
       </button>
       <button
         class="user-chip"
-        :aria-label="`打开个人中心：${displayName}`"
+        :aria-label="`打开个人中心：${avatar} ${displayName} ${roleLabel}`"
         @click="go(profilePath)"
       >
         <span class="user-avatar">{{ avatar }}</span>

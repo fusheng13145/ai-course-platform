@@ -1,7 +1,7 @@
 <template>
   <aside class="sidenav" aria-label="主导航">
     <div class="side-brand-row">
-      <button class="side-brand brand" aria-label="返回工作台" @click="go(ROLE_HOME[role])">
+      <button class="side-brand brand" @click="go(ROLE_HOME[role])">
         <span class="brand-mark">枢</span>
         <span class="brand-text">
           <b>云枢教学平台</b>
@@ -111,7 +111,7 @@
     <div class="nav-foot">
       <button
         class="side-user"
-        :aria-label="`打开个人中心：${displayName}`"
+        :aria-label="`打开个人中心：${avatar} ${displayName} ${roleLabel}`"
         @click="go(profilePath)"
       >
         <span class="user-avatar">{{ avatar }}</span>

@@ -85,6 +85,7 @@
           <div
             class="progress-bar"
             role="progressbar"
+            aria-label="上传进度"
             :aria-valuenow="percentage"
             aria-valuemin="0"
             aria-valuemax="100"

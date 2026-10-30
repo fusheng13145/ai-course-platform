@@ -272,6 +272,12 @@ body[data-app="v2"] .eyebrow {
   letter-spacing: .18em; text-transform: uppercase; color: var(--ink-3);
 }
 body[data-app="v2"] .lede { max-width: 64ch; margin: 13px 0 0; font-size: 13.5px; line-height: 1.85; color: var(--ink-2); }
+/* 登录故事面板是固定深底（#141922），不随明暗主题反转；这里的正文与演示 chip 需要深底配色 */
+body[data-app="v2"] .av-story .eyebrow { color: #8f9bb0; }
+body[data-app="v2"] .av-story .lede { color: #aab4c5; }
+body[data-app="v2"] .av-story .av-record-head .chip-warn { color: #e0ab4a; background: color-mix(in srgb, #e0ab4a 16%, transparent); }
+/* 段落内联链接不能只靠颜色区分（WCAG 1.4.1 / axe link-in-text-block） */
+body[data-app="v2"] .av-switch a { text-decoration: underline; }
 body[data-app="v2"] .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 7px;
   min-height: 36px; padding: 0 15px;
@@ -2399,20 +2405,21 @@ body[data-style="record"] {
   --surface-3: #e9edf3;
   --ink: #171b22;
   --ink-2: #4c5665;
-  --ink-3: #7d8797;
+  --ink-3: #616b7a;
+  --ink-4: #626c79;
   --line: #e3e7ed;
   --line-strong: #c8d0dc;
-  --accent: #3b6ef6;
+  --accent: #315fdc;
   --accent-strong: #2b57d4;
   --accent-ink: #ffffff;
   --accent-soft: #e9efff;
-  --ok: #12805c;
-  --warn: #b8750a;
-  --danger: #d23b4a;
-  --info: #2f6bd8;
+  --ok: #0b6a4c;
+  --warn: #8f5a05;
+  --danger: #b8303e;
+  --info: #2a60c4;
   --side-bg: #f2f4f7;
   --side-ink: #2b3342;
-  --side-ink-2: #7d8797;
+  --side-ink-2: #616b7a;
   --side-line: #e1e6ee;
   --side-hover: #e9edf3;
   --side-active-bg: #e4ecff;
@@ -2543,7 +2550,8 @@ body[data-style="record"][data-theme="dark"] {
   --surface-3: #242b37;
   --ink: #e6ebf3;
   --ink-2: #b1bac8;
-  --ink-3: #8490a1;
+  --ink-3: #8793a4;
+  --ink-4: #8b96a8;
   --line: #28303d;
   --line-strong: #3b4656;
   --accent: #6b93ff;

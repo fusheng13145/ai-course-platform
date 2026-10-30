@@ -2,7 +2,7 @@
   <V2Sprite />
   <div class="auth-v2">
     <header class="av-top">
-      <a class="av-brand" href="/" aria-label="云枢教学平台">
+      <a class="av-brand" href="/">
         <span class="brand-mark">枢</span>
         <span class="av-brand-text">
           <b>云枢教学平台</b>

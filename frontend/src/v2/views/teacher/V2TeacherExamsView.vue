@@ -39,6 +39,7 @@
             v-if="!isCourseScope"
             v-model="filters.courseId"
             class="input filter-course"
+            aria-label="按课程筛选试卷"
             @change="applyFilters"
           >
             <option value="">全部课程</option>
