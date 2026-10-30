@@ -81,15 +81,10 @@ describe('v2 消费的共用件不绑定 Element Plus', () => {
  * 清单只许收缩：每迁走/解绑一个就删一行，新增一条 EP 传递边则直接判红。
  * 口径＝从 src/v2 出发沿 `@/x` 引用做闭包遍历（含二跳以上），与
  * `docs/前端待办项.md` §11.5 记的「一跳 4 个／闭包 6 个」同一算法。
+ * 2026-10-29 L-04 收口：六条边全部改走 `bootstrap/overlayHost` 宿主接缝，清单已清空；
+ * 后续任何共用件重新静态引 EP 都会落到 `outside` 判红。
  */
-const KNOWN_EP_BOUND = [
-  'composables/useQuestionBank.ts',
-  'composables/useStudentExamTimers.ts',
-  'composables/useStudentExams.ts',
-  'composables/useSubmissionGrading.ts',
-  'composables/useTeacherGrades.ts',
-  'utils/dangerConfirm.ts',
-]
+const KNOWN_EP_BOUND: string[] = []
 
 function sharedImportsOf(file: string): string[] {
   const source = stripComments(readFileSync(file, 'utf8'))

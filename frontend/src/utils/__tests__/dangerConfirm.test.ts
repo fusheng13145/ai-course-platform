@@ -10,6 +10,12 @@ vi.mock('element-plus', () => ({
   ElMessageBox: { confirm: mocks.confirm },
 }))
 
+// 浮层宿主接缝：element-plus 已被上方 mock 替换，注册 EP 适配器后
+// 既有断言（确认参数、resolve(true)/reject→false）仍观察同一组调用。
+import { setOverlayHost } from '@/bootstrap/overlayHost'
+import { epOverlayHost } from '@/bootstrap/overlayHostEp'
+setOverlayHost(epOverlayHost)
+
 describe('buildDangerMessage', () => {
   it('默认不可逆：含影响范围 + 不可恢复 + 默认恢复路径', () => {
     const msg = buildDangerMessage({

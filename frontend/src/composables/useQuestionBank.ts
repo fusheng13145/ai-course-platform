@@ -1,7 +1,7 @@
 import logger from '@/utils/logger'
 import { unwrap } from '@/utils/response'
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { overlayHost } from '@/bootstrap/overlayHost'
 import questionApi from '@/api/question'
 import courseApi from '@/api/course'
 import { confirmDanger } from '@/utils/dangerConfirm'
@@ -100,7 +100,7 @@ export function useQuestionBank() {
       total.value = Number(body?.total ?? body?.count ?? questionList.value.length)
     } catch (e) {
       logger.error('加载题目列表失败', e)
-      ElMessage.error('加载题目列表失败')
+      overlayHost().message.error('加载题目列表失败')
     } finally {
       loading.value = false
     }
@@ -165,16 +165,16 @@ export function useQuestionBank() {
       }
       if (isEdit.value) {
         await questionApi.updateQuestion(editingId.value, payload)
-        ElMessage.success('题目已更新')
+        overlayHost().message.success('题目已更新')
       } else {
         await questionApi.createQuestion(payload)
-        ElMessage.success('题目已创建')
+        overlayHost().message.success('题目已创建')
       }
       formVisible.value = false
       loadQuestions()
     } catch (e) {
       logger.error('保存题目失败', e)
-      ElMessage.error(e?.response?.data?.message || '保存失败')
+      overlayHost().message.error(e?.response?.data?.message || '保存失败')
     } finally {
       submitting.value = false
     }
@@ -186,21 +186,23 @@ export function useQuestionBank() {
       const ok = await confirmDanger({ verb: '删除', target: '题目' })
       if (!ok) return
       await questionApi.deleteQuestion(row.id)
-      ElMessage.success('题目已删除')
+      overlayHost().message.success('题目已删除')
       loadQuestions()
     } catch (e) {
-      if (e !== 'cancel' && e !== 'close') ElMessage.error('删除失败')
+      if (e !== 'cancel' && e !== 'close') overlayHost().message.error('删除失败')
     }
   }
 
   async function handleCopy(row) {
     try {
-      await ElMessageBox.confirm(`确定复制该题目？`, '复制确认', { type: 'info' })
+      const ok = await overlayHost().confirm(`确定复制该题目？`, '复制确认', { type: 'info' })
+      if (!ok) return
       await questionApi.copyQuestion(row.id)
-      ElMessage.success('题目已复制')
+      overlayHost().message.success('题目已复制')
       loadQuestions()
     } catch (e) {
-      if (e !== 'cancel' && e !== 'close') ElMessage.error('复制失败')
+      logger.error('复制题目失败', e)
+      overlayHost().message.error('复制失败')
     }
   }
 
@@ -219,12 +221,12 @@ export function useQuestionBank() {
         status: reviewForm.status,
         comment: reviewForm.comment,
       })
-      ElMessage.success('审核已提交')
+      overlayHost().message.success('审核已提交')
       reviewVisible.value = false
       loadQuestions()
     } catch (e) {
       logger.error('审核失败', e)
-      ElMessage.error(e?.response?.data?.message || '审核失败')
+      overlayHost().message.error(e?.response?.data?.message || '审核失败')
     } finally {
       reviewing.value = false
     }
@@ -251,15 +253,15 @@ export function useQuestionBank() {
       const body = unwrap(r)
       const generated = body?.questions || body?.list || body || []
       if (Array.isArray(generated) && generated.length) {
-        ElMessage.success(`AI 成功生成 ${generated.length} 道题目`)
+        overlayHost().message.success(`AI 成功生成 ${generated.length} 道题目`)
         aiVisible.value = false
         loadQuestions()
       } else {
-        ElMessage.warning('未生成有效题目')
+        overlayHost().message.warning('未生成有效题目')
       }
     } catch (e) {
       logger.error('AI 生成题目失败', e)
-      ElMessage.error(e?.response?.data?.message || 'AI 生成失败')
+      overlayHost().message.error(e?.response?.data?.message || 'AI 生成失败')
     } finally {
       aiGenerating.value = false
     }

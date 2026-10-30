@@ -43,6 +43,12 @@ vi.mock('element-plus', () => ({
   ElMessageBox: { confirm: mocks.confirm },
 }))
 
+// 浮层宿主接缝：element-plus 已被上方 mock 替换，注册 EP 适配器后
+// 既有断言（提示文案、确认次数/参数）仍观察同一组 spy。
+import { setOverlayHost } from '@/bootstrap/overlayHost'
+import { epOverlayHost } from '@/bootstrap/overlayHostEp'
+setOverlayHost(epOverlayHost)
+
 // 组合式函数在组件外直接调用时 Vue 会对 onMounted/onUnmounted 告警，
 // 生命周期不是本用例的测试目标，桩掉以保持输出干净（ref/computed 等仍为真实实现）
 vi.mock('vue', async (importOriginal) => {

@@ -1,5 +1,5 @@
 import { ref, computed } from 'vue'
-import { ElMessage } from 'element-plus'
+import { overlayHost } from '@/bootstrap/overlayHost'
 
 /** 倒计时/自动保存定时器域对外注入的动作（由编排层提供，避免域间反向依赖） */
 export interface ExamTimerHandlers {
@@ -7,7 +7,7 @@ export interface ExamTimerHandlers {
   onTimeout: () => void
   /** 自动保存定时器每 30s tick 的保存动作（autoSaveAnswers） */
   onAutoSave: () => Promise<boolean>
-  /** 提示宿主；缺省沿用 Element Plus，v2 侧注入自有 toast */
+  /** 提示宿主；缺省沿用浮层宿主（旧端为 Element Plus），v2 侧注入自有 toast */
   notify?: { warning: (message: string) => void }
 }
 
@@ -21,7 +21,7 @@ export interface ExamTimerHandlers {
  * <p>仅由 useStudentExams 编排消费，不单独对外承诺导出面。</p>
  */
 export function useStudentExamTimers(handlers: ExamTimerHandlers) {
-  const notify = handlers.notify ?? ElMessage
+  const notify = handlers.notify ?? overlayHost().message
   let countdownTimer: ReturnType<typeof setInterval> | null = null
   const autoSaveTimer = ref<ReturnType<typeof setInterval> | null>(null)
   const totalSeconds = ref(0)

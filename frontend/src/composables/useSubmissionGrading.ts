@@ -1,6 +1,6 @@
 import { computed, reactive, ref } from 'vue'
 import type { ComputedRef, Ref } from 'vue'
-import { ElMessage } from 'element-plus'
+import { overlayHost } from '@/bootstrap/overlayHost'
 import logger from '@/utils/logger'
 import submissionApi from '@/api/submission'
 import { unwrap } from '@/utils/response'
@@ -217,13 +217,13 @@ export function useSubmissionGrading(options: UseSubmissionGradingOptions) {
       const suggestion = parseAiSuggestion(payload)
       gradeModal.aiResult = suggestion
       if (suggestion) {
-        ElMessage.success('AI 预批完成，请查看建议后采纳或修改')
+        overlayHost().message.success('AI 预批完成，请查看建议后采纳或修改')
       } else {
-        ElMessage.warning('AI 预批完成，本次未产出结构化建议，请人工批改')
+        overlayHost().message.warning('AI 预批完成，本次未产出结构化建议，请人工批改')
       }
     } catch (error) {
       logger.error('AI 预批失败', error)
-      ElMessage.error('AI 预批失败，请稍后重试')
+      overlayHost().message.error('AI 预批失败，请稍后重试')
     } finally {
       gradeModal.aiLoading = false
     }
@@ -233,7 +233,7 @@ export function useSubmissionGrading(options: UseSubmissionGradingOptions) {
   function applyAiSuggestion(): void {
     const suggestion = gradeModal.aiResult
     if (!suggestion) {
-      ElMessage.warning('暂无 AI 建议，请先点击「AI 预批」')
+      overlayHost().message.warning('暂无 AI 建议，请先点击「AI 预批」')
       return
     }
     if (suggestion.suggestedScore != null) gradeModal.form.score = suggestion.suggestedScore
@@ -251,17 +251,17 @@ export function useSubmissionGrading(options: UseSubmissionGradingOptions) {
    */
   async function submitGrade(): Promise<boolean> {
     if (gradeModal.form.score == null || gradeModal.form.score === '') {
-      ElMessage.warning('请填写分数')
+      overlayHost().message.warning('请填写分数')
       return false
     }
     const score = Number(gradeModal.form.score)
     if (!gradeModal.row || !Number.isFinite(score)) {
-      ElMessage.warning('请输入有效分数')
+      overlayHost().message.warning('请输入有效分数')
       return false
     }
     const maxScore = gradeModal.maxScore
     if (score < 0 || score > maxScore) {
-      ElMessage.warning(`分数需在 0 至 ${maxScore} 之间`)
+      overlayHost().message.warning(`分数需在 0 至 ${maxScore} 之间`)
       return false
     }
     try {
@@ -269,7 +269,7 @@ export function useSubmissionGrading(options: UseSubmissionGradingOptions) {
         score,
         feedback: gradeModal.form.feedback,
       })
-      ElMessage.success('批改已提交')
+      overlayHost().message.success('批改已提交')
       gradeModal.visible = false
       gradeModal.row = null
       gradeModal.form.score = null
@@ -279,7 +279,7 @@ export function useSubmissionGrading(options: UseSubmissionGradingOptions) {
       return true
     } catch (error) {
       logger.error('批改失败', error)
-      ElMessage.error('提交批改失败，请稍后重试')
+      overlayHost().message.error('提交批改失败，请稍后重试')
       return false
     }
   }
@@ -304,12 +304,12 @@ export function useSubmissionGrading(options: UseSubmissionGradingOptions) {
   async function submitReturn(): Promise<boolean> {
     if (!returnModal.row) return false
     if (!returnModal.form.reason.trim()) {
-      ElMessage.warning('请填写退回原因')
+      overlayHost().message.warning('请填写退回原因')
       return false
     }
     try {
       await submissionApi.returnSubmission(returnModal.row.id, { reason: returnModal.form.reason })
-      ElMessage.success('已退回')
+      overlayHost().message.success('已退回')
       returnModal.visible = false
       returnModal.row = null
       returnModal.form.reason = ''
@@ -317,7 +317,7 @@ export function useSubmissionGrading(options: UseSubmissionGradingOptions) {
       return true
     } catch (error) {
       logger.error('退回失败', error)
-      ElMessage.error('退回失败，请稍后重试')
+      overlayHost().message.error('退回失败，请稍后重试')
       return false
     }
   }

@@ -1,6 +1,6 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
 import { formatTime } from '@/utils/datetime'
-import { ElMessage, ElMessageBox } from 'element-plus'
+import { overlayHost } from '@/bootstrap/overlayHost'
 import logger from '@/utils/logger'
 import examApi from '@/api/exam'
 import { confirmDanger, type DangerConfirmOptions } from '@/utils/dangerConfirm'
@@ -40,7 +40,7 @@ function unwrapPayload<T>(res: unknown): T | null {
  * <p>对外导出面与拆分前逐名一致（Exams.vue 消费，勿改名）。</p>
  */
 /**
- * 考试流的交互宿主。默认全部沿用 Element Plus（旧端行为逐字不变），
+ * 考试流的交互宿主。默认全部沿用浮层宿主（旧端为 Element Plus，行为逐字不变），
  * v2 侧注入自有 toast 与确认弹层，使同一套编排不必再长第二份。
  */
 export interface ExamUiHost {
@@ -54,22 +54,21 @@ export interface ExamUiHost {
   dangerConfirm?: (options: DangerConfirmOptions) => Promise<boolean>
 }
 
-async function epConfirmStart(message: string, title: string): Promise<boolean> {
+async function defaultConfirmStart(message: string, title: string): Promise<boolean> {
   try {
-    await ElMessageBox.confirm(message, title, {
+    return await overlayHost().confirm(message, title, {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'info',
     })
-    return true
   } catch {
     return false
   }
 }
 
 export function useStudentExams(host: ExamUiHost = {}) {
-  const notify = host.notify ?? ElMessage
-  const confirmStart = host.confirmStart ?? epConfirmStart
+  const notify = host.notify ?? overlayHost().message
+  const confirmStart = host.confirmStart ?? defaultConfirmStart
   const dangerConfirm = host.dangerConfirm ?? confirmDanger
 
   /* ---- 视图模式：list / exam / result ---- */

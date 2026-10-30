@@ -1,6 +1,6 @@
 import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
-import { ElMessage } from 'element-plus'
+import { overlayHost } from '@/bootstrap/overlayHost'
 import analyticsApi from '@/api/analytics'
 import gradeApi from '@/api/grade'
 import courseApi from '@/api/course'
@@ -100,7 +100,7 @@ function emptyOverview() {
 export type TeacherGradesTone = 'info' | 'ok' | 'warn' | 'error'
 
 export interface TeacherGradesHost {
-  /** 提示通道：默认走 ElMessage，v2 传入自己的 toast */
+  /** 提示通道：默认走浮层宿主（旧端为 Element Plus），v2 传入自己的 toast */
   notify?: (message: string, tone: TeacherGradesTone) => void
   /** 打开待批阅任务：默认跳旧端提交记录页，v2 传入 v2 路由 */
   openGrading?: (task: PendingTask) => Promise<void> | void
@@ -111,10 +111,11 @@ export function useTeacherGrades(host: TeacherGradesHost = {}) {
   const notify =
     host.notify ||
     ((message: string, tone: TeacherGradesTone) => {
-      if (tone === 'ok') ElMessage.success(message)
-      else if (tone === 'warn') ElMessage.warning(message)
-      else if (tone === 'error') ElMessage.error(message)
-      else ElMessage.info(message)
+      const messageHost = overlayHost().message
+      if (tone === 'ok') messageHost.success(message)
+      else if (tone === 'warn') messageHost.warning(message)
+      else if (tone === 'error') messageHost.error(message)
+      else messageHost.info(message)
     })
   const router = useRouter()
   let loadSequence = 0

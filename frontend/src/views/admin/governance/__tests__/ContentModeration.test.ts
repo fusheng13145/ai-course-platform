@@ -22,6 +22,11 @@ vi.mock('element-plus', () => ({
   ElMessageBox: { prompt: mocks.prompt, confirm: mocks.confirm },
 }))
 
+// 浮层宿主接缝：element-plus 已被上方 mock 替换，注册 EP 适配器后既有断言语义不变。
+import { setOverlayHost } from '@/bootstrap/overlayHost'
+import { epOverlayHost } from '@/bootstrap/overlayHostEp'
+setOverlayHost(epOverlayHost)
+
 vi.mock('@/composables/useModeration', () => ({
   useModeration: () => ({
     tab: ref('posts'),

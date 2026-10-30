@@ -59,6 +59,11 @@ vi.mock('element-plus', () => ({
   ElMessage: mocks.message,
   ElMessageBox: { confirm: mocks.confirm },
 }))
+
+// 浮层宿主接缝：element-plus 已被上方 mock 替换，注册 EP 适配器后既有断言语义不变。
+import { setOverlayHost } from '@/bootstrap/overlayHost'
+import { epOverlayHost } from '@/bootstrap/overlayHostEp'
+setOverlayHost(epOverlayHost)
 // 页面壳（CourseQuestionBank.vue）用 useRoute 取课程 id。
 // 必须保留 vue-router 的真实导出：本组合式函数复用 resolveReviewStatus（useQuestionBank.ts），
 // 后者经 @/api/course → @/api/request → src/router/index.ts 触到 createRouter，
