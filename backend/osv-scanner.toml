@@ -24,7 +24,7 @@ CVE-2026-47884（spring-webmvc，XsltView 的 SSRF/RCE，CRITICAL）。
 【触发路径不可达——三项取证，缺一不得豁免】
 1) 漏洞前提是启用 XsltView 做服务端视图渲染：backend 的 src/main/java 与 src/main/resources
    全量检索 XsltView / ViewResolver / setViewName / Thymeleaf / FreeMarker / Velocity 均 0 命中。
-2) 前提是存在「未显式指定视图名」的视图解析：45 个控制器全部为 @RestController（直接写响应体，
+2) 前提是存在「未显式指定视图名」的视图解析：48 个控制器全部为 @RestController（直接写响应体，
    不进 ViewResolver 链），无一个裸 @Controller；前端是独立 Vue SPA，只消费 JSON API。
 3) 前提是 `/**` 请求映射落到视图渲染：仓库内唯一 `/**` 是 SecurityConfig.java:395 的
    registerCorsConfiguration("/**", ...)，为 CORS 匹配器而非 handler mapping。
@@ -32,3 +32,49 @@ CVE-2026-47884（spring-webmvc，XsltView 的 SSRF/RCE，CRITICAL）。
 【复核触发条件】Spring Boot 升到管理 Framework 7.0.9+ 后立即删除本条；
 或后端一旦引入任何服务端模板/XSLT 视图解析，本豁免当即失效并须重新评估。
 """
+
+[[IgnoredVulns]]
+id = "GHSA-j9f9-w8pj-32f8"
+reason = """
+CVE-2026-47890（spring-webmvc / spring-webflux，SSE + view fragments 的流损坏，CRITICAL / CVSS 9.8）。
+
+【无修复版可用】GitHub Advisory 中 6.2.0–6.2.19 的 first_patched_version 为 None（6.2.x 线不再发修复版），
+唯一修复版 7.0.9，属 Spring Framework 7 / Spring Boot 4 大版本迁移，不在本轮范围。
+
+【触发路径不可达——三项取证，缺一不得豁免】
+1) 全仓唯一 SSE 端点是 AIController.streamChat（GET /api/ai/qa/stream），返回 Flux<String>，
+   每帧为 JSON 字符串（{"token":...} / {"sources":[...]}），由 Spring MVC 响应式桥接直接写入响应体。
+2) 「view fragments」前提不成立：Rendering / Fragment API 调用 0 命中（Fragment 仅作为
+   PlagiarismCheckServiceImpl 的 originalFragment/matchedFragment 字段名出现，是查重文本字段，与视图无关）；
+   ViewResolver / setViewName / XsltView 均 0 命中；pom.xml 未引入 thymeleaf/freemarker/velocity/mustache。
+3) 该端点不返回 ModelAndView、不指定视图名，不进入视图渲染链；48 个控制器全部为 @RestController。
+
+【复核触发条件】Spring Boot 升到管理 Framework 7.0.9+ 后立即删除本条；
+或 SSE 响应一旦引入任何视图/片段渲染（Rendering/Fragment/模板引擎），本豁免当即失效。
+"""
+
+[[IgnoredVulns]]
+id = "GHSA-9qf2-26p9-2q2q"
+reason = """
+CVE-2026-47892（spring-webflux，WebFlux functional endpoints 的 Header Predicate 绕过，CRITICAL / CVSS 9.8）。
+
+【无修复版可用】同上：6.2.0–6.2.19 的 first_patched_version 为 None，唯一修复版 7.0.9。
+
+【触发路径不可达——两项取证】
+1) 前提是「WebFlux 应用使用函数式端点并由 DispatcherServlet 部署」：全仓 RouterFunction /
+   RouterFunctions / HandlerFilterFunction / org.springframework.web.reactive.function.server 均 0 命中。
+2) WebFlux 在本项目仅作**出站 HTTP 客户端**：唯一使用点是 OpenAiCompatibleProvider 的 WebClient
+   （调 LLM 服务），服务端仍是 Spring MVC，不存在 WebFlux 服务端栈。
+
+【复核触发条件】Spring Boot 升到管理 Framework 7.0.9+ 后立即删除本条；
+或一旦引入 WebFlux 函数式端点 / RouterFunction，本豁免当即失效。
+"""
+
+# ---------------------------------------------------------------------------
+# 2026-10-28 说明：本轮 Trivy 另命中两条**可升级**的后端漏洞，已直接升级、**未豁免**：
+#   · com.google.guava:guava 33.4.8-jre → 33.7.2-jre（CVE-2026-102554，HIGH）
+#   · org.xerial.snappy:snappy-java 1.1.10.7 → 1.1.10.9（CVE-2026-108106 / CVE-2026-93451，HIGH）
+# 两者均为 minio 8.6.0 的传递依赖，在 backend/pom.xml 的 dependencyManagement 中显式锁定。
+# 另：frontend/package-lock.json 的 dompurify 3.4.16 命中 GHSA-cg2g-xh64-v4q7（CRITICAL）与
+# GHSA-mrv2-3pqr-j5jr（HIGH），修复版 3.4.17，属前端范围，由前端负责人升级（本文件不代其豁免）。
+# ---------------------------------------------------------------------------

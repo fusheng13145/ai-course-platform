@@ -45,9 +45,12 @@
                  而 10.1.58 **确实从未发布到 Maven Central**（10.1.x 实际存在 10.1.56/57/59/60），
                  故取「≥ 修复版且已发布」的 10.1.60；升级后 10.1.60 在 OSV 查询为 0 命中，
                  .trivyignore / osv-scanner.toml 的三条 Tomcat 豁免已据实删除（不是追加新豁免）。
-             ⚠️ 仍无法升级的一条：spring-webmvc CVE-2026-47884（XsltView SSRF/RCE）在 6.2.x 线**无修复版**
-             （OSV：6.2.0–6.2.19 为 last_affected，仅 7.0.9 修复），升 7.x 需 Spring Boot 4，超出本轮范围；
-             改为按「触发路径不可达」精确豁免，论证见 backend/osv-scanner.toml。 -->
+             ⚠️ 仍无法升级的三条 spring-framework CVE：6.2.x 线**均无修复版**
+             （NVD 影响范围 6.2.0–6.2.19，唯一修复版 7.0.9；升 7.x 需 Spring Boot 4，超出本轮范围）：
+               · CVE-2026-47884（XsltView SSRF/RCE）——需 XsltView + 未指定视图名的 /** 渲染；
+               · CVE-2026-47890（SSE + view fragments 的流损坏，CRITICAL）——需 SSE 叠加视图片段渲染；
+               · CVE-2026-47892（WebFlux functional endpoints 的 Header Predicate 绕过）——需 WebFlux 函数式端点。
+             三条均按「触发路径不可达」精确豁免，逐条论证见 backend/osv-scanner.toml 与 .trivyignore。 -->
         <netty.version>4.1.137.Final</netty.version>
         <jackson-bom.version>2.21.7</jackson-bom.version>
         <log4j2.version>2.25.5</log4j2.version>
@@ -84,6 +87,24 @@
                 <groupId>com.squareup.okhttp3</groupId>
                 <artifactId>okhttp</artifactId>
                 <version>4.12.0</version>
+            </dependency>
+            <!-- 修复：minio 8.6.0 传递引入 guava 33.4.8-jre，命中 CVE-2026-102554（HIGH，
+                 反序列化期间内存分配不受限导致 DoS）。修复版为 33.7.2；Guava 只发布
+                 `-jre` / `-android` 后缀构件，Maven Central 上**不存在**裸 `33.7.2`，
+                 故锁定 `33.7.2-jre`（同大版本内小版本升级，二进制兼容）。
+                 实测：33.7.2-jre 在 aliyun/Central 均可解析（HTTP 200）。 -->
+            <dependency>
+                <groupId>com.google.guava</groupId>
+                <artifactId>guava</artifactId>
+                <version>33.7.2-jre</version>
+            </dependency>
+            <!-- 修复：minio 8.6.0 传递引入 snappy-java 1.1.10.7，命中两条 HIGH：
+                 CVE-2026-108106（解压时无界内存分配 DoS）与 CVE-2026-93451（畸形压缩输入缓冲区溢出）。
+                 修复版 1.1.10.9（同 1.1.10.x 线，补丁级升级）。 -->
+            <dependency>
+                <groupId>org.xerial.snappy</groupId>
+                <artifactId>snappy-java</artifactId>
+                <version>1.1.10.9</version>
             </dependency>
         </dependencies>
     </dependencyManagement>
