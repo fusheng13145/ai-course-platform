@@ -979,6 +979,12 @@ body[data-app="v2"] .nav-scrim { display: none; }
     transition-duration: .001ms !important;
     scroll-behavior: auto !important;
   }
+  /* P6-05/P6-06：按压与悬停位移在降级下取消；只重置交互态 transform，不碰静态 rotate/translate 布局 */
+  body[data-app="v2"] .btn:hover,
+  body[data-app="v2"] .btn:active,
+  body[data-app="v2"] .btn-primary:active {
+    transform: none !important;
+  }
 }
 
 /* ------------------------------ responsive ------------------------------ */
@@ -2446,6 +2452,10 @@ body[data-style="record"] {
   --tone-3: #fff1db; --tone-3-ink: #8a5a10;
   --tone-4: #e3f4f2; --tone-4-ink: #24675f;
   --tone-5: #ffe9e9; --tone-5-ink: #9b3e46;
+  /* P6-06：运动/高光令牌只在活皮肤层定义，令牌随 --accent 走明暗两主题 */
+  --ease-spring: cubic-bezier(.34, 1.56, .64, 1);
+  --t-xslow: 520ms;
+  --glow-brand: inset 0 1px 0 0 color-mix(in srgb, var(--accent) 16%, transparent), 0 10px 24px -14px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 body[data-style="record"] .topbar { background: var(--surface); }
 body[data-style="record"] .sidenav { border-right: 1px solid var(--side-line); }
@@ -2489,6 +2499,17 @@ body[data-style="record"] .role-switch button.is-active { color: var(--accent); 
 body[data-style="record"] .table-search { background: var(--surface); }
 body[data-style="record"] .tabs { background: var(--surface); }
 body[data-style="record"] .course-tile-cover { background: var(--tone-1); }
+
+/* ------------------------------ P6-05 微交互（仅切换态，静态基线零影响） ------------------------------ */
+/* 主按钮按压：沿用 .btn:active 的 translateY(0) 再叠 scale，hover→active 不跳位 */
+body[data-app="v2"] .btn-primary:active { transform: translateY(0) scale(.98); }
+/* 表格行左侧 2px 品牌指示条：内阴影不占盒模型，行高与列宽不变 */
+body[data-app="v2"] .table-wrap tbody tr:hover td:first-child { box-shadow: inset 2px 0 0 var(--accent); }
+/* tab 指示条（胶囊/分段与 .page-tabs 共用 .tabs）：慢档令牌 + 弹簧缓动 */
+body[data-app="v2"] .tabs button { transition: background-color var(--t-xslow) var(--ease-spring), color var(--t-xslow) var(--ease); }
+/* 卡片顶部内高光：品牌色低强度，仅 hover 出现 */
+body[data-app="v2"] .card { transition: box-shadow .28s var(--ease); }
+body[data-app="v2"] .card:hover { box-shadow: var(--glow-brand); }
 
 /* 明暗双模：每个方向保留自己的色相、字体与表面层级 */
 
