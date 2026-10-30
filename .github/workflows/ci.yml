@@ -475,12 +475,68 @@ jobs:
         # 1) OSV-Scanner v2.3.8 不支持 --strategy flag（会报 "flag provided but not defined"，exit 127）；
         # 2) 默认 pomxml 策略会自行向 repo.maven.apache.org 拉取父 POM，触发 429 限流。
         # 改为扫描 SBOM 后，依赖关系已由 Maven 解析完毕，扫描阶段不做任何外部依赖解析。
-        # --config=osv-scanner.toml：与 .trivyignore 同口径的**最小**豁免集（2026-10-07 按 OSV 实查重定）：
-        # 原 3 条 Tomcat CRITICAL 豁免已随 `tomcat.version=10.1.60` 升级删除；
-        # 仅保留 spring-webmvc CVE-2026-47884（GHSA-pc63-qcmh-9cmg，XsltView SSRF/RCE）——
-        # 6.2.x 线无修复版（唯一修复 7.0.9 需 Spring Boot 4），且本项目 45 个控制器全为
-        # @RestController、无任何 ViewResolver/XsltView，触发路径不可达（论证见该文件）。
-        run: /tmp/osv-scanner scan --format=sarif --output=osv-scan.sarif --sbom=target/bom.json --config=osv-scanner.toml
+        #
+        # 判定口径（2026-10-28 修复 CI #167 红灯根因）：
+        #   v2.3.8 的 `[[IgnoredVulns]]` **只过滤输出、不影响退出码**——豁免命中后日志出现
+        #   "Filtered 1 vulnerability from output"，进程仍 exit 1，形成「已豁免却点红」的假阳性。
+        #   故本步不再直接采信扫描器退出码，改为**读 SARIF 中过滤后的结果条数**判定：
+        #     · results 为空且 SARIF 结构完整 → 通过（豁免后确无残留漏洞）；
+        #     · results 非空 → 失败并逐条打印（真有未豁免漏洞，门禁强度不降）；
+        #     · SARIF 缺失/不可解析/无 runs/扫描器自报未成功 → 失败（不把工具故障误放行）。
+        #
+        # --config=osv-scanner.toml：与 .trivyignore 同口径的最小豁免集（三条均属 spring-framework
+        # 6.2.x 无修复版、且触发路径经代码取证不可达，论证见该文件）：
+        #   · GHSA-pc63-qcmh-9cmg / CVE-2026-47884（XsltView SSRF/RCE）
+        #   · GHSA-j9f9-w8pj-32f8 / CVE-2026-47890（SSE + view fragments 流损坏）
+        #   · GHSA-9qf2-26p9-2q2q / CVE-2026-47892（WebFlux 函数式端点 Header Predicate 绕过）
+        # 可升级的 guava / snappy-java 已在 pom 锁定修复版，不在此豁免。
+        run: |
+          set +e
+          /tmp/osv-scanner scan --format=sarif --output=osv-scan.sarif \
+            --sbom=target/bom.json --config=osv-scanner.toml
+          rc=$?
+          echo "osv-scanner exit code: $rc"
+          python3 - <<'PY'
+          import json, os, sys
+
+          path = "osv-scan.sarif"
+          if not os.path.exists(path):
+              print("::error::OSV-Scanner 未生成 SARIF（扫描器故障或参数错误），按失败处理")
+              sys.exit(1)
+          try:
+              with open(path, encoding="utf-8") as fh:
+                  data = json.load(fh)
+          except Exception as exc:
+              print(f"::error::SARIF 无法解析（{exc}），按失败处理")
+              sys.exit(1)
+
+          runs = data.get("runs") or []
+          if not runs:
+              print("::error::SARIF 无 runs 段（扫描未真正执行），按失败处理")
+              sys.exit(1)
+
+          total = sum(len(r.get("results") or []) for r in runs)
+          exec_ok = all(
+              inv.get("executionSuccessful", True)
+              for r in runs
+              for inv in (r.get("invocations") or [{}])
+          )
+          print(f"SARIF runs={len(runs)} results={total} executionSuccessful={exec_ok}")
+
+          if total > 0:
+              for r in runs:
+                  for res in (r.get("results") or []):
+                      rid = res.get("ruleId") or "?"
+                      msg = ((res.get("message") or {}).get("text") or "").replace("\n", " ")[:140]
+                      print(f"::error::未豁免漏洞 {rid}: {msg}")
+              sys.exit(1)
+
+          if not exec_ok:
+              print("::error::扫描器自报执行未成功，按失败处理")
+              sys.exit(1)
+
+          print("OSV-Scanner: 过滤后 0 条未豁免漏洞 → 通过")
+          PY
 
       - name: Upload OSV-Scanner report
         if: always()
@@ -650,14 +706,20 @@ jobs:
         run: pytest -q
 
   # ------------------------------------------------------------------
-  # 启动器守卫（scripts/tests）—— 85 例，纯标准库 + pytest
+  # 启动器守卫（scripts/tests）—— 97 例，纯标准库 + pytest
   # 决策（DR-50 残项）：此前只在本机跑，两个 python 作业只扫 python-services/。
   # 启动器是"一键姿态"的唯一入口，它坏了没有任何门禁会说话，故单列一个作业。
   # 依赖面：仅 pytest（用例只用 monkeypatch / tmp_path / mock，不装 uvicorn、fastapi）。
   # ------------------------------------------------------------------
   launcher-tests:
     name: Launcher Guard Tests (scripts/tests)
-    runs-on: ubuntu-latest
+    # 必须是 Windows runner（2026-10-30 修复 CI #168 红灯根因）：
+    #   启动器（start.bat + scripts/start-all.py）是 Windows 专属实现，守卫用例按 Windows 语义
+    #   写死路径断言——`os.pathsep` 拼 PATH、`pathlib.Path` 拼 `C:\WINDOWS\System32` 与
+    #   `D:\jdk-21\bin\java.exe`。在 ubuntu-latest 上这些断言必然失败（#168 实测 10 条：
+    #   `'C:\WINDOWS/System32' != 'C:\WINDOWS\System32'`、`None != 'D:\jdk-21'` 等）。
+    #   取舍：改断言让它在 Linux 过＝放宽门禁；换回被测平台跑才是按真实语义取证。
+    runs-on: windows-latest
     timeout-minutes: 10
     steps:
       - name: Checkout
