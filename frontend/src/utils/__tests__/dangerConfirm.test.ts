@@ -5,16 +5,27 @@ const mocks = vi.hoisted(() => ({
   confirm: vi.fn(),
 }))
 
-vi.mock('element-plus', () => ({
-  ElMessage: { error: vi.fn(), success: vi.fn(), warning: vi.fn() },
-  ElMessageBox: { confirm: mocks.confirm },
-}))
-
-// 浮层宿主接缝：element-plus 已被上方 mock 替换，注册 EP 适配器后
+// 浮层宿主接缝：确认走本地适配器，把「resolve=确认、reject/close=取消」翻成布尔，
 // 既有断言（确认参数、resolve(true)/reject→false）仍观察同一组调用。
 import { setOverlayHost } from '@/bootstrap/overlayHost'
-import { epOverlayHost } from '@/bootstrap/overlayHostEp'
-setOverlayHost(epOverlayHost)
+setOverlayHost({
+  message: { info: vi.fn(), success: vi.fn(), warning: vi.fn(), error: vi.fn() },
+  confirm: async (message, title, options) => {
+    // 与旧 EP 适配器同映射：语义字段 → EP 选项，danger 落 confirmButtonClass
+    const boxOptions = {
+      type: options?.type,
+      confirmButtonText: options?.confirmButtonText,
+      cancelButtonText: options?.cancelButtonText,
+      ...(options?.danger ? { confirmButtonClass: 'el-button--danger' } : {}),
+    }
+    try {
+      await mocks.confirm(message, title, boxOptions)
+      return true
+    } catch {
+      return false
+    }
+  },
+})
 
 describe('buildDangerMessage', () => {
   it('默认不可逆：含影响范围 + 不可恢复 + 默认恢复路径', () => {

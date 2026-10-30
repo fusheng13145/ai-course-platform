@@ -25,15 +25,11 @@ vi.mock('@/api/submission', () => ({
     aiGrade: mocks.aiGrade,
   },
 }))
-vi.mock('element-plus', () => ({ ElMessage: mocks.message }))
-
 // 浮层宿主接缝：断言经同一组 message spy 观察，语义不变。
 import { setOverlayHost } from '@/bootstrap/overlayHost'
 setOverlayHost({ message: mocks.message })
 
-import { ElMessage } from 'element-plus'
-
-const message = ElMessage as unknown as typeof mocks.message
+const message = mocks.message
 
 function makeSubmission(overrides: Partial<Submission>): Submission {
   return { id: 1, taskId: 31, studentId: 8, status: 'SUBMITTED', ...overrides }

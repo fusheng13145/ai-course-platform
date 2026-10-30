@@ -38,16 +38,27 @@ vi.mock('@/api/exam', () => ({
   },
 }))
 
-vi.mock('element-plus', () => ({
-  ElMessage: mocks.message,
-  ElMessageBox: { confirm: mocks.confirm },
-}))
-
-// 浮层宿主接缝：element-plus 已被上方 mock 替换，注册 EP 适配器后
+// 浮层宿主接缝：确认走本地适配器，把「resolve=确认、reject/close=取消」翻成布尔，
 // 既有断言（提示文案、确认次数/参数）仍观察同一组 spy。
 import { setOverlayHost } from '@/bootstrap/overlayHost'
-import { epOverlayHost } from '@/bootstrap/overlayHostEp'
-setOverlayHost(epOverlayHost)
+setOverlayHost({
+  message: mocks.message,
+  confirm: async (message, title, options) => {
+    // 与旧 EP 适配器同映射：语义字段 → EP 选项，danger 落 confirmButtonClass
+    const boxOptions = {
+      type: options?.type,
+      confirmButtonText: options?.confirmButtonText,
+      cancelButtonText: options?.cancelButtonText,
+      ...(options?.danger ? { confirmButtonClass: 'el-button--danger' } : {}),
+    }
+    try {
+      await mocks.confirm(message, title, boxOptions)
+      return true
+    } catch {
+      return false
+    }
+  },
+})
 
 // 组合式函数在组件外直接调用时 Vue 会对 onMounted/onUnmounted 告警，
 // 生命周期不是本用例的测试目标，桩掉以保持输出干净（ref/computed 等仍为真实实现）

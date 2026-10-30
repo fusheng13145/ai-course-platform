@@ -1,37 +1,12 @@
 import { defineConfig } from 'vite'
 import vue from '@vitejs/plugin-vue'
 import { fileURLToPath, URL } from 'node:url'
-import { readdirSync, existsSync } from 'node:fs'
-import { dirname, join } from 'node:path'
-import AutoImport from 'unplugin-auto-import/vite'
 import Components from 'unplugin-vue-components/vite'
-import { ElementPlusResolver } from 'unplugin-vue-components/resolvers'
-
-/**
- * 枚举 element-plus 全部按需样式入口，加入 optimizeDeps.include。
- * 背景：unplugin-vue-components 在「转换时」注入 `element-plus/es/components/x/style/css`
- * 导入，Vite 启动扫描无法预知全部组件 → 运行时发现新依赖会触发重新预构建 + 整页刷新
- * （症状：切换页面卡顿数秒后自动 reload 且路由跳转丢失）。
- * Vite 8(Rolldown) 下 include 的 glob 写法未展开，这里改用文件系统确定性枚举。
- */
-function elementPlusStyleDeps() {
-  const root = dirname(fileURLToPath(new URL(import.meta.url)))
-  const compDir = join(root, 'node_modules', 'element-plus', 'es', 'components')
-  if (!existsSync(compDir)) return []
-  return readdirSync(compDir)
-    .filter((name) => existsSync(join(compDir, name, 'style', 'css.mjs')))
-    .map((name) => `element-plus/es/components/${name}/style/css`)
-}
 
 export default defineConfig(({ mode }) => ({
   plugins: [
     vue(),
-    AutoImport({
-      resolvers: [ElementPlusResolver()],
-    }),
-    Components({
-      resolvers: [ElementPlusResolver({ importStyle: 'css' })],
-    }),
+    Components({}),
   ],
   resolve: {
     alias: {
@@ -50,12 +25,6 @@ export default defineConfig(({ mode }) => ({
       'dayjs',
       'nprogress',
       'dompurify',
-      'echarts',
-      'vue-echarts',
-      '@element-plus/icons-vue',
-      'element-plus/es',
-      // unplugin 按需导入的组件样式是独立依赖入口，必须全量预构建（确定性枚举，非 glob）
-      ...elementPlusStyleDeps(),
     ],
   },
   server: {
@@ -96,14 +65,12 @@ export default defineConfig(({ mode }) => ({
   },
   // 优化构建
   build: {
-    // 大 chunk 警告阈值调至 1MB（ECharts 等可视化库天然较大）
+    // 大 chunk 警告阈值保持 1MB（图表/表格类库天然较大）
     chunkSizeWarningLimit: 1024,
     rollupOptions: {
       output: {
         manualChunks(id) {
           if (id.includes('node_modules')) {
-            if (id.includes('element-plus')) return 'element-plus'
-            if (id.includes('echarts') || id.includes('zrender')) return 'echarts'
             // 仅保留真实依赖的独立分块。历史上引用的 exceljs / pdfjs-dist / jspdf /
             // marked / markdown 均不在 package.json 内，属死配置（分支永不命中），已删除；
             // html2canvas 同类（FE-11：全仓零引用，依赖已卸载），分支随之删除。
