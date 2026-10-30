@@ -424,13 +424,13 @@ function onEnter(exam: Record<string, unknown>) {
   cursor: pointer;
 }
 .qnav-btn.is-done {
-  border-color: var(--brand);
-  color: var(--brand);
+  border-color: var(--accent);
+  color: var(--accent);
 }
 .qnav-btn.is-active {
-  background: var(--brand);
-  border-color: var(--brand);
-  color: var(--on-brand);
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
 }
 .question {
   border-top: 1px solid var(--line);
