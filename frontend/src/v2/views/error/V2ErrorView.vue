@@ -2,7 +2,7 @@
   <V2Sprite />
   <div class="err-v2">
     <header class="ev-top">
-      <a class="ev-brand" href="/v2" aria-label="云枢教学平台">
+      <a class="ev-brand" href="/" aria-label="云枢教学平台">
         <span class="brand-mark">枢</span>
         <span class="ev-brand-text">
           <b>云枢教学平台</b>
@@ -35,7 +35,7 @@
             {{ checking ? '检测中…' : '立即重试' }}
           </button>
           <button class="btn btn-ghost" @click="goHome">返回工作台</button>
-          <router-link class="text-btn" to="/v2/login">登录页</router-link>
+          <router-link class="text-btn" to="/login">登录页</router-link>
         </div>
         <p v-if="code === '503'" class="ev-note">
           服务恢复后会自动跳转；本页每 3 秒检测一次，预算耗尽后改为手动重试。
@@ -46,7 +46,7 @@
 
     <footer class="ev-foot">
       <span>云枢教学平台 · v2</span>
-      <span><a href="/login">旧版登录</a></span>
+      <span><a href="/login">返回登录</a></span>
     </footer>
   </div>
 </template>
@@ -98,10 +98,10 @@ const redirectTarget = computed(() => {
   const raw = route.query.redirect
   const value = String(raw || '')
   if (
-    value.startsWith('/v2/') &&
-    !value.startsWith('/v2/login') &&
-    !value.startsWith('/v2/register') &&
-    !value.startsWith('/v2/503')
+    value.startsWith('/') &&
+    !value.startsWith('/login') &&
+    !value.startsWith('/register') &&
+    !value.startsWith('/503')
   ) {
     return value
   }
@@ -127,7 +127,7 @@ function v2Home(): string {
 }
 
 function goHome() {
-  router.push(auth.isLoggedIn ? v2Home() : '/v2/login')
+  router.push(auth.isLoggedIn ? v2Home() : '/login')
 }
 
 function stopTimer() {
@@ -148,7 +148,7 @@ async function probe() {
     }
     if (verdict === 'expired') {
       await router.replace({
-        path: '/v2/login',
+        path: '/login',
         query: { redirect: redirectTarget.value || undefined },
       })
       return

@@ -211,7 +211,7 @@ async function submit() {
     Object.assign(form, DEFAULTS)
     fileName.value = ''
     uploadError.value = ''
-    router.push('/v2/teacher/courses')
+    router.push('/teacher/courses')
   } catch (error) {
     formError.value = errMsg(error, '提交失败')
   } finally {
@@ -220,7 +220,7 @@ async function submit() {
 }
 
 function cancel() {
-  router.push('/v2/teacher/courses')
+  router.push('/teacher/courses')
 }
 </script>
 

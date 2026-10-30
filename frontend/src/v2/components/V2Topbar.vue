@@ -45,9 +45,6 @@
         <V2Icon name="bell" />
         <span v-if="unread > 0" class="notif-dot"></span>
       </button>
-      <a class="btn btn-sm btn-ghost legacy-link" :href="LEGACY_HOME[role]" title="切回旧版前端">
-        旧版
-      </a>
       <button
         class="user-chip"
         :aria-label="`打开个人中心：${displayName}`"
@@ -71,7 +68,7 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import V2Icon from './V2Icon.vue'
 import { useV2Ui } from '../composables/ui'
-import { LEGACY_HOME, ROLE_HOME, ROLE_KICKER, courseTabs, pageDef, type V2Role } from '../nav'
+import { ROLE_HOME, ROLE_KICKER, courseTabs, pageDef, type V2Role } from '../nav'
 
 const route = useRoute()
 const router = useRouter()
@@ -92,8 +89,8 @@ const {
 } = useV2Ui()
 
 const roleValue = computed(() => role.value as V2Role)
-const profilePath = computed(() => `/v2/${role.value}/profile`)
-const aiPath = computed(() => `/v2/${role.value}/assistant`)
+const profilePath = computed(() => `/${role.value}/profile`)
+const aiPath = computed(() => `/${role.value}/assistant`)
 
 const isCourse = computed(() => Boolean(route.meta.v2course))
 const courseId = computed(() => Number(route.params.id) || courseContext.id || 0)
@@ -110,7 +107,7 @@ const kicker = computed(
 
 const crumbs = computed<Array<{ label: string; path?: string }>>(() => {
   if (isCourse.value) {
-    const base = `/v2/${role.value}/courses`
+    const base = `/${role.value}/courses`
     return [
       { label: role.value === 'admin' ? '课程目录' : '我的课程', path: base },
       { label: courseLabel.value, path: `${base}/${courseId.value}/overview` },
@@ -129,15 +126,15 @@ function go(path: string) {
 function openAssistant() {
   if (role.value === 'teacher') {
     if (isCourse.value && courseId.value) {
-      router.push(`/v2/teacher/courses/${courseId.value}/ai`)
+      router.push(`/teacher/courses/${courseId.value}/ai`)
       return
     }
     toast('AI 教学助手在课程上下文中打开', 'info')
-    router.push('/v2/teacher/courses')
+    router.push('/teacher/courses')
     return
   }
   if (isCourse.value && courseId.value) {
-    router.push(`/v2/${role.value}/courses/${courseId.value}/ai`)
+    router.push(`/${role.value}/courses/${courseId.value}/ai`)
     return
   }
   router.push(aiPath.value || ROLE_HOME[roleValue.value])

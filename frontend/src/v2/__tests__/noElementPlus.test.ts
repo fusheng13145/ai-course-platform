@@ -156,7 +156,7 @@ describe('共用数据层不绑定 Element Plus 与旧端路由', () => {
     expect(fallbackLocationFor({ path: '/login', query: { redirect: '/admin/users' } })).toBe(
       '/login?redirect=%2Fadmin%2Fusers',
     )
-    expect(fallbackLocationFor('/v2/login')).toBe('/v2/login')
+    expect(fallbackLocationFor('/login')).toBe('/login')
     apiHost().message.warning('服务暂时不可用，正在重试...')
 
     setApiHost({

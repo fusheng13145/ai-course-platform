@@ -88,6 +88,6 @@ function markAllRead() {
 
 function openCenter() {
   notifOpen.value = false
-  router.push(`/v2/${role.value}/messages`)
+  router.push(`/${role.value}/messages`)
 }
 </script>

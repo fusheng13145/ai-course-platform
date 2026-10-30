@@ -211,14 +211,8 @@ function handleAuthExpired() {
   if (now - lastLoginRedirectAt < LOGIN_REDIRECT_DEDUPE_MS) return
   lastLoginRedirectAt = now
   const from = apiHost().currentPath()
-  const loginPath = String(from || '').startsWith('/v2') ? '/v2/login' : '/login'
-  if (
-    from &&
-    from !== loginPath &&
-    from !== '/login' &&
-    from !== '/register' &&
-    from !== '/v2/register'
-  ) {
+  const loginPath = '/login'
+  if (from && from !== loginPath && from !== '/register') {
     apiHost().push({ path: loginPath, query: { redirect: from } })
     return
   }

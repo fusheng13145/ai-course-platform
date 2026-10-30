@@ -2,7 +2,7 @@ import type { RouteLocationNormalized, Router } from 'vue-router'
 import NProgress from 'nprogress'
 import { useAuthStore } from '@/stores/auth'
 
-/** 守卫的三种跳转落点，由各端 router 自行决定（旧端走根路径，v2 走 /v2/**） */
+/** 守卫的三种跳转落点，由各端 router 自行决定（旧端走根路径，v2 走 /**） */
 export interface GuardPaths {
   loginPath: string
   forbiddenPath: string
@@ -45,7 +45,7 @@ export function installRouterGuard(router: Router, resolvePaths: ResolveGuardPat
     }
 
     if (!authStore.isLoggedIn) {
-      // v2 有独立登录页：/v2/** 的深链接回 /v2/login，旧端仍回 /login。
+      // v2 有独立登录页：/** 的深链接回 /login，旧端仍回 /login。
       next({ path: loginPath, query: { redirect: to.fullPath } })
       return
     }

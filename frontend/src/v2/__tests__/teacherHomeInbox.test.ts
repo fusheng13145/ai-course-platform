@@ -377,13 +377,13 @@ describe('v2 教师收件箱三块真实读数', () => {
     expect(wrapper.text()).not.toContain('示例数据')
 
     await gradingBlock.find('.text-btn').trigger('click')
-    expect(mocks.push).toHaveBeenCalledWith('/v2/teacher/courses/1/grading')
+    expect(mocks.push).toHaveBeenCalledWith('/teacher/courses/1/grading')
 
     await publishBlock.find('.text-btn').trigger('click')
-    expect(mocks.push).toHaveBeenCalledWith('/v2/teacher/courses/1/tasks')
+    expect(mocks.push).toHaveBeenCalledWith('/teacher/courses/1/tasks')
 
     await proctorBlock.find('.text-btn').trigger('click')
-    expect(mocks.push).toHaveBeenCalledWith('/v2/teacher/courses/1/proctor')
+    expect(mocks.push).toHaveBeenCalledWith('/teacher/courses/1/proctor')
   })
 
   it('空：三块各自显示空态，不显示失败提示', async () => {

@@ -191,7 +191,7 @@ describe('v2 命令面板接入服务端全站检索', () => {
 
     await wrapper.find('input').trigger('keydown', { key: 'ArrowDown' })
     await wrapper.find('input').trigger('keydown', { key: 'Enter' })
-    expect(router.push).toHaveBeenCalledWith('/v2/student/courses/4007/overview')
+    expect(router.push).toHaveBeenCalledWith('/student/courses/4007/overview')
   })
 
   it('24 条本地命中并存时，检索失败状态仍排在结果区最前，无需滚动即可见', async () => {
@@ -250,7 +250,7 @@ describe('v2 命令面板接入服务端全站检索', () => {
     expect(active.text()).not.toContain('服务端命中')
 
     await wrapper.find('input').trigger('keydown', { key: 'Enter' })
-    expect(router.push).toHaveBeenCalledWith('/v2/student/tasks')
+    expect(router.push).toHaveBeenCalledWith('/student/tasks')
   })
 
   it('课程命中缺少 id 时不可点，重复缺 id 的命中也能共存', async () => {

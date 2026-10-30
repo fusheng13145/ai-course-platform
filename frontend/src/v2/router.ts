@@ -23,7 +23,7 @@ function homeFor(roleValue: unknown): string {
 const authRedirect = () => {
   const auth = useAuthStore()
   if (!auth.isLoggedIn) return true
-  return homeFor(auth.effectiveRole || auth.userRole) || '/v2/login'
+  return homeFor(auth.effectiveRole || auth.userRole) || '/login'
 }
 const V2GlobalPage = () => import('./views/V2GlobalPage.vue')
 const V2AdminQuestionsView = () => import('./views/admin/V2AdminQuestionsView.vue')
@@ -51,57 +51,57 @@ const page = (
 
 export const v2Routes: RouteRecordRaw[] = [
   {
-    path: '/v2/login',
+    path: '/login',
     component: V2LoginView,
     meta: { requiresAuth: false, title: '登录' },
     beforeEnter: authRedirect,
   },
   {
-    path: '/v2/register',
+    path: '/register',
     component: V2RegisterView,
     meta: { requiresAuth: false, title: '注册' },
     beforeEnter: authRedirect,
   },
   {
-    path: '/v2/forgot-password',
+    path: '/forgot-password',
     component: V2ForgotPasswordView,
     meta: { requiresAuth: false, title: '找回密码' },
   },
   {
-    path: '/v2/agreement',
+    path: '/agreement',
     component: V2LegalView,
     props: { kind: 'agreement' },
     meta: { requiresAuth: false, title: '用户服务协议' },
   },
   {
-    path: '/v2/privacy',
+    path: '/privacy',
     component: V2LegalView,
     props: { kind: 'privacy' },
     meta: { requiresAuth: false, title: '隐私政策' },
   },
   {
-    path: '/v2/403',
+    path: '/403',
     component: V2ErrorView,
     meta: { requiresAuth: false, v2error: '403', title: '无权限' },
   },
   {
-    path: '/v2/404',
+    path: '/404',
     component: V2ErrorView,
     meta: { requiresAuth: false, v2error: '404', title: '页面不存在' },
   },
   {
-    path: '/v2/503',
+    path: '/503',
     component: V2ErrorView,
     meta: { requiresAuth: false, v2error: '503', title: '服务连接失败' },
   },
   {
-    path: '/v2',
+    path: '/',
     component: V2Shell,
     meta: { requiresAuth: true, title: '新版工作台' },
     redirect: () => {
       const auth = useAuthStore()
-      if (!auth.isLoggedIn) return '/v2/login'
-      return homeFor(auth.effectiveRole || auth.userRole) || '/v2/login'
+      if (!auth.isLoggedIn) return '/login'
+      return homeFor(auth.effectiveRole || auth.userRole) || '/login'
     },
     children: [
       {
@@ -231,7 +231,7 @@ export const v2Routes: RouteRecordRaw[] = [
     ],
   },
   {
-    path: '/v2/:pathMatch(.*)*',
+    path: '/:pathMatch(.*)*',
     component: V2ErrorView,
     meta: { requiresAuth: false, v2error: '404', title: '页面不存在' },
   },
@@ -243,9 +243,9 @@ export const v2Routes: RouteRecordRaw[] = [
  */
 export function installV2Guards(router: Router): void {
   installRouterGuard(router, () => ({
-    loginPath: '/v2/login',
-    forbiddenPath: '/v2/403',
-    unavailablePath: '/v2/503',
+    loginPath: '/login',
+    forbiddenPath: '/403',
+    unavailablePath: '/503',
   }))
 }
 
@@ -257,3 +257,6 @@ export function createV2Router(history: RouterHistory = createWebHistory()): Rou
   installV2Guards(router)
   return router
 }
+
+/** 正式应用的唯一 router：入口与 HTTP 宿主共用同一个实例 */
+export const appRouter = createV2Router()

@@ -148,8 +148,8 @@ const courseId = computed(() => Number(route.params.id) || courseContext.id || 0
 const activeTab = computed(() => String(route.params.tab || 'overview'))
 const tabs = computed(() => courseTabs(role.value as V2Role))
 const groups = computed(() => navGroups(role.value as V2Role))
-const coursesPath = computed(() => `/v2/${role.value}/courses`)
-const profilePath = computed(() => `/v2/${role.value}/profile`)
+const coursesPath = computed(() => `/${role.value}/courses`)
+const profilePath = computed(() => `/${role.value}/profile`)
 const navCount = computed(() =>
   isCourse.value
     ? tabs.value.length
@@ -185,7 +185,7 @@ const workspace = computed(() => {
 
 function isActive(path: string): boolean {
   if (route.path === path) return true
-  if (path === `/v2/${role.value}/messages`) return false
+  if (path === `/${role.value}/messages`) return false
   return route.path.startsWith(`${path}/`)
 }
 
@@ -209,14 +209,14 @@ function go(path: string) {
 function goTab(tab: string) {
   if (!courseId.value) return
   mobileNavOpen.value = false
-  router.push(`/v2/${role.value}/courses/${courseId.value}/${tab}`)
+  router.push(`/${role.value}/courses/${courseId.value}/${tab}`)
 }
 
 function switchCourse(value: string) {
   const id = Number(value)
   if (!id || id === courseId.value) return
   mobileNavOpen.value = false
-  router.push(`/v2/${role.value}/courses/${id}/${activeTab.value}`)
+  router.push(`/${role.value}/courses/${id}/${activeTab.value}`)
 }
 
 function onWorkspace() {
@@ -230,7 +230,7 @@ function onWorkspace() {
 async function logout() {
   clearCourses()
   await auth.logout()
-  router.push('/v2/login')
+  router.push('/login')
 }
 </script>
 

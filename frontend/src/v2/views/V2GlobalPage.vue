@@ -166,7 +166,7 @@ function tabActive(id: string): boolean {
 
 function selectTab(id: string) {
   if (page.value === 'advising') {
-    const target = id === 'overview' ? '/v2/teacher/advising' : `/v2/teacher/advising/${id}`
+    const target = id === 'overview' ? '/teacher/advising' : `/teacher/advising/${id}`
     router.push(target)
     return
   }

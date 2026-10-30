@@ -165,12 +165,15 @@ export async function loginAs(page: Page, role: 'STUDENT' | 'TEACHER' | 'ADMIN' 
   const account = { STUDENT: 'student', TEACHER: 'teacher', ADMIN: 'admin' }[role]
 
   await page.goto('/login')
-  await fillLoginField(
-    page,
-    page.locator('input[name="login-username"], input[type="text"]').first(),
-    account,
-  )
-  await fillLoginField(page, page.locator('input[type="password"]').first(), '123456')
+  // v2 登录页的字段名是 username/password（旧端是 login-username）
+  await fillLoginField(page, page.locator('input[name="username"]').first(), account)
+  await fillLoginField(page, page.locator('input[name="password"]').first(), '123456')
+  // 「记住我」决定 user/permissions 落 localStorage 还是 sessionStorage；storageState 只带后者
+  // 不带 sessionStorage，不勾会导致复用的登录态等于未登录
+  await page
+    .locator('.av-check input[type=checkbox]')
+    .check()
+    .catch(() => {})
   // 先挂上响应监听再点提交：429 的 `ratelimit.login`（默认 10 次/60 秒/IP）在后端**不打日志**，
   // 只让 waitForURL 超时的话，现象是"随机红灯"，查不出是被限流还是页面坏了（DR-85 实测）。
   const loginResponse = page
@@ -189,7 +192,6 @@ export async function loginAs(page: Page, role: 'STUDENT' | 'TEACHER' | 'ADMIN' 
   // 登录后按角色落到各自默认页（getDefaultRoute），失败即说明会话没建起来，
   // 让 waitForURL 直接暴露原因，而不是后面几十个断言一起变成假缺陷。
   await page.waitForURL(new RegExp(`/${role.toLowerCase()}/`), { timeout: 15000 })
-  await dismissOnboarding(page)
 }
 
 /**

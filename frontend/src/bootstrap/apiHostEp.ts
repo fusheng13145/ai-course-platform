@@ -1,20 +1,32 @@
-import { ElMessage } from 'element-plus'
-import router from '@/router'
 import { setApiHost } from '@/api/apiHost'
 import { setOverlayHost } from '@/bootstrap/overlayHost'
-import { epOverlayHost } from '@/bootstrap/overlayHostEp'
+import { appRouter } from '@/v2/router'
+import { v2Toast } from '@/v2/composables/ui'
+import { confirmWithV2 } from '@/v2/composables/v2Confirm'
 
 /**
- * 旧前端的 HTTP 宿主：提示走 Element Plus，导航走旧端路由。
- * 由 `main.ts` 在入口注册；旧前端下线时，摘除 EP 的动作就收敛到这一处。
+ * v2 的 HTTP 与浮层宿主：提示走 v2 toast，导航走 v2 router，确认走 v2 弹层。
+ * 由 `main.ts` 首行注册；旧前端下线后，这里也是唯一需要知道「宿主实现是谁」的地方。
  */
 setApiHost({
-  message: ElMessage,
-  push: (target) => {
-    router.push(target as never)
+  message: {
+    error: (message) => v2Toast(message, 'danger'),
+    warning: (message) => v2Toast(message, 'warn'),
+    info: (message) => v2Toast(message, 'info'),
+    success: (message) => v2Toast(message, 'ok'),
   },
-  currentPath: () => String(router.currentRoute?.value?.fullPath || ''),
+  push: (target) => {
+    appRouter.push(target as never)
+  },
+  currentPath: () => String(appRouter.currentRoute?.value?.fullPath || ''),
 })
 
-// 浮层宿主同样收敛在此：六个共用件经宿主接缝调用提示与确认。
-setOverlayHost(epOverlayHost)
+setOverlayHost({
+  message: {
+    info: (message) => v2Toast(message, 'info'),
+    success: (message) => v2Toast(message, 'ok'),
+    warning: (message) => v2Toast(message, 'warn'),
+    error: (message) => v2Toast(message, 'danger'),
+  },
+  confirm: confirmWithV2,
+})

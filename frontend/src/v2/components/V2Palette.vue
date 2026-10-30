@@ -153,9 +153,7 @@ const items = computed<Item[]>(() => {
       label: tab.label,
       meta: courseId ? '课程页签' : '课程页签（进入课程后可用）',
       icon: tab.icon || 'dashboard',
-      path: courseId
-        ? `/v2/${role.value}/courses/${courseId}/${tab.id}`
-        : `/v2/${role.value}/courses`,
+      path: courseId ? `/${role.value}/courses/${courseId}/${tab.id}` : `/${role.value}/courses`,
       group: 'local',
     })
   }
@@ -164,7 +162,7 @@ const items = computed<Item[]>(() => {
       label: course.name,
       meta: `${course.code || '课程'} · 进入课程`,
       icon: 'book',
-      path: `/v2/${role.value}/courses/${course.id}/overview`,
+      path: `/${role.value}/courses/${course.id}/overview`,
       group: 'local',
     })
   }
@@ -208,22 +206,22 @@ function serverRoute(type: string, id?: number | string | null): string | null {
     if (id === undefined || id === null) return null
     const courseId = String(id).trim()
     if (!courseId || courseId === 'null' || courseId === 'undefined') return null
-    return `/v2/${current}/courses/${courseId}/overview`
+    return `/${current}/courses/${courseId}/overview`
   }
   if (type === 'question') {
-    if (current === 'teacher') return '/v2/teacher/bank'
-    if (current === 'admin') return '/v2/admin/questions'
+    if (current === 'teacher') return '/teacher/bank'
+    if (current === 'admin') return '/admin/questions'
     return null
   }
   if (type === 'knowledge') {
-    if (current === 'teacher') return '/v2/teacher/knowledge-management'
+    if (current === 'teacher') return '/teacher/knowledge-management'
     // 学生没有独立知识点页，落到自己的课程列表
-    if (current === 'student') return '/v2/student/courses'
+    if (current === 'student') return '/student/courses'
     return null
   }
   if (type === 'note') {
     // 管理员侧没有消息中心，笔记命中只展示不可点
-    return current === 'admin' ? null : `/v2/${current}/messages`
+    return current === 'admin' ? null : `/${current}/messages`
   }
   return null
 }

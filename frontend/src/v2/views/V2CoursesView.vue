@@ -99,7 +99,7 @@ const emptyHint = computed(() =>
 )
 
 function open(id: number) {
-  router.push(`/v2/${role.value}/courses/${id}/overview`)
+  router.push(`/${role.value}/courses/${id}/overview`)
 }
 
 function notReady(label: string) {
@@ -108,7 +108,7 @@ function notReady(label: string) {
 
 function onPrimary() {
   if (role.value === 'teacher') {
-    router.push('/v2/teacher/courses/create')
+    router.push('/teacher/courses/create')
     return
   }
   notReady(primaryLabel.value)

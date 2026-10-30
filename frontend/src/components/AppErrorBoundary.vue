@@ -5,11 +5,11 @@
       <h3>页面出了点问题</h3>
       <p class="error-message">{{ error.message || '未知错误' }}</p>
       <div class="error-actions">
-        <el-button type="primary" @click="retry">重试</el-button>
-        <el-button @click="goHome">返回首页</el-button>
-        <el-button link type="info" @click="showDetails = !showDetails">
+        <button class="eb-btn eb-btn-primary" @click="retry">重试</button>
+        <button class="eb-btn" @click="goHome">返回首页</button>
+        <button class="eb-btn eb-btn-link" @click="showDetails = !showDetails">
           {{ showDetails ? '隐藏详情' : '查看详情' }}
-        </el-button>
+        </button>
       </div>
       <div v-if="showDetails" class="error-details">
         <h4>错误堆栈</h4>
@@ -83,7 +83,7 @@ defineExpose({ captureError })
   align-items: center;
   justify-content: center;
   min-height: 300px;
-  padding: var(--ac-spacing-xl);
+  padding: 24px;
 }
 
 .error-content {
@@ -96,44 +96,73 @@ defineExpose({ captureError })
   height: 48px;
   line-height: 48px;
   border-radius: 50%;
-  background: var(--ac-danger);
-  color: var(--surface);
+  background: var(--danger, #b3261e);
+  color: var(--surface, #ffffff);
   font-size: 24px;
   font-weight: 700;
-  margin: 0 auto var(--ac-spacing-md);
+  margin: 0 auto 12px;
 }
 
 .error-content h3 {
-  color: var(--ac-text-primary);
-  margin-bottom: var(--ac-spacing-sm);
+  color: var(--ink, #17181a);
+  margin-bottom: 8px;
 }
 
 .error-content p {
-  color: var(--ac-text-muted);
+  color: var(--ink-3, #8a8d90);
   font-size: 13px;
-  margin-bottom: var(--ac-spacing-lg);
+  margin-bottom: 16px;
 }
 
 .error-actions {
   display: flex;
-  gap: var(--ac-spacing-sm);
+  gap: 8px;
   justify-content: center;
 }
 
 .error-details {
-  margin-top: var(--ac-spacing-md);
+  margin-top: 12px;
   text-align: left;
   background: var(--ac-bg);
   border-radius: var(--ac-radius-sm);
-  padding: var(--ac-spacing-sm);
+  padding: 8px;
 }
 
 .error-details pre {
   font-size: 11px;
-  color: var(--ac-text-muted);
+  color: var(--ink-3, #8a8d90);
   white-space: pre-wrap;
   word-break: break-all;
   max-height: 150px;
   overflow-y: auto;
+}
+
+.eb-btn {
+  padding: 6px 14px;
+  border: 1px solid var(--line-strong, #c9c7bd);
+  border-radius: 8px;
+  background: var(--surface, #fff);
+  color: var(--ink-2, #4d5054);
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+}
+.eb-btn:hover {
+  border-color: var(--accent, #cf3f2f);
+  color: var(--accent, #cf3f2f);
+}
+.eb-btn-primary {
+  background: var(--accent, #cf3f2f);
+  border-color: var(--accent, #cf3f2f);
+  color: var(--accent-ink, #fff);
+}
+.eb-btn-primary:hover {
+  color: var(--accent-ink, #fff);
+  opacity: 0.92;
+}
+.eb-btn-link {
+  border-color: transparent;
+  background: transparent;
+  color: var(--ink-3, #8a8d90);
 }
 </style>

@@ -10,8 +10,8 @@ test.describe('v2 路由守卫（未登录）', () => {
     await page.addInitScript(() => {
       localStorage.clear()
     })
-    await page.goto('/v2/admin/questions')
-    await expect(page).toHaveURL(/\/v2\/login\?redirect=/)
+    await page.goto('/admin/questions')
+    await expect(page).toHaveURL(/\/login\?redirect=/)
     await expect(page.getByRole('heading', { name: '欢迎回来' })).toBeVisible()
   })
 
@@ -20,7 +20,7 @@ test.describe('v2 路由守卫（未登录）', () => {
     await page.addInitScript(() => {
       localStorage.clear()
     })
-    await page.goto('/v2/student/tasks')
-    await expect(page).toHaveURL(/\/v2\/login\?redirect=/)
+    await page.goto('/student/tasks')
+    await expect(page).toHaveURL(/\/login\?redirect=/)
   })
 })

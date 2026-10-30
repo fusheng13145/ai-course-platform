@@ -231,11 +231,11 @@ const moduleNote = computed(
 )
 
 function goTab(tab: string) {
-  router.push(`/v2/${role.value}/courses/${courseId.value}/${tab}`)
+  router.push(`/${role.value}/courses/${courseId.value}/${tab}`)
 }
 
 function backToCourses() {
-  router.push(`/v2/${role.value}/courses`)
+  router.push(`/${role.value}/courses`)
 }
 
 function notReady(label: string) {
@@ -259,7 +259,7 @@ async function load() {
     status: statusChip.value.text,
   })
   if (!validTab.value) {
-    router.replace(`/v2/${role.value}/courses/${courseId.value}/overview`)
+    router.replace(`/${role.value}/courses/${courseId.value}/overview`)
   }
 }
 
@@ -285,7 +285,7 @@ watch(
   () => route.params.tab,
   (tab) => {
     if (tab && !tabs.value.some((item) => item.id === tab)) {
-      router.replace(`/v2/${role.value}/courses/${courseId.value}/overview`)
+      router.replace(`/${role.value}/courses/${courseId.value}/overview`)
     }
   },
 )

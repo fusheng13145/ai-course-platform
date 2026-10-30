@@ -2,7 +2,7 @@
   <V2Sprite />
   <div class="legal-v2">
     <header class="lv-top">
-      <a class="lv-brand" href="/v2" aria-label="云枢教学平台">
+      <a class="lv-brand" href="/" aria-label="云枢教学平台">
         <span class="brand-mark">枢</span>
         <span class="lv-brand-text">
           <b>云枢教学平台</b>
@@ -17,7 +17,7 @@
         >
           <V2Icon :name="theme === 'dark' ? 'sun' : 'moon'" />
         </button>
-        <router-link class="btn btn-sm btn-ghost" to="/v2/register">返回注册</router-link>
+        <router-link class="btn btn-sm btn-ghost" to="/register">返回注册</router-link>
       </div>
     </header>
 
@@ -35,7 +35,7 @@
           <span>
             <router-link :to="otherPath">{{ otherLabel }}</router-link>
             <span class="lv-sep">·</span>
-            <a href="/login">旧版登录</a>
+            <a href="/login">返回登录</a>
           </span>
         </footer>
       </article>
@@ -60,7 +60,7 @@ const { theme, toggleTheme } = useV2Ui()
 useV2Root(theme)
 
 const doc = computed(() => legal[props.kind])
-const otherPath = computed(() => (props.kind === 'agreement' ? '/v2/privacy' : '/v2/agreement'))
+const otherPath = computed(() => (props.kind === 'agreement' ? '/privacy' : '/agreement'))
 const otherLabel = computed(() => (props.kind === 'agreement' ? '隐私政策' : '用户服务协议'))
 
 const safeHtml = computed(() =>

@@ -257,7 +257,7 @@ const {
 } = useTeacherGrades({
   notify: (message, tone) => toast(message, tones[tone]),
   openGrading: (task) => {
-    router.push(`/v2/teacher/courses/${task.courseId}/grading?taskId=${String(task.id)}`)
+    router.push(`/teacher/courses/${task.courseId}/grading?taskId=${String(task.id)}`)
   },
 })
 

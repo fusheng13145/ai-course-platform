@@ -87,7 +87,7 @@
         </button>
       </form>
 
-      <p class="av-switch"><router-link to="/v2/login">返回登录</router-link></p>
+      <p class="av-switch"><router-link to="/login">返回登录</router-link></p>
       <p class="av-note">验证码 5 分钟内有效；若未收到邮件，请联系管理员检查邮件服务配置。</p>
     </template>
   </V2AuthShell>
@@ -191,7 +191,7 @@ async function resetPassword() {
   try {
     await auth.resetPassword(form.email.trim(), form.code.trim(), form.password)
     toast('密码已重置，请用新密码登录', 'ok')
-    await router.replace('/v2/login')
+    await router.replace('/login')
   } catch (err) {
     error.value =
       (err as { response?: { data?: { message?: string } } })?.response?.data?.message ||

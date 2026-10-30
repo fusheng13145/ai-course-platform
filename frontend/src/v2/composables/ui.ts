@@ -53,6 +53,10 @@ function toggleTheme() {
   setTheme(theme.value === 'dark' ? 'light' : 'dark')
 }
 
+export function v2Toast(message: string, tone: V2Toast['tone'] = 'info') {
+  toast(message, tone)
+}
+
 function toast(message: string, tone: V2Toast['tone'] = 'info') {
   const id = ++toastSeq
   toasts.value.push({ id, message, tone })

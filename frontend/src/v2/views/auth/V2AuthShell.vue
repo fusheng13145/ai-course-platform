@@ -2,7 +2,7 @@
   <V2Sprite />
   <div class="auth-v2">
     <header class="av-top">
-      <a class="av-brand" href="/v2" aria-label="云枢教学平台">
+      <a class="av-brand" href="/" aria-label="云枢教学平台">
         <span class="brand-mark">枢</span>
         <span class="av-brand-text">
           <b>云枢教学平台</b>
@@ -18,7 +18,6 @@
         >
           <V2Icon :name="theme === 'dark' ? 'sun' : 'moon'" />
         </button>
-        <a class="btn btn-sm btn-ghost" href="/login">旧版登录</a>
       </div>
     </header>
 
@@ -59,7 +58,6 @@
 
     <footer class="av-foot">
       <span>云枢教学平台 · v2 记录工作台</span>
-      <span>旧版入口保留 · <a href="/login">/login</a></span>
     </footer>
   </div>
 </template>

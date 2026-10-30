@@ -384,7 +384,7 @@ async function changePassword() {
     toast('密码已修改，请重新登录', 'ok')
     // 后端改密成功即吊销全部会话：本地登录态必须同步清空，否则页面仍显示已登录。
     ui.auth?.resetAuthState?.()
-    router.push('/v2/login')
+    router.push('/login')
   } catch (reason) {
     logger.error('修改密码失败', reason)
     passwordError.value = '密码修改失败，请核对当前密码后重试'

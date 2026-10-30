@@ -13,15 +13,9 @@ export const ROLE_KICKER: Record<V2Role, string> = {
 }
 
 export const ROLE_HOME: Record<V2Role, string> = {
-  student: '/v2/student/home',
-  teacher: '/v2/teacher/home',
-  admin: '/v2/admin/home',
-}
-
-export const LEGACY_HOME: Record<V2Role, string> = {
-  student: '/student/dashboard',
-  teacher: '/teacher/dashboard',
-  admin: '/admin/dashboard',
+  student: '/student/home',
+  teacher: '/teacher/home',
+  admin: '/admin/home',
 }
 
 export function roleOf(value: unknown): V2Role {

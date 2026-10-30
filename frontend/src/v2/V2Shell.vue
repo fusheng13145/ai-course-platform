@@ -14,6 +14,7 @@
   <V2Palette />
   <V2NotifDrawer />
   <V2Toasts />
+  <V2ConfirmHost />
 </template>
 
 <script setup lang="ts">
@@ -29,6 +30,7 @@ import V2Sidebar from './components/V2Sidebar.vue'
 import V2Palette from './components/V2Palette.vue'
 import V2NotifDrawer from './components/V2NotifDrawer.vue'
 import V2Toasts from './components/V2Toasts.vue'
+import V2ConfirmHost from './components/V2ConfirmHost.vue'
 import { useV2Ui } from './composables/ui'
 
 const route = useRoute()

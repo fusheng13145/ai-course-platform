@@ -371,7 +371,7 @@ function toCompletedRow(sub: RawRow, tasks: Record<string, RawRow>, index: numbe
 
 function openRow(row: TaskRow) {
   if (row.courseId == null) return
-  router.push(`/v2/student/courses/${row.courseId}/tasks`)
+  router.push(`/student/courses/${row.courseId}/tasks`)
 }
 
 async function load() {

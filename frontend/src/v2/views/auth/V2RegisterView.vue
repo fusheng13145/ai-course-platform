@@ -113,11 +113,9 @@
           <input v-model="form.agree" type="checkbox" />
           <span>
             我已阅读并同意
-            <router-link class="av-link" to="/v2/agreement" target="_blank"
-              >用户服务协议</router-link
-            >
+            <router-link class="av-link" to="/agreement" target="_blank">用户服务协议</router-link>
             与
-            <router-link class="av-link" to="/v2/privacy" target="_blank">隐私政策</router-link>
+            <router-link class="av-link" to="/privacy" target="_blank">隐私政策</router-link>
           </span>
         </label>
 
@@ -127,7 +125,7 @@
         </button>
       </form>
 
-      <p class="av-switch">已有账号？<router-link to="/v2/login">返回登录</router-link></p>
+      <p class="av-switch">已有账号？<router-link to="/login">返回登录</router-link></p>
       <p class="av-note">注册需邮箱验证码，5 分钟内有效；注册成功即建立学生登录态。</p>
     </template>
   </V2AuthShell>
@@ -175,9 +173,9 @@ function targetAfterAuth(): string {
   const value = String(raw || '')
   if (
     isSafeInternalRedirect(raw) &&
-    value.startsWith('/v2/') &&
-    !value.startsWith('/v2/login') &&
-    !value.startsWith('/v2/register')
+    value.startsWith('/') &&
+    !value.startsWith('/login') &&
+    !value.startsWith('/register')
   ) {
     return value
   }

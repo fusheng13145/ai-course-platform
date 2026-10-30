@@ -35,7 +35,7 @@ let paperTitle = ''
 async function loginState(browser: Browser, role: Role) {
   const context = await browser.newContext({ baseURL: BASE })
   const page = await context.newPage()
-  await page.goto('/v2/login', { waitUntil: 'domcontentloaded' })
+  await page.goto('/login', { waitUntil: 'domcontentloaded' })
   await page.fill('input[name=username]', ACCOUNTS[role])
   await page.fill('input[name=password]', PASS)
   // 「记住我」决定 user/permissions 落 localStorage 还是 sessionStorage；
@@ -53,7 +53,7 @@ async function loginState(browser: Browser, role: Role) {
       await page.waitForTimeout(2500)
     }
   }
-  await expect(page, `${role} 未落到 v2 首页`).toHaveURL(new RegExp(`/v2/${role}/`))
+  await expect(page, `${role} 未落到 v2 首页`).toHaveURL(new RegExp(`/${role}/`))
   const state = await context.storageState()
   await context.close()
   return state
@@ -88,19 +88,14 @@ async function startFromRow(
 }
 
 async function ensureExamPaper(api: APIRequestContext): Promise<string> {
-  const papers = await api.get('/api/exam-papers?page=1&size=200')
-  expect(papers.ok(), '试卷列表接口不可用').toBeTruthy()
-  const existing = pickList(await papers.json()).find((row) =>
-    String(row.title || '').startsWith(PAPER_PREFIX),
-  )
-  if (existing) return String(existing.title)
-
+  // 每次跑新建一张独立卷：旧卷被自动交卷后按钮会变成「已完成」，复用会假红。
+  // 发布态后端无删除端点，所以这些取证卷会留在库里（代价已在文件头注明）。
   const questions = await api.get(`/api/questions?courseId=${EXAM_COURSE_ID}&page=1&size=2`)
   expect(questions.ok(), '题库接口不可用').toBeTruthy()
   const questionRows = pickList(await questions.json())
   if (!questionRows.length) return ''
 
-  const title = `${PAPER_PREFIX}-${EXAM_COURSE_ID}`
+  const title = `${PAPER_PREFIX}-${EXAM_COURSE_ID}-${Date.now()}`
   const created = await api.post('/api/exam-papers', {
     data: {
       courseId: EXAM_COURSE_ID,
@@ -140,7 +135,7 @@ test.describe.serial('v2 核心链路（真栈）', () => {
   test('管理员用户治理页是真实读数，不戴示例数据章', async ({ browser }) => {
     const context = await browser.newContext({ baseURL: BASE, storageState: states!.admin })
     const page = await context.newPage()
-    await page.goto('/v2/admin/users', { waitUntil: 'domcontentloaded' })
+    await page.goto('/admin/users', { waitUntil: 'domcontentloaded' })
     await expect(page.locator('.users-body')).toBeVisible()
     await expect(page.locator('.page-kicker .chip')).toHaveText('接口数据')
     await expect(page.locator('.users-body tbody tr').first()).toBeVisible()
@@ -152,12 +147,12 @@ test.describe.serial('v2 核心链路（真栈）', () => {
   test('教师收件箱三块真读数，题库有导入导出入口', async ({ browser }) => {
     const context = await browser.newContext({ baseURL: BASE, storageState: states!.teacher })
     const page = await context.newPage()
-    await page.goto('/v2/teacher/inbox', { waitUntil: 'domcontentloaded' })
+    await page.goto('/teacher/inbox', { waitUntil: 'domcontentloaded' })
     await expect(page.locator('.inbox-body')).toBeVisible()
     await expect(page.locator('[data-block]')).toHaveCount(3)
     await expect(page.locator('.page-kicker .chip')).toHaveText('接口数据')
 
-    await page.goto('/v2/teacher/bank', { waitUntil: 'domcontentloaded' })
+    await page.goto('/teacher/bank', { waitUntil: 'domcontentloaded' })
     await expect(page.getByRole('button', { name: '导入', exact: true })).toBeVisible()
     await expect(page.getByRole('button', { name: '导出', exact: true })).toBeVisible()
     await expect(page.locator('body')).not.toContainText('示例数据')
@@ -167,11 +162,11 @@ test.describe.serial('v2 核心链路（真栈）', () => {
   test('学生任务与消息是真实读数，不戴示例数据章', async ({ browser }) => {
     const context = await browser.newContext({ baseURL: BASE, storageState: states!.student })
     const page = await context.newPage()
-    await page.goto('/v2/student/tasks', { waitUntil: 'domcontentloaded' })
+    await page.goto('/student/tasks', { waitUntil: 'domcontentloaded' })
     await expect(page.locator('.tasks-body')).toBeVisible()
     await expect(page.locator('.page-kicker .chip')).toHaveText('接口数据')
 
-    await page.goto('/v2/student/messages', { waitUntil: 'domcontentloaded' })
+    await page.goto('/student/messages', { waitUntil: 'domcontentloaded' })
     await expect(page.locator('.messages-body')).toBeVisible()
     await expect(page.locator('body')).not.toContainText('示例数据')
     await context.close()
@@ -180,16 +175,16 @@ test.describe.serial('v2 核心链路（真栈）', () => {
   test('其余核心页可打开并读到真数据（上传会话／试卷库／成绩管理）', async ({ browser }) => {
     const admin = await browser.newContext({ baseURL: BASE, storageState: states!.admin })
     const adminPage = await admin.newPage()
-    await adminPage.goto('/v2/admin/uploads', { waitUntil: 'domcontentloaded' })
+    await adminPage.goto('/admin/uploads', { waitUntil: 'domcontentloaded' })
     await expect(adminPage.getByText(/上传会话/).first()).toBeVisible()
     await expect(adminPage.locator('body')).not.toContainText('示例数据')
     await admin.close()
 
     const teacher = await browser.newContext({ baseURL: BASE, storageState: states!.teacher })
     const teacherPage = await teacher.newPage()
-    await teacherPage.goto('/v2/teacher/exams', { waitUntil: 'domcontentloaded' })
+    await teacherPage.goto('/teacher/exams', { waitUntil: 'domcontentloaded' })
     await expect(teacherPage.getByRole('heading', { name: '试卷库' })).toBeVisible()
-    await teacherPage.goto('/v2/teacher/grades', { waitUntil: 'domcontentloaded' })
+    await teacherPage.goto('/teacher/grades', { waitUntil: 'domcontentloaded' })
     await expect(teacherPage.getByRole('heading', { name: '成绩管理' })).toBeVisible()
     await expect(teacherPage.locator('body')).not.toContainText('示例数据')
     await teacher.close()
@@ -205,7 +200,7 @@ test.describe.serial('v2 核心链路（真栈）', () => {
 
     const context = await browser.newContext({ baseURL: BASE, storageState: states!.student })
     const page = await context.newPage()
-    await page.goto('/v2/student/exams', { waitUntil: 'domcontentloaded' })
+    await page.goto('/student/exams', { waitUntil: 'domcontentloaded' })
     await expect(page.locator('.exam-panel')).toBeVisible()
 
     const row = page.locator('.exam-row', { hasText: paperTitle })

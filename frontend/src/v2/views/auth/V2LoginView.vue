@@ -36,7 +36,7 @@
             <input v-model="form.remember" type="checkbox" />
             <span>记住我</span>
           </label>
-          <router-link class="av-link" to="/v2/forgot-password">忘记密码？</router-link>
+          <router-link class="av-link" to="/forgot-password">忘记密码？</router-link>
         </div>
         <p v-if="error" class="av-error" role="alert">{{ error }}</p>
         <button class="btn btn-primary btn-block av-submit" type="submit" :disabled="submitting">
@@ -44,7 +44,7 @@
         </button>
       </form>
 
-      <p class="av-switch">还没有账号？<router-link to="/v2/register">立即注册</router-link></p>
+      <p class="av-switch">还没有账号？<router-link to="/register">立即注册</router-link></p>
       <p class="av-note">登录凭据由后端校验；会话令牌保存在 HttpOnly Cookie 中，前端不落盘。</p>
     </template>
   </V2AuthShell>
@@ -79,9 +79,9 @@ function targetAfterAuth(): string {
   const value = String(raw || '')
   if (
     isSafeInternalRedirect(raw) &&
-    value.startsWith('/v2/') &&
-    !value.startsWith('/v2/login') &&
-    !value.startsWith('/v2/register')
+    value.startsWith('/') &&
+    !value.startsWith('/login') &&
+    !value.startsWith('/register')
   ) {
     return value
   }

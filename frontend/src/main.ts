@@ -1,87 +1,23 @@
 import '@/bootstrap/apiHostEp'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
-import * as ElementPlusIconsVue from '@element-plus/icons-vue'
-import 'element-plus/dist/index.css' // 保留基础样式（莫兰迪主题覆盖依赖此文件）
 import 'nprogress/nprogress.css'
 
-import ECharts from 'vue-echarts'
-import { use } from 'echarts/core'
-import { CanvasRenderer } from 'echarts/renderers'
-import {
-  LineChart,
-  BarChart,
-  PieChart,
-  ScatterChart,
-  HeatmapChart,
-  RadarChart,
-  GraphChart,
-  TreeChart,
-} from 'echarts/charts'
-import {
-  GridComponent,
-  TooltipComponent,
-  LegendComponent,
-  TitleComponent,
-  ToolboxComponent,
-  DataZoomComponent,
-  VisualMapComponent,
-} from 'echarts/components'
-
-use([
-  CanvasRenderer,
-  LineChart,
-  BarChart,
-  PieChart,
-  ScatterChart,
-  HeatmapChart,
-  RadarChart,
-  GraphChart,
-  TreeChart,
-  GridComponent,
-  TooltipComponent,
-  LegendComponent,
-  TitleComponent,
-  ToolboxComponent,
-  DataZoomComponent,
-  VisualMapComponent,
-])
-
 import App from './App.vue'
-import router from './router'
-import './styles/index.scss'
-import './styles/design-system.css'
+import { createV2Router } from './v2/router'
 import { initMonitoring, captureFrontendError } from './monitoring'
-import { applyStoredTheme } from './composables/useTheme'
+
+// 首屏前先把 v2 主题落到 <html data-theme>，避免暗色用户先看到一帧浅色
+document.documentElement.dataset.theme =
+  localStorage.getItem('v2-theme') === 'dark' ? 'dark' : 'light'
 
 const app = createApp(App)
-for (const [key, component] of Object.entries(ElementPlusIconsVue)) {
-  app.component(key, component)
-}
-app.component('VChart', ECharts)
 app.use(createPinia())
-app.use(router)
-// Element Plus 组件已通过 unplugin-vue-components 自动按需注册，无需手动 app.use()
-
-// 初始化前端监控（幂等；未配置 VITE_MONITOR_ENDPOINT 时静默降级为控制台输出）
+app.use(createV2Router())
 initMonitoring()
 
-/* ============================================
- * Vue 全局错误处理器
- * 捕获所有未处理的组件渲染异常和异步错误，
- * 统一经 monitoring 模块上报（见 src/monitoring/index.js）。
- * ============================================ */
 app.config.errorHandler = (err, instance, info) => {
   captureFrontendError(err, info, instance?.$options?.name)
 }
-
-/* ============================================
- * 首屏前把已存主题落到 <html data-theme> 上（缺陷 D-1）
- * `useTheme()` 只在被组件调用时（它的 onMounted）才写 `data-theme`，而 /403、/404、/503
- * 三个错误页没有 AppShell、也没有 ThemeSwitcher，从不调用它 ⇒ 暗色用户在这三页上看到的
- * 是 :root 的浅色令牌；视觉基线面表现为 /404 明暗两张**逐像素相同**并被判红。
- * 放在 mount 之前：之后无论首屏落到哪个路由，文档根上都已经有正确的主题属性。
- * ============================================ */
-applyStoredTheme()
 
 app.mount('#app')

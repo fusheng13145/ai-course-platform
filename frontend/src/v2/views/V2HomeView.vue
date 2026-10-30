@@ -459,7 +459,7 @@ const studentQueueRows = computed<QueueRow[]>(() => {
   const lists = studentTodoLists.value
   const coursePath = (courseId: unknown, tab: string) => {
     const id = num(courseId)
-    return id === null ? '/v2/student/tasks' : `/v2/student/courses/${id}/${tab}`
+    return id === null ? '/student/tasks' : `/student/courses/${id}/${tab}`
   }
   return [
     ...lists.assignments.map((row) => ({
@@ -514,7 +514,7 @@ const queueRows = computed<QueueRow[]>(() => {
         chip: '待批阅',
         tone: 'warn',
         action: '去批阅',
-        to: courseId === null ? null : `/v2/teacher/courses/${courseId}/grading`,
+        to: courseId === null ? null : `/teacher/courses/${courseId}/grading`,
         avatar: str(row.title, '任').slice(0, 1),
       }
     })
@@ -529,7 +529,7 @@ const queueRows = computed<QueueRow[]>(() => {
         chip: '待审批',
         tone: 'warn',
         action: '查看',
-        to: id ? `/v2/admin/courses/${id}/overview` : null,
+        to: id ? `/admin/courses/${id}/overview` : null,
         avatar: '',
       }
     })
@@ -897,10 +897,10 @@ const aiActionLabel = computed(() => {
   return '打开 AI 助手'
 })
 const aiTo = computed(() => {
-  if (role.value === 'teacher') return '/v2/teacher/analytics'
-  if (role.value === 'admin') return '/v2/admin/exam-governance'
+  if (role.value === 'teacher') return '/teacher/analytics'
+  if (role.value === 'admin') return '/admin/exam-governance'
   const id = courses.value[0]?.id
-  return id ? `/v2/student/courses/${id}/ai` : '/v2/student/assistant'
+  return id ? `/student/courses/${id}/ai` : '/student/assistant'
 })
 
 const weakTitle = computed(() => {
@@ -972,44 +972,44 @@ function go(path: string | null) {
 }
 
 function goCourses() {
-  router.push(`/v2/${role.value}/courses`)
+  router.push(`/${role.value}/courses`)
 }
 
 function openCourse(id: number) {
-  router.push(`/v2/${role.value}/courses/${id}/overview`)
+  router.push(`/${role.value}/courses/${id}/overview`)
 }
 
 function goQueue() {
-  if (role.value === 'student') router.push('/v2/student/tasks')
-  else if (role.value === 'teacher') router.push('/v2/teacher/inbox')
-  else router.push('/v2/admin/approvals')
+  if (role.value === 'student') router.push('/student/tasks')
+  else if (role.value === 'teacher') router.push('/teacher/inbox')
+  else router.push('/admin/approvals')
 }
 
 function primaryAction() {
   if (role.value === 'student') {
     const id = courses.value[0]?.id
-    router.push(id ? `/v2/student/courses/${id}/chapters` : '/v2/student/courses')
+    router.push(id ? `/student/courses/${id}/chapters` : '/student/courses')
     return
   }
   if (role.value === 'teacher') {
     const id = courses.value[0]?.id
-    router.push(id ? `/v2/teacher/courses/${id}/grading` : '/v2/teacher/inbox')
+    router.push(id ? `/teacher/courses/${id}/grading` : '/teacher/inbox')
     return
   }
-  router.push('/v2/admin/approvals')
+  router.push('/admin/approvals')
 }
 
 function secondaryAction() {
   if (role.value === 'student') {
     const id = courses.value[0]?.id
-    router.push(id ? `/v2/student/courses/${id}/ai` : '/v2/student/assistant')
+    router.push(id ? `/student/courses/${id}/ai` : '/student/assistant')
     return
   }
   if (role.value === 'teacher') {
-    router.push('/v2/teacher/inbox')
+    router.push('/teacher/inbox')
     return
   }
-  router.push('/v2/admin/teaching-classes')
+  router.push('/admin/teaching-classes')
 }
 
 function aiAction() {

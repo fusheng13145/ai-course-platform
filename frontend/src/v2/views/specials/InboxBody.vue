@@ -345,16 +345,16 @@ function studentNameOf(studentId: unknown): string {
 }
 
 function openGrading(courseId: number) {
-  router.push(`/v2/teacher/courses/${courseId}/grading`)
+  router.push(`/teacher/courses/${courseId}/grading`)
 }
 
 function openPublish(row: PublishRow) {
   if (row.courseId === null) return
-  router.push(`/v2/teacher/courses/${row.courseId}/${row.kind === '试卷' ? 'exams' : 'tasks'}`)
+  router.push(`/teacher/courses/${row.courseId}/${row.kind === '试卷' ? 'exams' : 'tasks'}`)
 }
 
 function openProctor(courseId: number) {
-  router.push(`/v2/teacher/courses/${courseId}/proctor`)
+  router.push(`/teacher/courses/${courseId}/proctor`)
 }
 
 async function loadGrading(seq: number) {

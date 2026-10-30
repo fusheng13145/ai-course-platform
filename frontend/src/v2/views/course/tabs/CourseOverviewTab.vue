@@ -339,7 +339,7 @@ const emptyHint = computed(() =>
 )
 
 function goTab(tab: string) {
-  router.push(`/v2/${props.role}/courses/${props.courseId}/${tab}`)
+  router.push(`/${props.role}/courses/${props.courseId}/${tab}`)
 }
 
 async function load() {

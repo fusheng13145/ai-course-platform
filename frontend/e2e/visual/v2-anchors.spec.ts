@@ -35,7 +35,7 @@ async function shoot(page: Page, slug: string, theme: Theme, url: string, ready:
 test.describe('v2 视觉基线 · 未登录', () => {
   for (const theme of THEMES) {
     test(`v2 登录页 · ${theme}`, async ({ page }) => {
-      await shoot(page, 'v2-login', theme, '/v2/login', page.locator('.av-form'))
+      await shoot(page, 'v2-login', theme, '/login', page.locator('.av-form'))
     })
   }
 })
@@ -44,14 +44,14 @@ test.describe('v2 视觉基线 · 学生', () => {
   test.use({ storageState: storagePathFor('STUDENT') })
   for (const theme of THEMES) {
     test(`v2 学生工作台 · ${theme}`, async ({ page }) => {
-      await shoot(page, 'v2-student-home', theme, '/v2/student/home', page.locator('.kpi-grid'))
+      await shoot(page, 'v2-student-home', theme, '/student/home', page.locator('.kpi-grid'))
     })
     test(`v2 学生课程空间 · ${theme}`, async ({ page }) => {
       await shoot(
         page,
         'v2-student-course-overview',
         theme,
-        '/v2/student/courses/4001/overview',
+        '/student/courses/4001/overview',
         page.locator('.course-head'),
       )
     })
@@ -62,7 +62,7 @@ test.describe('v2 视觉基线 · 教师', () => {
   test.use({ storageState: storagePathFor('TEACHER') })
   for (const theme of THEMES) {
     test(`v2 教师收件箱 · ${theme}`, async ({ page }) => {
-      await shoot(page, 'v2-teacher-inbox', theme, '/v2/teacher/inbox', page.locator('.inbox-body'))
+      await shoot(page, 'v2-teacher-inbox', theme, '/teacher/inbox', page.locator('.inbox-body'))
     })
   }
 })
@@ -71,7 +71,7 @@ test.describe('v2 视觉基线 · 管理员', () => {
   test.use({ storageState: storagePathFor('ADMIN') })
   for (const theme of THEMES) {
     test(`v2 管理端用户页 · ${theme}`, async ({ page }) => {
-      await shoot(page, 'v2-admin-users', theme, '/v2/admin/users', page.locator('.users-body'))
+      await shoot(page, 'v2-admin-users', theme, '/admin/users', page.locator('.users-body'))
     })
   }
 })

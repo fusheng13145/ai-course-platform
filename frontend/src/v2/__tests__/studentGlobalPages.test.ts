@@ -213,12 +213,12 @@ describe('v2 学生全局页 · 任务', () => {
     expect(navigable?.classes()).toContain('row-link')
     expect(navigable?.attributes('role')).toBe('link')
     await navigable?.trigger('click')
-    expect(router.push).toHaveBeenCalledWith('/v2/student/courses/4007/tasks')
+    expect(router.push).toHaveBeenCalledWith('/student/courses/4007/tasks')
 
     router.push.mockClear()
     await navigable?.trigger('keydown', { key: ' ' })
     expect(router.push, '键盘 Space 应和点击同效').toHaveBeenCalledWith(
-      '/v2/student/courses/4007/tasks',
+      '/student/courses/4007/tasks',
     )
 
     router.push.mockClear()
@@ -640,7 +640,7 @@ describe('v2 学生全局页 · 个人中心', () => {
     expect(uiState.toast).toHaveBeenCalledWith('密码已修改，请重新登录', 'ok')
     // 后端改密即吊销会话：本地登录态必须清空并回登录页
     expect(uiState.auth.resetAuthState).toHaveBeenCalledTimes(1)
-    expect(router.push).toHaveBeenCalledWith('/v2/login')
+    expect(router.push).toHaveBeenCalledWith('/login')
     wrapper.unmount()
   })
 

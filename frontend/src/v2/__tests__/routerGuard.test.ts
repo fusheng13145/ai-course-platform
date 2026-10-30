@@ -10,7 +10,7 @@ const store = vi.hoisted(() => ({
   effectiveRole: '',
   permissions: null as unknown,
   permissionsLoaded: false,
-  getDefaultRoute: vi.fn((): string => '/v2/login'),
+  getDefaultRoute: vi.fn((): string => '/login'),
   fetchPermissions: vi.fn(async (): Promise<'ok' | 'expired' | 'unavailable'> => 'ok'),
 }))
 
@@ -44,34 +44,34 @@ describe('v2 自有 router 的鉴权守卫', () => {
     store.effectiveRole = ''
     store.permissions = null
     store.permissionsLoaded = false
-    store.getDefaultRoute.mockReturnValue('/v2/login')
+    store.getDefaultRoute.mockReturnValue('/login')
     store.fetchPermissions.mockResolvedValue('ok')
     router = createV2Router(createMemoryHistory())
   })
 
-  it('未登录访问 /v2/admin/questions：跳 /v2/login 且带 redirect，不发权限探针', async () => {
-    await router.push('/v2/admin/questions')
+  it('未登录访问 /admin/questions：跳 /login 且带 redirect，不发权限探针', async () => {
+    await router.push('/admin/questions')
 
-    expect(router.currentRoute.value.path).toBe('/v2/login')
-    expect(router.currentRoute.value.query.redirect).toBe('/v2/admin/questions')
+    expect(router.currentRoute.value.path).toBe('/login')
+    expect(router.currentRoute.value.query.redirect).toBe('/admin/questions')
     // 未登录时不该先探权限（原有顺序：登录态先于 permissionsLoaded）
     expect(store.fetchPermissions).not.toHaveBeenCalled()
   })
 
-  it('学生角色访问管理页：落 /v2/403，不渲染目标页', async () => {
+  it('学生角色访问管理页：落 /403，不渲染目标页', async () => {
     store.isLoggedIn = true
     store.userRole = 'STUDENT'
     store.effectiveRole = 'STUDENT'
     store.permissions = { menus: [], buttons: {} }
     store.permissionsLoaded = true
 
-    await router.push('/v2/admin/questions')
+    await router.push('/admin/questions')
 
-    expect(router.currentRoute.value.path).toBe('/v2/403')
-    expect(router.currentRoute.value.path.startsWith('/v2/admin')).toBe(false)
+    expect(router.currentRoute.value.path).toBe('/403')
+    expect(router.currentRoute.value.path.startsWith('/admin')).toBe(false)
   })
 
-  it('权限探针返回 expired：不渲染受保护页，带 redirect 跳 /v2/login', async () => {
+  it('权限探针返回 expired：不渲染受保护页，带 redirect 跳 /login', async () => {
     store.isLoggedIn = true
     store.userRole = 'ADMIN'
     store.effectiveRole = 'ADMIN'
@@ -83,13 +83,13 @@ describe('v2 自有 router 的鉴权守卫', () => {
       return 'expired'
     })
 
-    await router.push('/v2/admin/questions')
+    await router.push('/admin/questions')
 
-    expect(router.currentRoute.value.path).toBe('/v2/login')
-    expect(router.currentRoute.value.query.redirect).toBe('/v2/admin/questions')
+    expect(router.currentRoute.value.path).toBe('/login')
+    expect(router.currentRoute.value.query.redirect).toBe('/admin/questions')
   })
 
-  it('权限探针返回 unavailable：落 /v2/503 并保留登录态（不可达 ≠ 无权限）', async () => {
+  it('权限探针返回 unavailable：落 /503 并保留登录态（不可达 ≠ 无权限）', async () => {
     store.isLoggedIn = true
     store.userRole = 'TEACHER'
     store.effectiveRole = 'TEACHER'
@@ -97,10 +97,10 @@ describe('v2 自有 router 的鉴权守卫', () => {
     store.permissionsLoaded = false
     store.fetchPermissions.mockResolvedValue('unavailable')
 
-    await router.push('/v2/admin/questions')
+    await router.push('/admin/questions')
 
-    expect(router.currentRoute.value.path).toBe('/v2/503')
-    expect(router.currentRoute.value.query.redirect).toBe('/v2/admin/questions')
+    expect(router.currentRoute.value.path).toBe('/503')
+    expect(router.currentRoute.value.query.redirect).toBe('/admin/questions')
     expect(store.isLoggedIn).toBe(true)
   })
 
@@ -111,19 +111,19 @@ describe('v2 自有 router 的鉴权守卫', () => {
     store.permissions = { menus: [], buttons: {} }
     store.permissionsLoaded = true
 
-    await router.push('/v2/student/home')
+    await router.push('/student/home')
 
-    expect(router.currentRoute.value.path).toBe('/v2/student/home')
+    expect(router.currentRoute.value.path).toBe('/student/home')
   })
 
-  it('/v2/503 自身不再触发权限探针，避免不可达时形成轮询环', async () => {
+  it('/503 自身不再触发权限探针，避免不可达时形成轮询环', async () => {
     store.isLoggedIn = true
     store.effectiveRole = 'TEACHER'
     store.permissionsLoaded = false
 
-    await router.push('/v2/503')
+    await router.push('/503')
 
-    expect(router.currentRoute.value.path).toBe('/v2/503')
+    expect(router.currentRoute.value.path).toBe('/503')
     expect(store.fetchPermissions).not.toHaveBeenCalled()
   })
 })
