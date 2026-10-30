@@ -336,14 +336,6 @@ function levelChip(level: string): string {
 </script>
 
 <style scoped>
-.table-card .card-head {
-  align-items: center;
-}
-.table-card .card-head .filter-row {
-  width: auto;
-  flex: 1;
-  justify-content: flex-end;
-}
 .filter-course {
   height: 34px;
   width: auto;

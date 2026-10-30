@@ -755,9 +755,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.filter-row {
-  justify-content: flex-end;
-}
 .filter-course {
   height: 34px;
   width: auto;
@@ -777,8 +774,5 @@ onMounted(async () => {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 550;
-}
-.table-wrap table {
-  width: 100%;
 }
 </style>

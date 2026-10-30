@@ -31,6 +31,17 @@ body[data-app='v2'] .filter-row {
   width: 100%;
 }
 
+/* card-head 内的筛选行收缩到内容宽并靠右（原 InboxBody / V2ExamGovernanceBody / V2TeacherGradesView 的 scoped 副本） */
+body[data-app='v2'] .card-head .filter-row {
+  width: auto;
+  justify-content: flex-end;
+}
+
+/* 表卡表头与右侧控件同基线（原 V2TeacherGradesView / ProctorTab 的 scoped 副本） */
+body[data-app='v2'] .table-card .card-head {
+  align-items: center;
+}
+
 body[data-app='v2'] .w-60 {
   width: 60px;
 }

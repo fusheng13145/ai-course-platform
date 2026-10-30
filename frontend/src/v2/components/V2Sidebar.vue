@@ -233,14 +233,3 @@ async function logout() {
   router.push('/login')
 }
 </script>
-
-<style scoped>
-.nav-logout {
-  font-family: var(--font-mono);
-  font-size: 8px;
-  color: var(--ink-3);
-}
-.nav-logout:hover {
-  color: var(--danger);
-}
-</style>

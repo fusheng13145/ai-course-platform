@@ -434,13 +434,6 @@ onMounted(load)
 .proctor .stat-grid {
   margin-bottom: 0;
 }
-.card-head {
-  align-items: center;
-}
-.card-head h2 .chip {
-  margin-left: 6px;
-  vertical-align: 2px;
-}
 .head-hint {
   font-size: 10.5px;
   color: var(--ink-3);

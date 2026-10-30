@@ -82,9 +82,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.v2-modal-layer {
-  z-index: 2400;
-}
 .v2-modal-panel {
   width: min(var(--v2-modal-w, 720px), 100%);
   max-height: 92vh;

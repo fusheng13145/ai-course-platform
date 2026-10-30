@@ -566,8 +566,4 @@ onMounted(() => {
   white-space: nowrap;
   font-weight: 550;
 }
-.card-head .filter-row {
-  width: auto;
-  justify-content: flex-end;
-}
 </style>

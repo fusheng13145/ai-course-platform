@@ -627,9 +627,6 @@ onUnmounted(() => {
 .file-input {
   display: none;
 }
-.filter-row {
-  justify-content: flex-start;
-}
 .knob {
   display: inline-flex;
   align-items: center;

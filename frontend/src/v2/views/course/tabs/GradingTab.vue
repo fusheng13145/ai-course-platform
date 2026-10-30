@@ -394,9 +394,6 @@ onMounted(loadTasks)
 .grade-filter {
   margin-bottom: 8px;
 }
-.empty-state.compact {
-  padding: 26px 12px;
-}
 .ai-suggest {
   margin-top: 10px;
   padding: 9px 11px;

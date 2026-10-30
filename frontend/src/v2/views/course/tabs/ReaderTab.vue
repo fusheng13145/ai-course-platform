@@ -257,18 +257,4 @@ onMounted(async () => {
 .chapter-item.is-child {
   padding-left: 20px;
 }
-body[data-app='v2'] .chapter-item {
-  flex-direction: row;
-  align-items: center;
-  justify-content: space-between;
-}
-body[data-app='v2'] .chapter-item > span:first-child {
-  display: flex;
-  flex-direction: column;
-  gap: 1px;
-  min-width: 0;
-}
-body[data-app='v2'] .chapter-item .chapter-state {
-  flex: none;
-}
 </style>

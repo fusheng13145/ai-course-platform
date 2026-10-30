@@ -140,20 +140,3 @@ function openAssistant() {
   router.push(aiPath.value || ROLE_HOME[roleValue.value])
 }
 </script>
-
-<style scoped>
-.legacy-link {
-  min-height: 30px;
-  padding: 0 9px;
-  font-size: 11px;
-  color: var(--ink-3);
-}
-.legacy-link:hover {
-  color: var(--ink);
-}
-.crumb-sep {
-  margin: 0 6px;
-  color: var(--ink-4);
-  font-size: 11px;
-}
-</style>

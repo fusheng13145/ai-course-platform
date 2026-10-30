@@ -618,10 +618,6 @@ onMounted(async () => {
 </script>
 
 <style scoped>
-.card-head .filter-row {
-  width: auto;
-  justify-content: flex-end;
-}
 .filter-course {
   height: 34px;
   width: auto;
