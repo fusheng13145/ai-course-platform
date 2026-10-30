@@ -218,8 +218,8 @@ onBeforeUnmount(() => {
   height: 34px;
   display: grid;
   place-items: center;
-  border-radius: 7px;
-  background: #171b22;
+  border-radius: var(--r-sm);
+  background: var(--brand-mark-bg);
   color: #fff;
   font-family: var(--font-display);
   font-weight: 700;
@@ -250,7 +250,7 @@ onBeforeUnmount(() => {
   width: min(560px, 100%);
   padding: clamp(26px, 4vw, 44px);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   background: var(--surface);
   box-shadow: var(--sh-card);
 }
@@ -286,7 +286,7 @@ onBeforeUnmount(() => {
   margin: 12px 0 0;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   background: var(--surface-2);
   font-size: 11px;
   color: var(--ink-3);

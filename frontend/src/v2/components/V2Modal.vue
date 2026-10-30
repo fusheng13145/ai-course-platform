@@ -88,7 +88,7 @@ onBeforeUnmount(() => {
   overflow-y: auto;
   background: var(--surface);
   border: 1px solid var(--line-strong);
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   box-shadow: var(--sh-pop);
   animation: v2-popIn 0.22s var(--ease) both;
 }

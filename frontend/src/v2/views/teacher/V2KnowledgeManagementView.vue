@@ -759,7 +759,7 @@ watch(courseId, () => {
   gap: 8px;
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-card);
   background: var(--surface-2);
   font-size: 12px;
 }

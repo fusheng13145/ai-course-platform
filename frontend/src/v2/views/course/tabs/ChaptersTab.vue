@@ -579,7 +579,7 @@ watch(
 }
 .ct-node {
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   background: var(--surface-2);
   overflow: hidden;
 }

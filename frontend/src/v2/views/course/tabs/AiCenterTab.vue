@@ -472,7 +472,7 @@ watch(
 }
 .msg {
   padding: 10px 12px;
-  border-radius: 10px;
+  border-radius: var(--r-md);
   border: 1px solid var(--line);
   background: var(--surface-2);
 }
@@ -562,7 +562,7 @@ watch(
   margin: 6px 0 0;
   padding: 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-card);
   background: var(--surface-2);
   max-height: 260px;
   overflow: auto;

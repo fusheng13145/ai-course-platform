@@ -656,7 +656,7 @@ watch(() => props.courseId, loadAll, { immediate: true })
   place-items: center;
   width: 20px;
   height: 20px;
-  border-radius: 50%;
+  border-radius: var(--r-circle);
   background: var(--accent-soft);
   color: var(--accent);
   font-size: 10px;

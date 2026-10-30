@@ -178,7 +178,7 @@ onMounted(load)
   width: 6px;
   height: 6px;
   margin-top: 6px;
-  border-radius: 50%;
+  border-radius: var(--r-circle);
   background: var(--line-strong);
 }
 .message-item.is-unread .message-dot {

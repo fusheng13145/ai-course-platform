@@ -397,7 +397,7 @@ onBeforeUnmount(() => {
 .palette-status {
   margin: 6px;
   padding: 14px 12px;
-  border-radius: 8px;
+  border-radius: var(--r-card);
   background: var(--surface-2);
   color: var(--ink-3);
   font-size: 11px;
@@ -424,7 +424,7 @@ onBeforeUnmount(() => {
   flex: none;
   padding: 4px 10px;
   border: 1px solid currentcolor;
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   background: none;
   color: inherit;
   font-size: 10px;

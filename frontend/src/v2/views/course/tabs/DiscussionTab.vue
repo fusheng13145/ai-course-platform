@@ -466,7 +466,7 @@ watch(() => props.courseId, loadTopics, { immediate: true })
   gap: 10px;
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   background: var(--surface-2);
 }
 .topic-main {
@@ -513,7 +513,7 @@ watch(() => props.courseId, loadTopics, { immediate: true })
 .post-item {
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   background: var(--surface-2);
 }
 .post-head {

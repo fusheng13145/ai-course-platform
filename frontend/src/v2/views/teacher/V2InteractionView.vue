@@ -780,7 +780,7 @@ void loadCourses()
   padding: 10px;
   margin-bottom: 12px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-card);
   background: var(--surface-2);
 }
 .result-list {
@@ -805,14 +805,14 @@ void loadCourses()
 }
 .r-track {
   height: 8px;
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   background: var(--surface-3);
   overflow: hidden;
 }
 .r-track i {
   display: block;
   height: 100%;
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   background: var(--accent);
 }
 .r-num {

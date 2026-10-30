@@ -99,8 +99,8 @@ const safeHtml = computed(() =>
   height: 34px;
   display: grid;
   place-items: center;
-  border-radius: 7px;
-  background: #171b22;
+  border-radius: var(--r-sm);
+  background: var(--brand-mark-bg);
   color: #fff;
   font-family: var(--font-display);
   font-weight: 700;
@@ -137,7 +137,7 @@ const safeHtml = computed(() =>
   width: min(860px, 100%);
   background: var(--surface);
   border: 1px solid var(--line);
-  border-radius: 12px;
+  border-radius: var(--r-lg);
   box-shadow: var(--sh-card);
   padding: clamp(24px, 4vw, 42px);
 }
@@ -201,7 +201,7 @@ const safeHtml = computed(() =>
   margin-top: 14px;
   padding: 16px 18px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-card);
   background: var(--surface-2);
 }
 .lv-foot {

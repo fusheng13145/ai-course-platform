@@ -318,7 +318,7 @@ onMounted(() => {
   max-width: 46px;
   height: var(--v, 0%);
   min-height: 2px;
-  border-radius: 6px 6px 2px 2px;
+  border-radius: var(--r-bar);
   background: var(--accent);
 }
 .bar-val {
@@ -349,7 +349,7 @@ onMounted(() => {
 }
 .r-track {
   height: 10px;
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   background: var(--surface-3);
   overflow: hidden;
 }

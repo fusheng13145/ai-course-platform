@@ -398,7 +398,7 @@ onMounted(loadTasks)
   margin-top: 10px;
   padding: 9px 11px;
   border: 1px dashed var(--line-strong);
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   font-size: 10px;
   line-height: 1.7;
   color: var(--ink-2);

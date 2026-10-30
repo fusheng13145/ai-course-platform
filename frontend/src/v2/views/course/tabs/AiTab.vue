@@ -132,7 +132,7 @@ function send(text: string) {
 .typing i {
   width: 5px;
   height: 5px;
-  border-radius: 50%;
+  border-radius: var(--r-circle);
   background: var(--ink-3);
   animation: v2-typing 1s var(--ease) infinite;
 }

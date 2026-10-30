@@ -379,14 +379,14 @@ function levelChip(level: string): string {
 }
 .dist-track {
   height: 8px;
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   background: var(--surface-3);
   overflow: hidden;
 }
 .dist-track i {
   display: block;
   height: 100%;
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   background: var(--accent);
 }
 .dist-num {

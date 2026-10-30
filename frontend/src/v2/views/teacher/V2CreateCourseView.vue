@@ -253,6 +253,6 @@ function cancel() {
   display: block;
   object-fit: cover;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-card);
 }
 </style>

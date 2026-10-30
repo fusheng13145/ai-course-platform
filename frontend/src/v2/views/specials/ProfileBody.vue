@@ -430,7 +430,7 @@ onMounted(loadProfile)
   place-items: center;
   width: 46px;
   height: 46px;
-  border-radius: 50%;
+  border-radius: var(--r-circle);
   background: var(--accent-soft);
   color: var(--accent-strong);
   font-family: 'Noto Serif SC', Georgia, serif;
@@ -491,7 +491,7 @@ onMounted(loadProfile)
 }
 .theme-switch button {
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--r-xs);
   padding: 5px 12px;
   background: none;
   color: var(--ink-3);

@@ -2421,8 +2421,15 @@ body[data-style="record"] {
   --side-badge-ink: #556172;
   --side-avatar-bg: #dce6ff;
   --side-avatar-ink: #2454c7;
+  --brand-mark-bg: #171b22;
   --r-card: 8px;
   --r-ctl: 6px;
+  --r-xs: 5px;
+  --r-sm: 7px;
+  --r-md: 10px;
+  --r-lg: 12px;
+  --r-circle: 50%;
+  --r-bar: 6px 6px 2px 2px;
   --sh-card: none;
   --font-body: "Segoe UI Variable Display", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;
   --font-display: "Segoe UI Variable Display", "Segoe UI", "PingFang SC", "Microsoft YaHei", sans-serif;

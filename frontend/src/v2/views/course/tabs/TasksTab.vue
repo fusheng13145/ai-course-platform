@@ -1075,7 +1075,7 @@ watch(
   margin: 12px 0;
   padding: 10px 12px;
   border: 1px dashed var(--line-strong);
-  border-radius: 8px;
+  border-radius: var(--r-card);
   background: var(--surface-2);
 }
 .submit-box {
