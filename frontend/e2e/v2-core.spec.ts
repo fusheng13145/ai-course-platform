@@ -1,4 +1,11 @@
-import { test, expect, request, type APIRequestContext, type Browser } from '@playwright/test'
+import {
+  test,
+  expect,
+  request,
+  type APIRequestContext,
+  type Browser,
+  type BrowserContext,
+} from '@playwright/test'
 
 /**
  * v2 核心链路真栈巡检（L-02 的 M-04／M-11 段 + M-02 的开考/续考段）。
@@ -21,7 +28,8 @@ type Role = keyof typeof ACCOUNTS
 const PAPER_PREFIX = 'E2E-开考续考-守护卷'
 const EXAM_COURSE_ID = 4001
 
-let states: Record<Role, Awaited<ReturnType<Browser['newContext']>>['storageState']> | null = null
+type StorageState = Awaited<ReturnType<BrowserContext['storageState']>>
+let states: Record<Role, StorageState> | null = null
 let paperTitle = ''
 
 async function loginState(browser: Browser, role: Role) {
