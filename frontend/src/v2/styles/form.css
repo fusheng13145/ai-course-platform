@@ -172,3 +172,27 @@ body[data-app='v2'] .form-foot {
     grid-template-columns: 1fr 1fr;
   }
 }
+
+/* D2-6 响应式专项 · 窄屏增量：只新增本块，桌面档未改。
+   .filter-row 自身有 flex-wrap，但卡内一行里的搜索簇是各视图局部样式给的
+   定宽输入（220／240px）包在不换行的 .search-form 里，整簇的最小宽度
+   就是这一行的收缩下限；窄档把它放开，控件按行宽流动。
+   选择器多一层类＋元素，特异度高于视图的 scoped 副本，无需 !important。 */
+@media (max-width: 768px) {
+  body[data-app='v2'] .card-head .filter-row {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  body[data-app='v2'] .filter-row > .input {
+    max-width: 100%;
+    min-width: 0;
+  }
+  body[data-app='v2'] .filter-row .search-form {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  body[data-app='v2'] .filter-row .search-form > .input {
+    flex: 1;
+    min-width: 0;
+  }
+}

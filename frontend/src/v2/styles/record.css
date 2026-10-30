@@ -1,4 +1,4 @@
-/* 由 scripts/extract-v2-assets.cjs 从 demo/v2/02-record.html 生成，勿手改。
+/* 一次性抽取器 scripts/extract-v2-assets.cjs 的产物，抽取后此文件一直手工维护；重跑脚本会覆盖已有样式。
    作用域：body[data-app="v2"]，仅在 v2 壳层挂载并被设置该属性时生效。 */
 /* ============================================================
    云枢教学平台 · 原型基础层
@@ -2897,5 +2897,56 @@ body[data-style="signal"][data-theme="light"] {
   --tone-3: #fef3c7; --tone-3-ink: #92400e;
   --tone-4: #ccfbf1; --tone-4-ink: #115e59;
   --tone-5: #ffe4e6; --tone-5-ink: #9f1239;
+}
+
+/* ============================================================
+   D2-6 响应式专项 · 窄屏增量层
+   只新增窄屏作用域规则；≥1280 桌面档与既有断点块一字未改。
+   全部数值只用 0 / 100% / wrap / minmax(0,1fr) 这类无魔数写法。
+   放在文件末尾：与既有 ≤960 / ≤620 / ≤430 块同特异度，靠源序取胜，
+   因此每条重述都核过列数在各档一致（不会把已定的单列改回两列）。
+   ============================================================ */
+
+/* 卡头是 flex + space-between 且无 flex-wrap；form.css 又把卡内筛选行收成
+   width:auto，其收缩下限由卡内不换行的 .search-form / 定宽输入决定，
+   375 档下标题块＋筛选行的最小宽度之和超过内容盒，而 .main 是 overflow:clip
+   （裁切而非滚动），超出部分直接丢失。窄档改为允许换行，整行落到第二行。 */
+@media (max-width: 900px) {
+  body[data-app="v2"] .card-head { flex-wrap: wrap; }
+}
+
+@media (max-width: 768px) {
+  /* 列数与既有 ≤960 档一致（都是单列），只把裸 1fr 换成文件本身在桌面档
+     一贯使用的 minmax(0, 1fr)，让卡内 .table-wrap 的横向滚动真正生效。 */
+  body[data-app="v2"] .module-grid,
+  body[data-app="v2"] .graph-layout,
+  body[data-app="v2"] .ai-layout,
+  body[data-app="v2"] .exam-body,
+  body[data-app="v2"] .reader-layout,
+  body[data-app="v2"] .dash-grid,
+  body[data-app="v2"] .feed-list { grid-template-columns: minmax(0, 1fr); }
+  /* 统计卡在 ≤960 是 2 列（minmax 版）、≤620 与 ≤430 是 1fr 1fr，列数同为 2，
+     这里统一换成可收缩的 2 列，不改观感只兜住最小尺寸。 */
+  body[data-app="v2"] .stat-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  /* 表卡工具行：桌面档把搜索框锁在 min-width:190px 且整行不换行，
+     折叠规则原本只覆盖到 ≤620，621–768 这段是空档。补上换行与收缩下限。 */
+  body[data-app="v2"] .table-toolbar { flex-wrap: wrap; }
+  body[data-app="v2"] .table-search { min-width: 0; max-width: 100%; }
+  body[data-app="v2"] .table-tools { flex-wrap: wrap; }
+
+  /* 按钮条缺 flex-wrap 的一类：单独放不下时换行，而不是把右侧按钮推出裁切区。 */
+  body[data-app="v2"] .course-tab-actions,
+  body[data-app="v2"] .reader-actions,
+  body[data-app="v2"] .peek-actions,
+  body[data-app="v2"] .proctor-actions,
+  body[data-app="v2"] .q-actions,
+  body[data-app="v2"] .v2-pager,
+  body[data-app="v2"] .form-foot { flex-wrap: wrap; }
+
+  /* 分段控件（.tabs 同时服务 .page-tabs 与课程筛选）是 inline-flex 不换行，
+     页签多时末位会被 .main 裁掉；窄档允许换行并给可收缩的最小宽度。 */
+  body[data-app="v2"] .tabs { flex-wrap: wrap; }
+  body[data-app="v2"] .tabs button { min-width: 0; max-width: 100%; }
 }
 
