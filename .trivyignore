@@ -23,7 +23,7 @@
 # 触发路径不可达（三项取证，缺一不得豁免）：
 #   1) 漏洞前提是应用启用 XsltView 做视图渲染——本后端 src/main/java + src/main/resources 全量检索
 #      XsltView / XsltViewBeanNameViewResolver / ViewResolver / setViewName 均为 0 命中；
-#   2) 前提是存在「未显式指定视图名」的视图解析结果——45 个控制器**全部**是 @RestController
+#   2) 前提是存在「未显式指定视图名」的视图解析结果——48 个控制器**全部**是 @RestController
 #      （直接写响应体，不进 ViewResolver 链），无一个裸 @Controller；
 #   3) 前提是 `/**` handler mapping 落到视图渲染——仓库内唯一 `/**` 出现在
 #      SecurityConfig.java:395 的 CORS `registerCorsConfiguration("/**", ...)`，是跨域匹配器而非请求映射。
@@ -31,6 +31,38 @@
 #               或后端一旦引入任何服务端视图渲染（Thymeleaf/Xslt/模板引擎）立即重评。
 CVE-2026-47884
 GHSA-pc63-qcmh-9cmg
+
+# spring-webmvc / spring-webflux CVE-2026-47890（CRITICAL，NVD 9.8，SSE + view fragments 的流损坏）
+# 无修复版可用：NVD 影响范围 6.2.0–6.2.19，唯一修复版 7.0.9（Spring Framework 7 线），升 7.x 需 Spring Boot 4。
+# 触发路径不可达（三项取证，缺一不得豁免）：
+#   1) 全仓唯一 SSE 端点是 AIController.streamChat（GET /api/ai/qa/stream），返回 Flux<String>，
+#      每帧为 JSON 字符串（{"token":...} / {"sources":[...]}），经 Spring MVC 响应式桥接直接写入响应体；
+#   2) 「view fragments」前提不成立：Rendering / Fragment API 调用为 0 命中
+#      （Fragment 仅出现在 PlagiarismCheckServiceImpl 的 originalFragment/matchedFragment 字段名，
+#      是查重文本字段，与视图无关）；ViewResolver / setViewName / XsltView 亦为 0 命中；
+#      pom.xml 未引入 thymeleaf / freemarker / velocity / mustache 任一模板引擎；
+#   3) 该 SSE 端点不返回 ModelAndView、不指定视图名，不进入视图渲染链；
+#      48 个控制器全部为 @RestController，裸 @Controller 为 0。
+# 复核触发条件：Spring Boot 升至管理 Framework 7.0.9+ 后立即删除本条；
+#               或 SSE 响应一旦引入任何视图/片段渲染（Rendering/Fragment/模板引擎）立即重评。
+CVE-2026-47890
+GHSA-j9f9-w8pj-32f8
+
+# spring-webflux CVE-2026-47892（HIGH，NVD 9.8，WebFlux functional endpoints 的 Header Predicate 绕过）
+# 无修复版可用：同上（6.2.0–6.2.19 → 7.0.9）。
+# 触发路径不可达（两项取证）：
+#   1) 前提是「WebFlux 函数式端点」：RouterFunction / RouterFunctions / HandlerFilterFunction /
+#      org.springframework.web.reactive.function.server 全仓 0 命中，无任何 reactive 路由注册；
+#   2) WebFlux 在本项目仅作**出站 HTTP 客户端**：唯一使用点是 OpenAiCompatibleProvider 的 WebClient
+#      （调 LLM 服务），服务端仍是 Spring MVC（DispatcherServlet），不存在 WebFlux 服务端栈。
+# 复核触发条件：Spring Boot 升至管理 Framework 7.0.9+ 后立即删除本条；
+#               或一旦引入 WebFlux 函数式端点 / RouterFunction 立即重评。
+CVE-2026-47892
+GHSA-9qf2-26p9-2q2q
+
+# 说明：可升级的两条（guava CVE-2026-102554、snappy-java CVE-2026-108106 / CVE-2026-93451）
+# 已于 2026-10-28 在 backend/pom.xml 的 dependencyManagement 直接锁定修复版
+# （guava 33.7.2-jre、snappy-java 1.1.10.9），**不在此处豁免**——能升级的绝不豁免。
 
 # ---------------------------------------------------------------------------
 # 本文件只管**漏洞（vuln）**豁免；镜像配置（misconfiguration）豁免已迁到
