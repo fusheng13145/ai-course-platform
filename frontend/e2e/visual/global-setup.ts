@@ -67,8 +67,11 @@ const AUTH_DIR = dirname(join(process.cwd(), storagePathFor(ROLES[0])))
  *   这正是计划提的 `spawnSync` 形态验不下去的原因，取舍理由写在用例注释里）。
  */
 export function assertUpdateSnapshotsAllowed(argv: string[] = process.argv): void {
-  const wantsUpdate =
-    argv.includes('--update-snapshots') || argv.includes('-u') || argv.includes('--update')
+  // Playwright 1.63 的该旗标接受带值形式（all/changed/missing/none），
+  // 只认裸写法会让 --update-snapshots=all 直接放行（P-17 的洞）。
+  const wantsUpdate = argv.some(
+    (arg) => arg === '-u' || arg === '--update' || arg.startsWith('--update-snapshots'),
+  )
   if (!wantsUpdate) return
   if (process.env.PW_ALLOW_UPDATE_SNAPSHOTS === '1') {
     console.log(
@@ -79,7 +82,7 @@ export function assertUpdateSnapshotsAllowed(argv: string[] = process.argv): voi
     return
   }
   throw new Error(
-    '[gate] 拒绝了 --update-snapshots：它会重写全部 22 张已提交基线，而"红了就重生成"正是本套件最禁止的动作。\n' +
+    '[gate] 拒绝了 --update-snapshots：它会重写所有匹配到的已提交基线，而"红了就重生成"正是本套件最禁止的动作。\n' +
       '  先看红的是什么：PW_PORT=5175 npx playwright test -c playwright.visual.ts anchors -g "<slug>"\n' +
       '  读数与出处：node e2e/visual/tools/measure-diff.cjs <基线.png> <取证图.png> --bands\n' +
       '  确认这次重生成合理之后，显式承认：PW_ALLOW_UPDATE_SNAPSHOTS=1 <同一条命令>\n' +
