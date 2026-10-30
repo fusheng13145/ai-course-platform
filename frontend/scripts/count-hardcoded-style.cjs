@@ -5,10 +5,15 @@
  * 用法：
  *   node scripts/count-hardcoded-style.cjs            # 打印读数
  *   node scripts/count-hardcoded-style.cjs --write     # 同时把报告写入 scripts/style-hardcode-report.md
+ *   node scripts/count-hardcoded-style.cjs --min-files=40                 # 限定范围时下调 .vue 扫描面下界
+ *   node scripts/count-hardcoded-style.cjs --root=src/v2 --min-files=40   # 对某个子树重跑同一口径
  * 口径与判据本体见 docs/前端待办项.md 的 P5-04 行；这里只负责可重生成，不判定通过与否。
  */
 const fs = require('fs')
 const path = require('path')
+
+/** `.vue` 扫描面下界：默认值不许改，限定范围（`--root=` + `--min-files=`）时才下调。 */
+const DEFAULT_MIN_VUE_FILES = 200
 
 const ROOT = path.resolve(__dirname, '..')
 const REPORT = path.join(ROOT, 'scripts', 'style-hardcode-report.md')
@@ -48,8 +53,25 @@ function rel(p, base) {
   return path.relative(base || ROOT, p).replace(/\\/g, '/')
 }
 
-function isStyleSource(p, base) {
-  return rel(p, base).startsWith('src/styles/')
+/** 报告里的文件标签：仓内文件一律相对 `frontend`（与文档写法一致），仓外导出树相对 `--root`。 */
+function labelFor(p, base) {
+  const fromRoot = path.relative(ROOT, p)
+  const insideRoot = fromRoot && !fromRoot.startsWith('..') && !path.isAbsolute(fromRoot)
+  return rel(p, insideRoot ? ROOT : base)
+}
+
+/**
+ * `--root=` 既可以是「含 `src/` 的工程根」（`git archive` 导出的 `frontend` 树），
+ * 也可以直接是扫描根（如 `src/v2`）。后者现在才是常态：旧前端删掉后 `src/styles/` 已不存在。
+ */
+function resolveSrcRoot(base) {
+  const nested = path.join(base, 'src')
+  return fs.existsSync(nested) ? nested : base
+}
+
+function isStyleSource(p, srcRoot) {
+  // 样式层从 `src/styles/**`（旧端，已删）搬到 `src/v2/styles/**`，两代都按「路径里有 styles 段」认
+  return /(^|\/)styles\//.test(rel(p, srcRoot))
 }
 
 /** `--root=<目录>` 用于对某一版本重跑同一口径（例如改前读数：先 `git archive` 导出再计数）。 */
@@ -127,7 +149,7 @@ function measure(files, base) {
       }
     }
     if (fileHasGradient) gradientFiles += 1
-    if (hardcodeTotal > 0) perFile.push({ file: rel(file, base), hardcodeTotal })
+    if (hardcodeTotal > 0) perFile.push({ file: labelFor(file, base), hardcodeTotal })
   }
   perFile.sort((a, b) => b.hardcodeTotal - a.hardcodeTotal || a.file.localeCompare(b.file))
   return { lines, occurrences, literals, gradientFiles, perFile }
@@ -151,9 +173,9 @@ function walkInto(dir, out, re) {
   return out
 }
 
-/** 令牌审计：定义取 src/styles/**，消费数取整个 frontend（src + e2e + 根配置）。 */
-function tokenAudit(styleFiles, base) {
-  const scanDirs = [path.join(base || ROOT, 'src'), path.join(base || ROOT, 'e2e')]
+/** 令牌审计：定义取扫描根的 `styles/**`，消费数取整个扫描根（＋ `e2e` 若在）。 */
+function tokenAudit(styleFiles, srcRoot, base) {
+  const scanDirs = [srcRoot, path.join(base, 'e2e')]
   const consumers = collectAll(scanDirs)
   const styleSet = new Set(styleFiles)
   const texts = consumers.map((f) => ({
@@ -190,7 +212,7 @@ function tokenSection(rows) {
   const elZero = allZero.filter((r) => r.name.startsWith('--el-'))
   const ac = rows.filter((r) => r.name.startsWith('--ac-'))
   const lines = [
-    '### 令牌消费点（定义面＝`src/styles/**`，消费面＝整个 `frontend`）',
+    '### 令牌消费点（定义面＝扫描根下的 `**/styles/**`，消费面＝扫描根全量＋`e2e`）',
     '',
     '| 汇总 | 数 |',
     '| --- | --- |',
@@ -234,22 +256,25 @@ function table(title, m) {
   return head + rows + grad + top
 }
 
-function buildReport(base) {
-  const src = path.join(base, 'src')
-  if (!fs.existsSync(src)) {
-    console.error(`[ERROR] 未找到扫描目录 ${src}`)
+function buildReport(base, srcRoot, minVue) {
+  if (!fs.existsSync(srcRoot)) {
+    console.error(`[ERROR] 未找到扫描目录 ${srcRoot}`)
     process.exit(1)
   }
-  const all = walk(src, [])
+  const all = walk(srcRoot, [])
   const vue = all.filter((f) => f.endsWith('.vue'))
-  const styles = all.filter((f) => !f.endsWith('.vue') && isStyleSource(f, base))
-  // 扫描面自检：文件数低于下界说明路径或过滤条件错了，此时读数是空气
-  if (vue.length < 200) {
-    console.error(`[ERROR] .vue 扫描面只有 ${vue.length} 个文件（下界 200），计数不可信`)
+  const styles = all.filter((f) => !f.endsWith('.vue') && isStyleSource(f, srcRoot))
+  // 扫描面自检：文件数低于下界说明路径或过滤条件错了，此时读数是空气。
+  // 下界默认 200；对限定范围（`--root=` 子树）重跑时用 `--min-files=` 显式下调，缺省不放宽。
+  if (vue.length < minVue) {
+    console.error(
+      `[ERROR] .vue 扫描面只有 ${vue.length} 个文件（下界 ${minVue}），计数不可信` +
+        `（限定范围用 --min-files=<N> 显式下调）`,
+    )
     process.exit(1)
   }
   if (styles.length < 3) {
-    console.error(`[ERROR] src/styles 扫描面只有 ${styles.length} 个文件（下界 3），计数不可信`)
+    console.error(`[ERROR] styles 扫描面只有 ${styles.length} 个文件（下界 3），计数不可信`)
     process.exit(1)
   }
   const mVue = measure(vue, base)
@@ -260,6 +285,7 @@ function buildReport(base) {
     '# 前端硬编码样式计数报告',
     '',
     `> 由 \`node frontend/scripts/count-hardcoded-style.cjs --write\` 生成于 ${stamp} UTC。`,
+    `> 本次扫描根：\`${rel(srcRoot, ROOT) || '.'}\`；\`.vue\` 扫描面下界：${minVue}。`,
     '> 判据本体见 `docs/前端待办项.md` P5-04；基线（2026-10-19 实测，`.vue` 内行数）：',
     '> `border-radius:` 313／6 位十六进制色 175／`rgba(` 110／`box-shadow:` 73／含渐变的文件 22。',
     '> 该基线当年没有留命令，口径按最宽的解释落地：**命中行数**＝该行至少一次命中（含 `var()` 写法），',
@@ -272,34 +298,48 @@ function buildReport(base) {
     '',
     table('`.vue`（' + vue.length + ' 个文件）', mVue),
     '',
-    table('`src/styles/**`（' + styles.length + ' 个文件）', mStyles),
+    table('`**/styles/**`（' + styles.length + ' 个文件）', mStyles),
     '',
-    tokenSection(tokenAudit(styles, base)),
+    tokenSection(tokenAudit(styles, srcRoot, base)),
     '',
   ].join('\n')
+}
+
+/** `--min-files=<N>`：正整数；非法值直接报错，不静默落回默认。 */
+function minVueArg() {
+  const raw = argValue('min-files')
+  if (raw === null) return DEFAULT_MIN_VUE_FILES
+  const n = Number(raw)
+  if (!Number.isInteger(n) || n < 1) {
+    console.error(`[ERROR] --min-files 需要一个正整数，收到 ${JSON.stringify(raw)}`)
+    process.exit(1)
+  }
+  return n
 }
 
 function main() {
   const rootArg = argValue('root')
   const base = rootArg ? path.resolve(rootArg) : ROOT
+  const srcRoot = resolveSrcRoot(base)
+  const minVue = minVueArg()
   const usedArg = argValue('used')
   if (usedArg) {
     // 只给消费点读数：`--used=--ac-radius-md,--card-line` 逐名列出 var() 消费数
-    const src = path.join(base, 'src')
     const rows = tokenAudit(
-      walk(src, []).filter((f) => !f.endsWith('.vue') && isStyleSource(f, base)),
+      walk(srcRoot, []).filter((f) => !f.endsWith('.vue') && isStyleSource(f, srcRoot)),
+      srcRoot,
       base,
     )
     for (const raw of usedArg.split(',')) {
       const name = `--${raw.trim().replace(/^-+/, '')}`
       const hit = rows.find((r) => r.name === name)
       console.log(
-        `${name}: ${hit ? `var() 消费 ${hit.used}／定义 ${hit.defined} 处` : '未在 src/styles 里定义'}`,
+        `${name}: ${hit ? `var() 消费 ${hit.used}／定义 ${hit.defined} 处` : '未在 styles 目录里定义'}`,
       )
     }
     return
   }
-  const out = buildReport(base)
+  const out = buildReport(base, srcRoot, minVue)
   console.log(out)
   if (!rootArg && process.argv.includes('--write')) {
     fs.writeFileSync(REPORT, out, 'utf8')
