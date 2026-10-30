@@ -12,8 +12,8 @@ import {
  *
  * 前置：本机 start.bat 起过后端 8080 与前端 5173，种子账号可用（README 演示账号）。
  * 口径：断言真实 API 读数与真实状态迁移，不打桩；不交卷（避免留下不可撤销的判分记录）。
- * 说明：开考用的试卷首次运行时自动创建并发布，之后按标题前缀复用；发布态后端无删除端点，
- * 因此这张「E2E-开考续考-守护卷」会长期留在库里，属已知代价，不做其它写操作。
+ * 说明：开考用的试卷每轮新建并发布，跑完在 afterAll 按 id 删除（发布态的删除端点实测存在
+ * 且真删），不再往库里留取证卷；除这张卷外不做其它写操作。
  */
 
 const BASE = process.env.PW_BASE_URL || 'http://localhost:5173'
@@ -31,6 +31,8 @@ const EXAM_COURSE_ID = 4001
 type StorageState = Awaited<ReturnType<BrowserContext['storageState']>>
 let states: Record<Role, StorageState> | null = null
 let paperTitle = ''
+/** 本轮自己创建并发布的那张取证卷 id；afterAll 只按这一个 id 删除 */
+let createdPaperId = 0
 
 async function loginState(browser: Browser, role: Role) {
   const context = await browser.newContext({ baseURL: BASE })
@@ -89,7 +91,7 @@ async function startFromRow(
 
 async function ensureExamPaper(api: APIRequestContext): Promise<string> {
   // 每次跑新建一张独立卷：旧卷被自动交卷后按钮会变成「已完成」，复用会假红。
-  // 发布态后端无删除端点，所以这些取证卷会留在库里（代价已在文件头注明）。
+  // 记下本轮自己的卷 id，跑完由 afterAll 按 id 删除，不留取证卷。
   const questions = await api.get(`/api/questions?courseId=${EXAM_COURSE_ID}&page=1&size=2`)
   expect(questions.ok(), '题库接口不可用').toBeTruthy()
   const questionRows = pickList(await questions.json())
@@ -100,7 +102,7 @@ async function ensureExamPaper(api: APIRequestContext): Promise<string> {
     data: {
       courseId: EXAM_COURSE_ID,
       title,
-      description: 'v2 主链 e2e 自动取证卷；发布态后端无删除端点',
+      description: 'v2 主链 e2e 自动取证卷；跑完按 id 自清理',
       duration: 30,
       totalScore: 100,
     },
@@ -108,6 +110,7 @@ async function ensureExamPaper(api: APIRequestContext): Promise<string> {
   expect(created.ok(), '建卷失败').toBeTruthy()
   const paperId = Number(unwrap<Record<string, unknown>>(await created.json()).id)
   expect(paperId, '建卷未返回 id').toBeGreaterThan(0)
+  createdPaperId = paperId
 
   const payload = {
     questions: questionRows.slice(0, 2).map((row, index) => ({
@@ -130,6 +133,35 @@ test.describe.serial('v2 核心链路（真栈）', () => {
       teacher: await loginState(browser, 'teacher'),
       student: await loginState(browser, 'student'),
     }
+  })
+
+  test.afterAll(async () => {
+    // 只删本轮 ensureExamPaper 自己造的那一张：删前按 id 读回、标题前缀复核后才动手，
+    // 绝不碰种子卷与他人历史卷（删除对题目行／考试会话／监考事件是级联语义）。
+    if (!createdPaperId || !states) return
+    const paperId = createdPaperId
+    createdPaperId = 0
+    const api = await request.newContext({ baseURL: BASE, storageState: states.admin })
+    // 注意不能用 unwrap：data 为 null 时它会回落成整个响应体，「已删干净」会被读成「仍在库」
+    const dataOf = async (res: Awaited<ReturnType<APIRequestContext['get']>>) =>
+      ((await res.json().catch(() => ({}))) as Record<string, unknown>).data ?? null
+    const before = await api.get(`/api/exam-papers/${paperId}`)
+    const title = String(((await dataOf(before)) as Record<string, unknown> | null)?.title ?? '')
+    if (!title.startsWith(PAPER_PREFIX)) {
+      console.log(`[v2-core] 跳过清理：卷 ${paperId} 的标题「${title}」不带本轮取证卷前缀`)
+      await api.dispose()
+      return
+    }
+    const removed = await api.delete(`/api/exam-papers/${paperId}`)
+    const gone = await api.get(`/api/exam-papers/${paperId}`)
+    const residual = await dataOf(gone)
+    console.log(
+      `[v2-core] 取证卷自清理：DELETE /api/exam-papers/${paperId} → HTTP ${removed.status()}；` +
+        `删后读回 HTTP ${gone.status()} data=${residual ? '仍在库' : 'null（已删干净）'}`,
+    )
+    expect(removed.ok(), `删除本轮取证卷失败：HTTP ${removed.status()}`).toBeTruthy()
+    expect(residual, `删除后 ${paperId} 仍能读到试卷，自清理未生效`).toBeNull()
+    await api.dispose()
   })
 
   test('管理员用户治理页是真实读数，不戴示例数据章', async ({ browser }) => {
