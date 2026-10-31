@@ -214,6 +214,39 @@
             placeholder="请输入题干内容"
           ></textarea>
         </label>
+        <label v-if="isChoice" class="field span-2">
+          <span>选项（至少 2 项；答案用 A/B/C 填写）</span>
+          <div class="opt-list">
+            <div v-for="(opt, index) in form.options" :key="index" class="opt-row">
+              <span class="opt-label">{{ String.fromCharCode(65 + index) }}</span>
+              <input
+                v-model="form.options[index]"
+                class="input"
+                :placeholder="'选项 ' + String.fromCharCode(65 + index)"
+                :aria-label="'选项 ' + String.fromCharCode(65 + index)"
+              />
+              <button
+                class="text-btn"
+                type="button"
+                :disabled="form.options.length <= 2"
+                @click="removeOption(index)"
+              >
+                删除
+              </button>
+            </div>
+          </div>
+          <button
+            class="btn btn-ghost btn-sm"
+            type="button"
+            :disabled="form.options.length >= 8"
+            @click="addOption"
+          >
+            添加选项
+          </button>
+        </label>
+        <p v-else-if="isTrueFalse" class="academic-note span-2">
+          判断题固定为「正确／错误」两个选项；参考答案填 true 或 false（也接受「正确／错误」）。
+        </p>
         <label class="field span-2">
           <span>参考答案</span>
           <textarea
@@ -387,6 +420,7 @@ interface QuestionRow {
   answer?: string
   explanation?: string
   knowledgePoints?: string | null
+  options?: string | null
   analysis?: string
   isActive?: boolean
   reviewStatus?: string
@@ -449,6 +483,7 @@ const form = reactive({
   answer: '',
   explanation: '',
   knowledgePoints: [] as string[],
+  options: ['', '', '', ''] as string[],
 })
 
 // 题目侧的知识点标签：后端 question.knowledge_points 存 JSON 数组文本，兼容逗号分隔
@@ -467,6 +502,12 @@ function splitAnswers(text: string): string[] {
 function encodeAnswers(type: string, text: string): string | undefined {
   const raw = text.trim()
   if (!raw) return undefined
+  if (type === 'TRUE_FALSE') {
+    const lower = raw.toLowerCase()
+    const truthy = ['true', 't', '正确', '对', '是', '1'].includes(lower)
+    const falsy = ['false', 'f', '错误', '错', '否', '0'].includes(lower)
+    return JSON.stringify(truthy ? 'true' : falsy ? 'false' : raw)
+  }
   if (type === 'MULTIPLE_CHOICE') return JSON.stringify(splitAnswers(raw))
   return JSON.stringify(raw)
 }
@@ -482,6 +523,24 @@ function decodeAnswers(raw?: string | null): string {
   } catch {
     return text.replace(/^"|"$/g, '')
   }
+}
+
+function parseOptionList(raw?: string | null): string[] {
+  if (!raw) return ['', '', '', '']
+  const text = String(raw).trim()
+  let list: string[] = []
+  if (text.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(text)
+      if (Array.isArray(parsed)) list = parsed.map((v) => String(v))
+    } catch {
+      /* 退回换行拆分 */
+    }
+  }
+  if (!list.length) list = text.split(/\r?\n/).map((v) => v.trim())
+  list = list.filter(Boolean)
+  if (list.length < 2) list = list.concat(['', ''])
+  return list
 }
 
 function parseKpList(raw?: string | null): string[] {
@@ -504,6 +563,37 @@ function parseKpList(raw?: string | null): string[] {
     .split(/[,，;；]/)
     .map((v) => v.trim())
     .filter(Boolean)
+}
+
+const isChoice = computed(() => form.type === 'SINGLE_CHOICE' || form.type === 'MULTIPLE_CHOICE')
+const isTrueFalse = computed(() => form.type === 'TRUE_FALSE')
+
+function addOption() {
+  if (form.options.length >= 8) return
+  form.options.push('')
+}
+
+function removeOption(index: number) {
+  if (form.options.length <= 2) return
+  form.options.splice(index, 1)
+}
+
+function cleanedOptions(): string[] {
+  return form.options.map((v) => v.trim()).filter(Boolean)
+}
+
+/** 选择题答案必须是选项字母；多选用逗号/顿号分隔 */
+function validateChoiceAnswers(): string | null {
+  const letters = form.answer
+    .toUpperCase()
+    .split(/[,，;；、\s]+/)
+    .map((v) => v.trim())
+    .filter(Boolean)
+  if (!letters.length) return '选择题必须填写参考答案（用 A/B/C 表示）'
+  const max = cleanedOptions().length
+  const bad = letters.find((letter) => !/^[A-H]$/.test(letter) || letter.charCodeAt(0) - 64 > max)
+  if (bad) return `参考答案「${bad}」超出选项范围（当前 ${max} 项）`
+  return null
 }
 
 async function loadKpOptions(courseId?: string | number | null) {
@@ -709,6 +799,7 @@ function resetForm() {
     answer: '',
     explanation: '',
     knowledgePoints: [],
+    options: ['', '', '', ''],
   })
   formError.value = ''
 }
@@ -729,12 +820,24 @@ function openEdit(row: QuestionRow) {
     answer: decodeAnswers(String(row.correctAnswers ?? row.answer ?? '')),
     explanation: row.explanation || row.analysis || '',
     knowledgePoints: parseKpList(row.knowledgePoints),
+    options: parseOptionList(row.options),
   })
   formError.value = ''
   formOpen.value = true
 }
 
 async function saveForm() {
+  if (isChoice.value) {
+    if (cleanedOptions().length < 2) {
+      formError.value = '选择题至少需要 2 个非空选项'
+      return
+    }
+    const answerIssue = validateChoiceAnswers()
+    if (answerIssue) {
+      formError.value = answerIssue
+      return
+    }
+  }
   if (!form.content.trim()) {
     formError.value = '请填写题干'
     return
@@ -761,6 +864,13 @@ async function saveForm() {
         : editingId.value
           ? ''
           : undefined,
+      options: isChoice.value
+        ? JSON.stringify(cleanedOptions())
+        : isTrueFalse.value
+          ? JSON.stringify(['正确', '错误'])
+          : editingId.value
+            ? ''
+            : undefined,
     }
     if (editingId.value) await updateQuestion(editingId.value, payload)
     else await createQuestion(payload)
@@ -909,6 +1019,25 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.opt-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.opt-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.opt-label {
+  width: 18px;
+  text-align: center;
+  color: var(--ink-3);
+  font-size: 11px;
+}
+.opt-row .input {
+  flex: 1;
+}
 .kp-picker {
   display: flex;
   flex-wrap: wrap;
