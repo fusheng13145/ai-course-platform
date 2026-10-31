@@ -410,7 +410,7 @@ describe('v2 学生全局页 · 学业档案（仅成绩）', () => {
     ],
   })
 
-  it('按课程渲染成绩并支持切换课程；不提供导出，也不出现错题本/学习路径', async () => {
+  it('按课程渲染成绩并支持切换课程；不提供导出，学习中心/错题本各归其页签', async () => {
     studentApi.getGrades.mockResolvedValue(gradesPayload)
 
     const wrapper = mountAcademic()
@@ -426,7 +426,8 @@ describe('v2 学生全局页 · 学业档案（仅成绩）', () => {
     expect(text).toContain('76%')
     expect(text).toContain('已批改')
     expect(text).toContain('待出分')
-    expect(text).not.toContain('错题本')
+    expect(text).toContain('学习中心')
+    expect(text).toContain('错题本')
     expect(text).not.toContain('学习路径')
     expect(text).not.toContain('示例数据')
     expect(findButton(wrapper, '导出')).toBeUndefined()

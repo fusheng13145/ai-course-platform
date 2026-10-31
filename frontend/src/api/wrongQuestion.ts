@@ -68,6 +68,19 @@ export const getRelatedQuestions = (questionId) =>
 export const getRelated = (questionId) => getRelatedQuestions(questionId)
 
 /**
+ * 学生本人的错题本（StudentController，`/student/wrong-questions`）。
+ * 与上面 `/wrong-questions` 那组是全量/教师面向的端点区分开：这组按登录学生作用域、
+ * 返回分页信封，标记掌握用 PUT、移除用 DELETE。
+ */
+export const getMyWrongQuestions = (params = {}) =>
+  request.get('/student/wrong-questions', { params })
+
+export const markMyWrongQuestionMastered = (id) =>
+  request.put(`/student/wrong-questions/${id}/mastered`)
+
+export const removeMyWrongQuestion = (id) => request.delete(`/student/wrong-questions/${id}`)
+
+/**
  * 默认导出对象：模块/组件配置与导出内容
  */
 export default {
@@ -82,4 +95,7 @@ export default {
   generatePracticePaper,
   getRelatedQuestions,
   getRelated,
+  getMyWrongQuestions,
+  markMyWrongQuestionMastered,
+  removeMyWrongQuestion,
 }

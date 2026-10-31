@@ -1,68 +1,131 @@
 <template>
-  <!-- 学生学业档案：只保留成绩（GET /student/grades）；错题本 / 学习路径不在本页提供 -->
+  <!-- 学生学业档案：三个页签——成绩（GET /student/grades）、学习中心（/learning-records）、
+       错题本（/student/wrong-questions）；首页与导航不变，避免动侧栏基线 -->
+  <!-- 原注：只保留成绩（GET /student/grades）；错题本 / 学习路径不在本页提供 -->
   <section class="academic-body">
-    <div class="academic-toolbar">
-      <p class="academic-note">成绩以教师提交批阅为准；AI 建议分不直接写入成绩。</p>
-      <button class="btn btn-ghost btn-sm" :disabled="loading" @click="load">
-        {{ loading ? '刷新中…' : '刷新' }}
+    <div class="tabs" role="tablist" aria-label="学业档案分区">
+      <button
+        v-for="tab in ACADEMIC_TABS"
+        :key="tab.key"
+        type="button"
+        role="tab"
+        :class="{ 'is-active': active === tab.key }"
+        :aria-selected="active === tab.key"
+        @click="active = tab.key"
+      >
+        {{ tab.label }}
       </button>
     </div>
 
-    <div v-if="error" class="callout danger" role="alert">
-      <span>ERROR / 成绩</span>
-      <p>{{ error }}</p>
-      <button class="btn btn-sm" :disabled="loading" @click="load">重试</button>
-    </div>
-
-    <div v-else-if="loading && !hasData" class="empty-state compact">
-      <b>正在加载成绩…</b>
-    </div>
-
-    <!-- 后端 getGrades 聚合异常时也返回 { courses: [] }，与真·空态不可区分；
-         这里按“未能获取”呈现并给重试，不向学生断言“暂无成绩”。 -->
-    <div v-else-if="!hasData" class="callout" role="status">
-      <span>WAIT / 成绩</span>
-      <p>成绩数据未能获取（可能暂无成绩或服务暂不可用）。</p>
-      <button class="btn btn-sm" :disabled="loading" @click="load">重试</button>
-    </div>
-
-    <template v-else>
-      <div class="stat-grid kpi-grid">
-        <V2Stat v-for="metric in metrics" :key="metric.label" :metric="metric" :role="role" />
+    <div v-show="active === 'grades'">
+      <div class="academic-toolbar">
+        <p class="academic-note">成绩以教师提交批阅为准；AI 建议分不直接写入成绩。</p>
+        <button class="btn btn-ghost btn-sm" :disabled="loading" @click="load">
+          {{ loading ? '刷新中…' : '刷新' }}
+        </button>
       </div>
 
-      <template v-if="courses.length">
-        <div class="course-picker" role="tablist" aria-label="按课程查看成绩">
-          <button
-            v-for="course in courses"
-            :key="course.key"
-            type="button"
-            role="tab"
-            class="course-chip"
-            :class="{ 'is-active': course.key === activeKey }"
-            :aria-selected="course.key === activeKey"
-            @click="activeKey = course.key"
-          >
-            <b>{{ course.courseName }}</b>
-            <small>{{ finalScoreText(course.finalScore) }}</small>
-          </button>
+      <div v-if="error" class="callout danger" role="alert">
+        <span>ERROR / 成绩</span>
+        <p>{{ error }}</p>
+        <button class="btn btn-sm" :disabled="loading" @click="load">重试</button>
+      </div>
+
+      <div v-else-if="loading && !hasData" class="empty-state compact">
+        <b>正在加载成绩…</b>
+      </div>
+
+      <!-- 后端 getGrades 聚合异常时也返回 { courses: [] }，与真·空态不可区分；
+         这里按“未能获取”呈现并给重试，不向学生断言“暂无成绩”。 -->
+      <div v-else-if="!hasData" class="callout" role="status">
+        <span>WAIT / 成绩</span>
+        <p>成绩数据未能获取（可能暂无成绩或服务暂不可用）。</p>
+        <button class="btn btn-sm" :disabled="loading" @click="load">重试</button>
+      </div>
+
+      <template v-else>
+        <div class="stat-grid kpi-grid">
+          <V2Stat v-for="metric in metrics" :key="metric.label" :metric="metric" :role="role" />
         </div>
 
-        <section v-if="activeCourse" class="card table-card">
+        <template v-if="courses.length">
+          <div class="course-picker" role="tablist" aria-label="按课程查看成绩">
+            <button
+              v-for="course in courses"
+              :key="course.key"
+              type="button"
+              role="tab"
+              class="course-chip"
+              :class="{ 'is-active': course.key === activeKey }"
+              :aria-selected="course.key === activeKey"
+              @click="activeKey = course.key"
+            >
+              <b>{{ course.courseName }}</b>
+              <small>{{ finalScoreText(course.finalScore) }}</small>
+            </button>
+          </div>
+
+          <section v-if="activeCourse" class="card table-card">
+            <header class="card-head">
+              <div>
+                <p class="card-kicker">COURSE / GRADES</p>
+                <h2>{{ activeCourse.courseName }}</h2>
+              </div>
+              <span class="chip" :class="activeCourse.finalScore == null ? 'chip-warn' : 'chip-ok'">
+                总评 {{ finalScoreText(activeCourse.finalScore) }}
+              </span>
+            </header>
+
+            <div v-if="activeCourse.items.length" class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>成绩项</th>
+                    <th class="w-140">类型</th>
+                    <th class="w-140">得分</th>
+                    <th class="w-140">满分 / 卷面</th>
+                    <th class="w-140">状态</th>
+                    <th class="w-220">提交时间</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr v-for="item in activeCourse.items" :key="item.key">
+                    <td>
+                      <b class="t-title">{{ item.title }}</b>
+                    </td>
+                    <td>
+                      <span class="chip chip-info">{{ item.kind }}</span>
+                    </td>
+                    <td>{{ scoreText(item) }}</td>
+                    <td>{{ item.maxScore == null ? '—' : item.maxScore }}</td>
+                    <td>
+                      <span class="chip" :class="item.chip">{{ item.statusLabel }}</span>
+                    </td>
+                    <td>{{ item.submittedAt }}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div v-else class="empty-state compact">
+              <b>本课程暂无成绩项</b>
+              <p>作业批改或考试出分后会显示在这里。</p>
+            </div>
+          </section>
+        </template>
+
+        <section v-else class="card table-card">
           <header class="card-head">
             <div>
-              <p class="card-kicker">COURSE / GRADES</p>
-              <h2>{{ activeCourse.courseName }}</h2>
+              <p class="card-kicker">GRADES / LIST</p>
+              <h2>成绩明细</h2>
             </div>
-            <span class="chip" :class="activeCourse.finalScore == null ? 'chip-warn' : 'chip-ok'">
-              总评 {{ finalScoreText(activeCourse.finalScore) }}
-            </span>
+            <span class="chip chip-mute">{{ flatRows.length }} 项</span>
           </header>
-
-          <div v-if="activeCourse.items.length" class="table-wrap">
+          <div class="table-wrap">
             <table>
               <thead>
                 <tr>
+                  <th class="w-220">课程</th>
                   <th>成绩项</th>
                   <th class="w-140">类型</th>
                   <th class="w-140">得分</th>
@@ -72,82 +135,49 @@
                 </tr>
               </thead>
               <tbody>
-                <tr v-for="item in activeCourse.items" :key="item.key">
+                <tr v-for="row in flatRows" :key="row.key">
+                  <td class="t-course">{{ row.courseName }}</td>
                   <td>
-                    <b class="t-title">{{ item.title }}</b>
+                    <b class="t-title">{{ row.title }}</b>
                   </td>
                   <td>
-                    <span class="chip chip-info">{{ item.kind }}</span>
+                    <span class="chip chip-info">{{ row.kind }}</span>
                   </td>
-                  <td>{{ scoreText(item) }}</td>
-                  <td>{{ item.maxScore == null ? '—' : item.maxScore }}</td>
+                  <td>{{ scoreText(row) }}</td>
+                  <td>{{ row.maxScore == null ? '—' : row.maxScore }}</td>
                   <td>
-                    <span class="chip" :class="item.chip">{{ item.statusLabel }}</span>
+                    <span class="chip" :class="row.chip">{{ row.statusLabel }}</span>
                   </td>
-                  <td>{{ item.submittedAt }}</td>
+                  <td>{{ row.submittedAt }}</td>
                 </tr>
               </tbody>
             </table>
           </div>
-          <div v-else class="empty-state compact">
-            <b>本课程暂无成绩项</b>
-            <p>作业批改或考试出分后会显示在这里。</p>
-          </div>
         </section>
       </template>
 
-      <section v-else class="card table-card">
-        <header class="card-head">
-          <div>
-            <p class="card-kicker">GRADES / LIST</p>
-            <h2>成绩明细</h2>
-          </div>
-          <span class="chip chip-mute">{{ flatRows.length }} 项</span>
-        </header>
-        <div class="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th class="w-220">课程</th>
-                <th>成绩项</th>
-                <th class="w-140">类型</th>
-                <th class="w-140">得分</th>
-                <th class="w-140">满分 / 卷面</th>
-                <th class="w-140">状态</th>
-                <th class="w-220">提交时间</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="row in flatRows" :key="row.key">
-                <td class="t-course">{{ row.courseName }}</td>
-                <td>
-                  <b class="t-title">{{ row.title }}</b>
-                </td>
-                <td>
-                  <span class="chip chip-info">{{ row.kind }}</span>
-                </td>
-                <td>{{ scoreText(row) }}</td>
-                <td>{{ row.maxScore == null ? '—' : row.maxScore }}</td>
-                <td>
-                  <span class="chip" :class="row.chip">{{ row.statusLabel }}</span>
-                </td>
-                <td>{{ row.submittedAt }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </section>
-    </template>
+      <p v-if="loaded && !loading && !error" class="export-note">
+        「导出成绩」待扩展：后端学生成绩导出端点尚未落地，本页不提供该动作。
+      </p>
+    </div>
 
-    <p v-if="loaded && !loading && !error" class="export-note">
-      「导出成绩」待扩展：后端学生成绩导出端点尚未落地，本页不提供该动作。
-    </p>
+    <LearningCenterPanel v-if="active === 'learning'" />
+    <WrongBookPanel v-if="active === 'wrong'" />
   </section>
 </template>
 
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import V2Stat from '../../components/V2Stat.vue'
+import LearningCenterPanel from './academic/LearningCenterPanel.vue'
+import WrongBookPanel from './academic/WrongBookPanel.vue'
+
+const ACADEMIC_TABS = [
+  { key: 'grades', label: '成绩' },
+  { key: 'learning', label: '学习中心' },
+  { key: 'wrong', label: '错题本' },
+] as const
+const active = ref<(typeof ACADEMIC_TABS)[number]['key']>('grades')
 import { useV2Ui } from '../../composables/ui'
 import type { V2Metric } from '../../nav'
 import studentApi from '@/api/student'
