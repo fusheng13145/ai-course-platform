@@ -88,6 +88,9 @@ export const getMyWrongQuestionStats = (params = {}) =>
 export const generateMyWrongPractice = (data) =>
   request.post('/student/wrong-questions/practice', data)
 
+/** 错题按知识点分组（服务端按 auth 主体作用域；按题目数量倒序） */
+export const getMyWrongGroups = (params = {}) => request.get('/wrong-questions/by-kp', { params })
+
 /**
  * 默认导出对象：模块/组件配置与导出内容
  */
@@ -108,4 +111,5 @@ export default {
   removeMyWrongQuestion,
   getMyWrongQuestionStats,
   generateMyWrongPractice,
+  getMyWrongGroups,
 }

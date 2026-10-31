@@ -5,6 +5,26 @@
         错题来自你在作业与考试中的错误作答（<code>/student/wrong-questions</code>），仅本人可见。
       </p>
       <div class="course-tab-actions">
+        <div class="tabs" role="tablist" aria-label="错题视图">
+          <button
+            type="button"
+            role="tab"
+            :class="{ 'is-active': view === 'list' }"
+            :aria-selected="view === 'list'"
+            @click="switchView('list')"
+          >
+            列表
+          </button>
+          <button
+            type="button"
+            role="tab"
+            :class="{ 'is-active': view === 'grouped' }"
+            :aria-selected="view === 'grouped'"
+            @click="switchView('grouped')"
+          >
+            按知识点
+          </button>
+        </div>
         <select
           v-model="courseFilter"
           class="input wb-filter"
@@ -53,7 +73,7 @@
       <b>{{ courseFilter == null ? '还没有错题' : '这门课没有错题' }}</b>
       <p>作业与考试里的错误作答会自动收进这里。</p>
     </div>
-    <template v-else>
+    <template v-else-if="view === 'list'">
       <div class="table-wrap">
         <table>
           <thead>
@@ -148,6 +168,54 @@
       </div>
     </template>
 
+    <template v-else>
+      <p v-if="groupsError" class="form-error">{{ groupsError }}</p>
+      <div v-else-if="groupsLoading" class="empty-state compact"><b>正在汇总知识点…</b></div>
+      <div v-else-if="!groups.length" class="empty-state compact">
+        <b>还没有可归类的错题</b>
+        <p>错题关联到知识点后，这里会按知识点汇总。</p>
+      </div>
+      <template v-else>
+        <div class="wb-groups">
+          <section v-for="group in groups" :key="group.key" class="card wb-group">
+            <header class="card-head">
+              <div>
+                <p class="card-kicker">KNOWLEDGE POINT</p>
+                <h3>{{ group.name }}</h3>
+              </div>
+              <span class="chip chip-warn">{{ group.count }} 道</span>
+            </header>
+            <ol class="wb-group-list">
+              <li v-for="q in group.questions" :key="q.id">
+                <button
+                  class="text-btn wb-stem"
+                  :aria-expanded="expanded === q.id"
+                  @click="toggle(q.id)"
+                >
+                  {{ q.questionContent || '（题目内容缺失）' }}
+                </button>
+                <span class="chip" :class="q.mastered ? 'chip-ok' : 'chip-warn'">
+                  {{ q.mastered ? '已掌握' : '待掌握' }}
+                </span>
+                <p v-if="expanded === q.id" class="wb-practice-answer">
+                  你的答案：{{ q.wrongAnswer || '—' }} · 参考答案：{{
+                    correctText(q.correctAnswer)
+                  }}
+                  <span v-if="q.questionAnalysis"> · 解析：{{ q.questionAnalysis }}</span>
+                </p>
+              </li>
+            </ol>
+          </section>
+        </div>
+        <p class="academic-note">
+          共 {{ groups.length }} 个知识点、{{ groupedTotal }} 道错题（服务端按数量倒序）。
+        </p>
+        <p v-if="allUnclassified" class="academic-note">
+          当前题库的题目尚未打知识点标签，错题因此全部归入「未知知识点」；给题目补齐知识点后会自动细分。
+        </p>
+      </template>
+    </template>
+
     <V2Modal v-model:open="practiceOpen" title="错题练习" kicker="WRONG / PRACTICE" width="720px">
       <div class="wb-practice-bar">
         <label class="field">
@@ -198,6 +266,7 @@
 import { computed, onMounted, ref } from 'vue'
 import {
   generateMyWrongPractice,
+  getMyWrongGroups,
   getMyWrongQuestionStats,
   getMyWrongQuestions,
   markMyWrongQuestionMastered,
@@ -244,6 +313,60 @@ const loading = ref(false)
 const error = ref('')
 const expanded = ref<number | string | null>(null)
 const busyId = ref<number | string | null>(null)
+
+type ViewMode = 'list' | 'grouped'
+const view = ref<ViewMode>('list')
+interface WrongGroup {
+  key: string
+  name: string
+  count: number
+  questions: WrongRow[]
+}
+const groups = ref<WrongGroup[]>([])
+const groupsLoading = ref(false)
+const groupsError = ref('')
+const groupedTotal = computed(() =>
+  groups.value.reduce((sum, g) => sum + (g.questions?.length || g.count || 0), 0),
+)
+const allUnclassified = computed(
+  () => groups.value.length === 1 && /未知|未归类/.test(groups.value[0]?.name || ''),
+)
+
+async function loadGroups() {
+  groupsLoading.value = true
+  groupsError.value = ''
+  try {
+    const params: Record<string, number | string> = {}
+    if (courseFilter.value != null) params.courseId = courseFilter.value
+    const body = unwrap(await getMyWrongGroups(params))
+    const list = Array.isArray(body)
+      ? (body as {
+          knowledgePointId?: number | null
+          knowledgePointName?: string | null
+          count?: number
+          questions?: WrongRow[]
+        }[])
+      : []
+    groups.value = list.map((g, index) => ({
+      key: String(g.knowledgePointId ?? 'none-' + index),
+      name: g.knowledgePointName || '未归类知识点',
+      count: Number(g.count || g.questions?.length || 0),
+      questions: Array.isArray(g.questions) ? g.questions : [],
+    }))
+  } catch (err) {
+    logger.error('加载知识点分组失败', err)
+    groupsError.value = '按知识点汇总失败，请稍后重试'
+    groups.value = []
+  } finally {
+    groupsLoading.value = false
+  }
+}
+
+function switchView(next: ViewMode) {
+  view.value = next
+  expanded.value = null
+  if (next === 'grouped') void loadGroups()
+}
 
 interface StatsBody {
   total?: number
@@ -378,6 +501,7 @@ function reload() {
   expanded.value = null
   void load()
   void loadStats()
+  if (view.value === 'grouped') void loadGroups()
 }
 function goto(target: number) {
   page.value = target
@@ -397,6 +521,7 @@ async function markMastered(row: WrongRow) {
     row.mastered = true
     toast('已标记为掌握', 'ok')
     void loadStats()
+    if (view.value === 'grouped') void loadGroups()
   } catch (err) {
     logger.error('标记掌握失败', err)
     toast('标记失败，请稍后重试', 'warn')
@@ -420,6 +545,7 @@ async function remove(row: WrongRow) {
     if (rows.value.length === 1 && page.value > 1) page.value -= 1
     await load()
     await loadStats()
+    if (view.value === 'grouped') void loadGroups()
   } catch (err) {
     logger.error('移除错题失败', err)
     toast('移除失败，请稍后重试', 'warn')
@@ -436,6 +562,24 @@ onMounted(() => {
 </script>
 
 <style scoped>
+.wb-groups {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.wb-group-list {
+  margin: 0;
+  padding-left: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.wb-group-list li {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
 .wb-stats {
   display: flex;
   gap: 18px;

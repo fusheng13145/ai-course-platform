@@ -14,6 +14,7 @@ const wrongApi = vi.hoisted(() => ({
   removeMyWrongQuestion: vi.fn(),
   getMyWrongQuestionStats: vi.fn(),
   generateMyWrongPractice: vi.fn(),
+  getMyWrongGroups: vi.fn(),
 }))
 const toast = vi.hoisted(() => vi.fn())
 const confirm = vi.hoisted(() => vi.fn())
@@ -98,6 +99,37 @@ beforeEach(() => {
   })
   wrongApi.markMyWrongQuestionMastered.mockResolvedValue({ data: null })
   wrongApi.removeMyWrongQuestion.mockResolvedValue({ data: null })
+  wrongApi.getMyWrongGroups.mockResolvedValue({
+    data: [
+      {
+        knowledgePointId: 701,
+        knowledgePointName: 'TCP 与传输层',
+        count: 2,
+        questions: [
+          {
+            id: 9001,
+            questionContent: 'TCP 工作在哪一层？',
+            wrongAnswer: 'A',
+            correctAnswer: '"B"',
+            mastered: false,
+          },
+          {
+            id: 9002,
+            questionContent: '三次握手的第三次做了什么？',
+            wrongAnswer: 'B',
+            correctAnswer: '"C"',
+            mastered: true,
+          },
+        ],
+      },
+      {
+        knowledgePointId: null,
+        knowledgePointName: null,
+        count: 1,
+        questions: [{ id: 9003, questionContent: '未归类题', mastered: false }],
+      },
+    ],
+  })
   wrongApi.getMyWrongQuestionStats.mockResolvedValue({
     data: { total: 4, mastered: 1, unmastered: 3, masteryRate: 0.75 },
   })
@@ -319,5 +351,86 @@ describe('错题统计卡与生成练习（批次 6）', () => {
       .trigger('click')
     await flushPromises()
     expect(wrongApi.getMyWrongQuestionStats).toHaveBeenCalledTimes(2)
+  })
+})
+
+describe('错题按知识点分组（批次 7）', () => {
+  const openGrouped = async (wrapper: ReturnType<typeof mount>) => {
+    await wrapper
+      .findAll('.tabs button')
+      .find((n) => n.text() === '按知识点')!
+      .trigger('click')
+    await flushPromises()
+  }
+
+  it('切到「按知识点」才请求分组端点，并渲染知识点名、数量与题目', async () => {
+    const wrapper = mount(WrongBookPanel)
+    await flushPromises()
+    expect(wrongApi.getMyWrongGroups).not.toHaveBeenCalled()
+    await openGrouped(wrapper)
+    expect(wrongApi.getMyWrongGroups).toHaveBeenCalledWith({})
+    const text = wrapper.text()
+    expect(text).toContain('TCP 与传输层')
+    expect(text).toContain('2 道')
+    expect(text).toContain('TCP 工作在哪一层？')
+    expect(text).toContain('未归类知识点')
+    expect(text).toContain('共 2 个知识点、3 道错题')
+  })
+
+  it('分组视图下展开题目可看答案与解析；课程筛选会把 courseId 带进请求', async () => {
+    const wrapper = mount(WrongBookPanel)
+    await flushPromises()
+    await wrapper.find('.wb-filter').setValue('1')
+    await flushPromises()
+    await openGrouped(wrapper)
+    expect(wrongApi.getMyWrongGroups).toHaveBeenLastCalledWith({ courseId: 1 })
+    const stems = wrapper.findAll('.wb-group-list .wb-stem')
+    await stems[0].trigger('click')
+    expect(wrapper.text()).toContain('参考答案')
+  })
+
+  it('分组为空与请求失败两态可区分', async () => {
+    wrongApi.getMyWrongGroups.mockResolvedValueOnce({ data: [] })
+    const empty = mount(WrongBookPanel)
+    await flushPromises()
+    await openGrouped(empty)
+    expect(empty.text()).toContain('还没有可归类的错题')
+
+    wrongApi.getMyWrongGroups.mockRejectedValueOnce(new Error('boom'))
+    const failed = mount(WrongBookPanel)
+    await flushPromises()
+    await openGrouped(failed)
+    expect(failed.text()).toContain('按知识点汇总失败')
+  })
+
+  it('只剩「未知知识点」单桶时给出数据面提示（题目未打标签）', async () => {
+    wrongApi.getMyWrongGroups.mockResolvedValueOnce({
+      data: [
+        {
+          knowledgePointId: null,
+          knowledgePointName: '未知知识点',
+          count: 3,
+          questions: [{ id: 1, questionContent: 'Q1', mastered: false }],
+        },
+      ],
+    })
+    const wrapper = mount(WrongBookPanel)
+    await flushPromises()
+    await openGrouped(wrapper)
+    expect(wrapper.text()).toContain('全部归入「未知知识点」')
+  })
+
+  it('切回列表不重复请求分组端点', async () => {
+    const wrapper = mount(WrongBookPanel)
+    await flushPromises()
+    await openGrouped(wrapper)
+    expect(wrongApi.getMyWrongGroups).toHaveBeenCalledTimes(1)
+    await wrapper
+      .findAll('.tabs button')
+      .find((n) => n.text() === '列表')!
+      .trigger('click')
+    await flushPromises()
+    expect(wrongApi.getMyWrongGroups).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('共 1 条')
   })
 })
