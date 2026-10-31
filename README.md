@@ -2,9 +2,9 @@
 
 > 一个基于 Spring Boot + MyBatis-Plus + Vue 3 的智能在线教育平台
 
-[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.x-green)](https://spring.io/projects/spring-boot)
-[![Vue](https://img.shields.io/badge/Vue-3.5.x-brightgreen)](https://vuejs.org/)
-[![Element Plus](https://img.shields.io/badge/Element%20Plus-2.14.7-blue)](https://element-plus.org/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.5.15-green)](https://spring.io/projects/spring-boot)
+[![Vue](https://img.shields.io/badge/Vue-3.5-brightgreen)](https://vuejs.org/)
+[![MySQL](https://img.shields.io/badge/MySQL-8.4-blue)](https://www.mysql.com/)
 [![License](https://img.shields.io/badge/License-MIT-yellow)](https://opensource.org/licenses/MIT)
 
 ## 项目概述
@@ -13,7 +13,7 @@
 
 **核心能力域**：多角色 RBAC、课程／章节／选课与审批、题库与在线考试（防作弊）、作业布置／提交／批改／查重、知识图谱可视化与学习路径规划、AI 问答／出题／批改／学情建议、数据分析与学情报告、WebSocket 实时通知、内容审核与运维治理。
 
-**当前阶段**：大创赛交付与答辩，主形态是**本机全栈真跑 + 录屏演示**。Docker 编排自 2026-10-08 起有意搁置（文件与知识都在，本机不再执行），公网上线（A 路径）只有预案。
+**当前阶段**：**Phase 1 单租户生产系统**（多租户为 Phase 2）。开发/验收可本机全栈真跑；生产上线要求 TLS/反代、容器或等价编排、密钥管理、备份恢复、监控告警与 A 路径断链清零。Docker/A 路径当前尚未在生产环境实跑，不能把本机开发姿态当生产交付。
 
 **想知道"做到哪了、还剩什么"**：定位与状态看 `docs/项目手册.md`；未完成事项看 `docs/前端待办项.md`／`docs/后端待办项.md`。对外表述不得高于待办文档里已闭行的证据。
 
@@ -26,11 +26,11 @@
 | 文档 | 定位 | 什么时候看它 |
 | --- | --- | --- |
 | `docs/项目手册.md` | **总入口与总账本**：项目是什么、角色与权限、功能清单、里程碑、术语、协作约定、审计台账 DR-1…DR-95、结构性计数 | 接手项目的第一读；口径争议时的仲裁 |
-| `docs/PRD产品规划.md` | 需求基线与验收标准、演示脚本、14 维度 140 项规划、产品化路线 M1–M4 | 判断"该不该做、做到什么算好" |
+| `docs/PRD产品规划.md` | 需求基线与生产验收标准、核心流程验收脚本、14 维度 140 项规划、Phase 1/Phase 2 路线 | 判断"该不该做、做到什么算好" |
 | `docs/系统架构设计.md` | 模块与进程拓扑、数据模型、接口契约（`ContractPaths` 为唯一路径来源）、架构决策记录 | 改后端／引擎边界之前 |
 | `docs/后端开发规范.md` | 分层、异常与事务、鉴权、缓存、日志、批处理、AI 降级的编码约定 | 写 Java 之前 |
 | `docs/前端开发规范.md` | 目录与命名、组件与设计令牌、状态与请求层、可访问性的编码约定 | 写 Vue/TS 之前 |
-| `docs/部署文档.md` | 三种部署形态与当前选择、启动步骤与依赖自检、`.env` 与文件式密钥、健康判据、Compose 搁置与 A 路径预案、备份恢复、故障排查 | 起不来、要演示、要上线 |
+| `docs/部署文档.md` | 开发/验收环境与生产部署基线、启动步骤与依赖自检、`.env` 与文件式密钥、健康判据、容器/A 路径、备份恢复、故障排查 | 起不来、做生产部署、上线验收 |
 | `docs/测试文档.md` | **测试与质量读数的唯一来源**：分层与命令、门禁判据、e2e／视觉前置、全栈四件套与压力、CI 12 作业、证据纪律 | 跑验证、引用数字、判红 |
 | `docs/前端待办项.md` | 前端未完成事项（视觉 Phase 5/6、体验与无障碍缺口、工程尾量、明确不做） | 排下一批工作 |
 | `docs/后端待办项.md` | 后端／引擎／基础设施未完成事项（性能与契约、CI 与集成层、A 路径断链、明确不做） | 排下一批工作 |
@@ -49,8 +49,8 @@
 | 数据库迁移 | Flyway | 结构 V1–V4、V8–V11（`db/migration`，全环境）＋ 演示种子 V5–V7（`db/seed-demo`，prod 排除） |
 | 数据库 / 缓存 | MySQL / Redis | 8.4 / 7.x（Redis 为**必选**依赖） |
 | 前端框架 | Vue + Vite | 3.5.x / 8.1.5 |
-| UI 库 | Element Plus | **2.14.7（精确锁定）** |
-| 状态 / 路由 / 图表 | Pinia / Vue Router / ECharts | 2.1.x / 4.2.x / 6.1.x |
+| UI 层 | 自研 `src/v2/components/` 原语 + CSS 变量令牌 | **无第三方组件库**（Element Plus／echarts 已随旧前端在 `15fb858` 整体摘除） |
+| 状态 / 路由 / 图表 | Pinia / Vue Router / 内联 SVG（`V2Sparkline`／`V2Sprite`） | 2.1.x / 4.2.x / — |
 | 测试 | Vitest / Playwright / Testcontainers | 3.2.7 / **1.63.0（精确锁定）** / — |
 | 质量门禁 | JaCoCo / SpotBugs / ArchUnit | LINE ≥85% 且 BRANCH ≥65%（阻断）／0 bug（阻断）／6 条架构守护 |
 | 实时通信 | Spring WebSocket | 通知与监考 |
@@ -67,7 +67,7 @@ Java 后端经标准化集成层 `com.aicourse.integration` 与 Python 微服务
 | 服务 | 目录 | 端口 | 说明 |
 | --- | --- | --- | --- |
 | 知识图谱 | `python-services/kg_service/` | 8001 | 11 个契约端点；`kg_store.py` 支持 Neo4j 与内存双后端（不可达时自动回落内存图）；多跳路径规划在图库侧完成，Java 侧只做本地 BFS 兜底；CI 护栏 `test_kg_contract.py` |
-| RAG 检索 | `python-services/rag_service/` | 8002 | 9 个契约端点 + `rag_engine.py` 真实混合检索（BM25 + 向量 + RRF，重依赖懒加载）。⚠️ 语料落在 gitignore 的 `data/`，演示前用 `python scripts/seed-rag-corpus.py` 从 `scripts/rag_corpus.json` 重放并重建索引（覆盖课程 1 与示范课 4007） |
+| RAG 检索 | `python-services/rag_service/` | 8002 | 9 个契约端点 + `rag_engine.py` 真实混合检索（BM25 + 向量 + RRF，重依赖懒加载）。⚠️ 语料落在 gitignore 的 `data/`，换机或重建环境时用 `python scripts/seed-rag-corpus.py` 从 `scripts/rag_corpus.json` 重放并重建索引（覆盖课程 1 与示范课 4007） |
 | LoRA 微调 | `python-services/fine_tune_service/` | 8003 | 八条契约端点 + 数据集／语料六端点，真实 PEFT 训练／导出／推理。**残项**：无 Dockerfile、compose 服务块仍注释、一键启动器不拉起（须手工 `uvicorn`）、Java 侧未消费数据集端点 |
 
 - `max_hops` 自 2026-10-05 起**只用于"是否采纳"判定，不参与遍历剪枝**，上限不足时仍回传真实最短跳数（语义见 `docs/系统架构设计.md`）。
@@ -161,18 +161,18 @@ python scripts/e2e/e2e_security_verify.py           # CSRF 双提交 + 双层登
 - **读数唯一来源**：`docs/测试文档.md` §2；引用时连同**日期与口径**（单元 vs 含 IT）一起引。
 - **e2e 前置**：流程套件要求后端以 `RATELIMIT_LOGIN_LIMIT=200` 起、三份 `.auth` 会话夹具与端口匹配；视觉套件固定 5175 且**不用 `--update-snapshots` 吸收未知漂移**。缺前置时的红灯是环境问题，不是产品缺陷（判红纪律见 `docs/测试文档.md` §4）。
 - **登录保护是两层**：速率层 `RateLimitFilter`（IP 滑动窗口 10 次/60 秒）与尝试层 `AuthSessionComponent`（同账号连续失败 5 次锁定 15 分钟）；尝试层阈值更低，失败路径下先触发，**必须分层断言**。
-- **CI**：`.github/workflows/ci.yml` 12 个作业；`frontend-e2e` 仍是 `workflow_dispatch` 手动触发，且 Actions 结果本机不可观测 ⇒ **本机绿不等于 CI 绿**。DR-20／DR-23／DR-26 连同 Docker 相关项经项目主定案为"留待后续推进"，不是本轮遗漏（逐项前置见 `docs/后端待办项.md`）。
+- **CI**：`.github/workflows/ci.yml` 12 个作业；`frontend-e2e` 仍是 `workflow_dispatch` 手动触发，且 Actions 结果本机不可观测 ⇒ **本机绿不等于 CI 绿**。DR-20／DR-26 仍是残项；DR-23（引擎容器化）连同其余 Docker 相关项已从「留待后续」改为 **Phase 1 上线必做**，逐项前置见 `docs/后端待办项.md` §6 与 `docs/部署文档.md` §6。
 
 ---
 
 ## 已知边界（表述不得越过这条线）
 
-- 只有**本机原生进程**这一条部署形态可执行；Compose 搁置、A 路径从未在目标环境实跑（断链清单见 `docs/部署文档.md` §6 与 `docs/后端待办项.md` §6）。
+- 当前只有**本机原生进程**这一条部署形态可执行；Compose 搁置、A 路径从未在目标环境实跑（断链清单见 `docs/部署文档.md` §6 与 `docs/后端待办项.md` §6）。**这条形态只服务开发与验收，不构成生产就绪**：Phase 1 上线必须补齐容器或等价编排、TLS/反代、密钥、备份恢复与监控告警。
 - 集成层（12 例 Testcontainers）与 Trivy 漏洞库侧**只在 CI 有读数**。
-- 视觉基线覆盖 12 个锚点页，非锚点页的渲染缺陷抓不到；无障碍只有近似读数，**不构成 WCAG 合规结论**。
+- 视觉基线覆盖 5 个锚点页（10 张，明暗各一），非锚点页的渲染缺陷抓不到；无障碍只有近似读数，**不构成 WCAG 合规结论**。
 - 压力读数来自本机笔记本单实例，**不是生产容量结论**。
 - 微调引擎可用 ≠ 能力可售：小样本必然过拟合，推理文本会退化为语料外乱码（`docs/后端待办项.md` §7 AG-2）。
-- 多租户、计费、小程序、桌面端属产品化路线 M1–M4；当前代码是**单租户**（`tenant_id` 零命中）。
+- 多租户、计费、小程序、桌面端属 Phase 2/后续路线；Phase 1 是**单租户生产**，当前代码 `tenant_id` 零命中。
 
 ---
 
