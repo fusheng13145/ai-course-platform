@@ -1,4 +1,4 @@
-import { describe, expect, it, vi, beforeEach } from 'vitest'
+import { afterEach, describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
 
 const learningApi = vi.hoisted(() => ({
@@ -12,6 +12,8 @@ const wrongApi = vi.hoisted(() => ({
   getMyWrongQuestions: vi.fn(),
   markMyWrongQuestionMastered: vi.fn(),
   removeMyWrongQuestion: vi.fn(),
+  getMyWrongQuestionStats: vi.fn(),
+  generateMyWrongPractice: vi.fn(),
 }))
 const toast = vi.hoisted(() => vi.fn())
 const confirm = vi.hoisted(() => vi.fn())
@@ -26,8 +28,19 @@ vi.mock('@/utils/logger', () => ({ default: { error: vi.fn(), warn: vi.fn(), inf
 import LearningCenterPanel from '../views/specials/academic/LearningCenterPanel.vue'
 import WrongBookPanel from '../views/specials/academic/WrongBookPanel.vue'
 
+const modalText = () =>
+  (document.body.querySelector('.v2-modal-panel') as HTMLElement | null)?.textContent || ''
+const modalButton = (label: string) =>
+  Array.from(document.body.querySelectorAll('.v2-modal-panel button')).find((node) =>
+    (node.textContent || '').includes(label),
+  ) as HTMLButtonElement | undefined
+
 const COURSES = [{ id: 1, name: 'Python程序设计' }]
 const day = (date: string, duration: number, count = 1) => ({ date, duration, count })
+
+afterEach(() => {
+  document.body.innerHTML = ''
+})
 
 beforeEach(() => {
   vi.clearAllMocks()
@@ -85,6 +98,22 @@ beforeEach(() => {
   })
   wrongApi.markMyWrongQuestionMastered.mockResolvedValue({ data: null })
   wrongApi.removeMyWrongQuestion.mockResolvedValue({ data: null })
+  wrongApi.getMyWrongQuestionStats.mockResolvedValue({
+    data: { total: 4, mastered: 1, unmastered: 3, masteryRate: 0.75 },
+  })
+  wrongApi.generateMyWrongPractice.mockResolvedValue({
+    data: [
+      {
+        id: 501,
+        content: 'TCP 建立连接几次握手？',
+        options: '["一次","两次","三次","四次"]',
+        correctAnswers: '"C"',
+        explanation: '三次握手',
+        type: 'SINGLE',
+        difficulty: 'MEDIUM',
+      },
+    ],
+  })
   confirm.mockResolvedValue(true)
 })
 
@@ -210,5 +239,85 @@ describe('错题本页签：/student/wrong-questions 真接口', () => {
     const wrapper = mount(WrongBookPanel)
     await flushPromises()
     expect(wrapper.text()).toContain('还没有错题')
+  })
+})
+
+describe('错题统计卡与生成练习（批次 6）', () => {
+  it('挂载即拉统计并渲染四项读数（掌握率按百分比显示）', async () => {
+    const wrapper = mount(WrongBookPanel)
+    await flushPromises()
+    expect(wrongApi.getMyWrongQuestionStats).toHaveBeenCalledWith({})
+    const text = wrapper.text()
+    expect(text).toContain('错题总数')
+    expect(text).toContain('待掌握')
+    expect(text).toContain('75.0%')
+  })
+
+  it('统计失败不影响列表：不渲染统计条，列表照常', async () => {
+    wrongApi.getMyWrongQuestionStats.mockRejectedValueOnce(new Error('boom'))
+    const wrapper = mount(WrongBookPanel)
+    await flushPromises()
+    expect(wrapper.find('.wb-stats').exists()).toBe(false)
+    expect(wrapper.text()).toContain('TCP 工作在哪一层？')
+  })
+
+  it('点「生成练习」打开弹层，生成时按无筛选发 {count}，并可显示答案', async () => {
+    const wrapper = mount(WrongBookPanel)
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((n) => n.text().includes('生成练习'))!
+      .trigger('click')
+    await flushPromises()
+    expect(modalText()).toContain('错题练习')
+    modalButton('开始生成')!.click()
+    await flushPromises()
+    expect(wrongApi.generateMyWrongPractice).toHaveBeenCalledWith({ count: 10 })
+    expect(modalText()).toContain('TCP 建立连接几次握手？')
+    modalButton('显示答案')!.click()
+    await flushPromises()
+    expect(modalText()).toContain('参考答案')
+    expect(modalText()).toContain('三次握手')
+  })
+
+  it('有课程筛选时练习请求带 courseId', async () => {
+    const wrapper = mount(WrongBookPanel)
+    await flushPromises()
+    await wrapper.find('.wb-filter').setValue('1')
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((n) => n.text().includes('生成练习'))!
+      .trigger('click')
+    await flushPromises()
+    modalButton('开始生成')!.click()
+    await flushPromises()
+    expect(wrongApi.generateMyWrongPractice).toHaveBeenCalledWith({ count: 10, courseId: 1 })
+  })
+
+  it('生成结果为空时给明确提示，不展示空列表', async () => {
+    wrongApi.generateMyWrongPractice.mockResolvedValue({ data: [] })
+    const wrapper = mount(WrongBookPanel)
+    await flushPromises()
+    await wrapper
+      .findAll('button')
+      .find((n) => n.text().includes('生成练习'))!
+      .trigger('click')
+    await flushPromises()
+    modalButton('开始生成')!.click()
+    await flushPromises()
+    expect(modalText()).toContain('当前没有可练习的错题')
+  })
+
+  it('标记掌握后刷新统计（统计请求次数 +1）', async () => {
+    const wrapper = mount(WrongBookPanel)
+    await flushPromises()
+    expect(wrongApi.getMyWrongQuestionStats).toHaveBeenCalledTimes(1)
+    await wrapper
+      .findAll('button')
+      .find((n) => n.text().includes('标记掌握'))!
+      .trigger('click')
+    await flushPromises()
+    expect(wrongApi.getMyWrongQuestionStats).toHaveBeenCalledTimes(2)
   })
 })

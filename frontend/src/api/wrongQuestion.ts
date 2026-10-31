@@ -80,6 +80,14 @@ export const markMyWrongQuestionMastered = (id) =>
 
 export const removeMyWrongQuestion = (id) => request.delete(`/student/wrong-questions/${id}`)
 
+/** 错题统计（服务端按 auth 主体作用域，学生调用只得到自己的读数） */
+export const getMyWrongQuestionStats = (params = {}) =>
+  request.get('/wrong-questions/stats', { params })
+
+/** 生成错题练习卷（随机取未掌握错题对应的题目；无判分端点，前端只展示） */
+export const generateMyWrongPractice = (data) =>
+  request.post('/student/wrong-questions/practice', data)
+
 /**
  * 默认导出对象：模块/组件配置与导出内容
  */
@@ -98,4 +106,6 @@ export default {
   getMyWrongQuestions,
   markMyWrongQuestionMastered,
   removeMyWrongQuestion,
+  getMyWrongQuestionStats,
+  generateMyWrongPractice,
 }
