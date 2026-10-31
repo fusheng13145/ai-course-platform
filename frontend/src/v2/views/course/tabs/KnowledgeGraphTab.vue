@@ -68,6 +68,13 @@
         </div>
         <footer v-if="selectedNode" class="card-foot">
           <span>{{ selectedNode.name }} · {{ categoryText(selectedNode.category) }}</span>
+          <span
+            v-if="isStudent"
+            class="chip chip-mute"
+            :title="masteryError || '按当前登录学生计算'"
+          >
+            我的掌握度 {{ masteryText }}
+          </span>
           <button class="text-btn" @click="select(null)">取消选中</button>
         </footer>
       </section>
@@ -154,7 +161,7 @@
         <p v-if="pathResult?.note" class="modal-hint">{{ pathResult.note }}</p>
       </section>
 
-      <section class="card">
+      <section v-if="!isStudent" class="card">
         <header class="card-head">
           <div>
             <p class="card-kicker">ENGINE / 8001</p>
@@ -201,6 +208,7 @@
 
 <script setup lang="ts">
 import { computed, reactive, ref, watch } from 'vue'
+import { useAuthStore } from '@/stores/auth'
 import V2Stat from '../../../components/V2Stat.vue'
 import V2Icon from '../../../components/V2Icon.vue'
 import { useV2Ui } from '../../../composables/ui'
@@ -268,7 +276,10 @@ const CATEGORY_TEXT: Record<string, string> = {
   SUMMARY: '小结',
 }
 
-const props = defineProps<{ courseId: number }>()
+// 学生复用同一张图：只读、隐藏引擎写入面板，并在选中节点时叠加「我的掌握度」
+const props = defineProps<{ courseId: number; mode?: 'teacher' | 'student' }>()
+const isStudent = computed(() => props.mode === 'student')
+const auth = useAuthStore()
 const { toast } = useV2Ui()
 
 const overview = reactive<Record<string, number | null>>({
@@ -434,6 +445,38 @@ function relationText(value?: string): string {
 
 function select(id: number | string | null) {
   selectedId.value = id
+  mastery.value = null
+  masteryError.value = ''
+  if (isStudent.value && id !== null) void loadMastery(Number(id))
+}
+
+const mastery = ref<{ score: number | null; level?: string } | null>(null)
+const masteryLoading = ref(false)
+const masteryError = ref('')
+const masteryText = computed(() => {
+  if (masteryLoading.value) return '读取中…'
+  if (masteryError.value) return '—'
+  if (!mastery.value || mastery.value.score === null) return '暂无数据'
+  return `${Math.round(mastery.value.score)} 分${mastery.value.level ? ' · ' + mastery.value.level : ''}`
+})
+
+async function loadMastery(pointId: number) {
+  const userId = auth.userId
+  if (!userId) return
+  masteryLoading.value = true
+  try {
+    const raw = unwrap(unwrap(await knowledgeApi.getMastery(pointId, userId))) as {
+      score?: number
+      masteryScore?: number
+      level?: string
+    } | null
+    const score = raw?.score ?? raw?.masteryScore ?? null
+    mastery.value = { score: typeof score === 'number' ? score : null, level: raw?.level }
+  } catch (e) {
+    masteryError.value = e instanceof Error ? e.message : '掌握度读取失败'
+  } finally {
+    masteryLoading.value = false
+  }
 }
 
 async function loadOverview() {

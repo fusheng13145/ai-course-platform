@@ -67,12 +67,15 @@
       <AnalyticsTab v-else-if="currentTab === 'analytics'" :course-id="courseId" />
       <AdminReadOnlyTab v-else-if="adminReadOnly" :tab="currentTab" />
       <KnowledgeGraphTab
-        v-else-if="currentTab === 'graph' && role === 'teacher'"
+        v-else-if="currentTab === 'graph' && (role === 'teacher' || role === 'student')"
         :course-id="courseId"
+        :mode="role === 'student' ? 'student' : 'teacher'"
       />
-      <GraphTab v-else-if="currentTab === 'graph'" />
-      <AiCenterTab v-else-if="currentTab === 'ai' && role === 'teacher'" :course-id="courseId" />
-      <AiTab v-else-if="currentTab === 'ai'" :role="role" />
+      <AiCenterTab
+        v-else-if="currentTab === 'ai' && (role === 'teacher' || role === 'student')"
+        :course-id="courseId"
+        :mode="role === 'student' ? 'student' : 'teacher'"
+      />
       <GradesTab v-else-if="currentTab === 'grades'" :role="role" :course-id="courseId" />
       <V2TeacherBankView
         v-else-if="currentTab === 'bank' && role === 'teacher'"
@@ -114,8 +117,6 @@ import GradingTab from './tabs/GradingTab.vue'
 import ReaderTab from './tabs/ReaderTab.vue'
 import AnalyticsTab from './tabs/AnalyticsTab.vue'
 import AdminReadOnlyTab from './tabs/AdminReadOnlyTab.vue'
-import GraphTab from './tabs/GraphTab.vue'
-import AiTab from './tabs/AiTab.vue'
 import GradesTab from './tabs/GradesTab.vue'
 import ExamTab from './tabs/ExamTab.vue'
 import SettingsTab from './tabs/SettingsTab.vue'

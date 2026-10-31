@@ -108,8 +108,10 @@ function inList(list: Record<V2Role, string[]>, role: V2Role, page: string): boo
  * 课程空间内不提供的页签（学生侧知识图谱与 AI）：入口直接摘掉，
  * 因为课程内的 AI 与图谱能力只对教师端那一路成立（后端已实测）。
  */
+// 2026-10-30 起学生侧「知识图谱／AI 助手」两个课程页签**重新开放**：二者已接真接口
+// （KnowledgeGraphTab 只读＋我的掌握度、AiCenterTab 学生模式），不再是示例壳。
 const COURSE_TAB_HIDDEN: Record<V2Role, string[]> = {
-  student: ['graph', 'ai'],
+  student: [],
   teacher: [],
   admin: [],
 }

@@ -3,16 +3,18 @@
     <div class="course-tab-bar">
       <div>
         <p class="card-kicker">COURSE / AI</p>
-        <h2>AI 教学助手</h2>
+        <h2>{{ isStudent ? 'AI 学习助手' : 'AI 教学助手' }}</h2>
       </div>
       <div class="course-tab-actions">
-        <span class="head-hint">回答由模型生成，需人工复核后再用于教学</span>
+        <span class="head-hint">{{
+          isStudent ? '回答由模型生成，仅供学习参考' : '回答由模型生成，需人工复核后再用于教学'
+        }}</span>
       </div>
     </div>
 
     <div class="tabs" role="tablist" aria-label="AI 能力">
       <button
-        v-for="tab in AI_TABS"
+        v-for="tab in visibleTabs"
         :key="tab.key"
         :class="{ 'is-active': active === tab.key }"
         role="tab"
@@ -203,7 +205,7 @@
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useV2Ui } from '../../../composables/ui'
 import aiApi from '@/api/ai'
 import { unwrap, decodeAiDisplayText } from '@/utils/response'
@@ -225,11 +227,16 @@ const AI_TABS = [
   { key: 'qa', label: '智能答疑' },
   { key: 'weak', label: '薄弱点分析' },
   { key: 'advice', label: '学习建议' },
-  { key: 'essay', label: '作文批改' },
+  { key: 'essay', label: '作文批改', teacherOnly: true },
   { key: 'path', label: '学习路径' },
 ] as const
 
-const props = defineProps<{ courseId: number }>()
+// 学生复用同一套真接口，只裁掉教师专属的「作文批改」（其结论由教师采纳）
+const props = defineProps<{ courseId: number; mode?: 'teacher' | 'student' }>()
+const isStudent = computed(() => props.mode === 'student')
+const visibleTabs = computed(() =>
+  AI_TABS.filter((tab) => !('teacherOnly' in tab && tab.teacherOnly && isStudent.value)),
+)
 const { toast } = useV2Ui()
 
 const active = ref<(typeof AI_TABS)[number]['key']>('qa')

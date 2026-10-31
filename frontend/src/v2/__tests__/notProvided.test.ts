@@ -62,11 +62,11 @@ describe('v2 不提供清单的判定', () => {
     }
   })
 
-  it('学生课程页签去掉图谱与 AI，教师侧不受影响', () => {
-    expect(courseTabHidden('student', 'graph')).toBe(true)
+  it('学生课程页签开放图谱与 AI（已接真），教师侧不受影响', () => {
+    expect(courseTabHidden('student', 'graph')).toBe(false)
     const studentTabs = courseTabs('student').map((tab) => tab.id)
-    expect(studentTabs).not.toContain('graph')
-    expect(studentTabs).not.toContain('ai')
+    expect(studentTabs).toContain('graph')
+    expect(studentTabs).toContain('ai')
     expect(studentTabs).toContain('chapters')
     const teacherTabs = courseTabs('teacher').map((tab) => tab.id)
     expect(teacherTabs).toContain('graph')
