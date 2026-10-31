@@ -273,7 +273,7 @@ class WrongQuestionServiceImplCoverageTest {
     @DisplayName("按知识点分组 - JSON/分隔符/坏JSON/空白/无题目全部解析路径与按数量降序")
     void getByKnowledgePoints_parsesAllKnowledgePointFormats() {
         // wq1: JSON 数组含空串与 null -> ["A","B"]
-        // wq2: 空 JSON 数组 -> 回落分隔符拆分得到字面量 "[]"
+        // wq2: 空 JSON 数组 -> 无标签，归入「未知知识点」
         // wq3: 中文逗号+分号分隔文本（含连续分隔符产生的空段）-> 三个知识点
         // wq4: 题目不存在 -> 未知知识点
         // wq5: knowledgePoints 为 null -> 未知知识点
@@ -303,12 +303,12 @@ class WrongQuestionServiceImplCoverageTest {
 
         List<WrongQuestionGroupVO> result = wrongQuestionService.getByKnowledgePoints(100L, 10L);
 
-        assertEquals(8, result.size());
-        // 四条无法解析的记录归入同一组，按 count 降序排在最前
+        assertEquals(7, result.size());
+        // 五条无标签/无法解析的记录归入同一组，按 count 降序排在最前
         WrongQuestionGroupVO first = result.get(0);
         assertEquals("未知知识点", first.getKnowledgePointName());
-        assertEquals(4, first.getCount());
-        assertEquals(4, first.getQuestions().size());
+        assertEquals(5, first.getCount());
+        assertEquals(5, first.getQuestions().size());
         assertNull(first.getKnowledgePointId());
 
         WrongQuestionGroupVO groupA = result.stream()
@@ -321,8 +321,8 @@ class WrongQuestionServiceImplCoverageTest {
         assertEquals(2L, groupB.getKnowledgePointId());
         // 坏 JSON 保留原始字面量，且未命中 knowledge_points 表 -> ID 为 null
         assertTrue(result.stream().anyMatch(g -> "[坏JSON".equals(g.getKnowledgePointName())));
-        assertTrue(result.stream().anyMatch(g -> "[]".equals(g.getKnowledgePointName())
-                && g.getKnowledgePointId() == null));
+        assertTrue(result.stream().noneMatch(g -> "[]".equals(g.getKnowledgePointName())),
+                "空 JSON 数组不能被当成字面量知识点分组");
         // 一道题多知识点会同时出现在多个分组
         assertSame(rows.get(0), groupA.getQuestions().get(0));
         // 派生字段在分组时被补齐

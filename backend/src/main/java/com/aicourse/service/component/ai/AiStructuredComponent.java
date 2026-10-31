@@ -290,7 +290,8 @@ public class AiStructuredComponent {
 
     /**
      * 学情 AI 建议：基于学情统计生成结构化学习建议 {"summary","items"}。
-     * LLM 未返回有效内容或解析失败时抛出 BusinessException（由调用方统一包装，与原 HTTP 行为一致）。
+     * LLM 未返回有效内容或解析失败时抛 {@link LLMUnavailableException}(503)：
+     * 这是上游输出不可用，不是请求参数错误，不能与入参 400 混用（DR-74 同口径）。
      */
     public Map<String, Object> generateLearningAdvice(Map<String, Object> userStats) {
         try {
@@ -299,9 +300,16 @@ public class AiStructuredComponent {
             String adviceJson = generateLearningAdviceJson(statsJson, weakJson);
             String raw = JsonUtils.extractJsonObject(adviceJson);
             if (raw == null) {
-                throw new BusinessException("AI 未返回有效建议");
+                throw new LLMUnavailableException(LLMUnavailableException.Kind.EMPTY_RESPONSE,
+                        "AI 返回内容无法解析，请稍后重试");
             }
-            JsonNode root = OBJECT_MAPPER.readTree(raw);
+            JsonNode root;
+            try {
+                root = OBJECT_MAPPER.readTree(raw);
+            } catch (Exception parseEx) {
+                throw new LLMUnavailableException(LLMUnavailableException.Kind.EMPTY_RESPONSE,
+                        "AI 返回内容无法解析，请稍后重试", parseEx);
+            }
             Map<String, Object> result = new LinkedHashMap<>();
             result.put("summary", root.has("summary") ? root.get("summary").asText() : "");
             List<Map<String, Object>> items = new ArrayList<>();
@@ -319,8 +327,7 @@ public class AiStructuredComponent {
             result.put("items", items);
             return result;
         } catch (LLMUnavailableException e) {
-            // 保持 503：这里过去把一切重抛成 BusinessException(默认 400)，
-            // 于是"上游凭据被拒"在客户端长成"你的请求不合法"
+            // 保持 503：上游故障与模型输出不可解析都不该长成"你的请求不合法"
             throw e;
         } catch (Exception e) {
             log.error("生成AI失败: {}", e.getMessage(), e);

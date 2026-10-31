@@ -25,6 +25,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -42,6 +43,7 @@ import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 /**
@@ -104,6 +106,7 @@ class SubmissionServiceImplTest {
         when(submissionMapper.selectCount(any())).thenReturn(0L);
         when(submissionMapper.insert(any(Submission.class))).thenReturn(1);
         when(submissionMapper.updateById(any(Submission.class))).thenReturn(1);
+        when(submissionMapper.update(any(), any(Wrapper.class))).thenReturn(1);
 
         when(aiService.generateContent(anyString(), anyString()))
                 .thenReturn("{\"score\":85,\"feedback\":\"good\",\"highlights\":\"h\",\"suggestions\":\"s\"}");
@@ -336,13 +339,43 @@ class SubmissionServiceImplTest {
     }
 
     @Test
-    @DisplayName("aiGradeSubmission 解析 JSON 成功")
-    void ai_ok() {
+    @DisplayName("aiGradeSubmission 解析 JSON 成功：只写 AI 派生列，不整行写回覆盖教师状态/分数")
+    void ai_ok() throws Exception {
         submission.setContent("解答内容");
         when(submissionMapper.selectById(anyLong())).thenReturn(submission);
+        // mock ObjectMapper 默认 writeValueAsString 返回 null，会让 submission_data 为空而漏写该列
+        when(objectMapper.writeValueAsString(any())).thenReturn("{}");
         Submission r = service.aiGradeSubmission(1L);
         assertNotNull(r.getAiFeedback());
-        verify(submissionMapper).updateById(any(Submission.class));
+
+        ArgumentCaptor<Wrapper<Submission>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(submissionMapper).update(isNull(), wrapperCaptor.capture());
+        String sqlSet = wrapperCaptor.getValue().getSqlSet();
+        assertNotNull(sqlSet);
+        assertTrue(sqlSet.contains("ai_feedback"), "必须写入 ai_feedback");
+        assertTrue(sqlSet.contains("submission_data"), "必须写入 aiSuggestedScore 等派生数据");
+        assertFalse(sqlSet.contains("status"), "不得写 status——陈旧快照会把教师退回/批阅冲回 SUBMITTED");
+        assertFalse(sqlSet.contains("score"), "不得写 score——避免覆盖教师分数");
+        verify(submissionMapper, never()).updateById(any(Submission.class));
+    }
+
+    @Test
+    @DisplayName("aiGradeSubmission AI 失败：也只写 ai_feedback，不碰 status/score")
+    void ai_failure_onlyWritesAiFeedback() {
+        submission.setContent("解答内容");
+        when(submissionMapper.selectById(anyLong())).thenReturn(submission);
+        when(aiService.generateContent(anyString(), anyString())).thenThrow(new RuntimeException("LLM boom"));
+
+        service.aiGradeSubmission(1L);
+
+        ArgumentCaptor<Wrapper<Submission>> wrapperCaptor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(submissionMapper).update(isNull(), wrapperCaptor.capture());
+        String sqlSet = wrapperCaptor.getValue().getSqlSet();
+        assertNotNull(sqlSet);
+        assertTrue(sqlSet.contains("ai_feedback"));
+        assertFalse(sqlSet.contains("status"));
+        assertFalse(sqlSet.contains("score"));
+        verify(submissionMapper, never()).updateById(any(Submission.class));
     }
 
     @Test
@@ -456,12 +489,19 @@ class SubmissionServiceImplTest {
     // ===================== getByTaskAndStudent =====================
 
     @Test
-    @DisplayName("getByTaskAndStudent 返回最新提交")
+    @DisplayName("getByTaskAndStudent 返回最新提交：attemptNumber DESC + createdAt DESC + LIMIT 1")
     void getByTaskAndStudent_ok() {
-        when(submissionMapper.selectOne(any(Wrapper.class), anyBoolean())).thenReturn(submission);
+        when(submissionMapper.selectOne(any(Wrapper.class), eq(false))).thenReturn(submission);
         Submission r = service.getByTaskAndStudent(1L, 11L);
         assertNotNull(r);
         assertEquals(1L, r.getId());
+
+        ArgumentCaptor<Wrapper<Submission>> captor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(submissionMapper).selectOne(captor.capture(), eq(false));
+        String sql = captor.getValue().getSqlSegment();
+        assertTrue(sql.contains("attempt_number DESC"), "应按 attempt_number 倒序取最新尝试，实际=" + sql);
+        assertTrue(sql.contains("created_at DESC"), "同 attemptNumber 时按 createdAt 倒序");
+        assertTrue(sql.contains("LIMIT 1"), "必须 LIMIT 1，避免多尝试触发 TooManyResultsException");
     }
 
     // ===================== getPlagiarismSummary =====================

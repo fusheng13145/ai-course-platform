@@ -96,7 +96,7 @@ public interface SubmissionService extends IService<Submission> {
      * 获取学生的任务提交记录
      * @param taskId 任务ID
      * @param studentId 学生ID
-     * @return 提交记录（最新一条）
+     * @return 提交记录（按 attemptNumber 倒序、createdAt 倒序取最新一条）
      */
     Submission getByTaskAndStudent(Long taskId, Long studentId);
 

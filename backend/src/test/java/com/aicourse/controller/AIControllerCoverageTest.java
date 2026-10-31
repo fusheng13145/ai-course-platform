@@ -3,6 +3,7 @@ package com.aicourse.controller;
 import com.aicourse.entity.AiChatMessage;
 import com.aicourse.entity.AiChatSession;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.exception.LLMUnavailableException;
 import com.aicourse.service.AiChatSessionService;
 import com.aicourse.service.AIService;
 import com.aicourse.service.AnalyticsService;
@@ -363,6 +364,21 @@ class AIControllerCoverageTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.message").value("生成学习建议失败: 统计服务不可用"));
     }
 
+    @Test
+    @DisplayName("GET /ai/advice/learning - LLM 输出不可解析/不可用：503 原样上抛，不落 400")
+    void learningAdvice_llmUnavailable_503() throws Exception {
+        when(aiService.generateLearningAdvice(any()))
+                .thenThrow(new LLMUnavailableException(LLMUnavailableException.Kind.EMPTY_RESPONSE,
+                        "AI 返回内容无法解析，请稍后重试"));
+
+        MvcResult mvc = mockMvc.perform(get("/ai/advice/learning?courseId=5").with(withUser(1L, "STUDENT")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value(503))
+                .andExpect(jsonPath("$.message").value("AI 返回内容无法解析，请稍后重试"));
+    }
+
     // ==================== /ai/learning-path/generate ====================
 
     @Test
@@ -407,6 +423,22 @@ class AIControllerCoverageTest extends ControllerTestBase {
         mockMvc.perform(asyncDispatch(mvc))
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.message").value("学习路径生成失败: 图数据缺失"));
+    }
+
+    @Test
+    @DisplayName("POST /ai/learning-path/generate - LLM 不可用：503 原样上抛，不落 400")
+    void generateLearningPath_llmUnavailable_503() throws Exception {
+        when(learningPathService.generatePathPersonalized(any(), any(), anyString(), anyString(), any()))
+                .thenThrow(new LLMUnavailableException(LLMUnavailableException.Kind.UPSTREAM_UNREACHABLE,
+                        "大模型上游不可达"));
+
+        MvcResult mvc = mockMvc.perform(post("/ai/learning-path/generate")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\":\"5\",\"goal\":\"g\"}").with(withUser(1L, "TEACHER")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value(503));
     }
 
     // ==================== /ai/learning-path/generate-personalized ====================
@@ -474,6 +506,22 @@ class AIControllerCoverageTest extends ControllerTestBase {
 
         verify(learningPathService).generatePathPersonalized(
                 eq(2L), eq(7L), eq("AI学习路径"), eq("g"), isNull());
+    }
+
+    @Test
+    @DisplayName("POST /ai/learning-path/generate-personalized - LLM 不可用：503 原样上抛，不落 400")
+    void personalized_llmUnavailable_503() throws Exception {
+        when(learningPathService.generatePathPersonalized(any(), any(), anyString(), anyString(), any()))
+                .thenThrow(new LLMUnavailableException(LLMUnavailableException.Kind.UPSTREAM_UNREACHABLE,
+                        "大模型上游不可达"));
+
+        MvcResult mvc = mockMvc.perform(post("/ai/learning-path/generate-personalized")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\":\"7\",\"goal\":\"g\"}").with(withUser(1L, "TEACHER")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isServiceUnavailable())
+                .andExpect(jsonPath("$.code").value(503));
     }
 
     @Test

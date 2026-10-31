@@ -126,6 +126,7 @@ public class SubmissionReadComponent {
         LambdaQueryWrapper<Submission> wrapper = new LambdaQueryWrapper<Submission>()
                 .eq(Submission::getTaskId, taskId)
                 .eq(Submission::getStudentId, studentId)
+                .orderByDesc(Submission::getAttemptNumber)
                 .orderByDesc(Submission::getCreatedAt)
                 .last("LIMIT 1");
         return submissionMapper.selectOne(wrapper, false);

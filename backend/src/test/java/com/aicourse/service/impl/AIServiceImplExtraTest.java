@@ -609,10 +609,13 @@ class AIServiceImplExtraTest {
     }
 
     @Test
-    @DisplayName("generateLearningAdvice(Map): 无有效 JSON -> BusinessException")
+    @DisplayName("generateLearningAdvice(Map): 无有效 JSON -> 503(EMPTY_RESPONSE)，不再落 400")
     void generateLearningAdvice_mapNoJson() {
         when(llmProvider.completeJson(any(), any(), any())).thenReturn("plain text no json");
-        assertThrows(BusinessException.class, () -> service.generateLearningAdvice(Map.of("x", 1)));
+        LLMUnavailableException ex = assertThrows(LLMUnavailableException.class,
+                () -> service.generateLearningAdvice(Map.of("x", 1)));
+        assertEquals(ApiCode.SERVICE_UNAVAILABLE, ex.getCode());
+        assertEquals(LLMUnavailableException.Kind.EMPTY_RESPONSE, ex.kind());
     }
 
     @Test

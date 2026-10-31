@@ -488,7 +488,6 @@ const form = reactive({
 
 // 题目侧的知识点标签：后端 question.knowledge_points 存 JSON 数组文本，兼容逗号分隔
 const kpOptions = ref<{ id?: number | string; name: string }[]>([])
-const originalKp = ref<string[]>([])
 const kpLoading = ref(false)
 
 // correct_answers 是 MySQL JSON 列：直接发纯文本会 400（数据完整性校验失败）。
@@ -802,7 +801,6 @@ function resetForm() {
     knowledgePoints: [],
     options: ['', '', '', ''],
   })
-  originalKp.value = []
   formError.value = ''
 }
 
@@ -822,20 +820,13 @@ function openEdit(row: QuestionRow) {
     answer: decodeAnswers(String(row.correctAnswers ?? row.answer ?? '')),
     explanation: row.explanation || row.analysis || '',
     knowledgePoints: parseKpList(row.knowledgePoints),
-    __originalKp: parseKpList(row.knowledgePoints),
     options: parseOptionList(row.options),
   })
-  originalKp.value = (form as unknown as { __originalKp?: string[] }).__originalKp || []
-  delete (form as unknown as { __originalKp?: string[] }).__originalKp
   formError.value = ''
   formOpen.value = true
 }
 
 async function saveForm() {
-  if (editingId.value && originalKp.value.length > 0 && form.knowledgePoints.length === 0) {
-    formError.value = '已打标的题目暂不支持清空知识点（后端 JSON 列无法写空）；请至少保留一个。'
-    return
-  }
   if (isChoice.value) {
     if (cleanedOptions().length < 2) {
       formError.value = '选择题至少需要 2 个非空选项'
@@ -867,11 +858,11 @@ async function saveForm() {
       // 该列是 JSON 类型，必须编码后再发，否则 400（数据完整性校验失败）。
       correctAnswers: encodeAnswers(form.type, form.answer),
       explanation: form.explanation.trim(),
-      // 新建留空即不写；编辑时必须显式回写，否则清空勾选无法落库
+      // 新建留空即不写；编辑时用空 JSON 数组显式清空（后端约定 [] = 无标签）
       knowledgePoints: form.knowledgePoints.length
         ? JSON.stringify(form.knowledgePoints)
         : editingId.value
-          ? ''
+          ? '[]'
           : undefined,
       options: isChoice.value
         ? JSON.stringify(cleanedOptions())

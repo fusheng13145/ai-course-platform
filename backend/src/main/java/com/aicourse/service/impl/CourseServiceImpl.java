@@ -130,6 +130,10 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     /** 更新课程 */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = "courses", key = "#id"),
+            @CacheEvict(cacheNames = "courses", key = "'all'")
+    })
     public Course updateCourse(Long id, Course course, Long operatorId, boolean isAdmin) {
         log.info("更新课程");
 
@@ -150,6 +154,10 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     /** 更新课程 */
     @Override
     @Transactional(rollbackFor = Exception.class)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = "courses", key = "#id"),
+            @CacheEvict(cacheNames = "courses", key = "'all'")
+    })
     public Course updateCourseById(Long id, Course course) {
         log.info("更新课程");
 

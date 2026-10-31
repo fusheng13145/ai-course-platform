@@ -90,7 +90,7 @@ const COPY: Record<string, { head: string; detail: string }> = {
   'admin:aiUsage': {
     head: '待扩展：跨课程 AI 用量聚合',
     detail:
-      '缺少 `ai_call_logs` 的跨课程聚合端点（B-13④），本页只给空态、不做示例估算。扩展方向＝后端补聚合端点后接真，见产品规划 §4.1。',
+      '后端已有按课程聚合的端点（`GET /admin/statistics/ai-usage/by-course`），但缺少按能力／按日维度（B-13④），本页暂未接真；只给空态、不做示例估算。扩展方向＝按现有课程维度先接入，再补细分，见产品规划 §4.1。',
   },
 }
 

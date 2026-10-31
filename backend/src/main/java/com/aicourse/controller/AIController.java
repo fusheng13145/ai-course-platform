@@ -9,6 +9,7 @@ import com.aicourse.dto.LearningPathDTO;
 import com.aicourse.dto.QaAskDTO;
 import com.aicourse.dto.QaContinueDTO;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.exception.LLMUnavailableException;
 import com.aicourse.service.AIService;
 import com.aicourse.service.AiChatSessionService;
 import com.aicourse.service.AnalyticsService;
@@ -421,6 +422,8 @@ public class AIController {
                     learningPathService.generatePathPersonalized(userId, cid, pathName, goal, null);
                     result.put("status", "created");
                     result.put("message", "学习路径已生成");
+                } catch (LLMUnavailableException e) {
+                    throw e;
                 } catch (Exception e) {
                     log.error("学习路径生成失败: {}", e.getMessage(), e);
                     throw new BusinessException("学习路径生成失败: " + e.getMessage());
@@ -468,6 +471,8 @@ public class AIController {
                     result.put("status", "created");
                     result.put("message", "个性化学习路径已生成");
                     result.put("personalized", mastery != null && !mastery.isEmpty());
+                } catch (LLMUnavailableException e) {
+                    throw e;
                 } catch (Exception e) {
                     log.error("个性化学习路径生成失败: {}", e.getMessage(), e);
                     throw new BusinessException("学习路径生成失败: " + e.getMessage());

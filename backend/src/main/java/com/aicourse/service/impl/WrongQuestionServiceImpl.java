@@ -320,6 +320,8 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
                 if (!cleaned.isEmpty()) {
                     return cleaned;
                 }
+                // "[]" 是显式清空标签后的合法存储形态，不能回落成字面量知识点 "[]"
+                return List.of(UNKNOWN_KP);
             } catch (Exception e) {
                 log.debug("知识点 JSON 解析失败，退回分隔符拆分：{}", raw);
             }

@@ -207,10 +207,7 @@ public class StudentController {
             throw new BusinessException("作业不存在");
         }
         Long userId = (Long) auth.getPrincipal();
-        Submission submission = submissionService.getOne(
-                new LambdaQueryWrapper<Submission>()
-                        .eq(Submission::getTaskId, assignmentId)
-                        .eq(Submission::getStudentId, userId));
+        Submission submission = submissionService.getByTaskAndStudent(assignmentId, userId);
         return ApiResponse.success(new AssignmentDetailVO(task, submission));
     }
 
@@ -234,10 +231,7 @@ public class StudentController {
     public ApiResponse<Submission> getAssignmentResult(
             @PathVariable Long assignmentId, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        Submission submission = submissionService.getOne(
-                new LambdaQueryWrapper<Submission>()
-                        .eq(Submission::getTaskId, assignmentId)
-                        .eq(Submission::getStudentId, userId));
+        Submission submission = submissionService.getByTaskAndStudent(assignmentId, userId);
         return ApiResponse.success(submission);
     }
 

@@ -503,10 +503,13 @@ class AIServiceImplTest {
     }
 
     @Test
-    @DisplayName("generateLearningAdvice 空响应抛 BusinessException")
+    @DisplayName("generateLearningAdvice 空响应抛 503(EMPTY_RESPONSE)")
     void generateLearningAdvice_emptyRaw() {
         when(llmProvider.completeJson(any(), any(), any())).thenReturn("");
-        assertThrows(BusinessException.class, () -> service.generateLearningAdvice(Map.of("a", 1)));
+        LLMUnavailableException ex = assertThrows(LLMUnavailableException.class,
+                () -> service.generateLearningAdvice(Map.of("a", 1)));
+        assertEquals(ApiCode.SERVICE_UNAVAILABLE, ex.getCode());
+        assertEquals(LLMUnavailableException.Kind.EMPTY_RESPONSE, ex.kind());
     }
 
     // ===================== 配置/降级 =====================

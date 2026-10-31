@@ -82,6 +82,7 @@ beforeEach(() => {
   courseApi.getAllMyCourses.mockResolvedValue([{ id: 1, name: 'Python程序设计' }])
   questionApi.getAllQuestions.mockResolvedValue([])
   questionApi.createQuestion.mockResolvedValue({ data: {} })
+  questionApi.updateQuestion.mockResolvedValue({ data: {} })
   knowledgeApi.getKnowledgePoints.mockResolvedValue({ data: KP_LIST })
 })
 
@@ -141,7 +142,7 @@ describe('教师题库：知识点标签（批次 8）', () => {
     expect(modalInputs('.kp-chip input:checked').map((el) => el.value)).toEqual(['三次握手'])
   })
 
-  it('清空勾选时阻止保存（后端 JSON 列无法写空），不发请求', async () => {
+  it('清空勾选时按空 JSON 数组提交（[] 表示无标签），不再拦截', async () => {
     questionApi.getAllQuestions.mockResolvedValue([
       {
         id: 601,
@@ -165,8 +166,8 @@ describe('教师题库：知识点标签（批次 8）', () => {
     await flushPromises()
     modalButton('保存')!.click()
     await flushPromises()
-    expect(questionApi.updateQuestion).not.toHaveBeenCalled()
-    expect(modal()!.textContent).toContain('暂不支持清空知识点')
+    expect(questionApi.updateQuestion).toHaveBeenCalledTimes(1)
+    expect(questionApi.updateQuestion.mock.calls[0][1].knowledgePoints).toBe('[]')
   })
 
   it('课程没有知识点时给出可执行提示，而不是空白选择区', async () => {
