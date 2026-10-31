@@ -141,7 +141,7 @@ describe('教师题库：知识点标签（批次 8）', () => {
     expect(modalInputs('.kp-chip input:checked').map((el) => el.value)).toEqual(['三次握手'])
   })
 
-  it('清空勾选后保存会显式回写空字符串（否则后端保留旧标签）', async () => {
+  it('清空勾选时阻止保存（后端 JSON 列无法写空），不发请求', async () => {
     questionApi.getAllQuestions.mockResolvedValue([
       {
         id: 601,
@@ -165,10 +165,8 @@ describe('教师题库：知识点标签（批次 8）', () => {
     await flushPromises()
     modalButton('保存')!.click()
     await flushPromises()
-    expect(questionApi.updateQuestion).toHaveBeenCalledWith(
-      601,
-      expect.objectContaining({ knowledgePoints: '' }),
-    )
+    expect(questionApi.updateQuestion).not.toHaveBeenCalled()
+    expect(modal()!.textContent).toContain('暂不支持清空知识点')
   })
 
   it('课程没有知识点时给出可执行提示，而不是空白选择区', async () => {
