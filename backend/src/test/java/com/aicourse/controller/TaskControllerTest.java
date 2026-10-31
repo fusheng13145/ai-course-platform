@@ -1,9 +1,13 @@
 package com.aicourse.controller;
 import com.aicourse.controller.TaskController;
+import com.aicourse.common.ApiCode;
+import com.aicourse.exception.BusinessException;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.SubmissionService;
 import com.aicourse.service.TaskService;
 import com.aicourse.entity.Task;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -28,6 +32,14 @@ class TaskControllerTest extends ControllerTestBase {
     private com.aicourse.service.TaskService taskService;
     @MockitoBean
     private com.aicourse.service.SubmissionService submissionService;
+    @MockitoBean
+    private CourseAccessControl courseAccessControl;
+
+    @BeforeEach
+    void defaultAccessControl() {
+        lenient().when(courseAccessControl.readableCourseIds(any())).thenReturn(null);
+        lenient().when(courseAccessControl.isStudent(any())).thenReturn(false);
+    }
 
     private Task sampleTask(Long id, String title) {
         Task t = new Task();
@@ -177,6 +189,7 @@ class TaskControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("DELETE /tasks/1 - 返回200且删除委托被调用")
     void delete_authorized_returns_200() throws Exception {
+        when(taskService.getById(1L)).thenReturn(sampleTask(1L, "作业1"));
         when(taskService.removeById(1L)).thenReturn(true);
         mockMvc.perform(delete("/tasks/1").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
@@ -206,6 +219,7 @@ class TaskControllerTest extends ControllerTestBase {
     void publish_authorized_returns_200() throws Exception {
         Task published = sampleTask(1L, "作业1");
         published.setStatus("PUBLISHED");
+        when(taskService.getById(1L)).thenReturn(published);
         when(taskService.publishTask(1L)).thenReturn(published);
         mockMvc.perform(post("/tasks/1/publish").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
@@ -236,6 +250,7 @@ class TaskControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /tasks/1/extend-deadline - 返回200且延长后任务透传")
     void extendDeadline_authorized_returns_200() throws Exception {
+        when(taskService.getById(1L)).thenReturn(sampleTask(1L, "作业1"));
         when(taskService.extendDeadline(eq(1L), any(), any())).thenReturn(sampleTask(1L, "作业1"));
         mockMvc.perform(post("/tasks/1/extend-deadline")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -269,6 +284,7 @@ class TaskControllerTest extends ControllerTestBase {
     @DisplayName("POST /tasks/1/copy - 返回200且复制后任务透传")
     void copy_authorized_returns_200() throws Exception {
         Task copy = sampleTask(1L, "副本");
+        when(taskService.getById(1L)).thenReturn(sampleTask(1L, "作业1"));
         when(taskService.copyTask(eq(1L), any())).thenReturn(copy);
         mockMvc.perform(post("/tasks/1/copy")
                         .contentType(MediaType.APPLICATION_JSON)
@@ -330,6 +346,7 @@ class TaskControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /tasks/1/completion-stats - 返回200且完成率统计透传")
     void completionStats_authorized_returns_200() throws Exception {
+        when(taskService.getById(1L)).thenReturn(sampleTask(1L, "作业1"));
         when(taskService.getTaskCompletionStats(1L)).thenReturn(new com.aicourse.vo.TaskCompletionStatsVO(
                 1L, "task", 20L, 10L, 0L, 0L, 0L, 0.0, 0.0, null, "PUBLISHED"));
         mockMvc.perform(get("/tasks/1/completion-stats").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
@@ -349,4 +366,71 @@ class TaskControllerTest extends ControllerTestBase {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    @DisplayName("POST /tasks - 跨教师课程创建返回403")
+    void create_crossTeacher_forbidden_403() throws Exception {
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
+        mockMvc.perform(post("/tasks")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"越权任务\",\"courseId\":1}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(taskService, never()).save(any(Task.class));
+    }
+
+    @Test
+    @DisplayName("PUT /tasks/1 - 跨教师更新返回403")
+    void update_crossTeacher_forbidden_403() throws Exception {
+        when(taskService.getById(1L)).thenReturn(sampleTask(1L, "他人任务"));
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
+        mockMvc.perform(put("/tasks/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"title\":\"越权更新\"}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(taskService, never()).updateById(any(Task.class));
+    }
+
+    @Test
+    @DisplayName("DELETE /tasks/1 - 跨教师删除返回403")
+    void delete_crossTeacher_forbidden_403() throws Exception {
+        when(taskService.getById(1L)).thenReturn(sampleTask(1L, "他人任务"));
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
+        mockMvc.perform(delete("/tasks/1").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(taskService, never()).removeById(1L);
+    }
+
+    @Test
+    @DisplayName("POST /tasks/1/publish - 跨教师发布返回403")
+    void publish_crossTeacher_forbidden_403() throws Exception {
+        when(taskService.getById(1L)).thenReturn(sampleTask(1L, "他人任务"));
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
+        mockMvc.perform(post("/tasks/1/publish").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(taskService, never()).publishTask(1L);
+    }
+
+    @Test
+    @DisplayName("GET /tasks/1 - 跨教师读取返回403")
+    void getById_crossTeacher_forbidden_403() throws Exception {
+        when(taskService.getById(1L)).thenReturn(sampleTask(1L, "他人任务"));
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权查看其他教师课程的内容"))
+                .when(courseAccessControl).assertCanReadTask(any(Task.class), any());
+        mockMvc.perform(get("/tasks/1").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("GET /tasks/course/1 - 跨课程学生读取返回403")
+    void listByCourse_crossCourse_forbidden_403() throws Exception {
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "尚未加入该课程，无权查看课程内容"))
+                .when(courseAccessControl).assertCanReadCourse(eq(1L), any());
+        mockMvc.perform(get("/tasks/course/1").with(withUser(9L, "STUDENT")))
+                .andExpect(status().isForbidden());
+    }
 }

@@ -200,6 +200,17 @@ describe('v2 学生「加入课程」= 真实选课写口（非演示动作）',
     wrapper.unmount()
   })
 
+  it('课程列表不再保留只弹演示 toast 的筛选/导出动作', async () => {
+    uiState.role.value = 'admin'
+    const wrapper = mountCourses()
+    await settle()
+
+    const labels = wrapper.findAll('.page-head-actions button').map((node) => node.text())
+    expect(labels).not.toContain('筛选')
+    expect(labels).not.toContain('导出课程')
+    wrapper.unmount()
+  })
+
   it('教师端主按钮仍跳创建课程，学生选课写口不会被误调', async () => {
     uiState.role.value = 'teacher'
     const wrapper = mountCourses()

@@ -1,6 +1,7 @@
 package com.aicourse.controller;
 
 import com.aicourse.common.ApiCode;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.JsonUtils;
 import com.aicourse.common.PagedResponse;
@@ -9,6 +10,7 @@ import com.aicourse.dto.KnowledgeRelationDTO;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.dto.KnowledgePathPlanDTO;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.AIService;
 import com.aicourse.service.KnowledgeGraphService;
 import com.aicourse.service.KnowledgePointRelationService;
@@ -55,6 +57,7 @@ public class KnowledgeController {
     private final KnowledgePointRelationService relationService;
     private final AIService aiService;
     private final KnowledgeGraphService knowledgeGraphService;
+    private final CourseAccessControl courseAccessControl;
 
     private static final ObjectMapper KG_OM = new ObjectMapper();
     private static final Set<String> KP_TYPES = Set.of("CONCEPT", "PRINCIPLE", "METHOD", "FACT");
@@ -64,11 +67,13 @@ public class KnowledgeController {
     public KnowledgeController(KnowledgePointService knowledgePointService,
                                KnowledgePointRelationService relationService,
                                AIService aiService,
-                               KnowledgeGraphService knowledgeGraphService) {
+                               KnowledgeGraphService knowledgeGraphService,
+                               CourseAccessControl courseAccessControl) {
         this.knowledgePointService = knowledgePointService;
         this.relationService = relationService;
         this.aiService = aiService;
         this.knowledgeGraphService = knowledgeGraphService;
+        this.courseAccessControl = courseAccessControl;
     }
 
     // ==================== 知识点 CRUD / 列表（/knowledge/points） ====================
@@ -126,7 +131,9 @@ public class KnowledgeController {
      */
     @PostMapping("/points")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<KnowledgePoint> createPoint(@Valid @RequestBody KnowledgePoint point) {
+    public ApiResponse<KnowledgePoint> createPoint(@Valid @RequestBody KnowledgePoint point,
+                                                   Authentication auth) {
+        courseAccessControl.assertCanManageCourse(point.getCourseId(), auth);
         knowledgePointService.save(point);
         return ApiResponse.success("创建成功", point);
     }
@@ -137,8 +144,13 @@ public class KnowledgeController {
      */
     @PutMapping("/points/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<KnowledgePoint> updatePoint(@PathVariable Long id, @Valid @RequestBody KnowledgePoint point) {
+    public ApiResponse<KnowledgePoint> updatePoint(@PathVariable Long id,
+                                                   @Valid @RequestBody KnowledgePoint point,
+                                                   Authentication auth) {
+        KnowledgePoint existing = requirePoint(id);
+        courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
         point.setId(id);
+        point.setCourseId(existing.getCourseId());
         knowledgePointService.updateById(point);
         return ApiResponse.success("更新成功", knowledgePointService.getById(id));
     }
@@ -149,7 +161,9 @@ public class KnowledgeController {
      */
     @DeleteMapping("/points/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Void> deletePoint(@PathVariable Long id) {
+    public ApiResponse<Void> deletePoint(@PathVariable Long id, Authentication auth) {
+        KnowledgePoint existing = requirePoint(id);
+        courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
         knowledgePointService.removeById(id);
         return ApiResponse.success("删除成功", null);
     }
@@ -268,7 +282,14 @@ public class KnowledgeController {
      */
     @PostMapping("/relations")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<KnowledgePointRelation> createRelation(@Valid @RequestBody KnowledgeRelationDTO dto) {
+    public ApiResponse<KnowledgePointRelation> createRelation(@Valid @RequestBody KnowledgeRelationDTO dto,
+                                                              Authentication auth) {
+        KnowledgePoint source = requirePoint(dto.getSourceId());
+        KnowledgePoint target = requirePoint(dto.getTargetId());
+        courseAccessControl.assertCanManageCourse(source.getCourseId(), auth);
+        if (!java.util.Objects.equals(source.getCourseId(), target.getCourseId())) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "关联关系只能建立在同一课程的知识点之间");
+        }
         KnowledgePointRelation relation = relationService.createRelation(
                 dto.getSourceId(), dto.getTargetId(), dto.getRelationType(), dto.getStrength(), dto.getDescription());
         return ApiResponse.success("创建成功", relation);
@@ -280,7 +301,13 @@ public class KnowledgeController {
      */
     @DeleteMapping("/relations/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Void> deleteRelation(@PathVariable Long id) {
+    public ApiResponse<Void> deleteRelation(@PathVariable Long id, Authentication auth) {
+        KnowledgePointRelation relation = relationService.getById(id);
+        if (relation == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "知识点关系不存在");
+        }
+        KnowledgePoint source = requirePoint(relation.getSourceId());
+        courseAccessControl.assertCanManageCourse(source.getCourseId(), auth);
         relationService.deleteRelation(id);
         return ApiResponse.success("删除成功", null);
     }
@@ -406,6 +433,7 @@ public class KnowledgeController {
         final Long courseId = dto.getCourseId();
         final String content = dto.getContent() != null ? dto.getContent() : "";
         final Long userId = auth != null ? (Long) auth.getPrincipal() : null;
+        courseAccessControl.assertCanManageCourse(courseId, auth);
         return () -> {
             if (content.isBlank()) {
                 return ApiResponse.error(ApiCode.BAD_REQUEST, "请提供待抽取的课程内容");
@@ -517,7 +545,8 @@ public class KnowledgeController {
      */
     @PostMapping("/ingest")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    public ApiResponse<Map<String, Object>> ingestGraph(@RequestParam Long courseId) {
+    public ApiResponse<Map<String, Object>> ingestGraph(@RequestParam Long courseId, Authentication auth) {
+        courseAccessControl.assertCanManageCourse(courseId, auth);
         String raw = knowledgeGraphService.ingest(courseId);
         return ApiResponse.success(parseKgJson(raw));
     }
@@ -562,5 +591,11 @@ public class KnowledgeController {
         }
     }
 
-
+    private KnowledgePoint requirePoint(Long id) {
+        KnowledgePoint point = knowledgePointService.getById(id);
+        if (point == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "知识点不存在");
+        }
+        return point;
+    }
 }

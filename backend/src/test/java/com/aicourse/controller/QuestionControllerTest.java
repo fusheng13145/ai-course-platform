@@ -1,6 +1,9 @@
 package com.aicourse.controller;
 import com.aicourse.controller.QuestionController;
+import com.aicourse.common.ApiCode;
 import com.aicourse.entity.Question;
+import com.aicourse.exception.BusinessException;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.AIService;
 import com.aicourse.service.QuestionService;
 import com.aicourse.vo.QuestionStatsVO;
@@ -34,6 +37,8 @@ class QuestionControllerTest extends ControllerTestBase {
     private com.aicourse.service.KnowledgePointService knowledgePointService;
     @MockitoBean
     private com.aicourse.service.component.ai.AiGenerationPolicy aiGenerationPolicy;
+    @MockitoBean
+    private CourseAccessControl courseAccessControl;
 
     /**
      * 治理开关缺省即「允许」（与 {@code AiGenerationPolicy} 口径一致，缺省必须等于现状）：
@@ -47,6 +52,7 @@ class QuestionControllerTest extends ControllerTestBase {
     private Question sampleQuestion() {
         Question q = new Question();
         q.setId(1L);
+        q.setCourseId(1L);
         q.setType("SINGLE");
         return q;
     }
@@ -91,7 +97,7 @@ class QuestionControllerTest extends ControllerTestBase {
     @DisplayName("POST /questions/create - TEACHER角色返回200且data透传创建题目")
     void create_authorized_returns_success() throws Exception {
         when(questionService.createQuestion(any())).thenReturn(sampleQuestion());
-        mockMvc.perform(post("/questions/create").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"题干\"}").with(withUser(1L, "TEACHER")))
+        mockMvc.perform(post("/questions/create").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"题干\",\"courseId\":1}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
@@ -142,6 +148,7 @@ class QuestionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /questions/1/review - TEACHER角色返回200且正确委托reviewQuestion")
     void review_authorized_returns_success() throws Exception {
+        when(questionService.getById(1L)).thenReturn(sampleQuestion());
         doNothing().when(questionService).reviewQuestion(any(), anyBoolean());
         mockMvc.perform(post("/questions/1/review").contentType(MediaType.APPLICATION_JSON).content("{\"approved\":true}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
@@ -166,6 +173,7 @@ class QuestionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /questions/1/copy - TEACHER角色返回200且data透传复制题目")
     void copy_authorized_returns_success() throws Exception {
+        when(questionService.getById(1L)).thenReturn(sampleQuestion());
         when(questionService.copyQuestion(any())).thenReturn(sampleQuestion());
         mockMvc.perform(post("/questions/1/copy").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
@@ -284,7 +292,7 @@ class QuestionControllerTest extends ControllerTestBase {
     @DisplayName("POST /questions - TEACHER角色返回200且正确委托save")
     void createBasic_authorized_returns_success() throws Exception {
         when(questionService.save(any())).thenReturn(true);
-        mockMvc.perform(post("/questions").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"题干\"}").with(withUser(1L, "TEACHER")))
+        mockMvc.perform(post("/questions").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"题干\",\"courseId\":1}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists());
@@ -315,7 +323,7 @@ class QuestionControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
         verify(questionService).updateById(any(Question.class));
-        verify(questionService).getById(eq(1L));
+        verify(questionService, times(2)).getById(eq(1L));
     }
 
     @Test
@@ -335,6 +343,7 @@ class QuestionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("DELETE /questions/1 - TEACHER角色返回200且正确委托removeById")
     void delete_authorized_returns_success() throws Exception {
+        when(questionService.getById(1L)).thenReturn(sampleQuestion());
         when(questionService.removeById(any(Long.class))).thenReturn(true);
         mockMvc.perform(delete("/questions/1").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
@@ -489,5 +498,68 @@ class QuestionControllerTest extends ControllerTestBase {
     void batchImport_student_forbidden_403() throws Exception {
         mockMvc.perform(post("/questions/batch-import").contentType(MediaType.APPLICATION_JSON).content("[]").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("POST /questions - 跨教师课程创建返回403")
+    void createBasic_crossTeacher_forbidden_403() throws Exception {
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
+        mockMvc.perform(post("/questions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"题干\",\"courseId\":1}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(questionService, never()).save(any(Question.class));
+    }
+
+    @Test
+    @DisplayName("PUT /questions/1 - 跨教师更新返回403")
+    void update_crossTeacher_forbidden_403() throws Exception {
+        when(questionService.getById(1L)).thenReturn(sampleQuestion());
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
+        mockMvc.perform(put("/questions/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"越权更新\"}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(questionService, never()).updateById(any(Question.class));
+    }
+
+    @Test
+    @DisplayName("DELETE /questions/1 - 跨教师删除返回403")
+    void delete_crossTeacher_forbidden_403() throws Exception {
+        when(questionService.getById(1L)).thenReturn(sampleQuestion());
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
+        mockMvc.perform(delete("/questions/1").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(questionService, never()).removeById(1L);
+    }
+
+    @Test
+    @DisplayName("POST /questions/1/review - 跨教师审核返回403")
+    void review_crossTeacher_forbidden_403() throws Exception {
+        when(questionService.getById(1L)).thenReturn(sampleQuestion());
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
+        mockMvc.perform(post("/questions/1/review")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"approved\":true}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(questionService, never()).reviewQuestion(anyLong(), anyBoolean());
+    }
+
+    @Test
+    @DisplayName("POST /questions/1/copy - 跨教师复制返回403")
+    void copy_crossTeacher_forbidden_403() throws Exception {
+        when(questionService.getById(1L)).thenReturn(sampleQuestion());
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
+        mockMvc.perform(post("/questions/1/copy").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(questionService, never()).copyQuestion(1L);
     }
 }

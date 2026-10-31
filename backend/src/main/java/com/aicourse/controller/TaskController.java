@@ -9,6 +9,7 @@ import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.Task;
 import com.aicourse.dto.TaskCreateDTO;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.SubmissionService;
 import jakarta.validation.Valid;
 import com.aicourse.service.TaskService;
@@ -40,10 +41,14 @@ public class TaskController {
     private final TaskService taskService;
     @SuppressWarnings("unused")
     private final SubmissionService submissionService;
+    private final CourseAccessControl courseAccessControl;
 
-    public TaskController(TaskService taskService, SubmissionService submissionService) {
+    public TaskController(TaskService taskService,
+                          SubmissionService submissionService,
+                          CourseAccessControl courseAccessControl) {
         this.taskService = taskService;
         this.submissionService = submissionService;
+        this.courseAccessControl = courseAccessControl;
     }
 
     /**
@@ -54,9 +59,19 @@ public class TaskController {
     public ApiResponse<PagedResponse<Task>> listByParams(
             @Parameter(description = "当前页码") @RequestParam(defaultValue = "1") long page,
             @Parameter(description = "每页条数") @RequestParam(defaultValue = "10") long size,
-            @Parameter(description = "课程ID（可选）") @RequestParam(required = false) Long courseId) {
+            @Parameter(description = "课程ID（可选）") @RequestParam(required = false) Long courseId,
+            Authentication auth) {
+        if (courseId != null) {
+            courseAccessControl.assertCanReadCourse(courseId, auth);
+        }
+        List<Long> readableCourseIds = courseAccessControl.readableCourseIds(auth);
+        if (readableCourseIds != null && readableCourseIds.isEmpty()) {
+            return ApiResponse.success(PagedResponse.empty());
+        }
         LambdaQueryWrapper<Task> queryWrapper = new LambdaQueryWrapper<Task>()
-                .eq(courseId != null, Task::getCourseId, courseId);
+                .eq(courseId != null, Task::getCourseId, courseId)
+                .in(readableCourseIds != null, Task::getCourseId, readableCourseIds)
+                .eq(courseAccessControl.isStudent(auth), Task::getStatus, "PUBLISHED");
         Page<Task> taskPage = taskService.page(Page.of(page, size), queryWrapper);
         return ApiResponse.success(PagedResponse.of(taskPage));
     }
@@ -69,9 +84,12 @@ public class TaskController {
     public ApiResponse<PagedResponse<Task>> listByCourse(
             @Parameter(description = "课程ID") @PathVariable Long courseId,
             @Parameter(description = "当前页码") @RequestParam(defaultValue = "1") long page,
-            @Parameter(description = "每页条数") @RequestParam(defaultValue = "10") long size) {
+            @Parameter(description = "每页条数") @RequestParam(defaultValue = "10") long size,
+            Authentication auth) {
+        courseAccessControl.assertCanReadCourse(courseId, auth);
         LambdaQueryWrapper<Task> queryWrapper = new LambdaQueryWrapper<Task>()
-                .eq(Task::getCourseId, courseId);
+                .eq(Task::getCourseId, courseId)
+                .eq(courseAccessControl.isStudent(auth), Task::getStatus, "PUBLISHED");
         Page<Task> taskPage = taskService.page(Page.of(page, size), queryWrapper);
         return ApiResponse.success(PagedResponse.of(taskPage));
     }
@@ -81,8 +99,10 @@ public class TaskController {
      */
     @GetMapping("/{id}")
     @Operation(summary = "获取任务详情", description = "根据任务ID返回完整任务信息，包含要求、附件等")
-    public ApiResponse<Task> getById(@Parameter(description = "任务ID") @PathVariable Long id) {
+    public ApiResponse<Task> getById(@Parameter(description = "任务ID") @PathVariable Long id,
+                                     Authentication auth) {
         Task task = taskService.getById(id);
+        courseAccessControl.assertCanReadTask(task, auth);
         return ApiResponse.success(task);
     }
 
@@ -94,7 +114,9 @@ public class TaskController {
     @Operation(summary = "创建新任务", description = "教师或管理员创建新的作业/测验/项目任务")
     public ApiResponse<Task> create(@io.swagger.v3.oas.annotations.parameters.RequestBody(
             description = "任务创建信息"
-    ) @Valid @RequestBody Task task) {
+    ) @Valid @RequestBody Task task,
+                                    Authentication auth) {
+        courseAccessControl.assertCanManageCourse(task.getCourseId(), auth);
         taskService.save(task);
         return ApiResponse.success("创建成功", task);
     }
@@ -108,8 +130,12 @@ public class TaskController {
     public ApiResponse<Task> update(@Parameter(description = "任务ID") @PathVariable Long id,
                                     @io.swagger.v3.oas.annotations.parameters.RequestBody(
                                             description = "待更新的任务数据"
-                                    ) @Valid @RequestBody Task task) {
+                                    ) @Valid @RequestBody Task task,
+                                    Authentication auth) {
+        Task existing = requireTask(id);
+        courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
         task.setId(id);
+        task.setCourseId(existing.getCourseId());
         taskService.updateById(task);
         Task updatedTask = taskService.getById(id);
         return ApiResponse.success("更新成功", updatedTask);
@@ -121,7 +147,10 @@ public class TaskController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "删除任务", description = "教师或管理员可删除任务")
-    public ApiResponse<Void> delete(@Parameter(description = "任务ID") @PathVariable Long id) {
+    public ApiResponse<Void> delete(@Parameter(description = "任务ID") @PathVariable Long id,
+                                    Authentication auth) {
+        Task existing = requireTask(id);
+        courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
         taskService.removeById(id);
         return ApiResponse.success("删除成功", null);
     }
@@ -132,7 +161,10 @@ public class TaskController {
     @PostMapping("/{id}/publish")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "发布任务", description = "将草稿状态的任务发布给学生可见")
-    public ApiResponse<Task> publish(@Parameter(description = "任务ID") @PathVariable Long id) {
+    public ApiResponse<Task> publish(@Parameter(description = "任务ID") @PathVariable Long id,
+                                     Authentication auth) {
+        Task existing = requireTask(id);
+        courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
         Task task = taskService.publishTask(id);
         return ApiResponse.success("发布成功", task);
     }
@@ -147,7 +179,8 @@ public class TaskController {
             @Parameter(description = "任务ID") @PathVariable Long id,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     description = "包含新截止日期(newDueDate)和原因(reason)的任务创建DTO"
-            ) @Valid @RequestBody TaskCreateDTO dto) {
+            ) @Valid @RequestBody TaskCreateDTO dto,
+            Authentication auth) {
         String newDueDateStr = dto.getNewDueDate();
         String reason = dto.getReason();
         // 修复（2026-09-14）：此处用手写 LocalDateTime.parse，非 ISO 入参会抛
@@ -163,6 +196,8 @@ public class TaskController {
             throw new BusinessException(ApiCode.BAD_REQUEST,
                     "截止日期格式不正确，需为 ISO-8601（如 2026-09-20T23:59:59）");
         }
+        Task existing = requireTask(id);
+        courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
         Task task = taskService.extendDeadline(id, newDueDate, reason);
         return ApiResponse.success("截止日期已延长", task);
     }
@@ -177,7 +212,10 @@ public class TaskController {
             @Parameter(description = "源任务ID") @PathVariable Long id,
             @io.swagger.v3.oas.annotations.parameters.RequestBody(
                     description = "包含新标题(newTitle)的JSON对象"
-            ) @Valid @RequestBody Map<String, String> body) {
+            ) @Valid @RequestBody Map<String, String> body,
+            Authentication auth) {
+        Task existing = requireTask(id);
+        courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
         String newTitle = body.get("newTitle");
         Task newTask = taskService.copyTask(id, newTitle);
         return ApiResponse.success("复制成功", newTask);
@@ -199,9 +237,21 @@ public class TaskController {
      * 获取任务完成率统计（增强版）
      */
     @GetMapping("/{id}/completion-stats")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "获取任务完成率统计", description = "返回指定任务的提交完成情况统计")
-    public ApiResponse<TaskCompletionStatsVO> completionStats(@Parameter(description = "任务ID") @PathVariable Long id) {
+    public ApiResponse<TaskCompletionStatsVO> completionStats(@Parameter(description = "任务ID") @PathVariable Long id,
+                                                             Authentication auth) {
+        Task existing = requireTask(id);
+        courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
         TaskCompletionStatsVO stats = taskService.getTaskCompletionStats(id);
         return ApiResponse.success(stats);
+    }
+
+    private Task requireTask(Long id) {
+        Task task = taskService.getById(id);
+        if (task == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "任务不存在");
+        }
+        return task;
     }
 }

@@ -23,7 +23,6 @@
             role === 'teacher' ? '教学班：待接入' : role === 'student' ? '课程级内容' : '管理员只读'
           }}
         </span>
-        <button class="btn btn-sm btn-ghost" @click="notReady('课程通知')">课程通知</button>
       </div>
       <div class="course-mobile-tabs">
         <button
@@ -137,7 +136,7 @@ import { courseTabBlock, COURSE_TAB_NOTES } from '../../data/courseTabData'
 
 const route = useRoute()
 const router = useRouter()
-const { role, courseContext, setCourseContext, toast } = useV2Ui()
+const { role, courseContext, setCourseContext } = useV2Ui()
 
 const detail = ref<V2CourseDetail | null>(null)
 const fallbackName = ref('')
@@ -237,10 +236,6 @@ function goTab(tab: string) {
 
 function backToCourses() {
   router.push(`/${role.value}/courses`)
-}
-
-function notReady(label: string) {
-  toast(`演示数据：${label}尚未接入`, 'warn')
 }
 
 async function load() {

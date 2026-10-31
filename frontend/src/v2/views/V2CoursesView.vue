@@ -2,7 +2,6 @@
   <section class="module">
     <V2PageHead :kicker="kicker" :title="def.title" :sub="def.desc" :source="source">
       <template #actions>
-        <button class="btn btn-ghost" @click="notReady('筛选')">筛选</button>
         <select
           v-if="role === 'student'"
           v-model="selectedCourseId"
@@ -16,7 +15,12 @@
             {{ course.name }}
           </option>
         </select>
-        <button class="btn btn-primary" :disabled="joining" @click="onPrimary">
+        <button
+          v-if="role !== 'admin'"
+          class="btn btn-primary"
+          :disabled="joining"
+          @click="onPrimary"
+        >
           {{ primaryLabel }}
         </button>
       </template>
@@ -101,9 +105,7 @@ const joining = ref(false)
 
 const def = computed(() => pageDef(role.value as V2Role, 'courses'))
 const kicker = computed(() => `${String(role.value).toUpperCase()} / COURSES · 2026 秋`)
-const primaryLabel = computed(() =>
-  role.value === 'student' ? '加入课程' : role.value === 'teacher' ? '新建课程' : '导出课程',
-)
+const primaryLabel = computed(() => (role.value === 'student' ? '加入课程' : '新建课程'))
 const doneCount = computed(() => courses.value.filter((course) => course.progress >= 100).length)
 const activeCount = computed(() => courses.value.length - doneCount.value)
 const filtered = computed(() => {
@@ -120,10 +122,6 @@ const emptyHint = computed(() =>
 
 function open(id: number) {
   router.push(`/${role.value}/courses/${id}/overview`)
-}
-
-function notReady(label: string) {
-  toast(`演示数据：${label}尚未接入`, 'warn')
 }
 
 /** 可加入课程 = 课程目录剔除已在修课程（按 id 去重，剔除 id<=0 的脏行）。 */
@@ -162,9 +160,7 @@ async function onPrimary() {
   }
   if (role.value === 'student') {
     await joinSelectedCourse()
-    return
   }
-  notReady(primaryLabel.value)
 }
 
 onMounted(async () => {

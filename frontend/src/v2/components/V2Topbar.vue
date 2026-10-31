@@ -38,7 +38,7 @@
         <V2Icon :name="theme === 'dark' ? 'sun' : 'moon'" />
       </button>
       <button
-        v-if="role !== 'admin'"
+        v-if="role === 'teacher'"
         class="icon-btn ai-trigger"
         aria-label="AI 助手"
         @click="openAssistant"

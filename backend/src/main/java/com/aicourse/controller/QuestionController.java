@@ -13,6 +13,7 @@ import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.exception.BusinessException;
 import jakarta.validation.Valid;
 import com.aicourse.security.RoleUtil;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.AIService;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.QuestionService;
@@ -48,14 +49,17 @@ public class QuestionController {
     private final KnowledgePointService knowledgePointService;
     /** 角色矩阵「限制教师出题权限」的判定：平台级治理开关（ADMIN 不受限）。 */
     private final AiGenerationPolicy aiGenerationPolicy;
+    private final CourseAccessControl courseAccessControl;
 
     public QuestionController(QuestionService questionService, AIService aiService,
                               KnowledgePointService knowledgePointService,
-                              AiGenerationPolicy aiGenerationPolicy) {
+                              AiGenerationPolicy aiGenerationPolicy,
+                              CourseAccessControl courseAccessControl) {
         this.questionService = questionService;
         this.aiService = aiService;
         this.knowledgePointService = knowledgePointService;
         this.aiGenerationPolicy = aiGenerationPolicy;
+        this.courseAccessControl = courseAccessControl;
     }
 
     /**
@@ -150,6 +154,7 @@ public class QuestionController {
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "创建题目")
     public ApiResponse<Question> create(@Valid @RequestBody Question question, Authentication auth) {
+        courseAccessControl.assertCanManageCourse(question.getCourseId(), auth);
         question.setCreatedBy((Long) auth.getPrincipal());
         Question created = questionService.createQuestion(question);
         return ApiResponse.success("创建成功", created);
@@ -166,6 +171,7 @@ public class QuestionController {
     @Operation(summary = "AI智能生成题目")
     public ApiResponse<Question> generateByAI(@Valid @RequestBody Map<String, String> params, Authentication auth) {
         Long courseId = Long.valueOf(params.get("courseId"));
+        courseAccessControl.assertCanManageCourse(courseId, auth);
         String type = params.get("type");
         String difficulty = params.get("difficulty");
         String knowledgePointNames = params.get("knowledgePointNames");
@@ -184,7 +190,11 @@ public class QuestionController {
     @PostMapping("/{id}/review")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "审核题目")
-    public ApiResponse<Void> review(@PathVariable Long id, @Valid @RequestBody Map<String, Boolean> body) {
+    public ApiResponse<Void> review(@PathVariable Long id,
+                                    @Valid @RequestBody Map<String, Boolean> body,
+                                    Authentication auth) {
+        Question existing = requireQuestion(id);
+        courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
         boolean approved = body.getOrDefault("approved", true);
         questionService.reviewQuestion(id, approved);
         return ApiResponse.success(approved ? "审核通过" : "已拒绝", null);
@@ -198,7 +208,9 @@ public class QuestionController {
     @PostMapping("/{id}/copy")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "复制题目")
-    public ApiResponse<Question> copy(@PathVariable Long id) {
+    public ApiResponse<Question> copy(@PathVariable Long id, Authentication auth) {
+        Question existing = requireQuestion(id);
+        courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
         Question copied = questionService.copyQuestion(id);
         return ApiResponse.success("复制成功", copied);
     }
@@ -334,6 +346,7 @@ public class QuestionController {
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "新增题目")
     public ApiResponse<Question> createBasic(@Valid @RequestBody Question question, Authentication auth) {
+        courseAccessControl.assertCanManageCourse(question.getCourseId(), auth);
         question.setCreatedBy((Long) auth.getPrincipal());
         questionService.save(question);
         return ApiResponse.success("创建成功", question);
@@ -348,8 +361,13 @@ public class QuestionController {
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "修改题目")
-    public ApiResponse<Question> update(@PathVariable Long id, @Valid @RequestBody Question question) {
+    public ApiResponse<Question> update(@PathVariable Long id,
+                                        @Valid @RequestBody Question question,
+                                        Authentication auth) {
+        Question existing = requireQuestion(id);
+        courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
         question.setId(id);
+        question.setCourseId(existing.getCourseId());
         questionService.updateById(question);
         Question updatedQuestion = questionService.getById(id);
         return ApiResponse.success("更新成功", updatedQuestion);
@@ -363,7 +381,9 @@ public class QuestionController {
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "删除题目")
-    public ApiResponse<Void> delete(@PathVariable Long id) {
+    public ApiResponse<Void> delete(@PathVariable Long id, Authentication auth) {
+        Question existing = requireQuestion(id);
+        courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
         questionService.removeById(id);
         return ApiResponse.success("删除成功", null);
     }
@@ -383,6 +403,7 @@ public class QuestionController {
         String difficulty = dto.getDifficulty();
         int count = dto.getCount() != null ? dto.getCount() : 1;
 
+        courseAccessControl.assertCanManageCourse(courseId, auth);
         assertQuestionGenerationAllowed(auth);
         // 跨课程 AI 统计：把调用者与归属课程带进作用域，落库发生在 AiCoreComponent
         Long userId = auth != null ? (Long) auth.getPrincipal() : null;
@@ -406,6 +427,7 @@ public class QuestionController {
         String kp = dto.getKnowledgePointNames();
         int count = dto.getCount() != null ? dto.getCount() : 5;
 
+        courseAccessControl.assertCanManageCourse(courseId, auth);
         assertQuestionGenerationAllowed(auth);
 
         // 知识点感知增强：用户未指定知识点时，自动从课程知识图谱中提取
@@ -435,7 +457,18 @@ public class QuestionController {
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "批量导入题目", description = "JSON 批量导入（兼容保留，自动跳过无效项）；Excel(.xlsx) 批量导入请使用 /teacher/questions/import-excel")
     public ApiResponse<BatchImportResultVO> batchImport(@Valid @RequestBody List<Question> questions, Authentication auth) {
+        for (Question question : questions) {
+            courseAccessControl.assertCanManageCourse(question.getCourseId(), auth);
+        }
         int imported = questionService.batchImport(questions, (Long) auth.getPrincipal());
         return ApiResponse.success("导入完成", new BatchImportResultVO(imported, questions.size()));
+    }
+
+    private Question requireQuestion(Long id) {
+        Question question = questionService.getById(id);
+        if (question == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "题目不存在");
+        }
+        return question;
     }
 }

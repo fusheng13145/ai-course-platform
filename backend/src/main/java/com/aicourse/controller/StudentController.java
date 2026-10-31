@@ -9,6 +9,7 @@ import com.aicourse.dto.AssignmentSubmitDTO;
 import com.aicourse.dto.PracticeGenerateDTO;
 import com.aicourse.entity.*;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.*;
 import com.aicourse.vo.AssignmentDetailVO;
 import com.aicourse.vo.CourseDetailVO;
@@ -42,19 +43,22 @@ public class StudentController {
     private final SubmissionService submissionService;
     private final WrongQuestionService wrongQuestionService;
     private final LearningRecordService learningRecordService;
+    private final CourseAccessControl courseAccessControl;
 
     public StudentController(CourseService courseService,
                              CourseEnrollmentService enrollmentService,
                              TaskService taskService,
                              SubmissionService submissionService,
                              WrongQuestionService wrongQuestionService,
-                             LearningRecordService learningRecordService) {
+                             LearningRecordService learningRecordService,
+                             CourseAccessControl courseAccessControl) {
         this.courseService = courseService;
         this.enrollmentService = enrollmentService;
         this.taskService = taskService;
         this.submissionService = submissionService;
         this.wrongQuestionService = wrongQuestionService;
         this.learningRecordService = learningRecordService;
+        this.courseAccessControl = courseAccessControl;
     }
 
     // ==================== 学习中心（5个接口） ====================
@@ -206,6 +210,7 @@ public class StudentController {
         if (task == null) {
             throw new BusinessException("作业不存在");
         }
+        courseAccessControl.assertCanReadTask(task, auth);
         Long userId = (Long) auth.getPrincipal();
         Submission submission = submissionService.getByTaskAndStudent(assignmentId, userId);
         return ApiResponse.success(new AssignmentDetailVO(task, submission));

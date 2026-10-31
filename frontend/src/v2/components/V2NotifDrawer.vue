@@ -13,9 +13,13 @@
         </button>
       </header>
       <div class="notif-tools">
-        <button class="text-btn" @click="markAllRead">全部已读</button>
+        <button class="text-btn" :disabled="marking || !rows.length" @click="markAllRead">
+          {{ marking ? '处理中…' : '全部已读' }}
+        </button>
       </div>
-      <ul class="notif-list">
+      <p v-if="loadError" class="notif-empty">{{ loadError }}</p>
+      <p v-else-if="!rows.length" class="notif-empty">暂无通知</p>
+      <ul v-else class="notif-list">
         <li
           v-for="(item, index) in rows"
           :key="index"
@@ -40,8 +44,8 @@ import { computed, onMounted, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import V2Icon from './V2Icon.vue'
 import { useV2Ui } from '../composables/ui'
-import { DB } from '../data/demoSource'
 import { loadNotifications } from '../data/api'
+import { markAllAsRead } from '@/api/notification'
 
 interface Row {
   title: string
@@ -52,38 +56,42 @@ interface Row {
 
 const { role, notifOpen, unread, toast } = useV2Ui()
 const router = useRouter()
-const live = ref<Row[] | null>(null)
-const demoRead = ref(false)
+const live = ref<Row[]>([])
+const loadError = ref('')
+const marking = ref(false)
 
-const rows = computed<Row[]>(() => {
-  if (live.value && live.value.length) return live.value
-  const raw = (DB.roles as Record<string, { notifications?: Row[] }>)[role.value]?.notifications
-  return (raw || []).map((item) => ({
-    title: item.title,
-    meta: item.meta,
-    time: item.time,
-    unread: Boolean(item.unread) && !demoRead.value,
-  }))
-})
+const rows = computed<Row[]>(() => live.value)
 
 onMounted(async () => {
-  const list = await loadNotifications()
-  if (!list.length) return
-  live.value = list.map((item) => ({
-    title: item.title,
-    meta: item.content || item.kind,
-    time: item.time,
-    unread: item.unread,
-  }))
-  const count = list.filter((item) => item.unread).length
-  if (count) unread.value = count
+  try {
+    const list = await loadNotifications(true)
+    live.value = list.map((item) => ({
+      title: item.title,
+      meta: item.content || item.kind,
+      time: item.time,
+      unread: item.unread,
+    }))
+    unread.value = live.value.filter((item) => item.unread).length
+  } catch {
+    live.value = []
+    unread.value = 0
+    loadError.value = '通知加载失败，请重试'
+  }
 })
 
-function markAllRead() {
-  demoRead.value = true
-  if (live.value) live.value = live.value.map((item) => ({ ...item, unread: false }))
-  unread.value = 0
-  toast('全部通知已标记为已读')
+async function markAllRead() {
+  if (!live.value.length || marking.value) return
+  marking.value = true
+  try {
+    await markAllAsRead()
+    live.value = live.value.map((item) => ({ ...item, unread: false }))
+    unread.value = 0
+    toast('全部通知已标记为已读', 'ok')
+  } catch {
+    toast('全部已读失败，请重试', 'danger')
+  } finally {
+    marking.value = false
+  }
 }
 
 function openCenter() {

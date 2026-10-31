@@ -69,6 +69,7 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
     @MockitoBean private KnowledgePointRelationService relationService;
     @MockitoBean private AIService aiService;
     @MockitoBean private KnowledgeGraphService knowledgeGraphService;
+    @MockitoBean private com.aicourse.security.CourseAccessControl courseAccessControl;
 
     @BeforeEach
     void registerEntityMetadata() {
@@ -665,6 +666,8 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /knowledge/relations - 带强度与描述：全参数透传服务层")
     void createRelation_withStrengthAndDescription_passesAllArgs() throws Exception {
+        when(knowledgePointService.getById(1L)).thenReturn(point(1L, "a"));
+        when(knowledgePointService.getById(2L)).thenReturn(point(2L, "b"));
         when(relationService.createRelation(1L, 2L, "PREREQUISITE", new BigDecimal("0.8"), "先修"))
                 .thenReturn(relation(5L, 1L, 2L));
 

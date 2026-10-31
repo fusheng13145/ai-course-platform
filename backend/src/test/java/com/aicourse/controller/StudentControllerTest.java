@@ -1,6 +1,9 @@
 package com.aicourse.controller;
 import com.aicourse.controller.StudentController;
+import com.aicourse.common.ApiCode;
 import com.aicourse.entity.*;
+import com.aicourse.exception.BusinessException;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.LearningRecordService;
@@ -42,6 +45,8 @@ class StudentControllerTest extends ControllerTestBase {
     private com.aicourse.service.WrongQuestionService wrongQuestionService;
     @MockitoBean
     private com.aicourse.service.LearningRecordService learningRecordService;
+    @MockitoBean
+    private CourseAccessControl courseAccessControl;
 
     // ==================== 学习中心 ====================
 
@@ -302,6 +307,21 @@ class StudentControllerTest extends ControllerTestBase {
                 .andExpect(status().isUnauthorized());
     }
 
+
+    @Test
+    @DisplayName("GET /student/assignments/1 - 未选课学生读取返回403")
+    void getAssignmentDetail_unenrolledStudent_forbidden_403() throws Exception {
+        Task task = new Task();
+        task.setId(1L);
+        task.setCourseId(1L);
+        when(taskService.getById(any())).thenReturn(task);
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "尚未加入该课程，无权查看课程内容"))
+                .when(courseAccessControl).assertCanReadTask(any(Task.class), any());
+
+        mockMvc.perform(get("/student/assignments/1").with(withUser(9L, "STUDENT")))
+                .andExpect(status().isForbidden());
+        verify(submissionService, never()).getByTaskAndStudent(any(), any());
+    }
 
     @Test
     @DisplayName("GET /student/assignments/1 - TEACHER角色返回403")

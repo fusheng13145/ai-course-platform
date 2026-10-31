@@ -905,6 +905,7 @@ body[data-app="v2"] .notif-drawer > header { display: flex; justify-content: spa
 body[data-app="v2"] .notif-drawer h2 { margin: 0; font-family: var(--font-display); font-size: 24px; letter-spacing: -.03em; }
 body[data-app="v2"] .notif-drawer h2 span { font-family: var(--font-mono); font-size: 10px; color: var(--accent); vertical-align: middle; }
 body[data-app="v2"] .notif-tools { display: flex; justify-content: flex-end; padding: 8px 0; border-bottom: 1px solid var(--line); }
+body[data-app="v2"] .notif-empty { margin: 14px 0; color: var(--ink-3); font-size: 11px; }
 body[data-app="v2"] .notif-list { list-style: none; margin: 0 0 14px; padding: 0; }
 body[data-app="v2"] .notif-item { display: flex; align-items: flex-start; gap: 8px; padding: 11px 0; border-bottom: 1px solid var(--line); opacity: .68; }
 body[data-app="v2"] .notif-item.is-unread { opacity: 1; }

@@ -156,4 +156,14 @@ describe('v2 课程空间 · 总览三态与去示例兜底', () => {
     expect(wrapper.html()).not.toContain('示例数据：教学班')
     wrapper.unmount()
   })
+
+  it('课程头部不再保留只弹演示 toast 的课程通知按钮', async () => {
+    setRole('teacher')
+    state.tab = 'overview'
+    const wrapper = mountCourseView()
+    await flushPromises()
+    const labels = wrapper.findAll('button').map((node) => node.text())
+    expect(labels).not.toContain('课程通知')
+    wrapper.unmount()
+  })
 })

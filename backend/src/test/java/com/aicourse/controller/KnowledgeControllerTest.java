@@ -1,7 +1,10 @@
 package com.aicourse.controller;
 import com.aicourse.controller.KnowledgeController;
+import com.aicourse.common.ApiCode;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
+import com.aicourse.exception.BusinessException;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.vo.KnowledgeTreeNodeVO;
 import com.aicourse.service.AIService;
 import com.aicourse.service.KnowledgeGraphService;
@@ -40,10 +43,13 @@ class KnowledgeControllerTest extends ControllerTestBase {
     private AIService aiService;
     @MockitoBean
     private KnowledgeGraphService knowledgeGraphService;
+    @MockitoBean
+    private CourseAccessControl courseAccessControl;
 
     private KnowledgePoint samplePoint() {
         KnowledgePoint p = new KnowledgePoint();
         p.setId(1L);
+        p.setCourseId(1L);
         p.setName("sample-point");
         return p;
     }
@@ -51,6 +57,8 @@ class KnowledgeControllerTest extends ControllerTestBase {
     private KnowledgePointRelation sampleRelation() {
         KnowledgePointRelation r = new KnowledgePointRelation();
         r.setId(1L);
+        r.setSourceId(1L);
+        r.setTargetId(2L);
         return r;
     }
 
@@ -94,7 +102,7 @@ class KnowledgeControllerTest extends ControllerTestBase {
     @DisplayName("POST /knowledge/points - TEACHER角色返回200且data透传创建对象")
     void createPoint_authorized_returns_success() throws Exception {
         when(knowledgePointService.save(any())).thenReturn(true);
-        mockMvc.perform(post("/knowledge/points").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"知识点\"}").with(withUser(1L, "TEACHER")))
+        mockMvc.perform(post("/knowledge/points").contentType(MediaType.APPLICATION_JSON).content("{\"name\":\"知识点\",\"courseId\":1}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists());
@@ -125,7 +133,7 @@ class KnowledgeControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
         verify(knowledgePointService).updateById(any(KnowledgePoint.class));
-        verify(knowledgePointService).getById(eq(1L));
+        verify(knowledgePointService, times(2)).getById(eq(1L));
     }
 
     @Test
@@ -145,6 +153,7 @@ class KnowledgeControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("DELETE /knowledge/points/1 - TEACHER角色返回200且正确委托removeById")
     void deletePoint_authorized_returns_success() throws Exception {
+        when(knowledgePointService.getById(1L)).thenReturn(samplePoint());
         when(knowledgePointService.removeById(any(Long.class))).thenReturn(true);
         mockMvc.perform(delete("/knowledge/points/1").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
@@ -335,6 +344,8 @@ class KnowledgeControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /knowledge/relations - TEACHER角色返回200且data透传id")
     void createRelation_authorized_returns_success() throws Exception {
+        when(knowledgePointService.getById(1L)).thenReturn(samplePoint());
+        when(knowledgePointService.getById(2L)).thenReturn(samplePoint());
         when(relationService.createRelation(any(), any(), any(), any(), any())).thenReturn(sampleRelation());
         mockMvc.perform(post("/knowledge/relations").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"sourceId\":1,\"targetId\":2,\"relationType\":\"RELATED_TO\"}")
@@ -362,6 +373,9 @@ class KnowledgeControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("DELETE /knowledge/relations/1 - TEACHER角色返回200且正确委托deleteRelation")
     void deleteRelation_authorized_returns_success() throws Exception {
+        when(relationService.getById(1L)).thenReturn(sampleRelation());
+        when(knowledgePointService.getById(1L)).thenReturn(samplePoint());
+        when(knowledgePointService.getById(2L)).thenReturn(samplePoint());
         doNothing().when(relationService).deleteRelation(any());
         mockMvc.perform(delete("/knowledge/relations/1").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
@@ -591,4 +605,66 @@ class KnowledgeControllerTest extends ControllerTestBase {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    @DisplayName("POST /knowledge/points - 跨教师课程创建返回403")
+    void createPoint_crossTeacher_forbidden_403() throws Exception {
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
+        mockMvc.perform(post("/knowledge/points").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"越权知识点\",\"courseId\":1}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(knowledgePointService, never()).save(any(KnowledgePoint.class));
+    }
+
+    @Test
+    @DisplayName("PUT /knowledge/points/1 - 跨教师更新返回403")
+    void updatePoint_crossTeacher_forbidden_403() throws Exception {
+        when(knowledgePointService.getById(1L)).thenReturn(samplePoint());
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
+        mockMvc.perform(put("/knowledge/points/1").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"越权更新\"}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(knowledgePointService, never()).updateById(any(KnowledgePoint.class));
+    }
+
+    @Test
+    @DisplayName("DELETE /knowledge/points/1 - 跨教师删除返回403")
+    void deletePoint_crossTeacher_forbidden_403() throws Exception {
+        when(knowledgePointService.getById(1L)).thenReturn(samplePoint());
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
+        mockMvc.perform(delete("/knowledge/points/1").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(knowledgePointService, never()).removeById(eq(1L));
+    }
+
+    @Test
+    @DisplayName("POST /knowledge/relations - 跨教师知识点建边返回403")
+    void createRelation_crossTeacher_forbidden_403() throws Exception {
+        when(knowledgePointService.getById(1L)).thenReturn(samplePoint());
+        when(knowledgePointService.getById(2L)).thenReturn(samplePoint());
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
+        mockMvc.perform(post("/knowledge/relations").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"sourceId\":1,\"targetId\":2,\"relationType\":\"RELATED_TO\"}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(relationService, never()).createRelation(any(), any(), any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("DELETE /knowledge/relations/1 - 跨教师删边返回403")
+    void deleteRelation_crossTeacher_forbidden_403() throws Exception {
+        when(relationService.getById(1L)).thenReturn(sampleRelation());
+        when(knowledgePointService.getById(1L)).thenReturn(samplePoint());
+        when(knowledgePointService.getById(2L)).thenReturn(samplePoint());
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
+        mockMvc.perform(delete("/knowledge/relations/1").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(relationService, never()).deleteRelation(eq(1L));
+    }
 }
