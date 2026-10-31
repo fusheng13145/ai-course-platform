@@ -192,6 +192,20 @@
           </select>
         </label>
         <label class="field span-2">
+          <span>知识点（用于错题按知识点分组，可多选）</span>
+          <p v-if="!form.courseId" class="academic-note">先选择课程后可勾选知识点。</p>
+          <p v-else-if="kpLoading" class="academic-note">正在加载知识点…</p>
+          <p v-else-if="!kpOptions.length" class="academic-note">
+            该课程还没有知识点；可在「知识点管理」里创建后再回来勾选。
+          </p>
+          <div v-else class="kp-picker">
+            <label v-for="kp in kpOptions" :key="kp.id ?? kp.name" class="kp-chip">
+              <input v-model="form.knowledgePoints" type="checkbox" :value="kp.name" />
+              <span>{{ kp.name }}</span>
+            </label>
+          </div>
+        </label>
+        <label class="field span-2">
           <span>题干</span>
           <textarea
             v-model="form.content"
@@ -343,6 +357,7 @@ import {
   updateQuestion,
 } from '@/api/question'
 import { getAllMyCourses } from '@/api/course'
+import knowledgeApi from '@/api/knowledge'
 import { pickList, unwrap } from '@/utils/response'
 import { createQuestionTransfer } from '@/utils/questionTransfer'
 import { resolveReviewStatus } from '@/composables/useQuestionBank'
@@ -371,6 +386,7 @@ interface QuestionRow {
   courseName?: string
   answer?: string
   explanation?: string
+  knowledgePoints?: string | null
   analysis?: string
   isActive?: boolean
   reviewStatus?: string
@@ -432,7 +448,93 @@ const form = reactive({
   content: '',
   answer: '',
   explanation: '',
+  knowledgePoints: [] as string[],
 })
+
+// 题目侧的知识点标签：后端 question.knowledge_points 存 JSON 数组文本，兼容逗号分隔
+const kpOptions = ref<{ id?: number | string; name: string }[]>([])
+const kpLoading = ref(false)
+
+// correct_answers 是 MySQL JSON 列：直接发纯文本会 400（数据完整性校验失败）。
+// 单答/判断存 JSON 字符串（"B"），多选存 JSON 数组（["A","C"]）。
+function splitAnswers(text: string): string[] {
+  return text
+    .split(/[,，;；、\s]+/)
+    .map((v) => v.trim())
+    .filter(Boolean)
+}
+
+function encodeAnswers(type: string, text: string): string | undefined {
+  const raw = text.trim()
+  if (!raw) return undefined
+  if (type === 'MULTIPLE_CHOICE') return JSON.stringify(splitAnswers(raw))
+  return JSON.stringify(raw)
+}
+
+function decodeAnswers(raw?: string | null): string {
+  if (!raw) return ''
+  const text = String(raw).trim()
+  try {
+    const parsed = JSON.parse(text)
+    if (Array.isArray(parsed)) return parsed.map(String).join('，')
+    if (typeof parsed === 'string') return parsed
+    return String(parsed)
+  } catch {
+    return text.replace(/^"|"$/g, '')
+  }
+}
+
+function parseKpList(raw?: string | null): string[] {
+  if (!raw) return []
+  const text = String(raw).trim()
+  if (!text) return []
+  if (text.startsWith('[')) {
+    try {
+      const parsed = JSON.parse(text)
+      if (Array.isArray(parsed))
+        return parsed
+          .map(String)
+          .map((v) => v.trim())
+          .filter(Boolean)
+    } catch {
+      /* 退回分隔符拆分 */
+    }
+  }
+  return text
+    .split(/[,，;；]/)
+    .map((v) => v.trim())
+    .filter(Boolean)
+}
+
+async function loadKpOptions(courseId?: string | number | null) {
+  const cid = courseId ? Number(courseId) : 0
+  if (!cid) {
+    kpOptions.value = []
+    return
+  }
+  kpLoading.value = true
+  try {
+    const body = unwrap(await knowledgeApi.getKnowledgePoints(cid))
+    const list = Array.isArray(body) ? body : []
+    kpOptions.value = list
+      .map((item: { id?: number | string; name?: string }) => ({
+        id: item.id,
+        name: String(item.name || '').trim(),
+      }))
+      .filter((item: { name: string }) => item.name)
+  } catch {
+    kpOptions.value = []
+  } finally {
+    kpLoading.value = false
+  }
+}
+
+watch(
+  () => form.courseId,
+  (value) => {
+    void loadKpOptions(value as string | number | null)
+  },
+)
 
 const reviewOpen = ref(false)
 const reviewRow = ref<QuestionRow | null>(null)
@@ -606,6 +708,7 @@ function resetForm() {
     content: '',
     answer: '',
     explanation: '',
+    knowledgePoints: [],
   })
   formError.value = ''
 }
@@ -623,8 +726,9 @@ function openEdit(row: QuestionRow) {
     difficulty: row.difficulty || 'MEDIUM',
     courseId: String(row.courseId ?? (isCourseScope.value ? props.courseId : '') ?? ''),
     content: row.content || row.stem || '',
-    answer: String(row.correctAnswers ?? row.answer ?? ''),
+    answer: decodeAnswers(String(row.correctAnswers ?? row.answer ?? '')),
     explanation: row.explanation || row.analysis || '',
+    knowledgePoints: parseKpList(row.knowledgePoints),
   })
   formError.value = ''
   formOpen.value = true
@@ -647,9 +751,16 @@ async function saveForm() {
       difficulty: form.difficulty,
       courseId: form.courseId ? Number(form.courseId) : undefined,
       content: form.content.trim(),
-      // 后端 Question 实体字段是 correctAnswers；旧端一直发 answer，答案其实没落库
-      correctAnswers: form.answer.trim(),
+      // 后端 Question 实体字段是 correctAnswers；旧端一直发 answer，答案其实没落库。
+      // 该列是 JSON 类型，必须编码后再发，否则 400（数据完整性校验失败）。
+      correctAnswers: encodeAnswers(form.type, form.answer),
       explanation: form.explanation.trim(),
+      // 新建留空即不写；编辑时必须显式回写，否则清空勾选无法落库
+      knowledgePoints: form.knowledgePoints.length
+        ? JSON.stringify(form.knowledgePoints)
+        : editingId.value
+          ? ''
+          : undefined,
     }
     if (editingId.value) await updateQuestion(editingId.value, payload)
     else await createQuestion(payload)
@@ -798,6 +909,20 @@ onMounted(async () => {
 </script>
 
 <style scoped>
+.kp-picker {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 12px;
+  max-height: 132px;
+  overflow: auto;
+}
+.kp-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
 .filter-course,
 .filter-type,
 .filter-diff {
