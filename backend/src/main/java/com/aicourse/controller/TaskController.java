@@ -13,6 +13,7 @@ import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.SubmissionService;
 import jakarta.validation.Valid;
 import com.aicourse.service.TaskService;
+import com.aicourse.util.LenientDateTimeParser;
 import com.aicourse.vo.TaskCompletionStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -183,18 +184,20 @@ public class TaskController {
             Authentication auth) {
         String newDueDateStr = dto.getNewDueDate();
         String reason = dto.getReason();
-        // 修复（2026-09-14）：此处用手写 LocalDateTime.parse，非 ISO 入参会抛
-        // DateTimeParseException 并落入兜底 500「服务器内部错误」——属客户端入参问题，
-        // 应返回 400 明确提示（与全局宽松日期反序列化的口径保持一致，见 LenientLocalDateTimeDeserializer）。
-        LocalDateTime newDueDate;
         if (newDueDateStr == null || newDueDateStr.isBlank()) {
             throw new BusinessException(ApiCode.BAD_REQUEST, "新的截止日期不能为空");
         }
+        // 修复（2026-10-30，B-13 ⑨）：原本手写 LocalDateTime.parse 只认 ISO-8601，
+        // 导致同一控制器内 dueDate 接受 "2026-10-30 23:59:59"、而 newDueDate 对同样的
+        // 字符串必 400。改为走 LenientDateTimeParser，与全局反序列化口径完全一致
+        // （2026-11-01 项目主裁定：方向为「放宽」，ISO-8601 为契约推荐格式）。
+        // 解析失败仍是 400（不是 500），文案统一由该工具给出。
+        LocalDateTime newDueDate;
         try {
-            newDueDate = LocalDateTime.parse(newDueDateStr.trim());
-        } catch (Exception e) {
+            newDueDate = LenientDateTimeParser.parse(newDueDateStr);
+        } catch (IllegalArgumentException e) {
             throw new BusinessException(ApiCode.BAD_REQUEST,
-                    "截止日期格式不正确，需为 ISO-8601（如 2026-09-20T23:59:59）");
+                    "截止日期格式不正确；" + LenientDateTimeParser.FORMAT_HINT);
         }
         Task existing = requireTask(id);
         courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);

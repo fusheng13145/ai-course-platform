@@ -5,8 +5,10 @@ import org.slf4j.LoggerFactory;
 
 import jakarta.validation.Valid;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.vo.QuestionVO;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.ExamPaper;
@@ -210,10 +212,22 @@ public class ExamPaperController {
      */
     @DeleteMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "删除试卷")
+    @Operation(summary = "删除试卷",
+            description = "无考试记录时物理删除；已产生考试会话的试卷返回 409，避免外键级联销毁考试记录")
     public ApiResponse<Void> delete(@PathVariable Long id, Authentication auth) {
         // 归属校验（2026-09-14 修复）：仅试卷所属课程的授课教师或管理员可删除
         examPaperAccessControl.assertCanManage(examPaperService.getById(id), auth);
+        // 修复（2026-11-01，B-13 ⑳）：禁止删除已产生考试记录的试卷。
+        // 外键 fk_exam_questions_paper / fk_exam_sessions_paper 均为 ON DELETE CASCADE，
+        // fk_proctor_sessions_exam 又对 exam_sessions 级联 —— 直接物理删会连坐销毁
+        // 题目行、考试会话与监考事件。项目主裁定（2026-11-01）：存在 exam_sessions 时返回 409。
+        long sessionCount = examSessionService.count(
+                new LambdaQueryWrapper<com.aicourse.entity.ExamSession>()
+                        .eq(com.aicourse.entity.ExamSession::getExamPaperId, id));
+        if (sessionCount > 0) {
+            throw new BusinessException(ApiCode.CONFLICT,
+                    "该试卷已产生 " + sessionCount + " 条考试记录，不能删除；请改为归档");
+        }
         examPaperService.removeById(id);
         return ApiResponse.success("删除成功", null);
     }

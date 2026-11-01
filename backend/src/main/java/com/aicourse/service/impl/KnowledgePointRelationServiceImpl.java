@@ -3,6 +3,7 @@ package com.aicourse.service.impl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.KnowledgePointRelation;
 import com.aicourse.exception.BusinessException;
@@ -48,6 +49,11 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
                                                   BigDecimal strength, String description) {
                                                       log.info("创建知识点点关系");
 
+        // 修复（2026-10-30，B-13 ⑪）：relationType 统一归一化为大写。
+        // 此前按入参原样落库，同一语义可能存在 "prerequisite" / "PREREQUISITE" 两种行，
+        // 而 getPrerequisites 只按大写精确匹配 ⇒ 小写写入的边永远查不回来。
+        String normalizedType = normalizeRelationType(relationType);
+
         // 校验源知识点和目标知识点是否存在
         KnowledgePoint source = knowledgePointService.getById(sourceId);
         if (source == null) {
@@ -58,11 +64,11 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
             throw new BusinessException("目标知识点不存在: " + targetId);
         }
 
-        // 检查是否已存在相同关联
+        // 检查是否已存在相同关联（去重也按大小写不敏感比较，避免 "a"/"A" 各存一条）
         LambdaQueryWrapper<KnowledgePointRelation> checkWrapper = new LambdaQueryWrapper<KnowledgePointRelation>()
                 .eq(KnowledgePointRelation::getSourceId, sourceId)
                 .eq(KnowledgePointRelation::getTargetId, targetId)
-                .eq(KnowledgePointRelation::getRelationType, relationType);
+                .apply("UPPER(relation_type) = {0}", normalizedType);
         long count = count(checkWrapper);
         if (count > 0) {
             throw new BusinessException("该关联关系已存在");
@@ -71,11 +77,27 @@ public class KnowledgePointRelationServiceImpl extends ServiceImpl<KnowledgePoin
         KnowledgePointRelation relation = new KnowledgePointRelation();
         relation.setSourceId(sourceId);
         relation.setTargetId(targetId);
-        relation.setRelationType(relationType);
+        relation.setRelationType(normalizedType);
         relation.setStrength(strength);
         relation.setDescription(description);
         save(relation);
         return relation;
+    }
+
+    /**
+     * 关联类型归一化：去空白 + 转大写（B-13 ⑪）。
+     *
+     * <p>调用方可能传小写，历史数据也可能已按原样落库，所以写入侧统一大写、
+     * 读取侧统一 {@code UPPER(...)} 比较，两边同口径后 {@code getPrerequisites}
+     * 才能稳定查回。</p>
+     *
+     * @throws BusinessException relationType 为空时返回 400（而不是落一条空类型边）
+     */
+    private static String normalizeRelationType(String relationType) {
+        if (relationType == null || relationType.isBlank()) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "关联类型不能为空");
+        }
+        return relationType.trim().toUpperCase(Locale.ROOT);
     }
 
     /**

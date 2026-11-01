@@ -116,9 +116,11 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
     @Cacheable(cacheNames = CACHE_NAME, key = "'prerequisites:' + #pointId")
     public List<KnowledgePoint> getPrerequisites(Long pointId) {
         // 查询以当前知识点为target且类型为PREREQUISITE的关联关系
+        // 修复（2026-10-30，B-13 ⑪）：改为大小写不敏感比较。存量里可能存在小写
+        // "prerequisite" 的行（历史写入未归一化），精确匹配会让这些边查不回来。
         LambdaQueryWrapper<KnowledgePointRelation> wrapper = new LambdaQueryWrapper<KnowledgePointRelation>()
                 .eq(KnowledgePointRelation::getTargetId, pointId)
-                .eq(KnowledgePointRelation::getRelationType, "PREREQUISITE");
+                .apply("UPPER(relation_type) = {0}", "PREREQUISITE");
         List<KnowledgePointRelation> relations = relationService.list(wrapper);
 
         if (relations.isEmpty()) {
@@ -139,9 +141,10 @@ public class KnowledgePointServiceImpl extends ServiceImpl<KnowledgePointMapper,
     @Cacheable(cacheNames = CACHE_NAME, key = "'subsequent:' + #pointId")
     public List<KnowledgePoint> getSubsequentPoints(Long pointId) {
         // 查询以当前知识点为source且类型为PREREQUISITE的关联关系
+        // 修复（2026-10-30，B-13 ⑪）：同 getPrerequisites，大小写不敏感。
         LambdaQueryWrapper<KnowledgePointRelation> wrapper = new LambdaQueryWrapper<KnowledgePointRelation>()
                 .eq(KnowledgePointRelation::getSourceId, pointId)
-                .eq(KnowledgePointRelation::getRelationType, "PREREQUISITE");
+                .apply("UPPER(relation_type) = {0}", "PREREQUISITE");
         List<KnowledgePointRelation> relations = relationService.list(wrapper);
 
         if (relations.isEmpty()) {
