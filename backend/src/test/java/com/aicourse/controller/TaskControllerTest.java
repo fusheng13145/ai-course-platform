@@ -263,6 +263,44 @@ class TaskControllerTest extends ControllerTestBase {
         verify(taskService).extendDeadline(eq(1L), any(), any());
     }
 
+    // ---- B-13 ⑨：extend-deadline 的入参时间口径必须与全局宽松反序列化一致 ----
+    // 修复前：这里手写 LocalDateTime.parse，只认 ISO-8601；同一控制器的 dueDate 却走
+    // LenientLocalDateTimeDeserializer（四种格式都收），两套口径并存。
+    // 2026-11-01 项目主裁定：方向为「放宽」，ISO-8601 为契约推荐格式。
+    @org.junit.jupiter.params.ParameterizedTest(name = "[{index}] newDueDate=\"{0}\" 应被接受")
+    @org.junit.jupiter.params.provider.ValueSource(strings = {
+            "2026-10-31T23:59:59",
+            "2026-10-31 23:59:59",
+            "2026-10-31 23:59",
+            "2026-10-31"
+    })
+    @DisplayName("POST /tasks/1/extend-deadline - 四种时间格式均应 200（与 dueDate 同口径）")
+    void extendDeadline_acceptsLenientDateFormats(String newDueDate) throws Exception {
+        when(taskService.getById(1L)).thenReturn(sampleTask(1L, "作业1"));
+        when(taskService.extendDeadline(eq(1L), any(), any())).thenReturn(sampleTask(1L, "作业1"));
+        mockMvc.perform(post("/tasks/1/extend-deadline")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newDueDate\":\"" + newDueDate + "\",\"reason\":\"延期\"}")
+                        .with(withUser(1L, "TEACHER", "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+        verify(taskService).extendDeadline(eq(1L), any(), any());
+    }
+
+    @org.junit.jupiter.params.ParameterizedTest(name = "[{index}] newDueDate=\"{0}\" 应 400")
+    @org.junit.jupiter.params.provider.ValueSource(strings = {"2026/10/31", "not-a-date"})
+    @DisplayName("POST /tasks/1/extend-deadline - 非法时间格式返回 400（不是 500）")
+    void extendDeadline_invalidFormat_returns_400(String newDueDate) throws Exception {
+        when(taskService.getById(1L)).thenReturn(sampleTask(1L, "作业1"));
+        mockMvc.perform(post("/tasks/1/extend-deadline")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"newDueDate\":\"" + newDueDate + "\",\"reason\":\"延期\"}")
+                        .with(withUser(1L, "TEACHER", "ADMIN")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+        verify(taskService, never()).extendDeadline(any(), any(), any());
+    }
+
 
     @Test
     @DisplayName("POST /tasks/1/extend-deadline - 未认证返回401")

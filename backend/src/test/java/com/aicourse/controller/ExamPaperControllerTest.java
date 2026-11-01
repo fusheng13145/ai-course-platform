@@ -173,6 +173,28 @@ class ExamPaperControllerTest extends ControllerTestBase {
         verify(examPaperService).removeById(eq(1L));
     }
 
+    // B-13 ⑳：外键级联会连坐销毁题目行/考试会话/监考事件，故有考试记录时必须拒绝删除。
+    // 2026-11-01 项目主裁定：返回 409（不做软删、不加 deleted_at、不占迁移号）。
+    @Test
+    @DisplayName("DELETE /exam-papers/1 - 已有考试记录时返回409且不执行删除")
+    void delete_withExamSessions_returns409() throws Exception {
+        when(examSessionService.count(any())).thenReturn(3L);
+        mockMvc.perform(delete("/exam-papers/1").with(withUser(1L, "TEACHER", "ADMIN")))
+                .andExpect(status().isConflict())
+                .andExpect(jsonPath("$.code").value(409));
+        verify(examPaperService, never()).removeById(eq(1L));
+    }
+
+    @Test
+    @DisplayName("DELETE /exam-papers/1 - 无考试记录时仍可删除（守卫不误伤）")
+    void delete_withoutExamSessions_stillDeletes() throws Exception {
+        when(examSessionService.count(any())).thenReturn(0L);
+        mockMvc.perform(delete("/exam-papers/1").with(withUser(1L, "TEACHER", "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+        verify(examPaperService).removeById(eq(1L));
+    }
+
     @Test
     @DisplayName("DELETE /exam-papers/1 - 未认证返回401")
     void delete_unauthorized_returns_401() throws Exception {
