@@ -453,7 +453,7 @@
 | 编号 | 任务 | 优先 | 阶段 | 状态 |
 | --- | --- | --- | --- | --- |
 | D7-1 | frontend-e2e 纳入 CI 主触发链 | 高 | 一 | 🟡（已接线，仍 `workflow_dispatch`） |
-| D7-2 | scripts/tests 纳入 CI | 中 | 一 | ✅（launcher-tests 97 例，2026-10-27） |
+| D7-2 | scripts/tests 纳入 CI | 中 | 一 | ✅（launcher-tests 已在 CI 门禁内，读数见 `docs/测试文档.md` §5.2） |
 | D7-3 | RAG/KG 重依赖进 CI | 中 | 二 | 🟡（skipif 已收敛；重依赖未进） |
 | D7-4 | 契约覆盖矩阵（KG 11 / RAG 9） | 中 | 二 | ✅ |
 | D7-5 | 考试定时器边界用例 | 高 | 一 | ✅ |
