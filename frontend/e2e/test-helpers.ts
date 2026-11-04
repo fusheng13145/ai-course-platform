@@ -173,8 +173,19 @@ export async function dismissOnboarding(page: Page) {
  * 登录框默认为 readonly、focus 时才摘掉（防自动填充），所以必须先 focus 再 fill；
  * 并且要避开 Login.vue 的延时二次清空（见 fillLoginField）。
  */
-export async function loginAs(page: Page, role: 'STUDENT' | 'TEACHER' | 'ADMIN' = 'STUDENT') {
-  const account = { STUDENT: 'student', TEACHER: 'teacher', ADMIN: 'admin' }[role]
+export async function loginAs(
+  page: Page,
+  role: 'STUDENT' | 'TEACHER' | 'ADMIN' = 'STUDENT',
+  /**
+   * 覆盖默认账号（默认 STUDENT→student 等内置演示号）。
+   * 需要"有学习记录的学生"这类带数据的账号时（如 st001），由用例显式传入，
+   * 而不是在用例里重写一遍登录流程——登录要处理 readonly 字段、延时清空与 429，
+   * 第二份实现必然与这份分叉。
+   */
+  accountOverride?: string,
+) {
+  const account =
+    accountOverride || { STUDENT: 'student', TEACHER: 'teacher', ADMIN: 'admin' }[role]
 
   await page.goto('/login')
   // 登录页的字段名是 username/password（旧端是 login-username）
