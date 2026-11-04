@@ -37,7 +37,9 @@ test.describe('管理端系统设置（真栈）', () => {
     }
 
     // 分页器读数与接口总数一致
-    await expect(page.locator('.system-body .card-foot')).toContainText(`共 ${configs.length} 条`)
+    await expect(page.locator('.system-body .table-card h2 .chip')).toContainText(
+      `${configs.length} 条`,
+    )
     // 首屏行数＝一页（20 条），且与服务端总数不矛盾
     const rows = await page.locator('.system-body tbody tr').count()
     expect(rows).toBe(Math.min(20, configs.length))
@@ -48,15 +50,26 @@ test.describe('管理端系统设置（真栈）', () => {
     expect(healthText).toContain(health.database || '—')
     expect(healthText).toContain(health.redis || '—')
 
-    // 密钥类配置：掩码显示，真实值不出现在页面上
+    // 密钥类配置：值格只有两种合法形态——空值显示「（空）」，非空显示掩码；
+    // 任何情况下都不出现真实值。逐个键用搜索定位到它所在行再判。
+    // （不能按整页文本判：短值如 "8" 会在「118 条」这类读数里到处出现。）
     const sensitive = configs.filter((row) => /(key|secret|password|token)/i.test(row.key))
     expect(sensitive.length, '库内没有密钥类配置，用例失去意义').toBeGreaterThan(0)
-    const pageText = await page.locator('.system-body').innerText()
+    const search = page.locator('.system-body input[type="search"]')
     for (const row of sensitive) {
-      if (!row.value) continue
-      expect(pageText, `密钥 ${row.key} 的真实值出现在页面上`).not.toContain(String(row.value))
+      await search.fill(row.key)
+      const line = page.locator('.system-body tbody tr').filter({ hasText: row.key }).first()
+      await expect(line, `库里没有这个敏感配置键：${row.key}`).toBeVisible({ timeout: 20000 })
+      const cell = await line.locator('.config-value').innerText()
+      expect(
+        ['（空）', '••••••'],
+        `敏感配置 ${row.key} 的值格不是「空值」或掩码，而是：${cell}`,
+      ).toContain(cell)
+      if (row.value) {
+        expect(cell, `密钥 ${row.key} 的真实值出现在页面上`).not.toContain(String(row.value))
+      }
     }
-    await expect(page.locator('.system-body')).toContainText('••••••')
+    await search.fill('')
 
     await expect(page.locator('.system-body')).not.toContainText('示例数据')
   })
@@ -73,8 +86,9 @@ test.describe('管理端系统设置（真栈）', () => {
     expect(group, '接口没有返回分组').toBeTruthy()
 
     await page.locator('.system-body select').selectOption(String(group))
-    await expect(page.locator('.system-body .card-foot')).toContainText(
-      `共 ${configs.filter((row) => row.group === group).length} 条`,
+    // 分组筛选后行数可能少于一页 ⇒ 没有分页器，读表头计数
+    await expect(page.locator('.system-body .table-card h2 .chip')).toContainText(
+      `${configs.filter((row) => row.group === group).length} 条`,
     )
   })
 })
