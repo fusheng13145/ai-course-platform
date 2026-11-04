@@ -1,5 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { mount, flushPromises } from '@vue/test-utils'
+import { existsSync } from 'node:fs'
+import { join } from 'node:path'
 
 const taskApi = vi.hoisted(() => ({
   getAllTasks: vi.fn(),
@@ -46,7 +48,6 @@ vi.mock('../composables/ui', () => ({
 import TasksTab from '../views/course/tabs/TasksTab.vue'
 import GradesTab from '../views/course/tabs/GradesTab.vue'
 import DiscussionTab from '../views/course/tabs/DiscussionTab.vue'
-import { courseTabBlock } from '../data/courseTabData'
 
 /** Modal 走 Teleport，测试里换成同 slot 结构的存根，确认按钮仍能被点到 */
 const stubs = {
@@ -427,11 +428,15 @@ describe('学生课程 · 成绩页签', () => {
     wrapper.unmount()
   })
 
-  it('管理员仍走既有演示视图（本期不动）', async () => {
+  it('管理员/教师不再看到示例成绩视图：只给一句明确说明，不画示例均分与示例表格', async () => {
+    // 原先是硬编码演示视图（示例均分 82.4、示例表格、示例绩点环），
+    // batch 24 死示例层清算整段删除；管理员该页签实际走只读视图。
     const wrapper = mountGrades('admin')
     await flushPromises()
     expect(studentApi.getGrades).not.toHaveBeenCalled()
-    expect(wrapper.text()).toContain('课程成绩概览')
+    expect(wrapper.text()).toContain('该角色暂无此页签')
+    expect(wrapper.text()).not.toContain('课程成绩概览')
+    expect(wrapper.text()).not.toContain('82.4')
     wrapper.unmount()
   })
 })
@@ -547,11 +552,10 @@ describe('学生课程 · 讨论页签', () => {
 })
 
 describe('示例数据层收缩', () => {
-  it('学生三个已接真的页签不再返回示例块', () => {
-    expect(courseTabBlock('student', 'tasks')).toBeNull()
-    expect(courseTabBlock('student', 'discussion')).toBeNull()
-    expect(courseTabBlock('student', 'grades')).toBeNull()
-    // 对照：管理员题库仍由 ModuleTab 渲染，示例块必须保留警示
-    expect(courseTabBlock('admin', 'bank')?.note || '').toContain('示例')
+  it('示例块底座已整体删除：课程页签不再有示例数据来源', () => {
+    // 示例层于 batch 24 整体删除；此处改为钉住「不再出现」这个事实，
+    // 具体守卫见 noDemoLayer.test.ts（源码级扫描＋阴性对照）。
+    const courseTabData = join(__dirname, '../data/courseTabData.ts')
+    expect(existsSync(courseTabData), '示例块底座仍在').toBe(false)
   })
 })

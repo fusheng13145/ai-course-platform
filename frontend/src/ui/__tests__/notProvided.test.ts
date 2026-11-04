@@ -15,6 +15,8 @@ describe('不提供清单的判定', () => {
     expect(pageDisposition('admin', 'audit')).toBe('provided')
     expect(pageDisposition('admin', 'sessions')).toBe('provided')
     expect(pageDisposition('admin', 'notices')).toBe('hidden')
+    // 2026-11-04 批次 24：系统设置接真（`/admin/configs` GET＋PUT、`/admin/health`）
+    expect(pageDisposition('admin', 'system')).toBe('provided')
     // aiUsage 已于 2026-11-04（M-14）按课程维度接真，不再属于「待扩展」：
     // 它现在由 AiUsageBody 走 special 约定加载，处置必须回到 provided。
     expect(pageDisposition('admin', 'aiUsage')).toBe('provided')
@@ -28,7 +30,6 @@ describe('不提供清单的判定', () => {
       ['student', 'assistant'],
       ['teacher', 'resources'],
       ['admin', 'notices'],
-      ['admin', 'system'],
       ['admin', 'enrollments'],
     ] as const) {
       const copy = notProvidedCopy(role, page)
@@ -45,7 +46,7 @@ describe('不提供清单的判定', () => {
 
   it('管理端侧栏摘掉本轮不迁入的治理页，保留已转真的页面', () => {
     const ids = navIds('admin')
-    for (const gone of ['notices', 'system', 'supervision', 'moderation']) {
+    for (const gone of ['notices', 'supervision', 'moderation']) {
       expect(ids, `admin 侧栏仍留有 ${gone}`).not.toContain(gone)
     }
     for (const kept of [
@@ -57,6 +58,8 @@ describe('不提供清单的判定', () => {
       // 批次 23 接真后重新出现在侧栏
       'audit',
       'sessions',
+      // 批次 24 接真后重新出现在侧栏
+      'system',
     ]) {
       expect(ids, `admin 侧栏缺了 ${kept}`).toContain(kept)
     }

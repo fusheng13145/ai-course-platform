@@ -198,32 +198,10 @@ export interface Table {
   rows: Cell[][]
 }
 
-export interface Side {
-  title: string
-  body: string
-  items: string[]
-  action?: { label: string; module: string }
-}
-
-export interface Module {
-  id: string
-  label: string
-  en: string
-  group: string
-  icon?: string
-  desc: string
-  metrics: Metric[]
-  table?: Table
-  side?: Side
-  special?: string
-  hideMetrics?: boolean
-}
-
 export interface PageDef {
   title: string
   kicker: string
   desc: string
-  moduleId?: string
   special?: string
 }
 
@@ -239,7 +217,6 @@ const STUDENT_PAGES: Record<string, PageDef> = {
     title: '学习任务',
     kicker: 'STUDENT / TASKS',
     desc: '跨课程作业、考试与提醒；按截止时间排序。',
-    moduleId: 'tasks',
     special: 'tasks',
   },
   academic: {
@@ -392,21 +369,18 @@ const ADMIN_PAGES: Record<string, PageDef> = {
     title: '用户与账号',
     kicker: 'ADMIN / USERS',
     desc: '全校用户、角色与账号状态；管理员只做治理。',
-    moduleId: 'users',
     special: 'users',
   },
   roles: {
     title: '角色与权限',
     kicker: 'ADMIN / ROLES',
     desc: '角色矩阵与权限边界；院系级只读。',
-    moduleId: 'roles',
     special: 'roles',
   },
   semesters: {
     title: '学期管理',
     kicker: 'ADMIN / SEMESTERS',
     desc: '学期注册表与归档；课程编号按学期唯一。',
-    moduleId: 'semesters',
     special: 'semesters',
   },
   approvals: {
@@ -465,14 +439,12 @@ const ADMIN_PAGES: Record<string, PageDef> = {
     title: 'AI 使用与治理',
     kicker: 'ADMIN / AI USAGE',
     desc: '按课程聚合的调用量、成功率与耗时（近 N 天，数据源 ai_call_logs）；按能力/按日与配额尚待扩展。',
-    moduleId: 'aiUsage',
     special: 'aiUsage',
   },
   moderation: {
     title: '内容审核',
     kicker: 'ADMIN / MODERATION',
     desc: '讨论与资源审核；处置需留痕。',
-    moduleId: 'moderation',
   },
   notices: {
     title: '通知公告',
@@ -484,7 +456,6 @@ const ADMIN_PAGES: Record<string, PageDef> = {
     title: '操作与登录日志',
     kicker: 'ADMIN / AUDIT',
     desc: '关键写操作与每一次登录尝试的查询面（只读，不提供删除或改写日志）。',
-    moduleId: 'audit',
     special: 'audit',
   },
   sessions: {
@@ -496,8 +467,8 @@ const ADMIN_PAGES: Record<string, PageDef> = {
   system: {
     title: '系统设置',
     kicker: 'ADMIN / SYSTEM',
-    desc: '平台参数、服务健康与公告发布。',
-    moduleId: 'system',
+    desc: '平台参数与依赖服务状态；改值只影响单个配置键。',
+    special: 'system',
   },
   profile: {
     title: '个人',

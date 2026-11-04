@@ -9,7 +9,6 @@ import {
   pageDef,
   type Role,
 } from '../nav'
-import { findModule } from '../data/modules'
 
 const ROLES: Role[] = ['student', 'teacher', 'admin']
 const CATCH_ALL = '/:pathMatch(.*)*'
@@ -123,16 +122,14 @@ describe('导航与路由一致性', () => {
     }
   })
 
-  it('声明了 moduleId 的页面都能在模块注册表里找到模块（阴性对照：不存在的 id 必须查不到）', () => {
+  it('页面定义不再挂示例模块编号（示例层已于 batch 24 整体删除）', () => {
     for (const role of ROLES) {
       for (const [page, def] of Object.entries(PAGE_DEFS[role])) {
-        if (!def.moduleId) continue
         expect(
-          findModule(role, def.moduleId),
-          `${role}/${page} 的模块 ${def.moduleId} 不存在`,
-        ).toBeTruthy()
+          (def as { moduleId?: string }).moduleId,
+          `${role}/${page} 仍声明 moduleId`,
+        ).toBeUndefined()
       }
     }
-    expect(findModule('teacher', 'not-a-module')).toBeUndefined()
   })
 })

@@ -99,7 +99,8 @@ function mountPage(): VueWrapper {
 }
 
 function sourceChipText(wrapper: VueWrapper): string {
-  return wrapper.find('.page-kicker .chip').text()
+  const chip = wrapper.find('.page-kicker .chip')
+  return chip.exists() ? chip.text() : ''
 }
 
 beforeEach(() => {
@@ -182,12 +183,16 @@ describe('全局页壳层：真实页面不得再戴「示例数据」章', () =
     }
   })
 
-  it('既无真实 Body 也非「不提供」的页面仍如实标「示例数据」（阴性对照）', async () => {
+  it('既无真实 Body 也非「不提供」的页面落兜底空态：不挂来源章、不出示例读数', async () => {
+    // 示例层已于 batch 24 整体删除：兜底不再是「示例块」，而是一句明确的空态。
+    // 这里断言的是「不出现任何读数来源声明」，而不是「标成示例数据」。
     uiState.role.value = 'student'
     route.meta.pageKey = 'courses'
     const wrapper = mountPage()
     await settle()
-    expect(sourceChipText(wrapper)).toBe('示例数据')
+    expect(sourceChipText(wrapper)).toBe('')
+    expect(wrapper.text()).not.toContain('示例数据')
+    expect(wrapper.find('[data-testid="page-not-provided"]').exists()).toBe(false)
     wrapper.unmount()
   })
 
@@ -276,7 +281,6 @@ describe('全局页壳层：收件箱不留空控件', () => {
 
 describe('全局页壳层：判为待扩展的页面不留示例读数', () => {
   it.each([
-    ['admin', 'system', '待扩展：'],
     ['admin', 'notices', '待扩展：'],
     ['teacher', 'advising', '待扩展：该页签无可用数据面'],
     ['student', 'assistant', '待扩展：'],

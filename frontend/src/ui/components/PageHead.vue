@@ -18,14 +18,13 @@
 import { computed } from 'vue'
 
 const props = withDefaults(
-  defineProps<{ kicker: string; title: string; sub?: string; source?: 'api' | 'demo' | 'mixed' }>(),
+  defineProps<{ kicker: string; title: string; sub?: string; source?: 'api' }>(),
   { sub: '', source: undefined },
 )
 
 const sourceChip = computed(() => {
+  // 示例层已整体删除（batch 24）：来源章不再有「样例读数」「接口与样例混排」这类档位。
   if (props.source === 'api') return { text: '接口数据', cls: 'chip-ok' }
-  if (props.source === 'mixed') return { text: '接口 + 示例', cls: 'chip-info' }
-  if (props.source === 'demo') return { text: '示例数据', cls: 'chip-warn' }
   return { text: '', cls: '' }
 })
 </script>

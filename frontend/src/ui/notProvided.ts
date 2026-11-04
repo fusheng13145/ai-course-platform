@@ -13,7 +13,6 @@ const HIDDEN: Record<Role, string[]> = {
     'supervision',
     'moderation',
     'notices',
-    'system',
     'grades',
     'colleges',
     'teachingClasses',
@@ -54,10 +53,6 @@ const COPY: Record<string, { head: string; detail: string }> = {
     head: '待扩展：通知公告管理',
     detail:
       '全校公告发布与受众选择在旧端为独立能力，本轮未迁入；通知的消费侧（学生／教师消息中心）已接真实接口。',
-  },
-  'admin:system': {
-    head: '待扩展：系统设置',
-    detail: '平台参数与服务健康设置本轮未迁入；配置以环境变量与配置文件为准（见部署文档）。',
   },
   'admin:grades': {
     head: '待扩展：管理员成绩管理',

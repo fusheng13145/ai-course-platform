@@ -54,7 +54,7 @@ describe('全局页 Body 注册表', () => {
     expect(specialBodyLoader('noSuchPageXyz')).toBeNull()
   })
 
-  it('nav 为待迁页面声明 special，且不顶掉原有 moduleId', () => {
+  it('nav 为待迁页面声明 special，且不再挂示例模块编号', () => {
     expect(pageDef('admin', 'users').special).toBe('users')
     expect(pageDef('admin', 'roles').special).toBe('roles')
     expect(pageDef('admin', 'semesters').special).toBe('semesters')
@@ -62,8 +62,9 @@ describe('全局页 Body 注册表', () => {
     // 批次 23：审计与会话接真后也走 special 约定，不再由「待扩展」空态接管
     expect(pageDef('admin', 'audit').special).toBe('audit')
     expect(pageDef('admin', 'sessions').special).toBe('sessions')
-    expect(pageDef('admin', 'users').moduleId).toBe('users')
-    expect(pageDef('student', 'tasks').moduleId).toBe('tasks')
+    expect(pageDef('admin', 'system').special).toBe('system')
+    // moduleId（示例模块编号）已随示例层删除；页面只保留 special 约定
+    expect((pageDef('admin', 'users') as { moduleId?: string }).moduleId).toBeUndefined()
   })
 
   it('注册表不引入 Element Plus / echarts', () => {
@@ -72,7 +73,7 @@ describe('全局页 Body 注册表', () => {
     expect(source).not.toContain('echarts')
   })
 
-  it('全局页保留既有显式分支，异步组件之后仍有示例块兜底（含「示例数据」警示）', () => {
+  it('全局页保留既有显式分支，且示例块兜底已整体删除（batch 24）', () => {
     const source = readFileSync(PAGE, 'utf8')
     // aiUsage 自 2026-11-04（M-14）按课程维度接真后，走 special 约定加载 AiUsageBody，
     // 不再占用显式分支，也不再由 notProvidedCopy 接管——下面两条断言钉住这个位置。
@@ -85,7 +86,8 @@ describe('全局页 Body 注册表', () => {
     expect(source, 'aiUsage 不该再被写成显式分支').not.toContain(`def.special === 'aiUsage'`)
     expect(source, '待扩展空态分支被移除').toContain('notProvidedCopy')
     expect(source, '缺少按约定加载的异步组件').toContain('specialBodyComponent')
-    expect(source, '示例块兜底被移除').toContain('v-else-if="block"')
-    expect(source, '示例块警示被移除').toContain('示例数据')
+    // 示例层已整体删除：兜底只剩一句明确的空态，不再有示例块分支与示例来源章
+    expect(source, '示例块兜底被接回来').not.toContain('v-else-if="block"')
+    expect(source, '示例来源章被接回来').not.toContain('示例数据')
   })
 })

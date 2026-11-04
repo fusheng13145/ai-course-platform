@@ -124,7 +124,7 @@ const router = useRouter()
 const { role, toast } = useUi()
 const courses = ref<CourseCard[]>([])
 const filter = ref<'all' | 'active' | 'done'>('all')
-const source = ref<'api' | 'demo'>('api')
+const source = ref<'api'>('api')
 // 学生「加入课程」：从课程目录里挑一门未选课程，走真实选课写口（非演示动作）。
 const selectedCourseId = ref<number | ''>('')
 const joinable = ref<CourseCard[]>([])
@@ -222,7 +222,9 @@ async function onPrimary() {
 
 onMounted(async () => {
   courses.value = await getCourses(role.value as Role)
-  source.value = courses.value.length ? 'api' : 'demo'
+  // 列表为空 ≠ 示例数据：这一页的读数一律来自接口，空列表由下方空态承接，
+  // 标成「示例数据」等于把「没有课程」说成「课程是假的」。
+  source.value = 'api'
   if (role.value === 'student') await refreshJoinable()
 })
 </script>

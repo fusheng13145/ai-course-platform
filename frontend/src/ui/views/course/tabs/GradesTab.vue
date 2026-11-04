@@ -110,65 +110,20 @@
     </p>
   </div>
 
-  <!-- 教师 / 管理员：保留既有演示视图（本期不改） -->
-  <div v-else>
-    <div class="grades-layout">
-      <section class="card grade-summary">
-        <p class="card-kicker">ACADEMIC ASSETS / 2026 FALL</p>
-        <h2>{{ role === 'student' ? '加权总评' : '课程成绩概览' }}</h2>
-        <div class="grade-total"><b>82.4</b><span>/ 100</span><em class="trend-up">+3.1</em></div>
-        <p class="grade-sub">课程均分 85.4 · 绩点 3.6 / 4.0 · 专业前 18%</p>
-        <div class="grade-trend">
-          <Sparkline :values="[74, 77, 79, 81, 82.4]" :width="260" :height="54" />
-        </div>
-        <div class="grade-foot"><span>较上学期 +3.1</span><span>2 项待出分</span></div>
-      </section>
-      <section class="card grade-breakdown">
-        <header class="card-head">
-          <div>
-            <p class="card-kicker">GPA / DISTRIBUTION</p>
-            <h2>绩点构成</h2>
-          </div>
-          <span class="chip chip-ok">稳定</span>
-        </header>
-        <div class="grade-ring-wrap">
-          <svg viewBox="0 0 120 120" class="grade-ring">
-            <circle cx="60" cy="60" r="50" class="q-track" />
-            <circle cx="60" cy="60" r="50" class="q-fill" pathLength="100" style="--p: 90" />
-          </svg>
-          <div class="grade-ring-label"><b>3.6</b><small>/ 4.0</small></div>
-        </div>
-        <div class="grade-legend">
-          <span><i class="dot ok"></i>专业核心 62%</span>
-          <span><i class="dot info"></i>通识 24%</span>
-          <span><i class="dot warn"></i>实践 14%</span>
-        </div>
-      </section>
-    </div>
-    <div class="module-grid" style="margin-top: 14px">
-      <Table :table="table" kicker="COURSES / GRADES" />
-      <aside class="card side-card">
-        <p class="card-kicker">INSIGHT / 提示</p>
-        <h2>成绩口径</h2>
-        <p class="side-body">成绩以教师提交批阅为准；AI 建议分不直接写入成绩。</p>
-        <ul class="side-list">
-          <li>总评由教师确认后生效</li>
-          <li>过程性成绩在课程空间维护</li>
-          <li>导出前脱敏</li>
-        </ul>
-        <p class="caveat">示例数据 · 成绩聚合端点尚未接入</p>
-      </aside>
-    </div>
+  <!-- 教师 / 管理员：原为硬编码演示视图（batch 24 死示例层清算时整段删除）。
+       教师课程空间没有「成绩」页签（批阅走 grading），管理员该页签走只读视图，
+       所以这里只留一句明确说明，不再画示例均分、示例表格与示例绩点环。 -->
+  <div v-else class="card empty-state">
+    <span class="e-ico"><Icon name="award" /></span>
+    <b>该角色暂无此页签</b>
+    <p>教师在课程空间用「批阅」处理成绩；管理员在课程页签看到的是只读视图。</p>
   </div>
 </template>
 
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
-import Table from '../../../components/Table.vue'
-import Sparkline from '../../../components/Sparkline.vue'
 import Icon from '../../../components/Icon.vue'
-import { findModule } from '../../../data/modules'
-import type { Role, Table as TableType } from '../../../nav'
+import type { Role } from '../../../nav'
 import studentApi from '@/api/student'
 import submissionApi from '@/api/submission'
 import { unwrap } from '@/utils/response'
@@ -179,23 +134,6 @@ const props = withDefaults(defineProps<{ role: Role; courseId?: number }>(), { c
 const isStudent = computed(() => props.role === 'student')
 
 /* ==================== 演示视图（教师 / 管理员） ==================== */
-
-const table = computed<TableType>(() => {
-  const module = findModule(props.role === 'teacher' ? 'teacher' : props.role, 'grades')
-  return (
-    module?.table || {
-      title: '课程成绩',
-      columns: ['课程', '成绩', '绩点', '状态'],
-      rows: [
-        ['计算机网络', '88', '3.7', { text: '已出分', chip: 'ok' }],
-        ['数据结构与算法', '92', '4.0', { text: '已出分', chip: 'ok' }],
-        ['操作系统', '79', '3.0', { text: '已出分', chip: 'info' }],
-        ['数据库原理与应用', '85', '3.5', { text: '已出分', chip: 'ok' }],
-        ['人工智能导论', '—', '—', { text: '待出分', chip: 'warn' }],
-      ],
-    }
-  )
-})
 
 /* ==================== 学生成绩（真实接口） ==================== */
 
