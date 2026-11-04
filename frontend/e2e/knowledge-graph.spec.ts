@@ -24,6 +24,12 @@ interface GraphLink {
 interface GraphBody {
   data: { nodes?: GraphNode[]; links?: GraphLink[] }
 }
+interface PathPlan {
+  found: boolean
+  hops: number
+  mode?: string
+  path: Array<{ id: number; name?: string }>
+}
 
 const COURSE_ID = 4007
 
@@ -75,7 +81,41 @@ test('课程图谱：点数/边数与接口一致，点节点能看到它的直�
   await expect(neighbours).toHaveCount(expectedNeighbours, { timeout: 20000 })
   await expect(kg).toContainText('取消选中')
 
+  // ④ 学生端不提供路径规划：入口必须按真实能力隐藏，而不是点进去收一条「规划失败」
+  //    （POST /knowledge/path/plan 目前仅 TEACHER/ADMIN，学生恒 403，见后端待办项 B-13㉖）
+  await expect(kg).not.toContainText('学习路径规划')
+
   // ④ 页面不得出现示例读数，也不得有未捕获异常
   await expect(kg).not.toContainText('示例数据')
   expect(pageErrors, '图谱页出现未捕获异常').toEqual([])
+})
+
+test('教师端路径规划：步骤/跳数与接口一致，高亮只落在路径上', async ({ page }) => {
+  test.setTimeout(180000)
+  // 课程 1 是 ts01 任教的 Python 课，知识点 1→3 有直达前置关系（实测 hops=1）
+  const courseId = 1
+  const sourceId = 1
+  const targetId = 3
+
+  await loginAs(page, 'TEACHER')
+  await page.goto(`/teacher/courses/${courseId}/graph`, { waitUntil: 'domcontentloaded' })
+  const kg = page.locator('.kg')
+  await expect(kg).toBeVisible({ timeout: 25000 })
+
+  const planResp = await page.request.post('/api/knowledge/path/plan', {
+    data: { sourceId, targetId, maxHops: 5 },
+  })
+  expect(planResp.status(), '教师调用路径规划应为 200').toBe(200)
+  const plan = (await planResp.json()).data as PathPlan
+  expect(plan.found, '课程 1 的 1→3 应有可达路径').toBe(true)
+
+  const selects = kg.locator('.form-grid select')
+  await selects.nth(0).selectOption(String(sourceId))
+  await selects.nth(1).selectOption(String(targetId))
+  await kg.getByRole('button', { name: /规划路径|规划中/ }).click()
+
+  await expect(kg.locator('.path-list li')).toHaveCount(plan.path.length, { timeout: 20000 })
+  await expect(kg).toContainText(`${plan.hops} 跳`)
+  await expect(kg.locator('.kg-node.is-path')).toHaveCount(plan.path.length)
+  await expect(kg.locator('.kg-svg line.is-path')).toHaveCount(Math.max(0, plan.hops))
 })

@@ -109,3 +109,99 @@ describe('学生侧 AI 助教：复用教师端真接口，只裁教师专属动
     expect(wrapper.text()).not.toContain('我的掌握度')
   })
 })
+
+describe('知识图谱 · 路径规划与高亮', () => {
+  /** 三个点两条边的线性图：1 → 2 → 3，方便断言"路径上有几个点、几条边" */
+  function mockChainGraph() {
+    knowledgeApi.getRelationGraphData.mockResolvedValue({
+      data: {
+        nodes: [
+          { id: 1, name: '绪论', category: 'CONCEPT' },
+          { id: 2, name: '协议分层', category: 'CONCEPT' },
+          { id: 3, name: '传输层', category: 'CONCEPT' },
+        ],
+        links: [
+          { source: 1, target: 2, type: 'PREREQUISITE' },
+          { source: 2, target: 3, type: 'PREREQUISITE' },
+        ],
+      },
+    })
+  }
+
+  async function planTo(wrapper: ReturnType<typeof mount>, source: string, target: string) {
+    const selects = wrapper.findAll('select')
+    await selects[0].setValue(source)
+    await selects[1].setValue(target)
+    const button = wrapper.findAll('button').find((node) => node.text().includes('规划路径'))
+    await button!.trigger('click')
+    await flushPromises()
+  }
+
+  it('找到路径：步骤、跳数与模式章按接口读数渲染，图上只点亮路径上的点与边', async () => {
+    mockChainGraph()
+    knowledgeApi.planLearningPath.mockResolvedValue({
+      data: {
+        found: true,
+        hops: 2,
+        mode: 'LOCAL',
+        path: [
+          { id: 1, name: '绪论' },
+          { id: 2, name: '协议分层' },
+          { id: 3, name: '传输层' },
+        ],
+      },
+    })
+    // 学生端已隐藏该入口（B-13㉖：端点恒 403），用例按教师视角验证规划与高亮
+    const wrapper = mount(KnowledgeGraphTab, { props: { courseId: COURSE_ID, mode: 'teacher' } })
+    await flushPromises()
+
+    await planTo(wrapper, '1', '3')
+
+    expect(knowledgeApi.planLearningPath).toHaveBeenCalledWith(1, 3, expect.anything())
+    const steps = wrapper.findAll('.path-list li')
+    expect(steps.map((node) => node.text())).toEqual([
+      expect.stringContaining('绪论'),
+      expect.stringContaining('协议分层'),
+      expect.stringContaining('传输层'),
+    ])
+    expect(wrapper.text()).toContain('2 跳')
+    // 高亮：3 个点在路径上、2 条边在路径上，其余（本例没有）被压暗
+    expect(wrapper.findAll('.kg-node.is-path')).toHaveLength(3)
+    expect(wrapper.findAll('.kg-svg line.is-path')).toHaveLength(2)
+    expect(wrapper.findAll('.kg-node.is-dim')).toHaveLength(0)
+  })
+
+  it('后端 404（无路可走）按"不可达"呈现，不报"规划失败"', async () => {
+    mockChainGraph()
+    // 后端对"无路径"返回 404 + note，axios 会 reject —— 这是业务结论，不是故障
+    knowledgeApi.planLearningPath.mockRejectedValue({
+      response: { status: 404, data: { message: '未找到从起点到目标的学习路径' } },
+    })
+    // 学生端已隐藏该入口（B-13㉖：端点恒 403），用例按教师视角验证规划与高亮
+    const wrapper = mount(KnowledgeGraphTab, { props: { courseId: COURSE_ID, mode: 'teacher' } })
+    await flushPromises()
+
+    await planTo(wrapper, '1', '3')
+
+    expect(wrapper.text()).toContain('不可达')
+    expect(wrapper.text()).not.toContain('路径规划失败')
+    expect(wrapper.findAll('.kg-node.is-path')).toHaveLength(0)
+  })
+
+  it('未找到路径：如实提示不可达，且一个点都不点亮（不可达不等于全图重要）', async () => {
+    mockChainGraph()
+    knowledgeApi.planLearningPath.mockResolvedValue({
+      data: { found: false, hops: 0, mode: 'LOCAL', path: [] },
+    })
+    // 学生端已隐藏该入口（B-13㉖：端点恒 403），用例按教师视角验证规划与高亮
+    const wrapper = mount(KnowledgeGraphTab, { props: { courseId: COURSE_ID, mode: 'teacher' } })
+    await flushPromises()
+
+    await planTo(wrapper, '1', '3')
+
+    expect(wrapper.text()).toContain('不可达')
+    expect(wrapper.findAll('.kg-node.is-path')).toHaveLength(0)
+    expect(wrapper.findAll('.kg-svg line.is-path')).toHaveLength(0)
+    expect(wrapper.findAll('.kg-node.is-dim')).toHaveLength(0)
+  })
+})

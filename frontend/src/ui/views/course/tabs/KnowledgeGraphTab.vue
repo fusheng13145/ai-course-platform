@@ -42,12 +42,23 @@
             :y1="link.y1"
             :x2="link.x2"
             :y2="link.y2"
-            :class="{ 'is-dim': selectedId !== null && !link.touchesSelected }"
+            :class="{
+              'is-dim':
+                (selectedId !== null && !link.touchesSelected) || (hasPath && !isPathLink(link)),
+              'is-path': hasPath && isPathLink(link),
+            }"
           />
           <g
             v-for="node in layoutNodes"
             :key="`n${node.id}`"
-            :class="['kg-node', { 'is-selected': node.id === selectedId }]"
+            :class="[
+              'kg-node',
+              {
+                'is-selected': node.id === selectedId,
+                'is-path': inPath(node.id),
+                'is-dim': hasPath && !inPath(node.id),
+              },
+            ]"
             @click="select(node.id)"
           >
             <circle :cx="node.x" :cy="node.y" :r="node.r" />
@@ -101,7 +112,10 @@
     </div>
 
     <div class="kg-grid">
-      <section class="card">
+      <!-- 路径规划只对教师/管理员开放：POST /knowledge/path/plan 目前被安全配置归入
+           「资源写操作」而仅限 TEACHER/ADMIN，学生调用恒 403（已登记 后端待办项 B-13㉖）。
+           入口按真实能力隐藏，而不是让学生点进去收一条「规划失败」。 -->
+      <section v-if="!isStudent" class="card">
         <header class="card-head">
           <div>
             <p class="card-kicker">PATH / PLAN</p>
@@ -367,6 +381,44 @@ const layoutNodes = computed<LayoutNode[]>(() => {
   })
 })
 
+/**
+ * 路径高亮（doc 11 F2.2「路径规划与路径高亮」）：只对 **found 的路径** 生效。
+ * 未找到路径时集合为空，图上一个点都不点亮——否则"不可达"会被画成"整张图都重要"。
+ */
+const pathIds = computed<Set<string>>(() => {
+  const plan = pathResult.value
+  if (!plan || !plan.found || !Array.isArray(plan.path)) return new Set()
+  return new Set(
+    plan.path.map((step) => String(step.id ?? '')).filter((id) => id && id !== 'undefined'),
+  )
+})
+
+/** 路径上相邻两步之间的边（无向，两个方向都记，接口不保证 source/target 与路径顺序一致） */
+const pathEdgeKeys = computed<Set<string>>(() => {
+  const plan = pathResult.value
+  const steps = plan?.path || []
+  if (!plan || !plan.found || steps.length < 2) return new Set()
+  const keys = new Set<string>()
+  for (let i = 0; i < steps.length - 1; i += 1) {
+    const from = String(steps[i].id ?? '')
+    const to = String(steps[i + 1].id ?? '')
+    if (!from || !to) continue
+    keys.add(`${from}-${to}`)
+    keys.add(`${to}-${from}`)
+  }
+  return keys
+})
+
+const hasPath = computed(() => pathIds.value.size > 0)
+
+function inPath(id: unknown): boolean {
+  return pathIds.value.has(String(id))
+}
+
+function isPathLink(link: KgLink): boolean {
+  return pathEdgeKeys.value.has(`${String(link.source)}-${String(link.target)}`)
+}
+
 const layoutLinks = computed<LayoutLink[]>(() => {
   const byId = new Map(layoutNodes.value.map((node) => [String(node.id), node]))
   return links.value.flatMap((link) => {
@@ -543,6 +595,20 @@ async function planPath() {
     ) || {}) as PathResult
     pathResult.value = body
   } catch (error) {
+    // 后端在「两点之间没有可达路径」时返回 **404 + note**（见 KnowledgeController）。
+    // 这是业务结论，不是故障：照"规划失败"提示会让学生以为系统坏了、并去重试一条不存在的路。
+    const status = (error as { response?: { status?: number; data?: { message?: string } } })
+      ?.response
+    if (status?.status === 404) {
+      pathResult.value = {
+        found: false,
+        hops: 0,
+        path: [],
+        mode: 'UNAVAILABLE',
+        note: status.data?.message || '',
+      }
+      return
+    }
     logger.error('路径规划失败', error)
     pathError.value = '路径规划失败，请稍后重试'
   } finally {
@@ -643,6 +709,12 @@ watch(() => props.courseId, loadAll, { immediate: true })
 .kg-svg line.is-dim {
   stroke-opacity: 0.25;
 }
+/* 路径高亮：命中的边加粗提色，未命中的边压暗，让"从哪走到哪"一眼可读 */
+.kg-svg line.is-path {
+  stroke: var(--accent);
+  stroke-width: 2.4;
+  stroke-opacity: 1;
+}
 .kg-node {
   cursor: pointer;
 }
@@ -660,6 +732,18 @@ watch(() => props.courseId, loadAll, { immediate: true })
 .kg-node.is-selected circle {
   fill: var(--accent-soft);
   stroke-width: 2.4;
+}
+.kg-node.is-path circle {
+  fill: var(--accent);
+  stroke: var(--accent-strong);
+  stroke-width: 2.6;
+}
+.kg-node.is-path text {
+  fill: var(--accent-ink);
+  font-weight: 600;
+}
+.kg-node.is-dim {
+  opacity: 0.4;
 }
 .nb-list,
 .path-list {
