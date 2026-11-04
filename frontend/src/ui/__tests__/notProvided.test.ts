@@ -10,7 +10,11 @@ describe('不提供清单的判定', () => {
   it('判为待扩展的页面按角色落到 hidden / unavailable', () => {
     expect(pageDisposition('student', 'assistant')).toBe('hidden')
     expect(pageDisposition('teacher', 'resources')).toBe('hidden')
-    expect(pageDisposition('admin', 'audit')).toBe('hidden')
+    // 2026-11-04 批次 23：操作/登录日志与会话管理接真（端点早已存在），
+    // 两页从「待扩展」回到 provided，由 AuditBody / SessionsBody 承接。
+    expect(pageDisposition('admin', 'audit')).toBe('provided')
+    expect(pageDisposition('admin', 'sessions')).toBe('provided')
+    expect(pageDisposition('admin', 'notices')).toBe('hidden')
     // aiUsage 已于 2026-11-04（M-14）按课程维度接真，不再属于「待扩展」：
     // 它现在由 AiUsageBody 走 special 约定加载，处置必须回到 provided。
     expect(pageDisposition('admin', 'aiUsage')).toBe('provided')
@@ -23,7 +27,7 @@ describe('不提供清单的判定', () => {
     for (const [role, page] of [
       ['student', 'assistant'],
       ['teacher', 'resources'],
-      ['admin', 'audit'],
+      ['admin', 'notices'],
       ['admin', 'system'],
       ['admin', 'enrollments'],
     ] as const) {
@@ -39,12 +43,21 @@ describe('不提供清单的判定', () => {
     expect(navIds('student')).toContain('exams')
   })
 
-  it('管理端侧栏摘掉本轮不迁入的治理页，保留已转真的五页', () => {
+  it('管理端侧栏摘掉本轮不迁入的治理页，保留已转真的页面', () => {
     const ids = navIds('admin')
-    for (const gone of ['audit', 'notices', 'sessions', 'system', 'supervision', 'moderation']) {
+    for (const gone of ['notices', 'system', 'supervision', 'moderation']) {
       expect(ids, `admin 侧栏仍留有 ${gone}`).not.toContain(gone)
     }
-    for (const kept of ['users', 'roles', 'semesters', 'adminClasses', 'approvals']) {
+    for (const kept of [
+      'users',
+      'roles',
+      'semesters',
+      'adminClasses',
+      'approvals',
+      // 批次 23 接真后重新出现在侧栏
+      'audit',
+      'sessions',
+    ]) {
       expect(ids, `admin 侧栏缺了 ${kept}`).toContain(kept)
     }
   })

@@ -13,8 +13,6 @@ const HIDDEN: Record<Role, string[]> = {
     'supervision',
     'moderation',
     'notices',
-    'audit',
-    'sessions',
     'system',
     'grades',
     'colleges',
@@ -56,14 +54,6 @@ const COPY: Record<string, { head: string; detail: string }> = {
     head: '待扩展：通知公告管理',
     detail:
       '全校公告发布与受众选择在旧端为独立能力，本轮未迁入；通知的消费侧（学生／教师消息中心）已接真实接口。',
-  },
-  'admin:audit': {
-    head: '待扩展：操作与登录日志',
-    detail: '审计日志与登录记录的查询界面本轮未迁入；后端仍在写入操作日志，界面列为后续迭代项。',
-  },
-  'admin:sessions': {
-    head: '待扩展：会话管理',
-    detail: '在线会话列表与强制下线界面本轮未迁入；令牌吊销仍由后端与会话过期守卫负责。',
   },
   'admin:system': {
     head: '待扩展：系统设置',

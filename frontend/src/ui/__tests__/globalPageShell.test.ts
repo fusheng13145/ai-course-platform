@@ -276,7 +276,7 @@ describe('全局页壳层：收件箱不留空控件', () => {
 
 describe('全局页壳层：判为待扩展的页面不留示例读数', () => {
   it.each([
-    ['admin', 'audit', '待扩展：'],
+    ['admin', 'system', '待扩展：'],
     ['admin', 'notices', '待扩展：'],
     ['teacher', 'advising', '待扩展：该页签无可用数据面'],
     ['student', 'assistant', '待扩展：'],

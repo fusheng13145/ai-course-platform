@@ -59,6 +59,9 @@ describe('全局页 Body 注册表', () => {
     expect(pageDef('admin', 'roles').special).toBe('roles')
     expect(pageDef('admin', 'semesters').special).toBe('semesters')
     expect(pageDef('student', 'tasks').special).toBe('tasks')
+    // 批次 23：审计与会话接真后也走 special 约定，不再由「待扩展」空态接管
+    expect(pageDef('admin', 'audit').special).toBe('audit')
+    expect(pageDef('admin', 'sessions').special).toBe('sessions')
     expect(pageDef('admin', 'users').moduleId).toBe('users')
     expect(pageDef('student', 'tasks').moduleId).toBe('tasks')
   })

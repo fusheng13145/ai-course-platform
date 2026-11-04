@@ -483,8 +483,9 @@ const ADMIN_PAGES: Record<string, PageDef> = {
   audit: {
     title: '操作与登录日志',
     kicker: 'ADMIN / AUDIT',
-    desc: '审计日志、登录记录与会话；管理员操作必须留痕。',
+    desc: '关键写操作与每一次登录尝试的查询面（只读，不提供删除或改写日志）。',
     moduleId: 'audit',
+    special: 'audit',
   },
   sessions: {
     title: '会话管理',
