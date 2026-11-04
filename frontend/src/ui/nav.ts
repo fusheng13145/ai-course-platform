@@ -266,11 +266,13 @@ const STUDENT_PAGES: Record<string, PageDef> = {
     desc: '账号、安全与偏好设置。',
     special: 'profile',
   },
+  // 全局 AI 助手页已判下线（M-30）：导航不挂入口，深链接落到「待扩展」空态。
+  // 原 special: 'assistant' 指向的 AiTab 是硬编码示例面板（自带「示例回答」章），
+  // 随本次死码清理删除；页面定义保留，只为让空态的标题/描述仍取自本表。
   assistant: {
     title: 'AI 助手',
     kicker: 'STUDENT / ASSISTANT',
-    desc: '基于课程资料与个人学习数据的问答与复习建议。',
-    special: 'assistant',
+    desc: '课程内 AI 助教在课程空间的「AI 助手」页签提供；跨课程全局助手属后续迭代。',
   },
 }
 

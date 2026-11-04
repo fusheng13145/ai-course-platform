@@ -73,9 +73,12 @@ describe('全局页 Body 注册表', () => {
     const source = readFileSync(PAGE, 'utf8')
     // aiUsage 自 2026-11-04（M-14）按课程维度接真后，走 special 约定加载 AiUsageBody，
     // 不再占用显式分支，也不再由 notProvidedCopy 接管——下面两条断言钉住这个位置。
-    for (const special of ['examGovernance', 'analytics', 'assistant', 'messages']) {
+    for (const special of ['examGovernance', 'analytics', 'messages']) {
       expect(source, `显式分支 ${special} 被移除`).toContain(`def.special === '${special}'`)
     }
+    // 全局 AI 助手已判下线（M-30），AiTab 是硬编码示例面板，随死码清理删除：
+    // 源码里再出现它就说明有人把示例面板接回来了。
+    expect(source, 'AiTab 死分支被重新引入').not.toContain('AiTab')
     expect(source, 'aiUsage 不该再被写成显式分支').not.toContain(`def.special === 'aiUsage'`)
     expect(source, '待扩展空态分支被移除').toContain('notProvidedCopy')
     expect(source, '缺少按约定加载的异步组件').toContain('specialBodyComponent')

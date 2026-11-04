@@ -37,7 +37,6 @@
 
     <ExamGovernanceBody v-else-if="def.special === 'examGovernance'" />
     <AnalyticsTab v-else-if="def.special === 'analytics'" />
-    <AiTab v-else-if="def.special === 'assistant'" :role="role" />
     <MessagesBody v-else-if="def.special === 'messages'" />
     <component :is="specialBodyComponent" v-else-if="specialBodyComponent" :key="page" />
 
@@ -77,7 +76,6 @@ import Table from '../components/Table.vue'
 import Icon from '../components/Icon.vue'
 import ExamGovernanceBody from './specials/ExamGovernanceBody.vue'
 import AnalyticsTab from './course/tabs/AnalyticsTab.vue'
-import AiTab from './course/tabs/AiTab.vue'
 import MessagesBody from './specials/MessagesBody.vue'
 import { specialBodyLoader } from './specials/registry'
 import { notProvidedCopy as copyFor, pageDisposition } from '../notProvided'
