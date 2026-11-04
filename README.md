@@ -49,8 +49,8 @@
 | 数据库迁移 | Flyway | 结构 V1–V4、V8–V11（`db/migration`，全环境）＋ 演示种子 V5–V7（`db/seed-demo`，prod 排除） |
 | 数据库 / 缓存 | MySQL / Redis | 8.4 / 7.x（Redis 为**必选**依赖） |
 | 前端框架 | Vue + Vite | 3.5.x / 8.1.5 |
-| UI 层 | 自研 `src/v2/components/` 原语 + CSS 变量令牌 | **无第三方组件库**（Element Plus／echarts 已随旧前端在 `15fb858` 整体摘除） |
-| 状态 / 路由 / 图表 | Pinia / Vue Router / 内联 SVG（`V2Sparkline`／`V2Sprite`） | 2.1.x / 4.2.x / — |
+| UI 层 | 自研 `src/ui/components/` 原语 + CSS 变量令牌 | **无第三方组件库**（Element Plus／echarts 已随旧前端在 `15fb858` 整体摘除） |
+| 状态 / 路由 / 图表 | Pinia / Vue Router / 内联 SVG（`Sparkline`／`Sprite`） | 2.1.x / 4.2.x / — |
 | 测试 | Vitest / Playwright / Testcontainers | 3.2.7 / **1.63.0（精确锁定）** / — |
 | 质量门禁 | JaCoCo / SpotBugs / ArchUnit | LINE ≥85% 且 BRANCH ≥65%（阻断）／0 bug（阻断）／6 条架构守护 |
 | 实时通信 | Spring WebSocket | 通知与监考 |
