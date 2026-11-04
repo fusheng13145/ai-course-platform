@@ -368,7 +368,11 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
 
     /**
      * 获取上传进度信息
-     * uploaded/percentage/missingIndexes 一律取自磁盘分片，不信会话行的历史计数
+     * <p>在途会话（UPLOADING／FAILED 等）的 uploaded/percentage/missingIndexes 一律取自磁盘分片，
+     * 不信会话行的历史计数；**终态会话（COMPLETED／CANCELLED）反过来**——它们的分片目录已被
+     * {@code deleteChunkDir} 清掉，磁盘真值只能得出「0 已传 + 还缺全部」，语义是错的，
+     * 故终态回会话行的持久计数、missingIndexes 为空（B-13 ⑲）。{@code percentage} 仍是
+     * 字符串（如 {@code "100.0%"}），类型不变。</p>
      */
     @Override
     public UploadProgressVO getUploadProgress(Long sessionId, Long uploaderId) {
@@ -379,12 +383,30 @@ public class FileUploadSessionServiceImpl extends ServiceImpl<FileUploadSessionM
         assertOwnership(session, uploaderId);
         int total = session.getTotalChunks() != null && session.getTotalChunks() > 0
                 ? session.getTotalChunks() : 0;
+
+        if (isTerminalStatus(session.getStatus())) {
+            int persisted = session.getUploadedChunks() != null ? session.getUploadedChunks() : 0;
+            int bounded = total > 0 ? Math.min(persisted, total) : persisted;
+            return new UploadProgressVO(bounded, total, percentageText(bounded, total),
+                    session.getStatus(), List.of());
+        }
+
         Map<Integer, Path> chunkByIndex = storedChunkIndexMap(sessionId);
         List<Integer> missing = missingChunkIndexes(chunkByIndex, total);
         int uploaded = total - missing.size();
-        double percentage = total > 0 ? Math.round((double) uploaded / total * 10000) / 100.0 : 0.0;
 
-        return new UploadProgressVO(uploaded, total, percentage + "%", session.getStatus(), missing);
+        return new UploadProgressVO(uploaded, total, percentageText(uploaded, total), session.getStatus(), missing);
+    }
+
+    /** 终态：已完成或已取消——两种状态的分片目录都不再存在。 */
+    private boolean isTerminalStatus(String status) {
+        return "COMPLETED".equals(status) || "CANCELLED".equals(status);
+    }
+
+    /** 百分比文案；终态与在途共用一个算法，避免两条路径给出不同小数位。 */
+    private String percentageText(int uploaded, int total) {
+        double percentage = total > 0 ? Math.round((double) uploaded / total * 10000) / 100.0 : 0.0;
+        return percentage + "%";
     }
 
     /**

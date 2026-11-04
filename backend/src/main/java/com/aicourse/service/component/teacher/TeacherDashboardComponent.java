@@ -47,6 +47,9 @@ public class TeacherDashboardComponent {
 
     private static final Logger log = LoggerFactory.getLogger(TeacherDashboardComponent.class);
 
+    /** AI 教学总览的独立入口（首页聚合只回它的地址，不在这里调用模型）。 */
+    public static final String AI_OVERVIEW_ENDPOINT = "/api/teacher/dashboard/ai-overview";
+
     private final CourseService courseService;
     private final CourseChapterService chapterService;
     private final CourseEnrollmentService enrollmentService;
@@ -317,8 +320,11 @@ public class TeacherDashboardComponent {
                     .stream().mapToDouble(s -> s.getScore() != null ? s.getScore().doubleValue() : 0D).average().orElse(0D);
             double scoreGap = support.round2(avgScore - platformAvgScore);
 
-            Map<String, Object> aiOverview = buildTeacherAIOverview(courseCount, studentCount, avgScore,
-                    pendingGrading, atRiskWithCourse, submissionRate);
+            // B-13 ⑯：AI 派生指标不再进首页同步聚合。原先这里串了一次 LLM 调用
+            // （buildTeacherAIOverview → aiService.generateLearningAdviceJson），
+            // 模型慢/不可用时整个 /teacher/dashboard/v2 被拖住，任何首页消费方只能绕行。
+            // 现在聚合只回延迟标记，AI 总览改由 GET /teacher/dashboard/ai-overview 按需取。
+            Map<String, Object> aiOverview = deferredAiOverview();
 
             dashboard.put("courseCount", courseCount);
             dashboard.put("studentCount", studentCount);
@@ -347,9 +353,65 @@ public class TeacherDashboardComponent {
             dashboard.putIfAbsent("avgScore", 0D);
             dashboard.putIfAbsent("courseCards", new ArrayList<>());
             dashboard.putIfAbsent("atRiskStudents", new ArrayList<>());
-            dashboard.putIfAbsent("aiOverview", Map.of("summary", "暂无可用的 AI 教学总览。"));
+            dashboard.putIfAbsent("aiOverview", deferredAiOverview());
         }
         return dashboard;
+    }
+
+    /**
+     * 教师 AI 教学总览（B-13 ⑯：从首页同步聚合中摘出后的独立入口）。
+     * <p>复用 {@link #getTeacherDashboardV2} 的统计口径（不再重算一套，避免两处统计分叉），
+     * 只在拿到数字后补上这一次模型调用；调用方应容忍它比聚合慢或被降级。</p>
+     */
+    public Map<String, Object> getTeacherAIOverview(Long teacherId) {
+        Map<String, Object> dashboard = getTeacherDashboardV2(teacherId);
+        List<Map<String, Object>> atRisk = asMapList(dashboard.get("atRiskStudents"));
+        return buildTeacherAIOverview(
+                asLong(dashboard.get("courseCount")),
+                asLong(dashboard.get("studentCount")),
+                asDouble(dashboard.get("avgScore")),
+                asLong(dashboard.get("pendingGrading")),
+                atRisk,
+                asDouble(taskOverviewValue(dashboard.get("taskPointOverview"), "submissionRate")));
+    }
+
+    /** 聚合里代表「AI 总览稍后单独取」的占位：显式可判，不伪装成空内容。 */
+    private Map<String, Object> deferredAiOverview() {
+        Map<String, Object> m = new LinkedHashMap<>(4);
+        m.put("deferred", true);
+        m.put("endpoint", AI_OVERVIEW_ENDPOINT);
+        m.put("reason", "AI 总览依赖模型调用，已从首页同步聚合中摘出，按需单独获取");
+        return m;
+    }
+
+    private Object taskOverviewValue(Object taskPointOverview, String key) {
+        if (taskPointOverview instanceof Map<?, ?> map) {
+            return map.get(key);
+        }
+        return null;
+    }
+
+    private long asLong(Object v) {
+        return v instanceof Number n ? n.longValue() : 0L;
+    }
+
+    private double asDouble(Object v) {
+        return v instanceof Number n ? n.doubleValue() : 0D;
+    }
+
+    private List<Map<String, Object>> asMapList(Object v) {
+        if (!(v instanceof List<?> list)) {
+            return List.of();
+        }
+        List<Map<String, Object>> result = new ArrayList<>(list.size());
+        for (Object o : list) {
+            if (o instanceof Map<?, ?> map) {
+                Map<String, Object> item = new LinkedHashMap<>();
+                map.forEach((k, val) -> item.put(String.valueOf(k), val));
+                result.add(item);
+            }
+        }
+        return result;
     }
 
     private List<Map<String, Object>> buildAtRisk(List<CourseEnrollment> enrollments, String courseName) {

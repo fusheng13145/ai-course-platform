@@ -8,6 +8,7 @@ import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.vo.QuestionVO;
 import com.aicourse.dto.QuestionGenerateDTO;
+import com.aicourse.dto.QuestionUpsertDTO;
 import com.aicourse.entity.Question;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.exception.BusinessException;
@@ -27,6 +28,7 @@ import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -146,14 +148,16 @@ public class QuestionController {
 
     /**
      * 创建题目（增强版，含知识点关联处理）
-     * @param question 题目信息
+     * @param body 题目入参（JSON 列已由 DTO 规范化，见 QuestionUpsertDTO）
      * @param auth 认证信息
      * @return 新增题目数据
      */
     @PostMapping("/create")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "创建题目")
-    public ApiResponse<Question> create(@Valid @RequestBody Question question, Authentication auth) {
+    public ApiResponse<Question> create(@Validated(QuestionUpsertDTO.Create.class) @RequestBody QuestionUpsertDTO body,
+                                        Authentication auth) {
+        Question question = body.toEntity();
         courseAccessControl.assertCanManageCourse(question.getCourseId(), auth);
         question.setCreatedBy((Long) auth.getPrincipal());
         Question created = questionService.createQuestion(question);
@@ -338,14 +342,16 @@ public class QuestionController {
 
     /**
      * 新增题目（基础版）
-     * @param question 题目信息
+     * @param body 题目入参
      * @param auth 认证信息
      * @return 新增题目数据
      */
     @PostMapping
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "新增题目")
-    public ApiResponse<Question> createBasic(@Valid @RequestBody Question question, Authentication auth) {
+    public ApiResponse<Question> createBasic(@Validated(QuestionUpsertDTO.Create.class) @RequestBody QuestionUpsertDTO body,
+                                             Authentication auth) {
+        Question question = body.toEntity();
         courseAccessControl.assertCanManageCourse(question.getCourseId(), auth);
         question.setCreatedBy((Long) auth.getPrincipal());
         questionService.save(question);
@@ -353,19 +359,20 @@ public class QuestionController {
     }
 
     /**
-     * 修改题目（教师/管理员权限）
+     * 修改题目（教师/管理员权限）。局部更新：只落传了的字段，课程归属恒取库内值。
      * @param id 题目ID
-     * @param question 待更新题目数据
+     * @param body 待更新字段
      * @return 更新后题目信息
      */
     @PutMapping("/{id}")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "修改题目")
     public ApiResponse<Question> update(@PathVariable Long id,
-                                        @Valid @RequestBody Question question,
+                                        @Validated(QuestionUpsertDTO.Update.class) @RequestBody QuestionUpsertDTO body,
                                         Authentication auth) {
         Question existing = requireQuestion(id);
         courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
+        Question question = body.toEntity();
         question.setId(id);
         question.setCourseId(existing.getCourseId());
         questionService.updateById(question);

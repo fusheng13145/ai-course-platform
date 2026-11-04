@@ -492,6 +492,33 @@ class FileUploadSessionServiceImplTest {
                 "不可解析的残留片不得被当成就绪，实际=" + p.getMissingIndexes());
     }
 
+    @Test
+    @DisplayName("getUploadProgress 终态 COMPLETED：按会话行持久计数，missingIndexes 为空（B-13 ⑲）")
+    void progress_completedUsesPersistedCounts() {
+        FileUploadSession s = session(1L, 99L, "COMPLETED", 4, 4);
+        when(fileUploadSessionMapper.selectById(1L)).thenReturn(s);
+
+        com.aicourse.vo.UploadProgressVO p = service.getUploadProgress(1L, 99L);
+
+        assertEquals(4, p.getUploaded(), "终态不得因分片目录已删而回落成 0");
+        assertEquals("100.0%", p.getPercentage());
+        assertEquals("COMPLETED", p.getStatus());
+        assertTrue(p.getMissingIndexes().isEmpty(), "终态不存在「还缺第 N 片」，实际=" + p.getMissingIndexes());
+    }
+
+    @Test
+    @DisplayName("getUploadProgress 终态 CANCELLED：同样用持久计数，且 uploaded 不超过 total")
+    void progress_cancelledClampsToTotal() {
+        FileUploadSession s = session(1L, 99L, "CANCELLED", 5, 3);
+        when(fileUploadSessionMapper.selectById(1L)).thenReturn(s);
+
+        com.aicourse.vo.UploadProgressVO p = service.getUploadProgress(1L, 99L);
+
+        assertEquals(3, p.getUploaded(), "持久计数大于 total 时须收敛到 total，避免 166.7% 这种读数");
+        assertEquals("100.0%", p.getPercentage());
+        assertTrue(p.getMissingIndexes().isEmpty());
+    }
+
     // ===== cancelUpload =====
     @Test
     @DisplayName("cancelUpload 正常")
