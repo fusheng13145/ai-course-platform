@@ -462,7 +462,7 @@ const ADMIN_PAGES: Record<string, PageDef> = {
   aiUsage: {
     title: 'AI 使用与治理',
     kicker: 'ADMIN / AI USAGE',
-    desc: '按课程聚合调用量、教师配额与限制出题；管理员只做治理。',
+    desc: '按课程聚合的调用量、成功率与耗时（近 N 天，数据源 ai_call_logs）；按能力/按日与配额尚待扩展。',
     moduleId: 'aiUsage',
     special: 'aiUsage',
   },

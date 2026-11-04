@@ -21,6 +21,7 @@ const adminApi = vi.hoisted(() => ({
   getSemesters: vi.fn(),
   createSemester: vi.fn(),
   archiveSemester: vi.fn(),
+  getAIUsageByCourse: vi.fn(),
 }))
 const permissionApi = vi.hoisted(() => ({
   getAllPermissions: vi.fn(),
@@ -126,6 +127,18 @@ beforeEach(() => {
   )
   adminApi.getUsers.mockResolvedValue(envelope({ records: [], total: 0 }))
   adminApi.getSemesters.mockResolvedValue(envelope({ records: [], total: 0 }))
+  adminApi.getAIUsageByCourse.mockResolvedValue(
+    envelope({
+      rangeDays: 30,
+      totalCalls: 12,
+      totalTokens: 3400,
+      distinctCourses: 1,
+      unboundCalls: 0,
+      successRate: 1,
+      collectionNote: '仅统计埋点上线后的调用',
+      courses: [{ courseId: 1, courseName: '计算机网络', calls: 12, tokens: 3400, successRate: 1 }],
+    }),
+  )
   permissionApi.getAllPermissions.mockResolvedValue(envelope([]))
   classroomApi.getClassroomList.mockResolvedValue(envelope({ records: [], total: 0 }))
   courseApi.getAllCourses.mockResolvedValue(envelope({ records: [], total: 0 }))
@@ -175,6 +188,20 @@ describe('全局页壳层：真实页面不得再戴「示例数据」章', () =
     const wrapper = mountPage()
     await settle()
     expect(sourceChipText(wrapper)).toBe('示例数据')
+    wrapper.unmount()
+  })
+
+  it('管理端 AI 用量页走真实正文并标「接口数据」（M-14 接真后不再回落待扩展空态）', async () => {
+    uiState.role.value = 'admin'
+    route.meta.pageKey = 'aiUsage'
+    const wrapper = mountPage()
+    await settle()
+    await vi.waitFor(() => {
+      expect(wrapper.find('.ai-usage-body').exists(), 'AI 用量正文未渲染').toBe(true)
+    })
+    expect(wrapper.find('[data-testid="page-not-provided"]').exists()).toBe(false)
+    expect(sourceChipText(wrapper)).toBe('接口数据')
+    expect(wrapper.text()).not.toContain('示例数据')
     wrapper.unmount()
   })
 
@@ -251,7 +278,6 @@ describe('全局页壳层：判为待扩展的页面不留示例读数', () => {
   it.each([
     ['admin', 'audit', '待扩展：'],
     ['admin', 'notices', '待扩展：'],
-    ['admin', 'aiUsage', '待扩展：跨课程 AI 用量聚合'],
     ['teacher', 'advising', '待扩展：该页签无可用数据面'],
     ['student', 'assistant', '待扩展：'],
   ] as const)('%s/%s 渲染待扩展空态且不挂来源章', async (role, pageName, phrase) => {

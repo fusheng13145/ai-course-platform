@@ -11,7 +11,9 @@ describe('不提供清单的判定', () => {
     expect(pageDisposition('student', 'assistant')).toBe('hidden')
     expect(pageDisposition('teacher', 'resources')).toBe('hidden')
     expect(pageDisposition('admin', 'audit')).toBe('hidden')
-    expect(pageDisposition('admin', 'aiUsage')).toBe('unavailable')
+    // aiUsage 已于 2026-11-04（M-14）按课程维度接真，不再属于「待扩展」：
+    // 它现在由 AiUsageBody 走 special 约定加载，处置必须回到 provided。
+    expect(pageDisposition('admin', 'aiUsage')).toBe('provided')
     expect(pageDisposition('teacher', 'advising')).toBe('unavailable')
     expect(pageDisposition('admin', 'users')).toBe('provided')
     expect(pageDisposition('student', 'tasks')).toBe('provided')

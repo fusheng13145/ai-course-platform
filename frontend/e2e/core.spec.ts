@@ -226,11 +226,20 @@ test.describe.serial('核心链路（真栈）', () => {
     await context.close()
   })
 
-  test('其余核心页可打开并读到真数据（上传会话／试卷库／成绩管理）', async ({ browser }) => {
+  test('其余核心页可打开并读到真数据（上传会话／AI 用量／试卷库／成绩管理）', async ({
+    browser,
+  }) => {
     const admin = await browser.newContext({ baseURL: BASE, storageState: states!.admin })
     const adminPage = await admin.newPage()
     await adminPage.goto('/admin/uploads', { waitUntil: 'domcontentloaded' })
     await expect(adminPage.getByText(/上传会话/).first()).toBeVisible()
+    await expect(adminPage.locator('body')).not.toContainText('示例数据')
+
+    // M-14：AI 用量页从「待扩展」空态转真后，必须真的走接口渲染，而不是又落回空态
+    await adminPage.goto('/admin/ai-usage', { waitUntil: 'domcontentloaded' })
+    await expect(adminPage.locator('.ai-usage-body')).toBeVisible()
+    await expect(adminPage.locator('[data-testid="page-not-provided"]')).toHaveCount(0)
+    await expect(adminPage.getByText('数据源', { exact: false }).first()).toBeVisible()
     await expect(adminPage.locator('body')).not.toContainText('示例数据')
     await admin.close()
 

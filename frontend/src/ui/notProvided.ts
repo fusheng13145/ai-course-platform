@@ -29,7 +29,7 @@ const HIDDEN: Record<Role, string[]> = {
 const UNAVAILABLE: Record<Role, string[]> = {
   student: [],
   teacher: ['advising', 'advisingProfile', 'advisingAlerts', 'advisingNotices'],
-  admin: ['aiUsage'],
+  admin: [],
 }
 
 const COPY: Record<string, { head: string; detail: string }> = {
@@ -86,11 +86,6 @@ const COPY: Record<string, { head: string; detail: string }> = {
     head: '待扩展：选课审批',
     detail:
       '选课与审批链路依赖教学班模型（B-13①），本轮不提供独立审批界面；课程审批在「审批记录」页。',
-  },
-  'admin:aiUsage': {
-    head: '待扩展：跨课程 AI 用量聚合',
-    detail:
-      '后端已有按课程聚合的端点（`GET /admin/statistics/ai-usage/by-course`），但缺少按能力／按日维度（B-13④），本页暂未接真；只给空态、不做示例估算。扩展方向＝按现有课程维度先接入，再补细分，见产品规划 §4.1。',
   },
 }
 
