@@ -89,7 +89,6 @@
         v-else-if="currentTab === 'exams' && role === 'student'"
         :course-id="courseId"
       />
-      <ExamTab v-else-if="currentTab === 'exams'" :role="role" />
       <SettingsTab
         v-else-if="currentTab === 'settings' || currentTab === 'approval'"
         :role="role"
@@ -102,7 +101,7 @@
         :course-id="courseId"
         :role="role"
       />
-      <ModuleTab v-else :block="block" :role="role" :note="moduleNote" />
+      <TabUnavailable v-else :note="tabUnavailableNote" />
     </div>
   </template>
 </template>
@@ -117,9 +116,8 @@ import ReaderTab from './tabs/ReaderTab.vue'
 import AnalyticsTab from './tabs/AnalyticsTab.vue'
 import AdminReadOnlyTab from './tabs/AdminReadOnlyTab.vue'
 import GradesTab from './tabs/GradesTab.vue'
-import ExamTab from './tabs/ExamTab.vue'
 import SettingsTab from './tabs/SettingsTab.vue'
-import ModuleTab from './tabs/ModuleTab.vue'
+import TabUnavailable from './tabs/TabUnavailable.vue'
 import TeacherBankView from '../teacher/TeacherBankView.vue'
 import TeacherExamsView from '../teacher/TeacherExamsView.vue'
 import ProctorTab from './tabs/ProctorTab.vue'
@@ -132,7 +130,6 @@ import StudentExamPanel from '../exam/StudentExamPanel.vue'
 import { courseTabs, type Role } from '../../nav'
 import { useUi } from '../../composables/ui'
 import { loadCourse, getCourses, type CourseDetail } from '../../data/api'
-import { courseTabBlock, COURSE_TAB_NOTES } from '../../data/courseTabData'
 
 const route = useRoute()
 const router = useRouter()
@@ -222,12 +219,16 @@ const scope = computed(() => {
   return { label: '当前范围', title: '全部学生', detail: '教学班模型待接入；当前按课程聚合' }
 })
 
-const block = computed(() => courseTabBlock(role.value as Role, currentTab.value))
-const moduleNote = computed(
-  () =>
-    block.value?.note ||
-    COURSE_TAB_NOTES[currentTab.value] ||
-    '后端聚合端点尚未接入；旧版对应页面仍可使用。',
+/**
+ * 「该页签尚未接入」时的说明。示例层删除后，这里只剩真实待扩展页签的说明；
+ * 教学班（classes）是当前唯一会落到该分支的页签（教师与管理员）。
+ */
+const TAB_UNAVAILABLE_NOTES: Record<string, string> = {
+  classes: '教学班与组织接口尚未落地；本页签待扩展，暂不提供班级读数。',
+}
+
+const tabUnavailableNote = computed(
+  () => TAB_UNAVAILABLE_NOTES[currentTab.value] || '后端聚合端点尚未实现；本页签暂不提供读数。',
 )
 
 function goTab(tab: string) {

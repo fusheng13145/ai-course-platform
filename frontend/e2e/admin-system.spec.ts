@@ -37,9 +37,7 @@ test.describe('管理端系统设置（真栈）', () => {
     }
 
     // 分页器读数与接口总数一致
-    await expect(page.locator('.system-body .card-foot')).toContainText(
-      `共 ${configs.length} 条`,
-    )
+    await expect(page.locator('.system-body .card-foot')).toContainText(`共 ${configs.length} 条`)
     // 首屏行数＝一页（20 条），且与服务端总数不矛盾
     const rows = await page.locator('.system-body tbody tr').count()
     expect(rows).toBe(Math.min(20, configs.length))
