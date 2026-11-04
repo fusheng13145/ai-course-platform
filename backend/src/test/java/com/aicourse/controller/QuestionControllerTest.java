@@ -13,9 +13,11 @@ import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.mockito.ArgumentCaptor;
 
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -97,7 +99,7 @@ class QuestionControllerTest extends ControllerTestBase {
     @DisplayName("POST /questions/create - TEACHER角色返回200且data透传创建题目")
     void create_authorized_returns_success() throws Exception {
         when(questionService.createQuestion(any())).thenReturn(sampleQuestion());
-        mockMvc.perform(post("/questions/create").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"题干\",\"courseId\":1}").with(withUser(1L, "TEACHER")))
+        mockMvc.perform(post("/questions/create").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"题干\",\"courseId\":1,\"type\":\"SINGLE_CHOICE\"}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
@@ -114,7 +116,8 @@ class QuestionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /questions/create - STUDENT角色返回403")
     void create_student_forbidden_403() throws Exception {
-        mockMvc.perform(post("/questions/create").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(2L, "STUDENT")))
+        // 载荷必须是合法入参：DTO 校验在方法调用前执行，非法载荷会先得到 400，测不到角色闸门
+        mockMvc.perform(post("/questions/create").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"题干\",\"courseId\":1,\"type\":\"SINGLE_CHOICE\"}").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
     }
 
@@ -292,11 +295,73 @@ class QuestionControllerTest extends ControllerTestBase {
     @DisplayName("POST /questions - TEACHER角色返回200且正确委托save")
     void createBasic_authorized_returns_success() throws Exception {
         when(questionService.save(any())).thenReturn(true);
-        mockMvc.perform(post("/questions").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"题干\",\"courseId\":1}").with(withUser(1L, "TEACHER")))
+        mockMvc.perform(post("/questions").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"题干\",\"courseId\":1,\"type\":\"SINGLE_CHOICE\"}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists());
         verify(questionService).save(any(Question.class));
+    }
+
+    @Test
+    @DisplayName("POST /questions - 纯文本答案/数组选项被规范化成 JSON 文本后落库（B-13 ⑩）")
+    void createBasic_normalizesJsonColumns() throws Exception {
+        when(questionService.save(any())).thenReturn(true);
+        mockMvc.perform(post("/questions").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"题干\",\"courseId\":1,\"type\":\"MULTIPLE_CHOICE\","
+                                + "\"correctAnswers\":\"A,B\",\"options\":[\"选项1\",\"选项2\"],"
+                                + "\"knowledgePoints\":[\"闭包\"]}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        ArgumentCaptor<Question> captor = ArgumentCaptor.forClass(Question.class);
+        verify(questionService).save(captor.capture());
+        Question saved = captor.getValue();
+        assertEquals("[\"A\",\"B\"]", saved.getCorrectAnswers(),
+                "多选简写必须拆成 JSON 数组，否则 MySQL JSON 列会判非法");
+        assertEquals("[\"选项1\",\"选项2\"]", saved.getOptions(), "数组选项应序列化为 JSON 文本");
+        assertEquals("[\"闭包\"]", saved.getKnowledgePoints());
+    }
+
+    @Test
+    @DisplayName("POST /questions - 缺 type 返回 400 且不落库（DTO 必填校验）")
+    void createBasic_missingType_returns400() throws Exception {
+        mockMvc.perform(post("/questions").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"题干\",\"courseId\":1}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+        verify(questionService, never()).save(any(Question.class));
+    }
+
+    @Test
+    @DisplayName("POST /questions - options 非数组返回 400（形状不对不得静默落库）")
+    void createBasic_optionsNotArray_returns400() throws Exception {
+        mockMvc.perform(post("/questions").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"题干\",\"courseId\":1,\"type\":\"SINGLE_CHOICE\",\"options\":\"A. 选项一\"}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+        verify(questionService, never()).save(any(Question.class));
+    }
+
+    @Test
+    @DisplayName("PUT /questions/1 - 局部更新不采用客户端传来的 courseId（B-13 ⑩）")
+    void update_keepsStoredCourseOwnership() throws Exception {
+        Question existing = sampleQuestion();
+        existing.setCourseId(9L);
+        when(questionService.getById(1L)).thenReturn(existing);
+        when(questionService.updateById(any())).thenReturn(true);
+
+        mockMvc.perform(put("/questions/1").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"courseId\":123,\"explanation\":\"解析\"}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<Question> captor = ArgumentCaptor.forClass(Question.class);
+        verify(questionService).updateById(captor.capture());
+        assertEquals(9L, captor.getValue().getCourseId(), "课程归属必须取库内值");
+        assertEquals("解析", captor.getValue().getExplanation());
     }
 
     @Test
@@ -309,7 +374,7 @@ class QuestionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /questions - STUDENT角色返回403")
     void createBasic_student_forbidden_403() throws Exception {
-        mockMvc.perform(post("/questions").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(2L, "STUDENT")))
+        mockMvc.perform(post("/questions").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"题干\",\"courseId\":1,\"type\":\"SINGLE_CHOICE\"}").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
     }
 
@@ -507,7 +572,7 @@ class QuestionControllerTest extends ControllerTestBase {
                 .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
         mockMvc.perform(post("/questions")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"content\":\"题干\",\"courseId\":1}")
+                        .content("{\"content\":\"题干\",\"courseId\":1,\"type\":\"SINGLE_CHOICE\"}")
                         .with(withUser(1L, "TEACHER")))
                 .andExpect(status().isForbidden());
         verify(questionService, never()).save(any(Question.class));

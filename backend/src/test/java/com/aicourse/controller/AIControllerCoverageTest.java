@@ -100,8 +100,8 @@ class AIControllerCoverageTest extends ControllerTestBase {
     // ==================== /ai/qa/ask ====================
 
     @Test
-    @DisplayName("POST /ai/qa/ask - 携带已存在 sessionId：复用会话不新建，AI 返回内容被 HTML 转义")
-    void qaAsk_existingSession_reusedAndEscaped() throws Exception {
+    @DisplayName("POST /ai/qa/ask - 携带已存在 sessionId：复用会话不新建，AI 返回内容按纯文本原样下发（B-13 ⑭）")
+    void qaAsk_existingSession_reusedAndNotEscaped() throws Exception {
         when(aiChatSessionService.getBySessionId("s-9")).thenReturn(session("s-9"));
         when(aiService.ragAsk("什么是闭包", null))
                 .thenReturn(new QaAnswerVO("<em>答案</em>",
@@ -114,11 +114,11 @@ class AIControllerCoverageTest extends ControllerTestBase {
         mockMvc.perform(asyncDispatch(mvc))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.answer").value("&lt;em&gt;答案&lt;/em&gt;"))
+                .andExpect(jsonPath("$.data.answer").value("<em>答案</em>"))
                 .andExpect(jsonPath("$.data.sessionId").value("s-9"))
-                // 出处与答案同口径转义：资料名/片段里的标签与脚本不得原样下发
-                .andExpect(jsonPath("$.data.sources[0].documentName").value("第&lt;1&gt;章"))
-                .andExpect(jsonPath("$.data.sources[0].snippet").value("&lt;script&gt;危险片段&lt;/script&gt;"))
+                // 出处与答案同口径：不转义，原样透传（渲染层负责转义）
+                .andExpect(jsonPath("$.data.sources[0].documentName").value("第<1>章"))
+                .andExpect(jsonPath("$.data.sources[0].snippet").value("<script>危险片段</script>"))
                 .andExpect(jsonPath("$.data.sources[0].documentId").value(3))
                 .andExpect(jsonPath("$.data.sources[0].relevanceScore").value(0.8));
 
@@ -126,7 +126,7 @@ class AIControllerCoverageTest extends ControllerTestBase {
         verify(aiChatSessionService, never()).createSession(any(), any(), any());
         verify(aiService).ragAsk(eq("什么是闭包"), isNull());
         verify(aiChatSessionService).appendMessage("s-9", "user", "什么是闭包");
-        verify(aiChatSessionService).appendMessage("s-9", "assistant", "&lt;em&gt;答案&lt;/em&gt;");
+        verify(aiChatSessionService).appendMessage("s-9", "assistant", "<em>答案</em>");
     }
 
     @Test
@@ -149,8 +149,8 @@ class AIControllerCoverageTest extends ControllerTestBase {
     // ==================== /ai/qa/continue ====================
 
     @Test
-    @DisplayName("POST /ai/qa/continue - 无 sessionId 新建会话；历史 content 为 null 转空串；AI null 回落空串")
-    void qaContinue_noSession_createsAndEscapesHistory() throws Exception {
+    @DisplayName("POST /ai/qa/continue - 无 sessionId 新建会话；历史 content 为 null 转空串；输入按原文进上下文（B-13 ⑭）")
+    void qaContinue_noSession_keepsPlainHistory() throws Exception {
         when(aiChatSessionService.createSession(2L, null, null)).thenReturn(session("s-2"));
         when(aiChatSessionService.getMessages("s-2"))
                 .thenReturn(List.of(message("user", null), message("assistant", "ok")));
@@ -168,9 +168,9 @@ class AIControllerCoverageTest extends ControllerTestBase {
         verify(aiService).chat(captor.capture(), eq(2L));
         List<Map<String, String>> history = captor.getValue();
         assertEquals(3, history.size(), "两条历史 + 本轮用户消息");
-        assertEquals("", history.get(0).get("content"), "null 历史内容应转义为空串");
+        assertEquals("", history.get(0).get("content"), "null 历史内容应归一为空串");
         assertEquals("ok", history.get(1).get("content"));
-        assertEquals("&lt;b&gt;继续&lt;/b&gt;", history.get(2).get("content"), "用户输入须 HTML 转义");
+        assertEquals("<b>继续</b>", history.get(2).get("content"), "用户输入按原文进上下文，不得被转义成实体");
         verify(aiChatSessionService, never()).getBySessionId(anyString());
     }
 
@@ -248,8 +248,8 @@ class AIControllerCoverageTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("GET /ai/qa/stream - 携带 courseId 与出处：末帧下发转义后的 sources")
-    void streamChat_withCourseId_emitsEscapedSources() throws Exception {
+    @DisplayName("GET /ai/qa/stream - 携带 courseId 与出处：末帧原样下发 sources（B-13 ⑭）")
+    void streamChat_withCourseId_emitsPlainSources() throws Exception {
         when(aiService.streamChat("什么是闭包", 7L))
                 .thenReturn(new QaStreamVO(reactor.core.publisher.Flux.just("答案"),
                         List.of(new QaSourceVO(3L, "第<1>章", 0.8, "<script>危险片段</script>"))));
@@ -264,9 +264,9 @@ class AIControllerCoverageTest extends ControllerTestBase {
         // 故直接按 UTF-8 取回原始字节（SSE 规范本就要求 UTF-8）。
         String body = new String(dispatched.getResponse().getContentAsByteArray(), StandardCharsets.UTF_8);
         assertTrue(body.contains("{\"token\":\"答案\"}"), body);
-        // 出处与同步问答同口径转义：资料名/片段里的标签与脚本不得原样下发
-        assertTrue(body.contains("第&lt;1&gt;章"), body);
-        assertTrue(body.contains("&lt;script&gt;危险片段&lt;/script&gt;"), body);
+        // 出处与同步问答同口径：原样透传，不转义（渲染层负责转义）
+        assertTrue(body.contains("第<1>章"), body);
+        assertTrue(body.contains("<script>危险片段</script>"), body);
 
         verify(aiService).streamChat(eq("什么是闭包"), eq(7L));
     }

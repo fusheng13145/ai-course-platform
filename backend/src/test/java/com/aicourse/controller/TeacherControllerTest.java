@@ -1112,6 +1112,31 @@ class TeacherControllerTest extends ControllerTestBase {
     }
 
     @Test
+    @DisplayName("GET /teacher/dashboard/ai-overview - 委托独立入口并透传 teacherId（B-13 ⑯）")
+    void teacherAiOverview_authorized_passes_security() throws Exception {
+        when(teachingService.getTeacherAIOverview(eq(1L))).thenReturn(Map.of("summary", "AI 总览"));
+        mockMvc.perform(get("/teacher/dashboard/ai-overview").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.summary").value("AI 总览"));
+        verify(teachingService).getTeacherAIOverview(eq(1L));
+    }
+
+    @Test
+    @DisplayName("GET /teacher/dashboard/ai-overview - 未认证返回401")
+    void teacherAiOverview_unauthorized_returns_401() throws Exception {
+        mockMvc.perform(get("/teacher/dashboard/ai-overview"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("GET /teacher/dashboard/ai-overview - STUDENT角色返回403")
+    void teacherAiOverview_student_forbidden_403() throws Exception {
+        mockMvc.perform(get("/teacher/dashboard/ai-overview").with(withUser(2L, "STUDENT")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
     @DisplayName("GET /teacher/courses/1/chapters/tree - 真实业务断言：课程归属校验通过并委托 getFullChapterTree")
     void chapterTree_authorized_passes_security() throws Exception {
         when(courseService.getById(eq(1L))).thenReturn(ownerCourse());

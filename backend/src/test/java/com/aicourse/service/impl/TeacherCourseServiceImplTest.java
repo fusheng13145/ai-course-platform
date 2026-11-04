@@ -261,6 +261,36 @@ class TeacherCourseServiceImplTest {
     }
 
     @Test
+    @DisplayName("教师仪表盘V2-AI 总览只回 deferred 标记，聚合内不调模型（B-13 ⑯）")
+    void dashboardV2_aiOverviewDeferredAndDoesNotCallModel() {
+        stubCommon();
+        Map<String, Object> d = service.getTeacherDashboardV2(1L);
+
+        @SuppressWarnings("unchecked")
+        Map<String, Object> aiOverview = (Map<String, Object>) d.get("aiOverview");
+        assertEquals(Boolean.TRUE, aiOverview.get("deferred"));
+        assertEquals("/api/teacher/dashboard/ai-overview", aiOverview.get("endpoint"));
+
+        // 首页聚合被 LLM 拖住的根因就是这一句；现在它必须一次都不发生
+        verify(aiService, never()).generateLearningAdviceJson(any(), any());
+    }
+
+    @Test
+    @DisplayName("教师 AI 总览-独立入口复用同一统计口径并返回模型结果（B-13 ⑯）")
+    void teacherAiOverview_reusesAggregationAndCallsModel() {
+        stubCommon();
+        when(aiService.generateLearningAdviceJson(any(), any()))
+                .thenReturn("{\"summary\":\"本周两门课进度正常\"}");
+
+        Map<String, Object> overview = service.getTeacherAIOverview(1L);
+
+        assertEquals("本周两门课进度正常", overview.get("summary"));
+        verify(aiService).generateLearningAdviceJson(any(), any());
+        // 聚合里的 deferred 标记不得混进 AI 总览的返回
+        assertEquals(null, overview.get("deferred"));
+    }
+
+    @Test
     @DisplayName("教师仪表盘V2-无课程空集合")
     void dashboardV2_noCourses() {
         when(courseService.list(any(Wrapper.class))).thenReturn(Collections.emptyList());

@@ -729,12 +729,20 @@ public class TeacherController {
         return ApiResponse.success(teachingService.getMyCourseSummaries(teacherId));
     }
 
-    /** 增强型教师仪表盘（多维下钻与预警） */
+    /** 增强型教师仪表盘（多维下钻与预警）。AI 总览已摘出，见 /dashboard/ai-overview */
     @GetMapping("/dashboard/v2")
-    @Operation(summary = "增强教师仪表盘", description = "课程下钻卡片/跨课预警学生/任务点完成概览/AI教学总览/平台均值对比")
+    @Operation(summary = "增强教师仪表盘", description = "课程下钻卡片/跨课预警学生/任务点完成概览/平台均值对比；aiOverview 只回 deferred 标记")
     public ApiResponse<Map<String, Object>> teacherDashboardV2(Authentication auth) {
         Long teacherId = (Long) auth.getPrincipal();
         return ApiResponse.success(teachingService.getTeacherDashboardV2(teacherId));
+    }
+
+    /** 教师 AI 教学总览（独立入口：首页聚合不再同步调用模型，避免被 LLM 阻塞） */
+    @GetMapping("/dashboard/ai-overview")
+    @Operation(summary = "教师 AI 教学总览", description = "按需获取 AI 学情解读；与 /dashboard/v2 同统计口径，只是额外做一次模型调用")
+    public ApiResponse<Map<String, Object>> teacherAiOverview(Authentication auth) {
+        Long teacherId = (Long) auth.getPrincipal();
+        return ApiResponse.success(teachingService.getTeacherAIOverview(teacherId));
     }
 
     /** 获取课程完整章节树（需课程归属校验） */

@@ -64,6 +64,16 @@ public interface TeacherCourseService {
     Map<String, Object> getTeacherDashboardV2(Long teacherId);
 
     /**
+     * 教师 AI 教学总览（B-13 ⑯：从首页同步聚合中摘出的独立入口）。
+     * <p>统计口径与 {@link #getTeacherDashboardV2} 完全一致，只额外做一次模型调用；
+     * 前端应在页面主体渲染后再请求，不要把它当首屏依赖。</p>
+     *
+     * @param teacherId 教师ID
+     * @return AI 学情解读（解析失败或模型不可用时退化为 summary 文案）
+     */
+    Map<String, Object> getTeacherAIOverview(Long teacherId);
+
+    /**
      * 完整章节树（超星「章节任务点」对齐版）：返回带父子嵌套、内容、发布状态的章节树
      *
      * @param courseId 课程ID

@@ -76,9 +76,9 @@ class AIControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.answer").value("RAG答案"))
                 .andExpect(jsonPath("$.data.sessionId").value("sess-1"))
-                // 溯源下发：出处随答案一并返回，且按与 answer 同口径做 HTML 转义
+                // 溯源下发：出处随答案原样返回（2026-11-02 起不做 HTML 转义，B-13 ⑭）
                 .andExpect(jsonPath("$.data.sources[0].documentId").value(9))
-                .andExpect(jsonPath("$.data.sources[0].documentName").value("&lt;b&gt;第6章 传输层&lt;/b&gt;"))
+                .andExpect(jsonPath("$.data.sources[0].documentName").value("<b>第6章 传输层</b>"))
                 .andExpect(jsonPath("$.data.sources[0].relevanceScore").value(0.9937))
                 .andExpect(jsonPath("$.data.sources[0].snippet").value("三次握手同步初始序号"));
 
@@ -95,6 +95,29 @@ class AIControllerTest extends ControllerTestBase {
                 .andExpect(status().isUnauthorized());
     }
 
+
+    @Test
+    @DisplayName("POST /ai/qa/ask - 回答与出处按纯文本下发，中文引号/尖括号不得变成 HTML 实体（B-13 ⑭）")
+    void qaAsk_returnsPlainTextWithoutHtmlEntities() throws Exception {
+        AiChatSession session = new AiChatSession();
+        session.setSessionId("sess-1");
+        when(aiChatSessionService.createSession(anyLong(), any(), any())).thenReturn(session);
+        String raw = "他说“闭包”就是 <script> 之前的作用域…&";
+        when(aiService.ragAsk(anyString(), any())).thenReturn(new QaAnswerVO(raw,
+                List.of(new QaSourceVO(9L, "第6章 “传输层”", 0.9, "a & b"))));
+
+        MvcResult mvc = mockMvc.perform(post("/ai/qa/ask").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"question\":\"什么是闭包\",\"courseId\":\"2\"}").with(withUser(1L, "TEACHER")))
+                .andExpect(request().asyncStarted()).andReturn();
+        mockMvc.perform(asyncDispatch(mvc))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.answer").value(raw))
+                .andExpect(jsonPath("$.data.sources[0].documentName").value("第6章 “传输层”"))
+                .andExpect(jsonPath("$.data.sources[0].snippet").value("a & b"));
+
+        // 落库的也必须是原文：被转义的文本会把实体码带进下一轮上下文
+        verify(aiChatSessionService).appendMessage(eq("sess-1"), eq("assistant"), eq(raw));
+    }
 
     @Test
     @DisplayName("POST /ai/qa/ask - STUDENT角色可访问（AI助教对学生开放）")
