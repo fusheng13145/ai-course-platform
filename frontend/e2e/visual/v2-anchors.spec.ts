@@ -23,13 +23,73 @@ async function shoot(page: Page, slug: string, theme: Theme, url: string, ready:
   await setTheme(page, theme)
   await page.goto(url, { waitUntil: 'domcontentloaded' })
   await expect(ready).toBeVisible()
-  // 让首屏的图表/骨架过渡落定；动画本身在截图时被禁用
+  // 让首屏的图表/骨架过渡落定
   await page.waitForTimeout(900)
+  // 先归零动画 delay，再截图（顺序不能反，见 alignAnimationDelays 的注释）
+  await alignAnimationDelays(page)
   await expect(page).toHaveScreenshot(`${snapName(slug, theme)}.png`, {
     ...SNAPSHOT_THRESHOLDS,
     animations: 'disabled',
     fullPage: false,
   })
+}
+
+/**
+ * 让截图前的渲染状态**唯一**——消除三处会逐轮摇摆的变量。
+ *
+ * 【关于第三处：行高钉成整数】
+ * 新皮肤里 KPI 卡的小字号文本没有设 line-height：标签 10.5px、注脚 9.5px，
+ * 默认行高＝字号×正常系数（约 1.2）＝12.6／11.4 这类小数。字体度量在小数行高上的
+ * 舍入会浮动 ±1px ⇒ 卡片高度在 100.234 与 101.234 之间摇摆 ⇒ 卡片下边框的行号
+ * 在 341／342 之间跳。实测差异包围盒正好是「卡片下沿那一行」，颜色差只有 4~7/255。
+ * 这里把行高钉成整数（13px／12px）：钉的是**度量**不是**外观**——与默认值的视觉差
+ * 不到 1px，而行高从此是确定的。不在样式表里改，是因为那些是并行成员的在途改动。
+ *
+ * 背景：同一份源码、同一份数据，视觉基线会在绿/红之间反复摇摆。
+ * 2026-11-04 实测过程（三次根因排查，每一步都有读数支撑）：
+ *  ① 差异稳定落在 KPI 卡那一行（包围盒 y 242..342＝卡片区），颜色差只有 4~7/255；
+ *     而同一时刻用裸 page.screenshot() 连拍两张是 **0 差异** ⇒ 页面渲染本身是稳的，
+ *     抖动出在「截图前的最后一步」。
+ *  ② 逐像素比对确认：基线的卡片下边框线在 y=341、实拍在 y=342，
+ *     而竖边位置不变 ⇒ 卡片**高度差了 1px**，不是位移。
+ *  ③ 高度差来自 `.stat-label`(10.5px)／`.stat-note`(9.5px) 没有设 line-height：
+ *     默认行高＝字号×正常系数（约 1.2）＝12.6／11.4 这类小数，
+ *     字体度量在小数行高上的舍入会浮动 ±1px ⇒ 卡片高度摇摆 ⇒ 边框行号跳。
+ *
+ * 三处处理，各自对应一个变量：
+ *  - 动画 delay 归零：`.stat` 的入场动画 `viewIn` 带 .04/.08/.12s 逐卡递增的 delay，
+ *    Playwright 的 `animations: 'disabled'` 是**快进**到终态，各卡推进进度不一致，
+ *    「transform 是否已归零」逐轮摇摆 ⇒ 归零 delay 让它们同步。
+ *  - 动画终态显式写出（opacity 1 / translateY(0)）：与 `viewIn` 的 to 帧一致，
+ *    既保住终态的合成层，又消除了「快进了多少」。
+ *    ⚠️ 不能用 `animation: none`——那会连合成层一起去掉，文字抗锯齿方式随之改变，
+ *    与真实用户看到的画面反而不同（实测差异 2800+ px，集中在字形轮廓上）。
+ *  - 小字号文本行高钉成整数：见下方注释。
+ *
+ * 为什么不动样式表：那些是并行成员的在途改动，不该由基线侧去动；
+ * 这里只在截图前钉住**度量**，不改变外观（10.5px 文字配 13px 行高、
+ * 9.5px 文字配 12px 行高，与默认值的视觉差不到 1px）。
+ */
+async function alignAnimationDelays(page: Page): Promise<void> {
+  await page.addStyleTag({
+    content: `*, *::before, *::after {
+      animation-delay: 0s !important;
+      transition-delay: 0s !important;
+    }
+    body[data-app="ui"] .animate-hero,
+    body[data-app="ui"] .stat,
+    body[data-app="ui"] .module,
+    body[data-app="ui"] .card {
+      opacity: 1 !important;
+      transform: translateY(0) !important;
+    }
+    body[data-app="ui"] .stat-label { line-height: 13px !important; }
+    body[data-app="ui"] .stat-note { line-height: 12px !important; }`,
+  })
+  // 样式注入后要等一帧，让布局与栅格化按新样式重算。
+  // ⚠️ 这里不能用 requestAnimationFrame 等——freezeClock 把页面时钟冻住了，
+  // rAF 不再触发，等待会一直挂到超时（实测 60s 超时）。真实时间等待即可。
+  await page.waitForTimeout(120)
 }
 
 test.describe('视觉基线 · 未登录', () => {
