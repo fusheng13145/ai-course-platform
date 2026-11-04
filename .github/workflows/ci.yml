@@ -563,13 +563,20 @@ jobs:
         uses: docker/setup-buildx-action@v3
 
       - name: Build images (no push)
-        # 修复：docker-compose.yml 的 mysql/redis/backend 服务通过 ${VAR:?...} 强制要求
-        # MYSQL_ROOT_PASSWORD / REDIS_PASSWORD / JWT_SECRET，CI 未注入即 interpolate 失败。
+        # 修复：docker-compose.yml 里全部 ${VAR:?...} 均在 `compose config` 阶段强制求值，
+        # 缺一个即整份文件 interpolate 失败——即使该服务不参与 build。
+        # 当前强制变量共 6 个：MYSQL_ROOT_PASSWORD / REDIS_PASSWORD / JWT_SECRET /
+        # APP_ADMIN_INITIAL_PASSWORD（backend）/ NEO4J_PASSWORD（neo4j）/ GRAFANA_ADMIN_PASSWORD（grafana）。
+        # 2026-11-02 补后三个：主干 CI #213 的 Docker 作业正是停在
+        # `required variable NEO4J_PASSWORD is missing a value`（该作业只在 push main 跑，PR 里 skipped，故长期未被发现）。
         # CI 仅构建镜像（不启动容器），使用 secrets 值（未配置时退化为 CI-only 构建值，不落盘）。
         env:
           MYSQL_ROOT_PASSWORD: ${{ secrets.MYSQL_ROOT_PASSWORD || 'ci-build-only-password-9f2k1m8x' }}
           REDIS_PASSWORD: ${{ secrets.REDIS_PASSWORD || 'ci-build-only-redis-7q4w2e9r' }}
           JWT_SECRET: ${{ secrets.JWT_SECRET || 'ci-build-only-jwt-secret-0123456789abcdef0123456789abcdef' }}
+          APP_ADMIN_INITIAL_PASSWORD: ${{ secrets.APP_ADMIN_INITIAL_PASSWORD || 'CiBuild0nly!Admin#2026' }}
+          NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD || 'ci-test-neo4j-8f3k' }}
+          GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD || 'ci-build-only-grafana-4p6t1s0d' }}
         run: docker compose -f docker-compose.yml build
 
   # ------------------------------------------------------------------
