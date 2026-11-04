@@ -61,7 +61,7 @@ public interface TeacherCourseService {
      * @param teacherId 教师ID
      * @return 增强仪表盘数据
      */
-    Map<String, Object> getTeacherDashboardV2(Long teacherId);
+    Map<String, Object> getTeacherDashboard(Long teacherId);
 
     /**
      * 完整章节树（超星「章节任务点」对齐版）：返回带父子嵌套、内容、发布状态的章节树

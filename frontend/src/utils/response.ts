@@ -30,6 +30,20 @@ export interface ApiEnvelope<T = unknown> {
 export type ApiPayload = Record<string, unknown>
 
 /**
+ * 未建模的业务数据（后端契约尚未逐端点类型化）。
+ *
+ * 这是全项目**唯一**的显式 `any` 出口：api 模块统一以 `ApiEnvelope<ApiData>` 标注
+ * 返回信封，使每个导出函数的返回类型都显式可见、且不再有隐式 any；`data` 的具体结构
+ * 待服务端 per-endpoint DTO 沉淀后，只需把本别名替换为对应类型，调用方无需改动。
+ *
+ * 为何不用 `ApiPayload`（Record<string, unknown>）：那会把 `res.data.xxx` 收窄为
+ * unknown，迫使数百个调用方逐个断言，反而放大改动面；`any` 在此是「尚未建模」的
+ * 诚实表达，而非偷懒。集中一处便于日后机械替换。
+ */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+export type ApiData = any
+
+/**
  * 解包业务信封：res.data 存在时返回业务数据，否则原样返回。
  * 输入放宽为 unknown：调用方可能传入业务信封、已解包数据或裸值；
  * 输出由 T 决定，缺省 ApiPayload，调用方可传入具体类型（如 PagedResponse<Course>）收窄。
@@ -47,7 +61,7 @@ export function unwrap<T = ApiPayload>(res: unknown): T | null | undefined {
  * 名字即判据（P-12 处置清单 F-2）：**这是文本解码器，不是净化器**——它把实体还原成
  * 字面字符，输出里可能出现 `<script>` 这样的可执行片段，因此返回值只能落 Vue 插值
  * `{{ }}`（自动转义），**禁止进入任何 `v-html` 位点**。该禁令由
- * `src/v2/__tests__/xssSurface.test.ts` 静态扫描机械钉住。
+ * `src/ui/__tests__/xssSurface.test.ts` 静态扫描机械钉住。
  *
  * 待办口径：后端 B-13⑭ 裁定「AIController 停止 HTML 转义、返回纯文本契约」后，
  * 前端同批摘掉本函数；现状是 1 转义＋1 解码＋1 插值自动转义＝净 0。

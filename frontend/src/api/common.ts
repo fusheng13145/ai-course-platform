@@ -3,6 +3,7 @@
  * 对应后端 CommonController: /common
  */
 import request from './request'
+import { type ApiData } from '@/utils/response'
 
 /**
  * 默认导出对象：模块/组件配置与导出内容
@@ -25,7 +26,7 @@ export default {
   /** POST /common/upload/batch -- 批量文件上传 */
   uploadBatch(files) {
     const fd = new FormData()
-    files.forEach((f) => fd.append('files', f))
+    files.forEach((f: ApiData) => fd.append('files', f))
     return request.post('/common/upload/batch', fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })

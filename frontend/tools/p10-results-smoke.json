@@ -56,7 +56,7 @@
       "path": "/teacher/courses/create",
       "meta": {
         "role": "TEACHER",
-        "v2page": "createCourse",
+        "pageKey": "createCourse",
         "title": "创建课程"
       },
       "name": null
@@ -65,7 +65,7 @@
       "path": "/teacher/advising/profile",
       "meta": {
         "role": "TEACHER",
-        "v2page": "advisingProfile",
+        "pageKey": "advisingProfile",
         "title": "班级画像"
       },
       "name": null
@@ -74,7 +74,7 @@
       "path": "/teacher/advising/alerts",
       "meta": {
         "role": "TEACHER",
-        "v2page": "advisingAlerts",
+        "pageKey": "advisingAlerts",
         "title": "学生预警"
       },
       "name": null
@@ -83,7 +83,7 @@
       "path": "/teacher/advising/notices",
       "meta": {
         "role": "TEACHER",
-        "v2page": "advisingNotices",
+        "pageKey": "advisingNotices",
         "title": "班级通知"
       },
       "name": null
@@ -92,7 +92,7 @@
       "path": "/student/courses/:id/:tab?",
       "meta": {
         "role": "STUDENT",
-        "v2course": true,
+        "courseSpace": true,
         "title": "课程空间"
       },
       "name": null
@@ -101,7 +101,7 @@
       "path": "/teacher/courses/:id/:tab?",
       "meta": {
         "role": "TEACHER",
-        "v2course": true,
+        "courseSpace": true,
         "title": "课程空间"
       },
       "name": null
@@ -110,7 +110,7 @@
       "path": "/admin/courses/:id/:tab?",
       "meta": {
         "role": "ADMIN",
-        "v2course": true,
+        "courseSpace": true,
         "title": "课程治理"
       },
       "name": null
@@ -119,7 +119,7 @@
       "path": "/student/home",
       "meta": {
         "role": "STUDENT",
-        "v2page": "home",
+        "pageKey": "home",
         "title": "工作台"
       },
       "name": null
@@ -128,7 +128,7 @@
       "path": "/student/courses",
       "meta": {
         "role": "STUDENT",
-        "v2page": "courses",
+        "pageKey": "courses",
         "title": "我的课程"
       },
       "name": null
@@ -137,7 +137,7 @@
       "path": "/student/tasks",
       "meta": {
         "role": "STUDENT",
-        "v2page": "tasks",
+        "pageKey": "tasks",
         "title": "学习任务"
       },
       "name": null
@@ -146,7 +146,7 @@
       "path": "/student/academic",
       "meta": {
         "role": "STUDENT",
-        "v2page": "academic",
+        "pageKey": "academic",
         "title": "学业档案"
       },
       "name": null
@@ -155,7 +155,7 @@
       "path": "/student/exams",
       "meta": {
         "role": "STUDENT",
-        "v2page": "exams",
+        "pageKey": "exams",
         "title": "我的考试"
       },
       "name": null
@@ -164,7 +164,7 @@
       "path": "/student/messages",
       "meta": {
         "role": "STUDENT",
-        "v2page": "messages",
+        "pageKey": "messages",
         "title": "消息"
       },
       "name": null
@@ -173,7 +173,7 @@
       "path": "/student/profile",
       "meta": {
         "role": "STUDENT",
-        "v2page": "profile",
+        "pageKey": "profile",
         "title": "个人中心"
       },
       "name": null
@@ -182,7 +182,7 @@
       "path": "/student/assistant",
       "meta": {
         "role": "STUDENT",
-        "v2page": "assistant",
+        "pageKey": "assistant",
         "title": "AI 助手"
       },
       "name": null
@@ -191,7 +191,7 @@
       "path": "/teacher/home",
       "meta": {
         "role": "TEACHER",
-        "v2page": "home",
+        "pageKey": "home",
         "title": "教学工作台"
       },
       "name": null
@@ -200,7 +200,7 @@
       "path": "/teacher/courses",
       "meta": {
         "role": "TEACHER",
-        "v2page": "courses",
+        "pageKey": "courses",
         "title": "我的课程"
       },
       "name": null
@@ -209,7 +209,7 @@
       "path": "/teacher/bank",
       "meta": {
         "role": "TEACHER",
-        "v2page": "bank",
+        "pageKey": "bank",
         "title": "题库管理"
       },
       "name": null
@@ -218,7 +218,7 @@
       "path": "/teacher/exams",
       "meta": {
         "role": "TEACHER",
-        "v2page": "exams",
+        "pageKey": "exams",
         "title": "试卷库"
       },
       "name": null
@@ -227,7 +227,7 @@
       "path": "/teacher/grades",
       "meta": {
         "role": "TEACHER",
-        "v2page": "grades",
+        "pageKey": "grades",
         "title": "成绩管理"
       },
       "name": null
@@ -236,7 +236,7 @@
       "path": "/teacher/interaction",
       "meta": {
         "role": "TEACHER",
-        "v2page": "interaction",
+        "pageKey": "interaction",
         "title": "课堂互动"
       },
       "name": null
@@ -245,7 +245,7 @@
       "path": "/teacher/knowledge-management",
       "meta": {
         "role": "TEACHER",
-        "v2page": "knowledge",
+        "pageKey": "knowledge",
         "title": "知识点管理"
       },
       "name": null
@@ -254,7 +254,7 @@
       "path": "/teacher/inbox",
       "meta": {
         "role": "TEACHER",
-        "v2page": "inbox",
+        "pageKey": "inbox",
         "title": "教学任务"
       },
       "name": null
@@ -263,7 +263,7 @@
       "path": "/teacher/analytics",
       "meta": {
         "role": "TEACHER",
-        "v2page": "analytics",
+        "pageKey": "analytics",
         "title": "学情分析"
       },
       "name": null
@@ -272,7 +272,7 @@
       "path": "/teacher/resources",
       "meta": {
         "role": "TEACHER",
-        "v2page": "resources",
+        "pageKey": "resources",
         "title": "资源中心"
       },
       "name": null
@@ -281,7 +281,7 @@
       "path": "/teacher/advising",
       "meta": {
         "role": "TEACHER",
-        "v2page": "advising",
+        "pageKey": "advising",
         "title": "我的班级"
       },
       "name": null
@@ -290,7 +290,7 @@
       "path": "/teacher/messages",
       "meta": {
         "role": "TEACHER",
-        "v2page": "messages",
+        "pageKey": "messages",
         "title": "消息"
       },
       "name": null
@@ -299,7 +299,7 @@
       "path": "/teacher/profile",
       "meta": {
         "role": "TEACHER",
-        "v2page": "profile",
+        "pageKey": "profile",
         "title": "个人中心"
       },
       "name": null
@@ -308,7 +308,7 @@
       "path": "/admin/home",
       "meta": {
         "role": "ADMIN",
-        "v2page": "home",
+        "pageKey": "home",
         "title": "治理总览"
       },
       "name": null
@@ -317,7 +317,7 @@
       "path": "/admin/courses",
       "meta": {
         "role": "ADMIN",
-        "v2page": "courses",
+        "pageKey": "courses",
         "title": "课程目录"
       },
       "name": null
@@ -326,7 +326,7 @@
       "path": "/admin/colleges",
       "meta": {
         "role": "ADMIN",
-        "v2page": "colleges",
+        "pageKey": "colleges",
         "title": "学院与专业"
       },
       "name": null
@@ -335,7 +335,7 @@
       "path": "/admin/classes",
       "meta": {
         "role": "ADMIN",
-        "v2page": "adminClasses",
+        "pageKey": "adminClasses",
         "title": "行政班"
       },
       "name": null
@@ -344,7 +344,7 @@
       "path": "/admin/users",
       "meta": {
         "role": "ADMIN",
-        "v2page": "users",
+        "pageKey": "users",
         "title": "用户与账号"
       },
       "name": null
@@ -353,7 +353,7 @@
       "path": "/admin/roles",
       "meta": {
         "role": "ADMIN",
-        "v2page": "roles",
+        "pageKey": "roles",
         "title": "角色与权限"
       },
       "name": null
@@ -362,7 +362,7 @@
       "path": "/admin/semesters",
       "meta": {
         "role": "ADMIN",
-        "v2page": "semesters",
+        "pageKey": "semesters",
         "title": "学期管理"
       },
       "name": null
@@ -371,7 +371,7 @@
       "path": "/admin/approvals",
       "meta": {
         "role": "ADMIN",
-        "v2page": "approvals",
+        "pageKey": "approvals",
         "title": "课程审批"
       },
       "name": null
@@ -380,7 +380,7 @@
       "path": "/admin/teaching-classes",
       "meta": {
         "role": "ADMIN",
-        "v2page": "teachingClasses",
+        "pageKey": "teachingClasses",
         "title": "教学班监管"
       },
       "name": null
@@ -389,7 +389,7 @@
       "path": "/admin/enrollments",
       "meta": {
         "role": "ADMIN",
-        "v2page": "enrollments",
+        "pageKey": "enrollments",
         "title": "选课与名单"
       },
       "name": null
@@ -398,7 +398,7 @@
       "path": "/admin/supervision",
       "meta": {
         "role": "ADMIN",
-        "v2page": "supervision",
+        "pageKey": "supervision",
         "title": "教学监督"
       },
       "name": null
@@ -407,7 +407,7 @@
       "path": "/admin/exam-governance",
       "meta": {
         "role": "ADMIN",
-        "v2page": "examGovernance",
+        "pageKey": "examGovernance",
         "title": "考试治理"
       },
       "name": null
@@ -416,7 +416,7 @@
       "path": "/admin/grades",
       "meta": {
         "role": "ADMIN",
-        "v2page": "grades",
+        "pageKey": "grades",
         "title": "成绩与预警"
       },
       "name": null
@@ -425,7 +425,7 @@
       "path": "/admin/ai-usage",
       "meta": {
         "role": "ADMIN",
-        "v2page": "aiUsage",
+        "pageKey": "aiUsage",
         "title": "AI 使用与治理"
       },
       "name": null
@@ -434,7 +434,7 @@
       "path": "/admin/questions",
       "meta": {
         "role": "ADMIN",
-        "v2page": "adminQuestions",
+        "pageKey": "adminQuestions",
         "title": "题库管理"
       },
       "name": null
@@ -443,7 +443,7 @@
       "path": "/admin/uploads",
       "meta": {
         "role": "ADMIN",
-        "v2page": "adminUploads",
+        "pageKey": "adminUploads",
         "title": "上传会话监控"
       },
       "name": null
@@ -452,7 +452,7 @@
       "path": "/admin/moderation",
       "meta": {
         "role": "ADMIN",
-        "v2page": "moderation",
+        "pageKey": "moderation",
         "title": "内容审核"
       },
       "name": null
@@ -461,7 +461,7 @@
       "path": "/admin/notices",
       "meta": {
         "role": "ADMIN",
-        "v2page": "notices",
+        "pageKey": "notices",
         "title": "通知公告"
       },
       "name": null
@@ -470,7 +470,7 @@
       "path": "/admin/audit",
       "meta": {
         "role": "ADMIN",
-        "v2page": "audit",
+        "pageKey": "audit",
         "title": "操作与登录日志"
       },
       "name": null
@@ -479,7 +479,7 @@
       "path": "/admin/sessions",
       "meta": {
         "role": "ADMIN",
-        "v2page": "sessions",
+        "pageKey": "sessions",
         "title": "会话管理"
       },
       "name": null
@@ -488,7 +488,7 @@
       "path": "/admin/system",
       "meta": {
         "role": "ADMIN",
-        "v2page": "system",
+        "pageKey": "system",
         "title": "系统设置"
       },
       "name": null
@@ -497,7 +497,7 @@
       "path": "/admin/profile",
       "meta": {
         "role": "ADMIN",
-        "v2page": "profile",
+        "pageKey": "profile",
         "title": "个人中心"
       },
       "name": null
@@ -546,7 +546,7 @@
       "path": "/403",
       "meta": {
         "requiresAuth": false,
-        "v2error": "403",
+        "errorCode": "403",
         "title": "无权限"
       },
       "name": null
@@ -555,7 +555,7 @@
       "path": "/404",
       "meta": {
         "requiresAuth": false,
-        "v2error": "404",
+        "errorCode": "404",
         "title": "页面不存在"
       },
       "name": null
@@ -564,7 +564,7 @@
       "path": "/503",
       "meta": {
         "requiresAuth": false,
-        "v2error": "503",
+        "errorCode": "503",
         "title": "服务连接失败"
       },
       "name": null
@@ -581,7 +581,7 @@
       "path": "/:pathMatch(.*)*",
       "meta": {
         "requiresAuth": false,
-        "v2error": "404",
+        "errorCode": "404",
         "title": "页面不存在"
       },
       "name": null
@@ -594,7 +594,7 @@
       "concretePath": "/login",
       "tabLabel": "",
       "title": "登录",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -615,7 +615,7 @@
       "concretePath": "/register",
       "tabLabel": "",
       "title": "注册",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -636,7 +636,7 @@
       "concretePath": "/forgot-password",
       "tabLabel": "",
       "title": "找回密码",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -657,7 +657,7 @@
       "concretePath": "/agreement",
       "tabLabel": "",
       "title": "用户服务协议",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -678,7 +678,7 @@
       "concretePath": "/privacy",
       "tabLabel": "",
       "title": "隐私政策",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -699,7 +699,7 @@
       "concretePath": "/403",
       "tabLabel": "",
       "title": "无权限",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -720,7 +720,7 @@
       "concretePath": "/404",
       "tabLabel": "",
       "title": "页面不存在",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -741,7 +741,7 @@
       "concretePath": "/503",
       "tabLabel": "",
       "title": "服务连接失败",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -762,7 +762,7 @@
       "concretePath": "/",
       "tabLabel": "",
       "title": "新版工作台",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -783,7 +783,7 @@
       "concretePath": "/p10-not-a-real-route",
       "tabLabel": "",
       "title": "页面不存在",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -804,7 +804,7 @@
       "concretePath": "/login",
       "tabLabel": "",
       "title": "登录",
-      "v2page": "",
+      "pageKey": "",
       "control": true,
       "viewport": "1440x900",
       "verdict": "OK",
@@ -825,7 +825,7 @@
       "concretePath": "/register",
       "tabLabel": "",
       "title": "注册",
-      "v2page": "",
+      "pageKey": "",
       "control": true,
       "viewport": "1440x900",
       "verdict": "OK",
@@ -846,7 +846,7 @@
       "concretePath": "/forgot-password",
       "tabLabel": "",
       "title": "找回密码",
-      "v2page": "",
+      "pageKey": "",
       "control": true,
       "viewport": "1440x900",
       "verdict": "OK",
@@ -867,7 +867,7 @@
       "concretePath": "/agreement",
       "tabLabel": "",
       "title": "用户服务协议",
-      "v2page": "",
+      "pageKey": "",
       "control": true,
       "viewport": "1440x900",
       "verdict": "OK",
@@ -888,7 +888,7 @@
       "concretePath": "/privacy",
       "tabLabel": "",
       "title": "隐私政策",
-      "v2page": "",
+      "pageKey": "",
       "control": true,
       "viewport": "1440x900",
       "verdict": "OK",
@@ -909,7 +909,7 @@
       "concretePath": "/403",
       "tabLabel": "",
       "title": "无权限",
-      "v2page": "",
+      "pageKey": "",
       "control": true,
       "viewport": "1440x900",
       "verdict": "OK",
@@ -930,7 +930,7 @@
       "concretePath": "/404",
       "tabLabel": "",
       "title": "页面不存在",
-      "v2page": "",
+      "pageKey": "",
       "control": true,
       "viewport": "1440x900",
       "verdict": "OK",
@@ -951,7 +951,7 @@
       "concretePath": "/503",
       "tabLabel": "",
       "title": "服务连接失败",
-      "v2page": "",
+      "pageKey": "",
       "control": true,
       "viewport": "1440x900",
       "verdict": "OK",
@@ -972,7 +972,7 @@
       "concretePath": "/",
       "tabLabel": "",
       "title": "新版工作台",
-      "v2page": "",
+      "pageKey": "",
       "control": true,
       "viewport": "1440x900",
       "verdict": "REDIRECT",
@@ -993,7 +993,7 @@
       "concretePath": "/p10-not-a-real-route",
       "tabLabel": "",
       "title": "页面不存在",
-      "v2page": "",
+      "pageKey": "",
       "control": true,
       "viewport": "1440x900",
       "verdict": "OK",

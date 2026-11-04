@@ -70,8 +70,8 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
     }
 
     @Override
-    public Map<String, Object> getTeacherDashboardV2(Long teacherId) {
-        return dashboardComponent.getTeacherDashboardV2(teacherId);
+    public Map<String, Object> getTeacherDashboard(Long teacherId) {
+        return dashboardComponent.getTeacherDashboard(teacherId);
     }
 
     @Override

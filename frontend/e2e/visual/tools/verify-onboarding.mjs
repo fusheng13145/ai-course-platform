@@ -225,8 +225,8 @@ function readGuideInBrowser(opts) {
     anchorKeys: Array.from(document.querySelectorAll('[data-onboard]')).map(
       (e) => e.dataset.onboard,
     ),
-    v2Raw: (() => {
-      const k = Object.keys(localStorage).find((x) => x.startsWith('ai-course:onboarding:v2:'))
+    raw: (() => {
+      const k = Object.keys(localStorage).find((x) => x.startsWith('ai-course:onboarding::'))
       if (!k) return null
       const p = JSON.parse(localStorage.getItem(k))
       return { key: k, status: p.status, atStep: p.atStep, role: p.role, hasSeenAt: !!p.seenAt }

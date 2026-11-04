@@ -1,0 +1,125 @@
+/*
+ * 排版层：把原型 9–13px 的紧凑字号抬到可读尺度，
+ * 并用本机已装的 Noto Sans SC 替换落到微软雅黑的全局正文。
+ * 只作用于 body[data-app="ui"]，旧端零影响。
+ */
+body[data-app='ui'] {
+  --font-body: 'Noto Sans SC', 'PingFang SC', 'Microsoft YaHei UI', 'Microsoft YaHei', sans-serif;
+  --font-display: 'Segoe UI Variable Display', 'Noto Sans SC', 'PingFang SC', sans-serif;
+  --font-mono: 'Cascadia Code', 'Consolas', 'SFMono-Regular', monospace;
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.72;
+  letter-spacing: 0;
+}
+
+body[data-app='ui'] .page-head h1,
+body[data-app='ui'] .module-head h1,
+body[data-app='ui'] .course-title-line h1 {
+  font-family: 'Noto Serif SC', Georgia, 'Songti SC', serif;
+  font-size: clamp(26px, 2.3vw, 32px);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  line-height: 1.25;
+}
+
+body[data-app='ui'] .card-head h2 {
+  font-family: 'Noto Serif SC', Georgia, 'Songti SC', serif;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0;
+}
+
+body[data-app='ui'] .card-kicker,
+body[data-app='ui'] .page-kicker,
+body[data-app='ui'] .eyebrow,
+body[data-app='ui'] .nav-eyebrow,
+body[data-app='ui'] .nav-group-label {
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+}
+
+body[data-app='ui'] .page-sub {
+  font-size: 12.5px;
+  line-height: 1.8;
+}
+
+body[data-app='ui'] .lede {
+  font-size: 13px;
+  line-height: 1.85;
+}
+
+body[data-app='ui'] .stat-label {
+  font-size: 11px;
+}
+
+body[data-app='ui'] .stat-value {
+  font-family: var(--font-display);
+  font-size: 27px;
+  font-weight: 650;
+  letter-spacing: -0.03em;
+}
+
+body[data-app='ui'] .stat-note {
+  font-size: 9.5px;
+}
+
+body[data-app='ui'] .nav-label {
+  font-size: 12.5px;
+}
+
+body[data-app='ui'] .nav-item {
+  padding: 8.5px 10px;
+}
+
+body[data-app='ui'] .course-name {
+  font-size: 13px;
+}
+
+body[data-app='ui'] .course-meta {
+  font-size: 10px;
+}
+
+body[data-app='ui'] .queue-main b {
+  font-size: 12px;
+}
+
+body[data-app='ui'] .queue-main small {
+  font-size: 9.5px;
+}
+
+body[data-app='ui'] .queue-item {
+  padding: 10px 0;
+}
+
+body[data-app='ui'] th {
+  font-size: 10.5px;
+  letter-spacing: 0.04em;
+}
+
+body[data-app='ui'] td {
+  font-size: 12px;
+}
+
+body[data-app='ui'] .btn {
+  font-size: 12.5px;
+}
+
+body[data-app='ui'] .chip {
+  font-size: 10px;
+}
+
+body[data-app='ui'] .text-btn {
+  font-size: 11px;
+}
+
+body[data-app='ui'] .hint {
+  font-size: 10px;
+  line-height: 1.7;
+}
+
+body[data-app='ui'] .side-body,
+body[data-app='ui'] .side-list li {
+  font-size: 11px;
+  line-height: 1.75;
+}

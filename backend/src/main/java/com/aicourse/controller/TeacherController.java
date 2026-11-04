@@ -730,11 +730,11 @@ public class TeacherController {
     }
 
     /** 增强型教师仪表盘（多维下钻与预警） */
-    @GetMapping("/dashboard/v2")
+    @GetMapping("/dashboard/overview")
     @Operation(summary = "增强教师仪表盘", description = "课程下钻卡片/跨课预警学生/任务点完成概览/AI教学总览/平台均值对比")
-    public ApiResponse<Map<String, Object>> teacherDashboardV2(Authentication auth) {
+    public ApiResponse<Map<String, Object>> teacherDashboard(Authentication auth) {
         Long teacherId = (Long) auth.getPrincipal();
-        return ApiResponse.success(teachingService.getTeacherDashboardV2(teacherId));
+        return ApiResponse.success(teachingService.getTeacherDashboard(teacherId));
     }
 
     /** 获取课程完整章节树（需课程归属校验） */

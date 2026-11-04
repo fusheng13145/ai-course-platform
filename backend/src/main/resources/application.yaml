@@ -66,7 +66,7 @@ spring:
   # 数据库迁移（Flyway）：替代 index.sql 手动全量导入
   # - 空库：V1__init_schema.sql 自动建表 + 种子数据
   # - 已有库（曾手动导入 index.sql）：baseline-on-migrate 将非空库标为 baseline v1，
-  #   V1 不再重复执行（避免 DROP 重建破坏数据）；后续版本 V2+/… 正常增量
+  #   V1 不再重复执行（避免 DROP 重建破坏数据）；后续版本 +/… 正常增量
   flyway:
     enabled: true
     baseline-on-migrate: true

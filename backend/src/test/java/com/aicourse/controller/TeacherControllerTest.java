@@ -1086,28 +1086,28 @@ class TeacherControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("GET /teacher/dashboard/v2 - 真实业务断言：委托 getTeacherDashboardV2 并透传 teacherId")
-    void teacherDashboardV2_authorized_passes_security() throws Exception {
-        when(teachingService.getTeacherDashboardV2(eq(1L))).thenReturn(Map.of("teacherId", 1));
-        mockMvc.perform(get("/teacher/dashboard/v2").with(withUser(1L, "TEACHER")))
+    @DisplayName("GET /teacher/dashboard/overview - 真实业务断言：委托 getTeacherDashboard 并透传 teacherId")
+    void teacherDashboard_authorized_passes_security() throws Exception {
+        when(teachingService.getTeacherDashboard(eq(1L))).thenReturn(Map.of("teacherId", 1));
+        mockMvc.perform(get("/teacher/dashboard/overview").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
                 .andExpect(jsonPath("$.data.teacherId").value(1));
-        verify(teachingService).getTeacherDashboardV2(eq(1L));
+        verify(teachingService).getTeacherDashboard(eq(1L));
     }
 
     @Test
-    @DisplayName("GET /teacher/dashboard/v2 - 未认证返回401")
-    void teacherDashboardV2_unauthorized_returns_401() throws Exception {
-        mockMvc.perform(get("/teacher/dashboard/v2"))
+    @DisplayName("GET /teacher/dashboard/overview - 未认证返回401")
+    void teacherDashboard_unauthorized_returns_401() throws Exception {
+        mockMvc.perform(get("/teacher/dashboard/overview"))
                 .andExpect(status().isUnauthorized());
     }
 
     @Test
-    @DisplayName("GET /teacher/dashboard/v2 - STUDENT角色返回403")
-    void teacherDashboardV2_student_forbidden_403() throws Exception {
-        mockMvc.perform(get("/teacher/dashboard/v2").with(withUser(2L, "STUDENT")))
+    @DisplayName("GET /teacher/dashboard/overview - STUDENT角色返回403")
+    void teacherDashboard_student_forbidden_403() throws Exception {
+        mockMvc.perform(get("/teacher/dashboard/overview").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
     }
 

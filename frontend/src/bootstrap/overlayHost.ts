@@ -23,8 +23,8 @@ export interface OverlayConfirmOptions {
 /**
  * 浮层宿主：提示与确认两件事。
  *
- * 抽出来的原因是六个共用件被旧端与 v2 同时消费，却静态 `import { ElMessage, ElMessageBox }`，
- * 使 v2 依赖闭包传递依赖 Element Plus——「摘掉旧端就能摘 EP」因此不成立。
+ * 抽出来的原因是六个共用件被旧端与 同时消费，却静态 `import { ElMessage, ElMessageBox }`，
+ * 使 依赖闭包传递依赖 Element Plus——「摘掉旧端就能摘 EP」因此不成立。
  * 宿主改为注入后，摘除点收敛到 `bootstrap/apiHostEp.ts` 一处。
  */
 export interface OverlayHost {

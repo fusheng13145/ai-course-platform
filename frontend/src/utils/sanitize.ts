@@ -126,9 +126,9 @@ const purify = DOMPurify
  *
  * 存在理由：本仓的 `v-html` 只有三个位点，处置前它们各写各的配置——`ReaderTab` 用宽
  * profile `USE_PROFILES:{html:true}`（实测放行 `<form action>`＋`<input name>` 与
- * `style="background:url(...)"`），`V2Table`／`V2LegalView` 用本地内联白名单，而这份
+ * `style="background:url(...)"`），`Table`／`LegalView` 用本地内联白名单，而这份
  * 统一配置全仓零消费方＝治理是死配置。自此**白名单只在这里定义**，位点只选档位，
- * 配置由 `src/v2/__tests__/xssSurface.test.ts` 静态扫描钉住（新增位点或位点里
+ * 配置由 `src/ui/__tests__/xssSurface.test.ts` 静态扫描钉住（新增位点或位点里
  * 重新 import dompurify 即判红）。
  */
 interface Profile {
@@ -142,11 +142,11 @@ interface Profile {
 const READER: Profile = { tags: BASE_ALLOWED_TAGS, attrs: BASE_ALLOWED_ATTR }
 
 /**
- * 表格单元格档位（`V2Table`）。
+ * 表格单元格档位（`Table`）。
  * 与处置前该位点的本地配置逐条对照：标签集**一字未动**
  * （`b/small/span/i/strong/br/time`，其中 `time` 不在基表内，按原样保留，不借"统一"放大）；
  * 属性由 `class,style` 收到只剩 `class`——`style` 是被排除的项，不是被放大的项，
- * 且实测 `src/v2/data/**` 与 `nav.ts` 的单元格内容里 `style=` 命中为 0，收掉不改变任何渲染。
+ * 且实测 `src/ui/data/**` 与 `nav.ts` 的单元格内容里 `style=` 命中为 0，收掉不改变任何渲染。
  */
 const TABLE: Profile = {
   tags: ['b', 'small', 'span', 'i', 'strong', 'br', 'time'],
@@ -154,7 +154,7 @@ const TABLE: Profile = {
 }
 
 /**
- * 法务文案档位（`V2LegalView`）。
+ * 法务文案档位（`LegalView`）。
  * 与处置前该位点的本地配置逐条对照：标签与属性**完全同集**
  * （`section/h2/p/strong/ul/li/br/span/em` ＋ `class`）。`section` 不在基表内，
  * 是这一档独有的承载元素（`.contact-section` 卡片靠它上样式），按原样保留，
@@ -192,7 +192,7 @@ export function sanitizeHtml(html) {
 }
 
 /**
- * 表格原型快照单元格净化（Table 档位）——`V2Table` 的唯一入口
+ * 表格原型快照单元格净化（Table 档位）——`Table` 的唯一入口
  *
  * @param html 单元格文本（可能是内联标签片段）
  */
@@ -201,7 +201,7 @@ export function sanitizeTableCellHtml(html) {
 }
 
 /**
- * 法务静态文案净化（Legal 档位）——`V2LegalView` 的唯一入口
+ * 法务静态文案净化（Legal 档位）——`LegalView` 的唯一入口
  *
  * @param html `data/legal.json` 里的条款正文
  */

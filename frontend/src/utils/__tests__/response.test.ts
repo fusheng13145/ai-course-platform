@@ -221,7 +221,7 @@ describe('decodeAiDisplayText - 还原 AIController 的展示层转义（F-2 更
   it('它是文本解码器不是净化器：解码结果里会出现可执行片段，只许落插值', () => {
     // F-2 的判据本体。后端把 <script> 转成 &lt;script&gt;，解码后就又变回可执行形状，
     // 所以"安全"完全依赖调用侧把它交给 {{ }}（Vue 自动转义）而不是 v-html——
-    // 这条禁令由 src/v2/__tests__/xssSurface.test.ts 静态扫描钉住，本用例只记录语义。
+    // 这条禁令由 src/ui/__tests__/xssSurface.test.ts 静态扫描钉住，本用例只记录语义。
     const decoded = decodeAiDisplayText('&lt;script&gt;alert(1)&lt;/script&gt;')
     expect(decoded).toBe('<script>alert(1)</script>')
     expect(decoded).not.toBe('')

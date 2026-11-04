@@ -1,4 +1,5 @@
 import logger from '@/utils/logger'
+import { type ApiData } from '@/utils/response'
 
 /** 与 Element Plus 的 ElMessage 调用形状对齐，旧端接入时可直接原物注入 */
 export interface ApiMessageHost {
@@ -12,7 +13,7 @@ export interface ApiMessageHost {
  * HTTP 层的外设宿主：提示、读当前路径、跳登录页三件事。
  *
  * 抽出来的原因是 `api/request.ts` 被两端共用，而它原先静态 `import { ElMessage }`
- * 与 `import router`，使 v2 每个页面都传递依赖 Element Plus 与旧端路由——
+ * 与 `import router`，使 每个页面都传递依赖 Element Plus 与旧端路由——
  * 旧前端下线时 EP 那 709.25 KB 就摘不干净。宿主改为注入后，摘除点收敛到入口一处。
  */
 export interface ApiHost {
@@ -37,12 +38,12 @@ export function fallbackLocationFor(
  */
 const fallback: ApiHost = {
   message: {
-    error: (message) => logger.error(`[api:error] ${message}`),
-    warning: (message) => logger.warn(`[api:warning] ${message}`),
-    info: (message) => logger.log(`[api:info] ${message}`),
-    success: (message) => logger.log(`[api:success] ${message}`),
+    error: (message: ApiData) => logger.error(`[api:error] ${message}`),
+    warning: (message: ApiData) => logger.warn(`[api:warning] ${message}`),
+    info: (message: ApiData) => logger.log(`[api:info] ${message}`),
+    success: (message: ApiData) => logger.log(`[api:success] ${message}`),
   },
-  push: (target) => {
+  push: (target: ApiData) => {
     if (typeof window === 'undefined') return
     window.location.assign(fallbackLocationFor(target))
   },
@@ -52,7 +53,7 @@ const fallback: ApiHost = {
 let host: ApiHost = fallback
 
 /** 逐键覆盖，便于测试只注入其中一件外设 */
-export function setApiHost(next: Partial<ApiHost>) {
+export function setApiHost(next: Partial<ApiHost>): void {
   host = { ...host, ...next }
 }
 

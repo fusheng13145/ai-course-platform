@@ -17,7 +17,7 @@ const mocks = vi.hoisted(() => ({
 }))
 
 // M-12a 起本原语不再静态引 Element Plus：默认提示走 HTTP 层宿主（apiHost），
-// v2 侧改为注入 notify。断言钉「提示有没有按同一文案发出」，不钉具体宿主。
+// 侧改为注入 notify。断言钉「提示有没有按同一文案发出」，不钉具体宿主。
 import { setApiHost } from '@/api/apiHost'
 setApiHost({
   message: { error: mocks.error, success: vi.fn(), warning: vi.fn(), info: vi.fn() },
@@ -126,7 +126,7 @@ describe('useListFeedback', () => {
     expect(mocks.error).toHaveBeenCalledWith('上传会话加载失败，请稍后刷新；已保留上次显示的数据。')
   })
 
-  it('注入 notify 时用注入的通道（v2 自有 toast），不再走 HTTP 层宿主', async () => {
+  it('注入 notify 时用注入的通道（自有 toast），不再走 HTTP 层宿主', async () => {
     const notify = vi.fn()
     const { run } = withSetup({ notify, toastMessage: '会话加载失败' })
     await run(async () => {

@@ -248,10 +248,10 @@ class TeacherCourseServiceImplTest {
     }
 
     @Test
-    @DisplayName("教师仪表盘V2-正常组装")
-    void dashboardV2_ok() {
+    @DisplayName("教师仪表盘-正常组装")
+    void dashboardOverview_ok() {
         stubCommon();
-        Map<String, Object> d = service.getTeacherDashboardV2(1L);
+        Map<String, Object> d = service.getTeacherDashboard(1L);
         assertNotNull(d.get("courseCount"));
         assertNotNull(d.get("courseCards"));
         assertNotNull(d.get("atRiskStudents"));
@@ -261,10 +261,10 @@ class TeacherCourseServiceImplTest {
     }
 
     @Test
-    @DisplayName("教师仪表盘V2-无课程空集合")
-    void dashboardV2_noCourses() {
+    @DisplayName("教师仪表盘-无课程空集合")
+    void dashboardOverview_noCourses() {
         when(courseService.list(any(Wrapper.class))).thenReturn(Collections.emptyList());
-        Map<String, Object> d = service.getTeacherDashboardV2(1L);
+        Map<String, Object> d = service.getTeacherDashboard(1L);
         assertEquals(0L, d.get("courseCount"));
         assertEquals(0L, d.get("studentCount"));
     }

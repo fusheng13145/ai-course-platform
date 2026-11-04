@@ -246,7 +246,7 @@ public class TeacherDashboardComponent {
 
     /** 增强版教师仪表盘（跨课程聚合 + AI 教学总览） */
     @Transactional(readOnly = true)
-    public Map<String, Object> getTeacherDashboardV2(Long teacherId) {
+    public Map<String, Object> getTeacherDashboard(Long teacherId) {
         Map<String, Object> dashboard = new LinkedHashMap<>();
         try {
             List<Long> courseIds = support.courseIdsOfTeacher(teacherId);

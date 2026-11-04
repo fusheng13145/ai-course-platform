@@ -41,7 +41,7 @@ function unwrapPayload<T>(res: unknown): T | null {
  */
 /**
  * 考试流的交互宿主。默认全部沿用浮层宿主（旧端为 Element Plus，行为逐字不变），
- * v2 侧注入自有 toast 与确认弹层，使同一套编排不必再长第二份。
+ * 侧注入自有 toast 与确认弹层，使同一套编排不必再长第二份。
  */
 export interface ExamUiHost {
   notify?: {
@@ -462,6 +462,8 @@ export function useStudentExams(host: ExamUiHost = {}) {
     loadExamList: list.loadExamList,
     getExamStatusType: list.getExamStatusType,
     getExamStatusLabel: list.getExamStatusLabel,
+    examJoinReason: list.examJoinReason,
+    isExamJoinable: list.isExamJoinable,
     enterExam,
     loadQuestions: sheet.loadQuestions,
     goToQuestion: sheet.goToQuestion,

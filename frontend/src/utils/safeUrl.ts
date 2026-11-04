@@ -5,9 +5,9 @@
  * 否则 `javascript:`、`data:`、`vbscript:`、`file:` 这些伪协议会直接被浏览器当作可执行内容
  * （`javascript:` 在 `:href` 上等价于内联脚本，也是 CSP 收紧路上的固定靶子）。
  *
- * 本实现由 `v2/views/course/tabs/TasksTab.vue` 的本地 `safeUrl` 原样上提（判据本体不变：
+ * 本实现由 `ui/views/course/tabs/TasksTab.vue` 的本地 `safeUrl` 原样上提（判据本体不变：
  * 仅放行 `http:`／`https:`，其余一律回空串），上提后 `TasksTab` 与
- * `V2CreateCourseView` 的封面／附件共用同一份，避免各写各的。
+ * `CreateCourseView` 的封面／附件共用同一份，避免各写各的。
  *
  * 相对地址按当前源解析（`/uploads/a.png` → `http(s)://host/uploads/a.png`），
  * 因此"合法返回空串"的只有非法值与非 http(s) 协议两类。

@@ -100,9 +100,9 @@ function emptyOverview() {
 export type TeacherGradesTone = 'info' | 'ok' | 'warn' | 'error'
 
 export interface TeacherGradesHost {
-  /** 提示通道：默认走浮层宿主（旧端为 Element Plus），v2 传入自己的 toast */
+  /** 提示通道：默认走浮层宿主（旧端为 Element Plus），传入自己的 toast */
   notify?: (message: string, tone: TeacherGradesTone) => void
-  /** 打开待批阅任务：默认跳旧端提交记录页，v2 传入 v2 路由 */
+  /** 打开待批阅任务：默认跳旧端提交记录页，传入 路由 */
   openGrading?: (task: PendingTask) => Promise<void> | void
 }
 
@@ -159,7 +159,7 @@ export function useTeacherGrades(host: TeacherGradesHost = {}) {
     try {
       const courses = await courseApi.getAllMyCourses()
       if (sequence !== courseOptionsSequence) return
-      courseList.value = courses as TeacherCourse[]
+      courseList.value = courses as unknown as TeacherCourse[]
       courseOptionsUnavailable = false
     } catch (error) {
       if (sequence !== courseOptionsSequence) return

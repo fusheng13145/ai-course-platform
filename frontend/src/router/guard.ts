@@ -2,20 +2,20 @@ import type { RouteLocationNormalized, Router } from 'vue-router'
 import NProgress from 'nprogress'
 import { useAuthStore } from '@/stores/auth'
 
-/** 守卫的三种跳转落点，由各端 router 自行决定（旧端走根路径，v2 走 /**） */
+/** 守卫的三种跳转落点，由各端 router 自行决定（旧端走根路径，走 /**） */
 export interface GuardPaths {
   loginPath: string
   forbiddenPath: string
   unavailablePath: string
 }
 
-/** 按目标路由解析落点：同一个守卫因此可同时服务旧端与 v2 两端 */
+/** 按目标路由解析落点：同一个守卫因此可同时服务旧端与 两端 */
 export type ResolveGuardPaths = (to: RouteLocationNormalized) => GuardPaths
 
 /**
- * 把鉴权守卫安装到任意 router 上，旧端 router 与 v2 自有 router 共用这一份实现。
+ * 把鉴权守卫安装到任意 router 上，旧端 router 与 自有 router 共用这一份实现。
  *
- * 落点不写死：login / 403 / 503 全部由 resolvePaths(to) 给出，v2 在旧 router 被摘除后
+ * 落点不写死：login / 403 / 503 全部由 resolvePaths(to) 给出，在旧 router 被摘除后
  * 仍能独立完成登录态校验、权限探针、角色门禁与进度条。
  */
 export function installRouterGuard(router: Router, resolvePaths: ResolveGuardPaths): void {
@@ -45,7 +45,7 @@ export function installRouterGuard(router: Router, resolvePaths: ResolveGuardPat
     }
 
     if (!authStore.isLoggedIn) {
-      // v2 有独立登录页：/** 的深链接回 /login，旧端仍回 /login。
+      // 有独立登录页：/** 的深链接回 /login，旧端仍回 /login。
       next({ path: loginPath, query: { redirect: to.fullPath } })
       return
     }

@@ -609,9 +609,9 @@ def main():
         f"HTTP {st} code={o.get('code')} version={ver1}", o.get("code") == 200 and str(ver1) == "1")
 
     st, o = teacher.req("POST", "/resource-versions", {
-        "resourceId": rid, "fileName": "deep-v2.pdf", "fileType": "application/pdf",
+        "resourceId": rid, "fileName": "deep.pdf", "fileType": "application/pdf",
         "url": f"/uploads/deep-{rid}.pdf", "fileUrl": f"/uploads/deep-{rid}.pdf",
-        "description": "v2 修订", "fileSize": 999})
+        "description": "修订", "fileSize": 999})
     ver2 = (o.get("data") or {}).get("versionNumber")
     rec("G1b", "创建第二个版本（版本号递增）", "200 且 versionNumber=2",
         f"HTTP {st} code={o.get('code')} version={ver2}", o.get("code") == 200 and str(ver2) == "2")

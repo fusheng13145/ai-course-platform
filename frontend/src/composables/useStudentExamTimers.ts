@@ -7,7 +7,7 @@ export interface ExamTimerHandlers {
   onTimeout: () => void
   /** 自动保存定时器每 30s tick 的保存动作（autoSaveAnswers） */
   onAutoSave: () => Promise<boolean>
-  /** 提示宿主；缺省沿用浮层宿主（旧端为 Element Plus），v2 侧注入自有 toast */
+  /** 提示宿主；缺省沿用浮层宿主（旧端为 Element Plus），侧注入自有 toast */
   notify?: { warning: (message: string) => void }
 }
 

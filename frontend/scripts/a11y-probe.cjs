@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * v2 无障碍与对比度探针（docs/前端待办项.md §4 · P-01 / P-02）
+ * 无障碍与对比度探针（docs/前端待办项.md §4 · P-01 / P-02）
  *
  * 为什么是探针而不是门禁：
  * - 之前只有 2026-10-21 旧端控制台的「近似」读数（各页若干文本节点 <4.5、若干 input 缺名），
@@ -366,7 +366,7 @@ async function fillField(page, selector, value) {
   await input.waitFor({ state: 'visible', timeout: 15000 })
   await input.focus()
   await input.fill(value)
-  // v2 登录页会防自动填充：挂载后短暂清空。落在窗口内就重填一次（与 e2e 同口径）。
+  // 登录页会防自动填充：挂载后短暂清空。落在窗口内就重填一次（与 e2e 同口径）。
   await page.waitForTimeout(80)
   if ((await input.inputValue()) !== value) {
     await input.focus()
@@ -516,7 +516,7 @@ async function main() {
     summary.results.push(await collectPage(guestPage, loginDef, 'light'))
     await guestContext.addInitScript(() => {
       try {
-        localStorage.setItem('v2-theme', 'dark')
+        localStorage.setItem('theme', 'dark')
       } catch {
         /* about:blank 上可能不可写，导航后由页面自身脚本再写 */
       }
@@ -551,7 +551,7 @@ async function main() {
 
       await context.addInitScript(() => {
         try {
-          localStorage.setItem('v2-theme', 'dark')
+          localStorage.setItem('theme', 'dark')
         } catch {
           /* 忽略 */
         }

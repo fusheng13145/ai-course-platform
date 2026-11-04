@@ -7,6 +7,18 @@ import type { Locator, Page, Route } from '@playwright/test'
 export const API_BASE = '/api'
 
 /**
+ * e2e 的站点根，与 `playwright.config.ts` 的 `baseURL` 同源。
+ *
+ * 为什么要有它：三份 spec 原先各写一遍 `process.env.PW_BASE_URL || 'http://localhost:5173'`，
+ * 而 config 的 baseURL 走的是 `PW_PORT`。于是按文档跑 `PW_PORT=5174 npx playwright test` 时，
+ * webServer 起在 5174、spec 却把绝对 URL 拼到 5173，整轮读成 `ERR_CONNECTION_REFUSED`
+ * （2026-11-04 实测，3 例失败 + 11 例未执行）。只留这一处口径：显式 `PW_BASE_URL` 优先，
+ * 否则由 `PW_PORT` 派生，最后才回落 5173。
+ */
+export const SITE_BASE =
+  process.env.PW_BASE_URL || `http://localhost:${process.env.PW_PORT || '5173'}`
+
+/**
  * 模拟的登录响应
  */
 export function createMockLoginResponse(role: string = 'STUDENT') {
@@ -128,7 +140,7 @@ export async function fillLoginField(page: Page, input: Locator, value: string) 
  * 该浮层是 `position: fixed; inset: 0` 的整屏遮罩，未点「跳过 / 开始使用」之前会拦截页面上
  * 的一切点击（实测：Playwright 报 `<div class="ob-overlay"> intercepts pointer events` 并反复重试）。
  * 「已看过」标记自 2026-10-13 起**按账号**写入（v1 键 `ai-course:onboarding:done:v1:<userId>`，
- * 契约 v2 起改读 `ai-course:onboarding:v2:<userId>` 那条 `{status, atStep, role, seenAt}`），
+ * 契约 起改读 `ai-course:onboarding::<userId>` 那条 `{status, atStep, role, seenAt}`），
  * 所以旧 e2e 里 `localStorage.setItem('ai-course:onboarding:done:v1', '1')` 那种写裸前缀键的
  * 做法已经不再命中判定分支——等于没关。这里改按真实用户行为点掉它：点一次即由组件自己写入
  * 正确键，同一上下文后续导航不再弹出。
@@ -165,7 +177,7 @@ export async function loginAs(page: Page, role: 'STUDENT' | 'TEACHER' | 'ADMIN' 
   const account = { STUDENT: 'student', TEACHER: 'teacher', ADMIN: 'admin' }[role]
 
   await page.goto('/login')
-  // v2 登录页的字段名是 username/password（旧端是 login-username）
+  // 登录页的字段名是 username/password（旧端是 login-username）
   await fillLoginField(page, page.locator('input[name="username"]').first(), account)
   await fillLoginField(page, page.locator('input[name="password"]').first(), '123456')
   // 「记住我」决定 user/permissions 落 localStorage 还是 sessionStorage；storageState 只带后者
@@ -231,13 +243,10 @@ export async function setLocalStorageAuth(page: Page, role: string = 'STUDENT') 
       // 关闭首次引导层。键必须带账号段：引导读的是 `…:<userId>`（2026-10-13 起按账号隔离），
       // 本夹具的 user.id 固定为 1，故写 `:1`。
       // v1 键保留是给迁移断言用的（写 v1 ⇒ 组件按"老用户"迁成 done，绝不再莫名重弹），
-      // 两键并存的读法见 LEDGER `P0c-ONB-03`；v2 才是现在真正被读的那一条。
+      // 两键并存的读法见 LEDGER `P0c-ONB-03`；才是现在真正被读的那一条。
       // `dismissOnboarding` 仍按真实用户行为点「跳过」——那个按钮现在写的是 `skipped`，不再是 `done`。
       localStorage.setItem('ai-course:onboarding:done:v1:1', '1')
-      localStorage.setItem(
-        'ai-course:onboarding:v2:1',
-        JSON.stringify({ status: 'done', atStep: 0 }),
-      )
+      localStorage.setItem('ai-course:onboarding::1', JSON.stringify({ status: 'done', atStep: 0 }))
     },
     { user, permissions },
   )

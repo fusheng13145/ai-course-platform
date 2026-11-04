@@ -3,7 +3,7 @@ import AxeBuilder from '@axe-core/playwright'
 import { loginAs } from './test-helpers'
 
 /**
- * v2 无障碍门禁（docs/前端待办项.md §4 · P-01）
+ * 无障碍门禁（docs/前端待办项.md §4 · P-01）
  *
  * 尺子：@axe-core/playwright 在真实登录态、明/暗两档下扫描 7 个面。
  * 判据：只有 serious / critical 失败才算红灯；moderate / minor 与 incomplete
@@ -65,7 +65,7 @@ async function loginWithRetry(page: Page, role: Role) {
 
 async function useTheme(page: Page, theme: Theme) {
   await page.addInitScript((next) => {
-    localStorage.setItem('v2-theme', next)
+    localStorage.setItem('theme', next)
   }, theme)
 }
 

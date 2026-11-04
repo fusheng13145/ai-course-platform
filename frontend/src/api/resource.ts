@@ -1,12 +1,15 @@
 import request from './request'
+import { type ApiEnvelope, type ApiData } from '@/utils/response'
 /**
  * 导出函数 getResourceList：获取/查询数据
  */
-export const getResourceList = (courseId) => request.get(`/resources/course/${courseId}`)
+export const getResourceList = (courseId: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.get(`/resources/course/${courseId}`) as Promise<ApiEnvelope<ApiData>>
 /**
  * 导出函数 getResourceById：获取/查询数据
  */
-export const getResourceById = (id) => request.get(`/resources/${id}`)
+export const getResourceById = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.get(`/resources/${id}`) as Promise<ApiEnvelope<ApiData>>
 /**
  * 归一化资源上传入参为 multipart/form-data 的正确形态。
  *
@@ -26,7 +29,9 @@ export const getResourceById = (id) => request.get(`/resources/${id}`)
  * @returns {FormData} 合法且字段完整的 FormData
  * @throws {Error} 未选文件或 courseId 非法时抛出（消息可直接展示）
  */
-export function buildUploadForm(data) {
+// data 为多态入参（FormData / 普通对象 / 非法值），函数内做运行时判别并防御式处理，
+// 故此处保留 any（调用方传 null、非对象等非法输入也应走到「未选文件」分支）。
+export function buildUploadForm(data: ApiData): FormData {
   let file = null
   let courseId = null
   let description: FormDataEntryValue | null = ''
@@ -67,39 +72,55 @@ export function buildUploadForm(data) {
  * 导出函数 uploadResource：创建/新增数据
  * 入参可为 FormData 或普通对象，统一由 buildUploadForm 归一化（见 P0-5）。
  */
-export const uploadResource = async (data) =>
+export const uploadResource = async (
+  data: FormData | Record<string, unknown>,
+): Promise<ApiEnvelope<ApiData>> =>
   request.post('/resources/upload', buildUploadForm(data), {
     headers: { 'Content-Type': 'multipart/form-data' },
-  })
+  }) as Promise<ApiEnvelope<ApiData>>
 /**
  * 导出函数 downloadResource：业务逻辑处理
  */
-export const downloadResource = (id) =>
-  request.get(`/resources/download/${id}`, { responseType: 'blob' })
+export const downloadResource = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.get(`/resources/download/${id}`, { responseType: 'blob' }) as Promise<
+    ApiEnvelope<ApiData>
+  >
 /**
  * 导出函数 deleteResource：删除数据
  */
-export const deleteResource = (id) => request.delete(`/resources/${id}`)
+export const deleteResource = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.delete(`/resources/${id}`) as Promise<ApiEnvelope<ApiData>>
 
 // 资源管理增强 API
-export const getResourceTree = (courseId) => request.get(`/resources/tree/${courseId}`)
+export const getResourceTree = (courseId: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.get(`/resources/tree/${courseId}`) as Promise<ApiEnvelope<ApiData>>
 /**
  * 导出函数 searchResources：获取/查询数据
  */
-export const searchResources = (params = {}) => request.get('/resources/search', { params })
+export const searchResources = (
+  params: Record<string, unknown> = {},
+): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/resources/search', { params }) as Promise<ApiEnvelope<ApiData>>
 /**
  * 导出函数 getResourceStats：获取/查询数据
  */
-export const getResourceStats = (courseId) => request.get(`/resources/stats/course/${courseId}`)
+export const getResourceStats = (courseId: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.get(`/resources/stats/course/${courseId}`) as Promise<ApiEnvelope<ApiData>>
 /**
  * 导出函数 toggleVisibility：业务逻辑处理
  */
-export const toggleVisibility = (id, visible) =>
-  request.patch(`/resources/${id}/visibility`, { visibleToAll: !!visible })
+export const toggleVisibility = (
+  id: number | string,
+  visible: unknown,
+): Promise<ApiEnvelope<ApiData>> =>
+  request.patch(`/resources/${id}/visibility`, { visibleToAll: !!visible }) as Promise<
+    ApiEnvelope<ApiData>
+  >
 /**
  * 导出函数 getChapterResources：获取/查询数据
  */
-export const getChapterResources = (chapterId) => request.get(`/resources/chapter/${chapterId}`)
+export const getChapterResources = (chapterId: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.get(`/resources/chapter/${chapterId}`) as Promise<ApiEnvelope<ApiData>>
 
 /**
  * 默认导出对象：模块/组件配置与导出内容

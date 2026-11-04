@@ -6,7 +6,7 @@ import {
   sanitizeLegalHtml,
   sanitizeObject,
 } from '@/utils/sanitize'
-import legal from '@/v2/data/legal.json'
+import legal from '@/ui/data/legal.json'
 
 describe('sanitize.js - DOMPurify HTML 净化', () => {
   describe('sanitizeHtml', () => {

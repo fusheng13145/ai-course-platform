@@ -1,5 +1,5 @@
 import logger from '@/utils/logger'
-import { unwrap } from '@/utils/response'
+import { unwrap, pickList, firstNonEmptyArray } from '@/utils/response'
 import { ref, reactive, onMounted } from 'vue'
 import { overlayHost } from '@/bootstrap/overlayHost'
 import questionApi from '@/api/question'
@@ -95,7 +95,7 @@ export function useQuestionBank() {
 
       const r = await questionApi.getQuestionList(params)
       const body = unwrap(r)
-      const list = body?.records || body?.list || body || []
+      const list = pickList(body)
       questionList.value = Array.isArray(list) ? list : []
       total.value = Number(body?.total ?? body?.count ?? questionList.value.length)
     } catch (e) {
@@ -251,7 +251,7 @@ export function useQuestionBank() {
       }
       const r = await questionApi.generateByAI(payload)
       const body = unwrap(r)
-      const generated = body?.questions || body?.list || body || []
+      const generated = firstNonEmptyArray(body?.questions, body?.list, body)
       if (Array.isArray(generated) && generated.length) {
         overlayHost().message.success(`AI 成功生成 ${generated.length} 道题目`)
         aiVisible.value = false

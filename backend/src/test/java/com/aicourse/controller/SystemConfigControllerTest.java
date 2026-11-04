@@ -212,7 +212,7 @@ class SystemConfigControllerTest extends ControllerTestBase {
     void batchUpdate_authorized_returns_200() throws Exception {
         mockMvc.perform(post("/system-configs/batch-update")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"key1\":\"v1\",\"key2\":\"v2\"}")
+                        .content("{\"key1\":\"v1\",\"key2\":\"\"}")
                         .with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));

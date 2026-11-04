@@ -1,5 +1,5 @@
 import request from './request'
-import { fetchAllPages } from '@/utils/response'
+import { fetchAllPages, type ApiEnvelope, type ApiData } from '@/utils/response'
 import { exportReport } from './analytics'
 import { createBackup } from './system'
 
@@ -7,133 +7,186 @@ import { createBackup } from './system'
 export { exportReport, createBackup }
 
 // 管理员端 - 用户管理
-export const getUsers = (params = {}) => request.get('/admin/users', { params })
+export const getUsers = (params: Record<string, unknown> = {}): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/users', { params }) as Promise<ApiEnvelope<ApiData>>
 /** 获取筛选条件下的全部用户，适用于需要覆盖整个角色群体的批量操作。 */
-export const getAllUsers = (filters = {}) =>
-  fetchAllPages((page, size) => getUsers({ ...filters, page, size }))
+export const getAllUsers = (filters: Record<string, unknown> = {}): Promise<ApiData[]> =>
+  fetchAllPages((page: number, size: number) => getUsers({ ...filters, page, size })) as Promise<
+    ApiData[]
+  >
 /**
  * 导出函数 getUserDetail：获取/查询数据
  */
-export const getUserDetail = (userId) => request.get(`/admin/users/${userId}`)
+export const getUserDetail = (userId: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.get(`/admin/users/${userId}`) as Promise<ApiEnvelope<ApiData>>
 /**
  * 导出函数 createUser：创建/新增数据
  */
-export const createUser = (data) => request.post('/admin/users', data)
+export const createUser = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
+  request.post('/admin/users', data) as Promise<ApiEnvelope<ApiData>>
 /**
  * 导出函数 updateUser：更新数据
  */
-export const updateUser = (userId, data) => request.put(`/admin/users/${userId}`, data)
+export const updateUser = (
+  userId: number | string,
+  data: Record<string, unknown>,
+): Promise<ApiEnvelope<ApiData>> =>
+  request.put(`/admin/users/${userId}`, data) as Promise<ApiEnvelope<ApiData>>
 /**
  * 导出函数 deleteUser：删除数据
  */
-export const deleteUser = (userId) => request.delete(`/admin/users/${userId}`)
+export const deleteUser = (userId: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.delete(`/admin/users/${userId}`) as Promise<ApiEnvelope<ApiData>>
 /**
  * 导出函数 resetUserPassword：业务逻辑处理
  */
-export const resetUserPassword = (userId, data) =>
-  request.put(`/admin/users/${userId}/reset-password`, data)
+export const resetUserPassword = (
+  userId: number | string,
+  data: Record<string, unknown>,
+): Promise<ApiEnvelope<ApiData>> =>
+  request.put(`/admin/users/${userId}/reset-password`, data) as Promise<ApiEnvelope<ApiData>>
 /**
  * 导出函数 importUsers：业务逻辑处理
  */
-export const importUsers = (data) => request.post('/admin/users/import', data)
+export const importUsers = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
+  request.post('/admin/users/import', data) as Promise<ApiEnvelope<ApiData>>
 // Excel 批量导入（multipart 上传 .xlsx 文件）
-export const importUsersExcel = (data) => request.post('/admin/users/import-excel', data)
+export const importUsersExcel = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
+  request.post('/admin/users/import-excel', data) as Promise<ApiEnvelope<ApiData>>
 
 // 管理员端 - 内容审核与违规处理（角色矩阵 ③）
 /** 讨论回复审核列表（params: {page,size,status,keyword}） */
-export const getModerationPosts = (params = {}) =>
-  request.get('/admin/moderation/discussion-posts', { params })
+export const getModerationPosts = (
+  params: Record<string, unknown> = {},
+): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/moderation/discussion-posts', { params }) as Promise<ApiEnvelope<ApiData>>
 /** 资源审核列表（平台全部资源；params 同讨论回复） */
-export const getModerationResources = (params = {}) =>
-  request.get('/admin/moderation/resources', { params })
+export const getModerationResources = (
+  params: Record<string, unknown> = {},
+): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/moderation/resources', { params }) as Promise<ApiEnvelope<ApiData>>
 /**
  * 对内容执行处置。`target` 取 `discussion-posts` / `resources`。
  * @param {'discussion-posts'|'resources'} target
  * @param {number|string} id
  * @param {{ action: 'HIDE'|'RESTORE'|'DELETE', reason?: string, banAuthor?: boolean }} data
  */
-export const applyModerationAction = (target, id, data) =>
-  request.post(`/admin/moderation/${target}/${id}/action`, data)
+export const applyModerationAction = (
+  target: number | string,
+  id: number | string,
+  data: Record<string, unknown>,
+): Promise<ApiEnvelope<ApiData>> =>
+  request.post(`/admin/moderation/${target}/${id}/action`, data) as Promise<ApiEnvelope<ApiData>>
 /** 经审核封禁的作者列表 */
-export const getBannedAuthors = () => request.get('/admin/moderation/banned-authors')
+export const getBannedAuthors = (): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/moderation/banned-authors') as Promise<ApiEnvelope<ApiData>>
 /** 封禁作者（= 停用该账号，立即无法登录） */
-export const banAuthor = (userId, data = {}) =>
-  request.post(`/admin/moderation/users/${userId}/ban`, data)
+export const banAuthor = (
+  userId: number | string,
+  data: Record<string, unknown> = {},
+): Promise<ApiEnvelope<ApiData>> =>
+  request.post(`/admin/moderation/users/${userId}/ban`, data) as Promise<ApiEnvelope<ApiData>>
 /** 解除封禁（只对经审核封禁的账号有效） */
-export const unbanAuthor = (userId) => request.post(`/admin/moderation/users/${userId}/unban`)
+export const unbanAuthor = (userId: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.post(`/admin/moderation/users/${userId}/unban`) as Promise<ApiEnvelope<ApiData>>
 
 // 管理员端 - AI 出题治理（角色矩阵 ④ 修订：逐人限制名单，后端 V10 表）
 /** 限制名单（含被限制教师的登录名与姓名） */
-export const getAiRestrictions = () => request.get('/admin/ai-governance/restrictions')
+export const getAiRestrictions = (): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/ai-governance/restrictions') as Promise<ApiEnvelope<ApiData>>
 /**
  * 把教师加入限制名单（幂等：已在名单内则更新原因，保留首次加入时间）。
  * @param {number|string} userId 教师用户ID
  * @param {{ reason?: string }} data
  */
-export const restrictAiGeneration = (userId, data = {}) =>
-  request.post('/admin/ai-governance/restrictions', { userId, ...data })
+export const restrictAiGeneration = (
+  userId: number | string,
+  data: Record<string, unknown> = {},
+): Promise<ApiEnvelope<ApiData>> =>
+  request.post('/admin/ai-governance/restrictions', { userId, ...data }) as Promise<
+    ApiEnvelope<ApiData>
+  >
 /** 解除限制（不在名单内后端返回 404，不静默成功） */
-export const unrestrictAiGeneration = (userId) =>
-  request.delete(`/admin/ai-governance/restrictions/${userId}`)
+export const unrestrictAiGeneration = (userId: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.delete(`/admin/ai-governance/restrictions/${userId}`) as Promise<ApiEnvelope<ApiData>>
 
 // 管理员端 - 学期管理（角色矩阵 ①②：创建学期 / 归档过期学期）
 /**
  * 学期列表；可按状态过滤（ACTIVE / ARCHIVED，省略为全部）。
  * @param {{ status?: string }} params
  */
-export const getSemesters = (params = {}) => request.get('/admin/semesters', { params })
+export const getSemesters = (params: Record<string, unknown> = {}): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/semesters', { params }) as Promise<ApiEnvelope<ApiData>>
 /**
  * 创建学期（学期名唯一；结束日期不得早于开始日期）。
  * @param {{ name: string, startDate: string, endDate: string }} data
  */
-export const createSemester = (data) => request.post('/admin/semesters', data)
+export const createSemester = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
+  request.post('/admin/semesters', data) as Promise<ApiEnvelope<ApiData>>
 /** 归档指定学期（幂等：已归档再次调用返回 archived=false） */
-export const archiveSemester = (id) => request.post(`/admin/semesters/${id}/archive`)
+export const archiveSemester = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.post(`/admin/semesters/${id}/archive`) as Promise<ApiEnvelope<ApiData>>
 /** 批量归档所有「状态=ACTIVE 且 结束日期<今天」的学期，返回本次条数 */
-export const archiveExpiredSemesters = () => request.post('/admin/semesters/archive-expired')
+export const archiveExpiredSemesters = (): Promise<ApiEnvelope<ApiData>> =>
+  request.post('/admin/semesters/archive-expired') as Promise<ApiEnvelope<ApiData>>
 
 // 管理员端 - 系统配置
-export const getConfigs = (params = {}) => request.get('/admin/configs', { params })
+export const getConfigs = (params: Record<string, unknown> = {}): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/configs', { params }) as Promise<ApiEnvelope<ApiData>>
 /**
  * 导出函数 updateConfig：更新数据
  */
-export const updateConfig = (configKey, data) => request.put(`/admin/configs/${configKey}`, data)
+export const updateConfig = (
+  configKey: number | string,
+  data: Record<string, unknown>,
+): Promise<ApiEnvelope<ApiData>> =>
+  request.put(`/admin/configs/${configKey}`, data) as Promise<ApiEnvelope<ApiData>>
 /**
  * 导出函数 getLogs：获取/查询数据
  */
-export const getLogs = () => request.get('/admin/logs')
+export const getLogs = (): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/logs') as Promise<ApiEnvelope<ApiData>>
 /**
  * 导出函数 getHealth：获取/查询数据
  */
-export const getHealth = () => request.get('/admin/health')
+export const getHealth = (): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/health') as Promise<ApiEnvelope<ApiData>>
 
 // 管理员端 - 数据统计
-export const getOverview = () => request.get('/admin/statistics/overview')
+export const getOverview = (): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/statistics/overview') as Promise<ApiEnvelope<ApiData>>
 /**
  * 导出函数 getUserGrowth：获取/查询数据
  */
-export const getUserGrowth = (params = {}) =>
-  request.get('/admin/statistics/user-growth', { params })
+export const getUserGrowth = (
+  params: Record<string, unknown> = {},
+): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/statistics/user-growth', { params }) as Promise<ApiEnvelope<ApiData>>
 /**
  * 导出函数 getCourseStats：获取/查询数据
  */
-export const getCourseStats = () => request.get('/admin/statistics/courses')
+export const getCourseStats = (): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/statistics/courses') as Promise<ApiEnvelope<ApiData>>
 /**
  * 导出函数 getAIUsage：获取/查询数据
  */
-export const getAIUsage = () => request.get('/admin/statistics/ai-usage')
+export const getAIUsage = (): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/statistics/ai-usage') as Promise<ApiEnvelope<ApiData>>
 /**
  * 跨课程 AI 统计（按课程聚合，数据源 ai_call_logs）。
  * <p>⚠️ 与上方 getAIUsage 是两个不同口径：后者无逐次留痕、字段多为平台概况；
  * 本接口只统计自 2026-10-13 埋点上线后的调用，历史不可回填（响应内 collectionNote 已声明）。</p>
  * @param {{ days?: number }} params 统计天数（默认 30，后端收敛到 1–365）
  */
-export const getAIUsageByCourse = (params = {}) =>
-  request.get('/admin/statistics/ai-usage/by-course', { params })
+export const getAIUsageByCourse = (
+  params: Record<string, unknown> = {},
+): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/statistics/ai-usage/by-course', { params }) as Promise<ApiEnvelope<ApiData>>
 /**
  * 导出函数 getAIMonitor：获取/查询数据
  */
-export const getAIMonitor = () => request.get('/admin/ai-monitor')
+export const getAIMonitor = (): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/ai-monitor') as Promise<ApiEnvelope<ApiData>>
 
 /**
  * 默认导出对象：模块/组件配置与导出内容
