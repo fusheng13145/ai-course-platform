@@ -7,8 +7,14 @@ const learningRecordApi = vi.hoisted(() => ({
   getMyLearningRecords: vi.fn(),
 }))
 
+const resourceApi = vi.hoisted(() => ({
+  getResourceList: vi.fn(),
+  downloadResource: vi.fn(),
+}))
+
 vi.mock('@/api/chapter', () => ({ default: chapterApi }))
 vi.mock('@/api/learningRecord', () => ({ default: learningRecordApi }))
+vi.mock('@/api/resource', () => ({ default: resourceApi }))
 
 const toast = vi.hoisted(() => vi.fn())
 vi.mock('../composables/ui', () => ({
@@ -56,6 +62,7 @@ beforeEach(() => {
   chapterApi.getChapterById.mockResolvedValue({ data: {} })
   learningRecordApi.getMyLearningRecords.mockResolvedValue({ data: [] })
   learningRecordApi.createLearningRecord.mockResolvedValue({ data: {} })
+  resourceApi.getResourceList.mockResolvedValue({ data: [] })
 })
 
 describe('学生阅读列 · 标记完成', () => {
@@ -165,7 +172,9 @@ describe('学生阅读列 · 标记完成', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('该课程还没有章节。')
-    expect(wrapper.text()).toContain('章节接口不可达；旧版学习中心仍可使用。')
+    // 旧文案曾把用户指回「旧版学习中心」，而那个前端已随下线批删除——改为只说明现状与下一步
+    expect(wrapper.text()).toContain('章节接口不可达：请刷新重试')
+    expect(wrapper.text()).not.toContain('旧版')
     expect(doneButton(wrapper)?.attributes('disabled')).toBeDefined()
     await doneButton(wrapper)?.trigger('click')
     await flushPromises()
@@ -267,5 +276,63 @@ describe('学生阅读列 · 正文净化与目录键盘可达', () => {
     expect(wrapper.find('.reader-panel h2').text()).toContain('协议分层')
     wrapper.unmount()
     host.remove()
+  })
+})
+
+describe('学生阅读列 · 课程资源（PRD §3.1 资源预览/下载）', () => {
+  it('挂载即按课程拉资源，渲染文件名与上传时间', async () => {
+    resourceApi.getResourceList.mockResolvedValue({
+      data: [
+        { id: 91, fileName: '第三章-传输层.pdf', uploadTime: '2026-11-01T09:30:00' },
+        { id: 92, fileName: '实验指导.docx', uploadTime: null },
+      ],
+    })
+    const wrapper = mountReader()
+    await flushPromises()
+
+    expect(resourceApi.getResourceList).toHaveBeenCalledWith(COURSE_ID)
+    expect(wrapper.text()).toContain('第三章-传输层.pdf')
+    expect(wrapper.text()).toContain('2026-11-01 09:30')
+    // 无上传时间时如实写"未知"，不伪造日期
+    expect(wrapper.text()).toContain('上传时间未知')
+    wrapper.unmount()
+  })
+
+  it('空数组＝确实没有资源，给可执行空态而不是空表', async () => {
+    resourceApi.getResourceList.mockResolvedValue({ data: [] })
+    const wrapper = mountReader()
+    await flushPromises()
+    expect(wrapper.findAll('.res-list li')).toHaveLength(0)
+    expect(wrapper.text()).toContain('本课程还没有可下载的资源')
+    wrapper.unmount()
+  })
+
+  it('响应形状不对时按失败态呈现，不画成"没有资源"', async () => {
+    resourceApi.getResourceList.mockResolvedValue({ data: { records: [] } })
+    const wrapper = mountReader()
+    await flushPromises()
+    const alert = wrapper.find('[role="alert"]')
+    expect(alert.exists()).toBe(true)
+    expect(alert.text()).toContain('课程资源加载失败')
+    // 失败态不得同时显示"还没有资源"的空态文案
+    expect(wrapper.text()).not.toContain('本课程还没有可下载的资源')
+    wrapper.unmount()
+  })
+
+  it('点下载会真的打下载端点；失败时提示且不谎报成功', async () => {
+    resourceApi.getResourceList.mockResolvedValue({
+      data: [{ id: 93, fileName: '讲义.pdf', uploadTime: '2026-11-02T10:00:00' }],
+    })
+    resourceApi.downloadResource.mockRejectedValueOnce(new Error('403'))
+    const wrapper = mountReader()
+    await flushPromises()
+
+    const button = wrapper.findAll('.res-list .text-btn')[0]
+    expect(button, '缺少下载按钮').toBeTruthy()
+    await button.trigger('click')
+    await flushPromises()
+    expect(resourceApi.downloadResource).toHaveBeenCalledWith(93)
+    expect(toast).toHaveBeenCalledWith(expect.stringContaining('资源下载失败'), 'danger')
+    wrapper.unmount()
   })
 })

@@ -46,7 +46,8 @@
             章节正文尚未发布或内容为空。授课教师在课程空间中维护章节与任务点；学生端只展示已发布内容。
           </p>
           <p>
-            旧版学习中心（/student/courses/{id}/learning-center）仍可继续使用，本页为新版阅读列。
+            章节正文由授课教师在课程空间中维护；学生端只展示已发布内容。若长时间为空，
+            请确认该章节已发布，或联系任课教师。
           </p>
         </template>
       </template>
@@ -61,6 +62,46 @@
           {{ activeDone ? '已完成' : marking ? '提交中…' : '标记完成' }}
         </button>
       </div>
+
+      <!-- 课程资源：PRD §3.1「章节树、资源预览/下载」的学生侧落点。
+           接口与教师端同一份（GET /resources/course/{id}），学生能下载的前提是已选课，
+           未选课时后端返回 403 —— 这里如实提示，不假装资源不存在。 -->
+      <section class="reader-resources" aria-label="课程资源">
+        <header class="res-head">
+          <h3>
+            课程资源 <span class="chip chip-mute">{{ resources.length }} 个</span>
+          </h3>
+          <button class="btn btn-sm btn-ghost" :disabled="resourceLoading" @click="loadResources">
+            {{ resourceLoading ? '刷新中…' : '刷新' }}
+          </button>
+        </header>
+
+        <div v-if="resourceError" class="callout danger" role="alert">
+          <span>ERROR / 课程资源</span>
+          <p>{{ resourceError }}</p>
+          <button class="btn btn-sm" :disabled="resourceLoading" @click="loadResources">
+            重试
+          </button>
+        </div>
+
+        <ul v-else-if="resources.length" class="res-list">
+          <li v-for="row in resources" :key="row.id">
+            <span class="res-name" :title="row.fileName">{{ row.fileName || '未命名资源' }}</span>
+            <small class="res-meta">
+              {{ formatUploadTime(row.uploadTime) }}
+              <template v-if="row.chapterId"> · 章节 {{ row.chapterId }}</template>
+            </small>
+            <button class="text-btn" :disabled="downloadingId === row.id" @click="download(row)">
+              {{ downloadingId === row.id ? '下载中…' : '下载' }}
+            </button>
+          </li>
+        </ul>
+
+        <p v-else-if="resourceLoading" class="empty-note">正在加载课程资源…</p>
+        <p v-else class="empty-note">
+          本课程还没有可下载的资源；授课教师在课程空间上传后会出现在这里。
+        </p>
+      </section>
     </article>
 
     <aside class="card toc-panel">
@@ -87,9 +128,11 @@
 import { computed, onMounted, ref } from 'vue'
 import chapterApi from '@/api/chapter'
 import learningRecordApi from '@/api/learningRecord'
+import resourceApi from '@/api/resource'
 import { sanitizeHtml } from '@/utils/sanitize'
 import { pickList, unwrap } from '@/utils/response'
 import { useUi } from '../../../composables/ui'
+import { downloadResourceFile } from '../../../utils'
 
 interface ChapterRow {
   id: number
@@ -106,6 +149,19 @@ const ui = useUi()
 const chapters = ref<ChapterRow[]>([])
 const activeId = ref<number | null>(null)
 const sourceNote = ref('接口数据：章节来自 /chapters/course/{id}，正文按需读取 /chapters/{id}。')
+
+interface ResourceRow {
+  id: number | string
+  fileName?: string
+  chapterId?: number | string | null
+  uploadTime?: string | null
+}
+
+const resources = ref<ResourceRow[]>([])
+const resourceLoading = ref(false)
+const resourceError = ref('')
+const downloadingId = ref<ResourceRow['id'] | null>(null)
+
 /** 已完成章节：由 POST /learning-records 的成功回执与挂载时的读数共同维护 */
 const doneChapterIds = ref(new Set<number>())
 const marking = ref(false)
@@ -219,8 +275,48 @@ async function loadCompletedChapters() {
   }
 }
 
+/**
+ * 课程资源读数：与教师端同一端点（GET /resources/course/{id}）。
+ * 空数组＝确实没有资源；非数组＝响应形状变了，按失败态呈现，不把"读不到"画成"没有"。
+ */
+async function loadResources() {
+  if (!props.courseId) return
+  resourceLoading.value = true
+  resourceError.value = ''
+  try {
+    const body = unwrap(await resourceApi.getResourceList(props.courseId))
+    if (!Array.isArray(body)) throw new Error('资源列表响应格式无效')
+    resources.value = body as ResourceRow[]
+  } catch (error) {
+    resources.value = []
+    resourceError.value = '课程资源加载失败，请稍后重试'
+    ui.toast('课程资源加载失败', 'danger')
+    void error
+  } finally {
+    resourceLoading.value = false
+  }
+}
+
+function formatUploadTime(value?: string | null): string {
+  if (!value) return '上传时间未知'
+  return String(value).replace('T', ' ').slice(0, 16)
+}
+
+async function download(row: ResourceRow) {
+  if (downloadingId.value === row.id) return
+  downloadingId.value = row.id
+  try {
+    await downloadResourceFile(row.id, row.fileName)
+  } catch {
+    ui.toast('资源下载失败（可能未选该课或文件已移除），请稍后重试', 'danger')
+  } finally {
+    downloadingId.value = null
+  }
+}
+
 onMounted(async () => {
   void loadCompletedChapters()
+  void loadResources()
   try {
     const payload = unwrap(await chapterApi.getChapters(props.courseId))
     chapters.value = flatten(pickList(payload) as Array<Record<string, unknown>>)
@@ -228,7 +324,7 @@ onMounted(async () => {
     await ensureContent(chapters.value[0])
   } catch {
     chapters.value = []
-    sourceNote.value = '章节接口不可达；旧版学习中心仍可使用。'
+    sourceNote.value = '章节接口不可达：请刷新重试；多次失败请确认课程是否仍对本人开放。'
   }
 })
 </script>

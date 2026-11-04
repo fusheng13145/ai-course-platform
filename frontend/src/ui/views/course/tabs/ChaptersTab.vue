@@ -242,6 +242,7 @@ import teachingApi from '@/api/teacher'
 import resourceApi from '@/api/resource'
 import { unwrap, pickList } from '@/utils/response'
 import logger from '@/utils/logger'
+import { downloadResourceFile } from '../../../utils'
 
 interface TaskPoint {
   id?: number | string
@@ -400,21 +401,8 @@ async function download(row: ResourceRow) {
   if (downloadingId.value === row.id) return
   downloadingId.value = row.id
   try {
-    const payload = await resourceApi.downloadResource(row.id)
-    if (typeof URL.createObjectURL !== 'function') {
-      window.open(`/api/resources/download/${row.id}`, '_blank', 'noopener')
-      return
-    }
-    const body = (payload as { data?: unknown }).data ?? payload
-    const blob = body instanceof Blob ? body : new Blob([body as BlobPart])
-    const url = URL.createObjectURL(blob)
-    const link = document.createElement('a')
-    link.href = url
-    link.download = row.fileName || `resource-${row.id}`
-    document.body.appendChild(link)
-    link.click()
-    link.remove()
-    URL.revokeObjectURL(url)
+    // 下载实现统一在 ui/utils：学生端资源区用的是同一份，避免两处各写一遍必然分叉
+    await downloadResourceFile(row.id, row.fileName)
   } catch (error) {
     toast('资源下载失败，请稍后重试', 'danger')
     logger.error('下载课程资源失败', error)
