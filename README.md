@@ -15,7 +15,7 @@
 
 **当前阶段**：**Phase 1 单租户生产系统**（多租户为 Phase 2）。开发/验收可本机全栈真跑；生产上线要求 TLS/反代、容器或等价编排、密钥管理、备份恢复、监控告警与 A 路径断链清零。Docker/A 路径当前尚未在生产环境实跑，不能把本机开发姿态当生产交付。
 
-**想知道"做到哪了、还剩什么"**：定位与状态看 `docs/项目手册.md`；未完成事项看 `docs/前端待办项.md`／`docs/后端待办项.md`。对外表述不得高于待办文档里已闭行的证据。
+**想知道"做到哪了、还剩什么"**：定位与状态看 `docs/项目手册.md`；剩余迭代任务的分层排期与未闭环缺口看 [`docs/剩余迭代任务清单.md`](docs/剩余迭代任务清单.md)；未完成事项看 `docs/前端待办项.md`／`docs/后端待办项.md`。对外表述不得高于待办文档里已闭行的证据。
 
 > **⚠️ 参考项目的方法学边界**：`大创赛/类似项目/DeepSeek-RAG-Chatbot` 的 GraphRAG 实体抽取用正则 `\b[A-Z][a-z]+...`，**仅支持英文实体**，且是单机通用文档问答工具，与本项目的中文知识图谱（`knowledge_points`／`knowledge_point_relations`）在语言适配、领域建模、工程规模上不可类比。**不得把它当成本项目中文 KG 方案的对标或引用依据**；中文 KG 的关系建模以 `相关论文/`（杜彩丽 IPA／IREM、中职计算机网络多源异构 KG 等）与 PRD 接口矩阵为准。
 
@@ -31,11 +31,22 @@
 | `docs/后端开发规范.md` | 分层、异常与事务、鉴权、缓存、日志、批处理、AI 降级的编码约定 | 写 Java 之前 |
 | `docs/前端开发规范.md` | 目录与命名、组件与设计令牌、状态与请求层、可访问性的编码约定 | 写 Vue/TS 之前 |
 | `docs/部署文档.md` | 开发/验收环境与生产部署基线、启动步骤与依赖自检、`.env` 与文件式密钥、健康判据、容器/A 路径、备份恢复、故障排查 | 起不来、做生产部署、上线验收 |
-| `docs/测试文档.md` | **测试与质量读数的唯一来源**：分层与命令、门禁判据、e2e／视觉前置、全栈四件套与压力、CI 12 作业、证据纪律 | 跑验证、引用数字、判红 |
+| `docs/测试文档.md` | **测试与质量读数的唯一来源**：分层与命令、门禁判据、e2e／视觉前置、全栈四件套与压力、CI 作业键与证据纪律 | 跑验证、引用数字、判红 |
 | `docs/前端待办项.md` | 前端未完成事项（视觉 Phase 5/6、体验与无障碍缺口、工程尾量、明确不做） | 排下一批工作 |
 | `docs/后端待办项.md` | 后端／引擎／基础设施未完成事项（性能与契约、CI 与集成层、A 路径断链、明确不做） | 排下一批工作 |
 
 **数字纪律**：结构性计数只写在手册 §8，测试读数只写在测试文档 §2。本 README **不复制任何读数**——同一数字在两处各写一套，必然漂移。
+
+**配套支撑文档**（非九份权威文档，随改造批次新增）：
+
+| 文档 | 定位 |
+| --- | --- |
+| [`docs/剩余迭代任务清单.md`](docs/剩余迭代任务清单.md) | 2026-11-05 基线下的剩余任务四层分层（阻塞／可代码／外部／打磨）＋验收判据＋未闭环缺口 |
+| [`docs/B-12-P-08-拆包与排期方案.md`](docs/B-12-P-08-拆包与排期方案.md) | 教学组织与教学班改造的 WP1–WP10 拆包、依赖顺序、人日与验收；WP1 已完成，WP2–WP10 未开工 |
+| [`docs/后端信息架构改造交接.md`](docs/后端信息架构改造交接.md) | 信息架构改造交接与 §9 十条决策（1A–10A，2026-11-05 已全部拍板） |
+| [`docs/组织映射清单模板.md`](docs/组织映射清单模板.md) | 学院／专业／行政班／学期到新组织模型的映射清单模板（真实源值待填、待签字） |
+| [`docs/恢复演练记录模板.md`](docs/恢复演练记录模板.md) | 一次真实 MySQL 恢复演练的记录模板（模板已有，演练未做） |
+| [`docs/异地备份与TLS件方案骨架.md`](docs/异地备份与TLS件方案骨架.md) | 异地备份、TLS 件与 IaC 的缺口骨架（未验证） |
 
 ---
 
@@ -46,19 +57,19 @@
 | 后端框架 | Spring Boot | 3.5.15（JDK 21） |
 | ORM | MyBatis-Plus | 3.5.7 |
 | 安全 | Spring Security + JWT | 6.x / jjwt 0.12.6 |
-| 数据库迁移 | Flyway | 结构 V1–V4、V8–V11（`db/migration`，全环境）＋ 演示种子 V5–V7（`db/seed-demo`，prod 排除） |
+| 数据库迁移 | Flyway | 结构 V1–V4、V8–V12（`db/migration`，全环境）＋ 演示种子 V5–V7（`db/seed-demo`，prod 排除）；下一个空号 V13 |
 | 数据库 / 缓存 | MySQL / Redis | 8.4 / 7.x（Redis 为**必选**依赖） |
 | 前端框架 | Vue + Vite | 3.5.x / 8.1.5 |
 | UI 层 | 自研 `src/ui/components/` 原语 + CSS 变量令牌 | **无第三方组件库**（Element Plus／echarts 已随旧前端在 `15fb858` 整体摘除） |
 | 状态 / 路由 / 图表 | Pinia / Vue Router / 内联 SVG（`Sparkline`／`Sprite`） | 2.1.x / 4.2.x / — |
 | 测试 | Vitest / Playwright / Testcontainers | 3.2.7 / **1.63.0（精确锁定）** / — |
-| 质量门禁 | JaCoCo / SpotBugs / ArchUnit | LINE ≥85% 且 BRANCH ≥65%（阻断）／0 bug（阻断）／6 条架构守护 |
+| 质量门禁 | JaCoCo / SpotBugs / ArchUnit | LINE ≥85% 且 BRANCH ≥65%（阻断）／0 bug（阻断）／7 条架构守护 |
 | 实时通信 | Spring WebSocket | 通知与监考 |
 | 限流熔断 | Sentinel | 下游流控 + 慢调用熔断 |
 | AI 引擎 | Python FastAPI | KG 8001 / RAG 8002 / LoRA 8003 |
 | 图数据库（可选） | Neo4j | 5.26，本机独立实例；缺失时 KG 自动回落内存图 |
 
-数据面口径：当前库表 **51** 张；`index.sql`（测试库建表脚本）已回补至 51，`V1` 因 Flyway 校验和冻结仍为 48 张——漂移管控见 `docs/后端待办项.md` S-03 与手册 DR-61。
+数据面口径：当前库表 **55** 张（V12 新增 `schools`／`colleges`／`majors`／`admin_classes`）；`index.sql`（测试库建表脚本）已回补至 55，`V1` 因 Flyway 校验和冻结仍为 48 张——漂移管控见 `docs/后端待办项.md` S-03 与手册 DR-61。
 
 ### Python 侧三服务
 
@@ -116,7 +127,7 @@ start.bat
 - 本地 HTTP 联调需 `COOKIE_SECURE=false`、`REQUIRE_HTTPS=false`、`CSRF_ENABLED=false`（`start.bat` 的 all/backend 模式已代劳）；CSRF 校验失败返回 403 并提示缺失 `X-XSRF-TOKEN`。
 - **依赖源已迁到官方 registry**：`frontend/package-lock.json` 的 `resolved` 全部为 `registry.npmjs.org`（仅 xlsx 的 `cdn.sheetjs.com` tarball 原样保留）。本机**不需要为此改 npm 配置**——npm 默认的 `replace-registry-host=npmjs` 会把官方主机名重写到你所配置的镜像源，同一份 lockfile 同时服务 CI（官方源）与本机（镜像提速），`integrity` 哈希与源无关。
 
-> Docker／Compose 与"一台云主机上线"的全部内容（12 服务与 profile、必填环境变量清单、存量卷 `chown` 一次性迁移、TLS 与两条传输层路径、监控与备份、14 条断链）已收在 `docs/部署文档.md` §5／§6／§7／§9。**编排当前搁置，本节不再重复命令**。
+> Docker／Compose 与"一台云主机上线"的全部内容（12 服务与 profile、必填环境变量清单、存量卷 `chown` 一次性迁移、TLS 与两条传输层路径、监控与备份、14 条断链）已收在 `docs/部署文档.md` §5／§6／§7／§9。**编排尚未在真实环境实跑**：14 条中断链 #1/#2/#3/#4/#9/#10/#11/#13/#14 已静态清零，但镜像从未实际 build；#5/#6/#7/#8/#12 仍挂账。本节不再重复命令。
 
 ---
 
@@ -132,7 +143,7 @@ start.bat
 
 演示账号合计 **170 个**。`DEMO_ACCOUNTS_ENABLED` 在 `application.yaml` 默认 `true`（本地开发保留演示账号），compose 的 backend 服务默认 `false`（容器化默认加固）——**生产必须显式 `false`** 并提供 `APP_ADMIN_INITIAL_PASSWORD`，否则启动 fail-fast。加固器按"口令仍等于种子哈希"筛选，已改密的账号绝不覆盖。
 
-> ⚠️ **生产边界**：演示数据不进生产库——V5–V7 位于 `db/seed-demo`，prod 的 Flyway `locations` 整目录排除，由 `DemoSeedMigrationIsolationTest` 钉住。**但唯一残余风险在部署流程而不是代码**：把灌过 V5/V6 的旧库直接当生产库**不会报错**（Flyway 默认 `ignoreMigrationPatterns=[*:future]`，静默忽略 + 一条 WARN）。所以上线前核对的是"**版本集合不含 5/6/7、`users` 只剩 V1 的 8 个、无 course 4007**"，**不是"最高版本=4"**（自 V8–V11 起该判据已失效，DR-62）。清单见 `docs/部署文档.md` §7。
+> ⚠️ **生产边界**：演示数据不进生产库——V5–V7 位于 `db/seed-demo`，prod 的 Flyway `locations` 整目录排除，由 `DemoSeedMigrationIsolationTest` 钉住。**但唯一残余风险在部署流程而不是代码**：把灌过 V5/V6 的旧库直接当生产库**不会报错**（Flyway 默认 `ignoreMigrationPatterns=[*:future]`，静默忽略 + 一条 WARN）。所以上线前核对的是"**版本集合不含 5/6/7、`users` 只剩 V1 的 8 个、无 course 4007**"，**不是"最高版本=4"**（自 V8–V12 起该判据已失效，DR-62）。清单见 `docs/部署文档.md` §7。
 
 ---
 
@@ -161,7 +172,7 @@ python scripts/e2e/e2e_security_verify.py           # CSRF 双提交 + 双层登
 - **读数唯一来源**：`docs/测试文档.md` §2；引用时连同**日期与口径**（单元 vs 含 IT）一起引。
 - **e2e 前置**：流程套件要求后端以 `RATELIMIT_LOGIN_LIMIT=200` 起、三份 `.auth` 会话夹具与端口匹配；视觉套件固定 5175 且**不用 `--update-snapshots` 吸收未知漂移**。缺前置时的红灯是环境问题，不是产品缺陷（判红纪律见 `docs/测试文档.md` §4）。
 - **登录保护是两层**：速率层 `RateLimitFilter`（IP 滑动窗口 10 次/60 秒）与尝试层 `AuthSessionComponent`（同账号连续失败 5 次锁定 15 分钟）；尝试层阈值更低，失败路径下先触发，**必须分层断言**。
-- **CI**：`.github/workflows/ci.yml` 12 个作业；`frontend-e2e` 仍是 `workflow_dispatch` 手动触发，且 Actions 结果本机不可观测 ⇒ **本机绿不等于 CI 绿**。DR-20／DR-26 仍是残项；DR-23（引擎容器化）连同其余 Docker 相关项已从「留待后续」改为 **Phase 1 上线必做**，逐项前置见 `docs/后端待办项.md` §6 与 `docs/部署文档.md` §6。
+- **CI**：`.github/workflows/ci.yml` 13 个作业；连 `deploy`／`eval-nightly`／`release` 共 17 个唯一作业键（清单见 `docs/测试文档.md` §7）；`frontend-e2e` 仍是 `workflow_dispatch` 手动触发，且 Actions 结果本机不可观测 ⇒ **本机绿不等于 CI 绿**。DR-20／DR-26 仍是残项；DR-23（引擎容器化）连同其余 Docker 相关项已从「留待后续」改为 **Phase 1 上线必做**，逐项前置见 `docs/后端待办项.md` §6 与 `docs/部署文档.md` §6。
 
 ---
 

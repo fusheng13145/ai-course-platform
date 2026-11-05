@@ -190,7 +190,7 @@ python scripts/sync-kg-to-python.py <courseId>
 
 ### 4.5 CI 与门禁位置
 
-- `.github/workflows/ci.yml` 12 个作业；`frontend-e2e` 仅 `workflow_dispatch`。
+- `.github/workflows/ci.yml` 13 个作业；连 `deploy.yml`／`eval-nightly.yml`／`release.yml` 共 17 个唯一作业键；`frontend-e2e` 仅 `workflow_dispatch`。
 - push 事件对 `docs/**`、`archive/**`、`*.md` 走 `paths-ignore` ⇒ **纯文档改动不会触发 CI**，不能拿"CI 没红"当验证。
 - PR 全量跑；`.github/pull_request_template.md` 是合并前自检清单。
 
