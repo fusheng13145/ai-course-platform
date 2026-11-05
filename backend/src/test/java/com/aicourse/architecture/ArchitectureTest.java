@@ -45,6 +45,12 @@ class ArchitectureTest {
             noClasses().that().resideInAPackage("..config..")
                     .should().dependOnClassesThat().resideInAPackage("..controller..");
 
+    /** 安全组件不得依赖 controller（鉴权与作用域判定须可脱离 Web 入口独立测试） */
+    @ArchTest
+    static final ArchRule securityShouldNotDependOnController =
+            noClasses().that().resideInAPackage("..security..")
+                    .should().dependOnClassesThat().resideInAPackage("..controller..");
+
     /** service 实现类不得依赖其他 service 实现类（服务间只允许依赖接口，保持解耦）。
      * 源/目标均限定精确包 com.aicourse.service.impl + *Impl 结尾 + 非内部类；
      * 目标条件用 JavaClass.Predicates.and 组合（andShould 实测为 OR 语义，不可用于组合条件）：

@@ -3,6 +3,8 @@ package com.aicourse.service.impl;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.aicourse.common.AdminScope;
+import com.aicourse.common.RoleConstants;
 import com.aicourse.entity.RolePermission;
 import com.aicourse.entity.User;
 import com.aicourse.mapper.RolePermissionMapper;
@@ -62,7 +64,7 @@ public class PermissionServiceImpl extends ServiceImpl<RolePermissionMapper, Rol
             return emptyMap;
         }
 
-        List<RolePermission> rolePermissionList = getRolePermissions(user.getRole());
+        List<RolePermission> rolePermissionList = getRolePermissions(user.getRole(), user.getAdminScope());
         List<String> menuKeyList = rolePermissionList.stream()
                 .filter(perm -> "MENU".equals(perm.getPermissionType()))
                 .map(RolePermission::getPermissionKey)
@@ -84,16 +86,52 @@ public class PermissionServiceImpl extends ServiceImpl<RolePermissionMapper, Rol
     }
 
     /**
-     * 根据角色查询已启用的权限列表
+     * 根据角色查询已启用的权限列表（兼容旧调用）。
+     *
+     * <p>V12 起权限项带 scope；本方法固定只取 {@code ALL} 范围，
+     * 与回填后旧数据的行为完全一致。</p>
+     *
      * @param role 角色标识
      * @return 权限集合
      */
     @Override
     @Cacheable(cacheNames = CACHE_NAME, key = "'role:' + #role")
     public List<RolePermission> getRolePermissions(String role) {
+        return queryRolePermissions(role, List.of(AdminScope.ALL));
+    }
+
+    /**
+     * 根据角色与管理员作用域查询已启用的权限列表（V12）。
+     *
+     * <p>有效范围 = {@code ALL} ∪ 自身作用域；非 ADMIN 忽略 scope，只取 ALL。</p>
+     *
+     * @param role 角色标识
+     * @param scope 管理员作用域
+     * @return 权限集合
+     */
+    @Override
+    @Cacheable(cacheNames = CACHE_NAME, key = "'role:' + #role + ':scope:' + #scope")
+    public List<RolePermission> getRolePermissions(String role, String scope) {
+        return queryRolePermissions(role, effectiveScopes(role, scope));
+    }
+
+    private List<RolePermission> queryRolePermissions(String role, List<String> scopes) {
         return list(new LambdaQueryWrapper<RolePermission>()
                 .eq(RolePermission::getRole, role)
+                .in(RolePermission::getScope, scopes)
                 .eq(RolePermission::getIsActive, Boolean.TRUE));
+    }
+
+    /**
+     * 计算某角色可见的权限范围：ADMIN 为 ALL + 自身作用域，其余角色只 ALL。
+     */
+    private static List<String> effectiveScopes(String role, String scope) {
+        String normalized = AdminScope.normalize(scope);
+        if (!RoleConstants.ADMIN.equals(role) || !AdminScope.isValid(normalized)
+                || AdminScope.ALL.equals(normalized)) {
+            return List.of(AdminScope.ALL);
+        }
+        return List.of(AdminScope.ALL, normalized);
     }
 
     // ===== IService 写操作覆写，角色权限变更时清除相关缓存 =====

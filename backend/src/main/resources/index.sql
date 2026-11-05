@@ -16,6 +16,10 @@
 --      ai_generation_restrictions 三表，并补齐 users(3) / resources(4) / discussion_posts(4) /
 --      ai_chat_sessions(1) 的列与 4 个索引；表数由 48 → 51，与 db/migration 现行schema 对齐
 --      护栏：IndexSqlMigrationGuardTest 断言本脚本表集与列集 ⊇ 迁移产物，缺项即构建失败
+--   8. 2026-11-05 回补 V12（B-12/P-08 WP1）：新增 schools / colleges / majors / admin_classes
+--      四表；users 加 school_id / college_id / major_id / admin_class_id / admin_scope 与 3 索引；
+--      role_permissions 加 scope 并把唯一键改为 (role, scope, permission_key)；
+--      表数 51 → 55，与 db/migration 现行 schema 对齐
 -- ====================================================================
 
 SET NAMES utf8mb4;
@@ -80,12 +84,16 @@ DROP TABLE IF EXISTS courses;
 DROP TABLE IF EXISTS verification_codes;
 DROP TABLE IF EXISTS login_logs;
 DROP TABLE IF EXISTS user_sessions;
+DROP TABLE IF EXISTS admin_classes;
+DROP TABLE IF EXISTS majors;
+DROP TABLE IF EXISTS colleges;
+DROP TABLE IF EXISTS schools;
 DROP TABLE IF EXISTS classrooms;
 DROP TABLE IF EXISTS users;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ====================================================================
--- Phase 2: 创建全部 51 张表（按外键依赖顺序）
+-- Phase 2: 创建全部 55 张表（按外键依赖顺序）
 -- ====================================================================
 
 -- ── 2.1 用户核心模块 ──
@@ -125,8 +133,86 @@ CREATE TABLE users (
   UNIQUE KEY uk_users_username (username) COMMENT '用户名唯一索引',
   KEY idx_users_role (role) COMMENT '角色索引，用于按角色查询',
   KEY idx_users_class_id (class_id) COMMENT '班级ID索引，用于查询班级学生',
-  KEY idx_users_banned (banned_at) COMMENT '封禁记录按时间检索（V11 同步）'
+  KEY idx_users_banned (banned_at) COMMENT '封禁记录按时间检索（V11 同步）',
+  school_id BIGINT NULL COMMENT '学校ID（V12，过渡期可空）',
+  college_id BIGINT NULL COMMENT '学院ID（V12，过渡期可空）',
+  major_id BIGINT NULL COMMENT '专业ID（V12，过渡期可空）',
+  admin_class_id BIGINT NULL COMMENT '行政班ID（V12 目标列，过渡期保留 class_id）',
+  admin_scope VARCHAR(16) NULL COMMENT '管理员作用域 SCHOOL/COLLEGE，仅 ADMIN 使用（V12）',
+  KEY idx_users_college (college_id) COMMENT '学院索引（V12）',
+  KEY idx_users_admin_class (admin_class_id) COMMENT '行政班索引（V12）',
+  KEY idx_users_admin_scope (admin_scope, college_id) COMMENT '管理员作用域索引（V12）'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';;
+
+-- ── 2.1.1 组织架构模块（V12 / B-12-P-08 WP1） ──
+
+-- schools
+CREATE TABLE schools (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '学校ID，主键自增',
+  code VARCHAR(32) NOT NULL COMMENT '学校编码',
+  name VARCHAR(128) NOT NULL COMMENT '学校名称',
+  status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态：ACTIVE-启用，ARCHIVED-归档',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_schools_code (code) COMMENT '学校编码唯一索引'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='学校根（单校部署，一行）';
+
+-- colleges
+CREATE TABLE colleges (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '学院ID，主键自增',
+  school_id BIGINT NOT NULL COMMENT '所属学校ID，关联schools表',
+  code VARCHAR(32) NOT NULL COMMENT '学院编码（校内唯一）',
+  name VARCHAR(128) NOT NULL COMMENT '学院名称',
+  status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态：ACTIVE-启用，ARCHIVED-归档',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_colleges_school_code (school_id, code) COMMENT '学校-学院编码唯一索引',
+  KEY idx_colleges_school (school_id) COMMENT '学校索引',
+  CONSTRAINT fk_colleges_school FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='学院';
+
+-- majors
+CREATE TABLE majors (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '专业ID，主键自增',
+  college_id BIGINT NOT NULL COMMENT '所属学院ID，关联colleges表',
+  code VARCHAR(32) NOT NULL COMMENT '专业编码（院内唯一）',
+  name VARCHAR(128) NOT NULL COMMENT '专业名称',
+  status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态：ACTIVE-启用，ARCHIVED-归档',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_majors_college_code (college_id, code) COMMENT '学院-专业编码唯一索引',
+  KEY idx_majors_college (college_id) COMMENT '学院索引',
+  CONSTRAINT fk_majors_college FOREIGN KEY (college_id) REFERENCES colleges(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='专业';
+
+-- admin_classes
+CREATE TABLE admin_classes (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '行政班ID，主键自增',
+  school_id BIGINT NOT NULL COMMENT '所属学校ID，关联schools表',
+  college_id BIGINT NOT NULL COMMENT '所属学院ID，关联colleges表',
+  major_id BIGINT NOT NULL COMMENT '所属专业ID，关联majors表',
+  name VARCHAR(100) NOT NULL COMMENT '行政班名称，如：计科 2301',
+  code VARCHAR(50) NOT NULL COMMENT '行政班编号',
+  grade_year VARCHAR(16) NULL COMMENT '年级，如 2023',
+  advisor_teacher_id BIGINT NULL COMMENT '班主任（教师职责，不是登录角色），关联users表',
+  student_count INT NOT NULL DEFAULT 0 COMMENT '当前学生人数',
+  max_students INT NULL COMMENT '最大容纳人数',
+  status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态：ACTIVE-启用，ARCHIVED-归档（归档不删学生历史）',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_admin_classes_school_code (school_id, code) COMMENT '学校-行政班编号唯一索引',
+  KEY idx_admin_classes_college (college_id) COMMENT '学院索引',
+  KEY idx_admin_classes_major (major_id) COMMENT '专业索引',
+  KEY idx_admin_classes_advisor (advisor_teacher_id) COMMENT '班主任索引',
+  CONSTRAINT fk_admin_classes_school FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_admin_classes_college FOREIGN KEY (college_id) REFERENCES colleges(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_admin_classes_major FOREIGN KEY (major_id) REFERENCES majors(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_admin_classes_advisor FOREIGN KEY (advisor_teacher_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='行政班：学生归属与班主任工作对象，不绑定课程';
 
 -- ── 2.2 班级管理模块 ──
 
@@ -805,6 +891,7 @@ CREATE TABLE role_permissions (
   id BIGINT NOT NULL AUTO_INCREMENT COMMENT '权限ID，主键自增',
   role VARCHAR(50) NOT NULL COMMENT '角色标识',
   permission_key VARCHAR(100) NOT NULL COMMENT '权限标识',
+  scope VARCHAR(16) NOT NULL DEFAULT 'ALL' COMMENT '适用作用域 ALL/SCHOOL/COLLEGE（V12）',
   permission_name VARCHAR(100) NOT NULL COMMENT '权限名称',
   permission_type VARCHAR(20) NOT NULL DEFAULT 'MENU' COMMENT '权限类型：MENU-菜单权限，BUTTON-按钮权限',
   resource_path VARCHAR(255) NULL COMMENT '资源路径',
@@ -815,7 +902,7 @@ CREATE TABLE role_permissions (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (id),
-  UNIQUE KEY uk_role_permissions_role_key (role, permission_key) COMMENT '角色-权限唯一索引，防止重复授权'
+  UNIQUE KEY uk_role_permissions_role_scope_key (role, scope, permission_key) COMMENT '角色-作用域-权限唯一索引，防止重复授权（V12）'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='角色权限表';;
 
 -- system_configs
@@ -1242,6 +1329,12 @@ INSERT INTO users (id, email, username, password, full_name, role, is_active, is
 (6, 'student3@aicourse.com', 'student3', '$2a$10$JiGc4/6C64A/jcAODg4JpOwB6z3KbNxAJnRsYLJAl/BHNBfsuU4tq', '刘同学', 'STUDENT', 1, 1, '13800000006', '2024003', '软件工程', '大一', NULL, NULL),
 (7, 'student4@aicourse.com', 'student4', '$2a$10$JiGc4/6C64A/jcAODg4JpOwB6z3KbNxAJnRsYLJAl/BHNBfsuU4tq', '陈同学', 'STUDENT', 1, 1, '13800000007', '2024004', '软件工程', '大一', NULL, NULL),
 (8, 'student5@aicourse.com', 'student5', '$2a$10$JiGc4/6C64A/jcAODg4JpOwB6z3KbNxAJnRsYLJAl/BHNBfsuU4tq', '杨同学', 'STUDENT', 1, 1, '13800000008', '2024005', '人工智能', '大一', NULL, NULL);
+
+-- 1.1 组织根（V12）：单校部署恰一行；仅作组织容器，不代表旧自由文本映射结果
+INSERT INTO schools (id, code, name, status) VALUES (1, 'DEFAULT', '默认学校', 'ACTIVE');
+
+-- 1.2 管理员作用域回填（V12）：存量 ADMIN 默认校级，行为与改造前一致
+UPDATE users SET admin_scope = 'SCHOOL', school_id = 1 WHERE role = 'ADMIN';
 
 -- 2. 班级数据
 INSERT INTO classrooms (id, name, code, grade_level, major, advisor_id, student_count) VALUES

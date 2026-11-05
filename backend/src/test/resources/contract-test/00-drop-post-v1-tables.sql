@@ -25,5 +25,10 @@ DROP TABLE IF EXISTS ai_call_logs;
 DROP TABLE IF EXISTS semesters;
 -- V10__ai_generation_restrictions.sql
 DROP TABLE IF EXISTS ai_generation_restrictions;
+-- V12__org_foundation.sql（先子后父，FOREIGN_KEY_CHECKS 已在下方统一关闭）
+DROP TABLE IF EXISTS admin_classes;
+DROP TABLE IF EXISTS majors;
+DROP TABLE IF EXISTS colleges;
+DROP TABLE IF EXISTS schools;
 
 SET FOREIGN_KEY_CHECKS = 1;

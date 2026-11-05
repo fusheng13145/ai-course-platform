@@ -74,6 +74,7 @@ spring:
         - classpath:db/migration/V9__semester_registry.sql
         - classpath:db/migration/V10__ai_generation_restrictions.sql
         - classpath:db/migration/V11__content_moderation.sql
+        - classpath:db/migration/V12__org_foundation.sql
       continue-on-error: false
 
   # 邮件：账号密码留空 → EmailServiceImpl 走「模拟发送」分支，不发真实邮件
