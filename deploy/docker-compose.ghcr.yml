@@ -21,3 +21,10 @@ services:
 
   frontend:
     image: ${GHCR_REPO:?请设置 GHCR_REPO，例如 ghcr.io/owner/repo}/frontend:${IMAGE_TAG:?请设置 IMAGE_TAG，例如 v1.5.0}
+
+  # Python 引擎（profiles: python）同样来自 GHCR；不启用该 profile 时不会启动。
+  kg-service:
+    image: ${GHCR_REPO:?请设置 GHCR_REPO，例如 ghcr.io/owner/repo}/kg-service:${IMAGE_TAG:?请设置 IMAGE_TAG，例如 v1.5.0}
+
+  rag-service:
+    image: ${GHCR_REPO:?请设置 GHCR_REPO，例如 ghcr.io/owner/repo}/rag-service:${IMAGE_TAG:?请设置 IMAGE_TAG，例如 v1.5.0}

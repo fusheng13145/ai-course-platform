@@ -577,7 +577,9 @@ jobs:
           APP_ADMIN_INITIAL_PASSWORD: ${{ secrets.APP_ADMIN_INITIAL_PASSWORD || 'CiBuild0nly!Admin#2026' }}
           NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD || 'ci-test-neo4j-8f3k' }}
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD || 'ci-build-only-grafana-4p6t1s0d' }}
-        run: docker compose -f docker-compose.yml build
+        # backend/frontend 属 profiles: ["full"]，kg/rag 属 ["python"]；
+        # 两个 profile 必须同时启用，否则会漏掉 backend/frontend 的构建。
+        run: docker compose --profile full --profile python -f docker-compose.yml build
 
   # ------------------------------------------------------------------
   # Python 知识图谱基线服务（端口 8001）契约校验
@@ -869,4 +871,27 @@ jobs:
           name: playwright-report
           path: frontend/playwright-report
           retention-days: 14
+
+  # ------------------------------------------------------------------
+  # 上线补件静态自检（挂账清单汇总入口）
+  #
+  # 只证明「脚本存在、语法可用、静态分支可执行」；SKIP/PENDING 是预期结果，
+  # 不代表 A#5/#6/#7/#8/#12 或 CI 部署已验收。真机上线前用 --strict 在目标
+  # 主机执行（见 docs/部署文档.md §6.6）。
+  # ------------------------------------------------------------------
+  deploy-readiness:
+    name: Deploy Readiness (static scripts)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Static self-check
+        run: python scripts/check-deploy-readiness.py
 
