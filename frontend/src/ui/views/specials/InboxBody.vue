@@ -34,7 +34,7 @@
               <th class="w-220">课程</th>
               <th class="w-96">类型</th>
               <th class="w-200">截止</th>
-              <th class="w-96">操作</th>
+              <th class="w-96 th-actions">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -109,7 +109,7 @@
                 <th class="w-80">类型</th>
                 <th class="w-220">课程</th>
                 <th class="w-200">更新时间</th>
-                <th class="w-96">操作</th>
+                <th class="w-96 th-actions">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -184,7 +184,7 @@
                 <th class="w-140">学生</th>
                 <th class="w-200">开始时间</th>
                 <th class="w-96">用时</th>
-                <th class="w-96">操作</th>
+                <th class="w-96 th-actions">操作</th>
               </tr>
             </thead>
             <tbody>

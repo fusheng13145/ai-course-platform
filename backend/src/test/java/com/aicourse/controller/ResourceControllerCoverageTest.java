@@ -6,6 +6,7 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.ResourceService;
+import com.aicourse.service.ResourceVersionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
@@ -87,6 +88,9 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     private CourseService courseService;
     @MockitoBean
     private CourseEnrollmentService courseEnrollmentService;
+    // B-13㉑：ResourceController 新增的版本服务依赖，@WebMvcTest 需显式 mock
+    @MockitoBean
+    private ResourceVersionService resourceVersionService;
 
     private static final long COURSE_ID = 1L;
     private static final long OWNER_TEACHER = 100L;
@@ -333,7 +337,7 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
 
     private ResourceController directController(ResourceService rs, CourseService cs,
                                                 CourseEnrollmentService es) {
-        return new ResourceController(rs, cs, es);
+        return new ResourceController(rs, cs, es, mock(com.aicourse.service.ResourceVersionService.class));
     }
 
     private Authentication teacherAuth() {

@@ -78,7 +78,7 @@
               <th class="w-140">登录时间</th>
               <th class="w-140">最后活动</th>
               <th class="w-96">状态</th>
-              <th class="w-96">操作</th>
+              <th class="w-96 th-actions">操作</th>
             </tr>
           </thead>
           <tbody>

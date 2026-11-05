@@ -84,29 +84,33 @@ describe('会话列表与进度响应归一', () => {
     expect(ready.missing).toEqual([])
   })
 
-  it('终态会话不照抄磁盘真值：合并后 .part 已回收，照抄会把 100% 说成 0% 并谎报缺片', () => {
-    // 2026-10-29 实测的 COMPLETED 响应原文（GET /upload-sessions/390272/progress）
+  it('终态会话照抄服务端持久计数：后端已返回 uploaded/total 且 missingIndexes 为空（B-13⑲）', () => {
     const completed = pickUploadProgress({
-      data: { uploaded: 0, total: 1, percentage: '0.0%', status: 'COMPLETED', missingIndexes: [0] },
+      data: {
+        uploaded: 2,
+        total: 2,
+        percentage: '100.0%',
+        status: 'COMPLETED',
+        missingIndexes: [],
+      },
     })
     expect(completed).toEqual({
       status: 'COMPLETED',
-      uploaded: null,
-      total: null,
+      uploaded: 2,
+      total: 2,
       missing: [],
-      percent: null,
+      percent: 100,
     })
 
-    // 后端 merge/cancel 都会删分片目录，两种终态同等不可信
-    expect(pickUploadProgress({ data: { uploaded: 0, total: 1, status: 'CANCELLED' } })).toEqual({
+    expect(pickUploadProgress({ data: { uploaded: 1, total: 1, status: 'CANCELLED' } })).toEqual({
       status: 'CANCELLED',
-      uploaded: null,
-      total: null,
+      uploaded: 1,
+      total: 1,
       missing: [],
-      percent: null,
+      percent: 100,
     })
 
-    // 进行中的会话仍按磁盘真值上报（阴性对照：终态豁免没有吞掉正常路径）
+    // 进行中的会话仍按磁盘真值上报（阴性对照：正常路径未被终态改动影响）
     const uploading = pickUploadProgress({
       data: { uploaded: 0, total: 1, status: 'UPLOADING', missingIndexes: [0] },
     })

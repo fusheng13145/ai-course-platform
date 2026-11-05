@@ -125,7 +125,7 @@
               <th class="w-140">进度</th>
               <th class="w-96">状态</th>
               <th class="w-220">创建时间</th>
-              <th class="w-140">操作</th>
+              <th class="w-140 th-actions">操作</th>
             </tr>
           </thead>
           <tbody>

@@ -33,13 +33,13 @@
               <th class="w-80">次</th>
               <th class="w-220">开始时间</th>
               <th class="w-96">用时</th>
-              <th class="w-220">操作</th>
+              <th class="w-220 th-actions">操作</th>
             </tr>
           </thead>
           <tbody>
             <tr v-for="(row, index) in sessions" :key="`s-${rowKey(row.id, index)}`">
-              <td>{{ paperTitleOf(row.examPaperId) }}</td>
-              <td>{{ userNameOf(row.studentId) }}</td>
+              <td>{{ row.paperTitle || `试卷 #${row.examPaperId ?? '—'}` }}</td>
+              <td>{{ row.studentName || `用户 #${row.studentId ?? '—'}` }}</td>
               <td>{{ row.attemptNumber ?? '—' }}</td>
               <td>{{ formatDateTime(row.startTime) }}</td>
               <td>{{ formatSeconds(row.timeSpent) }}</td>
@@ -84,6 +84,8 @@
           <select v-model="filters.status" class="input filter-course" @change="reload">
             <option value="">全部状态</option>
             <option value="DRAFT">草稿</option>
+            <option value="PENDING_REVIEW">待审核</option>
+            <option value="REJECTED">已驳回</option>
             <option value="PUBLISHED">已发布</option>
             <option value="ARCHIVED">已归档</option>
           </select>
@@ -111,7 +113,7 @@
               <th class="w-80">题量</th>
               <th class="w-220">起止</th>
               <th class="w-96">状态</th>
-              <th class="w-140">操作</th>
+              <th class="w-140 th-actions">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -138,6 +140,10 @@
                 <div class="row-actions">
                   <button class="text-btn" @click="openQuestions(row)">题目</button>
                   <button class="text-btn" @click="openStats(row)">统计</button>
+                  <template v-if="isPendingReview(row)">
+                    <button class="text-btn" @click="askApprove(row)">通过</button>
+                    <button class="text-btn danger" @click="askReject(row)">驳回</button>
+                  </template>
                 </div>
               </td>
             </tr>
@@ -161,8 +167,8 @@
         </div>
       </footer>
       <p class="hint">
-        筛选在本页全量数据上进行：GET /exam-papers 只接受 page/size/courseId，
-        状态与关键词参数被服务端忽略。试卷审核（通过/拒绝）后端无端点，本页不提供。
+        筛选在本页已加载的全量数据上进行；待审核试卷可在此直接通过或驳回，
+        通过后学生才可见，驳回会通知试卷创建人。
       </p>
     </section>
 
@@ -206,6 +212,39 @@
       <div v-else class="modal-hint">{{ stats.error || '统计数据不可用。' }}</div>
       <template #footer>
         <button class="btn btn-ghost" @click="stats.open = false">关闭</button>
+      </template>
+    </Modal>
+
+    <!-- 试卷审核 -->
+    <Modal
+      v-model:open="review.open"
+      :title="review.action === 'approve' ? '审核通过' : '审核驳回'"
+      kicker="PAPER / REVIEW"
+      width="480px"
+      :close-on-backdrop="false"
+    >
+      <p class="modal-text">{{ review.message }}</p>
+      <label v-if="review.action === 'reject'" class="form-field">
+        <span>驳回原因</span>
+        <textarea
+          v-model="review.reason"
+          class="input"
+          rows="3"
+          maxlength="200"
+          placeholder="必填；原因会通知试卷创建人，但不落库"
+        ></textarea>
+      </label>
+      <p v-if="review.error" class="form-error" role="alert">{{ review.error }}</p>
+      <template #footer>
+        <button class="btn btn-ghost" @click="review.open = false">取消</button>
+        <button
+          class="btn"
+          :class="review.action === 'approve' ? 'btn-primary' : 'btn-danger'"
+          :disabled="review.busy"
+          @click="runReview"
+        >
+          {{ review.busy ? '处理中…' : review.action === 'approve' ? '确定通过' : '确定驳回' }}
+        </button>
       </template>
     </Modal>
 
@@ -278,7 +317,12 @@ interface PaperRow {
 interface SessionRow {
   id: number
   examPaperId?: number
+  paperTitle?: string
+  courseId?: number
+  courseName?: string
   studentId?: number
+  studentName?: string
+  participantCount?: number
   attemptNumber?: number
   startTime?: string
   timeSpent?: number
@@ -355,6 +399,16 @@ const confirm = reactive({
   session: null as SessionRow | null,
 })
 
+const review = reactive({
+  open: false,
+  action: 'approve' as 'approve' | 'reject',
+  busy: false,
+  error: '',
+  message: '',
+  reason: '',
+  row: null as PaperRow | null,
+})
+
 const filteredPapers = computed(() => {
   const keyword = filters.keyword.trim().toLowerCase()
   return papers.value.filter((row) => {
@@ -375,6 +429,10 @@ const pagedPapers = computed(() =>
 
 function countByStatus(status: string): number {
   return papers.value.filter((row) => String(row.status).toUpperCase() === status).length
+}
+
+function isPendingReview(row: PaperRow): boolean {
+  return String(row.status ?? '').toUpperCase() === 'PENDING_REVIEW'
 }
 
 const metrics = computed<Metric[]>(() => [
@@ -399,6 +457,14 @@ const metrics = computed<Metric[]>(() => [
     unit: '份',
     note: '全量统计',
     icon: 'file',
+    tone: 'warn',
+  },
+  {
+    label: '待审核',
+    value: countByStatus('PENDING_REVIEW'),
+    unit: '份',
+    note: '全量统计',
+    icon: 'clock',
     tone: 'warn',
   },
   {
@@ -440,9 +506,12 @@ function formatSeconds(value: unknown): string {
   return seconds < 60 ? `${seconds} 秒` : `${Math.round(seconds / 60)} 分`
 }
 
-function paperTitleOf(paperId: unknown): string {
-  const paper = papers.value.find((row) => Number(row.id) === Number(paperId))
-  return paper?.title || (paperId ? `试卷 #${paperId}` : '—')
+function sessionPaperTitle(session: SessionRow): string {
+  return session.paperTitle || (session.examPaperId ? `试卷 #${session.examPaperId}` : '—')
+}
+
+function sessionStudentName(session: SessionRow): string {
+  return session.studentName || (session.studentId ? `用户 #${session.studentId}` : '—')
 }
 
 function userNameOf(id: unknown): string {
@@ -558,8 +627,54 @@ async function openStats(row: PaperRow) {
   }
 }
 
+function askApprove(row: PaperRow) {
+  review.action = 'approve'
+  review.row = row
+  review.reason = ''
+  review.error = ''
+  review.message = `通过后「${row.title || '未命名试卷'}」将立即对学生可见，并推送考试发布通知。`
+  review.open = true
+}
+
+function askReject(row: PaperRow) {
+  review.action = 'reject'
+  review.row = row
+  review.reason = ''
+  review.error = ''
+  review.message = `驳回「${row.title || '未命名试卷'}」后，教师可修改并重新提交审核。`
+  review.open = true
+}
+
+async function runReview() {
+  const row = review.row
+  if (!row) return
+  if (review.action === 'reject' && !review.reason.trim()) {
+    review.error = '请填写驳回原因'
+    return
+  }
+  review.busy = true
+  review.error = ''
+  try {
+    if (review.action === 'approve') {
+      await examApi.approveExam(row.id)
+      toast('已审核通过', 'ok')
+    } else {
+      await examApi.rejectExam(row.id, review.reason.trim())
+      toast('已驳回', 'ok')
+    }
+    review.open = false
+    review.row = null
+    await loadPapers()
+  } catch (error) {
+    logger.error('试卷审核失败', error)
+    review.error = errMsg(error, '审核失败，请稍后重试')
+  } finally {
+    review.busy = false
+  }
+}
+
 async function openCheating(session: SessionRow) {
-  cheating.label = `${paperTitleOf(session.examPaperId)} · ${userNameOf(session.studentId)}`
+  cheating.label = `${sessionPaperTitle(session)} · ${sessionStudentName(session)}`
   cheating.rows = []
   cheating.error = ''
   cheating.open = true
@@ -578,8 +693,8 @@ async function openCheating(session: SessionRow) {
 
 function askForceSubmit(session: SessionRow) {
   confirm.session = session
-  confirm.message = `将对「${paperTitleOf(session.examPaperId)}」的 ${userNameOf(
-    session.studentId,
+  confirm.message = `将对「${sessionPaperTitle(session)}」的 ${sessionStudentName(
+    session,
   )} 立即收卷，按其当前作答提交。`
   confirm.open = true
 }

@@ -201,7 +201,10 @@ jobs:
             > 由 GitHub Actions 自动生成（tag: ${{ github.ref_name }}）
 
             ### 安装与部署
-            - Docker Compose：`docker compose up -d --build`（镜像：`ghcr.io/${{ github.repository }}`）
+            - 本地构建：`docker compose up -d --build`（镜像名为 `aicourse/backend:local` / `aicourse/frontend:local`）
+            - 拉取本 Release 的 GHCR 镜像：先设 `GHCR_REPO=ghcr.io/${{ github.repository }}`、`IMAGE_TAG=${{ github.ref_name }}`，
+              再执行 `docker compose -f docker-compose.yml -f deploy/docker-compose.ghcr.yml pull` 与
+              `docker compose -f docker-compose.yml -f deploy/docker-compose.ghcr.yml up -d --no-build`
             - 完整运维说明见 `docs/部署文档.md`
 
             ### 变更内容

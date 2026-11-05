@@ -59,6 +59,14 @@ ENGINE_EXPORTS = {
         # DR-84：网关端点必须一起导出，否则 .env 里配了 base-url 也到不了引擎进程（DR-63 同型）
         "DEEPSEEK_BASE_URL",
         "DEEPSEEK_MODEL",
+        # 生成后端开关与本地 Ollama（与 Java 侧同名同义；OLLAMA_THINK 留空=模型模板决定）
+        "AI_PROVIDER",
+        "OLLAMA_BASE_URL",
+        "OLLAMA_MODEL",
+        "OLLAMA_THINK",
+        # R3：RAG 问答主路径的图谱增强（图在 8001；不可达时静默退化为纯检索）
+        "KG_BASE_URL",
+        "RAG_GRAPH_ENABLED",
         "RAG_EMBED_MODEL",
         "RAG_DATA_DIR",
         "RAG_CHUNK_SIZE",
@@ -405,7 +413,11 @@ def main(argv=None) -> int:
             f"{DEFAULT_NEO4J_HOMES[0]}）。KG 会回落内存图，重启即丢。"
             " 请把 NEO4J_HOME=<安装目录> 写进 .env；本机没有图库请回项目主，不要拉容器（§17）。"
         )
-    if api_key is None:
+    provider = env.get("AI_PROVIDER") or os.getenv("AI_PROVIDER", "deepseek")
+    if provider.strip().lower() in ("ollama", "local"):
+        print(f"[INFO] 生成后端为本地 Ollama（{env.get('OLLAMA_MODEL') or 'deepseek-r1:8b'}），"
+              "无需 DEEPSEEK_API_KEY；Ollama 不可用时 RAG 仍按抽取式降级。")
+    elif api_key is None:
         print("[WARN] DEEPSEEK_API_KEY 未配置或形如占位串 -> RAG 恒为抽取式回答（§40），不阻塞启动。")
     if offline:
         print("[OK]   嵌入模型已在本机缓存 -> 导出 HF_HUB_OFFLINE=1（缺这一步会让检索挂死，§18.5）")

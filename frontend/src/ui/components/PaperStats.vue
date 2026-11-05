@@ -11,6 +11,15 @@
         <span>状态</span>
         <b>{{ examPaperStatusView(String(paperInfo?.status ?? '')).label }}</b>
       </div>
+      <div class="stats-item">
+        <span>已阅卷</span><b>{{ display(stats?.submittedCount) }}</b>
+      </div>
+      <div class="stats-item">
+        <span>平均分</span><b>{{ display(stats?.averageScore) }}</b>
+      </div>
+      <div class="stats-item">
+        <span>及格率</span><b>{{ passRateText }}</b>
+      </div>
     </div>
 
     <p class="section-kicker">TYPE / 题型分布</p>
@@ -34,7 +43,8 @@
     <p v-else class="modal-hint">暂无分值分布。</p>
 
     <p class="modal-hint">
-      口径 GET /exam-papers/{id}/statistics：只有卷面构成，作答分数与及格率后端未提供。
+      口径 GET /exam-papers/{id}/statistics：成绩聚合只统计已阅卷会话，按百分制； 及格线固定
+      60，无样本时均分与及格率显示「—」。
     </p>
   </div>
 </template>
@@ -68,6 +78,11 @@ function distributionRows(
 
 const typeRows = computed(() => distributionRows(props.stats?.typeDistribution, questionTypeLabel))
 const scoreRows = computed(() => distributionRows(props.stats?.scoreDistribution))
+
+const passRateText = computed(() => {
+  const value = props.stats?.passRate
+  return value === null || value === undefined || value === '' ? '—' : `${value}%`
+})
 </script>
 
 <style scoped>

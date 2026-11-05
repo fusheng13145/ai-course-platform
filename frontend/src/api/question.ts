@@ -57,6 +57,9 @@ export const getByKnowledgePoint = (kpId: number | string): Promise<ApiEnvelope<
 /** 获取题目统计数据 */
 export const getQuestionStats = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
   request.get(`/questions/${id}/stats`) as Promise<ApiEnvelope<ApiData>>
+/** 获取题库总览统计（总题数 + 今日新增） */
+export const getBankStatistics = (): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/questions/statistics') as Promise<ApiEnvelope<ApiData>>
 /** 获取易错题目 */
 export const getErrorProne = (
   params: Record<string, unknown> = {},
@@ -94,6 +97,7 @@ export default {
   randomSelect,
   getByKnowledgePoint,
   getQuestionStats,
+  getBankStatistics,
   getErrorProne,
   exportQuestionsExcel,
   importQuestionsExcel,

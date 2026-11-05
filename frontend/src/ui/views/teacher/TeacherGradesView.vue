@@ -61,7 +61,7 @@
               <th class="w-96">考试均分</th>
               <th class="w-96">总评</th>
               <th class="w-96">等级</th>
-              <th class="w-96">操作</th>
+              <th class="w-96 th-actions">操作</th>
             </tr>
           </thead>
           <tbody>

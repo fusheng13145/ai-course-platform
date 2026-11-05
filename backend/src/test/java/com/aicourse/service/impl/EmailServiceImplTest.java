@@ -26,6 +26,8 @@ class EmailServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new EmailServiceImpl();
+        // 开发态默认：SMTP 未配置时仅把验证码打到日志、不抛异常（与 application.yaml 默认一致）
+        ReflectionTestUtils.setField(service, "devLogCode", true);
     }
 
     // ===================== 账号未配置：早退分支 =====================
@@ -43,6 +45,14 @@ class EmailServiceImplTest {
         assertDoesNotThrow(() -> service.sendVerificationCode("a@b.com", "1", "FORGOT_PASSWORD"));
         assertDoesNotThrow(() -> service.sendVerificationCode("a@b.com", "1", "OTHER"));
         assertDoesNotThrow(() -> service.sendVerificationCode("a@b.com", "1", null));
+    }
+
+    @Test
+    @DisplayName("sendVerificationCode: 生产姿态未配置账号 -> 抛 IllegalStateException 而非静默成功")
+    void sendVerificationCode_noConfig_prodFailClosed() {
+        ReflectionTestUtils.setField(service, "devLogCode", false);
+        assertThrows(IllegalStateException.class,
+                () -> service.sendVerificationCode("a@b.com", "123456", "REGISTER"));
     }
 
     @Test

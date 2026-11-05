@@ -83,9 +83,11 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .modal-panel {
+  display: flex;
+  flex-direction: column;
   width: min(var(--modal-w, 720px), 100%);
   max-height: 92vh;
-  overflow-y: auto;
+  overflow: hidden;
   background: var(--surface);
   border: 1px solid var(--line-strong);
   border-radius: var(--r-lg);
@@ -94,10 +96,11 @@ onBeforeUnmount(() => {
 }
 .modal-head {
   display: flex;
+  flex: none;
   justify-content: space-between;
   align-items: flex-start;
   gap: 14px;
-  padding: 16px 18px;
+  padding: 18px 20px;
   border-bottom: 1px solid var(--line);
 }
 .modal-head h2 {
@@ -107,13 +110,17 @@ onBeforeUnmount(() => {
   font-weight: 600;
 }
 .modal-body {
-  padding: 18px;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 20px;
 }
 .modal-foot {
   display: flex;
+  flex: none;
   justify-content: flex-end;
   gap: 8px;
-  padding: 14px 18px;
+  padding: 14px 20px;
   border-top: 1px solid var(--line);
   background: var(--surface-2);
 }

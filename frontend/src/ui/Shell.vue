@@ -24,6 +24,7 @@ import './styles/record.css'
 import './styles/shell-fix.css'
 import './styles/typography.css'
 import './styles/form.css'
+import './styles/consistency.css'
 import Sprite from './components/Sprite.vue'
 import Topbar from './components/Topbar.vue'
 import Sidebar from './components/Sidebar.vue'
@@ -32,9 +33,11 @@ import NotifDrawer from './components/NotifDrawer.vue'
 import Toasts from './components/Toasts.vue'
 import ConfirmHost from './components/ConfirmHost.vue'
 import { useUi } from './composables/ui'
+import { useAuthStore } from '@/stores/auth'
 
 const route = useRoute()
 const { theme, sidebarCollapsed, mobileNavOpen, paletteOpen, notifOpen, setCourseContext } = useUi()
+const auth = useAuthStore()
 
 const BODY_CLASSES = ['is-collapsed', 'nav-open', 'course-mode', 'overlay-open']
 
@@ -48,6 +51,7 @@ function syncChrome() {
   body.dataset.style = 'record'
   body.dataset.theme = theme.value
   body.dataset.context = courseMode ? 'course' : 'global'
+  body.dataset.role = String(auth.effectiveRole || auth.userRole || '').toLowerCase()
   body.classList.toggle('is-collapsed', sidebarCollapsed.value)
   body.classList.toggle('nav-open', mobileNavOpen.value)
   body.classList.toggle('course-mode', courseMode)

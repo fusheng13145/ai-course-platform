@@ -73,10 +73,12 @@ public class ExamPaperController {
     }
 
     /**
-     * 分页查询试卷列表（支持课程筛选）
+     * 分页查询试卷列表（支持课程、状态、关键词筛选）
      * @param page 当前页码
      * @param size 每页条数
      * @param courseId 课程ID
+     * @param status 试卷状态（仅教师/管理员生效；学生恒为已发布）
+     * @param keyword 标题/描述关键词
      * @param auth 当前登录主体（用于按角色过滤可见范围）
      * @return 分页试卷数据
      */
@@ -86,10 +88,20 @@ public class ExamPaperController {
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size,
             @RequestParam(required = false) Long courseId,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) String keyword,
             Authentication auth) {
         LambdaQueryWrapper<ExamPaper> queryWrapper = new LambdaQueryWrapper<>();
         if (courseId != null) {
             queryWrapper.eq(ExamPaper::getCourseId, courseId);
+        }
+        if (status != null && !status.isBlank() && RoleUtil.isTeacherOrAdmin(auth)) {
+            queryWrapper.eq(ExamPaper::getStatus, status.trim().toUpperCase());
+        }
+        if (keyword != null && !keyword.isBlank()) {
+            String trimmed = keyword.trim();
+            queryWrapper.and(w -> w.like(ExamPaper::getTitle, trimmed)
+                    .or().like(ExamPaper::getDescription, trimmed));
         }
         // 修复（2026-09-21，P1-2）：学生仅可见已发布试卷。
         // 原实现无任何状态过滤，学生「我的考试」列表会列出教师尚未发布的草稿卷并渲染
@@ -312,13 +324,46 @@ public class ExamPaperController {
      */
     @PostMapping("/{id}/publish")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "发布试卷")
+    @Operation(summary = "发布试卷 / 提交审核",
+            description = "管理员直接发布（DRAFT/REJECTED/ARCHIVED → PUBLISHED）；教师提交审核（DRAFT/REJECTED → PENDING_REVIEW），学生仍不可见")
     public ApiResponse<ExamPaper> publish(@PathVariable Long id, Authentication auth) {
         // 归属校验：仅试卷所属课程的授课教师或管理员可发布（修复他师越权发布）
         examPaperAccessControl.assertCanManage(examPaperService.getById(id), auth);
-        examPaperService.publishExamPaper(id);
-        ExamPaper paper = examPaperService.getById(id);
-        return ApiResponse.success("发布成功", paper);
+        if (RoleUtil.isAdmin(auth)) {
+            examPaperService.publishExamPaper(id);
+            return ApiResponse.success("发布成功", examPaperService.getById(id));
+        }
+        examPaperService.submitExamPaperForReview(id);
+        return ApiResponse.success("已提交审核", examPaperService.getById(id));
+    }
+
+    /**
+     * 审核通过（管理员）：仅待审核态可操作。
+     * @param id 试卷ID
+     * @return 审核后的试卷
+     */
+    @PatchMapping("/{id}/approve")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "审核通过试卷", description = "PENDING_REVIEW → PUBLISHED，并推送选课学生通知")
+    public ApiResponse<ExamPaper> approve(@PathVariable Long id) {
+        examPaperService.approveExamPaper(id);
+        return ApiResponse.success("审核通过", examPaperService.getById(id));
+    }
+
+    /**
+     * 审核驳回（管理员）：仅待审核态可操作。
+     * @param id 试卷ID
+     * @param body 驳回原因（reason，可选）
+     * @return 驳回后的试卷
+     */
+    @PostMapping("/{id}/reject")
+    @PreAuthorize("hasRole('ADMIN')")
+    @Operation(summary = "审核驳回试卷", description = "PENDING_REVIEW → REJECTED，并向创建人发送驳回通知；原因仅进通知与日志，不落库")
+    public ApiResponse<ExamPaper> reject(@PathVariable Long id,
+                                         @RequestBody(required = false) Map<String, String> body) {
+        String reason = body == null ? null : body.get("reason");
+        examPaperService.rejectExamPaper(id, reason);
+        return ApiResponse.success("已驳回", examPaperService.getById(id));
     }
 
     /**

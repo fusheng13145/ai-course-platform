@@ -56,12 +56,23 @@ public interface TeacherCourseService {
 
     /**
      * 增强版教师仪表盘（超星「学情统计」超越版）
-     * 在基础统计之上补充：课程下钻卡片、跨课程预警学生、任务点完成概览、AI 教学总览、平台均值对比
+     * 在基础统计之上补充：课程下钻卡片、跨课程预警学生、任务点完成概览、平台均值对比；
+     * AI 教学总览已拆到 {@link #getTeacherAIOverview(Long)} 独立端点。
      *
      * @param teacherId 教师ID
      * @return 增强仪表盘数据
      */
     Map<String, Object> getTeacherDashboard(Long teacherId);
+
+    /**
+     * 教师首页 AI 教学总览（B-13 ⑯：从首页同步聚合中摘出的独立入口）。
+     * <p>统计口径与 {@link #getTeacherDashboard} 完全一致，只额外做一次模型调用；
+     * 前端应在页面主体渲染后再请求，不要把它当首屏依赖。</p>
+     *
+     * @param teacherId 教师ID
+     * @return AI 总览；模型未配置或失败时返回兜底文案
+     */
+    Map<String, Object> getTeacherAIOverview(Long teacherId);
 
     /**
      * 完整章节树（超星「章节任务点」对齐版）：返回带父子嵌套、内容、发布状态的章节树

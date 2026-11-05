@@ -17,26 +17,32 @@ body[data-app='ui'] .page-head h1,
 body[data-app='ui'] .module-head h1,
 body[data-app='ui'] .course-title-line h1 {
   font-family: 'Noto Serif SC', Georgia, 'Songti SC', serif;
-  font-size: clamp(26px, 2.3vw, 32px);
+  font-size: clamp(28px, 2.6vw, 34px);
   font-weight: 600;
   letter-spacing: -0.01em;
   line-height: 1.25;
 }
 
+/* v2 签名规则：衬线只在大字号出场；卡片小标题回 sans 600（14px 衬线发虚） */
 body[data-app='ui'] .card-head h2 {
-  font-family: 'Noto Serif SC', Georgia, 'Songti SC', serif;
-  font-size: 14px;
+  font-family: var(--font-body);
+  font-size: 13.5px;
   font-weight: 600;
   letter-spacing: 0;
 }
 
 body[data-app='ui'] .card-kicker,
 body[data-app='ui'] .page-kicker,
-body[data-app='ui'] .eyebrow,
-body[data-app='ui'] .nav-eyebrow,
-body[data-app='ui'] .nav-group-label {
+body[data-app='ui'] .eyebrow {
   font-size: 9.5px;
   letter-spacing: 0.12em;
+}
+
+/* v2：侧栏组标签/眉标回 sans（mono 禁排中文），10px 半粗 */
+body[data-app='ui'] .nav-eyebrow,
+body[data-app='ui'] .nav-group-label {
+  font-size: 10px;
+  letter-spacing: 0.06em;
 }
 
 body[data-app='ui'] .page-sub {
@@ -53,11 +59,13 @@ body[data-app='ui'] .stat-label {
   font-size: 11px;
 }
 
+/* v2 签名：KPI 大数字改衬线（学术刊物质感），等宽数字对齐 */
 body[data-app='ui'] .stat-value {
-  font-family: var(--font-display);
-  font-size: 27px;
-  font-weight: 650;
-  letter-spacing: -0.03em;
+  font-family: 'Noto Serif SC', Georgia, 'Songti SC', serif;
+  font-size: 28px;
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
 }
 
 body[data-app='ui'] .stat-note {

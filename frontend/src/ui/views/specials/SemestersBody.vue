@@ -37,7 +37,7 @@
               <th class="w-140">结束日期</th>
               <th class="w-96">状态</th>
               <th class="w-220">归档时间</th>
-              <th class="w-96">操作</th>
+              <th class="w-96 th-actions">操作</th>
             </tr>
           </thead>
           <tbody>

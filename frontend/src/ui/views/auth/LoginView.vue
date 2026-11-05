@@ -45,6 +45,7 @@
       </form>
 
       <p class="av-switch">还没有账号？<router-link to="/register">立即注册</router-link></p>
+
       <p class="av-note">登录凭据由后端校验；会话令牌保存在 HttpOnly Cookie 中，前端不落盘。</p>
     </template>
   </AuthShell>

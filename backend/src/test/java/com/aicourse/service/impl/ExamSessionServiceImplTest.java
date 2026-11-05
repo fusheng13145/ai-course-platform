@@ -10,15 +10,18 @@ import com.aicourse.entity.ExamSession;
 import com.aicourse.entity.Question;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ExamSessionMapper;
+import com.aicourse.service.CourseService;
 import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.QuestionService;
+import com.aicourse.service.UserService;
 import com.aicourse.service.WrongQuestionService;
 import com.aicourse.service.component.exam.ExamSessionCheatingComponent;
 import com.aicourse.service.component.exam.ExamSessionLifecycleComponent;
 import com.aicourse.service.component.exam.ExamSessionQueryComponent;
 import com.aicourse.service.impl.exam.ExamSessionGradingService;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.aicourse.vo.ActiveExamSessionVO;
 import com.aicourse.vo.AutoGradeResultVO;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
@@ -72,7 +75,8 @@ class ExamSessionServiceImplTest {
         ExamSessionCheatingComponent cheatingComponent =
                 new ExamSessionCheatingComponent(examPaperService, null, objectMapper);
         ExamSessionQueryComponent queryComponent =
-                new ExamSessionQueryComponent(examPaperService, examQuestionService, null, objectMapper);
+                new ExamSessionQueryComponent(examPaperService, examQuestionService, null, objectMapper,
+                        mock(CourseService.class), mock(UserService.class));
         examSessionService = new ExamSessionServiceImpl(lifecycleComponent, cheatingComponent,
                 queryComponent, gradingService);
         ReflectionTestUtils.setField(examSessionService, "baseMapper", examSessionMapper);
@@ -489,10 +493,11 @@ class ExamSessionServiceImplTest {
         s2.setStatus("STARTED");
         when(examSessionMapper.selectList(any())).thenReturn(java.util.Arrays.asList(startedSession, s2));
 
-        List<ExamSession> active = examSessionService.getActiveExams();
+        List<ActiveExamSessionVO> active = examSessionService.getActiveExams();
 
         assertEquals(2, active.size());
         assertTrue(active.stream().allMatch(s -> "STARTED".equals(s.getStatus())));
+        assertTrue(active.stream().allMatch(s -> s.getParticipantCount() != null));
         verify(examSessionMapper).selectList(any());
     }
 

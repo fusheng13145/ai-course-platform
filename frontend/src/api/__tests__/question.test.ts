@@ -48,6 +48,7 @@ const CONTRACT: Array<
   ['randomSelect', 'get', '/questions/random', [{ count: 5 }], [{ params: { count: 5 } }]],
   ['getByKnowledgePoint', 'get', '/questions/kp/11', [11], []],
   ['getQuestionStats', 'get', '/questions/6/stats', [6], []],
+  ['getBankStatistics', 'get', '/questions/statistics', [], []],
   [
     'getErrorProne',
     'get',

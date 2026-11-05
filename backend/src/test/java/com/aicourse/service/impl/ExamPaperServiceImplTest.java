@@ -3,9 +3,11 @@ package com.aicourse.service.impl;
 import com.aicourse.dto.AutoComposeDTO;
 import com.aicourse.entity.ExamPaper;
 import com.aicourse.entity.ExamQuestion;
+import com.aicourse.entity.ExamSession;
 import com.aicourse.entity.Question;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ExamPaperMapper;
+import com.aicourse.mapper.ExamSessionMapper;
 import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.NotificationService;
 import com.aicourse.service.QuestionService;
@@ -35,6 +37,7 @@ import static org.mockito.ArgumentMatchers.anyCollection;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.*;
 
 /**
@@ -52,6 +55,7 @@ class ExamPaperServiceImplTest {
     @Mock private QuestionService questionService;
     @Mock private NotificationService notificationService;
     @Mock private ExamPaperMapper examPaperMapper;
+    @Mock private ExamSessionMapper examSessionMapper;
 
     private ExamPaperServiceImpl service;
 
@@ -62,8 +66,9 @@ class ExamPaperServiceImplTest {
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), ExamPaper.class);
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), ExamQuestion.class);
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), Question.class);
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), ExamSession.class);
 
-        service = new ExamPaperServiceImpl(examQuestionService, questionService, notificationService);
+        service = new ExamPaperServiceImpl(examQuestionService, questionService, notificationService, examSessionMapper);
         ReflectionTestUtils.setField(service, "baseMapper", examPaperMapper);
 
         paper = new ExamPaper();
@@ -151,6 +156,67 @@ class ExamPaperServiceImplTest {
         assertThrows(BusinessException.class, () -> service.publishExamPaper(1L));
     }
 
+    @Test
+    @DisplayName("publishExamPaper 待审核态不得绕过审核")
+    void publish_pendingReview_rejected() {
+        paper.setStatus("PENDING_REVIEW");
+        assertThrows(BusinessException.class, () -> service.publishExamPaper(1L));
+        verify(notificationService, never()).onEvent(anyString(), any());
+    }
+
+    // ===================== 审核流 =====================
+
+    @Test
+    @DisplayName("submitExamPaperForReview 草稿进入待审核且不通知学生")
+    void submitReview_ok() {
+        paper.setStatus("DRAFT");
+        service.submitExamPaperForReview(1L);
+        verify(examPaperMapper).updateById(any(ExamPaper.class));
+        verify(notificationService, never()).onEvent(anyString(), any());
+    }
+
+    @Test
+    @DisplayName("submitExamPaperForReview 已发布/已待审均拒绝")
+    void submitReview_conflicts() {
+        paper.setStatus("PUBLISHED");
+        assertThrows(BusinessException.class, () -> service.submitExamPaperForReview(1L));
+        paper.setStatus("PENDING_REVIEW");
+        assertThrows(BusinessException.class, () -> service.submitExamPaperForReview(1L));
+    }
+
+    @Test
+    @DisplayName("approveExamPaper 待审核通过并推送发布通知")
+    void approve_ok() {
+        paper.setStatus("PENDING_REVIEW");
+        service.approveExamPaper(1L);
+        verify(notificationService).onEvent(eq("EXAM_PUBLISHED"), any());
+    }
+
+    @Test
+    @DisplayName("approveExamPaper 非待审核态拒绝")
+    void approve_wrongStatus() {
+        paper.setStatus("DRAFT");
+        assertThrows(BusinessException.class, () -> service.approveExamPaper(1L));
+    }
+
+    @Test
+    @DisplayName("rejectExamPaper 待审核驳回并通知创建人")
+    void reject_ok() {
+        paper.setStatus("PENDING_REVIEW");
+        service.rejectExamPaper(1L, "题干超纲");
+        verify(examPaperMapper).updateById(any(ExamPaper.class));
+        verify(notificationService).sendNotification(eq(99L), eq("试卷审核未通过"), anyString(),
+                eq("EXAM"), eq("EXAM_REJECTED"), eq("MEDIUM"), eq("/teacher/exams"), isNull(),
+                eq(1L), eq("exam_paper"));
+    }
+
+    @Test
+    @DisplayName("rejectExamPaper 非待审核态拒绝")
+    void reject_wrongStatus() {
+        paper.setStatus("PUBLISHED");
+        assertThrows(BusinessException.class, () -> service.rejectExamPaper(1L, "x"));
+    }
+
     // ===================== copyExamPaper =====================
 
     @Test
@@ -230,6 +296,43 @@ class ExamPaperServiceImplTest {
         assertEquals(1, r.getQuestionCount());
         Map<String, Integer> td = r.getTypeDistribution();
         assertTrue(td.isEmpty());
+    }
+
+    @Test
+    @DisplayName("getPaperStatistics 成绩聚合：均分与及格率按百分制，1 位小数")
+    void stats_scoreAggregates() {
+        ExamQuestion eq = new ExamQuestion(); eq.setQuestionId(1L); eq.setPoints(new BigDecimal("5"));
+        when(examQuestionService.list(any(Wrapper.class))).thenReturn(List.of(eq));
+        when(questionService.listByIds(anyCollection())).thenReturn(List.of(q(1L, "SINGLE", new BigDecimal("5"), null)));
+        when(examSessionMapper.selectList(any(Wrapper.class))).thenReturn(List.of(
+                session(new BigDecimal("80")), session(new BigDecimal("70")), session(new BigDecimal("50"))));
+
+        ExamPaperStatsVO r = service.getPaperStatistics(1L);
+        assertEquals(3, r.getSubmittedCount());
+        assertEquals(new BigDecimal("66.7"), r.getAverageScore());
+        assertEquals(new BigDecimal("66.7"), r.getPassRate());
+        assertEquals(60, r.getPassLine());
+    }
+
+    @Test
+    @DisplayName("getPaperStatistics 无已阅卷样本时均分/及格率为 null，不伪造 0")
+    void stats_noSamples() {
+        ExamQuestion eq = new ExamQuestion(); eq.setQuestionId(1L); eq.setPoints(new BigDecimal("5"));
+        when(examQuestionService.list(any(Wrapper.class))).thenReturn(List.of(eq));
+        when(questionService.listByIds(anyCollection())).thenReturn(List.of(q(1L, "SINGLE", new BigDecimal("5"), null)));
+        when(examSessionMapper.selectList(any(Wrapper.class))).thenReturn(List.of());
+
+        ExamPaperStatsVO r = service.getPaperStatistics(1L);
+        assertEquals(0, r.getSubmittedCount());
+        assertNull(r.getAverageScore());
+        assertNull(r.getPassRate());
+        assertEquals(60, r.getPassLine());
+    }
+
+    private ExamSession session(BigDecimal percentage) {
+        ExamSession s = new ExamSession();
+        s.setPercentage(percentage);
+        return s;
     }
 
     // ===================== autoComposeExamPaper =====================

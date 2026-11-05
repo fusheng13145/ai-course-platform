@@ -27,29 +27,15 @@
           <p class="eyebrow">YUNSHU / KNOWLEDGE GRAPH + LLM / 2026</p>
           <h1>让每一次提问，<br /><em>都有据可依的答案。</em></h1>
           <p class="lede">
-            课程知识图谱与大语言模型双引擎，把答疑、出题、批改与学情诊断连成一条线。AI
-            只给建议，教师保留最终确认权。
+            知识图谱与 LLM 双引擎，答疑、出题、批改、学情一条线；AI 只给建议，教师保留最终确认权。
           </p>
-          <div class="av-record" aria-hidden="true">
-            <div class="av-record-head">
-              <span>AI 助教 / 计算机网络 · 第 5 章</span>
-              <span class="chip chip-warn">演示对话</span>
-            </div>
-            <div class="av-record-row"><span>学生提问 · 慢启动阈值怎么变？</span><b>Q1</b></div>
-            <div class="av-record-row"><span>图谱依据 · 拥塞控制 / 快重传</span><b>KG</b></div>
-            <div class="av-record-row"><span>学习建议 · 补 5.3 节 + 3 道同类题</span><b>AI</b></div>
-            <div class="av-record-bar"><i style="width: 68%"></i></div>
-            <div class="av-record-foot">
-              <span>回答附检索依据</span>
-              <span>AI 建议 · 教师可审核</span>
-            </div>
-          </div>
-          <ul class="av-points">
-            <li>课程知识图谱</li>
-            <li>智能答疑</li>
-            <li>AI 预批建议</li>
-            <li>学情诊断</li>
+          <ul class="av-feat" aria-hidden="true">
+            <li><Icon name="graph" /><b>课程知识图谱</b><small>答疑与出题有据可依</small></li>
+            <li><Icon name="message" /><b>智能答疑</b><small>回答附引用来源</small></li>
+            <li><Icon name="check" /><b>AI 预批建议</b><small>教师保留最终确认权</small></li>
+            <li><Icon name="chart" /><b>学情诊断</b><small>逐周跟踪与预警</small></li>
           </ul>
+          <p class="av-motto" aria-hidden="true">AI SUGGESTS / TEACHER DECIDES</p>
         </aside>
         <section class="av-panel">
           <slot name="form" />

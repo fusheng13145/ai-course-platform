@@ -81,7 +81,7 @@
                 <th class="w-96">难度</th>
                 <th class="w-80">重要度</th>
                 <th class="w-220">描述</th>
-                <th class="w-220">操作</th>
+                <th class="w-220 th-actions">操作</th>
               </tr>
             </thead>
             <tbody>

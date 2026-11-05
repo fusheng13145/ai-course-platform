@@ -123,4 +123,12 @@ public class DiscussionController {
         discussionService.deletePost(postId, (Long) auth.getPrincipal(), roleOf(auth));
         return ApiResponse.success("已删除");
     }
+
+    /** 删除整个话题，仅作者或管理员可操作，级联清理回复与点赞 */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
+    public ApiResponse<Void> deleteTopic(@PathVariable Long id, Authentication auth) {
+        discussionService.deleteTopic(id, (Long) auth.getPrincipal(), roleOf(auth));
+        return ApiResponse.success("已删除");
+    }
 }

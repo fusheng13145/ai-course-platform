@@ -78,7 +78,7 @@
               <th class="w-96">难度</th>
               <th class="w-220">所属课程</th>
               <th class="w-96">审核</th>
-              <th class="w-220">操作</th>
+              <th class="w-220 th-actions">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -351,6 +351,7 @@ const { toast, toasts, dismissToast } = useUi()
 const courses = ref<CourseOption[]>([])
 const rows = ref<QuestionRow[]>([])
 const total = ref(0)
+const todayCount = ref<number | null>(null)
 const page = ref(1)
 const size = 10
 const loading = ref(false)
@@ -421,7 +422,13 @@ const confirmText = computed(() => `确定删除题目「${rowText(confirm.row a
 
 const metrics = computed<Metric[]>(() => [
   { label: '总题目数', value: total.value, unit: '道', note: '服务端总数', icon: 'book' },
-  { label: '今日新增', value: '—', unit: '道', note: '后端未提供该读数', icon: 'plus' },
+  {
+    label: '今日新增',
+    value: display(todayCount.value),
+    unit: '道',
+    note: todayCount.value === null ? '读数不可用' : '按创建时间当日',
+    icon: 'plus',
+  },
   {
     label: '待审核',
     value: display(pendingCount.value),
@@ -706,6 +713,17 @@ async function openStats(row: QuestionRow) {
   }
 }
 
+async function loadBankStatistics() {
+  try {
+    const body = unwrap(await questionApi.getBankStatistics()) as { todayCount?: unknown }
+    const value = Number(body?.todayCount)
+    todayCount.value = Number.isFinite(value) ? value : null
+  } catch (error) {
+    logger.error('加载题库总览统计失败', error)
+    todayCount.value = null
+  }
+}
+
 async function loadErrorProne() {
   errorLoading.value = true
   try {
@@ -750,6 +768,7 @@ async function runConfirm() {
 
 onMounted(async () => {
   await loadCourses()
+  await loadBankStatistics()
   await loadRows()
 })
 </script>

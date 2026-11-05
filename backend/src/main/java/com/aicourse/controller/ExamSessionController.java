@@ -9,6 +9,7 @@ import com.aicourse.dto.ExamSubmitDTO;
 import com.aicourse.entity.ExamSession;
 import com.aicourse.security.ExamSessionAccessControl;
 import com.aicourse.service.ExamSessionService;
+import com.aicourse.vo.ActiveExamSessionVO;
 import com.aicourse.vo.AutoGradeResultVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -189,7 +190,10 @@ public class ExamSessionController {
      */
     @GetMapping("/{id}/cheating-detect")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "检测作弊嫌疑", description = "基于行为数据检测可能的作弊行为，返回可疑点列表")
+    @Operation(summary = "检测作弊嫌疑",
+            description = "基于行为数据检测可能的作弊行为。data 定型为字符串数组（元素为中文可读描述，"
+                    + "如「检测到IP地址变化：x -> y」），不提供 type/description/riskLevel 对象结构；"
+                    + "无嫌疑时返回空数组")
     public ApiResponse<List<String>> detectCheating(@Parameter(description = "考试会话ID") @PathVariable Long id,
                                                     Authentication auth) {
         examSessionAccessControl.assertManageable(id, auth);
@@ -215,9 +219,11 @@ public class ExamSessionController {
      */
     @GetMapping("/active")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "获取进行中的考试列表", description = "返回所有正在进行中的考试会话，用于监控管理")
-    public ApiResponse<List<ExamSession>> activeExams() {
-        List<ExamSession> activeExams = examSessionService.getActiveExams();
+    @Operation(summary = "获取进行中的考试列表",
+            description = "返回所有正在进行中的考试会话（VO）：含 paperTitle、courseId、courseName、"
+                    + "studentName 与同卷进行中的 participantCount，监考页无需再按 id 回查试卷与用户名单")
+    public ApiResponse<List<ActiveExamSessionVO>> activeExams() {
+        List<ActiveExamSessionVO> activeExams = examSessionService.getActiveExams();
         return ApiResponse.success(activeExams);
     }
 

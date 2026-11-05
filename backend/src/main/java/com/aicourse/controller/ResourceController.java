@@ -12,6 +12,7 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.ResourceService;
+import com.aicourse.service.ResourceVersionService;
 import com.aicourse.vo.ChapterResourceTreeVO;
 import com.aicourse.vo.ResourceStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -86,13 +87,16 @@ public class ResourceController {
     private final ResourceService resourceService;
     private final CourseService courseService;
     private final CourseEnrollmentService courseEnrollmentService;
+    private final ResourceVersionService resourceVersionService;
 
     public ResourceController(ResourceService resourceService,
                               CourseService courseService,
-                              CourseEnrollmentService courseEnrollmentService) {
+                              CourseEnrollmentService courseEnrollmentService,
+                              ResourceVersionService resourceVersionService) {
         this.resourceService = resourceService;
         this.courseService = courseService;
         this.courseEnrollmentService = courseEnrollmentService;
+        this.resourceVersionService = resourceVersionService;
     }
 
     /**
@@ -310,6 +314,9 @@ public class ResourceController {
             resource.setDescription(description);
             resource.setVisibleToAll(true);
             resourceService.save(resource);
+            // B-13㉑：上传即落 resource_versions 首版，file_size 与上传人可供版本历史/回滚溯源。
+            resourceVersionService.createNewVersion(resource.getId(), safeFileName, contentType,
+                    resource.getUrl(), "初始上传", (Long) auth.getPrincipal(), file.getSize());
 
             return ApiResponse.success("文件上传成功", resource);
         } catch (IOException e) {

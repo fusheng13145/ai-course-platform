@@ -95,7 +95,7 @@
               <th class="w-96">难度</th>
               <th v-if="!isCourseScope" class="w-140">所属课程</th>
               <th class="w-96">审核</th>
-              <th class="w-220">操作</th>
+              <th class="w-220 th-actions">操作</th>
             </tr>
           </thead>
           <tbody>

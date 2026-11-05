@@ -34,7 +34,6 @@ import reactor.core.publisher.Flux;
 import lombok.extern.slf4j.Slf4j;
 import com.aicourse.common.ApiCode;
 import io.swagger.v3.oas.annotations.tags.Tag;
-import org.springframework.web.util.HtmlUtils;
 
 /**
  * AI 功能接口控制器（需求文档对齐版）
@@ -91,7 +90,9 @@ public class AIController {
      * 智能答疑 - RAG增强专业问题解答
      * POST /api/ai/qa/ask
      * <p>响应含 {@code sources}（检索命中的课程资料出处），供界面溯源展示；
-     * 降级为纯 LLM 直答时为空数组。出处文本与答案同口径做 HTML 转义后下发。</p>
+     * 降级为纯 LLM 直答时为空数组。</p>
+     * <p><b>文本契约（2026-11-05 定型）</b>：{@code answer} 与出处文本一律按模型原文下发，
+     * 服务端不再做 HTML 转义；前端只允许插值渲染，不得注入 DOM（{@code v-html}）。</p>
      */
     @PostMapping("/qa/ask")
     public Callable<ApiResponse<Map<String, Object>>> qaAsk(@Valid @RequestBody QaAskDTO body,
@@ -110,40 +111,18 @@ public class AIController {
             }
             final String sessionId = session.getSessionId();
             return AiCallContext.run(userId, cid, "QA_ASK", () -> {
-                // XSS防护：对用户输入进行HTML转义
-                String escapedQuestion = HtmlUtils.htmlEscape(question);
-                aiChatSessionService.appendMessage(sessionId, "user", escapedQuestion);
+                // 纯文本契约：用户输入与 AI 回答均按原文落库、原文下发，不做 HTML 转义
+                aiChatSessionService.appendMessage(sessionId, "user", question);
                 QaAnswerVO qa = aiService.ragAsk(question, cid);
                 String answer = qa != null && qa.getAnswer() != null ? qa.getAnswer() : "";
-                // XSS防护：对AI返回内容进行HTML转义
-                String escapedAnswer = HtmlUtils.htmlEscape(answer);
-                aiChatSessionService.appendMessage(sessionId, "assistant", escapedAnswer);
+                aiChatSessionService.appendMessage(sessionId, "assistant", answer);
                 Map<String, Object> resp = new LinkedHashMap<>();
-                resp.put("answer", escapedAnswer);
+                resp.put("answer", answer);
                 resp.put("sessionId", sessionId);
-                resp.put("sources", escapeSources(qa != null ? qa.getSources() : null));
+                resp.put("sources", qa != null && qa.getSources() != null ? qa.getSources() : List.of());
                 return ApiResponse.success(resp);
             });
         };
-    }
-
-    /**
-     * 出处片段的下发前处理：逐条复制并对 {@code documentName}/{@code snippet} 做 HTML 转义，
-     * 与 {@code answer} 同口径（转义只用于展示，不写回引擎侧存储）。
-     */
-    private List<QaSourceVO> escapeSources(List<QaSourceVO> sources) {
-        if (sources == null || sources.isEmpty()) {
-            return List.of();
-        }
-        List<QaSourceVO> escaped = new ArrayList<>(sources.size());
-        for (QaSourceVO s : sources) {
-            escaped.add(new QaSourceVO(
-                    s.getDocumentId(),
-                    HtmlUtils.htmlEscape(s.getDocumentName() != null ? s.getDocumentName() : ""),
-                    s.getRelevanceScore(),
-                    HtmlUtils.htmlEscape(s.getSnippet() != null ? s.getSnippet() : "")));
-        }
-        return escaped;
     }
 
     /**
@@ -166,20 +145,17 @@ public class AIController {
             final String sessionId = session.getSessionId();
             final Long sessionCourseId = session.getCourseId();
             return AiCallContext.run(userId, sessionCourseId, "QA_CONTINUE", () -> {
-                // XSS防护：对AI返回的历史消息和用户输入进行HTML转义
-                String escapedMessage = HtmlUtils.htmlEscape(message);
+                // 纯文本契约：历史消息、用户输入与 AI 回答均按原文传递，不做 HTML 转义
                 List<Map<String, String>> history = new ArrayList<>();
                 for (AiChatMessage m : aiChatSessionService.getMessages(sessionId)) {
-                    history.add(Map.of("role", m.getRole(), "content", HtmlUtils.htmlEscape(m.getContent() != null ? m.getContent() : "")));
+                    history.add(Map.of("role", m.getRole(), "content", m.getContent() != null ? m.getContent() : ""));
                 }
-                history.add(Map.of("role", "user", "content", escapedMessage));
-                aiChatSessionService.appendMessage(sessionId, "user", escapedMessage);
+                history.add(Map.of("role", "user", "content", message));
+                aiChatSessionService.appendMessage(sessionId, "user", message);
                 String answer = aiService.chat(history, userId);
-                // XSS防护：对AI返回内容进行HTML转义
-                String escapedAnswer = HtmlUtils.htmlEscape(answer != null ? answer : "");
-                aiChatSessionService.appendMessage(sessionId, "assistant", escapedAnswer);
+                aiChatSessionService.appendMessage(sessionId, "assistant", answer != null ? answer : "");
                 Map<String, Object> resp = new LinkedHashMap<>();
-                resp.put("answer", escapedAnswer);
+                resp.put("answer", answer != null ? answer : "");
                 resp.put("sessionId", sessionId);
                 return ApiResponse.success(resp);
             });
@@ -199,14 +175,14 @@ public class AIController {
                 for (AiChatSession s : aiChatSessionService.listSessions(userId)) {
                     Map<String, Object> m = new LinkedHashMap<>();
                     m.put("sessionId", s.getSessionId());
-                    m.put("title", HtmlUtils.htmlEscape(s.getTitle() != null ? s.getTitle() : ""));
+                    m.put("title", s.getTitle() != null ? s.getTitle() : "");
                     m.put("messageCount", s.getMessageCount());
                     m.put("createdAt", s.getCreatedAt() != null ? s.getCreatedAt().toString() : null);
                     m.put("updatedAt", s.getUpdatedAt() != null ? s.getUpdatedAt().toString() : null);
                     List<AiChatMessage> msgs = aiChatSessionService.getMessages(s.getSessionId());
                     String last = msgs.isEmpty() ? "" : msgs.get(msgs.size() - 1).getContent();
-                    String escapedLast = HtmlUtils.htmlEscape(last != null ? last : "");
-                    m.put("lastMessage", escapedLast.length() > 100 ? escapedLast.substring(0, 100) + "…" : escapedLast);
+                    String safeLast = last != null ? last : "";
+                    m.put("lastMessage", safeLast.length() > 100 ? safeLast.substring(0, 100) + "…" : safeLast);
                     sessions.add(m);
                 }
             }
@@ -239,8 +215,8 @@ public class AIController {
     public Flux<String> streamChat(@RequestParam @NotBlank(message = "提问内容不能为空") String question,
                                    @RequestParam(required = false) Long courseId) {
         QaStreamVO stream = aiService.streamChat(question, courseId);
-        // 出处与 /qa/ask 同口径转义后再随流下发，避免展示口径分叉
-        List<QaSourceVO> sources = escapeSources(stream.getSources());
+        // 出处与 /qa/ask 同口径：原文下发，不做 HTML 转义
+        List<QaSourceVO> sources = stream.getSources() != null ? stream.getSources() : List.of();
         return stream.getTokens()
                 .map(this::tokenFrame)
                 .concatWith(Flux.just(sourcesFrame(sources)));

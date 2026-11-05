@@ -122,9 +122,15 @@ export const getMyExamSessions = (
 /** 获取考试详情 */
 export const getExamDetail = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
   request.get(`/exam-papers/${id}/detail`) as Promise<ApiEnvelope<ApiData>>
-/** 发布考试 */
+/** 发布考试 / 提交审核（管理员=直接发布；教师=提交审核） */
 export const publishExam = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
   request.post(`/exam-papers/${id}/publish`) as Promise<ApiEnvelope<ApiData>>
+/** 审核通过试卷（管理员） */
+export const approveExam = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.patch(`/exam-papers/${id}/approve`) as Promise<ApiEnvelope<ApiData>>
+/** 审核驳回试卷（管理员，可带驳回原因） */
+export const rejectExam = (id: number | string, reason = ''): Promise<ApiEnvelope<ApiData>> =>
+  request.post(`/exam-papers/${id}/reject`, { reason }) as Promise<ApiEnvelope<ApiData>>
 /** 复制考试 */
 export const copyExam = (
   id: number | string,
@@ -187,6 +193,8 @@ export default {
   getMyExamSessions,
   getExamDetail,
   publishExam,
+  approveExam,
+  rejectExam,
   copyExam,
   getExamStatistics,
   autoSaveAnswers,

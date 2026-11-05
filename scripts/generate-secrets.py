@@ -224,6 +224,18 @@ def main() -> None:
                 missing.append(k)
         ENV.write_text(text, encoding="utf-8")
         print(f"已更新 {ENV} 中 {len(vals) - len(missing)}/{len(vals)} 个密钥。重启后端与相关服务以生效。\n")
+        # A 路径断链 #3／#4：Prometheus 不插值自己的配置文件，只读文件式凭据；
+        # 后端读 env。两侧必须同值、文件末尾不能有换行（DR-30）。--write 时一并落盘，
+        # 避免「两处凭据手工抄写不一致 → 指标恒 401」这类只在抓取时才暴露的错。
+        if "APP_ACTUATOR_BASIC_PASSWORD" not in missing:
+            secret = REPO / "deploy" / "secrets" / "actuator_basic_password"
+            secret.parent.mkdir(parents=True, exist_ok=True)
+            secret.write_text(vals["APP_ACTUATOR_BASIC_PASSWORD"], encoding="utf-8", newline="")
+            try:
+                secret.chmod(0o644)  # Linux（A 路径）要求 644；Windows 上为无害空操作子集
+            except OSError:
+                pass
+            print(f"已写入 {secret}（无尾换行，与 .env 的 APP_ACTUATOR_BASIC_PASSWORD 同值）。\n")
         if missing:
             print("!! 下列键在 .env 中不存在对应行，**未能写入**（请先在 .env 中补上键名行）：")
             for k in missing:

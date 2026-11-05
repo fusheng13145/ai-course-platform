@@ -28,7 +28,7 @@
               <th class="w-140">状态</th>
               <th class="w-220">截止时间</th>
               <th class="w-140">得分</th>
-              <th class="w-140">操作</th>
+              <th class="w-140 th-actions">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -196,7 +196,7 @@
               <th class="w-96">发布状态</th>
               <th class="w-220">截止日期</th>
               <th class="w-140">关联章节</th>
-              <th class="w-260">操作</th>
+              <th class="w-260 th-actions">操作</th>
             </tr>
           </thead>
           <tbody>

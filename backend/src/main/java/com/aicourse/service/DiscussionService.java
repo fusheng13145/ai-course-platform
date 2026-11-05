@@ -59,4 +59,9 @@ public interface DiscussionService extends IService<DiscussionTopic> {
      * 删除回复（作者本人或管理员），同步减少话题回复数
      */
     void deletePost(Long postId, Long userId, String role);
+
+    /**
+     * 删除话题（作者本人或管理员），级联清理该话题下全部回复与点赞
+     */
+    void deleteTopic(Long id, Long userId, String role);
 }

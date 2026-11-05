@@ -257,7 +257,41 @@ class TeacherCourseServiceImplTest {
         assertNotNull(d.get("atRiskStudents"));
         assertNotNull(d.get("taskPointOverview"));
         assertNotNull(d.get("platformComparison"));
-        assertNotNull(d.get("aiOverview"));
+        // ⑯：主聚合不再同步调 LLM，AI 总览改由独立端点补数
+        assertFalse(d.containsKey("aiOverview"));
+        verify(aiService, never()).generateLearningAdviceJson(any(), any());
+    }
+
+    @Test
+    @DisplayName("教师 AI 总览-独立端点复用统计聚合")
+    void teacherAiOverview_ok() {
+        stubCommon();
+        Map<String, Object> ai = service.getTeacherAIOverview(1L);
+        assertTrue(String.valueOf(ai.get("summary")).contains("OK"));
+    }
+
+    @Test
+    @DisplayName("教师 AI 总览-模型异常返回兜底文案")
+    void teacherAiOverview_fallbackOnError() {
+        stubCommon();
+        when(aiService.generateLearningAdviceJson(any(), any())).thenThrow(new RuntimeException("boom"));
+        Map<String, Object> ai = service.getTeacherAIOverview(1L);
+        assertNotNull(ai.get("summary"));
+    }
+
+    @Test
+    @DisplayName("教师 AI 总览-独立入口复用同一统计口径并返回模型结果（B-13 ⑯）")
+    void teacherAiOverview_reusesAggregationAndCallsModel() {
+        stubCommon();
+        when(aiService.generateLearningAdviceJson(any(), any()))
+                .thenReturn("{\"summary\":\"本周两门课进度正常\"}");
+
+        Map<String, Object> overview = service.getTeacherAIOverview(1L);
+
+        assertEquals("本周两门课进度正常", overview.get("summary"));
+        verify(aiService).generateLearningAdviceJson(any(), any());
+        // 聚合里的 deferred 标记不得混进 AI 总览的返回
+        assertEquals(null, overview.get("deferred"));
     }
 
     @Test

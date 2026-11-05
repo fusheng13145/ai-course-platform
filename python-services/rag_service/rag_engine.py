@@ -16,6 +16,10 @@ RAG 真实检索引擎（混合召回：BM25 + 向量，RRF 融合）
   RAG_CHUNK_OVERLAP   块重叠字符（默认 50）
   DEEPSEEK_API_KEY    生成模型密钥（缺省时 /ask 返回抽取式回答，不调外部 API）
   DEEPSEEK_MODEL      生成模型名（默认 deepseek-chat）
+  AI_PROVIDER         生成后端：deepseek（默认，等同旧行为）/ ollama（本地 Ollama）
+  OLLAMA_BASE_URL     Ollama 地址（默认 http://localhost:11434）
+  OLLAMA_MODEL        Ollama 模型名（默认 deepseek-r1:8b）
+  OLLAMA_THINK        留空=模型模板决定；true/false=显式开关；思考内容不进正式答案
 """
 from __future__ import annotations
 
@@ -613,25 +617,38 @@ def generate_answer(question: str, contexts: list[dict]) -> tuple[str, str]:
         for i, r in enumerate(contexts)
     ) or "（无检索资料）"
 
-    api_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
-    if api_key:
+    provider = llm_provider()
+    if provider == "ollama":
         try:
-            answer = _call_deepseek(api_key, question, joined)
+            answer = _call_ollama(question, joined)
             if answer:
                 return answer, "LLM"
-            # 200 但空内容同样是不成功的生成，留痕后走抽取式
-            logger.warning("LLM 返回空内容，降级为抽取式回答（model=%s）",
-                           os.getenv("DEEPSEEK_MODEL", "deepseek-chat"))
+            logger.warning("Ollama 未产出最终答案，降级为抽取式回答（model=%s）",
+                           os.getenv("OLLAMA_MODEL", "deepseek-r1:8b"))
         except Exception as exc:
-            # 必须留痕：401（密钥失效）/超时/配额用尽/DNS 失败的处置完全不同，
-            # 若一律 `pass`，「真实 LLM 从未成功」这类故障在日志里无从定位。
-            # 降级本身不阻断契约响应（抽取式兜底照常返回）。
-            logger.warning("LLM 调用失败，降级为抽取式回答：%s: %s",
+            # 与 DeepSeek 同一条降级语义：失败只留痕，不阻断契约响应。
+            logger.warning("Ollama 调用失败，降级为抽取式回答：%s: %s",
                            type(exc).__name__, exc)
     else:
-        # 未配密钥是预期内的部署形态（Java 侧 RAG_ENABLED=false 亦回退纯 LLM），
-        # 记 info 而非 warning，避免与真实故障混成一类。
-        logger.info("未配置 DEEPSEEK_API_KEY，直接使用抽取式回答")
+        api_key = os.getenv("DEEPSEEK_API_KEY", "").strip()
+        if api_key:
+            try:
+                answer = _call_deepseek(api_key, question, joined)
+                if answer:
+                    return answer, "LLM"
+                # 200 但空内容同样是不成功的生成，留痕后走抽取式
+                logger.warning("LLM 返回空内容，降级为抽取式回答（model=%s）",
+                               os.getenv("DEEPSEEK_MODEL", "deepseek-chat"))
+            except Exception as exc:
+                # 必须留痕：401（密钥失效）/超时/配额用尽/DNS 失败的处置完全不同，
+                # 若一律 `pass`，「真实 LLM 从未成功」这类故障在日志里无从定位。
+                # 降级本身不阻断契约响应（抽取式兜底照常返回）。
+                logger.warning("LLM 调用失败，降级为抽取式回答：%s: %s",
+                               type(exc).__name__, exc)
+        else:
+            # 未配密钥是预期内的部署形态（Java 侧 RAG_ENABLED=false 亦回退纯 LLM），
+            # 记 info 而非 warning，避免与真实故障混成一类。
+            logger.info("未配置 DEEPSEEK_API_KEY，直接使用抽取式回答")
 
     # 抽取式兜底：取最相关块的首句拼接
     picks = [r["snippet"].strip() for r in contexts[:3] if r.get("snippet", "").strip()]
@@ -677,3 +694,193 @@ def _call_deepseek(api_key: str, question: str, contexts: str) -> Optional[str]:
     resp.raise_for_status()
     data = resp.json()
     return data["choices"][0]["message"]["content"].strip() or None
+
+
+# ---------------------------------------------------------------- Ollama 生成
+
+def llm_provider() -> str:
+    """生成后端开关：`AI_PROVIDER` 缺省为 deepseek（与旧行为逐字一致）。
+
+    取值与 Java 侧 `RoutingLLMProvider` 同一口径：ollama／local 都走本地 Ollama，
+    其余（含未配置、拼错）一律回落 DeepSeek，避免因一个拼写错误让引擎静默停摆。
+    """
+    provider = os.getenv("AI_PROVIDER", "deepseek").strip().lower()
+    return "ollama" if provider in ("ollama", "local") else "deepseek"
+
+
+def ollama_chat_url() -> str:
+    """Ollama 原生聊天端点（非 OpenAI 兼容路径）。"""
+    base = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").strip().rstrip("/")
+    return base + "/api/chat"
+
+
+def _trust_env_for(base_url: str) -> bool:
+    """本机回环地址必须绕过系统代理。
+
+    Windows 的系统代理（注册表 ProxyServer）会被 httpx 的 trust_env 读到；若代理不代理
+    localhost，发往 127.0.0.1:11434 的请求会得到 502 而不是模型响应（本机实测如此）。
+    远程服务（内网 KG／远程 Ollama）仍保留代理支持，交由部署方按 NO_PROXY 处理。
+    """
+    from urllib.parse import urlparse
+
+    host = (urlparse(base_url.strip()).hostname or "").lower()
+    return host not in ("localhost", "127.0.0.1", "::1")
+
+
+def ollama_trust_env() -> bool:
+    return _trust_env_for(os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"))
+
+
+def _call_ollama(question: str, contexts: str) -> Optional[str]:
+    """调用 Ollama `/api/chat`，只取最终答案。
+
+    deepseek-r1 等思考模型会在 `message.thinking` 里返回推理过程；它**不进入正式答案**，
+    也不参与空值判定以外的任何拼装——与 Java 侧 `OllamaProvider` 的分离口径一致。
+    """
+    import httpx
+
+    model = os.getenv("OLLAMA_MODEL", "deepseek-r1:8b")
+    payload = {
+        "model": model,
+        "stream": False,
+        "messages": [
+            {"role": "system", "content": (
+                "你是一个智能教学助手。请严格依据给定课程资料回答学生问题；"
+                "资料不足时明确说明，不要编造。回答使用简体中文，简明、有条理。"
+            )},
+            {"role": "user", "content": f"课程资料：\n{contexts}\n\n问题：{question}"},
+        ],
+        "options": {"temperature": 0.3},
+    }
+    think = os.getenv("OLLAMA_THINK", "").strip().lower()
+    if think in ("true", "false"):
+        payload["think"] = think == "true"
+    resp = httpx.post(ollama_chat_url(), json=payload, timeout=60.0,
+                      trust_env=ollama_trust_env())
+    resp.raise_for_status()
+    message = resp.json().get("message") or {}
+    content = (message.get("content") or "").strip()
+    if not content:
+        thinking = message.get("thinking") or ""
+        logger.warning("Ollama 返回空答案（model=%s, thinking=%d 字符）", model, len(thinking))
+        return None
+    return content
+
+
+# ---------------------------------------------------------------- GraphRAG 增强
+
+def graph_enabled() -> bool:
+    """主路径图谱开关：缺省开启；显式 false/0/no/off 才关闭（与启动器同口径）。"""
+    flag = os.getenv("RAG_GRAPH_ENABLED", "true").strip().lower()
+    return flag not in ("false", "0", "no", "off")
+
+
+def graph_sources(course_id: int, question: str, limit: int = 5) -> list:
+    """从 KG 取该课程的图证据，返回与检索结果同形的字典列表。
+
+    - 图不可达／超时／无命中：返回空列表且**不抛异常**（检索与生成仍按原路径继续）。
+    - 只在问题与节点名／内容有实际命中时才取，避免把整门课的知识点硬塞进上下文。
+    - 每个命中节点带出 1 跳关系，构成多跳（节点→关系→邻居）证据，snippet 里显式写出边。
+    """
+    if not graph_enabled():
+        return []
+    import httpx
+
+    base = os.getenv("KG_BASE_URL", "http://localhost:8001").strip().rstrip("/")
+    try:
+        resp = httpx.get(f"{base}/api/v1/graph/course/{course_id}", timeout=2.0,
+                         trust_env=_trust_env_for(base))
+        resp.raise_for_status()
+        nodes = resp.json().get("nodes") or []
+        edges = resp.json().get("edges") or []
+    except Exception as exc:
+        logger.warning("知识图谱不可用，按纯检索继续：%s: %s", type(exc).__name__, exc)
+        return []
+    if not nodes:
+        return []
+
+    tokens = _keywords(question)
+    if not tokens:
+        return []
+    name_by_id = {n.get("id"): n.get("name") or "" for n in nodes}
+    scored = []
+    for node in nodes:
+        haystack = f"{node.get('name') or ''} {node.get('content') or ''}".lower()
+        hits = sum(1 for t in tokens if t in haystack)
+        if hits:
+            scored.append((hits, node))
+    scored.sort(key=lambda x: (-x[0], str(x[1].get("name") or "")))
+
+    selected = [n for _, n in scored[:limit]]
+    selected_ids = {n.get("id") for n in selected}
+    out = []
+    for node in selected:
+        relations = []
+        for edge in edges:
+            if edge.get("source_id") == node.get("id") and edge.get("target_id") in name_by_id:
+                target = edge.get("target_id")
+                relations.append(f"{node.get('name')} -[{edge.get('relation_type')}]-> {name_by_id.get(target)}")
+                if target in selected_ids:
+                    # 1 跳邻居也命中时补一句反向说明，保证 snippet 自身可读
+                    relations.append(f"{name_by_id.get(target)} ← {node.get('name')}")
+            elif edge.get("target_id") == node.get("id") and edge.get("source_id") in name_by_id:
+                relations.append(f"{name_by_id.get(edge.get('source_id'))} -[{edge.get('relation_type')}]-> {node.get('name')}")
+        snippet = (node.get("content") or "").strip()
+        if relations:
+            snippet = (snippet + "；" if snippet else "") + "图谱关系：" + "；".join(dict.fromkeys(relations))
+        if not snippet:
+            continue
+        out.append({
+            "document_id": None,
+            "document_name": f"知识图谱：{node.get('name') or ''}",
+            "relevance_score": None,
+            "snippet": snippet[:500],
+        })
+    return out
+
+
+def _keywords(text: str) -> set:
+    """极简关键词提取：ASCII 词 + 中文二元组；不引入分词依赖。"""
+    import re
+
+    lower = (text or "").lower()
+    tokens = {w for w in re.findall(r"[a-z0-9_]+", lower) if len(w) >= 2}
+    cjk = re.sub(r"[^\u4e00-\u9fff]", "", lower)
+    tokens.update(cjk[i:i + 2] for i in range(max(0, len(cjk) - 1)))
+    return tokens
+
+
+def llm_health() -> dict:
+    """健康检查用的生成后端状态：**不改变服务自身 status**。
+
+    Ollama 不可达时只把 `available` 置 false 并给出原因，调用方（rag_service / Java 探针）
+    仍看到服务 200、status=ok——生成层降级是既有语义，不等于检索服务下线。
+    DeepSeek 侧不发起网络请求：未配密钥是预期部署形态，`available` 表示"能否真生成"。
+    """
+    provider = llm_provider()
+    if provider == "ollama":
+        import httpx
+
+        base = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").strip().rstrip("/")
+        model = os.getenv("OLLAMA_MODEL", "deepseek-r1:8b")
+        try:
+            resp = httpx.get(base + "/api/tags", timeout=1.0,
+                             trust_env=ollama_trust_env())
+            resp.raise_for_status()
+            names = [m.get("name", "") for m in (resp.json().get("models") or [])]
+            installed = model in names or f"{model}:latest" in names
+            return {
+                "provider": "ollama",
+                "model": model,
+                "available": installed,
+                "detail": "ok" if installed else f"model {model} not installed (ollama pull {model})",
+            }
+        except Exception as exc:
+            return {"provider": "ollama", "model": model, "available": False,
+                    "detail": f"{type(exc).__name__}: {exc}"}
+    return {
+        "provider": "deepseek",
+        "model": os.getenv("DEEPSEEK_MODEL", "deepseek-chat"),
+        "available": bool(os.getenv("DEEPSEEK_API_KEY", "").strip()),
+        "detail": "ok" if os.getenv("DEEPSEEK_API_KEY", "").strip() else "DEEPSEEK_API_KEY 未配置",
+    }

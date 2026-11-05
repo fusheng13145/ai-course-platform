@@ -104,7 +104,7 @@
               <th class="w-96">类型</th>
               <th class="w-96" title="后端资源实体未保存文件大小，缺失时以 — 展示">大小</th>
               <th class="w-140">上传时间</th>
-              <th class="w-96">操作</th>
+              <th class="w-96 th-actions">操作</th>
             </tr>
           </thead>
           <tbody>

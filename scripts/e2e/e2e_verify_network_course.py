@@ -25,7 +25,10 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
     except Exception:
         pass
 
-BASE = "http://localhost:8080/api"
+# A 路径断链 #10：端点与 Redis 探活均可参数化，默认保持原本机行为。
+BASE = os.environ.get("E2E_BASE_URL", "http://localhost:8080/api").rstrip("/")
+REDIS_HOST = os.environ.get("E2E_REDIS_HOST", "127.0.0.1")
+REDIS_PORT = int(os.environ.get("E2E_REDIS_PORT", "6379"))
 DB = "ai_course_platform"
 def _mysql_pw():
     p = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".env")
@@ -112,7 +115,7 @@ def flush_redis():
     """
     try:
         import socket
-        with socket.create_connection(("127.0.0.1", 6379), timeout=3) as s:
+        with socket.create_connection((REDIS_HOST, REDIS_PORT), timeout=3) as s:
             s.sendall(b"*1\r\n$7\r\nFLUSHDB\r\n")
             s.recv(64)
         print("[setup] Redis db0 已清空（缓存与限流计数）")

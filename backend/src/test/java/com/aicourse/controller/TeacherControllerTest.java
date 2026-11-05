@@ -600,12 +600,13 @@ class TeacherControllerTest extends ControllerTestBase {
     @DisplayName("POST /teacher/questions - 真实业务断言：创建题目并委托 createQuestion")
     void createQuestion_authorized_passes_security() throws Exception {
         // controller 返回的是入参 question（忽略 service 返回值），故用 thenAnswer 对入参 setId
+        when(courseService.getById(eq(1L))).thenReturn(ownerCourse());
         when(questionService.createQuestion(any(Question.class))).thenAnswer(inv -> {
             Question arg = inv.getArgument(0);
             arg.setId(1L);
             return arg;
         });
-        mockMvc.perform(post("/teacher/questions").contentType(MediaType.APPLICATION_JSON).content("{\"id\":1,\"content\":\"题干\"}").with(withUser(1L, "TEACHER")))
+        mockMvc.perform(post("/teacher/questions").contentType(MediaType.APPLICATION_JSON).content("{\"id\":1,\"content\":\"题干\",\"courseId\":1}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
@@ -1098,6 +1099,17 @@ class TeacherControllerTest extends ControllerTestBase {
     }
 
     @Test
+    @DisplayName("GET /teacher/dashboard/ai-overview - 独立端点委托 getTeacherAIOverview")
+    void teacherDashboardAiOverview_authorized() throws Exception {
+        when(teachingService.getTeacherAIOverview(eq(1L))).thenReturn(Map.of("summary", "OK"));
+        mockMvc.perform(get("/teacher/dashboard/ai-overview").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.summary").value("OK"));
+        verify(teachingService).getTeacherAIOverview(eq(1L));
+    }
+
+    @Test
     @DisplayName("GET /teacher/dashboard/overview - 未认证返回401")
     void teacherDashboard_unauthorized_returns_401() throws Exception {
         mockMvc.perform(get("/teacher/dashboard/overview"))
@@ -1108,6 +1120,31 @@ class TeacherControllerTest extends ControllerTestBase {
     @DisplayName("GET /teacher/dashboard/overview - STUDENT角色返回403")
     void teacherDashboard_student_forbidden_403() throws Exception {
         mockMvc.perform(get("/teacher/dashboard/overview").with(withUser(2L, "STUDENT")))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("GET /teacher/dashboard/ai-overview - 委托独立入口并透传 teacherId（B-13 ⑯）")
+    void teacherAiOverview_authorized_passes_security() throws Exception {
+        when(teachingService.getTeacherAIOverview(eq(1L))).thenReturn(Map.of("summary", "AI 总览"));
+        mockMvc.perform(get("/teacher/dashboard/ai-overview").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.summary").value("AI 总览"));
+        verify(teachingService).getTeacherAIOverview(eq(1L));
+    }
+
+    @Test
+    @DisplayName("GET /teacher/dashboard/ai-overview - 未认证返回401")
+    void teacherAiOverview_unauthorized_returns_401() throws Exception {
+        mockMvc.perform(get("/teacher/dashboard/ai-overview"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("GET /teacher/dashboard/ai-overview - STUDENT角色返回403")
+    void teacherAiOverview_student_forbidden_403() throws Exception {
+        mockMvc.perform(get("/teacher/dashboard/ai-overview").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
     }
 

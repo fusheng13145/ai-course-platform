@@ -35,24 +35,24 @@
       </p>
 
       <ul v-else class="exam-list">
-        <li v-for="exam in filteredExams" :key="examKey(exam)" class="exam-row">
+        <li v-for="row in examRows" :key="row.key" class="exam-row">
           <div class="exam-main">
-            <b>{{ examTitle(exam) }}</b>
+            <b>{{ row.title }}</b>
             <span class="exam-meta">
-              {{ exam.duration || exam.timeLimit || 60 }} 分钟 ·
-              {{ exam.questionCount || exam.totalQuestions || '—' }} 题
+              {{ [row.course, `${row.minutes} 分钟`, `${row.questions} 题`].filter(Boolean).join(' · ') }}
             </span>
           </div>
-          <span class="chip" :class="statusChip(exam)">{{ statusLabel(exam) }}</span>
+          <span v-if="row.when" class="chip exam-when" :class="row.when.cls">{{ row.when.text }}</span>
+          <span class="chip exam-status" :class="row.statusCls">{{ row.status }}</span>
           <div class="row-actions">
             <button
               class="btn btn-sm"
-              :class="exam.completed ? 'btn-ghost' : 'btn-primary'"
-              :disabled="!isExamJoinable(exam)"
-              :title="isExamJoinable(exam) ? '' : statusLabel(exam)"
-              @click="onEnter(exam)"
+              :class="row.exam.completed ? 'btn-ghost' : 'btn-primary'"
+              :disabled="!row.joinable"
+              :title="row.joinable ? '' : row.status"
+              @click="onEnter(row.exam)"
             >
-              {{ exam.completed ? '已完成' : '开始作答' }}
+              {{ row.exam.completed ? '已完成' : '开始作答' }}
             </button>
           </div>
         </li>
@@ -208,11 +208,12 @@
 </template>
 
 <script setup lang="ts">
-import { computed, reactive, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import Modal from '../../components/Modal.vue'
 import { useUi } from '../../composables/ui'
 import { useStudentExams } from '@/composables/useStudentExams'
 import { buildDangerMessage, type DangerConfirmOptions } from '@/utils/dangerMessage'
+import { getAllMyCourses } from '@/api/course'
 
 const props = defineProps<{ courseId?: number | null }>()
 const { toast } = useUi()
@@ -334,7 +335,6 @@ const percentageText = computed(() =>
 )
 
 const letter = (index: number) => (index < 26 ? String.fromCharCode(65 + index) : String(index))
-const examKey = (exam: Record<string, unknown>) => String(exam.id ?? exam.paperId ?? exam.title)
 const examTitle = (exam: Record<string, unknown>) =>
   String(exam.title ?? exam.name ?? `试卷 #${exam.id ?? ''}`)
 const statusLabel = (exam: Record<string, unknown>) => {
@@ -348,6 +348,77 @@ const statusLabel = (exam: Record<string, unknown>) => {
 }
 const statusChip = (exam: Record<string, unknown>) =>
   examJoinReason(exam) === 'none' ? 'chip-ok' : 'chip-mute'
+
+// v2：全局考试列表带课程归属 chip——courseName 后端未给，用课程目录做一次 id→名称映射（失败静默降级为不显示）。
+const courseNames = ref<Map<number, string>>(new Map())
+onMounted(async () => {
+  if (props.courseId != null) return
+  try {
+    const map = new Map<number, string>()
+    for (const row of (await getAllMyCourses()) as Record<string, unknown>[]) {
+      const id = Number(row?.courseId ?? row?.id)
+      const name = String(row?.name ?? row?.courseName ?? '').trim()
+      if (Number.isFinite(id) && id > 0 && name) map.set(id, name)
+    }
+    courseNames.value = map
+  } catch {
+    /* 名称缺失只是少了 chip，不影响考试列表本身 */
+  }
+})
+
+const examCourseName = (exam: Record<string, unknown>): string => {
+  const direct = String(exam.courseName ?? '').trim()
+  if (direct) return direct
+  const id = Number(exam.courseId)
+  return (Number.isFinite(id) && courseNames.value.get(id)) || ''
+}
+
+/** 行内时间提示：把考试时间窗翻译成一句人话（sans 短语，时间数字随 sans）；拿不到日期返回 null。 */
+const examWhen = (exam: Record<string, unknown>): { text: string; cls: string } | null => {
+  const reason = examJoinReason(exam)
+  const start = exam.startTime ? new Date(String(exam.startTime)).getTime() : NaN
+  const end = exam.endTime ? new Date(String(exam.endTime)).getTime() : NaN
+  const hm = (t: number) => {
+    const d = new Date(t)
+    return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`
+  }
+  if (reason === 'beforeStart' && Number.isFinite(start)) {
+    const days = Math.floor((start - Date.now()) / 86400000)
+    if (days >= 2) return { text: `${days} 天后开考`, cls: 'chip-mute' }
+    if (days === 1) return { text: `明天 ${hm(start)} 开考`, cls: 'chip-warn' }
+    return { text: `今天 ${hm(start)} 开考`, cls: 'chip-warn' }
+  }
+  if (reason === 'none' && Number.isFinite(end)) {
+    const left = end - Date.now()
+    if (left <= 0) return null
+    const days = Math.floor(left / 86400000)
+    if (days > 30) return null // 长期开放窗口（如 2099）不算倒计时，避免出现「26395 天后截止」这类噪音
+    const hours = Math.floor(left / 3600000)
+    if (hours < 24) return { text: `${Math.max(hours, 1)} 小时后截止`, cls: 'chip-warn' }
+    return { text: `${days} 天后截止`, cls: 'chip-mute' }
+  }
+  return null
+}
+
+// 行模型：模板只读字段，不再在模板里反复调函数
+const examRows = computed(() =>
+  filteredExams.value.map((exam) => {
+    const minutes = Number(exam.duration ?? exam.timeLimit ?? 60)
+    const questions = exam.questionCount ?? exam.totalQuestions
+    return {
+      exam,
+      key: String(exam.id ?? exam.paperId ?? exam.title),
+      title: examTitle(exam),
+      course: examCourseName(exam),
+      minutes: Number.isFinite(minutes) ? minutes : 60,
+      questions: questions == null ? '—' : String(questions),
+      when: examWhen(exam),
+      status: statusLabel(exam),
+      statusCls: statusChip(exam),
+      joinable: isExamJoinable(exam),
+    }
+  }),
+)
 
 function isMultiChecked(index: number) {
   const key = letter(index)

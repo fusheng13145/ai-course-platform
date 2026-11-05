@@ -75,6 +75,11 @@ public class TeacherCourseServiceImpl implements TeacherCourseService {
     }
 
     @Override
+    public Map<String, Object> getTeacherAIOverview(Long teacherId) {
+        return dashboardComponent.getTeacherAIOverview(teacherId);
+    }
+
+    @Override
     public List<Map<String, Object>> getFullChapterTree(Long courseId) {
         return chapterComponent.getFullChapterTree(courseId);
     }

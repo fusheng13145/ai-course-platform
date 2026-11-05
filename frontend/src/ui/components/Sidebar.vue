@@ -121,10 +121,10 @@
         </span>
         <Icon name="settings" />
       </button>
-      <div class="nav-foot-meta">
-        <span>YUNSHU / AI TUTOR</span>
-        <button class="text-btn nav-logout" @click="logout">退出</button>
-      </div>
+      <button class="nav-logout" aria-label="退出登录" @click="logout">
+        <Icon name="logout" />
+        <span>退出登录</span>
+      </button>
     </div>
   </aside>
 </template>

@@ -55,40 +55,6 @@ export function unwrap<T = ApiPayload>(res: unknown): T | null | undefined {
   return envelope.data !== undefined ? envelope.data : (res as T)
 }
 
-/**
- * 还原后端展示层转义（AIController 对 answer/sources 统一做了 HTML 转义）。
- *
- * 名字即判据（P-12 处置清单 F-2）：**这是文本解码器，不是净化器**——它把实体还原成
- * 字面字符，输出里可能出现 `<script>` 这样的可执行片段，因此返回值只能落 Vue 插值
- * `{{ }}`（自动转义），**禁止进入任何 `v-html` 位点**。该禁令由
- * `src/ui/__tests__/xssSurface.test.ts` 静态扫描机械钉住。
- *
- * 待办口径：后端 B-13⑭ 裁定「AIController 停止 HTML 转义、返回纯文本契约」后，
- * 前端同批摘掉本函数；现状是 1 转义＋1 解码＋1 插值自动转义＝净 0。
- *
- * @param text 后端下发的已转义文本
- */
-export function decodeAiDisplayText(text) {
-  if (typeof text !== 'string') return ''
-  return text
-    .replace(/&lt;/g, '<')
-    .replace(/&gt;/g, '>')
-    .replace(/&quot;/g, '"')
-    .replace(/&#39;|&apos;/g, "'")
-    .replace(/&ldquo;/g, '“')
-    .replace(/&rdquo;/g, '”')
-    .replace(/&lsquo;/g, '‘')
-    .replace(/&rsquo;/g, '’')
-    .replace(/&hellip;/g, '…')
-    .replace(/&mdash;/g, '—')
-    .replace(/&ndash;/g, '–')
-    .replace(/&nbsp;/g, ' ')
-    .replace(/&#(\d+);/g, (_, code) =>
-      Number(code) >= 32 && Number(code) <= 0x10ffff ? String.fromCodePoint(Number(code)) : '',
-    )
-    .replace(/&amp;/g, '&')
-}
-
 export default unwrap
 
 /**

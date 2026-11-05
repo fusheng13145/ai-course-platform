@@ -1,13 +1,18 @@
 package com.aicourse.service.component.exam;
 
 import com.aicourse.constant.ExamSessionStatus;
+import com.aicourse.entity.Course;
 import com.aicourse.entity.ExamPaper;
 import com.aicourse.entity.ExamQuestion;
 import com.aicourse.entity.ExamSession;
+import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ExamSessionMapper;
+import com.aicourse.service.CourseService;
 import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamQuestionService;
+import com.aicourse.service.UserService;
+import com.aicourse.vo.ActiveExamSessionVO;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -35,6 +40,8 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyCollection;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 /**
@@ -55,6 +62,12 @@ class ExamSessionQueryComponentTest {
     @Mock
     private ExamSessionMapper examSessionMapper;
 
+    @Mock
+    private CourseService courseService;
+
+    @Mock
+    private UserService userService;
+
     private ExamSessionQueryComponent component;
 
     @BeforeEach
@@ -65,8 +78,12 @@ class ExamSessionQueryComponentTest {
                 ExamPaper.class);
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""),
                 ExamQuestion.class);
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""),
+                Course.class);
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""),
+                User.class);
         component = new ExamSessionQueryComponent(examPaperService, examQuestionService,
-                examSessionMapper, new ObjectMapper());
+                examSessionMapper, new ObjectMapper(), courseService, userService);
     }
 
     // ===================== generateScoreReport =====================
@@ -128,16 +145,87 @@ class ExamSessionQueryComponentTest {
 
     // ===================== getActiveExams =====================
     @Test
-    @DisplayName("getActiveExams 查询进行中会话")
-    void getActiveExams() {
-        ExamSession session = new ExamSession();
-        session.setId(1L);
-        session.setStatus(ExamSessionStatus.STARTED);
-        when(examSessionMapper.selectList(any())).thenReturn(Collections.singletonList(session));
+    @DisplayName("getActiveExams 空结果不触发关联查询")
+    void getActiveExams_empty() {
+        when(examSessionMapper.selectList(any())).thenReturn(Collections.emptyList());
 
-        List<ExamSession> list = component.getActiveExams();
-        assertEquals(1, list.size());
-        assertEquals(ExamSessionStatus.STARTED, list.get(0).getStatus());
+        assertTrue(component.getActiveExams().isEmpty());
+        verifyNoInteractions(examPaperService, courseService, userService);
+    }
+
+    @Test
+    @DisplayName("getActiveExams VO 化会话行：批量补试卷名/课程/学生姓名与同卷进行中人数")
+    void getActiveExams_voWithAssociations() {
+        ExamSession first = activeSession(1L, 10L, 5L, 2);
+        ExamSession second = activeSession(2L, 10L, 6L, 1);
+        when(examSessionMapper.selectList(any())).thenReturn(Arrays.asList(first, second));
+
+        ExamPaper paper = new ExamPaper();
+        paper.setId(10L);
+        paper.setTitle("期中测验");
+        paper.setCourseId(100L);
+        when(examPaperService.listByIds(anyCollection())).thenReturn(Collections.singletonList(paper));
+
+        Course course = new Course();
+        course.setId(100L);
+        course.setName("计算机网络");
+        when(courseService.listByIds(anyCollection())).thenReturn(Collections.singletonList(course));
+
+        User u5 = new User();
+        u5.setId(5L);
+        u5.setFullName("张三");
+        u5.setUsername("zhangsan");
+        User u6 = new User();
+        u6.setId(6L);
+        u6.setUsername("lisi");
+        when(userService.listByIds(anyCollection())).thenReturn(Arrays.asList(u5, u6));
+
+        List<ActiveExamSessionVO> list = component.getActiveExams();
+        assertEquals(2, list.size());
+        ActiveExamSessionVO row = list.get(0);
+        assertEquals(1L, row.getId());
+        assertEquals(10L, row.getExamPaperId());
+        assertEquals("期中测验", row.getPaperTitle());
+        assertEquals(100L, row.getCourseId());
+        assertEquals("计算机网络", row.getCourseName());
+        assertEquals(5L, row.getStudentId());
+        assertEquals("张三", row.getStudentName());
+        assertEquals(2, row.getParticipantCount(), "同一试卷两场进行中会话的 participantCount 应为 2");
+        assertEquals("lisi", list.get(1).getStudentName(), "fullName 为空时回落 username");
+        assertEquals(ExamSessionStatus.STARTED, row.getStatus());
+
+        verify(examPaperService).listByIds(anyCollection());
+        verify(courseService).listByIds(anyCollection());
+        verify(userService).listByIds(anyCollection());
+    }
+
+    @Test
+    @DisplayName("getActiveExams 关联缺失：展示字段为 null，会话行仍返回、人数仍正确")
+    void getActiveExams_missingAssociationsKeepRow() {
+        ExamSession first = activeSession(1L, 10L, 5L, 0);
+        ExamSession second = activeSession(2L, 99L, null, 0);
+        when(examSessionMapper.selectList(any())).thenReturn(Arrays.asList(first, second));
+        when(examPaperService.listByIds(anyCollection())).thenReturn(Collections.emptyList());
+        when(userService.listByIds(anyCollection())).thenReturn(Collections.emptyList());
+
+        List<ActiveExamSessionVO> list = component.getActiveExams();
+        assertEquals(2, list.size());
+        assertEquals(1, list.get(0).getParticipantCount());
+        assertNull(list.get(0).getPaperTitle());
+        assertNull(list.get(0).getCourseId());
+        assertNull(list.get(0).getStudentName());
+        assertEquals(1, list.get(1).getParticipantCount(), "无试卷ID的会话单独计 1，不与其它会话混算");
+        verifyNoInteractions(courseService);
+    }
+
+    private ExamSession activeSession(Long id, Long paperId, Long studentId, Integer attemptNumber) {
+        ExamSession session = new ExamSession();
+        session.setId(id);
+        session.setExamPaperId(paperId);
+        session.setStudentId(studentId);
+        session.setAttemptNumber(attemptNumber);
+        session.setStatus(ExamSessionStatus.STARTED);
+        return session;
     }
 
     // ===================== getSessionQuestions =====================

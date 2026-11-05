@@ -216,16 +216,16 @@ describe('M-02b 全局考试列表「可参加」行内预禁用', () => {
     const rows = wrapper.findAll('.exam-row')
     expect(rows.length).toBe(4)
 
-    expect(rows[0].find('.chip').text()).toBe('未选课')
+    expect(rows[0].find('.exam-status').text()).toBe('未选课')
     expect(rows[0].find('.row-actions button').attributes('disabled')).toBeDefined()
 
-    expect(rows[1].find('.chip').text()).toBe('未开始')
+    expect(rows[1].find('.exam-status').text()).toBe('未开始')
     expect(rows[1].find('.row-actions button').attributes('disabled')).toBeDefined()
 
-    expect(rows[2].find('.chip').text()).toBe('已结束')
+    expect(rows[2].find('.exam-status').text()).toBe('已结束')
     expect(rows[2].find('.row-actions button').attributes('disabled')).toBeDefined()
 
-    expect(rows[3].find('.chip').text()).toBe('可参加')
+    expect(rows[3].find('.exam-status').text()).toBe('可参加')
     expect(rows[3].find('.row-actions button').attributes('disabled')).toBeUndefined()
   })
 

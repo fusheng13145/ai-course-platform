@@ -101,7 +101,7 @@
               <th>说明</th>
               <th class="w-80">类型</th>
               <th>当前值</th>
-              <th class="w-80">操作</th>
+              <th class="w-80 th-actions">操作</th>
             </tr>
           </thead>
           <tbody>

@@ -310,6 +310,8 @@ const def = computed(() => pageDef(role.value as Role, 'home'))
 
 const studentData = ref<Dict | null>(null)
 const teacherDashboard = ref<Dict | null>(null)
+const teacherAiOverview = ref<Dict | null>(null)
+const teacherAiLoading = ref(false)
 const teacherPending = ref<Dict[] | null>(null)
 const teacherPapers = ref<Dict[] | null>(null)
 const teacherPapersPartial = ref(false)
@@ -557,7 +559,6 @@ const studentMetrics = computed<Metric[]>(() => {
     data && studentTodos.value
       ? lists.assignments.length + lists.exams.length + lists.signIns.length
       : null
-  const unread = data ? (num(summary.unreadCount) ?? num(data.unreadCount)) : null
   return [
     courseCount === null
       ? unavailable('已选课程', 'book')
@@ -582,9 +583,6 @@ const studentMetrics = computed<Metric[]>(() => {
           icon: 'check',
           tone: 'warn',
         },
-    unread === null
-      ? unavailable('未读通知', 'bell')
-      : { label: '未读通知', value: unread, unit: '条', note: '消息中心', icon: 'bell' },
   ]
 })
 
@@ -872,9 +870,10 @@ const aiSummary = computed(() => {
   if (role.value === 'admin') {
     return '课程审批、考试治理与内容审核集中处理；治理操作会写入审计日志。'
   }
-  const overview = teacherDashboard.value?.aiOverview
+  const overview = teacherAiOverview.value
   const summary = isDict(overview) ? str(overview.summary) : ''
-  return summary || '暂不可用'
+  if (summary) return summary
+  return teacherAiLoading.value ? 'AI 教学总览生成中…' : '暂不可用'
 })
 const aiTags = computed<string[]>(() => {
   if (role.value === 'student') return ['课程问答', '复习路径']
@@ -887,9 +886,10 @@ const aiTags = computed<string[]>(() => {
 const aiCaveat = computed(() => {
   if (role.value === 'student') return '回答以课程资料为准，不替代教师批阅。'
   if (role.value === 'admin') return '治理操作会写入审计日志。'
-  return teacherDashboard.value
-    ? '由服务端教学数据生成，采纳前需教师确认。'
-    : '教学数据加载失败，AI 概览暂不可用。'
+  if (!teacherDashboard.value) return '教学数据加载失败，AI 概览暂不可用。'
+  return teacherAiLoading.value
+    ? 'AI 教学总览生成中，教学统计已先展示。'
+    : '由服务端教学数据生成，采纳前需教师确认。'
 })
 const aiActionLabel = computed(() => {
   if (role.value === 'teacher') return '查看学情分析'
@@ -1031,6 +1031,8 @@ async function fetchFeed() {
 function resetState() {
   studentData.value = null
   teacherDashboard.value = null
+  teacherAiOverview.value = null
+  teacherAiLoading.value = false
   teacherPending.value = null
   teacherPapers.value = null
   teacherPapersPartial.value = false
@@ -1078,7 +1080,26 @@ async function loadTeacherHome(seq: number) {
   }
   teacherDashboard.value = dashboard
   courseLoading.value = false
-  if (!dashboard) courseError.value = '课程数据加载失败，请重试'
+  if (!dashboard) {
+    teacherAiOverview.value = null
+    courseError.value = '课程数据加载失败，请重试'
+  } else {
+    // AI 教学总览异步补数：不阻塞主统计首屏
+    teacherAiLoading.value = true
+    teacherApi
+      .getTeacherDashboardAiOverview()
+      .then((res) => {
+        if (seq !== loadSeq) return
+        const data = unwrap<Dict>(res)
+        teacherAiOverview.value = isDict(data) ? data : null
+      })
+      .catch(() => {
+        if (seq === loadSeq) teacherAiOverview.value = null
+      })
+      .finally(() => {
+        if (seq === loadSeq) teacherAiLoading.value = false
+      })
+  }
 
   if (pendingResult.status === 'fulfilled') {
     teacherPending.value = pickList<Dict>(unwrap(pendingResult.value)).filter(isDict)

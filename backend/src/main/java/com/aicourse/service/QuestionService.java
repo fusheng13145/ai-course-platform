@@ -1,6 +1,7 @@
 package com.aicourse.service;
 
 import com.aicourse.entity.Question;
+import com.aicourse.vo.QuestionBankStatisticsVO;
 import com.aicourse.vo.QuestionStatsVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import java.util.List;
@@ -92,6 +93,12 @@ public interface QuestionService extends com.baomidou.mybatisplus.extension.serv
      * @return 统计信息
      */
     QuestionStatsVO getQuestionStats(Long questionId);
+
+    /**
+     * 题库总览统计（总数 + 今日新增）。
+     * @return 统计结果
+     */
+    QuestionBankStatisticsVO getBankStatistics();
 
     /**
      * 获取易错题TOP N

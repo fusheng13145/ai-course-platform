@@ -188,9 +188,13 @@ export const exportReport = (courseId: number | string): Promise<ApiEnvelope<Api
   >
 
 // ---------- 课程建设 / 学情驾驶舱（原 CourseTeachingController，已并入本模块） ----------
-// 教师增强仪表盘 ：courseCount/studentCount/pendingGrading/avgScore + courseCards/atRiskStudents/taskPointOverview/platformComparison/aiOverview
+// 教师增强仪表盘 ：courseCount/studentCount/pendingGrading/avgScore + courseCards/atRiskStudents/taskPointOverview/platformComparison
+// AI 教学总览已拆到独立端点 getTeacherDashboardAiOverview（异步补数，主聚合不再同步调 LLM）
 export const getTeacherDashboard = (): Promise<ApiEnvelope<ApiData>> =>
   request.get('/teacher/dashboard/overview') as Promise<ApiEnvelope<ApiData>>
+// 教师首页 AI 教学总览：{ summary ... }
+export const getTeacherDashboardAiOverview = (): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/teacher/dashboard/ai-overview') as Promise<ApiEnvelope<ApiData>>
 // 我的课程聚合指标卡片：List<{ courseId,name,code,coverImage,status,category,studentCount,avgProgress,completionRate,pendingGrading }>
 export const getMyCourseSummaries = (): Promise<ApiEnvelope<ApiData>> =>
   request.get('/teacher/courses/summaries') as Promise<ApiEnvelope<ApiData>>
@@ -279,6 +283,7 @@ export default {
   getKnowledgePointAnalytics,
   exportReport,
   getTeacherDashboard,
+  getTeacherDashboardAiOverview,
   getMyCourseSummaries,
   getCourseDashboard,
   getChapterTree,

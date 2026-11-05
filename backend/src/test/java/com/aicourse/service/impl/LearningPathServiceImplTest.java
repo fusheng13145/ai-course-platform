@@ -98,15 +98,16 @@ class LearningPathServiceImplTest {
     }
 
     @Test
-    @DisplayName("deriveMastery 未命中走兜底公式")
-    void deriveMastery_fallback() {
+    @DisplayName("deriveMastery 未命中不写兜底分数，交由调用方按未评估处理")
+    void deriveMastery_unmatchedPointIsNotScored() {
         WrongQuestion wq = new WrongQuestion(); wq.setMastered(false);
         when(wrongQuestionService.getByKnowledgePoints(1L, 1L))
                 .thenReturn(List.of(new WrongQuestionGroupVO(null, "未知", List.of(wq))));
         when(knowledgePointService.list(any(Wrapper.class))).thenReturn(List.of());
 
         Map<String, Double> r = service.deriveMastery(1L, 1L);
-        assertEquals(75.0, r.get("未知"));
+        assertFalse(r.containsKey("未知"), "未匹配图谱节点的分组不得产出伪造掌握度，实际=" + r);
+        assertTrue(r.isEmpty());
     }
 
     @Test

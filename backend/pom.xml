@@ -601,6 +601,26 @@
     </build>
 
     <profiles>
+        <!-- 生产发布构件（D-A5 ② + 补强④，2026-11-05）：
+             仅在显式 -Pprod-jar 时把 db/seed-demo（V5 富种子 + V6 示范课）排除出 jar。
+             默认构建/本地开发/test 完全不启用，application.yaml 的双 location 与演示能力不变。 -->
+        <profile>
+            <id>prod-jar</id>
+            <build>
+                <plugins>
+                    <plugin>
+                        <groupId>org.apache.maven.plugins</groupId>
+                        <artifactId>maven-jar-plugin</artifactId>
+                        <configuration>
+                            <excludes>
+                                <exclude>db/seed-demo/**</exclude>
+                            </excludes>
+                        </configuration>
+                    </plugin>
+                </plugins>
+            </build>
+        </profile>
+
         <!-- 依赖漏洞扫描 -->
         <profile>
             <id>security-scan</id>

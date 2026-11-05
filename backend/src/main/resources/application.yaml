@@ -33,18 +33,28 @@ spring:
       enabled: true       # 开启页面的热重载（浏览器刷新）
 
   # ===================== 邮件配置（QQ邮箱） =====================
+  # 与下方顶层 mail.* 共用同一组 MAIL_* 环境变量：业务发信读 mail.*，而 Spring Boot 的
+  # mail 健康指示器读 spring.mail.*，两处必须同源，否则健康项与实际通道各说一套。
+  # 465 端口：MAIL_SSL_ENABLE=true 且 MAIL_STARTTLS_ENABLE=false；
+  # 587 端口：MAIL_SSL_ENABLE=false 且 MAIL_STARTTLS_ENABLE=true。
   mail:
-    host: smtp.qq.com
-    port: 587
+    host: ${MAIL_HOST:smtp.qq.com}
+    port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
+    default-encoding: UTF-8
     properties:
       mail:
         smtp:
           auth: true
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
+          ssl:
+            enable: ${MAIL_SSL_ENABLE:false}
           starttls:
-            enable: true
-            required: true
+            enable: ${MAIL_STARTTLS_ENABLE:true}
+            required: false
 
   # 数据库数据源 & Hikari连接池
   # 生产环境通过环境变量注入，避免明文密码进入仓库（与 docker-compose 中的变量名保持一致）
@@ -118,6 +128,23 @@ spring:
     multipart:
       max-file-size: 50MB
       max-request-size: 50MB
+
+# ===================== 邮件发送通道（EmailServiceImpl 读取本块） =====================
+# 注意：这里与上方 spring.mail 是两套键。EmailServiceImpl 自建 Jakarta Mail
+# Session（未使用 Spring 的 JavaMailSender），因此必须单独绑定 mail.*；
+# 历史上只配了 spring.mail.*，导致账号永远为空、验证码只入库不发送。
+mail:
+  host: ${MAIL_HOST:smtp.qq.com}
+  port: ${MAIL_PORT:587}
+  username: ${MAIL_USERNAME:}
+  password: ${MAIL_PASSWORD:}
+  from-name: ${MAIL_FROM_NAME:AI智能课程平台}
+  # 587 端口走 STARTTLS（ssl=false）；465 端口置 ssl=true 且 starttls=false，二者互斥
+  ssl-enable: ${MAIL_SSL_ENABLE:false}
+  starttls-enable: ${MAIL_STARTTLS_ENABLE:true}
+  # 开发态：SMTP 未配置时把验证码打到后端日志（与真实发送同一套服务端校验逻辑）；
+  # 生产 profile 覆盖为 false，缺凭据即失败，不静默冒充已发送
+  dev-log-code: ${MAIL_DEV_LOG_CODE:true}
 
 # 服务端口 & 统一接口前缀
 server:
@@ -238,9 +265,9 @@ cors:
     - http://127.0.0.1:80
 
 # ===================== AI 大模型供应商配置 =====================
-# 通过 ai.provider 切换底层大模型（deepseek / openai / qwen），业务层不感知具体供应商
+# 通过 ai.provider 切换底层大模型（deepseek / openai / qwen / ollama），业务层不感知具体供应商
 ai:
-  # 当前启用的供应商：deepseek（默认）/ openai / qwen
+  # 当前启用的供应商：deepseek（默认）/ openai / qwen / ollama（本地 Ollama 服务）
   provider: ${AI_PROVIDER:deepseek}
   # 所有 OpenAI 兼容供应商共用的超时与重试参数（秒）
   connect-timeout: ${AI_CONNECT_TIMEOUT:5}
@@ -262,6 +289,16 @@ ai:
     api-key: ${QWEN_API_KEY:}
     base-url: ${QWEN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
     model: ${QWEN_MODEL:qwen-plus}
+  # ---------- 本地 Ollama（无 API Key，原生 /api/chat 协议） ----------
+  # 启用方式：AI_PROVIDER=ollama，并确保本机已 `ollama serve` 且已 `ollama pull deepseek-r1:8b`。
+  # 未启用时对现有 DeepSeek/OpenAI/Qwen 链路零影响；Ollama 未启动时调用以 503 结束并给出可操作文案。
+  ollama:
+    # Ollama 默认监听 11434；容器化部署需改为 http://host.docker.internal:11434 或宿主可达地址
+    base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+    model: ${OLLAMA_MODEL:deepseek-r1:8b}
+    # 三态开关：留空=由模型模板决定是否思考；true/false=显式要求 Ollama 开启/关闭思考。
+    # 无论取值如何，message.thinking / <think> 内联推理都不会进入正式答案。
+    think: ${OLLAMA_THINK:}
   # ---------- AI 用量配额（按认证 userId，防 LLM 成本型 DoS） ----------
   # 与 ratelimit（按 IP）互补：IP 限流拦同源洪泛，本配额按登录身份拦「代理池轮换 IP 的刷量」。
   # 单用户单日 LLM 成本数学上界：min(daily-request-limit × 单次 prompt 上限, daily-token-budget)。

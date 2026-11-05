@@ -208,7 +208,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useUi } from '../../../composables/ui'
 import aiApi from '@/api/ai'
-import { unwrap, decodeAiDisplayText } from '@/utils/response'
+import { unwrap } from '@/utils/response'
 import logger from '@/utils/logger'
 
 interface Source {
@@ -317,14 +317,8 @@ async function askQa() {
     if (data.sessionId) sessionId.value = String(data.sessionId)
     messages.value.push({
       role: 'ai',
-      content: decodeAiDisplayText(data.answer) || '（暂无回答）',
-      sources: Array.isArray(data.sources)
-        ? data.sources.map((source) => ({
-            ...source,
-            documentName: decodeAiDisplayText(source.documentName),
-            snippet: decodeAiDisplayText(source.snippet),
-          }))
-        : [],
+      content: data.answer || '（暂无回答）',
+      sources: Array.isArray(data.sources) ? data.sources : [],
     })
   } catch (error) {
     logger.error('智能答疑失败', error)

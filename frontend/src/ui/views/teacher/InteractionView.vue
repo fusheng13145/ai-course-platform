@@ -57,7 +57,7 @@
                 <th class="w-96">状态</th>
                 <th class="w-80">已签</th>
                 <th class="w-80">应到</th>
-                <th class="w-260">操作</th>
+                <th class="w-260 th-actions">操作</th>
               </tr>
             </thead>
             <tbody>
@@ -115,7 +115,7 @@
                 <th>标题</th>
                 <th class="w-96">类型</th>
                 <th class="w-96">状态</th>
-                <th class="w-220">操作</th>
+                <th class="w-220 th-actions">操作</th>
               </tr>
             </thead>
             <tbody>

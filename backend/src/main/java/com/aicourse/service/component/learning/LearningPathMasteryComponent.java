@@ -1,7 +1,6 @@
 package com.aicourse.service.component.learning;
 
 import com.aicourse.entity.KnowledgePoint;
-import com.aicourse.entity.WrongQuestion;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.WrongQuestionService;
 import com.aicourse.vo.WrongQuestionGroupVO;
@@ -36,9 +35,10 @@ public class LearningPathMasteryComponent {
 
     /**
      * 从学生错题本自动推导知识点掌握度（0~100）。
-     * 优先复用 {@link KnowledgePointService#calculateMastery(Long, Long)} 的统计算法，
-     * 确保学习路径生成与知识点维度的掌握度口径一致；仅当知识点名称无法匹配课程内
-     * 知识点时才回退到旧扣分公式。无错题的知识点不进入结果（由调用方按默认值 50 处理）。
+     * 只采用与课程知识图谱节点同名匹配的错题分组，并复用
+     * {@link KnowledgePointService#calculateMastery(Long, Long)} 的统计算法，保证学习路径与
+     * 知识点维度的掌握度口径一致。名称无法匹配图谱节点的分组直接跳过（记录 WARN），
+     * 不产出兜底分数；这些知识点由调用方按默认值 50 处理并标记为“未评估”。
      *
      * @param studentId 学生ID
      * @param courseId  课程ID
@@ -62,6 +62,8 @@ public class LearningPathMasteryComponent {
                     .filter(p -> p.getName() != null && !p.getName().isBlank())
                     .collect(Collectors.toMap(KnowledgePoint::getName, p -> p, (a, b) -> a));
 
+            int unmatched = 0;
+            StringBuilder unmatchedSamples = new StringBuilder();
             for (WrongQuestionGroupVO group : grouped) {
                 String kpName = group.getKnowledgePointName();
                 if (kpName == null || kpName.isBlank()) continue;
@@ -71,15 +73,18 @@ public class LearningPathMasteryComponent {
                     BigDecimal rate = knowledgePointService.calculateMastery(point.getId(), studentId);
                     mastery.put(kpName, rate != null ? rate.doubleValue() : 50.0);
                 } else {
-                    // 知识点名称无法匹配时，使用兼容旧逻辑的兜底计算（保证不影响既有错题分组）
-                    List<WrongQuestion> questions = group.getQuestions() == null
-                            ? List.of() : group.getQuestions();
-                    long unmastered = questions.stream()
-                            .filter(w -> w.getMastered() == null || !w.getMastered()).count();
-                    long masteredCnt = questions.size() - unmastered;
-                    double score = 100.0 - unmastered * 25.0 - masteredCnt * 5.0;
-                    mastery.put(kpName, Math.max(10.0, score));
+                    // 名称无法映射到图谱节点：不写兜底分数（那会把“无依据”伪装成学情诊断）。
+                    // 由调用方按未评估默认值处理，这里只留可排查的告警，样例最多 3 个避免刷屏。
+                    unmatched++;
+                    if (unmatched <= 3) {
+                        if (unmatchedSamples.length() > 0) unmatchedSamples.append("、");
+                        unmatchedSamples.append(kpName);
+                    }
                 }
+            }
+            if (unmatched > 0) {
+                log.warn("错题分组中有 {} 个知识点未匹配课程图谱节点，按未评估处理（样例：{}）",
+                        unmatched, unmatchedSamples);
             }
         } catch (Exception ignore) {
             log.warn("学习路径相关操作失败: {}", ignore.getMessage(), ignore);

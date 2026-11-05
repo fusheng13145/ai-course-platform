@@ -9,11 +9,11 @@ import { join, relative } from 'node:path'
  * **扫描面非空前置 ＋ 全量判定 ＋ 阴性对照（植入违例必须被抓红）**，
  * 因为这三条判据都是"某件事不许再发生"，没有机械断言就只是口头承诺。
  *
- * 钉住的四件事：
+ * 钉住的三件事：
  * 1. `v-html` 位点清单守恒，且每个位点必须走 `utils/sanitize` 唯一入口、不得自带 DOMPurify；
  * 2. 宽 profile `USE_PROFILES` 全仓归零（那是处置前 ReaderTab 的漏洞本体）；
- * 3. `decodeAiDisplayText`（文本解码器，非净化器）的载体文件里不得出现 `v-html`；
- * 4. `href="javascript:…"` 归零（F-4），失效符号 `decodeHtml`／`renderMarkdown` 不得复活（F-2）。
+ * 3. `href="javascript:…"` 归零（F-4），失效符号 `decodeHtml`／`renderMarkdown`／
+ *    `decodeAiDisplayText` 不得复活（F-2；后端已改纯文本契约，前端不再解码）。
  */
 const srcRoot = join(__dirname, '../..')
 
@@ -57,14 +57,7 @@ function inspectVHtmlSite(raw: string): string[] {
   return out
 }
 
-/** 判据 3：AI 文本解码器与 v-html 不得同处一个文件 */
-function inspectDecoderFile(raw: string): string[] {
-  const source = stripComments(raw)
-  if (!/decodeAiDisplayText/.test(source)) return []
-  return hasVHtml(source) ? ['decodeAiDisplayText 的返回值落进了 v-html 位点'] : []
-}
-
-/** 判据 4：javascript: 伪协议写在 href 上 */
+/** 判据 3：javascript: 伪协议写在 href 上 */
 const javascriptHref = (raw: string) => /href\s*=\s*"?\s*javascript:/i.test(stripComments(raw))
 
 /** 处置前的三个位点；新增 v-html 位点必须先在这里登记并说明净化档位，否则本条判红 */
@@ -73,13 +66,6 @@ const KNOWN_V_HTML_SITES = [
   'ui/views/course/tabs/ReaderTab.vue',
   'ui/views/legal/LegalView.vue',
 ]
-
-/** decodeAiDisplayText 的消费面（当前只有课程内 AI 那一路）；扩消费方要连同判据一起改 */
-const KNOWN_DECODER_FILES = ['ui/views/course/tabs/AiCenterTab.vue']
-
-/** 定义文件本身不算消费方（它是 `export function`，不是"把返回值接进渲染"的那一方） */
-const DECLARATION_FILES = ['utils/response.ts']
-
 const files = sourceFiles(srcRoot)
 
 describe('xss 面守卫 · 阴性对照', () => {
@@ -99,12 +85,6 @@ describe('xss 面守卫 · 阴性对照', () => {
         '<template><div v-html="x"></div></template>\nimport { sanitizeHtml } from \'@/utils/sanitize\'',
       ),
     ).toEqual([])
-    // 植入：解码器接进 v-html
-    expect(
-      inspectDecoderFile(
-        '<template><div v-html="answer"></div></template>\nimport { decodeAiDisplayText } from \'@/utils/response\'',
-      ),
-    ).toEqual(['decodeAiDisplayText 的返回值落进了 v-html 位点'])
     // 植入：javascript: 伪协议
     expect(javascriptHref('<template><a href="javascript:void(0)">x</a></template>')).toBe(true)
     expect(javascriptHref('<template><button type="button">x</button></template>')).toBe(false)
@@ -161,28 +141,10 @@ describe('xss 面守卫 · 真实树', () => {
     ])
   })
 
-  it('decodeAiDisplayText 的载体文件里没有 v-html，且消费面未扩散', () => {
-    const consumers = files
-      .filter((file) => /decodeAiDisplayText/.test(stripComments(readFileSync(file, 'utf8'))))
-      .map(rel)
-      .filter((path) => !DECLARATION_FILES.includes(path))
-      .sort()
-    expect(consumers, '新增解码器消费方要先证明它不进 v-html，再登记进清单').toEqual(
-      [...KNOWN_DECODER_FILES].sort(),
-    )
-    const offenders = consumers
-      .map((path) => ({
-        file: path,
-        found: inspectDecoderFile(readFileSync(join(srcRoot, path), 'utf8')),
-      }))
-      .filter((item) => item.found.length > 0)
-    expect(offenders, `AI 文本流向 v-html：${JSON.stringify(offenders)}`).toEqual([])
-  })
-
-  it('失效符号已清算：decodeHtml／renderMarkdown 全仓零命中，javascript: 不留在 href 上', () => {
+  it('失效符号已清算：decodeHtml／renderMarkdown／decodeAiDisplayText 全仓零命中，javascript: 不留在 href 上', () => {
     const stale = files
       .map((file) => ({ file: rel(file), raw: readFileSync(file, 'utf8') }))
-      .filter((item) => /\bdecodeHtml\b|\brenderMarkdown\b/.test(item.raw))
+      .filter((item) => /\bdecodeHtml\b|\brenderMarkdown\b|\bdecodeAiDisplayText\b/.test(item.raw))
       .map((item) => item.file)
     expect(stale, `旧名字会误导下一个读代码的人：${JSON.stringify(stale)}`).toEqual([])
     const jsHref = files.filter((file) => javascriptHref(readFileSync(file, 'utf8'))).map(rel)

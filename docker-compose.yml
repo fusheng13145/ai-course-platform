@@ -1,6 +1,7 @@
 # ============================================================
 # AI 课程平台 - Docker Compose 编排
 # 服务：mysql / redis / backend / frontend
+#       + kg-service / rag-service / neo4j（Python 引擎，profiles: python；neo4j 亦属 rag）
 #       + mysql-backup（备份守护，profiles: ops）
 #       + prometheus / grafana / loki / promtail（监控+日志，profiles: monitor）
 #
@@ -82,6 +83,9 @@ x-labels-ops: &labels-ops
 x-labels-monitor: &labels-monitor
   <<: *labels-base
   aicourse.tier: monitor
+x-labels-python: &labels-python
+  <<: *labels-base
+  aicourse.tier: python
 
 services:
   mysql:
@@ -191,6 +195,15 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      # D-A4 ②：Python 引擎随编排上线。required:false 保证 `--profile full`
+      # （不带 python profile）仍可单独起后端，行为与之前一致；带 python profile 时
+      # 后端会等 KG/RAG 健康后再启动，避免首屏请求打在未就绪引擎上。
+      kg-service:
+        condition: service_healthy
+        required: false
+      rag-service:
+        condition: service_healthy
+        required: false
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ai_course_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true
       SPRING_DATASOURCE_USERNAME: aicourse_app
@@ -214,6 +227,11 @@ services:
       AI_PROVIDER: ${AI_PROVIDER:-deepseek}
       DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      # 本地 Ollama（AI_PROVIDER=ollama 时生效，无 API Key）。容器内 localhost 指容器自身，
+      # 访问宿主机 Ollama 用 host.docker.internal（Docker Desktop 默认支持）。
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-deepseek-r1:8b}
+      OLLAMA_THINK: ${OLLAMA_THINK:-}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
       # 安全开关：**默认安全**，不因本文件的部署形态把生产默认值降到 false。
@@ -243,6 +261,19 @@ services:
       # 激活 prod profile：使 application-prod.yml 真正生效（闭合 N-02 影子配置）。
       SPRING_PROFILES_ACTIVE: prod
       TRUST_PROXY_HEADER: ${TRUST_PROXY_HEADER:-true}
+      # 限流阈值（A 路径断链 #14，2026-11-05）：application.yaml 的 ratelimit: 段全是
+      # ${RATELIMIT_*} 占位符，但此前 .env.example 无键行、本文件不注入 → 容器形态改阈值
+      # 不生效且不报错（DR-73）。此处按「与 yml 默认值一致」透传，不填行为不变。
+      RATELIMIT_ENABLED: ${RATELIMIT_ENABLED:-true}
+      RATELIMIT_REDIS_ENABLED: ${RATELIMIT_REDIS_ENABLED:-true}
+      RATELIMIT_LOGIN_LIMIT: ${RATELIMIT_LOGIN_LIMIT:-10}
+      RATELIMIT_LOGIN_WINDOW: ${RATELIMIT_LOGIN_WINDOW:-60}
+      RATELIMIT_AI_LIMIT: ${RATELIMIT_AI_LIMIT:-20}
+      RATELIMIT_AI_WINDOW: ${RATELIMIT_AI_WINDOW:-60}
+      RATELIMIT_VERIFY_LIMIT: ${RATELIMIT_VERIFY_LIMIT:-5}
+      RATELIMIT_VERIFY_WINDOW: ${RATELIMIT_VERIFY_WINDOW:-60}
+      RATELIMIT_REGISTER_LIMIT: ${RATELIMIT_REGISTER_LIMIT:-20}
+      RATELIMIT_REGISTER_WINDOW: ${RATELIMIT_REGISTER_WINDOW:-3600}
       # 跨域白名单（逗号分隔的真实前端域名）；留空 = 不开放跨域。
       # 【修复 2026-09-16】原注释写「留空 = fail-closed」与实现不符：SecurityConfig 在
       # origins 为空时回退看 app.cors.dev-fallback（默认 true）→ 会放行 http://localhost:5173
@@ -257,13 +288,14 @@ services:
       # 凭据须与下方 prometheus 服务的 ACTUATOR_BASIC_* 完全一致；口令留空则抓取 fail-closed。
       APP_ACTUATOR_BASIC_USER: ${APP_ACTUATOR_BASIC_USER:-monitor}
       APP_ACTUATOR_BASIC_PASSWORD: ${APP_ACTUATOR_BASIC_PASSWORD:-}
-      # Python 微服务集成开关（默认关闭：KG/RAG 引擎由团队另一成员负责，未启用时
-      # /knowledge/path/plan 本地 BFS 兜底、AI 问答自动回退纯 LLM）。
-      # 启用步骤：解注下方 kg-service / rag-service，再置 KG_ENABLED/RAG_ENABLED=true。
-      KG_ENABLED: ${KG_ENABLED:-false}
+      # Python 微服务集成开关（D-A4=②，2026-11-05：KG/RAG 已随编排上线，默认开启）。
+      # 未带 python profile 时服务不可达，AiRagComponent / 路径规划会按既有语义降级，
+      # 不会把后端判为启动失败。可用 KG_ENABLED=false / RAG_ENABLED=false 显式关闭。
+      KG_ENABLED: ${KG_ENABLED:-true}
       KG_BASE_URL: ${KG_BASE_URL:-http://kg-service:8001}
-      RAG_ENABLED: ${RAG_ENABLED:-false}
+      RAG_ENABLED: ${RAG_ENABLED:-true}
       RAG_BASE_URL: ${RAG_BASE_URL:-http://rag-service:8002}
+      # 微调 8003 不在 D-A4 ② 范围：保持关闭（上线需第三个镜像或 systemd unit，见部署文档）。
       FT_ENABLED: ${FT_ENABLED:-false}
       FT_BASE_URL: ${FT_BASE_URL:-http://fine-tune-service:8003}
       TZ: Asia/Shanghai
@@ -298,45 +330,107 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # ---------------- Python 微服务（引擎就绪后解注启用，归入 python profile） ----------------
-  # KG/RAG 引擎由团队另一成员负责（当前 python-services/ 下为契约基线/占位骨架）。
-  # 接入步骤：① 解注下方对应服务 ② .env 置 KG_ENABLED=true / RAG_ENABLED=true
-  # ③ docker compose --profile full --profile python up -d
+  # ---------------- Python 微服务（D-A4=②，2026-11-05：KG/RAG 随编排上线） ----------------
+  # 启动：docker compose --profile full --profile python up -d --build
+  # C 路径不受影响：scripts/start-engines.py 仍按本机 uvicorn 方式启动同样的两个服务。
+  # KG 依赖 Neo4j（neo4j 服务同时归入 rag/python 两个 profile）；RAG 依赖 KG 健康后启动。
+  # 嵌入权重默认 BAAI/bge-small-zh-v1.5，经 HF_ENDPOINT 镜像下载到命名卷 hf-cache；
+  # 离线部署可预置缓存后置 HF_HUB_OFFLINE=1（rag_engine 命中缓存即 local_files_only 加载）。
   # ----------------
-  # kg-service:
-  #   build:
-  #     context: ./python-services/kg_service
-  #     dockerfile: Dockerfile   # 需队友补充（uvicorn kg_service:app --host 0.0.0.0 --port 8001）
-  #   container_name: aicourse-kg-service
-  #   restart: unless-stopped
-  #   profiles: ["python"]
-  #   ports:
-  #     - "8001:8001"
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-fs", "http://localhost:8001/api/v1/graph/health"]
-  #     interval: 15s
-  #     timeout: 5s
-  #     retries: 5
-  #
-  # rag-service:
-  #   build:
-  #     context: ./python-services/rag_service
-  #     dockerfile: Dockerfile   # 需队友补充（uvicorn rag_service:app --host 0.0.0.0 --port 8002）
-  #   container_name: aicourse-rag-service
-  #   restart: unless-stopped
-  #   profiles: ["python"]
-  #   ports:
-  #     - "8002:8002"
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-fs", "http://localhost:8002/api/v1/rag/health"]
-  #     interval: 15s
-  #     timeout: 5s
-  #     retries: 5
-  #
+  kg-service:
+    build:
+      context: ./python-services/kg_service
+    image: aicourse/kg-service:local
+    container_name: aicourse-kg-service
+    labels:
+      <<: *labels-python
+      aicourse.role: kg
+    restart: unless-stopped
+    profiles: ["python"]
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    environment:
+      KG_BACKEND: ${KG_BACKEND:-neo4j}
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?NEO4J_PASSWORD 必须设置（请 cp .env.example .env 后填入）}
+      TZ: Asia/Shanghai
+    ports:
+      - "${KG_HOST_BIND:-127.0.0.1}:${KG_HOST_PORT:-8001}:8001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/api/v1/graph/health', timeout=3)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  rag-service:
+    build:
+      context: ./python-services/rag_service
+      args:
+        HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
+        RAG_EMBED_MODEL: ${RAG_EMBED_MODEL:-BAAI/bge-small-zh-v1.5}
+    image: aicourse/rag-service:local
+    container_name: aicourse-rag-service
+    labels:
+      <<: *labels-python
+      aicourse.role: rag
+    restart: unless-stopped
+    profiles: ["python"]
+    depends_on:
+      kg-service:
+        condition: service_healthy
+    environment:
+      RAG_DATA_DIR: /app/data
+      # 嵌入权重通路：镜像内 HF_HOME=/models/hf，此处由命名卷承载，离线可预置。
+      HF_HOME: /models/hf
+      HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
+      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}
+      RAG_EMBED_MODEL: ${RAG_EMBED_MODEL:-BAAI/bge-small-zh-v1.5}
+      # 生成后端：默认 deepseek；切 ollama 时无 API Key，失败仍按原语义降级。
+      AI_PROVIDER: ${AI_PROVIDER:-deepseek}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      # 容器内 localhost 指容器自身；访问宿主 Ollama 走 host.docker.internal。
+      # Linux 额外由下方 extra_hosts 映射到宿主网关，Windows/macOS Docker Desktop 原生支持。
+      OLLAMA_BASE_URL: ${RAG_OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-deepseek-r1:8b}
+      OLLAMA_THINK: ${OLLAMA_THINK:-}
+      # R3 图谱增强：RAG 从 KG 取课程节点并带 1 跳关系。
+      KG_BASE_URL: http://kg-service:8001
+      RAG_GRAPH_ENABLED: ${RAG_GRAPH_ENABLED:-true}
+      TZ: Asia/Shanghai
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${RAG_HOST_BIND:-127.0.0.1}:${RAG_HOST_PORT:-8002}:8002"
+    volumes:
+      - rag-data:/app/data
+      - hf-cache:/models/hf
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/api/v1/rag/health', timeout=3)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   # fine-tune-service（8003）：LoRA 微调引擎。**引擎侧已交付**（python-services/fine_tune_service，
-  # 契约见 docs/项目手册.md 第八部分 §37；本机 pytest 53 passed，手册 DR-78），但**尚无 Dockerfile**，
-  # 且未纳入 scripts/start-engines.py / start-all.py 一键范围 → 服务块仍按 kg/rag 同形保持注释，
-  # 补出 Dockerfile 后参照上述模板放开（profiles: ["python"]）。
+  # 契约见 docs/项目手册.md 第八部分 §37；本机 pytest 52 passed / 1 skipped，手册 DR-78），但
+  # **D-A4 ② 不包含 8003**：尚无 Dockerfile，也未纳入 scripts/start-engines.py 一键范围。
+  # 上线需第三个镜像或独立 systemd unit；在此之前保持 FT_ENABLED=false（见部署文档 §6.1）。
 
   # ---------------- MySQL 定时备份守护（profiles: ops） ----------------
   mysql-backup:
@@ -583,7 +677,8 @@ services:
     labels:
       <<: *labels-infra
       aicourse.role: graph-store
-    profiles: ["rag"]
+    # rag profile 保留（只起图库）；python profile 下 kg-service 依赖它。
+    profiles: ["rag", "python"]
     ports:
       - "${NEO4J_HOST_BIND:-127.0.0.1}:${NEO4J_HTTP_PORT:-7474}:7474"   # Neo4j Browser (HTTP)
       - "${NEO4J_HOST_BIND:-127.0.0.1}:${NEO4J_BOLT_PORT:-7687}:7687"   # Bolt protocol
@@ -621,6 +716,9 @@ volumes:
   neo4j_logs:
   neo4j_import:
   neo4j_plugins:
+  # Python 引擎数据卷（D-A4 ②）
+  rag-data:
+  hf-cache:
 
 # ===================== 文件式凭据（Compose secrets，非 Swarm 也支持） =====================
 # 挂载落点固定为容器内 `/run/secrets/<secret 名>`，与 backend 的 Spring configtree 落点同一套机制

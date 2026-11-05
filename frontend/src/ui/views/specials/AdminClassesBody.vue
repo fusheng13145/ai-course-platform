@@ -48,7 +48,7 @@
               <th class="w-140">班主任</th>
               <th class="w-96">人数 / 上限</th>
               <th class="w-80">状态</th>
-              <th class="w-140">操作</th>
+              <th class="w-140 th-actions">操作</th>
             </tr>
           </thead>
           <tbody>

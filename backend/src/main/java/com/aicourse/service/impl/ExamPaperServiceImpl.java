@@ -1,12 +1,15 @@
 package com.aicourse.service.impl;
 
 
+import com.aicourse.constant.ExamSessionStatus;
 import com.aicourse.entity.ExamPaper;
 import com.aicourse.entity.ExamPaperStatus;
 import com.aicourse.entity.ExamQuestion;
+import com.aicourse.entity.ExamSession;
 import com.aicourse.entity.Question;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ExamPaperMapper;
+import com.aicourse.mapper.ExamSessionMapper;
 import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.NotificationService;
@@ -26,6 +29,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.io.Serializable;
 import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.util.*;
 import java.util.stream.Collectors;
 import lombok.extern.slf4j.Slf4j;
@@ -42,12 +46,14 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
     private final ExamQuestionService examQuestionService;
     private final QuestionService questionService;
     private final NotificationService notificationService;
+    private final ExamSessionMapper examSessionMapper;
 
     public ExamPaperServiceImpl(ExamQuestionService examQuestionService, QuestionService questionService,
-                                NotificationService notificationService) {
+                                NotificationService notificationService, ExamSessionMapper examSessionMapper) {
         this.examQuestionService = examQuestionService;
         this.questionService = questionService;
         this.notificationService = notificationService;
+        this.examSessionMapper = examSessionMapper;
     }
 
     /**
@@ -90,7 +96,7 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
     }
 
     /**
-     * 发布试卷
+     * 发布试卷（管理员直接发布）
      */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -103,9 +109,86 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
         if (ExamPaperStatus.PUBLISHED.name().equals(examPaper.getStatus())) {
             throw new BusinessException("试卷已发布");
         }
+        if (ExamPaperStatus.PENDING_REVIEW.name().equals(examPaper.getStatus())) {
+            throw new BusinessException("试卷待审核，请走审核通过");
+        }
+        markPublished(examPaper);
+    }
+
+    /**
+     * 提交审核（教师）：学生仍不可见，管理员通过后才发布。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(cacheNames = "examPapers", key = "#paperId")
+    public void submitExamPaperForReview(Long paperId) {
+        ExamPaper examPaper = this.getById(paperId);
+        if (examPaper == null) {
+            throw new BusinessException("试卷不存在");
+        }
+        String status = examPaper.getStatus();
+        if (ExamPaperStatus.PUBLISHED.name().equals(status)) {
+            throw new BusinessException("试卷已发布");
+        }
+        if (ExamPaperStatus.PENDING_REVIEW.name().equals(status)) {
+            throw new BusinessException("试卷已在审核中");
+        }
+        examPaper.setStatus(ExamPaperStatus.PENDING_REVIEW.name());
+        this.updateById(examPaper);
+    }
+
+    /**
+     * 审核通过（管理员）：仅待审核态可操作。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(cacheNames = "examPapers", key = "#paperId")
+    public void approveExamPaper(Long paperId) {
+        ExamPaper examPaper = this.getById(paperId);
+        if (examPaper == null) {
+            throw new BusinessException("试卷不存在");
+        }
+        if (!ExamPaperStatus.PENDING_REVIEW.name().equals(examPaper.getStatus())) {
+            throw new BusinessException("试卷不在待审核状态");
+        }
+        markPublished(examPaper);
+    }
+
+    /**
+     * 审核驳回（管理员）：仅待审核态可操作；原因仅进通知与日志，不落库。
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(cacheNames = "examPapers", key = "#paperId")
+    public void rejectExamPaper(Long paperId, String reason) {
+        ExamPaper examPaper = this.getById(paperId);
+        if (examPaper == null) {
+            throw new BusinessException("试卷不存在");
+        }
+        if (!ExamPaperStatus.PENDING_REVIEW.name().equals(examPaper.getStatus())) {
+            throw new BusinessException("试卷不在待审核状态");
+        }
+        examPaper.setStatus(ExamPaperStatus.REJECTED.name());
+        this.updateById(examPaper);
+        log.info("试卷审核驳回: examPaperId={}, reason={}", paperId, reason);
+        String trimmed = reason == null ? "" : reason.trim();
+        try {
+            if (examPaper.getCreatorId() != null) {
+                notificationService.sendNotification(examPaper.getCreatorId(), "试卷审核未通过",
+                        "试卷「" + examPaper.getTitle() + "」已被驳回" + (trimmed.isEmpty() ? "" : "：" + trimmed),
+                        "EXAM", "EXAM_REJECTED", "MEDIUM", "/teacher/exams", null, paperId, "exam_paper");
+            }
+        } catch (Exception e) {
+            log.warn("试卷驳回通知发送失败: examPaperId={}", paperId, e);
+        }
+    }
+
+    /**
+     * 置为已发布并推送选课学生通知（发布与审核通过共用）。
+     */
+    private void markPublished(ExamPaper examPaper) {
         examPaper.setStatus(ExamPaperStatus.PUBLISHED.name());
         this.updateById(examPaper);
-
         // 修复 P1-1：考试发布后自动推送通知给课程选课学生
         try {
             Map<String, Object> eventData = new HashMap<>();
@@ -233,9 +316,42 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
             scoreDistribution.merge(scoreRange, 1, Integer::sum);
         }
 
-        return new ExamPaperStatsVO(
+        ExamPaperStatsVO stats = new ExamPaperStatsVO(
                 new ExamPaperStatsPaperVO(examPaper.getId(), examPaper.getTitle(), examPaper.getStatus()),
                 questionCount, totalPoints, typeDistribution, scoreDistribution);
+        fillScoreAggregates(paperId, stats);
+        return stats;
+    }
+
+    /**
+     * 填充成绩聚合（均分/及格率）。口径：只统计已阅卷且 percentage 非空的会话，按百分制；
+     * 无样本时 averageScore/passRate 保持 null，前端显示「—」而不是 0。
+     */
+    private void fillScoreAggregates(Long paperId, ExamPaperStatsVO stats) {
+        List<ExamSession> graded = examSessionMapper.selectList(new LambdaQueryWrapper<ExamSession>()
+                .eq(ExamSession::getExamPaperId, paperId)
+                .eq(ExamSession::getStatus, ExamSessionStatus.GRADED)
+                .isNotNull(ExamSession::getPercentage));
+        int count = graded.size();
+        stats.setSubmittedCount(count);
+        stats.setPassLine(60);
+        if (count == 0) {
+            stats.setAverageScore(null);
+            stats.setPassRate(null);
+            return;
+        }
+        BigDecimal sum = BigDecimal.ZERO;
+        long passed = 0;
+        for (ExamSession session : graded) {
+            BigDecimal percentage = session.getPercentage();
+            sum = sum.add(percentage);
+            if (percentage.compareTo(new BigDecimal("60")) >= 0) {
+                passed++;
+            }
+        }
+        stats.setAverageScore(sum.divide(BigDecimal.valueOf(count), 1, RoundingMode.HALF_UP));
+        stats.setPassRate(BigDecimal.valueOf(passed * 100L)
+                .divide(BigDecimal.valueOf(count), 1, RoundingMode.HALF_UP));
     }
 
     /**

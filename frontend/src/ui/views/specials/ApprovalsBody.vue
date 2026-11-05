@@ -37,7 +37,7 @@
               <th class="w-140">教师</th>
               <th class="w-80">学分</th>
               <th class="w-220">提交时间</th>
-              <th class="w-140">操作</th>
+              <th class="w-140 th-actions">操作</th>
             </tr>
           </thead>
           <tbody>

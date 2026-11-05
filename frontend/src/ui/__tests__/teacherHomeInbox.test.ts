@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   loadAdminOverview: vi.fn(),
   loadNotifications: vi.fn(),
   getTeacherDashboard: vi.fn(),
+  getTeacherDashboardAiOverview: vi.fn(),
   getPendingGrading: vi.fn(),
   getAllExamPapersByCourse: vi.fn(),
   getAllCourses: vi.fn(),
@@ -43,6 +44,7 @@ vi.mock('../data/api', () => ({
 vi.mock('@/api/teacher', () => ({
   default: {
     getTeacherDashboard: mocks.getTeacherDashboard,
+    getTeacherDashboardAiOverview: mocks.getTeacherDashboardAiOverview,
     getMyCourseSummaries: mocks.getMyCourseSummaries,
     getAssignments: mocks.getAssignments,
   },
@@ -122,7 +124,6 @@ const teacherDashboard = {
       level: 'HIGH',
     },
   ],
-  aiOverview: { summary: '本周 2 门课程有 6 份待批提交。' },
 }
 
 const pendingGrading = {
@@ -175,6 +176,9 @@ beforeEach(() => {
   mocks.loadAdminOverview.mockResolvedValue({ overview: {}, dashboard: {} })
   mocks.loadNotifications.mockResolvedValue([])
   mocks.getTeacherDashboard.mockResolvedValue(envelope(teacherDashboard))
+  mocks.getTeacherDashboardAiOverview.mockResolvedValue(
+    envelope({ summary: '本周 2 门课程有 6 份待批提交。' }),
+  )
   mocks.getPendingGrading.mockResolvedValue(envelope([]))
   mocks.getAllExamPapersByCourse.mockResolvedValue([])
   mocks.getAllCourses.mockResolvedValue([])
@@ -208,6 +212,8 @@ describe('首页按角色取真实读数', () => {
     expect(wrapper.find('.page-head').text()).toContain('接口数据')
     expect(wrapper.text()).not.toContain('示例数据')
     expect(wrapper.text()).not.toContain('慢启动')
+    // ⑯：AI 教学总览走独立端点，主仪表盘不再同步返回 aiOverview
+    expect(mocks.getTeacherDashboardAiOverview).toHaveBeenCalled()
   })
 
   it('学生：进度 / 待办 / 未读来自 /student/dashboard', async () => {
@@ -237,7 +243,10 @@ describe('首页按角色取真实读数', () => {
     expect(values['已选课程']).toBe('2门')
     expect(values['学习进度']).toBe('70%')
     expect(values['待办事项']).toBe('2项')
-    expect(values['未读通知']).toBe('3条')
+    // v2 起学生 KPI 收敛为三卡：未读通知不再占 KPI 位（读数在铃铛角标与通知卡），
+    // 这里反向钉住，防止 KPI 悄悄回涨成四卡。
+    expect(values['未读通知']).toBeUndefined()
+    expect(wrapper.find('.stat-grid').findAll('.stat').length).toBe(3)
 
     expect(wrapper.find('.card-courses').text()).toContain('计算机网络')
     expect(wrapper.find('.card-queue').text()).toContain('子网划分作业')

@@ -48,13 +48,11 @@
         <button class="course-tile-cover" :data-tone="course.tone" @click="open(course.id)">
           <span>{{ course.short }}</span>
           <small>{{ [course.code, course.teacher].filter(Boolean).join(' · ') || '课程' }}</small>
+          <span class="chip course-tile-progress">{{ course.progress }}%</span>
         </button>
         <div class="course-tile-body">
           <div class="course-tile-head">
             <h3>{{ course.name }}</h3>
-            <span class="chip" :class="course.progress >= 70 ? 'chip-ok' : 'chip-info'">
-              {{ course.progress }}%
-            </span>
           </div>
           <p>
             {{

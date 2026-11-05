@@ -344,6 +344,23 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
         }
     }
 
+    /** 删除话题：作者本人或管理员；按 点赞 → 回复 → 话题 顺序级联清理，避免悬挂回复。 */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteTopic(Long id, Long userId, String role) {
+        DiscussionTopic topic = requireOwner(id, userId, role);
+        List<DiscussionPost> posts = postMapper.selectList(
+                new LambdaQueryWrapper<DiscussionPost>().eq(DiscussionPost::getTopicId, topic.getId()));
+        if (!posts.isEmpty()) {
+            List<Long> postIds = posts.stream().map(DiscussionPost::getId).toList();
+            postLikeMapper.delete(new LambdaQueryWrapper<DiscussionPostLike>()
+                    .in(DiscussionPostLike::getPostId, postIds));
+            postMapper.deleteBatchIds(postIds);
+        }
+        this.removeById(topic.getId());
+        log.info("删除话题 id={} 级联回复 {} 条（操作人 {}）", topic.getId(), posts.size(), userId);
+    }
+
     private DiscussionTopic requireOwner(Long id, Long userId, String role) {
         DiscussionTopic topic = this.getById(id);
         if (topic == null) {

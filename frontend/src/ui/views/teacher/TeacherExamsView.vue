@@ -4,7 +4,7 @@
       v-if="!isCourseScope"
       kicker="TEACHER / EXAM PAPERS · 2026 秋"
       title="试卷库"
-      sub="试卷的创建、编辑、题目明细、统计与发布；发布后学生才可见。"
+      sub="试卷的创建、编辑、题目明细、统计与提交审核；管理员审核通过后学生才可见。"
       source="api"
     >
       <template #actions>
@@ -62,7 +62,7 @@
               <th class="w-80">总分</th>
               <th class="w-80">题量</th>
               <th class="w-96">状态</th>
-              <th class="w-260">操作</th>
+              <th class="w-260 th-actions">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -86,7 +86,7 @@
                   <button class="text-btn" @click="openStats(row)">统计</button>
                   <template v-if="statusView(row).canPublish">
                     <button class="text-btn" @click="openEdit(row)">编辑</button>
-                    <button class="text-btn" @click="publishRow(row)">发布</button>
+                    <button class="text-btn" @click="publishRow(row)">提交审核</button>
                     <button class="text-btn danger" @click="removeRow(row)">删除</button>
                   </template>
                 </div>
@@ -99,7 +99,7 @@
       <div v-if="!loading && !exams.length" class="empty-state compact">
         <span class="e-ico"><Icon name="clipboard" /></span>
         <b>暂无试卷</b>
-        <p>点击「新建试卷」开始创建；发布后学生才可见。</p>
+        <p>点击「新建试卷」开始创建；提交审核并通过后学生才可见。</p>
       </div>
       <div v-else-if="loading" class="empty-state compact">
         <b>正在加载试卷…</b>
@@ -338,6 +338,11 @@ const publishedCount = computed(
 const draftCount = computed(
   () => filteredExams.value.filter((row) => String(row.status).toUpperCase() === 'DRAFT').length,
 )
+const pendingReviewCount = computed(
+  () =>
+    filteredExams.value.filter((row) => String(row.status).toUpperCase() === 'PENDING_REVIEW')
+      .length,
+)
 const archivedCount = computed(
   () => filteredExams.value.filter((row) => String(row.status).toUpperCase() === 'ARCHIVED').length,
 )
@@ -357,6 +362,14 @@ const metrics = computed<Metric[]>(() => [
     unit: '份',
     note: '当前筛选',
     icon: 'file',
+    tone: 'warn',
+  },
+  {
+    label: '待审核',
+    value: pendingReviewCount.value,
+    unit: '份',
+    note: '当前筛选',
+    icon: 'clock',
     tone: 'warn',
   },
   {
@@ -571,13 +584,13 @@ async function runConfirm() {
 
 function publishRow(row: ExamRow) {
   askConfirm({
-    title: '发布试卷',
-    message: `发布后学生即可在考试列表中看到「${row.title}」；发布后仍可下架，但已产生的作答记录会保留。`,
-    confirmText: '发布',
+    title: '提交审核',
+    message: `提交后管理员会在考试治理中审核「${row.title}」；审核通过前学生看不到该试卷。`,
+    confirmText: '提交审核',
     danger: false,
     action: async () => {
       await publishExam(row.id)
-      toast('试卷已发布', 'ok')
+      toast('已提交审核', 'ok')
       await loadExams()
     },
   })

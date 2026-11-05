@@ -1,0 +1,23 @@
+# ============================================================
+# GHCR 镜像覆盖层（A 路径断链 #13，DR-71）
+#
+# 用途：docker-compose.yml 自定义镜像名是 aicourse/backend:local /
+#   aicourse/frontend:local（`docker compose up --build` 本地构建），
+#   而 release.yml 推送的是 ghcr.io/<owner>/<repo>/backend|frontend:<tag>。
+#   两者名字不一致 → 直接 `docker compose pull` 拉不到任何东西。
+#
+# 用法（在仓库根执行）：
+#   export GHCR_REPO=ghcr.io/<owner>/<repo>
+#   export IMAGE_TAG=v1.5.0
+#   docker compose -f docker-compose.yml -f deploy/docker-compose.ghcr.yml pull
+#   docker compose -f docker-compose.yml -f deploy/docker-compose.ghcr.yml up -d --no-build
+#
+# 注意：本覆盖层只改 `image:`，不删 base 的 `build:` 段（保留本地构建能力）；
+#   因此拉取后必须加 --no-build，否则 up 会重新构建并覆盖为本地镜像。
+# ============================================================
+services:
+  backend:
+    image: ${GHCR_REPO:?请设置 GHCR_REPO，例如 ghcr.io/owner/repo}/backend:${IMAGE_TAG:?请设置 IMAGE_TAG，例如 v1.5.0}
+
+  frontend:
+    image: ${GHCR_REPO:?请设置 GHCR_REPO，例如 ghcr.io/owner/repo}/frontend:${IMAGE_TAG:?请设置 IMAGE_TAG，例如 v1.5.0}

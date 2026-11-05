@@ -4,6 +4,7 @@ import com.aicourse.entity.Question;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.QuestionMapper;
 import com.aicourse.service.AIService;
+import com.aicourse.vo.QuestionBankStatisticsVO;
 import com.aicourse.vo.QuestionStatsVO;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
@@ -518,6 +519,15 @@ class QuestionServiceImplTest {
     void stats_null() {
         when(questionMapper.selectById(anyLong())).thenReturn(null);
         assertThrows(BusinessException.class, () -> service.getQuestionStats(1L));
+    }
+
+    @Test
+    @DisplayName("getBankStatistics 返回总题数与今日新增")
+    void bankStats_ok() {
+        when(questionMapper.selectCount(any())).thenReturn(213L, 5L);
+        QuestionBankStatisticsVO r = service.getBankStatistics();
+        assertEquals(213L, r.getTotalCount());
+        assertEquals(5L, r.getTodayCount());
     }
 
     // ===================== getErrorProneQuestions =====================

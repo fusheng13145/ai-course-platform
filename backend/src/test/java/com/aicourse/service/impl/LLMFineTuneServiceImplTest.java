@@ -25,9 +25,22 @@ class LLMFineTuneServiceImplTest {
     private final LLMFineTuneServiceImpl disabled =
             new LLMFineTuneServiceImpl(false, "http://localhost:8003", 5, 300, 1, "/api/v1/fine-tune/health");
 
-    // 开启态但目标端口无服务：调用必抛 -> 触发重试/回落分支（maxRetries=0 避免 sleep）
+    // 开启态但目标端口无服务：调用必抛 -> 触发重试/回落分支（maxRetries=0 避免 sleep）。
+    // 不能写死 localhost:8003：本机真实拉起微调服务后该端口会应答，导致用例从
+    // 「不可达」变成「可达」，测试结果取决于环境。这里由 OS 临时分配并立即释放一个
+    // 空闲端口，保证「无监听」这一前提与本机服务状态无关。
+    private static final String UNREACHABLE_BASE = allocateClosedPort();
+
+    private static String allocateClosedPort() {
+        try (java.net.ServerSocket socket = new java.net.ServerSocket(0)) {
+            return "http://127.0.0.1:" + socket.getLocalPort();
+        } catch (java.io.IOException e) {
+            return "http://127.0.0.1:9";
+        }
+    }
+
     private final LLMFineTuneServiceImpl enabledBroken =
-            new LLMFineTuneServiceImpl(true, "http://localhost:8003", 5, 300, 0, "/api/v1/fine-tune/health");
+            new LLMFineTuneServiceImpl(true, UNREACHABLE_BASE, 5, 300, 0, "/api/v1/fine-tune/health");
 
     @Test
     @DisplayName("disabled: healthCheck 返回 false")

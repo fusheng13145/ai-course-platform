@@ -36,7 +36,7 @@
               <th class="w-220">开始时间</th>
               <th class="w-220">结束时间</th>
               <th class="w-96">状态</th>
-              <th class="w-140">操作</th>
+              <th class="w-140 th-actions">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -99,7 +99,7 @@
               <th class="w-140">风险类型</th>
               <th>说明</th>
               <th class="w-220">时间</th>
-              <th class="w-140">操作</th>
+              <th class="w-140 th-actions">操作</th>
             </tr>
           </thead>
           <tbody>
@@ -212,6 +212,7 @@ interface SessionRow {
   id: number | string
   examPaperId?: number | string
   courseId?: number | string
+  paperTitle?: string
   studentName?: string
   student?: string
   startTime?: string
@@ -227,8 +228,6 @@ const sessions = ref<SessionRow[]>([])
 const sessionsError = ref('')
 const riskError = ref('')
 const eventsError = ref('')
-const paperMap = ref<Record<string, string>>({})
-const paperCourse = ref<Record<string, number>>({})
 const onlyThisCourse = ref(false)
 const selected = ref<SessionRow | null>(null)
 const selectedRisk = ref<Record<string, unknown> | null>(null)
@@ -237,15 +236,9 @@ const events = reactive({ loading: false, list: [] as Record<string, unknown>[] 
 
 const scopedCourseId = computed(() => Number(props.courseId) || 0)
 const loadError = computed(() => sessionsError.value || riskError.value || eventsError.value)
-// /exam-sessions/active 不带 courseId（旧页因此「仅本课程」恒为空），用已加载的试卷回填
-function rowCourseId(row: SessionRow): number {
-  const direct = Number(row.courseId)
-  if (direct) return direct
-  return Number(paperCourse.value[String(row.examPaperId)]) || 0
-}
 const filteredSessions = computed(() => {
   if (!onlyThisCourse.value || !scopedCourseId.value) return sessions.value
-  return sessions.value.filter((row) => rowCourseId(row) === scopedCourseId.value)
+  return sessions.value.filter((row) => Number(row.courseId) === scopedCourseId.value)
 })
 
 const metrics = computed<Metric[]>(() => [
@@ -322,7 +315,7 @@ function eventChip(type: string): string {
 
 function paperTitle(row: SessionRow | null): string {
   if (!row) return '—'
-  return paperMap.value[String(row.examPaperId)] || `试卷#${row.examPaperId ?? '—'}`
+  return row.paperTitle || `试卷#${row.examPaperId ?? '—'}`
 }
 
 async function load() {
@@ -332,20 +325,6 @@ async function load() {
     const body = unwrap(await examApi.getActiveExams())
     const arr = rowsOf(body) as SessionRow[]
     sessions.value = arr
-    const ids = [...new Set(arr.map((row) => row.examPaperId).filter(Boolean))]
-    await Promise.all(
-      ids.map(async (id) => {
-        try {
-          const paper = await examApi.getExamPaperById(id as number | string)
-          const data = (paper as { data?: { title?: string; courseId?: number } })?.data ?? paper
-          paperMap.value[String(id)] = (data as { title?: string })?.title || `试卷#${id}`
-          const course = (data as { courseId?: number })?.courseId
-          if (course) paperCourse.value[String(id)] = Number(course)
-        } catch (error) {
-          logger.error('加载试卷信息失败', id, error)
-        }
-      }),
-    )
     if (selected.value) {
       const still = arr.find((row) => row.id === selected.value?.id)
       if (still) selected.value = still
