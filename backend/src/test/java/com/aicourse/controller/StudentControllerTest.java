@@ -135,7 +135,7 @@ class StudentControllerTest extends ControllerTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
-        verify(enrollmentService).enrollStudent(eq(1L), eq(1L));
+        verify(enrollmentService).enrollStudent(eq(1L), eq(1L), isNull());
     }
 
 

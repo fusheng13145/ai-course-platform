@@ -87,6 +87,41 @@ public class TeachingClassAccessControl {
     }
 
     /**
+     * 要求操作人可管理该教学班名单（V14 / WP5）：本班主讲或课程负责人；
+     * 管理员治理只读，不代导入/重同步。
+     */
+    public TeachingClass assertRosterManage(Long teachingClassId, Long operatorId) {
+        TeachingClass teachingClass = requireTeachingClass(teachingClassId);
+        if (Objects.equals(teachingClass.getLeadTeacherId(), operatorId)) {
+            return teachingClass;
+        }
+        Course course = requireCourse(teachingClass.getCourseId());
+        if (!Objects.equals(course.getTeacherId(), operatorId)) {
+            throw new BusinessException(ApiCode.FORBIDDEN, "只有课程负责人或该教学班主讲可管理名单");
+        }
+        return teachingClass;
+    }
+
+    /**
+     * 要求操作人可读取该教学班名单来源（V14 / WP5）：管理员治理只读、本班主讲、课程负责人。
+     */
+    public TeachingClass assertRosterRead(Long teachingClassId, Long operatorId) {
+        TeachingClass teachingClass = requireTeachingClass(teachingClassId);
+        User operator = operatorId == null ? null : userService.getById(operatorId);
+        if (operator != null && RoleConstants.ADMIN.equals(operator.getRole())) {
+            return teachingClass;
+        }
+        if (Objects.equals(teachingClass.getLeadTeacherId(), operatorId)) {
+            return teachingClass;
+        }
+        Course course = requireCourse(teachingClass.getCourseId());
+        if (!Objects.equals(course.getTeacherId(), operatorId)) {
+            throw new BusinessException(ApiCode.FORBIDDEN, "只有课程负责人或该教学班主讲可查看名单来源");
+        }
+        return teachingClass;
+    }
+
+    /**
      * 要求目标教师与课程属于同一学院（课程学院为空时回退负责人学院）。
      */
     public User assertLeadTeacherInCourseCollege(Course course, Long teacherId) {

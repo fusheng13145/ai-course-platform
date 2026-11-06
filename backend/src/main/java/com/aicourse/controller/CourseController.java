@@ -209,7 +209,7 @@ public class CourseController {
     }
 
     /**
-     * 查询当前用户已报名的课程
+     * 查询当前用户已报名的课程（仅返回审批通过且有效的记录，V14 / WP5）
      */
     @GetMapping("/enrolled")
     @Operation(summary = "获取我的已报名课程", description = "返回当前登录用户的课程选课记录列表")
@@ -219,7 +219,9 @@ public class CourseController {
             @Parameter(description = "每页条数") @RequestParam(defaultValue = "10") long size) {
         Long userId = (Long) auth.getPrincipal();
         LambdaQueryWrapper<CourseEnrollment> queryWrapper = new LambdaQueryWrapper<CourseEnrollment>()
-                .eq(CourseEnrollment::getStudentId, userId);
+                .eq(CourseEnrollment::getStudentId, userId)
+                .eq(CourseEnrollment::getIsActive, true)
+                .eq(CourseEnrollment::getApprovalStatus, "APPROVED");
         Page<CourseEnrollment> enrollmentPage = enrollmentService.page(Page.of(page, size), queryWrapper);
         return ApiResponse.success(PagedResponse.of(enrollmentPage));
     }

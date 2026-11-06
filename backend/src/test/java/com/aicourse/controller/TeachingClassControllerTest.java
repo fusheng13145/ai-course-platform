@@ -3,7 +3,9 @@ package com.aicourse.controller;
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.TeachingClass;
 import com.aicourse.security.AdminScopeGuard;
+import com.aicourse.service.RosterService;
 import com.aicourse.service.TeachingClassService;
+import com.aicourse.vo.RosterSyncResultVO;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
@@ -29,6 +31,9 @@ class TeachingClassControllerTest extends ControllerTestBase {
 
     @MockitoBean
     private TeachingClassService teachingClassService;
+
+    @MockitoBean
+    private RosterService rosterService;
 
     @MockitoBean
     private AdminScopeGuard adminScopeGuard;
@@ -96,5 +101,57 @@ class TeachingClassControllerTest extends ControllerTestBase {
         mockMvc.perform(withUser(get("/teaching-classes/30/members"), 100L, "TEACHER"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].id").value(7));
+    }
+
+    @Test
+    @DisplayName("WP5：教师按行政班导入名单返回 added/removed/skipped")
+    void teacherCanImportRoster() throws Exception {
+        when(adminScopeGuard.currentUserId()).thenReturn(100L);
+        RosterSyncResultVO result = new RosterSyncResultVO();
+        result.setAdded(3);
+        result.setRemoved(0);
+        result.setSkipped(1);
+        when(rosterService.importFromAdminClass(30L, 5L, 100L)).thenReturn(result);
+
+        mockMvc.perform(withUser(post("/teaching-classes/30/roster/import?adminClassId=5"), 100L, "TEACHER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.added").value(3))
+                .andExpect(jsonPath("$.data.skipped").value(1));
+    }
+
+    @Test
+    @DisplayName("WP5：学生不能导入名单（写操作仅教师角色）")
+    void studentCannotImportRoster() throws Exception {
+        mockMvc.perform(withUser(post("/teaching-classes/30/roster/import?adminClassId=5"), 2L, "STUDENT"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("WP5：重同步返回 added/removed/skipped")
+    void teacherCanResyncRoster() throws Exception {
+        when(adminScopeGuard.currentUserId()).thenReturn(100L);
+        RosterSyncResultVO result = new RosterSyncResultVO();
+        result.setAdded(2);
+        result.setRemoved(1);
+        result.setSkipped(4);
+        when(rosterService.resync(30L, null, 100L)).thenReturn(result);
+
+        mockMvc.perform(withUser(post("/teaching-classes/30/roster/resync"), 100L, "TEACHER"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.added").value(2))
+                .andExpect(jsonPath("$.data.removed").value(1))
+                .andExpect(jsonPath("$.data.skipped").value(4));
+    }
+
+    @Test
+    @DisplayName("WP5：管理员读取行政班来源走服务层治理只读口径")
+    void adminCanReadSources() throws Exception {
+        when(adminScopeGuard.currentUserId()).thenReturn(1L);
+        when(rosterService.listSources(30L, 1L)).thenReturn(List.of());
+
+        mockMvc.perform(withUser(get("/teaching-classes/30/admin-classes"), 1L, "ADMIN"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isArray());
     }
 }

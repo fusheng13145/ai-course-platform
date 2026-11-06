@@ -42,22 +42,22 @@ public class CourseEnrollmentController {
     }
 
     /**
-     * 课程报名
+     * 课程报名（可指定教学班；未指定时自动选中课程下唯一启用的教学班）
      * @param auth 认证信息
-     * @param body 请求参数
+     * @param body 请求参数（courseId 必填，teachingClassId 可选）
      * @return 报名记录
      */
     @PostMapping
     public ApiResponse<CourseEnrollment> enroll(Authentication auth, @Valid @RequestBody Map<String, Long> body) {
         Long studentId = (Long) auth.getPrincipal();
         Long courseId = body.get("courseId");
-        // 查重/软退课恢复/审批状态判定等业务下沉至服务层（事务化）
-        CourseEnrollment enrollment = enrollmentService.enroll(studentId, courseId);
+        // 查重/软退课恢复/审批状态判定/教学班容量等业务下沉至服务层（事务化）
+        CourseEnrollment enrollment = enrollmentService.enroll(studentId, courseId, body.get("teachingClassId"));
         return ApiResponse.success("报名成功", enrollment);
     }
 
     /**
-     * 查询我的报名记录
+     * 查询我的报名记录（仅返回审批通过且有效的记录，V14 / WP5）
      * @param auth 认证信息
      * @return 报名记录分页数据
      */
@@ -65,7 +65,9 @@ public class CourseEnrollmentController {
     public ApiResponse<PagedResponse<CourseEnrollment>> myEnrollments(Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
         LambdaQueryWrapper<CourseEnrollment> queryWrapper = new LambdaQueryWrapper<CourseEnrollment>()
-                .eq(CourseEnrollment::getStudentId, userId);
+                .eq(CourseEnrollment::getStudentId, userId)
+                .eq(CourseEnrollment::getIsActive, true)
+                .eq(CourseEnrollment::getApprovalStatus, "APPROVED");
         Page<CourseEnrollment> enrollmentPage = enrollmentService.page(new Page<>(1, 100), queryWrapper);
         return ApiResponse.success(PagedResponse.of(enrollmentPage));
     }
