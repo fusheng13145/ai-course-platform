@@ -3,11 +3,13 @@ import com.aicourse.controller.SystemConfigController;
 import com.aicourse.service.EmailService;
 import com.aicourse.service.SystemConfigService;
 import com.aicourse.service.UserService;
+import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.entity.SystemConfig;
 import com.aicourse.entity.User;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
@@ -24,6 +26,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 对带有 @PreAuthorize("hasRole('ADMIN')") 的端点新增 STUDENT 越权 403 测试。
  */
 @WebMvcTest(SystemConfigController.class)
+@Import(AdminScopeGuard.class)
 class SystemConfigControllerTest extends ControllerTestBase {
 
     @MockitoBean
@@ -302,6 +305,26 @@ class SystemConfigControllerTest extends ControllerTestBase {
     void testEmail_unauthorized_returns_401() throws Exception {
         mockMvc.perform(post("/system-configs/test-email"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("系统设置写操作：院系管理员 3 个端点全部 403（校级专有）")
+    void writeEndpoints_collegeAdmin_403() throws Exception {
+        mockMvc.perform(put("/system-configs/key/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"value\":\"newval\"}")
+                        .with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/system-configs/batch-update")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"key1\":\"v1\"}")
+                        .with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(post("/system-configs/test-email").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden());
+        verify(systemConfigService, never()).updateConfig(any(), any());
+        verify(systemConfigService, never()).batchUpdateConfigs(any());
+        verify(emailService, never()).sendVerificationCode(any(), any(), any());
     }
 
 }

@@ -3,6 +3,7 @@ package com.aicourse.controller;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.dto.SemesterCreateDTO;
 import com.aicourse.entity.Semester;
+import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.SemesterService;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -28,9 +29,11 @@ import java.util.Map;
 public class SemesterController {
 
     private final SemesterService semesterService;
+    private final AdminScopeGuard adminScopeGuard;
 
-    public SemesterController(SemesterService semesterService) {
+    public SemesterController(SemesterService semesterService, AdminScopeGuard adminScopeGuard) {
         this.semesterService = semesterService;
+        this.adminScopeGuard = adminScopeGuard;
     }
 
     /**
@@ -50,6 +53,7 @@ public class SemesterController {
     @PostMapping
     @Operation(summary = "创建学期", description = "学期名唯一；结束日期不得早于开始日期")
     public ApiResponse<Semester> create(@Valid @RequestBody SemesterCreateDTO body) {
+        adminScopeGuard.assertSchoolOnly();
         return ApiResponse.success("学期创建成功",
                 semesterService.create(body.getName(), body.getStartDate(), body.getEndDate()));
     }
@@ -60,6 +64,7 @@ public class SemesterController {
     @PostMapping("/{id}/archive")
     @Operation(summary = "归档学期", description = "幂等：已归档再次调用返回 archived=false，不覆盖原归档时间")
     public ApiResponse<Map<String, Object>> archive(@PathVariable Long id) {
+        adminScopeGuard.assertSchoolOnly();
         boolean changed = semesterService.archive(id);
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("id", id);
@@ -74,6 +79,7 @@ public class SemesterController {
     @PostMapping("/archive-expired")
     @Operation(summary = "归档过期学期", description = "归档所有 状态=ACTIVE 且 结束日期<今天 的学期，返回本次条数")
     public ApiResponse<Map<String, Object>> archiveExpired() {
+        adminScopeGuard.assertSchoolOnly();
         int archived = semesterService.archiveExpired(null);
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("archivedCount", archived);

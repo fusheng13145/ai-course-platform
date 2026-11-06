@@ -2,12 +2,20 @@ package com.aicourse.controller;
 import com.aicourse.controller.CourseController;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseEnrollment;
+import com.aicourse.entity.User;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
+import com.aicourse.service.UserService;
+import com.aicourse.security.AdminScopeGuard;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
@@ -23,12 +31,22 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 对每个 endpoint 打桩 service 并断言 PagedResponse / 实体字段透传，verify 确认路由正确委托。
  */
 @WebMvcTest(CourseController.class)
+@Import(AdminScopeGuard.class)
 class CourseControllerTest extends ControllerTestBase {
 
     @MockitoBean
     private com.aicourse.service.CourseService courseService;
     @MockitoBean
     private com.aicourse.service.CourseEnrollmentService enrollmentService;
+    @MockitoBean
+    private UserService userService;
+
+    @BeforeEach
+    void registerEntityMetadata() {
+        // LambdaQueryWrapper 的 select 会立即解析列名，@WebMvcTest 切片需先注册实体元数据
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), User.class);
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), Course.class);
+    }
 
     private Page<Course> coursePageWith(Long id) {
         Course c = new Course();
@@ -389,5 +407,75 @@ class CourseControllerTest extends ControllerTestBase {
         mockMvc.perform(get("/courses/1/stats").with(withUser(21L, "TEACHER")))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
+    }
+
+    // ── WP2：院系管理员课程边界（学院归属按授课教师推导） ──
+
+    private com.aicourse.entity.User user(Long id, Long collegeId, String role) {
+        com.aicourse.entity.User u = new com.aicourse.entity.User();
+        u.setId(id);
+        u.setCollegeId(collegeId);
+        u.setRole(role);
+        return u;
+    }
+
+    private Course course(Long id, Long teacherId) {
+        Course c = new Course();
+        c.setId(id);
+        c.setTeacherId(teacherId);
+        return c;
+    }
+
+    @Test
+    @DisplayName("GET /courses/1 - 院系管理员访问本院教师课程 200")
+    void getById_collegeAdmin_sameCollege_200() throws Exception {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
+        when(courseService.getById(1L)).thenReturn(course(1L, 20L));
+        when(userService.getById(20L)).thenReturn(user(20L, 10L, "TEACHER"));
+
+        mockMvc.perform(get("/courses/1").with(withCollegeAdmin(3L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.id").value(1));
+    }
+
+    @Test
+    @DisplayName("GET /courses/1 - 院系管理员访问他院教师课程 403")
+    void getById_collegeAdmin_otherCollege_403() throws Exception {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
+        when(courseService.getById(1L)).thenReturn(course(1L, 20L));
+        when(userService.getById(20L)).thenReturn(user(20L, 11L, "TEACHER"));
+
+        mockMvc.perform(get("/courses/1").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    @DisplayName("POST /courses/1/approve - 院系管理员审批他院课程 403")
+    void approve_collegeAdmin_otherCollege_403() throws Exception {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
+        when(courseService.getById(1L)).thenReturn(course(1L, 20L));
+        when(userService.getById(20L)).thenReturn(user(20L, 11L, "TEACHER"));
+
+        mockMvc.perform(post("/courses/1/approve").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(courseService, never()).approveCourse(anyLong());
+    }
+
+    @Test
+    @DisplayName("GET /courses - 院系管理员列表按本院教师过滤")
+    void list_collegeAdmin_filtersByCollegeTeachers() throws Exception {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
+        when(userService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
+                .thenReturn(List.of(user(20L, 10L, "TEACHER")));
+        when(courseService.page(any(), any())).thenReturn(coursePageWith(2L));
+
+        mockMvc.perform(get("/courses?page=1&size=10").with(withCollegeAdmin(3L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.list[0].id").value(2));
+        verify(courseService).page(any(), any());
     }
 }

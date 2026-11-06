@@ -255,6 +255,15 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
      */
     @Override
     public Page<User> searchUsers(String keyword, String role, int page, int size) {
+        return searchUsers(keyword, role, page, size, null);
+    }
+
+    @Override
+    public Page<User> searchUsersInCollege(String keyword, String role, int page, int size, Long collegeId) {
+        return searchUsers(keyword, role, page, size, collegeId);
+    }
+
+    private Page<User> searchUsers(String keyword, String role, int page, int size, Long collegeId) {
         LambdaQueryWrapper<User> queryWrapper = new LambdaQueryWrapper<User>()
                 .eq(role != null && !role.isEmpty(), User::getRole, role)
                 .and(keyword != null && !keyword.isEmpty(), w -> w
@@ -262,6 +271,7 @@ public class UserServiceImpl extends ServiceImpl<UserMapper, User> implements Us
                         .or().like(User::getFullName, keyword)
                         .or().like(User::getEmail, keyword)
                         .or().like(User::getStudentId, keyword))
+                .eq(collegeId != null, User::getCollegeId, collegeId)
                 .eq(User::getIsActive, true)
                 .orderByDesc(User::getCreatedAt);
 

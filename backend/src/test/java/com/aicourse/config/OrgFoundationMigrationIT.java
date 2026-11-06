@@ -16,6 +16,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -100,6 +101,35 @@ class OrgFoundationMigrationIT {
                 MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
             assertEquals(1, queryInt(connection, "SELECT COUNT(*) FROM schools"),
                     "重复执行不得重复插入学校根");
+        }
+    }
+
+    @Test
+    @DisplayName("权限目录唯一键：同 role 同 key 不同 scope 可共存，相同三元组二次插入被唯一约束拒绝")
+    void permissionScopeUniqueKeyEnforced() throws SQLException {
+        flyway().migrate();
+
+        try (Connection connection = DriverManager.getConnection(
+                MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
+            try (Statement statement = connection.createStatement()) {
+                statement.executeUpdate("INSERT INTO role_permissions"
+                        + " (role, scope, permission_key, permission_name)"
+                        + " VALUES ('ADMIN', 'ALL', 'wp2:scope:demo', '作用域演示')");
+                statement.executeUpdate("INSERT INTO role_permissions"
+                        + " (role, scope, permission_key, permission_name)"
+                        + " VALUES ('ADMIN', 'COLLEGE', 'wp2:scope:demo', '作用域演示')");
+            }
+            assertEquals(2, queryInt(connection,
+                    "SELECT COUNT(*) FROM role_permissions WHERE permission_key = 'wp2:scope:demo'"),
+                    "同 role 同 key 不同 scope 必须允许共存");
+
+            assertThrows(SQLException.class, () -> {
+                try (Statement statement = connection.createStatement()) {
+                    statement.executeUpdate("INSERT INTO role_permissions"
+                            + " (role, scope, permission_key, permission_name)"
+                            + " VALUES ('ADMIN', 'COLLEGE', 'wp2:scope:demo', '作用域演示')");
+                }
+            }, "同一 (role, scope, permission_key) 三元组重复插入必须被唯一键拒绝");
         }
     }
 

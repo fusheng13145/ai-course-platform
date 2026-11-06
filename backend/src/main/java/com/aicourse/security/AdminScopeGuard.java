@@ -2,6 +2,7 @@ package com.aicourse.security;
 
 import com.aicourse.common.AdminScope;
 import com.aicourse.common.RoleConstants;
+import com.aicourse.entity.Course;
 import com.aicourse.entity.User;
 import com.aicourse.service.UserService;
 import org.springframework.security.access.AccessDeniedException;
@@ -87,11 +88,69 @@ public class AdminScopeGuard {
     }
 
     /**
+     * 当前管理员的有效作用域。
+     * @return 院系管理员返回 {@link AdminScope#COLLEGE}，其余 ADMIN（含存量为空作用域）返回 {@link AdminScope#SCHOOL}
+     */
+    public String currentAdminScope() {
+        return isCollegeAdmin() ? AdminScope.COLLEGE : AdminScope.SCHOOL;
+    }
+
+    /**
      * 查询过滤条件：院系管理员返回本学院ID，校级管理员返回 null（不过滤）。
      * @return 学院过滤ID或 null
      */
     public Long currentCollegeFilter() {
         return isCollegeAdmin() ? currentCollegeId() : null;
+    }
+
+    /**
+     * 要求当前用户可访问指定用户（校级放行，院系级仅限本学院）。
+     * @param target 目标用户
+     * @throws AccessDeniedException 越权或目标未绑定学院
+     */
+    public void assertUserAccess(User target) {
+        if (!isCollegeAdmin()) {
+            return;
+        }
+        if (target == null || target.getCollegeId() == null
+                || !Objects.equals(currentCollegeId(), target.getCollegeId())) {
+            throw new AccessDeniedException("无权访问其他学院的用户");
+        }
+    }
+
+    /**
+     * 要求当前用户可管理指定用户：除学院边界外，院系管理员不得触碰 ADMIN 账号，
+     * 防止通过改角色/改状态进行提权。
+     * @param target 目标用户
+     * @throws AccessDeniedException 越权或目标为管理员
+     */
+    public void assertUserManageable(User target) {
+        assertUserAccess(target);
+        if (isCollegeAdmin() && RoleConstants.ADMIN.equals(target.getRole())) {
+            throw new AccessDeniedException("院系管理员不能管理管理员账号");
+        }
+    }
+
+    /**
+     * 要求当前用户可访问指定课程（校级放行，院系级按授课教师学院判定）。
+     *
+     * <p>课程表在 WP2 阶段尚无 {@code college_id}（WP3/WP4 才引入），
+     * 故以授课教师的 {@code users.college_id} 作为学院归属口径。</p>
+     * @param course 目标课程
+     * @throws AccessDeniedException 越权或教师不存在/未绑定学院
+     */
+    public void assertCourseAccess(Course course) {
+        if (!isCollegeAdmin()) {
+            return;
+        }
+        if (course == null || course.getTeacherId() == null) {
+            throw new AccessDeniedException("无权访问其他学院的课程");
+        }
+        User teacher = userService.getById(course.getTeacherId());
+        if (teacher == null || teacher.getCollegeId() == null
+                || !Objects.equals(currentCollegeId(), teacher.getCollegeId())) {
+            throw new AccessDeniedException("无权访问其他学院的课程");
+        }
     }
 
     /**

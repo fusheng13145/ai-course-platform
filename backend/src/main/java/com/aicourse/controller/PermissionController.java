@@ -7,7 +7,10 @@ import jakarta.validation.Valid;
 
 import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.common.ApiResponse;
+import com.aicourse.common.AdminScope;
 import com.aicourse.entity.RolePermission;
+import com.aicourse.exception.BusinessException;
+import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.PermissionService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -27,9 +30,11 @@ public class PermissionController {
     private static final Logger log = LoggerFactory.getLogger(PermissionController.class);
 
     private final PermissionService permissionService;
+    private final AdminScopeGuard adminScopeGuard;
 
-    public PermissionController(PermissionService permissionService) {
+    public PermissionController(PermissionService permissionService, AdminScopeGuard adminScopeGuard) {
         this.permissionService = permissionService;
+        this.adminScopeGuard = adminScopeGuard;
     }
 
     /**
@@ -41,6 +46,7 @@ public class PermissionController {
     public ApiResponse<List<RolePermission>> getByRole(@PathVariable String role) {
         LambdaQueryWrapper<RolePermission> queryWrapper = new LambdaQueryWrapper<RolePermission>()
                 .eq(RolePermission::getRole, role.toUpperCase());
+        applyScopeFilter(queryWrapper);
         List<RolePermission> permissionList = permissionService.list(queryWrapper);
         return ApiResponse.success(permissionList);
     }
@@ -51,8 +57,34 @@ public class PermissionController {
      */
     @GetMapping("/all")
     public ApiResponse<List<RolePermission>> getAll() {
-        List<RolePermission> permissionList = permissionService.list();
+        LambdaQueryWrapper<RolePermission> queryWrapper = new LambdaQueryWrapper<>();
+        applyScopeFilter(queryWrapper);
+        List<RolePermission> permissionList = permissionService.list(queryWrapper);
         return ApiResponse.success(permissionList);
+    }
+
+    /**
+     * 院系管理员只能看到 ALL 与 COLLEGE 作用域的权限项；校级（含存量无作用域 ADMIN）保持全量。
+     */
+    private void applyScopeFilter(LambdaQueryWrapper<RolePermission> queryWrapper) {
+        if (AdminScope.COLLEGE.equals(adminScopeGuard.currentAdminScope())) {
+            queryWrapper.in(RolePermission::getScope, List.of(AdminScope.ALL, AdminScope.COLLEGE));
+        }
+    }
+
+    /**
+     * 规范化并校验权限作用域：空值按 ALL；只接受 ALL/SCHOOL/COLLEGE。
+     */
+    private void normalizeScope(RolePermission permission) {
+        if (permission.getScope() == null || permission.getScope().isBlank()) {
+            permission.setScope(AdminScope.ALL);
+            return;
+        }
+        String normalized = AdminScope.normalize(permission.getScope());
+        if (!AdminScope.ALL.equals(normalized) && !AdminScope.isValid(normalized)) {
+            throw new BusinessException(400, "作用域只能是 ALL、SCHOOL 或 COLLEGE");
+        }
+        permission.setScope(normalized);
     }
 
     /**
@@ -62,6 +94,8 @@ public class PermissionController {
      */
     @PostMapping("/create")
     public ApiResponse<RolePermission> create(@Valid @RequestBody RolePermission permission) {
+        adminScopeGuard.assertSchoolOnly();
+        normalizeScope(permission);
         permissionService.save(permission);
         return ApiResponse.success("创建成功", permission);
     }
@@ -74,6 +108,10 @@ public class PermissionController {
      */
     @PutMapping("/update/{id}")
     public ApiResponse<RolePermission> update(@PathVariable Long id, @Valid @RequestBody RolePermission permission) {
+        adminScopeGuard.assertSchoolOnly();
+        if (permission.getScope() != null) {
+            normalizeScope(permission);
+        }
         permission.setId(id);
         permissionService.updateById(permission);
         RolePermission updatedPermission = permissionService.getById(id);
@@ -87,6 +125,7 @@ public class PermissionController {
      */
     @DeleteMapping("/delete/{id}")
     public ApiResponse<Void> delete(@PathVariable Long id) {
+        adminScopeGuard.assertSchoolOnly();
         permissionService.removeById(id);
         return ApiResponse.success("删除成功", null);
     }
@@ -98,6 +137,7 @@ public class PermissionController {
      */
     @PatchMapping("/toggle/{id}")
     public ApiResponse<RolePermission> toggleStatus(@PathVariable Long id) {
+        adminScopeGuard.assertSchoolOnly();
         RolePermission permission = permissionService.getById(id);
         if (permission != null) {
             permission.setIsActive(!permission.getIsActive());

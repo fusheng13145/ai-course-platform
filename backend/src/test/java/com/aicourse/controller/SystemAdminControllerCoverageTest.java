@@ -8,6 +8,7 @@ import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.SystemService;
 import com.aicourse.service.UserService;
+import com.aicourse.security.AdminScopeGuard;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -66,6 +68,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * </ul>
  */
 @WebMvcTest(SystemAdminController.class)
+@Import(AdminScopeGuard.class)
 class SystemAdminControllerCoverageTest extends ControllerTestBase {
 
     @MockitoBean
@@ -676,6 +679,47 @@ class SystemAdminControllerCoverageTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(400))
                 .andExpect(jsonPath("$.message").value(
                         org.hamcrest.Matchers.containsString("缺少必需上传文件")));
+        verify(userService, never()).save(any(User.class));
+    }
+
+    // ==================== WP2：院系管理员作用域边界 ====================
+
+    /** 院系管理员（id=3，学院 10）的 DB 现用户表示，供 AdminScopeGuard 派生作用域与学院。 */
+    private static User collegeAdminUser() {
+        User u = new User();
+        u.setId(3L);
+        u.setCollegeId(10L);
+        u.setRole("ADMIN");
+        return u;
+    }
+
+    @Test
+    @DisplayName("GET /admin/users/{id} - 院系管理员访问他院用户 403（管理端第二入口同样受限）")
+    void getUserDetail_collegeAdmin_otherCollege_403() throws Exception {
+        when(userService.getById(3L)).thenReturn(collegeAdminUser());
+        User other = new User();
+        other.setId(9L);
+        other.setCollegeId(11L);
+        when(userService.getUserProfile(9L)).thenReturn(other);
+
+        mockMvc.perform(get("/admin/users/9").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    @DisplayName("PUT /admin/configs/{key} 与 POST /admin/users/import - 院系管理员 403 且不落库")
+    void schoolOnlyWrites_collegeAdmin_403() throws Exception {
+        mockMvc.perform(put("/admin/configs/site.name").contentType(MediaType.APPLICATION_JSON)
+                        .content("{}").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        mockMvc.perform(post("/admin/users/import").contentType(MediaType.APPLICATION_JSON)
+                        .content("[]").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        verify(systemService, never()).saveConfig(anyString(), anyString(), anyString());
         verify(userService, never()).save(any(User.class));
     }
 }

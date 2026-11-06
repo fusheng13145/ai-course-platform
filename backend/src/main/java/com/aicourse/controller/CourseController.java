@@ -8,9 +8,12 @@ import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseEnrollment;
+import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
+import com.aicourse.service.UserService;
 import com.aicourse.vo.CourseStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -22,6 +25,7 @@ import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -37,10 +41,15 @@ public class CourseController {
 
     private final CourseService courseService;
     private final CourseEnrollmentService enrollmentService;
+    private final UserService userService;
+    private final AdminScopeGuard adminScopeGuard;
 
-    public CourseController(CourseService courseService, CourseEnrollmentService enrollmentService) {
+    public CourseController(CourseService courseService, CourseEnrollmentService enrollmentService,
+                            UserService userService, AdminScopeGuard adminScopeGuard) {
         this.courseService = courseService;
         this.enrollmentService = enrollmentService;
+        this.userService = userService;
+        this.adminScopeGuard = adminScopeGuard;
     }
 
     /**
@@ -57,6 +66,7 @@ public class CourseController {
                 .eq(status != null, Course::getStatus, status)
                 .like(keyword != null, Course::getName, keyword)
                 .orderByDesc(Course::getCreatedAt);
+        applyCollegeFilter(queryWrapper);
         Page<Course> coursePage = courseService.page(Page.of(page, size), queryWrapper);
         return ApiResponse.success(PagedResponse.of(coursePage));
     }
@@ -68,6 +78,7 @@ public class CourseController {
     @Operation(summary = "获取课程详情", description = "根据课程ID返回完整课程信息")
     public ApiResponse<Course> getById(@Parameter(description = "课程ID") @PathVariable Long id) {
         Course course = courseService.getById(id);
+        adminScopeGuard.assertCourseAccess(course);
         return ApiResponse.success(course);
     }
 
@@ -100,6 +111,11 @@ public class CourseController {
         Long userId = (Long) auth.getPrincipal();
         boolean isAdmin = auth.getAuthorities().stream()
                 .anyMatch(granted -> granted.getAuthority().equals("ROLE_ADMIN"));
+        if (adminScopeGuard.isCollegeAdmin()) {
+            Course existing = courseService.getById(id);
+            if (existing == null) throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+            adminScopeGuard.assertCourseAccess(existing);
+        }
         // 存在性校验/权限校验/更新落库下沉至服务层（事务化）
         Course updatedCourse = courseService.updateCourse(id, course, userId, isAdmin);
         return ApiResponse.success("更新成功", updatedCourse);
@@ -124,6 +140,7 @@ public class CourseController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "审批通过课程", description = "管理员审批通过课程申请，将状态设为ACTIVE")
     public ApiResponse<Course> approve(@Parameter(description = "课程ID") @PathVariable Long id) {
+        assertCollegeScope(id);
         Course course = courseService.approveCourse(id);
         return ApiResponse.success("审批成功", course);
     }
@@ -150,6 +167,7 @@ public class CourseController {
                                       @io.swagger.v3.oas.annotations.parameters.RequestBody(
                                               description = "驳回原因（可选）"
                                       ) @Valid @RequestBody(required = false) Map<String, String> body) {
+        assertCollegeScope(id);
         String reason = body != null ? body.get("reason") : null;
         Course course = courseService.rejectCourse(id, reason);
         return ApiResponse.success("已拒绝", course);
@@ -245,9 +263,43 @@ public class CourseController {
         Long userId = (Long) auth.getPrincipal();
         boolean isAdmin = auth.getAuthorities().stream()
                 .anyMatch(g -> g.getAuthority().equals("ROLE_ADMIN"));
-        if (isAdmin) return;
+        if (isAdmin) {
+            assertCollegeScope(courseId);
+            return;
+        }
         Course course = courseService.getById(courseId);
         if (course == null) throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
         if (!userId.equals(course.getTeacherId())) throw new BusinessException(ApiCode.FORBIDDEN, "无权操作该课程");
+    }
+
+    /**
+     * 院系管理员按授课教师学院限制课程访问；校级管理员不做额外限制。
+     */
+    private void assertCollegeScope(Long courseId) {
+        if (!adminScopeGuard.isCollegeAdmin()) {
+            return;
+        }
+        Course course = courseService.getById(courseId);
+        if (course == null) throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+        adminScopeGuard.assertCourseAccess(course);
+    }
+
+    /**
+     * 院系管理员只能看到本院教师创建的课程；校级管理员不过滤。
+     */
+    private void applyCollegeFilter(LambdaQueryWrapper<Course> queryWrapper) {
+        Long collegeId = adminScopeGuard.currentCollegeFilter();
+        if (collegeId == null) {
+            return;
+        }
+        List<Long> teacherIds = userService.list(new LambdaQueryWrapper<User>()
+                        .select(User::getId)
+                        .eq(User::getCollegeId, collegeId))
+                .stream().map(User::getId).toList();
+        if (teacherIds.isEmpty()) {
+            queryWrapper.eq(Course::getTeacherId, -1L);
+        } else {
+            queryWrapper.in(Course::getTeacherId, teacherIds);
+        }
     }
 }

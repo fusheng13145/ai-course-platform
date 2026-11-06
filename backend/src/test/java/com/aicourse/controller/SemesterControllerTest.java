@@ -1,10 +1,13 @@
 package com.aicourse.controller;
 
 import com.aicourse.entity.Semester;
+import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.SemesterService;
+import com.aicourse.service.UserService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -29,10 +32,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 业务面钉住创建入参透传、归档幂等语义透传与批量归档条数透传。</p>
  */
 @WebMvcTest(SemesterController.class)
+@Import(AdminScopeGuard.class)
 class SemesterControllerTest extends ControllerTestBase {
 
     @MockitoBean
     private SemesterService semesterService;
+    @MockitoBean
+    private UserService userService;
 
     private Semester sample() {
         Semester s = new Semester();
@@ -114,6 +120,32 @@ class SemesterControllerTest extends ControllerTestBase {
     @DisplayName("POST /admin/semesters/archive-expired - TEACHER 403（批量治理不得被教师触发）")
     void archiveExpired_teacher_403() throws Exception {
         mockMvc.perform(post("/admin/semesters/archive-expired").with(withUser(2L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(semesterService, never()).archiveExpired(any());
+    }
+
+    @Test
+    @DisplayName("POST /admin/semesters - 院系管理员 403（学期为校级治理）")
+    void create_collegeAdmin_403() throws Exception {
+        mockMvc.perform(post("/admin/semesters").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"2026-2027-1\",\"startDate\":\"2026-09-01\",\"endDate\":\"2027-01-15\"}")
+                        .with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden());
+        verify(semesterService, never()).create(any(), any(), any());
+    }
+
+    @Test
+    @DisplayName("POST /admin/semesters/{id}/archive - 院系管理员 403")
+    void archive_collegeAdmin_403() throws Exception {
+        mockMvc.perform(post("/admin/semesters/1/archive").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden());
+        verify(semesterService, never()).archive(any());
+    }
+
+    @Test
+    @DisplayName("POST /admin/semesters/archive-expired - 院系管理员 403")
+    void archiveExpired_collegeAdmin_403() throws Exception {
+        mockMvc.perform(post("/admin/semesters/archive-expired").with(withCollegeAdmin(3L)))
                 .andExpect(status().isForbidden());
         verify(semesterService, never()).archiveExpired(any());
     }

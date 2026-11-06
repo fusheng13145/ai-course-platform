@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import jakarta.validation.Valid;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.dto.AdminCreateUserDTO;
@@ -12,6 +13,7 @@ import com.aicourse.dto.AdminUpdateUserDTO;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.*;
 import com.aicourse.util.ExcelUtil;
 import com.aicourse.util.PasswordPolicy;
@@ -71,19 +73,22 @@ public class SystemAdminController {
     private final AnalyticsService analyticsService;
     private final CourseEnrollmentService enrollmentService;
     private final PasswordEncoder passwordEncoder;
+    private final AdminScopeGuard adminScopeGuard;
 
     public SystemAdminController(SystemService systemService,
                                   UserService userService,
                                   CourseService courseService,
                                   AnalyticsService analyticsService,
                                   CourseEnrollmentService enrollmentService,
-                                  PasswordEncoder passwordEncoder) {
+                                  PasswordEncoder passwordEncoder,
+                                  AdminScopeGuard adminScopeGuard) {
         this.systemService = systemService;
         this.userService = userService;
         this.courseService = courseService;
         this.analyticsService = analyticsService;
         this.enrollmentService = enrollmentService;
         this.passwordEncoder = passwordEncoder;
+        this.adminScopeGuard = adminScopeGuard;
     }
 
 
@@ -106,6 +111,10 @@ public class SystemAdminController {
                         .like(User::getFullName, keyword)
                         .or()
                         .like(User::getEmail, keyword));
+        Long collegeFilter = adminScopeGuard.currentCollegeFilter();
+        if (collegeFilter != null) {
+            qw.eq(User::getCollegeId, collegeFilter);
+        }
         Page<User> userPage = userService.page(Page.of(page, size), qw);
         // 密码脱敏
         userPage.getRecords().forEach(u -> u.setPassword(null));
@@ -121,6 +130,7 @@ public class SystemAdminController {
         if (user == null) {
             throw new BusinessException("用户不存在");
         }
+        adminScopeGuard.assertUserAccess(user);
         return ApiResponse.success(user);
     }
 
@@ -140,6 +150,18 @@ public class SystemAdminController {
         user.setIsActive(dto.getIsActive() != null ? dto.getIsActive() : true);
         // 密码加密
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
+        if (adminScopeGuard.isCollegeAdmin()) {
+            if (RoleConstants.ADMIN.equals(dto.getRole())) {
+                throw new BusinessException(ApiCode.FORBIDDEN, "院系管理员不能创建管理员账号");
+            }
+            Long ownCollegeId = adminScopeGuard.currentCollegeId();
+            if (dto.getCollegeId() != null && !ownCollegeId.equals(dto.getCollegeId())) {
+                throw new BusinessException(ApiCode.FORBIDDEN, "只能创建本学院用户");
+            }
+            user.setCollegeId(ownCollegeId);
+        } else if (dto.getCollegeId() != null) {
+            user.setCollegeId(dto.getCollegeId());
+        }
         userService.save(user);
         user.setPassword(null);
         return ApiResponse.success("创建成功", user);
@@ -154,6 +176,16 @@ public class SystemAdminController {
         if (existing == null) {
             throw new BusinessException("用户不存在");
         }
+        adminScopeGuard.assertUserManageable(existing);
+        if (adminScopeGuard.isCollegeAdmin()) {
+            if (RoleConstants.ADMIN.equals(dto.getRole())) {
+                throw new BusinessException(ApiCode.FORBIDDEN, "院系管理员不能把用户改为管理员");
+            }
+            if (dto.getCollegeId() != null
+                    && !adminScopeGuard.currentCollegeId().equals(dto.getCollegeId())) {
+                throw new BusinessException(ApiCode.FORBIDDEN, "不能把用户移出本学院");
+            }
+        }
         // 白名单字段复制：仅允许 DTO 暴露的业务字段更新（不含密码/主键/审计字段）
         User user = new User();
         user.setId(userId);
@@ -165,6 +197,9 @@ public class SystemAdminController {
         user.setIsActive(dto.getIsActive());
         user.setAvatarUrl(dto.getAvatarUrl());
         user.setBio(dto.getBio());
+        if (dto.getCollegeId() != null) {
+            user.setCollegeId(dto.getCollegeId());
+        }
         userService.updateById(user);
         User updated = userService.getUserProfile(userId);
         return ApiResponse.success("更新成功", updated);
@@ -179,6 +214,7 @@ public class SystemAdminController {
         if (existing == null) {
             throw new BusinessException("用户不存在");
         }
+        adminScopeGuard.assertUserManageable(existing);
         userService.removeById(userId);
         return ApiResponse.success("删除成功", null);
     }
@@ -193,6 +229,7 @@ public class SystemAdminController {
         if (user == null) {
             throw new BusinessException("用户不存在");
         }
+        adminScopeGuard.assertUserManageable(user);
         String newPassword = body.get("newPassword");
         if (newPassword == null || newPassword.isEmpty()) {
             throw new BusinessException("新密码不能为空");
@@ -210,6 +247,7 @@ public class SystemAdminController {
     @Operation(summary = "批量导入用户", description = "JSON 批量导入（兼容保留）；Excel(.xlsx) 批量导入请使用 /admin/users/import-excel")
     @PostMapping("/admin/users/import")
     public ApiResponse<AdminUserImportResultVO> importUsers(@Valid @RequestBody List<AdminCreateUserDTO> userDTOs) {
+        adminScopeGuard.assertSchoolOnly();
         int successCount = 0;
         int failCount = 0;
         List<String> errors = new ArrayList<>();
@@ -272,6 +310,7 @@ public class SystemAdminController {
     @PostMapping(value = "/admin/users/import-excel", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<AdminUserImportResultVO> importUsersExcel(
             @RequestParam("file") MultipartFile file) throws IOException {
+        adminScopeGuard.assertSchoolOnly();
         if (file == null || file.isEmpty()) {
             throw new BusinessException("请选择要上传的 Excel 文件");
         }
@@ -341,6 +380,7 @@ public class SystemAdminController {
     @PutMapping("/admin/configs/{configKey}")
     public ApiResponse<Void> updateConfig(@PathVariable String configKey,
                                            @Valid @RequestBody Map<String, String> body) {
+        adminScopeGuard.assertSchoolOnly();
         String value = body.get("value");
         String group = body.get("group");
         systemService.saveConfig(configKey, value, group);
@@ -538,6 +578,7 @@ public class SystemAdminController {
      */
     @PostMapping("/admin/system/configs")
     public ApiResponse<Void> saveConfig(@Valid @RequestBody Map<String, String> body) {
+        adminScopeGuard.assertSchoolOnly();
         String key = body.get("key");
         String value = body.get("value");
         String group = body.get("group");

@@ -1,5 +1,6 @@
 package com.aicourse.architecture;
 
+import com.aicourse.entity.User;
 import com.tngtech.archunit.core.importer.ImportOption;
 import com.tngtech.archunit.junit.AnalyzeClasses;
 import com.tngtech.archunit.junit.ArchTest;
@@ -50,6 +51,13 @@ class ArchitectureTest {
     static final ArchRule securityShouldNotDependOnController =
             noClasses().that().resideInAPackage("..security..")
                     .should().dependOnClassesThat().resideInAPackage("..controller..");
+
+    /** 控制器不得直接读写 {@code User.adminScope} 字段：作用域判定必须统一经 AdminScopeGuard，
+     * 防止各端点各自解释作用域语义（B-12-P-08 WP2）。 */
+    @ArchTest
+    static final ArchRule controllerShouldNotAccessAdminScopeField =
+            noClasses().that().resideInAPackage("..controller..")
+                    .should().accessField(User.class, "adminScope");
 
     /** service 实现类不得依赖其他 service 实现类（服务间只允许依赖接口，保持解耦）。
      * 源/目标均限定精确包 com.aicourse.service.impl + *Impl 结尾 + 非内部类；

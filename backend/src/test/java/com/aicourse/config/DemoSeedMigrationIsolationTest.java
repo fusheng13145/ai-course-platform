@@ -59,11 +59,12 @@ class DemoSeedMigrationIsolationTest {
             // V12（2026-11-05）：组织四表 + users 组织列/admin_scope + role_permissions.scope —— 结构迁移，非演示数据
             "V12__org_foundation.sql");
 
-    /** 演示种子脚本：这三个文件名只允许出现在 {@code db/seed-demo}。 */
+    /** 演示种子脚本：这些文件名只允许出现在 {@code db/seed-demo}。 */
     private static final Set<String> SEED_FILENAMES = Set.of(
             "V5__rich_seed_data.sql",
             "V6__computer_network_showcase.sql",
-            "V7__fix_showcase_seed_self_description.sql");
+            "V7__fix_showcase_seed_self_description.sql",
+            "V12_1__demo_college_admins.sql");
 
     private final PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
 
@@ -78,7 +79,7 @@ class DemoSeedMigrationIsolationTest {
     }
 
     @Test
-    @DisplayName("演示种子脚本落在 db/seed-demo，文件名逐字保持 V5/V6/V7")
+    @DisplayName("演示种子脚本落在 db/seed-demo，文件名逐字保持 V5/V6/V7/V12.1")
     void demoSeedLocationHoldsExactlyTheSeedScripts() throws IOException {
         assertThat(filenames("classpath:db/seed-demo/*.sql"))
                 .containsExactlyInAnyOrder(
@@ -86,7 +87,9 @@ class DemoSeedMigrationIsolationTest {
                         "V6__computer_network_showcase.sql",
                         // V7：DR-19 的文案前向修正。V6 已应用、校验和不可改，
                         // 故库内示范课简介的规模数字只能由新迁移改写。
-                        "V7__fix_showcase_seed_self_description.sql");
+                        "V7__fix_showcase_seed_self_description.sql",
+                        // V12.1（WP2）：院系管理员演示种子，晚于 V12、不占 V13–V16 预留号。
+                        "V12_1__demo_college_admins.sql");
     }
 
     @Test

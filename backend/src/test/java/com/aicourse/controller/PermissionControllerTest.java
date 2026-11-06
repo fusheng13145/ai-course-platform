@@ -1,10 +1,17 @@
 package com.aicourse.controller;
 import com.aicourse.controller.PermissionController;
 import com.aicourse.service.PermissionService;
+import com.aicourse.service.UserService;
+import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.entity.RolePermission;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
@@ -19,10 +26,20 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 该控制器类级别 @PreAuthorize("hasRole('ADMIN')")，原有 6 个 STUDENT 越权 403 测试保留不动。
  */
 @WebMvcTest(PermissionController.class)
+@Import(AdminScopeGuard.class)
 class PermissionControllerTest extends ControllerTestBase {
 
     @MockitoBean
     private com.aicourse.service.PermissionService permissionService;
+    @MockitoBean
+    private UserService userService;
+
+    @BeforeEach
+    void registerEntityMetadata() {
+        // getSqlSegment() 会解析 lambda 列名，@WebMvcTest 切片需先注册实体元数据
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""),
+                RolePermission.class);
+    }
 
     private RolePermission samplePermission(Long id, String role, String key) {
         RolePermission rp = new RolePermission();
@@ -66,13 +83,14 @@ class PermissionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /admin/permissions/all - 返回200且全部权限透传")
     void getAll_authorized_returns_200() throws Exception {
-        when(permissionService.list()).thenReturn(List.of(samplePermission(2L, "TEACHER", "task:create")));
+        when(permissionService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
+                .thenReturn(List.of(samplePermission(2L, "TEACHER", "task:create")));
         mockMvc.perform(get("/admin/permissions/all").with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").isArray())
                 .andExpect(jsonPath("$.data[0].permissionKey").value("task:create"));
-        verify(permissionService).list();
+        verify(permissionService).list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class));
     }
 
 
@@ -214,4 +232,62 @@ class PermissionControllerTest extends ControllerTestBase {
                 .andExpect(status().isForbidden());
     }
 
+    @Test
+    @DisplayName("权限目录写操作：院系管理员 4 个端点全部 403（校级专有）")
+    void writeEndpoints_collegeAdmin_403() throws Exception {
+        mockMvc.perform(post("/admin/permissions/create")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"TEACHER\",\"permissionKey\":\"course:view\",\"scope\":\"COLLEGE\"}")
+                        .with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(put("/admin/permissions/update/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"permissionName\":\"修改\"}")
+                        .with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(delete("/admin/permissions/delete/1").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden());
+        mockMvc.perform(patch("/admin/permissions/toggle/1").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden());
+        verify(permissionService, never()).save(any(RolePermission.class));
+        verify(permissionService, never()).updateById(any(RolePermission.class));
+        verify(permissionService, never()).removeById(any(Long.class));
+    }
+
+    @Test
+    @DisplayName("GET /admin/permissions/all - 院系管理员查询追加 scope IN (ALL, COLLEGE)")
+    void getAll_collegeAdmin_appliesScopeFilter() throws Exception {
+        when(permissionService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
+                .thenReturn(List.of());
+        mockMvc.perform(get("/admin/permissions/all").with(withCollegeAdmin(3L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+        verify(permissionService).list(org.mockito.ArgumentMatchers.argThat(
+                (com.baomidou.mybatisplus.core.conditions.Wrapper<RolePermission> wrapper) ->
+                        wrapper.getSqlSegment().toLowerCase().contains("scope")));
+    }
+
+    @Test
+    @DisplayName("POST /admin/permissions/create - 非法 scope 400，且不落库")
+    void create_invalidScope_400() throws Exception {
+        mockMvc.perform(post("/admin/permissions/create")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"TEACHER\",\"permissionKey\":\"course:view\",\"scope\":\"BAD\"}")
+                        .with(withSchoolAdmin(1L)))
+                .andExpect(status().isBadRequest());
+        verify(permissionService, never()).save(any(RolePermission.class));
+    }
+
+    @Test
+    @DisplayName("POST /admin/permissions/create - 空 scope 规范化为 ALL")
+    void create_blankScope_defaultsToAll() throws Exception {
+        when(permissionService.save(any())).thenReturn(true);
+        mockMvc.perform(post("/admin/permissions/create")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"role\":\"TEACHER\",\"permissionKey\":\"course:view\",\"permissionName\":\"查看课程\",\"scope\":\"\"}")
+                        .with(withSchoolAdmin(1L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.scope").value("ALL"));
+        verify(permissionService).save(any(RolePermission.class));
+    }
 }
