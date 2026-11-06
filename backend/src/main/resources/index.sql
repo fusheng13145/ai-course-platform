@@ -71,12 +71,14 @@ DROP TABLE IF EXISTS knowledge_points;
 DROP TABLE IF EXISTS exam_sessions;
 DROP TABLE IF EXISTS exam_questions;
 DROP TABLE IF EXISTS questions;
+DROP TABLE IF EXISTS exam_teaching_classes;
 DROP TABLE IF EXISTS exam_papers;
 DROP TABLE IF EXISTS reminders;
 DROP TABLE IF EXISTS plagiarism_matches;
 DROP TABLE IF EXISTS plagiarism_checks;
 DROP TABLE IF EXISTS submissions;
 DROP TABLE IF EXISTS task_completions;
+DROP TABLE IF EXISTS task_teaching_classes;
 DROP TABLE IF EXISTS tasks;
 DROP TABLE IF EXISTS resource_versions;
 DROP TABLE IF EXISTS resources;
@@ -505,6 +507,7 @@ CREATE TABLE tasks (
   due_date DATETIME NULL COMMENT '截止日期',
   max_score DECIMAL(5,2) NOT NULL DEFAULT 100 COMMENT '满分',
   status VARCHAR(20) NOT NULL DEFAULT 'DRAFT' COMMENT '任务状态（大写）：DRAFT-草稿，PUBLISHED-已发布，CLOSED-已关闭',
+  visibility VARCHAR(16) NOT NULL DEFAULT 'COURSE' COMMENT '可见范围：COURSE-课程全部教学班，CLASSES-仅目标教学班',
   is_published TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已发布：0-未发布，1-已发布',
   submission_format VARCHAR(100) NULL COMMENT '提交格式：text-文本，file-文件，both-两者均可',
   requirements TEXT NULL COMMENT '详细要求',
@@ -522,6 +525,19 @@ CREATE TABLE tasks (
   CONSTRAINT fk_tasks_creator FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE SET NULL,
   CONSTRAINT fk_tasks_chapter FOREIGN KEY (chapter_id) REFERENCES course_chapters(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='任务表';;
+
+-- task_teaching_classes（V15：visibility=CLASSES 时的目标教学班）
+CREATE TABLE task_teaching_classes (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+  task_id BIGINT NOT NULL COMMENT '任务ID，关联tasks表',
+  teaching_class_id BIGINT NOT NULL COMMENT '目标教学班ID，关联teaching_classes表',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_task_teaching_class (task_id, teaching_class_id) COMMENT '任务-教学班唯一索引',
+  KEY idx_task_teaching_class_tc (teaching_class_id) COMMENT '教学班索引',
+  CONSTRAINT fk_task_teaching_class_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+  CONSTRAINT fk_task_teaching_class_tc FOREIGN KEY (teaching_class_id) REFERENCES teaching_classes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='任务目标教学班：visibility=CLASSES 时的可见/可做范围';;
 
 -- task_completions
 CREATE TABLE task_completions (
@@ -646,6 +662,7 @@ CREATE TABLE exam_papers (
   course_id BIGINT NOT NULL COMMENT '课程ID，关联courses表',
   creator_id BIGINT NOT NULL COMMENT '创建者ID，关联users表',
   status VARCHAR(20) NOT NULL DEFAULT 'DRAFT' COMMENT '试卷状态（大写）：DRAFT-草稿，PUBLISHED-已发布，ARCHIVED-已归档',
+  visibility VARCHAR(16) NOT NULL DEFAULT 'COURSE' COMMENT '可见范围：COURSE-课程全部教学班，CLASSES-仅目标教学班',
   instructions TEXT NULL COMMENT '考试说明',
   start_time DATETIME NULL COMMENT '考试开始时间',
   end_time DATETIME NULL COMMENT '考试结束时间',
@@ -668,6 +685,19 @@ CREATE TABLE exam_papers (
   CONSTRAINT fk_exam_papers_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
   CONSTRAINT fk_exam_papers_creator FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='试卷表';;
+
+-- exam_teaching_classes（V15：visibility=CLASSES 时的目标教学班）
+CREATE TABLE exam_teaching_classes (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+  exam_paper_id BIGINT NOT NULL COMMENT '试卷ID，关联exam_papers表',
+  teaching_class_id BIGINT NOT NULL COMMENT '目标教学班ID，关联teaching_classes表',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_exam_teaching_class (exam_paper_id, teaching_class_id) COMMENT '试卷-教学班唯一索引',
+  KEY idx_exam_teaching_class_tc (teaching_class_id) COMMENT '教学班索引',
+  CONSTRAINT fk_exam_teaching_class_paper FOREIGN KEY (exam_paper_id) REFERENCES exam_papers(id) ON DELETE CASCADE,
+  CONSTRAINT fk_exam_teaching_class_tc FOREIGN KEY (teaching_class_id) REFERENCES teaching_classes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='试卷目标教学班：visibility=CLASSES 时的可见/可做范围';;
 
 -- questions
 CREATE TABLE questions (

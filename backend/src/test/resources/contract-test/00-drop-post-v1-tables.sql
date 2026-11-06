@@ -35,5 +35,8 @@ DROP TABLE IF EXISTS course_approval_records;
 -- V14__course_teaching_class.sql（先子后父）
 DROP TABLE IF EXISTS teaching_class_admin_classes;
 DROP TABLE IF EXISTS teaching_classes;
+-- V15__activity_targets.sql（先子后父）
+DROP TABLE IF EXISTS exam_teaching_classes;
+DROP TABLE IF EXISTS task_teaching_classes;
 
 SET FOREIGN_KEY_CHECKS = 1;

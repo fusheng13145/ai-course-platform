@@ -5,6 +5,7 @@ import org.slf4j.LoggerFactory;
 
 import jakarta.validation.Valid;
 
+import com.aicourse.common.ActivityVisibility;
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
@@ -13,11 +14,14 @@ import com.aicourse.vo.QuestionVO;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.ExamPaper;
 import com.aicourse.entity.ExamPaperStatus;
+import com.aicourse.dto.ActivityTargetDTO;
 import com.aicourse.dto.AutoComposeDTO;
 import com.aicourse.dto.ExamQuestionBatchDTO;
 import com.aicourse.entity.ExamQuestion;
 import com.aicourse.entity.Question;
+import com.aicourse.security.ActivityVisibilityGuard;
 import com.aicourse.security.RoleUtil;
+import com.aicourse.service.ActivityTargetService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamQuestionService;
@@ -36,6 +40,7 @@ import org.springframework.web.bind.annotation.*;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -57,19 +62,25 @@ public class ExamPaperController {
     private final ExamSessionService examSessionService;
     private final com.aicourse.security.ExamPaperAccessControl examPaperAccessControl;
     private final CourseService courseService;
+    private final ActivityVisibilityGuard activityVisibilityGuard;
+    private final ActivityTargetService activityTargetService;
 
     public ExamPaperController(ExamPaperService examPaperService,
                                ExamQuestionService examQuestionService,
                                QuestionService questionService,
                                ExamSessionService examSessionService,
                                com.aicourse.security.ExamPaperAccessControl examPaperAccessControl,
-                               CourseService courseService) {
+                               CourseService courseService,
+                               ActivityVisibilityGuard activityVisibilityGuard,
+                               ActivityTargetService activityTargetService) {
         this.examPaperService = examPaperService;
         this.examQuestionService = examQuestionService;
         this.questionService = questionService;
         this.examSessionService = examSessionService;
         this.examPaperAccessControl = examPaperAccessControl;
         this.courseService = courseService;
+        this.activityVisibilityGuard = activityVisibilityGuard;
+        this.activityTargetService = activityTargetService;
     }
 
     /**
@@ -88,6 +99,7 @@ public class ExamPaperController {
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size,
             @RequestParam(required = false) Long courseId,
+            @RequestParam(required = false) Long teachingClassId,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) String keyword,
             Authentication auth) {
@@ -110,6 +122,8 @@ public class ExamPaperController {
         if (!RoleUtil.isTeacherOrAdmin(auth)) {
             queryWrapper.eq(ExamPaper::getStatus, ExamPaperStatus.PUBLISHED.name());
         }
+        // WP6：按教学班可见范围过滤（COURSE 全课程可见；CLASSES 仅目标教学班）
+        activityVisibilityGuard.applyExamPaperScope(queryWrapper, auth, teachingClassId);
         Page<ExamPaper> examPaperPage = examPaperService.page(Page.of(page, size), queryWrapper);
         fillCourseNames(examPaperPage.getRecords());
         return ApiResponse.success(PagedResponse.of(examPaperPage));
@@ -159,6 +173,7 @@ public class ExamPaperController {
             @PathVariable Long courseId,
             @RequestParam(defaultValue = "1") long page,
             @RequestParam(defaultValue = "10") long size,
+            @RequestParam(required = false) Long teachingClassId,
             Authentication auth) {
         LambdaQueryWrapper<ExamPaper> queryWrapper = new LambdaQueryWrapper<ExamPaper>()
                 .eq(ExamPaper::getCourseId, courseId);
@@ -167,6 +182,7 @@ public class ExamPaperController {
         if (!RoleUtil.isTeacherOrAdmin(auth)) {
             queryWrapper.eq(ExamPaper::getStatus, ExamPaperStatus.PUBLISHED.name());
         }
+        activityVisibilityGuard.applyExamPaperScope(queryWrapper, auth, teachingClassId);
         Page<ExamPaper> examPaperPage = examPaperService.page(Page.of(page, size), queryWrapper);
         fillCourseNames(examPaperPage.getRecords());
         return ApiResponse.success(PagedResponse.of(examPaperPage));
@@ -179,9 +195,61 @@ public class ExamPaperController {
      */
     @GetMapping("/{id}")
     @Operation(summary = "根据ID查询试卷详情")
-    public ApiResponse<ExamPaper> getById(@PathVariable Long id) {
+    public ApiResponse<ExamPaper> getById(@PathVariable Long id, Authentication auth) {
         ExamPaper examPaper = examPaperService.getById(id);
+        activityVisibilityGuard.assertVisibleExamPaper(examPaper, auth);
         return ApiResponse.success(examPaper);
+    }
+
+    /**
+     * 查询试卷目标教学班
+     */
+    @GetMapping("/{id}/targets")
+    @Operation(summary = "查询试卷目标教学班", description = "返回试卷可见范围与目标教学班ID")
+    public ApiResponse<Map<String, Object>> getTargets(@PathVariable Long id, Authentication auth) {
+        ExamPaper paper = requirePaper(id);
+        activityVisibilityGuard.assertVisibleExamPaper(paper, auth);
+        return ApiResponse.success(buildTargetsPayload(
+                ActivityVisibility.normalize(paper.getVisibility()),
+                activityTargetService.examPaperTargetClassIds(id)));
+    }
+
+    /**
+     * 设置试卷目标教学班（教师权限；管理员调用返回 403）
+     */
+    @PutMapping("/{id}/targets")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "设置试卷目标教学班", description = "维护 visibility 与目标教学班；管理员调用返回 403")
+    public ApiResponse<Map<String, Object>> updateTargets(@PathVariable Long id,
+                                                          @Valid @RequestBody ActivityTargetDTO targets,
+                                                          Authentication auth) {
+        activityVisibilityGuard.assertNotAdmin(auth);
+        ExamPaper existing = requirePaper(id);
+        examPaperAccessControl.assertCanManage(existing, auth);
+        String visibility = activityTargetService.normalizeAndValidate(
+                id, existing.getCourseId(), targets.getVisibility(), targets.getTeachingClassIds(), true);
+        ExamPaper patch = new ExamPaper();
+        patch.setId(id);
+        patch.setVisibility(visibility);
+        examPaperService.updateById(patch);
+        activityTargetService.replaceExamPaperTargets(id, visibility, targets.getTeachingClassIds());
+        return ApiResponse.success("设置成功", buildTargetsPayload(visibility,
+                activityTargetService.examPaperTargetClassIds(id)));
+    }
+
+    private static Map<String, Object> buildTargetsPayload(String visibility, List<Long> teachingClassIds) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("visibility", visibility);
+        payload.put("teachingClassIds", teachingClassIds);
+        return payload;
+    }
+
+    private ExamPaper requirePaper(Long id) {
+        ExamPaper paper = examPaperService.getById(id);
+        if (paper == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "试卷不存在：" + id);
+        }
+        return paper;
     }
 
     /**
@@ -195,7 +263,16 @@ public class ExamPaperController {
     @Operation(summary = "新增试卷")
     public ApiResponse<ExamPaper> create(@Valid @RequestBody ExamPaper exam, Authentication auth) {
         exam.setCreatorId((Long) auth.getPrincipal());
+        String requestedVisibility = ActivityVisibility.normalizeOrNull(exam.getVisibility());
+        if (ActivityVisibility.CLASSES.equals(requestedVisibility)
+                || (exam.getTeachingClassIds() != null && !exam.getTeachingClassIds().isEmpty())) {
+            activityVisibilityGuard.assertNotAdmin(auth);
+        }
+        String visibility = activityTargetService.normalizeAndValidate(
+                null, exam.getCourseId(), exam.getVisibility(), exam.getTeachingClassIds(), true);
+        exam.setVisibility(visibility);
         examPaperService.save(exam);
+        activityTargetService.replaceExamPaperTargets(exam.getId(), visibility, exam.getTeachingClassIds());
         return ApiResponse.success("创建成功", exam);
     }
 
@@ -210,9 +287,24 @@ public class ExamPaperController {
     @Operation(summary = "修改试卷")
     public ApiResponse<ExamPaper> update(@PathVariable Long id, @Valid @RequestBody ExamPaper exam, Authentication auth) {
         // 归属校验（2026-09-14 修复）：仅试卷所属课程的授课教师或管理员可修改
-        examPaperAccessControl.assertCanManage(examPaperService.getById(id), auth);
+        ExamPaper existing = examPaperService.getById(id);
+        examPaperAccessControl.assertCanManage(existing, auth);
+        boolean targetsTouched = exam.getVisibility() != null || exam.getTeachingClassIds() != null;
+        String normalizedVisibility = null;
+        if (targetsTouched) {
+            // 管理员不得修改目标教学班（WP6 验收第 4 条）
+            activityVisibilityGuard.assertNotAdmin(auth);
+            String effectiveVisibility = exam.getVisibility() != null
+                    ? exam.getVisibility() : existing.getVisibility();
+            normalizedVisibility = activityTargetService.normalizeAndValidate(
+                    id, existing.getCourseId(), effectiveVisibility, exam.getTeachingClassIds(), true);
+            exam.setVisibility(normalizedVisibility);
+        }
         exam.setId(id);
         examPaperService.updateById(exam);
+        if (targetsTouched) {
+            activityTargetService.replaceExamPaperTargets(id, normalizedVisibility, exam.getTeachingClassIds());
+        }
         ExamPaper updatedExam = examPaperService.getById(id);
         return ApiResponse.success("更新成功", updatedExam);
     }
@@ -254,7 +346,9 @@ public class ExamPaperController {
     public ApiResponse<List<ExamPaperQuestionVO>> getQuestions(@PathVariable Long id, Authentication auth) {
         // 对象级授权：管理员放行；学生须有已通过审批的选课；教师须为该课程授课教师。
         // 修复（2026-09-21，P0）：本端点原无任何归属校验，非选课学生可跨课程读取他人试卷题目。
-        examPaperAccessControl.assertCanRead(examPaperService.getById(id), auth);
+        ExamPaper paper = requirePaper(id);
+        examPaperAccessControl.assertCanRead(paper, auth);
+        activityVisibilityGuard.assertVisibleExamPaper(paper, auth);
 
         LambdaQueryWrapper<ExamQuestion> queryWrapper = new LambdaQueryWrapper<ExamQuestion>()
                 .eq(ExamQuestion::getExamPaperId, id);
@@ -312,7 +406,9 @@ public class ExamPaperController {
     @Operation(summary = "查询试卷完整详情")
     public ApiResponse<ExamPaperDetailVO> getDetail(@PathVariable Long id, Authentication auth) {
         // 对象级授权（同 /questions）：详情含全部题目内容，学生须已选课、教师须授课
-        examPaperAccessControl.assertCanRead(examPaperService.getById(id), auth);
+        ExamPaper paper = requirePaper(id);
+        examPaperAccessControl.assertCanRead(paper, auth);
+        activityVisibilityGuard.assertVisibleExamPaper(paper, auth);
         ExamPaperDetailVO detail = examPaperService.getExamPaperDetail(id);
         return ApiResponse.success(detail);
     }
@@ -325,14 +421,13 @@ public class ExamPaperController {
     @PostMapping("/{id}/publish")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
     @Operation(summary = "发布试卷 / 提交审核",
-            description = "管理员直接发布（DRAFT/REJECTED/ARCHIVED → PUBLISHED）；教师提交审核（DRAFT/REJECTED → PENDING_REVIEW），学生仍不可见")
+            description = "教师提交审核（DRAFT/REJECTED → PENDING_REVIEW）；管理员发布入口按 WP6 返回 403，"
+                    + "审核通过走 /approve")
     public ApiResponse<ExamPaper> publish(@PathVariable Long id, Authentication auth) {
-        // 归属校验：仅试卷所属课程的授课教师或管理员可发布（修复他师越权发布）
+        // WP6：管理员只读治理，不直接发布试卷；管理员仅通过 /approve 完成审核动作
+        activityVisibilityGuard.assertNotAdmin(auth);
+        // 归属校验：仅试卷所属课程的授课教师可提交审核
         examPaperAccessControl.assertCanManage(examPaperService.getById(id), auth);
-        if (RoleUtil.isAdmin(auth)) {
-            examPaperService.publishExamPaper(id);
-            return ApiResponse.success("发布成功", examPaperService.getById(id));
-        }
         examPaperService.submitExamPaperForReview(id);
         return ApiResponse.success("已提交审核", examPaperService.getById(id));
     }

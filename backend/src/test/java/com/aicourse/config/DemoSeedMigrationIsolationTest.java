@@ -61,7 +61,9 @@ class DemoSeedMigrationIsolationTest {
             // V13（2026-11-06）：courses.college_id + course_approval_records —— 结构迁移，非演示数据
             "V13__course_approval.sql",
             // V14（2026-11-06）：教学班两表 + course_enrollments 加列与组织回填 —— 结构迁移，非演示数据
-            "V14__course_teaching_class.sql");
+            "V14__course_teaching_class.sql",
+            // V15（2026-11-06）：tasks/exam_papers 可见范围 + 两张目标教学班表 —— 结构迁移，非演示数据
+            "V15__activity_targets.sql");
 
     /** 演示种子脚本：这些文件名只允许出现在 {@code db/seed-demo}。 */
     private static final Set<String> SEED_FILENAMES = Set.of(

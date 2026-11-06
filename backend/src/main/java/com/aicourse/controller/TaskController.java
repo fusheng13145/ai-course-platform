@@ -3,13 +3,17 @@ package com.aicourse.controller;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.aicourse.common.ActivityVisibility;
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
+import com.aicourse.dto.ActivityTargetDTO;
 import com.aicourse.entity.Task;
 import com.aicourse.dto.TaskCreateDTO;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.security.ActivityVisibilityGuard;
 import com.aicourse.security.CourseAccessControl;
+import com.aicourse.service.ActivityTargetService;
 import com.aicourse.service.SubmissionService;
 import jakarta.validation.Valid;
 import com.aicourse.service.TaskService;
@@ -25,6 +29,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDateTime;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -43,36 +48,40 @@ public class TaskController {
     @SuppressWarnings("unused")
     private final SubmissionService submissionService;
     private final CourseAccessControl courseAccessControl;
+    private final ActivityVisibilityGuard activityVisibilityGuard;
+    private final ActivityTargetService activityTargetService;
 
     public TaskController(TaskService taskService,
                           SubmissionService submissionService,
-                          CourseAccessControl courseAccessControl) {
+                          CourseAccessControl courseAccessControl,
+                          ActivityVisibilityGuard activityVisibilityGuard,
+                          ActivityTargetService activityTargetService) {
         this.taskService = taskService;
         this.submissionService = submissionService;
         this.courseAccessControl = courseAccessControl;
+        this.activityVisibilityGuard = activityVisibilityGuard;
+        this.activityTargetService = activityTargetService;
     }
 
     /**
-     * 分页查询任务（支持课程筛选）
+     * 分页查询任务（支持课程、教学班筛选）
      */
     @GetMapping
-    @Operation(summary = "分页查询任务列表", description = "支持按课程ID筛选的分页查询")
+    @Operation(summary = "分页查询任务列表", description = "支持按课程ID、教学班ID筛选的分页查询")
     public ApiResponse<PagedResponse<Task>> listByParams(
             @Parameter(description = "当前页码") @RequestParam(defaultValue = "1") long page,
             @Parameter(description = "每页条数") @RequestParam(defaultValue = "10") long size,
             @Parameter(description = "课程ID（可选）") @RequestParam(required = false) Long courseId,
+            @Parameter(description = "教学班ID（可选，按教学班可见范围过滤）")
+            @RequestParam(required = false) Long teachingClassId,
             Authentication auth) {
         if (courseId != null) {
             courseAccessControl.assertCanReadCourse(courseId, auth);
         }
-        List<Long> readableCourseIds = courseAccessControl.readableCourseIds(auth);
-        if (readableCourseIds != null && readableCourseIds.isEmpty()) {
-            return ApiResponse.success(PagedResponse.empty());
-        }
         LambdaQueryWrapper<Task> queryWrapper = new LambdaQueryWrapper<Task>()
                 .eq(courseId != null, Task::getCourseId, courseId)
-                .in(readableCourseIds != null, Task::getCourseId, readableCourseIds)
                 .eq(courseAccessControl.isStudent(auth), Task::getStatus, "PUBLISHED");
+        activityVisibilityGuard.applyTaskScope(queryWrapper, auth, teachingClassId);
         Page<Task> taskPage = taskService.page(Page.of(page, size), queryWrapper);
         return ApiResponse.success(PagedResponse.of(taskPage));
     }
@@ -81,16 +90,19 @@ public class TaskController {
      * 根据课程ID分页查询任务
      */
     @GetMapping("/course/{courseId}")
-    @Operation(summary = "按课程查询任务", description = "返回指定课程下的所有任务列表")
+    @Operation(summary = "按课程查询任务", description = "返回指定课程下的任务列表（按教学班可见范围过滤）")
     public ApiResponse<PagedResponse<Task>> listByCourse(
             @Parameter(description = "课程ID") @PathVariable Long courseId,
             @Parameter(description = "当前页码") @RequestParam(defaultValue = "1") long page,
             @Parameter(description = "每页条数") @RequestParam(defaultValue = "10") long size,
+            @Parameter(description = "教学班ID（可选，按教学班可见范围过滤）")
+            @RequestParam(required = false) Long teachingClassId,
             Authentication auth) {
         courseAccessControl.assertCanReadCourse(courseId, auth);
         LambdaQueryWrapper<Task> queryWrapper = new LambdaQueryWrapper<Task>()
                 .eq(Task::getCourseId, courseId)
                 .eq(courseAccessControl.isStudent(auth), Task::getStatus, "PUBLISHED");
+        activityVisibilityGuard.applyTaskScope(queryWrapper, auth, teachingClassId);
         Page<Task> taskPage = taskService.page(Page.of(page, size), queryWrapper);
         return ApiResponse.success(PagedResponse.of(taskPage));
     }
@@ -103,8 +115,53 @@ public class TaskController {
     public ApiResponse<Task> getById(@Parameter(description = "任务ID") @PathVariable Long id,
                                      Authentication auth) {
         Task task = taskService.getById(id);
-        courseAccessControl.assertCanReadTask(task, auth);
+        activityVisibilityGuard.assertVisibleTask(task, auth);
         return ApiResponse.success(task);
+    }
+
+    /**
+     * 查询任务目标教学班
+     */
+    @GetMapping("/{id}/targets")
+    @Operation(summary = "查询任务目标教学班", description = "返回任务可见范围与目标教学班ID")
+    public ApiResponse<Map<String, Object>> getTargets(@Parameter(description = "任务ID") @PathVariable Long id,
+                                                       Authentication auth) {
+        Task task = requireTask(id);
+        activityVisibilityGuard.assertVisibleTask(task, auth);
+        return ApiResponse.success(buildTargetsPayload(
+                ActivityVisibility.normalize(task.getVisibility()),
+                activityTargetService.taskTargetClassIds(id)));
+    }
+
+    /**
+     * 设置任务目标教学班（教师权限；管理员调用返回 403）
+     */
+    @PutMapping("/{id}/targets")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "设置任务目标教学班", description = "维护 visibility 与目标教学班；管理员调用返回 403")
+    public ApiResponse<Map<String, Object>> updateTargets(
+            @Parameter(description = "任务ID") @PathVariable Long id,
+            @Valid @RequestBody ActivityTargetDTO targets,
+            Authentication auth) {
+        activityVisibilityGuard.assertNotAdmin(auth);
+        Task existing = requireTask(id);
+        courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
+        String visibility = activityTargetService.normalizeAndValidate(
+                id, existing.getCourseId(), targets.getVisibility(), targets.getTeachingClassIds(), false);
+        Task patch = new Task();
+        patch.setId(id);
+        patch.setVisibility(visibility);
+        taskService.updateById(patch);
+        activityTargetService.replaceTaskTargets(id, visibility, targets.getTeachingClassIds());
+        return ApiResponse.success("设置成功", buildTargetsPayload(visibility,
+                activityTargetService.taskTargetClassIds(id)));
+    }
+
+    private static Map<String, Object> buildTargetsPayload(String visibility, List<Long> teachingClassIds) {
+        Map<String, Object> payload = new LinkedHashMap<>();
+        payload.put("visibility", visibility);
+        payload.put("teachingClassIds", teachingClassIds);
+        return payload;
     }
 
     /**
@@ -118,7 +175,16 @@ public class TaskController {
     ) @Valid @RequestBody Task task,
                                     Authentication auth) {
         courseAccessControl.assertCanManageCourse(task.getCourseId(), auth);
+        String requestedVisibility = ActivityVisibility.normalizeOrNull(task.getVisibility());
+        if (ActivityVisibility.CLASSES.equals(requestedVisibility)
+                || (task.getTeachingClassIds() != null && !task.getTeachingClassIds().isEmpty())) {
+            activityVisibilityGuard.assertNotAdmin(auth);
+        }
+        String visibility = activityTargetService.normalizeAndValidate(
+                null, task.getCourseId(), task.getVisibility(), task.getTeachingClassIds(), false);
+        task.setVisibility(visibility);
         taskService.save(task);
+        activityTargetService.replaceTaskTargets(task.getId(), visibility, task.getTeachingClassIds());
         return ApiResponse.success("创建成功", task);
     }
 
@@ -135,9 +201,23 @@ public class TaskController {
                                     Authentication auth) {
         Task existing = requireTask(id);
         courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
+        boolean targetsTouched = task.getVisibility() != null || task.getTeachingClassIds() != null;
+        String normalizedVisibility = null;
+        if (targetsTouched) {
+            // 管理员不得修改目标教学班（WP6 验收第 4 条）
+            activityVisibilityGuard.assertNotAdmin(auth);
+            String effectiveVisibility = task.getVisibility() != null
+                    ? task.getVisibility() : existing.getVisibility();
+            normalizedVisibility = activityTargetService.normalizeAndValidate(
+                    id, existing.getCourseId(), effectiveVisibility, task.getTeachingClassIds(), false);
+            task.setVisibility(normalizedVisibility);
+        }
         task.setId(id);
         task.setCourseId(existing.getCourseId());
         taskService.updateById(task);
+        if (targetsTouched) {
+            activityTargetService.replaceTaskTargets(id, normalizedVisibility, task.getTeachingClassIds());
+        }
         Task updatedTask = taskService.getById(id);
         return ApiResponse.success("更新成功", updatedTask);
     }
@@ -157,13 +237,15 @@ public class TaskController {
     }
 
     /**
-     * 发布任务（教师/管理员权限）
+     * 发布任务（教师权限；管理员治理只读，不代办发布）
      */
     @PostMapping("/{id}/publish")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "发布任务", description = "将草稿状态的任务发布给学生可见")
+    @Operation(summary = "发布任务", description = "教师将草稿状态的任务发布给学生可见；管理员调用返回 403")
     public ApiResponse<Task> publish(@Parameter(description = "任务ID") @PathVariable Long id,
                                      Authentication auth) {
+        // WP6：管理员只读治理，不代教师发布
+        activityVisibilityGuard.assertNotAdmin(auth);
         Task existing = requireTask(id);
         courseAccessControl.assertCanManageCourse(existing.getCourseId(), auth);
         Task task = taskService.publishTask(id);

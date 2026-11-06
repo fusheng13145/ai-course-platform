@@ -3,6 +3,8 @@ import com.aicourse.controller.ExamPaperController;
 import com.aicourse.entity.ExamPaper;
 import com.aicourse.entity.ExamQuestion;
 import com.aicourse.entity.Question;
+import com.aicourse.security.ActivityVisibilityGuard;
+import com.aicourse.service.ActivityTargetService;
 import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.ExamSessionService;
@@ -52,6 +54,10 @@ class ExamPaperControllerTest extends ControllerTestBase {
     private com.aicourse.security.ExamPaperAccessControl examPaperAccessControl;
     @MockitoBean
     private com.aicourse.service.CourseService courseService;
+    @MockitoBean
+    private ActivityVisibilityGuard activityVisibilityGuard;
+    @MockitoBean
+    private ActivityTargetService activityTargetService;
 
     @BeforeEach
     void registerEntityMetadata() {
@@ -271,6 +277,10 @@ class ExamPaperControllerTest extends ControllerTestBase {
         ExamQuestion eq = new ExamQuestion();
         eq.setId(5L);
         eq.setQuestionId(9L);
+        ExamPaper existing = new ExamPaper();
+        existing.setId(1L);
+        existing.setCourseId(1L);
+        when(examPaperService.getById(eq(1L))).thenReturn(existing);
         when(examQuestionService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class))).thenReturn(List.of(eq));
         when(questionService.getById(eq(9L))).thenReturn(new Question());
         mockMvc.perform(get("/exam-papers/1/questions").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
@@ -292,7 +302,10 @@ class ExamPaperControllerTest extends ControllerTestBase {
     @DisplayName("GET /exam-papers/1/detail - 查询试卷完整详情返回200，字段透传")
     void getDetail_authorized_passes_security() throws Exception {
         com.aicourse.entity.ExamPaper p = new com.aicourse.entity.ExamPaper();
+        p.setId(1L);
+        p.setCourseId(1L);
         p.setTitle("期中试卷");
+        when(examPaperService.getById(eq(1L))).thenReturn(p);
         when(examPaperService.getExamPaperDetail(eq(1L)))
                 .thenReturn(new com.aicourse.vo.ExamPaperDetailVO(p, java.util.Collections.emptyList(), 0));
         mockMvc.perform(get("/exam-papers/1/detail").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
@@ -311,16 +324,17 @@ class ExamPaperControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("POST /exam-papers/1/publish - 管理员直接发布返回200，ID透传")
-    void publish_admin_direct_passes_security() throws Exception {
+    @DisplayName("POST /exam-papers/1/publish - 管理员直接发布返回403（WP6：治理只读）")
+    void publish_admin_forbidden_403() throws Exception {
         ExamPaper paper = new ExamPaper();
         paper.setId(1L);
         when(examPaperService.getById(eq(1L))).thenReturn(paper);
-        mockMvc.perform(post("/exam-papers/1/publish").with(withUser(1L, "TEACHER", "ADMIN")))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.id").value(1));
-        verify(examPaperService).publishExamPaper(eq(1L));
+        doThrow(new com.aicourse.exception.BusinessException(com.aicourse.common.ApiCode.FORBIDDEN,
+                "管理员仅治理只读，不得发布教学活动或修改目标教学班"))
+                .when(activityVisibilityGuard).assertNotAdmin(any());
+        mockMvc.perform(post("/exam-papers/1/publish").with(withUser(1L, "ADMIN")))
+                .andExpect(status().isForbidden());
+        verify(examPaperService, never()).publishExamPaper(anyLong());
         verify(examPaperService, never()).submitExamPaperForReview(anyLong());
     }
 
@@ -509,5 +523,57 @@ class ExamPaperControllerTest extends ControllerTestBase {
     void statistics_unauthorized_returns_401() throws Exception {
         mockMvc.perform(get("/exam-papers/1/statistics"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("PUT /exam-papers/1/targets - 管理员改目标返回403（WP6：治理只读）")
+    void updateTargets_admin_forbidden_403() throws Exception {
+        ExamPaper paper = new ExamPaper();
+        paper.setId(1L);
+        paper.setCourseId(1L);
+        when(examPaperService.getById(eq(1L))).thenReturn(paper);
+        doThrow(new com.aicourse.exception.BusinessException(com.aicourse.common.ApiCode.FORBIDDEN,
+                "管理员仅治理只读，不得发布教学活动或修改目标教学班"))
+                .when(activityVisibilityGuard).assertNotAdmin(any());
+        mockMvc.perform(put("/exam-papers/1/targets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"visibility\":\"CLASSES\",\"teachingClassIds\":[11]}")
+                        .with(withUser(1L, "ADMIN")))
+                .andExpect(status().isForbidden());
+        verify(activityTargetService, never()).replaceExamPaperTargets(anyLong(), any(), any());
+    }
+
+    @Test
+    @DisplayName("PUT /exam-papers/1/targets - 教师设置目标教学班返回200")
+    void updateTargets_teacher_returns_200() throws Exception {
+        ExamPaper paper = new ExamPaper();
+        paper.setId(1L);
+        paper.setCourseId(1L);
+        paper.setVisibility("COURSE");
+        when(examPaperService.getById(eq(1L))).thenReturn(paper);
+        when(activityTargetService.normalizeAndValidate(eq(1L), eq(1L), eq("CLASSES"), any(), eq(true)))
+                .thenReturn("CLASSES");
+        when(activityTargetService.examPaperTargetClassIds(1L)).thenReturn(List.of(11L));
+        mockMvc.perform(put("/exam-papers/1/targets")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"visibility\":\"CLASSES\",\"teachingClassIds\":[11]}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.visibility").value("CLASSES"))
+                .andExpect(jsonPath("$.data.teachingClassIds[0]").value(11));
+        verify(activityTargetService).replaceExamPaperTargets(1L, "CLASSES", List.of(11L));
+    }
+
+    @Test
+    @DisplayName("GET /exam-papers?teachingClassId=11 - 教学班筛选委托可见性守卫")
+    void listByParams_teachingClassId_delegates_guard() throws Exception {
+        Page<ExamPaper> p = new Page<>(1, 1);
+        p.setRecords(List.of());
+        p.setTotal(0);
+        when(examPaperService.page(any(), any())).thenReturn(p);
+        mockMvc.perform(get("/exam-papers?page=1&size=1&teachingClassId=11")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk());
+        verify(activityVisibilityGuard).applyExamPaperScope(any(), any(), eq(11L));
     }
 }
