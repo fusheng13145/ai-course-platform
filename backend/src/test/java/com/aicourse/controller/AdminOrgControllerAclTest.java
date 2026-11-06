@@ -1,15 +1,19 @@
 package com.aicourse.controller;
 
+import com.aicourse.entity.College;
 import com.aicourse.service.OrgService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import java.util.List;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -45,5 +49,38 @@ class AdminOrgControllerAclTest extends ControllerTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").isArray());
+    }
+
+    @Test
+    @DisplayName("未登录访问学院列表返回 401")
+    void anonymousCannotListColleges() throws Exception {
+        mockMvc.perform(get("/admin/org/colleges"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("学生新建学院返回 403")
+    void studentCannotCreateCollege() throws Exception {
+        mockMvc.perform(withUser(post("/admin/org/colleges")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"TEST\",\"name\":\"测试学院\"}"), 2L, "STUDENT"))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("校级管理员新建学院返回 200（作用域校验在服务层）")
+    void schoolAdminCanCreateCollege() throws Exception {
+        College college = new College();
+        college.setId(9L);
+        college.setCode("TEST");
+        college.setName("测试学院");
+        when(orgService.createCollege(any())).thenReturn(college);
+
+        mockMvc.perform(post("/admin/org/colleges")
+                        .with(withSchoolAdmin(1L))
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"code\":\"TEST\",\"name\":\"测试学院\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(9));
     }
 }
