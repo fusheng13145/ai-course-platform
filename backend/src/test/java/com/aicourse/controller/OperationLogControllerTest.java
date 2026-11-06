@@ -2,10 +2,14 @@ package com.aicourse.controller;
 import com.aicourse.controller.OperationLogController;
 import com.aicourse.service.OperationLogService;
 import com.aicourse.entity.OperationLog;
+import com.aicourse.entity.User;
+import com.aicourse.security.AdminScopeGuard;
+import com.aicourse.service.UserService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
@@ -20,10 +24,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 该控制器类级别 @PreAuthorize("hasRole('ADMIN')")，原有 STUDENT 越权 403 测试保留不动。
  */
 @WebMvcTest(OperationLogController.class)
+@Import(AdminScopeGuard.class)
 class OperationLogControllerTest extends ControllerTestBase {
 
     @MockitoBean
     private com.aicourse.service.OperationLogService operationLogService;
+    @MockitoBean
+    private UserService userService;
+
+    private User user(Long id, Long collegeId, String role) {
+        User u = new User();
+        u.setId(id);
+        u.setCollegeId(collegeId);
+        u.setRole(role);
+        return u;
+    }
 
     private OperationLog sampleLog(Long id) {
         OperationLog log = new OperationLog();
@@ -83,6 +98,42 @@ class OperationLogControllerTest extends ControllerTestBase {
         verify(operationLogService).count(any());
     }
 
+
+    @Test
+    @DisplayName("GET /admin/operation-logs - 院系管理员只查本院用户日志")
+    void queryLogs_collegeAdmin_scopedToCollege() throws Exception {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
+        when(userService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
+                .thenReturn(List.of(user(20L, 10L, "TEACHER")));
+        Page<OperationLog> p = new Page<>(1, 10);
+        p.setRecords(List.of(sampleLog(1L)));
+        p.setTotal(1);
+        when(operationLogService.page(any(), any())).thenReturn(p);
+
+        mockMvc.perform(get("/admin/operation-logs").with(withCollegeAdmin(3L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.total").value(1));
+        verify(operationLogService).page(any(), any());
+    }
+
+    @Test
+    @DisplayName("GET /admin/operation-logs/statistics - 院系管理员按本院用户统计")
+    void getStatistics_collegeAdmin_scopedToCollege() throws Exception {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
+        when(userService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
+                .thenReturn(List.of(user(20L, 10L, "TEACHER")));
+        when(operationLogService.count(any())).thenReturn(4L);
+
+        mockMvc.perform(get("/admin/operation-logs/statistics").with(withCollegeAdmin(3L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.totalCount").value(4))
+                .andExpect(jsonPath("$.data.successCount").value(4))
+                .andExpect(jsonPath("$.data.failedCount").value(0));
+        verify(operationLogService, never()).count();
+        verify(operationLogService, times(2)).count(any());
+    }
 
     @Test
     @DisplayName("GET /admin/operation-logs/statistics - STUDENT角色返回403")

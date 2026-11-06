@@ -42,4 +42,33 @@ public interface AiCallLogMapper extends BaseMapper<AiCallLog> {
             """)
     List<AiUsageByCourseVO> selectUsageByCourse(@Param("from") LocalDateTime from,
                                                 @Param("to") LocalDateTime to);
+
+    /**
+     * 按课程聚合指定时间窗内、且属于指定学院的 AI 用量。
+     *
+     * <p>与 {@link #selectUsageByCourse} 的口径差异：使用内连接并按 {@code courses.college_id}
+     * 过滤，因此 {@code course_id IS NULL} 的平台级调用不会出现在院系视图中（无学院归属）。</p>
+     *
+     * @param from 起始时间（含）
+     * @param to   结束时间（不含）
+     * @param collegeId 学院ID
+     * @return 该学院按调用次数倒序的聚合行
+     */
+    @Select("""
+            SELECT l.course_id    AS courseId,
+                   c.name         AS courseName,
+                   COUNT(*)       AS calls,
+                   COALESCE(SUM(l.prompt_tokens + l.completion_tokens), 0) AS tokens,
+                   COALESCE(AVG(l.duration_ms), 0)                          AS avgDurationMs,
+                   COALESCE(SUM(CASE WHEN l.success = 1 THEN 1 ELSE 0 END), 0) AS successCalls
+            FROM ai_call_logs l
+            INNER JOIN courses c ON c.id = l.course_id
+            WHERE l.created_at >= #{from} AND l.created_at < #{to}
+              AND c.college_id = #{collegeId}
+            GROUP BY l.course_id, c.name
+            ORDER BY calls DESC, l.course_id ASC
+            """)
+    List<AiUsageByCourseVO> selectUsageByCourseForCollege(@Param("from") LocalDateTime from,
+                                                         @Param("to") LocalDateTime to,
+                                                         @Param("collegeId") Long collegeId);
 }

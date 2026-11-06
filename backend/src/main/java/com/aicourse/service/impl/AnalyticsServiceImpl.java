@@ -94,8 +94,20 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
     @Override
     @Transactional(readOnly = true)
+    public Map<String, Object> getDashboard(Long collegeId) {
+        return adminAnalyticsComponent.getDashboard(collegeId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public Map<String, Object> getPlatformOverview() {
         return adminAnalyticsComponent.getPlatformOverview();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, Object> getPlatformOverview(Long collegeId) {
+        return adminAnalyticsComponent.getPlatformOverview(collegeId);
     }
 
     @Override
@@ -106,8 +118,20 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<Map<String, Object>> getPlatformHeatmap(int days, Long collegeId) {
+        return adminAnalyticsComponent.getPlatformHeatmap(days, collegeId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<Map<String, Object>> getUserGrowthTrend(int days) {
         return adminAnalyticsComponent.getUserGrowthTrend(days);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getUserGrowthTrend(int days, Long collegeId) {
+        return adminAnalyticsComponent.getUserGrowthTrend(days, collegeId);
     }
 
     // ===================== 课程级统计（委托 CourseAnalyticsComponent） =====================
@@ -134,6 +158,12 @@ public class AnalyticsServiceImpl implements AnalyticsService {
     @Transactional(readOnly = true)
     public List<Map<String, Object>> getCourseRanking() {
         return courseAnalyticsComponent.getCourseRanking();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public List<Map<String, Object>> getCourseRanking(Long collegeId) {
+        return courseAnalyticsComponent.getCourseRanking(collegeId);
     }
 
     @Override
@@ -176,6 +206,14 @@ public class AnalyticsServiceImpl implements AnalyticsService {
         // 委托给 TeachingAnalyticsComponent 的完整实现（进度<40% 或 成绩<60 判定 + 多维下钻聚合），
         // 异常直接向上传播，由全局异常处理器统一响应，不再吞异常后返回 200 + error 字段。
         return teachingAnalyticsComponent.getAtRiskStudents(groupBy, courseId, department, major, classId);
+    }
+
+    @Override
+    @Transactional(readOnly = true)
+    public Map<String, Object> getAtRiskStudents(String groupBy, Long courseId, String department, String major,
+                                                 Long classId, Long collegeId) {
+        return teachingAnalyticsComponent.getAtRiskStudents(
+                groupBy, courseId, department, major, classId, collegeId);
     }
 
     @Override

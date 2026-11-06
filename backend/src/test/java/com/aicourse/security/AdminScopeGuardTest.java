@@ -205,6 +205,27 @@ class AdminScopeGuardTest {
         assertThrows(AccessDeniedException.class, () -> guard.assertCourseAccess(orphan));
     }
 
+    @Test
+    @DisplayName("V13：课程 college_id 优先于教师学院判定")
+    void courseCollegeIdTakesPrecedence() {
+        authenticate(2L, "ROLE_ADMIN", "SCOPE_ADMIN_COLLEGE");
+        when(userService.getById(2L)).thenReturn(collegeAdmin(2L));
+
+        // 课程学院=本院，教师挂在另一学院：仍允许（college_id 是唯一事实来源）
+        Course own = new Course();
+        own.setId(110L);
+        own.setTeacherId(11L);
+        own.setCollegeId(10L);
+        guard.assertCourseAccess(own);
+
+        // 课程学院=他院：即使教师后来调到本院也拒绝
+        Course other = new Course();
+        other.setId(111L);
+        other.setTeacherId(10L);
+        other.setCollegeId(11L);
+        assertThrows(AccessDeniedException.class, () -> guard.assertCourseAccess(other));
+    }
+
     private User collegeAdmin(Long id) {
         User user = new User();
         user.setId(id);

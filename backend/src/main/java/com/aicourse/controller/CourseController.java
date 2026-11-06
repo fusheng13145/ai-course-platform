@@ -7,13 +7,13 @@ import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.Course;
+import com.aicourse.entity.CourseApprovalRecord;
 import com.aicourse.entity.CourseEnrollment;
-import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.security.AdminScopeGuard;
+import com.aicourse.service.CourseApprovalService;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
-import com.aicourse.service.UserService;
 import com.aicourse.vo.CourseStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -41,14 +41,14 @@ public class CourseController {
 
     private final CourseService courseService;
     private final CourseEnrollmentService enrollmentService;
-    private final UserService userService;
+    private final CourseApprovalService courseApprovalService;
     private final AdminScopeGuard adminScopeGuard;
 
     public CourseController(CourseService courseService, CourseEnrollmentService enrollmentService,
-                            UserService userService, AdminScopeGuard adminScopeGuard) {
+                            CourseApprovalService courseApprovalService, AdminScopeGuard adminScopeGuard) {
         this.courseService = courseService;
         this.enrollmentService = enrollmentService;
-        this.userService = userService;
+        this.courseApprovalService = courseApprovalService;
         this.adminScopeGuard = adminScopeGuard;
     }
 
@@ -61,12 +61,15 @@ public class CourseController {
             @Parameter(description = "当前页码") @RequestParam(defaultValue = "1") long page,
             @Parameter(description = "每页条数") @RequestParam(defaultValue = "10") long size,
             @Parameter(description = "搜索关键词（匹配课程名称）") @RequestParam(required = false) String keyword,
-            @Parameter(description = "课程状态筛选") @RequestParam(required = false) String status) {
+            @Parameter(description = "课程状态筛选") @RequestParam(required = false) String status,
+            @Parameter(description = "审批状态筛选（PENDING 即审批队列）") @RequestParam(required = false) String approvalStatus,
+            @Parameter(description = "学院ID筛选（院系管理员只能查本院）") @RequestParam(required = false) Long collegeId) {
         LambdaQueryWrapper<Course> queryWrapper = new LambdaQueryWrapper<Course>()
                 .eq(status != null, Course::getStatus, status)
+                .eq(approvalStatus != null, Course::getApprovalStatus, approvalStatus)
                 .like(keyword != null, Course::getName, keyword)
                 .orderByDesc(Course::getCreatedAt);
-        applyCollegeFilter(queryWrapper);
+        applyCollegeFilter(queryWrapper, collegeId);
         Page<Course> coursePage = courseService.page(Page.of(page, size), queryWrapper);
         return ApiResponse.success(PagedResponse.of(coursePage));
     }
@@ -92,8 +95,11 @@ public class CourseController {
             description = "课程信息"
     ) @Valid @RequestBody Course course, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
+        // 学院按负责人回填（客户端传入的 collegeId 被覆盖），创建后追加 SUBMIT 流水
+        courseApprovalService.applyOwnerCollege(course, userId);
         // 绑定授课教师与落库下沉至服务层（事务化）
         Course saved = courseService.createCourse(course, userId);
+        courseApprovalService.recordSubmission(saved.getId(), userId);
         return ApiResponse.success("创建成功", saved);
     }
 
@@ -139,9 +145,11 @@ public class CourseController {
     @PostMapping("/{id}/approve")
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "审批通过课程", description = "管理员审批通过课程申请，将状态设为ACTIVE")
-    public ApiResponse<Course> approve(@Parameter(description = "课程ID") @PathVariable Long id) {
+    public ApiResponse<Course> approve(@Parameter(description = "课程ID") @PathVariable Long id, Authentication auth) {
         assertCollegeScope(id);
-        Course course = courseService.approveCourse(id);
+        Long operatorId = (Long) auth.getPrincipal();
+        // 审批通过同时落 approved_by 与 APPROVE 流水（V13）
+        Course course = courseApprovalService.approve(id, operatorId);
         return ApiResponse.success("审批成功", course);
     }
 
@@ -166,11 +174,38 @@ public class CourseController {
     public ApiResponse<Course> reject(@Parameter(description = "课程ID") @PathVariable Long id,
                                       @io.swagger.v3.oas.annotations.parameters.RequestBody(
                                               description = "驳回原因（可选）"
-                                      ) @Valid @RequestBody(required = false) Map<String, String> body) {
+                                      ) @Valid @RequestBody(required = false) Map<String, String> body, Authentication auth) {
         assertCollegeScope(id);
         String reason = body != null ? body.get("reason") : null;
-        Course course = courseService.rejectCourse(id, reason);
+        Long operatorId = (Long) auth.getPrincipal();
+        // 驳回同时追加 REJECT 流水（V13）
+        Course course = courseApprovalService.reject(id, operatorId, reason);
         return ApiResponse.success("已拒绝", course);
+    }
+
+    /**
+     * 重新提交被驳回的课程（教师仅限本人课程，院系管理员限本院）
+     */
+    @PostMapping("/{id}/resubmit")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "重新提交课程", description = "仅驳回状态可重提，历史审批流水保留")
+    public ApiResponse<Course> resubmit(@Parameter(description = "课程ID") @PathVariable Long id, Authentication auth) {
+        assertCourseOwner(id, auth);
+        Long operatorId = (Long) auth.getPrincipal();
+        Course course = courseApprovalService.resubmit(id, operatorId);
+        return ApiResponse.success("已重新提交", course);
+    }
+
+    /**
+     * 查询课程审批流水（教师仅限本人课程，院系管理员限本院）
+     */
+    @GetMapping("/{id}/approval-records")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @Operation(summary = "获取课程审批流水", description = "按时间正序返回提交/通过/驳回/重提记录")
+    public ApiResponse<List<CourseApprovalRecord>> approvalRecords(
+            @Parameter(description = "课程ID") @PathVariable Long id, Authentication auth) {
+        assertCourseOwner(id, auth);
+        return ApiResponse.success(courseApprovalService.listByCourse(id));
     }
 
     /**
@@ -285,21 +320,20 @@ public class CourseController {
     }
 
     /**
-     * 院系管理员只能看到本院教师创建的课程；校级管理员不过滤。
+     * 课程列表学院过滤（V13 起按 {@code courses.college_id}）：
+     * 院系管理员强制本院，显式请求他院 403；校级管理员可按参数筛学院。
      */
-    private void applyCollegeFilter(LambdaQueryWrapper<Course> queryWrapper) {
-        Long collegeId = adminScopeGuard.currentCollegeFilter();
-        if (collegeId == null) {
+    private void applyCollegeFilter(LambdaQueryWrapper<Course> queryWrapper, Long requestedCollegeId) {
+        Long scopedCollegeId = adminScopeGuard.currentCollegeFilter();
+        if (scopedCollegeId != null) {
+            if (requestedCollegeId != null && !scopedCollegeId.equals(requestedCollegeId)) {
+                throw new BusinessException(ApiCode.FORBIDDEN, "无权查看其他学院的课程");
+            }
+            queryWrapper.eq(Course::getCollegeId, scopedCollegeId);
             return;
         }
-        List<Long> teacherIds = userService.list(new LambdaQueryWrapper<User>()
-                        .select(User::getId)
-                        .eq(User::getCollegeId, collegeId))
-                .stream().map(User::getId).toList();
-        if (teacherIds.isEmpty()) {
-            queryWrapper.eq(Course::getTeacherId, -1L);
-        } else {
-            queryWrapper.in(Course::getTeacherId, teacherIds);
+        if (requestedCollegeId != null) {
+            queryWrapper.eq(Course::getCollegeId, requestedCollegeId);
         }
     }
 }

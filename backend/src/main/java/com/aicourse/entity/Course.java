@@ -50,6 +50,11 @@ public class Course {
     private Long teacherId;
 
     /**
+     * 所属学院ID（V13 起由课程负责人学院回填，未回填时回退教师学院）
+     */
+    private Long collegeId;
+
+    /**
      * 学期
      */
     private String semester;

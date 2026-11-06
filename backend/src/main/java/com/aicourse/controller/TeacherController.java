@@ -52,6 +52,7 @@ public class TeacherController {
     private static final Logger log = LoggerFactory.getLogger(TeacherController.class);
 
     private final CourseService courseService;
+    private final CourseApprovalService courseApprovalService;
     private final CourseChapterService chapterService;
     private final TaskService taskService;
     private final SubmissionService submissionService;
@@ -62,6 +63,7 @@ public class TeacherController {
     private final KnowledgePointService knowledgePointService;
 
     public TeacherController(CourseService courseService,
+                             CourseApprovalService courseApprovalService,
                              CourseChapterService chapterService,
                              TaskService taskService,
                              SubmissionService submissionService,
@@ -71,6 +73,7 @@ public class TeacherController {
                              TeacherCourseService teachingService,
                              KnowledgePointService knowledgePointService) {
         this.courseService = courseService;
+        this.courseApprovalService = courseApprovalService;
         this.chapterService = chapterService;
         this.taskService = taskService;
         this.submissionService = submissionService;
@@ -87,8 +90,12 @@ public class TeacherController {
     @PostMapping("/courses")
     @Operation(summary = "创建课程")
     public ApiResponse<Course> createCourse(@Valid @RequestBody Course course, Authentication auth) {
+        Long teacherId = (Long) auth.getPrincipal();
+        // 学院按负责人回填（客户端传入的 collegeId 被覆盖），创建后追加 SUBMIT 流水
+        courseApprovalService.applyOwnerCollege(course, teacherId);
         // 绑定授课教师与落库下沉至服务层（事务化）
-        Course saved = courseService.createCourse(course, (Long) auth.getPrincipal());
+        Course saved = courseService.createCourse(course, teacherId);
+        courseApprovalService.recordSubmission(saved.getId(), teacherId);
         return ApiResponse.success("创建成功", saved);
     }
 

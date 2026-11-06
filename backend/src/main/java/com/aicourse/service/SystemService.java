@@ -82,6 +82,13 @@ public interface SystemService {
     Map<String, Object> getAIUsageStats();
 
     /**
+     * 获取AI功能使用统计（院系口径）：用户/课程/题库/知识点均限于本院课程。
+     * @param collegeId 学院ID；null 表示校级
+     * @return AI使用统计数据
+     */
+    Map<String, Object> getAIUsageStats(Long collegeId);
+
+    /**
      * 按课程聚合的 AI 使用统计（跨课程 AI 统计，管理端）。
      * <p>数据源为 {@code ai_call_logs}——真实逐次调用留痕，与 {@link #getAIUsageStats()}
      * 的无留痕口径不同。⚠️ 只统计自 2026-10-13 埋点上线后的调用，历史不可回填。</p>
@@ -90,6 +97,16 @@ public interface SystemService {
      * @return 总览 + 按课程分组的用量明细
      */
     Map<String, Object> getAIUsageByCourse(int days);
+
+    /**
+     * 按课程聚合的 AI 使用统计（院系口径）。
+     * <p>仅统计本院课程的调用；未绑定课程的调用无学院归属，不计入。</p>
+     *
+     * @param days 统计天数（1–365，越界自动收敛）
+     * @param collegeId 学院ID；null 表示校级
+     * @return 总览 + 按课程分组的用量明细
+     */
+    Map<String, Object> getAIUsageByCourse(int days, Long collegeId);
 
     /**
      * AI 异常监控：汇总最近登录/操作日志，调用 LLM 检测异常（暴力破解、成绩异动等）。

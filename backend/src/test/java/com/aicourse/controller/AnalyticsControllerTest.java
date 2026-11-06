@@ -2,13 +2,17 @@ package com.aicourse.controller;
 import com.aicourse.controller.AnalyticsController;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.ExamPaper;
+import com.aicourse.entity.User;
+import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.AnalyticsService;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.ExamPaperService;
+import com.aicourse.service.UserService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
@@ -24,10 +28,14 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 课程级学生学情接口需同时校验教师角色与课程归属，单独覆盖越权拒绝。
  */
 @WebMvcTest(AnalyticsController.class)
+@Import(AdminScopeGuard.class)
 class AnalyticsControllerTest extends ControllerTestBase {
 
     @MockitoBean
     private com.aicourse.service.AnalyticsService analyticsService;
+
+    @MockitoBean
+    private UserService userService;
 
     @MockitoBean
     private CourseService courseService;
@@ -206,6 +214,91 @@ class AnalyticsControllerTest extends ControllerTestBase {
         verify(analyticsService).getPlatformOverview();
     }
 
+
+    @Test
+    @DisplayName("GET /analytics/overview - 院系管理员只取本院口径")
+    void platformOverview_collegeAdmin_scoped() throws Exception {
+        User admin = new User();
+        admin.setId(3L);
+        admin.setCollegeId(10L);
+        admin.setRole("ADMIN");
+        when(userService.getById(3L)).thenReturn(admin);
+        when(analyticsService.getPlatformOverview(10L)).thenReturn(Map.of("totalUsers", 1));
+
+        mockMvc.perform(get("/analytics/overview").with(withCollegeAdmin(3L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.totalUsers").value(1));
+        verify(analyticsService).getPlatformOverview(10L);
+        verify(analyticsService, never()).getPlatformOverview();
+    }
+
+    @Test
+    @DisplayName("GET /analytics/heatmap/platform - 院系管理员只取本院热力图")
+    void platformHeatmap_collegeAdmin_scoped() throws Exception {
+        User admin = new User();
+        admin.setId(3L);
+        admin.setCollegeId(10L);
+        when(userService.getById(3L)).thenReturn(admin);
+        when(analyticsService.getPlatformHeatmap(30, 10L)).thenReturn(List.of());
+
+        mockMvc.perform(get("/analytics/heatmap/platform").with(withCollegeAdmin(3L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+        verify(analyticsService).getPlatformHeatmap(30, 10L);
+        verify(analyticsService, never()).getPlatformHeatmap(anyInt());
+    }
+
+    @Test
+    @DisplayName("GET /analytics/users/growth - 院系管理员只取本院增长趋势")
+    void userGrowthTrend_collegeAdmin_scoped() throws Exception {
+        User admin = new User();
+        admin.setId(3L);
+        admin.setCollegeId(10L);
+        when(userService.getById(3L)).thenReturn(admin);
+        when(analyticsService.getUserGrowthTrend(7, 10L)).thenReturn(List.of());
+
+        mockMvc.perform(get("/analytics/users/growth?days=7").with(withCollegeAdmin(3L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+        verify(analyticsService).getUserGrowthTrend(7, 10L);
+        verify(analyticsService, never()).getUserGrowthTrend(anyInt());
+    }
+
+    @Test
+    @DisplayName("GET /analytics/at-risk/students - 院系管理员按本院聚合")
+    void atRiskStudents_collegeAdmin_scoped() throws Exception {
+        User admin = new User();
+        admin.setId(3L);
+        admin.setCollegeId(10L);
+        when(userService.getById(3L)).thenReturn(admin);
+        when(analyticsService.getAtRiskStudents(any(), any(), any(), any(), any(), eq(10L)))
+                .thenReturn(Map.of("total", 0));
+
+        mockMvc.perform(get("/analytics/at-risk/students").with(withCollegeAdmin(3L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+        verify(analyticsService).getAtRiskStudents(isNull(), isNull(), isNull(), isNull(), isNull(), eq(10L));
+    }
+
+    @Test
+    @DisplayName("GET /analytics/at-risk/students?courseId=9 - 院系管理员指定他院课程 403")
+    void atRiskStudents_collegeAdmin_otherCollegeCourse_403() throws Exception {
+        User admin = new User();
+        admin.setId(3L);
+        admin.setCollegeId(10L);
+        when(userService.getById(3L)).thenReturn(admin);
+        Course other = new Course();
+        other.setId(9L);
+        other.setCollegeId(11L);
+        when(courseService.getById(9L)).thenReturn(other);
+
+        mockMvc.perform(get("/analytics/at-risk/students?courseId=9").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(analyticsService, never()).getAtRiskStudents(any(), any(), any(), any(), any(), any());
+        verify(analyticsService, never()).getAtRiskStudents(any(), any(), any(), any(), any());
+    }
 
     @Test
     @DisplayName("GET /analytics/overview - 未认证返回401")

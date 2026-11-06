@@ -6,11 +6,13 @@ import org.slf4j.LoggerFactory;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.LoginLog;
+import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.LoginLogService;
 import com.aicourse.vo.AbnormalLoginVO;
 import com.aicourse.vo.DailyLoginTrendVO;
 import com.aicourse.vo.LoginGlobalStatsVO;
 import com.aicourse.vo.LoginStatsVO;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -33,9 +35,12 @@ public class LoginLogController {
     private static final Logger log = LoggerFactory.getLogger(LoginLogController.class);
 
     private final LoginLogService loginLogService;
+    private final AdminScopeGuard adminScopeGuard;
 
-    public LoginLogController(LoginLogService loginLogService) {
+    public LoginLogController(LoginLogService loginLogService,
+                             AdminScopeGuard adminScopeGuard) {
         this.loginLogService = loginLogService;
+        this.adminScopeGuard = adminScopeGuard;
     }
 
     /**
@@ -51,6 +56,7 @@ public class LoginLogController {
             @PathVariable Long userId,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size) {
+        adminScopeGuard.assertUserAccessById(userId);
         Page<LoginLog> result = loginLogService.getUserLoginHistory(userId, page, size);
         return ApiResponse.success(PagedResponse.of(result));
     }
@@ -63,6 +69,7 @@ public class LoginLogController {
     @GetMapping("/user/{userId}/stats")
     @PreAuthorize("hasAnyRole('ADMIN') or #userId == authentication.principal")
     public ApiResponse<LoginStatsVO> getLoginStats(@PathVariable Long userId) {
+        adminScopeGuard.assertUserAccessById(userId);
         LoginStatsVO stats = loginLogService.getLoginStats(userId);
         return ApiResponse.success(stats);
     }
@@ -75,6 +82,7 @@ public class LoginLogController {
     @GetMapping("/suspicious/{userId}")
     @PreAuthorize("hasAnyRole('ADMIN') or #userId == authentication.principal")
     public ApiResponse<List<LoginLog>> getSuspiciousLogins(@PathVariable Long userId) {
+        adminScopeGuard.assertUserAccessById(userId);
         List<LoginLog> suspiciousLogs = loginLogService.detectSuspiciousLogins(userId);
         return ApiResponse.success(suspiciousLogs);
     }
@@ -94,7 +102,21 @@ public class LoginLogController {
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) String status,
             @RequestParam(required = false) Long userId) {
-        Page<LoginLog> result = loginLogService.getLoginLogList(page, size, status, userId);
+        List<Long> collegeUserIds = adminScopeGuard.currentCollegeUserIds();
+        Page<LoginLog> result;
+        if (collegeUserIds == null) {
+            result = loginLogService.getLoginLogList(page, size, status, userId);
+        } else {
+            if (userId != null) {
+                adminScopeGuard.assertUserAccessById(userId);
+            }
+            LambdaQueryWrapper<LoginLog> qw = new LambdaQueryWrapper<LoginLog>()
+                    .eq(userId != null, LoginLog::getUserId, userId)
+                    .eq(status != null && !status.isEmpty(), LoginLog::getLoginStatus, status)
+                    .orderByDesc(LoginLog::getCreatedAt);
+            applyCollegeScope(qw, collegeUserIds);
+            result = loginLogService.page(Page.of(page, size), qw);
+        }
         return ApiResponse.success(PagedResponse.of(result));
     }
 
@@ -105,7 +127,10 @@ public class LoginLogController {
     @GetMapping("/stats")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<LoginGlobalStatsVO> getGlobalStats() {
-        LoginGlobalStatsVO stats = loginLogService.getGlobalLoginStats();
+        List<Long> collegeUserIds = adminScopeGuard.currentCollegeUserIds();
+        LoginGlobalStatsVO stats = collegeUserIds == null
+                ? loginLogService.getGlobalLoginStats()
+                : loginLogService.getGlobalLoginStats(collegeUserIds);
         return ApiResponse.success(stats);
     }
 
@@ -123,7 +148,18 @@ public class LoginLogController {
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<List<LoginLog>> getRecentLogs(
             @RequestParam(defaultValue = "10") int limit) {
-        List<LoginLog> recentLogs = loginLogService.getRecentLogs(limit);
+        List<Long> collegeUserIds = adminScopeGuard.currentCollegeUserIds();
+        List<LoginLog> recentLogs;
+        if (collegeUserIds == null) {
+            recentLogs = loginLogService.getRecentLogs(limit);
+        } else {
+            int effectiveLimit = limit <= 0 ? 10 : Math.min(limit, 100);
+            LambdaQueryWrapper<LoginLog> qw = new LambdaQueryWrapper<LoginLog>()
+                    .orderByDesc(LoginLog::getCreatedAt)
+                    .last("LIMIT " + effectiveLimit);
+            applyCollegeScope(qw, collegeUserIds);
+            recentLogs = loginLogService.list(qw);
+        }
         return ApiResponse.success(recentLogs);
     }
 
@@ -140,7 +176,21 @@ public class LoginLogController {
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size,
             @RequestParam(required = false) Long userId) {
-        Page<LoginLog> result = loginLogService.getFailureLogs(page, size, userId);
+        List<Long> collegeUserIds = adminScopeGuard.currentCollegeUserIds();
+        Page<LoginLog> result;
+        if (collegeUserIds == null) {
+            result = loginLogService.getFailureLogs(page, size, userId);
+        } else {
+            if (userId != null) {
+                adminScopeGuard.assertUserAccessById(userId);
+            }
+            LambdaQueryWrapper<LoginLog> qw = new LambdaQueryWrapper<LoginLog>()
+                    .eq(LoginLog::getLoginStatus, "FAILED")
+                    .eq(userId != null, LoginLog::getUserId, userId)
+                    .orderByDesc(LoginLog::getCreatedAt);
+            applyCollegeScope(qw, collegeUserIds);
+            result = loginLogService.page(Page.of(page, size), qw);
+        }
         return ApiResponse.success(PagedResponse.of(result));
     }
 
@@ -152,6 +202,7 @@ public class LoginLogController {
     @GetMapping("/abnormal/{userId}")
     @PreAuthorize("hasAnyRole('ADMIN') or #userId == authentication.principal")
     public ApiResponse<AbnormalLoginVO> getAbnormalLogin(@PathVariable Long userId) {
+        adminScopeGuard.assertUserAccessById(userId);
         AbnormalLoginVO result = loginLogService.detectAbnormalLogin(userId);
         return ApiResponse.success(result);
     }
@@ -179,7 +230,23 @@ public class LoginLogController {
             end = LocalDate.now();
             start = end.minusDays(6);
         }
-        List<DailyLoginTrendVO> trends = loginLogService.getLoginTrends(start, end);
+        List<Long> collegeUserIds = adminScopeGuard.currentCollegeUserIds();
+        List<DailyLoginTrendVO> trends = collegeUserIds == null
+                ? loginLogService.getLoginTrends(start, end)
+                : loginLogService.getLoginTrends(start, end, collegeUserIds);
         return ApiResponse.success(trends);
+    }
+
+    /**
+     * 登录日志学院口径：院系管理员仅限本院用户；校级管理员不追加条件。
+     * @param qw 查询条件
+     * @param collegeUserIds 本院用户ID列表（非 null）
+     */
+    private void applyCollegeScope(LambdaQueryWrapper<LoginLog> qw, List<Long> collegeUserIds) {
+        if (collegeUserIds.isEmpty()) {
+            qw.eq(LoginLog::getUserId, -1L);
+        } else {
+            qw.in(LoginLog::getUserId, collegeUserIds);
+        }
     }
 }

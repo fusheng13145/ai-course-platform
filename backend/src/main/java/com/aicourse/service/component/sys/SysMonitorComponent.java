@@ -1,8 +1,12 @@
 package com.aicourse.service.component.sys;
 
 import com.aicourse.common.JsonUtils;
+import com.aicourse.entity.Course;
+import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.LoginLog;
 import com.aicourse.entity.OperationLog;
+import com.aicourse.entity.Question;
+import com.aicourse.entity.User;
 import com.aicourse.health.PythonServicesHealthIndicator;
 import com.aicourse.mapper.CourseMapper;
 import com.aicourse.mapper.KnowledgePointMapper;
@@ -165,6 +169,55 @@ public class SysMonitorComponent {
         stats.put("totalUsers", totalUsers);
         stats.put("status", aiConfigured ? "active" : "api_key_missing");
 
+        return stats;
+    }
+
+    /**
+     * AI 能力使用统计（院系口径）：用户/课程/题库/知识点均限于本院课程。
+     *
+     * <p>未归属学院的数据（无 {@code college_id} 的用户、无课程归属的题目）无学院归属，
+     * 不计入院系视图；返回值通过 {@code scopeNote} 明确声明。</p>
+     *
+     * @param collegeId 学院ID；null 表示校级
+     * @return AI使用统计数据
+     */
+    public Map<String, Object> getAIUsageStats(Long collegeId) {
+        if (collegeId == null) {
+            return getAIUsageStats();
+        }
+        Map<String, Object> stats = new HashMap<>();
+
+        List<Long> courseIds = courseMapper.selectList(new LambdaQueryWrapper<Course>()
+                        .eq(Course::getCollegeId, collegeId))
+                .stream()
+                .map(Course::getId)
+                .toList();
+        long totalUsers = userMapper.selectCount(new LambdaQueryWrapper<User>()
+                .eq(User::getCollegeId, collegeId));
+        long totalCourses = courseIds.size();
+        long totalQuestions = courseIds.isEmpty() ? 0L
+                : questionMapper.selectCount(new LambdaQueryWrapper<Question>()
+                        .in(Question::getCourseId, courseIds));
+        long totalKnowledgePoints = courseIds.isEmpty() ? 0L
+                : knowledgePointMapper.selectCount(new LambdaQueryWrapper<KnowledgePoint>()
+                        .in(KnowledgePoint::getCourseId, courseIds));
+
+        boolean aiConfigured = deepseekApiKey != null && !deepseekApiKey.isBlank();
+
+        stats.put("scope", "college");
+        stats.put("collegeId", collegeId);
+        stats.put("scopeNote",
+                "院系口径：用户/课程/题库/知识点均限于本院；未归属学院的数据不计入本院视图。");
+        stats.put("collectedSince", "2026-10-13");
+        stats.put("collectionNote",
+                "调用次数/Token/耗时自 2026-10-13 起按次留痕，请见 /admin/statistics/ai-usage/by-course；"
+                        + "本端点不再给出任何估算值。");
+        stats.put("apiConfigured", aiConfigured);
+        stats.put("modelReady", aiConfigured);
+        stats.put("knowledgeBaseSize", totalQuestions + totalKnowledgePoints);
+        stats.put("supportedCourses", totalCourses);
+        stats.put("totalUsers", totalUsers);
+        stats.put("status", aiConfigured ? "active" : "api_key_missing");
         return stats;
     }
 

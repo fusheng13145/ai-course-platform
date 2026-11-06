@@ -1,6 +1,7 @@
 package com.aicourse.controller;
 import com.aicourse.controller.CourseController;
 import com.aicourse.entity.Course;
+import com.aicourse.entity.CourseApprovalRecord;
 import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.User;
 import com.aicourse.service.CourseEnrollmentService;
@@ -38,6 +39,8 @@ class CourseControllerTest extends ControllerTestBase {
     private com.aicourse.service.CourseService courseService;
     @MockitoBean
     private com.aicourse.service.CourseEnrollmentService enrollmentService;
+    @MockitoBean
+    private com.aicourse.service.CourseApprovalService courseApprovalService;
     @MockitoBean
     private UserService userService;
 
@@ -119,6 +122,8 @@ class CourseControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.teacherId").value(1));
         verify(courseService).createCourse(any(), eq(1L));
+        verify(courseApprovalService).applyOwnerCollege(any(), eq(1L));
+        verify(courseApprovalService).recordSubmission(eq(1L), eq(1L));
     }
 
     @Test
@@ -205,12 +210,12 @@ class CourseControllerTest extends ControllerTestBase {
     void approve_authorized_passes_security() throws Exception {
         Course course = new Course();
         course.setId(1L);
-        when(courseService.approveCourse(eq(1L))).thenReturn(course);
+        when(courseApprovalService.approve(eq(1L), eq(1L))).thenReturn(course);
         mockMvc.perform(post("/courses/1/approve").with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
-        verify(courseService).approveCourse(eq(1L));
+        verify(courseApprovalService).approve(eq(1L), eq(1L));
     }
 
     @Test
@@ -272,13 +277,13 @@ class CourseControllerTest extends ControllerTestBase {
     void reject_authorized_passes_security() throws Exception {
         Course course = new Course();
         course.setId(1L);
-        when(courseService.rejectCourse(eq(1L), any())).thenReturn(course);
+        when(courseApprovalService.reject(eq(1L), eq(1L), any())).thenReturn(course);
         mockMvc.perform(post("/courses/1/reject").contentType(MediaType.APPLICATION_JSON).content("{}")
                         .with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
-        verify(courseService).rejectCourse(eq(1L), any());
+        verify(courseApprovalService).reject(eq(1L), eq(1L), any());
     }
 
     @Test
@@ -461,15 +466,13 @@ class CourseControllerTest extends ControllerTestBase {
         mockMvc.perform(post("/courses/1/approve").with(withCollegeAdmin(3L)))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.code").value(403));
-        verify(courseService, never()).approveCourse(anyLong());
+        verify(courseApprovalService, never()).approve(anyLong(), anyLong());
     }
 
     @Test
-    @DisplayName("GET /courses - 院系管理员列表按本院教师过滤")
-    void list_collegeAdmin_filtersByCollegeTeachers() throws Exception {
+    @DisplayName("GET /courses - 院系管理员列表按本院课程学院过滤")
+    void list_collegeAdmin_filtersByCollege() throws Exception {
         when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
-        when(userService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
-                .thenReturn(List.of(user(20L, 10L, "TEACHER")));
         when(courseService.page(any(), any())).thenReturn(coursePageWith(2L));
 
         mockMvc.perform(get("/courses?page=1&size=10").with(withCollegeAdmin(3L)))
@@ -477,5 +480,87 @@ class CourseControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.list[0].id").value(2));
         verify(courseService).page(any(), any());
+    }
+
+    @Test
+    @DisplayName("GET /courses?collegeId=11 - 院系管理员请求他院课程 403")
+    void list_collegeAdmin_otherCollege_403() throws Exception {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
+
+        mockMvc.perform(get("/courses?collegeId=11").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(courseService, never()).page(any(), any());
+    }
+
+    @Test
+    @DisplayName("GET /courses?approvalStatus=PENDING - 审批队列返回200")
+    void list_approvalQueue_200() throws Exception {
+        when(courseService.page(any(), any())).thenReturn(coursePageWith(3L));
+
+        mockMvc.perform(get("/courses?approvalStatus=PENDING").with(withUser(1L, "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.list[0].id").value(3));
+        verify(courseService).page(any(), any());
+    }
+
+    @Test
+    @DisplayName("POST /courses/1/approve - 院系管理员审批本院课程成功并落审批人")
+    void approve_collegeAdmin_sameCollege_200() throws Exception {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
+        Course course = course(1L, 20L);
+        course.setCollegeId(10L);
+        when(courseService.getById(1L)).thenReturn(course);
+        when(courseApprovalService.approve(eq(1L), eq(3L))).thenReturn(course);
+
+        mockMvc.perform(post("/courses/1/approve").with(withCollegeAdmin(3L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.id").value(1));
+        verify(courseApprovalService).approve(eq(1L), eq(3L));
+    }
+
+    @Test
+    @DisplayName("POST /courses/1/resubmit - 教师重提本人被驳回课程 200")
+    void resubmit_owner_200() throws Exception {
+        Course course = course(1L, 1L);
+        course.setApprovalStatus("PENDING");
+        when(courseService.getById(1L)).thenReturn(course);
+        when(courseApprovalService.resubmit(eq(1L), eq(1L))).thenReturn(course);
+
+        mockMvc.perform(post("/courses/1/resubmit").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.id").value(1));
+        verify(courseApprovalService).resubmit(eq(1L), eq(1L));
+    }
+
+    @Test
+    @DisplayName("POST /courses/1/resubmit - 教师重提他人课程 403")
+    void resubmit_otherTeacherCourse_403() throws Exception {
+        when(courseService.getById(1L)).thenReturn(course(1L, 20L));
+
+        mockMvc.perform(post("/courses/1/resubmit").with(withUser(21L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(courseApprovalService, never()).resubmit(anyLong(), anyLong());
+    }
+
+    @Test
+    @DisplayName("GET /courses/1/approval-records - 教师查看本人课程审批流水 200")
+    void approvalRecords_owner_200() throws Exception {
+        when(courseService.getById(1L)).thenReturn(course(1L, 1L));
+        CourseApprovalRecord record = new CourseApprovalRecord();
+        record.setId(10L);
+        record.setCourseId(1L);
+        record.setAction("SUBMIT");
+        when(courseApprovalService.listByCourse(1L)).thenReturn(List.of(record));
+
+        mockMvc.perform(get("/courses/1/approval-records").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data[0].action").value("SUBMIT"));
+        verify(courseApprovalService).listByCourse(1L);
     }
 }

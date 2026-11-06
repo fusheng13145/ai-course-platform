@@ -30,5 +30,7 @@ DROP TABLE IF EXISTS admin_classes;
 DROP TABLE IF EXISTS majors;
 DROP TABLE IF EXISTS colleges;
 DROP TABLE IF EXISTS schools;
+-- V13__course_approval.sql
+DROP TABLE IF EXISTS course_approval_records;
 
 SET FOREIGN_KEY_CHECKS = 1;

@@ -273,12 +273,38 @@ public class TeachingAnalyticsComponent {
      */
     public Map<String, Object> getAtRiskStudents(String groupBy, Long courseId,
                                               String department, String major, Long classId) {
+        return getAtRiskStudents(groupBy, courseId, department, major, classId, null);
+    }
+
+    /**
+     * 学习掉队预警聚合（院系口径）：仅统计本院课程。
+     * @param collegeId 学院ID；null 表示校级
+     */
+    public Map<String, Object> getAtRiskStudents(String groupBy, Long courseId,
+                                              String department, String major, Long classId,
+                                              Long collegeId) {
         String dim = (groupBy == null || groupBy.isBlank()) ? "school" : groupBy.toLowerCase();
         // 1) 选课集合
+        List<Long> collegeCourseIds = null;
+        if (collegeId != null) {
+            collegeCourseIds = courseService.list(new LambdaQueryWrapper<Course>()
+                            .eq(Course::getCollegeId, collegeId))
+                    .stream()
+                    .map(Course::getId)
+                    .toList();
+        }
         List<CourseEnrollment> all;
         if (courseId != null) {
-            all = enrollmentService.list(new LambdaQueryWrapper<CourseEnrollment>()
-                    .eq(CourseEnrollment::getCourseId, courseId));
+            if (collegeCourseIds != null && !collegeCourseIds.contains(courseId)) {
+                all = List.of();
+            } else {
+                all = enrollmentService.list(new LambdaQueryWrapper<CourseEnrollment>()
+                        .eq(CourseEnrollment::getCourseId, courseId));
+            }
+        } else if (collegeCourseIds != null) {
+            all = collegeCourseIds.isEmpty() ? List.of()
+                    : enrollmentService.list(new LambdaQueryWrapper<CourseEnrollment>()
+                            .in(CourseEnrollment::getCourseId, collegeCourseIds));
         } else {
             all = enrollmentService.list();
         }

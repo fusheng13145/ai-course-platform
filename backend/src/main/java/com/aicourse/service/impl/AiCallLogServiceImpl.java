@@ -66,11 +66,33 @@ public class AiCallLogServiceImpl implements AiCallLogService {
 
     @Override
     public Map<String, Object> statistics(int days) {
+        return statistics(days, null);
+    }
+
+    /**
+     * 管理端统计（院系口径）：仅统计归属指定学院课程的调用。
+     */
+    @Override
+    public Map<String, Object> statistics(int days, Long collegeId) {
         int rangeDays = Math.min(Math.max(days, 1), 365);
         LocalDateTime until = LocalDateTime.now();
         LocalDateTime since = LocalDate.now().minusDays(rangeDays - 1L).atStartOfDay();
-        List<AiUsageByCourseVO> rows = aiCallLogMapper.selectUsageByCourse(since, until);
+        List<AiUsageByCourseVO> rows = collegeId == null
+                ? aiCallLogMapper.selectUsageByCourse(since, until)
+                : aiCallLogMapper.selectUsageByCourseForCollege(since, until, collegeId);
 
+        Map<String, Object> result = aggregate(rangeDays, since, until, rows);
+        if (collegeId != null) {
+            result.put("scope", "college");
+            result.put("collegeId", collegeId);
+            result.put("scopeNote",
+                    "院系口径：仅统计本院课程；未绑定课程的调用无学院归属，不计入本院视图。");
+        }
+        return result;
+    }
+
+    private Map<String, Object> aggregate(int rangeDays, LocalDateTime since,
+                                          LocalDateTime until, List<AiUsageByCourseVO> rows) {
         long totalCalls = 0L;
         long totalTokens = 0L;
         long successCalls = 0L;

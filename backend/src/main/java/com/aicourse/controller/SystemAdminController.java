@@ -11,6 +11,7 @@ import com.aicourse.common.PagedResponse;
 import com.aicourse.dto.AdminCreateUserDTO;
 import com.aicourse.dto.AdminUpdateUserDTO;
 import com.aicourse.entity.Course;
+import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.security.AdminScopeGuard;
@@ -392,6 +393,7 @@ public class SystemAdminController {
      */
     @GetMapping("/admin/logs")
     public ApiResponse<List<Map<String, Object>>> getLogs() {
+        adminScopeGuard.assertSchoolOnly();
         List<Map<String, Object>> logFileList = systemService.getLogFiles();
         return ApiResponse.success(logFileList);
     }
@@ -401,6 +403,7 @@ public class SystemAdminController {
      */
     @GetMapping("/admin/health")
     public ApiResponse<Map<String, Object>> getHealth() {
+        adminScopeGuard.assertSchoolOnly();
         Map<String, Object> healthInfo = systemService.getHealth();
         return ApiResponse.success(healthInfo);
     }
@@ -412,6 +415,32 @@ public class SystemAdminController {
      */
     @GetMapping("/admin/statistics/overview")
     public ApiResponse<StatisticsOverviewVO> getStatisticsOverview() {
+        Long collegeId = adminScopeGuard.currentCollegeFilter();
+        if (collegeId != null) {
+            List<Long> courseIds = scopedCourseIds(collegeId);
+            long totalUsers = userService.count(new LambdaQueryWrapper<User>()
+                    .eq(User::getCollegeId, collegeId));
+            long totalCourses = courseIds.size();
+            long totalEnrollments = courseIds.isEmpty() ? 0L
+                    : enrollmentService.count(new LambdaQueryWrapper<CourseEnrollment>()
+                            .in(CourseEnrollment::getCourseId, courseIds));
+            RoleDistributionVO roleDistribution = new RoleDistributionVO(
+                    userService.count(new LambdaQueryWrapper<User>()
+                            .eq(User::getCollegeId, collegeId)
+                            .eq(User::getRole, RoleConstants.STUDENT)),
+                    userService.count(new LambdaQueryWrapper<User>()
+                            .eq(User::getCollegeId, collegeId)
+                            .eq(User::getRole, RoleConstants.TEACHER)),
+                    userService.count(new LambdaQueryWrapper<User>()
+                            .eq(User::getCollegeId, collegeId)
+                            .eq(User::getRole, RoleConstants.ADMIN)));
+            long activeCourses = courseIds.isEmpty() ? 0L
+                    : courseService.count(new LambdaQueryWrapper<Course>()
+                            .in(Course::getId, courseIds)
+                            .eq(Course::getIsActive, true));
+            return ApiResponse.success(new StatisticsOverviewVO(
+                    totalUsers, totalCourses, totalEnrollments, roleDistribution, activeCourses));
+        }
         long totalUsers = userService.count();
         long totalCourses = courseService.count();
         long totalEnrollments = enrollmentService.count();
@@ -433,7 +462,10 @@ public class SystemAdminController {
     @GetMapping("/admin/statistics/user-growth")
     public ApiResponse<List<Map<String, Object>>> getUserGrowth(
             @RequestParam(defaultValue = "30") int days) {
-        List<Map<String, Object>> trend = analyticsService.getUserGrowthTrend(days);
+        Long collegeId = adminScopeGuard.currentCollegeFilter();
+        List<Map<String, Object>> trend = collegeId == null
+                ? analyticsService.getUserGrowthTrend(days)
+                : analyticsService.getUserGrowthTrend(days, collegeId);
         return ApiResponse.success(trend);
     }
 
@@ -442,6 +474,24 @@ public class SystemAdminController {
      */
     @GetMapping("/admin/statistics/courses")
     public ApiResponse<CourseStatisticsVO> getCourseStatistics() {
+        Long collegeId = adminScopeGuard.currentCollegeFilter();
+        if (collegeId != null) {
+            List<Long> courseIds = scopedCourseIds(collegeId);
+            List<Course> allCourses = courseIds.isEmpty()
+                    ? List.of()
+                    : courseService.list(new LambdaQueryWrapper<Course>()
+                            .in(Course::getId, courseIds));
+            long activeCourses = allCourses.stream()
+                    .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
+                    .count();
+            Map<String, Long> categoryDistribution = allCourses.stream()
+                    .filter(c -> c.getCategory() != null)
+                    .collect(Collectors.groupingBy(Course::getCategory, Collectors.counting()));
+            List<Map<String, Object>> topCourses = analyticsService.getCourseRanking(collegeId)
+                    .stream().limit(5).collect(Collectors.toList());
+            return ApiResponse.success(new CourseStatisticsVO(
+                    allCourses.size(), activeCourses, categoryDistribution, topCourses));
+        }
         long totalCourses = courseService.count();
         long activeCourses = courseService.count(
                 new LambdaQueryWrapper<Course>().eq(Course::getIsActive, true));
@@ -463,7 +513,10 @@ public class SystemAdminController {
      */
     @GetMapping("/admin/statistics/ai-usage")
     public ApiResponse<Map<String, Object>> getAIUsageStatistics() {
-        Map<String, Object> aiUsage = systemService.getAIUsageStats();
+        Long collegeId = adminScopeGuard.currentCollegeFilter();
+        Map<String, Object> aiUsage = collegeId == null
+                ? systemService.getAIUsageStats()
+                : systemService.getAIUsageStats(collegeId);
         return ApiResponse.success(aiUsage);
     }
 
@@ -481,7 +534,11 @@ public class SystemAdminController {
     @GetMapping("/admin/statistics/ai-usage/by-course")
     public ApiResponse<Map<String, Object>> getAIUsageByCourse(
             @RequestParam(defaultValue = "30") int days) {
-        return ApiResponse.success(systemService.getAIUsageByCourse(days));
+        Long collegeId = adminScopeGuard.currentCollegeFilter();
+        Map<String, Object> result = collegeId == null
+                ? systemService.getAIUsageByCourse(days)
+                : systemService.getAIUsageByCourse(days, collegeId);
+        return ApiResponse.success(result);
     }
 
     /**
@@ -491,25 +548,40 @@ public class SystemAdminController {
     @GetMapping("/admin/statistics/export")
     public void exportStatisticsReport(HttpServletResponse response) throws IOException {
         ExcelUtil.setDownloadHeaders(response, "平台数据报表.xlsx");
-        ExcelUtil.writeReport(response.getOutputStream(), buildStatisticsReport());
+        ExcelUtil.writeReport(response.getOutputStream(),
+                buildStatisticsReport(adminScopeGuard.currentCollegeFilter()));
     }
 
     /**
      * 构建平台综合数据报表（供导出与接口复用）。
+     * @param collegeId 学院ID；null 表示校级全校口径
      */
-    private Map<String, Object> buildStatisticsReport() {
+    private Map<String, Object> buildStatisticsReport(Long collegeId) {
         Map<String, Object> report = new HashMap<>();
 
         // 获取平台仪表盘数据
-        Map<String, Object> dashboard = analyticsService.getDashboard();
+        Map<String, Object> dashboard = collegeId == null
+                ? analyticsService.getDashboard()
+                : analyticsService.getDashboard(collegeId);
         report.put("dashboard", dashboard);
 
         // 获取AI使用统计
-        Map<String, Object> aiUsage = systemService.getAIUsageStats();
+        Map<String, Object> aiUsage = collegeId == null
+                ? systemService.getAIUsageStats()
+                : systemService.getAIUsageStats(collegeId);
         report.put("aiUsage", aiUsage);
 
         // 获取课程统计
-        List<Course> allCourses = courseService.list();
+        List<Course> allCourses;
+        if (collegeId == null) {
+            allCourses = courseService.list();
+        } else {
+            List<Long> courseIds = scopedCourseIds(collegeId);
+            allCourses = courseIds.isEmpty()
+                    ? List.of()
+                    : courseService.list(new LambdaQueryWrapper<Course>()
+                            .in(Course::getId, courseIds));
+        }
         long activeCourses = allCourses.stream()
                 .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
                 .count();
@@ -523,11 +595,25 @@ public class SystemAdminController {
         report.put("courseStatistics", courseStats);
 
         // 获取用户统计
-        long totalUsers = userService.count();
-        long students = userService.count(
-                new LambdaQueryWrapper<User>().eq(User::getRole, RoleConstants.STUDENT));
-        long teachers = userService.count(
-                new LambdaQueryWrapper<User>().eq(User::getRole, RoleConstants.TEACHER));
+        long totalUsers;
+        long students;
+        long teachers;
+        if (collegeId == null) {
+            totalUsers = userService.count();
+            students = userService.count(
+                    new LambdaQueryWrapper<User>().eq(User::getRole, RoleConstants.STUDENT));
+            teachers = userService.count(
+                    new LambdaQueryWrapper<User>().eq(User::getRole, RoleConstants.TEACHER));
+        } else {
+            totalUsers = userService.count(new LambdaQueryWrapper<User>()
+                    .eq(User::getCollegeId, collegeId));
+            students = userService.count(new LambdaQueryWrapper<User>()
+                    .eq(User::getCollegeId, collegeId)
+                    .eq(User::getRole, RoleConstants.STUDENT));
+            teachers = userService.count(new LambdaQueryWrapper<User>()
+                    .eq(User::getCollegeId, collegeId)
+                    .eq(User::getRole, RoleConstants.TEACHER));
+        }
         Map<String, Object> userStats = new HashMap<>();
         userStats.put("totalUsers", totalUsers);
         userStats.put("students", students);
@@ -542,6 +628,19 @@ public class SystemAdminController {
         return report;
     }
 
+    /**
+     * 院系口径下的课程ID集合：按课程所属学院（V13 起由负责人学院回填）。
+     * @param collegeId 学院ID
+     * @return 本院课程ID列表（可能为空）
+     */
+    private List<Long> scopedCourseIds(Long collegeId) {
+        return courseService.list(new LambdaQueryWrapper<Course>()
+                        .eq(Course::getCollegeId, collegeId))
+                .stream()
+                .map(Course::getId)
+                .toList();
+    }
+
     // ==================== 数据备份 ====================
 
     /**
@@ -549,6 +648,7 @@ public class SystemAdminController {
      */
     @PostMapping("/admin/backup")
     public ApiResponse<String> createBackup() {
+        adminScopeGuard.assertSchoolOnly();
         String backupFileName = systemService.createBackup();
         return ApiResponse.success("备份成功", backupFileName);
     }
@@ -560,6 +660,7 @@ public class SystemAdminController {
      */
     @GetMapping("/admin/system/overview")
     public ApiResponse<Map<String, Object>> overview() {
+        adminScopeGuard.assertSchoolOnly();
         Map<String, Object> overviewData = systemService.getOverview();
         return ApiResponse.success(overviewData);
     }
@@ -599,6 +700,7 @@ public class SystemAdminController {
      */
     @GetMapping("/admin/backup")
     public ApiResponse<List<Map<String, Object>>> getBackups() {
+        adminScopeGuard.assertSchoolOnly();
         List<Map<String, Object>> backupList = systemService.getBackups();
         return ApiResponse.success(backupList);
     }
@@ -608,6 +710,7 @@ public class SystemAdminController {
      */
     @PostMapping("/admin/system/backup/{fileName}/restore")
     public ApiResponse<Void> restoreBackup(@PathVariable String fileName) {
+        adminScopeGuard.assertSchoolOnly();
         systemService.restoreBackup(fileName);
         return ApiResponse.success("恢复成功", null);
     }
@@ -628,6 +731,7 @@ public class SystemAdminController {
             @PathVariable String fileName,
             @RequestParam(defaultValue = "100") int lines,
             @RequestParam(required = false) String keyword) {
+        adminScopeGuard.assertSchoolOnly();
         String logContent = systemService.readLogFile(fileName, lines, keyword);
         // DR-33：必须用双参重载。ApiResponse.success(String) 与 success(T data) 并存时，
         // String 入参绑定到「仅提示语」的那个，日志内容会跑到 message 里、data 变 null；
@@ -644,6 +748,7 @@ public class SystemAdminController {
      */
     @GetMapping("/admin/ai-monitor")
     public Callable<ApiResponse<Map<String, Object>>> aiMonitor() {
+        adminScopeGuard.assertSchoolOnly();
         return () -> ApiResponse.success(systemService.aiMonitor());
     }
 }

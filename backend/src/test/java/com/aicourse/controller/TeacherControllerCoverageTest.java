@@ -8,6 +8,7 @@ import com.aicourse.entity.Task;
 import com.aicourse.service.AnalyticsService;
 import com.aicourse.service.CourseChapterService;
 import com.aicourse.service.CourseEnrollmentService;
+import com.aicourse.service.CourseApprovalService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.QuestionService;
@@ -89,6 +90,7 @@ class TeacherControllerCoverageTest extends ControllerTestBase {
             {"知识点名称", "父知识点名称", "难度", "重要程度(1-10)", "预计学习时长(分钟)", "类型", "描述"};
 
     @MockitoBean private CourseService courseService;
+    @MockitoBean private CourseApprovalService courseApprovalService;
     @MockitoBean private CourseChapterService chapterService;
     @MockitoBean private TaskService taskService;
     @MockitoBean private SubmissionService submissionService;

@@ -47,4 +47,16 @@ public interface AiCallLogService {
      * @return 统计结果
      */
     Map<String, Object> statistics(int days);
+
+    /**
+     * 管理端统计（院系口径）：仅统计归属指定学院课程的调用。
+     *
+     * <p>未绑定课程（{@code course_id IS NULL}）的调用无学院归属，不计入院系视图；
+     * 返回值中通过 {@code scopeNote} 明确声明该口径。</p>
+     *
+     * @param days 统计天数（1–365，越界自动收敛）
+     * @param collegeId 学院ID；null 表示校级
+     * @return 统计结果
+     */
+    Map<String, Object> statistics(int days, Long collegeId);
 }

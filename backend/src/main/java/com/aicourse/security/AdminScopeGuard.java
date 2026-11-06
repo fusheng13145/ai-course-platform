@@ -5,12 +5,14 @@ import com.aicourse.common.RoleConstants;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.User;
 import com.aicourse.service.UserService;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.stereotype.Component;
 
+import java.util.List;
 import java.util.Objects;
 
 /**
@@ -104,6 +106,40 @@ public class AdminScopeGuard {
     }
 
     /**
+     * 查询过滤条件：院系管理员返回本院用户ID列表，校级管理员返回 null（不过滤）。
+     *
+     * <p>列表为空表示本院暂无可归属用户；调用方应把空列表转换为「查不到任何数据」
+     * （例如 {@code eq(userId, -1L)}），不得退化为全校查询。</p>
+     * @return 本院用户ID列表或 null
+     */
+    public List<Long> currentCollegeUserIds() {
+        if (!isCollegeAdmin()) {
+            return null;
+        }
+        Long collegeId = currentCollegeId();
+        return userService.list(new LambdaQueryWrapper<User>()
+                        .eq(User::getCollegeId, collegeId))
+                .stream()
+                .map(User::getId)
+                .toList();
+    }
+
+    /**
+     * 要求当前用户可访问指定用户ID（校级放行，院系级仅限本学院）。
+     * @param userId 目标用户ID
+     * @throws AccessDeniedException 越权或目标用户不存在/未绑定学院
+     */
+    public void assertUserAccessById(Long userId) {
+        if (!isCollegeAdmin()) {
+            return;
+        }
+        if (userId == null) {
+            throw new AccessDeniedException("无权访问其他学院的用户");
+        }
+        assertUserAccess(userService.getById(userId));
+    }
+
+    /**
      * 要求当前用户可访问指定用户（校级放行，院系级仅限本学院）。
      * @param target 目标用户
      * @throws AccessDeniedException 越权或目标未绑定学院
@@ -132,18 +168,27 @@ public class AdminScopeGuard {
     }
 
     /**
-     * 要求当前用户可访问指定课程（校级放行，院系级按授课教师学院判定）。
+     * 要求当前用户可访问指定课程（校级放行，院系级按课程所属学院判定）。
      *
-     * <p>课程表在 WP2 阶段尚无 {@code college_id}（WP3/WP4 才引入），
-     * 故以授课教师的 {@code users.college_id} 作为学院归属口径。</p>
+     * <p>V13 起课程具备 {@code college_id}（由负责人学院回填），优先按该列比较；
+     * 未回填的历史数据回退授课教师 {@code users.college_id} 口径。</p>
      * @param course 目标课程
-     * @throws AccessDeniedException 越权或教师不存在/未绑定学院
+     * @throws AccessDeniedException 越权或课程/教师未绑定学院
      */
     public void assertCourseAccess(Course course) {
         if (!isCollegeAdmin()) {
             return;
         }
-        if (course == null || course.getTeacherId() == null) {
+        if (course == null) {
+            throw new AccessDeniedException("无权访问其他学院的课程");
+        }
+        if (course.getCollegeId() != null) {
+            if (!Objects.equals(currentCollegeId(), course.getCollegeId())) {
+                throw new AccessDeniedException("无权访问其他学院的课程");
+            }
+            return;
+        }
+        if (course.getTeacherId() == null) {
             throw new AccessDeniedException("无权访问其他学院的课程");
         }
         User teacher = userService.getById(course.getTeacherId());

@@ -50,6 +50,15 @@ public interface LoginLogService extends com.baomidou.mybatisplus.extension.serv
     List<DailyLoginTrendVO> getLoginTrends(LocalDate start, LocalDate end);
 
     /**
+     * 登录趋势（按日期统计，限定用户范围）。
+     * @param start 开始日期
+     * @param end 结束日期
+     * @param scopeUserIds 用户范围（null=全体；空列表=无可见数据）
+     * @return 每日登录统计数据列表
+     */
+    List<DailyLoginTrendVO> getLoginTrends(LocalDate start, LocalDate end, List<Long> scopeUserIds);
+
+    /**
      * 记录登录成功（记录IP地址、UserAgent、地理位置等客户端信息）
      * @param userId 用户ID
      * @param username 登录账号
@@ -93,6 +102,13 @@ public interface LoginLogService extends com.baomidou.mybatisplus.extension.serv
      * @return 全局登录统计
      */
     LoginGlobalStatsVO getGlobalLoginStats();
+
+    /**
+     * 获取全局登录统计数据（限定用户范围）。
+     * @param scopeUserIds 用户范围（null=全体；空列表=无可见数据）
+     * @return 登录统计
+     */
+    LoginGlobalStatsVO getGlobalLoginStats(List<Long> scopeUserIds);
 
     /**
      * 获取最近登录记录

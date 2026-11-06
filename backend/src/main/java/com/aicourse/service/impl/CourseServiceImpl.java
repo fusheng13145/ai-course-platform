@@ -107,9 +107,11 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         // 修复（2026-09-14）：显式落定初始状态，不再依赖 DDL 默认值。
         // 原实现仅 save()，DB 虽按默认值落库 PENDING/active，但返回体不回显这些字段
         // （实体未回填），前端若据响应判断状态会得到 null 而误判；显式赋值使「响应体 = 落库值」。
-        if (course.getApprovalStatus() == null) {
-            course.setApprovalStatus("PENDING");
-        }
+        // V13 审批流水：创建一律进入 PENDING，忽略客户端传入的审批状态/审批人，防止绕过审批。
+        course.setApprovalStatus("PENDING");
+        course.setApprovedBy(null);
+        course.setApprovalComment(null);
+        course.setApprovalTime(null);
         if (course.getStatus() == null) {
             course.setStatus("ACTIVE");
         }
@@ -216,6 +218,30 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     }
 
 
+    /** 审批通过课程并记录审批人 */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = "courses", key = "#id"),
+            @CacheEvict(cacheNames = "courses", key = "'all'")
+    })
+    public Course approveCourse(Long id, Long operatorId) {
+        Course before = this.getById(id);
+        if (before == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+        }
+        // 重复审批保持幂等：已通过时不覆盖原审批人
+        boolean alreadyApproved = "APPROVED".equalsIgnoreCase(before.getApprovalStatus())
+                && "ACTIVE".equalsIgnoreCase(before.getStatus());
+        Course course = approveCourse(id);
+        if (!alreadyApproved && operatorId != null && !operatorId.equals(course.getApprovedBy())) {
+            course.setApprovedBy(operatorId);
+            this.updateById(course);
+        }
+        return course;
+    }
+
+
     /** 切换课程 */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -260,6 +286,31 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         if (reason != null) {
             course.setApprovalComment(reason);
         }
+        this.updateById(course);
+        return course;
+    }
+
+    /** 重新提交被驳回的课程：仅允许 REJECTED → PENDING */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = "courses", key = "#id"),
+            @CacheEvict(cacheNames = "courses", key = "'all'")
+    })
+    public Course resubmitCourse(Long id) {
+        log.info("重新提交课程");
+        Course course = this.getById(id);
+        if (course == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+        }
+        if (!"REJECTED".equalsIgnoreCase(course.getApprovalStatus())) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "仅驳回状态的课程可重新提交");
+        }
+        course.setApprovalStatus("PENDING");
+        course.setStatus("ACTIVE");
+        course.setApprovalComment(null);
+        course.setApprovedBy(null);
+        course.setApprovalTime(null);
         this.updateById(course);
         return course;
     }

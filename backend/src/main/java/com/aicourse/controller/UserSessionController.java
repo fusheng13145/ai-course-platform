@@ -5,12 +5,15 @@ import org.slf4j.LoggerFactory;
 
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.UserSession;
+import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.UserSessionService;
 import com.aicourse.vo.UserSessionStatsVO;
+import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
+import java.time.LocalDateTime;
 import java.util.List;
 
 /**
@@ -25,9 +28,12 @@ public class UserSessionController {
     private static final Logger log = LoggerFactory.getLogger(UserSessionController.class);
 
     private final UserSessionService userSessionService;
+    private final AdminScopeGuard adminScopeGuard;
 
-    public UserSessionController(UserSessionService userSessionService) {
+    public UserSessionController(UserSessionService userSessionService,
+                                 AdminScopeGuard adminScopeGuard) {
         this.userSessionService = userSessionService;
+        this.adminScopeGuard = adminScopeGuard;
     }
 
     /**
@@ -39,7 +45,15 @@ public class UserSessionController {
     public ApiResponse<List<UserSession>> getOnlineUsers() {
         // 查询所有活跃且未过期的会话
         // 注意：实际应用中可能需要分页，这里简化处理返回列表
-        List<UserSession> onlineSessions = userSessionService.list();
+        List<Long> collegeUserIds = adminScopeGuard.currentCollegeUserIds();
+        List<UserSession> onlineSessions;
+        if (collegeUserIds == null) {
+            onlineSessions = userSessionService.list();
+        } else {
+            LambdaQueryWrapper<UserSession> qw = new LambdaQueryWrapper<>();
+            applyCollegeScope(qw, collegeUserIds);
+            onlineSessions = userSessionService.list(qw);
+        }
         return ApiResponse.success(onlineSessions);
     }
 
@@ -51,6 +65,7 @@ public class UserSessionController {
     @GetMapping("/user/{userId}")
     @PreAuthorize("hasAnyRole('ADMIN','TEACHER') or #userId == authentication.principal")
     public ApiResponse<List<UserSession>> getSessionHistory(@PathVariable Long userId) {
+        adminScopeGuard.assertUserAccessById(userId);
         List<UserSession> sessions = userSessionService.getSessionHistory(userId);
         return ApiResponse.success(sessions);
     }
@@ -63,6 +78,10 @@ public class UserSessionController {
     @DeleteMapping("/{id}/force-logout")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<Void> forceLogout(@PathVariable Long id) {
+        UserSession session = userSessionService.getById(id);
+        if (session != null) {
+            adminScopeGuard.assertUserAccessById(session.getUserId());
+        }
         userSessionService.forceLogout(id);
         return ApiResponse.success("已强制下线", null);
     }
@@ -75,6 +94,20 @@ public class UserSessionController {
     @GetMapping("/stats")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<UserSessionStatsVO> getSessionStats() {
+        List<Long> collegeUserIds = adminScopeGuard.currentCollegeUserIds();
+        if (collegeUserIds != null) {
+            // 院系管理员只统计本院在线人数；不触发全局过期会话清理（该清理无学院归属）
+            LambdaQueryWrapper<UserSession> qw = new LambdaQueryWrapper<UserSession>()
+                    .eq(UserSession::getIsActive, true)
+                    .gt(UserSession::getExpiresAt, LocalDateTime.now());
+            applyCollegeScope(qw, collegeUserIds);
+            Long onlineUserCount = userSessionService.list(qw).stream()
+                    .map(UserSession::getUserId)
+                    .distinct()
+                    .count();
+            return ApiResponse.success(new UserSessionStatsVO(onlineUserCount, 0));
+        }
+
         Long onlineUserCount = userSessionService.getOnlineUserCount();
 
         // 清理过期会话并返回清理数量
@@ -91,7 +124,21 @@ public class UserSessionController {
     @GetMapping("/abnormal/{userId}")
     @PreAuthorize("hasAnyRole('ADMIN') or #userId == authentication.principal")
     public ApiResponse<List<UserSession>> detectAbnormal(@PathVariable Long userId) {
+        adminScopeGuard.assertUserAccessById(userId);
         List<UserSession> abnormalSessions = userSessionService.detectAbnormalSessions(userId);
         return ApiResponse.success(abnormalSessions);
+    }
+
+    /**
+     * 会话学院口径：院系管理员仅限本院用户；校级管理员不追加条件。
+     * @param qw 查询条件
+     * @param collegeUserIds 本院用户ID列表（非 null）
+     */
+    private void applyCollegeScope(LambdaQueryWrapper<UserSession> qw, List<Long> collegeUserIds) {
+        if (collegeUserIds.isEmpty()) {
+            qw.eq(UserSession::getUserId, -1L);
+        } else {
+            qw.in(UserSession::getUserId, collegeUserIds);
+        }
     }
 }

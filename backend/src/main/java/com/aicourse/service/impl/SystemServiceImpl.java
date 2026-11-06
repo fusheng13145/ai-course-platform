@@ -98,8 +98,18 @@ public class SystemServiceImpl implements SystemService {
     }
 
     @Override
+    public Map<String, Object> getAIUsageStats(Long collegeId) {
+        return monitorComponent.getAIUsageStats(collegeId);
+    }
+
+    @Override
     public Map<String, Object> getAIUsageByCourse(int days) {
         return aiCallLogService.statistics(days);
+    }
+
+    @Override
+    public Map<String, Object> getAIUsageByCourse(int days, Long collegeId) {
+        return aiCallLogService.statistics(days, collegeId);
     }
 
     @Override

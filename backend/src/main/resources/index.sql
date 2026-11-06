@@ -20,6 +20,8 @@
 --      四表；users 加 school_id / college_id / major_id / admin_class_id / admin_scope 与 3 索引；
 --      role_permissions 加 scope 并把唯一键改为 (role, scope, permission_key)；
 --      表数 51 → 55，与 db/migration 现行 schema 对齐
+--   9. 2026-11-06 回补 V13（B-12/P-08 WP3）：courses 加 college_id 与索引；
+--      新增 course_approval_records 审批流水表；表数 55 → 56
 -- ====================================================================
 
 SET NAMES utf8mb4;
@@ -78,6 +80,7 @@ DROP TABLE IF EXISTS task_completions;
 DROP TABLE IF EXISTS tasks;
 DROP TABLE IF EXISTS resource_versions;
 DROP TABLE IF EXISTS resources;
+DROP TABLE IF EXISTS course_approval_records;
 DROP TABLE IF EXISTS course_enrollments;
 DROP TABLE IF EXISTS course_chapters;
 DROP TABLE IF EXISTS courses;
@@ -308,6 +311,7 @@ CREATE TABLE courses (
   description TEXT NULL COMMENT '课程详细描述',
   credits DECIMAL(5,2) NOT NULL DEFAULT 0 COMMENT '课程学分',
   teacher_id BIGINT NOT NULL COMMENT '授课教师ID，关联users表',
+  college_id BIGINT NULL COMMENT '课程所属学院ID，V13 按负责人学院回填（过渡期可空）',
   semester VARCHAR(50) NULL COMMENT '学期',
   year INT NULL COMMENT '学年',
   status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' COMMENT '课程状态（大写）：ACTIVE-启用，INACTIVE-停用',
@@ -333,8 +337,26 @@ CREATE TABLE courses (
   KEY idx_courses_teacher_id (teacher_id) COMMENT '教师ID索引，用于查询教师教授的课程',
   KEY idx_courses_status (status) COMMENT '课程状态索引',
   KEY idx_courses_approval_status (approval_status) COMMENT '审批状态索引',
+  KEY idx_courses_college (college_id) COMMENT '课程学院索引（V13）',
   CONSTRAINT fk_courses_teacher FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='课程表';;
+
+-- course_approval_records（V13 / WP3 审批流水）
+CREATE TABLE course_approval_records (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '流水ID，主键自增',
+  course_id BIGINT NOT NULL COMMENT '课程ID，关联courses表',
+  operator_id BIGINT NULL COMMENT '操作人ID，关联users表',
+  action VARCHAR(16) NOT NULL COMMENT '动作：SUBMIT/APPROVE/REJECT/RESUBMIT',
+  from_status VARCHAR(20) NULL COMMENT '变更前审批状态，首次提交为NULL',
+  to_status VARCHAR(20) NOT NULL COMMENT '变更后审批状态',
+  comment VARCHAR(500) NULL COMMENT '审批意见/驳回原因',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (id),
+  KEY idx_course_approval_records_course (course_id, created_at) COMMENT '课程-时间索引，用于按课程查流水',
+  KEY idx_course_approval_records_operator (operator_id) COMMENT '操作人索引',
+  CONSTRAINT fk_course_approval_records_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+  CONSTRAINT fk_course_approval_records_operator FOREIGN KEY (operator_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='课程审批流水，只增不改';;
 
 -- course_chapters
 CREATE TABLE course_chapters (

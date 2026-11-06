@@ -8,6 +8,7 @@ import com.aicourse.entity.Task;
 import com.aicourse.service.AnalyticsService;
 import com.aicourse.service.CourseChapterService;
 import com.aicourse.service.CourseEnrollmentService;
+import com.aicourse.service.CourseApprovalService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.QuestionService;
@@ -46,6 +47,8 @@ class TeacherControllerTest extends ControllerTestBase {
 
     @MockitoBean
     private CourseService courseService;
+    @MockitoBean
+    private CourseApprovalService courseApprovalService;
     @MockitoBean
     private CourseChapterService chapterService;
     @MockitoBean
