@@ -246,6 +246,17 @@ public class AnalyticsController {
     }
 
     /**
+     * 教学监督 / 成绩概览共用聚合（2026-11-07 全量实现批，管理员只读）。
+     * <p>每课一行：在学人数、平均进度/总评、预警数、进行中考试、待批阅提交。</p>
+     */
+    @GetMapping("/teaching-summary")
+    @Operation(summary = "教学运行总览", description = "按课程聚合在学人数、平均进度/总评、预警数、进行中考试、待批阅提交；管理员只读")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<List<Map<String, Object>>> teachingSummary() {
+        return ApiResponse.success(analyticsService.getTeachingSummary());
+    }
+
+    /**
      * 用户增长趋势
      */
     @GetMapping("/users/growth")

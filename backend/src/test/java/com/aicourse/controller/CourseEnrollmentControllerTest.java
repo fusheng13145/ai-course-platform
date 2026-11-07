@@ -34,6 +34,10 @@ class CourseEnrollmentControllerTest extends ControllerTestBase {
     @MockitoBean
     private CourseService courseService;
 
+    /** 全量选课列表的 keyword 过滤需要按姓名/用户名解析学生（2026-11-07 全量实现批） */
+    @MockitoBean
+    private com.aicourse.service.UserService userService;
+
     private Course course(Long id, Long teacherId) {
         Course c = new Course();
         c.setId(id);
@@ -242,6 +246,68 @@ class CourseEnrollmentControllerTest extends ControllerTestBase {
     void reject_unauthorized_returns_401() throws Exception {
         mockMvc.perform(post("/enrollments/1/reject").contentType(MediaType.APPLICATION_JSON).content("{\"reason\":\"x\"}"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("GET /enrollments - 管理员全量分页透传（2026-11-07 全量实现批）")
+    void listAll_admin_returns_200() throws Exception {
+        Page<CourseEnrollment> p = new Page<>(1, 10);
+        p.setRecords(List.of(sampleEnrollment(7026197L, 1L, 4030L)));
+        p.setTotal(1);
+        when(enrollmentService.page(any(), any())).thenReturn(p);
+
+        mockMvc.perform(get("/enrollments").with(withUser(1L, "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.total").value(1))
+                .andExpect(jsonPath("$.data.list[0].id").value(7026197));
+        verify(enrollmentService).page(any(), any());
+    }
+
+    @Test
+    @DisplayName("GET /enrollments - STUDENT 403（管理员治理面）")
+    void listAll_student_forbidden_403() throws Exception {
+        mockMvc.perform(get("/enrollments").with(withUser(2L, "STUDENT")))
+                .andExpect(status().isForbidden());
+        verify(enrollmentService, never()).page(any(), any());
+    }
+
+    @Test
+    @DisplayName("GET /enrollments?keyword= - 学生姓名过滤走 UserService 解析后入 SQL")
+    void listAll_keyword_resolvesStudents() throws Exception {
+        when(userService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
+                .thenReturn(List.of(user(2154L)));
+        Page<CourseEnrollment> p = new Page<>(1, 10);
+        p.setRecords(List.of());
+        p.setTotal(0);
+        when(enrollmentService.page(any(), any())).thenReturn(p);
+
+        mockMvc.perform(get("/enrollments").param("keyword", "王").with(withUser(1L, "ADMIN")))
+                .andExpect(status().isOk());
+        ArgumentCaptor<com.baomidou.mybatisplus.core.conditions.Wrapper<CourseEnrollment>> captor =
+                ArgumentCaptor.forClass(com.baomidou.mybatisplus.core.conditions.Wrapper.class);
+        verify(enrollmentService).page(any(), captor.capture());
+        // 姓名解析到的学生 ID 必须进入 SQL 条件（而非分页后当页过滤）
+        org.assertj.core.api.Assertions.assertThat(captor.getValue().getSqlSegment())
+                .contains("IN").contains("student_id");
+    }
+
+    private CourseEnrollment sampleEnrollment2(Long id, Long studentId, Long courseId) {
+        CourseEnrollment enrollment = new CourseEnrollment();
+        enrollment.setId(id);
+        enrollment.setStudentId(studentId);
+        enrollment.setCourseId(courseId);
+        enrollment.setApprovalStatus("APPROVED");
+        enrollment.setIsActive(true);
+        return enrollment;
+    }
+
+    private com.aicourse.entity.User user(Long id) {
+        com.aicourse.entity.User user = new com.aicourse.entity.User();
+        user.setId(id);
+        user.setFullName("王同学");
+        user.setUsername("student");
+        return user;
     }
 
 }

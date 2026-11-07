@@ -162,6 +162,12 @@ public class AnalyticsServiceImpl implements AnalyticsService {
 
     @Override
     @Transactional(readOnly = true)
+    public List<Map<String, Object>> getTeachingSummary() {
+        return teachingAnalyticsComponent.getTeachingSummary();
+    }
+
+    @Override
+    @Transactional(readOnly = true)
     public List<Map<String, Object>> getCourseRanking(Long collegeId) {
         return courseAnalyticsComponent.getCourseRanking(collegeId);
     }

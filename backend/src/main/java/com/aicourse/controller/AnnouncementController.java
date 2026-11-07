@@ -10,6 +10,7 @@ import com.aicourse.security.CourseAccessControl;
 import com.aicourse.security.TeachingClassAccessControl;
 import com.aicourse.service.AnnouncementService;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
@@ -87,6 +88,29 @@ public class AnnouncementController {
                                                  @RequestParam(defaultValue = "10") long size,
                                                  Authentication auth) {
         return ApiResponse.success(announcementService.pageVisible(page, size, (Long) auth.getPrincipal()));
+    }
+
+    /**
+     * 管理端全量公告分页（2026-11-07 全量实现批）：通知公告管理页的数据源。
+     * 与 {@link #list} 的区别：不受受众三维度过滤，管理员治理全平台公告；
+     * 可按目标类型/关键词过滤，便于定位误发内容。
+     */
+    @GetMapping("/admin/all")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<IPage<Announcement>> listAll(@RequestParam(defaultValue = "1") long page,
+                                                    @RequestParam(defaultValue = "10") long size,
+                                                    @RequestParam(required = false) String targetType,
+                                                    @RequestParam(required = false) String keyword) {
+        // targetType 过滤语义：course/teachingClass/adminClass 分别要求对应目标列非空（无 SCHOOL 全校目标，受众模型只有三型）
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Announcement> wrapper =
+                new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<Announcement>()
+                        .isNotNull("course".equals(targetType), Announcement::getCourseId)
+                        .isNotNull("teachingClass".equals(targetType), Announcement::getTeachingClassId)
+                        .isNotNull("adminClass".equals(targetType), Announcement::getAdminClassId)
+                        .and(keyword != null && !keyword.isBlank(),
+                                w -> w.like(Announcement::getTitle, keyword).or().like(Announcement::getContent, keyword))
+                        .orderByDesc(Announcement::getCreatedAt);
+        return ApiResponse.success(announcementService.page(new Page<>(page, size), wrapper));
     }
 
     /** 公告详情：非受众 403（与「不存在 404」语义分开，拆包方案 WP8 验收 2）。 */

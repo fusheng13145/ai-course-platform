@@ -50,4 +50,15 @@ public class AdvisorController {
         return ApiResponse.success(
                 advisorService.classProfile(id, (Long) auth.getPrincipal(), adminCaller));
     }
+
+    /**
+     * 学生预警明细（交接文档 §5.6「学生预警摘要」，6A 允许面；2026-11-07 全量实现批三）。
+     */
+    @GetMapping("/classes/{id}/alerts")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    public ApiResponse<List<java.util.Map<String, Object>>> alerts(@PathVariable Long id, Authentication auth) {
+        boolean adminCaller = adminScopeGuard.isSchoolAdmin() || adminScopeGuard.isCollegeAdmin();
+        return ApiResponse.success(
+                advisorService.classAlerts(id, (Long) auth.getPrincipal(), adminCaller));
+    }
 }

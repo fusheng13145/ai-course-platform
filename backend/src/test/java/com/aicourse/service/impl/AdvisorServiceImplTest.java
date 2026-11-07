@@ -8,6 +8,7 @@ import com.aicourse.mapper.AdminClassMapper;
 import com.aicourse.security.AdminClassAccessControl;
 import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.CourseEnrollmentService;
+import com.aicourse.service.CourseService;
 import com.aicourse.service.UserService;
 import com.aicourse.vo.AdvisorClassProfileVO;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
@@ -22,6 +23,7 @@ import org.mockito.ArgumentMatchers;
 
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.Map;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -41,6 +43,7 @@ class AdvisorServiceImplTest {
     private AdminScopeGuard adminScopeGuard;
     private UserService userService;
     private CourseEnrollmentService enrollmentService;
+    private CourseService courseService;
     private AdvisorServiceImpl service;
 
     @BeforeAll
@@ -59,8 +62,9 @@ class AdvisorServiceImplTest {
         adminScopeGuard = mock(AdminScopeGuard.class);
         userService = mock(UserService.class);
         enrollmentService = mock(CourseEnrollmentService.class);
+        courseService = mock(CourseService.class);
         service = new AdvisorServiceImpl(adminClassMapper, adminClassAccessControl,
-                adminScopeGuard, userService, enrollmentService);
+                adminScopeGuard, userService, enrollmentService, courseService);
     }
 
     private AdminClass adminClass(Long id, Long advisorId) {
@@ -76,12 +80,14 @@ class AdvisorServiceImplTest {
         user.setId(id);
         user.setAdminClassId(6L);
         user.setIsActive(true);
+        user.setFullName("学生" + id);
         return user;
     }
 
     private CourseEnrollment enrollment(Long studentId, BigDecimal progress, BigDecimal finalScore) {
         CourseEnrollment enrollment = new CourseEnrollment();
         enrollment.setStudentId(studentId);
+        enrollment.setCourseId(3L);
         enrollment.setProgress(progress);
         enrollment.setFinalScore(finalScore);
         enrollment.setApprovalStatus("APPROVED");
@@ -156,6 +162,31 @@ class AdvisorServiceImplTest {
         when(adminClassMapper.selectById(8L)).thenReturn(ownCollege);
         when(userService.list(ArgumentMatchers.<Wrapper<User>>any())).thenReturn(List.of());
         assertThat(service.classProfile(8L, 3L, true).getStudentCount()).isZero();
+    }
+
+    @Test
+    @DisplayName("学生预警明细：进度<40 或 总评<60 各出一条；双达标合并为一行双原因")
+    void classAlertsFiltersAndExplains() {
+        when(adminClassAccessControl.assertAdminClassAdvisor(6L, 9L)).thenReturn(adminClass(6L, 9L));
+        when(userService.list(ArgumentMatchers.<com.baomidou.mybatisplus.core.conditions.Wrapper<User>>any()))
+                .thenReturn(List.of(student(1L)));
+        com.aicourse.entity.Course course = new com.aicourse.entity.Course();
+        course.setId(3L);
+        course.setName("计算机网络");
+        when(courseService.list(ArgumentMatchers.<com.baomidou.mybatisplus.core.conditions.Wrapper<com.aicourse.entity.Course>>any()))
+                .thenReturn(List.of(course));
+        when(enrollmentService.list(ArgumentMatchers.<com.baomidou.mybatisplus.core.conditions.Wrapper<CourseEnrollment>>any()))
+                .thenReturn(List.of(
+                        enrollment(1L, new BigDecimal("30"), new BigDecimal("92")),  // 低进度
+                        enrollment(1L, new BigDecimal("80"), new BigDecimal("55")),  // 低分
+                        enrollment(1L, new BigDecimal("90"), new BigDecimal("75")))); // 正常
+
+        List<Map<String, Object>> alerts = service.classAlerts(6L, 9L, false);
+
+        assertThat(alerts).hasSize(2);
+        assertThat(alerts.get(0).get("reasons")).isEqualTo("进度不足40%");
+        assertThat(alerts.get(0).get("courseName")).isEqualTo("计算机网络");
+        assertThat(alerts.get(1).get("reasons")).isEqualTo("总评不及格");
     }
 
     @Test

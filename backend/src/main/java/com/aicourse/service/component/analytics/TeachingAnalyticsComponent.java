@@ -3,6 +3,7 @@ package com.aicourse.service.component.analytics;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.aicourse.constant.ExamSessionStatus;
 import com.aicourse.constant.SubmissionStatus;
 
 import com.aicourse.entity.*;
@@ -43,6 +44,8 @@ public class TeachingAnalyticsComponent {
     private final CourseAnalyticsComponent courseAnalytics;
     private final com.aicourse.mapper.AdminClassMapper adminClassMapper;
     private final com.aicourse.mapper.TeachingClassMapper teachingClassMapper;
+    private final com.aicourse.service.ExamPaperService examPaperService;
+    private final com.aicourse.service.ExamSessionService examSessionService;
 
     public TeachingAnalyticsComponent(
             CourseService courseService,
@@ -52,7 +55,9 @@ public class TeachingAnalyticsComponent {
             UserService userService,
             CourseAnalyticsComponent courseAnalytics,
             com.aicourse.mapper.AdminClassMapper adminClassMapper,
-            com.aicourse.mapper.TeachingClassMapper teachingClassMapper
+            com.aicourse.mapper.TeachingClassMapper teachingClassMapper,
+            com.aicourse.service.ExamPaperService examPaperService,
+            com.aicourse.service.ExamSessionService examSessionService
     ) {
         this.courseService = courseService;
         this.enrollmentService = enrollmentService;
@@ -62,6 +67,8 @@ public class TeachingAnalyticsComponent {
         this.courseAnalytics = courseAnalytics;
         this.adminClassMapper = adminClassMapper;
         this.teachingClassMapper = teachingClassMapper;
+        this.examPaperService = examPaperService;
+        this.examSessionService = examSessionService;
     }
 
     /**
@@ -438,6 +445,112 @@ public class TeachingAnalyticsComponent {
             default:
                 return "全校";
         }
+    }
+
+    /**
+     * 教学监督 / 成绩概览共用聚合（2026-11-07 全量实现批，WP9 只读矩阵：管理员只读）。
+     *
+     * <p>按课程聚合：在学人数（APPROVED 且在读）、平均进度、平均总评、预警数（finalScore&lt;60）、
+     * 进行中考试会话数、待批阅提交数。刻意用<b>4 次全量查询 + 内存分组</b>而非逐课 N+1：
+     * 选课/提交/会话都是治理面量级（数百行），课程数约数十，一次拉平比 38×3 次 count 快且稳定。</p>
+     *
+     * @return 每课一行（courseId/courseName/teacherId/studentCount/avgProgress/avgFinalScore/
+     *         atRiskCount/activeExams/pendingGrading），按学生数降序
+     */
+    public List<Map<String, Object>> getTeachingSummary() {
+        List<Course> courses = courseService.list(new LambdaQueryWrapper<Course>()
+                .eq(Course::getIsActive, Boolean.TRUE)
+                .orderByAsc(Course::getId));
+        if (courses.isEmpty()) {
+            return new ArrayList<>();
+        }
+        Set<Long> courseIds = courses.stream().map(Course::getId).collect(Collectors.toSet());
+
+        // 1) 在学选课（进度/总评/预警的来源）
+        List<CourseEnrollment> enrollments = enrollmentService.list(new LambdaQueryWrapper<CourseEnrollment>()
+                .in(CourseEnrollment::getCourseId, courseIds)
+                .eq(CourseEnrollment::getApprovalStatus, "APPROVED")
+                .eq(CourseEnrollment::getIsActive, true));
+        Map<Long, List<CourseEnrollment>> byCourse = enrollments.stream()
+                .filter(e -> e.getCourseId() != null)
+                .collect(Collectors.groupingBy(CourseEnrollment::getCourseId));
+
+        // 2) 进行中考试会话：session → paper → course 两跳映射
+        Map<Long, Long> paperCourse = examPaperService.list(new LambdaQueryWrapper<ExamPaper>()
+                        .in(ExamPaper::getCourseId, courseIds))
+                .stream().collect(Collectors.toMap(ExamPaper::getId, ExamPaper::getCourseId, (a, b) -> a));
+        Map<Long, Long> activeExamsByCourse = new HashMap<>();
+        if (!paperCourse.isEmpty()) {
+            examSessionService.list(new LambdaQueryWrapper<ExamSession>()
+                            .in(ExamSession::getExamPaperId, paperCourse.keySet())
+                            .eq(ExamSession::getStatus, ExamSessionStatus.STARTED))
+                    .forEach(session -> {
+                        Long courseId = paperCourse.get(session.getExamPaperId());
+                        if (courseId != null) {
+                            activeExamsByCourse.merge(courseId, 1L, Long::sum);
+                        }
+                    });
+        }
+
+        // 3) 待批阅提交：submission → task → course 两跳映射
+        Map<Long, Long> taskCourse = taskService.list(new LambdaQueryWrapper<Task>()
+                        .in(Task::getCourseId, courseIds))
+                .stream().collect(Collectors.toMap(Task::getId, Task::getCourseId, (a, b) -> a));
+        Map<Long, Long> pendingGradingByCourse = new HashMap<>();
+        if (!taskCourse.isEmpty()) {
+            submissionService.list(new LambdaQueryWrapper<Submission>()
+                            .in(Submission::getTaskId, taskCourse.keySet())
+                            .eq(Submission::getStatus, SubmissionStatus.SUBMITTED))
+                    .forEach(submission -> {
+                        Long courseId = taskCourse.get(submission.getTaskId());
+                        if (courseId != null) {
+                            pendingGradingByCourse.merge(courseId, 1L, Long::sum);
+                        }
+                    });
+        }
+
+        List<Map<String, Object>> summary = new ArrayList<>(courses.size());
+        for (Course course : courses) {
+            List<CourseEnrollment> rows = byCourse.getOrDefault(course.getId(), List.of());
+            BigDecimal progressSum = BigDecimal.ZERO;
+            BigDecimal scoreSum = BigDecimal.ZERO;
+            int graded = 0;
+            long atRisk = 0;
+            for (CourseEnrollment enrollment : rows) {
+                if (enrollment.getProgress() != null) {
+                    progressSum = progressSum.add(enrollment.getProgress());
+                }
+                if (enrollment.getFinalScore() != null) {
+                    scoreSum = scoreSum.add(enrollment.getFinalScore());
+                    graded++;
+                    if (enrollment.getFinalScore().compareTo(BigDecimal.valueOf(60)) < 0) {
+                        atRisk++;
+                    }
+                }
+            }
+            Map<String, Object> item = new LinkedHashMap<>(10);
+            item.put("courseId", course.getId());
+            item.put("courseName", course.getName());
+            item.put("courseCode", course.getCode());
+            item.put("teacherId", course.getTeacherId());
+            item.put("studentCount", (long) rows.size()); // 统一 Long：排序与 Jackson 序列化按 Long 口径
+            item.put("avgProgress", progressCount(rows) == 0 ? null : divide(progressSum, progressCount(rows)));
+            item.put("avgFinalScore", graded == 0 ? null : divide(scoreSum, graded));
+            item.put("atRiskCount", atRisk);
+            item.put("activeExams", activeExamsByCourse.getOrDefault(course.getId(), 0L));
+            item.put("pendingGrading", pendingGradingByCourse.getOrDefault(course.getId(), 0L));
+            summary.add(item);
+        }
+        summary.sort((a, b) -> ((Long) b.get("studentCount")).compareTo((Long) a.get("studentCount")));
+        return summary;
+    }
+
+    private int progressCount(List<CourseEnrollment> rows) {
+        return (int) rows.stream().filter(e -> e.getProgress() != null).count();
+    }
+
+    private BigDecimal divide(BigDecimal sum, int count) {
+        return sum.divide(BigDecimal.valueOf(count), 1, java.math.RoundingMode.HALF_UP);
     }
 
     private double round2(double v) {

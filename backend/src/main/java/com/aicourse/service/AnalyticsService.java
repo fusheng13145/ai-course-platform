@@ -104,6 +104,13 @@ public interface AnalyticsService {
     List<Map<String, Object>> getCourseRanking();
 
     /**
+     * 教学监督 / 成绩概览共用聚合（2026-11-07 全量实现批）：每课的
+     * 在学人数、平均进度/总评、预警数、进行中考试、待批阅提交。
+     * @return 每课一行，按学生数降序
+     */
+    List<Map<String, Object>> getTeachingSummary();
+
+    /**
      * 获取热门课程排行（院系口径）。
      * @param collegeId 学院ID；null 表示校级
      * @return 课程排行榜列表

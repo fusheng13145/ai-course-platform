@@ -3,7 +3,7 @@
  * 对应后端 CommonController: /common
  */
 import request from './request'
-import { type ApiData } from '@/utils/response'
+import { type ApiData, type ApiEnvelope } from '@/utils/response'
 
 /**
  * 默认导出对象：模块/组件配置与导出内容
@@ -35,5 +35,10 @@ export default {
   /** GET /common/feature-roadmap -- 获取功能路线图 */
   getFeatureRoadmap() {
     return request.get('/common/feature-roadmap')
+  },
+
+  /** GET /common/semester/active -- 当前 ACTIVE 学期（10A 展示别名，无则 null） */
+  getActiveSemester(): Promise<ApiEnvelope<ApiData>> {
+    return request.get('/common/semester/active')
   },
 }

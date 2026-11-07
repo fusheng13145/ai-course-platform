@@ -18,6 +18,7 @@ import org.springframework.stereotype.Service;
 import java.math.BigDecimal;
 import java.math.RoundingMode;
 import java.util.List;
+import java.util.Map;
 
 /**
  * 班主任画像服务实现（WP9）。
@@ -34,17 +35,20 @@ public class AdvisorServiceImpl implements AdvisorService {
     private final AdminScopeGuard adminScopeGuard;
     private final UserService userService;
     private final CourseEnrollmentService enrollmentService;
+    private final com.aicourse.service.CourseService courseService;
 
     public AdvisorServiceImpl(AdminClassMapper adminClassMapper,
                               AdminClassAccessControl adminClassAccessControl,
                               AdminScopeGuard adminScopeGuard,
                               UserService userService,
-                              CourseEnrollmentService enrollmentService) {
+                              CourseEnrollmentService enrollmentService,
+                              com.aicourse.service.CourseService courseService) {
         this.adminClassMapper = adminClassMapper;
         this.adminClassAccessControl = adminClassAccessControl;
         this.adminScopeGuard = adminScopeGuard;
         this.userService = userService;
         this.enrollmentService = enrollmentService;
+        this.courseService = courseService;
     }
 
     @Override
@@ -114,6 +118,70 @@ public class AdvisorServiceImpl implements AdvisorService {
         profile.setAtRiskCount(atRisk);
         profile.setGradedCount(gradedCount);
         return profile;
+    }
+
+    @Override
+    public List<java.util.Map<String, Object>> classAlerts(Long adminClassId, Long operatorId, boolean adminCaller) {
+        if (adminCaller) {
+            AdminClass adminClass = adminClassMapper.selectById(adminClassId);
+            if (adminClass == null) {
+                throw new BusinessException(ApiCode.NOT_FOUND, "行政班不存在");
+            }
+            adminScopeGuard.assertCollegeAccess(adminClass.getCollegeId());
+        } else {
+            adminClassAccessControl.assertAdminClassAdvisor(adminClassId, operatorId);
+        }
+        List<Long> studentIds = userService.list(new LambdaQueryWrapper<User>()
+                        .eq(User::getAdminClassId, adminClassId)
+                        .eq(User::getIsActive, true))
+                .stream().map(User::getId).toList();
+        if (studentIds.isEmpty()) {
+            return new java.util.ArrayList<>();
+        }
+        Map<Long, String> names = userService.list(new LambdaQueryWrapper<User>()
+                        .in(User::getId, studentIds))
+                .stream().collect(java.util.stream.Collectors.toMap(User::getId,
+                        u -> u.getFullName() != null && !u.getFullName().isBlank()
+                                ? u.getFullName() : u.getUsername(),
+                        (a, b) -> a));
+        List<CourseEnrollment> enrollments = enrollmentService.list(new LambdaQueryWrapper<CourseEnrollment>()
+                .in(CourseEnrollment::getStudentId, studentIds)
+                .eq(CourseEnrollment::getApprovalStatus, "APPROVED")
+                .eq(CourseEnrollment::getIsActive, true));
+        Map<Long, String> courseNames = courseService.list(new LambdaQueryWrapper<com.aicourse.entity.Course>()
+                        .in(com.aicourse.entity.Course::getId,
+                                enrollments.stream().map(CourseEnrollment::getCourseId)
+                                        .distinct().toList()))
+                .stream().collect(java.util.stream.Collectors.toMap(
+                        com.aicourse.entity.Course::getId, com.aicourse.entity.Course::getName, (a, b) -> a));
+
+        List<java.util.Map<String, Object>> alerts = new java.util.ArrayList<>();
+        for (CourseEnrollment enrollment : enrollments) {
+            List<String> reasons = new java.util.ArrayList<>(2);
+            if (enrollment.getProgress() != null
+                    && enrollment.getProgress().compareTo(BigDecimal.valueOf(40)) < 0) {
+                reasons.add("进度不足40%");
+            }
+            if (enrollment.getFinalScore() != null
+                    && enrollment.getFinalScore().compareTo(BigDecimal.valueOf(60)) < 0) {
+                reasons.add("总评不及格");
+            }
+            if (reasons.isEmpty()) {
+                continue;
+            }
+            java.util.Map<String, Object> row = new java.util.LinkedHashMap<>(6);
+            row.put("studentId", enrollment.getStudentId());
+            row.put("studentName", names.getOrDefault(enrollment.getStudentId(),
+                    "学生 #" + enrollment.getStudentId()));
+            row.put("courseId", enrollment.getCourseId());
+            row.put("courseName", courseNames.getOrDefault(enrollment.getCourseId(),
+                    "课程 #" + enrollment.getCourseId()));
+            row.put("progress", enrollment.getProgress());
+            row.put("finalScore", enrollment.getFinalScore());
+            row.put("reasons", String.join("、", reasons));
+            alerts.add(row);
+        }
+        return alerts;
     }
 
     private AdminClass requireAdminClass(Long adminClassId) {

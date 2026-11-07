@@ -539,4 +539,29 @@ class AnalyticsControllerTest extends ControllerTestBase {
                 .andExpect(status().isUnauthorized());
     }
 
+    @Test
+    @DisplayName("GET /analytics/teaching-summary - ADMIN 200，逐课聚合透传（2026-11-07 全量实现批）")
+    void teachingSummary_admin_returns_200() throws Exception {
+        when(analyticsService.getTeachingSummary())
+                .thenReturn(List.of(Map.of("courseId", 4007, "courseName", "计算机网络（A班）",
+                        "studentCount", 60L, "avgProgress", 70.5, "avgFinalScore", 65.9,
+                        "atRiskCount", 6L, "activeExams", 0L, "pendingGrading", 26L)));
+
+        mockMvc.perform(get("/analytics/teaching-summary").with(withUser(1L, "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data[0].courseId").value(4007))
+                .andExpect(jsonPath("$.data[0].studentCount").value(60))
+                .andExpect(jsonPath("$.data[0].pendingGrading").value(26));
+        verify(analyticsService).getTeachingSummary();
+    }
+
+    @Test
+    @DisplayName("GET /analytics/teaching-summary - STUDENT 403（管理员只读面）")
+    void teachingSummary_student_forbidden_403() throws Exception {
+        mockMvc.perform(get("/analytics/teaching-summary").with(withUser(2L, "STUDENT")))
+                .andExpect(status().isForbidden());
+        verify(analyticsService, never()).getTeachingSummary();
+    }
+
 }

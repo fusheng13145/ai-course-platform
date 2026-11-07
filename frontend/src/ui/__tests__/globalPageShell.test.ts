@@ -83,7 +83,8 @@ vi.mock('../composables/ui', async () => {
 })
 
 import GlobalPage from '../views/GlobalPage.vue'
-import { pageDef } from '../nav'
+import { navGroups, pageDef } from '../nav'
+import { pageDisposition } from '../notProvided'
 
 const envelope = (data: unknown) => ({ code: 200, message: 'ok', data })
 
@@ -280,23 +281,14 @@ describe('全局页壳层：收件箱不留空控件', () => {
 })
 
 describe('全局页壳层：判为待扩展的页面不留示例读数', () => {
-  it.each([
-    ['admin', 'notices', '待扩展：'],
-    ['teacher', 'advising', '待扩展：该页签无可用数据面'],
-    ['student', 'assistant', '待扩展：'],
-  ] as const)('%s/%s 渲染待扩展空态且不挂来源章', async (role, pageName, phrase) => {
-    uiState.role.value = role
-    route.meta.pageKey = pageName
-    const wrapper = mountPage()
-    await settle()
-    const body = wrapper.find('[data-testid="page-not-provided"]')
-    expect(body.exists(), `${role}/${pageName} 未渲染待扩展空态`).toBe(true)
-    expect(body.text()).toContain(phrase)
-    expect(wrapper.text(), `${role}/${pageName} 仍有示例读数`).not.toContain('示例数据')
-    expect(wrapper.find('.page-kicker .chip').exists(), `${role}/${pageName} 仍挂来源章`).toBe(
-      false,
-    )
-    wrapper.unmount()
+  // 2026-11-07 全量实现批三：HIDDEN/UNAVAILABLE 全部清空，再无「待扩展空态」页面可断言；
+  // 该守卫的语义由 notProvided.test 的全量 disposition 断言接管。
+  it('全部全局页均为 provided，无任何待扩展空态残留', () => {
+    for (const role of ['student', 'teacher', 'admin'] as const) {
+      for (const item of navGroups(role).flatMap((group) => group.items)) {
+        expect(pageDisposition(role, item.id), `${role}/${item.id} 仍为待扩展`).toBe('provided')
+      }
+    }
   })
 
   it.each([

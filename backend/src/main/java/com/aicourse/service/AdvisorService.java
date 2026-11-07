@@ -18,4 +18,12 @@ public interface AdvisorService {
      * 或管理员按学院作用域（院系仅本院、校级全校，能力矩阵「班级画像」行）。
      */
     AdvisorClassProfileVO classProfile(Long adminClassId, Long operatorId, boolean adminCaller);
+
+    /**
+     * 学生预警明细（交接文档 §5.6「学生预警摘要」，6A 允许的画像外个人面）。
+     * <p>口径与分析侧一致：进度 &lt; 40 或 总评 &lt; 60。ACL 同 {@link #classProfile}。</p>
+     *
+     * @return 每行：studentId/studentName/courseId/courseName/progress/finalScore/reasons
+     */
+    java.util.List<java.util.Map<String, Object>> classAlerts(Long adminClassId, Long operatorId, boolean adminCaller);
 }

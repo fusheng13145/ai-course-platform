@@ -10,9 +10,11 @@ import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseEnrollment;
+import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
+import com.aicourse.service.UserService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.tags.Tag;
@@ -35,10 +37,13 @@ public class CourseEnrollmentController {
 
     private final CourseEnrollmentService enrollmentService;
     private final CourseService courseService;
+    private final UserService userService;
 
-    public CourseEnrollmentController(CourseEnrollmentService enrollmentService, CourseService courseService) {
+    public CourseEnrollmentController(CourseEnrollmentService enrollmentService, CourseService courseService,
+                                      UserService userService) {
         this.enrollmentService = enrollmentService;
         this.courseService = courseService;
+        this.userService = userService;
     }
 
     /**
@@ -54,6 +59,38 @@ public class CourseEnrollmentController {
         // 查重/软退课恢复/审批状态判定/教学班容量等业务下沉至服务层（事务化）
         CourseEnrollment enrollment = enrollmentService.enroll(studentId, courseId, body.get("teachingClassId"));
         return ApiResponse.success("报名成功", enrollment);
+    }
+
+    /**
+     * 全量报名记录分页（2026-11-07 全量实现批）：「选课与名单」管理页的数据源。
+     * 管理员治理全平台选课：按审批状态 / 课程 / 学生姓名模糊过滤。
+     */
+    @GetMapping
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<PagedResponse<CourseEnrollment>> listAll(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size,
+            @RequestParam(required = false) String status,
+            @RequestParam(required = false) Long courseId,
+            @RequestParam(required = false) String keyword) {
+        LambdaQueryWrapper<CourseEnrollment> qw = new LambdaQueryWrapper<CourseEnrollment>()
+                .eq(status != null && !status.isBlank(), CourseEnrollment::getApprovalStatus, status)
+                .eq(courseId != null, CourseEnrollment::getCourseId, courseId);
+        // keyword 按学生姓名/用户名过滤：先解析学生ID集再入 SQL（不得分页后当页二次过滤）
+        if (keyword != null && !keyword.isBlank()) {
+            String kw = keyword.trim();
+            java.util.List<Long> matched = userService.list(new LambdaQueryWrapper<User>()
+                            .and(w -> w.like(User::getFullName, kw).or().like(User::getUsername, kw))
+                            .last("LIMIT 500"))
+                    .stream().map(User::getId).toList();
+            if (matched.isEmpty()) {
+                return ApiResponse.success(PagedResponse.of(new Page<>(page, size)));
+            }
+            qw.in(CourseEnrollment::getStudentId, matched);
+        }
+        qw.orderByDesc(CourseEnrollment::getId);
+        Page<CourseEnrollment> result = enrollmentService.page(Page.of(page, size), qw);
+        return ApiResponse.success(PagedResponse.of(result));
     }
 
     /**

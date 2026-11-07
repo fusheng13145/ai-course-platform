@@ -130,6 +130,63 @@ export const archiveSemester = (id: number | string): Promise<ApiEnvelope<ApiDat
 export const archiveExpiredSemesters = (): Promise<ApiEnvelope<ApiData>> =>
   request.post('/admin/semesters/archive-expired') as Promise<ApiEnvelope<ApiData>>
 
+// 管理员端 - 组织架构（V12：学校 → 学院 → 专业；2026-11-07 全量实现批接入）
+export const getOrgTree = (): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/org/tree') as Promise<ApiEnvelope<ApiData>>
+export const getColleges = (): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/org/colleges') as Promise<ApiEnvelope<ApiData>>
+export const createCollege = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
+  request.post('/admin/org/colleges', data) as Promise<ApiEnvelope<ApiData>>
+export const updateCollege = (
+  id: number | string,
+  data: Record<string, unknown>,
+): Promise<ApiEnvelope<ApiData>> =>
+  request.put(`/admin/org/colleges/${id}`, data) as Promise<ApiEnvelope<ApiData>>
+export const archiveCollege = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.delete(`/admin/org/colleges/${id}`) as Promise<ApiEnvelope<ApiData>>
+export const getMajors = (params: Record<string, unknown> = {}): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/org/majors', { params }) as Promise<ApiEnvelope<ApiData>>
+export const createMajor = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
+  request.post('/admin/org/majors', data) as Promise<ApiEnvelope<ApiData>>
+export const updateMajor = (
+  id: number | string,
+  data: Record<string, unknown>,
+): Promise<ApiEnvelope<ApiData>> =>
+  request.put(`/admin/org/majors/${id}`, data) as Promise<ApiEnvelope<ApiData>>
+export const archiveMajor = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.delete(`/admin/org/majors/${id}`) as Promise<ApiEnvelope<ApiData>>
+export const getOrgAdminClasses = (
+  params: Record<string, unknown> = {},
+): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/org/admin-classes', { params }) as Promise<ApiEnvelope<ApiData>>
+
+// 管理员端 - 通知公告（WP8，2026-11-07 全量实现批接入）
+/** 全量公告分页（管理端治理视图，不受受众过滤） */
+export const getAllAnnouncements = (
+  params: Record<string, unknown> = {},
+): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/announcements/admin/all', { params }) as Promise<ApiEnvelope<ApiData>>
+/** 发布公告：courseId / teachingClassId / adminClassId 三目标互斥 */
+export const publishAnnouncement = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
+  request.post('/announcements', data) as Promise<ApiEnvelope<ApiData>>
+
+// 管理员端 - 选课与名单（2026-11-07 全量实现批接入）
+/** 全量报名记录分页；status: PENDING/APPROVED/REJECTED */
+export const listAllEnrollments = (
+  params: Record<string, unknown> = {},
+): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/enrollments', { params }) as Promise<ApiEnvelope<ApiData>>
+
+// 管理员端 - 教学班监管（WP4/WP5 读面；写面为教学班主讲，见 TeachingClassController）
+/** 课程下教学班列表 */
+export const getTeachingClassesByCourse = (
+  courseId: number | string,
+): Promise<ApiEnvelope<ApiData>> =>
+  request.get(`/teaching-classes/course/${courseId}`) as Promise<ApiEnvelope<ApiData>>
+/** 教学班成员（选课记录形态） */
+export const getTeachingClassMembers = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.get(`/teaching-classes/${id}/members`) as Promise<ApiEnvelope<ApiData>>
+
 // 管理员端 - 系统配置
 export const getConfigs = (params: Record<string, unknown> = {}): Promise<ApiEnvelope<ApiData>> =>
   request.get('/admin/configs', { params }) as Promise<ApiEnvelope<ApiData>>
@@ -223,6 +280,21 @@ export default {
   createSemester,
   archiveSemester,
   archiveExpiredSemesters,
+  getOrgTree,
+  getColleges,
+  createCollege,
+  updateCollege,
+  archiveCollege,
+  getMajors,
+  createMajor,
+  updateMajor,
+  archiveMajor,
+  getOrgAdminClasses,
+  getAllAnnouncements,
+  publishAnnouncement,
+  listAllEnrollments,
+  getTeachingClassesByCourse,
+  getTeachingClassMembers,
   exportReport,
   createBackup,
   getAIMonitor,

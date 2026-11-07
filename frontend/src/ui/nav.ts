@@ -249,7 +249,8 @@ const STUDENT_PAGES: Record<string, PageDef> = {
   assistant: {
     title: 'AI 助手',
     kicker: 'STUDENT / ASSISTANT',
-    desc: '课程内 AI 助教在课程空间的「AI 助手」页签提供；跨课程全局助手属后续迭代。',
+    desc: '跨课程的全局 AI 问答；课程内精准问答仍走课程空间的「AI 助手」页签。',
+    special: 'assistant',
   },
 }
 
@@ -310,7 +311,7 @@ const TEACHER_PAGES: Record<string, PageDef> = {
   resources: {
     title: '资源中心',
     kicker: 'TEACHER / RESOURCES',
-    desc: '课程级资源共享；题库、讲义与试卷统一检索。',
+    desc: '跨课程的资源汇总：上传、下载、可见性与删除；课程内挂载仍在课程空间。',
     special: 'resources',
   },
   advising: {
@@ -445,11 +446,12 @@ const ADMIN_PAGES: Record<string, PageDef> = {
     title: '内容审核',
     kicker: 'ADMIN / MODERATION',
     desc: '讨论与资源审核；处置需留痕。',
+    special: 'moderation',
   },
   notices: {
     title: '通知公告',
     kicker: 'ADMIN / NOTICES',
-    desc: '全校或学院范围的公告；与课程通知、班级通知分属不同 audience。',
+    desc: '按课程 / 教学班 / 行政班三类受众发布公告；扇出到站内通知，非受众不可见。',
     special: 'notices',
   },
   audit: {
