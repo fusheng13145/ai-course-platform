@@ -88,6 +88,35 @@ class UserControllerTest extends ControllerTestBase {
 
 
     @Test
+    @DisplayName("GET /users/2 - 非本人访问时邮箱/手机号脱敏（B-06 对齐 /profile 语义）")
+    void getById_otherUser_masksContactFields() throws Exception {
+        User other = sampleUser(2L, "lisi");
+        other.setEmail("lisi@example.com");
+        other.setPhone("13812345678");
+        when(userService.getById(2L)).thenReturn(other);
+
+        mockMvc.perform(get("/users/2").with(withUser(1L, "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.email").value("l***@example.com"))
+                .andExpect(jsonPath("$.data.phone").value("138****5678"));
+    }
+
+    @Test
+    @DisplayName("GET /users/1 - 本人访问时邮箱/手机号保留原文")
+    void getById_self_keepsContactFields() throws Exception {
+        User self = sampleUser(1L, "zhangsan");
+        self.setEmail("zhangsan@example.com");
+        self.setPhone("13812345678");
+        when(userService.getById(1L)).thenReturn(self);
+
+        mockMvc.perform(get("/users/1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.email").value("zhangsan@example.com"))
+                .andExpect(jsonPath("$.data.phone").value("13812345678"));
+    }
+
+    @Test
     @DisplayName("GET /users/1 - 未认证返回401")
     void getById_unauthorized_returns_401() throws Exception {
         mockMvc.perform(get("/users/1"))

@@ -110,8 +110,21 @@ public class RosterServiceImpl implements RosterService {
         }
 
         RosterSyncResultVO merged = new RosterSyncResultVO();
+        // 批量取行政班（B-03 N+1 治理，2026-11-07）：链接数通常为个位数，但同步入口可能被
+        // 批量归档/重放触发，逐条 selectById 改为一次 IN 查询后按 id 取用；遍历仍按链接顺序，
+        // merge 结果与修复前一致。
+        List<Long> adminClassIds = links.stream()
+                .map(TeachingClassAdminClass::getAdminClassId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        Map<Long, AdminClass> adminClassById = adminClassIds.isEmpty()
+                ? Map.of()
+                : adminClassMapper.selectBatchIds(adminClassIds).stream()
+                        .filter(ac -> ac.getId() != null)
+                        .collect(java.util.stream.Collectors.toMap(AdminClass::getId, ac -> ac, (a, b) -> a));
         for (TeachingClassAdminClass link : links) {
-            AdminClass adminClass = adminClassMapper.selectById(link.getAdminClassId());
+            AdminClass adminClass = adminClassById.get(link.getAdminClassId());
             if (adminClass == null) {
                 continue;
             }

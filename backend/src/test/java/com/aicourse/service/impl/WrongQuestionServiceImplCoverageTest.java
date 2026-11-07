@@ -287,15 +287,16 @@ class WrongQuestionServiceImplCoverageTest {
                 wrongQuestion(7L, 100L, 207L), wrongQuestion(8L, 100L, 208L)));
         when(wrongQuestionMapper.selectList(any())).thenReturn(rows);
 
-        when(questionService.getById(201L)).thenReturn(
-                question(201L, "题干1", null, null, null, "[\"A\",\"\",null,\"  B  \"]"));
-        when(questionService.getById(202L)).thenReturn(question(202L, "题干2", null, null, null, "[]"));
-        when(questionService.getById(203L)).thenReturn(question(203L, "题干3", null, null, null, "计算机网络，,数据结构;算法"));
-        // 204 -> 未打桩，返回 null
-        when(questionService.getById(205L)).thenReturn(question(205L, "题干5", null, null, null, null));
-        when(questionService.getById(206L)).thenReturn(question(206L, "题干6", null, null, null, "   "));
-        when(questionService.getById(207L)).thenReturn(question(207L, "题干7", null, null, null, ",,,"));
-        when(questionService.getById(208L)).thenReturn(question(208L, "题干8", null, null, null, "[坏JSON"));
+        // B-03 批量版：分组路径以 listByIds 一次取题（204 缺席＝查不到，与原 getById 返回 null 同语义）
+        when(questionService.listByIds(any())).thenReturn(java.util.List.of(
+                question(201L, "题干1", null, null, null, "[\"A\",\"\",null,\"  B  \"]"),
+                question(202L, "题干2", null, null, null, "[]"),
+                question(203L, "题干3", null, null, null, "计算机网络，,数据结构;算法"),
+                // 204 -> 不在返回集合中，等效未打桩
+                question(205L, "题干5", null, null, null, null),
+                question(206L, "题干6", null, null, null, "   "),
+                question(207L, "题干7", null, null, null, ",,,"),
+                question(208L, "题干8", null, null, null, "[坏JSON")));
 
         when(knowledgePointMapper.selectList(any())).thenReturn(new ArrayList<>(Arrays.asList(
                 knowledgePoint(1L, "A"), knowledgePoint(99L, "A"), knowledgePoint(2L, "B"),
@@ -336,7 +337,7 @@ class WrongQuestionServiceImplCoverageTest {
     void getByKnowledgePoints_noKnowledgePointRows() {
         when(wrongQuestionMapper.selectList(any()))
                 .thenReturn(new ArrayList<>(Collections.singletonList(wrongQuestion(1L, 100L, 201L))));
-        when(questionService.getById(201L)).thenReturn(question(201L, "题干1", null, null, null, "数据结构"));
+        when(questionService.listByIds(any())).thenReturn(java.util.List.of(question(201L, "题干1", null, null, null, "数据结构")));
         when(knowledgePointMapper.selectList(any())).thenReturn(new ArrayList<>());
 
         List<WrongQuestionGroupVO> result = wrongQuestionService.getByKnowledgePoints(100L, null);

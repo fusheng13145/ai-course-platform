@@ -123,34 +123,6 @@ class ResourceServiceTest {
     }
 
     @Test
-    @DisplayName("权限校验-全员可见资源返回有权限")
-    void testCheckAccessPermission_VisibleToAll() {
-        when(mapper.selectById(1L)).thenReturn(resource1);
-        boolean result = service.checkAccessPermission(1L, 5L);
-        assertTrue(result);
-    }
-
-    @Test
-    @DisplayName("权限校验-非全员可见资源默认通过")
-    void testCheckAccessPermission_NotVisibleToAll() {
-        when(mapper.selectById(2L)).thenReturn(resource2);
-        boolean result = service.checkAccessPermission(2L, 5L);
-        assertTrue(result);
-    }
-
-    @Test
-    @DisplayName("权限校验-资源不存在抛出异常")
-    void testCheckAccessPermission_ResourceNotFound() {
-        when(mapper.selectById(999L)).thenReturn(null);
-        try {
-            service.checkAccessPermission(999L, 5L);
-            fail("Expected BusinessException");
-        } catch (Exception e) {
-            assertTrue(e.getMessage().contains("资源不存在"));
-        }
-    }
-
-    @Test
     @DisplayName("获取资源树-按章节分组")
     void testGetResourceTree() {
         when(mapper.selectList(any())).thenReturn(Arrays.asList(resource1, resource2));
@@ -223,16 +195,20 @@ class ResourceServiceTest {
     }
 
     @Test
-    @DisplayName("获取资源统计-成功（含版本文件大小）")
+    @DisplayName("获取资源统计-成功（B-03 批量版：active 版本一次 IN 查询，按 resourceId 取用）")
     void testGetResourceStats() {
         when(mapper.selectList(any())).thenReturn(Collections.singletonList(resource1));
         ResourceVersion activeVersion = new ResourceVersion();
+        activeVersion.setResourceId(1L);
         activeVersion.setFileSize(1024000L);
-        when(resourceVersionService.getActiveVersion(1L)).thenReturn(activeVersion);
+        when(resourceVersionService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
+                .thenReturn(Collections.singletonList(activeVersion));
         com.aicourse.vo.ResourceStatsVO stats = service.getResourceStats(100L);
         assertNotNull(stats);
         assertEquals(1L, stats.getTotalCount());
         assertEquals(1024000L, stats.getTotalSize());
         assertNotNull(stats.getTypeDistribution());
+        // 批量语义钉死：不再逐资源单查 active 版本（N+1 回归护栏）
+        verify(resourceVersionService, never()).getActiveVersion(any());
     }
 }

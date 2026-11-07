@@ -70,7 +70,14 @@ public class UserController {
     }
 
     /**
-     * 根据ID查询用户详情（密码已脱敏，仅允许本人或管理员）
+     * 根据ID查询用户详情（密码不出参；非本人访问时邮箱/手机号脱敏）
+     * <p>
+     * 【B-06 脱敏核查，2026-11-07】原实现只置空密码，注释声明的「非本人时脱敏邮箱和手机号」
+     * 并未执行，与 {@link #getProfile} 的同语义脱敏不一致（管理员经 /users/{id} 看原文、
+     * 经 /users/{id}/profile 却是掩码）。本修复对齐两者：非本人路径先过作用域门禁，
+     * 再套用同一 {@link #maskSensitive}。管理员在用户列表（GET /users）仍取原文——
+     * 管理台运营需要完整联系方式，该取舍记录于 docs/脱敏核查-2026-11-07.md。
+     *
      * @param id 用户ID
      * @return 用户信息（敏感字段脱敏）
      */
@@ -82,9 +89,9 @@ public class UserController {
         if (user != null) {
             if (!id.equals((Long) auth.getPrincipal())) {
                 adminScopeGuard.assertUserAccess(user);
+                maskSensitive(user);
             }
             user.setPassword(null);
-            // 非本人/管理员时脱敏邮箱和手机号
         }
         return ApiResponse.success(user);
     }
