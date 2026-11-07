@@ -59,4 +59,26 @@ public interface AiCallLogService {
      * @return 统计结果
      */
     Map<String, Object> statistics(int days, Long collegeId);
+
+    /**
+     * 按日聚合的 AI 用量统计（2026-11-07 P2 批次：补齐「按日维度」）。
+     *
+     * @param days 统计天数（1–365 越界收敛）
+     * @return {rangeDays, since, until, collectionNote, days:[AiUsageByDayVO]}；
+     *         没有调用的日期不出行，由前端按区间补零
+     */
+    Map<String, Object> statisticsByDay(int days);
+
+    /** 院系口径的按日聚合：内连接 courses.college_id，未绑定课程的调用不计入。 */
+    Map<String, Object> statisticsByDay(int days, Long collegeId);
+
+    /**
+     * 按能力（调用场景）聚合的 AI 用量统计（补齐「按能力维度」）。
+     *
+     * @return {rangeDays, since, until, collectionNote, scenes:[AiUsageBySceneVO]}
+     */
+    Map<String, Object> statisticsByScene(int days);
+
+    /** 院系口径的按能力聚合：内连接 courses.college_id，未绑定课程的调用不计入。 */
+    Map<String, Object> statisticsByScene(int days, Long collegeId);
 }

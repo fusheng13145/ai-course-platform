@@ -542,6 +542,38 @@ public class SystemAdminController {
     }
 
     /**
+     * 按日聚合的 AI 用量（2026-11-07 P2 批次：补齐「按日维度」，B-13④）。
+     * 无调用的日期不出行，由前端按区间补零渲染趋势；院系管理员自动收敛到本院口径。
+     *
+     * @param days 统计天数（默认 30，1–365 越界收敛）
+     */
+    @GetMapping("/admin/statistics/ai-usage/by-day")
+    public ApiResponse<Map<String, Object>> getAIUsageByDay(
+            @RequestParam(defaultValue = "30") int days) {
+        Long collegeId = adminScopeGuard.currentCollegeFilter();
+        Map<String, Object> result = collegeId == null
+                ? systemService.getAIUsageByDay(days)
+                : systemService.getAIUsageByDay(days, collegeId);
+        return ApiResponse.success(result);
+    }
+
+    /**
+     * 按能力（调用场景）聚合的 AI 用量（补齐「按能力维度」，B-13④）；
+     * scene 取值即 ai_call_logs 埋点的 12 个业务场景，院系管理员自动收敛到本院口径。
+     *
+     * @param days 统计天数（默认 30，1–365 越界收敛）
+     */
+    @GetMapping("/admin/statistics/ai-usage/by-scene")
+    public ApiResponse<Map<String, Object>> getAIUsageByScene(
+            @RequestParam(defaultValue = "30") int days) {
+        Long collegeId = adminScopeGuard.currentCollegeFilter();
+        Map<String, Object> result = collegeId == null
+                ? systemService.getAIUsageByScene(days)
+                : systemService.getAIUsageByScene(days, collegeId);
+        return ApiResponse.success(result);
+    }
+
+    /**
      * 导出数据报表
      */
     @Operation(summary = "导出数据报表", description = "导出平台综合数据报表为 Excel(.xlsx) 文件（多 Sheet：平台概览/AI使用统计/课程统计/用户统计等）")

@@ -108,6 +108,16 @@ public interface SystemService {
      */
     Map<String, Object> getAIUsageByCourse(int days, Long collegeId);
 
+    /** 按日聚合的 AI 用量（院系口径经 collegeId 过滤，未绑定课程不计入）。 */
+    Map<String, Object> getAIUsageByDay(int days);
+
+    Map<String, Object> getAIUsageByDay(int days, Long collegeId);
+
+    /** 按能力（调用场景）聚合的 AI 用量。 */
+    Map<String, Object> getAIUsageByScene(int days);
+
+    Map<String, Object> getAIUsageByScene(int days, Long collegeId);
+
     /**
      * AI 异常监控：汇总最近登录/操作日志，调用 LLM 检测异常（暴力破解、成绩异动等）。
      * 失败时返回包含降级提示的监控结果（不抛异常，与原 HTTP 行为一致）。

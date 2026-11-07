@@ -4,6 +4,8 @@ import com.aicourse.entity.AiCallLog;
 import com.aicourse.mapper.AiCallLogMapper;
 import com.aicourse.service.AiCallLogService;
 import com.aicourse.vo.AiUsageByCourseVO;
+import com.aicourse.vo.AiUsageByDayVO;
+import com.aicourse.vo.AiUsageBySceneVO;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 
@@ -82,6 +84,72 @@ public class AiCallLogServiceImpl implements AiCallLogService {
                 : aiCallLogMapper.selectUsageByCourseForCollege(since, until, collegeId);
 
         Map<String, Object> result = aggregate(rangeDays, since, until, rows);
+        if (collegeId != null) {
+            result.put("scope", "college");
+            result.put("collegeId", collegeId);
+            result.put("scopeNote",
+                    "院系口径：仅统计本院课程；未绑定课程的调用无学院归属，不计入本院视图。");
+        }
+        return result;
+    }
+
+    @Override
+    public Map<String, Object> statisticsByDay(int days) {
+        return statisticsByDay(days, null);
+    }
+
+    @Override
+    public Map<String, Object> statisticsByDay(int days, Long collegeId) {
+        int rangeDays = Math.min(Math.max(days, 1), 365);
+        LocalDateTime until = LocalDateTime.now();
+        LocalDateTime since = LocalDate.now().minusDays(rangeDays - 1L).atStartOfDay();
+        List<AiUsageByDayVO> rows = collegeId == null
+                ? aiCallLogMapper.selectUsageByDay(since, until)
+                : aiCallLogMapper.selectUsageByDayForCollege(since, until, collegeId);
+        for (AiUsageByDayVO row : rows) {
+            long calls = row.getCalls() == null ? 0L : row.getCalls();
+            long success = row.getSuccessCalls() == null ? 0L : row.getSuccessCalls();
+            row.setSuccessRate(calls == 0 ? null : round2((double) success / calls));
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("rangeDays", rangeDays);
+        result.put("since", since.toString());
+        result.put("until", until.toString());
+        result.put("collectionNote", COLLECTION_NOTE);
+        result.put("days", rows);
+        if (collegeId != null) {
+            result.put("scope", "college");
+            result.put("collegeId", collegeId);
+            result.put("scopeNote",
+                    "院系口径：仅统计本院课程；未绑定课程的调用无学院归属，不计入本院视图。");
+        }
+        return result;
+    }
+
+    @Override
+    public Map<String, Object> statisticsByScene(int days) {
+        return statisticsByScene(days, null);
+    }
+
+    @Override
+    public Map<String, Object> statisticsByScene(int days, Long collegeId) {
+        int rangeDays = Math.min(Math.max(days, 1), 365);
+        LocalDateTime until = LocalDateTime.now();
+        LocalDateTime since = LocalDate.now().minusDays(rangeDays - 1L).atStartOfDay();
+        List<AiUsageBySceneVO> rows = collegeId == null
+                ? aiCallLogMapper.selectUsageByScene(since, until)
+                : aiCallLogMapper.selectUsageBySceneForCollege(since, until, collegeId);
+        for (AiUsageBySceneVO row : rows) {
+            long calls = row.getCalls() == null ? 0L : row.getCalls();
+            long success = row.getSuccessCalls() == null ? 0L : row.getSuccessCalls();
+            row.setSuccessRate(calls == 0 ? null : round2((double) success / calls));
+        }
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("rangeDays", rangeDays);
+        result.put("since", since.toString());
+        result.put("until", until.toString());
+        result.put("collectionNote", COLLECTION_NOTE);
+        result.put("scenes", rows);
         if (collegeId != null) {
             result.put("scope", "college");
             result.put("collegeId", collegeId);

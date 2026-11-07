@@ -113,6 +113,26 @@ public class SystemServiceImpl implements SystemService {
     }
 
     @Override
+    public Map<String, Object> getAIUsageByDay(int days) {
+        return aiCallLogService.statisticsByDay(days);
+    }
+
+    @Override
+    public Map<String, Object> getAIUsageByDay(int days, Long collegeId) {
+        return aiCallLogService.statisticsByDay(days, collegeId);
+    }
+
+    @Override
+    public Map<String, Object> getAIUsageByScene(int days) {
+        return aiCallLogService.statisticsByScene(days);
+    }
+
+    @Override
+    public Map<String, Object> getAIUsageByScene(int days, Long collegeId) {
+        return aiCallLogService.statisticsByScene(days, collegeId);
+    }
+
+    @Override
     public Map<String, Object> aiMonitor() {
         return monitorComponent.aiMonitor();
     }

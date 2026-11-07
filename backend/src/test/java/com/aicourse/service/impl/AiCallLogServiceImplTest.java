@@ -133,6 +133,58 @@ class AiCallLogServiceImplTest {
         assertEquals(0L, service.statistics(7).get("totalCalls"));
     }
 
+    // ===================== statisticsByDay / statisticsByScene（2026-11-07 P2 批次） =====================
+
+    @Test
+    @DisplayName("statisticsByDay 聚合：按日行透传且成功率按行分摊；院系口径走 ForCollege 变体")
+    void statisticsByDay_aggregates() {
+        com.aicourse.vo.AiUsageByDayVO d1 = new com.aicourse.vo.AiUsageByDayVO();
+        d1.setDay("2026-11-06");
+        d1.setCalls(3L);
+        d1.setTokens(300L);
+        d1.setAvgDurationMs(100.0);
+        d1.setSuccessCalls(2L);
+        when(aiCallLogMapper.selectUsageByDay(any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(d1));
+
+        Map<String, Object> stats = service.statisticsByDay(30);
+        assertEquals(30, stats.get("rangeDays"));
+        assertEquals(d1, ((List<?>) stats.get("days")).get(0));
+        assertEquals(0.67, d1.getSuccessRate()); // round2 口径（与 statistics 既有断言一致）
+
+        // 院系口径：必须走内连接变体，且带 scope 标记
+        when(aiCallLogMapper.selectUsageByDayForCollege(any(LocalDateTime.class),
+                any(LocalDateTime.class), eq(10L))).thenReturn(List.of());
+        Map<String, Object> college = service.statisticsByDay(30, 10L);
+        assertEquals("college", college.get("scope"));
+        assertEquals(10L, college.get("collegeId"));
+        verify(aiCallLogMapper).selectUsageByDayForCollege(any(LocalDateTime.class),
+                any(LocalDateTime.class), eq(10L));
+    }
+
+    @Test
+    @DisplayName("statisticsByScene 聚合：场景行透传；空窗不出行也不编造成功率")
+    void statisticsByScene_aggregates() {
+        com.aicourse.vo.AiUsageBySceneVO s1 = new com.aicourse.vo.AiUsageBySceneVO();
+        s1.setScene("QA_ASK");
+        s1.setCalls(5L);
+        s1.setTokens(500L);
+        s1.setAvgDurationMs(220.0);
+        s1.setSuccessCalls(5L);
+        when(aiCallLogMapper.selectUsageByScene(any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of(s1));
+
+        Map<String, Object> stats = service.statisticsByScene(7);
+        assertEquals(7, stats.get("rangeDays"));
+        assertEquals(1, ((List<?>) stats.get("scenes")).size());
+        assertEquals(1.0, s1.getSuccessRate());
+
+        when(aiCallLogMapper.selectUsageByScene(any(LocalDateTime.class), any(LocalDateTime.class)))
+                .thenReturn(List.of());
+        Map<String, Object> empty = service.statisticsByScene(7);
+        assertTrue(((List<?>) empty.get("scenes")).isEmpty());
+    }
+
     private AiUsageByCourseVO row(Long courseId, String name, Long calls, Long tokens,
                                   Double avgDuration, Long successCalls) {
         AiUsageByCourseVO vo = new AiUsageByCourseVO();
