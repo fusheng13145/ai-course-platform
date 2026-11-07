@@ -1,5 +1,6 @@
 package com.aicourse.controller;
 import com.aicourse.controller.CourseChapterController;
+import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseChapter;
 import com.aicourse.service.CourseChapterService;
 import com.aicourse.service.CourseService;
@@ -91,18 +92,22 @@ class CourseChapterControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("POST /chapters - 管理员创建章节返回200")
+    @DisplayName("POST /chapters - 教师创建章节返回200；管理员 403（WP9 只读矩阵）")
     void create_authorized_passes_security() throws Exception {
         CourseChapter saved = new CourseChapter();
         saved.setId(1L);
         when(chapterService.createChapter(any(), eq(1L), anyBoolean())).thenReturn(saved);
         mockMvc.perform(post("/chapters").contentType(MediaType.APPLICATION_JSON).content("{\"courseId\":1,\"title\":\"测试章节\"}")
-                        .with(withUser(1L, "ADMIN")))
+                        .with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists())
                 .andExpect(jsonPath("$.data.id").value(1));
         verify(chapterService).createChapter(any(), eq(1L), anyBoolean());
+        mockMvc.perform(post("/chapters").contentType(MediaType.APPLICATION_JSON).content("{\"courseId\":1,\"title\":\"测试章节\"}")
+                        .with(withUser(1L, "ADMIN")))
+                .andExpect(status().isForbidden());
+        verify(chapterService, times(1)).createChapter(any(), eq(1L), anyBoolean());
     }
 
     @Test
@@ -121,18 +126,21 @@ class CourseChapterControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("PUT /chapters/1 - 管理员更新章节返回200，ID透传")
+    @DisplayName("PUT /chapters/1 - 教师更新章节返回200；管理员 403（WP9 只读矩阵）")
     void update_authorized_passes_security() throws Exception {
         CourseChapter chapter = new CourseChapter();
         chapter.setId(1L);
         chapter.setCourseId(1L);
         when(chapterService.updateChapter(eq(1L), any(), eq(1L), anyBoolean())).thenReturn(chapter);
         mockMvc.perform(put("/chapters/1").contentType(MediaType.APPLICATION_JSON).content("{\"courseId\":1,\"title\":\"测试章节\"}")
-                        .with(withUser(1L, "ADMIN")))
+                        .with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
         verify(chapterService).updateChapter(eq(1L), any(), eq(1L), anyBoolean());
+        mockMvc.perform(put("/chapters/1").contentType(MediaType.APPLICATION_JSON).content("{\"courseId\":1,\"title\":\"测试章节\"}")
+                        .with(withUser(1L, "ADMIN")))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -151,12 +159,14 @@ class CourseChapterControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("DELETE /chapters/1 - 管理员删除章节返回200")
+    @DisplayName("DELETE /chapters/1 - 教师删除章节返回200；管理员 403（WP9 只读矩阵）")
     void delete_authorized_passes_security() throws Exception {
-        mockMvc.perform(delete("/chapters/1").with(withUser(1L, "ADMIN")))
+        mockMvc.perform(delete("/chapters/1").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
         verify(chapterService).deleteChapter(eq(1L), eq(1L), anyBoolean());
+        mockMvc.perform(delete("/chapters/1").with(withUser(1L, "ADMIN")))
+                .andExpect(status().isForbidden());
     }
 
     @Test
@@ -174,17 +184,33 @@ class CourseChapterControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("PUT /batch-reorder - 管理员批量排序返回200")
+    @DisplayName("PUT /batch-reorder - 课程负责人教师排序返回200；管理员 403（WP9 只读矩阵）；他课教师 403")
     void batchReorder_authorized_passes_security() throws Exception {
         CourseChapter chapter = new CourseChapter();
         chapter.setId(1L);
         chapter.setCourseId(1L);
         when(chapterService.listByIds(any())).thenReturn(List.of(chapter));
+        Course owned = new Course();
+        owned.setId(1L);
+        owned.setTeacherId(1L);
+        when(courseService.getById(1L)).thenReturn(owned);
         mockMvc.perform(put("/batch-reorder").contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"orderList\":[{\"id\":1,\"orderIndex\":0}]}").with(withUser(1L, "ADMIN")))
+                        .content("{\"orderList\":[{\"id\":1,\"orderIndex\":0}]}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
         verify(chapterService).updateById(any());
+        mockMvc.perform(put("/batch-reorder").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderList\":[{\"id\":1,\"orderIndex\":0}]}").with(withUser(1L, "ADMIN")))
+                .andExpect(status().isForbidden());
+        // 他课教师：course 1 的负责人是 1L，换用户 7L 即 fail-closed 403
+        Course notOwned = new Course();
+        notOwned.setId(2L);
+        notOwned.setTeacherId(7L);
+        when(courseService.getById(2L)).thenReturn(notOwned);
+        chapter.setCourseId(2L);
+        mockMvc.perform(put("/batch-reorder").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"orderList\":[{\"id\":1,\"orderIndex\":0}]}").with(withUser(9L, "TEACHER")))
+                .andExpect(status().isForbidden());
     }
 
     @Test

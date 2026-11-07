@@ -157,6 +157,12 @@ public class Course {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 
+    /**
+     * 所属学期（4A，V17）：课程编号在学期内唯一的前提字段。
+     * 创建时由 {@code CourseServiceImpl} 解析为当前 ACTIVE 学期；V17 回填后收紧 NOT NULL。
+     */
+    private Long semesterId;
+
     public void setIsActive(Boolean active) {
         isActive = active;
     }

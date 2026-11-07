@@ -257,17 +257,19 @@ class ClassroomControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("GET /classrooms/my - 查询我管理的班级返回200，数组透传")
+    @DisplayName("GET /classrooms/my - 班主任自查：只按当前用户查（WP9 验收 1），旧 advisorId 参数被忽略")
     void getMyClassrooms_authorized_passes_security() throws Exception {
         Classroom c = new Classroom();
         c.setId(1L);
         when(classroomService.getAdvisorClassrooms(eq(1L))).thenReturn(List.of(c));
-        mockMvc.perform(get("/classrooms/my?advisorId=1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
+        // 兼容期旧客户端仍会多带 advisorId=99：参数已被签名移除，判定只认当前用户 1
+        mockMvc.perform(get("/classrooms/my?advisorId=99").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").isArray())
                 .andExpect(jsonPath("$.data[0].id").value(1));
         verify(classroomService).getAdvisorClassrooms(eq(1L));
+        verify(classroomService, never()).getAdvisorClassrooms(eq(99L));
     }
 
     @Test

@@ -5,13 +5,19 @@ import org.slf4j.LoggerFactory;
 
 import jakarta.validation.Valid;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
+import com.aicourse.common.RoleConstants;
+import com.aicourse.exception.BusinessException;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.RAGService;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.node.TextNode;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -32,33 +38,65 @@ public class RAGController {
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final RAGService ragService;
+    private final CourseAccessControl courseAccessControl;
 
-    public RAGController(RAGService ragService) {
+    public RAGController(RAGService ragService, CourseAccessControl courseAccessControl) {
         this.ragService = ragService;
+        this.courseAccessControl = courseAccessControl;
     }
 
-    /** 基于知识库对指定问题进行智能问答 */
+    /** ROLE_ 前缀剥离后的角色名（与 DiscussionController 同语义，此处只用于管理员判定）。 */
+    private boolean isAdmin(Authentication auth) {
+        return auth != null && auth.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch("ROLE_ADMIN"::equals);
+    }
+
+    /**
+     * 基于知识库对指定问题进行智能问答。
+     * <p>2026-11-06 验收批：带 courseId 时必须先过课程成员关系——否则任意学生可用
+     * 他人课程的 courseId 把该课知识库正文取进答案（越权取数 + 违反红线③的接地范围）。
+     */
     @PostMapping("/ask")
     public ApiResponse<JsonNode> ask(
             @RequestParam String question,
             @RequestParam(required = false) Long courseId,
-            @RequestParam(defaultValue = "3") int topK) {
+            @RequestParam(defaultValue = "3") int topK,
+            Authentication auth) {
+        if (courseId != null) {
+            courseAccessControl.assertCanReadCourse(courseId, auth);
+        }
         return ApiResponse.success(toJson(ragService.ask(question, courseId, topK)));
     }
 
-    /** 向指定课程的知识库新增一篇文档（教师/管理员） */
+    /** 向指定课程的知识库新增一篇文档（教师/管理员，且教师须是本课程） */
     @PostMapping("/documents")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
     public ApiResponse<JsonNode> addDocument(
             @RequestParam Long courseId,
             @RequestParam String documentName,
-            @Valid @RequestBody String content) {
+            @Valid @RequestBody String content,
+            Authentication auth) {
+        courseAccessControl.assertCanManageCourse(courseId, auth);
         return ApiResponse.success(toJson(ragService.addDocument(courseId, documentName, content)));
     }
 
-    /** 列出课程知识库中的文档（可按课程筛选） */
+    /**
+     * 列出知识库文档（可按课程筛选）。
+     * <p>2026-11-06 验收批：原先任何人（含学生）可列举任意课程、甚至不带 courseId 拿全量。
+     * 现在：带 courseId 限教师本人课程或管理员；不带 courseId 仅管理员。
+     */
     @GetMapping("/documents")
-    public ApiResponse<JsonNode> listDocuments(@RequestParam(required = false) Long courseId) {
+    @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
+    public ApiResponse<JsonNode> listDocuments(@RequestParam(required = false) Long courseId,
+                                               Authentication auth) {
+        if (courseId == null) {
+            if (!isAdmin(auth)) {
+                throw new BusinessException(ApiCode.FORBIDDEN, "列举全部课程文档仅管理员可用");
+            }
+        } else {
+            courseAccessControl.assertCanManageCourse(courseId, auth);
+        }
         return ApiResponse.success(toJson(ragService.listDocuments(courseId)));
     }
 
@@ -78,17 +116,19 @@ public class RAGController {
         return ApiResponse.success(toJson(ragService.deleteDocument(documentId)));
     }
 
-    /** 为指定课程构建/重建向量索引（教师/管理员） */
+    /** 为指定课程构建/重建向量索引（教师/管理员，且教师须是本课程） */
     @PostMapping("/index/build/{courseId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
-    public ApiResponse<JsonNode> buildIndex(@PathVariable Long courseId) {
+    public ApiResponse<JsonNode> buildIndex(@PathVariable Long courseId, Authentication auth) {
+        courseAccessControl.assertCanManageCourse(courseId, auth);
         return ApiResponse.success(toJson(ragService.buildIndex(courseId)));
     }
 
-    /** 清空指定课程的向量索引（教师/管理员） */
+    /** 清空指定课程的向量索引（教师/管理员，且教师须是本课程） */
     @DeleteMapping("/index/{courseId}")
     @PreAuthorize("hasAnyRole('ADMIN', 'TEACHER')")
-    public ApiResponse<JsonNode> clearIndex(@PathVariable Long courseId) {
+    public ApiResponse<JsonNode> clearIndex(@PathVariable Long courseId, Authentication auth) {
+        courseAccessControl.assertCanManageCourse(courseId, auth);
         return ApiResponse.success(toJson(ragService.clearIndex(courseId)));
     }
 
@@ -97,7 +137,11 @@ public class RAGController {
     public ApiResponse<JsonNode> retrieve(
             @RequestParam String query,
             @RequestParam(required = false) Long courseId,
-            @RequestParam(defaultValue = "5") int topK) {
+            @RequestParam(defaultValue = "5") int topK,
+            Authentication auth) {
+        if (courseId != null) {
+            courseAccessControl.assertCanReadCourse(courseId, auth);
+        }
         return ApiResponse.success(toJson(ragService.retrieve(query, courseId, topK)));
     }
 

@@ -637,7 +637,8 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
         Files.write(file, PDF_BYTES);
         when(resourceService.getById(29L)).thenReturn(resourceOf(29L, COURSE_ID, "/uploads/cov_del.tmp", "d.tmp"));
         when(resourceService.removeById(29L)).thenReturn(true);
-        mockMvc.perform(delete("/resources/29").with(withUser(1L, "ADMIN")))
+        // WP9 只读矩阵：资源删除面已摘除 ADMIN，真实删除路径由课程负责教师走通
+        mockMvc.perform(delete("/resources/29").with(withUser(OWNER_TEACHER, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.message").value("资源删除成功"));

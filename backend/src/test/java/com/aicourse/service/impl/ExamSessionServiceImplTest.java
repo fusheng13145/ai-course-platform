@@ -71,7 +71,9 @@ class ExamSessionServiceImplTest {
         // 原兼容构造器已移除：内联其组件组装逻辑，再走主构造器（3 组件 + gradingService）
         ObjectMapper objectMapper = new ObjectMapper();
         ExamSessionLifecycleComponent lifecycleComponent =
-                new ExamSessionLifecycleComponent(examPaperService, null, objectMapper);
+                new ExamSessionLifecycleComponent(examPaperService, null,
+                        org.mockito.Mockito.mock(com.aicourse.service.component.org.TeachingClassSnapshotResolver.class),
+                        objectMapper);
         ExamSessionCheatingComponent cheatingComponent =
                 new ExamSessionCheatingComponent(examPaperService, null, objectMapper);
         ExamSessionQueryComponent queryComponent =

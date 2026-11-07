@@ -249,6 +249,21 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
     }
 
 
+    /**
+     * 回复所属课程ID（供点赞等 postId 入口的操作做对象级 ACL）。
+     * 只做关系查询，不重复实现成员关系规则；回复或话题缺失时返回 null，
+     * 由调用方放行到 likePost 原有的「回复不存在」语义。
+     */
+    @Override
+    public Long courseIdOfPost(Long postId) {
+        DiscussionPost post = postId == null ? null : postMapper.selectById(postId);
+        if (post == null || post.getTopicId() == null) {
+            return null;
+        }
+        DiscussionTopic topic = this.getById(post.getTopicId());
+        return topic == null ? null : topic.getCourseId();
+    }
+
     /** 讨论相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)

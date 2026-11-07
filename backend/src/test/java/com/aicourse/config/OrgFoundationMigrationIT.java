@@ -53,7 +53,7 @@ class OrgFoundationMigrationIT {
     @DisplayName("空库迁移：组织四表、ADMIN 作用域与权限唯一键全部就位，且可重复执行")
     void migratesEmptyDatabase() throws SQLException {
         MigrateResult first = flyway().migrate();
-        assertEquals(9, first.migrationsExecuted, "V1-V4、V8-V12 共 9 个版本应全部执行");
+        assertEquals(14, first.migrationsExecuted, "V1-V4、V8-V17 共 14 个版本应全部执行");
 
         try (Connection connection = DriverManager.getConnection(
                 MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {

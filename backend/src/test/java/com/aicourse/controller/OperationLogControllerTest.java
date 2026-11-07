@@ -100,39 +100,24 @@ class OperationLogControllerTest extends ControllerTestBase {
 
 
     @Test
-    @DisplayName("GET /admin/operation-logs - 院系管理员只查本院用户日志")
-    void queryLogs_collegeAdmin_scopedToCollege() throws Exception {
+    @DisplayName("GET /admin/operation-logs - 院系管理员 403（8A：审计先 403，WP9 收紧）")
+    void queryLogs_collegeAdmin_forbidden() throws Exception {
         when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
-        when(userService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
-                .thenReturn(List.of(user(20L, 10L, "TEACHER")));
-        Page<OperationLog> p = new Page<>(1, 10);
-        p.setRecords(List.of(sampleLog(1L)));
-        p.setTotal(1);
-        when(operationLogService.page(any(), any())).thenReturn(p);
 
         mockMvc.perform(get("/admin/operation-logs").with(withCollegeAdmin(3L)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.total").value(1));
-        verify(operationLogService).page(any(), any());
+                .andExpect(status().isForbidden());
+        verify(operationLogService, never()).page(any(), any());
     }
 
     @Test
-    @DisplayName("GET /admin/operation-logs/statistics - 院系管理员按本院用户统计")
-    void getStatistics_collegeAdmin_scopedToCollege() throws Exception {
+    @DisplayName("GET /admin/operation-logs/statistics - 院系管理员 403（8A）")
+    void getStatistics_collegeAdmin_forbidden() throws Exception {
         when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
-        when(userService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
-                .thenReturn(List.of(user(20L, 10L, "TEACHER")));
-        when(operationLogService.count(any())).thenReturn(4L);
 
         mockMvc.perform(get("/admin/operation-logs/statistics").with(withCollegeAdmin(3L)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data.totalCount").value(4))
-                .andExpect(jsonPath("$.data.successCount").value(4))
-                .andExpect(jsonPath("$.data.failedCount").value(0));
+                .andExpect(status().isForbidden());
         verify(operationLogService, never()).count();
-        verify(operationLogService, times(2)).count(any());
+        verify(operationLogService, never()).count(any());
     }
 
     @Test

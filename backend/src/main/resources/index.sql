@@ -336,8 +336,9 @@ CREATE TABLE courses (
   syllabus_url VARCHAR(500) NULL COMMENT '课程大纲URL',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  semester_id BIGINT NOT NULL COMMENT '所属学期（4A）：创建时解析 ACTIVE 学期，编号学期内唯一（V17）',
   PRIMARY KEY (id),
-  UNIQUE KEY uk_courses_code (code) COMMENT '课程编号唯一索引',
+  UNIQUE KEY uk_courses_semester_code (semester_id, code) COMMENT '学期内课程编号唯一（4A，V17）',
   KEY idx_courses_teacher_id (teacher_id) COMMENT '教师ID索引，用于查询教师教授的课程',
   KEY idx_courses_status (status) COMMENT '课程状态索引',
   KEY idx_courses_approval_status (approval_status) COMMENT '审批状态索引',
@@ -425,7 +426,7 @@ CREATE TABLE course_enrollments (
   id BIGINT NOT NULL AUTO_INCREMENT COMMENT '选课ID，主键自增',
   student_id BIGINT NOT NULL COMMENT '学生ID，关联users表',
   course_id BIGINT NOT NULL COMMENT '课程ID，关联courses表',
-  teaching_class_id BIGINT NULL COMMENT '教学班ID，关联teaching_classes表（V14 存量回填）',
+  teaching_class_id BIGINT NOT NULL COMMENT '教学班ID，关联teaching_classes表（V14 回填，V17 收紧 NOT NULL）',
   source VARCHAR(32) NULL COMMENT '来源：ADMIN_CLASS_IMPORT/SELF_ENROLL/LEGACY',
   source_admin_class_id BIGINT NULL COMMENT '来源行政班ID，关联admin_classes表',
   approval_status VARCHAR(20) NOT NULL DEFAULT 'APPROVED' COMMENT '选课审批状态：PENDING-待审批，APPROVED-已通过，REJECTED-已拒绝',
@@ -556,6 +557,7 @@ CREATE TABLE task_completions (
   completed_at DATETIME NULL COMMENT '完成时间',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  teaching_class_id BIGINT NULL COMMENT '教学班快照（WP7/V16）：写入时按成员关系解析，转班不漂移',
   PRIMARY KEY (id),
   UNIQUE KEY uk_task_completion (student_id, task_id) COMMENT '学生-任务唯一，避免重复记录',
   KEY idx_tc_course (course_id) COMMENT '课程索引',
@@ -586,6 +588,7 @@ CREATE TABLE submissions (
   view_count INT NOT NULL DEFAULT 0 COMMENT '查看次数',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  teaching_class_id BIGINT NULL COMMENT '教学班快照（WP7/V16）：写入时按成员关系解析，转班不漂移',
   PRIMARY KEY (id),
   KEY idx_submissions_task_id (task_id) COMMENT '任务ID索引，用于查询任务所有提交',
   KEY idx_submissions_student_id (student_id) COMMENT '学生ID索引，用于查询学生所有提交',
@@ -759,6 +762,7 @@ CREATE TABLE exam_sessions (
   option_orders JSON NULL COMMENT '本场考试各题选项乱序映射，结构：{questionId:[原选项下标...]}，下标为展示位、值为原题选项下标',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  teaching_class_id BIGINT NULL COMMENT '教学班快照（WP7/V16）：写入时按成员关系解析，转班不漂移',
   PRIMARY KEY (id),
   KEY idx_exam_sessions_paper_id (exam_paper_id) COMMENT '试卷ID索引，用于查询试卷所有考试会话',
   KEY idx_exam_sessions_student_id (student_id) COMMENT '学生ID索引，用于查询学生所有考试会话',
@@ -1201,6 +1205,7 @@ CREATE TABLE discussion_topics (
     last_reply_at DATETIME NULL COMMENT '最后回复时间',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    teaching_class_id BIGINT NULL COMMENT '教学班快照（WP7/V16）：写入时按成员关系解析，转班不漂移',
     PRIMARY KEY (id),
     KEY idx_discussion_topics_course_id (course_id) COMMENT '课程ID索引',
     KEY idx_discussion_topics_chapter_id (chapter_id) COMMENT '章节ID索引',
@@ -1326,6 +1331,7 @@ CREATE TABLE grade_items (
     grader_id BIGINT NULL COMMENT '录入者ID，关联users表',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    teaching_class_id BIGINT NULL COMMENT '教学班快照（WP7/V16）：写入时按成员关系解析，转班不漂移',
     PRIMARY KEY (id),
     UNIQUE KEY uk_grade_item (policy_id, student_id, component_key) COMMENT '同一方案同一学生同一维度唯一',
     KEY idx_grade_items_student_id (student_id) COMMENT '学生ID索引',
@@ -1548,3 +1554,22 @@ ALTER TABLE submissions ADD INDEX idx_submissions_task_student (task_id, student
 
 -- questions表：course_id + type 复合索引（按课程和题型查询题目）
 ALTER TABLE questions ADD INDEX idx_questions_course_type (course_id, type);
+
+-- announcements（WP8/V16：公告表，扇出到 notifications）
+DROP TABLE IF EXISTS announcements;
+CREATE TABLE announcements (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '公告ID，主键自增',
+  course_id BIGINT NULL COMMENT '课程目标（与教学班/行政班目标互斥）',
+  teaching_class_id BIGINT NULL COMMENT '教学班目标（与课程/行政班目标互斥）',
+  admin_class_id BIGINT NULL COMMENT '行政班目标（与课程/教学班目标互斥，班主任发布）',
+  title VARCHAR(200) NOT NULL COMMENT '公告标题',
+  content TEXT NOT NULL COMMENT '公告正文',
+  publisher_id BIGINT NOT NULL COMMENT '发布人ID',
+  publisher_role VARCHAR(16) NOT NULL COMMENT '发布人角色：TEACHER/ADVISOR/ADMIN',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (id),
+  KEY idx_ann_course (course_id) COMMENT '课程维度列表',
+  KEY idx_ann_tc (teaching_class_id) COMMENT '教学班维度列表',
+  KEY idx_ann_ac (admin_class_id) COMMENT '行政班维度列表'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='公告表（WP8，扇出到 notifications）';

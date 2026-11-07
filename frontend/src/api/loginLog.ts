@@ -6,7 +6,7 @@ import request from './request'
  */
 export const loginLogApi = {
   /** 获取登录日志列表（支持分页） */
-  getList(params) {
+  getList(params: Record<string, unknown>) {
     return request.get('/login-logs', { params })
   },
   /** 获取登录统计数据 */
@@ -14,23 +14,23 @@ export const loginLogApi = {
     return request.get('/login-logs/stats')
   },
   /** 获取登录趋势（按日统计） */
-  getTrends(params) {
+  getTrends(params: Record<string, unknown>) {
     return request.get('/login-logs/trends', { params })
   },
   /** 获取最近登录记录 */
-  getRecent(limit) {
+  getRecent(limit: number) {
     return request.get('/login-logs/recent', { params: { limit } })
   },
   /** 获取失败登录记录 */
-  getFailures(params) {
+  getFailures(params: Record<string, unknown>) {
     return request.get('/login-logs/failures', { params })
   },
   /** 获取某用户的登录历史 */
-  getUserHistory(userId, params) {
+  getUserHistory(userId: number, params: Record<string, unknown>) {
     return request.get(`/login-logs/user/${userId}`, { params })
   },
   /** 异常登录检测 */
-  getAbnormal(userId) {
+  getAbnormal(userId: number) {
     return request.get(`/login-logs/abnormal/${userId}`)
   },
 }

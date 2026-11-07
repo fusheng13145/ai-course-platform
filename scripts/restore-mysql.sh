@@ -173,7 +173,11 @@ else
 fi
 
 echo "[4/5] 关键表行数核对"
-TABLES="users courses course_enrollments tasks submissions exam_papers questions learning_records"
+# 2026-11-06 补件：原清单只到 V4 时代的 8 张表，V12–V15 的教学组织面（B-12/P-08）
+# 完全不在恢复核对面内 —— 恢复后组织表为空也会读成「行数一致」。
+TABLES="users courses course_enrollments tasks submissions exam_papers questions learning_records \
+schools colleges majors admin_classes course_approval_records \
+teaching_classes teaching_class_admin_classes task_teaching_classes exam_teaching_classes"
 counts_tmp=$(mktemp)
 printf 'table\trestored\tlive\tdiff\n' > "$counts_tmp"
 count_mismatch=0

@@ -56,7 +56,7 @@ export function useStudentExamTimers(handlers: ExamTimerHandlers) {
       } else {
         // 时间到时停止倒计时并自动交卷。交卷失败（如断网）由 submitExamOnTimeout
         // 兜底重试，直到服务端确认收卷，避免考试卡在「已到时却未交卷」的悬空态。
-        clearInterval(countdownTimer)
+        if (countdownTimer) clearInterval(countdownTimer)
         countdownTimer = null
         notify.warning('考试时间已到，将自动提交试卷')
         handlers.onTimeout()

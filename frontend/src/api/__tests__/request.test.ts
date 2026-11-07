@@ -1,4 +1,11 @@
 import { describe, it, expect, vi, beforeEach, beforeAll, afterEach } from 'vitest'
+import {
+  type AxiosAdapter,
+  type AxiosInstance,
+  type AxiosResponse,
+  type InternalAxiosRequestConfig,
+} from 'axios'
+import { type ApiData } from '@/utils/response'
 
 // 模拟 element-plus
 const mockElMessage = vi.hoisted(() => ({
@@ -48,8 +55,8 @@ setApiHost({
 })
 
 describe('request.js - API 请求层', () => {
-  let request
-  let cancelAllPendingRequests
+  let request: AxiosInstance
+  let cancelAllPendingRequests: () => void
 
   beforeAll(async () => {
     // 在所有 mock 之后动态导入
@@ -242,13 +249,17 @@ describe('request.js - API 请求层', () => {
  * 的完整链路，因此这里断言的是**产品代码的真实行为**，不是测试内手写的逻辑。
  * ==========================================================================*/
 describe('request 拦截器 - 401 单飞刷新与重试策略', () => {
-  let service
-  let resetRefreshState
-  let resetLoginRedirectDedupe
-  let adapter
+  let service: AxiosInstance
+  let resetRefreshState: () => void
+  let resetLoginRedirectDedupe: () => void
+  let adapter: AxiosAdapter
+
+  /** 路由处理函数：按 URL 片段命中后，返回成功响应或被拒绝的 Promise */
+  type StubRouteHandler = (config: InternalAxiosRequestConfig) => Promise<AxiosResponse>
 
   /** adapter 收到的每一次调用（url/method/signal），用于断言重放与 signal 重建 */
-  let calls
+  type AdapterCall = Pick<InternalAxiosRequestConfig, 'url' | 'method' | 'signal'>
+  let calls: AdapterCall[]
 
   /** 受控时钟的当前读数（用例之间推进，用例内保持恒定） */
   let fakeNow = 1_000_000
@@ -261,8 +272,8 @@ describe('request 拦截器 - 401 单飞刷新与重试策略', () => {
   })
 
   /** 构造一个成功的 axios 响应（经 transformResponse 原样透传） */
-  function ok(data, status = 200) {
-    return (config) =>
+  function ok(data: ApiData, status = 200) {
+    return (config: InternalAxiosRequestConfig): Promise<AxiosResponse> =>
       Promise.resolve({
         data,
         status,
@@ -281,8 +292,8 @@ describe('request 拦截器 - 401 单飞刷新与重试策略', () => {
   }
 
   /** 构造一个带 response 的 HTTP 错误（模拟 4xx/5xx） */
-  function httpFail(status, responseData = null) {
-    return (config) => {
+  function httpFail(status: number, responseData: ApiData = null) {
+    return (config: InternalAxiosRequestConfig) => {
       const err: StubAxiosError = new Error(`Request failed with status code ${status}`)
       err.config = config
       err.response = { status, data: responseData ?? {}, headers: {}, config }
@@ -293,7 +304,7 @@ describe('request 拦截器 - 401 单飞刷新与重试策略', () => {
 
   /** 构造一个「无 response」的网络错误（超时/断网） */
   function networkFail(message = 'Network Error') {
-    return (config) => {
+    return (config: InternalAxiosRequestConfig) => {
       const err: StubAxiosError = new Error(message)
       err.config = config
       err.request = {}
@@ -304,10 +315,10 @@ describe('request 拦截器 - 401 单飞刷新与重试策略', () => {
 
   /**
    * 安装按 URL 前缀路由的 adapter。
-   * @param {Record<string, Function>} routes key 为 url 片段，value 为处理函数
+   * @param {Record<string, StubRouteHandler>} routes key 为 url 片段，value 为处理函数
    */
-  function installAdapter(routes) {
-    adapter = vi.fn((config) => {
+  function installAdapter(routes: Record<string, StubRouteHandler>) {
+    adapter = vi.fn((config: InternalAxiosRequestConfig) => {
       calls.push({ url: config.url, method: config.method, signal: config.signal })
       const key = Object.keys(routes).find((k) => String(config.url).includes(k))
       if (!key) throw new Error(`测试未编排的 URL: ${config.url}`)
@@ -336,9 +347,9 @@ describe('request 拦截器 - 401 单飞刷新与重试策略', () => {
 
   describe('P0-4 并发 401 单飞刷新', () => {
     /** 首次请求回 401、重放（第二次命中同一 URL）回 200 的编排器 */
-    function firstOnly401(data) {
+    function firstOnly401(data: ApiData) {
       const seen = new Set()
-      return (config) => {
+      return (config: InternalAxiosRequestConfig) => {
         if (!seen.has(config.url)) {
           seen.add(config.url)
           return httpFail(401)(config)
@@ -348,7 +359,7 @@ describe('request 拦截器 - 401 单飞刷新与重试策略', () => {
     }
 
     /** 统计某 URL 实际发出的次数（含重放） */
-    function countCalls(url) {
+    function countCalls(url: string) {
       return calls.filter((c) => c.url === url).length
     }
 
@@ -454,7 +465,7 @@ describe('request 拦截器 - 401 单飞刷新与重试策略', () => {
   })
 
   describe('P1-7 网络错误仅幂等方法重试', () => {
-    function countCalls(url) {
+    function countCalls(url: string) {
       return calls.filter((c) => c.url === url).length
     }
 
@@ -482,7 +493,9 @@ describe('request 拦截器 - 401 单飞刷新与重试策略', () => {
         [url]: networkFail('Network Error'),
       })
 
-      await expect(service[method](url, { payload: 1 })).rejects.toBeDefined()
+      await expect(
+        service[method as 'post' | 'put' | 'delete'](url, { payload: 1 }),
+      ).rejects.toBeDefined()
       // 关键断言：非幂等请求只发一次。重复提交会产生重复答卷/重复记录。
       expect(countCalls(url)).toBe(1)
     })

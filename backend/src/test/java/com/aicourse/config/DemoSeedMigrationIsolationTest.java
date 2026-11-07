@@ -63,7 +63,11 @@ class DemoSeedMigrationIsolationTest {
             // V14（2026-11-06）：教学班两表 + course_enrollments 加列与组织回填 —— 结构迁移，非演示数据
             "V14__course_teaching_class.sql",
             // V15（2026-11-06）：tasks/exam_papers 可见范围 + 两张目标教学班表 —— 结构迁移，非演示数据
-            "V15__activity_targets.sql");
+            "V15__activity_targets.sql",
+            // V16（2026-11-07，WP7+WP8）：四类活动快照列与回填 + announcements 公告表 —— 结构迁移，非演示数据
+            "V16__announcement_and_snapshot.sql",
+            // V17（2026-11-07，WP10）：courses.semester_id 回填与学期内唯一、成员收紧 —— 结构迁移，非演示数据
+            "V17__org_cutover.sql");
 
     /** 演示种子脚本：这些文件名只允许出现在 {@code db/seed-demo}。 */
     private static final Set<String> SEED_FILENAMES = Set.of(

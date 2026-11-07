@@ -1,4 +1,6 @@
-fastapi>=0.110
-uvicorn>=0.27
-pydantic>=2.0
-httpx>=0.27
+# 依赖锁定（2026-11-06 验收批）：见 kg_service/requirements.txt 的同款说明与升级方式。
+# 本文件是 CI 契约护栏唯一安装的清单，重依赖走 requirements-engine.txt。
+fastapi==0.136.1
+uvicorn==0.46.0
+pydantic==2.13.2
+httpx==0.28.1

@@ -8,6 +8,8 @@ import com.aicourse.entity.Course;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.CourseMapper;
 import com.aicourse.service.CourseService;
+import com.aicourse.service.SemesterService;
+import com.aicourse.service.component.org.CourseDefaultTeachingClassSync;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -29,6 +31,20 @@ import java.util.List;
 public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> implements CourseService {
 
     private static final Logger log = LoggerFactory.getLogger(CourseServiceImpl.class);
+
+    /**
+     * 默认教学班同步器：课程一旦落库就保证「恰有 1 个默认教学班」（WP4 判据 9A 的运行态延伸）。
+     * 走独立组件而非 TeachingClassService，是因为后者依赖本服务，直接互相注入会成环。
+     */
+    private final CourseDefaultTeachingClassSync defaultTeachingClassSync;
+    /** 学期服务：创建课程时解析默认归属的 ACTIVE 学期（4A，V17 起课程编号学期内唯一）。 */
+    private final SemesterService semesterService;
+
+    public CourseServiceImpl(CourseDefaultTeachingClassSync defaultTeachingClassSync,
+                             SemesterService semesterService) {
+        this.defaultTeachingClassSync = defaultTeachingClassSync;
+        this.semesterService = semesterService;
+    }
 
     /**
      * 课程详情：按 id 缓存（课程元信息更新频率低，命中率高的读路径）。
@@ -57,7 +73,19 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     public boolean save(Course entity) {
         log.info("保存课程");
 
-        return super.save(entity);
+        // 4A（V17）：课程编号在学期内唯一的前提是课程归属学期——未显式指定时解析当前 ACTIVE 学期；
+        // 无任何 ACTIVE 学期时保持 null（V17 的 NOT NULL 收紧只对回填后的存量生效，新链路缺学期即建课失败
+        // 属数据门禁，不在本处静默兜底），唯一键对其不约束（MySQL 唯一索引对 NULL 不去重）。
+        if (entity.getSemesterId() == null) {
+            semesterService.listByStatus("ACTIVE").stream()
+                    .findFirst()
+                    .ifPresent(active -> entity.setSemesterId(active.getId()));
+        }
+        boolean saved = super.save(entity);
+        if (saved) {
+            defaultTeachingClassSync.sync(entity);
+        }
+        return saved;
     }
 
     @Override
@@ -70,7 +98,11 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     public boolean updateById(Course entity) {
         log.info("更新课程");
 
-        return super.updateById(entity);
+        boolean updated = super.updateById(entity);
+        if (updated) {
+            defaultTeachingClassSync.sync(entity);
+        }
+        return updated;
     }
 
     @Override

@@ -52,7 +52,7 @@ PLACEHOLDER_RE = re.compile(
     re.IGNORECASE,
 )
 
-# 不是六个 ${:?} 必填键、但属于人工凭证的键：生成脚本不处理，建议显式设置。
+# 不是 ${:?} 必填键、但属于人工凭证的键：生成脚本不处理，建议显式设置。
 OPTIONAL_MANUAL_KEYS = ["MYSQL_APP_PASSWORD"]
 
 
@@ -202,11 +202,11 @@ def main() -> int:
     print(f"  [compose config] {compose_status}：{compose_detail}")
     print("")
     if manual_required:
-        print("  [需人工填] 六个必填键中 generate-secrets.py 不生成：")
+        print("  [需人工填] 必填键（数量取自 compose，勿在此硬编码）中 generate-secrets.py 不生成：")
         for key in manual_required:
             print(f"    - {key}")
     else:
-        print("  [需人工填] 六个必填键均已由 generate-secrets.py 覆盖。")
+        print("  [需人工填] 必填键均已由 generate-secrets.py 覆盖。")
     print("  [另需人工填] 非 ${:?} 必填，但建议显式设置（否则可能回落到 root）：")
     for key in OPTIONAL_MANUAL_KEYS:
         print(f"    - {key}")

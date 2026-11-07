@@ -255,7 +255,7 @@ const { page, pageSize, total, paged, showPager, onPageChange, reset } =
 const pageCount = computed(() => Math.max(1, Math.ceil(total.value / pageSize.value)))
 
 const editorOpen = ref(false)
-const editingId = ref<ClassroomRow['id'] | null>(null)
+const editingId = ref<NonNullable<ClassroomRow['id']> | null>(null)
 const saving = ref(false)
 const formError = ref('')
 const form = reactive({

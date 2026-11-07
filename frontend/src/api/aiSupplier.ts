@@ -1,5 +1,6 @@
 import request from './request'
 import { updateSystemConfig } from './system'
+import { type ApiData } from '@/utils/response'
 
 // AI 供应商配置
 // 复用系统通用配置 KV 存储（system_configs 表，config_group = 'AI'）。
@@ -12,7 +13,7 @@ export const aiSupplierApi = {
   },
   // 保存单项配置（upsert 到 system_configs，group = 'AI'）
   // 复用 system.js updateSystemConfig（POST /admin/system/configs { key, value, group }）
-  saveConfig(key, value) {
+  saveConfig(key: string, value: ApiData) {
     return updateSystemConfig(key, value, { group: 'AI' })
   },
   // 查询当前运行时供应商与配置状态（无需重启）
@@ -21,7 +22,7 @@ export const aiSupplierApi = {
   },
   // 运行时热切换底层大模型（即时生效，无需重启）
   // 对应后端 POST /admin/ai/provider  { provider }
-  switchProvider(provider) {
+  switchProvider(provider: string) {
     return request.post('/admin/ai/provider', { provider })
   },
   // 连通性测试：用当前供应商做一次最小补全

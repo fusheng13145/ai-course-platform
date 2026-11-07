@@ -424,7 +424,13 @@ export function useTeacherGrades(host: TeacherGradesHost = {}) {
   }
 
   function getGradeTagType(level: string) {
-    const map = { A: 'success', B: 'primary', C: 'warning', D: 'danger', F: 'info' }
+    const map: Record<string, string> = {
+      A: 'success',
+      B: 'primary',
+      C: 'warning',
+      D: 'danger',
+      F: 'info',
+    }
     return map[level] || 'info'
   }
 

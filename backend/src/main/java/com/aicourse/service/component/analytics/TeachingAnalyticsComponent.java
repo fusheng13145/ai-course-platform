@@ -41,6 +41,8 @@ public class TeachingAnalyticsComponent {
     private final SubmissionService submissionService;
     private final UserService userService;
     private final CourseAnalyticsComponent courseAnalytics;
+    private final com.aicourse.mapper.AdminClassMapper adminClassMapper;
+    private final com.aicourse.mapper.TeachingClassMapper teachingClassMapper;
 
     public TeachingAnalyticsComponent(
             CourseService courseService,
@@ -48,7 +50,9 @@ public class TeachingAnalyticsComponent {
             TaskService taskService,
             SubmissionService submissionService,
             UserService userService,
-            CourseAnalyticsComponent courseAnalytics
+            CourseAnalyticsComponent courseAnalytics,
+            com.aicourse.mapper.AdminClassMapper adminClassMapper,
+            com.aicourse.mapper.TeachingClassMapper teachingClassMapper
     ) {
         this.courseService = courseService;
         this.enrollmentService = enrollmentService;
@@ -56,6 +60,8 @@ public class TeachingAnalyticsComponent {
         this.submissionService = submissionService;
         this.userService = userService;
         this.courseAnalytics = courseAnalytics;
+        this.adminClassMapper = adminClassMapper;
+        this.teachingClassMapper = teachingClassMapper;
     }
 
     /**
@@ -414,6 +420,21 @@ public class TeachingAnalyticsComponent {
                 return u != null && u.getMajor() != null ? u.getMajor() : "未知专业";
             case "class":
                 return u != null && u.getClassName() != null ? u.getClassName() : "未知班级";
+            case "adminClass": {
+                // WP9：行政班分组（V14 回填的 users.admin_class_id；未回填/未归属 → 未知班级）
+                Long adminClassId = u != null ? u.getAdminClassId() : null;
+                if (adminClassId == null) return "未知班级";
+                com.aicourse.entity.AdminClass adminClass = adminClassMapper.selectById(adminClassId);
+                return adminClass != null && adminClass.getName() != null ? adminClass.getName() : "未知班级";
+            }
+            case "teachingClass": {
+                // WP9：教学班分组（选课记录上的 teaching_class_id 快照口径）
+                Long tcId = e.getTeachingClassId();
+                if (tcId == null) return "未知班级";
+                com.aicourse.entity.TeachingClass teachingClass = teachingClassMapper.selectById(tcId);
+                return teachingClass != null && teachingClass.getName() != null
+                        ? teachingClass.getName() : "未知班级";
+            }
             default:
                 return "全校";
         }

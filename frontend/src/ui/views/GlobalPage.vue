@@ -44,9 +44,11 @@ import { computed, defineAsyncComponent, type AsyncComponentLoader } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import PageHead from '../components/PageHead.vue'
 import Icon from '../components/Icon.vue'
-import ExamGovernanceBody from './specials/ExamGovernanceBody.vue'
 import AnalyticsTab from './course/tabs/AnalyticsTab.vue'
-import MessagesBody from './specials/MessagesBody.vue'
+// ExamGovernanceBody / MessagesBody 都命中 registry 的 `*Body.vue` glob：静态导入会让
+// Vite 报 INEFFECTIVE_DYNAMIC_IMPORT（动态导入失效、白赚一个分块）。与约定一致走懒加载。
+const ExamGovernanceBody = defineAsyncComponent(() => import('./specials/ExamGovernanceBody.vue'))
+const MessagesBody = defineAsyncComponent(() => import('./specials/MessagesBody.vue'))
 import { specialBodyLoader } from './specials/registry'
 import { notProvidedCopy as copyFor, pageDisposition } from '../notProvided'
 import { pageDef, type Role } from '../nav'

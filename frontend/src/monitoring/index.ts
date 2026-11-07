@@ -44,7 +44,7 @@ export function initMonitoring() {
  * @param {string} [info] Vue errorHandler 提供的错误类型信息（如 render / async event handler）
  * @param {string} [component] 出错组件名（取自 instance.$options.name）
  */
-export function captureFrontendError(err, info, component) {
+export function captureFrontendError(err: unknown, info?: string, component?: string) {
   // 控制台输出（保留现状：开发调试与本地排障）
   logger.error('[Global Error]', err)
   logger.error('[Error Info]', info || '')

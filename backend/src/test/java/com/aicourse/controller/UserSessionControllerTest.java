@@ -139,30 +139,30 @@ class UserSessionControllerTest extends ControllerTestBase {
 
 
     @Test
-    @DisplayName("GET /user-sessions/online - 院系管理员只查本院在线会话")
-    void getOnlineUsers_collegeAdmin_scopedToCollege() throws Exception {
-        collegeAdminScoped(List.of(user(20L, 10L, "TEACHER")));
-        when(userSessionService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
-                .thenReturn(List.of(sampleSession(1L, 20L)));
+    @DisplayName("GET /user-sessions/online - 院系管理员 403（8A：会话监视先 403，WP9 收紧；TEACHER 一并摘除）")
+    void getOnlineUsers_collegeAdmin_forbidden() throws Exception {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
 
         mockMvc.perform(get("/user-sessions/online").with(withCollegeAdmin(3L)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
-                .andExpect(jsonPath("$.data[0].id").value(1));
+                .andExpect(status().isForbidden());
         verify(userSessionService, never()).list();
     }
 
     @Test
-    @DisplayName("GET /user-sessions/stats - 院系管理员只统计本院且不做全局清理")
-    void getSessionStats_collegeAdmin_scopedToCollege() throws Exception {
-        collegeAdminScoped(List.of(user(20L, 10L, "TEACHER")));
-        when(userSessionService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
-                .thenReturn(List.of(sampleSession(1L, 20L), sampleSession(2L, 20L)));
+    @DisplayName("GET /user-sessions/online - TEACHER 不再可枚举全站在线会话（WP9 收紧）")
+    void getOnlineUsers_teacher_forbidden() throws Exception {
+        mockMvc.perform(get("/user-sessions/online").with(withUser(5L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(userSessionService, never()).list();
+    }
+
+    @Test
+    @DisplayName("GET /user-sessions/stats - 院系管理员 403（8A）")
+    void getSessionStats_collegeAdmin_forbidden() throws Exception {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
 
         mockMvc.perform(get("/user-sessions/stats").with(withCollegeAdmin(3L)))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.onlineUserCount").value(1))
-                .andExpect(jsonPath("$.data.cleanedExpiredSessions").value(0));
+                .andExpect(status().isForbidden());
         verify(userSessionService, never()).getOnlineUserCount();
         verify(userSessionService, never()).cleanExpiredSessions();
     }

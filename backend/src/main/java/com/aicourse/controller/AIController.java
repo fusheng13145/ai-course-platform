@@ -105,6 +105,7 @@ public class AIController {
         return () -> {
             Long cid = courseId != null ? Long.valueOf(courseId) : null;
             AiChatSession session = (providedSid != null) ? aiChatSessionService.getBySessionId(providedSid) : null;
+            assertSessionOwned(session, userId);
             if (session == null) {
                 // ★ 2026-10-13 修复：不再丢弃入口已收到的 courseId（原先固定传 null，会话无法归属课程）
                 session = aiChatSessionService.createSession(userId, null, cid);
@@ -139,6 +140,7 @@ public class AIController {
         final String providedSid = body.getSessionId();
         return () -> {
             AiChatSession session = (providedSid != null) ? aiChatSessionService.getBySessionId(providedSid) : null;
+            assertSessionOwned(session, userId);
             if (session == null) {
                 session = aiChatSessionService.createSession(userId, null, null);
             }
@@ -220,6 +222,22 @@ public class AIController {
         return stream.getTokens()
                 .map(this::tokenFrame)
                 .concatWith(Flux.just(sourcesFrame(sources)));
+    }
+
+    /**
+     * 会话归属断言（2026-11-06 验收批，B-05 对象级 ACL）。
+     * <p>
+     * {@code getBySessionId} 的谓词只有 sessionId（UUID）与未删除，不带 userId；调用方一旦被
+     * 传入他人的 sessionId，就会把<b>他人的历史</b>读进 prompt、并把新消息<b>写进他人的会话</b>。
+     * sessionId 不可枚举不等于不需要校验：一次抓包、一条被转发的链接即失控。
+     */
+    private void assertSessionOwned(AiChatSession session, Long userId) {
+        if (session == null) {
+            return;
+        }
+        if (userId == null || !userId.equals(session.getUserId())) {
+            throw new BusinessException(ApiCode.FORBIDDEN, "无权访问他人的 AI 会话");
+        }
     }
 
     /** 增量帧：{"token":"..."}；序列化失败（理论不可达）时降级为空增量，不打断整条流。 */

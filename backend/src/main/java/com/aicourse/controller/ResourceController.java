@@ -198,7 +198,7 @@ public class ResourceController {
      * @return 操作结果
      */
     @PatchMapping("/{id}/visibility")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     public ApiResponse<Void> toggleVisibility(@PathVariable Long id,
                                               @Valid @RequestBody ResourceVisibilityDTO params,
                                               Authentication auth) {
@@ -235,7 +235,7 @@ public class ResourceController {
      * 权限：教师、管理员；且教师仅可上传至本人任教课程（修复 #5：补对象级 ACL）。
      */
     @PostMapping("/upload")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     public ApiResponse<Resource> uploadResource(
             @RequestParam("file") MultipartFile file,
             @RequestParam Long courseId,
@@ -483,7 +483,7 @@ public class ResourceController {
      * 权限：教师、管理员（修复 P1-6：教师仅能删除本课程资源）
      */
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     public ApiResponse<Void> deleteResource(@PathVariable Long id, Authentication auth) {
         Resource resource = resourceService.getById(id);
         if (resource == null) {

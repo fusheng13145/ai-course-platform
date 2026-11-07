@@ -86,11 +86,11 @@ public class CourseController {
     }
 
     /**
-     * 新增课程（教师/管理员权限）
+     * 新增课程（教师权限；WP9 管理员只读矩阵——管理员对教学写面 403）
      */
     @PostMapping
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "创建新课程", description = "教师或管理员创建新课程，自动关联当前登录用户为授课教师")
+    @PreAuthorize("hasRole('TEACHER')")
+    @Operation(summary = "创建新课程", description = "教师创建新课程，自动关联当前登录用户为授课教师")
     public ApiResponse<Course> create(@io.swagger.v3.oas.annotations.parameters.RequestBody(
             description = "课程信息"
     ) @Valid @RequestBody Course course, Authentication auth) {
@@ -104,11 +104,11 @@ public class CourseController {
     }
 
     /**
-     * 修改课程信息（课程创建者/管理员权限）
+     * 修改课程信息（课程创建者权限；WP9 管理员只读矩阵——管理员 403）
      */
     @PutMapping("/{id}")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "更新课程信息", description = "课程创建者或管理员可修改课程信息")
+    @PreAuthorize("hasRole('TEACHER')")
+    @Operation(summary = "更新课程信息", description = "课程创建者可修改课程信息")
     public ApiResponse<Course> update(@Parameter(description = "课程ID") @PathVariable Long id,
                                       @io.swagger.v3.oas.annotations.parameters.RequestBody(
                                               description = "待更新的课程数据"
@@ -157,7 +157,7 @@ public class CourseController {
      * 切换课程启用/禁用状态（教师/管理员权限，教师仅能操作自己创建的课程）
      */
     @PatchMapping("/{id}/toggle")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     @Operation(summary = "切换课程状态", description = "在ACTIVE和INACTIVE之间切换课程状态，教师仅能操作自己创建的课程")
     public ApiResponse<Course> toggle(@Parameter(description = "课程ID") @PathVariable Long id, Authentication auth) {
         assertCourseOwner(id, auth);
@@ -187,7 +187,7 @@ public class CourseController {
      * 重新提交被驳回的课程（教师仅限本人课程，院系管理员限本院）
      */
     @PostMapping("/{id}/resubmit")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     @Operation(summary = "重新提交课程", description = "仅驳回状态可重提，历史审批流水保留")
     public ApiResponse<Course> resubmit(@Parameter(description = "课程ID") @PathVariable Long id, Authentication auth) {
         assertCourseOwner(id, auth);

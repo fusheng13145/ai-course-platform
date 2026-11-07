@@ -1,6 +1,7 @@
 import logger from '@/utils/logger'
 import { defineStore } from 'pinia'
 import { ref, computed } from 'vue'
+import { isAxiosError } from 'axios'
 import authApi from '@/api/auth'
 import { connect as wsConnect, disconnect as wsDisconnect } from '@/utils/websocket'
 import { unwrap } from '@/utils/response'
@@ -17,7 +18,7 @@ import { unwrap } from '@/utils/response'
  * @param {string} key 键名
  * @returns {{value: unknown, dirty: boolean}} 解析结果与是否为脏数据
  */
-function readJson(storage, key) {
+function readJson(storage: Storage, key: string) {
   const raw = storage.getItem(key)
   if (raw === null || raw === '') return { value: null, dirty: false }
   try {
@@ -92,7 +93,7 @@ export const useAuthStore = defineStore('auth', () => {
     return userRole.value
   })
 
-  function saveToStorage(persistent) {
+  function saveToStorage(persistent: boolean) {
     // 仅持久化非敏感的 user / permissions；令牌（HttpOnly Cookie）绝不落前端存储
     const storage = persistent ? localStorage : sessionStorage
     if (user.value) storage.setItem('user', JSON.stringify(user.value))
@@ -198,7 +199,7 @@ export const useAuthStore = defineStore('auth', () => {
       // fail-closed：加载失败时保持 permissionsLoaded=false，使权限判定统一拒绝，
       // 而非错误地放开全部按钮/菜单。
       logger.error('Failed to fetch permissions:', error)
-      if (error?.response?.status === 401) {
+      if (isAxiosError(error) && error.response?.status === 401) {
         // 服务端明确拒绝本次会话（拦截器的静默刷新也已失败）：清空本地登录态并回传结论，
         // 跳转动作交给路由守卫这唯一出口。
         resetAuthState()
@@ -211,14 +212,14 @@ export const useAuthStore = defineStore('auth', () => {
   // 安全约定：以下前端权限仅用于界面展示优化（隐藏无权限的按钮/菜单）。
   // 真正的访问控制由后端对象级鉴权兜底，前端被绕过也不影响数据安全。
 
-  const hasMenuPermission = (menuKey) => {
+  const hasMenuPermission = (menuKey: string) => {
     // 未加载或无权限数据时拒绝（fail-closed）
     if (!permissionsLoaded.value || !permissions.value) return false
     const menus = permissions.value.menus || []
     return menus.includes(menuKey)
   }
 
-  const hasButtonPermission = (buttonKey) => {
+  const hasButtonPermission = (buttonKey: string) => {
     // 未加载或无权限数据时拒绝（fail-closed）
     if (!permissionsLoaded.value || !permissions.value) return false
     const buttons = permissions.value.buttons || {}
@@ -235,7 +236,12 @@ export const useAuthStore = defineStore('auth', () => {
    * @returns {Promise<{success: boolean, user: Object}>} 登录结果，包含用户信息
    * @throws {Error} 登录失败时抛出错误
    */
-  const login = async (credentials) => {
+  const login = async (credentials: {
+    username: string
+    password: string
+    remember?: boolean
+    rememberMe?: boolean
+  }) => {
     try {
       isLoading.value = true
       const remember = credentials.remember !== false
@@ -245,7 +251,7 @@ export const useAuthStore = defineStore('auth', () => {
         rememberMe: remember,
       })
       const data = unwrap(response)
-      if (data.user) {
+      if (data && data.user) {
         // 令牌已写入 HttpOnly Cookie，前端仅持有内存态占位，不持久化
         token.value = String(data.token || '')
         user.value = data.user
@@ -275,7 +281,7 @@ export const useAuthStore = defineStore('auth', () => {
    * @param {string} userData.fullName - 真实姓名
    * @returns {Promise<{success: boolean, data: Object}>} 注册结果
    */
-  const register = async (userData) => {
+  const register = async (userData: Record<string, unknown>) => {
     try {
       isLoading.value = true
       const response = await authApi.register(userData)
@@ -304,7 +310,7 @@ export const useAuthStore = defineStore('auth', () => {
    * @param {string} email - 注册邮箱
    * @returns {Promise<void>}
    */
-  const sendResetCode = async (email) => {
+  const sendResetCode = async (email: string) => {
     await authApi.sendVerificationCode({ email, type: 'FORGOT_PASSWORD' })
   }
 
@@ -314,7 +320,7 @@ export const useAuthStore = defineStore('auth', () => {
    * @param {string} code - 验证码
    * @returns {Promise<void>}
    */
-  const verifyResetCode = async (email, code) => {
+  const verifyResetCode = async (email: string, code: string) => {
     await authApi.verifyResetCode({ email, code })
   }
 
@@ -325,7 +331,7 @@ export const useAuthStore = defineStore('auth', () => {
    * @param {string} newPassword - 新密码
    * @returns {Promise<void>}
    */
-  const resetPassword = async (email, code, newPassword) => {
+  const resetPassword = async (email: string, code: string, newPassword: string) => {
     await authApi.resetPassword({ email, code, newPassword })
   }
 

@@ -234,6 +234,26 @@ services:
       OLLAMA_THINK: ${OLLAMA_THINK:-}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      # 2026-11-06 验收批补件（同 DR-73 教训）：yml 有落点而编排不注入＝调不动也不报错。
+      # 原先只注 USER/PASSWORD，HOST/PORT/SSL/STARTTLS/FROM_NAME 到不了容器，
+      # 容器形态恒用 smtp.qq.com:587 默认值；而 prod 已关掉「验证码回显到日志」的兜底，
+      # 通道配错时注册验证码会静默失败。默认值与 application.yaml 逐项一致，不设即旧行为。
+      MAIL_HOST: ${MAIL_HOST:-smtp.qq.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_SSL_ENABLE: ${MAIL_SSL_ENABLE:-false}
+      MAIL_STARTTLS_ENABLE: ${MAIL_STARTTLS_ENABLE:-true}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-AI 课程平台}
+      # OpenAI / 通义千问两条 provider 的通道键（application.yaml:285-291 真的在读）。
+      # 改前只注 DEEPSEEK_*/OLLAMA_*，AI_PROVIDER=openai|qwen 时编排里拿不到 Key ⇒ 静默 401。
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      QWEN_API_KEY: ${QWEN_API_KEY:-}
+      QWEN_BASE_URL: ${QWEN_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      QWEN_MODEL: ${QWEN_MODEL:-qwen-plus}
+      # 分片上传的中间态目录：application.yaml:465 读 FILE_CHUNK_DIR，默认 upload-chunks/。
+      # 改前该目录不在任何卷上，容器重建即丢全部断点续传进度（与 uploads 同类的旧缺陷）。
+      FILE_CHUNK_DIR: ${FILE_CHUNK_DIR:-/app/upload-chunks}
       # 安全开关：**默认安全**，不因本文件的部署形态把生产默认值降到 false。
       # ⚠️ 纠偏（2026-09-16）：原注释只写「本地 HTTP 联调由本机启动器经 local profile 放宽」，
       #   该句仅覆盖 start.bat 这条路径，对 `docker compose --profile full` **完全不适用** —— 这正是缺陷根源。
@@ -248,8 +268,13 @@ services:
       # ⚠ 2026-10-17 更正：本行旧文案写「后端已启用 forward-headers-strategy: framework」已过期——
       #   现行值是 **none**（backend/src/main/resources/application.yaml:131），协议修正改由
       #   config/TrustedForwardedProtoFilter 只读 X-Forwarded-Proto 完成（手册 DR-66）。
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      REQUIRE_HTTPS: ${REQUIRE_HTTPS:-false}
+      # 2026-11-06 验收批：这两键原先写作 `${VAR:-false}` —— 与本文件上方「默认安全」的
+      # 注释自相矛盾：TLS 终止反代之后只要忘记 .env，Cookie 就会退回非 Secure、
+      # REQUIRE_HTTPS 退回不强制，且 compose 一声不响。现在改为**必填**（与 6 个密钥键同策略）：
+      # 忘记设置就在 `docker compose config` 阶段失败，而不是上线后静默降级。
+      # 纯 HTTP 评估形态请显式写 false（.env.example 已给示例值）。
+      COOKIE_SECURE: ${COOKIE_SECURE:?COOKIE_SECURE 必须显式设置（TLS 反代之后=true，纯 HTTP 评估=false）}
+      REQUIRE_HTTPS: ${REQUIRE_HTTPS:?REQUIRE_HTTPS 必须显式设置（TLS 反代之后=true，纯 HTTP 评估=false）}
       CSRF_ENABLED: ${CSRF_ENABLED:-true}
       # 客户端 IP 取值来源（2026-09-16 上线前全检新增）：修复「伪造 X-Forwarded-For 逐请求换头
       # 绕过登录失败节流 / IP 限流」的 🔴 缺陷（详见 TrustedClientIpResolver 类注释）。
@@ -320,6 +345,8 @@ services:
       # 上传文件持久化（修复：原未挂卷，容器重建后 uploads/ 下所有教学资源/附件丢失；
       # 与 UploadResourceConfig 静态映射及 ResourceController 落盘目录 /app/uploads 对齐）
       - uploads-data:/app/uploads
+      # 分片上传中间态（FILE_CHUNK_DIR）：容器重建不丢续传进度（2026-11-06 补件）
+      - upload-chunks-data:/app/upload-chunks
       # 数据库备份持久化：应用内「系统管理→备份」生成的 backups/ 目录落盘到卷，
       # 容器重建不丢失（配合 mysql-backup 服务的定时全量备份构成双保险）
       - backups-data:/app/backups
@@ -702,6 +729,8 @@ volumes:
   mysql-data:
   redis-data:
   uploads-data:
+  # 分片上传中间态（backend FILE_CHUNK_DIR，2026-11-06 补件）
+  upload-chunks-data:
   # 定时备份卷（mysql-backup 服务写入）
   mysql-backups:
   # 应用内手动备份卷（SystemServiceImpl backups/ 目录）

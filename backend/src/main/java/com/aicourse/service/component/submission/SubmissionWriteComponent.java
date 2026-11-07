@@ -6,6 +6,7 @@ import com.aicourse.entity.Task;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.SubmissionMapper;
 import com.aicourse.service.TaskService;
+import com.aicourse.service.component.org.TeachingClassSnapshotResolver;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -30,15 +31,18 @@ public class SubmissionWriteComponent {
     private final SubmissionMapper submissionMapper;
     private final TaskService taskService;
     private final SubmissionJsonComponent jsonSupport;
+    private final TeachingClassSnapshotResolver teachingClassSnapshotResolver;
     private final Counter submissionsCreated;
 
     public SubmissionWriteComponent(SubmissionMapper submissionMapper,
                                     @Lazy TaskService taskService,
                                     SubmissionJsonComponent jsonSupport,
+                                    TeachingClassSnapshotResolver teachingClassSnapshotResolver,
                                     MeterRegistry meterRegistry) {
         this.submissionMapper = submissionMapper;
         this.taskService = taskService;
         this.jsonSupport = jsonSupport;
+        this.teachingClassSnapshotResolver = teachingClassSnapshotResolver;
         this.submissionsCreated = Counter.builder("aicourse_submissions_created_total")
                 .description("作业正式提交（含草稿转正）累计次数")
                 .register(meterRegistry);
@@ -110,6 +114,9 @@ public class SubmissionWriteComponent {
             submission = new Submission();
             submission.setTaskId(taskId);
             submission.setStudentId(studentId);
+            // WP7 快照：从成员关系解析，不从请求体信任；转班后历史提交不漂移
+            submission.setTeachingClassId(
+                    teachingClassSnapshotResolver.resolveTeachingClassId(studentId, task.getCourseId()));
         }
         submission.setContent(content);
         if (fileUrls != null && !fileUrls.isEmpty()) {
@@ -161,6 +168,9 @@ public class SubmissionWriteComponent {
             draft.setStudentId(studentId);
             draft.setStatus("DRAFT");
             draft.setViewCount(0);
+            // WP7 快照：草稿创建时即归属当时的教学班，转正后不再改写
+            draft.setTeachingClassId(
+                    teachingClassSnapshotResolver.resolveTeachingClassId(studentId, task.getCourseId()));
         }
         draft.setContent(content);
         if (fileUrls != null && !fileUrls.isEmpty()) {
@@ -221,6 +231,10 @@ public class SubmissionWriteComponent {
         Submission newSubmission = new Submission();
         newSubmission.setTaskId(existing.getTaskId());
         newSubmission.setStudentId(existing.getStudentId());
+        // WP7 快照：重交是新记录，同样按当前成员关系解析（task 可能已被删，此时快照留空）
+        newSubmission.setTeachingClassId(task != null
+                ? teachingClassSnapshotResolver.resolveTeachingClassId(existing.getStudentId(), task.getCourseId())
+                : null);
         newSubmission.setContent(content);
         if (fileUrls != null && !fileUrls.isEmpty()) {
             newSubmission.setFileUrls(String.join(",", fileUrls));

@@ -28,13 +28,20 @@ class DiscussionControllerTest extends ControllerTestBase {
     @MockitoBean
     private com.aicourse.service.DiscussionService discussionService;
 
+    /**
+     * 2026-11-06 验收批：控制器新增课程成员关系断言（B-05）。本切片只验「路由与委托」，
+     * 归属判定本身的语义由 DiscussionAccessControlTest 覆盖，这里注入默认不拦截的替身。
+     */
+    @MockitoBean
+    private com.aicourse.security.CourseAccessControl courseAccessControl;
+
     @Test
     @DisplayName("POST /discussion/topic - 发布话题返回200，ID透传")
     void createTopic_authorized_passes_security() throws Exception {
         DiscussionTopic topic = new DiscussionTopic();
         topic.setId(1L);
         when(discussionService.createTopic(any(), eq(1L), any())).thenReturn(topic);
-        mockMvc.perform(post("/discussion/topic").contentType(MediaType.APPLICATION_JSON).content("{}")
+        mockMvc.perform(post("/discussion/topic").contentType(MediaType.APPLICATION_JSON).content("{\"courseId\":7}")
                         .with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
@@ -45,7 +52,7 @@ class DiscussionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /discussion/topic - 未认证返回401")
     void createTopic_unauthorized_returns_401() throws Exception {
-        mockMvc.perform(post("/discussion/topic").contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mockMvc.perform(post("/discussion/topic").contentType(MediaType.APPLICATION_JSON).content("{\"courseId\":7}"))
                 .andExpect(status().isUnauthorized());
     }
 

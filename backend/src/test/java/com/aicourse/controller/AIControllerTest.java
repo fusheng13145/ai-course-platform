@@ -62,6 +62,7 @@ class AIControllerTest extends ControllerTestBase {
     @DisplayName("POST /ai/qa/ask - TEACHER 智能答疑返回 code=200 且字段透传")
     void qaAsk_authorized_passes_security() throws Exception {
         AiChatSession session = new AiChatSession();
+        session.setUserId(1L); // 库里 user_id NOT NULL：夹具必须带归属人
         session.setSessionId("sess-1");
         when(aiChatSessionService.createSession(anyLong(), any(), any())).thenReturn(session);
         when(aiChatSessionService.getMessages(anyString())).thenReturn(Collections.emptyList());
@@ -100,6 +101,7 @@ class AIControllerTest extends ControllerTestBase {
     @DisplayName("POST /ai/qa/ask - 回答与出处按纯文本下发，中文引号/尖括号不得变成 HTML 实体（B-13 ⑭）")
     void qaAsk_returnsPlainTextWithoutHtmlEntities() throws Exception {
         AiChatSession session = new AiChatSession();
+        session.setUserId(1L); // 库里 user_id NOT NULL：夹具必须带归属人
         session.setSessionId("sess-1");
         when(aiChatSessionService.createSession(anyLong(), any(), any())).thenReturn(session);
         String raw = "他说“闭包”就是 <script> 之前的作用域…&";
@@ -123,6 +125,7 @@ class AIControllerTest extends ControllerTestBase {
     @DisplayName("POST /ai/qa/ask - STUDENT角色可访问（AI助教对学生开放）")
     void qaAsk_student_authorized_200() throws Exception {
         AiChatSession session = new AiChatSession();
+        session.setUserId(2L); // 库里 user_id NOT NULL：夹具必须带归属人
         session.setSessionId("sess-1");
         when(aiChatSessionService.createSession(anyLong(), any(), any())).thenReturn(session);
         when(aiChatSessionService.getMessages(anyString())).thenReturn(Collections.emptyList());
@@ -146,6 +149,7 @@ class AIControllerTest extends ControllerTestBase {
     @DisplayName("POST /ai/qa/continue - TEACHER 继续对话返回 code=200 且字段透传")
     void qaContinue_authorized_passes_security() throws Exception {
         AiChatSession session = new AiChatSession();
+        session.setUserId(1L); // 库里 user_id NOT NULL：夹具必须带归属人
         session.setSessionId("sess-1");
         when(aiChatSessionService.getBySessionId(anyString())).thenReturn(session);
         when(aiChatSessionService.getMessages(anyString())).thenReturn(Collections.emptyList());
@@ -177,6 +181,7 @@ class AIControllerTest extends ControllerTestBase {
     @DisplayName("POST /ai/qa/continue - STUDENT角色可访问（AI助教对学生开放）")
     void qaContinue_student_authorized_200() throws Exception {
         AiChatSession session = new AiChatSession();
+        session.setUserId(2L); // 库里 user_id NOT NULL：夹具必须带归属人
         session.setSessionId("sess-1");
         when(aiChatSessionService.getBySessionId(anyString())).thenReturn(session);
         when(aiChatSessionService.getMessages(anyString())).thenReturn(Collections.emptyList());
@@ -199,6 +204,7 @@ class AIControllerTest extends ControllerTestBase {
     @DisplayName("GET /ai/qa/sessions - STUDENT 获取会话列表返回 code=200 且为数组")
     void getSessions_authorized_passes_security() throws Exception {
         AiChatSession session = new AiChatSession();
+        session.setUserId(1L); // 库里 user_id NOT NULL：夹具必须带归属人
         session.setSessionId("s1");
         session.setTitle("标题");
         session.setMessageCount(3);
@@ -481,6 +487,7 @@ class AIControllerTest extends ControllerTestBase {
     @DisplayName("POST /ai/qa/ask - 大模型凭据被拒必须落 503，而非 200 带降级文案")
     void qaAsk_llmDown_returns503() throws Exception {
         AiChatSession session = new AiChatSession();
+        session.setUserId(1L); // 库里 user_id NOT NULL：夹具必须带归属人
         session.setSessionId("sess-down");
         when(aiChatSessionService.createSession(anyLong(), any(), any())).thenReturn(session);
         when(aiChatSessionService.getMessages(anyString())).thenReturn(Collections.emptyList());

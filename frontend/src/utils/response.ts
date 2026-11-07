@@ -114,8 +114,9 @@ export function pickList<T = unknown>(payload: unknown): T[] {
  * @param {number} fallback 后端未提供总数时使用的回退值
  * @returns {number}
  */
-export function readTotal(payload, fallback = 0) {
-  const raw = payload?.total ?? payload?.count ?? payload?.totalCount
+export function readTotal(payload: unknown, fallback = 0): number {
+  const fields = (payload ?? {}) as ApiPayload
+  const raw = fields.total ?? fields.count ?? fields.totalCount
   const num = Number(raw)
   return Number.isFinite(num) && num >= 0 ? num : fallback
 }
@@ -154,12 +155,13 @@ export async function fetchAllPages<T = unknown>(
  *
  * @param {unknown} payload unwrap 之后的业务数据
  */
-export function isPageEnvelope(payload) {
+export function isPageEnvelope(payload: unknown): boolean {
   if (!payload || Array.isArray(payload) || typeof payload !== 'object') return false
+  const fields = payload as ApiPayload
   return (
-    Array.isArray(payload.list) ||
-    Array.isArray(payload.records) ||
-    Array.isArray(payload.items) ||
-    payload.total !== undefined
+    Array.isArray(fields.list) ||
+    Array.isArray(fields.records) ||
+    Array.isArray(fields.items) ||
+    fields.total !== undefined
   )
 }

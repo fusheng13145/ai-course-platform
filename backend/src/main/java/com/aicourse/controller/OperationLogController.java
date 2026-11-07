@@ -54,13 +54,14 @@ public class OperationLogController {
             @RequestParam(required = false) String action,
             @RequestParam(required = false) String username,
             @RequestParam(required = false) String status) {
+        // 8A（WP9）：审计对院系管理员先 403，校级原口径不变——不再做「本院可见」降级
+        adminScopeGuard.assertSchoolOnly();
         LambdaQueryWrapper<OperationLog> qw = new LambdaQueryWrapper<OperationLog>()
                 .eq(module != null && !module.isEmpty(), OperationLog::getModule, module)
                 .eq(action != null && !action.isEmpty(), OperationLog::getAction, action)
                 .eq(status != null && !status.isEmpty(), OperationLog::getStatus, status)
                 .like(username != null && !username.isEmpty(), OperationLog::getUsername, username)
                 .orderByDesc(OperationLog::getCreatedAt);
-        applyCollegeScope(qw);
         Page<OperationLog> logPage = operationLogService.page(Page.of(page, size), qw);
         return ApiResponse.success(PagedResponse.of(logPage));
     }
@@ -71,6 +72,8 @@ public class OperationLogController {
      */
     @GetMapping("/operation-logs/statistics")
     public ApiResponse<java.util.Map<String, Object>> getStatistics() {
+        // 8A（WP9）：同上，院系管理员 403
+        adminScopeGuard.assertSchoolOnly();
         List<Long> collegeUserIds = adminScopeGuard.currentCollegeUserIds();
         LambdaQueryWrapper<OperationLog> totalWrapper = new LambdaQueryWrapper<>();
         applyCollegeScope(totalWrapper, collegeUserIds);
@@ -89,14 +92,6 @@ public class OperationLogController {
                 "successCount", successCount,
                 "failedCount", failedCount
         ));
-    }
-
-    /**
-     * 操作日志学院口径：院系管理员仅限本院用户；校级管理员不追加条件。
-     * @param qw 查询条件
-     */
-    private void applyCollegeScope(LambdaQueryWrapper<OperationLog> qw) {
-        applyCollegeScope(qw, adminScopeGuard.currentCollegeUserIds());
     }
 
     private void applyCollegeScope(LambdaQueryWrapper<OperationLog> qw, List<Long> collegeUserIds) {

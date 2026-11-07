@@ -6,7 +6,7 @@ import {
   type Browser,
   type BrowserContext,
 } from '@playwright/test'
-import { SITE_BASE } from './test-helpers'
+import { SITE_BASE, DEMO_PASS } from './test-helpers'
 
 /**
  * 核心链路真栈巡检（L-02 的 M-04／M-11 段 + M-02 的开考/续考段）。
@@ -18,7 +18,7 @@ import { SITE_BASE } from './test-helpers'
  */
 
 const BASE = SITE_BASE
-const PASS = process.env.PW_PASS || '123456'
+const PASS = DEMO_PASS
 const ACCOUNTS = {
   admin: process.env.PW_ADMIN_USER || 'admin',
   teacher: process.env.PW_TEACHER_USER || 'ts01',
@@ -90,16 +90,21 @@ async function startFromRow(
   }
 }
 
-async function ensureExamPaper(api: APIRequestContext): Promise<string> {
+async function ensureExamPaper(
+  teacherApi: APIRequestContext,
+  adminApi: APIRequestContext,
+): Promise<string> {
   // 每次跑新建一张独立卷：旧卷被自动交卷后按钮会变成「已完成」，复用会假红。
   // 记下本轮自己的卷 id，跑完由 afterAll 按 id 删除，不留取证卷。
-  const questions = await api.get(`/api/questions?courseId=${EXAM_COURSE_ID}&page=1&size=2`)
+  // 身份分工按 WP6 裁定：管理员只读治理、不得直接发布教学活动（/publish 对 ADMIN 返回 403），
+  // 所以建卷→写题→提交审核走课程授课教师，审核通过走管理员 PATCH /approve。
+  const questions = await teacherApi.get(`/api/questions?courseId=${EXAM_COURSE_ID}&page=1&size=2`)
   expect(questions.ok(), '题库接口不可用').toBeTruthy()
   const questionRows = pickList(await questions.json())
   if (!questionRows.length) return ''
 
   const title = `${PAPER_PREFIX}-${EXAM_COURSE_ID}-${Date.now()}`
-  const created = await api.post('/api/exam-papers', {
+  const created = await teacherApi.post('/api/exam-papers', {
     data: {
       courseId: EXAM_COURSE_ID,
       title,
@@ -120,10 +125,12 @@ async function ensureExamPaper(api: APIRequestContext): Promise<string> {
       orderIndex: index,
     })),
   }
-  const saved = await api.post(`/api/exam-papers/${paperId}/questions`, { data: payload })
+  const saved = await teacherApi.post(`/api/exam-papers/${paperId}/questions`, { data: payload })
   expect(saved.ok(), '写题失败').toBeTruthy()
-  const published = await api.post(`/api/exam-papers/${paperId}/publish`)
-  expect(published.ok(), '发布失败').toBeTruthy()
+  const submitted = await teacherApi.post(`/api/exam-papers/${paperId}/publish`)
+  expect(submitted.ok(), '提交审核失败').toBeTruthy()
+  const approved = await adminApi.patch(`/api/exam-papers/${paperId}/approve`)
+  expect(approved.ok(), '审核通过失败').toBeTruthy()
   return title
 }
 
@@ -256,8 +263,13 @@ test.describe.serial('核心链路（真栈）', () => {
   test('学生开考→答题→刷新后续考（真实会话）', async ({ browser }) => {
     // 作答自动保存周期是 30 秒，这条用例必须等满一个周期
     test.setTimeout(120000)
+    const teacherApi = await request.newContext({
+      baseURL: BASE,
+      storageState: states!.teacher,
+    })
     const api = await request.newContext({ baseURL: BASE, storageState: states!.admin })
-    paperTitle = await ensureExamPaper(api)
+    paperTitle = await ensureExamPaper(teacherApi, api)
+    await teacherApi.dispose()
     await api.dispose()
     test.skip(!paperTitle, '课程题库没有可用题目，无法造卷；本环境跳过开考链')
 

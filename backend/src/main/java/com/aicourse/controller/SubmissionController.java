@@ -142,7 +142,7 @@ public class SubmissionController {
      * 给提交记录评分（教师/管理员，且须拥有所属课程）
      */
     @PostMapping("/{id}/grade")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     public ApiResponse<Submission> grade(
             @PathVariable Long id,
             @Valid @RequestBody GradeDTO grade,
@@ -177,7 +177,7 @@ public class SubmissionController {
      * 退回作业（教师/管理员，且须拥有所属课程）
      */
     @PostMapping("/{id}/return")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     public ApiResponse<Submission> returnSubmission(@PathVariable Long id,
                                                      @Valid @RequestBody java.util.Map<String, String> body,
                                                      Authentication auth) {
@@ -191,7 +191,7 @@ public class SubmissionController {
      * AI智能评分（教师/管理员，且须拥有所属课程）
      */
     @PostMapping("/{id}/ai-grade")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     public ApiResponse<Submission> aiGrade(@PathVariable Long id, Authentication auth) {
         accessControl.assertManageable(id, auth);
         Submission submission = submissionService.aiGradeSubmission(id);
@@ -221,7 +221,7 @@ public class SubmissionController {
      * 手动触发查重检测（教师/管理员，且须拥有所属课程）
      */
     @PostMapping("/{id}/check-plagiarism")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     public ApiResponse<Object> checkPlagiarism(@PathVariable Long id, Authentication auth) {
         accessControl.assertManageable(id, auth);
         Object result = submissionService.triggerPlagiarismCheck(id);

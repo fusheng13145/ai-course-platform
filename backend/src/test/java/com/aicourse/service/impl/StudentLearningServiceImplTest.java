@@ -108,7 +108,8 @@ class StudentLearningServiceImplTest {
 
         // 原兼容构造器已移除：内联其组件组装逻辑，再走主构造器（5 个组件）
         StudentTaskCompletionComponent taskCompletion =
-                new StudentTaskCompletionComponent(taskService, taskCompletionMapper, enrollmentService);
+                new StudentTaskCompletionComponent(taskService, taskCompletionMapper, enrollmentService,
+                        org.mockito.Mockito.mock(com.aicourse.service.component.org.TeachingClassSnapshotResolver.class));
         service = new StudentLearningServiceImpl(
                 new StudentDashboardComponent(enrollmentService, courseService, taskService, submissionService,
                         examPaperService, examSessionService, signInService, notificationService,

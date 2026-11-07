@@ -14,6 +14,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.time.LocalDate;
 import java.util.List;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -49,14 +50,25 @@ class SemesterControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("GET /admin/semesters - ADMIN 返回 200 且 data 为数组")
+    @DisplayName("GET /admin/semesters - ADMIN 返回 200 且 data 为数组（10A：name 保持规范名，displayName 现场推导）")
     void list_admin_200() throws Exception {
         when(semesterService.listByStatus(isNull())).thenReturn(List.of(sample()));
         mockMvc.perform(get("/admin/semesters").with(withUser(1L, "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data[0].name").value("2026-2027-1"));
+                .andExpect(jsonPath("$.data[0].name").value("2026-2027-1"))
+                .andExpect(jsonPath("$.data[0].displayName").value("2026 秋"));
+    }
+
+    @Test
+    @DisplayName("10A 别名推导：1→秋（起始年）、2→春（结束年）、3→夏（结束年）；非规范名原样返回")
+    void displayNameDerivation() {
+        assertThat(com.aicourse.vo.SemesterVO.displayNameOf("2026-2027-1")).isEqualTo("2026 秋");
+        assertThat(com.aicourse.vo.SemesterVO.displayNameOf("2025-2026-2")).isEqualTo("2026 春");
+        assertThat(com.aicourse.vo.SemesterVO.displayNameOf("2025-2026-3")).isEqualTo("2026 夏");
+        assertThat(com.aicourse.vo.SemesterVO.displayNameOf("暑期短学期")).isEqualTo("暑期短学期");
+        assertThat(com.aicourse.vo.SemesterVO.displayNameOf(null)).isNull();
     }
 
     @Test

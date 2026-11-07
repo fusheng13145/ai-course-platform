@@ -1,4 +1,5 @@
 import DOMPurify from 'dompurify'
+import { type ApiData } from '@/utils/response'
 
 /**
  * 展示类标签基表
@@ -187,7 +188,7 @@ function sanitizeByProfile(html: unknown, profile: Profile): string {
  * @param html 待净化的 HTML 字符串
  * @returns 净化后的安全 HTML
  */
-export function sanitizeHtml(html) {
+export function sanitizeHtml(html: unknown) {
   return sanitizeByProfile(html, READER)
 }
 
@@ -196,7 +197,7 @@ export function sanitizeHtml(html) {
  *
  * @param html 单元格文本（可能是内联标签片段）
  */
-export function sanitizeTableCellHtml(html) {
+export function sanitizeTableCellHtml(html: unknown) {
   return sanitizeByProfile(html, TABLE)
 }
 
@@ -205,7 +206,7 @@ export function sanitizeTableCellHtml(html) {
  *
  * @param html `data/legal.json` 里的条款正文
  */
-export function sanitizeLegalHtml(html) {
+export function sanitizeLegalHtml(html: unknown) {
   return sanitizeByProfile(html, LEGAL)
 }
 
@@ -216,12 +217,12 @@ export function sanitizeLegalHtml(html) {
  * @param {*} obj - 任意类型值
  * @returns {*} 净化后的同构结构
  */
-export function sanitizeObject(obj) {
+export function sanitizeObject(obj: ApiData): ApiData {
   if (obj === null || obj === undefined) return obj
   if (typeof obj === 'string') return sanitizeHtml(obj)
   if (Array.isArray(obj)) return obj.map(sanitizeObject)
   if (typeof obj === 'object') {
-    const result = {}
+    const result: Record<string, ApiData> = {}
     for (const key of Object.keys(obj)) {
       result[key] = sanitizeObject(obj[key])
     }

@@ -15,6 +15,7 @@ import com.aicourse.vo.ClassroomStatsVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import io.swagger.v3.oas.annotations.tags.Tag;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -164,13 +165,19 @@ public class ClassroomController {
     }
 
     /**
-     * 获取当前用户管理的班级列表（辅导员视角）
-     * @param advisorId 辅导员ID
-     * @return 班级列表
+     * 获取**当前登录教师**管理的班级列表（班主任自查，WP9 验收 1）。
+     *
+     * <p>2026-11-07 收紧：原先 {@code advisorId} 由前端任意传值，任意登录用户传他人 ID
+     * 即可枚举其班级（横向越权）。现改为只认 {@code Authentication} 的当前用户——
+     * 兼容期旧客户端多带的 {@code advisorId} 查询参数由 Spring 静默忽略，不再进入判定；
+     * 「查他人班」这一入口整体消失，归属校验由 {@code advisor_teacher_id = currentUserId} 单一事实承担。</p>
+     *
+     * @return 当前教师为班主任的班级列表
      */
     @GetMapping("/my")
-    public ApiResponse<List<Classroom>> getMyClassrooms(@RequestParam Long advisorId) {
-        List<Classroom> classrooms = classroomService.getAdvisorClassrooms(advisorId);
+    public ApiResponse<List<Classroom>> getMyClassrooms(Authentication auth) {
+        Long currentUserId = (Long) auth.getPrincipal();
+        List<Classroom> classrooms = classroomService.getAdvisorClassrooms(currentUserId);
         return ApiResponse.success(classrooms);
     }
 

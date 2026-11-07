@@ -48,13 +48,14 @@ export const getTaskById = (id: number): Promise<ApiEnvelope<ApiData>> =>
   request.get(`/tasks/${id}`) as Promise<ApiEnvelope<ApiData>>
 /**
  * 导出函数 createTask：创建/新增数据
+ * <p>body 为后端 TaskDTO 形态（taskType/dueDate 等，与前端 Task 实体不同形），保持未建模口径。</p>
  */
-export const createTask = (data: Partial<Task>): Promise<ApiEnvelope<ApiData>> =>
+export const createTask = (data: ApiData): Promise<ApiEnvelope<ApiData>> =>
   request.post('/tasks', data) as Promise<ApiEnvelope<ApiData>>
 /**
  * 导出函数 updateTask：更新数据
  */
-export const updateTask = (id: number, data: Partial<Task>): Promise<ApiEnvelope<ApiData>> =>
+export const updateTask = (id: number, data: ApiData): Promise<ApiEnvelope<ApiData>> =>
   request.put(`/tasks/${id}`, data) as Promise<ApiEnvelope<ApiData>>
 /**
  * 导出函数 deleteTask：删除数据

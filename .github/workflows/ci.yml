@@ -565,8 +565,9 @@ jobs:
       - name: Build images (no push)
         # 修复：docker-compose.yml 里全部 ${VAR:?...} 均在 `compose config` 阶段强制求值，
         # 缺一个即整份文件 interpolate 失败——即使该服务不参与 build。
-        # 当前强制变量共 6 个：MYSQL_ROOT_PASSWORD / REDIS_PASSWORD / JWT_SECRET /
-        # APP_ADMIN_INITIAL_PASSWORD（backend）/ NEO4J_PASSWORD（neo4j）/ GRAFANA_ADMIN_PASSWORD（grafana）。
+        # 当前强制变量共 8 个：MYSQL_ROOT_PASSWORD / REDIS_PASSWORD / JWT_SECRET /
+        # APP_ADMIN_INITIAL_PASSWORD（backend）/ NEO4J_PASSWORD（neo4j）/ GRAFANA_ADMIN_PASSWORD（grafana）/
+        # COOKIE_SECURE / REQUIRE_HTTPS（backend，2026-11-06 起改为必填防静默降级）。
         # 2026-11-02 补后三个：主干 CI #213 的 Docker 作业正是停在
         # `required variable NEO4J_PASSWORD is missing a value`（该作业只在 push main 跑，PR 里 skipped，故长期未被发现）。
         # CI 仅构建镜像（不启动容器），使用 secrets 值（未配置时退化为 CI-only 构建值，不落盘）。
@@ -577,6 +578,9 @@ jobs:
           APP_ADMIN_INITIAL_PASSWORD: ${{ secrets.APP_ADMIN_INITIAL_PASSWORD || 'CiBuild0nly!Admin#2026' }}
           NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD || 'ci-test-neo4j-8f3k' }}
           GRAFANA_ADMIN_PASSWORD: ${{ secrets.GRAFANA_ADMIN_PASSWORD || 'ci-build-only-grafana-4p6t1s0d' }}
+          # 仅参与插值求值（build 不启动容器）；取安全侧 true，与「默认安全」口径一致。
+          COOKIE_SECURE: ${{ secrets.COOKIE_SECURE || 'true' }}
+          REQUIRE_HTTPS: ${{ secrets.REQUIRE_HTTPS || 'true' }}
         # backend/frontend 属 profiles: ["full"]，kg/rag 属 ["python"]；
         # 两个 profile 必须同时启用，否则会漏掉 backend/frontend 的构建。
         run: docker compose --profile full --profile python -f docker-compose.yml build

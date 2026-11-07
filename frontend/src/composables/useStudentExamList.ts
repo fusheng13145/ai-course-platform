@@ -21,9 +21,10 @@ export function useStudentExamList() {
    * 失败时列表被置空并显示"暂无考试"，学生易误判为"当前没有可参加的考试"。
    */
   const loadError = ref('')
-  const examList = ref([])
+  // 考试行尚未 per-endpoint 建模；字段访问点见 examJoinReason/getExamStatus*
+  const examList = ref<Record<string, unknown>[]>([])
   /** 课程上下文过滤：非空时仅展示该课程的考试（课程侧边栏/驾驶舱直入） */
-  const courseIdFilter = ref(null)
+  const courseIdFilter = ref<string | number | null>(null)
 
   /**
    * 学生已选（审批通过）课程 ID 集合，用于全局考试列表的「未选课」预禁用。
@@ -42,7 +43,7 @@ export function useStudentExamList() {
   const filteredExams = computed(() => {
     let list = courseScopedExams.value
     if (searchKeyword.value) {
-      list = list.filter((e) => e.title?.includes(searchKeyword.value))
+      list = list.filter((e) => String(e.title ?? '').includes(searchKeyword.value))
     }
     if (statusFilter.value) {
       list = list.filter((e) => {
@@ -79,7 +80,7 @@ export function useStudentExamList() {
           : await examApi.getAllExamPapers()
       // 两个 getAll* 已由 fetchAllPages 解包为数组（不再有 data 信封）；
       // pickList 对数组原样透传，同时防御信封形态回归。
-      examList.value = pickList(unwrap(res))
+      examList.value = pickList<Record<string, unknown>>(unwrap(res))
 
       // 全局模式：拉取已选课程，供「未选课」预禁用（课程内模式由课程空间门禁保证，不重复查）
       if (courseIdFilter.value == null) {
@@ -119,13 +120,13 @@ export function useStudentExamList() {
     }
   }
 
-  function getExamStatusType(exam) {
+  function getExamStatusType(exam: Record<string, unknown>) {
     if (exam.completed) return 'info'
     if (exam.status === 'EXPIRED') return 'info'
     return 'warning'
   }
 
-  function getExamStatusLabel(exam) {
+  function getExamStatusLabel(exam: Record<string, unknown>) {
     if (exam.completed) return '已完成'
     if (exam.status === 'EXPIRED') return '已过期'
     return '进行中'

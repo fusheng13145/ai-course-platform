@@ -19,6 +19,17 @@ export const SITE_BASE =
   process.env.PW_BASE_URL || `http://localhost:${process.env.PW_PORT || '5173'}`
 
 /**
+ * 演示账号口令的唯一来源，与 `scripts/run-backend-for-e2e.py` 的登录自检同源。
+ *
+ * 为什么要有它：口令原先硬编码在 `loginAs()` 里（`core.spec.ts` 另有一份 `PW_PASS`），
+ * 于是「库里口令 ≠ 123456」时（例如曾以 `DEMO_ACCOUNTS_ENABLED=false` 在本机库启动过，
+ * admin 被单向改密停用）整轮只表现为 admin 用例随机红，读不出根因
+ * （2026-11-06 验收实测：8 例红全依赖 admin 登录）。现在一处口径：默认 123456，
+ * 受控环境用 `PW_PASS` 覆盖。
+ */
+export const DEMO_PASS = process.env.PW_PASS || '123456'
+
+/**
  * 模拟的登录响应
  */
 export function createMockLoginResponse(role: string = 'STUDENT') {
@@ -166,9 +177,10 @@ export async function dismissOnboarding(page: Page) {
  * 对任意 401 都会走「刷新失败 → 登出」。于是要么守卫把请求判成 /403，要么页面里任何一个
  * 未 mock 的业务端点 401 后把会话清掉、被踢回 /login。逐个 mock 端点既脆弱又掩盖真实链路。
  *
- * 账号来自 V1 迁移的内置演示账号（口令 123456，见 backend SeedAccounts）：
- * STUDENT→student、TEACHER→teacher、ADMIN→admin。三者都在 db/migration（进生产路径）
- * 里，不依赖 V5/V6 演示种子，因此 CI 的最小库也能用。
+ * 账号来自 V1 迁移的内置演示账号（见 backend SeedAccounts）：STUDENT→student、
+ * TEACHER→teacher、ADMIN→admin。三者都在 db/migration（进生产路径）里，
+ * 不依赖 V5/V6 演示种子，因此 CI 的最小库也能用。口令取 {@link DEMO_PASS}
+ * （默认种子口令 123456，受控环境用 PW_PASS 覆盖），不在本函数里再写一份字面量。
  *
  * 登录框默认为 readonly、focus 时才摘掉（防自动填充），所以必须先 focus 再 fill；
  * 并且要避开 Login.vue 的延时二次清空（见 fillLoginField）。
@@ -190,7 +202,7 @@ export async function loginAs(
   await page.goto('/login')
   // 登录页的字段名是 username/password（旧端是 login-username）
   await fillLoginField(page, page.locator('input[name="username"]').first(), account)
-  await fillLoginField(page, page.locator('input[name="password"]').first(), '123456')
+  await fillLoginField(page, page.locator('input[name="password"]').first(), DEMO_PASS)
   // 「记住我」决定 user/permissions 落 localStorage 还是 sessionStorage；storageState 只带后者
   // 不带 sessionStorage，不勾会导致复用的登录态等于未登录
   await page

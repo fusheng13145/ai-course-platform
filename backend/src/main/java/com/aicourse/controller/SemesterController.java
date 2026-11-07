@@ -37,14 +37,16 @@ public class SemesterController {
     }
 
     /**
-     * 学期列表（可按状态过滤）。
+     * 学期列表（可按状态过滤）。10A：响应为 {@link SemesterVO}，附带现场推导的展示别名
+     * （别名不落库，改名即随动）；既有 {@code name} 字段保持规范名不变，前端渐进切换。
      *
      * @param status ACTIVE / ARCHIVED（省略为全部，大小写不敏感）
      */
     @GetMapping
-    @Operation(summary = "学期列表", description = "在册在前、其后按开始日期倒序；可按 status 过滤")
-    public ApiResponse<List<Semester>> list(@RequestParam(required = false) String status) {
-        return ApiResponse.success(semesterService.listByStatus(status));
+    @Operation(summary = "学期列表", description = "在册在前、其后按开始日期倒序；可按 status 过滤；含 10A 展示别名")
+    public ApiResponse<List<com.aicourse.vo.SemesterVO>> list(@RequestParam(required = false) String status) {
+        return ApiResponse.success(semesterService.listByStatus(status).stream()
+                .map(com.aicourse.vo.SemesterVO::from).toList());
     }
 
     /**

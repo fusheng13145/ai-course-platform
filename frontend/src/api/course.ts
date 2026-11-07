@@ -26,8 +26,8 @@ export const deleteCourse = (id: number | string): Promise<ApiEnvelope<ApiData>>
 /** 审核通过课程 */
 export const approveCourse = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
   request.post(`/courses/${id}/approve`) as Promise<ApiEnvelope<ApiData>>
-/** 驳回课程 */
-export const rejectCourse = (id: number | string, reason: string): Promise<ApiEnvelope<ApiData>> =>
+/** 驳回课程（reason 可缺省：后端按空驳回意见处理） */
+export const rejectCourse = (id: number | string, reason?: string): Promise<ApiEnvelope<ApiData>> =>
   request.post(`/courses/${id}/reject`, { reason }) as Promise<ApiEnvelope<ApiData>>
 /** 切换课程状态 */
 export const toggleCourseStatus = (id: number | string): Promise<ApiEnvelope<ApiData>> =>

@@ -3,6 +3,8 @@ package com.aicourse.service.impl;
 import com.aicourse.entity.Course;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.CourseMapper;
+import com.aicourse.mapper.TeachingClassMapper;
+import com.aicourse.service.component.org.CourseDefaultTeachingClassSync;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -35,13 +37,17 @@ class CourseServiceImplTest {
     @Mock
     private CourseMapper courseMapper;
 
+    @Mock
+    private TeachingClassMapper teachingClassMapper;
+
     private CourseServiceImpl service;
 
     @BeforeEach
     void setUp() {
         TableInfoHelper.initTableInfo(
                 new MapperBuilderAssistant(new MybatisConfiguration(), ""), Course.class);
-        service = new CourseServiceImpl();
+        service = new CourseServiceImpl(new CourseDefaultTeachingClassSync(teachingClassMapper),
+                org.mockito.Mockito.mock(com.aicourse.service.SemesterService.class));
         ReflectionTestUtils.setField(service, "baseMapper", courseMapper);
     }
 

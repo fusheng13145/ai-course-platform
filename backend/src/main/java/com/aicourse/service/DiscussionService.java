@@ -41,6 +41,16 @@ public interface DiscussionService extends IService<DiscussionTopic> {
     LikePostVO likePost(Long postId, Long userId);
 
     /**
+     * 取某条回复所属课程的ID（用于直链之外的对象级 ACL 判定，2026-11-06 验收批）。
+     * <p>点赞、编辑等以 postId 为入口的操作原先只能判「已登录」，于是任意用户可给
+     * 他人课程里的回复计数。本方法只做关系查询，不重复实现成员关系规则——
+     * 判定仍由 {@code CourseAccessControl} 负责。</p>
+     *
+     * @return 回复不存在或话题缺失时返回 null（调用方据此放行到服务层，保持原有「不存在」语义）
+     */
+    Long courseIdOfPost(Long postId);
+
+    /**
      * 关闭话题（仅发起人或管理员）
      */
     DiscussionTopic closeTopic(Long id, Long userId, String role);

@@ -39,10 +39,16 @@
           <div class="exam-main">
             <b>{{ row.title }}</b>
             <span class="exam-meta">
-              {{ [row.course, `${row.minutes} 分钟`, `${row.questions} 题`].filter(Boolean).join(' · ') }}
+              {{
+                [row.course, `${row.minutes} 分钟`, `${row.questions} 题`]
+                  .filter(Boolean)
+                  .join(' · ')
+              }}
             </span>
           </div>
-          <span v-if="row.when" class="chip exam-when" :class="row.when.cls">{{ row.when.text }}</span>
+          <span v-if="row.when" class="chip exam-when" :class="row.when.cls">{{
+            row.when.text
+          }}</span>
           <span class="chip exam-status" :class="row.statusCls">{{ row.status }}</span>
           <div class="row-actions">
             <button

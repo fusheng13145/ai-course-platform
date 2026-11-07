@@ -111,7 +111,7 @@ describe('mergeGradeRecords — 学生身份与合并边界（P1-8③）', () =>
       .map((r: { studentName: string }) => r.studentName)
       .sort((a, b) => a.localeCompare(b, 'zh'))
     expect(names).toEqual(['甲', '乙'])
-    expect(rows.map((r: { totalScore: number }) => r.totalScore).sort()).toEqual([60, 80])
+    expect(rows.map((r) => r.totalScore).sort()).toEqual([60, 80])
   })
 
   it('studentId 缺失但 userId 存在时按 userId 合并为同一学生', () => {
@@ -149,9 +149,7 @@ describe('mergeGradeRecords — 学生身份与合并边界（P1-8③）', () =>
     )
 
     expect(rows).toHaveLength(2)
-    const byId = Object.fromEntries(
-      rows.map((r: { id: string; totalScore: number }) => [r.id, r.totalScore]),
-    )
+    const byId = Object.fromEntries(rows.map((r) => [String(r.id), r.totalScore]))
     expect(byId).toEqual({ '1': 60, '2': 100 })
   })
 

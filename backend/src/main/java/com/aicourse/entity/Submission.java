@@ -140,4 +140,11 @@ public class Submission {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 
+    /**
+     * 提交时学生所在教学班快照（WP7，V16）。
+     * 写入时由 {@code TeachingClassSnapshotResolver} 按选课成员关系解析，
+     * 不从请求体信任；学生转班后历史记录仍归属原教学班（不随成员关系漂移）。
+     */
+    private Long teachingClassId;
+
 }

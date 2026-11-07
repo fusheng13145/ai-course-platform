@@ -1,4 +1,5 @@
 import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { isAxiosError } from 'axios'
 import { formatTime } from '@/utils/datetime'
 import { overlayHost } from '@/bootstrap/overlayHost'
 import logger from '@/utils/logger'
@@ -75,7 +76,8 @@ export function useStudentExams(host: ExamUiHost = {}) {
   const viewMode = ref('list')
 
   /* ---- 答题会话状态 ---- */
-  const currentExamPaper = ref(null)
+  // 试卷行沿用列表行的未建模口径（title/duration/timeLimit 等字段访问在视图层）
+  const currentExamPaper = ref<Record<string, unknown> | null>(null)
   // 显式标注联合类型：默认 ref(null) 会推导为 Ref<null>，恢复/新建两条路径都要写入会话ID
   const sessionId = ref<number | string | null>(null)
   const defaultScore = 10
@@ -113,7 +115,9 @@ export function useStudentExams(host: ExamUiHost = {}) {
    * 查询该试卷上「进行中」的会话，用于中途退出后续答。
    * @returns 处于 STARTED 的会话快照；无进行中会话或接口异常时返回 null（交由调用方走新建流程）
    */
-  async function tryResumeSession(examPaperId): Promise<ExamSessionSnapshot | null> {
+  async function tryResumeSession(
+    examPaperId: string | number,
+  ): Promise<ExamSessionSnapshot | null> {
     try {
       const res = await examApi.getMyExamSession(examPaperId)
       const session = unwrapPayload<ExamSessionSnapshot>(res)
@@ -132,7 +136,7 @@ export function useStudentExams(host: ExamUiHost = {}) {
    * 读取服务端剩余时间（秒）。
    * @returns 服务端剩余秒数；接口不可用或返回非数值时返回 null，由调用方回退到试卷时长
    */
-  async function fetchRemainingSeconds(sid): Promise<number | null> {
+  async function fetchRemainingSeconds(sid: string | number): Promise<number | null> {
     try {
       const res = await examApi.getRemainingTime(sid)
       const seconds = unwrapPayload<unknown>(res)
@@ -155,7 +159,7 @@ export function useStudentExams(host: ExamUiHost = {}) {
    *
    * <p><b>注意：刻意不改成「退出即提交」</b>——那会直接剥夺学生继续作答的权利，比现状更糟。</p>
    */
-  async function enterExam(exam) {
+  async function enterExam(exam: Record<string, unknown>) {
     if (exam.completed) {
       notify.info('该考试已完成')
       return
@@ -168,13 +172,14 @@ export function useStudentExams(host: ExamUiHost = {}) {
     if (!started) return // 用户取消，静默返回
 
     try {
-      const resumed = await tryResumeSession(exam.id)
-      const duration = exam.duration || exam.timeLimit || 60
+      const paperId = exam.id as string | number
+      const resumed = await tryResumeSession(paperId)
+      const duration = Number(exam.duration ?? exam.timeLimit ?? 60)
 
       if (resumed && resumed.id !== undefined && resumed.id !== null) {
         // ---- 恢复流程：复用既有会话，不新建 ----
         sessionId.value = resumed.id
-        await sheet.loadQuestions(exam.id)
+        await sheet.loadQuestions(paperId)
         currentExamPaper.value = exam
         sheet.restoreAnswers(sheet.parseSavedAnswers(resumed.answers))
 
@@ -191,7 +196,7 @@ export function useStudentExams(host: ExamUiHost = {}) {
       }
 
       // ---- 首次进入：创建会话 ----
-      const res = await examApi.startExam(exam.id)
+      const res = await examApi.startExam(paperId)
       const started = unwrapPayload<ExamSessionSnapshot>(res)
       const sid = started?.id
       if (sid === undefined || sid === null) {
@@ -199,7 +204,7 @@ export function useStudentExams(host: ExamUiHost = {}) {
       }
       sessionId.value = sid
 
-      await sheet.loadQuestions(exam.id)
+      await sheet.loadQuestions(paperId)
       currentExamPaper.value = exam
 
       timers.totalSeconds.value = duration * 60
@@ -212,7 +217,11 @@ export function useStudentExams(host: ExamUiHost = {}) {
     } catch (e) {
       // P1-22：开始考试失败不再静默吞掉，给出明确提示
       logger.error('开始考试失败:', e)
-      notify.error(e?.response?.data?.message || e?.message || '开始考试失败，请稍后重试')
+      notify.error(
+        (isAxiosError(e) ? e.response?.data?.message : undefined) ||
+          (e instanceof Error ? e.message : undefined) ||
+          '开始考试失败，请稍后重试',
+      )
     }
   }
 

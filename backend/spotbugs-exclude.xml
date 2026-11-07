@@ -30,9 +30,12 @@
     </Match>
 
     <!-- ========== 无效局部存储 / 未读字段 ==========
-         反射赋值、Lombok 生成访问器、Jackson 反序列化目标字段等场景下静态分析不可达。 -->
+         反射赋值、Lombok 生成访问器、Jackson 反序列化目标字段等场景下静态分析不可达。
+         UWF_UNWRITTEN_PUBLIC_OR_PROTECTED_FIELD（2026-11-07 增）：同口径 ——
+         请求体 DTO 的 public 字段由 Jackson 反序列化写入（AnnouncementController$PublishRequest），
+         代码内无本地写入属预期形态。 -->
     <Match>
-        <Bug pattern="DLS_DEAD_LOCAL_STORE,UWF_UNWRITTEN_FIELD,NP_UNWRITTEN_FIELD,UR_UNINIT_READ,URF_UNREAD_FIELD"/>
+        <Bug pattern="DLS_DEAD_LOCAL_STORE,UWF_UNWRITTEN_FIELD,UWF_UNWRITTEN_PUBLIC_OR_PROTECTED_FIELD,NP_UNWRITTEN_FIELD,UR_UNINIT_READ,URF_UNREAD_FIELD"/>
     </Match>
 
     <!-- ========== 构造器可抛出 / 可覆写方法调用 ==========

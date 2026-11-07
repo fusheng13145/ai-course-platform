@@ -39,4 +39,7 @@ DROP TABLE IF EXISTS teaching_classes;
 DROP TABLE IF EXISTS exam_teaching_classes;
 DROP TABLE IF EXISTS task_teaching_classes;
 
+-- V16__announcement_and_snapshot.sql（WP8）
+DROP TABLE IF EXISTS announcements;
+
 SET FOREIGN_KEY_CHECKS = 1;

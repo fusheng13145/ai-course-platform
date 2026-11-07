@@ -10,12 +10,12 @@ import { type ApiData } from '@/utils/response'
  */
 export default {
   /** POST /common/verify-code -- 发送验证码 */
-  sendVerifyCode(data) {
+  sendVerifyCode(data: ApiData) {
     return request.post('/common/verify-code', data)
   },
 
   /** POST /common/upload -- 单文件上传 */
-  uploadFile(file) {
+  uploadFile(file: File | Blob) {
     const fd = new FormData()
     fd.append('file', file)
     return request.post('/common/upload', fd, {
@@ -24,9 +24,9 @@ export default {
   },
 
   /** POST /common/upload/batch -- 批量文件上传 */
-  uploadBatch(files) {
+  uploadBatch(files: (File | Blob)[]) {
     const fd = new FormData()
-    files.forEach((f: ApiData) => fd.append('files', f))
+    files.forEach((f) => fd.append('files', f))
     return request.post('/common/upload/batch', fd, {
       headers: { 'Content-Type': 'multipart/form-data' },
     })
