@@ -226,7 +226,6 @@ import { computed, onMounted, reactive, ref } from 'vue'
 import Icon from '../../components/Icon.vue'
 import Modal from '../../components/Modal.vue'
 import { useUi } from '../../composables/ui'
-import { useListFeedback } from '@/composables/useListFeedback'
 import { useClientPagination } from '@/composables/useClientPagination'
 import {
   archiveCollege,
@@ -272,6 +271,12 @@ const deleteKind = ref<'college' | 'major'>('college')
 const deleting = ref(false)
 const deleteError = ref('')
 
+const filteredMajors = computed(() =>
+  majorCollegeId.value === null
+    ? majors.value
+    : majors.value.filter((row) => String(row.collegeId ?? '') === String(majorCollegeId.value)),
+)
+
 const {
   page: majorPage,
   pageSize: majorPageSize,
@@ -284,25 +289,6 @@ const {
 const majorPageCount = computed(() =>
   Math.max(1, Math.ceil(majorTotal.value / majorPageSize.value)),
 )
-
-const filteredMajors = computed(() =>
-  majorCollegeId.value === null
-    ? majors.value
-    : majors.value.filter((row) => String(row.collegeId ?? '') === String(majorCollegeId.value)),
-)
-
-const {
-  loading: _loadingBind,
-  listError: _listErrorBind,
-  run: _runBind,
-  emptyDescription: _emptyBind,
-} = useListFeedback({
-  failMessage: '组织架构加载失败，请稍后重试。',
-  toastMessage: '组织架构加载失败',
-  emptyText: '暂无组织架构数据',
-  errorEmptyText: '无法确认组织数据，请查看上方提示后重试',
-  notify: (message) => toast(message, 'danger'),
-})
 
 function errorText(error: unknown, fallback: string): string {
   const err = error as { response?: { data?: { message?: string } }; message?: string } | null

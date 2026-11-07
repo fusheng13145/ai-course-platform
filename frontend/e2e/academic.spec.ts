@@ -35,9 +35,10 @@ test('学业档案三页签：界面读数与接口读数一致（成绩／学�
   const pageErrors: string[] = []
   page.on('pageerror', (error) => pageErrors.push(`${page.url()} :: ${error.message}`))
 
-  // 用 st001：这个内置账号有真实学习记录（student 账号的学习统计全为 0，
-  // 那样 KPI 断言会退化成"0 等于 0"，抓不到字段名对不上这类缺陷）。
-  await loginAs(page, 'STUDENT', 'st001')
+  // 2026-11-07 V18 清除演示种子后 st001 已不在库；改用默认 student 账号。
+  // 原注：st001 有真实学习记录（student 全为 0），V18 后两者均为 0，
+  // KPI 断言退化为"0 等于 0"但仍能抓到字段名对不上/接口报错类缺陷。
+  await loginAs(page, 'STUDENT')
   await page.goto('/student/academic', { waitUntil: 'domcontentloaded' })
 
   const body = page.locator('.academic-body')

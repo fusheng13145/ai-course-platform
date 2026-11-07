@@ -9,7 +9,8 @@ import { loginAs } from './test-helpers'
  * ② 点一个节点后列出的邻居，正好是这张图里与它相连的边（关系方向的读法最容易错）。
  * 所以这里先取接口读数，再拿页面上的点和邻居条目逐一对账。
  *
- * 课程用 4007（计算机网络，65 点／120 边，st001 已选），与"单课垂直"的定位一致。
+ * 课程用 1（Python 程序设计，V1 结构基线 4 点／3 边，student 已选），与"单课垂直"的定位一致。
+ * 2026-11-07 V18 演示种子清除后，原 4007（65 点／120 边，st001）已不在库，改用 V1 课程。
  */
 
 interface GraphNode {
@@ -31,14 +32,14 @@ interface PathPlan {
   path: Array<{ id: number; name?: string }>
 }
 
-const COURSE_ID = 4007
+const COURSE_ID = 1
 
 test('课程图谱：点数/边数与接口一致，点节点能看到它的直接关系', async ({ page }) => {
   test.setTimeout(180000)
   const pageErrors: string[] = []
   page.on('pageerror', (error) => pageErrors.push(`${page.url()} :: ${error.message}`))
 
-  await loginAs(page, 'STUDENT', 'st001')
+  await loginAs(page, 'STUDENT')
   await page.goto(`/student/courses/${COURSE_ID}/graph`, { waitUntil: 'domcontentloaded' })
 
   const graphResp = await page.request.get(`/api/knowledge/relations/graph/${COURSE_ID}`)
