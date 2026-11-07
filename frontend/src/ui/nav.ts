@@ -47,6 +47,7 @@ const PATHS: Record<Role, Record<string, string>> = {
     examGovernance: '/admin/exam-governance',
     grades: '/admin/grades',
     aiUsage: '/admin/ai-usage',
+    adminAi: '/admin/ai-provider',
     moderation: '/admin/moderation',
     adminQuestions: '/admin/questions',
     adminUploads: '/admin/uploads',
@@ -439,8 +440,14 @@ const ADMIN_PAGES: Record<string, PageDef> = {
   aiUsage: {
     title: 'AI 使用与治理',
     kicker: 'ADMIN / AI USAGE',
-    desc: '按课程聚合的调用量、成功率与耗时（近 N 天，数据源 ai_call_logs）；按能力/按日与配额尚待扩展。',
+    desc: '按课程/按日/按能力聚合的调用量、成功率与耗时（近 N 天，数据源 ai_call_logs）与教师出题治理。',
     special: 'aiUsage',
+  },
+  adminAi: {
+    title: 'AI 供应商',
+    kicker: 'ADMIN / AI PROVIDER',
+    desc: 'LLM 供应商运行时热切换与连通性探测；密钥由环境变量注入，不在此页管理。',
+    special: 'adminAi',
   },
   moderation: {
     title: '内容审核',

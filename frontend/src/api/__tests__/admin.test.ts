@@ -73,6 +73,9 @@ const CONTRACT: Array<[string, 'get' | 'post' | 'put' | 'delete', string, unknow
   ['getCourseStats', 'get', '/admin/statistics/courses', [], []],
   ['getAIUsage', 'get', '/admin/statistics/ai-usage', [], []],
   ['getAIMonitor', 'get', '/admin/ai-monitor', [], []],
+  ['getAdminAiCurrent', 'get', '/admin/ai/current', [], []],
+  ['switchAiProvider', 'post', '/admin/ai/provider', ['qwen'], [{ provider: 'qwen' }]],
+  ['testAiProvider', 'get', '/admin/ai/test', [], []],
 ]
 
 describe('admin API 契约（方法 / URL / 参数）', () => {

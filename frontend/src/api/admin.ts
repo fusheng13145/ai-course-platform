@@ -240,10 +240,43 @@ export const getAIUsageByCourse = (
 ): Promise<ApiEnvelope<ApiData>> =>
   request.get('/admin/statistics/ai-usage/by-course', { params }) as Promise<ApiEnvelope<ApiData>>
 /**
+ * 导出函数 getAIUsageByDay：按日聚合的 AI 用量（2026-11-07 P2 批次补齐「按日维度」）。
+ * 无调用的日期不出行（后端只存事实行），调用方按区间补零渲染。
+ */
+export const getAIUsageByDay = (
+  params: Record<string, unknown> = {},
+): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/statistics/ai-usage/by-day', { params }) as Promise<ApiEnvelope<ApiData>>
+/**
+ * 导出函数 getAIUsageByScene：按能力（调用场景）聚合的 AI 用量（补齐「按能力维度」）。
+ */
+export const getAIUsageByScene = (
+  params: Record<string, unknown> = {},
+): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/statistics/ai-usage/by-scene', { params }) as Promise<ApiEnvelope<ApiData>>
+/**
  * 导出函数 getAIMonitor：获取/查询数据
  */
 export const getAIMonitor = (): Promise<ApiEnvelope<ApiData>> =>
   request.get('/admin/ai-monitor') as Promise<ApiEnvelope<ApiData>>
+
+/**
+ * 导出函数 getAdminAiCurrent：读取当前生效的 LLM 供应商（AdminAiCurrentVO）。
+ * 2026-11-07 P1 整改批：此前 /admin/ai/* 三端点在前端零消费（唯一封装 aiSupplier.ts 为死模块已删），
+ * 本组函数补齐「管理端热切换」的前端闭环。
+ */
+export const getAdminAiCurrent = (): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/ai/current') as Promise<ApiEnvelope<ApiData>>
+/**
+ * 导出函数 switchAiProvider：运行时热切换 LLM 供应商（写 system_configs 的 ai.provider）。
+ */
+export const switchAiProvider = (provider: string): Promise<ApiEnvelope<ApiData>> =>
+  request.post('/admin/ai/provider', { provider }) as Promise<ApiEnvelope<ApiData>>
+/**
+ * 导出函数 testAiProvider：对当前供应商发一次最小补全（content=ping）探测连通性。
+ */
+export const testAiProvider = (): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/admin/ai/test') as Promise<ApiEnvelope<ApiData>>
 
 /**
  * 默认导出对象：模块/组件配置与导出内容
@@ -267,6 +300,8 @@ export default {
   getCourseStats,
   getAIUsage,
   getAIUsageByCourse,
+  getAIUsageByDay,
+  getAIUsageByScene,
   getModerationPosts,
   getModerationResources,
   applyModerationAction,
@@ -298,4 +333,7 @@ export default {
   exportReport,
   createBackup,
   getAIMonitor,
+  getAdminAiCurrent,
+  switchAiProvider,
+  testAiProvider,
 }

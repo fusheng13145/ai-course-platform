@@ -212,6 +212,7 @@ export const routes: RouteRecordRaw[] = [
       page('admin/exam-governance', 'ADMIN', 'examGovernance', '考试治理'),
       page('admin/grades', 'ADMIN', 'grades', '成绩与预警'),
       page('admin/ai-usage', 'ADMIN', 'aiUsage', 'AI 使用与治理'),
+      page('admin/ai-provider', 'ADMIN', 'adminAi', 'AI 供应商'),
       {
         path: 'admin/questions',
         component: AdminQuestionsView,

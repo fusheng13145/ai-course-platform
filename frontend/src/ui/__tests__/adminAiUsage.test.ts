@@ -11,7 +11,16 @@ import { flushPromises, mount } from '@vue/test-utils'
  * 一半钉真读数（请求参数、KPI、表格行、未绑定课程行保留），
  * 一半钉口径（collectionNote 原样透出、不出现示例数据、按能力/按日明写待扩展）。
  */
-const adminApi = vi.hoisted(() => ({ getAIUsageByCourse: vi.fn() }))
+const adminApi = vi.hoisted(() => ({
+  getAIUsageByCourse: vi.fn(),
+  getAIUsageByDay: vi.fn(),
+  getAIUsageByScene: vi.fn(),
+  getAiRestrictions: vi.fn(),
+  restrictAiGeneration: vi.fn(),
+  unrestrictAiGeneration: vi.fn(),
+  getConfigs: vi.fn(),
+  updateConfig: vi.fn(),
+}))
 vi.mock('@/api/admin', () => ({ ...adminApi, default: adminApi }))
 
 const toast = vi.hoisted(() => vi.fn())
@@ -72,6 +81,16 @@ function mountPage() {
 beforeEach(() => {
   vi.clearAllMocks()
   adminApi.getAIUsageByCourse.mockResolvedValue(envelope(payload()))
+  adminApi.getAIUsageByDay.mockResolvedValue(
+    envelope({ rangeDays: 30, days: [{ day: '2026-11-06', calls: 12, tokens: 900, avgDurationMs: 400, successCalls: 12, successRate: 1 }] }),
+  )
+  adminApi.getAIUsageByScene.mockResolvedValue(
+    envelope({ rangeDays: 30, scenes: [{ scene: 'QA_ASK', calls: 120, tokens: 64000, avgDurationMs: 700, successCalls: 118, successRate: 0.9833 }] }),
+  )
+  adminApi.getAiRestrictions.mockResolvedValue(envelope([]))
+  adminApi.getConfigs.mockResolvedValue(
+    envelope([{ configKey: 'ai.question-generation.teacher-enabled', value: 'true' }]),
+  )
 })
 
 describe('管理端 AI 用量：接真与口径边界', () => {
@@ -103,13 +122,59 @@ describe('管理端 AI 用量：接真与口径边界', () => {
     wrapper.unmount()
   })
 
-  it('collectionNote 原样透出，且按能力/按日维度明写待扩展', async () => {
+  it('collectionNote 原样透出，且按日/按能力分区可见（2026-11-07 P2 批次接真）', async () => {
     const wrapper = mountPage()
     await settle()
     const text = wrapper.text()
     expect(text).toContain(COLLECTION_NOTE)
-    expect(text).toContain('按能力')
-    expect(text).toContain('待扩展')
+    expect(text).toContain('按日趋势')
+    expect(text).toContain('按能力聚合')
+    expect(text).toContain('课程问答') // scene=QA_ASK 的中文映射
+    // 出题治理区：总闸读数 + 名单空态
+    expect(text).toContain('出题治理')
+    expect(text).toContain('教师出题允许')
+    expect(text).toContain('没有逐人限制')
+    wrapper.unmount()
+  })
+
+  it('按日趋势以柱图渲染并补零区间（有调用日显示峰值读数）', async () => {
+    const wrapper = mountPage()
+    await settle()
+    expect(adminApi.getAIUsageByDay).toHaveBeenCalledWith({ days: 30 })
+    expect(wrapper.find('.bar-chart').exists()).toBe(true)
+    expect(wrapper.find('.bar-chart').text()).toContain('12')
+    wrapper.unmount()
+  })
+
+  it('出题治理：全禁/恢复写入 ai.question-generation.teacher-enabled 配置键', async () => {
+    adminApi.updateConfig.mockResolvedValue(envelope(null))
+    const wrapper = mountPage()
+    await settle()
+    const toggle = wrapper.findAll('button').find((node) => node.text() === '全禁教师出题')
+    expect(toggle, '缺少总闸切换按钮').toBeTruthy()
+    await toggle!.trigger('click')
+    await settle()
+    expect(adminApi.updateConfig).toHaveBeenCalledWith(
+      'ai.question-generation.teacher-enabled',
+      { value: 'false', group: 'ai' },
+    )
+    expect(toast).toHaveBeenCalledWith(expect.stringContaining('全禁'), 'ok')
+    wrapper.unmount()
+  })
+
+  it('出题治理：加入限制名单调用 POST {userId, reason}', async () => {
+    adminApi.restrictAiGeneration.mockResolvedValue(envelope({ userId: 7 }))
+    const wrapper = mountPage()
+    await settle()
+    const idInput = wrapper.find('input[aria-label="教师用户 ID"]')
+    await idInput.setValue('7')
+    const reasonInput = wrapper.find('input[aria-label="限制原因"]')
+    await reasonInput.setValue('测试原因')
+    const submit = wrapper.findAll('button').find((node) => node.text() === '加入限制名单')
+    await submit!.trigger('click')
+    await settle()
+    expect(adminApi.restrictAiGeneration).toHaveBeenCalledWith(7, { reason: '测试原因' })
+    expect(toast).toHaveBeenCalledWith('已加入限制名单', 'ok')
     wrapper.unmount()
   })
 
@@ -128,8 +193,10 @@ describe('管理端 AI 用量：接真与口径边界', () => {
     )
     const wrapper = mountPage()
     await settle()
-    expect(wrapper.find('table').exists()).toBe(false)
-    expect(wrapper.text()).toContain('未产生 AI 调用')
+    // 只断言「按课程聚合」分区：页面还有按日/按能力/出题治理分区，各自有独立口径
+    const courseSection = wrapper.findAll('section.table-card')[0]
+    expect(courseSection.find('table').exists()).toBe(false)
+    expect(courseSection.text()).toContain('未产生 AI 调用')
     wrapper.unmount()
   })
 
