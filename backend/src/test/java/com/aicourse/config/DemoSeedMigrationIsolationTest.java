@@ -67,7 +67,9 @@ class DemoSeedMigrationIsolationTest {
             // V16（2026-11-07，WP7+WP8）：四类活动快照列与回填 + announcements 公告表 —— 结构迁移，非演示数据
             "V16__announcement_and_snapshot.sql",
             // V17（2026-11-07，WP10）：courses.semester_id 回填与学期内唯一、成员收紧 —— 结构迁移，非演示数据
-            "V17__org_cutover.sql");
+            "V17__org_cutover.sql",
+            // V18（2026-11-07 全量实现批四）：演示种子清除（纯 DML 回填清理）—— 结构迁移，非演示数据
+            "V18__purge_demo_seed.sql");
 
     /** 演示种子脚本：这些文件名只允许出现在 {@code db/seed-demo}。 */
     private static final Set<String> SEED_FILENAMES = Set.of(
