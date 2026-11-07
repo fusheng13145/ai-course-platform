@@ -101,6 +101,15 @@
         :course-id="courseId"
         :role="role"
       />
+      <CourseNoticesTab
+        v-else-if="currentTab === 'notices' && (role === 'teacher' || role === 'student')"
+        :course-id="courseId"
+        :role="role"
+      />
+      <AiCorpusTab
+        v-else-if="currentTab === 'corpus' && role === 'teacher'"
+        :course-id="courseId"
+      />
       <TabUnavailable v-else :note="tabUnavailableNote" />
     </div>
   </template>
@@ -109,6 +118,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+import { track } from '@/utils/track'
 import Icon from '../../components/Icon.vue'
 import CourseOverviewTab from './tabs/CourseOverviewTab.vue'
 import GradingTab from './tabs/GradingTab.vue'
@@ -118,6 +128,8 @@ import AdminReadOnlyTab from './tabs/AdminReadOnlyTab.vue'
 import GradesTab from './tabs/GradesTab.vue'
 import SettingsTab from './tabs/SettingsTab.vue'
 import TabUnavailable from './tabs/TabUnavailable.vue'
+import CourseNoticesTab from './tabs/CourseNoticesTab.vue'
+import AiCorpusTab from './tabs/AiCorpusTab.vue'
 import TeacherBankView from '../teacher/TeacherBankView.vue'
 import TeacherExamsView from '../teacher/TeacherExamsView.vue'
 import ProctorTab from './tabs/ProctorTab.vue'
@@ -260,7 +272,12 @@ async function load() {
   }
 }
 
-onMounted(load)
+// 业务埋点（2026-11-07 P2–P3 批次）：course_view 是学习漏斗的第一个事件；
+// 端点未配置时 track 为 no-op，不影响页面行为。
+onMounted(() => {
+  track({ event: 'course_view', props: { courseId: courseId.value } })
+  void load()
+})
 
 /** 设置页保存后直接用 PUT 响应回填：后端课程缓存未随更新失效，重新读会拿到旧值 */
 function applyCourseUpdate(course: Record<string, unknown>) {
