@@ -79,7 +79,7 @@ Java 后端经标准化集成层 `com.aicourse.integration` 与 Python 微服务
 | --- | --- | --- | --- |
 | 知识图谱 | `python-services/kg_service/` | 8001 | 11 个契约端点；`kg_store.py` 支持 Neo4j 与内存双后端（不可达时自动回落内存图）；多跳路径规划在图库侧完成，Java 侧只做本地 BFS 兜底；CI 护栏 `test_kg_contract.py` |
 | RAG 检索 | `python-services/rag_service/` | 8002 | 9 个契约端点 + `rag_engine.py` 真实混合检索（BM25 + 向量 + RRF，重依赖懒加载）。⚠️ 语料落在 gitignore 的 `data/`，换机或重建环境时用 `python scripts/seed-rag-corpus.py` 从 `scripts/rag_corpus.json` 重放并重建索引（覆盖课程 1 与示范课 4007） |
-| LoRA 微调 | `python-services/fine_tune_service/` | 8003 | 八条契约端点 + 数据集／语料六端点，真实 PEFT 训练／导出／推理。**残项**：无 Dockerfile、compose 服务块仍注释、一键启动器不拉起（须手工 `uvicorn`）、Java 侧未消费数据集端点 |
+| LoRA 微调 | `python-services/fine_tune_service/` | 8003 | 八条契约端点 + 数据集／语料六端点，真实 PEFT 训练／导出／推理。【2026-11-07 P1 整改批】已补齐 Dockerfile（CPU 版 torch，非 root + 健康检查）并纳入 compose（独立 profile `ft`，`docker compose --profile ft up -d fine-tune-service` 后置 `FT_ENABLED=true` 接通）。**残项**：一键启动器不拉起（本机裸跑仍须手工 `uvicorn`）、Java 侧未消费数据集端点 |
 
 - `max_hops` 自 2026-10-05 起**只用于"是否采纳"判定，不参与遍历剪枝**，上限不足时仍回传真实最短跳数（语义见 `docs/系统架构设计.md`）。
 - **AI 面失败不伪装成功**：大模型调用失败一律返回 HTTP 503 + `code=503`，`message` 指认病因（凭据被拒／额度／未配置／空响应）。没有有效凭据时 AI 端点就是不可用——这比"200 带一句客套话"更该先知道（DR-74）。

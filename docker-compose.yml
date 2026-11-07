@@ -94,6 +94,11 @@ services:
     # 所以这个 pin 不改变行为，只是让「跑的是哪个补丁版」在文件里可见、可复现。
     image: mysql:8.4.11
     container_name: aicourse-mysql
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 1g
     labels:
       <<: *labels-infra
       aicourse.role: database
@@ -135,6 +140,11 @@ services:
   redis:
     image: redis:7.4.11-alpine
     container_name: aicourse-redis
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 384m
     labels:
       <<: *labels-infra
       aicourse.role: cache
@@ -185,6 +195,11 @@ services:
     # 也让 `docker rmi aicourse/backend:local` 之类的清理动作目标明确。
     image: aicourse/backend:local
     container_name: aicourse-backend
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 896m
     labels:
       <<: *labels-app
       aicourse.role: api
@@ -222,6 +237,9 @@ services:
       # 仅本地体验场景可在 .env 显式置 true（勿与 prod profile 同时使用）。
       DEMO_ACCOUNTS_ENABLED: ${DEMO_ACCOUNTS_ENABLED:-false}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      # 服务间内部认证（2026-11-07 验收整改批）：非空时 backend→KG/RAG/FT 附带 X-Internal-Key，
+      # 三个 Python 服务以同名变量校验，两端必须一致；为空（默认）不发送不校验。
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
       # 供应商与端点（DR-84）：默认值与 application.yaml 一致，不填行为不变；
       # 容器形态若要接自建网关，必须在此注入（同 DR-73 教训：yml 有落点而编排到不了＝调不动且不报错）。
       AI_PROVIDER: ${AI_PROVIDER:-deepseek}
@@ -369,6 +387,11 @@ services:
       context: ./python-services/kg_service
     image: aicourse/kg-service:local
     container_name: aicourse-kg-service
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 384m
     labels:
       <<: *labels-python
       aicourse.role: kg
@@ -382,6 +405,8 @@ services:
       NEO4J_URI: bolt://neo4j:7687
       NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
       NEO4J_PASSWORD: ${NEO4J_PASSWORD:?NEO4J_PASSWORD 必须设置（请 cp .env.example .env 后填入）}
+      # 服务间内部认证：与 backend 的 INTERNAL_API_KEY 一致（为空不校验）。
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
       TZ: Asia/Shanghai
     ports:
       - "${KG_HOST_BIND:-127.0.0.1}:${KG_HOST_PORT:-8001}:8001"
@@ -406,6 +431,11 @@ services:
         RAG_EMBED_MODEL: ${RAG_EMBED_MODEL:-BAAI/bge-small-zh-v1.5}
     image: aicourse/rag-service:local
     container_name: aicourse-rag-service
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 1g
     labels:
       <<: *labels-python
       aicourse.role: rag
@@ -433,6 +463,8 @@ services:
       # R3 图谱增强：RAG 从 KG 取课程节点并带 1 跳关系。
       KG_BASE_URL: http://kg-service:8001
       RAG_GRAPH_ENABLED: ${RAG_GRAPH_ENABLED:-true}
+      # 服务间内部认证：与 backend 的 INTERNAL_API_KEY 一致（为空不校验）。
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
       TZ: Asia/Shanghai
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -455,9 +487,53 @@ services:
       start_period: 30s
 
   # fine-tune-service（8003）：LoRA 微调引擎。**引擎侧已交付**（python-services/fine_tune_service，
-  # 契约见 docs/项目手册.md 第八部分 §37；本机 pytest 52 passed / 1 skipped，手册 DR-78），但
-  # **D-A4 ② 不包含 8003**：尚无 Dockerfile，也未纳入 scripts/start-engines.py 一键范围。
-  # 上线需第三个镜像或独立 systemd unit；在此之前保持 FT_ENABLED=false（见部署文档 §6.1）。
+  # 契约见 docs/项目手册.md 第八部分 §37；本机 pytest 52 passed / 1 skipped，手册 DR-78）。
+  # 【2026-11-07 P1 整改批】补齐 Dockerfile 并纳入编排：独立 profile "ft"（不随 python profile
+  # 默认拉起——镜像含 torch 体量大，且 FT 属重资源可选能力）。启用链路：
+  #   1) docker compose --profile ft up -d fine-tune-service
+  #   2) .env 置 FT_ENABLED=true（backend 侧开关，缺省 false＝不改变既有行为）
+  # 端口默认仍只绑回环；CPU 版 torch 经构建参数 TORCH_CPU_INDEX 控制（默认 PyTorch CPU 源）。
+  fine-tune-service:
+    build:
+      context: ./python-services/fine_tune_service
+    image: aicourse/fine-tune-service:local
+    container_name: aicourse-fine-tune-service
+    # 资源上限：torch 推理 + 小样本训练的基础余量；正式训练建议在宿主机独占环境跑（README 已注明）
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    labels:
+      <<: *labels-python
+      aicourse.role: fine-tune
+    restart: unless-stopped
+    profiles: ["ft"]
+    environment:
+      FT_DATA_DIR: /app/data
+      # engine=LoRA 真实推理；ollama=宿主机 Ollama（容器内 localhost 指自身，须用 host-gateway）
+      FT_LLM_PROVIDER: ${FT_LLM_PROVIDER:-engine}
+      OLLAMA_BASE_URL: ${FT_OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      # 服务间内部认证：与 backend 的 INTERNAL_API_KEY 一致（为空不校验）。
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
+      TZ: Asia/Shanghai
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${FT_HOST_BIND:-127.0.0.1}:${FT_HOST_PORT:-8003}:8003"
+    volumes:
+      - ft-data:/app/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8003/api/v1/fine-tune/health', timeout=3)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   # ---------------- MySQL 定时备份守护（profiles: ops） ----------------
   mysql-backup:
@@ -466,6 +542,11 @@ services:
     # 所以这个 pin 不改变行为，只是让「跑的是哪个补丁版」在文件里可见、可复现。
     image: mysql:8.4.11
     container_name: aicourse-mysql-backup
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 256m
     labels:
       <<: *labels-ops
       aicourse.role: db-backup
@@ -510,6 +591,11 @@ services:
   prometheus:
     image: prom/prometheus:v2.53.0
     container_name: aicourse-prometheus
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 512m
     labels:
       <<: *labels-monitor
       aicourse.role: metrics
@@ -551,6 +637,11 @@ services:
   node-exporter:
     image: prom/node-exporter:v1.8.2
     container_name: aicourse-node-exporter
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 64m
     labels:
       <<: *labels-monitor
       aicourse.role: host-metrics
@@ -576,6 +667,11 @@ services:
   alertmanager:
     image: prom/alertmanager:v0.27.0
     container_name: aicourse-alertmanager
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 128m
     labels:
       <<: *labels-monitor
       aicourse.role: alerting
@@ -599,6 +695,11 @@ services:
   grafana:
     image: grafana/grafana:11.2.0
     container_name: aicourse-grafana
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 256m
     labels:
       <<: *labels-monitor
       aicourse.role: dashboard
@@ -628,6 +729,11 @@ services:
   loki:
     image: grafana/loki:2.9.8
     container_name: aicourse-loki
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 384m
     labels:
       <<: *labels-monitor
       aicourse.role: log-store
@@ -649,6 +755,11 @@ services:
   promtail:
     image: grafana/promtail:2.9.8
     container_name: aicourse-promtail
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 128m
     labels:
       <<: *labels-monitor
       aicourse.role: log-collector
@@ -672,6 +783,11 @@ services:
       context: ./frontend
     image: aicourse/frontend:local
     container_name: aicourse-frontend
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 128m
     labels:
       <<: *labels-app
       aicourse.role: edge
@@ -688,6 +804,14 @@ services:
       #   **宿主机侧不变**（默认 80），所以 http://localhost/ 与后端 CORS 白名单无需改动；
       #   改的是 nginx.conf 的 listen，两处必须同步（见 frontend/nginx.conf 头注）。
       - "${FRONTEND_HOST_BIND:-127.0.0.1}:${FRONTEND_HTTP_PORT:-80}:8080"
+    # 健康检查（2026-11-07 验收整改批补齐）：此前 frontend 无 healthcheck，编排器无法感知边缘代理假死。
+    # 探静态首页即可（nginx:alpine 自带 busybox wget）；/api 由后端自身健康检查兜底。
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     logging:
       # json-file 日志限额：与 backend 一致，防止日志膨胀
       driver: json-file
@@ -701,6 +825,11 @@ services:
   neo4j:
     image: neo4j:5-community
     container_name: aicourse-neo4j
+    # 资源上限（docker compose v2 非 Swarm 也生效）：与 heap/pagecache 预算匹配，防单服务失控拖垮宿主
+    deploy:
+      resources:
+        limits:
+          memory: 1g
     labels:
       <<: *labels-infra
       aicourse.role: graph-store
@@ -747,6 +876,8 @@ volumes:
   neo4j_plugins:
   # Python 引擎数据卷（D-A4 ②）
   rag-data:
+  # LoRA 微调数据卷（2026-11-07 P1 整改批：训练产物/导出权重/数据集元数据）
+  ft-data:
   hf-cache:
 
 # ===================== 文件式凭据（Compose secrets，非 Swarm 也支持） =====================
