@@ -84,6 +84,9 @@
                 <div class="row-actions">
                   <button class="text-btn" @click="openQuestions(row)">题目</button>
                   <button class="text-btn" @click="openStats(row)">统计</button>
+                  <button class="text-btn" :disabled="copyingId === row.id" @click="copyRow(row)">
+                    {{ copyingId === row.id ? '复制中…' : '复制' }}
+                  </button>
                   <template v-if="statusView(row).canPublish">
                     <button class="text-btn" @click="openEdit(row)">编辑</button>
                     <button class="text-btn" @click="publishRow(row)">提交审核</button>
@@ -232,6 +235,7 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
+  copyExam,
   createExamPaper,
   deleteExamPaper,
   getAllExamPapers,
@@ -548,6 +552,29 @@ async function openStats(row: ExamRow) {
     toast(errMsg(error, '统计加载失败'), 'danger')
   } finally {
     statsLoading.value = false
+  }
+}
+
+/**
+ * 复制试卷（2026-11-07 P2 批次：后端 POST /exam-papers/{id}/copy 此前无前端入口）。
+ * 新卷强制 DRAFT 态、复制题目与分值（见 ExamPaperServiceImpl.copyExamPaper）；
+ * 命名自动加「副本」后缀，用户可再自行编辑。
+ */
+const copyingId = ref<number | string | null>(null)
+
+async function copyRow(row: ExamRow) {
+  if (copyingId.value != null) return
+  copyingId.value = row.id
+  try {
+    const created = unwrap<Record<string, unknown>>(await copyExam(row.id, { newTitle: `${row.title}（副本）` }))
+    toast('试卷已复制为新草稿，可直接编辑题目', 'ok')
+    await loadExams()
+    return created
+  } catch (error) {
+    toast(errMsg(error, '复制失败，请稍后重试'), 'danger')
+    return null
+  } finally {
+    copyingId.value = null
   }
 }
 

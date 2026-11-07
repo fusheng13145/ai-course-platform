@@ -93,7 +93,14 @@
             <div>
               <span>提交附件</span><b>{{ attachments(selected).length }} 个</b>
             </div>
-            <div><span>查重</span><b>未发现异常</b></div>
+            <div>
+              <span>查重</span>
+              <b v-if="plagiarism.loading" class="cell-sub">检测中…</b>
+              <b v-else-if="plagiarism.percent !== null" :class="{ 'text-warn': plagiarism.percent >= 40 }">
+                {{ plagiarism.percent }}%
+              </b>
+              <b v-else class="cell-sub">未检测</b>
+            </div>
             <div>
               <span>已交</span><b>{{ submissions.length }} 份</b>
             </div>
@@ -131,6 +138,36 @@
             <button class="text-btn" @click="applyAiSuggestion">采纳建议</button>
           </div>
 
+          <div class="peek-actions">
+            <button class="btn btn-ghost" :disabled="plagiarism.loading || plagiarism.checking" @click="runPlagiarismCheck">
+              {{ plagiarism.checking ? '查重检测中…' : '查重检测' }}
+            </button>
+            <button
+              v-if="plagiarism.result"
+              class="text-btn"
+              @click="plagiarism.detailOpen = !plagiarism.detailOpen"
+            >
+              {{ plagiarism.detailOpen ? '收起明细' : '查看明细' }}
+            </button>
+          </div>
+
+          <div v-if="plagiarism.detailOpen && plagiarism.result" class="plagiarism-detail">
+            <p class="detail-summary">
+              {{ plagiarism.result.resultSummary || `最高相似度 ${plagiarism.percent ?? '—'}%，高相似匹配 ${plagiarism.result.highSimilarityCount ?? 0} 处` }}
+            </p>
+            <ul v-if="plagiarism.matches.length" class="match-list">
+              <li v-for="(match, index) in plagiarism.matches" :key="index" class="match-item">
+                <div class="match-head">
+                  <b>与提交 #{{ match.matchedSubmissionId ?? '—' }} 相似 {{ formatPercent(match.similarity) }}</b>
+                  <span class="chip chip-mute">{{ match.matchType || 'TEXT' }}</span>
+                </div>
+                <p v-if="match.matchedText" class="match-text">{{ match.matchedText }}</p>
+              </li>
+            </ul>
+            <p v-else class="detail-summary">未发现达到阈值的相似片段。</p>
+            <p class="hint">算法：Jaccard + CJK 双字（同学任务内逐对比对）；结果只作教师参考，不自动改分。</p>
+          </div>
+
           <div v-if="returnModal.row" class="return-box">
             <label class="field">
               <span>退回原因</span>
@@ -159,11 +196,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import taskApi from '@/api/task'
 import submissionApi from '@/api/submission'
-import { pickList, unwrap } from '@/utils/response'
 import {
   useSubmissionGrading,
   parseAiSuggestion,
@@ -172,6 +208,8 @@ import {
   type Submission,
 } from '@/composables/useSubmissionGrading'
 import Stat from '../../../components/Stat.vue'
+import { getPlagiarismResult, checkPlagiarism } from '@/api/submission'
+import { unwrap } from '@/utils/response'
 import Icon from '../../../components/Icon.vue'
 import type { Metric, Role } from '../../../nav'
 import { useUi } from '../../../composables/ui'
@@ -199,6 +237,93 @@ const selectedTask = computed(
 )
 const selected = computed(
   () => submissions.value.find((row) => row.id === selectedId.value) || null,
+)
+
+/**
+ * 查重（2026-11-07 P3 批次：查重结果进批阅页）：peek 面板的「查重」读数此前是写死的
+ * 「未发现异常」假读数；现按选中提交懒加载真实结果（GET /submissions/{id}/plagiarism），
+ * 教师可手动触发检测（POST check-plagiarism，同学任务内逐对比对）。后端无记录/执行中/
+ * 已完成三态均如实展示，不编造「未发现异常」。
+ */
+const plagiarism = reactive<{
+  loading: boolean
+  checking: boolean
+  detailOpen: boolean
+  percent: number | null
+  result: Record<string, unknown> | null
+  matches: Array<Record<string, unknown>>
+}>({
+  loading: false,
+  checking: false,
+  detailOpen: false,
+  percent: null,
+  result: null,
+  matches: [],
+})
+
+async function loadPlagiarism(submissionId: number) {
+  plagiarism.loading = true
+  plagiarism.result = null
+  plagiarism.matches = []
+  plagiarism.percent = null
+  plagiarism.detailOpen = false
+  try {
+    const payload = unwrap<Record<string, unknown>>(await getPlagiarismResult(submissionId))
+    if (payload && typeof payload === 'object' && 'checkId' in payload) {
+      // 任务执行中：如实显示状态，不伪装成已完成
+      plagiarism.percent = null
+      plagiarism.result = { status: payload.status, resultSummary: '查重任务正在执行中，稍后刷新查看' }
+      return
+    }
+    if (payload && typeof payload === 'object' && Object.keys(payload).length > 0) {
+      plagiarism.result = payload
+      const score = payload.similarityScore ?? payload.similarity_score
+      plagiarism.percent = score == null ? null : Math.round(Number(score) * 100)
+      plagiarism.matches = Array.isArray(payload.matches) ? (payload.matches as Array<Record<string, unknown>>) : []
+    }
+  } catch {
+    // 无记录/失败都落在「未检测」态，由教师手动触发；不弹错误打断批阅流
+    plagiarism.result = null
+  } finally {
+    plagiarism.loading = false
+  }
+}
+
+async function runPlagiarismCheck() {
+  if (!selected.value || plagiarism.checking) return
+  plagiarism.checking = true
+  try {
+    const payload = unwrap<Record<string, unknown>>(await checkPlagiarism(selected.value.id))
+    plagiarism.result = payload && typeof payload === 'object' ? payload : null
+    const score = plagiarism.result?.similarityScore ?? plagiarism.result?.similarity_score
+    plagiarism.percent = score == null ? null : Math.round(Number(score) * 100)
+    plagiarism.matches = Array.isArray(plagiarism.result?.matches)
+      ? (plagiarism.result?.matches as Array<Record<string, unknown>>)
+      : []
+    plagiarism.detailOpen = true
+    ui.toast('查重检测完成', 'ok')
+  } catch (error) {
+    ui.toast(
+      (error as { response?: { data?: { message?: string } } })?.response?.data?.message ||
+        '查重检测失败，请稍后重试',
+      'danger',
+    )
+  } finally {
+    plagiarism.checking = false
+  }
+}
+
+function formatPercent(value: unknown): string {
+  const num = Number(value)
+  if (Number.isNaN(num)) return '—'
+  return `${Math.round(num <= 1 ? num * 100 : num)}%`
+}
+
+watch(
+  () => selectedId.value,
+  (id) => {
+    if (id != null) void loadPlagiarism(id)
+  },
 )
 
 const {
@@ -330,8 +455,9 @@ async function loadSubmissions() {
   if (taskId == null) return
   loading.value = true
   try {
-    const payload = unwrap(await submissionApi.getTaskSubmissions(taskId, { page: 1, size: 100 }))
-    submissions.value = pickList(payload).map((row) => ({
+    // getAllTaskSubmissions 内部按页拉全（fetchAllPages），避免大班额提交被单页 100 条截断
+    const rows = await submissionApi.getAllTaskSubmissions(taskId)
+    submissions.value = rows.map((row) => ({
       ...(row as Record<string, unknown>),
     })) as Submission[]
     if (selectedId.value && !submissions.value.some((row) => row.id === selectedId.value)) {
@@ -410,5 +536,55 @@ onMounted(loadTasks)
   margin-top: 10px;
   padding-top: 10px;
   border-top: 1px solid var(--line);
+}
+</style>
+
+<style scoped>
+.plagiarism-detail {
+  display: grid;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}
+.detail-summary {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-2);
+}
+.match-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 8px;
+}
+.match-item {
+  padding: 8px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  display: grid;
+  gap: 4px;
+}
+.match-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+}
+.match-text {
+  margin: 0;
+  font-size: 12px;
+  color: var(--text-3);
+  white-space: pre-wrap;
+}
+.text-warn {
+  color: var(--warn, #d97706);
+}
+.cell-sub {
+  font-size: 11px;
+  color: var(--text-3);
+  font-weight: 400;
 }
 </style>
