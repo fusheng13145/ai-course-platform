@@ -212,6 +212,11 @@ jwt:
 # 由 application-local.yaml 显式关闭这两项——即「默认安全，开发显式放宽」，
 # 杜绝「忘记在生产打开 Secure」这类靠人肉运维的乐观假设。
 app:
+  # 服务间内部认证（2026-11-07 验收整改批）：非空时 Java→Python（KG 8001 / RAG 8002 / 微调 8003）
+  # 全部请求附带 X-Internal-Key 头，Python 端以同名环境变量 INTERNAL_API_KEY 校验（两端必须一致）。
+  # 为空（默认）时不发送也不校验——本机裸跑 / 既有单测保持直连。生产 compose 建议必配。
+  internal:
+    service-api-key: ${INTERNAL_API_KEY:}
   # Redis 必选开关：true 时启动强校验 Redis 连通性（RedisStartupValidator），失败即中止启动。
   # 仅单元测试（无 Redis 环境）允许置 false；生产/开发环境保持 true。
   redis:

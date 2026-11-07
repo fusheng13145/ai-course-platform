@@ -308,3 +308,25 @@ def test_neo4j_store_crud_relations_and_path():
         for nid in created:
             store.delete_node(nid)
         store.close()
+
+
+# ---------------- 服务间内部认证（X-Internal-Key，2026-11-07 验收整改批） ----------------
+
+def test_internal_api_key_guard(monkeypatch):
+    """INTERNAL_API_KEY 非空时：业务端点缺头 401、对头放行，health 豁免。"""
+    monkeypatch.setenv("INTERNAL_API_KEY", "guard-key-1")
+    with TestClient(app) as c:
+        missing = c.get("/api/v1/graph/course/1")
+        assert missing.status_code == 401
+        ok = c.get("/api/v1/graph/course/1", headers={"X-Internal-Key": "guard-key-1"})
+        assert ok.status_code == 200
+        health = c.get("/api/v1/graph/health")
+        assert health.status_code == 200
+
+
+def test_internal_api_key_disabled_by_default(monkeypatch):
+    """INTERNAL_API_KEY 为空（默认）：不校验，直连行为不变。"""
+    monkeypatch.delenv("INTERNAL_API_KEY", raising=False)
+    with TestClient(app) as c:
+        resp = c.get("/api/v1/graph/course/1")
+        assert resp.status_code == 200

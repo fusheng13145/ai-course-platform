@@ -15,6 +15,7 @@ import com.aicourse.service.KnowledgePointService;
 import com.aicourse.vo.KnowledgePathPlanVO;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -44,6 +45,24 @@ public class KnowledgeGraphServiceImpl implements KnowledgeGraphService {
     private final KnowledgeGraphContract provider;
     private final KnowledgePointService knowledgePointService;
 
+    /**
+     * 兼容旧签名（internalApiKey 为空：不发内部认证头），供既有单测直构使用。
+     */
+    public KnowledgeGraphServiceImpl(
+            boolean enabled,
+            String baseUrl,
+            int connectTimeout,
+            int readTimeout,
+            int maxRetries,
+            String healthPath,
+            int defaultMaxHops,
+            KnowledgePointService knowledgePointService,
+            KnowledgePointRelationService relationService) {
+        this(enabled, baseUrl, connectTimeout, readTimeout, maxRetries, healthPath, defaultMaxHops,
+                knowledgePointService, relationService, "");
+    }
+
+    @Autowired
     public KnowledgeGraphServiceImpl(
             @Value("${knowledge-graph.enabled:false}") boolean enabled,
             @Value("${knowledge-graph.base-url:http://localhost:8001}") String baseUrl,
@@ -53,11 +72,12 @@ public class KnowledgeGraphServiceImpl implements KnowledgeGraphService {
             @Value("${knowledge-graph.health-path:/api/v1/graph/health}") String healthPath,
             @Value("${knowledge-graph.rag.max-hops:2}") int defaultMaxHops,
             KnowledgePointService knowledgePointService,
-            KnowledgePointRelationService relationService) {
+            KnowledgePointRelationService relationService,
+            @Value("${app.internal.service-api-key:}") String internalApiKey) {
         this.knowledgePointService = knowledgePointService;
         KnowledgeGraphContract local = new LocalKnowledgeGraphProvider(knowledgePointService, relationService, defaultMaxHops);
         this.provider = enabled
-                ? new HttpKnowledgeGraphProvider(baseUrl, connectTimeout, readTimeout, maxRetries, healthPath, defaultMaxHops, local)
+                ? new HttpKnowledgeGraphProvider(baseUrl, connectTimeout, readTimeout, maxRetries, healthPath, defaultMaxHops, local, internalApiKey)
                 : local;
     }
 

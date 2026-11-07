@@ -9,6 +9,7 @@ import com.aicourse.integration.rag.RagContract.RagRetrieveRequest;
 import com.aicourse.service.RAGService;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
@@ -33,6 +34,21 @@ public class RAGServiceImpl implements RAGService {
 
     private final RagContract provider;
 
+    /**
+     * 兼容旧签名（internalApiKey 为空：不发内部认证头），供既有单测直构使用。
+     */
+    public RAGServiceImpl(
+            boolean enabled,
+            String baseUrl,
+            int connectTimeout,
+            int readTimeout,
+            int maxRetries,
+            String healthPath,
+            int defaultTopK) {
+        this(enabled, baseUrl, connectTimeout, readTimeout, maxRetries, healthPath, defaultTopK, "");
+    }
+
+    @Autowired
     public RAGServiceImpl(
             @Value("${rag.enabled:false}") boolean enabled,
             @Value("${rag.base-url:http://localhost:8002}") String baseUrl,
@@ -40,9 +56,10 @@ public class RAGServiceImpl implements RAGService {
             @Value("${rag.read-timeout:60}") int readTimeout,
             @Value("${rag.max-retries:2}") int maxRetries,
             @Value("${rag.health-path:/api/v1/rag/health}") String healthPath,
-            @Value("${rag.default-top-k:5}") int defaultTopK) {
+            @Value("${rag.default-top-k:5}") int defaultTopK,
+            @Value("${app.internal.service-api-key:}") String internalApiKey) {
         this.provider = enabled
-                ? new HttpRagProvider(baseUrl, connectTimeout, readTimeout, maxRetries, healthPath, defaultTopK)
+                ? new HttpRagProvider(baseUrl, connectTimeout, readTimeout, maxRetries, healthPath, defaultTopK, internalApiKey)
                 : new DisabledRagProvider();
     }
 

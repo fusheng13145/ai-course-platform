@@ -32,7 +32,8 @@ from __future__ import annotations
 import os
 from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 try:
@@ -41,6 +42,24 @@ except ImportError:  # 以 python-services 为工作目录、按子包方式启�
     from . import rag_engine
 
 app = FastAPI(title="AI Course RAG Service", version="0.2.0")
+
+# ---------------- 服务间内部认证（可选，2026-11-07 验收整改批） ----------------
+# INTERNAL_API_KEY 非空时，所有业务端点要求请求头 X-Internal-Key 与之一致，否则 401；
+# 为空（默认）时不校验——本机裸跑与既有 CI 契约测试保持直连。
+# 豁免路径：*/health（容器/compose 健康探针与编排器不携带业务密钥）。
+INTERNAL_KEY_HEADER = "X-Internal-Key"
+
+
+@app.middleware("http")
+async def _internal_auth_guard(request: Request, call_next):
+    expected = (os.getenv("INTERNAL_API_KEY") or "").strip()
+    if expected and not request.url.path.endswith("/health"):
+        if request.headers.get(INTERNAL_KEY_HEADER) != expected:
+            return JSONResponse(
+                status_code=401,
+                content={"code": 401, "message": "缺少或错误的 X-Internal-Key（服务间内部认证）"},
+            )
+    return await call_next(request)
 
 # 与 Java 端 com.aicourse.integration.ContractPaths.MSG_RAG_UNAVAILABLE 严格一致（降级语义文案）
 MSG_RAG_UNAVAILABLE = "RAG 引擎由团队另一成员负责，本端仅预留接口；服务未接入或不可用"

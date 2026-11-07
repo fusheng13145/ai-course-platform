@@ -16,9 +16,11 @@ Java 端 `knowledge-graph.enabled=true` 时经 `HttpKnowledgeGraphProvider` 调�
     KG_BACKEND=neo4j NEO4J_URI=bolt://localhost:7687 uvicorn kg_service:app --host 0.0.0.0 --port 8001
 """
 
+import os
 from typing import Any, Dict, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 try:
@@ -27,6 +29,24 @@ except ImportError:  # 以 python-services 为工作目录、按子包方式启�
     from . import kg_store
 
 app = FastAPI(title="AI Course Knowledge Graph Service", version="1.1.0")
+
+# ---------------- 服务间内部认证（可选，2026-11-07 验收整改批） ----------------
+# INTERNAL_API_KEY 非空时，所有业务端点要求请求头 X-Internal-Key 与之一致，否则 401；
+# 为空（默认）时不校验——本机裸跑与既有 CI 契约测试保持直连。
+# 豁免路径：*/health（容器/compose 健康探针与编排器不携带业务密钥）。
+INTERNAL_KEY_HEADER = "X-Internal-Key"
+
+
+@app.middleware("http")
+async def _internal_auth_guard(request: Request, call_next):
+    expected = (os.getenv("INTERNAL_API_KEY") or "").strip()
+    if expected and not request.url.path.endswith("/health"):
+        if request.headers.get(INTERNAL_KEY_HEADER) != expected:
+            return JSONResponse(
+                status_code=401,
+                content={"code": 401, "message": "缺少或错误的 X-Internal-Key（服务间内部认证）"},
+            )
+    return await call_next(request)
 
 
 # ---------------- 请求体模型 ----------------
