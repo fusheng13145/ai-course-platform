@@ -249,6 +249,6 @@ init()
 }
 .members-panel {
   padding: 8px 16px 14px;
-  border-top: 1px dashed var(--ac-border, rgba(127, 127, 127, 0.3));
+  border-top: 1px dashed var(--line);
 }
 </style>

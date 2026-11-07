@@ -222,7 +222,7 @@ onMounted(() => {
 .notice-item {
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   display: grid;
   gap: 4px;
 }

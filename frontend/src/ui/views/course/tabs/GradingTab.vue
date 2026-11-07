@@ -545,7 +545,7 @@ onMounted(loadTasks)
   gap: 8px;
   padding: 10px 12px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
 }
 .detail-summary {
   margin: 0;
@@ -562,7 +562,7 @@ onMounted(loadTasks)
 .match-item {
   padding: 8px 10px;
   border: 1px solid var(--line);
-  border-radius: 8px;
+  border-radius: var(--r-card);
   display: grid;
   gap: 4px;
 }

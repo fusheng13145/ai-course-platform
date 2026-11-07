@@ -234,7 +234,7 @@ onMounted(() => {
   gap: 4px;
   padding: 12px 14px;
   border: 1px solid var(--line);
-  border-radius: 10px;
+  border-radius: var(--r-md);
   background: var(--surface);
   text-align: left;
   cursor: pointer;
@@ -255,7 +255,7 @@ onMounted(() => {
   display: grid;
   gap: 4px;
   padding: 12px 14px;
-  border-radius: 10px;
+  border-radius: var(--r-md);
   border: 1px solid var(--line);
 }
 .test-result.ok {

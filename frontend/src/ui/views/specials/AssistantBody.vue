@@ -135,8 +135,8 @@ async function send() {
 .chat-bubble {
   margin: 0;
   padding: 8px 12px;
-  border-radius: 10px;
-  background: var(--ac-bg-soft, rgba(127, 127, 127, 0.1));
+  border-radius: var(--r-md);
+  background: var(--mute-soft);
   white-space: pre-wrap;
   word-break: break-word;
   text-align: left;
@@ -145,7 +145,7 @@ async function send() {
   display: flex;
   gap: 8px;
   padding: 12px 16px;
-  border-top: 1px solid var(--ac-border, rgba(127, 127, 127, 0.3));
+  border-top: 1px solid var(--line);
 }
 .chat-input {
   flex: 1;
