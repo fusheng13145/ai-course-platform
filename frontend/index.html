@@ -3,6 +3,10 @@
   <head>
     <meta charset="UTF-8" />
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- PWA manifest（2026-11-07 P3 批次）：可安装 + 独立窗口；不含 Service Worker（无离线承诺）。
+         theme-color 与 manifest theme_color 保持一致，暗色模式由运行时主题类处理。 -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="theme-color" content="#7e14ff" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <!-- Content Security Policy（前端兜底层）：与后端 SecurityConfig 策略一致。
          当应用不经过 Spring 后端直接由 Nginx/CDN 分发时，后端 CSP 头不可用，
