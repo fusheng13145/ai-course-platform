@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -135,20 +136,24 @@ public class TeacherDashboardComponent {
 
             List<Map<String, Object>> trend = new ArrayList<>();
             LocalDate today = LocalDate.now();
+            // V7 批：14 天趋势从"每天 2 条串行查询 × 14 = 28 条往返"改为 2 条 GROUP BY 聚合——
+            // 该循环是 /teacher/courses/{id}/dashboard 1556ms 的主要构成（其余端点同窗 6-30ms）。
+            // 无记录的日期仍按 0 补齐出点，响应形状不变。
+            LocalDateTime trendSince = today.minusDays(13).atStartOfDay();
+            Map<String, Long> dailyActive = new HashMap<>();
+            for (Map<String, Object> row : learningRecordService.dailyActiveByCourse(courseId, trendSince)) {
+                dailyActive.put(String.valueOf(row.get("date")), ((Number) row.get("active")).longValue());
+            }
+            Map<String, Long> dailySubs = new HashMap<>();
+            if (!taskIds.isEmpty()) {
+                for (Map<String, Object> row : submissionService.dailySubmissionsByTasks(taskIds, trendSince)) {
+                    dailySubs.put(String.valueOf(row.get("date")), ((Number) row.get("subs")).longValue());
+                }
+            }
             for (int i = 13; i >= 0; i--) {
                 LocalDate day = today.minusDays(i);
-                LocalDateTime start = day.atStartOfDay();
-                LocalDateTime end = day.plusDays(1).atStartOfDay();
-                long active = learningRecordService.list(new LambdaQueryWrapper<LearningRecord>()
-                        .eq(LearningRecord::getCourseId, courseId)
-                        .ge(LearningRecord::getCreatedAt, start).lt(LearningRecord::getCreatedAt, end))
-                        .stream().map(LearningRecord::getUserId).filter(Objects::nonNull).distinct().count();
-                long subs = 0L;
-                if (!taskIds.isEmpty()) {
-                    subs = submissionService.count(new LambdaQueryWrapper<Submission>()
-                            .in(Submission::getTaskId, taskIds)
-                            .ge(Submission::getCreatedAt, start).lt(Submission::getCreatedAt, end));
-                }
+                long active = dailyActive.getOrDefault(day.toString(), 0L);
+                long subs = dailySubs.getOrDefault(day.toString(), 0L);
                 Map<String, Object> point = new LinkedHashMap<>(3);
                 point.put("date", day.toString());
                 point.put("activeStudents", active);
@@ -158,7 +163,7 @@ public class TeacherDashboardComponent {
 
             List<Map<String, Object>> atRisk = buildAtRisk(enrollments, null);
             List<Map<String, Object>> chapterTree = chapterComponent.getFullChapterTree(courseId);
-            Map<String, Object> aiInsight = buildCourseAIInsight(course, totalStudents, avgProgress,
+            Map<String, Object> aiInsight = cachedCourseAIInsight(course, totalStudents, avgProgress,
                     completionRate, avgScore, passRate, pendingGrading, atRisk);
 
             dashboard.put("courseId", courseId);
@@ -411,6 +416,41 @@ public class TeacherDashboardComponent {
         boolean lowProgress = e.getProgress() != null && e.getProgress().doubleValue() < 40;
         boolean lowScore = e.getFinalScore() != null && e.getFinalScore().doubleValue() < 60;
         return (lowProgress ? 1 : 0) + (lowScore ? 1 : 0);
+    }
+
+    /**
+     * 课程级 AI 洞察缓存（V7 批）：驾驶舱是高频读页面，此前**每次请求都同步调 LLM**——
+     * 外部供应商往返（实测 402 配额失败也要 ~1.5s）直接决定该页延迟，并在压测中把读路径
+     * 吞吐封顶到 ~63 req/s（9 个读端点轮转里 1/9 命中 dashboard）。
+     * 策略：成功缓存 10 分钟（AI 解读天然允许分钟级陈旧）；失败负缓存 60 秒——避免在
+     * 供应商故障/配额耗尽时每请求都去撞一遍外部网络。响应形状不变，仅新鲜度牺牲。
+     */
+    private static final long INSIGHT_TTL_SUCCESS_MS = 10 * 60 * 1000L;
+    private static final long INSIGHT_TTL_FAILURE_MS = 60 * 1000L;
+    private final java.util.concurrent.ConcurrentHashMap<Long, CachedInsight> courseInsightCache =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    private record CachedInsight(Map<String, Object> payload, boolean fromFailure, long expiresAtMs) {
+    }
+
+    private Map<String, Object> cachedCourseAIInsight(Course course, long totalStudents, double avgProgress,
+                                                      double completionRate, double avgScore, double passRate,
+                                                      long pendingGrading, List<Map<String, Object>> atRisk) {
+        long now = System.currentTimeMillis();
+        CachedInsight cached = courseInsightCache.get(course.getId());
+        if (cached != null && now < cached.expiresAtMs()) {
+            return cached.payload();
+        }
+        Map<String, Object> payload = buildCourseAIInsight(course, totalStudents, avgProgress,
+                completionRate, avgScore, passRate, pendingGrading, atRisk);
+        // 失败形态=固定兜底文案（buildCourseAIInsight 的 catch 分支），负缓存 60s；
+        // 成功形态缓存 10 分钟。字段级区分避免把失败文案当成功缓存满 10 分钟。
+        boolean failure = payload != null && "暂无可用的 AI 学情解读（模型未配置或调用失败）。"
+                .equals(payload.get("summary"));
+        courseInsightCache.put(course.getId(),
+                new CachedInsight(payload, failure,
+                        now + (failure ? INSIGHT_TTL_FAILURE_MS : INSIGHT_TTL_SUCCESS_MS)));
+        return payload;
     }
 
     private Map<String, Object> buildCourseAIInsight(Course course, long totalStudents, double avgProgress,

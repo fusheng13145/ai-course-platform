@@ -151,10 +151,14 @@ class Session:
                          else http.client.HTTPConnection)(HOST, PORT, timeout=timeout)
             return 0, {"_transport_error": str(e)}, (time.perf_counter() - t0) * 1000
         dt = (time.perf_counter() - t0) * 1000
-        # 捕获 Set-Cookie（登录用）
-        sc = r.getheader("Set-Cookie")
-        if sc and "ai_course_token=" in sc:
-            self.cookie = sc.split(";")[0]
+        # 捕获 Set-Cookie（登录用）。2026-11-10 修复：getheader 只返回**第一枚** Set-Cookie，
+        # 而登录响应实际可能携带多枚（JSESSIONID 常排在前）——后端重启后顺序一变就漏接
+        # ai_course_token → 后续请求 401 级联（V7 批压测夹具失败的实锤根因）。
+        # 改为遍历全部 Set-Cookie 头，取含 ai_course_token 的那一枚。
+        for sc in (r.msg.get_all("Set-Cookie") or []):
+            if "ai_course_token=" in sc:
+                self.cookie = sc.split(";")[0]
+                break
         try:
             return status, json.loads(text), dt
         except Exception:  # noqa: BLE001

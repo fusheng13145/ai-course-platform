@@ -136,4 +136,14 @@ public class SubmissionServiceImpl extends ServiceImpl<SubmissionMapper, Submiss
     public Map<String, Object> getSubmissionDetail(Long submissionId) {
         return readComponent.getSubmissionDetail(submissionId);
     }
+
+    /** V7 批：单条 GROUP BY 的按日提交聚合（取代 14 天 × 1 条串行 count 的驾驶舱趋势查询）。 */
+    @Override
+    public java.util.List<java.util.Map<String, Object>> dailySubmissionsByTasks(
+            java.util.List<Long> taskIds, java.time.LocalDateTime since) {
+        if (taskIds == null || taskIds.isEmpty()) {
+            return java.util.List.of();
+        }
+        return baseMapper.selectDailySubmissionsByTasks(taskIds, since);
+    }
 }

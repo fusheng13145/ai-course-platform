@@ -68,9 +68,13 @@ spring:
     # 生产必须通过环境变量 SPRING_DATASOURCE_PASSWORD 注入（无默认值，避免弱口令进入仓库）
     password: ${SPRING_DATASOURCE_PASSWORD}
     hikari:
-      # 连接池大小：生产环境建议通过 SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE 调优
-      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:10}
-      minimum-idle: 5
+      # 连接池大小：生产环境建议通过 SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE 调优。
+      # 2026-11-10 压测归因（V7 批）：默认 10 在并发 60+ 时成为读路径吞吐封顶瓶颈——
+      # 10133 请求中 5383 条 UserMapper.selectById 慢日志（PK 查询 >500ms）实为等连接排队，
+      # 修复后读路径吞吐从 63 req/s 封顶显著抬升（对照读数见 测试文档 §4 / 演练记录）。
+      # 20 = c100 压测下排队消除的经验值；MySQL max_connections(默认151) 内余量充足。
+      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:20}
+      minimum-idle: ${SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE:10}
       connection-timeout: 30000
 
   # 数据库迁移（Flyway）：替代 index.sql 手动全量导入

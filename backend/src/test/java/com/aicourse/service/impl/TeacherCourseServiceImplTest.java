@@ -166,6 +166,11 @@ class TeacherCourseServiceImplTest {
         when(submissionService.count(any(Wrapper.class))).thenReturn(2L);
         when(submissionService.list(any(Wrapper.class))).thenReturn(submissions);
         when(learningRecordService.list(any(Wrapper.class))).thenReturn(records);
+        // V7 批：趋势改走按日聚合（GROUP BY），桩空表即可（趋势 14 点全零，形状断言不受影响）
+        when(learningRecordService.dailyActiveByCourse(anyLong(), any(java.time.LocalDateTime.class)))
+                .thenReturn(java.util.List.of());
+        when(submissionService.dailySubmissionsByTasks(anyList(), any(java.time.LocalDateTime.class)))
+                .thenReturn(java.util.List.of());
         when(userService.list(any(Wrapper.class))).thenReturn(users);
         when(classroomService.listByIds(anyList())).thenReturn(classrooms);
         when(aiService.generateLearningAdviceJson(any(), any())).thenReturn("{\"summary\":\"OK\"}");
