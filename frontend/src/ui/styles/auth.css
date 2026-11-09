@@ -278,7 +278,7 @@
 .av-error {
   margin: 0;
   padding: 8px 10px;
-  border-radius: 6px;
+  border-radius: var(--r-ctl);
   background: var(--danger-soft);
   color: var(--danger);
   font-size: 11px;
