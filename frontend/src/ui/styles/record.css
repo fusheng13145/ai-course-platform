@@ -107,6 +107,8 @@ body[data-app="ui"] .shell {
   grid-template-areas: "header header" "nav main";
   grid-template-columns: var(--nav-w) minmax(0, 1fr);
   grid-template-rows: var(--header-h) minmax(0, 1fr);
+  /* V3：折叠/展开的列宽过渡（仅交互过程；静止态两档宽度不变，基线不受 §7.5 约束影响） */
+  transition: grid-template-columns .24s var(--ease);
 }
 body[data-app="ui"] .topbar {
   grid-area: header;
@@ -225,6 +227,9 @@ body[data-app="ui"] .nav-count { font-family: var(--font-mono); font-size: 9px; 
 body[data-app="ui"] .nav-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; padding-right: 2px; }
 body[data-app="ui"] .nav-scroll::-webkit-scrollbar { width: 5px; }
 body[data-app="ui"] .nav-scroll::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: var(--r-chip); }
+/* V3b（暂缓）：滚动条质感像素段（6px + --scrollbar-thumb/-hover 令牌 + hover 色阶）改动存档于
+   docs/前端待办项.md §2.0c；因 8080 真栈被其他项目占用、夹具登录不可用而无法归因/重录，
+   待真栈恢复后独立成批执行。 */
 body[data-app="ui"] .nav-group { margin-bottom: 14px; }
 body[data-app="ui"] .nav-group-label {
   display: flex; justify-content: space-between; align-items: center;
@@ -236,11 +241,15 @@ body[data-app="ui"] .nav-item {
   position: relative; display: flex; align-items: center; gap: 9px;
   width: 100%; padding: 8px 10px; border: 0; background: none;
   border-radius: var(--r-ctl); color: var(--ink-2); text-align: left;
-  transition: background .18s, color .18s;
+  transition: background .18s, color .18s, transform .16s var(--ease);
 }
-body[data-app="ui"] .nav-item:hover { background: var(--surface-2); color: var(--ink); }
+/* V3 微交互：悬停右移 2px（激活项不位移，避免与左侧指示条对抗）；按下回移 1px 做按压反馈。
+   transform 仅交互态，静止态零变化（§7.5：基线不受影响，不构成也不需要基线证据）。 */
+body[data-app="ui"] .nav-item:hover:not(.is-active) { background: var(--surface-2); color: var(--ink); transform: translateX(2px); }
+body[data-app="ui"] .nav-item:hover.is-active { background: var(--accent-soft); color: var(--accent); }
+body[data-app="ui"] .nav-item:active:not(.is-active) { transform: translateX(1px); }
 body[data-app="ui"] .nav-item.is-active { background: var(--accent-soft); color: var(--accent); }
-body[data-app="ui"] .nav-item .icon { width: 16px; height: 16px; flex: none; color: var(--ink-3); }
+body[data-app="ui"] .nav-item .icon { width: 16px; height: 16px; flex: none; color: var(--ink-3); transition: color .18s; }
 body[data-app="ui"] .nav-item.is-active .icon { color: var(--accent); }
 body[data-app="ui"] .nav-index {
   display: none; font-family: var(--font-mono); font-size: 8px;
@@ -901,6 +910,7 @@ body[data-app="ui"] .shell {
   grid-template-areas: "header header" "nav main";
   grid-template-columns: var(--nav-w) minmax(0, 1fr);
   grid-template-rows: var(--header-h) minmax(0, 1fr);
+  transition: grid-template-columns .24s var(--ease);
 }
 body[data-app="ui"] .main { overflow: clip; }
 body[data-app="ui"] .main-inner { max-width: 1440px; padding: 22px 26px 52px; }
