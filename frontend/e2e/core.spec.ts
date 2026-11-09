@@ -11,7 +11,8 @@ import { SITE_BASE, DEMO_PASS } from './test-helpers'
 /**
  * 核心链路真栈巡检（L-02 的 M-04／M-11 段 + M-02 的开考/续考段）。
  *
- * 前置：本机 start.bat 起过后端 8080 与前端 5173，种子账号可用（README 演示账号）。
+ * 前置：本机起过后端（2026-11-09 起 V4 批并行端口方案：8081 + VITE_PROXY_TARGET），
+ * 演示账号 admin/teacher/student 可用（V18 演示种子清除后的正式库口径；锚点课程＝课程 1）。
  * 口径：断言真实 API 读数与真实状态迁移，不打桩；不交卷（避免留下不可撤销的判分记录）。
  * 说明：开考用的试卷每轮新建并发布，跑完在 afterAll 按 id 删除（发布态的删除端点实测存在
  * 且真删），不再往库里留取证卷；除这张卷外不做其它写操作。
@@ -21,13 +22,16 @@ const BASE = SITE_BASE
 const PASS = DEMO_PASS
 const ACCOUNTS = {
   admin: process.env.PW_ADMIN_USER || 'admin',
-  teacher: process.env.PW_TEACHER_USER || 'ts01',
-  student: process.env.PW_STUDENT_USER || 'st001',
+  // V18 清除演示种子后，ts01/st001 已不存在；正式库的 teacher/student 与课程 1 的
+  // 师生/选课关系齐备（teacher id=2 任课程 1，student id=4 对课程 1 为 APPROVED 在读）。
+  teacher: process.env.PW_TEACHER_USER || 'teacher',
+  student: process.env.PW_STUDENT_USER || 'student',
 } as const
 type Role = keyof typeof ACCOUNTS
 
 const PAPER_PREFIX = 'E2E-开考续考-守护卷'
-const EXAM_COURSE_ID = 4001
+// V18 后锚点课程＝课程 1（Python 程序设计）：teacher 任教、student APPROVED 在读、题库 3 题
+const EXAM_COURSE_ID = 1
 
 type StorageState = Awaited<ReturnType<BrowserContext['storageState']>>
 let states: Record<Role, StorageState> | null = null
