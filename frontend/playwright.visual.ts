@@ -5,13 +5,17 @@ import { defineConfig, devices } from '@playwright/test'
 // 两者共用一份 config 会让 9 个流程 spec 的行为连带改变。
 const PORT = process.env.PW_PORT || '5175'
 const BASE_URL = `http://localhost:${PORT}`
+// 【P-18 修复（V8 批）】失败工件（diff 图 / error-context）此前落在固定的 test-results/visual/ 下，
+// 下一轮整目录重建即被覆盖——V2 批曾因此丢掉一轮 4 张红的归因证据。改为**按轮次时间戳隔离**，
+// 每轮工件独立留存；基线本体在 e2e/visual/__snapshots__（snapshotPathTemplate），不受影响。
+const RUN_ID = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19)
 
 export default defineConfig({
   globalSetup: './e2e/visual/global-setup.ts',
   testDir: './e2e/visual',
   // 与流程套件分开落点（见 playwright.config.ts 的 outputDir 注释）；
   // 注意：取证图是测试里显式 page.screenshot({ path }) 写出的，不归 outputDir 管。
-  outputDir: './test-results/visual',
+  outputDir: `./test-results/visual/${RUN_ID}`,
   fullyParallel: false,
   workers: 1,
   // 与流程 config 一致：CI 里遗留的 .only 必须直接失败，否则会静默把 24 张基线的矩阵缩成 1 张

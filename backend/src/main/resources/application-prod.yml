@@ -88,6 +88,11 @@ app:
 spring:
   flyway:
     locations: classpath:db/migration
+    # 【2026-11-10 V8 批：生产安全加固】显式禁用 clean——Flyway 默认（Boot 3.x 托管下）
+    # cleanDisabled 默认已为 true（环境变量 FLYWAY_CLEAN_DISABLED 亦生效），此处显式写出
+    # 是把该防线固化成可审计的配置事实：任何误配/降级都不会让 `flyway:clean` 摸到生产库
+    # （空库开通演练记录 PROV-20261110-01 §2 列为小改进项，本行为其收口）。
+    clean-disabled: true
 
 # ===================== CORS 白名单：生产显式清空 base 的 localhost 白名单 =====================
 # 【存在理由（2026-09-16）】base application.yaml 硬编码了 9 条 localhost 白名单且无任何 profile 覆盖，

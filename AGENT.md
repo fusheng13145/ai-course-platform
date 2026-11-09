@@ -160,7 +160,7 @@ cd frontend && PW_PORT=5175 npx playwright test -c playwright.visual.ts
 python -m pytest python-services/kg_service -q          # 30 passed / 1 skipped（2026-11-09）
 python -m pytest python-services/rag_service -q         # 62 passed / 9 skipped
 python -m pytest python-services/fine_tune_service -q   # 54 passed / 1 skipped（真实训练按 skipif 跳过）
-python -m pytest scripts/tests -q                       # 102 passed / 1 failed（INTERNAL_API_KEY 导出缺键，待修）
+python -m pytest scripts/tests -q                       # 103 passed（2026-11-10 V8 批：INTERNAL_API_KEY 已补进 start-engines 导出名单，红灯销账）
 
 # 全栈四件套：两种姿态不可混用
 python scripts/run-backend-for-e2e.py functional        # CSRF 关、登录限流 200（后台常驻）
