@@ -52,7 +52,7 @@
 
 ### 1.5.6 范围纪律
 
-- **单课优先**：当前聚焦「计算机网络」一门课做深做透；多课程、教务模块不与单课关键路径（三端跑通 > 图谱可演示 > RAG 防幻觉）争夺资源。
+- **单课优先**：首期聚焦单门课程做深做透；多课程、教务模块不与单课关键路径（三端跑通 > 图谱可演示 > RAG 防幻觉）争夺资源。**2026-11-09 注**：原「计算机网络」示范课 4007 已随 V18 清除，当前开发库/e2e 锚点为课程 1（Python 程序设计）；定位是否从《计算机网络》垂直调整为泛化课程平台，是 `docs/alignment/09` 留待项目主拍板的开放问题，未拍板前不得自行改写战略口径。
 - **愿景隔离**：「上位替代学习通」仅为对外叙事，执行上永不占用垂直利器资源。
 - **可砍清单（NICE）**：LoRA 微调、社群、激励、移动端——时间告急时依次可砍，不阻关键路径。
 
@@ -65,7 +65,7 @@
 
 | 想知道                                               | 唯一来源                                  |
 | ------------------------------------------------- | ------------------------------------- |
-| 项目是什么、角色权限、功能清单、里程碑、术语、协作约定、审计台账 DR-1…DR-109、结构性计数 | `docs/项目手册.md`（结构性数字**只**写在 §8）       |
+| 项目是什么、角色权限、功能清单、里程碑、术语、协作约定、审计台账 DR-1…DR-111、结构性计数 | `docs/项目手册.md`（结构性数字**只**写在 §8）       |
 | 需求、验收标准、演示脚本、14 维度 140 项规划、M1–M4                  | `docs/PRD产品规划.md`                     |
 | 进程拓扑、数据模型、接口契约、架构决策                               | `docs/系统架构设计.md`                      |
 | 后端怎么写                                             | `docs/后端开发规范.md`                      |
@@ -122,7 +122,7 @@
 | ------------- | ----------------------- | ------------------------------- |
 | JDK           | 21                      | 启动器 fail-fast，不静默回落             |
 | Maven         | 由 `backend/mvnw.cmd` 提供 | 不要求系统 Maven                     |
-| Node          | 20.19+（本机实测 24.18）      | `start.bat frontend` 报错退出       |
+| Node          | 20.19+（本机实测 24.15.0）      | `start.bat frontend` 报错退出       |
 | Python        | 3.11                    | 启动器与引擎都必需（唯一入口 `start.bat` 是薄壳） |
 | MySQL / Redis | 8.4 / 7.x，**本机手工服务**    | 上报项目主，**不要自己拉容器**               |
 | Neo4j         | 5.26 可选                 | KG 自动回落内存图                      |
@@ -157,10 +157,10 @@ cd frontend && PW_PORT=5174 npx playwright test
 cd frontend && PW_PORT=5175 npx playwright test -c playwright.visual.ts
 
 # 引擎与启动器（仓库根）
-python -m pytest python-services/kg_service -q          # 29
-python -m pytest python-services/rag_service -q         # 54
-python -m pytest python-services/fine_tune_service -q   # 53（1 例真实训练按 skipif 跳过）
-python -m pytest scripts/tests -q                       # 97
+python -m pytest python-services/kg_service -q          # 30 passed / 1 skipped（2026-11-09）
+python -m pytest python-services/rag_service -q         # 62 passed / 9 skipped
+python -m pytest python-services/fine_tune_service -q   # 54 passed / 1 skipped（真实训练按 skipif 跳过）
+python -m pytest scripts/tests -q                       # 102 passed / 1 failed（INTERNAL_API_KEY 导出缺键，待修）
 
 # 全栈四件套：两种姿态不可混用
 python scripts/run-backend-for-e2e.py functional        # CSRF 关、登录限流 200（后台常驻）
@@ -224,7 +224,7 @@ python scripts/sync-kg-to-python.py <courseId>
 ### 5.4 密钥与敏感信息
 
 - **永不回显值**，包括报错、日志、diff 片段与对话正文；需要判断状态时只引用 `python scripts/audit-stats.py` 的派生结论（键名、长度、`OK/EMPTY/FAIL`）。
-- 值只进 `.env`（模板 `.env.example`，36 键）与 `deploy/secrets/`；会话夹具 `frontend/e2e/visual/.auth/*.json` 内含令牌，同样严禁入库与打印。口令类值必须 8–32 位且同时含大小写字母、数字、特殊字符四类；**不要用 `openssl rand -base64 32`**（输出 44 字符会超上限）。
+- 值只进 `.env`（模板 `.env.example`，51 键）与 `deploy/secrets/`；会话夹具 `frontend/e2e/visual/.auth/*.json` 内含令牌，同样严禁入库与打印。口令类值必须 8–32 位且同时含大小写字母、数字、特殊字符四类；**不要用 `openssl rand -base64 32`**（输出 44 字符会超上限）。
 - 凭据一旦贴进对话即已外泄（本机转录 + 供应商侧），唯一止血是到控制台轮换；轮换 `JWT_SECRET` 会使所有会话失效，必须在演示彩排之前做。
 - 形状门：`DEEPSEEK_API_KEY` 必须纯 ASCII 且以 `sk-` 开头；把中文备注写在同一行键值上会让请求在发出前失败（DR-82）。
 
@@ -269,7 +269,7 @@ python scripts/sync-kg-to-python.py <courseId>
 | "集成层本机验证过" | 本机自 2026-10-08 只跑 `-DskipITs`；12 例 IT 由 CI 取数 | `docs/测试文档.md` §2.1 |
 | "依赖无漏洞" | Trivy 漏洞库侧只在 CI 有读数；本机 `npm audit` 须带官方 registry | `docs/后端待办项.md` I-05 |
 | "无障碍已达标／WCAG 合规" | 只有近似控制台读数，非 axe、非门禁 | `docs/测试文档.md` §4.5 |
-| "全站无视觉回归" | 基线只覆盖 12 个锚点页 | `docs/前端待办项.md` §1 |
+| "全站无视觉回归" | 基线只覆盖 5 个锚点页（10 张，明暗各一） | `docs/前端待办项.md` §1 |
 | "生产可承载 N QPS" | 压力是本机笔记本单实例 | `docs/测试文档.md` §6 |
 | "已具备上线能力" | A 路径从未在目标环境实跑，只有预案与断链清单 | `docs/部署文档.md` §6 |
 | "微调能力可售" | 小样本必然过拟合，推理文本会退化为语料外乱码 | `docs/后端待办项.md` §7 AG-2 |
