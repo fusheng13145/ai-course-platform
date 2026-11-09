@@ -21,6 +21,11 @@ WORKDIR /app
 
 # requirements.txt = 契约运行依赖（CI 契约护栏同款）；requirements-engine.txt = 真实 PEFT 训练重依赖。
 # 先从 CPU 源装 torch，再装其余锁定依赖（pip 见 torch==2.11.0 已满足即跳过）。
+# 【2026-11-10 实构建发现（V6 批存档，待 Docker 环境修复验证）】：Linux 上 torch==2.11.0 的
+# CPU 索引 wheel 疑似缺位/标签不匹配 → requirements-engine.txt 安装阶段回落 PyPI 拉取 CUDA 系
+# 依赖（nvidia_cudnn 519MB 等），FT 镜像构建未完成（构建机引擎同时 EOF 退出，交叉因素未定案）。
+# 修复候选（届时二选一并实测）：① 显式 `torch==2.11.0+cpu` 本地版本号；② constraints 文件把
+# torch 钉到 CPU 索引后再装其余依赖。backend/kg/frontend 三镜像同轮构建成功（kg/frontend 命名落盘在案）。
 COPY requirements.txt requirements-engine.txt ./
 RUN pip install --no-cache-dir torch==2.11.0 --index-url ${TORCH_CPU_INDEX} \
     && pip install --no-cache-dir -r requirements.txt -r requirements-engine.txt
