@@ -45,8 +45,13 @@ export default defineConfig(({ mode }) => ({
     },
     proxy: {
       '/api': {
-        // 本地后端监听 8080
-        target: 'http://127.0.0.1:8080/api',
+        // 本地后端监听 8080；冲突时可用 VITE_PROXY_TARGET 指向其他端口（如
+        // http://127.0.0.1:8081），缺省行为不变（2026-11-09 视觉 V4 批：8080 被
+        // 其他课程作业后端占用期间的并行端口方案）。env 值缺 /api 后缀时自动补齐。
+        target: (() => {
+          const t = process.env.VITE_PROXY_TARGET || 'http://127.0.0.1:8080/api'
+          return /\/api\/?$/.test(t) ? t.replace(/\/$/, '') : `${t.replace(/\/$/, '')}/api`
+        })(),
         changeOrigin: true,
         rewrite: (path) => path.replace(/^\/api/, ''),
         // 必须开启：/api/ws 是 WebSocket 端点（实时通知 + 考试实时通道，握手见后端

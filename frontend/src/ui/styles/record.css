@@ -64,6 +64,9 @@ body[data-app="ui"] {
   --r-lg: 12px;
   --r-circle: 50%;
   --r-bar: 6px 6px 2px 2px;
+  /* V3b：滚动条色阶（令牌出生地；dark 经 --ink-3 覆写自动适配） */
+  --scrollbar-thumb: color-mix(in srgb, var(--ink-3) 55%, transparent);
+  --scrollbar-thumb-hover: color-mix(in srgb, var(--ink-2) 75%, transparent);
   --sh-card: none;
   --sh-pop: 0 24px 80px rgba(10, 15, 25, .24);
   --nav-w: 248px;
@@ -224,12 +227,10 @@ body[data-app="ui"] .nav-eyebrow {
   font-size: 10px; font-weight: 600; letter-spacing: .08em; color: var(--ink-3);
 }
 body[data-app="ui"] .nav-count { font-family: var(--font-mono); font-size: 9px; color: var(--ink-3); }
-body[data-app="ui"] .nav-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: var(--line-strong) transparent; padding-right: 2px; }
-body[data-app="ui"] .nav-scroll::-webkit-scrollbar { width: 5px; }
-body[data-app="ui"] .nav-scroll::-webkit-scrollbar-thumb { background: var(--line-strong); border-radius: var(--r-chip); }
-/* V3b（暂缓）：滚动条质感像素段（6px + --scrollbar-thumb/-hover 令牌 + hover 色阶）改动存档于
-   docs/前端待办项.md §2.0c；因 8080 真栈被其他项目占用、夹具登录不可用而无法归因/重录，
-   待真栈恢复后独立成批执行。 */
+body[data-app="ui"] .nav-scroll { flex: 1; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; scrollbar-color: var(--scrollbar-thumb) transparent; padding-right: 2px; }
+body[data-app="ui"] .nav-scroll::-webkit-scrollbar { width: 6px; }
+body[data-app="ui"] .nav-scroll::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: var(--r-chip); }
+body[data-app="ui"] .nav-scroll::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-thumb-hover); }
 body[data-app="ui"] .nav-group { margin-bottom: 14px; }
 body[data-app="ui"] .nav-group-label {
   display: flex; justify-content: space-between; align-items: center;
