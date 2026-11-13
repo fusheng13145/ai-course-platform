@@ -586,7 +586,7 @@ jobs:
           df -h /
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+        uses: docker/setup-buildx-action@v4
 
       - name: Build images (no push)
         # 修复：docker-compose.yml 里全部 ${VAR:?...} 均在 `compose config` 阶段强制求值，
