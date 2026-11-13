@@ -12,6 +12,7 @@ import com.aicourse.service.component.ai.AiCoreComponent;
 import com.aicourse.service.component.ai.AiDialogueComponent;
 import com.aicourse.service.component.ai.AiRagComponent;
 import com.aicourse.service.component.ai.AiStructuredComponent;
+import com.aicourse.service.component.ai.CourseEvidenceComponent;
 import com.aicourse.vo.QaAnswerVO;
 import com.aicourse.vo.QaSourceVO;
 import com.aicourse.vo.QaStreamVO;
@@ -75,7 +76,9 @@ class AIServiceImplExtraTest {
         // 原兼容构造器已移除：此处内联其组件组装逻辑，再走主构造器（4 个组件）
         AiCoreComponent coreComponent = new AiCoreComponent(llmProvider, promptGuard, meterRegistry, aiCallLogService);
         AiDialogueComponent dialogueComponent = new AiDialogueComponent(coreComponent, ragService);
-        AiRagComponent ragComponent = new AiRagComponent(ragService, coreComponent, knowledgePointService);
+        CourseEvidenceComponent evidenceComponent =
+                new CourseEvidenceComponent(ragService, knowledgePointService);
+        AiRagComponent ragComponent = new AiRagComponent(evidenceComponent, coreComponent);
         AiStructuredComponent structuredComponent = new AiStructuredComponent(coreComponent);
         service = new AIServiceImpl(dialogueComponent, ragComponent, structuredComponent, coreComponent);
         // 兜底桩（any() 合理）：只保证链路跑通，具体参数由各用例捕获断言
