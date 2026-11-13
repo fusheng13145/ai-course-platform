@@ -10,3 +10,6 @@ transformers==5.5.4
 peft==0.21.2
 datasets==5.1.0
 accelerate==1.15.0
+# datasets 5.1.0 要求 pyarrow>=24；低版本缺少 pyarrow.json_ 别名，
+# 会让论文引擎（LoRA 训练）import 失败（2026-11-13 实测 16.1.0 不可用）。
+pyarrow>=24,<25
