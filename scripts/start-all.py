@@ -639,8 +639,15 @@ def start_engine(name: str, env: dict, sink: Sink):
         dotenv=env,
     )
     workdir = ROOT / "python-services" / eng.SERVICE_DIRS[name]
-    sink.put(name, f"启动 {name.upper()} 引擎（:{PORTS[name]}，本窗口内）")
-    proc = spawn_captured(eng.uvicorn_command(eng.APP_MODULES[name], PORTS[name]), workdir, exported, name, sink)
+    python_exe = eng.engine_python(name)
+    if eng.venv_python(name) is None:
+        sink.put(name, f"[WARN] {name} 没有自己的 .venv，回落当前解释器 {python_exe}"
+                       "（重依赖缺失时会静默降级，请在服务目录建 venv 后重跑）")
+    sink.put(name, f"启动 {name.upper()} 引擎（:{PORTS[name]}，本窗口内，解释器 {python_exe}）")
+    proc = spawn_captured(
+        eng.uvicorn_command(eng.APP_MODULES[name], PORTS[name], python_exe),
+        workdir, exported, name, sink,
+    )
     return wait_for_engine(name), proc
 
 
