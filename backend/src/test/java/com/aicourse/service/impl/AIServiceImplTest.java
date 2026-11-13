@@ -69,11 +69,11 @@ class AIServiceImplTest {
     void setUp() {
         // 原兼容构造器已移除：此处内联其组件组装逻辑，再走主构造器（4 个组件）
         AiCoreComponent coreComponent = new AiCoreComponent(llmProvider, promptGuard, meterRegistry, aiCallLogService);
-        AiDialogueComponent dialogueComponent = new AiDialogueComponent(coreComponent, ragService);
         CourseEvidenceComponent evidenceComponent =
                 new CourseEvidenceComponent(ragService, knowledgePointService);
+        AiDialogueComponent dialogueComponent = new AiDialogueComponent(coreComponent, ragService, evidenceComponent);
         AiRagComponent ragComponent = new AiRagComponent(evidenceComponent, coreComponent);
-        AiStructuredComponent structuredComponent = new AiStructuredComponent(coreComponent);
+        AiStructuredComponent structuredComponent = new AiStructuredComponent(coreComponent, evidenceComponent);
         service = new AIServiceImpl(dialogueComponent, ragComponent, structuredComponent, coreComponent);
         // 默认桩：已配置供应商，complete/completeJson 返回合法文本，输出清洗为原样透传。
         // 这里保留 any() 是合理的——它们是「让链路跑通」的兜底返回值，不承载被测逻辑的输出参数。

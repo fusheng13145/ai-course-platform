@@ -1,8 +1,10 @@
 package com.aicourse.service.component.ai;
 
 import com.aicourse.common.ApiCode;
+import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.exception.LLMUnavailableException;
+import com.aicourse.integration.rag.RagContract.RagSource;
 import com.aicourse.service.RAGService;
 import com.aicourse.vo.QaSourceVO;
 import com.aicourse.vo.QaStreamVO;
@@ -24,13 +26,17 @@ public class AiDialogueComponent {
 
     /** 流式问答检索的召回条数（与同步 RAG 问答 {@code AiRagComponent.ragAsk} 保持同一口径）。 */
     private static final int STREAM_RETRIEVE_TOP_K = 5;
+    /** 出题时注入的课程资料召回条数。 */
+    private static final int QUESTION_RETRIEVE_TOP_K = 5;
 
     private final AiCoreComponent core;
     private final RAGService ragService;
+    private final CourseEvidenceComponent evidence;
 
-    public AiDialogueComponent(AiCoreComponent core, RAGService ragService) {
+    public AiDialogueComponent(AiCoreComponent core, RAGService ragService, CourseEvidenceComponent evidence) {
         this.core = core;
         this.ragService = ragService;
+        this.evidence = evidence;
     }
 
     /**
@@ -70,8 +76,54 @@ public class AiDialogueComponent {
                         + "content(题干字符串)、options(选项字符串数组)、correctAnswers(正确答案，单选为字符串、"
                         + "多选为字符串数组)、explanation(解析字符串)、score(分值数字)。",
                 scope, count, AiCoreComponent.orDefault(difficulty, "MEDIUM"), AiCoreComponent.orDefault(type, "SINGLE_CHOICE"));
+        // 课程接地：把本课程真实召回的课程资料与知识图谱知识点拼进提示词，把「出什么题」限定在
+        // 课程范围内，降低超纲题目与凭空编造。证据为空时原样返回，不改变原有生成行为。
+        List<KnowledgePoint> points = evidence.loadPoints(courseId);
+        String query = questionQuery(points, type, difficulty);
+        List<RagSource> sources = evidence.retrieve(query, courseId, QUESTION_RETRIEVE_TOP_K);
+        List<KnowledgePoint> grounded = evidence.matchPoints(points, query);
         // 失败即抛（503），不再把降级文案当生成结果返回——下游要拿它当 JSON 解析。
-        return core.completeAndSanitize(core.buildMessages(prompt, null), 0.9, "question");
+        return core.completeAndSanitize(core.buildMessages(withGrounding(prompt, sources, grounded), null),
+                0.9, "question");
+    }
+
+    /**
+     * 出题证据检索用的查询：本课程全部知识点名称以顿号连接（含全部名称才能让
+     * {@link CourseEvidenceComponent#matchPoints} 按重要度取前 5）；无知识点时退回「题型 难度」，
+     * 两者都为空则不检索。
+     */
+    private String questionQuery(List<KnowledgePoint> points, String type, String difficulty) {
+        String names = points.stream()
+                .map(KnowledgePoint::getName)
+                .filter(name -> name != null && !name.isBlank())
+                .distinct()
+                .reduce((a, b) -> a + "、" + b)
+                .orElse("");
+        if (!names.isEmpty()) {
+            return names;
+        }
+        if ((type == null || type.isBlank()) && (difficulty == null || difficulty.isBlank())) {
+            return "";
+        }
+        return (AiCoreComponent.orDefault(type, "") + " " + AiCoreComponent.orDefault(difficulty, "")).trim();
+    }
+
+    /** 在原有出题提示词后追加课程证据段与「不得超纲」硬约束；无证据时原样返回。 */
+    private String withGrounding(String prompt, List<RagSource> sources, List<KnowledgePoint> grounded) {
+        boolean hasSources = sources != null && !sources.isEmpty();
+        boolean hasPoints = grounded != null && !grounded.isEmpty();
+        if (!hasSources && !hasPoints) {
+            return prompt;
+        }
+        StringBuilder sb = new StringBuilder(prompt);
+        if (hasSources) {
+            sb.append("\n【课程资料摘录】\n").append(evidence.renderSources(sources));
+        }
+        if (hasPoints) {
+            sb.append("\n【课程知识点（知识图谱）】\n").append(evidence.renderPoints(grounded));
+        }
+        sb.append("\n题目必须落在上述课程范围内，不得超纲；引用课程内容时须与资料一致。");
+        return sb.toString();
     }
 
     /**

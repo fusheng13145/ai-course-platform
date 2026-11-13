@@ -1,8 +1,10 @@
 package com.aicourse.service.component.ai;
 
 import com.aicourse.common.JsonUtils;
+import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.exception.LLMUnavailableException;
+import com.aicourse.integration.rag.RagContract.RagSource;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
@@ -25,10 +27,15 @@ public class AiStructuredComponent {
 
     private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
-    private final AiCoreComponent core;
+    /** 出题时注入的课程资料召回条数（与 {@code AiDialogueComponent} 出题口径一致）。 */
+    private static final int QUESTION_RETRIEVE_TOP_K = 5;
 
-    public AiStructuredComponent(AiCoreComponent core) {
+    private final AiCoreComponent core;
+    private final CourseEvidenceComponent evidence;
+
+    public AiStructuredComponent(AiCoreComponent core, CourseEvidenceComponent evidence) {
         this.core = core;
+        this.evidence = evidence;
     }
 
     // ===================== 结构化 JSON 生成 =====================
@@ -166,17 +173,56 @@ public class AiStructuredComponent {
 
     /**
      * 题目推荐（结构化 JSON 输出）
-     * 返回格式：{"questions": [{"content": "题目内容", "type": "SINGLE_CHOICE", "difficulty": "..."}]}
+     * 返回格式：{"questions": [{"content": "题目内容", "type": "SINGLE_CHOICE", "difficulty": "...",
+     * "knowledgePoint": "该题对应的课程知识点名称"}]}
      */
     public String recommendQuestionsJson(Long courseId, String difficulty, int count) {
         String diff = AiCoreComponent.orDefault(difficulty, "MEDIUM");
         String schema = "{\"questions\": [{\"content\": \"题目内容\", \"type\": \"SINGLE_CHOICE\", \"difficulty\": \""
-                + diff + "\"}]}";
+                + diff + "\", \"knowledgePoint\": \"该题对应的课程知识点名称\"}]}";
         // courseId 为空时整段课程限定语要省略：String.format 会把 null 渲染成字面量 "null"，
         // "null难度" 之类的污染会直接压低生成质量。
         String scope = courseId != null ? "为课程(courseId=" + courseId + ")" : "";
         String prompt = String.format("请%s生成%d道%s难度的练习题。", scope, count, diff);
-        return core.callLlm(core.buildMessages(prompt, null), 0.8, schema, "question");
+        // 课程接地：与 AiDialogueComponent.generateQuestion 同一口径，用真实资料召回 + 知识图谱
+        // 知识点约束出题范围；证据为空时原样返回，不改变原有生成行为。
+        List<KnowledgePoint> points = evidence.loadPoints(courseId);
+        String query = questionQuery(points, diff);
+        List<RagSource> sources = evidence.retrieve(query, courseId, QUESTION_RETRIEVE_TOP_K);
+        List<KnowledgePoint> grounded = evidence.matchPoints(points, query);
+        return core.callLlm(core.buildMessages(withGrounding(prompt, sources, grounded), null), 0.8, schema, "question");
+    }
+
+    /**
+     * 出题证据检索用的查询：本课程全部知识点名称以顿号连接（含全部名称才能让
+     * {@link CourseEvidenceComponent#matchPoints} 按重要度取前 5）；无知识点时退回难度，缺省则不检索。
+     */
+    private String questionQuery(List<KnowledgePoint> points, String difficulty) {
+        String names = points.stream()
+                .map(KnowledgePoint::getName)
+                .filter(name -> name != null && !name.isBlank())
+                .distinct()
+                .reduce((a, b) -> a + "、" + b)
+                .orElse("");
+        return names.isEmpty() ? AiCoreComponent.orDefault(difficulty, "").trim() : names;
+    }
+
+    /** 在原有出题提示词后追加课程证据段与「不得超纲」硬约束；无证据时原样返回。 */
+    private String withGrounding(String prompt, List<RagSource> sources, List<KnowledgePoint> grounded) {
+        boolean hasSources = sources != null && !sources.isEmpty();
+        boolean hasPoints = grounded != null && !grounded.isEmpty();
+        if (!hasSources && !hasPoints) {
+            return prompt;
+        }
+        StringBuilder sb = new StringBuilder(prompt);
+        if (hasSources) {
+            sb.append("\n【课程资料摘录】\n").append(evidence.renderSources(sources));
+        }
+        if (hasPoints) {
+            sb.append("\n【课程知识点（知识图谱）】\n").append(evidence.renderPoints(grounded));
+        }
+        sb.append("\n题目必须落在上述课程范围内，不得超纲；引用课程内容时须与资料一致。");
+        return sb.toString();
     }
 
     // ===================== 健壮解析 =====================
@@ -254,6 +300,7 @@ public class AiStructuredComponent {
                 rec.put("content", n.has("content") ? n.get("content").asText() : n.asText());
                 rec.put("type", n.has("type") ? n.get("type").asText() : "SINGLE_CHOICE");
                 rec.put("difficulty", n.has("difficulty") ? n.get("difficulty").asText() : (diff != null ? diff : "MEDIUM"));
+                putKnowledgePoint(rec, n);
                 list.add(rec);
             }
         } else if (root.isObject() && !root.isEmpty()) {
@@ -262,9 +309,18 @@ public class AiStructuredComponent {
             rec.put("content", root.has("content") ? root.get("content").asText() : jsonText);
             rec.put("type", "SINGLE_CHOICE");
             rec.put("difficulty", diff != null ? diff : "MEDIUM");
+            putKnowledgePoint(rec, root);
             list.add(rec);
         }
         return list;
+    }
+
+    /** 仅当节点带非空 {@code knowledgePoint} 时透传该键（缺失/空值不落键，也不报错）。 */
+    private void putKnowledgePoint(Map<String, Object> rec, JsonNode node) {
+        JsonNode knowledgePoint = node.get("knowledgePoint");
+        if (knowledgePoint != null && !knowledgePoint.isNull() && !knowledgePoint.asText().isBlank()) {
+            rec.put("knowledgePoint", knowledgePoint.asText());
+        }
     }
 
     /**

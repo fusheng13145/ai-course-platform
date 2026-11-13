@@ -75,11 +75,11 @@ class AIServiceImplExtraTest {
     void setUp() {
         // 原兼容构造器已移除：此处内联其组件组装逻辑，再走主构造器（4 个组件）
         AiCoreComponent coreComponent = new AiCoreComponent(llmProvider, promptGuard, meterRegistry, aiCallLogService);
-        AiDialogueComponent dialogueComponent = new AiDialogueComponent(coreComponent, ragService);
         CourseEvidenceComponent evidenceComponent =
                 new CourseEvidenceComponent(ragService, knowledgePointService);
+        AiDialogueComponent dialogueComponent = new AiDialogueComponent(coreComponent, ragService, evidenceComponent);
         AiRagComponent ragComponent = new AiRagComponent(evidenceComponent, coreComponent);
-        AiStructuredComponent structuredComponent = new AiStructuredComponent(coreComponent);
+        AiStructuredComponent structuredComponent = new AiStructuredComponent(coreComponent, evidenceComponent);
         service = new AIServiceImpl(dialogueComponent, ragComponent, structuredComponent, coreComponent);
         // 兜底桩（any() 合理）：只保证链路跑通，具体参数由各用例捕获断言
         when(promptGuard.neutralizeInjection(anyString())).thenAnswer(i -> i.getArgument(0));
