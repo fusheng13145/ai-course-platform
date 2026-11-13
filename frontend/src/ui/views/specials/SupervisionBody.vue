@@ -6,7 +6,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">ADMIN SUPERVISION / RUNTIME</p>
           <h2>
             课程运行总览 <span class="chip chip-mute">{{ rows.length }} 门</span>
           </h2>
@@ -87,12 +86,12 @@ const rows = ref<SummaryRow[]>([])
 const loading = ref(false)
 
 const metrics = computed<Metric[]>(() => [
-  { label: '在册课程', value: rows.value.length, unit: '门', note: 'isActive', icon: 'building' },
+  { label: '在册课程', value: rows.value.length, unit: '门', note: '在用课程', icon: 'building' },
   {
     label: '在学总人次',
     value: rows.value.reduce((sum, row) => sum + Number(row.studentCount || 0), 0),
     unit: '人',
-    note: 'APPROVED 在读',
+    note: '在读学生',
     icon: 'users',
     tone: 'ok',
   },
@@ -100,7 +99,7 @@ const metrics = computed<Metric[]>(() => [
     label: '进行中考试',
     value: rows.value.reduce((sum, row) => sum + Number(row.activeExams || 0), 0),
     unit: '场',
-    note: 'STARTED 会话',
+    note: '开考中',
     icon: 'chart',
     tone: 'warn',
   },
@@ -108,7 +107,7 @@ const metrics = computed<Metric[]>(() => [
     label: '待批阅提交',
     value: rows.value.reduce((sum, row) => sum + Number(row.pendingGrading || 0), 0),
     unit: '份',
-    note: 'SUBMITTED',
+    note: '待批阅',
     icon: 'layers',
     tone: 'info',
   },

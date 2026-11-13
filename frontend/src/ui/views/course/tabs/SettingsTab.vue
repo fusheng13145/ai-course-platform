@@ -3,7 +3,6 @@
     <section v-if="role !== 'admin'" class="card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">BASIC / 课程</p>
           <h2>基本信息</h2>
         </div>
         <div class="course-tab-actions">
@@ -37,7 +36,6 @@
     <section class="card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">WORKFLOW / 审批</p>
           <h2>课程状态</h2>
         </div>
       </header>
@@ -49,9 +47,7 @@
           <span>02</span><b>院系管理员审批</b
           ><small>{{ approvalLabel(course?.approvalStatus) }}</small>
         </div>
-        <div class="workflow-step">
-          <span>03</span><b>发布教学班</b><small>教学班模型待接入</small>
-        </div>
+        <div class="workflow-step"><span>03</span><b>发布教学班</b></div>
       </div>
       <p class="hint">审批记录不可编辑；管理员课程治理页只读。</p>
     </section>
@@ -59,21 +55,17 @@
     <section v-if="role !== 'admin'" class="card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">CLASSES / 教学班</p>
           <h2>教学班设置</h2>
         </div>
-        <span class="chip chip-warn">待接入</span>
       </header>
       <div class="empty-state compact">
-        <b>教学班接口待扩展</b>
-        <p>
-          teaching_class 与选课名单的作用域端点落地后，这里改为真实班级列表；当前不展示样本数据。
-        </p>
+        <b>教学班设置暂不提供</b>
+        <p>本页暂不提供教学班与选课名单设置。</p>
       </div>
     </section>
 
     <!-- 编辑课程 -->
-    <Modal v-model:open="editOpen" title="编辑课程" kicker="COURSE / SETTINGS" width="640px">
+    <Modal v-model:open="editOpen" title="编辑课程" width="640px">
       <div v-if="editLoading" class="empty-state compact"><b>正在加载课程资料…</b></div>
       <template v-else>
         <div class="form-grid">

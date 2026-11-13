@@ -14,7 +14,6 @@
     <div v-if="role === 'teacher' && composerOpen" class="card composer">
       <header class="card-head">
         <div>
-          <p class="card-kicker">NOTICES / PUBLISH</p>
           <h2>发布课程通知</h2>
         </div>
       </header>
@@ -49,7 +48,6 @@
     <section class="card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">NOTICES / COURSE</p>
           <h2>
             课程通知
             <span class="chip chip-mute">{{ rows.length }} 条</span>

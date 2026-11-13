@@ -2,7 +2,6 @@
   <AuthShell>
     <template #form>
       <header class="av-form-head">
-        <p class="page-kicker">TEACHER / STUDENT / ADMIN · 2026 秋</p>
         <h2>欢迎回来</h2>
         <p>用平台账号进入 AI 助教工作台，登录后按角色进入对应端。</p>
       </header>

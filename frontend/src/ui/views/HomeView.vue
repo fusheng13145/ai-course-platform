@@ -1,6 +1,6 @@
 <template>
   <section class="module">
-    <PageHead :kicker="def.kicker" :title="def.title" :sub="sub" source="api">
+    <PageHead :title="def.title" :sub="sub">
       <template #actions>
         <button class="btn btn-ghost" @click="secondaryAction">{{ secondary.label }}</button>
         <button class="btn btn-primary" @click="primaryAction">
@@ -18,7 +18,6 @@
       <section class="card card-courses">
         <header class="card-head">
           <div>
-            <p class="card-kicker">{{ courseKicker }}</p>
             <h2>{{ courseTitle }}</h2>
           </div>
           <button class="text-btn" @click="goCourses">全部 <Icon name="arrow" /></button>
@@ -26,10 +25,9 @@
 
         <div v-if="courseLoading" class="empty-state compact">
           <b>正在加载课程…</b>
-          <p>读数来自接口，加载完成前不展示占位数据。</p>
         </div>
         <div v-else-if="courseError" class="callout danger" role="alert">
-          <span>ERROR / 课程</span>
+          <span>课程</span>
           <p>{{ courseError }}</p>
           <button class="btn btn-sm" @click="loadHome">重试</button>
         </div>
@@ -61,17 +59,11 @@
           <b>暂无课程</b>
           <p>{{ courseEmptyHint }}</p>
         </div>
-
-        <div class="card-foot">
-          <span>{{ courseFoot }}</span>
-          <span class="mono">{{ role.toUpperCase() }}</span>
-        </div>
       </section>
 
       <section class="card card-queue">
         <header class="card-head">
           <div>
-            <p class="card-kicker">{{ queueKicker }}</p>
             <h2>{{ queueTitle }}</h2>
           </div>
           <button class="text-btn" @click="goQueue">
@@ -82,10 +74,9 @@
 
         <div v-if="queueLoading" class="empty-state compact">
           <b>正在加载待办…</b>
-          <p>读数来自接口，加载完成前不展示占位数据。</p>
         </div>
         <div v-else-if="queueError" class="callout danger" role="alert">
-          <span>ERROR / 待办</span>
+          <span>待办</span>
           <p>{{ queueError }}</p>
           <button class="btn btn-sm" @click="loadHome">重试</button>
         </div>
@@ -112,7 +103,6 @@
         </div>
 
         <div class="card-foot">
-          <span>{{ queueFoot }}</span>
           <span class="mono">{{ queueCountLabel }}</span>
         </div>
       </section>
@@ -120,7 +110,6 @@
       <section class="card card-chart">
         <header class="card-head">
           <div>
-            <p class="card-kicker">{{ chartKicker }}</p>
             <h2>{{ chartTitle }}</h2>
           </div>
           <span class="chart-unit">{{ chartUnit }}</span>
@@ -129,7 +118,7 @@
 
         <div v-if="courseLoading" class="empty-state compact"><b>正在加载图表…</b></div>
         <div v-else-if="courseError" class="callout danger" role="alert">
-          <span>ERROR / 图表</span>
+          <span>图表</span>
           <p>{{ courseError }}</p>
           <button class="btn btn-sm" @click="loadHome">重试</button>
         </div>
@@ -146,7 +135,6 @@
         </div>
 
         <div class="card-foot">
-          <span>{{ chartFoot }}</span>
           <span>{{ role === 'admin' ? '按审批状态' : '按课程进度' }}</span>
         </div>
       </section>
@@ -154,7 +142,6 @@
       <section class="card card-ai">
         <header class="card-head">
           <div>
-            <p class="card-kicker">{{ aiKicker }}</p>
             <h2>{{ aiTitle }}</h2>
           </div>
           <span class="ai-mini"><Icon name="sparkle" /></span>
@@ -174,7 +161,6 @@
       <section class="card card-weak">
         <header class="card-head">
           <div>
-            <p class="card-kicker">{{ weakKicker }}</p>
             <h2>{{ weakTitle }}</h2>
           </div>
           <Icon name="chart" />
@@ -201,7 +187,6 @@
       <section class="card card-feed">
         <header class="card-head">
           <div>
-            <p class="card-kicker">NOTIFICATIONS / RECENT</p>
             <h2>最近通知</h2>
           </div>
           <span class="chip" :class="feedChipClass">{{ feedChip }}</span>
@@ -209,7 +194,7 @@
 
         <div v-if="feedLoading" class="empty-state compact"><b>正在加载通知…</b></div>
         <div v-else-if="feedError" class="callout danger" role="alert">
-          <span>ERROR / 通知</span>
+          <span>通知</span>
           <p>{{ feedError }}</p>
           <button class="btn btn-sm" @click="loadHome">重试</button>
         </div>
@@ -226,11 +211,6 @@
         <div v-else class="empty-state compact">
           <b>暂无通知</b>
           <p>课程通知、考试安排与系统公告会出现在这里。</p>
-        </div>
-
-        <div class="card-foot">
-          <span>数据源 GET /notifications · page=1&amp;size=20</span>
-          <span class="mono">{{ role.toUpperCase() }}</span>
         </div>
       </section>
     </div>
@@ -654,7 +634,7 @@ const adminMetrics = computed<Metric[]>(() => {
           label: '待审批课程',
           value: pending,
           unit: '门',
-          note: 'approvalStatus=PENDING',
+          note: '待审批中',
           icon: 'check',
           tone: 'warn',
         },
@@ -788,30 +768,18 @@ const sub = computed(() => {
   if (role.value === 'teacher') {
     return `${displayName.value}，课程、待批阅与近期考试的单一入口。`
   }
-  return '平台规模、审批队列与运行概览；院系作用域需后端支持，本版按校级展示。'
+  return '平台规模、审批队列与运行概览（校级）。'
 })
 
-const courseKicker = computed(() => `COURSES / ${courseLoading.value ? '…' : courses.value.length}`)
 const courseTitle = computed(() => (role.value === 'admin' ? '课程目录' : '课程'))
 const courseEmptyHint = computed(() =>
   role.value === 'admin' ? '课程目录为空。' : '当前账号下暂无课程。',
 )
-const courseFoot = computed(() => {
-  if (role.value === 'teacher') return '数据源 GET /teacher/dashboard/overview · courseCards'
-  if (role.value === 'admin') return '数据源 GET /courses'
-  return '数据源 GET /student/dashboard · courses'
-})
 
 const queueTitle = computed(() => {
   if (role.value === 'teacher') return '待批阅任务'
   if (role.value === 'admin') return '待审批课程'
   return '今日待办'
-})
-const queueKicker = computed(() => {
-  const count = queueLoading.value || queueError.value ? '—' : queueTotal.value
-  if (role.value === 'teacher') return `TO REVIEW / ${count} TASKS`
-  if (role.value === 'admin') return `APPROVALS / ${count}`
-  return `TODAY / ${count} ITEMS`
 })
 const queueEmptyTitle = computed(() => {
   if (role.value === 'teacher') return '暂无待批阅任务'
@@ -823,41 +791,21 @@ const queueEmptyHint = computed(() => {
   if (role.value === 'admin') return '课程提交审批后会出现在这里。'
   return '当前没有未完成的作业、考试或签到。'
 })
-const queueFoot = computed(() => {
-  if (role.value === 'teacher') return '数据源 GET /tasks/pending-grading'
-  if (role.value === 'admin') return '数据源 GET /courses · approvalStatus=PENDING'
-  return '数据源 GET /student/dashboard · todos'
-})
 const queueCountLabel = computed(() => {
-  if (queueLoading.value) return 'LOADING'
-  if (queueError.value) return 'UNAVAILABLE'
-  return `${queueTotal.value} ITEMS`
+  if (queueLoading.value) return '加载中'
+  if (queueError.value) return '暂不可用'
+  return `${queueTotal.value} 项`
 })
 
 const chartTitle = computed(() => (role.value === 'admin' ? '审批状态分布' : '课程进度'))
-const chartKicker = computed(() =>
-  role.value === 'admin' ? 'APPROVALS / STATUS' : 'PROGRESS / COURSE',
-)
 const chartUnit = computed(() => (role.value === 'admin' ? '门' : '%'))
 const chartSub = computed(() =>
-  role.value === 'admin'
-    ? '按课程审批状态统计；口径为 GET /courses 全量。'
-    : '按课程当前进度展示，无进度的课程不计入。',
+  role.value === 'admin' ? '按课程审批状态统计。' : '按课程当前进度展示，无进度的课程不计入。',
 )
-const chartFoot = computed(() => {
-  if (role.value === 'teacher') return '数据源 GET /teacher/dashboard/overview'
-  if (role.value === 'admin') return '数据源 GET /courses'
-  return '数据源 GET /student/dashboard'
-})
 const chartEmptyHint = computed(() =>
   role.value === 'admin' ? '暂无课程审批状态可统计。' : '暂无课程进度可统计。',
 )
 
-const aiKicker = computed(() => {
-  if (role.value === 'teacher') return 'AI / TEACHING'
-  if (role.value === 'admin') return 'GOVERNANCE / SHORTCUTS'
-  return 'AI / ASSISTANT'
-})
 const aiTitle = computed(() => {
   if (role.value === 'teacher') return 'AI 教学总览'
   if (role.value === 'admin') return '治理入口'
@@ -907,11 +855,6 @@ const weakTitle = computed(() => {
   if (role.value === 'teacher') return '风险学生'
   if (role.value === 'admin') return '课程状态'
   return '进度偏低课程'
-})
-const weakKicker = computed(() => {
-  if (role.value === 'teacher') return 'RISK / STUDENTS'
-  if (role.value === 'admin') return 'COURSES / STATUS'
-  return 'PROGRESS / LOW'
 })
 const weakHint = computed(() => {
   if (role.value === 'teacher') return '进度 < 40% 或总评 < 60% 自动列为风险，按严重度排序。'

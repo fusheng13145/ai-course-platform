@@ -2,7 +2,6 @@
   <section class="card table-card">
     <header class="card-head">
       <div>
-        <p class="card-kicker">{{ kicker }}</p>
         <h2>{{ table.title }}</h2>
       </div>
       <span class="chip chip-mute">{{ filtered.length }} 条记录</span>
@@ -51,9 +50,7 @@ import type { Table } from '../nav'
 import { sanitizeTableCellHtml } from '@/utils/sanitize'
 import { useUi } from '../composables/ui'
 
-const props = withDefaults(defineProps<{ table: Table; kicker?: string }>(), {
-  kicker: 'RECORD / LIST',
-})
+const props = withDefaults(defineProps<{ table: Table }>(), {})
 const ui = useUi()
 const query = ref('')
 
@@ -85,7 +82,7 @@ function clean(html: string): string {
 }
 
 function notReady(action: string) {
-  ui.toast(`演示数据：${action}尚未接入`, 'warn')
+  ui.toast(`${action}暂不支持`, 'warn')
 }
 
 function onTableClick(event: MouseEvent) {

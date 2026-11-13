@@ -2,7 +2,6 @@
   <AuthShell>
     <template #form>
       <header class="av-form-head">
-        <p class="page-kicker">RECOVERY / 2026 秋</p>
         <h2>找回密码</h2>
         <p>通过注册邮箱接收验证码，验证后重置密码。</p>
       </header>

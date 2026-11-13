@@ -1,7 +1,7 @@
 <template>
   <section class="colleges-body">
     <div v-if="listError" class="callout" role="alert">
-      <span>ERROR / 组织架构</span>
+      <span>组织架构</span>
       <p>{{ listError }}</p>
       <button class="btn btn-sm" :disabled="loading" @click="reload">
         {{ loading ? '重试中…' : '重试' }}
@@ -11,7 +11,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">ADMIN ORG / COLLEGES</p>
           <h2>
             学院 <span class="chip chip-mute">{{ colleges.length }} 个</span>
           </h2>
@@ -61,7 +60,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">ADMIN ORG / MAJORS</p>
           <h2>
             专业 <span class="chip chip-mute">{{ majors.length }} 个</span>
           </h2>
@@ -130,7 +128,6 @@
     <Modal
       v-model:open="collegeOpen"
       :title="collegeEditingId === null ? '新建学院' : '编辑学院'"
-      kicker="ORG / COLLEGE"
       width="520px"
       :close-on-backdrop="false"
     >
@@ -165,7 +162,6 @@
     <Modal
       v-model:open="majorOpen"
       :title="majorEditingId === null ? '新建专业' : '编辑专业'"
-      kicker="ORG / MAJOR"
       width="520px"
       :close-on-backdrop="false"
     >
@@ -197,13 +193,7 @@
       </template>
     </Modal>
 
-    <Modal
-      v-model:open="deleteOpen"
-      title="确认归档"
-      kicker="CONFIRM / ARCHIVE"
-      width="460px"
-      :close-on-backdrop="false"
-    >
+    <Modal v-model:open="deleteOpen" title="确认归档" width="460px" :close-on-backdrop="false">
       <p class="modal-text">
         确定归档 <b>{{ deleteTarget?.name || '该条目' }}</b> 吗？
       </p>

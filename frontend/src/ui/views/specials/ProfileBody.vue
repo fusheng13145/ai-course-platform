@@ -2,7 +2,7 @@
   <!-- 学生个人中心：基本资料 / 安全 / 偏好 + 扩展三面：数据概览 / 我的课程 / 学习动态 -->
   <section class="profile-body">
     <div v-if="loadError" class="callout danger" role="alert">
-      <span>ERROR / 资料</span>
+      <span>资料</span>
       <p>{{ loadError }}</p>
       <button class="btn btn-sm" :disabled="profileLoading" @click="loadProfile">重新加载</button>
     </div>
@@ -16,7 +16,6 @@
       <section class="card profile-card basic-card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">PROFILE / BASIC</p>
             <h2>基本资料</h2>
           </div>
           <span v-if="roleLabel" class="chip chip-mute">{{ roleLabel }}</span>
@@ -104,7 +103,6 @@
         <section class="card profile-card security-card">
           <header class="card-head">
             <div>
-              <p class="card-kicker">PROFILE / SECURITY</p>
               <h2>安全</h2>
             </div>
           </header>
@@ -156,7 +154,6 @@
         <section class="card profile-card preference-card">
           <header class="card-head">
             <div>
-              <p class="card-kicker">PROFILE / PREFERENCE</p>
               <h2>偏好</h2>
             </div>
           </header>
@@ -189,7 +186,6 @@
       <section class="card profile-card stats-card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">PROFILE / OVERVIEW</p>
             <h2>数据概览</h2>
           </div>
         </header>
@@ -216,7 +212,6 @@
       <section class="card profile-card courses-card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">PROFILE / COURSES</p>
             <h2>我的课程</h2>
           </div>
           <button type="button" class="btn btn-sm" @click="openCourses">查看全部</button>
@@ -253,7 +248,6 @@
       <section class="card profile-card activity-card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">PROFILE / ACTIVITY</p>
             <h2>学习动态</h2>
           </div>
           <button type="button" class="btn btn-sm" @click="openAssignments">全部待办</button>

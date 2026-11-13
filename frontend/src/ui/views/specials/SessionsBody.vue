@@ -4,24 +4,18 @@
          （后端当前未按 is_active / expires_at 过滤，注释与实现不一致）。
          前端不能把这件事藏起来，否则「在线 531 个会话」就是一句假话。 -->
     <div class="card caveat-card">
-      <p class="card-kicker">SCOPE / 会话口径</p>
-      <p class="scope-line">
-        数据源 <code>user_sessions</code>。后端 <code>GET /user-sessions/online</code>
-        当前返回<b>全部会话记录</b>（未按活跃／过期过滤），因此本页默认只展示
-        <b>有效且未过期</b>的会话，并提供「显示全部」开关。
-      </p>
+      <p class="card-kicker">会话口径</p>
+      <p class="scope-line">默认只展示<b>有效且未过期</b>的会话，可用「显示全部」查看全部记录。</p>
       <p class="scope-note">
         失效会话不会被说成在线；强制下线会让该会话的令牌立即失效，操作前二次确认。
       </p>
       <p v-if="currentFlagUnreliable" class="scope-note warn-text">
-        注意：后端 <code>is_current</code> 在 {{ currentFlagged.length }} 条会话上为
-        true（正常应只有 1
-        条），因此本页<b>不据此判定「当前会话」、也不据此禁用下线</b>；避免踢掉自己请核对账号与设备。
+        为避免误踢自己，请核对账号与设备后再执行下线。
       </p>
     </div>
 
     <div v-if="listError" class="callout" role="alert">
-      <span>ERROR / 会话列表</span>
+      <span>会话列表</span>
       <p>{{ listError }}</p>
       <button class="btn btn-sm" :disabled="loading" @click="loadSessions()">
         {{ loading ? '重试中…' : '重试' }}
@@ -35,7 +29,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">SESSIONS / DEVICES</p>
           <h2>
             会话列表 <span class="chip chip-mute">{{ visible.length }} 条</span>
           </h2>
@@ -140,13 +133,10 @@
         </div>
       </footer>
 
-      <p class="hint">
-        列表与筛选均在浏览器侧完成：该端点返回的是整表，没有分页参数；强制下线走
-        <code>DELETE /user-sessions/{id}/force-logout</code>（仅管理员）。
-      </p>
+      <p class="hint">列表与筛选在当前页面完成；仅管理员可强制下线。</p>
     </section>
 
-    <Modal v-model:open="confirmOpen" title="强制下线" kicker="CONFIRM / SESSION" width="460px">
+    <Modal v-model:open="confirmOpen" title="强制下线" width="460px">
       <p class="modal-text">
         确定让「{{ target ? displayUser(target) : '该用户' }}」在 「{{
           target ? deviceText(target) : '该设备'

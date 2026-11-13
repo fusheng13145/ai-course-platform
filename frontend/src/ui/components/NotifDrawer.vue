@@ -3,7 +3,6 @@
     <aside class="notif-drawer" role="dialog" aria-modal="true" aria-label="通知">
       <header>
         <div>
-          <p class="eyebrow">NOTIFICATIONS</p>
           <h2>
             通知 <span>{{ unread }}</span>
           </h2>

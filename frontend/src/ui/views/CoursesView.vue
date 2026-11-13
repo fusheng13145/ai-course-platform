@@ -1,6 +1,6 @@
 <template>
   <section class="module">
-    <PageHead :kicker="kicker" :title="def.title" :sub="def.desc" :source="source">
+    <PageHead :title="def.title" :sub="def.desc">
       <template #actions>
         <select
           v-if="role === 'student'"
@@ -90,7 +90,7 @@
     </div>
 
     <!-- 退选二次确认 -->
-    <Modal v-model:open="dropOpen" title="退选课程" kicker="CONFIRM / ACTION" width="460px">
+    <Modal v-model:open="dropOpen" title="退选课程" width="460px">
       <p class="modal-text">
         确定退选「{{
           dropTarget?.name || '该课程'
@@ -114,8 +114,6 @@ import PageHead from '../components/PageHead.vue'
 import Icon from '../components/Icon.vue'
 import Modal from '../components/Modal.vue'
 import studentApi from '@/api/student'
-import commonApi from '@/api/common'
-import { unwrap } from '@/utils/response'
 import { pageDef, type Role } from '../nav'
 import { useUi } from '../composables/ui'
 import { getCourses, getCourseCatalog, type CourseCard } from '../data/api'
@@ -124,7 +122,6 @@ const router = useRouter()
 const { role, toast } = useUi()
 const courses = ref<CourseCard[]>([])
 const filter = ref<'all' | 'active' | 'done'>('all')
-const source = ref<'api'>('api')
 // 学生「加入课程」：从课程目录里挑一门未选课程，走真实选课写口（非演示动作）。
 const selectedCourseId = ref<number | ''>('')
 const joinable = ref<CourseCard[]>([])
@@ -135,13 +132,6 @@ const dropTarget = ref<CourseCard | null>(null)
 const dropping = ref(false)
 
 const def = computed(() => pageDef(role.value as Role, 'courses'))
-// 10A：页眉学期别名来自 /common/semester/active 现场推导（不落库），失败时退化为无学期后缀
-const semesterAlias = ref('')
-const kicker = computed(() =>
-  semesterAlias.value
-    ? `${String(role.value).toUpperCase()} / COURSES · ${semesterAlias.value}`
-    : `${String(role.value).toUpperCase()} / COURSES`,
-)
 const primaryLabel = computed(() => (role.value === 'student' ? '加入课程' : '新建课程'))
 const doneCount = computed(() => courses.value.filter((course) => course.progress >= 100).length)
 const activeCount = computed(() => courses.value.length - doneCount.value)
@@ -228,15 +218,6 @@ async function onPrimary() {
 
 onMounted(async () => {
   courses.value = await getCourses(role.value as Role)
-  // 列表为空 ≠ 示例数据：这一页的读数一律来自接口，空列表由下方空态承接，
-  // 标成「示例数据」等于把「没有课程」说成「课程是假的」。
-  source.value = 'api'
   if (role.value === 'student') await refreshJoinable()
-  try {
-    const semester = unwrap(await commonApi.getActiveSemester()) as { displayName?: string } | null
-    semesterAlias.value = semester?.displayName || ''
-  } catch {
-    semesterAlias.value = ''
-  }
 })
 </script>

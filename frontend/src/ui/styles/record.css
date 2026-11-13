@@ -1380,6 +1380,17 @@ body[data-app="ui"] .course-nav-card {
   margin: 0 0 10px; padding: 10px; border: 1px solid var(--side-line);
   border-radius: var(--r-card); background: var(--side-hover);
 }
+/* 课程卡吸顶：切课程是高频动作，滚动课程页签时它不能跟着跑掉。
+   外层负责 sticky 与背景遮罩（含卡片下方那 10px 间距），卡片本身只管外观。 */
+body[data-app="ui"] .course-nav-pin {
+  position: sticky; top: 0; z-index: 6;
+  padding-bottom: 10px;
+  /* 必须与 .sidenav 的实际底色一致（生效值来自 --side-bg，不是 --surface），
+     否则吸顶后会在卡片下方露出一条浅色横带 */
+  background: var(--side-bg);
+}
+body[data-app="ui"] .course-nav-pin .course-nav-card { margin-bottom: 0; }
+body[data-app="ui"].is-collapsed .course-nav-pin { display: none; }
 body[data-app="ui"] .course-nav-kicker { margin: 0 0 4px; font-family: var(--font-mono); font-size: 7px; letter-spacing: .1em; color: var(--side-ink-2); }
 body[data-app="ui"] .course-nav-title { display: flex; align-items: center; gap: 6px; color: var(--side-ink); font-size: 12px; font-weight: 650; }
 body[data-app="ui"] .course-nav-title .chip { font-size: 7px; }
@@ -1421,13 +1432,6 @@ body[data-app="ui"] .course-mobile-tabs button {
   border-radius: var(--r-chip); padding: 4px 9px; font-size: 9px;
 }
 body[data-app="ui"] .course-mobile-tabs button.is-active { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
-body[data-app="ui"] .course-scope {
-  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
-  padding: 7px 10px; margin-bottom: 12px; border: 1px solid var(--line);
-  border-radius: var(--r-ctl); background: var(--surface-2); font-size: 8.5px; color: var(--ink-3);
-}
-body[data-app="ui"] .course-scope .scope-label { font-family: var(--font-mono); font-size: 7px; letter-spacing: .08em; color: var(--accent); }
-body[data-app="ui"] .course-scope b { font-size: 9px; color: var(--ink-2); font-weight: 600; }
 body[data-app="ui"] .course-body { min-width: 0; }
 body[data-app="ui"] .course-toolbar-row { display: flex; justify-content: flex-end; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
 body[data-app="ui"] .course-toolbar-row .btn { min-height: 30px; }
@@ -1627,7 +1631,6 @@ body[data-app="ui"] .toast { border-radius: var(--r-card); }
   body[data-app="ui"] .course-head-side .btn { flex: 1; }
   body[data-app="ui"] .course-toolbar-row .btn { flex: 1; }
   body[data-app="ui"] .course-overview-grid { gap: 9px; }
-  body[data-app="ui"] .course-scope { font-size: 8px; }
   body[data-app="ui"] .mini-defs { grid-template-columns: 1fr 1fr; }
   body[data-app="ui"] .org-school { align-items: flex-start; }
   body[data-app="ui"] .simple-list li { align-items: flex-start; }

@@ -3,7 +3,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">ADMIN GRADES / OVERVIEW</p>
           <h2>
             成绩概览（按课程） <span class="chip chip-mute">{{ rows.length }} 门</span>
           </h2>
@@ -50,7 +49,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">ADMIN GRADES / AT RISK</p>
           <h2>学习预警名单</h2>
         </div>
         <div class="filter-row class-tools">

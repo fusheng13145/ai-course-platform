@@ -1,12 +1,12 @@
 <template>
   <div>
     <div v-if="loadError" class="callout danger" data-testid="overview-error">
-      <span>ERROR / 加载失败</span>
+      <span>加载失败</span>
       <p>{{ loadError }}</p>
       <button class="btn btn-sm" :disabled="loading" @click="load">重试</button>
     </div>
     <div v-else-if="empty" class="callout" data-testid="overview-empty">
-      <span>NOTICE / 数据可用性</span>
+      <span>数据可用性</span>
       <p>暂无数据：{{ emptyHint }}</p>
     </div>
     <div v-else-if="loading" class="empty-state compact" data-testid="overview-loading">
@@ -23,7 +23,6 @@
     </div>
     <div class="course-overview-grid">
       <section v-if="role === 'student'" class="card course-continue">
-        <p class="card-kicker">CONTINUE / 继续学习</p>
         <h2>{{ firstChapter || '课程章节' }}</h2>
         <p>{{ continueHint }}</p>
         <div class="course-progress-row">
@@ -37,10 +36,8 @@
       <section class="card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">CLASSES / 教学班</p>
             <h2>教学班概览</h2>
           </div>
-          <span class="chip chip-warn">后端待接入</span>
         </header>
         <div class="empty-state compact">
           <b>教学班数据暂不可用</b>
@@ -51,9 +48,6 @@
       <section v-if="role !== 'admin'" class="card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">
-              {{ role === 'student' ? 'NEXT / 本周要完成' : 'TO REVIEW / 待批阅' }}
-            </p>
             <h2>{{ role === 'student' ? '待办与考试' : '待批阅' }}</h2>
           </div>
           <button class="text-btn" @click="goTab(role === 'student' ? 'tasks' : 'grading')">
@@ -69,7 +63,6 @@
       <section class="card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">COURSE / INFO</p>
             <h2>课程信息</h2>
           </div>
         </header>
@@ -100,7 +93,6 @@
       <section class="card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">QUICK / 快捷入口</p>
             <h2>课程内容</h2>
           </div>
         </header>
@@ -195,9 +187,7 @@ const approvalText = computed(() =>
 )
 
 const classesHint = computed(() =>
-  props.role === 'admin'
-    ? '教学班模型尚未接入，管理员端无班级、人数与进度读数。'
-    : '教学班模型尚未接入，这里不展示班级名称、人数与进度。',
+  props.role === 'admin' ? '本页暂不汇总班级读数。' : '本页暂不汇总班级、人数与进度。',
 )
 
 const continueHint = computed(() => {
@@ -220,7 +210,7 @@ const queueHint = computed(() => {
   if (summary.value?.pending != null) {
     return '明细在「批阅」页签按真实提交展示，本页不展示样例名单。'
   }
-  return '待批阅读数来自教师课程汇总；明细在「批阅」页签按真实提交展示。'
+  return '待批阅按课程汇总；明细在「批阅」页签查看。'
 })
 
 const metrics = computed<Metric[]>(() => {
@@ -230,14 +220,14 @@ const metrics = computed<Metric[]>(() => {
         label: '学生',
         value: summary.value?.students ?? '--',
         unit: summary.value?.students == null ? '' : '人',
-        note: '来自教师课程汇总',
+        note: '按课程汇总',
         icon: 'users',
       },
       {
         label: '章节',
         value: chapterCount.value ?? '--',
         unit: chapterCount.value == null ? '' : '个',
-        note: '来自章节接口',
+        note: '按章节统计',
         icon: 'book',
       },
       {
@@ -276,7 +266,7 @@ const metrics = computed<Metric[]>(() => {
       label: '章节',
       value: chapterCount.value ?? '--',
       unit: chapterCount.value == null ? '' : '个',
-      note: '来自章节接口',
+      note: '按章节统计',
       icon: 'book',
     },
     {
@@ -286,7 +276,7 @@ const metrics = computed<Metric[]>(() => {
       note: '课程学分',
       icon: 'award',
     },
-    { label: '教学班', value: '--', note: '后端未接入', icon: 'users' },
+    { label: '教学班', value: '--', note: '暂无统计', icon: 'users' },
     { label: '待办', value: '--', note: '见作业与考试页签', icon: 'check', tone: 'warn' },
   ]
 })
@@ -324,12 +314,12 @@ const quickLinks = computed<Array<{ tab: string; label: string }>>(() => {
 
 const note = computed(() => {
   if (props.role === 'admin') {
-    return '管理员只读：课程档案来自课程接口；教学班、选课与待批阅无数据面。'
+    return '管理员只读，不代教师批阅、不改成绩。'
   }
   if (props.role === 'student') {
-    return '接口数据：章节来自章节接口；教学班模型未接入，本页不展示班级读数。'
+    return '本页按课程汇总展示；教学班读数请到教学班页面查看。'
   }
-  return '接口数据：学生数、待批阅与平均进度来自教师课程汇总，章节来自章节接口；教学班模型未接入。'
+  return '学生数、待批阅与平均进度为课程汇总口径。'
 })
 
 const emptyHint = computed(() =>

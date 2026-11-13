@@ -1,7 +1,7 @@
 <template>
   <section class="classes-body">
     <div v-if="listError" class="callout" role="alert">
-      <span>ERROR / 班级列表</span>
+      <span>班级列表</span>
       <p>{{ listError }}</p>
       <button class="btn btn-sm" :disabled="loading" @click="loadClasses()">
         {{ loading ? '重试中…' : '重试' }}
@@ -15,7 +15,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">ADMIN CLASSES / CLASSROOMS</p>
           <h2>
             行政班列表 <span class="chip chip-mute">{{ rows.length }} 个</span>
           </h2>
@@ -111,7 +110,6 @@
     <Modal
       v-model:open="editorOpen"
       :title="editingId === null ? '新建班级' : '编辑班级'"
-      kicker="CLASSROOM / EDIT"
       width="640px"
       :close-on-backdrop="false"
     >
@@ -190,13 +188,7 @@
       </template>
     </Modal>
 
-    <Modal
-      v-model:open="deleteOpen"
-      title="删除班级"
-      kicker="CONFIRM / DELETE"
-      width="460px"
-      :close-on-backdrop="false"
-    >
+    <Modal v-model:open="deleteOpen" title="删除班级" width="460px" :close-on-backdrop="false">
       <p class="modal-text">
         确定删除班级 <b>{{ deleteTarget?.name || '该班级' }}</b> 吗？
       </p>

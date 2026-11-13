@@ -209,7 +209,7 @@ describe('首页按角色取真实读数', () => {
     expect(wrapper.find('.card-courses').text()).toContain('数据结构')
     expect(wrapper.find('.card-queue').text()).toContain('网络层作业')
     expect(wrapper.find('.card-queue').text()).toContain('待批阅')
-    expect(wrapper.find('.page-head').text()).toContain('接口数据')
+    expect(wrapper.find('.page-head').text()).not.toContain('接口数据')
     expect(wrapper.text()).not.toContain('示例数据')
     expect(wrapper.text()).not.toContain('慢启动')
     // ⑯：AI 教学总览走独立端点，主仪表盘不再同步返回 aiOverview

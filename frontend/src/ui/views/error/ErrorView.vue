@@ -6,7 +6,6 @@
         <span class="brand-mark">枢</span>
         <span class="ev-brand-text">
           <b>云枢 AI 助教</b>
-          <small>YUNSHU / AI TUTOR</small>
         </span>
       </a>
       <button
@@ -20,7 +19,6 @@
 
     <main class="ev-main">
       <section class="ev-card">
-        <p class="ev-kicker">YUNSHU / ERROR / {{ code }}</p>
         <h1>{{ code }}</h1>
         <h2>{{ copy.title }}</h2>
         <p class="ev-desc">{{ copy.desc }}</p>

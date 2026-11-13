@@ -3,7 +3,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">ADMIN TEACHING CLASSES / BY COURSE</p>
           <h2>教学班监管</h2>
         </div>
         <div class="filter-row class-tools">
@@ -71,7 +70,7 @@
       </div>
 
       <div v-if="openMembersId" class="members-panel">
-        <p class="card-kicker">MEMBERS / 教学班 #{{ openMembersId }}</p>
+        <p class="card-kicker">教学班 #{{ openMembersId }} 成员</p>
         <div v-if="members.length" class="table-wrap">
           <table>
             <thead>

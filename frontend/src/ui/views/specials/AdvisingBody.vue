@@ -18,7 +18,7 @@
     </div>
 
     <div v-if="listError" class="callout" role="alert">
-      <span>ERROR / 班级治理</span>
+      <span>班级治理</span>
       <p>{{ listError }}</p>
     </div>
 
@@ -26,7 +26,6 @@
     <section v-if="mode === 'advising'" class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">TEACHER ADVISING / MY CLASSES</p>
           <h2>
             我的班级 <span class="chip chip-mute">{{ classes.length }} 个</span>
           </h2>
@@ -68,7 +67,6 @@
     <section v-if="mode === 'advisingProfile'" class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">TEACHER ADVISING / PROFILE</p>
           <h2>班级画像（聚合）</h2>
         </div>
       </header>
@@ -127,7 +125,6 @@
     <section v-if="mode === 'advisingAlerts'" class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">TEACHER ADVISING / ALERTS</p>
           <h2>
             学生预警 <span class="chip chip-mute">{{ alerts.length }} 条</span>
           </h2>
@@ -171,7 +168,6 @@
     <section v-if="mode === 'advisingNotices'" class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">TEACHER ADVISING / NOTICES</p>
           <h2>
             班级通知 <span class="chip chip-mute">{{ notices.length }} 条</span>
           </h2>

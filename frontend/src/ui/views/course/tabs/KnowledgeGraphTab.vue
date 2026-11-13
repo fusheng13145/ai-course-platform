@@ -2,7 +2,6 @@
   <section class="kg">
     <div class="course-tab-bar">
       <div>
-        <p class="card-kicker">COURSE / KNOWLEDGE GRAPH</p>
         <h2>知识图谱</h2>
       </div>
       <div class="course-tab-actions">
@@ -14,7 +13,7 @@
     </div>
 
     <div v-if="loadError" class="callout">
-      <span>ERROR / 加载失败</span>
+      <span>加载失败</span>
       <p>{{ loadError }}</p>
     </div>
 
@@ -26,7 +25,6 @@
       <section class="card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">GRAPH / RELATIONS</p>
             <h2>
               关系图
               <span class="chip chip-mute">{{ nodes.length }} 点 · {{ links.length }} 边</span>
@@ -93,7 +91,6 @@
       <section class="card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">NEIGHBOURS</p>
             <h2>直接关系</h2>
           </div>
         </header>
@@ -118,7 +115,6 @@
       <section v-if="!isStudent" class="card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">PATH / PLAN</p>
             <h2>学习路径规划</h2>
           </div>
         </header>
@@ -178,7 +174,6 @@
       <section v-if="!isStudent" class="card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">ENGINE / 8001</p>
             <h2>图谱引擎</h2>
           </div>
         </header>

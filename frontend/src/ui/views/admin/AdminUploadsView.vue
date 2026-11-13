@@ -1,10 +1,8 @@
 <template>
   <section class="module">
     <PageHead
-      kicker="ADMIN / UPLOADS"
       title="上传会话监控"
       sub="最近 100 条上传会话的状态与磁盘分片进度：可合并已齐片的会话，或取消仍在进行的会话。"
-      source="api"
     >
       <template #actions>
         <button class="btn btn-ghost" :disabled="loading" @click="refreshList">
@@ -14,7 +12,7 @@
     </PageHead>
 
     <div v-if="listError" class="callout">
-      <span>ERROR / 加载失败</span>
+      <span>加载失败</span>
       <p>{{ listError }}</p>
     </div>
 
@@ -25,7 +23,6 @@
     <section class="card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">CHUNKED / LOCAL FILE</p>
           <h2>本地文件分片上传</h2>
         </div>
       </header>
@@ -108,7 +105,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">SESSIONS / RECENT</p>
           <h2>
             上传会话列表 <span class="chip chip-mute">{{ sessions.length }} 条</span>
           </h2>
@@ -193,13 +189,7 @@
       </footer>
     </section>
 
-    <Modal
-      v-model:open="progressOpen"
-      title="上传进度"
-      kicker="SESSION / PROGRESS"
-      width="520px"
-      @close="stopPolling()"
-    >
+    <Modal v-model:open="progressOpen" title="上传进度" width="520px" @close="stopPolling()">
       <div v-if="currentRow" class="detail-grid">
         <p>
           <span>文件</span><b>{{ fileNameOf(currentRow) }}</b>
@@ -242,7 +232,6 @@
     <Modal
       v-model:open="askState.open"
       :title="askState.title"
-      kicker="CONFIRM"
       width="460px"
       @close="resolveAsk(false)"
     >

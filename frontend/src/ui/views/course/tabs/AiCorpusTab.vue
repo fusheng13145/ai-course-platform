@@ -22,7 +22,6 @@
     <div v-if="composerOpen" class="card composer">
       <header class="card-head">
         <div>
-          <p class="card-kicker">CORPUS / DOCUMENT</p>
           <h2>{{ editingId == null ? '新增文档' : `编辑文档 #${editingId}` }}</h2>
         </div>
         <button class="text-btn" @click="closeComposer()">取消</button>
@@ -54,7 +53,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">CORPUS / DOCUMENTS</p>
           <h2>
             知识库文档 <span class="chip chip-mute">{{ rows.length }} 篇</span>
           </h2>

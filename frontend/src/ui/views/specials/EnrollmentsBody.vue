@@ -7,7 +7,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">ADMIN ENROLLMENTS / LIST</p>
           <h2>
             选课与名单 <span class="chip chip-mute">{{ total }} 条</span>
           </h2>
@@ -166,7 +165,7 @@ const metrics = computed<Metric[]>(() => [
     label: '本页待审批',
     value: pendingCount.value,
     unit: '条',
-    note: 'PENDING',
+    note: '待审批中',
     icon: 'users',
     tone: 'warn',
   },

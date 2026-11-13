@@ -4,8 +4,8 @@
        已不可达（batch 24 死示例层清算），只保留空态这一半。 -->
   <div class="card empty-state">
     <span class="e-ico"><Icon name="layers" /></span>
-    <b>该页签尚未接入</b>
-    <p>{{ note || '后端聚合端点尚未实现；本页签暂不提供读数。' }}</p>
+    <b>该页签暂不提供数据</b>
+    <p>{{ note || '本页签暂无可展示内容。' }}</p>
   </div>
 </template>
 
