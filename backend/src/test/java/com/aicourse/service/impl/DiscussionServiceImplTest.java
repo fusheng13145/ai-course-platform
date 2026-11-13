@@ -214,4 +214,48 @@ class DiscussionServiceImplTest {
         when(postMapper.selectById(1L)).thenReturn(p);
         assertThrows(BusinessException.class, () -> service.deletePost(1L, 9L, "STUDENT"));
     }
+
+    @Test
+    @DisplayName("删除话题-作者成功并按 点赞→回复→话题 级联清理")
+    void deleteTopic_authorCascades() {
+        when(topicMapper.selectById(1L)).thenReturn(topic(1L, "OPEN"));
+        when(postMapper.selectList(any())).thenReturn(List.of(post(1L), post(2L)));
+        when(postLikeMapper.delete(any())).thenReturn(2);
+        when(postMapper.deleteBatchIds(any())).thenReturn(2);
+        when(topicMapper.deleteById(1L)).thenReturn(1);
+
+        service.deleteTopic(1L, 1L, "STUDENT");
+
+        verify(postLikeMapper).delete(any());
+        verify(postMapper).deleteBatchIds(argThat(ids -> ids != null && ids.size() == 2));
+        verify(topicMapper).deleteById(1L);
+    }
+
+    @Test
+    @DisplayName("删除话题-无回复时不触碰回复/点赞表")
+    void deleteTopic_withoutRepliesSkipsChildren() {
+        when(topicMapper.selectById(1L)).thenReturn(topic(1L, "OPEN"));
+        when(postMapper.selectList(any())).thenReturn(List.of());
+        when(topicMapper.deleteById(1L)).thenReturn(1);
+
+        service.deleteTopic(1L, 1L, "STUDENT");
+
+        verify(postLikeMapper, never()).delete(any());
+        verify(postMapper, never()).deleteBatchIds(any());
+        verify(topicMapper).deleteById(1L);
+    }
+
+    @Test
+    @DisplayName("删除话题-非作者抛异常")
+    void deleteTopic_noPermission() {
+        when(topicMapper.selectById(1L)).thenReturn(topic(1L, "OPEN"));
+        assertThrows(BusinessException.class, () -> service.deleteTopic(1L, 9L, "STUDENT"));
+    }
+
+    @Test
+    @DisplayName("删除话题-话题不存在抛异常")
+    void deleteTopic_notFound() {
+        when(topicMapper.selectById(1L)).thenReturn(null);
+        assertThrows(BusinessException.class, () -> service.deleteTopic(1L, 1L, "ADMIN"));
+    }
 }

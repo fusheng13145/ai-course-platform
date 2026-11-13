@@ -66,4 +66,7 @@ public class TaskCompletion {
 
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
+
+    /** 完成记录落库时学生所在教学班快照（WP7，V16）：创建时解析一次，此后不随成员关系改写 */
+    private Long teachingClassId;
 }

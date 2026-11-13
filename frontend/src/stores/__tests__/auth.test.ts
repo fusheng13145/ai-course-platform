@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach, vi } from 'vitest'
 import { setActivePinia, createPinia } from 'pinia'
+import { AxiosError, type AxiosResponse } from 'axios'
 
 // 使用 vi.hoisted 确保 mock 工厂中的变量在 hoisting 时可用
 const { mockLogin, mockLogout, mockGetPermissions } = vi.hoisted(() => ({
@@ -25,13 +26,13 @@ vi.mock('@/api/auth', () => ({
 const { useAuthStore } = await import('@/stores/auth')
 
 const localStorageMock = (() => {
-  let store = {}
+  let store: Record<string, unknown> = {}
   return {
-    getItem: vi.fn((key) => store[key] ?? null),
-    setItem: vi.fn((key, value) => {
+    getItem: vi.fn((key: string) => store[key] ?? null),
+    setItem: vi.fn((key: string, value: unknown) => {
       store[key] = value
     }),
-    removeItem: vi.fn((key) => {
+    removeItem: vi.fn((key: string) => {
       delete store[key]
     }),
     clear: vi.fn(() => {
@@ -372,7 +373,18 @@ describe('AuthStore', () => {
       }
 
       it('服务端回 401 → 结论为 expired，并清空本地登录态', async () => {
-        mockGetPermissions.mockRejectedValue({ response: { status: 401 }, message: 'Unauthorized' })
+        // 拦截器 reject 的是真实 AxiosError（store 侧用 isAxiosError 判定），不是普通对象
+        mockGetPermissions.mockRejectedValue(
+          new AxiosError(
+            'Request failed with status code 401',
+            AxiosError.ERR_BAD_REQUEST,
+            undefined,
+            undefined,
+            {
+              status: 401,
+            } as AxiosResponse,
+          ),
+        )
         const store = seedCachedSession()
 
         await expect(store.fetchPermissions()).resolves.toBe('expired')

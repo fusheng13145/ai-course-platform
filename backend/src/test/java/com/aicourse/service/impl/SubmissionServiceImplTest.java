@@ -78,7 +78,9 @@ class SubmissionServiceImplTest {
         // 原兼容构造器已移除：内联其组件组装逻辑，再走主构造器（3 个组件）
         SubmissionJsonComponent jsonSupport = new SubmissionJsonComponent(objectMapper);
         SubmissionWriteComponent writeComponent =
-                new SubmissionWriteComponent(null, taskService, jsonSupport, meterRegistry);
+                new SubmissionWriteComponent(null, taskService, jsonSupport,
+                        org.mockito.Mockito.mock(com.aicourse.service.component.org.TeachingClassSnapshotResolver.class),
+                        meterRegistry);
         SubmissionGradeComponent gradeComponent = new SubmissionGradeComponent(null, taskService,
                 notificationService, aiService, jsonSupport, writeComponent);
         SubmissionReadComponent readComponent =

@@ -6,7 +6,7 @@
  * （如「确定删除该试卷？此操作不可恢复。」）让用户无法评估后果。
  *
  * 拆出本模块的原因：宿主端有 Element Plus 版（utils/dangerConfirm.ts）与
- * v2 自研弹层版两种，文案模板必须同源，否则两处措辞必然分叉。
+ * 自研弹层版两种，文案模板必须同源，否则两处措辞必然分叉。
  *
  * 文案模板（irreversible !== false 时）：
  *   确定{verb}{target}「{subject}」？{impact}，此操作不可恢复；{recovery}。

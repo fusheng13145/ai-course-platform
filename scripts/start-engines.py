@@ -54,11 +54,24 @@ APP_MODULES = {"kg": "kg_service:app", "rag": "rag_service:app"}
 # 因此「写在 .env 里」不等于「会生效」——只有在下面这份名单里的键才会被导出到子进程。
 # 名单按服务分列，与各服务实际读取的键一一对应；未配置（缺失或空串）的键不导出，让引擎用自身默认。
 ENGINE_EXPORTS = {
-    "kg": ("NEO4J_USERNAME", "NEO4J_PASSWORD", "KG_BACKEND"),
+    # 服务间内部认证（2026-11-10 V8 批）：kg/rag 的中间件在 INTERNAL_API_KEY 非空时校验
+    # X-Internal-Key——启动器必须透传，否则 .env 配了钥匙、引擎却收不到（DR-63 同型盲区，
+    # scripts/tests/test_start_engines.py 的导出名单护栏已钉住该漂移）。
+    "kg": ("INTERNAL_API_KEY", "NEO4J_USERNAME", "NEO4J_PASSWORD", "KG_BACKEND"),
     "rag": (
         # DR-84：网关端点必须一起导出，否则 .env 里配了 base-url 也到不了引擎进程（DR-63 同型）
         "DEEPSEEK_BASE_URL",
         "DEEPSEEK_MODEL",
+        # 生成后端开关与本地 Ollama（与 Java 侧同名同义；OLLAMA_THINK 留空=模型模板决定）
+        "AI_PROVIDER",
+        "OLLAMA_BASE_URL",
+        "OLLAMA_MODEL",
+        "OLLAMA_THINK",
+        # R3：RAG 问答主路径的图谱增强（图在 8001；不可达时静默退化为纯检索）
+        "KG_BASE_URL",
+        "RAG_GRAPH_ENABLED",
+        # 服务间内部认证（与 kg 同口径；为空=不校验）
+        "INTERNAL_API_KEY",
         "RAG_EMBED_MODEL",
         "RAG_DATA_DIR",
         "RAG_CHUNK_SIZE",
@@ -405,7 +418,11 @@ def main(argv=None) -> int:
             f"{DEFAULT_NEO4J_HOMES[0]}）。KG 会回落内存图，重启即丢。"
             " 请把 NEO4J_HOME=<安装目录> 写进 .env；本机没有图库请回项目主，不要拉容器（§17）。"
         )
-    if api_key is None:
+    provider = env.get("AI_PROVIDER") or os.getenv("AI_PROVIDER", "deepseek")
+    if provider.strip().lower() in ("ollama", "local"):
+        print(f"[INFO] 生成后端为本地 Ollama（{env.get('OLLAMA_MODEL') or 'deepseek-r1:8b'}），"
+              "无需 DEEPSEEK_API_KEY；Ollama 不可用时 RAG 仍按抽取式降级。")
+    elif api_key is None:
         print("[WARN] DEEPSEEK_API_KEY 未配置或形如占位串 -> RAG 恒为抽取式回答（§40），不阻塞启动。")
     if offline:
         print("[OK]   嵌入模型已在本机缓存 -> 导出 HF_HUB_OFFLINE=1（缺这一步会让检索挂死，§18.5）")

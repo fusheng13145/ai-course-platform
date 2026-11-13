@@ -28,9 +28,9 @@ import static org.mockito.Mockito.when;
 /**
  * RoutingLLMProvider 单元测试。
  * 覆盖：resolve() 按 system_configs 动态选择底层供应商（默认 / openai / qwen / qwen2 /
- * dashscope / 读取异常回退）、name() / isConfigured() / complete / completeJson / stream 委托、
+ * dashscope / ollama / local / 读取异常回退）、name() / isConfigured() / complete / completeJson / stream 委托、
  * switchTo() 的空值 / 新建 / 更新分支、testConnection() 的已配置成功 / 未配置 / 异常分支。
- * 通过反射将三个底层供应商的 restClient / streamWebClient 替换为 mock，避免真实 HTTP。
+ * 通过反射将各底层供应商的 restClient / streamWebClient 替换为 mock，避免真实 HTTP。
  */
 @ExtendWith(MockitoExtension.class)
 @MockitoSettings(strictness = Strictness.LENIENT)
@@ -42,30 +42,65 @@ class RoutingLLMProviderTest {
     private DeepSeekProvider deepSeek;
     private OpenAiProvider openAi;
     private QwenProvider qwen;
+    private OllamaProvider ollama;
 
     private RoutingLLMProvider makeProvider(String cfgValue) {
         deepSeek = new DeepSeekProvider("sk", "http://x", "model", 5, 60, 2);
         openAi = new OpenAiProvider("sk", "http://x", "model", 5, 60, 2);
         qwen = new QwenProvider("sk", "http://x", "model", 5, 60, 2);
+        ollama = new OllamaProvider("http://x", "deepseek-r1:8b", "", 5, 60, 2);
         stubRestClient(deepSeek, "ds-content");
         stubRestClient(openAi, "oi-content");
         stubRestClient(qwen, "qw-content");
+        stubOllamaRestClient(ollama, "ol-content");
         stubStream(deepSeek, Flux.just("data: {\"choices\":[{\"delta\":{\"content\":\"ds-stream\"}}]}"));
         stubStream(openAi, Flux.just("data: {\"choices\":[{\"delta\":{\"content\":\"oi-stream\"}}]}"));
         stubStream(qwen, Flux.just("data: {\"choices\":[{\"delta\":{\"content\":\"qw-stream\"}}]}"));
+        stubOllamaStream(ollama, Flux.just("{\"message\":{\"content\":\"ol-stream\"},\"done\":false}"));
         lenient().when(systemConfigService.getConfigValue("ai.provider")).thenReturn(cfgValue);
-        return new RoutingLLMProvider(deepSeek, openAi, qwen, systemConfigService, "deepseek");
+        return new RoutingLLMProvider(deepSeek, openAi, qwen, ollama, systemConfigService, "deepseek");
     }
 
     private RoutingLLMProvider makeProviderThrowing() {
         deepSeek = new DeepSeekProvider("sk", "http://x", "model", 5, 60, 2);
         openAi = new OpenAiProvider("sk", "http://x", "model", 5, 60, 2);
         qwen = new QwenProvider("sk", "http://x", "model", 5, 60, 2);
+        ollama = new OllamaProvider("http://x", "deepseek-r1:8b", "", 5, 60, 2);
         stubRestClient(deepSeek, "ds-content");
         stubRestClient(openAi, "oi-content");
         stubRestClient(qwen, "qw-content");
+        stubOllamaRestClient(ollama, "ol-content");
         lenient().when(systemConfigService.getConfigValue(any())).thenThrow(new RuntimeException("db down"));
-        return new RoutingLLMProvider(deepSeek, openAi, qwen, systemConfigService, "deepseek");
+        return new RoutingLLMProvider(deepSeek, openAi, qwen, ollama, systemConfigService, "deepseek");
+    }
+
+    private void stubOllamaRestClient(OllamaProvider p, String content) {
+        Map<String, Object> resp = Map.of("message", Map.of("role", "assistant", "content", content), "done", true);
+        RestClient rc = mock(RestClient.class);
+        RestClient.RequestBodyUriSpec uri = mock(RestClient.RequestBodyUriSpec.class);
+        RestClient.RequestBodySpec body = mock(RestClient.RequestBodySpec.class);
+        RestClient.ResponseSpec rsp = mock(RestClient.ResponseSpec.class);
+        when(rc.post()).thenReturn(uri);
+        when(uri.uri("/api/chat")).thenReturn(body);
+        when(body.body(any(Object.class))).thenReturn(body);
+        when(body.retrieve()).thenReturn(rsp);
+        when(rsp.body(eq(Map.class))).thenReturn(resp);
+        ReflectionTestUtils.setField(p, "restClient", rc);
+    }
+
+    private void stubOllamaStream(OllamaProvider p, Flux<String> flux) {
+        org.springframework.web.reactive.function.client.WebClient wc = mock(org.springframework.web.reactive.function.client.WebClient.class);
+        org.springframework.web.reactive.function.client.WebClient.RequestBodyUriSpec wUri = mock(org.springframework.web.reactive.function.client.WebClient.RequestBodyUriSpec.class);
+        org.springframework.web.reactive.function.client.WebClient.RequestBodySpec wBody = mock(org.springframework.web.reactive.function.client.WebClient.RequestBodySpec.class);
+        org.springframework.web.reactive.function.client.WebClient.RequestHeadersSpec wHeaders = mock(org.springframework.web.reactive.function.client.WebClient.RequestHeadersSpec.class);
+        org.springframework.web.reactive.function.client.WebClient.ResponseSpec wResp = mock(org.springframework.web.reactive.function.client.WebClient.ResponseSpec.class);
+        when(wc.post()).thenReturn(wUri);
+        when(wUri.uri("/api/chat")).thenReturn(wBody);
+        when(wBody.bodyValue(any(Object.class))).thenReturn(wHeaders);
+        when(wHeaders.accept(any(org.springframework.http.MediaType[].class))).thenReturn(wHeaders);
+        when(wHeaders.retrieve()).thenReturn(wResp);
+        when(wResp.bodyToFlux(eq(String.class))).thenReturn(flux);
+        ReflectionTestUtils.setField(p, "streamWebClient", wc);
     }
 
     private void stubRestClient(OpenAiCompatibleProvider p, String content) {
@@ -116,6 +151,13 @@ class RoutingLLMProviderTest {
         assertEquals("qw-content", makeProvider("qwen").complete(List.of(), null));
         assertEquals("qw-content", makeProvider("qwen2").complete(List.of(), null));
         assertEquals("qw-content", makeProvider("dashscope").complete(List.of(), null));
+    }
+
+    @Test
+    void resolve_ollamaVariants() {
+        assertEquals("ol-content", makeProvider("ollama").complete(List.of(), null));
+        assertEquals("ol-content", makeProvider("local").complete(List.of(), null));
+        assertTrue(makeProvider("ollama").name().contains("ollama"));
     }
 
     @Test
@@ -180,10 +222,12 @@ class RoutingLLMProviderTest {
         deepSeek = new DeepSeekProvider("", "http://x", "model", 5, 60, 2);
         openAi = new OpenAiProvider("sk", "http://x", "model", 5, 60, 2);
         qwen = new QwenProvider("sk", "http://x", "model", 5, 60, 2);
+        ollama = new OllamaProvider("http://x", "deepseek-r1:8b", "", 5, 60, 2);
         stubRestClient(deepSeek, "x");
         stubRestClient(openAi, "x");
         stubRestClient(qwen, "x");
-        RoutingLLMProvider p = new RoutingLLMProvider(deepSeek, openAi, qwen, systemConfigService, "deepseek");
+        stubOllamaRestClient(ollama, "x");
+        RoutingLLMProvider p = new RoutingLLMProvider(deepSeek, openAi, qwen, ollama, systemConfigService, "deepseek");
         assertFalse(p.testConnection());
     }
 

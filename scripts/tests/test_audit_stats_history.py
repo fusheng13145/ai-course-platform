@@ -37,8 +37,8 @@ def test_keys_equal_to_history_ignores_empty_and_whitespace_only():
 
 
 def test_keys_equal_to_history_matches_multiple_history_commits():
-    current = {"NEO4J_PASSWORD": "v2", "X": "keep"}
-    history = {"NEO4J_PASSWORD": ["v1", "v2"]}
+    current = {"NEO4J_PASSWORD": "ui", "X": "keep"}
+    history = {"NEO4J_PASSWORD": ["v1", "ui"]}
     assert audit_stats.keys_equal_to_history(current, history) == ["NEO4J_PASSWORD"]
 
 

@@ -11,6 +11,10 @@
 #   2. 不提供任何密钥默认值——缺失即启动失败，不做弱兜底；
 #   3. 与 docker-compose.yml 的环境变量默认口径保持一致（两条部署路径同姿态）。
 
+# 邮件通道：生产缺 SMTP 凭据必须失败，绝不把「仅打日志」冒充成已发送
+mail:
+  dev-log-code: ${MAIL_DEV_LOG_CODE:false}
+
 app:
   # 演示账号：生产必须关闭 → 启动时停用「仍为出厂弱口令(123456)」的演示账号并重置为不可知口令。
   # 若同时置 true 且激活 prod，DemoAccountHardeningInitializer 会 fail-fast 拒绝启动。
@@ -50,7 +54,12 @@ app:
     # 故开启以取反代覆写的 X-Real-IP；若应用被直连暴露（无受信反代），必须置 false，否则 X-Real-IP 可被客户端伪造。
     trust-proxy-header: ${TRUST_PROXY_HEADER:true}
     csrf:
-      enabled: true
+      # ❗修复 A 路径 #9（2026-11-05）：原**硬编码 true** 会静默忽略 CSRF_ENABLED 环境变量，
+      #   prod profile 下想关也关不掉（纸面开关）。改为占位符后与 base application.yaml 同口径：
+      #     · 未设 CSRF_ENABLED → 默认 true（生产安全默认不变）；
+      #     · 确有需要的部署形态可显式 CSRF_ENABLED=false 自救。
+      #   注意：本机启动器（scripts/start-all.py backend_env）仍强制 false，不受本文件影响。
+      enabled: ${CSRF_ENABLED:true}
 
 # ===================== Flyway：演示种子不进生产库 =====================
 # 【存在理由（2026-10-06，落地 DR-18 路径①）】V5 富种子与 V6 示范课 4007 是**演示语料**：
@@ -79,6 +88,11 @@ app:
 spring:
   flyway:
     locations: classpath:db/migration
+    # 【2026-11-10 V8 批：生产安全加固】显式禁用 clean——Flyway 默认（Boot 3.x 托管下）
+    # cleanDisabled 默认已为 true（环境变量 FLYWAY_CLEAN_DISABLED 亦生效），此处显式写出
+    # 是把该防线固化成可审计的配置事实：任何误配/降级都不会让 `flyway:clean` 摸到生产库
+    # （空库开通演练记录 PROV-20261110-01 §2 列为小改进项，本行为其收口）。
+    clean-disabled: true
 
 # ===================== CORS 白名单：生产显式清空 base 的 localhost 白名单 =====================
 # 【存在理由（2026-09-16）】base application.yaml 硬编码了 9 条 localhost 白名单且无任何 profile 覆盖，

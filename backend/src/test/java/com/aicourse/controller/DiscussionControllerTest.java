@@ -1,7 +1,9 @@
 package com.aicourse.controller;
+import com.aicourse.common.ApiCode;
 import com.aicourse.controller.DiscussionController;
 import com.aicourse.entity.DiscussionPost;
 import com.aicourse.entity.DiscussionTopic;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.service.DiscussionService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,13 +28,20 @@ class DiscussionControllerTest extends ControllerTestBase {
     @MockitoBean
     private com.aicourse.service.DiscussionService discussionService;
 
+    /**
+     * 2026-11-06 验收批：控制器新增课程成员关系断言（B-05）。本切片只验「路由与委托」，
+     * 归属判定本身的语义由 DiscussionAccessControlTest 覆盖，这里注入默认不拦截的替身。
+     */
+    @MockitoBean
+    private com.aicourse.security.CourseAccessControl courseAccessControl;
+
     @Test
     @DisplayName("POST /discussion/topic - 发布话题返回200，ID透传")
     void createTopic_authorized_passes_security() throws Exception {
         DiscussionTopic topic = new DiscussionTopic();
         topic.setId(1L);
         when(discussionService.createTopic(any(), eq(1L), any())).thenReturn(topic);
-        mockMvc.perform(post("/discussion/topic").contentType(MediaType.APPLICATION_JSON).content("{}")
+        mockMvc.perform(post("/discussion/topic").contentType(MediaType.APPLICATION_JSON).content("{\"courseId\":7}")
                         .with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
@@ -43,7 +52,7 @@ class DiscussionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /discussion/topic - 未认证返回401")
     void createTopic_unauthorized_returns_401() throws Exception {
-        mockMvc.perform(post("/discussion/topic").contentType(MediaType.APPLICATION_JSON).content("{}"))
+        mockMvc.perform(post("/discussion/topic").contentType(MediaType.APPLICATION_JSON).content("{\"courseId\":7}"))
                 .andExpect(status().isUnauthorized());
     }
 
@@ -113,6 +122,31 @@ class DiscussionControllerTest extends ControllerTestBase {
     void reply_unauthorized_returns_401() throws Exception {
         mockMvc.perform(post("/discussion/topic/1/reply").contentType(MediaType.APPLICATION_JSON).content("{}"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("DELETE /discussion/1 - 作者删除话题返回200并委托级联删除")
+    void deleteTopic_authorized_delegates() throws Exception {
+        mockMvc.perform(delete("/discussion/1").with(withUser(7L, "STUDENT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+        verify(discussionService).deleteTopic(1L, 7L, "STUDENT");
+    }
+
+    @Test
+    @DisplayName("DELETE /discussion/1 - 未认证返回401")
+    void deleteTopic_unauthorized_returns_401() throws Exception {
+        mockMvc.perform(delete("/discussion/1"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    @DisplayName("DELETE /discussion/1 - 非作者删除返回403")
+    void deleteTopic_nonOwner_returns_403() throws Exception {
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权操作该话题"))
+                .when(discussionService).deleteTopic(1L, 7L, "STUDENT");
+        mockMvc.perform(delete("/discussion/1").with(withUser(7L, "STUDENT")))
+                .andExpect(status().isForbidden());
     }
 
     @Test

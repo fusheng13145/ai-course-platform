@@ -16,7 +16,8 @@ import time
 import urllib.error
 import urllib.request
 
-BASE = "http://127.0.0.1:8080/api"
+# A 路径断链 #10：端点可经 E2E_BASE_URL 指向实际入口，默认保持原本机行为。
+BASE = os.environ.get("E2E_BASE_URL", "http://127.0.0.1:8080/api").rstrip("/")
 E2E_PREFIX = "E2E-"
 PROBE_PREFIX = "PROBE-生命周期探针-"
 

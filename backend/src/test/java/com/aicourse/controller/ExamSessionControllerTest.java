@@ -4,6 +4,7 @@ import com.aicourse.common.ApiCode;
 import com.aicourse.entity.ExamSession;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.ExamSessionService;
+import com.aicourse.vo.ActiveExamSessionVO;
 import com.aicourse.vo.AutoGradeResultVO;
 import com.aicourse.security.ExamSessionAccessControl;
 import org.junit.jupiter.api.DisplayName;
@@ -312,15 +313,27 @@ class ExamSessionControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("GET /exam-sessions/1/cheating-detect - 教师/管理员检测作弊返回200，列表透传")
+    @DisplayName("GET /exam-sessions/1/cheating-detect - 契约定型为字符串数组（非对象结构）")
     void detectCheating_authorized_passes_security() throws Exception {
-        when(examSessionService.detectCheating(eq(1L))).thenReturn(List.of("suspect1"));
+        when(examSessionService.detectCheating(eq(1L))).thenReturn(List.of("检测到IP地址变化：1.1.1.1 -> 2.2.2.2"));
         mockMvc.perform(get("/exam-sessions/1/cheating-detect").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data[0]").value("suspect1"));
+                .andExpect(jsonPath("$.data[0]").isString())
+                .andExpect(jsonPath("$.data[0]").value("检测到IP地址变化：1.1.1.1 -> 2.2.2.2"))
+                .andExpect(jsonPath("$.data[0].type").doesNotExist());
         verify(examSessionService).detectCheating(eq(1L));
+    }
+
+    @Test
+    @DisplayName("GET /exam-sessions/1/cheating-detect - 无嫌疑返回空数组")
+    void detectCheating_authorized_emptyList() throws Exception {
+        when(examSessionService.detectCheating(eq(1L))).thenReturn(List.of());
+        mockMvc.perform(get("/exam-sessions/1/cheating-detect").with(withUser(1L, "TEACHER", "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data").isArray())
+                .andExpect(jsonPath("$.data").isEmpty());
     }
 
     @Test
@@ -364,16 +377,30 @@ class ExamSessionControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("GET /exam-sessions/active - 教师/管理员返回进行中考试列表，数组透传")
+    @DisplayName("GET /exam-sessions/active - 教师/管理员返回 VO 化考试列表（含试卷/课程/学生/人数）")
     void activeExams_authorized_passes_security() throws Exception {
-        ExamSession session = new ExamSession();
-        session.setId(1L);
-        when(examSessionService.getActiveExams()).thenReturn(List.of(session));
+        ActiveExamSessionVO row = new ActiveExamSessionVO();
+        row.setId(1L);
+        row.setExamPaperId(10L);
+        row.setPaperTitle("期中测验");
+        row.setCourseId(100L);
+        row.setCourseName("计算机网络");
+        row.setStudentId(5L);
+        row.setStudentName("张三");
+        row.setStatus("STARTED");
+        row.setParticipantCount(2);
+        when(examSessionService.getActiveExams()).thenReturn(List.of(row));
         mockMvc.perform(get("/exam-sessions/active").with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").isArray())
-                .andExpect(jsonPath("$.data[0].id").value(1));
+                .andExpect(jsonPath("$.data[0].id").value(1))
+                .andExpect(jsonPath("$.data[0].examPaperId").value(10))
+                .andExpect(jsonPath("$.data[0].paperTitle").value("期中测验"))
+                .andExpect(jsonPath("$.data[0].courseId").value(100))
+                .andExpect(jsonPath("$.data[0].courseName").value("计算机网络"))
+                .andExpect(jsonPath("$.data[0].studentName").value("张三"))
+                .andExpect(jsonPath("$.data[0].participantCount").value(2));
         verify(examSessionService).getActiveExams();
     }
 

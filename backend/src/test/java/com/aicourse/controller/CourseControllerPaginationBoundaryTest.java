@@ -1,8 +1,10 @@
 package com.aicourse.controller;
 
 import com.aicourse.entity.Course;
+import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
+import com.aicourse.service.UserService;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.DisplayName;
@@ -10,6 +12,7 @@ import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -33,12 +36,17 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 是否加钳制属影响面较大的改动，需团队评审后再定，此处不擅改 src/main。</p>
  */
 @WebMvcTest(CourseController.class)
+@Import(AdminScopeGuard.class)
 class CourseControllerPaginationBoundaryTest extends ControllerTestBase {
 
     @MockitoBean
     private CourseService courseService;
     @MockitoBean
     private CourseEnrollmentService enrollmentService;
+    @MockitoBean
+    private com.aicourse.service.CourseApprovalService courseApprovalService;
+    @MockitoBean
+    private UserService userService;
 
     @ParameterizedTest(name = "page={0} size={1} -> current={2} size={3}")
     @CsvSource({

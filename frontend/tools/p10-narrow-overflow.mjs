@@ -2,8 +2,8 @@
 /**
  * P-10 窄屏浏览器实测（编码完成基线 §12.1 C 条）
  * ------------------------------------------------------------------
- * 用途：对 v2 的**全部路由**（真值取自运行时的 vue-router getRoutes()，
- *       出处 src/v2/router.ts 的 `path:` 与 `page()` 两类记录，src/v2/nav.ts 的
+ * 用途：对 的**全部路由**（真值取自运行时的 vue-router getRoutes()，
+ *       出处 src/ui/router.ts 的 `path:` 与 `page()` 两类记录，src/ui/nav.ts 的
  *       PATHS 作交叉核对）在三档窄视口 360x740 / 375x667 / 768x1024 下做真实量测：
  *
  *   ① document.documentElement.scrollWidth  vs  window.innerWidth   → 文档级横向溢出
@@ -206,7 +206,7 @@ async function settle(page) {
       () => {
         const m = document.querySelector('.main-inner')
         const b = document.body
-        if (!b || b.dataset.app !== 'v2') return false
+        if (!b || b.dataset.app !== 'ui') return false
         if (!m) return true
         return Boolean(m.firstElementChild)
       },
@@ -288,7 +288,7 @@ const SESSIONS = {}
 function ctxInit(ctx, entries) {
   return ctx.addInitScript((kv) => {
     for (const e of kv) localStorage.setItem(e.name, e.value)
-    localStorage.setItem('v2-theme', 'light')
+    localStorage.setItem('theme', 'light')
   }, entries)
 }
 
@@ -381,7 +381,7 @@ function storageToSession(state) {
     // 再用 addInitScript 重放到本 origin —— 不是重新登录，是同一份会话换个落点。
     if (!/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(o.origin)) continue
     for (const kv of o.localStorage || []) {
-      if (kv.name === 'v2-theme') continue
+      if (kv.name === 'theme') continue
       if (seen.has(kv.name)) continue
       seen.add(kv.name)
       out.entries.push({ name: kv.name, value: kv.value })
@@ -548,7 +548,7 @@ try {
           concretePath: abs,
           tabLabel: t.tabLabel || '',
           title: t.r.meta?.title || '',
-          v2page: t.r.meta?.v2page || (t.r.meta?.v2course ? '(course)' : ''),
+          pageKey: t.r.meta?.pageKey || (t.r.meta?.courseSpace ? '(course)' : ''),
           control: !NARROW.some((v) => v.key === vp.key),
           ...row,
         })

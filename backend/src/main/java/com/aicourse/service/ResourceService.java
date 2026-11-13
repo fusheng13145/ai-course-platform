@@ -11,18 +11,12 @@ import java.util.Map;
 
 /**
  * 课程资源服务接口
- * 提供资源的访问权限校验、资源树构建、搜索、统计、可见性管理及章节资源查询等能力
+ * 提供资源树构建、搜索、统计、可见性管理及章节资源查询等能力
+ * <p>
+ * 注：历史上的 {@code checkAccessPermission}（恒返回 true 的装饰性守卫）已随验收整改移除；
+ * 资源对象级访问控制由 {@code UploadResourceAccessFilter} 在 {@code /uploads/*} 读取路径真实执行。
  */
 public interface ResourceService extends IService<Resource> {
-
-    /**
-     * 资源访问权限校验
-     * 校验指定用户是否有权访问该资源（基于 visibleToAll 字段）
-     * @param resourceId 资源ID
-     * @param userId 用户ID
-     * @return 是否有访问权限
-     */
-    boolean checkAccessPermission(Long resourceId, Long userId);
 
     /**
      * 获取课程的资源树（按章节组织）

@@ -33,7 +33,7 @@ export function useTeacherGradeDistribution() {
           barWidth: '50%',
           itemStyle: {
             borderRadius: [6, 6, 0, 0],
-            color: (params) => monoScore(bandScores[params.dataIndex] ?? 0),
+            color: (params: { dataIndex: number }) => monoScore(bandScores[params.dataIndex] ?? 0),
           },
           label: { show: true, position: 'top', fontSize: 11, color: theme.text },
         },

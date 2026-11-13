@@ -35,6 +35,14 @@ public interface CourseService extends IService<Course> {
     Course approveCourse(Long id);
 
     /**
+     * 审批通过课程并记录审批人（V13 审批流水）。
+     * @param id 课程ID
+     * @param operatorId 审批人ID
+     * @return 审批后的课程
+     */
+    Course approveCourse(Long id, Long operatorId);
+
+    /**
      * 切换课程启用/禁用状态。
      */
     Course toggleCourseStatus(Long id);
@@ -43,4 +51,11 @@ public interface CourseService extends IService<Course> {
      * 审批驳回课程：置 REJECTED 并记录原因。
      */
     Course rejectCourse(Long id, String reason);
+
+    /**
+     * 重新提交被驳回的课程：仅允许 REJECTED → PENDING。
+     * @param id 课程ID
+     * @return 重提后的课程
+     */
+    Course resubmitCourse(Long id);
 }

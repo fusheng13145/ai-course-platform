@@ -1,7 +1,7 @@
 /**
  * 上传会话的展示语义单一来源：状态译名、语义色调、字节格式化。
  *
- * 旧端（Element Plus 的 tag type）与 v2（自有 chip 类）各自只做一层薄映射，
+ * 旧端（Element Plus 的 tag type）与 （自有 chip 类）各自只做一层薄映射，
  * 判定表本身不复制——两处各写一份必然分叉。
  */
 
@@ -57,7 +57,7 @@ export interface UploadProgressView {
   uploaded: number | null
   total: number | null
   missing: number[]
-  /** uploaded/total 推导出的百分比；不足以计算、或会话已终态（读数不可信）时为 null */
+  /** uploaded/total 推导出的百分比；不足以计算时为 null */
   percent: number | null
 }
 
@@ -72,18 +72,11 @@ function indexOr(value: unknown): number | null {
   return Number.isInteger(num) && num >= 0 ? num : null
 }
 
-/** 后端在 merge 成功与 cancel 时都调用 deleteChunkDir（FileUploadSessionServiceImpl:331/:408），
- *  过期清理也把 COMPLETED/CANCELLED 列为 reclaimable（:463-465）， UPLOADING 与 FAILED 的分片目录刻意保留。
- *  2026-10-29 实测：COMPLETED 会话的 progress 返回 uploaded=0、missingIndexes=[0]。
- *  所以磁盘真值只对未回收目录的状态有意义；终态照抄会把 100% 显示成 0% 并谎报缺片。 */
-const RECLAIMED_STATUSES = ['COMPLETED', 'CANCELLED']
-
+/** 终态（COMPLETED/CANCELLED）已由后端返回会话持久计数且 missingIndexes 为空（B-13⑲），
+ *  前端不再按状态特判，一律以服务端读数为准。 */
 export function pickUploadProgress(payload: unknown): UploadProgressView {
   const data = (unwrap(payload) ?? {}) as Record<string, unknown>
   const status = typeof data.status === 'string' ? data.status : ''
-  if (RECLAIMED_STATUSES.includes(status)) {
-    return { status, uploaded: null, total: null, missing: [], percent: null }
-  }
   const uploaded = numOr(data.uploaded)
   const total = numOr(data.total)
   const missing = Array.isArray(data.missingIndexes)

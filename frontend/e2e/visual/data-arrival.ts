@@ -232,7 +232,7 @@ export const DATA_PATHS: Record<string, string[]> = {
     '/api/student/courses',
     '/api/student/dashboard',
   ],
-  'teacher-dashboard': ['/api/courses/my', '/api/teacher/dashboard/v2'],
+  'teacher-dashboard': ['/api/courses/my', '/api/teacher/dashboard/overview'],
   'admin-courses-table': ['/api/courses'],
   'admin-system-form': ['/api/system-configs'],
   'student-courses-modal': ['/api/student/courses', '/api/student/dashboard'],

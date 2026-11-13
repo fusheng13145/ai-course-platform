@@ -77,7 +77,7 @@
       "path": "/teacher/courses/create",
       "meta": {
         "role": "TEACHER",
-        "v2page": "createCourse",
+        "pageKey": "createCourse",
         "title": "创建课程"
       },
       "name": null
@@ -86,7 +86,7 @@
       "path": "/teacher/advising/profile",
       "meta": {
         "role": "TEACHER",
-        "v2page": "advisingProfile",
+        "pageKey": "advisingProfile",
         "title": "班级画像"
       },
       "name": null
@@ -95,7 +95,7 @@
       "path": "/teacher/advising/alerts",
       "meta": {
         "role": "TEACHER",
-        "v2page": "advisingAlerts",
+        "pageKey": "advisingAlerts",
         "title": "学生预警"
       },
       "name": null
@@ -104,7 +104,7 @@
       "path": "/teacher/advising/notices",
       "meta": {
         "role": "TEACHER",
-        "v2page": "advisingNotices",
+        "pageKey": "advisingNotices",
         "title": "班级通知"
       },
       "name": null
@@ -113,7 +113,7 @@
       "path": "/student/courses/:id/:tab?",
       "meta": {
         "role": "STUDENT",
-        "v2course": true,
+        "courseSpace": true,
         "title": "课程空间"
       },
       "name": null
@@ -122,7 +122,7 @@
       "path": "/teacher/courses/:id/:tab?",
       "meta": {
         "role": "TEACHER",
-        "v2course": true,
+        "courseSpace": true,
         "title": "课程空间"
       },
       "name": null
@@ -131,7 +131,7 @@
       "path": "/admin/courses/:id/:tab?",
       "meta": {
         "role": "ADMIN",
-        "v2course": true,
+        "courseSpace": true,
         "title": "课程治理"
       },
       "name": null
@@ -140,7 +140,7 @@
       "path": "/student/home",
       "meta": {
         "role": "STUDENT",
-        "v2page": "home",
+        "pageKey": "home",
         "title": "工作台"
       },
       "name": null
@@ -149,7 +149,7 @@
       "path": "/student/courses",
       "meta": {
         "role": "STUDENT",
-        "v2page": "courses",
+        "pageKey": "courses",
         "title": "我的课程"
       },
       "name": null
@@ -158,7 +158,7 @@
       "path": "/student/tasks",
       "meta": {
         "role": "STUDENT",
-        "v2page": "tasks",
+        "pageKey": "tasks",
         "title": "学习任务"
       },
       "name": null
@@ -167,7 +167,7 @@
       "path": "/student/academic",
       "meta": {
         "role": "STUDENT",
-        "v2page": "academic",
+        "pageKey": "academic",
         "title": "学业档案"
       },
       "name": null
@@ -176,7 +176,7 @@
       "path": "/student/exams",
       "meta": {
         "role": "STUDENT",
-        "v2page": "exams",
+        "pageKey": "exams",
         "title": "我的考试"
       },
       "name": null
@@ -185,7 +185,7 @@
       "path": "/student/messages",
       "meta": {
         "role": "STUDENT",
-        "v2page": "messages",
+        "pageKey": "messages",
         "title": "消息"
       },
       "name": null
@@ -194,7 +194,7 @@
       "path": "/student/profile",
       "meta": {
         "role": "STUDENT",
-        "v2page": "profile",
+        "pageKey": "profile",
         "title": "个人中心"
       },
       "name": null
@@ -203,7 +203,7 @@
       "path": "/student/assistant",
       "meta": {
         "role": "STUDENT",
-        "v2page": "assistant",
+        "pageKey": "assistant",
         "title": "AI 助手"
       },
       "name": null
@@ -212,7 +212,7 @@
       "path": "/teacher/home",
       "meta": {
         "role": "TEACHER",
-        "v2page": "home",
+        "pageKey": "home",
         "title": "教学工作台"
       },
       "name": null
@@ -221,7 +221,7 @@
       "path": "/teacher/courses",
       "meta": {
         "role": "TEACHER",
-        "v2page": "courses",
+        "pageKey": "courses",
         "title": "我的课程"
       },
       "name": null
@@ -230,7 +230,7 @@
       "path": "/teacher/bank",
       "meta": {
         "role": "TEACHER",
-        "v2page": "bank",
+        "pageKey": "bank",
         "title": "题库管理"
       },
       "name": null
@@ -239,7 +239,7 @@
       "path": "/teacher/exams",
       "meta": {
         "role": "TEACHER",
-        "v2page": "exams",
+        "pageKey": "exams",
         "title": "试卷库"
       },
       "name": null
@@ -248,7 +248,7 @@
       "path": "/teacher/grades",
       "meta": {
         "role": "TEACHER",
-        "v2page": "grades",
+        "pageKey": "grades",
         "title": "成绩管理"
       },
       "name": null
@@ -257,7 +257,7 @@
       "path": "/teacher/interaction",
       "meta": {
         "role": "TEACHER",
-        "v2page": "interaction",
+        "pageKey": "interaction",
         "title": "课堂互动"
       },
       "name": null
@@ -266,7 +266,7 @@
       "path": "/teacher/knowledge-management",
       "meta": {
         "role": "TEACHER",
-        "v2page": "knowledge",
+        "pageKey": "knowledge",
         "title": "知识点管理"
       },
       "name": null
@@ -275,7 +275,7 @@
       "path": "/teacher/inbox",
       "meta": {
         "role": "TEACHER",
-        "v2page": "inbox",
+        "pageKey": "inbox",
         "title": "教学任务"
       },
       "name": null
@@ -284,7 +284,7 @@
       "path": "/teacher/analytics",
       "meta": {
         "role": "TEACHER",
-        "v2page": "analytics",
+        "pageKey": "analytics",
         "title": "学情分析"
       },
       "name": null
@@ -293,7 +293,7 @@
       "path": "/teacher/resources",
       "meta": {
         "role": "TEACHER",
-        "v2page": "resources",
+        "pageKey": "resources",
         "title": "资源中心"
       },
       "name": null
@@ -302,7 +302,7 @@
       "path": "/teacher/advising",
       "meta": {
         "role": "TEACHER",
-        "v2page": "advising",
+        "pageKey": "advising",
         "title": "我的班级"
       },
       "name": null
@@ -311,7 +311,7 @@
       "path": "/teacher/messages",
       "meta": {
         "role": "TEACHER",
-        "v2page": "messages",
+        "pageKey": "messages",
         "title": "消息"
       },
       "name": null
@@ -320,7 +320,7 @@
       "path": "/teacher/profile",
       "meta": {
         "role": "TEACHER",
-        "v2page": "profile",
+        "pageKey": "profile",
         "title": "个人中心"
       },
       "name": null
@@ -329,7 +329,7 @@
       "path": "/admin/home",
       "meta": {
         "role": "ADMIN",
-        "v2page": "home",
+        "pageKey": "home",
         "title": "治理总览"
       },
       "name": null
@@ -338,7 +338,7 @@
       "path": "/admin/courses",
       "meta": {
         "role": "ADMIN",
-        "v2page": "courses",
+        "pageKey": "courses",
         "title": "课程目录"
       },
       "name": null
@@ -347,7 +347,7 @@
       "path": "/admin/colleges",
       "meta": {
         "role": "ADMIN",
-        "v2page": "colleges",
+        "pageKey": "colleges",
         "title": "学院与专业"
       },
       "name": null
@@ -356,7 +356,7 @@
       "path": "/admin/classes",
       "meta": {
         "role": "ADMIN",
-        "v2page": "adminClasses",
+        "pageKey": "adminClasses",
         "title": "行政班"
       },
       "name": null
@@ -365,7 +365,7 @@
       "path": "/admin/users",
       "meta": {
         "role": "ADMIN",
-        "v2page": "users",
+        "pageKey": "users",
         "title": "用户与账号"
       },
       "name": null
@@ -374,7 +374,7 @@
       "path": "/admin/roles",
       "meta": {
         "role": "ADMIN",
-        "v2page": "roles",
+        "pageKey": "roles",
         "title": "角色与权限"
       },
       "name": null
@@ -383,7 +383,7 @@
       "path": "/admin/semesters",
       "meta": {
         "role": "ADMIN",
-        "v2page": "semesters",
+        "pageKey": "semesters",
         "title": "学期管理"
       },
       "name": null
@@ -392,7 +392,7 @@
       "path": "/admin/approvals",
       "meta": {
         "role": "ADMIN",
-        "v2page": "approvals",
+        "pageKey": "approvals",
         "title": "课程审批"
       },
       "name": null
@@ -401,7 +401,7 @@
       "path": "/admin/teaching-classes",
       "meta": {
         "role": "ADMIN",
-        "v2page": "teachingClasses",
+        "pageKey": "teachingClasses",
         "title": "教学班监管"
       },
       "name": null
@@ -410,7 +410,7 @@
       "path": "/admin/enrollments",
       "meta": {
         "role": "ADMIN",
-        "v2page": "enrollments",
+        "pageKey": "enrollments",
         "title": "选课与名单"
       },
       "name": null
@@ -419,7 +419,7 @@
       "path": "/admin/supervision",
       "meta": {
         "role": "ADMIN",
-        "v2page": "supervision",
+        "pageKey": "supervision",
         "title": "教学监督"
       },
       "name": null
@@ -428,7 +428,7 @@
       "path": "/admin/exam-governance",
       "meta": {
         "role": "ADMIN",
-        "v2page": "examGovernance",
+        "pageKey": "examGovernance",
         "title": "考试治理"
       },
       "name": null
@@ -437,7 +437,7 @@
       "path": "/admin/grades",
       "meta": {
         "role": "ADMIN",
-        "v2page": "grades",
+        "pageKey": "grades",
         "title": "成绩与预警"
       },
       "name": null
@@ -446,7 +446,7 @@
       "path": "/admin/ai-usage",
       "meta": {
         "role": "ADMIN",
-        "v2page": "aiUsage",
+        "pageKey": "aiUsage",
         "title": "AI 使用与治理"
       },
       "name": null
@@ -455,7 +455,7 @@
       "path": "/admin/questions",
       "meta": {
         "role": "ADMIN",
-        "v2page": "adminQuestions",
+        "pageKey": "adminQuestions",
         "title": "题库管理"
       },
       "name": null
@@ -464,7 +464,7 @@
       "path": "/admin/uploads",
       "meta": {
         "role": "ADMIN",
-        "v2page": "adminUploads",
+        "pageKey": "adminUploads",
         "title": "上传会话监控"
       },
       "name": null
@@ -473,7 +473,7 @@
       "path": "/admin/moderation",
       "meta": {
         "role": "ADMIN",
-        "v2page": "moderation",
+        "pageKey": "moderation",
         "title": "内容审核"
       },
       "name": null
@@ -482,7 +482,7 @@
       "path": "/admin/notices",
       "meta": {
         "role": "ADMIN",
-        "v2page": "notices",
+        "pageKey": "notices",
         "title": "通知公告"
       },
       "name": null
@@ -491,7 +491,7 @@
       "path": "/admin/audit",
       "meta": {
         "role": "ADMIN",
-        "v2page": "audit",
+        "pageKey": "audit",
         "title": "操作与登录日志"
       },
       "name": null
@@ -500,7 +500,7 @@
       "path": "/admin/sessions",
       "meta": {
         "role": "ADMIN",
-        "v2page": "sessions",
+        "pageKey": "sessions",
         "title": "会话管理"
       },
       "name": null
@@ -509,7 +509,7 @@
       "path": "/admin/system",
       "meta": {
         "role": "ADMIN",
-        "v2page": "system",
+        "pageKey": "system",
         "title": "系统设置"
       },
       "name": null
@@ -518,7 +518,7 @@
       "path": "/admin/profile",
       "meta": {
         "role": "ADMIN",
-        "v2page": "profile",
+        "pageKey": "profile",
         "title": "个人中心"
       },
       "name": null
@@ -567,7 +567,7 @@
       "path": "/403",
       "meta": {
         "requiresAuth": false,
-        "v2error": "403",
+        "errorCode": "403",
         "title": "无权限"
       },
       "name": null
@@ -576,7 +576,7 @@
       "path": "/404",
       "meta": {
         "requiresAuth": false,
-        "v2error": "404",
+        "errorCode": "404",
         "title": "页面不存在"
       },
       "name": null
@@ -585,7 +585,7 @@
       "path": "/503",
       "meta": {
         "requiresAuth": false,
-        "v2error": "503",
+        "errorCode": "503",
         "title": "服务连接失败"
       },
       "name": null
@@ -602,7 +602,7 @@
       "path": "/:pathMatch(.*)*",
       "meta": {
         "requiresAuth": false,
-        "v2error": "404",
+        "errorCode": "404",
         "title": "页面不存在"
       },
       "name": null
@@ -615,7 +615,7 @@
       "concretePath": "/login",
       "tabLabel": "",
       "title": "登录",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -644,7 +644,7 @@
       "concretePath": "/register",
       "tabLabel": "",
       "title": "注册",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -673,7 +673,7 @@
       "concretePath": "/forgot-password",
       "tabLabel": "",
       "title": "找回密码",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -702,7 +702,7 @@
       "concretePath": "/agreement",
       "tabLabel": "",
       "title": "用户服务协议",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -725,7 +725,7 @@
       "concretePath": "/privacy",
       "tabLabel": "",
       "title": "隐私政策",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -748,7 +748,7 @@
       "concretePath": "/403",
       "tabLabel": "",
       "title": "无权限",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -771,7 +771,7 @@
       "concretePath": "/404",
       "tabLabel": "",
       "title": "页面不存在",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -794,7 +794,7 @@
       "concretePath": "/503",
       "tabLabel": "",
       "title": "服务连接失败",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -817,7 +817,7 @@
       "concretePath": "/",
       "tabLabel": "",
       "title": "新版工作台",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -846,7 +846,7 @@
       "concretePath": "/p10-not-a-real-route",
       "tabLabel": "",
       "title": "页面不存在",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -869,7 +869,7 @@
       "concretePath": "/login",
       "tabLabel": "",
       "title": "登录",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -898,7 +898,7 @@
       "concretePath": "/register",
       "tabLabel": "",
       "title": "注册",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -927,7 +927,7 @@
       "concretePath": "/forgot-password",
       "tabLabel": "",
       "title": "找回密码",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -956,7 +956,7 @@
       "concretePath": "/agreement",
       "tabLabel": "",
       "title": "用户服务协议",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -979,7 +979,7 @@
       "concretePath": "/privacy",
       "tabLabel": "",
       "title": "隐私政策",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -1002,7 +1002,7 @@
       "concretePath": "/403",
       "tabLabel": "",
       "title": "无权限",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -1025,7 +1025,7 @@
       "concretePath": "/404",
       "tabLabel": "",
       "title": "页面不存在",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -1048,7 +1048,7 @@
       "concretePath": "/503",
       "tabLabel": "",
       "title": "服务连接失败",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -1071,7 +1071,7 @@
       "concretePath": "/",
       "tabLabel": "",
       "title": "新版工作台",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -1100,7 +1100,7 @@
       "concretePath": "/p10-not-a-real-route",
       "tabLabel": "",
       "title": "页面不存在",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -1123,7 +1123,7 @@
       "concretePath": "/login",
       "tabLabel": "",
       "title": "登录",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -1152,7 +1152,7 @@
       "concretePath": "/register",
       "tabLabel": "",
       "title": "注册",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -1181,7 +1181,7 @@
       "concretePath": "/forgot-password",
       "tabLabel": "",
       "title": "找回密码",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -1210,7 +1210,7 @@
       "concretePath": "/agreement",
       "tabLabel": "",
       "title": "用户服务协议",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -1233,7 +1233,7 @@
       "concretePath": "/privacy",
       "tabLabel": "",
       "title": "隐私政策",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -1256,7 +1256,7 @@
       "concretePath": "/403",
       "tabLabel": "",
       "title": "无权限",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -1279,7 +1279,7 @@
       "concretePath": "/404",
       "tabLabel": "",
       "title": "页面不存在",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -1302,7 +1302,7 @@
       "concretePath": "/503",
       "tabLabel": "",
       "title": "服务连接失败",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -1325,7 +1325,7 @@
       "concretePath": "/",
       "tabLabel": "",
       "title": "新版工作台",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -1354,7 +1354,7 @@
       "concretePath": "/p10-not-a-real-route",
       "tabLabel": "",
       "title": "页面不存在",
-      "v2page": "",
+      "pageKey": "",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -1377,7 +1377,7 @@
       "concretePath": "/student/courses/1",
       "tabLabel": "",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -1393,7 +1393,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -1406,7 +1406,7 @@
       "concretePath": "/student/courses/1/overview",
       "tabLabel": "概览",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -1422,7 +1422,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -1435,7 +1435,7 @@
       "concretePath": "/student/courses/1/chapters",
       "tabLabel": "章节与资料",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -1451,7 +1451,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -1464,7 +1464,7 @@
       "concretePath": "/student/courses/1/tasks",
       "tabLabel": "作业",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -1480,7 +1480,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 153
         }
@@ -1493,7 +1493,7 @@
       "concretePath": "/student/courses/1/exams",
       "tabLabel": "考试",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -1509,7 +1509,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -1522,7 +1522,7 @@
       "concretePath": "/student/courses/1/grades",
       "tabLabel": "成绩",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -1592,7 +1592,7 @@
           "inner": 248
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -1605,7 +1605,7 @@
       "concretePath": "/student/courses/1/discussion",
       "tabLabel": "讨论",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -1621,7 +1621,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -1634,7 +1634,7 @@
       "concretePath": "/student/home",
       "tabLabel": "",
       "title": "工作台",
-      "v2page": "home",
+      "pageKey": "home",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -1650,7 +1650,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -1663,7 +1663,7 @@
       "concretePath": "/student/courses",
       "tabLabel": "",
       "title": "我的课程",
-      "v2page": "courses",
+      "pageKey": "courses",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -1679,7 +1679,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -1692,7 +1692,7 @@
       "concretePath": "/student/tasks",
       "tabLabel": "",
       "title": "学习任务",
-      "v2page": "tasks",
+      "pageKey": "tasks",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -1762,7 +1762,7 @@
           "inner": 245
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -1775,7 +1775,7 @@
       "concretePath": "/student/academic",
       "tabLabel": "",
       "title": "学业档案",
-      "v2page": "academic",
+      "pageKey": "academic",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -1845,7 +1845,7 @@
           "inner": 188
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -1858,7 +1858,7 @@
       "concretePath": "/student/exams",
       "tabLabel": "",
       "title": "我的考试",
-      "v2page": "exams",
+      "pageKey": "exams",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -1874,7 +1874,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -1887,7 +1887,7 @@
       "concretePath": "/student/messages",
       "tabLabel": "",
       "title": "消息",
-      "v2page": "messages",
+      "pageKey": "messages",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -1903,7 +1903,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -1916,7 +1916,7 @@
       "concretePath": "/student/profile",
       "tabLabel": "",
       "title": "个人中心",
-      "v2page": "profile",
+      "pageKey": "profile",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -1932,7 +1932,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -1945,7 +1945,7 @@
       "concretePath": "/student/assistant",
       "tabLabel": "",
       "title": "AI 助手",
-      "v2page": "assistant",
+      "pageKey": "assistant",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -1961,7 +1961,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -1974,7 +1974,7 @@
       "concretePath": "/student/courses/1",
       "tabLabel": "",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -1990,7 +1990,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2003,7 +2003,7 @@
       "concretePath": "/student/courses/1/overview",
       "tabLabel": "概览",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -2019,7 +2019,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2032,7 +2032,7 @@
       "concretePath": "/student/courses/1/chapters",
       "tabLabel": "章节与资料",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -2048,7 +2048,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2061,7 +2061,7 @@
       "concretePath": "/student/courses/1/tasks",
       "tabLabel": "作业",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -2077,7 +2077,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2090,7 +2090,7 @@
       "concretePath": "/student/courses/1/exams",
       "tabLabel": "考试",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -2106,7 +2106,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2119,7 +2119,7 @@
       "concretePath": "/student/courses/1/grades",
       "tabLabel": "成绩",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -2189,7 +2189,7 @@
           "inner": 233
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2202,7 +2202,7 @@
       "concretePath": "/student/courses/1/discussion",
       "tabLabel": "讨论",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -2218,7 +2218,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2231,7 +2231,7 @@
       "concretePath": "/student/home",
       "tabLabel": "",
       "title": "工作台",
-      "v2page": "home",
+      "pageKey": "home",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -2247,7 +2247,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2260,7 +2260,7 @@
       "concretePath": "/student/courses",
       "tabLabel": "",
       "title": "我的课程",
-      "v2page": "courses",
+      "pageKey": "courses",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -2276,7 +2276,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2289,7 +2289,7 @@
       "concretePath": "/student/tasks",
       "tabLabel": "",
       "title": "学习任务",
-      "v2page": "tasks",
+      "pageKey": "tasks",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -2359,7 +2359,7 @@
           "inner": 230
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2372,7 +2372,7 @@
       "concretePath": "/student/academic",
       "tabLabel": "",
       "title": "学业档案",
-      "v2page": "academic",
+      "pageKey": "academic",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -2442,7 +2442,7 @@
           "inner": 173
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2455,7 +2455,7 @@
       "concretePath": "/student/exams",
       "tabLabel": "",
       "title": "我的考试",
-      "v2page": "exams",
+      "pageKey": "exams",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -2471,7 +2471,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2484,7 +2484,7 @@
       "concretePath": "/student/messages",
       "tabLabel": "",
       "title": "消息",
-      "v2page": "messages",
+      "pageKey": "messages",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -2500,7 +2500,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2513,7 +2513,7 @@
       "concretePath": "/student/profile",
       "tabLabel": "",
       "title": "个人中心",
-      "v2page": "profile",
+      "pageKey": "profile",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -2529,7 +2529,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2542,7 +2542,7 @@
       "concretePath": "/student/assistant",
       "tabLabel": "",
       "title": "AI 助手",
-      "v2page": "assistant",
+      "pageKey": "assistant",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -2558,7 +2558,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2571,7 +2571,7 @@
       "concretePath": "/student/courses/1",
       "tabLabel": "",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -2587,7 +2587,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2600,7 +2600,7 @@
       "concretePath": "/student/courses/1/overview",
       "tabLabel": "概览",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -2616,7 +2616,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2629,7 +2629,7 @@
       "concretePath": "/student/courses/1/chapters",
       "tabLabel": "章节与资料",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -2645,7 +2645,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2658,7 +2658,7 @@
       "concretePath": "/student/courses/1/tasks",
       "tabLabel": "作业",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -2674,7 +2674,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2687,7 +2687,7 @@
       "concretePath": "/student/courses/1/exams",
       "tabLabel": "考试",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -2703,7 +2703,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2716,7 +2716,7 @@
       "concretePath": "/student/courses/1/grades",
       "tabLabel": "成绩",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -2732,7 +2732,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2745,7 +2745,7 @@
       "concretePath": "/student/courses/1/discussion",
       "tabLabel": "讨论",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -2761,7 +2761,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2774,7 +2774,7 @@
       "concretePath": "/student/home",
       "tabLabel": "",
       "title": "工作台",
-      "v2page": "home",
+      "pageKey": "home",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -2790,7 +2790,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2803,7 +2803,7 @@
       "concretePath": "/student/courses",
       "tabLabel": "",
       "title": "我的课程",
-      "v2page": "courses",
+      "pageKey": "courses",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -2819,7 +2819,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2832,7 +2832,7 @@
       "concretePath": "/student/tasks",
       "tabLabel": "",
       "title": "学习任务",
-      "v2page": "tasks",
+      "pageKey": "tasks",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -2848,7 +2848,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2861,7 +2861,7 @@
       "concretePath": "/student/academic",
       "tabLabel": "",
       "title": "学业档案",
-      "v2page": "academic",
+      "pageKey": "academic",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -2877,7 +2877,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2890,7 +2890,7 @@
       "concretePath": "/student/exams",
       "tabLabel": "",
       "title": "我的考试",
-      "v2page": "exams",
+      "pageKey": "exams",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -2906,7 +2906,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2919,7 +2919,7 @@
       "concretePath": "/student/messages",
       "tabLabel": "",
       "title": "消息",
-      "v2page": "messages",
+      "pageKey": "messages",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -2935,7 +2935,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2948,7 +2948,7 @@
       "concretePath": "/student/profile",
       "tabLabel": "",
       "title": "个人中心",
-      "v2page": "profile",
+      "pageKey": "profile",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -2964,7 +2964,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -2977,7 +2977,7 @@
       "concretePath": "/student/assistant",
       "tabLabel": "",
       "title": "AI 助手",
-      "v2page": "assistant",
+      "pageKey": "assistant",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -2993,7 +2993,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -3006,7 +3006,7 @@
       "concretePath": "/teacher/courses/create",
       "tabLabel": "",
       "title": "创建课程",
-      "v2page": "createCourse",
+      "pageKey": "createCourse",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -3027,7 +3027,7 @@
           "inner": 118
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -3040,7 +3040,7 @@
       "concretePath": "/teacher/advising/profile",
       "tabLabel": "",
       "title": "班级画像",
-      "v2page": "advisingProfile",
+      "pageKey": "advisingProfile",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -3056,7 +3056,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -3069,7 +3069,7 @@
       "concretePath": "/teacher/advising/alerts",
       "tabLabel": "",
       "title": "学生预警",
-      "v2page": "advisingAlerts",
+      "pageKey": "advisingAlerts",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -3085,7 +3085,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -3098,7 +3098,7 @@
       "concretePath": "/teacher/advising/notices",
       "tabLabel": "",
       "title": "班级通知",
-      "v2page": "advisingNotices",
+      "pageKey": "advisingNotices",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -3114,7 +3114,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -3127,7 +3127,7 @@
       "concretePath": "/teacher/courses/4060",
       "tabLabel": "",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -3191,7 +3191,7 @@
           "inner": 374
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -3204,7 +3204,7 @@
       "concretePath": "/teacher/courses/4060/overview",
       "tabLabel": "概览",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -3268,7 +3268,7 @@
           "inner": 374
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -3281,7 +3281,7 @@
       "concretePath": "/teacher/courses/4060/classes",
       "tabLabel": "教学班",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -3345,7 +3345,7 @@
           "inner": 374
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -3358,7 +3358,7 @@
       "concretePath": "/teacher/courses/4060/chapters",
       "tabLabel": "章节与资源",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -3422,7 +3422,7 @@
           "inner": 374
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -3435,7 +3435,7 @@
       "concretePath": "/teacher/courses/4060/tasks",
       "tabLabel": "作业",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -3510,7 +3510,7 @@
           "inner": 120
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -3523,7 +3523,7 @@
       "concretePath": "/teacher/courses/4060/bank",
       "tabLabel": "课程题库",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -3593,7 +3593,7 @@
           "inner": 374
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         },
@@ -3611,7 +3611,7 @@
       "concretePath": "/teacher/courses/4060/proctor",
       "tabLabel": "在线监考",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -3675,7 +3675,7 @@
           "inner": 374
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -3688,7 +3688,7 @@
       "concretePath": "/teacher/courses/4060/exams",
       "tabLabel": "考试",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -3758,7 +3758,7 @@
           "inner": 374
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         },
@@ -3776,7 +3776,7 @@
       "concretePath": "/teacher/courses/4060/grading",
       "tabLabel": "批阅",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -3840,7 +3840,7 @@
           "inner": 374
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -3853,7 +3853,7 @@
       "concretePath": "/teacher/courses/4060/analytics",
       "tabLabel": "成绩与学情",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -3917,7 +3917,7 @@
           "inner": 374
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -3930,7 +3930,7 @@
       "concretePath": "/teacher/courses/4060/discussion",
       "tabLabel": "讨论",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -3994,7 +3994,7 @@
           "inner": 374
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -4007,7 +4007,7 @@
       "concretePath": "/teacher/courses/4060/graph",
       "tabLabel": "知识图谱",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -4071,7 +4071,7 @@
           "inner": 374
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -4084,7 +4084,7 @@
       "concretePath": "/teacher/courses/4060/settings",
       "tabLabel": "课程设置",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -4148,7 +4148,7 @@
           "inner": 374
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -4161,7 +4161,7 @@
       "concretePath": "/teacher/courses/4060/ai",
       "tabLabel": "AI 教学助手",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -4225,7 +4225,7 @@
           "inner": 374
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -4238,7 +4238,7 @@
       "concretePath": "/teacher/home",
       "tabLabel": "",
       "title": "教学工作台",
-      "v2page": "home",
+      "pageKey": "home",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -4254,7 +4254,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -4267,7 +4267,7 @@
       "concretePath": "/teacher/courses",
       "tabLabel": "",
       "title": "我的课程",
-      "v2page": "courses",
+      "pageKey": "courses",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -4283,7 +4283,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -4296,7 +4296,7 @@
       "concretePath": "/teacher/bank",
       "tabLabel": "",
       "title": "题库管理",
-      "v2page": "bank",
+      "pageKey": "bank",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -4361,7 +4361,7 @@
       ],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         },
@@ -4379,7 +4379,7 @@
       "concretePath": "/teacher/exams",
       "tabLabel": "",
       "title": "试卷库",
-      "v2page": "exams",
+      "pageKey": "exams",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -4449,7 +4449,7 @@
           "inner": 181
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         },
@@ -4467,7 +4467,7 @@
       "concretePath": "/teacher/grades",
       "tabLabel": "",
       "title": "成绩管理",
-      "v2page": "grades",
+      "pageKey": "grades",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -4532,7 +4532,7 @@
       ],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         },
@@ -4550,7 +4550,7 @@
       "concretePath": "/teacher/interaction",
       "tabLabel": "",
       "title": "课堂互动",
-      "v2page": "interaction",
+      "pageKey": "interaction",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -4566,7 +4566,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -4579,7 +4579,7 @@
       "concretePath": "/teacher/knowledge-management",
       "tabLabel": "",
       "title": "知识点管理",
-      "v2page": "knowledge",
+      "pageKey": "knowledge",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -4595,7 +4595,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -4608,7 +4608,7 @@
       "concretePath": "/teacher/inbox",
       "tabLabel": "",
       "title": "教学任务",
-      "v2page": "inbox",
+      "pageKey": "inbox",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -4673,7 +4673,7 @@
       ],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         },
@@ -4691,7 +4691,7 @@
       "concretePath": "/teacher/analytics",
       "tabLabel": "",
       "title": "学情分析",
-      "v2page": "analytics",
+      "pageKey": "analytics",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -4707,7 +4707,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -4720,7 +4720,7 @@
       "concretePath": "/teacher/resources",
       "tabLabel": "",
       "title": "资源中心",
-      "v2page": "resources",
+      "pageKey": "resources",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -4736,7 +4736,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -4749,7 +4749,7 @@
       "concretePath": "/teacher/advising",
       "tabLabel": "",
       "title": "我的班级",
-      "v2page": "advising",
+      "pageKey": "advising",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -4765,7 +4765,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -4778,7 +4778,7 @@
       "concretePath": "/teacher/messages",
       "tabLabel": "",
       "title": "消息",
-      "v2page": "messages",
+      "pageKey": "messages",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -4794,7 +4794,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -4807,7 +4807,7 @@
       "concretePath": "/teacher/profile",
       "tabLabel": "",
       "title": "个人中心",
-      "v2page": "profile",
+      "pageKey": "profile",
       "control": false,
       "viewport": "360x740",
       "verdict": "OK",
@@ -4823,7 +4823,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -4836,7 +4836,7 @@
       "concretePath": "/teacher/courses/create",
       "tabLabel": "",
       "title": "创建课程",
-      "v2page": "createCourse",
+      "pageKey": "createCourse",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -4857,7 +4857,7 @@
           "inner": 118
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -4870,7 +4870,7 @@
       "concretePath": "/teacher/advising/profile",
       "tabLabel": "",
       "title": "班级画像",
-      "v2page": "advisingProfile",
+      "pageKey": "advisingProfile",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -4886,7 +4886,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -4899,7 +4899,7 @@
       "concretePath": "/teacher/advising/alerts",
       "tabLabel": "",
       "title": "学生预警",
-      "v2page": "advisingAlerts",
+      "pageKey": "advisingAlerts",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -4915,7 +4915,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -4928,7 +4928,7 @@
       "concretePath": "/teacher/advising/notices",
       "tabLabel": "",
       "title": "班级通知",
-      "v2page": "advisingNotices",
+      "pageKey": "advisingNotices",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -4944,7 +4944,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -4957,7 +4957,7 @@
       "concretePath": "/teacher/courses/4060",
       "tabLabel": "",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -5015,7 +5015,7 @@
           "inner": 359
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -5028,7 +5028,7 @@
       "concretePath": "/teacher/courses/4060/overview",
       "tabLabel": "概览",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -5086,7 +5086,7 @@
           "inner": 359
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -5099,7 +5099,7 @@
       "concretePath": "/teacher/courses/4060/classes",
       "tabLabel": "教学班",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -5157,7 +5157,7 @@
           "inner": 359
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -5170,7 +5170,7 @@
       "concretePath": "/teacher/courses/4060/chapters",
       "tabLabel": "章节与资源",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -5228,7 +5228,7 @@
           "inner": 359
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -5241,7 +5241,7 @@
       "concretePath": "/teacher/courses/4060/tasks",
       "tabLabel": "作业",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -5316,7 +5316,7 @@
           "inner": 105
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -5329,7 +5329,7 @@
       "concretePath": "/teacher/courses/4060/bank",
       "tabLabel": "课程题库",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -5387,7 +5387,7 @@
           "inner": 359
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         },
@@ -5405,7 +5405,7 @@
       "concretePath": "/teacher/courses/4060/proctor",
       "tabLabel": "在线监考",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -5463,7 +5463,7 @@
           "inner": 359
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -5476,7 +5476,7 @@
       "concretePath": "/teacher/courses/4060/exams",
       "tabLabel": "考试",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -5534,7 +5534,7 @@
           "inner": 359
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         },
@@ -5552,7 +5552,7 @@
       "concretePath": "/teacher/courses/4060/grading",
       "tabLabel": "批阅",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -5610,7 +5610,7 @@
           "inner": 359
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -5623,7 +5623,7 @@
       "concretePath": "/teacher/courses/4060/analytics",
       "tabLabel": "成绩与学情",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -5681,7 +5681,7 @@
           "inner": 359
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -5694,7 +5694,7 @@
       "concretePath": "/teacher/courses/4060/discussion",
       "tabLabel": "讨论",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -5752,7 +5752,7 @@
           "inner": 359
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -5765,7 +5765,7 @@
       "concretePath": "/teacher/courses/4060/graph",
       "tabLabel": "知识图谱",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -5823,7 +5823,7 @@
           "inner": 359
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -5836,7 +5836,7 @@
       "concretePath": "/teacher/courses/4060/settings",
       "tabLabel": "课程设置",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -5894,7 +5894,7 @@
           "inner": 359
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -5907,7 +5907,7 @@
       "concretePath": "/teacher/courses/4060/ai",
       "tabLabel": "AI 教学助手",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -5965,7 +5965,7 @@
           "inner": 359
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -5978,7 +5978,7 @@
       "concretePath": "/teacher/home",
       "tabLabel": "",
       "title": "教学工作台",
-      "v2page": "home",
+      "pageKey": "home",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -5994,7 +5994,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6007,7 +6007,7 @@
       "concretePath": "/teacher/courses",
       "tabLabel": "",
       "title": "我的课程",
-      "v2page": "courses",
+      "pageKey": "courses",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -6023,7 +6023,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6036,7 +6036,7 @@
       "concretePath": "/teacher/bank",
       "tabLabel": "",
       "title": "题库管理",
-      "v2page": "bank",
+      "pageKey": "bank",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -6101,7 +6101,7 @@
       ],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         },
@@ -6119,7 +6119,7 @@
       "concretePath": "/teacher/exams",
       "tabLabel": "",
       "title": "试卷库",
-      "v2page": "exams",
+      "pageKey": "exams",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -6189,7 +6189,7 @@
           "inner": 166
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         },
@@ -6207,7 +6207,7 @@
       "concretePath": "/teacher/grades",
       "tabLabel": "",
       "title": "成绩管理",
-      "v2page": "grades",
+      "pageKey": "grades",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -6272,7 +6272,7 @@
       ],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         },
@@ -6290,7 +6290,7 @@
       "concretePath": "/teacher/interaction",
       "tabLabel": "",
       "title": "课堂互动",
-      "v2page": "interaction",
+      "pageKey": "interaction",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -6306,7 +6306,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6319,7 +6319,7 @@
       "concretePath": "/teacher/knowledge-management",
       "tabLabel": "",
       "title": "知识点管理",
-      "v2page": "knowledge",
+      "pageKey": "knowledge",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -6335,7 +6335,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6348,7 +6348,7 @@
       "concretePath": "/teacher/inbox",
       "tabLabel": "",
       "title": "教学任务",
-      "v2page": "inbox",
+      "pageKey": "inbox",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -6364,7 +6364,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         },
@@ -6382,7 +6382,7 @@
       "concretePath": "/teacher/analytics",
       "tabLabel": "",
       "title": "学情分析",
-      "v2page": "analytics",
+      "pageKey": "analytics",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -6398,7 +6398,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6411,7 +6411,7 @@
       "concretePath": "/teacher/resources",
       "tabLabel": "",
       "title": "资源中心",
-      "v2page": "resources",
+      "pageKey": "resources",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -6427,7 +6427,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6440,7 +6440,7 @@
       "concretePath": "/teacher/advising",
       "tabLabel": "",
       "title": "我的班级",
-      "v2page": "advising",
+      "pageKey": "advising",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -6456,7 +6456,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6469,7 +6469,7 @@
       "concretePath": "/teacher/messages",
       "tabLabel": "",
       "title": "消息",
-      "v2page": "messages",
+      "pageKey": "messages",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -6485,7 +6485,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6498,7 +6498,7 @@
       "concretePath": "/teacher/profile",
       "tabLabel": "",
       "title": "个人中心",
-      "v2page": "profile",
+      "pageKey": "profile",
       "control": false,
       "viewport": "375x667",
       "verdict": "OK",
@@ -6514,7 +6514,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6527,7 +6527,7 @@
       "concretePath": "/teacher/courses/create",
       "tabLabel": "",
       "title": "创建课程",
-      "v2page": "createCourse",
+      "pageKey": "createCourse",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -6548,7 +6548,7 @@
           "inner": 118
         },
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6561,7 +6561,7 @@
       "concretePath": "/teacher/advising/profile",
       "tabLabel": "",
       "title": "班级画像",
-      "v2page": "advisingProfile",
+      "pageKey": "advisingProfile",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -6577,7 +6577,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6590,7 +6590,7 @@
       "concretePath": "/teacher/advising/alerts",
       "tabLabel": "",
       "title": "学生预警",
-      "v2page": "advisingAlerts",
+      "pageKey": "advisingAlerts",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -6606,7 +6606,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6619,7 +6619,7 @@
       "concretePath": "/teacher/advising/notices",
       "tabLabel": "",
       "title": "班级通知",
-      "v2page": "advisingNotices",
+      "pageKey": "advisingNotices",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -6635,7 +6635,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6648,7 +6648,7 @@
       "concretePath": "/teacher/courses/4060",
       "tabLabel": "",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -6664,7 +6664,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6677,7 +6677,7 @@
       "concretePath": "/teacher/courses/4060/overview",
       "tabLabel": "概览",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -6693,7 +6693,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6706,7 +6706,7 @@
       "concretePath": "/teacher/courses/4060/classes",
       "tabLabel": "教学班",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -6722,7 +6722,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6735,7 +6735,7 @@
       "concretePath": "/teacher/courses/4060/chapters",
       "tabLabel": "章节与资源",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -6751,7 +6751,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6764,7 +6764,7 @@
       "concretePath": "/teacher/courses/4060/tasks",
       "tabLabel": "作业",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -6780,7 +6780,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6793,7 +6793,7 @@
       "concretePath": "/teacher/courses/4060/bank",
       "tabLabel": "课程题库",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -6809,7 +6809,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6822,7 +6822,7 @@
       "concretePath": "/teacher/courses/4060/proctor",
       "tabLabel": "在线监考",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -6838,7 +6838,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6851,7 +6851,7 @@
       "concretePath": "/teacher/courses/4060/exams",
       "tabLabel": "考试",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -6867,7 +6867,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6880,7 +6880,7 @@
       "concretePath": "/teacher/courses/4060/grading",
       "tabLabel": "批阅",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -6896,7 +6896,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6909,7 +6909,7 @@
       "concretePath": "/teacher/courses/4060/analytics",
       "tabLabel": "成绩与学情",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -6925,7 +6925,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6938,7 +6938,7 @@
       "concretePath": "/teacher/courses/4060/discussion",
       "tabLabel": "讨论",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -6954,7 +6954,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6967,7 +6967,7 @@
       "concretePath": "/teacher/courses/4060/graph",
       "tabLabel": "知识图谱",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -6983,7 +6983,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -6996,7 +6996,7 @@
       "concretePath": "/teacher/courses/4060/settings",
       "tabLabel": "课程设置",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -7012,7 +7012,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -7025,7 +7025,7 @@
       "concretePath": "/teacher/courses/4060/ai",
       "tabLabel": "AI 教学助手",
       "title": "课程空间",
-      "v2page": "(course)",
+      "pageKey": "(course)",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -7041,7 +7041,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -7054,7 +7054,7 @@
       "concretePath": "/teacher/home",
       "tabLabel": "",
       "title": "教学工作台",
-      "v2page": "home",
+      "pageKey": "home",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -7070,7 +7070,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -7083,7 +7083,7 @@
       "concretePath": "/teacher/courses",
       "tabLabel": "",
       "title": "我的课程",
-      "v2page": "courses",
+      "pageKey": "courses",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -7099,7 +7099,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -7112,7 +7112,7 @@
       "concretePath": "/teacher/bank",
       "tabLabel": "",
       "title": "题库管理",
-      "v2page": "bank",
+      "pageKey": "bank",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -7128,7 +7128,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -7141,7 +7141,7 @@
       "concretePath": "/teacher/exams",
       "tabLabel": "",
       "title": "试卷库",
-      "v2page": "exams",
+      "pageKey": "exams",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -7157,7 +7157,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -7170,7 +7170,7 @@
       "concretePath": "/teacher/grades",
       "tabLabel": "",
       "title": "成绩管理",
-      "v2page": "grades",
+      "pageKey": "grades",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -7186,7 +7186,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -7199,7 +7199,7 @@
       "concretePath": "/teacher/interaction",
       "tabLabel": "",
       "title": "课堂互动",
-      "v2page": "interaction",
+      "pageKey": "interaction",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -7215,7 +7215,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -7228,7 +7228,7 @@
       "concretePath": "/teacher/knowledge-management",
       "tabLabel": "",
       "title": "知识点管理",
-      "v2page": "knowledge",
+      "pageKey": "knowledge",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -7244,7 +7244,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -7257,7 +7257,7 @@
       "concretePath": "/teacher/inbox",
       "tabLabel": "",
       "title": "教学任务",
-      "v2page": "inbox",
+      "pageKey": "inbox",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -7273,7 +7273,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -7286,7 +7286,7 @@
       "concretePath": "/teacher/analytics",
       "tabLabel": "",
       "title": "学情分析",
-      "v2page": "analytics",
+      "pageKey": "analytics",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -7302,7 +7302,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -7315,7 +7315,7 @@
       "concretePath": "/teacher/resources",
       "tabLabel": "",
       "title": "资源中心",
-      "v2page": "resources",
+      "pageKey": "resources",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -7331,7 +7331,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -7344,7 +7344,7 @@
       "concretePath": "/teacher/advising",
       "tabLabel": "",
       "title": "我的班级",
-      "v2page": "advising",
+      "pageKey": "advising",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -7360,7 +7360,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -7373,7 +7373,7 @@
       "concretePath": "/teacher/messages",
       "tabLabel": "",
       "title": "消息",
-      "v2page": "messages",
+      "pageKey": "messages",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -7389,7 +7389,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -7402,7 +7402,7 @@
       "concretePath": "/teacher/profile",
       "tabLabel": "",
       "title": "个人中心",
-      "v2page": "profile",
+      "pageKey": "profile",
       "control": false,
       "viewport": "768x1024",
       "verdict": "OK",
@@ -7418,7 +7418,7 @@
       "offenders": [],
       "scrollers": [
         {
-          "sel": "div.v2-sr-live",
+          "sel": "div.sr-live",
           "ox": "hidden",
           "inner": 97
         }
@@ -7431,7 +7431,7 @@
       "concretePath": "/admin/home",
       "tabLabel": "",
       "title": "治理总览",
-      "v2page": "home",
+      "pageKey": "home",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -7460,7 +7460,7 @@
       "concretePath": "/admin/courses",
       "tabLabel": "",
       "title": "课程目录",
-      "v2page": "courses",
+      "pageKey": "courses",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -7489,7 +7489,7 @@
       "concretePath": "/admin/colleges",
       "tabLabel": "",
       "title": "学院与专业",
-      "v2page": "colleges",
+      "pageKey": "colleges",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -7518,7 +7518,7 @@
       "concretePath": "/admin/classes",
       "tabLabel": "",
       "title": "行政班",
-      "v2page": "adminClasses",
+      "pageKey": "adminClasses",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -7547,7 +7547,7 @@
       "concretePath": "/admin/users",
       "tabLabel": "",
       "title": "用户与账号",
-      "v2page": "users",
+      "pageKey": "users",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -7576,7 +7576,7 @@
       "concretePath": "/admin/roles",
       "tabLabel": "",
       "title": "角色与权限",
-      "v2page": "roles",
+      "pageKey": "roles",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -7605,7 +7605,7 @@
       "concretePath": "/admin/semesters",
       "tabLabel": "",
       "title": "学期管理",
-      "v2page": "semesters",
+      "pageKey": "semesters",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -7634,7 +7634,7 @@
       "concretePath": "/admin/approvals",
       "tabLabel": "",
       "title": "课程审批",
-      "v2page": "approvals",
+      "pageKey": "approvals",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -7663,7 +7663,7 @@
       "concretePath": "/admin/teaching-classes",
       "tabLabel": "",
       "title": "教学班监管",
-      "v2page": "teachingClasses",
+      "pageKey": "teachingClasses",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -7692,7 +7692,7 @@
       "concretePath": "/admin/enrollments",
       "tabLabel": "",
       "title": "选课与名单",
-      "v2page": "enrollments",
+      "pageKey": "enrollments",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -7721,7 +7721,7 @@
       "concretePath": "/admin/supervision",
       "tabLabel": "",
       "title": "教学监督",
-      "v2page": "supervision",
+      "pageKey": "supervision",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -7750,7 +7750,7 @@
       "concretePath": "/admin/exam-governance",
       "tabLabel": "",
       "title": "考试治理",
-      "v2page": "examGovernance",
+      "pageKey": "examGovernance",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -7779,7 +7779,7 @@
       "concretePath": "/admin/grades",
       "tabLabel": "",
       "title": "成绩与预警",
-      "v2page": "grades",
+      "pageKey": "grades",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -7808,7 +7808,7 @@
       "concretePath": "/admin/ai-usage",
       "tabLabel": "",
       "title": "AI 使用与治理",
-      "v2page": "aiUsage",
+      "pageKey": "aiUsage",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -7837,7 +7837,7 @@
       "concretePath": "/admin/questions",
       "tabLabel": "",
       "title": "题库管理",
-      "v2page": "adminQuestions",
+      "pageKey": "adminQuestions",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -7866,7 +7866,7 @@
       "concretePath": "/admin/uploads",
       "tabLabel": "",
       "title": "上传会话监控",
-      "v2page": "adminUploads",
+      "pageKey": "adminUploads",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -7895,7 +7895,7 @@
       "concretePath": "/admin/moderation",
       "tabLabel": "",
       "title": "内容审核",
-      "v2page": "moderation",
+      "pageKey": "moderation",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -7924,7 +7924,7 @@
       "concretePath": "/admin/notices",
       "tabLabel": "",
       "title": "通知公告",
-      "v2page": "notices",
+      "pageKey": "notices",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -7953,7 +7953,7 @@
       "concretePath": "/admin/audit",
       "tabLabel": "",
       "title": "操作与登录日志",
-      "v2page": "audit",
+      "pageKey": "audit",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -7982,7 +7982,7 @@
       "concretePath": "/admin/sessions",
       "tabLabel": "",
       "title": "会话管理",
-      "v2page": "sessions",
+      "pageKey": "sessions",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -8011,7 +8011,7 @@
       "concretePath": "/admin/system",
       "tabLabel": "",
       "title": "系统设置",
-      "v2page": "system",
+      "pageKey": "system",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -8040,7 +8040,7 @@
       "concretePath": "/admin/profile",
       "tabLabel": "",
       "title": "个人中心",
-      "v2page": "profile",
+      "pageKey": "profile",
       "control": false,
       "viewport": "360x740",
       "verdict": "REDIRECT",
@@ -8069,7 +8069,7 @@
       "concretePath": "/admin/home",
       "tabLabel": "",
       "title": "治理总览",
-      "v2page": "home",
+      "pageKey": "home",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8098,7 +8098,7 @@
       "concretePath": "/admin/courses",
       "tabLabel": "",
       "title": "课程目录",
-      "v2page": "courses",
+      "pageKey": "courses",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8127,7 +8127,7 @@
       "concretePath": "/admin/colleges",
       "tabLabel": "",
       "title": "学院与专业",
-      "v2page": "colleges",
+      "pageKey": "colleges",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8156,7 +8156,7 @@
       "concretePath": "/admin/classes",
       "tabLabel": "",
       "title": "行政班",
-      "v2page": "adminClasses",
+      "pageKey": "adminClasses",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8185,7 +8185,7 @@
       "concretePath": "/admin/users",
       "tabLabel": "",
       "title": "用户与账号",
-      "v2page": "users",
+      "pageKey": "users",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8214,7 +8214,7 @@
       "concretePath": "/admin/roles",
       "tabLabel": "",
       "title": "角色与权限",
-      "v2page": "roles",
+      "pageKey": "roles",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8243,7 +8243,7 @@
       "concretePath": "/admin/semesters",
       "tabLabel": "",
       "title": "学期管理",
-      "v2page": "semesters",
+      "pageKey": "semesters",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8272,7 +8272,7 @@
       "concretePath": "/admin/approvals",
       "tabLabel": "",
       "title": "课程审批",
-      "v2page": "approvals",
+      "pageKey": "approvals",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8301,7 +8301,7 @@
       "concretePath": "/admin/teaching-classes",
       "tabLabel": "",
       "title": "教学班监管",
-      "v2page": "teachingClasses",
+      "pageKey": "teachingClasses",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8330,7 +8330,7 @@
       "concretePath": "/admin/enrollments",
       "tabLabel": "",
       "title": "选课与名单",
-      "v2page": "enrollments",
+      "pageKey": "enrollments",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8359,7 +8359,7 @@
       "concretePath": "/admin/supervision",
       "tabLabel": "",
       "title": "教学监督",
-      "v2page": "supervision",
+      "pageKey": "supervision",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8388,7 +8388,7 @@
       "concretePath": "/admin/exam-governance",
       "tabLabel": "",
       "title": "考试治理",
-      "v2page": "examGovernance",
+      "pageKey": "examGovernance",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8417,7 +8417,7 @@
       "concretePath": "/admin/grades",
       "tabLabel": "",
       "title": "成绩与预警",
-      "v2page": "grades",
+      "pageKey": "grades",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8446,7 +8446,7 @@
       "concretePath": "/admin/ai-usage",
       "tabLabel": "",
       "title": "AI 使用与治理",
-      "v2page": "aiUsage",
+      "pageKey": "aiUsage",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8475,7 +8475,7 @@
       "concretePath": "/admin/questions",
       "tabLabel": "",
       "title": "题库管理",
-      "v2page": "adminQuestions",
+      "pageKey": "adminQuestions",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8504,7 +8504,7 @@
       "concretePath": "/admin/uploads",
       "tabLabel": "",
       "title": "上传会话监控",
-      "v2page": "adminUploads",
+      "pageKey": "adminUploads",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8533,7 +8533,7 @@
       "concretePath": "/admin/moderation",
       "tabLabel": "",
       "title": "内容审核",
-      "v2page": "moderation",
+      "pageKey": "moderation",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8562,7 +8562,7 @@
       "concretePath": "/admin/notices",
       "tabLabel": "",
       "title": "通知公告",
-      "v2page": "notices",
+      "pageKey": "notices",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8591,7 +8591,7 @@
       "concretePath": "/admin/audit",
       "tabLabel": "",
       "title": "操作与登录日志",
-      "v2page": "audit",
+      "pageKey": "audit",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8620,7 +8620,7 @@
       "concretePath": "/admin/sessions",
       "tabLabel": "",
       "title": "会话管理",
-      "v2page": "sessions",
+      "pageKey": "sessions",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8649,7 +8649,7 @@
       "concretePath": "/admin/system",
       "tabLabel": "",
       "title": "系统设置",
-      "v2page": "system",
+      "pageKey": "system",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8678,7 +8678,7 @@
       "concretePath": "/admin/profile",
       "tabLabel": "",
       "title": "个人中心",
-      "v2page": "profile",
+      "pageKey": "profile",
       "control": false,
       "viewport": "375x667",
       "verdict": "REDIRECT",
@@ -8707,7 +8707,7 @@
       "concretePath": "/admin/home",
       "tabLabel": "",
       "title": "治理总览",
-      "v2page": "home",
+      "pageKey": "home",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -8736,7 +8736,7 @@
       "concretePath": "/admin/courses",
       "tabLabel": "",
       "title": "课程目录",
-      "v2page": "courses",
+      "pageKey": "courses",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -8765,7 +8765,7 @@
       "concretePath": "/admin/colleges",
       "tabLabel": "",
       "title": "学院与专业",
-      "v2page": "colleges",
+      "pageKey": "colleges",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -8794,7 +8794,7 @@
       "concretePath": "/admin/classes",
       "tabLabel": "",
       "title": "行政班",
-      "v2page": "adminClasses",
+      "pageKey": "adminClasses",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -8823,7 +8823,7 @@
       "concretePath": "/admin/users",
       "tabLabel": "",
       "title": "用户与账号",
-      "v2page": "users",
+      "pageKey": "users",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -8852,7 +8852,7 @@
       "concretePath": "/admin/roles",
       "tabLabel": "",
       "title": "角色与权限",
-      "v2page": "roles",
+      "pageKey": "roles",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -8881,7 +8881,7 @@
       "concretePath": "/admin/semesters",
       "tabLabel": "",
       "title": "学期管理",
-      "v2page": "semesters",
+      "pageKey": "semesters",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -8910,7 +8910,7 @@
       "concretePath": "/admin/approvals",
       "tabLabel": "",
       "title": "课程审批",
-      "v2page": "approvals",
+      "pageKey": "approvals",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -8939,7 +8939,7 @@
       "concretePath": "/admin/teaching-classes",
       "tabLabel": "",
       "title": "教学班监管",
-      "v2page": "teachingClasses",
+      "pageKey": "teachingClasses",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -8968,7 +8968,7 @@
       "concretePath": "/admin/enrollments",
       "tabLabel": "",
       "title": "选课与名单",
-      "v2page": "enrollments",
+      "pageKey": "enrollments",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -8997,7 +8997,7 @@
       "concretePath": "/admin/supervision",
       "tabLabel": "",
       "title": "教学监督",
-      "v2page": "supervision",
+      "pageKey": "supervision",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -9026,7 +9026,7 @@
       "concretePath": "/admin/exam-governance",
       "tabLabel": "",
       "title": "考试治理",
-      "v2page": "examGovernance",
+      "pageKey": "examGovernance",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -9055,7 +9055,7 @@
       "concretePath": "/admin/grades",
       "tabLabel": "",
       "title": "成绩与预警",
-      "v2page": "grades",
+      "pageKey": "grades",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -9084,7 +9084,7 @@
       "concretePath": "/admin/ai-usage",
       "tabLabel": "",
       "title": "AI 使用与治理",
-      "v2page": "aiUsage",
+      "pageKey": "aiUsage",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -9113,7 +9113,7 @@
       "concretePath": "/admin/questions",
       "tabLabel": "",
       "title": "题库管理",
-      "v2page": "adminQuestions",
+      "pageKey": "adminQuestions",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -9142,7 +9142,7 @@
       "concretePath": "/admin/uploads",
       "tabLabel": "",
       "title": "上传会话监控",
-      "v2page": "adminUploads",
+      "pageKey": "adminUploads",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -9171,7 +9171,7 @@
       "concretePath": "/admin/moderation",
       "tabLabel": "",
       "title": "内容审核",
-      "v2page": "moderation",
+      "pageKey": "moderation",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -9200,7 +9200,7 @@
       "concretePath": "/admin/notices",
       "tabLabel": "",
       "title": "通知公告",
-      "v2page": "notices",
+      "pageKey": "notices",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -9229,7 +9229,7 @@
       "concretePath": "/admin/audit",
       "tabLabel": "",
       "title": "操作与登录日志",
-      "v2page": "audit",
+      "pageKey": "audit",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -9258,7 +9258,7 @@
       "concretePath": "/admin/sessions",
       "tabLabel": "",
       "title": "会话管理",
-      "v2page": "sessions",
+      "pageKey": "sessions",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -9287,7 +9287,7 @@
       "concretePath": "/admin/system",
       "tabLabel": "",
       "title": "系统设置",
-      "v2page": "system",
+      "pageKey": "system",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",
@@ -9316,7 +9316,7 @@
       "concretePath": "/admin/profile",
       "tabLabel": "",
       "title": "个人中心",
-      "v2page": "profile",
+      "pageKey": "profile",
       "control": false,
       "viewport": "768x1024",
       "verdict": "REDIRECT",

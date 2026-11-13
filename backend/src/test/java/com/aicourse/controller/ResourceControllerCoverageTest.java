@@ -6,6 +6,7 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.ResourceService;
+import com.aicourse.service.ResourceVersionService;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.MethodOrderer;
@@ -87,6 +88,9 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
     private CourseService courseService;
     @MockitoBean
     private CourseEnrollmentService courseEnrollmentService;
+    // B-13㉑：ResourceController 新增的版本服务依赖，@WebMvcTest 需显式 mock
+    @MockitoBean
+    private ResourceVersionService resourceVersionService;
 
     private static final long COURSE_ID = 1L;
     private static final long OWNER_TEACHER = 100L;
@@ -333,7 +337,7 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
 
     private ResourceController directController(ResourceService rs, CourseService cs,
                                                 CourseEnrollmentService es) {
-        return new ResourceController(rs, cs, es);
+        return new ResourceController(rs, cs, es, mock(com.aicourse.service.ResourceVersionService.class));
     }
 
     private Authentication teacherAuth() {
@@ -633,7 +637,8 @@ class ResourceControllerCoverageTest extends ControllerTestBase {
         Files.write(file, PDF_BYTES);
         when(resourceService.getById(29L)).thenReturn(resourceOf(29L, COURSE_ID, "/uploads/cov_del.tmp", "d.tmp"));
         when(resourceService.removeById(29L)).thenReturn(true);
-        mockMvc.perform(delete("/resources/29").with(withUser(1L, "ADMIN")))
+        // WP9 只读矩阵：资源删除面已摘除 ADMIN，真实删除路径由课程负责教师走通
+        mockMvc.perform(delete("/resources/29").with(withUser(OWNER_TEACHER, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.message").value("资源删除成功"));

@@ -48,7 +48,7 @@ describe('utils/safeUrl · 协议白名单', () => {
 
   it('消费面：TasksTab 改为引用共享实现，本地那份已不存在', () => {
     const tasksTab = readFileSync(
-      join(__dirname, '../../v2/views/course/tabs/TasksTab.vue'),
+      join(__dirname, '../../ui/views/course/tabs/TasksTab.vue'),
       'utf8',
     )
     expect(tasksTab).toContain("import { safeUrl } from '@/utils/safeUrl'")

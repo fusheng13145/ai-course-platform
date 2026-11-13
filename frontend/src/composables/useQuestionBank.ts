@@ -1,6 +1,7 @@
 import logger from '@/utils/logger'
-import { unwrap } from '@/utils/response'
+import { unwrap, pickList, firstNonEmptyArray, type ApiData } from '@/utils/response'
 import { ref, reactive, onMounted } from 'vue'
+import { isAxiosError } from 'axios'
 import { overlayHost } from '@/bootstrap/overlayHost'
 import questionApi from '@/api/question'
 import courseApi from '@/api/course'
@@ -30,8 +31,9 @@ export function resolveReviewStatus(question: Record<string, unknown> | null | u
  */
 export function useQuestionBank() {
   const loading = ref(false)
-  const questionList = ref([])
-  const courseList = ref([])
+  // 题目行尚未 per-endpoint 建模，沿用 ApiData 口径；展示层字段访问按需收窄
+  const questionList = ref<ApiData[]>([])
+  const courseList = ref<ApiData[]>([])
   const page = ref(1)
   const pageSize = ref(10)
   const total = ref(0)
@@ -40,9 +42,9 @@ export function useQuestionBank() {
 
   const formVisible = ref(false)
   const isEdit = ref(false)
-  const editingId = ref(null)
+  const editingId = ref<string | number | null>(null)
   const submitting = ref(false)
-  const formRef = ref(null)
+  const formRef = ref<{ validate: () => Promise<boolean> } | null>(null)
   const form = reactive({
     type: 'SINGLE_CHOICE',
     difficulty: 'MEDIUM',
@@ -59,7 +61,7 @@ export function useQuestionBank() {
 
   const reviewVisible = ref(false)
   const reviewing = ref(false)
-  const reviewRow = ref(null)
+  const reviewRow = ref<ApiData | null>(null)
   const reviewForm = reactive({ status: 'APPROVED', comment: '' })
 
   const aiVisible = ref(false)
@@ -95,7 +97,7 @@ export function useQuestionBank() {
 
       const r = await questionApi.getQuestionList(params)
       const body = unwrap(r)
-      const list = body?.records || body?.list || body || []
+      const list = pickList(body)
       questionList.value = Array.isArray(list) ? list : []
       total.value = Number(body?.total ?? body?.count ?? questionList.value.length)
     } catch (e) {
@@ -106,7 +108,7 @@ export function useQuestionBank() {
     }
   }
 
-  function countByReview(status) {
+  function countByReview(status: string) {
     // 修复（2026-09-21，P1-1）：原为 (q.reviewStatus || 'PENDING')，该字段后端不存在，
     // 导致三张统计卡恒为「全量 / 0 / 0」。现统一走 resolveReviewStatus 由 is_active 推导。
     return questionList.value.filter((q) => resolveReviewStatus(q) === status).length
@@ -135,7 +137,7 @@ export function useQuestionBank() {
     formVisible.value = true
   }
 
-  function openEditDialog(row) {
+  function openEditDialog(row: ApiData) {
     isEdit.value = true
     editingId.value = row.id
     Object.assign(form, {
@@ -164,6 +166,7 @@ export function useQuestionBank() {
         explanation: form.explanation,
       }
       if (isEdit.value) {
+        if (editingId.value == null) throw new Error('编辑态缺少题目ID')
         await questionApi.updateQuestion(editingId.value, payload)
         overlayHost().message.success('题目已更新')
       } else {
@@ -174,13 +177,15 @@ export function useQuestionBank() {
       loadQuestions()
     } catch (e) {
       logger.error('保存题目失败', e)
-      overlayHost().message.error(e?.response?.data?.message || '保存失败')
+      overlayHost().message.error(
+        (isAxiosError(e) ? e.response?.data?.message : undefined) || '保存失败',
+      )
     } finally {
       submitting.value = false
     }
   }
 
-  async function handleDelete(row) {
+  async function handleDelete(row: ApiData) {
     try {
       // D2-2：删除题目不可逆，明确不可逆性与恢复路径
       const ok = await confirmDanger({ verb: '删除', target: '题目' })
@@ -193,7 +198,7 @@ export function useQuestionBank() {
     }
   }
 
-  async function handleCopy(row) {
+  async function handleCopy(row: ApiData) {
     try {
       const ok = await overlayHost().confirm(`确定复制该题目？`, '复制确认', { type: 'info' })
       if (!ok) return
@@ -206,7 +211,7 @@ export function useQuestionBank() {
     }
   }
 
-  function openReviewDialog(row) {
+  function openReviewDialog(row: ApiData) {
     reviewRow.value = row
     reviewForm.status = 'APPROVED'
     reviewForm.comment = ''
@@ -226,7 +231,9 @@ export function useQuestionBank() {
       loadQuestions()
     } catch (e) {
       logger.error('审核失败', e)
-      overlayHost().message.error(e?.response?.data?.message || '审核失败')
+      overlayHost().message.error(
+        (isAxiosError(e) ? e.response?.data?.message : undefined) || '审核失败',
+      )
     } finally {
       reviewing.value = false
     }
@@ -251,7 +258,7 @@ export function useQuestionBank() {
       }
       const r = await questionApi.generateByAI(payload)
       const body = unwrap(r)
-      const generated = body?.questions || body?.list || body || []
+      const generated = firstNonEmptyArray(body?.questions, body?.list, body)
       if (Array.isArray(generated) && generated.length) {
         overlayHost().message.success(`AI 成功生成 ${generated.length} 道题目`)
         aiVisible.value = false
@@ -261,14 +268,16 @@ export function useQuestionBank() {
       }
     } catch (e) {
       logger.error('AI 生成题目失败', e)
-      overlayHost().message.error(e?.response?.data?.message || 'AI 生成失败')
+      overlayHost().message.error(
+        (isAxiosError(e) ? e.response?.data?.message : undefined) || 'AI 生成失败',
+      )
     } finally {
       aiGenerating.value = false
     }
   }
 
-  function getTypeText(type) {
-    const m = {
+  function getTypeText(type: string) {
+    const m: Record<string, string> = {
       SINGLE_CHOICE: '单选',
       MULTIPLE_CHOICE: '多选',
       TRUE_FALSE: '判断',
@@ -279,8 +288,8 @@ export function useQuestionBank() {
     }
     return m[type] || type || '未知'
   }
-  function getTypeTag(type) {
-    const m = {
+  function getTypeTag(type: string) {
+    const m: Record<string, string> = {
       SINGLE_CHOICE: '',
       MULTIPLE_CHOICE: 'success',
       TRUE_FALSE: 'warning',
@@ -291,20 +300,28 @@ export function useQuestionBank() {
     }
     return m[type] || ''
   }
-  function getDifficultyText(d) {
-    const m = { EASY: '简单', MEDIUM: '中等', HARD: '困难' }
+  function getDifficultyText(d: string) {
+    const m: Record<string, string> = { EASY: '简单', MEDIUM: '中等', HARD: '困难' }
     return m[d] || d || '-'
   }
-  function getDifficultyColor(d) {
-    const m = { EASY: 'var(--ac-success)', MEDIUM: 'var(--ac-warning)', HARD: 'var(--ac-danger)' }
+  function getDifficultyColor(d: string) {
+    const m: Record<string, string> = {
+      EASY: 'var(--ac-success)',
+      MEDIUM: 'var(--ac-warning)',
+      HARD: 'var(--ac-danger)',
+    }
     return m[d] || 'var(--ac-text-muted)'
   }
-  function getReviewText(s) {
-    const m = { PENDING: '待审核', APPROVED: '已通过', REJECTED: '已驳回' }
+  function getReviewText(s: string) {
+    const m: Record<string, string> = { PENDING: '待审核', APPROVED: '已通过', REJECTED: '已驳回' }
     return m[s] || '待审核'
   }
-  function getReviewTag(s) {
-    const m = { PENDING: 'warning', APPROVED: 'success', REJECTED: 'danger' }
+  function getReviewTag(s: string) {
+    const m: Record<string, string> = {
+      PENDING: 'warning',
+      APPROVED: 'success',
+      REJECTED: 'danger',
+    }
     return m[s] || 'info'
   }
 

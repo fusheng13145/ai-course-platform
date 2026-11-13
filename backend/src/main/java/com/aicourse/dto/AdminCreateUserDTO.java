@@ -50,4 +50,8 @@ public class AdminCreateUserDTO {
     @Schema(description = "是否启用（默认启用）", example = "true")
     private Boolean isActive = true;
 
+    /** 学院ID（V12 组织归属；院系管理员缺省填本院，校级管理员可选填） */
+    @Schema(description = "学院ID（院系管理员缺省为本院）", example = "1")
+    private Long collegeId;
+
 }

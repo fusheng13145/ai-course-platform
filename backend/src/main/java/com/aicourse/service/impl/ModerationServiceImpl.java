@@ -9,13 +9,16 @@ import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.DiscussionPostMapper;
 import com.aicourse.mapper.ResourceMapper;
+import com.aicourse.entity.OperationLog;
 import com.aicourse.service.ModerationService;
+import com.aicourse.service.OperationLogService;
 import com.aicourse.service.UserService;
 import com.aicourse.vo.BannedAuthorVO;
 import com.aicourse.vo.ModerationPostVO;
 import com.aicourse.vo.ModerationResourceVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -53,16 +56,21 @@ public class ModerationServiceImpl implements ModerationService {
     private static final int MAX_PAGE_SIZE = 200;
     private static final int MIN_PAGE_SIZE = 1;
 
+    private static final ObjectMapper SNAPSHOT_MAPPER = new ObjectMapper();
+
     private final DiscussionPostMapper discussionPostMapper;
     private final ResourceMapper resourceMapper;
     private final UserService userService;
+    private final OperationLogService operationLogService;
 
     public ModerationServiceImpl(DiscussionPostMapper discussionPostMapper,
                                  ResourceMapper resourceMapper,
-                                 UserService userService) {
+                                 UserService userService,
+                                 OperationLogService operationLogService) {
         this.discussionPostMapper = discussionPostMapper;
         this.resourceMapper = resourceMapper;
         this.userService = userService;
+        this.operationLogService = operationLogService;
     }
 
     // ===================== 列表 =====================
@@ -157,6 +165,14 @@ public class ModerationServiceImpl implements ModerationService {
             // 先封禁再删：删除后作者ID仍在本方法内存里，但顺序固定便于出错时整事务回滚
             boolean banned = Boolean.TRUE.equals(banAuthor)
                     && banAuthorInternal(post.getAuthorId(), reason, adminId);
+            // 物理删除前写留痕快照（B-12 内容审核留痕链路，2026-11-07）：HIDE/RESTORE 的
+            // 原因/时间留存在行上，DELETE 后行没了，通用 AOP 日志只有请求参数没有内容——
+            // 这里把内容摘要落一条业务化 operation_log，审核页可按 module=Moderation 追溯。
+            Map<String, Object> postSnapshot = new LinkedHashMap<>();
+            postSnapshot.put("topicId", post.getTopicId());
+            postSnapshot.put("authorId", post.getAuthorId());
+            postSnapshot.put("contentExcerpt", excerpt(post.getContent()));
+            writeDeleteSnapshot("discussion-post", postId, adminId, reason, postSnapshot);
             discussionPostMapper.deleteById(postId);
             data.put("moderationStatus", "DELETED");
             data.put("authorBanned", banned);
@@ -193,6 +209,12 @@ public class ModerationServiceImpl implements ModerationService {
         if (ACTION_DELETE.equals(action)) {
             boolean banned = Boolean.TRUE.equals(banAuthor)
                     && banAuthorInternal(resource.getUploaderId(), reason, adminId);
+            // 物理删除前写留痕快照（与讨论回复同口径，见 applyPostAction 内注释）
+            Map<String, Object> resourceSnapshot = new LinkedHashMap<>();
+            resourceSnapshot.put("fileName", resource.getFileName());
+            resourceSnapshot.put("courseId", resource.getCourseId());
+            resourceSnapshot.put("uploaderId", resource.getUploaderId());
+            writeDeleteSnapshot("resource", resourceId, adminId, reason, resourceSnapshot);
             resourceMapper.deleteById(resourceId);
             data.put("moderationStatus", "DELETED");
             data.put("authorBanned", banned);
@@ -314,4 +336,36 @@ public class ModerationServiceImpl implements ModerationService {
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
     }
+    /** 物理删除前的业务化留痕：写一条 module=Moderation / action=DELETE 的 operation_log（失败不阻断主流程）。 */
+    private void writeDeleteSnapshot(String targetType, Long targetId, Long adminId,
+                                     String reason, Map<String, Object> snapshot) {
+        try {
+            Map<String, Object> payload = new LinkedHashMap<>(snapshot);
+            payload.put("reason", normalize(reason));
+            OperationLog log = new OperationLog();
+            log.setUserId(adminId);
+            log.setModule("Moderation");
+            log.setAction("DELETE");
+            log.setTarget(targetType + " 删除留痕");
+            log.setTargetId(String.valueOf(targetId));
+            log.setMethod("POST");
+            log.setParams(SNAPSHOT_MAPPER.writeValueAsString(payload));
+            log.setStatus("SUCCESS");
+            operationLogService.save(log);
+        } catch (Exception ex) {
+            // 留痕失败不回滚处置动作本身，但必须留日志让运维可感知
+            org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(ModerationServiceImpl.class);
+            log.warn("审核删除留痕写入失败 target={}:{} err={}", targetType, targetId, ex.getMessage());
+        }
+    }
+
+    /** 内容摘要：去空白后截前 200 字符，避免超长回复把 params 列撑爆。 */
+    private String excerpt(String content) {
+        if (content == null) {
+            return "";
+        }
+        String compact = content.replaceAll("\s+", " ").trim();
+        return compact.length() <= 200 ? compact : compact.substring(0, 200) + "…";
+    }
+
 }

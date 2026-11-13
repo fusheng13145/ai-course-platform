@@ -9,6 +9,7 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.QuestionMapper;
 import com.aicourse.service.AIService;
 import com.aicourse.service.QuestionService;
+import com.aicourse.vo.QuestionBankStatisticsVO;
 import com.aicourse.vo.QuestionStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -23,6 +24,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.math.BigDecimal;
 import java.math.RoundingMode;
+import java.time.LocalDate;
 import java.util.*;
 
 /**
@@ -529,6 +531,17 @@ public class QuestionServiceImpl extends ServiceImpl<QuestionMapper, Question> i
                 question.getDifficulty(), question.getType(), question.getScore(),
                 question.getIsActive(), question.getCreatedAt()
         );
+    }
+
+    /**
+     * 题库总览统计：总题数（含无课程归属的历史题）与今日新增（本机时区当日 00:00 起）。
+     */
+    @Override
+    public QuestionBankStatisticsVO getBankStatistics() {
+        long total = this.count();
+        long today = this.count(new LambdaQueryWrapper<Question>()
+                .ge(Question::getCreatedAt, LocalDate.now().atStartOfDay()));
+        return new QuestionBankStatisticsVO(total, today);
     }
 
     /**

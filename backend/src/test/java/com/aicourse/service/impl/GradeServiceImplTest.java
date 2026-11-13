@@ -58,7 +58,8 @@ class GradeServiceImplTest {
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), GradePolicy.class);
         TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), GradeItem.class);
 
-        service = new GradeServiceImpl(policyMapper, itemMapper, userService);
+        service = new GradeServiceImpl(policyMapper, itemMapper, userService,
+                org.mockito.Mockito.mock(com.aicourse.service.component.org.TeachingClassSnapshotResolver.class));
         ReflectionTestUtils.setField(service, "baseMapper", policyMapper);
 
         GradePolicy p = new GradePolicy();

@@ -127,4 +127,18 @@ class SystemServiceImplTest {
         assertEquals(7L, service.getAIUsageByCourse(30).get("totalCalls"));
         verify(aiCallLogService).statistics(30);
     }
+    @Test
+    @DisplayName("getAIUsageByDay / getAIUsageByScene 委托 AI 调用日志服务（2026-11-07 P2 批次）")
+    void getAIUsageByDayAndScene_delegates() {
+        Map<String, Object> day = Map.of("rangeDays", 30, "days", List.of());
+        Map<String, Object> scene = Map.of("rangeDays", 30, "scenes", List.of());
+        when(aiCallLogService.statisticsByDay(30)).thenReturn(day);
+        when(aiCallLogService.statisticsByScene(30, 10L)).thenReturn(scene);
+
+        assertEquals(day, service.getAIUsageByDay(30));
+        assertEquals(scene, service.getAIUsageByScene(30, 10L));
+        verify(aiCallLogService).statisticsByDay(30);
+        verify(aiCallLogService).statisticsByScene(30, 10L);
+    }
+
 }

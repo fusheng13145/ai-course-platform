@@ -513,3 +513,229 @@ def test_llm_endpoint_defaults_to_deepseek(monkeypatch):
     monkeypatch.delenv("DEEPSEEK_BASE_URL", raising=False)
     rag_engine._call_deepseek("sk-x", "问", "资料")
     assert seen["url"] == "https://api.deepseek.com/v1/chat/completions", seen
+
+
+# ================================================================== Ollama 生成后端
+def test_llm_provider_defaults_to_deepseek_and_maps_local(monkeypatch):
+    """缺省与拼错都必须等同旧行为；ollama/local 才切本地（与 Java Routing 同口径）。"""
+    monkeypatch.delenv("AI_PROVIDER", raising=False)
+    assert rag_engine.llm_provider() == "deepseek"
+    monkeypatch.setenv("AI_PROVIDER", "whatever")
+    assert rag_engine.llm_provider() == "deepseek"
+    for value in ("ollama", "local", " OLLAMA "):
+        monkeypatch.setenv("AI_PROVIDER", value)
+        assert rag_engine.llm_provider() == "ollama", value
+
+
+def test_ollama_chat_url_uses_native_api_and_strips_slash(monkeypatch):
+    monkeypatch.setenv("OLLAMA_BASE_URL", "http://localhost:11434/")
+    assert rag_engine.ollama_chat_url() == "http://localhost:11434/api/chat"
+
+
+def test_ollama_loopback_bypasses_system_proxy(monkeypatch):
+    """Windows 系统代理会把 localhost 请求打到 502；回环地址必须 trust_env=False。"""
+    for url, expected in (
+        ("http://localhost:11434", False),
+        ("http://127.0.0.1:11434", False),
+        ("http://[::1]:11434", False),
+        ("https://ollama.example.com", True),
+    ):
+        monkeypatch.setenv("OLLAMA_BASE_URL", url)
+        assert rag_engine.ollama_trust_env() is expected, url
+
+
+def test_call_ollama_uses_content_and_ignores_thinking(monkeypatch):
+    """deepseek-r1 的 thinking 是推理过程，绝不能混进正式答案。"""
+    seen = {}
+
+    class _Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"message": {"role": "assistant", "thinking": "我先想一想……",
+                                "content": "  最终答案  "}}
+
+    def fake_post(url, **kw):
+        seen.update(url=url, payload=kw.get("json"))
+        return _Resp()
+
+    import httpx
+    monkeypatch.setattr(httpx, "post", fake_post)
+    monkeypatch.setenv("OLLAMA_MODEL", "deepseek-r1:8b")
+    monkeypatch.setenv("OLLAMA_THINK", "false")
+    monkeypatch.delenv("OLLAMA_BASE_URL", raising=False)
+
+    answer = rag_engine._call_ollama("问", "资料")
+    assert answer == "最终答案"
+    assert "我先想一想" not in answer
+    assert seen["url"].endswith("/api/chat")
+    assert seen["payload"]["model"] == "deepseek-r1:8b"
+    assert seen["payload"]["stream"] is False
+    assert seen["payload"]["think"] is False
+
+
+def test_call_ollama_thinking_only_is_not_an_answer(monkeypatch):
+    """只有 thinking、content 为空时按"未产出答案"处理，不把推理过程当答案。"""
+    class _Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"message": {"thinking": "只有推理", "content": ""}}
+
+    import httpx
+    monkeypatch.setattr(httpx, "post", lambda url, **kw: _Resp())
+    monkeypatch.setenv("OLLAMA_MODEL", "deepseek-r1:8b")
+    answer = rag_engine._call_ollama("问", "资料")
+    assert answer is None
+
+
+def test_generate_answer_ollama_success(monkeypatch):
+    monkeypatch.setenv("AI_PROVIDER", "ollama")
+    monkeypatch.setattr(rag_engine, "_call_ollama", lambda q, ctx: "本地模型回答")
+    answer, mode = rag_engine.generate_answer("问题", [{"document_name": "D", "snippet": "内容"}])
+    assert mode == "LLM"
+    assert answer == "本地模型回答"
+
+
+def test_generate_answer_ollama_error_falls_back_like_deepseek(caplog, monkeypatch):
+    """Ollama 失败沿用原降级语义：有资料 EXTRACTIVE、无资料 UNAVAILABLE，且必须留痕。"""
+    monkeypatch.setenv("AI_PROVIDER", "ollama")
+
+    def raise_err(*a, **k):
+        raise RuntimeError("ConnectError: 连接被拒绝")
+
+    monkeypatch.setattr(rag_engine, "_call_ollama", raise_err)
+    with caplog.at_level(logging.WARNING, logger="rag_engine"):
+        with_ctx = rag_engine.generate_answer("q", [{"document_name": "D", "snippet": "S"}])
+        without_ctx = rag_engine.generate_answer("q", [])
+    assert with_ctx[1] == "EXTRACTIVE" and with_ctx[0]
+    assert without_ctx[1] == "UNAVAILABLE" and without_ctx[0] == ""
+    text = "\n".join(r.getMessage() for r in caplog.records)
+    assert "Ollama 调用失败" in text and "连接被拒绝" in text
+
+
+def test_generate_answer_ollama_thinking_only_falls_back(caplog, monkeypatch):
+    """返回 thinking-only（content 空）等同生成失败，不得冒充 LLM。"""
+    monkeypatch.setenv("AI_PROVIDER", "ollama")
+
+    class _Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"message": {"thinking": "推理过程", "content": ""}}
+
+    import httpx
+    monkeypatch.setattr(httpx, "post", lambda url, **kw: _Resp())
+    with caplog.at_level(logging.WARNING, logger="rag_engine"):
+        answer, mode = rag_engine.generate_answer("q", [{"document_name": "D", "snippet": "S"}])
+    assert mode == "EXTRACTIVE"
+    assert answer
+    assert "Ollama 未产出最终答案" in "\n".join(r.getMessage() for r in caplog.records)
+
+
+def test_llm_health_ollama_down_is_reported_not_raised(monkeypatch):
+    """健康检查只报 available=false + 原因；不得抛异常（服务整体仍是 ok）。"""
+    monkeypatch.setenv("AI_PROVIDER", "ollama")
+    monkeypatch.setenv("OLLAMA_MODEL", "deepseek-r1:8b")
+
+    import httpx
+
+    def boom(url, **kw):
+        raise httpx.ConnectError("connection refused")
+
+    monkeypatch.setattr(httpx, "get", boom)
+    health = rag_engine.llm_health()
+    assert health["provider"] == "ollama"
+    assert health["available"] is False
+    assert "ConnectError" in health["detail"]
+
+
+def test_llm_health_ollama_reports_missing_model(monkeypatch):
+    monkeypatch.setenv("AI_PROVIDER", "ollama")
+    monkeypatch.setenv("OLLAMA_MODEL", "deepseek-r1:8b")
+
+    class _Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"models": [{"name": "qwen2.5:7b"}]}
+
+    import httpx
+    monkeypatch.setattr(httpx, "get", lambda url, **kw: _Resp())
+    health = rag_engine.llm_health()
+    assert health["available"] is False
+    assert "ollama pull deepseek-r1:8b" in health["detail"]
+
+
+def test_llm_health_deepseek_reports_key_presence(monkeypatch):
+    monkeypatch.setenv("AI_PROVIDER", "deepseek")
+    monkeypatch.setenv("DEEPSEEK_API_KEY", "sk-test-not-real")
+    assert rag_engine.llm_health()["available"] is True
+    monkeypatch.delenv("DEEPSEEK_API_KEY", raising=False)
+    assert rag_engine.llm_health()["available"] is False
+
+
+# ================================================================== R3 主路径图谱
+def test_graph_sources_disabled_by_flag(monkeypatch):
+    monkeypatch.setenv("RAG_GRAPH_ENABLED", "false")
+    monkeypatch.setattr(rag_engine, "_keywords", lambda q: {"tcp"})
+    assert rag_engine.graph_sources(2, "TCP 是什么") == []
+
+
+def test_graph_sources_returns_empty_when_kg_unreachable(monkeypatch):
+    """图不可达只留痕，不抛异常、不阻断检索/生成。"""
+    monkeypatch.setenv("RAG_GRAPH_ENABLED", "true")
+
+    import httpx
+
+    def boom(url, **kw):
+        raise httpx.ConnectError("connection refused")
+
+    monkeypatch.setattr(httpx, "get", boom)
+    assert rag_engine.graph_sources(2, "TCP 是什么") == []
+
+
+def test_graph_sources_hits_nodes_and_writes_relations(monkeypatch):
+    monkeypatch.setenv("RAG_GRAPH_ENABLED", "true")
+
+    class _Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {
+                "nodes": [
+                    {"id": 1, "name": "TCP", "content": "面向连接的传输层协议"},
+                    {"id": 2, "name": "三次握手", "content": "建立连接的过程"},
+                    {"id": 3, "name": "无关节点", "content": "与问题无关"},
+                ],
+                "edges": [{"source_id": 1, "target_id": 2, "relation_type": "前提"}],
+            }
+
+    import httpx
+    monkeypatch.setattr(httpx, "get", lambda url, **kw: _Resp())
+    rows = rag_engine.graph_sources(2, "TCP 为什么要三次握手")
+    names = [r["document_name"] for r in rows]
+    assert "知识图谱：TCP" in names
+    tcp = next(r for r in rows if r["document_name"] == "知识图谱：TCP")
+    assert "TCP -[前提]-> 三次握手" in tcp["snippet"], tcp
+    assert all(r["document_id"] is None and r["relevance_score"] is None for r in rows)
+
+
+def test_graph_sources_no_keyword_hit_returns_empty(monkeypatch):
+    monkeypatch.setenv("RAG_GRAPH_ENABLED", "true")
+
+    class _Resp:
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return {"nodes": [{"id": 1, "name": "TCP", "content": "协议"}], "edges": []}
+
+    import httpx
+    monkeypatch.setattr(httpx, "get", lambda url, **kw: _Resp())
+    assert rag_engine.graph_sources(2, "完全无关的问题") == []

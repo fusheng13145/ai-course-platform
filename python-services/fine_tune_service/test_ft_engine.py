@@ -19,7 +19,11 @@ def isolated_data_dir(tmp_path, monkeypatch):
 
 def test_base_model_snapshot_prefers_local_dir_so_load_never_touches_hub(tmp_path, monkeypatch):
     """缓存命中必须给出**本地目录**：按仓库 ID 加载时 transformers 仍会发一次 Hub revision 探测。"""
-    import huggingface_hub
+    # huggingface_hub 属 requirements-engine.txt（transformers 家族）的传递依赖；
+    # CI 契约护栏只装 requirements.txt，与「真实训练用例缺重依赖即 skip」同一口径跳过，
+    # 不为一个用例往轻量清单里塞 Hub 客户端（那会让 CI 装成引擎依赖的子集，读起来像假绿）。
+    huggingface_hub = pytest.importorskip(
+        "huggingface_hub", reason="引擎重依赖未安装（requirements-engine.txt），跳过缓存命中用例")
     snap = tmp_path / "snap060db64"
     snap.mkdir(parents=True)
     (snap / "config.json").write_text("{}", encoding="utf-8")

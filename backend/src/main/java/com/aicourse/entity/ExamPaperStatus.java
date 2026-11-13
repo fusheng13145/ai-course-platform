@@ -13,6 +13,12 @@ public enum ExamPaperStatus {
     /** 草稿：未发布，仅教师可见可编辑。 */
     DRAFT,
 
+    /** 待审核：教师提交后、管理员审核前；学生不可见。 */
+    PENDING_REVIEW,
+
+    /** 已驳回：管理员审核未通过；教师可修改后重新提交审核。 */
+    REJECTED,
+
     /** 已发布：对学生开放，发布后会推送选课通知。 */
     PUBLISHED,
 

@@ -118,4 +118,11 @@ public class ExamSession {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 
+    /**
+     * 开考时学生所在教学班快照（WP7，V16）。
+     * 由 {@code ExamSessionLifecycleComponent} 在创建会话时按选课成员关系解析，
+     * 从成员关系取值而不信任请求体；转班后历史会话不漂移。
+     */
+    private Long teachingClassId;
+
 }

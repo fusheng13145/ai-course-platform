@@ -20,6 +20,20 @@ public interface CourseEnrollmentService extends IService<CourseEnrollment> {
     CourseEnrollment enroll(Long studentId, Long courseId);
 
     /**
+     * 报名课程（可指定教学班，V14 / B-12-P-08 WP5）。
+     *
+     * <p>教学班解析口径：显式传入时必须属于该课程且状态 ACTIVE；
+     * 未传时课程下恰有一个 ACTIVE 教学班则自动选中，多个则 400 要求显式选择，
+     * 一个都没有则 409。</p>
+     *
+     * @param studentId       学生ID
+     * @param courseId        课程ID
+     * @param teachingClassId 教学班ID，可为 null
+     * @return 报名记录
+     */
+    CourseEnrollment enroll(Long studentId, Long courseId, Long teachingClassId);
+
+    /**
      * 学生加入课程（/student/courses/{courseId}/enroll 接口业务下沉）：
      * 校验课程存在与未重复加入后新建有效报名记录。
      *
@@ -27,6 +41,15 @@ public interface CourseEnrollmentService extends IService<CourseEnrollment> {
      * @param courseId  课程ID
      */
     void enrollStudent(Long studentId, Long courseId);
+
+    /**
+     * 学生加入课程（可指定教学班，V14 / B-12-P-08 WP5）。
+     *
+     * @param studentId       学生ID
+     * @param courseId        课程ID
+     * @param teachingClassId 教学班ID，可为 null
+     */
+    void enrollStudent(Long studentId, Long courseId, Long teachingClassId);
 
     /**
      * 软退课（/enrollments/{id} 接口业务下沉）：校验报名记录归属后置 isActive=false。

@@ -3,6 +3,7 @@ package com.aicourse.service.impl;
 
 import com.aicourse.integration.ContractPaths;
 import com.aicourse.service.LLMFineTuneService;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.client.SimpleClientHttpRequestFactory;
 import org.springframework.stereotype.Service;
@@ -32,13 +33,31 @@ public class LLMFineTuneServiceImpl implements LLMFineTuneService {
     private final int maxRetries;
     private final String healthPath;
 
+    /** 服务间内部认证头（2026-11-07 验收整改批）：与 Python 端约定常量保持逐字一致 */
+    public static final String INTERNAL_KEY_HEADER = "X-Internal-Key";
+
+    /**
+     * 兼容旧签名（internalApiKey 为空：不附带内部认证头），供既有单测直构使用。
+     */
+    public LLMFineTuneServiceImpl(
+            boolean enabled,
+            String baseUrl,
+            int connectTimeout,
+            int readTimeout,
+            int maxRetries,
+            String healthPath) {
+        this(enabled, baseUrl, connectTimeout, readTimeout, maxRetries, healthPath, "");
+    }
+
+    @Autowired
     public LLMFineTuneServiceImpl(
             @Value("${fine-tune.enabled:false}") boolean enabled,
             @Value("${fine-tune.base-url:http://localhost:8003}") String baseUrl,
             @Value("${fine-tune.connect-timeout:5}") int connectTimeout,
             @Value("${fine-tune.read-timeout:300}") int readTimeout,
             @Value("${fine-tune.max-retries:1}") int maxRetries,
-            @Value("${fine-tune.health-path:" + ContractPaths.FT_HEALTH + "}") String healthPath) {
+            @Value("${fine-tune.health-path:" + ContractPaths.FT_HEALTH + "}") String healthPath,
+            @Value("${app.internal.service-api-key:}") String internalApiKey) {
         this.enabled = enabled;
         this.maxRetries = maxRetries;
         this.healthPath = healthPath;
@@ -47,11 +66,16 @@ public class LLMFineTuneServiceImpl implements LLMFineTuneService {
         factory.setConnectTimeout(Duration.ofSeconds(connectTimeout));
         factory.setReadTimeout(Duration.ofSeconds(readTimeout));
 
-        this.restClient = RestClient.builder()
+        var builder = RestClient.builder()
                 .baseUrl(baseUrl)
                 .requestFactory(factory)
-                .defaultHeader("Content-Type", "application/json")
-                .build();
+                .defaultHeader("Content-Type", "application/json");
+        // 服务间内部认证（可选）：internalApiKey 非空时对全部请求附带 X-Internal-Key，
+        // Python 端在 INTERNAL_API_KEY 配置一致时校验；为空时不发送（本机裸跑保持直连）。
+        if (internalApiKey != null && !internalApiKey.isBlank()) {
+            builder = builder.defaultHeader(INTERNAL_KEY_HEADER, internalApiKey);
+        }
+        this.restClient = builder.build();
     }
 
 

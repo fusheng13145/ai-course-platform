@@ -3,6 +3,8 @@ package com.aicourse.service.impl;
 import com.aicourse.entity.Course;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.CourseMapper;
+import com.aicourse.mapper.TeachingClassMapper;
+import com.aicourse.service.component.org.CourseDefaultTeachingClassSync;
 import com.baomidou.mybatisplus.core.MybatisConfiguration;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
@@ -35,13 +37,17 @@ class CourseServiceImplTest {
     @Mock
     private CourseMapper courseMapper;
 
+    @Mock
+    private TeachingClassMapper teachingClassMapper;
+
     private CourseServiceImpl service;
 
     @BeforeEach
     void setUp() {
         TableInfoHelper.initTableInfo(
                 new MapperBuilderAssistant(new MybatisConfiguration(), ""), Course.class);
-        service = new CourseServiceImpl();
+        service = new CourseServiceImpl(new CourseDefaultTeachingClassSync(teachingClassMapper),
+                org.mockito.Mockito.mock(com.aicourse.service.SemesterService.class));
         ReflectionTestUtils.setField(service, "baseMapper", courseMapper);
     }
 
@@ -203,6 +209,60 @@ class CourseServiceImplTest {
         Course r = service.approveCourse(1L);
         assertEquals("APPROVED", r.getApprovalStatus());
         assertEquals("ACTIVE", r.getStatus());
+    }
+
+    @Test
+    @DisplayName("approveCourse(id, operatorId) 落审批人")
+    void approveCourse_withOperator() {
+        Course c = new Course();
+        c.setId(1L);
+        when(courseMapper.selectById(any(Serializable.class))).thenReturn(c);
+        when(courseMapper.updateById(any(Course.class))).thenReturn(1);
+        Course r = service.approveCourse(1L, 8L);
+        assertEquals("APPROVED", r.getApprovalStatus());
+        assertEquals(8L, r.getApprovedBy());
+    }
+
+    @Test
+    @DisplayName("approveCourse(id, operatorId) 已通过时不覆盖审批人")
+    void approveCourse_alreadyApproved_keepsOperator() {
+        Course c = new Course();
+        c.setId(1L);
+        c.setApprovalStatus("APPROVED");
+        c.setStatus("ACTIVE");
+        c.setApprovedBy(9L);
+        when(courseMapper.selectById(any(Serializable.class))).thenReturn(c);
+        Course r = service.approveCourse(1L, 8L);
+        assertEquals(9L, r.getApprovedBy());
+        verify(courseMapper, never()).updateById(any(Course.class));
+    }
+
+    @Test
+    @DisplayName("resubmitCourse 非驳回状态抛异常")
+    void resubmitCourse_notRejected() {
+        Course c = new Course();
+        c.setId(1L);
+        c.setApprovalStatus("PENDING");
+        when(courseMapper.selectById(any(Serializable.class))).thenReturn(c);
+        assertThrows(BusinessException.class, () -> service.resubmitCourse(1L));
+    }
+
+    @Test
+    @DisplayName("resubmitCourse REJECTED -> PENDING 并清空审批字段")
+    void resubmitCourse_ok() {
+        Course c = new Course();
+        c.setId(1L);
+        c.setApprovalStatus("REJECTED");
+        c.setApprovalComment("资料不全");
+        c.setApprovedBy(9L);
+        when(courseMapper.selectById(any(Serializable.class))).thenReturn(c);
+        when(courseMapper.updateById(any(Course.class))).thenReturn(1);
+        Course r = service.resubmitCourse(1L);
+        assertEquals("PENDING", r.getApprovalStatus());
+        assertEquals("ACTIVE", r.getStatus());
+        assertNull(r.getApprovalComment());
+        assertNull(r.getApprovedBy());
+        assertNull(r.getApprovalTime());
     }
 
     @Test

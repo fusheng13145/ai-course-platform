@@ -2,11 +2,15 @@ package com.aicourse.controller;
 import com.aicourse.controller.LoginLogController;
 import com.aicourse.service.LoginLogService;
 import com.aicourse.entity.LoginLog;
+import com.aicourse.entity.User;
+import com.aicourse.security.AdminScopeGuard;
+import com.aicourse.service.UserService;
 import com.aicourse.vo.DailyLoginTrendVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
@@ -22,10 +26,27 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 对带有 @PreAuthorize 的端点新增越权 403 测试（含 ADMIN 限定、ADMIN/TEACHER 限定、以及 owner-or-principal 限定）。
  */
 @WebMvcTest(LoginLogController.class)
+@Import(AdminScopeGuard.class)
 class LoginLogControllerTest extends ControllerTestBase {
 
     @MockitoBean
     private com.aicourse.service.LoginLogService loginLogService;
+    @MockitoBean
+    private UserService userService;
+
+    private User user(Long id, Long collegeId, String role) {
+        User u = new User();
+        u.setId(id);
+        u.setCollegeId(collegeId);
+        u.setRole(role);
+        return u;
+    }
+
+    private void collegeAdminScoped(List<User> collegeUsers) {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
+        when(userService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
+                .thenReturn(collegeUsers);
+    }
 
     private LoginLog sampleLog(Long id) {
         LoginLog log = new LoginLog();
@@ -154,6 +175,55 @@ class LoginLogControllerTest extends ControllerTestBase {
         verify(loginLogService).getGlobalLoginStats();
     }
 
+
+    @Test
+    @DisplayName("GET /login-logs/stats - 院系管理员 403（8A：审计先 403，WP9 收紧）")
+    void getGlobalStats_collegeAdmin_forbidden() throws Exception {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
+
+        mockMvc.perform(get("/login-logs/stats").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden());
+        verify(loginLogService, never()).getGlobalLoginStats();
+        verify(loginLogService, never()).getGlobalLoginStats(any());
+    }
+
+    @Test
+    @DisplayName("GET /login-logs - 院系管理员 403（8A）")
+    void getList_collegeAdmin_forbidden() throws Exception {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
+
+        mockMvc.perform(get("/login-logs").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden());
+        verify(loginLogService, never()).page(any(), any());
+        verify(loginLogService, never()).getLoginLogList(anyInt(), anyInt(), any(), any());
+    }
+
+    @Test
+    @DisplayName("GET /login-logs/user/2 - 院系管理员查他人登录历史 403（8A：审计仅校级）")
+    void getUserLoginHistory_collegeAdmin_otherCollege_403() throws Exception {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
+        when(userService.getById(2L)).thenReturn(user(2L, 11L, "STUDENT"));
+
+        mockMvc.perform(get("/login-logs/user/2").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(loginLogService, never()).getUserLoginHistory(anyLong(), anyInt(), anyInt());
+    }
+
+    @Test
+    @DisplayName("GET /login-logs/user/3 - 院系管理员查本人登录历史仍 200（自助口径）")
+    void getUserLoginHistory_collegeAdmin_selfAllowed() throws Exception {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
+        Page<LoginLog> p = new Page<>(1, 10);
+        p.setRecords(List.of());
+        p.setTotal(0);
+        when(loginLogService.getUserLoginHistory(eq(3L), anyInt(), anyInt())).thenReturn(p);
+
+        mockMvc.perform(get("/login-logs/user/3").with(withCollegeAdmin(3L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+        verify(loginLogService).getUserLoginHistory(eq(3L), anyInt(), anyInt());
+    }
 
     @Test
     @DisplayName("GET /login-logs/stats - STUDENT 越权返回403")

@@ -12,7 +12,8 @@
   3. **读写分离计价**：读路径（GET 业务端点，不受 RateLimitFilter 管辖）与写路径
      （任务点完成 / 答卷自动保存 / 资源可见性切换）分别统计，避免互相稀释。
   4. **必须绕开本机拦截代理**：urllib/http.client 直连 localhost 会被本机代理接管，
-     故所有请求走显式 127.0.0.1 且脚本内禁用代理环境变量。
+     故默认走显式 127.0.0.1 且脚本内禁用代理环境变量。公网验收可用 E2E_BASE_URL
+     指向实际入口（A 路径断链 #10），默认仍保持原本机行为。
   5. **事后健康校验**：压测结束后必须再打一次业务读接口 + 断言无 5xx 残留，
      证明「高负载后系统仍可用」，而不是只看压测过程本身。
 
@@ -31,6 +32,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 import uuid
 from datetime import datetime, timedelta
 
@@ -40,9 +42,16 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
     except Exception:
         pass
 
-HOST = "127.0.0.1"
-PORT = 8080
-PREFIX = "/api"
+# A 路径断链 #10：端点可经 E2E_BASE_URL 指向实际入口（支持 http/https），
+# Redis 探活可经 E2E_REDIS_HOST/E2E_REDIS_PORT 覆盖；默认保持原本机行为。
+_parsed = urllib.parse.urlsplit(
+    os.environ.get("E2E_BASE_URL", "http://127.0.0.1:8080/api").rstrip("/"))
+SCHEME = _parsed.scheme or "http"
+HOST = _parsed.hostname or "127.0.0.1"
+PORT = _parsed.port or (443 if SCHEME == "https" else 80)
+PREFIX = _parsed.path or "/api"
+REDIS_HOST = os.environ.get("E2E_REDIS_HOST", "127.0.0.1")
+REDIS_PORT = int(os.environ.get("E2E_REDIS_PORT", "6379"))
 DB = "ai_course_platform"
 CODE = "STRESS-" + datetime.now().strftime("%m%d%H%M")
 
@@ -95,7 +104,7 @@ def flush_redis() -> None:
     """清空 Redis db0：清除上一轮遗留缓存与限流计数，保证计数从零开始。"""
     try:
         import socket
-        with socket.create_connection(("127.0.0.1", 6379), timeout=3) as s:
+        with socket.create_connection((REDIS_HOST, REDIS_PORT), timeout=3) as s:
             s.sendall(b"*1\r\n$7\r\nFLUSHDB\r\n")
             s.recv(64)
         print("[setup] Redis db0 已清空")
@@ -108,7 +117,8 @@ class Session:
 
     def __init__(self) -> None:
         self.cookie = ""
-        self.conn = http.client.HTTPConnection(HOST, PORT, timeout=30)
+        self.conn = (http.client.HTTPSConnection if SCHEME == "https"
+                     else http.client.HTTPConnection)(HOST, PORT, timeout=30)
 
     def _headers(self) -> dict:
         h = {"Accept": "application/json"}
@@ -137,13 +147,18 @@ class Session:
                 self.conn.close()
             except Exception:  # noqa: BLE001
                 pass
-            self.conn = http.client.HTTPConnection(HOST, PORT, timeout=timeout)
+            self.conn = (http.client.HTTPSConnection if SCHEME == "https"
+                         else http.client.HTTPConnection)(HOST, PORT, timeout=timeout)
             return 0, {"_transport_error": str(e)}, (time.perf_counter() - t0) * 1000
         dt = (time.perf_counter() - t0) * 1000
-        # 捕获 Set-Cookie（登录用）
-        sc = r.getheader("Set-Cookie")
-        if sc and "ai_course_token=" in sc:
-            self.cookie = sc.split(";")[0]
+        # 捕获 Set-Cookie（登录用）。2026-11-10 修复：getheader 只返回**第一枚** Set-Cookie，
+        # 而登录响应实际可能携带多枚（JSESSIONID 常排在前）——后端重启后顺序一变就漏接
+        # ai_course_token → 后续请求 401 级联（V7 批压测夹具失败的实锤根因）。
+        # 改为遍历全部 Set-Cookie 头，取含 ai_course_token 的那一枚。
+        for sc in (r.msg.get_all("Set-Cookie") or []):
+            if "ai_course_token=" in sc:
+                self.cookie = sc.split(";")[0]
+                break
         try:
             return status, json.loads(text), dt
         except Exception:  # noqa: BLE001

@@ -11,6 +11,7 @@ import com.aicourse.service.component.exam.ExamSessionCheatingComponent;
 import com.aicourse.service.component.exam.ExamSessionLifecycleComponent;
 import com.aicourse.service.component.exam.ExamSessionQueryComponent;
 import com.aicourse.service.impl.exam.ExamSessionGradingService;
+import com.aicourse.vo.ActiveExamSessionVO;
 import com.aicourse.vo.AutoGradeResultVO;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -115,7 +116,7 @@ public class ExamSessionServiceImpl extends ServiceImpl<ExamSessionMapper, ExamS
 
     @Override
     @Transactional(readOnly = true)
-    public List<ExamSession> getActiveExams() {
+    public List<ActiveExamSessionVO> getActiveExams() {
         return queryComponent.getActiveExams();
     }
 

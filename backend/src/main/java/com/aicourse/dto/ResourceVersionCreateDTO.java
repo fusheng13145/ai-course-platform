@@ -25,13 +25,13 @@ public class ResourceVersionCreateDTO {
     @Schema(description = "目标资源ID（建版本必填；回滚以路径参数为准）", example = "301")
     private Long resourceId;
 
-    @Schema(description = "文件名", example = "slides-v2.pdf")
+    @Schema(description = "文件名", example = "slides-final.pdf")
     private String fileName;
 
     @Schema(description = "文件类型", example = "PDF")
     private String fileType;
 
-    @Schema(description = "资源URL地址", example = "https://example.com/files/slides-v2.pdf")
+    @Schema(description = "资源URL地址", example = "https://example.com/files/slides-final.pdf")
     private String url;
 
     /**
@@ -46,7 +46,7 @@ public class ResourceVersionCreateDTO {
      */
     @Size(max = 500, message = "URL长度不能超过500个字符")
     @Schema(description = "新版文件的URL地址（建版本必填；回滚可省略）",
-            example = "https://example.com/files/ch1-slides-v2.pdf")
+            example = "https://example.com/files/ch1-slides-final.pdf")
     private String fileUrl;
 
     @Min(value = 1, message = "文件大小必须大于0字节")

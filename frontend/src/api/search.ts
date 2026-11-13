@@ -1,4 +1,5 @@
 import request from './request'
+import { type ApiData } from '@/utils/response'
 
 /**
  * 全站聚合搜索（知识点/题目/课程/笔记）
@@ -8,10 +9,10 @@ import request from './request'
  * @returns {Promise<{type,id,title,snippet,score}[]>}
  */
 export const searchAll = (
-  keyword,
-  types = ['knowledge', 'question', 'course', 'note'],
-  limit = 8,
-) =>
+  keyword: string,
+  types: string[] = ['knowledge', 'question', 'course', 'note'],
+  limit: number = 8,
+): Promise<ApiData[]> =>
   request
     .get('/search', {
       params: {
@@ -20,6 +21,6 @@ export const searchAll = (
         limit,
       },
     })
-    .then((res) => (Array.isArray(res?.data) ? res.data : []))
+    .then((res: ApiData) => (Array.isArray(res?.data) ? res.data : [])) as Promise<ApiData[]>
 
 export default { searchAll }

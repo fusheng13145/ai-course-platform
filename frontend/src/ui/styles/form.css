@@ -1,0 +1,198 @@
+/* 表单与表格通用件：从各视图重复的局部样式收敛而来，只在 壳层内生效。 */
+
+body[data-app='ui'] .course-tab-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 14px;
+  flex-wrap: wrap;
+  margin-bottom: 14px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--line);
+}
+
+body[data-app='ui'] .course-tab-bar h2 {
+  margin: 4px 0 0;
+  font-family: 'Noto Serif SC', Georgia, serif;
+  font-size: 22px;
+  font-weight: 600;
+}
+
+body[data-app='ui'] .course-tab-actions {
+  display: flex;
+  gap: 8px;
+}
+
+body[data-app='ui'] .filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+/* card-head 内的筛选行收缩到内容宽并靠右（原 InboxBody / ExamGovernanceBody / TeacherGradesView 的 scoped 副本） */
+body[data-app='ui'] .card-head .filter-row {
+  width: auto;
+  justify-content: flex-end;
+}
+
+/* 表卡表头与右侧控件同基线（原 TeacherGradesView / ProctorTab 的 scoped 副本） */
+body[data-app='ui'] .table-card .card-head {
+  align-items: center;
+}
+
+body[data-app='ui'] .w-60 {
+  width: 60px;
+}
+
+body[data-app='ui'] .w-80 {
+  width: 80px;
+}
+
+body[data-app='ui'] .w-96 {
+  width: 96px;
+}
+
+body[data-app='ui'] .w-140 {
+  width: 140px;
+}
+
+body[data-app='ui'] .w-220 {
+  width: 220px;
+}
+
+body[data-app='ui'] .w-260 {
+  width: 260px;
+}
+
+body[data-app='ui'] .row-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+body[data-app='ui'] .row-actions .danger {
+  color: var(--danger);
+}
+
+body[data-app='ui'] .empty-state.compact {
+  padding: 26px 12px;
+}
+
+body[data-app='ui'] .pager {
+  display: flex;
+  gap: 6px;
+}
+
+body[data-app='ui'] .form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+body[data-app='ui'] .form-grid .span-2 {
+  grid-column: span 2;
+}
+
+body[data-app='ui'] .form-error {
+  margin: 10px 0 0;
+  padding: 8px 10px;
+  border-radius: var(--r-ctl);
+  background: var(--danger-soft);
+  color: var(--danger);
+  font-size: 11px;
+}
+
+body[data-app='ui'] .modal-text {
+  margin: 0 0 14px;
+  font-size: 12px;
+  line-height: 1.75;
+  color: var(--ink-2);
+}
+
+body[data-app='ui'] .modal-hint {
+  margin: 12px 0 0;
+  font-size: 10px;
+  line-height: 1.7;
+  color: var(--ink-3);
+}
+
+body[data-app='ui'] .btn-danger {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
+}
+
+body[data-app='ui'] .form-card {
+  max-width: 760px;
+}
+
+body[data-app='ui'] .stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+body[data-app='ui'] .stats-item {
+  padding: 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  background: var(--surface-2);
+}
+
+body[data-app='ui'] .stats-item span {
+  display: block;
+  font-size: 10px;
+  color: var(--ink-3);
+}
+
+body[data-app='ui'] .stats-item b {
+  display: block;
+  margin-top: 4px;
+  font-family: var(--font-display);
+  font-size: 20px;
+  color: var(--ink);
+}
+
+body[data-app='ui'] .form-foot {
+  display: flex;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+@media (max-width: 720px) {
+  body[data-app='ui'] .form-grid {
+    grid-template-columns: 1fr;
+  }
+  body[data-app='ui'] .form-grid .span-2 {
+    grid-column: span 1;
+  }
+  body[data-app='ui'] .stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* D2-6 响应式专项 · 窄屏增量：只新增本块，桌面档未改。
+   .filter-row 自身有 flex-wrap，但卡内一行里的搜索簇是各视图局部样式给的
+   定宽输入（220／240px）包在不换行的 .search-form 里，整簇的最小宽度
+   就是这一行的收缩下限；窄档把它放开，控件按行宽流动。
+   选择器多一层类＋元素，特异度高于视图的 scoped 副本，无需 !important。 */
+@media (max-width: 768px) {
+  body[data-app='ui'] .card-head .filter-row {
+    width: 100%;
+    justify-content: flex-start;
+  }
+  body[data-app='ui'] .filter-row > .input {
+    max-width: 100%;
+    min-width: 0;
+  }
+  body[data-app='ui'] .filter-row .search-form {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+  body[data-app='ui'] .filter-row .search-form > .input {
+    flex: 1;
+    min-width: 0;
+  }
+}

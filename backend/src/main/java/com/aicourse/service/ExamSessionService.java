@@ -1,6 +1,7 @@
 package com.aicourse.service;
 
 import com.aicourse.entity.ExamSession;
+import com.aicourse.vo.ActiveExamSessionVO;
 import com.aicourse.vo.AutoGradeResultVO;
 import com.baomidou.mybatisplus.extension.service.IService;
 
@@ -78,9 +79,9 @@ public interface ExamSessionService extends IService<ExamSession> {
 
     /**
      * 获取正在进行的考试列表
-     * @return 进行中的考试会话列表
+     * @return 进行中的考试会话列表（VO 化，带试卷名/课程/学生姓名与同卷进行中人数）
      */
-    List<ExamSession> getActiveExams();
+    List<ActiveExamSessionVO> getActiveExams();
 
     /**
      * 检测作弊嫌疑

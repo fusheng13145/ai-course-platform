@@ -5,13 +5,16 @@ import org.slf4j.LoggerFactory;
 
 import jakarta.validation.Valid;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.dto.AdminCreateUserDTO;
 import com.aicourse.dto.AdminUpdateUserDTO;
 import com.aicourse.entity.Course;
+import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.*;
 import com.aicourse.util.ExcelUtil;
 import com.aicourse.util.PasswordPolicy;
@@ -71,19 +74,22 @@ public class SystemAdminController {
     private final AnalyticsService analyticsService;
     private final CourseEnrollmentService enrollmentService;
     private final PasswordEncoder passwordEncoder;
+    private final AdminScopeGuard adminScopeGuard;
 
     public SystemAdminController(SystemService systemService,
                                   UserService userService,
                                   CourseService courseService,
                                   AnalyticsService analyticsService,
                                   CourseEnrollmentService enrollmentService,
-                                  PasswordEncoder passwordEncoder) {
+                                  PasswordEncoder passwordEncoder,
+                                  AdminScopeGuard adminScopeGuard) {
         this.systemService = systemService;
         this.userService = userService;
         this.courseService = courseService;
         this.analyticsService = analyticsService;
         this.enrollmentService = enrollmentService;
         this.passwordEncoder = passwordEncoder;
+        this.adminScopeGuard = adminScopeGuard;
     }
 
 
@@ -106,6 +112,10 @@ public class SystemAdminController {
                         .like(User::getFullName, keyword)
                         .or()
                         .like(User::getEmail, keyword));
+        Long collegeFilter = adminScopeGuard.currentCollegeFilter();
+        if (collegeFilter != null) {
+            qw.eq(User::getCollegeId, collegeFilter);
+        }
         Page<User> userPage = userService.page(Page.of(page, size), qw);
         // 密码脱敏
         userPage.getRecords().forEach(u -> u.setPassword(null));
@@ -121,6 +131,7 @@ public class SystemAdminController {
         if (user == null) {
             throw new BusinessException("用户不存在");
         }
+        adminScopeGuard.assertUserAccess(user);
         return ApiResponse.success(user);
     }
 
@@ -140,6 +151,18 @@ public class SystemAdminController {
         user.setIsActive(dto.getIsActive() != null ? dto.getIsActive() : true);
         // 密码加密
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
+        if (adminScopeGuard.isCollegeAdmin()) {
+            if (RoleConstants.ADMIN.equals(dto.getRole())) {
+                throw new BusinessException(ApiCode.FORBIDDEN, "院系管理员不能创建管理员账号");
+            }
+            Long ownCollegeId = adminScopeGuard.currentCollegeId();
+            if (dto.getCollegeId() != null && !ownCollegeId.equals(dto.getCollegeId())) {
+                throw new BusinessException(ApiCode.FORBIDDEN, "只能创建本学院用户");
+            }
+            user.setCollegeId(ownCollegeId);
+        } else if (dto.getCollegeId() != null) {
+            user.setCollegeId(dto.getCollegeId());
+        }
         userService.save(user);
         user.setPassword(null);
         return ApiResponse.success("创建成功", user);
@@ -154,6 +177,16 @@ public class SystemAdminController {
         if (existing == null) {
             throw new BusinessException("用户不存在");
         }
+        adminScopeGuard.assertUserManageable(existing);
+        if (adminScopeGuard.isCollegeAdmin()) {
+            if (RoleConstants.ADMIN.equals(dto.getRole())) {
+                throw new BusinessException(ApiCode.FORBIDDEN, "院系管理员不能把用户改为管理员");
+            }
+            if (dto.getCollegeId() != null
+                    && !adminScopeGuard.currentCollegeId().equals(dto.getCollegeId())) {
+                throw new BusinessException(ApiCode.FORBIDDEN, "不能把用户移出本学院");
+            }
+        }
         // 白名单字段复制：仅允许 DTO 暴露的业务字段更新（不含密码/主键/审计字段）
         User user = new User();
         user.setId(userId);
@@ -165,6 +198,9 @@ public class SystemAdminController {
         user.setIsActive(dto.getIsActive());
         user.setAvatarUrl(dto.getAvatarUrl());
         user.setBio(dto.getBio());
+        if (dto.getCollegeId() != null) {
+            user.setCollegeId(dto.getCollegeId());
+        }
         userService.updateById(user);
         User updated = userService.getUserProfile(userId);
         return ApiResponse.success("更新成功", updated);
@@ -179,6 +215,7 @@ public class SystemAdminController {
         if (existing == null) {
             throw new BusinessException("用户不存在");
         }
+        adminScopeGuard.assertUserManageable(existing);
         userService.removeById(userId);
         return ApiResponse.success("删除成功", null);
     }
@@ -193,6 +230,7 @@ public class SystemAdminController {
         if (user == null) {
             throw new BusinessException("用户不存在");
         }
+        adminScopeGuard.assertUserManageable(user);
         String newPassword = body.get("newPassword");
         if (newPassword == null || newPassword.isEmpty()) {
             throw new BusinessException("新密码不能为空");
@@ -210,6 +248,7 @@ public class SystemAdminController {
     @Operation(summary = "批量导入用户", description = "JSON 批量导入（兼容保留）；Excel(.xlsx) 批量导入请使用 /admin/users/import-excel")
     @PostMapping("/admin/users/import")
     public ApiResponse<AdminUserImportResultVO> importUsers(@Valid @RequestBody List<AdminCreateUserDTO> userDTOs) {
+        adminScopeGuard.assertSchoolOnly();
         int successCount = 0;
         int failCount = 0;
         List<String> errors = new ArrayList<>();
@@ -272,6 +311,7 @@ public class SystemAdminController {
     @PostMapping(value = "/admin/users/import-excel", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ApiResponse<AdminUserImportResultVO> importUsersExcel(
             @RequestParam("file") MultipartFile file) throws IOException {
+        adminScopeGuard.assertSchoolOnly();
         if (file == null || file.isEmpty()) {
             throw new BusinessException("请选择要上传的 Excel 文件");
         }
@@ -341,6 +381,7 @@ public class SystemAdminController {
     @PutMapping("/admin/configs/{configKey}")
     public ApiResponse<Void> updateConfig(@PathVariable String configKey,
                                            @Valid @RequestBody Map<String, String> body) {
+        adminScopeGuard.assertSchoolOnly();
         String value = body.get("value");
         String group = body.get("group");
         systemService.saveConfig(configKey, value, group);
@@ -352,6 +393,7 @@ public class SystemAdminController {
      */
     @GetMapping("/admin/logs")
     public ApiResponse<List<Map<String, Object>>> getLogs() {
+        adminScopeGuard.assertSchoolOnly();
         List<Map<String, Object>> logFileList = systemService.getLogFiles();
         return ApiResponse.success(logFileList);
     }
@@ -361,6 +403,7 @@ public class SystemAdminController {
      */
     @GetMapping("/admin/health")
     public ApiResponse<Map<String, Object>> getHealth() {
+        adminScopeGuard.assertSchoolOnly();
         Map<String, Object> healthInfo = systemService.getHealth();
         return ApiResponse.success(healthInfo);
     }
@@ -372,6 +415,32 @@ public class SystemAdminController {
      */
     @GetMapping("/admin/statistics/overview")
     public ApiResponse<StatisticsOverviewVO> getStatisticsOverview() {
+        Long collegeId = adminScopeGuard.currentCollegeFilter();
+        if (collegeId != null) {
+            List<Long> courseIds = scopedCourseIds(collegeId);
+            long totalUsers = userService.count(new LambdaQueryWrapper<User>()
+                    .eq(User::getCollegeId, collegeId));
+            long totalCourses = courseIds.size();
+            long totalEnrollments = courseIds.isEmpty() ? 0L
+                    : enrollmentService.count(new LambdaQueryWrapper<CourseEnrollment>()
+                            .in(CourseEnrollment::getCourseId, courseIds));
+            RoleDistributionVO roleDistribution = new RoleDistributionVO(
+                    userService.count(new LambdaQueryWrapper<User>()
+                            .eq(User::getCollegeId, collegeId)
+                            .eq(User::getRole, RoleConstants.STUDENT)),
+                    userService.count(new LambdaQueryWrapper<User>()
+                            .eq(User::getCollegeId, collegeId)
+                            .eq(User::getRole, RoleConstants.TEACHER)),
+                    userService.count(new LambdaQueryWrapper<User>()
+                            .eq(User::getCollegeId, collegeId)
+                            .eq(User::getRole, RoleConstants.ADMIN)));
+            long activeCourses = courseIds.isEmpty() ? 0L
+                    : courseService.count(new LambdaQueryWrapper<Course>()
+                            .in(Course::getId, courseIds)
+                            .eq(Course::getIsActive, true));
+            return ApiResponse.success(new StatisticsOverviewVO(
+                    totalUsers, totalCourses, totalEnrollments, roleDistribution, activeCourses));
+        }
         long totalUsers = userService.count();
         long totalCourses = courseService.count();
         long totalEnrollments = enrollmentService.count();
@@ -393,7 +462,10 @@ public class SystemAdminController {
     @GetMapping("/admin/statistics/user-growth")
     public ApiResponse<List<Map<String, Object>>> getUserGrowth(
             @RequestParam(defaultValue = "30") int days) {
-        List<Map<String, Object>> trend = analyticsService.getUserGrowthTrend(days);
+        Long collegeId = adminScopeGuard.currentCollegeFilter();
+        List<Map<String, Object>> trend = collegeId == null
+                ? analyticsService.getUserGrowthTrend(days)
+                : analyticsService.getUserGrowthTrend(days, collegeId);
         return ApiResponse.success(trend);
     }
 
@@ -402,6 +474,24 @@ public class SystemAdminController {
      */
     @GetMapping("/admin/statistics/courses")
     public ApiResponse<CourseStatisticsVO> getCourseStatistics() {
+        Long collegeId = adminScopeGuard.currentCollegeFilter();
+        if (collegeId != null) {
+            List<Long> courseIds = scopedCourseIds(collegeId);
+            List<Course> allCourses = courseIds.isEmpty()
+                    ? List.of()
+                    : courseService.list(new LambdaQueryWrapper<Course>()
+                            .in(Course::getId, courseIds));
+            long activeCourses = allCourses.stream()
+                    .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
+                    .count();
+            Map<String, Long> categoryDistribution = allCourses.stream()
+                    .filter(c -> c.getCategory() != null)
+                    .collect(Collectors.groupingBy(Course::getCategory, Collectors.counting()));
+            List<Map<String, Object>> topCourses = analyticsService.getCourseRanking(collegeId)
+                    .stream().limit(5).collect(Collectors.toList());
+            return ApiResponse.success(new CourseStatisticsVO(
+                    allCourses.size(), activeCourses, categoryDistribution, topCourses));
+        }
         long totalCourses = courseService.count();
         long activeCourses = courseService.count(
                 new LambdaQueryWrapper<Course>().eq(Course::getIsActive, true));
@@ -423,7 +513,10 @@ public class SystemAdminController {
      */
     @GetMapping("/admin/statistics/ai-usage")
     public ApiResponse<Map<String, Object>> getAIUsageStatistics() {
-        Map<String, Object> aiUsage = systemService.getAIUsageStats();
+        Long collegeId = adminScopeGuard.currentCollegeFilter();
+        Map<String, Object> aiUsage = collegeId == null
+                ? systemService.getAIUsageStats()
+                : systemService.getAIUsageStats(collegeId);
         return ApiResponse.success(aiUsage);
     }
 
@@ -441,7 +534,43 @@ public class SystemAdminController {
     @GetMapping("/admin/statistics/ai-usage/by-course")
     public ApiResponse<Map<String, Object>> getAIUsageByCourse(
             @RequestParam(defaultValue = "30") int days) {
-        return ApiResponse.success(systemService.getAIUsageByCourse(days));
+        Long collegeId = adminScopeGuard.currentCollegeFilter();
+        Map<String, Object> result = collegeId == null
+                ? systemService.getAIUsageByCourse(days)
+                : systemService.getAIUsageByCourse(days, collegeId);
+        return ApiResponse.success(result);
+    }
+
+    /**
+     * 按日聚合的 AI 用量（2026-11-07 P2 批次：补齐「按日维度」，B-13④）。
+     * 无调用的日期不出行，由前端按区间补零渲染趋势；院系管理员自动收敛到本院口径。
+     *
+     * @param days 统计天数（默认 30，1–365 越界收敛）
+     */
+    @GetMapping("/admin/statistics/ai-usage/by-day")
+    public ApiResponse<Map<String, Object>> getAIUsageByDay(
+            @RequestParam(defaultValue = "30") int days) {
+        Long collegeId = adminScopeGuard.currentCollegeFilter();
+        Map<String, Object> result = collegeId == null
+                ? systemService.getAIUsageByDay(days)
+                : systemService.getAIUsageByDay(days, collegeId);
+        return ApiResponse.success(result);
+    }
+
+    /**
+     * 按能力（调用场景）聚合的 AI 用量（补齐「按能力维度」，B-13④）；
+     * scene 取值即 ai_call_logs 埋点的 12 个业务场景，院系管理员自动收敛到本院口径。
+     *
+     * @param days 统计天数（默认 30，1–365 越界收敛）
+     */
+    @GetMapping("/admin/statistics/ai-usage/by-scene")
+    public ApiResponse<Map<String, Object>> getAIUsageByScene(
+            @RequestParam(defaultValue = "30") int days) {
+        Long collegeId = adminScopeGuard.currentCollegeFilter();
+        Map<String, Object> result = collegeId == null
+                ? systemService.getAIUsageByScene(days)
+                : systemService.getAIUsageByScene(days, collegeId);
+        return ApiResponse.success(result);
     }
 
     /**
@@ -451,25 +580,40 @@ public class SystemAdminController {
     @GetMapping("/admin/statistics/export")
     public void exportStatisticsReport(HttpServletResponse response) throws IOException {
         ExcelUtil.setDownloadHeaders(response, "平台数据报表.xlsx");
-        ExcelUtil.writeReport(response.getOutputStream(), buildStatisticsReport());
+        ExcelUtil.writeReport(response.getOutputStream(),
+                buildStatisticsReport(adminScopeGuard.currentCollegeFilter()));
     }
 
     /**
      * 构建平台综合数据报表（供导出与接口复用）。
+     * @param collegeId 学院ID；null 表示校级全校口径
      */
-    private Map<String, Object> buildStatisticsReport() {
+    private Map<String, Object> buildStatisticsReport(Long collegeId) {
         Map<String, Object> report = new HashMap<>();
 
         // 获取平台仪表盘数据
-        Map<String, Object> dashboard = analyticsService.getDashboard();
+        Map<String, Object> dashboard = collegeId == null
+                ? analyticsService.getDashboard()
+                : analyticsService.getDashboard(collegeId);
         report.put("dashboard", dashboard);
 
         // 获取AI使用统计
-        Map<String, Object> aiUsage = systemService.getAIUsageStats();
+        Map<String, Object> aiUsage = collegeId == null
+                ? systemService.getAIUsageStats()
+                : systemService.getAIUsageStats(collegeId);
         report.put("aiUsage", aiUsage);
 
         // 获取课程统计
-        List<Course> allCourses = courseService.list();
+        List<Course> allCourses;
+        if (collegeId == null) {
+            allCourses = courseService.list();
+        } else {
+            List<Long> courseIds = scopedCourseIds(collegeId);
+            allCourses = courseIds.isEmpty()
+                    ? List.of()
+                    : courseService.list(new LambdaQueryWrapper<Course>()
+                            .in(Course::getId, courseIds));
+        }
         long activeCourses = allCourses.stream()
                 .filter(c -> Boolean.TRUE.equals(c.getIsActive()))
                 .count();
@@ -483,11 +627,25 @@ public class SystemAdminController {
         report.put("courseStatistics", courseStats);
 
         // 获取用户统计
-        long totalUsers = userService.count();
-        long students = userService.count(
-                new LambdaQueryWrapper<User>().eq(User::getRole, RoleConstants.STUDENT));
-        long teachers = userService.count(
-                new LambdaQueryWrapper<User>().eq(User::getRole, RoleConstants.TEACHER));
+        long totalUsers;
+        long students;
+        long teachers;
+        if (collegeId == null) {
+            totalUsers = userService.count();
+            students = userService.count(
+                    new LambdaQueryWrapper<User>().eq(User::getRole, RoleConstants.STUDENT));
+            teachers = userService.count(
+                    new LambdaQueryWrapper<User>().eq(User::getRole, RoleConstants.TEACHER));
+        } else {
+            totalUsers = userService.count(new LambdaQueryWrapper<User>()
+                    .eq(User::getCollegeId, collegeId));
+            students = userService.count(new LambdaQueryWrapper<User>()
+                    .eq(User::getCollegeId, collegeId)
+                    .eq(User::getRole, RoleConstants.STUDENT));
+            teachers = userService.count(new LambdaQueryWrapper<User>()
+                    .eq(User::getCollegeId, collegeId)
+                    .eq(User::getRole, RoleConstants.TEACHER));
+        }
         Map<String, Object> userStats = new HashMap<>();
         userStats.put("totalUsers", totalUsers);
         userStats.put("students", students);
@@ -502,6 +660,19 @@ public class SystemAdminController {
         return report;
     }
 
+    /**
+     * 院系口径下的课程ID集合：按课程所属学院（V13 起由负责人学院回填）。
+     * @param collegeId 学院ID
+     * @return 本院课程ID列表（可能为空）
+     */
+    private List<Long> scopedCourseIds(Long collegeId) {
+        return courseService.list(new LambdaQueryWrapper<Course>()
+                        .eq(Course::getCollegeId, collegeId))
+                .stream()
+                .map(Course::getId)
+                .toList();
+    }
+
     // ==================== 数据备份 ====================
 
     /**
@@ -509,6 +680,7 @@ public class SystemAdminController {
      */
     @PostMapping("/admin/backup")
     public ApiResponse<String> createBackup() {
+        adminScopeGuard.assertSchoolOnly();
         String backupFileName = systemService.createBackup();
         return ApiResponse.success("备份成功", backupFileName);
     }
@@ -520,6 +692,7 @@ public class SystemAdminController {
      */
     @GetMapping("/admin/system/overview")
     public ApiResponse<Map<String, Object>> overview() {
+        adminScopeGuard.assertSchoolOnly();
         Map<String, Object> overviewData = systemService.getOverview();
         return ApiResponse.success(overviewData);
     }
@@ -538,6 +711,7 @@ public class SystemAdminController {
      */
     @PostMapping("/admin/system/configs")
     public ApiResponse<Void> saveConfig(@Valid @RequestBody Map<String, String> body) {
+        adminScopeGuard.assertSchoolOnly();
         String key = body.get("key");
         String value = body.get("value");
         String group = body.get("group");
@@ -558,6 +732,7 @@ public class SystemAdminController {
      */
     @GetMapping("/admin/backup")
     public ApiResponse<List<Map<String, Object>>> getBackups() {
+        adminScopeGuard.assertSchoolOnly();
         List<Map<String, Object>> backupList = systemService.getBackups();
         return ApiResponse.success(backupList);
     }
@@ -567,6 +742,7 @@ public class SystemAdminController {
      */
     @PostMapping("/admin/system/backup/{fileName}/restore")
     public ApiResponse<Void> restoreBackup(@PathVariable String fileName) {
+        adminScopeGuard.assertSchoolOnly();
         systemService.restoreBackup(fileName);
         return ApiResponse.success("恢复成功", null);
     }
@@ -587,6 +763,7 @@ public class SystemAdminController {
             @PathVariable String fileName,
             @RequestParam(defaultValue = "100") int lines,
             @RequestParam(required = false) String keyword) {
+        adminScopeGuard.assertSchoolOnly();
         String logContent = systemService.readLogFile(fileName, lines, keyword);
         // DR-33：必须用双参重载。ApiResponse.success(String) 与 success(T data) 并存时，
         // String 入参绑定到「仅提示语」的那个，日志内容会跑到 message 里、data 变 null；
@@ -603,6 +780,7 @@ public class SystemAdminController {
      */
     @GetMapping("/admin/ai-monitor")
     public Callable<ApiResponse<Map<String, Object>>> aiMonitor() {
+        adminScopeGuard.assertSchoolOnly();
         return () -> ApiResponse.success(systemService.aiMonitor());
     }
 }

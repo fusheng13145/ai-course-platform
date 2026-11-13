@@ -40,13 +40,16 @@ public class GradeServiceImpl extends ServiceImpl<GradePolicyMapper, GradePolicy
     private final GradePolicyMapper policyMapper;
     private final GradeItemMapper itemMapper;
     private final UserService userService;
+    private final com.aicourse.service.component.org.TeachingClassSnapshotResolver teachingClassSnapshotResolver;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     public GradeServiceImpl(GradePolicyMapper policyMapper, GradeItemMapper itemMapper,
-                            UserService userService) {
+                            UserService userService,
+                            com.aicourse.service.component.org.TeachingClassSnapshotResolver teachingClassSnapshotResolver) {
         this.policyMapper = policyMapper;
         this.itemMapper = itemMapper;
         this.userService = userService;
+        this.teachingClassSnapshotResolver = teachingClassSnapshotResolver;
     }
 
 
@@ -120,6 +123,11 @@ public class GradeServiceImpl extends ServiceImpl<GradePolicyMapper, GradePolicy
         item.setSourceId(sourceId);
         item.setGraderId(graderId);
         item.setRemark(remark);
+        // WP7 快照：仅首次落库解析教学班；更新分支不回改（转班不漂移）。
+        // 刻意走 policyMapper 而非 this.getById：单测无 Spring 上下文时 baseMapper 未注入。
+        GradePolicy policy = policyMapper.selectById(policyId);
+        item.setTeachingClassId(policy == null ? null
+                : teachingClassSnapshotResolver.resolveTeachingClassId(studentId, policy.getCourseId()));
         itemMapper.insert(item);
         return item;
     }

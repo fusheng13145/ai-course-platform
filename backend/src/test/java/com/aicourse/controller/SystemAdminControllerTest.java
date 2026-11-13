@@ -10,12 +10,14 @@ import com.aicourse.service.LoginLogService;
 import com.aicourse.service.OperationLogService;
 import com.aicourse.service.SystemService;
 import com.aicourse.service.UserService;
+import com.aicourse.security.AdminScopeGuard;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 
@@ -37,6 +39,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * <p>注意：PasswordEncoder 由 SecurityConfig 提供的真实 bean 注入，无需 mock。
  */
 @WebMvcTest(SystemAdminController.class)
+@Import(AdminScopeGuard.class)
 class SystemAdminControllerTest extends ControllerTestBase {
 
     @MockitoBean

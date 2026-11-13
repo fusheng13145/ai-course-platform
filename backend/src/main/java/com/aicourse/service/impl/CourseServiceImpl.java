@@ -8,6 +8,8 @@ import com.aicourse.entity.Course;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.CourseMapper;
 import com.aicourse.service.CourseService;
+import com.aicourse.service.SemesterService;
+import com.aicourse.service.component.org.CourseDefaultTeachingClassSync;
 import com.baomidou.mybatisplus.core.conditions.Wrapper;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
@@ -29,6 +31,20 @@ import java.util.List;
 public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> implements CourseService {
 
     private static final Logger log = LoggerFactory.getLogger(CourseServiceImpl.class);
+
+    /**
+     * 默认教学班同步器：课程一旦落库就保证「恰有 1 个默认教学班」（WP4 判据 9A 的运行态延伸）。
+     * 走独立组件而非 TeachingClassService，是因为后者依赖本服务，直接互相注入会成环。
+     */
+    private final CourseDefaultTeachingClassSync defaultTeachingClassSync;
+    /** 学期服务：创建课程时解析默认归属的 ACTIVE 学期（4A，V17 起课程编号学期内唯一）。 */
+    private final SemesterService semesterService;
+
+    public CourseServiceImpl(CourseDefaultTeachingClassSync defaultTeachingClassSync,
+                             SemesterService semesterService) {
+        this.defaultTeachingClassSync = defaultTeachingClassSync;
+        this.semesterService = semesterService;
+    }
 
     /**
      * 课程详情：按 id 缓存（课程元信息更新频率低，命中率高的读路径）。
@@ -57,7 +73,19 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     public boolean save(Course entity) {
         log.info("保存课程");
 
-        return super.save(entity);
+        // 4A（V17）：课程编号在学期内唯一的前提是课程归属学期——未显式指定时解析当前 ACTIVE 学期；
+        // 无任何 ACTIVE 学期时保持 null（V17 的 NOT NULL 收紧只对回填后的存量生效，新链路缺学期即建课失败
+        // 属数据门禁，不在本处静默兜底），唯一键对其不约束（MySQL 唯一索引对 NULL 不去重）。
+        if (entity.getSemesterId() == null) {
+            semesterService.listByStatus("ACTIVE").stream()
+                    .findFirst()
+                    .ifPresent(active -> entity.setSemesterId(active.getId()));
+        }
+        boolean saved = super.save(entity);
+        if (saved) {
+            defaultTeachingClassSync.sync(entity);
+        }
+        return saved;
     }
 
     @Override
@@ -70,7 +98,11 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     public boolean updateById(Course entity) {
         log.info("更新课程");
 
-        return super.updateById(entity);
+        boolean updated = super.updateById(entity);
+        if (updated) {
+            defaultTeachingClassSync.sync(entity);
+        }
+        return updated;
     }
 
     @Override
@@ -107,9 +139,11 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         // 修复（2026-09-14）：显式落定初始状态，不再依赖 DDL 默认值。
         // 原实现仅 save()，DB 虽按默认值落库 PENDING/active，但返回体不回显这些字段
         // （实体未回填），前端若据响应判断状态会得到 null 而误判；显式赋值使「响应体 = 落库值」。
-        if (course.getApprovalStatus() == null) {
-            course.setApprovalStatus("PENDING");
-        }
+        // V13 审批流水：创建一律进入 PENDING，忽略客户端传入的审批状态/审批人，防止绕过审批。
+        course.setApprovalStatus("PENDING");
+        course.setApprovedBy(null);
+        course.setApprovalComment(null);
+        course.setApprovalTime(null);
         if (course.getStatus() == null) {
             course.setStatus("ACTIVE");
         }
@@ -216,6 +250,30 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
     }
 
 
+    /** 审批通过课程并记录审批人 */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = "courses", key = "#id"),
+            @CacheEvict(cacheNames = "courses", key = "'all'")
+    })
+    public Course approveCourse(Long id, Long operatorId) {
+        Course before = this.getById(id);
+        if (before == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+        }
+        // 重复审批保持幂等：已通过时不覆盖原审批人
+        boolean alreadyApproved = "APPROVED".equalsIgnoreCase(before.getApprovalStatus())
+                && "ACTIVE".equalsIgnoreCase(before.getStatus());
+        Course course = approveCourse(id);
+        if (!alreadyApproved && operatorId != null && !operatorId.equals(course.getApprovedBy())) {
+            course.setApprovedBy(operatorId);
+            this.updateById(course);
+        }
+        return course;
+    }
+
+
     /** 切换课程 */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -260,6 +318,31 @@ public class CourseServiceImpl extends ServiceImpl<CourseMapper, Course> impleme
         if (reason != null) {
             course.setApprovalComment(reason);
         }
+        this.updateById(course);
+        return course;
+    }
+
+    /** 重新提交被驳回的课程：仅允许 REJECTED → PENDING */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @Caching(evict = {
+            @CacheEvict(cacheNames = "courses", key = "#id"),
+            @CacheEvict(cacheNames = "courses", key = "'all'")
+    })
+    public Course resubmitCourse(Long id) {
+        log.info("重新提交课程");
+        Course course = this.getById(id);
+        if (course == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+        }
+        if (!"REJECTED".equalsIgnoreCase(course.getApprovalStatus())) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "仅驳回状态的课程可重新提交");
+        }
+        course.setApprovalStatus("PENDING");
+        course.setStatus("ACTIVE");
+        course.setApprovalComment(null);
+        course.setApprovedBy(null);
+        course.setApprovalTime(null);
         this.updateById(course);
         return course;
     }

@@ -19,10 +19,24 @@ public interface AnalyticsService {
     Map<String, Object> getDashboard();
 
     /**
+     * 获取平台总览数据（院系口径）。
+     * @param collegeId 学院ID；null 表示校级
+     * @return 仪表盘统计数据
+     */
+    Map<String, Object> getDashboard(Long collegeId);
+
+    /**
      * 获取平台综合总览（增强版：含活跃度、完成率等）
      * @return 平台总览数据
      */
     Map<String, Object> getPlatformOverview();
+
+    /**
+     * 获取平台综合总览（院系口径）。
+     * @param collegeId 学院ID；null 表示校级
+     * @return 平台总览数据
+     */
+    Map<String, Object> getPlatformOverview(Long collegeId);
 
     /**
      * 获取个人学习数据概览
@@ -55,6 +69,14 @@ public interface AnalyticsService {
     List<Map<String, Object>> getPlatformHeatmap(int days);
 
     /**
+     * 获取平台级热力图数据（院系口径）。
+     * @param days 统计天数
+     * @param collegeId 学院ID；null 表示校级
+     * @return 热力图数据列表 [dayOfWeek, hour, count]
+     */
+    List<Map<String, Object>> getPlatformHeatmap(int days, Long collegeId);
+
+    /**
      * 获取课程成绩分布（基础版）
      * @param courseId 课程ID
      * @return 成绩分布数据
@@ -82,11 +104,33 @@ public interface AnalyticsService {
     List<Map<String, Object>> getCourseRanking();
 
     /**
+     * 教学监督 / 成绩概览共用聚合（2026-11-07 全量实现批）：每课的
+     * 在学人数、平均进度/总评、预警数、进行中考试、待批阅提交。
+     * @return 每课一行，按学生数降序
+     */
+    List<Map<String, Object>> getTeachingSummary();
+
+    /**
+     * 获取热门课程排行（院系口径）。
+     * @param collegeId 学院ID；null 表示校级
+     * @return 课程排行榜列表
+     */
+    List<Map<String, Object>> getCourseRanking(Long collegeId);
+
+    /**
      * 获取用户增长趋势（按天统计新增用户）
      * @param days 统计天数
      * @return 用户增长趋势数据
      */
     List<Map<String, Object>> getUserGrowthTrend(int days);
+
+    /**
+     * 获取用户增长趋势（院系口径）。
+     * @param days 统计天数
+     * @param collegeId 学院ID；null 表示校级
+     * @return 用户增长趋势数据
+     */
+    List<Map<String, Object>> getUserGrowthTrend(int days, Long collegeId);
 
     /**
      * 获取考试统计详情
@@ -112,6 +156,19 @@ public interface AnalyticsService {
      * @return 挂科风险数据
      */
     Map<String, Object> getAtRiskStudents(String groupBy, Long courseId, String department, String major, Long classId);
+
+    /**
+     * 获取挂科风险学生列表（院系口径）。
+     * @param groupBy 分组维度（class/department/major）
+     * @param courseId 课程ID（可选）
+     * @param department 院系（可选）
+     * @param major 专业（可选）
+     * @param classId 班级ID（可选）
+     * @param collegeId 学院ID；null 表示校级
+     * @return 挂科风险数据
+     */
+    Map<String, Object> getAtRiskStudents(String groupBy, Long courseId, String department, String major,
+                                          Long classId, Long collegeId);
 
     /**
      * 导出教学报告

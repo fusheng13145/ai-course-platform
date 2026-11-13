@@ -8,6 +8,7 @@ import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.ExamPaper;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.AnalyticsService;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
@@ -40,15 +41,18 @@ public class AnalyticsController {
     private final CourseService courseService;
     private final CourseEnrollmentService courseEnrollmentService;
     private final ExamPaperService examPaperService;
+    private final AdminScopeGuard adminScopeGuard;
 
     public AnalyticsController(AnalyticsService analyticsService,
                                CourseService courseService,
                                CourseEnrollmentService courseEnrollmentService,
-                               ExamPaperService examPaperService) {
+                               ExamPaperService examPaperService,
+                               AdminScopeGuard adminScopeGuard) {
         this.analyticsService = analyticsService;
         this.courseService = courseService;
         this.courseEnrollmentService = courseEnrollmentService;
         this.examPaperService = examPaperService;
+        this.adminScopeGuard = adminScopeGuard;
     }
 
     /**
@@ -66,11 +70,15 @@ public class AnalyticsController {
                 throw new BusinessException(ApiCode.FORBIDDEN, "无权查看其他教师的仪表盘");
             }
             teacherId = currentUserId;
+        } else if (adminScopeGuard.isCollegeAdmin() && teacherId != null) {
+            adminScopeGuard.assertUserAccessById(teacherId);
         }
         log.debug("查询数据大盘 teacherId={}", teacherId);
         Map<String, Object> data;
         if (teacherId != null) {
             data = analyticsService.getTeacherDashboard(teacherId);
+        } else if (adminScopeGuard.isCollegeAdmin()) {
+            data = analyticsService.getDashboard(adminScopeGuard.currentCollegeId());
         } else {
             data = analyticsService.getDashboard();
         }
@@ -84,7 +92,9 @@ public class AnalyticsController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "获取平台综合总览", description = "返回用户数、活跃度、完成率等多维度平台运营数据")
     public ApiResponse<Map<String, Object>> platformOverview() {
-        Map<String, Object> data = analyticsService.getPlatformOverview();
+        Map<String, Object> data = adminScopeGuard.isCollegeAdmin()
+                ? analyticsService.getPlatformOverview(adminScopeGuard.currentCollegeId())
+                : analyticsService.getPlatformOverview();
         return ApiResponse.success(data);
     }
 
@@ -143,7 +153,9 @@ public class AnalyticsController {
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<List<Map<String, Object>>> platformHeatmap(
             @Parameter(description = "统计天数（默认30天）") @RequestParam(defaultValue = "30") int days) {
-        List<Map<String, Object>> data = analyticsService.getPlatformHeatmap(days);
+        List<Map<String, Object>> data = adminScopeGuard.isCollegeAdmin()
+                ? analyticsService.getPlatformHeatmap(days, adminScopeGuard.currentCollegeId())
+                : analyticsService.getPlatformHeatmap(days);
         return ApiResponse.success(data);
     }
 
@@ -227,8 +239,21 @@ public class AnalyticsController {
     @GetMapping("/courses/ranking")
     @Operation(summary = "获取热门课程排行", description = "按选课人数降序排列，返回前20门热门课程及其选课数")
     public ApiResponse<List<Map<String, Object>>> courseRanking() {
-        List<Map<String, Object>> data = analyticsService.getCourseRanking();
+        List<Map<String, Object>> data = adminScopeGuard.isCollegeAdmin()
+                ? analyticsService.getCourseRanking(adminScopeGuard.currentCollegeId())
+                : analyticsService.getCourseRanking();
         return ApiResponse.success(data);
+    }
+
+    /**
+     * 教学监督 / 成绩概览共用聚合（2026-11-07 全量实现批，管理员只读）。
+     * <p>每课一行：在学人数、平均进度/总评、预警数、进行中考试、待批阅提交。</p>
+     */
+    @GetMapping("/teaching-summary")
+    @Operation(summary = "教学运行总览", description = "按课程聚合在学人数、平均进度/总评、预警数、进行中考试、待批阅提交；管理员只读")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ApiResponse<List<Map<String, Object>>> teachingSummary() {
+        return ApiResponse.success(analyticsService.getTeachingSummary());
     }
 
     /**
@@ -239,7 +264,9 @@ public class AnalyticsController {
     @Operation(summary = "获取用户增长趋势", description = "按天统计最近N天的新增注册用户数和累计用户总数")
     public ApiResponse<List<Map<String, Object>>> userGrowthTrend(
             @Parameter(description = "统计天数（默认30天）") @RequestParam(defaultValue = "30") int days) {
-        List<Map<String, Object>> data = analyticsService.getUserGrowthTrend(days);
+        List<Map<String, Object>> data = adminScopeGuard.isCollegeAdmin()
+                ? analyticsService.getUserGrowthTrend(days, adminScopeGuard.currentCollegeId())
+                : analyticsService.getUserGrowthTrend(days);
         return ApiResponse.success(data);
     }
 
@@ -258,6 +285,12 @@ public class AnalyticsController {
                 throw new BusinessException(ApiCode.NOT_FOUND, "试卷不存在");
             }
             assertCourseOwner(examPaper.getCourseId(), auth);
+        } else if (adminScopeGuard.isCollegeAdmin()) {
+            ExamPaper examPaper = examPaperService.getById(examPaperId);
+            if (examPaper == null) {
+                throw new BusinessException(ApiCode.NOT_FOUND, "试卷不存在");
+            }
+            assertCollegeCourseAccess(examPaper.getCourseId());
         }
         Map<String, Object> data = analyticsService.getExamStatistics(examPaperId);
         return ApiResponse.success(data);
@@ -275,7 +308,13 @@ public class AnalyticsController {
             @Parameter(description = "院系（可选过滤）") @RequestParam(required = false) String department,
             @Parameter(description = "专业（可选过滤）") @RequestParam(required = false) String major,
             @Parameter(description = "班级ID（可选过滤）") @RequestParam(required = false) Long classId) {
-        Map<String, Object> data = analyticsService.getAtRiskStudents(groupBy, courseId, department, major, classId);
+        if (adminScopeGuard.isCollegeAdmin() && courseId != null) {
+            assertCollegeCourseAccess(courseId);
+        }
+        Map<String, Object> data = adminScopeGuard.isCollegeAdmin()
+                ? analyticsService.getAtRiskStudents(groupBy, courseId, department, major, classId,
+                        adminScopeGuard.currentCollegeId())
+                : analyticsService.getAtRiskStudents(groupBy, courseId, department, major, classId);
         return ApiResponse.success(data);
     }
 
@@ -293,9 +332,12 @@ public class AnalyticsController {
         return ApiResponse.success(data);
     }
 
-    /** 教师只能查看自己课程中的学生学情；管理员可跨课程查看。 */
+    /** 教师只能查看自己课程中的学生学情；管理员按作用域查看（院系仅本院课程，校级跨课程）。 */
     private void assertCourseOwner(Long courseId, Authentication auth) {
-        if (isAdmin(auth)) return;
+        if (isAdmin(auth)) {
+            assertCollegeCourseAccess(courseId);
+            return;
+        }
 
         Course course = courseService.getById(courseId);
         if (course == null) {
@@ -307,6 +349,21 @@ public class AnalyticsController {
         }
     }
 
+    /**
+     * 院系管理员课程作用域校验；校级管理员放行。
+     * @param courseId 课程ID
+     */
+    private void assertCollegeCourseAccess(Long courseId) {
+        if (!adminScopeGuard.isCollegeAdmin()) {
+            return;
+        }
+        Course course = courseService.getById(courseId);
+        if (course == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "课程不存在");
+        }
+        adminScopeGuard.assertCourseAccess(course);
+    }
+
     private boolean isAdmin(Authentication auth) {
         return auth.getAuthorities().stream()
                 .anyMatch(authority -> "ROLE_ADMIN".equals(authority.getAuthority()));
@@ -314,7 +371,11 @@ public class AnalyticsController {
 
     private void assertCanViewStudentAnalytics(Long studentId, Authentication auth) {
         Long currentUserId = (Long) auth.getPrincipal();
-        if (isAdmin(auth) || currentUserId.equals(studentId)) return;
+        if (isAdmin(auth)) {
+            adminScopeGuard.assertUserAccessById(studentId);
+            return;
+        }
+        if (currentUserId.equals(studentId)) return;
         boolean isTeacher = auth.getAuthorities().stream()
                 .anyMatch(authority -> "ROLE_TEACHER".equals(authority.getAuthority()));
         if (isTeacher && courseEnrollmentService.hasApprovedEnrollmentWithTeacher(studentId, currentUserId)) return;

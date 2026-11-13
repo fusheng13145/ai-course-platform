@@ -1,10 +1,14 @@
 package com.aicourse.controller;
 import com.aicourse.controller.UserSessionController;
 import com.aicourse.service.UserSessionService;
+import com.aicourse.entity.User;
 import com.aicourse.entity.UserSession;
+import com.aicourse.security.AdminScopeGuard;
+import com.aicourse.service.UserService;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
@@ -20,10 +24,27 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 对带有 @PreAuthorize 的端点新增越权 403 测试（含 ADMIN/TEACHER 限定、以及 owner-or-principal 限定）。
  */
 @WebMvcTest(UserSessionController.class)
+@Import(AdminScopeGuard.class)
 class UserSessionControllerTest extends ControllerTestBase {
 
     @MockitoBean
     private com.aicourse.service.UserSessionService userSessionService;
+    @MockitoBean
+    private UserService userService;
+
+    private User user(Long id, Long collegeId, String role) {
+        User u = new User();
+        u.setId(id);
+        u.setCollegeId(collegeId);
+        u.setRole(role);
+        return u;
+    }
+
+    private void collegeAdminScoped(List<User> collegeUsers) {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
+        when(userService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
+                .thenReturn(collegeUsers);
+    }
 
     private UserSession sampleSession(Long id, Long userId) {
         UserSession s = new UserSession();
@@ -116,6 +137,60 @@ class UserSessionControllerTest extends ControllerTestBase {
                 .andExpect(status().isUnauthorized());
     }
 
+
+    @Test
+    @DisplayName("GET /user-sessions/online - 院系管理员 403（8A：会话监视先 403，WP9 收紧；TEACHER 一并摘除）")
+    void getOnlineUsers_collegeAdmin_forbidden() throws Exception {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
+
+        mockMvc.perform(get("/user-sessions/online").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden());
+        verify(userSessionService, never()).list();
+    }
+
+    @Test
+    @DisplayName("GET /user-sessions/online - TEACHER 不再可枚举全站在线会话（WP9 收紧）")
+    void getOnlineUsers_teacher_forbidden() throws Exception {
+        mockMvc.perform(get("/user-sessions/online").with(withUser(5L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(userSessionService, never()).list();
+    }
+
+    @Test
+    @DisplayName("GET /user-sessions/stats - 院系管理员 403（8A）")
+    void getSessionStats_collegeAdmin_forbidden() throws Exception {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
+
+        mockMvc.perform(get("/user-sessions/stats").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden());
+        verify(userSessionService, never()).getOnlineUserCount();
+        verify(userSessionService, never()).cleanExpiredSessions();
+    }
+
+    @Test
+    @DisplayName("GET /user-sessions/user/2 - 院系管理员访问外院用户 403")
+    void getSessionHistory_collegeAdmin_otherCollege_403() throws Exception {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
+        when(userService.getById(2L)).thenReturn(user(2L, 11L, "STUDENT"));
+
+        mockMvc.perform(get("/user-sessions/user/2").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(userSessionService, never()).getSessionHistory(anyLong());
+    }
+
+    @Test
+    @DisplayName("DELETE /user-sessions/9/force-logout - 院系管理员强制下线外院会话 403")
+    void forceLogout_collegeAdmin_otherCollege_403() throws Exception {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
+        when(userService.getById(2L)).thenReturn(user(2L, 11L, "STUDENT"));
+        when(userSessionService.getById(9L)).thenReturn(sampleSession(9L, 2L));
+
+        mockMvc.perform(delete("/user-sessions/9/force-logout").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(userSessionService, never()).forceLogout(anyLong());
+    }
 
     @Test
     @DisplayName("GET /user-sessions/stats - 返回200且会话统计透传")

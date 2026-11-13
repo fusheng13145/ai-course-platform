@@ -45,9 +45,21 @@ public class HttpKnowledgeGraphProvider implements KnowledgeGraphContract {
     private final int defaultMaxHops;
     private final KnowledgeGraphContract localFallback;
 
+    /** 服务间内部认证头（2026-11-07 验收整改批）：与 Python 端约定常量保持逐字一致 */
+    public static final String INTERNAL_KEY_HEADER = "X-Internal-Key";
+
+    /**
+     * 兼容旧签名（internalApiKey 为空：不附带内部认证头），供既有单测直构使用。
+     */
     public HttpKnowledgeGraphProvider(String baseUrl, int connectTimeout, int readTimeout,
                                       int maxRetries, String healthPath, int defaultMaxHops,
                                       KnowledgeGraphContract localFallback) {
+        this(baseUrl, connectTimeout, readTimeout, maxRetries, healthPath, defaultMaxHops, localFallback, "");
+    }
+
+    public HttpKnowledgeGraphProvider(String baseUrl, int connectTimeout, int readTimeout,
+                                      int maxRetries, String healthPath, int defaultMaxHops,
+                                      KnowledgeGraphContract localFallback, String internalApiKey) {
         this.maxRetries = maxRetries;
         this.healthPath = healthPath;
         this.defaultMaxHops = Math.max(defaultMaxHops, 1);
@@ -56,11 +68,16 @@ public class HttpKnowledgeGraphProvider implements KnowledgeGraphContract {
         var factory = new SimpleClientHttpRequestFactory();
         factory.setConnectTimeout(Duration.ofSeconds(connectTimeout));
         factory.setReadTimeout(Duration.ofSeconds(readTimeout));
-        this.restClient = RestClient.builder()
+        var builder = RestClient.builder()
                 .baseUrl(baseUrl)
                 .requestFactory(factory)
-                .defaultHeader("Content-Type", "application/json")
-                .build();
+                .defaultHeader("Content-Type", "application/json");
+        // 服务间内部认证（可选）：internalApiKey 非空时对全部请求附带 X-Internal-Key，
+        // Python 端在 INTERNAL_API_KEY 配置一致时校验；为空时不发送（本机裸跑保持直连）。
+        if (internalApiKey != null && !internalApiKey.isBlank()) {
+            builder = builder.defaultHeader(INTERNAL_KEY_HEADER, internalApiKey);
+        }
+        this.restClient = builder.build();
     }
 
     @Override

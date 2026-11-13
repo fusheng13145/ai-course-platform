@@ -54,6 +54,17 @@ public class ExamPaper {
     private String status;
 
     /**
+     * 可见范围（V15 / WP6）：COURSE-课程全部教学班（默认），CLASSES-仅目标教学班
+     */
+    private String visibility;
+
+    /**
+     * 目标教学班ID（非本表字段）：表单提交/详情回显用，落库到 exam_teaching_classes
+     */
+    @TableField(exist = false)
+    private java.util.List<Long> teachingClassIds;
+
+    /**
      * 考试须知
      */
     private String instructions;

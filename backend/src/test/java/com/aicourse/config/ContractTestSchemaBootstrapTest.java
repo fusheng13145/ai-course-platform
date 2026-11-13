@@ -19,7 +19,7 @@ import org.springframework.core.io.support.PathMatchingResourcePatternResolver;
  *
  * <p><b>背景（真实缺陷，不是假想）</b>：契约测试 profile 刻意关闭 Flyway，改由
  * {@code spring.sql.init.schema-locations} 重建测试库。该清单此前**只列 V1**，
- * 于是 V2 起的全部结构迁移在契约测试库里从未生效——缺口自 V8 起就潜伏，
+ * 于是 起的全部结构迁移在契约测试库里从未生效——缺口自 V8 起就潜伏，
  * 直到 V11 给 {@code users} 加列才爆发：`User` 实体会 SELECT 新列，
  * 而测试库没有这些列，{@code ApiContractTest} 11 个用例在**上下文加载阶段**
  * 全部报 {@code Unknown column 'ban_reason' in 'field list'}。</p>
@@ -74,7 +74,7 @@ class ContractTestSchemaBootstrapTest {
      * 本用例把"后加表必须可从测试库清掉（V1 清单或前置清理脚本二选一覆盖）"钉死。
      */
     @Test
-    @DisplayName("后加表必须可清理：V2+ 的每个 CREATE TABLE 都要有对应的幂等 DROP")
+    @DisplayName("后加表必须可清理：+ 的每个 CREATE TABLE 都要有对应的幂等 DROP")
     void postV1TablesAreDroppableBeforeRecreate() throws IOException {
         Set<String> droppable = new LinkedHashSet<>();
         droppable.addAll(droppedTables(readResource("db/migration/V1__init_schema.sql")));
@@ -103,7 +103,7 @@ class ContractTestSchemaBootstrapTest {
                 .isEmpty();
     }
 
-    /** V2+ 建表必须可清理；前置清理脚本路径（测试专属资源，刻意不放进 db/migration 以免 Flyway 误扫）。 */
+    /** + 建表必须可清理；前置清理脚本路径（测试专属资源，刻意不放进 db/migration 以免 Flyway 误扫）。 */
     private static final String DROP_ADDENDUM = "contract-test/00-drop-post-v1-tables.sql";
 
     private String readResource(String classpathLocation) throws IOException {

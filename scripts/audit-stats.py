@@ -75,6 +75,36 @@ def read(path: str) -> str:
         return f.read()
 
 
+def read_source(path: str, label: str) -> str:
+    """读「结构统计的唯一源文件」，文件不存在时给出可读诊断而不是 FileNotFoundError。
+
+    为什么要有这一条：2026-11-04 前端从 `src/v2` 迁到 `src/ui` 后，本脚本仍硬编码
+    `src/router/index.ts`，于是每次跑都抛裸 FileNotFoundError——读者只会看到栈，
+    看不出「是源文件搬家了」还是「计数口径坏了」。结构源一旦迁移，这里必须**显式失败并点名**，
+    不允许静默返回 0（静默 0 会让手册数字无声变假）。
+    """
+    if not os.path.exists(path):
+        try:
+            rel = os.path.relpath(path, ROOT).replace("\\", "/")
+        except ValueError:
+            # Windows：源路径与仓库不在同一盘符时 relpath 无法相对化（CI 的 windows runner 上
+            # pytest tmp_path 在 C:、仓库在 D:）。退回绝对路径，让原始诊断照常给出，
+            # 而不是被「格式化报错路径」这一步的 ValueError 顶掉。
+            rel = str(path).replace("\\", "/")
+        raise SystemExit(
+            f"[audit-stats] 统计源缺失：{label}\n"
+            f"  期望路径：{rel}\n"
+            f"  处理方式：若该文件确已迁移，请更新本脚本 audit() 中的源路径后重跑；\n"
+            f"            不要用 0 或空结果代替（那会让手册读数静默失真）。"
+        )
+    return read(path)
+
+
+# 前端路由源：当前唯一入口是 `src/ui/router.ts`（`src/router/index.ts` 已随旧端下线摘除）。
+# 保留候选列表只为让「又搬了一次家」时仍能报出可读诊断，而不是猜一个路径。
+FRONT_ROUTE_SOURCES = ["src/ui/router.ts", "src/router/index.ts"]
+
+
 def strip_comment_lines(text: str) -> str:
     """按行剔注释：整行注释丢弃；注释收尾符 `*/` 后若还挂着代码（`*/  @PostMapping(...)`），
     保留该代码段——否则行上的注解会被静默漏计。本函数是全部注解计数的唯一口径入口。"""
@@ -178,7 +208,14 @@ def audit() -> dict:
     d["frontend_test_ts"] = len(walk_files(os.path.join(FRONT, "src"), lambda f: f.endswith(".test.ts")))
     d["frontend_test_js"] = len(walk_files(os.path.join(FRONT, "src"), lambda f: f.endswith(".test.js")))
     d["frontend_api_modules"] = len(walk_files(os.path.join(FRONT, "src/api"), lambda f: f.endswith(".ts") and not f.endswith(".test.ts")))
-    d["frontend_routes"] = len(re.findall(r"\bpath:\s*[\'\"`]", read(os.path.join(FRONT, "src/router/index.ts"))))
+    # 路由条数：口径仍是「`path:` 后接引号的字面量」，与手册「前端路由 path: 条数」一一对应；
+    # TS 类型签名 `path: string,` 因冒号后不是引号而天然不计入。
+    route_src = next(
+        (os.path.join(FRONT, p) for p in FRONT_ROUTE_SOURCES if os.path.exists(os.path.join(FRONT, p))),
+        os.path.join(FRONT, FRONT_ROUTE_SOURCES[0]),
+    )
+    d["frontend_routes"] = len(re.findall(r"\bpath:\s*['\"`]", read_source(route_src, "前端路由表")))
+    d["frontend_route_source"] = os.path.relpath(route_src, ROOT).replace("\\", "/")
     d["frontend_e2e_specs"] = len(glob.glob(os.path.join(FRONT, "e2e/**/*.spec.ts"), recursive=True))
 
     # ---------------- CI / 监控 ----------------
@@ -403,6 +440,7 @@ LABELS = {
     "frontend_test_js": "前端 .test.js（应为 0）",
     "frontend_api_modules": "前端 api/ 模块 .ts（含 test 则口径不同）",
     "frontend_routes": "前端路由 path: 条数",
+    "frontend_route_source": "前端路由统计源（相对仓库根）",
     "frontend_e2e_specs": "Playwright e2e spec 文件数",
     "ci_workflow_files": "CI 工作流文件数",
     "ci_jobs": "ci.yml 作业数（jobs: 下 2 空格键）",

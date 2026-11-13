@@ -118,6 +118,64 @@ class PermissionServiceImplTest {
         verify(rolePermissionMapper).selectList(any());
     }
 
+    // ===================== getRolePermissions（V12 作用域） =====================
+    @Test
+    @DisplayName("校级管理员权限范围 = ALL + SCHOOL")
+    void getRolePermissions_schoolAdmin() {
+        when(rolePermissionMapper.selectList(any())).thenReturn(Collections.singletonList(new RolePermission()));
+
+        service.getRolePermissions("ADMIN", "SCHOOL");
+
+        java.util.Map<String, Object> params = capturedWrapperParams();
+        assertTrue(params.containsValue("ALL"), "必须包含 ALL 范围");
+        assertTrue(params.containsValue("SCHOOL"), "校级管理员必须包含 SCHOOL 范围");
+        org.junit.jupiter.api.Assertions.assertFalse(params.containsValue("COLLEGE"),
+                "校级管理员不得包含 COLLEGE 范围");
+    }
+
+    @Test
+    @DisplayName("院系管理员权限范围 = ALL + COLLEGE")
+    void getRolePermissions_collegeAdmin() {
+        when(rolePermissionMapper.selectList(any())).thenReturn(Collections.singletonList(new RolePermission()));
+
+        service.getRolePermissions("ADMIN", "COLLEGE");
+
+        java.util.Map<String, Object> params = capturedWrapperParams();
+        assertTrue(params.containsValue("ALL"));
+        assertTrue(params.containsValue("COLLEGE"));
+        org.junit.jupiter.api.Assertions.assertFalse(params.containsValue("SCHOOL"));
+    }
+
+    @Test
+    @DisplayName("非管理员只取 ALL，忽略误写的 admin_scope")
+    void getUserPermissions_teacherIgnoresScope() {
+        User user = new User();
+        user.setId(1L);
+        user.setRole("TEACHER");
+        user.setAdminScope("COLLEGE");
+        when(userService.getById(1L)).thenReturn(user);
+        when(rolePermissionMapper.selectList(any())).thenReturn(Collections.emptyList());
+
+        service.getUserPermissions(1L);
+
+        java.util.Map<String, Object> params = capturedWrapperParams();
+        assertTrue(params.containsValue("ALL"));
+        org.junit.jupiter.api.Assertions.assertFalse(params.containsValue("COLLEGE"),
+                "非 ADMIN 不得按 admin_scope 取权限");
+    }
+
+    @SuppressWarnings({"rawtypes", "unchecked"})
+    private java.util.Map<String, Object> capturedWrapperParams() {
+        org.mockito.ArgumentCaptor<com.baomidou.mybatisplus.core.conditions.Wrapper> captor =
+                org.mockito.ArgumentCaptor.forClass(com.baomidou.mybatisplus.core.conditions.Wrapper.class);
+        verify(rolePermissionMapper).selectList(captor.capture());
+        com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<?> wrapper =
+                (com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<?>) captor.getValue();
+        // Mapper 是 mock，SQL 不会真正生成；显式触发 SQL 片段生成后参数才会写入 paramNameValuePairs
+        wrapper.getSqlSegment();
+        return wrapper.getParamNameValuePairs();
+    }
+
     // ===================== 写操作委托 =====================
     @Test
     @DisplayName("save/updateById/removeById 委托 Mapper 返回结果")

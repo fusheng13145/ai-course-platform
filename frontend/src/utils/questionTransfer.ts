@@ -10,7 +10,7 @@ import questionApi from '@/api/question'
  * 表头约定（8 列）：题型 / 题干 / 选项(JSON) / 正确答案 / 难度 / 分值 / 知识点 / 解析。</p>
  *
  * <p>旧端由 `composables/useQuestionTransfer.ts` 注入 Element Plus 宿主，
- * v2 页面注入自有 toast；提示文案与文件契约只在本模块维护一份。</p>
+ * 页面注入自有 toast；提示文案与文件契约只在本模块维护一份。</p>
  */
 export interface QuestionTransferNotify {
   /** 常驻提示（导出/导入进行中） */

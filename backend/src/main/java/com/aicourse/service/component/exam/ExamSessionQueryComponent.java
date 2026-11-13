@@ -1,13 +1,18 @@
 package com.aicourse.service.component.exam;
 
 import com.aicourse.constant.ExamSessionStatus;
+import com.aicourse.entity.Course;
 import com.aicourse.entity.ExamPaper;
 import com.aicourse.entity.ExamQuestion;
 import com.aicourse.entity.ExamSession;
+import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ExamSessionMapper;
+import com.aicourse.service.CourseService;
 import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamQuestionService;
+import com.aicourse.service.UserService;
+import com.aicourse.vo.ActiveExamSessionVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
@@ -37,15 +42,21 @@ public class ExamSessionQueryComponent {
     private final ExamQuestionService examQuestionService;
     private final ExamSessionMapper examSessionMapper;
     private final ObjectMapper objectMapper;
+    private final CourseService courseService;
+    private final UserService userService;
 
     public ExamSessionQueryComponent(ExamPaperService examPaperService,
                                      ExamQuestionService examQuestionService,
                                      ExamSessionMapper examSessionMapper,
-                                     ObjectMapper objectMapper) {
+                                     ObjectMapper objectMapper,
+                                     CourseService courseService,
+                                     UserService userService) {
         this.examPaperService = examPaperService;
         this.examQuestionService = examQuestionService;
         this.examSessionMapper = examSessionMapper;
         this.objectMapper = objectMapper;
+        this.courseService = courseService;
+        this.userService = userService;
     }
 
     /**
@@ -102,12 +113,85 @@ public class ExamSessionQueryComponent {
     }
 
     /**
-     * 获取正在进行的考试列表
+     * 获取正在进行的考试列表（B-13 ⑤：VO 化，批量补全试卷名/课程/学生姓名）。
+     *
+     * <p>participantCount 口径＝同一 examPaperId 当前处于 STARTED 的会话数（不是课程总人数）。
+     * 试卷、课程或用户缺失时对应展示字段为 null，会话行本身仍返回，不因关联缺失丢行。</p>
      */
-    public List<ExamSession> getActiveExams() {
-        return examSessionMapper.selectList(new LambdaQueryWrapper<ExamSession>()
+    public List<ActiveExamSessionVO> getActiveExams() {
+        List<ExamSession> sessions = examSessionMapper.selectList(new LambdaQueryWrapper<ExamSession>()
                 .eq(ExamSession::getStatus, ExamSessionStatus.STARTED)
                 .orderByDesc(ExamSession::getStartTime));
+        if (sessions.isEmpty()) {
+            return new ArrayList<>();
+        }
+
+        Set<Long> paperIds = new HashSet<>();
+        Set<Long> studentIds = new HashSet<>();
+        for (ExamSession s : sessions) {
+            if (s.getExamPaperId() != null) paperIds.add(s.getExamPaperId());
+            if (s.getStudentId() != null) studentIds.add(s.getStudentId());
+        }
+
+        Map<Long, ExamPaper> paperById = new HashMap<>();
+        Set<Long> courseIds = new HashSet<>();
+        if (!paperIds.isEmpty()) {
+            for (ExamPaper p : examPaperService.listByIds(paperIds)) {
+                paperById.put(p.getId(), p);
+                if (p.getCourseId() != null) courseIds.add(p.getCourseId());
+            }
+        }
+        Map<Long, Course> courseById = new HashMap<>();
+        if (!courseIds.isEmpty()) {
+            for (Course c : courseService.listByIds(courseIds)) {
+                courseById.put(c.getId(), c);
+            }
+        }
+        Map<Long, User> userById = new HashMap<>();
+        if (!studentIds.isEmpty()) {
+            for (User u : userService.listByIds(studentIds)) {
+                userById.put(u.getId(), u);
+            }
+        }
+
+        Map<Long, Integer> participantByPaper = new HashMap<>();
+        for (ExamSession s : sessions) {
+            if (s.getExamPaperId() != null) {
+                participantByPaper.merge(s.getExamPaperId(), 1, Integer::sum);
+            }
+        }
+
+        List<ActiveExamSessionVO> result = new ArrayList<>(sessions.size());
+        for (ExamSession s : sessions) {
+            ActiveExamSessionVO vo = new ActiveExamSessionVO();
+            vo.setId(s.getId());
+            vo.setExamPaperId(s.getExamPaperId());
+            vo.setStudentId(s.getStudentId());
+            vo.setStatus(s.getStatus());
+            vo.setAttemptNumber(s.getAttemptNumber());
+            vo.setStartTime(s.getStartTime());
+            vo.setSubmitTime(s.getSubmitTime());
+            vo.setTimeSpent(s.getTimeSpent());
+            Integer participantCount = participantByPaper.get(s.getExamPaperId());
+            vo.setParticipantCount(participantCount == null ? Integer.valueOf(0) : participantCount);
+
+            ExamPaper paper = s.getExamPaperId() == null ? null : paperById.get(s.getExamPaperId());
+            if (paper != null) {
+                vo.setPaperTitle(paper.getTitle());
+                vo.setCourseId(paper.getCourseId());
+                Course course = paper.getCourseId() == null ? null : courseById.get(paper.getCourseId());
+                if (course != null) {
+                    vo.setCourseName(course.getName());
+                }
+            }
+            User student = s.getStudentId() == null ? null : userById.get(s.getStudentId());
+            if (student != null) {
+                vo.setStudentName(student.getFullName() != null && !student.getFullName().isBlank()
+                        ? student.getFullName() : student.getUsername());
+            }
+            result.add(vo);
+        }
+        return result;
     }
 
     /**

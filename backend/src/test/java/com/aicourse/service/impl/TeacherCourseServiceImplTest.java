@@ -166,6 +166,11 @@ class TeacherCourseServiceImplTest {
         when(submissionService.count(any(Wrapper.class))).thenReturn(2L);
         when(submissionService.list(any(Wrapper.class))).thenReturn(submissions);
         when(learningRecordService.list(any(Wrapper.class))).thenReturn(records);
+        // V7 批：趋势改走按日聚合（GROUP BY），桩空表即可（趋势 14 点全零，形状断言不受影响）
+        when(learningRecordService.dailyActiveByCourse(anyLong(), any(java.time.LocalDateTime.class)))
+                .thenReturn(java.util.List.of());
+        when(submissionService.dailySubmissionsByTasks(anyList(), any(java.time.LocalDateTime.class)))
+                .thenReturn(java.util.List.of());
         when(userService.list(any(Wrapper.class))).thenReturn(users);
         when(classroomService.listByIds(anyList())).thenReturn(classrooms);
         when(aiService.generateLearningAdviceJson(any(), any())).thenReturn("{\"summary\":\"OK\"}");
@@ -248,23 +253,57 @@ class TeacherCourseServiceImplTest {
     }
 
     @Test
-    @DisplayName("教师仪表盘V2-正常组装")
-    void dashboardV2_ok() {
+    @DisplayName("教师仪表盘-正常组装")
+    void dashboardOverview_ok() {
         stubCommon();
-        Map<String, Object> d = service.getTeacherDashboardV2(1L);
+        Map<String, Object> d = service.getTeacherDashboard(1L);
         assertNotNull(d.get("courseCount"));
         assertNotNull(d.get("courseCards"));
         assertNotNull(d.get("atRiskStudents"));
         assertNotNull(d.get("taskPointOverview"));
         assertNotNull(d.get("platformComparison"));
-        assertNotNull(d.get("aiOverview"));
+        // ⑯：主聚合不再同步调 LLM，AI 总览改由独立端点补数
+        assertFalse(d.containsKey("aiOverview"));
+        verify(aiService, never()).generateLearningAdviceJson(any(), any());
     }
 
     @Test
-    @DisplayName("教师仪表盘V2-无课程空集合")
-    void dashboardV2_noCourses() {
+    @DisplayName("教师 AI 总览-独立端点复用统计聚合")
+    void teacherAiOverview_ok() {
+        stubCommon();
+        Map<String, Object> ai = service.getTeacherAIOverview(1L);
+        assertTrue(String.valueOf(ai.get("summary")).contains("OK"));
+    }
+
+    @Test
+    @DisplayName("教师 AI 总览-模型异常返回兜底文案")
+    void teacherAiOverview_fallbackOnError() {
+        stubCommon();
+        when(aiService.generateLearningAdviceJson(any(), any())).thenThrow(new RuntimeException("boom"));
+        Map<String, Object> ai = service.getTeacherAIOverview(1L);
+        assertNotNull(ai.get("summary"));
+    }
+
+    @Test
+    @DisplayName("教师 AI 总览-独立入口复用同一统计口径并返回模型结果（B-13 ⑯）")
+    void teacherAiOverview_reusesAggregationAndCallsModel() {
+        stubCommon();
+        when(aiService.generateLearningAdviceJson(any(), any()))
+                .thenReturn("{\"summary\":\"本周两门课进度正常\"}");
+
+        Map<String, Object> overview = service.getTeacherAIOverview(1L);
+
+        assertEquals("本周两门课进度正常", overview.get("summary"));
+        verify(aiService).generateLearningAdviceJson(any(), any());
+        // 聚合里的 deferred 标记不得混进 AI 总览的返回
+        assertEquals(null, overview.get("deferred"));
+    }
+
+    @Test
+    @DisplayName("教师仪表盘-无课程空集合")
+    void dashboardOverview_noCourses() {
         when(courseService.list(any(Wrapper.class))).thenReturn(Collections.emptyList());
-        Map<String, Object> d = service.getTeacherDashboardV2(1L);
+        Map<String, Object> d = service.getTeacherDashboard(1L);
         assertEquals(0L, d.get("courseCount"));
         assertEquals(0L, d.get("studentCount"));
     }

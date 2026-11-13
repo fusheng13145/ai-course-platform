@@ -10,9 +10,11 @@ import com.aicourse.entity.ExamSession;
 import com.aicourse.entity.Question;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ExamSessionMapper;
+import com.aicourse.service.CourseService;
 import com.aicourse.service.ExamPaperService;
 import com.aicourse.service.ExamQuestionService;
 import com.aicourse.service.QuestionService;
+import com.aicourse.service.UserService;
 import com.aicourse.service.WrongQuestionService;
 import com.aicourse.service.component.exam.ExamSessionCheatingComponent;
 import com.aicourse.service.component.exam.ExamSessionLifecycleComponent;
@@ -71,11 +73,14 @@ class ExamSessionServiceTest {
         // 原兼容构造器已移除：内联其组件组装逻辑，再走主构造器（3 组件 + gradingService）
         ObjectMapper objectMapper = new ObjectMapper();
         ExamSessionLifecycleComponent lifecycleComponent =
-                new ExamSessionLifecycleComponent(examPaperService, null, objectMapper);
+                new ExamSessionLifecycleComponent(examPaperService, null,
+                        org.mockito.Mockito.mock(com.aicourse.service.component.org.TeachingClassSnapshotResolver.class),
+                        objectMapper);
         ExamSessionCheatingComponent cheatingComponent =
                 new ExamSessionCheatingComponent(examPaperService, null, objectMapper);
         ExamSessionQueryComponent queryComponent =
-                new ExamSessionQueryComponent(examPaperService, examQuestionService, null, objectMapper);
+                new ExamSessionQueryComponent(examPaperService, examQuestionService, null, objectMapper,
+                        mock(CourseService.class), mock(UserService.class));
         examSessionService = new ExamSessionServiceImpl(lifecycleComponent, cheatingComponent,
                 queryComponent, gradingService);
         ReflectionTestUtils.setField(examSessionService, "baseMapper", examSessionMapper);

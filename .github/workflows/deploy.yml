@@ -1,0 +1,166 @@
+# ============================================================
+# 生产部署骨架（挂账清单第 5 项）
+#
+# 状态：2026-11-05 新增。**未在真实主机执行过**：本仓库当前没有生产主机、
+#   SSH 凭据与 GHCR 读取令牌。下面的 secret/vars 名称即上线前必须配置的清单。
+#
+# 触发：仅 workflow_dispatch（人工选择 tag + 是否启用 Python 引擎），并在
+#   GitHub Environment "production" 上等待人工审批。不随 push 自动部署。
+#
+# 需要配置的 Repository secrets：
+#   DEPLOY_HOST           生产主机地址（如 10.0.0.12 或 deploy.example.com）
+#   DEPLOY_USER            SSH 用户名
+#   DEPLOY_SSH_KEY         SSH 私钥（ed25519，建议专用部署密钥）
+#   DEPLOY_KNOWN_HOSTS     主机指纹（ssh-keyscan 结果，防中间人）
+#   GHCR_READ_TOKEN        仅含 read:packages 的 PAT；用于主机 docker login ghcr.io
+#
+# 需要配置的 Repository variables（非密文）：
+#   DEPLOY_PATH            主机上的仓库目录（含 docker-compose.yml 与 .env）
+#   GHCR_USER              GHCR 登录用户名（通常是 GitHub 账号或机器人账号）
+#   DEPLOY_HEALTH_URL      上线后健康探针 URL（https://<域名>/api/actuator/health/probe）
+#
+# 主机侧前置（不在本 workflow 内）：
+#   - 已安装 Docker Engine + compose v2；
+#   - DEPLOY_PATH 下已有 .env，且 scripts/check-required-env.py 通过；
+#   - 反向代理已按 deploy/env.production.template 配置 HTTPS/Cookie/Origin；
+#   - 存量卷属主已用 scripts/fix-volume-owner.sh --apply 修复。
+# ============================================================
+name: Deploy (production skeleton)
+
+on:
+  workflow_dispatch:
+    inputs:
+      image_tag:
+        description: "GHCR 镜像 tag（与 release tag 一致，例如 v1.5.0）"
+        required: true
+        type: string
+      include_python:
+        description: "是否同时启动 Python 引擎（kg-service / rag-service / neo4j）"
+        required: true
+        default: true
+        type: boolean
+      skip_healthcheck:
+        description: "跳过健康探针（仅排障时使用；默认关闭）"
+        required: true
+        default: false
+        type: boolean
+
+permissions:
+  contents: read
+  packages: read
+
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate inputs and secrets
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+          GHCR_USER: ${{ vars.GHCR_USER }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          DEPLOY_HEALTH_URL: ${{ vars.DEPLOY_HEALTH_URL }}
+        run: |
+          missing=""
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY DEPLOY_KNOWN_HOSTS GHCR_READ_TOKEN GHCR_USER DEPLOY_PATH; do
+            eval "value=\${$name:-}"
+            [ -n "$value" ] || missing="$missing $name"
+          done
+          if [ -n "$missing" ]; then
+            echo "缺少以下 secret/variable：$missing"
+            echo "请按 workflow 头部注释配置后再触发。"
+            exit 1
+          fi
+          if [ "${{ inputs.skip_healthcheck }}" != "true" ] && [ -z "$DEPLOY_HEALTH_URL" ]; then
+            echo "缺少 DEPLOY_HEALTH_URL（或勾选 skip_healthcheck）"
+            exit 1
+          fi
+          case "${{ inputs.image_tag }}" in
+            *[!A-Za-z0-9._-]*) echo "image_tag 含非法字符"; exit 1 ;;
+          esac
+
+      - name: Configure SSH
+        env:
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+        run: |
+          install -m 700 -d ~/.ssh
+          printf '%s\n' "$DEPLOY_SSH_KEY" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          printf '%s\n' "$DEPLOY_KNOWN_HOSTS" > ~/.ssh/known_hosts
+          chmod 644 ~/.ssh/known_hosts
+
+      - name: Deploy on host (compose pull + up + health)
+        env:
+          DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ secrets.DEPLOY_USER }}
+          GHCR_READ_TOKEN: ${{ secrets.GHCR_READ_TOKEN }}
+          GHCR_USER: ${{ vars.GHCR_USER }}
+          DEPLOY_PATH: ${{ vars.DEPLOY_PATH }}
+          DEPLOY_HEALTH_URL: ${{ vars.DEPLOY_HEALTH_URL }}
+          GHCR_REPO: ghcr.io/${{ github.repository }}
+          IMAGE_TAG: ${{ inputs.image_tag }}
+          INCLUDE_PYTHON: ${{ inputs.include_python }}
+          SKIP_HEALTHCHECK: ${{ inputs.skip_healthcheck }}
+        run: |
+          ssh -i ~/.ssh/deploy_key -o IdentitiesOnly=yes -o BatchMode=yes \
+            "$DEPLOY_USER@$DEPLOY_HOST" \
+            "DEPLOY_PATH='$DEPLOY_PATH' GHCR_REPO='$GHCR_REPO' IMAGE_TAG='$IMAGE_TAG' \
+             GHCR_USER='$GHCR_USER' GHCR_READ_TOKEN='$GHCR_READ_TOKEN' \
+             INCLUDE_PYTHON='$INCLUDE_PYTHON' SKIP_HEALTHCHECK='$SKIP_HEALTHCHECK' \
+             DEPLOY_HEALTH_URL='$DEPLOY_HEALTH_URL' bash -s" <<'REMOTE'
+          set -eu
+          cd "$DEPLOY_PATH"
+
+          # backend/frontend 在 profiles: ["full"]，不启用 full 时它们不会被启动；
+          # python 引擎按输入追加。
+          PROFILE_ARGS="--profile full"
+          if [ "$INCLUDE_PYTHON" = "true" ]; then
+            PROFILE_ARGS="$PROFILE_ARGS --profile python"
+          fi
+
+          echo "[1/4] docker login ghcr.io"
+          printf '%s' "$GHCR_READ_TOKEN" | docker login ghcr.io -u "$GHCR_USER" --password-stdin
+
+          echo "[2/4] 拉取镜像（GHCR_REPO=$GHCR_REPO IMAGE_TAG=$IMAGE_TAG）"
+          # shellcheck disable=SC2086
+          docker compose $PROFILE_ARGS \
+            -f docker-compose.yml -f deploy/docker-compose.ghcr.yml pull
+
+          echo "[3/4] 启动（不重新构建）"
+          # shellcheck disable=SC2086
+          docker compose $PROFILE_ARGS \
+            -f docker-compose.yml -f deploy/docker-compose.ghcr.yml up -d --no-build
+
+          echo "[4/4] 容器状态"
+          # shellcheck disable=SC2086
+          docker compose $PROFILE_ARGS \
+            -f docker-compose.yml -f deploy/docker-compose.ghcr.yml ps
+
+          if [ "$SKIP_HEALTHCHECK" != "true" ]; then
+            echo "健康探针：$DEPLOY_HEALTH_URL"
+            for i in $(seq 1 10); do
+              if curl -fsS --max-time 5 "$DEPLOY_HEALTH_URL"; then
+                echo "健康探针通过"
+                exit 0
+              fi
+              echo "第 $i 次未通过，3 秒后重试"
+              sleep 3
+            done
+            echo "健康探针连续 10 次失败"
+            exit 1
+          fi
+          REMOTE

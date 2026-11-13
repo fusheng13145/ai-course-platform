@@ -95,7 +95,7 @@ defineExpose({ captureError })
   width: 48px;
   height: 48px;
   line-height: 48px;
-  border-radius: 50%;
+  border-radius: var(--r-circle);
   background: var(--danger, #b3261e);
   color: var(--surface, #ffffff);
   font-size: 24px;
@@ -123,8 +123,8 @@ defineExpose({ captureError })
 .error-details {
   margin-top: 12px;
   text-align: left;
-  background: var(--ac-bg);
-  border-radius: var(--ac-radius-sm);
+  background: var(--surface-2);
+  border-radius: var(--r-sm);
   padding: 8px;
 }
 
@@ -140,7 +140,7 @@ defineExpose({ captureError })
 .eb-btn {
   padding: 6px 14px;
   border: 1px solid var(--line-strong, #c9c7bd);
-  border-radius: 8px;
+  border-radius: var(--r-card);
   background: var(--surface, #fff);
   color: var(--ink-2, #4d5054);
   font: inherit;

@@ -1,6 +1,7 @@
 # ============================================================
 # AI 课程平台 - Docker Compose 编排
 # 服务：mysql / redis / backend / frontend
+#       + kg-service / rag-service / neo4j（Python 引擎，profiles: python；neo4j 亦属 rag）
 #       + mysql-backup（备份守护，profiles: ops）
 #       + prometheus / grafana / loki / promtail（监控+日志，profiles: monitor）
 #
@@ -82,6 +83,9 @@ x-labels-ops: &labels-ops
 x-labels-monitor: &labels-monitor
   <<: *labels-base
   aicourse.tier: monitor
+x-labels-python: &labels-python
+  <<: *labels-base
+  aicourse.tier: python
 
 services:
   mysql:
@@ -90,6 +94,11 @@ services:
     # 所以这个 pin 不改变行为，只是让「跑的是哪个补丁版」在文件里可见、可复现。
     image: mysql:8.4.11
     container_name: aicourse-mysql
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 1g
     labels:
       <<: *labels-infra
       aicourse.role: database
@@ -131,6 +140,11 @@ services:
   redis:
     image: redis:7.4.11-alpine
     container_name: aicourse-redis
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 384m
     labels:
       <<: *labels-infra
       aicourse.role: cache
@@ -181,6 +195,11 @@ services:
     # 也让 `docker rmi aicourse/backend:local` 之类的清理动作目标明确。
     image: aicourse/backend:local
     container_name: aicourse-backend
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 896m
     labels:
       <<: *labels-app
       aicourse.role: api
@@ -191,6 +210,15 @@ services:
         condition: service_healthy
       redis:
         condition: service_healthy
+      # D-A4 ②：Python 引擎随编排上线。required:false 保证 `--profile full`
+      # （不带 python profile）仍可单独起后端，行为与之前一致；带 python profile 时
+      # 后端会等 KG/RAG 健康后再启动，避免首屏请求打在未就绪引擎上。
+      kg-service:
+        condition: service_healthy
+        required: false
+      rag-service:
+        condition: service_healthy
+        required: false
     environment:
       SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/ai_course_platform?useSSL=false&allowPublicKeyRetrieval=true&serverTimezone=Asia/Shanghai&characterEncoding=utf8&useUnicode=true
       SPRING_DATASOURCE_USERNAME: aicourse_app
@@ -209,13 +237,41 @@ services:
       # 仅本地体验场景可在 .env 显式置 true（勿与 prod profile 同时使用）。
       DEMO_ACCOUNTS_ENABLED: ${DEMO_ACCOUNTS_ENABLED:-false}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      # 服务间内部认证（2026-11-07 验收整改批）：非空时 backend→KG/RAG/FT 附带 X-Internal-Key，
+      # 三个 Python 服务以同名变量校验，两端必须一致；为空（默认）不发送不校验。
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
       # 供应商与端点（DR-84）：默认值与 application.yaml 一致，不填行为不变；
       # 容器形态若要接自建网关，必须在此注入（同 DR-73 教训：yml 有落点而编排到不了＝调不动且不报错）。
       AI_PROVIDER: ${AI_PROVIDER:-deepseek}
       DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
       DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      # 本地 Ollama（AI_PROVIDER=ollama 时生效，无 API Key）。容器内 localhost 指容器自身，
+      # 访问宿主机 Ollama 用 host.docker.internal（Docker Desktop 默认支持）。
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-deepseek-r1:8b}
+      OLLAMA_THINK: ${OLLAMA_THINK:-}
       MAIL_USERNAME: ${MAIL_USERNAME:-}
       MAIL_PASSWORD: ${MAIL_PASSWORD:-}
+      # 2026-11-06 验收批补件（同 DR-73 教训）：yml 有落点而编排不注入＝调不动也不报错。
+      # 原先只注 USER/PASSWORD，HOST/PORT/SSL/STARTTLS/FROM_NAME 到不了容器，
+      # 容器形态恒用 smtp.qq.com:587 默认值；而 prod 已关掉「验证码回显到日志」的兜底，
+      # 通道配错时注册验证码会静默失败。默认值与 application.yaml 逐项一致，不设即旧行为。
+      MAIL_HOST: ${MAIL_HOST:-smtp.qq.com}
+      MAIL_PORT: ${MAIL_PORT:-587}
+      MAIL_SSL_ENABLE: ${MAIL_SSL_ENABLE:-false}
+      MAIL_STARTTLS_ENABLE: ${MAIL_STARTTLS_ENABLE:-true}
+      MAIL_FROM_NAME: ${MAIL_FROM_NAME:-AI 课程平台}
+      # OpenAI / 通义千问两条 provider 的通道键（application.yaml:285-291 真的在读）。
+      # 改前只注 DEEPSEEK_*/OLLAMA_*，AI_PROVIDER=openai|qwen 时编排里拿不到 Key ⇒ 静默 401。
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_BASE_URL: ${OPENAI_BASE_URL:-https://api.openai.com/v1}
+      OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      QWEN_API_KEY: ${QWEN_API_KEY:-}
+      QWEN_BASE_URL: ${QWEN_BASE_URL:-https://dashscope.aliyuncs.com/compatible-mode/v1}
+      QWEN_MODEL: ${QWEN_MODEL:-qwen-plus}
+      # 分片上传的中间态目录：application.yaml:465 读 FILE_CHUNK_DIR，默认 upload-chunks/。
+      # 改前该目录不在任何卷上，容器重建即丢全部断点续传进度（与 uploads 同类的旧缺陷）。
+      FILE_CHUNK_DIR: ${FILE_CHUNK_DIR:-/app/upload-chunks}
       # 安全开关：**默认安全**，不因本文件的部署形态把生产默认值降到 false。
       # ⚠️ 纠偏（2026-09-16）：原注释只写「本地 HTTP 联调由本机启动器经 local profile 放宽」，
       #   该句仅覆盖 start.bat 这条路径，对 `docker compose --profile full` **完全不适用** —— 这正是缺陷根源。
@@ -230,8 +286,13 @@ services:
       # ⚠ 2026-10-17 更正：本行旧文案写「后端已启用 forward-headers-strategy: framework」已过期——
       #   现行值是 **none**（backend/src/main/resources/application.yaml:131），协议修正改由
       #   config/TrustedForwardedProtoFilter 只读 X-Forwarded-Proto 完成（手册 DR-66）。
-      COOKIE_SECURE: ${COOKIE_SECURE:-false}
-      REQUIRE_HTTPS: ${REQUIRE_HTTPS:-false}
+      # 2026-11-06 验收批：这两键原先写作 `${VAR:-false}` —— 与本文件上方「默认安全」的
+      # 注释自相矛盾：TLS 终止反代之后只要忘记 .env，Cookie 就会退回非 Secure、
+      # REQUIRE_HTTPS 退回不强制，且 compose 一声不响。现在改为**必填**（与 6 个密钥键同策略）：
+      # 忘记设置就在 `docker compose config` 阶段失败，而不是上线后静默降级。
+      # 纯 HTTP 评估形态请显式写 false（.env.example 已给示例值）。
+      COOKIE_SECURE: ${COOKIE_SECURE:?COOKIE_SECURE 必须显式设置（TLS 反代之后=true，纯 HTTP 评估=false）}
+      REQUIRE_HTTPS: ${REQUIRE_HTTPS:?REQUIRE_HTTPS 必须显式设置（TLS 反代之后=true，纯 HTTP 评估=false）}
       CSRF_ENABLED: ${CSRF_ENABLED:-true}
       # 客户端 IP 取值来源（2026-09-16 上线前全检新增）：修复「伪造 X-Forwarded-For 逐请求换头
       # 绕过登录失败节流 / IP 限流」的 🔴 缺陷（详见 TrustedClientIpResolver 类注释）。
@@ -243,6 +304,19 @@ services:
       # 激活 prod profile：使 application-prod.yml 真正生效（闭合 N-02 影子配置）。
       SPRING_PROFILES_ACTIVE: prod
       TRUST_PROXY_HEADER: ${TRUST_PROXY_HEADER:-true}
+      # 限流阈值（A 路径断链 #14，2026-11-05）：application.yaml 的 ratelimit: 段全是
+      # ${RATELIMIT_*} 占位符，但此前 .env.example 无键行、本文件不注入 → 容器形态改阈值
+      # 不生效且不报错（DR-73）。此处按「与 yml 默认值一致」透传，不填行为不变。
+      RATELIMIT_ENABLED: ${RATELIMIT_ENABLED:-true}
+      RATELIMIT_REDIS_ENABLED: ${RATELIMIT_REDIS_ENABLED:-true}
+      RATELIMIT_LOGIN_LIMIT: ${RATELIMIT_LOGIN_LIMIT:-10}
+      RATELIMIT_LOGIN_WINDOW: ${RATELIMIT_LOGIN_WINDOW:-60}
+      RATELIMIT_AI_LIMIT: ${RATELIMIT_AI_LIMIT:-20}
+      RATELIMIT_AI_WINDOW: ${RATELIMIT_AI_WINDOW:-60}
+      RATELIMIT_VERIFY_LIMIT: ${RATELIMIT_VERIFY_LIMIT:-5}
+      RATELIMIT_VERIFY_WINDOW: ${RATELIMIT_VERIFY_WINDOW:-60}
+      RATELIMIT_REGISTER_LIMIT: ${RATELIMIT_REGISTER_LIMIT:-20}
+      RATELIMIT_REGISTER_WINDOW: ${RATELIMIT_REGISTER_WINDOW:-3600}
       # 跨域白名单（逗号分隔的真实前端域名）；留空 = 不开放跨域。
       # 【修复 2026-09-16】原注释写「留空 = fail-closed」与实现不符：SecurityConfig 在
       # origins 为空时回退看 app.cors.dev-fallback（默认 true）→ 会放行 http://localhost:5173
@@ -257,13 +331,14 @@ services:
       # 凭据须与下方 prometheus 服务的 ACTUATOR_BASIC_* 完全一致；口令留空则抓取 fail-closed。
       APP_ACTUATOR_BASIC_USER: ${APP_ACTUATOR_BASIC_USER:-monitor}
       APP_ACTUATOR_BASIC_PASSWORD: ${APP_ACTUATOR_BASIC_PASSWORD:-}
-      # Python 微服务集成开关（默认关闭：KG/RAG 引擎由团队另一成员负责，未启用时
-      # /knowledge/path/plan 本地 BFS 兜底、AI 问答自动回退纯 LLM）。
-      # 启用步骤：解注下方 kg-service / rag-service，再置 KG_ENABLED/RAG_ENABLED=true。
-      KG_ENABLED: ${KG_ENABLED:-false}
+      # Python 微服务集成开关（D-A4=②，2026-11-05：KG/RAG 已随编排上线，默认开启）。
+      # 未带 python profile 时服务不可达，AiRagComponent / 路径规划会按既有语义降级，
+      # 不会把后端判为启动失败。可用 KG_ENABLED=false / RAG_ENABLED=false 显式关闭。
+      KG_ENABLED: ${KG_ENABLED:-true}
       KG_BASE_URL: ${KG_BASE_URL:-http://kg-service:8001}
-      RAG_ENABLED: ${RAG_ENABLED:-false}
+      RAG_ENABLED: ${RAG_ENABLED:-true}
       RAG_BASE_URL: ${RAG_BASE_URL:-http://rag-service:8002}
+      # 微调 8003 不在 D-A4 ② 范围：保持关闭（上线需第三个镜像或 systemd unit，见部署文档）。
       FT_ENABLED: ${FT_ENABLED:-false}
       FT_BASE_URL: ${FT_BASE_URL:-http://fine-tune-service:8003}
       TZ: Asia/Shanghai
@@ -288,6 +363,8 @@ services:
       # 上传文件持久化（修复：原未挂卷，容器重建后 uploads/ 下所有教学资源/附件丢失；
       # 与 UploadResourceConfig 静态映射及 ResourceController 落盘目录 /app/uploads 对齐）
       - uploads-data:/app/uploads
+      # 分片上传中间态（FILE_CHUNK_DIR）：容器重建不丢续传进度（2026-11-06 补件）
+      - upload-chunks-data:/app/upload-chunks
       # 数据库备份持久化：应用内「系统管理→备份」生成的 backups/ 目录落盘到卷，
       # 容器重建不丢失（配合 mysql-backup 服务的定时全量备份构成双保险）
       - backups-data:/app/backups
@@ -298,45 +375,165 @@ services:
         max-size: "10m"
         max-file: "3"
 
-  # ---------------- Python 微服务（引擎就绪后解注启用，归入 python profile） ----------------
-  # KG/RAG 引擎由团队另一成员负责（当前 python-services/ 下为契约基线/占位骨架）。
-  # 接入步骤：① 解注下方对应服务 ② .env 置 KG_ENABLED=true / RAG_ENABLED=true
-  # ③ docker compose --profile full --profile python up -d
+  # ---------------- Python 微服务（D-A4=②，2026-11-05：KG/RAG 随编排上线） ----------------
+  # 启动：docker compose --profile full --profile python up -d --build
+  # C 路径不受影响：scripts/start-engines.py 仍按本机 uvicorn 方式启动同样的两个服务。
+  # KG 依赖 Neo4j（neo4j 服务同时归入 rag/python 两个 profile）；RAG 依赖 KG 健康后启动。
+  # 嵌入权重默认 BAAI/bge-small-zh-v1.5，经 HF_ENDPOINT 镜像下载到命名卷 hf-cache；
+  # 离线部署可预置缓存后置 HF_HUB_OFFLINE=1（rag_engine 命中缓存即 local_files_only 加载）。
   # ----------------
-  # kg-service:
-  #   build:
-  #     context: ./python-services/kg_service
-  #     dockerfile: Dockerfile   # 需队友补充（uvicorn kg_service:app --host 0.0.0.0 --port 8001）
-  #   container_name: aicourse-kg-service
-  #   restart: unless-stopped
-  #   profiles: ["python"]
-  #   ports:
-  #     - "8001:8001"
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-fs", "http://localhost:8001/api/v1/graph/health"]
-  #     interval: 15s
-  #     timeout: 5s
-  #     retries: 5
-  #
-  # rag-service:
-  #   build:
-  #     context: ./python-services/rag_service
-  #     dockerfile: Dockerfile   # 需队友补充（uvicorn rag_service:app --host 0.0.0.0 --port 8002）
-  #   container_name: aicourse-rag-service
-  #   restart: unless-stopped
-  #   profiles: ["python"]
-  #   ports:
-  #     - "8002:8002"
-  #   healthcheck:
-  #     test: ["CMD", "curl", "-fs", "http://localhost:8002/api/v1/rag/health"]
-  #     interval: 15s
-  #     timeout: 5s
-  #     retries: 5
-  #
+  kg-service:
+    build:
+      context: ./python-services/kg_service
+    image: aicourse/kg-service:local
+    container_name: aicourse-kg-service
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 384m
+    labels:
+      <<: *labels-python
+      aicourse.role: kg
+    restart: unless-stopped
+    profiles: ["python"]
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    environment:
+      KG_BACKEND: ${KG_BACKEND:-neo4j}
+      NEO4J_URI: bolt://neo4j:7687
+      NEO4J_USERNAME: ${NEO4J_USERNAME:-neo4j}
+      NEO4J_PASSWORD: ${NEO4J_PASSWORD:?NEO4J_PASSWORD 必须设置（请 cp .env.example .env 后填入）}
+      # 服务间内部认证：与 backend 的 INTERNAL_API_KEY 一致（为空不校验）。
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
+      TZ: Asia/Shanghai
+    ports:
+      - "${KG_HOST_BIND:-127.0.0.1}:${KG_HOST_PORT:-8001}:8001"
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8001/api/v1/graph/health', timeout=3)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
+
+  rag-service:
+    build:
+      context: ./python-services/rag_service
+      args:
+        HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
+        RAG_EMBED_MODEL: ${RAG_EMBED_MODEL:-BAAI/bge-small-zh-v1.5}
+    image: aicourse/rag-service:local
+    container_name: aicourse-rag-service
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+    labels:
+      <<: *labels-python
+      aicourse.role: rag
+    restart: unless-stopped
+    profiles: ["python"]
+    depends_on:
+      kg-service:
+        condition: service_healthy
+    environment:
+      RAG_DATA_DIR: /app/data
+      # 嵌入权重通路：镜像内 HF_HOME=/models/hf，此处由命名卷承载，离线可预置。
+      HF_HOME: /models/hf
+      HF_ENDPOINT: ${HF_ENDPOINT:-https://hf-mirror.com}
+      HF_HUB_OFFLINE: ${HF_HUB_OFFLINE:-0}
+      RAG_EMBED_MODEL: ${RAG_EMBED_MODEL:-BAAI/bge-small-zh-v1.5}
+      # 生成后端：默认 deepseek；切 ollama 时无 API Key，失败仍按原语义降级。
+      AI_PROVIDER: ${AI_PROVIDER:-deepseek}
+      DEEPSEEK_BASE_URL: ${DEEPSEEK_BASE_URL:-https://api.deepseek.com/v1}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-chat}
+      # 容器内 localhost 指容器自身；访问宿主 Ollama 走 host.docker.internal。
+      # Linux 额外由下方 extra_hosts 映射到宿主网关，Windows/macOS Docker Desktop 原生支持。
+      OLLAMA_BASE_URL: ${RAG_OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      OLLAMA_MODEL: ${OLLAMA_MODEL:-deepseek-r1:8b}
+      OLLAMA_THINK: ${OLLAMA_THINK:-}
+      # R3 图谱增强：RAG 从 KG 取课程节点并带 1 跳关系。
+      KG_BASE_URL: http://kg-service:8001
+      RAG_GRAPH_ENABLED: ${RAG_GRAPH_ENABLED:-true}
+      # 服务间内部认证：与 backend 的 INTERNAL_API_KEY 一致（为空不校验）。
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
+      TZ: Asia/Shanghai
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${RAG_HOST_BIND:-127.0.0.1}:${RAG_HOST_PORT:-8002}:8002"
+    volumes:
+      - rag-data:/app/data
+      - hf-cache:/models/hf
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8002/api/v1/rag/health', timeout=3)",
+        ]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+
   # fine-tune-service（8003）：LoRA 微调引擎。**引擎侧已交付**（python-services/fine_tune_service，
-  # 契约见 docs/项目手册.md 第八部分 §37；本机 pytest 53 passed，手册 DR-78），但**尚无 Dockerfile**，
-  # 且未纳入 scripts/start-engines.py / start-all.py 一键范围 → 服务块仍按 kg/rag 同形保持注释，
-  # 补出 Dockerfile 后参照上述模板放开（profiles: ["python"]）。
+  # 契约见 docs/项目手册.md 第八部分 §37；本机 pytest 52 passed / 1 skipped，手册 DR-78）。
+  # 【2026-11-07 P1 整改批】补齐 Dockerfile 并纳入编排：独立 profile "ft"（不随 python profile
+  # 默认拉起——镜像含 torch 体量大，且 FT 属重资源可选能力）。启用链路：
+  #   1) docker compose --profile ft up -d fine-tune-service
+  #   2) .env 置 FT_ENABLED=true（backend 侧开关，缺省 false＝不改变既有行为）
+  # 端口默认仍只绑回环；CPU 版 torch 经构建参数 TORCH_CPU_INDEX 控制（默认 PyTorch CPU 源）。
+  fine-tune-service:
+    build:
+      context: ./python-services/fine_tune_service
+    image: aicourse/fine-tune-service:local
+    container_name: aicourse-fine-tune-service
+    # 资源上限：torch 推理 + 小样本训练的基础余量；正式训练建议在宿主机独占环境跑（README 已注明）
+    deploy:
+      resources:
+        limits:
+          memory: 2g
+    labels:
+      <<: *labels-python
+      aicourse.role: fine-tune
+    restart: unless-stopped
+    profiles: ["ft"]
+    environment:
+      FT_DATA_DIR: /app/data
+      # engine=LoRA 真实推理；ollama=宿主机 Ollama（容器内 localhost 指自身，须用 host-gateway）
+      FT_LLM_PROVIDER: ${FT_LLM_PROVIDER:-engine}
+      OLLAMA_BASE_URL: ${FT_OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+      # 服务间内部认证：与 backend 的 INTERNAL_API_KEY 一致（为空不校验）。
+      INTERNAL_API_KEY: ${INTERNAL_API_KEY:-}
+      TZ: Asia/Shanghai
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    ports:
+      - "${FT_HOST_BIND:-127.0.0.1}:${FT_HOST_PORT:-8003}:8003"
+    volumes:
+      - ft-data:/app/data
+    healthcheck:
+      test:
+        [
+          "CMD",
+          "python",
+          "-c",
+          "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8003/api/v1/fine-tune/health', timeout=3)",
+        ]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   # ---------------- MySQL 定时备份守护（profiles: ops） ----------------
   mysql-backup:
@@ -345,6 +542,11 @@ services:
     # 所以这个 pin 不改变行为，只是让「跑的是哪个补丁版」在文件里可见、可复现。
     image: mysql:8.4.11
     container_name: aicourse-mysql-backup
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 256m
     labels:
       <<: *labels-ops
       aicourse.role: db-backup
@@ -389,6 +591,11 @@ services:
   prometheus:
     image: prom/prometheus:v2.53.0
     container_name: aicourse-prometheus
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 512m
     labels:
       <<: *labels-monitor
       aicourse.role: metrics
@@ -430,6 +637,11 @@ services:
   node-exporter:
     image: prom/node-exporter:v1.8.2
     container_name: aicourse-node-exporter
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 64m
     labels:
       <<: *labels-monitor
       aicourse.role: host-metrics
@@ -455,6 +667,11 @@ services:
   alertmanager:
     image: prom/alertmanager:v0.27.0
     container_name: aicourse-alertmanager
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 128m
     labels:
       <<: *labels-monitor
       aicourse.role: alerting
@@ -478,6 +695,11 @@ services:
   grafana:
     image: grafana/grafana:11.2.0
     container_name: aicourse-grafana
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 256m
     labels:
       <<: *labels-monitor
       aicourse.role: dashboard
@@ -507,6 +729,11 @@ services:
   loki:
     image: grafana/loki:2.9.8
     container_name: aicourse-loki
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 384m
     labels:
       <<: *labels-monitor
       aicourse.role: log-store
@@ -528,6 +755,11 @@ services:
   promtail:
     image: grafana/promtail:2.9.8
     container_name: aicourse-promtail
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 128m
     labels:
       <<: *labels-monitor
       aicourse.role: log-collector
@@ -551,6 +783,11 @@ services:
       context: ./frontend
     image: aicourse/frontend:local
     container_name: aicourse-frontend
+    # 资源上限（docker compose v2 非 Swarm 也生效）：防单服务失控拖垮宿主，按 2026-11-07 验收整改批统一定额
+    deploy:
+      resources:
+        limits:
+          memory: 128m
     labels:
       <<: *labels-app
       aicourse.role: edge
@@ -567,6 +804,14 @@ services:
       #   **宿主机侧不变**（默认 80），所以 http://localhost/ 与后端 CORS 白名单无需改动；
       #   改的是 nginx.conf 的 listen，两处必须同步（见 frontend/nginx.conf 头注）。
       - "${FRONTEND_HOST_BIND:-127.0.0.1}:${FRONTEND_HTTP_PORT:-80}:8080"
+    # 健康检查（2026-11-07 验收整改批补齐）：此前 frontend 无 healthcheck，编排器无法感知边缘代理假死。
+    # 探静态首页即可（nginx:alpine 自带 busybox wget）；/api 由后端自身健康检查兜底。
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
     logging:
       # json-file 日志限额：与 backend 一致，防止日志膨胀
       driver: json-file
@@ -580,10 +825,16 @@ services:
   neo4j:
     image: neo4j:5-community
     container_name: aicourse-neo4j
+    # 资源上限（docker compose v2 非 Swarm 也生效）：与 heap/pagecache 预算匹配，防单服务失控拖垮宿主
+    deploy:
+      resources:
+        limits:
+          memory: 1g
     labels:
       <<: *labels-infra
       aicourse.role: graph-store
-    profiles: ["rag"]
+    # rag profile 保留（只起图库）；python profile 下 kg-service 依赖它。
+    profiles: ["rag", "python"]
     ports:
       - "${NEO4J_HOST_BIND:-127.0.0.1}:${NEO4J_HTTP_PORT:-7474}:7474"   # Neo4j Browser (HTTP)
       - "${NEO4J_HOST_BIND:-127.0.0.1}:${NEO4J_BOLT_PORT:-7687}:7687"   # Bolt protocol
@@ -607,6 +858,8 @@ volumes:
   mysql-data:
   redis-data:
   uploads-data:
+  # 分片上传中间态（backend FILE_CHUNK_DIR，2026-11-06 补件）
+  upload-chunks-data:
   # 定时备份卷（mysql-backup 服务写入）
   mysql-backups:
   # 应用内手动备份卷（SystemServiceImpl backups/ 目录）
@@ -621,6 +874,11 @@ volumes:
   neo4j_logs:
   neo4j_import:
   neo4j_plugins:
+  # Python 引擎数据卷（D-A4 ②）
+  rag-data:
+  # LoRA 微调数据卷（2026-11-07 P1 整改批：训练产物/导出权重/数据集元数据）
+  ft-data:
+  hf-cache:
 
 # ===================== 文件式凭据（Compose secrets，非 Swarm 也支持） =====================
 # 挂载落点固定为容器内 `/run/secrets/<secret 名>`，与 backend 的 Spring configtree 落点同一套机制

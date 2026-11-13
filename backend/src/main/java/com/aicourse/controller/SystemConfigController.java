@@ -11,6 +11,7 @@ import com.aicourse.entity.SystemConfig;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.common.ApiCode;
+import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.EmailService;
 import com.aicourse.service.SystemConfigService;
 import com.aicourse.service.UserService;
@@ -34,13 +35,16 @@ public class SystemConfigController {
     private final SystemConfigService systemConfigService;
     private final EmailService emailService;
     private final UserService userService;
+    private final AdminScopeGuard adminScopeGuard;
 
     public SystemConfigController(SystemConfigService systemConfigService,
                                   EmailService emailService,
-                                  UserService userService) {
+                                  UserService userService,
+                                  AdminScopeGuard adminScopeGuard) {
         this.systemConfigService = systemConfigService;
         this.emailService = emailService;
         this.userService = userService;
+        this.adminScopeGuard = adminScopeGuard;
     }
 
     /**
@@ -128,6 +132,7 @@ public class SystemConfigController {
     @PutMapping("/key/{key}")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<Void> updateByKey(@PathVariable String key, @Valid @RequestBody Map<String, String> body) {
+        adminScopeGuard.assertSchoolOnly();
         String value = body.get("value");
         systemConfigService.updateConfig(key, value);
         return ApiResponse.success("更新成功", null);
@@ -141,6 +146,7 @@ public class SystemConfigController {
     @PostMapping("/batch-update")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<Void> batchUpdate(@Valid @RequestBody Map<String, String> configs) {
+        adminScopeGuard.assertSchoolOnly();
         systemConfigService.batchUpdateConfigs(configs);
         return ApiResponse.success("批量更新成功", null);
     }
@@ -176,6 +182,7 @@ public class SystemConfigController {
     @PostMapping("/test-email")
     @PreAuthorize("hasRole('ADMIN')")
     public ApiResponse<Void> testEmail(Authentication auth) {
+        adminScopeGuard.assertSchoolOnly();
         Long userId = (Long) auth.getPrincipal();
         User user = userService.getById(userId);
         if (user == null || user.getEmail() == null || user.getEmail().isBlank()) {

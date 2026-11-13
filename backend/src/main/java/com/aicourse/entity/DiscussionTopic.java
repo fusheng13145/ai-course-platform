@@ -68,6 +68,12 @@ public class DiscussionTopic {
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
 
+    /**
+     * 话题归属教学班（WP7，V16，可空）。
+     * 存量话题保持 NULL（课程级）；新话题可指定教学班做班级内讨论。
+     */
+    private Long teachingClassId;
+
     // ===================== 类型常量 =====================
     public static final String TYPE_NORMAL = "NORMAL";
     public static final String TYPE_QA = "QA";

@@ -8,6 +8,7 @@ import jakarta.validation.Valid;
 import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
+import com.aicourse.dto.QuestionSaveDTO;
 import com.aicourse.entity.*;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.service.*;
@@ -22,6 +23,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.MediaType;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
+import org.springframework.validation.annotation.Validated;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.multipart.MultipartFile;
 
@@ -50,6 +52,7 @@ public class TeacherController {
     private static final Logger log = LoggerFactory.getLogger(TeacherController.class);
 
     private final CourseService courseService;
+    private final CourseApprovalService courseApprovalService;
     private final CourseChapterService chapterService;
     private final TaskService taskService;
     private final SubmissionService submissionService;
@@ -60,6 +63,7 @@ public class TeacherController {
     private final KnowledgePointService knowledgePointService;
 
     public TeacherController(CourseService courseService,
+                             CourseApprovalService courseApprovalService,
                              CourseChapterService chapterService,
                              TaskService taskService,
                              SubmissionService submissionService,
@@ -69,6 +73,7 @@ public class TeacherController {
                              TeacherCourseService teachingService,
                              KnowledgePointService knowledgePointService) {
         this.courseService = courseService;
+        this.courseApprovalService = courseApprovalService;
         this.chapterService = chapterService;
         this.taskService = taskService;
         this.submissionService = submissionService;
@@ -85,8 +90,12 @@ public class TeacherController {
     @PostMapping("/courses")
     @Operation(summary = "创建课程")
     public ApiResponse<Course> createCourse(@Valid @RequestBody Course course, Authentication auth) {
+        Long teacherId = (Long) auth.getPrincipal();
+        // 学院按负责人回填（客户端传入的 collegeId 被覆盖），创建后追加 SUBMIT 流水
+        courseApprovalService.applyOwnerCollege(course, teacherId);
         // 绑定授课教师与落库下沉至服务层（事务化）
-        Course saved = courseService.createCourse(course, (Long) auth.getPrincipal());
+        Course saved = courseService.createCourse(course, teacherId);
+        courseApprovalService.recordSubmission(saved.getId(), teacherId);
         return ApiResponse.success("创建成功", saved);
     }
 
@@ -274,8 +283,12 @@ public class TeacherController {
 
     /** 创建题目（若指定课程则需归属校验） */
     @PostMapping("/questions")
-    @Operation(summary = "创建题目")
-    public ApiResponse<Question> createQuestion(@Valid @RequestBody Question question, Authentication auth) {
+    @Operation(summary = "创建题目",
+            description = "字段真名：correctAnswers（MySQL JSON 列，必须是合法 JSON 文本：单选 \"A\"、多选 [\"A\",\"B\"]、判断 \"true\"；裸 A 会 400）；"
+                    + "options/knowledgePoints 为 JSON 文本字符串列。创建时 courseId 必填。")
+    public ApiResponse<Question> createQuestion(@Validated(QuestionSaveDTO.Create.class) @RequestBody QuestionSaveDTO dto,
+                                                Authentication auth) {
+        Question question = dto.toEntity();
         if (question.getCourseId() != null) assertCourseOwner(question.getCourseId(), auth);
         question.setCreatedBy((Long) auth.getPrincipal());
         questionService.createQuestion(question);
@@ -311,10 +324,16 @@ public class TeacherController {
 
     /** 更新题目（需题目归属校验） */
     @PutMapping("/questions/{questionId}")
-    @Operation(summary = "更新题目")
-    public ApiResponse<Question> updateQuestion(@PathVariable Long questionId, @Valid @RequestBody Question question, Authentication auth) {
+    @Operation(summary = "更新题目",
+            description = "字段真名与 JSON 列契约同创建端点；courseId 忽略请求值，始终沿用原题目课程。")
+    public ApiResponse<Question> updateQuestion(@PathVariable Long questionId,
+                                                @Valid @RequestBody QuestionSaveDTO dto,
+                                                Authentication auth) {
         assertQuestionOwner(questionId, auth);
+        Question existing = questionService.getById(questionId);
+        Question question = dto.toEntity();
         question.setId(questionId);
+        if (existing != null) question.setCourseId(existing.getCourseId());
         questionService.updateById(question);
         return ApiResponse.success("更新成功", questionService.getById(questionId));
     }
@@ -729,12 +748,20 @@ public class TeacherController {
         return ApiResponse.success(teachingService.getMyCourseSummaries(teacherId));
     }
 
-    /** 增强型教师仪表盘（多维下钻与预警） */
-    @GetMapping("/dashboard/v2")
-    @Operation(summary = "增强教师仪表盘", description = "课程下钻卡片/跨课预警学生/任务点完成概览/AI教学总览/平台均值对比")
-    public ApiResponse<Map<String, Object>> teacherDashboardV2(Authentication auth) {
+    /** 增强型教师仪表盘（多维下钻与预警）。AI 总览已摘出，见 /dashboard/ai-overview */
+    @GetMapping("/dashboard/overview")
+    @Operation(summary = "增强教师仪表盘", description = "课程下钻卡片/跨课预警学生/任务点完成概览/平台均值对比；aiOverview 只回 deferred 标记")
+    public ApiResponse<Map<String, Object>> teacherDashboard(Authentication auth) {
         Long teacherId = (Long) auth.getPrincipal();
-        return ApiResponse.success(teachingService.getTeacherDashboardV2(teacherId));
+        return ApiResponse.success(teachingService.getTeacherDashboard(teacherId));
+    }
+
+    /** 教师 AI 教学总览（独立入口：首页聚合不再同步调用模型，避免被 LLM 阻塞） */
+    @GetMapping("/dashboard/ai-overview")
+    @Operation(summary = "教师 AI 教学总览", description = "按需获取 AI 学情解读；与 /dashboard/overview 同统计口径，只是额外做一次模型调用")
+    public ApiResponse<Map<String, Object>> teacherAiOverview(Authentication auth) {
+        Long teacherId = (Long) auth.getPrincipal();
+        return ApiResponse.success(teachingService.getTeacherAIOverview(teacherId));
     }
 
     /** 获取课程完整章节树（需课程归属校验） */

@@ -4,6 +4,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 import com.aicourse.common.ApiResponse;
+import com.aicourse.exception.BusinessException;
 import com.aicourse.dto.ChapterReorderDTO;
 import com.aicourse.entity.Course;
 import com.aicourse.entity.CourseChapter;
@@ -80,7 +81,7 @@ public class CourseChapterController {
      * @return 新增章节数据
      */
     @PostMapping("/chapters")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     public ApiResponse<CourseChapter> create(@Valid @RequestBody CourseChapter chapter, Authentication auth) {
         // 课程管理权限校验与落库下沉至服务层（事务化）
         CourseChapter saved = chapterService.createChapter(chapter, (Long) auth.getPrincipal(), isAdmin(auth));
@@ -95,7 +96,7 @@ public class CourseChapterController {
      * @return 更新后章节数据
      */
     @PutMapping("/chapters/{id}")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     public ApiResponse<CourseChapter> update(@PathVariable Long id,
                                              @Valid @RequestBody CourseChapter chapter,
                                              Authentication auth) {
@@ -111,7 +112,7 @@ public class CourseChapterController {
      * @return 操作结果
      */
     @DeleteMapping("/chapters/{id}")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     public ApiResponse<Void> delete(@PathVariable Long id, Authentication auth) {
         // 章节存在性/权限校验与删除落库下沉至服务层（事务化）
         chapterService.deleteChapter(id, (Long) auth.getPrincipal(), isAdmin(auth));
@@ -125,7 +126,7 @@ public class CourseChapterController {
      * @return 操作结果
      */
     @PutMapping("/batch-reorder")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     public ApiResponse<Void> batchReorder(@Valid @RequestBody ChapterReorderDTO dto, Authentication auth) {
         List<Long> ids = dto.getOrderList().stream()
                 .map(ChapterReorderDTO.OrderItem::getId)
@@ -135,7 +136,11 @@ public class CourseChapterController {
         for (ChapterReorderDTO.OrderItem item : dto.getOrderList()) {
             CourseChapter chapter = chapterMap.get(item.getId());
             if (chapter == null) continue;
-            if (canManageCourse(chapter.getCourseId(), auth)) continue;
+            // WP9 收紧：非本人课程 fail-closed 403（原实现把「能管理」判成跳过更新、
+            // 管理员反而落进更新分支——方向颠倒的存量缺陷，随只读矩阵一并纠正）
+            if (!canManageCourse(chapter.getCourseId(), auth)) {
+                throw new BusinessException(com.aicourse.common.ApiCode.FORBIDDEN, "无权调整该课程章节排序");
+            }
             chapter.setOrderIndex(item.getOrderIndex());
             chapterService.updateById(chapter);
         }
@@ -143,7 +148,7 @@ public class CourseChapterController {
     }
 
     /**
-     * 判断当前用户是否为管理员
+     * 判断当前用户是否为管理员（create/update/delete 传给服务层作归属旁路口径，维持原语义）
      */
     private boolean isAdmin(Authentication auth) {
         return auth.getAuthorities().stream()
@@ -151,19 +156,15 @@ public class CourseChapterController {
     }
 
     /**
-     * 校验当前用户是否有权限管理对应课程
+     * 校验当前用户是否为该课程的负责教师（WP9 语义纠正：原实现对管理员返回 false、
+     * 对「非本课程教师」反而返回 true，方向完全颠倒——调用处已改为 fail-closed）。
      * @param courseId 课程ID
      * @param auth 认证信息
-     * @return true-有权限，false-无权限
+     * @return true-是本课程负责人
      */
     private boolean canManageCourse(Long courseId, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        boolean isAdmin = auth.getAuthorities().stream()
-                .anyMatch(granted -> granted.getAuthority().equals("ROLE_ADMIN"));
-        if (isAdmin) {
-            return false;
-        }
         Course course = courseService.getById(courseId);
-        return course == null || !userId.equals(course.getTeacherId());
+        return course != null && userId.equals(course.getTeacherId());
     }
 }

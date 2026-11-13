@@ -1,5 +1,6 @@
 package com.aicourse.security;
 
+import com.aicourse.common.AdminScope;
 import com.aicourse.entity.User;
 import com.aicourse.service.UserService;
 import com.aicourse.service.UserSessionService;
@@ -18,6 +19,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -102,7 +104,15 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                 String role = user.getRole();
 
                 // 封装角色权限（Spring Security 角色需前缀 ROLE_）
-                List<SimpleGrantedAuthority> authorities = List.of(new SimpleGrantedAuthority("ROLE_" + role));
+                List<SimpleGrantedAuthority> authorities = new ArrayList<>(2);
+                authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
+                // V12（B-12/P-08 WP1）：ADMIN 按数据库现行 admin_scope 附加作用域 authority。
+                // 不写入令牌、不重签 —— scope 每请求从 users 表解析，存量会话不受影响，
+                // 管理员改作用域后下一次请求立即生效。
+                String scopeAuthority = AdminScope.authorityOf(role, user.getAdminScope());
+                if (scopeAuthority != null) {
+                    authorities.add(new SimpleGrantedAuthority(scopeAuthority));
+                }
                 // 构建认证对象，主体存入 userId，凭证存入 username
                 UsernamePasswordAuthenticationToken authentication =
                         new UsernamePasswordAuthenticationToken(userId, username, authorities);

@@ -27,6 +27,7 @@
 """
 from __future__ import annotations
 
+import json
 import os
 import socket
 import subprocess
@@ -128,10 +129,62 @@ def main() -> int:
         print("[backend] 探活超时（probe 未达 200，多为 MySQL/Redis 不可用）", flush=True)
         return 1
 
+    if mode == "functional":
+        rc = assert_demo_logins(os.environ.get("PW_PASS", "123456"))
+        if rc:
+            return rc
+
     print("[backend] 常驻中，等待被终止（终止本进程即停后端）…", flush=True)
     proc.wait()
     print("[backend] 已退出 exit =", proc.returncode, flush=True)
     return 0
+
+
+def assert_demo_logins(password):
+    """功能轮的登录前置自检：student/teacher/admin 三个演示号必须真能登录。
+
+    为什么必须在起栈时就判：e2e 的登录口令取自 frontend/e2e/test-helpers.ts
+    （默认 123456，可用 PW_PASS 覆盖），而库里的口令可能被「演示账号加固」
+    （DEMO_ACCOUNTS_ENABLED=false）单向改掉（停用 + 改密为不可知口令，之后任何启动都不回退）。
+    那种情况下 Playwright 只会给出「admin 未落到首页」加一串随 15 分钟节流漂移的红灯集合，
+    看着像产品缺陷。2026-11-06 验收实测即为此：8 例红，全部依赖 admin 登录。
+    """
+    opener = urllib.request.build_opener(urllib.request.ProxyHandler({}))
+    bad = []
+    for account in ("student", "teacher", "admin"):
+        body = json.dumps({"username": account, "password": password, "rememberMe": True}).encode()
+        req = urllib.request.Request(
+            "http://127.0.0.1:%s/api/auth/login" % PORT,
+            data=body,
+            headers={"Content-Type": "application/json"},
+        )
+        msg = None
+        try:
+            with opener.open(req, timeout=15) as r:
+                payload = json.loads(r.read().decode("utf-8", "replace") or "{}")
+                if payload.get("code") not in (200, None):
+                    msg = "业务码 %s：%s" % (payload.get("code"), payload.get("message"))
+        except urllib.error.HTTPError as e:
+            raw = e.read().decode("utf-8", "replace") if e.fp else ""
+            try:
+                msg = "HTTP %s：%s" % (e.code, json.loads(raw).get("message"))
+            except Exception:
+                msg = "HTTP %s" % e.code
+        except Exception as exc:
+            msg = "请求未送达：%s" % type(exc).__name__
+        if msg:
+            bad.append((account, msg))
+    if not bad:
+        print("[selfcheck] 演示账号登录 3/3 可用（student/teacher/admin）", flush=True)
+        return 0
+    print("[selfcheck] ✗ 演示账号登录失败：%s" % "、".join("%s→%s" % b for b in bad), flush=True)
+    print(
+        "[selfcheck]   口令来源：PW_PASS=%s。若曾以 DEMO_ACCOUNTS_ENABLED=false 在本库启动过，"
+        "admin 已被单向改密并停用，需先恢复种子口令再跑验收，否则失败集合不可复现。"
+        % ("已显式设置" if "PW_PASS" in os.environ else "默认 123456"),
+        flush=True,
+    )
+    return 2
 
 
 if __name__ == "__main__":

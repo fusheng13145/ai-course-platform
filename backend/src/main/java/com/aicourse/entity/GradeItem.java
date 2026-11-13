@@ -49,6 +49,9 @@ public class GradeItem {
     /** 录入者ID */
     private Long graderId;
 
+    /** 成绩明细首次落库时学生所在教学班快照（WP7，V16）：仅创建时解析写入，更新分数不回改快照 */
+    private Long teachingClassId;
+
     @TableField(fill = FieldFill.INSERT)
     private LocalDateTime createdAt;
 

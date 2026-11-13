@@ -6,6 +6,7 @@ import com.aicourse.entity.ExamSession;
 import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.ExamSessionMapper;
 import com.aicourse.service.ExamPaperService;
+import com.aicourse.service.component.org.TeachingClassSnapshotResolver;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -27,13 +28,16 @@ public class ExamSessionLifecycleComponent {
 
     private final ExamPaperService examPaperService;
     private final ExamSessionMapper examSessionMapper;
+    private final TeachingClassSnapshotResolver teachingClassSnapshotResolver;
     private final ObjectMapper objectMapper;
 
     public ExamSessionLifecycleComponent(ExamPaperService examPaperService,
                                          ExamSessionMapper examSessionMapper,
+                                         TeachingClassSnapshotResolver teachingClassSnapshotResolver,
                                          ObjectMapper objectMapper) {
         this.examPaperService = examPaperService;
         this.examSessionMapper = examSessionMapper;
+        this.teachingClassSnapshotResolver = teachingClassSnapshotResolver;
         this.objectMapper = objectMapper;
     }
 
@@ -90,6 +94,9 @@ public class ExamSessionLifecycleComponent {
         ExamSession session = new ExamSession();
         session.setExamPaperId(examPaperId);
         session.setStudentId(studentId);
+        // WP7 快照：开考即归属当时的教学班，转班后历史会话不漂移
+        session.setTeachingClassId(
+                teachingClassSnapshotResolver.resolveTeachingClassId(studentId, examPaper.getCourseId()));
         session.setStatus(ExamSessionStatus.STARTED);
         session.setStartTime(LocalDateTime.now());
         session.setAttemptNumber(attemptNumber);

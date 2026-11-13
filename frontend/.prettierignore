@@ -9,9 +9,9 @@ coverage
 test-results
 playwright-report
 *.min.js
-# v2 生成资产：由 scripts/extract-v2-assets.cjs 从 demo/v2/02-record.html 生成，格式由生成器决定
-src/v2/data/nav.json
-src/v2/data/demo.json
-src/v2/data/legal.json
-src/v2/styles/record.css
-src/v2/components/V2Sprite.vue
+# 生成资产：格式由生成器决定，不参与 Prettier 校验
+src/ui/data/nav.json
+src/ui/data/demo.json
+src/ui/data/legal.json
+src/ui/styles/record.css
+src/ui/components/Sprite.vue

@@ -1,7 +1,11 @@
 # RAG 真实引擎重依赖（本地/部署环境安装；CI 契约护栏仅用 requirements.txt）
 # 安装：pip install -r requirements-engine.txt
-numpy>=1.26
-jieba>=0.42
-rank_bm25>=0.2.2
-faiss-cpu>=1.8.0
-sentence-transformers>=3.0
+#
+# 依赖锁定（2026-11-06 验收批）：固化自本机 `rag_service/.venv` 的 pip list 读数
+# （Python 3.11.9 / Windows）。跨平台部署时请按目标平台重新解析并复跑
+# `python -m pytest python-services/rag_service -q`，不要假定本机版本可用。
+numpy==2.4.6
+jieba==0.42.1
+rank-bm25==0.2.2
+faiss-cpu==1.13.2
+sentence-transformers==5.4.1

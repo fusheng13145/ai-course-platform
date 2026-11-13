@@ -117,7 +117,8 @@ const CONTRACT: Array<
     [{ params: { courseId: 3 } }],
   ],
   ['exportReport', 'get', '/teacher/analytics/report/export?courseId=3', [3], []],
-  ['getTeacherDashboardV2', 'get', '/teacher/dashboard/v2', [], []],
+  ['getTeacherDashboard', 'get', '/teacher/dashboard/overview', [], []],
+  ['getTeacherDashboardAiOverview', 'get', '/teacher/dashboard/ai-overview', [], []],
   ['getMyCourseSummaries', 'get', '/teacher/courses/summaries', [], []],
   ['getCourseDashboard', 'get', '/teacher/courses/3/dashboard', [3], []],
   ['getChapterTree', 'get', '/teacher/courses/3/chapters/tree', [3], []],
@@ -164,8 +165,11 @@ describe('teacher API 契约（方法 / URL / 参数）', () => {
     await teacherApi.getMyCourses()
     expect(mocks.get).toHaveBeenCalledWith('/teacher/courses', { params: {} })
 
-    await teacherApi.getTeacherDashboardV2()
-    expect(mocks.get).toHaveBeenLastCalledWith('/teacher/dashboard/v2')
+    await teacherApi.getTeacherDashboard()
+    expect(mocks.get).toHaveBeenLastCalledWith('/teacher/dashboard/overview')
+
+    await teacherApi.getTeacherDashboardAiOverview()
+    expect(mocks.get).toHaveBeenLastCalledWith('/teacher/dashboard/ai-overview')
   })
 })
 

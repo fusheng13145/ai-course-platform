@@ -8,6 +8,7 @@ import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.SystemService;
 import com.aicourse.service.UserService;
+import com.aicourse.security.AdminScopeGuard;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.apache.poi.ss.usermodel.Row;
 import org.apache.poi.ss.usermodel.Sheet;
@@ -16,6 +17,7 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
@@ -28,6 +30,7 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -66,6 +69,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * </ul>
  */
 @WebMvcTest(SystemAdminController.class)
+@Import(AdminScopeGuard.class)
 class SystemAdminControllerCoverageTest extends ControllerTestBase {
 
     @MockitoBean
@@ -677,5 +681,148 @@ class SystemAdminControllerCoverageTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.message").value(
                         org.hamcrest.Matchers.containsString("缺少必需上传文件")));
         verify(userService, never()).save(any(User.class));
+    }
+
+    // ==================== WP2：院系管理员作用域边界 ====================
+
+    /** 院系管理员（id=3，学院 10）的 DB 现用户表示，供 AdminScopeGuard 派生作用域与学院。 */
+    private static User collegeAdminUser() {
+        User u = new User();
+        u.setId(3L);
+        u.setCollegeId(10L);
+        u.setRole("ADMIN");
+        return u;
+    }
+
+    @Test
+    @DisplayName("GET /admin/users/{id} - 院系管理员访问他院用户 403（管理端第二入口同样受限）")
+    void getUserDetail_collegeAdmin_otherCollege_403() throws Exception {
+        when(userService.getById(3L)).thenReturn(collegeAdminUser());
+        User other = new User();
+        other.setId(9L);
+        other.setCollegeId(11L);
+        when(userService.getUserProfile(9L)).thenReturn(other);
+
+        mockMvc.perform(get("/admin/users/9").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+    }
+
+    @Test
+    @DisplayName("PUT /admin/configs/{key} 与 POST /admin/users/import - 院系管理员 403 且不落库")
+    void schoolOnlyWrites_collegeAdmin_403() throws Exception {
+        mockMvc.perform(put("/admin/configs/site.name").contentType(MediaType.APPLICATION_JSON)
+                        .content("{}").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        mockMvc.perform(post("/admin/users/import").contentType(MediaType.APPLICATION_JSON)
+                        .content("[]").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        verify(systemService, never()).saveConfig(anyString(), anyString(), anyString());
+        verify(userService, never()).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("校级专有读端点：院系管理员 403（健康/日志/总览/AI监控/备份）")
+    void schoolOnlyReads_collegeAdmin_403() throws Exception {
+        when(userService.getById(3L)).thenReturn(collegeAdminUser());
+
+        mockMvc.perform(get("/admin/health").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        mockMvc.perform(get("/admin/logs").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        mockMvc.perform(get("/admin/system/overview").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        mockMvc.perform(get("/admin/ai-monitor").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        mockMvc.perform(get("/admin/system/logs/app.log").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        mockMvc.perform(post("/admin/backup").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        verify(systemService, never()).getHealth();
+        verify(systemService, never()).getLogFiles();
+        verify(systemService, never()).getOverview();
+        verify(systemService, never()).createBackup();
+    }
+
+    @Test
+    @DisplayName("GET /admin/statistics/overview - 院系管理员只统计本院")
+    void statisticsOverview_collegeAdmin_scoped() throws Exception {
+        when(userService.getById(3L)).thenReturn(collegeAdminUser());
+        Course course = new Course();
+        course.setId(1L);
+        course.setIsActive(true);
+        when(courseService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
+                .thenReturn(List.of(course));
+        when(userService.count(any())).thenReturn(1L);
+        when(enrollmentService.count(any())).thenReturn(3L);
+        when(courseService.count(any())).thenReturn(1L);
+
+        mockMvc.perform(get("/admin/statistics/overview").with(withCollegeAdmin(3L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.totalUsers").value(1))
+                .andExpect(jsonPath("$.data.totalCourses").value(1))
+                .andExpect(jsonPath("$.data.totalEnrollments").value(3));
+        verify(userService, never()).count();
+        verify(courseService, never()).count();
+        verify(enrollmentService, never()).count();
+    }
+
+    @Test
+    @DisplayName("GET /admin/statistics/courses - 院系管理员只取本院课程与排名")
+    void statisticsCourses_collegeAdmin_scoped() throws Exception {
+        when(userService.getById(3L)).thenReturn(collegeAdminUser());
+        Course course = new Course();
+        course.setId(1L);
+        course.setIsActive(true);
+        course.setCategory("PROGRAMMING");
+        when(courseService.list(any(com.baomidou.mybatisplus.core.conditions.Wrapper.class)))
+                .thenReturn(List.of(course));
+        when(analyticsService.getCourseRanking(10L)).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/statistics/courses").with(withCollegeAdmin(3L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.totalCourses").value(1))
+                .andExpect(jsonPath("$.data.activeCourses").value(1));
+        verify(analyticsService).getCourseRanking(10L);
+        verify(analyticsService, never()).getCourseRanking();
+        verify(courseService, never()).count();
+    }
+
+    @Test
+    @DisplayName("GET /admin/statistics/user-growth - 院系管理员只取本院趋势")
+    void userGrowth_collegeAdmin_scoped() throws Exception {
+        when(userService.getById(3L)).thenReturn(collegeAdminUser());
+        when(analyticsService.getUserGrowthTrend(7, 10L)).thenReturn(List.of());
+
+        mockMvc.perform(get("/admin/statistics/user-growth?days=7").with(withCollegeAdmin(3L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+        verify(analyticsService).getUserGrowthTrend(7, 10L);
+        verify(analyticsService, never()).getUserGrowthTrend(anyInt());
+    }
+
+    @Test
+    @DisplayName("GET /admin/statistics/ai-usage - 院系管理员只取本院 AI 用量")
+    void aiUsage_collegeAdmin_scoped() throws Exception {
+        when(userService.getById(3L)).thenReturn(collegeAdminUser());
+        when(systemService.getAIUsageStats(10L)).thenReturn(Map.of("totalCalls", 1));
+
+        mockMvc.perform(get("/admin/statistics/ai-usage").with(withCollegeAdmin(3L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.totalCalls").value(1));
+        verify(systemService).getAIUsageStats(10L);
+        verify(systemService, never()).getAIUsageStats();
     }
 }

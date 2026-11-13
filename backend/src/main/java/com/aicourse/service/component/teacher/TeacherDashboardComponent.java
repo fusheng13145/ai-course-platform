@@ -32,6 +32,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -135,20 +136,24 @@ public class TeacherDashboardComponent {
 
             List<Map<String, Object>> trend = new ArrayList<>();
             LocalDate today = LocalDate.now();
+            // V7 批：14 天趋势从"每天 2 条串行查询 × 14 = 28 条往返"改为 2 条 GROUP BY 聚合——
+            // 该循环是 /teacher/courses/{id}/dashboard 1556ms 的主要构成（其余端点同窗 6-30ms）。
+            // 无记录的日期仍按 0 补齐出点，响应形状不变。
+            LocalDateTime trendSince = today.minusDays(13).atStartOfDay();
+            Map<String, Long> dailyActive = new HashMap<>();
+            for (Map<String, Object> row : learningRecordService.dailyActiveByCourse(courseId, trendSince)) {
+                dailyActive.put(String.valueOf(row.get("date")), ((Number) row.get("active")).longValue());
+            }
+            Map<String, Long> dailySubs = new HashMap<>();
+            if (!taskIds.isEmpty()) {
+                for (Map<String, Object> row : submissionService.dailySubmissionsByTasks(taskIds, trendSince)) {
+                    dailySubs.put(String.valueOf(row.get("date")), ((Number) row.get("subs")).longValue());
+                }
+            }
             for (int i = 13; i >= 0; i--) {
                 LocalDate day = today.minusDays(i);
-                LocalDateTime start = day.atStartOfDay();
-                LocalDateTime end = day.plusDays(1).atStartOfDay();
-                long active = learningRecordService.list(new LambdaQueryWrapper<LearningRecord>()
-                        .eq(LearningRecord::getCourseId, courseId)
-                        .ge(LearningRecord::getCreatedAt, start).lt(LearningRecord::getCreatedAt, end))
-                        .stream().map(LearningRecord::getUserId).filter(Objects::nonNull).distinct().count();
-                long subs = 0L;
-                if (!taskIds.isEmpty()) {
-                    subs = submissionService.count(new LambdaQueryWrapper<Submission>()
-                            .in(Submission::getTaskId, taskIds)
-                            .ge(Submission::getCreatedAt, start).lt(Submission::getCreatedAt, end));
-                }
+                long active = dailyActive.getOrDefault(day.toString(), 0L);
+                long subs = dailySubs.getOrDefault(day.toString(), 0L);
                 Map<String, Object> point = new LinkedHashMap<>(3);
                 point.put("date", day.toString());
                 point.put("activeStudents", active);
@@ -158,7 +163,7 @@ public class TeacherDashboardComponent {
 
             List<Map<String, Object>> atRisk = buildAtRisk(enrollments, null);
             List<Map<String, Object>> chapterTree = chapterComponent.getFullChapterTree(courseId);
-            Map<String, Object> aiInsight = buildCourseAIInsight(course, totalStudents, avgProgress,
+            Map<String, Object> aiInsight = cachedCourseAIInsight(course, totalStudents, avgProgress,
                     completionRate, avgScore, passRate, pendingGrading, atRisk);
 
             dashboard.put("courseId", courseId);
@@ -244,100 +249,29 @@ public class TeacherDashboardComponent {
         return summaries;
     }
 
-    /** 增强版教师仪表盘（跨课程聚合 + AI 教学总览） */
+    /** 增强版教师仪表盘（跨课程聚合；AI 总览已拆到独立端点，主聚合不再同步调 LLM） */
     @Transactional(readOnly = true)
-    public Map<String, Object> getTeacherDashboardV2(Long teacherId) {
+    public Map<String, Object> getTeacherDashboard(Long teacherId) {
         Map<String, Object> dashboard = new LinkedHashMap<>();
         try {
-            List<Long> courseIds = support.courseIdsOfTeacher(teacherId);
-            long courseCount = courseIds.size();
-
-            long studentCount = 0L;
-            if (!courseIds.isEmpty()) {
-                studentCount = enrollmentService.count(new LambdaQueryWrapper<CourseEnrollment>()
-                        .in(CourseEnrollment::getCourseId, courseIds));
-            }
-
-            long pendingGrading = 0L;
-            double avgScore = 0D;
-            if (!courseIds.isEmpty()) {
-                List<Long> taskIds = taskService.list(new LambdaQueryWrapper<Task>().in(Task::getCourseId, courseIds))
-                        .stream().map(Task::getId).filter(Objects::nonNull).collect(Collectors.toList());
-                if (!taskIds.isEmpty()) {
-                    pendingGrading = submissionService.count(new LambdaQueryWrapper<Submission>()
-                            .in(Submission::getTaskId, taskIds).eq(Submission::getStatus, SubmissionStatus.SUBMITTED));
-                    avgScore = submissionService.list(new LambdaQueryWrapper<Submission>()
-                            .in(Submission::getTaskId, taskIds).isNotNull(Submission::getScore))
-                            .stream().mapToDouble(s -> s.getScore() != null ? s.getScore().doubleValue() : 0D)
-                            .average().orElse(0D);
-                }
-            }
-
-            List<Map<String, Object>> courseCards = getMyCourseSummaries(teacherId);
-
-            Map<Long, String> courseNameMap = new HashMap<>();
-            final List<CourseEnrollment> allEnrollments;
-            if (!courseIds.isEmpty()) {
-                List<Course> teacherCourses = courseService.list(new LambdaQueryWrapper<Course>().in(Course::getId, courseIds));
-                for (Course c : teacherCourses) {
-                    courseNameMap.put(c.getId(), c.getName());
-                }
-                allEnrollments = enrollmentService.list(new LambdaQueryWrapper<CourseEnrollment>().in(CourseEnrollment::getCourseId, courseIds));
-            } else {
-                allEnrollments = new ArrayList<>();
-            }
-            List<Map<String, Object>> atRisk = buildAtRisk(allEnrollments, null);
-            Map<Long, String> cNameById = courseNameMap;
-            List<Map<String, Object>> atRiskWithCourse = atRisk.stream().map(r -> {
-                Map<String, Object> m = new LinkedHashMap<>(r);
-                Long sid = (Long) r.get("studentId");
-                String cname = allEnrollments.stream()
-                        .filter(e -> e.getStudentId() != null && e.getStudentId().equals(sid))
-                        .map(e -> cNameById.get(e.getCourseId()))
-                        .filter(Objects::nonNull).findFirst().orElse("");
-                m.put("courseName", cname);
-                return m;
-            }).limit(10).collect(Collectors.toList());
-
-            long publishedTasks = 0L;
-            long totalSubmissions = 0L;
-            if (!courseIds.isEmpty()) {
-                List<Long> taskIds = taskService.list(new LambdaQueryWrapper<Task>()
-                        .in(Task::getCourseId, courseIds).eq(Task::getIsPublished, Boolean.TRUE))
-                        .stream().map(Task::getId).filter(Objects::nonNull).collect(Collectors.toList());
-                publishedTasks = taskIds.size();
-                if (!taskIds.isEmpty()) {
-                    totalSubmissions = submissionService.count(new LambdaQueryWrapper<Submission>().in(Submission::getTaskId, taskIds));
-                }
-            }
-            long expectedSubmissions = publishedTasks * studentCount;
-            double submissionRate = expectedSubmissions > 0 ? support.round2(totalSubmissions * 100.0 / expectedSubmissions) : 0;
-
-            double platformAvgScore = submissionService.list(new LambdaQueryWrapper<Submission>().isNotNull(Submission::getScore))
-                    .stream().mapToDouble(s -> s.getScore() != null ? s.getScore().doubleValue() : 0D).average().orElse(0D);
-            double scoreGap = support.round2(avgScore - platformAvgScore);
-
-            Map<String, Object> aiOverview = buildTeacherAIOverview(courseCount, studentCount, avgScore,
-                    pendingGrading, atRiskWithCourse, submissionRate);
-
-            dashboard.put("courseCount", courseCount);
-            dashboard.put("studentCount", studentCount);
-            dashboard.put("pendingGrading", pendingGrading);
-            dashboard.put("avgScore", support.round2(avgScore));
-            dashboard.put("courseCards", courseCards);
-            dashboard.put("atRiskStudents", atRiskWithCourse);
-            dashboard.put("atRiskCount", atRiskWithCourse.size());
+            TeacherAggregate agg = aggregateTeacher(teacherId);
+            dashboard.put("courseCount", agg.courseCount());
+            dashboard.put("studentCount", agg.studentCount());
+            dashboard.put("pendingGrading", agg.pendingGrading());
+            dashboard.put("avgScore", support.round2(agg.avgScore()));
+            dashboard.put("courseCards", agg.courseCards());
+            dashboard.put("atRiskStudents", agg.atRisk());
+            dashboard.put("atRiskCount", agg.atRisk().size());
             dashboard.put("taskPointOverview", Map.of(
-                    "publishedTasks", publishedTasks,
-                    "totalSubmissions", totalSubmissions,
-                    "expectedSubmissions", expectedSubmissions,
-                    "submissionRate", submissionRate));
+                    "publishedTasks", agg.publishedTasks(),
+                    "totalSubmissions", agg.totalSubmissions(),
+                    "expectedSubmissions", agg.expectedSubmissions(),
+                    "submissionRate", agg.submissionRate()));
             dashboard.put("platformComparison", Map.of(
-                    "platformAvgScore", support.round2(platformAvgScore),
-                    "myAvgScore", support.round2(avgScore),
-                    "scoreGap", scoreGap,
-                    "trend", scoreGap >= 0 ? "ABOVE" : "BELOW"));
-            dashboard.put("aiOverview", aiOverview);
+                    "platformAvgScore", support.round2(agg.platformAvgScore()),
+                    "myAvgScore", support.round2(agg.avgScore()),
+                    "scoreGap", agg.scoreGap(),
+                    "trend", agg.scoreGap() >= 0 ? "ABOVE" : "BELOW"));
         } catch (Exception e) {
             log.error("查询教师课程失败: {}", e.getMessage(), e);
             dashboard.put("error", "教师仪表盘加载异常: " + e.getMessage());
@@ -347,9 +281,108 @@ public class TeacherDashboardComponent {
             dashboard.putIfAbsent("avgScore", 0D);
             dashboard.putIfAbsent("courseCards", new ArrayList<>());
             dashboard.putIfAbsent("atRiskStudents", new ArrayList<>());
-            dashboard.putIfAbsent("aiOverview", Map.of("summary", "暂无可用的 AI 教学总览。"));
         }
         return dashboard;
+    }
+
+    /**
+     * 教师首页 AI 教学总览：独立端点，前端在主聚合返回后异步补数。
+     * <p>主聚合 {@link #getTeacherDashboard(Long)} 不再同步调用 LLM，避免模型抖动拖慢首页；
+     * 统计口径复用 {@link #aggregateTeacher(Long)}，两处不另立第二套读数。</p>
+     */
+    @Transactional(readOnly = true)
+    public Map<String, Object> getTeacherAIOverview(Long teacherId) {
+        try {
+            TeacherAggregate agg = aggregateTeacher(teacherId);
+            return buildTeacherAIOverview(agg.courseCount(), agg.studentCount(), agg.avgScore(),
+                    agg.pendingGrading(), agg.atRisk(), agg.submissionRate());
+        } catch (Exception e) {
+            log.error("查询教师 AI 总览失败: {}", e.getMessage(), e);
+            Map<String, Object> fallback = new LinkedHashMap<>(2);
+            fallback.put("summary", "暂无可用的 AI 教学总览（模型未配置或调用失败）。");
+            return fallback;
+        }
+    }
+
+    /** 教师首页统计聚合：主仪表盘与 AI 总览共用，避免两套口径。 */
+    private TeacherAggregate aggregateTeacher(Long teacherId) {
+        List<Long> courseIds = support.courseIdsOfTeacher(teacherId);
+        long courseCount = courseIds.size();
+
+        long studentCount = 0L;
+        if (!courseIds.isEmpty()) {
+            studentCount = enrollmentService.count(new LambdaQueryWrapper<CourseEnrollment>()
+                    .in(CourseEnrollment::getCourseId, courseIds));
+        }
+
+        long pendingGrading = 0L;
+        double avgScore = 0D;
+        if (!courseIds.isEmpty()) {
+            List<Long> taskIds = taskService.list(new LambdaQueryWrapper<Task>().in(Task::getCourseId, courseIds))
+                    .stream().map(Task::getId).filter(Objects::nonNull).collect(Collectors.toList());
+            if (!taskIds.isEmpty()) {
+                pendingGrading = submissionService.count(new LambdaQueryWrapper<Submission>()
+                        .in(Submission::getTaskId, taskIds).eq(Submission::getStatus, SubmissionStatus.SUBMITTED));
+                avgScore = submissionService.list(new LambdaQueryWrapper<Submission>()
+                        .in(Submission::getTaskId, taskIds).isNotNull(Submission::getScore))
+                        .stream().mapToDouble(s -> s.getScore() != null ? s.getScore().doubleValue() : 0D)
+                        .average().orElse(0D);
+            }
+        }
+
+        List<Map<String, Object>> courseCards = getMyCourseSummaries(teacherId);
+
+        Map<Long, String> courseNameMap = new HashMap<>();
+        final List<CourseEnrollment> allEnrollments;
+        if (!courseIds.isEmpty()) {
+            List<Course> teacherCourses = courseService.list(new LambdaQueryWrapper<Course>().in(Course::getId, courseIds));
+            for (Course c : teacherCourses) {
+                courseNameMap.put(c.getId(), c.getName());
+            }
+            allEnrollments = enrollmentService.list(new LambdaQueryWrapper<CourseEnrollment>().in(CourseEnrollment::getCourseId, courseIds));
+        } else {
+            allEnrollments = new ArrayList<>();
+        }
+        List<Map<String, Object>> atRisk = buildAtRisk(allEnrollments, null);
+        Map<Long, String> cNameById = courseNameMap;
+        List<Map<String, Object>> atRiskWithCourse = atRisk.stream().map(r -> {
+            Map<String, Object> m = new LinkedHashMap<>(r);
+            Long sid = (Long) r.get("studentId");
+            String cname = allEnrollments.stream()
+                    .filter(e -> e.getStudentId() != null && e.getStudentId().equals(sid))
+                    .map(e -> cNameById.get(e.getCourseId()))
+                    .filter(Objects::nonNull).findFirst().orElse("");
+            m.put("courseName", cname);
+            return m;
+        }).limit(10).collect(Collectors.toList());
+
+        long publishedTasks = 0L;
+        long totalSubmissions = 0L;
+        if (!courseIds.isEmpty()) {
+            List<Long> taskIds = taskService.list(new LambdaQueryWrapper<Task>()
+                    .in(Task::getCourseId, courseIds).eq(Task::getIsPublished, Boolean.TRUE))
+                    .stream().map(Task::getId).filter(Objects::nonNull).collect(Collectors.toList());
+            publishedTasks = taskIds.size();
+            if (!taskIds.isEmpty()) {
+                totalSubmissions = submissionService.count(new LambdaQueryWrapper<Submission>().in(Submission::getTaskId, taskIds));
+            }
+        }
+        long expectedSubmissions = publishedTasks * studentCount;
+        double submissionRate = expectedSubmissions > 0 ? support.round2(totalSubmissions * 100.0 / expectedSubmissions) : 0;
+
+        double platformAvgScore = submissionService.list(new LambdaQueryWrapper<Submission>().isNotNull(Submission::getScore))
+                .stream().mapToDouble(s -> s.getScore() != null ? s.getScore().doubleValue() : 0D).average().orElse(0D);
+        double scoreGap = support.round2(avgScore - platformAvgScore);
+
+        return new TeacherAggregate(courseCount, studentCount, pendingGrading, avgScore, courseCards,
+                atRiskWithCourse, publishedTasks, totalSubmissions, expectedSubmissions, submissionRate,
+                platformAvgScore, scoreGap);
+    }
+
+    private record TeacherAggregate(long courseCount, long studentCount, long pendingGrading, double avgScore,
+                                    List<Map<String, Object>> courseCards, List<Map<String, Object>> atRisk,
+                                    long publishedTasks, long totalSubmissions, long expectedSubmissions,
+                                    double submissionRate, double platformAvgScore, double scoreGap) {
     }
 
     private List<Map<String, Object>> buildAtRisk(List<CourseEnrollment> enrollments, String courseName) {
@@ -383,6 +416,41 @@ public class TeacherDashboardComponent {
         boolean lowProgress = e.getProgress() != null && e.getProgress().doubleValue() < 40;
         boolean lowScore = e.getFinalScore() != null && e.getFinalScore().doubleValue() < 60;
         return (lowProgress ? 1 : 0) + (lowScore ? 1 : 0);
+    }
+
+    /**
+     * 课程级 AI 洞察缓存（V7 批）：驾驶舱是高频读页面，此前**每次请求都同步调 LLM**——
+     * 外部供应商往返（实测 402 配额失败也要 ~1.5s）直接决定该页延迟，并在压测中把读路径
+     * 吞吐封顶到 ~63 req/s（9 个读端点轮转里 1/9 命中 dashboard）。
+     * 策略：成功缓存 10 分钟（AI 解读天然允许分钟级陈旧）；失败负缓存 60 秒——避免在
+     * 供应商故障/配额耗尽时每请求都去撞一遍外部网络。响应形状不变，仅新鲜度牺牲。
+     */
+    private static final long INSIGHT_TTL_SUCCESS_MS = 10 * 60 * 1000L;
+    private static final long INSIGHT_TTL_FAILURE_MS = 60 * 1000L;
+    private final java.util.concurrent.ConcurrentHashMap<Long, CachedInsight> courseInsightCache =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    private record CachedInsight(Map<String, Object> payload, boolean fromFailure, long expiresAtMs) {
+    }
+
+    private Map<String, Object> cachedCourseAIInsight(Course course, long totalStudents, double avgProgress,
+                                                      double completionRate, double avgScore, double passRate,
+                                                      long pendingGrading, List<Map<String, Object>> atRisk) {
+        long now = System.currentTimeMillis();
+        CachedInsight cached = courseInsightCache.get(course.getId());
+        if (cached != null && now < cached.expiresAtMs()) {
+            return cached.payload();
+        }
+        Map<String, Object> payload = buildCourseAIInsight(course, totalStudents, avgProgress,
+                completionRate, avgScore, passRate, pendingGrading, atRisk);
+        // 失败形态=固定兜底文案（buildCourseAIInsight 的 catch 分支），负缓存 60s；
+        // 成功形态缓存 10 分钟。字段级区分避免把失败文案当成功缓存满 10 分钟。
+        boolean failure = payload != null && "暂无可用的 AI 学情解读（模型未配置或调用失败）。"
+                .equals(payload.get("summary"));
+        courseInsightCache.put(course.getId(),
+                new CachedInsight(payload, failure,
+                        now + (failure ? INSIGHT_TTL_FAILURE_MS : INSIGHT_TTL_SUCCESS_MS)));
+        return payload;
     }
 
     private Map<String, Object> buildCourseAIInsight(Course course, long totalStudents, double avgProgress,

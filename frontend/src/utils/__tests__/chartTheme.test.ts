@@ -13,7 +13,7 @@ import {
  * 模拟主题环境：设置 data-theme 与 window.matchMedia，
  * 覆盖 chartTheme 的 resolveTheme 内部逻辑（显式主题优先、系统偏好回退）。
  */
-function mockTheme(theme) {
+function mockTheme(theme: string) {
   document.documentElement.setAttribute('data-theme', theme)
   window.matchMedia = vi.fn().mockImplementation((query) => ({
     matches: theme === 'dark',

@@ -43,7 +43,7 @@ public class GradeController {
 
     /** 保存（新增或更新）课程的过程性成绩方案 */
     @PostMapping("/policy")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     public ApiResponse<GradePolicy> savePolicy(@Valid @RequestBody GradePolicy policy, Authentication auth) {
         assertCourseOwner(policy.getCourseId(), auth);
         return ApiResponse.success("方案已保存",
@@ -60,7 +60,7 @@ public class GradeController {
 
     /** 新增或更新某学生的单项成绩记录 */
     @PostMapping("/item")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     public ApiResponse<GradeItem> upsertItem(@Valid @RequestBody GradeItem item, Authentication auth) {
         GradePolicy policy = requirePolicy(item.getPolicyId());
         assertCourseOwner(policy.getCourseId(), auth);
