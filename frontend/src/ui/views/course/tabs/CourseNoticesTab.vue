@@ -41,7 +41,8 @@
         </div>
       </div>
       <p class="hint">
-        发布即写入 announcements 表，并扇出到全部选课学生与主讲教师的站内信（不入教学班/行政班维度）。
+        发布即写入 announcements
+        表，并扇出到全部选课学生与主讲教师的站内信（不入教学班/行政班维度）。
       </p>
     </div>
 
@@ -131,11 +132,11 @@ async function load() {
   try {
     const collected: NoticeRow[] = []
     for (let page = 1; page <= 10; page += 1) {
-      const payload = unwrap<Record<string, unknown>>(
-        await listMyAnnouncements({ page, size: 50 }),
-      )
+      const payload = unwrap<Record<string, unknown>>(await listMyAnnouncements({ page, size: 50 }))
       const records = pickList(payload).map((row) => row as NoticeRow)
-      collected.push(...records.filter((row) => String(row.courseId ?? '') === String(props.courseId)))
+      collected.push(
+        ...records.filter((row) => String(row.courseId ?? '') === String(props.courseId)),
+      )
       const total = Number(payload?.total ?? 0)
       if (records.length === 0 || collected.length >= total) break
     }

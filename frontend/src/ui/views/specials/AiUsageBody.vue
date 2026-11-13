@@ -112,7 +112,12 @@
           <h2>按日趋势</h2>
         </div>
       </header>
-      <div v-if="dayRows.length" class="bar-chart" role="img" aria-label="近 N 天每日 AI 调用次数柱状图">
+      <div
+        v-if="dayRows.length"
+        class="bar-chart"
+        role="img"
+        aria-label="近 N 天每日 AI 调用次数柱状图"
+      >
         <div v-for="bucket in dayBuckets" :key="bucket.day" class="bar-col">
           <span class="bar-val">{{ bucket.calls }}</span>
           <i class="bar" :style="{ '--v': `${bucket.pct}%` }"></i>
@@ -191,8 +196,11 @@
         </div>
         <div class="filter-row">
           <button
-class="btn btn-sm" :class="masterEnabled === false ? 'btn-primary' : 'btn-ghost'"
-                  :disabled="govBusy || masterEnabled === null" @click="toggleMaster()">
+            class="btn btn-sm"
+            :class="masterEnabled === false ? 'btn-primary' : 'btn-ghost'"
+            :disabled="govBusy || masterEnabled === null"
+            @click="toggleMaster()"
+          >
             {{ govBusy ? '处理中…' : masterEnabled === false ? '恢复教师出题' : '全禁教师出题' }}
           </button>
         </div>
@@ -204,7 +212,7 @@ class="btn btn-sm" :class="masterEnabled === false ? 'btn-primary' : 'btn-ghost'
         <button class="btn btn-sm" :disabled="govBusy" @click="loadGovernance()">重试</button>
       </div>
 
-      <div class="restrict-form" >
+      <div class="restrict-form">
         <input
           v-model="newRestriction.userId"
           class="input"
@@ -219,7 +227,11 @@ class="btn btn-sm" :class="masterEnabled === false ? 'btn-primary' : 'btn-ghost'
           aria-label="限制原因"
           maxlength="255"
         />
-        <button class="btn btn-sm btn-primary" :disabled="govBusy || !newRestriction.userId" @click="addRestriction()">
+        <button
+          class="btn btn-sm btn-primary"
+          :disabled="govBusy || !newRestriction.userId"
+          @click="addRestriction()"
+        >
           加入限制名单
         </button>
       </div>
@@ -257,7 +269,8 @@ class="btn btn-sm" :class="masterEnabled === false ? 'btn-primary' : 'btn-ghost'
       </div>
       <p class="hint">
         两层判定：总闸（system_configs 的 ai.question-generation.teacher-enabled）与逐人名单
-        （ai_generation_restrictions）；生效点在教师出题入口，管理员不受限。仅校级管理员可改（院系管理员写入会被后端 403）。
+        （ai_generation_restrictions）；生效点在教师出题入口，管理员不受限。仅校级管理员可改（院系管理员写入会被后端
+        403）。
       </p>
     </section>
   </section>
@@ -522,12 +535,13 @@ async function loadGovernance() {
   govBusy.value = true
   govError.value = ''
   try {
-    const [configs, list] = await Promise.all([
-      getConfigs({ group: 'ai' }),
-      getAiRestrictions(),
-    ])
-    const configRows = (unwrap<Record<string, unknown>[]>(configs) || []) as Array<Record<string, unknown>>
-    const master = configRows.find((row) => row?.configKey === MASTER_KEY || row?.key === MASTER_KEY)
+    const [configs, list] = await Promise.all([getConfigs({ group: 'ai' }), getAiRestrictions()])
+    const configRows = (unwrap<Record<string, unknown>[]>(configs) || []) as Array<
+      Record<string, unknown>
+    >
+    const master = configRows.find(
+      (row) => row?.configKey === MASTER_KEY || row?.key === MASTER_KEY,
+    )
     const rawValue = master ? String(master.value ?? master.configValue ?? '') : ''
     // 缺省视为允许（与 AiGenerationPolicy 口径一致：只有显式 "false" 才禁）
     masterEnabled.value = rawValue === '' ? null : rawValue !== 'false'
@@ -643,7 +657,11 @@ onMounted(() => {
   width: 100%;
   height: var(--v, 0%);
   min-height: 2px;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 55%, transparent), var(--accent));
+  background: linear-gradient(
+    180deg,
+    color-mix(in srgb, var(--accent) 55%, transparent),
+    var(--accent)
+  );
   border-radius: 3px 3px 0 0;
 }
 .bar-col .bar-val {

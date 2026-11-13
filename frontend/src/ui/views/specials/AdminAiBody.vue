@@ -3,11 +3,12 @@
     <div class="card caveat-card">
       <p class="card-kicker">SCOPE / 口径边界</p>
       <p class="scope-line">
-        当前供应商由 <code>system_configs</code> 的 <code>ai.provider</code> 决定，
-        后端每次 LLM 调用实时读取——切换<b>即时生效</b>，无需重启。
+        当前供应商由 <code>system_configs</code> 的 <code>ai.provider</code> 决定， 后端每次 LLM
+        调用实时读取——切换<b>即时生效</b>，无需重启。
       </p>
       <p class="scope-note">
-        密钥等启动级配置不在本页：供应商 API Key 由环境变量注入（见部署文档），本页只做供应商选择与连通性探测。
+        密钥等启动级配置不在本页：供应商 API Key
+        由环境变量注入（见部署文档），本页只做供应商选择与连通性探测。
       </p>
     </div>
 
@@ -45,7 +46,8 @@
         </div>
       </div>
       <p class="hint">
-        「未配置」只代表当前供应商缺少 API Key / 端点，不代表平台不可用——切换到已配置的供应商即可恢复。
+        「未配置」只代表当前供应商缺少 API Key /
+        端点，不代表平台不可用——切换到已配置的供应商即可恢复。
       </p>
     </section>
 
@@ -87,13 +89,23 @@
           </button>
         </div>
       </header>
-      <div v-if="testResult" class="test-result" :class="testResult.ok ? 'ok' : 'bad'" role="status">
+      <div
+        v-if="testResult"
+        class="test-result"
+        :class="testResult.ok ? 'ok' : 'bad'"
+        role="status"
+      >
         <b>{{ testResult.ok ? '探测成功' : '探测失败' }}</b>
-        <p>{{ testResult.message || (testResult.ok ? '当前供应商返回了有效补全。' : '无详细信息。') }}</p>
+        <p>
+          {{
+            testResult.message || (testResult.ok ? '当前供应商返回了有效补全。' : '无详细信息。')
+          }}
+        </p>
         <small>供应商：{{ testResult.provider || current.provider || '—' }}</small>
       </div>
       <p v-else class="hint">
-        探测会向当前供应商发送一条 <code>ping</code> 消息（temperature=0），成功即代表密钥与端点可用。
+        探测会向当前供应商发送一条
+        <code>ping</code> 消息（temperature=0），成功即代表密钥与端点可用。
       </p>
     </section>
   </section>
@@ -238,7 +250,9 @@ onMounted(() => {
   background: var(--surface);
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s, box-shadow 0.15s;
+  transition:
+    border-color 0.15s,
+    box-shadow 0.15s;
 }
 .provider-btn small {
   color: var(--text-3);

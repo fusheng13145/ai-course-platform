@@ -566,7 +566,9 @@ async function copyRow(row: ExamRow) {
   if (copyingId.value != null) return
   copyingId.value = row.id
   try {
-    const created = unwrap<Record<string, unknown>>(await copyExam(row.id, { newTitle: `${row.title}（副本）` }))
+    const created = unwrap<Record<string, unknown>>(
+      await copyExam(row.id, { newTitle: `${row.title}（副本）` }),
+    )
     toast('试卷已复制为新草稿，可直接编辑题目', 'ok')
     await loadExams()
     return created

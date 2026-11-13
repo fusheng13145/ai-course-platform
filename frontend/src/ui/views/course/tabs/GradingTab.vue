@@ -96,7 +96,10 @@
             <div>
               <span>查重</span>
               <b v-if="plagiarism.loading" class="cell-sub">检测中…</b>
-              <b v-else-if="plagiarism.percent !== null" :class="{ 'text-warn': plagiarism.percent >= 40 }">
+              <b
+                v-else-if="plagiarism.percent !== null"
+                :class="{ 'text-warn': plagiarism.percent >= 40 }"
+              >
                 {{ plagiarism.percent }}%
               </b>
               <b v-else class="cell-sub">未检测</b>
@@ -139,7 +142,11 @@
           </div>
 
           <div class="peek-actions">
-            <button class="btn btn-ghost" :disabled="plagiarism.loading || plagiarism.checking" @click="runPlagiarismCheck">
+            <button
+              class="btn btn-ghost"
+              :disabled="plagiarism.loading || plagiarism.checking"
+              @click="runPlagiarismCheck"
+            >
               {{ plagiarism.checking ? '查重检测中…' : '查重检测' }}
             </button>
             <button
@@ -153,19 +160,27 @@
 
           <div v-if="plagiarism.detailOpen && plagiarism.result" class="plagiarism-detail">
             <p class="detail-summary">
-              {{ plagiarism.result.resultSummary || `最高相似度 ${plagiarism.percent ?? '—'}%，高相似匹配 ${plagiarism.result.highSimilarityCount ?? 0} 处` }}
+              {{
+                plagiarism.result.resultSummary ||
+                `最高相似度 ${plagiarism.percent ?? '—'}%，高相似匹配 ${plagiarism.result.highSimilarityCount ?? 0} 处`
+              }}
             </p>
             <ul v-if="plagiarism.matches.length" class="match-list">
               <li v-for="(match, index) in plagiarism.matches" :key="index" class="match-item">
                 <div class="match-head">
-                  <b>与提交 #{{ match.matchedSubmissionId ?? '—' }} 相似 {{ formatPercent(match.similarity) }}</b>
+                  <b
+                    >与提交 #{{ match.matchedSubmissionId ?? '—' }} 相似
+                    {{ formatPercent(match.similarity) }}</b
+                  >
                   <span class="chip chip-mute">{{ match.matchType || 'TEXT' }}</span>
                 </div>
                 <p v-if="match.matchedText" class="match-text">{{ match.matchedText }}</p>
               </li>
             </ul>
             <p v-else class="detail-summary">未发现达到阈值的相似片段。</p>
-            <p class="hint">算法：Jaccard + CJK 双字（同学任务内逐对比对）；结果只作教师参考，不自动改分。</p>
+            <p class="hint">
+              算法：Jaccard + CJK 双字（同学任务内逐对比对）；结果只作教师参考，不自动改分。
+            </p>
           </div>
 
           <div v-if="returnModal.row" class="return-box">
@@ -272,14 +287,19 @@ async function loadPlagiarism(submissionId: number) {
     if (payload && typeof payload === 'object' && 'checkId' in payload) {
       // 任务执行中：如实显示状态，不伪装成已完成
       plagiarism.percent = null
-      plagiarism.result = { status: payload.status, resultSummary: '查重任务正在执行中，稍后刷新查看' }
+      plagiarism.result = {
+        status: payload.status,
+        resultSummary: '查重任务正在执行中，稍后刷新查看',
+      }
       return
     }
     if (payload && typeof payload === 'object' && Object.keys(payload).length > 0) {
       plagiarism.result = payload
       const score = payload.similarityScore ?? payload.similarity_score
       plagiarism.percent = score == null ? null : Math.round(Number(score) * 100)
-      plagiarism.matches = Array.isArray(payload.matches) ? (payload.matches as Array<Record<string, unknown>>) : []
+      plagiarism.matches = Array.isArray(payload.matches)
+        ? (payload.matches as Array<Record<string, unknown>>)
+        : []
     }
   } catch {
     // 无记录/失败都落在「未检测」态，由教师手动触发；不弹错误打断批阅流

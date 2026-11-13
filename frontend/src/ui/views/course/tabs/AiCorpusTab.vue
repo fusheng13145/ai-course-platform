@@ -63,7 +63,11 @@
           <button class="btn btn-sm" :disabled="busy || !rows.length" @click="buildIndex()">
             {{ busy ? '处理中…' : '重建索引' }}
           </button>
-          <button class="btn btn-sm btn-ghost" :disabled="busy || !rows.length" @click="clearIndex()">
+          <button
+            class="btn btn-sm btn-ghost"
+            :disabled="busy || !rows.length"
+            @click="clearIndex()"
+          >
             清空索引
           </button>
         </div>
@@ -88,7 +92,9 @@
               <td>
                 <div class="row-actions">
                   <button class="text-btn" :disabled="busy" @click="openEditor(row)">编辑</button>
-                  <button class="text-btn danger" :disabled="busy" @click="removeDocument(row)">删除</button>
+                  <button class="text-btn danger" :disabled="busy" @click="removeDocument(row)">
+                    删除
+                  </button>
                 </div>
               </td>
             </tr>
@@ -247,7 +253,8 @@ async function buildIndex() {
   if (busy.value) return
   busy.value = true
   try {
-    const data = (unwrap<Record<string, unknown>>(await ragBuildIndex(props.courseId)) || {}) as Record<string, unknown>
+    const data = (unwrap<Record<string, unknown>>(await ragBuildIndex(props.courseId)) ||
+      {}) as Record<string, unknown>
     const indexed = data.indexed_chunks ?? data.indexedChunks
     toast(indexed != null ? `索引已重建（${String(indexed)} 个片段）` : '索引已重建', 'ok')
     engineNote.value = ''
