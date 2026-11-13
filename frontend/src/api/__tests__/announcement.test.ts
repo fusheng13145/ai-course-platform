@@ -11,10 +11,7 @@ const requestMock = vi.hoisted(() => ({
 }))
 vi.mock('@/api/request', () => ({ default: requestMock }))
 
-import announcementApi, {
-  listMyAnnouncements,
-  publishCourseAnnouncement,
-} from '@/api/announcement'
+import announcementApi, { listMyAnnouncements, publishCourseAnnouncement } from '@/api/announcement'
 
 beforeEach(() => {
   vi.clearAllMocks()

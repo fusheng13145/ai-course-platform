@@ -60,7 +60,9 @@ describe('管理端 AI 供应商：热切换闭环', () => {
   })
 
   it('点击切换调用 POST {provider} 并更新高亮与 toast', async () => {
-    adminApi.switchAiProvider.mockResolvedValue(envelope({ provider: 'qwen', llmName: 'router(qwen)' }))
+    adminApi.switchAiProvider.mockResolvedValue(
+      envelope({ provider: 'qwen', llmName: 'router(qwen)' }),
+    )
     const wrapper = mount(AdminAiBody)
     await settle()
     await wrapper.findAll('.provider-btn')[2].trigger('click')
@@ -85,7 +87,12 @@ describe('管理端 AI 供应商：热切换闭环', () => {
 
   it('探测结果如实透出 ok/message（失败不伪装成功）', async () => {
     adminApi.testAiProvider.mockResolvedValue(
-      envelope({ ok: false, provider: 'deepseek', configured: false, message: '未配置 API Key 或服务端点' }),
+      envelope({
+        ok: false,
+        provider: 'deepseek',
+        configured: false,
+        message: '未配置 API Key 或服务端点',
+      }),
     )
     const wrapper = mount(AdminAiBody)
     await settle()

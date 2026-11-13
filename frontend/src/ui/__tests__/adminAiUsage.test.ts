@@ -82,10 +82,34 @@ beforeEach(() => {
   vi.clearAllMocks()
   adminApi.getAIUsageByCourse.mockResolvedValue(envelope(payload()))
   adminApi.getAIUsageByDay.mockResolvedValue(
-    envelope({ rangeDays: 30, days: [{ day: '2026-11-06', calls: 12, tokens: 900, avgDurationMs: 400, successCalls: 12, successRate: 1 }] }),
+    envelope({
+      rangeDays: 30,
+      days: [
+        {
+          day: '2026-11-06',
+          calls: 12,
+          tokens: 900,
+          avgDurationMs: 400,
+          successCalls: 12,
+          successRate: 1,
+        },
+      ],
+    }),
   )
   adminApi.getAIUsageByScene.mockResolvedValue(
-    envelope({ rangeDays: 30, scenes: [{ scene: 'QA_ASK', calls: 120, tokens: 64000, avgDurationMs: 700, successCalls: 118, successRate: 0.9833 }] }),
+    envelope({
+      rangeDays: 30,
+      scenes: [
+        {
+          scene: 'QA_ASK',
+          calls: 120,
+          tokens: 64000,
+          avgDurationMs: 700,
+          successCalls: 118,
+          successRate: 0.9833,
+        },
+      ],
+    }),
   )
   adminApi.getAiRestrictions.mockResolvedValue(envelope([]))
   adminApi.getConfigs.mockResolvedValue(
@@ -154,10 +178,10 @@ describe('管理端 AI 用量：接真与口径边界', () => {
     expect(toggle, '缺少总闸切换按钮').toBeTruthy()
     await toggle!.trigger('click')
     await settle()
-    expect(adminApi.updateConfig).toHaveBeenCalledWith(
-      'ai.question-generation.teacher-enabled',
-      { value: 'false', group: 'ai' },
-    )
+    expect(adminApi.updateConfig).toHaveBeenCalledWith('ai.question-generation.teacher-enabled', {
+      value: 'false',
+      group: 'ai',
+    })
     expect(toast).toHaveBeenCalledWith(expect.stringContaining('全禁'), 'ok')
     wrapper.unmount()
   })

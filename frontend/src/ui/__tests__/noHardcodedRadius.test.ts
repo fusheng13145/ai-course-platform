@@ -79,7 +79,10 @@ describe('P5-04 棘轮：.vue scoped 样式不得新增 border-radius 字面量'
         if (!allowed) violations.push(`${rel}: ${value}`)
       }
     }
-    expect(violations, `新增字面量需先落豁免账再更新 WHITELIST：\n${violations.join('\n')}`).toEqual([])
+    expect(
+      violations,
+      `新增字面量需先落豁免账再更新 WHITELIST：\n${violations.join('\n')}`,
+    ).toEqual([])
   })
 
   it('豁免清单中的文件真实存在（防漂移）', () => {
@@ -95,6 +98,9 @@ describe('P5-04 棘轮：.vue scoped 样式不得新增 border-radius 字面量'
       const css = scopedStyleBlocks(readFileSync(file, 'utf-8'))
       if (/--ac-(bg|border|radius)/.test(css)) offenders.push(rel)
     }
-    expect(offenders, `--ac-bg/--ac-border/--ac-radius-* 已随旧令牌层删除，勿再引用：${offenders.join(',')}`).toEqual([])
+    expect(
+      offenders,
+      `--ac-bg/--ac-border/--ac-radius-* 已随旧令牌层删除，勿再引用：${offenders.join(',')}`,
+    ).toEqual([])
   })
 })
