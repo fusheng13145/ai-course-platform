@@ -2,13 +2,16 @@ package com.aicourse.service.component.submission;
 
 import com.aicourse.common.JsonUtils;
 import com.aicourse.constant.SubmissionStatus;
+import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.entity.Submission;
 import com.aicourse.entity.Task;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.integration.rag.RagContract.RagSource;
 import com.aicourse.mapper.SubmissionMapper;
 import com.aicourse.service.AIService;
 import com.aicourse.service.NotificationService;
 import com.aicourse.service.TaskService;
+import com.aicourse.service.component.ai.CourseEvidenceComponent;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
@@ -20,6 +23,7 @@ import java.math.RoundingMode;
 import java.time.LocalDateTime;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -37,19 +41,22 @@ public class SubmissionGradeComponent {
     private final AIService aiService;
     private final SubmissionJsonComponent jsonSupport;
     private final SubmissionWriteComponent writeComponent;
+    private final CourseEvidenceComponent evidence;
 
     public SubmissionGradeComponent(SubmissionMapper submissionMapper,
                                     @Lazy TaskService taskService,
                                     NotificationService notificationService,
                                     AIService aiService,
                                     SubmissionJsonComponent jsonSupport,
-                                    SubmissionWriteComponent writeComponent) {
+                                    SubmissionWriteComponent writeComponent,
+                                    CourseEvidenceComponent evidence) {
         this.submissionMapper = submissionMapper;
         this.taskService = taskService;
         this.notificationService = notificationService;
         this.aiService = aiService;
         this.jsonSupport = jsonSupport;
         this.writeComponent = writeComponent;
+        this.evidence = evidence;
     }
 
     /**
@@ -154,11 +161,41 @@ public class SubmissionGradeComponent {
             String requirements = task != null && task.getRequirements() != null
                     ? task.getRequirements() : "无额外要求";
 
+            // 课程证据：引擎召回资料 + 知识图谱命中知识点（任何一步失败都降级为空，不阻断批改）
+            Long courseId = task != null ? task.getCourseId() : null;
+            String taskTitle = task != null && task.getTitle() != null ? task.getTitle() : "";
+            String evidenceQuery = (taskTitle + " " + requirements).trim();
+            List<RagSource> sources = evidence.retrieve(evidenceQuery, courseId, 5);
+            List<KnowledgePoint> points = evidence.loadPoints(courseId);
+            List<KnowledgePoint> matched = evidence.matchPoints(points, evidenceQuery);
+
+            StringBuilder evidenceContext = new StringBuilder();
+            boolean hasEvidence = false;
+            if (!sources.isEmpty()) {
+                evidenceContext.append("\n【课程参考资料】\n").append(evidence.renderSources(sources));
+                hasEvidence = true;
+            }
+            if (!matched.isEmpty()) {
+                evidenceContext.append("\n【课程知识点（知识图谱）】\n").append(evidence.renderPoints(matched));
+                hasEvidence = true;
+            } else if (!points.isEmpty()) {
+                String scope = evidence.scopeText(points);
+                if (!scope.isBlank()) {
+                    evidenceContext.append("\n【课程知识点范围】\n").append(scope).append('\n');
+                    hasEvidence = true;
+                }
+            }
+            if (hasEvidence) {
+                evidenceContext.append("\n批改口径：以课程资料与知识点为准；学生答案覆盖要点计分，明显违背课程资料时扣分；"
+                        + "资料未覆盖处按一般学科标准判断，不得臆造课程事实。\n");
+            }
+
             // 结构化提示词：要求 LLM 返回 JSON，包含评分、评语、亮点、改进建议
             String prompt = "请以一位严格的大学教师身份批改以下学生作业，满分" + maxScoreStr + "分。\n"
                     + "【作业要求】\n" + requirements + "\n"
-                    + "【学生提交内容】\n" + submission.getContent() + "\n\n"
-                    + "请返回纯JSON（不要Markdown代码块）：\n"
+                    + "【学生提交内容】\n" + submission.getContent() + "\n"
+                    + evidenceContext
+                    + "\n请返回纯JSON（不要Markdown代码块）：\n"
                     + "{\n"
                     + "  \"score\": 数字分数(0-" + maxScoreStr + "),\n"
                     + "  \"feedback\": \"总体评语（100字以内）\",\n"
@@ -210,6 +247,11 @@ public class SubmissionGradeComponent {
             }
             if (suggestions != null) {
                 existingData = jsonSupport.updateJsonField(existingData, "aiSuggestions", suggestions);
+            }
+            // 记录本次批改实际依据的证据名（无证据则不写该字段，避免伪造溯源）
+            List<String> names = evidence.evidenceNames(sources, matched.isEmpty() ? points : matched);
+            if (!names.isEmpty()) {
+                existingData = jsonSupport.updateJsonField(existingData, "aiEvidence", String.join("、", names));
             }
             existingData = jsonSupport.updateJsonField(existingData, "aiGradedAt", LocalDateTime.now().toString());
             submission.setSubmissionData(existingData);
