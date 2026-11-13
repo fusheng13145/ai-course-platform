@@ -1,13 +1,12 @@
 package com.aicourse.service.component.ai;
 
-import com.aicourse.common.JsonUtils;
 import com.aicourse.exception.LLMUnavailableException;
+import com.aicourse.integration.rag.RagContract.RagRetrievalResult;
+import com.aicourse.integration.rag.RagContract.RagSource;
 import com.aicourse.llm.LLMProvider;
 import com.aicourse.service.AiCallLogService;
 import com.aicourse.service.impl.PromptGuard;
 import com.aicourse.vo.QaSourceVO;
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
 import lombok.extern.slf4j.Slf4j;
@@ -41,8 +40,6 @@ public class AiCoreComponent {
     // DR-74-B：删除 "AI 服务暂时不可用，请稍后再试。" 这个 SERVICE_ERROR_MSG 常量。
     // 它曾被当作正常回答返回（HTTP 200 + code 200），是"失败伪装成成功"的载体；
     // 失败现在一律是 LLMUnavailableException(503)，不允许再有任何"看起来像内容"的兜底文案。
-
-    private static final ObjectMapper OBJECT_MAPPER = new ObjectMapper();
 
     private final LLMProvider llmProvider;
     private final PromptGuard promptGuard;
@@ -300,58 +297,24 @@ public class AiCoreComponent {
     }
 
     /**
-     * 从 RAG 返回的 JSON（{@code {"answer":...,"sources":...}}）中提取纯文本答案；
-     * 若非 JSON 或缺少 answer 字段，则原样返回（兼容历史格式）。
+     * 把引擎检索结果转成问答出处（溯源展示用）。
+     * <p>只有 {@link RagRetrievalResult#engineReady()} 的结果才被视为真实证据：引擎不可用/CI 占位
+     * 时返回空列表，调用方据此降级，避免「出处展示了、答案却没依据」。溯源是增强信息，
+     * 个别来源缺字段不应让整个问答失败。</p>
      */
-    public String extractRagAnswer(String ragJson) {
-        String json = JsonUtils.extractJsonObject(ragJson);
-        if (json == null) {
-            return ragJson;
-        }
-        try {
-            JsonNode node = OBJECT_MAPPER.readTree(json);
-            if (node.has("answer") && node.get("answer").isTextual()
-                    && !node.get("answer").asText().isBlank()) {
-                return node.get("answer").asText();
-            }
-        } catch (Exception e) {
-            log.debug("RAG 答案 JSON 解析失败，原样返回: {}", e.getMessage());
-        }
-        return ragJson;
-    }
-
-    /**
-     * 从 RAG 返回的 JSON（{@code {"answer":...,"sources":[...]}}）中提取召回来源；
-     * 非 JSON、无 {@code sources} 或解析失败时返回空列表——溯源是增强信息，不得因此让问答本身失败。
-     */
-    public List<QaSourceVO> extractRagSources(String ragJson) {
-        String json = JsonUtils.extractJsonObject(ragJson);
-        if (json == null) {
+    public List<QaSourceVO> toQaSources(RagRetrievalResult retrieval) {
+        if (retrieval == null || !retrieval.engineReady() || retrieval.results() == null) {
             return List.of();
         }
-        try {
-            JsonNode sources = OBJECT_MAPPER.readTree(json).get("sources");
-            if (sources == null || !sources.isArray()) {
-                return List.of();
+        List<QaSourceVO> list = new ArrayList<>(retrieval.results().size());
+        for (RagSource source : retrieval.results()) {
+            if (source.documentName() == null && source.snippet() == null) {
+                continue;
             }
-            List<QaSourceVO> list = new ArrayList<>(sources.size());
-            for (JsonNode s : sources) {
-                String documentName = s.path("documentName").asText(null);
-                String snippet = s.path("snippet").asText(null);
-                if (documentName == null && snippet == null) {
-                    continue;
-                }
-                list.add(new QaSourceVO(
-                        s.hasNonNull("documentId") ? s.get("documentId").asLong() : null,
-                        documentName,
-                        s.hasNonNull("relevanceScore") ? s.get("relevanceScore").asDouble() : null,
-                        snippet));
-            }
-            return list;
-        } catch (Exception e) {
-            log.debug("RAG 来源 JSON 解析失败，按无溯源处理: {}", e.getMessage());
-            return List.of();
+            list.add(new QaSourceVO(source.documentId(), source.documentName(),
+                    source.relevanceScore(), source.snippet()));
         }
+        return list;
     }
 
     /**

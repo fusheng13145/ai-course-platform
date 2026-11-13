@@ -62,6 +62,6 @@ public class DisabledRagProvider implements RagContract {
 
     @Override
     public RagRetrievalResult retrieve(RagRetrieveRequest request) {
-        return new RagRetrievalResult(null, MSG, CODE);
+        return new RagRetrievalResult(null, ContractPaths.MODE_UNAVAILABLE, MSG, CODE);
     }
 }

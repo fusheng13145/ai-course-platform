@@ -218,7 +218,10 @@ public class HttpRagProvider implements RagContract {
                 return unavailableRetrieve();
             }
             List<RagSource> sources = parseSources(root.get(ContractPaths.R_RESULTS));
-            return new RagRetrievalResult(sources, null, null);
+            // mode 与 ask 同口径取自响应体：缺省时按引擎正常态兜底，PLACEHOLDER/UNAVAILABLE 原样透传，
+            // 由上层（AiRagComponent）判定「是否真的来自引擎」。
+            String mode = textOrNull(root, ContractPaths.R_MODE);
+            return new RagRetrievalResult(sources, mode != null ? mode : ContractPaths.MODE_ENGINE, null, null);
         } catch (Exception e) {
             log.debug("RAG 检索返回解析失败：{}", e.getMessage());
             return unavailableRetrieve();
@@ -360,7 +363,8 @@ public class HttpRagProvider implements RagContract {
     }
 
     private RagRetrievalResult unavailableRetrieve() {
-        return new RagRetrievalResult(null, ContractPaths.MSG_RAG_UNAVAILABLE, ContractPaths.CODE_UNAVAILABLE);
+        return new RagRetrievalResult(null, ContractPaths.MODE_UNAVAILABLE,
+                ContractPaths.MSG_RAG_UNAVAILABLE, ContractPaths.CODE_UNAVAILABLE);
     }
 
     private IndexResult unavailableIndex() {
