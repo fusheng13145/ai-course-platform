@@ -54,8 +54,13 @@ class OrgCutoverBackfillIT {
     @Test
     @DisplayName("V16/V17 收口：快照列、公告表、学期内唯一键与收紧项全部就位，且可重复执行")
     void migratesAndEnforcesSemesterScopedCode() throws SQLException {
-        MigrateResult first = flyway().migrate();
-        assertEquals(14, first.migrationsExecuted, "V1-V4、V8-V17 共 14 个版本应全部执行");
+        Flyway flyway = flyway();
+        // 期望值不再写死 14：V18 起迁移数会随批次增长，写死等于让「新增一支迁移」变成红灯。
+        // 空库上 pending 就是全部版本（当前 V1..V18），既守住「一次全执行完」，又不因加版本误报。
+        int expected = flyway.info().pending().length;
+        MigrateResult first = flyway.migrate();
+        assertEquals(expected, first.migrationsExecuted,
+                "空库应一次性执行全部待应用版本（当前 " + expected + " 个）");
 
         try (Connection connection = DriverManager.getConnection(
                 MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {

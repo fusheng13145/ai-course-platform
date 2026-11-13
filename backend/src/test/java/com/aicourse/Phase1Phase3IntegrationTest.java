@@ -1,14 +1,18 @@
 package com.aicourse;
 
 import com.aicourse.entity.Course;
+import com.aicourse.entity.Semester;
 import com.aicourse.entity.User;
 import com.aicourse.service.CourseService;
+import com.aicourse.service.SemesterService;
 import com.aicourse.service.UserService;
 import com.aicourse.service.KnowledgePointService;
 import org.springframework.transaction.annotation.Transactional;
 import org.junit.jupiter.api.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.password.PasswordEncoder;
+
+import java.time.LocalDate;
 
 import static org.junit.jupiter.api.Assertions.*;
 
@@ -25,6 +29,7 @@ class Phase1Phase3IntegrationTest extends AbstractIntegrationTest {
     @Autowired private CourseService courseService;
     @Autowired private UserService userService;
     @Autowired private KnowledgePointService knowledgePointService;
+    @Autowired private SemesterService semesterService;
 
     @Autowired
     private PasswordEncoder passwordEncoder;
@@ -53,12 +58,17 @@ class Phase1Phase3IntegrationTest extends AbstractIntegrationTest {
     @Order(3)
     @DisplayName("课程缓存测试")
     void testCourseCache() {
+        // 不再假设种子课程 id=1 一定在：AbstractIntegrationTest 的 MySQL 容器在**整个 JVM 内共享**，
+        // 其它 IT 类可能已清理业务行（CI #238 实测 getById(1) 返回 null）。缓存语义自带数据。
+        Course seed = newCourse("缓存测试课程", "IT-CACHE-" + System.nanoTime());
+        assertTrue(courseService.save(seed));
+
         // 第一次查询（走DB）
-        Course course1 = courseService.getById(1L);
+        Course course1 = courseService.getById(seed.getId());
         assertNotNull(course1);
 
         // 第二次查询（应走Redis缓存）
-        Course course2 = courseService.getById(1L);
+        Course course2 = courseService.getById(seed.getId());
         assertNotNull(course2);
         assertEquals(course1.getName(), course2.getName());
     }
@@ -78,13 +88,7 @@ class Phase1Phase3IntegrationTest extends AbstractIntegrationTest {
     @Transactional
     void testCourseCRUD() {
         // 创建
-        Course course = new Course();
-        course.setName("集成测试课程");
-        course.setCode("TEST001");
-        // 修复：courses.teacher_id 为 BIGINT NOT NULL 且无默认值（外键关联 users.id），
-        // 未显式设置将触发 "Field 'teacher_id' doesn't have a default value"。
-        // 此处使用 index.sql 种子数据中的教师账户（id=2，teacher@aicourse.com）以满足外键约束。
-        course.setTeacherId(2L);
+        Course course = newCourse("集成测试课程", "TEST001");
         boolean saved = courseService.save(course);
         assertTrue(saved);
         assertNotNull(course.getId());
@@ -128,5 +132,32 @@ class Phase1Phase3IntegrationTest extends AbstractIntegrationTest {
         assertEquals("admin", profile.getUsername());
         // getUserProfile 应将密码置空返回
         assertNull(profile.getPassword(), "getUserProfile 不应返回密码");
+    }
+
+    /**
+     * 构造一门可落库的课程：补齐 V17 之后的两个 NOT NULL 前置。
+     *
+     * <p>V17 把 {@code courses.semester_id} 收紧为 NOT NULL（创建时解析 ACTIVE 学期），
+     * 而本类的 MySQL 容器在整个 JVM 内共享，学期行可能被其它 IT 清理过；
+     * {@code teacher_id} 同样 NOT NULL，用 V1 基线的教师账号 2。</p>
+     */
+    private Course newCourse(String name, String code) {
+        Course course = new Course();
+        course.setName(name);
+        course.setCode(code);
+        course.setTeacherId(2L);
+        course.setSemesterId(ensureActiveSemesterId());
+        return course;
+    }
+
+    /** 取一个 ACTIVE 学期；没有就造一个（重复创建同名会撞唯一键，故用纳秒后缀）。 */
+    private Long ensureActiveSemesterId() {
+        return semesterService.listByStatus("ACTIVE").stream()
+                .findFirst()
+                .map(Semester::getId)
+                .orElseGet(() -> semesterService.create(
+                        "IT-" + System.nanoTime(),
+                        LocalDate.now(),
+                        LocalDate.now().plusDays(120)).getId());
     }
 }
