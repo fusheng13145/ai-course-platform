@@ -130,14 +130,51 @@ public class HttpKnowledgeGraphProvider implements KnowledgeGraphContract {
     }
 
     @Override
-    public IngestResult ingest(Long courseId) {
+    public IngestResult ingest(IngestRequest request) {
         return doExecute(() -> {
             Map<String, Object> body = new LinkedHashMap<>();
-            body.put(ContractPaths.F_COURSE_ID, courseId);
+            body.put(ContractPaths.F_COURSE_ID, request.courseId());
+            body.put("nodes", toNodePayload(request.nodes()));
+            body.put("relations", toRelationPayload(request.relations()));
             String raw = restClient.post().uri(ContractPaths.KG_INGEST)
                     .body(body).retrieve().body(String.class);
-            return parseIngest(raw, courseId);
-        }, "图谱摄取", () -> unavailableIngest(courseId));
+            return parseIngest(raw, request.courseId());
+        }, "图谱摄取", () -> unavailableIngest(request.courseId()));
+    }
+
+    /** 知识点快照转 Python 契约（snake_case）：字段名在跨语言边界必须逐字一致。 */
+    private List<Map<String, Object>> toNodePayload(List<IngestNode> nodes) {
+        List<Map<String, Object>> payload = new ArrayList<>();
+        if (nodes == null) {
+            return payload;
+        }
+        for (IngestNode node : nodes) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", node.id());
+            item.put("course_id", node.courseId());
+            item.put("name", node.name());
+            item.put("content", node.content());
+            item.put("type", node.type());
+            payload.add(item);
+        }
+        return payload;
+    }
+
+    /** 知识点关系快照转 Python 契约（snake_case）。 */
+    private List<Map<String, Object>> toRelationPayload(List<IngestRelation> relations) {
+        List<Map<String, Object>> payload = new ArrayList<>();
+        if (relations == null) {
+            return payload;
+        }
+        for (IngestRelation relation : relations) {
+            Map<String, Object> item = new LinkedHashMap<>();
+            item.put("id", relation.id());
+            item.put("source_id", relation.sourceId());
+            item.put("target_id", relation.targetId());
+            item.put("relation_type", relation.relationType());
+            payload.add(item);
+        }
+        return payload;
     }
 
     @Override
@@ -199,7 +236,8 @@ public class HttpKnowledgeGraphProvider implements KnowledgeGraphContract {
             String status = root.has(ContractPaths.R_STATUS) ? root.get(ContractPaths.R_STATUS).asText() : null;
             long synced = root.has("synced_nodes") ? root.get("synced_nodes").asLong()
                     : (root.has("syncedPoints") ? root.get("syncedPoints").asLong() : 0);
-            return new IngestResult(200, status, ContractPaths.MODE_ENGINE, courseId, synced,
+            long relations = root.has("upserted_relations") ? root.get("upserted_relations").asLong() : 0;
+            return new IngestResult(200, status, ContractPaths.MODE_ENGINE, courseId, synced, relations,
                     "由知识图谱引擎（8001）摄取返回");
         } catch (Exception e) {
             log.debug("图谱摄取返回解析失败：{}", e.getMessage());
@@ -236,7 +274,7 @@ public class HttpKnowledgeGraphProvider implements KnowledgeGraphContract {
 
     private IngestResult unavailableIngest(Long courseId) {
         return new IngestResult(ContractPaths.CODE_UNAVAILABLE, null, ContractPaths.MODE_UNAVAILABLE,
-                courseId, 0, ContractPaths.MSG_KG_UNAVAILABLE);
+                courseId, 0, 0, ContractPaths.MSG_KG_UNAVAILABLE);
     }
 
     private SubGraphResult unavailableSubGraph(Long courseId, int maxHops) {
