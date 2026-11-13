@@ -119,6 +119,48 @@ class MemoryStore:
     def course_nodes(self, course_id: int) -> List[dict]:
         return [dict(n) for n in self.nodes.values() if n.get("course_id") == course_id]
 
+    def upsert_snapshot(self, course_id: int, nodes: List[dict],
+                        relations: List[dict]) -> Dict[str, int]:
+        """按课程全量快照幂等对齐：节点 MERGE、出边重建、清理快照外的陈旧节点。
+
+        语义与 Neo4j 后端保持一致，保证同一份快照在两种后端下产生同样的图结构。
+        """
+        with _LOCK:
+            ids = {int(n["id"]) for n in nodes}
+            for n in nodes:
+                nid = int(n["id"])
+                prev = self.nodes.get(nid) or {}
+                self.nodes[nid] = {
+                    "id": nid,
+                    "name": n.get("name") or "",
+                    "type": n.get("type") or "CONCEPT",
+                    "content": n.get("content") or "",
+                    "course_id": int(n.get("course_id") or course_id),
+                    "created_at": prev.get("created_at") or _now(),
+                }
+                self._node_seq = max(self._node_seq, nid + 1)
+            stale = [nid for nid, n in self.nodes.items()
+                     if n.get("course_id") == course_id and nid not in ids]
+            for nid in stale:
+                self.nodes.pop(nid, None)
+            # 快照即真相：先移除本课程节点的出边，再按快照重建
+            self.relations = [r for r in self.relations if r["source_id"] not in ids]
+            created = 0
+            for r in relations:
+                sid, tid = int(r["source_id"]), int(r["target_id"])
+                if sid not in self.nodes or tid not in self.nodes:
+                    continue
+                rid = int(r["id"])
+                self._rel_seq = max(self._rel_seq, rid + 1)
+                self.relations.append({"id": rid, "source_id": sid, "target_id": tid,
+                                       "relation_type": r["relation_type"]})
+                created += 1
+            # 清理陈旧节点删除后遗留的悬空边
+            self.relations = [r for r in self.relations
+                              if r["source_id"] in self.nodes and r["target_id"] in self.nodes]
+            return {"upserted_nodes": len(nodes), "upserted_relations": created,
+                    "pruned_nodes": len(stale)}
+
     def edges_from(self, ids: set) -> List[dict]:
         return [dict(r) for r in self.relations if r["source_id"] in ids]
 
@@ -263,6 +305,53 @@ class Neo4jStore:
                          " n.type AS type, n.content AS content, n.course_id AS course_id,"
                          " n.created_at AS created_at ORDER BY n.id", cid=course_id)
             return [self._row_to_node(r) for r in recs]
+
+    def upsert_snapshot(self, course_id: int, nodes: List[dict],
+                        relations: List[dict]) -> Dict[str, int]:
+        """按课程全量快照幂等对齐：节点 MERGE、出边重建、清理快照外的陈旧节点。
+
+        只操作 :Kp / :RELATES，且所有写操作都以 course_id 为界，不触碰库内其他课程/其他图。
+        """
+        ids = [int(n["id"]) for n in nodes]
+        payload = [{
+            "id": int(n["id"]),
+            "name": n.get("name") or "",
+            "type": n.get("type") or "CONCEPT",
+            "content": n.get("content") or "",
+            "course_id": int(n.get("course_id") or course_id),
+        } for n in nodes]
+        with _LOCK, self._id_lock, self._drv.session() as s:
+            tx = s.begin_transaction()
+            tx.run("""
+                UNWIND $nodes AS n
+                MERGE (k:Kp {id: n.id})
+                ON CREATE SET k.created_at = $now
+                SET k.name = n.name, k.type = n.type,
+                    k.content = n.content, k.course_id = n.course_id
+            """, nodes=payload, now=_now())
+            # 快照即真相：本课程节点的出边整体重建
+            tx.run("MATCH (a:Kp)-[r:RELATES]->() WHERE a.course_id = $cid DELETE r",
+                   cid=course_id)
+            stale = [rec["id"] for rec in tx.run(
+                "MATCH (k:Kp {course_id: $cid}) WHERE NOT k.id IN $ids RETURN k.id AS id",
+                cid=course_id, ids=ids)]
+            if stale:
+                tx.run("MATCH (k:Kp) WHERE k.id IN $ids DETACH DELETE k", ids=stale)
+            created = tx.run("""
+                UNWIND $relations AS rel
+                MATCH (a:Kp {id: rel.source_id}), (b:Kp {id: rel.target_id})
+                MERGE (a)-[r:RELATES {relation_type: rel.relation_type}]->(b)
+                SET r.id = rel.id
+                RETURN count(*) AS c
+            """, relations=[{
+                "id": int(r["id"]),
+                "source_id": int(r["source_id"]),
+                "target_id": int(r["target_id"]),
+                "relation_type": r["relation_type"],
+            } for r in relations]).single()["c"]
+            tx.commit()
+        return {"upserted_nodes": len(payload), "upserted_relations": int(created or 0),
+                "pruned_nodes": len(stale)}
 
     def edges_from(self, ids: set) -> List[dict]:
         """课程节点出发的边（与基线语义一致：source_id ∈ 课程节点集合）。"""

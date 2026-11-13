@@ -44,6 +44,7 @@ public class KnowledgeGraphServiceImpl implements KnowledgeGraphService {
 
     private final KnowledgeGraphContract provider;
     private final KnowledgePointService knowledgePointService;
+    private final KnowledgePointRelationService relationService;
 
     /**
      * 兼容旧签名（internalApiKey 为空：不发内部认证头），供既有单测直构使用。
@@ -75,6 +76,7 @@ public class KnowledgeGraphServiceImpl implements KnowledgeGraphService {
             KnowledgePointRelationService relationService,
             @Value("${app.internal.service-api-key:}") String internalApiKey) {
         this.knowledgePointService = knowledgePointService;
+        this.relationService = relationService;
         KnowledgeGraphContract local = new LocalKnowledgeGraphProvider(knowledgePointService, relationService, defaultMaxHops);
         this.provider = enabled
                 ? new HttpKnowledgeGraphProvider(baseUrl, connectTimeout, readTimeout, maxRetries, healthPath, defaultMaxHops, local, internalApiKey)
@@ -94,7 +96,34 @@ public class KnowledgeGraphServiceImpl implements KnowledgeGraphService {
 
     @Override
     public String ingest(Long courseId) {
-        return serialize(provider.ingest(courseId));
+        return serialize(provider.ingest(buildSnapshot(courseId)));
+    }
+
+    /**
+     * 从 MySQL 生成该课程的全量快照（知识点 + 知识点关系）。
+     * <p>摄取语义是「MySQL 为准的幂等对齐」而不是「让引擎自己数一遍」：只有把权威快照推过去，
+     * 引擎才能补齐缺失节点、修正过期属性并清掉已删除知识点，两侧数量才对得上。</p>
+     */
+    private KnowledgeGraphContract.IngestRequest buildSnapshot(Long courseId) {
+        List<KnowledgeGraphContract.IngestNode> nodes = new ArrayList<>();
+        List<KnowledgeGraphContract.IngestRelation> relations = new ArrayList<>();
+        if (courseId != null) {
+            List<KnowledgePoint> points = knowledgePointService.listByCourse(courseId);
+            if (points != null) {
+                for (KnowledgePoint point : points) {
+                    nodes.add(new KnowledgeGraphContract.IngestNode(point.getId(), point.getCourseId(),
+                            point.getName(), point.getDescription(), point.getPointType()));
+                }
+            }
+            List<KnowledgePointRelation> edges = relationService.listByCourse(courseId);
+            if (edges != null) {
+                for (KnowledgePointRelation edge : edges) {
+                    relations.add(new KnowledgeGraphContract.IngestRelation(edge.getId(), edge.getSourceId(),
+                            edge.getTargetId(), edge.getRelationType()));
+                }
+            }
+        }
+        return new KnowledgeGraphContract.IngestRequest(courseId, nodes, relations);
     }
 
     @Override

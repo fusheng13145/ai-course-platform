@@ -17,7 +17,7 @@ Java 端 `knowledge-graph.enabled=true` 时经 `HttpKnowledgeGraphProvider` 调�
 """
 
 import os
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import JSONResponse
@@ -71,8 +71,28 @@ class PathPlanIn(BaseModel):
     max_hops: int = Field(2, ge=1, le=5)
 
 
+class IngestNodeIn(BaseModel):
+    """快照节点：id 与 Java 侧 MySQL 知识点主键一致，入库按 id MERGE。"""
+    id: int = Field(ge=1)
+    course_id: Optional[int] = Field(default=None, ge=1)
+    name: str = Field(min_length=1, max_length=255)
+    content: str = ""
+    type: str = "CONCEPT"
+
+
+class IngestRelationIn(BaseModel):
+    """快照关系：id 与 Java 侧 MySQL 知识点关系主键一致。"""
+    id: int = Field(ge=1)
+    source_id: int = Field(ge=1)
+    target_id: int = Field(ge=1)
+    relation_type: str = Field(min_length=1, max_length=255)
+
+
 class IngestIn(BaseModel):
     course_id: int = Field(ge=1)
+    # 兼容旧调用：不带 nodes/relations 时退化为只回读已同步数量，不写入
+    nodes: List[IngestNodeIn] = Field(default_factory=list)
+    relations: List[IngestRelationIn] = Field(default_factory=list)
 
 
 class SubGraphIn(BaseModel):
@@ -134,9 +154,25 @@ def path_plan(body: PathPlanIn) -> Dict[str, Any]:
 
 @app.post("/api/v1/graph/ingest")
 def ingest(body: IngestIn) -> Dict[str, Any]:
-    """图谱摄取：返回该课程已同步进图引擎的知识点数量。"""
-    synced = len(kg_store.get_store().course_nodes(body.course_id))
-    return {"status": "ok", "course_id": body.course_id, "synced_nodes": synced}
+    """图谱摄取：按 Java 侧推送的课程全量快照幂等写入图引擎。
+
+    快照以 MySQL 为唯一事实来源：节点按 id MERGE（补齐缺失、更新属性），
+    本课程出边按快照重建，快照外的陈旧节点连同其边一并清理。
+    只触碰 `course_id` 指定的课程，不影响库内其他课程/其他图。
+    """
+    store = kg_store.get_store()
+    if not body.nodes and not body.relations:
+        # 旧契约调用（仅 course_id）：只回读，不写入
+        return {"status": "ok", "course_id": body.course_id,
+                "synced_nodes": len(store.course_nodes(body.course_id)),
+                "upserted_nodes": 0, "upserted_relations": 0, "pruned_nodes": 0}
+    stats = store.upsert_snapshot(
+        body.course_id,
+        [n.model_dump() for n in body.nodes],
+        [r.model_dump() for r in body.relations],
+    )
+    return {"status": "ok", "course_id": body.course_id,
+            "synced_nodes": len(store.course_nodes(body.course_id)), **stats}
 
 
 @app.post("/api/v1/graph/subgraph")

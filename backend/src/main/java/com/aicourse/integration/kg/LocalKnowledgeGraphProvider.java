@@ -166,17 +166,12 @@ public class LocalKnowledgeGraphProvider implements KnowledgeGraphContract {
     }
 
     @Override
-    public IngestResult ingest(Long courseId) {
-        long pointCount = 0;
-        try {
-            if (courseId != null) {
-                pointCount = knowledgePointService.countByCourse(courseId);
-            }
-        } catch (Exception e) {
-            log.debug("本地摄取统计知识点失败：{}", e.getMessage());
-        }
-        return new IngestResult(200, null, ContractPaths.MODE_LOCAL, courseId, pointCount,
-                "知识图谱引擎未接入，已在消费侧确认知识点数据（未真正摄取至引擎）");
+    public IngestResult ingest(IngestRequest request) {
+        // 未接入引擎：不写入任何图存储，只回报本次快照条数；本地 BFS 始终直接读 MySQL。
+        long nodes = request.nodes() == null ? 0 : request.nodes().size();
+        long relations = request.relations() == null ? 0 : request.relations().size();
+        return new IngestResult(200, "local", ContractPaths.MODE_LOCAL, request.courseId(), nodes, relations,
+                "知识图谱引擎未接入，已在消费侧确认快照条数（未真正摄取至引擎）");
     }
 
     @Override

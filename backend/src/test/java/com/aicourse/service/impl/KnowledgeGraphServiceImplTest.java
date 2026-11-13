@@ -106,7 +106,23 @@ class KnowledgeGraphServiceImplTest {
     void disabled_ingest_localMode() throws Exception {
         var kp = mock(KnowledgePointService.class);
         var rel = mock(KnowledgePointRelationService.class);
-        when(kp.countByCourse(1L)).thenReturn(7L);
+        var p1 = new KnowledgePoint();
+        p1.setId(101L);
+        p1.setCourseId(1L);
+        p1.setName("变量");
+        p1.setPointType("CONCEPT");
+        var p2 = new KnowledgePoint();
+        p2.setId(102L);
+        p2.setCourseId(1L);
+        p2.setName("数据类型");
+        p2.setPointType("CONCEPT");
+        var edge = new KnowledgePointRelation();
+        edge.setId(201L);
+        edge.setSourceId(101L);
+        edge.setTargetId(102L);
+        edge.setRelationType("PREREQUISITE");
+        when(kp.listByCourse(1L)).thenReturn(List.of(p1, p2));
+        when(rel.listByCourse(1L)).thenReturn(List.of(edge));
 
         var svc = new KnowledgeGraphServiceImpl(false, "http://localhost:8001", 1, 1, 0,
                 HEALTH, 2, kp, rel);
@@ -114,7 +130,9 @@ class KnowledgeGraphServiceImplTest {
 
         assertEquals(200, m.get("code"));
         assertEquals("LOCAL", m.get("mode"));
-        assertEquals(7, m.get("syncedPoints"));
+        // 未接入引擎时只如实回报快照条数，不假装已写入
+        assertEquals(2, m.get("syncedNodes"));
+        assertEquals(1, m.get("syncedRelations"));
     }
 
     @Test
@@ -153,12 +171,40 @@ class KnowledgeGraphServiceImplTest {
     }
 
     @Test
-    void enabled_proxiesIngestAndSubgraph() throws Exception {
+    void enabled_proxiesIngestAndSubgraph_buildsSnapshotFromMysql() throws Exception {
         startStub();
-        var svc = newEnabledService(mock(KnowledgePointService.class), mock(KnowledgePointRelationService.class));
+        var kp = mock(KnowledgePointService.class);
+        var rel = mock(KnowledgePointRelationService.class);
+        var p1 = new KnowledgePoint();
+        p1.setId(101L);
+        p1.setCourseId(1L);
+        p1.setName("变量");
+        p1.setDescription("命名单元");
+        p1.setPointType("CONCEPT");
+        var p2 = new KnowledgePoint();
+        p2.setId(102L);
+        p2.setCourseId(1L);
+        p2.setName("数据类型");
+        p2.setDescription("值分类");
+        p2.setPointType("CONCEPT");
+        var edge = new KnowledgePointRelation();
+        edge.setId(201L);
+        edge.setSourceId(101L);
+        edge.setTargetId(102L);
+        edge.setRelationType("PREREQUISITE");
+        when(kp.listByCourse(1L)).thenReturn(List.of(p1, p2));
+        when(rel.listByCourse(1L)).thenReturn(List.of(edge));
+
+        var svc = newEnabledService(kp, rel);
 
         Map<?, ?> ing = OM.readValue(svc.ingest(1L), Map.class);
         assertEquals("ok", ing.get("status"));
+        assertEquals(2, ing.get("syncedNodes"));
+        assertEquals(1, ing.get("syncedRelations"));
+        // MySQL 快照必须真的发给引擎（含节点属性与关系），否则引擎无从对齐
+        assertTrue(lastIngestBody.contains("\"nodes\""), "摄取请求缺 nodes：" + lastIngestBody);
+        assertTrue(lastIngestBody.contains("\"relations\""), "摄取请求缺 relations：" + lastIngestBody);
+        assertTrue(lastIngestBody.contains("\"name\":\"变量\""), "节点属性未进入快照：" + lastIngestBody);
 
         Map<?, ?> sub = OM.readValue(svc.getSubGraph(1L, 2), Map.class);
         assertEquals("ok", sub.get("status"));
@@ -227,15 +273,20 @@ class KnowledgeGraphServiceImplTest {
         server.start();
     }
 
+    private String lastIngestBody;
+
     private void handle(HttpExchange exchange) throws IOException {
-        exchange.getRequestBody().readAllBytes();
+        String requestBody = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
         String path = exchange.getRequestURI().getPath();
         String body;
         switch (path) {
             case HEALTH -> body = "{}";
             case "/api/v1/graph/path/plan" ->
                     body = "{\"path\":[1,2,3,4],\"edges\":[],\"hops\":3}";
-            case "/api/v1/graph/ingest" -> body = "{\"status\":\"ok\"}";
+            case "/api/v1/graph/ingest" -> {
+                lastIngestBody = requestBody;
+                body = "{\"status\":\"ok\",\"synced_nodes\":2,\"upserted_relations\":1}";
+            }
             case "/api/v1/graph/subgraph" -> body = "{\"status\":\"ok\"}";
             default -> body = "{}";
         }
