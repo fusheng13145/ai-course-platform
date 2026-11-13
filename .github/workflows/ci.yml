@@ -574,6 +574,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: 腾出磁盘（预装 SDK 占 ~20-30 GB，rag-service 层曾把盘撑爆）
+        # CI #238 实测：`#64 ERROR: write /blobs/...: no space left on device`，构建死在
+        # rag-service 的 torch 层，不是代码问题。ubuntu-latest 自带 dotnet/android/ghc/CodeQL
+        # 等本作业用不到的工具链，先删再构建；删完打印一次 df，便于下次判断余量。
+        run: |
+          df -h /
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc \
+                      /opt/hostedtoolcache/CodeQL /usr/local/share/boost || true
+          sudo docker image prune -af || true
+          df -h /
+
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 

@@ -84,7 +84,13 @@ def read_source(path: str, label: str) -> str:
     不允许静默返回 0（静默 0 会让手册数字无声变假）。
     """
     if not os.path.exists(path):
-        rel = os.path.relpath(path, ROOT).replace("\\", "/")
+        try:
+            rel = os.path.relpath(path, ROOT).replace("\\", "/")
+        except ValueError:
+            # Windows：源路径与仓库不在同一盘符时 relpath 无法相对化（CI 的 windows runner 上
+            # pytest tmp_path 在 C:、仓库在 D:）。退回绝对路径，让原始诊断照常给出，
+            # 而不是被「格式化报错路径」这一步的 ValueError 顶掉。
+            rel = str(path).replace("\\", "/")
         raise SystemExit(
             f"[audit-stats] 统计源缺失：{label}\n"
             f"  期望路径：{rel}\n"

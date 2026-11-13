@@ -54,8 +54,13 @@ class OrgCutoverBackfillIT {
     @Test
     @DisplayName("V16/V17 收口：快照列、公告表、学期内唯一键与收紧项全部就位，且可重复执行")
     void migratesAndEnforcesSemesterScopedCode() throws SQLException {
-        MigrateResult first = flyway().migrate();
-        assertEquals(14, first.migrationsExecuted, "V1-V4、V8-V17 共 14 个版本应全部执行");
+        Flyway flyway = flyway();
+        // 期望值不再写死 14：V18 起迁移数会随批次增长，写死等于让「新增一支迁移」变成红灯。
+        // 空库上 pending 就是全部版本（当前 V1..V18），既守住「一次全执行完」，又不因加版本误报。
+        int expected = flyway.info().pending().length;
+        MigrateResult first = flyway.migrate();
+        assertEquals(expected, first.migrationsExecuted,
+                "空库应一次性执行全部待应用版本（当前 " + expected + " 个）");
 
         try (Connection connection = DriverManager.getConnection(
                 MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
@@ -81,21 +86,23 @@ class OrgCutoverBackfillIT {
 
             // 4A 行为断言：同学期同编号被拒；跨学期同编号放行
             try (Statement statement = connection.createStatement()) {
-                statement.execute("INSERT INTO semesters (name, start_date, end_date, status) VALUES "
-                        + "('2025-2026-1', '2025-09-01', '2026-01-31', 'ACTIVE'), "
-                        + "('2025-2026-2', '2026-02-23', '2026-07-05', 'ACTIVE')");
+                // 不写死学期名/id：V14 已种下 '2025-2026-2' 与 '2026-2027-1'，
+                // 再插同名会撞 uk_semesters_name（CI #244 实测 Duplicate entry '2025-2026-2'）；
+                // 自增 id 也不保证从 1 起。改为造两个本次专属学期并取回真实 id。
+                long spring = insertSemester(statement, "IT-SPRING-" + System.nanoTime(), "2025-09-01", "2026-01-31");
+                long autumn = insertSemester(statement, "IT-AUTUMN-" + System.nanoTime(), "2026-02-23", "2026-07-05");
                 statement.execute("INSERT INTO courses (name, code, semester_id, teacher_id, "
-                        + "max_students, current_students, status, is_active, created_at) VALUES "
-                        + "('计算机网络', 'CS101', 1, 1, 50, 0, 'ACTIVE', 1, '2025-09-10 00:00:00')");
+                        + "max_students, status, is_active, created_at) VALUES "
+                        + "('计算机网络', 'CS101', " + spring + ", 1, 50, 'ACTIVE', 1, '2025-09-10 00:00:00')");
                 // 跨学期同编号：放行
                 statement.execute("INSERT INTO courses (name, code, semester_id, teacher_id, "
-                        + "max_students, current_students, status, is_active, created_at) VALUES "
-                        + "('计算机网络（春）', 'CS101', 2, 1, 50, 0, 'ACTIVE', 1, '2026-03-01 00:00:00')");
+                        + "max_students, status, is_active, created_at) VALUES "
+                        + "('计算机网络（春）', 'CS101', " + autumn + ", 1, 50, 'ACTIVE', 1, '2026-03-01 00:00:00')");
                 // 同学期同编号：唯一键拒绝
                 assertThrows(SQLException.class, () -> statement.execute(
                         "INSERT INTO courses (name, code, semester_id, teacher_id, "
-                                + "max_students, current_students, status, is_active, created_at) VALUES "
-                                + "('重复编号', 'CS101', 1, 1, 50, 0, 'ACTIVE', 1, '2025-10-01 00:00:00')"),
+                                + "max_students, status, is_active, created_at) VALUES "
+                                + "('重复编号', 'CS101', " + spring + ", 1, 50, 'ACTIVE', 1, '2025-10-01 00:00:00')"),
                         "同学期内重复编号必须被 uk_courses_semester_code 拒绝");
             }
 
@@ -135,10 +142,26 @@ class OrgCutoverBackfillIT {
         }
     }
 
+    /** 造一个本次专属学期并取回自增 id（避开 V14 种子名与不保证从 1 起的自增序列）。 */
+    private static long insertSemester(Statement statement, String name, String start, String end)
+            throws SQLException {
+        statement.executeUpdate("INSERT INTO semesters (name, start_date, end_date, status) VALUES "
+                + "('" + name + "', '" + start + "', '" + end + "', 'ACTIVE')",
+                Statement.RETURN_GENERATED_KEYS);
+        try (ResultSet keys = statement.getGeneratedKeys()) {
+            assertTrue(keys.next(), "插入学期后应能取回自增 id");
+            return keys.getLong(1);
+        }
+    }
+
     private static int indexCount(Connection connection, String table, String indexName) throws SQLException {
+        // 复合索引在 information_schema.STATISTICS 里是**每列一行**（uk_courses_semester_code 有
+        // semester_id／code 两行），COUNT(*) 会读成 2。这里数 DISTINCT INDEX_NAME，
+        // 语义是「该索引名存不存在／有几条定义」，与断言里的 1/0 对应。
         try (Statement statement = connection.createStatement();
              ResultSet resultSet = statement.executeQuery(
-                     "SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE()"
+                     "SELECT COUNT(DISTINCT INDEX_NAME) FROM information_schema.STATISTICS"
+                             + " WHERE TABLE_SCHEMA = DATABASE()"
                              + " AND TABLE_NAME = '" + table + "' AND INDEX_NAME = '" + indexName + "'")) {
             resultSet.next();
             return resultSet.getInt(1);

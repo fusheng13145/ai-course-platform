@@ -3,7 +3,10 @@ package com.aicourse.config;
 import org.flywaydb.core.Flyway;
 import org.flywaydb.core.api.output.MigrateResult;
 import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.MethodOrderer;
+import org.junit.jupiter.api.Order;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.TestMethodOrder;
 import org.testcontainers.containers.MySQLContainer;
 import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
@@ -32,6 +35,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * </ol>
  */
 @Testcontainers
+@TestMethodOrder(MethodOrderer.OrderAnnotation.class)
 class OrgFoundationMigrationIT {
 
     @Container
@@ -46,14 +50,23 @@ class OrgFoundationMigrationIT {
         return Flyway.configure()
                 .dataSource(MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())
                 .locations("classpath:db/migration")
+                // 「空库迁移」这条判据必须真的从空库出发：容器在本 JVM 内被两个 @Test 共享，
+                // 若另一个用例先跑，版本已被全部应用，再 migrate 就是 0 条（CI #238 实测 was:<0>）。
+                .cleanDisabled(false)
                 .load();
     }
 
     @Test
+    @Order(1)
     @DisplayName("空库迁移：组织四表、ADMIN 作用域与权限唯一键全部就位，且可重复执行")
     void migratesEmptyDatabase() throws SQLException {
-        MigrateResult first = flyway().migrate();
-        assertEquals(14, first.migrationsExecuted, "V1-V4、V8-V17 共 14 个版本应全部执行");
+        Flyway flyway = flyway();
+        flyway.clean();
+        // 期望值不再写死 14：V18 起迁移数随批次增长，空库上 pending 即全部版本。
+        int expected = flyway.info().pending().length;
+        MigrateResult first = flyway.migrate();
+        assertEquals(expected, first.migrationsExecuted,
+                "空库应一次性执行全部待应用版本（当前 " + expected + " 个）");
 
         try (Connection connection = DriverManager.getConnection(
                 MYSQL.getJdbcUrl(), MYSQL.getUsername(), MYSQL.getPassword())) {
@@ -105,6 +118,7 @@ class OrgFoundationMigrationIT {
     }
 
     @Test
+    @Order(2)
     @DisplayName("权限目录唯一键：同 role 同 key 不同 scope 可共存，相同三元组二次插入被唯一约束拒绝")
     void permissionScopeUniqueKeyEnforced() throws SQLException {
         flyway().migrate();
