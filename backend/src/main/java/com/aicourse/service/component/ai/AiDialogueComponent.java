@@ -144,8 +144,8 @@ public class AiDialogueComponent {
         String grounding = null;
         if (courseId != null) {
             try {
-                List<QaSourceVO> retrieved = core.extractRagSources(
-                        ragService.retrieve(question, courseId, STREAM_RETRIEVE_TOP_K));
+                List<QaSourceVO> retrieved = core.toQaSources(
+                        ragService.retrieveTyped(question, courseId, STREAM_RETRIEVE_TOP_K));
                 if (!retrieved.isEmpty()) {
                     sources = retrieved;
                     grounding = buildGrounding(retrieved);

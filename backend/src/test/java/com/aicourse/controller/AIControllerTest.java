@@ -2,6 +2,7 @@ package com.aicourse.controller;
 import com.aicourse.controller.AIController;
 import com.aicourse.entity.AiChatSession;
 import com.aicourse.entity.LearningPath;
+import com.aicourse.integration.ContractPaths;
 import com.aicourse.service.AIService;
 import com.aicourse.service.AiChatSessionService;
 import com.aicourse.service.AnalyticsService;
@@ -67,7 +68,8 @@ class AIControllerTest extends ControllerTestBase {
         when(aiChatSessionService.createSession(anyLong(), any(), any())).thenReturn(session);
         when(aiChatSessionService.getMessages(anyString())).thenReturn(Collections.emptyList());
         when(aiService.ragAsk(anyString(), any())).thenReturn(new QaAnswerVO("RAG答案",
-                List.of(new QaSourceVO(9L, "<b>第6章 传输层</b>", 0.9937, "三次握手同步初始序号"))));
+                List.of(new QaSourceVO(9L, "<b>第6章 传输层</b>", 0.9937, "三次握手同步初始序号")),
+                ContractPaths.MODE_ENGINE));
 
         MvcResult mvc = mockMvc.perform(post("/ai/qa/ask").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"question\":\"什么是闭包\",\"courseId\":\"2\"}").with(withUser(1L, "TEACHER")))
@@ -77,6 +79,8 @@ class AIControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.answer").value("RAG答案"))
                 .andExpect(jsonPath("$.data.sessionId").value("sess-1"))
+                // 证据来源必须透出：前端可忽略，验收/排障据此区分引擎应答与降级作答
+                .andExpect(jsonPath("$.data.mode").value(ContractPaths.MODE_ENGINE))
                 // 溯源下发：出处随答案一并返回，按纯文本契约原样下发
                 .andExpect(jsonPath("$.data.sources[0].documentId").value(9))
                 .andExpect(jsonPath("$.data.sources[0].documentName").value("<b>第6章 传输层</b>"))

@@ -3,6 +3,9 @@ package com.aicourse.service.impl;
 import com.aicourse.common.ApiCode;
 import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.integration.ContractPaths;
+import com.aicourse.integration.rag.RagContract.RagRetrievalResult;
+import com.aicourse.integration.rag.RagContract.RagSource;
 import com.aicourse.vo.QaAnswerVO;
 import com.aicourse.exception.LLMUnavailableException;
 import com.aicourse.llm.LLMProvider;
@@ -66,7 +69,7 @@ class AIServiceImplTest {
         // 原兼容构造器已移除：此处内联其组件组装逻辑，再走主构造器（4 个组件）
         AiCoreComponent coreComponent = new AiCoreComponent(llmProvider, promptGuard, meterRegistry, aiCallLogService);
         AiDialogueComponent dialogueComponent = new AiDialogueComponent(coreComponent, ragService);
-        AiRagComponent ragComponent = new AiRagComponent(ragService, promptGuard, coreComponent, knowledgePointService);
+        AiRagComponent ragComponent = new AiRagComponent(ragService, coreComponent, knowledgePointService);
         AiStructuredComponent structuredComponent = new AiStructuredComponent(coreComponent);
         service = new AIServiceImpl(dialogueComponent, ragComponent, structuredComponent, coreComponent);
         // 默认桩：已配置供应商，complete/completeJson 返回合法文本，输出清洗为原样透传。
@@ -263,44 +266,90 @@ class AIServiceImplTest {
         assertEquals(1.0, aiCallCount("plagiarism"), "查重埋点 type 应为 plagiarism");
     }
 
-    // ===================== ragAsk =====================
+    // ===================== ragAsk（Java 单一路径：引擎检索 mode=ENGINE + 本端 LLM 生成） =====================
+
+    private static RagRetrievalResult engineResult(RagSource... sources) {
+        return new RagRetrievalResult(List.of(sources), ContractPaths.MODE_ENGINE, null, null);
+    }
+
+    private static RagRetrievalResult unavailableRetrieval() {
+        return new RagRetrievalResult(null, ContractPaths.MODE_UNAVAILABLE,
+                ContractPaths.MSG_RAG_UNAVAILABLE, ContractPaths.CODE_UNAVAILABLE);
+    }
+
     @Test
-    @DisplayName("ragAsk RAG 返回 null 降级：无知识点时显式声明课程知识库为空，不得冒充课程答案")
-    void ragAsk_ragNull() {
+    @DisplayName("ragAsk 检索返回 null 降级：无知识点时显式声明课程知识库为空，mode=LOCAL")
+    void ragAsk_retrievalNull() {
         // topK=5 与 courseId 都是 AiRagComponent 硬编码/透传的业务参数，必须按值打桩而非 anyInt()
-        when(ragService.ask("q", 1L, 5)).thenReturn(null);
-        assertEquals("raw", service.ragAsk("q", 1L).getAnswer());
+        when(ragService.retrieveTyped("q", 1L, 5)).thenReturn(null);
+        QaAnswerVO vo = service.ragAsk("q", 1L);
+        assertEquals("raw", vo.getAnswer());
+        assertEquals(ContractPaths.MODE_LOCAL, vo.getMode(), "无引擎证据时不得自称 ENGINE");
         List<Map<String, String>> msgs = captureCompleteMessages(0.5);
         assertTrue(flatten(msgs).contains("当前课程知识库暂无知识点"),
                 "降级路径须声明无课程知识库，实际=" + flatten(msgs));
         assertTrue(flatten(msgs).contains("无法基于课程知识库回答"), "降级路径须给出如实兜底措辞");
         assertTrue(promptOf(msgs).contains("q"), "原始问题必须透传给降级 LLM，实际=" + flatten(msgs));
         assertEquals(1.0, aiCallCount("rag"));
+        verify(ragService, never()).ask(anyString(), any(), anyInt());
     }
 
     @Test
-    @DisplayName("ragAsk RAG 含 503 降级纯 LLM")
-    void ragAsk_rag503() {
-        when(ragService.ask("q", 1L, 5)).thenReturn("{\"code\":503,\"msg\":\"x\"}");
-        assertEquals("raw", service.ragAsk("q", 1L).getAnswer());
+    @DisplayName("ragAsk 检索 503 降级纯 LLM，mode=LOCAL")
+    void ragAsk_retrievalUnavailable() {
+        when(ragService.retrieveTyped("q", 1L, 5)).thenReturn(unavailableRetrieval());
+        QaAnswerVO vo = service.ragAsk("q", 1L);
+        assertEquals("raw", vo.getAnswer());
+        assertEquals(ContractPaths.MODE_LOCAL, vo.getMode());
         assertEquals(1.0, aiCallCount("rag"));
     }
 
     @Test
-    @DisplayName("ragAsk RAG 正常返回答案：检索参数为(问题, 课程ID, topK=5)")
-    void ragAsk_ragOk() {
-        when(ragService.ask("q", 1L, 5)).thenReturn("{\"answer\":\"hello\"}");
-        assertEquals("hello", service.ragAsk("q", 1L).getAnswer());
-        // 检索召回条数决定答案的证据密度，写错 topK 不会改变类型却会改变结果，必须按值校验
-        verify(ragService).ask("q", 1L, 5);
-        verify(llmProvider, never()).complete(any(), any());
-        verify(knowledgePointService, never()).listByCourse(any());
+    @DisplayName("ragAsk 引擎召回 mode=ENGINE：本端 LLM 依资料生成答案，sources 含文档与图谱节点")
+    void ragAsk_engineAnswerUsesRetrievedEvidence() {
+        KnowledgePoint closure = knowledgePoint(1L, "闭包", "闭包是由函数及其引用的环境组合而成的实体", 5);
+        when(knowledgePointService.listByCourse(1L)).thenReturn(List.of(closure));
+        when(ragService.retrieveTyped("什么是闭包", 1L, 5)).thenReturn(engineResult(
+                new RagSource(9L, "Python-函数与lambda", 0.93, "lambda 是表达式，def 是语句")));
+
+        QaAnswerVO vo = service.ragAsk("什么是闭包", 1L);
+
+        assertEquals("raw", vo.getAnswer());
+        assertEquals(ContractPaths.MODE_ENGINE, vo.getMode());
+        assertEquals(2, vo.getSources().size(), "出处应同时包含检索文档与图谱命中节点");
+        assertEquals(9L, vo.getSources().get(0).getDocumentId());
+        assertEquals("课程知识图谱 · 闭包", vo.getSources().get(1).getDocumentName());
+
+        List<Map<String, String>> msgs = captureCompleteMessages(0.3);
+        String prompt = flatten(msgs);
+        assertTrue(prompt.contains("lambda 是表达式，def 是语句"), "召回片段必须进入生成 prompt，实际=" + prompt);
+        assertTrue(prompt.contains("闭包是由函数及其引用的环境组合而成的实体"),
+                "命中知识点的描述必须进入生成 prompt，实际=" + prompt);
+        assertTrue(prompt.contains("无法基于课程知识库回答"), "接地 prompt 必须带如实兜底硬约束");
+        // 删除字符串嗅探后，主路径不得再调用 Python 的 /ask（那里会用 EXTRACTIVE 模板冒充生成）
+        verify(ragService, never()).ask(anyString(), any(), anyInt());
+        assertEquals(1.0, aiCallCount("rag"));
     }
 
     @Test
-    @DisplayName("ragAsk RAG 抛异常降级")
-    void ragAsk_ragThrows() {
-        when(ragService.ask("q", 1L, 5)).thenThrow(new RuntimeException("boom"));
+    @DisplayName("ragAsk 检索 mode=PLACEHOLDER：CI 占位桩不得冒充引擎答案，降级且 mode=LOCAL")
+    void ragAsk_placeholderModeFallsBack() {
+        when(ragService.retrieveTyped("q", 1L, 5)).thenReturn(
+                new RagRetrievalResult(List.of(new RagSource(1L, "TCP", 0.9, "占位片段")), "PLACEHOLDER", null, null));
+
+        QaAnswerVO vo = service.ragAsk("q", 1L);
+
+        assertEquals("raw", vo.getAnswer());
+        assertEquals(ContractPaths.MODE_LOCAL, vo.getMode(), "占位召回不得被当作引擎证据");
+        assertTrue(vo.getSources().isEmpty(), "占位召回不得进入出处");
+        String prompt = flatten(captureCompleteMessages(0.5));
+        assertTrue(prompt.contains("当前课程知识库暂无知识点"), "实际=" + prompt);
+    }
+
+    @Test
+    @DisplayName("ragAsk 检索抛异常降级纯 LLM")
+    void ragAsk_retrievalThrows() {
+        when(ragService.retrieveTyped("q", 1L, 5)).thenThrow(new RuntimeException("boom"));
         assertEquals("raw", service.ragAsk("q", 1L).getAnswer());
         assertEquals(1.0, aiCallCount("rag"));
     }
@@ -314,10 +363,11 @@ class AIServiceImplTest {
         KnowledgePoint scope = knowledgePoint(3L, "作用域", "变量的可见范围", 4);
         when(knowledgePointService.listByCourse(1L)).thenReturn(List.of(recursion, closure));
         when(knowledgePointService.getPrerequisites(1L)).thenReturn(List.of(scope));
-        when(ragService.ask("什么是闭包", 1L, 5)).thenReturn("{\"code\":503,\"msg\":\"x\"}");
+        when(ragService.retrieveTyped("什么是闭包", 1L, 5)).thenReturn(unavailableRetrieval());
 
         QaAnswerVO vo = service.ragAsk("什么是闭包", 1L);
         assertEquals("raw", vo.getAnswer());
+        assertEquals(ContractPaths.MODE_LOCAL, vo.getMode());
         assertEquals(1, vo.getSources().size(), "只有问题命中的知识点才能作为出处");
         assertEquals("课程知识图谱 · 闭包", vo.getSources().get(0).getDocumentName());
         assertEquals(1L, vo.getSources().get(0).getDocumentId());
@@ -334,10 +384,11 @@ class AIServiceImplTest {
     void ragAsk_fallbackNoMatchKeepsHonestScope() {
         when(knowledgePointService.listByCourse(1L)).thenReturn(List.of(
                 knowledgePoint(1L, "继承", "子类复用父类", 3)));
-        when(ragService.ask("今天天气", 1L, 5)).thenReturn(null);
+        when(ragService.retrieveTyped("今天天气", 1L, 5)).thenReturn(null);
 
         QaAnswerVO vo = service.ragAsk("今天天气", 1L);
         assertEquals("raw", vo.getAnswer());
+        assertEquals(ContractPaths.MODE_LOCAL, vo.getMode());
         assertTrue(vo.getSources().isEmpty(), "无直接命中不得伪造出处");
         String prompt = flatten(captureCompleteMessages(0.5));
         assertTrue(prompt.contains("未检索到与问题直接相关的课程知识点"), "实际=" + prompt);
@@ -345,17 +396,17 @@ class AIServiceImplTest {
     }
 
     @Test
-    @DisplayName("ragAsk 未指定课程：显式声明无课程知识库，且不读取任何知识点")
+    @DisplayName("ragAsk 未指定课程：显式声明无课程知识库，且不发起检索、不读取任何知识点")
     void ragAsk_fallbackWithoutCourseDeclaresNoKnowledgeBase() {
-        when(ragService.ask("q", null, 5)).thenReturn(null);
-
         QaAnswerVO vo = service.ragAsk("q", null);
         assertEquals("raw", vo.getAnswer());
+        assertEquals(ContractPaths.MODE_LOCAL, vo.getMode());
         assertTrue(vo.getSources().isEmpty());
         String prompt = flatten(captureCompleteMessages(0.5));
         assertTrue(prompt.contains("当前未指定课程"), "实际=" + prompt);
         assertTrue(prompt.contains("无法基于课程知识库回答"));
         verify(knowledgePointService, never()).listByCourse(any());
+        verify(ragService, never()).retrieveTyped(anyString(), any(), anyInt());
     }
 
     private KnowledgePoint knowledgePoint(Long id, String name, String description, int importance) {
@@ -631,7 +682,7 @@ class AIServiceImplTest {
         assertEquals(2, r.getTokens().collectList().block().size());
         assertTrue(r.getSources().isEmpty());
         // 无归属课程时不得发起检索（否则会平白增加一次 RAG 往返）
-        verify(ragService, never()).retrieve(anyString(), any(), anyInt());
+        verify(ragService, never()).retrieveTyped(anyString(), any(), anyInt());
 
         @SuppressWarnings("unchecked")
         ArgumentCaptor<List<Map<String, String>>> cap = ArgumentCaptor.forClass(List.class);
@@ -647,9 +698,8 @@ class AIServiceImplTest {
     @DisplayName("streamChat 带 courseId：检索命中 -> 接地 system 提示 + 出处随流回传")
     void streamChat_withCourseId_retrieveHits_groundsAndReturnsSources() {
         when(llmProvider.isConfigured()).thenReturn(true);
-        when(ragService.retrieve(eq("q"), eq(7L), eq(5))).thenReturn(
-                "{\"sources\":[{\"documentId\":1,\"documentName\":\"第1章 绪论\","
-                        + "\"relevanceScore\":0.9,\"snippet\":\"算法的定义\"}]}");
+        when(ragService.retrieveTyped(eq("q"), eq(7L), eq(5))).thenReturn(engineResult(
+                new RagSource(1L, "第1章 绪论", 0.9, "算法的定义")));
 
         QaStreamVO r = service.streamChat("q", 7L);
 
@@ -676,7 +726,7 @@ class AIServiceImplTest {
     @DisplayName("streamChat 带 courseId：检索异常 -> 降级纯 LLM 且不出处，流不中断")
     void streamChat_withCourseId_retrieveFails_degradesToPlainLlm() {
         when(llmProvider.isConfigured()).thenReturn(true);
-        when(ragService.retrieve(anyString(), any(), anyInt()))
+        when(ragService.retrieveTyped(anyString(), any(), anyInt()))
                 .thenThrow(new RuntimeException("RAG 服务不可用"));
 
         QaStreamVO r = service.streamChat("q", 7L);
@@ -688,6 +738,24 @@ class AIServiceImplTest {
         ArgumentCaptor<List<Map<String, String>>> cap = ArgumentCaptor.forClass(List.class);
         verify(llmProvider).stream(cap.capture(), any());
         assertEquals(1, cap.getValue().size(), "降级后只下发 user 消息");
+        assertEquals("user", cap.getValue().get(0).get("role"));
+    }
+
+    @Test
+    @DisplayName("streamChat 带 courseId：检索为 PLACEHOLDER 占位 -> 不得接地、不出处")
+    void streamChat_withCourseId_placeholderIsNotEvidence() {
+        when(llmProvider.isConfigured()).thenReturn(true);
+        when(ragService.retrieveTyped(anyString(), any(), anyInt())).thenReturn(
+                new RagRetrievalResult(List.of(new RagSource(1L, "占位", 0.9, "占位片段")),
+                        "PLACEHOLDER", null, null));
+
+        QaStreamVO r = service.streamChat("q", 7L);
+
+        assertTrue(r.getSources().isEmpty(), "占位召回不得进入出处");
+        @SuppressWarnings("unchecked")
+        ArgumentCaptor<List<Map<String, String>>> cap = ArgumentCaptor.forClass(List.class);
+        verify(llmProvider).stream(cap.capture(), any());
+        assertEquals(1, cap.getValue().size(), "占位召回不得拼接地 system 提示");
         assertEquals("user", cap.getValue().get(0).get("role"));
     }
 
