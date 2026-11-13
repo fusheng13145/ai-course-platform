@@ -385,6 +385,7 @@ jobs:
             "$GITLEAKS_IMAGE" detect --no-git \
               --source=/repo \
               --config=/repo/.gitleaks.toml \
+              --report-format sarif --report-path /repo/gitleaks-head.sarif \
               --redact --no-banner --exit-code 1
 
       - name: ② 变更提交区间扫描（增量反馈）
@@ -406,7 +407,21 @@ jobs:
               --source=/repo \
               --config=/repo/.gitleaks.toml \
               --log-opts="$RANGE" \
+              --report-format sarif --report-path /repo/gitleaks-range.sarif \
               --redact --no-banner --exit-code 1
+
+      # 失败时不再只剩一句「leaks found: N」：把 SARIF 工件带出来，能直接看到文件/行号/规则，
+      # 值仍被 --redact 打码（不把命中内容二次落到 CI 工件里）。
+      - name: 上传 gitleaks 报告（SARIF，失败时用于定位）
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: gitleaks-report
+          path: |
+            gitleaks-head.sarif
+            gitleaks-range.sarif
+          if-no-files-found: ignore
+          retention-days: 7
 
   # ------------------------------------------------------------------
   # 后端：软件成分分析（SCA）—— OSV-Scanner 已知漏洞门禁
