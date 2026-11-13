@@ -98,7 +98,7 @@
 ### 3.2 必须先取得项目主授权
 
 - 任何**不可逆**或影响共享状态的动作：`git commit`／`git push`、删除跟踪文件、删分支／远端 ref、`git reset --hard`、`clean -fd`、DROP／TRUNCATE、改数据库结构、装或升依赖、改 `.env` 语义、放宽任何阈值。
-- 推送口径：日常推 `leyon`（`git push origin main:leyon`）；**工作包按 `docs/后端待办项.md` §12.7 走 feature branch + PR**，合入 `main` 另行授权。两种情况都**逐批授权**（上一批的批准不覆盖下一批）；**绝不 `git push --all`**（本地历史残留分支含机器产物）、**绝不 `git push --force`**。
+- 推送口径：**`main` 是唯一主干，禁止直接 push**。所有改动从 `main` 拉出 `feature/`、`fix/`、`docs/`、`chore/` 分支，经 PR 合入 `main`；工作包仍按 `docs/后端待办项.md` §12.7 分批。每次 commit/push 仍需逐批授权；**绝不 `git push --all`**（本地历史残留分支含机器产物）、**绝不 `git push --force`**。个人分支 `leyon` 不再作为推送目标。
 - 产品口径取舍：某能力对外怎么说、某条待办做还是书面挂账。
 - 涉及密钥的处理：见 §5.4。
 

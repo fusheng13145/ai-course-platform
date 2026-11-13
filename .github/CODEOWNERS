@@ -1,0 +1,3 @@
+# 默认代码所有者：所有 PR 自动请求复核；作者本人不计入非作者评审。
+# 分支保护启用后，可叠加 "Require review from Code Owners"。
+* @fusheng13145 @zjyyy11
