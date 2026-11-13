@@ -141,9 +141,13 @@ class OrgCutoverBackfillIT {
     }
 
     private static int indexCount(Connection connection, String table, String indexName) throws SQLException {
+        // 复合索引在 information_schema.STATISTICS 里是**每列一行**（uk_courses_semester_code 有
+        // semester_id／code 两行），COUNT(*) 会读成 2。这里数 DISTINCT INDEX_NAME，
+        // 语义是「该索引名存不存在／有几条定义」，与断言里的 1/0 对应。
         try (Statement statement = connection.createStatement();
              ResultSet resultSet = statement.executeQuery(
-                     "SELECT COUNT(*) FROM information_schema.STATISTICS WHERE TABLE_SCHEMA = DATABASE()"
+                     "SELECT COUNT(DISTINCT INDEX_NAME) FROM information_schema.STATISTICS"
+                             + " WHERE TABLE_SCHEMA = DATABASE()"
                              + " AND TABLE_NAME = '" + table + "' AND INDEX_NAME = '" + indexName + "'")) {
             resultSet.next();
             return resultSet.getInt(1);
