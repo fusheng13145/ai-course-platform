@@ -86,21 +86,23 @@ class OrgCutoverBackfillIT {
 
             // 4A 行为断言：同学期同编号被拒；跨学期同编号放行
             try (Statement statement = connection.createStatement()) {
-                statement.execute("INSERT INTO semesters (name, start_date, end_date, status) VALUES "
-                        + "('2025-2026-1', '2025-09-01', '2026-01-31', 'ACTIVE'), "
-                        + "('2025-2026-2', '2026-02-23', '2026-07-05', 'ACTIVE')");
+                // 不写死学期名/id：V14 已种下 '2025-2026-2' 与 '2026-2027-1'，
+                // 再插同名会撞 uk_semesters_name（CI #244 实测 Duplicate entry '2025-2026-2'）；
+                // 自增 id 也不保证从 1 起。改为造两个本次专属学期并取回真实 id。
+                long spring = insertSemester(statement, "IT-SPRING-" + System.nanoTime(), "2025-09-01", "2026-01-31");
+                long autumn = insertSemester(statement, "IT-AUTUMN-" + System.nanoTime(), "2026-02-23", "2026-07-05");
                 statement.execute("INSERT INTO courses (name, code, semester_id, teacher_id, "
                         + "max_students, current_students, status, is_active, created_at) VALUES "
-                        + "('计算机网络', 'CS101', 1, 1, 50, 0, 'ACTIVE', 1, '2025-09-10 00:00:00')");
+                        + "('计算机网络', 'CS101', " + spring + ", 1, 50, 0, 'ACTIVE', 1, '2025-09-10 00:00:00')");
                 // 跨学期同编号：放行
                 statement.execute("INSERT INTO courses (name, code, semester_id, teacher_id, "
                         + "max_students, current_students, status, is_active, created_at) VALUES "
-                        + "('计算机网络（春）', 'CS101', 2, 1, 50, 0, 'ACTIVE', 1, '2026-03-01 00:00:00')");
+                        + "('计算机网络（春）', 'CS101', " + autumn + ", 1, 50, 0, 'ACTIVE', 1, '2026-03-01 00:00:00')");
                 // 同学期同编号：唯一键拒绝
                 assertThrows(SQLException.class, () -> statement.execute(
                         "INSERT INTO courses (name, code, semester_id, teacher_id, "
                                 + "max_students, current_students, status, is_active, created_at) VALUES "
-                                + "('重复编号', 'CS101', 1, 1, 50, 0, 'ACTIVE', 1, '2025-10-01 00:00:00')"),
+                                + "('重复编号', 'CS101', " + spring + ", 1, 50, 0, 'ACTIVE', 1, '2025-10-01 00:00:00')"),
                         "同学期内重复编号必须被 uk_courses_semester_code 拒绝");
             }
 
@@ -137,6 +139,18 @@ class OrgCutoverBackfillIT {
                              + " AND TABLE_NAME = '" + table + "' AND COLUMN_NAME = '" + column + "'")) {
             resultSet.next();
             return resultSet.getString(1);
+        }
+    }
+
+    /** 造一个本次专属学期并取回自增 id（避开 V14 种子名与不保证从 1 起的自增序列）。 */
+    private static long insertSemester(Statement statement, String name, String start, String end)
+            throws SQLException {
+        statement.executeUpdate("INSERT INTO semesters (name, start_date, end_date, status) VALUES "
+                + "('" + name + "', '" + start + "', '" + end + "', 'ACTIVE')",
+                Statement.RETURN_GENERATED_KEYS);
+        try (ResultSet keys = statement.getGeneratedKeys()) {
+            assertTrue(keys.next(), "插入学期后应能取回自增 id");
+            return keys.getLong(1);
         }
     }
 
