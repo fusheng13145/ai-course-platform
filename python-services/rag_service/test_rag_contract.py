@@ -35,6 +35,17 @@ def test_health():
     with TestClient(app) as c:
         resp = c.get("/api/v1/rag/health")
         assert resp.status_code == 200
+        body = resp.json()
+        # 只断言 200 等于把「端口活着但检索永远降级」当成健康。引擎侧能力必须可见。
+        assert body["status"] == "ok"
+        engine = body["engine"]
+        assert set(engine) == {"available", "functional", "dep_errors", "embed_model"}
+        assert isinstance(engine["available"], bool)
+        assert isinstance(engine["functional"], bool)
+        assert isinstance(engine["dep_errors"], list)
+        assert engine["embed_model"]
+        # functional 蕴含 available（模型缓存检查以依赖可 import 为前提）
+        assert not engine["functional"] or engine["available"]
 
 
 def test_document_add_and_list():
@@ -261,7 +272,29 @@ def test_index_build():
                json={"course_id": 3, "document_name": "X", "content": "x"})
         resp = c.post("/api/v1/rag/index/build/3")
         assert resp.status_code == 200
-        assert resp.json()["success"] is True
+        body = resp.json()
+        if rag_engine.engine_available():
+            assert body["success"] is True
+        else:
+            # CI 轻量环境：依赖缺失时**不得**谎报成功（见 test_index_build_without_engine_is_honest）
+            assert body["success"] is False
+            assert body["indexed_chunks"] == 0
+            assert body["error"]
+
+
+def test_index_build_without_engine_is_honest(monkeypatch):
+    """依赖缺失时旧实现把文档条数当 chunk 数返回 success=True，Java 侧据此对教师报「构建成功」，
+    而检索永远 UNAVAILABLE。这里用桩钉住「不可用就明确失败」，与真实环境是否装了重依赖无关。"""
+    monkeypatch.setattr(rag_engine, "engine_available", lambda: False)
+    monkeypatch.setattr(rag_engine, "dep_errors", lambda: ["sentence-transformers: ImportError: pyarrow"])
+    with TestClient(app) as c:
+        c.post("/api/v1/rag/documents",
+               json={"course_id": 31, "document_name": "D", "content": "内容"})
+        body = c.post("/api/v1/rag/index/build/31").json()
+    assert body["success"] is False
+    assert body["indexed_chunks"] == 0
+    assert body["code"] == 503
+    assert "引擎不可用" in body["error"] and "pyarrow" in body["error"]
 
 
 def test_clear_index():

@@ -133,7 +133,18 @@ class IndexResult(BaseModel):
 @app.get("/api/v1/rag/health")
 def health():
     # status 只反映检索服务自身；生成后端不可用时只降级 llm.available，不把服务判为下线。
-    return {"status": "ok", "llm": rag_engine.llm_health()}
+    # engine 如实上报引擎侧能力：available=依赖可 import，functional=依赖齐备且嵌入模型已本地缓存。
+    # 只看 200 只能证明"端口活着"，"活着但检索恒降级"过去是无声的——契约测试曾因此漏判。
+    return {
+        "status": "ok",
+        "llm": rag_engine.llm_health(),
+        "engine": {
+            "available": rag_engine.engine_available(),
+            "functional": rag_engine.engine_functional(),
+            "dep_errors": rag_engine.dep_errors(),
+            "embed_model": rag_engine.embed_model_name(),
+        },
+    }
 
 
 @app.post("/api/v1/rag/documents", response_model=RagDocument)
@@ -278,9 +289,16 @@ def ask(req: AskRequest):
 @app.post("/api/v1/rag/index/build/{course_id}", response_model=IndexResult)
 def build_index(course_id: int):
     if not rag_engine.engine_available():
-        # CI/轻量环境保持占位契约行为（不断言真实索引语义）
-        chunks = len(rag_engine.list_documents(course_id))
-        return IndexResult(success=True, indexed_chunks=chunks)
+        # 依赖缺失时必须如实失败：旧实现把**文档条数**当 chunk 数返回 success=True，
+        # Java 侧据此对教师宣告「知识库构建成功」，而检索永远走 UNAVAILABLE——
+        # 这是整条链路上最贵的一次谎报（教师会以为语料已可问答）。
+        deps = "；".join(rag_engine.dep_errors()) or "依赖未安装"
+        return IndexResult(
+            success=False,
+            indexed_chunks=0,
+            error=f"引擎不可用，未构建索引（缺依赖：{deps}）",
+            code=503,
+        )
     try:
         out = rag_engine.build_course_index(course_id)
     except Exception as exc:
