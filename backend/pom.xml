@@ -69,7 +69,7 @@
             <dependency>
                 <groupId>org.apache.commons</groupId>
                 <artifactId>commons-lang3</artifactId>
-                <version>3.18.0</version>
+                <version>3.22.0</version>
             </dependency>
             <!-- 1.84 → 1.85：关闭 CVE-2026-8763（CRITICAL，rfc822Name/URI 尾点绕过 Name Constraints）
                  与 CVE-2026-13506（HIGH）。1.85 经 OSV 查询为 0 命中。 -->
