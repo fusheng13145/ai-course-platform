@@ -36,25 +36,6 @@ public class ResourceServiceImpl extends ServiceImpl<ResourceMapper, Resource> i
     }
 
     /**
-     * 资源访问权限校验
-     * 全员可见的资源直接放行，否则需校验用户归属
-     */
-    @Override
-    public boolean checkAccessPermission(Long resourceId, Long userId) {
-        Resource resource = this.getById(resourceId);
-        if (resource == null) {
-            throw new BusinessException("资源不存在");
-        }
-        // 全员可见的资源直接返回有权限
-        if (Boolean.TRUE.equals(resource.getVisibleToAll())) {
-            return true;
-        }
-        // 非全员可见时，这里可扩展更细粒度的权限控制（如课程成员校验）
-        // 当前默认返回true（后续可根据业务需求扩展）
-        return true;
-    }
-
-    /**
      * 获取课程的资源树（按章节组织）
      */
     @Override
@@ -116,17 +97,46 @@ public class ResourceServiceImpl extends ServiceImpl<ResourceMapper, Resource> i
                         Collectors.counting()
                 ));
 
+        // 批量取 active 版本（B-03 N+1 治理，2026-11-07）：此前逐资源 getActiveVersion，
+        // 大课程（百级资源）会放大成百次单查；改为一次 IN 查询后按 resourceId 取用。
+        Map<Long, ResourceVersion> activeVersionByResource = loadActiveVersions(resources);
+
         // 统计总数和总大小（通过版本表获取文件大小）
         long totalCount = resources.size();
         long totalSize = 0L;
         for (Resource resource : resources) {
-            ResourceVersion activeVersion = resourceVersionService.getActiveVersion(resource.getId());
+            ResourceVersion activeVersion = activeVersionByResource.get(resource.getId());
             if (activeVersion != null && activeVersion.getFileSize() != null) {
                 totalSize += activeVersion.getFileSize();
             }
         }
 
         return new ResourceStatsVO(totalCount, totalSize, typeDistribution);
+    }
+
+    /**
+     * 一次 IN 查询加载资源集合的全部 active 版本，返回 resourceId → ResourceVersion。
+     * 同一资源出现多行 active（历史数据异常）时保留版本号更高的一行，与单查语义保持兼容。
+     */
+    private Map<Long, ResourceVersion> loadActiveVersions(List<Resource> resources) {
+        List<Long> resourceIds = resources.stream()
+                .map(Resource::getId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (resourceIds.isEmpty()) {
+            return Map.of();
+        }
+        return resourceVersionService.list(new LambdaQueryWrapper<ResourceVersion>()
+                        .in(ResourceVersion::getResourceId, resourceIds)
+                        .eq(ResourceVersion::getIsActive, true))
+                .stream()
+                .filter(v -> v.getResourceId() != null)
+                .collect(Collectors.toMap(ResourceVersion::getResourceId, v -> v, (a, b) -> {
+                    int av = a.getVersionNumber() != null ? a.getVersionNumber() : 0;
+                    int bv = b.getVersionNumber() != null ? b.getVersionNumber() : 0;
+                    return av >= bv ? a : b;
+                }));
     }
 
     /**

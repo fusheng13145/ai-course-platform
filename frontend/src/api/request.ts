@@ -1,6 +1,6 @@
 import logger from '@/utils/logger'
-import axios from 'axios'
-import { apiHost } from '@/api/apiHost'
+import axios, { type AxiosError, type AxiosResponse, type InternalAxiosRequestConfig } from 'axios'
+import { apiHost, type ApiMessageHost } from '@/api/apiHost'
 import { useAuthStore } from '@/stores/auth'
 import { showLoading, hideLoading } from '@/utils/loadingBar'
 import { getRequestKey, generateReqKey } from '@/api/requestKey'
@@ -14,13 +14,13 @@ import {
 // 全局 Loading 进度条已抽离至 @/utils/loadingBar（HTTP 层不直接操作 DOM）
 
 // ==================== 消息去重（防连续弹窗堆叠） ====================
-const messageCache = new Map()
+const messageCache = new Map<string, number>()
 const MESSAGE_THROTTLE_MS = 2000
 
 /**
  * 节流消息提示：相同内容在 2s 内只弹一次
  */
-function showThrottledMessage(type, message) {
+function showThrottledMessage(type: keyof ApiMessageHost, message: string) {
   const key = `${type}:${message}`
   const lastTime = messageCache.get(key)
   const now = Date.now()
@@ -96,10 +96,10 @@ export function isProbeSilent() {
  * 请求重试配置
  * ============================================ */
 // 记录已重试的请求，避免无限循环（实际重试判定由 generateReqKey + retryCache 完成）
-const retryCache = new Map()
+const retryCache = new Map<string, boolean>()
 
 /* AbortController 管理器：页面切换时取消未完成请求 */
-const pendingRequests = new Map()
+const pendingRequests = new Map<string, (reason?: unknown) => void>()
 
 // getRequestKey 已抽离至 @/api/requestKey
 
@@ -112,7 +112,7 @@ export function cancelAllPendingRequests() {
 }
 
 /* 添加请求到待取消列表 */
-function addPendingRequest(config) {
+function addPendingRequest(config: InternalAxiosRequestConfig) {
   const key = getRequestKey(config)
   const controller = new AbortController()
   config.signal = controller.signal
@@ -120,7 +120,7 @@ function addPendingRequest(config) {
 }
 
 /* 移除已完成请求 */
-function removePendingRequest(config) {
+function removePendingRequest(config: InternalAxiosRequestConfig) {
   const key = getRequestKey(config)
   pendingRequests.delete(key)
 }
@@ -128,7 +128,7 @@ function removePendingRequest(config) {
 // generateReqKey 已抽离至 @/api/requestKey
 
 /* 判断是否为网络错误（无响应） */
-function isNetworkError(error) {
+function isNetworkError(error: AxiosError) {
   return !error.response && !!error.message
 }
 
@@ -147,8 +147,8 @@ function isNetworkError(error) {
  * 现在用模块级 `refreshPromise` 做 single-flight：所有并发 401 复用同一 Promise，
  * 排队重试的请求因此都能拿到刷新后的新会话 Cookie。
  */
-let refreshPromise = null
-let logoutPromise = null
+let refreshPromise: Promise<AxiosResponse> | null = null
+let logoutPromise: Promise<AxiosResponse> | null = null
 
 function refreshSessionOnce() {
   if (!refreshPromise) {
@@ -227,7 +227,7 @@ function handleAuthExpired() {
  * 重试请求会在发出的瞬间被同一已 aborted 的 signal 取消 → 重试必然失败。
  * 这里克隆 config 并剥离旧 signal，交给请求拦截器重新分配全新控制器。
  */
-function cloneConfigForRetry(config) {
+function cloneConfigForRetry(config: InternalAxiosRequestConfig) {
   const cloned = { ...config }
   delete cloned.signal
   return cloned

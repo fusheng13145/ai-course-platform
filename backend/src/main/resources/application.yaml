@@ -33,18 +33,28 @@ spring:
       enabled: true       # 开启页面的热重载（浏览器刷新）
 
   # ===================== 邮件配置（QQ邮箱） =====================
+  # 与下方顶层 mail.* 共用同一组 MAIL_* 环境变量：业务发信读 mail.*，而 Spring Boot 的
+  # mail 健康指示器读 spring.mail.*，两处必须同源，否则健康项与实际通道各说一套。
+  # 465 端口：MAIL_SSL_ENABLE=true 且 MAIL_STARTTLS_ENABLE=false；
+  # 587 端口：MAIL_SSL_ENABLE=false 且 MAIL_STARTTLS_ENABLE=true。
   mail:
-    host: smtp.qq.com
-    port: 587
+    host: ${MAIL_HOST:smtp.qq.com}
+    port: ${MAIL_PORT:587}
     username: ${MAIL_USERNAME:}
     password: ${MAIL_PASSWORD:}
+    default-encoding: UTF-8
     properties:
       mail:
         smtp:
           auth: true
+          connectiontimeout: 10000
+          timeout: 10000
+          writetimeout: 10000
+          ssl:
+            enable: ${MAIL_SSL_ENABLE:false}
           starttls:
-            enable: true
-            required: true
+            enable: ${MAIL_STARTTLS_ENABLE:true}
+            required: false
 
   # 数据库数据源 & Hikari连接池
   # 生产环境通过环境变量注入，避免明文密码进入仓库（与 docker-compose 中的变量名保持一致）
@@ -58,15 +68,19 @@ spring:
     # 生产必须通过环境变量 SPRING_DATASOURCE_PASSWORD 注入（无默认值，避免弱口令进入仓库）
     password: ${SPRING_DATASOURCE_PASSWORD}
     hikari:
-      # 连接池大小：生产环境建议通过 SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE 调优
-      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:10}
-      minimum-idle: 5
+      # 连接池大小：生产环境建议通过 SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE 调优。
+      # 2026-11-10 压测归因（V7 批）：默认 10 在并发 60+ 时成为读路径吞吐封顶瓶颈——
+      # 10133 请求中 5383 条 UserMapper.selectById 慢日志（PK 查询 >500ms）实为等连接排队，
+      # 修复后读路径吞吐从 63 req/s 封顶显著抬升（对照读数见 测试文档 §4 / 演练记录）。
+      # 20 = c100 压测下排队消除的经验值；MySQL max_connections(默认151) 内余量充足。
+      maximum-pool-size: ${SPRING_DATASOURCE_HIKARI_MAXIMUM_POOL_SIZE:20}
+      minimum-idle: ${SPRING_DATASOURCE_HIKARI_MINIMUM_IDLE:10}
       connection-timeout: 30000
 
   # 数据库迁移（Flyway）：替代 index.sql 手动全量导入
   # - 空库：V1__init_schema.sql 自动建表 + 种子数据
   # - 已有库（曾手动导入 index.sql）：baseline-on-migrate 将非空库标为 baseline v1，
-  #   V1 不再重复执行（避免 DROP 重建破坏数据）；后续版本 V2+/… 正常增量
+  #   V1 不再重复执行（避免 DROP 重建破坏数据）；后续版本 +/… 正常增量
   flyway:
     enabled: true
     baseline-on-migrate: true
@@ -118,6 +132,23 @@ spring:
     multipart:
       max-file-size: 50MB
       max-request-size: 50MB
+
+# ===================== 邮件发送通道（EmailServiceImpl 读取本块） =====================
+# 注意：这里与上方 spring.mail 是两套键。EmailServiceImpl 自建 Jakarta Mail
+# Session（未使用 Spring 的 JavaMailSender），因此必须单独绑定 mail.*；
+# 历史上只配了 spring.mail.*，导致账号永远为空、验证码只入库不发送。
+mail:
+  host: ${MAIL_HOST:smtp.qq.com}
+  port: ${MAIL_PORT:587}
+  username: ${MAIL_USERNAME:}
+  password: ${MAIL_PASSWORD:}
+  from-name: ${MAIL_FROM_NAME:AI智能课程平台}
+  # 587 端口走 STARTTLS（ssl=false）；465 端口置 ssl=true 且 starttls=false，二者互斥
+  ssl-enable: ${MAIL_SSL_ENABLE:false}
+  starttls-enable: ${MAIL_STARTTLS_ENABLE:true}
+  # 开发态：SMTP 未配置时把验证码打到后端日志（与真实发送同一套服务端校验逻辑）；
+  # 生产 profile 覆盖为 false，缺凭据即失败，不静默冒充已发送
+  dev-log-code: ${MAIL_DEV_LOG_CODE:true}
 
 # 服务端口 & 统一接口前缀
 server:
@@ -185,6 +216,11 @@ jwt:
 # 由 application-local.yaml 显式关闭这两项——即「默认安全，开发显式放宽」，
 # 杜绝「忘记在生产打开 Secure」这类靠人肉运维的乐观假设。
 app:
+  # 服务间内部认证（2026-11-07 验收整改批）：非空时 Java→Python（KG 8001 / RAG 8002 / 微调 8003）
+  # 全部请求附带 X-Internal-Key 头，Python 端以同名环境变量 INTERNAL_API_KEY 校验（两端必须一致）。
+  # 为空（默认）时不发送也不校验——本机裸跑 / 既有单测保持直连。生产 compose 建议必配。
+  internal:
+    service-api-key: ${INTERNAL_API_KEY:}
   # Redis 必选开关：true 时启动强校验 Redis 连通性（RedisStartupValidator），失败即中止启动。
   # 仅单元测试（无 Redis 环境）允许置 false；生产/开发环境保持 true。
   redis:
@@ -238,9 +274,9 @@ cors:
     - http://127.0.0.1:80
 
 # ===================== AI 大模型供应商配置 =====================
-# 通过 ai.provider 切换底层大模型（deepseek / openai / qwen），业务层不感知具体供应商
+# 通过 ai.provider 切换底层大模型（deepseek / openai / qwen / ollama），业务层不感知具体供应商
 ai:
-  # 当前启用的供应商：deepseek（默认）/ openai / qwen
+  # 当前启用的供应商：deepseek（默认）/ openai / qwen / ollama（本地 Ollama 服务）
   provider: ${AI_PROVIDER:deepseek}
   # 所有 OpenAI 兼容供应商共用的超时与重试参数（秒）
   connect-timeout: ${AI_CONNECT_TIMEOUT:5}
@@ -262,6 +298,16 @@ ai:
     api-key: ${QWEN_API_KEY:}
     base-url: ${QWEN_BASE_URL:https://dashscope.aliyuncs.com/compatible-mode/v1}
     model: ${QWEN_MODEL:qwen-plus}
+  # ---------- 本地 Ollama（无 API Key，原生 /api/chat 协议） ----------
+  # 启用方式：AI_PROVIDER=ollama，并确保本机已 `ollama serve` 且已 `ollama pull deepseek-r1:8b`。
+  # 未启用时对现有 DeepSeek/OpenAI/Qwen 链路零影响；Ollama 未启动时调用以 503 结束并给出可操作文案。
+  ollama:
+    # Ollama 默认监听 11434；容器化部署需改为 http://host.docker.internal:11434 或宿主可达地址
+    base-url: ${OLLAMA_BASE_URL:http://localhost:11434}
+    model: ${OLLAMA_MODEL:deepseek-r1:8b}
+    # 三态开关：留空=由模型模板决定是否思考；true/false=显式要求 Ollama 开启/关闭思考。
+    # 无论取值如何，message.thinking / <think> 内联推理都不会进入正式答案。
+    think: ${OLLAMA_THINK:}
   # ---------- AI 用量配额（按认证 userId，防 LLM 成本型 DoS） ----------
   # 与 ratelimit（按 IP）互补：IP 限流拦同源洪泛，本配额按登录身份拦「代理池轮换 IP 的刷量」。
   # 单用户单日 LLM 成本数学上界：min(daily-request-limit × 单次 prompt 上限, daily-token-budget)。

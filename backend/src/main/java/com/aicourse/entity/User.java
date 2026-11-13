@@ -57,6 +57,24 @@ public class User {
 
     private Long classId;
 
+    /* ---- 组织归属（V12 / B-12-P-08 WP1）----
+       过渡期与 class_id 并存：V12 只加可空列，V16 才收紧并清理旧列。 */
+
+    /** 学校ID（V12，过渡期可空） */
+    private Long schoolId;
+
+    /** 学院ID（V12，过渡期可空） */
+    private Long collegeId;
+
+    /** 专业ID（V12，过渡期可空） */
+    private Long majorId;
+
+    /** 行政班ID（V12 目标列，过渡期保留 class_id） */
+    private Long adminClassId;
+
+    /** 管理员作用域 SCHOOL/COLLEGE，仅 ADMIN 使用（V12） */
+    private String adminScope;
+
     private String department;
 
     private String title;

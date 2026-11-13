@@ -1,11 +1,13 @@
 package com.aicourse.controller;
 import com.aicourse.controller.UserController;
 import com.aicourse.service.UserService;
+import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.entity.User;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
@@ -21,6 +23,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 对带有 @PreAuthorize("hasRole('ADMIN')") 的端点新增 STUDENT 越权 403 测试。
  */
 @WebMvcTest(UserController.class)
+@Import(AdminScopeGuard.class)
 class UserControllerTest extends ControllerTestBase {
 
     @MockitoBean
@@ -83,6 +86,35 @@ class UserControllerTest extends ControllerTestBase {
         verify(userService).getById(eq(1L));
     }
 
+
+    @Test
+    @DisplayName("GET /users/2 - 非本人访问时邮箱/手机号脱敏（B-06 对齐 /profile 语义）")
+    void getById_otherUser_masksContactFields() throws Exception {
+        User other = sampleUser(2L, "lisi");
+        other.setEmail("lisi@example.com");
+        other.setPhone("13812345678");
+        when(userService.getById(2L)).thenReturn(other);
+
+        mockMvc.perform(get("/users/2").with(withUser(1L, "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.email").value("l***@example.com"))
+                .andExpect(jsonPath("$.data.phone").value("138****5678"));
+    }
+
+    @Test
+    @DisplayName("GET /users/1 - 本人访问时邮箱/手机号保留原文")
+    void getById_self_keepsContactFields() throws Exception {
+        User self = sampleUser(1L, "zhangsan");
+        self.setEmail("zhangsan@example.com");
+        self.setPhone("13812345678");
+        when(userService.getById(1L)).thenReturn(self);
+
+        mockMvc.perform(get("/users/1").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.email").value("zhangsan@example.com"))
+                .andExpect(jsonPath("$.data.phone").value("13812345678"));
+    }
 
     @Test
     @DisplayName("GET /users/1 - 未认证返回401")
@@ -476,6 +508,102 @@ class UserControllerTest extends ControllerTestBase {
                 "请求体中的 password 不应被写入实体（防止明文改密）");
         org.junit.jupiter.api.Assertions.assertEquals(1L, saved.getId(),
                 "主键必须以 URL 路径为准，忽略请求体注入的 id");
+    }
+
+    // ── WP2：院系管理员用户边界 ──
+
+    private User collegeAdmin(Long id, Long collegeId) {
+        User admin = new User();
+        admin.setId(id);
+        admin.setCollegeId(collegeId);
+        admin.setRole("ADMIN");
+        return admin;
+    }
+
+    @Test
+    @DisplayName("GET /users - 院系管理员强制按本学院过滤")
+    void list_collegeAdmin_scoped() throws Exception {
+        when(userService.getById(3L)).thenReturn(collegeAdmin(3L, 10L));
+        Page<User> p = new Page<>(1, 10);
+        p.setRecords(List.of());
+        when(userService.searchUsersInCollege(eq("test"), eq("TEACHER"), eq(1), eq(10), eq(10L)))
+                .thenReturn(p);
+
+        mockMvc.perform(get("/users?page=1&size=10&role=TEACHER&keyword=test").with(withCollegeAdmin(3L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+        verify(userService).searchUsersInCollege(eq("test"), eq("TEACHER"), eq(1), eq(10), eq(10L));
+        verify(userService, never()).searchUsers(any(), any(), anyInt(), anyInt());
+    }
+
+    @Test
+    @DisplayName("GET /users/2 - 院系管理员访问本院用户 200")
+    void getById_collegeAdmin_sameCollege_200() throws Exception {
+        when(userService.getById(3L)).thenReturn(collegeAdmin(3L, 10L));
+        User sameCollege = sampleUser(2L, "sameCollege");
+        sameCollege.setCollegeId(10L);
+        when(userService.getById(2L)).thenReturn(sameCollege);
+
+        mockMvc.perform(get("/users/2").with(withCollegeAdmin(3L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.id").value(2));
+    }
+
+    @Test
+    @DisplayName("GET /users/2 - 院系管理员访问他院用户 403")
+    void getById_collegeAdmin_otherCollege_403() throws Exception {
+        when(userService.getById(3L)).thenReturn(collegeAdmin(3L, 10L));
+        User other = sampleUser(2L, "otherCollege");
+        other.setCollegeId(11L);
+        when(userService.getById(2L)).thenReturn(other);
+
+        mockMvc.perform(get("/users/2").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("PUT /users/2 - 院系管理员修改他院用户 403")
+    void update_collegeAdmin_otherCollege_403() throws Exception {
+        when(userService.getById(3L)).thenReturn(collegeAdmin(3L, 10L));
+        User other = sampleUser(2L, "otherCollege");
+        other.setCollegeId(11L);
+        when(userService.getById(2L)).thenReturn(other);
+
+        mockMvc.perform(put("/users/2")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"fullName\":\"改名\"}")
+                        .with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden());
+        verify(userService, never()).updateById(any(User.class));
+    }
+
+    @Test
+    @DisplayName("POST /users - 院系管理员创建 ADMIN 账号 403（防提权）")
+    void create_collegeAdmin_adminRole_403() throws Exception {
+        when(userService.getById(3L)).thenReturn(collegeAdmin(3L, 10L));
+
+        mockMvc.perform(post("/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"evil\",\"fullName\":\"恶意\",\"email\":\"e@e.com\",\"role\":\"ADMIN\",\"password\":\"Password123\"}")
+                        .with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden());
+        verify(userService, never()).save(any(User.class));
+    }
+
+    @Test
+    @DisplayName("POST /users - 院系管理员创建本院用户时自动落到本院")
+    void create_collegeAdmin_forcesOwnCollege() throws Exception {
+        when(userService.getById(3L)).thenReturn(collegeAdmin(3L, 10L));
+        when(passwordEncoder.encode("Password123")).thenReturn("BCrypt__encoded");
+
+        mockMvc.perform(post("/users")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"username\":\"stu10\",\"fullName\":\"学生\",\"email\":\"s@e.com\",\"role\":\"STUDENT\",\"password\":\"Password123\"}")
+                        .with(withCollegeAdmin(3L)))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.collegeId").value(10));
+        verify(userService).save(any(User.class));
     }
 
 }

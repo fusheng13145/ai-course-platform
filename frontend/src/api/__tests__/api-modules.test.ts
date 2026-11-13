@@ -48,11 +48,11 @@ describe('API 模块 - course.js', () => {
 
     const result = await courseApi.getCourseList({ page: 1 })
     expect(mockRequest.get).toHaveBeenCalledWith('/courses', { params: { page: 1 } })
-    expect(result.data[0].name).toBe('计算机网络')
+    expect((result.data as unknown as Array<{ name: string }>)[0].name).toBe('计算机网络')
   })
 })
 
-describe('API 模块 - ai.js (v2 接口)', () => {
+describe('API 模块 - ai.js (接口)', () => {
   beforeEach(() => {
     vi.clearAllMocks()
   })

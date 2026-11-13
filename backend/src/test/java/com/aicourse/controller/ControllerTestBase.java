@@ -1,5 +1,6 @@
 package com.aicourse.controller;
 
+import com.aicourse.common.AdminScope;
 import com.aicourse.config.CorsProperties;
 import com.aicourse.config.SecurityConfig;
 import com.aicourse.security.JwtAuthenticationEntryPoint;
@@ -145,6 +146,31 @@ public abstract class ControllerTestBase {
                 .toList();
         context.setAuthentication(new UsernamePasswordAuthenticationToken(userId, null, authorities));
         return SecurityMockMvcRequestPostProcessors.securityContext(context);
+    }
+
+    /**
+     * 构造携带任意 authority 的已认证上下文（用于管理员作用域等非 ROLE_ 前缀的授权）。
+     *
+     * @param userId      用户 ID
+     * @param authorities 完整 authority 字符串，如 {@code "ROLE_ADMIN"}、{@code "SCOPE_ADMIN_COLLEGE"}
+     */
+    protected static RequestPostProcessor withAuthorities(Long userId, String... authorities) {
+        SecurityContext context = SecurityContextHolder.createEmptyContext();
+        List<SimpleGrantedAuthority> granted = Arrays.stream(authorities)
+                .map(SimpleGrantedAuthority::new)
+                .toList();
+        context.setAuthentication(new UsernamePasswordAuthenticationToken(userId, null, granted));
+        return SecurityMockMvcRequestPostProcessors.securityContext(context);
+    }
+
+    /** 校级管理员（ROLE_ADMIN + SCOPE_ADMIN_SCHOOL）。 */
+    protected static RequestPostProcessor withSchoolAdmin(Long userId) {
+        return withAuthorities(userId, "ROLE_ADMIN", AdminScope.AUTHORITY_SCHOOL);
+    }
+
+    /** 院系管理员（ROLE_ADMIN + SCOPE_ADMIN_COLLEGE）。 */
+    protected static RequestPostProcessor withCollegeAdmin(Long userId) {
+        return withAuthorities(userId, "ROLE_ADMIN", AdminScope.AUTHORITY_COLLEGE);
     }
 
     /**

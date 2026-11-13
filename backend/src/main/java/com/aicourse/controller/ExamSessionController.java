@@ -9,6 +9,7 @@ import com.aicourse.dto.ExamSubmitDTO;
 import com.aicourse.entity.ExamSession;
 import com.aicourse.security.ExamSessionAccessControl;
 import com.aicourse.service.ExamSessionService;
+import com.aicourse.vo.ActiveExamSessionVO;
 import com.aicourse.vo.AutoGradeResultVO;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.Parameter;
@@ -110,7 +111,7 @@ public class ExamSessionController {
      * 强制交卷（管理员操作）
      */
     @PostMapping("/{id}/force-submit")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     @Operation(summary = "强制交卷", description = "管理员可强制结束学生的考试并收卷")
     public ApiResponse<ExamSession> forceSubmit(@Parameter(description = "考试会话ID") @PathVariable Long id,
                                                 Authentication auth) {
@@ -135,7 +136,7 @@ public class ExamSessionController {
      * 触发自动阅卷
      */
     @PostMapping("/{id}/auto-grade")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     @Operation(summary = "自动阅卷", description = "对客观题（单选/多选/判断）进行自动判分，生成成绩报告")
     public ApiResponse<AutoGradeResultVO> autoGrade(@Parameter(description = "考试会话ID") @PathVariable Long id,
                                                     Authentication auth) {
@@ -148,7 +149,7 @@ public class ExamSessionController {
      * 人工评分（教师对主观题评分）
      */
     @PostMapping("/{id}/manual-grade")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     @Operation(summary = "人工评分", description = "教师对主观题进行人工打分和评语填写")
     public ApiResponse<Void> manualGrade(
             @Parameter(description = "考试会话ID") @PathVariable Long id,
@@ -189,7 +190,10 @@ public class ExamSessionController {
      */
     @GetMapping("/{id}/cheating-detect")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "检测作弊嫌疑", description = "基于行为数据检测可能的作弊行为，返回可疑点列表")
+    @Operation(summary = "检测作弊嫌疑",
+            description = "基于行为数据检测可能的作弊行为。data 定型为字符串数组（元素为中文可读描述，"
+                    + "如「检测到IP地址变化：x -> y」），不提供 type/description/riskLevel 对象结构；"
+                    + "无嫌疑时返回空数组")
     public ApiResponse<List<String>> detectCheating(@Parameter(description = "考试会话ID") @PathVariable Long id,
                                                     Authentication auth) {
         examSessionAccessControl.assertManageable(id, auth);
@@ -201,7 +205,7 @@ public class ExamSessionController {
      * 作弊检测与标记（综合检测并记录结果）
      */
     @PostMapping("/{id}/check-cheating")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     @Operation(summary = "作弊检测与标记", description = "执行全面作弊检测，将检测结果标记到会话记录中")
     public ApiResponse<Map<String, Object>> checkCheating(@Parameter(description = "考试会话ID") @PathVariable Long id,
                                                           Authentication auth) {
@@ -215,9 +219,11 @@ public class ExamSessionController {
      */
     @GetMapping("/active")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
-    @Operation(summary = "获取进行中的考试列表", description = "返回所有正在进行中的考试会话，用于监控管理")
-    public ApiResponse<List<ExamSession>> activeExams() {
-        List<ExamSession> activeExams = examSessionService.getActiveExams();
+    @Operation(summary = "获取进行中的考试列表",
+            description = "返回所有正在进行中的考试会话（VO）：含 paperTitle、courseId、courseName、"
+                    + "studentName 与同卷进行中的 participantCount，监考页无需再按 id 回查试卷与用户名单")
+    public ApiResponse<List<ActiveExamSessionVO>> activeExams() {
+        List<ActiveExamSessionVO> activeExams = examSessionService.getActiveExams();
         return ApiResponse.success(activeExams);
     }
 

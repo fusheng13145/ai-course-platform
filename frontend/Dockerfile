@@ -14,6 +14,15 @@ WORKDIR /app
 COPY package.json package-lock.json ./
 RUN npm ci
 COPY . .
+# 【A 路径断链 #11】VITE_* 是构建期内联，运行时注入无效，必须经 build-arg 投递。
+# 只暴露前端实际读取的键（不要泛化出一整套未使用的 build-arg）：
+#   VITE_MONITOR_ENDPOINT —— src/monitoring/index.ts 读取的后端错误上报端点。
+#   VITE_SENTRY_DSN       —— 同文件预留的 Sentry 分支；留空即不启用，行为不变。
+# 用法：docker compose build --build-arg VITE_MONITOR_ENDPOINT=/api/monitor/frontend-error
+ARG VITE_MONITOR_ENDPOINT=
+ARG VITE_SENTRY_DSN=
+ENV VITE_MONITOR_ENDPOINT=${VITE_MONITOR_ENDPOINT} \
+    VITE_SENTRY_DSN=${VITE_SENTRY_DSN}
 RUN npm run build
 
 # ==== 运行阶段 ====

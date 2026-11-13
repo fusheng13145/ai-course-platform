@@ -3,13 +3,16 @@ package com.aicourse.controller;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
+import com.aicourse.common.RoleConstants;
 import com.aicourse.dto.AdminCreateUserDTO;
 import com.aicourse.dto.AdminUpdateUserDTO;
 import com.aicourse.dto.UserUpdateDTO;
 import com.aicourse.entity.User;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.UserService;
 import com.aicourse.vo.UserStatsVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
@@ -37,10 +40,13 @@ public class UserController {
 
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
+    private final AdminScopeGuard adminScopeGuard;
 
-    public UserController(UserService userService, PasswordEncoder passwordEncoder) {
+    public UserController(UserService userService, PasswordEncoder passwordEncoder,
+                          AdminScopeGuard adminScopeGuard) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
+        this.adminScopeGuard = adminScopeGuard;
     }
 
     /**
@@ -59,23 +65,33 @@ public class UserController {
             @RequestParam(defaultValue = "10") long size,
             @RequestParam(required = false) String role,
             @RequestParam(required = false) String keyword) {
-        Page<User> userPage = userService.searchUsers(keyword, role, (int) page, (int) size);
+        Page<User> userPage = searchScoped(keyword, role, (int) page, (int) size);
         return ApiResponse.success(PagedResponse.of(userPage));
     }
 
     /**
-     * 根据ID查询用户详情（密码已脱敏，仅允许本人或管理员）
+     * 根据ID查询用户详情（密码不出参；非本人访问时邮箱/手机号脱敏）
+     * <p>
+     * 【B-06 脱敏核查，2026-11-07】原实现只置空密码，注释声明的「非本人时脱敏邮箱和手机号」
+     * 并未执行，与 {@link #getProfile} 的同语义脱敏不一致（管理员经 /users/{id} 看原文、
+     * 经 /users/{id}/profile 却是掩码）。本修复对齐两者：非本人路径先过作用域门禁，
+     * 再套用同一 {@link #maskSensitive}。管理员在用户列表（GET /users）仍取原文——
+     * 管理台运营需要完整联系方式，该取舍记录于 docs/脱敏核查-2026-11-07.md。
+     *
      * @param id 用户ID
      * @return 用户信息（敏感字段脱敏）
      */
     @GetMapping("/{id}")
     @PreAuthorize("#id == authentication.principal or hasRole('ADMIN')")
     @Operation(summary = "根据ID查询用户详情")
-    public ApiResponse<User> getById(@PathVariable Long id) {
+    public ApiResponse<User> getById(@PathVariable Long id, Authentication auth) {
         User user = userService.getById(id);
         if (user != null) {
+            if (!id.equals((Long) auth.getPrincipal())) {
+                adminScopeGuard.assertUserAccess(user);
+                maskSensitive(user);
+            }
             user.setPassword(null);
-            // 非本人/管理员时脱敏邮箱和手机号
         }
         return ApiResponse.success(user);
     }
@@ -93,6 +109,7 @@ public class UserController {
     public ApiResponse<User> getProfile(@PathVariable Long id, Authentication auth) {
         User user = userService.getUserProfile(id);
         if (!id.equals((Long) auth.getPrincipal())) {
+            adminScopeGuard.assertUserAccess(user);
             maskSensitive(user);
         }
         return ApiResponse.success(user);
@@ -107,7 +124,10 @@ public class UserController {
     @GetMapping("/{id}/classmates")
     @PreAuthorize("#id == authentication.principal or hasRole('ADMIN')")
     @Operation(summary = "获取同班同学列表")
-    public ApiResponse<List<User>> getClassmates(@PathVariable Long id) {
+    public ApiResponse<List<User>> getClassmates(@PathVariable Long id, Authentication auth) {
+        if (!id.equals((Long) auth.getPrincipal())) {
+            adminScopeGuard.assertUserAccess(userService.getById(id));
+        }
         List<User> classmates = userService.getClassmates(id);
         return ApiResponse.success(classmates);
     }
@@ -138,6 +158,9 @@ public class UserController {
     @PreAuthorize("#id == authentication.principal or hasRole('ADMIN')")
     @Operation(summary = "获取用户统计数据")
     public ApiResponse<UserStatsVO> getUserStats(@PathVariable Long id, Authentication auth) {
+        if (!id.equals((Long) auth.getPrincipal())) {
+            adminScopeGuard.assertUserAccess(userService.getById(id));
+        }
         UserStatsVO stats = userService.getUserStats(id);
         if (!id.equals((Long) auth.getPrincipal()) && stats.getEmail() != null) {
             stats.setEmail(maskEmail(stats.getEmail()));
@@ -186,8 +209,16 @@ public class UserController {
             @RequestParam(required = false) String role,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "10") int size) {
-        Page<User> result = userService.searchUsers(keyword, role, page, size);
+        Page<User> result = searchScoped(keyword, role, page, size);
         return ApiResponse.success(PagedResponse.of(result));
+    }
+
+    /** 校级走原查询；院系管理员强制追加本学院过滤。 */
+    private Page<User> searchScoped(String keyword, String role, int page, int size) {
+        Long collegeFilter = adminScopeGuard.currentCollegeFilter();
+        return collegeFilter == null
+                ? userService.searchUsers(keyword, role, page, size)
+                : userService.searchUsersInCollege(keyword, role, page, size, collegeFilter);
     }
 
     /**
@@ -209,6 +240,18 @@ public class UserController {
         user.setRole(dto.getRole());
         user.setPassword(passwordEncoder.encode(dto.getPassword()));
         user.setIsActive(dto.getIsActive() != null ? dto.getIsActive() : Boolean.TRUE);
+        if (adminScopeGuard.isCollegeAdmin()) {
+            if (RoleConstants.ADMIN.equals(dto.getRole())) {
+                throw new BusinessException(ApiCode.FORBIDDEN, "院系管理员不能创建管理员账号");
+            }
+            Long ownCollegeId = adminScopeGuard.currentCollegeId();
+            if (dto.getCollegeId() != null && !ownCollegeId.equals(dto.getCollegeId())) {
+                throw new BusinessException(ApiCode.FORBIDDEN, "只能创建本学院用户");
+            }
+            user.setCollegeId(ownCollegeId);
+        } else if (dto.getCollegeId() != null) {
+            user.setCollegeId(dto.getCollegeId());
+        }
         userService.save(user);
         user.setPassword(null);
         return ApiResponse.success("创建成功", user);
@@ -229,6 +272,16 @@ public class UserController {
         User existing = userService.getById(id);
         if (existing == null) {
             throw new BusinessException("用户不存在");
+        }
+        adminScopeGuard.assertUserManageable(existing);
+        if (adminScopeGuard.isCollegeAdmin()) {
+            if (RoleConstants.ADMIN.equals(dto.getRole())) {
+                throw new BusinessException(ApiCode.FORBIDDEN, "院系管理员不能把用户改为管理员");
+            }
+            if (dto.getCollegeId() != null
+                    && !adminScopeGuard.currentCollegeId().equals(dto.getCollegeId())) {
+                throw new BusinessException(ApiCode.FORBIDDEN, "不能把用户移出本学院");
+            }
         }
         if (dto.getUsername() != null) {
             existing.setUsername(dto.getUsername());
@@ -254,6 +307,9 @@ public class UserController {
         if (dto.getBio() != null) {
             existing.setBio(dto.getBio());
         }
+        if (dto.getCollegeId() != null) {
+            existing.setCollegeId(dto.getCollegeId());
+        }
         // 注意：始终以 URL 路径 id 为准，且绝不从此处写入 password 字段
         existing.setId(id);
         userService.updateById(existing);
@@ -273,6 +329,10 @@ public class UserController {
     @PreAuthorize("hasRole('ADMIN')")
     @Operation(summary = "删除用户")
     public ApiResponse<Void> delete(@PathVariable Long id) {
+        User existing = userService.getById(id);
+        if (existing != null) {
+            adminScopeGuard.assertUserManageable(existing);
+        }
         userService.removeById(id);
         return ApiResponse.success("删除成功", null);
     }
@@ -291,6 +351,7 @@ public class UserController {
         if (user == null) {
             throw new BusinessException("用户不存在");
         }
+        adminScopeGuard.assertUserManageable(user);
         // 注意：不能用 getOrDefault(key, !user.getIsActive())——默认值参数会被急切求值，
         // 当 isActive 为 null 时即使客户端显式传了 status 也会 NPE。此处惰性求值并对 null 安全取反。
         Boolean requested = body.get("status");

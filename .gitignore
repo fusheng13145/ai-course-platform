@@ -72,6 +72,12 @@ upload-chunks/
 *.patch
 *.diff
 
+# UI 评审截图与临时拍摄脚本（过程产物，勿入库）
+frontend/ui-review/
+
+# Trae 规划/会话过程文件（本机工具产物，勿入库）
+.trae/
+
 # 构建探针产物（误提交，已清理）
 frontend/dist_probe/
 

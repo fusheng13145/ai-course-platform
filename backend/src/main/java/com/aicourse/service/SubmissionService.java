@@ -15,6 +15,12 @@ import java.util.Map;
 public interface SubmissionService extends IService<Submission> {
 
     /**
+     * 任务集合维度按日提交数聚合（V7 批：教师驾驶舱 14 天趋势的单条 GROUP BY）。
+     * 无记录的日期不出行（date=yyyy-MM-dd, subs=当日提交数），由调用方补零；taskIds 为空时调用方短路。
+     */
+    java.util.List<java.util.Map<String, Object>> dailySubmissionsByTasks(java.util.List<Long> taskIds, java.time.LocalDateTime since);
+
+    /**
      * 提交作业（含逾期判断）
      * @param taskId 任务ID
      * @param studentId 学生ID
@@ -96,7 +102,7 @@ public interface SubmissionService extends IService<Submission> {
      * 获取学生的任务提交记录
      * @param taskId 任务ID
      * @param studentId 学生ID
-     * @return 提交记录（最新一条）
+     * @return 提交记录（按 attemptNumber 倒序、createdAt 倒序取最新一条）
      */
     Submission getByTaskAndStudent(Long taskId, Long studentId);
 

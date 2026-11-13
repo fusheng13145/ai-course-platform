@@ -6,10 +6,11 @@ name: Nightly RAG Evaluation
 # 设计要点：
 # 1) 评测脚手架校验（py_compile + qa-set.json 结构）始终执行，零基础设施依赖，保证最基本护栏；
 # 2) 后端以 mysql+redis 服务容器启动（复用 backend CI job 同款约定），跑「仅检索召回」评测；
-# 3) 本 job 未拉起 8002 引擎容器（rag.enabled=false），/rag/retrieve 返回 503，
-#    evaluate.py 优雅记录 retrieve_error，不会中断 job——nightly 如实反映「本 job 未接引擎」状态。
-#    注：rag_service 侧的真实混合检索引擎（rag_engine.py：BM25+向量+RRF）已实现（2026-10 复核），
-#    要在此产出真实 recall@k，需给本 job 增加 8002 service/step 并注入 RAG_ENABLED=true + RAG_BASE_URL；
+# 3) 【2026-11-07 P1 整改批】拉起真实 8002 引擎（uvicorn 进程，非容器）：装 CPU 版 torch +
+#    rag_service 引擎依赖 → 健康等待 → seed-rag-corpus.py 重放语料 → 注入 RAG_ENABLED=true，
+#    evaluate.py 经 backend 代理打到真实混合检索（BM25+向量+RRF），产出真实 recall@k。
+#    引擎链路任一步失败时该步 continue-on-error 且不置 RAG_ENABLED → 退回 503 降级语义
+#    （evaluate.py 记录 retrieve_error，job 不中断）——nightly 结果 JSON 的 mode 字段可区分两态；
 # 4) 结果 JSON 作为 artifact 上传，便于趋势对比与答辩证据留存。
 
 on:
@@ -24,7 +25,7 @@ jobs:
   eval:
     name: Nightly RAG Evaluation
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
     # 与 backend CI job 一致的 MySQL/Redis 服务容器约定
     services:
       mysql:
@@ -55,6 +56,11 @@ jobs:
       SPRING_DATASOURCE_PASSWORD: eval-nightly-pw-7c2k
       SPRING_DATA_REDIS_HOST: localhost
       SPRING_DATA_REDIS_PORT: "6379"
+      # RAG 引擎对接（2026-11-07 P1 整改批）：RAG_ENABLED 由「引擎步骤」成功后经 GITHUB_ENV 覆盖为 true；
+      # 引擎失败则保持 false，退回 503 降级语义（evaluate.py 如实记录 retrieve_error）。
+      RAG_ENABLED: "false"
+      RAG_BASE_URL: http://localhost:8002
+      HF_ENDPOINT: https://hf-mirror.com
 
     steps:
       - name: Checkout
@@ -95,6 +101,33 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq mysql-client
           mysql -h 127.0.0.1 -u root -p"$DB_PW" ai_course_platform < backend/src/main/resources/index.sql
+
+      # ---- 步骤三点五（2026-11-07 P1 整改批）：拉起真实 RAG 引擎 + 语料重放 ----
+      # CPU 版 torch 先装（Linux PyPI 默认是 CUDA 版，>2GB 拖慢 job）；引擎步骤失败不红屏，
+      # 由 RAG_ENABLED=false 兜底走降级语义。嵌入模型经 HF_ENDPOINT 镜像下载（~90MB）。
+      - name: Start RAG engine (8002) and seed corpus
+        continue-on-error: true
+        working-directory: python-services/rag_service
+        env:
+          RAG_ENGINE_READY: "1"
+          RAG_DATA_DIR: ${{ runner.temp }}/rag-data
+        run: |
+          set -e
+          pip install --no-cache-dir torch==2.11.0 --index-url https://download.pytorch.org/whl/cpu
+          pip install --no-cache-dir -r requirements.txt -r requirements-engine.txt
+          nohup python -m uvicorn rag_service:app --host 127.0.0.1 --port 8002 > /tmp/rag-engine.log 2>&1 &
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:8002/api/v1/rag/health >/dev/null 2>&1; then
+              echo "RAG 引擎健康（第 ${i} 次探测）"; break
+            fi
+            sleep 2
+          done
+          curl -fsS http://127.0.0.1:8002/api/v1/rag/health || { echo "RAG 引擎未就绪，打印日志："; tail -40 /tmp/rag-engine.log; exit 1; }
+          cd ../../
+          python scripts/seed-rag-corpus.py
+          # 引擎 + 语料就绪 → 后续步骤以真引擎跑评测
+          echo "RAG_ENABLED=true" >> "$GITHUB_ENV"
+          echo "RAG 引擎与语料就绪，评测将以 mode=ENGINE 运行"
 
       # ---- 步骤四：启动后端 + 等待健康 + 跑检索评测 + 落盘结果 ----
       - name: Start backend, wait health, run retrieval eval

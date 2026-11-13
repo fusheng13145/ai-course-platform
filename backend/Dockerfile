@@ -18,7 +18,7 @@ FROM ${MAVEN_IMAGE} AS builder
 WORKDIR /app
 COPY pom.xml ./
 COPY src ./src
-RUN mvn -B clean package -DskipTests
+RUN mvn -B -Pprod-jar clean package -DskipTests
 
 # ==== 运行阶段 ====
 FROM ${RUNTIME_IMAGE}

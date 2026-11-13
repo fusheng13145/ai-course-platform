@@ -179,7 +179,28 @@ public class CourseAnalyticsComponent {
                         .eq(Course::getIsActive, Boolean.TRUE)
                         .orderByDesc(Course::getCreatedAt)
         );
+        return buildRanking(courses);
+    }
 
+    /**
+     * 获取热门课程排行（院系口径）：仅统计本院课程。
+     * @param collegeId 学院ID；null 表示校级
+     * @return 课程排行（前20）
+     */
+    public List<Map<String, Object>> getCourseRanking(Long collegeId) {
+        if (collegeId == null) {
+            return getCourseRanking();
+        }
+        List<Course> courses = courseService.list(
+                new LambdaQueryWrapper<Course>()
+                        .eq(Course::getCollegeId, collegeId)
+                        .eq(Course::getIsActive, Boolean.TRUE)
+                        .orderByDesc(Course::getCreatedAt)
+        );
+        return buildRanking(courses);
+    }
+
+    private List<Map<String, Object>> buildRanking(List<Course> courses) {
         // 统计每门课程的选课人数并排序
         return courses.stream()
                 .map(course -> {

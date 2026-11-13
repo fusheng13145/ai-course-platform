@@ -1,9 +1,11 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import {
+  approveExam,
   autoComposeExamPaper,
   getExamQuestions,
   listByCourse,
   normalizeExamQuestions,
+  rejectExam,
   saveExamQuestions,
 } from '@/api/exam'
 
@@ -24,12 +26,14 @@ import {
 const mocks = vi.hoisted(() => ({
   get: vi.fn(),
   post: vi.fn(),
+  patch: vi.fn(),
 }))
 
 vi.mock('@/api/request', () => ({
   default: {
     get: mocks.get,
     post: mocks.post,
+    patch: mocks.patch,
     put: vi.fn(),
     delete: vi.fn(),
   },
@@ -289,5 +293,23 @@ describe('exam 模块：autoComposeExamPaper / saveExamQuestions', () => {
     const examApi = (await import('@/api/exam')).default
     expect(typeof examApi.autoComposeExamPaper).toBe('function')
     expect(typeof examApi.saveExamQuestions).toBe('function')
+  })
+})
+
+describe('试卷审核端点契约', () => {
+  it('approveExam 走 PATCH /exam-papers/{id}/approve，不带请求体', async () => {
+    await approveExam(9)
+    expect(mocks.patch).toHaveBeenCalledWith('/exam-papers/9/approve')
+  })
+
+  it('rejectExam 走 POST /exam-papers/{id}/reject，原因在 body', async () => {
+    await rejectExam(9, '题干超纲')
+    expect(mocks.post).toHaveBeenCalledWith('/exam-papers/9/reject', { reason: '题干超纲' })
+  })
+
+  it('两个审核封装均已在默认导出对象中登记', async () => {
+    const examApi = (await import('@/api/exam')).default
+    expect(typeof examApi.approveExam).toBe('function')
+    expect(typeof examApi.rejectExam).toBe('function')
   })
 })

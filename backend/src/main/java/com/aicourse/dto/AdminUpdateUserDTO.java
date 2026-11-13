@@ -55,4 +55,8 @@ public class AdminUpdateUserDTO {
     @Schema(description = "个人简介", example = "热爱编程的Java开发者")
     private String bio;
 
+    /** 学院ID（V12 组织归属；院系管理员只能保持本院，校级管理员可调整） */
+    @Schema(description = "学院ID（院系管理员只能为本院）", example = "1")
+    private Long collegeId;
+
 }

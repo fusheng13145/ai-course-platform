@@ -1,7 +1,9 @@
 package com.aicourse.service.impl;
 
 import com.aicourse.common.ApiCode;
+import com.aicourse.entity.KnowledgePoint;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.vo.QaAnswerVO;
 import com.aicourse.exception.LLMUnavailableException;
 import com.aicourse.llm.LLMProvider;
 import com.aicourse.service.RAGService;
@@ -52,6 +54,9 @@ class AIServiceImplTest {
     /** 落库服务桩：本测试不设 AiCallContext 作用域，故不会有任何 record 交互。 */
     @Mock
     private com.aicourse.service.AiCallLogService aiCallLogService;
+    /** 降级接地桩：默认返回空课程知识点，具体用例按需打桩。 */
+    @Mock
+    private com.aicourse.service.KnowledgePointService knowledgePointService;
 
     private final MeterRegistry meterRegistry = new SimpleMeterRegistry();
     private AIServiceImpl service;
@@ -61,7 +66,7 @@ class AIServiceImplTest {
         // 原兼容构造器已移除：此处内联其组件组装逻辑，再走主构造器（4 个组件）
         AiCoreComponent coreComponent = new AiCoreComponent(llmProvider, promptGuard, meterRegistry, aiCallLogService);
         AiDialogueComponent dialogueComponent = new AiDialogueComponent(coreComponent, ragService);
-        AiRagComponent ragComponent = new AiRagComponent(ragService, promptGuard, coreComponent);
+        AiRagComponent ragComponent = new AiRagComponent(ragService, promptGuard, coreComponent, knowledgePointService);
         AiStructuredComponent structuredComponent = new AiStructuredComponent(coreComponent);
         service = new AIServiceImpl(dialogueComponent, ragComponent, structuredComponent, coreComponent);
         // 默认桩：已配置供应商，complete/completeJson 返回合法文本，输出清洗为原样透传。
@@ -260,13 +265,15 @@ class AIServiceImplTest {
 
     // ===================== ragAsk =====================
     @Test
-    @DisplayName("ragAsk RAG 返回 null 降级纯 LLM（降级 prompt 必须保留课程语境）")
+    @DisplayName("ragAsk RAG 返回 null 降级：无知识点时显式声明课程知识库为空，不得冒充课程答案")
     void ragAsk_ragNull() {
         // topK=5 与 courseId 都是 AiRagComponent 硬编码/透传的业务参数，必须按值打桩而非 anyInt()
         when(ragService.ask("q", 1L, 5)).thenReturn(null);
         assertEquals("raw", service.ragAsk("q", 1L).getAnswer());
         List<Map<String, String>> msgs = captureCompleteMessages(0.5);
-        assertTrue(flatten(msgs).contains("请基于课程知识回答问题"), "降级路径应带课程语境 system，实际=" + flatten(msgs));
+        assertTrue(flatten(msgs).contains("当前课程知识库暂无知识点"),
+                "降级路径须声明无课程知识库，实际=" + flatten(msgs));
+        assertTrue(flatten(msgs).contains("无法基于课程知识库回答"), "降级路径须给出如实兜底措辞");
         assertTrue(promptOf(msgs).contains("q"), "原始问题必须透传给降级 LLM，实际=" + flatten(msgs));
         assertEquals(1.0, aiCallCount("rag"));
     }
@@ -287,6 +294,7 @@ class AIServiceImplTest {
         // 检索召回条数决定答案的证据密度，写错 topK 不会改变类型却会改变结果，必须按值校验
         verify(ragService).ask("q", 1L, 5);
         verify(llmProvider, never()).complete(any(), any());
+        verify(knowledgePointService, never()).listByCourse(any());
     }
 
     @Test
@@ -295,6 +303,68 @@ class AIServiceImplTest {
         when(ragService.ask("q", 1L, 5)).thenThrow(new RuntimeException("boom"));
         assertEquals("raw", service.ragAsk("q", 1L).getAnswer());
         assertEquals(1.0, aiCallCount("rag"));
+    }
+
+    @Test
+    @DisplayName("ragAsk 降级接地：命中知识点与图谱前置关系进入 prompt，sources 可溯源")
+    void ragAsk_fallbackGroundsOnKnowledgePoints() {
+        KnowledgePoint closure = knowledgePoint(1L, "闭包",
+                "闭包是由函数及其引用的环境组合而成的实体", 5);
+        KnowledgePoint recursion = knowledgePoint(2L, "递归", "函数调用自身", 3);
+        KnowledgePoint scope = knowledgePoint(3L, "作用域", "变量的可见范围", 4);
+        when(knowledgePointService.listByCourse(1L)).thenReturn(List.of(recursion, closure));
+        when(knowledgePointService.getPrerequisites(1L)).thenReturn(List.of(scope));
+        when(ragService.ask("什么是闭包", 1L, 5)).thenReturn("{\"code\":503,\"msg\":\"x\"}");
+
+        QaAnswerVO vo = service.ragAsk("什么是闭包", 1L);
+        assertEquals("raw", vo.getAnswer());
+        assertEquals(1, vo.getSources().size(), "只有问题命中的知识点才能作为出处");
+        assertEquals("课程知识图谱 · 闭包", vo.getSources().get(0).getDocumentName());
+        assertEquals(1L, vo.getSources().get(0).getDocumentId());
+
+        String prompt = flatten(captureCompleteMessages(0.5));
+        assertTrue(prompt.contains("闭包"), "命中知识点必须进入 prompt，实际=" + prompt);
+        assertTrue(prompt.contains("前置知识") && prompt.contains("作用域"),
+                "图谱前置关系必须进入 prompt，实际=" + prompt);
+        assertTrue(prompt.contains("无法基于课程知识库回答"), "接地 prompt 必须带如实兜底硬约束");
+    }
+
+    @Test
+    @DisplayName("ragAsk 降级无命中：只给课程范围、sources 为空，并明确未检索到相关知识点")
+    void ragAsk_fallbackNoMatchKeepsHonestScope() {
+        when(knowledgePointService.listByCourse(1L)).thenReturn(List.of(
+                knowledgePoint(1L, "继承", "子类复用父类", 3)));
+        when(ragService.ask("今天天气", 1L, 5)).thenReturn(null);
+
+        QaAnswerVO vo = service.ragAsk("今天天气", 1L);
+        assertEquals("raw", vo.getAnswer());
+        assertTrue(vo.getSources().isEmpty(), "无直接命中不得伪造出处");
+        String prompt = flatten(captureCompleteMessages(0.5));
+        assertTrue(prompt.contains("未检索到与问题直接相关的课程知识点"), "实际=" + prompt);
+        assertTrue(prompt.contains("不得编造"));
+    }
+
+    @Test
+    @DisplayName("ragAsk 未指定课程：显式声明无课程知识库，且不读取任何知识点")
+    void ragAsk_fallbackWithoutCourseDeclaresNoKnowledgeBase() {
+        when(ragService.ask("q", null, 5)).thenReturn(null);
+
+        QaAnswerVO vo = service.ragAsk("q", null);
+        assertEquals("raw", vo.getAnswer());
+        assertTrue(vo.getSources().isEmpty());
+        String prompt = flatten(captureCompleteMessages(0.5));
+        assertTrue(prompt.contains("当前未指定课程"), "实际=" + prompt);
+        assertTrue(prompt.contains("无法基于课程知识库回答"));
+        verify(knowledgePointService, never()).listByCourse(any());
+    }
+
+    private KnowledgePoint knowledgePoint(Long id, String name, String description, int importance) {
+        KnowledgePoint point = new KnowledgePoint();
+        point.setId(id);
+        point.setName(name);
+        point.setDescription(description);
+        point.setImportance(importance);
+        return point;
     }
 
     // ===================== recommend* =====================
@@ -503,10 +573,13 @@ class AIServiceImplTest {
     }
 
     @Test
-    @DisplayName("generateLearningAdvice 空响应抛 BusinessException")
+    @DisplayName("generateLearningAdvice 空响应抛 503(EMPTY_RESPONSE)")
     void generateLearningAdvice_emptyRaw() {
         when(llmProvider.completeJson(any(), any(), any())).thenReturn("");
-        assertThrows(BusinessException.class, () -> service.generateLearningAdvice(Map.of("a", 1)));
+        LLMUnavailableException ex = assertThrows(LLMUnavailableException.class,
+                () -> service.generateLearningAdvice(Map.of("a", 1)));
+        assertEquals(ApiCode.SERVICE_UNAVAILABLE, ex.getCode());
+        assertEquals(LLMUnavailableException.Kind.EMPTY_RESPONSE, ex.kind());
     }
 
     // ===================== 配置/降级 =====================

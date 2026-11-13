@@ -209,6 +209,9 @@ public class AuthSessionComponent {
         if (code == null || code.isBlank()) {
             throw new BusinessException("注册验证码不能为空");
         }
+        // 与找回密码共用同一套 Redis 尝试限流：注册路径此前未挂，等同给了一个
+        // 「不限次数枚举验证码」的旁路，这里补齐。
+        AuthVerificationComponent.assertVerifyAttemptAllowed(redisTemplate, email);
         VerificationCode vc = verificationCodeService.getOne(new LambdaQueryWrapper<VerificationCode>()
                 .eq(VerificationCode::getEmail, email)
                 .eq(VerificationCode::getCode, code)

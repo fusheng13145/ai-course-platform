@@ -34,7 +34,11 @@ if sys.stdout.encoding and sys.stdout.encoding.lower() not in ("utf-8", "utf8"):
     except Exception:
         pass
 
-BASE = "http://127.0.0.1:8080/api"
+# A 路径断链 #10：端点不再写死本机。公网验收可设 E2E_BASE_URL 指向实际入口；
+# Redis 探活同样可经 E2E_REDIS_HOST/E2E_REDIS_PORT 覆盖（默认保持原本机行为）。
+BASE = os.environ.get("E2E_BASE_URL", "http://127.0.0.1:8080/api").rstrip("/")
+REDIS_HOST = os.environ.get("E2E_REDIS_HOST", "127.0.0.1")
+REDIS_PORT = int(os.environ.get("E2E_REDIS_PORT", "6379"))
 DB = "ai_course_platform"
 def _mysql_pw():
     p = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), ".env")
@@ -144,7 +148,7 @@ def flush_redis():
     """
     try:
         import socket
-        with socket.create_connection(("127.0.0.1", 6379), timeout=3) as s:
+        with socket.create_connection((REDIS_HOST, REDIS_PORT), timeout=3) as s:
             s.sendall(b"*1\r\n$7\r\nFLUSHDB\r\n")
             s.recv(64)
         print("[setup] Redis db0 已清空（缓存与限流计数）")
@@ -609,9 +613,9 @@ def main():
         f"HTTP {st} code={o.get('code')} version={ver1}", o.get("code") == 200 and str(ver1) == "1")
 
     st, o = teacher.req("POST", "/resource-versions", {
-        "resourceId": rid, "fileName": "deep-v2.pdf", "fileType": "application/pdf",
+        "resourceId": rid, "fileName": "deep.pdf", "fileType": "application/pdf",
         "url": f"/uploads/deep-{rid}.pdf", "fileUrl": f"/uploads/deep-{rid}.pdf",
-        "description": "v2 修订", "fileSize": 999})
+        "description": "修订", "fileSize": 999})
     ver2 = (o.get("data") or {}).get("versionNumber")
     rec("G1b", "创建第二个版本（版本号递增）", "200 且 versionNumber=2",
         f"HTTP {st} code={o.get('code')} version={ver2}", o.get("code") == 200 and str(ver2) == "2")

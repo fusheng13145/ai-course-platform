@@ -54,6 +54,14 @@ public class AuthVerificationComponent {
      * 校验成功/失败均计数——成功一次无妨，失败计数可有效封死暴力枚举。
      */
     public void assertVerifyAttemptAllowed(String email) {
+        assertVerifyAttemptAllowed(redisTemplate, email);
+    }
+
+    /**
+     * 静态版本：供未持有本组件引用的路径（如注册）复用同一套滑动计数。
+     * 两条路径共用同一 Redis key 前缀与阈值，避免出现「注册不限次数」的旁路。
+     */
+    public static void assertVerifyAttemptAllowed(StringRedisTemplate redisTemplate, String email) {
         if (redisTemplate == null || email == null || email.isBlank()) {
             return;
         }
@@ -96,7 +104,16 @@ public class AuthVerificationComponent {
         verificationCodeService.save(vc);
 
         // 发送邮件
-        emailService.sendVerificationCode(email, code, type);
+        try {
+            emailService.sendVerificationCode(email, code, type);
+        } catch (RuntimeException e) {
+            // 发送失败则删除这条未送达的验证码：否则 1 分钟重发限制会把用户锁在
+            // 「收不到也重发不了」的死循环里，且库里堆的是从未送达的有效码。
+            if (vc.getId() != null) {
+                verificationCodeService.removeById(vc.getId());
+            }
+            throw e;
+        }
         return ApiResponse.success("验证码已发送到邮箱", null);
     }
 

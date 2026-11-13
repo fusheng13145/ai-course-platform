@@ -1,13 +1,15 @@
 import logger from '@/utils/logger'
+import { type ApiData } from '@/utils/response'
 /**
  * WebSocket 实时通信服务
  * 用于：实时通知、AI助手流式输出、在线状态同步
  */
 
-let socket = null
-let reconnectTimer = null
-let heartbeatTimer = null
-const listeners = new Map()
+let socket: WebSocket | null = null
+let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+let heartbeatTimer: ReturnType<typeof setInterval> | null = null
+// 回调入参沿用 ApiData 口径：消息体尚未 per-type 建模，回调侧按需收窄
+const listeners = new Map<string, Set<(data: ApiData) => void>>()
 let isConnected = false
 /**
  * 是否处于「客户端主动断开」状态（P1-11）。
@@ -130,7 +132,7 @@ export function clearListeners() {
  * @param {object} message - 要发送的消息对象（会自动 JSON 序列化）
  * @returns {boolean} 是否发送成功（false 表示连接未建立）
  */
-export function send(message) {
+export function send(message: ApiData) {
   if (socket && socket.readyState === WebSocket.OPEN) {
     // 修复（2026-10-04）：readyState 为 OPEN 不代表 send 一定成功——缓冲区溢出、
     // 页面卸载竞态下浏览器会直接抛 InvalidStateError。原实现不 catch，
@@ -154,11 +156,13 @@ export function send(message) {
  * @param {Function} callback - 收到消息时的回调函数，接收消息 data 参数
  * @returns {Function} 取消订阅函数 — 调用后移除本次注册的回调
  */
-export function on(type, callback) {
-  if (!listeners.has(type)) {
-    listeners.set(type, new Set())
+export function on(type: string, callback: (data: ApiData) => void) {
+  let set = listeners.get(type)
+  if (!set) {
+    set = new Set()
+    listeners.set(type, set)
   }
-  listeners.get(type).add(callback)
+  set.add(callback)
   // 返回取消订阅函数
   return () => {
     const set = listeners.get(type)
@@ -172,13 +176,13 @@ export function on(type, callback) {
  * 取消订阅某类型的所有监听
  * @param {string} type 消息类型
  */
-export function off(type) {
+export function off(type: string) {
   listeners.delete(type)
 }
 
 // ===== 内部方法 =====
 
-function handleMessage(msg) {
+function handleMessage(msg: ApiData) {
   const { type, data } = msg
 
   // 广播给对应类型的所有监听者

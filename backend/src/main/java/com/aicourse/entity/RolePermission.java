@@ -35,6 +35,11 @@ public class RolePermission {
     private String permissionKey;
 
     /**
+     * 适用作用域 ALL/SCHOOL/COLLEGE（V12，旧数据回填 ALL）
+     */
+    private String scope;
+
+    /**
      * 权限名称
      */
     private String permissionName;

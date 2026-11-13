@@ -37,8 +37,18 @@ public class EmailServiceImpl implements EmailService {
     @Value("${mail.from-name:AI智能课程平台}")
     private String fromName;
 
-    @Value("${mail.ssl-enable:true}")
+    @Value("${mail.ssl-enable:false}")
     private boolean sslEnable;
+
+    @Value("${mail.starttls-enable:true}")
+    private boolean starttlsEnable;
+
+    /**
+     * 开发态开关：SMTP 未配置时把验证码/重置链接输出到后端日志。
+     * 生产 profile 置 false（缺凭据即失败），避免「只打日志」被当成已发送。
+     */
+    @Value("${mail.dev-log-code:true}")
+    private boolean devLogCode;
 
     // 常量定义
     private static final String CHARSET_UTF8 = "UTF-8";
@@ -64,7 +74,7 @@ public class EmailServiceImpl implements EmailService {
                 "</div>",
                 getTypeText(type), code
         );
-        sendHtmlEmail(toEmail, subject, content);
+        sendHtmlEmail(toEmail, subject, content, "type=" + type + ", code=" + code);
     }
 
 
@@ -90,7 +100,7 @@ public class EmailServiceImpl implements EmailService {
                 "</div>",
                 resetLink, resetLink
         );
-        sendHtmlEmail(toEmail, subject, content);
+        sendHtmlEmail(toEmail, subject, content, "resetLink=" + resetLink);
     }
 
     /**
@@ -98,13 +108,19 @@ public class EmailServiceImpl implements EmailService {
      * @param to 收件人邮箱
      * @param subject 邮件主题
      * @param htmlContent HTML正文
+     * @param devDetail 开发态日志附加信息（验证码/重置链接），真实发送时不会进入邮件
      */
-    private void sendHtmlEmail(String to, String subject, String htmlContent) {
+    private void sendHtmlEmail(String to, String subject, String htmlContent, String devDetail) {
         // 校验账号密码配置
         if (username == null || username.isBlank() || password == null || password.isBlank()) {
-            log.warn("邮件服务账号未配置，终止发送，收件人：{}", to);
-            log.info("【模拟发送】收件人：{}，主题：{}", to, subject);
-            return;
+            if (devLogCode) {
+                log.warn("SMTP 未配置（开发模式）：不发送邮件，内容仅输出到日志。收件人：{}，主题：{}，{}",
+                        to, subject, devDetail);
+                return;
+            }
+            throw new IllegalStateException(
+                    "邮件通道未配置：请设置 MAIL_HOST / MAIL_PORT / MAIL_USERNAME / MAIL_PASSWORD"
+                            + "（本地调试可设 MAIL_DEV_LOG_CODE=true，仅把验证码打印到后端日志）");
         }
 
         try {
@@ -136,10 +152,15 @@ public class EmailServiceImpl implements EmailService {
         props.put("mail.smtp.host", host);
         props.put("mail.smtp.port", port);
         props.put("mail.smtp.auth", Boolean.TRUE.toString());
-        props.put("mail.smtp.starttls.enable", Boolean.TRUE.toString());
+        // 465 端口是「连接即 SSL」，与 STARTTLS 互斥，同时开会握手失败
+        props.put("mail.smtp.starttls.enable", Boolean.valueOf(starttlsEnable && !sslEnable).toString());
         if (sslEnable) {
             props.put("mail.smtp.ssl.enable", Boolean.TRUE.toString());
+            props.put("mail.smtp.ssl.trust", host);
         }
+        props.put("mail.smtp.connectiontimeout", "10000");
+        props.put("mail.smtp.timeout", "10000");
+        props.put("mail.smtp.writetimeout", "10000");
         return props;
     }
 

@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
- * 三个具体供应商（DeepSeek / OpenAI / Qwen）构造与基础方法的覆盖。
+ * 四个具体供应商（DeepSeek / OpenAI / Qwen / Ollama）构造与基础方法的覆盖。
  * 仅验证构造（含 log.debug）与 name() / isConfigured()，避免真实 HTTP 调用。
  */
 class LlmProviderSubclassesTest {
@@ -34,5 +34,15 @@ class LlmProviderSubclassesTest {
         QwenProvider p = new QwenProvider("sk", "http://dashscope/v1", "qwen-plus", 5, 60, 2);
         assertEquals("qwen", p.name());
         assertTrue(p.isConfigured());
+    }
+
+    @Test
+    void ollamaProvider() {
+        OllamaProvider p = new OllamaProvider("http://localhost:11434", "deepseek-r1:8b", "", 5, 60, 2);
+        assertEquals("ollama", p.name());
+        assertTrue(p.isConfigured());
+
+        OllamaProvider blank = new OllamaProvider("", "deepseek-r1:8b", "", 5, 60, 2);
+        assertFalse(blank.isConfigured());
     }
 }

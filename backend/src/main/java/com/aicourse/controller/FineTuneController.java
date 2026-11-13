@@ -10,6 +10,7 @@ import com.aicourse.vo.FineTuneHealthVO;
 import com.fasterxml.jackson.databind.JsonNode;
 import io.swagger.v3.oas.annotations.Operation;
 import io.swagger.v3.oas.annotations.tags.Tag;
+import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 /**
@@ -17,11 +18,13 @@ import org.springframework.web.bind.annotation.*;
  * <p>
  * 对外暴露 Python 微调微服务（端口 8003）的编排入口：健康检查 / 启动任务 / 状态查询 / 列表 / 取消 / 推理 / 权重导出。
  * 降级语义：{@code fine-tune.enabled=false} 或 Python 服务不可达时返回明确不可用信息（HTTP 503 语义），不抛 500。
- * 路径受 SecurityConfig {@code /admin/** hasRole(ADMIN)} 保护。
+ * 双层防护：SecurityConfig {@code /admin/** hasRole(ADMIN)} URL 规则 + 类级 {@code @PreAuthorize} 方法级校验
+ * （与本仓其余管理面控制器 221 处方法级注解的纵深防御口径对齐，避免仅依赖单一 URL 规则）。
  * 对接契约见 docs/系统架构设计.md 的集成契约章节。
  */
 @RestController
 @RequestMapping("/admin/fine-tune")
+@PreAuthorize("hasRole('ADMIN')")
 @Tag(name = "模型微调（LoRA）", description = "LoRA 微调任务编排（对接 Python 微调服务 8003）")
 public class FineTuneController {
 

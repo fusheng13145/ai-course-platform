@@ -11,6 +11,11 @@ import java.util.List;
  *
  * <p>missingIndexes 为 D1-2 批次 2 新增键（0 基、升序的缺失分片索引），uploaded/percentage
  * 与它同源取自磁盘分片，不再沿用会话行计数；旧客户端忽略新键即可，属向后兼容的加键。
+ *
+ * <p>B-13 ⑲ 语义裁定：仅 UPLOADING／FAILED 等分片目录未回收的状态以磁盘真值为准；
+ * COMPLETED／CANCELLED 的分片目录已回收，改为返回会话持久计数 uploadedChunks／totalChunks，
+ * 且 missingIndexes 恒为空数组。percentage 保持展示字符串（"100.0%"）而非数值，需要数值口径时
+ * 一律用 uploaded／total 自行推导，避免同字段双类型。</p>
  */
 @Data
 public class UploadProgressVO {

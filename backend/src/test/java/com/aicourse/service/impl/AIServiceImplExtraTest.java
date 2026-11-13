@@ -61,6 +61,8 @@ class AIServiceImplExtraTest {
     @Mock PromptGuard promptGuard;
     /** 落库服务桩：本测试不设 AiCallContext 作用域，故不会有任何 record 交互。 */
     @Mock com.aicourse.service.AiCallLogService aiCallLogService;
+    /** 降级接地桩：默认返回空课程知识点（降级 prompt 走“无知识库”分支）。 */
+    @Mock com.aicourse.service.KnowledgePointService knowledgePointService;
 
     private final MeterRegistry meterRegistry = new SimpleMeterRegistry();
     private AIServiceImpl service;
@@ -70,7 +72,7 @@ class AIServiceImplExtraTest {
         // 原兼容构造器已移除：此处内联其组件组装逻辑，再走主构造器（4 个组件）
         AiCoreComponent coreComponent = new AiCoreComponent(llmProvider, promptGuard, meterRegistry, aiCallLogService);
         AiDialogueComponent dialogueComponent = new AiDialogueComponent(coreComponent, ragService);
-        AiRagComponent ragComponent = new AiRagComponent(ragService, promptGuard, coreComponent);
+        AiRagComponent ragComponent = new AiRagComponent(ragService, promptGuard, coreComponent, knowledgePointService);
         AiStructuredComponent structuredComponent = new AiStructuredComponent(coreComponent);
         service = new AIServiceImpl(dialogueComponent, ragComponent, structuredComponent, coreComponent);
         // 兜底桩（any() 合理）：只保证链路跑通，具体参数由各用例捕获断言
@@ -313,7 +315,7 @@ class AIServiceImplExtraTest {
     }
 
     @Test
-    @DisplayName("ragAsk: RAG 返回 503 -> 回退纯 LLM，且降级 prompt 保留课程语境")
+    @DisplayName("ragAsk: RAG 返回 503 -> 回退纯 LLM，且降级 prompt 显式声明无课程知识库")
     void ragAsk_503() {
         when(ragService.ask("q", 1L, 5)).thenReturn("{\"error\":\"x\",\"code\":503}");
         QaAnswerVO vo = service.ragAsk("q", 1L);
@@ -322,7 +324,8 @@ class AIServiceImplExtraTest {
         assertTrue(vo.getSources().isEmpty(), "纯 LLM 直答无检索出处");
         Completion c = singleCompletion();
         assertEquals(0.5, c.temperature());
-        assertTrue(c.flattened().contains("请基于课程知识回答问题"), "降级应带课程语境 system，实际=" + c.flattened());
+        assertTrue(c.flattened().contains("当前课程知识库暂无知识点"), "降级须声明无课程知识库，实际=" + c.flattened());
+        assertTrue(c.flattened().contains("无法基于课程知识库回答"), "降级须给如实兜底措辞，实际=" + c.flattened());
         assertEquals("q", c.prompt(), "降级须透传原始问题，实际=" + c.prompt());
     }
 
@@ -364,8 +367,8 @@ class AIServiceImplExtraTest {
         assertEquals(0.5, fallback.temperature());
         // 回退路径丢了提问原文就会变成「无题作答」，故问题与课程语境都要落在消息内容里
         assertTrue(fallback.prompt().contains("q"), "回退 prompt 须保留提问原文，实际=" + fallback.flattened());
-        assertTrue(fallback.flattened().contains("请基于课程知识回答问题"),
-                "回退应带课程语境 system，实际=" + fallback.flattened());
+        assertTrue(fallback.flattened().contains("当前课程知识库暂无知识点"),
+                "回退须声明无课程知识库，实际=" + fallback.flattened());
     }
 
     @Test
@@ -376,8 +379,8 @@ class AIServiceImplExtraTest {
         Completion fallback = singleCompletion();
         assertEquals(0.5, fallback.temperature());
         assertTrue(fallback.prompt().contains("q"), "回退 prompt 须保留提问原文，实际=" + fallback.flattened());
-        assertTrue(fallback.flattened().contains("请基于课程知识回答问题"),
-                "回退应带课程语境 system，实际=" + fallback.flattened());
+        assertTrue(fallback.flattened().contains("当前课程知识库暂无知识点"),
+                "回退须声明无课程知识库，实际=" + fallback.flattened());
     }
 
     // ===================== 结构化推荐 / 分析 =====================
@@ -609,10 +612,13 @@ class AIServiceImplExtraTest {
     }
 
     @Test
-    @DisplayName("generateLearningAdvice(Map): 无有效 JSON -> BusinessException")
+    @DisplayName("generateLearningAdvice(Map): 无有效 JSON -> 503(EMPTY_RESPONSE)，不再落 400")
     void generateLearningAdvice_mapNoJson() {
         when(llmProvider.completeJson(any(), any(), any())).thenReturn("plain text no json");
-        assertThrows(BusinessException.class, () -> service.generateLearningAdvice(Map.of("x", 1)));
+        LLMUnavailableException ex = assertThrows(LLMUnavailableException.class,
+                () -> service.generateLearningAdvice(Map.of("x", 1)));
+        assertEquals(ApiCode.SERVICE_UNAVAILABLE, ex.getCode());
+        assertEquals(LLMUnavailableException.Kind.EMPTY_RESPONSE, ex.kind());
     }
 
     @Test

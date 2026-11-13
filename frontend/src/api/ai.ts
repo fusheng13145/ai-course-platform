@@ -1,28 +1,45 @@
 import request from './request'
+import { type ApiEnvelope, type ApiData } from '@/utils/response'
 
-// ==================== v2（当前推荐接口） ====================
+// ==================== （当前推荐接口） ====================
 /** AI 问答提问 */
-export const qaAsk = (data) => request.post('/ai/qa/ask', data)
+export const qaAsk = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
+  request.post('/ai/qa/ask', data) as Promise<ApiEnvelope<ApiData>>
 /** AI 问答追问 */
-export const qaContinue = (data) => request.post('/ai/qa/continue', data)
+export const qaContinue = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
+  request.post('/ai/qa/continue', data) as Promise<ApiEnvelope<ApiData>>
 /** 获取问答会话列表 */
-export const getSessions = () => request.get('/ai/qa/sessions')
+export const getSessions = (): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/ai/qa/sessions') as Promise<ApiEnvelope<ApiData>>
 /** AI 作文批改 */
-export const essayCorrect = (data) => request.post('/ai/essay/correct', data)
+export const essayCorrect = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
+  request.post('/ai/essay/correct', data) as Promise<ApiEnvelope<ApiData>>
 /** AI 作文润色 */
-export const essayPolish = (data) => request.post('/ai/essay/polish', data)
+export const essayPolish = (data: Record<string, unknown>): Promise<ApiEnvelope<ApiData>> =>
+  request.post('/ai/essay/polish', data) as Promise<ApiEnvelope<ApiData>>
 /** 获取学习推荐 */
-export const learningRecommendations = () => request.get('/ai/recommendations/learning')
+export const learningRecommendations = (): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/ai/recommendations/learning') as Promise<ApiEnvelope<ApiData>>
 /** 获取题目推荐 */
-export const questionRecommendations = (params = {}) =>
-  request.get('/ai/recommendations/questions', { params })
+export const questionRecommendations = (
+  params: Record<string, unknown> = {},
+): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/ai/recommendations/questions', { params }) as Promise<ApiEnvelope<ApiData>>
 /** 薄弱点分析 */
-export const weakPointsAnalysis = (params = {}) =>
-  request.get('/ai/analysis/weak-points', { params })
+export const weakPointsAnalysis = (
+  params: Record<string, unknown> = {},
+): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/ai/analysis/weak-points', { params }) as Promise<ApiEnvelope<ApiData>>
 /** 获取学习建议 */
-export const learningAdvice = (params = {}) => request.get('/ai/advice/learning', { params })
+export const learningAdvice = (
+  params: Record<string, unknown> = {},
+): Promise<ApiEnvelope<ApiData>> =>
+  request.get('/ai/advice/learning', { params }) as Promise<ApiEnvelope<ApiData>>
 /** 生成学习路径 */
-export const generateLearningPath = (data) => request.post('/ai/learning-path/generate', data)
+export const generateLearningPath = (
+  data: Record<string, unknown>,
+): Promise<ApiEnvelope<ApiData>> =>
+  request.post('/ai/learning-path/generate', data) as Promise<ApiEnvelope<ApiData>>
 
 /**
  * 检索出处条目（与后端 QaSourceVO 对齐；后端下发前已做 HTML 转义）。
@@ -74,7 +91,7 @@ export function qaStream(
   const controller = new AbortController()
 
   const url = new URL('/api/ai/qa/stream', window.location.origin)
-  Object.entries(params).forEach(([k, v]) => {
+  Object.entries(params).forEach(([k, v]: ApiData) => {
     if (v !== undefined && v !== null) url.searchParams.set(k, String(v))
   })
 
@@ -84,7 +101,7 @@ export function qaStream(
     headers: { Accept: 'text/event-stream' },
     signal: controller.signal,
   })
-    .then(async (response) => {
+    .then(async (response: ApiData) => {
       if (!response.ok) {
         throw new Error(`SSE 请求失败: HTTP ${response.status}`)
       }
@@ -128,7 +145,7 @@ export function qaStream(
       }
       onDone?.()
     })
-    .catch((err) => {
+    .catch((err: ApiData) => {
       console.error('[ai.js] if:', err)
       if (err.name !== 'AbortError') {
         onError?.(err)

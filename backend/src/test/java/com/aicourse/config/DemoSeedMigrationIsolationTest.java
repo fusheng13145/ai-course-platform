@@ -55,13 +55,28 @@ class DemoSeedMigrationIsolationTest {
             // V10（2026-10-13）：ai_generation_restrictions 教师出题限制名单 —— 结构迁移，非演示数据
             "V10__ai_generation_restrictions.sql",
             // V11（2026-10-13）：内容审核（讨论回复/资源审核状态 + users 封禁留痕）—— 结构迁移，非演示数据
-            "V11__content_moderation.sql");
+            "V11__content_moderation.sql",
+            // V12（2026-11-05）：组织四表 + users 组织列/admin_scope + role_permissions.scope —— 结构迁移，非演示数据
+            "V12__org_foundation.sql",
+            // V13（2026-11-06）：courses.college_id + course_approval_records —— 结构迁移，非演示数据
+            "V13__course_approval.sql",
+            // V14（2026-11-06）：教学班两表 + course_enrollments 加列与组织回填 —— 结构迁移，非演示数据
+            "V14__course_teaching_class.sql",
+            // V15（2026-11-06）：tasks/exam_papers 可见范围 + 两张目标教学班表 —— 结构迁移，非演示数据
+            "V15__activity_targets.sql",
+            // V16（2026-11-07，WP7+WP8）：四类活动快照列与回填 + announcements 公告表 —— 结构迁移，非演示数据
+            "V16__announcement_and_snapshot.sql",
+            // V17（2026-11-07，WP10）：courses.semester_id 回填与学期内唯一、成员收紧 —— 结构迁移，非演示数据
+            "V17__org_cutover.sql",
+            // V18（2026-11-07 全量实现批四）：演示种子清除（纯 DML 回填清理）—— 结构迁移，非演示数据
+            "V18__purge_demo_seed.sql");
 
-    /** 演示种子脚本：这三个文件名只允许出现在 {@code db/seed-demo}。 */
+    /** 演示种子脚本：这些文件名只允许出现在 {@code db/seed-demo}。 */
     private static final Set<String> SEED_FILENAMES = Set.of(
             "V5__rich_seed_data.sql",
             "V6__computer_network_showcase.sql",
-            "V7__fix_showcase_seed_self_description.sql");
+            "V7__fix_showcase_seed_self_description.sql",
+            "V12_1__demo_college_admins.sql");
 
     private final PathMatchingResourcePatternResolver resolver = new PathMatchingResourcePatternResolver();
 
@@ -76,7 +91,7 @@ class DemoSeedMigrationIsolationTest {
     }
 
     @Test
-    @DisplayName("演示种子脚本落在 db/seed-demo，文件名逐字保持 V5/V6/V7")
+    @DisplayName("演示种子脚本落在 db/seed-demo，文件名逐字保持 V5/V6/V7/V12.1")
     void demoSeedLocationHoldsExactlyTheSeedScripts() throws IOException {
         assertThat(filenames("classpath:db/seed-demo/*.sql"))
                 .containsExactlyInAnyOrder(
@@ -84,7 +99,9 @@ class DemoSeedMigrationIsolationTest {
                         "V6__computer_network_showcase.sql",
                         // V7：DR-19 的文案前向修正。V6 已应用、校验和不可改，
                         // 故库内示范课简介的规模数字只能由新迁移改写。
-                        "V7__fix_showcase_seed_self_description.sql");
+                        "V7__fix_showcase_seed_self_description.sql",
+                        // V12.1（WP2）：院系管理员演示种子，晚于 V12、不占 V13–V16 预留号。
+                        "V12_1__demo_college_admins.sql");
     }
 
     @Test

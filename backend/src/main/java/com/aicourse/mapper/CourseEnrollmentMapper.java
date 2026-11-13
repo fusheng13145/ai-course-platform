@@ -24,4 +24,13 @@ public interface CourseEnrollmentMapper extends BaseMapper<CourseEnrollment> {
      */
     @Select("SELECT COUNT(*) FROM course_enrollments WHERE course_id = #{courseId} AND is_active = 1 FOR UPDATE")
     long countActiveForUpdate(@Param("courseId") Long courseId);
+
+    /**
+     * 当前读（加行锁）统计某教学班有效选课数，用于按教学班的容量校验（V14 / WP5）。
+     *
+     * <p>自助选课已按教学班分流容量；与课程行锁配合，保证同课程并发选课串行化后
+     * 仍以当前读计数，避免 REPEATABLE READ 快照导致的超卖。</p>
+     */
+    @Select("SELECT COUNT(*) FROM course_enrollments WHERE teaching_class_id = #{teachingClassId} AND is_active = 1 FOR UPDATE")
+    long countActiveByTeachingClassForUpdate(@Param("teachingClassId") Long teachingClassId);
 }

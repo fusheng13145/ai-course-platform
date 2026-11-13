@@ -25,7 +25,10 @@ mkdir -p "$BACKUP_DIR"
 echo "[$(date -Iseconds)] Starting backup of $DB from $DB_HOST ..."
 
 # 导出 + 压缩（--single-transaction 保证一致性快照，--routines/--triggers 保留存储过程）
-mysqldump -h "$DB_HOST" -u root -p"$PASS" \
+# 2026-11-06 补件：口令改走 MYSQL_PWD 环境变量，不再进 argv ——
+# `-p"$PASS"` 会随命令行出现在同机 `ps` / /proc/<pid>/cmdline 里，任何本机用户可读。
+# mysqldump 子进程结束后环境变量不残留，故用「仅本命令可见」的前缀赋值。
+MYSQL_PWD="$PASS" mysqldump -h "$DB_HOST" -u root \
   --single-transaction --routines --triggers "$DB" > "$FILE"
 gzip "$FILE"
 GZ="$FILE.gz"

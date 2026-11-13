@@ -33,13 +33,16 @@ import java.util.List;
  *   <li><b>false（生产必设）</b>：把「仍为种子弱口令」的演示账号 <em>停用</em>（{@code is_active=0}）
  *       并重置为<b>不可知</b>随机口令（随机明文仅用于生成哈希后立即丢弃，不落日志、不返回）。</li>
  * </ul>
- * 三条安全铁律：
+ * 四条安全铁律：
  * <ol>
  *   <li><b>绝不覆盖已改密账号</b>：仅当口令仍等于 {@link SeedAccounts#SEED_WEAK_BCRYPT} 时才动手，
  *       管理员已重置过的账号保持原样（同名真实用户不会被误伤）。</li>
  *   <li><b>幂等</b>：重复启动不会重复改写（首次改写后口令已非种子哈希，自动跳过）。</li>
  *   <li><b>fail-fast</b>：{@code enabled=true} 与 {@code prod} profile 同时出现即拒绝启动，
  *       杜绝「忘记关开关」把演示弱口令带上生产（与项目「默认安全、开发显式放宽」一致）。</li>
+ *   <li><b>单向动作只在 prod 执行</b>：加固不可逆（改密后任何启动都不再回退），故非 prod profile
+ *       下即使 {@code enabled=false} 也只打 WARN 拒绝执行——否则一次本地误设就会永久毁掉
+ *       验收库的演示凭据（2026-11-06 实测：admin 被改密后全栈 e2e 的 8 条 admin 用例不可复现）。</li>
  * </ol>
  */
 @Component
@@ -79,20 +82,35 @@ public class DemoAccountHardeningInitializer implements ApplicationRunner {
             warnIfSeedWeakPasswordRemains();
             return;
         }
+        // 加固是单向动作（停用 + 改密为不可知口令，之后任何启动都不会再改写），
+        // 因此只允许在 prod profile 下执行：本机验收库一旦被改，e2e/视觉的 admin 用例即永久不可复现。
+        if (!isProdProfileActive()) {
+            log.warn("[seed] 已请求演示账号加固（DEMO_ACCOUNTS_ENABLED=false）但当前 profile 非 prod，"
+                    + "拒绝执行单向改写。生产加固请在 prod profile 下启动。");
+            return;
+        }
         harden();
+    }
+
+    /** 当前激活 profile 是否含 prod（大小写不敏感，与 {@link #guardAgainstProd()} 同口径）。 */
+    private boolean isProdProfileActive() {
+        for (String profile : environment.getActiveProfiles()) {
+            if (PROD_PROFILE.equalsIgnoreCase(profile)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
      * 生产姿态下不允许开启演示账号：宁可拒绝启动，也不让弱口令静默上线。
      */
     private void guardAgainstProd() {
-        for (String profile : environment.getActiveProfiles()) {
-            if (PROD_PROFILE.equalsIgnoreCase(profile)) {
-                throw new IllegalStateException(
-                        "[seed] 配置冲突：app.demo-accounts.enabled=true 与 prod profile 不允许共存。"
-                                + "生产环境必须设置 DEMO_ACCOUNTS_ENABLED=false"
-                                + "（启动时自动停用演示账号并重置为不可知口令）。已拒绝启动。");
-            }
+        if (isProdProfileActive()) {
+            throw new IllegalStateException(
+                    "[seed] 配置冲突：app.demo-accounts.enabled=true 与 prod profile 不允许共存。"
+                            + "生产环境必须设置 DEMO_ACCOUNTS_ENABLED=false"
+                            + "（启动时自动停用演示账号并重置为不可知口令）。已拒绝启动。");
         }
     }
 

@@ -229,11 +229,29 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
         if (list == null || list.isEmpty()) {
             return;
         }
+        // 批量取题目（B-03 N+1 治理，2026-11-07）：错题本一页可达数百行，逐行 getById 会放大成
+        // 数百次单查；改为一次 IN 查询后按 id 取用。查不到（含逻辑删除）与原 getById 返回 null 同语义。
+        Map<Long, Question> questionById = loadQuestionsById(list);
         for (WrongQuestion wq : list) {
             if (wq.getQuestionId() != null) {
-                WrongQuestionSnapshotUtil.fillFromQuestion(wq, questionService.getById(wq.getQuestionId()));
+                WrongQuestionSnapshotUtil.fillFromQuestion(wq, questionById.get(wq.getQuestionId()));
             }
         }
+    }
+
+    /** 按错题集合一次性加载全部题目，返回 questionId → Question 映射（空集合返回空映射）。 */
+    private Map<Long, Question> loadQuestionsById(List<WrongQuestion> wrongQuestions) {
+        List<Long> questionIds = wrongQuestions.stream()
+                .map(WrongQuestion::getQuestionId)
+                .filter(Objects::nonNull)
+                .distinct()
+                .toList();
+        if (questionIds.isEmpty()) {
+            return Map.of();
+        }
+        return questionService.listByIds(questionIds).stream()
+                .filter(q -> q.getId() != null)
+                .collect(Collectors.toMap(Question::getId, q -> q, (a, b) -> a));
     }
 
     /**
@@ -267,8 +285,9 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
 
         // 按知识点名称分组：一道题可关联多个知识点，故会同时出现在多个分组中
         Map<String, List<WrongQuestion>> grouped = new LinkedHashMap<>();
+        Map<Long, Question> questionById = loadQuestionsById(wrongQuestions);
         for (WrongQuestion wq : wrongQuestions) {
-            Question question = questionService.getById(wq.getQuestionId());
+            Question question = questionById.get(wq.getQuestionId());
             // 补齐派生展示字段（题干/选项/答案/知识点名，见 P2-6），否则分组内的题目项字段全为空
             WrongQuestionSnapshotUtil.fillFromQuestion(wq, question);
             for (String kpName : extractKnowledgePointNames(question)) {
@@ -320,6 +339,8 @@ public class WrongQuestionServiceImpl extends ServiceImpl<WrongQuestionMapper, W
                 if (!cleaned.isEmpty()) {
                     return cleaned;
                 }
+                // "[]" 是显式清空标签后的合法存储形态，不能回落成字面量知识点 "[]"
+                return List.of(UNKNOWN_KP);
             } catch (Exception e) {
                 log.debug("知识点 JSON 解析失败，退回分隔符拆分：{}", raw);
             }

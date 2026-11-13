@@ -273,7 +273,7 @@ class WrongQuestionServiceImplCoverageTest {
     @DisplayName("按知识点分组 - JSON/分隔符/坏JSON/空白/无题目全部解析路径与按数量降序")
     void getByKnowledgePoints_parsesAllKnowledgePointFormats() {
         // wq1: JSON 数组含空串与 null -> ["A","B"]
-        // wq2: 空 JSON 数组 -> 回落分隔符拆分得到字面量 "[]"
+        // wq2: 空 JSON 数组 -> 无标签，归入「未知知识点」
         // wq3: 中文逗号+分号分隔文本（含连续分隔符产生的空段）-> 三个知识点
         // wq4: 题目不存在 -> 未知知识点
         // wq5: knowledgePoints 为 null -> 未知知识点
@@ -287,15 +287,16 @@ class WrongQuestionServiceImplCoverageTest {
                 wrongQuestion(7L, 100L, 207L), wrongQuestion(8L, 100L, 208L)));
         when(wrongQuestionMapper.selectList(any())).thenReturn(rows);
 
-        when(questionService.getById(201L)).thenReturn(
-                question(201L, "题干1", null, null, null, "[\"A\",\"\",null,\"  B  \"]"));
-        when(questionService.getById(202L)).thenReturn(question(202L, "题干2", null, null, null, "[]"));
-        when(questionService.getById(203L)).thenReturn(question(203L, "题干3", null, null, null, "计算机网络，,数据结构;算法"));
-        // 204 -> 未打桩，返回 null
-        when(questionService.getById(205L)).thenReturn(question(205L, "题干5", null, null, null, null));
-        when(questionService.getById(206L)).thenReturn(question(206L, "题干6", null, null, null, "   "));
-        when(questionService.getById(207L)).thenReturn(question(207L, "题干7", null, null, null, ",,,"));
-        when(questionService.getById(208L)).thenReturn(question(208L, "题干8", null, null, null, "[坏JSON"));
+        // B-03 批量版：分组路径以 listByIds 一次取题（204 缺席＝查不到，与原 getById 返回 null 同语义）
+        when(questionService.listByIds(any())).thenReturn(java.util.List.of(
+                question(201L, "题干1", null, null, null, "[\"A\",\"\",null,\"  B  \"]"),
+                question(202L, "题干2", null, null, null, "[]"),
+                question(203L, "题干3", null, null, null, "计算机网络，,数据结构;算法"),
+                // 204 -> 不在返回集合中，等效未打桩
+                question(205L, "题干5", null, null, null, null),
+                question(206L, "题干6", null, null, null, "   "),
+                question(207L, "题干7", null, null, null, ",,,"),
+                question(208L, "题干8", null, null, null, "[坏JSON")));
 
         when(knowledgePointMapper.selectList(any())).thenReturn(new ArrayList<>(Arrays.asList(
                 knowledgePoint(1L, "A"), knowledgePoint(99L, "A"), knowledgePoint(2L, "B"),
@@ -303,12 +304,12 @@ class WrongQuestionServiceImplCoverageTest {
 
         List<WrongQuestionGroupVO> result = wrongQuestionService.getByKnowledgePoints(100L, 10L);
 
-        assertEquals(8, result.size());
-        // 四条无法解析的记录归入同一组，按 count 降序排在最前
+        assertEquals(7, result.size());
+        // 五条无标签/无法解析的记录归入同一组，按 count 降序排在最前
         WrongQuestionGroupVO first = result.get(0);
         assertEquals("未知知识点", first.getKnowledgePointName());
-        assertEquals(4, first.getCount());
-        assertEquals(4, first.getQuestions().size());
+        assertEquals(5, first.getCount());
+        assertEquals(5, first.getQuestions().size());
         assertNull(first.getKnowledgePointId());
 
         WrongQuestionGroupVO groupA = result.stream()
@@ -321,8 +322,8 @@ class WrongQuestionServiceImplCoverageTest {
         assertEquals(2L, groupB.getKnowledgePointId());
         // 坏 JSON 保留原始字面量，且未命中 knowledge_points 表 -> ID 为 null
         assertTrue(result.stream().anyMatch(g -> "[坏JSON".equals(g.getKnowledgePointName())));
-        assertTrue(result.stream().anyMatch(g -> "[]".equals(g.getKnowledgePointName())
-                && g.getKnowledgePointId() == null));
+        assertTrue(result.stream().noneMatch(g -> "[]".equals(g.getKnowledgePointName())),
+                "空 JSON 数组不能被当成字面量知识点分组");
         // 一道题多知识点会同时出现在多个分组
         assertSame(rows.get(0), groupA.getQuestions().get(0));
         // 派生字段在分组时被补齐
@@ -336,7 +337,7 @@ class WrongQuestionServiceImplCoverageTest {
     void getByKnowledgePoints_noKnowledgePointRows() {
         when(wrongQuestionMapper.selectList(any()))
                 .thenReturn(new ArrayList<>(Collections.singletonList(wrongQuestion(1L, 100L, 201L))));
-        when(questionService.getById(201L)).thenReturn(question(201L, "题干1", null, null, null, "数据结构"));
+        when(questionService.listByIds(any())).thenReturn(java.util.List.of(question(201L, "题干1", null, null, null, "数据结构")));
         when(knowledgePointMapper.selectList(any())).thenReturn(new ArrayList<>());
 
         List<WrongQuestionGroupVO> result = wrongQuestionService.getByKnowledgePoints(100L, null);

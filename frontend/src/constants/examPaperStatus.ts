@@ -1,7 +1,8 @@
 /**
  * 试卷状态契约（ExamPaperStatus 枚举 name 的唯一展示出口）。
  *
- * 背景（设计 F1）：后端 `ExamPaper.status` 持久化为枚举 name（DRAFT/PUBLISHED/ARCHIVED），
+ * 背景（设计 F1）：后端 `ExamPaper.status` 持久化为枚举 name
+ * （DRAFT/PENDING_REVIEW/REJECTED/PUBLISHED/ARCHIVED），
  * 而 CeExamTable 曾直接判 `row.status === '已发布'`，导致已发布卷恒显示「草稿」、
  * 发布按钮恒显（重复发布会被后端「试卷已发布」异常打回）。
  *
@@ -12,13 +13,18 @@ export interface ExamPaperStatusView {
   label: string
   /** 标签色（el-tag type / 项目 tag class 语义） */
   tagType: 'info' | 'success' | 'warning' | 'danger'
-  /** 是否允许发布（仅草稿态可发布；重复发布后端会抛「试卷已发布」） */
+  /** 是否允许提交审核/发布（草稿与已驳回可提交；待审核/已发布/已归档不可） */
   canPublish: boolean
 }
 
 /** ExamPaper.status 枚举 name → 展示视图。key 与后端枚举 name 严格一致。 */
-export const EXAM_PAPER_STATUS: Record<'DRAFT' | 'PUBLISHED' | 'ARCHIVED', ExamPaperStatusView> = {
+export const EXAM_PAPER_STATUS: Record<
+  'DRAFT' | 'PENDING_REVIEW' | 'REJECTED' | 'PUBLISHED' | 'ARCHIVED',
+  ExamPaperStatusView
+> = {
   DRAFT: { label: '草稿', tagType: 'info', canPublish: true },
+  PENDING_REVIEW: { label: '待审核', tagType: 'warning', canPublish: false },
+  REJECTED: { label: '已驳回', tagType: 'danger', canPublish: true },
   PUBLISHED: { label: '已发布', tagType: 'success', canPublish: false },
   ARCHIVED: { label: '已归档', tagType: 'info', canPublish: false },
 }

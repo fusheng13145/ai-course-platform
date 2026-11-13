@@ -276,4 +276,62 @@ class JwtRequestFilterTest {
         verify(chain).doFilter(request, response);
         assertNull(SecurityContextHolder.getContext().getAuthentication());
     }
+
+    // ==================== 管理员作用域（V12 / B-12-P-08 WP1） ====================
+
+    @Test
+    void doFilter_schoolAdmin_addsSchoolScopeAuthority() throws Exception {
+        filter = new JwtRequestFilter(jwtUtils, userSessionService, userService);
+        when(request.getHeader("Authorization")).thenReturn("Bearer tok");
+        when(jwtUtils.extractTokenFromHeader("Bearer tok")).thenReturn("tok");
+        when(jwtUtils.validateToken("tok")).thenReturn(true);
+        when(userSessionService.isSessionActive("tok")).thenReturn(true);
+        when(jwtUtils.getUserIdFromToken("tok")).thenReturn(1L);
+        when(jwtUtils.getUsernameFromToken("tok")).thenReturn("admin");
+        User admin = dbUser(1L, "ADMIN", true);
+        admin.setAdminScope("SCHOOL");
+        when(userService.getById(1L)).thenReturn(admin);
+
+        filter.doFilterInternal(request, response, chain);
+
+        // scope authority 每请求从 DB 现行用户解析，令牌不携带 scope、无需重签
+        assertAuthorities("ROLE_ADMIN", "SCOPE_ADMIN_SCHOOL");
+    }
+
+    @Test
+    void doFilter_collegeAdmin_addsCollegeScopeAuthority() throws Exception {
+        filter = new JwtRequestFilter(jwtUtils, userSessionService, userService);
+        when(request.getHeader("Authorization")).thenReturn("Bearer tok");
+        when(jwtUtils.extractTokenFromHeader("Bearer tok")).thenReturn("tok");
+        when(jwtUtils.validateToken("tok")).thenReturn(true);
+        when(userSessionService.isSessionActive("tok")).thenReturn(true);
+        when(jwtUtils.getUserIdFromToken("tok")).thenReturn(1L);
+        when(jwtUtils.getUsernameFromToken("tok")).thenReturn("admin");
+        User admin = dbUser(1L, "ADMIN", true);
+        admin.setAdminScope("COLLEGE");
+        when(userService.getById(1L)).thenReturn(admin);
+
+        filter.doFilterInternal(request, response, chain);
+
+        assertAuthorities("ROLE_ADMIN", "SCOPE_ADMIN_COLLEGE");
+    }
+
+    @Test
+    void doFilter_nonAdminWithScope_getsNoScopeAuthority() throws Exception {
+        filter = new JwtRequestFilter(jwtUtils, userSessionService, userService);
+        when(request.getHeader("Authorization")).thenReturn("Bearer tok");
+        when(jwtUtils.extractTokenFromHeader("Bearer tok")).thenReturn("tok");
+        when(jwtUtils.validateToken("tok")).thenReturn(true);
+        when(userSessionService.isSessionActive("tok")).thenReturn(true);
+        when(jwtUtils.getUserIdFromToken("tok")).thenReturn(6L);
+        when(jwtUtils.getUsernameFromToken("tok")).thenReturn("teacher");
+        User teacher = dbUser(6L, "TEACHER", true);
+        teacher.setAdminScope("COLLEGE");
+        when(userService.getById(6L)).thenReturn(teacher);
+
+        filter.doFilterInternal(request, response, chain);
+
+        // 作用域只属于 ADMIN：教师即便误写 admin_scope 也不得获得管理员 authority
+        assertAuthorities("ROLE_TEACHER");
+    }
 }

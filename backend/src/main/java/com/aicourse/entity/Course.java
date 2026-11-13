@@ -50,6 +50,11 @@ public class Course {
     private Long teacherId;
 
     /**
+     * 所属学院ID（V13 起由课程负责人学院回填，未回填时回退教师学院）
+     */
+    private Long collegeId;
+
+    /**
      * 学期
      */
     private String semester;
@@ -151,6 +156,12 @@ public class Course {
      */
     @TableField(fill = FieldFill.INSERT_UPDATE)
     private LocalDateTime updatedAt;
+
+    /**
+     * 所属学期（4A，V17）：课程编号在学期内唯一的前提字段。
+     * 创建时由 {@code CourseServiceImpl} 解析为当前 ACTIVE 学期；V17 回填后收紧 NOT NULL。
+     */
+    private Long semesterId;
 
     public void setIsActive(Boolean active) {
         isActive = active;

@@ -9,6 +9,7 @@ import com.aicourse.mapper.SubmissionMapper;
 import com.aicourse.service.AIService;
 import com.aicourse.service.NotificationService;
 import com.aicourse.service.TaskService;
+import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import com.fasterxml.jackson.databind.JsonNode;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Lazy;
@@ -213,19 +214,43 @@ public class SubmissionGradeComponent {
             existingData = jsonSupport.updateJsonField(existingData, "aiGradedAt", LocalDateTime.now().toString());
             submission.setSubmissionData(existingData);
 
-            submissionMapper.updateById(submission);
+            updateAiColumns(submissionId, aiFeedback, existingData);
 
             log.info("AI评分完成: submissionId={}, aiScore={}, hasFeedback={}",
                     submissionId, aiScore, aiFeedback != null);
 
         } catch (RuntimeException e) {
-            // AI评分失败不影响主流程，仅记录错误信息
+            // AI评分失败不影响主流程，仅记录错误信息；同样只写 AI 列，不用陈旧实体整行更新
             log.error("AI评分失败: submissionId={}", submissionId, e);
-            submission.setAiFeedback("AI评分失败：" + e.getMessage());
-            submissionMapper.updateById(submission);
+            String failureFeedback = "AI评分失败：" + e.getMessage();
+            submission.setAiFeedback(failureFeedback);
+            updateAiColumns(submissionId, failureFeedback, null);
         }
 
         return submission;
+    }
+
+    /**
+     * 只更新 AI 派生列。异步预批改读到的是一条陈旧快照，整行 updateById 会把窗口内
+     * 教师已写入的 status/score/graderId/gradedAt 一并冲回 SUBMITTED。
+     */
+    private void updateAiColumns(Long submissionId, String aiFeedback, String submissionData) {
+        LambdaUpdateWrapper<Submission> update = new LambdaUpdateWrapper<Submission>()
+                .eq(Submission::getId, submissionId);
+        boolean hasSet = false;
+        if (aiFeedback != null) {
+            update.set(Submission::getAiFeedback, aiFeedback);
+            hasSet = true;
+        }
+        if (submissionData != null) {
+            update.set(Submission::getSubmissionData, submissionData);
+            hasSet = true;
+        }
+        if (hasSet) {
+            // update(null, wrapper) 不会触发实体上的 INSERT_UPDATE 自动填充，显式补时间戳
+            update.set(Submission::getUpdatedAt, LocalDateTime.now());
+            submissionMapper.update(null, update);
+        }
     }
 
     /**

@@ -5,9 +5,12 @@ import org.slf4j.LoggerFactory;
 
 import jakarta.validation.Valid;
 
+import com.aicourse.common.ApiCode;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.entity.DiscussionPost;
 import com.aicourse.entity.DiscussionTopic;
+import com.aicourse.exception.BusinessException;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.DiscussionService;
 import com.aicourse.vo.LikePostVO;
 import com.aicourse.vo.TopicDetailVO;
@@ -32,9 +35,27 @@ public class DiscussionController {
     private static final Logger log = LoggerFactory.getLogger(DiscussionController.class);
 
     private final DiscussionService discussionService;
+    private final CourseAccessControl courseAccessControl;
 
-    public DiscussionController(DiscussionService discussionService) {
+    public DiscussionController(DiscussionService discussionService,
+                                CourseAccessControl courseAccessControl) {
         this.discussionService = discussionService;
+        this.courseAccessControl = courseAccessControl;
+    }
+
+    /**
+     * 课程成员关系断言（2026-11-06 验收批，B-05 对象级 ACL）。
+     * <p>
+     * 讨论区的读、发帖、回复原先只有 URL 层「已登录」兜底：实测未选任何课程的学生
+     * 可以读到别人课程的话题与正文。这里复用
+     * {@link CourseAccessControl#assertCanReadCourse}（学生须有 APPROVED 选课、
+     * 教师须是本课程、管理员放行），不再另写一份成员关系判定。
+     */
+    private void assertCourseMember(Long courseId, Authentication auth) {
+        if (courseId == null) {
+            throw new BusinessException(ApiCode.BAD_REQUEST, "缺少课程ID");
+        }
+        courseAccessControl.assertCanReadCourse(courseId, auth);
     }
 
     /** 从认证信息中提取角色（ROLE_TEACHER -> TEACHER） */
@@ -52,6 +73,7 @@ public class DiscussionController {
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
     public ApiResponse<DiscussionTopic> createTopic(@Valid @RequestBody DiscussionTopic topic, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
+        assertCourseMember(topic.getCourseId(), auth);
         return ApiResponse.success("发布成功", discussionService.createTopic(topic, userId, roleOf(auth)));
     }
 
@@ -60,13 +82,16 @@ public class DiscussionController {
     public ApiResponse<List<DiscussionTopic>> listTopics(@PathVariable Long courseId,
                                                          @RequestParam(required = false) Long chapterId,
                                                          @RequestParam(required = false) String keyword,
-                                                         @RequestParam(required = false) Boolean essence) {
+                                                         @RequestParam(required = false) Boolean essence,
+                                                         Authentication auth) {
+        assertCourseMember(courseId, auth);
         return ApiResponse.success(discussionService.listTopics(courseId, chapterId, keyword, essence));
     }
 
     /** 获取单个话题的完整详情（含回复与统计） */
     @GetMapping("/topic/{id}")
-    public ApiResponse<TopicDetailVO> getTopic(@PathVariable Long id) {
+    public ApiResponse<TopicDetailVO> getTopic(@PathVariable Long id, Authentication auth) {
+        assertCourseMembershipOfTopic(id, auth);
         return ApiResponse.success(discussionService.getTopicDetail(id));
     }
 
@@ -77,13 +102,37 @@ public class DiscussionController {
                                              @Valid @RequestBody DiscussionPost post,
                                              Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
+        assertCourseMembershipOfTopic(id, auth);
         return ApiResponse.success("回复成功", discussionService.reply(id, post, userId, roleOf(auth)));
+    }
+
+    /**
+     * 按话题归属课程判成员关系。话题不存在时**不在此处判**——留给服务层原有的
+     * 「话题不存在」语义，避免把 404 类结果改写成 400。
+     */
+    private void assertCourseMembershipOfTopic(Long topicId, Authentication auth) {
+        DiscussionTopic topic = discussionService.getById(topicId);
+        if (topic != null) {
+            assertCourseMember(topic.getCourseId(), auth);
+        }
+    }
+
+    /**
+     * 以 postId 为入口的操作（点赞）同口径：先取回复所属课程，再判成员关系。
+     * 关系链缺失（回复或话题不存在）时不在此处判，交由服务层保持原有「不存在」语义。
+     */
+    private void assertCourseMembershipOfPost(Long postId, Authentication auth) {
+        Long courseId = discussionService.courseIdOfPost(postId);
+        if (courseId != null) {
+            courseAccessControl.assertCanReadCourse(courseId, auth);
+        }
     }
 
     /** 对指定回复点赞或取消点赞（切换式） */
     @PostMapping("/post/{postId}/like")
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
     public ApiResponse<LikePostVO> likePost(@PathVariable Long postId, Authentication auth) {
+        assertCourseMembershipOfPost(postId, auth);
         LikePostVO result = discussionService.likePost(postId, (Long) auth.getPrincipal());
         return ApiResponse.success("操作成功", result);
     }
@@ -121,6 +170,14 @@ public class DiscussionController {
     @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
     public ApiResponse<Void> deletePost(@PathVariable Long postId, Authentication auth) {
         discussionService.deletePost(postId, (Long) auth.getPrincipal(), roleOf(auth));
+        return ApiResponse.success("已删除");
+    }
+
+    /** 删除整个话题，仅作者或管理员可操作，级联清理回复与点赞 */
+    @DeleteMapping("/{id}")
+    @PreAuthorize("hasAnyRole('TEACHER','ADMIN','STUDENT')")
+    public ApiResponse<Void> deleteTopic(@PathVariable Long id, Authentication auth) {
+        discussionService.deleteTopic(id, (Long) auth.getPrincipal(), roleOf(auth));
         return ApiResponse.success("已删除");
     }
 }

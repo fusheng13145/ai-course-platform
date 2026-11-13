@@ -9,6 +9,7 @@ import com.aicourse.dto.AssignmentSubmitDTO;
 import com.aicourse.dto.PracticeGenerateDTO;
 import com.aicourse.entity.*;
 import com.aicourse.exception.BusinessException;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.*;
 import com.aicourse.vo.AssignmentDetailVO;
 import com.aicourse.vo.CourseDetailVO;
@@ -42,25 +43,28 @@ public class StudentController {
     private final SubmissionService submissionService;
     private final WrongQuestionService wrongQuestionService;
     private final LearningRecordService learningRecordService;
+    private final CourseAccessControl courseAccessControl;
 
     public StudentController(CourseService courseService,
                              CourseEnrollmentService enrollmentService,
                              TaskService taskService,
                              SubmissionService submissionService,
                              WrongQuestionService wrongQuestionService,
-                             LearningRecordService learningRecordService) {
+                             LearningRecordService learningRecordService,
+                             CourseAccessControl courseAccessControl) {
         this.courseService = courseService;
         this.enrollmentService = enrollmentService;
         this.taskService = taskService;
         this.submissionService = submissionService;
         this.wrongQuestionService = wrongQuestionService;
         this.learningRecordService = learningRecordService;
+        this.courseAccessControl = courseAccessControl;
     }
 
     // ==================== 学习中心（5个接口） ====================
 
     /**
-     * 获取我的课程列表
+     * 获取我的课程列表（仅审批通过且有效的选课，V14 / WP5）
      */
     @GetMapping("/courses")
     public ApiResponse<PagedResponse<Course>> getMyCourses(
@@ -71,7 +75,8 @@ public class StudentController {
         List<CourseEnrollment> enrollments = enrollmentService.list(
                 new LambdaQueryWrapper<CourseEnrollment>()
                         .eq(CourseEnrollment::getStudentId, userId)
-                        .eq(CourseEnrollment::getIsActive, true));
+                        .eq(CourseEnrollment::getIsActive, true)
+                        .eq(CourseEnrollment::getApprovalStatus, "APPROVED"));
         if (enrollments.isEmpty()) {
             return ApiResponse.success(PagedResponse.empty());
         }
@@ -105,13 +110,15 @@ public class StudentController {
     // 进度改由后端基于任务点完成度聚合，详见 StudentLearningController GET /courses/{courseId}/progress-summary。
 
     /**
-     * 加入课程
+     * 加入课程（可指定教学班；未指定时自动选中课程下唯一启用的教学班）
      */
     @PostMapping("/courses/{courseId}/enroll")
-    public ApiResponse<Void> enrollCourse(@PathVariable Long courseId, Authentication auth) {
+    public ApiResponse<Void> enrollCourse(@PathVariable Long courseId,
+                                          @RequestParam(required = false) Long teachingClassId,
+                                          Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        // 课程存在性校验、重复加入校验与报名落库下沉至服务层（事务化）
-        enrollmentService.enrollStudent(userId, courseId);
+        // 课程存在性校验、重复加入校验、教学班解析与报名落库下沉至服务层（事务化）
+        enrollmentService.enrollStudent(userId, courseId, teachingClassId);
         return ApiResponse.success("加入成功", null);
     }
 
@@ -206,11 +213,9 @@ public class StudentController {
         if (task == null) {
             throw new BusinessException("作业不存在");
         }
+        courseAccessControl.assertCanReadTask(task, auth);
         Long userId = (Long) auth.getPrincipal();
-        Submission submission = submissionService.getOne(
-                new LambdaQueryWrapper<Submission>()
-                        .eq(Submission::getTaskId, assignmentId)
-                        .eq(Submission::getStudentId, userId));
+        Submission submission = submissionService.getByTaskAndStudent(assignmentId, userId);
         return ApiResponse.success(new AssignmentDetailVO(task, submission));
     }
 
@@ -234,10 +239,7 @@ public class StudentController {
     public ApiResponse<Submission> getAssignmentResult(
             @PathVariable Long assignmentId, Authentication auth) {
         Long userId = (Long) auth.getPrincipal();
-        Submission submission = submissionService.getOne(
-                new LambdaQueryWrapper<Submission>()
-                        .eq(Submission::getTaskId, assignmentId)
-                        .eq(Submission::getStudentId, userId));
+        Submission submission = submissionService.getByTaskAndStudent(assignmentId, userId);
         return ApiResponse.success(submission);
     }
 

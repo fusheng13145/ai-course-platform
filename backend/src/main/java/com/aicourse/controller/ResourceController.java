@@ -12,6 +12,7 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.ResourceService;
+import com.aicourse.service.ResourceVersionService;
 import com.aicourse.vo.ChapterResourceTreeVO;
 import com.aicourse.vo.ResourceStatsVO;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
@@ -86,13 +87,16 @@ public class ResourceController {
     private final ResourceService resourceService;
     private final CourseService courseService;
     private final CourseEnrollmentService courseEnrollmentService;
+    private final ResourceVersionService resourceVersionService;
 
     public ResourceController(ResourceService resourceService,
                               CourseService courseService,
-                              CourseEnrollmentService courseEnrollmentService) {
+                              CourseEnrollmentService courseEnrollmentService,
+                              ResourceVersionService resourceVersionService) {
         this.resourceService = resourceService;
         this.courseService = courseService;
         this.courseEnrollmentService = courseEnrollmentService;
+        this.resourceVersionService = resourceVersionService;
     }
 
     /**
@@ -194,7 +198,7 @@ public class ResourceController {
      * @return 操作结果
      */
     @PatchMapping("/{id}/visibility")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     public ApiResponse<Void> toggleVisibility(@PathVariable Long id,
                                               @Valid @RequestBody ResourceVisibilityDTO params,
                                               Authentication auth) {
@@ -231,7 +235,7 @@ public class ResourceController {
      * 权限：教师、管理员；且教师仅可上传至本人任教课程（修复 #5：补对象级 ACL）。
      */
     @PostMapping("/upload")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     public ApiResponse<Resource> uploadResource(
             @RequestParam("file") MultipartFile file,
             @RequestParam Long courseId,
@@ -310,6 +314,9 @@ public class ResourceController {
             resource.setDescription(description);
             resource.setVisibleToAll(true);
             resourceService.save(resource);
+            // B-13㉑：上传即落 resource_versions 首版，file_size 与上传人可供版本历史/回滚溯源。
+            resourceVersionService.createNewVersion(resource.getId(), safeFileName, contentType,
+                    resource.getUrl(), "初始上传", (Long) auth.getPrincipal(), file.getSize());
 
             return ApiResponse.success("文件上传成功", resource);
         } catch (IOException e) {
@@ -476,7 +483,7 @@ public class ResourceController {
      * 权限：教师、管理员（修复 P1-6：教师仅能删除本课程资源）
      */
     @DeleteMapping("/{id}")
-    @PreAuthorize("hasAnyRole('TEACHER','ADMIN')")
+    @PreAuthorize("hasRole('TEACHER')")  // WP9 管理员只读矩阵：教学写面不含 ADMIN
     public ApiResponse<Void> deleteResource(@PathVariable Long id, Authentication auth) {
         Resource resource = resourceService.getById(id);
         if (resource == null) {

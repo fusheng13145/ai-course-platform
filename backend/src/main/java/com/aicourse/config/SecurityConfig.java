@@ -322,6 +322,12 @@ public class SecurityConfig {
                                     "/ai/essay/correct", "/ai/essay/polish")
                             .authenticated();
 
+                    // 学习路径规划：只读图查询（本地 BFS 或 KG 引擎多跳，不写库），
+                    // 学生端「学习路径」依赖该端点；不适用下方「资源写操作限教师/管理员」规则。
+                    // 其余 /knowledge/** 的 POST（知识点/关系写入、graph 摄取）仍受写保护。
+                    auth.requestMatchers(HttpMethod.POST, "/knowledge/path/plan")
+                            .authenticated();
+
                     // 课程/试卷/题目等资源：POST、PUT、DELETE、PATCH 仅教师、管理员可操作
                     auth.requestMatchers(HttpMethod.POST, commonResourcePaths.toArray(new String[0]))
                             .hasAnyRole(RoleConstants.TEACHER, RoleConstants.ADMIN);

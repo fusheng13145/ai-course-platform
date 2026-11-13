@@ -7,6 +7,29 @@ import type { Locator, Page, Route } from '@playwright/test'
 export const API_BASE = '/api'
 
 /**
+ * e2e 的站点根，与 `playwright.config.ts` 的 `baseURL` 同源。
+ *
+ * 为什么要有它：三份 spec 原先各写一遍 `process.env.PW_BASE_URL || 'http://localhost:5173'`，
+ * 而 config 的 baseURL 走的是 `PW_PORT`。于是按文档跑 `PW_PORT=5174 npx playwright test` 时，
+ * webServer 起在 5174、spec 却把绝对 URL 拼到 5173，整轮读成 `ERR_CONNECTION_REFUSED`
+ * （2026-11-04 实测，3 例失败 + 11 例未执行）。只留这一处口径：显式 `PW_BASE_URL` 优先，
+ * 否则由 `PW_PORT` 派生，最后才回落 5173。
+ */
+export const SITE_BASE =
+  process.env.PW_BASE_URL || `http://localhost:${process.env.PW_PORT || '5173'}`
+
+/**
+ * 演示账号口令的唯一来源，与 `scripts/run-backend-for-e2e.py` 的登录自检同源。
+ *
+ * 为什么要有它：口令原先硬编码在 `loginAs()` 里（`core.spec.ts` 另有一份 `PW_PASS`），
+ * 于是「库里口令 ≠ 123456」时（例如曾以 `DEMO_ACCOUNTS_ENABLED=false` 在本机库启动过，
+ * admin 被单向改密停用）整轮只表现为 admin 用例随机红，读不出根因
+ * （2026-11-06 验收实测：8 例红全依赖 admin 登录）。现在一处口径：默认 123456，
+ * 受控环境用 `PW_PASS` 覆盖。
+ */
+export const DEMO_PASS = process.env.PW_PASS || '123456'
+
+/**
  * 模拟的登录响应
  */
 export function createMockLoginResponse(role: string = 'STUDENT') {
@@ -128,7 +151,7 @@ export async function fillLoginField(page: Page, input: Locator, value: string) 
  * 该浮层是 `position: fixed; inset: 0` 的整屏遮罩，未点「跳过 / 开始使用」之前会拦截页面上
  * 的一切点击（实测：Playwright 报 `<div class="ob-overlay"> intercepts pointer events` 并反复重试）。
  * 「已看过」标记自 2026-10-13 起**按账号**写入（v1 键 `ai-course:onboarding:done:v1:<userId>`，
- * 契约 v2 起改读 `ai-course:onboarding:v2:<userId>` 那条 `{status, atStep, role, seenAt}`），
+ * 契约 起改读 `ai-course:onboarding::<userId>` 那条 `{status, atStep, role, seenAt}`），
  * 所以旧 e2e 里 `localStorage.setItem('ai-course:onboarding:done:v1', '1')` 那种写裸前缀键的
  * 做法已经不再命中判定分支——等于没关。这里改按真实用户行为点掉它：点一次即由组件自己写入
  * 正确键，同一上下文后续导航不再弹出。
@@ -154,20 +177,32 @@ export async function dismissOnboarding(page: Page) {
  * 对任意 401 都会走「刷新失败 → 登出」。于是要么守卫把请求判成 /403，要么页面里任何一个
  * 未 mock 的业务端点 401 后把会话清掉、被踢回 /login。逐个 mock 端点既脆弱又掩盖真实链路。
  *
- * 账号来自 V1 迁移的内置演示账号（口令 123456，见 backend SeedAccounts）：
- * STUDENT→student、TEACHER→teacher、ADMIN→admin。三者都在 db/migration（进生产路径）
- * 里，不依赖 V5/V6 演示种子，因此 CI 的最小库也能用。
+ * 账号来自 V1 迁移的内置演示账号（见 backend SeedAccounts）：STUDENT→student、
+ * TEACHER→teacher、ADMIN→admin。三者都在 db/migration（进生产路径）里，
+ * 不依赖 V5/V6 演示种子，因此 CI 的最小库也能用。口令取 {@link DEMO_PASS}
+ * （默认种子口令 123456，受控环境用 PW_PASS 覆盖），不在本函数里再写一份字面量。
  *
  * 登录框默认为 readonly、focus 时才摘掉（防自动填充），所以必须先 focus 再 fill；
  * 并且要避开 Login.vue 的延时二次清空（见 fillLoginField）。
  */
-export async function loginAs(page: Page, role: 'STUDENT' | 'TEACHER' | 'ADMIN' = 'STUDENT') {
-  const account = { STUDENT: 'student', TEACHER: 'teacher', ADMIN: 'admin' }[role]
+export async function loginAs(
+  page: Page,
+  role: 'STUDENT' | 'TEACHER' | 'ADMIN' = 'STUDENT',
+  /**
+   * 覆盖默认账号（默认 STUDENT→student 等内置演示号）。
+   * 需要"有学习记录的学生"这类带数据的账号时（如 st001），由用例显式传入，
+   * 而不是在用例里重写一遍登录流程——登录要处理 readonly 字段、延时清空与 429，
+   * 第二份实现必然与这份分叉。
+   */
+  accountOverride?: string,
+) {
+  const account =
+    accountOverride || { STUDENT: 'student', TEACHER: 'teacher', ADMIN: 'admin' }[role]
 
   await page.goto('/login')
-  // v2 登录页的字段名是 username/password（旧端是 login-username）
+  // 登录页的字段名是 username/password（旧端是 login-username）
   await fillLoginField(page, page.locator('input[name="username"]').first(), account)
-  await fillLoginField(page, page.locator('input[name="password"]').first(), '123456')
+  await fillLoginField(page, page.locator('input[name="password"]').first(), DEMO_PASS)
   // 「记住我」决定 user/permissions 落 localStorage 还是 sessionStorage；storageState 只带后者
   // 不带 sessionStorage，不勾会导致复用的登录态等于未登录
   await page
@@ -231,13 +266,10 @@ export async function setLocalStorageAuth(page: Page, role: string = 'STUDENT') 
       // 关闭首次引导层。键必须带账号段：引导读的是 `…:<userId>`（2026-10-13 起按账号隔离），
       // 本夹具的 user.id 固定为 1，故写 `:1`。
       // v1 键保留是给迁移断言用的（写 v1 ⇒ 组件按"老用户"迁成 done，绝不再莫名重弹），
-      // 两键并存的读法见 LEDGER `P0c-ONB-03`；v2 才是现在真正被读的那一条。
+      // 两键并存的读法见 LEDGER `P0c-ONB-03`；才是现在真正被读的那一条。
       // `dismissOnboarding` 仍按真实用户行为点「跳过」——那个按钮现在写的是 `skipped`，不再是 `done`。
       localStorage.setItem('ai-course:onboarding:done:v1:1', '1')
-      localStorage.setItem(
-        'ai-course:onboarding:v2:1',
-        JSON.stringify({ status: 'done', atStep: 0 }),
-      )
+      localStorage.setItem('ai-course:onboarding::1', JSON.stringify({ status: 'done', atStep: 0 }))
     },
     { user, permissions },
   )

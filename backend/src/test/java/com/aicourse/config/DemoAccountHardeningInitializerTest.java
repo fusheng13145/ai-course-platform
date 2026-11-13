@@ -63,6 +63,7 @@ class DemoAccountHardeningInitializerTest {
     @DisplayName("开关关闭：仍为种子弱口令的账号被停用并重置为不可知口令")
     void hardensSeedWeakAccountsWhenDisabled() {
         ReflectionTestUtils.setField(initializer, "demoAccountsEnabled", false);
+        environment.setActiveProfiles("prod");
         User weak = user(4L, "student", SeedAccounts.SEED_WEAK_BCRYPT, true);
         User changed = user(2L, "teacher", CHANGED_HASH, true);
         when(userService.list(ArgumentMatchers.<Wrapper<User>>any()))
@@ -90,6 +91,7 @@ class DemoAccountHardeningInitializerTest {
         TableInfoHelper.initTableInfo(
                 new MapperBuilderAssistant(new MybatisConfiguration(), ""), User.class);
         ReflectionTestUtils.setField(initializer, "demoAccountsEnabled", false);
+        environment.setActiveProfiles("prod");
         when(userService.list(ArgumentMatchers.<Wrapper<User>>any())).thenReturn(List.of());
 
         initializer.run(args);
@@ -119,6 +121,7 @@ class DemoAccountHardeningInitializerTest {
     @DisplayName("幂等：无种子弱口令账号时不产生任何写操作")
     void hardeningIsIdempotent() {
         ReflectionTestUtils.setField(initializer, "demoAccountsEnabled", false);
+        environment.setActiveProfiles("prod");
         when(userService.list(ArgumentMatchers.<Wrapper<User>>any()))
                 .thenReturn(List.of(user(1L, "admin", CHANGED_HASH, false)));
 
@@ -155,6 +158,7 @@ class DemoAccountHardeningInitializerTest {
     @DisplayName("fail-fast：加固将导致零管理员时拒绝启动，且不改写任何账号")
     void refusesStartupWhenHardeningWouldOrphanAdmins() {
         ReflectionTestUtils.setField(initializer, "demoAccountsEnabled", false);
+        environment.setActiveProfiles("prod");
         User seedAdmin = user(1L, "admin", SeedAccounts.SEED_WEAK_BCRYPT, true, RoleConstants.ADMIN);
         when(userService.list(ArgumentMatchers.<Wrapper<User>>any())).thenReturn(List.of(seedAdmin));
         when(userService.count(ArgumentMatchers.<Wrapper<User>>any())).thenReturn(1L);
@@ -175,6 +179,7 @@ class DemoAccountHardeningInitializerTest {
     @DisplayName("放行：另有有效管理员时正常加固种子 admin")
     void allowsHardeningWhenAnotherAdminRemains() {
         ReflectionTestUtils.setField(initializer, "demoAccountsEnabled", false);
+        environment.setActiveProfiles("prod");
         User seedAdmin = user(1L, "admin", SeedAccounts.SEED_WEAK_BCRYPT, true, RoleConstants.ADMIN);
         when(userService.list(ArgumentMatchers.<Wrapper<User>>any())).thenReturn(List.of(seedAdmin));
         when(userService.count(ArgumentMatchers.<Wrapper<User>>any())).thenReturn(2L);
@@ -192,6 +197,7 @@ class DemoAccountHardeningInitializerTest {
     @DisplayName("边界：候选不含管理员时不触发管理员判定")
     void skipsAdminGuardWhenNoAdminIsDisabled() {
         ReflectionTestUtils.setField(initializer, "demoAccountsEnabled", false);
+        environment.setActiveProfiles("prod");
         User weakStudent = user(4L, "student", SeedAccounts.SEED_WEAK_BCRYPT, true, RoleConstants.STUDENT);
         when(userService.list(ArgumentMatchers.<Wrapper<User>>any())).thenReturn(List.of(weakStudent));
         when(passwordEncoder.encode(anyString())).thenReturn(NEW_RANDOM_HASH);
@@ -200,6 +206,25 @@ class DemoAccountHardeningInitializerTest {
 
         assertThat(weakStudent.getIsActive()).isFalse();
         verify(userService, never()).count(ArgumentMatchers.<Wrapper<User>>any());
+    }
+
+    /**
+     * 回归（2026-11-06 验收批）：加固动作<b>不可逆</b>（停用 + 改密为不可知口令），
+     * 因此只允许在 prod profile 下执行。本机验收库曾因一次
+     * {@code DEMO_ACCOUNTS_ENABLED=false} 的本地启动被永久改掉 admin 口令，
+     * 导致全栈 e2e 的 admin 用例不可复现（8 例红）。非 prod profile 必须在<b>读库之前</b>拒绝。
+     */
+    @Test
+    @DisplayName("非 prod profile：即使开关关闭也拒绝加固，且不读库、不改写")
+    void refusesHardeningOutsideProdProfile() {
+        ReflectionTestUtils.setField(initializer, "demoAccountsEnabled", false);
+        environment.setActiveProfiles("local");
+
+        initializer.run(args);
+
+        verify(userService, never()).list(ArgumentMatchers.<Wrapper<User>>any());
+        verify(userService, never()).updateById(any());
+        verifyNoInteractions(passwordEncoder);
     }
 
     private static User user(Long id, String username, String password, boolean active) {

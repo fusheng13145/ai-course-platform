@@ -1,6 +1,7 @@
 import { ref, computed } from 'vue'
 import logger from '@/utils/logger'
 import examApi from '@/api/exam'
+import studentApi from '@/api/student'
 import { pickList, unwrap } from '@/utils/response'
 
 /**
@@ -20,9 +21,17 @@ export function useStudentExamList() {
    * 失败时列表被置空并显示"暂无考试"，学生易误判为"当前没有可参加的考试"。
    */
   const loadError = ref('')
-  const examList = ref([])
+  // 考试行尚未 per-endpoint 建模；字段访问点见 examJoinReason/getExamStatus*
+  const examList = ref<Record<string, unknown>[]>([])
   /** 课程上下文过滤：非空时仅展示该课程的考试（课程侧边栏/驾驶舱直入） */
-  const courseIdFilter = ref(null)
+  const courseIdFilter = ref<string | number | null>(null)
+
+  /**
+   * 学生已选（审批通过）课程 ID 集合，用于全局考试列表的「未选课」预禁用。
+   * 仅全局模式（courseIdFilter 为空）生效：课程内考试列表的归属已由课程空间门禁保证，不重复查。
+   * 加载失败时退化为空集——此时不前端禁用，交由后端 startExam 的真实拒绝兜底。
+   */
+  const enrolledCourseIds = ref<Set<number>>(new Set())
 
   /** 课程上下文子集（统计卡与列表共同基准；统一入口未设置过滤时为全部） */
   const courseScopedExams = computed(() => {
@@ -34,7 +43,7 @@ export function useStudentExamList() {
   const filteredExams = computed(() => {
     let list = courseScopedExams.value
     if (searchKeyword.value) {
-      list = list.filter((e) => e.title?.includes(searchKeyword.value))
+      list = list.filter((e) => String(e.title ?? '').includes(searchKeyword.value))
     }
     if (statusFilter.value) {
       list = list.filter((e) => {
@@ -49,9 +58,9 @@ export function useStudentExamList() {
 
   /** 考试总数 */
   const totalExams = computed(() => courseScopedExams.value.length)
-  /** 可参加：未完成且未过期 */
+  /** 可参加：未完成、未过期、已选课且在时间窗内（M-02b 预校验口径，与后端 startExam 一致） */
   const availableExams = computed(
-    () => courseScopedExams.value.filter((e) => !e.completed && e.status !== 'EXPIRED').length,
+    () => courseScopedExams.value.filter((e) => isExamJoinable(e)).length,
   )
   /** 已完成 */
   const completedExams = computed(() => courseScopedExams.value.filter((e) => e.completed).length)
@@ -71,7 +80,21 @@ export function useStudentExamList() {
           : await examApi.getAllExamPapers()
       // 两个 getAll* 已由 fetchAllPages 解包为数组（不再有 data 信封）；
       // pickList 对数组原样透传，同时防御信封形态回归。
-      examList.value = pickList(unwrap(res))
+      examList.value = pickList<Record<string, unknown>>(unwrap(res))
+
+      // 全局模式：拉取已选课程，供「未选课」预禁用（课程内模式由课程空间门禁保证，不重复查）
+      if (courseIdFilter.value == null) {
+        try {
+          const courses = await studentApi.getAllMyCourses()
+          enrolledCourseIds.value = new Set(
+            (Array.isArray(courses) ? courses : [])
+              .map((c: { id?: unknown }) => Number(c?.id))
+              .filter((id: number) => !Number.isNaN(id)),
+          )
+        } catch {
+          enrolledCourseIds.value = new Set()
+        }
+      }
 
       // 标记已完成状态（检查是否有提交记录）
       try {
@@ -97,16 +120,37 @@ export function useStudentExamList() {
     }
   }
 
-  function getExamStatusType(exam) {
+  function getExamStatusType(exam: Record<string, unknown>) {
     if (exam.completed) return 'info'
     if (exam.status === 'EXPIRED') return 'info'
     return 'warning'
   }
 
-  function getExamStatusLabel(exam) {
+  function getExamStatusLabel(exam: Record<string, unknown>) {
     if (exam.completed) return '已完成'
     if (exam.status === 'EXPIRED') return '已过期'
     return '进行中'
+  }
+
+  /**
+   * 全局考试列表「可参加」预校验（M-02b）：镜像后端 startExam 的两类拒绝原因——
+   * ① 未选课（全局模式下 exam.courseId 不在已选集合）；② 时间窗（now 落在 [startTime, endTime] 之外）。
+   * 课程内模式不做选课校验（归属已由课程空间门禁保证）；两类原因都只在「未完成且未过期」时才参与判定。
+   * 返回原因码；'none' 表示可参加。后端 startExam 的真实拒绝仍是最终兜底（保留真实失败提示）。
+   */
+  function examJoinReason(exam: Record<string, unknown>): string {
+    if (exam.completed) return 'completed'
+    if (exam.status === 'EXPIRED') return 'expired'
+    if (courseIdFilter.value == null && exam.courseId != null) {
+      if (!enrolledCourseIds.value.has(Number(exam.courseId))) return 'notEnrolled'
+    }
+    const now = Date.now()
+    if (exam.startTime && now < new Date(String(exam.startTime)).getTime()) return 'beforeStart'
+    if (exam.endTime && now > new Date(String(exam.endTime)).getTime()) return 'afterEnd'
+    return 'none'
+  }
+  function isExamJoinable(exam: Record<string, unknown>): boolean {
+    return examJoinReason(exam) === 'none'
   }
 
   return {
@@ -123,5 +167,7 @@ export function useStudentExamList() {
     loadExamList,
     getExamStatusType,
     getExamStatusLabel,
+    examJoinReason,
+    isExamJoinable,
   }
 }

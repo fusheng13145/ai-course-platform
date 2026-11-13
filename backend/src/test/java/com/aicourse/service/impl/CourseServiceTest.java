@@ -34,6 +34,7 @@ class CourseServiceTest {
 
     @Mock private CourseMapper courseMapper;
     @Mock private CourseChapterService courseChapterService;
+    @Mock private com.aicourse.service.component.org.CourseDefaultTeachingClassSync defaultTeachingClassSync;
 
     @InjectMocks private CourseServiceImpl courseService;
 

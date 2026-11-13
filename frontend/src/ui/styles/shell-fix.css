@@ -1,0 +1,26 @@
+/*
+ * 壳层与旧端全局约束的接缝修正。
+ * 旧端 App.vue 把 html/body/#app 设为 height:100%，页面滚动发生在 .content 内部；
+ * 是窗口级滚动，若沿用 height:100% 则会内容溢出到 body 盒之外，露出 html 的深色底。
+ */
+/* 豁免账（V2 批）：html 根兜底底色须保持字面量——--bg 等令牌定义在 body[data-app] 作用域，
+   html 层解析不到（CSS 自定义属性不可向上冒泡）。两值与令牌亮/暗值逐字相同，随令牌演进同步。 */
+html[data-ui] {
+  background: #f6f7f9;
+}
+html[data-ui][data-ui-theme='dark'] {
+  background: #0f131a;
+}
+body[data-app='ui'] {
+  height: auto;
+  min-height: 100vh;
+}
+body[data-app='ui'] .sprite {
+  position: absolute;
+  width: 0;
+  height: 0;
+  overflow: hidden;
+}
+body[data-app='ui'] .course-progress {
+  white-space: nowrap;
+}

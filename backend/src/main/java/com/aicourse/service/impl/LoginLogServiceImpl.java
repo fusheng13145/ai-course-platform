@@ -129,6 +129,14 @@ public class LoginLogServiceImpl extends ServiceImpl<LoginLogMapper, LoginLog> i
      */
     @Override
     public List<DailyLoginTrendVO> getLoginTrends(LocalDate start, LocalDate end) {
+        return getLoginTrends(start, end, null);
+    }
+
+    /**
+     * 登录趋势（按日期统计，限定用户范围）
+     */
+    @Override
+    public List<DailyLoginTrendVO> getLoginTrends(LocalDate start, LocalDate end, List<Long> scopeUserIds) {
         List<DailyLoginTrendVO> trends = new ArrayList<>();
 
         try {
@@ -140,6 +148,7 @@ public class LoginLogServiceImpl extends ServiceImpl<LoginLogMapper, LoginLog> i
                     .ge(LoginLog::getCreatedAt, startDateTime)
                     .le(LoginLog::getCreatedAt, endDateTime)
                     .orderByAsc(LoginLog::getCreatedAt);
+            applyUserScope(queryWrapper, scopeUserIds);
 
             List<LoginLog> logs = this.list(queryWrapper);
 
@@ -325,32 +334,64 @@ public class LoginLogServiceImpl extends ServiceImpl<LoginLogMapper, LoginLog> i
      */
     @Override
     public LoginGlobalStatsVO getGlobalLoginStats() {
-        // 安全的聚合查询：用 count 替代全表 list()
-        long totalCount = this.count();
+        return getGlobalLoginStats(null);
+    }
 
-        long successCount = this.count(new LambdaQueryWrapper<LoginLog>()
-                .eq(LoginLog::getLoginStatus, "SUCCESS"));
+    /**
+     * 获取全局登录统计数据（限定用户范围）
+     */
+    @Override
+    public LoginGlobalStatsVO getGlobalLoginStats(List<Long> scopeUserIds) {
+        // 安全的聚合查询：用 count 替代全表 list()
+        LambdaQueryWrapper<LoginLog> totalWrapper = new LambdaQueryWrapper<>();
+        applyUserScope(totalWrapper, scopeUserIds);
+        long totalCount = this.count(totalWrapper);
+
+        LambdaQueryWrapper<LoginLog> successWrapper = new LambdaQueryWrapper<LoginLog>()
+                .eq(LoginLog::getLoginStatus, "SUCCESS");
+        applyUserScope(successWrapper, scopeUserIds);
+        long successCount = this.count(successWrapper);
 
         LocalDateTime todayStart = LocalDate.now().atStartOfDay();
-        long todayCount = this.count(new LambdaQueryWrapper<LoginLog>()
-                .ge(LoginLog::getCreatedAt, todayStart));
+        LambdaQueryWrapper<LoginLog> todayWrapper = new LambdaQueryWrapper<LoginLog>()
+                .ge(LoginLog::getCreatedAt, todayStart);
+        applyUserScope(todayWrapper, scopeUserIds);
+        long todayCount = this.count(todayWrapper);
 
         LocalDateTime weekAgo = LocalDateTime.now().minusDays(7);
-        long weekCount = this.count(new LambdaQueryWrapper<LoginLog>()
-                .ge(LoginLog::getCreatedAt, weekAgo));
+        LambdaQueryWrapper<LoginLog> weekWrapper = new LambdaQueryWrapper<LoginLog>()
+                .ge(LoginLog::getCreatedAt, weekAgo);
+        applyUserScope(weekWrapper, scopeUserIds);
+        long weekCount = this.count(weekWrapper);
 
         // 各登录状态分布（仅保留数量大于 0 的状态）
         Map<String, Long> statusDist = new HashMap<>();
         String[] statuses = {"SUCCESS", "FAILED", "LOCKED", "EXPIRED"};
         for (String st : statuses) {
-            long cnt = this.count(new LambdaQueryWrapper<LoginLog>()
-                    .eq(LoginLog::getLoginStatus, st));
+            LambdaQueryWrapper<LoginLog> statusWrapper = new LambdaQueryWrapper<LoginLog>()
+                    .eq(LoginLog::getLoginStatus, st);
+            applyUserScope(statusWrapper, scopeUserIds);
+            long cnt = this.count(statusWrapper);
             if (cnt > 0) statusDist.put(st, cnt);
         }
 
         return new LoginGlobalStatsVO(totalCount, successCount, totalCount - successCount,
                 totalCount > 0 ? Math.round(successCount * 100.0 / totalCount * 100.0) / 100.0 : 0,
                 todayCount, weekCount, statusDist);
+    }
+
+    /**
+     * 登录日志用户范围过滤：null=全体；空列表=无可见数据。
+     */
+    private void applyUserScope(LambdaQueryWrapper<LoginLog> wrapper, List<Long> scopeUserIds) {
+        if (scopeUserIds == null) {
+            return;
+        }
+        if (scopeUserIds.isEmpty()) {
+            wrapper.eq(LoginLog::getUserId, -1L);
+        } else {
+            wrapper.in(LoginLog::getUserId, scopeUserIds);
+        }
     }
 
     /**

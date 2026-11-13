@@ -46,16 +46,36 @@ import os
 import re
 from typing import Optional, Union
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel, Field
 
 try:
     import lora_engine
+    import ft_llm
 except ImportError:  # 以 python-services 为工作目录、按子包方式启动时（uvicorn fine_tune_service.lora_service:app）
     from . import lora_engine
+    from . import ft_llm
 
 app = FastAPI(title="AI Course Fine-Tune Service", version="0.1.0")
+
+# ---------------- 服务间内部认证（可选，2026-11-07 验收整改批） ----------------
+# INTERNAL_API_KEY 非空时，所有业务端点要求请求头 X-Internal-Key 与之一致，否则 401；
+# 为空（默认）时不校验——本机裸跑与既有 CI 契约测试保持直连。
+# 豁免路径：*/health（容器健康探针与编排器不携带业务密钥）。权重下载 /weights 同样受保护。
+INTERNAL_KEY_HEADER = "X-Internal-Key"
+
+
+@app.middleware("http")
+async def _internal_auth_guard(request: Request, call_next):
+    expected = (os.getenv("INTERNAL_API_KEY") or "").strip()
+    if expected and not request.url.path.endswith("/health"):
+        if request.headers.get(INTERNAL_KEY_HEADER) != expected:
+            return JSONResponse(
+                status_code=401,
+                content={"code": 401, "message": "缺少或错误的 X-Internal-Key（服务间内部认证）"},
+            )
+    return await call_next(request)
 
 # 与 Java 端 ContractPaths 的降级文案保持同口径：真正无实现可说时才用它兜错误文本
 MSG_FT_UNAVAILABLE = "LoRA 微调引擎由团队另一成员负责，本端仅预留接口；服务未接入或不可用"
@@ -126,6 +146,9 @@ class InferOut(BaseModel):
     tokens_used: int = 0
     model: Optional[str] = None
     mode: str = "UNAVAILABLE"
+    # 当前生效的生成路径：engine（LoRA 真实推理）/ ollama（本机 Ollama）
+    provider: Optional[str] = None
+    elapsed_ms: Optional[int] = None
     error: Optional[str] = None
     code: int = 503
 
@@ -160,12 +183,20 @@ def _ds_out(rec: dict) -> dict:
 
 @app.get("/api/v1/fine-tune/health")
 def health():
+    provider = ft_llm.provider()
+    # provider=engine 时不做 Ollama 探活：健康检查要保持毫秒级，避免上游 2s 超时误判 DOWN
+    ollama = ft_llm.ollama_health(timeout=1.0) if provider == "ollama" else {
+        "base_url": ft_llm.ollama_base_url(), "model": ft_llm.ollama_model(),
+        "available": None, "note": "provider=engine，未探测"}
     return {"status": "ok", "engine": f"lora-{lora_engine.ENGINE_VERSION}",
             "engine_available": lora_engine.engine_available(),
             "deps_missing": lora_engine.dep_errors(),
             "device": lora_engine.device(),
             "datasets": len(lora_engine.list_datasets()),
             "tasks": len(lora_engine.list_tasks()),
+            "provider": provider,
+            "provider_valid": ft_llm.provider_valid(),
+            "ollama": ollama,
             "base_model_default": os.getenv("FT_DEFAULT_BASE_MODEL", "Qwen/Qwen2.5-0.5B"),
             "known_models": lora_engine.known_models()}
 
@@ -217,15 +248,35 @@ def cancel_task(task_id: str):
 
 @app.post("/api/v1/fine-tune/infer/{task_id}", response_model=InferOut)
 def infer_task(task_id: str, body: InferIn):
+    """生成路径由 `FT_LLM_PROVIDER` 决定，两种能力互不覆盖（见 ft_llm 模块注释）。
+
+    engine：基座+LoRA 真实推理（mode=ENGINE）；ollama：本机 Ollama（mode=OLLAMA）。
+    非法取值不静默回落，直接 503 并说明，避免「配置错了」被当成「已切换」。
+    """
+    provider = ft_llm.provider()
+    if provider not in ft_llm.PROVIDERS:
+        return InferOut(mode="UNAVAILABLE", code=503, provider=provider,
+                        error=f"FT_LLM_PROVIDER 非法：{provider}（可选 engine | ollama）")
     try:
-        out = lora_engine.infer(task_id, body.prompt, lora_engine.as_dict(body.params))
+        params = lora_engine.as_dict(body.params)
     except lora_engine.ConfigError as exc:
         raise HTTPException(400, detail=f"params 非法：{exc}")
+
+    if provider == "ollama":
+        if not lora_engine.get_task(task_id):
+            raise HTTPException(404, detail="task not found")
+        out = ft_llm.generate(body.prompt, params)
+        return InferOut(answer=out.get("answer"), tokens_used=int(out.get("tokens_used") or 0),
+                        model=out.get("model"), mode=out.get("mode", "UNAVAILABLE"),
+                        provider="ollama", elapsed_ms=out.get("elapsed_ms"),
+                        error=out.get("error"), code=int(out.get("code", 503)))
+
+    out = lora_engine.infer(task_id, body.prompt, params)
     if out.get("code") == 404:
         raise HTTPException(404, detail=out.get("error") or "task not found")
     return InferOut(answer=out.get("answer"), tokens_used=int(out.get("tokens_used") or 0),
                     model=out.get("model"), mode=out.get("mode", "UNAVAILABLE"),
-                    error=out.get("error"), code=int(out.get("code", 503)))
+                    provider="engine", error=out.get("error"), code=int(out.get("code", 503)))
 
 
 @app.get("/api/v1/fine-tune/tasks/{task_id}/export", response_model=ExportOut)

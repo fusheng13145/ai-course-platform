@@ -7,6 +7,7 @@ import com.aicourse.exception.BusinessException;
 import com.aicourse.mapper.TaskCompletionMapper;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.TaskService;
+import com.aicourse.service.component.org.TeachingClassSnapshotResolver;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper;
 import org.slf4j.Logger;
@@ -30,13 +31,16 @@ public class StudentTaskCompletionComponent {
     private final TaskService taskService;
     private final TaskCompletionMapper taskCompletionMapper;
     private final CourseEnrollmentService enrollmentService;
+    private final TeachingClassSnapshotResolver teachingClassSnapshotResolver;
 
     public StudentTaskCompletionComponent(TaskService taskService,
                               TaskCompletionMapper taskCompletionMapper,
-                              CourseEnrollmentService enrollmentService) {
+                              CourseEnrollmentService enrollmentService,
+                              TeachingClassSnapshotResolver teachingClassSnapshotResolver) {
         this.taskService = taskService;
         this.taskCompletionMapper = taskCompletionMapper;
         this.enrollmentService = enrollmentService;
+        this.teachingClassSnapshotResolver = teachingClassSnapshotResolver;
     }
 
     /** 自愈合建表：避免依赖脆弱的 DB 迁移；若表已存在则幂等跳过。 */
@@ -81,6 +85,8 @@ public class StudentTaskCompletionComponent {
             tc.setStudentId(userId);
             tc.setTaskId(taskId);
             tc.setCourseId(courseId);
+            // WP7 快照：完成记录创建时即归属当时的教学班，转班后历史不漂移
+            tc.setTeachingClassId(teachingClassSnapshotResolver.resolveTeachingClassId(userId, courseId));
             Task t = taskService.getById(taskId);
             if (t != null) {
                 tc.setChapterId(t.getChapterId());

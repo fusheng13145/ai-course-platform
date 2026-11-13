@@ -1,18 +1,31 @@
 package com.aicourse.controller;
 import com.aicourse.controller.QuestionController;
+import com.aicourse.common.ApiCode;
 import com.aicourse.entity.Question;
+import com.aicourse.exception.BusinessException;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.AIService;
 import com.aicourse.service.QuestionService;
+import com.aicourse.vo.QuestionBankStatisticsVO;
 import com.aicourse.vo.QuestionStatsVO;
+import com.baomidou.mybatisplus.core.MybatisConfiguration;
+import com.baomidou.mybatisplus.core.conditions.AbstractWrapper;
+import com.baomidou.mybatisplus.core.conditions.Wrapper;
+import com.baomidou.mybatisplus.core.metadata.TableInfoHelper;
+import org.apache.ibatis.builder.MapperBuilderAssistant;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.mockito.ArgumentCaptor;
 
+import java.util.Collection;
 import java.util.List;
 
+import static org.junit.jupiter.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
@@ -34,6 +47,8 @@ class QuestionControllerTest extends ControllerTestBase {
     private com.aicourse.service.KnowledgePointService knowledgePointService;
     @MockitoBean
     private com.aicourse.service.component.ai.AiGenerationPolicy aiGenerationPolicy;
+    @MockitoBean
+    private CourseAccessControl courseAccessControl;
 
     /**
      * 治理开关缺省即「允许」（与 {@code AiGenerationPolicy} 口径一致，缺省必须等于现状）：
@@ -42,11 +57,22 @@ class QuestionControllerTest extends ControllerTestBase {
     @BeforeEach
     void allowAiGenerationByDefault() {
         lenient().when(aiGenerationPolicy.isTeacherQuestionGenerationEnabled()).thenReturn(true);
+        // LambdaQueryWrapper 的列名与参数在 getSqlSegment() 时才落地，先注册实体元数据
+        TableInfoHelper.initTableInfo(new MapperBuilderAssistant(new MybatisConfiguration(), ""), Question.class);
+    }
+
+    /** 触发 wrapper 生成 SQL 片段并取出参数值（等价于真实 SQL 的过滤条件）。 */
+    private static Collection<Object> wrapperParams(Wrapper<?> wrapper) {
+        assertTrue(wrapper != null, "查询条件 wrapper 不得为 null");
+        AbstractWrapper<?, ?, ?> aw = (AbstractWrapper<?, ?, ?>) wrapper;
+        aw.getSqlSegment();
+        return aw.getParamNameValuePairs().values();
     }
 
     private Question sampleQuestion() {
         Question q = new Question();
         q.setId(1L);
+        q.setCourseId(1L);
         q.setType("SINGLE");
         return q;
     }
@@ -60,6 +86,22 @@ class QuestionControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.list").isArray());
         verify(questionService).page(any(), any());
+    }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    @DisplayName("GET /questions?keyword=闭包 - 关键词进入题干 LIKE 条件")
+    void list_keyword_buildsLikeFilter() throws Exception {
+        when(questionService.page(any(), any())).thenReturn(new com.baomidou.mybatisplus.extension.plugins.pagination.Page<>());
+        mockMvc.perform(get("/questions?keyword=闭包").with(withUser(1L, "STUDENT", "TEACHER", "ADMIN")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        ArgumentCaptor<Wrapper<Question>> captor = ArgumentCaptor.forClass(Wrapper.class);
+        verify(questionService).page(any(), captor.capture());
+        Collection<Object> params = wrapperParams(captor.getValue());
+        assertTrue(params.stream().anyMatch(v -> v != null && v.toString().contains("闭包")),
+                "关键词需进入 LIKE 条件，实际=" + params);
     }
 
     @Test
@@ -91,11 +133,37 @@ class QuestionControllerTest extends ControllerTestBase {
     @DisplayName("POST /questions/create - TEACHER角色返回200且data透传创建题目")
     void create_authorized_returns_success() throws Exception {
         when(questionService.createQuestion(any())).thenReturn(sampleQuestion());
-        mockMvc.perform(post("/questions/create").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"题干\"}").with(withUser(1L, "TEACHER")))
+        mockMvc.perform(post("/questions/create").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"题干\",\"courseId\":1,\"type\":\"SINGLE_CHOICE\"}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
         verify(questionService).createQuestion(any(Question.class));
+    }
+
+    @Test
+    @DisplayName("POST /questions/create - 缺 courseId 返回400（DTO 创建组校验）")
+    void create_missingCourseId_returns400() throws Exception {
+        mockMvc.perform(post("/questions/create").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"题干\"}").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isBadRequest());
+        verify(questionService, never()).createQuestion(any(Question.class));
+    }
+
+    @Test
+    @DisplayName("POST /questions/create - JSON 列字段按文本原样透传")
+    void create_jsonColumnFieldsPassThrough() throws Exception {
+        when(questionService.createQuestion(any())).thenReturn(sampleQuestion());
+        mockMvc.perform(post("/questions/create").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"题干\",\"courseId\":1,"
+                                + "\"options\":\"[\\\"A. 甲\\\",\\\"B. 乙\\\"]\","
+                                + "\"correctAnswers\":\"[\\\"A\\\",\\\"B\\\"]\","
+                                + "\"knowledgePoints\":\"[]\"}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk());
+        verify(questionService).createQuestion(argThat(q ->
+                "[\"A. 甲\",\"B. 乙\"]".equals(q.getOptions())
+                        && "[\"A\",\"B\"]".equals(q.getCorrectAnswers())
+                        && "[]".equals(q.getKnowledgePoints())));
     }
 
     @Test
@@ -108,7 +176,8 @@ class QuestionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /questions/create - STUDENT角色返回403")
     void create_student_forbidden_403() throws Exception {
-        mockMvc.perform(post("/questions/create").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(2L, "STUDENT")))
+        // 载荷必须是合法入参：DTO 校验在方法调用前执行，非法载荷会先得到 400，测不到角色闸门
+        mockMvc.perform(post("/questions/create").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"题干\",\"courseId\":1,\"type\":\"SINGLE_CHOICE\"}").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
     }
 
@@ -142,6 +211,7 @@ class QuestionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /questions/1/review - TEACHER角色返回200且正确委托reviewQuestion")
     void review_authorized_returns_success() throws Exception {
+        when(questionService.getById(1L)).thenReturn(sampleQuestion());
         doNothing().when(questionService).reviewQuestion(any(), anyBoolean());
         mockMvc.perform(post("/questions/1/review").contentType(MediaType.APPLICATION_JSON).content("{\"approved\":true}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
@@ -166,6 +236,7 @@ class QuestionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /questions/1/copy - TEACHER角色返回200且data透传复制题目")
     void copy_authorized_returns_success() throws Exception {
+        when(questionService.getById(1L)).thenReturn(sampleQuestion());
         when(questionService.copyQuestion(any())).thenReturn(sampleQuestion());
         mockMvc.perform(post("/questions/1/copy").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
@@ -243,6 +314,25 @@ class QuestionControllerTest extends ControllerTestBase {
     }
 
     @Test
+    @DisplayName("GET /questions/statistics - 返回总题数与今日新增")
+    void bankStatistics_authorized_returns_success() throws Exception {
+        when(questionService.getBankStatistics()).thenReturn(new QuestionBankStatisticsVO(213L, 5L));
+        mockMvc.perform(get("/questions/statistics").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.totalCount").value(213))
+                .andExpect(jsonPath("$.data.todayCount").value(5));
+        verify(questionService).getBankStatistics();
+    }
+
+    @Test
+    @DisplayName("GET /questions/statistics - 未认证返回401")
+    void bankStatistics_unauthorized_returns_401() throws Exception {
+        mockMvc.perform(get("/questions/statistics"))
+                .andExpect(status().isUnauthorized());
+    }
+
+    @Test
     @DisplayName("GET /questions/1/stats - 返回200且data透传统计")
     void getStats_authorized_returns_success() throws Exception {
         when(questionService.getQuestionStats(any())).thenReturn(
@@ -284,11 +374,73 @@ class QuestionControllerTest extends ControllerTestBase {
     @DisplayName("POST /questions - TEACHER角色返回200且正确委托save")
     void createBasic_authorized_returns_success() throws Exception {
         when(questionService.save(any())).thenReturn(true);
-        mockMvc.perform(post("/questions").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"题干\"}").with(withUser(1L, "TEACHER")))
+        mockMvc.perform(post("/questions").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"题干\",\"courseId\":1,\"type\":\"SINGLE_CHOICE\"}").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data").exists());
         verify(questionService).save(any(Question.class));
+    }
+
+    @Test
+    @DisplayName("POST /questions - JSON 文本原样落库（QuestionSaveDTO 契约：String 入参不做二次规范化）")
+    void createBasic_keepsJsonTextAsIs() throws Exception {
+        when(questionService.save(any())).thenReturn(true);
+        mockMvc.perform(post("/questions").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"题干\",\"courseId\":1,\"type\":\"MULTIPLE_CHOICE\","
+                                + "\"correctAnswers\":\"[\\\"A\\\",\\\"B\\\"]\","
+                                + "\"options\":\"[\\\"选项1\\\",\\\"选项2\\\"]\","
+                                + "\"knowledgePoints\":\"[\\\"闭包\\\"]\"}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200));
+
+        ArgumentCaptor<Question> captor = ArgumentCaptor.forClass(Question.class);
+        verify(questionService).save(captor.capture());
+        Question saved = captor.getValue();
+        assertEquals("[\"A\",\"B\"]", saved.getCorrectAnswers(), "JSON 文本必须原样落库");
+        assertEquals("[\"选项1\",\"选项2\"]", saved.getOptions());
+        assertEquals("[\"闭包\"]", saved.getKnowledgePoints());
+    }
+
+    @Test
+    @DisplayName("POST /questions - 缺 courseId 返回 400 且不落库（Create 组必填校验）")
+    void createBasic_missingCourseId_returns400() throws Exception {
+        mockMvc.perform(post("/questions").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"题干\"}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+        verify(questionService, never()).save(any(Question.class));
+    }
+
+    @Test
+    @DisplayName("POST /questions - options 传数组返回 400（契约要求字符串式 JSON 文本）")
+    void createBasic_optionsNotText_returns400() throws Exception {
+        mockMvc.perform(post("/questions").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"题干\",\"courseId\":1,\"type\":\"SINGLE_CHOICE\",\"options\":[\"A. 选项一\"]}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+        verify(questionService, never()).save(any(Question.class));
+    }
+
+    @Test
+    @DisplayName("PUT /questions/1 - 更新忽略客户端 courseId，且 content 必填（QuestionSaveDTO 契约）")
+    void update_keepsStoredCourseOwnership() throws Exception {
+        Question existing = sampleQuestion();
+        existing.setCourseId(9L);
+        when(questionService.getById(1L)).thenReturn(existing);
+        when(questionService.updateById(any())).thenReturn(true);
+
+        mockMvc.perform(put("/questions/1").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"更新后的题干\",\"courseId\":123,\"explanation\":\"解析\"}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<Question> captor = ArgumentCaptor.forClass(Question.class);
+        verify(questionService).updateById(captor.capture());
+        assertEquals(9L, captor.getValue().getCourseId(), "课程归属必须取库内值");
+        assertEquals("解析", captor.getValue().getExplanation());
     }
 
     @Test
@@ -301,7 +453,7 @@ class QuestionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /questions - STUDENT角色返回403")
     void createBasic_student_forbidden_403() throws Exception {
-        mockMvc.perform(post("/questions").contentType(MediaType.APPLICATION_JSON).content("{}").with(withUser(2L, "STUDENT")))
+        mockMvc.perform(post("/questions").contentType(MediaType.APPLICATION_JSON).content("{\"content\":\"题干\",\"courseId\":1,\"type\":\"SINGLE_CHOICE\"}").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
     }
 
@@ -315,7 +467,7 @@ class QuestionControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
         verify(questionService).updateById(any(Question.class));
-        verify(questionService).getById(eq(1L));
+        verify(questionService, times(2)).getById(eq(1L));
     }
 
     @Test
@@ -335,6 +487,7 @@ class QuestionControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("DELETE /questions/1 - TEACHER角色返回200且正确委托removeById")
     void delete_authorized_returns_success() throws Exception {
+        when(questionService.getById(1L)).thenReturn(sampleQuestion());
         when(questionService.removeById(any(Long.class))).thenReturn(true);
         mockMvc.perform(delete("/questions/1").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
@@ -489,5 +642,68 @@ class QuestionControllerTest extends ControllerTestBase {
     void batchImport_student_forbidden_403() throws Exception {
         mockMvc.perform(post("/questions/batch-import").contentType(MediaType.APPLICATION_JSON).content("[]").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("POST /questions - 跨教师课程创建返回403")
+    void createBasic_crossTeacher_forbidden_403() throws Exception {
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
+        mockMvc.perform(post("/questions")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"题干\",\"courseId\":1,\"type\":\"SINGLE_CHOICE\"}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(questionService, never()).save(any(Question.class));
+    }
+
+    @Test
+    @DisplayName("PUT /questions/1 - 跨教师更新返回403")
+    void update_crossTeacher_forbidden_403() throws Exception {
+        when(questionService.getById(1L)).thenReturn(sampleQuestion());
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
+        mockMvc.perform(put("/questions/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"content\":\"越权更新\"}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(questionService, never()).updateById(any(Question.class));
+    }
+
+    @Test
+    @DisplayName("DELETE /questions/1 - 跨教师删除返回403")
+    void delete_crossTeacher_forbidden_403() throws Exception {
+        when(questionService.getById(1L)).thenReturn(sampleQuestion());
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
+        mockMvc.perform(delete("/questions/1").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(questionService, never()).removeById(1L);
+    }
+
+    @Test
+    @DisplayName("POST /questions/1/review - 跨教师审核返回403")
+    void review_crossTeacher_forbidden_403() throws Exception {
+        when(questionService.getById(1L)).thenReturn(sampleQuestion());
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
+        mockMvc.perform(post("/questions/1/review")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"approved\":true}")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(questionService, never()).reviewQuestion(anyLong(), anyBoolean());
+    }
+
+    @Test
+    @DisplayName("POST /questions/1/copy - 跨教师复制返回403")
+    void copy_crossTeacher_forbidden_403() throws Exception {
+        when(questionService.getById(1L)).thenReturn(sampleQuestion());
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "无权操作其他教师的课程"))
+                .when(courseAccessControl).assertCanManageCourse(eq(1L), any());
+        mockMvc.perform(post("/questions/1/copy").with(withUser(1L, "TEACHER")))
+                .andExpect(status().isForbidden());
+        verify(questionService, never()).copyQuestion(1L);
     }
 }

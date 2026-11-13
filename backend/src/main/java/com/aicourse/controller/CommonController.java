@@ -55,12 +55,28 @@ public class CommonController {
     private final AuthService authService;
     private final FileStorageService fileStorageService;
     private final ClientInfoResolver clientInfoResolver;
+    private final com.aicourse.service.SemesterService semesterService;
 
     public CommonController(AuthService authService, FileStorageService fileStorageService,
-                            ClientInfoResolver clientInfoResolver) {
+                            ClientInfoResolver clientInfoResolver,
+                            com.aicourse.service.SemesterService semesterService) {
         this.authService = authService;
         this.fileStorageService = fileStorageService;
         this.clientInfoResolver = clientInfoResolver;
+        this.semesterService = semesterService;
+    }
+
+    /**
+     * 当前 ACTIVE 学期（10A 展示别名，2026-11-07 全量实现批）。
+     * <p>页面页眉（kicker）等展示位用；别名为现场推导、不落库。无在册学期时 data 为 null。</p>
+     */
+    @org.springframework.web.bind.annotation.GetMapping("/semester/active")
+    @io.swagger.v3.oas.annotations.Operation(summary = "当前学期", description = "返回 ACTIVE 学期（含 10A 展示别名）；无则 null")
+    public ApiResponse<com.aicourse.vo.SemesterVO> activeSemester() {
+        return ApiResponse.success(semesterService.listByStatus("ACTIVE").stream()
+                .findFirst()
+                .map(com.aicourse.vo.SemesterVO::from)
+                .orElse(null));
     }
 
     /**

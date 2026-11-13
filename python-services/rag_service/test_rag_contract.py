@@ -396,3 +396,34 @@ def test_engine_runtime_failure_degrades_gracefully(monkeypatch):
         assert ab["code"] == 503
         assert ab["mode"] == "UNAVAILABLE"
         assert "失败" in (ab.get("error") or "")
+
+
+# ---------------- 服务间内部认证（X-Internal-Key，2026-11-07 验收整改批） ----------------
+
+def test_internal_api_key_guard(monkeypatch):
+    """INTERNAL_API_KEY 非空时：业务端点缺头/错头 401，对头放行，health 豁免。"""
+    monkeypatch.setenv("INTERNAL_API_KEY", "guard-key-1")
+    with TestClient(app) as c:
+        # 业务端点：缺头 401
+        missing = c.post("/api/v1/rag/documents",
+                         json={"course_id": 1, "document_name": "d", "content": "x"})
+        assert missing.status_code == 401
+        # 业务端点：错头 401
+        wrong = c.get("/api/v1/rag/documents", params={"course_id": 1},
+                      headers={"X-Internal-Key": "not-it"})
+        assert wrong.status_code == 401
+        # 业务端点：对头放行
+        ok = c.get("/api/v1/rag/documents", params={"course_id": 1},
+                   headers={"X-Internal-Key": "guard-key-1"})
+        assert ok.status_code == 200
+        # health 豁免（编排器探针不携带业务密钥）
+        health = c.get("/api/v1/rag/health")
+        assert health.status_code == 200
+
+
+def test_internal_api_key_disabled_by_default(monkeypatch):
+    """INTERNAL_API_KEY 为空（默认）：不校验，直连行为不变。"""
+    monkeypatch.delenv("INTERNAL_API_KEY", raising=False)
+    with TestClient(app) as c:
+        resp = c.get("/api/v1/rag/documents", params={"course_id": 1})
+        assert resp.status_code == 200

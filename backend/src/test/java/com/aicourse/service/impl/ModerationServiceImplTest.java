@@ -47,12 +47,14 @@ class ModerationServiceImplTest {
     private ResourceMapper resourceMapper;
     @Mock
     private UserService userService;
+    @Mock
+    private com.aicourse.service.OperationLogService operationLogService;
 
     private ModerationServiceImpl service;
 
     @BeforeEach
     void setUp() {
-        service = new ModerationServiceImpl(discussionPostMapper, resourceMapper, userService);
+        service = new ModerationServiceImpl(discussionPostMapper, resourceMapper, userService, operationLogService);
     }
 
     private DiscussionPost post(Long id, Long authorId) {
@@ -173,6 +175,31 @@ class ModerationServiceImplTest {
         assertNotNull(captor.getValue().getBannedAt());
         assertEquals("DELETED", data.get("moderationStatus"));
         assertEquals(true, data.get("authorBanned"));
+        // 物理删除留痕快照（B-12 内容审核留痕链路）：删除前必须把内容摘要落业务化 operation_log
+        ArgumentCaptor<com.aicourse.entity.OperationLog> logCaptor =
+                ArgumentCaptor.forClass(com.aicourse.entity.OperationLog.class);
+        verify(operationLogService).save(logCaptor.capture());
+        com.aicourse.entity.OperationLog audit = logCaptor.getValue();
+        assertEquals("Moderation", audit.getModule());
+        assertEquals("DELETE", audit.getAction());
+        assertEquals("discussion-post 删除留痕", audit.getTarget());
+        assertEquals("1", audit.getTargetId());
+        assertTrue(audit.getParams().contains("违规内容"), "快照必须包含被删内容摘要");
+        assertTrue(audit.getParams().contains("多次刷屏"), "快照必须包含处置理由");
+    }
+
+    @Test
+    @DisplayName("DELETE 留痕写入失败不阻断处置主流程（warn 不抛出）")
+    void delete_post_snapshotFailureDoesNotBlock() {
+        when(discussionPostMapper.selectById(1L)).thenReturn(post(1L, 7L));
+        when(discussionPostMapper.deleteById(1L)).thenReturn(1);
+        when(operationLogService.save(any(com.aicourse.entity.OperationLog.class)))
+                .thenThrow(new RuntimeException("db down"));
+
+        Map<String, Object> data = service.applyPostAction(1L, "DELETE", "x", false, 99L);
+
+        assertEquals("DELETED", data.get("moderationStatus"));
+        verify(discussionPostMapper).deleteById(1L);
     }
 
     @Test

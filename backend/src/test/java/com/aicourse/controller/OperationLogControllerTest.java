@@ -2,10 +2,14 @@ package com.aicourse.controller;
 import com.aicourse.controller.OperationLogController;
 import com.aicourse.service.OperationLogService;
 import com.aicourse.entity.OperationLog;
+import com.aicourse.entity.User;
+import com.aicourse.security.AdminScopeGuard;
+import com.aicourse.service.UserService;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import java.util.List;
@@ -20,10 +24,21 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 该控制器类级别 @PreAuthorize("hasRole('ADMIN')")，原有 STUDENT 越权 403 测试保留不动。
  */
 @WebMvcTest(OperationLogController.class)
+@Import(AdminScopeGuard.class)
 class OperationLogControllerTest extends ControllerTestBase {
 
     @MockitoBean
     private com.aicourse.service.OperationLogService operationLogService;
+    @MockitoBean
+    private UserService userService;
+
+    private User user(Long id, Long collegeId, String role) {
+        User u = new User();
+        u.setId(id);
+        u.setCollegeId(collegeId);
+        u.setRole(role);
+        return u;
+    }
 
     private OperationLog sampleLog(Long id) {
         OperationLog log = new OperationLog();
@@ -83,6 +98,27 @@ class OperationLogControllerTest extends ControllerTestBase {
         verify(operationLogService).count(any());
     }
 
+
+    @Test
+    @DisplayName("GET /admin/operation-logs - 院系管理员 403（8A：审计先 403，WP9 收紧）")
+    void queryLogs_collegeAdmin_forbidden() throws Exception {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
+
+        mockMvc.perform(get("/admin/operation-logs").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden());
+        verify(operationLogService, never()).page(any(), any());
+    }
+
+    @Test
+    @DisplayName("GET /admin/operation-logs/statistics - 院系管理员 403（8A）")
+    void getStatistics_collegeAdmin_forbidden() throws Exception {
+        when(userService.getById(3L)).thenReturn(user(3L, 10L, "ADMIN"));
+
+        mockMvc.perform(get("/admin/operation-logs/statistics").with(withCollegeAdmin(3L)))
+                .andExpect(status().isForbidden());
+        verify(operationLogService, never()).count();
+        verify(operationLogService, never()).count(any());
+    }
 
     @Test
     @DisplayName("GET /admin/operation-logs/statistics - STUDENT角色返回403")

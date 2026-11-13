@@ -36,6 +36,21 @@ public class CourseEnrollment {
     private Long courseId;
 
     /**
+     * 教学班ID（V14 起；存量数据迁移时指向课程默认教学班）
+     */
+    private Long teachingClassId;
+
+    /**
+     * 选课来源：ADMIN_CLASS_IMPORT / SELF_ENROLL / LEGACY
+     */
+    private String source;
+
+    /**
+     * 来源行政班ID（行政班导入时记录）
+     */
+    private Long sourceAdminClassId;
+
+    /**
      * 选课审核状态
      */
     private String approvalStatus;

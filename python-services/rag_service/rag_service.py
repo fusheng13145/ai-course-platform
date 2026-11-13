@@ -32,7 +32,8 @@ from __future__ import annotations
 import os
 from typing import List, Optional
 
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 try:
@@ -41,6 +42,24 @@ except ImportError:  # 以 python-services 为工作目录、按子包方式启�
     from . import rag_engine
 
 app = FastAPI(title="AI Course RAG Service", version="0.2.0")
+
+# ---------------- 服务间内部认证（可选，2026-11-07 验收整改批） ----------------
+# INTERNAL_API_KEY 非空时，所有业务端点要求请求头 X-Internal-Key 与之一致，否则 401；
+# 为空（默认）时不校验——本机裸跑与既有 CI 契约测试保持直连。
+# 豁免路径：*/health（容器/compose 健康探针与编排器不携带业务密钥）。
+INTERNAL_KEY_HEADER = "X-Internal-Key"
+
+
+@app.middleware("http")
+async def _internal_auth_guard(request: Request, call_next):
+    expected = (os.getenv("INTERNAL_API_KEY") or "").strip()
+    if expected and not request.url.path.endswith("/health"):
+        if request.headers.get(INTERNAL_KEY_HEADER) != expected:
+            return JSONResponse(
+                status_code=401,
+                content={"code": 401, "message": "缺少或错误的 X-Internal-Key（服务间内部认证）"},
+            )
+    return await call_next(request)
 
 # 与 Java 端 com.aicourse.integration.ContractPaths.MSG_RAG_UNAVAILABLE 严格一致（降级语义文案）
 MSG_RAG_UNAVAILABLE = "RAG 引擎由团队另一成员负责，本端仅预留接口；服务未接入或不可用"
@@ -113,7 +132,8 @@ class IndexResult(BaseModel):
 
 @app.get("/api/v1/rag/health")
 def health():
-    return {"status": "ok"}
+    # status 只反映检索服务自身；生成后端不可用时只降级 llm.available，不把服务判为下线。
+    return {"status": "ok", "llm": rag_engine.llm_health()}
 
 
 @app.post("/api/v1/rag/documents", response_model=RagDocument)
@@ -212,6 +232,9 @@ def ask(req: AskRequest):
     try:
         if _engine_ready_for(req.course_id):
             results = rag_engine.search(req.question, req.course_id, req.top_k) or []
+            # R3：主路径图谱增强——图证据与文档检索同形拼进上下文；图不可用则为空列表，
+            # 不影响原检索/生成/降级路径（异常已在 graph_sources 内部捕获并留痕）。
+            results = results + rag_engine.graph_sources(req.course_id, req.question)
             contexts = [RagSource(**r) for r in results]
             answer, gen_mode = rag_engine.generate_answer(req.question, results)
             if gen_mode == "UNAVAILABLE":
@@ -220,7 +243,7 @@ def ask(req: AskRequest):
                 return RagQueryResult(
                     answer=None, sources=contexts, mode="UNAVAILABLE",
                     gen_mode=gen_mode,
-                    error="引擎无可用资料且 LLM 不可用（未配 DEEPSEEK_API_KEY 或调用失败）",
+                    error="引擎无可用资料且生成模型不可用（未配密钥／Ollama 不可达或调用失败）",
                     code=503)
             return RagQueryResult(answer=answer, sources=contexts,
                                   mode="ENGINE", gen_mode=gen_mode, code=200)

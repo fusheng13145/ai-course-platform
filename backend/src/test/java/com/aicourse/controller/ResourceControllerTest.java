@@ -1,14 +1,22 @@
 package com.aicourse.controller;
 import com.aicourse.controller.ResourceController;
 import com.aicourse.service.ResourceService;
+import com.aicourse.entity.Course;
 import com.aicourse.entity.Resource;
 import com.aicourse.vo.ChapterResourceTreeVO;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.http.MediaType;
+import org.springframework.mock.web.MockMultipartFile;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.web.servlet.MvcResult;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
@@ -34,6 +42,9 @@ class ResourceControllerTest extends ControllerTestBase {
     private com.aicourse.service.CourseService courseService;
     @MockitoBean
     private com.aicourse.service.CourseEnrollmentService courseEnrollmentService;
+    // B-13㉑：上传成功后需落首版 resource_versions，@WebMvcTest 需显式 mock
+    @MockitoBean
+    private com.aicourse.service.ResourceVersionService resourceVersionService;
 
     private Resource sampleResource(Long id, String fileName) {
         Resource r = new Resource();
@@ -222,6 +233,39 @@ class ResourceControllerTest extends ControllerTestBase {
     void uploadResource_student_forbidden_403() throws Exception {
         mockMvc.perform(post("/resources/upload?file=test&courseId=1&description=test").with(withUser(2L, "STUDENT")))
                 .andExpect(status().isForbidden());
+    }
+
+    @Test
+    @DisplayName("POST /resources/upload - 教师上传成功后落 resource_versions 首版（含大小与上传人）")
+    void uploadResource_successWritesInitialVersion() throws Exception {
+        Course course = new Course();
+        course.setId(1L);
+        course.setTeacherId(1L);
+        when(courseService.getById(1L)).thenReturn(course);
+        doAnswer(inv -> {
+            inv.getArgument(0, Resource.class).setId(9L);
+            return true;
+        }).when(resourceService).save(any(Resource.class));
+
+        MockMultipartFile file = new MockMultipartFile("file", "a.pdf", "application/pdf",
+                "%PDF-1.4".getBytes(StandardCharsets.US_ASCII));
+
+        MvcResult result = mockMvc.perform(multipart("/resources/upload").file(file)
+                        .param("courseId", "1").param("description", "讲义")
+                        .with(withUser(1L, "TEACHER")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andReturn();
+
+        // 首版必须带资源ID、文件名、类型、地址、上传人与真实字节数，否则版本历史无法溯源大小
+        verify(resourceVersionService).createNewVersion(eq(9L), eq("a.pdf"), eq("application/pdf"),
+                anyString(), eq("初始上传"), eq(1L), eq(8L));
+
+        JsonNode node = new ObjectMapper().readTree(result.getResponse().getContentAsString(StandardCharsets.UTF_8));
+        String url = node.path("data").path("url").asText();
+        if (url.startsWith("/uploads/")) {
+            Files.deleteIfExists(Paths.get("uploads", url.substring("/uploads/".length())));
+        }
     }
 
 

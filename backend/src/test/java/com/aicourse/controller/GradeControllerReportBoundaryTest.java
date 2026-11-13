@@ -64,6 +64,8 @@ class GradeControllerReportBoundaryTest extends ControllerTestBase {
     @MockitoBean private GradePolicyMapper policyMapper;
     @MockitoBean private GradeItemMapper itemMapper;
     @MockitoBean private CourseService courseService;
+    /** WP7：真实成绩服务构造器新增的教学班快照解析器（本切片只测报表边界，快照给默认空实现即可） */
+    @MockitoBean private com.aicourse.service.component.org.TeachingClassSnapshotResolver teachingClassSnapshotResolver;
     /** 真实成绩服务需要它来解析学生姓名；默认返回空名单，姓名退回「学生 #id」 */
     @MockitoBean private UserService userService;
 

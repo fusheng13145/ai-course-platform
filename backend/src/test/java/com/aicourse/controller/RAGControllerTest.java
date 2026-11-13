@@ -22,6 +22,13 @@ class RAGControllerTest extends ControllerTestBase {
     @MockitoBean
     private com.aicourse.service.RAGService ragService;
 
+    /**
+     * 2026-11-06 验收批：控制器新增课程归属/成员关系断言（B-05）。本切片只验路由与信封透传，
+     * 替身默认不拦截；归属判定语义见 RAGControllerScopeTest。
+     */
+    @MockitoBean
+    private com.aicourse.security.CourseAccessControl courseAccessControl;
+
     @Test
     @DisplayName("POST /rag/ask - 已认证用户问答返回 code=200 且答案透传")
     void ask_authorized_passes_security() throws Exception {

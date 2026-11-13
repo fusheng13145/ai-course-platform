@@ -24,10 +24,29 @@ public interface ExamPaperService extends IService<ExamPaper> {
     ExamPaperDetailVO getExamPaperDetail(Long paperId);
 
     /**
-     * 发布试卷
+     * 发布试卷（管理员直接发布：DRAFT/REJECTED/ARCHIVED → PUBLISHED）。
      * @param paperId 试卷ID
      */
     void publishExamPaper(Long paperId);
+
+    /**
+     * 提交审核（教师）：DRAFT/REJECTED → PENDING_REVIEW，学生仍不可见。
+     * @param paperId 试卷ID
+     */
+    void submitExamPaperForReview(Long paperId);
+
+    /**
+     * 审核通过（管理员）：PENDING_REVIEW → PUBLISHED，并向选课学生推送通知。
+     * @param paperId 试卷ID
+     */
+    void approveExamPaper(Long paperId);
+
+    /**
+     * 审核驳回（管理员）：PENDING_REVIEW → REJECTED，并向创建人发送通知。
+     * @param paperId 试卷ID
+     * @param reason 驳回原因（仅通知与日志，不落库）
+     */
+    void rejectExamPaper(Long paperId, String reason);
 
     /**
      * 复制试卷

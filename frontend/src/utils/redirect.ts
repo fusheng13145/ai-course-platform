@@ -32,7 +32,7 @@ function hasControlChar(value: string) {
  * @param {unknown} target 待校验的跳转目标（通常来自 route.query.redirect）
  * @returns {boolean} true 表示可作为 router.push 的目标
  */
-export function isSafeInternalRedirect(target) {
+export function isSafeInternalRedirect(target: unknown) {
   if (typeof target !== 'string' || target.length === 0) return false
   // 必须以单个 '/' 开头；'//' 为协议相对 URL，直接跳出站点
   if (target.charCodeAt(0) !== 47 /* '/' */) return false
@@ -51,6 +51,6 @@ export function isSafeInternalRedirect(target) {
  * @param {string} fallback 参数缺失或非法时的兜底（一般是 auth.getDefaultRoute()）
  * @returns {string} 保证为站内路径
  */
-export function resolvePostAuthRedirect(redirectQuery, fallback) {
-  return isSafeInternalRedirect(redirectQuery) ? redirectQuery : fallback
+export function resolvePostAuthRedirect(redirectQuery: unknown, fallback: string): string {
+  return isSafeInternalRedirect(redirectQuery) ? (redirectQuery as string) : fallback
 }

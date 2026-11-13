@@ -7,11 +7,14 @@ import io.swagger.v3.oas.annotations.tags.Tag;
 import com.aicourse.common.ApiResponse;
 import com.aicourse.common.PagedResponse;
 import com.aicourse.entity.OperationLog;
+import com.aicourse.security.AdminScopeGuard;
 import com.aicourse.service.OperationLogService;
 import com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
+
+import java.util.List;
 
 /**
  * 操作日志查询控制器（管理员权限）
@@ -25,9 +28,12 @@ public class OperationLogController {
     private static final Logger log = LoggerFactory.getLogger(OperationLogController.class);
 
     private final OperationLogService operationLogService;
+    private final AdminScopeGuard adminScopeGuard;
 
-    public OperationLogController(OperationLogService operationLogService) {
+    public OperationLogController(OperationLogService operationLogService,
+                                  AdminScopeGuard adminScopeGuard) {
         this.operationLogService = operationLogService;
+        this.adminScopeGuard = adminScopeGuard;
     }
 
     /**
@@ -48,6 +54,8 @@ public class OperationLogController {
             @RequestParam(required = false) String action,
             @RequestParam(required = false) String username,
             @RequestParam(required = false) String status) {
+        // 8A（WP9）：审计对院系管理员先 403，校级原口径不变——不再做「本院可见」降级
+        adminScopeGuard.assertSchoolOnly();
         LambdaQueryWrapper<OperationLog> qw = new LambdaQueryWrapper<OperationLog>()
                 .eq(module != null && !module.isEmpty(), OperationLog::getModule, module)
                 .eq(action != null && !action.isEmpty(), OperationLog::getAction, action)
@@ -64,14 +72,36 @@ public class OperationLogController {
      */
     @GetMapping("/operation-logs/statistics")
     public ApiResponse<java.util.Map<String, Object>> getStatistics() {
-        long totalCount = operationLogService.count();
-        long successCount = operationLogService.count(
-                new LambdaQueryWrapper<OperationLog>().eq(OperationLog::getStatus, "SUCCESS"));
+        // 8A（WP9）：同上，院系管理员 403
+        adminScopeGuard.assertSchoolOnly();
+        List<Long> collegeUserIds = adminScopeGuard.currentCollegeUserIds();
+        LambdaQueryWrapper<OperationLog> totalWrapper = new LambdaQueryWrapper<>();
+        applyCollegeScope(totalWrapper, collegeUserIds);
+        // 校级保持原口径（count() 全表统计）；院系按本院用户过滤
+        long totalCount = collegeUserIds == null
+                ? operationLogService.count()
+                : operationLogService.count(totalWrapper);
+
+        LambdaQueryWrapper<OperationLog> successWrapper = new LambdaQueryWrapper<OperationLog>()
+                .eq(OperationLog::getStatus, "SUCCESS");
+        applyCollegeScope(successWrapper, collegeUserIds);
+        long successCount = operationLogService.count(successWrapper);
         long failedCount = totalCount - successCount;
         return ApiResponse.success(java.util.Map.of(
                 "totalCount", totalCount,
                 "successCount", successCount,
                 "failedCount", failedCount
         ));
+    }
+
+    private void applyCollegeScope(LambdaQueryWrapper<OperationLog> qw, List<Long> collegeUserIds) {
+        if (collegeUserIds == null) {
+            return;
+        }
+        if (collegeUserIds.isEmpty()) {
+            qw.eq(OperationLog::getUserId, -1L);
+        } else {
+            qw.in(OperationLog::getUserId, collegeUserIds);
+        }
     }
 }

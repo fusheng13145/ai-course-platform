@@ -602,12 +602,23 @@ def print_status(sink: Sink, status: dict, env: dict, app_title: str) -> None:
         + (f"UP (http://localhost:{own_port}/)" if own_port else "DOWN")
         + ("" if not own_port or app_title else "  [!] 该口未认出本项目标题，可能属于别的开发服务")
     )
-    key = eng.effective_api_key(env.get("DEEPSEEK_API_KEY"))
-    sink.info(
-        "[OK]   DEEPSEEK_API_KEY 已配置且形如真实 Key（值从不打印）"
-        if key
-        else "[WARN] DEEPSEEK_API_KEY 未配置、形如占位串、或含非 ASCII 字符（备注粘连进键值，DR-82） -> 大模型调用不可用（Java 侧按 §40 如实返回 503，不再走「抽取式冒充成功」），不阻塞启动"
-    )
+    provider = (env.get("AI_PROVIDER") or "deepseek").strip().lower()
+    if provider in ("ollama", "local"):
+        ollama_url = (env.get("OLLAMA_BASE_URL") or "http://localhost:11434").strip().rstrip("/")
+        if health_ok(http_probe_status(ollama_url + "/api/tags")):
+            sink.info(f"[OK]   AI_PROVIDER=ollama，本地服务可达（{ollama_url}，无需 API Key）")
+        else:
+            sink.info(
+                f"[WARN] AI_PROVIDER=ollama 但 {ollama_url} 不可达 -> 大模型调用将按 §40 返回 503；"
+                "请先运行 `ollama serve` 并 `ollama pull deepseek-r1:8b`，不阻塞启动"
+            )
+    else:
+        key = eng.effective_api_key(env.get("DEEPSEEK_API_KEY"))
+        sink.info(
+            "[OK]   DEEPSEEK_API_KEY 已配置且形如真实 Key（值从不打印）"
+            if key
+            else "[WARN] DEEPSEEK_API_KEY 未配置、形如占位串、或含非 ASCII 字符（备注粘连进键值，DR-82） -> 大模型调用不可用（Java 侧按 §40 如实返回 503，不再走「抽取式冒充成功」），不阻塞启动"
+        )
     sink.info("-" * 62)
 
 

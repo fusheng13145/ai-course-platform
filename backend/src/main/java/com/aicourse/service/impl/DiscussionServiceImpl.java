@@ -249,6 +249,21 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
     }
 
 
+    /**
+     * 回复所属课程ID（供点赞等 postId 入口的操作做对象级 ACL）。
+     * 只做关系查询，不重复实现成员关系规则；回复或话题缺失时返回 null，
+     * 由调用方放行到 likePost 原有的「回复不存在」语义。
+     */
+    @Override
+    public Long courseIdOfPost(Long postId) {
+        DiscussionPost post = postId == null ? null : postMapper.selectById(postId);
+        if (post == null || post.getTopicId() == null) {
+            return null;
+        }
+        DiscussionTopic topic = this.getById(post.getTopicId());
+        return topic == null ? null : topic.getCourseId();
+    }
+
     /** 讨论相关操作 */
     @Override
     @Transactional(rollbackFor = Exception.class)
@@ -342,6 +357,23 @@ public class DiscussionServiceImpl extends ServiceImpl<DiscussionTopicMapper, Di
             topic.setReplyCount(topic.getReplyCount() - 1);
             this.updateById(topic);
         }
+    }
+
+    /** 删除话题：作者本人或管理员；按 点赞 → 回复 → 话题 顺序级联清理，避免悬挂回复。 */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    public void deleteTopic(Long id, Long userId, String role) {
+        DiscussionTopic topic = requireOwner(id, userId, role);
+        List<DiscussionPost> posts = postMapper.selectList(
+                new LambdaQueryWrapper<DiscussionPost>().eq(DiscussionPost::getTopicId, topic.getId()));
+        if (!posts.isEmpty()) {
+            List<Long> postIds = posts.stream().map(DiscussionPost::getId).toList();
+            postLikeMapper.delete(new LambdaQueryWrapper<DiscussionPostLike>()
+                    .in(DiscussionPostLike::getPostId, postIds));
+            postMapper.deleteBatchIds(postIds);
+        }
+        this.removeById(topic.getId());
+        log.info("删除话题 id={} 级联回复 {} 条（操作人 {}）", topic.getId(), posts.size(), userId);
     }
 
     private DiscussionTopic requireOwner(Long id, Long userId, String role) {

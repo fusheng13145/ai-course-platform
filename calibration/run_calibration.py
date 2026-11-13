@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 """
-AI 课程平台 · 真实负载压测编排器 v2（等价 Prometheus 采集）
+AI 课程平台 · 真实负载压测编排器 （等价 Prometheus 采集）
 修正：
  - 兼容无标签指标行（aicourse_pending_submissions / process_cpu_usage）
  - 采样线程全包裹异常保护，绝不中途退出；原始样本落盘 samples.jsonl

@@ -12,7 +12,7 @@ import lombok.extern.slf4j.Slf4j;
 /**
  * 路由型 LLM 供应商（支持运行时热切换）
  * <p>
- * 持有全部底层供应商实现（DeepSeek / OpenAI / Qwen），在每次调用时依据
+ * 持有全部底层供应商实现（DeepSeek / OpenAI / Qwen / Ollama），在每次调用时依据
  * {@code system_configs} 中 {@code ai.provider} 的当前值（缺省回退启动配置 {@code ai.provider}）动态选择，
  * 从而实现「管理员在配置页切换模型 → 立即生效、无需重启」。各底层供应商仍由
  * {@link LLMProviderConfig} 以单例方式构建并注入本类，业务层 {@code AIService} 仅依赖 {@link LLMProvider} 接口。
@@ -26,17 +26,20 @@ public class RoutingLLMProvider implements LLMProvider {
     private final LLMProvider deepSeek;
     private final LLMProvider openAi;
     private final LLMProvider qwen;
+    private final LLMProvider ollama;
     private final SystemConfigService systemConfigService;
     private final String defaultProvider;
 
     public RoutingLLMProvider(DeepSeekProvider deepSeek,
                              OpenAiProvider openAi,
                              QwenProvider qwen,
+                             OllamaProvider ollama,
                              SystemConfigService systemConfigService,
                              @Value("${ai.provider:deepseek}") String defaultProvider) {
         this.deepSeek = deepSeek;
         this.openAi = openAi;
         this.qwen = qwen;
+        this.ollama = ollama;
         this.systemConfigService = systemConfigService;
         this.defaultProvider = defaultProvider;
     }
@@ -57,6 +60,7 @@ public class RoutingLLMProvider implements LLMProvider {
         return switch (key) {
             case "openai" -> openAi;
             case "qwen", "qwen2", "dashscope" -> qwen;
+            case "ollama", "local" -> ollama;
             default -> deepSeek;
         };
     }

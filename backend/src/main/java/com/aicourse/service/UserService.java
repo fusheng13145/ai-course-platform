@@ -55,4 +55,15 @@ public interface UserService extends com.baomidou.mybatisplus.extension.service.
      * @return 分页用户列表
      */
     Page<User> searchUsers(String keyword, String role, int page, int size);
+
+    /**
+     * 按学院范围搜索用户（院系管理员使用）。
+     * @param keyword 关键词
+     * @param role 角色筛选（可选）
+     * @param page 页码
+     * @param size 每页大小
+     * @param collegeId 学院ID（必填过滤条件）
+     * @return 分页用户列表
+     */
+    Page<User> searchUsersInCollege(String keyword, String role, int page, int size, Long collegeId);
 }

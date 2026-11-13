@@ -39,6 +39,8 @@ class QuestionControllerPaginationBoundaryTest extends ControllerTestBase {
     /** 出题治理策略：本类只测分页，不触发出题入口，故无需打桩（mock 默认 false 也不会被读到）。 */
     @MockitoBean
     private com.aicourse.service.component.ai.AiGenerationPolicy aiGenerationPolicy;
+    @MockitoBean
+    private com.aicourse.security.CourseAccessControl courseAccessControl;
 
     @ParameterizedTest(name = "page={0} size={1} -> current={2} size={3}")
     @CsvSource({

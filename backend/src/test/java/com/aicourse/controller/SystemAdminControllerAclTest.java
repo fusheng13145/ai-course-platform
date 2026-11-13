@@ -5,12 +5,14 @@ import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.SystemService;
 import com.aicourse.service.UserService;
+import com.aicourse.security.AdminScopeGuard;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
+import org.springframework.context.annotation.Import;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder;
@@ -44,6 +46,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
  * 证明「放行的是真正的管理员」而非把鉴权整个关掉导致的假 200。</p>
  */
 @WebMvcTest(SystemAdminController.class)
+@Import(AdminScopeGuard.class)
 class SystemAdminControllerAclTest extends ControllerTestBase {
 
     @MockitoBean

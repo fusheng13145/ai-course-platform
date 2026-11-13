@@ -69,6 +69,7 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
     @MockitoBean private KnowledgePointRelationService relationService;
     @MockitoBean private AIService aiService;
     @MockitoBean private KnowledgeGraphService knowledgeGraphService;
+    @MockitoBean private com.aicourse.security.CourseAccessControl courseAccessControl;
 
     @BeforeEach
     void registerEntityMetadata() {
@@ -410,15 +411,23 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
     // ==================== POST /knowledge/path/plan：maxHops 与提示语分支 ====================
 
     @Test
-    @DisplayName("POST /knowledge/path/plan - 学生被 SecurityConfig 的 POST /knowledge/** 写保护挡在 403")
-    void planLearningPath_studentForbiddenByUrlRule() throws Exception {
+    @DisplayName("POST /knowledge/path/plan - 学生可用：只读规划不被 /knowledge/** 写保护拦为 403")
+    void planLearningPath_studentAllowed() throws Exception {
+        com.aicourse.vo.KnowledgePathPlanVO vo = new com.aicourse.vo.KnowledgePathPlanVO();
+        vo.setSourceId(1L);
+        vo.setTargetId(2L);
+        vo.setFound(true);
+        vo.setMode("LOCAL");
+        vo.setHops(2);
+        when(knowledgeGraphService.planLearningPath(1L, 2L, 0)).thenReturn(vo);
+
         mockMvc.perform(post("/knowledge/path/plan").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"sourceId\":1,\"targetId\":2}")
                         .with(withUser(1L, "STUDENT")))
-                .andExpect(status().isForbidden())
-                .andExpect(jsonPath("$.code").value(403));
-        // 路由层拦下后不得触达服务层
-        verify(knowledgeGraphService, never()).planLearningPath(any(), any(), anyInt());
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.data.found").value(true));
+        verify(knowledgeGraphService).planLearningPath(1L, 2L, 0);
     }
 
     @Test
@@ -665,6 +674,8 @@ class KnowledgeControllerCoverageTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /knowledge/relations - 带强度与描述：全参数透传服务层")
     void createRelation_withStrengthAndDescription_passesAllArgs() throws Exception {
+        when(knowledgePointService.getById(1L)).thenReturn(point(1L, "a"));
+        when(knowledgePointService.getById(2L)).thenReturn(point(2L, "b"));
         when(relationService.createRelation(1L, 2L, "PREREQUISITE", new BigDecimal("0.8"), "先修"))
                 .thenReturn(relation(5L, 1L, 2L));
 

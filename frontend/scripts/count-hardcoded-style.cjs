@@ -6,7 +6,7 @@
  *   node scripts/count-hardcoded-style.cjs            # 打印读数
  *   node scripts/count-hardcoded-style.cjs --write     # 同时把报告写入 scripts/style-hardcode-report.md
  *   node scripts/count-hardcoded-style.cjs --min-files=40                 # 限定范围时下调 .vue 扫描面下界
- *   node scripts/count-hardcoded-style.cjs --root=src/v2 --min-files=40   # 对某个子树重跑同一口径
+ *   node scripts/count-hardcoded-style.cjs --root=src/ui --min-files=40   # 对某个子树重跑同一口径
  * 口径与判据本体见 docs/前端待办项.md 的 P5-04 行；这里只负责可重生成，不判定通过与否。
  */
 const fs = require('fs')
@@ -62,7 +62,7 @@ function labelFor(p, base) {
 
 /**
  * `--root=` 既可以是「含 `src/` 的工程根」（`git archive` 导出的 `frontend` 树），
- * 也可以直接是扫描根（如 `src/v2`）。后者现在才是常态：旧前端删掉后 `src/styles/` 已不存在。
+ * 也可以直接是扫描根（如 `src/ui`）。后者现在才是常态：旧前端删掉后 `src/styles/` 已不存在。
  */
 function resolveSrcRoot(base) {
   const nested = path.join(base, 'src')
@@ -70,7 +70,7 @@ function resolveSrcRoot(base) {
 }
 
 function isStyleSource(p, srcRoot) {
-  // 样式层从 `src/styles/**`（旧端，已删）搬到 `src/v2/styles/**`，两代都按「路径里有 styles 段」认
+  // 样式层从 `src/styles/**`（旧端，已删）搬到 `src/ui/styles/**`，两代都按「路径里有 styles 段」认
   return /(^|\/)styles\//.test(rel(p, srcRoot))
 }
 

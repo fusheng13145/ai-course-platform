@@ -16,6 +16,12 @@
 --      ai_generation_restrictions 三表，并补齐 users(3) / resources(4) / discussion_posts(4) /
 --      ai_chat_sessions(1) 的列与 4 个索引；表数由 48 → 51，与 db/migration 现行schema 对齐
 --      护栏：IndexSqlMigrationGuardTest 断言本脚本表集与列集 ⊇ 迁移产物，缺项即构建失败
+--   8. 2026-11-05 回补 V12（B-12/P-08 WP1）：新增 schools / colleges / majors / admin_classes
+--      四表；users 加 school_id / college_id / major_id / admin_class_id / admin_scope 与 3 索引；
+--      role_permissions 加 scope 并把唯一键改为 (role, scope, permission_key)；
+--      表数 51 → 55，与 db/migration 现行 schema 对齐
+--   9. 2026-11-06 回补 V13（B-12/P-08 WP3）：courses 加 college_id 与索引；
+--      新增 course_approval_records 审批流水表；表数 55 → 56
 -- ====================================================================
 
 SET NAMES utf8mb4;
@@ -65,27 +71,36 @@ DROP TABLE IF EXISTS knowledge_points;
 DROP TABLE IF EXISTS exam_sessions;
 DROP TABLE IF EXISTS exam_questions;
 DROP TABLE IF EXISTS questions;
+DROP TABLE IF EXISTS exam_teaching_classes;
 DROP TABLE IF EXISTS exam_papers;
 DROP TABLE IF EXISTS reminders;
 DROP TABLE IF EXISTS plagiarism_matches;
 DROP TABLE IF EXISTS plagiarism_checks;
 DROP TABLE IF EXISTS submissions;
 DROP TABLE IF EXISTS task_completions;
+DROP TABLE IF EXISTS task_teaching_classes;
 DROP TABLE IF EXISTS tasks;
 DROP TABLE IF EXISTS resource_versions;
 DROP TABLE IF EXISTS resources;
+DROP TABLE IF EXISTS teaching_class_admin_classes;
+DROP TABLE IF EXISTS teaching_classes;
+DROP TABLE IF EXISTS course_approval_records;
 DROP TABLE IF EXISTS course_enrollments;
 DROP TABLE IF EXISTS course_chapters;
 DROP TABLE IF EXISTS courses;
 DROP TABLE IF EXISTS verification_codes;
 DROP TABLE IF EXISTS login_logs;
 DROP TABLE IF EXISTS user_sessions;
+DROP TABLE IF EXISTS admin_classes;
+DROP TABLE IF EXISTS majors;
+DROP TABLE IF EXISTS colleges;
+DROP TABLE IF EXISTS schools;
 DROP TABLE IF EXISTS classrooms;
 DROP TABLE IF EXISTS users;
 SET FOREIGN_KEY_CHECKS = 1;
 
 -- ====================================================================
--- Phase 2: 创建全部 51 张表（按外键依赖顺序）
+-- Phase 2: 创建全部 55 张表（按外键依赖顺序）
 -- ====================================================================
 
 -- ── 2.1 用户核心模块 ──
@@ -125,8 +140,86 @@ CREATE TABLE users (
   UNIQUE KEY uk_users_username (username) COMMENT '用户名唯一索引',
   KEY idx_users_role (role) COMMENT '角色索引，用于按角色查询',
   KEY idx_users_class_id (class_id) COMMENT '班级ID索引，用于查询班级学生',
-  KEY idx_users_banned (banned_at) COMMENT '封禁记录按时间检索（V11 同步）'
+  KEY idx_users_banned (banned_at) COMMENT '封禁记录按时间检索（V11 同步）',
+  school_id BIGINT NULL COMMENT '学校ID（V12，过渡期可空）',
+  college_id BIGINT NULL COMMENT '学院ID（V12，过渡期可空）',
+  major_id BIGINT NULL COMMENT '专业ID（V12，过渡期可空）',
+  admin_class_id BIGINT NULL COMMENT '行政班ID（V12 目标列，过渡期保留 class_id）',
+  admin_scope VARCHAR(16) NULL COMMENT '管理员作用域 SCHOOL/COLLEGE，仅 ADMIN 使用（V12）',
+  KEY idx_users_college (college_id) COMMENT '学院索引（V12）',
+  KEY idx_users_admin_class (admin_class_id) COMMENT '行政班索引（V12）',
+  KEY idx_users_admin_scope (admin_scope, college_id) COMMENT '管理员作用域索引（V12）'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='用户表';;
+
+-- ── 2.1.1 组织架构模块（V12 / B-12-P-08 WP1） ──
+
+-- schools
+CREATE TABLE schools (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '学校ID，主键自增',
+  code VARCHAR(32) NOT NULL COMMENT '学校编码',
+  name VARCHAR(128) NOT NULL COMMENT '学校名称',
+  status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态：ACTIVE-启用，ARCHIVED-归档',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_schools_code (code) COMMENT '学校编码唯一索引'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='学校根（单校部署，一行）';
+
+-- colleges
+CREATE TABLE colleges (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '学院ID，主键自增',
+  school_id BIGINT NOT NULL COMMENT '所属学校ID，关联schools表',
+  code VARCHAR(32) NOT NULL COMMENT '学院编码（校内唯一）',
+  name VARCHAR(128) NOT NULL COMMENT '学院名称',
+  status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态：ACTIVE-启用，ARCHIVED-归档',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_colleges_school_code (school_id, code) COMMENT '学校-学院编码唯一索引',
+  KEY idx_colleges_school (school_id) COMMENT '学校索引',
+  CONSTRAINT fk_colleges_school FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='学院';
+
+-- majors
+CREATE TABLE majors (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '专业ID，主键自增',
+  college_id BIGINT NOT NULL COMMENT '所属学院ID，关联colleges表',
+  code VARCHAR(32) NOT NULL COMMENT '专业编码（院内唯一）',
+  name VARCHAR(128) NOT NULL COMMENT '专业名称',
+  status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态：ACTIVE-启用，ARCHIVED-归档',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_majors_college_code (college_id, code) COMMENT '学院-专业编码唯一索引',
+  KEY idx_majors_college (college_id) COMMENT '学院索引',
+  CONSTRAINT fk_majors_college FOREIGN KEY (college_id) REFERENCES colleges(id) ON DELETE RESTRICT
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='专业';
+
+-- admin_classes
+CREATE TABLE admin_classes (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '行政班ID，主键自增',
+  school_id BIGINT NOT NULL COMMENT '所属学校ID，关联schools表',
+  college_id BIGINT NOT NULL COMMENT '所属学院ID，关联colleges表',
+  major_id BIGINT NOT NULL COMMENT '所属专业ID，关联majors表',
+  name VARCHAR(100) NOT NULL COMMENT '行政班名称，如：计科 2301',
+  code VARCHAR(50) NOT NULL COMMENT '行政班编号',
+  grade_year VARCHAR(16) NULL COMMENT '年级，如 2023',
+  advisor_teacher_id BIGINT NULL COMMENT '班主任（教师职责，不是登录角色），关联users表',
+  student_count INT NOT NULL DEFAULT 0 COMMENT '当前学生人数',
+  max_students INT NULL COMMENT '最大容纳人数',
+  status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' COMMENT '状态：ACTIVE-启用，ARCHIVED-归档（归档不删学生历史）',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_admin_classes_school_code (school_id, code) COMMENT '学校-行政班编号唯一索引',
+  KEY idx_admin_classes_college (college_id) COMMENT '学院索引',
+  KEY idx_admin_classes_major (major_id) COMMENT '专业索引',
+  KEY idx_admin_classes_advisor (advisor_teacher_id) COMMENT '班主任索引',
+  CONSTRAINT fk_admin_classes_school FOREIGN KEY (school_id) REFERENCES schools(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_admin_classes_college FOREIGN KEY (college_id) REFERENCES colleges(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_admin_classes_major FOREIGN KEY (major_id) REFERENCES majors(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_admin_classes_advisor FOREIGN KEY (advisor_teacher_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='行政班：学生归属与班主任工作对象，不绑定课程';
 
 -- ── 2.2 班级管理模块 ──
 
@@ -222,6 +315,7 @@ CREATE TABLE courses (
   description TEXT NULL COMMENT '课程详细描述',
   credits DECIMAL(5,2) NOT NULL DEFAULT 0 COMMENT '课程学分',
   teacher_id BIGINT NOT NULL COMMENT '授课教师ID，关联users表',
+  college_id BIGINT NULL COMMENT '课程所属学院ID，V13 按负责人学院回填（过渡期可空）',
   semester VARCHAR(50) NULL COMMENT '学期',
   year INT NULL COMMENT '学年',
   status VARCHAR(20) NOT NULL DEFAULT 'ACTIVE' COMMENT '课程状态（大写）：ACTIVE-启用，INACTIVE-停用',
@@ -242,13 +336,71 @@ CREATE TABLE courses (
   syllabus_url VARCHAR(500) NULL COMMENT '课程大纲URL',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  semester_id BIGINT NOT NULL COMMENT '所属学期（4A）：创建时解析 ACTIVE 学期，编号学期内唯一（V17）',
   PRIMARY KEY (id),
-  UNIQUE KEY uk_courses_code (code) COMMENT '课程编号唯一索引',
+  UNIQUE KEY uk_courses_semester_code (semester_id, code) COMMENT '学期内课程编号唯一（4A，V17）',
   KEY idx_courses_teacher_id (teacher_id) COMMENT '教师ID索引，用于查询教师教授的课程',
   KEY idx_courses_status (status) COMMENT '课程状态索引',
   KEY idx_courses_approval_status (approval_status) COMMENT '审批状态索引',
+  KEY idx_courses_college (college_id) COMMENT '课程学院索引（V13）',
   CONSTRAINT fk_courses_teacher FOREIGN KEY (teacher_id) REFERENCES users(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='课程表';;
+
+-- course_approval_records（V13 / WP3 审批流水）
+CREATE TABLE course_approval_records (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '流水ID，主键自增',
+  course_id BIGINT NOT NULL COMMENT '课程ID，关联courses表',
+  operator_id BIGINT NULL COMMENT '操作人ID，关联users表',
+  action VARCHAR(16) NOT NULL COMMENT '动作：SUBMIT/APPROVE/REJECT/RESUBMIT',
+  from_status VARCHAR(20) NULL COMMENT '变更前审批状态，首次提交为NULL',
+  to_status VARCHAR(20) NOT NULL COMMENT '变更后审批状态',
+  comment VARCHAR(500) NULL COMMENT '审批意见/驳回原因',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (id),
+  KEY idx_course_approval_records_course (course_id, created_at) COMMENT '课程-时间索引，用于按课程查流水',
+  KEY idx_course_approval_records_operator (operator_id) COMMENT '操作人索引',
+  CONSTRAINT fk_course_approval_records_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+  CONSTRAINT fk_course_approval_records_operator FOREIGN KEY (operator_id) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='课程审批流水，只增不改';;
+
+-- teaching_classes（V14 / WP4 教学班）
+CREATE TABLE teaching_classes (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '教学班ID，主键自增',
+  course_id BIGINT NOT NULL COMMENT '所属课程ID，关联courses表',
+  name VARCHAR(120) NOT NULL COMMENT '教学班名称，如：Python程序设计 默认教学班',
+  code VARCHAR(50) NULL COMMENT '教学班编号（可选）',
+  lead_teacher_id BIGINT NOT NULL COMMENT '唯一主讲教师，关联users表',
+  capacity INT NULL COMMENT '容量；NULL 表示不限制',
+  status VARCHAR(16) NOT NULL DEFAULT 'DRAFT' COMMENT 'DRAFT/ACTIVE/CLOSED',
+  created_by BIGINT NULL COMMENT '创建人ID，关联users表',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_teaching_classes_course_name (course_id, name) COMMENT '课程-教学班名称唯一索引',
+  KEY idx_teaching_classes_course (course_id) COMMENT '课程索引',
+  KEY idx_teaching_classes_lead (lead_teacher_id) COMMENT '主讲教师索引',
+  KEY idx_teaching_classes_status (status) COMMENT '状态索引',
+  CONSTRAINT fk_teaching_classes_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
+  CONSTRAINT fk_teaching_classes_lead FOREIGN KEY (lead_teacher_id) REFERENCES users(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_teaching_classes_creator FOREIGN KEY (created_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='教学班：课程下的开课单元，一个主讲';;
+
+-- teaching_class_admin_classes（V14 / WP4 教学班—行政班来源）
+CREATE TABLE teaching_class_admin_classes (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+  teaching_class_id BIGINT NOT NULL COMMENT '教学班ID，关联teaching_classes表',
+  admin_class_id BIGINT NOT NULL COMMENT '来源行政班ID，关联admin_classes表',
+  status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE' COMMENT 'ACTIVE/REMOVED',
+  imported_by BIGINT NULL COMMENT '导入人ID，关联users表',
+  imported_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '导入时间',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_tc_admin_class (teaching_class_id, admin_class_id) COMMENT '教学班-行政班唯一索引',
+  KEY idx_tc_admin_class_admin (admin_class_id) COMMENT '行政班索引',
+  CONSTRAINT fk_tc_admin_class_tc FOREIGN KEY (teaching_class_id) REFERENCES teaching_classes(id) ON DELETE CASCADE,
+  CONSTRAINT fk_tc_admin_class_admin FOREIGN KEY (admin_class_id) REFERENCES admin_classes(id) ON DELETE RESTRICT,
+  CONSTRAINT fk_tc_admin_class_imported_by FOREIGN KEY (imported_by) REFERENCES users(id) ON DELETE SET NULL
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='教学班—行政班来源关系；一个教学班可来自多个行政班';;
 
 -- course_chapters
 CREATE TABLE course_chapters (
@@ -274,6 +426,9 @@ CREATE TABLE course_enrollments (
   id BIGINT NOT NULL AUTO_INCREMENT COMMENT '选课ID，主键自增',
   student_id BIGINT NOT NULL COMMENT '学生ID，关联users表',
   course_id BIGINT NOT NULL COMMENT '课程ID，关联courses表',
+  teaching_class_id BIGINT NOT NULL COMMENT '教学班ID，关联teaching_classes表（V14 回填，V17 收紧 NOT NULL）',
+  source VARCHAR(32) NULL COMMENT '来源：ADMIN_CLASS_IMPORT/SELF_ENROLL/LEGACY',
+  source_admin_class_id BIGINT NULL COMMENT '来源行政班ID，关联admin_classes表',
   approval_status VARCHAR(20) NOT NULL DEFAULT 'APPROVED' COMMENT '选课审批状态：PENDING-待审批，APPROVED-已通过，REJECTED-已拒绝',
   approval_time DATETIME NULL COMMENT '审批时间',
   approved_by BIGINT NULL COMMENT '审批人ID，关联users表',
@@ -291,6 +446,7 @@ CREATE TABLE course_enrollments (
   PRIMARY KEY (id),
   UNIQUE KEY uk_course_enrollments_student_course (student_id, course_id) COMMENT '学生-课程唯一索引，防止重复选课',
   KEY idx_course_enrollments_course_id (course_id) COMMENT '课程ID索引，用于查询课程选课学生',
+  KEY idx_enrollments_class_status (teaching_class_id, approval_status, is_active) COMMENT '教学班-审批状态索引（V14）',
   CONSTRAINT fk_course_enrollments_student FOREIGN KEY (student_id) REFERENCES users(id) ON DELETE CASCADE,
   CONSTRAINT fk_course_enrollments_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='课程选课表';;
@@ -352,6 +508,7 @@ CREATE TABLE tasks (
   due_date DATETIME NULL COMMENT '截止日期',
   max_score DECIMAL(5,2) NOT NULL DEFAULT 100 COMMENT '满分',
   status VARCHAR(20) NOT NULL DEFAULT 'DRAFT' COMMENT '任务状态（大写）：DRAFT-草稿，PUBLISHED-已发布，CLOSED-已关闭',
+  visibility VARCHAR(16) NOT NULL DEFAULT 'COURSE' COMMENT '可见范围：COURSE-课程全部教学班，CLASSES-仅目标教学班',
   is_published TINYINT(1) NOT NULL DEFAULT 0 COMMENT '是否已发布：0-未发布，1-已发布',
   submission_format VARCHAR(100) NULL COMMENT '提交格式：text-文本，file-文件，both-两者均可',
   requirements TEXT NULL COMMENT '详细要求',
@@ -370,6 +527,19 @@ CREATE TABLE tasks (
   CONSTRAINT fk_tasks_chapter FOREIGN KEY (chapter_id) REFERENCES course_chapters(id) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='任务表';;
 
+-- task_teaching_classes（V15：visibility=CLASSES 时的目标教学班）
+CREATE TABLE task_teaching_classes (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+  task_id BIGINT NOT NULL COMMENT '任务ID，关联tasks表',
+  teaching_class_id BIGINT NOT NULL COMMENT '目标教学班ID，关联teaching_classes表',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_task_teaching_class (task_id, teaching_class_id) COMMENT '任务-教学班唯一索引',
+  KEY idx_task_teaching_class_tc (teaching_class_id) COMMENT '教学班索引',
+  CONSTRAINT fk_task_teaching_class_task FOREIGN KEY (task_id) REFERENCES tasks(id) ON DELETE CASCADE,
+  CONSTRAINT fk_task_teaching_class_tc FOREIGN KEY (teaching_class_id) REFERENCES teaching_classes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='任务目标教学班：visibility=CLASSES 时的可见/可做范围';;
+
 -- task_completions
 CREATE TABLE task_completions (
   id BIGINT NOT NULL AUTO_INCREMENT COMMENT '完成记录ID，主键自增',
@@ -387,6 +557,7 @@ CREATE TABLE task_completions (
   completed_at DATETIME NULL COMMENT '完成时间',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  teaching_class_id BIGINT NULL COMMENT '教学班快照（WP7/V16）：写入时按成员关系解析，转班不漂移',
   PRIMARY KEY (id),
   UNIQUE KEY uk_task_completion (student_id, task_id) COMMENT '学生-任务唯一，避免重复记录',
   KEY idx_tc_course (course_id) COMMENT '课程索引',
@@ -417,6 +588,7 @@ CREATE TABLE submissions (
   view_count INT NOT NULL DEFAULT 0 COMMENT '查看次数',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  teaching_class_id BIGINT NULL COMMENT '教学班快照（WP7/V16）：写入时按成员关系解析，转班不漂移',
   PRIMARY KEY (id),
   KEY idx_submissions_task_id (task_id) COMMENT '任务ID索引，用于查询任务所有提交',
   KEY idx_submissions_student_id (student_id) COMMENT '学生ID索引，用于查询学生所有提交',
@@ -493,6 +665,7 @@ CREATE TABLE exam_papers (
   course_id BIGINT NOT NULL COMMENT '课程ID，关联courses表',
   creator_id BIGINT NOT NULL COMMENT '创建者ID，关联users表',
   status VARCHAR(20) NOT NULL DEFAULT 'DRAFT' COMMENT '试卷状态（大写）：DRAFT-草稿，PUBLISHED-已发布，ARCHIVED-已归档',
+  visibility VARCHAR(16) NOT NULL DEFAULT 'COURSE' COMMENT '可见范围：COURSE-课程全部教学班，CLASSES-仅目标教学班',
   instructions TEXT NULL COMMENT '考试说明',
   start_time DATETIME NULL COMMENT '考试开始时间',
   end_time DATETIME NULL COMMENT '考试结束时间',
@@ -515,6 +688,19 @@ CREATE TABLE exam_papers (
   CONSTRAINT fk_exam_papers_course FOREIGN KEY (course_id) REFERENCES courses(id) ON DELETE CASCADE,
   CONSTRAINT fk_exam_papers_creator FOREIGN KEY (creator_id) REFERENCES users(id) ON DELETE RESTRICT
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='试卷表';;
+
+-- exam_teaching_classes（V15：visibility=CLASSES 时的目标教学班）
+CREATE TABLE exam_teaching_classes (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '主键',
+  exam_paper_id BIGINT NOT NULL COMMENT '试卷ID，关联exam_papers表',
+  teaching_class_id BIGINT NOT NULL COMMENT '目标教学班ID，关联teaching_classes表',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  PRIMARY KEY (id),
+  UNIQUE KEY uk_exam_teaching_class (exam_paper_id, teaching_class_id) COMMENT '试卷-教学班唯一索引',
+  KEY idx_exam_teaching_class_tc (teaching_class_id) COMMENT '教学班索引',
+  CONSTRAINT fk_exam_teaching_class_paper FOREIGN KEY (exam_paper_id) REFERENCES exam_papers(id) ON DELETE CASCADE,
+  CONSTRAINT fk_exam_teaching_class_tc FOREIGN KEY (teaching_class_id) REFERENCES teaching_classes(id) ON DELETE CASCADE
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='试卷目标教学班：visibility=CLASSES 时的可见/可做范围';;
 
 -- questions
 CREATE TABLE questions (
@@ -576,6 +762,7 @@ CREATE TABLE exam_sessions (
   option_orders JSON NULL COMMENT '本场考试各题选项乱序映射，结构：{questionId:[原选项下标...]}，下标为展示位、值为原题选项下标',
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  teaching_class_id BIGINT NULL COMMENT '教学班快照（WP7/V16）：写入时按成员关系解析，转班不漂移',
   PRIMARY KEY (id),
   KEY idx_exam_sessions_paper_id (exam_paper_id) COMMENT '试卷ID索引，用于查询试卷所有考试会话',
   KEY idx_exam_sessions_student_id (student_id) COMMENT '学生ID索引，用于查询学生所有考试会话',
@@ -805,6 +992,7 @@ CREATE TABLE role_permissions (
   id BIGINT NOT NULL AUTO_INCREMENT COMMENT '权限ID，主键自增',
   role VARCHAR(50) NOT NULL COMMENT '角色标识',
   permission_key VARCHAR(100) NOT NULL COMMENT '权限标识',
+  scope VARCHAR(16) NOT NULL DEFAULT 'ALL' COMMENT '适用作用域 ALL/SCHOOL/COLLEGE（V12）',
   permission_name VARCHAR(100) NOT NULL COMMENT '权限名称',
   permission_type VARCHAR(20) NOT NULL DEFAULT 'MENU' COMMENT '权限类型：MENU-菜单权限，BUTTON-按钮权限',
   resource_path VARCHAR(255) NULL COMMENT '资源路径',
@@ -815,7 +1003,7 @@ CREATE TABLE role_permissions (
   created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
   updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
   PRIMARY KEY (id),
-  UNIQUE KEY uk_role_permissions_role_key (role, permission_key) COMMENT '角色-权限唯一索引，防止重复授权'
+  UNIQUE KEY uk_role_permissions_role_scope_key (role, scope, permission_key) COMMENT '角色-作用域-权限唯一索引，防止重复授权（V12）'
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='角色权限表';;
 
 -- system_configs
@@ -1017,6 +1205,7 @@ CREATE TABLE discussion_topics (
     last_reply_at DATETIME NULL COMMENT '最后回复时间',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    teaching_class_id BIGINT NULL COMMENT '教学班快照（WP7/V16）：写入时按成员关系解析，转班不漂移',
     PRIMARY KEY (id),
     KEY idx_discussion_topics_course_id (course_id) COMMENT '课程ID索引',
     KEY idx_discussion_topics_chapter_id (chapter_id) COMMENT '章节ID索引',
@@ -1142,6 +1331,7 @@ CREATE TABLE grade_items (
     grader_id BIGINT NULL COMMENT '录入者ID，关联users表',
     created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    teaching_class_id BIGINT NULL COMMENT '教学班快照（WP7/V16）：写入时按成员关系解析，转班不漂移',
     PRIMARY KEY (id),
     UNIQUE KEY uk_grade_item (policy_id, student_id, component_key) COMMENT '同一方案同一学生同一维度唯一',
     KEY idx_grade_items_student_id (student_id) COMMENT '学生ID索引',
@@ -1242,6 +1432,12 @@ INSERT INTO users (id, email, username, password, full_name, role, is_active, is
 (6, 'student3@aicourse.com', 'student3', '$2a$10$JiGc4/6C64A/jcAODg4JpOwB6z3KbNxAJnRsYLJAl/BHNBfsuU4tq', '刘同学', 'STUDENT', 1, 1, '13800000006', '2024003', '软件工程', '大一', NULL, NULL),
 (7, 'student4@aicourse.com', 'student4', '$2a$10$JiGc4/6C64A/jcAODg4JpOwB6z3KbNxAJnRsYLJAl/BHNBfsuU4tq', '陈同学', 'STUDENT', 1, 1, '13800000007', '2024004', '软件工程', '大一', NULL, NULL),
 (8, 'student5@aicourse.com', 'student5', '$2a$10$JiGc4/6C64A/jcAODg4JpOwB6z3KbNxAJnRsYLJAl/BHNBfsuU4tq', '杨同学', 'STUDENT', 1, 1, '13800000008', '2024005', '人工智能', '大一', NULL, NULL);
+
+-- 1.1 组织根（V12）：单校部署恰一行；仅作组织容器，不代表旧自由文本映射结果
+INSERT INTO schools (id, code, name, status) VALUES (1, 'DEFAULT', '默认学校', 'ACTIVE');
+
+-- 1.2 管理员作用域回填（V12）：存量 ADMIN 默认校级，行为与改造前一致
+UPDATE users SET admin_scope = 'SCHOOL', school_id = 1 WHERE role = 'ADMIN';
 
 -- 2. 班级数据
 INSERT INTO classrooms (id, name, code, grade_level, major, advisor_id, student_count) VALUES
@@ -1358,3 +1554,22 @@ ALTER TABLE submissions ADD INDEX idx_submissions_task_student (task_id, student
 
 -- questions表：course_id + type 复合索引（按课程和题型查询题目）
 ALTER TABLE questions ADD INDEX idx_questions_course_type (course_id, type);
+
+-- announcements（WP8/V16：公告表，扇出到 notifications）
+DROP TABLE IF EXISTS announcements;
+CREATE TABLE announcements (
+  id BIGINT NOT NULL AUTO_INCREMENT COMMENT '公告ID，主键自增',
+  course_id BIGINT NULL COMMENT '课程目标（与教学班/行政班目标互斥）',
+  teaching_class_id BIGINT NULL COMMENT '教学班目标（与课程/行政班目标互斥）',
+  admin_class_id BIGINT NULL COMMENT '行政班目标（与课程/教学班目标互斥，班主任发布）',
+  title VARCHAR(200) NOT NULL COMMENT '公告标题',
+  content TEXT NOT NULL COMMENT '公告正文',
+  publisher_id BIGINT NOT NULL COMMENT '发布人ID',
+  publisher_role VARCHAR(16) NOT NULL COMMENT '发布人角色：TEACHER/ADVISOR/ADMIN',
+  created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+  updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+  PRIMARY KEY (id),
+  KEY idx_ann_course (course_id) COMMENT '课程维度列表',
+  KEY idx_ann_tc (teaching_class_id) COMMENT '教学班维度列表',
+  KEY idx_ann_ac (admin_class_id) COMMENT '行政班维度列表'
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci COMMENT='公告表（WP8，扇出到 notifications）';

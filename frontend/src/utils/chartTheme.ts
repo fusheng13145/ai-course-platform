@@ -74,7 +74,7 @@ export function getMonoStatus() {
  * @param {*} v - 参数
  * @returns {*} - 返回值
  */
-export function monoScore(v) {
+export function monoScore(v: number) {
   const d = resolveTheme() === 'dark'
   if (v >= 90) return d ? '#4a9e6e' : '#2e7d4f'
   if (v >= 80) return d ? '#4d8ad6' : '#2563a8'
@@ -84,13 +84,13 @@ export function monoScore(v) {
 }
 
 export const THEME_CHANGE_EVENT = 'ac-theme-change'
-const listeners = []
+const listeners: Array<() => void> = []
 /**
  * 导出函数 onThemeChange：业务逻辑处理
  * @param {*} cb - 参数
  * @returns {*} - 返回值
  */
-export function onThemeChange(cb) {
+export function onThemeChange(cb: () => void) {
   if (!listeners.includes(cb)) listeners.push(cb)
 }
 /**

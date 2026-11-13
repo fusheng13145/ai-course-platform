@@ -142,4 +142,10 @@ public class LearningRecordServiceImpl extends ServiceImpl<LearningRecordMapper,
         
         return monthlyData;
     }
+
+    /** V7 批：单条 GROUP BY 的按日活跃聚合（取代 14 天 × 1 条串行 list 的驾驶舱趋势查询）。 */
+    @Override
+    public java.util.List<java.util.Map<String, Object>> dailyActiveByCourse(Long courseId, java.time.LocalDateTime since) {
+        return baseMapper.selectDailyActiveByCourse(courseId, since);
+    }
 }

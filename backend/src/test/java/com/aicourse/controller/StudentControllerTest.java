@@ -1,6 +1,9 @@
 package com.aicourse.controller;
 import com.aicourse.controller.StudentController;
+import com.aicourse.common.ApiCode;
 import com.aicourse.entity.*;
+import com.aicourse.exception.BusinessException;
+import com.aicourse.security.CourseAccessControl;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
 import com.aicourse.service.LearningRecordService;
@@ -42,6 +45,8 @@ class StudentControllerTest extends ControllerTestBase {
     private com.aicourse.service.WrongQuestionService wrongQuestionService;
     @MockitoBean
     private com.aicourse.service.LearningRecordService learningRecordService;
+    @MockitoBean
+    private CourseAccessControl courseAccessControl;
 
     // ==================== 学习中心 ====================
 
@@ -130,7 +135,7 @@ class StudentControllerTest extends ControllerTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200));
 
-        verify(enrollmentService).enrollStudent(eq(1L), eq(1L));
+        verify(enrollmentService).enrollStudent(eq(1L), eq(1L), isNull());
     }
 
 
@@ -259,7 +264,7 @@ class StudentControllerTest extends ControllerTestBase {
         Task task = new Task();
         task.setId(1L);
         when(taskService.getById(any())).thenReturn(task);
-        when(submissionService.getOne(any())).thenReturn(new Submission());
+        when(submissionService.getByTaskAndStudent(1L, 1L)).thenReturn(new Submission());
 
         mockMvc.perform(get("/student/assignments/1").with(withUser(1L, "STUDENT")))
                 .andExpect(status().isOk())
@@ -267,6 +272,31 @@ class StudentControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.data.assignment.id").value(1));
 
         verify(taskService).getById(eq(1L));
+        verify(submissionService).getByTaskAndStudent(1L, 1L);
+        verify(submissionService, never()).getOne(any());
+    }
+
+    @Test
+    @DisplayName("GET /student/assignments/1 - 同一学生多次尝试时取最新一条，不再走 getOne")
+    void getAssignmentDetail_multipleAttempts_usesLatest() throws Exception {
+        Task task = new Task();
+        task.setId(1L);
+        Submission latest = new Submission();
+        latest.setId(12L);
+        latest.setTaskId(1L);
+        latest.setStudentId(1L);
+        latest.setAttemptNumber(2);
+        latest.setStatus("GRADED");
+        when(taskService.getById(any())).thenReturn(task);
+        when(submissionService.getByTaskAndStudent(1L, 1L)).thenReturn(latest);
+
+        mockMvc.perform(get("/student/assignments/1").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.submission.id").value(12))
+                .andExpect(jsonPath("$.data.submission.attemptNumber").value(2));
+
+        verify(submissionService).getByTaskAndStudent(1L, 1L);
+        verify(submissionService, never()).getOne(any());
     }
 
 
@@ -277,6 +307,21 @@ class StudentControllerTest extends ControllerTestBase {
                 .andExpect(status().isUnauthorized());
     }
 
+
+    @Test
+    @DisplayName("GET /student/assignments/1 - 未选课学生读取返回403")
+    void getAssignmentDetail_unenrolledStudent_forbidden_403() throws Exception {
+        Task task = new Task();
+        task.setId(1L);
+        task.setCourseId(1L);
+        when(taskService.getById(any())).thenReturn(task);
+        doThrow(new BusinessException(ApiCode.FORBIDDEN, "尚未加入该课程，无权查看课程内容"))
+                .when(courseAccessControl).assertCanReadTask(any(Task.class), any());
+
+        mockMvc.perform(get("/student/assignments/1").with(withUser(9L, "STUDENT")))
+                .andExpect(status().isForbidden());
+        verify(submissionService, never()).getByTaskAndStudent(any(), any());
+    }
 
     @Test
     @DisplayName("GET /student/assignments/1 - TEACHER角色返回403")
@@ -325,14 +370,35 @@ class StudentControllerTest extends ControllerTestBase {
     void getAssignmentResult_authorized_passes_security() throws Exception {
         Submission submission = new Submission();
         submission.setId(4L);
-        when(submissionService.getOne(any())).thenReturn(submission);
+        when(submissionService.getByTaskAndStudent(1L, 1L)).thenReturn(submission);
 
         mockMvc.perform(get("/student/assignments/1/result").with(withUser(1L, "STUDENT")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(4));
 
-        verify(submissionService).getOne(any());
+        verify(submissionService).getByTaskAndStudent(1L, 1L);
+        verify(submissionService, never()).getOne(any());
+    }
+
+    @Test
+    @DisplayName("GET /student/assignments/1/result - 同一学生多次尝试时取最新一条，不再走 getOne")
+    void getAssignmentResult_multipleAttempts_usesLatest() throws Exception {
+        Submission latest = new Submission();
+        latest.setId(13L);
+        latest.setTaskId(1L);
+        latest.setStudentId(1L);
+        latest.setAttemptNumber(3);
+        latest.setStatus("GRADED");
+        when(submissionService.getByTaskAndStudent(1L, 1L)).thenReturn(latest);
+
+        mockMvc.perform(get("/student/assignments/1/result").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.id").value(13))
+                .andExpect(jsonPath("$.data.attemptNumber").value(3));
+
+        verify(submissionService).getByTaskAndStudent(1L, 1L);
+        verify(submissionService, never()).getOne(any());
     }
 
 

@@ -20,9 +20,9 @@ import com.aicourse.common.ApiCode;
 /**
  * 管理端 AI 供应商运行时热切换控制器
  * 基础路径：/api/admin/ai
- * 管理员可在此切换底层大模型（deepseek / openai / qwen）并即时生效，无需重启。
+ * 管理员可在此切换底层大模型（deepseek / openai / qwen / ollama）并即时生效，无需重启。
  */
-@Tag(name = "AI 供应商管理", description = "管理端大模型供应商热切换（deepseek/openai/qwen）")
+@Tag(name = "AI 供应商管理", description = "管理端大模型供应商热切换（deepseek/openai/qwen/ollama）")
 @RestController
 @RequestMapping("/admin/ai")
 @PreAuthorize("hasRole('ADMIN')")
@@ -48,7 +48,7 @@ public class AdminAiController {
 
     /**
      * 切换底层大模型（运行时热切换，持久化至 system_configs.ai.provider）
-     * POST /api/admin/ai/provider  body: { "provider": "deepseek" | "openai" | "qwen" }
+     * POST /api/admin/ai/provider  body: { "provider": "deepseek" | "openai" | "qwen" | "ollama" }
      */
     @PostMapping("/provider")
     public ApiResponse<ProviderSwitchVO> switchProvider(@Valid @RequestBody Map<String, String> body) {
@@ -70,7 +70,9 @@ public class AdminAiController {
     public ApiResponse<AdminAiTestVO> test() {
         boolean ok = routingLLMProvider.testConnection();
         String message = ok ? "连接正常"
-                : (routingLLMProvider.isConfigured() ? "调用失败，请检查 API Key / 网络" : "未配置 API Key");
+                : (routingLLMProvider.isConfigured()
+                        ? "调用失败，请检查供应商配置与服务可达性（Ollama 需先启动 `ollama serve`）"
+                        : "未配置 API Key 或服务端点");
         return ApiResponse.success(new AdminAiTestVO(
                 ok, currentKey(), routingLLMProvider.isConfigured(), message));
     }

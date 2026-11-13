@@ -299,7 +299,32 @@ public class AdminAnalyticsComponent {
                 .ge(LearningRecord::getCreatedAt, startTime);
 
         List<LearningRecord> records = learningRecordService.list(wrapper);
+        return buildHeatmapGrid(records);
+    }
 
+    /**
+     * 平台级热力图（院系口径）：仅统计本院用户的学习记录。
+     * @param days 统计天数
+     * @param collegeId 学院ID；null 表示校级
+     * @return 7x4 网格数据
+     */
+    public List<Map<String, Object>> getPlatformHeatmap(int days, Long collegeId) {
+        if (collegeId == null) {
+            return getPlatformHeatmap(days);
+        }
+        if (days <= 0) days = 30;
+        List<Long> userIds = scopedUserIds(collegeId);
+        if (userIds.isEmpty()) {
+            return buildHeatmapGrid(List.of());
+        }
+        LocalDateTime startTime = LocalDateTime.now().minusDays(days);
+        LambdaQueryWrapper<LearningRecord> wrapper = new LambdaQueryWrapper<LearningRecord>()
+                .ge(LearningRecord::getCreatedAt, startTime)
+                .in(LearningRecord::getUserId, userIds);
+        return buildHeatmapGrid(learningRecordService.list(wrapper));
+    }
+
+    private List<Map<String, Object>> buildHeatmapGrid(List<LearningRecord> records) {
         // 按 [星期几, 时段] 二维分组统计记录数
         Map<String, Long> heatmapGrid = records.stream()
                 .filter(r -> r != null && r.getCreatedAt() != null)
@@ -328,7 +353,6 @@ public class AdminAnalyticsComponent {
                 result.add(cell);
             }
         }
-
         return result;
     }
 
@@ -352,6 +376,37 @@ public class AdminAnalyticsComponent {
                         .le(User::getCreatedAt, endDate.atTime(java.time.LocalTime.MAX))
                         .orderByAsc(User::getCreatedAt)
         );
+        return buildUserGrowthTrend(users, days);
+    }
+
+    /**
+     * 用户增长趋势（院系口径）：仅统计本院用户。
+     * @param days 统计天数
+     * @param collegeId 学院ID；null 表示校级
+     * @return 增长趋势数据
+     */
+    public List<Map<String, Object>> getUserGrowthTrend(int days, Long collegeId) {
+        if (collegeId == null) {
+            return getUserGrowthTrend(days);
+        }
+        if (days <= 0) {
+            days = 30;
+        }
+        LocalDate endDate = LocalDate.now();
+        LocalDate startDate = endDate.minusDays(days - 1);
+        List<User> users = userService.list(
+                new LambdaQueryWrapper<User>()
+                        .eq(User::getCollegeId, collegeId)
+                        .ge(User::getCreatedAt, startDate.atStartOfDay())
+                        .le(User::getCreatedAt, endDate.atTime(java.time.LocalTime.MAX))
+                        .orderByAsc(User::getCreatedAt)
+        );
+        return buildUserGrowthTrend(users, days);
+    }
+
+    private List<Map<String, Object>> buildUserGrowthTrend(List<User> users, int days) {
+        LocalDate endDate = LocalDate.now();
+        LocalDate startDate = endDate.minusDays(days - 1);
 
         // 按日期分组统计（过滤createdAt为null的用户）
         Map<LocalDate, Long> userCountMap = users.stream()
@@ -383,5 +438,219 @@ public class AdminAnalyticsComponent {
         }
 
         return trend;
+    }
+
+    /**
+     * 平台仪表盘（院系口径）：所有统计仅覆盖本院用户与本院课程。
+     * @param collegeId 学院ID；null 表示校级（走缓存版本）
+     * @return 仪表盘数据
+     */
+    public Map<String, Object> getDashboard(Long collegeId) {
+        if (collegeId == null) {
+            return getDashboard();
+        }
+        Map<String, Object> dashboard = new HashMap<>(24);
+        List<Long> userIds = scopedUserIds(collegeId);
+        List<Long> courseIds = scopedCourseIds(collegeId);
+
+        long totalUsers = userIds.size();
+        long activeUsers = userService.count(new LambdaQueryWrapper<User>()
+                .eq(User::getCollegeId, collegeId)
+                .eq(User::getIsActive, Boolean.TRUE));
+        dashboard.put("totalUsers", totalUsers);
+        dashboard.put("activeUsers", activeUsers);
+        dashboard.put("userCount", totalUsers);
+
+        long totalCourses = courseIds.size();
+        long activeCourses = courseIds.isEmpty() ? 0L
+                : courseService.count(new LambdaQueryWrapper<Course>()
+                        .in(Course::getId, courseIds)
+                        .eq(Course::getIsActive, Boolean.TRUE));
+        dashboard.put("totalCourses", totalCourses);
+        dashboard.put("activeCourses", activeCourses);
+        dashboard.put("courseCount", totalCourses);
+
+        long totalExams = courseIds.isEmpty() ? 0L
+                : examPaperService.count(new LambdaQueryWrapper<ExamPaper>()
+                        .in(ExamPaper::getCourseId, courseIds));
+        dashboard.put("totalExams", totalExams);
+        dashboard.put("examCount", totalExams);
+
+        long totalSubmissions = userIds.isEmpty() ? 0L
+                : submissionService.count(new LambdaQueryWrapper<Submission>()
+                        .in(Submission::getStudentId, userIds));
+        dashboard.put("submissionCount", totalSubmissions);
+
+        long totalEnrollments = courseIds.isEmpty() ? 0L
+                : enrollmentService.count(new LambdaQueryWrapper<CourseEnrollment>()
+                        .in(CourseEnrollment::getCourseId, courseIds));
+        dashboard.put("totalEnrollments", totalEnrollments);
+
+        long totalTasks = courseIds.isEmpty() ? 0L
+                : taskService.count(new LambdaQueryWrapper<Task>()
+                        .in(Task::getCourseId, courseIds));
+        long publishedTasks = courseIds.isEmpty() ? 0L
+                : taskService.count(new LambdaQueryWrapper<Task>()
+                        .in(Task::getCourseId, courseIds)
+                        .eq(Task::getIsPublished, Boolean.TRUE));
+        dashboard.put("totalTasks", totalTasks);
+        dashboard.put("publishedTasks", publishedTasks);
+
+        Map<String, Long> categoryDist = new LinkedHashMap<>();
+        if (!courseIds.isEmpty()) {
+            courseService.list(new LambdaQueryWrapper<Course>().in(Course::getId, courseIds)).stream()
+                    .filter(c -> c.getCategory() != null && !c.getCategory().isEmpty())
+                    .forEach(c -> categoryDist.merge(c.getCategory(), 1L, Long::sum));
+        }
+        dashboard.put("categoryDistribution", categoryDist);
+
+        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
+        long dau = userIds.isEmpty() ? 0L
+                : learningRecordService.count(new LambdaQueryWrapper<LearningRecord>()
+                        .ge(LearningRecord::getCreatedAt, sevenDaysAgo)
+                        .in(LearningRecord::getUserId, userIds));
+        dashboard.put("dailyActiveUsers", dau);
+
+        long completedCount = 0;
+        long excellent = 0, good = 0, medium = 0, pass = 0, fail = 0;
+        if (!courseIds.isEmpty()) {
+            QueryWrapper<CourseEnrollment> enrollAgg = new QueryWrapper<>();
+            enrollAgg.select(
+                    "COUNT(*) AS total",
+                    "COALESCE(SUM(progress >= 100), 0) AS completed",
+                    "COALESCE(SUM(final_score >= 90), 0) AS excellent",
+                    "COALESCE(SUM(final_score >= 80 AND final_score < 90), 0) AS good",
+                    "COALESCE(SUM(final_score >= 70 AND final_score < 80), 0) AS medium",
+                    "COALESCE(SUM(final_score >= 60 AND final_score < 70), 0) AS pass",
+                    "COALESCE(SUM(final_score < 60), 0) AS fail"
+            ).in("course_id", courseIds);
+            List<Map<String, Object>> enrollAggRows = enrollmentService.listMaps(enrollAgg);
+            if (!enrollAggRows.isEmpty()) {
+                Map<String, Object> row = enrollAggRows.get(0);
+                if (row.get("completed") != null) completedCount = ((Number) row.get("completed")).longValue();
+                if (row.get("excellent") != null) excellent = ((Number) row.get("excellent")).longValue();
+                if (row.get("good") != null) good = ((Number) row.get("good")).longValue();
+                if (row.get("medium") != null) medium = ((Number) row.get("medium")).longValue();
+                if (row.get("pass") != null) pass = ((Number) row.get("pass")).longValue();
+                if (row.get("fail") != null) fail = ((Number) row.get("fail")).longValue();
+            }
+        }
+        double completionRate = totalEnrollments > 0 ?
+                Math.round(completedCount * 100.0 / totalEnrollments * 100.0) / 100.0 : 0;
+        dashboard.put("completionRate", completionRate);
+
+        LocalDateTime thirtyDaysAgo = LocalDateTime.now().minusDays(30);
+        long newUsers30d = userService.count(new LambdaQueryWrapper<User>()
+                .eq(User::getCollegeId, collegeId)
+                .ge(User::getCreatedAt, thirtyDaysAgo));
+        double growthRate = totalUsers > 0 ?
+                Math.round(newUsers30d * 100.0 / totalUsers * 100.0) / 100.0 : 0;
+        dashboard.put("growthRate", growthRate);
+        dashboard.put("userGrowth", growthRate);
+
+        dashboard.put("gradeDistribution", java.util.Arrays.asList(excellent, good, medium, pass, fail));
+
+        long studentCount = userService.count(new LambdaQueryWrapper<User>()
+                .eq(User::getCollegeId, collegeId).eq(User::getRole, RoleConstants.STUDENT));
+        long teacherCount = userService.count(new LambdaQueryWrapper<User>()
+                .eq(User::getCollegeId, collegeId).eq(User::getRole, RoleConstants.TEACHER));
+        long adminCount = userService.count(new LambdaQueryWrapper<User>()
+                .eq(User::getCollegeId, collegeId).eq(User::getRole, RoleConstants.ADMIN));
+        dashboard.put("roleActivity", java.util.Arrays.asList(
+                java.util.Map.of("loginCount", adminCount * 3L, "actionCount", adminCount * 5L),
+                java.util.Map.of("loginCount", teacherCount * 5L, "actionCount", teacherCount * 10L),
+                java.util.Map.of("loginCount", studentCount * 10L, "actionCount", studentCount * 20L)
+        ));
+        return dashboard;
+    }
+
+    /**
+     * 平台综合总览（院系口径）：所有统计仅覆盖本院用户与本院课程。
+     * @param collegeId 学院ID；null 表示校级（走缓存版本）
+     * @return 综合总览数据
+     */
+    public Map<String, Object> getPlatformOverview(Long collegeId) {
+        if (collegeId == null) {
+            return getPlatformOverview();
+        }
+        Map<String, Object> overview = new HashMap<>(12);
+        List<Long> userIds = scopedUserIds(collegeId);
+        List<Long> courseIds = scopedCourseIds(collegeId);
+
+        long totalUsers = userIds.size();
+        long activeUsers = userService.count(new LambdaQueryWrapper<User>()
+                .eq(User::getCollegeId, collegeId)
+                .eq(User::getIsActive, Boolean.TRUE));
+        overview.put("totalUsers", totalUsers);
+        overview.put("activeUsers", activeUsers);
+
+        long totalCourses = courseIds.size();
+        long activeCourses = courseIds.isEmpty() ? 0L
+                : courseService.count(new LambdaQueryWrapper<Course>()
+                        .in(Course::getId, courseIds)
+                        .eq(Course::getIsActive, Boolean.TRUE));
+        overview.put("totalCourses", totalCourses);
+        overview.put("activeCourses", activeCourses);
+
+        long totalEnrollments = courseIds.isEmpty() ? 0L
+                : enrollmentService.count(new LambdaQueryWrapper<CourseEnrollment>()
+                        .in(CourseEnrollment::getCourseId, courseIds));
+        overview.put("totalEnrollments", totalEnrollments);
+
+        LocalDateTime sevenDaysAgo = LocalDateTime.now().minusDays(7);
+        long activeLearningUsers = userIds.isEmpty() ? 0L
+                : learningRecordService.count(new LambdaQueryWrapper<LearningRecord>()
+                        .ge(LearningRecord::getCreatedAt, sevenDaysAgo)
+                        .in(LearningRecord::getUserId, userIds));
+        overview.put("activeLearningUsers", activeLearningUsers);
+        overview.put("activityRate", totalUsers > 0 ?
+                Math.round(activeLearningUsers * 100.0 / totalUsers * 100.0) / 100.0 : 0);
+
+        long completedCount = 0;
+        if (!courseIds.isEmpty()) {
+            completedCount = enrollmentService.count(new LambdaQueryWrapper<CourseEnrollment>()
+                    .in(CourseEnrollment::getCourseId, courseIds)
+                    .ge(CourseEnrollment::getProgress, BigDecimal.valueOf(100)));
+        }
+        overview.put("completedEnrollments", completedCount);
+        overview.put("completionRate", totalEnrollments > 0 ?
+                Math.round(completedCount * 100.0 / totalEnrollments * 100.0) / 100.0 : 0);
+
+        long totalTasks = courseIds.isEmpty() ? 0L
+                : taskService.count(new LambdaQueryWrapper<Task>()
+                        .in(Task::getCourseId, courseIds));
+        long publishedTasks = courseIds.isEmpty() ? 0L
+                : taskService.count(new LambdaQueryWrapper<Task>()
+                        .in(Task::getCourseId, courseIds)
+                        .eq(Task::getIsPublished, Boolean.TRUE));
+        overview.put("totalTasks", totalTasks);
+        overview.put("publishedTasks", publishedTasks);
+
+        overview.put("totalExams", courseIds.isEmpty() ? 0L
+                : examPaperService.count(new LambdaQueryWrapper<ExamPaper>()
+                        .in(ExamPaper::getCourseId, courseIds)));
+        return overview;
+    }
+
+    /**
+     * 本院全部用户ID（含学生、教师、管理员）。
+     */
+    private List<Long> scopedUserIds(Long collegeId) {
+        return userService.list(new LambdaQueryWrapper<User>()
+                        .eq(User::getCollegeId, collegeId))
+                .stream()
+                .map(User::getId)
+                .toList();
+    }
+
+    /**
+     * 本院课程ID：按课程所属学院（V13 起由负责人学院回填）。
+     */
+    private List<Long> scopedCourseIds(Long collegeId) {
+        return courseService.list(new LambdaQueryWrapper<Course>()
+                        .eq(Course::getCollegeId, collegeId))
+                .stream()
+                .map(Course::getId)
+                .toList();
     }
 }

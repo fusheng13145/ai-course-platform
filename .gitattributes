@@ -40,3 +40,6 @@
 # 刻意不写 `merge=binary`：merge 属性只在三方冲突时选合并驱动，管不到检出/入库的
 # 字节保真（本条要防的正是后者），且它会覆盖 binary 宏的 -merge，反而少一层保护。
 frontend/e2e/visual/__snapshots__/**/*.png binary
+
+# Sentinel 运行时回写为 CRLF（后端启动时文件数据源落盘），统一按 LF 入库
+sentinel-rules/*.json text eol=lf

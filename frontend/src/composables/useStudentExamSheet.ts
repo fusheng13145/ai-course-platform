@@ -1,5 +1,6 @@
 import { ref, computed } from 'vue'
 import logger from '@/utils/logger'
+import { type ApiData } from '@/utils/response'
 import examApi from '@/api/exam'
 
 /**
@@ -12,7 +13,8 @@ import examApi from '@/api/exam'
  * <p>仅由 useStudentExams 编排消费，不单独对外承诺导出面。</p>
  */
 export function useStudentExamSheet() {
-  const questions = ref([])
+  // 题目行尚未 per-endpoint 建模，沿用 ApiData 口径（题型/题目ID 访问点见 collectAnswers 等）
+  const questions = ref<ApiData[]>([])
   const questionsLoading = ref(false)
   const currentIndex = ref(0)
   const answers = ref({} as Record<number, string | number | boolean>) // 单选/判断答案（单选为选项字母）
@@ -22,7 +24,7 @@ export function useStudentExamSheet() {
   /** 当前题目 */
   const currentQuestion = computed(() => questions.value[currentIndex.value] || null)
 
-  async function loadQuestions(paperId) {
+  async function loadQuestions(paperId: string | number) {
     questionsLoading.value = true
     try {
       const res = await examApi.getExamQuestions(paperId)
@@ -45,7 +47,7 @@ export function useStudentExamSheet() {
 
   /* ---- 题目导航 ---- */
 
-  function goToQuestion(index) {
+  function goToQuestion(index: number) {
     saveCurrentAnswer()
     currentIndex.value = index
   }
@@ -62,7 +64,7 @@ export function useStudentExamSheet() {
     }
   }
 
-  function isQuestionAnswered(index) {
+  function isQuestionAnswered(index: number) {
     const q = questions.value[index]
     if (!q) return false
     if (q.type === 'MULTIPLE_CHOICE') {
@@ -80,8 +82,8 @@ export function useStudentExamSheet() {
 
   /* ---- 题目类型展示 ---- */
 
-  function getQuestionTypeName(type) {
-    const map = {
+  function getQuestionTypeName(type: string) {
+    const map: Record<string, string> = {
       SINGLE_CHOICE: '单选题',
       MULTIPLE_CHOICE: '多选题',
       TRUE_FALSE: '判断题',
@@ -90,8 +92,8 @@ export function useStudentExamSheet() {
     return map[type] || '未知题型'
   }
 
-  function getQuestionTypeTag(type) {
-    const map = {
+  function getQuestionTypeTag(type: string) {
+    const map: Record<string, string> = {
       SINGLE_CHOICE: '',
       MULTIPLE_CHOICE: 'warning',
       TRUE_FALSE: 'info',
@@ -100,7 +102,7 @@ export function useStudentExamSheet() {
     return map[type] || ''
   }
 
-  function parseOptions(options) {
+  function parseOptions(options: ApiData) {
     if (!options) return []
     if (typeof options === 'string') {
       try {
