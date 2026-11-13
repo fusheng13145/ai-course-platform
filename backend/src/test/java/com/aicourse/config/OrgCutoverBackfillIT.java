@@ -92,17 +92,17 @@ class OrgCutoverBackfillIT {
                 long spring = insertSemester(statement, "IT-SPRING-" + System.nanoTime(), "2025-09-01", "2026-01-31");
                 long autumn = insertSemester(statement, "IT-AUTUMN-" + System.nanoTime(), "2026-02-23", "2026-07-05");
                 statement.execute("INSERT INTO courses (name, code, semester_id, teacher_id, "
-                        + "max_students, current_students, status, is_active, created_at) VALUES "
-                        + "('计算机网络', 'CS101', " + spring + ", 1, 50, 0, 'ACTIVE', 1, '2025-09-10 00:00:00')");
+                        + "max_students, status, is_active, created_at) VALUES "
+                        + "('计算机网络', 'CS101', " + spring + ", 1, 50, 'ACTIVE', 1, '2025-09-10 00:00:00')");
                 // 跨学期同编号：放行
                 statement.execute("INSERT INTO courses (name, code, semester_id, teacher_id, "
-                        + "max_students, current_students, status, is_active, created_at) VALUES "
-                        + "('计算机网络（春）', 'CS101', " + autumn + ", 1, 50, 0, 'ACTIVE', 1, '2026-03-01 00:00:00')");
+                        + "max_students, status, is_active, created_at) VALUES "
+                        + "('计算机网络（春）', 'CS101', " + autumn + ", 1, 50, 'ACTIVE', 1, '2026-03-01 00:00:00')");
                 // 同学期同编号：唯一键拒绝
                 assertThrows(SQLException.class, () -> statement.execute(
                         "INSERT INTO courses (name, code, semester_id, teacher_id, "
-                                + "max_students, current_students, status, is_active, created_at) VALUES "
-                                + "('重复编号', 'CS101', " + spring + ", 1, 50, 0, 'ACTIVE', 1, '2025-10-01 00:00:00')"),
+                                + "max_students, status, is_active, created_at) VALUES "
+                                + "('重复编号', 'CS101', " + spring + ", 1, 50, 'ACTIVE', 1, '2025-10-01 00:00:00')"),
                         "同学期内重复编号必须被 uk_courses_semester_code 拒绝");
             }
 
