@@ -27,8 +27,10 @@
 # 状态：2026-11-05 本机无真实域名/证书，运行期分支未执行；静态分支以夹具自测。
 # =============================================================================
 import argparse
+import base64
 import http.client
 import json
+import os
 import pathlib
 import re
 import ssl
@@ -122,10 +124,15 @@ def ws_probe(base_url: str, path: str, origin: str, token: str | None) -> tuple:
     if parsed.scheme != "https":
         return False, "base-url 必须是 https"
     port = parsed.port or 443
+    # 握手 nonce 用运行时随机值：RFC 6455 规定服务端只要求它是 16 字节的 base64，
+    # 不校验内容。原先写死 RFC 示例串（base64 的 "the sample nonce"）被 gitleaks 的
+    # generic-api-key 规则按「键名含 Key + 值熵够」误报成密钥；改为运行时生成后
+    # 既消除误报，也更接近浏览器真实握手（每次 nonce 不同）。
+    ws_key = base64.b64encode(os.urandom(16)).decode("ascii")
     headers = {
         "Upgrade": "websocket",
         "Connection": "Upgrade",
-        "Sec-WebSocket-Key": "dGhlIHNhbXBsZSBub25jZQ==",
+        "Sec-WebSocket-Key": ws_key,
         "Sec-WebSocket-Version": "13",
         "Origin": origin,
     }
