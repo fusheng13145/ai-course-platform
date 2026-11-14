@@ -54,6 +54,7 @@ class AIControllerSessionOwnershipTest {
     @Mock private CourseService courseService;
     @Mock private AiChatSessionService aiChatSessionService;
     @Mock private LearningRecommendationService learningRecommendationService;
+    @Mock private com.aicourse.service.KnowledgePointService knowledgePointService;
     @Mock private Authentication auth;
 
     private AIController controller;
@@ -62,7 +63,7 @@ class AIControllerSessionOwnershipTest {
     void setUp() {
         controller = new AIController(aiService, analyticsService, learningPathService,
                 courseEnrollmentService, courseService, aiChatSessionService,
-                learningRecommendationService);
+                learningRecommendationService, knowledgePointService);
         when(auth.getPrincipal()).thenReturn(5001L);
     }
 

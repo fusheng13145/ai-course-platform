@@ -167,7 +167,11 @@ public class AiStructuredComponent {
      */
     public String analyzeWeakPointsJson(String statsJson) {
         String schema = "{\"weakPoints\": [{\"description\": \"薄弱项描述\", \"severity\": \"HIGH 或 MEDIUM 或 LOW\"}]}";
-        String prompt = "请根据以下学习统计数据，分析学习者的知识薄弱项：" + statsJson;
+        // 2026-11-14 P2-1（红线②）：stats 内含 knowledgeMastery（知识点级掌握度，来自课程
+        // 知识图谱）时显式点名，让薄弱项定位落在图谱知识点维度，而非只看聚合统计推断
+        String prompt = "请根据以下学习统计数据，分析学习者的知识薄弱项。"
+                + "若数据中含 knowledgeMastery（按课程知识图谱知识点给出的掌握度，升序排列），"
+                + "薄弱项必须对应到具体知识点名称并按掌握度定位：" + statsJson;
         return core.callLlm(core.buildMessages(prompt, null), 0.4, schema, "analyze");
     }
 

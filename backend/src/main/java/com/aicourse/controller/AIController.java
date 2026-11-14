@@ -4,6 +4,7 @@ import com.aicourse.common.ApiResponse;
 import com.aicourse.common.JsonUtils;
 import com.aicourse.entity.AiChatMessage;
 import com.aicourse.entity.AiChatSession;
+import com.aicourse.entity.CourseEnrollment;
 import com.aicourse.dto.EssayDTO;
 import com.aicourse.dto.LearningPathDTO;
 import com.aicourse.dto.QaAskDTO;
@@ -15,6 +16,7 @@ import com.aicourse.service.AiChatSessionService;
 import com.aicourse.service.AnalyticsService;
 import com.aicourse.service.CourseEnrollmentService;
 import com.aicourse.service.CourseService;
+import com.aicourse.service.KnowledgePointService;
 import com.aicourse.service.LearningPathService;
 import com.aicourse.service.LearningRecommendationService;
 import com.aicourse.service.component.ai.AiCallContext;
@@ -67,6 +69,7 @@ public class AIController {
     private final CourseService courseService;
     private final AiChatSessionService aiChatSessionService;
     private final LearningRecommendationService learningRecommendationService;
+    private final KnowledgePointService knowledgePointService;
 
     public AIController(AIService aiService,
                         AnalyticsService analyticsService,
@@ -74,7 +77,8 @@ public class AIController {
                         CourseEnrollmentService courseEnrollmentService,
                         CourseService courseService,
                         AiChatSessionService aiChatSessionService,
-                        LearningRecommendationService learningRecommendationService) {
+                        LearningRecommendationService learningRecommendationService,
+                        KnowledgePointService knowledgePointService) {
         this.aiService = aiService;
         this.analyticsService = analyticsService;
         this.learningPathService = learningPathService;
@@ -82,6 +86,7 @@ public class AIController {
         this.courseService = courseService;
         this.aiChatSessionService = aiChatSessionService;
         this.learningRecommendationService = learningRecommendationService;
+        this.knowledgePointService = knowledgePointService;
     }
 
     // ==================== 智能问答（3个接口） ====================
@@ -364,6 +369,20 @@ public class AIController {
             List<Map<String, String>> weakPoints = new ArrayList<>();
             if (userId != null) {
                 Map<String, Object> userStats = analyticsService.getUserDashboard(userId);
+                // 红线②收口（2026-11-14 P2-1）：薄弱点诊断必须基于图谱——注入知识点级掌握度
+                // 快照（按本人有效选课课程聚合，掌握度升序），LLM 据此定位薄弱知识点，
+                // 不再只看聚合统计推断。查询失败降级为无快照（与既有降级纪律一致）。
+                try {
+                    List<Long> courseIds = courseEnrollmentService.list(
+                                    new com.baomidou.mybatisplus.core.conditions.query.LambdaQueryWrapper<CourseEnrollment>()
+                                            .eq(CourseEnrollment::getStudentId, userId)
+                                            .eq(CourseEnrollment::getIsActive, true)
+                                            .eq(CourseEnrollment::getApprovalStatus, "APPROVED"))
+                            .stream().map(CourseEnrollment::getCourseId).distinct().toList();
+                    userStats.put("knowledgeMastery", knowledgePointService.masterySnapshot(userId, courseIds, 10));
+                } catch (Exception e) {
+                    log.warn("知识点掌握度快照获取失败，降级为纯统计口径: userId={}, err={}", userId, e.getMessage());
+                }
                 result.put("userStats", userStats);
                 weakPoints = aiService.analyzeWeakPoints(userStats);
             }

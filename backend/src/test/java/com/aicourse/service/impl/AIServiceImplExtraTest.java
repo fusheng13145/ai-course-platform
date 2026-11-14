@@ -514,9 +514,10 @@ class AIServiceImplExtraTest {
         assertEquals(0.3, calls.get(1).temperature());
         assertTrue(calls.get(1).prompt().contains("登录与操作日志：\n[]"), "应拼入日志原文，实际=" + calls.get(1).prompt());
         assertTrue(calls.get(1).schema().contains("alerts"), "监控 schema 应约束 alerts");
-        // 3) 薄弱项分析：统计拼入，schema 约束 weakPoints
+        // 3) 薄弱项分析：统计拼入，schema 约束 weakPoints（P2-1 起提示词点名 knowledgeMastery）
         assertEquals(0.4, calls.get(2).temperature());
-        assertTrue(calls.get(2).prompt().contains("学习统计数据，分析学习者的知识薄弱项：{}"), "应拼入统计数据，实际=" + calls.get(2).prompt());
+        assertTrue(calls.get(2).prompt().contains("学习统计数据，分析学习者的知识薄弱项"), "应拼入统计数据，实际=" + calls.get(2).prompt());
+        assertTrue(calls.get(2).prompt().contains("knowledgeMastery"), "薄弱项提示词应点名知识点掌握度维度（红线②），实际=" + calls.get(2).prompt());
         assertTrue(calls.get(2).schema().contains("weakPoints"), "薄弱项 schema 不完整");
         // 4) 推荐题目：courseId 必须拼入（该路径与 generateQuestion 不同，课程归属保留）
         assertEquals(0.8, calls.get(3).temperature());
