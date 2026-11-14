@@ -2,7 +2,6 @@
   <section class="analytics">
     <div class="course-tab-bar">
       <div>
-        <p class="card-kicker">COURSE / ANALYTICS</p>
         <h2>成绩与学情</h2>
       </div>
       <div class="course-tab-actions">
@@ -22,7 +21,7 @@
     </div>
 
     <div v-if="loadError" class="callout">
-      <span>NOTICE / 数据可用性</span>
+      <span>数据可用性</span>
       <p>{{ loadError }}</p>
     </div>
 
@@ -37,7 +36,6 @@
       <section class="card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">DISTRIBUTION / GRADES</p>
             <h2>
               分数段分布 <span class="chip chip-mute">{{ extra.count ?? 0 }} 人</span>
             </h2>
@@ -68,7 +66,6 @@
       <section class="card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">RATES / QUALITY</p>
             <h2>及格与优秀</h2>
           </div>
         </header>

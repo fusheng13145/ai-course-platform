@@ -1,16 +1,13 @@
 <template>
   <div class="lc-panel">
     <div class="lc-toolbar">
-      <p class="academic-note">
-        学习记录来自你在课程内的章节完成与阅读行为（<code>/learning-records</code>），仅本人可见。
-      </p>
       <button class="btn btn-ghost btn-sm" :disabled="loading" @click="loadAll">
         {{ loading ? '刷新中…' : '刷新' }}
       </button>
     </div>
 
     <div v-if="statsError" class="callout danger" role="alert">
-      <span>ERROR / 学习统计</span>
+      <span>学习统计</span>
       <p>{{ statsError }}</p>
       <button class="btn btn-sm" :disabled="loading" @click="loadStats">重试</button>
     </div>
@@ -28,7 +25,6 @@
     <section class="card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">CALENDAR / 学习日历</p>
           <h2>
             {{ monthLabel }} <span class="chip chip-mute">{{ monthDays.length }} 天</span>
           </h2>
@@ -67,7 +63,6 @@
     <section class="card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">RECENT / 最近记录</p>
           <h2>最近学习记录</h2>
         </div>
       </header>

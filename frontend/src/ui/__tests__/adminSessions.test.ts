@@ -169,7 +169,7 @@ describe('管理端 · 会话管理', () => {
     wrapper.unmount()
   })
 
-  it('is_current 在多条会话上为 true 时视为字段不可用：不标「当前会话」、也不禁用下线', async () => {
+  it('「当前会话」标记不可靠时：不标当前会话、也不禁用下线，且不向用户暴露内部字段名', async () => {
     // 真栈实测：536 条会话里 450 条 is_current=true（与 is_active 同值）。
     // 若照单采信，整页都会标「当前会话」，下线按钮也会被全量禁用。
     const flagged = SESSIONS.map((row) => ({ ...row, isCurrent: true }))
@@ -179,8 +179,8 @@ describe('管理端 · 会话管理', () => {
 
     const chips = wrapper.findAll('tbody .chip').map((node) => node.text())
     expect(chips).not.toContain('当前会话')
-    expect(wrapper.text()).toContain('is_current')
-    expect(wrapper.text()).toContain('不据此判定')
+    expect(wrapper.text()).not.toContain('is_current')
+    expect(wrapper.text()).toContain('请核对账号与设备')
     const firstRow = wrapper.findAll('tbody tr')[0]
     expect(firstRow.find('.text-btn').attributes('disabled')).toBeUndefined()
     wrapper.unmount()

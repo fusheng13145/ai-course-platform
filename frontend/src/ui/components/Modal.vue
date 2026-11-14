@@ -12,7 +12,6 @@
       >
         <header class="modal-head">
           <div>
-            <p class="card-kicker">{{ kicker }}</p>
             <h2>{{ title }}</h2>
           </div>
           <button class="icon-btn" aria-label="关闭" @click="close">
@@ -31,7 +30,7 @@
 </template>
 
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Icon from './Icon.vue'
 import {
   announce,
@@ -44,11 +43,10 @@ const props = withDefaults(
   defineProps<{
     open: boolean
     title: string
-    kicker?: string
     width?: string
     closeOnBackdrop?: boolean
   }>(),
-  { kicker: 'RECORD / DIALOG', width: '720px', closeOnBackdrop: true },
+  { width: '720px', closeOnBackdrop: true },
 )
 
 const emit = defineEmits<{ (event: 'update:open', value: boolean): void; (event: 'close'): void }>()
@@ -64,20 +62,51 @@ function onKey(event: KeyboardEvent) {
 
 const panel = ref<HTMLElement | null>(null)
 let releaseFocusTrap: (() => void) | null = null
+// 滚动锁必须与 open 绑定，而不是与组件挂载绑定：
+// 之前的实现是 onMounted 里无条件 lock、onBeforeUnmount 才 unlock，
+// 于是「挂载了但从未打开」的 Modal（页面上很常见）会把 body 的 overflow 永久钉成 hidden，
+// 整页再也滚不动——而且因为引用计数一直 ≥1，任何后开的弹层关掉都解不开。
+let scrollLocked = false
+
+function syncOverlay(open: boolean) {
+  if (open === scrollLocked) return
+  scrollLocked = open
+  if (open) {
+    releaseFocusTrap = trapFocus(panel.value)
+    lockViewportScroll()
+    announce(`对话框已打开：${props.title}`)
+  } else {
+    releaseFocusTrap?.()
+    releaseFocusTrap = null
+    unlockViewportScroll()
+    announce('对话框已关闭')
+  }
+}
 
 onMounted(() => {
   window.addEventListener('keydown', onKey)
-  releaseFocusTrap = trapFocus(panel.value)
-  lockViewportScroll()
-  announce(`对话框已打开：${props.title}`)
+  // 首屏即 open 时（少数场景）也要正确加锁
+  syncOverlay(props.open)
 })
+
+watch(
+  () => props.open,
+  (value) => syncOverlay(value),
+  // post：等面板真正挂进 DOM 再抓焦点，pre 阶段 panel 还是 null，焦点陷阱会落空
+  { flush: 'post' },
+)
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', onKey)
   releaseFocusTrap?.()
   releaseFocusTrap = null
-  unlockViewportScroll()
-  announce('对话框已关闭')
+  if (scrollLocked) {
+    unlockViewportScroll()
+    scrollLocked = false
+    // 调用方常用 v-if 直接卸载弹层（父组件把 open 置 false 的同时就不渲染了），
+    // 这条路走不到 watch，关闭播报与解锁都得在这里补
+    announce('对话框已关闭')
+  }
 })
 </script>
 

@@ -1,7 +1,7 @@
 <template>
   <section class="proctor">
     <div v-if="loadError" class="callout">
-      <span>ERROR / 加载失败</span>
+      <span>加载失败</span>
       <p>{{ loadError }}</p>
     </div>
 
@@ -12,7 +12,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">PROCTOR / SESSIONS</p>
           <h2>
             进行中考试会话 <span class="chip chip-mute">{{ filteredSessions.length }}</span>
           </h2>
@@ -81,7 +80,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">PROCTOR / RISK</p>
           <h2>
             风险汇总 <span class="chip chip-warn">{{ risk.list.length }}</span>
           </h2>
@@ -143,7 +141,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">PROCTOR / EVENTS</p>
           <h2>
             监考事件 <span class="chip chip-mute">{{ events.list.length }}</span>
           </h2>

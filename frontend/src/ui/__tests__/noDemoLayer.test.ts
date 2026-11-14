@@ -84,11 +84,17 @@ describe('示例层不得复活', () => {
     }
   })
 
-  it('来源章只剩「接口数据」一档，不再有「示例数据／接口 + 示例」', () => {
+  it('页头不再有英文 kicker 与「接口数据」来源章（展示层清理批 A）', () => {
     const pageHead = readFileSync(join(UI_DIR, 'components', 'PageHead.vue'), 'utf8')
+    // 只看模板段：注释里提到这些名字是允许的，渲染出来才算违规
+    const template = pageHead.slice(0, pageHead.indexOf('<script'))
     expect(pageHead, 'PageHead 仍带「示例数据」来源章').not.toContain('示例数据')
     expect(pageHead, 'PageHead 仍带「接口 + 示例」来源章').not.toContain('接口 + 示例')
-    expect(pageHead, 'PageHead 应保留「接口数据」来源章').toContain('接口数据')
+    expect(template, '页头仍在渲染来源章').not.toContain('接口数据')
+    expect(template, '页头仍在渲染 kicker').not.toContain('page-kicker')
+    expect(pageHead, 'PageHead 仍声明 kicker/source prop').not.toMatch(
+      /kicker\s*[?:]|source\s*[?:]/,
+    )
   })
 
   it('每个「已提供」的全局页都有正文组件，不靠兜底分支撑住', () => {

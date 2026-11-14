@@ -1,6 +1,6 @@
 <template>
   <section class="module">
-    <PageHead :kicker="def.kicker" :title="def.title" :sub="def.desc" source="api" />
+    <PageHead :title="def.title" :sub="def.desc" />
     <StudentExamPanel />
   </section>
 </template>

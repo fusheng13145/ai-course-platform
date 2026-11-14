@@ -35,8 +35,8 @@ const COPY: Record<string, { head: string; detail: string }> = {
     detail: '课程内图谱页签不返回节点与关系读数；图谱治理请在教师端课程空间查看。',
   },
   aiUsage: {
-    head: '管理员只读，无数据面：跨课程 AI 用量聚合端点尚未提供。',
-    detail: '本页签不展示调用量、配额与限制读数字段；相关统计属后端待接入项。',
+    head: '管理员只读，无数据面：跨课程 AI 用量不在本页聚合。',
+    detail: '本页不展示调用量、配额与限制读数。',
   },
 }
 
@@ -44,7 +44,7 @@ const copy = computed(
   () =>
     COPY[props.tab] || {
       head: '管理员只读，无数据面：该页签没有管理员可用的接口读数。',
-      detail: '不展示示例数据，也不提供管理员写操作入口。',
+      detail: '不提供管理员写操作入口。',
     },
 )
 </script>

@@ -3,7 +3,6 @@
   <section v-if="isStudent" class="tasks">
     <div class="course-tab-bar">
       <div>
-        <p class="card-kicker">COURSE / TASKS</p>
         <h2>
           课程作业 <span class="chip chip-mute">{{ studentRows.length }} 项</span>
         </h2>
@@ -14,7 +13,7 @@
     </div>
 
     <div v-if="studentError" class="callout danger">
-      <span>ERROR / 加载失败</span>
+      <span>加载失败</span>
       <p>{{ studentError }}</p>
       <button class="btn btn-sm" @click="loadStudent">重试</button>
     </div>
@@ -61,7 +60,6 @@
     <Modal
       v-model:open="studentDetailOpen"
       :title="studentDetail?.title || '作业详情'"
-      kicker="TASK / DETAIL"
       width="680px"
     >
       <div v-if="studentDetailLoading" class="empty-state compact"><b>正在加载作业详情…</b></div>
@@ -170,7 +168,6 @@
   <section v-else class="tasks">
     <div class="course-tab-bar">
       <div>
-        <p class="card-kicker">COURSE / TASKS</p>
         <h2>
           课程任务 <span class="chip chip-mute">{{ total }} 项</span>
         </h2>
@@ -182,7 +179,7 @@
     </div>
 
     <div v-if="loadError" class="callout">
-      <span>ERROR / 加载失败</span>
+      <span>加载失败</span>
       <p>{{ loadError }}</p>
     </div>
 
@@ -250,12 +247,7 @@
     </section>
 
     <!-- 新建 / 编辑 -->
-    <Modal
-      v-model:open="dialogOpen"
-      :title="editingId ? '编辑任务' : '新建任务'"
-      kicker="TASK / FORM"
-      width="600px"
-    >
+    <Modal v-model:open="dialogOpen" :title="editingId ? '编辑任务' : '新建任务'" width="600px">
       <div class="form-grid">
         <label class="field span-2">
           <span>标题 *</span>
@@ -300,7 +292,7 @@
     </Modal>
 
     <!-- 延长截止 -->
-    <Modal v-model:open="extendOpen" title="延长截止日期" kicker="TASK / EXTEND" width="460px">
+    <Modal v-model:open="extendOpen" title="延长截止日期" width="460px">
       <div class="form-grid">
         <label class="field span-2">
           <span>新截止时间 *</span>
@@ -324,7 +316,7 @@
     </Modal>
 
     <!-- 删除确认 -->
-    <Modal v-model:open="confirm.open" title="删除任务" kicker="CONFIRM / DELETE" width="460px">
+    <Modal v-model:open="confirm.open" title="删除任务" width="460px">
       <p class="modal-text">{{ confirmText }}</p>
       <p class="modal-hint">将一并移除该任务的附件、提交记录与学生成绩，且无法恢复。</p>
       <template #footer>

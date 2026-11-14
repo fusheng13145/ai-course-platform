@@ -20,9 +20,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">
-            ADMIN MODERATION / {{ queue === 'posts' ? 'DISCUSSION' : 'RESOURCES' }}
-          </p>
           <h2>
             {{ queue === 'posts' ? '讨论回复' : '教学资源' }}
             <span class="chip chip-mute">{{ total }} 条</span>
@@ -127,7 +124,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">ADMIN MODERATION / BANNED</p>
           <h2>
             经审核封禁的作者 <span class="chip chip-mute">{{ banned.length }} 人</span>
           </h2>

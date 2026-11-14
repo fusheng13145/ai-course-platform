@@ -5,11 +5,12 @@
         <span class="brand-mark">枢</span>
         <span class="brand-text">
           <b>云枢 AI 助教</b>
-          <small>YUNSHU / AI TUTOR</small>
         </span>
       </button>
     </div>
-    <button class="workspace" @click="onWorkspace">
+    <!-- 课程空间里这块与下方 .course-nav-card 完全重复（课程名/代码/状态都在那儿，还多了切换课程），
+         且点击只是弹一句「请用下方下拉框」，没有实际作用，故在课程模式下不再渲染。 -->
+    <button v-if="!isCourse" class="workspace" @click="onWorkspace">
       <span class="ws-mark">{{ workspace.mark }}</span>
       <span class="ws-text">
         <b>{{ workspace.title }}</b>
@@ -19,7 +20,7 @@
     </button>
 
     <div class="nav-head">
-      <span class="nav-eyebrow">{{ isCourse ? 'COURSE / 课程空间' : 'WORKSPACE / 页面' }}</span>
+      <span class="nav-eyebrow">{{ isCourse ? '课程空间' : '页面' }}</span>
       <span class="nav-count">{{ String(navCount).padStart(2, '0') }}</span>
     </div>
 
@@ -37,31 +38,35 @@
         >
           {{ courseMark }}
         </button>
-        <div class="course-nav-card">
-          <p class="course-nav-kicker">COURSE SPACE / {{ courseSemester || '课程空间' }}</p>
-          <div class="course-nav-title">
-            {{ courseLabel }}
-            <span v-if="courseContext.status" class="chip chip-ok">{{ courseContext.status }}</span>
+        <div class="course-nav-pin">
+          <div class="course-nav-card">
+            <p v-if="courseSemester" class="course-nav-kicker">{{ courseSemester }}</p>
+            <div class="course-nav-title">
+              {{ courseLabel }}
+              <span v-if="courseContext.status" class="chip chip-ok">{{
+                courseContext.status
+              }}</span>
+            </div>
+            <p class="course-nav-meta">
+              {{
+                [courseContext.code, courseContext.teacher].filter(Boolean).join(' · ') ||
+                '课程信息加载中'
+              }}
+            </p>
+            <label v-if="courses.length" class="course-switcher-wrap">
+              <span>切换课程</span>
+              <select
+                class="course-switcher"
+                :value="courseId"
+                aria-label="切换课程"
+                @change="switchCourse(($event.target as HTMLSelectElement).value)"
+              >
+                <option v-for="course in courses" :key="course.id" :value="course.id">
+                  {{ course.name }}{{ course.code ? ` · ${course.code}` : '' }}
+                </option>
+              </select>
+            </label>
           </div>
-          <p class="course-nav-meta">
-            {{
-              [courseContext.code, courseContext.teacher].filter(Boolean).join(' · ') ||
-              '课程信息加载中'
-            }}
-          </p>
-          <label v-if="courses.length" class="course-switcher-wrap">
-            <span>切换课程</span>
-            <select
-              class="course-switcher"
-              :value="courseId"
-              aria-label="切换课程"
-              @change="switchCourse(($event.target as HTMLSelectElement).value)"
-            >
-              <option v-for="course in courses" :key="course.id" :value="course.id">
-                {{ course.name }}{{ course.code ? ` · ${course.code}` : '' }}
-              </option>
-            </select>
-          </label>
         </div>
         <div class="nav-group-label nav-group-label--course">
           <span>课程页签</span>
@@ -224,7 +229,10 @@ function onWorkspace() {
     toast('课程信息：切换课程请使用下方下拉框', 'info')
     return
   }
-  toast(role.value === 'admin' ? '演示数据：院系作用域需后端支持' : '演示数据：工作区切换', 'info')
+  toast(
+    role.value === 'admin' ? '院系切换暂不开放，当前按校级展示' : '请在左侧导航切换页面',
+    'info',
+  )
 }
 
 async function logout() {

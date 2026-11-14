@@ -3,7 +3,6 @@
     <aside class="card chapter-rail">
       <header class="card-head">
         <div>
-          <p class="card-kicker">COURSE {{ courseId }}</p>
           <h2>章节</h2>
         </div>
         <span class="chip chip-info">{{ chapters.length }} 节</span>
@@ -26,7 +25,7 @@
         </button>
         <p v-if="!chapters.length" class="empty-note">该课程还没有章节。</p>
       </div>
-      <p class="hint">{{ sourceNote }}</p>
+      <p v-if="sourceNote" class="hint">{{ sourceNote }}</p>
     </aside>
 
     <article class="card reader-panel">
@@ -77,7 +76,7 @@
         </header>
 
         <div v-if="resourceError" class="callout danger" role="alert">
-          <span>ERROR / 课程资源</span>
+          <span>课程资源</span>
           <p>{{ resourceError }}</p>
           <button class="btn btn-sm" :disabled="resourceLoading" @click="loadResources">
             重试
@@ -105,7 +104,6 @@
     </article>
 
     <aside class="card toc-panel">
-      <p class="card-kicker">ON THIS PAGE</p>
       <h2>本节目录</h2>
       <!-- F-4：目录项原本是无 href 语义的 javascript:void(0) 链接——键盘可达性与
            CSP 收紧两头都不成立，改为真 <button>（外观由本组件 scoped 样式承接，
@@ -148,7 +146,7 @@ const props = defineProps<{ courseId: number }>()
 const ui = useUi()
 const chapters = ref<ChapterRow[]>([])
 const activeId = ref<number | null>(null)
-const sourceNote = ref('接口数据：章节来自 /chapters/course/{id}，正文按需读取 /chapters/{id}。')
+const sourceNote = ref('')
 
 interface ResourceRow {
   id: number | string

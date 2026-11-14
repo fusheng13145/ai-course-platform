@@ -8,7 +8,6 @@
       <section class="card queue-panel">
         <header class="card-head">
           <div>
-            <p class="card-kicker">TO REVIEW / {{ pendingCount }}</p>
             <h2>待批阅队列</h2>
           </div>
           <select

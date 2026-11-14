@@ -3,20 +3,19 @@
     <!-- 口径先摆在前头：数据源 ai_call_logs（2026-10-13 起埋点）。
          2026-11-07 P2 批次起提供按课程 / 按日 / 按能力三个维度；出题治理＝总闸 + 逐人名单。 -->
     <div class="card caveat-card">
-      <p class="card-kicker">SCOPE / 口径边界</p>
+      <p class="card-kicker">口径边界</p>
       <p class="scope-line">
-        数据源 <code>ai_call_logs</code>（2026-10-13 起埋点），当前统计窗
-        <b>近 {{ rangeDays }} 天</b>{{ rangeText }}。
+        当前统计窗 <b>近 {{ rangeDays }} 天</b>{{ rangeText }}。
       </p>
       <p v-if="collectionNote" class="scope-note">{{ collectionNote }}</p>
       <p class="scope-note">
-        按日/按能力无调用的分组<b>不出行</b>（只存事实行，不补示例读数）；人均 token 配额为平台级
-        100 次/日、200k tokens/日（环境变量配置），逐人出题限制见下方「出题治理」。
+        按日、按能力分组时，无调用的分组<b>不展示</b>；平台级配额为 100 次/日、200k
+        tokens/日，逐人出题限制见下方「出题治理」。
       </p>
     </div>
 
     <div v-if="listError" class="callout" role="alert">
-      <span>ERROR / AI 用量</span>
+      <span>AI 用量加载失败</span>
       <p>{{ listError }}</p>
       <button class="btn btn-sm" :disabled="loading" @click="load()">
         {{ loading ? '重试中…' : '重试' }}
@@ -30,7 +29,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">AI USAGE / BY COURSE</p>
           <h2>
             按课程聚合 <span class="chip chip-mute">{{ rows.length }} 行</span>
           </h2>
@@ -108,7 +106,6 @@
     <section class="card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">AI USAGE / BY DAY</p>
           <h2>按日趋势</h2>
         </div>
       </header>
@@ -140,7 +137,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">AI USAGE / BY SCENE</p>
           <h2>
             按能力聚合 <span class="chip chip-mute">{{ sceneRows.length }} 类</span>
           </h2>
@@ -179,14 +175,13 @@
         <b>{{ sceneError ? '按能力聚合加载失败' : `近 ${rangeDays} 天没有调用记录` }}</b>
       </div>
       <p class="hint">
-        「能力」即调用场景（ai_call_logs.scene）：问答/追问/作文批改润色/学习建议/出题/知识点抽取等；未登记的新场景以原始代码展示，不猜测语义。
+        「能力」即调用场景：问答/追问/作文批改润色/学习建议/出题/知识点抽取等；未登记的新场景以原始代码展示，不猜测语义。
       </p>
     </section>
 
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">AI GOVERNANCE / QUESTION GENERATION</p>
           <h2>
             出题治理
             <span class="chip" :class="masterEnabled === false ? 'chip-warn' : 'chip-ok'">
@@ -207,7 +202,7 @@
       </header>
 
       <div v-if="govError" class="callout" role="alert">
-        <span>ERROR / 出题治理</span>
+        <span>出题治理</span>
         <p>{{ govError }}</p>
         <button class="btn btn-sm" :disabled="govBusy" @click="loadGovernance()">重试</button>
       </div>
@@ -268,9 +263,8 @@
         <p>总闸允许出题且名单为空＝全体教师可正常使用 AI 出题。</p>
       </div>
       <p class="hint">
-        两层判定：总闸（system_configs 的 ai.question-generation.teacher-enabled）与逐人名单
-        （ai_generation_restrictions）；生效点在教师出题入口，管理员不受限。仅校级管理员可改（院系管理员写入会被后端
-        403）。
+        两层判定：总闸（是否允许教师使用 AI 出题）与逐人名单；生效点在教师出题入口，
+        管理员不受限。仅校级管理员可修改。
       </p>
     </section>
   </section>

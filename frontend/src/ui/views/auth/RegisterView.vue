@@ -2,7 +2,6 @@
   <AuthShell>
     <template #form>
       <header class="av-form-head">
-        <p class="page-kicker">NEW ACCOUNT / 2026 秋</p>
         <h2>创建账号</h2>
         <p>学生账号可自助注册；教师与管理员账号由学校统一分配。</p>
       </header>

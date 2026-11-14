@@ -6,12 +6,6 @@ export const ROLE_LABEL: Record<Role, string> = {
   admin: '管理员',
 }
 
-export const ROLE_KICKER: Record<Role, string> = {
-  student: 'STUDENT SPACE',
-  teacher: 'TEACHER SPACE',
-  admin: 'ADMIN SPACE',
-}
-
 export const ROLE_HOME: Record<Role, string> = {
   student: '/student/home',
   teacher: '/teacher/home',

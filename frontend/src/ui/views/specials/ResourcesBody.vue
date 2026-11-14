@@ -3,7 +3,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">TEACHER RESOURCES / LIBRARY</p>
           <h2>我的资源库</h2>
         </div>
         <div class="filter-row class-tools">
@@ -82,13 +81,7 @@
       </p>
     </section>
 
-    <Modal
-      v-model:open="deleteOpen"
-      title="删除资源"
-      kicker="CONFIRM / DELETE"
-      width="460px"
-      :close-on-backdrop="false"
-    >
+    <Modal v-model:open="deleteOpen" title="删除资源" width="460px" :close-on-backdrop="false">
       <p class="modal-text">
         确定删除资源 <b>{{ deleteTarget?.name || '该资源' }}</b> 吗？
       </p>

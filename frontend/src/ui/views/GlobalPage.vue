@@ -1,6 +1,6 @@
 <template>
   <section class="module">
-    <PageHead :kicker="def.kicker" :title="def.title" :sub="def.desc" :source="source" />
+    <PageHead :title="def.title" :sub="def.desc" />
 
     <div v-if="tabs.length" class="tabs page-tabs" role="tablist" :aria-label="def.title">
       <button
@@ -33,8 +33,8 @@
          保留它只是防止将来漏配时白屏；文案不指向已下线的旧前端。 -->
     <div v-else class="card empty-state">
       <span class="e-ico"><Icon name="layers" /></span>
-      <b>该页暂未接入</b>
-      <p>本页暂无正文组件，也没有待扩展说明；请检查导航与页签配置是否对齐。</p>
+      <b>该页暂不提供数据</b>
+      <p>本页暂无可展示内容。</p>
     </div>
   </section>
 </template>
@@ -104,20 +104,6 @@ const sub = computed(() => {
     return map[page.value] || 'overview'
   }
   return String(route.query.tab || tabs.value[0]?.id || '')
-})
-
-/**
- * 来源章只有「接口数据」一档：示例层已整体删除（batch 24），
- * 页面上不再存在样例读数来源章，也不再有「接口与样例混排」那一档。
- */
-const source = computed<'api' | undefined>(() => {
-  // 「待扩展」与「待扩展（后端未落地）」既不是接口读数也不是示例读数，不挂来源章。
-  if (notProvidedCopy.value) return undefined
-  // 显式分支中的考试治理与消息已接真实接口。
-  if (page.value === 'messages' || page.value === 'examGovernance') return 'api'
-  // 约定 Body 真实存在时模板渲染的是接口正文。
-  if (specialBodyComponent.value) return 'api'
-  return undefined
 })
 
 // 页头动作区已整体移除：唯一还挂过按钮的两页（advising／resources）现在都是

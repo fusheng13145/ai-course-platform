@@ -2,7 +2,6 @@
   <Modal
     :open="open"
     title="上传课程资源"
-    kicker="RESOURCE / UPLOAD"
     width="560px"
     :close-on-backdrop="!submitting"
     @update:open="onRequestOpen"

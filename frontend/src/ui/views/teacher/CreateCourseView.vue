@@ -1,7 +1,6 @@
 <template>
   <section class="module">
     <PageHead
-      kicker="TEACHER / NEW COURSE · 2026 秋"
       title="创建课程"
       sub="填写课程基本信息，提交后进入审核流程；审核通过后才对学生开放报名。"
     />

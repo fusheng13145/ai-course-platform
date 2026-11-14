@@ -1,7 +1,7 @@
 <template>
   <section class="messages-body">
     <div v-if="error" class="callout danger" role="alert">
-      <span>ERROR / 通知</span>
+      <span>通知</span>
       <p>{{ error }}</p>
       <button class="btn btn-sm" :disabled="loading" @click="load">
         {{ loading ? '重试中…' : '重试' }}
@@ -11,7 +11,6 @@
     <section v-else class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">NOTIFICATIONS / INBOX</p>
           <h2>
             通知列表 <span class="chip chip-mute">{{ rows.length }} 条</span>
           </h2>

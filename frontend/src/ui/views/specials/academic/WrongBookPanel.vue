@@ -1,9 +1,6 @@
 <template>
   <div class="wb-panel">
     <div class="wb-toolbar">
-      <p class="academic-note">
-        错题来自你在作业与考试中的错误作答（<code>/student/wrong-questions</code>），仅本人可见。
-      </p>
       <div class="course-tab-actions">
         <div class="tabs" role="tablist" aria-label="错题视图">
           <button
@@ -64,7 +61,7 @@
     </div>
 
     <div v-if="error" class="callout danger" role="alert">
-      <span>ERROR / 错题本</span>
+      <span>错题本</span>
       <p>{{ error }}</p>
       <button class="btn btn-sm" :disabled="loading" @click="load">重试</button>
     </div>
@@ -180,7 +177,6 @@
           <section v-for="group in groups" :key="group.key" class="card wb-group">
             <header class="card-head">
               <div>
-                <p class="card-kicker">KNOWLEDGE POINT</p>
                 <h3>{{ group.name }}</h3>
               </div>
               <span class="chip chip-warn">{{ group.count }} 道</span>
@@ -216,7 +212,7 @@
       </template>
     </template>
 
-    <Modal v-model:open="practiceOpen" title="错题练习" kicker="WRONG / PRACTICE" width="720px">
+    <Modal v-model:open="practiceOpen" title="错题练习" width="720px">
       <div class="wb-practice-bar">
         <label class="field">
           <span>题量</span>
@@ -229,9 +225,7 @@
         <button class="btn btn-primary btn-sm" :disabled="practiceBusy" @click="generatePractice">
           {{ practiceBusy ? '生成中…' : '开始生成' }}
         </button>
-        <p class="academic-note">
-          从「待掌握」错题里随机抽题；本轮不做判分，作答与评分端点待扩展。
-        </p>
+        <p class="academic-note">从「待掌握」错题里随机抽题；当前只出题，不判分。</p>
       </div>
       <p v-if="practiceError" class="form-error">{{ practiceError }}</p>
       <div v-if="!practiceQuestions.length && !practiceError" class="empty-state compact">

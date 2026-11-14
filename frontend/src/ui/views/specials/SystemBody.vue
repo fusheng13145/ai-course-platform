@@ -3,19 +3,18 @@
     <!-- 口径先摆在前头：本页是「读配置 + 改配置值」的运维面，
          不含备份、恢复、日志文件下载等高风险动作（那些端点存在但本页不提供入口）。 -->
     <div class="card caveat-card">
-      <p class="card-kicker">SCOPE / 运维面</p>
+      <p class="card-kicker">运维面</p>
       <p class="scope-line">
-        数据源 <code>system_config</code>：当前库内 <b>{{ configs.length }}</b> 条配置，分
-        <b>{{ groupCount }}</b> 组。改值走 <code>PUT /admin/configs/{key}</code>，只影响该键。
+        当前共 <b>{{ configs.length }}</b> 条配置，分
+        <b>{{ groupCount }}</b> 组；修改某一条只影响该条配置。
       </p>
       <p class="scope-note">
-        密钥类配置（key／secret／password／token）在列表里以掩码显示，且编辑时必须输入新值才会提交；
-        本页<b>不提供</b>备份／恢复／日志下载入口。
+        密钥类配置以掩码显示，编辑时必须输入新值才会提交；本页<b>不提供</b>备份、恢复与日志下载入口。
       </p>
     </div>
 
     <div v-if="listError" class="callout" role="alert">
-      <span>ERROR / 系统配置</span>
+      <span>系统配置</span>
       <p>{{ listError }}</p>
       <button class="btn btn-sm" :disabled="loading" @click="loadConfigs()">
         {{ loading ? '重试中…' : '重试' }}
@@ -26,7 +25,6 @@
     <section class="card health-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">HEALTH / 依赖</p>
           <h2>
             服务状态
             <span class="chip" :class="healthChip">{{ healthText }}</span>
@@ -38,7 +36,7 @@
       </header>
 
       <div v-if="healthError" class="callout" role="alert">
-        <span>ERROR / 服务状态</span>
+        <span>服务状态</span>
         <p>{{ healthError }}</p>
       </div>
       <div v-else-if="!health" class="empty-state compact">
@@ -68,7 +66,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">CONFIG / SYSTEM</p>
           <h2>
             配置项 <span class="chip chip-mute">{{ filtered.length }} 条</span>
           </h2>
@@ -147,7 +144,7 @@
       </footer>
     </section>
 
-    <Modal v-model:open="editOpen" title="修改配置" kicker="CONFIG / EDIT" width="520px">
+    <Modal v-model:open="editOpen" title="修改配置" width="520px">
       <p class="modal-text">
         配置键 <b>{{ editing?.key }}</b
         >：{{ editing?.description || '（无说明）' }}

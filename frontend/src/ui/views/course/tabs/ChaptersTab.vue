@@ -2,7 +2,6 @@
   <section class="chapters">
     <div class="course-tab-bar">
       <div>
-        <p class="card-kicker">COURSE / CHAPTERS</p>
         <h2>
           章节结构 <span class="chip chip-mute">{{ flatCount }} 节</span>
         </h2>
@@ -14,7 +13,7 @@
     </div>
 
     <div v-if="loadError" class="callout">
-      <span>ERROR / 加载失败</span>
+      <span>加载失败</span>
       <p>{{ loadError }}</p>
     </div>
 
@@ -83,7 +82,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">COURSE / RESOURCES</p>
           <h2>
             课程资源 <span class="chip chip-mute">{{ resources.length }} 个</span>
           </h2>
@@ -92,7 +90,7 @@
       </header>
 
       <div v-if="resourceError" class="callout">
-        <span>ERROR / 资源加载失败</span>
+        <span>资源加载失败</span>
         <p>{{ resourceError }}</p>
       </div>
 
@@ -102,7 +100,7 @@
             <tr>
               <th>文件名称</th>
               <th class="w-96">类型</th>
-              <th class="w-96" title="后端资源实体未保存文件大小，缺失时以 — 展示">大小</th>
+              <th class="w-96" title="未记录文件大小时以 — 展示">大小</th>
               <th class="w-140">上传时间</th>
               <th class="w-96 th-actions">操作</th>
             </tr>
@@ -155,12 +153,7 @@
     />
 
     <!-- 新增 / 编辑章节 -->
-    <Modal
-      v-model:open="dialogOpen"
-      :title="editingId ? '编辑章节' : '新增章节'"
-      kicker="CHAPTER / FORM"
-      width="600px"
-    >
+    <Modal v-model:open="dialogOpen" :title="editingId ? '编辑章节' : '新增章节'" width="600px">
       <div class="form-grid">
         <label class="field span-2">
           <span>标题 *</span>
@@ -194,7 +187,7 @@
     </Modal>
 
     <!-- 批量导入 -->
-    <Modal v-model:open="importOpen" title="批量导入章节" kicker="CHAPTER / IMPORT" width="560px">
+    <Modal v-model:open="importOpen" title="批量导入章节" width="560px">
       <p class="modal-text">上传 .xlsx 一次性建立课程大纲；父章节填标题即可形成二级章节。</p>
       <ul class="import-notes">
         <li v-for="note in IMPORT_NOTES" :key="note">{{ note }}</li>
@@ -220,7 +213,7 @@
     </Modal>
 
     <!-- 删除确认 -->
-    <Modal v-model:open="confirm.open" title="删除章节" kicker="CONFIRM / DELETE" width="460px">
+    <Modal v-model:open="confirm.open" title="删除章节" width="460px">
       <p class="modal-text">{{ confirmText }}</p>
       <p class="modal-hint">其子章节与任务点将一并移除，删除后不可恢复。</p>
       <template #footer>

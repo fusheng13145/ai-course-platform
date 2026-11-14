@@ -3,7 +3,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">ADMIN NOTICES / PUBLISH</p>
           <h2>发布公告</h2>
         </div>
       </header>
@@ -93,7 +92,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">ADMIN NOTICES / HISTORY</p>
           <h2>
             公告记录 <span class="chip chip-mute">{{ total }} 条</span>
           </h2>

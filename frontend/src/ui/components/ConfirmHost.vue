@@ -2,7 +2,6 @@
   <Modal
     :open="state.open"
     :title="state.title"
-    kicker="CONFIRM / ACTION"
     width="480px"
     :close-on-backdrop="false"
     @update:open="onToggle"

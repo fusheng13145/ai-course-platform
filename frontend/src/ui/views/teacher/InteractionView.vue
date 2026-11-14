@@ -1,10 +1,8 @@
 <template>
   <section class="module">
     <PageHead
-      kicker="TEACHER / INTERACTION · 2026 秋"
       title="课堂互动"
       sub="发起签到与投票，实时掌握课堂参与情况；签到支持发布、结束与手动补签。"
-      source="api"
     >
       <template #actions>
         <select v-model="courseId" class="input course-pick" aria-label="选择课程">
@@ -23,7 +21,7 @@
 
     <template v-else>
       <div v-if="loadError" class="callout">
-        <span>ERROR / 加载失败</span>
+        <span>加载失败</span>
         <p>{{ loadError }}</p>
       </div>
 
@@ -39,7 +37,6 @@
       <section v-show="tab === 'sign'" class="card table-card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">INTERACTION / SIGN-IN</p>
             <h2>签到列表</h2>
           </div>
           <div class="course-tab-actions">
@@ -99,7 +96,6 @@
       <section v-show="tab === 'vote'" class="card table-card">
         <header class="card-head">
           <div>
-            <p class="card-kicker">INTERACTION / VOTE</p>
             <h2>投票列表</h2>
           </div>
           <div class="course-tab-actions">
@@ -151,7 +147,7 @@
     </template>
 
     <!-- 发起签到 -->
-    <Modal v-model:open="signDialog" title="发起签到" kicker="SIGN-IN / CREATE" width="520px">
+    <Modal v-model:open="signDialog" title="发起签到" width="520px">
       <div class="form-grid">
         <label class="field span-2">
           <span>签到标题</span>
@@ -180,7 +176,7 @@
     </Modal>
 
     <!-- 发起投票 -->
-    <Modal v-model:open="voteDialog" title="发起投票" kicker="VOTE / CREATE" width="560px">
+    <Modal v-model:open="voteDialog" title="发起投票" width="560px">
       <div class="form-grid">
         <label class="field span-2">
           <span>投票标题</span>
@@ -224,7 +220,6 @@
     <Modal
       v-model:open="recordsDialog"
       :title="currentSign ? `签到记录 · ${currentSign.title || ''}` : '签到记录'"
-      kicker="SIGN-IN / RECORDS"
       width="620px"
     >
       <div class="course-tab-actions record-actions">
@@ -294,7 +289,6 @@
     <Modal
       v-model:open="resultDialog"
       :title="voteRow ? `投票结果 · ${voteRow.title || ''}` : '投票结果'"
-      kicker="VOTE / RESULT"
       width="560px"
     >
       <div v-if="!resultRows.length" class="empty-state compact"><b>暂无结果数据</b></div>
@@ -314,12 +308,7 @@
     </Modal>
 
     <!-- 结束确认 -->
-    <Modal
-      v-model:open="confirm.open"
-      :title="confirm.title"
-      kicker="CONFIRM / ACTION"
-      width="460px"
-    >
+    <Modal v-model:open="confirm.open" :title="confirm.title" width="460px">
       <p class="modal-text">{{ confirm.text }}</p>
       <p v-if="confirm.note" class="modal-hint">{{ confirm.note }}</p>
       <template #footer>

@@ -2,7 +2,6 @@
   <section class="ai-center">
     <div class="course-tab-bar">
       <div>
-        <p class="card-kicker">COURSE / AI</p>
         <h2>{{ isStudent ? 'AI 学习助手' : 'AI 教学助手' }}</h2>
       </div>
       <div class="course-tab-actions">
@@ -29,7 +28,6 @@
     <section v-show="active === 'qa'" class="card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">AI / QA</p>
           <h2>
             智能答疑 <span class="chip chip-mute">{{ messages.length }} 条</span>
           </h2>
@@ -71,7 +69,6 @@
     <section v-show="active === 'weak'" class="card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">AI / WEAK POINTS</p>
           <h2>
             薄弱点分析 <span class="chip chip-mute">{{ weakPoints.length }} 项</span>
           </h2>
@@ -101,7 +98,6 @@
     <section v-show="active === 'advice'" class="card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">AI / ADVICE</p>
           <h2>
             学习建议 <span class="chip chip-mute">{{ adviceItems.length }} 条</span>
           </h2>
@@ -131,7 +127,6 @@
     <section v-show="active === 'essay'" class="card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">AI / ESSAY</p>
           <h2>作文批改</h2>
         </div>
       </header>
@@ -168,7 +163,6 @@
     <section v-show="active === 'path'" class="card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">AI / PATH</p>
           <h2>学习路径生成</h2>
         </div>
       </header>

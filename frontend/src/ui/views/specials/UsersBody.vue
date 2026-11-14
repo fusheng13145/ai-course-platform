@@ -1,7 +1,7 @@
 <template>
   <section class="users-body">
     <div v-if="listError" class="callout" role="alert">
-      <span>ERROR / 用户列表</span>
+      <span>用户列表</span>
       <p>{{ listError }}</p>
       <button class="btn btn-sm" :disabled="loading" @click="loadUsers()">
         {{ loading ? '重试中…' : '重试' }}
@@ -11,7 +11,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">ACCOUNTS / SCHOOL-WIDE</p>
           <h2>
             用户与账号 <span class="chip chip-mute">共 {{ total }} 人</span>
           </h2>
@@ -115,19 +114,10 @@
         </div>
       </footer>
 
-      <p class="hint">
-        列表与筛选走 GET /admin/users（角色、关键词由服务端过滤）；启用 / 停用走 PATCH
-        /users/{id}/status，停用前二次确认。
-      </p>
+      <p class="hint">角色与关键词筛选在服务端完成；停用前需二次确认。</p>
     </section>
 
-    <Modal
-      v-model:open="confirmOpen"
-      title="停用账号"
-      kicker="CONFIRM / ACCOUNT"
-      width="460px"
-      :close-on-backdrop="false"
-    >
+    <Modal v-model:open="confirmOpen" title="停用账号" width="460px" :close-on-backdrop="false">
       <p class="modal-text">
         停用后 <b>{{ confirmUser?.fullName || confirmUser?.username || '该账号' }}</b>
         将无法登录，历史学习与教学数据保留。

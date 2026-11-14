@@ -6,23 +6,10 @@
   <template v-else>
     <header class="course-head">
       <div class="course-head-main">
-        <button class="course-back" @click="backToCourses">
-          <Icon name="arrow" />
-          {{ role === 'admin' ? '课程目录' : '我的课程' }}
-        </button>
         <div class="course-title-line">
-          <span class="course-code">{{ detail?.code || '—' }}</span>
           <h1>{{ detail?.name || courseLabel }}</h1>
           <span class="chip" :class="statusChip.cls">{{ statusChip.text }}</span>
         </div>
-        <p class="course-meta">{{ metaLine }}</p>
-      </div>
-      <div class="course-head-side">
-        <span class="class-badge" title="后端尚未实现教学班模型">
-          {{
-            role === 'teacher' ? '教学班：待接入' : role === 'student' ? '课程级内容' : '管理员只读'
-          }}
-        </span>
       </div>
       <div class="course-mobile-tabs">
         <button
@@ -35,12 +22,6 @@
         </button>
       </div>
     </header>
-
-    <div class="course-scope">
-      <span class="scope-label">{{ scope.label }}</span>
-      <b>{{ scope.title }}</b>
-      <span>{{ scope.detail }}</span>
-    </div>
 
     <div class="course-body">
       <CourseOverviewTab
@@ -110,7 +91,7 @@
         v-else-if="currentTab === 'corpus' && role === 'teacher'"
         :course-id="courseId"
       />
-      <TabUnavailable v-else :note="tabUnavailableNote" />
+      <TabUnavailable v-else />
     </div>
   </template>
 </template>
@@ -119,7 +100,6 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { track } from '@/utils/track'
-import Icon from '../../components/Icon.vue'
 import CourseOverviewTab from './tabs/CourseOverviewTab.vue'
 import GradingTab from './tabs/GradingTab.vue'
 import ReaderTab from './tabs/ReaderTab.vue'
@@ -188,17 +168,6 @@ const courseForSettings = computed<CourseLike | null>(() => {
     approvalStatus: String(detail.value.approvalStatus ?? ''),
   }
 })
-const metaLine = computed(
-  () =>
-    [
-      detail.value?.semester,
-      detail.value?.category,
-      detail.value?.credits != null ? `${detail.value.credits} 学分` : '',
-    ]
-      .filter(Boolean)
-      .join(' · ') || '课程信息加载中',
-)
-
 const statusChip = computed(() => {
   const status = String(detail.value?.approvalStatus || detail.value?.status || '')
   if (status === 'APPROVED' || status === '已通过') return { text: '已通过', cls: 'chip-ok' }
@@ -207,48 +176,8 @@ const statusChip = computed(() => {
   return { text: status || '课程', cls: 'chip-info' }
 })
 
-const isCourseLevel = computed(() =>
-  ['overview', 'chapters', 'graph', 'settings'].includes(currentTab.value),
-)
-const scope = computed(() => {
-  if (role.value === 'student') {
-    return {
-      label: '课程级内容',
-      title: '所有教学班共享',
-      detail: '你的教学班信息待后端接入；章节、作业与考试按课程展示。',
-    }
-  }
-  if (role.value === 'admin') {
-    return { label: '管理员只读', title: '治理查看', detail: '不代教师批阅、不改成绩。' }
-  }
-  if (isCourseLevel.value) {
-    return {
-      label: '课程级内容',
-      title: '所有教学班共享',
-      detail: '章节、资源、题库、知识图谱与课程设置',
-    }
-  }
-  return { label: '当前范围', title: '全部学生', detail: '教学班模型待接入；当前按课程聚合' }
-})
-
-/**
- * 「该页签尚未接入」时的说明。示例层删除后，这里只剩真实待扩展页签的说明；
- * 教学班（classes）是当前唯一会落到该分支的页签（教师与管理员）。
- */
-const TAB_UNAVAILABLE_NOTES: Record<string, string> = {
-  classes: '教学班与组织接口尚未落地；本页签待扩展，暂不提供班级读数。',
-}
-
-const tabUnavailableNote = computed(
-  () => TAB_UNAVAILABLE_NOTES[currentTab.value] || '后端聚合端点尚未实现；本页签暂不提供读数。',
-)
-
 function goTab(tab: string) {
   router.push(`/${role.value}/courses/${courseId.value}/${tab}`)
-}
-
-function backToCourses() {
-  router.push(`/${role.value}/courses`)
 }
 
 async function load() {

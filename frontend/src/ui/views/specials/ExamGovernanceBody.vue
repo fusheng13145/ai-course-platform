@@ -1,7 +1,7 @@
 <template>
   <div>
     <div v-if="paperError || sessionsError" class="callout">
-      <span>ERROR / 加载失败</span>
+      <span>加载失败</span>
       <p>{{ paperError || sessionsError }}</p>
     </div>
 
@@ -12,7 +12,6 @@
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">SESSIONS / LIVE</p>
           <h2>
             进行中考试 <span class="chip chip-mute">{{ sessions.length }} 场</span>
           </h2>
@@ -59,17 +58,14 @@
       <div v-else class="empty-state compact">
         <span class="e-ico"><Icon name="play" /></span>
         <b>当前没有进行中的考试</b>
-        <p>会话进入 STARTED 状态后出现在这里，可强制交卷或做作弊检测。</p>
+        <p>考试开考后会话出现在这里，可强制交卷或做作弊检测。</p>
       </div>
-      <p class="hint">
-        数据源 GET /exam-sessions/active，一行一名学生的考试会话；强制交卷不可撤回。
-      </p>
+      <p class="hint">一行一名学生的考试会话；强制交卷不可撤回。</p>
     </section>
 
     <section class="card table-card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">PAPERS / SCHOOL-WIDE</p>
           <h2>
             试卷列表 <span class="chip chip-mute">{{ filteredPapers.length }} 份</span>
           </h2>
@@ -173,7 +169,7 @@
     </section>
 
     <!-- 题目明细 -->
-    <Modal v-model:open="questions.open" title="试卷题目" kicker="PAPER / QUESTIONS" width="760px">
+    <Modal v-model:open="questions.open" title="试卷题目" width="760px">
       <p class="modal-text">
         {{ questions.title }} · {{ questions.rows.length }} 道题（管理员视图含参考答案）
       </p>
@@ -205,7 +201,7 @@
     </Modal>
 
     <!-- 试卷统计 -->
-    <Modal v-model:open="stats.open" title="试卷统计" kicker="PAPER / STATISTICS" width="620px">
+    <Modal v-model:open="stats.open" title="试卷统计" width="620px">
       <p class="modal-text">{{ stats.title }}</p>
       <div v-if="stats.loading" class="modal-hint">正在加载统计…</div>
       <PaperStats v-else-if="stats.body" :stats="stats.body" />
@@ -219,7 +215,6 @@
     <Modal
       v-model:open="review.open"
       :title="review.action === 'approve' ? '审核通过' : '审核驳回'"
-      kicker="PAPER / REVIEW"
       width="480px"
       :close-on-backdrop="false"
     >
@@ -249,7 +244,7 @@
     </Modal>
 
     <!-- 作弊检测 -->
-    <Modal v-model:open="cheating.open" title="作弊检测" kicker="SESSION / CHEATING" width="620px">
+    <Modal v-model:open="cheating.open" title="作弊检测" width="620px">
       <p class="modal-text">{{ cheating.label }}</p>
       <div v-if="cheating.loading" class="modal-hint">正在检测…</div>
       <ul v-else-if="cheating.rows.length" class="flag-list">
@@ -263,13 +258,7 @@
     </Modal>
 
     <!-- 强制交卷确认 -->
-    <Modal
-      v-model:open="confirm.open"
-      title="强制交卷"
-      kicker="CONFIRM / FORCE SUBMIT"
-      width="460px"
-      :close-on-backdrop="false"
-    >
+    <Modal v-model:open="confirm.open" title="强制交卷" width="460px" :close-on-backdrop="false">
       <p class="modal-text">{{ confirm.message }}</p>
       <p class="modal-hint">交卷结果无法撤回，学生不能再修改作答。</p>
       <template #footer>
@@ -471,7 +460,7 @@ const metrics = computed<Metric[]>(() => [
     label: '进行中会话',
     value: sessionsLoading.value ? '…' : sessionsError.value ? '—' : sessions.value.length,
     unit: '场',
-    note: 'status=STARTED',
+    note: '已开考未结束',
     icon: 'play',
     tone: 'info',
   },

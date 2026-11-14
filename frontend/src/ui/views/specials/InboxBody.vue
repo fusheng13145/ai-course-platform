@@ -3,7 +3,6 @@
     <section class="card table-card" data-block="grading">
       <header class="card-head">
         <div>
-          <p class="card-kicker">GRADING / PENDING</p>
           <h2>
             待批阅
             <span class="chip" :class="gradingError ? 'chip-danger' : 'chip-mute'">{{
@@ -22,7 +21,7 @@
         <b>正在加载待批阅…</b>
       </div>
       <div v-else-if="grading.error" class="callout danger" role="alert" data-state="error">
-        <span>ERROR / 待批阅</span>
+        <span>待批阅</span>
         <p>{{ grading.error }}</p>
         <button class="btn btn-sm" :disabled="busy" @click="loadAll">重试</button>
       </div>
@@ -68,15 +67,13 @@
       </div>
 
       <div class="card-foot">
-        <span>数据源 GET /tasks/pending-grading</span>
-        <span class="mono">{{ grading.rows.length }} TASKS</span>
+        <span class="mono">{{ grading.rows.length }} 项待批阅</span>
       </div>
     </section>
 
     <section class="card table-card" data-block="publish">
       <header class="card-head">
         <div>
-          <p class="card-kicker">PUBLISH / DRAFTS</p>
           <h2>
             待发布
             <span class="chip" :class="publishError ? 'chip-danger' : 'chip-mute'">{{
@@ -95,7 +92,7 @@
         <b>正在加载待发布内容…</b>
       </div>
       <div v-else-if="publish.error" class="callout danger" role="alert" data-state="error">
-        <span>ERROR / 待发布</span>
+        <span>待发布</span>
         <p>{{ publish.error }}</p>
         <button class="btn btn-sm" :disabled="busy" @click="loadAll">重试</button>
       </div>
@@ -142,15 +139,13 @@
       </template>
 
       <div class="card-foot">
-        <span>数据源 GET /teacher/assignments + /exam-papers/course/{id}</span>
-        <span class="mono">{{ publish.rows.length }} DRAFTS</span>
+        <span class="mono">{{ publish.rows.length }} 份草稿</span>
       </div>
     </section>
 
     <section class="card table-card" data-block="proctor">
       <header class="card-head">
         <div>
-          <p class="card-kicker">PROCTOR / LIVE</p>
           <h2>
             监考
             <span class="chip" :class="proctorError ? 'chip-danger' : 'chip-mute'">{{
@@ -169,7 +164,7 @@
         <b>正在加载进行中考试…</b>
       </div>
       <div v-else-if="proctor.error" class="callout danger" role="alert" data-state="error">
-        <span>ERROR / 监考</span>
+        <span>监考</span>
         <p>{{ proctor.error }}</p>
         <button class="btn btn-sm" :disabled="busy" @click="loadAll">重试</button>
       </div>
@@ -218,8 +213,7 @@
       </template>
 
       <div class="card-foot">
-        <span>数据源 GET /exam-sessions/active（仅本人课程会话）</span>
-        <span class="mono">{{ proctor.rows.length }} LIVE</span>
+        <span class="mono">{{ proctor.rows.length }} 场进行中</span>
       </div>
     </section>
   </section>

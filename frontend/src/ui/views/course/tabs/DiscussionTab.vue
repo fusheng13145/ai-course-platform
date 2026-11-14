@@ -2,7 +2,6 @@
   <section class="discussion">
     <div class="course-tab-bar">
       <div>
-        <p class="card-kicker">COURSE / DISCUSSION</p>
         <h2>
           课程讨论 <span class="chip chip-mute">{{ topics.length }} 个话题</span>
         </h2>
@@ -14,14 +13,13 @@
     </div>
 
     <div v-if="loadError" class="callout">
-      <span>ERROR / 加载失败</span>
+      <span>加载失败</span>
       <p>{{ loadError }}</p>
     </div>
 
     <section class="card">
       <header class="card-head">
         <div>
-          <p class="card-kicker">TOPICS</p>
           <h2>话题列表</h2>
         </div>
         <div class="filter-row">
@@ -64,7 +62,7 @@
     </section>
 
     <!-- 发起话题 -->
-    <Modal v-model:open="createOpen" title="发起话题" kicker="DISCUSSION / TOPIC" width="600px">
+    <Modal v-model:open="createOpen" title="发起话题" width="600px">
       <div class="form-grid">
         <label class="field span-2">
           <span>标题 *</span>
@@ -95,12 +93,7 @@
     </Modal>
 
     <!-- 话题详情 -->
-    <Modal
-      v-model:open="detailOpen"
-      :title="detail.title || '话题详情'"
-      kicker="DISCUSSION / THREAD"
-      width="760px"
-    >
+    <Modal v-model:open="detailOpen" :title="detail.title || '话题详情'" width="760px">
       <div v-if="isTeacher" class="thread-actions">
         <span class="chip" :class="detail.pinned ? 'chip-accent' : 'chip-mute'">
           {{ detail.pinned ? '已置顶' : '未置顶' }}
@@ -161,12 +154,7 @@
     </Modal>
 
     <!-- 确认（关闭话题 / 删除回复） -->
-    <Modal
-      v-model:open="confirm.open"
-      :title="confirm.title"
-      kicker="CONFIRM / ACTION"
-      width="460px"
-    >
+    <Modal v-model:open="confirm.open" :title="confirm.title" width="460px">
       <p class="modal-text">{{ confirm.text }}</p>
       <p v-if="confirm.note" class="modal-hint">{{ confirm.note }}</p>
       <template #footer>
