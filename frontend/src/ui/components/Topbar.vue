@@ -1,22 +1,11 @@
 <template>
   <header class="topbar">
-    <button
-      class="icon-btn sidebar-toggle"
-      :aria-label="sidebarCollapsed ? '展开导航' : '收起导航'"
-      :aria-expanded="sidebarCollapsed ? 'false' : 'true'"
-      @click="sidebarCollapsed = !sidebarCollapsed"
-    >
-      <Icon name="chevron" />
+    <button class="topbar-brand brand" aria-label="云枢 AI 助教：返回首页" @click="go(ROLE_HOME[roleValue])">
+      <span class="brand-mark">枢</span>
+      <span class="brand-text">
+        <b>云枢 AI 助教</b>
+      </span>
     </button>
-    <div class="topbar-context">
-      <nav class="breadcrumbs" aria-label="面包屑">
-        <template v-for="(crumb, index) in crumbs" :key="index">
-          <button v-if="crumb.path" class="crumb" @click="go(crumb.path)">{{ crumb.label }}</button>
-          <span v-else class="crumb">{{ crumb.label }}</span>
-          <span v-if="index < crumbs.length - 1" class="crumb-sep">/</span>
-        </template>
-      </nav>
-    </div>
     <div class="topbar-actions">
       <button
         class="search-trigger"
@@ -48,20 +37,46 @@
         <Icon name="bell" />
         <span v-if="unread > 0" class="notif-dot"></span>
       </button>
-      <button
-        class="user-chip"
-        :aria-label="`打开个人中心：${avatar} ${displayName} ${roleLabel}`"
-        @click="go(profilePath)"
-      >
-        <span class="user-avatar">{{ avatar }}</span>
-        <span class="user-text">
-          <b>{{ displayName }}</b>
-          <small>{{ roleLabel }}</small>
-        </span>
-      </button>
       <button class="nav-toggle" aria-label="打开导航" @click="mobileNavOpen = true">
         <Icon name="menu" />
       </button>
+      <div class="user-menu">
+        <button
+          class="user-chip"
+          aria-haspopup="menu"
+          :aria-expanded="userMenuOpen ? 'true' : 'false'"
+          :aria-label="`账号菜单：${avatar} ${displayName} ${roleLabel}`"
+          @click="userMenuOpen = !userMenuOpen"
+          @keydown.esc="userMenuOpen = false"
+        >
+          <span class="user-avatar">{{ avatar }}</span>
+          <span class="user-text">
+            <b>{{ displayName }}</b>
+            <small>{{ roleLabel }}</small>
+          </span>
+          <Icon class="user-caret" name="chevron" />
+        </button>
+        <!-- 透明遮罩：点面板外任意处收起菜单；面板自身 z 更高不受影响 -->
+        <div v-if="userMenuOpen" class="user-menu-scrim" aria-hidden="true" @click="userMenuOpen = false"></div>
+        <div v-if="userMenuOpen" class="user-dropdown" role="menu" :aria-label="`${displayName} 的账号菜单`" @keydown.esc="userMenuOpen = false">
+          <div class="user-dropdown-head">
+            <span class="user-avatar">{{ avatar }}</span>
+            <span class="user-text">
+              <b>{{ displayName }}</b>
+              <small>{{ roleLabel }}</small>
+            </span>
+          </div>
+          <button class="user-menu-item" role="menuitem" @click="goProfile">
+            <Icon name="user" />
+            <span>个人中心</span>
+          </button>
+          <div class="user-menu-sep" role="separator"></div>
+          <button class="user-menu-item user-menu-item--danger" role="menuitem" @click="onLogout">
+            <Icon name="logout" />
+            <span>退出登录</span>
+          </button>
+        </div>
+      </div>
     </div>
   </header>
 </template>
@@ -71,21 +86,23 @@ import { computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import Icon from './Icon.vue'
 import { useUi } from '../composables/ui'
-import { ROLE_HOME, courseTabs, pageDef, type Role } from '../nav'
+import { ROLE_HOME, type Role } from '../nav'
+import { clearCourses } from '../data/api'
 
 const route = useRoute()
 const router = useRouter()
 const {
+  auth,
   role,
   roleLabel,
   displayName,
   avatar,
   theme,
   toggleTheme,
-  sidebarCollapsed,
   mobileNavOpen,
   paletteOpen,
   notifOpen,
+  userMenuOpen,
   unread,
   courseContext,
   toast,
@@ -95,31 +112,25 @@ const roleValue = computed(() => role.value as Role)
 const profilePath = computed(() => `/${role.value}/profile`)
 const aiPath = computed(() => `/${role.value}/assistant`)
 
+// AI 助手入口仍依赖课程上下文（课程内直达课程 AI 页签）
 const isCourse = computed(() => Boolean(route.meta.courseSpace))
 const courseId = computed(() => Number(route.params.id) || courseContext.id || 0)
-const tabs = computed(() => courseTabs(roleValue.value))
-const tabId = computed(() => String(route.params.tab || 'overview'))
-const tabLabel = computed(() => tabs.value.find((tab) => tab.id === tabId.value)?.label || '')
-const courseLabel = computed(
-  () => courseContext.name || (courseId.value ? `课程 #${courseId.value}` : '课程'),
-)
-
-const crumbs = computed<Array<{ label: string; path?: string }>>(() => {
-  if (isCourse.value) {
-    const base = `/${role.value}/courses`
-    return [
-      { label: role.value === 'admin' ? '课程目录' : '我的课程', path: base },
-      { label: courseLabel.value, path: `${base}/${courseId.value}/overview` },
-      ...(tabId.value === 'overview' ? [] : [{ label: tabLabel.value }]),
-    ]
-  }
-  const page = String(route.meta.pageKey || '')
-  const def = pageDef(roleValue.value, page)
-  return [{ label: def.title }]
-})
 
 function go(path: string) {
   router.push(path)
+}
+
+function goProfile() {
+  userMenuOpen.value = false
+  router.push(profilePath.value)
+}
+
+// 与原侧栏退出按钮同口径：清课程缓存 → 登出 → 回登录页
+async function onLogout() {
+  userMenuOpen.value = false
+  clearCourses()
+  await auth.logout()
+  router.push('/login')
 }
 
 function openAssistant() {

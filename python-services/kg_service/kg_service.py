@@ -68,7 +68,10 @@ class RelationIn(BaseModel):
 class PathPlanIn(BaseModel):
     source_id: int = Field(ge=1)
     target_id: int = Field(ge=1)
-    max_hops: int = Field(2, ge=1, le=5)
+    # 上限 12：与前端「最大跳数」输入上限(8)对齐并留余量——课程图谱的学习链
+    # 普遍可达 9~10 跳（如「计算机网络的定义与组成」→「TCP拥塞控制」），
+    # 旧上限 5 会让超过 5 跳的点对一律查空，Java 端被迫降级为本地 BFS（mode=LOCAL）。
+    max_hops: int = Field(2, ge=1, le=12)
 
 
 class IngestNodeIn(BaseModel):
@@ -97,7 +100,8 @@ class IngestIn(BaseModel):
 
 class SubGraphIn(BaseModel):
     course_id: int = Field(ge=1)
-    max_hops: int = Field(2, ge=1, le=5)
+    # 与 PathPlanIn 同口径放宽至 12（见其注释）
+    max_hops: int = Field(2, ge=1, le=12)
 
 
 # ---------------- 端点 ----------------

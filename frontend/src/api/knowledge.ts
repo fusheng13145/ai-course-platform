@@ -5,6 +5,11 @@ import { type ApiEnvelope, type ApiData } from '@/utils/response'
 export const getKnowledgePoints = (courseId: number | string): Promise<ApiEnvelope<ApiData>> =>
   request.get('/knowledge/points', { params: { courseId } }) as Promise<ApiEnvelope<ApiData>>
 /**
+ * 单个知识点详情（含 description / estimatedTime，图谱节点负载不含这两个字段）
+ */
+export const getKnowledgePointById = (id: number | string): Promise<ApiEnvelope<ApiData>> =>
+  request.get(`/knowledge/points/${id}`) as Promise<ApiEnvelope<ApiData>>
+/**
  * 导出函数 createKnowledgePoint：创建/新增数据
  */
 export const createKnowledgePoint = (
@@ -157,6 +162,7 @@ export const importKnowledgePointsExcel = (
  */
 export default {
   getKnowledgePoints,
+  getKnowledgePointById,
   createKnowledgePoint,
   updateKnowledgePoint,
   deleteKnowledgePoint,

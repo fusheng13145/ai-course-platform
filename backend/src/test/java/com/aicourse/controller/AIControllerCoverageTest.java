@@ -84,6 +84,8 @@ class AIControllerCoverageTest extends ControllerTestBase {
     private AiChatSessionService aiChatSessionService;
     @MockitoBean
     private LearningRecommendationService learningRecommendationService;
+    @MockitoBean
+    private com.aicourse.service.KnowledgePointService knowledgePointService;
 
     /**
      * 会话夹具。owner 必须显式给出：库里 ai_chat_sessions.user_id 是 NOT NULL，

@@ -111,7 +111,7 @@ export function navGroups(role: Role): NavGroup[] {
     groups.splice(at, 0, {
       label: '试题与学情',
       items: [
-        { id: 'bank', label: '题库管理', icon: 'doc', path: PATHS.teacher.bank },
+        { id: 'bank', label: '题库管理', icon: 'file', path: PATHS.teacher.bank },
         { id: 'exams', label: '试卷库', icon: 'clipboard', path: PATHS.teacher.exams },
         { id: 'grades', label: '成绩管理', icon: 'award', path: PATHS.teacher.grades },
       ],
@@ -133,7 +133,7 @@ export function navGroups(role: Role): NavGroup[] {
         {
           id: 'adminQuestions',
           label: '题库管理',
-          icon: 'doc',
+          icon: 'file',
           path: PATHS.admin.adminQuestions,
         },
         {
@@ -163,7 +163,7 @@ export const COURSE_TABS = navData.course_tabs as Record<Role, CourseTab[]>
 export const ADMIN_COURSE_TABS = navData.admin_course_tabs as CourseTab[]
 
 const TEACHER_EXTRA_TABS: CourseTab[] = [
-  { id: 'bank', label: '课程题库', icon: 'doc' },
+  { id: 'bank', label: '课程题库', icon: 'file' },
   { id: 'proctor', label: '在线监考', icon: 'shield' },
 ]
 
