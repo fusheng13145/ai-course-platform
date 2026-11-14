@@ -65,9 +65,12 @@ public class ExamSessionGradingService {
             throw new BusinessException("考试会话不存在");
         }
         if (!ExamSessionStatus.SUBMITTED.equals(session.getStatus()) && !ExamSessionStatus.FORCE_SUBMITTED.equals(session.getStatus())
-                && !ExamSessionStatus.TIMEOUT.equals(session.getStatus()) && !ExamSessionStatus.AUTO_SUBMITTED.equals(session.getStatus())) {
+                && !ExamSessionStatus.TIMEOUT.equals(session.getStatus()) && !ExamSessionStatus.AUTO_SUBMITTED.equals(session.getStatus())
+                && !ExamSessionStatus.GRADED.equals(session.getStatus())) {
             throw new BusinessException("试卷尚未提交，无法进行自动阅卷");
         }
+        // GRADED 放行进入下方人工分守卫：无人工分（纯客观题）时重算是安全的重复触发；
+        // 含人工分时由守卫整体拒绝，防止抹掉教师 manualGrade 的人工分（修复 A-01 #3）。
 
         // 解析学生答案
         Map<String, Object> studentAnswers = parseJsonToMap(session.getAnswers());
@@ -98,6 +101,26 @@ public class ExamSessionGradingService {
         List<Question> gradedQuestions = questionService.listByIds(questionIds);
         if (gradedQuestions != null) {
             for (Question q : gradedQuestions) questionMap.put(q.getId(), q);
+        }
+
+        // 修复 A-01 #3：自动阅卷不得抹掉教师人工分。
+        // 人工分标记：人工阅卷只允许发生在 GRADED 态，且会把自动判分写入主观题的 -1（待人工评分）
+        // 哨兵改写为 ≥0 的真实分——故 questionScores 中「可人工判分题型且得分 ≥0」即视为已含人工分
+        // （ExamSession 无独立 grader 字段，这是不改表结构前提下唯一可靠的判定口径）。
+        // 此类会话拒绝整体重算；客观题分值恒 ≥0、无法与人工改分区分，随会话一并保护。
+        if (ExamSessionStatus.GRADED.equals(session.getStatus())) {
+            Map<Long, BigDecimal> existingScores = parseScoresJson(session.getQuestionScores());
+            for (ExamQuestion eq : examQuestions) {
+                Question question = questionMap.get(eq.getQuestionId());
+                if (question == null) {
+                    continue;
+                }
+                BigDecimal previousScore = existingScores.get(eq.getQuestionId());
+                if (previousScore != null && previousScore.compareTo(BigDecimal.ZERO) >= 0
+                        && isManuallyGradable(question.getType())) {
+                    throw new BusinessException("该会话已含人工评分，不能重复自动阅卷");
+                }
+            }
         }
 
         for (ExamQuestion eq : examQuestions) {
@@ -297,6 +320,17 @@ public class ExamSessionGradingService {
     }
 
     // ==================== 私有辅助方法 ====================
+
+    /**
+     * 判断题型是否可被人工阅卷改写（自动判分对其写 -1 待评哨兵）。
+     * 客观题型（单选/多选/判断）自动判分直接给 0~满分，其余题型（含未知题型）均为人工批阅对象。
+     */
+    private boolean isManuallyGradable(String questionType) {
+        return switch (questionType == null ? "" : questionType) {
+            case "SINGLE_CHOICE", "SINGLE", "MULTIPLE_CHOICE", "MULTIPLE", "TRUE_FALSE", "JUDGE" -> false;
+            default -> true;
+        };
+    }
 
     /**
      * 解析简单JSON字符串为Map

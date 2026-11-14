@@ -2,6 +2,7 @@ package com.aicourse.service.impl;
 
 
 import com.aicourse.constant.ExamSessionStatus;
+import com.aicourse.common.ApiCode;
 import com.aicourse.entity.ExamPaper;
 import com.aicourse.entity.ExamPaperStatus;
 import com.aicourse.entity.ExamQuestion;
@@ -54,6 +55,59 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
         this.questionService = questionService;
         this.notificationService = notificationService;
         this.examSessionMapper = examSessionMapper;
+    }
+
+    /**
+     * 更新试卷基础信息（PUT 更新路径专用）。
+     *
+     * <p><b>修复 A-02 #5</b>：状态字段白名单——status / isActive / creatorId 一律置 null 剔除出
+     * UPDATE SET（MyBatis-Plus 默认按非空字段更新），请求体携带 {@code status:"PUBLISHED"}
+     * 无法再绕过审核直发，审核流转只能走 submitExamPaperForReview / approve / reject 专用端点。</p>
+     *
+     * <p><b>修复 A-02 #8</b>：显式传入 totalScore 时校验其与题目分值合计一致；卷面尚未配置题目
+     * （create 后先建卷后配题的既有流程）时跳过校验，总分以教师申报值为准。</p>
+     */
+    @Override
+    @Transactional(rollbackFor = Exception.class)
+    @CacheEvict(cacheNames = "examPapers", key = "#paperId")
+    public ExamPaper updateExamPaper(Long paperId, ExamPaper patch) {
+        ExamPaper existing = this.getById(paperId);
+        if (existing == null) {
+            throw new BusinessException(ApiCode.NOT_FOUND, "试卷不存在：" + paperId);
+        }
+        // 状态/归属字段不透传：置 null 后由 updateById 的非空更新策略从 SET 子句剔除
+        patch.setId(paperId);
+        patch.setStatus(null);
+        patch.setIsActive(null);
+        patch.setCreatorId(null);
+        if (patch.getTotalScore() != null) {
+            assertTotalScoreMatchesQuestions(paperId, patch.getTotalScore());
+        }
+        this.updateById(patch);
+        return this.getById(paperId);
+    }
+
+    /**
+     * 卷面总分一致性校验：已配置题目的试卷，显式传入的 totalScore 必须等于各题分值合计，
+     * 否则人工阅卷重算百分比时以 paper.totalScore 为分母，错位总分导致成绩失真。
+     */
+    private void assertTotalScoreMatchesQuestions(Long paperId, BigDecimal declaredTotalScore) {
+        List<ExamQuestion> questions = examQuestionService.list(new LambdaQueryWrapper<ExamQuestion>()
+                .eq(ExamQuestion::getExamPaperId, paperId));
+        if (questions.isEmpty()) {
+            return;
+        }
+        BigDecimal questionSum = BigDecimal.ZERO;
+        for (ExamQuestion eq : questions) {
+            if (eq.getPoints() != null) {
+                questionSum = questionSum.add(eq.getPoints());
+            }
+        }
+        if (questionSum.compareTo(declaredTotalScore) != 0) {
+            throw new BusinessException(ApiCode.BAD_REQUEST,
+                    "试卷总分与题目分值合计不一致：总分=" + declaredTotalScore.stripTrailingZeros().toPlainString()
+                            + "，题目合计=" + questionSum.stripTrailingZeros().toPlainString());
+        }
     }
 
     /**
@@ -472,7 +526,14 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
                 computedTotal = computedTotal.add(points);
             }
         }
-        BigDecimal paperTotalScore = dto.getTotalScore() != null ? dto.getTotalScore() : computedTotal;
+        // 修复 A-02 #8：dto.totalScore 显式传入时必须与题目分值合计一致，
+        // 否则落库总分与卷面题目脱节，人工阅卷百分比随之错算——拒绝而非静默覆盖。
+        if (dto.getTotalScore() != null && dto.getTotalScore().compareTo(computedTotal) != 0) {
+            throw new BusinessException(ApiCode.BAD_REQUEST,
+                    "总分与题目分值合计不一致：传入=" + dto.getTotalScore().stripTrailingZeros().toPlainString()
+                            + "，题目合计=" + computedTotal.stripTrailingZeros().toPlainString());
+        }
+        BigDecimal paperTotalScore = computedTotal;
 
         ExamPaper examPaper = new ExamPaper();
         examPaper.setTitle(paperTitle);
@@ -524,6 +585,13 @@ public class ExamPaperServiceImpl extends ServiceImpl<ExamPaperMapper, ExamPaper
         }
         if (questions == null || questions.isEmpty()) {
             throw new BusinessException("题目清单不能为空");
+        }
+        // 修复 A-02 #7：状态门禁——仅 DRAFT/REJECTED 允许替换题目。
+        // PUBLISHED 试卷可能已有进行中的考试会话（startExam 仅放行 PUBLISHED），
+        // 换题改分会篡改在考学生的题目与判分口径；PENDING_REVIEW 冻结待审内容，同样禁止改题。
+        String paperStatus = examPaper.getStatus();
+        if (!ExamPaperStatus.DRAFT.name().equals(paperStatus) && !ExamPaperStatus.REJECTED.name().equals(paperStatus)) {
+            throw new BusinessException("试卷当前状态（" + paperStatus + "）不允许替换题目，仅草稿/已驳回试卷可编辑");
         }
 
         // 题目合法性校验：题目必须存在，且属于该试卷课程题库（防跨课程拼卷）

@@ -99,6 +99,8 @@ class TeacherControllerCoverageTest extends ControllerTestBase {
     @MockitoBean private CourseEnrollmentService enrollmentService;
     @MockitoBean private TeacherCourseService teachingService;
     @MockitoBean private KnowledgePointService knowledgePointService;
+    /** 2026-11-13 对象级收口：/teacher/questions/import 逐题课程归属校验走 CourseAccessControl。 */
+    @MockitoBean private com.aicourse.security.CourseAccessControl courseAccessControl;
 
     @BeforeEach
     void registerEntityMetadata() {
@@ -499,12 +501,12 @@ class TeacherControllerCoverageTest extends ControllerTestBase {
     // ==================== JSON 批量导入：循环体 ====================
 
     @Test
-    @DisplayName("POST /teacher/questions/import - 非空列表：逐条 save 并回显 importedCount")
+    @DisplayName("POST /teacher/questions/import - 非空列表：逐题过课程归属校验后逐条 save 并回显 importedCount")
     void importQuestions_nonEmptyList_savesEach() throws Exception {
         when(questionService.save(any(Question.class))).thenReturn(true);
 
         mockMvc.perform(post("/teacher/questions/import").contentType(MediaType.APPLICATION_JSON)
-                        .content("[{\"content\":\"题干一\"},{\"content\":\"题干二\"},{\"content\":\"题干三\"}]")
+                        .content("[{\"content\":\"题干一\",\"courseId\":1},{\"content\":\"题干二\",\"courseId\":1},{\"content\":\"题干三\",\"courseId\":1}]")
                         .with(withUser(TEACHER_ID, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
@@ -512,6 +514,8 @@ class TeacherControllerCoverageTest extends ControllerTestBase {
                 // JSON 导入路径不回填 total（VO 的 total 为 null 时键缺失，前端零改动）
                 .andExpect(jsonPath("$.data.total").doesNotExist());
 
+        // 2026-11-13 收口：逐题课程归属校验（同 QuestionController.batchImport 口径）
+        verify(courseAccessControl, times(3)).assertCanManageCourse(eq(1L), any());
         verify(questionService, times(3)).save(any(Question.class));
     }
 

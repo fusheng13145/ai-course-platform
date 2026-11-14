@@ -199,17 +199,19 @@ class ExamPaperControllerTest extends ControllerTestBase {
     }
 
     @Test
-    @DisplayName("PUT /exam-papers/1 - 教师更新试卷返回200，ID透传")
+    @DisplayName("PUT /exam-papers/1 - 教师更新试卷返回200，走服务层 updateExamPaper（白名单/总分校验收口）")
     void update_authorized_passes_security() throws Exception {
         ExamPaper paper = new ExamPaper();
         paper.setId(1L);
         when(examPaperService.getById(eq(1L))).thenReturn(paper);
+        when(examPaperService.updateExamPaper(eq(1L), any())).thenReturn(paper);
         mockMvc.perform(put("/exam-papers/1").contentType(MediaType.APPLICATION_JSON).content("{\"title\":\"测试试卷\"}")
                         .with(withUser(1L, "TEACHER", "ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
-        verify(examPaperService).updateById(any());
+        verify(examPaperService).updateExamPaper(eq(1L), any());
+        verify(examPaperService, never()).updateById(any());
     }
 
     @Test
@@ -478,6 +480,10 @@ class ExamPaperControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /exam-papers/1/copy - 教师复制试卷返回200，ID透传")
     void copy_authorized_passes_security() throws Exception {
+        ExamPaper source = new ExamPaper();
+        source.setId(1L);
+        source.setCourseId(10L);
+        when(examPaperService.getById(eq(1L))).thenReturn(source);
         ExamPaper paper = new ExamPaper();
         paper.setId(1L);
         when(examPaperService.copyExamPaper(eq(1L), any())).thenReturn(paper);
@@ -486,7 +492,28 @@ class ExamPaperControllerTest extends ControllerTestBase {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
+        // 修复 A-02 #6：复制前必须先对源试卷做对象级 ACL 校验
+        verify(examPaperAccessControl).assertCanManage(any(), any());
         verify(examPaperService).copyExamPaper(eq(1L), any());
+    }
+
+    // A-02 #6 回归：复制源试卷须对源课程有管理权，否则任意教师可复制他师试卷
+    // 并经 /detail 读取全部题目与标准答案。
+    @Test
+    @DisplayName("POST /exam-papers/1/copy - 非源课程授课教师复制返回403且不执行复制")
+    void copy_withoutManagePermission_forbidden_403() throws Exception {
+        ExamPaper source = new ExamPaper();
+        source.setId(1L);
+        source.setCourseId(10L);
+        when(examPaperService.getById(eq(1L))).thenReturn(source);
+        doThrow(new com.aicourse.exception.BusinessException(com.aicourse.common.ApiCode.FORBIDDEN,
+                "无权操作其他教师课程的试卷"))
+                .when(examPaperAccessControl).assertCanManage(any(), any());
+        mockMvc.perform(post("/exam-papers/1/copy").contentType(MediaType.APPLICATION_JSON).content("{\"newTitle\":\"副本\"}")
+                        .with(withUser(2L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+        verify(examPaperService, never()).copyExamPaper(anyLong(), any());
     }
 
     @Test

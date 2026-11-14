@@ -27,6 +27,13 @@ class ProctorControllerTest extends ControllerTestBase {
     @MockitoBean
     private com.aicourse.service.ProctorService proctorService;
 
+    /**
+     * 2026-11-13 对象级收口：监考全链经 proctor session→exam_session→course 溯源做课程归属校验。
+     * 本切片只验路由与信封透传，替身默认不拦截；归属判定语义由 403 回归用例覆盖。
+     */
+    @MockitoBean
+    private com.aicourse.security.ExamSessionAccessControl examSessionAccessControl;
+
     @Test
     @DisplayName("POST /proctor/session/start - STUDENT 开始监考返回 code=200 且字段透传")
     void start_authorized_passes_security() throws Exception {
@@ -107,6 +114,11 @@ class ProctorControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /proctor/session/1/end - STUDENT 结束监考返回 code=200 且字段透传")
     void end_authorized_passes_security() throws Exception {
+        // 2026-11-13 收口：结束前校验会话归属（与 logEvent 同口径）
+        ProctorSession owned = new ProctorSession();
+        owned.setId(1L);
+        owned.setStudentId(1L);
+        when(proctorService.getById(1L)).thenReturn(owned);
         ProctorSession session = new ProctorSession();
         session.setId(1L);
         session.setStatus("ENDED");
@@ -117,7 +129,23 @@ class ProctorControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
 
+        verify(proctorService).getById(eq(1L));
         verify(proctorService).endSession(eq(1L));
+    }
+
+    @Test
+    @DisplayName("POST /proctor/session/1/end - 学生结束他人监考会话返回403且不落服务")
+    void end_otherStudentsSession_forbidden_403() throws Exception {
+        ProctorSession others = new ProctorSession();
+        others.setId(1L);
+        others.setStudentId(999L);
+        when(proctorService.getById(1L)).thenReturn(others);
+
+        mockMvc.perform(post("/proctor/session/1/end").with(withUser(1L, "STUDENT")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        verify(proctorService, never()).endSession(anyLong());
     }
 
 
@@ -140,6 +168,11 @@ class ProctorControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /proctor/session/1/events - TEACHER 查询事件列表返回 code=200 且为数组")
     void events_authorized_passes_security() throws Exception {
+        // 2026-11-13 收口：先取监考会话做 exam_session→course 溯源，再返回事件列表
+        ProctorSession session = new ProctorSession();
+        session.setId(1L);
+        session.setExamSessionId(1L);
+        when(proctorService.getById(1L)).thenReturn(session);
         ProctorEvent event = new ProctorEvent();
         event.setId(5L);
         when(proctorService.listEvents(anyLong())).thenReturn(List.of(event));
@@ -150,7 +183,26 @@ class ProctorControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.data").isArray())
                 .andExpect(jsonPath("$.data[0].id").value(5));
 
+        verify(proctorService).getById(eq(1L));
+        verify(examSessionAccessControl).assertManageable(eq(1L), any());
         verify(proctorService).listEvents(eq(1L));
+    }
+
+    @Test
+    @DisplayName("GET /proctor/session/1/events - 他课教师（无课程管理权）返回403且不查事件")
+    void events_crossCourseTeacher_forbidden_403() throws Exception {
+        ProctorSession session = new ProctorSession();
+        session.setId(1L);
+        session.setExamSessionId(1L);
+        when(proctorService.getById(1L)).thenReturn(session);
+        doThrow(new com.aicourse.exception.BusinessException(com.aicourse.common.ApiCode.FORBIDDEN, "无权管理其他教师的考试"))
+                .when(examSessionAccessControl).assertManageable(eq(1L), any());
+
+        mockMvc.perform(get("/proctor/session/1/events").with(withUser(2L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        verify(proctorService, never()).listEvents(anyLong());
     }
 
 
@@ -208,7 +260,21 @@ class ProctorControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.data").isArray())
                 .andExpect(jsonPath("$.data[0].studentId").value(1));
 
+        verify(examSessionAccessControl).assertManageable(eq(1L), any());
         verify(proctorService).riskSummary(eq(1L));
+    }
+
+    @Test
+    @DisplayName("GET /proctor/exam/1/risk - 他课教师（无课程管理权）返回403且不查汇总")
+    void risk_crossCourseTeacher_forbidden_403() throws Exception {
+        doThrow(new com.aicourse.exception.BusinessException(com.aicourse.common.ApiCode.FORBIDDEN, "无权管理其他教师的考试"))
+                .when(examSessionAccessControl).assertManageable(eq(1L), any());
+
+        mockMvc.perform(get("/proctor/exam/1/risk").with(withUser(2L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        verify(proctorService, never()).riskSummary(anyLong());
     }
 
 
@@ -292,17 +358,43 @@ class ProctorControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("GET /proctor/events/1 - TEACHER 查询事件返回 code=200 且字段透传")
     void getEvent_authorized_passes_security() throws Exception {
+        // 2026-11-13 收口：event → proctor session → exam_session → course 溯源后再返回
         ProctorEvent event = new ProctorEvent();
         event.setId(1L);
         event.setType("TAB_SWITCH");
+        event.setProctorSessionId(1L);
         when(proctorService.getEvent(anyLong())).thenReturn(event);
+        ProctorSession session = new ProctorSession();
+        session.setId(1L);
+        session.setExamSessionId(1L);
+        when(proctorService.getById(1L)).thenReturn(session);
 
         mockMvc.perform(get("/proctor/events/1").with(withUser(1L, "TEACHER")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
 
+        verify(examSessionAccessControl).assertManageable(eq(1L), any());
         verify(proctorService).getEvent(eq(1L));
+    }
+
+    @Test
+    @DisplayName("GET /proctor/events/1 - 他课教师（无课程管理权）返回403")
+    void getEvent_crossCourseTeacher_forbidden_403() throws Exception {
+        ProctorEvent event = new ProctorEvent();
+        event.setId(1L);
+        event.setProctorSessionId(1L);
+        when(proctorService.getEvent(anyLong())).thenReturn(event);
+        ProctorSession session = new ProctorSession();
+        session.setId(1L);
+        session.setExamSessionId(1L);
+        when(proctorService.getById(1L)).thenReturn(session);
+        doThrow(new com.aicourse.exception.BusinessException(com.aicourse.common.ApiCode.FORBIDDEN, "无权管理其他教师的考试"))
+                .when(examSessionAccessControl).assertManageable(eq(1L), any());
+
+        mockMvc.perform(get("/proctor/events/1").with(withUser(2L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
     }
 
 
@@ -325,10 +417,19 @@ class ProctorControllerTest extends ControllerTestBase {
     @Test
     @DisplayName("POST /proctor/events/1/review - TEACHER 复核事件返回 code=200 且字段透传")
     void reviewEvent_authorized_passes_security() throws Exception {
+        // 2026-11-13 收口：仅加课程管理权前置，复核/豁免触发重算回撤分的服务层逻辑不动
         ProctorEvent event = new ProctorEvent();
         event.setId(1L);
-        event.setStatus("REVIEWED");
-        when(proctorService.reviewEvent(anyLong(), any(), any(), anyLong())).thenReturn(event);
+        event.setProctorSessionId(1L);
+        when(proctorService.getEvent(anyLong())).thenReturn(event);
+        ProctorSession session = new ProctorSession();
+        session.setId(1L);
+        session.setExamSessionId(1L);
+        when(proctorService.getById(1L)).thenReturn(session);
+        ProctorEvent reviewed = new ProctorEvent();
+        reviewed.setId(1L);
+        reviewed.setStatus("REVIEWED");
+        when(proctorService.reviewEvent(anyLong(), any(), any(), anyLong())).thenReturn(reviewed);
 
         mockMvc.perform(post("/proctor/events/1/review").contentType(MediaType.APPLICATION_JSON)
                         .content("{\"status\":\"REVIEWED\",\"reviewNote\":\"ok\"}").with(withUser(1L, "TEACHER")))
@@ -336,7 +437,30 @@ class ProctorControllerTest extends ControllerTestBase {
                 .andExpect(jsonPath("$.code").value(200))
                 .andExpect(jsonPath("$.data.id").value(1));
 
+        verify(examSessionAccessControl).assertManageable(eq(1L), any());
         verify(proctorService).reviewEvent(eq(1L), any(), any(), eq(1L));
+    }
+
+    @Test
+    @DisplayName("POST /proctor/events/1/review - 他课教师（无课程管理权）返回403且不触发复核重算")
+    void reviewEvent_crossCourseTeacher_forbidden_403() throws Exception {
+        ProctorEvent event = new ProctorEvent();
+        event.setId(1L);
+        event.setProctorSessionId(1L);
+        when(proctorService.getEvent(anyLong())).thenReturn(event);
+        ProctorSession session = new ProctorSession();
+        session.setId(1L);
+        session.setExamSessionId(1L);
+        when(proctorService.getById(1L)).thenReturn(session);
+        doThrow(new com.aicourse.exception.BusinessException(com.aicourse.common.ApiCode.FORBIDDEN, "无权管理其他教师的考试"))
+                .when(examSessionAccessControl).assertManageable(eq(1L), any());
+
+        mockMvc.perform(post("/proctor/events/1/review").contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"status\":\"EXEMPTED\",\"reviewNote\":\"豁免\"}").with(withUser(2L, "TEACHER")))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.code").value(403));
+
+        verify(proctorService, never()).reviewEvent(anyLong(), any(), any(), anyLong());
     }
 
 

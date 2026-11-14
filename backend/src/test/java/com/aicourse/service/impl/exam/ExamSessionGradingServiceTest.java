@@ -367,6 +367,56 @@ class ExamSessionGradingServiceTest {
         assertEquals("考试会话不存在", ex.getMessage());
     }
 
+    // ==================== A-01 #3：人工分保护 ====================
+
+    /**
+     * A-01 #3 回归：GRADED 会话的主观题已被人工改分（questionScores 中 -1 哨兵被改写为 ≥0），
+     * 重复触发自动阅卷必须整体拒绝，否则教师人工分与重算总分一并被覆盖。
+     */
+    @Test
+    @DisplayName("自动阅卷 - GRADED 且含人工分的会话拒绝整体重算（A-01 #3 回归）")
+    void testAutoGrade_gradedWithManualScore_rejected() throws Exception {
+        testSession.setStatus("GRADED");
+        testSession.setQuestionScores("{\"104\":7.5}"); // 主观题 104 由 -1 待评哨兵被人工改写为 7.5
+        testSession.setAnswers("{\"104\":\"我的简答作答\"}");
+        ExamQuestion eq = questionOf(104L, "SHORT_ANSWER", "参考答案", "10");
+
+        when(examSessionMapper.selectById(1L)).thenReturn(testSession);
+        when(examQuestionService.list(any(LambdaQueryWrapper.class))).thenReturn(List.of(eq));
+        when(questionService.listByIds(any())).thenReturn(List.of(questionMap.get(104L)));
+
+        BusinessException ex = assertThrows(BusinessException.class, () -> realGrader().autoGrade(1L));
+        assertTrue(ex.getMessage().contains("人工评分"),
+                "拒绝信息应说明已含人工分，实际=" + ex.getMessage());
+        // 不得发生任何写库：整实体重算被拒，人工分原样保留
+        verify(examSessionMapper, never()).updateById(any(ExamSession.class));
+    }
+
+    /**
+     * A-01 #3 回归的反向守护：GRADED 但全部为客观题（分值恒 ≥0，不构成人工分标记）时，
+     * 重算放行且结果结构与首次阅卷一致——避免把守卫做成「GRADED 一律拒绝」误伤合法重算。
+     */
+    @Test
+    @DisplayName("自动阅卷 - GRADED 且无人工分（纯客观题）允许重算且结果结构不变")
+    void testAutoGrade_gradedWithoutManualScore_allowed() throws Exception {
+        testSession.setStatus("GRADED");
+        testSession.setQuestionScores("{\"101\":5}");
+        testSession.setAnswers("{\"101\":\"B\"}");
+        ExamQuestion eq = questionOf(101L, "SINGLE_CHOICE", "B", "5");
+
+        when(examSessionMapper.selectById(1L)).thenReturn(testSession);
+        when(examQuestionService.list(any(LambdaQueryWrapper.class))).thenReturn(List.of(eq));
+        when(questionService.listByIds(any())).thenReturn(List.of(questionMap.get(101L)));
+        when(examSessionMapper.updateById(any(ExamSession.class))).thenReturn(1);
+
+        AutoGradeResultVO result = realGrader().autoGrade(1L);
+
+        assertEquals(0, new BigDecimal("5").compareTo(result.getTotalScore()));
+        assertEquals(1, result.getCorrectCount());
+        assertEquals(0, result.getPendingReviewCount());
+        assertEquals("GRADED", result.getStatus());
+    }
+
     // ==================== manualGrade ====================
 
     @Test
